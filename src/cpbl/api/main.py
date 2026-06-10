@@ -1,12 +1,11 @@
-"""FastAPI 服務：子專案契約 /api/info + 成績投影查詢端點。
+"""FastAPI 服務：子專案契約 /api/info + 本季數據 + 賽果預測端點。
 
-/api/info 是主站 InfoPoller 每 5 分鐘輪詢的端點，metrics 刻意設計成
-展示一個「活的 ML 系統」：模型版本、回測 MAE、投影球員數、資料新鮮度。
+/api/info 是主站 InfoPoller 每 5 分鐘輪詢的端點，metrics 展示這個 live 資料
+產品的狀態：收錄場次、本季完成數、投打/團隊涵蓋、今日預測數、資料新鮮度。
 """
 
 from __future__ import annotations
 
-from datetime import UTC
 from datetime import date as _date
 from typing import Any
 
@@ -46,36 +45,38 @@ def _scalar(sql: str, params: tuple = ()) -> Any:
 
 @app.get("/api/info")
 def info() -> dict:
-    """主站 InfoPoller 契約。永遠回 200；資料未就緒時 metrics 退化但仍可用。"""
+    """主站 InfoPoller 契約。永遠回 200；metrics 展示這個 live 資料產品的狀態。"""
     metrics: dict[str, Any] = {}
     status = "running"
     try:
-        metrics["batting_seasons"] = _scalar("SELECT count(*) FROM cpbl.batting_seasons") or 0
-        metrics["players"] = _scalar("SELECT count(*) FROM cpbl.players") or 0
-        metrics["seasons_covered"] = _scalar(
-            "SELECT count(DISTINCT year) FROM cpbl.batting_seasons"
+        season = DEFAULT_SEASON
+        games = _scalar("SELECT count(*) FROM cpbl.games") or 0
+        metrics["games_indexed"] = games
+        metrics["seasons_covered"] = _scalar("SELECT count(DISTINCT year) FROM cpbl.games") or 0
+        metrics["current_season"] = season
+        metrics["season_games_completed"] = _scalar(
+            "SELECT count(*) FROM cpbl.games WHERE year = %s AND home_score + away_score > 0", (season,)
         ) or 0
+        metrics["teams_tracked"] = _scalar(
+            "SELECT count(*) FROM cpbl.team_current WHERE year = %s", (season,)
+        ) or 0
+        metrics["pitchers_tracked"] = _scalar(
+            "SELECT count(*) FROM cpbl.pitching_current WHERE year = %s", (season,)
+        ) or 0
+        metrics["batters_tracked"] = _scalar(
+            "SELECT count(*) FROM cpbl.batting_current WHERE year = %s", (season,)
+        ) or 0
+        metrics["predictions_today"] = _scalar(
+            "SELECT count(*) FROM cpbl.games "
+            "WHERE year = %s AND home_score + away_score = 0 AND game_date = CURRENT_DATE", (season,)
+        ) or 0
+        last_game = _scalar(
+            "SELECT max(game_date) FROM cpbl.games WHERE home_score + away_score > 0"
+        )
+        metrics["last_game_date"] = last_game.isoformat() if last_game else None
 
-        mv = None
-        with conn() as c:
-            cur = c.cursor()
-            cur.execute(
-                "SELECT id, trained_at, cv_metrics FROM cpbl.model_versions "
-                "ORDER BY trained_at DESC LIMIT 1"
-            )
-            mv = cur.fetchone()
-        if mv:
-            metrics["model_version"] = mv[0]
-            metrics["last_trained_at"] = mv[1].astimezone(UTC).isoformat()
-            cv = mv[2] or {}
-            if "ops" in cv:
-                metrics["backtest_ops_mae"] = round(cv["ops"]["lgbm_mae"], 4)
-                metrics["beats_marcel_on_ops"] = cv["ops"]["lgbm_mae"] < cv["ops"]["marcel_mae"]
-            metrics["projections_stored"] = _scalar(
-                "SELECT count(*) FROM cpbl.projections WHERE model_version = %s", (mv[0],)
-            ) or 0
-        else:
-            status = "maintenance"  # 尚未訓練模型
+        if games == 0:
+            status = "maintenance"  # 尚未匯入任何賽事
     except Exception:  # noqa: BLE001 — info 端點不可拋錯，退化即可
         status = "maintenance"
 
