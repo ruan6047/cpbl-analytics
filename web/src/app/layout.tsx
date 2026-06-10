@@ -18,6 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </Link>
             <nav className="flex gap-4 text-sm text-white/50">
               <Link href="/" className="hover:text-emerald-400">本季戰績</Link>
+              <Link href="/batters" className="hover:text-emerald-400">打者排行</Link>
               <Link href="/predict" className="hover:text-emerald-400">賽果預測</Link>
             </nav>
           </div>

@@ -130,6 +130,42 @@ def batting_projections(
     return {"model_version": model_version, "stat": stat, "target_year": year, "items": items}
 
 
+@app.get("/api/v1/season/batting-leaders")
+def batting_leaders(
+    season: int = Query(DEFAULT_SEASON),
+    sort: str = Query("ops", pattern="^(ops|avg|obp|slg|hr|ops_plus)$"),
+    limit: int = Query(30, ge=1, le=100),
+) -> dict:
+    """本季打者進階排行（batting_current）。"""
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            f"""
+            SELECT b.player_id, b.name, t.name, b.pa, b.avg, b.obp, b.slg, b.ops,
+                   b.hr, b.ops_plus, b.k_pct, b.bb_pct
+            FROM cpbl.batting_current b
+            LEFT JOIN cpbl.team_current t ON t.team_code = b.team_code AND t.year = b.year
+            WHERE b.year = %s AND b.{sort} IS NOT NULL
+            ORDER BY b.{sort} DESC
+            LIMIT %s
+            """,
+            (season, limit),
+        )
+        items = [
+            {"player_id": pid, "name": name, "team": team, "pa": pa,
+             "avg": float(avg) if avg is not None else None,
+             "obp": float(obp) if obp is not None else None,
+             "slg": float(slg) if slg is not None else None,
+             "ops": float(ops) if ops is not None else None,
+             "hr": hr,
+             "ops_plus": float(opsp) if opsp is not None else None,
+             "k_pct": float(kp) if kp is not None else None,
+             "bb_pct": float(bbp) if bbp is not None else None}
+            for pid, name, team, pa, avg, obp, slg, ops, hr, opsp, kp, bbp in cur.fetchall()
+        ]
+    return {"season": season, "sort": sort, "items": items}
+
+
 @app.get("/api/v1/outcome/features")
 def outcome_features() -> dict:
     """賽果預測的候選特徵清單（含說明，給前端 checkbox + tooltip）。"""
