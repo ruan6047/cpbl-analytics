@@ -1,70 +1,51 @@
-import Link from "next/link";
 import { api } from "@/lib/api";
 
-const STATS = [
-  { key: "ops", label: "OPS" },
-  { key: "obp", label: "上壘率 OBP" },
-  { key: "slg", label: "長打率 SLG" },
-  { key: "avg", label: "打擊率 AVG" },
-];
-
-export default async function Home({
-  searchParams,
-}: {
-  searchParams: Promise<{ stat?: string }>;
-}) {
-  const { stat = "ops" } = await searchParams;
-  const data = await api.battingProjections(stat, 25);
+export default async function Home() {
+  const { season, standings } = await api.standings();
 
   return (
     <div>
-      <section className="mb-8">
-        <h1 className="text-2xl font-bold">
-          {data.target_year ?? ""} 球季成績預測排行
-        </h1>
+      <header className="mb-6">
+        <h1 className="text-2xl font-bold">{season} 球季 · 本季戰績</h1>
         <p className="mt-2 text-sm text-white/50">
-          以 Marcel 為 baseline,LightGBM 在時間切分回測上勝出後採用。
-          模型版本 <code className="text-emerald-400">{data.model_version ?? "—"}</code>。
+          由官網逐場結果即時彙整(資料更新至最近一次爬蟲)。場均得分 / 失分為攻守指標。
         </p>
-      </section>
+      </header>
 
-      <nav className="mb-4 flex gap-2">
-        {STATS.map((s) => (
-          <Link
-            key={s.key}
-            href={`/?stat=${s.key}`}
-            className={`rounded-full px-3 py-1 text-sm transition ${
-              stat === s.key
-                ? "bg-emerald-500 text-black"
-                : "bg-white/5 text-white/60 hover:bg-white/10"
-            }`}
-          >
-            {s.label}
-          </Link>
-        ))}
-      </nav>
-
-      <div className="overflow-hidden rounded-xl border border-white/10">
+      <div className="overflow-x-auto rounded-xl border border-white/10">
         <table className="w-full text-sm">
           <thead className="bg-white/5 text-left text-white/50">
             <tr>
-              <th className="px-4 py-3 font-medium">#</th>
-              <th className="px-4 py-3 font-medium">球員</th>
-              <th className="px-4 py-3 text-right font-medium">預測 {stat.toUpperCase()}</th>
+              <th className="px-3 py-3 font-medium">#</th>
+              <th className="px-3 py-3 font-medium">球隊</th>
+              <th className="px-3 py-3 text-right font-medium">勝–敗</th>
+              <th className="px-3 py-3 text-right font-medium">勝率</th>
+              <th className="px-3 py-3 text-right font-medium">得失差</th>
+              <th className="px-3 py-3 text-right font-medium" title="團隊整體攻擊指數">團隊OPS</th>
+              <th className="px-3 py-3 text-right font-medium" title="團隊防禦率">ERA</th>
+              <th className="px-3 py-3 text-right font-medium" title="團隊每局被上壘率">WHIP</th>
+              <th className="px-3 py-3 text-right font-medium">近10</th>
             </tr>
           </thead>
-          <tbody>
-            {data.items.map((p, i) => (
-              <tr key={p.player_id} className="border-t border-white/5 hover:bg-white/5">
-                <td className="px-4 py-3 text-white/40">{i + 1}</td>
-                <td className="px-4 py-3">
-                  <Link href={`/players/${p.player_id}`} className="hover:text-emerald-400">
-                    {p.name}
-                  </Link>
+          <tbody className="font-mono tabular-nums">
+            {standings.map((t, i) => (
+              <tr key={t.code} className="border-t border-white/5 hover:bg-white/5">
+                <td className="px-3 py-3 text-white/40">{i + 1}</td>
+                <td className="px-3 py-3 font-sans">{t.name}</td>
+                <td className="px-3 py-3 text-right">
+                  {t.w}–{t.l}
                 </td>
-                <td className="px-4 py-3 text-right font-mono tabular-nums">
-                  {p.predicted.toFixed(3)}
+                <td className="px-3 py-3 text-right text-emerald-400">{t.win_pct.toFixed(3)}</td>
+                <td
+                  className={`px-3 py-3 text-right ${t.run_diff >= 0 ? "text-emerald-400/80" : "text-rose-400/80"}`}
+                >
+                  {t.run_diff >= 0 ? "+" : ""}
+                  {t.run_diff.toFixed(2)}
                 </td>
+                <td className="px-3 py-3 text-right">{t.ops?.toFixed(3) ?? "—"}</td>
+                <td className="px-3 py-3 text-right">{t.era?.toFixed(2) ?? "—"}</td>
+                <td className="px-3 py-3 text-right">{t.whip?.toFixed(2) ?? "—"}</td>
+                <td className="px-3 py-3 text-right text-white/50">{t.form}</td>
               </tr>
             ))}
           </tbody>
