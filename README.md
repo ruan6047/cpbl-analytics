@@ -39,24 +39,35 @@ docker compose up -d db
 cp .env.example .env
 uv run cpbl-backfill
 
-# 4. 訓練 + 回測(印 Marcel vs LightGBM 對照表)
+# 4. 爬官網逐場賽程/結果（解鎖賽果預測的 game-level 資料）
+uv run cpbl-scrape-games 2023 2024    # 純 HTTP，無需 headless browser
+
+# 5. 訓練 + 回測(印 Marcel vs LightGBM 對照表)
 uv run cpbl-train
 
-# 5. 起 API
+# 6. 起 API
 uv run uvicorn cpbl.api.main:app --reload --port 4001
 # → http://localhost:4001/api/info
-# → http://localhost:4001/api/v1/projections/batting?stat=ops
+
+# 7. 起前端（另開終端機）
+cd web && npm install && API_URL=http://localhost:4001 npm run dev   # → :3000
 ```
+
+## 前端（`web/`）
+
+獨立 Next.js 15 app（App Router + Tailwind v4 + recharts）。Server Component 直接
+fetch FastAPI。頁面:成績預測排行（OPS/OBP/SLG/AVG 切換）+ 球員逐年打擊史與圖表。
 
 ## 專案結構
 
 ```
 src/cpbl/
-├── config.py            # 設定（env）
-├── db.py                # psycopg pool + migration runner
-├── ingest/opendata.py   # cpbl-opendata 回填（冪等 UPSERT）
-├── features/batting.py  # 特徵工程（lag 1~3 季 + 年齡 + 聯盟均值）
-├── models/marcel.py     # Marcel baseline
+├── config.py             # 設定（env）
+├── db.py                 # psycopg pool + migration runner
+├── ingest/opendata.py    # cpbl-opendata 逐年回填（冪等 UPSERT）
+├── ingest/cpbl_site.py   # 官網逐場爬蟲（anti-forgery token + getgamedatas）
+├── features/batting.py   # 特徵工程（lag 1~3 季 + 年齡 + 聯盟均值）
+├── models/marcel.py      # Marcel baseline
 ├── models/train.py      # LightGBM 訓練 + 時間切分回測 + 持久化
 └── api/main.py          # FastAPI（/api/info + 查詢）
 migrations/001_init.sql  # cpbl schema（season-level + ML 表）

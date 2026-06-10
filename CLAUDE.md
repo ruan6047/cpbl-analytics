@@ -44,14 +44,18 @@ cpbl-analytics/
 │   ├── config.py                 # 設定（env → Settings）
 │   ├── db.py                     # psycopg3 connection pool + migrate()
 │   ├── ingest/
-│   │   ├── opendata.py           # cpbl-opendata 回填（冪等 UPSERT）
-│   │   └── run_backfill.py       # CLI：migrate + backfill
+│   │   ├── opendata.py           # cpbl-opendata 逐年回填（冪等 UPSERT）
+│   │   ├── cpbl_site.py          # 官網逐場爬蟲（getgamedatas，見下方契約）
+│   │   ├── run_backfill.py       # CLI：migrate + backfill
+│   │   └── run_scrape.py         # CLI：爬逐場賽程/結果
 │   ├── features/
 │   │   └── batting.py            # 特徵工程（lag 1~3 季 + 年齡 + 聯盟均值）
 │   ├── models/
 │   │   ├── marcel.py             # Marcel baseline（加權 5/4/3 + 回歸均值 + 年齡曲線）
 │   │   └── train.py              # LightGBM 訓練 + 時間切分回測 + 持久化
 │   └── api/main.py               # FastAPI（/api/info + 投影查詢）
+├── web/                          # 獨立 Next.js 15 前端（App Router + Tailwind v4 + recharts）
+├── migrations/                   # 001_init（season + ML 表）、002_games（逐場）
 ├── Dockerfile                    # uv build → python slim runtime（裝 libgomp1）
 └── docker-compose.yml            # 本地：自帶 PG（port 5433）+ api
 ```
@@ -64,9 +68,11 @@ cpbl-analytics/
 uv sync                                   # 建 venv + 裝依賴
 docker compose up -d db                   # 起本地 PostgreSQL（5433）
 cp .env.example .env
-uv run cpbl-backfill                       # 套 migration + 回填歷史
+uv run cpbl-backfill                       # 套 migration + 回填歷史（逐年）
+uv run cpbl-scrape-games 2023 2024         # 爬官網逐場賽程/結果（純 HTTP）
 uv run cpbl-train                          # 訓練 + 回測（印 Marcel vs LGBM 對照）
 uv run uvicorn cpbl.api.main:app --reload --port 4001
+cd web && npm install && API_URL=http://localhost:4001 npm run dev   # 前端 :3000
 ```
 
 ### ⚠️ macOS 上的 LightGBM（重要）
@@ -138,16 +144,30 @@ URL（`http://cpbl-analytics:4001/api/info`）。
 | `cpbl.com.tw`（官網主站） | 逐場 box score、賽程 | **Vue SPA**，資料走內部 AJAX，初始 HTML 無資料 → 純 requests 解 HTML 行不通 |
 | `stats.cpbl.com.tw`（官方進階數據） | TrackMan 進階指標 | 獨立站，Phase 2+ |
 
-**爬官網的正確做法**：先逆向內部 AJAX endpoint（DevTools → Network → XHR），
-取得 JSON/HTML fragment；headless browser（Playwright）僅作備援（吃資源，VPS 不友善）。
+### 官網逐場 endpoint（已實測確認，見 `ingest/cpbl_site.py`）
+
+純 HTTP，**不需 headless browser**。流程：
+
+1. `GET /schedule` → 拿 session cookie + 從 inline JS 抽 token：
+   正規表式 `RequestVerificationToken:\s*'([^']+)'`。
+   ⚠️ **不是** hidden input 的 `__RequestVerificationToken`（那個會 500）。
+2. `POST /schedule/getgamedatas`：
+   - Header：`RequestVerificationToken: <上面抽到的 token>`（放 header，非 body）
+   - Body：`calendar=YYYY/01/01` + `location=` + `kindCode=A`（A=一軍例行賽）
+   - 回 `{"Success": true, "GameDatas": "<JSON 字串>"}`，GameDatas 需**二次** `json.loads`。
+3. 回傳含 GameSno / 比分 / 主客隊 / 先發投手 / 勝敗投（`*Acnt` 即 player_id）。
+
+擴充其他資料（box score 打席明細）時沿用同一 token 流程；官網改版導致抽不到
+token 時 `_new_session()` 會丟錯，據此判斷需更新正規表式。
 
 ---
 
 ## Roadmap
 
 - **Phase 1（已完成）**：opendata 回填 + 打擊成績預測（Marcel vs LightGBM）+ `/api/info` + 投影查詢。
-- **Phase 2**：當季增量爬蟲（官網逐場）→ 解鎖賽果預測；投手成績預測；進階數據（TrackMan）。
-- **Phase 3**：前端儀表板；submodule + compose + nginx 接主站正式上線。
+- **Phase 1.5（已完成）**：官網逐場爬蟲（games 表，含比分/先發投手）；獨立 Next.js 前端（投影排行 + 球員逐年圖表）。
+- **Phase 2（下一步）**：用 games 表做**賽果預測**（特徵：近期戰力/對戰/先發投手/主客）；投手成績預測；box score 打席明細；進階數據（TrackMan）。
+- **Phase 3**：submodule + compose + nginx 接主站正式上線（前端走 cpbl 子網域）。
 
 ---
 

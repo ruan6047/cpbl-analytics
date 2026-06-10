@@ -18,6 +18,7 @@ dependencies = [
 
 [project.scripts]
 cpbl-backfill = "cpbl.ingest.run_backfill:main"
+cpbl-scrape-games = "cpbl.ingest.run_scrape:main"
 cpbl-train = "cpbl.models.train:main"
 
 [dependency-groups]
