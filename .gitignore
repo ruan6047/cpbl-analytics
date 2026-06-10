@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Env / secrets
+.env
+.env.local
+
+# Data & model artifacts (regenerable)
+data/
+artifacts/
+*.txt.model
+*.lgb
+
+# OS
+.DS_Store

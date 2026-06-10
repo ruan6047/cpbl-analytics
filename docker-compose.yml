@@ -1,0 +1,36 @@
+# 本地開發用：自帶一個 PostgreSQL（port 5433，避免與主站 5432 衝突）。
+# 生產時不用這個檔，而是把 service 併入主站 docker-compose.prod.yml，
+# DATABASE_URL 指向主站 postgres（schema 仍為 cpbl）。
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: cpbl
+      POSTGRES_PASSWORD: cpbl
+      POSTGRES_DB: cpbl
+    ports:
+      - "5433:5432"
+    volumes:
+      - cpbl_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cpbl"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://cpbl:cpbl@db:5432/cpbl
+      PORT: "4001"
+    ports:
+      - "4001:4001"
+    volumes:
+      - cpbl_artifacts:/app/artifacts
+
+volumes:
+  cpbl_pgdata:
+  cpbl_artifacts:
