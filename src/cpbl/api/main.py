@@ -10,12 +10,31 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
 
 from cpbl import __version__
 from cpbl.config import settings
 from cpbl.db import conn
+from datetime import date as _date
+
+from cpbl.features.outcome import CANDIDATE_FEATURES, FEATURE_DESC
+from cpbl.models import matchup, outcome
+
+DEFAULT_SEASON = _date.today().year
 
 app = FastAPI(title="CPBL Analytics", version=__version__)
+
+# 公開唯讀 API；dev 時前端跨埠(:3000→:4001)需 CORS。prod 同源(經 nginx)不受影響。
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
+
+
+def _parse_features(features: str) -> list[str]:
+    return [f.strip() for f in features.split(",") if f.strip()]
 
 
 def _scalar(sql: str, params: tuple = ()) -> Any:
@@ -109,6 +128,97 @@ def batting_projections(
             for pid, name, pred, act in cur.fetchall()
         ]
     return {"model_version": model_version, "stat": stat, "target_year": year, "items": items}
+
+
+@app.get("/api/v1/outcome/features")
+def outcome_features() -> dict:
+    """賽果預測的候選特徵清單（含說明，給前端 checkbox + tooltip）。"""
+    return {
+        "features": [
+            {"key": k, "label": label, "desc": FEATURE_DESC.get(k, "")}
+            for k, label in CANDIDATE_FEATURES
+        ]
+    }
+
+
+@app.get("/api/v1/outcome/evaluate")
+def outcome_evaluate(features: str = Query(..., description="逗號分隔的特徵 key")) -> dict:
+    """用選定特徵子集即時 fit + 時間切分回測。"""
+    try:
+        return outcome.evaluate(_parse_features(features))
+    except ValueError as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/v1/outcome/teams")
+def outcome_teams(season: int = Query(DEFAULT_SEASON)) -> dict:
+    """當季球隊清單（給任選兩隊模擬的下拉選單）。"""
+    return {"season": season, "teams": matchup.list_teams(season)}
+
+
+def _team_advanced(season: int) -> dict[str, dict]:
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            "SELECT team_code, bat_ops, bat_hr, pit_era, pit_whip FROM cpbl.team_current WHERE year = %s",
+            (season,),
+        )
+        return {
+            code: {"ops": float(ops) if ops is not None else None,
+                   "hr": hr,
+                   "era": float(era) if era is not None else None,
+                   "whip": float(whip) if whip is not None else None}
+            for code, ops, hr, era, whip in cur.fetchall()
+        }
+
+
+@app.get("/api/v1/season/standings")
+def season_standings(season: int = Query(DEFAULT_SEASON)) -> dict:
+    """本季戰績榜（games 即時彙整 + team_current 團隊進階：OPS/ERA/WHIP）。"""
+    stats = matchup.team_stats(season)
+    adv = _team_advanced(season)
+    rows = [
+        {
+            "code": c, "name": v["name"], "w": v["w"], "l": v["l"], "g": v["g"],
+            "win_pct": round(v["win_pct"], 3),
+            "rs_pg": round(v["rs_pg"], 2), "ra_pg": round(v["ra_pg"], 2),
+            "run_diff": round(v["rs_pg"] - v["ra_pg"], 2),
+            "form": v["last10"],
+            "ops": adv.get(c, {}).get("ops"),
+            "era": adv.get(c, {}).get("era"),
+            "whip": adv.get(c, {}).get("whip"),
+        }
+        for c, v in stats.items()
+    ]
+    rows.sort(key=lambda r: (r["win_pct"], r["run_diff"]), reverse=True)
+    return {"season": season, "standings": rows}
+
+
+@app.get("/api/v1/outcome/matchups")
+def outcome_matchups(
+    features: str = Query(..., description="逗號分隔的變因 key"),
+    season: int = Query(DEFAULT_SEASON),
+    limit: int = Query(20, ge=1, le=60),
+) -> dict:
+    """今日起未開打賽事的對戰卡（含雙方真實數字 + 預設權重 + 標準化值 z）。"""
+    try:
+        return matchup.upcoming(_parse_features(features), season, limit)
+    except ValueError as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/v1/outcome/simulate")
+def outcome_simulate(
+    home: str = Query(..., description="主隊 team_code"),
+    away: str = Query(..., description="客隊 team_code"),
+    features: str = Query(...),
+    season: int = Query(DEFAULT_SEASON),
+) -> dict:
+    """任選兩隊的假想對戰卡（用當季到當日統計）。"""
+    try:
+        return matchup.simulate(home, away, _parse_features(features), season)
+    except ValueError as e:
+        return {"error": str(e)}
 
 
 @app.get("/api/v1/players/{player_id}/batting")
