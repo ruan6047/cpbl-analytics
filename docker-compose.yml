@@ -31,6 +31,17 @@ services:
     volumes:
       - cpbl_artifacts:/app/artifacts
 
+  web:
+    build: ./web
+    depends_on:
+      - api
+    environment:
+      API_URL: http://api:4001                  # Server Component（容器內網）
+      NEXT_PUBLIC_API_URL: http://localhost:4001 # 瀏覽器（host 發布埠）
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+
 volumes:
   cpbl_pgdata:
   cpbl_artifacts:

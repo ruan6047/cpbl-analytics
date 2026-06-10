@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { api } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
 const SORTS = [
   { key: "ops", label: "OPS" },
   { key: "ops_plus", label: "OPS+" },

@@ -1,5 +1,8 @@
 import { api } from "@/lib/api";
 
+// 即時渲染（不在 build 時預抓 API）；fetch 仍以 revalidate 快取 10 分鐘。
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const { season, standings } = await api.standings();
 
