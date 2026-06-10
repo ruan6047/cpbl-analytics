@@ -1,13 +1,14 @@
 # CPBL Analytics
 
-中華職棒（CPBL）資料管線與**球員成績預測** [projection]。
+中華職棒（CPBL）資料管線、本季數據與**單場賽果預測**。
 PersonalWebsite 主站的子專案,透過 `/api/info` 掛載到子網域並被主站 `InfoPoller` 輪詢。
 
 ## 這是什麼
 
-- **資料**:歷史逐年成績由 [`ldkrsi/cpbl-opendata`](https://github.com/ldkrsi/cpbl-opendata)(MIT)回填(1990–2024)。
-- **模型**:打擊 rate stat(AVG/OBP/SLG/OPS)的成績預測。以棒球界標準的 **Marcel** 為 baseline,**LightGBM** 必須在時間切分回測上打贏它才算有價值。
-- **服務**:FastAPI 提供 `/api/info`(子專案契約)+ 投影查詢端點。
+- **資料**:歷史逐年由 [`ldkrsi/cpbl-opendata`](https://github.com/ldkrsi/cpbl-opendata)(MIT)回填;逐場結果與本季投打/團隊進階由官網爬蟲補足。
+- **賽果預測**:選變因(勝率/得分/失分/近況/對戰/先發投手 ERA·WHIP·K9)→ 看雙方真實數字 + 主隊勝率;權重「歷史學出預設 + 手動微調」,誠實呈現單場 ~60% 的可預測天花板。
+- **成績預測**(打擊 projection):Marcel baseline vs LightGBM 時間切分回測(保留中)。
+- **服務**:FastAPI `/api/info`(子專案契約)+ `/outcome/*` + `/season/standings`。
 
 > ⚠️ 賽果(勝負)預測需要逐場資料,cpbl-opendata 沒有,留待官網爬蟲就緒(Phase 2)。
 
@@ -40,9 +41,15 @@ cp .env.example .env
 uv run cpbl-backfill
 
 # 4. 爬官網逐場賽程/結果（解鎖賽果預測的 game-level 資料）
-uv run cpbl-scrape-games 2023 2024    # 純 HTTP，無需 headless browser
+uv run cpbl-scrape-games 2023 2026    # 純 HTTP，無需 headless browser
 
-# 5. 訓練 + 回測(印 Marcel vs LightGBM 對照表)
+# 4b. 爬本季投手/打者進階 + 團隊數據（先發 ERA/WHIP/K9、團隊 OPS/ERA/WHIP）
+uv run cpbl-scrape-stats 2025 2026
+
+# 4c. 建賽果預測特徵表（leakage-safe）
+uv run cpbl-build-features
+
+# 5. 成績預測：訓練 + 回測(印 Marcel vs LightGBM 對照表)
 uv run cpbl-train
 
 # 6. 起 API
@@ -55,8 +62,9 @@ cd web && npm install && API_URL=http://localhost:4001 npm run dev   # → :3000
 
 ## 前端（`web/`）
 
-獨立 Next.js 15 app（App Router + Tailwind v4 + recharts）。Server Component 直接
-fetch FastAPI。頁面:成績預測排行（OPS/OBP/SLG/AVG 切換）+ 球員逐年打擊史與圖表。
+獨立 Next.js 15 app（App Router + Tailwind v4）。頁面:
+- `/` 本季戰績榜（勝負/勝率/得失差 + 團隊 OPS/ERA/WHIP，Server Component）
+- `/predict` **單場對戰預測卡**（Client）:今日賽事 + 任選兩隊模擬;勾變因、拖權重、看雙方真實數字與先發投手 ERA
 
 ## 專案結構
 

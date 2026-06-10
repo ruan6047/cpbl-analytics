@@ -46,16 +46,21 @@ cpbl-analytics/
 │   ├── ingest/
 │   │   ├── opendata.py           # cpbl-opendata 逐年回填（冪等 UPSERT）
 │   │   ├── cpbl_site.py          # 官網逐場爬蟲（getgamedatas，見下方契約）
+│   │   ├── cpbl_stats.py         # 官網 /stats 投手/打者進階 + 團隊數據爬蟲
 │   │   ├── run_backfill.py       # CLI：migrate + backfill
-│   │   └── run_scrape.py         # CLI：爬逐場賽程/結果
+│   │   ├── run_scrape.py         # CLI：爬逐場賽程/結果
+│   │   └── run_scrape_stats.py   # CLI：爬本季投打進階 + 團隊
 │   ├── features/
-│   │   └── batting.py            # 特徵工程（lag 1~3 季 + 年齡 + 聯盟均值）
+│   │   ├── batting.py            # 成績預測特徵（lag 1~3 季 + 年齡 + 聯盟均值）
+│   │   └── outcome.py            # 賽果預測特徵（leakage-safe running state + 先發投手）
 │   ├── models/
 │   │   ├── marcel.py             # Marcel baseline（加權 5/4/3 + 回歸均值 + 年齡曲線）
-│   │   └── train.py              # LightGBM 訓練 + 時間切分回測 + 持久化
-│   └── api/main.py               # FastAPI（/api/info + 投影查詢）
+│   │   ├── train.py              # 成績預測：LightGBM 訓練 + 回測 + 持久化
+│   │   ├── outcome.py            # 賽果預測（舊：特徵子集回測準確率探索）
+│   │   └── matchup.py            # 賽果預測（主：單場對戰卡 + 定向預設權重）
+│   └── api/main.py               # FastAPI（/api/info + /outcome + /season/standings）
 ├── web/                          # 獨立 Next.js 15 前端（App Router + Tailwind v4 + recharts）
-├── migrations/                   # 001_init（season + ML 表）、002_games（逐場）
+├── migrations/                   # 001_init…007；games/game_features/pitching|batting|team_current
 ├── Dockerfile                    # uv build → python slim runtime（裝 libgomp1）
 └── docker-compose.yml            # 本地：自帶 PG（port 5433）+ api
 ```
@@ -69,11 +74,18 @@ uv sync                                   # 建 venv + 裝依賴
 docker compose up -d db                   # 起本地 PostgreSQL（5433）
 cp .env.example .env
 uv run cpbl-backfill                       # 套 migration + 回填歷史（逐年）
-uv run cpbl-scrape-games 2023 2024         # 爬官網逐場賽程/結果（純 HTTP）
-uv run cpbl-train                          # 訓練 + 回測（印 Marcel vs LGBM 對照）
+uv run cpbl-scrape-games 2023 2026         # 爬官網逐場賽程/結果（純 HTTP）
+uv run cpbl-scrape-stats 2025 2026         # 爬本季投手/打者進階 + 團隊數據
+uv run cpbl-build-features                 # 建賽果預測特徵表（leakage-safe）
+uv run cpbl-train                          # 成績預測：訓練 + 回測（Marcel vs LGBM）
 uv run uvicorn cpbl.api.main:app --reload --port 4001
-cd web && npm install && API_URL=http://localhost:4001 npm run dev   # 前端 :3000
+cd web && npm install && NEXT_PUBLIC_API_URL=http://localhost:4001 npm run dev   # 前端 :3000
 ```
+
+> 賽果預測**不需離線訓練步驟**：模型在 API request 時依使用者選的特徵子集即時 fit
+> （見 `models/matchup.py`，預設權重=各變因單獨標準化係數、定向後正=有利主隊）。
+> 成績預測（打擊 projection）才有 `cpbl-train` 離線步驟。
+> current 系列表（pitching/batting/team）與 games 一樣要定期重跑爬蟲（上線掛 cron）。
 
 ### ⚠️ macOS 上的 LightGBM（重要）
 
@@ -110,6 +122,17 @@ docker compose run --rm api cpbl-train     # 容器內已有 libgomp1，LightGBM
 2. **嚴禁資料洩漏** [data leakage]：特徵只能用 `target_year` 之前的資料。回歸均值用 `target_year - 1` 的聯盟 rate，切分用 `TEST_FROM`（target_year ≥ 此值為測試）。
 3. **計數型 vs rate**：目前只預測 rate stat。計數型（HR、RBI 總數）需先有上場時間模型，未做前不要硬湊。
 4. **產出持久化**：模型 metrics 寫 `cpbl.model_versions`，預測寫 `cpbl.projections`（回測列填 actual，下季投影 actual 為 NULL）。模型檔存 `ARTIFACT_DIR`。
+
+### 賽果預測（`models/outcome.py`）— 互動式特徵子集
+
+1. **不訓練黑箱再讓使用者關特徵**（統計上錯誤：模型沒學過缺特徵的世界）。正解是
+   使用者選定子集後**即時 fit 一個只用該子集的邏輯回歸**，回傳該組合的回測準確率。
+2. **`home_field` 控制 intercept**，不是當欄位標準化（常數欄標準化後會被歸零，主場
+   優勢會消失）。選它 = `fit_intercept=True`；不選 = 強制 50% 基準。
+3. **誠實第一**：永遠同時回傳「全押主場」基準準確率對照。單場勝負天花板 ~60%，
+   產品價值在透明與教育，不是擊敗賭盤——禁止用浮誇數字包裝。
+4. **leakage**：特徵全在 `features/outcome.py` 以逐場 running state 於「套用該場結果前」
+   算出；completed 判定為 `home_score + away_score > 0`（未開打為 0-0）。
 
 ### API
 
@@ -166,8 +189,9 @@ token 時 `_new_session()` 會丟錯，據此判斷需更新正規表式。
 
 - **Phase 1（已完成）**：opendata 回填 + 打擊成績預測（Marcel vs LightGBM）+ `/api/info` + 投影查詢。
 - **Phase 1.5（已完成）**：官網逐場爬蟲（games 表，含比分/先發投手）；獨立 Next.js 前端（投影排行 + 球員逐年圖表）。
-- **Phase 2（下一步）**：用 games 表做**賽果預測**（特徵：近期戰力/對戰/先發投手/主客）；投手成績預測；box score 打席明細；進階數據（TrackMan）。
-- **Phase 3**：submodule + compose + nginx 接主站正式上線（前端走 cpbl 子網域）。
+- **Phase 2（已完成）**：**賽果預測** — game_features（leakage-safe）+ 即時 fit 特徵子集探索器（`/predict` 頁 + `/api/v1/outcome/*`）+ 今日賽事勝率預測。
+- **Phase 3（下一步）**：投手成績預測；box score 打席明細；進階數據（TrackMan）；`/api/info` 併入賽果模型指標。
+- **Phase 4**：submodule + compose + nginx 接主站正式上線（前端走 cpbl 子網域）。
 
 ---
 
