@@ -6,7 +6,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC
+from datetime import date as _date
 from typing import Any
 
 from fastapi import FastAPI, Query
@@ -15,8 +16,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from cpbl import __version__
 from cpbl.config import settings
 from cpbl.db import conn
-from datetime import date as _date
-
 from cpbl.features.outcome import CANDIDATE_FEATURES, FEATURE_DESC
 from cpbl.models import matchup, outcome
 
@@ -67,7 +66,7 @@ def info() -> dict:
             mv = cur.fetchone()
         if mv:
             metrics["model_version"] = mv[0]
-            metrics["last_trained_at"] = mv[1].astimezone(timezone.utc).isoformat()
+            metrics["last_trained_at"] = mv[1].astimezone(UTC).isoformat()
             cv = mv[2] or {}
             if "ops" in cv:
                 metrics["backtest_ops_mae"] = round(cv["ops"]["lgbm_mae"], 4)

@@ -42,3 +42,5 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+# 忽略風格噪音：行長（中文註解/SQL）、緊湊 state 更新分號、迴圈內即用閉包假陽性、W/L 命名
+ignore = ["E501", "E702", "B023", "E741", "UP031"]

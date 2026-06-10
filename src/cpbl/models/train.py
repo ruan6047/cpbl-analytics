@@ -26,7 +26,6 @@ from cpbl.features.batting import (
     HEADLINE_STATS,
     MIN_PRIOR_AB,
     STAT_DEFS,
-    SeasonAgg,
     _league_rates,
     _load_aggregates,
     build_batting_dataset,
