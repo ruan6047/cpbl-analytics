@@ -134,9 +134,10 @@ def batting_projections(
 def batting_leaders(
     season: int = Query(DEFAULT_SEASON),
     sort: str = Query("ops", pattern="^(ops|avg|obp|slg|hr|ops_plus)$"),
-    limit: int = Query(30, ge=1, le=100),
+    min_pa: int = Query(30, ge=0, description="最低打席（排行用；0=全名單）"),
+    limit: int = Query(50, ge=1, le=200),
 ) -> dict:
-    """本季打者進階排行（batting_current）。"""
+    """本季打者排行（batting_current，全名單;預設過濾低打席避免雜訊）。"""
     with conn() as c:
         cur = c.cursor()
         cur.execute(
@@ -145,11 +146,11 @@ def batting_leaders(
                    b.hr, b.ops_plus, b.k_pct, b.bb_pct
             FROM cpbl.batting_current b
             LEFT JOIN cpbl.team_current t ON t.team_code = b.team_code AND t.year = b.year
-            WHERE b.year = %s AND b.{sort} IS NOT NULL
+            WHERE b.year = %s AND b.{sort} IS NOT NULL AND COALESCE(b.pa, 0) >= %s
             ORDER BY b.{sort} DESC
             LIMIT %s
             """,
-            (season, limit),
+            (season, min_pa, limit),
         )
         items = [
             {"player_id": pid, "name": name, "team": team, "pa": pa,

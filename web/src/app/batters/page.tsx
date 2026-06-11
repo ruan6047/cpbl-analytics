@@ -5,7 +5,6 @@ export const dynamic = "force-dynamic";
 
 const SORTS = [
   { key: "ops", label: "OPS" },
-  { key: "ops_plus", label: "OPS+" },
   { key: "avg", label: "打擊率" },
   { key: "obp", label: "上壘率" },
   { key: "slg", label: "長打率" },
@@ -51,13 +50,11 @@ export default async function BattersPage({
         <table className="w-full text-sm">
           <thead className="bg-white/5 text-left text-white/50">
             <tr>
-              {["#", "球員", "隊", "PA", "打擊率", "上壘率", "長打率", "OPS", "HR", "OPS+", "K%", "BB%"].map(
-                (h) => (
-                  <th key={h} className="px-3 py-3 font-medium">
-                    {h}
-                  </th>
-                ),
-              )}
+              {["#", "球員", "隊", "PA", "打擊率", "上壘率", "長打率", "OPS", "HR"].map((h) => (
+                <th key={h} className="px-3 py-3 font-medium">
+                  {h}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody className="font-mono tabular-nums">
@@ -72,9 +69,6 @@ export default async function BattersPage({
                 <td className="px-3 py-2.5">{fmt3(b.slg)}</td>
                 <td className="px-3 py-2.5 text-emerald-400">{fmt3(b.ops)}</td>
                 <td className="px-3 py-2.5">{b.hr ?? "—"}</td>
-                <td className="px-3 py-2.5">{b.ops_plus?.toFixed(0) ?? "—"}</td>
-                <td className="px-3 py-2.5 text-white/50">{b.k_pct?.toFixed(1) ?? "—"}</td>
-                <td className="px-3 py-2.5 text-white/50">{b.bb_pct?.toFixed(1) ?? "—"}</td>
               </tr>
             ))}
           </tbody>

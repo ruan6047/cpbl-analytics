@@ -46,5 +46,5 @@ export const api = {
   standings: (season?: number) =>
     get<StandingsResponse>(`/api/v1/season/standings${season ? `?season=${season}` : ""}`),
   battingLeaders: (sort = "ops") =>
-    get<BattingLeadersResponse>(`/api/v1/season/batting-leaders?sort=${sort}&limit=30`),
+    get<BattingLeadersResponse>(`/api/v1/season/batting-leaders?sort=${sort}&limit=50`),
 };

@@ -29,10 +29,6 @@ PITCH_IDX = {
     "era": 0, "g": 1, "gs": 2, "w": 6, "l": 7, "ip": 12,
     "whip": 23, "k9": 27, "fip": 33, "era_plus": 34,
 }
-BAT_IDX = {
-    "avg": 0, "pa": 2, "hr": 10, "obp": 22, "slg": 23, "ops": 24,
-    "ops_plus": 27, "k_pct": 28, "bb_pct": 29,
-}
 
 
 def _num(v: str | None) -> float | None:
@@ -123,49 +119,44 @@ def scrape_pitching(start_year: int, end_year: int) -> dict[int, int]:
     return totals
 
 
-# ---------- 打者進階（Position=01）----------
+# ---------- 打者全名單（/team/teamscore，server-rendered，含 1 打席者）----------
+# recordall 只列「達規定打席」的排行榜（~7-15 人），teamscore 才是全隊完整打者名單。
+TEAMSCORE = f"{BASE}/team/teamscore"
+# 各隊 ClubNo（team_code 前 3 碼）；team_code = ClubNo + "011"
+CLUB_NOS = ["AAA", "ACN", "ADD", "AEO", "AJL", "AKP"]
+# teamscore num 欄位 index（球員 cell 之後）
+TS_IDX = {"pa": 1, "ab": 2, "hr": 9, "obp": 13, "slg": 14, "avg": 15, "ops": 27}
+
 
 def fetch_batting(year: int, kind_code: str = "A") -> list[tuple]:
+    """逐隊抓 teamscore 取得全部打者（含低出場）。teamscore 預設當季。"""
+    rows: list[tuple] = []
     client = httpx.Client(timeout=30.0, headers={"User-Agent": UA}, follow_redirects=True)
     try:
-        page = client.get(PAGE).text
-        m = _TOKEN_RE.search(page)
-        if not m:
-            raise RuntimeError("找不到 __RequestVerificationToken")
-        form = {
-            "__RequestVerificationToken": m.group(1),
-            "Year": str(year), "KindCode": kind_code, "Position": "01",
-            "DefenceType": "99", "Sortby": "", "ExecAction": "Q",
-            "IndexOfPages": "1", "PageSize": "500", "Online": "",
-        }
-        html = client.post(
-            ACTION, data=form,
-            headers={"X-Requested-With": "XMLHttpRequest", "Referer": PAGE},
-        ).text
+        for club in CLUB_NOS:
+            team_code = f"{club}011"
+            html = client.get(TEAMSCORE, params={"ClubNo": club}).text
+            for tr in re.findall(r"<tr>(.*?)</tr>", html, re.S):
+                mid = re.search(r"/team/person\?acnt=(\d+)", tr)
+                if not mid:
+                    continue
+                nums = [n.strip() for n in re.findall(r'<td class="num">(.*?)</td>', tr, re.S)]
+                if len(nums) < 28:
+                    continue
+                name_m = re.search(r'/team/person\?acnt=\d+"[^>]*>([^<]+)</a>', tr)
+
+                def b(k: str) -> float | None:
+                    return _num(nums[TS_IDX[k]])
+
+                rows.append((
+                    year, mid.group(1),
+                    name_m.group(1).strip() if name_m else None,
+                    team_code,
+                    _int(b("pa")), b("avg"), b("obp"), b("slg"), b("ops"),
+                    _int(b("hr")), None, None, None,  # teamscore 無 OPS+/K%/BB%
+                ))
     finally:
         client.close()
-
-    rows: list[tuple] = []
-    for tr in re.findall(r"<tr>(.*?)</tr>", html, re.S):
-        mid = re.search(r"acnt=(\d+)", tr)
-        if not mid:
-            continue
-        nums = [n.strip() for n in re.findall(r'<td class="num">(.*?)</td>', tr, re.S)]
-        if len(nums) < 30:
-            continue
-        name_m = re.search(r'/team/person\?acnt=\d+"[^>]*>([^<]+)</a>', tr)
-        team_m = re.search(r"TeamNo=([A-Z0-9]+)", tr)
-
-        def b(k: str) -> float | None:
-            return _num(nums[BAT_IDX[k]])
-
-        rows.append((
-            year, mid.group(1),
-            name_m.group(1).strip() if name_m else None,
-            team_m.group(1) if team_m else None,
-            _int(b("pa")), b("avg"), b("obp"), b("slg"), b("ops"),
-            _int(b("hr")), b("ops_plus"), b("k_pct"), b("bb_pct"),
-        ))
     return rows
 
 
