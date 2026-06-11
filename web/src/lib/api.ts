@@ -29,15 +29,23 @@ export type BattingLeader = {
   player_id: string;
   name: string | null;
   team: string | null;
+  g: number | null;
   pa: number | null;
+  ab: number | null;
+  r: number | null;
+  h: number | null;
+  b2: number | null;
+  b3: number | null;
+  hr: number | null;
+  rbi: number | null;
+  bb: number | null;
+  so: number | null;
+  sb: number | null;
+  cs: number | null;
   avg: number | null;
   obp: number | null;
   slg: number | null;
   ops: number | null;
-  hr: number | null;
-  ops_plus: number | null;
-  k_pct: number | null;
-  bb_pct: number | null;
 };
 
 export type BattingLeadersResponse = { season: number; sort: string; items: BattingLeader[] };

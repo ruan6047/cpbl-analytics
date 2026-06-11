@@ -125,7 +125,10 @@ TEAMSCORE = f"{BASE}/team/teamscore"
 # 各隊 ClubNo（team_code 前 3 碼）；team_code = ClubNo + "011"
 CLUB_NOS = ["AAA", "ACN", "ADD", "AEO", "AJL", "AKP"]
 # teamscore num 欄位 index（球員 cell 之後）
-TS_IDX = {"pa": 1, "ab": 2, "hr": 9, "obp": 13, "slg": 14, "avg": 15, "ops": 27}
+TS_IDX = {
+    "g": 0, "pa": 1, "ab": 2, "rbi": 3, "r": 4, "h": 5, "b2": 7, "b3": 8, "hr": 9,
+    "so": 11, "sb": 12, "obp": 13, "slg": 14, "avg": 15, "bb": 19, "cs": 22, "ops": 27,
+}
 
 
 def fetch_batting(year: int, kind_code: str = "A") -> list[tuple]:
@@ -154,6 +157,9 @@ def fetch_batting(year: int, kind_code: str = "A") -> list[tuple]:
                     team_code,
                     _int(b("pa")), b("avg"), b("obp"), b("slg"), b("ops"),
                     _int(b("hr")), None, None, None,  # teamscore 無 OPS+/K%/BB%
+                    _int(b("g")), _int(b("ab")), _int(b("r")), _int(b("h")),
+                    _int(b("b2")), _int(b("b3")), _int(b("rbi")), _int(b("bb")),
+                    _int(b("so")), _int(b("sb")), _int(b("cs")),
                 ))
     finally:
         client.close()
@@ -165,12 +171,16 @@ def upsert_batting(records: list[tuple]) -> int:
         c.cursor().executemany(
             """
             INSERT INTO cpbl.batting_current
-                (year, player_id, name, team_code, pa, avg, obp, slg, ops, hr, ops_plus, k_pct, bb_pct)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                (year, player_id, name, team_code, pa, avg, obp, slg, ops, hr, ops_plus, k_pct, bb_pct,
+                 g, ab, r, h, b2, b3, rbi, bb, so, sb, cs)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT (year, player_id) DO UPDATE SET
                 name=EXCLUDED.name, team_code=EXCLUDED.team_code, pa=EXCLUDED.pa, avg=EXCLUDED.avg,
                 obp=EXCLUDED.obp, slg=EXCLUDED.slg, ops=EXCLUDED.ops, hr=EXCLUDED.hr,
-                ops_plus=EXCLUDED.ops_plus, k_pct=EXCLUDED.k_pct, bb_pct=EXCLUDED.bb_pct
+                ops_plus=EXCLUDED.ops_plus, k_pct=EXCLUDED.k_pct, bb_pct=EXCLUDED.bb_pct,
+                g=EXCLUDED.g, ab=EXCLUDED.ab, r=EXCLUDED.r, h=EXCLUDED.h, b2=EXCLUDED.b2,
+                b3=EXCLUDED.b3, rbi=EXCLUDED.rbi, bb=EXCLUDED.bb, so=EXCLUDED.so,
+                sb=EXCLUDED.sb, cs=EXCLUDED.cs
             """,
             records,
         )

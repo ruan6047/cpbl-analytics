@@ -9,6 +9,10 @@ const SORTS = [
   { key: "obp", label: "上壘率" },
   { key: "slg", label: "長打率" },
   { key: "hr", label: "全壘打" },
+  { key: "rbi", label: "打點" },
+  { key: "h", label: "安打" },
+  { key: "r", label: "得分" },
+  { key: "sb", label: "盜壘" },
 ];
 
 const fmt3 = (v: number | null) => (v === null ? "—" : v.toFixed(3));
@@ -50,25 +54,38 @@ export default async function BattersPage({
         <table className="w-full text-sm">
           <thead className="bg-white/5 text-left text-white/50">
             <tr>
-              {["#", "球員", "隊", "PA", "打擊率", "上壘率", "長打率", "OPS", "HR"].map((h) => (
-                <th key={h} className="px-3 py-3 font-medium">
-                  {h}
-                </th>
-              ))}
+              {["#", "球員", "隊", "G", "PA", "AB", "R", "H", "2B", "3B", "HR", "RBI", "BB", "SO", "SB", "CS", "打擊率", "上壘率", "長打率", "OPS"].map(
+                (h) => (
+                  <th key={h} className="whitespace-nowrap px-2.5 py-3 font-medium">
+                    {h}
+                  </th>
+                ),
+              )}
             </tr>
           </thead>
           <tbody className="font-mono tabular-nums">
             {items.map((b, i) => (
               <tr key={b.player_id} className="border-t border-white/5 hover:bg-white/5">
-                <td className="px-3 py-2.5 text-white/40">{i + 1}</td>
-                <td className="px-3 py-2.5 font-sans">{b.name ?? "—"}</td>
-                <td className="px-3 py-2.5 font-sans text-white/50">{b.team ?? "—"}</td>
-                <td className="px-3 py-2.5">{b.pa ?? "—"}</td>
-                <td className="px-3 py-2.5">{fmt3(b.avg)}</td>
-                <td className="px-3 py-2.5">{fmt3(b.obp)}</td>
-                <td className="px-3 py-2.5">{fmt3(b.slg)}</td>
-                <td className="px-3 py-2.5 text-emerald-400">{fmt3(b.ops)}</td>
-                <td className="px-3 py-2.5">{b.hr ?? "—"}</td>
+                <td className="px-2.5 py-2.5 text-white/40">{i + 1}</td>
+                <td className="whitespace-nowrap px-2.5 py-2.5 font-sans">{b.name ?? "—"}</td>
+                <td className="whitespace-nowrap px-2.5 py-2.5 font-sans text-white/50">{b.team ?? "—"}</td>
+                <td className="px-2.5 py-2.5 text-white/50">{b.g ?? "—"}</td>
+                <td className="px-2.5 py-2.5">{b.pa ?? "—"}</td>
+                <td className="px-2.5 py-2.5 text-white/50">{b.ab ?? "—"}</td>
+                <td className="px-2.5 py-2.5">{b.r ?? "—"}</td>
+                <td className="px-2.5 py-2.5">{b.h ?? "—"}</td>
+                <td className="px-2.5 py-2.5 text-white/50">{b.b2 ?? "—"}</td>
+                <td className="px-2.5 py-2.5 text-white/50">{b.b3 ?? "—"}</td>
+                <td className="px-2.5 py-2.5">{b.hr ?? "—"}</td>
+                <td className="px-2.5 py-2.5">{b.rbi ?? "—"}</td>
+                <td className="px-2.5 py-2.5 text-white/50">{b.bb ?? "—"}</td>
+                <td className="px-2.5 py-2.5 text-white/50">{b.so ?? "—"}</td>
+                <td className="px-2.5 py-2.5 text-emerald-400/80">{b.sb ?? "—"}</td>
+                <td className="px-2.5 py-2.5 text-white/50">{b.cs ?? "—"}</td>
+                <td className="px-2.5 py-2.5">{fmt3(b.avg)}</td>
+                <td className="px-2.5 py-2.5">{fmt3(b.obp)}</td>
+                <td className="px-2.5 py-2.5">{fmt3(b.slg)}</td>
+                <td className="px-2.5 py-2.5 text-emerald-400">{fmt3(b.ops)}</td>
               </tr>
             ))}
           </tbody>

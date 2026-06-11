@@ -133,36 +133,34 @@ def batting_projections(
 @app.get("/api/v1/season/batting-leaders")
 def batting_leaders(
     season: int = Query(DEFAULT_SEASON),
-    sort: str = Query("ops", pattern="^(ops|avg|obp|slg|hr|ops_plus)$"),
+    sort: str = Query("ops", pattern="^(ops|avg|obp|slg|hr|rbi|r|h|sb|bb|so)$"),
     min_pa: int = Query(30, ge=0, description="最低打席（排行用；0=全名單）"),
     limit: int = Query(50, ge=1, le=200),
 ) -> dict:
     """本季打者排行（batting_current，全名單;預設過濾低打席避免雜訊）。"""
+    def f(v):
+        return float(v) if v is not None else None
+
     with conn() as c:
         cur = c.cursor()
         cur.execute(
             f"""
-            SELECT b.player_id, b.name, t.name, b.pa, b.avg, b.obp, b.slg, b.ops,
-                   b.hr, b.ops_plus, b.k_pct, b.bb_pct
+            SELECT b.player_id, b.name, t.name, b.g, b.pa, b.ab, b.r, b.h, b.b2, b.b3,
+                   b.hr, b.rbi, b.bb, b.so, b.sb, b.cs, b.avg, b.obp, b.slg, b.ops
             FROM cpbl.batting_current b
             LEFT JOIN cpbl.team_current t ON t.team_code = b.team_code AND t.year = b.year
             WHERE b.year = %s AND b.{sort} IS NOT NULL AND COALESCE(b.pa, 0) >= %s
-            ORDER BY b.{sort} DESC
+            ORDER BY b.{sort} DESC NULLS LAST
             LIMIT %s
             """,
             (season, min_pa, limit),
         )
         items = [
-            {"player_id": pid, "name": name, "team": team, "pa": pa,
-             "avg": float(avg) if avg is not None else None,
-             "obp": float(obp) if obp is not None else None,
-             "slg": float(slg) if slg is not None else None,
-             "ops": float(ops) if ops is not None else None,
-             "hr": hr,
-             "ops_plus": float(opsp) if opsp is not None else None,
-             "k_pct": float(kp) if kp is not None else None,
-             "bb_pct": float(bbp) if bbp is not None else None}
-            for pid, name, team, pa, avg, obp, slg, ops, hr, opsp, kp, bbp in cur.fetchall()
+            {"player_id": pid, "name": name, "team": team, "g": g, "pa": pa, "ab": ab,
+             "r": r, "h": h, "b2": b2, "b3": b3, "hr": hr, "rbi": rbi, "bb": bb, "so": so,
+             "sb": sb, "cs": cs, "avg": f(avg), "obp": f(obp), "slg": f(slg), "ops": f(ops)}
+            for pid, name, team, g, pa, ab, r, h, b2, b3, hr, rbi, bb, so, sb, cs, avg, obp, slg, ops
+            in cur.fetchall()
         ]
     return {"season": season, "sort": sort, "items": items}
 
