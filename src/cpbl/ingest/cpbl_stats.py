@@ -23,11 +23,15 @@ UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 _TOKEN_RE = re.compile(r'name="__RequestVerificationToken"[^>]*value="([^"]+)"')
 
 STANDINGS = f"{BASE}/standings/season"
+TEAMSCORE = f"{BASE}/team/teamscore"
+TEAMSCORE_ACTION = f"{BASE}/team/teamscoreaction"
+# 各隊 ClubNo（team_code 前 3 碼）；team_code = ClubNo + "011"
+CLUB_NOS = ["AAA", "ACN", "ADD", "AEO", "AJL", "AKP"]
 
-# num 欄位 index（player cell 之後，對照官網表頭順序）
-PITCH_IDX = {
-    "era": 0, "g": 1, "gs": 2, "w": 6, "l": 7, "ip": 12,
-    "whip": 23, "k9": 27, "fip": 33, "era_plus": 34,
+# teamscore 投手(Position=02) num 欄位 index（球員 cell 之後）
+PIT_TS_IDX = {
+    "g": 0, "gs": 1, "gr": 2, "w": 6, "l": 7, "sv": 8, "hld": 9,
+    "ip": 10, "whip": 11, "era": 12, "so": 20,
 }
 
 
@@ -45,50 +49,59 @@ def _int(v: float | None) -> int | None:
     return int(v) if v is not None else None
 
 
+def _teamscore_token(client: httpx.Client) -> str:
+    page = client.get(TEAMSCORE, params={"ClubNo": CLUB_NOS[0]}).text
+    m = _TOKEN_RE.search(page)
+    if not m:
+        raise RuntimeError("找不到 teamscore __RequestVerificationToken（官網可能改版）")
+    return m.group(1)
+
+
+def _teamscore_post(client: httpx.Client, token: str, club: str, position: str,
+                    year: int, kind_code: str) -> str:
+    form = {
+        "__RequestVerificationToken": token, "ClubNo": club, "Year": str(year),
+        "KindCode": kind_code, "Position": position, "DefendStation": "",
+        "Sortby": "", "ExecAction": "Q", "IndexOfPages": "1",
+    }
+    return client.post(
+        TEAMSCORE_ACTION, data=form,
+        headers={"X-Requested-With": "XMLHttpRequest", "Referer": f"{TEAMSCORE}?ClubNo={club}"},
+    ).text
+
+
 def fetch_pitching(year: int, kind_code: str = "A") -> list[tuple]:
+    """逐隊抓 teamscore 投手(Position=02)全名單;K9 由 三振×9/局數 自算。"""
+    rows: list[tuple] = []
     client = httpx.Client(timeout=30.0, headers={"User-Agent": UA}, follow_redirects=True)
     try:
-        page = client.get(PAGE).text
-        m = _TOKEN_RE.search(page)
-        if not m:
-            raise RuntimeError("找不到 __RequestVerificationToken（stats 頁結構可能已改版）")
-        form = {
-            "__RequestVerificationToken": m.group(1),
-            "Year": str(year), "KindCode": kind_code, "Position": "02",
-            "DefenceType": "99", "Sortby": "", "ExecAction": "Q",
-            "IndexOfPages": "1", "PageSize": "500", "Online": "",
-        }
-        html = client.post(
-            ACTION, data=form,
-            headers={"X-Requested-With": "XMLHttpRequest", "Referer": PAGE},
-        ).text
+        token = _teamscore_token(client)
+        for club in CLUB_NOS:
+            team_code = f"{club}011"
+            html = _teamscore_post(client, token, club, "02", year, kind_code)
+            for tr in re.findall(r"<tr>(.*?)</tr>", html, re.S):
+                mid = re.search(r"/team/person\?acnt=(\d+)", tr)
+                if not mid:
+                    continue
+                nums = [n.strip() for n in re.findall(r'<td class="num">(.*?)</td>', tr, re.S)]
+                if len(nums) < 21:
+                    continue
+                name_m = re.search(r'/team/person\?acnt=\d+"[^>]*>([^<]+)</a>', tr)
+
+                def p(k: str) -> float | None:
+                    return _num(nums[PIT_TS_IDX[k]])
+
+                ip, so = p("ip"), p("so")
+                k9 = (so * 9.0 / ip) if (so is not None and ip and ip > 0) else None
+                rows.append((
+                    year, mid.group(1),
+                    name_m.group(1).strip() if name_m else None, team_code,
+                    p("era"), ip, _int(p("g")), _int(p("gs")), _int(p("w")), _int(p("l")),
+                    p("whip"), k9, None, None,  # fip/era_plus teamscore 無
+                    _int(p("sv")), _int(p("hld")),
+                ))
     finally:
         client.close()
-    return _parse(html, year)
-
-
-def _parse(html: str, year: int) -> list[tuple]:
-    rows: list[tuple] = []
-    for tr in re.findall(r"<tr>(.*?)</tr>", html, re.S):
-        mid = re.search(r"acnt=(\d+)", tr)
-        if not mid:
-            continue
-        nums = [n.strip() for n in re.findall(r'<td class="num">(.*?)</td>', tr, re.S)]
-        if len(nums) < 35:
-            continue
-        name_m = re.search(r'/team/person\?acnt=\d+"[^>]*>([^<]+)</a>', tr)
-        team_m = re.search(r"TeamNo=([A-Z0-9]+)", tr)
-
-        def g(k: str) -> float | None:
-            return _num(nums[PITCH_IDX[k]])
-
-        rows.append((
-            year, mid.group(1),
-            name_m.group(1).strip() if name_m else None,
-            team_m.group(1) if team_m else None,
-            g("era"), g("ip"), _int(g("g")), _int(g("gs")), _int(g("w")), _int(g("l")),
-            g("whip"), g("k9"), g("fip"), g("era_plus"),
-        ))
     return rows
 
 
@@ -97,12 +110,14 @@ def upsert_pitching(records: list[tuple]) -> int:
         c.cursor().executemany(
             """
             INSERT INTO cpbl.pitching_current
-                (year, player_id, name, team_code, era, ip, g, gs, w, l, whip, k9, fip, era_plus)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                (year, player_id, name, team_code, era, ip, g, gs, w, l, whip, k9, fip, era_plus,
+                 sv, hld)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT (year, player_id) DO UPDATE SET
                 name=EXCLUDED.name, team_code=EXCLUDED.team_code, era=EXCLUDED.era, ip=EXCLUDED.ip,
                 g=EXCLUDED.g, gs=EXCLUDED.gs, w=EXCLUDED.w, l=EXCLUDED.l,
-                whip=EXCLUDED.whip, k9=EXCLUDED.k9, fip=EXCLUDED.fip, era_plus=EXCLUDED.era_plus
+                whip=EXCLUDED.whip, k9=EXCLUDED.k9, fip=EXCLUDED.fip, era_plus=EXCLUDED.era_plus,
+                sv=EXCLUDED.sv, hld=EXCLUDED.hld
             """,
             records,
         )
@@ -119,11 +134,7 @@ def scrape_pitching(start_year: int, end_year: int) -> dict[int, int]:
     return totals
 
 
-# ---------- 打者全名單（/team/teamscore，server-rendered，含 1 打席者）----------
-# recordall 只列「達規定打席」的排行榜（~7-15 人），teamscore 才是全隊完整打者名單。
-TEAMSCORE = f"{BASE}/team/teamscore"
-# 各隊 ClubNo（team_code 前 3 碼）；team_code = ClubNo + "011"
-CLUB_NOS = ["AAA", "ACN", "ADD", "AEO", "AJL", "AKP"]
+# ---------- 打者全名單（/team/teamscore Position=01，含 1 打席者）----------
 # teamscore num 欄位 index（球員 cell 之後）
 TS_IDX = {
     "g": 0, "pa": 1, "ab": 2, "rbi": 3, "r": 4, "h": 5, "b2": 7, "b3": 8, "hr": 9,
@@ -181,6 +192,53 @@ def upsert_batting(records: list[tuple]) -> int:
                 g=EXCLUDED.g, ab=EXCLUDED.ab, r=EXCLUDED.r, h=EXCLUDED.h, b2=EXCLUDED.b2,
                 b3=EXCLUDED.b3, rbi=EXCLUDED.rbi, bb=EXCLUDED.bb, so=EXCLUDED.so,
                 sb=EXCLUDED.sb, cs=EXCLUDED.cs
+            """,
+            records,
+        )
+    return len(records)
+
+
+# ---------- 守備全名單（/team/teamscoreaction Position=03）----------
+# nums: [0]=守備位置(文字) [1]=出賽 [2]=守備機會 [3]=刺殺 [4]=助殺 [5]=失誤 [6]=雙殺 … [11]=守備率
+
+def fetch_fielding(year: int, kind_code: str = "A") -> list[tuple]:
+    rows: list[tuple] = []
+    client = httpx.Client(timeout=30.0, headers={"User-Agent": UA}, follow_redirects=True)
+    try:
+        token = _teamscore_token(client)
+        for club in CLUB_NOS:
+            team_code = f"{club}011"
+            html = _teamscore_post(client, token, club, "03", year, kind_code)
+            for tr in re.findall(r"<tr>(.*?)</tr>", html, re.S):
+                mid = re.search(r"/team/person\?acnt=(\d+)", tr)
+                if not mid:
+                    continue
+                nums = [re.sub(r"<[^>]+>", "", n).strip()
+                        for n in re.findall(r'<td class="num">(.*?)</td>', tr, re.S)]
+                if len(nums) < 12 or not nums[0]:
+                    continue
+                name_m = re.search(r'/team/person\?acnt=\d+"[^>]*>([^<]+)</a>', tr)
+                rows.append((
+                    year, mid.group(1), name_m.group(1).strip() if name_m else None, team_code,
+                    nums[0],
+                    _int(_num(nums[1])), _int(_num(nums[2])), _int(_num(nums[3])),
+                    _int(_num(nums[4])), _int(_num(nums[5])), _int(_num(nums[6])), _num(nums[11]),
+                ))
+    finally:
+        client.close()
+    return rows
+
+
+def upsert_fielding(records: list[tuple]) -> int:
+    with conn() as c:
+        c.cursor().executemany(
+            """
+            INSERT INTO cpbl.fielding_current
+                (year, player_id, name, team_code, pos, g, tc, po, a, e, dp, fpct)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT (year, player_id, pos) DO UPDATE SET
+                name=EXCLUDED.name, team_code=EXCLUDED.team_code, g=EXCLUDED.g, tc=EXCLUDED.tc,
+                po=EXCLUDED.po, a=EXCLUDED.a, e=EXCLUDED.e, dp=EXCLUDED.dp, fpct=EXCLUDED.fpct
             """,
             records,
         )
@@ -249,12 +307,14 @@ def upsert_team(records: list[tuple]) -> int:
 
 
 def scrape_all(start_year: int, end_year: int, current_year: int) -> dict:
-    """投手（含歷史）+ 打者 + 團隊。打者/團隊僅當季。"""
-    out: dict = {"pitching": {}, "batting": 0, "team": 0}
+    """投手 + 打者 + 守備 + 團隊（皆當季全名單）。"""
+    out: dict = {"pitching": {}, "batting": 0, "fielding": 0, "team": 0}
     for year in range(start_year, end_year + 1):
         out["pitching"][year] = upsert_pitching(fetch_pitching(year))
         log.info("pitching %s done", year)
     out["batting"] = upsert_batting(fetch_batting(current_year))
+    out["fielding"] = upsert_fielding(fetch_fielding(current_year))
     out["team"] = upsert_team(fetch_team(current_year))
-    log.info("batting=%d team=%d (year %s)", out["batting"], out["team"], current_year)
+    log.info("batting=%d fielding=%d team=%d (year %s)",
+             out["batting"], out["fielding"], out["team"], current_year)
     return out

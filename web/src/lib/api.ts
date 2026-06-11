@@ -50,9 +50,53 @@ export type BattingLeader = {
 
 export type BattingLeadersResponse = { season: number; sort: string; items: BattingLeader[] };
 
+export type PitchingLeader = {
+  player_id: string;
+  name: string | null;
+  team: string | null;
+  g: number | null;
+  gs: number | null;
+  w: number | null;
+  l: number | null;
+  sv: number | null;
+  hld: number | null;
+  ip: number | null;
+  era: number | null;
+  whip: number | null;
+  k9: number | null;
+};
+export type PitchingLeadersResponse = { season: number; sort: string; items: PitchingLeader[] };
+
+export type FieldingRecord = {
+  player_id: string;
+  name: string | null;
+  team: string | null;
+  pos: string;
+  g: number | null;
+  tc: number | null;
+  po: number | null;
+  a: number | null;
+  e: number | null;
+  dp: number | null;
+  fpct: number | null;
+};
+export type FieldingResponse = {
+  season: number;
+  positions: string[];
+  pos: string | null;
+  sort: string;
+  items: FieldingRecord[];
+};
+
 export const api = {
   standings: (season?: number) =>
     get<StandingsResponse>(`/api/v1/season/standings${season ? `?season=${season}` : ""}`),
   battingLeaders: (sort = "ops") =>
     get<BattingLeadersResponse>(`/api/v1/season/batting-leaders?sort=${sort}&limit=50`),
+  pitchingLeaders: (sort = "era") =>
+    get<PitchingLeadersResponse>(`/api/v1/season/pitching-leaders?sort=${sort}&limit=50`),
+  fielding: (sort = "tc", pos?: string) =>
+    get<FieldingResponse>(
+      `/api/v1/season/fielding?sort=${sort}${pos ? `&pos=${encodeURIComponent(pos)}` : ""}&limit=60`,
+    ),
 };

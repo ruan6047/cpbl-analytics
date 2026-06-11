@@ -165,6 +165,76 @@ def batting_leaders(
     return {"season": season, "sort": sort, "items": items}
 
 
+@app.get("/api/v1/season/pitching-leaders")
+def pitching_leaders(
+    season: int = Query(DEFAULT_SEASON),
+    sort: str = Query("era", pattern="^(era|whip|w|sv|hld|k9|gs|ip)$"),
+    min_ip: float = Query(20, ge=0, description="最低投球局數"),
+    limit: int = Query(50, ge=1, le=200),
+) -> dict:
+    """本季投手排行（pitching_current 全名單）。ERA/WHIP 越低越前。"""
+    direction = "ASC" if sort in ("era", "whip") else "DESC"
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            f"""
+            SELECT p.player_id, p.name, t.name, p.g, p.gs, p.w, p.l, p.sv, p.hld,
+                   p.ip, p.era, p.whip, p.k9
+            FROM cpbl.pitching_current p
+            LEFT JOIN cpbl.team_current t ON t.team_code = p.team_code AND t.year = p.year
+            WHERE p.year = %s AND p.{sort} IS NOT NULL AND COALESCE(p.ip, 0) >= %s
+            ORDER BY p.{sort} {direction} NULLS LAST
+            LIMIT %s
+            """,
+            (season, min_ip, limit),
+        )
+        items = [
+            {"player_id": pid, "name": name, "team": team, "g": g, "gs": gs, "w": w, "l": l,
+             "sv": sv, "hld": hld,
+             "ip": float(ip) if ip is not None else None,
+             "era": float(era) if era is not None else None,
+             "whip": float(whip) if whip is not None else None,
+             "k9": round(float(k9), 2) if k9 is not None else None}
+            for pid, name, team, g, gs, w, l, sv, hld, ip, era, whip, k9 in cur.fetchall()
+        ]
+    return {"season": season, "sort": sort, "items": items}
+
+
+@app.get("/api/v1/season/fielding")
+def fielding(
+    season: int = Query(DEFAULT_SEASON),
+    pos: str | None = Query(None, description="守備位置；省略則全部"),
+    sort: str = Query("tc", pattern="^(tc|po|a|e|dp|fpct|g)$"),
+    limit: int = Query(60, ge=1, le=300),
+) -> dict:
+    """本季守備數據（fielding_current）。可依守備位置篩選。"""
+    direction = "ASC" if sort == "e" else "DESC"
+    where = "f.year = %s" + ("" if pos is None else " AND f.pos = %s")
+    params: tuple = (season,) if pos is None else (season, pos)
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute("SELECT DISTINCT pos FROM cpbl.fielding_current WHERE year = %s ORDER BY pos", (season,))
+        positions = [r[0] for r in cur.fetchall()]
+        cur.execute(
+            f"""
+            SELECT f.player_id, f.name, t.name, f.pos, f.g, f.tc, f.po, f.a, f.e, f.dp, f.fpct
+            FROM cpbl.fielding_current f
+            LEFT JOIN cpbl.team_current t ON t.team_code = f.team_code AND t.year = f.year
+            WHERE {where} AND f.{sort} IS NOT NULL
+            ORDER BY f.{sort} {direction} NULLS LAST
+            LIMIT %s
+            """,
+            (*params, limit),
+        )
+        items = [
+            {"player_id": pid, "name": name, "team": team, "pos": p, "g": g, "tc": tc,
+             "po": po, "a": a, "e": e, "dp": dp,
+             "fpct": float(fpct) if fpct is not None else None}
+            for pid, name, team, p, g, tc, po, a, e, dp, fpct in cur.fetchall()
+        ]
+    return {"season": season, "positions": positions, "pos": pos, "sort": sort, "items": items}
+
+
 @app.get("/api/v1/outcome/features")
 def outcome_features() -> dict:
     """賽果預測的候選特徵清單（含說明，給前端 checkbox + tooltip）。"""
