@@ -135,7 +135,7 @@ def batting_leaders(
     season: int = Query(DEFAULT_SEASON),
     sort: str = Query("ops", pattern="^(ops|avg|obp|slg|hr|rbi|r|h|sb|bb|so)$"),
     min_pa: int = Query(30, ge=0, description="最低打席（排行用；0=全名單）"),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=500),
 ) -> dict:
     """本季打者排行（batting_current，全名單;預設過濾低打席避免雜訊）。"""
     def f(v):
@@ -170,7 +170,7 @@ def pitching_leaders(
     season: int = Query(DEFAULT_SEASON),
     sort: str = Query("era", pattern="^(era|whip|w|sv|hld|k9|gs|ip)$"),
     min_ip: float = Query(20, ge=0, description="最低投球局數"),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=500),
 ) -> dict:
     """本季投手排行（pitching_current 全名單）。ERA/WHIP 越低越前。"""
     direction = "ASC" if sort in ("era", "whip") else "DESC"
@@ -205,7 +205,7 @@ def fielding(
     season: int = Query(DEFAULT_SEASON),
     pos: str | None = Query(None, description="守備位置；省略則全部"),
     sort: str = Query("tc", pattern="^(tc|po|a|e|dp|fpct|g)$"),
-    limit: int = Query(60, ge=1, le=300),
+    limit: int = Query(60, ge=1, le=1000),
 ) -> dict:
     """本季守備數據（fielding_current）。可依守備位置篩選。"""
     direction = "ASC" if sort == "e" else "DESC"
@@ -354,3 +354,87 @@ def player_batting(player_id: str) -> dict:
                    "birthday": p[4].isoformat() if p[4] else None},
         "seasons": seasons,
     }
+
+
+# ---------- 對戰各隊 / 分項 / 投打對決 ----------
+
+def _dicts(cur) -> list[dict]:
+    """cursor → list[dict]，欄名取自 cursor.description；real 已是 float。"""
+    cols = [d[0] for d in cur.description]
+    return [dict(zip(cols, row, strict=True)) for row in cur.fetchall()]
+
+
+@app.get("/api/v1/players/roster")
+def roster(season: int = Query(DEFAULT_SEASON)) -> dict:
+    """本季登錄打者/投手名單（投打對決與細項頁的選單來源）。"""
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            """
+            SELECT b.player_id, b.name, t.name FROM cpbl.batting_current b
+            LEFT JOIN cpbl.team_current t ON t.team_code = b.team_code AND t.year = b.year
+            WHERE b.year = %s ORDER BY b.name
+            """, (season,),
+        )
+        batters = [{"id": i, "name": n, "team": tm} for i, n, tm in cur.fetchall()]
+        cur.execute(
+            """
+            SELECT p.player_id, p.name, t.name FROM cpbl.pitching_current p
+            LEFT JOIN cpbl.team_current t ON t.team_code = p.team_code AND t.year = p.year
+            WHERE p.year = %s ORDER BY p.name
+            """, (season,),
+        )
+        pitchers = [{"id": i, "name": n, "team": tm} for i, n, tm in cur.fetchall()]
+    return {"season": season, "batters": batters, "pitchers": pitchers}
+
+
+@app.get("/api/v1/matchups")
+def matchups(
+    hitter: str = Query(..., description="打者 player_id"),
+    pitcher: str = Query(..., description="投手 player_id"),
+) -> dict:
+    """單組打者 vs 投手的生涯對戰（A/C/E 各一列）。"""
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            "SELECT * FROM cpbl.batter_pitcher_matchups WHERE hitter_acnt = %s AND pitcher_acnt = %s "
+            "ORDER BY kind_code",
+            (hitter, pitcher),
+        )
+        return {"hitter": hitter, "pitcher": pitcher, "items": _dicts(cur)}
+
+
+@app.get("/api/v1/players/{player_id}/vs-team")
+def player_vs_team(
+    player_id: str,
+    role: str = Query("batting", pattern="^(batting|pitching)$"),
+) -> dict:
+    """選手對戰各隊成績（本季 A 例行賽）。role=batting/pitching。"""
+    table = "batting_vs_team" if role == "batting" else "pitching_vs_team"
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            f"SELECT * FROM cpbl.{table} WHERE acnt = %s ORDER BY total_games DESC NULLS LAST",
+            (player_id,),
+        )
+        return {"player_id": player_id, "role": role, "items": _dicts(cur)}
+
+
+@app.get("/api/v1/players/{player_id}/splits")
+def player_splits(
+    player_id: str,
+    role: str = Query("batting", pattern="^(batting|pitching)$"),
+    year: int = Query(DEFAULT_SEASON),
+    kind_code: str = Query("A", pattern="^(A|C|E)$"),
+) -> dict:
+    """選手分項成績（主客/左右/壘上/局數/月份…）。year=9999 為生涯累計。"""
+    table = "batting_splits" if role == "batting" else "pitching_splits"
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            f"SELECT * FROM cpbl.{table} WHERE acnt = %s AND year = %s AND kind_code = %s "
+            "ORDER BY item_group_code, item_index",
+            (player_id, year, kind_code),
+        )
+        return {"player_id": player_id, "role": role, "year": year,
+                "kind_code": kind_code, "items": _dicts(cur)}
