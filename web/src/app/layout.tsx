@@ -22,6 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/pitchers" className="hover:text-emerald-400">投手</Link>
               <Link href="/fielding" className="hover:text-emerald-400">守備</Link>
               <Link href="/matchups" className="hover:text-emerald-400">投打對決</Link>
+              <Link href="/splits" className="hover:text-emerald-400">分項</Link>
               <Link href="/predict" className="hover:text-emerald-400">賽果預測</Link>
             </nav>
           </div>
