@@ -80,3 +80,30 @@ export function winProb(z: Record<string, number>, weights: Record<string, numbe
   for (const k in z) logit += (weights[k] ?? 0) * z[k];
   return 1 / (1 + Math.exp(-logit));
 }
+
+// ---- 投打對決 / 對戰各隊 / 分項 ----
+
+export type RosterPlayer = { id: string; name: string | null; team: string | null };
+export type Roster = { season: number; batters: RosterPlayer[]; pitchers: RosterPlayer[] };
+
+// 各表欄位眾多，統一以寬鬆 record 表示，由頁面挑欄位呈現。
+export type StatRow = Record<string, number | string | null>;
+export type MatchupsData = { hitter: string; pitcher: string; items: StatRow[] };
+export type VsTeamData = { player_id: string; role: string; items: StatRow[] };
+export type SplitsData = { player_id: string; role: string; year: number; kind_code: string; items: StatRow[] };
+
+export const KIND_LABEL: Record<string, string> = {
+  A: "一軍例行賽",
+  C: "總冠軍賽",
+  E: "季後挑戰賽",
+};
+
+export const detail = {
+  roster: () => clientGet<Roster>("/api/v1/players/roster"),
+  matchups: (hitter: string, pitcher: string) =>
+    clientGet<MatchupsData>(`/api/v1/matchups?hitter=${hitter}&pitcher=${pitcher}`),
+  vsTeam: (id: string, role: "batting" | "pitching") =>
+    clientGet<VsTeamData>(`/api/v1/players/${id}/vs-team?role=${role}`),
+  splits: (id: string, role: "batting" | "pitching", year: number, kind = "A") =>
+    clientGet<SplitsData>(`/api/v1/players/${id}/splits?role=${role}&year=${year}&kind_code=${kind}`),
+};
