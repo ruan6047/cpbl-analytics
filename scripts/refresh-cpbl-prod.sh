@@ -6,8 +6,9 @@
 # VPS 重建賽果特徵（build-features 只讀 DB，VPS 可跑）。
 #
 # 用法：./scripts/refresh-cpbl-prod.sh
+#       WITH_DETAIL=1 ./scripts/refresh-cpbl-prod.sh   # 連同選手細項（耗時逾 1 小時）
 #
-# 可用環境變數覆蓋：LOCAL_DB / VPS / DEPLOY_PATH
+# 可用環境變數覆蓋：LOCAL_DB / VPS / DEPLOY_PATH / WITH_DETAIL
 set -euo pipefail
 
 LOCAL_DB="${LOCAL_DB:-cpbl-analytics-db-1}"
@@ -39,6 +40,14 @@ cd "$REPO_DIR"
 uv run cpbl-scrape-games "$YEAR" "$YEAR"
 uv run cpbl-scrape-stats "$PREV" "$YEAR"
 
+# 選手細項（投打對決 / 對戰各隊 / 分項）變動慢且耗時逾 1 小時，預設不跑；
+# 需要時以 WITH_DETAIL=1 觸發（每隔幾週跑一次即可）。
+if [ -n "${WITH_DETAIL:-}" ]; then
+  echo "    + 選手細項（耗時較長：投打對決生涯 + 對戰各隊 + 分項）"
+  uv run cpbl-scrape-fighting 9999 1.2 cur
+  uv run cpbl-scrape-detail 1.2
+fi
+
 echo "==> 2/3 套用 prod migration + 非破壞性 upsert 同步"
 # 同步前先讓 prod 套用任何新 migration（否則新欄位不存在、COPY 對不上）
 ssh -o BatchMode=yes "$VPS" 'docker exec prod_cpbl_api python -c "from cpbl.db import migrate; print(\"migrated:\", migrate())"'
@@ -51,6 +60,27 @@ sync_table batting_current "year,player_id" name team_code pa avg obp slg ops hr
   g ab r h b2 b3 rbi bb so sb cs
 sync_table fielding_current "year,player_id,pos" name team_code g tc po a e dp fpct
 sync_table team_current "year,team_code" name bat_avg bat_obp bat_slg bat_ops bat_hr pit_era pit_whip
+
+if [ -n "${WITH_DETAIL:-}" ]; then
+  sync_table batter_pitcher_matchups "year,kind_code,hitter_acnt,pitcher_acnt" \
+    hitter_name pitcher_name hitter_team_no pitcher_team_no plate_appearances at_bats hits rbi \
+    singles doubles triples home_runs total_bases avg obp slg ops sac_hit sac_fly bb ibb hbp so \
+    ground_out fly_out goao strike_pct ball_pct swing_pct first_pitch_swing_pct whiff_pct gb_pct ld_pct fb_pct
+  sync_table batting_vs_team "year,kind_code,acnt,fight_team_code" \
+    fight_team_name team_no total_games plate_appearances at_bats hits rbi runs singles doubles triples \
+    home_runs total_bases gidp sac_hit sac_fly bb ibb hbp so sb_ok sb_fail sb_pct avg obp slg ta ops
+  sync_table pitching_vs_team "year,kind_code,acnt,fight_team_code" \
+    fight_team_name team_no total_games starts closes complete_games shutouts wins loses save_ok save_fail \
+    holds inning_pitched_cnt inning_pitched_div3 whip era plate_appearances pitch_cnt hits home_runs bb ibb \
+    hbp so wild_pitch balk runs earned_runs
+  sync_table batting_splits "year,kind_code,acnt,item_group_code,item_index" \
+    item_name item_note plate_appearances at_bats hits rbi singles doubles triples home_runs total_bases \
+    sac_hit sac_fly bb ibb hbp so ground_outs fly_outs goao avg obp slg ops
+  sync_table pitching_splits "year,kind_code,acnt,item_group_code,item_index" \
+    item_name item_note wins loses starts complete_games shutouts save_ok inning_pitched_cnt \
+    inning_pitched_div3 plate_appearances pitch_cnt strikes balls hits home_runs sac_hit sac_fly bb ibb \
+    hbp so wild_pitch balk runs earned_runs
+fi
 
 echo "==> 3/3 VPS 重建賽果特徵"
 ssh -o BatchMode=yes "$VPS" 'docker exec prod_cpbl_api cpbl-build-features 2>&1 | grep -v httpx | tail -1'
