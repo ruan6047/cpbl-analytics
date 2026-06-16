@@ -91,12 +91,13 @@ export type FieldingResponse = {
 export const api = {
   standings: (season?: number) =>
     get<StandingsResponse>(`/api/v1/season/standings${season ? `?season=${season}` : ""}`),
-  battingLeaders: (sort = "ops") =>
-    get<BattingLeadersResponse>(`/api/v1/season/batting-leaders?sort=${sort}&limit=50`),
-  pitchingLeaders: (sort = "era") =>
-    get<PitchingLeadersResponse>(`/api/v1/season/pitching-leaders?sort=${sort}&limit=50`),
-  fielding: (sort = "tc", pos?: string) =>
+  // 排行榜改由前端點欄位排序/隊伍篩選，故抓全名單（低門檻、大 limit）。
+  battingLeaders: (sort = "ops", { limit = 400, minPa = 0 } = {}) =>
+    get<BattingLeadersResponse>(`/api/v1/season/batting-leaders?sort=${sort}&limit=${limit}&min_pa=${minPa}`),
+  pitchingLeaders: (sort = "era", { limit = 400, minIp = 0 } = {}) =>
+    get<PitchingLeadersResponse>(`/api/v1/season/pitching-leaders?sort=${sort}&limit=${limit}&min_ip=${minIp}`),
+  fielding: (sort = "tc", pos?: string, { limit = 600 } = {}) =>
     get<FieldingResponse>(
-      `/api/v1/season/fielding?sort=${sort}${pos ? `&pos=${encodeURIComponent(pos)}` : ""}&limit=60`,
+      `/api/v1/season/fielding?sort=${sort}${pos ? `&pos=${encodeURIComponent(pos)}` : ""}&limit=${limit}`,
     ),
 };
