@@ -66,6 +66,13 @@ def info() -> dict:
         metrics["batters_tracked"] = _scalar(
             "SELECT count(*) FROM cpbl.batting_current WHERE year = %s", (season,)
         ) or 0
+        metrics["matchups_indexed"] = _scalar(
+            "SELECT count(*) FROM cpbl.batter_pitcher_matchups"
+        ) or 0
+        metrics["player_splits_indexed"] = (
+            (_scalar("SELECT count(*) FROM cpbl.batting_splits") or 0)
+            + (_scalar("SELECT count(*) FROM cpbl.pitching_splits") or 0)
+        )
         metrics["predictions_today"] = _scalar(
             "SELECT count(*) FROM cpbl.games "
             "WHERE year = %s AND home_score + away_score = 0 AND game_date = CURRENT_DATE", (season,)
