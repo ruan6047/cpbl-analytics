@@ -11,33 +11,34 @@ const f3 = (v: number | string | null) =>
 const ip = (r: StatRow) =>
   r.inning_pitched_cnt === null ? "—" : `${r.inning_pitched_cnt}.${r.inning_pitched_div3 ?? 0}`;
 
-const BAT_COLS: [string, (r: StatRow) => string][] = [
-  ["PA", (r) => n(r.plate_appearances)],
-  ["AB", (r) => n(r.at_bats)],
-  ["H", (r) => n(r.hits)],
-  ["HR", (r) => n(r.home_runs)],
-  ["RBI", (r) => n(r.rbi)],
-  ["BB", (r) => n(r.bb)],
-  ["SO", (r) => n(r.so)],
-  ["AVG", (r) => f3(r.avg)],
-  ["OBP", (r) => f3(r.obp)],
-  ["SLG", (r) => f3(r.slg)],
-  ["OPS", (r) => f3(r.ops)],
+// [欄名, 中文說明(hover), 取值]
+const BAT_COLS: [string, string, (r: StatRow) => string][] = [
+  ["PA", "打席", (r) => n(r.plate_appearances)],
+  ["AB", "打數", (r) => n(r.at_bats)],
+  ["H", "安打", (r) => n(r.hits)],
+  ["HR", "全壘打", (r) => n(r.home_runs)],
+  ["RBI", "打點", (r) => n(r.rbi)],
+  ["BB", "四壞球（保送）", (r) => n(r.bb)],
+  ["SO", "被三振", (r) => n(r.so)],
+  ["AVG", "打擊率 = 安打 ÷ 打數", (r) => f3(r.avg)],
+  ["OBP", "上壘率", (r) => f3(r.obp)],
+  ["SLG", "長打率 = 壘打數 ÷ 打數", (r) => f3(r.slg)],
+  ["OPS", "整體攻擊指數 = 上壘率＋長打率", (r) => f3(r.ops)],
 ];
 
-const PIT_COLS: [string, (r: StatRow) => string][] = [
-  ["先發", (r) => n(r.starts)],
-  ["W", (r) => n(r.wins)],
-  ["L", (r) => n(r.loses)],
-  ["IP", ip],
-  ["PA", (r) => n(r.plate_appearances)],
-  ["球數", (r) => n(r.pitch_cnt)],
-  ["H", (r) => n(r.hits)],
-  ["HR", (r) => n(r.home_runs)],
-  ["BB", (r) => n(r.bb)],
-  ["SO", (r) => n(r.so)],
-  ["失分", (r) => n(r.runs)],
-  ["自責", (r) => n(r.earned_runs)],
+const PIT_COLS: [string, string, (r: StatRow) => string][] = [
+  ["先發", "先發場數", (r) => n(r.starts)],
+  ["W", "勝場", (r) => n(r.wins)],
+  ["L", "敗場", (r) => n(r.loses)],
+  ["IP", "投球局數（.1=⅓局、.2=⅔局）", ip],
+  ["PA", "面對打席", (r) => n(r.plate_appearances)],
+  ["球數", "投球數", (r) => n(r.pitch_cnt)],
+  ["H", "被安打", (r) => n(r.hits)],
+  ["HR", "被全壘打", (r) => n(r.home_runs)],
+  ["BB", "投出四壞球", (r) => n(r.bb)],
+  ["SO", "奪三振", (r) => n(r.so)],
+  ["失分", "失分（含非自責）", (r) => n(r.runs)],
+  ["自責", "自責分：計入防禦率的失分", (r) => n(r.earned_runs)],
 ];
 
 function Toggle<T extends string>({
@@ -77,13 +78,20 @@ export default function SplitsPage() {
 
   useEffect(() => {
     detail.roster().then(setRoster).catch(() => setRoster(null));
+    // 從個人頁帶入 ?id=&role= 預選
+    const q = new URLSearchParams(window.location.search);
+    const qrole = q.get("role");
+    const qid = q.get("id");
+    if (qrole === "batting" || qrole === "pitching") setRole(qrole);
+    if (qid) setPid(qid);
   }, []);
 
-  // 切換 role 時清空選擇
-  useEffect(() => {
+  // 使用者切換 role 時清空已選球員（程式從 URL 設定的不受影響）
+  const switchRole = (r: Role) => {
+    setRole(r);
     setPid("");
     setRows(null);
-  }, [role]);
+  };
 
   const players: RosterPlayer[] = useMemo(
     () => (roster ? (role === "batting" ? roster.batters : roster.pitchers) : []),
@@ -125,7 +133,7 @@ export default function SplitsPage() {
             { v: "pitching", label: "投手" },
           ]}
           value={role}
-          onChange={setRole}
+          onChange={switchRole}
         />
         {roster && (
           <select
@@ -175,8 +183,12 @@ export default function SplitsPage() {
               <thead className="bg-white/5 text-left text-white/50">
                 <tr>
                   <th className="whitespace-nowrap px-2.5 py-3 font-medium">分項</th>
-                  {cols.map(([h]) => (
-                    <th key={h} className="whitespace-nowrap px-2.5 py-3 font-medium">
+                  {cols.map(([h, tip]) => (
+                    <th
+                      key={h}
+                      title={tip}
+                      className="cursor-help whitespace-nowrap px-2.5 py-3 font-medium underline decoration-white/20 decoration-dotted underline-offset-4"
+                    >
                       {h}
                     </th>
                   ))}
@@ -188,11 +200,8 @@ export default function SplitsPage() {
                     <td className="whitespace-nowrap px-2.5 py-2.5 font-sans text-white/80">
                       {n(r.item_name)}
                     </td>
-                    {cols.map(([h, get], j) => (
-                      <td
-                        key={h}
-                        className={`px-2.5 py-2.5 ${j >= cols.length - 4 && role === "batting" ? "" : ""}`}
-                      >
+                    {cols.map(([h, , get]) => (
+                      <td key={h} className="px-2.5 py-2.5">
                         {get(r)}
                       </td>
                     ))}
