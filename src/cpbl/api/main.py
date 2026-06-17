@@ -153,7 +153,8 @@ def batting_leaders(
         cur.execute(
             f"""
             SELECT b.player_id, b.name, t.name, b.g, b.pa, b.ab, b.r, b.h, b.b2, b.b3,
-                   b.hr, b.rbi, b.bb, b.so, b.sb, b.cs, b.avg, b.obp, b.slg, b.ops
+                   b.hr, b.rbi, b.bb, b.so, b.sb, b.cs, b.avg, b.obp, b.slg, b.ops,
+                   b.tb, b.ibb, b.hbp, b.sf, b.sh, b.gidp, b.k_pct, b.bb_pct
             FROM cpbl.batting_current b
             LEFT JOIN cpbl.team_current t ON t.team_code = b.team_code AND t.year = b.year
             WHERE b.year = %s AND b.{sort} IS NOT NULL AND COALESCE(b.pa, 0) >= %s
@@ -163,11 +164,12 @@ def batting_leaders(
             (season, min_pa, limit),
         )
         items = [
-            {"player_id": pid, "name": name, "team": team, "g": g, "pa": pa, "ab": ab,
-             "r": r, "h": h, "b2": b2, "b3": b3, "hr": hr, "rbi": rbi, "bb": bb, "so": so,
-             "sb": sb, "cs": cs, "avg": f(avg), "obp": f(obp), "slg": f(slg), "ops": f(ops)}
-            for pid, name, team, g, pa, ab, r, h, b2, b3, hr, rbi, bb, so, sb, cs, avg, obp, slg, ops
-            in cur.fetchall()
+            {"player_id": r[0], "name": r[1], "team": r[2], "g": r[3], "pa": r[4], "ab": r[5],
+             "r": r[6], "h": r[7], "b2": r[8], "b3": r[9], "hr": r[10], "rbi": r[11], "bb": r[12],
+             "so": r[13], "sb": r[14], "cs": r[15], "avg": f(r[16]), "obp": f(r[17]),
+             "slg": f(r[18]), "ops": f(r[19]), "tb": r[20], "ibb": r[21], "hbp": r[22], "sf": r[23],
+             "sh": r[24], "gidp": r[25], "k_pct": f(r[26]), "bb_pct": f(r[27])}
+            for r in cur.fetchall()
         ]
     return {"season": season, "sort": sort, "items": items}
 
@@ -185,8 +187,9 @@ def pitching_leaders(
         cur = c.cursor()
         cur.execute(
             f"""
-            SELECT p.player_id, p.name, t.name, p.g, p.gs, p.w, p.l, p.sv, p.hld,
-                   p.ip, p.era, p.whip, p.k9
+            SELECT p.player_id, p.name, t.name, p.g, p.gs, p.cg, p.sho, p.w, p.l, p.sv, p.hld,
+                   p.ip, p.era, p.whip, p.k9, p.pa, p.np, p.h, p.hr, p.bb, p.ibb, p.hbp, p.so,
+                   p.wp, p.bk, p.r, p.er, p.go, p.ao, p.goao
             FROM cpbl.pitching_current p
             LEFT JOIN cpbl.team_current t ON t.team_code = p.team_code AND t.year = p.year
             WHERE p.year = %s AND p.{sort} IS NOT NULL AND COALESCE(p.ip, 0) >= %s
@@ -195,14 +198,16 @@ def pitching_leaders(
             """,
             (season, min_ip, limit),
         )
+        fl = lambda v: float(v) if v is not None else None  # noqa: E731
         items = [
-            {"player_id": pid, "name": name, "team": team, "g": g, "gs": gs, "w": w, "l": l,
-             "sv": sv, "hld": hld,
-             "ip": float(ip) if ip is not None else None,
-             "era": float(era) if era is not None else None,
-             "whip": float(whip) if whip is not None else None,
-             "k9": round(float(k9), 2) if k9 is not None else None}
-            for pid, name, team, g, gs, w, l, sv, hld, ip, era, whip, k9 in cur.fetchall()
+            {"player_id": r[0], "name": r[1], "team": r[2], "g": r[3], "gs": r[4], "cg": r[5],
+             "sho": r[6], "w": r[7], "l": r[8], "sv": r[9], "hld": r[10],
+             "ip": fl(r[11]), "era": fl(r[12]), "whip": fl(r[13]),
+             "k9": round(float(r[14]), 2) if r[14] is not None else None,
+             "pa": r[15], "np": r[16], "h": r[17], "hr": r[18], "bb": r[19], "ibb": r[20],
+             "hbp": r[21], "so": r[22], "wp": r[23], "bk": r[24], "r": r[25], "er": r[26],
+             "go": r[27], "ao": r[28], "goao": fl(r[29])}
+            for r in cur.fetchall()
         ]
     return {"season": season, "sort": sort, "items": items}
 
@@ -427,21 +432,156 @@ def player_vs_team(
         return {"player_id": player_id, "role": role, "items": _dicts(cur)}
 
 
+# 多賽別合併時要加總的計數欄位（比率欄不加總，之後重算）
+_BSPLIT_SUM = ["plate_appearances", "at_bats", "hits", "rbi", "singles", "doubles", "triples",
+               "home_runs", "total_bases", "sac_hit", "sac_fly", "bb", "ibb", "hbp", "so",
+               "ground_outs", "fly_outs"]
+_PSPLIT_SUM = ["wins", "loses", "starts", "complete_games", "shutouts", "save_ok",
+               "inning_pitched_cnt", "inning_pitched_div3", "plate_appearances", "pitch_cnt",
+               "strikes", "balls", "hits", "home_runs", "sac_hit", "sac_fly", "bb", "ibb", "hbp",
+               "so", "wild_pitch", "balk", "runs", "earned_runs"]
+
+
+def _round(x: float | None, n: int) -> float | None:
+    return round(x, n) if x is not None else None
+
+
+def _merge_splits(rows: list[dict], role: str) -> list[dict]:
+    """跨賽別合併：依 (item_group_code, item_index) 加總計數欄位，再重算比率。"""
+    sum_cols = _BSPLIT_SUM if role == "batting" else _PSPLIT_SUM
+    groups: dict[tuple, dict] = {}
+    order: list[tuple] = []
+    for r in rows:
+        key = (r["item_group_code"], r["item_index"])
+        g = groups.get(key)
+        if g is None:
+            groups[key] = dict(r)
+            order.append(key)
+        else:
+            for col in sum_cols:
+                g[col] = (g.get(col) or 0) + (r.get(col) or 0)
+
+    out: list[dict] = []
+    for key in order:
+        g = groups[key]
+        if role == "batting":
+            ab, h = g.get("at_bats") or 0, g.get("hits") or 0
+            bb, hbp, sf = g.get("bb") or 0, g.get("hbp") or 0, g.get("sac_fly") or 0
+            tb, go, fo = g.get("total_bases") or 0, g.get("ground_outs"), g.get("fly_outs")
+            obp_den = ab + bb + hbp + sf
+            g["avg"] = _round(h / ab, 3) if ab else None
+            g["obp"] = _round((h + bb + hbp) / obp_den, 4) if obp_den else None
+            g["slg"] = _round(tb / ab, 4) if ab else None
+            g["ops"] = _round((g["obp"] or 0) + (g["slg"] or 0), 4) if ab else None
+            g["goao"] = _round(go / fo, 2) if fo else None
+        else:
+            outs = (g.get("inning_pitched_cnt") or 0) * 3 + (g.get("inning_pitched_div3") or 0)
+            g["inning_pitched_cnt"], g["inning_pitched_div3"] = outs // 3, outs % 3
+        out.append(g)
+    return out
+
+
 @app.get("/api/v1/players/{player_id}/splits")
 def player_splits(
     player_id: str,
     role: str = Query("batting", pattern="^(batting|pitching)$"),
     year: int = Query(DEFAULT_SEASON),
-    kind_code: str = Query("A", pattern="^(A|C|E)$"),
+    kind_code: str = Query("A", description="賽別，可逗號多選如 A,C,E（多選時加總計數並重算比率）"),
 ) -> dict:
-    """選手分項成績（主客/左右/壘上/局數/月份…）。year=9999 為生涯累計。"""
+    """選手分項成績（主客/左右/壘上/局數/月份…）。year=9999 為生涯累計；
+    kind_code 可多選，多選時跨賽別合併（計數相加、比率重算）。"""
+    kinds = [k for k in (s.strip() for s in kind_code.split(",")) if k in ("A", "C", "E")] or ["A"]
     table = "batting_splits" if role == "batting" else "pitching_splits"
     with conn() as c:
         cur = c.cursor()
         cur.execute(
-            f"SELECT * FROM cpbl.{table} WHERE acnt = %s AND year = %s AND kind_code = %s "
+            f"SELECT * FROM cpbl.{table} WHERE acnt = %s AND year = %s AND kind_code = ANY(%s) "
             "ORDER BY item_group_code, item_index",
-            (player_id, year, kind_code),
+            (player_id, year, kinds),
         )
-        return {"player_id": player_id, "role": role, "year": year,
-                "kind_code": kind_code, "items": _dicts(cur)}
+        rows = _dicts(cur)
+    items = rows if len(kinds) == 1 else _merge_splits(rows, role)
+    return {"player_id": player_id, "role": role, "year": year,
+            "kind_code": ",".join(kinds), "items": items}
+
+
+@app.get("/api/v1/players/{player_id}/profile")
+def player_profile(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
+    """球員基本資料 + 角色（本季是否登錄為打者/投手），供個人頁標頭。"""
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            """
+            SELECT b.player_id, b.name, t.name FROM cpbl.batting_current b
+            LEFT JOIN cpbl.team_current t ON t.team_code = b.team_code AND t.year = b.year
+            WHERE b.player_id = %s AND b.year = %s
+            """, (player_id, season),
+        )
+        bat = cur.fetchone()
+        cur.execute(
+            """
+            SELECT p.player_id, p.name, t.name FROM cpbl.pitching_current p
+            LEFT JOIN cpbl.team_current t ON t.team_code = p.team_code AND t.year = p.year
+            WHERE p.player_id = %s AND p.year = %s
+            """, (player_id, season),
+        )
+        pit = cur.fetchone()
+        cur.execute("SELECT name, bats, throws FROM cpbl.players WHERE id = %s", (player_id,))
+        meta = cur.fetchone()
+    if not bat and not pit and not meta:
+        return {"player": None}
+    name = (bat[1] if bat else None) or (pit[1] if pit else None) or (meta[0] if meta else None)
+    team = (bat[2] if bat else None) or (pit[2] if pit else None)
+    return {
+        "player": {
+            "id": player_id, "name": name, "team": team,
+            "is_batter": bat is not None, "is_pitcher": pit is not None,
+            "bats": meta[1] if meta else None, "throws": meta[2] if meta else None,
+        }
+    }
+
+
+@app.get("/api/v1/players/{player_id}/matchups")
+def player_matchups(
+    player_id: str,
+    role: str = Query("batting", pattern="^(batting|pitching)$"),
+    kind_code: str = Query("A", pattern="^(A|C|E)$"),
+    season: int = Query(DEFAULT_SEASON),
+) -> dict:
+    """某球員的全部投打對決（role=batting：對戰各投手；pitching：對戰各打者）。
+    對手球隊名以本季 team_current 對照；同隊不可能對戰故天然排除。"""
+    self_col, opp_col = ("hitter_acnt", "pitcher") if role == "batting" else ("pitcher_acnt", "hitter")
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            f"""
+            SELECT m.{opp_col}_acnt AS opp_id, m.{opp_col}_name AS opp_name, t.name AS opp_team,
+                   m.plate_appearances, m.at_bats, m.hits, m.home_runs, m.rbi, m.bb, m.so,
+                   m.avg, m.obp, m.slg, m.ops, m.whiff_pct
+            FROM cpbl.batter_pitcher_matchups m
+            LEFT JOIN cpbl.team_current t ON t.team_code = m.{opp_col}_team_no AND t.year = %s
+            WHERE m.{self_col} = %s AND m.kind_code = %s
+            ORDER BY m.plate_appearances DESC NULLS LAST
+            """,
+            (season, player_id, kind_code),
+        )
+        return {"player_id": player_id, "role": role, "kind_code": kind_code, "items": _dicts(cur)}
+
+
+@app.get("/api/v1/players/{player_id}/season")
+def player_season(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
+    """球員本季成績（batting_current / pitching_current 完整列），供個人頁成績卡。"""
+    out: dict[str, Any] = {"player_id": player_id, "season": season, "batting": None, "pitching": None}
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute("SELECT * FROM cpbl.batting_current WHERE player_id = %s AND year = %s",
+                    (player_id, season))
+        b = _dicts(cur)
+        cur.execute("SELECT * FROM cpbl.pitching_current WHERE player_id = %s AND year = %s",
+                    (player_id, season))
+        p = _dicts(cur)
+    if b:
+        out["batting"] = b[0]
+    if p:
+        out["pitching"] = p[0]
+    return out
