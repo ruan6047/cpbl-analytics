@@ -396,8 +396,10 @@ def player_pitching(player_id: str) -> dict:
         era = round((er or 0) * 9 / rip, 2) if rip else None
         whip = round(((bb or 0) + (h or 0)) / rip, 2) if rip else None
         k9 = round((so or 0) * 9 / rip, 2) if rip else None
+        outs = round(rip * 3)  # 真實局數 → 棒球 .1/.2 記法（.1=⅓、.2=⅔）
+        ip_disp = f"{outs // 3}.{outs % 3}"
         seasons.append({"year": y, "teams": teams, "g": g, "gs": gs, "w": w, "l": l,
-                        "sv": sv, "hld": hld, "ip": round(rip, 1), "so": so,
+                        "sv": sv, "hld": hld, "ip": ip_disp, "so": so,
                         "era": era, "whip": whip, "k9": k9})
     return {"player_id": player_id, "seasons": seasons}
 
