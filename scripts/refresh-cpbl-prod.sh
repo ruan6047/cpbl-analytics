@@ -87,6 +87,13 @@ if [ -n "${WITH_DETAIL:-}" ]; then
     item_name item_note wins loses starts complete_games shutouts save_ok inning_pitched_cnt \
     inning_pitched_div3 plate_appearances pitch_cnt strikes balls hits home_runs sac_hit sac_fly bb ibb \
     hbp so wild_pitch balk runs earned_runs
+  sync_table game_scoreboard "year,kind_code,game_sno,team_no,inning_seq" \
+    visiting_home_type team_name score_cnt hitting_cnt error_cnt
+  sync_table game_livelog "year,kind_code,game_sno,main_event_no" \
+    inning_seq visiting_home_type batting_order out_cnt ball_cnt strike_cnt pitch_cnt content \
+    action_name batting_action_name defend_station_code hitter_acnt hitter_name pitcher_acnt \
+    pitcher_name catcher_acnt catcher_name first_base second_base third_base is_strike is_ball \
+    is_score is_change_player is_special_event visiting_score home_score
 fi
 
 echo "==> 3/3 VPS 重建賽果特徵"
