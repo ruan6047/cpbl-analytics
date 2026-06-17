@@ -128,6 +128,10 @@ export const detail = {
     clientGet<PlayerMatchupsData>(`/api/v1/players/${id}/matchups?role=${role}&kind_code=${kind}`),
   season: (id: string) =>
     clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/season`),
+  gameLive: (sno: number, kind = "A") =>
+    clientGet<{ game: StatRow | null; scoreboard: StatRow[]; livelog: StatRow[] }>(
+      `/api/v1/games/${sno}/live?kind_code=${kind}`,
+    ),
   // 全聯盟本季母體（算百分位 PR 用）
   leaders: (role: "batting" | "pitching") =>
     clientGet<{ items: StatRow[] }>(

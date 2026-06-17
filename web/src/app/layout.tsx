@@ -18,6 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </Link>
             <nav className="flex gap-4 text-sm text-white/50">
               <Link href="/" className="hover:text-emerald-400">本季戰績</Link>
+              <Link href="/games" className="hover:text-emerald-400">賽況</Link>
               <Link href="/batters" className="hover:text-emerald-400">打者</Link>
               <Link href="/pitchers" className="hover:text-emerald-400">投手</Link>
               <Link href="/fielding" className="hover:text-emerald-400">守備</Link>
