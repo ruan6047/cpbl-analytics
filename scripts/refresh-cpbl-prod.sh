@@ -82,11 +82,11 @@ if [ -n "${WITH_DETAIL:-}" ]; then
     fight_team_name team_no total_games starts closes complete_games shutouts wins loses save_ok save_fail \
     holds inning_pitched_cnt inning_pitched_div3 whip era plate_appearances pitch_cnt hits home_runs bb ibb \
     hbp so wild_pitch balk runs earned_runs
-  sync_table batting_splits "year,kind_code,acnt,item_group_code,item_index" \
-    item_name item_note plate_appearances at_bats hits rbi singles doubles triples home_runs total_bases \
+  sync_table batting_splits "year,kind_code,acnt,item_group_code,item_index,item_name" \
+    item_note plate_appearances at_bats hits rbi singles doubles triples home_runs total_bases \
     sac_hit sac_fly bb ibb hbp so ground_outs fly_outs goao avg obp slg ops
-  sync_table pitching_splits "year,kind_code,acnt,item_group_code,item_index" \
-    item_name item_note wins loses starts complete_games shutouts save_ok inning_pitched_cnt \
+  sync_table pitching_splits "year,kind_code,acnt,item_group_code,item_index,item_name" \
+    item_note wins loses starts complete_games shutouts save_ok inning_pitched_cnt \
     inning_pitched_div3 plate_appearances pitch_cnt strikes balls hits home_runs sac_hit sac_fly bb ibb \
     hbp so wild_pitch balk runs earned_runs
   sync_table game_scoreboard "year,kind_code,game_sno,team_no,inning_seq" \
