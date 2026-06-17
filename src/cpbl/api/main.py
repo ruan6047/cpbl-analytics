@@ -345,32 +345,61 @@ def outcome_simulate(
 
 @app.get("/api/v1/players/{player_id}/batting")
 def player_batting(player_id: str) -> dict:
-    """單一球員的逐年打擊史。"""
+    """單一球員的逐年打擊史（多隊年度合計，含 OBP/SLG/OPS）。"""
     with conn() as c:
         cur = c.cursor()
-        cur.execute("SELECT id, name, bats, throws, birthday FROM cpbl.players WHERE id = %s", (player_id,))
-        p = cur.fetchone()
-        if not p:
-            return {"player": None, "seasons": []}
         cur.execute(
             """
-            SELECT year, sum(g), sum(pa), sum(ab), sum(h), sum(hr), sum(rbi), sum(bb), sum(so),
-                   round(sum(h)::numeric / NULLIF(sum(ab),0), 3) AS avg
+            SELECT year, string_agg(DISTINCT team_name, '/') AS teams,
+                   sum(g), sum(pa), sum(ab), sum(r), sum(h), sum(b2), sum(b3), sum(hr),
+                   sum(rbi), sum(sb), sum(bb), sum(so), sum(tb), sum(hbp), sum(sf)
             FROM cpbl.batting_seasons WHERE player_id = %s
             GROUP BY year ORDER BY year
             """,
             (player_id,),
         )
-        seasons = [
-            {"year": y, "g": g, "pa": pa, "ab": ab, "h": h, "hr": hr, "rbi": rbi,
-             "bb": bb, "so": so, "avg": float(avg) if avg is not None else None}
-            for y, g, pa, ab, h, hr, rbi, bb, so, avg in cur.fetchall()
-        ]
-    return {
-        "player": {"id": p[0], "name": p[1], "bats": p[2], "throws": p[3],
-                   "birthday": p[4].isoformat() if p[4] else None},
-        "seasons": seasons,
-    }
+        rows = cur.fetchall()
+    seasons = []
+    for y, teams, g, pa, ab, r, h, b2, b3, hr, rbi, sb, bb, so, tb, hbp, sf in rows:
+        ab = ab or 0
+        ob_den = ab + (bb or 0) + (hbp or 0) + (sf or 0)
+        avg = round(h / ab, 3) if ab else None
+        obp = round(((h or 0) + (bb or 0) + (hbp or 0)) / ob_den, 3) if ob_den else None
+        slg = round((tb or 0) / ab, 3) if ab else None
+        ops = round(obp + slg, 3) if obp is not None and slg is not None else None
+        seasons.append({"year": y, "teams": teams, "g": g, "pa": pa, "ab": ab, "r": r,
+                        "h": h, "b2": b2, "b3": b3, "hr": hr, "rbi": rbi, "sb": sb,
+                        "bb": bb, "so": so, "avg": avg, "obp": obp, "slg": slg, "ops": ops})
+    return {"player_id": player_id, "seasons": seasons}
+
+
+@app.get("/api/v1/players/{player_id}/pitching")
+def player_pitching(player_id: str) -> dict:
+    """單一球員的逐年投球史（多隊年度合計，ip 以 .1/.2 棒球記法正確換算）。"""
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            """
+            SELECT year, string_agg(DISTINCT team_name, '/') AS teams,
+                   sum(g), sum(gs), sum(w), sum(l), sum(sv), sum(hld),
+                   sum(trunc(ip) + (ip - trunc(ip)) * 10 / 3.0) AS real_ip,
+                   sum(so), sum(h), sum(bb), sum(er)
+            FROM cpbl.pitching_seasons WHERE player_id = %s
+            GROUP BY year ORDER BY year
+            """,
+            (player_id,),
+        )
+        rows = cur.fetchall()
+    seasons = []
+    for y, teams, g, gs, w, l, sv, hld, rip, so, h, bb, er in rows:
+        rip = float(rip) if rip is not None else 0.0
+        era = round((er or 0) * 9 / rip, 2) if rip else None
+        whip = round(((bb or 0) + (h or 0)) / rip, 2) if rip else None
+        k9 = round((so or 0) * 9 / rip, 2) if rip else None
+        seasons.append({"year": y, "teams": teams, "g": g, "gs": gs, "w": w, "l": l,
+                        "sv": sv, "hld": hld, "ip": round(rip, 1), "so": so,
+                        "era": era, "whip": whip, "k9": k9})
+    return {"player_id": player_id, "seasons": seasons}
 
 
 # ---------- 對戰各隊 / 分項 / 投打對決 ----------
@@ -756,7 +785,22 @@ def player_discipline(
         )
         spray = [{"dir": float(d), "dist": float(dist), "ev": float(ev) if ev is not None else None}
                  for d, dist, ev in cur.fetchall()]
-    return {"player_id": player_id, "role": role, "summary": summary, "points": points, "spray": spray}
+        # 擊球品質（打者）／球質（投手）：逐球樣本衍生
+        cur.execute(
+            f"""
+            SELECT round(avg(hit_launch_angle)::numeric, 1), round(max(hit_distance)::numeric, 1),
+                   round(avg(hit_exit_speed)::numeric, 1), round(avg(extension)::numeric, 2),
+                   round(avg(rel_height)::numeric, 2), round(avg(rel_speed)::numeric, 1)
+            FROM cpbl.pitch_tracking WHERE {col} = %s AND year = %s
+            """,
+            (player_id, season),
+        )
+        la, maxd, ev, ext, relh, rels = cur.fetchone()
+        fl = lambda v: float(v) if v is not None else None  # noqa: E731
+        quality = {"avg_launch_angle": fl(la), "max_hit_dist": fl(maxd), "avg_exit_speed": fl(ev),
+                   "avg_extension": fl(ext), "avg_rel_height": fl(relh), "avg_speed": fl(rels)}
+    return {"player_id": player_id, "role": role, "summary": summary,
+            "quality": quality, "points": points, "spray": spray}
 
 
 @app.get("/api/v1/standings")
