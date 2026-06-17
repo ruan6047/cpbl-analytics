@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { SprayChart } from "@/components/spray-chart";
-import { Card, PercentileBar, StatTile, TeamBadge } from "@/components/ui";
+import { Card, PercentileBar, StatTile, TeamLogo } from "@/components/ui";
 import { ZoneScatter } from "@/components/zone-scatter";
 import { detail, type PlayerProfile, type StatRow } from "@/lib/client";
 import { codeFromName, teamColor } from "@/lib/teams";
@@ -155,13 +155,16 @@ export default function PlayerPage() {
       <div className="card mb-6 overflow-hidden">
         <div className="h-1.5" style={{ background: teamColor(tc) }} />
         <div className="flex flex-wrap items-end justify-between gap-4 p-5">
-          <div>
-            <h1 className="text-3xl font-bold text-ink">{profile.name}</h1>
-            <p className="mt-1 text-sm text-muted">
-              <TeamBadge code={tc} name={profile.team} />
-              {profile.bats && <span className="ml-3">打 {profile.bats}</span>}
-              {profile.throws && <span className="ml-2">投 {profile.throws}</span>}
-            </p>
+          <div className="flex items-center gap-3.5">
+            <TeamLogo code={tc} size={48} />
+            <div>
+              <h1 className="text-3xl font-bold text-ink">{profile.name}</h1>
+              <p className="mt-1 text-sm text-muted">
+                {profile.team}
+                {profile.bats && <span className="ml-3">打 {profile.bats}</span>}
+                {profile.throws && <span className="ml-2">投 {profile.throws}</span>}
+              </p>
+            </div>
           </div>
           {s && role === "batting" && (
             <div className="font-mono text-lg tabular-nums text-ink">

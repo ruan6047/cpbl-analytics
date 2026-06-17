@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 const COLS: Col[] = [
   { key: "name", label: "球員", tip: "球員姓名（點擊看個人頁）", link: { base: "/players/", idKey: "player_id" } },
-  { key: "team", label: "隊", tone: "dim", tip: "所屬球隊" },
+  { key: "team", label: "隊", team: true, tip: "所屬球隊" },
   { key: "pos", label: "守位", tip: "守備位置" },
   { key: "g", label: "出賽", fmt: "i", tone: "dim", tip: "該守位出賽場數（G）" },
   { key: "tc", label: "守備機會", fmt: "i", tip: "守備機會 TC = 刺殺＋助殺＋失誤" },

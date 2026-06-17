@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { TeamBadge } from "@/components/ui";
+import { codeFromName } from "@/lib/teams";
 
 export type Fmt = "i" | "f1" | "f2" | "f3";
 export type Tone = "accent" | "dim" | "warn";
@@ -16,6 +18,7 @@ export type Col = {
   // 若提供，該儲存格渲染成連結 href = base + row[idKey]（如球員名→個人頁）。
   // 用可序列化物件而非函式，server component 才能把 Col 傳給此 client 元件。
   link?: { base: string; idKey: string };
+  team?: boolean; // 該欄值為隊名時，渲染隊徽 + 名稱
 };
 
 export type Filter = { key: string; label: string };
@@ -132,7 +135,7 @@ export default function Leaderboard({
                     }
                     onMouseLeave={() => setTip(null)}
                     className={`whitespace-nowrap px-2.5 py-3 font-medium ${
-                      sortable ? "cursor-pointer select-none hover:text-white" : ""
+                      sortable ? "cursor-pointer select-none hover:text-ink" : ""
                     } ${c.tip ? "underline decoration-line decoration-dotted underline-offset-4" : ""} ${
                       active ? "text-accent" : ""
                     }`}
@@ -152,10 +155,12 @@ export default function Leaderboard({
                   <td
                     key={c.key}
                     className={`whitespace-nowrap px-2.5 py-2.5 ${c.fmt ? "" : "font-sans"} ${
-                      c.key === sortKey ? "text-white" : toneCls(c.tone)
+                      c.key === sortKey ? "font-medium text-ink" : toneCls(c.tone)
                     }`}
                   >
-                    {c.link ? (
+                    {c.team ? (
+                      <TeamBadge code={codeFromName(String(r[c.key]))} name={String(r[c.key] ?? "—")} size={16} />
+                    ) : c.link ? (
                       <Link
                         href={`${c.link.base}${r[c.link.idKey]}`}
                         className="text-accent hover:underline"

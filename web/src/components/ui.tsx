@@ -1,4 +1,18 @@
-import { teamColor } from "@/lib/teams";
+import { contrastText, teamColor, teamLetter } from "@/lib/teams";
+
+// 隊伍徽章：隊色圓角方塊 + 英文字母（避免官方 logo 版權）。
+export function TeamLogo({ code, size = 24 }: { code?: string | null; size?: number }) {
+  const bg = teamColor(code);
+  return (
+    <span
+      className="inline-flex shrink-0 items-center justify-center rounded-md font-extrabold leading-none"
+      style={{ width: size, height: size, background: bg, color: contrastText(bg), fontSize: size * 0.56 }}
+      aria-label="隊徽"
+    >
+      {teamLetter(code)}
+    </span>
+  );
+}
 
 export function Card({ className = "", children }: { className?: string; children: React.ReactNode }) {
   return <div className={`card p-4 ${className}`}>{children}</div>;
@@ -13,11 +27,11 @@ export function StatTile({ label, value, accent }: { label: string; value: strin
   );
 }
 
-export function TeamBadge({ code, name }: { code?: string | null; name?: string | null }) {
+export function TeamBadge({ code, name, size = 20 }: { code?: string | null; name?: string | null; size?: number }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className="inline-block h-3.5 w-1 rounded-sm" style={{ background: teamColor(code) }} />
-      <span>{name}</span>
+      <TeamLogo code={code} size={size} />
+      {name && <span>{name}</span>}
     </span>
   );
 }
