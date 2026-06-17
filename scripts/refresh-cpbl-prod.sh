@@ -94,6 +94,9 @@ if [ -n "${WITH_DETAIL:-}" ]; then
     action_name batting_action_name defend_station_code hitter_acnt hitter_name pitcher_acnt \
     pitcher_name catcher_acnt catcher_name first_base second_base third_base is_strike is_ball \
     is_score is_change_player is_special_event visiting_score home_score
+  sync_table advanced_stats "year,acnt,role" \
+    pa woba woba_pr ba ba_pr slg slg_pr iso iso_pr obp obp_pr brl brl_pr brlp brlp_pr ev ev_pr \
+    max_ev max_ev_pr hardhitp hardhitp_pr kp kp_pr bbp bbp_pr whiffp whiffp_pr chasep chasep_pr
 fi
 
 echo "==> 3/3 VPS 重建賽果特徵"
