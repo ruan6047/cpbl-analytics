@@ -189,6 +189,66 @@ function CareerTable({ seasons, role }: { seasons: StatRow[]; role: Role }) {
   );
 }
 
+// 分項類別：官網 item_group_code 在打/投間不一致，改用 item_name 內容判斷（穩健、跨角色）。
+const SPLIT_CATS: { key: string; label: string; test: (n: string) => boolean }[] = [
+  { key: "ha", label: "主客場", test: (n) => n === "主場" || n === "客場" },
+  { key: "order", label: "棒次", test: (n) => /第.+棒/.test(n) },
+  { key: "hand", label: "左右投打", test: (n) => /右投|左投|右打|左打/.test(n) },
+  { key: "natfor", label: "本土／外籍", test: (n) => n.includes("本土") || n.includes("外籍") },
+  { key: "role", label: "先發／中繼／後援", test: (n) => /先發|中繼|救援|後援|最後一任/.test(n) },
+  { key: "base", label: "壘上狀況", test: (n) => n.includes("跑者") || n.includes("滿壘") },
+  { key: "out", label: "出局數", test: (n) => n.includes("出局") },
+  { key: "inning", label: "局數", test: (n) => /第.+局/.test(n) },
+  { key: "score", label: "比分", test: (n) => n.includes("比分") },
+  { key: "month", label: "月份", test: (n) => /月$/.test(n) },
+  { key: "venue", label: "球場", test: (n) => n.includes("球場") || n.includes("中心") || n.includes("巨蛋") },
+];
+const splitCat = (name: string) => SPLIT_CATS.find((c) => c.test(name))?.key ?? "other";
+
+function SplitsTable({ rows, role }: { rows: StatRow[]; role: Role }) {
+  const heads = role === "batting"
+    ? ["分項", "打席", "打數", "安打", "全壘打", "打點", "四壞", "三振", "打擊率", "OPS"]
+    : ["分項", "局數", "面對", "被安", "被轟", "四壞", "三振", "自責", "ERA"];
+  return (
+    <table className="w-full text-sm">
+      <thead className="bg-surface-2 text-left text-muted">
+        <tr>{heads.map((h) => <th key={h} className="whitespace-nowrap px-2.5 py-2.5 font-medium">{h}</th>)}</tr>
+      </thead>
+      <tbody className="font-mono tabular-nums">
+        {rows.map((r, i) => (
+          <tr key={i} className="border-t border-line hover:bg-surface-2">
+            <td className="whitespace-nowrap px-2.5 py-2 font-sans text-ink">{String(r.item_name)}</td>
+            {role === "batting" ? (
+              <>
+                <td className="px-2.5 py-2">{String(r.plate_appearances ?? "—")}</td>
+                <td className="px-2.5 py-2 text-muted">{String(r.at_bats ?? "—")}</td>
+                <td className="px-2.5 py-2">{String(r.hits ?? "—")}</td>
+                <td className="px-2.5 py-2">{String(r.home_runs ?? "—")}</td>
+                <td className="px-2.5 py-2">{String(r.rbi ?? "—")}</td>
+                <td className="px-2.5 py-2 text-muted">{String(r.bb ?? "—")}</td>
+                <td className="px-2.5 py-2 text-muted">{String(r.so ?? "—")}</td>
+                <td className="px-2.5 py-2">{f3(r.avg)}</td>
+                <td className="px-2.5 py-2 text-accent">{f3(r.ops)}</td>
+              </>
+            ) : (
+              <>
+                <td className="px-2.5 py-2">{ipOf(r)?.toFixed(1) ?? "—"}</td>
+                <td className="px-2.5 py-2 text-muted">{String(r.plate_appearances ?? "—")}</td>
+                <td className="px-2.5 py-2 text-muted">{String(r.hits ?? "—")}</td>
+                <td className="px-2.5 py-2 text-muted">{String(r.home_runs ?? "—")}</td>
+                <td className="px-2.5 py-2 text-muted">{String(r.bb ?? "—")}</td>
+                <td className="px-2.5 py-2">{String(r.so ?? "—")}</td>
+                <td className="px-2.5 py-2 text-accent">{String(r.earned_runs ?? "—")}</td>
+                <td className="px-2.5 py-2 text-accent">{eraOf(r)?.toFixed(2) ?? "—"}</td>
+              </>
+            )}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 export default function PlayerPage() {
   const { id } = useParams<{ id: string }>();
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
@@ -516,51 +576,23 @@ export default function PlayerPage() {
           )}
         </div>
         {!splits ? <p className="text-sm text-muted">載入中…</p>
-          : splits.length === 0 ? <p className="text-sm text-muted">此範圍無分項資料。</p> : (
-          <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-            <table className="w-full text-sm">
-              <thead className="bg-surface-2 text-left text-muted">
-                <tr>
-                  {(role === "batting"
-                    ? ["分項", "打席", "打數", "安打", "全壘打", "打點", "四壞", "三振", "打擊率", "OPS"]
-                    : ["分項", "局數", "面對", "被安", "被轟", "四壞", "三振", "自責", "ERA"]
-                  ).map((h) => <th key={h} className="whitespace-nowrap px-2.5 py-2.5 font-medium">{h}</th>)}
-                </tr>
-              </thead>
-              <tbody className="font-mono tabular-nums">
-                {splits.map((r, i) => (
-                  <tr key={i} className="border-t border-line hover:bg-surface-2">
-                    <td className="whitespace-nowrap px-2.5 py-2 font-sans text-ink">{String(r.item_name)}</td>
-                    {role === "batting" ? (
-                      <>
-                        <td className="px-2.5 py-2">{String(r.plate_appearances ?? "—")}</td>
-                        <td className="px-2.5 py-2 text-muted">{String(r.at_bats ?? "—")}</td>
-                        <td className="px-2.5 py-2">{String(r.hits ?? "—")}</td>
-                        <td className="px-2.5 py-2">{String(r.home_runs ?? "—")}</td>
-                        <td className="px-2.5 py-2">{String(r.rbi ?? "—")}</td>
-                        <td className="px-2.5 py-2 text-muted">{String(r.bb ?? "—")}</td>
-                        <td className="px-2.5 py-2 text-muted">{String(r.so ?? "—")}</td>
-                        <td className="px-2.5 py-2">{f3(r.avg)}</td>
-                        <td className="px-2.5 py-2 text-accent">{f3(r.ops)}</td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="px-2.5 py-2">{ipOf(r)?.toFixed(1) ?? "—"}</td>
-                        <td className="px-2.5 py-2 text-muted">{String(r.plate_appearances ?? "—")}</td>
-                        <td className="px-2.5 py-2 text-muted">{String(r.hits ?? "—")}</td>
-                        <td className="px-2.5 py-2 text-muted">{String(r.home_runs ?? "—")}</td>
-                        <td className="px-2.5 py-2 text-muted">{String(r.bb ?? "—")}</td>
-                        <td className="px-2.5 py-2">{String(r.so ?? "—")}</td>
-                        <td className="px-2.5 py-2 text-accent">{String(r.earned_runs ?? "—")}</td>
-                        <td className="px-2.5 py-2 text-accent">{eraOf(r)?.toFixed(2) ?? "—"}</td>
-                      </>
-                    )}
-                  </tr>
+          : splits.length === 0 ? <p className="text-sm text-muted">此範圍無分項資料。</p> : (() => {
+            const groups = [...SPLIT_CATS, { key: "other", label: "其他" }]
+              .map((cat) => ({ cat, rows: (splits ?? []).filter((r) => splitCat(String(r.item_name)) === cat.key) }))
+              .filter((g) => g.rows.length > 0);
+            return (
+              <div className="space-y-2">
+                {groups.map((g, gi) => (
+                  <details key={g.cat.key} open={gi === 0} className="overflow-hidden rounded-xl border border-line bg-surface">
+                    <summary className="cursor-pointer select-none px-4 py-2.5 text-sm font-medium text-ink hover:bg-surface-2">
+                      {g.cat.label}<span className="ml-2 text-xs font-normal text-faint">{g.rows.length}</span>
+                    </summary>
+                    <div className="overflow-x-auto border-t border-line"><SplitsTable rows={g.rows} role={role} /></div>
+                  </details>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              </div>
+            );
+          })()}
       </section>
 
       <div className="flex gap-4 text-sm">
