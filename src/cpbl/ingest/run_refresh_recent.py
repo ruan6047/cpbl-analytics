@@ -23,6 +23,7 @@ from datetime import date, timedelta
 
 from cpbl.db import conn, migrate
 from cpbl.ingest import cpbl_player_detail
+from cpbl.ingest.cpbl_advanced import scrape_advanced
 from cpbl.ingest.cpbl_fighting import YEAR_CAREER, scrape_matchups
 from cpbl.ingest.cpbl_gamelog import scrape_gamelogs
 from cpbl.ingest.cpbl_site import lineup_acnts, scrape_games
@@ -63,8 +64,11 @@ def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict
     # 對戰：重爬有上場打者的生涯對戰即涵蓋所有變動的 (打者,投手) 組合
     m = scrape_matchups([YEAR_CAREER], delay=delay, batter_ids=rb, pitcher_ids=cur_p)
     d = cpbl_player_detail.scrape(delay=delay, batter_ids=rb, pitcher_ids=rp)
+    # 官方進階：當日上場選手（打者進攻 / 投手被打）
+    adv = scrape_advanced(year, [(a, "batting") for a in rb] + [(a, "pitching") for a in rp], delay=delay)
     return {"completed_games": len(snos), "gamelog": gamelog,
-            "lineup_batters": len(rb), "lineup_pitchers": len(rp), "matchup_rows": m, **d}
+            "lineup_batters": len(rb), "lineup_pitchers": len(rp),
+            "matchup_rows": m, "advanced": adv, **d}
 
 
 def _recent_counts(year: int, days: list[date]) -> list[tuple[date, int, int]]:
