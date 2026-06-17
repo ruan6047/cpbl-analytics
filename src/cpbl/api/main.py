@@ -590,3 +590,62 @@ def player_season(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
     if p:
         out["pitching"] = p[0]
     return out
+
+
+# ---------- 每場賽況 ----------
+
+@app.get("/api/v1/games/recent")
+def games_recent(
+    limit: int = Query(40, ge=1, le=200),
+    season: int = Query(DEFAULT_SEASON),
+) -> dict:
+    """近期已完成比賽列表（供賽況頁選擇）。"""
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            """
+            SELECT year, kind_code, game_sno, game_date,
+                   away_team_name, away_team_code, away_score,
+                   home_team_name, home_team_code, home_score
+            FROM cpbl.games
+            WHERE year = %s AND home_score + away_score > 0
+            ORDER BY game_date DESC, game_sno DESC
+            LIMIT %s
+            """,
+            (season, limit),
+        )
+        return {"season": season, "items": _dicts(cur)}
+
+
+@app.get("/api/v1/games/{game_sno}/live")
+def game_live(
+    game_sno: int,
+    season: int = Query(DEFAULT_SEASON),
+    kind_code: str = Query("A", pattern="^(A|C|E)$"),
+) -> dict:
+    """單場賽況：賽事資訊 + 逐局比分 + 逐打席事件流。"""
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            """
+            SELECT year, kind_code, game_sno, game_date, venue,
+                   away_team_name, away_team_code, away_score,
+                   home_team_name, home_team_code, home_score
+            FROM cpbl.games WHERE year = %s AND kind_code = %s AND game_sno = %s
+            """,
+            (season, kind_code, game_sno),
+        )
+        g = _dicts(cur)
+        cur.execute(
+            "SELECT * FROM cpbl.game_scoreboard WHERE year=%s AND kind_code=%s AND game_sno=%s "
+            "ORDER BY visiting_home_type, inning_seq",
+            (season, kind_code, game_sno),
+        )
+        scoreboard = _dicts(cur)
+        cur.execute(
+            "SELECT * FROM cpbl.game_livelog WHERE year=%s AND kind_code=%s AND game_sno=%s "
+            "ORDER BY main_event_no",
+            (season, kind_code, game_sno),
+        )
+        livelog = _dicts(cur)
+    return {"game": g[0] if g else None, "scoreboard": scoreboard, "livelog": livelog}

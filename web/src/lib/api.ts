@@ -105,7 +105,22 @@ export type FieldingResponse = {
   items: FieldingRecord[];
 };
 
+export type GameSummary = {
+  year: number;
+  kind_code: string;
+  game_sno: number;
+  game_date: string;
+  away_team_name: string;
+  away_team_code: string;
+  away_score: number;
+  home_team_name: string;
+  home_team_code: string;
+  home_score: number;
+};
+export type GamesRecentResponse = { season: number; items: GameSummary[] };
+
 export const api = {
+  gamesRecent: (limit = 60) => get<GamesRecentResponse>(`/api/v1/games/recent?limit=${limit}`, 120),
   standings: (season?: number) =>
     get<StandingsResponse>(`/api/v1/season/standings${season ? `?season=${season}` : ""}`),
   // 排行榜改由前端點欄位排序/隊伍篩選，故抓全名單（低門檻、大 limit）。
