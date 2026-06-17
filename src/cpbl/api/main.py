@@ -604,9 +604,19 @@ def player_matchups(
         return {"player_id": player_id, "role": role, "kind_code": kind_code, "items": _dicts(cur)}
 
 
+def _real_ip(ip: Any) -> float:
+    """.1/.2 棒球記法局數 → 真實局數（.1=⅓、.2=⅔）。"""
+    if ip is None:
+        return 0.0
+    ip = float(ip)
+    whole = int(ip)
+    return whole + round((ip - whole) * 10) / 3
+
+
 @app.get("/api/v1/players/{player_id}/season")
 def player_season(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
-    """球員本季成績（batting_current / pitching_current 完整列），供個人頁成績卡。"""
+    """球員本季成績（batting_current / pitching_current 完整列），供個人頁成績卡。
+    OPS+/ERA+/FIP 官網不提供，於此用聯盟平均即時計算（park-neutral 標準公式）。"""
     out: dict[str, Any] = {"player_id": player_id, "season": season, "batting": None, "pitching": None}
     with conn() as c:
         cur = c.cursor()
@@ -616,10 +626,37 @@ def player_season(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
         cur.execute("SELECT * FROM cpbl.pitching_current WHERE player_id = %s AND year = %s",
                     (player_id, season))
         p = _dicts(cur)
-    if b:
-        out["batting"] = b[0]
-    if p:
-        out["pitching"] = p[0]
+
+        if b:
+            row = b[0]
+            cur.execute("SELECT sum(ab), sum(h), sum(bb), sum(hbp), sum(sf), sum(tb) "
+                        "FROM cpbl.batting_current WHERE year = %s", (season,))
+            ab, h, bb, hbp, sf, tb = (x or 0 for x in cur.fetchone())
+            lg_obp = (h + bb + hbp) / (ab + bb + hbp + sf) if (ab + bb + hbp + sf) else None
+            lg_slg = tb / ab if ab else None
+            o, s_ = row.get("obp"), row.get("slg")
+            if o is not None and s_ is not None and lg_obp and lg_slg:
+                row["ops_plus"] = round(100 * (float(o) / lg_obp + float(s_) / lg_slg - 1))
+            out["batting"] = row
+
+        if p:
+            row = p[0]
+            cur.execute("SELECT ip, er, hr, bb, hbp, so FROM cpbl.pitching_current "
+                        "WHERE year = %s AND ip IS NOT NULL", (season,))
+            lr = cur.fetchall()
+            lg_ip = sum(_real_ip(r[0]) for r in lr)
+            lg_era = sum(r[1] or 0 for r in lr) * 9 / lg_ip if lg_ip else None
+            fip_c = (lg_era - (13 * sum(r[2] or 0 for r in lr)
+                              + 3 * sum((r[3] or 0) + (r[4] or 0) for r in lr)
+                              - 2 * sum(r[5] or 0 for r in lr)) / lg_ip) if lg_ip and lg_era else None
+            era, rip = row.get("era"), _real_ip(row.get("ip"))
+            if lg_era and era is not None and float(era) > 0:
+                row["era_plus"] = round(100 * lg_era / float(era))
+            if rip and fip_c is not None:
+                row["fip"] = round((13 * (row.get("hr") or 0)
+                                    + 3 * ((row.get("bb") or 0) + (row.get("hbp") or 0))
+                                    - 2 * (row.get("so") or 0)) / rip + fip_c, 2)
+            out["pitching"] = row
     return out
 
 
