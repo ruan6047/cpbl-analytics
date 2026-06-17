@@ -73,7 +73,6 @@ const PIT_METRICS: Metric[] = [
   { key: "hits", label: "被安打", dp: 0, get: (r) => numOf(r.hits) },
   { key: "bb", label: "四壞", dp: 0, get: (r) => numOf(r.bb) },
 ];
-const MONTHS = ["三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月"];
 const axis = { tick: { fill: "#5b6b7a", fontSize: 12 }, stroke: "#cbd5e1" };
 
 function Tabs<T extends string>({ opts, v, set }: { opts: { v: T; label: string }[]; v: T; set: (x: T) => void }) {
@@ -240,17 +239,12 @@ export default function PlayerPage() {
     detail.splits(id, role, year, k).then((d) => setSplits(d.items)).catch(() => setSplits([]));
   }, [id, role, scope, kinds, profile]);
 
-  const byName = useMemo(() => {
-    const m: Record<string, StatRow> = {};
-    for (const r of splits ?? []) m[String(r.item_name)] = r;
-    return m;
-  }, [splits]);
   const metrics = role === "batting" ? BAT_METRICS : PIT_METRICS;
   const metric = metrics.find((m) => m.key === monthMetric) ?? metrics[0];
-  const monthData = useMemo(() => {
-    if (scope === "season") return (trend ?? []).map((r) => ({ name: String(r.name), v: metric.get(r) }));
-    return MONTHS.filter((mo) => byName[mo]).map((mo) => ({ name: mo.replace("月", ""), v: metric.get(byName[mo]) }));
-  }, [scope, trend, byName, metric]);
+  const monthData = useMemo(
+    () => (trend ?? []).map((r) => ({ name: String(r.name), v: metric.get(r) })),
+    [trend, metric],
+  );
   const prRows = useMemo(() => {
     const a = advanced ? (role === "batting" ? advanced.batting : advanced.pitching) : null;
     if (!a) return [];
@@ -413,28 +407,12 @@ export default function PlayerPage() {
         </div>
       </section>
 
-      {/* 範圍切換 + 逐月趨勢 */}
+      {/* 賽季走勢（逐場累積）+ 對戰各隊 */}
       <section className="mb-6">
-        <div className="mb-3 flex flex-wrap items-center gap-3">
-          <Tabs opts={[{ v: "season", label: "本季" }, { v: "career", label: "生涯" }]} v={scope} set={setScope} />
-          {scope === "career" && (
-            <div className="inline-flex flex-wrap gap-2">
-              {([["A", "例行賽"], ["C", "總冠軍"], ["E", "季後賽"]] as const).map(([k, label]) => {
-                const on = kinds.includes(k);
-                return (
-                  <button key={k} onClick={() => setKinds(on ? (kinds.length > 1 ? kinds.filter((x) => x !== k) : kinds) : [...kinds, k])}
-                    className={`rounded-full px-3 py-1 text-sm transition ${on ? "bg-accent text-white" : "bg-surface-2 text-muted hover:text-ink"}`}>
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
         <div className="grid gap-6 lg:grid-cols-2">
           <Card>
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h3 className="text-sm font-medium text-muted">{scope === "season" ? "賽季走勢（逐場累積）" : "逐月趨勢"}</h3>
+              <h3 className="text-sm font-medium text-muted">賽季走勢（逐場累積）</h3>
               <select value={monthMetric} onChange={(e) => setMonthMetric(e.target.value)}
                 className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink outline-none focus:border-ink">
                 {metrics.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
@@ -520,7 +498,23 @@ export default function PlayerPage() {
 
       {/* 分項明細 */}
       <section className="mb-6">
-        <h2 className="mb-3 text-lg font-semibold text-ink">分項明細</h2>
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <h2 className="text-lg font-semibold text-ink">分項明細</h2>
+          <Tabs opts={[{ v: "season", label: "本季" }, { v: "career", label: "生涯" }]} v={scope} set={setScope} />
+          {scope === "career" && (
+            <div className="inline-flex flex-wrap gap-2">
+              {([["A", "例行賽"], ["C", "總冠軍"], ["E", "季後賽"]] as const).map(([k, label]) => {
+                const on = kinds.includes(k);
+                return (
+                  <button key={k} onClick={() => setKinds(on ? (kinds.length > 1 ? kinds.filter((x) => x !== k) : kinds) : [...kinds, k])}
+                    className={`rounded-full px-3 py-1 text-xs transition ${on ? "bg-accent text-white" : "bg-surface-2 text-muted hover:text-ink"}`}>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
         {!splits ? <p className="text-sm text-muted">載入中…</p>
           : splits.length === 0 ? <p className="text-sm text-muted">此範圍無分項資料。</p> : (
           <div className="overflow-x-auto rounded-xl border border-line bg-surface">
