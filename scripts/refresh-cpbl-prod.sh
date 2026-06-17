@@ -55,9 +55,10 @@ ssh -o BatchMode=yes "$VPS" 'docker exec prod_cpbl_api python -c "from cpbl.db i
 sync_table games "year,kind_code,game_season_code,game_sno" \
   game_date present_status venue home_team_code home_team_name away_team_code away_team_name \
   home_score away_score home_starter_id away_starter_id winning_pitcher_id losing_pitcher_id closer_id mvp_id
-sync_table pitching_current "year,player_id" name team_code era ip g gs w l whip k9 fip era_plus sv hld
+sync_table pitching_current "year,player_id" name team_code era ip g gs w l whip k9 fip era_plus sv hld \
+  so cg sho pa np h hr bb ibb hbp wp bk r er go ao goao
 sync_table batting_current "year,player_id" name team_code pa avg obp slg ops hr ops_plus k_pct bb_pct \
-  g ab r h b2 b3 rbi bb so sb cs
+  g ab r h b2 b3 rbi bb so sb cs tb gidp sh sf ibb hbp go ao goao
 sync_table fielding_current "year,player_id,pos" name team_code g tc po a e dp fpct
 sync_table team_current "year,team_code" name bat_avg bat_obp bat_slg bat_ops bat_hr pit_era pit_whip
 
