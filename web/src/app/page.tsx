@@ -9,6 +9,10 @@ const SEGS = [
   { v: 2, label: "下半季" },
 ];
 
+const ABBR: Record<string, string> = {
+  AAA011: "味全", ACN011: "兄弟", ADD011: "統一", AEO011: "富邦", AJL011: "樂天", AKP011: "台鋼",
+};
+
 export default async function Home({ searchParams }: { searchParams: Promise<{ seg?: string }> }) {
   const { seg = "0" } = await searchParams;
   const segCode = Number(seg) || 0;
@@ -78,6 +82,41 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
             </tbody>
           </table>
         </div>
+      )}
+
+      {items.length > 0 && (
+        <section className="mt-8">
+          <h2 className="mb-1 text-lg font-semibold">對戰成績</h2>
+          <p className="mb-3 text-[11px] text-white/30">每列為該隊對各對手的 勝-和-敗（{SEGS.find((s) => s.v === segCode)?.label}）。</p>
+          <div className="overflow-x-auto rounded-xl border border-white/10">
+            <table className="w-full text-sm">
+              <thead className="bg-white/5 text-left text-white/50">
+                <tr>
+                  <th className="whitespace-nowrap px-2.5 py-3 font-medium">球隊＼對手</th>
+                  {items.map((c) => (
+                    <th key={c.team_code} className="px-2.5 py-3 text-center font-medium">{ABBR[c.team_code] ?? c.team_name}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="font-mono tabular-nums">
+                {items.map((row) => (
+                  <tr key={row.team_code} className="border-t border-white/5 hover:bg-white/5">
+                    <td className="whitespace-nowrap px-2.5 py-2.5 font-sans">{row.team_name}</td>
+                    {items.map((col) => (
+                      <td key={col.team_code} className="px-2.5 py-2.5 text-center text-white/70">
+                        {col.team_code === row.team_code ? (
+                          <span className="text-white/15">—</span>
+                        ) : (
+                          row.h2h?.[col.team_code] ?? "—"
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
     </div>
   );
