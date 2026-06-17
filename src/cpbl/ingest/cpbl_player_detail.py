@@ -191,14 +191,22 @@ VS_TEAM_YEAR = 2026  # 對戰各隊官網僅本季 A、逐年
 
 
 def scrape(delay: float = 1.2, apart_combos: list[tuple[int, str]] | None = None,
-           groups: tuple[str, ...] = ("batters", "pitchers")) -> dict:
+           groups: tuple[str, ...] = ("batters", "pitchers"),
+           batter_ids: list[str] | None = None, pitcher_ids: list[str] | None = None) -> dict:
     """爬本季登錄打者(154)+投手(190) 的對戰各隊 + 分項。回傳各表寫入列數。
 
     `groups` 控制要跑哪些對象：("batters",) 只跑打者、("pitchers",) 只跑投手（續跑用）。
+    `batter_ids`/`pitcher_ids` 不為 None 時，只跑指定選手（增量更新用）。
     """
     apart_combos = apart_combos or APART_COMBOS
-    batters = _ids("batting_current") if "batters" in groups else []
-    pitchers = _ids("pitching_current") if "pitchers" in groups else []
+    if batter_ids is not None:
+        batters = batter_ids
+    else:
+        batters = _ids("batting_current") if "batters" in groups else []
+    if pitcher_ids is not None:
+        pitchers = pitcher_ids
+    else:
+        pitchers = _ids("pitching_current") if "pitchers" in groups else []
     out = {"bvt": 0, "pvt": 0, "bsplit": 0, "psplit": 0}
     log.info("選手細項：打者 %d / 投手 %d，delay=%.1fs，apart 組合=%s",
              len(batters), len(pitchers), delay, apart_combos)

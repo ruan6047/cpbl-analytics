@@ -136,3 +136,60 @@ def scrape_games(start_year: int, end_year: int, kind_code: str = KIND_REGULAR) 
         log.info("year %s kind=%s: %d games", year, kind_code, n)
         time.sleep(1.0)  # 禮貌性間隔
     return totals
+
+
+BOX_PAGE = f"{BASE}/box"
+LIVE_ENDPOINT = f"{BASE}/box/getlive"
+
+
+def lineup_acnts(
+    year: int, snos: list[int], kind_code: str = KIND_REGULAR, delay: float = 0.7,
+) -> tuple[set[str], set[str]]:
+    """指定場次實際上場的選手 acnt：回傳 (打者集合, 投手集合)。
+
+    走 box/getlive 的 BattingJson(HitterAcnt) / PitchingJson(PitcherAcnt)；
+    用於只增量更新「當日有上場」選手的對戰/分項，省去全名單重爬。
+    """
+    batters: set[str] = set()
+    pitchers: set[str] = set()
+    if not snos:
+        return batters, pitchers
+    client = httpx.Client(
+        timeout=30.0, follow_redirects=True,
+        headers={"User-Agent": UA, "X-Requested-With": "XMLHttpRequest"},
+    )
+
+    def _token() -> str:
+        html = client.get(BOX_PAGE, params={"year": year, "KindCode": kind_code, "gameSno": 1}).text
+        # box 頁 token 在 hidden input；保險起見也試 JS 形式
+        m = re.search(r'name="__RequestVerificationToken"[^>]*value="([^"]+)"', html) or _TOKEN_RE.search(html)
+        if not m:
+            raise RuntimeError("box 頁找不到 RequestVerificationToken（官網可能改版）")
+        return m.group(1)
+
+    try:
+        token = _token()
+        for sno in snos:
+            time.sleep(delay)
+            try:
+                resp = client.post(
+                    LIVE_ENDPOINT,
+                    data={"GameSno": str(sno), "KindCode": kind_code, "Year": str(year)},
+                    headers={"RequestVerificationToken": token},
+                )
+                if "json" not in resp.headers.get("content-type", ""):
+                    token = _token()
+                    continue
+                payload = resp.json()
+            except httpx.HTTPError as e:
+                log.warning("getlive 失敗 sno=%s: %s", sno, e)
+                continue
+            for b in json.loads(payload.get("BattingJson") or "[]"):
+                if b.get("HitterAcnt"):
+                    batters.add(b["HitterAcnt"])
+            for p in json.loads(payload.get("PitchingJson") or "[]"):
+                if p.get("PitcherAcnt"):
+                    pitchers.add(p["PitcherAcnt"])
+    finally:
+        client.close()
+    return batters, pitchers
