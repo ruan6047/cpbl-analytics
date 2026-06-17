@@ -130,6 +130,10 @@ export const detail = {
     clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/season`),
   advanced: (id: string) =>
     clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/advanced`),
+  discipline: (id: string, role: "batting" | "pitching") =>
+    clientGet<{ summary: Record<string, number | null>; points: { x: number; y: number; sw: boolean; wh: boolean }[] }>(
+      `/api/v1/players/${id}/discipline?role=${role}`,
+    ),
   gameLive: (sno: number, kind = "A") =>
     clientGet<{ game: StatRow | null; scoreboard: StatRow[]; livelog: StatRow[] }>(
       `/api/v1/games/${sno}/live?kind_code=${kind}`,

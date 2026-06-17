@@ -97,6 +97,11 @@ if [ -n "${WITH_DETAIL:-}" ]; then
   sync_table advanced_stats "year,acnt,role" \
     pa woba woba_pr ba ba_pr slg slg_pr iso iso_pr obp obp_pr brl brl_pr brlp brlp_pr ev ev_pr \
     max_ev max_ev_pr hardhitp hardhitp_pr kp kp_pr bbp bbp_pr whiffp whiffp_pr chasep chasep_pr
+  sync_table pitch_tracking "year,kind_code,game_sno,pitcher_acnt,pitch_cnt" \
+    pitcher_name hitter_acnt hitter_name inning_seq ball_cnt strike_cnt out_cnt batting_order content \
+    pitch_call auto_pitch_type tagged_pitch_type rel_speed spin_rate rel_side rel_height extension \
+    zone_speed plate_loc_side plate_loc_height hit_exit_speed hit_launch_angle hit_direction \
+    hit_distance hit_hang_time
 fi
 
 echo "==> 3/3 VPS 重建賽果特徵"

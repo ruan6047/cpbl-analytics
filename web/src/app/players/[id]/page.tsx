@@ -7,10 +7,14 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceArea,
   ResponsiveContainer,
+  Scatter,
+  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
+  ZAxis,
 } from "recharts";
 import { detail, type PlayerProfile, type StatRow } from "@/lib/client";
 
@@ -136,6 +140,7 @@ export default function PlayerPage() {
   const [splits, setSplits] = useState<StatRow[] | null>(null);
   const [monthMetric, setMonthMetric] = useState("ops");
   const [advanced, setAdvanced] = useState<{ batting: StatRow | null; pitching: StatRow | null } | null>(null);
+  const [disc, setDisc] = useState<{ summary: Record<string, number | null>; points: { x: number; y: number; sw: boolean; wh: boolean }[] } | null>(null);
   const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
 
   useEffect(() => {
@@ -158,10 +163,12 @@ export default function PlayerPage() {
     detail.splits(id, role, year, k).then((d) => setSplits(d.items)).catch(() => setSplits([]));
   }, [id, role, scope, kinds, profile]);
 
-  // 切換打/投時重設逐月指標
+  // 切換打/投時重設逐月指標、抓好球帶紀律
   useEffect(() => {
     setMonthMetric(role === "batting" ? "ops" : "era");
-  }, [role]);
+    setDisc(null);
+    detail.discipline(id, role).then(setDisc).catch(() => setDisc(null));
+  }, [id, role]);
 
   const byName = useMemo(() => {
     const m: Record<string, StatRow> = {};
@@ -363,6 +370,47 @@ export default function PlayerPage() {
           {tip.text}
         </div>
       )}
+
+      {/* 好球帶紀律 */}
+      <section className="mb-8">
+        <h2 className="mb-1 text-lg font-semibold">好球帶紀律 · {role === "batting" ? "打者" : "投手誘導"}</h2>
+        <p className="mb-3 text-[11px] text-white/30">
+          依逐球進壘點計算（僅含有 TrackMan 的場次）；好球帶為近似框，追打/好球帶% 僅供參考，
+          權威 chase%/whiff% 見上方官方數據。
+        </p>
+        {!disc ? (
+          <p className="text-sm text-white/40">載入中…</p>
+        ) : disc.points.length === 0 ? (
+          <p className="text-sm text-white/40">無逐球資料。</p>
+        ) : (
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="grid grid-cols-3 gap-2 self-start">
+              {([["揮棒%", "swing_pct"], ["接觸%", "contact_pct"], ["揮空%", "whiff_pct"],
+                 ["CSW%", "csw_pct"], ["好球帶%", "zone_pct"], ["追打%", "chase_pct"]] as const).map(([l, k]) => (
+                <Card key={l} label={l} value={disc.summary[k] == null ? "—" : `${disc.summary[k]}%`} />
+              ))}
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+              <h3 className="mb-2 text-sm font-medium text-white/70">進壘點散布（{disc.points.length} 球）</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <ScatterChart margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                  <CartesianGrid stroke="rgba(255,255,255,0.06)" />
+                  <XAxis type="number" dataKey="x" domain={[-0.8, 0.8]} {...axis} tickFormatter={() => ""} />
+                  <YAxis type="number" dataKey="y" domain={[-0.2, 1.6]} {...axis} tickFormatter={() => ""} />
+                  <ZAxis range={[18, 18]} />
+                  <ReferenceArea x1={-0.25} x2={0.25} y1={0.45} y2={1.05}
+                    stroke="rgba(255,255,255,0.45)" fill="rgba(255,255,255,0.04)" />
+                  <Tooltip {...tooltipStyle} cursor={{ strokeDasharray: "3 3" }} />
+                  <Scatter name="未揮棒" data={disc.points.filter((p) => !p.sw)} fill="rgba(255,255,255,0.25)" />
+                  <Scatter name="揮棒" data={disc.points.filter((p) => p.sw && !p.wh)} fill="#34d399" />
+                  <Scatter name="揮空" data={disc.points.filter((p) => p.wh)} fill="#f87171" />
+                </ScatterChart>
+              </ResponsiveContainer>
+              <p className="mt-1 text-[11px] text-white/30">綠＝揮棒（擊中/界外）、紅＝揮空、灰＝未揮棒；白框＝好球帶(近似)。</p>
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* 分項明細表 */}
       <section>
