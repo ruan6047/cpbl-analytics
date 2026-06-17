@@ -238,7 +238,8 @@ export default function PlayerPage() {
                    ["先發", String(s.gs ?? "—"), false], ["三振", String(s.so ?? "—"), true],
                    ["K9", numOf(s.k9)?.toFixed(2) ?? "—", false], ["被安", String(s.h ?? "—"), false],
                    ["被轟", String(s.hr ?? "—"), false], ["四壞", String(s.bb ?? "—"), false],
-                   ["失分", String(s.r ?? "—"), false], ["自責", String(s.er ?? "—"), false], ["出賽", String(s.g ?? "—"), false]]
+                   ["暴投", String(s.wp ?? "—"), false], ["失分", String(s.r ?? "—"), false],
+                   ["自責", String(s.er ?? "—"), false], ["出賽", String(s.g ?? "—"), false]]
               ).map(([l, v, a]) => <StatTile key={l as string} label={l as string} value={v as string} accent={a as boolean} />)}
             </div>
           ) : <p className="text-sm text-muted">本季無{role === "batting" ? "打擊" : "投球"}成績。</p>}
@@ -348,38 +349,50 @@ export default function PlayerPage() {
       </section>
 
       {/* 守備 */}
-      {fielding && fielding.length > 0 && (
-        <section className="mb-6">
-          <h2 className="mb-3 text-lg font-semibold text-ink">守備</h2>
-          <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-            <table className="w-full text-sm">
-              <thead className="bg-surface-2 text-left text-muted">
-                <tr>
-                  {([["守位", "守備位置"], ["出賽", "該守位出賽場數 G"], ["守備機會", "TC＝刺殺＋助殺＋失誤"],
-                     ["刺殺", "PO：直接使打者/跑者出局"], ["助殺", "A：傳球協助使對方出局"], ["失誤", "E"],
-                     ["雙殺", "參與的雙殺次數"], ["守備率", "(刺殺＋助殺) ÷ 守備機會"]] as const).map(([h, tip], i) => (
-                    <th key={h} title={tip} className={`cursor-help px-3 py-2 font-medium ${i === 0 ? "" : "text-right"}`}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="font-mono tabular-nums">
-                {fielding.map((r) => (
-                  <tr key={String(r.pos)} className="border-t border-line">
-                    <td className="px-3 py-2 font-sans text-ink">{String(r.pos)}</td>
-                    <td className="px-3 py-2 text-right text-muted">{n0(r.g)}</td>
-                    <td className="px-3 py-2 text-right">{n0(r.tc)}</td>
-                    <td className="px-3 py-2 text-right">{n0(r.po)}</td>
-                    <td className="px-3 py-2 text-right">{n0(r.a)}</td>
-                    <td className="px-3 py-2 text-right text-accent">{n0(r.e)}</td>
-                    <td className="px-3 py-2 text-right">{n0(r.dp)}</td>
-                    <td className="px-3 py-2 text-right text-ink">{r.fpct == null ? "—" : Number(r.fpct).toFixed(3).replace(/^0\./, ".")}</td>
+      {fielding && fielding.length > 0 && (() => {
+        const hasC = fielding.some((r) => String(r.pos).includes("捕") || numOf(r.cs) || numOf(r.pb) || numOf(r.sba));
+        const cols: { key: string; label: string; tip: string; tone?: string; catcher?: boolean }[] = [
+          { key: "g", label: "出賽", tip: "該守位出賽場數 G", tone: "text-muted" },
+          { key: "tc", label: "守備機會", tip: "TC＝刺殺＋助殺＋失誤" },
+          { key: "po", label: "刺殺", tip: "PO：直接使打者/跑者出局" },
+          { key: "a", label: "助殺", tip: "A：傳球協助使對方出局" },
+          { key: "e", label: "失誤", tip: "E", tone: "text-accent" },
+          { key: "dp", label: "雙殺", tip: "參與的雙殺次數" },
+          { key: "tp", label: "三殺", tip: "參與的三殺次數" },
+          { key: "pb", label: "捕逸", tip: "PB：捕手漏接致跑者進壘", catcher: true },
+          { key: "cs", label: "盜壘阻殺", tip: "阻殺：捕手傳殺盜壘跑者", catcher: true },
+          { key: "sba", label: "被盜成功", tip: "被盜壘成功數", catcher: true },
+        ].filter((c) => !c.catcher || hasC);
+        return (
+          <section className="mb-6">
+            <h2 className="mb-3 text-lg font-semibold text-ink">守備</h2>
+            <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+              <table className="w-full text-sm">
+                <thead className="bg-surface-2 text-left text-muted">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">守位</th>
+                    {cols.map((c) => (
+                      <th key={c.key} title={c.tip} className="cursor-help px-3 py-2 text-right font-medium">{c.label}</th>
+                    ))}
+                    <th title="(刺殺＋助殺) ÷ 守備機會" className="cursor-help px-3 py-2 text-right font-medium">守備率</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
+                </thead>
+                <tbody className="font-mono tabular-nums">
+                  {fielding.map((r) => (
+                    <tr key={String(r.pos)} className="border-t border-line">
+                      <td className="px-3 py-2 font-sans text-ink">{String(r.pos)}</td>
+                      {cols.map((c) => (
+                        <td key={c.key} className={`px-3 py-2 text-right ${c.tone ?? ""}`}>{n0(r[c.key])}</td>
+                      ))}
+                      <td className="px-3 py-2 text-right text-ink">{r.fpct == null ? "—" : Number(r.fpct).toFixed(3).replace(/^0\./, ".")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        );
+      })()}
 
       {/* 分項明細 */}
       <section className="mb-6">
