@@ -119,7 +119,28 @@ export type GameSummary = {
 };
 export type GamesRecentResponse = { season: number; items: GameSummary[] };
 
+export type OfficialStanding = {
+  team_code: string;
+  team_name: string;
+  rank: number;
+  g: number;
+  w: number;
+  t: number;
+  l: number;
+  win_pct: number | null;
+  gb: number | null;
+  elim: string | null;
+  home_record: string | null;
+  away_record: string | null;
+  streak: string | null;
+  last10: string | null;
+  h2h: Record<string, string> | null;
+};
+export type OfficialStandingsResponse = { season: number; season_code: number; items: OfficialStanding[] };
+
 export const api = {
+  officialStandings: (seg = 0) =>
+    get<OfficialStandingsResponse>(`/api/v1/standings?season_code=${seg}`, 120),
   gamesRecent: (limit = 60) => get<GamesRecentResponse>(`/api/v1/games/recent?limit=${limit}`, 120),
   standings: (season?: number) =>
     get<StandingsResponse>(`/api/v1/season/standings${season ? `?season=${season}` : ""}`),

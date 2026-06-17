@@ -724,3 +724,20 @@ def player_discipline(
         points = [{"x": float(s), "y": float(h), "sw": sw, "wh": wh}
                   for s, h, sw, wh in cur.fetchall()]
     return {"player_id": player_id, "role": role, "summary": summary, "points": points}
+
+
+@app.get("/api/v1/standings")
+def official_standings(
+    season: int = Query(DEFAULT_SEASON),
+    season_code: int = Query(0, ge=0, le=2, description="0=全年 1=上半季 2=下半季"),
+    kind_code: str = Query("A"),
+) -> dict:
+    """官方球隊戰績（含和局/勝差/淘汰指數/H2H/主客場/連勝敗/近十場；分上下半季）。"""
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            "SELECT * FROM cpbl.team_standings WHERE year=%s AND kind_code=%s AND season_code=%s "
+            "ORDER BY rank",
+            (season, kind_code, season_code),
+        )
+        return {"season": season, "season_code": season_code, "items": _dicts(cur)}
