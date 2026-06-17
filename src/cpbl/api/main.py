@@ -787,3 +787,82 @@ def player_arsenal(
         for pt, n, spd, spin, wh, sw, ev in rows
     ]
     return {"player_id": player_id, "role": role, "items": items}
+
+
+@app.get("/api/v1/players/{player_id}/trend")
+def player_trend(
+    player_id: str,
+    role: str = Query("batting", pattern="^(batting|pitching)$"),
+    season: int = Query(DEFAULT_SEASON),
+    kind_code: str = Query("A"),
+) -> dict:
+    """逐場「累積季成績」趨勢：逐場依日期累積計數型，並現算 rate stat。
+    比月份桶（最多 ~6 點）細，每場一點且隨賽季收斂到當季數字。"""
+    with conn() as c:
+        cur = c.cursor()
+        if role == "batting":
+            cur.execute(
+                """
+                SELECT g.game_date,
+                    sum(b.at_bats)     OVER w AS ab,
+                    sum(b.hits)        OVER w AS h,
+                    sum(b.bb)          OVER w AS bb,
+                    sum(b.hbp)         OVER w AS hbp,
+                    sum(b.sac_fly)     OVER w AS sf,
+                    sum(b.total_bases) OVER w AS tb,
+                    sum(b.home_runs)   OVER w AS hr,
+                    sum(b.rbi)         OVER w AS rbi
+                FROM cpbl.batting_gamelog b
+                JOIN cpbl.games g
+                  ON g.year = b.year AND g.kind_code = b.kind_code AND g.game_sno = b.game_sno
+                WHERE b.hitter_acnt = %s AND b.year = %s AND b.kind_code = %s
+                WINDOW w AS (ORDER BY g.game_date, b.game_sno
+                             ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+                ORDER BY g.game_date, b.game_sno
+                """,
+                (player_id, season, kind_code),
+            )
+            items = []
+            for i, (d, ab, h, bb, hbp, sf, tb, hr, rbi) in enumerate(cur.fetchall(), 1):
+                ab = ab or 0
+                pa_ob = ab + (bb or 0) + (hbp or 0) + (sf or 0)
+                avg = h / ab if ab else None
+                obp = ((h or 0) + (bb or 0) + (hbp or 0)) / pa_ob if pa_ob else None
+                slg = (tb or 0) / ab if ab else None
+                ops = (obp + slg) if obp is not None and slg is not None else None
+                r3 = lambda v: round(v, 3) if v is not None else None  # noqa: E731
+                items.append({
+                    "name": f"{d.month}/{d.day}", "g": i,
+                    "avg": r3(avg), "obp": r3(obp), "slg": r3(slg), "ops": r3(ops),
+                    "hits": h, "home_runs": hr, "rbi": rbi,
+                })
+        else:
+            cur.execute(
+                """
+                SELECT g.game_date,
+                    sum(p.inning_pitched_cnt)  OVER w AS ipc,
+                    sum(p.inning_pitched_div3) OVER w AS ip3,
+                    sum(p.earned_runs)         OVER w AS er,
+                    sum(p.so)                  OVER w AS so,
+                    sum(p.hits)                OVER w AS h,
+                    sum(p.bb)                  OVER w AS bb
+                FROM cpbl.pitching_gamelog p
+                JOIN cpbl.games g
+                  ON g.year = p.year AND g.kind_code = p.kind_code AND g.game_sno = p.game_sno
+                WHERE p.pitcher_acnt = %s AND p.year = %s AND p.kind_code = %s
+                WINDOW w AS (ORDER BY g.game_date, p.game_sno
+                             ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+                ORDER BY g.game_date, p.game_sno
+                """,
+                (player_id, season, kind_code),
+            )
+            items = []
+            for i, (d, ipc, ip3, er, so, h, bb) in enumerate(cur.fetchall(), 1):
+                ip = (ipc or 0) + (ip3 or 0) / 3
+                era = round((er or 0) * 9 / ip, 2) if ip else None
+                whip = round(((bb or 0) + (h or 0)) / ip, 2) if ip else None
+                items.append({
+                    "name": f"{d.month}/{d.day}", "g": i,
+                    "era": era, "whip": whip, "so": so, "hits": h, "bb": bb,
+                })
+    return {"player_id": player_id, "role": role, "items": items}
