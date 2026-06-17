@@ -5,7 +5,7 @@ import { prColor } from "@/components/ui";
 export type SprayPoint = { dir: number; dist: number; ev: number | null };
 
 export function SprayChart({ points, evMin = 100, evMax = 175 }: { points: SprayPoint[]; evMin?: number; evMax?: number }) {
-  const W = 320, H = 300, cx = W / 2, baseY = H - 18;
+  const W = 300, H = 215, cx = W / 2, baseY = H - 14;
   const maxDist = 130; // m
   const scale = (H - 40) / maxDist;
   const foul = 45 * (Math.PI / 180);

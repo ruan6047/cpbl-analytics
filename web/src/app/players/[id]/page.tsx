@@ -190,13 +190,16 @@ export default function PlayerPage() {
               {(role === "batting"
                 ? [["打擊率", f3(s.avg), true], ["上壘率", f3(s.obp), false], ["長打率", f3(s.slg), false],
                    ["OPS", f3(s.ops), true], ["全壘打", String(s.hr ?? "—"), false], ["打點", String(s.rbi ?? "—"), false],
-                   ["安打", String(s.h ?? "—"), false], ["盜壘", String(s.sb ?? "—"), false], ["打席", String(s.pa ?? "—"), false],
-                   ["出賽", String(s.g ?? "—"), false]]
+                   ["安打", String(s.h ?? "—"), false], ["二安", String(s.b2 ?? "—"), false], ["三安", String(s.b3 ?? "—"), false],
+                   ["得分", String(s.r ?? "—"), false], ["盜壘", String(s.sb ?? "—"), false], ["四壞", String(s.bb ?? "—"), false],
+                   ["三振", String(s.so ?? "—"), false], ["打席", String(s.pa ?? "—"), false], ["出賽", String(s.g ?? "—"), false]]
                 : [["防禦率", numOf(s.era)?.toFixed(2) ?? "—", true], ["WHIP", numOf(s.whip)?.toFixed(2) ?? "—", false],
-                   ["勝-敗", `${s.w ?? 0}-${s.l ?? 0}`, false], ["局數", numOf(s.ip)?.toFixed(1) ?? "—", false],
-                   ["三振", String(s.so ?? "—"), true], ["K9", numOf(s.k9)?.toFixed(2) ?? "—", false],
-                   ["救援", String(s.sv ?? "—"), false], ["中繼", String(s.hld ?? "—"), false],
-                   ["自責", String(s.er ?? "—"), false], ["出賽", String(s.g ?? "—"), false]]
+                   ["勝-敗", `${s.w ?? 0}-${s.l ?? 0}`, false], ["救援", String(s.sv ?? "—"), false],
+                   ["中繼", String(s.hld ?? "—"), false], ["局數", numOf(s.ip)?.toFixed(1) ?? "—", false],
+                   ["先發", String(s.gs ?? "—"), false], ["三振", String(s.so ?? "—"), true],
+                   ["K9", numOf(s.k9)?.toFixed(2) ?? "—", false], ["被安", String(s.h ?? "—"), false],
+                   ["被轟", String(s.hr ?? "—"), false], ["四壞", String(s.bb ?? "—"), false],
+                   ["失分", String(s.r ?? "—"), false], ["自責", String(s.er ?? "—"), false], ["出賽", String(s.g ?? "—"), false]]
               ).map(([l, v, a]) => <StatTile key={l as string} label={l as string} value={v as string} accent={a as boolean} />)}
             </div>
           ) : <p className="text-sm text-muted">本季無{role === "batting" ? "打擊" : "投球"}成績。</p>}
@@ -222,12 +225,12 @@ export default function PlayerPage() {
       <section className="mb-6 grid gap-6 lg:grid-cols-2">
         <Card>
           <h3 className="mb-2 text-sm font-medium text-muted">擊球落點（點＝擊球初速 藍低→紅高，{disc?.spray.length ?? 0} 球）</h3>
-          {disc && disc.spray.length > 0 ? <SprayChart points={disc.spray} />
+          {disc && disc.spray.length > 0 ? <div className="mx-auto max-w-[290px]"><SprayChart points={disc.spray} /></div>
             : <p className="py-12 text-center text-sm text-faint">{disc === null ? "載入中…" : "無擊球追蹤資料"}</p>}
         </Card>
         <Card>
           <h3 className="mb-2 text-sm font-medium text-muted">進壘點（紅＝揮空、藍＝揮棒、灰＝未揮棒，{disc?.points.length ?? 0} 球）</h3>
-          {disc && disc.points.length > 0 ? <ZoneScatter points={disc.points} />
+          {disc && disc.points.length > 0 ? <div className="mx-auto max-w-[250px]"><ZoneScatter points={disc.points} /></div>
             : <p className="py-12 text-center text-sm text-faint">{disc === null ? "載入中…" : "無逐球資料"}</p>}
           {disc && disc.summary.swing_pct != null && (
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
