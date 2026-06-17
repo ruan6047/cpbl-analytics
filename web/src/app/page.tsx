@@ -27,7 +27,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
     <div>
       <header className="mb-5">
         <h1 className="text-2xl font-bold">{season} 球季 · 本季戰績</h1>
-        <p className="mt-2 text-sm text-white/50">官方戰績（含和局/勝差/連勝敗/主客場/近十場）。團隊 OPS/ERA/WHIP 為攻守指標。</p>
+        <p className="mt-2 text-sm text-muted">官方戰績（含和局/勝差/連勝敗/主客場/近十場）。團隊 OPS/ERA/WHIP 為攻守指標。</p>
       </header>
 
       <nav className="mb-4 flex gap-2">
@@ -36,7 +36,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
             key={s.v}
             href={`/?seg=${s.v}`}
             className={`rounded-full px-3 py-1 text-sm transition ${
-              segCode === s.v ? "bg-emerald-500 text-black" : "bg-white/5 text-white/60 hover:bg-white/10"
+              segCode === s.v ? "bg-ink text-white" : "bg-surface-2 text-muted hover:bg-surface-2"
             }`}
           >
             {s.label}
@@ -45,11 +45,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
       </nav>
 
       {items.length === 0 ? (
-        <p className="text-sm text-white/40">此區間尚無戰績（下半季可能未開始）。</p>
+        <p className="text-sm text-faint">此區間尚無戰績（下半季可能未開始）。</p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-white/10">
+        <div className="overflow-x-auto rounded-xl border border-line">
           <table className="w-full text-sm">
-            <thead className="bg-white/5 text-left text-white/50">
+            <thead className="bg-surface-2 text-left text-muted">
               <tr>
                 {["#", "球隊", "出賽", "勝-和-敗", "勝率", "勝差", "連勝/敗", "主場", "客場", "近十場", "OPS", "ERA", "WHIP"].map(
                   (h) => (
@@ -62,17 +62,17 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
               {items.map((t) => {
                 const a = adv.get(t.team_code);
                 return (
-                  <tr key={t.team_code} className="border-t border-white/5 hover:bg-white/5">
-                    <td className="px-2.5 py-2.5 text-white/40">{t.rank}</td>
+                  <tr key={t.team_code} className="border-t border-line hover:bg-surface-2">
+                    <td className="px-2.5 py-2.5 text-faint">{t.rank}</td>
                     <td className="whitespace-nowrap px-2.5 py-2.5 font-sans">{t.team_name}</td>
-                    <td className="px-2.5 py-2.5 text-white/50">{t.g}</td>
+                    <td className="px-2.5 py-2.5 text-muted">{t.g}</td>
                     <td className="px-2.5 py-2.5">{t.w}-{t.t}-{t.l}</td>
-                    <td className="px-2.5 py-2.5 text-emerald-400">{t.win_pct?.toFixed(3) ?? "—"}</td>
-                    <td className="px-2.5 py-2.5 text-white/70">{t.gb === 0 ? "—" : t.gb}</td>
-                    <td className="px-2.5 py-2.5 text-white/60">{t.streak ?? "—"}</td>
-                    <td className="px-2.5 py-2.5 text-white/50">{t.home_record ?? "—"}</td>
-                    <td className="px-2.5 py-2.5 text-white/50">{t.away_record ?? "—"}</td>
-                    <td className="px-2.5 py-2.5 text-white/50">{t.last10 ?? "—"}</td>
+                    <td className="px-2.5 py-2.5 text-accent">{t.win_pct?.toFixed(3) ?? "—"}</td>
+                    <td className="px-2.5 py-2.5 text-muted">{t.gb === 0 ? "—" : t.gb}</td>
+                    <td className="px-2.5 py-2.5 text-muted">{t.streak ?? "—"}</td>
+                    <td className="px-2.5 py-2.5 text-muted">{t.home_record ?? "—"}</td>
+                    <td className="px-2.5 py-2.5 text-muted">{t.away_record ?? "—"}</td>
+                    <td className="px-2.5 py-2.5 text-muted">{t.last10 ?? "—"}</td>
                     <td className="px-2.5 py-2.5">{a?.ops?.toFixed(3) ?? "—"}</td>
                     <td className="px-2.5 py-2.5">{a?.era?.toFixed(2) ?? "—"}</td>
                     <td className="px-2.5 py-2.5">{a?.whip?.toFixed(2) ?? "—"}</td>
@@ -87,10 +87,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
       {items.length > 0 && (
         <section className="mt-8">
           <h2 className="mb-1 text-lg font-semibold">對戰成績</h2>
-          <p className="mb-3 text-[11px] text-white/30">每列為該隊對各對手的 勝-和-敗（{SEGS.find((s) => s.v === segCode)?.label}）。</p>
-          <div className="overflow-x-auto rounded-xl border border-white/10">
+          <p className="mb-3 text-[11px] text-faint">每列為該隊對各對手的 勝-和-敗（{SEGS.find((s) => s.v === segCode)?.label}）。</p>
+          <div className="overflow-x-auto rounded-xl border border-line">
             <table className="w-full text-sm">
-              <thead className="bg-white/5 text-left text-white/50">
+              <thead className="bg-surface-2 text-left text-muted">
                 <tr>
                   <th className="whitespace-nowrap px-2.5 py-3 font-medium">球隊＼對手</th>
                   {items.map((c) => (
@@ -100,12 +100,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
               </thead>
               <tbody className="font-mono tabular-nums">
                 {items.map((row) => (
-                  <tr key={row.team_code} className="border-t border-white/5 hover:bg-white/5">
+                  <tr key={row.team_code} className="border-t border-line hover:bg-surface-2">
                     <td className="whitespace-nowrap px-2.5 py-2.5 font-sans">{row.team_name}</td>
                     {items.map((col) => (
-                      <td key={col.team_code} className="px-2.5 py-2.5 text-center text-white/70">
+                      <td key={col.team_code} className="px-2.5 py-2.5 text-center text-muted">
                         {col.team_code === row.team_code ? (
-                          <span className="text-white/15">—</span>
+                          <span className="text-faint">—</span>
                         ) : (
                           row.h2h?.[col.team_code] ?? "—"
                         )}

@@ -51,13 +51,13 @@ function Toggle<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="inline-flex gap-1 rounded-lg bg-white/5 p-1">
+    <div className="inline-flex gap-1 rounded-lg bg-surface-2 p-1">
       {options.map((o) => (
         <button
           key={o.v}
           onClick={() => onChange(o.v)}
           className={`rounded-md px-3 py-1 text-sm transition ${
-            value === o.v ? "bg-emerald-500 text-black" : "text-white/60 hover:text-white"
+            value === o.v ? "bg-ink text-white" : "text-muted hover:text-white"
           }`}
         >
           {o.label}
@@ -120,7 +120,7 @@ export default function SplitsPage() {
     <div>
       <header className="mb-5">
         <h1 className="text-2xl font-bold">分項成績</h1>
-        <p className="mt-2 text-sm text-white/50">
+        <p className="mt-2 text-sm text-muted">
           主客場 / 左右投打 / 本土外籍 / 壘上跑者 / 出局數 / 局數 / 比分 / 月份 / 球場 / 棒次。
           本季僅一軍例行賽；生涯累計含季後賽。資料來源 cpbl.com.tw。
         </p>
@@ -139,7 +139,7 @@ export default function SplitsPage() {
           <select
             value={pid}
             onChange={(e) => setPid(e.target.value)}
-            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-emerald-400"
+            className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm outline-none focus:border-ink"
           >
             <option value="">— 選擇{role === "batting" ? "打者" : "投手"} —</option>
             {players.map((p) => (
@@ -170,24 +170,24 @@ export default function SplitsPage() {
         )}
       </div>
 
-      {loading && <p className="text-sm text-white/40">查詢中…</p>}
+      {loading && <p className="text-sm text-faint">查詢中…</p>}
 
       {rows && !loading && (
         rows.length === 0 ? (
-          <p className="rounded-xl border border-white/10 bg-white/[0.02] p-4 text-sm text-white/50">
+          <p className="rounded-xl border border-line bg-surface p-4 text-sm text-muted">
             {pName ?? "該選手"} 在此範圍無分項資料。
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-white/10">
+          <div className="overflow-x-auto rounded-xl border border-line">
             <table className="w-full text-sm">
-              <thead className="bg-white/5 text-left text-white/50">
+              <thead className="bg-surface-2 text-left text-muted">
                 <tr>
                   <th className="whitespace-nowrap px-2.5 py-3 font-medium">分項</th>
                   {cols.map(([h, tip]) => (
                     <th
                       key={h}
                       title={tip}
-                      className="cursor-help whitespace-nowrap px-2.5 py-3 font-medium underline decoration-white/20 decoration-dotted underline-offset-4"
+                      className="cursor-help whitespace-nowrap px-2.5 py-3 font-medium underline decoration-line decoration-dotted underline-offset-4"
                     >
                       {h}
                     </th>
@@ -196,8 +196,8 @@ export default function SplitsPage() {
               </thead>
               <tbody className="font-mono tabular-nums">
                 {rows.map((r, i) => (
-                  <tr key={i} className="border-t border-white/5 hover:bg-white/5">
-                    <td className="whitespace-nowrap px-2.5 py-2.5 font-sans text-white/80">
+                  <tr key={i} className="border-t border-line hover:bg-surface-2">
+                    <td className="whitespace-nowrap px-2.5 py-2.5 font-sans text-ink">
                       {n(r.item_name)}
                     </td>
                     {cols.map(([h, , get]) => (

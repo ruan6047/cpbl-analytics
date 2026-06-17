@@ -31,7 +31,7 @@ const fmtVal = (v: number | string | null, fmt?: Fmt): string => {
 };
 
 const toneCls = (tone?: Tone): string =>
-  tone === "accent" ? "text-emerald-400" : tone === "warn" ? "text-rose-400/80" : tone === "dim" ? "text-white/50" : "";
+  tone === "accent" ? "text-accent" : tone === "warn" ? "text-accent" : tone === "dim" ? "text-muted" : "";
 
 function cmp(a: number | string | null, b: number | string | null, dir: 1 | -1): number {
   const an = a === null || a === undefined || a === "";
@@ -93,11 +93,11 @@ export default function Leaderboard({
         <div className="mb-4 flex flex-wrap gap-3">
           {filters.map((f) => (
             <label key={f.key} className="flex items-center gap-2 text-sm">
-              <span className="text-white/50">{f.label}</span>
+              <span className="text-muted">{f.label}</span>
               <select
                 value={sel[f.key] ?? ""}
                 onChange={(e) => setSel((s) => ({ ...s, [f.key]: e.target.value }))}
-                className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 outline-none focus:border-emerald-400"
+                className="rounded-lg border border-line bg-surface-2 px-2.5 py-1.5 outline-none focus:border-ink"
               >
                 <option value="">全部</option>
                 {options[f.key]?.map((v) => (
@@ -108,13 +108,13 @@ export default function Leaderboard({
               </select>
             </label>
           ))}
-          <span className="self-center text-xs text-white/30">{view.length} 筆</span>
+          <span className="self-center text-xs text-faint">{view.length} 筆</span>
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-white/10">
+      <div className="overflow-x-auto rounded-xl border border-line">
         <table className="w-full text-sm">
-          <thead className="bg-white/5 text-left text-white/50">
+          <thead className="bg-surface-2 text-left text-muted">
             <tr>
               <th className="px-2.5 py-3 font-medium">#</th>
               {cols.map((c) => {
@@ -133,12 +133,12 @@ export default function Leaderboard({
                     onMouseLeave={() => setTip(null)}
                     className={`whitespace-nowrap px-2.5 py-3 font-medium ${
                       sortable ? "cursor-pointer select-none hover:text-white" : ""
-                    } ${c.tip ? "underline decoration-white/25 decoration-dotted underline-offset-4" : ""} ${
-                      active ? "text-emerald-400" : ""
+                    } ${c.tip ? "underline decoration-line decoration-dotted underline-offset-4" : ""} ${
+                      active ? "text-accent" : ""
                     }`}
                   >
                     {c.label}
-                    {active ? (dir === -1 ? " ↓" : " ↑") : sortable ? <span className="text-white/15"> ↕</span> : ""}
+                    {active ? (dir === -1 ? " ↓" : " ↑") : sortable ? <span className="text-faint"> ↕</span> : ""}
                   </th>
                 );
               })}
@@ -146,8 +146,8 @@ export default function Leaderboard({
           </thead>
           <tbody className="font-mono tabular-nums">
             {view.map((r, i) => (
-              <tr key={i} className="border-t border-white/5 hover:bg-white/5">
-                <td className="px-2.5 py-2.5 text-white/40">{i + 1}</td>
+              <tr key={i} className="border-t border-line hover:bg-surface-2">
+                <td className="px-2.5 py-2.5 text-faint">{i + 1}</td>
                 {cols.map((c) => (
                   <td
                     key={c.key}
@@ -158,7 +158,7 @@ export default function Leaderboard({
                     {c.link ? (
                       <Link
                         href={`${c.link.base}${r[c.link.idKey]}`}
-                        className="text-emerald-400 hover:underline"
+                        className="text-accent hover:underline"
                       >
                         {fmtVal(r[c.key], c.fmt)}
                       </Link>
@@ -175,7 +175,7 @@ export default function Leaderboard({
 
       {tip && (
         <div
-          className="pointer-events-none fixed z-50 max-w-xs rounded-md border border-white/10 bg-zinc-800 px-2.5 py-1.5 text-xs leading-relaxed text-white shadow-xl"
+          className="pointer-events-none fixed z-50 max-w-xs rounded-md border border-line bg-zinc-800 px-2.5 py-1.5 text-xs leading-relaxed text-white shadow-xl"
           style={{ left: tip.x + 14, top: tip.y + 16 }}
         >
           {tip.text}

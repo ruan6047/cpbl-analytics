@@ -17,13 +17,13 @@ function Toggle<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="inline-flex gap-1 rounded-lg bg-white/5 p-1">
+    <div className="inline-flex gap-1 rounded-lg bg-surface-2 p-1">
       {options.map((o) => (
         <button
           key={o.v}
           onClick={() => onChange(o.v)}
           className={`rounded-md px-3 py-1 text-sm transition ${
-            value === o.v ? "bg-emerald-500 text-black" : "text-white/60 hover:text-white"
+            value === o.v ? "bg-ink text-white" : "text-muted hover:text-white"
           }`}
         >
           {o.label}
@@ -75,7 +75,7 @@ export default function MatchupsPage() {
     <div>
       <header className="mb-5">
         <h1 className="text-2xl font-bold">投打對決</h1>
-        <p className="mt-2 text-sm text-white/50">
+        <p className="mt-2 text-sm text-muted">
           選一位球員，列出他生涯對戰過的所有{oppLabel}（同隊不對戰，已自然排除）。
           點欄位排序、依對手球隊篩選、點對手名字看個人頁。
         </p>
@@ -94,7 +94,7 @@ export default function MatchupsPage() {
           <select
             value={pid}
             onChange={(e) => setPid(e.target.value)}
-            className="min-w-52 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-emerald-400"
+            className="min-w-52 rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm outline-none focus:border-ink"
           >
             <option value="">— 選擇{role === "batting" ? "打者" : "投手"} —</option>
             {players.map((p) => (
@@ -115,12 +115,12 @@ export default function MatchupsPage() {
         />
       </div>
 
-      {!pid && <p className="text-sm text-white/40">請先選擇一位{role === "batting" ? "打者" : "投手"}。</p>}
-      {loading && <p className="text-sm text-white/40">查詢中…</p>}
+      {!pid && <p className="text-sm text-faint">請先選擇一位{role === "batting" ? "打者" : "投手"}。</p>}
+      {loading && <p className="text-sm text-faint">查詢中…</p>}
 
       {rows && !loading && (
         rows.length === 0 ? (
-          <p className="rounded-xl border border-white/10 bg-white/[0.02] p-4 text-sm text-white/50">
+          <p className="rounded-xl border border-line bg-surface p-4 text-sm text-muted">
             {pName ?? "該球員"} 在「{KIND_LABEL[kind]}」生涯無對戰{oppLabel}紀錄。
           </p>
         ) : (
