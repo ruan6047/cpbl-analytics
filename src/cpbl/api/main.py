@@ -723,7 +723,17 @@ def player_discipline(
         )
         points = [{"x": float(s), "y": float(h), "sw": sw, "wh": wh}
                   for s, h, sw, wh in cur.fetchall()]
-    return {"player_id": player_id, "role": role, "summary": summary, "points": points}
+        cur.execute(
+            f"""
+            SELECT hit_direction, hit_distance, hit_exit_speed
+            FROM cpbl.pitch_tracking
+            WHERE {col} = %s AND year = %s AND hit_distance IS NOT NULL AND hit_direction IS NOT NULL
+            """,
+            (player_id, season),
+        )
+        spray = [{"dir": float(d), "dist": float(dist), "ev": float(ev) if ev is not None else None}
+                 for d, dist, ev in cur.fetchall()]
+    return {"player_id": player_id, "role": role, "summary": summary, "points": points, "spray": spray}
 
 
 @app.get("/api/v1/standings")
