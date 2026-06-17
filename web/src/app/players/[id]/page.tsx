@@ -19,6 +19,7 @@ type Disc = {
 
 const numOf = (v: number | string | null | undefined) =>
   v === null || v === undefined || v === "" ? null : Number(v);
+const n0 = (v: number | string | null | undefined) => (v === null || v === undefined ? "—" : String(v));
 const f3 = (v: number | string | null | undefined) => {
   const x = numOf(v);
   return x === null ? "—" : x.toFixed(3).replace(/^0\./, ".");
@@ -124,6 +125,7 @@ export default function PlayerPage() {
   const [advanced, setAdvanced] = useState<{ batting: StatRow | null; pitching: StatRow | null } | null>(null);
   const [disc, setDisc] = useState<Disc | null>(null);
   const [arsenal, setArsenal] = useState<StatRow[] | null>(null);
+  const [fielding, setFielding] = useState<StatRow[] | null>(null);
   const [trend, setTrend] = useState<StatRow[] | null>(null);
   const [splits, setSplits] = useState<StatRow[] | null>(null);
   const [monthMetric, setMonthMetric] = useState("ops");
@@ -136,6 +138,7 @@ export default function PlayerPage() {
     }).catch(() => setNotFound(true));
     detail.season(id).then(setSeason).catch(() => setSeason(null));
     detail.advanced(id).then(setAdvanced).catch(() => setAdvanced(null));
+    detail.fielding(id).then((d) => setFielding(d.items)).catch(() => setFielding([]));
   }, [id]);
 
   useEffect(() => {
@@ -343,6 +346,40 @@ export default function PlayerPage() {
           )}
         </Card>
       </section>
+
+      {/* 守備 */}
+      {fielding && fielding.length > 0 && (
+        <section className="mb-6">
+          <h2 className="mb-3 text-lg font-semibold text-ink">守備</h2>
+          <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+            <table className="w-full text-sm">
+              <thead className="bg-surface-2 text-left text-muted">
+                <tr>
+                  {([["守位", "守備位置"], ["出賽", "該守位出賽場數 G"], ["守備機會", "TC＝刺殺＋助殺＋失誤"],
+                     ["刺殺", "PO：直接使打者/跑者出局"], ["助殺", "A：傳球協助使對方出局"], ["失誤", "E"],
+                     ["雙殺", "參與的雙殺次數"], ["守備率", "(刺殺＋助殺) ÷ 守備機會"]] as const).map(([h, tip], i) => (
+                    <th key={h} title={tip} className={`cursor-help px-3 py-2 font-medium ${i === 0 ? "" : "text-right"}`}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="font-mono tabular-nums">
+                {fielding.map((r) => (
+                  <tr key={String(r.pos)} className="border-t border-line">
+                    <td className="px-3 py-2 font-sans text-ink">{String(r.pos)}</td>
+                    <td className="px-3 py-2 text-right text-muted">{n0(r.g)}</td>
+                    <td className="px-3 py-2 text-right">{n0(r.tc)}</td>
+                    <td className="px-3 py-2 text-right">{n0(r.po)}</td>
+                    <td className="px-3 py-2 text-right">{n0(r.a)}</td>
+                    <td className="px-3 py-2 text-right text-accent">{n0(r.e)}</td>
+                    <td className="px-3 py-2 text-right">{n0(r.dp)}</td>
+                    <td className="px-3 py-2 text-right text-ink">{r.fpct == null ? "—" : Number(r.fpct).toFixed(3).replace(/^0\./, ".")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {/* 分項明細 */}
       <section className="mb-6">
