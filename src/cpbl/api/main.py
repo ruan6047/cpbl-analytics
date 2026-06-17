@@ -751,3 +751,39 @@ def official_standings(
             (season, kind_code, season_code),
         )
         return {"season": season, "season_code": season_code, "items": _dicts(cur)}
+
+
+@app.get("/api/v1/players/{player_id}/arsenal")
+def player_arsenal(
+    player_id: str,
+    role: str = Query("pitching", pattern="^(batting|pitching)$"),
+    season: int = Query(DEFAULT_SEASON),
+) -> dict:
+    """球種應對：自 pitch_tracking 按球種彙總。pitching=投手配球、batting=打者面對。
+    回每球種：球數、用球/面對%、均速、(投手)轉速、揮空%、(打者)擊球初速。"""
+    col = "pitcher_acnt" if role == "pitching" else "hitter_acnt"
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            f"""
+            SELECT tagged_pitch_type, count(*) n, avg(rel_speed), avg(spin_rate),
+                   count(*) FILTER (WHERE pitch_call = 'StrikeSwinging'),
+                   count(*) FILTER (WHERE pitch_call IN {_SWING}),
+                   avg(hit_exit_speed)
+            FROM cpbl.pitch_tracking
+            WHERE {col} = %s AND year = %s AND tagged_pitch_type IS NOT NULL
+            GROUP BY tagged_pitch_type ORDER BY n DESC
+            """,
+            (player_id, season),
+        )
+        rows = cur.fetchall()
+    total = sum(r[1] for r in rows) or 1
+    fl = lambda v: round(float(v), 1) if v is not None else None  # noqa: E731
+    items = [
+        {"pitch_type": pt, "n": n, "usage": round(n / total * 100, 1),
+         "avg_speed": fl(spd), "avg_spin": round(float(spin)) if spin is not None else None,
+         "whiff_pct": round(wh / sw * 100, 1) if sw else None,
+         "avg_ev": fl(ev)}
+        for pt, n, spd, spin, wh, sw, ev in rows
+    ]
+    return {"player_id": player_id, "role": role, "items": items}

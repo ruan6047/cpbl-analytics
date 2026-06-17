@@ -83,6 +83,35 @@ function Tabs<T extends string>({ opts, v, set }: { opts: { v: T; label: string 
   );
 }
 
+const PITCH_LABEL: Record<string, string> = { fastball: "速球", breakingball: "變化球" };
+
+function ArsenalTable({ items, role }: { items: StatRow[]; role: Role }) {
+  return (
+    <table className="w-full text-sm">
+      <thead className="text-left text-muted">
+        <tr className="text-xs">
+          <th className="py-1 font-medium">球種</th>
+          <th className="py-1 text-right font-medium">{role === "batting" ? "面對" : "用球"}%</th>
+          <th className="py-1 text-right font-medium">均速</th>
+          <th className="py-1 text-right font-medium">揮空%</th>
+          <th className="py-1 text-right font-medium">擊球初速</th>
+        </tr>
+      </thead>
+      <tbody className="font-mono tabular-nums">
+        {items.map((r) => (
+          <tr key={String(r.pitch_type)} className="border-t border-line">
+            <td className="py-1.5 font-sans text-ink">{PITCH_LABEL[String(r.pitch_type)] ?? String(r.pitch_type)}</td>
+            <td className="py-1.5 text-right">{String(r.usage)}%</td>
+            <td className="py-1.5 text-right">{r.avg_speed ?? "—"}</td>
+            <td className="py-1.5 text-right">{r.whiff_pct ?? "—"}%</td>
+            <td className="py-1.5 text-right text-muted">{r.avg_ev ?? "—"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 export default function PlayerPage() {
   const { id } = useParams<{ id: string }>();
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
@@ -93,6 +122,7 @@ export default function PlayerPage() {
   const [season, setSeason] = useState<{ batting: StatRow | null; pitching: StatRow | null } | null>(null);
   const [advanced, setAdvanced] = useState<{ batting: StatRow | null; pitching: StatRow | null } | null>(null);
   const [disc, setDisc] = useState<Disc | null>(null);
+  const [arsenal, setArsenal] = useState<StatRow[] | null>(null);
   const [splits, setSplits] = useState<StatRow[] | null>(null);
   const [monthMetric, setMonthMetric] = useState("ops");
 
@@ -109,7 +139,9 @@ export default function PlayerPage() {
   useEffect(() => {
     setMonthMetric(role === "batting" ? "ops" : "era");
     setDisc(null);
+    setArsenal(null);
     detail.discipline(id, role).then((d) => setDisc(d as Disc)).catch(() => setDisc(null));
+    detail.arsenal(id, role).then((d) => setArsenal(d.items)).catch(() => setArsenal([]));
   }, [id, role]);
 
   useEffect(() => {
@@ -260,6 +292,7 @@ export default function PlayerPage() {
             </div>
           )}
         </div>
+        <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <div className="mb-3 flex items-center justify-between gap-3">
             <h3 className="text-sm font-medium text-muted">逐月趨勢</h3>
@@ -281,6 +314,13 @@ export default function PlayerPage() {
             </ResponsiveContainer>
           )}
         </Card>
+        <Card>
+          <h3 className="mb-3 text-sm font-medium text-muted">球種應對（{role === "batting" ? "面對" : "配球"}；速球/變化球）</h3>
+          {arsenal === null ? <p className="py-8 text-center text-sm text-faint">載入中…</p>
+            : arsenal.length === 0 ? <p className="py-8 text-center text-sm text-faint">無逐球資料</p>
+            : <ArsenalTable items={arsenal} role={role} />}
+        </Card>
+        </div>
       </section>
 
       {/* 分項明細 */}
