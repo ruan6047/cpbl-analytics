@@ -1,59 +1,84 @@
+import Link from "next/link";
 import { api } from "@/lib/api";
 
-// 即時渲染（不在 build 時預抓 API）；fetch 仍以 revalidate 快取 10 分鐘。
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
-  const { season, standings } = await api.standings();
+const SEGS = [
+  { v: 0, label: "全年" },
+  { v: 1, label: "上半季" },
+  { v: 2, label: "下半季" },
+];
+
+export default async function Home({ searchParams }: { searchParams: Promise<{ seg?: string }> }) {
+  const { seg = "0" } = await searchParams;
+  const segCode = Number(seg) || 0;
+  const [{ season, items }, derived] = await Promise.all([
+    api.officialStandings(segCode),
+    api.standings(),
+  ]);
+  // 團隊 OPS/ERA/WHIP 來自即時彙整端點，依 code 併入
+  const adv = new Map(derived.standings.map((d) => [d.code, d]));
 
   return (
     <div>
-      <header className="mb-6">
+      <header className="mb-5">
         <h1 className="text-2xl font-bold">{season} 球季 · 本季戰績</h1>
-        <p className="mt-2 text-sm text-white/50">
-          由官網逐場結果即時彙整(資料更新至最近一次爬蟲)。場均得分 / 失分為攻守指標。
-        </p>
+        <p className="mt-2 text-sm text-white/50">官方戰績（含和局/勝差/連勝敗/主客場/近十場）。團隊 OPS/ERA/WHIP 為攻守指標。</p>
       </header>
 
-      <div className="overflow-x-auto rounded-xl border border-white/10">
-        <table className="w-full text-sm">
-          <thead className="bg-white/5 text-left text-white/50">
-            <tr>
-              <th className="px-3 py-3 font-medium">#</th>
-              <th className="px-3 py-3 font-medium">球隊</th>
-              <th className="px-3 py-3 text-right font-medium">勝–敗</th>
-              <th className="px-3 py-3 text-right font-medium">勝率</th>
-              <th className="px-3 py-3 text-right font-medium">得失差</th>
-              <th className="px-3 py-3 text-right font-medium" title="團隊整體攻擊指數">團隊OPS</th>
-              <th className="px-3 py-3 text-right font-medium" title="團隊防禦率">ERA</th>
-              <th className="px-3 py-3 text-right font-medium" title="團隊每局被上壘率">WHIP</th>
-              <th className="px-3 py-3 text-right font-medium">近10</th>
-            </tr>
-          </thead>
-          <tbody className="font-mono tabular-nums">
-            {standings.map((t, i) => (
-              <tr key={t.code} className="border-t border-white/5 hover:bg-white/5">
-                <td className="px-3 py-3 text-white/40">{i + 1}</td>
-                <td className="px-3 py-3 font-sans">{t.name}</td>
-                <td className="px-3 py-3 text-right">
-                  {t.w}–{t.l}
-                </td>
-                <td className="px-3 py-3 text-right text-emerald-400">{t.win_pct.toFixed(3)}</td>
-                <td
-                  className={`px-3 py-3 text-right ${t.run_diff >= 0 ? "text-emerald-400/80" : "text-rose-400/80"}`}
-                >
-                  {t.run_diff >= 0 ? "+" : ""}
-                  {t.run_diff.toFixed(2)}
-                </td>
-                <td className="px-3 py-3 text-right">{t.ops?.toFixed(3) ?? "—"}</td>
-                <td className="px-3 py-3 text-right">{t.era?.toFixed(2) ?? "—"}</td>
-                <td className="px-3 py-3 text-right">{t.whip?.toFixed(2) ?? "—"}</td>
-                <td className="px-3 py-3 text-right text-white/50">{t.form}</td>
+      <nav className="mb-4 flex gap-2">
+        {SEGS.map((s) => (
+          <Link
+            key={s.v}
+            href={`/?seg=${s.v}`}
+            className={`rounded-full px-3 py-1 text-sm transition ${
+              segCode === s.v ? "bg-emerald-500 text-black" : "bg-white/5 text-white/60 hover:bg-white/10"
+            }`}
+          >
+            {s.label}
+          </Link>
+        ))}
+      </nav>
+
+      {items.length === 0 ? (
+        <p className="text-sm text-white/40">此區間尚無戰績（下半季可能未開始）。</p>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-white/10">
+          <table className="w-full text-sm">
+            <thead className="bg-white/5 text-left text-white/50">
+              <tr>
+                {["#", "球隊", "出賽", "勝-和-敗", "勝率", "勝差", "連勝/敗", "主場", "客場", "近十場", "OPS", "ERA", "WHIP"].map(
+                  (h) => (
+                    <th key={h} className="whitespace-nowrap px-2.5 py-3 font-medium">{h}</th>
+                  ),
+                )}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="font-mono tabular-nums">
+              {items.map((t) => {
+                const a = adv.get(t.team_code);
+                return (
+                  <tr key={t.team_code} className="border-t border-white/5 hover:bg-white/5">
+                    <td className="px-2.5 py-2.5 text-white/40">{t.rank}</td>
+                    <td className="whitespace-nowrap px-2.5 py-2.5 font-sans">{t.team_name}</td>
+                    <td className="px-2.5 py-2.5 text-white/50">{t.g}</td>
+                    <td className="px-2.5 py-2.5">{t.w}-{t.t}-{t.l}</td>
+                    <td className="px-2.5 py-2.5 text-emerald-400">{t.win_pct?.toFixed(3) ?? "—"}</td>
+                    <td className="px-2.5 py-2.5 text-white/70">{t.gb === 0 ? "—" : t.gb}</td>
+                    <td className="px-2.5 py-2.5 text-white/60">{t.streak ?? "—"}</td>
+                    <td className="px-2.5 py-2.5 text-white/50">{t.home_record ?? "—"}</td>
+                    <td className="px-2.5 py-2.5 text-white/50">{t.away_record ?? "—"}</td>
+                    <td className="px-2.5 py-2.5 text-white/50">{t.last10 ?? "—"}</td>
+                    <td className="px-2.5 py-2.5">{a?.ops?.toFixed(3) ?? "—"}</td>
+                    <td className="px-2.5 py-2.5">{a?.era?.toFixed(2) ?? "—"}</td>
+                    <td className="px-2.5 py-2.5">{a?.whip?.toFixed(2) ?? "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
