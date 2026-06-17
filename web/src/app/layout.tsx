@@ -24,8 +24,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen antialiased">
         <header className="sticky top-0 z-40 border-b border-line bg-surface/90 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3.5">
-            <Link href="/" className="text-lg font-bold tracking-tight text-ink">
-              CPBL <span className="text-accent">分析</span>
+            <Link href="/" className="text-lg font-extrabold tracking-tight">
+              <span className="text-cpbl">CPBL</span> <span className="text-accent">分析</span>
             </Link>
             <nav className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
               {NAV.map((n) => (
