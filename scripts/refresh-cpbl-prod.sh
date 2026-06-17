@@ -102,6 +102,18 @@ if [ -n "${WITH_DETAIL:-}" ]; then
     pitch_call auto_pitch_type tagged_pitch_type rel_speed spin_rate rel_side rel_height extension \
     zone_speed plate_loc_side plate_loc_height hit_exit_speed hit_launch_angle hit_direction \
     hit_distance hit_hang_time
+  sync_table batting_gamelog "year,kind_code,game_sno,hitter_acnt" \
+    hitter_name visiting_home_type uniform_no role_type plate_appearances at_bats hits rbi runs \
+    singles doubles triples home_runs grand_slam total_bases gidp sac_hit sac_fly bb ibb hbp so sb cs \
+    lob errors gw_rbi is_mvp
+  sync_table pitching_gamelog "year,kind_code,game_sno,pitcher_acnt" \
+    pitcher_name visiting_home_type uniform_no role_type game_result is_complete_game is_shutout \
+    inning_pitched_cnt inning_pitched_div3 plate_appearances pitch_cnt strike_cnt ball_cnt hits \
+    home_runs sac_hit sac_fly bb ibb hbp so wild_pitch balk runs earned_runs relief_point max_speed is_mvp
+  sync_table batting_seasons "player_id,year,team_id" \
+    team_name g pa ab rbi r h b1 b2 b3 hr tb so sb gidp sh sf bb ibb hbp cs go fo
+  sync_table pitching_seasons "player_id,year,team_id" \
+    team_name g gs gr cg sho nbb w l sv hld ip bf np h hr bb ibb hbp so wp bk r er go fo
 fi
 
 echo "==> 3/3 VPS 重建賽果特徵"
