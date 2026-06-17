@@ -28,6 +28,7 @@ from cpbl.ingest.cpbl_fighting import YEAR_CAREER, scrape_matchups
 from cpbl.ingest.cpbl_gamelog import scrape_gamelogs
 from cpbl.ingest.cpbl_pitch_tracking import scrape_pitches
 from cpbl.ingest.cpbl_site import lineup_acnts, scrape_games
+from cpbl.ingest.cpbl_standings import scrape_standings
 from cpbl.ingest.cpbl_stats import scrape_all
 
 log = logging.getLogger("cpbl.refresh")
@@ -114,6 +115,7 @@ def main() -> None:
     try:
         games = scrape_games(year, year)
         stats = scrape_all(year, year, year)
+        scrape_standings(year)  # 官方球隊戰績（含和局/勝差/上下半季），輕量每次更新
         detail_inc = {} if skip_detail else _incremental_detail(year, [yesterday, today])
     except Exception as e:  # noqa: BLE001 — 失敗也要留痕，避免無聲缺漏
         log.error("抓取失敗：%s", e)
