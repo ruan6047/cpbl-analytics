@@ -649,3 +649,17 @@ def game_live(
         )
         livelog = _dicts(cur)
     return {"game": g[0] if g else None, "scoreboard": scoreboard, "livelog": livelog}
+
+
+@app.get("/api/v1/players/{player_id}/advanced")
+def player_advanced(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
+    """官方進階數據（stats.cpbl）+ 官方 PR。batting=進攻、pitching=被打。"""
+    out: dict[str, Any] = {"player_id": player_id, "season": season,
+                           "batting": None, "pitching": None}
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute("SELECT * FROM cpbl.advanced_stats WHERE acnt = %s AND year = %s",
+                    (player_id, season))
+        for row in _dicts(cur):
+            out[row["role"]] = row
+    return out
