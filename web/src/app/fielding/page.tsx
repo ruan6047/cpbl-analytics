@@ -23,7 +23,7 @@ export default async function FieldingPage() {
     <div>
       <header className="mb-5">
         <h1 className="text-2xl font-bold">{season} 球季 · 守備數據</h1>
-        <p className="mt-2 text-sm text-white/50">
+        <p className="mt-2 text-sm text-muted">
           逐守備位置統計。點欄位標題排序，可依球隊與守位篩選。守備率 = (刺殺+助殺) ÷ 守備機會。
         </p>
       </header>

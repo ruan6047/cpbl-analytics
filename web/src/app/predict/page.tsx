@@ -84,11 +84,11 @@ export default function PredictPage() {
     <div>
       <header className="mb-5">
         <h1 className="text-2xl font-bold">賽果預測 · 單場對戰</h1>
-        <p className="mt-2 text-sm text-white/50">
+        <p className="mt-2 text-sm text-muted">
           勾選你在意的變因,把雙方真實數字攤開比較;勝率用歷史學出的「預設權重」起算,
           你也能拖滑桿手動微調(拖大 = 更決斷)。
           {model && (
-            <span className="ml-1 text-white/35">
+            <span className="ml-1 text-muted">
               模型參考準確率 {(model.accuracy * 100).toFixed(1)}%(基準{" "}
               {(model.baseline * 100).toFixed(1)}%)。
             </span>
@@ -97,13 +97,13 @@ export default function PredictPage() {
       </header>
 
       {/* 模式切換 */}
-      <div className="mb-4 inline-flex rounded-lg border border-white/10 p-1 text-sm">
+      <div className="mb-4 inline-flex rounded-lg border border-line p-1 text-sm">
         {(["upcoming", "simulate"] as Mode[]).map((mo) => (
           <button
             key={mo}
             onClick={() => setMode(mo)}
             className={`rounded-md px-3 py-1.5 transition ${
-              mode === mo ? "bg-emerald-500 text-black" : "text-white/50 hover:text-white"
+              mode === mo ? "bg-ink text-white" : "text-muted hover:text-white"
             }`}
           >
             {mo === "upcoming" ? "今日/近期賽事" : "任選兩隊模擬"}
@@ -121,8 +121,8 @@ export default function PredictPage() {
                 onClick={() => toggle(f.key)}
                 className={`rounded-lg border px-3 py-1.5 text-sm transition ${
                   on
-                    ? "border-emerald-500 bg-emerald-500/15 text-emerald-300"
-                    : "border-white/10 bg-white/5 text-white/40 hover:border-white/20"
+                    ? "border-accent bg-ink/15 text-accent"
+                    : "border-line bg-surface-2 text-faint hover:border-line"
                 }`}
               >
                 {on ? "✓ " : ""}
@@ -131,7 +131,7 @@ export default function PredictPage() {
               {f.desc && (
                 <span
                   role="tooltip"
-                  className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 w-60 -translate-x-1/2 rounded-lg border border-white/10 bg-neutral-900 px-3 py-2 text-xs leading-relaxed text-white/70 opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100"
+                  className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 w-60 -translate-x-1/2 rounded-lg border border-line bg-neutral-900 px-3 py-2 text-xs leading-relaxed text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100"
                 >
                   {f.desc}
                 </span>
@@ -143,12 +143,12 @@ export default function PredictPage() {
 
       {/* 權重滑桿 */}
       {selected.length > 0 && (
-        <section className="mb-6 rounded-xl border border-white/10 p-4">
+        <section className="mb-6 rounded-xl border border-line p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-medium text-white/50">變因權重(影響力)</h2>
+            <h2 className="text-sm font-medium text-muted">變因權重(影響力)</h2>
             <button
               onClick={() => model && setWeights(model.weights)}
-              className="text-xs text-white/40 hover:text-emerald-400"
+              className="text-xs text-faint hover:text-accent"
             >
               重設為預設
             </button>
@@ -156,7 +156,7 @@ export default function PredictPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             {selected.map((k) => (
               <label key={k} className="flex items-center gap-3 text-sm">
-                <span className="w-24 shrink-0 text-white/60">{label[k] ?? k}</span>
+                <span className="w-24 shrink-0 text-muted">{label[k] ?? k}</span>
                 <input
                   type="range"
                   min={0}
@@ -166,9 +166,9 @@ export default function PredictPage() {
                   onChange={(e) =>
                     setWeights((w) => ({ ...w, [k]: parseFloat(e.target.value) }))
                   }
-                  className="flex-1 accent-emerald-500"
+                  className="flex-1 accent-accent"
                 />
-                <span className="w-10 text-right font-mono text-xs text-white/40">
+                <span className="w-10 text-right font-mono text-xs text-faint">
                   {(weights[k] ?? 0).toFixed(2)}
                 </span>
               </label>
@@ -181,17 +181,17 @@ export default function PredictPage() {
       {mode === "simulate" && (
         <section className="mb-4 flex flex-wrap items-center gap-3 text-sm">
           <TeamSelect label="客隊" teams={teams} value={away} onChange={setAway} />
-          <span className="text-white/30">@</span>
+          <span className="text-faint">@</span>
           <TeamSelect label="主隊" teams={teams} value={home} onChange={setHome} />
         </section>
       )}
 
       {/* 卡片 */}
       <section className="space-y-2">
-        {loading && <p className="text-sm text-white/30">計算中…</p>}
+        {loading && <p className="text-sm text-faint">計算中…</p>}
         {!loading && mode === "upcoming" &&
           (items.length === 0 ? (
-            <p className="text-sm text-white/30">目前無未開打場次(休賽期或賽季結束)。</p>
+            <p className="text-sm text-faint">目前無未開打場次(休賽期或賽季結束)。</p>
           ) : (
             items.map((m, i) => <MatchupCard key={i} m={m} weights={weights} />)
           ))}
@@ -214,11 +214,11 @@ function TeamSelect({
 }) {
   return (
     <label className="flex items-center gap-2">
-      <span className="text-white/40">{label}</span>
+      <span className="text-faint">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-white"
+        className="rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-white"
       >
         {teams.map((t) => (
           <option key={t.code} value={t.code} className="bg-neutral-900">

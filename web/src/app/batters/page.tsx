@@ -32,7 +32,7 @@ export default async function BattersPage() {
     <div>
       <header className="mb-5">
         <h1 className="text-2xl font-bold">{season} 球季 · 打者排行</h1>
-        <p className="mt-2 text-sm text-white/50">
+        <p className="mt-2 text-sm text-muted">
           全名單本季打者。點欄位標題排序（再點一次反向），可依球隊篩選。
         </p>
       </header>

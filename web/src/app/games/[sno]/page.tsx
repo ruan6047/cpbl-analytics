@@ -19,21 +19,21 @@ function Scoreboard({ sb, game }: { sb: StatRow[]; game: StatRow }) {
     rows.reduce((s, r) => s + (Number(r[key]) || 0), 0);
 
   const row = (label: string, rows: StatRow[], score: number) => (
-    <tr className="border-t border-white/5">
+    <tr className="border-t border-line">
       <td className="whitespace-nowrap px-3 py-2 font-sans font-medium">{label}</td>
       {innings.map((inn) => (
-        <td key={inn} className="px-2.5 py-2 text-center text-white/70">{String(cell(rows, inn))}</td>
+        <td key={inn} className="px-2.5 py-2 text-center text-muted">{String(cell(rows, inn))}</td>
       ))}
-      <td className="px-2.5 py-2 text-center font-semibold text-emerald-400">{score}</td>
-      <td className="px-2.5 py-2 text-center text-white/50">{tot(rows, "hitting_cnt")}</td>
-      <td className="px-2.5 py-2 text-center text-white/50">{tot(rows, "error_cnt")}</td>
+      <td className="px-2.5 py-2 text-center font-semibold text-accent">{score}</td>
+      <td className="px-2.5 py-2 text-center text-muted">{tot(rows, "hitting_cnt")}</td>
+      <td className="px-2.5 py-2 text-center text-muted">{tot(rows, "error_cnt")}</td>
     </tr>
   );
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-white/10">
+    <div className="overflow-x-auto rounded-xl border border-line">
       <table className="w-full text-sm font-mono tabular-nums">
-        <thead className="bg-white/5 text-white/50">
+        <thead className="bg-surface-2 text-muted">
           <tr>
             <th className="px-3 py-2 text-left font-medium">隊伍</th>
             {innings.map((inn) => <th key={inn} className="px-2.5 py-2 font-medium">{inn}</th>)}
@@ -66,8 +66,8 @@ function PlayByPlay({ log }: { log: StatRow[] }) {
   return (
     <div className="space-y-5">
       {groups.map((g, gi) => (
-        <div key={gi} className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-          <h3 className="mb-2 text-sm font-semibold text-emerald-400">
+        <div key={gi} className="rounded-xl border border-line bg-surface p-4">
+          <h3 className="mb-2 text-sm font-semibold text-accent">
             {g.inning} 局{g.half === "1" ? "上" : "下"}
           </h3>
           <div className="space-y-0.5">
@@ -80,14 +80,14 @@ function PlayByPlay({ log }: { log: StatRow[] }) {
               return (
                 <div key={i}>
                   {newBatter && e.hitter_name && (
-                    <div className="mt-2.5 text-sm font-medium text-white/80">
+                    <div className="mt-2.5 text-sm font-medium text-ink">
                       🏏 {String(e.hitter_name)}
-                      <span className="ml-2 text-xs text-white/40">投：{String(e.pitcher_name ?? "")}</span>
+                      <span className="ml-2 text-xs text-faint">投：{String(e.pitcher_name ?? "")}</span>
                     </div>
                   )}
                   <div
                     className={`pl-5 ${
-                      isScore ? "text-emerald-400" : isPitch ? "text-xs text-white/40" : "text-sm text-white/80"
+                      isScore ? "text-accent" : isPitch ? "text-xs text-faint" : "text-sm text-ink"
                     }`}
                   >
                     {content}
@@ -118,21 +118,21 @@ export default function GameLivePage() {
     detail.gameLive(Number(sno), kind).then((d) => setData(d as Live)).catch(() => setErr(true));
   }, [sno, kind]);
 
-  if (err) return <p className="text-sm text-white/50">載入賽況失敗。</p>;
-  if (!data) return <p className="text-sm text-white/40">載入中…</p>;
-  if (!data.game) return <p className="text-sm text-white/50">查無此場比賽。</p>;
+  if (err) return <p className="text-sm text-muted">載入賽況失敗。</p>;
+  if (!data) return <p className="text-sm text-faint">載入中…</p>;
+  if (!data.game) return <p className="text-sm text-muted">查無此場比賽。</p>;
 
   const g = data.game;
   return (
     <div>
-      <Link href="/games" className="text-xs text-white/40 hover:text-emerald-400">← 返回賽況列表</Link>
+      <Link href="/games" className="text-xs text-faint hover:text-accent">← 返回賽況列表</Link>
       <header className="mb-5 mt-2">
         <h1 className="text-2xl font-bold">
           {String(g.away_team_name)} <span className="font-mono">{n(g.away_score)}</span>
-          <span className="mx-2 text-white/30">@</span>
+          <span className="mx-2 text-faint">@</span>
           {String(g.home_team_name)} <span className="font-mono">{n(g.home_score)}</span>
         </h1>
-        <p className="mt-1 text-sm text-white/50">
+        <p className="mt-1 text-sm text-muted">
           {String(g.game_date ?? "")}　{String(g.venue ?? "")}
         </p>
       </header>
@@ -145,7 +145,7 @@ export default function GameLivePage() {
       <section>
         <h2 className="mb-3 text-lg font-semibold">逐打席賽況</h2>
         {data.livelog.length === 0 ? (
-          <p className="text-sm text-white/40">無逐打席資料。</p>
+          <p className="text-sm text-faint">無逐打席資料。</p>
         ) : (
           <PlayByPlay log={data.livelog} />
         )}
