@@ -50,13 +50,13 @@ export function prColor(pr: number): string {
 
 export function PercentileBar({ name, value, pr, def }: { name: string; value: string; pr: number; def?: string }) {
   return (
-    <div className="flex items-center gap-2.5 text-sm">
-      <span title={def} className={`w-20 shrink-0 text-muted ${def ? "cursor-help" : ""}`}>{name}</span>
-      <div className="relative h-4 flex-1 overflow-hidden rounded bg-surface-2">
-        <div className="h-full rounded" style={{ width: `${pr}%`, background: prColor(pr) }} />
+    <div className="flex items-center gap-2 text-xs">
+      <span title={def} className={`w-16 shrink-0 truncate text-muted ${def ? "cursor-help" : ""}`}>{name}</span>
+      <div className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-surface-2">
+        <div className="h-full rounded-full" style={{ width: `${pr}%`, background: prColor(pr) }} />
       </div>
-      <span className="w-12 shrink-0 text-right font-mono tabular-nums text-ink">{value}</span>
-      <span className="w-9 shrink-0 text-right font-mono text-xs text-faint">{pr}</span>
+      <span className="w-11 shrink-0 text-right font-mono tabular-nums text-ink">{value}</span>
+      <span className="w-6 shrink-0 text-right font-mono text-faint">{pr}</span>
     </div>
   );
 }

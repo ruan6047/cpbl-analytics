@@ -183,7 +183,7 @@ export default function PlayerPage() {
 
       {/* 本季成績卡 */}
       {s && (
-        <section className="mb-8">
+        <section className="mb-6">
           <h2 className="mb-3 text-lg font-semibold text-ink">本季成績</h2>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
             {(role === "batting"
@@ -202,13 +202,13 @@ export default function PlayerPage() {
       )}
 
       {/* 百分位 */}
-      <section className="mb-8">
+      <section className="mb-6">
         <h2 className="mb-3 text-lg font-semibold text-ink">官方進階數據 · 百分位 PR</h2>
         <Card>
           {prRows.length === 0 ? (
             <p className="py-8 text-center text-sm text-faint">{advanced === null ? "載入中…" : "無官方進階資料"}</p>
           ) : (
-            <div className="space-y-1.5">
+            <div className="grid gap-x-8 gap-y-1.5 sm:grid-cols-2">
               {prRows.map((d) => <PercentileBar key={d.name} name={d.name} value={d.value} pr={d.pr} def={d.def} />)}
             </div>
           )}
@@ -219,7 +219,7 @@ export default function PlayerPage() {
       </section>
 
       {/* 擊球落點 + 進壘點 */}
-      <section className="mb-8 grid gap-6 lg:grid-cols-2">
+      <section className="mb-6 grid gap-6 lg:grid-cols-2">
         <Card>
           <h3 className="mb-2 text-sm font-medium text-muted">擊球落點（點＝擊球初速 藍低→紅高，{disc?.spray.length ?? 0} 球）</h3>
           {disc && disc.spray.length > 0 ? <SprayChart points={disc.spray} />
@@ -240,7 +240,7 @@ export default function PlayerPage() {
       </section>
 
       {/* 範圍切換 + 逐月趨勢 */}
-      <section className="mb-8">
+      <section className="mb-6">
         <div className="mb-3 flex flex-wrap items-center gap-3">
           <Tabs opts={[{ v: "season", label: "本季" }, { v: "career", label: "生涯" }]} v={scope} set={setScope} />
           {scope === "career" && (
