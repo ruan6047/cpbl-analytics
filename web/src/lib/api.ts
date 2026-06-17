@@ -150,9 +150,4 @@ export const api = {
     get<BattingLeadersResponse>(`/api/v1/season/batting-leaders?sort=${sort}&limit=${limit}&min_pa=${minPa}`, 60),
   pitchingLeaders: (sort = "era", { limit = 400, minIp = 0 } = {}) =>
     get<PitchingLeadersResponse>(`/api/v1/season/pitching-leaders?sort=${sort}&limit=${limit}&min_ip=${minIp}`, 60),
-  fielding: (sort = "tc", pos?: string, { limit = 600 } = {}) =>
-    get<FieldingResponse>(
-      `/api/v1/season/fielding?sort=${sort}${pos ? `&pos=${encodeURIComponent(pos)}` : ""}&limit=${limit}`,
-      60,
-    ),
 };
