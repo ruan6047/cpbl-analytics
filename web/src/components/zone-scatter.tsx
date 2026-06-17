@@ -2,7 +2,7 @@
 export type ZonePoint = { x: number; y: number; sw: boolean; wh: boolean };
 
 export function ZoneScatter({ points }: { points: ZonePoint[] }) {
-  const W = 260, H = 300, pad = 16;
+  const W = 230, H = 215, pad = 14;
   const xMin = -0.8, xMax = 0.8, yMin = -0.2, yMax = 1.7;
   const sx = (x: number) => pad + ((x - xMin) / (xMax - xMin)) * (W - 2 * pad);
   const sy = (y: number) => H - pad - ((y - yMin) / (yMax - yMin)) * (H - 2 * pad);
