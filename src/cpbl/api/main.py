@@ -663,3 +663,64 @@ def player_advanced(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict
         for row in _dicts(cur):
             out[row["role"]] = row
     return out
+
+
+# 好球帶（公尺座標近似）：左右 ±0.25、上下 0.45~1.05
+_SWING = "('InPlay','FoulBallNotFieldable','FoulBallFieldable','StrikeSwinging')"
+_CONTACT = "('InPlay','FoulBallNotFieldable','FoulBallFieldable')"
+
+
+@app.get("/api/v1/players/{player_id}/discipline")
+def player_discipline(
+    player_id: str,
+    role: str = Query("batting", pattern="^(batting|pitching)$"),
+    season: int = Query(DEFAULT_SEASON),
+) -> dict:
+    """好球帶紀律（自 pitch_tracking 計算）。batting=該打者面對；pitching=該投手誘導。
+    含揮棒/揮空/接觸/CSW/追打/帶內揮棒/好球帶比例，及進壘點散布。"""
+    col = "hitter_acnt" if role == "batting" else "pitcher_acnt"
+    pct = lambda a, b: round(a / b * 100, 1) if b else None  # noqa: E731
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            f"""
+            SELECT
+              count(*) loc,
+              count(*) tot,
+              count(*) FILTER (WHERE pitch_call IN {_SWING}) sw,
+              count(*) FILTER (WHERE pitch_call = 'StrikeSwinging') wh,
+              count(*) FILTER (WHERE pitch_call IN {_CONTACT}) ct,
+              count(*) FILTER (WHERE pitch_call IN ('StrikeCalled','StrikeSwinging')) csw,
+              count(*) FILTER (WHERE iz) zone,
+              count(*) FILTER (WHERE iz AND sw0) zsw,
+              count(*) FILTER (WHERE (NOT iz) AND sw0) osw,
+              count(*) FILTER (WHERE NOT iz) ozone
+            FROM (
+              SELECT pitch_call,
+                     (abs(plate_loc_side) <= 0.25 AND plate_loc_height BETWEEN 0.45 AND 1.05) iz,
+                     (pitch_call IN {_SWING}) sw0
+              FROM cpbl.pitch_tracking
+              WHERE {col} = %s AND year = %s AND plate_loc_side IS NOT NULL
+            ) q
+            """,
+            (player_id, season),
+        )
+        loc, tot, sw, wh, ct, csw, zone, zsw, osw, ozone = cur.fetchone()
+        summary = {
+            "pitches": tot, "located": loc,
+            "swing_pct": pct(sw, loc), "whiff_pct": pct(wh, sw), "contact_pct": pct(ct, sw),
+            "csw_pct": pct(csw, loc), "zone_pct": pct(zone, loc),
+            "z_swing_pct": pct(zsw, zone), "chase_pct": pct(osw, ozone),
+        }
+        cur.execute(
+            f"""
+            SELECT plate_loc_side, plate_loc_height,
+                   (pitch_call IN {_SWING}) sw, (pitch_call = 'StrikeSwinging') wh
+            FROM cpbl.pitch_tracking
+            WHERE {col} = %s AND year = %s AND plate_loc_side IS NOT NULL
+            """,
+            (player_id, season),
+        )
+        points = [{"x": float(s), "y": float(h), "sw": sw, "wh": wh}
+                  for s, h, sw, wh in cur.fetchall()]
+    return {"player_id": player_id, "role": role, "summary": summary, "points": points}
