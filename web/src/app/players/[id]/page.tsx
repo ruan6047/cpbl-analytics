@@ -8,11 +8,12 @@ import { SprayChart } from "@/components/spray-chart";
 import { Card, PercentileBar, StatTile, TeamLogo } from "@/components/ui";
 import { ZoneScatter } from "@/components/zone-scatter";
 import { detail, type PlayerProfile, type StatRow } from "@/lib/client";
-import { codeFromName, teamColor } from "@/lib/teams";
+import { codeFromName, teamColor, teamShort } from "@/lib/teams";
 
 type Role = "batting" | "pitching";
 type Disc = {
   summary: Record<string, number | null>;
+  quality: Record<string, number | null>;
   points: { x: number; y: number; sw: boolean; wh: boolean }[];
   spray: { dir: number; dist: number; ev: number | null }[];
 };
@@ -34,13 +35,15 @@ const eraOf = (r: StatRow) => {
 };
 
 // 官方進階 + PR
-type Adv = { key: string; pr: string; bl: string; pl: string; def: string; kind: "kmh" | "pct" | "rate3" };
+type Adv = { key: string; pr: string; bl: string; pl: string; def: string; kind: "kmh" | "pct" | "rate3" | "cnt" };
 const ADV: Adv[] = [
   { key: "ev", pr: "ev_pr", bl: "擊球初速", pl: "被擊球初速", def: "平均擊球初速 km/h", kind: "kmh" },
   { key: "max_ev", pr: "max_ev_pr", bl: "最高初速", pl: "被最高初速", def: "單季最高擊球初速 km/h", kind: "kmh" },
   { key: "brlp", pr: "brlp_pr", bl: "Barrel%", pl: "被Barrel%", def: "出色擊球率", kind: "pct" },
+  { key: "brl", pr: "brl_pr", bl: "Barrel數", pl: "被Barrel數", def: "出色擊球次數", kind: "cnt" },
   { key: "hardhitp", pr: "hardhitp_pr", bl: "強擊球%", pl: "被強擊球%", def: "強勁擊球占比", kind: "pct" },
   { key: "woba", pr: "woba_pr", bl: "wOBA", pl: "被wOBA", def: "加權上壘率（官方）", kind: "rate3" },
+  { key: "ba", pr: "ba_pr", bl: "打擊率", pl: "被打擊率", def: "BA", kind: "rate3" },
   { key: "iso", pr: "iso_pr", bl: "ISO", pl: "被ISO", def: "純長打率", kind: "rate3" },
   { key: "slg", pr: "slg_pr", bl: "長打率", pl: "被長打率", def: "SLG", kind: "rate3" },
   { key: "obp", pr: "obp_pr", bl: "上壘率", pl: "被上壘率", def: "OBP", kind: "rate3" },
@@ -50,7 +53,8 @@ const ADV: Adv[] = [
   { key: "bbp", pr: "bbp_pr", bl: "BB%", pl: "被保送%", def: "保送率", kind: "pct" },
 ];
 const fmtAdv = (v: number, k: Adv["kind"]) =>
-  k === "kmh" ? v.toFixed(1) : k === "pct" ? `${(v * 100).toFixed(1)}%` : v.toFixed(3).replace(/^0\./, ".");
+  k === "kmh" ? v.toFixed(1) : k === "cnt" ? String(Math.round(v))
+    : k === "pct" ? `${(v * 100).toFixed(1)}%` : v.toFixed(3).replace(/^0\./, ".");
 
 type Metric = { key: string; label: string; dp: number; get: (r: StatRow) => number | null };
 const BAT_METRICS: Metric[] = [
@@ -114,6 +118,78 @@ function ArsenalTable({ items, role }: { items: StatRow[]; role: Role }) {
   );
 }
 
+const ipText = (r: StatRow) =>
+  r.inning_pitched_cnt == null ? "—" : `${r.inning_pitched_cnt}.${r.inning_pitched_div3 ?? 0}`;
+
+function VsTeamTable({ items, role }: { items: StatRow[]; role: Role }) {
+  const cols: { h: string; cell: (r: StatRow) => string; tone?: string }[] = role === "batting"
+    ? [{ h: "PA", cell: (r) => n0(r.plate_appearances) },
+       { h: "安打", cell: (r) => n0(r.hits) },
+       { h: "HR", cell: (r) => n0(r.home_runs) },
+       { h: "打點", cell: (r) => n0(r.rbi) },
+       { h: "OPS", cell: (r) => f3(numOf(r.ops)), tone: "text-ink" }]
+    : [{ h: "局數", cell: ipText },
+       { h: "ERA", cell: (r) => numOf(r.era)?.toFixed(2) ?? "—", tone: "text-ink" },
+       { h: "WHIP", cell: (r) => numOf(r.whip)?.toFixed(2) ?? "—" },
+       { h: "被安", cell: (r) => n0(r.hits) },
+       { h: "三振", cell: (r) => n0(r.so) }];
+  return (
+    <div className="max-h-[230px] overflow-y-auto">
+      <table className="w-full text-xs">
+        <thead className="sticky top-0 bg-surface text-left text-muted">
+          <tr>
+            <th className="py-1 font-medium">對手</th>
+            {cols.map((c) => <th key={c.h} className="py-1 text-right font-medium">{c.h}</th>)}
+          </tr>
+        </thead>
+        <tbody className="font-mono tabular-nums">
+          {items.map((r) => (
+            <tr key={String(r.fight_team_name)} className="border-t border-line">
+              <td className="py-1.5 font-sans text-ink">{teamShort(codeFromName(String(r.fight_team_name))) || String(r.fight_team_name)}</td>
+              {cols.map((c) => <td key={c.h} className={`py-1.5 text-right ${c.tone ?? ""}`}>{c.cell(r)}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CareerTable({ seasons, role }: { seasons: StatRow[]; role: Role }) {
+  const cols: { h: string; cell: (r: StatRow) => string; tone?: string }[] = role === "batting"
+    ? [{ h: "G", cell: (r) => n0(r.g) }, { h: "PA", cell: (r) => n0(r.pa) },
+       { h: "AVG", cell: (r) => f3(numOf(r.avg)) }, { h: "OBP", cell: (r) => f3(numOf(r.obp)) },
+       { h: "SLG", cell: (r) => f3(numOf(r.slg)) }, { h: "OPS", cell: (r) => f3(numOf(r.ops)), tone: "text-ink" },
+       { h: "HR", cell: (r) => n0(r.hr) }, { h: "打點", cell: (r) => n0(r.rbi) }, { h: "盜壘", cell: (r) => n0(r.sb) }]
+    : [{ h: "G", cell: (r) => n0(r.g) }, { h: "先發", cell: (r) => n0(r.gs) },
+       { h: "勝-敗", cell: (r) => `${r.w ?? 0}-${r.l ?? 0}` }, { h: "救援", cell: (r) => n0(r.sv) },
+       { h: "局數", cell: (r) => n0(r.ip) }, { h: "ERA", cell: (r) => numOf(r.era)?.toFixed(2) ?? "—", tone: "text-ink" },
+       { h: "WHIP", cell: (r) => numOf(r.whip)?.toFixed(2) ?? "—" }, { h: "三振", cell: (r) => n0(r.so) },
+       { h: "K9", cell: (r) => numOf(r.k9)?.toFixed(2) ?? "—" }];
+  return (
+    <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+      <table className="w-full text-sm">
+        <thead className="bg-surface-2 text-left text-muted">
+          <tr>
+            <th className="px-3 py-2 font-medium">年度</th>
+            <th className="px-3 py-2 font-medium">球隊</th>
+            {cols.map((c) => <th key={c.h} className="px-3 py-2 text-right font-medium">{c.h}</th>)}
+          </tr>
+        </thead>
+        <tbody className="font-mono tabular-nums">
+          {seasons.map((r) => (
+            <tr key={String(r.year)} className="border-t border-line">
+              <td className="px-3 py-2 font-sans text-ink">{String(r.year)}</td>
+              <td className="px-3 py-2 font-sans text-muted">{String(r.teams ?? "—")}</td>
+              {cols.map((c) => <td key={c.h} className={`px-3 py-2 text-right ${c.tone ?? ""}`}>{c.cell(r)}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function PlayerPage() {
   const { id } = useParams<{ id: string }>();
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
@@ -126,6 +202,8 @@ export default function PlayerPage() {
   const [disc, setDisc] = useState<Disc | null>(null);
   const [arsenal, setArsenal] = useState<StatRow[] | null>(null);
   const [fielding, setFielding] = useState<StatRow[] | null>(null);
+  const [vsTeam, setVsTeam] = useState<StatRow[] | null>(null);
+  const [career, setCareer] = useState<StatRow[] | null>(null);
   const [trend, setTrend] = useState<StatRow[] | null>(null);
   const [splits, setSplits] = useState<StatRow[] | null>(null);
   const [monthMetric, setMonthMetric] = useState("ops");
@@ -146,9 +224,13 @@ export default function PlayerPage() {
     setDisc(null);
     setArsenal(null);
     setTrend(null);
+    setVsTeam(null);
+    setCareer(null);
     detail.discipline(id, role).then((d) => setDisc(d as Disc)).catch(() => setDisc(null));
     detail.arsenal(id, role).then((d) => setArsenal(d.items)).catch(() => setArsenal([]));
     detail.trend(id, role).then((d) => setTrend(d.items)).catch(() => setTrend([]));
+    detail.vsTeam(id, role).then((d) => setVsTeam(d.items)).catch(() => setVsTeam([]));
+    detail.career(id, role).then((d) => setCareer(d.seasons)).catch(() => setCareer([]));
   }, [id, role]);
 
   useEffect(() => {
@@ -228,17 +310,22 @@ export default function PlayerPage() {
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
               {(role === "batting"
                 ? [["打擊率", f3(s.avg), true], ["上壘率", f3(s.obp), false], ["長打率", f3(s.slg), false],
-                   ["OPS", f3(s.ops), true], ["全壘打", String(s.hr ?? "—"), false], ["打點", String(s.rbi ?? "—"), false],
-                   ["安打", String(s.h ?? "—"), false], ["二安", String(s.b2 ?? "—"), false], ["三安", String(s.b3 ?? "—"), false],
-                   ["得分", String(s.r ?? "—"), false], ["盜壘", String(s.sb ?? "—"), false], ["四壞", String(s.bb ?? "—"), false],
-                   ["三振", String(s.so ?? "—"), false], ["打席", String(s.pa ?? "—"), false], ["出賽", String(s.g ?? "—"), false]]
+                   ["OPS", f3(s.ops), true], ["OPS+", String(s.ops_plus ?? "—"), false], ["全壘打", String(s.hr ?? "—"), false],
+                   ["打點", String(s.rbi ?? "—"), false], ["安打", String(s.h ?? "—"), false], ["二安", String(s.b2 ?? "—"), false],
+                   ["三安", String(s.b3 ?? "—"), false], ["壘打數", String(s.tb ?? "—"), false], ["得分", String(s.r ?? "—"), false],
+                   ["盜壘", String(s.sb ?? "—"), false], ["盜壘失敗", String(s.cs ?? "—"), false], ["四壞", String(s.bb ?? "—"), false],
+                   ["故四", String(s.ibb ?? "—"), false], ["觸身", String(s.hbp ?? "—"), false], ["三振", String(s.so ?? "—"), false],
+                   ["雙殺打", String(s.gidp ?? "—"), false], ["犧觸", String(s.sh ?? "—"), false], ["犧飛", String(s.sf ?? "—"), false],
+                   ["打席", String(s.pa ?? "—"), false], ["出賽", String(s.g ?? "—"), false]]
                 : [["防禦率", numOf(s.era)?.toFixed(2) ?? "—", true], ["WHIP", numOf(s.whip)?.toFixed(2) ?? "—", false],
+                   ["FIP", numOf(s.fip)?.toFixed(2) ?? "—", false], ["ERA+", String(s.era_plus ?? "—"), false],
                    ["勝-敗", `${s.w ?? 0}-${s.l ?? 0}`, false], ["救援", String(s.sv ?? "—"), false],
                    ["中繼", String(s.hld ?? "—"), false], ["局數", numOf(s.ip)?.toFixed(1) ?? "—", false],
-                   ["先發", String(s.gs ?? "—"), false], ["三振", String(s.so ?? "—"), true],
-                   ["K9", numOf(s.k9)?.toFixed(2) ?? "—", false], ["被安", String(s.h ?? "—"), false],
-                   ["被轟", String(s.hr ?? "—"), false], ["四壞", String(s.bb ?? "—"), false],
-                   ["暴投", String(s.wp ?? "—"), false], ["失分", String(s.r ?? "—"), false],
+                   ["先發", String(s.gs ?? "—"), false], ["完投", String(s.cg ?? "—"), false], ["完封", String(s.sho ?? "—"), false],
+                   ["三振", String(s.so ?? "—"), true], ["K9", numOf(s.k9)?.toFixed(2) ?? "—", false],
+                   ["被安", String(s.h ?? "—"), false], ["被轟", String(s.hr ?? "—"), false], ["四壞", String(s.bb ?? "—"), false],
+                   ["故四", String(s.ibb ?? "—"), false], ["觸身", String(s.hbp ?? "—"), false], ["暴投", String(s.wp ?? "—"), false],
+                   ["犯規", String(s.bk ?? "—"), false], ["投球數", String(s.np ?? "—"), false], ["失分", String(s.r ?? "—"), false],
                    ["自責", String(s.er ?? "—"), false], ["出賽", String(s.g ?? "—"), false]]
               ).map(([l, v, a]) => <StatTile key={l as string} label={l as string} value={v as string} accent={a as boolean} />)}
             </div>
@@ -276,6 +363,26 @@ export default function PlayerPage() {
                 : <p className="py-12 text-center text-sm text-faint">{disc === null ? "載入中…" : "無逐球資料"}</p>}
             </div>
           </div>
+          {disc && (() => {
+            const q = disc.quality;
+            const tiles: [string, number | null, string][] = role === "batting"
+              ? [["平均仰角", q.avg_launch_angle, "°"], ["最遠擊球", q.max_hit_dist, "m"], ["平均初速", q.avg_exit_speed, "km/h"]]
+              : [["平均球速", q.avg_speed, "km/h"], ["平均延伸", q.avg_extension, "m"], ["平均放球高", q.avg_rel_height, "m"]];
+            if (tiles.every(([, v]) => v == null)) return null;
+            return (
+              <div className="mt-3 border-t border-line pt-3">
+                <div className="mb-2 text-xs text-muted">{role === "batting" ? "擊球品質" : "球質"}<span className="text-faint">（逐球追蹤樣本）</span></div>
+                <div className="grid grid-cols-3 gap-2">
+                  {tiles.map(([l, v, u]) => (
+                    <div key={l} className="card px-3 py-2 text-center">
+                      <div className="text-[11px] text-muted">{l}</div>
+                      <div className="mt-0.5 font-mono text-base tabular-nums text-ink">{v == null ? "—" : v}<span className="ml-0.5 text-[10px] text-faint">{u}</span></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </Card>
         <div className="flex flex-col gap-6">
           <Card>
@@ -324,28 +431,36 @@ export default function PlayerPage() {
             </div>
           )}
         </div>
-        <Card>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h3 className="text-sm font-medium text-muted">{scope === "season" ? "賽季走勢（逐場累積）" : "逐月趨勢"}</h3>
-            <select value={monthMetric} onChange={(e) => setMonthMetric(e.target.value)}
-              className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink outline-none focus:border-ink">
-              {metrics.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
-            </select>
-          </div>
-          {monthData.length === 0 ? <p className="py-8 text-center text-sm text-faint">無資料</p> : (
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={monthData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-                <CartesianGrid stroke="#eef2f7" />
-                <XAxis dataKey="name" {...axis} minTickGap={28} />
-                <YAxis {...axis} domain={["auto", "auto"]} />
-                <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 12 }}
-                  formatter={(v: number) => v?.toFixed(metric.dp)} />
-                <Line type="monotone" dataKey="v" name={metric.label} stroke="#0a2540" strokeWidth={2}
-                  dot={monthData.length > 18 ? false : { r: 3, fill: "#d62839" }} />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </Card>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-medium text-muted">{scope === "season" ? "賽季走勢（逐場累積）" : "逐月趨勢"}</h3>
+              <select value={monthMetric} onChange={(e) => setMonthMetric(e.target.value)}
+                className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink outline-none focus:border-ink">
+                {metrics.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
+              </select>
+            </div>
+            {monthData.length === 0 ? <p className="py-8 text-center text-sm text-faint">無資料</p> : (
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={monthData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                  <CartesianGrid stroke="#eef2f7" />
+                  <XAxis dataKey="name" {...axis} minTickGap={28} />
+                  <YAxis {...axis} domain={["auto", "auto"]} />
+                  <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 12 }}
+                    formatter={(v: number) => v?.toFixed(metric.dp)} />
+                  <Line type="monotone" dataKey="v" name={metric.label} stroke="#0a2540" strokeWidth={2}
+                    dot={monthData.length > 18 ? false : { r: 3, fill: "#d62839" }} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+          <Card>
+            <h3 className="mb-3 text-sm font-medium text-muted">對戰各隊（本季）</h3>
+            {vsTeam === null ? <p className="py-8 text-center text-sm text-faint">載入中…</p>
+              : vsTeam.length === 0 ? <p className="py-8 text-center text-sm text-faint">無資料</p>
+              : <VsTeamTable items={vsTeam} role={role} />}
+          </Card>
+        </div>
       </section>
 
       {/* 守備 */}
@@ -393,6 +508,15 @@ export default function PlayerPage() {
           </section>
         );
       })()}
+
+      {/* 生涯逐年 */}
+      {career && career.length > 0 && (
+        <section className="mb-6">
+          <h2 className="mb-3 text-lg font-semibold text-ink">生涯逐年</h2>
+          <CareerTable seasons={career} role={role} />
+          <p className="mt-2 text-[11px] text-faint">資料源 cpbl-opendata（逐年彙總），不含當季；當季數據見上方「本季成績」。</p>
+        </section>
+      )}
 
       {/* 分項明細 */}
       <section className="mb-6">

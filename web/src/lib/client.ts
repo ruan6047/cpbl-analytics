@@ -134,11 +134,14 @@ export const detail = {
     clientGet<{ items: StatRow[] }>(`/api/v1/players/${id}/trend?role=${role}`),
   fielding: (id: string) =>
     clientGet<{ items: StatRow[] }>(`/api/v1/players/${id}/fielding`),
+  career: (id: string, role: "batting" | "pitching") =>
+    clientGet<{ seasons: StatRow[] }>(`/api/v1/players/${id}/${role}`),
   advanced: (id: string) =>
     clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/advanced`),
   discipline: (id: string, role: "batting" | "pitching") =>
     clientGet<{
       summary: Record<string, number | null>;
+      quality: Record<string, number | null>;
       points: { x: number; y: number; sw: boolean; wh: boolean }[];
       spray: { dir: number; dist: number; ev: number | null }[];
     }>(`/api/v1/players/${id}/discipline?role=${role}`),
