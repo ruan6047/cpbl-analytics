@@ -128,6 +128,8 @@ export const detail = {
     clientGet<PlayerMatchupsData>(`/api/v1/players/${id}/matchups?role=${role}&kind_code=${kind}`),
   season: (id: string) =>
     clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/season`),
+  advanced: (id: string) =>
+    clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/advanced`),
   gameLive: (sno: number, kind = "A") =>
     clientGet<{ game: StatRow | null; scoreboard: StatRow[]; livelog: StatRow[] }>(
       `/api/v1/games/${sno}/live?kind_code=${kind}`,

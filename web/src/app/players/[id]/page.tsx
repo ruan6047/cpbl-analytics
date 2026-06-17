@@ -62,65 +62,25 @@ const PIT_METRICS: Metric[] = [
   { key: "ip", label: "局數", dp: 1, get: ipOf },
 ];
 
-// 百分位 PR：以本季成績對全聯盟母體排名。higher=數值越大越好；fmt 顯示實際值；def 為說明。
-type PrMetric = {
-  label: string;
-  def: string;
-  higher: boolean;
-  fmt: (v: number) => string;
-  get: (r: StatRow) => number | null;
-};
-const f3s = (v: number) => v.toFixed(3).replace(/^0\./, ".");
-const f2s = (v: number) => v.toFixed(2);
-const f1p = (v: number) => `${v.toFixed(1)}%`;
-const iStr = (v: number) => String(Math.round(v));
-const rate = (a: number | null, b: number | null) => (a !== null && b && b > 0 ? a / b : null);
-
-const BAT_PR: PrMetric[] = [
-  { label: "打擊率", def: "AVG＝安打 ÷ 打數", higher: true, fmt: f3s, get: (r) => numOf(r.avg) },
-  { label: "上壘率", def: "OBP＝(安打+四壞+死球) ÷ (打數+四壞+死球+高飛犧牲)", higher: true, fmt: f3s, get: (r) => numOf(r.obp) },
-  { label: "長打率", def: "SLG＝壘打數 ÷ 打數", higher: true, fmt: f3s, get: (r) => numOf(r.slg) },
-  { label: "OPS", def: "上壘率＋長打率，綜合攻擊力", higher: true, fmt: f3s, get: (r) => numOf(r.ops) },
-  { label: "ISO", def: "純長打率＝長打率 − 打擊率，衡量長打能力", higher: true, fmt: f3s, get: (r) => {
-      const slg = numOf(r.slg), avg = numOf(r.avg);
-      return slg !== null && avg !== null ? slg - avg : null;
-    } },
-  { label: "BABIP", def: "場內球安打率＝(安打−全壘打) ÷ (打數−三振−全壘打+高飛犧牲)，反映場內球運氣/品質", higher: true, fmt: f3s, get: (r) => {
-      const h = numOf(r.h), hr = numOf(r.hr), ab = numOf(r.ab), so = numOf(r.so), sf = numOf(r.sf) ?? 0;
-      if (h === null || hr === null || ab === null || so === null) return null;
-      const den = ab - so - hr + sf;
-      return den > 0 ? (h - hr) / den : null;
-    } },
-  { label: "全壘打", def: "本季全壘打數", higher: true, fmt: iStr, get: (r) => numOf(r.hr) },
-  { label: "打點", def: "本季打點數", higher: true, fmt: iStr, get: (r) => numOf(r.rbi) },
-  { label: "盜壘", def: "本季盜壘成功數", higher: true, fmt: iStr, get: (r) => numOf(r.sb) },
-  { label: "BB%", def: "保送率＝四壞 ÷ 打席，選球能力（越高越好）", higher: true, fmt: f1p, get: (r) => { const x = rate(numOf(r.bb), numOf(r.pa)); return x === null ? null : x * 100; } },
-  { label: "K%", def: "三振率＝三振 ÷ 打席（越低越好）", higher: false, fmt: f1p, get: (r) => { const x = rate(numOf(r.so), numOf(r.pa)); return x === null ? null : x * 100; } },
+// 官方進階數據（stats.cpbl）+ 官方 PR。bl=打者標籤、pl=投手標籤；kind 決定數值格式。
+type AdvMetric = { key: string; pr: string; bl: string; pl: string; def: string; kind: "kmh" | "pct" | "rate3" };
+const ADV: AdvMetric[] = [
+  { key: "ev", pr: "ev_pr", bl: "擊球初速", pl: "被擊球初速", def: "平均擊球初速（km/h），擊球品質核心指標", kind: "kmh" },
+  { key: "max_ev", pr: "max_ev_pr", bl: "最高初速", pl: "被最高初速", def: "單季最高擊球初速（km/h）", kind: "kmh" },
+  { key: "brlp", pr: "brlp_pr", bl: "Barrel%", pl: "被Barrel%", def: "出色擊球率：兼具理想初速與仰角的強勁擊球占比", kind: "pct" },
+  { key: "hardhitp", pr: "hardhitp_pr", bl: "強擊球%", pl: "被強擊球%", def: "強勁擊球（高初速）占比", kind: "pct" },
+  { key: "woba", pr: "woba_pr", bl: "wOBA", pl: "被wOBA", def: "加權上壘率（官方計算）", kind: "rate3" },
+  { key: "iso", pr: "iso_pr", bl: "ISO", pl: "被ISO", def: "純長打率＝長打率 − 打擊率", kind: "rate3" },
+  { key: "slg", pr: "slg_pr", bl: "長打率", pl: "被長打率", def: "長打率 SLG", kind: "rate3" },
+  { key: "obp", pr: "obp_pr", bl: "上壘率", pl: "被上壘率", def: "上壘率 OBP", kind: "rate3" },
+  { key: "ba", pr: "ba_pr", bl: "打擊率", pl: "被打擊率", def: "打擊率 AVG", kind: "rate3" },
+  { key: "chasep", pr: "chasep_pr", bl: "追打%", pl: "誘追打%", def: "好球帶外揮棒比率", kind: "pct" },
+  { key: "whiffp", pr: "whiffp_pr", bl: "揮空%", pl: "誘揮空%", def: "揮棒落空比率", kind: "pct" },
+  { key: "kp", pr: "kp_pr", bl: "K%", pl: "奪三振%", def: "三振率", kind: "pct" },
+  { key: "bbp", pr: "bbp_pr", bl: "BB%", pl: "被保送%", def: "保送率", kind: "pct" },
 ];
-
-const PIT_PR: PrMetric[] = [
-  { label: "防禦率", def: "ERA＝自責分 ×9 ÷ 投球局數（越低越好）", higher: false, fmt: f2s, get: (r) => numOf(r.era) },
-  { label: "WHIP", def: "每局被上壘率＝(被安打+四壞) ÷ 局數（越低越好）", higher: false, fmt: f2s, get: (r) => numOf(r.whip) },
-  { label: "被打擊率", def: "對戰打者被打出安打的機率（近似 安打 ÷ (打席−四壞−死球)）", higher: false, fmt: f3s, get: (r) => rate(numOf(r.h), (numOf(r.pa) ?? 0) - (numOf(r.bb) ?? 0) - (numOf(r.hbp) ?? 0)) },
-  { label: "K%", def: "三振率＝奪三振 ÷ 面對打席（越高越好）", higher: true, fmt: f1p, get: (r) => { const x = rate(numOf(r.so), numOf(r.pa)); return x === null ? null : x * 100; } },
-  { label: "BB%", def: "保送率＝投出四壞 ÷ 面對打席（越低越好）", higher: false, fmt: f1p, get: (r) => { const x = rate(numOf(r.bb), numOf(r.pa)); return x === null ? null : x * 100; } },
-  { label: "K9", def: "每九局奪三振＝三振 ×9 ÷ 局數", higher: true, fmt: f2s, get: (r) => numOf(r.k9) },
-  { label: "LOB%", def: "殘壘率＝(被安+四壞+死球−失分) ÷ (被安+四壞+死球−1.4×被全壘打)，越高越能化解危機", higher: true, fmt: f1p, get: (r) => {
-      const h = numOf(r.h), bb = numOf(r.bb), hbp = numOf(r.hbp) ?? 0, run = numOf(r.r), hr = numOf(r.hr);
-      if (h === null || bb === null || run === null || hr === null) return null;
-      const den = h + bb + hbp - 1.4 * hr;
-      return den > 0 ? Math.min(100, ((h + bb + hbp - run) / den) * 100) : null;
-    } },
-  { label: "局數", def: "本季投球局數", higher: true, fmt: (v) => v.toFixed(1), get: ipOf },
-];
-
-function percentile(pop: (number | null)[], val: number | null, higher: boolean): number | null {
-  if (val === null) return null;
-  const vals = pop.filter((v): v is number => v !== null && !Number.isNaN(v));
-  if (!vals.length) return null;
-  const cnt = vals.filter((v) => (higher ? v <= val : v >= val)).length;
-  return Math.round((cnt / vals.length) * 100);
-}
+const fmtAdv = (v: number, kind: AdvMetric["kind"]) =>
+  kind === "kmh" ? v.toFixed(1) : kind === "pct" ? `${(v * 100).toFixed(1)}%` : v.toFixed(3).replace(/^0\./, ".");
 
 const prColor = (v: number) => (v >= 80 ? "#34d399" : v >= 55 ? "#a3e635" : v >= 35 ? "#fbbf24" : "#f87171");
 
@@ -175,7 +135,7 @@ export default function PlayerPage() {
   const [season, setSeason] = useState<{ batting: StatRow | null; pitching: StatRow | null } | null>(null);
   const [splits, setSplits] = useState<StatRow[] | null>(null);
   const [monthMetric, setMonthMetric] = useState("ops");
-  const [population, setPopulation] = useState<StatRow[] | null>(null);
+  const [advanced, setAdvanced] = useState<{ batting: StatRow | null; pitching: StatRow | null } | null>(null);
   const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
 
   useEffect(() => {
@@ -188,6 +148,7 @@ export default function PlayerPage() {
       })
       .catch(() => setNotFound(true));
     detail.season(id).then(setSeason).catch(() => setSeason(null));
+    detail.advanced(id).then(setAdvanced).catch(() => setAdvanced(null));
   }, [id]);
 
   useEffect(() => {
@@ -197,11 +158,9 @@ export default function PlayerPage() {
     detail.splits(id, role, year, k).then((d) => setSplits(d.items)).catch(() => setSplits([]));
   }, [id, role, scope, kinds, profile]);
 
-  // 切換打/投時，重設逐月指標並抓對應母體
+  // 切換打/投時重設逐月指標
   useEffect(() => {
     setMonthMetric(role === "batting" ? "ops" : "era");
-    setPopulation(null);
-    detail.leaders(role).then((d) => setPopulation(d.items)).catch(() => setPopulation([]));
   }, [role]);
 
   const byName = useMemo(() => {
@@ -218,26 +177,21 @@ export default function PlayerPage() {
     [byName, metric],
   );
 
-  // 百分位 PR：以本季成績對全聯盟（有門檻）母體排名
+  // 官方進階 + 官方 PR（stats.cpbl）
   const prData = useMemo(() => {
-    const s = season ? (role === "batting" ? season.batting : season.pitching) : null;
-    if (!s || !population) return [];
-    const defs = role === "batting" ? BAT_PR : PIT_PR;
-    const pop = population.filter((p) =>
-      role === "batting" ? (numOf(p.pa) ?? 0) >= 50 : (numOf(p.ip) ?? 0) >= 20,
-    );
-    return defs
-      .map((d) => {
-        const val = d.get(s);
-        return {
-          name: d.label,
-          def: d.def,
-          value: val === null ? "—" : d.fmt(val),
-          pr: percentile(pop.map((p) => d.get(p)), val, d.higher),
-        };
-      })
-      .filter((d): d is { name: string; def: string; value: string; pr: number } => d.pr !== null);
-  }, [season, population, role]);
+    const a = advanced ? (role === "batting" ? advanced.batting : advanced.pitching) : null;
+    if (!a) return [];
+    return ADV.map((m) => {
+      const val = numOf(a[m.key]);
+      const pr = numOf(a[m.pr]);
+      return {
+        name: role === "batting" ? m.bl : m.pl,
+        def: m.def,
+        value: val === null ? "—" : fmtAdv(val, m.kind),
+        pr: pr === null ? null : Math.round(pr),
+      };
+    }).filter((d): d is { name: string; def: string; value: string; pr: number } => d.pr !== null);
+  }, [advanced, role]);
 
   if (notFound) return <p className="text-sm text-white/50">查無此球員。</p>;
   if (!profile) return <p className="text-sm text-white/40">載入中…</p>;
@@ -368,10 +322,10 @@ export default function PlayerPage() {
         </div>
 
         <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-          <h3 className="mb-3 text-sm font-medium text-white/70">本季百分位 PR（vs 全聯盟）</h3>
+          <h3 className="mb-3 text-sm font-medium text-white/70">官方進階數據 · 百分位 PR</h3>
           {prData.length === 0 ? (
             <p className="py-10 text-center text-sm text-white/30">
-              {population === null ? "計算中…" : "本季無足夠資料"}
+              {advanced === null ? "載入中…" : "無官方進階資料"}
             </p>
           ) : (
             <div className="space-y-1.5">
@@ -395,8 +349,8 @@ export default function PlayerPage() {
             </div>
           )}
           <p className="mt-3 text-[11px] text-white/30">
-            數值右側為實際成績，色條長度＝PR（0–100，50＝聯盟中位）。母體為{role === "batting" ? "打席≥50" : "局數≥20"}的球員；
-            防禦率/WHIP/被打擊率/打者K% 已轉為「PR 越高＝表現越好」。滑過數據名看定義。
+            來源 stats.cpbl.com.tw 官方 TrackMan/Statcast 數據；數值右側為實際成績，色條＝官方 PR
+            （0–100，已定向為「越高＝表現越好」）。{role === "batting" ? "打者為進攻數值" : "投手為被打數值"}。滑過數據名看定義。
           </p>
         </div>
       </section>
