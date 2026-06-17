@@ -3,14 +3,18 @@
 // G=悍將(Guardians)、M=猿(Monkeys)、H=鷹(Hawks)。key = team_code（ClubNo+011）。
 export type TeamMeta = { short: string; color: string; letter: string };
 
+// 字母與配色對齊官方字母標：W味全 B兄弟 L統一(LL) G富邦 R樂天(Rakuten) T台鋼(TSG)
 export const TEAMS: Record<string, TeamMeta> = {
-  AAA011: { short: "味全", color: "#C8102E", letter: "W" }, // 味全龍
-  ACN011: { short: "兄弟", color: "#D8A400", letter: "B" }, // 中信兄弟
-  ADD011: { short: "統一", color: "#EA5413", letter: "L" }, // 統一7-ELEVEn獅
-  AEO011: { short: "富邦", color: "#1D3C8B", letter: "G" }, // 富邦悍將
-  AJL011: { short: "樂天", color: "#9B1B30", letter: "M" }, // 樂天桃猿
-  AKP011: { short: "台鋼", color: "#00843D", letter: "H" }, // 台鋼雄鷹
+  AAA011: { short: "味全", color: "#C8102E", letter: "W" }, // 味全龍 紅
+  ACN011: { short: "兄弟", color: "#C8A24A", letter: "B" }, // 中信兄弟 金
+  ADD011: { short: "統一", color: "#E35A13", letter: "L" }, // 統一7-ELEVEn獅 橘
+  AEO011: { short: "富邦", color: "#2A4B9B", letter: "G" }, // 富邦悍將 藍
+  AJL011: { short: "樂天", color: "#8E1537", letter: "R" }, // 樂天桃猿 暗紅
+  AKP011: { short: "台鋼", color: "#15543C", letter: "T" }, // 台鋼雄鷹 深綠
 };
+
+// CPBL 品牌色（CPBL TV：藍 + 紅）
+export const CPBL_BLUE = "#1B4DA1";
 
 export const teamColor = (code?: string | null) => (code && TEAMS[code]?.color) || "#0A2540";
 export const teamShort = (code?: string | null) => (code && TEAMS[code]?.short) || "";
