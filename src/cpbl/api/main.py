@@ -81,6 +81,11 @@ def info() -> dict:
             "SELECT max(game_date) FROM cpbl.games WHERE home_score + away_score > 0"
         )
         metrics["last_game_date"] = last_game.isoformat() if last_game else None
+        try:  # refresh_log 可能尚未 migrate，獨立保護避免拖垮整個 info
+            last_refresh = _scalar("SELECT max(refreshed_at) FROM cpbl.refresh_log WHERE ok")
+            metrics["last_refresh"] = last_refresh.isoformat() if last_refresh else None
+        except Exception:  # noqa: BLE001
+            metrics["last_refresh"] = None
 
         if games == 0:
             status = "maintenance"  # 尚未匯入任何賽事
