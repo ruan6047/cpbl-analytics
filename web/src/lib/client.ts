@@ -130,6 +130,8 @@ export const detail = {
     clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/season`),
   arsenal: (id: string, role: "batting" | "pitching") =>
     clientGet<{ items: StatRow[] }>(`/api/v1/players/${id}/arsenal?role=${role}`),
+  trend: (id: string, role: "batting" | "pitching") =>
+    clientGet<{ items: StatRow[] }>(`/api/v1/players/${id}/trend?role=${role}`),
   advanced: (id: string) =>
     clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/advanced`),
   discipline: (id: string, role: "batting" | "pitching") =>

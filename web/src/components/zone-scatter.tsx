@@ -2,8 +2,9 @@
 export type ZonePoint = { x: number; y: number; sw: boolean; wh: boolean };
 
 export function ZoneScatter({ points }: { points: ZonePoint[] }) {
-  const W = 230, H = 215, pad = 14;
-  const xMin = -0.8, xMax = 0.8, yMin = -0.2, yMax = 1.7;
+  // 視野收緊到好球帶周邊（±0.62、0.0–1.55）：太邊角的球參考價值低，超界點由 svg 自動裁切。
+  const W = 230, H = 240, pad = 12;
+  const xMin = -0.62, xMax = 0.62, yMin = 0.0, yMax = 1.55;
   const sx = (x: number) => pad + ((x - xMin) / (xMax - xMin)) * (W - 2 * pad);
   const sy = (y: number) => H - pad - ((y - yMin) / (yMax - yMin)) * (H - 2 * pad);
   // 好球帶（校準值 side±0.21、高 0.5–1.0）
@@ -21,7 +22,7 @@ export function ZoneScatter({ points }: { points: ZonePoint[] }) {
         </g>
       ))}
       {points.map((p, i) => (
-        <circle key={i} cx={sx(p.x)} cy={sy(p.y)} r={2.6}
+        <circle key={i} cx={sx(p.x)} cy={sy(p.y)} r={3.4}
           fill={p.wh ? "#d62839" : p.sw ? "#1d6fb8" : "#cbd5e1"}
           fillOpacity={p.sw ? 0.85 : 0.5} />
       ))}

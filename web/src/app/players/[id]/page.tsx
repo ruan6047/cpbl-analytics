@@ -62,7 +62,8 @@ const BAT_METRICS: Metric[] = [
   { key: "rbi", label: "打點", dp: 0, get: (r) => numOf(r.rbi) },
 ];
 const PIT_METRICS: Metric[] = [
-  { key: "era", label: "ERA", dp: 2, get: eraOf },
+  { key: "era", label: "ERA", dp: 2, get: (r) => (r.era != null ? numOf(r.era) : eraOf(r)) },
+  { key: "whip", label: "WHIP", dp: 2, get: (r) => numOf(r.whip) },
   { key: "so", label: "三振", dp: 0, get: (r) => numOf(r.so) },
   { key: "hits", label: "被安打", dp: 0, get: (r) => numOf(r.hits) },
   { key: "bb", label: "四壞", dp: 0, get: (r) => numOf(r.bb) },
@@ -87,9 +88,9 @@ const PITCH_LABEL: Record<string, string> = { fastball: "速球", breakingball: 
 
 function ArsenalTable({ items, role }: { items: StatRow[]; role: Role }) {
   return (
-    <table className="w-full text-sm">
+    <table className="w-full text-xs">
       <thead className="text-left text-muted">
-        <tr className="text-xs">
+        <tr>
           <th className="py-1 font-medium">球種</th>
           <th className="py-1 text-right font-medium">{role === "batting" ? "面對" : "用球"}%</th>
           <th className="py-1 text-right font-medium">均速</th>
@@ -123,6 +124,7 @@ export default function PlayerPage() {
   const [advanced, setAdvanced] = useState<{ batting: StatRow | null; pitching: StatRow | null } | null>(null);
   const [disc, setDisc] = useState<Disc | null>(null);
   const [arsenal, setArsenal] = useState<StatRow[] | null>(null);
+  const [trend, setTrend] = useState<StatRow[] | null>(null);
   const [splits, setSplits] = useState<StatRow[] | null>(null);
   const [monthMetric, setMonthMetric] = useState("ops");
 
@@ -140,8 +142,10 @@ export default function PlayerPage() {
     setMonthMetric(role === "batting" ? "ops" : "era");
     setDisc(null);
     setArsenal(null);
+    setTrend(null);
     detail.discipline(id, role).then((d) => setDisc(d as Disc)).catch(() => setDisc(null));
     detail.arsenal(id, role).then((d) => setArsenal(d.items)).catch(() => setArsenal([]));
+    detail.trend(id, role).then((d) => setTrend(d.items)).catch(() => setTrend([]));
   }, [id, role]);
 
   useEffect(() => {
@@ -158,10 +162,10 @@ export default function PlayerPage() {
   }, [splits]);
   const metrics = role === "batting" ? BAT_METRICS : PIT_METRICS;
   const metric = metrics.find((m) => m.key === monthMetric) ?? metrics[0];
-  const monthData = useMemo(
-    () => MONTHS.filter((mo) => byName[mo]).map((mo) => ({ name: mo.replace("月", ""), v: metric.get(byName[mo]) })),
-    [byName, metric],
-  );
+  const monthData = useMemo(() => {
+    if (scope === "season") return (trend ?? []).map((r) => ({ name: String(r.name), v: metric.get(r) }));
+    return MONTHS.filter((mo) => byName[mo]).map((mo) => ({ name: mo.replace("月", ""), v: metric.get(byName[mo]) }));
+  }, [scope, trend, byName, metric]);
   const prRows = useMemo(() => {
     const a = advanced ? (role === "batting" ? advanced.batting : advanced.pitching) : null;
     if (!a) return [];
@@ -253,25 +257,46 @@ export default function PlayerPage() {
         </div>
       </section>
 
-      {/* 擊球落點 + 進壘點 */}
-      <section className="mb-6 grid gap-6 lg:grid-cols-2">
-        <Card>
-          <h3 className="mb-2 text-sm font-medium text-muted">擊球落點（點＝擊球初速 藍低→紅高，{disc?.spray.length ?? 0} 球）</h3>
-          {disc && disc.spray.length > 0 ? <div className="mx-auto max-w-[290px]"><SprayChart points={disc.spray} /></div>
-            : <p className="py-12 text-center text-sm text-faint">{disc === null ? "載入中…" : "無擊球追蹤資料"}</p>}
-        </Card>
-        <Card>
-          <h3 className="mb-2 text-sm font-medium text-muted">進壘點（紅＝揮空、藍＝揮棒、灰＝未揮棒，{disc?.points.length ?? 0} 球）</h3>
-          {disc && disc.points.length > 0 ? <div className="mx-auto max-w-[250px]"><ZoneScatter points={disc.points} /></div>
-            : <p className="py-12 text-center text-sm text-faint">{disc === null ? "載入中…" : "無逐球資料"}</p>}
-          {disc && disc.summary.swing_pct != null && (
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-              <span>揮棒 {disc.summary.swing_pct}%</span><span>揮空 {disc.summary.whiff_pct}%</span>
-              <span>接觸 {disc.summary.contact_pct}%</span><span>CSW {disc.summary.csw_pct}%</span>
-              <span>追打 {disc.summary.chase_pct}%（近似）</span>
+      {/* 擊球落點 + 進壘點（左 2/3 放大） + 好球帶紀律（右側直欄） */}
+      <section className="mb-6 grid gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <div className="grid gap-x-4 sm:grid-cols-2">
+            <div className="relative flex flex-col">
+              <h3 className="absolute left-0 top-0 z-10 text-sm font-medium text-muted">擊球落點（藍低→紅高，{disc?.spray.length ?? 0} 球）</h3>
+              {disc && disc.spray.length > 0 ? <div className="mt-auto mb-[13%]"><SprayChart points={disc.spray} /></div>
+                : <p className="py-12 text-center text-sm text-faint">{disc === null ? "載入中…" : "無擊球追蹤資料"}</p>}
             </div>
-          )}
+            <div className="relative">
+              <h3 className="absolute left-0 top-0 z-10 text-sm font-medium text-muted">進壘點（紅揮空/藍揮棒/灰未揮，{disc?.points.length ?? 0} 球）</h3>
+              {disc && disc.points.length > 0 ? <ZoneScatter points={disc.points} />
+                : <p className="py-12 text-center text-sm text-faint">{disc === null ? "載入中…" : "無逐球資料"}</p>}
+            </div>
+          </div>
         </Card>
+        <div className="flex flex-col gap-6">
+          <Card>
+            <h3 className="mb-3 text-sm font-medium text-muted">好球帶紀律</h3>
+            {disc && disc.summary.swing_pct != null ? (
+              <div className="space-y-2">
+                {([["揮棒%", "swing_pct"], ["揮空%", "whiff_pct"], ["接觸%", "contact_pct"],
+                   ["CSW%", "csw_pct"], ["追打%（近似）", "chase_pct"], ["好球帶%（近似）", "zone_pct"]] as const)
+                  .filter(([, k]) => disc.summary[k] != null)
+                  .map(([label, k]) => (
+                    <div key={k} className="flex items-center justify-between border-b border-line pb-1.5 text-xs last:border-0">
+                      <span className="text-muted">{label}</span>
+                      <span className="font-mono tabular-nums text-ink">{disc.summary[k]}%</span>
+                    </div>
+                  ))}
+              </div>
+            ) : <p className="py-12 text-center text-sm text-faint">{disc === null ? "載入中…" : "無逐球資料"}</p>}
+          </Card>
+          <Card>
+            <h3 className="mb-3 text-sm font-medium text-muted">球種應對（{role === "batting" ? "面對" : "配球"}）</h3>
+            {arsenal === null ? <p className="py-6 text-center text-sm text-faint">載入中…</p>
+              : arsenal.length === 0 ? <p className="py-6 text-center text-sm text-faint">無逐球資料</p>
+              : <ArsenalTable items={arsenal} role={role} />}
+          </Card>
+        </div>
       </section>
 
       {/* 範圍切換 + 逐月趨勢 */}
@@ -292,10 +317,9 @@ export default function PlayerPage() {
             </div>
           )}
         </div>
-        <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <div className="mb-3 flex items-center justify-between gap-3">
-            <h3 className="text-sm font-medium text-muted">逐月趨勢</h3>
+            <h3 className="text-sm font-medium text-muted">{scope === "season" ? "賽季走勢（逐場累積）" : "逐月趨勢"}</h3>
             <select value={monthMetric} onChange={(e) => setMonthMetric(e.target.value)}
               className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink outline-none focus:border-ink">
               {metrics.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
@@ -305,22 +329,16 @@ export default function PlayerPage() {
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={monthData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                 <CartesianGrid stroke="#eef2f7" />
-                <XAxis dataKey="name" {...axis} />
+                <XAxis dataKey="name" {...axis} minTickGap={28} />
                 <YAxis {...axis} domain={["auto", "auto"]} />
                 <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 12 }}
                   formatter={(v: number) => v?.toFixed(metric.dp)} />
-                <Line type="monotone" dataKey="v" name={metric.label} stroke="#0a2540" strokeWidth={2} dot={{ r: 3, fill: "#d62839" }} />
+                <Line type="monotone" dataKey="v" name={metric.label} stroke="#0a2540" strokeWidth={2}
+                  dot={monthData.length > 18 ? false : { r: 3, fill: "#d62839" }} />
               </LineChart>
             </ResponsiveContainer>
           )}
         </Card>
-        <Card>
-          <h3 className="mb-3 text-sm font-medium text-muted">球種應對（{role === "batting" ? "面對" : "配球"}；速球/變化球）</h3>
-          {arsenal === null ? <p className="py-8 text-center text-sm text-faint">載入中…</p>
-            : arsenal.length === 0 ? <p className="py-8 text-center text-sm text-faint">無逐球資料</p>
-            : <ArsenalTable items={arsenal} role={role} />}
-        </Card>
-        </div>
       </section>
 
       {/* 分項明細 */}
