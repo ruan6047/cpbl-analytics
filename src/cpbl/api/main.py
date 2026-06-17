@@ -592,6 +592,28 @@ def player_season(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
     return out
 
 
+@app.get("/api/v1/players/{player_id}/fielding")
+def player_fielding(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
+    """球員本季守備（fielding_current，逐守位）。供個人頁守備卡。"""
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            """
+            SELECT pos, g, tc, po, a, e, dp, fpct
+            FROM cpbl.fielding_current
+            WHERE player_id = %s AND year = %s
+            ORDER BY g DESC NULLS LAST, tc DESC NULLS LAST
+            """,
+            (player_id, season),
+        )
+        items = [
+            {"pos": pos, "g": g, "tc": tc, "po": po, "a": a, "e": e, "dp": dp,
+             "fpct": float(fpct) if fpct is not None else None}
+            for pos, g, tc, po, a, e, dp, fpct in cur.fetchall()
+        ]
+    return {"player_id": player_id, "season": season, "items": items}
+
+
 # ---------- 每場賽況 ----------
 
 @app.get("/api/v1/games/recent")
