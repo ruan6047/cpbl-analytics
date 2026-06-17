@@ -398,7 +398,7 @@ export default function PlayerPage() {
                   <XAxis type="number" dataKey="x" domain={[-0.8, 0.8]} {...axis} tickFormatter={() => ""} />
                   <YAxis type="number" dataKey="y" domain={[-0.2, 1.6]} {...axis} tickFormatter={() => ""} />
                   <ZAxis range={[18, 18]} />
-                  <ReferenceArea x1={-0.25} x2={0.25} y1={0.45} y2={1.05}
+                  <ReferenceArea x1={-0.21} x2={0.21} y1={0.5} y2={1.0}
                     stroke="rgba(255,255,255,0.45)" fill="rgba(255,255,255,0.04)" />
                   <Tooltip {...tooltipStyle} cursor={{ strokeDasharray: "3 3" }} />
                   <Scatter name="未揮棒" data={disc.points.filter((p) => !p.sw)} fill="rgba(255,255,255,0.25)" />
