@@ -1,10 +1,32 @@
 @import "tailwindcss";
 
+/* 設計系統 tokens（日間 Navy+白；Tailwind v4 @theme 生成 bg-/text-/border- 工具類） */
+@theme {
+  --color-paper: #f5f7fa;
+  --color-surface: #ffffff;
+  --color-surface-2: #eef2f7;
+  --color-ink: #0a2540;
+  --color-muted: #5b6b7a;
+  --color-faint: #94a3b8;
+  --color-line: #e2e8f0;
+  --color-accent: #d62839;
+  --color-up: #1d6fb8;
+  --color-down: #d62839;
+}
+
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
-  background: #0a0a0b;
-  color: #ededed;
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+/* 卡片基底 */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 2px rgb(10 37 64 / 0.04), 0 1px 3px rgb(10 37 64 / 0.06);
 }
