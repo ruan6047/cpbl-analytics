@@ -125,7 +125,7 @@ _PVT_COLS = ("year,kind_code,acnt,fight_team_code,fight_team_name,team_no,total_
 def _bsplit_rec(g: dict, year: int, kind: str) -> tuple:
     return (
         year, kind, g.get("HitterAcnt"), g.get("ItemGroupCode"), _i(g.get("ItemIndex")),
-        g.get("ItemName"), g.get("ItemNote"),
+        g.get("ItemName") or "", g.get("ItemNote"),
         _i(g.get("PlateAppearances")), _i(g.get("HitCnt")), _i(g.get("HittingCnt")),
         _i(g.get("RunBattedINCnt")), _i(g.get("OneBaseHitCnt")), _i(g.get("TwoBaseHitCnt")),
         _i(g.get("ThreeBaseHitCnt")), _i(g.get("HomeRunCnt")), _i(g.get("TotalBases")),
@@ -144,7 +144,7 @@ _BSPLIT_COLS = ("year,kind_code,acnt,item_group_code,item_index,item_name,item_n
 def _psplit_rec(g: dict, year: int, kind: str) -> tuple:
     return (
         year, kind, g.get("PitcherAcnt"), g.get("ItemGroupCode"), _i(g.get("ItemIndex")),
-        g.get("ItemName"), g.get("ItemNote"),
+        g.get("ItemName") or "", g.get("ItemNote"),
         _i(g.get("GameResultWCnt")), _i(g.get("GameResultLCnt")), _i(g.get("SPCnt")),
         _i(g.get("CompleteGameCnt")), _i(g.get("ShoutOutCnt")), _i(g.get("SaveOKCnt")),
         _i(g.get("InningPitchedCnt")), _i(g.get("InningPitchedDiv3Cnt")),
@@ -225,7 +225,7 @@ def scrape(delay: float = 1.2, apart_combos: list[tuple[int, str]] | None = None
                                       [_pvt_rec(g, VS_TEAM_YEAR, "A", acnt) for g in rows])
                 for y, k in apart_combos:
                     rs = s.apart(y, k, "02")
-                    out["psplit"] += _upsert("pitching_splits", _PSPLIT_COLS, 5,
+                    out["psplit"] += _upsert("pitching_splits", _PSPLIT_COLS, 6,
                                              [_psplit_rec(g, y, k) for g in rs])
             else:
                 rows = s.vs_team(VS_TEAM_YEAR, "")
@@ -233,7 +233,7 @@ def scrape(delay: float = 1.2, apart_combos: list[tuple[int, str]] | None = None
                                       [_bvt_rec(g, VS_TEAM_YEAR, "A", acnt) for g in rows])
                 for y, k in apart_combos:
                     rs = s.apart(y, k, "01")
-                    out["bsplit"] += _upsert("batting_splits", _BSPLIT_COLS, 5,
+                    out["bsplit"] += _upsert("batting_splits", _BSPLIT_COLS, 6,
                                              [_bsplit_rec(g, y, k) for g in rs])
             log.info("[%s %d/%d] acnt=%s 完成（bvt=%d pvt=%d bs=%d ps=%d）",
                      "P" if is_pitcher else "B", idx, total, acnt,
