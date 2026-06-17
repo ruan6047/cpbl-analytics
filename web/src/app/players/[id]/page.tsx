@@ -181,41 +181,41 @@ export default function PlayerPage() {
 
       {roles.length > 1 && <div className="mb-5"><Tabs opts={roles} v={role} set={setRole} /></div>}
 
-      {/* 本季成績卡 */}
-      {s && (
-        <section className="mb-6">
+      {/* 本季成績 + 官方進階（並排兩欄） */}
+      <section className="mb-6 grid gap-6 lg:grid-cols-2">
+        <div>
           <h2 className="mb-3 text-lg font-semibold text-ink">本季成績</h2>
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-            {(role === "batting"
-              ? [["打擊率", f3(s.avg), true], ["上壘率", f3(s.obp), false], ["長打率", f3(s.slg), false],
-                 ["OPS", f3(s.ops), true], ["全壘打", String(s.hr ?? "—"), false], ["打點", String(s.rbi ?? "—"), false],
-                 ["安打", String(s.h ?? "—"), false], ["盜壘", String(s.sb ?? "—"), false], ["打席", String(s.pa ?? "—"), false],
-                 ["出賽", String(s.g ?? "—"), false]]
-              : [["防禦率", numOf(s.era)?.toFixed(2) ?? "—", true], ["WHIP", numOf(s.whip)?.toFixed(2) ?? "—", false],
-                 ["勝-敗", `${s.w ?? 0}-${s.l ?? 0}`, false], ["局數", numOf(s.ip)?.toFixed(1) ?? "—", false],
-                 ["三振", String(s.so ?? "—"), true], ["K9", numOf(s.k9)?.toFixed(2) ?? "—", false],
-                 ["救援", String(s.sv ?? "—"), false], ["中繼", String(s.hld ?? "—"), false],
-                 ["自責", String(s.er ?? "—"), false], ["出賽", String(s.g ?? "—"), false]]
-            ).map(([l, v, a]) => <StatTile key={l as string} label={l as string} value={v as string} accent={a as boolean} />)}
-          </div>
-        </section>
-      )}
-
-      {/* 百分位 */}
-      <section className="mb-6">
-        <h2 className="mb-3 text-lg font-semibold text-ink">官方進階數據 · 百分位 PR</h2>
-        <Card>
-          {prRows.length === 0 ? (
-            <p className="py-8 text-center text-sm text-faint">{advanced === null ? "載入中…" : "無官方進階資料"}</p>
-          ) : (
-            <div className="grid gap-x-8 gap-y-1.5 sm:grid-cols-2">
-              {prRows.map((d) => <PercentileBar key={d.name} name={d.name} value={d.value} pr={d.pr} def={d.def} />)}
+          {s ? (
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+              {(role === "batting"
+                ? [["打擊率", f3(s.avg), true], ["上壘率", f3(s.obp), false], ["長打率", f3(s.slg), false],
+                   ["OPS", f3(s.ops), true], ["全壘打", String(s.hr ?? "—"), false], ["打點", String(s.rbi ?? "—"), false],
+                   ["安打", String(s.h ?? "—"), false], ["盜壘", String(s.sb ?? "—"), false], ["打席", String(s.pa ?? "—"), false],
+                   ["出賽", String(s.g ?? "—"), false]]
+                : [["防禦率", numOf(s.era)?.toFixed(2) ?? "—", true], ["WHIP", numOf(s.whip)?.toFixed(2) ?? "—", false],
+                   ["勝-敗", `${s.w ?? 0}-${s.l ?? 0}`, false], ["局數", numOf(s.ip)?.toFixed(1) ?? "—", false],
+                   ["三振", String(s.so ?? "—"), true], ["K9", numOf(s.k9)?.toFixed(2) ?? "—", false],
+                   ["救援", String(s.sv ?? "—"), false], ["中繼", String(s.hld ?? "—"), false],
+                   ["自責", String(s.er ?? "—"), false], ["出賽", String(s.g ?? "—"), false]]
+              ).map(([l, v, a]) => <StatTile key={l as string} label={l as string} value={v as string} accent={a as boolean} />)}
             </div>
-          )}
-          <p className="mt-3 text-[11px] text-faint">
-            來源 stats.cpbl 官方 TrackMan；色條＝官方 PR（藍低→紅高）。{role === "batting" ? "打者進攻數值" : "投手被打數值"}。
-          </p>
-        </Card>
+          ) : <p className="text-sm text-muted">本季無{role === "batting" ? "打擊" : "投球"}成績。</p>}
+        </div>
+        <div>
+          <h2 className="mb-3 text-lg font-semibold text-ink">官方進階 · 百分位 PR</h2>
+          <Card>
+            {prRows.length === 0 ? (
+              <p className="py-8 text-center text-sm text-faint">{advanced === null ? "載入中…" : "無官方進階資料"}</p>
+            ) : (
+              <div className="space-y-1">
+                {prRows.map((d) => <PercentileBar key={d.name} name={d.name} value={d.value} pr={d.pr} def={d.def} />)}
+              </div>
+            )}
+            <p className="mt-2.5 text-[11px] text-faint">
+              stats.cpbl 官方 TrackMan；色條＝PR（藍低→紅高）。{role === "batting" ? "打者進攻" : "投手被打"}數值。
+            </p>
+          </Card>
+        </div>
       </section>
 
       {/* 擊球落點 + 進壘點 */}
