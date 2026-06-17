@@ -19,8 +19,8 @@ export type Standing = {
 
 export type StandingsResponse = { season: number; standings: Standing[] };
 
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, { next: { revalidate: 600 } });
+async function get<T>(path: string, revalidate = 600): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, { next: { revalidate } });
   if (!res.ok) throw new Error(`API ${path} → ${res.status}`);
   return res.json() as Promise<T>;
 }
@@ -56,6 +56,8 @@ export type PitchingLeader = {
   team: string | null;
   g: number | null;
   gs: number | null;
+  cg: number | null;
+  sho: number | null;
   w: number | null;
   l: number | null;
   sv: number | null;
@@ -64,6 +66,21 @@ export type PitchingLeader = {
   era: number | null;
   whip: number | null;
   k9: number | null;
+  pa: number | null;
+  np: number | null;
+  h: number | null;
+  hr: number | null;
+  bb: number | null;
+  ibb: number | null;
+  hbp: number | null;
+  so: number | null;
+  wp: number | null;
+  bk: number | null;
+  r: number | null;
+  er: number | null;
+  go: number | null;
+  ao: number | null;
+  goao: number | null;
 };
 export type PitchingLeadersResponse = { season: number; sort: string; items: PitchingLeader[] };
 
@@ -92,12 +109,14 @@ export const api = {
   standings: (season?: number) =>
     get<StandingsResponse>(`/api/v1/season/standings${season ? `?season=${season}` : ""}`),
   // 排行榜改由前端點欄位排序/隊伍篩選，故抓全名單（低門檻、大 limit）。
+  // revalidate=60：資料隨爬蟲更新，縮短快取避免欄位/數值過時。
   battingLeaders: (sort = "ops", { limit = 400, minPa = 0 } = {}) =>
-    get<BattingLeadersResponse>(`/api/v1/season/batting-leaders?sort=${sort}&limit=${limit}&min_pa=${minPa}`),
+    get<BattingLeadersResponse>(`/api/v1/season/batting-leaders?sort=${sort}&limit=${limit}&min_pa=${minPa}`, 60),
   pitchingLeaders: (sort = "era", { limit = 400, minIp = 0 } = {}) =>
-    get<PitchingLeadersResponse>(`/api/v1/season/pitching-leaders?sort=${sort}&limit=${limit}&min_ip=${minIp}`),
+    get<PitchingLeadersResponse>(`/api/v1/season/pitching-leaders?sort=${sort}&limit=${limit}&min_ip=${minIp}`, 60),
   fielding: (sort = "tc", pos?: string, { limit = 600 } = {}) =>
     get<FieldingResponse>(
       `/api/v1/season/fielding?sort=${sort}${pos ? `&pos=${encodeURIComponent(pos)}` : ""}&limit=${limit}`,
+      60,
     ),
 };
