@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TeamBadge, TeamLogo } from "@/components/ui";
 import { api } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -8,10 +9,6 @@ const SEGS = [
   { v: 1, label: "上半季" },
   { v: 2, label: "下半季" },
 ];
-
-const ABBR: Record<string, string> = {
-  AAA011: "味全", ACN011: "兄弟", ADD011: "統一", AEO011: "富邦", AJL011: "樂天", AKP011: "台鋼",
-};
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ seg?: string }> }) {
   const { seg = "0" } = await searchParams;
@@ -64,7 +61,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
                 return (
                   <tr key={t.team_code} className="border-t border-line hover:bg-surface-2">
                     <td className="px-2.5 py-2.5 text-faint">{t.rank}</td>
-                    <td className="whitespace-nowrap px-2.5 py-2.5 font-sans">{t.team_name}</td>
+                    <td className="whitespace-nowrap px-2.5 py-2.5 font-sans"><TeamBadge code={t.team_code} name={t.team_name} /></td>
                     <td className="px-2.5 py-2.5 text-muted">{t.g}</td>
                     <td className="px-2.5 py-2.5">{t.w}-{t.t}-{t.l}</td>
                     <td className="px-2.5 py-2.5 text-accent">{t.win_pct?.toFixed(3) ?? "—"}</td>
@@ -94,14 +91,16 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
                 <tr>
                   <th className="whitespace-nowrap px-2.5 py-3 font-medium">球隊＼對手</th>
                   {items.map((c) => (
-                    <th key={c.team_code} className="px-2.5 py-3 text-center font-medium">{ABBR[c.team_code] ?? c.team_name}</th>
+                    <th key={c.team_code} className="px-2.5 py-3 text-center font-medium">
+                      <span className="inline-flex flex-col items-center gap-1"><TeamLogo code={c.team_code} size={20} /></span>
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody className="font-mono tabular-nums">
                 {items.map((row) => (
                   <tr key={row.team_code} className="border-t border-line hover:bg-surface-2">
-                    <td className="whitespace-nowrap px-2.5 py-2.5 font-sans">{row.team_name}</td>
+                    <td className="whitespace-nowrap px-2.5 py-2.5 font-sans"><TeamBadge code={row.team_code} name={row.team_name} /></td>
                     {items.map((col) => (
                       <td key={col.team_code} className="px-2.5 py-2.5 text-center text-muted">
                         {col.team_code === row.team_code ? (

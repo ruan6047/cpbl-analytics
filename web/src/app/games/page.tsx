@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TeamLogo } from "@/components/ui";
 import { api } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -34,12 +35,12 @@ export default async function GamesPage() {
                     href={`/games/${g.game_sno}?kind=${g.kind_code}`}
                     className="flex items-center justify-between rounded-xl border border-line bg-surface px-4 py-3 hover:bg-surface-2"
                   >
-                    <div className="space-y-1">
-                      <div className={awayWin ? "font-semibold" : "text-muted"}>
-                        {g.away_team_name}
+                    <div className="space-y-1.5">
+                      <div className={`flex items-center gap-2 ${awayWin ? "font-semibold" : "text-muted"}`}>
+                        <TeamLogo code={g.away_team_code} size={18} />{g.away_team_name}
                       </div>
-                      <div className={!awayWin ? "font-semibold" : "text-muted"}>
-                        {g.home_team_name}
+                      <div className={`flex items-center gap-2 ${!awayWin ? "font-semibold" : "text-muted"}`}>
+                        <TeamLogo code={g.home_team_code} size={18} />{g.home_team_name}
                       </div>
                     </div>
                     <div className="space-y-1 text-right font-mono tabular-nums">
