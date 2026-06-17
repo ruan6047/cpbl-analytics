@@ -27,6 +27,7 @@ cpbl-scrape-gamelog = "cpbl.ingest.run_scrape_gamelog:main"
 cpbl-scrape-advanced = "cpbl.ingest.run_scrape_advanced:main"
 cpbl-scrape-pitches = "cpbl.ingest.run_scrape_pitches:main"
 cpbl-backfill-season = "cpbl.ingest.run_backfill_season:main"
+cpbl-scrape-standings = "cpbl.ingest.run_scrape_standings:main"
 cpbl-build-features = "cpbl.features.run_build_features:main"
 cpbl-train = "cpbl.models.train:main"
 
