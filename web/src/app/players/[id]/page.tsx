@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { SprayChart } from "@/components/spray-chart";
-import { Card, PercentileBar, StatTile, TeamLogo } from "@/components/ui";
+import { Card, PercentileBar, TeamLogo } from "@/components/ui";
 import { ZoneScatter } from "@/components/zone-scatter";
 import { detail, type PlayerProfile, type StatRow } from "@/lib/client";
 import { codeFromName, teamColor, teamShort } from "@/lib/teams";
@@ -360,30 +360,47 @@ export default function PlayerPage() {
       <section className="mb-6 grid gap-6 lg:grid-cols-2">
         <div>
           <h2 className="mb-3 text-lg font-semibold text-ink">本季成績</h2>
-          {s ? (
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {(role === "batting"
-                ? [["打擊率", f3(s.avg), true], ["上壘率", f3(s.obp), false], ["長打率", f3(s.slg), false],
-                   ["OPS", f3(s.ops), true], ["OPS+", String(s.ops_plus ?? "—"), false], ["全壘打", String(s.hr ?? "—"), false],
-                   ["打點", String(s.rbi ?? "—"), false], ["安打", String(s.h ?? "—"), false], ["二安", String(s.b2 ?? "—"), false],
-                   ["三安", String(s.b3 ?? "—"), false], ["壘打數", String(s.tb ?? "—"), false], ["得分", String(s.r ?? "—"), false],
-                   ["盜壘", String(s.sb ?? "—"), false], ["盜壘失敗", String(s.cs ?? "—"), false], ["四壞", String(s.bb ?? "—"), false],
-                   ["故四", String(s.ibb ?? "—"), false], ["觸身", String(s.hbp ?? "—"), false], ["三振", String(s.so ?? "—"), false],
-                   ["雙殺打", String(s.gidp ?? "—"), false], ["犧觸", String(s.sh ?? "—"), false], ["犧飛", String(s.sf ?? "—"), false],
-                   ["打席", String(s.pa ?? "—"), false], ["出賽", String(s.g ?? "—"), false]]
-                : [["防禦率", numOf(s.era)?.toFixed(2) ?? "—", true], ["WHIP", numOf(s.whip)?.toFixed(2) ?? "—", false],
-                   ["FIP", numOf(s.fip)?.toFixed(2) ?? "—", false], ["ERA+", String(s.era_plus ?? "—"), false],
-                   ["勝-敗", `${s.w ?? 0}-${s.l ?? 0}`, false], ["救援", String(s.sv ?? "—"), false],
-                   ["中繼", String(s.hld ?? "—"), false], ["局數", numOf(s.ip)?.toFixed(1) ?? "—", false],
-                   ["先發", String(s.gs ?? "—"), false], ["完投", String(s.cg ?? "—"), false], ["完封", String(s.sho ?? "—"), false],
-                   ["三振", String(s.so ?? "—"), true], ["K9", numOf(s.k9)?.toFixed(2) ?? "—", false],
-                   ["被安", String(s.h ?? "—"), false], ["被轟", String(s.hr ?? "—"), false], ["四壞", String(s.bb ?? "—"), false],
-                   ["故四", String(s.ibb ?? "—"), false], ["觸身", String(s.hbp ?? "—"), false], ["暴投", String(s.wp ?? "—"), false],
-                   ["犯規", String(s.bk ?? "—"), false], ["投球數", String(s.np ?? "—"), false], ["失分", String(s.r ?? "—"), false],
-                   ["自責", String(s.er ?? "—"), false], ["出賽", String(s.g ?? "—"), false]]
-              ).map(([l, v, a]) => <StatTile key={l as string} label={l as string} value={v as string} accent={a as boolean} />)}
-            </div>
-          ) : <p className="text-sm text-muted">本季無{role === "batting" ? "打擊" : "投球"}成績。</p>}
+          {s ? (() => {
+            const primary: [string, string, boolean][] = role === "batting"
+              ? [["打擊率", f3(s.avg), true], ["上壘率", f3(s.obp), false], ["長打率", f3(s.slg), false],
+                 ["OPS", f3(s.ops), true], ["全壘打", String(s.hr ?? "—"), false], ["打點", String(s.rbi ?? "—"), false]]
+              : [["防禦率", numOf(s.era)?.toFixed(2) ?? "—", true], ["WHIP", numOf(s.whip)?.toFixed(2) ?? "—", false],
+                 ["FIP", numOf(s.fip)?.toFixed(2) ?? "—", false], ["三振", String(s.so ?? "—"), true],
+                 ["勝-敗", `${s.w ?? 0}-${s.l ?? 0}`, false], ["救援", String(s.sv ?? "—"), false]];
+            const secondary: [string, string][] = role === "batting"
+              ? [["OPS+", String(s.ops_plus ?? "—")], ["安打", String(s.h ?? "—")], ["二安", String(s.b2 ?? "—")],
+                 ["三安", String(s.b3 ?? "—")], ["壘打數", String(s.tb ?? "—")], ["得分", String(s.r ?? "—")],
+                 ["盜壘", String(s.sb ?? "—")], ["盜壘失敗", String(s.cs ?? "—")], ["四壞", String(s.bb ?? "—")],
+                 ["故四", String(s.ibb ?? "—")], ["觸身", String(s.hbp ?? "—")], ["三振", String(s.so ?? "—")],
+                 ["雙殺打", String(s.gidp ?? "—")], ["犧觸", String(s.sh ?? "—")], ["犧飛", String(s.sf ?? "—")],
+                 ["打席", String(s.pa ?? "—")], ["出賽", String(s.g ?? "—")]]
+              : [["ERA+", String(s.era_plus ?? "—")], ["K9", numOf(s.k9)?.toFixed(2) ?? "—"], ["中繼", String(s.hld ?? "—")],
+                 ["局數", numOf(s.ip)?.toFixed(1) ?? "—"], ["先發", String(s.gs ?? "—")], ["完投", String(s.cg ?? "—")],
+                 ["完封", String(s.sho ?? "—")], ["被安", String(s.h ?? "—")], ["被轟", String(s.hr ?? "—")],
+                 ["四壞", String(s.bb ?? "—")], ["故四", String(s.ibb ?? "—")], ["觸身", String(s.hbp ?? "—")],
+                 ["暴投", String(s.wp ?? "—")], ["犯規", String(s.bk ?? "—")], ["投球數", String(s.np ?? "—")],
+                 ["失分", String(s.r ?? "—")], ["自責", String(s.er ?? "—")], ["出賽", String(s.g ?? "—")]];
+            return (
+              <div className="space-y-2">
+                <div className="grid grid-cols-3 gap-2">
+                  {primary.map(([l, v, a]) => (
+                    <div key={l} className="card px-2 py-3 text-center">
+                      <div className="text-[11px] text-muted">{l}</div>
+                      <div className={`mt-1 font-mono text-2xl leading-none tabular-nums ${a ? "text-accent" : "text-ink"}`}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-5">
+                  {secondary.map(([l, v]) => (
+                    <div key={l} className="rounded-lg bg-surface-2 px-1.5 py-1.5 text-center">
+                      <div className="text-[10px] leading-tight text-muted">{l}</div>
+                      <div className="mt-0.5 font-mono text-sm leading-none tabular-nums text-ink">{v}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })() : <p className="text-sm text-muted">本季無{role === "batting" ? "打擊" : "投球"}成績。</p>}
         </div>
         <div>
           <h2 className="mb-3 text-lg font-semibold text-ink">官方進階 · 百分位 PR</h2>
