@@ -1,165 +1,44 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  detail,
-  KIND_LABEL,
-  type Roster,
-  type RosterPlayer,
-  type StatRow,
-  type VsTeamData,
-} from "@/lib/client";
+import { useEffect, useMemo, useState } from "react";
+import Leaderboard from "@/components/leaderboard";
+import { matchupCols } from "@/lib/cols";
+import { detail, KIND_LABEL, type Roster, type RosterPlayer, type StatRow } from "@/lib/client";
 
-const f3 = (v: number | string | null) =>
-  v === null || v === undefined ? "—" : Number(v).toFixed(3).replace(/^0/, "");
-const n = (v: number | string | null) => (v === null || v === undefined ? "—" : String(v));
+type Role = "batting" | "pitching";
 
-function Picker({
-  label,
-  players,
+function Toggle<T extends string>({
+  options,
   value,
   onChange,
 }: {
-  label: string;
-  players: RosterPlayer[];
-  value: string;
-  onChange: (v: string) => void;
+  options: { v: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
 }) {
   return (
-    <label className="flex flex-1 flex-col gap-1.5">
-      <span className="text-xs text-white/50">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-emerald-400"
-      >
-        <option value="">— 請選擇 —</option>
-        {players.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name}（{p.team ?? "?"}）
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-// 投打對決：一個賽別一張卡
-function MatchupCard({ row }: { row: StatRow }) {
-  const cells: [string, string][] = [
-    ["打席", n(row.plate_appearances)],
-    ["打數", n(row.at_bats)],
-    ["安打", n(row.hits)],
-    ["全壘打", n(row.home_runs)],
-    ["四壞", n(row.bb)],
-    ["三振", n(row.so)],
-    ["打擊率", f3(row.avg)],
-    ["上壘率", f3(row.obp)],
-    ["長打率", f3(row.slg)],
-    ["OPS", f3(row.ops)],
-  ];
-  const adv: [string, string][] = [
-    ["揮空%", row.whiff_pct === null ? "—" : `${Number(row.whiff_pct).toFixed(1)}%`],
-    ["揮棒%", row.swing_pct === null ? "—" : `${Number(row.swing_pct).toFixed(1)}%`],
-    ["滾飛比 GB%", row.gb_pct === null ? "—" : `${Number(row.gb_pct).toFixed(1)}%`],
-  ];
-  return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-      <div className="mb-3 text-sm font-medium text-emerald-400">
-        {KIND_LABEL[String(row.kind_code)] ?? row.kind_code} · 生涯累計
-      </div>
-      <div className="grid grid-cols-5 gap-y-3 font-mono tabular-nums sm:grid-cols-10">
-        {cells.map(([k, v]) => (
-          <div key={k}>
-            <div className="text-[11px] font-sans text-white/40">{k}</div>
-            <div className="text-base">{v}</div>
-          </div>
-        ))}
-      </div>
-      <div className="mt-3 flex gap-6 border-t border-white/5 pt-3 font-mono tabular-nums">
-        {adv.map(([k, v]) => (
-          <div key={k}>
-            <div className="text-[11px] font-sans text-white/40">{k}</div>
-            <div className="text-sm text-white/70">{v}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function VsTeamTable({ data, role }: { data: VsTeamData | null; role: "batting" | "pitching" }) {
-  if (!data) return null;
-  if (data.items.length === 0)
-    return <p className="text-sm text-white/40">尚無對戰各隊資料（投手資料爬取中…）。</p>;
-
-  const head =
-    role === "batting"
-      ? ["對手", "G", "PA", "AB", "H", "HR", "RBI", "BB", "SO", "AVG", "OBP", "SLG", "OPS"]
-      : ["對手", "G", "先發", "W", "L", "SV", "IP", "ERA", "WHIP", "H", "HR", "BB", "SO"];
-
-  return (
-    <div className="overflow-x-auto rounded-xl border border-white/10">
-      <table className="w-full text-sm">
-        <thead className="bg-white/5 text-left text-white/50">
-          <tr>
-            {head.map((h) => (
-              <th key={h} className="whitespace-nowrap px-2 py-2 font-medium">
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="font-mono tabular-nums">
-          {data.items.map((r, i) => (
-            <tr key={i} className="border-t border-white/5 hover:bg-white/5">
-              <td className="whitespace-nowrap px-2 py-2 font-sans">{n(r.fight_team_name)}</td>
-              {role === "batting" ? (
-                <>
-                  <td className="px-2 py-2 text-white/50">{n(r.total_games)}</td>
-                  <td className="px-2 py-2">{n(r.plate_appearances)}</td>
-                  <td className="px-2 py-2 text-white/50">{n(r.at_bats)}</td>
-                  <td className="px-2 py-2">{n(r.hits)}</td>
-                  <td className="px-2 py-2">{n(r.home_runs)}</td>
-                  <td className="px-2 py-2">{n(r.rbi)}</td>
-                  <td className="px-2 py-2 text-white/50">{n(r.bb)}</td>
-                  <td className="px-2 py-2 text-white/50">{n(r.so)}</td>
-                  <td className="px-2 py-2">{f3(r.avg)}</td>
-                  <td className="px-2 py-2">{f3(r.obp)}</td>
-                  <td className="px-2 py-2">{f3(r.slg)}</td>
-                  <td className="px-2 py-2 text-emerald-400">{f3(r.ops)}</td>
-                </>
-              ) : (
-                <>
-                  <td className="px-2 py-2 text-white/50">{n(r.total_games)}</td>
-                  <td className="px-2 py-2 text-white/50">{n(r.starts)}</td>
-                  <td className="px-2 py-2">{n(r.wins)}</td>
-                  <td className="px-2 py-2">{n(r.loses)}</td>
-                  <td className="px-2 py-2">{n(r.save_ok)}</td>
-                  <td className="px-2 py-2">{n(r.inning_pitched_cnt)}</td>
-                  <td className="px-2 py-2 text-emerald-400">{f3(r.era)}</td>
-                  <td className="px-2 py-2">{f3(r.whip)}</td>
-                  <td className="px-2 py-2 text-white/50">{n(r.hits)}</td>
-                  <td className="px-2 py-2 text-white/50">{n(r.home_runs)}</td>
-                  <td className="px-2 py-2 text-white/50">{n(r.bb)}</td>
-                  <td className="px-2 py-2">{n(r.so)}</td>
-                </>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="inline-flex gap-1 rounded-lg bg-white/5 p-1">
+      {options.map((o) => (
+        <button
+          key={o.v}
+          onClick={() => onChange(o.v)}
+          className={`rounded-md px-3 py-1 text-sm transition ${
+            value === o.v ? "bg-emerald-500 text-black" : "text-white/60 hover:text-white"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }
 
 export default function MatchupsPage() {
   const [roster, setRoster] = useState<Roster | null>(null);
-  const [hitter, setHitter] = useState("");
-  const [pitcher, setPitcher] = useState("");
-  const [items, setItems] = useState<StatRow[] | null>(null);
-  const [bTeam, setBTeam] = useState<VsTeamData | null>(null);
-  const [pTeam, setPTeam] = useState<VsTeamData | null>(null);
+  const [role, setRole] = useState<Role>("batting");
+  const [pid, setPid] = useState("");
+  const [kind, setKind] = useState<"A" | "C" | "E">("A");
+  const [rows, setRows] = useState<StatRow[] | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -167,78 +46,96 @@ export default function MatchupsPage() {
   }, []);
 
   useEffect(() => {
-    if (!hitter || !pitcher) {
-      setItems(null);
+    setPid("");
+    setRows(null);
+  }, [role]);
+
+  const players: RosterPlayer[] = useMemo(
+    () => (roster ? (role === "batting" ? roster.batters : roster.pitchers) : []),
+    [roster, role],
+  );
+
+  useEffect(() => {
+    if (!pid) {
+      setRows(null);
       return;
     }
     setLoading(true);
-    Promise.all([
-      detail.matchups(hitter, pitcher),
-      detail.vsTeam(hitter, "batting"),
-      detail.vsTeam(pitcher, "pitching"),
-    ])
-      .then(([m, bt, pt]) => {
-        setItems(m.items);
-        setBTeam(bt);
-        setPTeam(pt);
-      })
-      .catch(() => setItems([]))
+    detail
+      .playerMatchups(pid, role, kind)
+      .then((d) => setRows(d.items))
+      .catch(() => setRows([]))
       .finally(() => setLoading(false));
-  }, [hitter, pitcher]);
+  }, [pid, role, kind]);
 
-  const hName = roster?.batters.find((b) => b.id === hitter)?.name;
-  const pName = roster?.pitchers.find((p) => p.id === pitcher)?.name;
+  const pName = players.find((p) => p.id === pid)?.name;
+  const oppLabel = role === "batting" ? "投手" : "打者";
 
   return (
     <div>
       <header className="mb-5">
         <h1 className="text-2xl font-bold">投打對決</h1>
         <p className="mt-2 text-sm text-white/50">
-          打者 vs 投手生涯對戰（含進階球種比例），以及雙方對戰各隊成績。資料來源 cpbl.com.tw。
+          選一位球員，列出他生涯對戰過的所有{oppLabel}（同隊不對戰，已自然排除）。
+          點欄位排序、依對手球隊篩選、點對手名字看個人頁。
         </p>
       </header>
 
-      {!roster ? (
-        <p className="text-sm text-white/40">載入名單中…</p>
-      ) : (
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row">
-          <Picker label="打者" players={roster.batters} value={hitter} onChange={setHitter} />
-          <Picker label="投手" players={roster.pitchers} value={pitcher} onChange={setPitcher} />
-        </div>
-      )}
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <Toggle<Role>
+          options={[
+            { v: "batting", label: "以打者查" },
+            { v: "pitching", label: "以投手查" },
+          ]}
+          value={role}
+          onChange={setRole}
+        />
+        {roster && (
+          <select
+            value={pid}
+            onChange={(e) => setPid(e.target.value)}
+            className="min-w-52 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-emerald-400"
+          >
+            <option value="">— 選擇{role === "batting" ? "打者" : "投手"} —</option>
+            {players.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}（{p.team ?? "?"}）
+              </option>
+            ))}
+          </select>
+        )}
+        <Toggle
+          options={[
+            { v: "A", label: "例行賽" },
+            { v: "C", label: "總冠軍" },
+            { v: "E", label: "季後賽" },
+          ]}
+          value={kind}
+          onChange={setKind}
+        />
+      </div>
 
+      {!pid && <p className="text-sm text-white/40">請先選擇一位{role === "batting" ? "打者" : "投手"}。</p>}
       {loading && <p className="text-sm text-white/40">查詢中…</p>}
 
-      {items && !loading && (
-        <section className="space-y-4">
-          {items.length === 0 ? (
-            <p className="rounded-xl border border-white/10 bg-white/[0.02] p-4 text-sm text-white/50">
-              {hName ?? "該打者"} 與 {pName ?? "該投手"} 生涯無對戰紀錄（或投手非本季登錄）。
-            </p>
-          ) : (
-            <>
-              <h2 className="text-lg font-semibold">
-                {hName} <span className="text-white/30">vs</span> {pName}
-              </h2>
-              {items.map((r, i) => (
-                <MatchupCard key={i} row={r} />
-              ))}
-            </>
-          )}
-        </section>
-      )}
-
-      {hitter && pitcher && !loading && (
-        <section className="mt-8 grid gap-6 lg:grid-cols-2">
-          <div>
-            <h3 className="mb-2 text-sm font-medium text-white/70">{hName}：對戰各隊（本季打擊）</h3>
-            <VsTeamTable data={bTeam} role="batting" />
-          </div>
-          <div>
-            <h3 className="mb-2 text-sm font-medium text-white/70">{pName}：對戰各隊（本季投球）</h3>
-            <VsTeamTable data={pTeam} role="pitching" />
-          </div>
-        </section>
+      {rows && !loading && (
+        rows.length === 0 ? (
+          <p className="rounded-xl border border-white/10 bg-white/[0.02] p-4 text-sm text-white/50">
+            {pName ?? "該球員"} 在「{KIND_LABEL[kind]}」生涯無對戰{oppLabel}紀錄。
+          </p>
+        ) : (
+          <>
+            <h2 className="mb-3 text-lg font-semibold">
+              {pName}：生涯對戰{oppLabel}（{KIND_LABEL[kind]}，共 {rows.length} 位）
+            </h2>
+            <Leaderboard
+              rows={rows}
+              cols={matchupCols(role)}
+              defaultSort="plate_appearances"
+              filters={[{ key: "opp_team", label: "對手球隊" }]}
+            />
+          </>
+        )
       )}
     </div>
   );
