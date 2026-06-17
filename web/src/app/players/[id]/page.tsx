@@ -276,19 +276,34 @@ export default function PlayerPage() {
         <div className="flex flex-col gap-6">
           <Card>
             <h3 className="mb-3 text-sm font-medium text-muted">好球帶紀律</h3>
-            {disc && disc.summary.swing_pct != null ? (
-              <div className="space-y-2">
-                {([["揮棒%", "swing_pct"], ["揮空%", "whiff_pct"], ["接觸%", "contact_pct"],
-                   ["CSW%", "csw_pct"], ["追打%（近似）", "chase_pct"], ["好球帶%（近似）", "zone_pct"]] as const)
-                  .filter(([, k]) => disc.summary[k] != null)
-                  .map(([label, k]) => (
-                    <div key={k} className="flex items-center justify-between border-b border-line pb-1.5 text-xs last:border-0">
-                      <span className="text-muted">{label}</span>
-                      <span className="font-mono tabular-nums text-ink">{disc.summary[k]}%</span>
-                    </div>
-                  ))}
-              </div>
-            ) : <p className="py-12 text-center text-sm text-faint">{disc === null ? "載入中…" : "無逐球資料"}</p>}
+            {disc && disc.summary.swing_pct != null ? (() => {
+              // 揮空/追打 官方有全季真值 → 以官方為單一來源（接觸=100−官方揮空）；
+              // 其餘官方沒有的指標才用逐球追蹤樣本（部分球場未配置設備，涵蓋少於全季）。
+              const adv = advanced ? (role === "batting" ? advanced.batting : advanced.pitching) : null;
+              const ow = adv ? numOf(adv.whiffp) : null, oc = adv ? numOf(adv.chasep) : null;
+              const r1 = (v: number | null) => (v == null ? null : Math.round(v * 10) / 10);
+              const rows: { label: string; val: number | null; sample: boolean }[] = [
+                { label: "揮棒%", val: numOf(disc.summary.swing_pct), sample: true },
+                { label: "揮空%", val: ow != null ? r1(ow * 100) : numOf(disc.summary.whiff_pct), sample: ow == null },
+                { label: "接觸%", val: ow != null ? r1((1 - ow) * 100) : numOf(disc.summary.contact_pct), sample: ow == null },
+                { label: "CSW%", val: numOf(disc.summary.csw_pct), sample: true },
+                { label: "追打%", val: oc != null ? r1(oc * 100) : numOf(disc.summary.chase_pct), sample: oc == null },
+                { label: "好球帶%", val: numOf(disc.summary.zone_pct), sample: true },
+              ].filter((r) => r.val != null);
+              return (
+                <>
+                  <div className="space-y-2">
+                    {rows.map((r) => (
+                      <div key={r.label} className="flex items-center justify-between border-b border-line pb-1.5 text-xs last:border-0">
+                        <span className="text-muted">{r.label}{r.sample && <span className="text-faint">＊</span>}</span>
+                        <span className="font-mono tabular-nums text-ink">{r.val}%</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-[10px] leading-snug text-faint">揮空/接觸/追打採官方全季數據；＊為逐球追蹤樣本（部分球場未配置設備，涵蓋場次少於全季）。</p>
+                </>
+              );
+            })() : <p className="py-12 text-center text-sm text-faint">{disc === null ? "載入中…" : "無逐球資料"}</p>}
           </Card>
           <Card>
             <h3 className="mb-3 text-sm font-medium text-muted">球種應對（{role === "batting" ? "面對" : "配球"}）</h3>
