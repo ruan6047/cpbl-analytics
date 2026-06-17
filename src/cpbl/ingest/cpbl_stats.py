@@ -28,10 +28,12 @@ TEAMSCORE_ACTION = f"{BASE}/team/teamscoreaction"
 # 各隊 ClubNo（team_code 前 3 碼）；team_code = ClubNo + "011"
 CLUB_NOS = ["AAA", "ACN", "ADD", "AEO", "AJL", "AKP"]
 
-# teamscore 投手(Position=02) num 欄位 index（球員 cell 之後）
+# teamscore 投手(Position=02) num 欄位 index（球員 cell 之後；官網 28 欄全集）
 PIT_TS_IDX = {
-    "g": 0, "gs": 1, "gr": 2, "w": 6, "l": 7, "sv": 8, "hld": 9,
-    "ip": 10, "whip": 11, "era": 12, "so": 20,
+    "g": 0, "gs": 1, "gr": 2, "cg": 3, "sho": 4, "w": 6, "l": 7, "sv": 8, "hld": 9,
+    "ip": 10, "whip": 11, "era": 12, "pa": 13, "np": 14, "h": 15, "hr": 16,
+    "bb": 17, "ibb": 18, "hbp": 19, "so": 20, "wp": 21, "bk": 22, "r": 23, "er": 24,
+    "go": 25, "ao": 26, "goao": 27,
 }
 
 
@@ -84,12 +86,16 @@ def fetch_pitching(year: int, kind_code: str = "A") -> list[tuple]:
                 if not mid:
                     continue
                 nums = [n.strip() for n in re.findall(r'<td class="num">(.*?)</td>', tr, re.S)]
-                if len(nums) < 21:
+                if len(nums) < 28:
                     continue
                 name_m = re.search(r'/team/person\?acnt=\d+"[^>]*>([^<]+)</a>', tr)
 
                 def p(k: str) -> float | None:
                     return _num(nums[PIT_TS_IDX[k]])
+
+                # 故四欄以全形括號呈現（如「（1）」），取其中數字
+                ibb_m = re.search(r"\d+", nums[PIT_TS_IDX["ibb"]])
+                ibb = int(ibb_m.group()) if ibb_m else None
 
                 ip, so = p("ip"), p("so")
                 k9 = (so * 9.0 / ip) if (so is not None and ip and ip > 0) else None
@@ -99,6 +105,10 @@ def fetch_pitching(year: int, kind_code: str = "A") -> list[tuple]:
                     p("era"), ip, _int(p("g")), _int(p("gs")), _int(p("w")), _int(p("l")),
                     p("whip"), k9, None, None,  # fip/era_plus teamscore 無
                     _int(p("sv")), _int(p("hld")),
+                    _int(p("so")), _int(p("cg")), _int(p("sho")), _int(p("pa")), _int(p("np")),
+                    _int(p("h")), _int(p("hr")), _int(p("bb")), ibb, _int(p("hbp")),
+                    _int(p("wp")), _int(p("bk")), _int(p("r")), _int(p("er")),
+                    _int(p("go")), _int(p("ao")), p("goao"),
                 ))
     finally:
         client.close()
@@ -111,13 +121,17 @@ def upsert_pitching(records: list[tuple]) -> int:
             """
             INSERT INTO cpbl.pitching_current
                 (year, player_id, name, team_code, era, ip, g, gs, w, l, whip, k9, fip, era_plus,
-                 sv, hld)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                 sv, hld, so, cg, sho, pa, np, h, hr, bb, ibb, hbp, wp, bk, r, er, go, ao, goao)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                    %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT (year, player_id) DO UPDATE SET
                 name=EXCLUDED.name, team_code=EXCLUDED.team_code, era=EXCLUDED.era, ip=EXCLUDED.ip,
                 g=EXCLUDED.g, gs=EXCLUDED.gs, w=EXCLUDED.w, l=EXCLUDED.l,
                 whip=EXCLUDED.whip, k9=EXCLUDED.k9, fip=EXCLUDED.fip, era_plus=EXCLUDED.era_plus,
-                sv=EXCLUDED.sv, hld=EXCLUDED.hld
+                sv=EXCLUDED.sv, hld=EXCLUDED.hld, so=EXCLUDED.so, cg=EXCLUDED.cg, sho=EXCLUDED.sho,
+                pa=EXCLUDED.pa, np=EXCLUDED.np, h=EXCLUDED.h, hr=EXCLUDED.hr, bb=EXCLUDED.bb,
+                ibb=EXCLUDED.ibb, hbp=EXCLUDED.hbp, wp=EXCLUDED.wp, bk=EXCLUDED.bk, r=EXCLUDED.r,
+                er=EXCLUDED.er, go=EXCLUDED.go, ao=EXCLUDED.ao, goao=EXCLUDED.goao
             """,
             records,
         )
@@ -138,7 +152,9 @@ def scrape_pitching(start_year: int, end_year: int) -> dict[int, int]:
 # teamscore num 欄位 index（球員 cell 之後）
 TS_IDX = {
     "g": 0, "pa": 1, "ab": 2, "rbi": 3, "r": 4, "h": 5, "b2": 7, "b3": 8, "hr": 9,
-    "so": 11, "sb": 12, "obp": 13, "slg": 14, "avg": 15, "bb": 19, "cs": 22, "ops": 27,
+    "tb": 10, "so": 11, "sb": 12, "obp": 13, "slg": 14, "avg": 15, "gidp": 16,
+    "sh": 17, "sf": 18, "bb": 19, "ibb": 20, "hbp": 21, "cs": 22,
+    "go": 23, "ao": 24, "goao": 25, "ops": 27,
 }
 
 
@@ -162,15 +178,24 @@ def fetch_batting(year: int, kind_code: str = "A") -> list[tuple]:
                 def b(k: str) -> float | None:
                     return _num(nums[TS_IDX[k]])
 
+                # 故四欄為全形括號（如「（0）」），取其中數字
+                ibb_m = re.search(r"\d+", nums[TS_IDX["ibb"]])
+                ibb = int(ibb_m.group()) if ibb_m else None
+                pa, so, bb = b("pa"), b("so"), b("bb")
+                k_pct = round(so / pa * 100, 1) if (so is not None and pa) else None
+                bb_pct = round(bb / pa * 100, 1) if (bb is not None and pa) else None
+
                 rows.append((
                     year, mid.group(1),
                     name_m.group(1).strip() if name_m else None,
                     team_code,
                     _int(b("pa")), b("avg"), b("obp"), b("slg"), b("ops"),
-                    _int(b("hr")), None, None, None,  # teamscore 無 OPS+/K%/BB%
+                    _int(b("hr")), None, k_pct, bb_pct,  # teamscore 無 OPS+；K%/BB% 自算
                     _int(b("g")), _int(b("ab")), _int(b("r")), _int(b("h")),
                     _int(b("b2")), _int(b("b3")), _int(b("rbi")), _int(b("bb")),
                     _int(b("so")), _int(b("sb")), _int(b("cs")),
+                    _int(b("tb")), _int(b("gidp")), _int(b("sh")), _int(b("sf")), ibb,
+                    _int(b("hbp")), _int(b("go")), _int(b("ao")), b("goao"),
                 ))
     finally:
         client.close()
@@ -183,15 +208,19 @@ def upsert_batting(records: list[tuple]) -> int:
             """
             INSERT INTO cpbl.batting_current
                 (year, player_id, name, team_code, pa, avg, obp, slg, ops, hr, ops_plus, k_pct, bb_pct,
-                 g, ab, r, h, b2, b3, rbi, bb, so, sb, cs)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                 g, ab, r, h, b2, b3, rbi, bb, so, sb, cs,
+                 tb, gidp, sh, sf, ibb, hbp, go, ao, goao)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                    %s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT (year, player_id) DO UPDATE SET
                 name=EXCLUDED.name, team_code=EXCLUDED.team_code, pa=EXCLUDED.pa, avg=EXCLUDED.avg,
                 obp=EXCLUDED.obp, slg=EXCLUDED.slg, ops=EXCLUDED.ops, hr=EXCLUDED.hr,
                 ops_plus=EXCLUDED.ops_plus, k_pct=EXCLUDED.k_pct, bb_pct=EXCLUDED.bb_pct,
                 g=EXCLUDED.g, ab=EXCLUDED.ab, r=EXCLUDED.r, h=EXCLUDED.h, b2=EXCLUDED.b2,
                 b3=EXCLUDED.b3, rbi=EXCLUDED.rbi, bb=EXCLUDED.bb, so=EXCLUDED.so,
-                sb=EXCLUDED.sb, cs=EXCLUDED.cs
+                sb=EXCLUDED.sb, cs=EXCLUDED.cs,
+                tb=EXCLUDED.tb, gidp=EXCLUDED.gidp, sh=EXCLUDED.sh, sf=EXCLUDED.sf, ibb=EXCLUDED.ibb,
+                hbp=EXCLUDED.hbp, go=EXCLUDED.go, ao=EXCLUDED.ao, goao=EXCLUDED.goao
             """,
             records,
         )
