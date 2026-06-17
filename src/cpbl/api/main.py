@@ -697,7 +697,7 @@ def player_discipline(
               count(*) FILTER (WHERE NOT iz) ozone
             FROM (
               SELECT pitch_call,
-                     (abs(plate_loc_side) <= 0.25 AND plate_loc_height BETWEEN 0.45 AND 1.05) iz,
+                     (abs(plate_loc_side) <= 0.21 AND plate_loc_height BETWEEN 0.5 AND 1.0) iz,
                      (pitch_call IN {_SWING}) sw0
               FROM cpbl.pitch_tracking
               WHERE {col} = %s AND year = %s AND plate_loc_side IS NOT NULL
