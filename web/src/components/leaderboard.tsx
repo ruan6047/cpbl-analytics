@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 
 export type Fmt = "i" | "f1" | "f2" | "f3";
@@ -11,6 +12,10 @@ export type Col = {
   fmt?: Fmt; // 預設 i（整數/字串原樣）
   tone?: Tone;
   sortable?: boolean; // 預設 true
+  tip?: string; // 滑鼠滑過欄位標題顯示的中文說明
+  // 若提供，該儲存格渲染成連結 href = base + row[idKey]（如球員名→個人頁）。
+  // 用可序列化物件而非函式，server component 才能把 Col 傳給此 client 元件。
+  link?: { base: string; idKey: string };
 };
 
 export type Filter = { key: string; label: string };
@@ -54,6 +59,7 @@ export default function Leaderboard({
   const [sortKey, setSortKey] = useState(defaultSort);
   const [dir, setDir] = useState<1 | -1>(defaultDir);
   const [sel, setSel] = useState<Record<string, string>>({});
+  const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
 
   const options = useMemo(() => {
     const m: Record<string, string[]> = {};
@@ -118,9 +124,18 @@ export default function Leaderboard({
                   <th
                     key={c.key}
                     onClick={sortable ? () => onSort(c.key) : undefined}
+                    onMouseEnter={
+                      c.tip ? (e) => setTip({ text: c.tip!, x: e.clientX, y: e.clientY }) : undefined
+                    }
+                    onMouseMove={
+                      c.tip ? (e) => setTip({ text: c.tip!, x: e.clientX, y: e.clientY }) : undefined
+                    }
+                    onMouseLeave={() => setTip(null)}
                     className={`whitespace-nowrap px-2.5 py-3 font-medium ${
                       sortable ? "cursor-pointer select-none hover:text-white" : ""
-                    } ${active ? "text-emerald-400" : ""}`}
+                    } ${c.tip ? "underline decoration-white/25 decoration-dotted underline-offset-4" : ""} ${
+                      active ? "text-emerald-400" : ""
+                    }`}
                   >
                     {c.label}
                     {active ? (dir === -1 ? " ↓" : " ↑") : sortable ? <span className="text-white/15"> ↕</span> : ""}
@@ -140,7 +155,16 @@ export default function Leaderboard({
                       c.key === sortKey ? "text-white" : toneCls(c.tone)
                     }`}
                   >
-                    {fmtVal(r[c.key], c.fmt)}
+                    {c.link ? (
+                      <Link
+                        href={`${c.link.base}${r[c.link.idKey]}`}
+                        className="text-emerald-400 hover:underline"
+                      >
+                        {fmtVal(r[c.key], c.fmt)}
+                      </Link>
+                    ) : (
+                      fmtVal(r[c.key], c.fmt)
+                    )}
                   </td>
                 ))}
               </tr>
@@ -148,6 +172,15 @@ export default function Leaderboard({
           </tbody>
         </table>
       </div>
+
+      {tip && (
+        <div
+          className="pointer-events-none fixed z-50 max-w-xs rounded-md border border-white/10 bg-zinc-800 px-2.5 py-1.5 text-xs leading-relaxed text-white shadow-xl"
+          style={{ left: tip.x + 14, top: tip.y + 16 }}
+        >
+          {tip.text}
+        </div>
+      )}
     </div>
   );
 }

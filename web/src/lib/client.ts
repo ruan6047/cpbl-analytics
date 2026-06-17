@@ -98,6 +98,23 @@ export const KIND_LABEL: Record<string, string> = {
   E: "季後挑戰賽",
 };
 
+export type PlayerProfile = {
+  id: string;
+  name: string | null;
+  team: string | null;
+  is_batter: boolean;
+  is_pitcher: boolean;
+  bats: string | null;
+  throws: string | null;
+};
+export type ProfileData = { player: PlayerProfile | null };
+export type PlayerMatchupsData = {
+  player_id: string;
+  role: string;
+  kind_code: string;
+  items: StatRow[];
+};
+
 export const detail = {
   roster: () => clientGet<Roster>("/api/v1/players/roster"),
   matchups: (hitter: string, pitcher: string) =>
@@ -106,4 +123,16 @@ export const detail = {
     clientGet<VsTeamData>(`/api/v1/players/${id}/vs-team?role=${role}`),
   splits: (id: string, role: "batting" | "pitching", year: number, kind = "A") =>
     clientGet<SplitsData>(`/api/v1/players/${id}/splits?role=${role}&year=${year}&kind_code=${kind}`),
+  profile: (id: string) => clientGet<ProfileData>(`/api/v1/players/${id}/profile`),
+  playerMatchups: (id: string, role: "batting" | "pitching", kind = "A") =>
+    clientGet<PlayerMatchupsData>(`/api/v1/players/${id}/matchups?role=${role}&kind_code=${kind}`),
+  season: (id: string) =>
+    clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/season`),
+  // 全聯盟本季母體（算百分位 PR 用）
+  leaders: (role: "batting" | "pitching") =>
+    clientGet<{ items: StatRow[] }>(
+      role === "batting"
+        ? "/api/v1/season/batting-leaders?sort=ops&limit=400&min_pa=0"
+        : "/api/v1/season/pitching-leaders?sort=era&limit=400&min_ip=0",
+    ),
 };
