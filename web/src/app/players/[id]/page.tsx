@@ -366,7 +366,7 @@ export default function PlayerPage() {
                  ["OPS+", String(s.ops_plus ?? "—"), true], ["全壘打", String(s.hr ?? "—"), false], ["打點", String(s.rbi ?? "—"), false]]
               : [["防禦率", numOf(s.era)?.toFixed(2) ?? "—", true], ["WHIP", numOf(s.whip)?.toFixed(2) ?? "—", false],
                  ["FIP", numOf(s.fip)?.toFixed(2) ?? "—", false], ["三振", String(s.so ?? "—"), true],
-                 ["勝-敗", `${s.w ?? 0}-${s.l ?? 0}`, false], ["救援", String(s.sv ?? "—"), false]];
+                 ["勝-敗", `${s.w ?? 0}-${s.l ?? 0}`, false], ["ERA+", String(s.era_plus ?? "—"), false]];
             const secondary: [string, string][] = role === "batting"
               ? [["OPS", f3(s.ops)], ["安打", String(s.h ?? "—")], ["二安", String(s.b2 ?? "—")],
                  ["三安", String(s.b3 ?? "—")], ["壘打數", String(s.tb ?? "—")], ["得分", String(s.r ?? "—")],
@@ -374,17 +374,17 @@ export default function PlayerPage() {
                  ["故四", String(s.ibb ?? "—")], ["觸身", String(s.hbp ?? "—")], ["三振", String(s.so ?? "—")],
                  ["雙殺打", String(s.gidp ?? "—")], ["犧觸", String(s.sh ?? "—")], ["犧飛", String(s.sf ?? "—")],
                  ["打席", String(s.pa ?? "—")], ["出賽", String(s.g ?? "—")]]
-              : [["ERA+", String(s.era_plus ?? "—")], ["K9", numOf(s.k9)?.toFixed(2) ?? "—"], ["中繼", String(s.hld ?? "—")],
+              : [["救援", String(s.sv ?? "—")], ["K9", numOf(s.k9)?.toFixed(2) ?? "—"], ["中繼", String(s.hld ?? "—")],
                  ["局數", numOf(s.ip)?.toFixed(1) ?? "—"], ["先發", String(s.gs ?? "—")], ["完投", String(s.cg ?? "—")],
                  ["完封", String(s.sho ?? "—")], ["被安", String(s.h ?? "—")], ["被轟", String(s.hr ?? "—")],
                  ["四壞", String(s.bb ?? "—")], ["故四", String(s.ibb ?? "—")], ["觸身", String(s.hbp ?? "—")],
                  ["暴投", String(s.wp ?? "—")], ["犯規", String(s.bk ?? "—")], ["投球數", String(s.np ?? "—")],
                  ["失分", String(s.r ?? "—")], ["自責", String(s.er ?? "—")], ["出賽", String(s.g ?? "—")]];
             return (
-              <div className="space-y-2">
+              <Card className="space-y-2">
                 <div className="grid grid-cols-3 gap-2">
                   {primary.map(([l, v, a]) => (
-                    <div key={l} className="card px-2 py-3 text-center">
+                    <div key={l} className="rounded-lg bg-surface-2 px-2 py-3 text-center">
                       <div className="text-[11px] text-muted">{l}</div>
                       <div className={`mt-1 font-mono text-2xl leading-none tabular-nums ${a ? "text-accent" : "text-ink"}`}>{v}</div>
                     </div>
@@ -398,7 +398,7 @@ export default function PlayerPage() {
                     </div>
                   ))}
                 </div>
-              </div>
+              </Card>
             );
           })() : <p className="text-sm text-muted">本季無{role === "batting" ? "打擊" : "投球"}成績。</p>}
         </div>
@@ -420,7 +420,9 @@ export default function PlayerPage() {
       </section>
 
       {/* 擊球落點 + 進壘點（左 2/3 放大） + 好球帶紀律（右側直欄） */}
-      <section className="mb-6 grid gap-6 lg:grid-cols-3">
+      <section className="mb-6">
+        <h2 className="mb-3 text-lg font-semibold text-ink">逐球追蹤</h2>
+        <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <div className="grid gap-x-4 sm:grid-cols-2">
             <div className="relative flex flex-col">
@@ -482,10 +484,12 @@ export default function PlayerPage() {
               : <ArsenalTable items={arsenal} role={role} />}
           </Card>
         </div>
+        </div>
       </section>
 
       {/* 賽季走勢（逐場累積）+ 對戰各隊 */}
       <section className="mb-6">
+        <h2 className="mb-3 text-lg font-semibold text-ink">賽季走勢 · 對戰各隊</h2>
         <div className="grid gap-6 lg:grid-cols-2">
           <Card>
             <div className="mb-3 flex items-center justify-between gap-3">
