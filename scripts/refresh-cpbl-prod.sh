@@ -6,9 +6,10 @@
 # VPS 重建賽果特徵（build-features 只讀 DB，VPS 可跑）。
 #
 # 用法：./scripts/refresh-cpbl-prod.sh
-#       WITH_DETAIL=1 ./scripts/refresh-cpbl-prod.sh   # 連同選手細項（耗時逾 1 小時）
+#       WITH_DETAIL=1 ./scripts/refresh-cpbl-prod.sh                 # 連同選手細項（耗時逾 1 小時）
+#       SKIP_SCRAPE=1 WITH_DETAIL=1 ./scripts/refresh-cpbl-prod.sh   # 本機已最新：只同步不重爬
 #
-# 可用環境變數覆蓋：LOCAL_DB / VPS / DEPLOY_PATH / WITH_DETAIL
+# 可用環境變數覆蓋：LOCAL_DB / VPS / DEPLOY_PATH / WITH_DETAIL / SKIP_SCRAPE
 set -euo pipefail
 
 LOCAL_DB="${LOCAL_DB:-cpbl-analytics-db-1}"
@@ -28,24 +29,29 @@ sync_table() {
   {
     echo "CREATE TEMP TABLE _stg (LIKE cpbl.${t} INCLUDING DEFAULTS) ON COMMIT DROP;"
     docker exec "$LOCAL_DB" pg_dump -U cpbl -d cpbl --data-only -t "cpbl.${t}" \
-      | sed "s/^COPY cpbl\.${t} /COPY _stg /"
+      | sed -e "s/^COPY cpbl\.${t} /COPY _stg /" -e '/^\\restrict /d' -e '/^\\unrestrict /d'
     echo "INSERT INTO cpbl.${t} SELECT * FROM _stg ON CONFLICT (${pk}) DO UPDATE SET ${set_clause};"
   } | ssh -o BatchMode=yes "$VPS" \
         "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql -q --single-transaction -U \"\$DB_USER\" -d \"\$DB_NAME\""
   echo "    ✓ ${t}"
 }
 
-echo "==> 1/3 本機（台灣 IP）爬最新資料"
 cd "$REPO_DIR"
-uv run cpbl-scrape-games "$YEAR" "$YEAR"
-uv run cpbl-scrape-stats "$PREV" "$YEAR"
+# SKIP_SCRAPE=1：本機 DB 已是最新時，跳過重爬、直接把現有資料同步到 prod。
+if [ -n "${SKIP_SCRAPE:-}" ]; then
+  echo "==> 1/3 略過爬取（SKIP_SCRAPE），直接同步本機現有資料"
+else
+  echo "==> 1/3 本機（台灣 IP）爬最新資料"
+  uv run cpbl-scrape-games "$YEAR" "$YEAR"
+  uv run cpbl-scrape-stats "$PREV" "$YEAR"
 
-# 選手細項（投打對決 / 對戰各隊 / 分項）變動慢且耗時逾 1 小時，預設不跑；
-# 需要時以 WITH_DETAIL=1 觸發（每隔幾週跑一次即可）。
-if [ -n "${WITH_DETAIL:-}" ]; then
-  echo "    + 選手細項（耗時較長：投打對決生涯 + 對戰各隊 + 分項）"
-  uv run cpbl-scrape-fighting 9999 1.2 cur
-  uv run cpbl-scrape-detail 1.2
+  # 選手細項（投打對決 / 對戰各隊 / 分項）變動慢且耗時逾 1 小時，預設不跑；
+  # 需要時以 WITH_DETAIL=1 觸發（每隔幾週跑一次即可）。
+  if [ -n "${WITH_DETAIL:-}" ]; then
+    echo "    + 選手細項（耗時較長：投打對決生涯 + 對戰各隊 + 分項）"
+    uv run cpbl-scrape-fighting 9999 1.2 cur
+    uv run cpbl-scrape-detail 1.2
+  fi
 fi
 
 echo "==> 2/3 套用 prod migration + 非破壞性 upsert 同步"
