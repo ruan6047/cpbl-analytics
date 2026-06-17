@@ -247,11 +247,14 @@ def fetch_fielding(year: int, kind_code: str = "A") -> list[tuple]:
                 if len(nums) < 12 or not nums[0]:
                     continue
                 name_m = re.search(r'/team/person\?acnt=\d+"[^>]*>([^<]+)</a>', tr)
+                # 欄序：守位 出賽 守備機會 刺殺 助殺 失誤 雙殺 三殺 捕逸 盜壘阻殺 被盜成功 守備率
                 rows.append((
                     year, mid.group(1), name_m.group(1).strip() if name_m else None, team_code,
                     nums[0],
                     _int(_num(nums[1])), _int(_num(nums[2])), _int(_num(nums[3])),
-                    _int(_num(nums[4])), _int(_num(nums[5])), _int(_num(nums[6])), _num(nums[11]),
+                    _int(_num(nums[4])), _int(_num(nums[5])), _int(_num(nums[6])),
+                    _int(_num(nums[7])), _int(_num(nums[8])), _int(_num(nums[9])), _int(_num(nums[10])),
+                    _num(nums[11]),
                 ))
     finally:
         client.close()
@@ -263,11 +266,12 @@ def upsert_fielding(records: list[tuple]) -> int:
         c.cursor().executemany(
             """
             INSERT INTO cpbl.fielding_current
-                (year, player_id, name, team_code, pos, g, tc, po, a, e, dp, fpct)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                (year, player_id, name, team_code, pos, g, tc, po, a, e, dp, tp, pb, cs, sba, fpct)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT (year, player_id, pos) DO UPDATE SET
                 name=EXCLUDED.name, team_code=EXCLUDED.team_code, g=EXCLUDED.g, tc=EXCLUDED.tc,
-                po=EXCLUDED.po, a=EXCLUDED.a, e=EXCLUDED.e, dp=EXCLUDED.dp, fpct=EXCLUDED.fpct
+                po=EXCLUDED.po, a=EXCLUDED.a, e=EXCLUDED.e, dp=EXCLUDED.dp,
+                tp=EXCLUDED.tp, pb=EXCLUDED.pb, cs=EXCLUDED.cs, sba=EXCLUDED.sba, fpct=EXCLUDED.fpct
             """,
             records,
         )

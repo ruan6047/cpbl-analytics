@@ -599,7 +599,7 @@ def player_fielding(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict
         cur = c.cursor()
         cur.execute(
             """
-            SELECT pos, g, tc, po, a, e, dp, fpct
+            SELECT pos, g, tc, po, a, e, dp, tp, pb, cs, sba, fpct
             FROM cpbl.fielding_current
             WHERE player_id = %s AND year = %s
             ORDER BY g DESC NULLS LAST, tc DESC NULLS LAST
@@ -608,8 +608,9 @@ def player_fielding(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict
         )
         items = [
             {"pos": pos, "g": g, "tc": tc, "po": po, "a": a, "e": e, "dp": dp,
+             "tp": tp, "pb": pb, "cs": cs, "sba": sba,
              "fpct": float(fpct) if fpct is not None else None}
-            for pos, g, tc, po, a, e, dp, fpct in cur.fetchall()
+            for pos, g, tc, po, a, e, dp, tp, pb, cs, sba, fpct in cur.fetchall()
         ]
     return {"player_id": player_id, "season": season, "items": items}
 
