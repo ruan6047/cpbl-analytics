@@ -423,7 +423,7 @@ export default function PlayerPage() {
       <section className="mb-6">
         <h2 className="mb-3 text-lg font-semibold text-ink">逐球追蹤</h2>
         <div className="grid items-stretch gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className="flex flex-col lg:col-span-2">
           <div className="grid gap-x-4 sm:grid-cols-2">
             <div className="relative flex flex-col">
               <h3 className="absolute left-0 top-0 z-10 text-sm font-medium text-muted">擊球落點（藍低→紅高，{disc?.spray.length ?? 0} 球）</h3>
@@ -443,7 +443,7 @@ export default function PlayerPage() {
               : [["平均球速", q.avg_speed, "km/h"], ["平均延伸", q.avg_extension, "m"], ["平均放球高", q.avg_rel_height, "m"]];
             if (tiles.every(([, v]) => v == null)) return null;
             return (
-              <div className="mt-3 border-t border-line pt-3">
+              <div className="mt-auto border-t border-line pt-3">
                 <div className="mb-2 text-xs text-muted">{role === "batting" ? "擊球品質" : "球質"}<span className="text-faint">（逐球追蹤樣本）</span></div>
                 <div className="grid grid-cols-3 gap-2">
                   {tiles.map(([l, v, u]) => (
@@ -457,7 +457,7 @@ export default function PlayerPage() {
             );
           })()}
         </Card>
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col justify-between gap-6">
           <Card>
             <h3 className="mb-3 text-sm font-medium text-muted">好球帶紀律</h3>
             {disc && disc.summary.swing_pct != null ? (
