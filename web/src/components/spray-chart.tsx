@@ -5,9 +5,12 @@ export type SprayPoint = { dir: number; dist: number; ev: number | null; result:
 
 const RESULT = {
   hr: { label: "全壘打", color: "#d62839" },
-  hit: { label: "安打", color: "#1d6fb8" },
+  "3b": { label: "三壘打", color: "#f59e0b" },
+  "2b": { label: "二壘打", color: "#16a34a" },
+  "1b": { label: "一壘安打", color: "#1d6fb8" },
   out: { label: "出局", color: "#94a3b8" },
 } as const;
+const LEGEND = ["hr", "3b", "2b", "1b", "out"] as const;
 
 export function SprayChart({ points }: { points: SprayPoint[] }) {
   const W = 300, H = 232, cx = W / 2, baseY = H - 6; // 本壘貼底
@@ -48,8 +51,8 @@ export function SprayChart({ points }: { points: SprayPoint[] }) {
         <text x={10} y={H - 4} className="fill-faint" fontSize={10}>左外野</text>
         <text x={W - 42} y={H - 4} className="fill-faint" fontSize={10}>右外野</text>
       </svg>
-      <div className="mt-1 flex justify-center gap-3 text-[11px] text-muted">
-        {(["hr", "hit", "out"] as const).map((k) => (
+      <div className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px] text-muted">
+        {LEGEND.map((k) => (
           <span key={k} className="inline-flex items-center gap-1">
             <span className="inline-block h-2 w-2 rounded-full" style={{ background: RESULT[k].color }} />
             {RESULT[k].label}
