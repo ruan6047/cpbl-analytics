@@ -14,15 +14,22 @@ const LEGEND = ["hr", "3b", "2b", "1b", "out"] as const;
 
 export function SprayChart({ points }: { points: SprayPoint[] }) {
   const W = 300, H = 232, cx = W / 2, baseY = H - 6; // 本壘貼底
-  const fenceDist = 118;  // 全壘打牆（畫弧）
-  const maxDist = 135;    // 縮放上限，保留牆外長打空間
+  const centerR = 122, cornerR = 100; // 全壘打牆：中外野深、邊線淺（CPBL 近似）
+  const maxDist = 142;                 // 縮放上限（最遠長打 ~139m）
   const scale = (baseY - 8) / maxDist;
   const pt = (deg: number, dist: number) => {
     const r = (deg * Math.PI) / 180;
     return [cx + dist * scale * Math.sin(r), baseY - dist * scale * Math.cos(r)] as const;
   };
-  const [lfx, lfy] = pt(-45, fenceDist);
-  const [rfx, rfy] = pt(45, fenceDist);
+  // 牆半徑隨方向變化：中央(0°)深、邊線(±45°)淺，餘弦內插
+  const fenceR = (deg: number) => cornerR + (centerR - cornerR) * Math.cos((Math.abs(deg) / 45) * (Math.PI / 2));
+  // 場地外形：本壘 → 沿牆採樣 → 回本壘（含邊線）
+  let field = `M ${cx} ${baseY} `;
+  for (let a = -45; a <= 45; a += 3) {
+    const [x, y] = pt(a, fenceR(a));
+    field += `L ${x} ${y} `;
+  }
+  field += "Z";
   const col = (r: string) => (RESULT[r as keyof typeof RESULT] ?? RESULT.out).color;
   // 全壘打、安打畫在出局之上，避免被蓋住
   const ordered = [...points].sort((a, b) => (a.result === "out" ? 0 : 1) - (b.result === "out" ? 0 : 1));
@@ -30,12 +37,8 @@ export function SprayChart({ points }: { points: SprayPoint[] }) {
   return (
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
-        {/* 外野（全壘打牆）弧 */}
-        <path d={`M ${lfx} ${lfy} A ${fenceDist * scale} ${fenceDist * scale} 0 0 1 ${rfx} ${rfy}`}
-          fill="#eef2f7" stroke="#cbd5e1" strokeWidth={1} />
-        {/* 邊線 */}
-        <line x1={cx} y1={baseY} x2={lfx} y2={lfy} stroke="#cbd5e1" strokeWidth={1} />
-        <line x1={cx} y1={baseY} x2={rfx} y2={rfy} stroke="#cbd5e1" strokeWidth={1} />
+        {/* 場地（含邊線與全壘打牆） */}
+        <path d={field} fill="#eef2f7" stroke="#cbd5e1" strokeWidth={1} />
         {/* 內野菱形 */}
         {(() => {
           const b = 27; // 壘間約 27m
@@ -44,7 +47,10 @@ export function SprayChart({ points }: { points: SprayPoint[] }) {
             fill="none" stroke="#cbd5e1" strokeWidth={1} />;
         })()}
         {ordered.map((p, i) => {
-          const [x, y] = pt(p.dir, p.dist);
+          // 落地距離與牆深會 overlap，但結果分類可靠 → 依結果定位：HR 推到牆外、其餘壓在牆內
+          const f = fenceR(p.dir);
+          const d = p.result === "hr" ? Math.max(p.dist, f + 6) : Math.min(p.dist, f - 3);
+          const [x, y] = pt(p.dir, d);
           return <circle key={i} cx={x} cy={y} r={3.6} fill={col(p.result)}
             fillOpacity={p.result === "out" ? 0.55 : 0.9} />;
         })}
