@@ -457,8 +457,8 @@ export default function PlayerPage() {
             );
           })()}
         </Card>
-        <div className="flex flex-col justify-between gap-6">
-          <Card>
+        <div className="flex flex-col gap-6">
+          <Card className="flex-1">
             <h3 className="mb-3 text-sm font-medium text-muted">好球帶紀律</h3>
             {disc && disc.summary.swing_pct != null ? (
               <>
