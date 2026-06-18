@@ -820,7 +820,7 @@ def player_discipline(
                      (abs(plate_loc_side) <= 0.21 AND plate_loc_height BETWEEN 0.5 AND 1.0) iz,
                      (pitch_call IN {_SWING}) sw0
               FROM cpbl.pitch_tracking
-              WHERE {col} = %s AND year = %s AND plate_loc_side IS NOT NULL
+              WHERE {col} = %s AND year = %s AND kind_code = 'A' AND plate_loc_side IS NOT NULL
             ) q
             """,
             (player_id, season),
@@ -836,7 +836,7 @@ def player_discipline(
             f"""
             SELECT plate_loc_side, plate_loc_height, pitch_call, content
             FROM cpbl.pitch_tracking
-            WHERE {col} = %s AND year = %s AND plate_loc_side IS NOT NULL
+            WHERE {col} = %s AND year = %s AND kind_code = 'A' AND plate_loc_side IS NOT NULL
             """,
             (player_id, season),
         )
@@ -849,7 +849,7 @@ def player_discipline(
             f"""
             SELECT hit_direction, hit_distance, hit_exit_speed, content
             FROM cpbl.pitch_tracking
-            WHERE {col} = %s AND year = %s AND pitch_call = 'InPlay'
+            WHERE {col} = %s AND year = %s AND kind_code = 'A' AND pitch_call = 'InPlay'
               AND hit_distance IS NOT NULL AND hit_direction IS NOT NULL
             """,
             (player_id, season),
@@ -862,7 +862,7 @@ def player_discipline(
             f"""
             SELECT hit_launch_angle, hit_exit_speed, content
             FROM cpbl.pitch_tracking
-            WHERE {col} = %s AND year = %s AND pitch_call = 'InPlay'
+            WHERE {col} = %s AND year = %s AND kind_code = 'A' AND pitch_call = 'InPlay'
               AND hit_launch_angle IS NOT NULL AND hit_exit_speed IS NOT NULL
             """,
             (player_id, season),
@@ -875,7 +875,7 @@ def player_discipline(
             SELECT round(avg(hit_launch_angle)::numeric, 1), round(max(hit_distance)::numeric, 1),
                    round(avg(hit_exit_speed)::numeric, 1), round(avg(extension)::numeric, 2),
                    round(avg(rel_height)::numeric, 2), round(avg(rel_speed)::numeric, 1)
-            FROM cpbl.pitch_tracking WHERE {col} = %s AND year = %s
+            FROM cpbl.pitch_tracking WHERE {col} = %s AND year = %s AND kind_code = 'A'
             """,
             (player_id, season),
         )
@@ -922,7 +922,7 @@ def player_arsenal(
                    count(*) FILTER (WHERE pitch_call IN {_SWING}),
                    avg(hit_exit_speed)
             FROM cpbl.pitch_tracking
-            WHERE {col} = %s AND year = %s AND tagged_pitch_type IS NOT NULL
+            WHERE {col} = %s AND year = %s AND kind_code = 'A' AND tagged_pitch_type IS NOT NULL
             GROUP BY tagged_pitch_type ORDER BY n DESC
             """,
             (player_id, season),
@@ -969,7 +969,7 @@ def player_pitch_mix(
             f"""
             SELECT ball_cnt, strike_cnt, tagged_pitch_type
             FROM cpbl.pitch_tracking
-            WHERE {col} = %s AND year = %s AND tagged_pitch_type IS NOT NULL
+            WHERE {col} = %s AND year = %s AND kind_code = 'A' AND tagged_pitch_type IS NOT NULL
               AND ball_cnt IS NOT NULL AND strike_cnt IS NOT NULL
             """,
             (player_id, season),
