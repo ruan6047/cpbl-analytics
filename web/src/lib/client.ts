@@ -142,7 +142,7 @@ export const detail = {
     clientGet<{
       summary: Record<string, number | null>;
       quality: Record<string, number | null>;
-      points: { x: number; y: number; sw: boolean; wh: boolean }[];
+      points: { x: number; y: number; sw: boolean; wh: boolean; result: string }[];
       spray: { dir: number; dist: number; ev: number | null; result: string }[];
       batted: { la: number; ev: number; result: string }[];
     }>(`/api/v1/players/${id}/discipline?role=${role}`),

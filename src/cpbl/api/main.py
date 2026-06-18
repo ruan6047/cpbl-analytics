@@ -779,6 +779,17 @@ def _batted_result(content: str | None) -> str:
     return "out"
 
 
+def _zone_result(pitch_call: str | None, content: str | None) -> str:
+    """單球進壘結果分類：take(未揮棒)/whiff(揮空)/foul(界外)/hit(安打)/out(出局)。"""
+    if pitch_call == "StrikeSwinging":
+        return "whiff"
+    if pitch_call in ("FoulBallNotFieldable", "FoulBallFieldable"):
+        return "foul"
+    if pitch_call == "InPlay":
+        return "hit" if _batted_result(content) in ("hr", "3b", "2b", "1b") else "out"
+    return "take"
+
+
 @app.get("/api/v1/players/{player_id}/discipline")
 def player_discipline(
     player_id: str,
@@ -823,15 +834,17 @@ def player_discipline(
         }
         cur.execute(
             f"""
-            SELECT plate_loc_side, plate_loc_height,
-                   (pitch_call IN {_SWING}) sw, (pitch_call = 'StrikeSwinging') wh
+            SELECT plate_loc_side, plate_loc_height, pitch_call, content
             FROM cpbl.pitch_tracking
             WHERE {col} = %s AND year = %s AND plate_loc_side IS NOT NULL
             """,
             (player_id, season),
         )
-        points = [{"x": float(s), "y": float(h), "sw": sw, "wh": wh}
-                  for s, h, sw, wh in cur.fetchall()]
+        _swset = {"InPlay", "FoulBallNotFieldable", "FoulBallFieldable", "StrikeSwinging"}
+        points = [{"x": float(s), "y": float(h),
+                   "sw": pc in _swset, "wh": pc == "StrikeSwinging",
+                   "result": _zone_result(pc, ct)}
+                  for s, h, pc, ct in cur.fetchall()]
         cur.execute(
             f"""
             SELECT hit_direction, hit_distance, hit_exit_speed, content

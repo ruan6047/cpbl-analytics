@@ -1,32 +1,49 @@
-// 進壘點散布（SVG，捕手視角）：好球帶近似框 + 每球點（揮空紅/揮棒藍/未揮棒灰）。
-export type ZonePoint = { x: number; y: number; sw: boolean; wh: boolean };
+// 進壘點散布（SVG，捕手視角）：好球帶近似框 + 每球依「結果」著色。
+export type ZonePoint = { x: number; y: number; sw: boolean; wh: boolean; result: string };
+
+const RESULT: Record<string, { label: string; color: string }> = {
+  hit: { label: "安打", color: "#16a34a" },
+  out: { label: "出局", color: "#1d6fb8" },
+  foul: { label: "界外", color: "#f59e0b" },
+  whiff: { label: "揮空", color: "#d62839" },
+  take: { label: "未揮棒", color: "#cbd5e1" },
+};
+const ORDER = ["take", "foul", "out", "whiff", "hit"] as const; // 灰底→重點在上
 
 export function ZoneScatter({ points }: { points: ZonePoint[] }) {
-  // 視野收緊到好球帶周邊（±0.62、0.0–1.55）：太邊角的球參考價值低，超界點由 svg 自動裁切。
-  const W = 230, H = 240, pad = 12;
-  const xMin = -0.62, xMax = 0.62, yMin = 0.0, yMax = 1.55;
+  const W = 230, H = 240, pad = 14;
+  const xMin = -0.8, xMax = 0.8, yMin = -0.2, yMax = 1.7;
   const sx = (x: number) => pad + ((x - xMin) / (xMax - xMin)) * (W - 2 * pad);
   const sy = (y: number) => H - pad - ((y - yMin) / (yMax - yMin)) * (H - 2 * pad);
-  // 好球帶（校準值 side±0.21、高 0.5–1.0）
   const z = { x1: sx(-0.21), x2: sx(0.21), y1: sy(1.0), y2: sy(0.5) };
+  const ordered = [...points].sort((a, b) => ORDER.indexOf(a.result as never) - ORDER.indexOf(b.result as never));
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
-      <rect x={z.x1} y={z.y1} width={z.x2 - z.x1} height={z.y2 - z.y1}
-        fill="#eef2f7" stroke="#94a3b8" strokeWidth={1.2} />
-      {/* 九宮格分隔 */}
-      {[1, 2].map((i) => (
-        <g key={i} stroke="#cbd5e1" strokeWidth={0.5}>
-          <line x1={z.x1 + ((z.x2 - z.x1) / 3) * i} y1={z.y1} x2={z.x1 + ((z.x2 - z.x1) / 3) * i} y2={z.y2} />
-          <line x1={z.x1} y1={z.y1 + ((z.y2 - z.y1) / 3) * i} x2={z.x2} y2={z.y1 + ((z.y2 - z.y1) / 3) * i} />
-        </g>
-      ))}
-      {points.map((p, i) => (
-        <circle key={i} cx={sx(p.x)} cy={sy(p.y)} r={3.4}
-          fill={p.wh ? "#d62839" : p.sw ? "#1d6fb8" : "#cbd5e1"}
-          fillOpacity={p.sw ? 0.85 : 0.5} />
-      ))}
-      <text x={W / 2} y={H - 2} textAnchor="middle" className="fill-faint" fontSize={9}>捕手視角</text>
-    </svg>
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
+        <rect x={z.x1} y={z.y1} width={z.x2 - z.x1} height={z.y2 - z.y1}
+          fill="#eef2f7" stroke="#94a3b8" strokeWidth={1.2} />
+        {/* 九宮格分隔 */}
+        {[1, 2].map((i) => (
+          <g key={i} stroke="#cbd5e1" strokeWidth={0.5}>
+            <line x1={z.x1 + ((z.x2 - z.x1) / 3) * i} y1={z.y1} x2={z.x1 + ((z.x2 - z.x1) / 3) * i} y2={z.y2} />
+            <line x1={z.x1} y1={z.y1 + ((z.y2 - z.y1) / 3) * i} x2={z.x2} y2={z.y1 + ((z.y2 - z.y1) / 3) * i} />
+          </g>
+        ))}
+        {ordered.map((p, i) => (
+          <circle key={i} cx={sx(p.x)} cy={sy(p.y)} r={2.8}
+            fill={(RESULT[p.result] ?? RESULT.take).color}
+            fillOpacity={p.result === "take" ? 0.5 : 0.9} />
+        ))}
+        <text x={W / 2} y={H - 2} textAnchor="middle" className="fill-faint" fontSize={9}>捕手視角</text>
+      </svg>
+      <div className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px] text-muted">
+        {(["hit", "out", "foul", "whiff", "take"] as const).map((k) => (
+          <span key={k} className="inline-flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: RESULT[k].color }} />{RESULT[k].label}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
