@@ -357,8 +357,8 @@ export default function PlayerPage() {
       {roles.length > 1 && <div className="mb-5"><Tabs opts={roles} v={role} set={setRole} /></div>}
 
       {/* 本季成績 + 官方進階（並排兩欄） */}
-      <section className="mb-6 grid gap-6 lg:grid-cols-2">
-        <div>
+      <section className="mb-6 grid items-stretch gap-6 lg:grid-cols-2">
+        <div className="flex flex-col">
           <h2 className="mb-3 text-lg font-semibold text-ink">本季成績</h2>
           {s ? (() => {
             const primary: [string, string, boolean][] = role === "batting"
@@ -381,7 +381,7 @@ export default function PlayerPage() {
                  ["暴投", String(s.wp ?? "—")], ["犯規", String(s.bk ?? "—")], ["投球數", String(s.np ?? "—")],
                  ["失分", String(s.r ?? "—")], ["自責", String(s.er ?? "—")], ["出賽", String(s.g ?? "—")]];
             return (
-              <Card className="space-y-2">
+              <Card className="flex flex-1 flex-col gap-2">
                 <div className="grid grid-cols-3 gap-2">
                   {primary.map(([l, v, a]) => (
                     <div key={l} className="rounded-lg bg-surface-2 px-2 py-3 text-center">
@@ -402,9 +402,9 @@ export default function PlayerPage() {
             );
           })() : <p className="text-sm text-muted">本季無{role === "batting" ? "打擊" : "投球"}成績。</p>}
         </div>
-        <div>
+        <div className="flex flex-col">
           <h2 className="mb-3 text-lg font-semibold text-ink">官方進階 · 百分位 PR</h2>
-          <Card>
+          <Card className="flex-1">
             {prRows.length === 0 ? (
               <p className="py-8 text-center text-sm text-faint">{advanced === null ? "載入中…" : "無官方進階資料"}</p>
             ) : (
@@ -422,7 +422,7 @@ export default function PlayerPage() {
       {/* 擊球落點 + 進壘點（左 2/3 放大） + 好球帶紀律（右側直欄） */}
       <section className="mb-6">
         <h2 className="mb-3 text-lg font-semibold text-ink">逐球追蹤</h2>
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid items-stretch gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <div className="grid gap-x-4 sm:grid-cols-2">
             <div className="relative flex flex-col">
@@ -490,8 +490,8 @@ export default function PlayerPage() {
       {/* 賽季走勢（逐場累積）+ 對戰各隊 */}
       <section className="mb-6">
         <h2 className="mb-3 text-lg font-semibold text-ink">賽季走勢 · 對戰各隊</h2>
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
+        <div className="grid items-stretch gap-6 lg:grid-cols-2">
+          <Card className="h-full">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h3 className="text-sm font-medium text-muted">賽季走勢（逐場累積）</h3>
               <select value={monthMetric} onChange={(e) => setMonthMetric(e.target.value)}
@@ -513,7 +513,7 @@ export default function PlayerPage() {
               </ResponsiveContainer>
             )}
           </Card>
-          <Card>
+          <Card className="h-full">
             <h3 className="mb-3 text-sm font-medium text-muted">對戰各隊（本季）</h3>
             {vsTeam === null ? <p className="py-8 text-center text-sm text-faint">載入中…</p>
               : vsTeam.length === 0 ? <p className="py-8 text-center text-sm text-faint">無資料</p>
