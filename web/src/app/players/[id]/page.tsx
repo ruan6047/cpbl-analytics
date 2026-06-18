@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { LaEvScatter } from "@/components/la-ev-scatter";
 import { SprayChart } from "@/components/spray-chart";
 import { Card, PercentileBar, TeamLogo } from "@/components/ui";
+import { ZoneHeatmap } from "@/components/zone-heatmap";
 import { ZoneScatter } from "@/components/zone-scatter";
 import { detail, type PlayerProfile, type StatRow } from "@/lib/client";
 import { codeFromName, teamColor, teamShort } from "@/lib/teams";
@@ -16,6 +18,7 @@ type Disc = {
   quality: Record<string, number | null>;
   points: { x: number; y: number; sw: boolean; wh: boolean }[];
   spray: { dir: number; dist: number; ev: number | null; result: string }[];
+  batted: { la: number; ev: number; result: string }[];
 };
 
 const numOf = (v: number | string | null | undefined) =>
@@ -259,6 +262,9 @@ export default function PlayerPage() {
   const [season, setSeason] = useState<{ batting: StatRow | null; pitching: StatRow | null } | null>(null);
   const [advanced, setAdvanced] = useState<{ batting: StatRow | null; pitching: StatRow | null } | null>(null);
   const [disc, setDisc] = useState<Disc | null>(null);
+  const [zoneView, setZoneView] = useState<"scatter" | "heat">("scatter");
+  const [heatMetric, setHeatMetric] = useState<"density" | "whiff">("density");
+  const [pitchMix, setPitchMix] = useState<{ bucket: string; n: number; fastball: number; breakingball: number }[] | null>(null);
   const [arsenal, setArsenal] = useState<StatRow[] | null>(null);
   const [fielding, setFielding] = useState<StatRow[] | null>(null);
   const [vsTeam, setVsTeam] = useState<StatRow[] | null>(null);
@@ -285,6 +291,8 @@ export default function PlayerPage() {
     setTrend(null);
     setVsTeam(null);
     setCareer(null);
+    setPitchMix(null);
+    detail.pitchMix(id, role).then((d) => setPitchMix(d.items)).catch(() => setPitchMix([]));
     detail.discipline(id, role).then((d) => setDisc(d as Disc)).catch(() => setDisc(null));
     detail.arsenal(id, role).then((d) => setArsenal(d.items)).catch(() => setArsenal([]));
     detail.trend(id, role).then((d) => setTrend(d.items)).catch(() => setTrend([]));
@@ -431,8 +439,28 @@ export default function PlayerPage() {
                 : <p className="py-12 text-center text-sm text-faint">{disc === null ? "載入中…" : "無擊球追蹤資料"}</p>}
             </div>
             <div className="relative">
-              <h3 className="absolute left-0 top-0 z-10 text-sm font-medium text-muted">進壘點（紅揮空/藍揮棒/灰未揮，{disc?.points.length ?? 0} 球）</h3>
-              {disc && disc.points.length > 0 ? <ZoneScatter points={disc.points} />
+              <h3 className="absolute left-0 top-0 z-10 text-sm font-medium text-muted">進壘點（{disc?.points.length ?? 0} 球）</h3>
+              <div className="absolute right-0 top-0 z-10 flex gap-1 text-[11px]">
+                {(["scatter", "heat"] as const).map((v) => (
+                  <button key={v} onClick={() => setZoneView(v)}
+                    className={`rounded px-1.5 py-0.5 ${zoneView === v ? "bg-ink text-white" : "bg-surface-2 text-muted"}`}>
+                    {v === "scatter" ? "散點" : "熱區"}
+                  </button>
+                ))}
+              </div>
+              {zoneView === "heat" && (
+                <div className="absolute right-0 top-6 z-10 flex gap-1 text-[11px]">
+                  {(["density", "whiff"] as const).map((m) => (
+                    <button key={m} onClick={() => setHeatMetric(m)}
+                      className={`rounded px-1.5 py-0.5 ${heatMetric === m ? "bg-accent text-white" : "bg-surface-2 text-muted"}`}>
+                      {m === "density" ? "密度" : "揮空"}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {disc && disc.points.length > 0
+                ? (zoneView === "scatter" ? <ZoneScatter points={disc.points} />
+                    : <ZoneHeatmap points={disc.points} metric={heatMetric} />)
                 : <p className="py-12 text-center text-sm text-faint">{disc === null ? "載入中…" : "無逐球資料"}</p>}
             </div>
           </div>
@@ -486,6 +514,47 @@ export default function PlayerPage() {
         </div>
         </div>
       </section>
+
+      {/* 打者：擊球品質散點 / 投手：配球傾向 */}
+      {role === "batting" ? (
+        (disc?.batted.length ?? 0) > 0 && (
+          <section className="mb-6">
+            <h2 className="mb-3 text-lg font-semibold text-ink">擊球品質分布（仰角 × 初速）</h2>
+            <Card>
+              <LaEvScatter balls={disc!.batted} />
+              <p className="mt-1 text-[10px] text-faint">紅框＝強勁擊球的理想仰角帶（近似 barrel 甜蜜區）；逐球追蹤樣本。</p>
+            </Card>
+          </section>
+        )
+      ) : (
+        (pitchMix?.length ?? 0) > 0 && (
+          <section className="mb-6">
+            <h2 className="mb-3 text-lg font-semibold text-ink">配球傾向（依球數）</h2>
+            <Card>
+              <div className="space-y-2.5">
+                {pitchMix!.map((b) => (
+                  <div key={b.bucket} className="flex items-center gap-2 text-xs">
+                    <span className="w-16 shrink-0 text-muted">{b.bucket}</span>
+                    <div className="flex h-5 flex-1 overflow-hidden rounded">
+                      <div className="flex items-center justify-center text-[10px] text-white" style={{ width: `${b.fastball}%`, background: "#1d6fb8" }}>
+                        {b.fastball >= 12 ? `${b.fastball}%` : ""}
+                      </div>
+                      <div className="flex items-center justify-center text-[10px] text-white" style={{ width: `${b.breakingball}%`, background: "#f59e0b" }}>
+                        {b.breakingball >= 12 ? `${b.breakingball}%` : ""}
+                      </div>
+                    </div>
+                    <span className="w-10 shrink-0 text-right font-mono text-faint">{b.n}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2.5 flex justify-center gap-4 text-[11px] text-muted">
+                <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: "#1d6fb8" }} />速球</span>
+                <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: "#f59e0b" }} />變化球</span>
+              </div>
+            </Card>
+          </section>
+        )
+      )}
 
       {/* 賽季走勢（逐場累積）+ 對戰各隊 */}
       <section className="mb-6">

@@ -844,6 +844,18 @@ def player_discipline(
         spray = [{"dir": float(d), "dist": float(dist),
                   "ev": float(ev) if ev is not None else None, "result": _batted_result(ct)}
                  for d, dist, ev, ct in cur.fetchall()]
+        # 擊球仰角 × 初速（barrel 散點）：InPlay 且有 LA+EV
+        cur.execute(
+            f"""
+            SELECT hit_launch_angle, hit_exit_speed, content
+            FROM cpbl.pitch_tracking
+            WHERE {col} = %s AND year = %s AND pitch_call = 'InPlay'
+              AND hit_launch_angle IS NOT NULL AND hit_exit_speed IS NOT NULL
+            """,
+            (player_id, season),
+        )
+        batted = [{"la": float(la), "ev": float(ev), "result": _batted_result(ct)}
+                  for la, ev, ct in cur.fetchall()]
         # 擊球品質（打者）／球質（投手）：逐球樣本衍生
         cur.execute(
             f"""
@@ -859,7 +871,7 @@ def player_discipline(
         quality = {"avg_launch_angle": fl(la), "max_hit_dist": fl(maxd), "avg_exit_speed": fl(ev),
                    "avg_extension": fl(ext), "avg_rel_height": fl(relh), "avg_speed": fl(rels)}
     return {"player_id": player_id, "role": role, "summary": summary,
-            "quality": quality, "points": points, "spray": spray}
+            "quality": quality, "points": points, "spray": spray, "batted": batted}
 
 
 @app.get("/api/v1/standings")
@@ -912,6 +924,55 @@ def player_arsenal(
          "avg_ev": fl(ev)}
         for pt, n, spd, spin, wh, sw, ev in rows
     ]
+    return {"player_id": player_id, "role": role, "items": items}
+
+
+def _count_bucket(b: int, s: int) -> str:
+    """球數情境分桶（互斥、依優先序）。"""
+    if s == 2:
+        return "兩好球"
+    if b == 0 and s == 0:
+        return "第一球"
+    if s > b:
+        return "投手領先"
+    if b > s:
+        return "打者領先"
+    return "平球數"
+
+
+@app.get("/api/v1/players/{player_id}/pitch-mix")
+def player_pitch_mix(
+    player_id: str,
+    role: str = Query("pitching", pattern="^(batting|pitching)$"),
+    season: int = Query(DEFAULT_SEASON),
+) -> dict:
+    """配球傾向：不同球數情境下的速球／變化球占比。pitching=投手配球、batting=打者面對。"""
+    col = "pitcher_acnt" if role == "pitching" else "hitter_acnt"
+    order = ["第一球", "打者領先", "平球數", "投手領先", "兩好球"]
+    agg: dict[str, dict[str, int]] = {k: {"fastball": 0, "breakingball": 0} for k in order}
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            f"""
+            SELECT ball_cnt, strike_cnt, tagged_pitch_type
+            FROM cpbl.pitch_tracking
+            WHERE {col} = %s AND year = %s AND tagged_pitch_type IS NOT NULL
+              AND ball_cnt IS NOT NULL AND strike_cnt IS NOT NULL
+            """,
+            (player_id, season),
+        )
+        for b, s, pt in cur.fetchall():
+            bk = _count_bucket(b, s)
+            if pt in ("fastball", "breakingball"):
+                agg[bk][pt] += 1
+    items = []
+    for k in order:
+        n = agg[k]["fastball"] + agg[k]["breakingball"]
+        if not n:
+            continue
+        items.append({"bucket": k, "n": n,
+                      "fastball": round(agg[k]["fastball"] / n * 100, 1),
+                      "breakingball": round(agg[k]["breakingball"] / n * 100, 1)})
     return {"player_id": player_id, "role": role, "items": items}
 
 

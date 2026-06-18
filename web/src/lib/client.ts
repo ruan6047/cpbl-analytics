@@ -144,7 +144,12 @@ export const detail = {
       quality: Record<string, number | null>;
       points: { x: number; y: number; sw: boolean; wh: boolean }[];
       spray: { dir: number; dist: number; ev: number | null; result: string }[];
+      batted: { la: number; ev: number; result: string }[];
     }>(`/api/v1/players/${id}/discipline?role=${role}`),
+  pitchMix: (id: string, role: "batting" | "pitching") =>
+    clientGet<{ items: { bucket: string; n: number; fastball: number; breakingball: number }[] }>(
+      `/api/v1/players/${id}/pitch-mix?role=${role}`,
+    ),
   gameLive: (sno: number, kind = "A") =>
     clientGet<{ game: StatRow | null; scoreboard: StatRow[]; livelog: StatRow[] }>(
       `/api/v1/games/${sno}/live?kind_code=${kind}`,
