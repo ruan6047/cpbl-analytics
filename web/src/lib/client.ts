@@ -143,7 +143,7 @@ export const detail = {
       summary: Record<string, number | null>;
       quality: Record<string, number | null>;
       points: { x: number; y: number; sw: boolean; wh: boolean }[];
-      spray: { dir: number; dist: number; ev: number | null }[];
+      spray: { dir: number; dist: number; ev: number | null; result: string }[];
     }>(`/api/v1/players/${id}/discipline?role=${role}`),
   gameLive: (sno: number, kind = "A") =>
     clientGet<{ game: StatRow | null; scoreboard: StatRow[]; livelog: StatRow[] }>(

@@ -761,6 +761,20 @@ _SWING = "('InPlay','FoulBallNotFieldable','FoulBallFieldable','StrikeSwinging')
 _CONTACT = "('InPlay','FoulBallNotFieldable','FoulBallFieldable')"
 
 
+def _batted_result(content: str | None) -> str:
+    """從逐球 content 文字判斷擊球結果：hr/hit/out。
+    content 在 DB 為雙重編碼（UTF-8 bytes 被當 latin-1 存），讀取時先還原。"""
+    try:
+        c = (content or "").encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        c = content or ""
+    if "全壘打" in c:
+        return "hr"
+    if "安打" in c or "二壘打" in c or "三壘打" in c:
+        return "hit"
+    return "out"
+
+
 @app.get("/api/v1/players/{player_id}/discipline")
 def player_discipline(
     player_id: str,
@@ -816,14 +830,16 @@ def player_discipline(
                   for s, h, sw, wh in cur.fetchall()]
         cur.execute(
             f"""
-            SELECT hit_direction, hit_distance, hit_exit_speed
+            SELECT hit_direction, hit_distance, hit_exit_speed, content
             FROM cpbl.pitch_tracking
-            WHERE {col} = %s AND year = %s AND hit_distance IS NOT NULL AND hit_direction IS NOT NULL
+            WHERE {col} = %s AND year = %s AND pitch_call = 'InPlay'
+              AND hit_distance IS NOT NULL AND hit_direction IS NOT NULL
             """,
             (player_id, season),
         )
-        spray = [{"dir": float(d), "dist": float(dist), "ev": float(ev) if ev is not None else None}
-                 for d, dist, ev in cur.fetchall()]
+        spray = [{"dir": float(d), "dist": float(dist),
+                  "ev": float(ev) if ev is not None else None, "result": _batted_result(ct)}
+                 for d, dist, ev, ct in cur.fetchall()]
         # 擊球品質（打者）／球質（投手）：逐球樣本衍生
         cur.execute(
             f"""

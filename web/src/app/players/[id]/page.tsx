@@ -15,7 +15,7 @@ type Disc = {
   summary: Record<string, number | null>;
   quality: Record<string, number | null>;
   points: { x: number; y: number; sw: boolean; wh: boolean }[];
-  spray: { dir: number; dist: number; ev: number | null }[];
+  spray: { dir: number; dist: number; ev: number | null; result: string }[];
 };
 
 const numOf = (v: number | string | null | undefined) =>
@@ -426,7 +426,7 @@ export default function PlayerPage() {
         <Card className="flex flex-col lg:col-span-2">
           <div className="grid gap-x-4 sm:grid-cols-2">
             <div className="relative flex flex-col">
-              <h3 className="absolute left-0 top-0 z-10 text-sm font-medium text-muted">擊球落點（藍低→紅高，{disc?.spray.length ?? 0} 球）</h3>
+              <h3 className="absolute left-0 top-0 z-10 text-sm font-medium text-muted">擊球落點（{disc?.spray.length ?? 0} 球）</h3>
               {disc && disc.spray.length > 0 ? <div className="mt-auto mb-[13%]"><SprayChart points={disc.spray} /></div>
                 : <p className="py-12 text-center text-sm text-faint">{disc === null ? "載入中…" : "無擊球追蹤資料"}</p>}
             </div>
