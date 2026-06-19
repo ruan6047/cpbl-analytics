@@ -7,7 +7,7 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 import { LaEvScatter } from "@/components/la-ev-scatter";
 import { SprayChart } from "@/components/spray-chart";
 import { Card, PercentileBar, TeamLogo } from "@/components/ui";
-import { ZoneHeatmap } from "@/components/zone-heatmap";
+import { type HeatMetric, PerfHeatmap } from "@/components/perf-heatmap";
 import { ZoneScatter } from "@/components/zone-scatter";
 import { detail, type PlayerProfile, type StatRow } from "@/lib/client";
 import { codeFromName, teamColor, teamShort } from "@/lib/teams";
@@ -16,7 +16,7 @@ type Role = "batting" | "pitching";
 type Disc = {
   summary: Record<string, number | null>;
   quality: Record<string, number | null>;
-  points: { x: number; y: number; sw: boolean; wh: boolean; result: string }[];
+  points: { x: number; y: number; sw: boolean; wh: boolean; result: string; ev: number | null }[];
   spray: { dir: number; dist: number; ev: number | null; result: string }[];
   batted: { la: number; ev: number; result: string }[];
 };
@@ -263,7 +263,7 @@ export default function PlayerPage() {
   const [advanced, setAdvanced] = useState<{ batting: StatRow | null; pitching: StatRow | null } | null>(null);
   const [disc, setDisc] = useState<Disc | null>(null);
   const [zoneView, setZoneView] = useState<"scatter" | "heat">("scatter");
-  const [heatMetric, setHeatMetric] = useState<"density" | "whiff">("density");
+  const [heatMetric, setHeatMetric] = useState<HeatMetric>("density");
   const [pitchMix, setPitchMix] = useState<{ bucket: string; n: number; fastball: number; breakingball: number }[] | null>(null);
   const [arsenal, setArsenal] = useState<StatRow[] | null>(null);
   const [fielding, setFielding] = useState<StatRow[] | null>(null);
@@ -449,19 +449,26 @@ export default function PlayerPage() {
                 ))}
               </div>
               {zoneView === "heat" && (
-                <div className="absolute right-0 top-6 z-10 flex gap-1 text-[11px]">
-                  {(["density", "whiff"] as const).map((m) => (
+                <div className="absolute right-0 top-6 z-10 flex flex-wrap justify-end gap-1 text-[11px]">
+                  {([["density", "密度"], ["ev", "初速"], ["ba", "安打率"], ["whiff", "揮空"]] as const).map(([m, l]) => (
                     <button key={m} onClick={() => setHeatMetric(m)}
                       className={`rounded px-1.5 py-0.5 ${heatMetric === m ? "bg-accent text-white" : "bg-surface-2 text-muted"}`}>
-                      {m === "density" ? "密度" : "揮空"}
+                      {l}
                     </button>
                   ))}
                 </div>
               )}
               {disc && disc.points.length > 0
                 ? (zoneView === "scatter" ? <ZoneScatter points={disc.points} />
-                    : <ZoneHeatmap points={disc.points} metric={heatMetric} />)
+                    : <PerfHeatmap points={disc.points} metric={heatMetric} />)
                 : <p className="py-12 text-center text-sm text-faint">{disc === null ? "載入中…" : "無逐球資料"}</p>}
+              {zoneView === "heat" && (
+                <div className="mt-1 flex items-center justify-center gap-2 text-[11px] text-muted">
+                  <span>低</span>
+                  <span className="inline-block h-2 w-24 rounded-full" style={{ background: "linear-gradient(90deg,#cfe2ff,#fff7cc,#d62839)" }} />
+                  <span>高{heatMetric === "ev" ? "(初速)" : heatMetric === "ba" ? "(安打率)" : heatMetric === "whiff" ? "(揮空)" : "(密度)"}</span>
+                </div>
+              )}
             </div>
           </div>
           {disc && (() => {

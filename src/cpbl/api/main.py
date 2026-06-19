@@ -834,7 +834,7 @@ def player_discipline(
         }
         cur.execute(
             f"""
-            SELECT plate_loc_side, plate_loc_height, pitch_call, content
+            SELECT plate_loc_side, plate_loc_height, pitch_call, content, hit_exit_speed
             FROM cpbl.pitch_tracking
             WHERE {col} = %s AND year = %s AND kind_code = 'A' AND plate_loc_side IS NOT NULL
             """,
@@ -843,8 +843,8 @@ def player_discipline(
         _swset = {"InPlay", "FoulBallNotFieldable", "FoulBallFieldable", "StrikeSwinging"}
         points = [{"x": float(s), "y": float(h),
                    "sw": pc in _swset, "wh": pc == "StrikeSwinging",
-                   "result": _zone_result(pc, ct)}
-                  for s, h, pc, ct in cur.fetchall()]
+                   "result": _zone_result(pc, ct), "ev": float(ev) if ev is not None else None}
+                  for s, h, pc, ct, ev in cur.fetchall()]
         cur.execute(
             f"""
             SELECT hit_direction, hit_distance, hit_exit_speed, content
