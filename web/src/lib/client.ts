@@ -151,9 +151,10 @@ export const detail = {
       `/api/v1/players/${id}/pitch-mix?role=${role}`,
     ),
   gameLive: (sno: number, kind = "A") =>
-    clientGet<{ game: StatRow | null; scoreboard: StatRow[]; livelog: StatRow[] }>(
-      `/api/v1/games/${sno}/live?kind_code=${kind}`,
-    ),
+    clientGet<{
+      game: StatRow | null; scoreboard: StatRow[]; livelog: StatRow[];
+      batting: StatRow[]; pitching: StatRow[]; people: Record<string, string>;
+    }>(`/api/v1/games/${sno}/live?kind_code=${kind}`),
   // 全聯盟本季母體（算百分位 PR 用）
   leaders: (role: "batting" | "pitching") =>
     clientGet<{ items: StatRow[] }>(

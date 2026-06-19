@@ -7,7 +7,10 @@ import { detail, type StatRow } from "@/lib/client";
 
 const n = (v: number | string | null) => (v === null || v === undefined ? "" : Number(v));
 
-type Live = { game: StatRow | null; scoreboard: StatRow[]; livelog: StatRow[] };
+type Live = {
+  game: StatRow | null; scoreboard: StatRow[]; livelog: StatRow[];
+  batting: StatRow[]; pitching: StatRow[]; people: Record<string, string>;
+};
 
 function Scoreboard({ sb, game }: { sb: StatRow[]; game: StatRow }) {
   const away = sb.filter((r) => String(r.visiting_home_type) === "1");
@@ -45,6 +48,61 @@ function Scoreboard({ sb, game }: { sb: StatRow[]; game: StatRow }) {
         <tbody>
           {row(String(game.away_team_name), away, Number(game.away_score))}
           {row(String(game.home_team_name), home, Number(game.home_score))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const i0 = (v: number | string | null | undefined) => (v === null || v === undefined ? "—" : String(v));
+const ipTxt = (r: StatRow) => `${r.inning_pitched_cnt ?? 0}.${r.inning_pitched_div3 ?? 0}`;
+
+function BoxBatting({ rows, team }: { rows: StatRow[]; team: string }) {
+  const cols: [string, (r: StatRow) => string][] = [
+    ["AB", (r) => i0(r.at_bats)], ["R", (r) => i0(r.runs)], ["H", (r) => i0(r.hits)],
+    ["HR", (r) => i0(r.home_runs)], ["打點", (r) => i0(r.rbi)], ["BB", (r) => i0(r.bb)], ["SO", (r) => i0(r.so)],
+  ];
+  return (
+    <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+      <table className="w-full text-sm">
+        <thead className="bg-surface-2 text-left text-muted">
+          <tr><th className="px-3 py-2 font-medium">{team}　打者</th>
+            {cols.map(([h]) => <th key={h} className="px-2 py-2 text-right font-medium">{h}</th>)}</tr>
+        </thead>
+        <tbody className="font-mono tabular-nums">
+          {rows.map((r, i) => (
+            <tr key={i} className="border-t border-line">
+              <td className="whitespace-nowrap px-3 py-1.5 font-sans text-ink">{String(r.hitter_name ?? "")}
+                <span className="ml-1 text-[10px] text-faint">{String(r.role_type ?? "")}</span></td>
+              {cols.map(([h, f]) => <td key={h} className="px-2 py-1.5 text-right">{f(r)}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function BoxPitching({ rows, team }: { rows: StatRow[]; team: string }) {
+  const cols: [string, (r: StatRow) => string][] = [
+    ["IP", ipTxt], ["H", (r) => i0(r.hits)], ["R", (r) => i0(r.runs)], ["ER", (r) => i0(r.earned_runs)],
+    ["BB", (r) => i0(r.bb)], ["SO", (r) => i0(r.so)], ["球數", (r) => i0(r.pitch_cnt)],
+  ];
+  return (
+    <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+      <table className="w-full text-sm">
+        <thead className="bg-surface-2 text-left text-muted">
+          <tr><th className="px-3 py-2 font-medium">{team}　投手</th>
+            {cols.map(([h]) => <th key={h} className="px-2 py-2 text-right font-medium">{h}</th>)}</tr>
+        </thead>
+        <tbody className="font-mono tabular-nums">
+          {rows.map((r, i) => (
+            <tr key={i} className="border-t border-line">
+              <td className="whitespace-nowrap px-3 py-1.5 font-sans text-ink">{String(r.pitcher_name ?? "")}
+                {r.game_result && <span className="ml-1 text-[10px] text-accent">{String(r.game_result)}</span>}</td>
+              {cols.map(([h, f]) => <td key={h} className="px-2 py-1.5 text-right">{f(r)}</td>)}
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
@@ -137,10 +195,41 @@ export default function GameLivePage() {
         </p>
       </header>
 
+      {(() => {
+        const ppl = data.people;
+        const items: [string, string | undefined][] = [
+          ["先發(客)", ppl[String(g.away_starter_id)]],
+          ["先發(主)", ppl[String(g.home_starter_id)]],
+          ["勝投", ppl[String(g.winning_pitcher_id)]],
+          ["敗投", ppl[String(g.losing_pitcher_id)]],
+          ["救援", ppl[String(g.closer_id)]],
+          ["MVP", ppl[String(g.mvp_id)]],
+        ].filter(([, v]) => v) as [string, string][];
+        return items.length ? (
+          <div className="mb-6 flex flex-wrap gap-x-5 gap-y-1.5 rounded-xl border border-line bg-surface px-4 py-3 text-sm">
+            {items.map(([l, v]) => (
+              <span key={l}><span className="text-muted">{l}</span> <span className="font-medium text-ink">{v}</span></span>
+            ))}
+          </div>
+        ) : null;
+      })()}
+
       <section className="mb-8">
         <h2 className="mb-2 text-lg font-semibold">逐局比分</h2>
         <Scoreboard sb={data.scoreboard} game={g} />
       </section>
+
+      {data.batting.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-lg font-semibold">Box Score</h2>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <BoxBatting rows={data.batting.filter((r) => String(r.visiting_home_type) === "1")} team={String(g.away_team_name)} />
+            <BoxBatting rows={data.batting.filter((r) => String(r.visiting_home_type) === "2")} team={String(g.home_team_name)} />
+            <BoxPitching rows={data.pitching.filter((r) => String(r.visiting_home_type) === "1")} team={String(g.away_team_name)} />
+            <BoxPitching rows={data.pitching.filter((r) => String(r.visiting_home_type) === "2")} team={String(g.home_team_name)} />
+          </div>
+        </section>
+      )}
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">逐打席賽況</h2>

@@ -714,14 +714,16 @@ def game_live(
     season: int = Query(DEFAULT_SEASON),
     kind_code: str = Query("A", pattern="^(A|C|E)$"),
 ) -> dict:
-    """單場賽況：賽事資訊 + 逐局比分 + 逐打席事件流。"""
+    """單場賽況：賽事資訊 + 逐局比分 + 逐打席事件流 + 雙方 box score + 關鍵球員。"""
     with conn() as c:
         cur = c.cursor()
         cur.execute(
             """
             SELECT year, kind_code, game_sno, game_date, venue,
                    away_team_name, away_team_code, away_score,
-                   home_team_name, home_team_code, home_score
+                   home_team_name, home_team_code, home_score,
+                   home_starter_id, away_starter_id, winning_pitcher_id,
+                   losing_pitcher_id, closer_id, mvp_id
             FROM cpbl.games WHERE year = %s AND kind_code = %s AND game_sno = %s
             """,
             (season, kind_code, game_sno),
@@ -739,7 +741,29 @@ def game_live(
             (season, kind_code, game_sno),
         )
         livelog = _dicts(cur)
-    return {"game": g[0] if g else None, "scoreboard": scoreboard, "livelog": livelog}
+        cur.execute(
+            "SELECT * FROM cpbl.batting_gamelog WHERE year=%s AND kind_code=%s AND game_sno=%s "
+            "ORDER BY visiting_home_type, plate_appearances DESC NULLS LAST, at_bats DESC NULLS LAST",
+            (season, kind_code, game_sno),
+        )
+        batting = _dicts(cur)
+        cur.execute(
+            "SELECT * FROM cpbl.pitching_gamelog WHERE year=%s AND kind_code=%s AND game_sno=%s "
+            "ORDER BY visiting_home_type, inning_pitched_cnt DESC NULLS LAST",
+            (season, kind_code, game_sno),
+        )
+        pitching = _dicts(cur)
+        # 關鍵球員 id → 名字
+        people: dict[str, str] = {}
+        if g:
+            ids = [g[0].get(k) for k in ("home_starter_id", "away_starter_id", "winning_pitcher_id",
+                                         "losing_pitcher_id", "closer_id", "mvp_id")]
+            ids = [i for i in ids if i]
+            if ids:
+                cur.execute("SELECT id, name FROM cpbl.players WHERE id = ANY(%s)", (ids,))
+                people = {pid: nm for pid, nm in cur.fetchall()}
+    return {"game": g[0] if g else None, "scoreboard": scoreboard, "livelog": livelog,
+            "batting": batting, "pitching": pitching, "people": people}
 
 
 @app.get("/api/v1/players/{player_id}/advanced")
