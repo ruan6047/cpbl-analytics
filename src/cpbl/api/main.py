@@ -762,8 +762,36 @@ def game_live(
             if ids:
                 cur.execute("SELECT id, name FROM cpbl.players WHERE id = ANY(%s)", (ids,))
                 people = {pid: nm for pid, nm in cur.fetchall()}
+        # 兩隊本季戰績（W-L + 近 10 場），缺則不放
+        records: dict[str, dict] = {}
+        if g:
+            ts = matchup.team_stats(season)
+            for code in (g[0].get("away_team_code"), g[0].get("home_team_code")):
+                if code in ts:
+                    records[code] = {"w": ts[code]["w"], "l": ts[code]["l"], "form": ts[code]["last10"]}
+        # 出賽打者本季打擊率（batting_current），缺則不放
+        batter_avg: dict[str, float] = {}
+        bids = sorted({str(r["hitter_acnt"]) for r in livelog if r.get("hitter_acnt")})
+        if bids:
+            cur.execute("SELECT player_id, avg FROM cpbl.batting_current WHERE player_id = ANY(%s)", (bids,))
+            batter_avg = {pid: float(a) for pid, a in cur.fetchall() if a is not None}
+        # 逐球 TrackMan（部分球場未設置 → 空陣列；前端以 (投手,打者,局) 比對當前打席）
+        # 名稱欄位有編碼問題，故只取以 acnt 比對與數值欄位，不取 *_name。
+        cur.execute(
+            """
+            SELECT pitcher_acnt, hitter_acnt, inning_seq, pitch_cnt, ball_cnt, strike_cnt,
+                   auto_pitch_type, rel_speed, plate_loc_side, plate_loc_height, pitch_call
+            FROM cpbl.pitch_tracking
+            WHERE year=%s AND kind_code=%s AND game_sno=%s
+            ORDER BY pitcher_acnt, pitch_cnt
+            """,
+            (season, kind_code, game_sno),
+        )
+        tracking = _dicts(cur)
     return {"game": g[0] if g else None, "scoreboard": scoreboard, "livelog": livelog,
-            "batting": batting, "pitching": pitching, "people": people}
+            "batting": batting, "pitching": pitching, "people": people,
+            "records": records, "batter_avg": batter_avg,
+            "has_tracking": len(tracking) > 0, "tracking": tracking}
 
 
 @app.get("/api/v1/players/{player_id}/advanced")
