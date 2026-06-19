@@ -1,4 +1,7 @@
-// 進壘點散布（SVG，捕手視角）：好球帶近似框 + 每球依「結果」著色。
+// 進壘點散布（SVG，捕手視角）：好球帶近似框 + 每球依「結果」著色。圖例可點擊開關。
+"use client";
+import { useState } from "react";
+
 export type ZonePoint = { x: number; y: number; sw: boolean; wh: boolean; result: string };
 
 const RESULT: Record<string, { label: string; color: string }> = {
@@ -16,7 +19,9 @@ export function ZoneScatter({ points }: { points: ZonePoint[] }) {
   const sx = (x: number) => pad + ((x - xMin) / (xMax - xMin)) * (W - 2 * pad);
   const sy = (y: number) => H - pad - ((y - yMin) / (yMax - yMin)) * (H - 2 * pad);
   const z = { x1: sx(-0.21), x2: sx(0.21), y1: sy(1.0), y2: sy(0.5) };
-  const ordered = [...points].sort((a, b) => ORDER.indexOf(a.result as never) - ORDER.indexOf(b.result as never));
+  const [off, setOff] = useState<Record<string, boolean>>({});
+  const ordered = [...points].filter((p) => !off[p.result])
+    .sort((a, b) => ORDER.indexOf(a.result as never) - ORDER.indexOf(b.result as never));
 
   return (
     <div>
@@ -39,9 +44,10 @@ export function ZoneScatter({ points }: { points: ZonePoint[] }) {
       </svg>
       <div className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px] text-muted">
         {(["hit", "out", "foul", "whiff", "take"] as const).map((k) => (
-          <span key={k} className="inline-flex items-center gap-1">
+          <button key={k} onClick={() => setOff((o) => ({ ...o, [k]: !o[k] }))}
+            className={`inline-flex items-center gap-1 transition ${off[k] ? "opacity-35 line-through" : ""}`}>
             <span className="inline-block h-2 w-2 rounded-full" style={{ background: RESULT[k].color }} />{RESULT[k].label}
-          </span>
+          </button>
         ))}
       </div>
     </div>

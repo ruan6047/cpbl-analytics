@@ -1,6 +1,8 @@
 // 擊球落點圖（SVG）：用 TrackMan bearing(方向)＋distance(距離)。本壘貼底部中央，
-// 球場向上扇形展開；點以「擊球結果」著色（全壘打紅 / 安打藍 / 出局灰）。
-// 全壘打牆畫在 ~118m，縮放上限取 135m → 越牆全壘打仍能畫在牆弧上方。
+// 球場向上扇形展開；點以「擊球結果」著色。圖例可點擊開關各結果。
+"use client";
+import { useState } from "react";
+
 export type SprayPoint = { dir: number; dist: number; ev: number | null; result: string };
 
 const RESULT = {
@@ -31,8 +33,10 @@ export function SprayChart({ points }: { points: SprayPoint[] }) {
   }
   field += "Z";
   const col = (r: string) => (RESULT[r as keyof typeof RESULT] ?? RESULT.out).color;
-  // 全壘打、安打畫在出局之上，避免被蓋住
-  const ordered = [...points].sort((a, b) => (a.result === "out" ? 0 : 1) - (b.result === "out" ? 0 : 1));
+  const [off, setOff] = useState<Record<string, boolean>>({});
+  // 全壘打、安打畫在出局之上，避免被蓋住；圖例關掉的結果不畫
+  const ordered = [...points].filter((p) => !off[p.result])
+    .sort((a, b) => (a.result === "out" ? 0 : 1) - (b.result === "out" ? 0 : 1));
 
   return (
     <div>
@@ -59,10 +63,11 @@ export function SprayChart({ points }: { points: SprayPoint[] }) {
       </svg>
       <div className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px] text-muted">
         {LEGEND.map((k) => (
-          <span key={k} className="inline-flex items-center gap-1">
+          <button key={k} onClick={() => setOff((o) => ({ ...o, [k]: !o[k] }))}
+            className={`inline-flex items-center gap-1 transition ${off[k] ? "opacity-35 line-through" : ""}`}>
             <span className="inline-block h-2 w-2 rounded-full" style={{ background: RESULT[k].color }} />
             {RESULT[k].label}
-          </span>
+          </button>
         ))}
       </div>
     </div>

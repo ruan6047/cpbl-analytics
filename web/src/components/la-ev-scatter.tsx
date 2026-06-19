@@ -1,5 +1,6 @@
-// 擊球品質散點：x=擊球仰角(°)、y=擊球初速(km/h)，依結果著色。
-// 參考線標出「強勁擊球」初速與「平飛/高飛」仰角帶，近似 barrel 甜蜜區。
+// 擊球品質散點：x=擊球仰角(°)、y=擊球初速(km/h)，依結果著色。圖例可點擊開關。
+"use client";
+import { useState } from "react";
 import { CartesianGrid, ReferenceArea, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "recharts";
 
 export type BattedBall = { la: number; ev: number; result: string };
@@ -15,7 +16,9 @@ const ORDER = ["out", "1b", "2b", "3b", "hr"] as const;
 const axis = { tick: { fill: "#5b6b7a", fontSize: 11 }, stroke: "#cbd5e1" };
 
 export function LaEvScatter({ balls }: { balls: BattedBall[] }) {
-  const byResult = ORDER.map((k) => ({ k, pts: balls.filter((b) => b.result === k) })).filter((g) => g.pts.length);
+  const [off, setOff] = useState<Record<string, boolean>>({});
+  const byResult = ORDER.map((k) => ({ k, pts: balls.filter((b) => b.result === k) }))
+    .filter((g) => g.pts.length && !off[g.k]);
   return (
     <div>
       <ResponsiveContainer width="100%" height={300}>
@@ -40,9 +43,10 @@ export function LaEvScatter({ balls }: { balls: BattedBall[] }) {
       </ResponsiveContainer>
       <div className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px] text-muted">
         {(["hr", "3b", "2b", "1b", "out"] as const).map((k) => (
-          <span key={k} className="inline-flex items-center gap-1">
+          <button key={k} onClick={() => setOff((o) => ({ ...o, [k]: !o[k] }))}
+            className={`inline-flex items-center gap-1 transition ${off[k] ? "opacity-35 line-through" : ""}`}>
             <span className="inline-block h-2 w-2 rounded-full" style={{ background: RESULT[k].color }} />{RESULT[k].label}
-          </span>
+          </button>
         ))}
       </div>
     </div>
