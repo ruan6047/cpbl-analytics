@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { detail, type StatRow } from "@/lib/client";
+import GameReplay from "@/components/game-replay";
 
 const n = (v: number | string | null) => (v === null || v === undefined ? "" : Number(v));
 
@@ -109,32 +110,38 @@ function BoxPitching({ rows, team }: { rows: StatRow[]; team: string }) {
   );
 }
 
-function PlayByPlay({ log }: { log: StatRow[] }) {
-  // 依「局 × 上下半」分組
-  const groups: { inning: number; half: string; events: StatRow[] }[] = [];
-  for (const e of log) {
+function PlayByPlay({ log, idx, setIdx }: { log: StatRow[]; idx: number; setIdx: (i: number) => void }) {
+  // 依「局 × 上下半」分組，並保留每筆事件在 log 的全域索引
+  const groups: { inning: number; half: string; events: { e: StatRow; gi: number }[] }[] = [];
+  log.forEach((e, gi) => {
     const last = groups[groups.length - 1];
     if (!last || last.inning !== Number(e.inning_seq) || last.half !== String(e.visiting_home_type)) {
-      groups.push({ inning: Number(e.inning_seq), half: String(e.visiting_home_type), events: [e] });
+      groups.push({ inning: Number(e.inning_seq), half: String(e.visiting_home_type), events: [{ e, gi }] });
     } else {
-      last.events.push(e);
+      last.events.push({ e, gi });
     }
-  }
+  });
+
+  const activeRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [idx]);
 
   return (
     <div className="space-y-5">
-      {groups.map((g, gi) => (
-        <div key={gi} className="rounded-xl border border-line bg-surface p-4">
+      {groups.map((g, gIdx) => (
+        <div key={gIdx} className="rounded-xl border border-line bg-surface p-4">
           <h3 className="mb-2 text-sm font-semibold text-accent">
             {g.inning} 局{g.half === "1" ? "上" : "下"}
           </h3>
           <div className="space-y-0.5">
-            {g.events.map((e, i) => {
-              const prev = g.events[i - 1];
+            {g.events.map(({ e, gi }, i) => {
+              const prev = g.events[i - 1]?.e;
               const newBatter = !prev || prev.hitter_acnt !== e.hitter_acnt;
               const isScore = Boolean(e.is_score);
               const content = String(e.content ?? "");
               const isPitch = content.length <= 8; // 粗略：短句多為單球描述
+              const active = gi === idx;
               return (
                 <div key={i}>
                   {newBatter && e.hitter_name && (
@@ -143,10 +150,12 @@ function PlayByPlay({ log }: { log: StatRow[] }) {
                       <span className="ml-2 text-xs text-faint">投：{String(e.pitcher_name ?? "")}</span>
                     </div>
                   )}
-                  <div
-                    className={`pl-5 ${
-                      isScore ? "text-accent" : isPitch ? "text-xs text-faint" : "text-sm text-ink"
-                    }`}
+                  <button
+                    ref={active ? activeRef : undefined}
+                    onClick={() => setIdx(gi)}
+                    className={`block w-full rounded pl-5 pr-2 py-0.5 text-left transition-colors hover:bg-surface-2 ${
+                      active ? "bg-accent/10 ring-1 ring-accent/30" : ""
+                    } ${isScore ? "text-accent" : isPitch ? "text-xs text-faint" : "text-sm text-ink"}`}
                   >
                     {content}
                     {isScore && (
@@ -154,7 +163,7 @@ function PlayByPlay({ log }: { log: StatRow[] }) {
                         ({n(e.visiting_score)}-{n(e.home_score)})
                       </span>
                     )}
-                  </div>
+                  </button>
                 </div>
               );
             })}
@@ -171,9 +180,18 @@ export default function GameLivePage() {
   const kind = sp.get("kind") || "A";
   const [data, setData] = useState<Live | null>(null);
   const [err, setErr] = useState(false);
+  const [idx, setIdx] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState(1);
 
   useEffect(() => {
-    detail.gameLive(Number(sno), kind).then((d) => setData(d as Live)).catch(() => setErr(true));
+    detail.gameLive(Number(sno), kind)
+      .then((d) => {
+        const dd = d as Live;
+        setData(dd);
+        setIdx(Math.max(0, dd.livelog.length - 1)); // 預設停在終局，按播放從頭重播
+      })
+      .catch(() => setErr(true));
   }, [sno, kind]);
 
   if (err) return <p className="text-sm text-muted">載入賽況失敗。</p>;
@@ -214,6 +232,18 @@ export default function GameLivePage() {
         ) : null;
       })()}
 
+      {data.livelog.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-2 text-lg font-semibold">賽況重播</h2>
+          <GameReplay
+            log={data.livelog} game={g}
+            idx={idx} setIdx={setIdx}
+            playing={playing} setPlaying={setPlaying}
+            speed={speed} setSpeed={setSpeed}
+          />
+        </section>
+      )}
+
       <section className="mb-8">
         <h2 className="mb-2 text-lg font-semibold">逐局比分</h2>
         <Scoreboard sb={data.scoreboard} game={g} />
@@ -236,7 +266,7 @@ export default function GameLivePage() {
         {data.livelog.length === 0 ? (
           <p className="text-sm text-faint">無逐打席資料。</p>
         ) : (
-          <PlayByPlay log={data.livelog} />
+          <PlayByPlay log={data.livelog} idx={idx} setIdx={setIdx} />
         )}
       </section>
     </div>
