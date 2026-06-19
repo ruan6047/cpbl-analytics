@@ -2,58 +2,11 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { detail, type StatRow } from "@/lib/client";
-import GameReplay from "@/components/game-replay";
+import GameBoard, { type Live } from "@/components/game-board";
 
 const n = (v: number | string | null) => (v === null || v === undefined ? "" : Number(v));
-
-type Live = {
-  game: StatRow | null; scoreboard: StatRow[]; livelog: StatRow[];
-  batting: StatRow[]; pitching: StatRow[]; people: Record<string, string>;
-};
-
-function Scoreboard({ sb, game }: { sb: StatRow[]; game: StatRow }) {
-  const away = sb.filter((r) => String(r.visiting_home_type) === "1");
-  const home = sb.filter((r) => String(r.visiting_home_type) === "2");
-  const innings = [...new Set(sb.map((r) => Number(r.inning_seq)))].sort((a, b) => a - b);
-  const cell = (rows: StatRow[], inn: number) =>
-    rows.find((r) => Number(r.inning_seq) === inn)?.score_cnt ?? "";
-  const tot = (rows: StatRow[], key: string) =>
-    rows.reduce((s, r) => s + (Number(r[key]) || 0), 0);
-
-  const row = (label: string, rows: StatRow[], score: number) => (
-    <tr className="border-t border-line">
-      <td className="whitespace-nowrap px-3 py-2 font-sans font-medium">{label}</td>
-      {innings.map((inn) => (
-        <td key={inn} className="px-2.5 py-2 text-center text-muted">{String(cell(rows, inn))}</td>
-      ))}
-      <td className="px-2.5 py-2 text-center font-semibold text-accent">{score}</td>
-      <td className="px-2.5 py-2 text-center text-muted">{tot(rows, "hitting_cnt")}</td>
-      <td className="px-2.5 py-2 text-center text-muted">{tot(rows, "error_cnt")}</td>
-    </tr>
-  );
-
-  return (
-    <div className="overflow-x-auto rounded-xl border border-line">
-      <table className="w-full text-sm font-mono tabular-nums">
-        <thead className="bg-surface-2 text-muted">
-          <tr>
-            <th className="px-3 py-2 text-left font-medium">隊伍</th>
-            {innings.map((inn) => <th key={inn} className="px-2.5 py-2 font-medium">{inn}</th>)}
-            <th className="px-2.5 py-2 font-medium">R</th>
-            <th className="px-2.5 py-2 font-medium">H</th>
-            <th className="px-2.5 py-2 font-medium">E</th>
-          </tr>
-        </thead>
-        <tbody>
-          {row(String(game.away_team_name), away, Number(game.away_score))}
-          {row(String(game.home_team_name), home, Number(game.home_score))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
 const i0 = (v: number | string | null | undefined) => (v === null || v === undefined ? "—" : String(v));
 const ipTxt = (r: StatRow) => `${r.inning_pitched_cnt ?? 0}.${r.inning_pitched_div3 ?? 0}`;
@@ -110,70 +63,6 @@ function BoxPitching({ rows, team }: { rows: StatRow[]; team: string }) {
   );
 }
 
-function PlayByPlay({ log, idx, setIdx }: { log: StatRow[]; idx: number; setIdx: (i: number) => void }) {
-  // 依「局 × 上下半」分組，並保留每筆事件在 log 的全域索引
-  const groups: { inning: number; half: string; events: { e: StatRow; gi: number }[] }[] = [];
-  log.forEach((e, gi) => {
-    const last = groups[groups.length - 1];
-    if (!last || last.inning !== Number(e.inning_seq) || last.half !== String(e.visiting_home_type)) {
-      groups.push({ inning: Number(e.inning_seq), half: String(e.visiting_home_type), events: [{ e, gi }] });
-    } else {
-      last.events.push({ e, gi });
-    }
-  });
-
-  const activeRef = useRef<HTMLButtonElement | null>(null);
-  useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [idx]);
-
-  return (
-    <div className="space-y-5">
-      {groups.map((g, gIdx) => (
-        <div key={gIdx} className="rounded-xl border border-line bg-surface p-4">
-          <h3 className="mb-2 text-sm font-semibold text-accent">
-            {g.inning} 局{g.half === "1" ? "上" : "下"}
-          </h3>
-          <div className="space-y-0.5">
-            {g.events.map(({ e, gi }, i) => {
-              const prev = g.events[i - 1]?.e;
-              const newBatter = !prev || prev.hitter_acnt !== e.hitter_acnt;
-              const isScore = Boolean(e.is_score);
-              const content = String(e.content ?? "");
-              const isPitch = content.length <= 8; // 粗略：短句多為單球描述
-              const active = gi === idx;
-              return (
-                <div key={i}>
-                  {newBatter && e.hitter_name && (
-                    <div className="mt-2.5 text-sm font-medium text-ink">
-                      🏏 {String(e.hitter_name)}
-                      <span className="ml-2 text-xs text-faint">投：{String(e.pitcher_name ?? "")}</span>
-                    </div>
-                  )}
-                  <button
-                    ref={active ? activeRef : undefined}
-                    onClick={() => setIdx(gi)}
-                    className={`block w-full rounded pl-5 pr-2 py-0.5 text-left transition-colors hover:bg-surface-2 ${
-                      active ? "bg-accent/10 ring-1 ring-accent/30" : ""
-                    } ${isScore ? "text-accent" : isPitch ? "text-xs text-faint" : "text-sm text-ink"}`}
-                  >
-                    {content}
-                    {isScore && (
-                      <span className="ml-2 font-mono text-xs">
-                        ({n(e.visiting_score)}-{n(e.home_score)})
-                      </span>
-                    )}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export default function GameLivePage() {
   const { sno } = useParams<{ sno: string }>();
   const sp = useSearchParams();
@@ -181,15 +70,13 @@ export default function GameLivePage() {
   const [data, setData] = useState<Live | null>(null);
   const [err, setErr] = useState(false);
   const [idx, setIdx] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1);
 
   useEffect(() => {
     detail.gameLive(Number(sno), kind)
       .then((d) => {
         const dd = d as Live;
         setData(dd);
-        setIdx(Math.max(0, dd.livelog.length - 1)); // 預設停在終局，按播放從頭重播
+        setIdx(Math.max(0, dd.livelog.length - 1)); // 預設停在終局
       })
       .catch(() => setErr(true));
   }, [sno, kind]);
@@ -202,16 +89,21 @@ export default function GameLivePage() {
   return (
     <div>
       <Link href="/games" className="text-xs text-faint hover:text-accent">← 返回賽況列表</Link>
-      <header className="mb-5 mt-2">
-        <h1 className="text-2xl font-bold">
-          {String(g.away_team_name)} <span className="font-mono">{n(g.away_score)}</span>
-          <span className="mx-2 text-faint">@</span>
-          {String(g.home_team_name)} <span className="font-mono">{n(g.home_score)}</span>
-        </h1>
-        <p className="mt-1 text-sm text-muted">
-          {String(g.game_date ?? "")}　{String(g.venue ?? "")}
-        </p>
-      </header>
+
+      {data.livelog.length > 0 ? (
+        <section className="mb-8 mt-2">
+          <GameBoard data={data} idx={idx} setIdx={setIdx} />
+        </section>
+      ) : (
+        <header className="mb-6 mt-2">
+          <h1 className="text-2xl font-bold">
+            {String(g.away_team_name)} <span className="font-mono">{n(g.away_score)}</span>
+            <span className="mx-2 text-faint">@</span>
+            {String(g.home_team_name)} <span className="font-mono">{n(g.home_score)}</span>
+          </h1>
+          <p className="mt-1 text-sm text-muted">{String(g.game_date ?? "")}　{String(g.venue ?? "")}</p>
+        </header>
+      )}
 
       {(() => {
         const ppl = data.people;
@@ -232,23 +124,6 @@ export default function GameLivePage() {
         ) : null;
       })()}
 
-      {data.livelog.length > 0 && (
-        <section className="mb-8">
-          <h2 className="mb-2 text-lg font-semibold">賽況重播</h2>
-          <GameReplay
-            log={data.livelog} game={g}
-            idx={idx} setIdx={setIdx}
-            playing={playing} setPlaying={setPlaying}
-            speed={speed} setSpeed={setSpeed}
-          />
-        </section>
-      )}
-
-      <section className="mb-8">
-        <h2 className="mb-2 text-lg font-semibold">逐局比分</h2>
-        <Scoreboard sb={data.scoreboard} game={g} />
-      </section>
-
       {data.batting.length > 0 && (
         <section className="mb-8">
           <h2 className="mb-3 text-lg font-semibold">Box Score</h2>
@@ -260,15 +135,6 @@ export default function GameLivePage() {
           </div>
         </section>
       )}
-
-      <section>
-        <h2 className="mb-3 text-lg font-semibold">逐打席賽況</h2>
-        {data.livelog.length === 0 ? (
-          <p className="text-sm text-faint">無逐打席資料。</p>
-        ) : (
-          <PlayByPlay log={data.livelog} idx={idx} setIdx={setIdx} />
-        )}
-      </section>
     </div>
   );
 }
