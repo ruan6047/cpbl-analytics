@@ -171,8 +171,10 @@ export type SpecialRecord = {
   vs_rhp: WL;
   // 系列賽
   series: WL;    // [系列勝, 系列負]
-  sweeps: number;
-  swept: number;
+  sweeps: number;          // 三連戰橫掃
+  swept: number;           // 被三連戰橫掃
+  twogame_sweep: number;   // 雙連賽橫掃
+  twogame_swept: number;   // 被雙連賽橫掃
   // 再見
   walkoff: number;                       // 再見勝
   walkoff_types: Record<string, number>; // 致勝方式分類 {類型: 次數}
@@ -185,11 +187,17 @@ export type SpecialRecord = {
 };
 export type SpecialRecordsResponse = { season: number; items: SpecialRecord[] };
 
+// 戰績走勢：points 每筆含 date + 各 team_code 的累積勝-敗差
+export type StandingsTrendPoint = { date: string } & Record<string, number | string>;
+export type StandingsTrendResponse = { season: number; teams: string[]; points: StandingsTrendPoint[] };
+
 export const api = {
   officialStandings: (seg = 0) =>
     get<OfficialStandingsResponse>(`/api/v1/standings?season_code=${seg}`, 120),
   specialRecords: (season?: number) =>
     get<SpecialRecordsResponse>(`/api/v1/special-records${season ? `?season=${season}` : ""}`, 120),
+  standingsTrend: (season?: number) =>
+    get<StandingsTrendResponse>(`/api/v1/standings-trend${season ? `?season=${season}` : ""}`, 120),
   gamesRecent: (limit = 60) => get<GamesRecentResponse>(`/api/v1/games/recent?limit=${limit}`, 120),
   standings: (season?: number) =>
     get<StandingsResponse>(`/api/v1/season/standings${season ? `?season=${season}` : ""}`),

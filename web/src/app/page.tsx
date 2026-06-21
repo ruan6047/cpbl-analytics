@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TeamBadge, TeamLogo } from "@/components/ui";
+import { StandingsTrend } from "@/components/standings-trend";
 import { api } from "@/lib/api";
 import type { OfficialStanding, SpecialRecord, WL } from "@/lib/api";
 
@@ -91,8 +92,9 @@ const SPECIAL_SECTIONS: SpSection[] = [
     note: "連戰（同對手、間隔 ≤2 天）拿多數場＝系列勝",
     cols: [
       { key: "series", label: "系列 勝-負", title: "系列賽勝-負次數" },
-      { key: "sweeps", label: "橫掃", title: "3 連戰 3-0 次數", count: true },
-      { key: "swept", label: "被橫掃", title: "3 連戰 0-3 次數", count: true },
+      { key: "sweeps", label: "三連戰橫掃", title: "3 連戰 3-0 次數", count: true },
+      { key: "twogame_sweep", label: "雙連賽橫掃", title: "2 連戰 2-0 次數", count: true },
+      { key: "swept", label: "被橫掃", title: "被 3 連戰 0-3 次數", count: true },
     ],
   },
 ];
@@ -229,10 +231,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
   const isSpecial = view === "special";
   // 特殊戰績為全年累計，故 special view 一律用全年排名
   const effSeg = isSpecial ? 0 : segCode;
-  const [{ season, items }, derived, special] = await Promise.all([
+  const [{ season, items }, derived, special, trend] = await Promise.all([
     api.officialStandings(effSeg),
     api.standings(),
     isSpecial ? api.specialRecords() : Promise.resolve(null),
+    isSpecial ? Promise.resolve(null) : api.standingsTrend(),
   ]);
   // 團隊 OPS/ERA/WHIP 來自即時彙整端點，依 code 併入
   const adv = new Map(derived.standings.map((d) => [d.code, d]));
@@ -333,6 +336,16 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
             </tbody>
           </table>
         </div>
+      )}
+
+      {items.length > 0 && !isSpecial && trend && trend.points.length > 0 && (
+        <section className="mt-8">
+          <h2 className="mb-1 text-lg font-semibold">戰績走勢</h2>
+          <p className="mb-3 text-[11px] text-faint">各隊累積勝-敗差（高於 .500 的場數）隨賽季變化；0 即五成勝率，越高越強。</p>
+          <div className="rounded-xl border border-line p-4">
+            <StandingsTrend teams={trend.teams} points={trend.points} />
+          </div>
+        </section>
       )}
 
       {items.length > 0 && !isSpecial && (
