@@ -87,6 +87,16 @@ const SPECIAL_SECTIONS: SpSection[] = [
       { key: "swept", label: "被橫掃", title: "3 連戰 0-3 次數", count: true },
     ],
   },
+  {
+    title: "再見",
+    note: "主隊最終局下半超前致勝；再見安打/轟為再見勝的子集",
+    cols: [
+      { key: "walkoff", label: "再見勝", title: "主隊最終局下半超前致勝的場次", count: true },
+      { key: "walkoff_hit", label: "再見安打", title: "以安打致勝（不含全壘打）", count: true },
+      { key: "walkoff_hr", label: "再見轟", title: "以全壘打致勝", count: true },
+      { key: "walked_off", label: "被再見", title: "客場吞再見敗的場次", count: true },
+    ],
+  },
 ];
 
 function SpecialTable({ section, rows, sp }: { section: SpSection; rows: OfficialStanding[]; sp: Map<string, SpecialRecord> }) {
