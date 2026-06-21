@@ -96,6 +96,8 @@ def _blank() -> dict:
     out["walkoff"] = 0       # 再見勝（主隊最終局下半超前致勝）
     out["walkoff_types"] = {}  # 致勝方式分類 {類型: 次數}
     out["walked_off"] = 0    # 被再見（客隊吞再見敗）
+    out["max_win_streak"] = 0   # 最大連勝
+    out["max_lose_streak"] = 0  # 最大連敗
     out["months"] = {}
     return out
 
@@ -243,7 +245,37 @@ def team_situational(season: int, kind_code: str = "A") -> dict[str, dict]:
 
     _add_series(season, kind_code, out)
     _add_walkoff(season, kind_code, out)
+    _add_streaks(season, kind_code, out)
     return out
+
+
+def _add_streaks(season: int, kind_code: str, out: dict[str, dict]) -> None:
+    """最大連勝 / 最大連敗：依日期重建每隊勝敗序列取最長連續段（和局中斷連勝/連敗）。"""
+    with conn() as c:
+        games = c.execute(
+            "SELECT home_team_code, away_team_code, home_score, away_score "
+            "FROM cpbl.games WHERE year=%s AND kind_code=%s AND home_score+away_score>0 "
+            "ORDER BY game_date, game_sno",
+            (season, kind_code),
+        ).fetchall()
+    seq: dict[str, list[str]] = {}
+    for hc, ac, hs, as_ in games:
+        if hs == as_:
+            seq.setdefault(hc, []).append("T")
+            seq.setdefault(ac, []).append("T")
+        else:
+            hw, aw = ("W", "L") if hs > as_ else ("L", "W")
+            seq.setdefault(hc, []).append(hw)
+            seq.setdefault(ac, []).append(aw)
+    for tc, s in seq.items():
+        mw = ml = cw = cl = 0
+        for r in s:
+            cw = cw + 1 if r == "W" else 0
+            cl = cl + 1 if r == "L" else 0
+            mw, ml = max(mw, cw), max(ml, cl)
+        o = out.setdefault(tc, _blank())
+        o["max_win_streak"] = mw
+        o["max_lose_streak"] = ml
 
 
 def _walkoff_type(ban: str | None, an: str | None) -> str:

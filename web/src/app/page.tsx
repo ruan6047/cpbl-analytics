@@ -23,7 +23,7 @@ function WLCell({ p }: { p?: WL }) {
 }
 
 // 特殊戰績分主題小表配置
-type SpCol = { key: keyof SpecialRecord; label: string; title?: string; count?: boolean };
+type SpCol = { key: keyof SpecialRecord; label: string; title?: string; count?: boolean; unit?: string };
 type SpSection = { title: string; note?: string; cols: SpCol[] };
 
 const SPECIAL_SECTIONS: SpSection[] = [
@@ -68,6 +68,14 @@ const SPECIAL_SECTIONS: SpSection[] = [
     cols: [
       { key: "weekday", label: "平日", title: "週一至週五" },
       { key: "weekend", label: "假日", title: "週六、週日" },
+    ],
+  },
+  {
+    title: "連勝連敗",
+    note: "全季最長連續段；和局中斷連勝/連敗",
+    cols: [
+      { key: "max_win_streak", label: "最大連勝", title: "本季最長連勝場數", count: true, unit: "場" },
+      { key: "max_lose_streak", label: "最大連敗", title: "本季最長連敗場數", count: true, unit: "場" },
     ],
   },
   {
@@ -118,7 +126,7 @@ function SpecialTable({ section, rows, sp }: { section: SpSection; rows: Officia
                   {section.cols.map((c) => (
                     <td key={c.key} className="px-2.5 py-2">
                       {c.count ? (
-                        <span className="text-muted">{(s?.[c.key] as number) ? `${s![c.key]} 次` : "—"}</span>
+                        <span className="text-muted">{(s?.[c.key] as number) ? `${s![c.key]} ${c.unit ?? "次"}` : "—"}</span>
                       ) : (
                         <WLCell p={s?.[c.key] as WL | undefined} />
                       )}

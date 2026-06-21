@@ -177,6 +177,9 @@ export type SpecialRecord = {
   walkoff: number;                       // 再見勝
   walkoff_types: Record<string, number>; // 致勝方式分類 {類型: 次數}
   walked_off: number;                    // 被再見
+  // 連勝連敗
+  max_win_streak: number;
+  max_lose_streak: number;
   // 月份趨勢
   months: Record<string, WL>;
 };
