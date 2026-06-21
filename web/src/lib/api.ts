@@ -174,10 +174,9 @@ export type SpecialRecord = {
   sweeps: number;
   swept: number;
   // 再見
-  walkoff: number;       // 再見勝
-  walkoff_hit: number;   // 其中以安打致勝
-  walkoff_hr: number;    // 其中以全壘打致勝
-  walked_off: number;    // 被再見
+  walkoff: number;                       // 再見勝
+  walkoff_types: Record<string, number>; // 致勝方式分類 {類型: 次數}
+  walked_off: number;                    // 被再見
   // 月份趨勢
   months: Record<string, WL>;
 };

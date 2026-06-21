@@ -94,8 +94,7 @@ def _blank() -> dict:
     out["sweeps"] = 0
     out["swept"] = 0
     out["walkoff"] = 0       # 再見勝（主隊最終局下半超前致勝）
-    out["walkoff_hit"] = 0   # 其中以安打致勝
-    out["walkoff_hr"] = 0    # 其中以全壘打致勝
+    out["walkoff_types"] = {}  # 致勝方式分類 {類型: 次數}
     out["walked_off"] = 0    # 被再見（客隊吞再見敗）
     out["months"] = {}
     return out
@@ -247,33 +246,57 @@ def team_situational(season: int, kind_code: str = "A") -> dict[str, dict]:
     return out
 
 
+def _walkoff_type(ban: str | None, an: str | None) -> str:
+    """依致勝打席的 batting_action_name / action_name 判定再見類型。"""
+    b, a = ban or "", an or ""
+    if b.endswith("安"):
+        return "安打"
+    if b == "全打":
+        return "全壘打"
+    if b in ("四壞", "故四") or "四壞" in a:
+        return "保送"
+    if b == "死球" or "觸身" in a:
+        return "觸身"
+    if b.startswith("犧") or "犧牲" in a:
+        return "犧牲打"
+    if b.endswith("失") or "失誤" in a:
+        return "失誤"
+    if b == "野選" or "野手選擇" in a:
+        return "野手選擇"
+    if "趁傳" in a:
+        return "趁傳進壘"
+    if "暴投" in a:
+        return "暴投"
+    if "捕逸" in a:
+        return "捕逸"
+    return "其他"
+
+
 def _add_walkoff(season: int, kind_code: str, out: dict[str, dict]) -> None:
     """再見 [walk-off]：全場最後一個事件落在主隊半局且主隊勝＝再見勝。
 
     用「全場最後事件」而非最後得分事件——遊戲若繼續，最後事件會在客隊半局；
-    主隊再見致勝時遊戲即止，最後事件必在主隊半局。致勝打擊結果（batting_action_name）
-    以「安」結尾＝再見安打、「全打」＝再見全壘打。
+    主隊再見致勝時遊戲即止，最後事件必在主隊半局。致勝方式由 `_walkoff_type()`
+    依致勝打席結果分類（安打/全壘打/保送/觸身/犧牲打/失誤/野手選擇/趁傳進壘/暴投/捕逸）。
     """
     with conn() as c:
         rows = c.execute(
             "WITH last_ev AS ("
             "  SELECT DISTINCT ON (game_sno) game_sno, visiting_home_type, batting_action_name, "
-            "         visiting_score, home_score "
+            "         action_name, visiting_score, home_score "
             "  FROM cpbl.game_livelog WHERE year=%s AND kind_code=%s "
             "  ORDER BY game_sno, inning_seq DESC, main_event_no DESC) "
-            "SELECT g.home_team_code, g.away_team_code, e.batting_action_name "
+            "SELECT g.home_team_code, g.away_team_code, e.batting_action_name, e.action_name "
             "FROM last_ev e JOIN cpbl.games g "
             "  ON g.game_sno=e.game_sno AND g.year=%s AND g.kind_code=%s "
             "WHERE e.visiting_home_type='2' AND e.home_score > e.visiting_score",
             (season, kind_code, season, kind_code),
         ).fetchall()
-    for hc, ac, ban in rows:
+    for hc, ac, ban, an in rows:
         o = out.setdefault(hc, _blank())
         o["walkoff"] += 1
-        if ban and ban.endswith("安"):
-            o["walkoff_hit"] += 1
-        elif ban == "全打":
-            o["walkoff_hr"] += 1
+        t = _walkoff_type(ban, an)
+        o["walkoff_types"][t] = o["walkoff_types"].get(t, 0) + 1
         out.setdefault(ac, _blank())["walked_off"] += 1
 
 

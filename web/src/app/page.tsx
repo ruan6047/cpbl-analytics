@@ -87,17 +87,10 @@ const SPECIAL_SECTIONS: SpSection[] = [
       { key: "swept", label: "被橫掃", title: "3 連戰 0-3 次數", count: true },
     ],
   },
-  {
-    title: "再見",
-    note: "主隊最終局下半超前致勝；再見安打/轟為再見勝的子集",
-    cols: [
-      { key: "walkoff", label: "再見勝", title: "主隊最終局下半超前致勝的場次", count: true },
-      { key: "walkoff_hit", label: "再見安打", title: "以安打致勝（不含全壘打）", count: true },
-      { key: "walkoff_hr", label: "再見轟", title: "以全壘打致勝", count: true },
-      { key: "walked_off", label: "被再見", title: "客場吞再見敗的場次", count: true },
-    ],
-  },
 ];
+
+// 再見致勝方式顯示順序（只渲染實際發生的類型）
+const WALKOFF_TYPE_ORDER = ["安打", "全壘打", "保送", "觸身", "犧牲打", "失誤", "野手選擇", "趁傳進壘", "暴投", "捕逸", "其他"];
 
 function SpecialTable({ section, rows, sp }: { section: SpSection; rows: OfficialStanding[]; sp: Map<string, SpecialRecord> }) {
   return (
@@ -178,6 +171,50 @@ function MonthsTable({ rows, sp }: { rows: OfficialStanding[]; sp: Map<string, S
   );
 }
 
+function WalkoffTable({ rows, sp }: { rows: OfficialStanding[]; sp: Map<string, SpecialRecord> }) {
+  // 動態類型欄：只取實際發生過的致勝方式，依固定順序排列
+  const present = new Set<string>();
+  sp.forEach((s) => Object.keys(s.walkoff_types ?? {}).forEach((t) => present.add(t)));
+  const types = WALKOFF_TYPE_ORDER.filter((t) => present.has(t));
+  return (
+    <section className="mb-6">
+      <h3 className="mb-2 text-sm font-semibold text-ink">
+        再見 [Walk-off]
+        <span className="ml-2 text-[11px] font-normal text-faint">主隊最終局下半超前致勝；致勝方式只列實際發生的類型</span>
+      </h3>
+      <div className="overflow-x-auto rounded-xl border border-line">
+        <table className="w-full text-sm">
+          <thead className="bg-surface-2 text-left text-muted">
+            <tr>
+              <th className="whitespace-nowrap px-2.5 py-2.5 font-medium">球隊</th>
+              <th className="whitespace-nowrap px-2.5 py-2.5 font-medium" title="主隊最終局下半超前致勝的場次">再見勝</th>
+              {types.map((t) => (
+                <th key={t} className="whitespace-nowrap px-2.5 py-2.5 font-medium">{t}</th>
+              ))}
+              <th className="whitespace-nowrap px-2.5 py-2.5 font-medium" title="客場吞再見敗的場次">被再見</th>
+            </tr>
+          </thead>
+          <tbody className="font-mono tabular-nums">
+            {rows.map((t) => {
+              const s = sp.get(t.team_code);
+              return (
+                <tr key={t.team_code} className="border-t border-line hover:bg-surface-2">
+                  <td className="whitespace-nowrap px-2.5 py-2 font-sans"><TeamBadge code={t.team_code} name={t.team_name} /></td>
+                  <td className="px-2.5 py-2 text-up">{s?.walkoff ? `${s.walkoff} 次` : "—"}</td>
+                  {types.map((ty) => (
+                    <td key={ty} className="px-2.5 py-2 text-muted">{s?.walkoff_types?.[ty] ?? "—"}</td>
+                  ))}
+                  <td className="px-2.5 py-2 text-down">{s?.walked_off ? `${s.walked_off} 次` : "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 export default async function Home({ searchParams }: { searchParams: Promise<{ seg?: string; view?: string }> }) {
   const { seg = "0", view = "basic" } = await searchParams;
   const segCode = Number(seg) || 0;
@@ -244,6 +281,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
             {SPECIAL_SECTIONS.map((sec) => (
               <SpecialTable key={sec.title} section={sec} rows={items} sp={sp} />
             ))}
+            <WalkoffTable rows={items} sp={sp} />
             <MonthsTable rows={items} sp={sp} />
           </>
         )
