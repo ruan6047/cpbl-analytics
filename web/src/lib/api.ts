@@ -138,18 +138,43 @@ export type OfficialStanding = {
 };
 export type OfficialStandingsResponse = { season: number; season_code: number; items: OfficialStanding[] };
 
-// 特殊戰績：各情境 [W, L]，sweeps 為次數
+// 特殊戰績：各情境 [W, L] 或 [正向, 反向] 配對；sweeps/swept 為次數
+export type WL = [number, number];
 export type SpecialRecord = {
   team_code: string;
   team_name: string;
-  artificial: [number, number];
-  natural: [number, number];
-  indoor: [number, number];
-  scored_first_against: [number, number];
-  intense: [number, number];
-  tailwind: [number, number];
-  headwind: [number, number];
+  // 場地
+  natural: WL;
+  artificial: WL;
+  indoor: WL;
+  // 比分型
+  one_run: WL;
+  blowout: WL;
+  shutout: WL;   // [完封勝, 被完封]
+  comeback: WL;  // [逆轉勝, 被逆轉]
+  // 賽況軌跡
+  scored_first: WL;
+  scored_first_against: WL;
+  intense: WL;
+  tailwind: WL;
+  headwind: WL;
+  big_inning: WL;
+  // 終局與守備
+  extra: WL;
+  save: WL;      // [守成成功, 失敗]
+  errorful: WL;
+  // 賽程
+  weekday: WL;
+  weekend: WL;
+  // 對手先發
+  vs_lhp: WL;
+  vs_rhp: WL;
+  // 系列賽
+  series: WL;    // [系列勝, 系列負]
   sweeps: number;
+  swept: number;
+  // 月份趨勢
+  months: Record<string, WL>;
 };
 export type SpecialRecordsResponse = { season: number; items: SpecialRecord[] };
 

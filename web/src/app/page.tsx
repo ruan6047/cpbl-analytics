@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { TeamBadge, TeamLogo } from "@/components/ui";
 import { api } from "@/lib/api";
+import type { OfficialStanding, SpecialRecord, WL } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -10,19 +11,8 @@ const SEGS = [
   { v: 2, label: "下半季" },
 ];
 
-// 特殊戰績欄位定義（key 對齊 /api/v1/special-records；皆 [W, L]）
-const SPECIAL_COLS: { key: "artificial" | "natural" | "indoor" | "scored_first_against" | "intense" | "tailwind" | "headwind"; label: string; title: string }[] = [
-  { key: "natural", label: "天然草皮", title: "天然草皮球場戰績（洲際/澄清湖/新莊/桃園…）" },
-  { key: "artificial", label: "人工草皮", title: "人工草皮球場戰績（天母、大巨蛋）" },
-  { key: "indoor", label: "室內", title: "室內球場戰績（僅大巨蛋）" },
-  { key: "scored_first_against", label: "先失分", title: "對手先得分的場次戰績" },
-  { key: "intense", label: "戰況激烈", title: "領先後被追平、最終才分出勝負的場次" },
-  { key: "tailwind", label: "順風", title: "比賽中曾領先 ≥3 分的場次戰績" },
-  { key: "headwind", label: "逆風", title: "比賽中曾落後 ≥3 分的場次戰績" },
-];
-
 // W-L 配對：依勝率上色（>.5 藍、<.5 紅），方便跨隊一覽
-function WL({ p }: { p?: [number, number] }) {
+function WLCell({ p }: { p?: WL }) {
   if (!p) return <span className="text-faint">—</span>;
   const [w, l] = p;
   const tot = w + l;
@@ -30,6 +20,152 @@ function WL({ p }: { p?: [number, number] }) {
   const pct = w / tot;
   const cls = pct > 0.5 ? "text-up" : pct < 0.5 ? "text-down" : "text-muted";
   return <span className={cls}>{w}-{l}</span>;
+}
+
+// 特殊戰績分主題小表配置
+type SpCol = { key: keyof SpecialRecord; label: string; title?: string; count?: boolean };
+type SpSection = { title: string; note?: string; cols: SpCol[] };
+
+const SPECIAL_SECTIONS: SpSection[] = [
+  {
+    title: "場地",
+    cols: [
+      { key: "natural", label: "天然草皮", title: "天然草皮球場（洲際/澄清湖/新莊/桃園…）" },
+      { key: "artificial", label: "人工草皮", title: "人工草皮球場（天母、大巨蛋）" },
+      { key: "indoor", label: "室內", title: "室內球場（僅大巨蛋）" },
+    ],
+  },
+  {
+    title: "比分型",
+    cols: [
+      { key: "one_run", label: "一分差", title: "最終分差 1 分的場次" },
+      { key: "blowout", label: "大勝大敗", title: "分差 ≥5 分的場次" },
+      { key: "shutout", label: "完封 勝-被", title: "完封勝（對手 0 分）- 被完封（我方 0 分）次數" },
+      { key: "comeback", label: "逆轉 勝-被", title: "逆轉勝（曾落後仍勝）- 被逆轉（曾領先卻敗）次數" },
+    ],
+  },
+  {
+    title: "賽況軌跡",
+    cols: [
+      { key: "scored_first", label: "得分先馳", title: "我方全場最先得分的場次" },
+      { key: "scored_first_against", label: "先失分", title: "對手最先得分的場次" },
+      { key: "intense", label: "戰況激烈", title: "領先後被追平、最終才分勝負" },
+      { key: "tailwind", label: "順風", title: "比賽中曾領先 ≥3 分" },
+      { key: "headwind", label: "逆風", title: "比賽中曾落後 ≥3 分" },
+      { key: "big_inning", label: "大局", title: "我方單局曾得 ≥4 分" },
+    ],
+  },
+  {
+    title: "終局與守備",
+    cols: [
+      { key: "extra", label: "延長賽", title: "打超過 9 局的場次" },
+      { key: "save", label: "救援守成 成-敗", title: "第 8 局結束領先 1–3 分（救援情境），守成獲勝-失敗次數" },
+      { key: "errorful", label: "失誤場", title: "我方該場有失誤（≥1）的場次" },
+    ],
+  },
+  {
+    title: "賽程",
+    cols: [
+      { key: "weekday", label: "平日", title: "週一至週五" },
+      { key: "weekend", label: "假日", title: "週六、週日" },
+    ],
+  },
+  {
+    title: "對手先發",
+    note: "對手先發投手慣用手未知者不計",
+    cols: [
+      { key: "vs_lhp", label: "vs 左投", title: "對手先發為左投的場次" },
+      { key: "vs_rhp", label: "vs 右投", title: "對手先發為右投的場次" },
+    ],
+  },
+  {
+    title: "系列賽",
+    note: "連戰（同對手、間隔 ≤2 天）拿多數場＝系列勝",
+    cols: [
+      { key: "series", label: "系列 勝-負", title: "系列賽勝-負次數" },
+      { key: "sweeps", label: "橫掃", title: "3 連戰 3-0 次數", count: true },
+      { key: "swept", label: "被橫掃", title: "3 連戰 0-3 次數", count: true },
+    ],
+  },
+];
+
+function SpecialTable({ section, rows, sp }: { section: SpSection; rows: OfficialStanding[]; sp: Map<string, SpecialRecord> }) {
+  return (
+    <section className="mb-6">
+      <h3 className="mb-2 text-sm font-semibold text-ink">
+        {section.title}
+        {section.note && <span className="ml-2 text-[11px] font-normal text-faint">{section.note}</span>}
+      </h3>
+      <div className="overflow-x-auto rounded-xl border border-line">
+        <table className="w-full text-sm">
+          <thead className="bg-surface-2 text-left text-muted">
+            <tr>
+              <th className="whitespace-nowrap px-2.5 py-2.5 font-medium">球隊</th>
+              {section.cols.map((c) => (
+                <th key={c.key} className="whitespace-nowrap px-2.5 py-2.5 font-medium" title={c.title}>{c.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="font-mono tabular-nums">
+            {rows.map((t) => {
+              const s = sp.get(t.team_code);
+              return (
+                <tr key={t.team_code} className="border-t border-line hover:bg-surface-2">
+                  <td className="whitespace-nowrap px-2.5 py-2 font-sans"><TeamBadge code={t.team_code} name={t.team_name} /></td>
+                  {section.cols.map((c) => (
+                    <td key={c.key} className="px-2.5 py-2">
+                      {c.count ? (
+                        <span className="text-muted">{(s?.[c.key] as number) ? `${s![c.key]} 次` : "—"}</span>
+                      ) : (
+                        <WLCell p={s?.[c.key] as WL | undefined} />
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function MonthsTable({ rows, sp }: { rows: OfficialStanding[]; sp: Map<string, SpecialRecord> }) {
+  const monthSet = new Set<number>();
+  sp.forEach((s) => Object.keys(s.months).forEach((m) => monthSet.add(Number(m))));
+  const months = [...monthSet].sort((a, b) => a - b);
+  if (months.length === 0) return null;
+  return (
+    <section className="mb-6">
+      <h3 className="mb-2 text-sm font-semibold text-ink">月份趨勢</h3>
+      <div className="overflow-x-auto rounded-xl border border-line">
+        <table className="w-full text-sm">
+          <thead className="bg-surface-2 text-left text-muted">
+            <tr>
+              <th className="whitespace-nowrap px-2.5 py-2.5 font-medium">球隊</th>
+              {months.map((m) => (
+                <th key={m} className="whitespace-nowrap px-2.5 py-2.5 font-medium">{m} 月</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="font-mono tabular-nums">
+            {rows.map((t) => {
+              const s = sp.get(t.team_code);
+              return (
+                <tr key={t.team_code} className="border-t border-line hover:bg-surface-2">
+                  <td className="whitespace-nowrap px-2.5 py-2 font-sans"><TeamBadge code={t.team_code} name={t.team_name} /></td>
+                  {months.map((m) => (
+                    <td key={m} className="px-2.5 py-2"><WLCell p={s?.months[String(m)]} /></td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
 }
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ seg?: string; view?: string }> }) {
@@ -58,7 +194,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
         <h1 className="text-2xl font-bold">{season} 球季 · 本季戰績</h1>
         <p className="mt-2 text-sm text-muted">
           {isSpecial
-            ? "依場地材質與賽況分類的隊級戰績（全年累計，逐場+逐局計算）。W-L 依勝率上色。"
+            ? "依場地、比分型、賽況軌跡、賽程與對手分類的隊級戰績（全年累計，逐場+逐局計算）。配對數值依勝率／正向比例以藍↔紅上色。"
             : "官方戰績（含和局/勝差/連勝敗/主客場/近十場）。團隊 OPS/ERA/WHIP 為攻守指標。"}
         </p>
       </header>
@@ -90,47 +226,34 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
           ))}
       </nav>
 
-      {items.length === 0 ? (
+      {isSpecial ? (
+        items.length === 0 ? (
+          <p className="text-sm text-faint">尚無戰績資料。</p>
+        ) : (
+          <>
+            {SPECIAL_SECTIONS.map((sec) => (
+              <SpecialTable key={sec.title} section={sec} rows={items} sp={sp} />
+            ))}
+            <MonthsTable rows={items} sp={sp} />
+          </>
+        )
+      ) : items.length === 0 ? (
         <p className="text-sm text-faint">此區間尚無戰績（下半季可能未開始）。</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-line">
           <table className="w-full text-sm">
             <thead className="bg-surface-2 text-left text-muted">
               <tr>
-                {isSpecial ? (
-                  <>
-                    <th className="whitespace-nowrap px-2.5 py-3 font-medium">#</th>
-                    <th className="whitespace-nowrap px-2.5 py-3 font-medium">球隊</th>
-                    {SPECIAL_COLS.map((c) => (
-                      <th key={c.key} className="whitespace-nowrap px-2.5 py-3 font-medium" title={c.title}>{c.label}</th>
-                    ))}
-                    <th className="whitespace-nowrap px-2.5 py-3 font-medium" title="同對手 3 連戰且 3-0 的橫掃次數">橫掃</th>
-                  </>
-                ) : (
-                  ["#", "球隊", "出賽", "勝-和-敗", "勝率", "勝差", "淘汰指數", "連勝/敗", "主場", "客場", "近十場", "OPS", "ERA", "WHIP"].map(
-                    (h) => (
-                      <th key={h} className="whitespace-nowrap px-2.5 py-3 font-medium"
-                        title={h === "淘汰指數" ? "Magic Number：再贏幾場可確保不被該隊超越；領先隊不適用" : undefined}>{h}</th>
-                    ),
-                  )
+                {["#", "球隊", "出賽", "勝-和-敗", "勝率", "勝差", "淘汰指數", "連勝/敗", "主場", "客場", "近十場", "OPS", "ERA", "WHIP"].map(
+                  (h) => (
+                    <th key={h} className="whitespace-nowrap px-2.5 py-3 font-medium"
+                      title={h === "淘汰指數" ? "Magic Number：再贏幾場可確保不被該隊超越；領先隊不適用" : undefined}>{h}</th>
+                  ),
                 )}
               </tr>
             </thead>
             <tbody className="font-mono tabular-nums">
               {items.map((t) => {
-                if (isSpecial) {
-                  const s = sp.get(t.team_code);
-                  return (
-                    <tr key={t.team_code} className="border-t border-line hover:bg-surface-2">
-                      <td className="px-2.5 py-2.5 text-faint">{t.rank}</td>
-                      <td className="whitespace-nowrap px-2.5 py-2.5 font-sans"><TeamBadge code={t.team_code} name={t.team_name} /></td>
-                      {SPECIAL_COLS.map((c) => (
-                        <td key={c.key} className="px-2.5 py-2.5"><WL p={s?.[c.key]} /></td>
-                      ))}
-                      <td className="px-2.5 py-2.5 text-muted">{s?.sweeps ? `${s.sweeps} 次` : "—"}</td>
-                    </tr>
-                  );
-                }
                 const a = adv.get(t.team_code);
                 return (
                   <tr key={t.team_code} className="border-t border-line hover:bg-surface-2">
