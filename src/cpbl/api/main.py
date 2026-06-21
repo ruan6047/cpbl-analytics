@@ -956,6 +956,40 @@ def official_standings(
         return {"season": season, "season_code": season_code, "items": _dicts(cur)}
 
 
+@app.get("/api/v1/standings-trend")
+def standings_trend(
+    season: int = Query(DEFAULT_SEASON),
+    kind_code: str = Query("A"),
+) -> dict:
+    """各隊逐日累積戰績走勢（勝-敗差，即高於 .500 的場數）。未出賽日沿用前值。"""
+    with conn() as c:
+        games = c.execute(
+            "SELECT game_date, home_team_code, away_team_code, home_score, away_score "
+            "FROM cpbl.games WHERE year=%s AND kind_code=%s AND home_score+away_score>0 "
+            "ORDER BY game_date, game_sno",
+            (season, kind_code),
+        ).fetchall()
+    by_date: dict = {}
+    teams: set[str] = set()
+    for gd, hc, ac, hs, as_ in games:
+        by_date.setdefault(gd, []).append((hc, ac, hs, as_))
+        teams.add(hc)
+        teams.add(ac)
+    wl: dict[str, int] = dict.fromkeys(teams, 0)
+    points: list[dict] = []
+    for gd in sorted(by_date):
+        for hc, ac, hs, as_ in by_date[gd]:
+            if hs > as_:
+                wl[hc] += 1
+                wl[ac] -= 1
+            elif as_ > hs:
+                wl[hc] -= 1
+                wl[ac] += 1
+        points.append({"date": gd.strftime("%m-%d"), **wl})
+    ordered = sorted(teams, key=lambda t: -wl[t])
+    return {"season": season, "teams": ordered, "points": points}
+
+
 @app.get("/api/v1/special-records")
 def special_records_endpoint(
     season: int = Query(DEFAULT_SEASON),

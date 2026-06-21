@@ -91,8 +91,10 @@ def _trajectory(rows: list[tuple[int, int, int]]) -> dict:
 
 def _blank() -> dict:
     out: dict = {k: [0, 0] for k in _PAIR_KEYS}
-    out["sweeps"] = 0
-    out["swept"] = 0
+    out["sweeps"] = 0          # 三連戰橫掃（3 連戰 3-0）
+    out["swept"] = 0           # 被三連戰橫掃（3 連戰 0-3）
+    out["twogame_sweep"] = 0   # 雙連賽橫掃（2 連戰 2-0）
+    out["twogame_swept"] = 0   # 被雙連賽橫掃（2 連戰 0-2）
     out["walkoff"] = 0       # 再見勝（主隊最終局下半超前致勝）
     out["walkoff_types"] = {}  # 致勝方式分類 {類型: 次數}
     out["walked_off"] = 0    # 被再見（客隊吞再見敗）
@@ -373,3 +375,9 @@ def _add_series(season: int, kind_code: str, out: dict[str, dict]) -> None:
         elif len(gms) == 3 and aw == 3:
             out.setdefault(ac, _blank())["sweeps"] += 1
             out.setdefault(hc, _blank())["swept"] += 1
+        elif len(gms) == 2 and hw == 2:   # 雙連賽橫掃（2 連戰 2-0）
+            out.setdefault(hc, _blank())["twogame_sweep"] += 1
+            out.setdefault(ac, _blank())["twogame_swept"] += 1
+        elif len(gms) == 2 and aw == 2:
+            out.setdefault(ac, _blank())["twogame_sweep"] += 1
+            out.setdefault(hc, _blank())["twogame_swept"] += 1
