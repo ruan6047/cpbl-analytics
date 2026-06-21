@@ -1,5 +1,8 @@
 # CLAUDE.md — cpbl-analytics 專案 AI 運行準則
 
+> **操作前先讀 [`docs/AI_RUNBOOK.md`](docs/AI_RUNBOOK.md)**：指令速查、資料流、本機→生產同步、API/web 地圖、陷阱清單的**事實單一來源**。
+> 本檔負責「準則與紅線（為什麼）」，Runbook 負責「怎麼做（事實）」；衝突時以現實 + Runbook 為準並回頭修正。
+
 ## 專案概覽
 
 中華職棒 [CPBL] 資料管線 + **成績預測** [projection] + **賽果預測** [outcome] + 官方進階數據 / 賽況前端服務。
