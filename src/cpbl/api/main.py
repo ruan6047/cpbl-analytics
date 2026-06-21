@@ -961,9 +961,8 @@ def special_records_endpoint(
     season: int = Query(DEFAULT_SEASON),
     kind_code: str = Query("A"),
 ) -> dict:
-    """各隊特殊戰績（即時從逐場 + 逐局算）：場地材質/室內、先被得分、戰況激烈、順風/逆風、系列賽橫掃。"""
+    """各隊特殊戰績（即時從逐場 + 逐局算）：場地/比分型/賽況軌跡/終局/賽程/對手先發/系列賽。"""
     sit = special_records.team_situational(season, kind_code)
-    sw = special_records.team_sweeps(season, kind_code)
     with conn() as c:
         names = dict(c.execute(
             "SELECT team_code, team_name FROM cpbl.team_standings "
@@ -971,7 +970,7 @@ def special_records_endpoint(
             (season, kind_code),
         ).fetchall())
     items = [
-        {"team_code": tc, "team_name": names.get(tc, tc), **r, "sweeps": sw.get(tc, 0)}
+        {"team_code": tc, "team_name": names.get(tc, tc), **r}
         for tc, r in sit.items()
     ]
     items.sort(key=lambda x: -(x["natural"][0] + x["artificial"][0]))
