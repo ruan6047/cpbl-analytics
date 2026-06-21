@@ -138,9 +138,26 @@ export type OfficialStanding = {
 };
 export type OfficialStandingsResponse = { season: number; season_code: number; items: OfficialStanding[] };
 
+// 特殊戰績：各情境 [W, L]，sweeps 為次數
+export type SpecialRecord = {
+  team_code: string;
+  team_name: string;
+  artificial: [number, number];
+  natural: [number, number];
+  indoor: [number, number];
+  scored_first_against: [number, number];
+  intense: [number, number];
+  tailwind: [number, number];
+  headwind: [number, number];
+  sweeps: number;
+};
+export type SpecialRecordsResponse = { season: number; items: SpecialRecord[] };
+
 export const api = {
   officialStandings: (seg = 0) =>
     get<OfficialStandingsResponse>(`/api/v1/standings?season_code=${seg}`, 120),
+  specialRecords: (season?: number) =>
+    get<SpecialRecordsResponse>(`/api/v1/special-records${season ? `?season=${season}` : ""}`, 120),
   gamesRecent: (limit = 60) => get<GamesRecentResponse>(`/api/v1/games/recent?limit=${limit}`, 120),
   standings: (season?: number) =>
     get<StandingsResponse>(`/api/v1/season/standings${season ? `?season=${season}` : ""}`),
