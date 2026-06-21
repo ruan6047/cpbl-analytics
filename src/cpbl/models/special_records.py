@@ -29,6 +29,8 @@ from cpbl.venues import is_artificial, is_indoor
 LEAD_MARGIN = 3       # 順風/逆風門檻
 BLOWOUT_MARGIN = 5    # 大勝/大敗門檻
 BIG_INNING = 4        # 大局門檻（單局得分）
+SERIES_SNO_GAP = 10   # 系列判定：同對戰 game_sno 間隔 ≤ 此值視為同系列（雨延補賽 sno 不變仍歸原系列）。
+# 2026 實測同對戰 sno 間隔在 7 與 15 間為空集，故 7~14 任一門檻結果相同、且不會誤併不同系列。
 
 # 各情境鍵：W-L 或 [正向次數, 反向次數] 配對
 _PAIR_KEYS = (
@@ -37,7 +39,7 @@ _PAIR_KEYS = (
     "one_run", "blowout", "shutout", "comeback",
     "intense", "tailwind", "headwind", "big_inning",
     "extra", "save", "errorful",
-    "weekday", "weekend", "vs_lhp", "vs_rhp", "series",
+    "weekday", "weekend", "vs_lhp", "vs_rhp",
 )
 
 
@@ -91,10 +93,12 @@ def _trajectory(rows: list[tuple[int, int, int]]) -> dict:
 
 def _blank() -> dict:
     out: dict = {k: [0, 0] for k in _PAIR_KEYS}
-    out["sweeps"] = 0          # 三連戰橫掃（3 連戰 3-0）
+    out["series3"] = [0, 0, 0]  # 三連戰系列 [勝, 平, 負]（勝＝多數獲勝，3-0/2-1 同記一勝）
+    out["series2"] = [0, 0, 0]  # 雙連賽系列 [勝, 平, 負]（2-0 勝／1-1 平／0-2 負）
+    out["sweeps"] = 0          # 三連戰橫掃（3 連戰 3-0，係 series3 勝的子集）
     out["swept"] = 0           # 被三連戰橫掃（3 連戰 0-3）
-    out["twogame_sweep"] = 0   # 雙連賽橫掃（2 連戰 2-0）
-    out["twogame_swept"] = 0   # 被雙連賽橫掃（2 連戰 0-2）
+    out["twogame_sweep"] = 0   # 雙連賽橫掃（2 連戰 2-0＝series2 勝）
+    out["twogame_swept"] = 0   # 被雙連賽橫掃（2 連戰 0-2＝series2 負）
     out["walkoff"] = 0       # 再見勝（主隊最終局下半超前致勝）
     out["walkoff_types"] = {}  # 致勝方式分類 {類型: 次數}
     out["walked_off"] = 0    # 被再見（客隊吞再見敗）
@@ -334,50 +338,68 @@ def _add_walkoff(season: int, kind_code: str, out: dict[str, dict]) -> None:
         out.setdefault(ac, _blank())["walked_off"] += 1
 
 
+def _rec_series(out: dict[str, dict], key: str, hc: str, ac: str, hw: int, aw: int) -> None:
+    """記系列 [勝, 平, 負]：多數獲勝＝勝、平手＝雙方各記平、其餘記負。"""
+    if hw > aw:
+        out.setdefault(hc, _blank())[key][0] += 1
+        out.setdefault(ac, _blank())[key][2] += 1
+    elif aw > hw:
+        out.setdefault(ac, _blank())[key][0] += 1
+        out.setdefault(hc, _blank())[key][2] += 1
+    else:
+        out.setdefault(hc, _blank())[key][1] += 1
+        out.setdefault(ac, _blank())[key][1] += 1
+
+
 def _add_series(season: int, kind_code: str, out: dict[str, dict]) -> None:
-    """系列賽戰績：同 (主隊,客隊) 連戰（相鄰日期間隔 ≤2 天）分組，拿多數場＝系列勝。"""
+    """系列賽戰績：依 **game_sno（官方比賽編號）** 連續性分組。
+
+    中職系列賽按比賽編號界定：同對戰、game_sno 間隔 ≤ SERIES_SNO_GAP 為同系列。
+    雨延補賽 sno 不變（仍在原系列編號附近），故自動歸回原系列，不受改期日期影響。
+    系列勝＝多數獲勝（三連戰 3-0/2-1 同記一勝）；3-0/0-3＝橫掃（series3 勝/負的子集）。
+    """
     with conn() as c:
         games = c.execute(
-            "SELECT game_date, home_team_code, away_team_code, home_score, away_score "
+            "SELECT home_team_code, away_team_code, game_sno, home_score, away_score "
             "FROM cpbl.games WHERE year=%s AND kind_code=%s AND home_score+away_score>0 "
-            "ORDER BY home_team_code, away_team_code, game_date, game_sno",
+            "ORDER BY home_team_code, away_team_code, game_sno",
             (season, kind_code),
         ).fetchall()
 
     series: list[tuple] = []
     cur: list[tuple] = []
     prev_key = None
-    prev_date = None
-    for gd, hc, ac, hs, as_ in games:
+    prev_sno = None
+    for hc, ac, sno, hs, as_ in games:
         key = (hc, ac)
-        gap = (gd - prev_date).days if (prev_date and key == prev_key) else 99
-        if key != prev_key or gap > 2:
+        gap = (sno - prev_sno) if (prev_sno is not None and key == prev_key) else 999
+        if key != prev_key or gap > SERIES_SNO_GAP:
             if cur:
                 series.append((prev_key, cur))
             cur = []
         cur.append((hs, as_))
-        prev_key, prev_date = key, gd
+        prev_key, prev_sno = key, sno
     if cur:
         series.append((prev_key, cur))
 
     for (hc, ac), gms in series:
         hw = sum(1 for hs, as_ in gms if hs > as_)
         aw = sum(1 for hs, as_ in gms if as_ > hs)
-        if hw > aw:
-            out.setdefault(hc, _blank())["series"][0] += 1
-            out.setdefault(ac, _blank())["series"][1] += 1
-        elif aw > hw:
-            out.setdefault(ac, _blank())["series"][0] += 1
-            out.setdefault(hc, _blank())["series"][1] += 1
-        if len(gms) == 3 and hw == 3:
-            out.setdefault(hc, _blank())["sweeps"] += 1
-            out.setdefault(ac, _blank())["swept"] += 1
-        elif len(gms) == 3 and aw == 3:
-            out.setdefault(ac, _blank())["sweeps"] += 1
-            out.setdefault(hc, _blank())["swept"] += 1
-        elif len(gms) == 2 and hw == 2:   # 雙連賽橫掃（2 連戰 2-0）
-            out.setdefault(hc, _blank())["twogame_sweep"] += 1
-            out.setdefault(ac, _blank())["twogame_swept"] += 1
-        elif len(gms) == 2 and aw == 2:
-            out.setdefault(ac, _blank())["twogame_sweep"] += 1
-            out.setdefault(hc, _blank())["twogame_swept"] += 1
+        n = len(gms)
+        if n >= 3:   # 三連戰（含雨延補滿）
+            _rec_series(out, "series3", hc, ac, hw, aw)
+            if aw == 0 and hw >= 3:
+                out.setdefault(hc, _blank())["sweeps"] += 1
+                out.setdefault(ac, _blank())["swept"] += 1
+            elif hw == 0 and aw >= 3:
+                out.setdefault(ac, _blank())["sweeps"] += 1
+                out.setdefault(hc, _blank())["swept"] += 1
+        elif n == 2:  # 雙連賽
+            _rec_series(out, "series2", hc, ac, hw, aw)
+            if hw == 2:
+                out.setdefault(hc, _blank())["twogame_sweep"] += 1
+                out.setdefault(ac, _blank())["twogame_swept"] += 1
+            elif aw == 2:
+                out.setdefault(ac, _blank())["twogame_sweep"] += 1
+                out.setdefault(hc, _blank())["twogame_swept"] += 1
+        # n==1：單場（補賽未成系列等），不計入系列

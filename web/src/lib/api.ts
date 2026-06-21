@@ -140,6 +140,7 @@ export type OfficialStandingsResponse = { season: number; season_code: number; i
 
 // 特殊戰績：各情境 [W, L] 或 [正向, 反向] 配對；sweeps/swept 為次數
 export type WL = [number, number];
+export type WTL = [number, number, number]; // 系列 [勝, 平, 負]
 export type SpecialRecord = {
   team_code: string;
   team_name: string;
@@ -169,12 +170,13 @@ export type SpecialRecord = {
   // 對手先發
   vs_lhp: WL;
   vs_rhp: WL;
-  // 系列賽
-  series: WL;    // [系列勝, 系列負]
-  sweeps: number;          // 三連戰橫掃
-  swept: number;           // 被三連戰橫掃
-  twogame_sweep: number;   // 雙連賽橫掃
-  twogame_swept: number;   // 被雙連賽橫掃
+  // 系列賽（依官方比賽編號分組）
+  series3: WTL;  // 三連戰系列 [勝, 平, 負]（2-1/3-0 同記一勝）
+  series2: WTL;  // 雙連賽系列 [勝(2-0), 平(1-1), 負(0-2)]
+  sweeps: number;          // 三連戰橫掃（3-0）
+  swept: number;           // 被三連戰橫掃（0-3）
+  twogame_sweep: number;   // 雙連賽橫掃（2-0＝series2 勝）
+  twogame_swept: number;   // 被雙連賽橫掃（0-2＝series2 負）
   // 再見
   walkoff: number;                       // 再見勝
   walkoff_types: Record<string, number>; // 致勝方式分類 {類型: 次數}

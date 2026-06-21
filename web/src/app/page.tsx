@@ -2,7 +2,7 @@ import Link from "next/link";
 import { TeamBadge, TeamLogo } from "@/components/ui";
 import { StandingsTrend } from "@/components/standings-trend";
 import { api } from "@/lib/api";
-import type { OfficialStanding, SpecialRecord, WL } from "@/lib/api";
+import type { OfficialStanding, SpecialRecord, WL, WTL } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -23,8 +23,17 @@ function WLCell({ p }: { p?: WL }) {
   return <span className={cls}>{w}-{l}</span>;
 }
 
+// 系列 勝-平-負：依勝(>負)藍、負(>勝)紅上色
+function WtlCell({ p }: { p?: WTL }) {
+  if (!p) return <span className="text-faint">—</span>;
+  const [w, t, l] = p;
+  if (w + t + l === 0) return <span className="text-faint">—</span>;
+  const cls = w > l ? "text-up" : l > w ? "text-down" : "text-muted";
+  return <span className={cls}>{w}-{t}-{l}</span>;
+}
+
 // 特殊戰績分主題小表配置
-type SpCol = { key: keyof SpecialRecord; label: string; title?: string; count?: boolean; unit?: string };
+type SpCol = { key: keyof SpecialRecord; label: string; title?: string; count?: boolean; unit?: string; wtl?: boolean };
 type SpSection = { title: string; note?: string; cols: SpCol[] };
 
 const SPECIAL_SECTIONS: SpSection[] = [
@@ -91,10 +100,10 @@ const SPECIAL_SECTIONS: SpSection[] = [
     title: "系列賽",
     note: "連戰（同對手、間隔 ≤2 天）拿多數場＝系列勝",
     cols: [
-      { key: "series", label: "系列 勝-負", title: "系列賽勝-負次數" },
-      { key: "sweeps", label: "三連戰橫掃", title: "3 連戰 3-0 次數", count: true },
-      { key: "twogame_sweep", label: "雙連賽橫掃", title: "2 連戰 2-0 次數", count: true },
-      { key: "swept", label: "被橫掃", title: "被 3 連戰 0-3 次數", count: true },
+      { key: "series3", label: "三連戰 勝-平-負", title: "三連戰系列：多數獲勝記一勝（2-1 或 3-0 同記）；1-1-1 平", wtl: true },
+      { key: "sweeps", label: "三連戰橫掃", title: "三連戰 3-0 次數（系列勝的子集）", count: true },
+      { key: "swept", label: "被三連戰橫掃", title: "三連戰 0-3 次數", count: true },
+      { key: "series2", label: "雙連賽 勝-平-負", title: "雙連賽：2-0 勝(橫掃)／1-1 平／0-2 負(被橫掃)", wtl: true },
     ],
   },
 ];
@@ -129,6 +138,8 @@ function SpecialTable({ section, rows, sp }: { section: SpSection; rows: Officia
                     <td key={c.key} className="px-2.5 py-2">
                       {c.count ? (
                         <span className="text-muted">{(s?.[c.key] as number) ? `${s![c.key]} ${c.unit ?? "次"}` : "—"}</span>
+                      ) : c.wtl ? (
+                        <WtlCell p={s?.[c.key] as WTL | undefined} />
                       ) : (
                         <WLCell p={s?.[c.key] as WL | undefined} />
                       )}
