@@ -93,6 +93,10 @@ def _blank() -> dict:
     out: dict = {k: [0, 0] for k in _PAIR_KEYS}
     out["sweeps"] = 0
     out["swept"] = 0
+    out["walkoff"] = 0       # 再見勝（主隊最終局下半超前致勝）
+    out["walkoff_hit"] = 0   # 其中以安打致勝
+    out["walkoff_hr"] = 0    # 其中以全壘打致勝
+    out["walked_off"] = 0    # 被再見（客隊吞再見敗）
     out["months"] = {}
     return out
 
@@ -239,7 +243,38 @@ def team_situational(season: int, kind_code: str = "A") -> dict[str, dict]:
             wl(ac, "vs_lhp" if home_sp == "左投" else "vs_rhp", not home_win)
 
     _add_series(season, kind_code, out)
+    _add_walkoff(season, kind_code, out)
     return out
+
+
+def _add_walkoff(season: int, kind_code: str, out: dict[str, dict]) -> None:
+    """再見 [walk-off]：全場最後一個事件落在主隊半局且主隊勝＝再見勝。
+
+    用「全場最後事件」而非最後得分事件——遊戲若繼續，最後事件會在客隊半局；
+    主隊再見致勝時遊戲即止，最後事件必在主隊半局。致勝打擊結果（batting_action_name）
+    以「安」結尾＝再見安打、「全打」＝再見全壘打。
+    """
+    with conn() as c:
+        rows = c.execute(
+            "WITH last_ev AS ("
+            "  SELECT DISTINCT ON (game_sno) game_sno, visiting_home_type, batting_action_name, "
+            "         visiting_score, home_score "
+            "  FROM cpbl.game_livelog WHERE year=%s AND kind_code=%s "
+            "  ORDER BY game_sno, inning_seq DESC, main_event_no DESC) "
+            "SELECT g.home_team_code, g.away_team_code, e.batting_action_name "
+            "FROM last_ev e JOIN cpbl.games g "
+            "  ON g.game_sno=e.game_sno AND g.year=%s AND g.kind_code=%s "
+            "WHERE e.visiting_home_type='2' AND e.home_score > e.visiting_score",
+            (season, kind_code, season, kind_code),
+        ).fetchall()
+    for hc, ac, ban in rows:
+        o = out.setdefault(hc, _blank())
+        o["walkoff"] += 1
+        if ban and ban.endswith("安"):
+            o["walkoff_hit"] += 1
+        elif ban == "全打":
+            o["walkoff_hr"] += 1
+        out.setdefault(ac, _blank())["walked_off"] += 1
 
 
 def _add_series(season: int, kind_code: str, out: dict[str, dict]) -> None:
