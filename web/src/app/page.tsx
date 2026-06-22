@@ -12,6 +12,15 @@ const SEGS = [
   { v: 2, label: "下半季" },
 ];
 
+// 球隊徽章連到各隊獨立頁
+function LinkedTeam({ code, name }: { code: string; name: string }) {
+  return (
+    <Link href={`/teams/${code}`} className="hover:underline">
+      <TeamBadge code={code} name={name} />
+    </Link>
+  );
+}
+
 // W-L 配對：依勝率上色（>.5 藍、<.5 紅），方便跨隊一覽
 function WLCell({ p }: { p?: WL }) {
   if (!p) return <span className="text-faint">—</span>;
@@ -133,7 +142,7 @@ function SpecialTable({ section, rows, sp }: { section: SpSection; rows: Officia
               const s = sp.get(t.team_code);
               return (
                 <tr key={t.team_code} className="border-t border-line hover:bg-surface-2">
-                  <td className="whitespace-nowrap px-2.5 py-2 font-sans"><TeamBadge code={t.team_code} name={t.team_name} /></td>
+                  <td className="whitespace-nowrap px-2.5 py-2 font-sans"><LinkedTeam code={t.team_code} name={t.team_name} /></td>
                   {section.cols.map((c) => (
                     <td key={c.key} className="px-2.5 py-2">
                       {c.count ? (
@@ -178,7 +187,7 @@ function MonthsTable({ rows, sp }: { rows: OfficialStanding[]; sp: Map<string, S
               const s = sp.get(t.team_code);
               return (
                 <tr key={t.team_code} className="border-t border-line hover:bg-surface-2">
-                  <td className="whitespace-nowrap px-2.5 py-2 font-sans"><TeamBadge code={t.team_code} name={t.team_name} /></td>
+                  <td className="whitespace-nowrap px-2.5 py-2 font-sans"><LinkedTeam code={t.team_code} name={t.team_name} /></td>
                   {months.map((m) => (
                     <td key={m} className="px-2.5 py-2"><WLCell p={s?.months[String(m)]} /></td>
                   ))}
@@ -220,7 +229,7 @@ function WalkoffTable({ rows, sp }: { rows: OfficialStanding[]; sp: Map<string, 
               const s = sp.get(t.team_code);
               return (
                 <tr key={t.team_code} className="border-t border-line hover:bg-surface-2">
-                  <td className="whitespace-nowrap px-2.5 py-2 font-sans"><TeamBadge code={t.team_code} name={t.team_name} /></td>
+                  <td className="whitespace-nowrap px-2.5 py-2 font-sans"><LinkedTeam code={t.team_code} name={t.team_name} /></td>
                   <td className="px-2.5 py-2 text-up">{s?.walkoff ? `${s.walkoff} 次` : "—"}</td>
                   {types.map((ty) => (
                     <td key={ty} className="px-2.5 py-2 text-muted">{s?.walkoff_types?.[ty] ?? "—"}</td>
@@ -328,7 +337,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
                 return (
                   <tr key={t.team_code} className="border-t border-line hover:bg-surface-2">
                     <td className="px-2.5 py-2.5 text-faint">{t.rank}</td>
-                    <td className="whitespace-nowrap px-2.5 py-2.5 font-sans"><TeamBadge code={t.team_code} name={t.team_name} /></td>
+                    <td className="whitespace-nowrap px-2.5 py-2.5 font-sans"><LinkedTeam code={t.team_code} name={t.team_name} /></td>
                     <td className="px-2.5 py-2.5 text-muted">{t.g}</td>
                     <td className="px-2.5 py-2.5">{t.w}-{t.t}-{t.l}</td>
                     <td className="px-2.5 py-2.5 text-accent">{t.win_pct?.toFixed(3) ?? "—"}</td>
