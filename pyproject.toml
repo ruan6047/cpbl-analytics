@@ -36,6 +36,11 @@ dev = [
     "pytest>=8.3",
     "ruff>=0.9",
 ]
+# 本機爬蟲專用：官網主站(www.cpbl.com.tw)加了 HiNet CDN 反爬 JS 挑戰，純 httpx 會 428；
+# 改用 Playwright 開頁過挑戰後 page.evaluate(fetch) 發 API。生產不爬蟲、不需此群組。
+scrape = [
+    "playwright>=1.49",
+]
 
 [build-system]
 requires = ["hatchling"]

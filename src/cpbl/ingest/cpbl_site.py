@@ -62,23 +62,24 @@ def _i(v) -> int | None:
 
 
 def fetch_year(year: int, kind_code: str = KIND_REGULAR) -> list[dict]:
-    """抓某年某賽別的所有比賽（一次請求回整年）。"""
-    client, token = _new_session()
-    try:
-        resp = client.post(
-            GAMES_ENDPOINT,
-            headers={
-                "RequestVerificationToken": token,
-                "X-Requested-With": "XMLHttpRequest",
-                "Referer": SCHEDULE_PAGE,
-            },
-            data={"calendar": f"{year}/01/01", "location": "", "kindCode": kind_code},
-        )
-        resp.raise_for_status()
-        payload = resp.json()
-    finally:
-        client.close()
+    """抓某年某賽別的所有比賽（一次請求回整年）。
 
+    官網主站加了 HiNet 反爬挑戰，改走 Playwright session（見 _browser.py）：
+    開 /schedule 過挑戰、抽 token、於頁面 context 內 fetch getgamedatas。
+    """
+    from cpbl.ingest._browser import session
+    s = session()
+    m = _TOKEN_RE.search(s.page_html("/schedule"))
+    if not m:
+        raise RuntimeError("找不到 RequestVerificationToken（官網結構可能已改版）")
+    status, text = s.post(
+        "/schedule", "/schedule/getgamedatas",
+        {"calendar": f"{year}/01/01", "location": "", "kindCode": kind_code},
+        headers={"RequestVerificationToken": m.group(1)},
+    )
+    if status != 200:
+        raise RuntimeError(f"getgamedatas HTTP {status}（year={year}, kind={kind_code}；反爬挑戰未過？）")
+    payload = json.loads(text)
     if not payload.get("Success"):
         raise RuntimeError(f"getgamedatas 回 Success=false（year={year}, kind={kind_code}）")
     return json.loads(payload["GameDatas"])  # GameDatas 是 JSON 字串
