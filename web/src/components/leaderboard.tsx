@@ -2,8 +2,19 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { TeamBadge } from "@/components/ui";
-import { codeFromName } from "@/lib/teams";
+import { contrastText, nameMeta } from "@/lib/teams";
+
+// 依隊名渲染彩色徽章（含歷史/二軍隊，走 nameMeta 統一解析）
+function NameBadge({ name }: { name: string }) {
+  const m = nameMeta(name);
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="inline-flex h-4 w-4 items-center justify-center rounded text-[9px] font-extrabold"
+        style={{ background: m.color, color: contrastText(m.color) }}>{m.letter}</span>
+      <span>{name || "—"}</span>
+    </span>
+  );
+}
 
 export type Fmt = "i" | "f1" | "f2" | "f3";
 export type Tone = "accent" | "dim" | "warn";
@@ -159,7 +170,7 @@ export default function Leaderboard({
                     }`}
                   >
                     {c.team ? (
-                      <TeamBadge code={codeFromName(String(r[c.key]))} name={String(r[c.key] ?? "—")} size={16} />
+                      <NameBadge name={String(r[c.key] ?? "")} />
                     ) : c.link ? (
                       <Link
                         href={`${c.link.base}${r[c.link.idKey]}`}

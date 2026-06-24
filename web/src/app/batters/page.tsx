@@ -1,4 +1,5 @@
 import Leaderboard, { type Col } from "@/components/leaderboard";
+import { LevelYearNav } from "@/components/level-year-nav";
 import { api } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -25,17 +26,26 @@ const COLS: Col[] = [
   { key: "ops", label: "OPS", fmt: "f3", tone: "accent", tip: "整體攻擊指數 OPS = 上壘率＋長打率" },
 ];
 
-export default async function BattersPage() {
-  const { season, items } = await api.battingLeaders("ops");
+export default async function BattersPage({ searchParams }: { searchParams: Promise<{ year?: string; kind?: string }> }) {
+  const { year: yp, kind: kp } = await searchParams;
+  const kind = kp === "D" ? "D" : "A";
+  const { years } = await api.seasons(kind);
+  const currentYear = years[0] ?? new Date().getFullYear();
+  const selectedYear = yp ? Number(yp) : currentYear;
+  const isCurrent = selectedYear === currentYear && kind === "A";
+  const { season, items } = await api.battingLeaders("ops", { kind, year: isCurrent ? undefined : selectedYear });
 
   return (
     <div>
       <header className="mb-5">
-        <h1 className="text-2xl font-bold">{season} 球季 · 打者排行</h1>
+        <h1 className="text-2xl font-bold">{season} 球季 · {kind === "D" ? "二軍" : ""}打者排行</h1>
         <p className="mt-2 text-sm text-muted">
-          全名單本季打者。點欄位標題排序（再點一次反向），可依球隊篩選。
+          {kind === "D" || !isCurrent ? "由逐場/逐年成績彙整（二軍逐打席自 2018 起）。" : "全名單本季打者。"}
+          點欄位標題排序（再點一次反向），可依球隊篩選。
         </p>
       </header>
+
+      <LevelYearNav kind={kind} years={years} selectedYear={selectedYear} base="/batters" />
 
       <Leaderboard
         rows={items}

@@ -142,41 +142,121 @@ def batting_projections(
     return {"model_version": model_version, "stat": stat, "target_year": year, "items": items}
 
 
+# 打者季成績原始計數欄序（各來源統一成此順序）
+_BAT_COLS = ("player_id", "name", "team", "g", "pa", "ab", "r", "h", "b2", "b3", "hr", "rbi",
+             "bb", "so", "sb", "cs", "tb", "ibb", "hbp", "sf", "sh", "gidp")
+
+
+def _batting_rows(year: int, kind: str) -> list[dict]:
+    """打者季成績原始計數，依年份/層級選來源：當季一軍→batting_current、2018+→gamelog、<2018 一軍→opendata。"""
+    with conn() as c:
+        if kind == "A" and year == DEFAULT_SEASON:
+            rows = c.execute(
+                "SELECT b.player_id, b.name, t.name, b.g,b.pa,b.ab,b.r,b.h,b.b2,b.b3,b.hr,b.rbi,"
+                "b.bb,b.so,b.sb,b.cs,b.tb,b.ibb,b.hbp,b.sf,b.sh,b.gidp "
+                "FROM cpbl.batting_current b LEFT JOIN cpbl.team_current t "
+                "ON t.team_code=b.team_code AND t.year=b.year WHERE b.year=%s", (year,)).fetchall()
+        elif year >= 2018:  # 逐場彙整（含二軍）；隊伍由 games + visiting_home_type 推
+            rows = c.execute(
+                "WITH agg AS (SELECT hitter_acnt acnt, max(hitter_name) nm, count(DISTINCT game_sno) g, "
+                " sum(plate_appearances) pa, sum(at_bats) ab, sum(runs) r, sum(hits) h, sum(doubles) b2, "
+                " sum(triples) b3, sum(home_runs) hr, sum(rbi) rbi, sum(bb) bb, sum(so) so, sum(sb) sb, "
+                " sum(cs) cs, sum(total_bases) tb, sum(ibb) ibb, sum(hbp) hbp, sum(sac_fly) sf, "
+                " sum(sac_hit) sh, sum(gidp) gidp FROM cpbl.batting_gamelog WHERE year=%s AND kind_code=%s "
+                " GROUP BY hitter_acnt), "
+                "tm AS (SELECT DISTINCT ON (bg.hitter_acnt) bg.hitter_acnt acnt, "
+                " CASE WHEN bg.visiting_home_type='2' THEN g.home_team_name ELSE g.away_team_name END nm "
+                " FROM cpbl.batting_gamelog bg JOIN cpbl.games g ON g.year=bg.year AND g.kind_code=bg.kind_code "
+                " AND g.game_sno=bg.game_sno WHERE bg.year=%s AND bg.kind_code=%s ORDER BY bg.hitter_acnt, bg.game_sno) "
+                "SELECT a.acnt, a.nm, tm.nm, a.g,a.pa,a.ab,a.r,a.h,a.b2,a.b3,a.hr,a.rbi,a.bb,a.so,a.sb,a.cs,"
+                "a.tb,a.ibb,a.hbp,a.sf,a.sh,a.gidp FROM agg a LEFT JOIN tm ON tm.acnt=a.acnt",
+                (year, kind, year, kind)).fetchall()
+        else:  # opendata 逐年（一軍；同年多隊加總）
+            rows = c.execute(
+                "SELECT s.player_id, max(p.name), max(s.team_name), sum(s.g),sum(s.pa),sum(s.ab),sum(s.r),"
+                "sum(s.h),sum(s.b2),sum(s.b3),sum(s.hr),sum(s.rbi),sum(s.bb),sum(s.so),sum(s.sb),sum(s.cs),"
+                "sum(s.tb),sum(s.ibb),sum(s.hbp),sum(s.sf),sum(s.sh),sum(s.gidp) "
+                "FROM cpbl.batting_seasons s LEFT JOIN cpbl.players p ON p.id=s.player_id "
+                "WHERE s.year=%s GROUP BY s.player_id", (year,)).fetchall()
+    return [dict(zip(_BAT_COLS, r, strict=False)) for r in rows]
+
+
 @app.get("/api/v1/season/batting-leaders")
 def batting_leaders(
     season: int = Query(DEFAULT_SEASON),
     sort: str = Query("ops", pattern="^(ops|avg|obp|slg|hr|rbi|r|h|sb|bb|so)$"),
     min_pa: int = Query(30, ge=0, description="最低打席（排行用；0=全名單）"),
     limit: int = Query(50, ge=1, le=500),
+    kind_code: str = Query("A"),
 ) -> dict:
-    """本季打者排行（batting_current，全名單;預設過濾低打席避免雜訊）。"""
-    def f(v):
-        return float(v) if v is not None else None
+    """打者排行：當季一軍/歷史/二軍。rate(avg/obp/slg/ops/k%/bb%)統一由原始計數計算。"""
+    items = []
+    for r in _batting_rows(season, kind_code):
+        ab, h, bb, hbp, sf, tb, pa = (r.get(k) or 0 for k in ("ab", "h", "bb", "hbp", "sf", "tb", "pa"))
+        if pa < min_pa:
+            continue
+        obp_den = ab + bb + hbp + sf
+        r["avg"] = round(h / ab, 3) if ab else None
+        r["obp"] = round((h + bb + hbp) / obp_den, 3) if obp_den else None
+        r["slg"] = round(tb / ab, 3) if ab else None
+        r["ops"] = round((r["obp"] or 0) + (r["slg"] or 0), 3) if ab else None
+        r["k_pct"] = round((r.get("so") or 0) / pa * 100, 1) if pa else None
+        r["bb_pct"] = round(bb / pa * 100, 1) if pa else None
+        items.append(r)
+    items.sort(key=lambda x: (x.get(sort) is not None, x.get(sort) or 0), reverse=True)
+    return {"season": season, "sort": sort, "items": items[:limit]}
 
+
+def _ip_real(ip: float | None) -> float | None:
+    """.1/.2 局數記法 → 真實局數（如 180.2 → 180⅔）。"""
+    if ip is None:
+        return None
+    whole = int(ip)
+    return whole + round((ip - whole) * 10) / 3.0
+
+
+_PIT_COLS = ("player_id", "name", "team", "g", "gs", "cg", "sho", "w", "l", "sv", "hld",
+             "ip", "h", "hr", "bb", "ibb", "hbp", "so", "r", "er")
+
+
+def _pitching_rows(year: int, kind: str) -> list[dict]:
+    """投手季成績（ip 已轉真實局數），來源同打者三選一。"""
     with conn() as c:
-        cur = c.cursor()
-        cur.execute(
-            f"""
-            SELECT b.player_id, b.name, t.name, b.g, b.pa, b.ab, b.r, b.h, b.b2, b.b3,
-                   b.hr, b.rbi, b.bb, b.so, b.sb, b.cs, b.avg, b.obp, b.slg, b.ops,
-                   b.tb, b.ibb, b.hbp, b.sf, b.sh, b.gidp, b.k_pct, b.bb_pct
-            FROM cpbl.batting_current b
-            LEFT JOIN cpbl.team_current t ON t.team_code = b.team_code AND t.year = b.year
-            WHERE b.year = %s AND b.{sort} IS NOT NULL AND COALESCE(b.pa, 0) >= %s
-            ORDER BY b.{sort} DESC NULLS LAST
-            LIMIT %s
-            """,
-            (season, min_pa, limit),
-        )
-        items = [
-            {"player_id": r[0], "name": r[1], "team": r[2], "g": r[3], "pa": r[4], "ab": r[5],
-             "r": r[6], "h": r[7], "b2": r[8], "b3": r[9], "hr": r[10], "rbi": r[11], "bb": r[12],
-             "so": r[13], "sb": r[14], "cs": r[15], "avg": f(r[16]), "obp": f(r[17]),
-             "slg": f(r[18]), "ops": f(r[19]), "tb": r[20], "ibb": r[21], "hbp": r[22], "sf": r[23],
-             "sh": r[24], "gidp": r[25], "k_pct": f(r[26]), "bb_pct": f(r[27])}
-            for r in cur.fetchall()
-        ]
-    return {"season": season, "sort": sort, "items": items}
+        if kind == "A" and year == DEFAULT_SEASON:
+            raw = c.execute(
+                "SELECT p.player_id,p.name,t.name,p.g,p.gs,p.cg,p.sho,p.w,p.l,p.sv,p.hld,p.ip,"
+                "p.h,p.hr,p.bb,p.ibb,p.hbp,p.so,p.r,p.er FROM cpbl.pitching_current p "
+                "LEFT JOIN cpbl.team_current t ON t.team_code=p.team_code AND t.year=p.year WHERE p.year=%s",
+                (year,)).fetchall()
+            out = [dict(zip(_PIT_COLS, r, strict=False)) for r in raw]
+            for d in out:
+                d["ip"] = _ip_real(d["ip"])
+            return out
+        if year >= 2018:  # 逐場彙整（含二軍）
+            raw = c.execute(
+                "WITH agg AS (SELECT pitcher_acnt acnt, max(pitcher_name) nm, count(DISTINCT game_sno) g, "
+                " count(*) FILTER (WHERE role_type='先發') gs, sum(is_complete_game::int) cg, "
+                " sum(is_shutout::int) sho, count(*) FILTER (WHERE game_result='勝') w, "
+                " count(*) FILTER (WHERE game_result='敗') l, "
+                " sum(inning_pitched_cnt)+sum(inning_pitched_div3)/3.0 ip, sum(hits) h, sum(home_runs) hr, "
+                " sum(bb) bb, sum(ibb) ibb, sum(hbp) hbp, sum(so) so, sum(runs) r, sum(earned_runs) er "
+                " FROM cpbl.pitching_gamelog WHERE year=%s AND kind_code=%s GROUP BY pitcher_acnt), "
+                "tm AS (SELECT DISTINCT ON (pg.pitcher_acnt) pg.pitcher_acnt acnt, "
+                " CASE WHEN pg.visiting_home_type='2' THEN g.home_team_name ELSE g.away_team_name END nm "
+                " FROM cpbl.pitching_gamelog pg JOIN cpbl.games g ON g.year=pg.year AND g.kind_code=pg.kind_code "
+                " AND g.game_sno=pg.game_sno WHERE pg.year=%s AND pg.kind_code=%s ORDER BY pg.pitcher_acnt, pg.game_sno) "
+                "SELECT a.acnt,a.nm,tm.nm,a.g,a.gs,a.cg,a.sho,a.w,a.l,NULL,NULL,a.ip,a.h,a.hr,a.bb,a.ibb,a.hbp,a.so,a.r,a.er "
+                "FROM agg a LEFT JOIN tm ON tm.acnt=a.acnt", (year, kind, year, kind)).fetchall()
+            return [dict(zip(_PIT_COLS, r, strict=False)) for r in raw]
+        # opendata 逐年（一軍；ip 先轉真實局再加總，多隊合計）
+        raw = c.execute(
+            "SELECT s.player_id, max(p.name), max(s.team_name), sum(s.g),sum(s.gs),sum(s.cg),sum(s.sho),"
+            "sum(s.w),sum(s.l),sum(s.sv),sum(s.hld),"
+            "sum(floor(s.ip)+round((s.ip-floor(s.ip))*10)/3.0), sum(s.h),sum(s.hr),sum(s.bb),sum(s.ibb),"
+            "sum(s.hbp),sum(s.so),sum(s.r),sum(s.er) "
+            "FROM cpbl.pitching_seasons s LEFT JOIN cpbl.players p ON p.id=s.player_id "
+            "WHERE s.year=%s GROUP BY s.player_id", (year,)).fetchall()
+        return [dict(zip(_PIT_COLS, r, strict=False)) for r in raw]
 
 
 @app.get("/api/v1/season/pitching-leaders")
@@ -185,36 +265,24 @@ def pitching_leaders(
     sort: str = Query("era", pattern="^(era|whip|w|sv|hld|k9|gs|ip)$"),
     min_ip: float = Query(20, ge=0, description="最低投球局數"),
     limit: int = Query(50, ge=1, le=500),
+    kind_code: str = Query("A"),
 ) -> dict:
-    """本季投手排行（pitching_current 全名單）。ERA/WHIP 越低越前。"""
-    direction = "ASC" if sort in ("era", "whip") else "DESC"
-    with conn() as c:
-        cur = c.cursor()
-        cur.execute(
-            f"""
-            SELECT p.player_id, p.name, t.name, p.g, p.gs, p.cg, p.sho, p.w, p.l, p.sv, p.hld,
-                   p.ip, p.era, p.whip, p.k9, p.pa, p.np, p.h, p.hr, p.bb, p.ibb, p.hbp, p.so,
-                   p.wp, p.bk, p.r, p.er, p.go, p.ao, p.goao
-            FROM cpbl.pitching_current p
-            LEFT JOIN cpbl.team_current t ON t.team_code = p.team_code AND t.year = p.year
-            WHERE p.year = %s AND p.{sort} IS NOT NULL AND COALESCE(p.ip, 0) >= %s
-            ORDER BY p.{sort} {direction} NULLS LAST
-            LIMIT %s
-            """,
-            (season, min_ip, limit),
-        )
-        fl = lambda v: float(v) if v is not None else None  # noqa: E731
-        items = [
-            {"player_id": r[0], "name": r[1], "team": r[2], "g": r[3], "gs": r[4], "cg": r[5],
-             "sho": r[6], "w": r[7], "l": r[8], "sv": r[9], "hld": r[10],
-             "ip": fl(r[11]), "era": fl(r[12]), "whip": fl(r[13]),
-             "k9": round(float(r[14]), 2) if r[14] is not None else None,
-             "pa": r[15], "np": r[16], "h": r[17], "hr": r[18], "bb": r[19], "ibb": r[20],
-             "hbp": r[21], "so": r[22], "wp": r[23], "bk": r[24], "r": r[25], "er": r[26],
-             "go": r[27], "ao": r[28], "goao": fl(r[29])}
-            for r in cur.fetchall()
-        ]
-    return {"season": season, "sort": sort, "items": items}
+    """投手排行：當季一軍/歷史/二軍。ERA/WHIP/K9 由原始計數+真實局數計算（越低越前的 era/whip 反向排）。"""
+    items = []
+    for r in _pitching_rows(season, kind_code):
+        ip = r.get("ip")
+        if ip is None or ip < min_ip:
+            continue
+        er, h, bb, so = (r.get(k) or 0 for k in ("er", "h", "bb", "so"))
+        r["ip"] = round(ip, 1)
+        r["era"] = round(er * 9 / ip, 2) if ip else None
+        r["whip"] = round((h + bb) / ip, 2) if ip else None
+        r["k9"] = round(so * 9 / ip, 2) if ip else None
+        items.append(r)
+    asc = sort in ("era", "whip")  # era/whip 越低越前
+    present = sorted((x for x in items if x.get(sort) is not None), key=lambda x: x[sort], reverse=not asc)
+    absent = [x for x in items if x.get(sort) is None]
+    return {"season": season, "sort": sort, "items": (present + absent)[:limit]}
 
 
 @app.get("/api/v1/season/fielding")

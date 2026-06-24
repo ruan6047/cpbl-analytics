@@ -76,3 +76,32 @@ const NAME_CODE: Record<string, string> = {
 };
 export const codeFromName = (name?: string | null) => (name && NAME_CODE[name]) || null;
 export const colorFromName = (name?: string | null) => teamColor(codeFromName(name));
+
+// 統一「隊名 → 隊色/字母」解析（含現役全名/簡稱 + 歷史隊 + 二軍後綴）。
+// 解決排行榜/H2H 等以「隊名」渲染的徽章與 franchise/iconic 色不同步問題。
+const NAME_META: Record<string, { color: string; letter: string }> = {
+  // 現役（全名 + 簡稱）
+  "味全龍": { color: "#C8102E", letter: "W" }, "味全": { color: "#C8102E", letter: "W" },
+  "中信兄弟": { color: "#C8A24A", letter: "B" },
+  "統一7-ELEVEn獅": { color: "#E35A13", letter: "L" }, "統一7-ELEVEn": { color: "#E35A13", letter: "L" }, "統一": { color: "#E35A13", letter: "L" },
+  "富邦悍將": { color: "#2A4B9B", letter: "G" }, "富邦": { color: "#2A4B9B", letter: "G" },
+  "樂天桃猿": { color: "#8E1537", letter: "R" }, "樂天": { color: "#8E1537", letter: "R" },
+  "台鋼雄鷹": { color: "#15543C", letter: "T" }, "台鋼": { color: "#15543C", letter: "T" },
+  // 歷史（球衣查證/iconic；中信鯨≠中信兄弟）
+  "兄弟": { color: "#F2A900", letter: "兄" }, "兄弟象": { color: "#F2A900", letter: "兄" },
+  "三商": { color: "#2FA8DE", letter: "虎" }, "三商虎": { color: "#2FA8DE", letter: "虎" },
+  "俊國": { color: "#2E8B57", letter: "俊" }, "俊國熊": { color: "#2E8B57", letter: "俊" },
+  "興農": { color: "#00843D", letter: "牛" }, "興農牛": { color: "#00843D", letter: "牛" },
+  "義大": { color: "#5B2A86", letter: "犀" }, "義大犀牛": { color: "#5B2A86", letter: "犀" },
+  "時報": { color: "#808080", letter: "鷹" }, "時報鷹": { color: "#808080", letter: "鷹" },
+  "中信": { color: "#003F8C", letter: "鯨" }, "中信鯨": { color: "#003F8C", letter: "鯨" },
+  "誠泰": { color: "#1A1A1A", letter: "誠" },
+  "米迪亞": { color: "#1B3A6B", letter: "暴" },
+  "第一": { color: "#2E9BD6", letter: "金" },
+  "Lamigo": { color: "#1B2A4A", letter: "猿" }, "La New": { color: "#1AA79E", letter: "熊" },
+};
+export const nameMeta = (name?: string | null): { color: string; letter: string } => {
+  if (!name) return { color: "#94a3b8", letter: "?" };
+  const n = name.replace(/二軍$/, "");  // 二軍沿用母隊色
+  return NAME_META[n] ?? { color: "#94a3b8", letter: "?" };
+};
