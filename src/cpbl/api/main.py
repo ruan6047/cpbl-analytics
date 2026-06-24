@@ -939,13 +939,71 @@ def player_discipline(
             "quality": quality, "points": points, "spray": spray, "batted": batted}
 
 
+def _computed_standings(season: int, kind_code: str) -> list[dict]:
+    """歷史年份無官方 team_standings → 由 games 逐場結果即時算全年戰績（結果 only）。"""
+    from collections import defaultdict
+    with conn() as c:
+        games = c.execute(
+            "SELECT home_team_code, home_team_name, away_team_code, away_team_name, home_score, away_score "
+            "FROM cpbl.games WHERE year=%s AND kind_code=%s AND home_score+away_score>0",
+            (season, kind_code),
+        ).fetchall()
+    rec: dict = defaultdict(lambda: {
+        "name": None, "w": 0, "l": 0, "t": 0, "rs": 0, "ra": 0,
+        "hw": 0, "hl": 0, "ht": 0, "aw": 0, "al": 0, "at": 0,
+        "h2h": defaultdict(lambda: [0, 0, 0]),
+    })
+    for hc, hn, ac, an, hs, as_ in games:
+        h, a = rec[hc], rec[ac]
+        h["name"], a["name"] = hn, an
+        h["rs"] += hs; h["ra"] += as_; a["rs"] += as_; a["ra"] += hs
+        if hs > as_:
+            h["w"] += 1; h["hw"] += 1; a["l"] += 1; a["al"] += 1
+            h["h2h"][ac][0] += 1; a["h2h"][hc][1] += 1
+        elif as_ > hs:
+            a["w"] += 1; a["aw"] += 1; h["l"] += 1; h["hl"] += 1
+            a["h2h"][hc][0] += 1; h["h2h"][ac][1] += 1
+        else:
+            h["t"] += 1; h["ht"] += 1; a["t"] += 1; a["at"] += 1
+            h["h2h"][ac][2] += 1; a["h2h"][hc][2] += 1
+    items = []
+    for tc, r in rec.items():
+        dec = r["w"] + r["l"]
+        items.append({
+            "team_code": tc, "team_name": r["name"], "g": r["w"] + r["l"] + r["t"],
+            "w": r["w"], "t": r["t"], "l": r["l"],
+            "win_pct": round(r["w"] / dec, 3) if dec else None,
+            "run_diff": r["rs"] - r["ra"],
+            "home_record": f'{r["hw"]}-{r["ht"]}-{r["hl"]}', "away_record": f'{r["aw"]}-{r["at"]}-{r["al"]}',
+            "elim": None, "streak": None, "last10": None,
+            "h2h": {opp: f"{v[0]}-{v[2]}-{v[1]}" for opp, v in r["h2h"].items()},
+        })
+    items.sort(key=lambda x: (x["win_pct"] or 0, x["run_diff"]), reverse=True)
+    lead_w, lead_l = (items[0]["w"], items[0]["l"]) if items else (0, 0)
+    for i, it in enumerate(items, 1):
+        it["rank"] = i
+        it["gb"] = round(((lead_w - it["w"]) + (it["l"] - lead_l)) / 2, 1)
+    return items
+
+
+@app.get("/api/v1/seasons")
+def seasons(kind_code: str = Query("A")) -> dict:
+    """有逐場資料的年份清單（供歷史年份選擇器）。"""
+    with conn() as c:
+        years = [r[0] for r in c.execute(
+            "SELECT DISTINCT year FROM cpbl.games WHERE kind_code=%s AND home_score+away_score>0 "
+            "ORDER BY year DESC", (kind_code,),
+        ).fetchall()]
+    return {"years": years}
+
+
 @app.get("/api/v1/standings")
 def official_standings(
     season: int = Query(DEFAULT_SEASON),
     season_code: int = Query(0, ge=0, le=2, description="0=全年 1=上半季 2=下半季"),
     kind_code: str = Query("A"),
 ) -> dict:
-    """官方球隊戰績（含和局/勝差/淘汰指數/H2H/主客場/連勝敗/近十場；分上下半季）。"""
+    """官方球隊戰績；歷史年份(無官方資料)退回由 games 即時算全年戰績（結果 only）。"""
     with conn() as c:
         cur = c.cursor()
         cur.execute(
@@ -953,7 +1011,10 @@ def official_standings(
             "ORDER BY rank",
             (season, kind_code, season_code),
         )
-        return {"season": season, "season_code": season_code, "items": _dicts(cur)}
+        items = _dicts(cur)
+    if not items and season_code == 0:
+        items = _computed_standings(season, kind_code)  # 歷史退回 games 即時算
+    return {"season": season, "season_code": season_code, "items": items}
 
 
 @app.get("/api/v1/standings-trend")

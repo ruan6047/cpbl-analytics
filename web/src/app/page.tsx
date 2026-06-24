@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { TeamBadge, TeamLogo } from "@/components/ui";
 import { StandingsTrend } from "@/components/standings-trend";
+import { YearSelect } from "@/components/year-select";
 import { api } from "@/lib/api";
 import type { OfficialStanding, SpecialRecord, WL, WTL } from "@/lib/api";
 
@@ -245,17 +246,22 @@ function WalkoffTable({ rows, sp }: { rows: OfficialStanding[]; sp: Map<string, 
   );
 }
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ seg?: string; view?: string }> }) {
-  const { seg = "0", view = "basic" } = await searchParams;
+export default async function Home({ searchParams }: { searchParams: Promise<{ seg?: string; view?: string; year?: string }> }) {
+  const { seg = "0", view = "basic", year: yearParam } = await searchParams;
   const segCode = Number(seg) || 0;
   const isSpecial = view === "special";
-  // 特殊戰績為全年累計，故 special view 一律用全年排名
-  const effSeg = isSpecial ? 0 : segCode;
+  const { years } = await api.seasons();
+  const currentYear = years[0] ?? new Date().getFullYear();
+  const selectedYear = yearParam ? Number(yearParam) : currentYear;
+  const isCurrent = selectedYear === currentYear;
+  // 歷史年份只有全年戰績（無官方半季/即時 OPS）；特殊戰績與半季僅當季官方資料完整
+  const effSeg = isSpecial || !isCurrent ? 0 : segCode;
+  const yr = isCurrent ? undefined : selectedYear;
   const [{ season, items }, derived, special, trend] = await Promise.all([
-    api.officialStandings(effSeg),
-    api.standings(),
-    isSpecial ? api.specialRecords() : Promise.resolve(null),
-    isSpecial ? Promise.resolve(null) : api.standingsTrend(),
+    api.officialStandings(effSeg, yr),
+    isCurrent ? api.standings() : Promise.resolve({ standings: [] }),
+    isSpecial ? api.specialRecords(yr) : Promise.resolve(null),
+    isSpecial ? Promise.resolve(null) : api.standingsTrend(yr),
   ]);
   // 團隊 OPS/ERA/WHIP 來自即時彙整端點，依 code 併入
   const adv = new Map(derived.standings.map((d) => [d.code, d]));
@@ -269,16 +275,20 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
   return (
     <div>
       <header className="mb-5">
-        <h1 className="text-2xl font-bold">{season} 球季 · 本季戰績</h1>
+        <h1 className="text-2xl font-bold">{season} 球季 · {isCurrent ? "本季戰績" : "歷年戰績"}</h1>
         <p className="mt-2 text-sm text-muted">
-          {isSpecial
+          {!isCurrent
+            ? "歷史年度戰績（由逐場結果即時計算：勝-和-敗/勝率/勝差/對戰/主客場）。"
+            : isSpecial
             ? "依場地、比分型、賽況軌跡、賽程與對手分類的隊級戰績（全年累計，逐場+逐局計算）。配對數值依勝率／正向比例以藍↔紅上色。"
             : "官方戰績（含和局/勝差/連勝敗/主客場/近十場）。團隊 OPS/ERA/WHIP 為攻守指標。"}
         </p>
       </header>
 
       <nav className="mb-4 flex flex-wrap items-center gap-2">
-        {VIEWS.map((v) => (
+        <YearSelect years={years} value={selectedYear} />
+        {isCurrent && <span className="mx-1 h-4 w-px bg-line" />}
+        {isCurrent && VIEWS.map((v) => (
           <Link
             key={v.v}
             href={`/?view=${v.v}${v.v === "basic" ? `&seg=${segCode}` : ""}`}
@@ -289,8 +299,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
             {v.label}
           </Link>
         ))}
-        {!isSpecial && <span className="mx-1 h-4 w-px bg-line" />}
-        {!isSpecial &&
+        {isCurrent && !isSpecial && <span className="mx-1 h-4 w-px bg-line" />}
+        {isCurrent && !isSpecial &&
           SEGS.map((s) => (
             <Link
               key={s.v}

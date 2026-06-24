@@ -194,8 +194,9 @@ export type StandingsTrendPoint = { date: string } & Record<string, number | str
 export type StandingsTrendResponse = { season: number; teams: string[]; points: StandingsTrendPoint[] };
 
 export const api = {
-  officialStandings: (seg = 0) =>
-    get<OfficialStandingsResponse>(`/api/v1/standings?season_code=${seg}`, 120),
+  officialStandings: (seg = 0, year?: number) =>
+    get<OfficialStandingsResponse>(`/api/v1/standings?season_code=${seg}${year ? `&season=${year}` : ""}`, 120),
+  seasons: () => get<{ years: number[] }>(`/api/v1/seasons`, 600),
   specialRecords: (season?: number) =>
     get<SpecialRecordsResponse>(`/api/v1/special-records${season ? `?season=${season}` : ""}`, 120),
   standingsTrend: (season?: number) =>
