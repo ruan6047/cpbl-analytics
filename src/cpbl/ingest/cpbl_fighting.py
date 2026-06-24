@@ -59,46 +59,54 @@ def _f(v) -> float | None:
         return None
 
 
+OPTS_PATH = "/team/getfightingoptsaction"
+SCORE_PATH = "/team/getfightingscore"
+
+
 class _Session:
-    """單一打者的抓取 session：持有 cookie + 兩個 token，必要時可重建。"""
+    """單一打者的抓取 session：走共用 browser session（過反爬挑戰），持有兩個 token。"""
 
     def __init__(self, acnt: str, delay: float):
         self.acnt = acnt
         self.delay = delay
+        self.page_path = f"/team/fighting?Acnt={acnt}"
         self._open()
 
     def _open(self) -> None:
-        self.client = httpx.Client(
-            timeout=30.0, follow_redirects=True,
-            headers={"User-Agent": UA, "X-Requested-With": "XMLHttpRequest"},
-        )
-        html = self.client.get(FIGHTING_PAGE, params={"Acnt": self.acnt}).text
+        from cpbl.ingest._browser import session
+        html = session().page_html(self.page_path)
         self.opts_token = _token_in(html, "getSelectOpts: function")
         self.score_token = _token_in(html, "getFightingScore: function")
 
     def close(self) -> None:
-        self.client.close()
+        pass  # 共用 browser session，不在此關閉
 
-    def _post(self, url: str, token: str, data: dict, retries: int = 4) -> dict:
-        """POST 並解析 JSON；遇 500/非 JSON 退避重試，連兩次失敗重建 session。"""
+    def _post(self, api_path: str, token: str, data: dict, retries: int = 4) -> dict:
+        """於該打者 fighting 頁 context POST 並解析 JSON；失敗退避重試、重取 token。"""
+        from cpbl.ingest._browser import session
         for attempt in range(retries):
             time.sleep(self.delay)
             try:
-                r = self.client.post(url, data=data, headers={"RequestVerificationToken": token})
-                if "json" in r.headers.get("content-type", ""):
-                    return r.json()
-                log.warning("非 JSON 回應 (%s) acnt=%s attempt=%d", r.status_code, self.acnt, attempt + 1)
-            except httpx.HTTPError as e:
-                log.warning("HTTP 例外 acnt=%s: %s", self.acnt, e)
+                status, text = session().post(
+                    self.page_path, api_path, data,
+                    headers={"RequestVerificationToken": token},
+                )
+                if status == 200:
+                    try:
+                        return json.loads(text)
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+                log.warning("非 JSON 回應 (%s) acnt=%s attempt=%d", status, self.acnt, attempt + 1)
+            except Exception as e:  # noqa: BLE001 — 退避重試
+                log.warning("例外 acnt=%s: %s", self.acnt, e)
             time.sleep(2.0 * (attempt + 1))  # 線性退避
-            if attempt == retries - 2:  # 倒數第二次：重建 session 換新 token
-                self.close()
+            if attempt == retries - 2:  # 倒數第二次：重取 token
                 self._open()
-                token = self.score_token if url == SCORE_ENDPOINT else self.opts_token
-        raise RuntimeError(f"{url} 連續失敗 acnt={self.acnt}")
+                token = self.score_token if api_path == SCORE_PATH else self.opts_token
+        raise RuntimeError(f"{api_path} 連續失敗 acnt={self.acnt}")
 
     def teams_faced(self, year: int, kind_code: str) -> list[str]:
-        j = self._post(OPTS_ENDPOINT, self.opts_token, {
+        j = self._post(OPTS_PATH, self.opts_token, {
             "acnt": self.acnt, "kindCode": kind_code, "year": str(year),
             "fightingTeamNo": "", "fightingAcnt": "",
         })
@@ -106,7 +114,7 @@ class _Session:
         return [o["Value"] for o in opts if o.get("Value")]
 
     def vs_team(self, year: int, kind_code: str, team_no: str) -> list[dict]:
-        j = self._post(SCORE_ENDPOINT, self.score_token, {
+        j = self._post(SCORE_PATH, self.score_token, {
             "acnt": self.acnt, "kindCode": kind_code, "year": str(year),
             "fightingTeamNo": team_no, "fightingAcnt": "",
         })

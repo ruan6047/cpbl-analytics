@@ -21,7 +21,7 @@ import time
 import httpx
 
 from cpbl.db import conn
-from cpbl.ingest.cpbl_fighting import BASE, UA, _f, _i, _token_in
+from cpbl.ingest.cpbl_fighting import BASE, _f, _i, _token_in
 
 log = logging.getLogger("cpbl.detail")
 
@@ -39,44 +39,48 @@ class _Session:
     def __init__(self, acnt: str, delay: float):
         self.acnt = acnt
         self.delay = delay
+        self.person_path = f"/team/person?acnt={acnt}"
+        self.apart_path = f"/team/apart?Acnt={acnt}"
         self._open()
 
     def _open(self) -> None:
-        self.client = httpx.Client(
-            timeout=30.0, follow_redirects=True,
-            headers={"User-Agent": UA, "X-Requested-With": "XMLHttpRequest"},
-        )
-        ph = self.client.get(PERSON_PAGE, params={"acnt": self.acnt}).text
-        self.fighter_token = _token_in(ph, "getFighterScore: function")
-        ah = self.client.get(APART_PAGE, params={"Acnt": self.acnt}).text
-        self.apart_token = _token_in(ah, "getApartScore: function")
+        from cpbl.ingest._browser import session
+        s = session()
+        self.fighter_token = _token_in(s.page_html(self.person_path), "getFighterScore: function")
+        self.apart_token = _token_in(s.page_html(self.apart_path), "getApartScore: function")
 
     def close(self) -> None:
-        self.client.close()
+        pass  # 共用 browser session，不在此關閉
 
-    def _post(self, url: str, token_attr: str, data: dict, key: str, retries: int = 4) -> list[dict]:
+    def _post(self, page_path: str, api_path: str, token_attr: str, data: dict,
+              key: str, retries: int = 4) -> list[dict]:
+        from cpbl.ingest._browser import session
         for attempt in range(retries):
             time.sleep(self.delay)
             try:
-                r = self.client.post(url, data=data,
-                                     headers={"RequestVerificationToken": getattr(self, token_attr)})
-                if "json" in r.headers.get("content-type", ""):
-                    return json.loads(r.json().get(key) or "[]")
-                log.warning("非 JSON (%s) acnt=%s %s attempt=%d", r.status_code, self.acnt, url, attempt + 1)
-            except httpx.HTTPError as e:
-                log.warning("HTTP 例外 acnt=%s: %s", self.acnt, e)
+                status, text = session().post(
+                    page_path, api_path, data,
+                    headers={"RequestVerificationToken": getattr(self, token_attr)},
+                )
+                if status == 200:
+                    try:
+                        return json.loads(json.loads(text).get(key) or "[]")
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+                log.warning("非 JSON (%s) acnt=%s %s attempt=%d", status, self.acnt, api_path, attempt + 1)
+            except Exception as e:  # noqa: BLE001 — 退避重試
+                log.warning("例外 acnt=%s: %s", self.acnt, e)
             time.sleep(2.0 * (attempt + 1))
             if attempt == retries - 2:
-                self.close()
                 self._open()
-        raise RuntimeError(f"{url} 連續失敗 acnt={self.acnt}")
+        raise RuntimeError(f"{api_path} 連續失敗 acnt={self.acnt}")
 
     def vs_team(self, year: int, defend: str) -> list[dict]:
-        return self._post(FIGHTER_EP, "fighter_token",
+        return self._post(self.person_path, "/team/getfighterscore", "fighter_token",
                           {"acnt": self.acnt, "year": str(year), "defendStation": defend}, "FighterScore")
 
     def apart(self, year: int, kind: str, position: str) -> list[dict]:
-        return self._post(APART_EP, "apart_token",
+        return self._post(self.apart_path, "/team/getapartscore", "apart_token",
                           {"acnt": self.acnt, "kindCode": kind, "position": position, "year": str(year)},
                           "ApartScore")
 
