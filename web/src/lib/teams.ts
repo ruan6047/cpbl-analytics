@@ -34,6 +34,27 @@ const _meta = (code?: string | null): TeamMeta | undefined => {
   const fc = franchiseOf(code);
   return fc ? TEAMS[fc] : undefined;  // 找不到現役 franchise → 已解散隊（灰）
 };
+// 歷史/前身球隊代表色（iconic）；key = 全名（沿革各時期用）。
+// ✓ 較有把握：兄弟象/興農牛/義大犀牛/中信鯨/La New熊/Lamigo桃猿/三商虎
+// ? 待確認：俊國熊/時報鷹/誠泰/米迪亞/第一金剛（先用合理色）
+export const HISTORICAL: Record<string, { color: string; letter: string }> = {
+  "兄弟象": { color: "#F2A900", letter: "兄" },
+  "三商虎": { color: "#D2232A", letter: "虎" },
+  "俊國熊": { color: "#7A4B2A", letter: "俊" },
+  "興農牛": { color: "#00843D", letter: "牛" },
+  "義大犀牛": { color: "#5B2A86", letter: "犀" },
+  "時報鷹": { color: "#1B458F", letter: "鷹" },
+  "中信鯨": { color: "#003DA5", letter: "鯨" },
+  "誠泰Cobras": { color: "#1D7B3E", letter: "誠" },
+  "米迪亞暴龍": { color: "#E35205", letter: "暴" },
+  "第一金剛": { color: "#0046AD", letter: "金" },
+  "La New熊": { color: "#D2202E", letter: "熊" },
+  "Lamigo桃猿": { color: "#E4007F", letter: "猿" },
+};
+// 沿革各時期徽章：歷史隊用 iconic 色，現役期用 franchise 色
+export const eraBadge = (name: string, code: string): { color: string; letter: string } =>
+  HISTORICAL[name] ?? { color: teamColor(code), letter: teamLetter(code) };
+
 export const teamColor = (code?: string | null) => _meta(code)?.color || "#94a3b8";
 export const teamShort = (code?: string | null) => _meta(code)?.short || "";
 export const teamLetter = (code?: string | null) => _meta(code)?.letter || "?";

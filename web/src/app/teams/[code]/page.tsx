@@ -4,7 +4,7 @@ import { StandingsTrend } from "@/components/standings-trend";
 import { Card, StatTile, TeamLogo } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { SpecialRecord, WL, WTL } from "@/lib/api";
-import { contrastText, teamColor } from "@/lib/teams";
+import { contrastText, eraBadge, teamColor } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
@@ -169,14 +169,24 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
                 <tr>{["時期", "年代", "勝-和-敗", "勝率"].map((h) => <th key={h} className="px-3 py-2 font-medium">{h}</th>)}</tr>
               </thead>
               <tbody className="font-mono tabular-nums">
-                {eras.eras.map((e) => (
+                {eras.eras.map((e, i) => {
+                  const bg = eraBadge(e.name, e.code);
+                  return (
                   <tr key={`${e.code}-${e.from}`} className="border-t border-line hover:bg-surface-2">
-                    <td className="whitespace-nowrap px-3 py-2 font-sans"><TeamLogo code={e.code} size={18} /> <span className="ml-1">{e.name}</span></td>
+                    <td className="whitespace-nowrap px-3 py-2 font-sans font-medium">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-md text-[10px] font-extrabold"
+                          style={{ background: bg.color, color: contrastText(bg.color) }}>{bg.letter}</span>
+                        {e.name}
+                        {i === eras.eras.length - 1 && <span className="ml-0.5 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-normal text-muted">現役</span>}
+                      </span>
+                    </td>
                     <td className="px-3 py-2 text-muted">{e.from === e.to ? e.from : `${e.from}–${e.to}`}</td>
                     <td className="px-3 py-2">{e.w}-{e.t}-{e.l}</td>
                     <td className="px-3 py-2 text-accent">{e.win_pct == null ? "—" : f3(e.win_pct)}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

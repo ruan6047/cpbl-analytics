@@ -1076,46 +1076,68 @@ def _franchise_of(code: str) -> str:
     return _FRANCHISE.get(code, code)
 
 
+# 單一代碼內的改名（games 隊名已正規化、無法區分，故權威定義年代）
+_ERA_SPLIT = {
+    "AJK011": [("La New熊", 2004, 2010), ("Lamigo桃猿", 2011, 2019)],
+}
+# 現役 franchise → CPBL 前的前身（台灣大聯盟 TML 隊伍無 CPBL 資料，使用者定調放棄、不列）
+_ORIGINS: dict[str, str] = {}
+
+
 @app.get("/api/v1/teams/{code}/eras")
 def team_eras(code: str, kind_code: str = Query("A")) -> dict:
-    """球隊沿革：franchise（改名/轉賣視為同隊）各時期隊名+年代+戰績；依代碼+年份缺口斷代。"""
+    """球隊沿革：franchise（改名/轉賣視為同隊）各時期全名+年代+戰績。
+
+    全名取自 cpbl.teams（games 隊名為縮寫/正規化）；單代碼內改名(La New/Lamigo)依
+    _ERA_SPLIT 權威年代；味全等同代碼斷層依年份缺口斷代。
+    """
     fc = _franchise_of(code)
     members = sorted({c for c in (set(_FRANCHISE) | set(_FRANCHISE.values()) | {fc}) if _franchise_of(c) == fc})
+    from collections import defaultdict
     with conn() as c:
         games = c.execute(
-            "SELECT year, home_team_code, away_team_code, home_team_name, away_team_name, home_score, away_score "
+            "SELECT year, home_team_code, away_team_code, home_score, away_score "
             "FROM cpbl.games WHERE kind_code=%s AND home_score+away_score>0 "
             "AND (home_team_code = ANY(%s) OR away_team_code = ANY(%s))",
             (kind_code, members, members),
         ).fetchall()
-    from collections import defaultdict
-    rec: dict = defaultdict(lambda: {"w": 0, "l": 0, "t": 0, "name": None})
-    for y, hc, ac, hn, an, hs, as_ in games:
+        names = dict(c.execute("SELECT team_id, name FROM cpbl.teams").fetchall())  # 3 碼 → 全名
+    rec: dict = defaultdict(lambda: {"w": 0, "l": 0, "t": 0})
+    for y, hc, ac, hs, as_ in games:
         if hc in members:
-            r = rec[(hc, y)]; r["name"] = hn
-            r["w" if hs > as_ else "l" if as_ > hs else "t"] += 1
+            rec[(hc, y)]["w" if hs > as_ else "l" if as_ > hs else "t"] += 1
         if ac in members:
-            r = rec[(ac, y)]; r["name"] = an
-            r["w" if as_ > hs else "l" if hs > as_ else "t"] += 1
+            rec[(ac, y)]["w" if as_ > hs else "l" if hs > as_ else "t"] += 1
+
+    def _tally(m: str, run: list[int], name: str) -> dict:
+        w = sum(rec[(m, y)]["w"] for y in run)
+        lo = sum(rec[(m, y)]["l"] for y in run)
+        t = sum(rec[(m, y)]["t"] for y in run)
+        return {"code": m, "name": name, "from": run[0], "to": run[-1],
+                "w": w, "l": lo, "t": t, "win_pct": round(w / (w + lo), 3) if w + lo else None}
+
     eras = []
     for m in members:
         ys = sorted(y for (cc, y) in rec if cc == m)
         if not ys:
             continue
-        run = [ys[0]]
-        for y in ys[1:] + [None]:  # 以 None 收尾沖出最後一段
-            if y is not None and y == run[-1] + 1:
-                run.append(y)
-            else:
-                w = sum(rec[(m, yy)]["w"] for yy in run)
-                lo = sum(rec[(m, yy)]["l"] for yy in run)
-                t = sum(rec[(m, yy)]["t"] for yy in run)
-                eras.append({"code": m, "name": rec[(m, run[-1])]["name"], "from": run[0], "to": run[-1],
-                             "w": w, "l": lo, "t": t, "win_pct": round(w / (w + lo), 3) if w + lo else None})
-                if y is not None:
-                    run = [y]
+        full = names.get(m[:3], m)
+        if m in _ERA_SPLIT:
+            for nm, a, b in _ERA_SPLIT[m]:
+                run = [y for y in ys if a <= y <= b]
+                if run:
+                    eras.append(_tally(m, run, nm))
+        else:  # 依年份缺口斷代（味全解散前/重組後）
+            run = [ys[0]]
+            for y in ys[1:] + [None]:
+                if y is not None and y == run[-1] + 1:
+                    run.append(y)
+                else:
+                    eras.append(_tally(m, run, full))
+                    if y is not None:
+                        run = [y]
     eras.sort(key=lambda e: e["from"])
-    return {"franchise": fc, "eras": eras}
+    return {"franchise": fc, "origins": _ORIGINS.get(fc), "eras": eras}
 
 
 @app.get("/api/v1/venues")
