@@ -10,10 +10,8 @@ import logging
 import re
 import time
 
-import httpx
-
 from cpbl.db import conn
-from cpbl.ingest.cpbl_site import BASE, KIND_REGULAR, UA
+from cpbl.ingest.cpbl_site import BASE, KIND_REGULAR
 
 log = logging.getLogger("cpbl.gamelog")
 
@@ -142,51 +140,50 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
     out = {"games": 0, "scoreboard": 0, "livelog": 0, "batting_box": 0, "pitching_box": 0}
     if not snos:
         return out
-    client = httpx.Client(
-        timeout=30.0, follow_redirects=True,
-        headers={"User-Agent": UA, "X-Requested-With": "XMLHttpRequest"},
-    )
+    from cpbl.ingest._browser import session
+    s = session()
+    box_path = f"/box?year={year}&KindCode={kind_code}&gameSno=1"
 
     def _token() -> str:
-        html = client.get(BOX_PAGE, params={"year": year, "KindCode": kind_code, "gameSno": 1}).text
-        m = _HIDDEN_RE.search(html)
+        m = _HIDDEN_RE.search(s.page_html(box_path))
         if not m:
             raise RuntimeError("box 頁找不到 token（官網可能改版）")
         return m.group(1)
 
-    try:
-        token = _token()
-        for sno in snos:
-            time.sleep(delay)
-            try:
-                resp = client.post(
-                    LIVE_ENDPOINT,
-                    data={"GameSno": str(sno), "KindCode": kind_code, "Year": str(year)},
-                    headers={"RequestVerificationToken": token},
-                )
-                if "json" not in resp.headers.get("content-type", ""):
-                    token = _token()
-                    continue
-                payload = resp.json()
-            except httpx.HTTPError as e:
-                log.warning("getlive 失敗 sno=%s: %s", sno, e)
+    token = _token()
+    for sno in snos:
+        time.sleep(delay)
+        try:
+            status, text = s.post(
+                box_path, "/box/getlive",
+                {"GameSno": str(sno), "KindCode": kind_code, "Year": str(year)},
+                headers={"RequestVerificationToken": token},
+            )
+            if status != 200:
+                token = _token()
                 continue
-            sb = json.loads(payload.get("ScoreboardJson") or "[]")
-            ll = json.loads(payload.get("LiveLogJson") or "[]")
-            bb = json.loads(payload.get("BattingJson") or "[]")
-            pp = json.loads(payload.get("PitchingJson") or "[]")
-            out["scoreboard"] += _upsert("game_scoreboard", _SB_COLS, 5,
-                                         _scoreboard_rows(year, kind_code, sno, sb))
-            out["livelog"] += _upsert("game_livelog", _LL_COLS, 4,
-                                      _livelog_rows(year, kind_code, sno, ll))
-            out["batting_box"] += _upsert("batting_gamelog", _BBOX_COLS, 4,
-                                          _bbox_rows(year, kind_code, sno, bb))
-            out["pitching_box"] += _upsert("pitching_gamelog", _PBOX_COLS, 4,
-                                           _pbox_rows(year, kind_code, sno, pp))
-            out["games"] += 1
-            log.info("sno=%s scoreboard=%d livelog=%d box(打%d投%d)", sno, len(sb), len(ll), len(bb), len(pp))
-    finally:
-        client.close()
+            try:
+                payload = json.loads(text)
+            except (json.JSONDecodeError, ValueError):
+                token = _token()
+                continue
+        except Exception as e:  # noqa: BLE001 — 單場失敗略過續抓
+            log.warning("getlive 失敗 sno=%s: %s", sno, e)
+            continue
+        sb = json.loads(payload.get("ScoreboardJson") or "[]")
+        ll = json.loads(payload.get("LiveLogJson") or "[]")
+        bb = json.loads(payload.get("BattingJson") or "[]")
+        pp = json.loads(payload.get("PitchingJson") or "[]")
+        out["scoreboard"] += _upsert("game_scoreboard", _SB_COLS, 5,
+                                     _scoreboard_rows(year, kind_code, sno, sb))
+        out["livelog"] += _upsert("game_livelog", _LL_COLS, 4,
+                                  _livelog_rows(year, kind_code, sno, ll))
+        out["batting_box"] += _upsert("batting_gamelog", _BBOX_COLS, 4,
+                                      _bbox_rows(year, kind_code, sno, bb))
+        out["pitching_box"] += _upsert("pitching_gamelog", _PBOX_COLS, 4,
+                                       _pbox_rows(year, kind_code, sno, pp))
+        out["games"] += 1
+        log.info("sno=%s scoreboard=%d livelog=%d box(打%d投%d)", sno, len(sb), len(ll), len(bb), len(pp))
     return out
 
 

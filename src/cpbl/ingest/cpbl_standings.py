@@ -10,8 +10,6 @@ import json
 import logging
 import re
 
-import httpx
-
 from cpbl.db import conn
 
 log = logging.getLogger("cpbl.standings")
@@ -39,15 +37,18 @@ def _wtl(s: str) -> tuple[int | None, int | None, int | None]:
 
 
 def fetch_standings(year: int, season_code: int, kind_code: str = "A") -> list[tuple]:
-    client = httpx.Client(timeout=30.0, headers={"User-Agent": UA, "X-Requested-With": "XMLHttpRequest"},
-                          follow_redirects=True)
-    try:
-        token = _TOKEN_RE.search(client.get(PAGE).text).group(1)
-        html = client.post(ACTION, data={"Year": str(year), "KindCode": kind_code,
-                                         "SeasonCode": str(season_code)},
-                           headers={"RequestVerificationToken": token}).text
-    finally:
-        client.close()
+    from cpbl.ingest._browser import session
+    s = session()
+    m = _TOKEN_RE.search(s.page_html("/standings/season"))
+    if not m:
+        raise RuntimeError("standings 找不到 RequestVerificationToken（官網可能改版）")
+    status, html = s.post(
+        "/standings/season", "/standings/seasonaction",
+        {"Year": str(year), "KindCode": kind_code, "SeasonCode": str(season_code)},
+        headers={"RequestVerificationToken": m.group(1)},
+    )
+    if status != 200:
+        raise RuntimeError(f"standings HTTP {status}（反爬挑戰未過？）")
     first = html[: html.find("</table>") + 8]  # 只取第一張（戰績）表
     records = []
     for tr in re.findall(r"<tr>(.*?)</tr>", first, re.S):

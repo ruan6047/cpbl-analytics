@@ -10,8 +10,6 @@ from __future__ import annotations
 import logging
 import re
 
-import httpx
-
 from cpbl.db import conn
 
 log = logging.getLogger("cpbl.stats")
@@ -51,36 +49,38 @@ def _int(v: float | None) -> int | None:
     return int(v) if v is not None else None
 
 
-def _teamscore_token(client: httpx.Client) -> str:
-    page = client.get(TEAMSCORE, params={"ClubNo": CLUB_NOS[0]}).text
-    m = _TOKEN_RE.search(page)
+_TEAMSCORE_PATH = f"/team/teamscore?ClubNo={CLUB_NOS[0]}"
+
+
+def _teamscore_token() -> str:
+    from cpbl.ingest._browser import session
+    m = _TOKEN_RE.search(session().page_html(_TEAMSCORE_PATH))
     if not m:
         raise RuntimeError("找不到 teamscore __RequestVerificationToken（官網可能改版）")
     return m.group(1)
 
 
-def _teamscore_post(client: httpx.Client, token: str, club: str, position: str,
-                    year: int, kind_code: str) -> str:
+def _teamscore_post(token: str, club: str, position: str, year: int, kind_code: str) -> str:
+    from cpbl.ingest._browser import session
     form = {
         "__RequestVerificationToken": token, "ClubNo": club, "Year": str(year),
         "KindCode": kind_code, "Position": position, "DefendStation": "",
         "Sortby": "", "ExecAction": "Q", "IndexOfPages": "1",
     }
-    return client.post(
-        TEAMSCORE_ACTION, data=form,
-        headers={"X-Requested-With": "XMLHttpRequest", "Referer": f"{TEAMSCORE}?ClubNo={club}"},
-    ).text
+    status, html = session().post(_TEAMSCORE_PATH, "/team/teamscoreaction", form)
+    if status != 200:
+        raise RuntimeError(f"teamscoreaction HTTP {status}（反爬挑戰未過？）")
+    return html
 
 
 def fetch_pitching(year: int, kind_code: str = "A") -> list[tuple]:
     """逐隊抓 teamscore 投手(Position=02)全名單;K9 由 三振×9/局數 自算。"""
     rows: list[tuple] = []
-    client = httpx.Client(timeout=30.0, headers={"User-Agent": UA}, follow_redirects=True)
     try:
-        token = _teamscore_token(client)
+        token = _teamscore_token()
         for club in CLUB_NOS:
             team_code = f"{club}011"
-            html = _teamscore_post(client, token, club, "02", year, kind_code)
+            html = _teamscore_post(token, club, "02", year, kind_code)
             for tr in re.findall(r"<tr>(.*?)</tr>", html, re.S):
                 mid = re.search(r"/team/person\?acnt=(\d+)", tr)
                 if not mid:
@@ -111,7 +111,7 @@ def fetch_pitching(year: int, kind_code: str = "A") -> list[tuple]:
                     _int(p("go")), _int(p("ao")), p("goao"),
                 ))
     finally:
-        client.close()
+        pass  # 瀏覽器 session 為單例，不在此關閉
     return rows
 
 
@@ -161,11 +161,11 @@ TS_IDX = {
 def fetch_batting(year: int, kind_code: str = "A") -> list[tuple]:
     """逐隊抓 teamscore 取得全部打者（含低出場）。teamscore 預設當季。"""
     rows: list[tuple] = []
-    client = httpx.Client(timeout=30.0, headers={"User-Agent": UA}, follow_redirects=True)
     try:
         for club in CLUB_NOS:
             team_code = f"{club}011"
-            html = client.get(TEAMSCORE, params={"ClubNo": club}).text
+            from cpbl.ingest._browser import session
+            html = session().page_html(f"/team/teamscore?ClubNo={club}")
             for tr in re.findall(r"<tr>(.*?)</tr>", html, re.S):
                 mid = re.search(r"/team/person\?acnt=(\d+)", tr)
                 if not mid:
@@ -198,7 +198,7 @@ def fetch_batting(year: int, kind_code: str = "A") -> list[tuple]:
                     _int(b("hbp")), _int(b("go")), _int(b("ao")), b("goao"),
                 ))
     finally:
-        client.close()
+        pass  # 瀏覽器 session 為單例，不在此關閉
     return rows
 
 
@@ -232,12 +232,11 @@ def upsert_batting(records: list[tuple]) -> int:
 
 def fetch_fielding(year: int, kind_code: str = "A") -> list[tuple]:
     rows: list[tuple] = []
-    client = httpx.Client(timeout=30.0, headers={"User-Agent": UA}, follow_redirects=True)
     try:
-        token = _teamscore_token(client)
+        token = _teamscore_token()
         for club in CLUB_NOS:
             team_code = f"{club}011"
-            html = _teamscore_post(client, token, club, "03", year, kind_code)
+            html = _teamscore_post(token, club, "03", year, kind_code)
             for tr in re.findall(r"<tr>(.*?)</tr>", html, re.S):
                 mid = re.search(r"/team/person\?acnt=(\d+)", tr)
                 if not mid:
@@ -257,7 +256,7 @@ def fetch_fielding(year: int, kind_code: str = "A") -> list[tuple]:
                     _num(nums[11]),
                 ))
     finally:
-        client.close()
+        pass  # 瀏覽器 session 為單例，不在此關閉
     return rows
 
 
@@ -295,11 +294,11 @@ def _team_rows(table: str) -> dict[str, list[str]]:
 
 def fetch_team(year: int) -> list[tuple]:
     """目前以 GET 取當季團隊數據（standings/season 預設當年）。"""
-    client = httpx.Client(timeout=30.0, headers={"User-Agent": UA}, follow_redirects=True)
     try:
-        s = client.get(STANDINGS).text
+        from cpbl.ingest._browser import session
+        s = session().page_html("/standings/season")
     finally:
-        client.close()
+        pass  # 瀏覽器 session 為單例，不在此關閉
 
     tables = re.findall(r"<table.*?</table>", s, re.S)
     bat_tbl = next((t for t in tables if "打擊率" in t and "上壘率" in t), "")
