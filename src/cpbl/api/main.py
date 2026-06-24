@@ -990,6 +990,29 @@ def standings_trend(
     return {"season": season, "teams": ordered, "points": points}
 
 
+@app.get("/api/v1/teams")
+def teams_dim(active: bool = Query(True)) -> dict:
+    """球隊維度（canonical）：代碼/簡稱/全名/隊色/字母。供前端取代硬編 team meta。"""
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            "SELECT team_code, short, full_name, nickname, color, letter, league, active "
+            "FROM cpbl.team_dim" + (" WHERE active=true" if active else "") + " ORDER BY team_code"
+        )
+        return {"items": _dicts(cur)}
+
+
+@app.get("/api/v1/venues")
+def venues_dim() -> dict:
+    """球場維度：場地材質/室內/城市/容量。"""
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            "SELECT venue, full_name, turf, indoor, city, capacity FROM cpbl.venue_dim ORDER BY venue"
+        )
+        return {"items": _dicts(cur)}
+
+
 @app.get("/api/v1/special-records")
 def special_records_endpoint(
     season: int = Query(DEFAULT_SEASON),
