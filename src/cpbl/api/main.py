@@ -713,7 +713,7 @@ def games_recent(
 def game_live(
     game_sno: int,
     season: int = Query(DEFAULT_SEASON),
-    kind_code: str = Query("A", pattern="^(A|C|E)$"),
+    kind_code: str = Query("A", pattern="^(A|C|E|D)$"),
 ) -> dict:
     """單場賽況：賽事資訊 + 逐局比分 + 逐打席事件流 + 雙方 box score + 關鍵球員。"""
     with conn() as c:

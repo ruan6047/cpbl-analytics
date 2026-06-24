@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 
-export function YearSelect({ years, value, kind = "A" }: { years: number[]; value: number; kind?: string }) {
+export function YearSelect({ years, value, kind = "A", basePath = "/" }: { years: number[]; value: number; kind?: string; basePath?: string }) {
   const router = useRouter();
   const kindQ = kind === "D" ? "kind=D" : "";
   return (
@@ -11,7 +11,7 @@ export function YearSelect({ years, value, kind = "A" }: { years: number[]; valu
         const y = Number(e.target.value);
         const yearQ = y === years[0] ? "" : `year=${e.target.value}`;
         const qs = [kindQ, yearQ].filter(Boolean).join("&");
-        router.push(qs ? `/?${qs}` : "/");
+        router.push(qs ? `${basePath}?${qs}` : basePath);
       }}
       className="rounded-full border border-line bg-surface-2 px-3 py-1 text-sm text-ink"
       aria-label="選擇球季年份"

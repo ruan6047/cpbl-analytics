@@ -150,14 +150,14 @@ export const detail = {
     clientGet<{ items: { bucket: string; n: number; fastball: number; breakingball: number }[] }>(
       `/api/v1/players/${id}/pitch-mix?role=${role}`,
     ),
-  gameLive: (sno: number, kind = "A") =>
+  gameLive: (sno: number, kind = "A", year?: number) =>
     clientGet<{
       game: StatRow | null; scoreboard: StatRow[]; livelog: StatRow[];
       batting: StatRow[]; pitching: StatRow[]; people: Record<string, string>;
       records: Record<string, { w: number; l: number; form: string }>;
       batter_avg: Record<string, number>;
       has_tracking: boolean;
-    }>(`/api/v1/games/${sno}/live?kind_code=${kind}`),
+    }>(`/api/v1/games/${sno}/live?kind_code=${kind}${year ? `&season=${year}` : ""}`),
   // 全聯盟本季母體（算百分位 PR 用）
   leaders: (role: "batting" | "pitching") =>
     clientGet<{ items: StatRow[] }>(

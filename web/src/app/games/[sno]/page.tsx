@@ -67,19 +67,20 @@ export default function GameLivePage() {
   const { sno } = useParams<{ sno: string }>();
   const sp = useSearchParams();
   const kind = sp.get("kind") || "A";
+  const year = sp.get("year") ? Number(sp.get("year")) : undefined;
   const [data, setData] = useState<Live | null>(null);
   const [err, setErr] = useState(false);
   const [idx, setIdx] = useState(0);
 
   useEffect(() => {
-    detail.gameLive(Number(sno), kind)
+    detail.gameLive(Number(sno), kind, year)
       .then((d) => {
         const dd = d as Live;
         setData(dd);
         setIdx(Math.max(0, dd.livelog.length - 1)); // 預設停在終局
       })
       .catch(() => setErr(true));
-  }, [sno, kind]);
+  }, [sno, kind, year]);
 
   if (err) return <p className="text-sm text-muted">載入賽況失敗。</p>;
   if (!data) return <p className="text-sm text-faint">載入中…</p>;
