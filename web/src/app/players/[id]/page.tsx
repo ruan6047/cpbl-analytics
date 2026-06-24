@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { LaEvScatter } from "@/components/la-ev-scatter";
 import { SprayChart } from "@/components/spray-chart";
-import { Card, PercentileBar, TeamLogo } from "@/components/ui";
+import { Card, PercentileBar, StatTile, TeamLogo } from "@/components/ui";
 import { type HeatMetric, PerfHeatmap } from "@/components/perf-heatmap";
 import { ZoneScatter } from "@/components/zone-scatter";
 import { detail, type PlayerProfile, type StatRow } from "@/lib/client";
@@ -58,6 +58,32 @@ const ADV: Adv[] = [
 const fmtAdv = (v: number, k: Adv["kind"]) =>
   k === "kmh" ? v.toFixed(1) : k === "cnt" ? String(Math.round(v))
     : k === "pct" ? `${(v * 100).toFixed(1)}%` : v.toFixed(3).replace(/^0\./, ".");
+
+// 擊球品質與彈道（讀 advanced.metrics jsonb；官方 /rankings 全套）
+const _pct = (v: number) => `${(v * 100).toFixed(1)}%`;
+const _kmh = (v: number) => v.toFixed(1);
+const _m = (v: number) => `${v.toFixed(1)}m`;
+const _deg = (v: number) => `${v.toFixed(1)}°`;
+const _cnt = (v: number) => String(Math.round(v));
+const QUALITY_GROUPS: { title: string; items: { k: string; label: string; fmt: (v: number) => string }[] }[] = [
+  { title: "擊球品質", items: [
+    { k: "evAvg", label: "平均初速", fmt: _kmh }, { k: "ev90Th", label: "EV90", fmt: _kmh },
+    { k: "evMax", label: "最大初速", fmt: _kmh }, { k: "laAvg", label: "平均仰角", fmt: _deg },
+    { k: "distanceAvgHr", label: "全壘打均距", fmt: _m }, { k: "distanceMax", label: "最遠擊球", fmt: _m },
+  ] },
+  { title: "彈道分布", items: [
+    { k: "gbp", label: "滾地球%", fmt: _pct }, { k: "ldp", label: "平飛球%", fmt: _pct },
+    { k: "fbp", label: "高飛球%", fmt: _pct }, { k: "pup", label: "內野飛球%", fmt: _pct },
+  ] },
+  { title: "拉打方向", items: [
+    { k: "pullp", label: "拉打%", fmt: _pct }, { k: "straightp", label: "中間%", fmt: _pct },
+    { k: "oppop", label: "推打%", fmt: _pct },
+  ] },
+  { title: "強擊 / Barrel", items: [
+    { k: "hardHitp", label: "強擊球%", fmt: _pct }, { k: "barrels", label: "Barrel 數", fmt: _cnt },
+    { k: "brlsPAp", label: "Barrel/PA", fmt: _pct },
+  ] },
+];
 
 type Metric = { key: string; label: string; dp: number; get: (r: StatRow) => number | null };
 const BAT_METRICS: Metric[] = [
@@ -426,6 +452,34 @@ export default function PlayerPage() {
           </Card>
         </div>
       </section>
+
+      {/* 擊球品質與彈道（官方 /rankings 全季進階；非逐球樣本） */}
+      {(() => {
+        const a = role === "batting" ? advanced?.batting : advanced?.pitching;
+        const m = a?.metrics as Record<string, number> | undefined;
+        if (!m || m.gbp == null) return null;
+        return (
+          <section className="mb-6">
+            <h2 className="mb-1 text-lg font-semibold text-ink">擊球品質與彈道</h2>
+            <p className="mb-3 text-[11px] text-faint">
+              官方 stats.cpbl 全季進階（{role === "batting" ? "打者擊球" : "投手被擊球"}）；非逐球設備樣本。
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {QUALITY_GROUPS.map((g) => (
+                <Card key={g.title} className="p-4">
+                  <div className="mb-2 text-sm font-semibold text-ink">{g.title}</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {g.items.map((it) => (
+                      <StatTile key={it.k} label={it.label}
+                        value={m[it.k] == null ? "—" : it.fmt(m[it.k])} />
+                    ))}
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </section>
+        );
+      })()}
 
       {/* 擊球落點 + 進壘點（左 2/3 放大） + 好球帶紀律（右側直欄） */}
       <section className="mb-6">
