@@ -16,18 +16,30 @@ export const TEAMS: Record<string, TeamMeta> = {
 // CPBL 品牌色（CPBL TV：藍 + 紅）
 export const CPBL_BLUE = "#1B4DA1";
 
-// 以 org 前 3 碼解析（一軍 AAA011 / 二軍 AAA022 共用同隊 meta）
-const _meta = (code?: string | null): TeamMeta | undefined => {
-  if (!code) return undefined;
-  if (TEAMS[code]) return TEAMS[code];
-  const org = code.slice(0, 3);
-  return Object.entries(TEAMS).find(([k]) => k.slice(0, 3) === org)?.[1];
+// 改名/轉賣視為同一支球隊：歷史隊代碼 → 現役 franchise 代碼（依 games 年份範圍實證）
+const FRANCHISE: Record<string, string> = {
+  ACC011: "ACN011",                                   // 兄弟象 → 中信兄弟
+  AEE011: "AEO011", AEG011: "AEO011", AEM011: "AEO011", // 俊國→興農→義大→富邦悍將
+  AJJ011: "AJL011", AJK011: "AJL011",                 // 第一金剛→La New/Lamigo→樂天桃猿
 };
-export const teamColor = (code?: string | null) => _meta(code)?.color || "#0A2540";
+// 現役 franchise 代碼（一軍 011 / 二軍 022 共用 org 前綴；歷史隊映射到現役）
+export const franchiseOf = (code?: string | null): string | undefined => {
+  if (!code) return undefined;
+  if (TEAMS[code]) return code;
+  if (FRANCHISE[code]) return FRANCHISE[code];
+  const org = code.slice(0, 3);
+  return Object.keys(TEAMS).find((k) => k.slice(0, 3) === org);  // 二軍 022 → 現役
+};
+const _meta = (code?: string | null): TeamMeta | undefined => {
+  const fc = franchiseOf(code);
+  return fc ? TEAMS[fc] : undefined;  // 找不到現役 franchise → 已解散隊（灰）
+};
+export const teamColor = (code?: string | null) => _meta(code)?.color || "#94a3b8";
 export const teamShort = (code?: string | null) => _meta(code)?.short || "";
 export const teamLetter = (code?: string | null) => _meta(code)?.letter || "?";
-// 現役一軍隊（011）才連到球隊頁；二軍/歷史隊不連
-export const isCurrentTeam = (code?: string | null) => !!(code && TEAMS[code]);
+// 有對應現役 franchise 才連球隊頁（含歷史隊→現役頁）；已解散隊不連
+export const isCurrentTeam = (code?: string | null) => !!franchiseOf(code);
+export const teamPageCode = (code?: string | null) => franchiseOf(code);
 
 // 依背景色亮度回傳對比文字色（黃色系用深色字）
 export function contrastText(hex: string): string {

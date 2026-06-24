@@ -95,7 +95,7 @@ const GROUPS: { title: string; rows: { label: string; render: (s: SpecialRecord)
 
 export default async function TeamPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
-  const [{ season, items }, derived, special, trend, games, bat, pit] = await Promise.all([
+  const [{ season, items }, derived, special, trend, games, bat, pit, eras] = await Promise.all([
     api.officialStandings(0),
     api.standings(),
     api.specialRecords(),
@@ -103,6 +103,7 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
     api.gamesRecent(200),
     api.battingLeaders("ops", { limit: 500, minPa: 30 }),
     api.pitchingLeaders("era", { limit: 500, minIp: 20 }),
+    api.teamEras(code),
   ]);
 
   const team = items.find((t) => t.team_code === code);
@@ -156,6 +157,31 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
           <StatTile label="淘汰指數" value={team.elim && team.elim !== "" ? team.elim : "—"} />
         </div>
       </section>
+
+      {/* 球隊沿革（改名/轉賣視為同隊，分時期列出）*/}
+      {eras.eras.length > 1 && (
+        <section>
+          <h2 className="mb-1 text-lg font-semibold">球隊沿革</h2>
+          <p className="mb-3 text-[11px] text-faint">改名/轉賣視為同一支球隊，依隊名/年代分時期（一軍例行賽）。</p>
+          <div className="overflow-hidden rounded-xl border border-line">
+            <table className="w-full text-sm">
+              <thead className="bg-surface-2 text-left text-muted">
+                <tr>{["時期", "年代", "勝-和-敗", "勝率"].map((h) => <th key={h} className="px-3 py-2 font-medium">{h}</th>)}</tr>
+              </thead>
+              <tbody className="font-mono tabular-nums">
+                {eras.eras.map((e) => (
+                  <tr key={`${e.code}-${e.from}`} className="border-t border-line hover:bg-surface-2">
+                    <td className="whitespace-nowrap px-3 py-2 font-sans"><TeamLogo code={e.code} size={18} /> <span className="ml-1">{e.name}</span></td>
+                    <td className="px-3 py-2 text-muted">{e.from === e.to ? e.from : `${e.from}–${e.to}`}</td>
+                    <td className="px-3 py-2">{e.w}-{e.t}-{e.l}</td>
+                    <td className="px-3 py-2 text-accent">{e.win_pct == null ? "—" : f3(e.win_pct)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {/* 戰績走勢 */}
       {trend.points.length > 0 && (

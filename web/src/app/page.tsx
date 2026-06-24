@@ -4,7 +4,7 @@ import { StandingsTrend } from "@/components/standings-trend";
 import { YearSelect } from "@/components/year-select";
 import { api } from "@/lib/api";
 import type { OfficialStanding, SpecialRecord, WL, WTL } from "@/lib/api";
-import { isCurrentTeam } from "@/lib/teams";
+import { teamPageCode } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
@@ -14,11 +14,12 @@ const SEGS = [
   { v: 2, label: "下半季" },
 ];
 
-// 球隊徽章連到各隊獨立頁（僅現役一軍隊；二軍/歷史隊不連、免 404）
+// 球隊徽章連到各隊獨立頁；改名/轉賣的歷史隊連到現役 franchise 頁；已解散隊不連
 function LinkedTeam({ code, name }: { code: string; name: string }) {
-  if (!isCurrentTeam(code)) return <TeamBadge code={code} name={name} />;
+  const tc = teamPageCode(code);
+  if (!tc) return <TeamBadge code={code} name={name} />;
   return (
-    <Link href={`/teams/${code}`} className="hover:underline">
+    <Link href={`/teams/${tc}`} className="hover:underline">
       <TeamBadge code={code} name={name} />
     </Link>
   );

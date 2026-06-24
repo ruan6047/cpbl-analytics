@@ -687,10 +687,11 @@ def player_fielding(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict
 
 @app.get("/api/v1/games/recent")
 def games_recent(
-    limit: int = Query(40, ge=1, le=200),
+    limit: int = Query(40, ge=1, le=600),
     season: int = Query(DEFAULT_SEASON),
+    kind_code: str = Query("A"),
 ) -> dict:
-    """近期已完成比賽列表（供賽況頁選擇）。"""
+    """某年某層級已完成比賽列表（供賽況/歷史賽事瀏覽）。"""
     with conn() as c:
         cur = c.cursor()
         cur.execute(
@@ -699,11 +700,11 @@ def games_recent(
                    away_team_name, away_team_code, away_score,
                    home_team_name, home_team_code, home_score
             FROM cpbl.games
-            WHERE year = %s AND home_score + away_score > 0
+            WHERE year = %s AND kind_code = %s AND home_score + away_score > 0
             ORDER BY game_date DESC, game_sno DESC
             LIMIT %s
             """,
-            (season, limit),
+            (season, kind_code, limit),
         )
         return {"season": season, "items": _dicts(cur)}
 
@@ -1061,6 +1062,60 @@ def teams_dim(active: bool = Query(True)) -> dict:
             "FROM cpbl.team_dim" + (" WHERE active=true" if active else "") + " ORDER BY team_code"
         )
         return {"items": _dicts(cur)}
+
+
+# 改名/轉賣視為同一支球隊：歷史代碼 → 現役 franchise 代碼（依 games 年份範圍實證）
+_FRANCHISE = {
+    "ACC011": "ACN011",                                    # 兄弟象 → 中信兄弟
+    "AEE011": "AEO011", "AEG011": "AEO011", "AEM011": "AEO011",  # 俊國→興農→義大→富邦
+    "AJJ011": "AJL011", "AJK011": "AJL011",                # 第一金剛→La New/Lamigo→樂天
+}
+
+
+def _franchise_of(code: str) -> str:
+    return _FRANCHISE.get(code, code)
+
+
+@app.get("/api/v1/teams/{code}/eras")
+def team_eras(code: str, kind_code: str = Query("A")) -> dict:
+    """球隊沿革：franchise（改名/轉賣視為同隊）各時期隊名+年代+戰績；依代碼+年份缺口斷代。"""
+    fc = _franchise_of(code)
+    members = sorted({c for c in (set(_FRANCHISE) | set(_FRANCHISE.values()) | {fc}) if _franchise_of(c) == fc})
+    with conn() as c:
+        games = c.execute(
+            "SELECT year, home_team_code, away_team_code, home_team_name, away_team_name, home_score, away_score "
+            "FROM cpbl.games WHERE kind_code=%s AND home_score+away_score>0 "
+            "AND (home_team_code = ANY(%s) OR away_team_code = ANY(%s))",
+            (kind_code, members, members),
+        ).fetchall()
+    from collections import defaultdict
+    rec: dict = defaultdict(lambda: {"w": 0, "l": 0, "t": 0, "name": None})
+    for y, hc, ac, hn, an, hs, as_ in games:
+        if hc in members:
+            r = rec[(hc, y)]; r["name"] = hn
+            r["w" if hs > as_ else "l" if as_ > hs else "t"] += 1
+        if ac in members:
+            r = rec[(ac, y)]; r["name"] = an
+            r["w" if as_ > hs else "l" if hs > as_ else "t"] += 1
+    eras = []
+    for m in members:
+        ys = sorted(y for (cc, y) in rec if cc == m)
+        if not ys:
+            continue
+        run = [ys[0]]
+        for y in ys[1:] + [None]:  # 以 None 收尾沖出最後一段
+            if y is not None and y == run[-1] + 1:
+                run.append(y)
+            else:
+                w = sum(rec[(m, yy)]["w"] for yy in run)
+                lo = sum(rec[(m, yy)]["l"] for yy in run)
+                t = sum(rec[(m, yy)]["t"] for yy in run)
+                eras.append({"code": m, "name": rec[(m, run[-1])]["name"], "from": run[0], "to": run[-1],
+                             "w": w, "l": lo, "t": t, "win_pct": round(w / (w + lo), 3) if w + lo else None})
+                if y is not None:
+                    run = [y]
+    eras.sort(key=lambda e: e["from"])
+    return {"franchise": fc, "eras": eras}
 
 
 @app.get("/api/v1/venues")
