@@ -38,18 +38,18 @@ const _meta = (code?: string | null): TeamMeta | undefined => {
 // ✓ 較有把握：兄弟象/興農牛/義大犀牛/中信鯨/La New熊/Lamigo桃猿/三商虎
 // ? 待確認：俊國熊/時報鷹/誠泰/米迪亞/第一金剛（先用合理色）
 export const HISTORICAL: Record<string, { color: string; letter: string }> = {
-  "兄弟象": { color: "#F2A900", letter: "兄" },
-  "三商虎": { color: "#D2232A", letter: "虎" },
-  "俊國熊": { color: "#7A4B2A", letter: "俊" },
-  "興農牛": { color: "#00843D", letter: "牛" },
-  "義大犀牛": { color: "#5B2A86", letter: "犀" },
-  "時報鷹": { color: "#1B458F", letter: "鷹" },
-  "中信鯨": { color: "#003DA5", letter: "鯨" },
-  "誠泰Cobras": { color: "#1D7B3E", letter: "誠" },
-  "米迪亞暴龍": { color: "#E35205", letter: "暴" },
-  "第一金剛": { color: "#0046AD", letter: "金" },
-  "La New熊": { color: "#D2202E", letter: "熊" },
-  "Lamigo桃猿": { color: "#E4007F", letter: "猿" },
+  "兄弟象": { color: "#F2A900", letter: "兄" },       // 黃（iconic）
+  "三商虎": { color: "#2FA8DE", letter: "虎" },       // 水藍（查證）
+  "興農牛": { color: "#00843D", letter: "牛" },       // 綠（查證）
+  "義大犀牛": { color: "#5B2A86", letter: "犀" },     // 紫（查證）
+  "中信鯨": { color: "#003F8C", letter: "鯨" },       // 深藍（中信企業色，合理）
+  "La New熊": { color: "#1AA79E", letter: "熊" },     // 湖水綠（查證：白/湖綠/金黃）
+  "Lamigo桃猿": { color: "#1B2A4A", letter: "猿" },   // 深藍/黑（查證：黑藍白系統，非桃紅）
+  "俊國熊": { color: "#2E8B57", letter: "俊" },       // 綠（查證：綠底黃字；與興農同 franchise 綠系）
+  "米迪亞暴龍": { color: "#1B3A6B", letter: "暴" },   // 深藍+紅（查證）
+  "時報鷹": { color: "#808080", letter: "鷹" },       // 灰（使用者）
+  "誠泰Cobras": { color: "#1A1A1A", letter: "誠" },   // 黑（使用者）
+  "第一金剛": { color: "#2E9BD6", letter: "金" },     // 湖水藍（使用者）
 };
 // 沿革各時期徽章：歷史隊用 iconic 色，現役期用 franchise 色
 export const eraBadge = (name: string, code: string): { color: string; letter: string } =>
