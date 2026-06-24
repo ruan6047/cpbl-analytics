@@ -4,6 +4,7 @@ import { StandingsTrend } from "@/components/standings-trend";
 import { YearSelect } from "@/components/year-select";
 import { api } from "@/lib/api";
 import type { OfficialStanding, SpecialRecord, WL, WTL } from "@/lib/api";
+import { isCurrentTeam } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
@@ -13,8 +14,9 @@ const SEGS = [
   { v: 2, label: "下半季" },
 ];
 
-// 球隊徽章連到各隊獨立頁
+// 球隊徽章連到各隊獨立頁（僅現役一軍隊；二軍/歷史隊不連、免 404）
 function LinkedTeam({ code, name }: { code: string; name: string }) {
+  if (!isCurrentTeam(code)) return <TeamBadge code={code} name={name} />;
   return (
     <Link href={`/teams/${code}`} className="hover:underline">
       <TeamBadge code={code} name={name} />
@@ -246,22 +248,28 @@ function WalkoffTable({ rows, sp }: { rows: OfficialStanding[]; sp: Map<string, 
   );
 }
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ seg?: string; view?: string; year?: string }> }) {
-  const { seg = "0", view = "basic", year: yearParam } = await searchParams;
+const LEVELS = [
+  { v: "A", label: "一軍" },
+  { v: "D", label: "二軍" },
+];
+
+export default async function Home({ searchParams }: { searchParams: Promise<{ seg?: string; view?: string; year?: string; kind?: string }> }) {
+  const { seg = "0", view = "basic", year: yearParam, kind: kindParam } = await searchParams;
   const segCode = Number(seg) || 0;
-  const isSpecial = view === "special";
-  const { years } = await api.seasons();
+  const kind = kindParam === "D" ? "D" : "A";
+  const isMinor = kind === "D";
+  const { years } = await api.seasons(kind);
   const currentYear = years[0] ?? new Date().getFullYear();
   const selectedYear = yearParam ? Number(yearParam) : currentYear;
-  const isCurrent = selectedYear === currentYear;
-  // 歷史年份只有全年戰績（無官方半季/即時 OPS）；特殊戰績與半季僅當季官方資料完整
-  const effSeg = isSpecial || !isCurrent ? 0 : segCode;
-  const yr = isCurrent ? undefined : selectedYear;
+  // 官方 rich view（半季/特殊戰績/即時 OPS）只在「一軍當季」；二軍與歷年皆由 games 即時算
+  const useOfficial = !isMinor && selectedYear === currentYear;
+  const isSpecial = view === "special" && useOfficial;
+  const effSeg = isSpecial ? segCode : 0;
   const [{ season, items }, derived, special, trend] = await Promise.all([
-    api.officialStandings(effSeg, yr),
-    isCurrent ? api.standings() : Promise.resolve({ standings: [] }),
-    isSpecial ? api.specialRecords(yr) : Promise.resolve(null),
-    isSpecial ? Promise.resolve(null) : api.standingsTrend(yr),
+    api.officialStandings(effSeg, useOfficial ? undefined : selectedYear, kind),
+    useOfficial ? api.standings() : Promise.resolve({ standings: [] }),
+    isSpecial ? api.specialRecords() : Promise.resolve(null),
+    isSpecial ? Promise.resolve(null) : api.standingsTrend(useOfficial ? undefined : selectedYear, kind),
   ]);
   // 團隊 OPS/ERA/WHIP 來自即時彙整端點，依 code 併入
   const adv = new Map(derived.standings.map((d) => [d.code, d]));
@@ -271,14 +279,16 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
     { v: "basic", label: "基本數據" },
     { v: "special", label: "特殊戰績" },
   ];
+  const levelLabel = isMinor ? "二軍" : "";
+  const subtitle = isMinor ? `${levelLabel}戰績` : useOfficial ? "本季戰績" : "歷年戰績";
 
   return (
     <div>
       <header className="mb-5">
-        <h1 className="text-2xl font-bold">{season} 球季 · {isCurrent ? "本季戰績" : "歷年戰績"}</h1>
+        <h1 className="text-2xl font-bold">{season} 球季 · {subtitle}</h1>
         <p className="mt-2 text-sm text-muted">
-          {!isCurrent
-            ? "歷史年度戰績（由逐場結果即時計算：勝-和-敗/勝率/勝差/對戰/主客場）。"
+          {!useOfficial
+            ? `${isMinor ? "二軍" : "歷史"}年度戰績（由逐場結果即時計算：勝-和-敗/勝率/勝差/對戰/主客場）。`
             : isSpecial
             ? "依場地、比分型、賽況軌跡、賽程與對手分類的隊級戰績（全年累計，逐場+逐局計算）。配對數值依勝率／正向比例以藍↔紅上色。"
             : "官方戰績（含和局/勝差/連勝敗/主客場/近十場）。團隊 OPS/ERA/WHIP 為攻守指標。"}
@@ -286,9 +296,21 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
       </header>
 
       <nav className="mb-4 flex flex-wrap items-center gap-2">
-        <YearSelect years={years} value={selectedYear} />
-        {isCurrent && <span className="mx-1 h-4 w-px bg-line" />}
-        {isCurrent && VIEWS.map((v) => (
+        {LEVELS.map((lv) => (
+          <Link
+            key={lv.v}
+            href={lv.v === "A" ? "/" : "/?kind=D"}
+            className={`rounded-full px-3 py-1 text-sm font-medium transition ${
+              (lv.v === "D") === isMinor ? "bg-ink text-white" : "bg-surface-2 text-muted hover:bg-surface-2"
+            }`}
+          >
+            {lv.label}
+          </Link>
+        ))}
+        <span className="mx-1 h-4 w-px bg-line" />
+        <YearSelect years={years} value={selectedYear} kind={kind} />
+        {useOfficial && <span className="mx-1 h-4 w-px bg-line" />}
+        {useOfficial && VIEWS.map((v) => (
           <Link
             key={v.v}
             href={`/?view=${v.v}${v.v === "basic" ? `&seg=${segCode}` : ""}`}
@@ -299,8 +321,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
             {v.label}
           </Link>
         ))}
-        {isCurrent && !isSpecial && <span className="mx-1 h-4 w-px bg-line" />}
-        {isCurrent && !isSpecial &&
+        {useOfficial && !isSpecial && <span className="mx-1 h-4 w-px bg-line" />}
+        {useOfficial && !isSpecial &&
           SEGS.map((s) => (
             <Link
               key={s.v}

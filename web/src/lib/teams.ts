@@ -16,9 +16,18 @@ export const TEAMS: Record<string, TeamMeta> = {
 // CPBL 品牌色（CPBL TV：藍 + 紅）
 export const CPBL_BLUE = "#1B4DA1";
 
-export const teamColor = (code?: string | null) => (code && TEAMS[code]?.color) || "#0A2540";
-export const teamShort = (code?: string | null) => (code && TEAMS[code]?.short) || "";
-export const teamLetter = (code?: string | null) => (code && TEAMS[code]?.letter) || "?";
+// 以 org 前 3 碼解析（一軍 AAA011 / 二軍 AAA022 共用同隊 meta）
+const _meta = (code?: string | null): TeamMeta | undefined => {
+  if (!code) return undefined;
+  if (TEAMS[code]) return TEAMS[code];
+  const org = code.slice(0, 3);
+  return Object.entries(TEAMS).find(([k]) => k.slice(0, 3) === org)?.[1];
+};
+export const teamColor = (code?: string | null) => _meta(code)?.color || "#0A2540";
+export const teamShort = (code?: string | null) => _meta(code)?.short || "";
+export const teamLetter = (code?: string | null) => _meta(code)?.letter || "?";
+// 現役一軍隊（011）才連到球隊頁；二軍/歷史隊不連
+export const isCurrentTeam = (code?: string | null) => !!(code && TEAMS[code]);
 
 // 依背景色亮度回傳對比文字色（黃色系用深色字）
 export function contrastText(hex: string): string {
