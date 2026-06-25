@@ -546,8 +546,9 @@ export default function PlayerPage() {
               )}
             </div>
             <p className="mt-2 text-[11px] text-faint">
-              各軸為 {eff === "season" ? "本季" : "生涯"} rate 的百分位 [PR]（{min}）；守備＝守備率 FPCT、
-              速度＝每場盜壘＋三壘打；等級 S–G 由 PR 換算，皆本站自算客觀指標，非遊戲數值。
+              各軸由多項指標『綜合』而成的全聯盟百分位 [PR]（{eff === "season" ? "本季" : "生涯"}；{min}）；
+              滑鼠移到軸名可看組成與權重。本季力量/控制/選球等納入官方進階數據（initial速/強擊球%/Barrel%/
+              揮空率/wOBA…，僅本季有、覆蓋稀疏，無進階則退回傳統指標）。等級 S–G 由 PR 換算，皆客觀自算。
             </p>
           </section>
         );

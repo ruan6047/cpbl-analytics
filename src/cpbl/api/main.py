@@ -1175,20 +1175,45 @@ def _grade(pr: float) -> str:
 # 軸定義：(key, 中文標, 顯示格式, 來源指標說明)。順序＝SQL 輸出順序。
 _ABILITY_AXES = {
     "batting": [
-        ("contact", "接觸", "pct", "接觸率 (PA-SO)/PA（球棒控制＝不被三振，非打擊率）"),
+        ("contact", "控制", "pct", "接觸率 (PA-SO)/PA"),
         ("power", "力量", "f3", "純長打率 ISO"),
         ("eye", "選球", "pct", "保送率 BB%"),
         ("speed", "速度", "f2", "每場盜壘＋三壘打 (SB+3B)/G"),
-        ("defense", "守備", "f2", "守位內守備範圍 (PO+A)/G（捕手＝阻殺率；同守位相對）"),
+        ("defense", "守備", "f2", "守位內守備範圍／捕手阻殺率"),
         ("overall", "破壞力", "f3", "整體攻擊 OPS"),
     ],
     "pitching": [
         ("k", "三振", "f2", "每9局三振 K/9"),
-        ("control", "控球", "f2", "每9局保送 BB/9（越低越好）"),
-        ("hr_suppress", "抑長打", "f2", "每9局被全壘打 HR/9（越低越好）"),
-        ("command", "壓制", "f2", "防禦率 ERA（越低越好）"),
-        ("stamina", "續航", "f2", "先發＝每場局數 IP/G；後援＝登板數 G（同類型相對）"),
+        ("control", "控球", "f2", "每9局保送 BB/9"),
+        ("hr_suppress", "抑長打", "f2", "每9局被全壘打 HR/9"),
+        ("command", "壓制", "f2", "防禦率 ERA"),
+        ("stamina", "續航", "f2", "先發 IP/G／後援登板數"),
     ],
+}
+
+# 各軸『綜合組成』：(來源, 鍵, 標籤, 基礎權重)。trad=傳統(SQL 算的軸 PR)；adv=進階官方 _pr
+# （已定向為高=好，免反轉）。進階僅本季有、覆蓋稀疏 → 缺項自動移除並重正規化權重（無進階
+# 即退回純傳統單指標）。
+_COMPOSITE = {
+    "batting": {
+        "contact": [("trad", "contact", "接觸率", 0.45), ("adv", "whiffp_pr", "揮空抑制", 0.55)],
+        "power": [("trad", "power", "ISO", 0.30), ("adv", "ev_pr", "擊球initial速", 0.25),
+                  ("adv", "hardhitp_pr", "強擊球%", 0.25), ("adv", "brlp_pr", "Barrel%", 0.20)],
+        "eye": [("trad", "eye", "保送率", 0.5), ("adv", "chasep_pr", "追打抑制", 0.5)],
+        "speed": [("trad", "speed", "盜壘＋三壘打", 1.0)],
+        "defense": [("trad", "defense", "守備範圍/阻殺", 1.0)],
+        "overall": [("trad", "overall", "OPS", 0.4), ("adv", "woba_pr", "wOBA", 0.6)],
+    },
+    "pitching": {
+        "k": [("trad", "k", "K/9", 0.5), ("adv", "whiffp_pr", "揮空誘發", 0.3),
+              ("adv", "kp_pr", "三振率", 0.2)],
+        "control": [("trad", "control", "BB/9", 0.5), ("adv", "bbp_pr", "保送抑制", 0.25),
+                    ("adv", "chasep_pr", "誘揮", 0.25)],
+        "hr_suppress": [("trad", "hr_suppress", "HR/9", 0.4), ("adv", "brlp_pr", "Barrel抑制", 0.3),
+                        ("adv", "hardhitp_pr", "強擊抑制", 0.3)],
+        "command": [("trad", "command", "ERA", 0.5), ("adv", "woba_pr", "被 wOBA", 0.5)],
+        "stamina": [("trad", "stamina", "續航", 1.0)],
+    },
 }
 
 # 門檻：生涯較嚴、本季較鬆（本季賽程未過半）。
@@ -1297,23 +1322,48 @@ def _ability_card(cur, player_id: str, role: str, scope: str, year: int) -> dict
     n = len(axes_def)
     values, prs = row[:n], row[n:2 * n]
     flag = row[2 * n] if len(row) > 2 * n else None  # 打者=是否捕手 / 投手=是否先發
+    # 傳統各軸 PR（percent_rank 0~1 → 0~100）；None=該軸無資料（如 DH 無守備）。
+    trad_pr = {axes_def[i][0]: (None if values[i] is None else round(float(prs[i]) * 100))
+               for i in range(n)}
+
+    # 進階官方 PR（僅本季、足量打席才採；已定向高=好）。覆蓋稀疏故多數球員為空。
+    adv: dict[str, int] = {}
+    if scope == "season":
+        cur.execute(
+            "SELECT pa, woba_pr, iso_pr, ev_pr, hardhitp_pr, brlp_pr, kp_pr, bbp_pr, whiffp_pr, chasep_pr "
+            "FROM cpbl.advanced_stats WHERE acnt=%s AND year=%s AND role=%s", (player_id, year, role))
+        ar = cur.fetchone()
+        if ar and (ar[0] or 0) >= 30:
+            for col, v in zip(["woba_pr", "iso_pr", "ev_pr", "hardhitp_pr", "brlp_pr",
+                               "kp_pr", "bbp_pr", "whiffp_pr", "chasep_pr"], ar[1:], strict=True):
+                if v is not None:
+                    adv[col] = int(v)
+
     axes = []
-    for (key, label, fmt, source), val, pr in zip(axes_def, values, prs, strict=True):
-        # 守備等可能無資料（DH/無守備紀錄）→ value None 則該軸不評（pr 也設 None）。
-        p = None if val is None else round(float(pr) * 100)
-        ax = {"key": key, "label": label, "fmt": fmt, "source": source,
-              "value": round(float(val), 3) if val is not None else None,
-              "pr": p, "grade": _grade(p) if p is not None else None}
-        # 守位／角色特化：捕手守備＝阻殺率；後援續航＝登板數（同類型相對，已由 SQL 算 PR）。
-        if role == "batting" and key == "defense" and flag:
-            ax["fmt"], ax["source"] = "pct", "阻殺率 cs/(cs+被盜)（捕手；同守位相對）"
-        elif role == "pitching" and key == "stamina" and flag is False:
-            ax["fmt"], ax["source"] = "int", "登板數 G（後援；同類型相對）"
-        axes.append(ax)
+    for key, label, _fmt, _src in axes_def:
+        comps = []
+        for src, ck, clabel, w in _COMPOSITE[role][key]:
+            pr = trad_pr.get(ck) if src == "trad" else adv.get(ck)
+            if src == "trad" and key == "defense" and flag:
+                clabel = "阻殺率"          # 捕手守備組成標籤特化
+            if src == "trad" and key == "stamina" and flag is False:
+                clabel = "登板數"          # 後援續航
+            if pr is not None:
+                comps.append({"label": clabel, "weight": w, "pr": pr})
+        if not comps:
+            axes.append({"key": key, "label": label, "pr": None, "grade": None, "components": []})
+            continue
+        tot = sum(c["weight"] for c in comps)
+        final = round(sum(c["pr"] * c["weight"] for c in comps) / tot)
+        for c in comps:                    # 權重正規化為百分比供 tooltip 顯示
+            c["weight"] = round(c["weight"] / tot * 100)
+        axes.append({"key": key, "label": label, "pr": final,
+                     "grade": _grade(final), "components": comps})
+
     rated = [a["pr"] for a in axes if a["pr"] is not None]
     overall = round(sum(rated) / len(rated)) if rated else 0
     return {"available": True, "role": role, "scope": scope, "axes": axes,
-            "overall": {"pr": overall, "grade": _grade(overall)}}
+            "has_advanced": bool(adv), "overall": {"pr": overall, "grade": _grade(overall)}}
 
 
 @app.get("/api/v1/players/{player_id}/ability-card")
