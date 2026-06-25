@@ -1,4 +1,46 @@
-import { contrastText, nameMeta, teamColor, teamLetter } from "@/lib/teams";
+import Link from "next/link";
+import { contrastText, eraBadge, nameMeta, teamColor, teamLetter } from "@/lib/teams";
+
+// 字母方塊徽章（單一事實來源）：給定 {color, letter} 渲染隊色底＋對比字。
+// 各處（排行榜/紀錄室/球員頁/球隊頁沿革）原本各自手寫此 span，統一由此出。
+export function LetterBadge({ meta, size = 16, round = false }: { meta: { color: string; letter: string }; size?: number; round?: boolean }) {
+  return (
+    <span
+      className="inline-flex shrink-0 items-center justify-center font-extrabold leading-none"
+      style={{ width: size, height: size, borderRadius: round ? size / 2 : Math.max(3, size * 0.22), background: meta.color, color: contrastText(meta.color), fontSize: size * 0.56 }}
+    >
+      {meta.letter}
+    </span>
+  );
+}
+
+// 沿革／歷史隊徽章：隊名 + 代碼 → eraBadge（歷史隊 iconic 色），渲染字母方塊。
+export function EraBadge({ name, code, size = 16 }: { name: string; code: string; size?: number }) {
+  return <LetterBadge meta={eraBadge(name, code)} size={size} />;
+}
+
+// 依隊名渲染徽章 + 名稱（走 nameMeta 統一解析，含歷史/二軍隊）。
+export function NameTag({ name, size = 16 }: { name?: string | null; size?: number }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <TeamLogo name={name} size={size} />
+      <span>{name || "—"}</span>
+    </span>
+  );
+}
+
+// 球員連結（無 player_id 時退化為純文字）。
+export function PlayerLink({ pid, name, className = "text-accent hover:underline" }: { pid?: string | null; name: string; className?: string }) {
+  return pid ? <Link href={`/players/${pid}`} className={className}>{name}</Link> : <>{name}</>;
+}
+
+// 小標籤：現役（綠）／已解散（灰）等狀態 pill。
+export function Pill({ children, tone = "muted", className = "" }: { children: React.ReactNode; tone?: "up" | "muted"; className?: string }) {
+  const cls = tone === "up" ? "bg-up/15 text-up" : "bg-surface-2 text-muted";
+  return <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${cls} ${className}`}>{children}</span>;
+}
+export const ActivePill = ({ className = "" }: { className?: string }) => <Pill tone="up" className={className}>現役</Pill>;
+export const GonePill = ({ className = "" }: { className?: string }) => <Pill tone="muted" className={className}>已解散</Pill>;
 
 // 隊伍徽章：隊色圓角方塊 + 字母（避免官方 logo 版權）。
 // 優先用隊名解析(nameMeta，含歷史/已解散隊 era 色)，未知再退回代碼解析。

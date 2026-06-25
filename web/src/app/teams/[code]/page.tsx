@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { StandingsTrend } from "@/components/standings-trend";
-import { Card, StatTile, TeamLogo } from "@/components/ui";
+import { ActivePill, Card, EraBadge, StatTile, TeamLogo } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { SpecialRecord, WL, WTL } from "@/lib/api";
-import { contrastText, eraBadge, teamColor } from "@/lib/teams";
+import { contrastText, teamColor } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
@@ -213,15 +213,13 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
               </thead>
               <tbody className="font-mono tabular-nums">
                 {eras.eras.map((e, i) => {
-                  const bg = eraBadge(e.name, e.code);
                   return (
                   <tr key={`${e.code}-${e.from}`} className="border-t border-line hover:bg-surface-2">
                     <td className="whitespace-nowrap px-3 py-2 font-sans font-medium">
                       <span className="inline-flex items-center gap-1.5">
-                        <span className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-md text-[10px] font-extrabold"
-                          style={{ background: bg.color, color: contrastText(bg.color) }}>{bg.letter}</span>
+                        <EraBadge name={e.name} code={e.code} size={18} />
                         {e.name}
-                        {team && i === eras.eras.length - 1 && <span className="ml-0.5 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-normal text-muted">現役</span>}
+                        {team && i === eras.eras.length - 1 && <ActivePill className="ml-0.5 font-normal" />}
                       </span>
                     </td>
                     <td className="px-3 py-2 text-muted">{e.from === e.to ? e.from : `${e.from}–${e.to}`}</td>
@@ -432,7 +430,7 @@ function RosterTable({ rows, cols }: {
               <td className="px-3 py-2">
                 <Link href={`/players/${r.id}`} className="inline-flex items-center gap-1.5 hover:underline">
                   {r.name}
-                  {r.active && <span className="rounded bg-up/15 px-1 py-0.5 text-[9px] font-medium text-up">現役</span>}
+                  {r.active && <ActivePill />}
                 </Link>
               </td>
               <td className="px-3 py-2 font-mono text-[11px] text-muted">{r.span}</td>

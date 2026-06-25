@@ -6,12 +6,12 @@ import { useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { LaEvScatter } from "@/components/la-ev-scatter";
 import { SprayChart } from "@/components/spray-chart";
-import { Card, PercentileBar, StatTile, TeamLogo } from "@/components/ui";
+import { Card, LetterBadge, PercentileBar, StatTile, TeamLogo } from "@/components/ui";
 import { type HeatMetric, PerfHeatmap } from "@/components/perf-heatmap";
 import { ZoneScatter } from "@/components/zone-scatter";
 import { detail, type PlayerProfile, type StatRow } from "@/lib/client";
 import { fmtIP, fmtIPParts } from "@/lib/format";
-import { codeFromName, contrastText, eraBadge, teamColor, teamShort } from "@/lib/teams";
+import { codeFromName, eraBadge, teamColor, teamShort } from "@/lib/teams";
 
 type Role = "batting" | "pitching";
 type Disc = {
@@ -388,8 +388,7 @@ export default function PlayerPage() {
                         className="inline-flex items-center gap-1 rounded-full py-0.5 pl-0.5 pr-2 text-[11px] font-medium"
                         style={{ background: `${b.color}1a`, color: b.color }}
                         title={`${t.name}　${t.from === t.to ? t.from : `${t.from}–${t.to}`}`}>
-                        <span className="inline-flex h-[16px] w-[16px] items-center justify-center rounded-full text-[9px] font-extrabold"
-                          style={{ background: b.color, color: contrastText(b.color) }}>{b.letter}</span>
+                        <LetterBadge meta={b} round />
                         {t.name}
                         <span className="font-mono tabular-nums opacity-70">
                           {t.from === t.to ? `'${String(t.from).slice(2)}` : `'${String(t.from).slice(2)}–'${String(t.to).slice(2)}`}

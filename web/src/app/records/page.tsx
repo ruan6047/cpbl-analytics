@@ -1,25 +1,11 @@
 import Link from "next/link";
+import { ActivePill, EraBadge, GonePill, NameTag, PlayerLink } from "@/components/ui";
 import { api } from "@/lib/api";
-import { contrastText, eraBadge, nameMeta } from "@/lib/teams";
-
-function PlayerLink({ pid, name }: { pid?: string; name: string }) {
-  return pid ? <Link href={`/players/${pid}`} className="text-accent hover:underline">{name}</Link> : <>{name}</>;
-}
+import { eraBadge } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
 const f3 = (v: number | string | null) => (v == null ? "—" : Number(v).toFixed(3).replace(/^0/, ""));
-
-function TeamTag({ name }: { name: string }) {
-  const m = nameMeta(name);
-  return (
-    <span className="inline-flex items-center gap-1">
-      <span className="inline-flex h-4 w-4 items-center justify-center rounded text-[9px] font-extrabold"
-        style={{ background: m.color, color: contrastText(m.color) }}>{m.letter}</span>
-      {name}
-    </span>
-  );
-}
 
 type GameRec = { year: number; date: string; home: string; away: string; hs: number; as: number } | null;
 
@@ -29,10 +15,10 @@ function GameCard({ label, rec, hint }: { label: string; rec: GameRec; hint: str
     <div className="rounded-xl border border-line bg-surface p-4">
       <div className="text-[11px] font-medium text-muted">{label}</div>
       <div className="mt-2 flex items-center justify-between text-sm">
-        <TeamTag name={rec.away} /><span className="font-mono text-lg font-bold tabular-nums">{rec.as}</span>
+        <NameTag name={rec.away} /><span className="font-mono text-lg font-bold tabular-nums">{rec.as}</span>
       </div>
       <div className="mt-1 flex items-center justify-between text-sm">
-        <TeamTag name={rec.home} /><span className="font-mono text-lg font-bold tabular-nums">{rec.hs}</span>
+        <NameTag name={rec.home} /><span className="font-mono text-lg font-bold tabular-nums">{rec.hs}</span>
       </div>
       <div className="mt-2 text-[11px] text-faint">{rec.date}　{hint}</div>
     </div>
@@ -62,7 +48,7 @@ function LeaderList({ title, rows, fmt }: { title: string; rows?: { name: string
             <span>
               <span className="mr-2 inline-block w-4 text-right font-mono text-faint">{i + 1}</span>
               <PlayerLink pid={r.pid} name={r.name} />
-              {r.active && <span className="ml-1.5 rounded bg-up/15 px-1 py-0.5 text-[9px] font-medium text-up">現役</span>}
+              {r.active && <ActivePill className="ml-1.5" />}
             </span>
             <span className="font-mono font-semibold tabular-nums">{fmt ? fmt(r.val) : r.val}</span>
           </li>
@@ -73,15 +59,13 @@ function LeaderList({ title, rows, fmt }: { title: string; rows?: { name: string
 }
 
 function FranchiseCard({ fr }: { fr: Awaited<ReturnType<typeof api.franchises>>["items"][number] }) {
-  const head = eraBadge(fr.name, fr.code);
   return (
     <Link href={`/teams/${fr.code}`}
       className="block rounded-xl border border-line bg-surface p-3.5 transition hover:border-accent hover:shadow-sm">
       <div className="flex items-center gap-2">
-        <span className="inline-flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-extrabold"
-          style={{ background: head.color, color: contrastText(head.color) }}>{head.letter}</span>
+        <EraBadge name={fr.name} code={fr.code} size={24} />
         <span className="font-semibold text-ink">{fr.name}</span>
-        {!fr.active && <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted">已解散</span>}
+        {!fr.active && <GonePill />}
       </div>
       <div className="mt-1.5 font-mono text-[11px] tabular-nums text-muted">
         {fr.from}–{fr.to}　{fr.w}-{fr.t}-{fr.l}　勝率 {f3(fr.win_pct)}
