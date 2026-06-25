@@ -15,9 +15,19 @@ const AWARD_CATS: Cat[] = [
   { key: "k9", label: "K9", fmt: "f2", qual: true },
 ];
 
+// 投手角色：先發（先發場數佔半數以上）/ 後援（救援>中繼，終結者傾向）/ 中繼（其餘救援投手）
+function pitcherRole(r: Record<string, number | string | null>): string | null {
+  const g = Number(r.g ?? 0), gs = Number(r.gs ?? 0), sv = Number(r.sv ?? 0), hld = Number(r.hld ?? 0);
+  if (g === 0) return null;
+  if (gs * 2 >= g) return "先發";
+  if (sv > hld) return "後援";
+  return "中繼";
+}
+
 const COLS: Col[] = [
   { key: "name", label: "球員", tip: "球員姓名（點擊看個人頁）", link: { base: "/players/", idKey: "player_id" } },
   { key: "team", label: "隊", team: true, tip: "所屬球隊" },
+  { key: "role", label: "角色", sortable: false, tip: "先發＝先發場數佔半數以上；後援＝救援>中繼（終結者傾向）；中繼＝其餘後援投手" },
   { key: "g", label: "出賽", fmt: "i", tone: "dim", tip: "出賽場數（G）" },
   { key: "gs", label: "先發", fmt: "i", tone: "dim", tip: "先發場數" },
   { key: "cg", label: "完投", fmt: "i", tone: "dim", tip: "完投：先發且投完全場" },
@@ -51,6 +61,7 @@ export default async function PitchersPage({ searchParams }: { searchParams: Pro
   const selectedYear = yp ? Number(yp) : currentYear;
   const isCurrent = selectedYear === currentYear && kind === "A";
   const { season, items } = await api.pitchingLeaders("era", { kind, year: isCurrent ? undefined : selectedYear });
+  const rows = items.map((r) => ({ ...r, role: pitcherRole(r) }));
 
   return (
     <div>
@@ -72,11 +83,11 @@ export default async function PitchersPage({ searchParams }: { searchParams: Pro
       })()}
 
       <Leaderboard
-        rows={items}
+        rows={rows}
         cols={COLS}
         defaultSort="era"
         defaultDir={1}
-        filters={[{ key: "team", label: "球隊" }]}
+        filters={[{ key: "team", label: "球隊" }, { key: "role", label: "角色" }]}
       />
     </div>
   );
