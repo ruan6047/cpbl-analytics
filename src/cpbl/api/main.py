@@ -1131,6 +1131,110 @@ def game_live(
             "has_tracking": len(tracking) > 0, "tracking": tracking}
 
 
+# ---- 能力值卡（遊戲風雷達圖）：以全史生涯 rate 對全聯盟母體求百分位 [PR] ----
+# 不抄任何遊戲數字；每軸 = 我們自算的客觀指標相對「所有合格生涯球員」的 percent_rank。
+# 等級 S–G 純由 PR 換算，方便一眼讀懂（教育用途，呼應 /predict）。
+def _grade(pr: float) -> str:
+    for t, g in ((90, "S"), (80, "A"), (65, "B"), (50, "C"), (35, "D"), (20, "E"), (10, "F")):
+        if pr >= t:
+            return g
+    return "G"
+
+
+# 每個角色的軸定義：(key, 中文標, 顯示格式)。PR/value 由 SQL 算好後對位。
+_ABILITY_AXES = {
+    "batting": [("contact", "接觸", "avg"), ("power", "力量", "iso"),
+                ("eye", "選球", "pct"), ("overall", "破壞力", "ops"), ("speed", "速度", "int")],
+    "pitching": [("k", "三振", "rate"), ("control", "控球", "rate"),
+                 ("hr_suppress", "抑長打", "rate"), ("command", "壓制", "rate"), ("stamina", "續航", "rate")],
+}
+
+_ABILITY_SQL = {
+    # 打者：生涯彙總（AB≥300）→ rate → percent_rank。速度用生涯盜壘數。
+    "batting": """
+        WITH career AS (
+            SELECT player_id, sum(ab) ab, sum(h) h, sum(b2) b2, sum(b3) b3, sum(hr) hr,
+                   sum(bb) bb, sum(hbp) hbp, sum(sf) sf, sum(pa) pa, sum(sb) sb
+            FROM cpbl.batting_seasons GROUP BY player_id HAVING sum(ab) >= 300
+        ), rate AS (
+            SELECT player_id,
+                h::float/ab AS contact,
+                (b2 + 2*b3 + 3*hr)::float/ab AS power,
+                bb::float/NULLIF(pa,0) AS eye,
+                (h+bb+hbp)::float/NULLIF(ab+bb+hbp+sf,0) + (h+b2+2*b3+3*hr)::float/ab AS overall,
+                sb::float AS speed
+            FROM career
+        ), pr AS (
+            SELECT player_id, contact, power, eye, overall, speed,
+                percent_rank() OVER (ORDER BY contact) contact_pr,
+                percent_rank() OVER (ORDER BY power) power_pr,
+                percent_rank() OVER (ORDER BY eye) eye_pr,
+                percent_rank() OVER (ORDER BY overall) overall_pr,
+                percent_rank() OVER (ORDER BY speed) speed_pr
+            FROM rate
+        ) SELECT contact, power, eye, overall, speed,
+                 contact_pr, power_pr, eye_pr, overall_pr, speed_pr FROM pr WHERE player_id = %s
+    """,
+    # 投手：生涯彙總（真實局數 IP≥100）→ rate → percent_rank。越低越好者 ORDER BY DESC 反轉。
+    "pitching": """
+        WITH career AS (
+            SELECT player_id,
+                   sum(floor(ip) + (ip - floor(ip))*10/3.0) AS ip,
+                   sum(so) so, sum(bb) bb, sum(hr) hr, sum(er) er, sum(g) g
+            FROM cpbl.pitching_seasons GROUP BY player_id
+            HAVING sum(floor(ip) + (ip - floor(ip))*10/3.0) >= 100
+        ), rate AS (
+            SELECT player_id,
+                so*9.0/ip AS k, bb*9.0/ip AS control, hr*9.0/ip AS hr_suppress,
+                er*9.0/ip AS command, ip/NULLIF(g,0) AS stamina
+            FROM career
+        ), pr AS (
+            SELECT player_id, k, control, hr_suppress, command, stamina,
+                percent_rank() OVER (ORDER BY k) k_pr,
+                percent_rank() OVER (ORDER BY control DESC) control_pr,
+                percent_rank() OVER (ORDER BY hr_suppress DESC) hr_suppress_pr,
+                percent_rank() OVER (ORDER BY command DESC) command_pr,
+                percent_rank() OVER (ORDER BY stamina) stamina_pr
+            FROM rate
+        ) SELECT k, control, hr_suppress, command, stamina,
+                 k_pr, control_pr, hr_suppress_pr, command_pr, stamina_pr FROM pr WHERE player_id = %s
+    """,
+}
+
+
+def _ability_card(cur, player_id: str, role: str) -> dict:
+    axes_def = _ABILITY_AXES[role]
+    cur.execute(_ABILITY_SQL[role], (player_id,))
+    row = cur.fetchone()
+    if not row:
+        return {"available": False, "role": role}
+    n = len(axes_def)
+    values = row[:n]
+    prs = row[n:]
+    axes = []
+    for (key, label, fmt), val, pr in zip(axes_def, values, prs, strict=True):
+        p = round(float(pr) * 100)
+        axes.append({"key": key, "label": label, "fmt": fmt,
+                     "value": round(float(val), 3) if val is not None else None,
+                     "pr": p, "grade": _grade(p)})
+    overall = round(sum(a["pr"] for a in axes) / len(axes))
+    return {"available": True, "role": role, "axes": axes,
+            "overall": {"pr": overall, "grade": _grade(overall)}}
+
+
+@app.get("/api/v1/players/{player_id}/ability-card")
+def player_ability_card(player_id: str) -> dict:
+    """遊戲風能力值卡：依球員身分回打者/投手雷達（生涯 rate 的全聯盟百分位）。"""
+    # 兩種都算（SQL 已自帶 AB≥300 / IP≥100 門檻，不合格者回 available=False）。
+    with conn() as c:
+        cur = c.cursor()
+        return {
+            "player_id": player_id,
+            "batting": _ability_card(cur, player_id, "batting"),
+            "pitching": _ability_card(cur, player_id, "pitching"),
+        }
+
+
 @app.get("/api/v1/players/{player_id}/advanced")
 def player_advanced(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
     """官方進階數據（stats.cpbl）+ 官方 PR。batting=進攻、pitching=被打。"""

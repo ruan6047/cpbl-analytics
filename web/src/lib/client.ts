@@ -161,6 +161,12 @@ export const detail = {
     }>(`/api/v1/players/${id}/career`),
   advanced: (id: string) =>
     clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/advanced`),
+  abilityCard: (id: string) =>
+    clientGet<{
+      player_id: string;
+      batting: import("@/components/ability-card").Card;
+      pitching: import("@/components/ability-card").Card;
+    }>(`/api/v1/players/${id}/ability-card`),
   discipline: (id: string, role: "batting" | "pitching") =>
     clientGet<{
       summary: Record<string, number | null>;

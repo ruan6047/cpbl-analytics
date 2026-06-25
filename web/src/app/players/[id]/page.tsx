@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { LaEvScatter } from "@/components/la-ev-scatter";
 import { SprayChart } from "@/components/spray-chart";
+import { AbilityCard } from "@/components/ability-card";
 import { Card, LetterBadge, PercentileBar, StatTile, TeamLogo } from "@/components/ui";
 import { type HeatMetric, PerfHeatmap } from "@/components/perf-heatmap";
 import { ZoneScatter } from "@/components/zone-scatter";
@@ -297,6 +298,7 @@ export default function PlayerPage() {
   const [vsTeam, setVsTeam] = useState<StatRow[] | null>(null);
   const [career, setCareer] = useState<StatRow[] | null>(null);
   const [careerStats, setCareerStats] = useState<Awaited<ReturnType<typeof detail.careerStats>> | null>(null);
+  const [ability, setAbility] = useState<Awaited<ReturnType<typeof detail.abilityCard>> | null>(null);
   const [trend, setTrend] = useState<StatRow[] | null>(null);
   const [splits, setSplits] = useState<StatRow[] | null>(null);
   const [monthMetric, setMonthMetric] = useState("ops");
@@ -311,6 +313,7 @@ export default function PlayerPage() {
     detail.advanced(id).then(setAdvanced).catch(() => setAdvanced(null));
     detail.fielding(id).then((d) => setFielding(d.items)).catch(() => setFielding([]));
     detail.careerStats(id).then(setCareerStats).catch(() => setCareerStats(null));
+    detail.abilityCard(id).then(setAbility).catch(() => setAbility(null));
   }, [id]);
 
   useEffect(() => {
@@ -414,6 +417,30 @@ export default function PlayerPage() {
       </div>
 
       {roles.length > 1 && <div className="mb-5"><Tabs opts={roles} v={role} set={setRole} /></div>}
+
+      {/* 能力值卡（遊戲風雷達：生涯 rate 的全聯盟百分位）。獨立於本季 role tab，
+          故 OB/退役球員（無本季成績）仍可顯示生涯能力卡。*/}
+      {(ability?.batting?.available || ability?.pitching?.available) && (
+        <section className="mb-6">
+          <h2 className="mb-3 text-lg font-semibold text-ink">能力值卡</h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {ability?.batting?.available && (
+              <div className="rounded-xl border border-line bg-surface p-4">
+                <AbilityCard card={ability.batting} title="打者" color={teamColor(codeFromName(profile.team)) || "#1B4DA1"} />
+              </div>
+            )}
+            {ability?.pitching?.available && (
+              <div className="rounded-xl border border-line bg-surface p-4">
+                <AbilityCard card={ability.pitching} title="投手" color={teamColor(codeFromName(profile.team)) || "#15543C"} />
+              </div>
+            )}
+          </div>
+          <p className="mt-2 text-[11px] text-faint">
+            各軸為生涯 rate 相對全聯盟合格球員（打者 AB≥300 / 投手 IP≥100）的百分位 [PR]；
+            等級 S–G 由 PR 換算，皆本站自算客觀指標，非遊戲數值。
+          </p>
+        </section>
+      )}
 
       {/* 本季成績 + 官方進階（並排兩欄） */}
       <section className="mb-6 grid items-stretch gap-6 lg:grid-cols-2">
