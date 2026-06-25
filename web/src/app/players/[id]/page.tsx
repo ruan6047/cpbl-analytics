@@ -25,6 +25,13 @@ type Disc = {
 
 const numOf = (v: number | string | null | undefined) =>
   v === null || v === undefined || v === "" ? null : Number(v);
+
+// 洋將身分徽章樣式（local 不顯示）
+const IMPORT_BADGE: Record<string, { color: string; hint: string }> = {
+  import: { color: "#2563EB", hint: "外籍洋將，占球隊洋將登錄名額" },
+  loree: { color: "#0F766E", hint: "羅力條款：在台累積球季並申請，視為本土洋將，不占洋將名額" },
+  nagata: { color: "#7C3AED", hint: "永田條款：循台灣學生棒球體系選秀進入職棒，視同本土選手" },
+};
 const n0 = (v: number | string | null | undefined) => (v === null || v === undefined ? "—" : String(v));
 const f3 = (v: number | string | null | undefined) => {
   const x = numOf(v);
@@ -373,7 +380,20 @@ export default function PlayerPage() {
           <div className="flex items-center gap-3.5">
             <TeamLogo code={tc} size={48} />
             <div>
-              <h1 className="text-3xl font-bold text-ink">{profile.name}</h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-3xl font-bold text-ink">{profile.name}</h1>
+                {profile.import_status && profile.import_status !== "local" && (
+                  <span
+                    className="rounded-md px-2 py-0.5 text-[11px] font-semibold leading-none"
+                    style={{
+                      background: `${IMPORT_BADGE[profile.import_status].color}1a`,
+                      color: IMPORT_BADGE[profile.import_status].color,
+                    }}
+                    title={`${IMPORT_BADGE[profile.import_status].hint}${profile.country ? `（國籍：${profile.country}）` : ""}`}>
+                    {profile.import_label}
+                  </span>
+                )}
+              </div>
               {profile.former_names?.length > 0 && (
                 <p className="mt-0.5 text-[11px] text-faint">曾用名：{profile.former_names.join("、")}</p>
               )}

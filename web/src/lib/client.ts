@@ -121,6 +121,9 @@ export type PlayerProfile = {
   bats: string | null;
   throws: string | null;
   former_names: string[];
+  country?: string | null;
+  import_status?: "local" | "import" | "loree" | "nagata";
+  import_label?: string | null;
 };
 export type ProfileData = { player: PlayerProfile | null };
 export type PlayerMatchupsData = {

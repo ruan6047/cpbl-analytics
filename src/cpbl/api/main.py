@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from cpbl import __version__
+from cpbl import __version__, imports
 from cpbl.config import settings
 from cpbl.db import conn
 from cpbl.features.outcome import CANDIDATE_FEATURES, FEATURE_DESC
@@ -898,7 +898,7 @@ def player_profile(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
             """, (player_id, season),
         )
         pit = cur.fetchone()
-        cur.execute("SELECT name, bats, throws FROM cpbl.players WHERE id = %s", (player_id,))
+        cur.execute("SELECT name, bats, throws, country FROM cpbl.players WHERE id = %s", (player_id,))
         meta = cur.fetchone()
         # 曾用名（改名）：gamelog 逐場記錄當時名字，取與現名不同者
         cur.execute(
@@ -913,12 +913,17 @@ def player_profile(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
     name = (bat[1] if bat else None) or (pit[1] if pit else None) or (meta[0] if meta else None)
     team = (bat[2] if bat else None) or (pit[2] if pit else None)
     former = sorted(n for n in all_names if n and n != name)
+    country = meta[3] if meta else None
+    status = imports.classify(player_id, country)
     return {
         "player": {
             "id": player_id, "name": name, "team": team,
             "is_batter": bat is not None, "is_pitcher": pit is not None,
             "bats": meta[1] if meta else None, "throws": meta[2] if meta else None,
             "former_names": former,
+            "country": country,
+            "import_status": status,
+            "import_label": imports.LABELS[status] if status != "local" else None,
         }
     }
 
