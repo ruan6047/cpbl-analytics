@@ -1179,7 +1179,7 @@ _ABILITY_AXES = {
         ("power", "力量", "f3", "純長打率 ISO"),
         ("eye", "選球", "pct", "保送率 BB%"),
         ("speed", "速度", "f2", "每場盜壘＋三壘打 (SB+3B)/G"),
-        ("defense", "守備", "f3", "守備率 FPCT（po+a)/(po+a+e)"),
+        ("defense", "守備", "f2", "守位內守備範圍 (PO+A)/G（同守位相對；反映守備範圍而非僅不失誤）"),
         ("overall", "破壞力", "f3", "整體攻擊 OPS"),
     ],
     "pitching": [
@@ -1196,36 +1196,50 @@ _ABILITY_MIN = {"batting": {"career": 300, "season": 50}, "pitching": {"career":
 
 
 def _bat_ability_sql(scope: str) -> str:
-    """打者能力 SQL：career=逐年彙總(AB≥300)，season=本季(AB≥50)。守備加入。"""
+    """打者能力 SQL：career=逐年彙總(AB≥300)，season=本季(AB≥50)。
+
+    守備改用『守位內守備範圍 (PO+A)/G』並於同守位內取百分位（反映範圍而非僅不失誤；
+    取主守位＝場次最多者），故守備 PR 由 fld 先算好，主 pr CTE 不再全域重排。
+    """
     if scope == "career":
         base = ("SELECT player_id, sum(ab) ab, sum(h) h, sum(b2) b2, sum(b3) b3, sum(hr) hr,"
                 " sum(bb) bb, sum(hbp) hbp, sum(sf) sf, sum(pa) pa, sum(sb) sb, sum(g) g"
                 " FROM cpbl.batting_seasons GROUP BY player_id HAVING sum(ab) >= %(min)s")
-        fld = ("SELECT player_id, sum(po) po, sum(a) a, sum(e) e"
-               " FROM cpbl.fielding_seasons GROUP BY player_id")
+        fld_src = "cpbl.fielding_seasons"
+        fld_min = 30
     else:
         base = ("SELECT player_id, ab, h, b2, b3, hr, bb, hbp, sf, pa, sb, g"
                 " FROM cpbl.batting_current WHERE year=%(yr)s AND ab >= %(min)s")
-        fld = ("SELECT player_id, sum(po) po, sum(a) a, sum(e) e"
-               " FROM cpbl.fielding_current WHERE year=%(yr)s GROUP BY player_id")
+        fld_src = "(SELECT * FROM cpbl.fielding_current WHERE year=%(yr)s) fc"
+        fld_min = 8
     return f"""
-        WITH base AS ({base}), fld AS ({fld}),
-        rate AS (
+        WITH base AS ({base}),
+        pos_rf AS (
+            SELECT player_id, pos, sum(g) g,
+                   (sum(po)+sum(a))::float/NULLIF(sum(g),0) rf
+            FROM {fld_src} GROUP BY player_id, pos HAVING sum(g) >= {fld_min}
+        ), pos_pr AS (
+            SELECT player_id, pos, g, rf,
+                   percent_rank() OVER (PARTITION BY pos ORDER BY rf) rf_pr
+            FROM pos_rf
+        ), fld AS (   -- 取主守位（場次最多）的範圍值與守位內百分位
+            SELECT DISTINCT ON (player_id) player_id, rf AS defense, rf_pr AS defense_pr
+            FROM pos_pr ORDER BY player_id, g DESC
+        ), rate AS (
             SELECT b.player_id,
                 h::float/NULLIF(ab,0) contact,
                 (b2+2*b3+3*hr)::float/NULLIF(ab,0) power,
                 bb::float/NULLIF(pa,0) eye,
                 (sb+b3)::float/NULLIF(g,0) speed,
-                (f.po+f.a)::float/NULLIF(f.po+f.a+f.e,0) defense,
+                f.defense, f.defense_pr,
                 (h+bb+hbp)::float/NULLIF(ab+bb+hbp+sf,0)+(h+b2+2*b3+3*hr)::float/NULLIF(ab,0) overall
             FROM base b LEFT JOIN fld f USING (player_id)
         ), pr AS (
-            SELECT player_id, contact, power, eye, speed, defense, overall,
+            SELECT player_id, contact, power, eye, speed, defense, overall, defense_pr,
                 percent_rank() OVER (ORDER BY contact) contact_pr,
                 percent_rank() OVER (ORDER BY power) power_pr,
                 percent_rank() OVER (ORDER BY eye) eye_pr,
                 percent_rank() OVER (ORDER BY speed) speed_pr,
-                percent_rank() OVER (ORDER BY defense) defense_pr,
                 percent_rank() OVER (ORDER BY overall) overall_pr
             FROM rate
         ) SELECT contact, power, eye, speed, defense, overall,
