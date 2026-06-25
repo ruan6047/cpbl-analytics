@@ -1721,6 +1721,17 @@ def team_players(code: str) -> dict:
             "WHERE team_code=%s AND year=(SELECT max(year) FROM cpbl.coaches WHERE team_code=%s) "
             "ORDER BY (pos LIKE '%%總教練%%') DESC, pos, uniform_no", (code, code))
         coaches = [{"pos": p, "name": n, "uniform_no": u} for p, n, u in cur.fetchall()]
+        # 教練若為中職前球員（生涯有打/投紀錄）且同名唯一 → 附 player_id 供連結球員頁
+        if coaches:
+            names = list({c["name"] for c in coaches})
+            cur.execute(
+                "SELECT name, max(id) FROM cpbl.players p WHERE name = ANY(%s) "
+                "AND (EXISTS(SELECT 1 FROM cpbl.batting_seasons b WHERE b.player_id=p.id) "
+                "  OR EXISTS(SELECT 1 FROM cpbl.pitching_seasons s WHERE s.player_id=p.id)) "
+                "GROUP BY name HAVING count(*)=1", (names,))
+            pid_of = {n: pid for n, pid in cur.fetchall()}
+            for c in coaches:
+                c["player_id"] = pid_of.get(c["name"])
         # 現役名單：一軍 current + 二軍 D-gamelog（022 farm 代碼）。已解散隊自然回空。
         yr = DEFAULT_SEASON
         cur.execute("SELECT player_id, name FROM cpbl.batting_current WHERE team_code=%s AND year=%s "

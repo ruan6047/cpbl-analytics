@@ -219,7 +219,7 @@ export const api = {
       code: string;
       batters: { player_id: string; name: string; g: number; h: number; hr: number; rbi: number; from: number; to: number; active: boolean }[];
       pitchers: { player_id: string; name: string; g: number; w: number; sv: number; so: number; from: number; to: number; active: boolean }[];
-      coaches?: { pos: string; name: string; uniform_no: string | null }[];
+      coaches?: { pos: string; name: string; uniform_no: string | null; player_id?: string | null }[];
       roster?: {
         first_batters: { player_id: string; name: string }[];
         first_pitchers: { player_id: string; name: string }[];

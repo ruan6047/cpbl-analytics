@@ -246,7 +246,13 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
                   style={{ background: `${color}1a`, color }}>{co.uniform_no ?? "—"}</span>
                 <div className="min-w-0">
                   <div className="truncate text-[11px] text-muted">{co.pos.replace(/^一軍/, "")}</div>
-                  <div className="truncate font-medium text-ink">{co.name}</div>
+                  {co.player_id ? (
+                    <Link href={`/players/${co.player_id}`} className="truncate block font-medium text-accent hover:underline" title="前球員 · 看球員頁">
+                      {co.name}
+                    </Link>
+                  ) : (
+                    <div className="truncate font-medium text-ink">{co.name}</div>
+                  )}
                 </div>
               </Card>
             ))}
