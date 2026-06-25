@@ -15,8 +15,8 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
     migrate()
     result = scrape_managers()
-    total = sum(result.values())
-    logging.getLogger("cpbl.managers").info("完成：%d 隊 / %d 位總教練 %s", len(result), total, result)
+    logging.getLogger("cpbl.managers").info(
+        "完成：%d 隊 / %d 位總教練 %s", len(result), sum(result.values()), result)
 
 
 if __name__ == "__main__":
