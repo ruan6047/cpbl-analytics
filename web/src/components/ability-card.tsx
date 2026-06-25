@@ -18,6 +18,7 @@ function fmtVal(fmt: string, v: number | null): string {
   if (v === null) return "—";
   if (fmt === "f3") return v.toFixed(3).replace(/^0\./, ".");
   if (fmt === "pct") return `${(v * 100).toFixed(0)}%`;
+  if (fmt === "int") return v.toFixed(0);
   return v.toFixed(2); // f2（K9 / BB9 / ERA / IP per G / 速度）
 }
 

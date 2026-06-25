@@ -1175,11 +1175,11 @@ def _grade(pr: float) -> str:
 # 軸定義：(key, 中文標, 顯示格式, 來源指標說明)。順序＝SQL 輸出順序。
 _ABILITY_AXES = {
     "batting": [
-        ("contact", "接觸", "f3", "打擊率 AVG"),
+        ("contact", "接觸", "pct", "接觸率 (PA-SO)/PA（球棒控制＝不被三振，非打擊率）"),
         ("power", "力量", "f3", "純長打率 ISO"),
         ("eye", "選球", "pct", "保送率 BB%"),
         ("speed", "速度", "f2", "每場盜壘＋三壘打 (SB+3B)/G"),
-        ("defense", "守備", "f2", "守位內守備範圍 (PO+A)/G（同守位相對；反映守備範圍而非僅不失誤）"),
+        ("defense", "守備", "f2", "守位內守備範圍 (PO+A)/G（捕手＝阻殺率；同守位相對）"),
         ("overall", "破壞力", "f3", "整體攻擊 OPS"),
     ],
     "pitching": [
@@ -1187,7 +1187,7 @@ _ABILITY_AXES = {
         ("control", "控球", "f2", "每9局保送 BB/9（越低越好）"),
         ("hr_suppress", "抑長打", "f2", "每9局被全壘打 HR/9（越低越好）"),
         ("command", "壓制", "f2", "防禦率 ERA（越低越好）"),
-        ("stamina", "續航", "f2", "每場投球局數 IP/G"),
+        ("stamina", "續航", "f2", "先發＝每場局數 IP/G；後援＝登板數 G（同類型相對）"),
     ],
 }
 
@@ -1201,41 +1201,44 @@ def _bat_ability_sql(scope: str) -> str:
     守備改用『守位內守備範圍 (PO+A)/G』並於同守位內取百分位（反映範圍而非僅不失誤；
     取主守位＝場次最多者），故守備 PR 由 fld 先算好，主 pr CTE 不再全域重排。
     """
+    # 守備：野手＝守位內守備範圍 (PO+A)/G；捕手＝阻殺率 cs/(cs+被盜)。兩表欄位/守位碼不同。
     if scope == "career":
         base = ("SELECT player_id, sum(ab) ab, sum(h) h, sum(b2) b2, sum(b3) b3, sum(hr) hr,"
-                " sum(bb) bb, sum(hbp) hbp, sum(sf) sf, sum(pa) pa, sum(sb) sb, sum(g) g"
+                " sum(bb) bb, sum(hbp) hbp, sum(sf) sf, sum(pa) pa, sum(sb) sb, sum(so) so, sum(g) g"
                 " FROM cpbl.batting_seasons GROUP BY player_id HAVING sum(ab) >= %(min)s")
-        fld_src = "cpbl.fielding_seasons"
-        fld_min = 30
+        fld_src, catcher, sba_col, fld_min = "cpbl.fielding_seasons", "'C'", "sb", 30
     else:
-        base = ("SELECT player_id, ab, h, b2, b3, hr, bb, hbp, sf, pa, sb, g"
+        base = ("SELECT player_id, ab, h, b2, b3, hr, bb, hbp, sf, pa, sb, so, g"
                 " FROM cpbl.batting_current WHERE year=%(yr)s AND ab >= %(min)s")
-        fld_src = "(SELECT * FROM cpbl.fielding_current WHERE year=%(yr)s) fc"
-        fld_min = 8
+        fld_src, catcher, sba_col, fld_min = (
+            "(SELECT * FROM cpbl.fielding_current WHERE year=%(yr)s) fc", "'捕手'", "sba", 8)
     return f"""
         WITH base AS ({base}),
         pos_rf AS (
             SELECT player_id, pos, sum(g) g,
-                   (sum(po)+sum(a))::float/NULLIF(sum(g),0) rf
+                CASE WHEN pos = {catcher} AND sum(cs)+sum({sba_col}) > 0
+                     THEN sum(cs)::float/(sum(cs)+sum({sba_col}))
+                     ELSE (sum(po)+sum(a))::float/NULLIF(sum(g),0) END rf
             FROM {fld_src} GROUP BY player_id, pos HAVING sum(g) >= {fld_min}
         ), pos_pr AS (
             SELECT player_id, pos, g, rf,
                    percent_rank() OVER (PARTITION BY pos ORDER BY rf) rf_pr
             FROM pos_rf
-        ), fld AS (   -- 取主守位（場次最多）的範圍值與守位內百分位
-            SELECT DISTINCT ON (player_id) player_id, rf AS defense, rf_pr AS defense_pr
+        ), fld AS (   -- 取主守位（場次最多）：守備值、守位內百分位、是否捕手
+            SELECT DISTINCT ON (player_id) player_id, rf AS defense, rf_pr AS defense_pr,
+                   (pos = {catcher}) AS is_catcher
             FROM pos_pr ORDER BY player_id, g DESC
         ), rate AS (
             SELECT b.player_id,
-                h::float/NULLIF(ab,0) contact,
+                (pa - so)::float/NULLIF(pa,0) contact,
                 (b2+2*b3+3*hr)::float/NULLIF(ab,0) power,
                 bb::float/NULLIF(pa,0) eye,
                 (sb+b3)::float/NULLIF(g,0) speed,
-                f.defense, f.defense_pr,
+                f.defense, f.defense_pr, f.is_catcher,
                 (h+bb+hbp)::float/NULLIF(ab+bb+hbp+sf,0)+(h+b2+2*b3+3*hr)::float/NULLIF(ab,0) overall
             FROM base b LEFT JOIN fld f USING (player_id)
         ), pr AS (
-            SELECT player_id, contact, power, eye, speed, defense, overall, defense_pr,
+            SELECT player_id, contact, power, eye, speed, defense, overall, defense_pr, is_catcher,
                 percent_rank() OVER (ORDER BY contact) contact_pr,
                 percent_rank() OVER (ORDER BY power) power_pr,
                 percent_rank() OVER (ORDER BY eye) eye_pr,
@@ -1243,37 +1246,43 @@ def _bat_ability_sql(scope: str) -> str:
                 percent_rank() OVER (ORDER BY overall) overall_pr
             FROM rate
         ) SELECT contact, power, eye, speed, defense, overall,
-                 contact_pr, power_pr, eye_pr, speed_pr, defense_pr, overall_pr
+                 contact_pr, power_pr, eye_pr, speed_pr, defense_pr, overall_pr, is_catcher
           FROM pr WHERE player_id = %(pid)s
     """
 
 
 def _pit_ability_sql(scope: str) -> str:
-    """投手能力 SQL：career=逐年彙總(IP≥100)，season=本季(IP≥20)。越低越好者 DESC 反轉。"""
+    """投手能力 SQL：career=逐年彙總(IP≥100)，season=本季(IP≥20)。越低越好者 DESC 反轉。
+
+    續航：先發＝每場局數 IP/G、後援＝登板數 G（後援按設計只投 1 局，用 IP/G 不公平）；
+    且 stamina 百分位在『同類型（先發/後援）』內計算。is_starter＝先發場數佔半數以上。
+    """
     ip_expr = "floor(ip) + (ip - floor(ip))*10/3.0"
     if scope == "career":
         base = (f"SELECT player_id, sum({ip_expr}) ip, sum(so) so, sum(bb) bb, sum(hr) hr,"
-                " sum(er) er, sum(g) g FROM cpbl.pitching_seasons GROUP BY player_id"
+                " sum(er) er, sum(g) g, sum(gs) gs FROM cpbl.pitching_seasons GROUP BY player_id"
                 f" HAVING sum({ip_expr}) >= %(min)s")
     else:
-        base = (f"SELECT player_id, ({ip_expr}) ip, so, bb, hr, er, g"
+        base = (f"SELECT player_id, ({ip_expr}) ip, so, bb, hr, er, g, gs"
                 f" FROM cpbl.pitching_current WHERE year=%(yr)s AND ({ip_expr}) >= %(min)s")
     return f"""
         WITH base AS ({base}),
         rate AS (
             SELECT player_id, so*9.0/NULLIF(ip,0) k, bb*9.0/NULLIF(ip,0) control,
-                hr*9.0/NULLIF(ip,0) hr_suppress, er*9.0/NULLIF(ip,0) command, ip/NULLIF(g,0) stamina
+                hr*9.0/NULLIF(ip,0) hr_suppress, er*9.0/NULLIF(ip,0) command,
+                (gs*2 >= g) AS is_starter,
+                CASE WHEN gs*2 >= g THEN ip/NULLIF(g,0) ELSE g::float END stamina
             FROM base
         ), pr AS (
-            SELECT player_id, k, control, hr_suppress, command, stamina,
+            SELECT player_id, k, control, hr_suppress, command, stamina, is_starter,
                 percent_rank() OVER (ORDER BY k) k_pr,
                 percent_rank() OVER (ORDER BY control DESC) control_pr,
                 percent_rank() OVER (ORDER BY hr_suppress DESC) hr_suppress_pr,
                 percent_rank() OVER (ORDER BY command DESC) command_pr,
-                percent_rank() OVER (ORDER BY stamina) stamina_pr
+                percent_rank() OVER (PARTITION BY is_starter ORDER BY stamina) stamina_pr
             FROM rate
         ) SELECT k, control, hr_suppress, command, stamina,
-                 k_pr, control_pr, hr_suppress_pr, command_pr, stamina_pr
+                 k_pr, control_pr, hr_suppress_pr, command_pr, stamina_pr, is_starter
           FROM pr WHERE player_id = %(pid)s
     """
 
@@ -1286,14 +1295,21 @@ def _ability_card(cur, player_id: str, role: str, scope: str, year: int) -> dict
     if not row:
         return {"available": False, "role": role, "scope": scope}
     n = len(axes_def)
-    values, prs = row[:n], row[n:]
+    values, prs = row[:n], row[n:2 * n]
+    flag = row[2 * n] if len(row) > 2 * n else None  # 打者=是否捕手 / 投手=是否先發
     axes = []
     for (key, label, fmt, source), val, pr in zip(axes_def, values, prs, strict=True):
         # 守備等可能無資料（DH/無守備紀錄）→ value None 則該軸不評（pr 也設 None）。
         p = None if val is None else round(float(pr) * 100)
-        axes.append({"key": key, "label": label, "fmt": fmt, "source": source,
-                     "value": round(float(val), 3) if val is not None else None,
-                     "pr": p, "grade": _grade(p) if p is not None else None})
+        ax = {"key": key, "label": label, "fmt": fmt, "source": source,
+              "value": round(float(val), 3) if val is not None else None,
+              "pr": p, "grade": _grade(p) if p is not None else None}
+        # 守位／角色特化：捕手守備＝阻殺率；後援續航＝登板數（同類型相對，已由 SQL 算 PR）。
+        if role == "batting" and key == "defense" and flag:
+            ax["fmt"], ax["source"] = "pct", "阻殺率 cs/(cs+被盜)（捕手；同守位相對）"
+        elif role == "pitching" and key == "stamina" and flag is False:
+            ax["fmt"], ax["source"] = "int", "登板數 G（後援；同類型相對）"
+        axes.append(ax)
     rated = [a["pr"] for a in axes if a["pr"] is not None]
     overall = round(sum(rated) / len(rated)) if rated else 0
     return {"available": True, "role": role, "scope": scope, "axes": axes,
