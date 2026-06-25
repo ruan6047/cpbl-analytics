@@ -1372,8 +1372,13 @@ def _ability_card(cur, player_id: str, role: str, scope: str, year: int) -> dict
         axes.append({"key": key, "label": label, "pr": final,
                      "grade": _grade(final), "components": comps})
 
+    # 總評＝整體價值軸（打者 OPS／投手 ERA 的綜合，本身已是 bottom-line 全聯盟百分位），
+    # 不用各軸平均（平均會向中間回歸 → 連 ERA/OPS 強者也被中庸軸拉成 C，不直覺）。
+    value_key = "overall" if role == "batting" else "command"
+    value_ax = next((a for a in axes if a["key"] == value_key), None)
     rated = [a["pr"] for a in axes if a["pr"] is not None]
-    overall = round(sum(rated) / len(rated)) if rated else 0
+    overall = (value_ax["pr"] if value_ax and value_ax["pr"] is not None
+               else (round(sum(rated) / len(rated)) if rated else 0))
     return {"available": True, "role": role, "scope": scope, "axes": axes,
             "has_advanced": bool(adv), "overall": {"pr": overall, "grade": _grade(overall)}}
 
