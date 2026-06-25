@@ -159,6 +159,7 @@ export const detail = {
       rank: { hr: number; h: number; sb: number } | null;
       teams?: { code: string; name: string; from: number; to: number }[];
       overseas?: { league: string; team: string | null; year: number }[];
+      awards?: { year: number; category: string; award: string }[];
     }>(`/api/v1/players/${id}/career`),
   advanced: (id: string) =>
     clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/advanced`),

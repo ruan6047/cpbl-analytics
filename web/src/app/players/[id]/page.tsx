@@ -455,6 +455,34 @@ export default function PlayerPage() {
         </section>
       )}
 
+      {/* 得獎紀錄（官網年度獎項；依獎項彙整年份）*/}
+      {careerStats?.awards && careerStats.awards.length > 0 && (() => {
+        const grp = new Map<string, { label: string; years: number[] }>();
+        for (const a of careerStats.awards) {
+          const posCat = a.category === "金手套" || a.category === "最佳十人";
+          const label = posCat ? `${a.category}(${a.award})` : a.award;
+          const g = grp.get(label) ?? { label, years: [] };
+          g.years.push(a.year);
+          grp.set(label, g);
+        }
+        const groups = [...grp.values()].sort((x, y) => y.years.length - x.years.length || y.years[0] - x.years[0]);
+        return (
+          <section className="mb-6">
+            <h2 className="mb-3 text-lg font-semibold text-ink">得獎紀錄</h2>
+            <div className="flex flex-wrap gap-2">
+              {groups.map((g) => (
+                <span key={g.label} className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm">
+                  <span className="font-medium text-ink">{g.label}</span>
+                  {g.years.length > 1 && <span className="rounded bg-accent/10 px-1.5 text-xs font-bold text-accent">×{g.years.length}</span>}
+                  <span className="font-mono text-[11px] text-faint">{[...new Set(g.years)].sort((a, b) => a - b).map((y) => `'${String(y).slice(2)}`).join(" ")}</span>
+                </span>
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] text-faint">中華職棒官方年度獎項（打擊/投手/金手套/最佳十人/其他，1990 起）。</p>
+          </section>
+        );
+      })()}
+
       {/* 本季成績 + 官方進階（並排兩欄） */}
       <section className="mb-6 grid items-stretch gap-6 lg:grid-cols-2">
         <div className="flex flex-col">
