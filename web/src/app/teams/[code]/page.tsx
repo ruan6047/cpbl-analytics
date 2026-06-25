@@ -158,6 +158,27 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
         </div>
       </section>
 
+      {/* 隊史紀錄（franchise 全史）*/}
+      {eras.eras.length > 1 && (
+        <section>
+          <h2 className="mb-1 text-lg font-semibold">隊史紀錄</h2>
+          <p className="mb-3 text-[11px] text-faint">含改名/轉賣前身的 franchise 全史（一軍例行賽）。</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <StatTile label="隊史總戰績" value={`${eras.total.w}-${eras.total.t}-${eras.total.l}`} accent />
+            <StatTile label="隊史勝率" value={f3(eras.total.win_pct)} />
+            <StatTile label="最長連勝" value={`${eras.longest_win_streak} 場`} />
+            <StatTile label="最長連敗" value={`${eras.longest_lose_streak} 場`} />
+            <StatTile label="最佳單季"
+              value={eras.best_season ? `${eras.best_season.year}・${f3(eras.best_season.win_pct)}` : "—"} />
+          </div>
+          {eras.worst_season && (
+            <p className="mt-2 text-[11px] text-faint">
+              最差單季：{eras.worst_season.year}（{eras.worst_season.name}）勝率 {f3(eras.worst_season.win_pct)}
+            </p>
+          )}
+        </section>
+      )}
+
       {/* 球隊沿革（改名/轉賣視為同隊，分時期列出）*/}
       {eras.eras.length > 1 && (
         <section>

@@ -1176,16 +1176,21 @@ def team_eras(code: str, kind_code: str = Query("A")) -> dict:
         games = c.execute(
             "SELECT year, home_team_code, away_team_code, home_score, away_score "
             "FROM cpbl.games WHERE kind_code=%s AND home_score+away_score>0 "
-            "AND (home_team_code = ANY(%s) OR away_team_code = ANY(%s))",
+            "AND (home_team_code = ANY(%s) OR away_team_code = ANY(%s)) ORDER BY year, game_sno",
             (kind_code, members, members),
         ).fetchall()
         names = dict(c.execute("SELECT team_id, name FROM cpbl.teams").fetchall())  # 3 碼 → 全名
     rec: dict = defaultdict(lambda: {"w": 0, "l": 0, "t": 0})
+    seq: list[str] = []  # franchise 逐場結果（時序）算最長連勝/連敗
     for y, hc, ac, hs, as_ in games:
         if hc in members:
-            rec[(hc, y)]["w" if hs > as_ else "l" if as_ > hs else "t"] += 1
-        if ac in members:
-            rec[(ac, y)]["w" if as_ > hs else "l" if hs > as_ else "t"] += 1
+            res = "W" if hs > as_ else "L" if as_ > hs else "T"
+            rec[(hc, y)][res.lower() if res != "T" else "t"] += 1
+            seq.append(res)
+        elif ac in members:
+            res = "W" if as_ > hs else "L" if hs > as_ else "T"
+            rec[(ac, y)][res.lower() if res != "T" else "t"] += 1
+            seq.append(res)
 
     def _tally(m: str, run: list[int], name: str) -> dict:
         w = sum(rec[(m, y)]["w"] for y in run)
@@ -1215,7 +1220,30 @@ def team_eras(code: str, kind_code: str = Query("A")) -> dict:
                     if y is not None:
                         run = [y]
     eras.sort(key=lambda e: e["from"])
-    return {"franchise": fc, "origins": _ORIGINS.get(fc), "eras": eras}
+
+    # 隊史總戰績
+    tw = sum(e["w"] for e in eras)
+    tl = sum(e["l"] for e in eras)
+    tt = sum(e["t"] for e in eras)
+    total = {"w": tw, "l": tl, "t": tt, "win_pct": round(tw / (tw + tl), 3) if tw + tl else None}
+    # 最長連勝 / 連敗（時序）
+    mw = ml = cw = cl = 0
+    for res in seq:
+        cw = cw + 1 if res == "W" else 0
+        cl = cl + 1 if res == "L" else 0
+        mw, ml = max(mw, cw), max(ml, cl)
+
+    # 單季之最（最佳/最差賽季；至少 30 決勝場）
+    def _era_name(year: int) -> str:
+        return next((e["name"] for e in eras if e["from"] <= year <= e["to"]), fc)
+    seasons = [{"year": y, "name": _era_name(y), "w": v["w"], "l": v["l"], "t": v["t"],
+                "win_pct": round(v["w"] / (v["w"] + v["l"]), 3)}
+               for (cc, y), v in rec.items() if v["w"] + v["l"] >= 30]
+    best = max(seasons, key=lambda s: s["win_pct"], default=None)
+    worst = min(seasons, key=lambda s: s["win_pct"], default=None)
+    return {"franchise": fc, "origins": _ORIGINS.get(fc), "eras": eras, "total": total,
+            "longest_win_streak": mw, "longest_lose_streak": ml,
+            "best_season": best, "worst_season": worst}
 
 
 @app.get("/api/v1/venues")

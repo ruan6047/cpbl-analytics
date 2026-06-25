@@ -198,8 +198,14 @@ export const api = {
     get<OfficialStandingsResponse>(`/api/v1/standings?season_code=${seg}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 120),
   seasons: (kind = "A") => get<{ years: number[] }>(`/api/v1/seasons?kind_code=${kind}`, 600),
   teamEras: (code: string) =>
-    get<{ franchise: string; origins: string | null; eras: { code: string; name: string; from: number; to: number; w: number; t: number; l: number; win_pct: number | null }[] }>(
-      `/api/v1/teams/${code}/eras`, 600),
+    get<{
+      franchise: string; origins: string | null;
+      eras: { code: string; name: string; from: number; to: number; w: number; t: number; l: number; win_pct: number | null }[];
+      total: { w: number; l: number; t: number; win_pct: number | null };
+      longest_win_streak: number; longest_lose_streak: number;
+      best_season: { year: number; name: string; win_pct: number } | null;
+      worst_season: { year: number; name: string; win_pct: number } | null;
+    }>(`/api/v1/teams/${code}/eras`, 600),
   specialRecords: (season?: number) =>
     get<SpecialRecordsResponse>(`/api/v1/special-records${season ? `?season=${season}` : ""}`, 120),
   standingsTrend: (season?: number, kind = "A") =>
