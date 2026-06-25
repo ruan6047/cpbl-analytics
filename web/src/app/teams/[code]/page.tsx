@@ -112,6 +112,7 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
   if (!team && eras.eras.length === 0) notFound();
 
   const coaches = roster.coaches ?? [];
+  const managers = roster.managers ?? [];
   const rst = roster.roster ?? { first_batters: [], first_pitchers: [], farm: [] };
   const lastEra = eras.eras[eras.eras.length - 1];
   const displayName = team?.team_name ?? lastEra?.name ?? code;
@@ -256,6 +257,40 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
                 </div>
               </Card>
             ))}
+          </div>
+        </section>
+      )}
+
+      {/* 歷任總教練（維基百科；可能需人工複查）*/}
+      {managers.length > 0 && (
+        <section>
+          <h2 className="mb-1 text-lg font-semibold">歷任總教練</h2>
+          <p className="mb-3 text-[11px] text-faint">資料來源：中文維基百科各球隊條目；前球員姓名可點入球員頁。部分球隊維基無此表故未列。</p>
+          <div className="overflow-x-auto rounded-xl border border-line">
+            <table className="w-full text-sm">
+              <thead className="bg-surface-2 text-left text-muted">
+                <tr>{["總教練", "任期", "勝-和-敗", "勝率", "季後賽", "總冠軍"].map((h) => (
+                  <th key={h} className="whitespace-nowrap px-3 py-2 font-medium">{h}</th>
+                ))}</tr>
+              </thead>
+              <tbody className="font-mono tabular-nums">
+                {managers.map((m, i) => (
+                  <tr key={`${m.name}-${m.from}-${i}`} className="border-t border-line hover:bg-surface-2">
+                    <td className="whitespace-nowrap px-3 py-2 font-sans">
+                      {m.player_id ? (
+                        <Link href={`/players/${m.player_id}`} className="text-accent hover:underline">{m.name}</Link>
+                      ) : m.name}
+                      {m.era && <span className="ml-1.5 text-[10px] text-faint">{m.era}</span>}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-muted">{m.from === m.to ? m.from : `${m.from}–${m.to}`}</td>
+                    <td className="whitespace-nowrap px-3 py-2">{m.w}-{m.t}-{m.l}</td>
+                    <td className="px-3 py-2 text-accent">{m.win_pct == null ? "—" : m.win_pct.toFixed(3).replace(/^0\./, ".")}</td>
+                    <td className="px-3 py-2 text-muted">{m.postseason || "—"}</td>
+                    <td className="px-3 py-2">{m.championships ? <span className="text-up">{m.championships}</span> : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
       )}

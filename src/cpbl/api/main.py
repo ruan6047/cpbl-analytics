@@ -1756,7 +1756,25 @@ def team_players(code: str) -> dict:
             ") x GROUP BY acnt ORDER BY max(nm)", (yr, farm_code, yr, farm_code))
         farm = [{"player_id": p, "name": n} for p, n in cur.fetchall() if p not in first_ids]
         roster = {"first_batters": first_batters, "first_pitchers": first_pitchers, "farm": farm}
-    return {"code": fc, "batters": batters, "pitchers": pitchers, "coaches": coaches, "roster": roster}
+        # 歷任總教練（維基；franchise 代碼）。同名前球員唯一者附 player_id 供連結。
+        cur.execute(
+            "SELECT era_name, name, from_year, to_year, w, l, t, win_pct, postseason, championships "
+            "FROM cpbl.managers WHERE team_code=%s ORDER BY from_year, name", (fc,))
+        managers = [{"era": e, "name": n, "from": fy, "to": ty, "w": w, "l": l, "t": t,
+                     "win_pct": wp, "postseason": po, "championships": ch}
+                    for e, n, fy, ty, w, l, t, wp, po, ch in cur.fetchall()]
+        if managers:
+            mnames = list({m["name"] for m in managers})
+            cur.execute(
+                "SELECT name, max(id) FROM cpbl.players p WHERE name = ANY(%s) "
+                "AND (EXISTS(SELECT 1 FROM cpbl.batting_seasons b WHERE b.player_id=p.id) "
+                "  OR EXISTS(SELECT 1 FROM cpbl.pitching_seasons s WHERE s.player_id=p.id)) "
+                "GROUP BY name HAVING count(*)=1", (mnames,))
+            mpid = {n: pid for n, pid in cur.fetchall()}
+            for m in managers:
+                m["player_id"] = mpid.get(m["name"])
+    return {"code": fc, "batters": batters, "pitchers": pitchers, "coaches": coaches,
+            "roster": roster, "managers": managers}
 
 
 @app.get("/api/v1/venues")
