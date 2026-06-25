@@ -1282,9 +1282,13 @@ def _bat_ability_sql(scope: str) -> str:
                 percent_rank() OVER (ORDER BY speed) speed_pr,
                 percent_rank() OVER (ORDER BY overall) overall_pr
             FROM rate
+        ), ov AS (   -- 整體表現重排：各軸 PR 加總後再取全聯盟百分位（守備缺→中性 0.5）
+            SELECT *, percent_rank() OVER (ORDER BY
+                contact_pr + power_pr + eye_pr + speed_pr + COALESCE(defense_pr, 0.5) + overall_pr) ov_pr
+            FROM pr
         ) SELECT contact, power, eye, speed, defense, overall,
-                 contact_pr, power_pr, eye_pr, speed_pr, defense_pr, overall_pr, is_catcher
-          FROM pr WHERE player_id = %(pid)s
+                 contact_pr, power_pr, eye_pr, speed_pr, defense_pr, overall_pr, is_catcher, ov_pr
+          FROM ov WHERE player_id = %(pid)s
     """
 
 
@@ -1318,9 +1322,13 @@ def _pit_ability_sql(scope: str) -> str:
                 percent_rank() OVER (ORDER BY command DESC) command_pr,
                 percent_rank() OVER (PARTITION BY is_starter ORDER BY stamina) stamina_pr
             FROM rate
+        ), ov AS (   -- 整體表現重排：各軸 PR 加總後再取全聯盟百分位
+            SELECT *, percent_rank() OVER (ORDER BY
+                k_pr + control_pr + hr_suppress_pr + command_pr + stamina_pr) ov_pr
+            FROM pr
         ) SELECT k, control, hr_suppress, command, stamina,
-                 k_pr, control_pr, hr_suppress_pr, command_pr, stamina_pr, is_starter
-          FROM pr WHERE player_id = %(pid)s
+                 k_pr, control_pr, hr_suppress_pr, command_pr, stamina_pr, is_starter, ov_pr
+          FROM ov WHERE player_id = %(pid)s
     """
 
 
@@ -1333,7 +1341,8 @@ def _ability_card(cur, player_id: str, role: str, scope: str, year: int) -> dict
         return {"available": False, "role": role, "scope": scope}
     n = len(axes_def)
     values, prs = row[:n], row[n:2 * n]
-    flag = row[2 * n] if len(row) > 2 * n else None  # 打者=是否捕手 / 投手=是否先發
+    flag = row[2 * n] if len(row) > 2 * n else None      # 打者=是否捕手 / 投手=是否先發
+    ov_pr = row[2 * n + 1] if len(row) > 2 * n + 1 else None  # 整體表現的全聯盟重排百分位
     # 傳統各軸 PR（percent_rank 0~1 → 0~100）；None=該軸無資料（如 DH 無守備）。
     trad_pr = {axes_def[i][0]: (None if values[i] is None else round(float(prs[i]) * 100))
                for i in range(n)}
@@ -1372,12 +1381,10 @@ def _ability_card(cur, player_id: str, role: str, scope: str, year: int) -> dict
         axes.append({"key": key, "label": label, "pr": final,
                      "grade": _grade(final), "components": comps})
 
-    # 總評＝整體價值軸（打者 OPS／投手 ERA 的綜合，本身已是 bottom-line 全聯盟百分位），
-    # 不用各軸平均（平均會向中間回歸 → 連 ERA/OPS 強者也被中庸軸拉成 C，不直覺）。
-    value_key = "overall" if role == "batting" else "command"
-    value_ax = next((a for a in axes if a["key"] == value_key), None)
+    # 總評＝整體表現在全聯盟的『重排百分位』：把每位合格球員的各軸 PR 加總後再 percent_rank，
+    # 故最強者→PR100→S、自然拉開分級（不像各軸平均會壓在中間害大家都 B/C）。
     rated = [a["pr"] for a in axes if a["pr"] is not None]
-    overall = (value_ax["pr"] if value_ax and value_ax["pr"] is not None
+    overall = (round(float(ov_pr) * 100) if ov_pr is not None
                else (round(sum(rated) / len(rated)) if rated else 0))
     return {"available": True, "role": role, "scope": scope, "axes": axes,
             "has_advanced": bool(adv), "overall": {"pr": overall, "grade": _grade(overall)}}
