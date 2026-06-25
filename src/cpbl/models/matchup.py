@@ -230,16 +230,19 @@ def train_model(features: list[str]) -> dict:
     yte = np.array([r[1] for r in test], dtype=int)
     base = float(ytr.mean())
 
-    # 預設權重 = 每個「定向後」變數單獨的標準化係數；負（反直覺/無正向訊號）歸零，
-    # 預設不採信但使用者可手動加上去。符號因定向恆為「正=有利主隊」。
-    for k in real:
-        xtr = np.array([[_oriented(k, r[idx[k]])] for r in train], dtype=float)
+    # 預設權重 = 對「選定特徵子集」做一次『聯合(多變量)』邏輯回歸的標準化係數。
+    # 用聯合 fit（非各變數單獨 fit）才能處理共線性：相關特徵（如先發 ERA/WHIP/K9）會
+    # 自動分攤同一份訊號，避免把「先發實力」重複加權 2~3 次。定向後恆「正=有利主隊」；
+    # 聯合係數為負者多屬冗餘特徵 → 歸零（預設不採信，使用者仍可手動加上）。
+    if real:
+        xtr = np.array([[_oriented(k, r[idx[k]]) for k in real] for r in train], dtype=float)
         scaler = StandardScaler().fit(xtr)
         clf = LogisticRegression(fit_intercept=False, max_iter=1000)
         clf.fit(scaler.transform(xtr), ytr)
-        weights[k] = round(max(float(clf.coef_[0][0]), 0.0), 4)
-        mean[k] = float(scaler.mean_[0])
-        std[k] = float(scaler.scale_[0])
+        for i, k in enumerate(real):
+            weights[k] = round(max(float(clf.coef_[0][i]), 0.0), 4)
+            mean[k] = float(scaler.mean_[i])
+            std[k] = float(scaler.scale_[i])
     # 主場優勢權重 = 主場基準勝率的 log-odds（intercept）。
     if use_intercept:
         weights[HOME_FIELD] = round(math.log(base / (1 - base)), 4)

@@ -21,8 +21,8 @@ log = logging.getLogger("cpbl.features.outcome")
 CANDIDATE_FEATURES = [
     ("winrate_diff", "季內勝率"),
     ("prior_winpct_diff", "上季戰力"),
-    ("runs_scored_diff", "場均得分"),
-    ("runs_allowed_diff", "場均失分（防禦）"),
+    ("runs_scored_diff", "打線得分力（場均得分）"),
+    ("runs_allowed_diff", "守備失分力（場均失分）"),
     ("recent_form_diff", "近10場戰績"),
     ("rest_days_diff", "休息天數"),
     ("h2h_home", "對戰勝率"),
