@@ -224,6 +224,7 @@ export const api = {
         era: string; name: string; from: number; to: number;
         w: number; l: number; t: number; win_pct: number | null;
         postseason: number; championships: number; player_id?: string | null;
+        source?: "db" | "wiki";
       }[];
       roster?: {
         first_batters: { player_id: string; name: string }[];

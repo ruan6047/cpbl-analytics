@@ -1561,6 +1561,27 @@ def _franchise_of(code: str) -> str:
     return _FRANCHISE.get(code, code)
 
 
+def _franchise_year_record(cur, fc: str, kind_code: str = "A") -> dict[int, dict]:
+    """franchise 跨年代各 era 隊碼合併的逐年一軍 W/L/T（kind A 故自動排除二軍）。
+
+    供總教練戰績以 DB 重算（維基數據常滯後當季）。回 {year: {w,l,t}}。
+    """
+    members = sorted({c for c in (set(_FRANCHISE) | set(_FRANCHISE.values()) | {fc})
+                      if _franchise_of(c) == fc})
+    cur.execute(
+        "SELECT year, home_team_code, home_score, away_score FROM cpbl.games "
+        "WHERE kind_code=%s AND home_score+away_score>0 "
+        "AND (home_team_code = ANY(%s) OR away_team_code = ANY(%s))",
+        (kind_code, members, members))
+    rec: dict[int, dict] = {}
+    for y, hc, hs, as_ in cur.fetchall():
+        d = rec.setdefault(y, {"w": 0, "l": 0, "t": 0})
+        won = (hs > as_) if hc in members else (as_ > hs)
+        tie = hs == as_
+        d["t" if tie else "w" if won else "l"] += 1
+    return rec
+
+
 # 單一代碼內的改名（games 隊名已正規化、無法區分，故權威定義年代）
 _ERA_SPLIT = {
     "AJK011": [("La New熊", 2004, 2010), ("Lamigo桃猿", 2011, 2019)],
@@ -1804,6 +1825,30 @@ def team_players(code: str) -> dict:
             mpid = {n: pid for n, pid in cur.fetchall()}
             for m in managers:
                 m["player_id"] = mpid.get(m["name"])
+            # 戰績以 DB 重算（維基常滯後當季）：僅當該總教練任期每一年都是該隊「唯一」
+            # 總教練（無換帥/代理）才採用——有 split 的年份無法由比賽逐場掛帥，保留維基拆分。
+            from collections import defaultdict as _dd
+            yr_cnt: dict[int, int] = _dd(int)
+            for m in managers:
+                if m["from"] and m["to"]:
+                    for y in range(m["from"], m["to"] + 1):
+                        yr_cnt[y] += 1
+            fyr = _franchise_year_record(cur, fc, "A")
+            for m in managers:
+                m["source"] = "wiki"
+                if not (m["from"] and m["to"]):
+                    continue
+                yrs = range(m["from"], m["to"] + 1)
+                if not all(yr_cnt[y] == 1 for y in yrs):
+                    continue   # 有 split 年 → 保留維基
+                w = sum(fyr.get(y, {}).get("w", 0) for y in yrs)
+                lo = sum(fyr.get(y, {}).get("l", 0) for y in yrs)
+                t = sum(fyr.get(y, {}).get("t", 0) for y in yrs)
+                if w + lo > 0:   # 有 DB 一軍資料才覆寫（早年無 games 不動）
+                    m["w"], m["l"], m["t"] = w, lo, t
+                    m["g"] = w + lo + t
+                    m["win_pct"] = round(w / (w + lo), 3)
+                    m["source"] = "db"
         # 退休背號（維基；球迷/球團 holder_type 非 player → 不附球員連結）
         cur.execute(
             "SELECT number, holder_type, player_id, holder_name, status, note "
