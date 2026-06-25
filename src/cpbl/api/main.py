@@ -1195,10 +1195,10 @@ _ABILITY_AXES = {
         ("overall", "破壞力", "f3", "整體攻擊 OPS"),
     ],
     "pitching": [
-        ("k", "三振", "f2", "每9局三振 K/9"),
+        # 「武器」＝出局方式特色軸：取該投手最突出者（三振/滾地/飛球），標籤與數值動態。
+        ("weapon", "武器", "f2", "出局武器（三振 K9／滾地 GO/AO／飛球 AO/GO，取最突出者）"),
         ("control", "控球", "f2", "每9局保送 BB/9"),
         ("hr_suppress", "抑長打", "f2", "每9局被全壘打 HR/9"),
-        ("groundball", "滾地", "f2", "滾飛出局比 GO/AO（製造滾地球；沉球/指叉型武器，非靠三振）"),
         ("command", "壓制", "f2", "防禦率 ERA"),
         ("stamina", "續航", "f2", "先發 IP/G／後援登板數"),
     ],
@@ -1218,13 +1218,11 @@ _COMPOSITE = {
         "overall": [("trad", "overall", "OPS", 0.4), ("adv", "woba_pr", "wOBA", 0.6)],
     },
     "pitching": {
-        "k": [("trad", "k", "K/9", 0.5), ("adv", "whiffp_pr", "揮空誘發", 0.3),
-              ("adv", "kp_pr", "三振率", 0.2)],
+        "weapon": [("trad", "weapon", "武器", 1.0)],   # 標籤動態（三振/滾地/飛球）
         "control": [("trad", "control", "BB/9", 0.5), ("adv", "bbp_pr", "保送抑制", 0.25),
                     ("adv", "chasep_pr", "誘揮", 0.25)],
         "hr_suppress": [("trad", "hr_suppress", "HR/9", 0.4), ("adv", "brlp_pr", "Barrel抑制", 0.3),
                         ("adv", "hardhitp_pr", "強擊抑制", 0.3)],
-        "groundball": [("trad", "groundball", "GO/AO", 1.0)],
         "command": [("trad", "command", "ERA", 0.5), ("adv", "woba_pr", "被 wOBA", 0.5)],
         "stamina": [("trad", "stamina", "續航", 1.0)],
     },
@@ -1311,27 +1309,36 @@ def _pit_ability_sql(scope: str) -> str:
     return f"""
         WITH base AS ({base}),
         rate AS (
-            SELECT player_id, so*9.0/NULLIF(ip,0) k, bb*9.0/NULLIF(ip,0) control,
-                hr*9.0/NULLIF(ip,0) hr_suppress, er*9.0/NULLIF(ip,0) command, gb groundball,
-                (gs*2 >= g) AS is_starter,
+            SELECT player_id, so*9.0/NULLIF(ip,0) k, gb,
+                CASE WHEN gb > 0 THEN 1.0/gb END fb,   -- 飛球傾向 AO/GO（gb=GO/AO 之倒數）
+                bb*9.0/NULLIF(ip,0) control, hr*9.0/NULLIF(ip,0) hr_suppress,
+                er*9.0/NULLIF(ip,0) command, (gs*2 >= g) AS is_starter,
                 CASE WHEN gs*2 >= g THEN ip/NULLIF(g,0) ELSE g::float END stamina
             FROM base
-        ), pr AS (
-            SELECT player_id, k, control, hr_suppress, groundball, command, stamina, is_starter,
-                percent_rank() OVER (ORDER BY k) k_pr,
+        ), prx AS (
+            SELECT *, percent_rank() OVER (ORDER BY k) k_pr,
+                percent_rank() OVER (ORDER BY gb) gb_pr,
+                percent_rank() OVER (ORDER BY fb) fb_pr,
                 percent_rank() OVER (ORDER BY control DESC) control_pr,
                 percent_rank() OVER (ORDER BY hr_suppress DESC) hr_suppress_pr,
-                percent_rank() OVER (ORDER BY groundball) groundball_pr,
                 percent_rank() OVER (ORDER BY command DESC) command_pr,
                 percent_rank() OVER (PARTITION BY is_starter ORDER BY stamina) stamina_pr
             FROM rate
-        ), ov AS (   -- 整體表現重排：各軸 PR 加總後再取全聯盟百分位
+        ), pr AS (   -- 武器＝三振/滾地/飛球中 PR 最高者（最突出的出局方式）
+            SELECT *,
+                GREATEST(k_pr, COALESCE(gb_pr,0), COALESCE(fb_pr,0)) weapon_pr,
+                CASE WHEN k_pr >= COALESCE(gb_pr,0) AND k_pr >= COALESCE(fb_pr,0) THEN '三振'
+                     WHEN COALESCE(gb_pr,0) >= COALESCE(fb_pr,0) THEN '滾地' ELSE '飛球' END weapon_type,
+                CASE WHEN k_pr >= COALESCE(gb_pr,0) AND k_pr >= COALESCE(fb_pr,0) THEN k
+                     WHEN COALESCE(gb_pr,0) >= COALESCE(fb_pr,0) THEN gb ELSE fb END weapon_val
+            FROM prx
+        ), ov AS (
             SELECT *, percent_rank() OVER (ORDER BY
-                k_pr + control_pr + hr_suppress_pr + COALESCE(groundball_pr,0.5)
-                + command_pr + stamina_pr) ov_pr
+                weapon_pr + control_pr + hr_suppress_pr + command_pr + stamina_pr) ov_pr
             FROM pr
-        ) SELECT k, control, hr_suppress, groundball, command, stamina,
-                 k_pr, control_pr, hr_suppress_pr, groundball_pr, command_pr, stamina_pr, is_starter, ov_pr
+        ) SELECT weapon_val, control, hr_suppress, command, stamina,
+                 weapon_pr, control_pr, hr_suppress_pr, command_pr, stamina_pr,
+                 is_starter, ov_pr, weapon_type
           FROM ov WHERE player_id = %(pid)s
     """
 
@@ -1347,6 +1354,7 @@ def _ability_card(cur, player_id: str, role: str, scope: str, year: int) -> dict
     values, prs = row[:n], row[n:2 * n]
     flag = row[2 * n] if len(row) > 2 * n else None      # 打者=是否捕手 / 投手=是否先發
     ov_pr = row[2 * n + 1] if len(row) > 2 * n + 1 else None  # 整體表現的全聯盟重排百分位
+    weapon_type = row[2 * n + 2] if len(row) > 2 * n + 2 else None  # 投手武器型（三振/滾地/飛球）
     # 傳統各軸 PR（percent_rank 0~1 → 0~100）；None=該軸無資料（如 DH 無守備）。
     trad_pr = {axes_def[i][0]: (None if values[i] is None else round(float(prs[i]) * 100))
                for i in range(n)}
@@ -1366,6 +1374,7 @@ def _ability_card(cur, player_id: str, role: str, scope: str, year: int) -> dict
 
     axes = []
     for key, label, _fmt, _src in axes_def:
+        ax_label = weapon_type if (key == "weapon" and weapon_type) else label  # 武器軸動態標籤
         comps = []
         for src, ck, clabel, w in _COMPOSITE[role][key]:
             pr = trad_pr.get(ck) if src == "trad" else adv.get(ck)
@@ -1373,16 +1382,18 @@ def _ability_card(cur, player_id: str, role: str, scope: str, year: int) -> dict
                 clabel = "阻殺率"          # 捕手守備組成標籤特化
             if src == "trad" and key == "stamina" and flag is False:
                 clabel = "登板數"          # 後援續航
+            if src == "trad" and key == "weapon" and weapon_type:
+                clabel = weapon_type       # 武器＝三振/滾地/飛球
             if pr is not None:
                 comps.append({"label": clabel, "weight": w, "pr": pr})
         if not comps:
-            axes.append({"key": key, "label": label, "pr": None, "grade": None, "components": []})
+            axes.append({"key": key, "label": ax_label, "pr": None, "grade": None, "components": []})
             continue
         tot = sum(c["weight"] for c in comps)
         final = round(sum(c["pr"] * c["weight"] for c in comps) / tot)
         for c in comps:                    # 權重正規化為百分比供 tooltip 顯示
             c["weight"] = round(c["weight"] / tot * 100)
-        axes.append({"key": key, "label": label, "pr": final,
+        axes.append({"key": key, "label": ax_label, "pr": final,
                      "grade": _grade(final), "components": comps})
 
     # 總評＝整體表現在全聯盟的『重排百分位』：把每位合格球員的各軸 PR 加總後再 percent_rank，
