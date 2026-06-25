@@ -106,6 +106,7 @@ export type PlayerProfile = {
   is_pitcher: boolean;
   bats: string | null;
   throws: string | null;
+  former_names: string[];
 };
 export type ProfileData = { player: PlayerProfile | null };
 export type PlayerMatchupsData = {

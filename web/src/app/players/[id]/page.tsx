@@ -368,6 +368,9 @@ export default function PlayerPage() {
             <TeamLogo code={tc} size={48} />
             <div>
               <h1 className="text-3xl font-bold text-ink">{profile.name}</h1>
+              {profile.former_names?.length > 0 && (
+                <p className="mt-0.5 text-[11px] text-faint">曾用名：{profile.former_names.join("、")}</p>
+              )}
               <p className="mt-1 text-sm text-muted">
                 {profile.team}
                 {profile.bats && <span className="ml-3">打 {profile.bats}</span>}

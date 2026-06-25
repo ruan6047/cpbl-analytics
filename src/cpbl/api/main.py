@@ -632,15 +632,25 @@ def player_profile(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
         pit = cur.fetchone()
         cur.execute("SELECT name, bats, throws FROM cpbl.players WHERE id = %s", (player_id,))
         meta = cur.fetchone()
+        # 曾用名（改名）：gamelog 逐場記錄當時名字，取與現名不同者
+        cur.execute(
+            "SELECT DISTINCT nm FROM ("
+            "  SELECT hitter_name nm FROM cpbl.batting_gamelog WHERE hitter_acnt=%s "
+            "  UNION SELECT pitcher_name FROM cpbl.pitching_gamelog WHERE pitcher_acnt=%s) x "
+            "WHERE nm IS NOT NULL", (player_id, player_id),
+        )
+        all_names = {r[0] for r in cur.fetchall()}
     if not bat and not pit and not meta:
         return {"player": None}
     name = (bat[1] if bat else None) or (pit[1] if pit else None) or (meta[0] if meta else None)
     team = (bat[2] if bat else None) or (pit[2] if pit else None)
+    former = sorted(n for n in all_names if n and n != name)
     return {
         "player": {
             "id": player_id, "name": name, "team": team,
             "is_batter": bat is not None, "is_pitcher": pit is not None,
             "bats": meta[1] if meta else None, "throws": meta[2] if meta else None,
+            "former_names": former,
         }
     }
 
