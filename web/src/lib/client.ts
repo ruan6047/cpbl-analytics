@@ -143,6 +143,7 @@ export const detail = {
       best: Record<string, { year: number; value: number } | null>;
       milestones: { first_hit: string | null; first_hr: string | null };
       rank: { hr: number; h: number; sb: number } | null;
+      teams?: { code: string; name: string; from: number; to: number }[];
     }>(`/api/v1/players/${id}/career`),
   advanced: (id: string) =>
     clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/advanced`),

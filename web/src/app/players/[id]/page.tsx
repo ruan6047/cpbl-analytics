@@ -11,7 +11,7 @@ import { type HeatMetric, PerfHeatmap } from "@/components/perf-heatmap";
 import { ZoneScatter } from "@/components/zone-scatter";
 import { detail, type PlayerProfile, type StatRow } from "@/lib/client";
 import { fmtIP, fmtIPParts } from "@/lib/format";
-import { codeFromName, teamColor, teamShort } from "@/lib/teams";
+import { codeFromName, contrastText, eraBadge, teamColor, teamShort } from "@/lib/teams";
 
 type Role = "batting" | "pitching";
 type Disc = {
@@ -379,6 +379,26 @@ export default function PlayerPage() {
                 {profile.bats && <span className="ml-3">打 {profile.bats}</span>}
                 {profile.throws && <span className="ml-2">投 {profile.throws}</span>}
               </p>
+              {careerStats?.teams && careerStats.teams.length > 0 && (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  {careerStats.teams.map((t) => {
+                    const b = eraBadge(t.name, t.code);
+                    return (
+                      <span key={`${t.code}-${t.from}`}
+                        className="inline-flex items-center gap-1 rounded-full py-0.5 pl-0.5 pr-2 text-[11px] font-medium"
+                        style={{ background: `${b.color}1a`, color: b.color }}
+                        title={`${t.name}　${t.from === t.to ? t.from : `${t.from}–${t.to}`}`}>
+                        <span className="inline-flex h-[16px] w-[16px] items-center justify-center rounded-full text-[9px] font-extrabold"
+                          style={{ background: b.color, color: contrastText(b.color) }}>{b.letter}</span>
+                        {t.name}
+                        <span className="font-mono tabular-nums opacity-70">
+                          {t.from === t.to ? `'${String(t.from).slice(2)}` : `'${String(t.from).slice(2)}–'${String(t.to).slice(2)}`}
+                        </span>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
           {s && role === "batting" && (

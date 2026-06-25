@@ -511,12 +511,62 @@ def player_batting(player_id: str) -> dict:
     return {"player_id": player_id, "seasons": seasons}
 
 
+def _career_teams(cur, player_id: str) -> list[dict]:
+    """生涯效力球隊（轉隊紀錄）：(年, 隊代碼前 3 碼) → era 全名的連續年代區段。
+
+    team_id 前 3 碼即 franchise-era（俊國/興農/義大/富邦各自獨立），cpbl.teams 給權威
+    全名；2025+ 用 gamelog × games 反查當時隊代碼（visiting_home_type='2' 為主隊）。
+    AJK 同代碼內 La New/Lamigo 依 _ERA_SPLIT 細分。回傳供前端 eraBadge(name, code) 上色。
+    """
+    from collections import defaultdict
+    cur.execute(
+        "WITH yt AS ("
+        "  SELECT DISTINCT year, substring(team_id,1,3) code FROM cpbl.batting_seasons WHERE player_id=%(p)s"
+        "  UNION SELECT DISTINCT year, substring(team_id,1,3) FROM cpbl.pitching_seasons WHERE player_id=%(p)s"
+        "  UNION SELECT DISTINCT g.year, substring(CASE WHEN bg.visiting_home_type='2' THEN g.home_team_code "
+        "    ELSE g.away_team_code END,1,3) FROM cpbl.batting_gamelog bg JOIN cpbl.games g "
+        "    ON g.year=bg.year AND g.kind_code=bg.kind_code AND g.game_sno=bg.game_sno "
+        "    WHERE bg.hitter_acnt=%(p)s AND bg.year>=2025 AND bg.kind_code='A'"
+        "  UNION SELECT DISTINCT g.year, substring(CASE WHEN pg.visiting_home_type='2' THEN g.home_team_code "
+        "    ELSE g.away_team_code END,1,3) FROM cpbl.pitching_gamelog pg JOIN cpbl.games g "
+        "    ON g.year=pg.year AND g.kind_code=pg.kind_code AND g.game_sno=pg.game_sno "
+        "    WHERE pg.pitcher_acnt=%(p)s AND pg.year>=2025 AND pg.kind_code='A')"
+        "SELECT year, code FROM yt WHERE code IS NOT NULL ORDER BY year, code",
+        {"p": player_id})
+    years_by_code: dict[str, set[int]] = defaultdict(set)
+    for y, code in cur.fetchall():
+        years_by_code[code].add(y)
+    cur.execute("SELECT team_id, name FROM cpbl.teams")
+    names = dict(cur.fetchall())  # 3 碼 → 全名
+    stints: list[dict] = []
+    for code, ys in years_by_code.items():
+        ys_sorted = sorted(ys)
+        run = [ys_sorted[0]]
+        for y in ys_sorted[1:] + [None]:  # 連續年代收斂成區段；非連續→新段（離隊再回鍋）
+            if y is not None and y == run[-1] + 1:
+                run.append(y)
+                continue
+            full = f"{code}011"  # 現役隊以 6 碼 code 供 eraBadge 取色
+            if full in _ERA_SPLIT:  # 同代碼內改名（La New / Lamigo）依權威年代細分
+                for nm, a, b in _ERA_SPLIT[full]:
+                    sub = [x for x in run if a <= x <= b]
+                    if sub:
+                        stints.append({"code": full, "name": nm, "from": sub[0], "to": sub[-1]})
+            else:
+                stints.append({"code": full, "name": names.get(code, code), "from": run[0], "to": run[-1]})
+            if y is not None:
+                run = [y]
+    stints.sort(key=lambda s: (s["from"], s["to"]))
+    return stints
+
+
 @app.get("/api/v1/players/{player_id}/career")
 def player_career(player_id: str) -> dict:
-    """球員生涯：累計成績、最佳單季、里程碑日期、史上排名脈絡（打者）。"""
+    """球員生涯：累計成績、最佳單季、里程碑日期、史上排名脈絡（打者）+ 效力球隊。"""
     from collections import defaultdict
     with conn() as c:
         cur = c.cursor()
+        teams = _career_teams(cur, player_id)
         # 逐年（opendata ≤2024 + 2025/2026 由 gamelog 補；同年多隊加總）
         cur.execute(
             "SELECT year, sum(g),sum(pa),sum(ab),sum(h),sum(b2),sum(b3),sum(hr),sum(rbi),sum(sb),"
@@ -531,7 +581,7 @@ def player_career(player_id: str) -> dict:
         for r in cur.fetchall():
             per[r[0]] = list(r[1:])  # 2025+ 以 gamelog 為準
         if not per:
-            return {"player_id": player_id, "batting": None}
+            return {"player_id": player_id, "batting": None, "teams": teams}
         # 里程碑日期（gamelog 2018+）
         cur.execute(
             "SELECT min(g.game_date) FILTER (WHERE bg.hits>0), min(g.game_date) FILTER (WHERE bg.home_runs>0) "
@@ -579,7 +629,7 @@ def player_career(player_id: str) -> dict:
         return out
     bests = {"hr": best(6), "rbi": best(7), "sb": best(8), "avg": best_rate("avg"), "ops": best_rate("ops")}
     return {
-        "player_id": player_id, "batting": career, "best": bests,
+        "player_id": player_id, "batting": career, "best": bests, "teams": teams,
         "milestones": {"first_hit": str(first_h) if first_h else None,
                        "first_hr": str(first_hr) if first_hr else None},
         "rank": {"hr": rk[0], "h": rk[1], "sb": rk[2]} if rk else None,
