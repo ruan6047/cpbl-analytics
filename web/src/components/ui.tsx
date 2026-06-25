@@ -1,15 +1,19 @@
-import { contrastText, teamColor, teamLetter } from "@/lib/teams";
+import { contrastText, nameMeta, teamColor, teamLetter } from "@/lib/teams";
 
-// 隊伍徽章：隊色圓角方塊 + 英文字母（避免官方 logo 版權）。
-export function TeamLogo({ code, size = 24 }: { code?: string | null; size?: number }) {
-  const bg = teamColor(code);
+// 隊伍徽章：隊色圓角方塊 + 字母（避免官方 logo 版權）。
+// 優先用隊名解析(nameMeta，含歷史/已解散隊 era 色)，未知再退回代碼解析。
+export function TeamLogo({ code, name, size = 24 }: { code?: string | null; name?: string | null; size?: number }) {
+  const m = name ? nameMeta(name) : null;
+  const known = m && m.letter !== "?";
+  const bg = known ? m.color : teamColor(code);
+  const letter = known ? m.letter : teamLetter(code);
   return (
     <span
       className="inline-flex shrink-0 items-center justify-center rounded-md font-extrabold leading-none"
       style={{ width: size, height: size, background: bg, color: contrastText(bg), fontSize: size * 0.56 }}
       aria-label="隊徽"
     >
-      {teamLetter(code)}
+      {letter}
     </span>
   );
 }
@@ -30,7 +34,7 @@ export function StatTile({ label, value, accent }: { label: string; value: strin
 export function TeamBadge({ code, name, size = 20 }: { code?: string | null; name?: string | null; size?: number }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <TeamLogo code={code} size={size} />
+      <TeamLogo code={code} name={name} size={size} />
       {name && <span>{name}</span>}
     </span>
   );

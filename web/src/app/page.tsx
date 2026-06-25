@@ -396,7 +396,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
           <h2 className="mb-1 text-lg font-semibold">戰績走勢</h2>
           <p className="mb-3 text-[11px] text-faint">各隊累積勝-敗差（高於 .500 的場數）隨賽季變化；0 即五成勝率，越高越強。</p>
           <div className="rounded-xl border border-line p-4">
-            <StandingsTrend teams={trend.teams} points={trend.points} />
+            <StandingsTrend teams={trend.teams} points={trend.points} names={trend.names} />
           </div>
         </section>
       )}
@@ -412,7 +412,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
                   <th className="whitespace-nowrap px-2.5 py-3 font-medium">球隊＼對手</th>
                   {items.map((c) => (
                     <th key={c.team_code} className="px-2.5 py-3 text-center font-medium">
-                      <span className="inline-flex flex-col items-center gap-1"><TeamLogo code={c.team_code} size={20} /></span>
+                      <span className="inline-flex flex-col items-center gap-1"><TeamLogo code={c.team_code} name={c.team_name} size={20} /></span>
                     </th>
                   ))}
                 </tr>

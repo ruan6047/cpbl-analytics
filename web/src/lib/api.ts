@@ -191,7 +191,7 @@ export type SpecialRecordsResponse = { season: number; items: SpecialRecord[] };
 
 // 戰績走勢：points 每筆含 date + 各 team_code 的累積勝-敗差
 export type StandingsTrendPoint = { date: string } & Record<string, number | string>;
-export type StandingsTrendResponse = { season: number; teams: string[]; points: StandingsTrendPoint[] };
+export type StandingsTrendResponse = { season: number; teams: string[]; names?: Record<string, string>; points: StandingsTrendPoint[] };
 
 export const api = {
   officialStandings: (seg = 0, year?: number, kind = "A") =>

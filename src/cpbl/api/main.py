@@ -1249,17 +1249,20 @@ def standings_trend(
     """各隊逐日累積戰績走勢（勝-敗差，即高於 .500 的場數）。未出賽日沿用前值。"""
     with conn() as c:
         games = c.execute(
-            "SELECT game_date, home_team_code, away_team_code, home_score, away_score "
+            "SELECT game_date, home_team_code, away_team_code, home_score, away_score, "
+            "home_team_name, away_team_name "
             "FROM cpbl.games WHERE year=%s AND kind_code=%s AND home_score+away_score>0 "
             "ORDER BY game_date, game_sno",
             (season, kind_code),
         ).fetchall()
     by_date: dict = {}
     teams: set[str] = set()
-    for gd, hc, ac, hs, as_ in games:
+    names: dict[str, str] = {}  # code → 該年隊名（era 名）
+    for gd, hc, ac, hs, as_, hn, an in games:
         by_date.setdefault(gd, []).append((hc, ac, hs, as_))
         teams.add(hc)
         teams.add(ac)
+        names[hc], names[ac] = hn, an
     wl: dict[str, int] = dict.fromkeys(teams, 0)
     points: list[dict] = []
     for gd in sorted(by_date):
@@ -1272,7 +1275,7 @@ def standings_trend(
                 wl[ac] += 1
         points.append({"date": gd.strftime("%m-%d"), **wl})
     ordered = sorted(teams, key=lambda t: -wl[t])
-    return {"season": season, "teams": ordered, "points": points}
+    return {"season": season, "teams": ordered, "names": names, "points": points}
 
 
 @app.get("/api/v1/teams")

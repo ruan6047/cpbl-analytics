@@ -1,13 +1,24 @@
 // 戰績走勢折線圖：x=日期、y=累積勝-敗差（高於 .500 的場數），每隊一條線、隊色。
 "use client";
 import { CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { teamColor, teamShort } from "@/lib/teams";
+import { nameMeta, teamColor, teamShort } from "@/lib/teams";
 import type { StandingsTrendPoint } from "@/lib/api";
 
 const axis = { tick: { fill: "#5b6b7a", fontSize: 11 }, stroke: "#cbd5e1" };
 const fmt = (v: number) => (v > 0 ? `+${v}` : `${v}`);
 
-export function StandingsTrend({ teams, points }: { teams: string[]; points: StandingsTrendPoint[] }) {
+// 隊名優先(era 名 + nameMeta 色)，無則退回代碼解析
+function labelOf(code: string, names?: Record<string, string>) {
+  const nm = names?.[code];
+  return nm || teamShort(code) || code;
+}
+function colorOf(code: string, names?: Record<string, string>) {
+  const nm = names?.[code];
+  const m = nm ? nameMeta(nm) : null;
+  return m && m.letter !== "?" ? m.color : teamColor(code);
+}
+
+export function StandingsTrend({ teams, points, names }: { teams: string[]; points: StandingsTrendPoint[]; names?: Record<string, string> }) {
   return (
     <ResponsiveContainer width="100%" height={340}>
       <LineChart data={points} margin={{ top: 8, right: 16, bottom: 4, left: -16 }}>
@@ -27,8 +38,8 @@ export function StandingsTrend({ teams, points }: { teams: string[]; points: Sta
             key={t}
             type="monotone"
             dataKey={t}
-            name={teamShort(t)}
-            stroke={teamColor(t)}
+            name={labelOf(t, names)}
+            stroke={colorOf(t, names)}
             strokeWidth={2}
             dot={false}
             isAnimationActive={false}
