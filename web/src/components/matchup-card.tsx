@@ -5,6 +5,7 @@ import { type Matchup, type Starter, winProb } from "@/lib/client";
 
 function fmt(key: string, v: number | null): string {
   if (v === null) return "—";
+  if (key === "rest_days_diff") return `${v.toFixed(0)} 天`;
   if (key === "runs_scored_diff" || key === "runs_allowed_diff" || key === "starter_era_diff")
     return v.toFixed(2);
   return v.toFixed(3);

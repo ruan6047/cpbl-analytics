@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { MatchupCard } from "@/components/matchup-card";
 import {
+  type Backtest,
   clientGet,
   type FeatureMeta,
   type Matchup,
@@ -15,6 +16,7 @@ import {
 type Mode = "upcoming" | "simulate";
 const DEFAULT_SELECTED = [
   "winrate_diff",
+  "prior_winpct_diff",
   "runs_scored_diff",
   "runs_allowed_diff",
   "recent_form_diff",
@@ -36,6 +38,7 @@ export default function PredictPage() {
   const [home, setHome] = useState("");
   const [away, setAway] = useState("");
   const [loading, setLoading] = useState(false);
+  const [backtest, setBacktest] = useState<Backtest | null>(null);
 
   const label = useMemo(() => Object.fromEntries(feats.map((f) => [f.key, f.label])), [feats]);
 
@@ -50,6 +53,7 @@ export default function PredictPage() {
         setAway(d.teams[1].code);
       }
     });
+    clientGet<Backtest>("/api/v1/outcome/backtest").then(setBacktest).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -95,6 +99,8 @@ export default function PredictPage() {
           )}
         </p>
       </header>
+
+      {backtest?.available && <BacktestPanel bt={backtest} />}
 
       {/* 模式切換 */}
       <div className="mb-4 inline-flex rounded-lg border border-line p-1 text-sm">
@@ -198,6 +204,79 @@ export default function PredictPage() {
         {!loading && mode === "simulate" && sim && <MatchupCard m={sim} weights={weights} />}
       </section>
     </div>
+  );
+}
+
+// 模型回測面板：誠實展示「全特徵模型」相對「無腦全押主場」的走查回測準確率。
+// 重點在透明與教育（單場勝負天花板 ~60%），不在擊敗賭盤。
+function BacktestPanel({ bt }: { bt: Backtest }) {
+  const [open, setOpen] = useState(false);
+  const models = bt.models ?? [];
+  const baseAcc = models.find((m) => m.name === "全押主場")?.accuracy ?? 0.5;
+  const bestAcc = Math.max(...models.filter((m) => m.name !== "全押主場").map((m) => m.accuracy), 0);
+  const seasons = (bt.test_seasons ?? []).filter((s): s is number => s != null);
+  const span = seasons.length ? `${seasons[0]}–${seasons[seasons.length - 1]}` : "—";
+  const max = Math.max(...models.map((m) => m.accuracy), 0.6);
+  return (
+    <section className="mb-6 rounded-xl border border-line bg-surface p-4">
+      <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between text-left">
+        <div>
+          <h2 className="text-sm font-semibold text-ink">模型回測 · 全特徵 vs 全押主場</h2>
+          <p className="mt-0.5 text-[11px] text-faint">
+            走查回測 {span} 季共 {bt.n_test} 場（每季僅用過去資料預測）。
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-lg font-bold tabular-nums text-accent">
+            {(bestAcc * 100).toFixed(1)}%
+          </span>
+          <span className="text-xs text-faint">{open ? "▲" : "▼"}</span>
+        </div>
+      </button>
+
+      <div className="mt-3 space-y-1.5">
+        {models.map((m) => {
+          const win = m.name !== "全押主場" && m.accuracy > baseAcc;
+          return (
+            <div key={m.name} className="flex items-center gap-2 text-xs">
+              <span className="w-32 shrink-0 text-muted">{m.name}</span>
+              <div className="relative h-4 flex-1 overflow-hidden rounded bg-surface-2">
+                <div
+                  className={`h-full rounded ${m.name === "全押主場" ? "bg-faint/40" : "bg-accent"}`}
+                  style={{ width: `${(m.accuracy / max) * 100}%` }}
+                />
+              </div>
+              <span className="w-12 shrink-0 text-right font-mono tabular-nums text-ink">
+                {(m.accuracy * 100).toFixed(1)}%
+              </span>
+              {win && <span className="w-4 text-up">✓</span>}
+              {m.name === "全押主場" && <span className="w-4" />}
+            </div>
+          );
+        })}
+      </div>
+
+      {open && (
+        <div className="mt-4 border-t border-line pt-3">
+          <p className="mb-2 text-[11px] leading-relaxed text-muted">
+            單場勝負的可預測性天花板約 6 成，產品價值在「把雙方數字攤開、讓你理解為何看好某隊」，
+            而非擊敗賭盤。下表為 LightGBM 的特徵重要度（分裂增益），越高代表模型越倚重該變因。
+          </p>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3">
+            {(bt.importance ?? []).map((f) => (
+              <div key={f.key} className="flex items-center justify-between text-[11px]">
+                <span className="text-muted">{f.label}</span>
+                <span className="font-mono tabular-nums text-faint">{f.gain}</span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-[10px] text-faint">
+            Brier / LogLoss（越低越準）：
+            {models.map((m) => ` ${m.name} ${m.brier}/${m.log_loss}；`)}
+          </p>
+        </div>
+      )}
+    </section>
   );
 }
 

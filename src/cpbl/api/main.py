@@ -86,6 +86,17 @@ def info() -> dict:
             metrics["last_refresh"] = last_refresh.isoformat() if last_refresh else None
         except Exception:  # noqa: BLE001
             metrics["last_refresh"] = None
+        try:  # 賽事預測走查回測準確率（活的 ML 系統指標：模型 vs 全押主場）
+            bt = _scalar("SELECT cv_metrics FROM cpbl.model_versions WHERE task='outcome' "
+                         "ORDER BY trained_at DESC LIMIT 1")
+            if bt:
+                acc = max(mm["accuracy"] for mm in bt["models"] if mm["name"] != "全押主場")
+                base = next(mm["accuracy"] for mm in bt["models"] if mm["name"] == "全押主場")
+                metrics["outcome_model_accuracy"] = round(acc, 4)
+                metrics["outcome_baseline_accuracy"] = round(base, 4)
+                metrics["outcome_backtest_games"] = bt["n_test"]
+        except Exception:  # noqa: BLE001
+            pass
 
         if games == 0:
             status = "maintenance"  # 尚未匯入任何賽事
@@ -109,7 +120,7 @@ def batting_projections(
     """最新模型版本的打擊投影排行。"""
     with conn() as c:
         cur = c.cursor()
-        cur.execute("SELECT id FROM cpbl.model_versions ORDER BY trained_at DESC LIMIT 1")
+        cur.execute("SELECT id FROM cpbl.model_versions WHERE task = 'batting_projection' ORDER BY trained_at DESC LIMIT 1")
         mv = cur.fetchone()
         if not mv:
             return {"model_version": None, "items": []}
@@ -433,6 +444,24 @@ def outcome_features() -> dict:
             for k, label in CANDIDATE_FEATURES
         ]
     }
+
+
+@app.get("/api/v1/outcome/backtest")
+def outcome_backtest() -> dict:
+    """全特徵走查回測對照（LightGBM vs 邏輯回歸 vs 全押主場），由離線 cpbl-train-outcome
+    持久化於 model_versions(task='outcome')。前端「模型回測」面板用此誠實展示模型價值。"""
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            "SELECT id, trained_at, cv_metrics FROM cpbl.model_versions "
+            "WHERE task = 'outcome' ORDER BY trained_at DESC LIMIT 1"
+        )
+        row = cur.fetchone()
+    if not row:
+        return {"available": False}
+    vid, trained_at, m = row
+    return {"available": True, "version": vid,
+            "trained_at": trained_at.isoformat() if trained_at else None, **m}
 
 
 @app.get("/api/v1/outcome/evaluate")

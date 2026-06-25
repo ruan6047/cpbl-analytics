@@ -31,6 +31,7 @@ cpbl-scrape-standings = "cpbl.ingest.run_scrape_standings:main"
 cpbl-scrape-coaches = "cpbl.ingest.run_scrape_coaches:main"
 cpbl-build-features = "cpbl.features.run_build_features:main"
 cpbl-train = "cpbl.models.train:main"
+cpbl-train-outcome = "cpbl.models.outcome_gbm:main"
 
 [dependency-groups]
 dev = [

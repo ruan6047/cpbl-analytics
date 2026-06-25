@@ -74,6 +74,20 @@ export type MatchupsResponse = { model: OutcomeModel; items: Matchup[] };
 export type SimulateResponse = { model: OutcomeModel; matchup: Matchup };
 export type Team = { code: string; name: string };
 
+// 全特徵走查回測對照（LightGBM vs 邏輯回歸 vs 全押主場）
+export type BacktestModel = { name: string; accuracy: number; brier: number; log_loss: number };
+export type Backtest = {
+  available: boolean;
+  trained_at?: string;
+  test_seasons?: (number | null)[];
+  n_test?: number;
+  home_rate_test?: number;
+  models?: BacktestModel[];
+  best?: string;
+  beats_baseline?: boolean;
+  importance?: { key: string; label: string; gain: number }[];
+};
+
 // 前端用 z + 使用者調整後的權重即時重算主勝率：p = sigmoid(Σ wₖ·zₖ)
 export function winProb(z: Record<string, number>, weights: Record<string, number>): number {
   let logit = 0;
