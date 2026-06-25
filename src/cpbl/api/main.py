@@ -1198,6 +1198,7 @@ _ABILITY_AXES = {
         ("k", "三振", "f2", "每9局三振 K/9"),
         ("control", "控球", "f2", "每9局保送 BB/9"),
         ("hr_suppress", "抑長打", "f2", "每9局被全壘打 HR/9"),
+        ("groundball", "滾地", "f2", "滾飛出局比 GO/AO（製造滾地球；沉球/指叉型武器，非靠三振）"),
         ("command", "壓制", "f2", "防禦率 ERA"),
         ("stamina", "續航", "f2", "先發 IP/G／後援登板數"),
     ],
@@ -1223,6 +1224,7 @@ _COMPOSITE = {
                     ("adv", "chasep_pr", "誘揮", 0.25)],
         "hr_suppress": [("trad", "hr_suppress", "HR/9", 0.4), ("adv", "brlp_pr", "Barrel抑制", 0.3),
                         ("adv", "hardhitp_pr", "強擊抑制", 0.3)],
+        "groundball": [("trad", "groundball", "GO/AO", 1.0)],
         "command": [("trad", "command", "ERA", 0.5), ("adv", "woba_pr", "被 wOBA", 0.5)],
         "stamina": [("trad", "stamina", "續航", 1.0)],
     },
@@ -1301,33 +1303,35 @@ def _pit_ability_sql(scope: str) -> str:
     ip_expr = "floor(ip) + (ip - floor(ip))*10/3.0"
     if scope == "career":
         base = (f"SELECT player_id, sum({ip_expr}) ip, sum(so) so, sum(bb) bb, sum(hr) hr,"
-                " sum(er) er, sum(g) g, sum(gs) gs FROM cpbl.pitching_seasons GROUP BY player_id"
-                f" HAVING sum({ip_expr}) >= %(min)s")
+                " sum(er) er, sum(g) g, sum(gs) gs, sum(go)::float/NULLIF(sum(fo),0) gb"
+                f" FROM cpbl.pitching_seasons GROUP BY player_id HAVING sum({ip_expr}) >= %(min)s")
     else:
-        base = (f"SELECT player_id, ({ip_expr}) ip, so, bb, hr, er, g, gs"
+        base = (f"SELECT player_id, ({ip_expr}) ip, so, bb, hr, er, g, gs, goao gb"
                 f" FROM cpbl.pitching_current WHERE year=%(yr)s AND ({ip_expr}) >= %(min)s")
     return f"""
         WITH base AS ({base}),
         rate AS (
             SELECT player_id, so*9.0/NULLIF(ip,0) k, bb*9.0/NULLIF(ip,0) control,
-                hr*9.0/NULLIF(ip,0) hr_suppress, er*9.0/NULLIF(ip,0) command,
+                hr*9.0/NULLIF(ip,0) hr_suppress, er*9.0/NULLIF(ip,0) command, gb groundball,
                 (gs*2 >= g) AS is_starter,
                 CASE WHEN gs*2 >= g THEN ip/NULLIF(g,0) ELSE g::float END stamina
             FROM base
         ), pr AS (
-            SELECT player_id, k, control, hr_suppress, command, stamina, is_starter,
+            SELECT player_id, k, control, hr_suppress, groundball, command, stamina, is_starter,
                 percent_rank() OVER (ORDER BY k) k_pr,
                 percent_rank() OVER (ORDER BY control DESC) control_pr,
                 percent_rank() OVER (ORDER BY hr_suppress DESC) hr_suppress_pr,
+                percent_rank() OVER (ORDER BY groundball) groundball_pr,
                 percent_rank() OVER (ORDER BY command DESC) command_pr,
                 percent_rank() OVER (PARTITION BY is_starter ORDER BY stamina) stamina_pr
             FROM rate
         ), ov AS (   -- 整體表現重排：各軸 PR 加總後再取全聯盟百分位
             SELECT *, percent_rank() OVER (ORDER BY
-                k_pr + control_pr + hr_suppress_pr + command_pr + stamina_pr) ov_pr
+                k_pr + control_pr + hr_suppress_pr + COALESCE(groundball_pr,0.5)
+                + command_pr + stamina_pr) ov_pr
             FROM pr
-        ) SELECT k, control, hr_suppress, command, stamina,
-                 k_pr, control_pr, hr_suppress_pr, command_pr, stamina_pr, is_starter, ov_pr
+        ) SELECT k, control, hr_suppress, groundball, command, stamina,
+                 k_pr, control_pr, hr_suppress_pr, groundball_pr, command_pr, stamina_pr, is_starter, ov_pr
           FROM ov WHERE player_id = %(pid)s
     """
 
