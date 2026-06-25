@@ -211,7 +211,7 @@ def records(kind_code: str = Query("A")) -> dict:
         ssb = ("WITH s AS (SELECT player_id, year, sum(hr) hr, sum(h) h, sum(rbi) rbi, sum(sb) sb, "
                "sum(ab) ab, sum(pa) pa, sum(tb) tb, sum(bb) bb, sum(hbp) hbp, sum(sf) sf "
                "FROM cpbl.batting_seasons GROUP BY player_id, year) "
-               "SELECT p.name, s.year, {expr} val FROM s JOIN cpbl.players p ON p.id=s.player_id "
+               "SELECT p.name, p.id pid, s.year, {expr} val FROM s JOIN cpbl.players p ON p.id=s.player_id "
                "{where} ORDER BY val DESC LIMIT 1")
         season_bat = {
             "hr": top(ssb.format(expr="s.hr", where="")),
@@ -221,15 +221,15 @@ def records(kind_code: str = Query("A")) -> dict:
         }
         ssp = ("WITH s AS (SELECT player_id, year, sum(w) w, sum(sv) sv, sum(so) so "
                "FROM cpbl.pitching_seasons GROUP BY player_id, year) "
-               "SELECT p.name, s.year, s.{col} val FROM s JOIN cpbl.players p ON p.id=s.player_id "
+               "SELECT p.name, p.id pid, s.year, s.{col} val FROM s JOIN cpbl.players p ON p.id=s.player_id "
                "ORDER BY val DESC LIMIT 1")
         season_pit = {k: top(ssp.format(col=k)) for k in ("w", "sv", "so")}
 
         cb = ("WITH c AS (SELECT player_id, sum({col}) v FROM cpbl.batting_seasons GROUP BY player_id) "
-              "SELECT p.name, c.v val FROM c JOIN cpbl.players p ON p.id=c.player_id ORDER BY v DESC LIMIT 5")
+              "SELECT p.name, p.id pid, c.v val FROM c JOIN cpbl.players p ON p.id=c.player_id ORDER BY v DESC LIMIT 5")
         career_bat = {k: top(cb.format(col=k), 5) for k in ("hr", "h", "rbi", "sb")}
         cp = ("WITH c AS (SELECT player_id, sum({col}) v FROM cpbl.pitching_seasons GROUP BY player_id) "
-              "SELECT p.name, c.v val FROM c JOIN cpbl.players p ON p.id=c.player_id ORDER BY v DESC LIMIT 5")
+              "SELECT p.name, p.id pid, c.v val FROM c JOIN cpbl.players p ON p.id=c.player_id ORDER BY v DESC LIMIT 5")
         career_pit = {k: top(cp.format(col=k), 5) for k in ("w", "sv", "so")}
 
     return {"games": games, "season_batting": season_bat, "season_pitching": season_pit,
@@ -268,6 +268,18 @@ def _ip_real(ip: float | None) -> float | None:
         return None
     whole = int(ip)
     return whole + round((ip - whole) * 10) / 3.0
+
+
+def _ip_disp(real: float | None) -> float | None:
+    """真實局數 → .1/.2 棒球記法顯示（如 180⅔ → 180.2）。"""
+    if real is None:
+        return None
+    real = float(real)
+    whole = int(real + 1e-9)
+    outs = round((real - whole) * 3)
+    if outs >= 3:
+        whole, outs = whole + 1, 0
+    return round(whole + outs / 10, 1)
 
 
 _PIT_COLS = ("player_id", "name", "team", "g", "gs", "cg", "sho", "w", "l", "sv", "hld",
@@ -326,10 +338,13 @@ def pitching_leaders(
     items = []
     for r in _pitching_rows(season, kind_code):
         ip = r.get("ip")
-        if ip is None or ip < min_ip:
+        if ip is None:
+            continue
+        ip = float(ip)
+        if ip < min_ip:
             continue
         er, h, bb, so = (r.get(k) or 0 for k in ("er", "h", "bb", "so"))
-        r["ip"] = round(ip, 1)
+        r["ip"] = _ip_disp(ip)  # 顯示用 .1/.2 記法（era/whip/k9 仍用真實局數 ip）
         r["era"] = round(er * 9 / ip, 2) if ip else None
         r["whip"] = round((h + bb) / ip, 2) if ip else None
         r["k9"] = round(so * 9 / ip, 2) if ip else None

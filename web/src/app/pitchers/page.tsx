@@ -15,7 +15,7 @@ const COLS: Col[] = [
   { key: "l", label: "敗", fmt: "i", tip: "敗場" },
   { key: "sv", label: "救援", fmt: "i", tip: "救援成功 SV" },
   { key: "hld", label: "中繼", fmt: "i", tip: "中繼成功 HLD" },
-  { key: "ip", label: "局數", fmt: "f1", tip: "投球局數 IP（.1=⅓局、.2=⅔局）" },
+  { key: "ip", label: "局數", fmt: "ip", tip: "投球局數 IP（分數顯示，⅓=1出局、⅔=2出局）" },
   { key: "era", label: "防禦率", fmt: "f2", tone: "accent", tip: "防禦率 ERA = 自責分 ×9 ÷ 投球局數" },
   { key: "whip", label: "WHIP", fmt: "f2", tip: "每局被上壘率 = (被安打＋四壞) ÷ 投球局數" },
   { key: "k9", label: "K9", fmt: "f2", tone: "dim", tip: "每九局奪三振 = 三振 ×9 ÷ 投球局數" },

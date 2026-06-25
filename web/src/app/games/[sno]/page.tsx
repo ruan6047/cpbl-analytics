@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { detail, type StatRow } from "@/lib/client";
+import { fmtIPParts } from "@/lib/format";
 import GameBoard, { type Live } from "@/components/game-board";
 
 const n = (v: number | string | null) => (v === null || v === undefined ? "" : Number(v));
 
 const i0 = (v: number | string | null | undefined) => (v === null || v === undefined ? "—" : String(v));
-const ipTxt = (r: StatRow) => `${r.inning_pitched_cnt ?? 0}.${r.inning_pitched_div3 ?? 0}`;
+const ipTxt = (r: StatRow) => fmtIPParts(r.inning_pitched_cnt as number | null, r.inning_pitched_div3 as number | null);
 
 function BoxBatting({ rows, team }: { rows: StatRow[]; team: string }) {
   const cols: [string, (r: StatRow) => string][] = [

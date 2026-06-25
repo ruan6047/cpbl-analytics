@@ -10,6 +10,7 @@ import { Card, PercentileBar, StatTile, TeamLogo } from "@/components/ui";
 import { type HeatMetric, PerfHeatmap } from "@/components/perf-heatmap";
 import { ZoneScatter } from "@/components/zone-scatter";
 import { detail, type PlayerProfile, type StatRow } from "@/lib/client";
+import { fmtIP, fmtIPParts } from "@/lib/format";
 import { codeFromName, teamColor, teamShort } from "@/lib/teams";
 
 type Role = "batting" | "pitching";
@@ -147,7 +148,7 @@ function ArsenalTable({ items, role }: { items: StatRow[]; role: Role }) {
 }
 
 const ipText = (r: StatRow) =>
-  r.inning_pitched_cnt == null ? "—" : `${r.inning_pitched_cnt}.${r.inning_pitched_div3 ?? 0}`;
+  fmtIPParts(r.inning_pitched_cnt as number | null, r.inning_pitched_div3 as number | null);
 
 function VsTeamTable({ items, role }: { items: StatRow[]; role: Role }) {
   const cols: { h: string; cell: (r: StatRow) => string; tone?: string }[] = role === "batting"
@@ -191,7 +192,7 @@ function CareerTable({ seasons, role }: { seasons: StatRow[]; role: Role }) {
        { h: "HR", cell: (r) => n0(r.hr) }, { h: "打點", cell: (r) => n0(r.rbi) }, { h: "盜壘", cell: (r) => n0(r.sb) }]
     : [{ h: "G", cell: (r) => n0(r.g) }, { h: "先發", cell: (r) => n0(r.gs) },
        { h: "勝-敗", cell: (r) => `${r.w ?? 0}-${r.l ?? 0}` }, { h: "救援", cell: (r) => n0(r.sv) },
-       { h: "局數", cell: (r) => n0(r.ip) }, { h: "ERA", cell: (r) => numOf(r.era)?.toFixed(2) ?? "—", tone: "text-ink" },
+       { h: "局數", cell: (r) => fmtIP(r.ip as number | string | null) }, { h: "ERA", cell: (r) => numOf(r.era)?.toFixed(2) ?? "—", tone: "text-ink" },
        { h: "WHIP", cell: (r) => numOf(r.whip)?.toFixed(2) ?? "—" }, { h: "三振", cell: (r) => n0(r.so) },
        { h: "K9", cell: (r) => numOf(r.k9)?.toFixed(2) ?? "—" }];
   return (
@@ -387,7 +388,7 @@ export default function PlayerPage() {
           )}
           {s && role === "pitching" && (
             <div className="font-mono text-lg tabular-nums text-ink">
-              {numOf(s.era)?.toFixed(2) ?? "—"} ERA · {s.w ?? 0}-{s.l ?? 0} · {numOf(s.ip)?.toFixed(1) ?? "—"} 局
+              {numOf(s.era)?.toFixed(2) ?? "—"} ERA · {s.w ?? 0}-{s.l ?? 0} · {fmtIP(s.ip as number | string | null)} 局
             </div>
           )}
         </div>
@@ -414,7 +415,7 @@ export default function PlayerPage() {
                  ["雙殺打", String(s.gidp ?? "—")], ["犧觸", String(s.sh ?? "—")], ["犧飛", String(s.sf ?? "—")],
                  ["打席", String(s.pa ?? "—")], ["出賽", String(s.g ?? "—")]]
               : [["救援", String(s.sv ?? "—")], ["K9", numOf(s.k9)?.toFixed(2) ?? "—"], ["中繼", String(s.hld ?? "—")],
-                 ["局數", numOf(s.ip)?.toFixed(1) ?? "—"], ["先發", String(s.gs ?? "—")], ["完投", String(s.cg ?? "—")],
+                 ["局數", fmtIP(s.ip as number | string | null)], ["先發", String(s.gs ?? "—")], ["完投", String(s.cg ?? "—")],
                  ["完封", String(s.sho ?? "—")], ["被安", String(s.h ?? "—")], ["被轟", String(s.hr ?? "—")],
                  ["四壞", String(s.bb ?? "—")], ["故四", String(s.ibb ?? "—")], ["觸身", String(s.hbp ?? "—")],
                  ["暴投", String(s.wp ?? "—")], ["犯規", String(s.bk ?? "—")], ["投球數", String(s.np ?? "—")],

@@ -1,5 +1,10 @@
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { contrastText, nameMeta } from "@/lib/teams";
+
+function PlayerLink({ pid, name }: { pid?: string; name: string }) {
+  return pid ? <Link href={`/players/${pid}`} className="text-accent hover:underline">{name}</Link> : <>{name}</>;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -34,19 +39,19 @@ function GameCard({ label, rec, hint }: { label: string; rec: GameRec; hint: str
   );
 }
 
-function SeasonTile({ label, rec, fmt }: { label: string; rec?: { name: string; year: number; val: number | string }[]; fmt?: (v: number | string) => string }) {
+function SeasonTile({ label, rec, fmt }: { label: string; rec?: { name: string; pid: string; year: number; val: number | string }[]; fmt?: (v: number | string) => string }) {
   const r = rec?.[0];
   if (!r) return null;
   return (
     <div className="rounded-xl border border-line bg-surface p-3">
       <div className="text-[11px] text-muted">{label}</div>
       <div className="mt-0.5 font-mono text-xl font-bold tabular-nums text-accent">{fmt ? fmt(r.val) : r.val}</div>
-      <div className="mt-0.5 text-xs text-ink">{r.name}<span className="ml-1 text-faint">{r.year}</span></div>
+      <div className="mt-0.5 text-xs text-ink"><PlayerLink pid={r.pid} name={r.name} /><span className="ml-1 text-faint">{r.year}</span></div>
     </div>
   );
 }
 
-function LeaderList({ title, rows, fmt }: { title: string; rows?: { name: string; val: number }[]; fmt?: (v: number) => string }) {
+function LeaderList({ title, rows, fmt }: { title: string; rows?: { name: string; pid: string; val: number }[]; fmt?: (v: number) => string }) {
   if (!rows?.length) return null;
   return (
     <div className="rounded-xl border border-line bg-surface p-4">
@@ -54,7 +59,7 @@ function LeaderList({ title, rows, fmt }: { title: string; rows?: { name: string
       <ol className="space-y-1.5 text-sm">
         {rows.map((r, i) => (
           <li key={r.name} className="flex items-center justify-between">
-            <span><span className="mr-2 inline-block w-4 text-right font-mono text-faint">{i + 1}</span>{r.name}</span>
+            <span><span className="mr-2 inline-block w-4 text-right font-mono text-faint">{i + 1}</span><PlayerLink pid={r.pid} name={r.name} /></span>
             <span className="font-mono font-semibold tabular-nums">{fmt ? fmt(r.val) : r.val}</span>
           </li>
         ))}

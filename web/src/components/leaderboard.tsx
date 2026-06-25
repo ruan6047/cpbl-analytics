@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { fmtIP } from "@/lib/format";
 import { contrastText, nameMeta } from "@/lib/teams";
 
 // 依隊名渲染彩色徽章（含歷史/二軍隊，走 nameMeta 統一解析）
@@ -16,7 +17,7 @@ function NameBadge({ name }: { name: string }) {
   );
 }
 
-export type Fmt = "i" | "f1" | "f2" | "f3";
+export type Fmt = "i" | "f1" | "f2" | "f3" | "ip";
 export type Tone = "accent" | "dim" | "warn";
 
 export type Col = {
@@ -41,6 +42,7 @@ const fmtVal = (v: number | string | null, fmt?: Fmt): string => {
   if (fmt === "f1") return Number(v).toFixed(1);
   if (fmt === "f2") return Number(v).toFixed(2);
   if (fmt === "f3") return Number(v).toFixed(3).replace(/^0\./, ".");
+  if (fmt === "ip") return fmtIP(v);
   return String(v);
 };
 
