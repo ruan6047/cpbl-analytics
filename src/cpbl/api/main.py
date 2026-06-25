@@ -1578,7 +1578,31 @@ def team_players(code: str) -> dict:
             "WHERE team_code=%s AND year=(SELECT max(year) FROM cpbl.coaches WHERE team_code=%s) "
             "ORDER BY (pos LIKE '%%總教練%%') DESC, pos, uniform_no", (code, code))
         coaches = [{"pos": p, "name": n, "uniform_no": u} for p, n, u in cur.fetchall()]
-    return {"code": fc, "batters": batters, "pitchers": pitchers, "coaches": coaches}
+        # 現役名單：一軍 current + 二軍 D-gamelog（022 farm 代碼）。已解散隊自然回空。
+        yr = DEFAULT_SEASON
+        cur.execute("SELECT player_id, name FROM cpbl.batting_current WHERE team_code=%s AND year=%s "
+                    "ORDER BY name", (code, yr))
+        first_batters = [{"player_id": p, "name": n} for p, n in cur.fetchall()]
+        cur.execute("SELECT player_id, name FROM cpbl.pitching_current WHERE team_code=%s AND year=%s "
+                    "ORDER BY name", (code, yr))
+        first_pitchers = [{"player_id": p, "name": n} for p, n in cur.fetchall()]
+        first_ids = {p["player_id"] for p in first_batters} | {p["player_id"] for p in first_pitchers}
+        farm_code = f"{code[:3]}022"
+        cur.execute(
+            "SELECT acnt, max(nm) FROM ("
+            "  SELECT bg.hitter_acnt acnt, bg.hitter_name nm FROM cpbl.batting_gamelog bg "
+            "    JOIN cpbl.games g ON g.year=bg.year AND g.kind_code=bg.kind_code AND g.game_sno=bg.game_sno "
+            "    WHERE bg.year=%s AND bg.kind_code='D' "
+            "      AND (CASE WHEN bg.visiting_home_type='2' THEN g.home_team_code ELSE g.away_team_code END)=%s "
+            "  UNION ALL "
+            "  SELECT pg.pitcher_acnt, pg.pitcher_name FROM cpbl.pitching_gamelog pg "
+            "    JOIN cpbl.games g ON g.year=pg.year AND g.kind_code=pg.kind_code AND g.game_sno=pg.game_sno "
+            "    WHERE pg.year=%s AND pg.kind_code='D' "
+            "      AND (CASE WHEN pg.visiting_home_type='2' THEN g.home_team_code ELSE g.away_team_code END)=%s "
+            ") x GROUP BY acnt ORDER BY max(nm)", (yr, farm_code, yr, farm_code))
+        farm = [{"player_id": p, "name": n} for p, n in cur.fetchall() if p not in first_ids]
+        roster = {"first_batters": first_batters, "first_pitchers": first_pitchers, "farm": farm}
+    return {"code": fc, "batters": batters, "pitchers": pitchers, "coaches": coaches, "roster": roster}
 
 
 @app.get("/api/v1/venues")

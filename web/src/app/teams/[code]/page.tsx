@@ -111,6 +111,8 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
   // 已解散球隊不在現役 standings，但仍有 franchise 隊史；無隊史才真正 404。
   if (!team && eras.eras.length === 0) notFound();
 
+  const coaches = roster.coaches ?? [];
+  const rst = roster.roster ?? { first_batters: [], first_pitchers: [], farm: [] };
   const lastEra = eras.eras[eras.eras.length - 1];
   const displayName = team?.team_name ?? lastEra?.name ?? code;
   const adv = team ? derived.standings.find((d) => d.code === code) : undefined;
@@ -235,12 +237,12 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
       )}
 
       {/* 現役教練團（僅現役球團；官網現役名單，無歷史勝率）*/}
-      {roster.coaches.length > 0 && (
+      {coaches.length > 0 && (
         <section>
           <h2 className="mb-1 text-lg font-semibold">現役教練團</h2>
           <p className="mb-3 text-[11px] text-faint">官方現役教練名單（一軍）；總教練居首。</p>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
-            {roster.coaches.map((co) => (
+            {coaches.map((co) => (
               <Card key={`${co.pos}-${co.name}`} className="flex items-center gap-2.5 p-3">
                 <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md font-mono text-xs font-bold tabular-nums"
                   style={{ background: `${color}1a`, color }}>{co.uniform_no ?? "—"}</span>
@@ -250,6 +252,19 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
                 </div>
               </Card>
             ))}
+          </div>
+        </section>
+      )}
+
+      {/* 現役球員（一軍 current + 二軍 D；僅現役球團）*/}
+      {(rst.first_batters.length > 0 || rst.farm.length > 0) && (
+        <section>
+          <h2 className="mb-1 text-lg font-semibold">現役球員</h2>
+          <p className="mb-3 text-[11px] text-faint">本季登錄名單；一軍取自當季成績、二軍取自二軍逐場。點擊看個人頁。</p>
+          <div className="space-y-3">
+            <RosterChips label={`一軍打者 (${rst.first_batters.length})`} players={rst.first_batters} color={color} />
+            <RosterChips label={`一軍投手 (${rst.first_pitchers.length})`} players={rst.first_pitchers} color={color} />
+            <RosterChips label={`二軍 (${rst.farm.length})`} players={rst.farm} color={color} dim />
           </div>
         </section>
       )}
@@ -376,6 +391,26 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
         </div>
       </section>
       )}
+    </div>
+  );
+}
+
+function RosterChips({ label, players, color, dim }: {
+  label: string; players: { player_id: string; name: string }[]; color: string; dim?: boolean;
+}) {
+  if (players.length === 0) return null;
+  return (
+    <div>
+      <div className="mb-1.5 text-xs font-medium text-muted">{label}</div>
+      <div className="flex flex-wrap gap-1.5">
+        {players.map((p) => (
+          <Link key={p.player_id} href={`/players/${p.player_id}`}
+            className={`rounded-full border border-line px-2.5 py-1 text-sm transition hover:border-current ${dim ? "text-muted" : ""}`}
+            style={dim ? undefined : { color }}>
+            {p.name}
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
