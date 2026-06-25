@@ -25,14 +25,17 @@ HOME_FIELD = "home_field"
 # 各「球隊級」變因 → team_stats 的 key
 TEAM_STAT = {
     "winrate_diff": "win_pct",
+    "prior_winpct_diff": "prior_wp",
     "runs_scored_diff": "rs_pg",
     "runs_allowed_diff": "ra_pg",
     "recent_form_diff": "form",
+    "rest_days_diff": "rest_days",
 }
 # 定向：把每個變數轉成「正值 = 有利主隊」。失分/ERA 越低越好故取負；對戰勝率以 0.5 為中心。
 ORIENT_SIGN = {
-    "winrate_diff": 1.0, "runs_scored_diff": 1.0, "runs_allowed_diff": -1.0,
-    "recent_form_diff": 1.0, "h2h_home": 1.0,
+    "winrate_diff": 1.0, "prior_winpct_diff": 1.0, "runs_scored_diff": 1.0,
+    "runs_allowed_diff": -1.0, "recent_form_diff": 1.0, "rest_days_diff": 1.0,
+    "h2h_home": 1.0,
     "starter_era_diff": -1.0, "starter_whip_diff": -1.0, "starter_k9_diff": 1.0,
 }
 ORIENT_CENTER = {"h2h_home": 0.5}
@@ -60,8 +63,35 @@ def _validate(features: list[str]) -> tuple[list[str], list[str], bool]:
 
 # ---------- 球隊當季到當日統計 ----------
 
+def _prior_winpct(season: int) -> dict[str, float]:
+    """{team_code: 上一季(一軍例行賽)最終勝率}；季初冷啟動的戰力先驗。"""
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            """
+            SELECT team, sum(w)::float / NULLIF(sum(w + l), 0) FROM (
+                SELECT home_team_code AS team,
+                       count(*) FILTER (WHERE home_score > away_score) w,
+                       count(*) FILTER (WHERE home_score < away_score) l
+                FROM cpbl.games WHERE kind_code='A' AND year=%s AND home_score+away_score>0
+                GROUP BY home_team_code
+                UNION ALL
+                SELECT away_team_code,
+                       count(*) FILTER (WHERE away_score > home_score),
+                       count(*) FILTER (WHERE away_score < home_score)
+                FROM cpbl.games WHERE kind_code='A' AND year=%s AND home_score+away_score>0
+                GROUP BY away_team_code
+            ) t GROUP BY team
+            """,
+            (season - 1, season - 1),
+        )
+        return {code: float(wp) for code, wp in cur.fetchall() if wp is not None}
+
+
 def team_stats(season: int) -> dict[str, dict]:
-    """回傳 {team_code: {name, w, l, win_pct, rs_pg, ra_pg, form}}（當季完成場次累計）。"""
+    """回傳 {team_code: {name, w, l, win_pct, rs_pg, ra_pg, form, prior_wp, rest_days}}
+    （當季完成場次累計；prior_wp=上季戰力先驗、rest_days=距上一場至今天的休息天數）。"""
+    prior = _prior_winpct(season)
     with conn() as c:
         cur = c.cursor()
         cur.execute(
@@ -69,7 +99,7 @@ def team_stats(season: int) -> dict[str, dict]:
             SELECT game_date, home_team_code, home_team_name, away_team_code, away_team_name,
                    home_score, away_score
             FROM cpbl.games
-            WHERE year = %s AND home_score + away_score > 0
+            WHERE year = %s AND kind_code = 'A' AND home_score + away_score > 0
             ORDER BY game_date, game_sno
             """,
             (season,),
@@ -80,14 +110,14 @@ def team_stats(season: int) -> dict[str, dict]:
 
     def ensure(code, name):
         if code not in st:
-            st[code] = {"name": name, "w": 0, "l": 0, "rf": 0, "ra": 0, "g": 0, "last10": []}
+            st[code] = {"name": name, "w": 0, "l": 0, "rf": 0, "ra": 0, "g": 0, "last10": [], "last_date": None}
         elif name:
             st[code]["name"] = name
 
-    for _d, hc, hn, ac, an, hs, as_ in rows:
+    for d, hc, hn, ac, an, hs, as_ in rows:
         ensure(hc, hn); ensure(ac, an)
-        st[hc]["rf"] += hs; st[hc]["ra"] += as_; st[hc]["g"] += 1
-        st[ac]["rf"] += as_; st[ac]["ra"] += hs; st[ac]["g"] += 1
+        st[hc]["rf"] += hs; st[hc]["ra"] += as_; st[hc]["g"] += 1; st[hc]["last_date"] = d
+        st[ac]["rf"] += as_; st[ac]["ra"] += hs; st[ac]["g"] += 1; st[ac]["last_date"] = d
         if hs > as_:
             st[hc]["w"] += 1; st[ac]["l"] += 1
             st[hc]["last10"].append(1); st[ac]["last10"].append(0)
@@ -95,13 +125,17 @@ def team_stats(season: int) -> dict[str, dict]:
             st[hc]["l"] += 1; st[ac]["w"] += 1
             st[hc]["last10"].append(0); st[ac]["last10"].append(1)
 
+    today = date.today()
     out: dict[str, dict] = {}
     for code, s in st.items():
         gp = s["w"] + s["l"]
         last10 = s["last10"][-10:]
+        rest = min((today - s["last_date"]).days, 7) if s["last_date"] else 0.0
         out[code] = {
             "name": s["name"], "w": s["w"], "l": s["l"], "g": s["g"],
             "win_pct": s["w"] / gp if gp else 0.5,
+            "prior_wp": prior.get(code, 0.5),
+            "rest_days": float(rest),
             "rs_pg": s["rf"] / s["g"] if s["g"] else 0.0,
             "ra_pg": s["ra"] / s["g"] if s["g"] else 0.0,
             "form": sum(last10) / len(last10) if last10 else 0.5,
