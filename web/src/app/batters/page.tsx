@@ -1,8 +1,19 @@
+import { AwardRaces, type Cat } from "@/components/award-races";
 import Leaderboard, { type Col } from "@/components/leaderboard";
 import { LevelYearNav } from "@/components/level-year-nav";
 import { api } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
+
+// 本季獎項競逐類別（前五）：計數型無門檻；rate 型套規定打席。
+const AWARD_CATS: Cat[] = [
+  { key: "hr", label: "全壘打 (HR)", fmt: "i" },
+  { key: "rbi", label: "打點 (RBI)", fmt: "i" },
+  { key: "h", label: "安打 (H)", fmt: "i" },
+  { key: "sb", label: "盜壘 (SB)", fmt: "i" },
+  { key: "avg", label: "打擊率 (AVG)", fmt: "f3", qual: true },
+  { key: "ops", label: "OPS", fmt: "f3", qual: true },
+];
 
 const COLS: Col[] = [
   { key: "name", label: "球員", tip: "球員姓名（點擊看個人頁）", link: { base: "/players/", idKey: "player_id" } },
@@ -47,6 +58,13 @@ export default async function BattersPage({ searchParams }: { searchParams: Prom
       </header>
 
       <LevelYearNav kind={kind} years={years} selectedYear={selectedYear} base="/batters" />
+
+      {(() => {
+        const teamG = Math.max(0, ...items.map((r) => Number(r.g ?? 0)));
+        const qual = Math.round(3.1 * teamG);
+        return <AwardRaces rows={items} cats={AWARD_CATS} qualKey="pa" qualMin={qual}
+          note={`規定打席約 ${qual}（打擊率/OPS 套用）。`} />;
+      })()}
 
       <Leaderboard
         rows={items}

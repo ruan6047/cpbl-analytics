@@ -1,8 +1,19 @@
+import { AwardRaces, type Cat } from "@/components/award-races";
 import Leaderboard, { type Col } from "@/components/leaderboard";
 import { LevelYearNav } from "@/components/level-year-nav";
 import { api } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
+
+// 本季獎項競逐：勝投/三振/救援無門檻；防禦率/WHIP/K9 套規定投球局數（越低越好者 asc）。
+const AWARD_CATS: Cat[] = [
+  { key: "w", label: "勝投 (W)", fmt: "i" },
+  { key: "so", label: "三振 (SO)", fmt: "i" },
+  { key: "sv", label: "救援 (SV)", fmt: "i" },
+  { key: "era", label: "防禦率 (ERA)", fmt: "f2", dir: "asc", qual: true },
+  { key: "whip", label: "WHIP", fmt: "f2", dir: "asc", qual: true },
+  { key: "k9", label: "K9", fmt: "f2", qual: true },
+];
 
 const COLS: Col[] = [
   { key: "name", label: "球員", tip: "球員姓名（點擊看個人頁）", link: { base: "/players/", idKey: "player_id" } },
@@ -52,6 +63,13 @@ export default async function PitchersPage({ searchParams }: { searchParams: Pro
       </header>
 
       <LevelYearNav kind={kind} years={years} selectedYear={selectedYear} base="/pitchers" />
+
+      {(() => {
+        const teamG = Math.max(0, ...items.map((r) => Number(r.g ?? 0)));
+        const qual = Math.round(teamG); // 規定投球局數 ≈ 球隊出賽數 ×1.0
+        return <AwardRaces rows={items} cats={AWARD_CATS} qualKey="ip" qualMin={qual}
+          note={`規定投球局數約 ${qual}（防禦率/WHIP/K9 套用）。`} />;
+      })()}
 
       <Leaderboard
         rows={items}
