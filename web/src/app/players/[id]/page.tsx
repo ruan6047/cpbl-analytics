@@ -451,7 +451,7 @@ export default function PlayerPage() {
                   ))}
                 </div>
                 <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-5">
-                  {secondary.map(([l, v]) => (
+                  {secondary.filter(([, v]) => v !== "0").map(([l, v]) => (
                     <div key={l} className="rounded-lg bg-surface-2 px-1.5 py-1.5 text-center">
                       <div className="text-[10px] leading-tight text-muted">{l}</div>
                       <div className="mt-0.5 font-mono text-sm leading-none tabular-nums text-ink">{v}</div>
@@ -497,7 +497,14 @@ export default function PlayerPage() {
               <StatTile label="盜壘" value={String(cb.sb)} />
               <StatTile label="打擊率" value={f3(cb.avg)} />
               <StatTile label="OPS" value={f3(cb.ops)} />
-              {rk && <StatTile label="史上排名" value={`轟#${rk.hr}·安#${rk.h}`} />}
+              {(() => {
+                const parts = rk
+                  ? ([["轟", rk.hr], ["安", rk.h], ["盜", rk.sb]] as [string, number][])
+                      .filter(([, v]) => v != null && v <= 20)
+                      .map(([l, v]) => `${l}#${v}`)
+                  : [];
+                return parts.length > 0 ? <StatTile label="史上排名" value={parts.join("·")} /> : null;
+              })()}
             </div>
             <p className="mt-2 text-[11px] text-faint">
               最佳單季：

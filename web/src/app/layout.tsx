@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "CPBL 分析 | Ruan Dev",
-  description: "中華職棒戰績、進階數據與賽果預測 — TrackMan/Statcast 視覺化。",
+  description: "中華職棒戰績、進階數據與賽事預測 — TrackMan/Statcast 視覺化。",
 };
 
 const NAV = [
@@ -14,7 +14,7 @@ const NAV = [
   { href: "/games", label: "賽況" },
   { href: "/records", label: "紀錄室" },
   { href: "/matchups", label: "投打對決" },
-  { href: "/predict", label: "賽果預測" },
+  { href: "/predict", label: "賽事預測" },
 ];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
