@@ -1815,8 +1815,10 @@ def team_players(code: str) -> dict:
         managers = [{"era": e, "name": n, "from": fy, "to": ty, "w": w, "l": l, "t": t,
                      "win_pct": wp, "postseason": po, "championships": ch}
                     for e, n, fy, ty, w, l, t, wp, po, ch in cur.fetchall()]
+        # 官網 coaches 的現任一軍總教練（權威；維基歷任表常滯後當季/換帥）
+        head = next((c["name"] for c in coaches if "總教練" in c["pos"] or "監督" in c["pos"]), None)
         if managers:
-            mnames = list({m["name"] for m in managers})
+            mnames = list({m["name"] for m in managers} | ({head} if head else set()))
             cur.execute(
                 "SELECT name, max(id) FROM cpbl.players p WHERE name = ANY(%s) "
                 "AND (EXISTS(SELECT 1 FROM cpbl.batting_seasons b WHERE b.player_id=p.id) "
@@ -1849,6 +1851,32 @@ def team_players(code: str) -> dict:
                     m["g"] = w + lo + t
                     m["win_pct"] = round(w / (w + lo), 3)
                     m["source"] = "db"
+            # 當季補丁：維基歷任表常缺當季。以官網現任總教練為準，若其維基列尚未涵蓋
+            # 當季（to < 當季），把當季 franchise 一軍 DB 戰績加上（當季尚無換帥故 solo，
+            # 其原總和已正確至 to_year，僅補當季）；若現任未在維基表（換帥）則新增當季列。
+            cur_year = max(fyr) if fyr else None
+            cur_rec = fyr.get(cur_year) if cur_year else None
+            if head and cur_rec and cur_rec["w"] + cur_rec["l"] > 0:
+                rows = [m for m in managers if m["name"] == head]
+                latest = max(rows, key=lambda m: m["to"] or 0) if rows else None
+                if latest and (latest["to"] or 0) >= cur_year:
+                    pass   # 維基已涵蓋當季（如味全葉君璋 to=2026）
+                elif latest:
+                    latest["w"] += cur_rec["w"]; latest["l"] += cur_rec["l"]; latest["t"] += cur_rec["t"]
+                    latest["to"] = cur_year
+                    latest["g"] = latest["w"] + latest["l"] + latest["t"]
+                    latest["win_pct"] = (round(latest["w"] / (latest["w"] + latest["l"]), 3)
+                                         if latest["w"] + latest["l"] else None)
+                    latest["source"] = "db"
+                else:   # 現任不在維基歷任表（換帥）→ 新增當季列
+                    managers.append({
+                        "era": managers[-1]["era"] if managers else "", "name": head,
+                        "from": cur_year, "to": cur_year, "w": cur_rec["w"], "l": cur_rec["l"],
+                        "t": cur_rec["t"], "g": cur_rec["w"] + cur_rec["l"] + cur_rec["t"],
+                        "win_pct": (round(cur_rec["w"] / (cur_rec["w"] + cur_rec["l"]), 3)
+                                    if cur_rec["w"] + cur_rec["l"] else None),
+                        "postseason": 0, "championships": 0,
+                        "player_id": mpid.get(head), "source": "db"})
         # 退休背號（維基；球迷/球團 holder_type 非 player → 不附球員連結）
         cur.execute(
             "SELECT number, holder_type, player_id, holder_name, status, note "
