@@ -181,6 +181,33 @@ def _batting_rows(year: int, kind: str) -> list[dict]:
     return [dict(zip(_BAT_COLS, r, strict=False)) for r in rows]
 
 
+# 守位正規化：fielding_current 用中文長名、fielding_seasons 用英文碼 → 統一短名
+_POS_CANON = {
+    "P": "投手", "投手": "投手", "C": "捕手", "捕手": "捕手",
+    "1B": "一壘", "一壘手": "一壘", "2B": "二壘", "二壘手": "二壘",
+    "3B": "三壘", "三壘手": "三壘", "SS": "游擊", "游擊手": "游擊",
+    "LF": "左外野", "左外野手": "左外野", "CF": "中外野", "中外野手": "中外野",
+    "RF": "右外野", "右外野手": "右外野",
+}
+
+
+def _primary_positions(year: int, kind: str) -> dict[str, str]:
+    """每位球員該季主守位（出賽最多者）。當季一軍→fielding_current，其餘→fielding_seasons。"""
+    with conn() as c:
+        if kind == "A" and year == DEFAULT_SEASON:
+            rows = c.execute("SELECT player_id, pos, g FROM cpbl.fielding_current WHERE year=%s", (year,)).fetchall()
+        else:
+            rows = c.execute("SELECT player_id, pos, g FROM cpbl.fielding_seasons WHERE year=%s", (year,)).fetchall()
+    best: dict[str, tuple[str, int]] = {}
+    for pid, pos, g in rows:
+        cp = _POS_CANON.get(pos)
+        if not cp:
+            continue
+        if pid not in best or (g or 0) > best[pid][1]:
+            best[pid] = (cp, g or 0)
+    return {pid: v[0] for pid, v in best.items()}
+
+
 @app.get("/api/v1/records")
 def records(kind_code: str = Query("A")) -> dict:
     """歷史紀錄室：比賽紀錄 + 單季之最 + 生涯排行（一軍；單季/生涯以官方歷年彙總，近兩季另計）。"""
@@ -250,8 +277,10 @@ def batting_leaders(
     kind_code: str = Query("A"),
 ) -> dict:
     """打者排行：當季一軍/歷史/二軍。rate(avg/obp/slg/ops/k%/bb%)統一由原始計數計算。"""
+    pos_map = _primary_positions(season, kind_code)
     items = []
     for r in _batting_rows(season, kind_code):
+        r["pos"] = pos_map.get(r["player_id"])
         ab, h, bb, hbp, sf, tb, pa = (r.get(k) or 0 for k in ("ab", "h", "bb", "hbp", "sf", "tb", "pa"))
         if pa < min_pa:
             continue
