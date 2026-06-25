@@ -441,6 +441,81 @@ def player_batting(player_id: str) -> dict:
     return {"player_id": player_id, "seasons": seasons}
 
 
+@app.get("/api/v1/players/{player_id}/career")
+def player_career(player_id: str) -> dict:
+    """球員生涯：累計成績、最佳單季、里程碑日期、史上排名脈絡（打者）。"""
+    from collections import defaultdict
+    with conn() as c:
+        cur = c.cursor()
+        # 逐年（opendata ≤2024 + 2025/2026 由 gamelog 補；同年多隊加總）
+        cur.execute(
+            "SELECT year, sum(g),sum(pa),sum(ab),sum(h),sum(b2),sum(b3),sum(hr),sum(rbi),sum(sb),"
+            "sum(bb),sum(hbp),sum(sf),sum(tb),sum(so) FROM cpbl.batting_seasons WHERE player_id=%s GROUP BY year",
+            (player_id,))
+        per: dict = {r[0]: list(r[1:]) for r in cur.fetchall()}
+        cur.execute(
+            "SELECT year, count(DISTINCT game_sno),sum(plate_appearances),sum(at_bats),sum(hits),"
+            "sum(doubles),sum(triples),sum(home_runs),sum(rbi),sum(sb),sum(bb),sum(hbp),sum(sac_fly),"
+            "sum(total_bases),sum(so) FROM cpbl.batting_gamelog WHERE hitter_acnt=%s AND kind_code='A' "
+            "AND year>=2025 GROUP BY year", (player_id,))
+        for r in cur.fetchall():
+            per[r[0]] = list(r[1:])  # 2025+ 以 gamelog 為準
+        if not per:
+            return {"player_id": player_id, "batting": None}
+        # 里程碑日期（gamelog 2018+）
+        cur.execute(
+            "SELECT min(g.game_date) FILTER (WHERE bg.hits>0), min(g.game_date) FILTER (WHERE bg.home_runs>0) "
+            "FROM cpbl.batting_gamelog bg JOIN cpbl.games g ON g.year=bg.year AND g.kind_code=bg.kind_code "
+            "AND g.game_sno=bg.game_sno WHERE bg.hitter_acnt=%s", (player_id,))
+        first_h, first_hr = cur.fetchone()
+        # 史上排名脈絡（opendata 生涯累計；近兩季另計）
+        cur.execute(
+            "WITH cr AS (SELECT player_id, sum(hr) hr, sum(h) h, sum(sb) sb FROM cpbl.batting_seasons GROUP BY player_id) "
+            "SELECT (SELECT count(*)+1 FROM cr b WHERE b.hr>a.hr), (SELECT count(*)+1 FROM cr b WHERE b.h>a.h), "
+            "(SELECT count(*)+1 FROM cr b WHERE b.sb>a.sb) FROM cr a WHERE a.player_id=%s", (player_id,))
+        rk = cur.fetchone()
+    keys = ["g", "pa", "ab", "h", "b2", "b3", "hr", "rbi", "sb", "bb", "hbp", "sf", "tb", "so"]
+    tot = defaultdict(int)
+    for vals in per.values():
+        for k, v in zip(keys, vals, strict=False):
+            tot[k] += v or 0
+    ab, h, bb, hbp, sf, tb = (tot[k] for k in ("ab", "h", "bb", "hbp", "sf", "tb"))
+    od = ab + bb + hbp + sf
+    career = {**{k: tot[k] for k in keys},
+              "avg": round(h / ab, 3) if ab else None,
+              "obp": round((h + bb + hbp) / od, 3) if od else None,
+              "slg": round(tb / ab, 3) if ab else None,
+              "ops": round((h + bb + hbp) / od + tb / ab, 3) if ab and od else None,
+              "seasons": len(per)}
+    # 最佳單季：HR/打點/盜壘最多、AVG/OPS 最佳（≥100 打席）
+    def best(idx: int, *, rate: bool = False, minpa: int = 100):
+        cand = [(y, v) for y, v in per.items() if v[idx] is not None and (not rate or (v[1] or 0) >= minpa)]
+        if not cand:
+            return None
+        if rate:  # avg = h/ab, ops 另算
+            return None
+        y, v = max(cand, key=lambda x: x[1][idx])
+        return {"year": y, "value": v[idx]}
+
+    def best_rate(kind: str):
+        out = None
+        for y, v in per.items():
+            ab_, h_, bb_, hbp_, sf_, tb_, pa_ = v[2], v[3], v[9], v[10], v[11], v[12], v[1]
+            if (pa_ or 0) < 100 or not ab_:
+                continue
+            val = (h_ / ab_) if kind == "avg" else ((h_ + bb_ + hbp_) / (ab_ + bb_ + hbp_ + sf_) + tb_ / ab_)
+            if out is None or val > out["value"]:
+                out = {"year": y, "value": round(val, 3)}
+        return out
+    bests = {"hr": best(6), "rbi": best(7), "sb": best(8), "avg": best_rate("avg"), "ops": best_rate("ops")}
+    return {
+        "player_id": player_id, "batting": career, "best": bests,
+        "milestones": {"first_hit": str(first_h) if first_h else None,
+                       "first_hr": str(first_hr) if first_hr else None},
+        "rank": {"hr": rk[0], "h": rk[1], "sb": rk[2]} if rk else None,
+    }
+
+
 @app.get("/api/v1/players/{player_id}/pitching")
 def player_pitching(player_id: str) -> dict:
     """單一球員的逐年投球史（多隊年度合計，ip 以 .1/.2 棒球記法正確換算）。"""

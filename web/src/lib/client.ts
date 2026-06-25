@@ -137,6 +137,13 @@ export const detail = {
     clientGet<{ items: StatRow[] }>(`/api/v1/players/${id}/fielding`),
   career: (id: string, role: "batting" | "pitching") =>
     clientGet<{ seasons: StatRow[] }>(`/api/v1/players/${id}/${role}`),
+  careerStats: (id: string) =>
+    clientGet<{
+      batting: (Record<string, number | null> & { seasons: number }) | null;
+      best: Record<string, { year: number; value: number } | null>;
+      milestones: { first_hit: string | null; first_hr: string | null };
+      rank: { hr: number; h: number; sb: number } | null;
+    }>(`/api/v1/players/${id}/career`),
   advanced: (id: string) =>
     clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/advanced`),
   discipline: (id: string, role: "batting" | "pitching") =>

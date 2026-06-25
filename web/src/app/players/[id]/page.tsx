@@ -295,6 +295,7 @@ export default function PlayerPage() {
   const [fielding, setFielding] = useState<StatRow[] | null>(null);
   const [vsTeam, setVsTeam] = useState<StatRow[] | null>(null);
   const [career, setCareer] = useState<StatRow[] | null>(null);
+  const [careerStats, setCareerStats] = useState<Awaited<ReturnType<typeof detail.careerStats>> | null>(null);
   const [trend, setTrend] = useState<StatRow[] | null>(null);
   const [splits, setSplits] = useState<StatRow[] | null>(null);
   const [monthMetric, setMonthMetric] = useState("ops");
@@ -308,6 +309,7 @@ export default function PlayerPage() {
     detail.season(id).then(setSeason).catch(() => setSeason(null));
     detail.advanced(id).then(setAdvanced).catch(() => setAdvanced(null));
     detail.fielding(id).then((d) => setFielding(d.items)).catch(() => setFielding([]));
+    detail.careerStats(id).then(setCareerStats).catch(() => setCareerStats(null));
   }, [id]);
 
   useEffect(() => {
@@ -455,6 +457,39 @@ export default function PlayerPage() {
           </Card>
         </div>
       </section>
+
+      {/* 生涯成績 + 最佳單季 + 里程碑 + 史上排名（打者）*/}
+      {careerStats?.batting && (() => {
+        const cb = careerStats.batting!;
+        const bs = careerStats.best;
+        const ms = careerStats.milestones;
+        const rk = careerStats.rank;
+        return (
+          <section className="mb-6">
+            <h2 className="mb-1 text-lg font-semibold text-ink">生涯成績</h2>
+            <p className="mb-3 text-[11px] text-faint">一軍例行賽各季合計（近兩季由逐場補；史上排名以官方歷年累計，近兩季另計）。</p>
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+              <StatTile label={`生涯 ${cb.seasons} 季`} value={`${cb.g} 場`} />
+              <StatTile label="安打" value={String(cb.h)} accent />
+              <StatTile label="全壘打" value={String(cb.hr)} accent />
+              <StatTile label="打點" value={String(cb.rbi)} />
+              <StatTile label="盜壘" value={String(cb.sb)} />
+              <StatTile label="打擊率" value={f3(cb.avg)} />
+              <StatTile label="OPS" value={f3(cb.ops)} />
+              {rk && <StatTile label="史上排名" value={`轟#${rk.hr}·安#${rk.h}`} />}
+            </div>
+            <p className="mt-2 text-[11px] text-faint">
+              最佳單季：
+              {bs.ops && `OPS ${f3(bs.ops.value)}(${bs.ops.year})`}
+              {bs.hr && `・全壘打 ${bs.hr.value}(${bs.hr.year})`}
+              {bs.avg && `・打擊率 ${f3(bs.avg.value)}(${bs.avg.year})`}
+              {(ms.first_hit || ms.first_hr) && (
+                <span className="ml-2">｜里程碑：{ms.first_hit && `首安 ${ms.first_hit}`}{ms.first_hr && `・首轟 ${ms.first_hr}`}</span>
+              )}
+            </p>
+          </section>
+        );
+      })()}
 
       {/* 擊球品質與彈道（官方 /rankings 全季進階；非逐球樣本） */}
       {(() => {
