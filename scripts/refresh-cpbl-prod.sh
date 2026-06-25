@@ -77,6 +77,10 @@ sync_table coaches "year,team_code,name" pos uniform_no
 sync_table managers "team_code,era_name,name,from_year" to_year g w l t win_pct postseason championships source
 sync_table overseas "player_id,league,from_year" team source
 sync_table player_awards "player_id,year,category,award" source
+# 維基個人頁補充（所屬球隊/教練/行政、國際賽獎牌、獎項）：一次抓+手動刷新
+sync_table wiki_tenures "player_id,phase,seq" team_raw role from_year to_year source needs_review
+sync_table wiki_medals "player_id,seq" color competition event year source
+sync_table wiki_awards "player_id,seq" award note years source
 sync_table team_standings "year,kind_code,season_code,team_code" \
   team_name rank g w t l win_pct gb elim home_record away_record streak last10 h2h
 

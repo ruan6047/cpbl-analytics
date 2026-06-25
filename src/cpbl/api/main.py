@@ -638,6 +638,20 @@ def player_career(player_id: str) -> dict:
             "SELECT year, category, award FROM cpbl.player_awards WHERE player_id=%s ORDER BY year",
             (player_id,))
         awards = [{"year": y, "category": cat, "award": aw} for y, cat, aw in cur.fetchall()]
+        # 維基補充：教練經歷（球團職務）+ 國際賽獎牌
+        cur.execute(
+            "SELECT phase, team_raw, role, from_year, to_year FROM cpbl.wiki_tenures "
+            "WHERE player_id=%s AND phase IN ('coach','other') ORDER BY seq", (player_id,))
+        _tn = cur.fetchall()
+        coach_tenures = [{"team": tm, "role": ro, "from": fr, "to": to}
+                         for ph, tm, ro, fr, to in _tn if ph == "coach"]
+        exec_tenures = [{"team": tm, "role": ro, "from": fr, "to": to}
+                        for ph, tm, ro, fr, to in _tn if ph == "other"]
+        cur.execute(
+            "SELECT color, competition, event, year FROM cpbl.wiki_medals "
+            "WHERE player_id=%s ORDER BY year NULLS LAST, seq", (player_id,))
+        medals = [{"color": co, "competition": cp, "event": ev, "year": yr}
+                  for co, cp, ev, yr in cur.fetchall()]
         # 逐年（opendata ≤2024 + 2025/2026 由 gamelog 補；同年多隊加總）
         cur.execute(
             "SELECT year, sum(g),sum(pa),sum(ab),sum(h),sum(b2),sum(b3),sum(hr),sum(rbi),sum(sb),"
@@ -653,7 +667,8 @@ def player_career(player_id: str) -> dict:
             per[r[0]] = list(r[1:])  # 2025+ 以 gamelog 為準
         if not per:
             return {"player_id": player_id, "batting": None, "teams": teams,
-                    "overseas": overseas, "awards": awards}
+                    "overseas": overseas, "awards": awards,
+                    "coach_tenures": coach_tenures, "exec_tenures": exec_tenures, "medals": medals}
         # 里程碑日期（gamelog 2018+）
         cur.execute(
             "SELECT min(g.game_date) FILTER (WHERE bg.hits>0), min(g.game_date) FILTER (WHERE bg.home_runs>0) "
@@ -703,6 +718,7 @@ def player_career(player_id: str) -> dict:
     return {
         "player_id": player_id, "batting": career, "best": bests, "teams": teams,
         "overseas": overseas, "awards": awards,
+        "coach_tenures": coach_tenures, "exec_tenures": exec_tenures, "medals": medals,
         "milestones": {"first_hit": str(first_h) if first_h else None,
                        "first_hr": str(first_hr) if first_hr else None},
         "rank": {"hr": rk[0], "h": rk[1], "sb": rk[2]} if rk else None,

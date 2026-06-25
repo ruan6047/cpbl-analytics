@@ -32,6 +32,42 @@ const IMPORT_BADGE: Record<string, { color: string; hint: string }> = {
   loree: { color: "#0F766E", hint: "羅力條款：在台累積球季並申請，視為本土洋將，不占洋將名額" },
   nagata: { color: "#7C3AED", hint: "永田條款：循台灣學生棒球體系選秀進入職棒，視同本土選手" },
 };
+
+// hero 內「教練／行政」所屬隊伍列：依隊聚合年份、職稱進 tooltip（比照球員所屬隊伍）
+type Tenure = { team: string; role: string | null; from: number | null; to: number | null };
+function TenureChips({ label, tenures }: { label: string; tenures: Tenure[] }) {
+  const agg = new Map<string, { team: string; from: number | null; to: number | null; roles: Set<string>; ongoing: boolean }>();
+  for (const t of tenures) {
+    const g = agg.get(t.team) ?? { team: t.team, from: t.from, to: t.to, roles: new Set<string>(), ongoing: false };
+    if (t.from != null) g.from = g.from == null ? t.from : Math.min(g.from, t.from);
+    if (t.to == null && t.from != null) g.ongoing = true;
+    else if (t.to != null) g.to = g.to == null ? t.to : Math.max(g.to, t.to);
+    if (t.role) g.roles.add(t.role);
+    agg.set(t.team, g);
+  }
+  const list = [...agg.values()].sort((a, b) => (a.from ?? 9999) - (b.from ?? 9999));
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      <span className="text-[11px] text-faint">{label}</span>
+      {list.map((t) => {
+        const b = eraBadge(t.team, codeFromName(t.team) ?? "");
+        const yr = t.from == null ? "" : t.ongoing ? `'${String(t.from).slice(2)}–`
+          : t.from === t.to ? `'${String(t.from).slice(2)}`
+          : `'${String(t.from).slice(2)}–'${String(t.to).slice(2)}`;
+        return (
+          <span key={t.team}
+            className="inline-flex items-center gap-1 rounded-full py-0.5 pl-0.5 pr-2 text-[11px] font-medium"
+            style={{ background: `${b.color}1a`, color: b.color }}
+            title={`${t.team} ${label}${t.roles.size ? `（${[...t.roles].join("、")}）` : ""}`}>
+            <LetterBadge meta={b} round />
+            {t.team}
+            {yr && <span className="font-mono tabular-nums opacity-70">{yr}</span>}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
 const n0 = (v: number | string | null | undefined) => (v === null || v === undefined ? "—" : String(v));
 const f3 = (v: number | string | null | undefined) => {
   const x = numOf(v);
@@ -421,6 +457,12 @@ export default function PlayerPage() {
                   })}
                 </div>
               )}
+              {careerStats?.coach_tenures && careerStats.coach_tenures.length > 0 && (
+                <TenureChips label="教練" tenures={careerStats.coach_tenures} />
+              )}
+              {careerStats?.exec_tenures && careerStats.exec_tenures.length > 0 && (
+                <TenureChips label="行政" tenures={careerStats.exec_tenures} />
+              )}
               {careerStats?.overseas && careerStats.overseas.length > 0 && (
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
                   <span className="text-faint">旅外</span>
@@ -499,6 +541,28 @@ export default function PlayerPage() {
               ))}
             </div>
             <p className="mt-2 text-[11px] text-faint">中華職棒官方年度獎項（打擊/投手/金手套/最佳十人/其他，1990 起）。</p>
+          </section>
+        );
+      })()}
+
+      {/* 國際賽（維基 medaltemplates 獎牌） */}
+      {careerStats?.medals && careerStats.medals.length > 0 && (() => {
+        const MC: Record<string, string> = { 金: "#E6B422", 銀: "#9AA3AF", 銅: "#B0703C" };
+        return (
+          <section className="mb-6">
+            <h2 className="mb-3 text-lg font-semibold text-ink">國際賽</h2>
+            <div className="flex flex-wrap gap-2">
+              {careerStats.medals.map((m, i) => (
+                <span key={`${m.competition}-${m.year}-${i}`}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm">
+                  <span className="grid h-5 w-5 place-items-center rounded-full text-[11px] font-bold text-white"
+                    style={{ background: MC[m.color] ?? "#7C8696" }}>{m.color}</span>
+                  <span className="font-medium text-ink">{m.competition}</span>
+                  {m.year && <span className="font-mono text-[11px] text-faint">'{String(m.year).slice(2)}</span>}
+                </span>
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] text-faint">資料來源：維基百科國際賽獎牌欄。</p>
           </section>
         );
       })()}

@@ -163,6 +163,9 @@ export const detail = {
       teams?: { code: string; name: string; from: number; to: number }[];
       overseas?: { league: string; team: string | null; year: number }[];
       awards?: { year: number; category: string; award: string }[];
+      coach_tenures?: { team: string; role: string | null; from: number | null; to: number | null }[];
+      exec_tenures?: { team: string; role: string | null; from: number | null; to: number | null }[];
+      medals?: { color: string; competition: string | null; event: string | null; year: number | null }[];
     }>(`/api/v1/players/${id}/career`),
   advanced: (id: string) =>
     clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/advanced`),
