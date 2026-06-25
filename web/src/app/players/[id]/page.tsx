@@ -405,7 +405,24 @@ export default function PlayerPage() {
   if (profile.is_batter) roles.push({ v: "batting", label: "打擊" });
   if (profile.is_pitcher) roles.push({ v: "pitching", label: "投球" });
   const s = season ? (role === "batting" ? season.batting : season.pitching) : null;
-  const tc = codeFromName(profile.team);
+  // hero 隊伍：本季球員登錄隊 > 進行中執教隊（教練 tenure 未結束）> 生涯主隊（年資最長）
+  const ongoingCoach = careerStats?.coach_tenures?.find((t) => t.to == null) ?? null;
+  const primaryTeam = (careerStats?.teams ?? []).length
+    ? [...(careerStats?.teams ?? [])].sort((a, b) => (b.to - b.from) - (a.to - a.from))[0]
+    : null;
+  const heroName = profile.team ?? ongoingCoach?.team ?? primaryTeam?.name ?? null;
+  const tc = profile.team ? codeFromName(profile.team)
+    : ongoingCoach ? codeFromName(ongoingCoach.team)
+    : (primaryTeam?.code ?? null);
+  // 逐球追蹤是否有資料（無則整段隱藏；載入中仍顯示避免閃爍）
+  const trackingReady = disc !== null && arsenal !== null;
+  const hasTracking = !!(
+    (disc && (disc.points.length || disc.spray.length || disc.batted.length || disc.summary.swing_pct != null)) ||
+    (arsenal && arsenal.length)
+  );
+  const showTracking = !trackingReady || hasTracking;
+  // 賽季走勢/對戰各隊：退役球員兩者皆空 → 隱藏（載入中仍顯示）
+  const showTrendVs = trend === null || vsTeam === null || monthData.length > 0 || (vsTeam?.length ?? 0) > 0;
 
   return (
     <div>
@@ -434,7 +451,8 @@ export default function PlayerPage() {
                 <p className="mt-0.5 text-[11px] text-faint">曾用名：{profile.former_names.join("、")}</p>
               )}
               <p className="mt-1 text-sm text-muted">
-                {profile.team}
+                {heroName}
+                {!profile.team && ongoingCoach && <span className="ml-1 text-faint">（教練）</span>}
                 {profile.bats && <span className="ml-3">打 {profile.bats}</span>}
                 {profile.throws && <span className="ml-2">投 {profile.throws}</span>}
               </p>
@@ -501,12 +519,12 @@ export default function PlayerPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             {ability?.batting?.available && (
               <div className="rounded-xl border border-line bg-surface p-4">
-                <AbilityCard card={ability.batting} title="打者" color={teamColor(codeFromName(profile.team)) || "#1B4DA1"} />
+                <AbilityCard card={ability.batting} title="打者" color={teamColor(tc) || "#1B4DA1"} />
               </div>
             )}
             {ability?.pitching?.available && (
               <div className="rounded-xl border border-line bg-surface p-4">
-                <AbilityCard card={ability.pitching} title="投手" color={teamColor(codeFromName(profile.team)) || "#15543C"} />
+                <AbilityCard card={ability.pitching} title="投手" color={teamColor(tc) || "#15543C"} />
               </div>
             )}
           </div>
@@ -698,7 +716,8 @@ export default function PlayerPage() {
         );
       })()}
 
-      {/* 擊球落點 + 進壘點（左 2/3 放大） + 好球帶紀律（右側直欄） */}
+      {/* 擊球落點 + 進壘點（左 2/3 放大） + 好球帶紀律（右側直欄）。無逐球資料則整段隱藏 */}
+      {showTracking && (
       <section className="mb-6">
         <h2 className="mb-3 text-lg font-semibold text-ink">逐球追蹤</h2>
         <div className="grid items-stretch gap-6 lg:grid-cols-3">
@@ -792,6 +811,7 @@ export default function PlayerPage() {
         </div>
         </div>
       </section>
+      )}
 
       {/* 打者：擊球品質散點 / 投手：配球傾向 */}
       {role === "batting" ? (
@@ -834,7 +854,8 @@ export default function PlayerPage() {
         )
       )}
 
-      {/* 賽季走勢（逐場累積）+ 對戰各隊 */}
+      {/* 賽季走勢（逐場累積）+ 對戰各隊。兩者皆空（退役球員）則隱藏 */}
+      {showTrendVs && (
       <section className="mb-6">
         <h2 className="mb-3 text-lg font-semibold text-ink">賽季走勢 · 對戰各隊</h2>
         <div className="grid items-stretch gap-6 lg:grid-cols-2">
@@ -868,6 +889,7 @@ export default function PlayerPage() {
           </Card>
         </div>
       </section>
+      )}
 
       {/* 守備 */}
       {fielding && fielding.length > 0 && (() => {
