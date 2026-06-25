@@ -172,8 +172,8 @@ export const detail = {
   abilityCard: (id: string) =>
     clientGet<{
       player_id: string;
-      batting: import("@/components/ability-card").Card;
-      pitching: import("@/components/ability-card").Card;
+      batting: { career: import("@/components/ability-card").Card; season: import("@/components/ability-card").Card };
+      pitching: { career: import("@/components/ability-card").Card; season: import("@/components/ability-card").Card };
     }>(`/api/v1/players/${id}/ability-card`),
   discipline: (id: string, role: "batting" | "pitching") =>
     clientGet<{

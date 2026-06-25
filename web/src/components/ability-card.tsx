@@ -11,15 +11,14 @@ import { contrastText } from "@/lib/teams";
 
 // 能力值卡：以全史生涯 rate 的全聯盟百分位 [PR] 畫遊戲風雷達 + 等級條。
 // 資料皆我們自算的客觀指標，等級 S–G 純由 PR 換算（非抄遊戲數值）。
-export type Axis = { key: string; label: string; fmt: string; source: string; value: number | null; pr: number; grade: string };
-export type Card = { available: boolean; role: string; axes?: Axis[]; overall?: { pr: number; grade: string } };
+export type Axis = { key: string; label: string; fmt: string; source: string; value: number | null; pr: number | null; grade: string | null };
+export type Card = { available: boolean; role: string; scope?: string; axes?: Axis[]; overall?: { pr: number; grade: string } };
 
 function fmtVal(fmt: string, v: number | null): string {
   if (v === null) return "—";
-  if (fmt === "avg" || fmt === "ops" || fmt === "iso") return v.toFixed(3).replace(/^0\./, ".");
+  if (fmt === "f3") return v.toFixed(3).replace(/^0\./, ".");
   if (fmt === "pct") return `${(v * 100).toFixed(0)}%`;
-  if (fmt === "int") return v.toFixed(0);
-  return v.toFixed(2); // rate（K9 / BB9 / ERA / IP per G）
+  return v.toFixed(2); // f2（K9 / BB9 / ERA / IP per G / 速度）
 }
 
 // 遊戲感分段等級色（パワプロ 風）：S金 A紅 B橘 C黃 D綠 E青 F/G灰。
@@ -29,8 +28,9 @@ const GRADE_COLOR: Record<string, string> = {
 };
 const gradeColor = (grade: string) => GRADE_COLOR[grade] ?? "#9AA3AF";
 
-export function GradeChip({ grade }: { grade: string }) {
-  const bg = gradeColor(grade);
+export function GradeChip({ grade }: { grade: string | null }) {
+  const bg = gradeColor(grade ?? "G");
+  if (!grade) return <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[11px] text-faint">—</span>;
   return (
     <span
       className="inline-flex h-5 w-5 items-center justify-center rounded text-[11px] font-extrabold"
@@ -54,7 +54,7 @@ export function AbilityCard({
   compact?: boolean;
 }) {
   if (!card?.available || !card.axes) return null;
-  const data = card.axes.map((a) => ({ axis: a.label, pr: a.pr }));
+  const data = card.axes.map((a) => ({ axis: a.label, pr: a.pr ?? 0 }));
   return (
     <div>
       {title && (
@@ -88,7 +88,7 @@ export function AbilityCard({
                   {a.label}
                 </span>
                 <div className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-surface-2">
-                  <div className="h-full rounded-full" style={{ width: `${a.pr}%`, background: gradeColor(a.grade) }} />
+                  <div className="h-full rounded-full" style={{ width: `${a.pr ?? 0}%`, background: gradeColor(a.grade ?? "G") }} />
                 </div>
                 <GradeChip grade={a.grade} />
                 <span className="w-20 shrink-0 text-right font-mono tabular-nums text-faint">
@@ -122,7 +122,7 @@ export function AbilityRadarVS({
   if (!home?.available || !away?.available || !home.axes) return null;
   const data = home.axes.map((a, i) => ({
     axis: a.label,
-    home: a.pr,
+    home: a.pr ?? 0,
     away: away.axes?.[i]?.pr ?? 0,
   }));
   return (

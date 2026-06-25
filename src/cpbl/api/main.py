@@ -1172,63 +1172,84 @@ def _grade(pr: float) -> str:
     return "G"
 
 
-# 每個角色的軸定義：(key, 中文標, 顯示格式, 來源指標說明)。PR/value 由 SQL 算好後對位。
+# 軸定義：(key, 中文標, 顯示格式, 來源指標說明)。順序＝SQL 輸出順序。
 _ABILITY_AXES = {
     "batting": [
-        ("contact", "接觸", "avg", "打擊率 AVG"),
-        ("power", "力量", "iso", "純長打率 ISO"),
+        ("contact", "接觸", "f3", "打擊率 AVG"),
+        ("power", "力量", "f3", "純長打率 ISO"),
         ("eye", "選球", "pct", "保送率 BB%"),
-        ("overall", "破壞力", "ops", "整體攻擊 OPS"),
-        ("speed", "速度", "int", "生涯盜壘 SB"),
+        ("speed", "速度", "f2", "每場盜壘＋三壘打 (SB+3B)/G"),
+        ("defense", "守備", "f3", "守備率 FPCT（po+a)/(po+a+e)"),
+        ("overall", "破壞力", "f3", "整體攻擊 OPS"),
     ],
     "pitching": [
-        ("k", "三振", "rate", "每9局三振 K/9"),
-        ("control", "控球", "rate", "每9局保送 BB/9（越低越好）"),
-        ("hr_suppress", "抑長打", "rate", "每9局被全壘打 HR/9（越低越好）"),
-        ("command", "壓制", "rate", "防禦率 ERA（越低越好）"),
-        ("stamina", "續航", "rate", "每場投球局數 IP/G"),
+        ("k", "三振", "f2", "每9局三振 K/9"),
+        ("control", "控球", "f2", "每9局保送 BB/9（越低越好）"),
+        ("hr_suppress", "抑長打", "f2", "每9局被全壘打 HR/9（越低越好）"),
+        ("command", "壓制", "f2", "防禦率 ERA（越低越好）"),
+        ("stamina", "續航", "f2", "每場投球局數 IP/G"),
     ],
 }
 
-_ABILITY_SQL = {
-    # 打者：生涯彙總（AB≥300）→ rate → percent_rank。速度用生涯盜壘數。
-    "batting": """
-        WITH career AS (
-            SELECT player_id, sum(ab) ab, sum(h) h, sum(b2) b2, sum(b3) b3, sum(hr) hr,
-                   sum(bb) bb, sum(hbp) hbp, sum(sf) sf, sum(pa) pa, sum(sb) sb
-            FROM cpbl.batting_seasons GROUP BY player_id HAVING sum(ab) >= 300
-        ), rate AS (
-            SELECT player_id,
-                h::float/ab AS contact,
-                (b2 + 2*b3 + 3*hr)::float/ab AS power,
-                bb::float/NULLIF(pa,0) AS eye,
-                (h+bb+hbp)::float/NULLIF(ab+bb+hbp+sf,0) + (h+b2+2*b3+3*hr)::float/ab AS overall,
-                sb::float AS speed
-            FROM career
+# 門檻：生涯較嚴、本季較鬆（本季賽程未過半）。
+_ABILITY_MIN = {"batting": {"career": 300, "season": 50}, "pitching": {"career": 100, "season": 20}}
+
+
+def _bat_ability_sql(scope: str) -> str:
+    """打者能力 SQL：career=逐年彙總(AB≥300)，season=本季(AB≥50)。守備加入。"""
+    if scope == "career":
+        base = ("SELECT player_id, sum(ab) ab, sum(h) h, sum(b2) b2, sum(b3) b3, sum(hr) hr,"
+                " sum(bb) bb, sum(hbp) hbp, sum(sf) sf, sum(pa) pa, sum(sb) sb, sum(g) g"
+                " FROM cpbl.batting_seasons GROUP BY player_id HAVING sum(ab) >= %(min)s")
+        fld = ("SELECT player_id, sum(po) po, sum(a) a, sum(e) e"
+               " FROM cpbl.fielding_seasons GROUP BY player_id")
+    else:
+        base = ("SELECT player_id, ab, h, b2, b3, hr, bb, hbp, sf, pa, sb, g"
+                " FROM cpbl.batting_current WHERE year=%(yr)s AND ab >= %(min)s")
+        fld = ("SELECT player_id, sum(po) po, sum(a) a, sum(e) e"
+               " FROM cpbl.fielding_current WHERE year=%(yr)s GROUP BY player_id")
+    return f"""
+        WITH base AS ({base}), fld AS ({fld}),
+        rate AS (
+            SELECT b.player_id,
+                h::float/NULLIF(ab,0) contact,
+                (b2+2*b3+3*hr)::float/NULLIF(ab,0) power,
+                bb::float/NULLIF(pa,0) eye,
+                (sb+b3)::float/NULLIF(g,0) speed,
+                (f.po+f.a)::float/NULLIF(f.po+f.a+f.e,0) defense,
+                (h+bb+hbp)::float/NULLIF(ab+bb+hbp+sf,0)+(h+b2+2*b3+3*hr)::float/NULLIF(ab,0) overall
+            FROM base b LEFT JOIN fld f USING (player_id)
         ), pr AS (
-            SELECT player_id, contact, power, eye, overall, speed,
+            SELECT player_id, contact, power, eye, speed, defense, overall,
                 percent_rank() OVER (ORDER BY contact) contact_pr,
                 percent_rank() OVER (ORDER BY power) power_pr,
                 percent_rank() OVER (ORDER BY eye) eye_pr,
-                percent_rank() OVER (ORDER BY overall) overall_pr,
-                percent_rank() OVER (ORDER BY speed) speed_pr
+                percent_rank() OVER (ORDER BY speed) speed_pr,
+                percent_rank() OVER (ORDER BY defense) defense_pr,
+                percent_rank() OVER (ORDER BY overall) overall_pr
             FROM rate
-        ) SELECT contact, power, eye, overall, speed,
-                 contact_pr, power_pr, eye_pr, overall_pr, speed_pr FROM pr WHERE player_id = %s
-    """,
-    # 投手：生涯彙總（真實局數 IP≥100）→ rate → percent_rank。越低越好者 ORDER BY DESC 反轉。
-    "pitching": """
-        WITH career AS (
-            SELECT player_id,
-                   sum(floor(ip) + (ip - floor(ip))*10/3.0) AS ip,
-                   sum(so) so, sum(bb) bb, sum(hr) hr, sum(er) er, sum(g) g
-            FROM cpbl.pitching_seasons GROUP BY player_id
-            HAVING sum(floor(ip) + (ip - floor(ip))*10/3.0) >= 100
-        ), rate AS (
-            SELECT player_id,
-                so*9.0/ip AS k, bb*9.0/ip AS control, hr*9.0/ip AS hr_suppress,
-                er*9.0/ip AS command, ip/NULLIF(g,0) AS stamina
-            FROM career
+        ) SELECT contact, power, eye, speed, defense, overall,
+                 contact_pr, power_pr, eye_pr, speed_pr, defense_pr, overall_pr
+          FROM pr WHERE player_id = %(pid)s
+    """
+
+
+def _pit_ability_sql(scope: str) -> str:
+    """投手能力 SQL：career=逐年彙總(IP≥100)，season=本季(IP≥20)。越低越好者 DESC 反轉。"""
+    ip_expr = "floor(ip) + (ip - floor(ip))*10/3.0"
+    if scope == "career":
+        base = (f"SELECT player_id, sum({ip_expr}) ip, sum(so) so, sum(bb) bb, sum(hr) hr,"
+                " sum(er) er, sum(g) g FROM cpbl.pitching_seasons GROUP BY player_id"
+                f" HAVING sum({ip_expr}) >= %(min)s")
+    else:
+        base = (f"SELECT player_id, ({ip_expr}) ip, so, bb, hr, er, g"
+                f" FROM cpbl.pitching_current WHERE year=%(yr)s AND ({ip_expr}) >= %(min)s")
+    return f"""
+        WITH base AS ({base}),
+        rate AS (
+            SELECT player_id, so*9.0/NULLIF(ip,0) k, bb*9.0/NULLIF(ip,0) control,
+                hr*9.0/NULLIF(ip,0) hr_suppress, er*9.0/NULLIF(ip,0) command, ip/NULLIF(g,0) stamina
+            FROM base
         ), pr AS (
             SELECT player_id, k, control, hr_suppress, command, stamina,
                 percent_rank() OVER (ORDER BY k) k_pr,
@@ -1238,42 +1259,43 @@ _ABILITY_SQL = {
                 percent_rank() OVER (ORDER BY stamina) stamina_pr
             FROM rate
         ) SELECT k, control, hr_suppress, command, stamina,
-                 k_pr, control_pr, hr_suppress_pr, command_pr, stamina_pr FROM pr WHERE player_id = %s
-    """,
-}
+                 k_pr, control_pr, hr_suppress_pr, command_pr, stamina_pr
+          FROM pr WHERE player_id = %(pid)s
+    """
 
 
-def _ability_card(cur, player_id: str, role: str) -> dict:
+def _ability_card(cur, player_id: str, role: str, scope: str, year: int) -> dict:
     axes_def = _ABILITY_AXES[role]
-    cur.execute(_ABILITY_SQL[role], (player_id,))
+    sql = _bat_ability_sql(scope) if role == "batting" else _pit_ability_sql(scope)
+    cur.execute(sql, {"pid": player_id, "yr": year, "min": _ABILITY_MIN[role][scope]})
     row = cur.fetchone()
     if not row:
-        return {"available": False, "role": role}
+        return {"available": False, "role": role, "scope": scope}
     n = len(axes_def)
-    values = row[:n]
-    prs = row[n:]
+    values, prs = row[:n], row[n:]
     axes = []
     for (key, label, fmt, source), val, pr in zip(axes_def, values, prs, strict=True):
-        p = round(float(pr) * 100)
+        # 守備等可能無資料（DH/無守備紀錄）→ value None 則該軸不評（pr 也設 None）。
+        p = None if val is None else round(float(pr) * 100)
         axes.append({"key": key, "label": label, "fmt": fmt, "source": source,
                      "value": round(float(val), 3) if val is not None else None,
-                     "pr": p, "grade": _grade(p)})
-    overall = round(sum(a["pr"] for a in axes) / len(axes))
-    return {"available": True, "role": role, "axes": axes,
+                     "pr": p, "grade": _grade(p) if p is not None else None})
+    rated = [a["pr"] for a in axes if a["pr"] is not None]
+    overall = round(sum(rated) / len(rated)) if rated else 0
+    return {"available": True, "role": role, "scope": scope, "axes": axes,
             "overall": {"pr": overall, "grade": _grade(overall)}}
 
 
 @app.get("/api/v1/players/{player_id}/ability-card")
-def player_ability_card(player_id: str) -> dict:
-    """遊戲風能力值卡：依球員身分回打者/投手雷達（生涯 rate 的全聯盟百分位）。"""
-    # 兩種都算（SQL 已自帶 AB≥300 / IP≥100 門檻，不合格者回 available=False）。
+def player_ability_card(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
+    """遊戲風能力值卡：打者/投手雷達，含生涯與本季兩種尺度（rate 的全聯盟百分位）。"""
     with conn() as c:
         cur = c.cursor()
-        return {
-            "player_id": player_id,
-            "batting": _ability_card(cur, player_id, "batting"),
-            "pitching": _ability_card(cur, player_id, "pitching"),
-        }
+        out: dict = {"player_id": player_id}
+        for role in ("batting", "pitching"):
+            out[role] = {"career": _ability_card(cur, player_id, role, "career", season),
+                         "season": _ability_card(cur, player_id, role, "season", season)}
+        return out
 
 
 @app.get("/api/v1/players/{player_id}/advanced")

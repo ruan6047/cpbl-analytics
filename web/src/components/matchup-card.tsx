@@ -37,7 +37,7 @@ export function MatchupCard({
   useEffect(() => {
     if (!open || !homePid || !awayPid || cards.home || cards.away) return;
     Promise.all([detail.abilityCard(homePid), detail.abilityCard(awayPid)])
-      .then(([h, a]) => setCards({ home: h.pitching, away: a.pitching }))
+      .then(([h, a]) => setCards({ home: h.pitching.career, away: a.pitching.career }))
       .catch(() => {});
   }, [open, homePid, awayPid, cards.home, cards.away]);
   const showRadar = cards.home?.available && cards.away?.available;

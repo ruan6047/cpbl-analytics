@@ -342,6 +342,7 @@ export default function PlayerPage() {
   const [career, setCareer] = useState<StatRow[] | null>(null);
   const [careerStats, setCareerStats] = useState<Awaited<ReturnType<typeof detail.careerStats>> | null>(null);
   const [ability, setAbility] = useState<Awaited<ReturnType<typeof detail.abilityCard>> | null>(null);
+  const [abScope, setAbScope] = useState<"season" | "career">("season");
   const [trend, setTrend] = useState<StatRow[] | null>(null);
   const [splits, setSplits] = useState<StatRow[] | null>(null);
   const [monthMetric, setMonthMetric] = useState("ops");
@@ -511,29 +512,46 @@ export default function PlayerPage() {
 
       {roles.length > 1 && <div className="mb-5"><Tabs opts={roles} v={role} set={setRole} /></div>}
 
-      {/* 能力值卡（遊戲風雷達：生涯 rate 的全聯盟百分位）。獨立於本季 role tab，
-          故 OB/退役球員（無本季成績）仍可顯示生涯能力卡。*/}
-      {(ability?.batting?.available || ability?.pitching?.available) && (
-        <section className="mb-6">
-          <h2 className="mb-3 text-lg font-semibold text-ink">能力值卡</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {ability?.batting?.available && (
-              <div className="rounded-xl border border-line bg-surface p-4">
-                <AbilityCard card={ability.batting} title="打者" color={teamColor(tc) || "#1B4DA1"} />
-              </div>
-            )}
-            {ability?.pitching?.available && (
-              <div className="rounded-xl border border-line bg-surface p-4">
-                <AbilityCard card={ability.pitching} title="投手" color={teamColor(tc) || "#15543C"} />
-              </div>
-            )}
-          </div>
-          <p className="mt-2 text-[11px] text-faint">
-            各軸為生涯 rate 相對全聯盟合格球員（打者 AB≥300 / 投手 IP≥100）的百分位 [PR]；
-            等級 S–G 由 PR 換算，皆本站自算客觀指標，非遊戲數值。
-          </p>
-        </section>
-      )}
+      {/* 能力值卡（遊戲風雷達：rate 的全聯盟百分位）。本季/生涯可切換；獨立於 role tab，
+          OB/退役球員仍可看生涯卡。含守備軸；速度＝每場盜壘＋三壘打 rate。*/}
+      {(() => {
+        const scopeAvail = (sc: "season" | "career") =>
+          !!(ability?.batting?.[sc]?.available || ability?.pitching?.[sc]?.available);
+        if (!scopeAvail("season") && !scopeAvail("career")) return null;
+        const eff = scopeAvail(abScope) ? abScope : scopeAvail("season") ? "season" : "career";
+        const bat = ability?.batting?.[eff];
+        const pit = ability?.pitching?.[eff];
+        const opts = ([["season", "本季"], ["career", "生涯"]] as const).filter(([v]) => scopeAvail(v));
+        const min = eff === "season"
+          ? "打者 AB≥50 / 投手 IP≥20，相對全聯盟本季合格球員"
+          : "打者 AB≥300 / 投手 IP≥100，相對全聯盟歷史合格球員";
+        return (
+          <section className="mb-6">
+            <div className="mb-3 flex flex-wrap items-center gap-3">
+              <h2 className="text-lg font-semibold text-ink">能力值卡</h2>
+              {opts.length > 1 && (
+                <Tabs opts={opts.map(([v, label]) => ({ v, label }))} v={eff} set={setAbScope} />
+              )}
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {bat?.available && (
+                <div className="rounded-xl border border-line bg-surface p-4">
+                  <AbilityCard card={bat} title="打者" color={teamColor(tc) || "#1B4DA1"} />
+                </div>
+              )}
+              {pit?.available && (
+                <div className="rounded-xl border border-line bg-surface p-4">
+                  <AbilityCard card={pit} title="投手" color={teamColor(tc) || "#15543C"} />
+                </div>
+              )}
+            </div>
+            <p className="mt-2 text-[11px] text-faint">
+              各軸為 {eff === "season" ? "本季" : "生涯"} rate 的百分位 [PR]（{min}）；守備＝守備率 FPCT、
+              速度＝每場盜壘＋三壘打；等級 S–G 由 PR 換算，皆本站自算客觀指標，非遊戲數值。
+            </p>
+          </section>
+        );
+      })()}
 
       {/* 得獎紀錄（官網年度獎項；依獎項彙整年份）*/}
       {careerStats?.awards && careerStats.awards.length > 0 && (() => {
