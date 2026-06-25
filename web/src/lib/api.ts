@@ -214,6 +214,14 @@ export const api = {
     get<GamesRecentResponse>(`/api/v1/games/recent?limit=${limit}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 120),
   standings: (season?: number) =>
     get<StandingsResponse>(`/api/v1/season/standings${season ? `?season=${season}` : ""}`),
+  records: () =>
+    get<{
+      games: Record<"max_margin" | "max_team_runs" | "max_combined", { year: number; date: string; home: string; away: string; hs: number; as: number } | null>;
+      season_batting: Record<string, { name: string; year: number; val: number | string }[]>;
+      season_pitching: Record<string, { name: string; year: number; val: number }[]>;
+      career_batting: Record<string, { name: string; val: number }[]>;
+      career_pitching: Record<string, { name: string; val: number }[]>;
+    }>("/api/v1/records", 600),
   // 排行榜改由前端點欄位排序/隊伍篩選，故抓全名單（低門檻、大 limit）。
   // revalidate=60：資料隨爬蟲更新，縮短快取避免欄位/數值過時。
   battingLeaders: (sort = "ops", { limit = 400, minPa = 0, year, kind = "A" }: { limit?: number; minPa?: number; year?: number; kind?: string } = {}) =>

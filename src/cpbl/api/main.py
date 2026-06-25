@@ -181,6 +181,61 @@ def _batting_rows(year: int, kind: str) -> list[dict]:
     return [dict(zip(_BAT_COLS, r, strict=False)) for r in rows]
 
 
+@app.get("/api/v1/records")
+def records(kind_code: str = Query("A")) -> dict:
+    """歷史紀錄室：比賽紀錄 + 單季之最 + 生涯排行（一軍；單季/生涯以官方歷年彙總，近兩季另計）。"""
+    with conn() as c:
+        cur = c.cursor()
+
+        def game_rec(order: str) -> dict | None:
+            cur.execute(
+                f"SELECT year, game_date, home_team_name, away_team_name, home_score, away_score "
+                f"FROM cpbl.games WHERE kind_code=%s AND home_score+away_score>0 ORDER BY {order} LIMIT 1",
+                (kind_code,))
+            r = cur.fetchone()
+            if not r:
+                return None
+            return {"year": r[0], "date": str(r[1]), "home": r[2], "away": r[3], "hs": r[4], "as": r[5]}
+
+        games = {
+            "max_margin": game_rec("abs(home_score-away_score) DESC, game_date"),
+            "max_team_runs": game_rec("greatest(home_score,away_score) DESC, game_date"),
+            "max_combined": game_rec("home_score+away_score DESC, game_date"),
+        }
+
+        def top(sql: str, n: int = 1) -> list[dict]:
+            cur.execute(sql)
+            cols = [d[0] for d in cur.description]
+            return [dict(zip(cols, r, strict=False)) for r in cur.fetchall()[:n]]
+
+        ssb = ("WITH s AS (SELECT player_id, year, sum(hr) hr, sum(h) h, sum(rbi) rbi, sum(sb) sb, "
+               "sum(ab) ab, sum(pa) pa, sum(tb) tb, sum(bb) bb, sum(hbp) hbp, sum(sf) sf "
+               "FROM cpbl.batting_seasons GROUP BY player_id, year) "
+               "SELECT p.name, s.year, {expr} val FROM s JOIN cpbl.players p ON p.id=s.player_id "
+               "{where} ORDER BY val DESC LIMIT 1")
+        season_bat = {
+            "hr": top(ssb.format(expr="s.hr", where="")),
+            "rbi": top(ssb.format(expr="s.rbi", where="")),
+            "sb": top(ssb.format(expr="s.sb", where="")),
+            "avg": top(ssb.format(expr="round(s.h::numeric/nullif(s.ab,0),3)", where="WHERE s.pa>=400")),
+        }
+        ssp = ("WITH s AS (SELECT player_id, year, sum(w) w, sum(sv) sv, sum(so) so "
+               "FROM cpbl.pitching_seasons GROUP BY player_id, year) "
+               "SELECT p.name, s.year, s.{col} val FROM s JOIN cpbl.players p ON p.id=s.player_id "
+               "ORDER BY val DESC LIMIT 1")
+        season_pit = {k: top(ssp.format(col=k)) for k in ("w", "sv", "so")}
+
+        cb = ("WITH c AS (SELECT player_id, sum({col}) v FROM cpbl.batting_seasons GROUP BY player_id) "
+              "SELECT p.name, c.v val FROM c JOIN cpbl.players p ON p.id=c.player_id ORDER BY v DESC LIMIT 5")
+        career_bat = {k: top(cb.format(col=k), 5) for k in ("hr", "h", "rbi", "sb")}
+        cp = ("WITH c AS (SELECT player_id, sum({col}) v FROM cpbl.pitching_seasons GROUP BY player_id) "
+              "SELECT p.name, c.v val FROM c JOIN cpbl.players p ON p.id=c.player_id ORDER BY v DESC LIMIT 5")
+        career_pit = {k: top(cp.format(col=k), 5) for k in ("w", "sv", "so")}
+
+    return {"games": games, "season_batting": season_bat, "season_pitching": season_pit,
+            "career_batting": career_bat, "career_pitching": career_pit}
+
+
 @app.get("/api/v1/season/batting-leaders")
 def batting_leaders(
     season: int = Query(DEFAULT_SEASON),

@@ -12,6 +12,7 @@ const NAV = [
   { href: "/batters", label: "打者" },
   { href: "/pitchers", label: "投手" },
   { href: "/games", label: "賽況" },
+  { href: "/records", label: "紀錄室" },
   { href: "/matchups", label: "投打對決" },
   { href: "/predict", label: "賽果預測" },
 ];
