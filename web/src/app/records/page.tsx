@@ -51,7 +51,7 @@ function SeasonTile({ label, rec, fmt }: { label: string; rec?: { name: string; 
   );
 }
 
-function LeaderList({ title, rows, fmt }: { title: string; rows?: { name: string; pid: string; val: number }[]; fmt?: (v: number) => string }) {
+function LeaderList({ title, rows, fmt }: { title: string; rows?: { name: string; pid: string; val: number; active?: boolean }[]; fmt?: (v: number) => string }) {
   if (!rows?.length) return null;
   return (
     <div className="rounded-xl border border-line bg-surface p-4">
@@ -59,7 +59,11 @@ function LeaderList({ title, rows, fmt }: { title: string; rows?: { name: string
       <ol className="space-y-1.5 text-sm">
         {rows.map((r, i) => (
           <li key={r.name} className="flex items-center justify-between">
-            <span><span className="mr-2 inline-block w-4 text-right font-mono text-faint">{i + 1}</span><PlayerLink pid={r.pid} name={r.name} /></span>
+            <span>
+              <span className="mr-2 inline-block w-4 text-right font-mono text-faint">{i + 1}</span>
+              <PlayerLink pid={r.pid} name={r.name} />
+              {r.active && <span className="ml-1.5 rounded bg-up/15 px-1 py-0.5 text-[9px] font-medium text-up">現役</span>}
+            </span>
             <span className="font-mono font-semibold tabular-nums">{fmt ? fmt(r.val) : r.val}</span>
           </li>
         ))}

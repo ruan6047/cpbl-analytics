@@ -233,8 +233,8 @@ export const api = {
       games: Record<"max_margin" | "max_team_runs" | "max_combined", { year: number; date: string; home: string; away: string; hs: number; as: number } | null>;
       season_batting: Record<string, { name: string; pid: string; year: number; val: number | string }[]>;
       season_pitching: Record<string, { name: string; pid: string; year: number; val: number }[]>;
-      career_batting: Record<string, { name: string; pid: string; val: number }[]>;
-      career_pitching: Record<string, { name: string; pid: string; val: number }[]>;
+      career_batting: Record<string, { name: string; pid: string; val: number; active: boolean }[]>;
+      career_pitching: Record<string, { name: string; pid: string; val: number; active: boolean }[]>;
     }>("/api/v1/records", 600),
   // 排行榜改由前端點欄位排序/隊伍篩選，故抓全名單（低門檻、大 limit）。
   // revalidate=60：資料隨爬蟲更新，縮短快取避免欄位/數值過時。

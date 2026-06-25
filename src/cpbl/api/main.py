@@ -225,11 +225,16 @@ def records(kind_code: str = Query("A")) -> dict:
                "ORDER BY val DESC LIMIT 1")
         season_pit = {k: top(ssp.format(col=k)) for k in ("w", "sv", "so")}
 
+        # 現役 = 本季登錄打/投；生涯排行標注供前端區分現役/退役
+        active_expr = ("(EXISTS(SELECT 1 FROM cpbl.batting_current bc WHERE bc.player_id=c.player_id) "
+                       "OR EXISTS(SELECT 1 FROM cpbl.pitching_current pc WHERE pc.player_id=c.player_id)) active")
         cb = ("WITH c AS (SELECT player_id, sum({col}) v FROM cpbl.batting_seasons GROUP BY player_id) "
-              "SELECT p.name, p.id pid, c.v val FROM c JOIN cpbl.players p ON p.id=c.player_id ORDER BY v DESC LIMIT 5")
+              "SELECT p.name, p.id pid, c.v val, " + active_expr +
+              " FROM c JOIN cpbl.players p ON p.id=c.player_id ORDER BY v DESC LIMIT 5")
         career_bat = {k: top(cb.format(col=k), 5) for k in ("hr", "h", "rbi", "sb")}
         cp = ("WITH c AS (SELECT player_id, sum({col}) v FROM cpbl.pitching_seasons GROUP BY player_id) "
-              "SELECT p.name, p.id pid, c.v val FROM c JOIN cpbl.players p ON p.id=c.player_id ORDER BY v DESC LIMIT 5")
+              "SELECT p.name, p.id pid, c.v val, " + active_expr +
+              " FROM c JOIN cpbl.players p ON p.id=c.player_id ORDER BY v DESC LIMIT 5")
         career_pit = {k: top(cp.format(col=k), 5) for k in ("w", "sv", "so")}
 
     return {"games": games, "season_batting": season_bat, "season_pitching": season_pit,
