@@ -630,6 +630,10 @@ def player_career(player_id: str) -> dict:
     with conn() as c:
         cur = c.cursor()
         teams = _career_teams(cur, player_id)
+        cur.execute(
+            "SELECT league, team, from_year FROM cpbl.overseas WHERE player_id=%s ORDER BY from_year",
+            (player_id,))
+        overseas = [{"league": lg, "team": tm, "year": yr} for lg, tm, yr in cur.fetchall()]
         # 逐年（opendata ≤2024 + 2025/2026 由 gamelog 補；同年多隊加總）
         cur.execute(
             "SELECT year, sum(g),sum(pa),sum(ab),sum(h),sum(b2),sum(b3),sum(hr),sum(rbi),sum(sb),"
@@ -644,7 +648,7 @@ def player_career(player_id: str) -> dict:
         for r in cur.fetchall():
             per[r[0]] = list(r[1:])  # 2025+ 以 gamelog 為準
         if not per:
-            return {"player_id": player_id, "batting": None, "teams": teams}
+            return {"player_id": player_id, "batting": None, "teams": teams, "overseas": overseas}
         # 里程碑日期（gamelog 2018+）
         cur.execute(
             "SELECT min(g.game_date) FILTER (WHERE bg.hits>0), min(g.game_date) FILTER (WHERE bg.home_runs>0) "
@@ -693,6 +697,7 @@ def player_career(player_id: str) -> dict:
     bests = {"hr": best(6), "rbi": best(7), "sb": best(8), "avg": best_rate("avg"), "ops": best_rate("ops")}
     return {
         "player_id": player_id, "batting": career, "best": bests, "teams": teams,
+        "overseas": overseas,
         "milestones": {"first_hit": str(first_h) if first_h else None,
                        "first_hr": str(first_hr) if first_hr else None},
         "rank": {"hr": rk[0], "h": rk[1], "sb": rk[2]} if rk else None,

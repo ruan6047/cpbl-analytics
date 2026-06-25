@@ -401,6 +401,19 @@ export default function PlayerPage() {
                   })}
                 </div>
               )}
+              {careerStats?.overseas && careerStats.overseas.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                  <span className="text-faint">旅外</span>
+                  {careerStats.overseas.map((o) => (
+                    <span key={`${o.league}-${o.year}`}
+                      className="inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-muted"
+                      title={`${o.league}${o.team ? ` · ${o.team}` : ""} · ${o.year} 加盟`}>
+                      ✈ {o.league}{o.team ? ` · ${o.team}` : ""}
+                      <span className="font-mono opacity-70">'{String(o.year).slice(2)}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           {s && role === "batting" && (
