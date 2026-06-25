@@ -40,6 +40,25 @@ graph LR
 
 **⚠️ 生產每日 cron 實際沒在跑**：`cpbl.refresh_log` 為空、生產資料曾停在某日。生產新鮮度目前靠人工「本機爬 + 同步」。
 
+### 本機每日自動爬取（launchd，免手動 CLI）
+
+`scripts/scrape-daily.sh` + `scripts/com.cpbl.scrape-daily.plist`：launchd 每日 03:10 在本機跑
+`cpbl-refresh-recent`（更新**本機** DB；上線仍須另跑 `refresh-cpbl-prod.sh`）。安裝：
+
+```bash
+ln -sf "$PWD/scripts/com.cpbl.scrape-daily.plist" ~/Library/LaunchAgents/com.cpbl.scrape-daily.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.cpbl.scrape-daily.plist   # 啟用
+launchctl kickstart -k gui/$(id -u)/com.cpbl.scrape-daily                             # 立即測跑
+launchctl bootout gui/$(id -u)/com.cpbl.scrape-daily                                  # 停用
+```
+
+**AI 接手失敗的契約**（三個訊號源，由輕到重）：
+1. `logs/last-status.json` — 最近一次 `{ok, exit_code, log, tail}`；`ok=false` 即需處理。
+2. `logs/refresh-YYYYMMDD-HHMM.log` — 該次完整輸出（last-status.json 的 `log` 指向它）。
+3. `SELECT * FROM cpbl.refresh_log WHERE ok=false ORDER BY refreshed_at DESC LIMIT 1` — app 層失敗（含 `note`、`detail.error`）。
+
+`exit=127` = 本機 DB 容器沒開（OrbStack 未啟動）；token 抽不到 = 官網改版（見 `cpbl_site._new_session`）。
+
 ### 同步流程（本機 → 生產）
 
 cpbl schema 各表皆冪等、資料同源，本機是 superset，故可整 schema 覆蓋（**只動 `cpbl` schema，不碰主站其他 schema**）：

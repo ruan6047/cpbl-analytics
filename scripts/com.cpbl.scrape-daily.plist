@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- macOS launchd 排程：每日 03:10 跑本機增量爬取（免手動 CLI）。
+     安裝：
+       ln -sf "$PWD/scripts/com.cpbl.scrape-daily.plist" ~/Library/LaunchAgents/com.cpbl.scrape-daily.plist
+       launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.cpbl.scrape-daily.plist
+     立即測跑一次：launchctl kickstart -k gui/$(id -u)/com.cpbl.scrape-daily
+     停用：launchctl bootout gui/$(id -u)/com.cpbl.scrape-daily
+     注意：launchd 在使用者登入態執行，OrbStack 需設為開機自啟，否則 DB 容器沒開、
+           腳本會記 exit=127（本機 DB 容器未啟動）於 logs/last-status.json。 -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.cpbl.scrape-daily</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/ruanruan/Dev/cpbl-analytics/scripts/scrape-daily.sh</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/ruanruan/Dev/cpbl-analytics</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>/Users/ruanruan/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>3</integer>
+    <key>Minute</key><integer>10</integer>
+  </dict>
+  <key>RunAtLoad</key><false/>
+  <key>StandardOutPath</key><string>/Users/ruanruan/Dev/cpbl-analytics/logs/launchd.out.log</string>
+  <key>StandardErrorPath</key><string>/Users/ruanruan/Dev/cpbl-analytics/logs/launchd.err.log</string>
+</dict>
+</plist>
