@@ -454,6 +454,12 @@ export default function PlayerPage() {
               <p className="mt-1 text-sm text-muted">
                 {heroName}
                 {!profile.team && ongoingCoach && <span className="ml-1 text-faint">（教練）</span>}
+                {profile.pitcher_role && (
+                  <span className="ml-2 rounded bg-ink/10 px-1.5 py-0.5 text-[11px] font-semibold text-ink"
+                    title="投手類型：先發＝先發場數佔半數以上；後援＝救援>中繼（終結者傾向）；中繼＝其餘後援投手">
+                    {profile.pitcher_role}
+                  </span>
+                )}
                 {profile.bats && <span className="ml-3">打 {profile.bats}</span>}
                 {profile.throws && <span className="ml-2">投 {profile.throws}</span>}
               </p>

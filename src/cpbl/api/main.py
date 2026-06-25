@@ -924,6 +924,18 @@ def player_profile(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
             "WHERE nm IS NOT NULL", (player_id, player_id),
         )
         all_names = {r[0] for r in cur.fetchall()}
+        # 投手類型（現役取本季、否則生涯）：先發=先發佔半數以上、後援=救援>中繼、餘=中繼
+        cur.execute("SELECT g, gs, sv, hld FROM cpbl.pitching_current WHERE player_id=%s AND year=%s",
+                    (player_id, season))
+        prow = cur.fetchone()
+        if not prow or not prow[0]:
+            cur.execute("SELECT sum(g), sum(gs), sum(sv), sum(hld) FROM cpbl.pitching_seasons "
+                        "WHERE player_id=%s", (player_id,))
+            prow = cur.fetchone()
+        pitcher_role = None
+        if prow and prow[0]:
+            g, gs, sv, hld = (x or 0 for x in prow)
+            pitcher_role = "先發" if gs * 2 >= g else ("後援" if sv > hld else "中繼")
     if not bat and not pit and not meta:
         return {"player": None}
     name = (bat[1] if bat else None) or (pit[1] if pit else None) or (meta[0] if meta else None)
@@ -936,7 +948,7 @@ def player_profile(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
             "id": player_id, "name": name, "team": team,
             "is_batter": bat is not None, "is_pitcher": pit is not None,
             "bats": meta[1] if meta else None, "throws": meta[2] if meta else None,
-            "former_names": former,
+            "former_names": former, "pitcher_role": pitcher_role,
             "country": country,
             "import_status": status,
             "import_label": imports.LABELS[status] if status != "local" else None,
