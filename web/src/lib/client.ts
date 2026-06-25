@@ -47,7 +47,7 @@ export type Factor = {
   favored: "home" | "away" | "even";
 };
 
-export type Starter = { name: string | null; era: number | null } | null;
+export type Starter = { pid?: string | null; name: string | null; era: number | null } | null;
 
 export type TeamSide = {
   code: string;

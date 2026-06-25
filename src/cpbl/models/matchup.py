@@ -297,13 +297,13 @@ def _prob(z: dict[str, float], weights: dict[str, float]) -> float:
 
 
 def _starter(pitchers: dict, pid: str | None) -> dict | None:
-    """先發投手顯示資訊（名字 + 本季 ERA/WHIP/K9）；查無回 None。"""
+    """先發投手顯示資訊（名字 + 本季 ERA/WHIP/K9 + pid 供能力值卡）；查無回 None。"""
     if not pid:
         return None
     p = pitchers.get(pid)
     if not p:
-        return {"name": None, "era": None, "whip": None, "k9": None}  # 有 ID 但未達合格投手
-    return {"name": p["name"], "era": p["era"], "whip": p["whip"], "k9": p["k9"]}
+        return {"pid": pid, "name": None, "era": None, "whip": None, "k9": None}  # 有 ID 但未達合格投手
+    return {"pid": pid, "name": p["name"], "era": p["era"], "whip": p["whip"], "k9": p["k9"]}
 
 
 def build_matchup(home: str, away: str, stats: dict, model: dict, season: int,

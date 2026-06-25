@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { type Matchup, type Starter, winProb } from "@/lib/client";
+import { useEffect, useState } from "react";
+import { type Card } from "@/components/ability-card";
+import { AbilityRadarVS } from "@/components/ability-card";
+import { detail, type Matchup, type Starter, winProb } from "@/lib/client";
 
 function fmt(key: string, v: number | null): string {
   if (v === null) return "—";
@@ -27,6 +29,18 @@ export function MatchupCard({
   const [open, setOpen] = useState(false);
   const prob = winProb(m.z, weights);
   const homePct = prob * 100;
+
+  // 先發投手能力值卡（展開後才抓，避免一次拉滿所有場次）。
+  const homePid = m.home.starter?.pid;
+  const awayPid = m.away.starter?.pid;
+  const [cards, setCards] = useState<{ home?: Card; away?: Card }>({});
+  useEffect(() => {
+    if (!open || !homePid || !awayPid || cards.home || cards.away) return;
+    Promise.all([detail.abilityCard(homePid), detail.abilityCard(awayPid)])
+      .then(([h, a]) => setCards({ home: h.pitching, away: a.pitching }))
+      .catch(() => {});
+  }, [open, homePid, awayPid, cards.home, cards.away]);
+  const showRadar = cards.home?.available && cards.away?.available;
 
   return (
     <div className="rounded-xl border border-line bg-surface">
@@ -68,6 +82,17 @@ export function MatchupCard({
             <div className="text-faint">先發</div>
             <div className="text-amber-300/80">{starterText(m.home.starter ?? null)}</div>
           </div>
+
+          {/* 先發投手能力值卡疊圖（生涯 PR）：直覺看出兩位先發強弱輪廓 */}
+          {showRadar && (
+            <div className="mb-3">
+              <AbilityRadarVS home={cards.home!} away={cards.away!} />
+              <div className="flex justify-center gap-4 text-[10px] text-faint">
+                <span><span className="mr-1 inline-block h-2 w-2 rounded-full align-middle" style={{ background: "#1B4DA1" }} />{m.away.name} 先發</span>
+                <span><span className="mr-1 inline-block h-2 w-2 rounded-full align-middle" style={{ background: "#C4122F" }} />{m.home.name} 先發</span>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-x-4 text-sm">
             <div className="text-right text-xs text-faint">{m.away.name}</div>
