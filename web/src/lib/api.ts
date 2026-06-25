@@ -230,6 +230,10 @@ export const api = {
         first_pitchers: { player_id: string; name: string }[];
         farm: { player_id: string; name: string }[];
       };
+      retired?: {
+        number: number; holder_type: "player" | "fans" | "org";
+        player_id: string | null; holder: string; status: "active" | "revoked"; note: string | null;
+      }[];
     }>(`/api/v1/teams/${code}/players`, 600),
   specialRecords: (season?: number) =>
     get<SpecialRecordsResponse>(`/api/v1/special-records${season ? `?season=${season}` : ""}`, 120),

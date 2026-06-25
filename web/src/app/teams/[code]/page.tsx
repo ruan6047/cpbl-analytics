@@ -114,6 +114,7 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
   const coaches = roster.coaches ?? [];
   const managers = roster.managers ?? [];
   const rst = roster.roster ?? { first_batters: [], first_pitchers: [], farm: [] };
+  const retired = roster.retired ?? [];
   const lastEra = eras.eras[eras.eras.length - 1];
   const displayName = team?.team_name ?? lastEra?.name ?? code;
   const adv = team ? derived.standings.find((d) => d.code === code) : undefined;
@@ -291,6 +292,36 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
                 ))}
               </tbody>
             </table>
+          </div>
+        </section>
+      )}
+
+      {/* 退休背號（維基；球迷／球團不附球員連結，已恢復使用標示）*/}
+      {retired.length > 0 && (
+        <section>
+          <h2 className="mb-1 text-lg font-semibold">退休背號</h2>
+          <p className="mb-3 text-[11px] text-faint">資料來源：中文維基百科各球隊條目；球迷／球團背號不附球員。已恢復使用者淡化標示。</p>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+            {retired.map((r) => {
+              const revoked = r.status === "revoked";
+              const sub = r.holder_type === "fans" ? "球迷專屬" : r.holder_type === "org" ? "球團"
+                : revoked ? "已恢復使用" : "永久退休";
+              const inner = (
+                <Card className={`flex items-center gap-3 p-3 ${revoked ? "opacity-55" : ""}`}>
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg font-mono text-xl font-bold tabular-nums"
+                    style={{ background: `${color}1a`, color }}>{r.number}</span>
+                  <div className="min-w-0">
+                    <div className={`truncate font-medium ${r.player_id ? "text-accent" : "text-ink"} ${revoked ? "line-through" : ""}`}>
+                      {r.holder}
+                    </div>
+                    <div className="text-[10px] text-faint">{sub}</div>
+                  </div>
+                </Card>
+              );
+              return r.player_id
+                ? <Link key={r.number} href={`/players/${r.player_id}`} title={r.note ?? "前球員 · 看球員頁"}>{inner}</Link>
+                : <div key={r.number} title={r.note ?? undefined}>{inner}</div>;
+            })}
           </div>
         </section>
       )}

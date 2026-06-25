@@ -1804,8 +1804,16 @@ def team_players(code: str) -> dict:
             mpid = {n: pid for n, pid in cur.fetchall()}
             for m in managers:
                 m["player_id"] = mpid.get(m["name"])
+        # 退休背號（維基；球迷/球團 holder_type 非 player → 不附球員連結）
+        cur.execute(
+            "SELECT number, holder_type, player_id, holder_name, status, note "
+            "FROM cpbl.retired_numbers WHERE team_code=%s "
+            "ORDER BY CASE WHEN status='active' THEN 0 ELSE 1 END, number", (fc,))
+        retired = [{"number": num, "holder_type": ht, "player_id": pid, "holder": hn,
+                    "status": st, "note": note}
+                   for num, ht, pid, hn, st, note in cur.fetchall()]
     return {"code": fc, "batters": batters, "pitchers": pitchers, "coaches": coaches,
-            "roster": roster, "managers": managers}
+            "roster": roster, "managers": managers, "retired": retired}
 
 
 @app.get("/api/v1/venues")
