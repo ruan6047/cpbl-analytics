@@ -1141,12 +1141,22 @@ def _grade(pr: float) -> str:
     return "G"
 
 
-# 每個角色的軸定義：(key, 中文標, 顯示格式)。PR/value 由 SQL 算好後對位。
+# 每個角色的軸定義：(key, 中文標, 顯示格式, 來源指標說明)。PR/value 由 SQL 算好後對位。
 _ABILITY_AXES = {
-    "batting": [("contact", "接觸", "avg"), ("power", "力量", "iso"),
-                ("eye", "選球", "pct"), ("overall", "破壞力", "ops"), ("speed", "速度", "int")],
-    "pitching": [("k", "三振", "rate"), ("control", "控球", "rate"),
-                 ("hr_suppress", "抑長打", "rate"), ("command", "壓制", "rate"), ("stamina", "續航", "rate")],
+    "batting": [
+        ("contact", "接觸", "avg", "打擊率 AVG"),
+        ("power", "力量", "iso", "純長打率 ISO"),
+        ("eye", "選球", "pct", "保送率 BB%"),
+        ("overall", "破壞力", "ops", "整體攻擊 OPS"),
+        ("speed", "速度", "int", "生涯盜壘 SB"),
+    ],
+    "pitching": [
+        ("k", "三振", "rate", "每9局三振 K/9"),
+        ("control", "控球", "rate", "每9局保送 BB/9（越低越好）"),
+        ("hr_suppress", "抑長打", "rate", "每9局被全壘打 HR/9（越低越好）"),
+        ("command", "壓制", "rate", "防禦率 ERA（越低越好）"),
+        ("stamina", "續航", "rate", "每場投球局數 IP/G"),
+    ],
 }
 
 _ABILITY_SQL = {
@@ -1212,9 +1222,9 @@ def _ability_card(cur, player_id: str, role: str) -> dict:
     values = row[:n]
     prs = row[n:]
     axes = []
-    for (key, label, fmt), val, pr in zip(axes_def, values, prs, strict=True):
+    for (key, label, fmt, source), val, pr in zip(axes_def, values, prs, strict=True):
         p = round(float(pr) * 100)
-        axes.append({"key": key, "label": label, "fmt": fmt,
+        axes.append({"key": key, "label": label, "fmt": fmt, "source": source,
                      "value": round(float(val), 3) if val is not None else None,
                      "pr": p, "grade": _grade(p)})
     overall = round(sum(a["pr"] for a in axes) / len(axes))
