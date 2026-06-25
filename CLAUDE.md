@@ -55,12 +55,13 @@ cpbl-analytics/
 │   │   └── run_scrape_stats.py   # CLI：爬本季投打進階 + 團隊
 │   ├── features/
 │   │   ├── batting.py            # 成績預測特徵（lag 1~3 季 + 年齡 + 聯盟均值）
-│   │   └── outcome.py            # 賽果預測特徵（leakage-safe running state + 先發投手）
+│   │   └── outcome.py            # 賽事預測特徵（全史 kind A；leakage-safe running state + 先發投手 + 上季戰力 + 休息天數）
 │   ├── models/
 │   │   ├── marcel.py             # Marcel baseline（加權 5/4/3 + 回歸均值 + 年齡曲線）
 │   │   ├── train.py              # 成績預測：LightGBM 訓練 + 回測 + 持久化
-│   │   ├── outcome.py            # 賽果預測（舊：特徵子集回測準確率探索）
-│   │   └── matchup.py            # 賽果預測（主：單場對戰卡 + 定向預設權重）
+│   │   ├── outcome.py            # 賽事預測（互動：即時 fit 特徵子集 + 時間切分回測）
+│   │   ├── outcome_gbm.py        # 賽事預測（離線：LightGBM vs 邏輯回歸 vs 全押主場走查回測 → model_versions）
+│   │   └── matchup.py            # 賽事預測（主：單場對戰卡 + 定向預設權重）
 │   └── api/main.py               # FastAPI（/api/info + /outcome + /season/standings）
 ├── web/                          # 獨立 Next.js 15 前端（App Router + Tailwind v4 + recharts）
 ├── migrations/                   # 001…022（season/ML 表 + games/game_features/current 系列 + advanced_stats/pitch_tracking/game_log/standings…）
@@ -79,15 +80,18 @@ cp .env.example .env
 uv run cpbl-backfill                       # 套 migration + 回填歷史（逐年）
 uv run cpbl-scrape-games 2023 2026         # 爬官網逐場賽程/結果（純 HTTP）
 uv run cpbl-scrape-stats 2025 2026         # 爬本季投手/打者進階 + 團隊數據
-uv run cpbl-build-features                 # 建賽果預測特徵表（leakage-safe）
+uv run cpbl-build-features                 # 建賽事預測特徵表（全史 kind A；leakage-safe）
 uv run cpbl-train                          # 成績預測：訓練 + 回測（Marcel vs LGBM）
+docker compose run --rm api cpbl-train-outcome   # 賽事預測走查回測（LightGBM；需容器 libgomp）
 uv run uvicorn cpbl.api.main:app --reload --port 4001
 cd web && npm install && NEXT_PUBLIC_API_URL=http://localhost:4001 npm run dev   # 前端 :3000
 ```
 
-> 賽果預測**不需離線訓練步驟**：模型在 API request 時依使用者選的特徵子集即時 fit
+> 賽事預測的**互動探索器**不需離線訓練：API request 時依使用者選的特徵子集即時 fit
 > （見 `models/matchup.py`，預設權重=各變因單獨標準化係數、定向後正=有利主隊）。
-> 成績預測（打擊 projection）才有 `cpbl-train` 離線步驟。
+> 另有**離線走查回測**（`cpbl-train-outcome`→`models/outcome_gbm.py`）跑全特徵
+> LightGBM/邏輯回歸 vs 全押主場，寫 `model_versions(task='outcome')` 供 `/predict` 面板
+> 與 `/api/info` 展示；需 LightGBM 故在容器內跑。成績預測（打擊 projection）有 `cpbl-train`。
 > current 系列表（pitching/batting/team）與 games 一樣要定期重跑爬蟲（上線掛 cron）。
 
 ### ⚠️ macOS 上的 LightGBM（重要）
@@ -192,7 +196,8 @@ token 時 `_new_session()` 會丟錯，據此判斷需更新正規表式。
 
 - **Phase 1（已完成）**：opendata 回填 + 打擊成績預測（Marcel vs LightGBM）+ `/api/info` + 投影查詢。
 - **Phase 1.5（已完成）**：官網逐場爬蟲（games 表，含比分/先發投手）；獨立 Next.js 前端（投影排行 + 球員逐年圖表）。
-- **Phase 2（已完成）**：**賽果預測** — game_features（leakage-safe）+ 即時 fit 特徵子集探索器（`/predict` 頁 + `/api/v1/outcome/*`）+ 今日賽事勝率預測。
+- **Phase 2（已完成）**：**賽事預測** — game_features（leakage-safe）+ 即時 fit 特徵子集探索器（`/predict` 頁 + `/api/v1/outcome/*`）+ 今日賽事勝率預測。
+- **Phase 2.6（已完成）**：賽事預測重構 — game_features 改全史 kind A（1145→9350 完成場，修正混二軍/季後）+ 新增 leakage-safe 特徵（上季戰力 `prior_winpct_diff`、休息天數 `rest_days_diff`）+ 離線 LightGBM 走查回測對照（2022–26，~62% vs 全押主場 ~53%，`/predict` 模型回測面板）。
 - **Phase 2.5（已完成）**：官方進階數據 — `advanced_stats`（彙總進階 + 官方 PR）+ `pitch_tracking`（逐球 TrackMan）+ 好球帶紀律 `/discipline`；逐場 box score / 逐打席 livelog（`game_log`、賽況頁）。
 - **前端改版（進行中）**：日間 Navy+白設計系統；P1/P2（球員頁旗艦）完成；P3 各頁視覺化升級進行中（含賽況頁 **ESPN 風格狀態板**：頂部記分條 + 壘包/球數 + 逐球好球帶 + Recent Plays）。
 - **上線（已完成）**：submodule + compose + nginx 接主站，**已上線 https://cpbl.ruan-ruan.com**（前端走 cpbl 子網域；`cpbl-refresh-recent` 每日增量）。

@@ -54,6 +54,11 @@ else
   fi
 fi
 
+# 本機重建賽事預測特徵（全史 kind A；leakage-safe）。game_features 是「派生」資料，
+# 由本機完整 games 計算後直接鏡像到 prod，省去同步 1990+ 原始逐場（歷史不可變）。
+echo "    + 重建 game_features（賽事預測特徵，全史 kind A）"
+uv run cpbl-build-features 2>&1 | tail -1
+
 echo "==> 2/3 套用 prod migration + 非破壞性 upsert 同步"
 # 同步前先讓 prod 套用任何新 migration（否則新欄位不存在、COPY 對不上）
 ssh -o BatchMode=yes "$VPS" 'docker exec prod_cpbl_api python -c "from cpbl.db import migrate; print(\"migrated:\", migrate())"'
@@ -70,6 +75,15 @@ sync_table team_current "year,team_code" name bat_avg bat_obp bat_slg bat_ops ba
 sync_table coaches "year,team_code,name" pos uniform_no
 sync_table team_standings "year,kind_code,season_code,team_code" \
   team_name rank g w t l win_pct gb elim home_record away_record streak last10 h2h
+
+# 賽事預測特徵：完整鏡像（先 TRUNCATE 清掉 prod 舊版＝早期未過濾 kind 混入的二軍/季後列），
+# 再把本機全史 kind A 特徵灌入。derived 資料，安全可重建。
+ssh -o BatchMode=yes "$VPS" \
+  "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql -q -U \"\$DB_USER\" -d \"\$DB_NAME\" -c 'TRUNCATE cpbl.game_features'"
+sync_table game_features "year,kind_code,game_season_code,game_sno" \
+  game_date season home_team_code away_team_code home_team_name away_team_name home_win completed \
+  winrate_diff prior_winpct_diff runs_scored_diff runs_allowed_diff recent_form_diff rest_days_diff \
+  h2h_home home_field starter_era_diff starter_whip_diff starter_k9_diff
 
 if [ -n "${WITH_DETAIL:-}" ]; then
   sync_table batter_pitcher_matchups "year,kind_code,hitter_acnt,pitcher_acnt" \
@@ -119,7 +133,9 @@ if [ -n "${WITH_DETAIL:-}" ]; then
     team_name g gs gr cg sho nbb w l sv hld ip bf np h hr bb ibb hbp so wp bk r er go fo
 fi
 
-echo "==> 3/3 VPS 重建賽果特徵"
-ssh -o BatchMode=yes "$VPS" 'docker exec prod_cpbl_api cpbl-build-features 2>&1 | grep -v httpx | tail -1'
+echo "==> 3/3 VPS 跑賽事預測回測（LightGBM 需 libgomp；prod_cpbl_api 容器內有）"
+# game_features 已由本機鏡像（全史），VPS 不需再 build-features；直接以鏡像資料跑
+# 走查回測並把 model_versions(task='outcome') 持久化，供 /api/info 與 /predict 面板展示。
+ssh -o BatchMode=yes "$VPS" 'docker exec prod_cpbl_api cpbl-train-outcome 2>&1 | grep -v httpx | tail -4'
 
 echo "==> 完成。線上資料已更新。"
