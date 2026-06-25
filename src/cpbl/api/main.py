@@ -1345,6 +1345,7 @@ _FRANCHISE = {
     "ACC011": "ACN011",                                    # 兄弟象 → 中信兄弟
     "AEE011": "AEO011", "AEG011": "AEO011", "AEM011": "AEO011",  # 俊國→興農→義大→富邦
     "AJJ011": "AJL011", "AJK011": "AJL011",                # 第一金剛→La New/Lamigo→樂天
+    "AIL011": "AII011",                                    # 誠泰Cobras → 米迪亞暴龍（同血脈，2008 解散）
 }
 
 
@@ -1442,6 +1443,102 @@ def team_eras(code: str, kind_code: str = Query("A")) -> dict:
     return {"franchise": fc, "origins": _ORIGINS.get(fc), "eras": eras, "total": total,
             "longest_win_streak": mw, "longest_lose_streak": ml,
             "best_season": best, "worst_season": worst}
+
+
+@app.get("/api/v1/franchises")
+def franchises() -> dict:
+    """所有 franchise（現役 + 已解散）索引：年代、隊史總戰績、era 名單。供歷史球隊入口。"""
+    from collections import defaultdict
+    with conn() as c:
+        games = c.execute(
+            "SELECT year, home_team_code, away_team_code, home_score, away_score "
+            "FROM cpbl.games WHERE kind_code='A' AND home_score+away_score>0"
+        ).fetchall()
+        names3 = dict(c.execute("SELECT team_id, name FROM cpbl.teams").fetchall())
+        active = {r[0] for r in c.execute("SELECT team_code FROM cpbl.team_dim WHERE active=true").fetchall()}
+    rec: dict = defaultdict(lambda: {"w": 0, "l": 0, "t": 0})
+    for y, hc, ac, hs, as_ in games:
+        rec[(hc, y)]["w" if hs > as_ else "l" if as_ > hs else "t"] += 1
+        rec[(ac, y)]["w" if as_ > hs else "l" if hs > as_ else "t"] += 1
+    fr: dict = defaultdict(lambda: {"w": 0, "l": 0, "t": 0, "years": set(), "members": set()})
+    for (code, y), v in rec.items():
+        f = fr[_franchise_of(code)]
+        f["w"] += v["w"]; f["l"] += v["l"]; f["t"] += v["t"]
+        f["years"].add(y); f["members"].add(code)
+    items = []
+    for fc, f in fr.items():
+        ys = sorted(f["years"])
+        eras: list[dict] = []
+        for m in sorted(f["members"]):
+            myears = sorted(y for (cc, y) in rec if cc == m)
+            if not myears:
+                continue
+            code6 = f"{m[:3]}011"
+            if m in _ERA_SPLIT:  # 同代碼內改名（La New / Lamigo）
+                for nm, a, b in _ERA_SPLIT[m]:
+                    run = [y for y in myears if a <= y <= b]
+                    if run:
+                        eras.append({"code": code6, "name": nm, "from": run[0], "to": run[-1]})
+            else:  # 依年份缺口斷代（味全解散前/重組後）
+                run = [myears[0]]
+                for y in myears[1:] + [None]:
+                    if y is not None and y == run[-1] + 1:
+                        run.append(y)
+                    else:
+                        eras.append({"code": code6, "name": names3.get(m[:3], m), "from": run[0], "to": run[-1]})
+                        if y is not None:
+                            run = [y]
+        eras.sort(key=lambda e: e["from"])
+        w, lo, t = f["w"], f["l"], f["t"]
+        items.append({
+            "code": fc, "name": names3.get(fc[:3], fc), "active": fc in active,
+            "from": ys[0], "to": ys[-1], "w": w, "l": lo, "t": t,
+            "win_pct": round(w / (w + lo), 3) if w + lo else None, "eras": eras,
+        })
+    items.sort(key=lambda x: (not x["active"], x["from"]))
+    return {"items": items}
+
+
+@app.get("/api/v1/teams/{code}/players")
+def team_players(code: str) -> dict:
+    """franchise 歷代球員（OB 入口）：曾效力者依生涯出賽數排序，標注現役。
+
+    members 取 3 碼前綴對齊 batting_seasons.team_id（3 碼/6 碼並存），故誠泰→米迪亞、
+    俊國→興農→義大→富邦 等同 franchise 歷代球員一併列入。現役 = 本季登錄打/投。
+    """
+    fc = _franchise_of(code)
+    members3 = sorted({c[:3] for c in (set(_FRANCHISE) | set(_FRANCHISE.values()) | {fc}) if _franchise_of(c) == fc})
+    with conn() as c:
+        cur = c.cursor()
+        active = {r[0] for r in cur.execute(
+            "SELECT player_id FROM cpbl.batting_current "
+            "UNION SELECT player_id FROM cpbl.pitching_current"
+        ).fetchall()}
+        cur.execute(
+            "SELECT bs.player_id, p.name, sum(bs.g), sum(bs.h), sum(bs.hr), sum(bs.rbi), "
+            "min(bs.year), max(bs.year) FROM cpbl.batting_seasons bs "
+            "LEFT JOIN cpbl.players p ON p.id = bs.player_id "
+            "WHERE substring(bs.team_id, 1, 3) = ANY(%s) "
+            "GROUP BY bs.player_id, p.name ORDER BY sum(bs.g) DESC NULLS LAST LIMIT 50",
+            (members3,))
+        batters = [
+            {"player_id": pid, "name": nm or pid, "g": g, "h": h, "hr": hr, "rbi": rbi,
+             "from": y0, "to": y1, "active": pid in active}
+            for pid, nm, g, h, hr, rbi, y0, y1 in cur.fetchall()
+        ]
+        cur.execute(
+            "SELECT ps.player_id, p.name, sum(ps.g), sum(ps.w), sum(ps.sv), sum(ps.so), "
+            "min(ps.year), max(ps.year) FROM cpbl.pitching_seasons ps "
+            "LEFT JOIN cpbl.players p ON p.id = ps.player_id "
+            "WHERE substring(ps.team_id, 1, 3) = ANY(%s) "
+            "GROUP BY ps.player_id, p.name ORDER BY sum(ps.g) DESC NULLS LAST LIMIT 50",
+            (members3,))
+        pitchers = [
+            {"player_id": pid, "name": nm or pid, "g": g, "w": w, "sv": sv, "so": so,
+             "from": y0, "to": y1, "active": pid in active}
+            for pid, nm, g, w, sv, so, y0, y1 in cur.fetchall()
+        ]
+    return {"code": fc, "batters": batters, "pitchers": pitchers}
 
 
 @app.get("/api/v1/venues")

@@ -206,6 +206,20 @@ export const api = {
       best_season: { year: number; name: string; win_pct: number } | null;
       worst_season: { year: number; name: string; win_pct: number } | null;
     }>(`/api/v1/teams/${code}/eras`, 600),
+  franchises: () =>
+    get<{
+      items: {
+        code: string; name: string; active: boolean;
+        from: number; to: number; w: number; l: number; t: number; win_pct: number | null;
+        eras: { code: string; name: string; from: number; to: number }[];
+      }[];
+    }>(`/api/v1/franchises`, 600),
+  teamPlayers: (code: string) =>
+    get<{
+      code: string;
+      batters: { player_id: string; name: string; g: number; h: number; hr: number; rbi: number; from: number; to: number; active: boolean }[];
+      pitchers: { player_id: string; name: string; g: number; w: number; sv: number; so: number; from: number; to: number; active: boolean }[];
+    }>(`/api/v1/teams/${code}/players`, 600),
   specialRecords: (season?: number) =>
     get<SpecialRecordsResponse>(`/api/v1/special-records${season ? `?season=${season}` : ""}`, 120),
   standingsTrend: (season?: number, kind = "A") =>

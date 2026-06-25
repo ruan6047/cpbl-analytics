@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { contrastText, nameMeta } from "@/lib/teams";
+import { contrastText, eraBadge, nameMeta } from "@/lib/teams";
 
 function PlayerLink({ pid, name }: { pid?: string; name: string }) {
   return pid ? <Link href={`/players/${pid}`} className="text-accent hover:underline">{name}</Link> : <>{name}</>;
@@ -68,8 +68,42 @@ function LeaderList({ title, rows, fmt }: { title: string; rows?: { name: string
   );
 }
 
+function FranchiseCard({ fr }: { fr: Awaited<ReturnType<typeof api.franchises>>["items"][number] }) {
+  const head = eraBadge(fr.name, fr.code);
+  return (
+    <Link href={`/teams/${fr.code}`}
+      className="block rounded-xl border border-line bg-surface p-3.5 transition hover:border-accent hover:shadow-sm">
+      <div className="flex items-center gap-2">
+        <span className="inline-flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-extrabold"
+          style={{ background: head.color, color: contrastText(head.color) }}>{head.letter}</span>
+        <span className="font-semibold text-ink">{fr.name}</span>
+        {!fr.active && <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted">已解散</span>}
+      </div>
+      <div className="mt-1.5 font-mono text-[11px] tabular-nums text-muted">
+        {fr.from}–{fr.to}　{fr.w}-{fr.t}-{fr.l}　勝率 {f3(fr.win_pct)}
+      </div>
+      {fr.eras.length > 1 && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {fr.eras.map((e) => {
+            const b = eraBadge(e.name, e.code);
+            return (
+              <span key={`${e.code}-${e.from}`}
+                className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px]"
+                style={{ background: `${b.color}1a`, color: b.color }}>
+                {e.name}
+              </span>
+            );
+          })}
+        </div>
+      )}
+    </Link>
+  );
+}
+
 export default async function RecordsPage() {
-  const d = await api.records();
+  const [d, fr] = await Promise.all([api.records(), api.franchises()]);
+  const activeFr = fr.items.filter((f) => f.active);
+  const goneFr = fr.items.filter((f) => !f.active);
   return (
     <div className="space-y-8">
       <header>
@@ -98,6 +132,19 @@ export default async function RecordsPage() {
           <SeasonTile label="最多勝投" rec={d.season_pitching.w} />
           <SeasonTile label="最多救援" rec={d.season_pitching.sv} />
           <SeasonTile label="最多三振" rec={d.season_pitching.so} />
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-1 text-lg font-semibold">歷代球隊</h2>
+        <p className="mb-3 text-[11px] text-faint">現役球團（含改名/轉賣沿革）與已解散球隊；點入看隊史沿革、各時期戰績與歷代球員。</p>
+        <div className="mb-2 text-xs font-medium text-muted">現役</div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {activeFr.map((f) => <FranchiseCard key={f.code} fr={f} />)}
+        </div>
+        <div className="mb-2 mt-4 text-xs font-medium text-muted">已解散</div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {goneFr.map((f) => <FranchiseCard key={f.code} fr={f} />)}
         </div>
       </section>
 

@@ -95,7 +95,7 @@ const GROUPS: { title: string; rows: { label: string; render: (s: SpecialRecord)
 
 export default async function TeamPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
-  const [{ season, items }, derived, special, trend, games, bat, pit, eras] = await Promise.all([
+  const [{ season, items }, derived, special, trend, games, bat, pit, eras, roster] = await Promise.all([
     api.officialStandings(0),
     api.standings(),
     api.specialRecords(),
@@ -104,22 +104,26 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
     api.battingLeaders("ops", { limit: 500, minPa: 30 }),
     api.pitchingLeaders("era", { limit: 500, minIp: 20 }),
     api.teamEras(code),
+    api.teamPlayers(code),
   ]);
 
   const team = items.find((t) => t.team_code === code);
-  if (!team) notFound();
+  // 已解散球隊不在現役 standings，但仍有 franchise 隊史；無隊史才真正 404。
+  if (!team && eras.eras.length === 0) notFound();
 
-  const adv = derived.standings.find((d) => d.code === code);
-  const sp = special.items.find((s) => s.team_code === code);
+  const lastEra = eras.eras[eras.eras.length - 1];
+  const displayName = team?.team_name ?? lastEra?.name ?? code;
+  const adv = team ? derived.standings.find((d) => d.code === code) : undefined;
+  const sp = team ? special.items.find((s) => s.team_code === code) : undefined;
   const color = teamColor(code);
   const ink = contrastText(color);
 
-  const teamGames = games.items
+  const teamGames = team ? games.items
     .filter((g) => g.home_team_code === code || g.away_team_code === code)
     .sort((a, b) => b.game_date.localeCompare(a.game_date))
-    .slice(0, 14);
-  const hitters = bat.items.filter((p) => p.team === team.team_name).slice(0, 8);
-  const pitchers = pit.items.filter((p) => p.team === team.team_name).slice(0, 8);
+    .slice(0, 14) : [];
+  const hitters = team ? bat.items.filter((p) => p.team === team.team_name).slice(0, 8) : [];
+  const pitchers = team ? pit.items.filter((p) => p.team === team.team_name).slice(0, 8) : [];
   const opponents = items.filter((t) => t.team_code !== code);
 
   return (
@@ -128,18 +132,33 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
       <div className="flex flex-wrap items-center gap-4 rounded-2xl p-6" style={{ background: color, color: ink }}>
         <TeamLogo code={code} size={56} />
         <div>
-          <div className="text-2xl font-bold">{team.team_name}</div>
-          <div className="text-sm opacity-90">{season} 球季 · 第 {team.rank} 名</div>
+          <div className="flex items-center gap-2 text-2xl font-bold">
+            {displayName}
+            {!team && <span className="rounded bg-black/20 px-2 py-0.5 text-xs font-medium">已解散</span>}
+          </div>
+          <div className="text-sm opacity-90">
+            {team ? `${season} 球季 · 第 ${team.rank} 名` : `${eras.eras[0]?.from}–${lastEra?.to} · 已退出一軍`}
+          </div>
         </div>
         <div className="ml-auto text-right">
-          <div className="font-mono text-3xl font-bold tabular-nums">{team.w}-{team.t}-{team.l}</div>
-          <div className="text-sm opacity-90">
-            勝率 {f3(team.win_pct)} · 勝差 {team.gb && team.gb > 0 ? team.gb : "—"} · 近十場 {team.last10 ?? "—"}
-          </div>
+          {team ? (
+            <>
+              <div className="font-mono text-3xl font-bold tabular-nums">{team.w}-{team.t}-{team.l}</div>
+              <div className="text-sm opacity-90">
+                勝率 {f3(team.win_pct)} · 勝差 {team.gb && team.gb > 0 ? team.gb : "—"} · 近十場 {team.last10 ?? "—"}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="font-mono text-3xl font-bold tabular-nums">{eras.total.w}-{eras.total.t}-{eras.total.l}</div>
+              <div className="text-sm opacity-90">隊史勝率 {f3(eras.total.win_pct)}</div>
+            </>
+          )}
         </div>
       </div>
 
-      {/* 攻守概覽 */}
+      {/* 攻守概覽（僅現役）*/}
+      {team && (
       <section>
         <h2 className="mb-3 text-lg font-semibold">攻守概覽</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -157,9 +176,10 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
           <StatTile label="淘汰指數" value={team.elim && team.elim !== "" ? team.elim : "—"} />
         </div>
       </section>
+      )}
 
       {/* 隊史紀錄（franchise 全史）*/}
-      {eras.eras.length > 1 && (
+      {eras.eras.length >= 1 && (
         <section>
           <h2 className="mb-1 text-lg font-semibold">隊史紀錄</h2>
           <p className="mb-3 text-[11px] text-faint">含改名/轉賣前身的 franchise 全史（一軍例行賽）。</p>
@@ -199,7 +219,7 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
                         <span className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-md text-[10px] font-extrabold"
                           style={{ background: bg.color, color: contrastText(bg.color) }}>{bg.letter}</span>
                         {e.name}
-                        {i === eras.eras.length - 1 && <span className="ml-0.5 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-normal text-muted">現役</span>}
+                        {team && i === eras.eras.length - 1 && <span className="ml-0.5 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-normal text-muted">現役</span>}
                       </span>
                     </td>
                     <td className="px-3 py-2 text-muted">{e.from === e.to ? e.from : `${e.from}–${e.to}`}</td>
@@ -214,8 +234,28 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
         </section>
       )}
 
-      {/* 戰績走勢 */}
-      {trend.points.length > 0 && (
+      {/* 歷代球員（含 OB；曾效力 franchise，依生涯出賽排序，標注現役）*/}
+      {(roster.batters.length > 0 || roster.pitchers.length > 0) && (
+        <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div>
+            <h2 className="mb-1 text-lg font-semibold">歷代打者</h2>
+            <p className="mb-3 text-[11px] text-faint">曾效力此球團（含前身）之打者，依生涯出賽數排序。</p>
+            <RosterTable rows={roster.batters.map((p) => ({
+              id: p.player_id, name: p.name, active: p.active, span: `${p.from}–${p.to}`,
+              a: `${p.g} 場`, b: `${p.h} 安 ${p.hr} 轟` }))} cols={["球員", "年代", "出賽", "打擊"]} />
+          </div>
+          <div>
+            <h2 className="mb-1 text-lg font-semibold">歷代投手</h2>
+            <p className="mb-3 text-[11px] text-faint">曾效力此球團（含前身）之投手，依生涯出賽數排序。</p>
+            <RosterTable rows={roster.pitchers.map((p) => ({
+              id: p.player_id, name: p.name, active: p.active, span: `${p.from}–${p.to}`,
+              a: `${p.g} 場`, b: `${p.w}勝 ${p.sv}救` }))} cols={["球員", "年代", "出賽", "投球"]} />
+          </div>
+        </section>
+      )}
+
+      {/* 戰績走勢（僅現役）*/}
+      {team && trend.points.length > 0 && (
         <section>
           <h2 className="mb-1 text-lg font-semibold">戰績走勢</h2>
           <p className="mb-3 text-[11px] text-faint">各隊累積勝-敗差；{team.team_name} 為 {team.rank} 名。</p>
@@ -223,7 +263,8 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
         </section>
       )}
 
-      {/* 對戰各隊 */}
+      {/* 對戰各隊（僅現役）*/}
+      {team && (
       <section>
         <h2 className="mb-3 text-lg font-semibold">對戰各隊</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -236,8 +277,10 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
           ))}
         </div>
       </section>
+      )}
 
-      {/* 近期賽事 */}
+      {/* 近期賽事（僅現役）*/}
+      {team && (
       <section>
         <h2 className="mb-3 text-lg font-semibold">近期賽事</h2>
         <div className="overflow-hidden rounded-xl border border-line">
@@ -270,6 +313,7 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
           </table>
         </div>
       </section>
+      )}
 
       {/* 特殊戰績 */}
       {sp && (
@@ -293,23 +337,56 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
         </section>
       )}
 
-      {/* 主力球員 */}
+      {/* 本季主力球員（僅現役）*/}
+      {team && (
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div>
-          <h2 className="mb-3 text-lg font-semibold">主力打者（OPS）</h2>
+          <h2 className="mb-3 text-lg font-semibold">本季主力打者（OPS）</h2>
           <PlayerTable
             rows={hitters.map((p) => ({ id: p.player_id, name: p.name, a: f3(p.ops), b: `${p.hr ?? 0} HR` }))}
             cols={["球員", "OPS", "全壘打"]}
           />
         </div>
         <div>
-          <h2 className="mb-3 text-lg font-semibold">主力投手（ERA）</h2>
+          <h2 className="mb-3 text-lg font-semibold">本季主力投手（ERA）</h2>
           <PlayerTable
             rows={pitchers.map((p) => ({ id: p.player_id, name: p.name, a: f2(p.era), b: `${p.w ?? 0}勝${p.l ?? 0}敗` }))}
             cols={["球員", "ERA", "勝敗"]}
           />
         </div>
       </section>
+      )}
+    </div>
+  );
+}
+
+function RosterTable({ rows, cols }: {
+  rows: { id: string; name: string; active: boolean; span: string; a: string; b: string }[];
+  cols: string[];
+}) {
+  if (rows.length === 0) return <p className="text-sm text-faint">尚無資料。</p>;
+  return (
+    <div className="overflow-hidden rounded-xl border border-line">
+      <table className="w-full text-sm">
+        <thead className="bg-surface-2 text-left text-muted">
+          <tr>{cols.map((c) => <th key={c} className="px-3 py-2 font-medium">{c}</th>)}</tr>
+        </thead>
+        <tbody className="tabular-nums">
+          {rows.map((r) => (
+            <tr key={r.id} className="border-t border-line hover:bg-surface-2">
+              <td className="px-3 py-2">
+                <Link href={`/players/${r.id}`} className="inline-flex items-center gap-1.5 hover:underline">
+                  {r.name}
+                  {r.active && <span className="rounded bg-up/15 px-1 py-0.5 text-[9px] font-medium text-up">現役</span>}
+                </Link>
+              </td>
+              <td className="px-3 py-2 font-mono text-[11px] text-muted">{r.span}</td>
+              <td className="px-3 py-2 font-mono">{r.a}</td>
+              <td className="px-3 py-2 font-mono text-muted">{r.b}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
