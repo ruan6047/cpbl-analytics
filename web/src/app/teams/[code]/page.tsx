@@ -234,6 +234,26 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
         </section>
       )}
 
+      {/* 現役教練團（僅現役球團；官網現役名單，無歷史勝率）*/}
+      {roster.coaches.length > 0 && (
+        <section>
+          <h2 className="mb-1 text-lg font-semibold">現役教練團</h2>
+          <p className="mb-3 text-[11px] text-faint">官方現役教練名單（一軍）；總教練居首。</p>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+            {roster.coaches.map((co) => (
+              <Card key={`${co.pos}-${co.name}`} className="flex items-center gap-2.5 p-3">
+                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md font-mono text-xs font-bold tabular-nums"
+                  style={{ background: `${color}1a`, color }}>{co.uniform_no ?? "—"}</span>
+                <div className="min-w-0">
+                  <div className="truncate text-[11px] text-muted">{co.pos.replace(/^一軍/, "")}</div>
+                  <div className="truncate font-medium text-ink">{co.name}</div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* 歷代球員（含 OB；曾效力 franchise，依生涯出賽排序，標注現役）*/}
       {(roster.batters.length > 0 || roster.pitchers.length > 0) && (
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">

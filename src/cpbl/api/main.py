@@ -1572,7 +1572,13 @@ def team_players(code: str) -> dict:
              "from": y0, "to": y1, "active": pid in active}
             for pid, nm, g, w, sv, so, y0, y1 in cur.fetchall()
         ]
-    return {"code": fc, "batters": batters, "pitchers": pitchers}
+        # 現役教練團（最新一季；僅現役球團有，依角色排序：總教練優先）
+        cur.execute(
+            "SELECT pos, name, uniform_no FROM cpbl.coaches "
+            "WHERE team_code=%s AND year=(SELECT max(year) FROM cpbl.coaches WHERE team_code=%s) "
+            "ORDER BY (pos LIKE '%%總教練%%') DESC, pos, uniform_no", (code, code))
+        coaches = [{"pos": p, "name": n, "uniform_no": u} for p, n, u in cur.fetchall()]
+    return {"code": fc, "batters": batters, "pitchers": pitchers, "coaches": coaches}
 
 
 @app.get("/api/v1/venues")

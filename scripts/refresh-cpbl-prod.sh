@@ -67,6 +67,7 @@ sync_table batting_current "year,player_id" name team_code pa avg obp slg ops hr
   g ab r h b2 b3 rbi bb so sb cs tb gidp sh sf ibb hbp go ao goao
 sync_table fielding_current "year,player_id,pos" name team_code g tc po a e dp tp pb cs sba fpct
 sync_table team_current "year,team_code" name bat_avg bat_obp bat_slg bat_ops bat_hr pit_era pit_whip
+sync_table coaches "year,team_code,name" pos uniform_no
 sync_table team_standings "year,kind_code,season_code,team_code" \
   team_name rank g w t l win_pct gb elim home_record away_record streak last10 h2h
 
