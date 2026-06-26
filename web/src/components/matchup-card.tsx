@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { type Card } from "@/components/ability-card";
 import { AbilityRadarVS } from "@/components/ability-card";
 import { detail, type Matchup, type Starter, winProb } from "@/lib/client";
+import { contrastText, teamColor } from "@/lib/teams";
 
 function fmt(key: string, v: number | null): string {
   if (v === null) return "—";
@@ -54,19 +55,23 @@ export function MatchupCard({
         <span className="flex-1 text-right text-sm">
           {m.away.name} <span className="text-faint">{m.away.record}</span>
         </span>
-        {/* 客隊(左,紅)｜主隊(右,綠)：綠色從右邊長出，與右側主隊對齊 */}
-        <div className="relative h-7 w-44 shrink-0 overflow-hidden rounded bg-accent">
-          <div
-            className="absolute right-0 top-0 h-7 bg-ink/50"
-            style={{ width: `${homePct}%` }}
-          />
-          <span className="absolute inset-y-0 left-2 flex items-center font-mono text-[11px] text-muted">
-            {(100 - homePct).toFixed(0)}
-          </span>
-          <span className="absolute inset-y-0 right-2 flex items-center font-mono text-xs font-bold text-white">
-            {homePct.toFixed(0)}%
-          </span>
-        </div>
+        {/* 勝率條：左=客隊代表色、右=主隊代表色（主隊從右長出，與右側主隊對齊） */}
+        {(() => {
+          const ac = teamColor(m.away.code), hc = teamColor(m.home.code);
+          return (
+            <div className="relative h-7 w-44 shrink-0 overflow-hidden rounded" style={{ background: ac }}>
+              <div className="absolute right-0 top-0 h-7" style={{ width: `${homePct}%`, background: hc }} />
+              <span className="absolute inset-y-0 left-2 flex items-center font-mono text-[11px] font-semibold"
+                style={{ color: contrastText(ac) }}>
+                {(100 - homePct).toFixed(0)}
+              </span>
+              <span className="absolute inset-y-0 right-2 flex items-center font-mono text-xs font-bold"
+                style={{ color: contrastText(hc) }}>
+                {homePct.toFixed(0)}%
+              </span>
+            </div>
+          );
+        })()}
         <span className="flex-1 text-sm">
           {m.home.name} <span className="text-faint">{m.home.record}</span>
           <span className="ml-1 text-xs text-accent/70">(主)</span>
@@ -86,10 +91,11 @@ export function MatchupCard({
           {/* 先發投手能力值卡疊圖（生涯 PR）：直覺看出兩位先發強弱輪廓 */}
           {showRadar && (
             <div className="mb-3">
-              <AbilityRadarVS home={cards.home!} away={cards.away!} />
+              <AbilityRadarVS home={cards.home!} away={cards.away!}
+                homeColor={teamColor(m.home.code)} awayColor={teamColor(m.away.code)} />
               <div className="flex justify-center gap-4 text-[10px] text-faint">
-                <span><span className="mr-1 inline-block h-2 w-2 rounded-full align-middle" style={{ background: "#1B4DA1" }} />{m.away.name} 先發</span>
-                <span><span className="mr-1 inline-block h-2 w-2 rounded-full align-middle" style={{ background: "#C4122F" }} />{m.home.name} 先發</span>
+                <span><span className="mr-1 inline-block h-2 w-2 rounded-full align-middle" style={{ background: teamColor(m.away.code) }} />{m.away.name} 先發</span>
+                <span><span className="mr-1 inline-block h-2 w-2 rounded-full align-middle" style={{ background: teamColor(m.home.code) }} />{m.home.name} 先發</span>
               </div>
             </div>
           )}
