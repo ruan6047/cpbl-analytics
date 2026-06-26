@@ -1269,18 +1269,21 @@ def _bat_ability_sql(scope: str) -> str:
                 (b2+2*b3+3*hr)::float/NULLIF(ab,0) power,
                 bb::float/NULLIF(pa,0) eye,
                 (sb+b3)::float/NULLIF(g,0) speed,
-                f.defense, f.defense_pr, f.is_catcher
+                f.defense, f.defense_pr, f.is_catcher,
+                (h+bb+hbp)::float/NULLIF(ab+bb+hbp+sf,0)+(h+b2+2*b3+3*hr)::float/NULLIF(ab,0) ops
             FROM base b LEFT JOIN fld f USING (player_id)
         ), pr AS (
             SELECT player_id, contact, power, eye, speed, defense, defense_pr, is_catcher,
                 percent_rank() OVER (ORDER BY contact) contact_pr,
                 percent_rank() OVER (ORDER BY power) power_pr,
                 percent_rank() OVER (ORDER BY eye) eye_pr,
-                percent_rank() OVER (ORDER BY speed) speed_pr
+                percent_rank() OVER (ORDER BY speed) speed_pr,
+                percent_rank() OVER (ORDER BY ops) ops_pr
             FROM rate
-        ), ov AS (   -- 整體表現重排：各軸 PR 加總後再取全聯盟百分位（守備缺→中性 0.5）
+        ), ov AS (   -- 總評重排：以打擊產能 OPS 為主(權重3，已綜合接觸/力量/選球，強打不被低接觸拖累)
+            -- + 速度/守備為輔(各1)，再取全聯盟百分位（守備缺→中性 0.5）。
             SELECT *, percent_rank() OVER (ORDER BY
-                contact_pr + power_pr + eye_pr + speed_pr + COALESCE(defense_pr, 0.5)) ov_pr
+                3 * ops_pr + speed_pr + COALESCE(defense_pr, 0.5)) ov_pr
             FROM pr
         ) SELECT contact, power, eye, speed, defense,
                  contact_pr, power_pr, eye_pr, speed_pr, defense_pr, is_catcher, ov_pr
@@ -1328,9 +1331,9 @@ def _pit_ability_sql(scope: str) -> str:
                 CASE WHEN k_pr >= COALESCE(gb_pr,0) AND k_pr >= COALESCE(fb_pr,0) THEN k
                      WHEN COALESCE(gb_pr,0) >= COALESCE(fb_pr,0) THEN gb ELSE fb END weapon_val
             FROM prx
-        ), ov AS (
+        ), ov AS (   -- 總評重排：以壓制 ERA 為主(權重3，bottom-line 防失分) + 其餘為輔，再全聯盟百分位
             SELECT *, percent_rank() OVER (ORDER BY
-                weapon_pr + control_pr + hr_suppress_pr + command_pr + stamina_pr) ov_pr
+                3 * command_pr + weapon_pr + control_pr + hr_suppress_pr + stamina_pr) ov_pr
             FROM pr
         ) SELECT weapon_val, control, hr_suppress, command, stamina,
                  weapon_pr, control_pr, hr_suppress_pr, command_pr, stamina_pr,
