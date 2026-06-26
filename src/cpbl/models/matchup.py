@@ -30,13 +30,19 @@ TEAM_STAT = {
     "runs_allowed_diff": "ra_pg",
     "recent_form_diff": "form",
     "rest_days_diff": "rest_days",
+    "prior_team_ops_diff": "prior_ops",
+    "prior_team_slg_diff": "prior_slg",
+    "prior_team_era_diff": "prior_era",
+    "prior_team_whip_diff": "prior_whip",
 }
-# 定向：把每個變數轉成「正值 = 有利主隊」。失分/ERA 越低越好故取負；對戰勝率以 0.5 為中心。
+# 定向：把每個變數轉成「正值 = 有利主隊」。失分/ERA/WHIP 越低越好故取負；對戰勝率以 0.5 為中心。
 ORIENT_SIGN = {
     "winrate_diff": 1.0, "prior_winpct_diff": 1.0, "runs_scored_diff": 1.0,
     "runs_allowed_diff": -1.0, "recent_form_diff": 1.0, "rest_days_diff": 1.0,
     "h2h_home": 1.0,
     "starter_era_diff": -1.0, "starter_whip_diff": -1.0, "starter_k9_diff": 1.0,
+    "prior_team_ops_diff": 1.0, "prior_team_slg_diff": 1.0,
+    "prior_team_era_diff": -1.0, "prior_team_whip_diff": -1.0,
 }
 ORIENT_CENTER = {"h2h_home": 0.5}
 # 先發投手變因 → pitcher_stats 的欄位
@@ -88,10 +94,45 @@ def _prior_winpct(season: int) -> dict[str, float]:
         return {code: float(wp) for code, wp in cur.fetchall() if wp is not None}
 
 
+def _prior_team(season: int) -> tuple[dict[str, dict], dict]:
+    """({team_code: 上季團隊 ops/slg/era/whip}, 聯盟均值)。缺資料的隊由呼叫端用聯盟均值墊。"""
+    bat: dict[str, dict] = {}
+    pit: dict[str, dict] = {}
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute("SELECT team_id, sum(ab), sum(h), sum(tb), sum(bb), sum(hbp), sum(sf) "
+                    "FROM cpbl.batting_seasons WHERE year=%s GROUP BY team_id", (season - 1,))
+        for t, ab, h, tb, bb, hbp, sf in cur.fetchall():
+            ab = ab or 0
+            if ab <= 0:
+                continue
+            bb, hbp, sf, tb, h = bb or 0, hbp or 0, sf or 0, tb or 0, h or 0
+            den = ab + bb + hbp + sf
+            slg = tb / ab
+            bat[t[:3]] = {"prior_ops": float(((h + bb + hbp) / den if den else 0) + slg),
+                          "prior_slg": float(slg)}
+        cur.execute("SELECT team_id, sum(floor(ip)+(ip-floor(ip))*10/3.0), sum(er), sum(h), sum(bb) "
+                    "FROM cpbl.pitching_seasons WHERE year=%s GROUP BY team_id", (season - 1,))
+        for t, ip, er, h, bb in cur.fetchall():
+            if not ip or ip <= 0:
+                continue
+            pit[t[:3]] = {"prior_era": float((er or 0) * 9 / ip),
+                          "prior_whip": float(((h or 0) + (bb or 0)) / ip)}
+
+    def _avg(d: dict, k: str) -> float:
+        vs = [v[k] for v in d.values() if k in v]
+        return sum(vs) / len(vs) if vs else 0.0
+    la = {"prior_ops": _avg(bat, "prior_ops"), "prior_slg": _avg(bat, "prior_slg"),
+          "prior_era": _avg(pit, "prior_era"), "prior_whip": _avg(pit, "prior_whip")}
+    out = {t: {**la, **bat.get(t, {}), **pit.get(t, {})} for t in set(bat) | set(pit)}
+    return out, la
+
+
 def team_stats(season: int) -> dict[str, dict]:
-    """回傳 {team_code: {name, w, l, win_pct, rs_pg, ra_pg, form, prior_wp, rest_days}}
-    （當季完成場次累計；prior_wp=上季戰力先驗、rest_days=距上一場至今天的休息天數）。"""
+    """回傳 {team_code: {name, w, l, win_pct, rs_pg, ra_pg, form, prior_wp, rest_days,
+    prior_ops/slg/era/whip}}（當季完成場次累計 + 上季團隊打擊/投手先驗）。"""
     prior = _prior_winpct(season)
+    prior_tm, prior_la = _prior_team(season)
     with conn() as c:
         cur = c.cursor()
         cur.execute(
@@ -140,6 +181,7 @@ def team_stats(season: int) -> dict[str, dict]:
             "ra_pg": s["ra"] / s["g"] if s["g"] else 0.0,
             "form": sum(last10) / len(last10) if last10 else 0.5,
             "last10": f"{sum(last10)}-{len(last10) - sum(last10)}",
+            **prior_tm.get(code[:3], prior_la),
         }
     return out
 

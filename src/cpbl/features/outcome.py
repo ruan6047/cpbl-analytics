@@ -29,6 +29,10 @@ CANDIDATE_FEATURES = [
     ("starter_era_diff", "先發投手ERA"),
     ("starter_whip_diff", "先發投手WHIP"),
     ("starter_k9_diff", "先發投手K9"),
+    ("prior_team_ops_diff", "上季團隊OPS"),
+    ("prior_team_slg_diff", "上季團隊長打率"),
+    ("prior_team_era_diff", "上季團隊ERA"),
+    ("prior_team_whip_diff", "上季團隊WHIP"),
     ("home_field", "主場優勢"),
 ]
 FEATURE_KEYS = [k for k, _ in CANDIDATE_FEATURES]
@@ -48,19 +52,27 @@ FEATURE_DESC = {
     "starter_whip_diff": "先發投手每局被上壘率（WHIP），越低越強。衡量壓制力。",
     "starter_k9_diff": "先發投手每 9 局奪三振數（K9），越高越強。衡量三振能力。",
     "home_field": "主場球隊的基準勝率優勢（約 +5%）。以模型 intercept 表示。",
+    "prior_team_ops_diff": "上季團隊整體攻擊 OPS 對比（全史可算）。衡量打線基底實力。",
+    "prior_team_slg_diff": "上季團隊長打率 SLG 對比。衡量長打火力基底。",
+    "prior_team_era_diff": "上季團隊防禦率 ERA 對比，越低越強。衡量投手戰力基底。",
+    "prior_team_whip_diff": "上季團隊 WHIP 對比，越低越強。衡量壓制力基底。",
 }
 
 # 顯示群組（前端依此分區呈現）。
 FEATURE_GROUP = {
     "winrate_diff": "整體實力", "prior_winpct_diff": "整體實力", "recent_form_diff": "整體實力",
-    "runs_scored_diff": "打擊表現", "runs_allowed_diff": "守備／失分",
+    "runs_scored_diff": "打擊表現", "prior_team_ops_diff": "打擊表現", "prior_team_slg_diff": "打擊表現",
+    "runs_allowed_diff": "守備／失分",
     "starter_era_diff": "先發投手", "starter_whip_diff": "先發投手", "starter_k9_diff": "先發投手",
+    "prior_team_era_diff": "團隊投手", "prior_team_whip_diff": "團隊投手",
     "h2h_home": "對戰記錄", "rest_days_diff": "場地／賽事因數", "home_field": "場地／賽事因數",
 }
 # 相依（共線）群組：同 id 的特徵彼此高度相關，前端選了多個會軟提醒（仍可選，聯合 fit 自動分攤）。
 FEATURE_CORR = {
     "starter_era_diff": "先發壓制", "starter_whip_diff": "先發壓制", "starter_k9_diff": "先發壓制",
     "winrate_diff": "整體戰力", "prior_winpct_diff": "整體戰力", "recent_form_diff": "整體戰力",
+    "runs_scored_diff": "打線火力", "prior_team_ops_diff": "打線火力", "prior_team_slg_diff": "打線火力",
+    "runs_allowed_diff": "投手戰力", "prior_team_era_diff": "投手戰力", "prior_team_whip_diff": "投手戰力",
 }
 
 
@@ -132,10 +144,41 @@ def _prior_winpct() -> dict[tuple[int, str], float]:
     return prior
 
 
+def _prior_team_stats() -> dict[tuple[int, str], dict]:
+    """{(season, team_code): 上季團隊 OPS/SLG/ERA/WHIP}。由 *_seasons 逐季彙總、存於 (year+1, team)，
+    供冷啟動的打線/投手戰力先驗。team_id 與 games 同碼（同 franchise-era）；缺則呼叫端 fallback。"""
+    out: dict[tuple[int, str], dict] = {}
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            "SELECT year, team_id, sum(ab), sum(h), sum(tb), sum(bb), sum(hbp), sum(sf) "
+            "FROM cpbl.batting_seasons GROUP BY year, team_id")
+        for y, t, ab, h, tb, bb, hbp, sf in cur.fetchall():
+            ab = ab or 0
+            if ab <= 0:
+                continue
+            bb, hbp, sf, tb, h = bb or 0, hbp or 0, sf or 0, tb or 0, h or 0
+            den = ab + bb + hbp + sf
+            slg = tb / ab
+            ops = ((h + bb + hbp) / den if den else 0) + slg
+            # team_id 老年份 3 碼(ACC)、近年 6 碼(ACC011)→ 統一取前 3 碼當 key 對齊 games。
+            out.setdefault((y + 1, t[:3]), {}).update({"prior_ops": ops, "prior_slg": slg})
+        cur.execute(
+            "SELECT year, team_id, sum(floor(ip)+(ip-floor(ip))*10/3.0), sum(er), sum(h), sum(bb) "
+            "FROM cpbl.pitching_seasons GROUP BY year, team_id")
+        for y, t, ip, er, h, bb in cur.fetchall():
+            if not ip or ip <= 0:
+                continue
+            out.setdefault((y + 1, t[:3]), {}).update(
+                {"prior_era": (er or 0) * 9 / ip, "prior_whip": ((h or 0) + (bb or 0)) / ip})
+    return out
+
+
 def build_game_features() -> list[dict]:
     era, lg_era = _prior_era()
     whip, k9, lg_whip, lg_k9 = _pitcher_adv()
     prior_wp = _prior_winpct()
+    prior_team = _prior_team_stats()
 
     with conn() as c:
         cur = c.cursor()
@@ -199,6 +242,11 @@ def build_game_features() -> list[dict]:
         rest_diff = 0.0 if (hr is None or ar is None) else float(hr - ar)
         # 上季戰力差：無上季資料（新隊/首季）→ 0.5 中性。
         prior_diff = prior_wp.get((year, home), 0.5) - prior_wp.get((year, away), 0.5)
+        # 上季團隊打擊/投手差：任一隊無上季資料 → 0 中性。
+        pth, pta = prior_team.get((year, home[:3]), {}), prior_team.get((year, away[:3]), {})
+
+        def _ptd(key: str) -> float:
+            return (pth[key] - pta[key]) if key in pth and key in pta else 0.0
         feats = {
             "winrate_diff": winrate(home) - winrate(away),
             "prior_winpct_diff": prior_diff,
@@ -212,6 +260,10 @@ def build_game_features() -> list[dict]:
             "starter_era_diff": era.get((hsp, year), lg_era) - era.get((asp, year), lg_era),
             "starter_whip_diff": whip.get((hsp, year), lg_whip) - whip.get((asp, year), lg_whip),
             "starter_k9_diff": k9.get((hsp, year), lg_k9) - k9.get((asp, year), lg_k9),
+            "prior_team_ops_diff": _ptd("prior_ops"),
+            "prior_team_slg_diff": _ptd("prior_slg"),
+            "prior_team_era_diff": _ptd("prior_era"),
+            "prior_team_whip_diff": _ptd("prior_whip"),
         }
 
         completed = hs is not None and as_ is not None and (hs + as_) > 0
@@ -254,7 +306,9 @@ def materialize() -> int:
          r["winrate_diff"], r["runs_scored_diff"], r["runs_allowed_diff"],
          r["recent_form_diff"], r["h2h_home"], r["home_field"], r["starter_era_diff"],
          r["starter_whip_diff"], r["starter_k9_diff"],
-         r["prior_winpct_diff"], r["rest_days_diff"])
+         r["prior_winpct_diff"], r["rest_days_diff"],
+         r["prior_team_ops_diff"], r["prior_team_slg_diff"],
+         r["prior_team_era_diff"], r["prior_team_whip_diff"])
         for r in rows
     ]
     with conn() as c:
@@ -269,8 +323,9 @@ def materialize() -> int:
                  winrate_diff, runs_scored_diff, runs_allowed_diff,
                  recent_form_diff, h2h_home, home_field, starter_era_diff,
                  starter_whip_diff, starter_k9_diff,
-                 prior_winpct_diff, rest_days_diff)
-            VALUES (%s,%s,%s,%s,%s,%s, %s,%s,%s,%s, %s,%s, %s,%s,%s,%s,%s,%s,%s,%s,%s, %s,%s)
+                 prior_winpct_diff, rest_days_diff,
+                 prior_team_ops_diff, prior_team_slg_diff, prior_team_era_diff, prior_team_whip_diff)
+            VALUES (%s,%s,%s,%s,%s,%s, %s,%s,%s,%s, %s,%s, %s,%s,%s,%s,%s,%s,%s,%s,%s, %s,%s, %s,%s,%s,%s)
             ON CONFLICT (year, kind_code, game_season_code, game_sno) DO UPDATE SET
                 game_date=EXCLUDED.game_date, season=EXCLUDED.season,
                 home_team_name=EXCLUDED.home_team_name, away_team_name=EXCLUDED.away_team_name,
@@ -281,7 +336,11 @@ def materialize() -> int:
                 recent_form_diff=EXCLUDED.recent_form_diff, h2h_home=EXCLUDED.h2h_home,
                 home_field=EXCLUDED.home_field, starter_era_diff=EXCLUDED.starter_era_diff,
                 starter_whip_diff=EXCLUDED.starter_whip_diff, starter_k9_diff=EXCLUDED.starter_k9_diff,
-                prior_winpct_diff=EXCLUDED.prior_winpct_diff, rest_days_diff=EXCLUDED.rest_days_diff
+                prior_winpct_diff=EXCLUDED.prior_winpct_diff, rest_days_diff=EXCLUDED.rest_days_diff,
+                prior_team_ops_diff=EXCLUDED.prior_team_ops_diff,
+                prior_team_slg_diff=EXCLUDED.prior_team_slg_diff,
+                prior_team_era_diff=EXCLUDED.prior_team_era_diff,
+                prior_team_whip_diff=EXCLUDED.prior_team_whip_diff
             """,
             records,
         )

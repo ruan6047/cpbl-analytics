@@ -92,7 +92,8 @@ ssh -o BatchMode=yes "$VPS" \
 sync_table game_features "year,kind_code,game_season_code,game_sno" \
   game_date season home_team_code away_team_code home_team_name away_team_name home_win completed \
   winrate_diff prior_winpct_diff runs_scored_diff runs_allowed_diff recent_form_diff rest_days_diff \
-  h2h_home home_field starter_era_diff starter_whip_diff starter_k9_diff
+  h2h_home home_field starter_era_diff starter_whip_diff starter_k9_diff \
+  prior_team_ops_diff prior_team_slg_diff prior_team_era_diff prior_team_whip_diff
 
 if [ -n "${WITH_DETAIL:-}" ]; then
   sync_table batter_pitcher_matchups "year,kind_code,hitter_acnt,pitcher_acnt" \
