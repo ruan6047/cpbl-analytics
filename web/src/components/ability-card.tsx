@@ -13,7 +13,7 @@ import { contrastText } from "@/lib/teams";
 // 資料皆我們自算的客觀指標，等級 S–G 純由 PR 換算（非抄遊戲數值）。
 export type AxisComp = { label: string; weight: number; pr: number };
 export type Axis = { key: string; label: string; pr: number | null; grade: string | null; components: AxisComp[] };
-export type Card = { available: boolean; role: string; scope?: string; has_advanced?: boolean; axes?: Axis[]; overall?: { pr: number; grade: string } };
+export type Card = { available: boolean; role: string; scope?: string; has_advanced?: boolean; signature?: string | null; axes?: Axis[]; overall?: { pr: number; grade: string } };
 
 // 軸名 hover 提示：該軸由哪些指標、各佔多少權重綜合而成。
 function axisTitle(a: Axis | undefined): string {
@@ -74,7 +74,15 @@ export function AbilityCard({
     <div>
       {title && (
         <div className="mb-1 flex items-center justify-between">
-          <span className="text-sm font-medium text-ink">{title}</span>
+          <span className="flex items-center gap-1.5 text-sm font-medium text-ink">
+            {title}
+            {card.signature && (
+              <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-accent"
+                title="打擊特色：進攻工具中最突出者（多項頂尖＝全能）">
+                {card.signature}型
+              </span>
+            )}
+          </span>
           {card.overall && (
             <span className="flex items-center gap-1 text-xs text-muted">
               總評 <GradeChip grade={card.overall.grade} />

@@ -1192,7 +1192,6 @@ _ABILITY_AXES = {
         ("eye", "選球", "pct", "保送率 BB%"),
         ("speed", "速度", "f2", "每場盜壘＋三壘打 (SB+3B)/G"),
         ("defense", "守備", "f2", "守位內守備範圍／捕手阻殺率"),
-        ("overall", "破壞力", "f3", "整體攻擊 OPS"),
     ],
     "pitching": [
         # 「武器」＝出局方式特色軸：取該投手最突出者（三振/滾地/飛球），標籤與數值動態。
@@ -1215,7 +1214,6 @@ _COMPOSITE = {
         "eye": [("trad", "eye", "保送率", 0.5), ("adv", "chasep_pr", "追打抑制", 0.5)],
         "speed": [("trad", "speed", "盜壘＋三壘打", 1.0)],
         "defense": [("trad", "defense", "守備範圍/阻殺", 1.0)],
-        "overall": [("trad", "overall", "OPS", 0.4), ("adv", "woba_pr", "wOBA", 0.6)],
     },
     "pitching": {
         "weapon": [("trad", "weapon", "武器", 1.0)],   # 標籤動態（三振/滾地/飛球）
@@ -1271,23 +1269,21 @@ def _bat_ability_sql(scope: str) -> str:
                 (b2+2*b3+3*hr)::float/NULLIF(ab,0) power,
                 bb::float/NULLIF(pa,0) eye,
                 (sb+b3)::float/NULLIF(g,0) speed,
-                f.defense, f.defense_pr, f.is_catcher,
-                (h+bb+hbp)::float/NULLIF(ab+bb+hbp+sf,0)+(h+b2+2*b3+3*hr)::float/NULLIF(ab,0) overall
+                f.defense, f.defense_pr, f.is_catcher
             FROM base b LEFT JOIN fld f USING (player_id)
         ), pr AS (
-            SELECT player_id, contact, power, eye, speed, defense, overall, defense_pr, is_catcher,
+            SELECT player_id, contact, power, eye, speed, defense, defense_pr, is_catcher,
                 percent_rank() OVER (ORDER BY contact) contact_pr,
                 percent_rank() OVER (ORDER BY power) power_pr,
                 percent_rank() OVER (ORDER BY eye) eye_pr,
-                percent_rank() OVER (ORDER BY speed) speed_pr,
-                percent_rank() OVER (ORDER BY overall) overall_pr
+                percent_rank() OVER (ORDER BY speed) speed_pr
             FROM rate
         ), ov AS (   -- 整體表現重排：各軸 PR 加總後再取全聯盟百分位（守備缺→中性 0.5）
             SELECT *, percent_rank() OVER (ORDER BY
-                contact_pr + power_pr + eye_pr + speed_pr + COALESCE(defense_pr, 0.5) + overall_pr) ov_pr
+                contact_pr + power_pr + eye_pr + speed_pr + COALESCE(defense_pr, 0.5)) ov_pr
             FROM pr
-        ) SELECT contact, power, eye, speed, defense, overall,
-                 contact_pr, power_pr, eye_pr, speed_pr, defense_pr, overall_pr, is_catcher, ov_pr
+        ) SELECT contact, power, eye, speed, defense,
+                 contact_pr, power_pr, eye_pr, speed_pr, defense_pr, is_catcher, ov_pr
           FROM ov WHERE player_id = %(pid)s
     """
 
@@ -1401,8 +1397,19 @@ def _ability_card(cur, player_id: str, role: str, scope: str, year: int) -> dict
     rated = [a["pr"] for a in axes if a["pr"] is not None]
     overall = (round(float(ov_pr) * 100) if ov_pr is not None
                else (round(sum(rated) / len(rated)) if rated else 0))
+    # 打擊特色標籤（彰顯打者類型，不合軸）：取進攻工具中最突出者；多項 ≥80 → 全能。
+    signature = None
+    if role == "batting":
+        names = {"power": "強打", "contact": "巧打", "eye": "選球", "speed": "快腿"}
+        off = {a["key"]: a["pr"] for a in axes
+               if a["key"] in names and a["pr"] is not None}
+        if off:
+            strong = [names[k] for k, v in off.items() if v >= 80]
+            top = max(off, key=off.get)
+            signature = "全能" if len(strong) >= 3 else "·".join(strong[:2]) if strong else names[top]
     return {"available": True, "role": role, "scope": scope, "axes": axes,
-            "has_advanced": bool(adv), "overall": {"pr": overall, "grade": _grade(overall)}}
+            "has_advanced": bool(adv), "signature": signature,
+            "overall": {"pr": overall, "grade": _grade(overall)}}
 
 
 @app.get("/api/v1/players/{player_id}/ability-card")
