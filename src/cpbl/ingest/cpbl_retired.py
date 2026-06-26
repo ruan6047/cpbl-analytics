@@ -24,6 +24,13 @@ WIKI_FALSE_RETIRED: set[tuple[str, int]] = {
     ("AAA011", 49),  # 味全龍：張泰山為隊上教練，非退休背號（真正退休＝徐生明 #85）
 }
 
+# 已查證正確但無法連結 players（受獎者為總教練/名宿，不在球員表）→ 不再標 needs_review。
+WIKI_VERIFIED_NO_LINK: set[tuple[str, int]] = {
+    ("ACN011", 67),  # 中信兄弟：曾紀恩（創隊名帥）
+    ("AEO011", 85),  # 富邦悍將：徐生明（興農/義大時退、2021 恢復使用）
+    ("AAA011", 85),  # 味全龍：徐生明（味全龍名帥）
+}
+
 
 def _parse_section(wt: str) -> list[dict]:
     m = re.search(r"==\s*退休背號\s*==", wt)
@@ -97,6 +104,8 @@ def scrape_retired() -> dict[str, int]:
                 pid, review = (None, False)
                 if r["holder_type"] == "player":
                     pid, review = _match(cur, r["name"])
+                if (code, r["number"]) in WIKI_VERIFIED_NO_LINK:
+                    review = False
                 cur.execute(
                     "INSERT INTO cpbl.retired_numbers"
                     "(team_code,number,holder_type,player_id,holder_name,retired_year,status,note,source,needs_review)"
