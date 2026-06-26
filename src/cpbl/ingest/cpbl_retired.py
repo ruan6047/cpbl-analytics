@@ -18,6 +18,12 @@ from cpbl.ingest.cpbl_wiki import fetch_wikitext
 
 log = logging.getLogger("cpbl.retired")
 
+# 維基誤植排除：(franchise team_code, number) — 維基條目誤列但事實上未退休（使用者查證）。
+# 因爬蟲照抄維基，須在此攔截，否則每次重爬又回填。
+WIKI_FALSE_RETIRED: set[tuple[str, int]] = {
+    ("AAA011", 49),  # 味全龍：張泰山為隊上教練，非退休背號（真正退休＝徐生明 #85）
+}
+
 
 def _parse_section(wt: str) -> list[dict]:
     m = re.search(r"==\s*退休背號\s*==", wt)
@@ -83,6 +89,7 @@ def scrape_retired() -> dict[str, int]:
     for code, title in WIKI_TITLE.items():
         wt = fetch_wikitext(title)
         rows = _parse_section(wt) if wt else []
+        rows = [r for r in rows if (code, r["number"]) not in WIKI_FALSE_RETIRED]
         with conn() as c:
             cur = c.cursor()
             cur.execute("DELETE FROM cpbl.retired_numbers WHERE team_code=%s", (code,))
