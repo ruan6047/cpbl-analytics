@@ -50,6 +50,19 @@ FEATURE_DESC = {
     "home_field": "主場球隊的基準勝率優勢（約 +5%）。以模型 intercept 表示。",
 }
 
+# 顯示群組（前端依此分區呈現）。
+FEATURE_GROUP = {
+    "winrate_diff": "整體實力", "prior_winpct_diff": "整體實力", "recent_form_diff": "整體實力",
+    "runs_scored_diff": "打擊表現", "runs_allowed_diff": "守備／失分",
+    "starter_era_diff": "先發投手", "starter_whip_diff": "先發投手", "starter_k9_diff": "先發投手",
+    "h2h_home": "對戰記錄", "rest_days_diff": "場地／賽事因數", "home_field": "場地／賽事因數",
+}
+# 相依（共線）群組：同 id 的特徵彼此高度相關，前端選了多個會軟提醒（仍可選，聯合 fit 自動分攤）。
+FEATURE_CORR = {
+    "starter_era_diff": "先發壓制", "starter_whip_diff": "先發壓制", "starter_k9_diff": "先發壓制",
+    "winrate_diff": "整體戰力", "prior_winpct_diff": "整體戰力", "recent_form_diff": "整體戰力",
+}
+
 
 def _prior_era() -> tuple[dict[tuple[str, int], float], float]:
     """{(player_id, year): 該季 ERA}；以及聯盟平均 ERA。

@@ -41,6 +41,23 @@ export default function PredictPage() {
   const [backtest, setBacktest] = useState<Backtest | null>(null);
 
   const label = useMemo(() => Object.fromEntries(feats.map((f) => [f.key, f.label])), [feats]);
+  // 依群組分區（保留後端順序）
+  const groups = useMemo(() => {
+    const m = new Map<string, FeatureMeta[]>();
+    for (const f of feats) {
+      const g = f.group ?? "其他";
+      (m.get(g) ?? m.set(g, []).get(g)!).push(f);
+    }
+    return [...m.entries()];
+  }, [feats]);
+  // 共線軟提醒：已選特徵中，同一 corr 群組被選了 ≥2 個 → 列出該群組名稱
+  const corrWarn = useMemo(() => {
+    const byCorr = new Map<string, string[]>();
+    for (const f of feats) {
+      if (f.corr && selected.includes(f.key)) (byCorr.get(f.corr) ?? byCorr.set(f.corr, []).get(f.corr)!).push(f.label);
+    }
+    return [...byCorr.entries()].filter(([, v]) => v.length >= 2);
+  }, [feats, selected]);
 
   useEffect(() => {
     clientGet<{ features: FeatureMeta[] }>("/api/v1/outcome/features").then((d) =>
@@ -117,34 +134,44 @@ export default function PredictPage() {
         ))}
       </div>
 
-      {/* 變因開關（滑鼠移過去看說明） */}
-      <section className="mb-4 flex flex-wrap gap-2">
-        {feats.map((f) => {
-          const on = selected.includes(f.key);
-          return (
-            <div key={f.key} className="group relative">
-              <button
-                onClick={() => toggle(f.key)}
-                className={`rounded-lg border px-3 py-1.5 text-sm transition ${
-                  on
-                    ? "border-accent bg-ink/15 text-accent"
-                    : "border-line bg-surface-2 text-faint hover:border-line"
-                }`}
-              >
-                {on ? "✓ " : ""}
-                {f.label}
-              </button>
-              {f.desc && (
-                <span
-                  role="tooltip"
-                  className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 w-60 -translate-x-1/2 rounded-lg border border-line bg-neutral-900 px-3 py-2 text-xs leading-relaxed text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100"
-                >
-                  {f.desc}
-                </span>
-              )}
+      {/* 變因開關（依群組分區；滑鼠移過去看說明） */}
+      <section className="mb-4 space-y-3">
+        {groups.map(([gname, gfeats]) => (
+          <div key={gname}>
+            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-faint">{gname}</div>
+            <div className="flex flex-wrap gap-2">
+              {gfeats.map((f) => {
+                const on = selected.includes(f.key);
+                return (
+                  <div key={f.key} className="group relative">
+                    <button
+                      onClick={() => toggle(f.key)}
+                      className={`rounded-lg border px-3 py-1.5 text-sm transition ${
+                        on ? "border-accent bg-ink/15 text-accent"
+                          : "border-line bg-surface-2 text-faint hover:border-line"
+                      }`}
+                    >
+                      {on ? "✓ " : ""}
+                      {f.label}
+                    </button>
+                    {f.desc && (
+                      <span role="tooltip"
+                        className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 w-60 -translate-x-1/2 rounded-lg border border-line bg-neutral-900 px-3 py-2 text-xs leading-relaxed text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
+                        {f.desc}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        ))}
+        {corrWarn.length > 0 && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            ⚠ 相依提醒：{corrWarn.map(([g, labels]) => `「${g}」(${labels.join("、")})`).join("；")}
+            互相高度相關，同時選用屬重複訊號——模型已自動分攤權重，但解讀影響力時請留意可擇一即可。
+          </div>
+        )}
       </section>
 
       {/* 權重滑桿 */}

@@ -437,10 +437,12 @@ def fielding(
 
 @app.get("/api/v1/outcome/features")
 def outcome_features() -> dict:
-    """賽果預測的候選特徵清單（含說明，給前端 checkbox + tooltip）。"""
+    """賽果預測的候選特徵清單（含說明/群組/相依，給前端分群 + tooltip + 共線軟提醒）。"""
+    from cpbl.features.outcome import FEATURE_CORR, FEATURE_GROUP
     return {
         "features": [
-            {"key": k, "label": label, "desc": FEATURE_DESC.get(k, "")}
+            {"key": k, "label": label, "desc": FEATURE_DESC.get(k, ""),
+             "group": FEATURE_GROUP.get(k, "其他"), "corr": FEATURE_CORR.get(k)}
             for k, label in CANDIDATE_FEATURES
         ]
     }

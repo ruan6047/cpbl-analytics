@@ -1,7 +1,7 @@
 // 瀏覽器端 API base。prod 同源(經 nginx)→ 可留空走相對路徑；dev 指向 FastAPI。
 export const CLIENT_API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4001";
 
-export type FeatureMeta = { key: string; label: string; desc?: string };
+export type FeatureMeta = { key: string; label: string; desc?: string; group?: string; corr?: string | null };
 
 export type EvalResult = {
   features: string[];
