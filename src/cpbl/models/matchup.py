@@ -34,6 +34,8 @@ TEAM_STAT = {
     "prior_team_slg_diff": "prior_slg",
     "prior_team_era_diff": "prior_era",
     "prior_team_whip_diff": "prior_whip",
+    "team_ops_now_diff": "now_ops",
+    "team_avg_now_diff": "now_avg",
 }
 # 定向：把每個變數轉成「正值 = 有利主隊」。失分/ERA/WHIP 越低越好故取負；對戰勝率以 0.5 為中心。
 ORIENT_SIGN = {
@@ -43,6 +45,7 @@ ORIENT_SIGN = {
     "starter_era_diff": -1.0, "starter_whip_diff": -1.0, "starter_k9_diff": 1.0,
     "prior_team_ops_diff": 1.0, "prior_team_slg_diff": 1.0,
     "prior_team_era_diff": -1.0, "prior_team_whip_diff": -1.0,
+    "team_ops_now_diff": 1.0, "team_avg_now_diff": 1.0,
 }
 ORIENT_CENTER = {"h2h_home": 0.5}
 # 先發投手變因 → pitcher_stats 的欄位
@@ -133,6 +136,15 @@ def team_stats(season: int) -> dict[str, dict]:
     prior_ops/slg/era/whip}}（當季完成場次累計 + 上季團隊打擊/投手先驗）。"""
     prior = _prior_winpct(season)
     prior_tm, prior_la = _prior_team(season)
+    # 當季團隊打擊（到此）：用 team_current 的本季彙總 bat_ops/bat_avg。
+    now_tm: dict[str, dict] = {}
+    with conn() as c:
+        for code, ops, avg in c.execute(
+            "SELECT team_code, bat_ops, bat_avg FROM cpbl.team_current WHERE year=%s", (season,)).fetchall():
+            now_tm[code] = {"now_ops": float(ops) if ops is not None else 0.0,
+                            "now_avg": float(avg) if avg is not None else 0.0}
+    now_la = {"now_ops": (sum(v["now_ops"] for v in now_tm.values()) / len(now_tm)) if now_tm else 0.0,
+              "now_avg": (sum(v["now_avg"] for v in now_tm.values()) / len(now_tm)) if now_tm else 0.0}
     with conn() as c:
         cur = c.cursor()
         cur.execute(
@@ -182,6 +194,7 @@ def team_stats(season: int) -> dict[str, dict]:
             "form": sum(last10) / len(last10) if last10 else 0.5,
             "last10": f"{sum(last10)}-{len(last10) - sum(last10)}",
             **prior_tm.get(code[:3], prior_la),
+            **now_tm.get(code, now_la),
         }
     return out
 
@@ -260,8 +273,11 @@ def train_model(features: list[str]) -> dict:
         rows = cur.fetchall()
 
     idx = {k: 2 + FEATURE_KEYS.index(k) for k in real}
+    # 只保留「所有選定特徵都有值」的場次：覆蓋年限不同的特徵（如 2018+ 當季細項在更早年份為
+    # NULL）會自動把訓練/回測限縮到該特徵有資料的年份，避免 NULL 進入回歸。
+    rows = [r for r in rows if all(r[idx[k]] is not None for k in real)]
     seasons = sorted({r[0] for r in rows})
-    test_season = seasons[-1]
+    test_season = seasons[-1] if seasons else None
     train = [r for r in rows if r[0] < test_season] or rows
     test = [r for r in rows if r[0] == test_season] or rows
 
