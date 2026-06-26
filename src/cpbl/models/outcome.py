@@ -80,6 +80,9 @@ def evaluate(features: list[str]) -> dict:
     """用選定特徵子集做時間切分回測，回傳準確率/Brier/係數。"""
     sel, real, use_intercept = _validate(features)
     rows = _load(completed_only=True)
+    # 丟掉「選定特徵有 NULL」的場次 → 覆蓋年限不同的特徵（如 2018+ 當季細項）自動限縮訓練年限。
+    fidx = [_BASE + FEATURE_KEYS.index(f) for f in real]
+    rows = [r for r in rows if all(r[i] is not None for i in fidx)]
     if not rows:
         return {"error": "no completed games"}
 

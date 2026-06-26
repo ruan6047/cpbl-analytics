@@ -51,7 +51,10 @@ def _fit_predict(train, test):
     """回傳 (lr_proba, gbm_proba, home_rate_train)；三方共用一次切分。"""
     from lightgbm import LGBMClassifier
 
-    xtr, xte = _matrix(train, IDX), _matrix(test, IDX)
+    # 覆蓋年限不同的特徵（如 2018+ 當季細項）在更早年份為 NULL → NaN；邏輯回歸/scaler 不接受，
+    # 以 0（中性）填補（LightGBM 本可吃 NaN，一併填補保持一致）。
+    xtr = np.nan_to_num(_matrix(train, IDX), nan=0.0)
+    xte = np.nan_to_num(_matrix(test, IDX), nan=0.0)
     ytr = np.array([r[4] for r in train], dtype=int)
     scaler = StandardScaler().fit(xtr)
     lr = LogisticRegression(max_iter=1000).fit(scaler.transform(xtr), ytr)
