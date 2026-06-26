@@ -36,6 +36,9 @@ TEAM_STAT = {
     "prior_team_whip_diff": "prior_whip",
     "team_ops_now_diff": "now_ops",
     "team_avg_now_diff": "now_avg",
+    "team_sb_now_diff": "now_sb",
+    "team_wp_now_diff": "now_wp",
+    "team_err_now_diff": "now_err",
 }
 # 定向：把每個變數轉成「正值 = 有利主隊」。失分/ERA/WHIP 越低越好故取負；對戰勝率以 0.5 為中心。
 ORIENT_SIGN = {
@@ -46,6 +49,7 @@ ORIENT_SIGN = {
     "prior_team_ops_diff": 1.0, "prior_team_slg_diff": 1.0,
     "prior_team_era_diff": -1.0, "prior_team_whip_diff": -1.0,
     "team_ops_now_diff": 1.0, "team_avg_now_diff": 1.0,
+    "team_sb_now_diff": 1.0, "team_wp_now_diff": -1.0, "team_err_now_diff": -1.0,
 }
 ORIENT_CENTER = {"h2h_home": 0.5}
 # 先發投手變因 → pitcher_stats 的欄位
@@ -145,6 +149,22 @@ def team_stats(season: int) -> dict[str, dict]:
                             "now_avg": float(avg) if avg is not None else 0.0}
     now_la = {"now_ops": (sum(v["now_ops"] for v in now_tm.values()) / len(now_tm)) if now_tm else 0.0,
               "now_avg": (sum(v["now_avg"] for v in now_tm.values()) / len(now_tm)) if now_tm else 0.0}
+    # 當季壘間/守備細項累計（per-game 在輸出時除以場數）。
+    extra: dict[str, dict] = {}
+
+    def _bump(code, key, val):
+        extra.setdefault(code, {"sb": 0, "cs": 0, "wp": 0, "err": 0})[key] = val or 0
+    with conn() as c:
+        cur = c.cursor()
+        for code, sb, cs in cur.execute("SELECT team_code, sum(sb), sum(cs) FROM cpbl.batting_current "
+                                        "WHERE year=%s GROUP BY team_code", (season,)).fetchall():
+            _bump(code, "sb", sb); _bump(code, "cs", cs)
+        for code, wp in cur.execute("SELECT team_code, sum(wp) FROM cpbl.pitching_current "
+                                    "WHERE year=%s GROUP BY team_code", (season,)).fetchall():
+            _bump(code, "wp", wp)
+        for code, e in cur.execute("SELECT team_code, sum(e) FROM cpbl.fielding_current "
+                                   "WHERE year=%s GROUP BY team_code", (season,)).fetchall():
+            _bump(code, "err", e)
     with conn() as c:
         cur = c.cursor()
         cur.execute(
@@ -184,6 +204,8 @@ def team_stats(season: int) -> dict[str, dict]:
         gp = s["w"] + s["l"]
         last10 = s["last10"][-10:]
         rest = min((today - s["last_date"]).days, 7) if s["last_date"] else 0.0
+        ec = extra.get(code, {"sb": 0, "cs": 0, "wp": 0, "err": 0})
+        gd = s["g"] or 1
         out[code] = {
             "name": s["name"], "w": s["w"], "l": s["l"], "g": s["g"],
             "win_pct": s["w"] / gp if gp else 0.5,
@@ -195,6 +217,7 @@ def team_stats(season: int) -> dict[str, dict]:
             "last10": f"{sum(last10)}-{len(last10) - sum(last10)}",
             **prior_tm.get(code[:3], prior_la),
             **now_tm.get(code, now_la),
+            "now_sb": ((ec["sb"] - ec["cs"]) / gd), "now_wp": (ec["wp"] / gd), "now_err": (ec["err"] / gd),
         }
     return out
 

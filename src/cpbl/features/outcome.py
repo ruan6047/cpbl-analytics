@@ -35,6 +35,9 @@ CANDIDATE_FEATURES = [
     ("prior_team_whip_diff", "上季團隊WHIP"),
     ("team_ops_now_diff", "當季團隊OPS"),
     ("team_avg_now_diff", "當季團隊打擊率"),
+    ("team_sb_now_diff", "當季淨盜壘/場"),
+    ("team_wp_now_diff", "當季暴投/場"),
+    ("team_err_now_diff", "當季失誤/場"),
     ("home_field", "主場優勢"),
 ]
 FEATURE_KEYS = [k for k, _ in CANDIDATE_FEATURES]
@@ -60,6 +63,9 @@ FEATURE_DESC = {
     "prior_team_whip_diff": "上季團隊 WHIP 對比，越低越強。衡量壓制力基底。",
     "team_ops_now_diff": "本季至今團隊整體攻擊 OPS 對比（即時打線狀態）。僅 2018 年起有逐打席資料。",
     "team_avg_now_diff": "本季至今團隊打擊率對比（即時手感）。僅 2018 年起有逐打席資料。",
+    "team_sb_now_diff": "本季至今每場淨盜壘（盜壘成功−失敗）對比，衡量壘間積極度。僅 2018 年起有。",
+    "team_wp_now_diff": "本季至今投手群每場暴投數對比，越少越穩（控球/守成）。僅 2018 年起有。",
+    "team_err_now_diff": "本季至今每場失誤數對比，越少守備越穩。僅 2018 年起有。",
 }
 
 # 顯示群組（前端依此分區呈現）。
@@ -67,7 +73,8 @@ FEATURE_GROUP = {
     "winrate_diff": "整體實力", "prior_winpct_diff": "整體實力", "recent_form_diff": "整體實力",
     "runs_scored_diff": "打擊表現", "prior_team_ops_diff": "打擊表現", "prior_team_slg_diff": "打擊表現",
     "team_ops_now_diff": "打擊表現", "team_avg_now_diff": "打擊表現",
-    "runs_allowed_diff": "守備／失分",
+    "team_sb_now_diff": "壘間",
+    "runs_allowed_diff": "守備／失分", "team_err_now_diff": "守備／失分", "team_wp_now_diff": "守備／失分",
     "starter_era_diff": "先發投手", "starter_whip_diff": "先發投手", "starter_k9_diff": "先發投手",
     "prior_team_era_diff": "團隊投手", "prior_team_whip_diff": "團隊投手",
     "h2h_home": "對戰記錄", "rest_days_diff": "場地／賽事因數", "home_field": "場地／賽事因數",
@@ -188,11 +195,18 @@ def _team_batting_box() -> dict[tuple[int, str, int], dict]:
         cur = c.cursor()
         cur.execute(
             "SELECT year, kind_code, game_sno, visiting_home_type, sum(at_bats), sum(hits), "
-            "sum(bb), sum(hbp), sum(total_bases), sum(sac_fly) "
+            "sum(bb), sum(hbp), sum(total_bases), sum(sac_fly), sum(sb), sum(cs), sum(errors) "
             "FROM cpbl.batting_gamelog GROUP BY year, kind_code, game_sno, visiting_home_type")
-        for y, k, sno, vh, ab, h, bb, hbp, tb, sf in cur.fetchall():
+        for y, k, sno, vh, ab, h, bb, hbp, tb, sf, sb, cs, err in cur.fetchall():
             box.setdefault((y, k, sno), {})[str(vh)] = {
-                "ab": ab or 0, "h": h or 0, "bb": bb or 0, "hbp": hbp or 0, "tb": tb or 0, "sf": sf or 0}
+                "ab": ab or 0, "h": h or 0, "bb": bb or 0, "hbp": hbp or 0, "tb": tb or 0,
+                "sf": sf or 0, "sb": sb or 0, "cs": cs or 0, "err": err or 0, "g": 1}
+        # 暴投：本場各隊投手群暴投數（pitching_gamelog；防守方視角）。
+        cur.execute(
+            "SELECT year, kind_code, game_sno, visiting_home_type, sum(wild_pitch) "
+            "FROM cpbl.pitching_gamelog GROUP BY year, kind_code, game_sno, visiting_home_type")
+        for y, k, sno, vh, wp in cur.fetchall():
+            box.setdefault((y, k, sno), {}).setdefault(str(vh), {})["wp"] = wp or 0
     return box
 
 
@@ -202,8 +216,10 @@ def build_game_features() -> list[dict]:
     prior_wp = _prior_winpct()
     prior_team = _prior_team_stats()
     box = _team_batting_box()
+    # 當季到此團隊累計（打擊 + 壘間/守備/投手細項）
     team_bat: dict[str, dict] = defaultdict(
-        lambda: {"ab": 0, "h": 0, "bb": 0, "hbp": 0, "tb": 0, "sf": 0})  # 當季到此團隊打擊累計
+        lambda: {"ab": 0, "h": 0, "bb": 0, "hbp": 0, "tb": 0, "sf": 0,
+                 "sb": 0, "cs": 0, "err": 0, "wp": 0, "g": 0})
 
     with conn() as c:
         cur = c.cursor()
@@ -273,20 +289,29 @@ def build_game_features() -> list[dict]:
         def _ptd(key: str) -> float:
             return (pth[key] - pta[key]) if key in pth and key in pta else 0.0
 
-        # 當季到此團隊打擊（OPS/AVG）；僅 2018+ 有逐打席 box，更早年份 → None（train 自動限縮）。
-        def _now(team: str, kind_: str):
+        # 當季到此團隊細項（打擊 OPS/AVG、淨盜壘、暴投、失誤）；僅 2018+ 有逐打席 box，
+        # 更早年份 → None（train_model 自動限縮）。各為主-客差，None 表該軸無資料。
+        def _ops_avg(team: str):
             s = team_bat[team]
             if s["ab"] <= 0:
                 return None, None
             den = s["ab"] + s["bb"] + s["hbp"] + s["sf"]
-            ops = (((s["h"] + s["bb"] + s["hbp"]) / den) if den else 0) + s["tb"] / s["ab"]
-            return s["h"] / s["ab"], ops
+            return s["h"] / s["ab"], (((s["h"] + s["bb"] + s["hbp"]) / den) if den else 0) + s["tb"] / s["ab"]
+
+        def _pg(team: str, num):
+            s = team_bat[team]
+            return num(s) / s["g"] if s["g"] > 0 else None
+
+        def _d(hf, af):
+            return (hf - af) if hf is not None and af is not None else 0.0
         if year >= 2018:
-            (ha, ho), (aa, ao) = _now(home, kind), _now(away, kind)
-            team_avg_now = (ha - aa) if ha is not None and aa is not None else 0.0
-            team_ops_now = (ho - ao) if ho is not None and ao is not None else 0.0
+            (ha, ho), (aa, ao) = _ops_avg(home), _ops_avg(away)
+            team_avg_now, team_ops_now = _d(ha, aa), _d(ho, ao)
+            team_sb_now = _d(_pg(home, lambda s: s["sb"] - s["cs"]), _pg(away, lambda s: s["sb"] - s["cs"]))
+            team_wp_now = _d(_pg(home, lambda s: s["wp"]), _pg(away, lambda s: s["wp"]))
+            team_err_now = _d(_pg(home, lambda s: s["err"]), _pg(away, lambda s: s["err"]))
         else:
-            team_avg_now = team_ops_now = None
+            team_avg_now = team_ops_now = team_sb_now = team_wp_now = team_err_now = None
         feats = {
             "winrate_diff": winrate(home) - winrate(away),
             "prior_winpct_diff": prior_diff,
@@ -306,6 +331,9 @@ def build_game_features() -> list[dict]:
             "prior_team_whip_diff": _ptd("prior_whip"),
             "team_ops_now_diff": team_ops_now,
             "team_avg_now_diff": team_avg_now,
+            "team_sb_now_diff": team_sb_now,
+            "team_wp_now_diff": team_wp_now,
+            "team_err_now_diff": team_err_now,
         }
 
         completed = hs is not None and as_ is not None and (hs + as_) > 0
@@ -329,8 +357,8 @@ def build_game_features() -> list[dict]:
             for vh, tcode in (("2", home), ("1", away)):
                 s = gb.get(vh)
                 if s:
-                    for key in ("ab", "h", "bb", "hbp", "tb", "sf"):
-                        team_bat[tcode][key] += s[key]
+                    for key in ("ab", "h", "bb", "hbp", "tb", "sf", "sb", "cs", "err", "wp", "g"):
+                        team_bat[tcode][key] += s.get(key, 0)
 
         if completed:  # 套用結果更新 state（在計算特徵「之後」）
             rfra[home][0] += hs; rfra[home][1] += as_; rfra[home][2] += 1
@@ -359,7 +387,8 @@ def materialize() -> int:
          r["prior_winpct_diff"], r["rest_days_diff"],
          r["prior_team_ops_diff"], r["prior_team_slg_diff"],
          r["prior_team_era_diff"], r["prior_team_whip_diff"],
-         r["team_ops_now_diff"], r["team_avg_now_diff"])
+         r["team_ops_now_diff"], r["team_avg_now_diff"],
+         r["team_sb_now_diff"], r["team_wp_now_diff"], r["team_err_now_diff"])
         for r in rows
     ]
     with conn() as c:
@@ -376,8 +405,9 @@ def materialize() -> int:
                  starter_whip_diff, starter_k9_diff,
                  prior_winpct_diff, rest_days_diff,
                  prior_team_ops_diff, prior_team_slg_diff, prior_team_era_diff, prior_team_whip_diff,
-                 team_ops_now_diff, team_avg_now_diff)
-            VALUES (%s,%s,%s,%s,%s,%s, %s,%s,%s,%s, %s,%s, %s,%s,%s,%s,%s,%s,%s,%s,%s, %s,%s, %s,%s,%s,%s, %s,%s)
+                 team_ops_now_diff, team_avg_now_diff,
+                 team_sb_now_diff, team_wp_now_diff, team_err_now_diff)
+            VALUES (%s,%s,%s,%s,%s,%s, %s,%s,%s,%s, %s,%s, %s,%s,%s,%s,%s,%s,%s,%s,%s, %s,%s, %s,%s,%s,%s, %s,%s, %s,%s,%s)
             ON CONFLICT (year, kind_code, game_season_code, game_sno) DO UPDATE SET
                 game_date=EXCLUDED.game_date, season=EXCLUDED.season,
                 home_team_name=EXCLUDED.home_team_name, away_team_name=EXCLUDED.away_team_name,
@@ -394,7 +424,10 @@ def materialize() -> int:
                 prior_team_era_diff=EXCLUDED.prior_team_era_diff,
                 prior_team_whip_diff=EXCLUDED.prior_team_whip_diff,
                 team_ops_now_diff=EXCLUDED.team_ops_now_diff,
-                team_avg_now_diff=EXCLUDED.team_avg_now_diff
+                team_avg_now_diff=EXCLUDED.team_avg_now_diff,
+                team_sb_now_diff=EXCLUDED.team_sb_now_diff,
+                team_wp_now_diff=EXCLUDED.team_wp_now_diff,
+                team_err_now_diff=EXCLUDED.team_err_now_diff
             """,
             records,
         )

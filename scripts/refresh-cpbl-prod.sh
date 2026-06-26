@@ -94,7 +94,7 @@ sync_table game_features "year,kind_code,game_season_code,game_sno" \
   winrate_diff prior_winpct_diff runs_scored_diff runs_allowed_diff recent_form_diff rest_days_diff \
   h2h_home home_field starter_era_diff starter_whip_diff starter_k9_diff \
   prior_team_ops_diff prior_team_slg_diff prior_team_era_diff prior_team_whip_diff \
-  team_ops_now_diff team_avg_now_diff
+  team_ops_now_diff team_avg_now_diff team_sb_now_diff team_wp_now_diff team_err_now_diff
 
 if [ -n "${WITH_DETAIL:-}" ]; then
   sync_table batter_pitcher_matchups "year,kind_code,hitter_acnt,pitcher_acnt" \
