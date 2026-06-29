@@ -118,10 +118,17 @@ export type PlayerProfile = {
   team: string | null;
   is_batter: boolean;
   is_pitcher: boolean;
+  was_batter?: boolean;
+  was_pitcher?: boolean;
+  farm_batter?: boolean;
+  farm_pitcher?: boolean;
+  roster_level?: "一軍" | "二軍" | null;
+  roster_days?: { first: number; farm: number } | null;
   bats: string | null;
   throws: string | null;
   former_names: string[];
   pitcher_role?: string | null;
+  primary_position?: string | null;
   country?: string | null;
   import_status?: "local" | "import" | "loree" | "nagata";
   import_label?: string | null;
@@ -145,8 +152,8 @@ export const detail = {
   profile: (id: string) => clientGet<ProfileData>(`/api/v1/players/${id}/profile`),
   playerMatchups: (id: string, role: "batting" | "pitching", kind = "A") =>
     clientGet<PlayerMatchupsData>(`/api/v1/players/${id}/matchups?role=${role}&kind_code=${kind}`),
-  season: (id: string) =>
-    clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/season`),
+  season: (id: string, kind: "A" | "D" = "A") =>
+    clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/season?kind=${kind}`),
   arsenal: (id: string, role: "batting" | "pitching") =>
     clientGet<{ items: StatRow[] }>(`/api/v1/players/${id}/arsenal?role=${role}`),
   trend: (id: string, role: "batting" | "pitching") =>
@@ -161,6 +168,10 @@ export const detail = {
       best: Record<string, { year: number; value: number } | null>;
       milestones: { first_hit: string | null; first_hr: string | null };
       rank: { hr: number; h: number; sb: number } | null;
+      pitching?: (Record<string, number | null> & { seasons: number; ip: string }) | null;
+      best_p?: Record<string, { year: number; value: number } | null>;
+      rank_p?: { w: number; sv: number; so: number } | null;
+      championships?: { count: number; years: number[] } | null;
       teams?: { code: string; name: string; from: number; to: number }[];
       overseas?: { league: string; team: string | null; year: number }[];
       awards?: { year: number; category: string; award: string }[];

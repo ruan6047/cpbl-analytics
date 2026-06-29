@@ -29,12 +29,13 @@ const GRADE_COLOR: Record<string, string> = {
 };
 const gradeColor = (grade: string) => GRADE_COLOR[grade] ?? "#9AA3AF";
 
-export function GradeChip({ grade }: { grade: string | null }) {
+export function GradeChip({ grade, size = "sm" }: { grade: string | null; size?: "sm" | "lg" }) {
   const bg = gradeColor(grade ?? "G");
-  if (!grade) return <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[11px] text-faint">—</span>;
+  const dim = size === "lg" ? "h-8 w-8 rounded-lg text-base" : "h-5 w-5 rounded text-[11px]";
+  if (!grade) return <span className={`inline-flex items-center justify-center text-faint ${dim}`}>—</span>;
   return (
     <span
-      className="inline-flex h-5 w-5 items-center justify-center rounded text-[11px] font-extrabold"
+      className={`inline-flex items-center justify-center font-extrabold ${dim}`}
       style={{ background: bg, color: contrastText(bg) }}
     >
       {grade}
@@ -48,11 +49,13 @@ export function AbilityCard({
   title,
   color = "#1B4DA1",
   compact = false,
+  hideNote = false,
 }: {
   card: Card;
   title?: string;
   color?: string;
   compact?: boolean;
+  hideNote?: boolean;
 }) {
   if (!card?.available || !card.axes) return null;
   const axes = card.axes;
@@ -78,7 +81,9 @@ export function AbilityCard({
             {title}
             {card.signature && (
               <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-accent"
-                title="打擊特色：進攻工具中最突出者（多項頂尖＝全能）">
+                title={card.role === "pitching"
+                  ? "投球風格：最突出的出局方式（三振／滾地／飛球）"
+                  : "打擊特色：進攻工具中最突出者（多項頂尖＝全能）"}>
                 {card.signature}型
               </span>
             )}
@@ -90,16 +95,16 @@ export function AbilityCard({
           )}
         </div>
       )}
-      <div className={compact ? "h-36" : "h-56"}>
+      <div className={compact ? "h-36" : "h-64"}>
         <ResponsiveContainer width="100%" height="100%">
-          <RadarChart data={data} outerRadius="70%">
+          <RadarChart data={data} outerRadius={compact ? "70%" : "78%"}>
             <PolarGrid stroke="var(--color-line, #e2e8f0)" />
             <PolarAngleAxis dataKey="axis" tick={compact ? { fontSize: 10, fill: "#64748b" } : renderTick} />
             <Radar dataKey="pr" stroke={color} fill={color} fillOpacity={0.35} />
           </RadarChart>
         </ResponsiveContainer>
       </div>
-      {!compact && (
+      {!compact && !hideNote && (
         <p className="mt-1 text-center text-[10px] text-faint">
           滑鼠移到軸名看綜合組成與權重{card.has_advanced ? "；本季含官方進階數據" : ""}。
         </p>

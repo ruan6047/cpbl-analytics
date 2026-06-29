@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { LaEvScatter } from "@/components/la-ev-scatter";
 import { SprayChart } from "@/components/spray-chart";
-import { AbilityCard } from "@/components/ability-card";
+import { AbilityCard, GradeChip } from "@/components/ability-card";
 import { Card, LetterBadge, PercentileBar, StatTile, TeamLogo } from "@/components/ui";
 import { type HeatMetric, PerfHeatmap } from "@/components/perf-heatmap";
 import { ZoneScatter } from "@/components/zone-scatter";
@@ -149,9 +149,9 @@ const PIT_METRICS: Metric[] = [
 ];
 const axis = { tick: { fill: "#5b6b7a", fontSize: 12 }, stroke: "#cbd5e1" };
 
-function Tabs<T extends string>({ opts, v, set }: { opts: { v: T; label: string }[]; v: T; set: (x: T) => void }) {
+function Tabs<T extends string>({ opts, v, set, vertical = false }: { opts: { v: T; label: string }[]; v: T; set: (x: T) => void; vertical?: boolean }) {
   return (
-    <div className="inline-flex gap-1 rounded-lg bg-surface-2 p-1">
+    <div className={`inline-flex gap-1 rounded-lg bg-surface-2 p-1 ${vertical ? "flex-col" : ""}`}>
       {opts.map((o) => (
         <button key={o.v} onClick={() => set(o.v)}
           className={`rounded-md px-3 py-1 text-sm transition ${v === o.v ? "bg-ink text-white" : "text-muted hover:text-ink"}`}>
@@ -159,6 +159,25 @@ function Tabs<T extends string>({ opts, v, set }: { opts: { v: T; label: string 
         </button>
       ))}
     </div>
+  );
+}
+
+// 最佳單季：獨立區塊，每項一張卡（指標／數值／年份）
+function BestSeasonGrid({ items }: { items: { label: string; value: string; year: number }[] }) {
+  if (!items.length) return null;
+  return (
+    <section className="mb-6">
+      <h2 className="mb-3 text-lg font-semibold text-ink">最佳單季</h2>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {items.map((b) => (
+          <div key={b.label} className="card flex flex-col items-center p-4 text-center">
+            <div className="text-xs text-muted">{b.label}</div>
+            <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-accent">{b.value}</div>
+            <div className="mt-1 rounded-full bg-surface-2 px-2 text-[11px] text-muted">{b.year} 年</div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -342,23 +361,37 @@ export default function PlayerPage() {
   const [career, setCareer] = useState<StatRow[] | null>(null);
   const [careerStats, setCareerStats] = useState<Awaited<ReturnType<typeof detail.careerStats>> | null>(null);
   const [ability, setAbility] = useState<Awaited<ReturnType<typeof detail.abilityCard>> | null>(null);
-  const [abScope, setAbScope] = useState<"season" | "career">("season");
   const [trend, setTrend] = useState<StatRow[] | null>(null);
   const [splits, setSplits] = useState<StatRow[] | null>(null);
   const [monthMetric, setMonthMetric] = useState("ops");
+  // 本季成績層級：二軍選手預設採計二軍(D)、可切換看一軍(A)。
+  const [seasonKind, setSeasonKind] = useState<"A" | "D">("A");
+  // 版面分頁：數據區（本季/生涯）、明細區（逐年/分項）。
+  const [dataTab, setDataTab] = useState<"season" | "career">("season");
+  const [detailTab, setDetailTab] = useState<"yearly" | "splits">("yearly");
 
   useEffect(() => {
     detail.profile(id).then((d) => {
       if (!d.player) return setNotFound(true);
       setProfile(d.player);
-      setRole(d.player.is_batter ? "batting" : "pitching");
+      const p = d.player;
+      // role 預設：含本季一軍(is_*)、生涯曾任(was_*)、本季二軍(farm_*) 任一即可。
+      const hasBat = p.is_batter || p.was_batter || p.farm_batter;
+      const hasPit = p.is_pitcher || p.was_pitcher || p.farm_pitcher;
+      setRole(hasBat || !hasPit ? "batting" : "pitching");
+      // 退役/教練（本季無登錄層級）分項/數據預設生涯；二軍選手本季成績預設採計二軍。
+      if (!p.roster_level) { setScope("career"); setDataTab("career"); }
+      if (p.roster_level === "二軍") setSeasonKind("D");
     }).catch(() => setNotFound(true));
-    detail.season(id).then(setSeason).catch(() => setSeason(null));
     detail.advanced(id).then(setAdvanced).catch(() => setAdvanced(null));
     detail.fielding(id).then((d) => setFielding(d.items)).catch(() => setFielding([]));
     detail.careerStats(id).then(setCareerStats).catch(() => setCareerStats(null));
     detail.abilityCard(id).then(setAbility).catch(() => setAbility(null));
   }, [id]);
+
+  useEffect(() => {
+    detail.season(id, seasonKind).then(setSeason).catch(() => setSeason(null));
+  }, [id, seasonKind]);
 
   useEffect(() => {
     setMonthMetric(role === "batting" ? "ops" : "era");
@@ -402,9 +435,13 @@ export default function PlayerPage() {
   if (notFound) return <p className="text-sm text-muted">查無此球員。</p>;
   if (!profile) return <p className="text-sm text-muted">載入中…</p>;
 
+  // 退役/教練：本季完全無登錄層級(roster_level=null) → 本季數值與官方進階必空，整段隱藏。
+  // 二軍-only 球員有 roster_level（二軍）故不算退役。
+  const isRetired = !profile.roster_level;
+  // role tab：含本季一軍(is_*)、生涯曾任(was_*)、本季二軍(farm_*) 任一即列。
   const roles: { v: Role; label: string }[] = [];
-  if (profile.is_batter) roles.push({ v: "batting", label: "打擊" });
-  if (profile.is_pitcher) roles.push({ v: "pitching", label: "投球" });
+  if (profile.is_batter || profile.was_batter || profile.farm_batter) roles.push({ v: "batting", label: "打擊" });
+  if (profile.is_pitcher || profile.was_pitcher || profile.farm_pitcher) roles.push({ v: "pitching", label: "投球" });
   const s = season ? (role === "batting" ? season.batting : season.pitching) : null;
   // hero 隊伍：本季球員登錄隊 > 進行中執教隊（教練 tenure 未結束）> 生涯主隊（年資最長）
   const ongoingCoach = careerStats?.coach_tenures?.find((t) => t.to == null) ?? null;
@@ -425,44 +462,114 @@ export default function PlayerPage() {
   // 賽季走勢/對戰各隊：退役球員兩者皆空 → 隱藏（載入中仍顯示）
   const showTrendVs = trend === null || vsTeam === null || monthData.length > 0 || (vsTeam?.length ?? 0) > 0;
 
+  // 能力值卡：尺度跟隨下方資料分頁 dataTab（本季/生涯），不再有獨立切換鈕
+  const abSel = (() => {
+    const sa = (sc: "season" | "career") => !!(ability?.batting?.[sc]?.available || ability?.pitching?.[sc]?.available);
+    if (!sa("season") && !sa("career")) return null;
+    const eff = sa(dataTab) ? dataTab : sa("season") ? "season" : "career";
+    const card = ability?.[role]?.[eff]?.available ? ability[role][eff]
+      : ability?.batting?.[eff]?.available ? ability.batting[eff] : ability?.pitching?.[eff];
+    if (!card?.available) return null;
+    return { eff, card };
+  })();
+  // 生涯資料是否存在（打者或投手任一）→ 控制「生涯」分頁顯示
+  const hasCareer = !!(careerStats?.batting || careerStats?.pitching);
+
   return (
     <div>
       {/* Hero */}
       <div className="card mb-6 overflow-hidden">
         <div className="h-1.5" style={{ background: teamColor(tc) }} />
-        <div className="flex flex-wrap items-end justify-between gap-4 p-5">
-          <div className="flex items-center gap-3.5">
-            <TeamLogo code={tc} size={48} />
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-3xl font-bold text-ink">{profile.name}</h1>
-                {profile.import_status && profile.import_status !== "local" && (
-                  <span
-                    className="rounded-md px-2 py-0.5 text-[11px] font-semibold leading-none"
-                    style={{
-                      background: `${IMPORT_BADGE[profile.import_status].color}1a`,
-                      color: IMPORT_BADGE[profile.import_status].color,
-                    }}
-                    title={`${IMPORT_BADGE[profile.import_status].hint}${profile.country ? `（國籍：${profile.country}）` : ""}`}>
-                    {profile.import_label}
-                  </span>
+        <div className="p-5">
+        <div className="grid items-stretch gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+          {/* 左欄：身分資訊（置頂）＋得獎（置底） */}
+          <div className="flex min-w-0 flex-col">
+          <div className="min-w-0">
+            <div className="flex items-start gap-3.5">
+              <TeamLogo code={tc} size={48} />
+              <div className="min-w-0 flex-1">
+              {/* 名字＋徽章列（左）／本季數值（區塊右上角） */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="text-3xl font-bold text-ink">{profile.name}</h1>
+                    {profile.import_status && profile.import_status !== "local" && (
+                      <span
+                        className="rounded-md px-2 py-0.5 text-[11px] font-semibold leading-none"
+                        style={{
+                          background: `${IMPORT_BADGE[profile.import_status].color}1a`,
+                          color: IMPORT_BADGE[profile.import_status].color,
+                        }}
+                        title={`${IMPORT_BADGE[profile.import_status].hint}${profile.country ? `（國籍：${profile.country}）` : ""}`}>
+                        {profile.import_label}
+                      </span>
+                    )}
+                    {profile.roster_level && (
+                      <span
+                        className="rounded-md px-2 py-0.5 text-[11px] font-semibold leading-none"
+                        style={profile.roster_level === "一軍"
+                          ? { background: "#1B4DA11a", color: "#1B4DA1" }
+                          : { background: "#B4540025", color: "#9A4A00" }}
+                        title={`本季主要登錄層級（升降事件重建登錄天數判定）${profile.roster_days
+                          ? `：一軍 ${profile.roster_days.first} 天 · 二軍 ${profile.roster_days.farm} 天` : ""}`}>
+                        {profile.roster_level}選手
+                      </span>
+                    )}
+                    {abSel?.card.signature && (
+                      <span className="rounded-md bg-accent/10 px-2 py-0.5 text-[11px] font-semibold leading-none text-accent"
+                        title={role === "pitching"
+                          ? "投球風格：最突出的出局方式（三振／滾地／飛球）"
+                          : "打擊特色：進攻工具中最突出者（多項頂尖＝全能）"}>
+                        {abSel.card.signature}型
+                      </span>
+                    )}
+                    {profile.pitcher_role && (
+                      <span className="rounded-md bg-ink/10 px-2 py-0.5 text-[11px] font-semibold leading-none text-ink"
+                        title="投手類型：先發＝先發場數佔半數以上；後援＝救援>中繼（終結者傾向）；中繼＝其餘後援投手">
+                        {profile.pitcher_role}
+                      </span>
+                    )}
+                    {profile.primary_position && (
+                      <span className="rounded-md bg-ink/10 px-2 py-0.5 text-[11px] font-semibold leading-none text-ink"
+                        title="主守位：本季出賽最多的守位或指定打擊（DH 由打擊出賽扣守備推算；本季無資料則取生涯守備）">
+                        {profile.primary_position}
+                      </span>
+                    )}
+                    {profile.bats && (
+                      <span className="rounded-md bg-ink/10 px-2 py-0.5 text-[11px] font-semibold leading-none text-ink" title="打擊慣用手">
+                        {profile.bats}
+                      </span>
+                    )}
+                    {profile.throws && (
+                      <span className="rounded-md bg-ink/10 px-2 py-0.5 text-[11px] font-semibold leading-none text-ink" title="投球慣用手">
+                        {profile.throws}
+                      </span>
+                    )}
+                  </div>
+                  {profile.former_names?.length > 0 && (
+                    <p className="mt-0.5 text-[11px] text-faint">曾用名：{profile.former_names.join("、")}</p>
+                  )}
+                </div>
+                {/* 本季數值：區塊右上角 */}
+                {s && role === "batting" && (
+                  <div className="shrink-0 text-right font-mono leading-tight text-ink">
+                    <div className="text-2xl font-semibold tabular-nums">{f3(s.avg)}/{f3(s.obp)}/{f3(s.slg)}</div>
+                    <div className="text-base font-semibold tabular-nums text-accent">OPS {f3(s.ops)}</div>
+                  </div>
+                )}
+                {s && role === "pitching" && (
+                  <div className="shrink-0 text-right font-mono leading-tight text-ink">
+                    <div className="text-2xl font-semibold tabular-nums">{numOf(s.era)?.toFixed(2) ?? "—"} ERA</div>
+                    <div className="text-base tabular-nums text-muted">{s.w ?? 0}-{s.l ?? 0} · {fmtIP(s.ip as number | string | null)} 局</div>
+                  </div>
                 )}
               </div>
-              {profile.former_names?.length > 0 && (
-                <p className="mt-0.5 text-[11px] text-faint">曾用名：{profile.former_names.join("、")}</p>
+              <div className="my-3 border-t border-line" />
+              {(!careerStats?.teams || careerStats.teams.length === 0) && heroName && (
+                <p className="text-sm text-muted">
+                  {heroName}{!profile.team && ongoingCoach && <span className="ml-1 text-faint">（教練）</span>}
+                </p>
               )}
-              <p className="mt-1 text-sm text-muted">
-                {heroName}
-                {!profile.team && ongoingCoach && <span className="ml-1 text-faint">（教練）</span>}
-                {profile.pitcher_role && (
-                  <span className="ml-2 rounded bg-ink/10 px-1.5 py-0.5 text-[11px] font-semibold text-ink"
-                    title="投手類型：先發＝先發場數佔半數以上；後援＝救援>中繼（終結者傾向）；中繼＝其餘後援投手">
-                    {profile.pitcher_role}
-                  </span>
-                )}
-                {profile.bats && <span className="ml-3">打 {profile.bats}</span>}
-                {profile.throws && <span className="ml-2">投 {profile.throws}</span>}
-              </p>
               {careerStats?.teams && careerStats.teams.length > 0 && (
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   {careerStats.teams.map((t) => {
@@ -501,119 +608,104 @@ export default function PlayerPage() {
                   ))}
                 </div>
               )}
+              </div>
             </div>
           </div>
-          {s && role === "batting" && (
-            <div className="font-mono text-lg tabular-nums text-ink">
-              {f3(s.avg)}/{f3(s.obp)}/{f3(s.slg)} <span className="text-accent">OPS {f3(s.ops)}</span>
+          {/* 得獎/國際賽：置於左欄底部（mt-auto 推到最下） */}
+          {((careerStats?.awards?.length ?? 0) > 0 || (careerStats?.medals?.length ?? 0) > 0 || !!careerStats?.championships) && (
+            <div className="mt-auto flex flex-wrap items-center gap-1.5 border-t border-line pt-3">
+              {careerStats?.championships && (
+                <span title={`總冠軍年份：${careerStats.championships.years.join("、")}`}
+                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold"
+                  style={{ background: "#E6B42220", color: "#9A6B00", border: "1px solid #E6B42255" }}>
+                  <span>🏆 總冠軍</span>
+                  <span className="rounded px-1 text-[10px] font-bold" style={{ background: "#E6B422", color: "#3a2a00" }}>×{careerStats.championships.count}</span>
+                </span>
+              )}
+              {(() => {
+                const grp = new Map<string, { label: string; years: number[] }>();
+                for (const a of careerStats?.awards ?? []) {
+                  const posCat = a.category === "金手套" || a.category === "最佳十人";
+                  const label = posCat ? `${a.category}(${a.award})` : a.award;
+                  const g = grp.get(label) ?? { label, years: [] };
+                  g.years.push(a.year);
+                  grp.set(label, g);
+                }
+                const groups = [...grp.values()].sort((x, y) => y.years.length - x.years.length || y.years[0] - x.years[0]);
+                const MC: Record<string, string> = { 金: "#E6B422", 銀: "#9AA3AF", 銅: "#B0703C" };
+                return (
+                  <>
+                    {groups.map((g) => (
+                      <span key={g.label} title={[...new Set(g.years)].sort((a, b) => a - b).map((y) => `'${String(y).slice(2)}`).join(" ")}
+                        className="inline-flex items-center gap-1 rounded-md border border-line bg-surface px-2 py-1 text-xs">
+                        <span className="font-medium text-ink">🏆 {g.label}</span>
+                        {g.years.length > 1 && <span className="rounded bg-accent/10 px-1 text-[10px] font-bold text-accent">×{g.years.length}</span>}
+                      </span>
+                    ))}
+                    {(careerStats?.medals ?? []).map((m, i) => (
+                      <span key={`${m.competition}-${m.year}-${i}`} title={m.year ? `'${String(m.year).slice(2)}` : undefined}
+                        className="inline-flex items-center gap-1 rounded-md border border-line bg-surface px-2 py-1 text-xs">
+                        <span className="grid h-4 w-4 place-items-center rounded-full text-[10px] font-bold text-white" style={{ background: MC[m.color] ?? "#7C8696" }}>{m.color}</span>
+                        <span className="font-medium text-ink">{m.competition}</span>
+                      </span>
+                    ))}
+                  </>
+                );
+              })()}
             </div>
           )}
-          {s && role === "pitching" && (
-            <div className="font-mono text-lg tabular-nums text-ink">
-              {numOf(s.era)?.toFixed(2) ?? "—"} ERA · {s.w ?? 0}-{s.l ?? 0} · {fmtIP(s.ip as number | string | null)} 局
+          </div>
+          {/* 右欄：能力值雷達 ＋ 本季/生涯（雷達正下方右側、往上收） */}
+          {abSel && (
+            <div className="flex items-center gap-2 lg:border-l lg:border-line lg:pl-5">
+              <div className="min-w-0 flex-1">
+                <AbilityCard card={abSel.card}
+                  color={teamColor(tc) || (role === "batting" ? "#1B4DA1" : "#15543C")} hideNote />
+              </div>
+              {/* 雷達右側：總評＋本季/生涯（直排），用側欄消化雷達下方空白 */}
+              <div className="flex w-16 shrink-0 flex-col items-center justify-center gap-3">
+                {abSel.card.overall && (
+                  <div className="flex flex-col items-center gap-1">
+                    <span className="text-[10px] text-muted">總評</span>
+                    <GradeChip grade={abSel.card.overall.grade} size="lg" />
+                  </div>
+                )}
+                {(!isRetired || hasCareer) && (
+                  <Tabs vertical opts={[
+                    ...(!isRetired ? [{ v: "season" as const, label: "本季" }] : []),
+                    ...(hasCareer ? [{ v: "career" as const, label: "生涯" }] : []),
+                  ]} v={dataTab} set={setDataTab} />
+                )}
+              </div>
             </div>
           )}
+        </div>
         </div>
       </div>
 
       {roles.length > 1 && <div className="mb-5"><Tabs opts={roles} v={role} set={setRole} /></div>}
-
-      {/* 能力值卡（遊戲風雷達：rate 的全聯盟百分位）。本季/生涯可切換；獨立於 role tab，
-          OB/退役球員仍可看生涯卡。含守備軸；速度＝每場盜壘＋三壘打 rate。*/}
-      {(() => {
-        const scopeAvail = (sc: "season" | "career") =>
-          !!(ability?.batting?.[sc]?.available || ability?.pitching?.[sc]?.available);
-        if (!scopeAvail("season") && !scopeAvail("career")) return null;
-        const eff = scopeAvail(abScope) ? abScope : scopeAvail("season") ? "season" : "career";
-        const bat = ability?.batting?.[eff];
-        const pit = ability?.pitching?.[eff];
-        const opts = ([["season", "本季"], ["career", "生涯"]] as const).filter(([v]) => scopeAvail(v));
-        const min = eff === "season"
-          ? "打者 AB≥50 / 投手 IP≥20，相對全聯盟本季合格球員"
-          : "打者 AB≥300 / 投手 IP≥100，相對全聯盟歷史合格球員";
-        return (
-          <section className="mb-6">
-            <div className="mb-3 flex flex-wrap items-center gap-3">
-              <h2 className="text-lg font-semibold text-ink">能力值卡</h2>
-              {opts.length > 1 && (
-                <Tabs opts={opts.map(([v, label]) => ({ v, label }))} v={eff} set={setAbScope} />
-              )}
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {bat?.available && (
-                <div className="rounded-xl border border-line bg-surface p-4">
-                  <AbilityCard card={bat} title="打者" color={teamColor(tc) || "#1B4DA1"} />
-                </div>
-              )}
-              {pit?.available && (
-                <div className="rounded-xl border border-line bg-surface p-4">
-                  <AbilityCard card={pit} title="投手" color={teamColor(tc) || "#15543C"} />
-                </div>
-              )}
-            </div>
-            <p className="mt-2 text-[11px] text-faint">
-              各軸由多項指標『綜合』而成的全聯盟百分位 [PR]（{eff === "season" ? "本季" : "生涯"}；{min}）；
-              滑鼠移到軸名可看組成與權重。本季力量/控制/選球等納入官方進階數據（initial速/強擊球%/Barrel%/
-              揮空率/wOBA…，僅本季有、覆蓋稀疏，無進階則退回傳統指標）。等級 S–G 由 PR 換算，皆客觀自算。
-            </p>
-          </section>
-        );
-      })()}
-
-      {/* 得獎紀錄（官網年度獎項；依獎項彙整年份）*/}
-      {careerStats?.awards && careerStats.awards.length > 0 && (() => {
-        const grp = new Map<string, { label: string; years: number[] }>();
-        for (const a of careerStats.awards) {
-          const posCat = a.category === "金手套" || a.category === "最佳十人";
-          const label = posCat ? `${a.category}(${a.award})` : a.award;
-          const g = grp.get(label) ?? { label, years: [] };
-          g.years.push(a.year);
-          grp.set(label, g);
-        }
-        const groups = [...grp.values()].sort((x, y) => y.years.length - x.years.length || y.years[0] - x.years[0]);
-        return (
-          <section className="mb-6">
-            <h2 className="mb-3 text-lg font-semibold text-ink">得獎紀錄</h2>
-            <div className="flex flex-wrap gap-2">
-              {groups.map((g) => (
-                <span key={g.label} className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm">
-                  <span className="font-medium text-ink">{g.label}</span>
-                  {g.years.length > 1 && <span className="rounded bg-accent/10 px-1.5 text-xs font-bold text-accent">×{g.years.length}</span>}
-                  <span className="font-mono text-[11px] text-faint">{[...new Set(g.years)].sort((a, b) => a - b).map((y) => `'${String(y).slice(2)}`).join(" ")}</span>
-                </span>
-              ))}
-            </div>
-            <p className="mt-2 text-[11px] text-faint">中華職棒官方年度獎項（打擊/投手/金手套/最佳十人/其他，1990 起）。</p>
-          </section>
-        );
-      })()}
-
-      {/* 國際賽（維基 medaltemplates 獎牌） */}
-      {careerStats?.medals && careerStats.medals.length > 0 && (() => {
-        const MC: Record<string, string> = { 金: "#E6B422", 銀: "#9AA3AF", 銅: "#B0703C" };
-        return (
-          <section className="mb-6">
-            <h2 className="mb-3 text-lg font-semibold text-ink">國際賽</h2>
-            <div className="flex flex-wrap gap-2">
-              {careerStats.medals.map((m, i) => (
-                <span key={`${m.competition}-${m.year}-${i}`}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm">
-                  <span className="grid h-5 w-5 place-items-center rounded-full text-[11px] font-bold text-white"
-                    style={{ background: MC[m.color] ?? "#7C8696" }}>{m.color}</span>
-                  <span className="font-medium text-ink">{m.competition}</span>
-                  {m.year && <span className="font-mono text-[11px] text-faint">'{String(m.year).slice(2)}</span>}
-                </span>
-              ))}
-            </div>
-            <p className="mt-2 text-[11px] text-faint">資料來源：維基百科國際賽獎牌欄。</p>
-          </section>
-        );
-      })()}
-
-      {/* 本季成績 + 官方進階（並排兩欄） */}
+      {dataTab === "season" && !isRetired && (
       <section className="mb-6 grid items-stretch gap-6 lg:grid-cols-2">
         <div className="flex flex-col">
-          <h2 className="mb-3 text-lg font-semibold text-ink">本季成績</h2>
+          <div className="mb-3 flex flex-wrap items-center gap-3">
+            <h2 className="text-lg font-semibold text-ink">本季成績</h2>
+            {/* 二軍選手：預設採計二軍(D)，提供切換看一軍(A) */}
+            {profile.roster_level === "二軍" && (
+              <div className="inline-flex overflow-hidden rounded-full border border-line text-xs">
+                {(["D", "A"] as const).map((k) => (
+                  <button key={k} onClick={() => setSeasonKind(k)}
+                    className={`px-3 py-1 transition ${seasonKind === k ? "bg-accent text-white" : "bg-surface-2 text-muted hover:text-ink"}`}>
+                    {k === "D" ? "二軍" : "一軍"}
+                  </button>
+                ))}
+              </div>
+            )}
+            {profile.roster_level === "二軍" && (
+              <span className="text-[11px] text-faint">
+                {seasonKind === "D" ? "二軍選手 · 採計二軍數據" : "一軍數據（本季一軍出賽）"}
+              </span>
+            )}
+          </div>
           {s ? (() => {
             const primary: [string, string, boolean][] = role === "batting"
               ? [["打擊率", f3(s.avg), true], ["上壘率", f3(s.obp), false], ["長打率", f3(s.slg), false],
@@ -666,78 +758,106 @@ export default function PlayerPage() {
                 {prRows.map((d) => <PercentileBar key={d.name} name={d.name} value={d.value} pr={d.pr} def={d.def} />)}
               </div>
             )}
-            <p className="mt-2.5 text-[11px] text-faint">
-              stats.cpbl 官方 TrackMan；色條＝PR（藍低→紅高）。{role === "batting" ? "打者進攻" : "投手被打"}數值。
-            </p>
           </Card>
         </div>
       </section>
+      )}
 
       {/* 生涯成績 + 最佳單季 + 里程碑 + 史上排名（打者）*/}
-      {careerStats?.batting && (() => {
-        const cb = careerStats.batting!;
-        const bs = careerStats.best;
-        const ms = careerStats.milestones;
-        const rk = careerStats.rank;
+      {dataTab === "career" && role === "pitching" && careerStats?.pitching && (() => {
+        const cp = careerStats.pitching!;
+        const bp = careerStats.best_p ?? {};
+        const rkp = careerStats.rank_p;
+        const bestP = [
+          bp.era && { label: "ERA", value: numOf(bp.era.value)?.toFixed(2) ?? "—", year: bp.era.year },
+          bp.w && { label: "勝投", value: String(bp.w.value), year: bp.w.year },
+          bp.so && { label: "三振", value: String(bp.so.value), year: bp.so.year },
+          bp.sv && bp.sv.value > 0 && { label: "救援", value: String(bp.sv.value), year: bp.sv.year },
+        ].filter(Boolean) as { label: string; value: string; year: number }[];
         return (
+          <>
           <section className="mb-6">
-            <h2 className="mb-1 text-lg font-semibold text-ink">生涯成績</h2>
-            <p className="mb-3 text-[11px] text-faint">一軍例行賽各季合計（近兩季由逐場補；史上排名以官方歷年累計，近兩季另計）。</p>
+            <h2 className="mb-3 text-lg font-semibold text-ink">生涯成績</h2>
             <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-8">
-              <StatTile label={`生涯 ${cb.seasons} 季`} value={`${cb.g} 場`} />
-              <StatTile label="安打" value={String(cb.h)} accent />
-              <StatTile label="全壘打" value={String(cb.hr)} accent />
-              <StatTile label="打點" value={String(cb.rbi)} />
-              <StatTile label="盜壘" value={String(cb.sb)} />
-              <StatTile label="打擊率" value={f3(cb.avg)} />
-              <StatTile label="OPS" value={f3(cb.ops)} />
+              <StatTile label={`生涯 ${cp.seasons} 季`} value={`${cp.g} 場`} />
+              <StatTile label="先發" value={String(cp.gs)} />
+              <StatTile label="勝-敗" value={`${cp.w}-${cp.l}`} accent />
+              <StatTile label="勝率" value={f3(cp.winpct)} />
+              <StatTile label="救援" value={String(cp.sv)} />
+              <StatTile label="中繼" value={String(cp.hld)} />
+              <StatTile label="局數" value={String(cp.ip)} />
+              <StatTile label="ERA" value={numOf(cp.era)?.toFixed(2) ?? "—"} accent />
+              <StatTile label="三振" value={String(cp.so)} accent />
+              <StatTile label="被安打" value={String(cp.h)} />
+              <StatTile label="四壞" value={String(cp.bb)} />
+              <StatTile label="自責分" value={String(cp.er)} />
+              <StatTile label="WHIP" value={numOf(cp.whip)?.toFixed(2) ?? "—"} />
+              <StatTile label="K/9" value={numOf(cp.k9)?.toFixed(2) ?? "—"} />
+              <StatTile label="K/BB" value={numOf(cp.kbb)?.toFixed(2) ?? "—"} />
               {(() => {
-                const parts = rk
-                  ? ([["轟", rk.hr], ["安", rk.h], ["盜", rk.sb]] as [string, number][])
-                      .filter(([, v]) => v != null && v <= 20)
+                const parts = rkp
+                  ? ([["勝", rkp.w], ["救", rkp.sv], ["奪", rkp.so]] as [string, number][])
+                      .filter(([, v]) => v != null && v <= 30)
                       .map(([l, v]) => `${l}#${v}`)
                   : [];
                 return parts.length > 0 ? <StatTile label="史上排名" value={parts.join("·")} /> : null;
               })()}
             </div>
-            <p className="mt-2 text-[11px] text-faint">
-              最佳單季：
-              {bs.ops && `OPS ${f3(bs.ops.value)}(${bs.ops.year})`}
-              {bs.hr && `・全壘打 ${bs.hr.value}(${bs.hr.year})`}
-              {bs.avg && `・打擊率 ${f3(bs.avg.value)}(${bs.avg.year})`}
-              {(ms.first_hit || ms.first_hr) && (
-                <span className="ml-2">｜里程碑：{ms.first_hit && `首安 ${ms.first_hit}`}{ms.first_hr && `・首轟 ${ms.first_hr}`}</span>
-              )}
-            </p>
           </section>
+          <BestSeasonGrid items={bestP} />
+          </>
         );
       })()}
 
-      {/* 擊球品質與彈道（官方 /rankings 全季進階；非逐球樣本） */}
-      {(() => {
-        const a = role === "batting" ? advanced?.batting : advanced?.pitching;
-        const m = a?.metrics as Record<string, number> | undefined;
-        if (!m || m.gbp == null) return null;
+      {dataTab === "career" && role === "batting" && careerStats?.batting && (() => {
+        const cb = careerStats.batting!;
+        const bs = careerStats.best;
+        const ms = careerStats.milestones;
+        const rk = careerStats.rank;
+        const bestB = [
+          bs.ops && { label: "OPS", value: f3(bs.ops.value), year: bs.ops.year },
+          bs.hr && { label: "全壘打", value: String(bs.hr.value), year: bs.hr.year },
+          bs.rbi && { label: "打點", value: String(bs.rbi.value), year: bs.rbi.year },
+          bs.avg && { label: "打擊率", value: f3(bs.avg.value), year: bs.avg.year },
+          bs.sb && { label: "盜壘", value: String(bs.sb.value), year: bs.sb.year },
+        ].filter(Boolean) as { label: string; value: string; year: number }[];
         return (
+          <>
           <section className="mb-6">
-            <h2 className="mb-1 text-lg font-semibold text-ink">擊球品質與彈道</h2>
-            <p className="mb-3 text-[11px] text-faint">
-              官方 stats.cpbl 全季進階（{role === "batting" ? "打者擊球" : "投手被擊球"}）；非逐球設備樣本。
-            </p>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {QUALITY_GROUPS.map((g) => (
-                <Card key={g.title} className="p-4">
-                  <div className="mb-2 text-sm font-semibold text-ink">{g.title}</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {g.items.map((it) => (
-                      <StatTile key={it.k} label={it.label}
-                        value={m[it.k] == null ? "—" : it.fmt(m[it.k])} />
-                    ))}
-                  </div>
-                </Card>
-              ))}
+            <h2 className="mb-3 text-lg font-semibold text-ink">生涯成績</h2>
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+              <StatTile label={`生涯 ${cb.seasons} 季`} value={`${cb.g} 場`} />
+              <StatTile label="打數" value={String(cb.ab)} />
+              <StatTile label="安打" value={String(cb.h)} accent />
+              <StatTile label="二安" value={String(cb.b2)} />
+              <StatTile label="三安" value={String(cb.b3)} />
+              <StatTile label="全壘打" value={String(cb.hr)} accent />
+              <StatTile label="打點" value={String(cb.rbi)} />
+              <StatTile label="盜壘" value={String(cb.sb)} />
+              <StatTile label="四壞" value={String(cb.bb)} />
+              <StatTile label="三振" value={String(cb.so)} />
+              <StatTile label="壘打數" value={String(cb.tb)} />
+              <StatTile label="打擊率" value={f3(cb.avg)} />
+              <StatTile label="上壘率" value={f3(cb.obp)} />
+              <StatTile label="長打率" value={f3(cb.slg)} />
+              <StatTile label="OPS" value={f3(cb.ops)} accent />
+              {(() => {
+                const parts = rk
+                  ? ([["轟", rk.hr], ["安", rk.h], ["盜", rk.sb]] as [string, number][])
+                      .filter(([, v]) => v != null && v <= 30)
+                      .map(([l, v]) => `${l}#${v}`)
+                  : [];
+                return parts.length > 0 ? <StatTile label="史上排名" value={parts.join("·")} /> : null;
+              })()}
             </div>
           </section>
+          <BestSeasonGrid items={bestB} />
+          {(ms.first_hit || ms.first_hr) && (
+            <p className="-mt-3 mb-6 text-[11px] text-faint">
+              里程碑：{ms.first_hit && `首安 ${ms.first_hit}`}{ms.first_hr && `・首轟 ${ms.first_hr}`}
+            </p>
+          )}
+          </>
         );
       })()}
 
@@ -823,7 +943,6 @@ export default function PlayerPage() {
                       </div>
                     ))}
                 </div>
-                <p className="mt-2 text-[10px] leading-snug text-faint">全為逐球追蹤樣本（部分球場未配置設備，涵蓋場次少於全季），與官方進階全季數值會有差異。</p>
               </>
             ) : <p className="py-12 text-center text-sm text-faint">{disc === null ? "載入中…" : "無逐球資料"}</p>}
           </Card>
@@ -838,6 +957,31 @@ export default function PlayerPage() {
       </section>
       )}
 
+      {/* 擊球品質與彈道（官方 /rankings 全季進階；非逐球樣本） */}
+      {(() => {
+        const a = role === "batting" ? advanced?.batting : advanced?.pitching;
+        const m = a?.metrics as Record<string, number> | undefined;
+        if (!m || m.gbp == null) return null;
+        return (
+          <section className="mb-6">
+            <h2 className="mb-3 text-lg font-semibold text-ink">擊球品質與彈道</h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {QUALITY_GROUPS.map((g) => (
+                <Card key={g.title} className="p-4">
+                  <div className="mb-2 text-sm font-semibold text-ink">{g.title}</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {g.items.map((it) => (
+                      <StatTile key={it.k} label={it.label}
+                        value={m[it.k] == null ? "—" : it.fmt(m[it.k])} />
+                    ))}
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </section>
+        );
+      })()}
+
       {/* 打者：擊球品質散點 / 投手：配球傾向 */}
       {role === "batting" ? (
         (disc?.batted.length ?? 0) > 0 && (
@@ -845,7 +989,6 @@ export default function PlayerPage() {
             <h2 className="mb-3 text-lg font-semibold text-ink">擊球品質分布（仰角 × 初速）</h2>
             <Card>
               <LaEvScatter balls={disc!.batted} />
-              <p className="mt-1 text-[10px] text-faint">紅框＝強勁擊球的理想仰角帶（近似 barrel 甜蜜區）；逐球追蹤樣本。</p>
             </Card>
           </section>
         )
@@ -962,20 +1105,29 @@ export default function PlayerPage() {
         );
       })()}
 
+      {/* 明細：生涯逐年 / 分項 分頁切換 */}
+      <div className="mb-3"><Tabs opts={[
+        ...(career && career.length > 0 ? [{ v: "yearly" as const, label: "生涯逐年" }] : []),
+        { v: "splits" as const, label: "分項明細" },
+      ]} v={detailTab} set={setDetailTab} /></div>
+
       {/* 生涯逐年 */}
-      {career && career.length > 0 && (
+      {detailTab === "yearly" && career && career.length > 0 && (
         <section className="mb-6">
           <h2 className="mb-3 text-lg font-semibold text-ink">生涯逐年</h2>
           <CareerTable seasons={career} role={role} />
-          <p className="mt-2 text-[11px] text-faint">資料源 cpbl-opendata（逐年彙總），不含當季；當季數據見上方「本季成績」。</p>
         </section>
       )}
 
       {/* 分項明細 */}
+      {(detailTab === "splits" || !(career && career.length > 0)) && (
       <section className="mb-6">
         <div className="mb-3 flex flex-wrap items-center gap-3">
           <h2 className="text-lg font-semibold text-ink">分項明細</h2>
-          <Tabs opts={[{ v: "season", label: "本季" }, { v: "career", label: "生涯" }]} v={scope} set={setScope} />
+          {/* 退役/教練本季無分項 → 只留生涯切換 */}
+          <Tabs opts={isRetired
+            ? [{ v: "career", label: "生涯" }]
+            : [{ v: "season", label: "本季" }, { v: "career", label: "生涯" }]} v={scope} set={setScope} />
           {scope === "career" && (
             <div className="inline-flex flex-wrap gap-2">
               {([["A", "例行賽"], ["C", "總冠軍"], ["E", "季後賽"]] as const).map(([k, label]) => {
@@ -1009,6 +1161,21 @@ export default function PlayerPage() {
             );
           })()}
       </section>
+      )}
+
+      {/* 資料說明（統一彙整於頁尾，各區不再重複） */}
+      <details className="mb-6 rounded-xl border border-line bg-surface">
+        <summary className="cursor-pointer select-none px-4 py-2.5 text-sm font-medium text-muted hover:text-ink">
+          資料說明與名詞解釋
+        </summary>
+        <div className="space-y-1.5 border-t border-line px-4 py-3 text-[11px] leading-relaxed text-faint">
+          <p>· <span className="text-muted">能力值卡</span>：各軸為多項指標綜合的全聯盟百分位 [PR]（本季 打 AB≥50／投 IP≥20；生涯 AB≥300／IP≥100）。本季納官方進階（初速／強擊球%／Barrel%／揮空率／wOBA，覆蓋稀疏，無則退回傳統指標）；等級 S–G 由 PR 換算，皆客觀自算。滑鼠移到軸名看組成與權重。</p>
+          <p>· <span className="text-muted">官方進階 · PR</span>：stats.cpbl 官方 TrackMan 全季值；色條＝PR（藍低→紅高）。打者為進攻、投手為被打數值。</p>
+          <p>· <span className="text-muted">生涯／史上排名</span>：一軍例行賽各季合計（近兩季由逐場補）；史上排名以官方歷年累計、近兩季另計。生涯逐年源 cpbl-opendata（不含當季）。</p>
+          <p>· <span className="text-muted">逐球追蹤</span>：部分球場未配置設備、涵蓋場次少於全季，與官方進階全季值會有差異；擊球品質分布紅框＝強勁擊球理想仰角帶（近似 barrel 甜蜜區）。</p>
+          <p>· <span className="text-muted">一／二軍</span>：本季主要登錄層級由官網升降事件重建登錄天數判定。主守位＝本季出賽最多的守位或指定打擊（DH 由打擊出賽扣守備推算）。</p>
+        </div>
+      </details>
 
       <div className="flex gap-4 text-sm">
         <Link href="/matchups" className="text-accent hover:underline">投打對決 →</Link>
