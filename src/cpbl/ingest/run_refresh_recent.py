@@ -23,6 +23,7 @@ from datetime import date, timedelta
 
 from cpbl.db import conn, migrate
 from cpbl.ingest import cpbl_player_detail
+from cpbl.ingest.championships import build_championships
 from cpbl.ingest.cpbl_advanced import scrape_advanced
 from cpbl.ingest.cpbl_fighting import YEAR_CAREER, scrape_matchups
 from cpbl.ingest.cpbl_gamelog import scrape_gamelogs
@@ -30,6 +31,7 @@ from cpbl.ingest.cpbl_pitch_tracking import scrape_pitches
 from cpbl.ingest.cpbl_site import lineup_acnts, scrape_games
 from cpbl.ingest.cpbl_standings import scrape_standings
 from cpbl.ingest.cpbl_stats import scrape_all
+from cpbl.ingest.cpbl_transactions import scrape_transactions
 
 log = logging.getLogger("cpbl.refresh")
 
@@ -116,6 +118,8 @@ def main() -> None:
         games = scrape_games(year, year)
         stats = scrape_all(year, year, year)
         scrape_standings(year)  # 官方球隊戰績（含和局/勝差/上下半季），輕量每次更新
+        trans = scrape_transactions([year])  # 升降一/二軍事件（輕量；供一/二軍選手判定）
+        build_championships()  # 由更新後 games 重建年度總冠軍成員（純 SQL、賽季末才會變）
         detail_inc = {} if skip_detail else _incremental_detail(year, [yesterday, today])
     except Exception as e:  # noqa: BLE001 — 失敗也要留痕，避免無聲缺漏
         log.error("抓取失敗：%s", e)
@@ -136,7 +140,7 @@ def main() -> None:
     total = sum(t for _, t, _ in recent)
     completed = sum(comp for _, _, comp in recent)
     detail = {
-        "games": games, "stats": stats, "incremental_detail": detail_inc,
+        "games": games, "stats": stats, "transactions": trans, "incremental_detail": detail_inc,
         "recent": [{"date": d.isoformat(), "total": t, "completed": comp} for d, t, comp in recent],
     }
     _log_refresh("recent-games", yesterday, today, total, completed, detail, ok=True, note=note)

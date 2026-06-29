@@ -92,6 +92,7 @@ curl -s https://cpbl.ruan-ruan.com/api/info | python3 -m json.tool
 | `cpbl-scrape-advanced` | 官方進階 + 官方 PR(stats.cpbl) | 進階數據刷新 |
 | `cpbl-scrape-detail` / `cpbl-scrape-fighting` | 選手對戰各隊/分項 / 投打對決 | 球員頁對戰刷新 |
 | `cpbl-refresh-recent [fast]` | 抓昨天/今天：games+累計+(增量)對戰/分項/逐球，寫 `refresh_log` | 每日增量（本機跑） |
+| `cpbl-build-championships` | 由 games(kind C) 推導歷年冠軍→標該年一軍球員+總教練(物化 `championship_members`，純 SQL 不爬) | 改冠軍邏輯後（已含於 refresh-recent） |
 | `cpbl-build-features` | 賽果預測特徵表(leakage-safe) | 改賽果特徵後 |
 | `cpbl-train` | 成績預測訓練+回測（**需 LightGBM → 容器內跑**） | 改成績模型/特徵後 |
 

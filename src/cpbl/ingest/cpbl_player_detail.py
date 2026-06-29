@@ -18,8 +18,6 @@ import json
 import logging
 import time
 
-import httpx
-
 from cpbl.db import conn
 from cpbl.ingest.cpbl_fighting import BASE, _f, _i, _token_in
 
@@ -196,11 +194,13 @@ VS_TEAM_YEAR = 2026  # 對戰各隊官網僅本季 A、逐年
 
 def scrape(delay: float = 1.2, apart_combos: list[tuple[int, str]] | None = None,
            groups: tuple[str, ...] = ("batters", "pitchers"),
-           batter_ids: list[str] | None = None, pitcher_ids: list[str] | None = None) -> dict:
+           batter_ids: list[str] | None = None, pitcher_ids: list[str] | None = None,
+           with_vs_team: bool = True) -> dict:
     """爬本季登錄打者(154)+投手(190) 的對戰各隊 + 分項。回傳各表寫入列數。
 
     `groups` 控制要跑哪些對象：("batters",) 只跑打者、("pitchers",) 只跑投手（續跑用）。
     `batter_ids`/`pitcher_ids` 不為 None 時，只跑指定選手（增量更新用）。
+    `with_vs_team=False`：跳過對戰各隊（官網僅本季 2026），退役選手只抓生涯分項時用。
     """
     apart_combos = apart_combos or APART_COMBOS
     if batter_ids is not None:
@@ -216,35 +216,45 @@ def scrape(delay: float = 1.2, apart_combos: list[tuple[int, str]] | None = None
              len(batters), len(pitchers), delay, apart_combos)
 
     def run(acnt: str, idx: int, total: int, is_pitcher: bool) -> None:
-        try:
-            s = _Session(acnt, delay)
-        except (httpx.HTTPError, RuntimeError) as e:
-            log.error("[%s %d/%d] acnt=%s session 失敗，略過：%s",
-                      "P" if is_pitcher else "B", idx, total, acnt, e)
+        tag = "P" if is_pitcher else "B"
+        # session 建立會走 Playwright 導頁（冷啟動/反爬挑戰可能逾時）→ 退避重試，
+        # 連續失敗才略過該員，絕不讓單人逾時中斷整批（含 playwright.TimeoutError）。
+        s = None
+        for attempt in range(3):
+            try:
+                s = _Session(acnt, delay)
+                break
+            except Exception as e:  # noqa: BLE001 — 含 Playwright 逾時，退避重試
+                log.warning("[%s %d/%d] acnt=%s session 建立失敗 attempt=%d：%s",
+                            tag, idx, total, acnt, attempt + 1, e)
+                time.sleep(3.0 * (attempt + 1))
+        if s is None:
+            log.error("[%s %d/%d] acnt=%s session 連續失敗，略過", tag, idx, total, acnt)
             return
         try:
             if is_pitcher:
-                rows = s.vs_team(VS_TEAM_YEAR, DEFEND_PITCHER)
-                out["pvt"] += _upsert("pitching_vs_team", _PVT_COLS, 4,
-                                      [_pvt_rec(g, VS_TEAM_YEAR, "A", acnt) for g in rows])
+                if with_vs_team:
+                    rows = s.vs_team(VS_TEAM_YEAR, DEFEND_PITCHER)
+                    out["pvt"] += _upsert("pitching_vs_team", _PVT_COLS, 4,
+                                          [_pvt_rec(g, VS_TEAM_YEAR, "A", acnt) for g in rows])
                 for y, k in apart_combos:
                     rs = s.apart(y, k, "02")
                     out["psplit"] += _upsert("pitching_splits", _PSPLIT_COLS, 6,
                                              [_psplit_rec(g, y, k) for g in rs])
             else:
-                rows = s.vs_team(VS_TEAM_YEAR, "")
-                out["bvt"] += _upsert("batting_vs_team", _BVT_COLS, 4,
-                                      [_bvt_rec(g, VS_TEAM_YEAR, "A", acnt) for g in rows])
+                if with_vs_team:
+                    rows = s.vs_team(VS_TEAM_YEAR, "")
+                    out["bvt"] += _upsert("batting_vs_team", _BVT_COLS, 4,
+                                          [_bvt_rec(g, VS_TEAM_YEAR, "A", acnt) for g in rows])
                 for y, k in apart_combos:
                     rs = s.apart(y, k, "01")
                     out["bsplit"] += _upsert("batting_splits", _BSPLIT_COLS, 6,
                                              [_bsplit_rec(g, y, k) for g in rs])
             log.info("[%s %d/%d] acnt=%s 完成（bvt=%d pvt=%d bs=%d ps=%d）",
-                     "P" if is_pitcher else "B", idx, total, acnt,
+                     tag, idx, total, acnt,
                      out["bvt"], out["pvt"], out["bsplit"], out["psplit"])
-        except (httpx.HTTPError, RuntimeError, KeyError, ValueError) as e:
-            log.error("[%s %d/%d] acnt=%s 抓取失敗，略過：%s",
-                      "P" if is_pitcher else "B", idx, total, acnt, e)
+        except Exception as e:  # noqa: BLE001 — 單人失敗（含逾時）不影響整批
+            log.error("[%s %d/%d] acnt=%s 抓取失敗，略過：%s", tag, idx, total, acnt, e)
         finally:
             s.close()
 
