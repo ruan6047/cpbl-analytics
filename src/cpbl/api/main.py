@@ -203,20 +203,104 @@ _POS_CANON = {
 
 
 def _primary_positions(year: int, kind: str) -> dict[str, str]:
-    """每位球員該季主守位（出賽最多者）。當季一軍→fielding_current，其餘→fielding_seasons。"""
+    """每位球員該季主守位/指定打擊（出賽最多者）。當季一軍→fielding_current，其餘→fielding_seasons。
+    DH 不上守備 → 以「打擊出賽 − 守備總出賽」推算指定打擊場數納入比較（僅當季一軍有打擊資料）。"""
     with conn() as c:
         if kind == "A" and year == DEFAULT_SEASON:
             rows = c.execute("SELECT player_id, pos, g FROM cpbl.fielding_current WHERE year=%s", (year,)).fetchall()
+            batg = dict(c.execute("SELECT player_id, coalesce(g,0) FROM cpbl.batting_current WHERE year=%s",
+                                  (year,)).fetchall())
         else:
             rows = c.execute("SELECT player_id, pos, g FROM cpbl.fielding_seasons WHERE year=%s", (year,)).fetchall()
-    best: dict[str, tuple[str, int]] = {}
+            batg = {}
+    by_player: dict[str, dict[str, int]] = {}
+    fld_total: dict[str, int] = {}
     for pid, pos, g in rows:
         cp = _POS_CANON.get(pos)
-        if not cp:
+        if not cp or cp == "投手":
             continue
-        if pid not in best or (g or 0) > best[pid][1]:
-            best[pid] = (cp, g or 0)
-    return {pid: v[0] for pid, v in best.items()}
+        by_player.setdefault(pid, {})[cp] = by_player.setdefault(pid, {}).get(cp, 0) + (g or 0)
+        fld_total[pid] = fld_total.get(pid, 0) + (g or 0)
+    for pid, bg in batg.items():
+        dh = max(0, (bg or 0) - fld_total.get(pid, 0))
+        if dh > 0:
+            by_player.setdefault(pid, {})["指定打擊"] = dh
+    return {pid: max(d, key=d.get) for pid, d in by_player.items() if d}
+
+
+def _roster_level(cur, player_id: str, season: int) -> dict | None:
+    """重建本季「一/二軍登錄天數」判定主要層級。回 {level, first_days, farm_days} 或 None(本季無活動)。
+
+    官網 /player/trans 只給升降『事件』、無季初基準 → 用首事件反推季初狀態（升一軍前必在二軍、
+    反之）；逐區間累加天數。完全無升降事件者退回出賽(gamelog A/D)判定。as_of=今天（季中即時）。
+    """
+    cur.execute("SELECT min(game_date), max(game_date) FROM cpbl.games "
+                "WHERE kind_code='A' AND extract(year FROM game_date)=%s", (season,))
+    g0, g1 = cur.fetchone()
+    if not g0:
+        return None
+    as_of = min(_date.today(), g1) if g1 else _date.today()
+    if as_of < g0:
+        as_of = g0
+
+    cur.execute("SELECT trans_date, kind_code FROM cpbl.player_transactions "
+                "WHERE acnt=%s AND year=%s ORDER BY trans_date, kind_code", (player_id, season))
+    events = cur.fetchall()
+
+    # 本季是否在各層級出賽（gamelog；一軍另含 current 名單）
+    cur.execute(
+        "SELECT EXISTS(SELECT 1 FROM cpbl.batting_gamelog WHERE hitter_acnt=%(p)s AND year=%(y)s AND kind_code='A') "
+        "  OR EXISTS(SELECT 1 FROM cpbl.pitching_gamelog WHERE pitcher_acnt=%(p)s AND year=%(y)s AND kind_code='A') "
+        "  OR EXISTS(SELECT 1 FROM cpbl.batting_current WHERE player_id=%(p)s AND year=%(y)s) "
+        "  OR EXISTS(SELECT 1 FROM cpbl.pitching_current WHERE player_id=%(p)s AND year=%(y)s), "
+        "EXISTS(SELECT 1 FROM cpbl.batting_gamelog WHERE hitter_acnt=%(p)s AND year=%(y)s AND kind_code='D') "
+        "  OR EXISTS(SELECT 1 FROM cpbl.pitching_gamelog WHERE pitcher_acnt=%(p)s AND year=%(y)s AND kind_code='D')",
+        {"p": player_id, "y": season})
+    appeared_a, appeared_d = cur.fetchone()
+
+    if not events and not appeared_a and not appeared_d:
+        return None                          # 本季完全無活動（退役/教練/未登錄）
+
+    first_days = farm_days = 0
+    if events:
+        # 首事件反推季初層級：首筆為升一軍(01)→季初在二軍；為降二軍(02)→季初在一軍
+        level_first = events[0][1] != "01"   # True=一軍
+        prev, prev_first = g0, level_first
+        for tdate, kc in events:
+            d = max(0, (tdate - prev).days)
+            if prev_first:
+                first_days += d
+            else:
+                farm_days += d
+            prev, prev_first = tdate, (kc == "01")
+        d = max(0, (as_of - prev).days)
+        (first_days, farm_days) = (first_days + d, farm_days) if prev_first else (first_days, farm_days + d)
+    else:
+        # 無升降事件：整季單一層級，依出賽歸屬
+        total = (as_of - g0).days
+        if appeared_a and not appeared_d:
+            first_days = total
+        elif appeared_d and not appeared_a:
+            farm_days = total
+        else:                                # 兩級都有出賽卻無升降事件（罕見）→ 依出賽場數多者
+            cur.execute(
+                "SELECT (SELECT count(DISTINCT game_sno) FROM cpbl.batting_gamelog "
+                "        WHERE hitter_acnt=%(p)s AND year=%(y)s AND kind_code='A') "
+                "     + (SELECT count(DISTINCT game_sno) FROM cpbl.pitching_gamelog "
+                "        WHERE pitcher_acnt=%(p)s AND year=%(y)s AND kind_code='A'), "
+                "       (SELECT count(DISTINCT game_sno) FROM cpbl.batting_gamelog "
+                "        WHERE hitter_acnt=%(p)s AND year=%(y)s AND kind_code='D') "
+                "     + (SELECT count(DISTINCT game_sno) FROM cpbl.pitching_gamelog "
+                "        WHERE pitcher_acnt=%(p)s AND year=%(y)s AND kind_code='D')",
+                {"p": player_id, "y": season})
+            ga, gd = cur.fetchone()
+            if (gd or 0) > (ga or 0):
+                farm_days = total
+            else:
+                first_days = total
+
+    level = "二軍" if farm_days > first_days else "一軍"
+    return {"level": level, "first_days": first_days, "farm_days": farm_days}
 
 
 @app.get("/api/v1/records")
@@ -640,6 +724,13 @@ def player_career(player_id: str) -> dict:
             "SELECT year, category, award FROM cpbl.player_awards WHERE player_id=%s ORDER BY year",
             (player_id,))
         awards = [{"year": y, "category": cat, "award": aw} for y, cat, aw in cur.fetchall()]
+        # 年度總冠軍（隊伍榮銜，個人獎項表沒有）：由官網 games 推導 → championship_members
+        # （該年一軍有成績的球員＋總教練；見 ingest/championships.py）
+        cur.execute(
+            "SELECT year FROM cpbl.championship_members WHERE player_id=%s ORDER BY year",
+            (player_id,))
+        _cy = [y for (y,) in cur.fetchall()]
+        championships = {"count": len(_cy), "years": _cy} if _cy else None
         # 維基補充：教練經歷（球團職務）+ 國際賽獎牌
         cur.execute(
             "SELECT phase, team_raw, role, from_year, to_year FROM cpbl.wiki_tenures "
@@ -667,10 +758,59 @@ def player_career(player_id: str) -> dict:
             "AND year>=2025 GROUP BY year", (player_id,))
         for r in cur.fetchall():
             per[r[0]] = list(r[1:])  # 2025+ 以 gamelog 為準
+        # 投手生涯（pitching_seasons；與逐年投球史同源，ip .1/.2 換算成真實局數）
+        cur.execute(
+            "SELECT year, sum(g),sum(gs),sum(w),sum(l),sum(sv),sum(hld),"
+            "sum(trunc(ip)+(ip-trunc(ip))*10/3.0) AS rip,sum(so),sum(h),sum(bb),sum(er) "
+            "FROM cpbl.pitching_seasons WHERE player_id=%s GROUP BY year", (player_id,))
+        pper: dict = {r[0]: [float(x) if x is not None else 0.0 for x in r[1:]] for r in cur.fetchall()}
+        pcareer = pbests = prk = None
+        if pper:
+            cur.execute(
+                "WITH cr AS (SELECT player_id, sum(w) w, sum(sv) sv, sum(so) so FROM cpbl.pitching_seasons GROUP BY player_id) "
+                "SELECT (SELECT count(*)+1 FROM cr b WHERE b.w>a.w),(SELECT count(*)+1 FROM cr b WHERE b.sv>a.sv),"
+                "(SELECT count(*)+1 FROM cr b WHERE b.so>a.so) FROM cr a WHERE a.player_id=%s", (player_id,))
+            prk = cur.fetchone()
+            pt: dict = defaultdict(float)
+            for vals in pper.values():
+                for k, v in zip(["g", "gs", "w", "l", "sv", "hld", "rip", "so", "h", "bb", "er"], vals, strict=False):
+                    pt[k] += v
+            rip = pt["rip"]
+            outs = round(rip * 3)
+            _wl = pt["w"] + pt["l"]
+            pcareer = {"seasons": len(pper), "g": int(pt["g"]), "gs": int(pt["gs"]),
+                       "w": int(pt["w"]), "l": int(pt["l"]), "sv": int(pt["sv"]), "hld": int(pt["hld"]),
+                       "so": int(pt["so"]), "h": int(pt["h"]), "bb": int(pt["bb"]), "er": int(pt["er"]),
+                       "ip": f"{outs // 3}.{outs % 3}",
+                       "winpct": round(pt["w"] / _wl, 3) if _wl else None,
+                       "era": round(pt["er"] * 9 / rip, 2) if rip else None,
+                       "whip": round((pt["bb"] + pt["h"]) / rip, 2) if rip else None,
+                       "k9": round(pt["so"] * 9 / rip, 2) if rip else None,
+                       "kbb": round(pt["so"] / pt["bb"], 2) if pt["bb"] else None}
+
+            def _pmax(idx: int):
+                cand = [(y, v) for y, v in pper.items() if v[idx]]
+                if not cand:
+                    return None
+                y, v = max(cand, key=lambda x: x[1][idx])
+                return {"year": y, "value": int(v[idx])}
+            _pera = None
+            for y, v in pper.items():
+                r = v[6]
+                if r < 30:  # 單季 ≥30 局才列入最佳 ERA
+                    continue
+                e = v[10] * 9 / r
+                if _pera is None or e < _pera["value"]:
+                    _pera = {"year": y, "value": round(e, 2)}
+            pbests = {"w": _pmax(2), "sv": _pmax(4), "so": _pmax(7), "era": _pera}
+        _pit_extra = {"pitching": pcareer, "best_p": pbests,
+                      "rank_p": {"w": prk[0], "sv": prk[1], "so": prk[2]} if prk else None,
+                      "championships": championships}
         if not per:
             return {"player_id": player_id, "batting": None, "teams": teams,
                     "overseas": overseas, "awards": awards,
-                    "coach_tenures": coach_tenures, "exec_tenures": exec_tenures, "medals": medals}
+                    "coach_tenures": coach_tenures, "exec_tenures": exec_tenures, "medals": medals,
+                    **_pit_extra}
         # 里程碑日期（gamelog 2018+）
         cur.execute(
             "SELECT min(g.game_date) FILTER (WHERE bg.hits>0), min(g.game_date) FILTER (WHERE bg.home_runs>0) "
@@ -724,6 +864,7 @@ def player_career(player_id: str) -> dict:
         "milestones": {"first_hit": str(first_h) if first_h else None,
                        "first_hr": str(first_hr) if first_hr else None},
         "rank": {"hr": rk[0], "h": rk[1], "sb": rk[2]} if rk else None,
+        **_pit_extra,
     }
 
 
@@ -938,6 +1079,47 @@ def player_profile(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
         if prow and prow[0]:
             g, gs, sv, hld = (x or 0 for x in prow)
             pitcher_role = "先發" if gs * 2 >= g else ("後援" if sv > hld else "中繼")
+        # 打者主守位：本季各守位出賽 + 指定打擊（DH 不上守備，故以「打擊出賽 − 守備總出賽」推算），
+        # 取出賽最多者。本季無打擊也無守備（退役/歷史）才退回生涯 fielding_seasons。
+        # 守位字串中／英碼經 _POS_CANON 統一短名。
+        cur.execute("SELECT pos, g FROM cpbl.fielding_current WHERE player_id=%s AND year=%s",
+                    (player_id, season))
+        season_pos: dict[str, int] = {}
+        fld_g = 0
+        for pos, fg in cur.fetchall():
+            cp = _POS_CANON.get(pos)
+            if cp and cp != "投手":
+                season_pos[cp] = season_pos.get(cp, 0) + (fg or 0)
+                fld_g += (fg or 0)
+        cur.execute("SELECT coalesce(g, 0) FROM cpbl.batting_current WHERE player_id=%s AND year=%s",
+                    (player_id, season))
+        br = cur.fetchone()
+        dh_g = max(0, (br[0] if br else 0) - fld_g)
+        if dh_g > 0:
+            season_pos["指定打擊"] = dh_g
+        if season_pos:
+            primary_position = max(season_pos, key=season_pos.get)
+        else:
+            cur.execute("SELECT pos, sum(g) FROM cpbl.fielding_seasons WHERE player_id=%s "
+                        "GROUP BY pos", (player_id,))
+            primary_position, best_g = None, -1
+            for pos, fg in cur.fetchall():
+                cp = _POS_CANON.get(pos)
+                if cp and cp != "投手" and (fg or 0) > best_g:
+                    primary_position, best_g = cp, (fg or 0)
+        # 生涯曾任打者／投手（歷年彙總存在性）：退役/教練本季不在名單，前端據此推導 role tab。
+        cur.execute("SELECT EXISTS(SELECT 1 FROM cpbl.batting_seasons WHERE player_id=%s), "
+                    "EXISTS(SELECT 1 FROM cpbl.pitching_seasons WHERE player_id=%s)",
+                    (player_id, player_id))
+        was_batter, was_pitcher = cur.fetchone()
+        # 二軍本季是否有打/投出賽（gamelog kind=D）：二軍-only 球員一軍 current 為空，
+        # 前端需據此補 role tab，且判定其非「退役」。
+        cur.execute("SELECT EXISTS(SELECT 1 FROM cpbl.batting_gamelog WHERE hitter_acnt=%(p)s AND year=%(y)s AND kind_code='D'), "
+                    "EXISTS(SELECT 1 FROM cpbl.pitching_gamelog WHERE pitcher_acnt=%(p)s AND year=%(y)s AND kind_code='D')",
+                    {"p": player_id, "y": season})
+        farm_batter, farm_pitcher = cur.fetchone()
+        # 本季主要登錄層級（一軍/二軍；None=本季無活動）：由升降事件重建登錄天數判定。
+        roster = _roster_level(cur, player_id, season)
     if not bat and not pit and not meta:
         return {"player": None}
     name = (bat[1] if bat else None) or (pit[1] if pit else None) or (meta[0] if meta else None)
@@ -949,8 +1131,13 @@ def player_profile(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
         "player": {
             "id": player_id, "name": name, "team": team,
             "is_batter": bat is not None, "is_pitcher": pit is not None,
+            "was_batter": bool(was_batter), "was_pitcher": bool(was_pitcher),
+            "farm_batter": bool(farm_batter), "farm_pitcher": bool(farm_pitcher),
+            "roster_level": roster["level"] if roster else None,
+            "roster_days": {"first": roster["first_days"], "farm": roster["farm_days"]} if roster else None,
             "bats": meta[1] if meta else None, "throws": meta[2] if meta else None,
             "former_names": former, "pitcher_role": pitcher_role,
+            "primary_position": primary_position,
             "country": country,
             "import_status": status,
             "import_label": imports.LABELS[status] if status != "local" else None,
@@ -994,10 +1181,38 @@ def _real_ip(ip: Any) -> float:
     return whole + round((ip - whole) * 10) / 3
 
 
+def _farm_season(player_id: str, season: int) -> dict:
+    """二軍本季成績（gamelog kind=D 彙整）：供二軍選手成績卡。rate 由原始計數即時算；
+    OPS+/ERA+/FIP 無二軍聯盟基準故留空（前端顯示 —）。欄位對齊一軍卡。"""
+    out: dict[str, Any] = {"player_id": player_id, "season": season, "batting": None, "pitching": None}
+    b = next((r for r in _batting_rows(season, "D") if r["player_id"] == player_id), None)
+    p = next((r for r in _pitching_rows(season, "D") if r["player_id"] == player_id), None)
+    if b:
+        ab, h, bb, hbp, sf, tb = (b.get(k) or 0 for k in ("ab", "h", "bb", "hbp", "sf", "tb"))
+        den = ab + bb + hbp + sf
+        b["avg"] = round(h / ab, 3) if ab else None
+        b["obp"] = round((h + bb + hbp) / den, 3) if den else None
+        b["slg"] = round(tb / ab, 3) if ab else None
+        b["ops"] = round((b["obp"] or 0) + (b["slg"] or 0), 3) if ab else None
+        out["batting"] = b
+    if p:
+        rip = _real_ip(p.get("ip"))
+        er, hh, bbp, so = (p.get(k) or 0 for k in ("er", "h", "bb", "so"))
+        p["era"] = round(er * 9 / rip, 2) if rip else None
+        p["whip"] = round((hh + bbp) / rip, 2) if rip else None
+        p["k9"] = round(so * 9 / rip, 2) if rip else None
+        out["pitching"] = p
+    return out
+
+
 @app.get("/api/v1/players/{player_id}/season")
-def player_season(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
-    """球員本季成績（batting_current / pitching_current 完整列），供個人頁成績卡。
-    OPS+/ERA+/FIP 官網不提供，於此用聯盟平均即時計算（park-neutral 標準公式）。"""
+def player_season(player_id: str, season: int = Query(DEFAULT_SEASON),
+                  kind: str = Query("A", pattern="^(A|D)$")) -> dict:
+    """球員本季成績（kind=A 一軍 batting_current/pitching_current；kind=D 二軍 gamelog 彙整）。
+    供個人頁成績卡；二軍選手預設採計二軍、可切換看一軍。
+    OPS+/ERA+/FIP 官網不提供，一軍於此用聯盟平均即時計算（park-neutral 標準公式）。"""
+    if kind == "D":
+        return _farm_season(player_id, season)
     out: dict[str, Any] = {"player_id": player_id, "season": season, "batting": None, "pitching": None}
     with conn() as c:
         cur = c.cursor()
@@ -1402,7 +1617,23 @@ def _ability_card(cur, player_id: str, role: str, scope: str, year: int) -> dict
     rated = [a["pr"] for a in axes if a["pr"] is not None]
     overall = (round(float(ov_pr) * 100) if ov_pr is not None
                else (round(sum(rated) / len(rated)) if rated else 0))
-    # 打擊特色標籤（彰顯打者類型，不合軸）：取進攻工具中最突出者；多項 ≥80 → 全能。
+    if role == "batting":
+        power_pr = next((a["pr"] for a in axes if a["key"] == "power" and a["pr"] is not None), None)
+        # 總評融入『力量軸』（已綜合官方 Barrel%/強擊球/初速＝擊球品質）：SQL 重排只看 OPS 結果，
+        # 會低估「紮實接觸但結果衰運(低 BABIP)」的重砲手（如朱育賢 Barrel96 卻 OPS 中庸）。以
+        # xStats 精神用擊球品質拉抬，無進階者力量軸退回 ISO 故仍合理（守住紅線：非抄計數型 HR/RBI）。
+        # 只『拉抬』不『懲罰』：取 max，速度/守備型不會被低力量拖累。
+        if ov_pr is not None and power_pr is not None:
+            overall = max(overall, round(0.6 * overall + 0.4 * power_pr))
+        # DH（無守備數據）守備軸改以打擊火力呈現——「DH 用強棒守備」，免雷達 0 凹陷誤看成弱點。
+        if power_pr is not None:
+            for a in axes:
+                if a["key"] == "defense" and a["pr"] is None:
+                    a["label"], a["pr"], a["grade"] = "指打", power_pr, _grade(power_pr)
+                    a["components"] = [{"label": "打擊火力（代守備）", "weight": 100, "pr": power_pr}]
+    # 特色標籤（彰顯球員類型，不合軸）。
+    # 打者：取進攻工具中最突出者；多項 ≥80 → 全能。
+    # 投手：取最突出的出局方式（weapon_type＝三振/滾地/飛球，後端 SQL 已算）。
     signature = None
     if role == "batting":
         names = {"power": "強打", "contact": "巧打", "eye": "選球", "speed": "快腿"}
@@ -1412,6 +1643,8 @@ def _ability_card(cur, player_id: str, role: str, scope: str, year: int) -> dict
             strong = [names[k] for k, v in off.items() if v >= 80]
             top = max(off, key=off.get)
             signature = "全能" if len(strong) >= 3 else "·".join(strong[:2]) if strong else names[top]
+    elif role == "pitching":
+        signature = weapon_type
     return {"available": True, "role": role, "scope": scope, "axes": axes,
             "has_advanced": bool(adv), "signature": signature,
             "overall": {"pr": overall, "grade": _grade(overall)}}
