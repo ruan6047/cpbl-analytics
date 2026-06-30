@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { LaEvScatter } from "@/components/la-ev-scatter";
 import { SprayChart } from "@/components/spray-chart";
 import { AbilityCard, GradeChip } from "@/components/ability-card";
@@ -110,25 +110,69 @@ const _kmh = (v: number) => v.toFixed(1);
 const _m = (v: number) => `${v.toFixed(1)}m`;
 const _deg = (v: number) => `${v.toFixed(1)}°`;
 const _cnt = (v: number) => String(Math.round(v));
-const QUALITY_GROUPS: { title: string; items: { k: string; label: string; fmt: (v: number) => string }[] }[] = [
+const QUALITY_GROUPS: { title: string; pie?: boolean; items: { k: string; label: string; fmt: (v: number) => string }[] }[] = [
   { title: "擊球品質", items: [
     { k: "evAvg", label: "平均初速", fmt: _kmh }, { k: "ev90Th", label: "EV90", fmt: _kmh },
     { k: "evMax", label: "最大初速", fmt: _kmh }, { k: "laAvg", label: "平均仰角", fmt: _deg },
     { k: "distanceAvgHr", label: "全壘打均距", fmt: _m }, { k: "distanceMax", label: "最遠擊球", fmt: _m },
   ] },
-  { title: "彈道分布", items: [
-    { k: "gbp", label: "滾地球%", fmt: _pct }, { k: "ldp", label: "平飛球%", fmt: _pct },
-    { k: "fbp", label: "高飛球%", fmt: _pct }, { k: "pup", label: "內野飛球%", fmt: _pct },
+  { title: "彈道分布", pie: true, items: [
+    { k: "gbp", label: "滾地球", fmt: _pct }, { k: "ldp", label: "平飛球", fmt: _pct },
+    { k: "fbp", label: "高飛球", fmt: _pct }, { k: "pup", label: "內野飛球", fmt: _pct },
   ] },
-  { title: "拉打方向", items: [
-    { k: "pullp", label: "拉打%", fmt: _pct }, { k: "straightp", label: "中間%", fmt: _pct },
-    { k: "oppop", label: "推打%", fmt: _pct },
+  { title: "拉打方向", pie: true, items: [
+    { k: "pullp", label: "拉打", fmt: _pct }, { k: "straightp", label: "中間", fmt: _pct },
+    { k: "oppop", label: "推打", fmt: _pct },
   ] },
   { title: "強擊 / Barrel", items: [
     { k: "hardHitp", label: "強擊球%", fmt: _pct }, { k: "barrels", label: "Barrel 數", fmt: _cnt },
     { k: "brlsPAp", label: "Barrel/PA", fmt: _pct },
   ] },
 ];
+
+// 好球帶紀律各指標「偏好方向」（投打相反）：+1 越高越好(藍)、-1 越低越好(紅)、0 中性(灰)
+const DISC_DIR: Record<string, { bat: number; pit: number }> = {
+  swing_pct: { bat: 0, pit: 0 },
+  whiff_pct: { bat: -1, pit: 1 },
+  contact_pct: { bat: 1, pit: -1 },
+  csw_pct: { bat: -1, pit: 1 },
+  chase_pct: { bat: -1, pit: 1 },
+  zone_pct: { bat: 0, pit: 0 },
+};
+const dirColor = (d: number) => (d > 0 ? "#1d6fb8" : d < 0 ? "#d62839" : "#94a3b8");
+
+// 組成型百分位 → 甜甜圈圖 + 圖例（彈道分布/拉打方向；值總和≈100%）
+const PIE_COLORS = ["#1B4DA1", "#3B82C4", "#E8842B", "#9AA3AF"];
+function CompositionPie({ items, m }: { items: { k: string; label: string }[]; m: Record<string, number> }) {
+  const data = items
+    .map((it, i) => ({ name: it.label, value: m[it.k] == null ? 0 : +(m[it.k] * 100).toFixed(1), color: PIE_COLORS[i % PIE_COLORS.length] }))
+    .filter((d) => d.value > 0);
+  if (!data.length) return <p className="py-6 text-center text-xs text-faint">無資料</p>;
+  return (
+    <div className="flex items-center gap-3">
+      <div className="h-28 w-28 shrink-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={data} dataKey="value" nameKey="name" innerRadius={26} outerRadius={52} paddingAngle={2} stroke="none">
+              {data.map((d) => <Cell key={d.name} fill={d.color} />)}
+            </Pie>
+            <Tooltip formatter={(v: number | string) => `${v}%`} />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <ul className="min-w-0 flex-1 space-y-1.5 text-xs">
+        {data.map((d) => (
+          <li key={d.name} className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 text-muted">
+              <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: d.color }} />{d.name}
+            </span>
+            <span className="font-mono tabular-nums text-ink">{d.value}%</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 type Metric = { key: string; label: string; dp: number; get: (r: StatRow) => number | null };
 const BAT_METRICS: Metric[] = [
@@ -357,6 +401,9 @@ export default function PlayerPage() {
   const [pitchMix, setPitchMix] = useState<{ bucket: string; n: number; fastball: number; breakingball: number }[] | null>(null);
   const [arsenal, setArsenal] = useState<StatRow[] | null>(null);
   const [fielding, setFielding] = useState<StatRow[] | null>(null);
+  const [fieldingCareer, setFieldingCareer] = useState<StatRow[] | null>(null);
+  const [fieldFromYear, setFieldFromYear] = useState<number | null>(null);
+  const [fieldScope, setFieldScope] = useState<"season" | "career">("season");
   const [vsTeam, setVsTeam] = useState<StatRow[] | null>(null);
   const [career, setCareer] = useState<StatRow[] | null>(null);
   const [careerStats, setCareerStats] = useState<Awaited<ReturnType<typeof detail.careerStats>> | null>(null);
@@ -364,6 +411,7 @@ export default function PlayerPage() {
   const [trend, setTrend] = useState<StatRow[] | null>(null);
   const [splits, setSplits] = useState<StatRow[] | null>(null);
   const [monthMetric, setMonthMetric] = useState("ops");
+  const [trendScope, setTrendScope] = useState<"season" | "career">("season");
   // 本季成績層級：二軍選手預設採計二軍(D)、可切換看一軍(A)。
   const [seasonKind, setSeasonKind] = useState<"A" | "D">("A");
   // 版面分頁：數據區（本季/生涯）、明細區（逐年/分項）。
@@ -385,6 +433,8 @@ export default function PlayerPage() {
     }).catch(() => setNotFound(true));
     detail.advanced(id).then(setAdvanced).catch(() => setAdvanced(null));
     detail.fielding(id).then((d) => setFielding(d.items)).catch(() => setFielding([]));
+    detail.fielding(id, "career").then((d) => { setFieldingCareer(d.items); setFieldFromYear(d.from_year ?? null); })
+      .catch(() => setFieldingCareer([]));
     detail.careerStats(id).then(setCareerStats).catch(() => setCareerStats(null));
     detail.abilityCard(id).then(setAbility).catch(() => setAbility(null));
   }, [id]);
@@ -421,6 +471,11 @@ export default function PlayerPage() {
   const monthData = useMemo(
     () => (trend ?? []).map((r) => ({ name: String(r.name), v: metric.get(r) })),
     [trend, metric],
+  );
+  // 逐年走勢（生涯）：每年該指標一點，x 軸為年份
+  const careerTrendData = useMemo(
+    () => (career ?? []).filter((r) => metric.get(r) != null).map((r) => ({ name: String(r.year), v: metric.get(r) })),
+    [career, metric],
   );
   const prRows = useMemo(() => {
     const a = advanced ? (role === "batting" ? advanced.batting : advanced.pitching) : null;
@@ -459,8 +514,13 @@ export default function PlayerPage() {
     (arsenal && arsenal.length)
   );
   const showTracking = !trackingReady || hasTracking;
-  // 賽季走勢/對戰各隊：退役球員兩者皆空 → 隱藏（載入中仍顯示）
-  const showTrendVs = trend === null || vsTeam === null || monthData.length > 0 || (vsTeam?.length ?? 0) > 0;
+  // 賽季走勢/對戰各隊：本季逐場、生涯逐年、對戰各隊任一有料即顯示（載入中仍顯示）
+  const showTrendVs = trend === null || vsTeam === null || monthData.length > 0
+    || careerTrendData.length > 0 || (vsTeam?.length ?? 0) > 0;
+  // 走勢有效範圍：本季無資料(退役)但有生涯逐年 → 自動切生涯
+  const effTrend: "season" | "career" =
+    trendScope === "season" && monthData.length === 0 && careerTrendData.length > 0 ? "career" : trendScope;
+  const trendData = effTrend === "career" ? careerTrendData : monthData;
 
   // 能力值卡：尺度跟隨下方資料分頁 dataTab（本季/生涯），不再有獨立切換鈕
   const abSel = (() => {
@@ -864,7 +924,7 @@ export default function PlayerPage() {
       {/* 擊球落點 + 進壘點（左 2/3 放大） + 好球帶紀律（右側直欄）。無逐球資料則整段隱藏 */}
       {showTracking && (
       <section className="mb-6">
-        <h2 className="mb-3 text-lg font-semibold text-ink">逐球追蹤</h2>
+        <h2 className="mb-3 text-lg font-semibold text-ink">逐球追蹤<span className="ml-2 align-middle text-xs font-normal text-faint">本季 · TrackMan 2026 起</span></h2>
         <div className="grid items-stretch gap-6 lg:grid-cols-3">
         <Card className="flex flex-col lg:col-span-2">
           <div className="grid gap-x-4 sm:grid-cols-2">
@@ -906,15 +966,15 @@ export default function PlayerPage() {
               )}
             </div>
           </div>
-          {disc && (() => {
+          {/* 投手球質（TrackMan 放球/延伸，唯一資訊）。打者擊球品質移除：與下方「擊球品質與彈道」重複且後者更全。 */}
+          {disc && role === "pitching" && (() => {
             const q = disc.quality;
-            const tiles: [string, number | null, string][] = role === "batting"
-              ? [["平均仰角", q.avg_launch_angle, "°"], ["最遠擊球", q.max_hit_dist, "m"], ["平均初速", q.avg_exit_speed, "km/h"]]
-              : [["平均球速", q.avg_speed, "km/h"], ["平均延伸", q.avg_extension, "m"], ["平均放球高", q.avg_rel_height, "m"]];
+            const tiles: [string, number | null, string][] =
+              [["平均球速", q.avg_speed, "km/h"], ["平均延伸", q.avg_extension, "m"], ["平均放球高", q.avg_rel_height, "m"]];
             if (tiles.every(([, v]) => v == null)) return null;
             return (
               <div className="mt-auto border-t border-line pt-3">
-                <div className="mb-2 text-xs text-muted">{role === "batting" ? "擊球品質" : "球質"}<span className="text-faint">（逐球追蹤樣本）</span></div>
+                <div className="mb-2 text-xs text-muted">球質<span className="text-faint">（逐球追蹤樣本）</span></div>
                 <div className="grid grid-cols-3 gap-2">
                   {tiles.map(([l, v, u]) => (
                     <div key={l} className="card px-3 py-2 text-center">
@@ -932,16 +992,30 @@ export default function PlayerPage() {
             <h3 className="mb-3 text-sm font-medium text-muted">好球帶紀律</h3>
             {disc && disc.summary.swing_pct != null ? (
               <>
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {([["揮棒%", "swing_pct"], ["揮空%", "whiff_pct"], ["接觸%", "contact_pct"],
                      ["CSW%", "csw_pct"], ["追打%", "chase_pct"], ["好球帶%", "zone_pct"]] as const)
                     .filter(([, k]) => disc.summary[k] != null)
-                    .map(([label, k]) => (
-                      <div key={k} className="flex items-center justify-between border-b border-line pb-1.5 text-xs last:border-0">
-                        <span className="text-muted">{label}</span>
-                        <span className="font-mono tabular-nums text-ink">{disc.summary[k]}%</span>
-                      </div>
-                    ))}
+                    .map(([label, k]) => {
+                      const v = disc.summary[k] as number;
+                      const dir = DISC_DIR[k]?.[role === "batting" ? "bat" : "pit"] ?? 0;
+                      return (
+                        <div key={k}>
+                          <div className="mb-0.5 flex items-center justify-between text-xs">
+                            <span className="text-muted">{label}</span>
+                            <span className="font-mono tabular-nums text-ink">{v}%</span>
+                          </div>
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+                            <div className="h-full rounded-full" style={{ width: `${Math.min(v, 100)}%`, background: dirColor(dir) }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+                <div className="mt-2.5 flex items-center gap-3 text-[10px] text-faint">
+                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm" style={{ background: "#1d6fb8" }} />越高越好</span>
+                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm" style={{ background: "#d62839" }} />越低越好</span>
+                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm" style={{ background: "#94a3b8" }} />中性</span>
                 </div>
               </>
             ) : <p className="py-12 text-center text-sm text-faint">{disc === null ? "載入中…" : "無逐球資料"}</p>}
@@ -964,17 +1038,21 @@ export default function PlayerPage() {
         if (!m || m.gbp == null) return null;
         return (
           <section className="mb-6">
-            <h2 className="mb-3 text-lg font-semibold text-ink">擊球品質與彈道</h2>
+            <h2 className="mb-3 text-lg font-semibold text-ink">擊球品質與彈道<span className="ml-2 align-middle text-xs font-normal text-faint">本季 · 官方進階 2026 起</span></h2>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {QUALITY_GROUPS.map((g) => (
                 <Card key={g.title} className="p-4">
                   <div className="mb-2 text-sm font-semibold text-ink">{g.title}</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {g.items.map((it) => (
-                      <StatTile key={it.k} label={it.label}
-                        value={m[it.k] == null ? "—" : it.fmt(m[it.k])} />
-                    ))}
-                  </div>
+                  {g.pie ? (
+                    <CompositionPie items={g.items} m={m} />
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {g.items.map((it) => (
+                        <StatTile key={it.k} label={it.label}
+                          value={m[it.k] == null ? "—" : it.fmt(m[it.k])} />
+                      ))}
+                    </div>
+                  )}
                 </Card>
               ))}
             </div>
@@ -1028,23 +1106,35 @@ export default function PlayerPage() {
         <h2 className="mb-3 text-lg font-semibold text-ink">賽季走勢 · 對戰各隊</h2>
         <div className="grid items-stretch gap-6 lg:grid-cols-2">
           <Card className="h-full">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h3 className="text-sm font-medium text-muted">賽季走勢（逐場累積）</h3>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-medium text-muted">{effTrend === "career" ? "逐年走勢（生涯）" : "賽季走勢（逐場累積）"}</h3>
+                {careerTrendData.length > 1 && monthData.length > 0 && (
+                  <div className="inline-flex overflow-hidden rounded-full border border-line text-[11px]">
+                    {(["season", "career"] as const).map((s) => (
+                      <button key={s} onClick={() => setTrendScope(s)}
+                        className={`px-2.5 py-0.5 transition ${effTrend === s ? "bg-ink text-white" : "bg-surface text-muted hover:text-ink"}`}>
+                        {s === "season" ? "本季" : "生涯"}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <select value={monthMetric} onChange={(e) => setMonthMetric(e.target.value)}
                 className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink outline-none focus:border-ink">
                 {metrics.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
               </select>
             </div>
-            {monthData.length === 0 ? <p className="py-8 text-center text-sm text-faint">無資料</p> : (
+            {trendData.length === 0 ? <p className="py-8 text-center text-sm text-faint">無資料</p> : (
               <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={monthData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                <LineChart data={trendData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                   <CartesianGrid stroke="#eef2f7" />
-                  <XAxis dataKey="name" {...axis} minTickGap={28} />
+                  <XAxis dataKey="name" {...axis} minTickGap={effTrend === "career" ? 8 : 28} />
                   <YAxis {...axis} domain={["auto", "auto"]} />
                   <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 12 }}
                     formatter={(v: number) => v?.toFixed(metric.dp)} />
                   <Line type="monotone" dataKey="v" name={metric.label} stroke="#0a2540" strokeWidth={2}
-                    dot={monthData.length > 18 ? false : { r: 3, fill: "#d62839" }} />
+                    dot={trendData.length > 18 ? false : { r: 3, fill: "#d62839" }} />
                 </LineChart>
               </ResponsiveContainer>
             )}
@@ -1059,9 +1149,14 @@ export default function PlayerPage() {
       </section>
       )}
 
-      {/* 守備 */}
-      {fielding && fielding.length > 0 && (() => {
-        const hasC = fielding.some((r) => String(r.pos).includes("捕") || numOf(r.cs) || numOf(r.pb) || numOf(r.sba));
+      {/* 守備（本季 fielding_current / 生涯 1990– 彙總；退役無本季 → 自動生涯）*/}
+      {((fielding?.length ?? 0) > 0 || (fieldingCareer?.length ?? 0) > 0) && (() => {
+        const effField: "season" | "career" =
+          fieldScope === "season" && (fielding?.length ?? 0) === 0 && (fieldingCareer?.length ?? 0) > 0
+            ? "career" : fieldScope;
+        const fld = (effField === "career" ? fieldingCareer : fielding) ?? [];
+        if (fld.length === 0) return null;
+        const hasC = fld.some((r) => String(r.pos).includes("捕") || numOf(r.cs) || numOf(r.pb) || numOf(r.sba));
         const cols: { key: string; label: string; tip: string; tone?: string; catcher?: boolean }[] = [
           { key: "g", label: "出賽", tip: "該守位出賽場數 G", tone: "text-muted" },
           { key: "tc", label: "守備機會", tip: "TC＝刺殺＋助殺＋失誤" },
@@ -1076,7 +1171,22 @@ export default function PlayerPage() {
         ].filter((c) => !c.catcher || hasC);
         return (
           <section className="mb-6">
-            <h2 className="mb-3 text-lg font-semibold text-ink">守備</h2>
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-semibold text-ink">守備</h2>
+              {(fielding?.length ?? 0) > 0 && (fieldingCareer?.length ?? 0) > 0 && (
+                <div className="inline-flex overflow-hidden rounded-full border border-line text-[11px]">
+                  {(["season", "career"] as const).map((s) => (
+                    <button key={s} onClick={() => setFieldScope(s)}
+                      className={`px-2.5 py-0.5 transition ${effField === s ? "bg-ink text-white" : "bg-surface text-muted hover:text-ink"}`}>
+                      {s === "season" ? "本季" : "生涯"}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {effField === "career" && fieldFromYear && (
+                <span className="text-[11px] text-faint">生涯累計（{fieldFromYear} 起）</span>
+              )}
+            </div>
             <div className="overflow-x-auto rounded-xl border border-line bg-surface">
               <table className="w-full text-sm">
                 <thead className="bg-surface-2 text-left text-muted">
@@ -1089,7 +1199,7 @@ export default function PlayerPage() {
                   </tr>
                 </thead>
                 <tbody className="font-mono tabular-nums">
-                  {fielding.map((r) => (
+                  {fld.map((r) => (
                     <tr key={String(r.pos)} className="border-t border-line">
                       <td className="px-3 py-2 font-sans text-ink">{String(r.pos)}</td>
                       {cols.map((c) => (

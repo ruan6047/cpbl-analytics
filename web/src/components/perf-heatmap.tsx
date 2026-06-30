@@ -24,11 +24,13 @@ function prep(points: HPoint[], metric: HeatMetric): { x: number; y: number; v: 
 
 export function PerfHeatmap({ points, metric }: { points: HPoint[]; metric: HeatMetric }) {
   const W = 230, H = 240, pad = 12;
-  const xMin = -0.78, xMax = 0.78, yMin = -0.1, yMax = 1.7;
+  // 範圍收緊到好球帶周邊（與散點一致；捨棄太外圍野球，放大好球帶）
+  const xMin = -0.5, xMax = 0.5, yMin = 0.05, yMax = 1.4;
   const sx = (x: number) => pad + ((x - xMin) / (xMax - xMin)) * (W - 2 * pad);
   const sy = (y: number) => H - pad - ((y - yMin) / (yMax - yMin)) * (H - 2 * pad);
   const cols = 26, rows = 28, bw = 0.16;
-  const pts = prep(points, metric);
+  const inWin = (p: HPoint) => p.x >= xMin && p.x <= xMax && p.y >= yMin && p.y <= yMax;
+  const pts = prep(points.filter(inWin), metric);
 
   const cw = (xMax - xMin) / cols, chh = (yMax - yMin) / rows;
   const cells: { gx: number; gy: number; val: number; sup: number }[] = [];
@@ -79,12 +81,6 @@ export function PerfHeatmap({ points, metric }: { points: HPoint[]; metric: Heat
       {/* 好球帶框 */}
       <rect x={z.x1} y={z.y1} width={z.x2 - z.x1} height={z.y2 - z.y1}
         fill="none" stroke="#0a2540" strokeWidth={1.5} />
-      {/* 本壘板（捕手視角，底部） */}
-      {(() => {
-        const hy = sy(0.0), w = 9;
-        return <polygon points={`${W / 2 - w},${hy} ${W / 2 + w},${hy} ${W / 2 + w},${hy + 5} ${W / 2},${hy + 10} ${W / 2 - w},${hy + 5}`}
-          fill="none" stroke="#94a3b8" strokeWidth={1} />;
-      })()}
       {/* 外圍邊界線 */}
       <rect x={bx} y={by} width={bw2} height={bh} rx={br} ry={br} fill="none" stroke="#cbd5e1" strokeWidth={1.2} />
       <text x={W / 2} y={H - 4} textAnchor="middle" className="fill-faint" fontSize={9}>捕手視角</text>

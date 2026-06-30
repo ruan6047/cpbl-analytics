@@ -158,8 +158,8 @@ export const detail = {
     clientGet<{ items: StatRow[] }>(`/api/v1/players/${id}/arsenal?role=${role}`),
   trend: (id: string, role: "batting" | "pitching") =>
     clientGet<{ items: StatRow[] }>(`/api/v1/players/${id}/trend?role=${role}`),
-  fielding: (id: string) =>
-    clientGet<{ items: StatRow[] }>(`/api/v1/players/${id}/fielding`),
+  fielding: (id: string, scope: "season" | "career" = "season") =>
+    clientGet<{ items: StatRow[]; from_year?: number }>(`/api/v1/players/${id}/fielding?scope=${scope}`),
   career: (id: string, role: "batting" | "pitching") =>
     clientGet<{ seasons: StatRow[] }>(`/api/v1/players/${id}/${role}`),
   careerStats: (id: string) =>
