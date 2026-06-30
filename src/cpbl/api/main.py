@@ -1256,11 +1256,42 @@ def player_season(player_id: str, season: int = Query(DEFAULT_SEASON),
     return out
 
 
+# 守備位置碼：fielding_seasons 用英文(1B/C/P…)、fielding_current 用中文 → 統一成中文
+_POS_ZH = {"1B": "一壘手", "2B": "二壘手", "3B": "三壘手", "SS": "游擊手", "C": "捕手",
+           "P": "投手", "LF": "左外野手", "CF": "中外野手", "RF": "右外野手"}
+
+
 @app.get("/api/v1/players/{player_id}/fielding")
-def player_fielding(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
-    """球員本季守備（fielding_current，逐守位）。供個人頁守備卡。"""
+def player_fielding(player_id: str, season: int = Query(DEFAULT_SEASON),
+                    scope: str = Query("season", pattern="^(season|career)$")) -> dict:
+    """球員守備逐守位。scope=season 本季(fielding_current)；career 生涯
+    （fielding_seasons 1990–2024 + fielding_current 2025+，守位碼對齊後彙總，重算 fpct）。"""
     with conn() as c:
         cur = c.cursor()
+        if scope == "career":
+            cur.execute(
+                """
+                WITH u AS (
+                    SELECT year, pos, g, tc, po, a, e, dp, tp, pb, cs, sb AS sba
+                    FROM cpbl.fielding_seasons WHERE player_id = %s
+                    UNION ALL
+                    SELECT year, pos, g, tc, po, a, e, dp, tp, pb, cs, sba
+                    FROM cpbl.fielding_current WHERE player_id = %s
+                )
+                SELECT pos, sum(g), sum(tc), sum(po), sum(a), sum(e), sum(dp),
+                       sum(tp), sum(pb), sum(cs), sum(sba), (SELECT min(year) FROM u) AS fy
+                FROM u GROUP BY pos ORDER BY sum(g) DESC NULLS LAST
+                """,
+                (player_id, player_id),
+            )
+            items, from_year = [], None
+            for pos, g, tc, po, a, e, dp, tp, pb, cs, sba, fy in cur.fetchall():
+                from_year = fy
+                den = (po or 0) + (a or 0) + (e or 0)
+                items.append({"pos": _POS_ZH.get(pos, pos), "g": g, "tc": tc, "po": po, "a": a,
+                              "e": e, "dp": dp, "tp": tp, "pb": pb, "cs": cs, "sba": sba,
+                              "fpct": round(((po or 0) + (a or 0)) / den, 3) if den else None})
+            return {"player_id": player_id, "scope": "career", "from_year": from_year, "items": items}
         cur.execute(
             """
             SELECT pos, g, tc, po, a, e, dp, tp, pb, cs, sba, fpct
@@ -1276,7 +1307,7 @@ def player_fielding(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict
              "fpct": float(fpct) if fpct is not None else None}
             for pos, g, tc, po, a, e, dp, tp, pb, cs, sba, fpct in cur.fetchall()
         ]
-    return {"player_id": player_id, "season": season, "items": items}
+    return {"player_id": player_id, "season": season, "scope": "season", "items": items}
 
 
 # ---------- 每場賽況 ----------
