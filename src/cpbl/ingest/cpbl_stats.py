@@ -248,7 +248,7 @@ def fetch_fielding(year: int, kind_code: str = "A") -> list[tuple]:
                 name_m = re.search(r'/team/person\?acnt=\d+"[^>]*>([^<]+)</a>', tr)
                 # 欄序：守位 出賽 守備機會 刺殺 助殺 失誤 雙殺 三殺 捕逸 盜壘阻殺 被盜成功 守備率
                 rows.append((
-                    year, mid.group(1), name_m.group(1).strip() if name_m else None, team_code,
+                    year, kind_code, mid.group(1), name_m.group(1).strip() if name_m else None, team_code,
                     nums[0],
                     _int(_num(nums[1])), _int(_num(nums[2])), _int(_num(nums[3])),
                     _int(_num(nums[4])), _int(_num(nums[5])), _int(_num(nums[6])),
@@ -265,9 +265,9 @@ def upsert_fielding(records: list[tuple]) -> int:
         c.cursor().executemany(
             """
             INSERT INTO cpbl.fielding_current
-                (year, player_id, name, team_code, pos, g, tc, po, a, e, dp, tp, pb, cs, sba, fpct)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            ON CONFLICT (year, player_id, pos) DO UPDATE SET
+                (year, kind_code, player_id, name, team_code, pos, g, tc, po, a, e, dp, tp, pb, cs, sba, fpct)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT (year, kind_code, player_id, pos) DO UPDATE SET
                 name=EXCLUDED.name, team_code=EXCLUDED.team_code, g=EXCLUDED.g, tc=EXCLUDED.tc,
                 po=EXCLUDED.po, a=EXCLUDED.a, e=EXCLUDED.e, dp=EXCLUDED.dp,
                 tp=EXCLUDED.tp, pb=EXCLUDED.pb, cs=EXCLUDED.cs, sba=EXCLUDED.sba, fpct=EXCLUDED.fpct
@@ -345,7 +345,9 @@ def scrape_all(start_year: int, end_year: int, current_year: int) -> dict:
         out["pitching"][year] = upsert_pitching(fetch_pitching(year))
         log.info("pitching %s done", year)
     out["batting"] = upsert_batting(fetch_batting(current_year))
-    out["fielding"] = upsert_fielding(fetch_fielding(current_year))
+    # 守備當季一軍(A) + 二軍(D)：同端點帶 KindCode，分別入庫（PK 含 kind_code）
+    out["fielding"] = (upsert_fielding(fetch_fielding(current_year, "A"))
+                       + upsert_fielding(fetch_fielding(current_year, "D")))
     out["team"] = upsert_team(fetch_team(current_year))
     log.info("batting=%d fielding=%d team=%d (year %s)",
              out["batting"], out["fielding"], out["team"], current_year)

@@ -224,7 +224,7 @@ def scrape_matchups(
             continue  # 當日無對戰紀錄，無需重抓生涯對戰
         try:
             s = _Session(acnt, delay)
-        except (httpx.HTTPError, RuntimeError) as e:
+        except Exception as e:  # noqa: BLE001 — 含 Playwright 網路瞬斷(ERR_NETWORK_CHANGED)/逾時；單人失敗不中斷整批
             log.error("[%d/%d] acnt=%s 建 session 失敗，略過：%s", idx, len(batters), acnt, e)
             continue
         try:

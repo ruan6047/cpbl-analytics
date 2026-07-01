@@ -70,7 +70,7 @@ sync_table pitching_current "year,player_id" name team_code era ip g gs w l whip
   so cg sho pa np h hr bb ibb hbp wp bk r er go ao goao
 sync_table batting_current "year,player_id" name team_code pa avg obp slg ops hr ops_plus k_pct bb_pct \
   g ab r h b2 b3 rbi bb so sb cs tb gidp sh sf ibb hbp go ao goao
-sync_table fielding_current "year,player_id,pos" name team_code g tc po a e dp tp pb cs sba fpct
+sync_table fielding_current "year,kind_code,player_id,pos" name team_code g tc po a e dp tp pb cs sba fpct
 sync_table team_current "year,team_code" name bat_avg bat_obp bat_slg bat_ops bat_hr pit_era pit_whip
 sync_table coaches "year,team_code,name" pos uniform_no
 # 維基/官網參考資料（一次抓+手動刷新；非每日爬）：本機灌好後鏡像到 prod
@@ -122,7 +122,7 @@ if [ -n "${WITH_DETAIL:-}" ]; then
     action_name batting_action_name defend_station_code hitter_acnt hitter_name pitcher_acnt \
     pitcher_name catcher_acnt catcher_name first_base second_base third_base is_strike is_ball \
     is_score is_change_player is_special_event visiting_score home_score
-  sync_table advanced_stats "year,acnt,role" \
+  sync_table advanced_stats "year,kind_code,acnt,role" \
     pa woba woba_pr ba ba_pr slg slg_pr iso iso_pr obp obp_pr brl brl_pr brlp brlp_pr ev ev_pr \
     max_ev max_ev_pr hardhitp hardhitp_pr kp kp_pr bbp bbp_pr whiffp whiffp_pr chasep chasep_pr
   sync_table pitch_tracking "year,kind_code,game_sno,pitcher_acnt,pitch_cnt" \

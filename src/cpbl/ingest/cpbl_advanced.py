@@ -114,11 +114,11 @@ _LEGACY = (
     ("kp", "kp"), ("kp_pr", "kpPr"), ("bbp", "bbp"), ("bbp_pr", "bbpPr"),
     ("whiffp", "whiffp"), ("whiffp_pr", "whiffpPr"), ("chasep", "chasep"), ("chasep_pr", "chasepPr"),
 )
-_COLS = "year,acnt,role,metrics," + ",".join(c for c, _ in _LEGACY)
+_COLS = "year,kind_code,acnt,role,metrics," + ",".join(c for c, _ in _LEGACY)
 
 
-def _record(merged: dict, year: int, acnt: str, role: str) -> tuple:
-    return (year, acnt, role, json.dumps(merged)) + tuple(merged.get(jk) for _, jk in _LEGACY)
+def _record(merged: dict, year: int, acnt: str, role: str, kind_code: str = "A") -> tuple:
+    return (year, kind_code, acnt, role, json.dumps(merged)) + tuple(merged.get(jk) for _, jk in _LEGACY)
 
 
 def _upsert(records: list[tuple]) -> int:
@@ -126,45 +126,69 @@ def _upsert(records: list[tuple]) -> int:
         return 0
     col_list = [c.strip() for c in _COLS.split(",")]
     ph = "(" + ",".join("%s::jsonb" if c == "metrics" else "%s" for c in col_list) + ")"
-    updates = ", ".join(f"{c}=EXCLUDED.{c}" for c in col_list[3:]) + ", updated_at=now()"
+    updates = ", ".join(f"{c}=EXCLUDED.{c}" for c in col_list[4:]) + ", updated_at=now()"  # PK 後(year,kind,acnt,role)
     with conn() as c:
         c.cursor().executemany(
             f"INSERT INTO cpbl.advanced_stats ({_COLS}) VALUES {ph} "
-            f"ON CONFLICT (year, acnt, role) DO UPDATE SET {updates}",
+            f"ON CONFLICT (year, kind_code, acnt, role) DO UPDATE SET {updates}",
             records,
         )
     return len(records)
 
 
-def scrape_advanced(year: int, players: list[tuple[str, str]], delay: float = 1.0) -> int:
-    """打者進階走 /rankings（一次全員、含豐富指標）；投手被打進階走球員頁 wobaPr。UPSERT 回傳筆數。"""
-    client = httpx.Client(timeout=40.0, headers={"User-Agent": UA}, follow_redirects=True)
-    records: list[tuple] = []
-    batters = {a for a, r in players if r == "batting"}
-    pitchers = [a for a, r in players if r == "pitching"]
-    try:
-        # 1) 打者：/rankings 一次抓全（rich，~60 指標/人）
-        try:
-            rank = _rankings(client)
-            for acnt, m in rank.items():
-                if acnt in batters and m:
-                    records.append(_record(m, year, acnt, "batting"))
-            log.info("/rankings 解析 %d 人，命中本季打者 %d", len(rank), len(records))
-        except httpx.HTTPError as e:
-            log.warning("/rankings 抓取失敗：%s", e)
+# 官方 leaderboard JSON API（/api/proxy 代理；免瀏覽器、含 gameKind=A/D、searchType=batter/pitcher）。
+# 四表合併＝完整 ~65 指標/人。key 由 PascalCase 正規化為既有 lowerCamel（少數不規則列例外）。
+_LEADERBOARDS = ("pr-table", "exit-velocity", "batted-ball", "pitch-tracking")
+_KEY_FIX = {"Ev50th": "ev50Th", "Ev90th": "ev90Th", "DistanceAvgHR": "distanceAvgHr", "BrlsBBEp": "brlsBbEp"}
 
-        # 2) 投手被打進階：球員頁 wobaPr 彙總物件（per-player）
-        for idx, acnt in enumerate(pitchers, 1):
-            time.sleep(delay)
-            try:
-                merged = _merge_metrics(_payload(client, acnt))
-            except httpx.HTTPError as e:
-                log.warning("[投手 %d/%d] acnt=%s HTTP 失敗：%s", idx, len(pitchers), acnt, e)
+
+def _norm_key(k: str) -> str:
+    if k in _KEY_FIX:
+        return _KEY_FIX[k]
+    return (k[0].lower() + k[1:]).replace("PR", "Pr")
+
+
+def _fetch_leaderboards(client: httpx.Client, search_type: str, game_kind: str, year: int,
+                        delay: float = 0.5) -> dict[str, dict]:
+    """回 {acnt: 合併指標}。四個 leaderboard 依 Player.Acnt 合併，取所有純數值欄。"""
+    out: dict[str, dict] = {}
+    for lb in _LEADERBOARDS:
+        r = client.get(f"{BASE}/api/proxy/v1/leaderboards/{lb}",
+                       params={"searchType": search_type, "gameKind": game_kind, "year": str(year)})
+        rows = ((r.json().get("Data") or {}).get("Leaderboard") or []) if r.status_code == 200 else []
+        for row in rows:
+            acnt = (row.get("Player") or {}).get("Acnt")
+            if not acnt:
                 continue
-            if merged:
-                records.append(_record(merged, year, acnt, "pitching"))
-            if idx % 20 == 0:
-                log.info("[投手 %d/%d] 進階數據抓取中…", idx, len(pitchers))
+            m = out.setdefault(acnt, {})
+            for k, v in row.items():
+                if isinstance(v, (int, float)) and not isinstance(v, bool):
+                    m[_norm_key(k)] = v
+        time.sleep(delay)
+    return out
+
+
+def scrape_advanced(year: int, players: list[tuple[str, str]], delay: float = 1.0,
+                    kind_code: str = "A") -> int:
+    """官方進階（stats.cpbl leaderboard JSON API）。打者/投手皆 rich；kind_code=A 一軍 / D 二軍。
+    一次抓全 leaderboard 再濾 `players` 指定的 acnt。UPSERT 回傳筆數。"""
+    client = httpx.Client(timeout=40.0, headers={"User-Agent": UA, "Accept": "application/json",
+                                                 "Referer": f"{BASE}/rankings"}, follow_redirects=True)
+    records: list[tuple] = []
+    want_b = {a for a, r in players if r == "batting"}
+    want_p = {a for a, r in players if r == "pitching"}
+    try:
+        for role, search_type, want in (("batting", "batter", want_b), ("pitching", "pitcher", want_p)):
+            if not want:
+                continue
+            try:
+                lb = _fetch_leaderboards(client, search_type, kind_code, year, delay=min(delay, 0.5))
+            except httpx.HTTPError as e:
+                log.warning("leaderboard %s/%s 抓取失敗：%s", search_type, kind_code, e)
+                continue
+            hit = [_record(m, year, a, role, kind_code) for a, m in lb.items() if a in want and m]
+            records += hit
+            log.info("進階 %s kind=%s：leaderboard %d 人，命中 %d", role, kind_code, len(lb), len(hit))
     finally:
         client.close()
     return _upsert(records)

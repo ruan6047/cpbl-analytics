@@ -36,12 +36,13 @@ from cpbl.ingest.cpbl_transactions import scrape_transactions
 log = logging.getLogger("cpbl.refresh")
 
 
-def _completed_snos(year: int, days: list[date]) -> list[int]:
+def _completed_snos(year: int, days: list[date], kind_code: str = "A") -> list[int]:
+    # 一/二軍 game_sno 為各自序列，必須依 kind 過濾（否則 D 的 sno 會混入 A 流程重爬錯場）
     with conn() as c:
         rows = c.execute(
-            "SELECT game_sno FROM cpbl.games WHERE year = %s AND game_date = ANY(%s) "
+            "SELECT game_sno FROM cpbl.games WHERE year = %s AND kind_code = %s AND game_date = ANY(%s) "
             "AND home_score + away_score > 0 ORDER BY game_sno",
-            (year, days),
+            (year, kind_code, days),
         ).fetchall()
     return [r[0] for r in rows]
 
@@ -51,24 +52,25 @@ def _roster_ids(table: str) -> set[str]:
         return {r[0] for r in c.execute(f"SELECT player_id FROM cpbl.{table}").fetchall()}
 
 
-def _day_opponents(year: int, snos: list[int]) -> dict[str, list[tuple[str, str]]]:
+def _day_opponents(year: int, snos: list[int], kind_code: str = "A") -> dict[str, list[tuple[str, str]]]:
     """{打者 acnt: [(kind_code, 對手隊 team_code), ...]}：當日各打者面對的對手隊。
 
     供投打對決「當日增量」捷徑用——打者當日對戰的投手全在對手隊，故只需重抓對手隊。
     visiting_home_type：'1'=客隊、'2'=主隊；對手隊即另一側。
+    一/二軍 game_sno 序列不同，需依 kind_code 過濾（否則同號的另一軍場會誤配）。
     """
     with conn() as c:
         rows = c.execute(
             """
-            SELECT b.hitter_acnt, g.kind_code,
+            SELECT b.hitter_acnt, b.kind_code,
                    CASE WHEN b.visiting_home_type = '2'
                         THEN g.away_team_code ELSE g.home_team_code END AS opp
             FROM cpbl.batting_gamelog b
             JOIN cpbl.games g
               ON g.year = b.year AND g.kind_code = b.kind_code AND g.game_sno = b.game_sno
-            WHERE b.year = %s AND b.game_sno = ANY(%s)
+            WHERE b.year = %s AND b.kind_code = %s AND b.game_sno = ANY(%s)
             """,
-            (year, snos),
+            (year, kind_code, snos),
         ).fetchall()
     out: dict[str, list[tuple[str, str]]] = {}
     for acnt, kind, opp in rows:
@@ -81,11 +83,42 @@ def _day_opponents(year: int, snos: list[int]) -> dict[str, list[tuple[str, str]
     return out
 
 
+def _farm_detail(year: int, days: list[date], delay: float = 1.2) -> dict:
+    """二軍(D)增量：當日完成二軍場的 賽況(gamelog/box) + 投打對決 + 分項 + 逐球。
+
+    來源限制：**vs-team(對戰各隊) 與 官方進階 無 kindCode**（getfighterscore 只有 defendStation、
+    stats.cpbl 進階經 gated proxy），故二軍不含此兩項；其餘皆與一軍同源可抓。
+    matchups 走當日對手隊捷徑(kind=D)；splits 走 apart(kindCode=D 本季+生涯)且跳過 vs-team；
+    逐球以當日上場二軍投手抓其頁面（逐球自帶 kindCode，涵蓋該場二軍打者面對）。
+    """
+    d_snos = _completed_snos(year, days, "D")
+    if not d_snos:
+        return {"skipped": "近兩日無二軍完成場"}
+    gamelog = scrape_gamelogs(year, d_snos, "D")
+    batters, pitchers = lineup_acnts(year, d_snos, "D")
+    rb, rp = sorted(batters), sorted(pitchers)
+    # 二軍投打對決（當日對手隊, kind=D；不過濾投手＝完整涵蓋二軍對戰）
+    targets = _day_opponents(year, d_snos, "D")
+    m = scrape_matchups([YEAR_CAREER], delay=delay, batter_ids=rb, day_targets=targets) if rb else 0
+    # 二軍分項（apart kindCode=D 本季+生涯；with_vs_team=False：vs-team 來源無 kind）
+    det = (cpbl_player_detail.scrape(delay=delay, batter_ids=rb, pitcher_ids=rp,
+                                     apart_combos=[(year, "D"), (YEAR_CAREER, "D")], with_vs_team=False)
+           if (rb or rp) else {})
+    # 二軍官方進階（leaderboard JSON API，gameKind=D；bulk 一次全抓再濾當日出賽者）
+    adv = (scrape_advanced(year, [(a, "batting") for a in rb] + [(a, "pitching") for a in rp], kind_code="D")
+           if (rb or rp) else 0)
+    pitches = scrape_pitches(rp, kind_default="D", delay=delay) if rp else {"pitchers": 0, "pitches": 0}
+    return {"completed_games": len(d_snos), "gamelog": gamelog,
+            "lineup_batters": len(rb), "lineup_pitchers": len(rp),
+            "matchup_rows": m, "splits": det, "advanced": adv, "pitches": pitches}
+
+
 def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict:
-    """只更新當日上場且本季登錄選手的 對戰/分項。回傳摘要。"""
-    snos = _completed_snos(year, days)
+    """更新當日上場選手的 對戰/分項/逐球（一軍）+ 二軍賽況/逐球。回傳摘要。"""
+    farm = _farm_detail(year, days, delay)          # 二軍獨立跑（一軍無場也要更新二軍）
+    snos = _completed_snos(year, days, "A")
     if not snos:
-        return {"skipped": "近兩日無已完成場次"}
+        return {"skipped": "近兩日無一軍完成場", "farm": farm}
     # 賽況（逐局比分 + 逐打席事件）：當日完成場
     gamelog = scrape_gamelogs(year, snos)
     batters_played, pitchers_played = lineup_acnts(year, snos)
@@ -94,7 +127,7 @@ def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict
     rp = sorted(pitchers_played & cur_p)
     if not rb and not rp:
         return {"completed_games": len(snos), "gamelog": gamelog,
-                "lineup_batters": 0, "lineup_pitchers": 0}
+                "lineup_batters": 0, "lineup_pitchers": 0, "farm": farm}
     # 對戰：只重抓「當日打者 × 當日對手隊」的生涯對戰即涵蓋所有變動的 (打者,投手) 組合
     # （對手投手全在當日對手隊，故無需掃該打者生涯面對過的所有隊，省 ~15× 請求）。
     day_targets = _day_opponents(year, snos)
@@ -107,7 +140,7 @@ def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict
     pitches = scrape_pitches(rp, delay=delay) if rp else {"pitchers": 0, "pitches": 0}
     return {"completed_games": len(snos), "gamelog": gamelog,
             "lineup_batters": len(rb), "lineup_pitchers": len(rp),
-            "matchup_rows": m, "advanced": adv, "pitches": pitches, **d}
+            "matchup_rows": m, "advanced": adv, "pitches": pitches, "farm": farm, **d}
 
 
 def _recent_counts(year: int, days: list[date]) -> list[tuple[date, int, int]]:
@@ -148,8 +181,9 @@ def main() -> None:
     migrate()
 
     try:
-        games = scrape_games(year, year)
-        stats = scrape_all(year, year, year)
+        games = scrape_games(year, year)              # 一軍例行賽賽程/結果
+        games_farm = scrape_games(year, year, "D")    # 二軍賽程/結果（供二軍成績卡/逐球/戰績）
+        stats = scrape_all(year, year, year)          # 投打/團隊 + 守備一軍(A)+二軍(D)
         scrape_standings(year)  # 官方球隊戰績（含和局/勝差/上下半季），輕量每次更新
         trans = scrape_transactions([year])  # 升降一/二軍事件（輕量；供一/二軍選手判定）
         build_championships()  # 由更新後 games 重建年度總冠軍成員（純 SQL、賽季末才會變）
@@ -173,7 +207,8 @@ def main() -> None:
     total = sum(t for _, t, _ in recent)
     completed = sum(comp for _, _, comp in recent)
     detail = {
-        "games": games, "stats": stats, "transactions": trans, "incremental_detail": detail_inc,
+        "games": games, "games_farm": games_farm, "stats": stats, "transactions": trans,
+        "incremental_detail": detail_inc,
         "recent": [{"date": d.isoformat(), "total": t, "completed": comp} for d, t, comp in recent],
     }
     _log_refresh("recent-games", yesterday, today, total, completed, detail, ok=True, note=note)
