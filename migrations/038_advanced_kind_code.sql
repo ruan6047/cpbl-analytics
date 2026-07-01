@@ -8,12 +8,12 @@ ALTER TABLE cpbl.advanced_stats DROP CONSTRAINT IF EXISTS advanced_stats_pkey;
 ALTER TABLE cpbl.advanced_stats ADD CONSTRAINT advanced_stats_pkey
     PRIMARY KEY (year, kind_code, acnt, role);
 
--- advanced_flat view 加 kind_code（供分析/ML 依軍別過濾；預設含 A+D，查詢自行 WHERE kind_code）。
--- DROP 先建：CREATE OR REPLACE 不允許插入非末位新欄。
-DROP VIEW IF EXISTS cpbl.advanced_flat;
-CREATE VIEW cpbl.advanced_flat AS
+-- advanced_flat 維持一軍語意：欄位與 023 完全相同（不新增 kind_code 欄，否則 023 的
+-- CREATE OR REPLACE 每次 migrate 會因無法砍欄而失敗），僅加 WHERE kind_code='A' 過濾二軍。
+-- 二軍/季後進階分析請直接查 advanced_stats（有 kind_code 欄）。
+CREATE OR REPLACE VIEW cpbl.advanced_flat AS
 SELECT
-  year, kind_code, acnt, role,
+  year, acnt, role,
   (metrics->>'pa')::int            AS pa,
   (metrics->>'woba')::numeric      AS woba,
   (metrics->>'ba')::numeric        AS ba,
@@ -52,4 +52,4 @@ SELECT
   (metrics->>'spinRate')::numeric  AS spin_avg,
   (metrics->>'spinRateMax')::numeric AS spin_max,
   metrics
-FROM cpbl.advanced_stats;
+FROM cpbl.advanced_stats WHERE kind_code = 'A';
