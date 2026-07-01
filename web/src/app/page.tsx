@@ -265,8 +265,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
   // 官方 rich view（半季/特殊戰績/即時 OPS）只在「一軍當季」；二軍與歷年皆由 games 即時算
   const useOfficial = !isMinor && selectedYear === currentYear;
   const isSpecial = view === "special" && useOfficial;
-  const effSeg = isSpecial ? segCode : 0;
-  const [{ season, items }, derived, special, trend] = await Promise.all([
+  // 特殊戰績為全年累計 → 強制 seg=0；基本數據視圖才套用半季切換（全年/上半季/下半季）。
+  const effSeg = isSpecial ? 0 : segCode;
+  const [{ season, items, half }, derived, special, trend] = await Promise.all([
     api.officialStandings(effSeg, useOfficial ? undefined : selectedYear, kind),
     useOfficial ? api.standings() : Promise.resolve({ standings: [] }),
     isSpecial ? api.specialRecords() : Promise.resolve(null),
@@ -370,7 +371,19 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
                 return (
                   <tr key={t.team_code} className="border-t border-line hover:bg-surface-2">
                     <td className="px-2.5 py-2.5 text-faint">{t.rank}</td>
-                    <td className="whitespace-nowrap px-2.5 py-2.5 font-sans"><LinkedTeam code={t.team_code} name={t.team_name} /></td>
+                    <td className="whitespace-nowrap px-2.5 py-2.5 font-sans">
+                      <span className="inline-flex items-center gap-1.5">
+                        <LinkedTeam code={t.team_code} name={t.team_name} />
+                        {t.is_champion && (
+                          <span
+                            title={`${SEGS.find((s) => s.v === segCode)?.label}冠軍${half?.finalized ? "" : "（提前封王）"}`}
+                            className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700"
+                          >
+                            👑 {SEGS.find((s) => s.v === segCode)?.label}冠軍
+                          </span>
+                        )}
+                      </span>
+                    </td>
                     <td className="px-2.5 py-2.5 text-muted">{t.g}</td>
                     <td className="px-2.5 py-2.5">{t.w}-{t.t}-{t.l}</td>
                     <td className="px-2.5 py-2.5 text-accent">{t.win_pct?.toFixed(3) ?? "—"}</td>
@@ -389,6 +402,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
             </tbody>
           </table>
         </div>
+      )}
+
+      {!isSpecial && segCode !== 0 && items.length > 0 && half && (
+        <p className="mt-2 text-[11px] text-faint">
+          {half.champion_code
+            ? `👑 ${SEGS.find((s) => s.v === segCode)?.label}冠軍${half.finalized ? "已定案" : "勝場數已無人能追平，提前封王"}。半季冠軍取得季後賽資格；上、下半季由同隊奪冠時該隊直接晉級台灣大賽。`
+            : "半季冠軍取得季後賽資格；本半季冠軍尚未產生（賽程進行中）。"}
+        </p>
       )}
 
       {items.length > 0 && !isSpecial && trend && trend.points.length > 0 && (

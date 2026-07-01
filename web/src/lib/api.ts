@@ -135,8 +135,15 @@ export type OfficialStanding = {
   streak: string | null;
   last10: string | null;
   h2h: Record<string, string> | null;
+  is_champion?: boolean;
 };
-export type OfficialStandingsResponse = { season: number; season_code: number; items: OfficialStanding[] };
+export type HalfInfo = { finalized: boolean; clinched: boolean; champion_code: string | null };
+export type OfficialStandingsResponse = {
+  season: number;
+  season_code: number;
+  items: OfficialStanding[];
+  half?: HalfInfo | null;
+};
 
 // 特殊戰績：各情境 [W, L] 或 [正向, 反向] 配對；sweeps/swept 為次數
 export type WL = [number, number];
