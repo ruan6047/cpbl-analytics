@@ -1898,13 +1898,53 @@ def seasons(kind_code: str = Query("A")) -> dict:
     return {"years": years}
 
 
+def _half_progress(season: int, game_season_code: str, kind_code: str) -> dict[str, int]:
+    """回傳 {team_code: 該半季剩餘未打場數}。供半季冠軍/提前封王判定。"""
+    with conn() as c:
+        rows = c.execute(
+            """
+            SELECT tc, count(*) FILTER (WHERE NOT done) AS remaining FROM (
+                SELECT home_team_code AS tc, home_score + away_score > 0 AS done
+                  FROM cpbl.games WHERE year=%s AND kind_code=%s AND game_season_code=%s
+                UNION ALL
+                SELECT away_team_code, home_score + away_score > 0
+                  FROM cpbl.games WHERE year=%s AND kind_code=%s AND game_season_code=%s
+            ) x GROUP BY tc
+            """,
+            (season, kind_code, game_season_code, season, kind_code, game_season_code),
+        ).fetchall()
+    return {tc: rem for tc, rem in rows}
+
+
+def _annotate_half_champion(items: list[dict], remaining: dict[str, int]) -> dict:
+    """標記半季冠軍：全部完賽 → 定案冠軍；未完賽但領先隊勝場已無人能追平 → 提前封王。
+
+    以勝場數為準（半季賽程各隊固定同量，clinch 時領先隊亦為勝率首位）；在領先隊
+    `is_champion` 上做記號，回傳 {finalized, clinched, champion_code}。
+    """
+    finalized = sum(remaining.values()) == 0
+    leader = items[0]
+    lw = leader.get("w") or 0
+    clinched = all(
+        lw > (it.get("w") or 0) + remaining.get(it["team_code"], 0)
+        for it in items[1:]
+    )
+    champion_code = leader["team_code"] if (finalized or clinched) else None
+    if champion_code:
+        leader["is_champion"] = True
+    return {"finalized": finalized, "clinched": clinched, "champion_code": champion_code}
+
+
 @app.get("/api/v1/standings")
 def official_standings(
     season: int = Query(DEFAULT_SEASON),
     season_code: int = Query(0, ge=0, le=2, description="0=全年 1=上半季 2=下半季"),
     kind_code: str = Query("A"),
 ) -> dict:
-    """官方球隊戰績；歷史年份(無官方資料)退回由 games 即時算全年戰績（結果 only）。"""
+    """官方球隊戰績；歷史年份(無官方資料)退回由 games 即時算全年戰績（結果 only）。
+
+    半季（season_code 1/2）另回傳 `half`：是否完賽、是否提前封王、半季冠軍隊代碼。
+    """
     with conn() as c:
         cur = c.cursor()
         cur.execute(
@@ -1915,7 +1955,10 @@ def official_standings(
         items = _dicts(cur)
     if not items and season_code == 0:
         items = _computed_standings(season, kind_code)  # 歷史退回 games 即時算
-    return {"season": season, "season_code": season_code, "items": items}
+    half = None
+    if season_code in (1, 2) and items:
+        half = _annotate_half_champion(items, _half_progress(season, str(season_code), kind_code))
+    return {"season": season, "season_code": season_code, "items": items, "half": half}
 
 
 @app.get("/api/v1/standings-trend")
