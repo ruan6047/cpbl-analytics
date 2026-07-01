@@ -18,8 +18,9 @@ type Role = "batting" | "pitching";
 type Disc = {
   summary: Record<string, number | null>;
   quality: Record<string, number | null>;
+  quality_by_pt: Record<string, Record<string, number | null>>;
   points: { x: number; y: number; sw: boolean; wh: boolean; result: string; ev: number | null; la: number | null; pt: string | null }[];
-  spray: { dir: number; dist: number; ev: number | null; result: string; pt: string | null }[];
+  spray: { dir: number; dist: number; ev: number | null; la: number | null; result: string; pt: string | null }[];
   batted: { la: number; ev: number; result: string }[];
 };
 
@@ -403,8 +404,6 @@ export default function PlayerPage() {
       if (!p.roster_level) { setScope("career"); setDataTab("career"); }
       if (p.roster_level === "二軍") setSeasonKind("D");
     }).catch(() => setNotFound(true));
-    detail.advanced(id).then(setAdvanced).catch(() => setAdvanced(null));
-    detail.fielding(id).then((d) => setFielding(d.items)).catch(() => setFielding([]));
     detail.fielding(id, "career").then((d) => { setFieldingCareer(d.items); setFieldFromYear(d.from_year ?? null); })
       .catch(() => setFieldingCareer([]));
     detail.careerStats(id).then(setCareerStats).catch(() => setCareerStats(null));
@@ -417,25 +416,32 @@ export default function PlayerPage() {
 
   useEffect(() => {
     setMonthMetric(role === "batting" ? "ops" : "era");
-    setPitchType("all");
-    setDisc(null);
     setTrend(null);
     setVsTeam(null);
     setCareer(null);
-    setPitchMix(null);
-    detail.pitchMix(id, role).then((d) => setPitchMix(d.items)).catch(() => setPitchMix([]));
-    detail.discipline(id, role).then((d) => setDisc(d as Disc)).catch(() => setDisc(null));
     detail.trend(id, role).then((d) => setTrend(d.items)).catch(() => setTrend([]));
     detail.vsTeam(id, role).then((d) => setVsTeam(d.items)).catch(() => setVsTeam([]));
     detail.career(id, role).then((d) => setCareer(d.seasons)).catch(() => setCareer([]));
   }, [id, role]);
 
+  // 逐球追蹤（好球帶紀律 + 配球傾向）+ 當季守備隨一/二軍鏡頭切換：二軍有獨立樣本
+  useEffect(() => {
+    setPitchType("all");
+    setDisc(null);
+    setPitchMix(null);
+    detail.discipline(id, role, seasonKind).then((d) => setDisc(d as Disc)).catch(() => setDisc(null));
+    detail.pitchMix(id, role, seasonKind).then((d) => setPitchMix(d.items)).catch(() => setPitchMix([]));
+    detail.fielding(id, "season", seasonKind).then((d) => setFielding(d.items)).catch(() => setFielding([]));
+    detail.advanced(id, seasonKind).then(setAdvanced).catch(() => setAdvanced(null));
+  }, [id, role, seasonKind]);
+
   useEffect(() => {
     if (!profile) return;
     const year = scope === "season" ? 2026 : 9999;
-    const k = scope === "season" ? "A" : (kinds.length ? kinds.join(",") : "A");
+    // 本季分項依一/二軍鏡頭(seasonKind)；生涯分項用 kind 頁籤(A/C/E)
+    const k = scope === "season" ? seasonKind : (kinds.length ? kinds.join(",") : "A");
     detail.splits(id, role, year, k).then((d) => setSplits(d.items)).catch(() => setSplits([]));
-  }, [id, role, scope, kinds, profile]);
+  }, [id, role, scope, kinds, seasonKind, profile]);
 
   const metrics = role === "batting" ? BAT_METRICS : PIT_METRICS;
   const metric = metrics.find((m) => m.key === monthMetric) ?? metrics[0];
@@ -543,8 +549,8 @@ export default function PlayerPage() {
                         style={profile.roster_level === "一軍"
                           ? { background: "#1B4DA11a", color: "#1B4DA1" }
                           : { background: "#B4540025", color: "#9A4A00" }}
-                        title={`本季主要登錄層級（升降事件重建登錄天數判定）${profile.roster_days
-                          ? `：一軍 ${profile.roster_days.first} 天 · 二軍 ${profile.roster_days.farm} 天` : ""}`}>
+                        title={`目前登錄層級（依最後一次升降事件判定）${profile.roster_days
+                          ? `：本季累計 一軍 ${profile.roster_days.first} 天 · 二軍 ${profile.roster_days.farm} 天` : ""}`}>
                         {profile.roster_level}選手
                       </span>
                     )}
@@ -898,7 +904,9 @@ export default function PlayerPage() {
       {showTracking && (
       <section className="mb-6">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold text-ink">逐球追蹤<span className="ml-2 align-middle text-xs font-normal text-faint">本季 · TrackMan 2026 起</span></h2>
+          <h2 className="text-lg font-semibold text-ink">逐球追蹤
+            {seasonKind === "D" && <span className="ml-2 align-middle rounded bg-accent/10 px-1.5 py-0.5 text-xs font-semibold text-accent">二軍</span>}
+            <span className="ml-2 align-middle text-xs font-normal text-faint">本季 · TrackMan 2026 起</span></h2>
           {disc && disc.points.length > 0 && <PitchTypeToggle value={pitchType} onChange={setPitchType} />}
         </div>
         <div className="grid items-stretch gap-6 lg:grid-cols-3">
@@ -917,32 +925,31 @@ export default function PlayerPage() {
                   : <p className="py-12 text-center text-sm text-faint">{disc.points.length ? "此球種無資料" : "無逐球資料"}</p>}
               </div>
             </div>
-            {/* 投手球質（TrackMan 放球/延伸，唯一資訊）。打者擊球品質移除：與下方「擊球品質與彈道」重複且後者更全。 */}
-            {disc && role === "pitching" && (() => {
-              const q = disc.quality;
-              const tiles: [string, number | null, string][] =
-                [["平均球速", q.avg_speed, "km/h"], ["平均延伸", q.avg_extension, "m"], ["平均放球高", q.avg_rel_height, "m"]];
-              if (tiles.every(([, v]) => v == null)) return null;
-              return (
-                <div className="mt-auto border-t border-line pt-3">
-                  <div className="mb-2 text-xs text-muted">球質<span className="text-faint">（逐球追蹤樣本）</span></div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {tiles.map(([l, v, u]) => (
-                      <div key={l} className="card px-3 py-2 text-center">
-                        <div className="text-[11px] text-muted">{l}</div>
-                        <div className="mt-0.5 font-mono text-base tabular-nums text-ink">{v == null ? "—" : v}<span className="ml-0.5 text-[10px] text-faint">{u}</span></div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
           </Card>
-          {/* 揮棒紀律：揮/不揮 分歧長條（右側直欄，依球種篩）*/}
+          {/* 揮棒紀律(打者)：揮/不揮 分歧長條；投手為「誘使揮棒」去標題並在下方接球質（皆依球種鏡頭）*/}
           {disc && disc.summary.swing_pct != null && (
-            <Card>
-              <h3 className="mb-3 text-sm font-medium text-muted">{role === "batting" ? "揮棒紀律" : "誘使揮棒"}</h3>
+            <Card className="flex flex-col">
+              {role === "batting" && <h3 className="mb-3 text-sm font-medium text-muted">揮棒紀律</h3>}
               <PlateDisciplineBars points={pointsF} />
+              {role === "pitching" && (() => {
+                const q = pitchType === "all" ? disc.quality : (disc.quality_by_pt[pitchType] ?? {});
+                const tiles: [string, number | null, string][] =
+                  [["平均球速", q.avg_speed ?? null, "km/h"], ["平均延伸", q.avg_extension ?? null, "m"], ["平均放球高", q.avg_rel_height ?? null, "m"]];
+                if (tiles.every(([, v]) => v == null)) return null;
+                return (
+                  <div className="mt-auto border-t border-line pt-3">
+                    <div className="mb-2 text-xs text-muted">球質<span className="text-faint">（逐球追蹤樣本）</span></div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {tiles.map(([l, v, u]) => (
+                        <div key={l} className="card px-3 py-2 text-center">
+                          <div className="text-[11px] text-muted">{l}</div>
+                          <div className="mt-0.5 font-mono text-base tabular-nums text-ink">{v == null ? "—" : v}<span className="ml-0.5 text-[10px] text-faint">{u}</span></div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </Card>
           )}
         </div>

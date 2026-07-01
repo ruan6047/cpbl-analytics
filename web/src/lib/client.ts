@@ -156,8 +156,8 @@ export const detail = {
     clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/season?kind=${kind}`),
   trend: (id: string, role: "batting" | "pitching") =>
     clientGet<{ items: StatRow[] }>(`/api/v1/players/${id}/trend?role=${role}`),
-  fielding: (id: string, scope: "season" | "career" = "season") =>
-    clientGet<{ items: StatRow[]; from_year?: number }>(`/api/v1/players/${id}/fielding?scope=${scope}`),
+  fielding: (id: string, scope: "season" | "career" = "season", kind: "A" | "D" = "A") =>
+    clientGet<{ items: StatRow[]; from_year?: number }>(`/api/v1/players/${id}/fielding?scope=${scope}&kind_code=${kind}`),
   career: (id: string, role: "batting" | "pitching") =>
     clientGet<{ seasons: StatRow[] }>(`/api/v1/players/${id}/${role}`),
   careerStats: (id: string) =>
@@ -177,25 +177,26 @@ export const detail = {
       exec_tenures?: { team: string; role: string | null; from: number | null; to: number | null }[];
       medals?: { color: string; competition: string | null; event: string | null; year: number | null }[];
     }>(`/api/v1/players/${id}/career`),
-  advanced: (id: string) =>
-    clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/advanced`),
+  advanced: (id: string, kind: "A" | "D" = "A") =>
+    clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/advanced?kind_code=${kind}`),
   abilityCard: (id: string) =>
     clientGet<{
       player_id: string;
       batting: { career: import("@/components/ability-card").Card; season: import("@/components/ability-card").Card };
       pitching: { career: import("@/components/ability-card").Card; season: import("@/components/ability-card").Card };
     }>(`/api/v1/players/${id}/ability-card`),
-  discipline: (id: string, role: "batting" | "pitching") =>
+  discipline: (id: string, role: "batting" | "pitching", kind: "A" | "D" = "A") =>
     clientGet<{
       summary: Record<string, number | null>;
       quality: Record<string, number | null>;
-      points: { x: number; y: number; sw: boolean; wh: boolean; result: string; ev: number | null; pt: string | null }[];
-      spray: { dir: number; dist: number; ev: number | null; result: string; pt: string | null }[];
+      quality_by_pt: Record<string, Record<string, number | null>>;
+      points: { x: number; y: number; sw: boolean; wh: boolean; result: string; ev: number | null; la: number | null; pt: string | null }[];
+      spray: { dir: number; dist: number; ev: number | null; la: number | null; result: string; pt: string | null }[];
       batted: { la: number; ev: number; result: string }[];
-    }>(`/api/v1/players/${id}/discipline?role=${role}`),
-  pitchMix: (id: string, role: "batting" | "pitching") =>
+    }>(`/api/v1/players/${id}/discipline?role=${role}&kind_code=${kind}`),
+  pitchMix: (id: string, role: "batting" | "pitching", kind: "A" | "D" = "A") =>
     clientGet<{ items: { bucket: string; n: number; fastball: number; breakingball: number }[] }>(
-      `/api/v1/players/${id}/pitch-mix?role=${role}`,
+      `/api/v1/players/${id}/pitch-mix?role=${role}&kind_code=${kind}`,
     ),
   gameLive: (sno: number, kind = "A", year?: number) =>
     clientGet<{

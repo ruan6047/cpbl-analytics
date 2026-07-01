@@ -3,7 +3,17 @@
 "use client";
 import { useState } from "react";
 
-export type SprayPoint = { dir: number; dist: number; ev: number | null; result: string };
+export type SprayPoint = { dir: number; dist: number; ev: number | null; la?: number | null; result: string };
+
+// 出色擊球（近似 Barrel）：仰角 8–40° 且初速≥145km/h（同 la-ev-scatter 甜蜜區紅框）
+const isBarrel = (ev: number | null | undefined, la: number | null | undefined) =>
+  ev != null && la != null && ev >= 145 && la >= 8 && la <= 40;
+// 星星用該類型同色系的較淺色（向白色混合，維持辨識又同調）
+const lighten = (hex: string, f = 0.6) => {
+  const n = parseInt(hex.slice(1), 16);
+  const m = (c: number) => Math.round(c + (255 - c) * f);
+  return `rgb(${m((n >> 16) & 255)},${m((n >> 8) & 255)},${m(n & 255)})`;
+};
 
 const RESULT = {
   hr: { label: "全壘打", color: "#d62839" },
@@ -55,8 +65,17 @@ export function SprayChart({ points }: { points: SprayPoint[] }) {
           const f = fenceR(p.dir);
           const d = p.result === "hr" ? Math.max(p.dist, f + 6) : Math.min(p.dist, f - 3);
           const [x, y] = pt(p.dir, d);
-          return <circle key={i} cx={x} cy={y} r={3.6} fill={col(p.result)}
-            fillOpacity={p.result === "out" ? 0.55 : 0.9} />;
+          const barrel = isBarrel(p.ev, p.la);
+          return (
+            <g key={i}>
+              <circle cx={x} cy={y} r={barrel ? 4.4 : 3.6} fill={col(p.result)}
+                fillOpacity={p.result === "out" ? 0.55 : 0.9} />
+              {barrel && (
+                <text x={x} y={y} textAnchor="middle" dominantBaseline="central"
+                  fontSize={6.5} fontWeight={700} fill={lighten(col(p.result))} style={{ pointerEvents: "none" }}>★</text>
+              )}
+            </g>
+          );
         })}
         <text x={10} y={H - 4} className="fill-faint" fontSize={10}>左外野</text>
         <text x={W - 42} y={H - 4} className="fill-faint" fontSize={10}>右外野</text>
@@ -69,6 +88,9 @@ export function SprayChart({ points }: { points: SprayPoint[] }) {
             {RESULT[k].label}
           </button>
         ))}
+        <span className="inline-flex items-center gap-1 text-faint" title="近似 Barrel：仰角8–40° 且初速≥145km/h">
+          <span className="text-ink">★</span>出色擊球
+        </span>
       </div>
     </div>
   );
