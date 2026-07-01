@@ -191,6 +191,7 @@ YEAR_CAREER = 9999  # 年度累計
 def scrape_matchups(
     years: list[int], kinds: list[str] | None = None, delay: float = 1.2,
     batter_ids: list[str] | None = None, pitcher_ids: set[str] | None = None,
+    day_targets: dict[str, list[tuple[str, str]]] | None = None,
 ) -> int:
     """逐打者抓投打對決並 UPSERT。回傳總對戰列數。
 
@@ -198,14 +199,29 @@ def scrape_matchups(
     （1 GET），再對各組合做 opts + 各隊 score。每請求間隔 `delay` 秒。
     `pitcher_ids` 不為 None 時，只保留對戰投手屬於該集合（本季登錄一軍投手）的列。
     冪等：中途中斷可重跑，已寫入的列會被覆寫更新。
+
+    `day_targets`（{打者 acnt: [(kind_code, 對手隊 team_no), ...]}）不為 None 時走
+    「當日增量」捷徑：每位打者只抓其映射到的 (賽別, 對手隊) 各一次，**跳過 teams_faced
+    全隊掃描**。生涯 (打者,投手) 對戰只會因當日實際對戰而變、且對手投手全在當日對手隊，
+    故此捷徑完整涵蓋所有變動列；年度固定取 `years` 首項（生涯累計＝YEAR_CAREER）。
+    未列於 `day_targets` 的打者當日視為無對戰、略過。
     """
     kinds = kinds or KINDS_FIRST_TEAM
     batters = batter_ids if batter_ids is not None else _current_batters()
-    combos = [(y, k) for y in dict.fromkeys(years) for k in kinds]  # 年度去重
-    log.info("投打對決：%d 位打者 × %d 組合(年度×賽別)=%s，delay=%.1fs，投手過濾=%s",
-             len(batters), len(combos), combos, delay, "本季一軍" if pitcher_ids is not None else "無")
+    incremental = day_targets is not None
+    if incremental:
+        year = years[0] if years else YEAR_CAREER
+        log.info("投打對決（當日增量）：%d 位打者 × 各自當日對手隊，year=%d，delay=%.1fs，投手過濾=%s",
+                 len(batters), year, delay, "本季一軍" if pitcher_ids is not None else "無")
+    else:
+        combos = [(y, k) for y in dict.fromkeys(years) for k in kinds]  # 年度去重
+        log.info("投打對決：%d 位打者 × %d 組合(年度×賽別)=%s，delay=%.1fs，投手過濾=%s",
+                 len(batters), len(combos), combos, delay, "本季一軍" if pitcher_ids is not None else "無")
     total = 0
     for idx, acnt in enumerate(batters, 1):
+        targets = day_targets.get(acnt, []) if incremental else None
+        if incremental and not targets:
+            continue  # 當日無對戰紀錄，無需重抓生涯對戰
         try:
             s = _Session(acnt, delay)
         except (httpx.HTTPError, RuntimeError) as e:
@@ -213,12 +229,14 @@ def scrape_matchups(
             continue
         try:
             n = 0
-            for year, kind in combos:
-                for team_no in s.teams_faced(year, kind):
-                    rows = s.vs_team(year, kind, team_no)
-                    if pitcher_ids is not None:
-                        rows = [g for g in rows if g.get("PitcherAcnt") in pitcher_ids]
-                    n += upsert_matchups([_to_record(g, year, kind) for g in rows])
+            pairs = [(year, k, t) for (k, t) in targets] if incremental else [
+                (y, k, t) for (y, k) in combos for t in s.teams_faced(y, k)
+            ]
+            for y, kind, team_no in pairs:
+                rows = s.vs_team(y, kind, team_no)
+                if pitcher_ids is not None:
+                    rows = [g for g in rows if g.get("PitcherAcnt") in pitcher_ids]
+                n += upsert_matchups([_to_record(g, y, kind) for g in rows])
             total += n
             log.info("[%d/%d] acnt=%s → %d 對戰列（累計 %d）", idx, len(batters), acnt, n, total)
         except (httpx.HTTPError, RuntimeError, KeyError, ValueError) as e:

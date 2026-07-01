@@ -51,6 +51,36 @@ def _roster_ids(table: str) -> set[str]:
         return {r[0] for r in c.execute(f"SELECT player_id FROM cpbl.{table}").fetchall()}
 
 
+def _day_opponents(year: int, snos: list[int]) -> dict[str, list[tuple[str, str]]]:
+    """{打者 acnt: [(kind_code, 對手隊 team_code), ...]}：當日各打者面對的對手隊。
+
+    供投打對決「當日增量」捷徑用——打者當日對戰的投手全在對手隊，故只需重抓對手隊。
+    visiting_home_type：'1'=客隊、'2'=主隊；對手隊即另一側。
+    """
+    with conn() as c:
+        rows = c.execute(
+            """
+            SELECT b.hitter_acnt, g.kind_code,
+                   CASE WHEN b.visiting_home_type = '2'
+                        THEN g.away_team_code ELSE g.home_team_code END AS opp
+            FROM cpbl.batting_gamelog b
+            JOIN cpbl.games g
+              ON g.year = b.year AND g.kind_code = b.kind_code AND g.game_sno = b.game_sno
+            WHERE b.year = %s AND b.game_sno = ANY(%s)
+            """,
+            (year, snos),
+        ).fetchall()
+    out: dict[str, list[tuple[str, str]]] = {}
+    for acnt, kind, opp in rows:
+        if not acnt or not opp:
+            continue
+        pair = (kind, opp)
+        lst = out.setdefault(acnt, [])
+        if pair not in lst:
+            lst.append(pair)
+    return out
+
+
 def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict:
     """只更新當日上場且本季登錄選手的 對戰/分項。回傳摘要。"""
     snos = _completed_snos(year, days)
@@ -65,8 +95,11 @@ def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict
     if not rb and not rp:
         return {"completed_games": len(snos), "gamelog": gamelog,
                 "lineup_batters": 0, "lineup_pitchers": 0}
-    # 對戰：重爬有上場打者的生涯對戰即涵蓋所有變動的 (打者,投手) 組合
-    m = scrape_matchups([YEAR_CAREER], delay=delay, batter_ids=rb, pitcher_ids=cur_p)
+    # 對戰：只重抓「當日打者 × 當日對手隊」的生涯對戰即涵蓋所有變動的 (打者,投手) 組合
+    # （對手投手全在當日對手隊，故無需掃該打者生涯面對過的所有隊，省 ~15× 請求）。
+    day_targets = _day_opponents(year, snos)
+    m = scrape_matchups([YEAR_CAREER], delay=delay, batter_ids=rb,
+                        pitcher_ids=cur_p, day_targets=day_targets)
     d = cpbl_player_detail.scrape(delay=delay, batter_ids=rb, pitcher_ids=rp)
     # 官方進階：當日上場選手（打者進攻 / 投手被打）
     adv = scrape_advanced(year, [(a, "batting") for a in rb] + [(a, "pitching") for a in rp], delay=delay)
