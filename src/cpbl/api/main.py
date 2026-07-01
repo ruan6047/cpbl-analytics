@@ -1785,7 +1785,8 @@ def player_discipline(
         }
         cur.execute(
             f"""
-            SELECT plate_loc_side, plate_loc_height, pitch_call, content, hit_exit_speed
+            SELECT plate_loc_side, plate_loc_height, pitch_call, content, hit_exit_speed, hit_launch_angle,
+                   tagged_pitch_type
             FROM cpbl.pitch_tracking
             WHERE {col} = %s AND year = %s AND kind_code = 'A' AND plate_loc_side IS NOT NULL
             """,
@@ -1794,11 +1795,12 @@ def player_discipline(
         _swset = {"InPlay", "FoulBallNotFieldable", "FoulBallFieldable", "StrikeSwinging"}
         points = [{"x": float(s), "y": float(h),
                    "sw": pc in _swset, "wh": pc == "StrikeSwinging",
-                   "result": _zone_result(pc, ct), "ev": float(ev) if ev is not None else None}
-                  for s, h, pc, ct, ev in cur.fetchall()]
+                   "result": _zone_result(pc, ct), "ev": float(ev) if ev is not None else None,
+                   "la": float(la) if la is not None else None, "pt": pt}
+                  for s, h, pc, ct, ev, la, pt in cur.fetchall()]
         cur.execute(
             f"""
-            SELECT hit_direction, hit_distance, hit_exit_speed, content
+            SELECT hit_direction, hit_distance, hit_exit_speed, content, tagged_pitch_type
             FROM cpbl.pitch_tracking
             WHERE {col} = %s AND year = %s AND kind_code = 'A' AND pitch_call = 'InPlay'
               AND hit_distance IS NOT NULL AND hit_direction IS NOT NULL
@@ -1806,8 +1808,8 @@ def player_discipline(
             (player_id, season),
         )
         spray = [{"dir": float(d), "dist": float(dist),
-                  "ev": float(ev) if ev is not None else None, "result": _batted_result(ct)}
-                 for d, dist, ev, ct in cur.fetchall()]
+                  "ev": float(ev) if ev is not None else None, "result": _batted_result(ct), "pt": pt}
+                 for d, dist, ev, ct, pt in cur.fetchall()]
         # 擊球仰角 × 初速（barrel 散點）：InPlay 且有 LA+EV
         cur.execute(
             f"""
