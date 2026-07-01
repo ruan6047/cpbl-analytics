@@ -30,13 +30,6 @@ export function ZoneScatter({ points }: { points: ZonePoint[] }) {
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
         <rect x={z.x1} y={z.y1} width={z.x2 - z.x1} height={z.y2 - z.y1}
           fill="#eef2f7" stroke="#94a3b8" strokeWidth={1.2} />
-        {/* 九宮格分隔 */}
-        {[1, 2].map((i) => (
-          <g key={i} stroke="#cbd5e1" strokeWidth={0.5}>
-            <line x1={z.x1 + ((z.x2 - z.x1) / 3) * i} y1={z.y1} x2={z.x1 + ((z.x2 - z.x1) / 3) * i} y2={z.y2} />
-            <line x1={z.x1} y1={z.y1 + ((z.y2 - z.y1) / 3) * i} x2={z.x2} y2={z.y1 + ((z.y2 - z.y1) / 3) * i} />
-          </g>
-        ))}
         {ordered.map((p, i) => (
           <circle key={i} cx={sx(p.x)} cy={sy(p.y)} r={3.4}
             fill={(RESULT[p.result] ?? RESULT.take).color}

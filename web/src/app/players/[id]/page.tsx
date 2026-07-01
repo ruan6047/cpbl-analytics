@@ -8,7 +8,7 @@ import { LaEvScatter } from "@/components/la-ev-scatter";
 import { SprayChart } from "@/components/spray-chart";
 import { AbilityCard, GradeChip } from "@/components/ability-card";
 import { Card, LetterBadge, PercentileBar, StatTile, TeamLogo } from "@/components/ui";
-import { type HeatMetric, PerfHeatmap } from "@/components/perf-heatmap";
+import { type HeatMetric, Grid3x3, PlateDisciplineBars } from "@/components/perf-heatmap";
 import { ZoneScatter } from "@/components/zone-scatter";
 import { detail, type PlayerProfile, type StatRow } from "@/lib/client";
 import { fmtIP, fmtIPParts } from "@/lib/format";
@@ -18,8 +18,8 @@ type Role = "batting" | "pitching";
 type Disc = {
   summary: Record<string, number | null>;
   quality: Record<string, number | null>;
-  points: { x: number; y: number; sw: boolean; wh: boolean; result: string; ev: number | null }[];
-  spray: { dir: number; dist: number; ev: number | null; result: string }[];
+  points: { x: number; y: number; sw: boolean; wh: boolean; result: string; ev: number | null; la: number | null; pt: string | null }[];
+  spray: { dir: number; dist: number; ev: number | null; result: string; pt: string | null }[];
   batted: { la: number; ev: number; result: string }[];
 };
 
@@ -130,17 +130,6 @@ const QUALITY_GROUPS: { title: string; pie?: boolean; items: { k: string; label:
   ] },
 ];
 
-// 好球帶紀律各指標「偏好方向」（投打相反）：+1 越高越好(藍)、-1 越低越好(紅)、0 中性(灰)
-const DISC_DIR: Record<string, { bat: number; pit: number }> = {
-  swing_pct: { bat: 0, pit: 0 },
-  whiff_pct: { bat: -1, pit: 1 },
-  contact_pct: { bat: 1, pit: -1 },
-  csw_pct: { bat: -1, pit: 1 },
-  chase_pct: { bat: -1, pit: 1 },
-  zone_pct: { bat: 0, pit: 0 },
-};
-const dirColor = (d: number) => (d > 0 ? "#1d6fb8" : d < 0 ? "#d62839" : "#94a3b8");
-
 // 組成型百分位 → 甜甜圈圖 + 圖例（彈道分布/拉打方向；值總和≈100%）
 const PIE_COLORS = ["#1B4DA1", "#3B82C4", "#E8842B", "#9AA3AF"];
 function CompositionPie({ items, m }: { items: { k: string; label: string }[]; m: Record<string, number> }) {
@@ -225,32 +214,17 @@ function BestSeasonGrid({ items }: { items: { label: string; value: string; year
   );
 }
 
-const PITCH_LABEL: Record<string, string> = { fastball: "速球", breakingball: "變化球" };
-
-function ArsenalTable({ items, role }: { items: StatRow[]; role: Role }) {
+// 球種鏡頭：整頁逐球資料共用一個 pitchType state（速球/變化球；資料只有 tagged 二分）。
+type PitchType = "all" | "fastball" | "breakingball";
+const PITCH_TYPES: [PitchType, string][] = [["all", "全部"], ["fastball", "速球"], ["breakingball", "變化球"]];
+function PitchTypeToggle({ value, onChange }: { value: PitchType; onChange: (v: PitchType) => void }) {
   return (
-    <table className="w-full text-xs">
-      <thead className="text-left text-muted">
-        <tr>
-          <th className="py-1 font-medium">球種</th>
-          <th className="py-1 text-right font-medium">{role === "batting" ? "面對" : "用球"}%</th>
-          <th className="py-1 text-right font-medium">均速</th>
-          <th className="py-1 text-right font-medium">揮空%</th>
-          <th className="py-1 text-right font-medium">擊球初速</th>
-        </tr>
-      </thead>
-      <tbody className="font-mono tabular-nums">
-        {items.map((r) => (
-          <tr key={String(r.pitch_type)} className="border-t border-line">
-            <td className="py-1.5 font-sans text-ink">{PITCH_LABEL[String(r.pitch_type)] ?? String(r.pitch_type)}</td>
-            <td className="py-1.5 text-right">{String(r.usage)}%</td>
-            <td className="py-1.5 text-right">{r.avg_speed ?? "—"}</td>
-            <td className="py-1.5 text-right">{r.whiff_pct ?? "—"}%</td>
-            <td className="py-1.5 text-right text-muted">{r.avg_ev ?? "—"}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="flex gap-1 text-[11px]">
+      {PITCH_TYPES.map(([v, l]) => (
+        <button key={v} onClick={() => onChange(v)}
+          className={`rounded px-2 py-0.5 ${value === v ? "bg-ink text-white" : "bg-surface-2 text-muted"}`}>{l}</button>
+      ))}
+    </div>
   );
 }
 
@@ -396,10 +370,8 @@ export default function PlayerPage() {
   const [season, setSeason] = useState<{ batting: StatRow | null; pitching: StatRow | null } | null>(null);
   const [advanced, setAdvanced] = useState<{ batting: StatRow | null; pitching: StatRow | null } | null>(null);
   const [disc, setDisc] = useState<Disc | null>(null);
-  const [zoneView, setZoneView] = useState<"scatter" | "heat">("scatter");
-  const [heatMetric, setHeatMetric] = useState<HeatMetric>("density");
+  const [pitchType, setPitchType] = useState<PitchType>("all");
   const [pitchMix, setPitchMix] = useState<{ bucket: string; n: number; fastball: number; breakingball: number }[] | null>(null);
-  const [arsenal, setArsenal] = useState<StatRow[] | null>(null);
   const [fielding, setFielding] = useState<StatRow[] | null>(null);
   const [fieldingCareer, setFieldingCareer] = useState<StatRow[] | null>(null);
   const [fieldFromYear, setFieldFromYear] = useState<number | null>(null);
@@ -445,15 +417,14 @@ export default function PlayerPage() {
 
   useEffect(() => {
     setMonthMetric(role === "batting" ? "ops" : "era");
+    setPitchType("all");
     setDisc(null);
-    setArsenal(null);
     setTrend(null);
     setVsTeam(null);
     setCareer(null);
     setPitchMix(null);
     detail.pitchMix(id, role).then((d) => setPitchMix(d.items)).catch(() => setPitchMix([]));
     detail.discipline(id, role).then((d) => setDisc(d as Disc)).catch(() => setDisc(null));
-    detail.arsenal(id, role).then((d) => setArsenal(d.items)).catch(() => setArsenal([]));
     detail.trend(id, role).then((d) => setTrend(d.items)).catch(() => setTrend([]));
     detail.vsTeam(id, role).then((d) => setVsTeam(d.items)).catch(() => setVsTeam([]));
     detail.career(id, role).then((d) => setCareer(d.seasons)).catch(() => setCareer([]));
@@ -508,12 +479,14 @@ export default function PlayerPage() {
     : ongoingCoach ? codeFromName(ongoingCoach.team)
     : (primaryTeam?.code ?? null);
   // 逐球追蹤是否有資料（無則整段隱藏；載入中仍顯示避免閃爍）
-  const trackingReady = disc !== null && arsenal !== null;
+  const trackingReady = disc !== null;
   const hasTracking = !!(
-    (disc && (disc.points.length || disc.spray.length || disc.batted.length || disc.summary.swing_pct != null)) ||
-    (arsenal && arsenal.length)
+    disc && (disc.points.length || disc.spray.length || disc.batted.length || disc.summary.swing_pct != null)
   );
   const showTracking = !trackingReady || hasTracking;
+  // 球種篩選（速球/變化球；資料只有 tagged 二分，見 AI_RUNBOOK）。all 不過濾。
+  const sprayF = disc ? (pitchType === "all" ? disc.spray : disc.spray.filter((p) => p.pt === pitchType)) : [];
+  const pointsF = disc ? (pitchType === "all" ? disc.points : disc.points.filter((p) => p.pt === pitchType)) : [];
   // 賽季走勢/對戰各隊：本季逐場、生涯逐年、對戰各隊任一有料即顯示（載入中仍顯示）
   const showTrendVs = trend === null || vsTeam === null || monthData.length > 0
     || careerTrendData.length > 0 || (vsTeam?.length ?? 0) > 0;
@@ -921,113 +894,73 @@ export default function PlayerPage() {
         );
       })()}
 
-      {/* 擊球落點 + 進壘點（左 2/3 放大） + 好球帶紀律（右側直欄）。無逐球資料則整段隱藏 */}
+      {/* 逐球追蹤（整併：落點/進壘點散點 + 揮棒紀律 + 進壘熱區×打擊成績，共用單一球種鏡頭）。無資料整段隱藏 */}
       {showTracking && (
       <section className="mb-6">
-        <h2 className="mb-3 text-lg font-semibold text-ink">逐球追蹤<span className="ml-2 align-middle text-xs font-normal text-faint">本季 · TrackMan 2026 起</span></h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold text-ink">逐球追蹤<span className="ml-2 align-middle text-xs font-normal text-faint">本季 · TrackMan 2026 起</span></h2>
+          {disc && disc.points.length > 0 && <PitchTypeToggle value={pitchType} onChange={setPitchType} />}
+        </div>
         <div className="grid items-stretch gap-6 lg:grid-cols-3">
-        <Card className="flex flex-col lg:col-span-2">
-          <div className="grid gap-x-4 sm:grid-cols-2">
-            <div className="relative flex flex-col">
-              <h3 className="absolute left-0 top-0 z-10 text-sm font-medium text-muted">擊球落點（{disc?.spray.length ?? 0} 球）</h3>
-              {disc && disc.spray.length > 0 ? <div className="mt-auto mb-[13%]"><SprayChart points={disc.spray} /></div>
-                : <p className="py-12 text-center text-sm text-faint">{disc === null ? "載入中…" : "無擊球追蹤資料"}</p>}
-            </div>
-            <div className="relative">
-              <h3 className="absolute left-0 top-0 z-10 text-sm font-medium text-muted">進壘點（{disc?.points.length ?? 0} 球）</h3>
-              <div className="absolute right-0 top-0 z-10 flex gap-1 text-[11px]">
-                {(["scatter", "heat"] as const).map((v) => (
-                  <button key={v} onClick={() => setZoneView(v)}
-                    className={`rounded px-1.5 py-0.5 ${zoneView === v ? "bg-ink text-white" : "bg-surface-2 text-muted"}`}>
-                    {v === "scatter" ? "散點" : "熱區"}
-                  </button>
-                ))}
+          <Card className="flex flex-col lg:col-span-2">
+            <div className="grid gap-x-4 sm:grid-cols-2">
+              <div className="relative flex flex-col">
+                <h3 className="absolute left-0 top-0 z-10 text-sm font-medium text-muted">擊球落點（{sprayF.length} 球）</h3>
+                {disc === null ? <p className="py-12 text-center text-sm text-faint">載入中…</p>
+                  : sprayF.length > 0 ? <div className="mt-auto mb-[13%]"><SprayChart points={sprayF} /></div>
+                  : <p className="py-12 text-center text-sm text-faint">{disc.spray.length ? "此球種無擊球" : "無擊球追蹤資料"}</p>}
               </div>
-              {zoneView === "heat" && (
-                <div className="absolute right-0 top-6 z-10 flex flex-wrap justify-end gap-1 text-[11px]">
-                  {([["density", "密度"], ["ev", "初速"], ["ba", "安打率"], ["whiff", "揮空"]] as const).map(([m, l]) => (
-                    <button key={m} onClick={() => setHeatMetric(m)}
-                      className={`rounded px-1.5 py-0.5 ${heatMetric === m ? "bg-accent text-white" : "bg-surface-2 text-muted"}`}>
-                      {l}
-                    </button>
-                  ))}
+              <div className="relative">
+                <h3 className="absolute left-0 top-0 z-10 text-sm font-medium text-muted">進壘點（{pointsF.length} 球）</h3>
+                {disc === null ? <p className="py-12 text-center text-sm text-faint">載入中…</p>
+                  : pointsF.length > 0 ? <ZoneScatter points={pointsF} />
+                  : <p className="py-12 text-center text-sm text-faint">{disc.points.length ? "此球種無資料" : "無逐球資料"}</p>}
+              </div>
+            </div>
+            {/* 投手球質（TrackMan 放球/延伸，唯一資訊）。打者擊球品質移除：與下方「擊球品質與彈道」重複且後者更全。 */}
+            {disc && role === "pitching" && (() => {
+              const q = disc.quality;
+              const tiles: [string, number | null, string][] =
+                [["平均球速", q.avg_speed, "km/h"], ["平均延伸", q.avg_extension, "m"], ["平均放球高", q.avg_rel_height, "m"]];
+              if (tiles.every(([, v]) => v == null)) return null;
+              return (
+                <div className="mt-auto border-t border-line pt-3">
+                  <div className="mb-2 text-xs text-muted">球質<span className="text-faint">（逐球追蹤樣本）</span></div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {tiles.map(([l, v, u]) => (
+                      <div key={l} className="card px-3 py-2 text-center">
+                        <div className="text-[11px] text-muted">{l}</div>
+                        <div className="mt-0.5 font-mono text-base tabular-nums text-ink">{v == null ? "—" : v}<span className="ml-0.5 text-[10px] text-faint">{u}</span></div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              )}
-              {disc && disc.points.length > 0
-                ? (zoneView === "scatter" ? <ZoneScatter points={disc.points} />
-                    : <PerfHeatmap points={disc.points} metric={heatMetric} />)
-                : <p className="py-12 text-center text-sm text-faint">{disc === null ? "載入中…" : "無逐球資料"}</p>}
-              {zoneView === "heat" && (
-                <div className="mt-1 flex items-center justify-center gap-2 text-[11px] text-muted">
-                  <span>低</span>
-                  <span className="inline-block h-2 w-24 rounded-full" style={{ background: "linear-gradient(90deg,#cfe2ff,#fff7cc,#d62839)" }} />
-                  <span>高{heatMetric === "ev" ? "(初速)" : heatMetric === "ba" ? "(安打率)" : heatMetric === "whiff" ? "(揮空)" : "(密度)"}</span>
-                </div>
-              )}
+              );
+            })()}
+          </Card>
+          {/* 揮棒紀律：揮/不揮 分歧長條（右側直欄，依球種篩）*/}
+          {disc && disc.summary.swing_pct != null && (
+            <Card>
+              <h3 className="mb-3 text-sm font-medium text-muted">{role === "batting" ? "揮棒紀律" : "誘使揮棒"}</h3>
+              <PlateDisciplineBars points={pointsF} />
+            </Card>
+          )}
+        </div>
+        {/* 進壘熱區 × 打擊成績（3×3＋四角 熱圖，依球種篩）*/}
+        {disc && disc.points.length > 0 && (
+          <div className="mt-6">
+            <h3 className="mb-2 text-sm font-medium text-muted">進壘熱區 × 打擊成績</h3>
+            <div className="grid grid-cols-2 gap-3 rounded-xl border border-line bg-surface p-4 sm:grid-cols-3 lg:grid-cols-5">
+              {(([["ev", "擊球初速 AVG"], ["la", "擊球仰角 AVG"], ["ba", "安打率"], ["hard", "強擊球%"], ["whiff", "揮空率"]] as [HeatMetric, string][])).map(([m, t]) => (
+                <Grid3x3 key={m} points={pointsF} metric={m} title={t} />
+              ))}
+            </div>
+            <div className="mt-2 flex items-center justify-center gap-2 text-[10px] text-faint">
+              低<span className="inline-block h-2 w-20 rounded-full" style={{ background: "linear-gradient(90deg,#1e5bb8,#e8e8e8,#c4122f)" }} />高
+              <span>白＝本人均值 · 每格 n&lt;3 顯「—」· 捕手視角</span>
             </div>
           </div>
-          {/* 投手球質（TrackMan 放球/延伸，唯一資訊）。打者擊球品質移除：與下方「擊球品質與彈道」重複且後者更全。 */}
-          {disc && role === "pitching" && (() => {
-            const q = disc.quality;
-            const tiles: [string, number | null, string][] =
-              [["平均球速", q.avg_speed, "km/h"], ["平均延伸", q.avg_extension, "m"], ["平均放球高", q.avg_rel_height, "m"]];
-            if (tiles.every(([, v]) => v == null)) return null;
-            return (
-              <div className="mt-auto border-t border-line pt-3">
-                <div className="mb-2 text-xs text-muted">球質<span className="text-faint">（逐球追蹤樣本）</span></div>
-                <div className="grid grid-cols-3 gap-2">
-                  {tiles.map(([l, v, u]) => (
-                    <div key={l} className="card px-3 py-2 text-center">
-                      <div className="text-[11px] text-muted">{l}</div>
-                      <div className="mt-0.5 font-mono text-base tabular-nums text-ink">{v == null ? "—" : v}<span className="ml-0.5 text-[10px] text-faint">{u}</span></div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
-        </Card>
-        <div className="flex flex-col gap-6">
-          <Card className="flex-1">
-            <h3 className="mb-3 text-sm font-medium text-muted">好球帶紀律</h3>
-            {disc && disc.summary.swing_pct != null ? (
-              <>
-                <div className="space-y-2.5">
-                  {([["揮棒%", "swing_pct"], ["揮空%", "whiff_pct"], ["接觸%", "contact_pct"],
-                     ["CSW%", "csw_pct"], ["追打%", "chase_pct"], ["好球帶%", "zone_pct"]] as const)
-                    .filter(([, k]) => disc.summary[k] != null)
-                    .map(([label, k]) => {
-                      const v = disc.summary[k] as number;
-                      const dir = DISC_DIR[k]?.[role === "batting" ? "bat" : "pit"] ?? 0;
-                      return (
-                        <div key={k}>
-                          <div className="mb-0.5 flex items-center justify-between text-xs">
-                            <span className="text-muted">{label}</span>
-                            <span className="font-mono tabular-nums text-ink">{v}%</span>
-                          </div>
-                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
-                            <div className="h-full rounded-full" style={{ width: `${Math.min(v, 100)}%`, background: dirColor(dir) }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-                <div className="mt-2.5 flex items-center gap-3 text-[10px] text-faint">
-                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm" style={{ background: "#1d6fb8" }} />越高越好</span>
-                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm" style={{ background: "#d62839" }} />越低越好</span>
-                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm" style={{ background: "#94a3b8" }} />中性</span>
-                </div>
-              </>
-            ) : <p className="py-12 text-center text-sm text-faint">{disc === null ? "載入中…" : "無逐球資料"}</p>}
-          </Card>
-          <Card>
-            <h3 className="mb-3 text-sm font-medium text-muted">球種應對（{role === "batting" ? "面對" : "配球"}）</h3>
-            {arsenal === null ? <p className="py-6 text-center text-sm text-faint">載入中…</p>
-              : arsenal.length === 0 ? <p className="py-6 text-center text-sm text-faint">無逐球資料</p>
-              : <ArsenalTable items={arsenal} role={role} />}
-          </Card>
-        </div>
-        </div>
+        )}
       </section>
       )}
 

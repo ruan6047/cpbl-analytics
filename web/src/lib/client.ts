@@ -154,8 +154,6 @@ export const detail = {
     clientGet<PlayerMatchupsData>(`/api/v1/players/${id}/matchups?role=${role}&kind_code=${kind}`),
   season: (id: string, kind: "A" | "D" = "A") =>
     clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/season?kind=${kind}`),
-  arsenal: (id: string, role: "batting" | "pitching") =>
-    clientGet<{ items: StatRow[] }>(`/api/v1/players/${id}/arsenal?role=${role}`),
   trend: (id: string, role: "batting" | "pitching") =>
     clientGet<{ items: StatRow[] }>(`/api/v1/players/${id}/trend?role=${role}`),
   fielding: (id: string, scope: "season" | "career" = "season") =>
@@ -191,8 +189,8 @@ export const detail = {
     clientGet<{
       summary: Record<string, number | null>;
       quality: Record<string, number | null>;
-      points: { x: number; y: number; sw: boolean; wh: boolean; result: string; ev: number | null }[];
-      spray: { dir: number; dist: number; ev: number | null; result: string }[];
+      points: { x: number; y: number; sw: boolean; wh: boolean; result: string; ev: number | null; pt: string | null }[];
+      spray: { dir: number; dist: number; ev: number | null; result: string; pt: string | null }[];
       batted: { la: number; ev: number; result: string }[];
     }>(`/api/v1/players/${id}/discipline?role=${role}`),
   pitchMix: (id: string, role: "batting" | "pitching") =>
