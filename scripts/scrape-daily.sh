@@ -38,6 +38,15 @@ else
 fi
 echo "[$(date '+%F %T')] exit=${CODE}" | tee -a "$LOG"
 
+# 本機爬成功後自動同步生產（SKIP_SCRAPE：資料已在本機，只 upsert 到 prod + VPS 重建特徵）。
+# 關閉：SYNC_PROD=0 scripts/scrape-daily.sh
+if [ "$CODE" -eq 0 ] && [ "${SYNC_PROD:-1}" != "0" ]; then
+  echo "[$(date '+%F %T')] sync prod (SKIP_SCRAPE=1 WITH_DETAIL=1)" | tee -a "$LOG"
+  SKIP_SCRAPE=1 WITH_DETAIL=1 bash "$REPO_DIR/scripts/refresh-cpbl-prod.sh" >>"$LOG" 2>&1 \
+    && echo "[$(date '+%F %T')] sync prod ok" | tee -a "$LOG" \
+    || echo "[$(date '+%F %T')] sync prod FAILED (見 log)" | tee -a "$LOG"
+fi
+
 # 只留最近 30 份逐次 log
 ls -1t logs/refresh-*.log 2>/dev/null | tail -n +31 | xargs -I{} rm -f {} 2>/dev/null || true
 
