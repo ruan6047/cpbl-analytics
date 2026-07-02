@@ -21,6 +21,7 @@ export type Live = {
   people: Record<string, string>;
   records: Record<string, Rec>;
   batter_avg: Record<string, number>;
+  detail: StatRow | null;
   has_tracking: boolean;
   tracking: TrackRow[];
 };

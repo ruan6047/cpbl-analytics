@@ -206,6 +206,7 @@ export const detail = {
       batting: StatRow[]; pitching: StatRow[]; people: Record<string, string>;
       records: Record<string, { w: number; l: number; form: string }>;
       batter_avg: Record<string, number>;
+      detail: StatRow | null;
       has_tracking: boolean;
     }>(`/api/v1/games/${sno}/live?kind_code=${kind}${year ? `&season=${year}` : ""}`),
   // 全聯盟本季母體（算百分位 PR 用）
