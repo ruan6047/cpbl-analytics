@@ -22,6 +22,7 @@ _PAIR = re.compile(
     r'<div class="label">([^<]+)</div>\s*<div class="desc">(.*?)</div>', re.S)
 _TAG = re.compile(r"<[^>]+>")
 _HT = re.compile(r"(\d+)\s*\(CM\).*?(\d+)\s*\(KG\)", re.S)
+_NAME = re.compile(r'<div class="name">([^<]+)')
 
 
 def _text(html: str) -> str:
@@ -31,7 +32,9 @@ def _text(html: str) -> str:
 def parse_bio(html: str) -> dict:
     """從 person 頁 HTML 抽 bio 欄位。缺項回 None（各年頁面欄位會缺）。"""
     fields = {_text(lbl): desc for lbl, desc in _PAIR.findall(html)}
-    out: dict = {"height_cm": None, "weight_kg": None, "debut": None,
+    nm = _NAME.search(html)
+    out: dict = {"name": _text(nm.group(1)) if nm else None,
+                 "height_cm": None, "weight_kg": None, "debut": None,
                  "education": None, "birthplace": None, "draft": None}
     htwt = fields.get("身高/體重")
     if htwt:
@@ -62,12 +65,17 @@ def _target_ids(scope: str) -> list[str]:
 
 
 def _upsert(acnt: str, bio: dict) -> None:
+    # INSERT ON CONFLICT：新進/洋將球員可能尚未在 players 表（僅在 current 表），
+    # 缺列即以 person 頁名字補一列；既有列只更新 bio、不覆寫 canonical name。
     with conn() as c:
         c.execute(
-            "UPDATE cpbl.players SET height_cm=%s, weight_kg=%s, debut=%s, "
-            "education=%s, birthplace=%s, draft=%s, bio_updated_at=now() WHERE id=%s",
-            (bio["height_cm"], bio["weight_kg"], bio["debut"], bio["education"],
-             bio["birthplace"], bio["draft"], acnt),
+            "INSERT INTO cpbl.players (id, name, height_cm, weight_kg, debut, education, "
+            "birthplace, draft, bio_updated_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,now()) "
+            "ON CONFLICT (id) DO UPDATE SET height_cm=EXCLUDED.height_cm, "
+            "weight_kg=EXCLUDED.weight_kg, debut=EXCLUDED.debut, education=EXCLUDED.education, "
+            "birthplace=EXCLUDED.birthplace, draft=EXCLUDED.draft, bio_updated_at=now()",
+            (acnt, bio.get("name") or acnt, bio["height_cm"], bio["weight_kg"], bio["debut"],
+             bio["education"], bio["birthplace"], bio["draft"]),
         )
 
 
