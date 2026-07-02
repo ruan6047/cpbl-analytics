@@ -41,16 +41,22 @@ class _Session:
         self._loaded: str | None = None
         atexit.register(self.close)
 
-    def _ensure(self, page_path: str) -> None:
-        """確保目前停在 page_path（過挑戰）。換頁才重載。"""
-        if self._loaded == page_path:
+    def _ensure(self, page_path: str, wait: str = "networkidle", force: bool = False) -> None:
+        """確保目前停在 page_path（過挑戰）。換頁才重載。
+
+        wait="networkidle"（預設）：等 SPA/AJAX 靜止 + 1.5s，過挑戰最穩，但老頁面
+        常因背景請求不絕而吃滿 45s timeout。wait="domcontentloaded"：僅等 DOM，
+        適用伺服器端渲染的靜態頁（如 person 頁 bio），快 4-5 倍；挑戰未過時由呼叫端
+        （page_html）以 networkidle 重載一次補救。
+        """
+        if self._loaded == page_path and not force:
             return
-        self._page.goto(f"{BASE}{page_path}", wait_until="networkidle", timeout=45000)
-        self._page.wait_for_timeout(1500)  # 讓挑戰 JS / SPA 初始化完成
+        self._page.goto(f"{BASE}{page_path}", wait_until=wait, timeout=45000)
+        self._page.wait_for_timeout(1500 if wait == "networkidle" else 400)
         self._loaded = page_path
 
-    def page_html(self, page_path: str) -> str:
-        self._ensure(page_path)
+    def page_html(self, page_path: str, wait: str = "networkidle", force: bool = False) -> str:
+        self._ensure(page_path, wait, force)
         return self._page.content()
 
     def post(self, page_path: str, api_path: str, form: dict[str, str],

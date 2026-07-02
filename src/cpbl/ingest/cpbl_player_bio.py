@@ -100,8 +100,18 @@ def scrape(scope: str = "current", delay: float = 1.0,
         for attempt in range(3):
             try:
                 time.sleep(delay)
-                html = session().page_html(f"/team/person?acnt={acnt}")
+                path = f"/team/person?acnt={acnt}"
+                # 快路徑：person bio 是伺服器端靜態 HTML，domcontentloaded 即可，省 networkidle
+                # 的 45s timeout。若抓不到 name（多半是冷啟動撞到反爬挑戰頁），以 networkidle
+                # 重載一次補救，確保不把挑戰頁誤存成空 bio。
+                html = session().page_html(path, wait="domcontentloaded")
                 bio = parse_bio(html)
+                # name=None 有兩種：①「查無此人」空頁（歷史球員無現行個人頁，仍是完整
+                # CPBL 頁，含「全球資訊網」標記）→ 直接接受空 bio；②反爬挑戰頁（無 CPBL
+                # 內容）→ networkidle 重載過挑戰。只對 ② 走慢路徑，避免對 ① 白等 45s。
+                if bio["name"] is None and "全球資訊網" not in html:
+                    html = session().page_html(path, wait="networkidle", force=True)
+                    bio = parse_bio(html)
                 _upsert(acnt, bio)
                 ok += 1
                 if i % 25 == 0 or i == len(targets):
