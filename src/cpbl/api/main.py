@@ -2529,9 +2529,7 @@ def player_trend(
             cur.execute(
                 f"""
                 SELECT g.game_date,
-                    sum(b.hits)      OVER cum  AS h_c,
-                    sum(b.home_runs) OVER cum  AS hr_c,
-                    sum(b.rbi)       OVER cum  AS rbi_c,
+                    b.hits AS h_c, b.home_runs AS hr_c, b.rbi AS rbi_c,  -- 計數型：逐場值(柱狀)
                     sum(b.at_bats)     OVER roll AS ab_r,
                     sum(b.hits)        OVER roll AS h_r,
                     sum(b.bb)          OVER roll AS bb_r,
@@ -2542,8 +2540,7 @@ def player_trend(
                 JOIN cpbl.games g
                   ON g.year = b.year AND g.kind_code = b.kind_code AND g.game_sno = b.game_sno
                 WHERE b.hitter_acnt = %s AND b.year = %s AND b.kind_code = %s
-                WINDOW cum  AS (ORDER BY g.game_date, b.game_sno ROWS UNBOUNDED PRECEDING),
-                       roll AS (ORDER BY g.game_date, b.game_sno
+                WINDOW roll AS (ORDER BY g.game_date, b.game_sno
                                 ROWS BETWEEN {n_roll - 1} PRECEDING AND CURRENT ROW)
                 ORDER BY g.game_date, b.game_sno
                 """,
@@ -2560,7 +2557,7 @@ def player_trend(
                 ops_plus = (round(100 * (obp / lg_obp + slg / lg_slg - 1))
                             if obp is not None and slg is not None and lg_obp and lg_slg else None)
                 items.append({
-                    "name": f"{d.month}/{d.day}", "g": i,
+                    "name": f"{d.month}/{d.day}", "g": i, "date": d.isoformat(),
                     "avg": None if small else r3(h / ab if ab else None),
                     "obp": r3(obp), "slg": r3(slg), "ops": r3(ops),
                     "ops_plus": ops_plus, "hits": h_c, "home_runs": hr_c, "rbi": rbi_c,
@@ -2575,9 +2572,7 @@ def player_trend(
             cur.execute(
                 f"""
                 SELECT g.game_date,
-                    sum(p.so)                  OVER cum  AS so_c,
-                    sum(p.hits)                OVER cum  AS h_c,
-                    sum(p.bb)                  OVER cum  AS bb_c,
+                    p.so AS so_c, p.hits AS h_c, p.bb AS bb_c,  -- 計數型：單場值(柱狀)
                     sum(p.inning_pitched_cnt)  OVER roll AS ipc,
                     sum(p.inning_pitched_div3) OVER roll AS ip3,
                     sum(p.earned_runs)         OVER roll AS er,
@@ -2587,8 +2582,7 @@ def player_trend(
                 JOIN cpbl.games g
                   ON g.year = p.year AND g.kind_code = p.kind_code AND g.game_sno = p.game_sno
                 WHERE p.pitcher_acnt = %s AND p.year = %s AND p.kind_code = %s
-                WINDOW cum  AS (ORDER BY g.game_date, p.game_sno ROWS UNBOUNDED PRECEDING),
-                       roll AS (ORDER BY g.game_date, p.game_sno
+                WINDOW roll AS (ORDER BY g.game_date, p.game_sno
                                 ROWS BETWEEN {n_roll - 1} PRECEDING AND CURRENT ROW)
                 ORDER BY g.game_date, p.game_sno
                 """,
@@ -2602,8 +2596,91 @@ def player_trend(
                 whip = None if small or not ip else round(((bb_r or 0) + (h_r or 0)) / ip, 2)
                 era_plus = round(100 * lg_era / era) if lg_era and era and era > 0 else None
                 items.append({
-                    "name": f"{d.month}/{d.day}", "g": i,
+                    "name": f"{d.month}/{d.day}", "g": i, "date": d.isoformat(),
                     "era": era, "whip": whip, "era_plus": era_plus,
                     "so": so_c, "hits": h_c, "bb": bb_c,
                 })
     return {"player_id": player_id, "role": role, "items": items, "roll": n_roll}
+
+
+@app.get("/api/v1/players/{player_id}/trend-career")
+def player_trend_career(
+    player_id: str,
+    role: str = Query("batting", pattern="^(batting|pitching)$"),
+    kind_code: str = Query("A"),
+) -> dict:
+    """生涯「逐月」趨勢（gamelog 2018+）：X 軸為連續時間，看整個生涯每年各月起伏。
+    rate 為當月值、OPS+/ERA+ 用當年聯盟基準；計數型為當月合計（柱狀）。當月樣本過小之 rate 略。"""
+    r3 = lambda v: round(v, 3) if v is not None else None  # noqa: E731
+    with conn() as c:
+        cur = c.cursor()
+        if role == "batting":
+            cur.execute("SELECT year, sum(at_bats), sum(hits), sum(bb), sum(hbp), sum(sac_fly), sum(total_bases) "
+                        "FROM cpbl.batting_gamelog WHERE kind_code = %s GROUP BY year", (kind_code,))
+            lg = {}
+            for y, ab, h, bb, hbp, sf, tb in cur.fetchall():
+                den = (ab or 0) + (bb or 0) + (hbp or 0) + (sf or 0)
+                lg[y] = ((( (h or 0) + (bb or 0) + (hbp or 0)) / den if den else None),
+                         ((tb or 0) / ab if ab else None))
+            cur.execute(
+                """
+                SELECT b.year, extract(month FROM g.game_date)::int AS m,
+                    sum(b.at_bats), sum(b.hits), sum(b.bb), sum(b.hbp), sum(b.sac_fly),
+                    sum(b.total_bases), sum(b.home_runs), sum(b.rbi)
+                FROM cpbl.batting_gamelog b
+                JOIN cpbl.games g ON g.year = b.year AND g.kind_code = b.kind_code AND g.game_sno = b.game_sno
+                WHERE b.hitter_acnt = %s AND b.kind_code = %s
+                GROUP BY 1, 2 ORDER BY 1, 2
+                """,
+                (player_id, kind_code),
+            )
+            items = []
+            for y, m, ab, h, bb, hbp, sf, tb, hr, rbi in cur.fetchall():
+                ab = ab or 0
+                den = ab + (bb or 0) + (hbp or 0) + (sf or 0)
+                small = ab < 20  # 當月樣本太小 → rate 不輸出
+                obp = None if small else (((h or 0) + (bb or 0) + (hbp or 0)) / den if den else None)
+                slg = None if small else ((tb or 0) / ab if ab else None)
+                ops = (obp + slg) if obp is not None and slg is not None else None
+                lo, ls = lg.get(y, (None, None))
+                ops_plus = (round(100 * (obp / lo + slg / ls - 1))
+                            if obp is not None and slg is not None and lo and ls else None)
+                items.append({
+                    "name": f"{str(y)[2:]}/{m}", "t": round(y + (m - 1) / 12, 3),
+                    "avg": None if small else r3(h / ab if ab else None),
+                    "obp": r3(obp), "slg": r3(slg), "ops": r3(ops), "ops_plus": ops_plus,
+                    "hits": h, "home_runs": hr, "rbi": rbi,
+                })
+        else:
+            cur.execute("SELECT year, sum(inning_pitched_cnt), sum(inning_pitched_div3), sum(earned_runs) "
+                        "FROM cpbl.pitching_gamelog WHERE kind_code = %s GROUP BY year", (kind_code,))
+            lg = {}
+            for y, ipc, ip3, er in cur.fetchall():
+                ip = (ipc or 0) + (ip3 or 0) / 3
+                lg[y] = (er or 0) * 9 / ip if ip else None
+            cur.execute(
+                """
+                SELECT p.year, extract(month FROM g.game_date)::int AS m,
+                    sum(p.inning_pitched_cnt), sum(p.inning_pitched_div3), sum(p.earned_runs),
+                    sum(p.so), sum(p.hits), sum(p.bb)
+                FROM cpbl.pitching_gamelog p
+                JOIN cpbl.games g ON g.year = p.year AND g.kind_code = p.kind_code AND g.game_sno = p.game_sno
+                WHERE p.pitcher_acnt = %s AND p.kind_code = %s
+                GROUP BY 1, 2 ORDER BY 1, 2
+                """,
+                (player_id, kind_code),
+            )
+            items = []
+            for y, m, ipc, ip3, er, so, h, bb in cur.fetchall():
+                ip = (ipc or 0) + (ip3 or 0) / 3
+                small = ip < 8
+                era = None if small or not ip else round((er or 0) * 9 / ip, 2)
+                whip = None if small or not ip else round(((bb or 0) + (h or 0)) / ip, 2)
+                lge = lg.get(y)
+                era_plus = round(100 * lge / era) if lge and era and era > 0 else None
+                items.append({
+                    "name": f"{str(y)[2:]}/{m}", "t": round(y + (m - 1) / 12, 3),
+                    "era": era, "whip": whip, "era_plus": era_plus,
+                    "so": so, "hits": h, "bb": bb,
+                })
+    return {"player_id": player_id, "role": role, "items": items}

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, CartesianGrid, Cell, ComposedChart, Line, Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { LaEvScatter } from "@/components/la-ev-scatter";
 import { SprayChart } from "@/components/spray-chart";
 import { AbilityCard, GradeChip } from "@/components/ability-card";
@@ -383,6 +383,7 @@ export default function PlayerPage() {
   const [fieldScope, setFieldScope] = useState<"season" | "career">("season");
   const [vsTeam, setVsTeam] = useState<StatRow[] | null>(null);
   const [career, setCareer] = useState<StatRow[] | null>(null);
+  const [careerMonthly, setCareerMonthly] = useState<StatRow[] | null>(null);
   const [careerStats, setCareerStats] = useState<Awaited<ReturnType<typeof detail.careerStats>> | null>(null);
   const [ability, setAbility] = useState<Awaited<ReturnType<typeof detail.abilityCard>> | null>(null);
   const [trend, setTrend] = useState<StatRow[] | null>(null);
@@ -426,6 +427,8 @@ export default function PlayerPage() {
     detail.trend(id, role).then((d) => setTrend(d.items)).catch(() => setTrend([]));
     detail.vsTeam(id, role).then((d) => setVsTeam(d.items)).catch(() => setVsTeam([]));
     detail.career(id, role).then((d) => setCareer(d.seasons)).catch(() => setCareer([]));
+    setCareerMonthly(null);
+    detail.trendCareer(id, role).then((d) => setCareerMonthly(d.items)).catch(() => setCareerMonthly([]));
   }, [id, role]);
 
   // 逐球追蹤（好球帶紀律 + 配球傾向）+ 當季守備隨一/二軍鏡頭切換：二軍有獨立樣本
@@ -453,12 +456,28 @@ export default function PlayerPage() {
     () => (trend ?? []).map((r) => ({ name: String(r.name), v: metric.get(r) })),
     [trend, metric],
   );
-  // 逐年走勢（生涯）：每年該指標一點；yr=年份數值供「時間軸」比例間距（缺季會留空隙，可延伸未來）
+  // 生涯逐月走勢：X=連續時間(t=年+月/12)，看整個生涯每年各月起伏；缺月留空隙。
   const careerTrendData = useMemo(
-    () => (career ?? []).filter((r) => metric.get(r) != null)
-      .map((r) => ({ name: String(r.year), yr: Number(r.year), v: metric.get(r) })),
-    [career, metric],
+    () => (careerMonthly ?? []).filter((r) => metric.get(r) != null)
+      .map((r) => ({ name: String(r.name), t: numOf(r.t), v: metric.get(r) })),
+    [careerMonthly, metric],
   );
+  // 本季計數型(柱狀)：逐場太細 → 以 7 天為一箱加總,看期間變化（須在早期 return 前宣告）
+  const seasonBars = useMemo(() => {
+    if (metric.roll) return [];
+    const rows = trend ?? [];
+    if (rows.length === 0) return [];
+    const t0 = new Date(String(rows[0].date)).getTime();
+    const buckets = new Map<number, { name: string; v: number }>();
+    for (const r of rows) {
+      const dt = new Date(String(r.date));
+      const wk = Math.floor((dt.getTime() - t0) / (7 * 86400000));
+      const b = buckets.get(wk) ?? { name: `${dt.getMonth() + 1}/${dt.getDate()}`, v: 0 };
+      b.v += metric.get(r) ?? 0;
+      buckets.set(wk, b);
+    }
+    return [...buckets.entries()].sort((a, b) => a[0] - b[0]).map(([, b]) => b);
+  }, [trend, metric]);
   const prRows = useMemo(() => {
     const a = advanced ? (role === "batting" ? advanced.batting : advanced.pitching) : null;
     if (!a) return [];
@@ -504,7 +523,7 @@ export default function PlayerPage() {
   // 走勢有效範圍：本季無資料(退役)但有生涯逐年 → 自動切生涯
   const effTrend: "season" | "career" =
     trendScope === "season" && monthData.length === 0 && careerTrendData.length > 0 ? "career" : trendScope;
-  const trendData = effTrend === "career" ? careerTrendData : monthData;
+  const trendData = effTrend === "career" ? careerTrendData : (metric.roll ? monthData : seasonBars);
 
   // 能力值卡：尺度跟隨下方資料分頁 dataTab（本季/生涯），不再有獨立切換鈕
   const abSel = (() => {
@@ -1053,7 +1072,7 @@ export default function PlayerPage() {
           <Card className="h-full">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-medium text-muted">{effTrend === "career" ? "逐年走勢（生涯）" : (metric.roll ? "賽季走勢（近 15 場滾動）" : "賽季走勢（逐場累積）")}</h3>
+                <h3 className="text-sm font-medium text-muted">{effTrend === "career" ? "生涯走勢（逐月）" : (metric.roll ? "賽季走勢（近 15 場滾動）" : "賽季走勢（每 7 天）")}</h3>
                 {careerTrendData.length > 1 && monthData.length > 0 && (
                   <div className="inline-flex overflow-hidden rounded-full border border-line text-[11px]">
                     {(["season", "career"] as const).map((s) => (
@@ -1072,26 +1091,31 @@ export default function PlayerPage() {
             </div>
             {trendData.length === 0 ? <p className="py-8 text-center text-sm text-faint">無資料</p> : (
               <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={trendData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                <ComposedChart data={trendData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                   <CartesianGrid stroke="#eef2f7" />
                   {effTrend === "career" ? (
-                    // 生涯：時間軸（年份數值等比間距，缺季留空隙、可對照未來時間）
-                    <XAxis dataKey="yr" type="number" scale="linear" domain={["dataMin", "dataMax"]}
-                      allowDecimals={false} tickFormatter={(v: number) => String(v)} {...axis} />
+                    // 生涯：連續時間軸（t=年+月/12，逐月等比間距；缺月留空隙、可對照未來時間）
+                    <XAxis dataKey="t" type="number" scale="linear" domain={["dataMin", "dataMax"]}
+                      tickFormatter={(v: number) => `'${String(Math.round(v)).slice(2)}`} {...axis} minTickGap={30} />
                   ) : (
                     <XAxis dataKey="name" {...axis} minTickGap={28} />
                   )}
                   <YAxis {...axis} domain={["auto", "auto"]} />
                   <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 12 }}
                     formatter={(v: number) => v?.toFixed(metric.dp)} />
-                  {metric.ref != null && effTrend === "season" && (
+                  {metric.ref != null && (
                     <ReferenceLine y={metric.ref} stroke="#94a3b8" strokeDasharray="4 3"
                       label={{ value: `聯盟 ${metric.ref}`, position: "insideTopRight", fill: "#94a3b8", fontSize: 10 }} />
                   )}
-                  <Line type="monotone" dataKey="v" name={metric.label} stroke="#0a2540" strokeWidth={2}
-                    isAnimationActive={false} connectNulls
-                    dot={trendData.length > 18 ? false : { r: 3, fill: "#d62839" }} />
-                </LineChart>
+                  {metric.roll ? (
+                    <Line type="monotone" dataKey="v" name={metric.label} stroke="#0a2540" strokeWidth={2}
+                      isAnimationActive={false} connectNulls
+                      dot={trendData.length > 18 ? false : { r: 3, fill: "#d62839" }} />
+                  ) : (
+                    <Bar dataKey="v" name={metric.label} fill="#1B4DA1" isAnimationActive={false}
+                      maxBarSize={18} />
+                  )}
+                </ComposedChart>
               </ResponsiveContainer>
             )}
           </Card>

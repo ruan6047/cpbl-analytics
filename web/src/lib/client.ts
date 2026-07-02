@@ -156,6 +156,8 @@ export const detail = {
     clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/season?kind=${kind}`),
   trend: (id: string, role: "batting" | "pitching") =>
     clientGet<{ items: StatRow[] }>(`/api/v1/players/${id}/trend?role=${role}`),
+  trendCareer: (id: string, role: "batting" | "pitching") =>
+    clientGet<{ items: StatRow[] }>(`/api/v1/players/${id}/trend-career?role=${role}`),
   fielding: (id: string, scope: "season" | "career" = "season", kind: "A" | "D" = "A") =>
     clientGet<{ items: StatRow[]; from_year?: number }>(`/api/v1/players/${id}/fielding?scope=${scope}&kind_code=${kind}`),
   career: (id: string, role: "batting" | "pitching") =>
