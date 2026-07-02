@@ -42,15 +42,16 @@ if [ -n "${SKIP_SCRAPE:-}" ]; then
   echo "==> 1/3 略過爬取（SKIP_SCRAPE），直接同步本機現有資料"
 else
   echo "==> 1/3 本機（台灣 IP）爬最新資料"
-  uv run cpbl-scrape-games "$YEAR" "$YEAR"
-  uv run cpbl-scrape-stats "$PREV" "$YEAR"
+  # --group scrape：官網爬蟲需 playwright（見 scrape-daily.sh 說明）。
+  uv run --group scrape cpbl-scrape-games "$YEAR" "$YEAR"
+  uv run --group scrape cpbl-scrape-stats "$PREV" "$YEAR"
 
   # 選手細項（投打對決 / 對戰各隊 / 分項）變動慢且耗時逾 1 小時，預設不跑；
   # 需要時以 WITH_DETAIL=1 觸發（每隔幾週跑一次即可）。
   if [ -n "${WITH_DETAIL:-}" ]; then
     echo "    + 選手細項（耗時較長：投打對決生涯 + 對戰各隊 + 分項）"
-    uv run cpbl-scrape-fighting 9999 1.2 cur
-    uv run cpbl-scrape-detail 1.2
+    uv run --group scrape cpbl-scrape-fighting 9999 1.2 cur
+    uv run --group scrape cpbl-scrape-detail 1.2
   fi
 fi
 

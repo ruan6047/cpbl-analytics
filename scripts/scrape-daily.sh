@@ -33,7 +33,9 @@ if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q cpbl-analytics-db; th
   echo "[$(date '+%F %T')] FATAL: 本機 DB 容器未啟動（OrbStack 沒開？）" | tee -a "$LOG"
   CODE=127
 else
-  "$UV" run cpbl-refresh-recent ${ARGS} >>"$LOG" 2>&1
+  # --group scrape：官網爬蟲需 playwright（scrape group）。uv run 為 inexact sync
+  # 不會主動剪套件，但顯式帶 group 可防有人跑過 `uv sync`（exact）剪掉後靜默失敗。
+  "$UV" run --group scrape cpbl-refresh-recent ${ARGS} >>"$LOG" 2>&1
   CODE=$?
 fi
 echo "[$(date '+%F %T')] exit=${CODE}" | tee -a "$LOG"
