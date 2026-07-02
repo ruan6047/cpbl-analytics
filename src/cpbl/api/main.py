@@ -2608,11 +2608,26 @@ def player_trend_career(
     player_id: str,
     role: str = Query("batting", pattern="^(batting|pitching)$"),
     kind_code: str = Query("A"),
+    bucket: str = Query("half", pattern="^(month|half|third|week)$"),
 ) -> dict:
-    """生涯「月份分項」趨勢：把跨年份的同一月份合併為一點（所有 3 月、所有 4 月…），
-    看選手是否慢熱、作為下個月參考。X 軸為月份；rate=該月生涯合計率、OPS+/ERA+ 用生涯聯盟基準；
-    計數型=該月生涯合計（柱狀）。years=該月打過幾季。當月生涯樣本過小之 rate 略。"""
+    """生涯「時段分項」趨勢：把跨年份的同一時段合併為一點（所有 3 月上、3 月下…），
+    看選手各時段強弱/是否慢熱、作為下時段參考。bucket 控制粒度：月/半月/旬/週。
+    rate=該時段生涯合計率、OPS+/ERA+ 用生涯聯盟基準；計數型=生涯合計（柱狀）。樣本過小之 rate 略。"""
     r3 = lambda v: round(v, 3) if v is not None else None  # noqa: E731
+    # 子月份索引 SQL（白名單，非使用者字串直插）+ 標籤
+    _SUB = {"month": "0", "half": "((extract(day FROM g.game_date)::int > 15))::int",
+            "third": "least((extract(day FROM g.game_date)::int - 1) / 10, 2)",
+            "week": "least((extract(day FROM g.game_date)::int - 1) / 7, 4)"}
+    sub_sql = _SUB[bucket]
+
+    def _label(m: int, s: int) -> str:
+        if bucket == "month":
+            return f"{m}月"
+        if bucket == "half":
+            return f"{m}月{'下' if s else '上'}"
+        if bucket == "third":
+            return f"{m}月{['上旬', '中旬', '下旬'][s]}"
+        return f"{m}月W{s + 1}"
     with conn() as c:
         cur = c.cursor()
         if role == "batting":
@@ -2623,9 +2638,8 @@ def player_trend_career(
             lg_obp = (lh + lbb + lhbp) / lden if lden else None
             lg_slg = ltb / lab if lab else None
             cur.execute(
-                """
-                SELECT extract(month FROM g.game_date)::int AS m,
-                    (extract(day FROM g.game_date) > 15) AS h2,
+                f"""
+                SELECT extract(month FROM g.game_date)::int AS m, {sub_sql} AS sub,
                     sum(b.at_bats), sum(b.hits), sum(b.bb), sum(b.hbp), sum(b.sac_fly),
                     sum(b.total_bases), sum(b.home_runs), sum(b.rbi), count(DISTINCT b.year)
                 FROM cpbl.batting_gamelog b
@@ -2636,17 +2650,17 @@ def player_trend_career(
                 (player_id, kind_code),
             )
             items = []
-            for m, h2, ab, h, bb, hbp, sf, tb, hr, rbi, yrs in cur.fetchall():
+            for m, sub, ab, h, bb, hbp, sf, tb, hr, rbi, yrs in cur.fetchall():
                 ab = ab or 0
                 den = ab + (bb or 0) + (hbp or 0) + (sf or 0)
-                small = ab < 20  # 該半月生涯樣本太小 → rate 不輸出
+                small = ab < 15  # 該時段生涯樣本太小 → rate 不輸出
                 obp = None if small else (((h or 0) + (bb or 0) + (hbp or 0)) / den if den else None)
                 slg = None if small else ((tb or 0) / ab if ab else None)
                 ops = (obp + slg) if obp is not None and slg is not None else None
                 ops_plus = (round(100 * (obp / lg_obp + slg / lg_slg - 1))
                             if obp is not None and slg is not None and lg_obp and lg_slg else None)
                 items.append({
-                    "name": f"{m}月{'下' if h2 else '上'}", "m": m + (0.5 if h2 else 0), "years": yrs,
+                    "name": _label(m, sub), "years": yrs,
                     "avg": None if small else r3(h / ab if ab else None),
                     "obp": r3(obp), "slg": r3(slg), "ops": r3(ops), "ops_plus": ops_plus,
                     "hits": h, "home_runs": hr, "rbi": rbi,
@@ -2658,9 +2672,8 @@ def player_trend_career(
             lgip = lipc + lip3 / 3
             lg_era = ler * 9 / lgip if lgip else None
             cur.execute(
-                """
-                SELECT extract(month FROM g.game_date)::int AS m,
-                    (extract(day FROM g.game_date) > 15) AS h2,
+                f"""
+                SELECT extract(month FROM g.game_date)::int AS m, {sub_sql} AS sub,
                     sum(p.inning_pitched_cnt), sum(p.inning_pitched_div3), sum(p.earned_runs),
                     sum(p.so), sum(p.hits), sum(p.bb), count(DISTINCT p.year)
                 FROM cpbl.pitching_gamelog p
@@ -2671,14 +2684,14 @@ def player_trend_career(
                 (player_id, kind_code),
             )
             items = []
-            for m, h2, ipc, ip3, er, so, h, bb, yrs in cur.fetchall():
+            for m, sub, ipc, ip3, er, so, h, bb, yrs in cur.fetchall():
                 ip = (ipc or 0) + (ip3 or 0) / 3
-                small = ip < 10  # 該半月生涯局數太小
+                small = ip < 8  # 該時段生涯局數太小
                 era = None if small or not ip else round((er or 0) * 9 / ip, 2)
                 whip = None if small or not ip else round(((bb or 0) + (h or 0)) / ip, 2)
                 era_plus = round(100 * lg_era / era) if lg_era and era and era > 0 else None
                 items.append({
-                    "name": f"{m}月{'下' if h2 else '上'}", "m": m + (0.5 if h2 else 0), "years": yrs,
+                    "name": _label(m, sub), "years": yrs,
                     "era": era, "whip": whip, "era_plus": era_plus,
                     "so": so, "hits": h, "bb": bb,
                 })
