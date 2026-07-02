@@ -231,7 +231,7 @@ function PlayByPlay({ log, events, idx, setIdx }: {
             <div key={gi}>
               {newBatter && e.hitter_name && !e.is_change_player && (
                 <div className="mt-2.5 text-sm font-medium text-ink">
-                  🏏 {String(e.hitter_name)}
+                  ⚾ {String(e.hitter_name)}
                   <span className="ml-2 text-xs text-faint">投：{String(e.pitcher_name ?? "")}</span>
                 </div>
               )}
