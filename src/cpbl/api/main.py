@@ -2625,27 +2625,28 @@ def player_trend_career(
             cur.execute(
                 """
                 SELECT extract(month FROM g.game_date)::int AS m,
+                    (extract(day FROM g.game_date) > 15) AS h2,
                     sum(b.at_bats), sum(b.hits), sum(b.bb), sum(b.hbp), sum(b.sac_fly),
                     sum(b.total_bases), sum(b.home_runs), sum(b.rbi), count(DISTINCT b.year)
                 FROM cpbl.batting_gamelog b
                 JOIN cpbl.games g ON g.year = b.year AND g.kind_code = b.kind_code AND g.game_sno = b.game_sno
                 WHERE b.hitter_acnt = %s AND b.kind_code = %s
-                GROUP BY 1 ORDER BY 1
+                GROUP BY 1, 2 ORDER BY 1, 2
                 """,
                 (player_id, kind_code),
             )
             items = []
-            for m, ab, h, bb, hbp, sf, tb, hr, rbi, yrs in cur.fetchall():
+            for m, h2, ab, h, bb, hbp, sf, tb, hr, rbi, yrs in cur.fetchall():
                 ab = ab or 0
                 den = ab + (bb or 0) + (hbp or 0) + (sf or 0)
-                small = ab < 30  # 該月生涯樣本太小 → rate 不輸出
+                small = ab < 20  # 該半月生涯樣本太小 → rate 不輸出
                 obp = None if small else (((h or 0) + (bb or 0) + (hbp or 0)) / den if den else None)
                 slg = None if small else ((tb or 0) / ab if ab else None)
                 ops = (obp + slg) if obp is not None and slg is not None else None
                 ops_plus = (round(100 * (obp / lg_obp + slg / lg_slg - 1))
                             if obp is not None and slg is not None and lg_obp and lg_slg else None)
                 items.append({
-                    "name": f"{m}月", "m": m, "years": yrs,
+                    "name": f"{m}月{'下' if h2 else '上'}", "m": m + (0.5 if h2 else 0), "years": yrs,
                     "avg": None if small else r3(h / ab if ab else None),
                     "obp": r3(obp), "slg": r3(slg), "ops": r3(ops), "ops_plus": ops_plus,
                     "hits": h, "home_runs": hr, "rbi": rbi,
@@ -2659,24 +2660,25 @@ def player_trend_career(
             cur.execute(
                 """
                 SELECT extract(month FROM g.game_date)::int AS m,
+                    (extract(day FROM g.game_date) > 15) AS h2,
                     sum(p.inning_pitched_cnt), sum(p.inning_pitched_div3), sum(p.earned_runs),
                     sum(p.so), sum(p.hits), sum(p.bb), count(DISTINCT p.year)
                 FROM cpbl.pitching_gamelog p
                 JOIN cpbl.games g ON g.year = p.year AND g.kind_code = p.kind_code AND g.game_sno = p.game_sno
                 WHERE p.pitcher_acnt = %s AND p.kind_code = %s
-                GROUP BY 1 ORDER BY 1
+                GROUP BY 1, 2 ORDER BY 1, 2
                 """,
                 (player_id, kind_code),
             )
             items = []
-            for m, ipc, ip3, er, so, h, bb, yrs in cur.fetchall():
+            for m, h2, ipc, ip3, er, so, h, bb, yrs in cur.fetchall():
                 ip = (ipc or 0) + (ip3 or 0) / 3
-                small = ip < 15  # 該月生涯局數太小
+                small = ip < 10  # 該半月生涯局數太小
                 era = None if small or not ip else round((er or 0) * 9 / ip, 2)
                 whip = None if small or not ip else round(((bb or 0) + (h or 0)) / ip, 2)
                 era_plus = round(100 * lg_era / era) if lg_era and era and era > 0 else None
                 items.append({
-                    "name": f"{m}月", "m": m, "years": yrs,
+                    "name": f"{m}月{'下' if h2 else '上'}", "m": m + (0.5 if h2 else 0), "years": yrs,
                     "era": era, "whip": whip, "era_plus": era_plus,
                     "so": so, "hits": h, "bb": bb,
                 })

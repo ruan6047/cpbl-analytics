@@ -1072,7 +1072,7 @@ export default function PlayerPage() {
           <Card className="h-full">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-medium text-muted">{effTrend === "career" ? "生涯各月（跨年合併）" : (metric.roll ? "賽季走勢（近 15 場滾動）" : "賽季走勢（每 7 天）")}</h3>
+                <h3 className="text-sm font-medium text-muted">{effTrend === "career" ? "生涯各半月（跨年合併）" : (metric.roll ? "賽季走勢（近 15 場滾動）" : "賽季走勢（每 7 天）")}</h3>
                 {careerTrendData.length > 1 && monthData.length > 0 && (
                   <div className="inline-flex overflow-hidden rounded-full border border-line text-[11px]">
                     {(["season", "career"] as const).map((s) => (
