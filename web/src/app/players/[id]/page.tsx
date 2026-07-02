@@ -172,8 +172,9 @@ const BAT_METRICS: Metric[] = [
   { key: "avg", label: "打擊率", dp: 3, get: (r) => numOf(r.avg), roll: true },
   { key: "obp", label: "上壘率", dp: 3, get: (r) => numOf(r.obp), roll: true },
   { key: "slg", label: "長打率", dp: 3, get: (r) => numOf(r.slg), roll: true },
-  { key: "hits", label: "安打", dp: 0, get: (r) => numOf(r.hits) },
-  { key: "home_runs", label: "全壘打", dp: 0, get: (r) => numOf(r.home_runs) },
+  // 逐場趨勢用 hits/home_runs、生涯逐年用 h/hr → 兩者皆容
+  { key: "hits", label: "安打", dp: 0, get: (r) => numOf(r.hits ?? r.h) },
+  { key: "home_runs", label: "全壘打", dp: 0, get: (r) => numOf(r.home_runs ?? r.hr) },
   { key: "rbi", label: "打點", dp: 0, get: (r) => numOf(r.rbi) },
 ];
 const PIT_METRICS: Metric[] = [
@@ -452,9 +453,10 @@ export default function PlayerPage() {
     () => (trend ?? []).map((r) => ({ name: String(r.name), v: metric.get(r) })),
     [trend, metric],
   );
-  // 逐年走勢（生涯）：每年該指標一點，x 軸為年份
+  // 逐年走勢（生涯）：每年該指標一點；yr=年份數值供「時間軸」比例間距（缺季會留空隙，可延伸未來）
   const careerTrendData = useMemo(
-    () => (career ?? []).filter((r) => metric.get(r) != null).map((r) => ({ name: String(r.year), v: metric.get(r) })),
+    () => (career ?? []).filter((r) => metric.get(r) != null)
+      .map((r) => ({ name: String(r.year), yr: Number(r.year), v: metric.get(r) })),
     [career, metric],
   );
   const prRows = useMemo(() => {
@@ -1072,7 +1074,13 @@ export default function PlayerPage() {
               <ResponsiveContainer width="100%" height={220}>
                 <LineChart data={trendData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                   <CartesianGrid stroke="#eef2f7" />
-                  <XAxis dataKey="name" {...axis} minTickGap={effTrend === "career" ? 8 : 28} />
+                  {effTrend === "career" ? (
+                    // 生涯：時間軸（年份數值等比間距，缺季留空隙、可對照未來時間）
+                    <XAxis dataKey="yr" type="number" scale="linear" domain={["dataMin", "dataMax"]}
+                      allowDecimals={false} tickFormatter={(v: number) => String(v)} {...axis} />
+                  ) : (
+                    <XAxis dataKey="name" {...axis} minTickGap={28} />
+                  )}
                   <YAxis {...axis} domain={["auto", "auto"]} />
                   <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 12 }}
                     formatter={(v: number) => v?.toFixed(metric.dp)} />
