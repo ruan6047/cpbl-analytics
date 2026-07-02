@@ -456,10 +456,10 @@ export default function PlayerPage() {
     () => (trend ?? []).map((r) => ({ name: String(r.name), v: metric.get(r) })),
     [trend, metric],
   );
-  // 生涯逐月走勢：X=連續時間(t=年+月/12)，看整個生涯每年各月起伏；缺月留空隙。
+  // 生涯月份分項：跨年份把同一月份合併為一點（看慢熱/各月強弱、當下月參考）
   const careerTrendData = useMemo(
     () => (careerMonthly ?? []).filter((r) => metric.get(r) != null)
-      .map((r) => ({ name: String(r.name), t: numOf(r.t), v: metric.get(r) })),
+      .map((r) => ({ name: String(r.name), v: metric.get(r) })),
     [careerMonthly, metric],
   );
   // 本季計數型(柱狀)：逐場太細 → 以 7 天為一箱加總,看期間變化（須在早期 return 前宣告）
@@ -1072,7 +1072,7 @@ export default function PlayerPage() {
           <Card className="h-full">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-medium text-muted">{effTrend === "career" ? "生涯走勢（逐月）" : (metric.roll ? "賽季走勢（近 15 場滾動）" : "賽季走勢（每 7 天）")}</h3>
+                <h3 className="text-sm font-medium text-muted">{effTrend === "career" ? "生涯各月（跨年合併）" : (metric.roll ? "賽季走勢（近 15 場滾動）" : "賽季走勢（每 7 天）")}</h3>
                 {careerTrendData.length > 1 && monthData.length > 0 && (
                   <div className="inline-flex overflow-hidden rounded-full border border-line text-[11px]">
                     {(["season", "career"] as const).map((s) => (
@@ -1093,13 +1093,8 @@ export default function PlayerPage() {
               <ResponsiveContainer width="100%" height={220}>
                 <ComposedChart data={trendData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                   <CartesianGrid stroke="#eef2f7" />
-                  {effTrend === "career" ? (
-                    // 生涯：連續時間軸（t=年+月/12，逐月等比間距；缺月留空隙、可對照未來時間）
-                    <XAxis dataKey="t" type="number" scale="linear" domain={["dataMin", "dataMax"]}
-                      tickFormatter={(v: number) => `'${String(Math.round(v)).slice(2)}`} {...axis} minTickGap={30} />
-                  ) : (
-                    <XAxis dataKey="name" {...axis} minTickGap={28} />
-                  )}
+                  {/* 生涯=月份分項(3月/4月…類別)；本季=逐場/週期日期 */}
+                  <XAxis dataKey="name" {...axis} minTickGap={effTrend === "career" ? 4 : 28} />
                   <YAxis {...axis} domain={["auto", "auto"]} />
                   <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 12 }}
                     formatter={(v: number) => v?.toFixed(metric.dp)} />

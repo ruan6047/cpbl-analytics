@@ -2609,77 +2609,74 @@ def player_trend_career(
     role: str = Query("batting", pattern="^(batting|pitching)$"),
     kind_code: str = Query("A"),
 ) -> dict:
-    """生涯「逐月」趨勢（gamelog 2018+）：X 軸為連續時間，看整個生涯每年各月起伏。
-    rate 為當月值、OPS+/ERA+ 用當年聯盟基準；計數型為當月合計（柱狀）。當月樣本過小之 rate 略。"""
+    """生涯「月份分項」趨勢：把跨年份的同一月份合併為一點（所有 3 月、所有 4 月…），
+    看選手是否慢熱、作為下個月參考。X 軸為月份；rate=該月生涯合計率、OPS+/ERA+ 用生涯聯盟基準；
+    計數型=該月生涯合計（柱狀）。years=該月打過幾季。當月生涯樣本過小之 rate 略。"""
     r3 = lambda v: round(v, 3) if v is not None else None  # noqa: E731
     with conn() as c:
         cur = c.cursor()
         if role == "batting":
-            cur.execute("SELECT year, sum(at_bats), sum(hits), sum(bb), sum(hbp), sum(sac_fly), sum(total_bases) "
-                        "FROM cpbl.batting_gamelog WHERE kind_code = %s GROUP BY year", (kind_code,))
-            lg = {}
-            for y, ab, h, bb, hbp, sf, tb in cur.fetchall():
-                den = (ab or 0) + (bb or 0) + (hbp or 0) + (sf or 0)
-                lg[y] = ((( (h or 0) + (bb or 0) + (hbp or 0)) / den if den else None),
-                         ((tb or 0) / ab if ab else None))
+            cur.execute("SELECT sum(at_bats), sum(hits), sum(bb), sum(hbp), sum(sac_fly), sum(total_bases) "
+                        "FROM cpbl.batting_gamelog WHERE kind_code = %s", (kind_code,))
+            lab, lh, lbb, lhbp, lsf, ltb = (x or 0 for x in cur.fetchone())
+            lden = lab + lbb + lhbp + lsf
+            lg_obp = (lh + lbb + lhbp) / lden if lden else None
+            lg_slg = ltb / lab if lab else None
             cur.execute(
                 """
-                SELECT b.year, extract(month FROM g.game_date)::int AS m,
+                SELECT extract(month FROM g.game_date)::int AS m,
                     sum(b.at_bats), sum(b.hits), sum(b.bb), sum(b.hbp), sum(b.sac_fly),
-                    sum(b.total_bases), sum(b.home_runs), sum(b.rbi)
+                    sum(b.total_bases), sum(b.home_runs), sum(b.rbi), count(DISTINCT b.year)
                 FROM cpbl.batting_gamelog b
                 JOIN cpbl.games g ON g.year = b.year AND g.kind_code = b.kind_code AND g.game_sno = b.game_sno
                 WHERE b.hitter_acnt = %s AND b.kind_code = %s
-                GROUP BY 1, 2 ORDER BY 1, 2
+                GROUP BY 1 ORDER BY 1
                 """,
                 (player_id, kind_code),
             )
             items = []
-            for y, m, ab, h, bb, hbp, sf, tb, hr, rbi in cur.fetchall():
+            for m, ab, h, bb, hbp, sf, tb, hr, rbi, yrs in cur.fetchall():
                 ab = ab or 0
                 den = ab + (bb or 0) + (hbp or 0) + (sf or 0)
-                small = ab < 20  # 當月樣本太小 → rate 不輸出
+                small = ab < 30  # 該月生涯樣本太小 → rate 不輸出
                 obp = None if small else (((h or 0) + (bb or 0) + (hbp or 0)) / den if den else None)
                 slg = None if small else ((tb or 0) / ab if ab else None)
                 ops = (obp + slg) if obp is not None and slg is not None else None
-                lo, ls = lg.get(y, (None, None))
-                ops_plus = (round(100 * (obp / lo + slg / ls - 1))
-                            if obp is not None and slg is not None and lo and ls else None)
+                ops_plus = (round(100 * (obp / lg_obp + slg / lg_slg - 1))
+                            if obp is not None and slg is not None and lg_obp and lg_slg else None)
                 items.append({
-                    "name": f"{str(y)[2:]}/{m}", "t": round(y + (m - 1) / 12, 3),
+                    "name": f"{m}月", "m": m, "years": yrs,
                     "avg": None if small else r3(h / ab if ab else None),
                     "obp": r3(obp), "slg": r3(slg), "ops": r3(ops), "ops_plus": ops_plus,
                     "hits": h, "home_runs": hr, "rbi": rbi,
                 })
         else:
-            cur.execute("SELECT year, sum(inning_pitched_cnt), sum(inning_pitched_div3), sum(earned_runs) "
-                        "FROM cpbl.pitching_gamelog WHERE kind_code = %s GROUP BY year", (kind_code,))
-            lg = {}
-            for y, ipc, ip3, er in cur.fetchall():
-                ip = (ipc or 0) + (ip3 or 0) / 3
-                lg[y] = (er or 0) * 9 / ip if ip else None
+            cur.execute("SELECT sum(inning_pitched_cnt), sum(inning_pitched_div3), sum(earned_runs) "
+                        "FROM cpbl.pitching_gamelog WHERE kind_code = %s", (kind_code,))
+            lipc, lip3, ler = (x or 0 for x in cur.fetchone())
+            lgip = lipc + lip3 / 3
+            lg_era = ler * 9 / lgip if lgip else None
             cur.execute(
                 """
-                SELECT p.year, extract(month FROM g.game_date)::int AS m,
+                SELECT extract(month FROM g.game_date)::int AS m,
                     sum(p.inning_pitched_cnt), sum(p.inning_pitched_div3), sum(p.earned_runs),
-                    sum(p.so), sum(p.hits), sum(p.bb)
+                    sum(p.so), sum(p.hits), sum(p.bb), count(DISTINCT p.year)
                 FROM cpbl.pitching_gamelog p
                 JOIN cpbl.games g ON g.year = p.year AND g.kind_code = p.kind_code AND g.game_sno = p.game_sno
                 WHERE p.pitcher_acnt = %s AND p.kind_code = %s
-                GROUP BY 1, 2 ORDER BY 1, 2
+                GROUP BY 1 ORDER BY 1
                 """,
                 (player_id, kind_code),
             )
             items = []
-            for y, m, ipc, ip3, er, so, h, bb in cur.fetchall():
+            for m, ipc, ip3, er, so, h, bb, yrs in cur.fetchall():
                 ip = (ipc or 0) + (ip3 or 0) / 3
-                small = ip < 8
+                small = ip < 15  # 該月生涯局數太小
                 era = None if small or not ip else round((er or 0) * 9 / ip, 2)
                 whip = None if small or not ip else round(((bb or 0) + (h or 0)) / ip, 2)
-                lge = lg.get(y)
-                era_plus = round(100 * lge / era) if lge and era and era > 0 else None
+                era_plus = round(100 * lg_era / era) if lg_era and era and era > 0 else None
                 items.append({
-                    "name": f"{str(y)[2:]}/{m}", "t": round(y + (m - 1) / 12, 3),
+                    "name": f"{m}月", "m": m, "years": yrs,
                     "era": era, "whip": whip, "era_plus": era_plus,
                     "so": so, "hits": h, "bb": bb,
                 })
