@@ -1280,7 +1280,14 @@ def player_fielding(player_id: str, season: int = Query(DEFAULT_SEASON),
             cur.execute(
                 """
                 WITH u AS (
-                    SELECT year, pos, g, tc, po, a, e, dp, tp, pb, cs, sb AS sba
+                    -- fielding_seasons 守位為英文碼(LF/1B)、fielding_current 為中文(左外野手)；
+                    -- 統一轉中文再彙總，避免同守位分裂成兩列（重複 key）。
+                    SELECT year, CASE pos
+                             WHEN '1B' THEN '一壘手' WHEN '2B' THEN '二壘手' WHEN '3B' THEN '三壘手'
+                             WHEN 'SS' THEN '游擊手' WHEN 'C' THEN '捕手' WHEN 'P' THEN '投手'
+                             WHEN 'LF' THEN '左外野手' WHEN 'CF' THEN '中外野手' WHEN 'RF' THEN '右外野手'
+                             ELSE pos END AS pos,
+                           g, tc, po, a, e, dp, tp, pb, cs, sb AS sba
                     FROM cpbl.fielding_seasons WHERE player_id = %s
                     UNION ALL
                     SELECT year, pos, g, tc, po, a, e, dp, tp, pb, cs, sba
