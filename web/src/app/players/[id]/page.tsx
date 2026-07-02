@@ -616,6 +616,24 @@ export default function PlayerPage() {
                   {profile.former_names?.length > 0 && (
                     <p className="mt-0.5 text-[11px] text-faint">曾用名：{profile.former_names.join("、")}</p>
                   )}
+                  {(() => {
+                    const bio: string[] = [];
+                    if (profile.height_cm && profile.weight_kg)
+                      bio.push(`${profile.height_cm} cm / ${profile.weight_kg} kg`);
+                    if (profile.birthday) {
+                      const b = new Date(profile.birthday);
+                      const age = Math.floor((Date.now() - b.getTime()) / 31557600000);
+                      bio.push(`${profile.birthday}（${age} 歲）`);
+                    }
+                    if (profile.debut) bio.push(`初登場 ${profile.debut}`);
+                    if (profile.birthplace && profile.birthplace !== "中華民國")
+                      bio.push(`國籍 ${profile.birthplace}`);
+                    if (profile.education) bio.push(profile.education);
+                    if (profile.draft) bio.push(profile.draft);
+                    return bio.length > 0 ? (
+                      <p className="mt-1 text-xs text-muted">{bio.join(" · ")}</p>
+                    ) : null;
+                  })()}
                 </div>
                 {/* 本季數值：區塊右上角 */}
                 {s && role === "batting" && (

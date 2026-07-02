@@ -132,6 +132,13 @@ export type PlayerProfile = {
   country?: string | null;
   import_status?: "local" | "import" | "loree" | "nagata";
   import_label?: string | null;
+  birthday?: string | null;
+  height_cm?: number | null;
+  weight_kg?: number | null;
+  debut?: string | null;
+  education?: string | null;
+  birthplace?: string | null;
+  draft?: string | null;
 };
 export type ProfileData = { player: PlayerProfile | null };
 export type PlayerMatchupsData = {
