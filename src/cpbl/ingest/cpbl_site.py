@@ -85,7 +85,28 @@ def fetch_year(year: int, kind_code: str = KIND_REGULAR) -> list[dict]:
     return json.loads(payload["GameDatas"])  # GameDatas 是 JSON 字串
 
 
-def _to_record(g: dict) -> tuple:
+def _primary_entry(entries: list[dict]) -> dict:
+    """同 sno 多筆排程 entry 中選主記錄：已開打(PresentStatus=1)優先，再取最新 GameDate。"""
+    played = [e for e in entries if _i(e.get("PresentStatus")) == 1]
+    pool = played or entries
+    return max(pool, key=lambda e: (_parse_date(e.get("GameDate")) or date.min))
+
+
+def _delay_meta(entries: list[dict]) -> tuple[str | None, date | None]:
+    """由同 sno 的排程歷程推導延賽/保留：GameResult 2=保留(已開賽中止) 優先於 1=延賽。
+    orig_date：保留取該場開賽日、延賽取最早原定日（可能多次延期）。"""
+    def _od(e: dict) -> date | None:
+        return _parse_date(e.get("PreExeDate")) or _parse_date(e.get("GameDate"))
+    r2 = [d for e in entries if str(e.get("GameResult")) == "2" and (d := _od(e))]
+    if r2:
+        return "保留", min(r2)
+    r1 = [d for e in entries if str(e.get("GameResult")) == "1" and (d := _od(e))]
+    if r1:
+        return "延賽", min(r1)
+    return None, None
+
+
+def _to_record(g: dict, delay_kind: str | None, orig_date: date | None) -> tuple:
     return (
         _i(g.get("Year")), g.get("KindCode"), g.get("GameSeasonCode"), _i(g.get("GameSno")),
         _parse_date(g.get("GameDate")), _i(g.get("PresentStatus")), g.get("FieldAbbe"),
@@ -95,11 +116,23 @@ def _to_record(g: dict) -> tuple:
         g.get("HomePitcherAcnt") or None, g.get("VisitingPitcherAcnt") or None,
         g.get("WinningPitcherAcnt") or None, g.get("LoserPitcherAcnt") or None,
         g.get("CloserAcnt") or None, g.get("MvpAcnt") or None,
+        delay_kind, orig_date,
     )
 
 
 def upsert_games(games: list[dict]) -> int:
-    records = [_to_record(g) for g in games if g.get("GameSno") is not None]
+    # 依 PK 聚合同 sno 的多筆排程 entry（延期/保留會回多筆），主記錄取完成場、
+    # delay_kind/orig_date 由整段歷程推導。
+    groups: dict[tuple, list[dict]] = {}
+    for g in games:
+        if g.get("GameSno") is None:
+            continue
+        pk = (_i(g.get("Year")), g.get("KindCode"), g.get("GameSeasonCode"), _i(g.get("GameSno")))
+        groups.setdefault(pk, []).append(g)
+    records = []
+    for entries in groups.values():
+        kind, orig = _delay_meta(entries)
+        records.append(_to_record(_primary_entry(entries), kind, orig))
     with conn() as c:
         c.cursor().executemany(
             """
@@ -108,9 +141,10 @@ def upsert_games(games: list[dict]) -> int:
                  home_team_code, home_team_name, away_team_code, away_team_name,
                  home_score, away_score,
                  home_starter_id, away_starter_id,
-                 winning_pitcher_id, losing_pitcher_id, closer_id, mvp_id)
+                 winning_pitcher_id, losing_pitcher_id, closer_id, mvp_id,
+                 delay_kind, orig_date)
             VALUES (%s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (year, kind_code, game_season_code, game_sno) DO UPDATE SET
                 game_date=EXCLUDED.game_date, present_status=EXCLUDED.present_status,
                 venue=EXCLUDED.venue,
@@ -120,7 +154,8 @@ def upsert_games(games: list[dict]) -> int:
                 home_starter_id=EXCLUDED.home_starter_id, away_starter_id=EXCLUDED.away_starter_id,
                 winning_pitcher_id=EXCLUDED.winning_pitcher_id,
                 losing_pitcher_id=EXCLUDED.losing_pitcher_id,
-                closer_id=EXCLUDED.closer_id, mvp_id=EXCLUDED.mvp_id
+                closer_id=EXCLUDED.closer_id, mvp_id=EXCLUDED.mvp_id,
+                delay_kind=EXCLUDED.delay_kind, orig_date=EXCLUDED.orig_date
             """,
             records,
         )

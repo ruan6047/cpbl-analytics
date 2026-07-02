@@ -1374,7 +1374,8 @@ def game_live(
                    away_team_name, away_team_code, away_score,
                    home_team_name, home_team_code, home_score,
                    home_starter_id, away_starter_id, winning_pitcher_id,
-                   losing_pitcher_id, closer_id, mvp_id
+                   losing_pitcher_id, closer_id, mvp_id, delay_kind, orig_date,
+                   present_status
             FROM cpbl.games WHERE year = %s AND kind_code = %s AND game_sno = %s
             """,
             (season, kind_code, game_sno),
