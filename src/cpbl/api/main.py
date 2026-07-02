@@ -1064,7 +1064,8 @@ def player_profile(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
             """, (player_id, season),
         )
         pit = cur.fetchone()
-        cur.execute("SELECT name, bats, throws, country FROM cpbl.players WHERE id = %s", (player_id,))
+        cur.execute("SELECT name, bats, throws, country, birthday, height_cm, weight_kg, "
+                    "debut, education, birthplace, draft FROM cpbl.players WHERE id = %s", (player_id,))
         meta = cur.fetchone()
         # 曾用名（改名）：gamelog 逐場記錄當時名字，取與現名不同者
         cur.execute(
@@ -1148,6 +1149,13 @@ def player_profile(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
             "country": country,
             "import_status": status,
             "import_label": imports.LABELS[status] if status != "local" else None,
+            "birthday": (meta[4].isoformat() if meta and meta[4] else None),
+            "height_cm": meta[5] if meta else None,
+            "weight_kg": meta[6] if meta else None,
+            "debut": meta[7] if meta else None,
+            "education": meta[8] if meta else None,
+            "birthplace": meta[9] if meta else None,
+            "draft": meta[10] if meta else None,
         }
     }
 

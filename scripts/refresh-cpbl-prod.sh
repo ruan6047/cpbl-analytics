@@ -82,6 +82,9 @@ sync_table wiki_tenures "player_id,phase,seq" team_raw role from_year to_year so
 sync_table wiki_medals "player_id,seq" color competition event year source
 sync_table wiki_awards "player_id,seq" award note years source
 sync_table retired_numbers "team_code,number" holder_type player_id holder_name retired_year status note source needs_review
+sync_table players "id" \
+  name full_name handedness bats throws birthday country \
+  height_cm weight_kg debut education birthplace draft bio_updated_at
 sync_table team_standings "year,kind_code,season_code,team_code" \
   team_name rank g w t l win_pct gb elim home_record away_record streak last10 h2h
 
