@@ -73,7 +73,7 @@ function ScoreBar({ game, e, records }: { game: StatRow; e: StatRow; records: Re
 
   const side = (code: string, name: StatRow[string], rec: Rec | undefined, alignRight: boolean) => (
     <div className={`flex items-center gap-3 ${alignRight ? "flex-row-reverse text-right" : ""}`}>
-      <TeamLogo code={code} size={40} />
+      <TeamLogo code={code} name={String(name ?? "")} size={40} />
       <div>
         <div className="text-base font-bold leading-tight">{String(name ?? "")}</div>
         <div className="font-mono text-xs text-faint">{rec ? `${rec.w}-${rec.l}` : ""}</div>

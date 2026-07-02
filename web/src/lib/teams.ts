@@ -75,6 +75,19 @@ const NAME_CODE: Record<string, string> = {
   富邦悍將: "AEO011", 樂天桃猿: "AJL011", 台鋼雄鷹: "AKP011",
 };
 export const codeFromName = (name?: string | null) => (name && NAME_CODE[name]) || null;
+
+// 歷史隊資料常只存簡稱(三商/興農/中信鯨…)；顯示補成完整隊名。現役全名不變。
+const FULL_NAME: Record<string, string> = {
+  "三商": "三商虎", "興農": "興農牛", "中信": "中信鯨", "誠泰": "誠泰COBRAS",
+  "兄弟": "兄弟象", "義大": "義大犀牛", "俊國": "俊國熊", "時報": "時報鷹",
+  "米迪亞": "米迪亞暴龍", "第一": "第一金剛",
+};
+export const teamFullName = (name?: string | null): string => {
+  if (!name) return "";
+  const farm = name.endsWith("二軍");
+  const base = farm ? name.slice(0, -2) : name;
+  return (FULL_NAME[base] ?? base) + (farm ? "二軍" : "");
+};
 export const colorFromName = (name?: string | null) => teamColor(codeFromName(name));
 
 // 統一「隊名 → 隊色/字母」解析（含現役全名/簡稱 + 歷史隊 + 二軍後綴）。

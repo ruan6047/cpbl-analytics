@@ -2,6 +2,7 @@ import Link from "next/link";
 import { TeamLogo } from "@/components/ui";
 import { YearSelect } from "@/components/year-select";
 import { api } from "@/lib/api";
+import { teamFullName } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
@@ -61,10 +62,10 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
                   <>
                     <div className="space-y-1.5">
                       <div className={`flex items-center gap-2 ${awayWin ? "font-semibold" : "text-muted"}`}>
-                        <TeamLogo code={g.away_team_code} size={18} />{g.away_team_name}
+                        <TeamLogo code={g.away_team_code} name={g.away_team_name} size={18} />{teamFullName(g.away_team_name)}
                       </div>
                       <div className={`flex items-center gap-2 ${!awayWin ? "font-semibold" : "text-muted"}`}>
-                        <TeamLogo code={g.home_team_code} size={18} />{g.home_team_name}
+                        <TeamLogo code={g.home_team_code} name={g.home_team_name} size={18} />{teamFullName(g.home_team_name)}
                       </div>
                     </div>
                     <div className="space-y-1 text-right font-mono tabular-nums">

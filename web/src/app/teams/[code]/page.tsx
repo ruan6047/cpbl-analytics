@@ -4,7 +4,7 @@ import { StandingsTrend } from "@/components/standings-trend";
 import { ActivePill, Card, EraBadge, StatTile, TeamLogo } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { SpecialRecord, WL, WTL } from "@/lib/api";
-import { contrastText, teamColor } from "@/lib/teams";
+import { contrastText, nameMeta, teamColor } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
@@ -119,7 +119,9 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
   const displayName = team?.team_name ?? lastEra?.name ?? code;
   const adv = team ? derived.standings.find((d) => d.code === code) : undefined;
   const sp = team ? special.items.find((s) => s.team_code === code) : undefined;
-  const color = teamColor(code);
+  // 歷史/已解散隊：以隊名取 era-correct 隊色(如 三商虎 水藍)；現役 fallback 到 franchise 色。
+  const _bd = nameMeta(displayName);
+  const color = _bd.letter !== "?" ? _bd.color : teamColor(code);
   const ink = contrastText(color);
 
   const teamGames = team ? games.items
@@ -134,7 +136,7 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
     <div className="space-y-8">
       {/* Hero */}
       <div className="flex flex-wrap items-center gap-4 rounded-2xl p-6" style={{ background: color, color: ink }}>
-        <TeamLogo code={code} size={56} />
+        <TeamLogo code={code} name={displayName} size={56} />
         <div>
           <div className="flex items-center gap-2 text-2xl font-bold">
             {displayName}
@@ -408,7 +410,7 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
                     <td className="px-3 py-2 text-muted">{home ? "主" : "客"}</td>
                     <td className="px-3 py-2 font-sans">
                       <Link href={`/teams/${oppCode}`} className="inline-flex items-center gap-1.5 hover:underline">
-                        <TeamLogo code={oppCode} size={18} />{oppName}
+                        <TeamLogo code={oppCode} name={oppName} size={18} />{oppName}
                       </Link>
                     </td>
                     <td className={`px-3 py-2 font-semibold ${win ? "text-up" : us === them ? "text-muted" : "text-down"}`}>
