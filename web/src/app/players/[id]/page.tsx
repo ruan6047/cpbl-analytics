@@ -384,7 +384,6 @@ export default function PlayerPage() {
   const [vsTeam, setVsTeam] = useState<StatRow[] | null>(null);
   const [career, setCareer] = useState<StatRow[] | null>(null);
   const [careerMonthly, setCareerMonthly] = useState<StatRow[] | null>(null);
-  const [careerBucket, setCareerBucket] = useState("half");
   const [careerStats, setCareerStats] = useState<Awaited<ReturnType<typeof detail.careerStats>> | null>(null);
   const [ability, setAbility] = useState<Awaited<ReturnType<typeof detail.abilityCard>> | null>(null);
   const [trend, setTrend] = useState<StatRow[] | null>(null);
@@ -430,11 +429,11 @@ export default function PlayerPage() {
     detail.career(id, role).then((d) => setCareer(d.seasons)).catch(() => setCareer([]));
   }, [id, role]);
 
-  // 生涯時段分項：依粒度(月/半月/旬/週)重抓
+  // 生涯時段分項：固定以「週」跨年合併
   useEffect(() => {
     setCareerMonthly(null);
-    detail.trendCareer(id, role, careerBucket).then((d) => setCareerMonthly(d.items)).catch(() => setCareerMonthly([]));
-  }, [id, role, careerBucket]);
+    detail.trendCareer(id, role, "week").then((d) => setCareerMonthly(d.items)).catch(() => setCareerMonthly([]));
+  }, [id, role]);
 
   // 逐球追蹤（好球帶紀律 + 配球傾向）+ 當季守備隨一/二軍鏡頭切換：二軍有獨立樣本
   useEffect(() => {
@@ -1077,7 +1076,7 @@ export default function PlayerPage() {
           <Card className="h-full">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-medium text-muted">{effTrend === "career" ? `生涯各${({ month: "月", half: "半月", third: "旬", week: "週" } as Record<string, string>)[careerBucket]}（跨年合併）` : (metric.roll ? "賽季走勢（近 15 場滾動）" : "賽季走勢（每 7 天）")}</h3>
+                <h3 className="text-sm font-medium text-muted">{effTrend === "career" ? "生涯各週（跨年合併）" : (metric.roll ? "賽季走勢（近 15 場滾動）" : "賽季走勢（每 7 天）")}</h3>
                 {careerTrendData.length > 1 && monthData.length > 0 && (
                   <div className="inline-flex overflow-hidden rounded-full border border-line text-[11px]">
                     {(["season", "career"] as const).map((s) => (
@@ -1089,21 +1088,10 @@ export default function PlayerPage() {
                   </div>
                 )}
               </div>
-              <div className="flex items-center gap-1.5">
-                {effTrend === "career" && (
-                  <select value={careerBucket} onChange={(e) => setCareerBucket(e.target.value)}
-                    title="生涯時段粒度" className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink outline-none focus:border-ink">
-                    <option value="month">月</option>
-                    <option value="half">半月</option>
-                    <option value="third">旬</option>
-                    <option value="week">週</option>
-                  </select>
-                )}
-                <select value={monthMetric} onChange={(e) => setMonthMetric(e.target.value)}
-                  className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink outline-none focus:border-ink">
-                  {metrics.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
-                </select>
-              </div>
+              <select value={monthMetric} onChange={(e) => setMonthMetric(e.target.value)}
+                className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink outline-none focus:border-ink">
+                {metrics.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
+              </select>
             </div>
             {trendData.length === 0 ? <p className="py-8 text-center text-sm text-faint">無資料</p> : (
               <ResponsiveContainer width="100%" height={220}>
