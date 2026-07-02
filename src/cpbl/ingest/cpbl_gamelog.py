@@ -118,6 +118,53 @@ _LL_COLS = ("year,kind_code,game_sno,main_event_no,inning_seq,visiting_home_type
             "is_change_player,is_special_event,visiting_score,home_score")
 
 
+_GD_COLS = ("year,kind_code,game_sno,attendance,game_time,"
+            "head_umpire,first_umpire,second_umpire,third_umpire,left_umpire,right_umpire")
+_GD_UMP = {"主審": "head", "一壘審": "first", "二壘審": "second", "三壘審": "third",
+           "左外野審": "left", "右外野審": "right"}
+_GD_LI = re.compile(r"<li><span>([^<]+)</span>([^<]*)</li>")
+
+
+def _parse_game_detail(html: str) -> dict:
+    """box 頁 HTML 的「裁判 / 比賽時間 / 觀眾人數」區（皆 <li><span>標籤</span>值</li>）。"""
+    d: dict = {}
+    for label, val in _GD_LI.findall(html):
+        v = val.strip()
+        if not v:
+            continue
+        if label in _GD_UMP:
+            d[_GD_UMP[label] + "_umpire"] = v
+        elif label == "時間":
+            d["game_time"] = v
+        elif label == "觀眾":
+            d["attendance"] = _i(v)
+    return d
+
+
+def scrape_game_details(year: int, snos: list[int], kind_code: str = KIND_REGULAR, delay: float = 0.7) -> int:
+    """每場觀眾人數 + 裁判 + 時長（box 頁 HTML）。冪等 UPSERT，回寫入場數。"""
+    if not snos:
+        return 0
+    from cpbl.ingest._browser import session
+    s = session()
+    rows: list[tuple] = []
+    for sno in snos:
+        time.sleep(delay)
+        try:
+            d = _parse_game_detail(s.page_html(f"/box?year={year}&KindCode={kind_code}&gameSno={sno}"))
+        except Exception as e:  # noqa: BLE001 — 單場失敗略過
+            log.warning("box 細節失敗 sno=%s: %s", sno, e)
+            continue
+        if not d:
+            continue
+        rows.append((year, kind_code, sno, d.get("attendance"), d.get("game_time"),
+                     d.get("head_umpire"), d.get("first_umpire"), d.get("second_umpire"),
+                     d.get("third_umpire"), d.get("left_umpire"), d.get("right_umpire")))
+    n = _upsert("game_detail", _GD_COLS, 3, rows)
+    log.info("game_detail: %d 場 (year=%s kind=%s)", n, year, kind_code)
+    return n
+
+
 def _upsert(table: str, cols: str, n_pk: int, records: list[tuple]) -> int:
     if not records:
         return 0

@@ -115,6 +115,8 @@ if [ -n "${WITH_DETAIL:-}" ]; then
     item_note wins loses starts complete_games shutouts save_ok inning_pitched_cnt \
     inning_pitched_div3 plate_appearances pitch_cnt strikes balls hits home_runs sac_hit sac_fly bb ibb \
     hbp so wild_pitch balk runs earned_runs
+  sync_table game_detail "year,kind_code,game_sno" \
+    attendance game_time head_umpire first_umpire second_umpire third_umpire left_umpire right_umpire
   sync_table game_scoreboard "year,kind_code,game_sno,team_no,inning_seq" \
     visiting_home_type team_name score_cnt hitting_cnt error_cnt
   sync_table game_livelog "year,kind_code,game_sno,main_event_no" \

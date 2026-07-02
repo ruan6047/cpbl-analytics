@@ -26,7 +26,7 @@ from cpbl.ingest import cpbl_player_detail
 from cpbl.ingest.championships import build_championships
 from cpbl.ingest.cpbl_advanced import scrape_advanced
 from cpbl.ingest.cpbl_fighting import YEAR_CAREER, scrape_matchups
-from cpbl.ingest.cpbl_gamelog import scrape_gamelogs
+from cpbl.ingest.cpbl_gamelog import scrape_game_details, scrape_gamelogs
 from cpbl.ingest.cpbl_pitch_tracking import scrape_pitches
 from cpbl.ingest.cpbl_site import lineup_acnts, scrape_games
 from cpbl.ingest.cpbl_standings import scrape_standings
@@ -95,6 +95,7 @@ def _farm_detail(year: int, days: list[date], delay: float = 1.2) -> dict:
     if not d_snos:
         return {"skipped": "近兩日無二軍完成場"}
     gamelog = scrape_gamelogs(year, d_snos, "D")
+    scrape_game_details(year, d_snos, "D")  # 觀眾/裁判/時長
     batters, pitchers = lineup_acnts(year, d_snos, "D")
     rb, rp = sorted(batters), sorted(pitchers)
     # 二軍投打對決（當日對手隊, kind=D；不過濾投手＝完整涵蓋二軍對戰）
@@ -121,6 +122,7 @@ def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict
         return {"skipped": "近兩日無一軍完成場", "farm": farm}
     # 賽況（逐局比分 + 逐打席事件）：當日完成場
     gamelog = scrape_gamelogs(year, snos)
+    scrape_game_details(year, snos, "A")  # 觀眾/裁判/時長
     batters_played, pitchers_played = lineup_acnts(year, snos)
     cur_b, cur_p = _roster_ids("batting_current"), _roster_ids("pitching_current")
     rb = sorted(batters_played & cur_b)
