@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { LaEvScatter } from "@/components/la-ev-scatter";
 import { SprayChart } from "@/components/spray-chart";
 import { AbilityCard, GradeChip } from "@/components/ability-card";
@@ -164,19 +164,22 @@ function CompositionPie({ items, m }: { items: { k: string; label: string }[]; m
   );
 }
 
-type Metric = { key: string; label: string; dp: number; get: (r: StatRow) => number | null };
+// roll=近15場滾動(rate/adjusted，看冷熱手)；無 roll=累積配速線(計數型)。ref=基準參考線。
+type Metric = { key: string; label: string; dp: number; get: (r: StatRow) => number | null; roll?: boolean; ref?: number };
 const BAT_METRICS: Metric[] = [
-  { key: "ops", label: "OPS", dp: 3, get: (r) => numOf(r.ops) },
-  { key: "avg", label: "打擊率", dp: 3, get: (r) => numOf(r.avg) },
-  { key: "obp", label: "上壘率", dp: 3, get: (r) => numOf(r.obp) },
-  { key: "slg", label: "長打率", dp: 3, get: (r) => numOf(r.slg) },
+  { key: "ops_plus", label: "OPS+", dp: 0, get: (r) => numOf(r.ops_plus), roll: true, ref: 100 },
+  { key: "ops", label: "OPS", dp: 3, get: (r) => numOf(r.ops), roll: true },
+  { key: "avg", label: "打擊率", dp: 3, get: (r) => numOf(r.avg), roll: true },
+  { key: "obp", label: "上壘率", dp: 3, get: (r) => numOf(r.obp), roll: true },
+  { key: "slg", label: "長打率", dp: 3, get: (r) => numOf(r.slg), roll: true },
   { key: "hits", label: "安打", dp: 0, get: (r) => numOf(r.hits) },
   { key: "home_runs", label: "全壘打", dp: 0, get: (r) => numOf(r.home_runs) },
   { key: "rbi", label: "打點", dp: 0, get: (r) => numOf(r.rbi) },
 ];
 const PIT_METRICS: Metric[] = [
-  { key: "era", label: "ERA", dp: 2, get: (r) => (r.era != null ? numOf(r.era) : eraOf(r)) },
-  { key: "whip", label: "WHIP", dp: 2, get: (r) => numOf(r.whip) },
+  { key: "era_plus", label: "ERA+", dp: 0, get: (r) => numOf(r.era_plus), roll: true, ref: 100 },
+  { key: "era", label: "ERA", dp: 2, get: (r) => (r.era != null ? numOf(r.era) : eraOf(r)), roll: true },
+  { key: "whip", label: "WHIP", dp: 2, get: (r) => numOf(r.whip), roll: true },
   { key: "so", label: "三振", dp: 0, get: (r) => numOf(r.so) },
   { key: "hits", label: "被安打", dp: 0, get: (r) => numOf(r.hits) },
   { key: "bb", label: "四壞", dp: 0, get: (r) => numOf(r.bb) },
@@ -383,7 +386,7 @@ export default function PlayerPage() {
   const [ability, setAbility] = useState<Awaited<ReturnType<typeof detail.abilityCard>> | null>(null);
   const [trend, setTrend] = useState<StatRow[] | null>(null);
   const [splits, setSplits] = useState<StatRow[] | null>(null);
-  const [monthMetric, setMonthMetric] = useState("ops");
+  const [monthMetric, setMonthMetric] = useState("ops_plus");
   const [trendScope, setTrendScope] = useState<"season" | "career">("season");
   // 本季成績層級：二軍選手預設採計二軍(D)、可切換看一軍(A)。
   const [seasonKind, setSeasonKind] = useState<"A" | "D">("A");
@@ -415,7 +418,7 @@ export default function PlayerPage() {
   }, [id, seasonKind]);
 
   useEffect(() => {
-    setMonthMetric(role === "batting" ? "ops" : "era");
+    setMonthMetric(role === "batting" ? "ops_plus" : "era_plus");
     setTrend(null);
     setVsTeam(null);
     setCareer(null);
@@ -1048,7 +1051,7 @@ export default function PlayerPage() {
           <Card className="h-full">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-medium text-muted">{effTrend === "career" ? "逐年走勢（生涯）" : "賽季走勢（逐場累積）"}</h3>
+                <h3 className="text-sm font-medium text-muted">{effTrend === "career" ? "逐年走勢（生涯）" : (metric.roll ? "賽季走勢（近 15 場滾動）" : "賽季走勢（逐場累積）")}</h3>
                 {careerTrendData.length > 1 && monthData.length > 0 && (
                   <div className="inline-flex overflow-hidden rounded-full border border-line text-[11px]">
                     {(["season", "career"] as const).map((s) => (
@@ -1073,7 +1076,12 @@ export default function PlayerPage() {
                   <YAxis {...axis} domain={["auto", "auto"]} />
                   <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 12 }}
                     formatter={(v: number) => v?.toFixed(metric.dp)} />
+                  {metric.ref != null && effTrend === "season" && (
+                    <ReferenceLine y={metric.ref} stroke="#94a3b8" strokeDasharray="4 3"
+                      label={{ value: `聯盟 ${metric.ref}`, position: "insideTopRight", fill: "#94a3b8", fontSize: 10 }} />
+                  )}
                   <Line type="monotone" dataKey="v" name={metric.label} stroke="#0a2540" strokeWidth={2}
+                    isAnimationActive={false} connectNulls
                     dot={trendData.length > 18 ? false : { r: 3, fill: "#d62839" }} />
                 </LineChart>
               </ResponsiveContainer>

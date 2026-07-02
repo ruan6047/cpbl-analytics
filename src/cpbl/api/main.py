@@ -2512,73 +2512,98 @@ def player_trend(
     season: int = Query(DEFAULT_SEASON),
     kind_code: str = Query("A"),
 ) -> dict:
-    """逐場「累積季成績」趨勢：逐場依日期累積計數型，並現算 rate stat。
-    比月份桶（最多 ~6 點）細，每場一點且隨賽季收斂到當季數字。"""
+    """逐場趨勢：rate 型用「近 N 場滾動」（累積 rate 會收斂拉平、看不出冷熱手），
+    計數型維持累積配速線；另附滾動 OPS+/ERA+（季聯盟基準；100=聯盟均值，一軍才有）。"""
+    n_roll = 15  # 滾動視窗場數（rate/OPS+/ERA+ 用；資料充足時最能表現近況）
+    r3 = lambda v: round(v, 3) if v is not None else None  # noqa: E731
     with conn() as c:
         cur = c.cursor()
         if role == "batting":
+            lg_obp = lg_slg = None
+            if kind_code == "A":  # OPS+ 聯盟基準（僅一軍有）
+                cur.execute("SELECT sum(ab), sum(h), sum(bb), sum(hbp), sum(sf), sum(tb) "
+                            "FROM cpbl.batting_current WHERE year = %s", (season,))
+                lab, lh, lbb, lhbp, lsf, ltb = (x or 0 for x in cur.fetchone())
+                lg_obp = (lh + lbb + lhbp) / (lab + lbb + lhbp + lsf) if (lab + lbb + lhbp + lsf) else None
+                lg_slg = ltb / lab if lab else None
             cur.execute(
-                """
+                f"""
                 SELECT g.game_date,
-                    sum(b.at_bats)     OVER w AS ab,
-                    sum(b.hits)        OVER w AS h,
-                    sum(b.bb)          OVER w AS bb,
-                    sum(b.hbp)         OVER w AS hbp,
-                    sum(b.sac_fly)     OVER w AS sf,
-                    sum(b.total_bases) OVER w AS tb,
-                    sum(b.home_runs)   OVER w AS hr,
-                    sum(b.rbi)         OVER w AS rbi
+                    sum(b.hits)      OVER cum  AS h_c,
+                    sum(b.home_runs) OVER cum  AS hr_c,
+                    sum(b.rbi)       OVER cum  AS rbi_c,
+                    sum(b.at_bats)     OVER roll AS ab_r,
+                    sum(b.hits)        OVER roll AS h_r,
+                    sum(b.bb)          OVER roll AS bb_r,
+                    sum(b.hbp)         OVER roll AS hbp_r,
+                    sum(b.sac_fly)     OVER roll AS sf_r,
+                    sum(b.total_bases) OVER roll AS tb_r
                 FROM cpbl.batting_gamelog b
                 JOIN cpbl.games g
                   ON g.year = b.year AND g.kind_code = b.kind_code AND g.game_sno = b.game_sno
                 WHERE b.hitter_acnt = %s AND b.year = %s AND b.kind_code = %s
-                WINDOW w AS (ORDER BY g.game_date, b.game_sno
-                             ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+                WINDOW cum  AS (ORDER BY g.game_date, b.game_sno ROWS UNBOUNDED PRECEDING),
+                       roll AS (ORDER BY g.game_date, b.game_sno
+                                ROWS BETWEEN {n_roll - 1} PRECEDING AND CURRENT ROW)
                 ORDER BY g.game_date, b.game_sno
                 """,
                 (player_id, season, kind_code),
             )
             items = []
-            for i, (d, ab, h, bb, hbp, sf, tb, hr, rbi) in enumerate(cur.fetchall(), 1):
+            for i, (d, h_c, hr_c, rbi_c, ab, h, bb, hbp, sf, tb) in enumerate(cur.fetchall(), 1):
                 ab = ab or 0
                 pa_ob = ab + (bb or 0) + (hbp or 0) + (sf or 0)
-                avg = h / ab if ab else None
-                obp = ((h or 0) + (bb or 0) + (hbp or 0)) / pa_ob if pa_ob else None
-                slg = (tb or 0) / ab if ab else None
+                small = ab < 30  # 滾動樣本太小(早季未滿窗)→ rate 過度波動,不輸出免尖刺
+                obp = None if small else (((h or 0) + (bb or 0) + (hbp or 0)) / pa_ob if pa_ob else None)
+                slg = None if small else ((tb or 0) / ab if ab else None)
                 ops = (obp + slg) if obp is not None and slg is not None else None
-                r3 = lambda v: round(v, 3) if v is not None else None  # noqa: E731
+                ops_plus = (round(100 * (obp / lg_obp + slg / lg_slg - 1))
+                            if obp is not None and slg is not None and lg_obp and lg_slg else None)
                 items.append({
                     "name": f"{d.month}/{d.day}", "g": i,
-                    "avg": r3(avg), "obp": r3(obp), "slg": r3(slg), "ops": r3(ops),
-                    "hits": h, "home_runs": hr, "rbi": rbi,
+                    "avg": None if small else r3(h / ab if ab else None),
+                    "obp": r3(obp), "slg": r3(slg), "ops": r3(ops),
+                    "ops_plus": ops_plus, "hits": h_c, "home_runs": hr_c, "rbi": rbi_c,
                 })
         else:
+            lg_era = None
+            if kind_code == "A":  # ERA+ 聯盟基準
+                cur.execute("SELECT ip, er FROM cpbl.pitching_current WHERE year = %s AND ip IS NOT NULL", (season,))
+                lr = cur.fetchall()
+                lg_ip = sum(_real_ip(r[0]) for r in lr)
+                lg_era = sum(r[1] or 0 for r in lr) * 9 / lg_ip if lg_ip else None
             cur.execute(
-                """
+                f"""
                 SELECT g.game_date,
-                    sum(p.inning_pitched_cnt)  OVER w AS ipc,
-                    sum(p.inning_pitched_div3) OVER w AS ip3,
-                    sum(p.earned_runs)         OVER w AS er,
-                    sum(p.so)                  OVER w AS so,
-                    sum(p.hits)                OVER w AS h,
-                    sum(p.bb)                  OVER w AS bb
+                    sum(p.so)                  OVER cum  AS so_c,
+                    sum(p.hits)                OVER cum  AS h_c,
+                    sum(p.bb)                  OVER cum  AS bb_c,
+                    sum(p.inning_pitched_cnt)  OVER roll AS ipc,
+                    sum(p.inning_pitched_div3) OVER roll AS ip3,
+                    sum(p.earned_runs)         OVER roll AS er,
+                    sum(p.hits)                OVER roll AS h_r,
+                    sum(p.bb)                  OVER roll AS bb_r
                 FROM cpbl.pitching_gamelog p
                 JOIN cpbl.games g
                   ON g.year = p.year AND g.kind_code = p.kind_code AND g.game_sno = p.game_sno
                 WHERE p.pitcher_acnt = %s AND p.year = %s AND p.kind_code = %s
-                WINDOW w AS (ORDER BY g.game_date, p.game_sno
-                             ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+                WINDOW cum  AS (ORDER BY g.game_date, p.game_sno ROWS UNBOUNDED PRECEDING),
+                       roll AS (ORDER BY g.game_date, p.game_sno
+                                ROWS BETWEEN {n_roll - 1} PRECEDING AND CURRENT ROW)
                 ORDER BY g.game_date, p.game_sno
                 """,
                 (player_id, season, kind_code),
             )
             items = []
-            for i, (d, ipc, ip3, er, so, h, bb) in enumerate(cur.fetchall(), 1):
+            for i, (d, so_c, h_c, bb_c, ipc, ip3, er, h_r, bb_r) in enumerate(cur.fetchall(), 1):
                 ip = (ipc or 0) + (ip3 or 0) / 3
-                era = round((er or 0) * 9 / ip, 2) if ip else None
-                whip = round(((bb or 0) + (h or 0)) / ip, 2) if ip else None
+                small = ip < 10  # 滾動局數太小(早季未滿窗)→ rate 過度波動,不輸出
+                era = None if small or not ip else round((er or 0) * 9 / ip, 2)
+                whip = None if small or not ip else round(((bb_r or 0) + (h_r or 0)) / ip, 2)
+                era_plus = round(100 * lg_era / era) if lg_era and era and era > 0 else None
                 items.append({
                     "name": f"{d.month}/{d.day}", "g": i,
-                    "era": era, "whip": whip, "so": so, "hits": h, "bb": bb,
+                    "era": era, "whip": whip, "era_plus": era_plus,
+                    "so": so_c, "hits": h_c, "bb": bb_c,
                 })
-    return {"player_id": player_id, "role": role, "items": items}
+    return {"player_id": player_id, "role": role, "items": items, "roll": n_roll}
