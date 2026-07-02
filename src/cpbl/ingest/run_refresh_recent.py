@@ -124,7 +124,7 @@ def _farm_detail(year: int, days: list[date], delay: float = 1.2) -> dict:
     # 二軍官方進階（leaderboard JSON API，gameKind=D；bulk 一次全抓再濾當日出賽者）
     adv = (scrape_advanced(year, [(a, "batting") for a in rb] + [(a, "pitching") for a in rp], kind_code="D")
            if (rb or rp) else 0)
-    pitches = scrape_pitches(rp, kind_default="D", delay=delay) if rp else {"pitchers": 0, "pitches": 0}
+    pitches = scrape_pitches(rp, year, kind_code="D", delay=delay) if rp else {"pitchers": 0, "pitches": 0}
     return {"completed_games": len(d_snos), "gamelog": gamelog,
             "lineup_batters": len(rb), "lineup_pitchers": len(rp),
             "matchup_rows": m, "splits": det, "advanced": adv, "pitches": pitches}
@@ -154,8 +154,8 @@ def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict
     d = cpbl_player_detail.scrape(delay=delay, batter_ids=rb, pitcher_ids=rp)
     # 官方進階：當日上場選手（打者進攻 / 投手被打）
     adv = scrape_advanced(year, [(a, "batting") for a in rb] + [(a, "pitching") for a in rp], delay=delay)
-    # 逐球 TrackMan：當日上場投手（自其頁面，當天場次仍在視窗內）
-    pitches = scrape_pitches(rp, delay=delay) if rp else {"pitchers": 0, "pitches": 0}
+    # 逐球 TrackMan：當日上場投手（logs API，該季全場次一次抓）
+    pitches = scrape_pitches(rp, year, delay=delay) if rp else {"pitchers": 0, "pitches": 0}
     return {"completed_games": len(snos), "gamelog": gamelog,
             "lineup_batters": len(rb), "lineup_pitchers": len(rp),
             "matchup_rows": m, "advanced": adv, "pitches": pitches, "farm": farm, **d}

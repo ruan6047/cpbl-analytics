@@ -1,14 +1,18 @@
-"""逐球 TrackMan 追蹤資料爬蟲（stats.cpbl 投手頁）。
+"""逐球 TrackMan 追蹤資料爬蟲（stats.cpbl logs API）。
 
-每位投手頁的 RSC 內嵌其本季每球（含 trackman.pitch.release/location、hit.launch/landingFlat）。
-以括號配對擷取每筆含 trackman 的事件物件並 json.loads（實測可 100% 解析）。冪等 UPSERT。
+改走官方 JSON API `/api/proxy/v1/players/logs`（取代舊版解析投手頁 RSC __next_f 的
+括號配對）：更穩、乾淨，且支援 kindCode A/C/D/E（一軍/一軍季後/二軍/二軍季後），
+可完整補二軍與季後逐球。API 依 kindCode server-side 過濾，故不會跨 kind 重複。
+
+回應結構：{"Data":{"Logs":[{...,"Trackman":{"Play":{"PitchTag":{…}},
+"Pitch":{"Release":{…},"Location":{…}},"Hit":{"Launch":{…},"LandingFlat":{…}}}}]}}。
+無 TrackMan 設備球場的球 Trackman=null → 不收（與舊版語意一致）。冪等 UPSERT。
 """
 
 from __future__ import annotations
 
-import json
+import datetime as _dt
 import logging
-import re
 import time
 
 import httpx
@@ -18,38 +22,8 @@ from cpbl.db import conn
 log = logging.getLogger("cpbl.pitch")
 
 BASE = "https://stats.cpbl.com.tw"
+LOGS_EP = f"{BASE}/api/proxy/v1/players/logs"
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
-_PUSH_RE = re.compile(r'self\.__next_f\.push\(\[1,"((?:[^"\\]|\\.)*)"\]\)')
-_REC_RE = re.compile(r'"trackman":\{"play"')
-
-
-def _payload(client: httpx.Client, acnt: str) -> str:
-    html = client.get(f"{BASE}/players/{acnt}").text
-    return "".join(_PUSH_RE.findall(html)).encode().decode("unicode_escape", errors="replace")
-
-
-def _enclosing(s: str, i: int) -> str:
-    depth, j = 0, i
-    while j > 0:
-        c = s[j]
-        if c == "}":
-            depth += 1
-        elif c == "{":
-            if depth == 0:
-                break
-            depth -= 1
-        j -= 1
-    depth, k = 0, j
-    while k < len(s):
-        c = s[k]
-        if c == "{":
-            depth += 1
-        elif c == "}":
-            depth -= 1
-            if depth == 0:
-                break
-        k += 1
-    return s[j:k + 1]
 
 
 def _f(v) -> float | None:
@@ -66,29 +40,38 @@ def _i(v) -> int | None:
         return None
 
 
-def _record(r: dict, kind_default: str) -> tuple | None:
-    tm = r.get("trackman") or {}
-    tag = (tm.get("play") or {}).get("pitchTag") or {}
-    pit = tm.get("pitch") or {}
-    rel = pit.get("release") or {}
-    loc = pit.get("location") or {}
-    hit = tm.get("hit") or {}
-    launch = hit.get("launch") or {}
-    land = hit.get("landingFlat") or {}
-    sno, pcnt, pacnt = _i(r.get("gameSno")), _i(r.get("pitchCnt")), r.get("pitcherAcnt")
+def _fetch_logs(client: httpx.Client, acnt: str, year: int, kind_code: str) -> list[dict]:
+    r = client.get(LOGS_EP, params={
+        "playerType": "pitcher", "acnt": acnt, "year": str(year), "kindCode": kind_code})
+    r.raise_for_status()
+    return (r.json().get("Data") or {}).get("Logs") or []
+
+
+def _record(p: dict, kind_default: str) -> tuple | None:
+    tm = p.get("Trackman")
+    if not tm:  # 無 TrackMan 設備球場 → 不收（同舊版）
+        return None
+    tag = (tm.get("Play") or {}).get("PitchTag") or {}
+    pit = tm.get("Pitch") or {}
+    rel = pit.get("Release") or {}
+    loc = pit.get("Location") or {}
+    hit = tm.get("Hit") or {}
+    launch = hit.get("Launch") or {}
+    land = hit.get("LandingFlat") or {}
+    sno, pcnt, pacnt = _i(p.get("GameSno")), _i(p.get("PitchCnt")), p.get("PitcherAcnt")
     if sno is None or pcnt is None or not pacnt:
         return None
     return (
-        _i(r.get("year")), r.get("kindCode") or kind_default, sno, pacnt, pcnt,
-        r.get("pitcherName"), r.get("hitterAcnt"), r.get("hitterName"),
-        _i(r.get("inningSeq")), _i(r.get("ballCnt")), _i(r.get("strikeCnt")), _i(r.get("outCnt")),
-        _i(r.get("battingOrder")), r.get("content"),
-        tag.get("pitchCall"), tag.get("autoPitchType"), tag.get("taggedPitchType"),
-        _f(rel.get("relSpeed")), _f(rel.get("spinRate")), _f(rel.get("relSide")),
-        _f(rel.get("relHeight")), _f(rel.get("extension")),
-        _f(loc.get("zoneSpeed")), _f(loc.get("plateLocSide")), _f(loc.get("plateLocHeight")),
-        _f(launch.get("exitSpeed")), _f(launch.get("angle")), _f(launch.get("direction")),
-        _f(land.get("distance")), _f(land.get("hangTime")),
+        _i(p.get("Year")), p.get("KindCode") or kind_default, sno, pacnt, pcnt,
+        p.get("PitcherName"), p.get("HitterAcnt"), p.get("HitterName"),
+        _i(p.get("InningSeq")), _i(p.get("BallCnt")), _i(p.get("StrikeCnt")), _i(p.get("OutCnt")),
+        _i(p.get("BattingOrder")), p.get("Content"),
+        tag.get("PitchCall"), tag.get("AutoPitchType"), tag.get("TaggedPitchType"),
+        _f(rel.get("RelSpeed")), _f(rel.get("SpinRate")), _f(rel.get("RelSide")),
+        _f(rel.get("RelHeight")), _f(rel.get("Extension")),
+        _f(loc.get("ZoneSpeed")), _f(loc.get("PlateLocSide")), _f(loc.get("PlateLocHeight")),
+        _f(launch.get("ExitSpeed")), _f(launch.get("Angle")), _f(launch.get("Direction")),
+        _f(land.get("Distance")), _f(land.get("HangTime")),
     )
 
 
@@ -122,29 +105,29 @@ def _upsert(records: list[tuple]) -> int:
     return len(uniq)
 
 
-def scrape_pitches(pitcher_acnts: list[str], kind_default: str = "A", delay: float = 1.0) -> dict:
-    """逐投手抓其本季每球 TrackMan。回傳 {pitchers, pitches}。"""
+def scrape_pitches(pitcher_acnts: list[str], year: int | None = None,
+                   kind_code: str = "A", delay: float = 1.0) -> dict:
+    """逐投手抓其該季/該 kind 每球 TrackMan（logs API）。回傳 {pitchers, pitches}。
+
+    year 預設本季；kind_code=A 一軍例行 / C 一軍季後 / D 二軍 / E 二軍季後。
+    """
+    year = year or _dt.date.today().year
     client = httpx.Client(timeout=60.0, headers={"User-Agent": UA}, follow_redirects=True)
     out = {"pitchers": 0, "pitches": 0}
     try:
         for idx, acnt in enumerate(pitcher_acnts, 1):
             time.sleep(delay)
             try:
-                payload = _payload(client, acnt)
-            except httpx.HTTPError as e:
-                log.warning("[%d/%d] acnt=%s HTTP 失敗：%s", idx, len(pitcher_acnts), acnt, e)
+                logs = _fetch_logs(client, acnt, year, kind_code)
+            except (httpx.HTTPError, ValueError) as e:
+                log.warning("[%d/%d] acnt=%s API 失敗：%s", idx, len(pitcher_acnts), acnt, e)
                 continue
-            recs = []
-            for m in _REC_RE.finditer(payload):
-                try:
-                    recs.append(json.loads(_enclosing(payload, m.start())))
-                except (json.JSONDecodeError, ValueError):
-                    pass
-            rows = [t for t in (_record(r, kind_default) for r in recs) if t]
+            rows = [t for t in (_record(p, kind_code) for p in logs) if t]
             n = _upsert(rows)
             out["pitchers"] += 1
             out["pitches"] += n
-            log.info("[%d/%d] acnt=%s → %d 球（累計 %d）", idx, len(pitcher_acnts), acnt, n, out["pitches"])
+            log.info("[%d/%d] acnt=%s %d/%s → %d 球（累計 %d）",
+                     idx, len(pitcher_acnts), acnt, year, kind_code, n, out["pitches"])
     finally:
         client.close()
     return out
@@ -154,3 +137,11 @@ def current_pitchers() -> list[str]:
     with conn() as c:
         return [r[0] for r in c.execute(
             "SELECT DISTINCT player_id FROM cpbl.pitching_current ORDER BY player_id").fetchall()]
+
+
+def pitchers_by_kind(year: int, kind_code: str) -> list[str]:
+    """有在該 year/kind 出賽的投手（自 pitching_gamelog）。供二軍/季後回填用。"""
+    with conn() as c:
+        return [r[0] for r in c.execute(
+            "SELECT DISTINCT pitcher_acnt FROM cpbl.pitching_gamelog "
+            "WHERE year=%s AND kind_code=%s ORDER BY 1", (year, kind_code)).fetchall()]
