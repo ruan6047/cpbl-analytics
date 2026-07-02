@@ -47,6 +47,22 @@ def _completed_snos(year: int, days: list[date], kind_code: str = "A") -> list[i
     return [r[0] for r in rows]
 
 
+def _missing_gamelog_snos(year: int, kind_code: str = "A") -> list[int]:
+    """本季已完成但無 gamelog 的場（延賽補賽/漏跑 → 每日補齊,避免只靠近兩日窗口留 gap）。"""
+    with conn() as c:
+        rows = c.execute(
+            """
+            SELECT g.game_sno FROM cpbl.games g
+            WHERE g.year = %s AND g.kind_code = %s AND g.home_score + g.away_score > 0
+              AND NOT EXISTS (SELECT 1 FROM cpbl.batting_gamelog b
+                              WHERE b.year = g.year AND b.kind_code = g.kind_code AND b.game_sno = g.game_sno)
+            ORDER BY g.game_sno
+            """,
+            (year, kind_code),
+        ).fetchall()
+    return [r[0] for r in rows]
+
+
 def _roster_ids(table: str) -> set[str]:
     with conn() as c:
         return {r[0] for r in c.execute(f"SELECT player_id FROM cpbl.{table}").fetchall()}
@@ -190,6 +206,13 @@ def main() -> None:
         trans = scrape_transactions([year])  # 升降一/二軍事件（輕量；供一/二軍選手判定）
         build_championships()  # 由更新後 games 重建年度總冠軍成員（純 SQL、賽季末才會變）
         detail_inc = {} if skip_detail else _incremental_detail(year, [yesterday, today])
+        # 補齊任何完成卻無 gamelog 的場（延賽補賽/漏跑）；本季 gap 通常少，故廉價
+        for kc in ("A", "D"):
+            miss = _missing_gamelog_snos(year, kc)
+            if miss:
+                log.info("補齊缺 gamelog 場 kind=%s：%s", kc, miss)
+                scrape_gamelogs(year, miss, kc)
+                scrape_game_details(year, miss, kc)
     except Exception as e:  # noqa: BLE001 — 失敗也要留痕，避免無聲缺漏
         log.error("抓取失敗：%s", e)
         _log_refresh("recent-games", yesterday, today, 0, 0,
