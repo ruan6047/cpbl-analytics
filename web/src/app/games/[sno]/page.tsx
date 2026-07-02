@@ -136,6 +136,24 @@ export default function GameLivePage() {
         </header>
       )}
 
+      {g.delay_kind && (() => {
+        const md = (s: unknown) => {
+          const p = String(s ?? "").slice(5).split("-");
+          return p.length === 2 ? `${+p[0]}/${+p[1]}` : "";
+        };
+        const orig = md(g.orig_date);
+        const played = md(g.game_date);
+        const done = n(g.present_status) === 1 && ((n(g.home_score) as number) + (n(g.away_score) as number)) > 0;
+        const note = g.delay_kind === "保留"
+          ? `因雨保留比賽　原 ${orig} 開賽${done ? `，${played} 續賽完成` : "，擇期續賽"}`
+          : `因雨延賽　原定 ${orig}${done && played !== orig ? `，${played} 補賽` : "，擇期補賽"}`;
+        return (
+          <div className="mb-6 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
+            <span>☔</span><span className="font-medium">{note}</span>
+          </div>
+        );
+      })()}
+
       {(() => {
         const ppl = data.people;
         const items: [string, string | undefined][] = [
