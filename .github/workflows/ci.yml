@@ -16,6 +16,8 @@ jobs:
       - run: uv sync
       - name: Ruff lint
         run: uv run ruff check
+      - name: Pytest
+        run: uv run pytest -q
 
   web:
     runs-on: ubuntu-latest
