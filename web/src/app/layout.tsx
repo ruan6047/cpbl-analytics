@@ -1,11 +1,15 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { NavLinks } from "@/components/nav-links";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "CPBL 分析 | Ruan Dev",
   description: "中華職棒戰績、進階數據與賽事預測 — TrackMan/Statcast 視覺化。",
 };
+
+// 行動瀏覽器頂欄配色跟隨頁面底色（--color-paper）
+export const viewport: Viewport = { themeColor: "#f5f7fa" };
 
 const NAV = [
   { href: "/", label: "戰績" },
@@ -26,11 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/" className="text-lg font-extrabold tracking-tight">
               <span className="text-cpbl">CPBL</span> <span className="text-accent">分析</span>
             </Link>
-            <nav className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
-              {NAV.map((n) => (
-                <Link key={n.href} href={n.href} className="hover:text-ink">{n.label}</Link>
-              ))}
-            </nav>
+            <NavLinks items={NAV} />
           </div>
         </header>
         <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>

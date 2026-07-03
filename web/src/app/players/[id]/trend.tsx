@@ -75,7 +75,7 @@ export function TrendVsSection({ trend, careerMonthly, vsTeam, role }: {
                   </div>
                 )}
               </div>
-              <select value={monthMetric} onChange={(e) => setMonthMetric(e.target.value)}
+              <select value={monthMetric} onChange={(e) => setMonthMetric(e.target.value)} aria-label="走勢指標"
                 className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink outline-none focus:border-ink">
                 {metrics.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
               </select>

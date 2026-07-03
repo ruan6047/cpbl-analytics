@@ -53,8 +53,8 @@ export function PlayerHero({ profile, careerStats, ability, role, s, isRetired, 
             <div className="flex items-start gap-3.5">
               <TeamLogo code={tc} size={48} />
               <div className="min-w-0 flex-1">
-              {/* 名字＋徽章列（左）／本季數值（區塊右上角） */}
-              <div className="flex items-start justify-between gap-3">
+              {/* 名字＋徽章列（左）／本季數值（區塊右上角；窄螢幕掉到名字下方避免擠壓） */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h1 className="text-3xl font-bold text-ink">{profile.name}</h1>
@@ -135,13 +135,13 @@ export function PlayerHero({ profile, careerStats, ability, role, s, isRetired, 
                 </div>
                 {/* 本季數值：區塊右上角 */}
                 {s && role === "batting" && (
-                  <div className="shrink-0 text-right font-mono leading-tight text-ink">
+                  <div className="shrink-0 font-mono leading-tight text-ink sm:text-right">
                     <div className="text-2xl font-semibold tabular-nums">{f3(s.avg)}/{f3(s.obp)}/{f3(s.slg)}</div>
                     <div className="text-base font-semibold tabular-nums text-accent">OPS {f3(s.ops)}</div>
                   </div>
                 )}
                 {s && role === "pitching" && (
-                  <div className="shrink-0 text-right font-mono leading-tight text-ink">
+                  <div className="shrink-0 font-mono leading-tight text-ink sm:text-right">
                     <div className="text-2xl font-semibold tabular-nums">{numOf(s.era)?.toFixed(2) ?? "—"} ERA</div>
                     <div className="text-base tabular-nums text-muted">{s.w ?? 0}-{s.l ?? 0} · {fmtIP(s.ip as number | string | null)} 局</div>
                   </div>
