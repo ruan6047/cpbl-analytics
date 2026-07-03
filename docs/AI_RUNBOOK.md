@@ -122,6 +122,7 @@ host 缺 `libomp.dylib`。**勿 `brew install libomp` 污染 host**；需 LightG
 ## 6. 前端地圖（`web/`，Next.js 15 App Router + Tailwind v4 + recharts）
 
 - 路由：`/`(戰績) `/predict`(賽果卡) `/players/[id]`(旗艦) `/games`+`/games/[sno]`(賽況狀態板) `/batters` `/pitchers` `/matchups`。
+- 大頁採同目錄模組拆分：`players/[id]/` 的 `page.tsx` 只留 state+抓取+組裝，區塊 UI 在 `hero/season/tracking/trend/fielding/detail.tsx`、共用在 `lib.ts`/`parts.tsx`；`teams/[code]/` 同法（`parts.tsx`）。
 - `lib/`：`client.ts`(Client fetch) `api.ts`(Server) `teams.ts`(隊色/字母徽章) `cols.ts`。
 - 元件：`game-board.tsx`(ESPN 狀態板) `spray-chart` `zone-scatter` `perf-heatmap` `la-ev-scatter` `leaderboard` `matchup-card` `ui.tsx`(Card/StatTile/TeamLogo/PercentileBar)。
 - 設計：日間 Navy+白；token 在 `globals.css @theme`；百分位藍↔紅發散。
