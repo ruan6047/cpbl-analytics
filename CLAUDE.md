@@ -78,7 +78,7 @@ uv sync                                   # 建 venv + 裝依賴
 docker compose up -d db                   # 起本地 PostgreSQL（5433）
 cp .env.example .env
 uv run cpbl-backfill                       # 套 migration + 回填歷史（逐年）
-uv run cpbl-scrape-games 2023 2026         # 爬官網逐場賽程/結果（純 HTTP）
+uv run cpbl-scrape-games 2023 2026         # 爬官網逐場賽程/結果（Playwright 過反爬）
 uv run cpbl-scrape-stats 2025 2026         # 爬本季投手/打者進階 + 團隊數據
 uv run cpbl-build-features                 # 建賽事預測特徵表（全史 kind A；leakage-safe）
 uv run cpbl-train                          # 成績預測：訓練 + 回測（Marcel vs LGBM）
@@ -168,27 +168,22 @@ URL（`http://cpbl-analytics:4001/api/info`）。
 
 ## 資料來源地貌（爬蟲擴充前必讀）
 
+> **官網結構事實（endpoint/token/解析錨點/改版排查）→ [`docs/CPBL_SITE_MAP.md`](docs/CPBL_SITE_MAP.md)**，
+> 該檔是爬蟲的事實單一來源；本節只留準則層。
+
 | 來源 | 內容 | 技術特性 |
 |---|---|---|
 | `github.com/ldkrsi/cpbl-opendata`（MIT） | **逐年** 球員/球隊成績，1990-2024 | 現成 CSV，已用於回填 |
-| `cpbl.com.tw`（官網主站） | 逐場 box score、賽程 | **Vue SPA**，資料走內部 AJAX，初始 HTML 無資料 → 純 requests 解 HTML 行不通 |
-| `stats.cpbl.com.tw`（官方進階數據） | TrackMan 進階指標 | 獨立站，Phase 2+ |
+| `cpbl.com.tw`（官網主站） | 逐場賽程/box/逐打席/對戰/戰績… | Vue SPA + ASP.NET MVC；**2026-06 起有 HiNet 反爬挑戰 → 必須 Playwright**（`ingest/_browser.py`），純 httpx 回 428 |
+| `stats.cpbl.com.tw`（官方進階數據） | 官方進階 + 逐球 TrackMan | Next.js RSC / logs JSON API；無挑戰，httpx 直連 |
 
-### 官網逐場 endpoint（已實測確認，見 `ingest/cpbl_site.py`）
+### 爬蟲紅線
 
-純 HTTP，**不需 headless browser**。流程：
-
-1. `GET /schedule` → 拿 session cookie + 從 inline JS 抽 token：
-   正規表式 `RequestVerificationToken:\s*'([^']+)'`。
-   ⚠️ **不是** hidden input 的 `__RequestVerificationToken`（那個會 500）。
-2. `POST /schedule/getgamedatas`：
-   - Header：`RequestVerificationToken: <上面抽到的 token>`（放 header，非 body）
-   - Body：`calendar=YYYY/01/01` + `location=` + `kindCode=A`（A=一軍例行賽）
-   - 回 `{"Success": true, "GameDatas": "<JSON 字串>"}`，GameDatas 需**二次** `json.loads`。
-3. 回傳含 GameSno / 比分 / 主客隊 / 先發投手 / 勝敗投（`*Acnt` 即 player_id）。
-
-擴充其他資料（box score 打席明細）時沿用同一 token 流程；官網改版導致抽不到
-token 時 `_new_session()` 會丟錯，據此判斷需更新正規表式。
+1. **只能本機爬**：VPS 機房 IP 被擋（404）。爬完同步生產（Runbook §3）。
+2. **失敗勿連續重跑**：HiNet 挑戰對連續冷啟動會升級節流，症狀會惡化
+   （token 時好時壞 → fetch 全掛 → 重定向迴圈）。先冷卻 15–20 分鐘再單次重試。
+   `_browser.py` 已內建單次 run 內的重載退避自癒；跨 run 的冷卻是操作紀律。
+3. 改版排查照 `docs/CPBL_SITE_MAP.md` §5 的症狀對照表走，勿從零逆向。
 
 ---
 
