@@ -66,16 +66,20 @@ def _target_ids(scope: str) -> list[str]:
 
 def _upsert(acnt: str, bio: dict) -> None:
     # INSERT ON CONFLICT：新進/洋將球員可能尚未在 players 表（僅在 current 表），
-    # 缺列即以 person 頁名字補一列；既有列只更新 bio、不覆寫 canonical name。
+    # 缺列即以 person 頁名字補一列。name 以 person 頁「現行登錄名」更新（處理改名，
+    # 如 象魔力→魔力藍；person 頁名乾淨、無 current 表的 #/◎/* roster 標記）；
+    # 若該頁抓不到名（查無此人空頁）則保留既有 name。
+    nm = bio.get("name")
     with conn() as c:
         c.execute(
             "INSERT INTO cpbl.players (id, name, height_cm, weight_kg, debut, education, "
             "birthplace, draft, bio_updated_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,now()) "
             "ON CONFLICT (id) DO UPDATE SET height_cm=EXCLUDED.height_cm, "
             "weight_kg=EXCLUDED.weight_kg, debut=EXCLUDED.debut, education=EXCLUDED.education, "
-            "birthplace=EXCLUDED.birthplace, draft=EXCLUDED.draft, bio_updated_at=now()",
-            (acnt, bio.get("name") or acnt, bio["height_cm"], bio["weight_kg"], bio["debut"],
-             bio["education"], bio["birthplace"], bio["draft"]),
+            "birthplace=EXCLUDED.birthplace, draft=EXCLUDED.draft, bio_updated_at=now(), "
+            "name=CASE WHEN %s <> '' THEN %s ELSE cpbl.players.name END",
+            (acnt, nm or acnt, bio["height_cm"], bio["weight_kg"], bio["debut"],
+             bio["education"], bio["birthplace"], bio["draft"], nm or "", nm or ""),
         )
 
 
