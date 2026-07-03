@@ -74,7 +74,7 @@ class _Session:
 
     def _open(self) -> None:
         from cpbl.ingest._browser import session
-        html = session().page_html(self.page_path)
+        html = session().page_html(self.page_path, require="getSelectOpts: function")
         self.opts_token = _token_in(html, "getSelectOpts: function")
         self.score_token = _token_in(html, "getFightingScore: function")
 

@@ -192,7 +192,7 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
     box_path = f"/box?year={year}&KindCode={kind_code}&gameSno=1"
 
     def _token() -> str:
-        m = _HIDDEN_RE.search(s.page_html(box_path))
+        m = _HIDDEN_RE.search(s.page_html(box_path, require=_HIDDEN_RE))
         if not m:
             raise RuntimeError("box 頁找不到 token（官網可能改版）")
         return m.group(1)

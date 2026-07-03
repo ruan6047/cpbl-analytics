@@ -54,7 +54,7 @@ def _parse(html: str, category: str) -> list[tuple[str, int, str, str]]:
 def scrape_awards() -> dict:
     from cpbl.ingest._browser import session
     s = session()
-    m = _TOKEN_RE.search(s.page_html(PAGE))
+    m = _TOKEN_RE.search(s.page_html(PAGE, require=_TOKEN_RE))
     if not m:
         raise RuntimeError("找不到 yearaward __RequestVerificationToken（官網可能改版）")
     token = m.group(1)

@@ -39,7 +39,7 @@ def _wtl(s: str) -> tuple[int | None, int | None, int | None]:
 def fetch_standings(year: int, season_code: int, kind_code: str = "A") -> list[tuple]:
     from cpbl.ingest._browser import session
     s = session()
-    m = _TOKEN_RE.search(s.page_html("/standings/season"))
+    m = _TOKEN_RE.search(s.page_html("/standings/season", require=_TOKEN_RE))
     if not m:
         raise RuntimeError("standings 找不到 RequestVerificationToken（官網可能改版）")
     status, html = s.post(

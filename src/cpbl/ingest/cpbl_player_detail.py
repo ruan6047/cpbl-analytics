@@ -44,8 +44,12 @@ class _Session:
     def _open(self) -> None:
         from cpbl.ingest._browser import session
         s = session()
-        self.fighter_token = _token_in(s.page_html(self.person_path), "getFighterScore: function")
-        self.apart_token = _token_in(s.page_html(self.apart_path), "getApartScore: function")
+        self.fighter_token = _token_in(
+            s.page_html(self.person_path, require="getFighterScore: function"),
+            "getFighterScore: function")
+        self.apart_token = _token_in(
+            s.page_html(self.apart_path, require="getApartScore: function"),
+            "getApartScore: function")
 
     def close(self) -> None:
         pass  # 共用 browser session，不在此關閉

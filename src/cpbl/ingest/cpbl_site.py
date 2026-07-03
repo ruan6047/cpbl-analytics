@@ -7,7 +7,8 @@
    body = calendar(YYYY/01/01) + location + kindCode。
 3. 回傳 {"Success": true, "GameDatas": "<JSON 字串>"}，GameDatas 需二次 json.loads。
 
-純 HTTP，不需 headless browser（VPS 友善）。冪等 UPSERT。
+2026-06 起官網加 HiNet 反爬挑戰，純 httpx 回 428 → 改走 Playwright（見 _browser.py）。
+冪等 UPSERT。
 """
 
 from __future__ import annotations
@@ -69,7 +70,7 @@ def fetch_year(year: int, kind_code: str = KIND_REGULAR) -> list[dict]:
     """
     from cpbl.ingest._browser import session
     s = session()
-    m = _TOKEN_RE.search(s.page_html("/schedule"))
+    m = _TOKEN_RE.search(s.page_html("/schedule", require=_TOKEN_RE))
     if not m:
         raise RuntimeError("找不到 RequestVerificationToken（官網結構可能已改版）")
     status, text = s.post(

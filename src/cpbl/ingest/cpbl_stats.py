@@ -54,7 +54,7 @@ _TEAMSCORE_PATH = f"/team/teamscore?ClubNo={CLUB_NOS[0]}"
 
 def _teamscore_token() -> str:
     from cpbl.ingest._browser import session
-    m = _TOKEN_RE.search(session().page_html(_TEAMSCORE_PATH))
+    m = _TOKEN_RE.search(session().page_html(_TEAMSCORE_PATH, require=_TOKEN_RE))
     if not m:
         raise RuntimeError("找不到 teamscore __RequestVerificationToken（官網可能改版）")
     return m.group(1)

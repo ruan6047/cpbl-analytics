@@ -5,6 +5,13 @@
 用 Playwright 開頁讓挑戰 JS 跑完（拿到 200 + token），再以 **page.evaluate(fetch)** 從
 已過挑戰的頁面 context 發 AJAX（cookie/指紋一致才會 200；cookie 交接給 httpx 不行）。
 
+⚠️ 挑戰是**機率性**的，且對「短時間連續冷啟動」會升級節流（2026-07 實測）：
+- 首載可能回挑戰頁（無 token）→ `page_html(require=…)` 會重載退避重試。
+- in-page fetch 可能被挑戰重定向攔截（TypeError: Failed to fetch）→ `post()` 會
+  重載頁面退避重試。
+- cookie 壞掉會導航進重定向迴圈（ERR_TOO_MANY_REDIRECTS）→ 換乾淨 context 重試。
+- **CLI 整輪失敗時勿立刻重跑**：連續冷啟動會讓節流更嚴重，先冷卻 15–20 分鐘。
+
 只在本機爬蟲用（生產不爬蟲）。Playwright 在 dependency group `scrape`：
     uv sync --group scrape && uv run playwright install chromium
 
@@ -15,6 +22,7 @@ from __future__ import annotations
 
 import atexit
 import logging
+import re
 from urllib.parse import urlencode
 
 log = logging.getLogger("cpbl.browser")
@@ -23,12 +31,19 @@ BASE = "https://www.cpbl.com.tw"
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
-# page context 內發 POST，回 {status, text}
+# page context 內發 POST；fetch 被挑戰攔截時回 status=-1 交由 post() 重試，不讓 evaluate 拋錯
 _JS_POST = """async ({path, headers, body}) => {
-  const r = await fetch(path, { method: 'POST', headers, body });
-  const text = await r.text();
-  return { status: r.status, text };
+  try {
+    const r = await fetch(path, { method: 'POST', headers, body, credentials: 'include' });
+    const text = await r.text();
+    return { status: r.status, text };
+  } catch (e) {
+    return { status: -1, text: String(e) };
+  }
 }"""
+
+# 重試退避（ms）：挑戰/節流恢復需要時間，快打只會讓 HiNet 節流升級
+_BACKOFF_MS = (2000, 6000, 15000)
 
 
 class _Session:
@@ -36,39 +51,89 @@ class _Session:
         from playwright.sync_api import sync_playwright
         self._pw = sync_playwright().start()
         self._browser = self._pw.chromium.launch()
+        self._new_context()
+        atexit.register(self.close)
+
+    def _new_context(self) -> None:
+        """建（或換）乾淨 context：cookie 壞掉（重定向迴圈）時的復原手段。"""
+        if getattr(self, "_ctx", None) is not None:
+            try:
+                self._ctx.close()
+            except Exception:  # noqa: BLE001 — 舊 context 關閉容錯
+                pass
         self._ctx = self._browser.new_context(user_agent=UA, locale="zh-TW")
         self._page = self._ctx.new_page()
         self._loaded: str | None = None
-        atexit.register(self.close)
+
+    def _goto(self, page_path: str, wait: str) -> None:
+        """單次導航；失敗（如 ERR_TOO_MANY_REDIRECTS = 挑戰 cookie 壞掉）→ 換新 context 重試一次。"""
+        from playwright.sync_api import Error
+        url = f"{BASE}{page_path}"
+        try:
+            self._page.goto(url, wait_until=wait, timeout=45000)
+        except Error as e:
+            log.warning("導航失敗（%s），換乾淨 context 於 5s 後重試：%s", page_path, str(e)[:120])
+            self._new_context()
+            self._page.wait_for_timeout(5000)
+            self._page.goto(url, wait_until=wait, timeout=45000)
 
     def _ensure(self, page_path: str, wait: str = "networkidle", force: bool = False) -> None:
         """確保目前停在 page_path（過挑戰）。換頁才重載。
 
         wait="networkidle"（預設）：等 SPA/AJAX 靜止 + 1.5s，過挑戰最穩，但老頁面
         常因背景請求不絕而吃滿 45s timeout。wait="domcontentloaded"：僅等 DOM，
-        適用伺服器端渲染的靜態頁（如 person 頁 bio），快 4-5 倍；挑戰未過時由呼叫端
-        （page_html）以 networkidle 重載一次補救。
+        適用伺服器端渲染的靜態頁（如 person 頁 bio），快 4-5 倍；挑戰未過時由
+        page_html(require=…) 重載補救。
         """
         if self._loaded == page_path and not force:
             return
-        self._page.goto(f"{BASE}{page_path}", wait_until=wait, timeout=45000)
+        self._loaded = None  # 導航中/失敗皆視為未載入
+        self._goto(page_path, wait)
         self._page.wait_for_timeout(1500 if wait == "networkidle" else 400)
         self._loaded = page_path
 
-    def page_html(self, page_path: str, wait: str = "networkidle", force: bool = False) -> str:
-        self._ensure(page_path, wait, force)
-        return self._page.content()
+    def page_html(self, page_path: str, wait: str = "networkidle", force: bool = False,
+                  require: str | re.Pattern | None = None) -> str:
+        """取頁面 HTML。require（str/regex）＝頁面必含樣式（如 token）；
+        未含視為挑戰頁未過 → 重載退避重試（挑戰是機率性的，重載通常就過）。"""
+        last_len = 0
+        for i, backoff in enumerate((0, *_BACKOFF_MS)):
+            if backoff:
+                log.warning("頁面缺必要內容（挑戰未過？len=%d）%s：%dms 後重載（第 %d 次）",
+                            last_len, page_path, backoff, i)
+                self._page.wait_for_timeout(backoff)
+            self._ensure(page_path, wait, force=force or i > 0)
+            html = self._page.content()
+            if require is None or re.search(require, html):
+                return html
+            last_len = len(html)
+            wait = "networkidle"  # 重試一律等到底，給挑戰 JS 時間
+        raise RuntimeError(f"{page_path} 重試後仍缺必要內容（反爬挑戰未過或官網改版）")
 
     def post(self, page_path: str, api_path: str, form: dict[str, str],
              headers: dict[str, str] | None = None) -> tuple[int, str]:
-        """於 page_path（已過挑戰）context 內 POST api_path。回 (status, text)。"""
-        self._ensure(page_path)
+        """於 page_path（已過挑戰）context 內 POST api_path。回 (status, text)。
+
+        fetch 被挑戰攔截（status=-1）或回 428 → 重載頁面退避重試（挑戰 cookie 需重新生效）。
+        """
         h = {"X-Requested-With": "XMLHttpRequest",
              "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
         if headers:
             h.update(headers)
-        res = self._page.evaluate(_JS_POST, {"path": api_path, "headers": h, "body": urlencode(form)})
-        return int(res["status"]), res["text"]
+        body = urlencode(form)
+        status, text = -1, ""
+        for i, backoff in enumerate((0, *_BACKOFF_MS)):
+            if backoff:
+                log.warning("POST %s 失敗（status=%s）：%dms 後重載頁面重試（第 %d 次）",
+                            api_path, status, backoff, i)
+                self._page.wait_for_timeout(backoff)
+            self._ensure(page_path, force=i > 0)
+            res = self._page.evaluate(_JS_POST, {"path": api_path, "headers": h, "body": body})
+            status, text = int(res["status"]), res["text"]
+            if status not in (-1, 428):
+                return status, text
+        raise RuntimeError(
+            f"POST {api_path} 重試後仍失敗（status={status}，反爬節流？先冷卻再跑）：{text[:200]}")
 
     def close(self) -> None:
         try:

@@ -81,7 +81,7 @@ def scrape_transactions(years: list[int]) -> dict[int, int]:
     s = session()
     out: dict[int, int] = {}
     for year in years:
-        html = s.page_html(PATH)
+        html = s.page_html(PATH, require=_TOKEN_RE)
         tok = _TOKEN_RE.search(html)
         if not tok:
             raise RuntimeError("抽不到 __RequestVerificationToken（官網改版？）")
