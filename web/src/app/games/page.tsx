@@ -151,30 +151,37 @@ export default async function GamesPage({
                     ? "inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 font-semibold text-white"
                     : "text-faint"}`}>{c.day}</div>
                 )}
-                <div className="space-y-0.5">
+                <div className="space-y-1">
                   {c.games.map((g) => {
                     const done = g.away_score + g.home_score > 0;
                     const awayWin = g.away_score > g.home_score;
-                    const chip = (
+                    const status = g.delay_kind ?? (done ? "完賽" : "未開打");
+                    const statusCls = g.delay_kind ? "text-amber-600" : done ? "text-faint" : "text-accent/80";
+                    const info = done
+                      ? (g.mvp ? `⭐ ${g.mvp}` : g.win_pitcher ? `勝 ${g.win_pitcher}` : "")
+                      : (g.away_starter || g.home_starter ? `${g.away_starter ?? "未定"} · ${g.home_starter ?? "未定"}` : (g.venue ?? ""));
+                    const body = (
                       <>
-                        <span className="flex items-center gap-0.5 truncate">
-                          <TeamLogo code={g.away_team_code} name={g.away_team_name} size={13} />
-                          {done && <span className={awayWin ? "font-bold text-accent" : "text-muted"}>{g.away_score}</span>}
-                        </span>
-                        <span className="text-faint">{done ? ":" : "@"}</span>
-                        <span className="flex items-center gap-0.5 truncate">
-                          {done && <span className={!awayWin ? "font-bold text-accent" : "text-muted"}>{g.home_score}</span>}
-                          <TeamLogo code={g.home_team_code} name={g.home_team_name} size={13} />
-                        </span>
-                        {g.delay_kind && <span title={`因雨${g.delay_kind}`}>☔</span>}
+                        <div className="flex items-center justify-between gap-1 leading-none">
+                          <span className="flex items-center gap-1">
+                            <TeamLogo code={g.away_team_code} name={g.away_team_name} size={15} />
+                            {done && <span className={`text-xs tabular-nums ${awayWin ? "font-bold text-accent" : "text-muted"}`}>{g.away_score}</span>}
+                          </span>
+                          <span className={`text-[9px] leading-tight ${statusCls}`}>{status}</span>
+                          <span className="flex items-center gap-1">
+                            {done && <span className={`text-xs tabular-nums ${!awayWin ? "font-bold text-accent" : "text-muted"}`}>{g.home_score}</span>}
+                            <TeamLogo code={g.home_team_code} name={g.home_team_name} size={15} />
+                          </span>
+                        </div>
+                        {info && <div className="mt-1 truncate text-center text-[9px] leading-none text-faint">{info}</div>}
                       </>
                     );
-                    const cls = "flex items-center justify-between gap-0.5 rounded px-1 py-0.5 text-[11px] leading-none";
+                    const cls = "block rounded-md bg-surface-2/50 px-1.5 py-1";
                     return hasDetail ? (
                       <Link key={g.game_sno} href={`/games/${g.game_sno}?kind=${g.kind_code}&year=${g.year}`}
-                        className={`${cls} bg-surface-2/60 hover:bg-surface-2`}>{chip}</Link>
+                        className={`${cls} transition hover:bg-surface-2`}>{body}</Link>
                     ) : (
-                      <div key={g.game_sno} className={`${cls} bg-surface-2/60`}>{chip}</div>
+                      <div key={g.game_sno} className={cls}>{body}</div>
                     );
                   })}
                 </div>
@@ -185,7 +192,7 @@ export default async function GamesPage({
       </div>
 
       <p className="mt-4 text-center text-xs text-faint">
-        數字＝比分（粗體為勝方）· <span className="whitespace-nowrap">@ ＝尚未開打</span> · ☔＝因雨延賽/保留
+        中央為狀態（完賽／延賽／保留／未開打）· 粗體＝勝方 · 完賽附 ⭐MVP／勝投，未開打附先發對決
       </p>
     </div>
   );

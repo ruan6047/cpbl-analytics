@@ -133,6 +133,7 @@ export type CalendarGame = {
   home_score: number;
   win_pitcher: string | null;
   lose_pitcher: string | null;
+  mvp: string | null;
   home_starter: string | null;
   away_starter: string | null;
   attendance: number | null;

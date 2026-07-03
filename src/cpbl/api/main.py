@@ -1349,12 +1349,13 @@ def games_calendar(
             SELECT g.year, g.kind_code, g.game_sno, g.game_date, g.venue, g.present_status,
                    g.away_team_name, g.away_team_code, g.away_score,
                    g.home_team_name, g.home_team_code, g.home_score,
-                   wp.name AS win_pitcher, lp.name AS lose_pitcher,
+                   wp.name AS win_pitcher, lp.name AS lose_pitcher, mv.name AS mvp,
                    hs.name AS home_starter, aws.name AS away_starter,
                    d.attendance, d.game_time, g.delay_kind, g.orig_date
             FROM cpbl.games g
             LEFT JOIN cpbl.players wp ON wp.id = g.winning_pitcher_id
             LEFT JOIN cpbl.players lp ON lp.id = g.losing_pitcher_id
+            LEFT JOIN cpbl.players mv ON mv.id = g.mvp_id
             LEFT JOIN cpbl.players hs ON hs.id = g.home_starter_id
             LEFT JOIN cpbl.players aws ON aws.id = g.away_starter_id
             LEFT JOIN cpbl.game_detail d
