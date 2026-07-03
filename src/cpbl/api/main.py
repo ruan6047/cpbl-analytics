@@ -1335,13 +1335,45 @@ def player_fielding(player_id: str, season: int = Query(DEFAULT_SEASON),
 
 # ---------- 每場賽況 ----------
 
+@app.get("/api/v1/games/calendar")
+def games_calendar(
+    season: int = Query(DEFAULT_SEASON),
+    kind_code: str = Query("A"),
+) -> dict:
+    """整季所有場次（已完成 + 未開打）供月曆呈現。每筆帶比分/狀態/勝敗投/先發/
+    球場/觀眾/時長/延賽備註。completed 由 home_score+away_score>0 判定。"""
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            """
+            SELECT g.year, g.kind_code, g.game_sno, g.game_date, g.venue, g.present_status,
+                   g.away_team_name, g.away_team_code, g.away_score,
+                   g.home_team_name, g.home_team_code, g.home_score,
+                   wp.name AS win_pitcher, lp.name AS lose_pitcher,
+                   hs.name AS home_starter, aws.name AS away_starter,
+                   d.attendance, d.game_time, g.delay_kind, g.orig_date
+            FROM cpbl.games g
+            LEFT JOIN cpbl.players wp ON wp.id = g.winning_pitcher_id
+            LEFT JOIN cpbl.players lp ON lp.id = g.losing_pitcher_id
+            LEFT JOIN cpbl.players hs ON hs.id = g.home_starter_id
+            LEFT JOIN cpbl.players aws ON aws.id = g.away_starter_id
+            LEFT JOIN cpbl.game_detail d
+                   ON d.year=g.year AND d.kind_code=g.kind_code AND d.game_sno=g.game_sno
+            WHERE g.year = %s AND g.kind_code = %s
+            ORDER BY g.game_date ASC, g.game_sno ASC
+            """,
+            (season, kind_code),
+        )
+        return {"season": season, "items": _dicts(cur)}
+
+
 @app.get("/api/v1/games/recent")
 def games_recent(
     limit: int = Query(40, ge=1, le=600),
     season: int = Query(DEFAULT_SEASON),
     kind_code: str = Query("A"),
 ) -> dict:
-    """某年某層級已完成比賽列表（供賽況/歷史賽事瀏覽）。"""
+    """某年某層級已完成比賽列表（供球隊頁近期戰績等）。"""
     with conn() as c:
         cur = c.cursor()
         cur.execute(
