@@ -164,13 +164,13 @@ export default async function GamesPage({
                       <>
                         <div className="flex items-center justify-between gap-1 leading-none">
                           <span className="flex items-center gap-1">
-                            <TeamLogo code={g.away_team_code} name={g.away_team_name} size={15} />
-                            {done && <span className={`text-xs tabular-nums ${awayWin ? "font-bold text-accent" : "text-muted"}`}>{g.away_score}</span>}
+                            <TeamLogo code={g.away_team_code} name={g.away_team_name} size={20} />
+                            {done && <span className={`text-base tabular-nums ${awayWin ? "font-bold text-accent" : "text-muted"}`}>{g.away_score}</span>}
                           </span>
                           <span className={`text-[9px] leading-tight ${statusCls}`}>{status}</span>
                           <span className="flex items-center gap-1">
-                            {done && <span className={`text-xs tabular-nums ${!awayWin ? "font-bold text-accent" : "text-muted"}`}>{g.home_score}</span>}
-                            <TeamLogo code={g.home_team_code} name={g.home_team_name} size={15} />
+                            {done && <span className={`text-base tabular-nums ${!awayWin ? "font-bold text-accent" : "text-muted"}`}>{g.home_score}</span>}
+                            <TeamLogo code={g.home_team_code} name={g.home_team_name} size={20} />
                           </span>
                         </div>
                         {info && <div className="mt-1 truncate text-center text-[9px] leading-none text-faint">{info}</div>}
