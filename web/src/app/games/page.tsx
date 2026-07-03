@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { TeamLogo } from "@/components/ui";
 import { YearSelect } from "@/components/year-select";
-import { api } from "@/lib/api";
-import { teamFullName } from "@/lib/teams";
+import { api, type CalendarGame } from "@/lib/api";
+import { teamColor, teamFullName } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
@@ -10,36 +10,90 @@ const LEVELS = [
   { v: "A", label: "一軍" },
   { v: "D", label: "二軍" },
 ];
+const WD = ["日", "一", "二", "三", "四", "五", "六"];
+const pad = (n: number) => String(n).padStart(2, "0");
+const ymOf = (d: string) => d.slice(0, 7);
+const addMonth = (ym: string, delta: number) => {
+  const [y, m] = ym.split("-").map(Number);
+  const t = new Date(y, m - 1 + delta, 1);
+  return `${t.getFullYear()}-${pad(t.getMonth() + 1)}`;
+};
 
-export default async function GamesPage({ searchParams }: { searchParams: Promise<{ year?: string; kind?: string }> }) {
-  const { year: yearParam, kind: kindParam } = await searchParams;
+export default async function GamesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ year?: string; kind?: string; team?: string; month?: string }>;
+}) {
+  const { year: yearParam, kind: kindParam, team, month: monthParam } = await searchParams;
   const kind = kindParam === "D" ? "D" : "A";
   const { years } = await api.seasons(kind);
   const currentYear = years[0] ?? new Date().getFullYear();
   const selectedYear = yearParam ? Number(yearParam) : currentYear;
   const isCurrent = selectedYear === currentYear && kind === "A";
-  const { season, items } = await api.gamesRecent(600, isCurrent ? undefined : selectedYear, kind);
-  // 2018 前無逐打席/逐局，賽況頁無內容 → 不連結
+  const { season, items } = await api.gamesCalendar(isCurrent ? undefined : selectedYear, kind);
   const hasDetail = selectedYear >= 2018;
 
   // 依日期分組
-  const byDate = new Map<string, typeof items>();
+  const byDate = new Map<string, CalendarGame[]>();
+  for (const g of items) (byDate.get(g.game_date) ?? byDate.set(g.game_date, []).get(g.game_date)!).push(g);
+
+  // 可選月份 + 預設月（優先今天所在月，否則最近有比賽的月）
+  const monthsAvail = [...new Set(items.map((g) => ymOf(g.game_date)))].sort();
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const todayYM = todayStr.slice(0, 7);
+  const defaultMonth =
+    monthsAvail.includes(todayYM) ? todayYM
+    : [...monthsAvail].reverse().find((m) => m <= todayYM) ?? monthsAvail[monthsAvail.length - 1] ?? todayYM;
+  const month = monthParam && /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : defaultMonth;
+  const [my, mm] = month.split("-").map(Number);
+
+  // 球隊篩選 chips
+  const names = new Map<string, string>();
   for (const g of items) {
-    const arr = byDate.get(g.game_date) ?? [];
-    arr.push(g);
-    byDate.set(g.game_date, arr);
+    names.set(g.home_team_code, g.home_team_name);
+    names.set(g.away_team_code, g.away_team_name);
   }
+  const teamCodes = [...names.keys()].sort();
+  const teamOk = (g: CalendarGame) => !team || g.home_team_code === team || g.away_team_code === team;
+  const qs = (extra: Record<string, string>) => {
+    const p = new URLSearchParams();
+    if (kind === "D") p.set("kind", "D");
+    if (selectedYear !== currentYear) p.set("year", String(selectedYear));
+    if (team) p.set("team", team);
+    if (month !== defaultMonth) p.set("month", month);
+    for (const [k, v] of Object.entries(extra)) { if (v) p.set(k, v); else p.delete(k); }
+    const s = p.toString();
+    return s ? `/games?${s}` : "/games";
+  };
+
+  // 月曆格：從該月 1 日所在週日 → 到最後一日所在週六
+  const first = new Date(my, mm - 1, 1);
+  const gridStart = new Date(my, mm - 1, 1 - first.getDay());
+  const last = new Date(my, mm, 0);
+  const totalCells = Math.ceil((first.getDay() + last.getDate()) / 7) * 7;
+  const cells = Array.from({ length: totalCells }, (_, i) => {
+    const dt = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i);
+    const key = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+    const inMonth = dt.getMonth() === mm - 1;
+    return { key, day: dt.getDate(), inMonth, games: inMonth ? (byDate.get(key) ?? []).filter(teamOk) : [] };
+  });
+
+  const prevM = addMonth(month, -1);
+  const nextM = addMonth(month, 1);
+  const canPrev = prevM >= monthsAvail[0];
+  const canNext = nextM <= monthsAvail[monthsAvail.length - 1];
 
   return (
     <div>
       <header className="mb-5">
         <h1 className="text-2xl font-bold">{season} 球季 · {kind === "D" ? "二軍賽況" : "賽況"}</h1>
         <p className="mt-2 text-sm text-muted">
-          {hasDetail ? "點任一場看逐局比分與逐打席賽況（play-by-play）。" : "2018 年前僅逐場結果（無逐局/逐打席）。"}
+          {hasDetail ? "月曆檢視；點任一場看逐局比分與逐打席賽況（play-by-play）。" : "2018 年前僅逐場結果（無逐局/逐打席）。"}
         </p>
       </header>
 
-      <nav className="mb-4 flex flex-wrap items-center gap-2">
+      <nav className="mb-3 flex flex-wrap items-center gap-2">
         {LEVELS.map((lv) => (
           <Link key={lv.v} href={lv.v === "A" ? "/games" : "/games?kind=D"}
             className={`rounded-full px-3 py-1 text-sm font-medium transition ${
@@ -51,41 +105,88 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
         <YearSelect years={years} value={selectedYear} kind={kind} basePath="/games" />
       </nav>
 
-      <div className="space-y-6">
-        {[...byDate.entries()].map(([d, games]) => (
-          <section key={d}>
-            <h2 className="mb-2 text-sm font-medium text-muted">{d}</h2>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {games.map((g) => {
-                const awayWin = g.away_score > g.home_score;
-                const inner = (
-                  <>
-                    <div className="space-y-1.5">
-                      <div className={`flex items-center gap-2 ${awayWin ? "font-semibold" : "text-muted"}`}>
-                        <TeamLogo code={g.away_team_code} name={g.away_team_name} size={18} />{teamFullName(g.away_team_name)}
-                      </div>
-                      <div className={`flex items-center gap-2 ${!awayWin ? "font-semibold" : "text-muted"}`}>
-                        <TeamLogo code={g.home_team_code} name={g.home_team_name} size={18} />{teamFullName(g.home_team_name)}
-                      </div>
-                    </div>
-                    <div className="space-y-1 text-right font-mono tabular-nums">
-                      <div className={awayWin ? "font-semibold text-accent" : "text-muted"}>{g.away_score}</div>
-                      <div className={!awayWin ? "font-semibold text-accent" : "text-muted"}>{g.home_score}</div>
-                    </div>
-                  </>
-                );
-                const cls = "flex items-center justify-between rounded-xl border border-line bg-surface px-4 py-3";
-                return hasDetail ? (
-                  <Link key={g.game_sno} href={`/games/${g.game_sno}?kind=${g.kind_code}&year=${g.year}`}
-                    className={`${cls} hover:bg-surface-2`}>{inner}</Link>
-                ) : (
-                  <div key={g.game_sno} className={cls}>{inner}</div>
-                );
-              })}
-            </div>
-          </section>
-        ))}
+      {/* 球隊篩選 */}
+      <nav className="mb-4 flex flex-wrap items-center gap-1.5">
+        <Link href={qs({ team: "" })} className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
+          !team ? "bg-ink text-white" : "bg-surface-2 text-muted hover:text-ink"}`}>全部</Link>
+        {teamCodes.map((code) => {
+          const on = team === code;
+          return (
+            <Link key={code} href={qs({ team: on ? "" : code })}
+              className="flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium transition"
+              style={on ? { background: teamColor(code), color: "#fff" } : undefined}>
+              <TeamLogo code={code} name={names.get(code)} size={15} />
+              <span className={on ? "" : "text-muted"}>{teamFullName(names.get(code) ?? "")}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* 月份導覽 */}
+      <div className="mb-3 flex items-center justify-center gap-4">
+        {canPrev ? (
+          <Link href={qs({ month: prevM })} className="rounded-lg border border-line px-2.5 py-1 text-sm text-muted hover:bg-surface-2">←</Link>
+        ) : <span className="px-2.5 py-1 text-sm text-faint">←</span>}
+        <div className="min-w-[8rem] text-center text-lg font-semibold">{my} 年 {mm} 月</div>
+        {canNext ? (
+          <Link href={qs({ month: nextM })} className="rounded-lg border border-line px-2.5 py-1 text-sm text-muted hover:bg-surface-2">→</Link>
+        ) : <span className="px-2.5 py-1 text-sm text-faint">→</span>}
       </div>
+
+      {/* 月曆 */}
+      <div className="overflow-x-auto">
+        <div className="min-w-[720px]">
+          <div className="grid grid-cols-7 gap-px">
+            {WD.map((w, i) => (
+              <div key={w} className={`pb-1 text-center text-xs font-medium ${i === 0 || i === 6 ? "text-accent/70" : "text-faint"}`}>{w}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {cells.map((c) => (
+              <div key={c.key}
+                className={`min-h-[92px] rounded-lg border p-1 ${
+                  c.inMonth ? "border-line bg-surface" : "border-transparent bg-transparent"}`}>
+                {c.inMonth && (
+                  <div className={`mb-0.5 px-0.5 text-[11px] ${c.key === todayStr
+                    ? "inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 font-semibold text-white"
+                    : "text-faint"}`}>{c.day}</div>
+                )}
+                <div className="space-y-0.5">
+                  {c.games.map((g) => {
+                    const done = g.away_score + g.home_score > 0;
+                    const awayWin = g.away_score > g.home_score;
+                    const chip = (
+                      <>
+                        <span className="flex items-center gap-0.5 truncate">
+                          <TeamLogo code={g.away_team_code} name={g.away_team_name} size={13} />
+                          {done && <span className={awayWin ? "font-bold text-accent" : "text-muted"}>{g.away_score}</span>}
+                        </span>
+                        <span className="text-faint">{done ? ":" : "@"}</span>
+                        <span className="flex items-center gap-0.5 truncate">
+                          {done && <span className={!awayWin ? "font-bold text-accent" : "text-muted"}>{g.home_score}</span>}
+                          <TeamLogo code={g.home_team_code} name={g.home_team_name} size={13} />
+                        </span>
+                        {g.delay_kind && <span title={`因雨${g.delay_kind}`}>☔</span>}
+                      </>
+                    );
+                    const cls = "flex items-center justify-between gap-0.5 rounded px-1 py-0.5 text-[11px] leading-none";
+                    return hasDetail ? (
+                      <Link key={g.game_sno} href={`/games/${g.game_sno}?kind=${g.kind_code}&year=${g.year}`}
+                        className={`${cls} bg-surface-2/60 hover:bg-surface-2`}>{chip}</Link>
+                    ) : (
+                      <div key={g.game_sno} className={`${cls} bg-surface-2/60`}>{chip}</div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <p className="mt-4 text-center text-xs text-faint">
+        數字＝比分（粗體為勝方）· <span className="whitespace-nowrap">@ ＝尚未開打</span> · ☔＝因雨延賽/保留
+      </p>
     </div>
   );
 }

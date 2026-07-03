@@ -118,6 +118,29 @@ export type GameSummary = {
   home_score: number;
 };
 export type GamesRecentResponse = { season: number; items: GameSummary[] };
+export type CalendarGame = {
+  year: number;
+  kind_code: string;
+  game_sno: number;
+  game_date: string;
+  venue: string | null;
+  present_status: number | null;
+  away_team_name: string;
+  away_team_code: string;
+  away_score: number;
+  home_team_name: string;
+  home_team_code: string;
+  home_score: number;
+  win_pitcher: string | null;
+  lose_pitcher: string | null;
+  home_starter: string | null;
+  away_starter: string | null;
+  attendance: number | null;
+  game_time: string | null;
+  delay_kind: string | null;
+  orig_date: string | null;
+};
+export type GamesCalendarResponse = { season: number; items: CalendarGame[] };
 
 export type OfficialStanding = {
   team_code: string;
@@ -249,6 +272,8 @@ export const api = {
     get<StandingsTrendResponse>(`/api/v1/standings-trend?kind_code=${kind}${season ? `&season=${season}` : ""}`, 120),
   gamesRecent: (limit = 60, year?: number, kind = "A") =>
     get<GamesRecentResponse>(`/api/v1/games/recent?limit=${limit}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 120),
+  gamesCalendar: (year?: number, kind = "A") =>
+    get<GamesCalendarResponse>(`/api/v1/games/calendar?kind_code=${kind}${year ? `&season=${year}` : ""}`, 120),
   standings: (season?: number) =>
     get<StandingsResponse>(`/api/v1/season/standings${season ? `?season=${season}` : ""}`),
   records: () =>
