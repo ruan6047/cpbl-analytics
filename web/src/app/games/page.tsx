@@ -155,8 +155,9 @@ export default async function GamesPage({
                   {c.games.map((g) => {
                     const done = g.away_score + g.home_score > 0;
                     const awayWin = g.away_score > g.home_score;
-                    const status = g.delay_kind ?? (done ? "完賽" : "未開打");
-                    const statusCls = g.delay_kind ? "text-amber-600" : done ? "text-faint" : "text-accent/80";
+                    // 打完就是「完賽」（延賽/保留性質改以 ☔ 小標記保留）；未打才顯示延賽/保留/未開打
+                    const status = done ? "完賽" : (g.delay_kind ?? "未開打");
+                    const statusCls = done ? "text-faint" : g.delay_kind ? "text-amber-600" : "text-accent/80";
                     const info = done
                       ? (g.mvp ? `⭐ ${g.mvp}` : g.win_pitcher ? `勝 ${g.win_pitcher}` : "")
                       : (g.away_starter || g.home_starter ? `${g.away_starter ?? "未定"} · ${g.home_starter ?? "未定"}` : (g.venue ?? ""));
@@ -167,7 +168,9 @@ export default async function GamesPage({
                             <TeamLogo code={g.away_team_code} name={g.away_team_name} size={20} />
                             {done && <span className={`text-base tabular-nums ${awayWin ? "font-bold text-accent" : "text-muted"}`}>{g.away_score}</span>}
                           </span>
-                          <span className={`text-[9px] leading-tight ${statusCls}`}>{status}</span>
+                          <span className={`text-[9px] leading-tight ${statusCls}`}>
+                            {status}{done && g.delay_kind && <span title={`因雨${g.delay_kind}`}> ☔</span>}
+                          </span>
                           <span className="flex items-center gap-1">
                             {done && <span className={`text-base tabular-nums ${!awayWin ? "font-bold text-accent" : "text-muted"}`}>{g.home_score}</span>}
                             <TeamLogo code={g.home_team_code} name={g.home_team_name} size={20} />
