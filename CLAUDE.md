@@ -62,7 +62,7 @@ cpbl-analytics/
 │   │   ├── outcome.py            # 賽事預測（互動：即時 fit 特徵子集 + 時間切分回測）
 │   │   ├── outcome_gbm.py        # 賽事預測（離線：LightGBM vs 邏輯回歸 vs 全押主場走查回測 → model_versions）
 │   │   └── matchup.py            # 賽事預測（主：單場對戰卡 + 定向預設權重）
-│   └── api/main.py               # FastAPI（/api/info + /outcome + /season/standings）
+│   └── api/                      # FastAPI：main.py 組裝 + routers/ 領域分群 + helpers/rows 共用
 ├── web/                          # 獨立 Next.js 15 前端（App Router + Tailwind v4 + recharts）
 ├── migrations/                   # 001…022（season/ML 表 + games/game_features/current 系列 + advanced_stats/pitch_tracking/game_log/standings…）
 ├── Dockerfile                    # uv build → python slim runtime（裝 libgomp1）

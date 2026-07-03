@@ -1,0 +1,42 @@
+"""API 共用工具：預設球季、cursor→dict、四捨五入、特徵字串解析、局數記法換算。"""
+
+from __future__ import annotations
+
+from datetime import date as _date
+from typing import Any
+
+DEFAULT_SEASON = _date.today().year
+
+
+def _ip_real(ip: float | None) -> float | None:
+    """.1/.2 局數記法 → 真實局數（如 180.2 → 180⅔）。"""
+    if ip is None:
+        return None
+    ip = float(ip)
+    whole = int(ip)
+    return whole + round((ip - whole) * 10) / 3.0
+
+
+def _real_ip(ip: Any) -> float:
+    """同 _ip_real，但 None → 0.0（加總用）。"""
+    return _ip_real(ip) or 0.0
+
+
+def _parse_features(features: str) -> list[str]:
+    return [f.strip() for f in features.split(",") if f.strip()]
+def _ip_disp(real: float | None) -> float | None:
+    """真實局數 → .1/.2 棒球記法顯示（如 180⅔ → 180.2）。"""
+    if real is None:
+        return None
+    real = float(real)
+    whole = int(real + 1e-9)
+    outs = round((real - whole) * 3)
+    if outs >= 3:
+        whole, outs = whole + 1, 0
+    return round(whole + outs / 10, 1)
+def _dicts(cur) -> list[dict]:
+    """cursor → list[dict]，欄名取自 cursor.description；real 已是 float。"""
+    cols = [d[0] for d in cur.description]
+    return [dict(zip(cols, row, strict=True)) for row in cur.fetchall()]
+def _round(x: float | None, n: int) -> float | None:
+    return round(x, n) if x is not None else None

@@ -8,18 +8,10 @@ from __future__ import annotations
 
 import pytest
 
-from cpbl.api.main import (
-    _batted_result,
-    _count_bucket,
-    _grade,
-    _ip_disp,
-    _ip_real,
-    _merge_splits,
-    _parse_features,
-    _real_ip,
-    _round,
-    _zone_result,
-)
+from cpbl.api.helpers import _ip_disp, _ip_real, _parse_features, _real_ip, _round
+from cpbl.api.routers.ability import _grade
+from cpbl.api.routers.players import _merge_splits
+from cpbl.api.routers.tracking import _batted_result, _count_bucket, _zone_result
 
 # ---- 局數記法換算（.1=⅓、.2=⅔） ----
 

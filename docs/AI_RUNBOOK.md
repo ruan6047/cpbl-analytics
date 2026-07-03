@@ -104,7 +104,9 @@ host 缺 `libomp.dylib`。**勿 `brew install libomp` 污染 host**；需 LightG
 
 ---
 
-## 5. API 地圖（FastAPI，唯讀；`src/cpbl/api/main.py`）
+## 5. API 地圖（FastAPI，唯讀；`src/cpbl/api/`）
+
+`main.py` 只做 app 組裝；路由按領域拆在 `routers/`（info/projections/leaders/outcome/standings/players/games/ability/tracking/trend/teams），共用工具在 `helpers.py`（局數換算等純函式）與 `rows.py`（跨路由季成績列 SQL）。新端點加進對應 router 後，記得更新 `tests/test_route_snapshot.py` 的 EXPECTED。
 
 | 群組 | 端點 |
 |---|---|
