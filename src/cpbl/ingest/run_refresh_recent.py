@@ -68,6 +68,28 @@ def _roster_ids(table: str) -> set[str]:
         return {r[0] for r in c.execute(f"SELECT player_id FROM cpbl.{table}").fetchall()}
 
 
+def _sync_player_names() -> int:
+    """以「最近一場逐場登錄名」更新 players.name（處理球員改名，如 象魔力→魔力藍）。
+    gamelog 名為官方當場登錄名、最乾淨；current 表名帶 #/◎/* roster 標記故不用。
+    純 SQL、用已爬資料，改名隔日自動修正。回傳更新列數。"""
+    with conn() as c:
+        cur = c.execute(
+            """
+            WITH gl AS (
+              SELECT hitter_acnt acnt, hitter_name nm, year, game_sno FROM cpbl.batting_gamelog
+              UNION ALL SELECT pitcher_acnt, pitcher_name, year, game_sno FROM cpbl.pitching_gamelog
+            ),
+            latest AS (
+              SELECT DISTINCT ON (acnt) acnt, regexp_replace(nm, '^[*＊#＃◎●○◇]+', '') AS nm
+              FROM gl WHERE nm IS NOT NULL ORDER BY acnt, year DESC, game_sno DESC
+            )
+            UPDATE cpbl.players p SET name = l.nm
+            FROM latest l WHERE p.id = l.acnt AND p.name <> l.nm AND l.nm <> ''
+            """
+        )
+        return cur.rowcount
+
+
 def _day_opponents(year: int, snos: list[int], kind_code: str = "A") -> dict[str, list[tuple[str, str]]]:
     """{打者 acnt: [(kind_code, 對手隊 team_code), ...]}：當日各打者面對的對手隊。
 
@@ -213,6 +235,9 @@ def main() -> None:
                 log.info("補齊缺 gamelog 場 kind=%s：%s", kc, miss)
                 scrape_gamelogs(year, miss, kc)
                 scrape_game_details(year, miss, kc)
+        renamed = _sync_player_names()  # 由最新 gamelog 名同步 players.name（改名自動修正）
+        if renamed:
+            log.info("更新 %d 位球員登錄名（改名同步）", renamed)
     except Exception as e:  # noqa: BLE001 — 失敗也要留痕，避免無聲缺漏
         log.error("抓取失敗：%s", e)
         _log_refresh("recent-games", yesterday, today, 0, 0,
