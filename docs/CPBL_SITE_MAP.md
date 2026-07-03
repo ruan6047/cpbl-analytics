@@ -35,6 +35,9 @@
 
 **操作紅線**：CLI 整輪失敗時**勿立刻重跑**——連續冷啟動會讓 HiNet 節流升級成
 「token 時好時壞→fetch 全掛→重定向迴圈」的惡化循環。**先冷卻 15–20 分鐘**再單次重試。
+深度節流（重打多輪後）會進一步供**快取頁變體**（頁面完整但無 session token，見 §5），
+此時 15–20 分不夠，需 **2 小時以上**深度冷卻；診斷探測本身也算打站，一次失敗後
+最多再探 1 次就必須停手。
 
 依賴：`uv sync --group scrape && uv run playwright install chromium`（只在本機）。
 
@@ -78,6 +81,60 @@
 > 進階站解析**脆弱點在 RSC**（advanced）；logs API 是正式 JSON 較穩。
 > 逐球含二軍（kindCode D）——查詢一軍**必須**過濾 `kind_code='A'`。
 
+## 4b. 未爬資源盤點（擴充時查這裡，不用重新逆向）
+
+> 2026-07-04 實測盤點。標註「已爬 ✅ / 未爬 ⬜」與擴充提示。
+
+### 進階站 stats.cpbl.com.tw（httpx 直連，全站無挑戰）
+
+站台路由（首頁 nav 實測）：`/players`、`/players/{acnt}`、`/rankings`、`/schedule`、
+`/schedule/{year}-{kind}-{sno}`（單場頁）、`/news/{google-docs-id}`。
+
+**完整 API 面**（從 `_next` JS chunks 逆向，fetch wrapper 統一打 `/api/proxy` + 路徑）：
+
+| 端點 | 狀態 | 內容 / 已驗證事實 |
+|---|---|---|
+| `/api/proxy/v1/players/logs` | ✅ 已爬（`cpbl_pitch_tracking`） | 逐球 TrackMan；支援 kindCode A/C/D/E |
+| `/api/proxy/v1/players/{acnt}` | ⬜（同資料已用 RSC 解析爬，`cpbl_advanced`） | 球員進階彙總；**改版時可改打這支取代脆弱的 RSC 括號配對** |
+| `/api/proxy/v1/games/{year}-{kind}-{sno}` | ⬜ | **免參數可用**（實測 200）：單場物件 `Data.Game`（隊伍/狀態/`SkipTrackman`；比賽中應含逐球）。可做賽況頁 TrackMan 即時源 |
+| `/api/proxy/v1/games/schedule/{…}` | ⬜ | 賽程（chunk 中確認存在，參數未探） |
+| `/api/proxy/v1/leaderboards/pr-table` | ⬜ | 官方 PR 排行榜（各進階指標全聯盟百分位表） |
+| `/api/proxy/v1/leaderboards/exit-velocity` | ⬜ | 擊球初速排行 |
+| `/api/proxy/v1/leaderboards/batted-ball` | ⬜ | 擊球型態排行 |
+| `/api/proxy/v1/leaderboards/pitch-tracking` | ⬜ | 逐球指標排行 |
+| `/api/proxy/v1/players/autocomplete` | ⬜ | 選手搜尋（低價值） |
+
+- leaderboards 需查詢參數；chunk 中出現的鍵：`year`、`gameKind`、`playerType`、
+  `defendStationCode`、`position`（組合未完全確認，猜錯回 `UNKNOWN_HTTP_ERROR`）。
+  **要用時開 DevTools 在 `/rankings` 頁換篩選條件看實際 query string**，勿盲猜。
+- `/rankings` 頁本身把**整包排行榜資料內嵌 RSC**（~1MB，含 woba/wobaPr/hardHit/
+  barrels 等）→ 不想解參數時可直接 RSC 解析（同 `cpbl_advanced` 手法）。
+
+### 主站 www.cpbl.com.tw 全站導覽盤點（2026-07-04 實抽 nav）
+
+robots.txt/sitemap.xml 被挑戰擋（307）；以下是 `/schedule` 頁導覽選單實抽的全站路由。
+另有 `/sitenav`（官方網站導覽頁）可再展開子頁清單。
+
+| 路由 | 內容 | 狀態 / 擴充提示 |
+|---|---|---|
+| `/schedule`、`/box` | 賽程、單場 box/逐打席 | ✅ `cpbl_site`、`cpbl_gamelog` |
+| `/standings/season` | 當季戰績 | ✅ `cpbl_standings` |
+| `/standings/history` | **歷年戰績總表** | ⬜ 歷年季彙總已從 opendata/teamscore 取得；此頁可交叉驗證 |
+| `/standings/special` | **官方特殊紀錄**（連勝、單月…） | ⬜ 我們的特殊戰績是自算（記憶 `special-records-feature`）；此頁可對帳 |
+| `/stats/recordall` | 當季投打成績總表 | ✅ `cpbl_stats` |
+| `/stats/yearaward` | 年度獎項 | ✅ `cpbl_awards` |
+| `/stats/toplist` | **生涯累計 Top 榜** | ⬜ legends 爬蟲已覆蓋 7 榜 top10；全量在此頁 |
+| `/stats/hr` | **全壘打大事紀**（逐轟紀錄） | ⬜ 未爬；可做全壘打里程碑功能 |
+| `/stats/mvp` | **單場 MVP 名單** | ⬜ games.mvp_acnt 已有每場 MVP；此頁是彙總視角 |
+| `/player`（index） | 現役選手總名單 | △ 名單由 teamscore 取得；此頁有分隊瀏覽 |
+| `/player/trans` | 升降/異動 | ✅ `cpbl_transactions` |
+| `/team/*`（person/apart/fighting/teamscore/index） | 選手頁系 | ✅ 多模組（見 §4） |
+| `/field` | **球場介紹**（座位/尺寸） | ⬜ venue_dim 已建；此頁有球場規格可補欄位 |
+| `/teamhistory` | **球隊沿革**（隊史/更名） | ⬜ team_dim 硬編歷史；此頁可校驗 |
+| `/news`、`/about/*`、`/contactus`、`/xmdoc` | 新聞/關於/文件 | 非數據，不爬 |
+
+> 二軍無獨立專區：賽程/成績走同 endpoint 的 `kindCode=D`；季後/總冠軍賽同理（E/C）。
+
 ### 外部資料源（非官網，一次性/手動）
 
 維基球隊條目（總教練）、twbsball query API（旅外）：見記憶 `wiki-data-sources`；
@@ -91,6 +148,7 @@ opendata 逐年 CSV：`ldkrsi/cpbl-opendata`（回填用，不再變動）。
 |---|---|---|
 | `找不到 RequestVerificationToken`（**偶發**，重跑會過） | HiNet 挑戰頁未過（機率性） | 已由 `page_html(require=)` 自癒；連續失敗＝節流→**冷卻 15–20 分** |
 | 同上（**冷卻後仍 100% 失敗**） | 官網改版：token 改名/搬家 | 手動 dump 頁面 HTML（`page_html` 存檔）→ 找新 token 樣式 → 改 §3 對應 regex |
+| 頁面**完整**（title/nav 正常、50KB+）但 **inline A 型 token 消失、只剩 hidden-input** | **深度節流：CDN 供快取頁變體**（per-session inline token 不會在快取副本裡；其內嵌 hidden token 對本 session 無效，POST 仍被攔）| 2026-07-04 凌晨實測。**這不是改版**——判別法：深度冷卻（2h+）後 A 型 token 回來＝節流變體；仍只有 B 型＝真改版才改 code |
 | `POST … TypeError: Failed to fetch` / 428 | fetch 被挑戰攔截 | 已由 `post()` 重載退避自癒；持續＝節流，冷卻 |
 | `ERR_TOO_MANY_REDIRECTS` | 挑戰 cookie 壞掉 | 已由 `_goto()` 換 context 自癒 |
 | getgamedatas 回 500 | 用錯 token 型態（B 代 A） | 檢查是否誤用 hidden-input token |
