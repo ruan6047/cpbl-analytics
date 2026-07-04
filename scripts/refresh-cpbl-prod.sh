@@ -87,6 +87,12 @@ sync_table retired_numbers "team_code,number" holder_type player_id holder_name 
 sync_table players "id" \
   name full_name handedness bats throws birthday country \
   height_cm weight_kg debut education birthplace draft bio_updated_at
+sync_table venue_dim "venue" \
+  full_name turf indoor city capacity infield_seats outfield_seats lf_dist cf_dist rf_dist \
+  big_screen address phone field_sid
+# 打擊投影（本機容器 cpbl-train 產出；outcome 的 model_versions 由 VPS 自己回測寫入，upsert 不衝突）
+sync_table model_versions "id" task algo trained_at params cv_metrics
+sync_table projections "player_id,target_year,model_version,stat" predicted actual
 sync_table team_standings "year,kind_code,season_code,team_code" \
   team_name rank g w t l win_pct gb elim home_record away_record streak last10 h2h
 
@@ -121,7 +127,8 @@ if [ -n "${WITH_DETAIL:-}" ]; then
     inning_pitched_div3 plate_appearances pitch_cnt strikes balls hits home_runs sac_hit sac_fly bb ibb \
     hbp so wild_pitch balk runs earned_runs
   sync_table game_detail "year,kind_code,game_sno" \
-    attendance game_time head_umpire first_umpire second_umpire third_umpire left_umpire right_umpire
+    attendance game_time head_umpire first_umpire second_umpire third_umpire left_umpire right_umpire \
+    weather_code weather_desc winning_type attendance_backend
   sync_table game_scoreboard "year,kind_code,game_sno,team_no,inning_seq" \
     visiting_home_type team_name score_cnt hitting_cnt error_cnt
   sync_table game_livelog "year,kind_code,game_sno,main_event_no" \
