@@ -51,10 +51,13 @@ graph LR
 
 **⚠️ 生產每日 cron 實際沒在跑**：`cpbl.refresh_log` 為空、生產資料曾停在某日。生產新鮮度目前靠人工「本機爬 + 同步」。
 
-### 本機每日自動爬取（launchd，免手動 CLI）
+### 本機每日爬取（**手動觸發**；launchd 排程已停用）
 
-`scripts/scrape-daily.sh` + `scripts/com.cpbl.scrape-daily.plist`：launchd 每日 03:10 在本機跑
-`cpbl-refresh-recent`（更新**本機** DB；上線仍須另跑 `refresh-cpbl-prod.sh`）。安裝：
+**2026-07-04 起改手動**：筆電非常開機，launchd 排程已 bootout + 移除 LaunchAgents 連結。
+更新流程 = 使用者下令時跑 `scripts/scrape-daily.sh`（或直接 `uv run cpbl-refresh-recent`；
+腳本版多了 log/last-status.json 產物與成功後自動同步生產）。
+**時段紅線**：勿在深夜/凌晨跑——官網挑戰深夜加嚴會硬封鎖新訪客（SITE_MAP §2）。
+要恢復自動排程（plist 已改 10:10 白天）：
 
 ```bash
 ln -sf "$PWD/scripts/com.cpbl.scrape-daily.plist" ~/Library/LaunchAgents/com.cpbl.scrape-daily.plist
