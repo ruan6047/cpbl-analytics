@@ -22,6 +22,7 @@ from cpbl.api.routers import (
     teams,
     tracking,
     trend,
+    umpires,
 )
 
 app = FastAPI(title="CPBL Analytics", version=__version__)
@@ -35,5 +36,5 @@ app.add_middleware(
 )
 
 for _mod in (info, projections, leaders, outcome, standings, players, games,
-             ability, tracking, trend, teams):
+             ability, tracking, trend, teams, umpires):
     app.include_router(_mod.router)

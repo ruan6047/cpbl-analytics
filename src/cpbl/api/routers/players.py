@@ -412,6 +412,36 @@ def matchups(
         return {"hitter": hitter, "pitcher": pitcher, "items": _dicts(cur)}
 
 
+@router.get("/api/v1/players/{player_id}/traits")
+def player_traits(player_id: str, season: int = Query(DEFAULT_SEASON),
+                  role: str = Query("batting", pattern="^(batting|pitching)$")) -> dict:
+    """選手特性（livelog 推算）：P/PA 耗球、滾飛比、方向傾向、兩好球後表現 + 聯盟均值。"""
+    table = "batter_traits" if role == "batting" else "pitcher_traits"
+    pa_col = "pa" if role == "batting" else "bf"
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(  # noqa: S608 — table 白名單如上
+            f"SELECT * FROM cpbl.{table} WHERE player_id=%s AND year=%s AND kind_code='A'",
+            (player_id, season))
+        rows = _dicts(cur)
+        cur.execute(  # 聯盟均值（有效樣本：打者 100 PA / 投手 100 BF）
+            f"SELECT round(avg(p_pa)::numeric, 2), "  # noqa: S608
+            f"round(avg(go::numeric / nullif(fo, 0)), 2), "
+            f"round(avg(100.0 * two_strike_k / nullif(two_strike_pa, 0)), 1) "
+            f"FROM cpbl.{table} WHERE year=%s AND kind_code='A' AND {pa_col} >= 100",
+            (season,))
+        lg = cur.fetchone()
+    me = rows[0] if rows else None
+    if me:
+        me["go_fo"] = round(me["go"] / me["fo"], 2) if me.get("fo") else None
+        if me.get("two_strike_pa"):
+            me["two_strike_k_pct"] = round(100 * me["two_strike_k"] / me["two_strike_pa"], 1)
+    return {"season": season, "role": role, "traits": me,
+            "league": {"p_pa": float(lg[0]) if lg and lg[0] is not None else None,
+                       "go_fo": float(lg[1]) if lg and lg[1] is not None else None,
+                       "two_strike_k_pct": float(lg[2]) if lg and lg[2] is not None else None}}
+
+
 @router.get("/api/v1/players/{player_id}/vs-team")
 def player_vs_team(
     player_id: str,

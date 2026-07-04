@@ -93,6 +93,12 @@ sync_table venue_dim "venue" \
 # 打擊投影（本機容器 cpbl-train 產出；outcome 的 model_versions 由 VPS 自己回測寫入，upsert 不衝突）
 sync_table model_versions "id" task algo trained_at params cv_metrics
 sync_table projections "player_id,target_year,model_version,stat" predicted actual
+# sabermetrics 打底（本機 cpbl-build-sabr 產出，derived 故鏡像）
+sync_table fielding_innings "year,kind_code,player_id,pos" outs games
+sync_table run_expectancy "span,kind_code,bases,outs" re samples
+sync_table batter_traits "year,kind_code,player_id" \
+  pa p_pa go fo dir_left dir_center dir_right two_strike_pa two_strike_k two_strike_hit
+sync_table pitcher_traits "year,kind_code,player_id" bf p_pa go fo two_strike_pa two_strike_k
 sync_table team_standings "year,kind_code,season_code,team_code" \
   team_name rank g w t l win_pct gb elim home_record away_record streak last10 h2h
 
