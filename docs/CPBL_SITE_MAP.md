@@ -41,6 +41,22 @@
 
 依賴：`uv sync --group scrape && uv run playwright install chromium`（只在本機）。
 
+### 深度封鎖狀態（2026-07-04 凌晨實測，重要）
+
+挑戰在**深夜/重打後**會進入「**針對新訪客的重定向迴圈**」硬封鎖，特徵與對策：
+
+- **瞬間** `ERR_TOO_MANY_REDIRECTS`（<1s，未進挑戰）；**2 小時冷卻無效**（非單純速率節流）。
+- 同 IP 同時刻：使用者**既有 session 的真 Chrome 暢通**、**Safari（壞 cookie）也迴圈**、
+  **所有 Playwright 變體全滅**（headless／headed／`channel=chrome` 真二進位／+stealth `--disable-blink-features=AutomationControlled`／+注入真 cookie 皆然）。
+- 注入真 Chrome cookie 可讓**首頁**載入（不迴圈），但 **/schedule 深連結仍不放行**——
+  差別在真瀏覽器走 **SPA 內部導航**（點賽程＝Vue 換頁+AJAX，不重載不重挑戰）。
+- **反證**：本 session 稍早（未重打前）冷啟動 **6/6 連過** → 平時可用，深夜是站台加嚴狀態。
+- **可調環境變數**（`_browser.py`）：`CPBL_SCRAPE_HEADED=1`、`CPBL_SCRAPE_CHANNEL=chrome`、
+  `CPBL_SCRAPE_PROFILE=<dir>`（持久化 cookie）、`CPBL_SCRAPE_UA=default`。深夜實測皆未破解。
+- **對策**：**改白天時段重試**（站台非加嚴狀態）；勿在深夜/加嚴期繼續打，只會延長封鎖。
+  真要深夜出資料，唯一確定可行是**驅動使用者既有 session 的真 Chrome**（CDP 被 Chrome 136
+  預設 profile 安全限制擋住，需 profile-copy 方案，尚未實作）。
+
 ---
 
 ## 3. 主站 token 三態（改版時先分清是哪一種）

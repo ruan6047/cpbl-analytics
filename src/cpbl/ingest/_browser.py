@@ -22,14 +22,26 @@ from __future__ import annotations
 
 import atexit
 import logging
+import os
 import re
 from urllib.parse import urlencode
 
 log = logging.getLogger("cpbl.browser")
 
+# 反爬封鎖是「懲罰新訪客」：有舊挑戰 cookie 的瀏覽器暢通、無 cookie 新訪客被擋
+# （2026-07-04 實測：同 IP 同時刻 Chrome(有cookie)全通、Safari(無cookie)全擋）。
+# 對策：persistent profile 讓爬蟲過關一次後變「熟客」，cookie 跨 run 重用。
+# CPBL_SCRAPE_PROFILE=<dir> → 持久化 profile；CPBL_SCRAPE_CHANNEL=chrome → 真 Chrome；
+# CPBL_SCRAPE_HEADED=1 → 有頭模式（最像真人，過挑戰成功率最高）。
+_CHANNEL = os.environ.get("CPBL_SCRAPE_CHANNEL", "")
+_HEADED = os.environ.get("CPBL_SCRAPE_HEADED", "") == "1"
+_PROFILE = os.environ.get("CPBL_SCRAPE_PROFILE", "")
+
 BASE = "https://www.cpbl.com.tw"
-UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-      "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+# CPBL_SCRAPE_UA：借用真瀏覽器 cookie 時 UA 必須一致，否則挑戰可能識破
+UA = os.environ.get("CPBL_SCRAPE_UA") or (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
 # page context 內發 POST；fetch 被挑戰攔截時回 status=-1 交由 post() 重試，不讓 evaluate 拋錯
 _JS_POST = """async ({path, headers, body}) => {
@@ -50,19 +62,38 @@ class _Session:
     def __init__(self) -> None:
         from playwright.sync_api import sync_playwright
         self._pw = sync_playwright().start()
-        self._browser = self._pw.chromium.launch()
+        # AutomationControlled 會讓 navigator.webdriver=true——挑戰升級戒備時據此攔自動化
+        # 瀏覽器（2026-07-04：同 IP 真瀏覽器可過、Playwright 有頭/無頭全被重定向迴圈）
+        self._kw: dict = {"headless": not _HEADED,
+                          "args": ["--disable-blink-features=AutomationControlled"]}
+        if _CHANNEL:
+            self._kw["channel"] = _CHANNEL
+        self._browser = None if _PROFILE else self._pw.chromium.launch(**self._kw)
         self._new_context()
         atexit.register(self.close)
 
     def _new_context(self) -> None:
-        """建（或換）乾淨 context：cookie 壞掉（重定向迴圈）時的復原手段。"""
+        """建（或換）context：cookie 壞掉（重定向迴圈）時的復原手段。
+
+        persistent profile 模式下 context 即 browser（cookie 落地 _PROFILE 目錄，
+        跨 run 重用 = 對反爬而言是「熟客」）；重建時整個 relaunch。
+        """
         if getattr(self, "_ctx", None) is not None:
             try:
                 self._ctx.close()
             except Exception:  # noqa: BLE001 — 舊 context 關閉容錯
                 pass
-        self._ctx = self._browser.new_context(user_agent=UA, locale="zh-TW")
-        self._page = self._ctx.new_page()
+        # CPBL_SCRAPE_UA=default → 不覆寫 UA（避免與 Sec-CH-UA client hints 不一致被判機器人）
+        ctx_kw: dict = {"locale": "zh-TW"}
+        if os.environ.get("CPBL_SCRAPE_UA") != "default":
+            ctx_kw["user_agent"] = UA
+        if _PROFILE:
+            self._ctx = self._pw.chromium.launch_persistent_context(
+                _PROFILE, **ctx_kw, **self._kw)
+            self._page = self._ctx.pages[0] if self._ctx.pages else self._ctx.new_page()
+        else:
+            self._ctx = self._browser.new_context(**ctx_kw)
+            self._page = self._ctx.new_page()
         self._loaded: str | None = None
 
     def _goto(self, page_path: str, wait: str) -> None:
@@ -137,7 +168,10 @@ class _Session:
 
     def close(self) -> None:
         try:
-            self._browser.close()
+            if self._browser is not None:
+                self._browser.close()
+            else:
+                self._ctx.close()  # persistent 模式：關 context 即落地 cookie
             self._pw.stop()
         except Exception:  # noqa: BLE001 — 關閉容錯
             pass
