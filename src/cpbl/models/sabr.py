@@ -200,6 +200,69 @@ def build_fielding_innings(year: int, kind: str = "A") -> dict:
     return {"games": len(snos), "rows": len(acc), "outs": total}
 
 
+_TRAITS_SQL = """
+WITH ev AS (
+  SELECT game_sno, main_event_no::bigint AS evt, hitter_acnt, pitcher_acnt,
+         pitch_cnt, strike_cnt, batting_action_name,
+         CASE WHEN hitter_acnt IS DISTINCT FROM
+                   lag(hitter_acnt) OVER (PARTITION BY game_sno ORDER BY main_event_no::bigint)
+              THEN 1 ELSE 0 END AS brk
+  FROM cpbl.game_livelog
+  WHERE year = %(year)s AND kind_code = %(kind)s
+    AND hitter_acnt IS NOT NULL AND pitch_cnt IS NOT NULL
+), pa AS (
+  SELECT game_sno, hitter_acnt,
+         sum(brk) OVER (PARTITION BY game_sno ORDER BY evt) AS pa_id,
+         evt, pitch_cnt, strike_cnt, batting_action_name, pitcher_acnt
+  FROM ev
+), agg AS (
+  SELECT game_sno, pa_id, min(hitter_acnt) AS hitter,
+         (array_agg(pitcher_acnt ORDER BY evt DESC))[1] AS pitcher,
+         max(pitch_cnt) - min(pitch_cnt) + 1 AS pitches,
+         max(strike_cnt) AS max_strikes,
+         (array_agg(batting_action_name ORDER BY evt DESC))[1] AS act
+  FROM pa GROUP BY game_sno, pa_id
+)
+SELECT {key} AS player_id, count(*) AS pa,
+       round(avg(pitches) FILTER (WHERE pitches BETWEEN 1 AND 20)::numeric, 2) AS p_pa,
+       count(*) FILTER (WHERE act LIKE '%%滾' OR act = '雙殺') AS go,
+       count(*) FILTER (WHERE act LIKE '%%飛' AND act NOT LIKE '界%%') AS fo,
+       count(*) FILTER (WHERE left(act, 1) IN ('三', '游', '左')
+                        AND (act LIKE '%%滾' OR act LIKE '%%飛' OR act LIKE '%%安')) AS dir_left,
+       count(*) FILTER (WHERE left(act, 1) IN ('中', '投', '捕')
+                        AND (act LIKE '%%滾' OR act LIKE '%%飛' OR act LIKE '%%安')) AS dir_center,
+       count(*) FILTER (WHERE left(act, 1) IN ('一', '二', '右')
+                        AND (act LIKE '%%滾' OR act LIKE '%%飛' OR act LIKE '%%安')) AS dir_right,
+       count(*) FILTER (WHERE max_strikes >= 2) AS two_strike_pa,
+       count(*) FILTER (WHERE max_strikes >= 2 AND act = '三振') AS two_strike_k,
+       count(*) FILTER (WHERE max_strikes >= 2 AND (act LIKE '%%安' OR act = '全打')) AS two_strike_hit
+FROM agg GROUP BY {key}
+"""
+
+
+def build_traits(year: int, kind: str = "A") -> dict:
+    """重建打者/投手特性表（P/PA、滾飛、方向、兩好球後）。"""
+    with conn() as c:
+        c.execute("DELETE FROM cpbl.batter_traits WHERE year=%s AND kind_code=%s", (year, kind))
+        c.execute("DELETE FROM cpbl.pitcher_traits WHERE year=%s AND kind_code=%s", (year, kind))
+        cur = c.cursor()
+        cur.execute(
+            f"INSERT INTO cpbl.batter_traits (player_id, pa, p_pa, go, fo, dir_left, dir_center, "  # noqa: S608
+            f"dir_right, two_strike_pa, two_strike_k, two_strike_hit, year, kind_code) "
+            f"SELECT *, %(year)s, %(kind)s FROM ({_TRAITS_SQL.format(key='hitter')}) t",
+            {"year": year, "kind": kind})
+        nb = cur.rowcount
+        cur.execute(
+            f"INSERT INTO cpbl.pitcher_traits (player_id, bf, p_pa, go, fo, two_strike_pa, "  # noqa: S608
+            f"two_strike_k, year, kind_code) "
+            f"SELECT player_id, pa, p_pa, go, fo, two_strike_pa, two_strike_k, %(year)s, %(kind)s "
+            f"FROM ({_TRAITS_SQL.format(key='pitcher')}) t",
+            {"year": year, "kind": kind})
+        np_ = cur.rowcount
+    log.info("traits %s/%s：打者 %d / 投手 %d", year, kind, nb, np_)
+    return {"batters": nb, "pitchers": np_}
+
+
 def build_run_expectancy(from_year: int, to_year: int, kind: str = "A") -> dict:
     """建 RE 矩陣（排除未滿三出局的半局）→ UPSERT cpbl.run_expectancy。"""
     span = f"{from_year}-{to_year}"

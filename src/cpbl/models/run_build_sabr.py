@@ -11,7 +11,7 @@ import logging
 import sys
 
 from cpbl.db import migrate
-from cpbl.models.sabr import build_fielding_innings, build_run_expectancy
+from cpbl.models.sabr import build_fielding_innings, build_run_expectancy, build_traits
 
 log = logging.getLogger("cpbl.sabr")
 
@@ -24,9 +24,11 @@ def main() -> None:
         frm, to = int(sys.argv[1]), int(sys.argv[2])
         for y in range(frm, to + 1):
             build_fielding_innings(y)
+            build_traits(y)
         return
     for y in range(2018, this_year + 1):
         build_fielding_innings(y)
+        build_traits(y)
     build_run_expectancy(2018, this_year - 1)
 
 
