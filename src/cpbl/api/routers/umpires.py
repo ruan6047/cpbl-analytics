@@ -20,6 +20,7 @@ Z_BOT, Z_TOP = 0.423, 1.077
 
 _CALLED = """
 SELECT t.game_sno, t.pitcher_acnt, t.hitter_acnt, t.inning_seq,
+       t.pitcher_name, t.hitter_name, t.ball_cnt, t.strike_cnt, t.out_cnt,
        t.plate_loc_side AS side, t.plate_loc_height AS height,
        (t.pitch_call = 'StrikeCalled') AS called_strike,
        (abs(t.plate_loc_side) <= %(hw)s AND t.plate_loc_height BETWEEN %(zb)s AND %(zt)s)
@@ -52,7 +53,11 @@ def umpire_leaderboard(season: int = Query(DEFAULT_SEASON), kind_code: str = Que
               FROM called c2
               JOIN cpbl.game_detail d ON d.year = %(season)s AND d.kind_code = %(kind)s
                                      AND d.game_sno = c2.game_sno
-              WHERE d.head_umpire IS NOT NULL)
+              WHERE d.head_umpire IS NOT NULL
+                -- 追蹤異常：離帶 >50cm 還判好球＝TrackMan 軌跡錯誤，剔除
+                AND NOT (c2.called_strike AND NOT c2.in_zone
+                         AND (abs(c2.side) > %(hw)s + 0.5
+                              OR c2.height < %(zb)s - 0.5 OR c2.height > %(zt)s + 0.5)))
             SELECT head_umpire AS umpire,
                    count(DISTINCT game_sno) AS games,
                    count(*) AS called,
@@ -82,14 +87,26 @@ def game_umpire_card(game_sno: int, season: int = Query(DEFAULT_SEASON),
                     (season, kind_code, game_sno))
         r = cur.fetchone()
         umpire = r[0] if r else None
+        cur.execute("SELECT game_date, venue, home_team_name, away_team_name, "
+                    "home_score, away_score FROM cpbl.games "
+                    "WHERE year=%s AND kind_code=%s AND game_sno=%s",
+                    (season, kind_code, game_sno))
+        game = _dicts(cur)
         cur.execute(_CALLED + " AND t.game_sno = %(sno)s",
                     {"season": season, "kind": kind_code, "sno": game_sno,
                      "hw": HALF_W, "zb": Z_BOT, "zt": Z_TOP})
         pitches = _dicts(cur)
     for p in pitches:
         p["correct"] = bool(p["called_strike"]) == bool(p["in_zone"])
-        p["miss_cm"] = 0.0 if p["correct"] else (
-            _miss_cm(p["side"], p["height"]) if not p["in_zone"] else 0.0)
+        if p["in_zone"]:  # 帶內：到最近邊界的內縮距離（容錯滑桿用）
+            edge = min(HALF_W - abs(p["side"]), p["height"] - Z_BOT, Z_TOP - p["height"])
+            p["edge_cm"] = round(edge * 100, 1)
+        else:
+            p["edge_cm"] = _miss_cm(p["side"], p["height"])
+        p["miss_cm"] = 0.0 if p["correct"] else p["edge_cm"]
+    # 追蹤異常過濾：離帶 >50cm 還被判好球＝TrackMan 軌跡錯誤（非主審問題），剔除
+    pitches = [p for p in pitches
+               if not (p["called_strike"] and not p["in_zone"] and p["edge_cm"] > 50)]
     n = len(pitches)
     ok = sum(1 for p in pitches if p["correct"])
     misses = [p for p in pitches if not p["correct"]]
@@ -102,5 +119,6 @@ def game_umpire_card(game_sno: int, season: int = Query(DEFAULT_SEASON),
         if misses else 0.0,
     }
     return {"season": season, "game_sno": game_sno, "summary": summary,
+            "game": game[0] if game else None,
             "zone": {"half_width": HALF_W, "bot": Z_BOT, "top": Z_TOP},
             "pitches": pitches}
