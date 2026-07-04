@@ -76,6 +76,50 @@ def decide(livelog: list[dict], pitching: list[dict],
     return out
 
 
+def _save_situation(lead: int, runners: int) -> bool:
+    """登板時是否為救援/中繼情境：領先且（領先≤3 或追平分在壘上/打擊區/準備區）。"""
+    return 0 < lead and (lead <= 3 or lead <= runners + 3)
+
+
+def blown(livelog: list[dict], pitching: list[dict]) -> dict[str, str]:
+    """中繼/救援失敗 [Blown Hold/Save]（推算，官方無旗標）：登板時處救援情境、
+    在位期間把領先葬送（該隊領先一度 ≤0＝被追平/反超）者。回 {acnt: 'BS'|'BH'}。
+
+    BS(救援失敗)＝該場最後一任投手（有救援資格者搞砸）；BH(中繼失敗)＝中途接手者。
+    領先歸屬：投手所屬隊＝守備方（vht='1' 客隊打擊時投手為主隊）。
+    """
+    if not livelog:
+        return {}
+    rows = sorted(livelog, key=lambda r: int(r["main_event_no"]))
+    stint: dict[str, dict] = {}
+    order = 0
+    last_pitcher: str | None = None
+    for e in rows:
+        p = e.get("pitcher_acnt")
+        if not p:
+            continue
+        last_pitcher = p
+        is_home = str(e["visiting_home_type"]) == "1"
+        vs, hs = int(e["visiting_score"] or 0), int(e["home_score"] or 0)
+        lead = (hs - vs) if is_home else (vs - hs)
+        if p not in stint:
+            runners = sum(1 for b in ("first_base", "second_base", "third_base") if e.get(b))
+            stint[p] = {"order": order, "entry_lead": lead, "entry_runners": runners,
+                        "min_lead": lead}
+            order += 1
+        else:
+            stint[p]["min_lead"] = min(stint[p]["min_lead"], lead)
+    result_by: dict[str, str] = {r["pitcher_acnt"]: (r.get("game_result") or "")
+                                 for r in pitching}
+    out: dict[str, str] = {}
+    for acnt, s in stint.items():
+        if result_by.get(acnt) == "勝":     # 勝投＝球隊反超救回，不算搞砸
+            continue
+        if _save_situation(s["entry_lead"], s["entry_runners"]) and s["min_lead"] <= 0:
+            out[acnt] = "BS" if acnt == last_pitcher else "BH"
+    return out
+
+
 def game_decisions(year: int, kind_code: str, game_sno: int) -> dict[str, str]:
     """自 DB 撈單場資料並判定（API 用）。"""
     with conn() as c:
@@ -98,4 +142,9 @@ def game_decisions(year: int, kind_code: str, game_sno: int) -> dict[str, str]:
             "WHERE year=%s AND kind_code=%s AND game_sno=%s", (year, kind_code, game_sno))
         cols = [d[0] for d in cur.description]
         pitching = [dict(zip(cols, r, strict=True)) for r in cur.fetchall()]
-    return decide(livelog, pitching, g[0], g[1])
+    dec = decide(livelog, pitching, g[0], g[1])
+    # 併入中繼/救援失敗：與 W/L 並存（搞砸又吞敗＝'L·BS'），與 SV/HLD 互斥
+    for acnt, bl in blown(livelog, pitching).items():
+        base = dec.get(acnt)
+        dec[acnt] = f"{base}·{bl}" if base in ("L",) else bl
+    return dec

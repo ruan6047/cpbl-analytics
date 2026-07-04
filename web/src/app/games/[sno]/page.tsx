@@ -53,16 +53,19 @@ function BoxBatting({ rows, team }: { rows: StatRow[]; team: string }) {
   );
 }
 
-// 投手結果標記：勝/敗官方、中繼官方（relief_point）、救援依規則 9.19 推算（官方逐場無 save 旗標）
-function pitcherMark(r: StatRow, decisions: Record<string, string>): string {
-  const t: string[] = [];
+// 投手結果標記：勝/敗官方、中繼官方(relief_point)；救援/中繼失敗依規則情境自 livelog 推算。
+// 回傳 token 陣列（成敗、色調），救援/中繼失敗標紅。
+const MARK: Record<string, { text: string; tone: "pos" | "neg" }> = {
+  W: { text: "勝", tone: "pos" }, L: { text: "敗", tone: "neg" },
+  SV: { text: "SV", tone: "pos" }, HLD: { text: "H", tone: "pos" },
+  BS: { text: "救援失敗", tone: "neg" }, BH: { text: "中繼失敗", tone: "neg" },
+};
+function pitcherMarks(r: StatRow, decisions: Record<string, string>): { text: string; tone: "pos" | "neg" }[] {
+  const out: { text: string; tone: "pos" | "neg" }[] = [];
   const d = decisions[String(r.pitcher_acnt)];
-  if (d === "W") t.push("勝");
-  else if (d === "L") t.push("敗");
-  else if (d === "SV") t.push("SV");
-  else if (d === "HLD") t.push("H");
-  if (r.is_complete_game) t.push(r.is_shutout ? "完封" : "完投");
-  return t.join("·");
+  if (d) for (const tok of d.split("·")) if (MARK[tok]) out.push(MARK[tok]);
+  if (r.is_complete_game) out.push({ text: r.is_shutout ? "完封" : "完投", tone: "pos" });
+  return out;
 }
 
 function BoxPitching({ rows, team, decisions }: { rows: StatRow[]; team: string; decisions: Record<string, string> }) {
@@ -80,11 +83,13 @@ function BoxPitching({ rows, team, decisions }: { rows: StatRow[]; team: string;
         </thead>
         <tbody className="font-mono tabular-nums">
           {rows.map((r, i) => {
-            const mark = pitcherMark(r, decisions);
+            const marks = pitcherMarks(r, decisions);
             return (
               <tr key={i} className="border-t border-line">
                 <td className="whitespace-nowrap px-3 py-1.5 font-sans text-ink">{String(r.pitcher_name ?? "")}
-                  {mark && <span className="ml-1 text-[10px] font-semibold text-accent">{mark}</span>}</td>
+                  {marks.map((m, j) => (
+                    <span key={j} className={`ml-1 text-[10px] font-semibold ${m.tone === "neg" ? "text-[#C8102E]" : "text-accent"}`}>{m.text}</span>
+                  ))}</td>
                 {cols.map(([h, f]) => <td key={h} className="px-2 py-1.5 text-right">{f(r)}</td>)}
               </tr>
             );
