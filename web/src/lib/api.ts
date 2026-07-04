@@ -287,6 +287,23 @@ export const api = {
     }>("/api/v1/records", 600),
   // 排行榜改由前端點欄位排序/隊伍篩選，故抓全名單（低門檻、大 limit）。
   // revalidate=60：資料隨爬蟲更新，縮短快取避免欄位/數值過時。
+  venues: (season?: number) =>
+    get<{
+      season: number;
+      items: {
+        venue: string; full_name: string | null; turf: string | null; indoor: boolean | null;
+        city: string | null; capacity: number | null; infield_seats: number | null;
+        outfield_seats: number | null; lf_dist: number | null; cf_dist: number | null;
+        rf_dist: number | null; big_screen: boolean | null; address: string | null;
+        games_played: number | null; avg_attendance: number | null; home_teams: string | null;
+        first_year: number | null; last_year: number | null;
+      }[];
+    }>(`/api/v1/venues${season ? `?season=${season}` : ""}`, 600),
+  projections: (stat = "ops", limit = 50) =>
+    get<{
+      model_version: string | null; stat: string; target_year: number | null;
+      items: { player_id: string; name: string | null; predicted: number; actual: number | null }[];
+    }>(`/api/v1/projections/batting?stat=${stat}&limit=${limit}`, 600),
   battingLeaders: (sort = "ops", { limit = 400, minPa = 0, year, kind = "A" }: { limit?: number; minPa?: number; year?: number; kind?: string } = {}) =>
     get<BattingLeadersResponse>(`/api/v1/season/batting-leaders?sort=${sort}&limit=${limit}&min_pa=${minPa}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 60),
   pitchingLeaders: (sort = "era", { limit = 400, minIp = 0, year, kind = "A" }: { limit?: number; minIp?: number; year?: number; kind?: string } = {}) =>

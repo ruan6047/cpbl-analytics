@@ -208,10 +208,21 @@ export default function GameLivePage() {
           ["三壘", d.third_umpire], ["左審", d.left_umpire], ["右審", d.right_umpire]]
           .filter(([, v]) => v).map(([l, v]) => `${l} ${v}`).join("、");
         const info: string[] = [];
+        // 天氣（官方全文縮成「圖示 天況 溫度」，全文掛 title）
+        const wx = String(d.weather_desc ?? "");
+        let wxShort = "";
+        if (wx) {
+          const cond = wx.split("。")[0] ?? "";
+          const temp = wx.match(/攝氏(\d+)至(\d+)度/);
+          const icon = /雷|雨/.test(cond) ? "🌧️" : /多雲/.test(cond) ? "⛅"
+            : /陰/.test(cond) ? "☁️" : /晴/.test(cond) ? "☀️" : "🌡️";
+          wxShort = `${icon} ${cond}${temp ? ` ${temp[1]}–${temp[2]}°C` : ""}`;
+        }
         if (d.attendance) info.push(`觀眾 ${Number(d.attendance).toLocaleString()} 人`);
         if (d.game_time) info.push(`時長 ${String(d.game_time)}`);
-        return (info.length || umps) ? (
+        return (info.length || umps || wxShort) ? (
           <div className="mb-6 rounded-xl border border-line bg-surface px-4 py-3 text-sm text-muted">
+            {wxShort && <span className="mr-4" title={wx}>{wxShort}</span>}
             {info.length > 0 && <span className="mr-4">{info.join("　·　")}</span>}
             {umps && <span>裁判：{umps}</span>}
           </div>

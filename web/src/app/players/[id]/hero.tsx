@@ -195,7 +195,7 @@ export function PlayerHero({ profile, careerStats, ability, role, s, isRetired, 
             </div>
           </div>
           {/* 得獎/國際賽：置於左欄底部（mt-auto 推到最下） */}
-          {((careerStats?.awards?.length ?? 0) > 0 || (careerStats?.medals?.length ?? 0) > 0 || !!careerStats?.championships) && (
+          {((careerStats?.awards?.length ?? 0) > 0 || (careerStats?.medals?.length ?? 0) > 0 || (careerStats?.wiki_awards?.length ?? 0) > 0 || !!careerStats?.championships) && (
             <div className="mt-auto flex flex-wrap items-center gap-1.5 border-t border-line pt-3">
               {careerStats?.championships && (
                 <span title={`總冠軍年份：${careerStats.championships.years.join("、")}`}
@@ -230,6 +230,15 @@ export function PlayerHero({ profile, careerStats, ability, role, s, isRetired, 
                         className="inline-flex items-center gap-1 rounded-md border border-line bg-surface px-2 py-1 text-xs">
                         <span className="grid h-4 w-4 place-items-center rounded-full text-[10px] font-bold text-white" style={{ background: MC[m.color] ?? "#7C8696" }}>{m.color}</span>
                         <span className="font-medium text-ink">{m.competition}</span>
+                      </span>
+                    ))}
+                    {/* 維基補充：舊聯盟（台灣大聯盟/台灣大賽）與國際/日韓職獎項——官網獎項表沒有 */}
+                    {(careerStats?.wiki_awards ?? []).map((w) => (
+                      <span key={w.award}
+                        title={`${w.years.map((y) => `'${String(y).slice(2)}`).join(" ")}${w.note ? `（${w.note}）` : ""}　資料：維基百科`}
+                        className="inline-flex items-center gap-1 rounded-md border border-dashed border-line bg-surface px-2 py-1 text-xs">
+                        <span className="font-medium text-muted">🏅 {w.award}</span>
+                        {w.years.length > 1 && <span className="rounded bg-line/60 px-1 text-[10px] font-bold text-muted">×{w.years.length}</span>}
                       </span>
                     ))}
                   </>
