@@ -57,6 +57,22 @@ _JS_POST = """async ({path, headers, body}) => {
 # 重試退避（ms）：挑戰/節流恢復需要時間，快打只會讓 HiNet 節流升級
 _BACKOFF_MS = (2000, 6000, 15000)
 
+# 批次迴圈斷路器：連續失敗人數達此值＝全站節流（非單人偶發），續打只會升級成深度封鎖
+CIRCUIT_LIMIT = int(os.environ.get("CPBL_SCRAPE_CIRCUIT", "3") or 3)
+
+
+def check_circuit(consec_fail: int, what: str = "選手") -> None:
+    """批次爬蟲迴圈中，連續失敗達門檻即中止整輪（拋 RuntimeError）。
+
+    單人失敗略過是為了容忍個別頁面異常；但連續多人失敗幾乎必是 HiNet 節流，
+    此時剩餘每人仍會觸發多次重試+頁面重載，正是把節流打成深度封鎖的模式。
+    中止後照紅線冷卻 15–20 分鐘再單次重試。
+    """
+    if consec_fail >= CIRCUIT_LIMIT:
+        raise RuntimeError(
+            f"連續 {consec_fail} 位{what}抓取失敗——疑似反爬節流，中止整輪避免升級封鎖"
+            "（冷卻 15–20 分鐘後再單次重試）")
+
 
 class _Session:
     def __init__(self) -> None:

@@ -19,6 +19,7 @@ import logging
 import time
 
 from cpbl.db import conn
+from cpbl.ingest._browser import check_circuit as _check_circuit
 from cpbl.ingest.cpbl_fighting import BASE, _f, _i, _token_in
 
 log = logging.getLogger("cpbl.detail")
@@ -55,7 +56,9 @@ class _Session:
         pass  # 共用 browser session，不在此關閉
 
     def _post(self, page_path: str, api_path: str, token_attr: str, data: dict,
-              key: str, retries: int = 4) -> list[dict]:
+              key: str, retries: int = 2) -> list[dict]:
+        # retries 只管「200 但非 JSON / token 失效」層；挑戰攔截的重載退避由
+        # session().post() 內建（最多 4 次）。外層×內層會放大節流期打擊量，故壓低。
         from cpbl.ingest._browser import session
         for attempt in range(retries):
             time.sleep(self.delay)
@@ -219,7 +222,7 @@ def scrape(delay: float = 1.2, apart_combos: list[tuple[int, str]] | None = None
     log.info("選手細項：打者 %d / 投手 %d，delay=%.1fs，apart 組合=%s",
              len(batters), len(pitchers), delay, apart_combos)
 
-    def run(acnt: str, idx: int, total: int, is_pitcher: bool) -> None:
+    def run(acnt: str, idx: int, total: int, is_pitcher: bool) -> bool:
         tag = "P" if is_pitcher else "B"
         # session 建立會走 Playwright 導頁（冷啟動/反爬挑戰可能逾時）→ 退避重試，
         # 連續失敗才略過該員，絕不讓單人逾時中斷整批（含 playwright.TimeoutError）。
@@ -234,7 +237,7 @@ def scrape(delay: float = 1.2, apart_combos: list[tuple[int, str]] | None = None
                 time.sleep(3.0 * (attempt + 1))
         if s is None:
             log.error("[%s %d/%d] acnt=%s session 連續失敗，略過", tag, idx, total, acnt)
-            return
+            return False
         try:
             if is_pitcher:
                 if with_vs_team:
@@ -259,11 +262,16 @@ def scrape(delay: float = 1.2, apart_combos: list[tuple[int, str]] | None = None
                      out["bvt"], out["pvt"], out["bsplit"], out["psplit"])
         except Exception as e:  # noqa: BLE001 — 單人失敗（含逾時）不影響整批
             log.error("[%s %d/%d] acnt=%s 抓取失敗，略過：%s", tag, idx, total, acnt, e)
+            return False
         finally:
             s.close()
+        return True
 
+    consec_fail = 0  # 連續失敗＝全站節流 → 斷路中止，避免升級成深度封鎖
     for i, acnt in enumerate(batters, 1):
-        run(acnt, i, len(batters), is_pitcher=False)
+        consec_fail = 0 if run(acnt, i, len(batters), is_pitcher=False) else consec_fail + 1
+        _check_circuit(consec_fail)
     for i, acnt in enumerate(pitchers, 1):
-        run(acnt, i, len(pitchers), is_pitcher=True)
+        consec_fail = 0 if run(acnt, i, len(pitchers), is_pitcher=True) else consec_fail + 1
+        _check_circuit(consec_fail)
     return out

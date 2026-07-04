@@ -23,6 +23,7 @@ import time
 import httpx
 
 from cpbl.db import conn
+from cpbl.ingest._browser import check_circuit as _check_circuit
 
 log = logging.getLogger("cpbl.fighting")
 
@@ -81,8 +82,12 @@ class _Session:
     def close(self) -> None:
         pass  # 共用 browser session，不在此關閉
 
-    def _post(self, api_path: str, token: str, data: dict, retries: int = 4) -> dict:
-        """於該打者 fighting 頁 context POST 並解析 JSON；失敗退避重試、重取 token。"""
+    def _post(self, api_path: str, token: str, data: dict, retries: int = 2) -> dict:
+        """於該打者 fighting 頁 context POST 並解析 JSON；失敗退避重試、重取 token。
+
+        retries 只管「200 但非 JSON / token 失效」層；挑戰攔截層的重載退避在
+        session().post() 內建（最多 4 次）。外層放大會在節流時演成連續重打，故壓低。
+        """
         from cpbl.ingest._browser import session
         for attempt in range(retries):
             time.sleep(self.delay)
@@ -218,6 +223,7 @@ def scrape_matchups(
         log.info("投打對決：%d 位打者 × %d 組合(年度×賽別)=%s，delay=%.1fs，投手過濾=%s",
                  len(batters), len(combos), combos, delay, "本季一軍" if pitcher_ids is not None else "無")
     total = 0
+    consec_fail = 0  # 連續失敗斷路器：單人偶發失敗可略過，連續失敗＝全站節流，再打只會升級封鎖
     for idx, acnt in enumerate(batters, 1):
         targets = day_targets.get(acnt, []) if incremental else None
         if incremental and not targets:
@@ -226,6 +232,8 @@ def scrape_matchups(
             s = _Session(acnt, delay)
         except Exception as e:  # noqa: BLE001 — 含 Playwright 網路瞬斷(ERR_NETWORK_CHANGED)/逾時；單人失敗不中斷整批
             log.error("[%d/%d] acnt=%s 建 session 失敗，略過：%s", idx, len(batters), acnt, e)
+            consec_fail += 1
+            _check_circuit(consec_fail)
             continue
         try:
             n = 0
@@ -238,9 +246,12 @@ def scrape_matchups(
                     rows = [g for g in rows if g.get("PitcherAcnt") in pitcher_ids]
                 n += upsert_matchups([_to_record(g, y, kind) for g in rows])
             total += n
+            consec_fail = 0
             log.info("[%d/%d] acnt=%s → %d 對戰列（累計 %d）", idx, len(batters), acnt, n, total)
         except (httpx.HTTPError, RuntimeError, KeyError, ValueError) as e:
             log.error("[%d/%d] acnt=%s 抓取失敗，略過：%s", idx, len(batters), acnt, e)
+            consec_fail += 1
+            _check_circuit(consec_fail)
         finally:
             s.close()
     return total

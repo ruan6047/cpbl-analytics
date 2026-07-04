@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- macOS launchd 排程：每日 03:10 跑本機增量爬取（免手動 CLI）。
+<!-- macOS launchd 排程：每日 10:10 跑本機增量爬取（免手動 CLI）。
+     時段紅線：勿排深夜/凌晨——官網 HiNet 挑戰於深夜進入加嚴狀態（對新訪客
+     直接重定向迴圈硬封鎖，見 docs/CPBL_SITE_MAP.md §2「深度封鎖狀態」），
+     03:10 舊排程正踩此窗；白天時段實測冷啟動穩定可過。
      安裝：
        ln -sf "$PWD/scripts/com.cpbl.scrape-daily.plist" ~/Library/LaunchAgents/com.cpbl.scrape-daily.plist
        launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.cpbl.scrape-daily.plist
@@ -22,7 +25,7 @@
   </dict>
   <key>StartCalendarInterval</key>
   <dict>
-    <key>Hour</key><integer>3</integer>
+    <key>Hour</key><integer>10</integer>
     <key>Minute</key><integer>10</integer>
   </dict>
   <key>RunAtLoad</key><false/>

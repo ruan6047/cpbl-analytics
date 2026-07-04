@@ -173,7 +173,11 @@ def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict
     day_targets = _day_opponents(year, snos)
     m = scrape_matchups([YEAR_CAREER], delay=delay, batter_ids=rb,
                         pitcher_ids=cur_p, day_targets=day_targets)
-    d = cpbl_player_detail.scrape(delay=delay, batter_ids=rb, pitcher_ids=rp)
+    # 每日增量只刷「會變」的分項：本季 A + 生涯 A。生涯季後 C/E 在例行賽期間凍結，
+    # 日日重抓＝每人多 2 個無效主站 POST（≈ detail 階段 40% 請求量）。
+    # 季後賽期間（十月起有 C/E 新場）改跑全量 cpbl-scrape-detail 補生涯 C/E。
+    d = cpbl_player_detail.scrape(delay=delay, batter_ids=rb, pitcher_ids=rp,
+                                  apart_combos=[(year, "A"), (YEAR_CAREER, "A")])
     # 官方進階：當日上場選手（打者進攻 / 投手被打）
     adv = scrape_advanced(year, [(a, "batting") for a in rb] + [(a, "pitching") for a in rp], delay=delay)
     # 逐球 TrackMan：當日上場投手（logs API，該季全場次一次抓）
