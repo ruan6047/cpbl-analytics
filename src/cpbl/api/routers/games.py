@@ -150,7 +150,8 @@ def game_live(
         )
         tracking = _dicts(cur)
         cur.execute("SELECT attendance, game_time, head_umpire, first_umpire, second_umpire, "
-                    "third_umpire, left_umpire, right_umpire FROM cpbl.game_detail "
+                    "third_umpire, left_umpire, right_umpire, weather_code, weather_desc "
+                    "FROM cpbl.game_detail "
                     "WHERE year=%s AND kind_code=%s AND game_sno=%s", (season, kind_code, game_sno))
         gd = _dicts(cur)
     return {"game": g[0] if g else None, "scoreboard": scoreboard, "livelog": livelog,

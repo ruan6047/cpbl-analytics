@@ -362,14 +362,38 @@ def team_players(code: str) -> dict:
 
 
 @router.get("/api/v1/venues")
-def venues_dim() -> dict:
-    """球場維度：場地材質/室內/城市/容量。"""
+def venues_dim(season: int = Query(DEFAULT_SEASON)) -> dict:
+    """球場維度：場地材質/室內/城市/容量 + 官網規格（座席/外野距離呎/大螢幕/地址）
+    + 本季一軍使用統計（場次/場均觀眾/主隊）與歷年首末使用年。"""
     with conn() as c:
         cur = c.cursor()
         cur.execute(
-            "SELECT venue, full_name, turf, indoor, city, capacity FROM cpbl.venue_dim ORDER BY venue"
+            """
+            SELECT v.venue, v.full_name, v.turf, v.indoor, v.city, v.capacity,
+                   v.infield_seats, v.outfield_seats, v.lf_dist, v.cf_dist, v.rf_dist,
+                   v.big_screen, v.address,
+                   s.games_played, s.avg_attendance, s.home_teams,
+                   h.first_year, h.last_year
+            FROM cpbl.venue_dim v
+            LEFT JOIN (
+                SELECT g.venue, count(*) AS games_played,
+                       round(avg(d.attendance)) AS avg_attendance,
+                       string_agg(DISTINCT g.home_team_name, '、') AS home_teams
+                FROM cpbl.games g
+                LEFT JOIN cpbl.game_detail d USING (year, kind_code, game_sno)
+                WHERE g.year = %s AND g.kind_code = 'A'
+                  AND g.home_score + g.away_score > 0
+                GROUP BY g.venue
+            ) s ON s.venue = v.venue
+            LEFT JOIN (
+                SELECT venue, min(year) AS first_year, max(year) AS last_year
+                FROM cpbl.games WHERE kind_code = 'A' GROUP BY venue
+            ) h ON h.venue = v.venue
+            ORDER BY s.games_played DESC NULLS LAST, v.capacity DESC NULLS LAST
+            """,
+            (season,),
         )
-        return {"items": _dicts(cur)}
+        return {"season": season, "items": _dicts(cur)}
 
 
 @router.get("/api/v1/special-records")

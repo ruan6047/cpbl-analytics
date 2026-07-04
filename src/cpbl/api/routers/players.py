@@ -189,6 +189,13 @@ def player_career(player_id: str) -> dict:
             "SELECT year, category, award FROM cpbl.player_awards WHERE player_id=%s ORDER BY year",
             (player_id,))
         awards = [{"year": y, "category": cat, "award": aw} for y, cat, aw in cur.fetchall()]
+        # 維基補充獎項：只取非中職者（舊聯盟/台灣大賽/國際賽/日韓職——官網 yearaward 沒有；
+        # 中職部分官方 player_awards 較準故排除避免重複）
+        cur.execute(
+            "SELECT award, years, note FROM cpbl.wiki_awards "
+            "WHERE player_id=%s AND award NOT LIKE '%%中華職棒%%' ORDER BY seq", (player_id,))
+        wiki_awards = [{"award": aw, "years": ys or [], "note": nt}
+                       for aw, ys, nt in cur.fetchall()]
         # 年度總冠軍（隊伍榮銜，個人獎項表沒有）：由官網 games 推導 → championship_members
         # （該年一軍有成績的球員＋總教練；見 ingest/championships.py）
         cur.execute(
@@ -273,7 +280,7 @@ def player_career(player_id: str) -> dict:
                       "championships": championships}
         if not per:
             return {"player_id": player_id, "batting": None, "teams": teams,
-                    "overseas": overseas, "awards": awards,
+                    "overseas": overseas, "awards": awards, "wiki_awards": wiki_awards,
                     "coach_tenures": coach_tenures, "exec_tenures": exec_tenures, "medals": medals,
                     **_pit_extra}
         # 里程碑日期（gamelog 2018+）
@@ -324,7 +331,7 @@ def player_career(player_id: str) -> dict:
     bests = {"hr": best(6), "rbi": best(7), "sb": best(8), "avg": best_rate("avg"), "ops": best_rate("ops")}
     return {
         "player_id": player_id, "batting": career, "best": bests, "teams": teams,
-        "overseas": overseas, "awards": awards,
+        "overseas": overseas, "awards": awards, "wiki_awards": wiki_awards,
         "coach_tenures": coach_tenures, "exec_tenures": exec_tenures, "medals": medals,
         "milestones": {"first_hit": str(first_h) if first_h else None,
                        "first_hr": str(first_hr) if first_hr else None},
