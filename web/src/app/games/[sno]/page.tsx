@@ -53,17 +53,19 @@ function BoxBatting({ rows, team }: { rows: StatRow[]; team: string }) {
   );
 }
 
-// 投手結果標記：勝/敗 + S(救援) + 完投/完封
-function pitcherMark(r: StatRow, closerId: string): string {
+// 投手結果標記：勝/敗官方、中繼官方（relief_point）、救援依規則 9.19 推算（官方逐場無 save 旗標）
+function pitcherMark(r: StatRow, decisions: Record<string, string>): string {
   const t: string[] = [];
-  const gr = String(r.game_result ?? "");
-  if (gr === "勝" || gr === "敗") t.push(gr);
-  if (closerId && String(r.pitcher_acnt) === closerId) t.push("S");
+  const d = decisions[String(r.pitcher_acnt)];
+  if (d === "W") t.push("勝");
+  else if (d === "L") t.push("敗");
+  else if (d === "SV") t.push("SV");
+  else if (d === "HLD") t.push("H");
   if (r.is_complete_game) t.push(r.is_shutout ? "完封" : "完投");
   return t.join("·");
 }
 
-function BoxPitching({ rows, team, closerId }: { rows: StatRow[]; team: string; closerId: string }) {
+function BoxPitching({ rows, team, decisions }: { rows: StatRow[]; team: string; decisions: Record<string, string> }) {
   const cols: [string, (r: StatRow) => string][] = [
     ["IP", ipTxt], ["H", (r) => i0(r.hits)], ["R", (r) => i0(r.runs)], ["ER", (r) => i0(r.earned_runs)],
     ["BB", (r) => i0(r.bb)], ["SO", (r) => i0(r.so)], ["被HR", (r) => i0(r.home_runs)],
@@ -78,7 +80,7 @@ function BoxPitching({ rows, team, closerId }: { rows: StatRow[]; team: string; 
         </thead>
         <tbody className="font-mono tabular-nums">
           {rows.map((r, i) => {
-            const mark = pitcherMark(r, closerId);
+            const mark = pitcherMark(r, decisions);
             return (
               <tr key={i} className="border-t border-line">
                 <td className="whitespace-nowrap px-3 py-1.5 font-sans text-ink">{String(r.pitcher_name ?? "")}
@@ -235,8 +237,8 @@ export default function GameLivePage() {
           <div className="grid gap-4 lg:grid-cols-2">
             <BoxBatting rows={data.batting.filter((r) => String(r.visiting_home_type) === "1")} team={String(g.away_team_name)} />
             <BoxBatting rows={data.batting.filter((r) => String(r.visiting_home_type) === "2")} team={String(g.home_team_name)} />
-            <BoxPitching rows={data.pitching.filter((r) => String(r.visiting_home_type) === "1")} team={String(g.away_team_name)} closerId={String(g.closer_id ?? "")} />
-            <BoxPitching rows={data.pitching.filter((r) => String(r.visiting_home_type) === "2")} team={String(g.home_team_name)} closerId={String(g.closer_id ?? "")} />
+            <BoxPitching rows={data.pitching.filter((r) => String(r.visiting_home_type) === "1")} team={String(g.away_team_name)} decisions={data.decisions ?? {}} />
+            <BoxPitching rows={data.pitching.filter((r) => String(r.visiting_home_type) === "2")} team={String(g.home_team_name)} decisions={data.decisions ?? {}} />
           </div>
         </section>
       )}

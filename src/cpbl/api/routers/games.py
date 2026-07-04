@@ -6,7 +6,7 @@ from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON, _dicts
 from cpbl.db import conn
-from cpbl.models import matchup
+from cpbl.models import matchup, pitcher_decisions
 
 router = APIRouter()
 
@@ -154,9 +154,13 @@ def game_live(
                     "FROM cpbl.game_detail "
                     "WHERE year=%s AND kind_code=%s AND game_sno=%s", (season, kind_code, game_sno))
         gd = _dicts(cur)
+    # 投手角色：W/L/HLD 官方（game_result/relief_point）、SV 依規則 9.19 自 livelog 推算
+    # （官方逐場無 save 旗標；2026 全季驗證與官方季累計 SV 一致率 63/64 投手）
+    decisions = pitcher_decisions.game_decisions(season, kind_code, game_sno)
     return {"game": g[0] if g else None, "scoreboard": scoreboard, "livelog": livelog,
             "batting": batting, "pitching": pitching, "people": people,
             "records": records, "batter_avg": batter_avg, "detail": gd[0] if gd else None,
+            "decisions": decisions,
             "has_tracking": len(tracking) > 0, "tracking": tracking}
 
 

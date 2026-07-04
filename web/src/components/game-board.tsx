@@ -22,6 +22,7 @@ export type Live = {
   records: Record<string, Rec>;
   batter_avg: Record<string, number>;
   detail: StatRow | null;
+  decisions?: Record<string, "W" | "L" | "SV" | "HLD">;
   has_tracking: boolean;
   tracking: TrackRow[];
 };
