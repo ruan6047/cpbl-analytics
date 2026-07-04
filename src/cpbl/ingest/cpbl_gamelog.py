@@ -120,6 +120,32 @@ _LL_COLS = ("year,kind_code,game_sno,main_event_no,inning_seq,visiting_home_type
 
 _GD_COLS = ("year,kind_code,game_sno,attendance,game_time,"
             "head_umpire,first_umpire,second_umpire,third_umpire,left_umpire,right_umpire")
+# 天氣/致勝型態（getlive CurtGameDetailJson；與 HTML 來源的欄位分開 upsert，互不覆蓋）
+_GD_WX_COLS = "year,kind_code,game_sno,weather_code,weather_desc,winning_type,attendance_backend"
+
+
+def _weather_row(year: int, kind: str, sno: int, payload: dict) -> tuple | None:
+    """getlive payload 抽 CurtGameDetailJson 的天氣/致勝型態；無資料回 None。
+
+    注意天氣在 **Curt**GameDetailJson（GameDetailJson 同名欄位恆 null，勿搞混）。
+    """
+    raw = payload.get("CurtGameDetailJson")
+    if not raw:
+        return None
+    try:
+        o = json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        return None
+    if isinstance(o, list):
+        o = o[0] if o else None
+    if not isinstance(o, dict):
+        return None
+    code, desc = o.get("WeatherCode"), o.get("WeatherDesc")
+    wtype, aud = o.get("WinningType"), _i(o.get("AudienceCntBackend"))
+    if code is None and desc is None and wtype is None and aud is None:
+        return None
+    return (year, kind, sno, str(code) if code is not None else None, desc,
+            str(wtype) if wtype is not None else None, aud)
 _GD_UMP = {"主審": "head", "一壘審": "first", "二壘審": "second", "三壘審": "third",
            "左外野審": "left", "右外野審": "right"}
 _GD_LI = re.compile(r"<li><span>([^<]+)</span>([^<]*)</li>")
@@ -229,6 +255,9 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
                                       _bbox_rows(year, kind_code, sno, bb))
         out["pitching_box"] += _upsert("pitching_gamelog", _PBOX_COLS, 4,
                                        _pbox_rows(year, kind_code, sno, pp))
+        wx = _weather_row(year, kind_code, sno, payload)
+        if wx:
+            out["weather"] = out.get("weather", 0) + _upsert("game_detail", _GD_WX_COLS, 3, [wx])
         out["games"] += 1
         log.info("sno=%s scoreboard=%d livelog=%d box(打%d投%d)", sno, len(sb), len(ll), len(bb), len(pp))
     return out
