@@ -1,9 +1,9 @@
 "use client";
 
 // 本季成績卡 + 官方進階 PR（dataTab=season）；生涯成績 + 最佳單季 + 里程碑（dataTab=career）。
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, PercentileBar, StatTile } from "@/components/ui";
-import { type PlayerProfile, type StatRow } from "@/lib/client";
+import { detail, type PlayerProfile, type StatRow } from "@/lib/client";
 import { fmtIP } from "@/lib/format";
 import { ADV, type CareerStats, type Role, f3, fmtAdv, numOf } from "./lib";
 import { BestSeasonGrid } from "./parts";
@@ -105,6 +105,49 @@ export function SeasonSection({ profile, s, role, seasonKind, setSeasonKind, adv
           </Card>
         </div>
       </section>
+  );
+}
+
+// 選手特性（livelog 推算）：P/PA 耗球/滾飛比/方向傾向/兩好球後——與聯盟均值對照
+export function TraitsChips({ id, role }: { id: string; role: Role }) {
+  const [t, setT] = useState<{
+    traits: Record<string, number | string | null> | null;
+    league: { p_pa: number | null; go_fo: number | null; two_strike_k_pct: number | null };
+  } | null>(null);
+  useEffect(() => {
+    detail.traits(id, role).then(setT).catch(() => setT(null));
+  }, [id, role]);
+  const tr = t?.traits;
+  const pa = Number(tr?.[role === "batting" ? "pa" : "bf"] ?? 0);
+  if (!tr || pa < 50) return null;
+  const lg = t!.league;
+  const chip = (label: string, val: string, cmp?: string) => (
+    <span key={label} className="inline-flex items-baseline gap-1.5 rounded-md border border-line bg-surface px-2.5 py-1 text-xs">
+      <span className="text-muted">{label}</span>
+      <span className="font-mono font-semibold tabular-nums text-ink">{val}</span>
+      {cmp && <span className="text-[10px] text-faint">聯盟 {cmp}</span>}
+    </span>
+  );
+  const items: React.ReactNode[] = [];
+  if (tr.p_pa != null) items.push(chip("打席耗球 P/PA", String(tr.p_pa), lg.p_pa != null ? String(lg.p_pa) : undefined));
+  if (tr.go != null && Number(tr.fo) > 0) {
+    items.push(chip("滾飛比 GO/FO", (Number(tr.go) / Number(tr.fo)).toFixed(2), lg.go_fo != null ? String(lg.go_fo) : undefined));
+  }
+  if (tr.two_strike_k_pct != null) {
+    items.push(chip(role === "batting" ? "兩好球後被三振" : "兩好球後解決率",
+      `${tr.two_strike_k_pct}%`, lg.two_strike_k_pct != null ? `${lg.two_strike_k_pct}%` : undefined));
+  }
+  if (role === "batting") {
+    const l = Number(tr.dir_left ?? 0), c = Number(tr.dir_center ?? 0), r = Number(tr.dir_right ?? 0);
+    const tot = l + c + r;
+    if (tot >= 30) items.push(chip("擊球方向 左/中/右", `${Math.round(100 * l / tot)}/${Math.round(100 * c / tot)}/${Math.round(100 * r / tot)}%`));
+  }
+  if (!items.length) return null;
+  return (
+    <div className="mt-4">
+      <div className="mb-1.5 text-xs font-semibold text-muted">選手特性 <span className="font-normal text-faint">（逐打席推算・本季一軍）</span></div>
+      <div className="flex flex-wrap gap-1.5">{items}</div>
+    </div>
   );
 }
 

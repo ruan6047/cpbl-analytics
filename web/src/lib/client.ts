@@ -187,6 +187,12 @@ export const detail = {
       exec_tenures?: { team: string; role: string | null; from: number | null; to: number | null }[];
       medals?: { color: string; competition: string | null; event: string | null; year: number | null }[];
     }>(`/api/v1/players/${id}/career`),
+  traits: (id: string, role: "batting" | "pitching") =>
+    clientGet<{
+      season: number; role: string;
+      traits: Record<string, number | string | null> | null;
+      league: { p_pa: number | null; go_fo: number | null; two_strike_k_pct: number | null };
+    }>(`/api/v1/players/${id}/traits?role=${role}`),
   advanced: (id: string, kind: "A" | "D" = "A") =>
     clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/advanced?kind_code=${kind}`),
   abilityCard: (id: string) =>

@@ -17,6 +17,7 @@ const NAV = [
   { href: "/pitchers", label: "投手" },
   { href: "/games", label: "賽況" },
   { href: "/venues", label: "球場" },
+  { href: "/umpires", label: "傘審" },
   { href: "/records", label: "紀錄室" },
   { href: "/matchups", label: "投打對決" },
   { href: "/projections", label: "成績預測" },

@@ -10,7 +10,7 @@ import { DetailSection } from "./detail";
 import { FieldingSection } from "./fielding";
 import { PlayerHero } from "./hero";
 import { Tabs } from "./parts";
-import { CareerSummary, SeasonSection } from "./season";
+import { CareerSummary, SeasonSection, TraitsChips } from "./season";
 import { BattedMixSection, QualitySection, TrackingSection } from "./tracking";
 import { TrendVsSection } from "./trend";
 
@@ -107,8 +107,11 @@ export default function PlayerPage() {
       {roles.length > 1 && <div className="mb-5"><Tabs opts={roles} v={role} set={setRole} /></div>}
 
       {dataTab === "season" && !isRetired && (
-        <SeasonSection profile={profile} s={s} role={role}
-          seasonKind={seasonKind} setSeasonKind={setSeasonKind} advanced={advanced} />
+        <>
+          <SeasonSection profile={profile} s={s} role={role}
+            seasonKind={seasonKind} setSeasonKind={setSeasonKind} advanced={advanced} />
+          <TraitsChips id={id} role={role} />
+        </>
       )}
       {dataTab === "career" && <CareerSummary careerStats={careerStats} role={role} />}
 
