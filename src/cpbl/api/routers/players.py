@@ -446,16 +446,21 @@ def player_traits(player_id: str, season: int = Query(DEFAULT_SEASON),
 def player_vs_team(
     player_id: str,
     role: str = Query("batting", pattern="^(batting|pitching)$"),
+    year: int = Query(DEFAULT_SEASON),
+    kind_code: str = Query("A", pattern="^(A|D)$"),
 ) -> dict:
-    """選手對戰各隊成績（本季 A 例行賽）。role=batting/pitching。"""
+    """選手對戰各隊成績。role=batting/pitching；kind_code=A/D（D 為重算解鎖，
+    官方源無二軍對戰）。預設值＝原行為（本季 A）。"""
     table = "batting_vs_team" if role == "batting" else "pitching_vs_team"
     with conn() as c:
         cur = c.cursor()
         cur.execute(
-            f"SELECT * FROM cpbl.{table} WHERE acnt = %s ORDER BY total_games DESC NULLS LAST",
-            (player_id,),
+            f"SELECT * FROM cpbl.{table} WHERE acnt = %s AND year = %s AND kind_code = %s "
+            "ORDER BY total_games DESC NULLS LAST",
+            (player_id, year, kind_code),
         )
-        return {"player_id": player_id, "role": role, "items": _dicts(cur)}
+        return {"player_id": player_id, "role": role, "year": year,
+                "kind_code": kind_code, "items": _dicts(cur)}
 
 
 # 多賽別合併時要加總的計數欄位（比率欄不加總，之後重算）
