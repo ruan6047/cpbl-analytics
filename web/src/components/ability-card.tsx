@@ -95,7 +95,8 @@ export function AbilityCard({
           )}
         </div>
       )}
-      <div className={compact ? "h-36" : "h-64"}>
+      <div className={compact ? "h-36" : "h-64"} role="img"
+        aria-label={`${title ?? "能力值"}雷達圖，各項為全聯盟百分位（越外圈越強）`}>
         <ResponsiveContainer width="100%" height="100%">
           <RadarChart data={data} outerRadius={compact ? "70%" : "78%"}>
             <PolarGrid stroke="var(--color-line, #e2e8f0)" />
@@ -132,7 +133,7 @@ export function AbilityRadarVS({
     away: away.axes?.[i]?.pr ?? 0,
   }));
   return (
-    <div className="h-44">
+    <div className="h-44" role="img" aria-label="兩位先發投手能力值雷達疊圖，各項為全聯盟百分位">
       <ResponsiveContainer width="100%" height="100%">
         <RadarChart data={data} outerRadius="70%">
           <PolarGrid stroke="var(--color-line, #e2e8f0)" />

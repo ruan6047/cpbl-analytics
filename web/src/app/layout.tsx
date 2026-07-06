@@ -29,6 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="zh-Hant">
       <body className="min-h-screen antialiased">
+        <a href="#main" className="skip-link">跳至主內容</a>
         <header className="sticky top-0 z-40 border-b border-line bg-surface/90 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3.5">
             <Link href="/" className="text-lg font-extrabold tracking-tight">
@@ -37,7 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <NavLinks items={NAV} />
           </div>
         </header>
-        <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+        <main id="main" className="mx-auto max-w-6xl px-6 py-8">{children}</main>
         <footer className="mx-auto max-w-6xl px-6 py-10 text-xs text-faint">
           資料來源：cpbl-opendata (MIT) + cpbl.com.tw + stats.cpbl.com.tw。僅供學習與作品集用途。
         </footer>

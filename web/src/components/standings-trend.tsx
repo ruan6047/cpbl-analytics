@@ -20,6 +20,7 @@ function colorOf(code: string, names?: Record<string, string>) {
 
 export function StandingsTrend({ teams, points, names }: { teams: string[]; points: StandingsTrendPoint[]; names?: Record<string, string> }) {
   return (
+    <div role="img" aria-label="各隊累積勝敗差戰績走勢折線圖，隨賽季日期變化">
     <ResponsiveContainer width="100%" height={340}>
       <LineChart data={points} margin={{ top: 8, right: 16, bottom: 4, left: -16 }}>
         <CartesianGrid stroke="#eef2f7" vertical={false} />
@@ -47,5 +48,6 @@ export function StandingsTrend({ teams, points, names }: { teams: string[]; poin
         ))}
       </LineChart>
     </ResponsiveContainer>
+    </div>
   );
 }

@@ -150,6 +150,7 @@ export default function UmpiresPage() {
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">單場判決報告</h2>
             <select value={sno ?? ""} onChange={(e) => setSno(Number(e.target.value))}
+              aria-label="選擇比賽場次"
               className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm">
               {games.map((g) => (
                 <option key={g.game_sno} value={g.game_sno}>

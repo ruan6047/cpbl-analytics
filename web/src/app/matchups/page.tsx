@@ -97,7 +97,7 @@ export default function MatchupsPage() {
             onChange={(e) => setPid(e.target.value)}
             className="min-w-52 rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm outline-none focus:border-ink"
           >
-            <option value="">— 選擇{role === "batting" ? "打者" : "投手"} —</option>
+            <option value="">選擇{role === "batting" ? "打者" : "投手"}…</option>
             {players.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}（{p.team ?? "?"}）

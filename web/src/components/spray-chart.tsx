@@ -50,7 +50,8 @@ export function SprayChart({ points }: { points: SprayPoint[] }) {
 
   return (
     <div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img"
+        aria-label={`擊球落點分布圖，依方向與距離繪製 ${points.length} 顆擊球，以擊球結果著色`}>
         {/* 場地（含邊線與全壘打牆） */}
         <path d={field} fill="#eef2f7" stroke="#cbd5e1" strokeWidth={1} />
         {/* 內野菱形 */}

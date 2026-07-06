@@ -23,7 +23,7 @@ export function EraBadge({ name, code, size = 16 }: { name: string; code: string
 export function NameTag({ name, size = 16 }: { name?: string | null; size?: number }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <TeamLogo name={name} size={size} />
+      <TeamLogo name={name} size={size} decorative />
       <span>{name || "—"}</span>
     </span>
   );
@@ -44,7 +44,9 @@ export const GonePill = ({ className = "" }: { className?: string }) => <Pill to
 
 // 隊伍徽章：隊色圓角方塊 + 字母（避免官方 logo 版權）。
 // 優先用隊名解析(nameMeta，含歷史/已解散隊 era 色)，未知再退回代碼解析。
-export function TeamLogo({ code, name, size = 24 }: { code?: string | null; name?: string | null; size?: number }) {
+// decorative：徽章旁已顯示隊名時（NameTag/TeamBadge）設 true → aria-hidden，避免
+// 螢幕閱讀器重複念「隊徽 味全龍」。獨立使用（如對戰矩陣表頭僅徽章）則保留 aria-label。
+export function TeamLogo({ code, name, size = 24, decorative = false }: { code?: string | null; name?: string | null; size?: number; decorative?: boolean }) {
   const m = name ? nameMeta(name) : null;
   const known = m && m.letter !== "?";
   const bg = known ? m.color : teamColor(code);
@@ -53,7 +55,8 @@ export function TeamLogo({ code, name, size = 24 }: { code?: string | null; name
     <span
       className="inline-flex shrink-0 items-center justify-center rounded-md font-extrabold leading-none"
       style={{ width: size, height: size, background: bg, color: contrastText(bg), fontSize: size * 0.56 }}
-      aria-label="隊徽"
+      aria-label={decorative ? undefined : `${name ?? code ?? ""}隊徽`}
+      aria-hidden={decorative || undefined}
     >
       {letter}
     </span>
@@ -76,7 +79,7 @@ export function StatTile({ label, value, accent }: { label: string; value: strin
 export function TeamBadge({ code, name, size = 20 }: { code?: string | null; name?: string | null; size?: number }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <TeamLogo code={code} name={name} size={size} />
+      <TeamLogo code={code} name={name} size={size} decorative={!!name} />
       {name && <span>{name}</span>}
     </span>
   );

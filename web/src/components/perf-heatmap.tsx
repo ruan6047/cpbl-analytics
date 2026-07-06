@@ -92,7 +92,8 @@ export function Grid3x3({ points, metric, title }: { points: HPoint[]; metric: H
   return (
     <div>
       {title && <div className="mb-0.5 text-center text-xs font-medium text-ink">{title}</div>}
-      <svg viewBox={`0 0 ${VW} ${VH}`} className="w-full">
+      <svg viewBox={`0 0 ${VW} ${VH}`} className="w-full" role="img"
+        aria-label={`${title ?? "好球帶"}熱區圖（3×3 好球帶加四角，紅高藍低發散）`}>
         {quads.map((q) => (
           <rect key={q.k} x={q.x} y={q.y} width={OS / 2} height={OS / 2} fill={cellOf(q.k).fill} />
         ))}

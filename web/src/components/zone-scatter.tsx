@@ -38,7 +38,8 @@ export function ZoneScatter({ points }: { points: ZonePoint[] }) {
 
   return (
     <div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img"
+        aria-label={`進壘點散布圖，好球帶框內外共 ${points.length} 顆進球，以打擊結果著色`}>
         <rect x={z.x1} y={z.y1} width={z.x2 - z.x1} height={z.y2 - z.y1}
           fill="#eef2f7" stroke="#94a3b8" strokeWidth={1.2} />
         {ordered.map((p, i) => {

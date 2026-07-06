@@ -21,6 +21,7 @@ export function LaEvScatter({ balls }: { balls: BattedBall[] }) {
     .filter((g) => g.pts.length && !off[g.k]);
   return (
     <div>
+      <div role="img" aria-label={`擊球品質散布圖，橫軸仰角、縱軸初速，共 ${balls.length} 顆擊球，紅框為近似 barrel 甜蜜區`}>
       <ResponsiveContainer width="100%" height={300}>
         <ScatterChart margin={{ top: 8, right: 12, bottom: 16, left: 0 }}>
           <CartesianGrid stroke="#eef2f7" />
@@ -41,6 +42,7 @@ export function LaEvScatter({ balls }: { balls: BattedBall[] }) {
           ))}
         </ScatterChart>
       </ResponsiveContainer>
+      </div>
       <div className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px] text-muted">
         {(["hr", "3b", "2b", "1b", "out"] as const).map((k) => (
           <button key={k} onClick={() => setOff((o) => ({ ...o, [k]: !o[k] }))}

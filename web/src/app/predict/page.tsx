@@ -343,10 +343,10 @@ function TeamSelect({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-white"
+        className="rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-ink"
       >
         {teams.map((t) => (
-          <option key={t.code} value={t.code} className="bg-neutral-900">
+          <option key={t.code} value={t.code}>
             {t.name}
           </option>
         ))}

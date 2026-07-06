@@ -152,29 +152,54 @@ export default function Leaderboard({
         <table className="w-full text-sm">
           <thead className="bg-surface-2 text-left text-muted">
             <tr>
-              <th className="px-2.5 py-3 font-medium">#</th>
+              <th scope="col" className="px-2.5 py-3 font-medium">#</th>
               {cols.map((c) => {
                 const active = c.key === sortKey;
                 const sortable = c.sortable !== false;
+                // 表頭 tooltip：滑鼠(hover)與鍵盤(focus)皆可觸發；focus 用元素矩形定位
+                const showTip = c.tip
+                  ? (x: number, y: number) => setTip({ text: c.tip!, x, y })
+                  : undefined;
+                const tipClass = c.tip
+                  ? "underline decoration-line decoration-dotted underline-offset-4"
+                  : "";
+                const arrow = active ? (dir === -1 ? " ↓" : " ↑") : sortable ? <span className="text-faint"> ↕</span> : "";
                 return (
                   <th
                     key={c.key}
-                    onClick={sortable ? () => onSort(c.key) : undefined}
-                    onMouseEnter={
-                      c.tip ? (e) => setTip({ text: c.tip!, x: e.clientX, y: e.clientY }) : undefined
-                    }
-                    onMouseMove={
-                      c.tip ? (e) => setTip({ text: c.tip!, x: e.clientX, y: e.clientY }) : undefined
-                    }
-                    onMouseLeave={() => setTip(null)}
-                    className={`whitespace-nowrap px-2.5 py-3 font-medium ${
-                      sortable ? "cursor-pointer select-none hover:text-ink" : ""
-                    } ${c.tip ? "underline decoration-line decoration-dotted underline-offset-4" : ""} ${
-                      active ? "text-accent" : ""
-                    }`}
+                    scope="col"
+                    aria-sort={active ? (dir === -1 ? "descending" : "ascending") : sortable ? "none" : undefined}
+                    className={`whitespace-nowrap px-2.5 py-3 font-medium ${active ? "text-accent" : ""}`}
                   >
-                    {c.label}
-                    {active ? (dir === -1 ? " ↓" : " ↑") : sortable ? <span className="text-faint"> ↕</span> : ""}
+                    {sortable ? (
+                      <button
+                        type="button"
+                        onClick={() => onSort(c.key)}
+                        onMouseEnter={showTip ? (e) => showTip(e.clientX, e.clientY) : undefined}
+                        onMouseMove={showTip ? (e) => showTip(e.clientX, e.clientY) : undefined}
+                        onMouseLeave={() => setTip(null)}
+                        onFocus={showTip ? (e) => { const r = e.currentTarget.getBoundingClientRect(); showTip(r.left, r.bottom); } : undefined}
+                        onBlur={() => setTip(null)}
+                        className={`inline-flex items-center font-medium hover:text-ink ${tipClass}`}
+                      >
+                        {c.label}
+                        {arrow}
+                      </button>
+                    ) : c.tip ? (
+                      <span
+                        tabIndex={0}
+                        onMouseEnter={showTip ? (e) => showTip(e.clientX, e.clientY) : undefined}
+                        onMouseMove={showTip ? (e) => showTip(e.clientX, e.clientY) : undefined}
+                        onMouseLeave={() => setTip(null)}
+                        onFocus={showTip ? (e) => { const r = e.currentTarget.getBoundingClientRect(); showTip(r.left, r.bottom); } : undefined}
+                        onBlur={() => setTip(null)}
+                        className={tipClass}
+                      >
+                        {c.label}
+                      </span>
+                    ) : (
+                      c.label
+                    )}
                   </th>
                 );
               })}
