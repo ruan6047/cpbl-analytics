@@ -22,7 +22,6 @@ import sys
 from datetime import date, timedelta
 
 from cpbl.db import conn, migrate
-from cpbl.ingest import cpbl_player_detail
 from cpbl.ingest.championships import build_championships
 from cpbl.ingest.cpbl_advanced import scrape_advanced
 from cpbl.ingest.cpbl_fighting import YEAR_CAREER, scrape_matchups
@@ -32,7 +31,7 @@ from cpbl.ingest.cpbl_site import lineup_acnts, scrape_games
 from cpbl.ingest.cpbl_standings import scrape_standings
 from cpbl.ingest.cpbl_stats import scrape_all
 from cpbl.ingest.cpbl_transactions import scrape_transactions
-from cpbl.ingest.splits_calc import build_splits
+from cpbl.ingest.splits_calc import build_career, build_splits
 
 log = logging.getLogger("cpbl.refresh")
 
@@ -140,17 +139,14 @@ def _farm_detail(year: int, days: list[date], delay: float = 1.2) -> dict:
     # 二軍投打對決（當日對手隊, kind=D；不過濾投手＝完整涵蓋二軍對戰）
     targets = _day_opponents(year, d_snos, "D")
     m = scrape_matchups([YEAR_CAREER], delay=delay, batter_ids=rb, day_targets=targets) if rb else 0
-    # 二軍分項：本季(year,D)改由 cpbl-build-splits 重算，只爬生涯 D
-    det = (cpbl_player_detail.scrape(delay=delay, batter_ids=rb, pitcher_ids=rp,
-                                     apart_combos=[(YEAR_CAREER, "D")], with_vs_team=False)
-           if (rb or rp) else {})
+    # 二軍分項（本季+生涯）已全改重算（build_splits + build_career），apart 停爬
     # 二軍官方進階（leaderboard JSON API，gameKind=D；bulk 一次全抓再濾當日出賽者）
     adv = (scrape_advanced(year, [(a, "batting") for a in rb] + [(a, "pitching") for a in rp], kind_code="D")
            if (rb or rp) else 0)
     pitches = scrape_pitches(rp, year, kind_code="D", delay=delay) if rp else {"pitchers": 0, "pitches": 0}
     return {"completed_games": len(d_snos), "gamelog": gamelog,
             "lineup_batters": len(rb), "lineup_pitchers": len(rp),
-            "matchup_rows": m, "splits": det, "advanced": adv, "pitches": pitches}
+            "matchup_rows": m, "advanced": adv, "pitches": pitches}
 
 
 def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict:
@@ -174,18 +170,16 @@ def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict
     day_targets = _day_opponents(year, snos)
     m = scrape_matchups([YEAR_CAREER], delay=delay, batter_ids=rb,
                         pitcher_ids=cur_p, day_targets=day_targets)
-    # 每日增量分項：本季 (year,A) 與 vs-team 改由 cpbl-build-splits 重算（見
-    # splits_calc），只剩生涯 A 仍走爬蟲（Phase 2 anchor+accrual 後可再停）。
-    # 生涯季後 C/E 在例行賽期間凍結；季後賽期間改跑全量 cpbl-scrape-detail 補。
-    d = cpbl_player_detail.scrape(delay=delay, batter_ids=rb, pitcher_ids=rp,
-                                  apart_combos=[(YEAR_CAREER, "A")], with_vs_team=False)
+    # 分項（本季+生涯）與 vs-team 已全改重算：本季=build_splits、生涯=base+本季
+    # （build_career，錨定見 anchor_career）。apart 爬蟲全停；季後賽 C/E 開打時
+    # 把 C/E 加進 build_splits kinds 即自動累加（gamelog/livelog 照爬）。
     # 官方進階：當日上場選手（打者進攻 / 投手被打）
     adv = scrape_advanced(year, [(a, "batting") for a in rb] + [(a, "pitching") for a in rp], delay=delay)
     # 逐球 TrackMan：當日上場投手（logs API，該季全場次一次抓）
     pitches = scrape_pitches(rp, year, delay=delay) if rp else {"pitchers": 0, "pitches": 0}
     return {"completed_games": len(snos), "gamelog": gamelog,
             "lineup_batters": len(rb), "lineup_pitchers": len(rp),
-            "matchup_rows": m, "advanced": adv, "pitches": pitches, "farm": farm, **d}
+            "matchup_rows": m, "advanced": adv, "pitches": pitches, "farm": farm}
 
 
 def _recent_counts(year: int, days: list[date]) -> list[tuple[date, int, int]]:
@@ -240,9 +234,10 @@ def main() -> None:
                 log.info("補齊缺 gamelog 場 kind=%s：%s", kc, miss)
                 scrape_gamelogs(year, miss, kc)
                 scrape_game_details(year, miss, kc)
-        # 本季分項＋vs各隊：由 gamelog/livelog 重算寫回（取代 apart/vs-team 爬蟲，
-        # 見 splits_calc；生涯 9999 仍在上方 detail 爬）
+        # 分項＋vs各隊全面重算寫回：本季=gamelog/livelog 重算、生涯=base+本季
+        # （apart/vs-team 爬蟲全停，見 splits_calc / anchor_career）
         splits_built = build_splits(year, ("A", "D"))
+        splits_built["career"] = build_career(year, ("A", "D"))
         log.info("重算分項寫回：%s", splits_built)
         renamed = _sync_player_names()  # 由最新 gamelog 名同步 players.name（改名自動修正）
         if renamed:
