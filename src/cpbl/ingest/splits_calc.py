@@ -19,11 +19,15 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from datetime import date
+from decimal import ROUND_HALF_UP, Decimal
 
 from cpbl.db import conn
 from cpbl.imports import classify
+
+_RBI = re.compile(r"(\d+)分打點")
 
 
 def _is_local(pid: str, country: str) -> bool:
@@ -104,6 +108,7 @@ PA_OUTCOME: dict[str, dict[str, int]] = {
     "投失": {"pa": 1, "ab": 1, "go": 1}, "捕失": {"pa": 1, "ab": 1, "go": 1},
     "中失": {"pa": 1, "ab": 1, "fo": 1}, "左失": {"pa": 1, "ab": 1, "fo": 1},
     "右失": {"pa": 1, "ab": 1, "fo": 1},
+    "違規": {"pa": 1, "ab": 1},     # 違規被判出局（違規擊球/觸擊）：型態不明不歸滾飛
     "礙打": {"pa": 1},              # 妨礙打擊（捕手干擾）：PA 不計打數
     "礙守": {"pa": 1, "ab": 1, "go": 1},   # 滾地遭跑者妨礙，官方計 go
     "雙礙守": {"pa": 1, "ab": 1, "go": 1},
@@ -111,7 +116,8 @@ PA_OUTCOME: dict[str, dict[str, int]] = {
 }
 
 # 打者 T2 增量 → batting_splits 欄名
-_BAT_COLS = {"pa": "plate_appearances", "ab": "at_bats", "h": "hits", "singles": "singles",
+_BAT_COLS = {"pa": "plate_appearances", "ab": "at_bats", "h": "hits", "rbi": "rbi",
+             "singles": "singles",
              "doubles": "doubles", "triples": "triples", "home_runs": "home_runs",
              "tb": "total_bases", "sh": "sac_hit", "sf": "sac_fly", "bb": "bb", "ibb": "ibb",
              "hbp": "hbp", "so": "so", "go": "ground_outs", "fo": "fly_outs"}
@@ -125,8 +131,11 @@ def _month_of(d: date) -> str:
     return MONTH_NAMES[d.month]
 
 
-def _cut(cutoff: dict[str, date], acnt: str, gd: date) -> bool:
-    """True = 該場在該員官方快照之後，應排除。無 cutoff（官方無此人）也排除。"""
+def _cut(cutoff: dict[str, date] | None, acnt: str, gd: date) -> bool:
+    """True = 應排除該場。cutoff=None 為 build 模式（全量、不過濾）；
+    dict 為 harness 對照模式（排除官方快照日之後與官方無此人者）。"""
+    if cutoff is None:
+        return False
     c = cutoff.get(acnt)
     return c is None or gd >= c
 
@@ -144,8 +153,10 @@ def calc_batting_t1(year: int, kind: str, cutoff: dict[str, date]) -> tuple[Tabl
         FROM cpbl.batting_gamelog bg
         JOIN cpbl.games g ON g.year = bg.year AND g.kind_code = bg.kind_code
                          AND g.game_sno = bg.game_sno
-        WHERE bg.year = %s AND bg.kind_code = %s
+        WHERE bg.year = %s AND bg.kind_code = %s AND g.game_date <= CURRENT_DATE
     """
+    # game_date 在未來卻有比分 = 保留比賽殘段（delay_kind='保留'、按 sno 聚合、
+    # game_date=續賽日）——官方分項排除至續完日（harness 實證），故一併排除
     splits: Table = {}
     vs_team: Table = {}
     with conn() as c:
@@ -179,19 +190,20 @@ def calc_pitching_t1(year: int, kind: str, cutoff: dict[str, date]) -> tuple[Tab
         SELECT pg.pitcher_acnt, pg.visiting_home_type, g.game_date, g.venue,
                g.home_team_name, g.away_team_name, g.closer_id,
                pg.role_type, pg.game_result, pg.is_complete_game, pg.is_shutout,
+               pg.relief_point,
                pg.inning_pitched_div3, pg.plate_appearances, pg.pitch_cnt,
                pg.strike_cnt, pg.ball_cnt, pg.hits, pg.home_runs, pg.sac_hit, pg.sac_fly,
                pg.bb, pg.ibb, pg.hbp, pg.so, pg.wild_pitch, pg.balk, pg.runs, pg.earned_runs
         FROM cpbl.pitching_gamelog pg
         JOIN cpbl.games g ON g.year = pg.year AND g.kind_code = pg.kind_code
                          AND g.game_sno = pg.game_sno
-        WHERE pg.year = %s AND pg.kind_code = %s
+        WHERE pg.year = %s AND pg.kind_code = %s AND g.game_date <= CURRENT_DATE
     """
     splits: Table = {}
     vs_team: Table = {}
     with conn() as c:
         rows = c.execute(sql, (year, kind)).fetchall()
-    for (acnt, vh, gd, venue, home_nm, away_nm, closer, role, result, cg, sho,
+    for (acnt, vh, gd, venue, home_nm, away_nm, closer, role, result, cg, sho, rp,
          ip3, pa, pc, stk, bl, h, hr, sh, sf, bb, ibb, hbp, so, wp, bk, r, er) in rows:
         if _cut(cutoff, acnt, gd):
             continue
@@ -211,6 +223,9 @@ def calc_pitching_t1(year: int, kind: str, cutoff: dict[str, date]) -> tuple[Tab
         opp = away_nm if vh == "2" else home_nm
         cnt = vs_team.setdefault((acnt, "VT", opp), Counter())
         cnt["total_games"] += 1
+        # closes/holds 僅 vs各隊表有欄位，不進 splits 桶（避免 harness 誤比）
+        cnt["closes"] += 1 if role == "最後一任" else 0
+        cnt["holds"] += 1 if (rp or 0) > 0 else 0
         for k, v in line.items():
             # 官方 pitching_vs_team 的 strikes/balls/sac_hit/sac_fly 欄語意與
             # gamelog 不同（getfighterscore 另有定義，對調測試亦不成立），
@@ -261,7 +276,7 @@ def calc_t2(year: int, kind: str, bat_cut: dict[str, date],
                    hitter_acnt, pitcher_acnt, batting_order, out_cnt,
                    first_base, second_base, third_base,
                    batting_action_name, is_strike, is_ball,
-                   visiting_score, home_score, is_change_player
+                   visiting_score, home_score, is_change_player, content
             FROM cpbl.game_livelog
             WHERE year = %s AND kind_code = %s
             ORDER BY game_sno, inning_seq, visiting_home_type, main_event_no
@@ -309,8 +324,12 @@ def calc_t2(year: int, kind: str, bat_cut: dict[str, date],
         pa_seq[(sno, vh)] = seq + 1
         order = seq % 9 + 1
         gd, venue = gmeta[sno]
+        if gd > date.today():   # 未完成保留賽殘段：官方分項排除至續完日
+            return
         strikes = sum(1 for r in island if r[12])
         balls = sum(1 for r in island if r[13])
+        # 打點：官方 T2 家族有填 rbi，由 content「N分打點」標記解析（僅結果列帶標記）
+        rbi = sum(int(m.group(1)) for r in island for m in _RBI.finditer(r[17] or ""))
         bases = frozenset(n for n, v in ((1, b1), (2, b2), (3, b3)) if v not in (None, ""))
         # 比分取最後一顆投球「前」的比分（終局打點不得改變該打席的情境歸類）
         if lp > 0 and island[lp - 1][14] is not None and island[lp - 1][15] is not None:
@@ -348,6 +367,7 @@ def calc_t2(year: int, kind: str, bat_cut: dict[str, date],
                 cnt = bat.setdefault((hitter, grp, item), Counter())
                 for k, v in delta.items():
                     cnt[_BAT_COLS[k]] += v
+                cnt["rbi"] += rbi
             # 家族 1/8/9 的 go/fo（gamelog 無此二欄，由 livelog 補）
             for grp, item in (("1", "主場" if vh == "2" else "客場"),
                               ("8", _month_of(gd)), ("9", _venue(venue))):
@@ -412,3 +432,261 @@ def calc_t2(year: int, kind: str, bat_cut: dict[str, date],
     if island:
         flush(island, score_before)
     return bat, pit, bat_gofo, diag
+
+
+# ── Phase 1 writer：重算寫回官方表（取代本季 apart/vs-team 爬蟲）─────────────
+# 官方表 PK 含 item_index/item_note，字典自官方既有列 dump 固化於此；
+# 未知 item（新球場等）一律 fail-loud，禁止靜默略過。
+
+# 官方球場代碼（item_note=F 碼、item_index 恆 1）
+VENUE_CODE = {
+    "宜蘭縣立羅東運動公園棒球場": "F01", "新竹市中正棒球場": "F02",
+    "國立台灣體育運動大學台中棒球場": "F03", "台南市立棒球場": "F04",
+    "高雄市立德棒球場": "F05", "屏東縣立體育棒球場": "F06",
+    "嘉義市立體育棒球場": "F07", "新北市立新莊棒球場": "F08",
+    "高雄市澄清湖棒球場": "F09", "天母棒球場": "F10", "龍潭棒球場": "F11",
+    "花蓮縣立棒球場": "F12", "雲林縣斗六棒球場": "F13", "嘉義縣立棒球場": "F14",
+    "台北市立棒球場": "F15", "國立體育大學棒球場": "F16", "台東縣立棒球場": "F17",
+    "台中洲際棒球場": "F19", "樂天桃園棒球場": "F23", "青埔運動公園球場": "F24",
+    "中國信託公益園區棒球場": "F26", "臺北大巨蛋": "F29",
+    "臺南亞太國際棒球訓練中心成棒副球場": "F30", "臺南亞太國際棒球訓練中心成棒主球場": "F31",
+    "台鋼集團職業運動訓練基地皇鷹學院": "F32",
+}
+
+_HOME_META = {"主場": (1, "2"), "客場": (2, "1")}   # note=官方 vht 碼
+_BASE_ORDER = ["無跑者", "跑者一壘", "跑者二壘", "跑者三壘",
+               "跑者一、二壘", "跑者一、三壘", "跑者二、三壘", "滿壘"]
+_BASE_META = {n: (i + 1, n) for i, n in enumerate(_BASE_ORDER)}
+_OUT_META = {"無人出局": (1, "0"), "一出局": (2, "1"), "二出局": (3, "2")}
+_SCORE_META = {"比分落後": (1, "落後"), "比分領先": (2, "領先"), "相同比分": (3, "平手")}
+_INN_META = {n: (i, str(i)) for i, n in INNING_NAMES.items()}
+_INN_META[""] = (13, "13")   # 13局以上官方 name 空、index=局數；現制延長至12局，惟保底
+_MONTH_META = {n: (i, str(i)) for i, n in MONTH_NAMES.items()}
+_ORDER_META = {n: (i, str(i)) for i, n in ORDER_NAMES.items()}
+_VSP_META = {"VS. 右投": (1, "R"), "VS. 左投": (2, "L"), "VS. 本土投手": (3, "0"),
+             "VS. 外籍投手": (4, "1"), "VS. 先發": (5, "先發"), "VS. 中繼": (6, "中繼"),
+             "VS. 救援": (7, "最後一任")}
+_VSB_META = {"VS. 右打": (1, "R"), "VS. 左打": (2, "L"),
+             "VS. 本土打者": (3, "0"), "VS. 外籍打者": (4, "1")}
+_ROLE_META = {"先發": (1, "先發"), "中繼": (2, "中繼"), "最後一任": (3, "最後一任")}
+_VENUE_META = {n: (1, c) for n, c in VENUE_CODE.items()}
+
+_META = {
+    "bat": {"1": _HOME_META, "3": _VSP_META, "4": _BASE_META, "5": _OUT_META,
+            "6": _INN_META, "7": _SCORE_META, "8": _MONTH_META, "9": _VENUE_META,
+            "10": _ORDER_META},
+    "pit": {"1": _HOME_META, "3": _VSB_META, "4": _ROLE_META, "5": _BASE_META,
+            "6": _OUT_META, "7": _INN_META, "8": _SCORE_META, "9": _MONTH_META,
+            "10": _VENUE_META},
+}
+
+
+def _meta(side: str, grp: str, name: str) -> tuple[int, str]:
+    m = _META[side].get(grp, {}).get(name)
+    if m is None:
+        raise ValueError(f"未知分項 item：side={side} group={grp} name={name!r}（字典需更新）")
+    return m
+
+
+def _ratio(num: float, den: float, nd: int) -> float | None:
+    """分子/分母 → 四捨五入（HALF_UP，棒球慣例）nd 位。Decimal 精確除法，
+    避免 float 中介 + Python round 的銀行家捨入在半值（如 .3125）偏差。
+    註：官方站 rate 欄為「截斷」4 位（實測 obp 0.4014 vs round 0.4015），
+    我方採 round 與 API _merge_splits 路徑一致——顯示層 ±0.0001 差異可接受。"""
+    if not den:
+        return None
+    q = Decimal(1).scaleb(-nd)
+    return float((Decimal(num) / Decimal(den)).quantize(q, rounding=ROUND_HALF_UP))
+
+
+def _bat_rates(c: Counter) -> dict:
+    """官方存欄口徑：avg 3 位、obp/slg/ops/goao 4 位（同 API _merge_splits 公式）。"""
+    ab, h = c["at_bats"], c["hits"]
+    bb, hbp, sf = c["bb"], c["hbp"], c["sac_fly"]
+    obp = _ratio(h + bb + hbp, ab + bb + hbp + sf, 4)
+    slg = _ratio(c["total_bases"], ab, 4)
+    ops = (round((obp or 0) + (slg or 0), 4)
+           if (obp is not None or slg is not None) else None)
+    return {"avg": _ratio(h, ab, 3), "obp": obp, "slg": slg, "ops": ops,
+            "goao": _ratio(c["ground_outs"], c["fly_outs"], 4)}
+
+
+def _blown_saves(year: int, kind: str) -> Counter:
+    """(acnt, 對手隊名) → 救援失敗 BS 次數。批次撈 livelog/gamelog 按場呼叫 blown()。"""
+    from cpbl.models.pitcher_decisions import blown
+    out: Counter = Counter()
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            "SELECT ll.game_sno, ll.main_event_no, ll.visiting_home_type, ll.pitcher_acnt, "
+            "ll.first_base, ll.second_base, ll.third_base, ll.visiting_score, ll.home_score "
+            "FROM cpbl.game_livelog ll JOIN cpbl.games g ON g.year=ll.year "
+            "AND g.kind_code=ll.kind_code AND g.game_sno=ll.game_sno "
+            "WHERE ll.year=%s AND ll.kind_code=%s AND g.game_date <= CURRENT_DATE "
+            "ORDER BY ll.game_sno", (year, kind))
+        cols = [d.name for d in cur.description]
+        ll_by_game: dict[int, list[dict]] = {}
+        for r in cur.fetchall():
+            ll_by_game.setdefault(r[0], []).append(dict(zip(cols, r, strict=True)))
+        cur.execute(
+            "SELECT game_sno, pitcher_acnt, visiting_home_type, game_result FROM "
+            "cpbl.pitching_gamelog WHERE year=%s AND kind_code=%s", (year, kind))
+        pcols = [d.name for d in cur.description]
+        pg_by_game: dict[int, list[dict]] = {}
+        for r in cur.fetchall():
+            pg_by_game.setdefault(r[0], []).append(dict(zip(pcols, r, strict=True)))
+        opp = {}
+        for sno, hn, an in c.execute(
+                "SELECT game_sno, home_team_name, away_team_name FROM cpbl.games "
+                "WHERE year=%s AND kind_code=%s", (year, kind)).fetchall():
+            opp[sno] = {"1": hn, "2": an}   # 投手隊=守備方：vht(打擊方)反side即對手
+    side_of = {}
+    for sno, pgs in pg_by_game.items():
+        for p in pgs:
+            side_of[(sno, p["pitcher_acnt"])] = str(p["visiting_home_type"])
+    for sno, ll in ll_by_game.items():
+        for acnt, tag in blown(ll, pg_by_game.get(sno, [])).items():
+            if tag != "BS":
+                continue
+            # 對手：pitching_gamelog vht 為投手自隊側，客隊投手(1)的對手=主隊名
+            my = side_of.get((sno, acnt))
+            if my:
+                out[(acnt, opp[sno][my])] += 1
+    return out
+
+
+def _team_maps(year: int, kind: str) -> tuple[dict, dict, dict]:
+    """(隊名→隊碼, 打者acnt→自隊碼, 投手acnt→自隊碼)。自隊取最近一場所屬側。"""
+    with conn() as c:
+        name2code = {}
+        for hn, hc, an, ac in c.execute(
+                "SELECT home_team_name, home_team_code, away_team_name, away_team_code "
+                "FROM cpbl.games WHERE year=%s AND kind_code=%s", (year, kind)).fetchall():
+            name2code[hn] = hc
+            name2code[an] = ac
+        own_b, own_p = {}, {}
+        for tbl, acol, own in (("batting_gamelog", "hitter_acnt", own_b),
+                               ("pitching_gamelog", "pitcher_acnt", own_p)):
+            rows = c.execute(
+                f"SELECT DISTINCT ON (x.{acol}) x.{acol}, "  # noqa: S608 — tbl/acol 內部常數
+                "CASE WHEN x.visiting_home_type='2' THEN g.home_team_code "
+                "ELSE g.away_team_code END "
+                f"FROM cpbl.{tbl} x JOIN cpbl.games g ON g.year=x.year "
+                "AND g.kind_code=x.kind_code AND g.game_sno=x.game_sno "
+                "WHERE x.year=%s AND x.kind_code=%s AND g.game_date <= CURRENT_DATE "
+                f"ORDER BY x.{acol}, g.game_date DESC",
+                (year, kind)).fetchall()
+            own.update(dict(rows))
+    return name2code, own_b, own_p
+
+
+def build_splits(year: int, kinds: tuple[str, ...] = ("A", "D")) -> dict:
+    """重算並寫回四張分項表（本季）。每 kind 一交易：DELETE 該 year+kind 全列後 INSERT。
+
+    取代每日爬蟲的本季 apart 分項與 vs-team（生涯 9999 仍走爬蟲，Phase 2 再改）。
+    寫回後官方爬值即被覆蓋——cpbl-verify-splits 僅對「新爬回的官方值」有對照意義。
+    """
+    summary: dict = {}
+    for kind in kinds:
+        bat_t1, bat_vt = calc_batting_t1(year, kind, None)
+        pit_t1, pit_vt = calc_pitching_t1(year, kind, None)
+        bat_t2, pit_t2, bat_gofo, diag = calc_t2(year, kind, None, None)
+        if diag["unknown_action"]:
+            raise ValueError(f"未知打席結果詞彙，中止寫入：{dict(diag['unknown_action'])}")
+        for key, cnt in bat_gofo.items():
+            bat_t1.setdefault(key, Counter()).update(cnt)
+        bat_t1.update(bat_t2)
+        pit_t1.update(pit_t2)
+        name2code, own_b, own_p = _team_maps(year, kind)
+        bs_cnt = _blown_saves(year, kind)
+
+        b_rows = []
+        for (acnt, grp, item), c in sorted(bat_t1.items()):
+            idx, note = _meta("bat", grp, item)
+            r = _bat_rates(c)
+            b_rows.append((year, kind, acnt, grp, idx, item, note,
+                           c["plate_appearances"], c["at_bats"], c["hits"], c["rbi"],
+                           c["singles"], c["doubles"], c["triples"], c["home_runs"],
+                           c["total_bases"], c["sac_hit"], c["sac_fly"], c["bb"], c["ibb"],
+                           c["hbp"], c["so"], c["ground_outs"], c["fly_outs"],
+                           r["goao"], r["avg"], r["obp"], r["slg"], r["ops"]))
+        p_rows = []
+        for (acnt, grp, item), c in sorted(pit_t1.items()):
+            idx, note = _meta("pit", grp, item)
+            outs = c["inning_pitched_div3"]
+            p_rows.append((year, kind, acnt, grp, idx, item, note,
+                           c["wins"], c["loses"], c["starts"], c["complete_games"],
+                           c["shutouts"], c["save_ok"], outs // 3, outs % 3,
+                           c["plate_appearances"], c["pitch_cnt"], c["strikes"], c["balls"],
+                           c["hits"], c["home_runs"], c["sac_hit"], c["sac_fly"],
+                           c["bb"], c["ibb"], c["hbp"], c["so"],
+                           c["wild_pitch"], c["balk"], c["runs"], c["earned_runs"]))
+        bvt_rows = []
+        for (acnt, _, opp_name), c in sorted(bat_vt.items()):
+            code = name2code[opp_name]
+            att = c["sb_ok"] + c["sb_fail"]
+            r = _bat_rates(c)
+            ta_den = c["at_bats"] - c["hits"] + c["sb_fail"] + c["gidp"]
+            ta_num = c["total_bases"] + c["bb"] + c["hbp"] + c["sb_ok"] - c["sb_fail"]
+            sb_pct = _ratio(c["sb_ok"], att, 4)
+            bvt_rows.append((year, kind, acnt, code, opp_name, own_b.get(acnt),
+                             c["total_games"], c["plate_appearances"], c["at_bats"],
+                             c["hits"], c["rbi"], c["runs"], c["singles"], c["doubles"],
+                             c["triples"], c["home_runs"], c["total_bases"], c["gidp"],
+                             c["sac_hit"], c["sac_fly"], c["bb"], c["ibb"], c["hbp"],
+                             c["so"], c["sb_ok"], c["sb_fail"],
+                             sb_pct if sb_pct is not None else 0,
+                             r["avg"], r["obp"], r["slg"],
+                             _ratio(ta_num, ta_den, 4) if ta_den > 0 else None, r["ops"]))
+        pvt_rows = []
+        for (acnt, _, opp_name), c in sorted(pit_vt.items()):
+            code = name2code[opp_name]
+            outs = c["inning_pitched_div3"]
+            pvt_rows.append((year, kind, acnt, code, opp_name, own_p.get(acnt),
+                             c["total_games"], c["starts"], c["closes"],
+                             c["complete_games"], c["shutouts"], c["wins"], c["loses"],
+                             c["save_ok"], bs_cnt.get((acnt, opp_name), 0), c["holds"],
+                             outs // 3, outs % 3,
+                             _ratio((c["hits"] + c["bb"]) * 3, outs, 2),   # WHIP=(H+BB)/IP
+                             _ratio(c["earned_runs"] * 27, outs, 2),      # ERA=ER*9/IP
+                             c["plate_appearances"], c["pitch_cnt"], c["hits"],
+                             c["home_runs"], c["bb"], c["ibb"], c["hbp"], c["so"],
+                             c["wild_pitch"], c["balk"], c["runs"], c["earned_runs"]))
+
+        with conn() as cx:  # 每 kind 單一交易：四表原子換版
+            for tbl, cols, rows in (
+                ("batting_splits",
+                 "year, kind_code, acnt, item_group_code, item_index, item_name, item_note, "
+                 "plate_appearances, at_bats, hits, rbi, singles, doubles, triples, home_runs, "
+                 "total_bases, sac_hit, sac_fly, bb, ibb, hbp, so, ground_outs, fly_outs, "
+                 "goao, avg, obp, slg, ops", b_rows),
+                ("pitching_splits",
+                 "year, kind_code, acnt, item_group_code, item_index, item_name, item_note, "
+                 "wins, loses, starts, complete_games, shutouts, save_ok, inning_pitched_cnt, "
+                 "inning_pitched_div3, plate_appearances, pitch_cnt, strikes, balls, hits, "
+                 "home_runs, sac_hit, sac_fly, bb, ibb, hbp, so, wild_pitch, balk, runs, "
+                 "earned_runs", p_rows),
+                ("batting_vs_team",
+                 "year, kind_code, acnt, fight_team_code, fight_team_name, team_no, "
+                 "total_games, plate_appearances, at_bats, hits, rbi, runs, singles, doubles, "
+                 "triples, home_runs, total_bases, gidp, sac_hit, sac_fly, bb, ibb, hbp, so, "
+                 "sb_ok, sb_fail, sb_pct, avg, obp, slg, ta, ops", bvt_rows),
+                ("pitching_vs_team",
+                 "year, kind_code, acnt, fight_team_code, fight_team_name, team_no, "
+                 "total_games, starts, closes, complete_games, shutouts, wins, loses, save_ok, "
+                 "save_fail, holds, inning_pitched_cnt, inning_pitched_div3, whip, era, "
+                 "plate_appearances, pitch_cnt, hits, home_runs, bb, ibb, hbp, so, "
+                 "wild_pitch, balk, runs, earned_runs", pvt_rows),
+            ):
+                cx.execute(
+                    f"DELETE FROM cpbl.{tbl} WHERE year=%s AND kind_code=%s",  # noqa: S608
+                    (year, kind))
+                ph = ", ".join(["%s"] * len(cols.split(", "))) + ", now()"
+                with cx.cursor() as cur:
+                    cur.executemany(
+                        f"INSERT INTO cpbl.{tbl} ({cols}, updated_at) VALUES ({ph})",  # noqa: S608
+                        rows)
+        summary[kind] = {"bsplit": len(b_rows), "psplit": len(p_rows),
+                         "bvt": len(bvt_rows), "pvt": len(pvt_rows),
+                         "pa": diag["pa"], "blown_saves": sum(bs_cnt.values())}
+    return summary
