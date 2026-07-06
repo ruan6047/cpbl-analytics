@@ -127,10 +127,56 @@ export function QualitySection({ advanced, role }: {
   );
 }
 
-// 打者：擊球品質散點（仰角×初速） / 投手：配球傾向（依球數）
-export function BattedMixSection({ disc, pitchMix, role }: {
+type ArsenalItem = { pitch_type: string; n: number; usage: number; avg_speed: number | null;
+  avg_spin: number | null; whiff_pct: number | null; avg_ev: number | null };
+
+const PT_LABEL: Record<string, { name: string; color: string }> = {
+  fastball: { name: "速球", color: "#1d6fb8" },
+  breakingball: { name: "變化球", color: "#f59e0b" },
+};
+
+// 球種卡：用量 + 均速 + 轉速 + 揮空%（TrackMan；資料僅速球/變化球二分）
+function ArsenalCards({ items }: { items: ArsenalItem[] }) {
+  if (!items.length) return null;
+  return (
+    <div className="mb-4 grid gap-3 sm:grid-cols-2">
+      {items.map((a) => {
+        const meta = PT_LABEL[a.pitch_type] ?? { name: a.pitch_type, color: "#94a3b8" };
+        return (
+          <div key={a.pitch_type} className="rounded-lg border border-line p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">
+                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: meta.color }} />
+                {meta.name}
+              </span>
+              <span className="font-mono text-xs text-faint">{a.n} 球</span>
+            </div>
+            <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-line/60">
+              <div className="h-full rounded-full" style={{ width: `${a.usage}%`, background: meta.color }} />
+            </div>
+            <div className="grid grid-cols-4 gap-1 text-center">
+              {([["用量", a.usage, "%"], ["均速", a.avg_speed, "km/h"],
+                 ["轉速", a.avg_spin, "rpm"], ["揮空", a.whiff_pct, "%"]] as const).map(([l, v, u]) => (
+                <div key={l}>
+                  <div className="text-[10px] text-muted">{l}</div>
+                  <div className="font-mono text-sm tabular-nums text-ink">
+                    {v == null ? "—" : v}<span className="ml-0.5 text-[9px] text-faint">{u}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// 打者：擊球品質散點（仰角×初速） / 投手：球種卡 + 配球傾向（依球數）
+export function BattedMixSection({ disc, pitchMix, arsenal, role }: {
   disc: Disc | null;
   pitchMix: { bucket: string; n: number; fastball: number; breakingball: number }[] | null;
+  arsenal: ArsenalItem[] | null;
   role: Role;
 }) {
   if (role === "batting") {
@@ -144,31 +190,37 @@ export function BattedMixSection({ disc, pitchMix, role }: {
       </section>
     );
   }
-  if ((pitchMix?.length ?? 0) === 0) return null;
+  if ((pitchMix?.length ?? 0) === 0 && (arsenal?.length ?? 0) === 0) return null;
   return (
     <section className="mb-6">
-      <h2 className="mb-3 text-lg font-semibold text-ink">配球傾向（依球數）</h2>
+      <h2 className="mb-3 text-lg font-semibold text-ink">配球傾向<span className="ml-2 align-middle text-xs font-normal text-faint">TrackMan 逐球樣本</span></h2>
       <Card>
-        <div className="space-y-2.5">
-          {pitchMix!.map((b) => (
-            <div key={b.bucket} className="flex items-center gap-2 text-xs">
-              <span className="w-16 shrink-0 text-muted">{b.bucket}</span>
-              <div className="flex h-5 flex-1 overflow-hidden rounded">
-                <div className="flex items-center justify-center text-[10px] text-white" style={{ width: `${b.fastball}%`, background: "#1d6fb8" }}>
-                  {b.fastball >= 12 ? `${b.fastball}%` : ""}
+        <ArsenalCards items={arsenal ?? []} />
+        {(pitchMix?.length ?? 0) > 0 && (
+          <>
+            <div className="mb-2 text-xs text-muted">依球數情境</div>
+            <div className="space-y-2.5">
+              {pitchMix!.map((b) => (
+                <div key={b.bucket} className="flex items-center gap-2 text-xs">
+                  <span className="w-16 shrink-0 text-muted">{b.bucket}</span>
+                  <div className="flex h-5 flex-1 overflow-hidden rounded">
+                    <div className="flex items-center justify-center text-[10px] text-white" style={{ width: `${b.fastball}%`, background: "#1d6fb8" }}>
+                      {b.fastball >= 12 ? `${b.fastball}%` : ""}
+                    </div>
+                    <div className="flex items-center justify-center text-[10px] text-white" style={{ width: `${b.breakingball}%`, background: "#f59e0b" }}>
+                      {b.breakingball >= 12 ? `${b.breakingball}%` : ""}
+                    </div>
+                  </div>
+                  <span className="w-10 shrink-0 text-right font-mono text-faint">{b.n}</span>
                 </div>
-                <div className="flex items-center justify-center text-[10px] text-white" style={{ width: `${b.breakingball}%`, background: "#f59e0b" }}>
-                  {b.breakingball >= 12 ? `${b.breakingball}%` : ""}
-                </div>
-              </div>
-              <span className="w-10 shrink-0 text-right font-mono text-faint">{b.n}</span>
+              ))}
             </div>
-          ))}
-        </div>
-        <div className="mt-2.5 flex justify-center gap-4 text-[11px] text-muted">
-          <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: "#1d6fb8" }} />速球</span>
-          <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: "#f59e0b" }} />變化球</span>
-        </div>
+            <div className="mt-2.5 flex justify-center gap-4 text-[11px] text-muted">
+              <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: "#1d6fb8" }} />速球</span>
+              <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: "#f59e0b" }} />變化球</span>
+            </div>
+          </>
+        )}
       </Card>
     </section>
   );

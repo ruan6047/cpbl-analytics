@@ -11,17 +11,18 @@ export const metadata: Metadata = {
 // 行動瀏覽器頂欄配色跟隨頁面底色（--color-paper）
 export const viewport: Viewport = { themeColor: "#f5f7fa" };
 
+// group 變化處插入視覺分隔：賽事｜數據｜預測
 const NAV = [
-  { href: "/", label: "戰績" },
-  { href: "/batters", label: "打者" },
-  { href: "/pitchers", label: "投手" },
-  { href: "/games", label: "賽況" },
-  { href: "/venues", label: "球場" },
-  { href: "/umpires", label: "裁判報告" },
-  { href: "/records", label: "紀錄室" },
-  { href: "/matchups", label: "投打對決" },
-  { href: "/projections", label: "成績預測" },
-  { href: "/predict", label: "賽事預測" },
+  { href: "/", label: "戰績", group: "賽事" },
+  { href: "/games", label: "賽況", group: "賽事" },
+  { href: "/matchups", label: "投打對決", group: "賽事" },
+  { href: "/batters", label: "打者", group: "數據" },
+  { href: "/pitchers", label: "投手", group: "數據" },
+  { href: "/records", label: "紀錄室", group: "數據" },
+  { href: "/venues", label: "球場", group: "數據" },
+  { href: "/umpires", label: "裁判報告", group: "數據" },
+  { href: "/projections", label: "成績預測", group: "預測" },
+  { href: "/predict", label: "賽事預測", group: "預測" },
 ];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

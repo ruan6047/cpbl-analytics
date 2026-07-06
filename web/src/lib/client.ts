@@ -214,6 +214,11 @@ export const detail = {
     clientGet<{ items: { bucket: string; n: number; fastball: number; breakingball: number }[] }>(
       `/api/v1/players/${id}/pitch-mix?role=${role}&kind_code=${kind}`,
     ),
+  arsenal: (id: string, role: "batting" | "pitching") =>
+    clientGet<{ items: { pitch_type: string; n: number; usage: number; avg_speed: number | null;
+      avg_spin: number | null; whiff_pct: number | null; avg_ev: number | null }[] }>(
+      `/api/v1/players/${id}/arsenal?role=${role}`,
+    ),
   gameLive: (sno: number, kind = "A", year?: number) =>
     clientGet<{
       game: StatRow | null; scoreboard: StatRow[]; livelog: StatRow[];

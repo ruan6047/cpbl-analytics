@@ -106,3 +106,17 @@ export function PercentileBar({ name, value, pr, def }: { name: string; value: s
     </div>
   );
 }
+
+// 發散上色（Savant 式淡底）：值在 vals 值域內線性 0-100 → prColor；lowerBetter 反向。
+// 值缺、樣本 <2 或值域為零時不上色。回傳可直接掛在 <td style> 的物件。
+export function divBg(v: number | null | undefined, vals: (number | null | undefined)[],
+                      lowerBetter = false): React.CSSProperties | undefined {
+  if (v == null) return undefined;
+  const nums = vals.filter((x): x is number => x != null && Number.isFinite(x));
+  if (nums.length < 2) return undefined;
+  const min = Math.min(...nums), max = Math.max(...nums);
+  if (max <= min) return undefined;
+  let p = (v - min) / (max - min);
+  if (lowerBetter) p = 1 - p;
+  return { background: prColor(p * 100).replace("rgb", "rgba").replace(")", ",0.28)") };
+}

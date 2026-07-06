@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { TeamBadge, TeamLogo } from "@/components/ui";
+import { TeamBadge, TeamLogo, divBg, prColor } from "@/components/ui";
 import { StandingsTrend } from "@/components/standings-trend";
 import { YearSelect } from "@/components/year-select";
 import { api } from "@/lib/api";
@@ -254,6 +254,15 @@ const LEVELS = [
   { v: "D", label: "二軍" },
 ];
 
+
+// H2H 「勝-和-敗」字串 → 勝率底色（無對戰不上色）
+function h2hBg(rec: string | null | undefined): React.CSSProperties | undefined {
+  if (!rec) return undefined;
+  const [w, , l] = rec.split("-").map(Number);
+  if (!Number.isFinite(w) || !Number.isFinite(l) || w + l === 0) return undefined;
+  return { background: prColor((w / (w + l)) * 100).replace("rgb", "rgba").replace(")", ",0.3)") };
+}
+
 export default async function Home({ searchParams }: { searchParams: Promise<{ seg?: string; view?: string; year?: string; kind?: string }> }) {
   const { seg = "0", view = "basic", year: yearParam, kind: kindParam } = await searchParams;
   const segCode = Number(seg) || 0;
@@ -368,6 +377,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
             <tbody className="font-mono tabular-nums">
               {items.map((t) => {
                 const a = adv.get(t.team_code);
+                const pcts = items.map((x) => x.win_pct);
+                const opss = items.map((x) => adv.get(x.team_code)?.ops);
+                const eras = items.map((x) => adv.get(x.team_code)?.era);
+                const whips = items.map((x) => adv.get(x.team_code)?.whip);
                 return (
                   <tr key={t.team_code} className="border-t border-line hover:bg-surface-2">
                     <td className="px-2.5 py-2.5 text-faint">{t.rank}</td>
@@ -386,16 +399,16 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
                     </td>
                     <td className="px-2.5 py-2.5 text-muted">{t.g}</td>
                     <td className="px-2.5 py-2.5">{t.w}-{t.t}-{t.l}</td>
-                    <td className="px-2.5 py-2.5 text-accent">{t.win_pct?.toFixed(3) ?? "—"}</td>
+                    <td className="px-2.5 py-2.5 font-medium text-ink" style={divBg(t.win_pct, pcts)}>{t.win_pct?.toFixed(3) ?? "—"}</td>
                     <td className="px-2.5 py-2.5 text-muted">{t.gb === 0 ? "—" : t.gb}</td>
                     <td className="px-2.5 py-2.5 text-muted">{t.elim && t.elim !== "" ? t.elim : "—"}</td>
                     <td className="px-2.5 py-2.5 text-muted">{t.streak ?? "—"}</td>
                     <td className="px-2.5 py-2.5 text-muted">{t.home_record ?? "—"}</td>
                     <td className="px-2.5 py-2.5 text-muted">{t.away_record ?? "—"}</td>
                     <td className="px-2.5 py-2.5 text-muted">{t.last10 ?? "—"}</td>
-                    <td className="px-2.5 py-2.5">{a?.ops?.toFixed(3) ?? "—"}</td>
-                    <td className="px-2.5 py-2.5">{a?.era?.toFixed(2) ?? "—"}</td>
-                    <td className="px-2.5 py-2.5">{a?.whip?.toFixed(2) ?? "—"}</td>
+                    <td className="px-2.5 py-2.5" style={divBg(a?.ops, opss)}>{a?.ops?.toFixed(3) ?? "—"}</td>
+                    <td className="px-2.5 py-2.5" style={divBg(a?.era, eras, true)}>{a?.era?.toFixed(2) ?? "—"}</td>
+                    <td className="px-2.5 py-2.5" style={divBg(a?.whip, whips, true)}>{a?.whip?.toFixed(2) ?? "—"}</td>
                   </tr>
                 );
               })}
@@ -443,7 +456,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
                   <tr key={row.team_code} className="border-t border-line hover:bg-surface-2">
                     <td className="whitespace-nowrap px-2.5 py-2.5 font-sans"><TeamBadge code={row.team_code} name={row.team_name} /></td>
                     {items.map((col) => (
-                      <td key={col.team_code} className="px-2.5 py-2.5 text-center text-muted">
+                      <td key={col.team_code} className="px-2.5 py-2.5 text-center text-ink"
+                        style={col.team_code === row.team_code ? undefined : h2hBg(row.h2h?.[col.team_code])}>
                         {col.team_code === row.team_code ? (
                           <span className="text-faint">—</span>
                         ) : (

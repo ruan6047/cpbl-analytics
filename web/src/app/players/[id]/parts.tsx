@@ -2,7 +2,7 @@
 
 // 球員頁純展示元件：無跨區 state，僅收 props。
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { LetterBadge } from "@/components/ui";
+import { LetterBadge, divBg } from "@/components/ui";
 import { type StatRow } from "@/lib/client";
 import { fmtIP } from "@/lib/format";
 import { codeFromName, eraBadge, teamShort } from "@/lib/teams";
@@ -192,6 +192,11 @@ export function SplitsTable({ rows, role }: { rows: StatRow[]; role: Role }) {
   const heads = role === "batting"
     ? ["分項", "打席", "打數", "安打", "全壘打", "打點", "四壞", "三振", "打擊率", "OPS"]
     : ["分項", "局數", "面對", "被安", "被轟", "四壞", "三振", "自責", "ERA"];
+  // 組內發散上色：同家族各桶（主/客、各局數…）間對比（投手 ERA 低為佳）
+  const numsOf = (f: (r: StatRow) => number | null | undefined) => rows.map(f);
+  const avgs = numsOf((r) => r.avg as number | null);
+  const opss = numsOf((r) => r.ops as number | null);
+  const eras = numsOf((r) => eraOf(r));
   return (
     <table className="w-full text-sm">
       <thead className="bg-surface-2 text-left text-muted">
@@ -210,8 +215,8 @@ export function SplitsTable({ rows, role }: { rows: StatRow[]; role: Role }) {
                 <td className="px-2.5 py-2">{String(r.rbi ?? "—")}</td>
                 <td className="px-2.5 py-2 text-muted">{String(r.bb ?? "—")}</td>
                 <td className="px-2.5 py-2 text-muted">{String(r.so ?? "—")}</td>
-                <td className="px-2.5 py-2">{f3(r.avg)}</td>
-                <td className="px-2.5 py-2 text-accent">{f3(r.ops)}</td>
+                <td className="px-2.5 py-2" style={divBg(r.avg as number | null, avgs)}>{f3(r.avg)}</td>
+                <td className="px-2.5 py-2 font-medium text-ink" style={divBg(r.ops as number | null, opss)}>{f3(r.ops)}</td>
               </>
             ) : (
               <>
@@ -221,8 +226,8 @@ export function SplitsTable({ rows, role }: { rows: StatRow[]; role: Role }) {
                 <td className="px-2.5 py-2 text-muted">{String(r.home_runs ?? "—")}</td>
                 <td className="px-2.5 py-2 text-muted">{String(r.bb ?? "—")}</td>
                 <td className="px-2.5 py-2">{String(r.so ?? "—")}</td>
-                <td className="px-2.5 py-2 text-accent">{String(r.earned_runs ?? "—")}</td>
-                <td className="px-2.5 py-2 text-accent">{eraOf(r)?.toFixed(2) ?? "—"}</td>
+                <td className="px-2.5 py-2 text-muted">{String(r.earned_runs ?? "—")}</td>
+                <td className="px-2.5 py-2 font-medium text-ink" style={divBg(eraOf(r), eras, true)}>{eraOf(r)?.toFixed(2) ?? "—"}</td>
               </>
             )}
           </tr>

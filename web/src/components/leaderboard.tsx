@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { NameTag } from "@/components/ui";
+import { NameTag, prColor } from "@/components/ui";
 import { fmtIP } from "@/lib/format";
 
 export type Fmt = "i" | "f1" | "f2" | "f3" | "ip";
@@ -19,6 +19,8 @@ export type Col = {
   // 用可序列化物件而非函式，server component 才能把 Col 傳給此 client 元件。
   link?: { base: string; idKey: string };
   team?: boolean; // 該欄值為隊名時，渲染隊徽 + 名稱
+  bar?: boolean; // Savant 式 inline bar：依當前檢視 min-max 畫底色條 + 藍↔紅發散上色
+  lowerBetter?: boolean; // 低為佳（ERA/WHIP…）：bar 長度與顏色反向
 };
 
 export type Filter = { key: string; label: string };
@@ -89,6 +91,36 @@ export default function Leaderboard({
       setSortKey(key);
       setDir(-1);
     }
+  };
+
+  // inline bar 的 per-欄值域（隨篩選後檢視變動；min=max 時退化為中性半長）
+  const barRange = useMemo(() => {
+    const m: Record<string, { min: number; max: number }> = {};
+    for (const c of cols) {
+      if (!c.bar) continue;
+      const vals = view
+        .map((r) => r[c.key])
+        .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+      if (vals.length) m[c.key] = { min: Math.min(...vals), max: Math.max(...vals) };
+    }
+    return m;
+  }, [view, cols]);
+
+  const barCell = (c: Col, v: number | string | null) => {
+    const rng = barRange[c.key];
+    const num = typeof v === "number" && Number.isFinite(v) ? v : null;
+    if (!rng || num === null) return fmtVal(v, c.fmt);
+    const p = rng.max > rng.min ? (num - rng.min) / (rng.max - rng.min) : 0.5;
+    const g = c.lowerBetter ? 1 - p : p; // goodness：條長與顏色一律「越好越長越紅」
+    return (
+      <span className="relative inline-block min-w-[3.5rem] text-right align-middle">
+        <span
+          className="absolute inset-y-0.5 left-0 rounded-sm opacity-30"
+          style={{ width: `${Math.max(g * 100, 4)}%`, background: prColor(g * 100) }}
+        />
+        <span className="relative">{fmtVal(v, c.fmt)}</span>
+      </span>
+    );
   };
 
   return (
@@ -168,6 +200,8 @@ export default function Leaderboard({
                       >
                         {fmtVal(r[c.key], c.fmt)}
                       </Link>
+                    ) : c.bar ? (
+                      barCell(c, r[c.key])
                     ) : (
                       fmtVal(r[c.key], c.fmt)
                     )}

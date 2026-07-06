@@ -23,6 +23,8 @@ export default function PlayerPage() {
   const [advanced, setAdvanced] = useState<{ batting: StatRow | null; pitching: StatRow | null } | null>(null);
   const [disc, setDisc] = useState<Disc | null>(null);
   const [pitchMix, setPitchMix] = useState<{ bucket: string; n: number; fastball: number; breakingball: number }[] | null>(null);
+  const [arsenal, setArsenal] = useState<{ pitch_type: string; n: number; usage: number;
+    avg_speed: number | null; avg_spin: number | null; whiff_pct: number | null; avg_ev: number | null }[] | null>(null);
   const [fielding, setFielding] = useState<StatRow[] | null>(null);
   const [fieldingCareer, setFieldingCareer] = useState<StatRow[] | null>(null);
   const [fieldFromYear, setFieldFromYear] = useState<number | null>(null);
@@ -79,8 +81,12 @@ export default function PlayerPage() {
   useEffect(() => {
     setDisc(null);
     setPitchMix(null);
+    setArsenal(null);
     detail.discipline(id, role, seasonKind).then((d) => setDisc(d as Disc)).catch(() => setDisc(null));
     detail.pitchMix(id, role, seasonKind).then((d) => setPitchMix(d.items)).catch(() => setPitchMix([]));
+    // 球種卡（arsenal 端點僅一軍樣本）
+    if (seasonKind === "A") detail.arsenal(id, role).then((d) => setArsenal(d.items)).catch(() => setArsenal([]));
+    else setArsenal([]);
     detail.fielding(id, "season", seasonKind).then((d) => setFielding(d.items)).catch(() => setFielding([]));
     detail.advanced(id, seasonKind).then(setAdvanced).catch(() => setAdvanced(null));
   }, [id, role, seasonKind]);
@@ -118,7 +124,7 @@ export default function PlayerPage() {
       {/* key 重掛：id/role/seasonKind 變更時重置球種鏡頭（沿用原重置語義） */}
       <TrackingSection key={`${id}-${role}-${seasonKind}`} disc={disc} role={role} seasonKind={seasonKind} />
       <QualitySection advanced={advanced} role={role} />
-      <BattedMixSection disc={disc} pitchMix={pitchMix} role={role} />
+      <BattedMixSection disc={disc} pitchMix={pitchMix} arsenal={arsenal} role={role} />
       <TrendVsSection trend={trend} careerMonthly={careerMonthly} vsTeam={vsTeam} role={role} />
       <FieldingSection fielding={fielding} fieldingCareer={fieldingCareer} fieldFromYear={fieldFromYear} />
       <DetailSection id={id} role={role} seasonKind={seasonKind} isRetired={isRetired} career={career} />

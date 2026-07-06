@@ -8,16 +8,16 @@ export function matchupCols(role: Role): Col[] {
   return [
     { key: "opp_name", label: opp, tip: `對戰${opp}（點擊看個人頁）`, link: { base: "/players/", idKey: "opp_id" } },
     { key: "opp_team", label: "對手隊", tone: "dim", tip: "對手所屬球隊（同隊不對戰，已自然排除）" },
-    { key: "plate_appearances", label: "打席", fmt: "i", tip: "對戰打席（PA）" },
+    { key: "plate_appearances", label: "打席", fmt: "i", bar: true, tip: "對戰打席（PA）" },
     { key: "at_bats", label: "打數", fmt: "i", tone: "dim", tip: "打數（AB）" },
     { key: "hits", label: "安打", fmt: "i", tip: role === "batting" ? "安打" : "被安打" },
     { key: "home_runs", label: "全壘打", fmt: "i", tip: role === "batting" ? "全壘打" : "被全壘打" },
     { key: "bb", label: "四壞", fmt: "i", tone: "dim", tip: "四壞球（保送）" },
     { key: "so", label: "三振", fmt: "i", tone: "dim", tip: role === "batting" ? "被三振" : "奪三振" },
-    { key: "avg", label: "打擊率", fmt: "f3", tip: role === "batting" ? "打擊率" : "被打擊率" },
-    { key: "obp", label: "上壘率", fmt: "f3", tip: "上壘率" },
-    { key: "slg", label: "長打率", fmt: "f3", tip: "長打率" },
-    { key: "ops", label: "OPS", fmt: "f3", tone: "accent", tip: "OPS = 上壘率＋長打率" },
+    { key: "avg", label: "打擊率", fmt: "f3", bar: true, lowerBetter: role === "pitching", tip: role === "batting" ? "打擊率" : "被打擊率" },
+    { key: "obp", label: "上壘率", fmt: "f3", bar: true, lowerBetter: role === "pitching", tip: "上壘率" },
+    { key: "slg", label: "長打率", fmt: "f3", bar: true, lowerBetter: role === "pitching", tip: "長打率" },
+    { key: "ops", label: "OPS", fmt: "f3", bar: true, lowerBetter: role === "pitching", tone: "accent", tip: "OPS = 上壘率＋長打率" },
     { key: "whiff_pct", label: "揮空%", fmt: "f1", tone: "dim", tip: "揮空率：揮棒落空 ÷ 揮棒" },
   ];
 }
