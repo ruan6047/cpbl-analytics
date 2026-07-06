@@ -23,6 +23,8 @@ _PAIR = re.compile(
 _TAG = re.compile(r"<[^>]+>")
 _HT = re.compile(r"(\d+)\s*\(CM\).*?(\d+)\s*\(KG\)", re.S)
 _NAME = re.compile(r'<div class="name">([^<]+)')
+_HAND = re.compile(r"(左投|右投)\s*(左右開弓|兩打|左打|右打)")
+_BDAY = re.compile(r"(\d{4})/(\d{2})/(\d{2})")
 
 
 def _text(html: str) -> str:
@@ -35,13 +37,29 @@ def parse_bio(html: str) -> dict:
     nm = _NAME.search(html)
     out: dict = {"name": _text(nm.group(1)) if nm else None,
                  "height_cm": None, "weight_kg": None, "debut": None,
-                 "education": None, "birthplace": None, "draft": None}
+                 "education": None, "birthplace": None, "draft": None,
+                 "bats": None, "throws": None, "country": None, "birthday": None}
     htwt = fields.get("身高/體重")
     if htwt:
         m = _HT.search(_text(htwt))
         if m:
             out["height_cm"] = int(m.group(1))
             out["weight_kg"] = int(m.group(2))
+    # 投打習慣「右投右打」→ throws/bats（新球員不在 opendata，此為唯一來源）
+    hand = fields.get("投打習慣")
+    if hand:
+        m = _HAND.search(_text(hand))
+        if m:
+            out["throws"] = m.group(1)
+            out["bats"] = "左右開弓" if m.group(2) in ("左右開弓", "兩打") else m.group(2)
+    # 國籍/出生地：含「中華民國」→本土；否則取首個 token（如「多明尼加」）
+    nat = _text(fields.get("國籍/出生地", "")) if fields.get("國籍/出生地") else ""
+    if nat:
+        out["country"] = "中華民國" if "中華民國" in nat else nat.split()[0]
+    bday = _text(fields.get("生日", "")) if fields.get("生日") else ""
+    m = _BDAY.search(bday)
+    if m:
+        out["birthday"] = f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
     for label, key in (("初出場", "debut"), ("學歷", "education"),
                        ("國籍/出生地", "birthplace"), ("選秀順位", "draft")):
         v = _text(fields.get(label, "")) if fields.get(label) else ""
@@ -73,13 +91,21 @@ def _upsert(acnt: str, bio: dict) -> None:
     with conn() as c:
         c.execute(
             "INSERT INTO cpbl.players (id, name, height_cm, weight_kg, debut, education, "
-            "birthplace, draft, bio_updated_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,now()) "
+            "birthplace, draft, bats, throws, country, birthday, bio_updated_at) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,now()) "
             "ON CONFLICT (id) DO UPDATE SET height_cm=EXCLUDED.height_cm, "
             "weight_kg=EXCLUDED.weight_kg, debut=EXCLUDED.debut, education=EXCLUDED.education, "
             "birthplace=EXCLUDED.birthplace, draft=EXCLUDED.draft, bio_updated_at=now(), "
+            # 投打/國籍/生日只補缺不覆蓋（opendata 歷史值優先，避免頁面缺項洗掉舊值）
+            "bats=COALESCE(NULLIF(cpbl.players.bats,''), EXCLUDED.bats), "
+            "throws=COALESCE(NULLIF(cpbl.players.throws,''), EXCLUDED.throws), "
+            "country=COALESCE(NULLIF(cpbl.players.country,''), EXCLUDED.country), "
+            "birthday=COALESCE(cpbl.players.birthday, EXCLUDED.birthday), "
             "name=CASE WHEN %s <> '' THEN %s ELSE cpbl.players.name END",
             (acnt, nm or acnt, bio["height_cm"], bio["weight_kg"], bio["debut"],
-             bio["education"], bio["birthplace"], bio["draft"], nm or "", nm or ""),
+             bio["education"], bio["birthplace"], bio["draft"],
+             bio["bats"], bio["throws"], bio["country"], bio["birthday"],
+             nm or "", nm or ""),
         )
 
 
