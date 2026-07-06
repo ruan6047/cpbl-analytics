@@ -13,7 +13,7 @@ import logging
 import sys
 from datetime import date
 
-from cpbl.ingest.splits_calc import build_splits
+from cpbl.ingest.splits_calc import build_career, build_splits
 
 
 def main() -> None:
@@ -21,8 +21,11 @@ def main() -> None:
                         format="%(asctime)s %(levelname)s %(name)s | %(message)s")
     year = int(sys.argv[1]) if len(sys.argv) > 1 else date.today().year
     kinds = tuple(sys.argv[2].split(",")) if len(sys.argv) > 2 else ("A", "D")
+    log = logging.getLogger("cpbl.splits")
     summary = build_splits(year, kinds)
-    logging.getLogger("cpbl.splits").info("build_splits year=%s %s", year, summary)
+    log.info("build_splits year=%s %s", year, summary)
+    career = build_career(year, kinds)   # 生涯 = base + 本季（見 anchor_career）
+    log.info("build_career %s", career)
 
 
 if __name__ == "__main__":

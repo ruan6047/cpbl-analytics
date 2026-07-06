@@ -690,3 +690,163 @@ def build_splits(year: int, kinds: tuple[str, ...] = ("A", "D")) -> dict:
                          "bvt": len(bvt_rows), "pvt": len(pvt_rows),
                          "pa": diag["pa"], "blown_saves": sum(bs_cnt.values())}
     return summary
+
+
+# ── Phase 2：生涯 anchor + accrual（停爬生涯 apart）──────────────────────────
+# 生涯(9999) = base(純歷史基底) + 本季重算。base 錨定法：官方 apart 頁同刻回傳
+# 本季與生涯（同 transaction 入庫），「官方生涯 − 官方本季」同源同刻相減，
+# apart 頁滯後互相抵消 → base 零錯位。C/E 本季無場 → base=官方生涯原值（凍結）。
+# 跨年 roll：base += 上季終值（純 DB 運算，見 cpbl-anchor-career docstring）。
+
+_BSCB_COLS = ["plate_appearances", "at_bats", "hits", "rbi", "singles", "doubles",
+              "triples", "home_runs", "total_bases", "sac_hit", "sac_fly", "bb", "ibb",
+              "hbp", "so", "ground_outs", "fly_outs"]
+_PSCB_COLS = ["wins", "loses", "starts", "complete_games", "shutouts", "save_ok",
+              "inning_pitched_div3", "plate_appearances", "pitch_cnt", "strikes", "balls",
+              "hits", "home_runs", "sac_hit", "sac_fly", "bb", "ibb", "hbp", "so",
+              "wild_pitch", "balk", "runs", "earned_runs"]
+BaseKey = tuple[str, str, str, int, str]   # (kind, acnt, group, index, name)
+
+
+def _csv_season_official(path: str, season: int, cols: list[str],
+                         pitching: bool) -> dict[BaseKey, Counter]:
+    """讀 Phase 1 覆蓋前的官方本季備份 CSV → 計數。IP 轉總出局數存 div3 欄。"""
+    import csv
+    out: dict[BaseKey, Counter] = {}
+    with open(path, newline="", encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            if int(r["year"]) != season:
+                continue
+            key = (r["kind_code"], r["acnt"], r["item_group_code"],
+                   int(r["item_index"]), r["item_name"])
+            c = Counter({k: int(r[k] or 0) for k in cols if k != "inning_pitched_div3"})
+            if pitching:
+                c["inning_pitched_div3"] = (int(r["inning_pitched_cnt"] or 0) * 3
+                                            + int(r["inning_pitched_div3"] or 0))
+            out[key] = c
+    return out
+
+
+def anchor_career(season: int, csv_dir: str) -> dict:
+    """錨定生涯基底：base = 表中官方生涯(9999) − 備份 CSV 官方本季（同刻相減）。
+
+    一次性操作（重錨/跨年 roll 見 CLI docstring）。寫入 *_career_base（全刪重建）。
+    負值代表官方站內自我不一致（Phase 0 已知，如出局家族自砍），原樣保留——
+    合成寫回時會與本季相加、彼此抵消，不 clamp。
+    """
+    summary = {}
+    for side, table, cols, note_key in (
+        ("bat", "batting_splits", _BSCB_COLS, "batting_splits_career_base"),
+        ("pit", "pitching_splits", _PSCB_COLS, "pitching_splits_career_base"),
+    ):
+        pitching = side == "pit"
+        season_off = _csv_season_official(
+            f"{csv_dir}/backup_{table}.csv", season, cols, pitching)
+        with conn() as c:
+            sel = ", ".join(k for k in cols if k != "inning_pitched_div3")
+            ip = (", inning_pitched_cnt*3 + inning_pitched_div3" if pitching else "")
+            rows = c.execute(
+                f"SELECT kind_code, acnt, item_group_code, item_index, item_name, "  # noqa: S608
+                f"item_note, {sel}{ip} FROM cpbl.{table} WHERE year = 9999").fetchall()
+        base_rows = []
+        neg = 0
+        n_named = len(cols) - (1 if pitching else 0)
+        for r in rows:
+            key: BaseKey = (r[0], r[1], r[2], r[3], r[4])
+            note = r[5]
+            vals = Counter(dict(zip([k for k in cols if k != "inning_pitched_div3"],
+                                    [v or 0 for v in r[6:6 + n_named]], strict=True)))
+            if pitching:
+                vals["inning_pitched_div3"] = r[6 + n_named] or 0
+            vals.subtract(season_off.get(key, Counter()))
+            if any(v < 0 for v in vals.values()):
+                neg += 1
+            base_rows.append((*key, note, *[vals[k] for k in cols]))
+        with conn() as c:
+            c.execute(f"DELETE FROM cpbl.{note_key}")  # noqa: S608 — 常數表名
+            ph = ", ".join(["%s"] * (6 + len(cols)))
+            with c.cursor() as cur:
+                cur.executemany(
+                    f"INSERT INTO cpbl.{note_key} (kind_code, acnt, item_group_code, "  # noqa: S608
+                    f"item_index, item_name, item_note, {', '.join(cols)}) VALUES ({ph})",
+                    base_rows)
+        summary[side] = {"rows": len(base_rows), "season_rows": len(season_off),
+                         "neg_rows": neg}
+    return summary
+
+
+def build_career(season: int, kinds: tuple[str, ...] = ("A", "D")) -> dict:
+    """生涯(9999) = base + 本季重算（讀主表 year=season 的已重算列）。
+
+    寫回 9999 全部 kind：A/D 為 base+本季；C/E 本季無場即 base 原值（凍結，
+    季後賽時把 C/E 加進 build_splits 的 kinds 即自動累加）。
+    """
+    summary = {}
+    for side, table, base_table, cols in (
+        ("bat", "batting_splits", "batting_splits_career_base", _BSCB_COLS),
+        ("pit", "pitching_splits", "pitching_splits_career_base", _PSCB_COLS),
+    ):
+        pitching = side == "pit"
+        career: dict[BaseKey, Counter] = {}
+        notes: dict[BaseKey, str | None] = {}
+        with conn() as c:
+            for r in c.execute(
+                    f"SELECT kind_code, acnt, item_group_code, item_index, item_name, "  # noqa: S608
+                    f"item_note, {', '.join(cols)} FROM cpbl.{base_table}").fetchall():
+                key: BaseKey = (r[0], r[1], r[2], r[3], r[4])
+                notes[key] = r[5]
+                career[key] = Counter(dict(zip(cols, [v or 0 for v in r[6:]], strict=True)))
+            sel = ", ".join(k for k in cols if k != "inning_pitched_div3")
+            ip = (", inning_pitched_cnt*3 + inning_pitched_div3" if pitching else "")
+            n_named = len(cols) - (1 if pitching else 0)
+            for r in c.execute(
+                    f"SELECT kind_code, acnt, item_group_code, item_index, item_name, "  # noqa: S608
+                    f"item_note, {sel}{ip} FROM cpbl.{table} "
+                    "WHERE year = %s AND kind_code = ANY(%s)", (season, list(kinds))).fetchall():
+                key = (r[0], r[1], r[2], r[3], r[4])
+                notes.setdefault(key, r[5])
+                vals = Counter(dict(zip([k for k in cols if k != "inning_pitched_div3"],
+                                        [v or 0 for v in r[6:6 + n_named]], strict=True)))
+                if pitching:
+                    vals["inning_pitched_div3"] = r[6 + n_named] or 0
+                career.setdefault(key, Counter()).update(vals)
+
+        out_rows = []
+        for key, c9 in sorted(career.items()):
+            kind, acnt, grp, idx, name = key
+            if pitching:
+                outs = c9["inning_pitched_div3"]
+                out_rows.append((9999, kind, acnt, grp, idx, name, notes.get(key),
+                                 c9["wins"], c9["loses"], c9["starts"], c9["complete_games"],
+                                 c9["shutouts"], c9["save_ok"], outs // 3, outs % 3,
+                                 c9["plate_appearances"], c9["pitch_cnt"], c9["strikes"],
+                                 c9["balls"], c9["hits"], c9["home_runs"], c9["sac_hit"],
+                                 c9["sac_fly"], c9["bb"], c9["ibb"], c9["hbp"], c9["so"],
+                                 c9["wild_pitch"], c9["balk"], c9["runs"], c9["earned_runs"]))
+            else:
+                r = _bat_rates(c9)
+                out_rows.append((9999, kind, acnt, grp, idx, name, notes.get(key),
+                                 c9["plate_appearances"], c9["at_bats"], c9["hits"],
+                                 c9["rbi"], c9["singles"], c9["doubles"], c9["triples"],
+                                 c9["home_runs"], c9["total_bases"], c9["sac_hit"],
+                                 c9["sac_fly"], c9["bb"], c9["ibb"], c9["hbp"], c9["so"],
+                                 c9["ground_outs"], c9["fly_outs"],
+                                 r["goao"], r["avg"], r["obp"], r["slg"], r["ops"]))
+        ins_cols = ("plate_appearances, at_bats, hits, rbi, singles, doubles, triples, "
+                    "home_runs, total_bases, sac_hit, sac_fly, bb, ibb, hbp, so, "
+                    "ground_outs, fly_outs, goao, avg, obp, slg, ops" if not pitching else
+                    "wins, loses, starts, complete_games, shutouts, save_ok, "
+                    "inning_pitched_cnt, inning_pitched_div3, plate_appearances, pitch_cnt, "
+                    "strikes, balls, hits, home_runs, sac_hit, sac_fly, bb, ibb, hbp, so, "
+                    "wild_pitch, balk, runs, earned_runs")
+        with conn() as cx:
+            cx.execute(f"DELETE FROM cpbl.{table} WHERE year = 9999")  # noqa: S608
+            n_ph = 7 + len(ins_cols.split(", "))
+            ph = ", ".join(["%s"] * n_ph) + ", now()"
+            with cx.cursor() as cur:
+                cur.executemany(
+                    f"INSERT INTO cpbl.{table} (year, kind_code, acnt, item_group_code, "  # noqa: S608
+                    f"item_index, item_name, item_note, {ins_cols}, updated_at) "
+                    f"VALUES ({ph})", out_rows)
+        summary[side] = len(out_rows)
+    return summary
