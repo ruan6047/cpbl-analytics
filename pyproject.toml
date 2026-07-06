@@ -46,6 +46,7 @@ cpbl-anchor-career = "cpbl.ingest.run_anchor_career:main"
 cpbl-build-sabr = "cpbl.models.run_build_sabr:main"
 cpbl-build-features = "cpbl.features.run_build_features:main"
 cpbl-train = "cpbl.models.train:main"
+cpbl-train-pitching = "cpbl.models.train_pitching:main"
 cpbl-train-outcome = "cpbl.models.outcome_gbm:main"
 
 [dependency-groups]
