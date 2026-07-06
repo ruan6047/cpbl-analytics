@@ -104,8 +104,11 @@ curl -s https://cpbl.ruan-ruan.com/api/info | python3 -m json.tool
 | `cpbl-scrape-standings <year>` | 官方戰績(含上下半季/勝差/H2H/近十場) | 戰績刷新 |
 | `cpbl-scrape-pitches [delay]` | 逐球 TrackMan（**投手中心**，全投手→自動涵蓋所有場次） | 逐球刷新 |
 | `cpbl-scrape-advanced` | 官方進階 + 官方 PR(stats.cpbl) | 進階數據刷新 |
-| `cpbl-scrape-detail` / `cpbl-scrape-fighting` | 選手對戰各隊/分項 / 投打對決 | 球員頁對戰刷新 |
-| `cpbl-refresh-recent [fast]` | 抓昨天/今天：games+累計+(增量)對戰/分項/逐球，寫 `refresh_log` | 每日增量（本機跑） |
+| `cpbl-scrape-detail` / `cpbl-scrape-fighting` | 選手對戰各隊/分項 / 投打對決 | **分項/vs各隊已改重算停爬**（見 build-splits）；detail 僅剩季後 C/E 生涯補抓、fighting 供投打對決 |
+| `cpbl-refresh-recent [fast]` | 抓昨天/今天：games+累計+(增量)對戰/逐球 + **重算分項寫回**，寫 `refresh_log` | 每日增量（本機跑） |
+| `cpbl-build-splits [year] [kinds]` | **重算**本季 splits+vs各隊四表並寫回 + 生涯(base+本季)（純 DB 不爬，**生產可自跑**） | 已含於 refresh；手動重建分項 |
+| `cpbl-anchor-career <season> <csv_dir>` | 錨定生涯基底（官方生涯−官方本季同刻相減，一次性/重錨） | 跨年 roll 或重錨（見其 docstring） |
+| `cpbl-verify-splits [year] [kind]` | 分項重算 vs 官方爬值逐格對照 harness | 只對「新爬的官方值」有意義（寫回後即自比） |
 | `cpbl-build-championships` | 由 games(kind C) 推導歷年冠軍→標該年一軍球員+總教練(物化 `championship_members`，純 SQL 不爬) | 改冠軍邏輯後（已含於 refresh-recent） |
 | `cpbl-build-features` | 賽果預測特徵表(leakage-safe) | 改賽果特徵後 |
 | `cpbl-train` | 成績預測訓練+回測（**需 LightGBM → 容器內跑**） | 改成績模型/特徵後 |
