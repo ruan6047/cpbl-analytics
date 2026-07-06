@@ -304,6 +304,11 @@ export const api = {
       model_version: string | null; stat: string; target_year: number | null;
       items: { player_id: string; name: string | null; predicted: number; actual: number | null }[];
     }>(`/api/v1/projections/batting?stat=${stat}&limit=${limit}`, 600),
+  pitchingProjections: (stat = "era", limit = 50) =>
+    get<{
+      model_version: string | null; stat: string; target_year: number | null;
+      items: { player_id: string; name: string | null; predicted: number; actual: number | null }[];
+    }>(`/api/v1/projections/pitching?stat=${stat}&limit=${limit}`, 600),
   battingLeaders: (sort = "ops", { limit = 400, minPa = 0, year, kind = "A" }: { limit?: number; minPa?: number; year?: number; kind?: string } = {}) =>
     get<BattingLeadersResponse>(`/api/v1/season/batting-leaders?sort=${sort}&limit=${limit}&min_pa=${minPa}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 60),
   pitchingLeaders: (sort = "era", { limit = 400, minIp = 0, year, kind = "A" }: { limit?: number; minIp?: number; year?: number; kind?: string } = {}) =>
