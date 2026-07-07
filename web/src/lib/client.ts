@@ -198,6 +198,9 @@ export const detail = {
   outcomeToday: () =>
     clientGet<{ items: import("@/app/games/[sno]/overview").PregameMatchup[] }>(
       "/api/v1/outcome/matchups?features=winrate_diff,prior_winpct_diff,runs_scored_diff,runs_allowed_diff,recent_form_diff,h2h_home,starter_era_diff,home_field&limit=12"),
+  milestones: (sno: number, kind = "A", year?: number) =>
+    clientGet<{ items: { player: string; text: string }[] }>(
+      `/api/v1/games/${sno}/milestones?kind_code=${kind}${year ? `&season=${year}` : ""}`),
   winprob: (sno: number, kind = "A", year?: number) =>
     clientGet<{
       span: string; completed: boolean;

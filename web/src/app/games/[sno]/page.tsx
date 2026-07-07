@@ -115,6 +115,7 @@ export default function GameLivePage() {
   const [view, setView] = useState<"overview" | "pbp">("overview");
   const [wp, setWp] = useState<WpPoint[] | null>(null);
   const [pregame, setPregame] = useState<PregameMatchup | null>(null);
+  const [milestones, setMilestones] = useState<{ player: string; text: string }[]>([]);
 
   useEffect(() => {
     detail.gameLive(Number(sno), kind, year)
@@ -134,6 +135,7 @@ export default function GameLivePage() {
       })
       .catch(() => setErr(true));
     detail.winprob(Number(sno), kind, year).then((d) => setWp(d.items)).catch(() => setWp([]));
+    detail.milestones(Number(sno), kind, year).then((d) => setMilestones(d.items)).catch(() => setMilestones([]));
   }, [sno, kind, year]);
 
   // 總覽點關鍵時刻/得分時刻/勝率曲線 → 跳到該打席（切逐打席視圖 + 捲到操作區）
@@ -275,8 +277,9 @@ export default function GameLivePage() {
     const h = n(r.hits) as number;
     if (n(r.grand_slam) as number) highlights.push(`${nm} 滿貫砲`);
     else if (hr >= 2) highlights.push(`${nm} ${hr} 響砲`);
-    // 術語：3安=猛打賞（box 內已標）、4安=鐵支、5安+ 直接報數
-    if (h === 4) highlights.push(`${nm} 鐵支（單場4安）`);
+    // 術語：3安=猛打賞、4安=鐵支、5安+ 直接報數
+    if (h === 3) highlights.push(`${nm} 猛打賞`);
+    else if (h === 4) highlights.push(`${nm} 鐵支（單場4安）`);
     else if (h >= 5) highlights.push(`${nm} 單場 ${h} 安`);
     if ((n(r.rbi) as number) >= 4) highlights.push(`${nm} ${r.rbi} 打點`);
     if ((n(r.sb) as number) >= 2) highlights.push(`${nm} ${r.sb} 次盜壘`);
@@ -305,7 +308,9 @@ export default function GameLivePage() {
   // 最速球：≥155 才有焦點價值（日常最速無鑑別度）
   const maxSp = Math.max(0, ...data.pitching.map((r) => (n(r.max_speed) as number) || 0));
   if (maxSp >= 155) highlights.push(`最速球 ${maxSp} km/h`);
-  highlights.splice(10);
+  // 生涯里程碑/首次（後端精確判定）置頂
+  highlights.unshift(...milestones.map((m) => `🏆 ${m.player} ${m.text}`));
+  highlights.splice(12);
 
   // MVP 當場成績行（打者/投手 box 內 is_mvp）
   const mvpBat = data.batting.find((r) => r.is_mvp);

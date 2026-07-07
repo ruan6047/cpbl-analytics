@@ -240,3 +240,115 @@ def game_winprob(
         items.append({"evt": None, "inning": None, "half": None, "hitter": None,
                       "away": fin[1], "home": fin[0], "wp": final_wp})
     return {"span": span, "completed": completed, "items": items}
+
+
+# ---------- 生涯里程碑（本場達成） ----------
+# 生涯前值 = seasons(歷年) + gamelog(本季本場之前，依日期再 sno 排序)；跨關卡=精確判定。
+# 逐場僅 2018+：更早年份回空（不猜）。僅一軍例行（生涯數據慣例）。
+_B_MARKS = [("hits", "安", 500), ("home_runs", "轟", 50), ("rbi", "打點", 500),
+            ("sb", "盜壘", 100)]
+_MILESTONE_G = 500  # 出賽場次關卡
+
+
+@router.get("/api/v1/games/{game_sno}/milestones")
+def game_milestones(
+    game_sno: int,
+    season: int = Query(DEFAULT_SEASON),
+    kind_code: str = Query("A", pattern="^(A|C|E|D)$"),
+) -> dict:
+    """本場達成的生涯里程碑（安×500/轟×50/打點×500/盜×100/出賽×500；投手 K×500/出賽×500/勝投×50）。"""
+    if kind_code != "A" or season < 2018:
+        return {"items": []}
+    items: list[dict] = []
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute("SELECT game_date, winning_pitcher_id FROM cpbl.games "
+                    "WHERE year=%s AND kind_code='A' AND game_sno=%s", (season, game_sno))
+        row = cur.fetchone()
+        if not row or not row[0]:
+            return {"items": []}
+        gdate, win_pid = row
+        # 打者：本場貢獻 + 生涯前值
+        cur.execute(
+            """
+            WITH this AS (
+              SELECT hitter_acnt pid, hitter_name name, coalesce(hits,0) hits,
+                     coalesce(home_runs,0) home_runs, coalesce(rbi,0) rbi, coalesce(sb,0) sb
+              FROM cpbl.batting_gamelog WHERE year=%(y)s AND kind_code='A' AND game_sno=%(sno)s
+            ), hist AS (
+              SELECT player_id pid, sum(coalesce(h,0)) hits, sum(coalesce(hr,0)) home_runs,
+                     sum(coalesce(rbi,0)) rbi, sum(coalesce(sb,0)) sb, sum(coalesce(g,0)) g
+              FROM cpbl.batting_seasons WHERE year < %(y)s GROUP BY player_id
+            ), cur_season AS (
+              SELECT bg.hitter_acnt pid, count(*) g, sum(coalesce(bg.hits,0)) hits,
+                     sum(coalesce(bg.home_runs,0)) home_runs, sum(coalesce(bg.rbi,0)) rbi,
+                     sum(coalesce(bg.sb,0)) sb
+              FROM cpbl.batting_gamelog bg
+              JOIN cpbl.games g ON g.year=bg.year AND g.kind_code=bg.kind_code AND g.game_sno=bg.game_sno
+              WHERE bg.year=%(y)s AND bg.kind_code='A'
+                AND (g.game_date < %(d)s OR (g.game_date = %(d)s AND g.game_sno < %(sno)s))
+              GROUP BY bg.hitter_acnt
+            )
+            SELECT t.pid, t.name, t.hits, t.home_runs, t.rbi, t.sb,
+                   coalesce(h.hits,0)+coalesce(cs.hits,0), coalesce(h.home_runs,0)+coalesce(cs.home_runs,0),
+                   coalesce(h.rbi,0)+coalesce(cs.rbi,0), coalesce(h.sb,0)+coalesce(cs.sb,0),
+                   coalesce(h.g,0)+coalesce(cs.g,0)
+            FROM this t LEFT JOIN hist h ON h.pid=t.pid LEFT JOIN cur_season cs ON cs.pid=t.pid
+            """,
+            {"y": season, "sno": game_sno, "d": gdate})
+        for _pid, name, th, thr, trbi, tsb, ph, phr, prbi, psb, pg in cur.fetchall():
+            for (this_v, pre_v, label, step) in [
+                    (th, ph, "安", 500), (thr, phr, "轟", 50),
+                    (trbi, prbi, "打點", 500), (tsb, psb, "盜壘", 100)]:
+                if this_v and pre_v == 0:
+                    items.append({"player": name, "text": f"生涯首{label}"})
+                elif this_v and (pre_v + this_v) // step > pre_v // step:
+                    mark = ((pre_v + this_v) // step) * step
+                    items.append({"player": name, "text": f"生涯第 {mark} {label}"})
+            if pg == 0:
+                items.append({"player": name, "text": "一軍初登場"})
+            elif (pg + 1) % _MILESTONE_G == 0:
+                items.append({"player": name, "text": f"生涯第 {pg + 1} 場出賽"})
+        # 投手：K/出賽/勝投
+        cur.execute(
+            """
+            WITH this AS (
+              SELECT pitcher_acnt pid, pitcher_name name, coalesce(so,0) so
+              FROM cpbl.pitching_gamelog WHERE year=%(y)s AND kind_code='A' AND game_sno=%(sno)s
+            ), hist AS (
+              SELECT player_id pid, sum(coalesce(so,0)) so, sum(coalesce(g,0)) g,
+                     sum(coalesce(w,0)) w
+              FROM cpbl.pitching_seasons WHERE year < %(y)s GROUP BY player_id
+            ), cur_season AS (
+              SELECT pg.pitcher_acnt pid, count(*) g, sum(coalesce(pg.so,0)) so
+              FROM cpbl.pitching_gamelog pg
+              JOIN cpbl.games g ON g.year=pg.year AND g.kind_code=pg.kind_code AND g.game_sno=pg.game_sno
+              WHERE pg.year=%(y)s AND pg.kind_code='A'
+                AND (g.game_date < %(d)s OR (g.game_date = %(d)s AND g.game_sno < %(sno)s))
+              GROUP BY pg.pitcher_acnt
+            ), cur_w AS (
+              SELECT winning_pitcher_id pid, count(*) w FROM cpbl.games
+              WHERE year=%(y)s AND kind_code='A' AND winning_pitcher_id IS NOT NULL
+                AND (game_date < %(d)s OR (game_date = %(d)s AND game_sno < %(sno)s))
+              GROUP BY winning_pitcher_id
+            )
+            SELECT t.pid, t.name, t.so,
+                   coalesce(h.so,0)+coalesce(cs.so,0), coalesce(h.g,0)+coalesce(cs.g,0),
+                   coalesce(h.w,0)+coalesce(cw.w,0)
+            FROM this t LEFT JOIN hist h ON h.pid=t.pid
+            LEFT JOIN cur_season cs ON cs.pid=t.pid LEFT JOIN cur_w cw ON cw.pid=t.pid
+            """,
+            {"y": season, "sno": game_sno, "d": gdate})
+        for pid, name, tso, pso, pg_, pw in cur.fetchall():
+            if tso and (pso + tso) // 500 > pso // 500:
+                items.append({"player": name, "text": f"生涯第 {((pso + tso) // 500) * 500} 次三振"})
+            if pg_ == 0:
+                items.append({"player": name, "text": "一軍初登板"})
+            elif (pg_ + 1) % _MILESTONE_G == 0:
+                items.append({"player": name, "text": f"生涯第 {pg_ + 1} 場出賽"})
+            if win_pid and str(pid) == str(win_pid):
+                if pw == 0:
+                    items.append({"player": name, "text": "生涯首勝"})
+                elif (pw + 1) % 50 == 0:
+                    items.append({"player": name, "text": f"生涯第 {pw + 1} 勝"})
+    return {"items": items}
