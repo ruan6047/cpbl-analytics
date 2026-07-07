@@ -44,8 +44,8 @@ def _rows(cur) -> list[dict]:
 def _load_game(cur, year: int, kind: str, sno: int) -> list[dict]:
     cur.execute(
         "SELECT main_event_no, inning_seq, visiting_home_type, batting_order, out_cnt, "
-        "is_change_player, content, hitter_acnt, hitter_name, defend_station_code, "
-        "pitcher_acnt, catcher_acnt, first_base, second_base, third_base, "
+        "is_change_player, content, action_name, hitter_acnt, hitter_name, "
+        "defend_station_code, pitcher_acnt, catcher_acnt, first_base, second_base, third_base, "
         "visiting_score, home_score FROM cpbl.game_livelog "
         "WHERE year=%s AND kind_code=%s AND game_sno=%s", (year, kind, sno))
     return sorted(_rows(cur), key=lambda r: int(r["main_event_no"]))
@@ -274,6 +274,16 @@ def build_run_expectancy(from_year: int, to_year: int, kind: str = "A") -> dict:
         games = cur.fetchall()
         for gy, sno in games:
             events = _load_game(cur, gy, kind, sno)
+            # 快照時點修正（2026-07-07，REBAS 對照抓出）：比分欄=事件後、壘位/out_cnt=事件前，
+            # 且更換事件列的 out_cnt 是陳舊值 →
+            # (1) 打席首事件只取「非更換且有打者」列（局初換投列曾把空壘0出局誤標成2出局）；
+            # (2) 打席起始分用前一列的事件後分（單事件打席的比分欄已含自身得分，直接用會漏計）。
+            pv, ph = 0, 0
+            for e in events:
+                e["_pre_vs"], e["_pre_hs"] = pv, ph
+                pv = e["visiting_score"] if e.get("visiting_score") is not None else pv
+                ph = e["home_score"] if e.get("home_score") is not None else ph
+                e["_post_vs"], e["_post_hs"] = pv, ph
             # 依半局分組（保序）
             halves: dict[tuple, list[dict]] = defaultdict(list)
             order: list[tuple] = []
@@ -283,11 +293,14 @@ def build_run_expectancy(from_year: int, to_year: int, kind: str = "A") -> dict:
                     order.append(k)
                 halves[k].append(e)
             for (_inn, vht) in order[:-1]:  # 只有最後一個半局可能被截斷（再見/裁定），
-                evs = halves[(_inn, vht)]   # 其餘必打滿三出局——用 max_out 判會漏掉雙殺
-                                            # 收尾的快局，系統性高估 RE
-                score_key = "visiting_score" if vht == "1" else "home_score"
-                end_score = max((e.get(score_key) or 0) for e in evs)
-                # 每打席首事件 = 狀態快照
+                evs = [e for e in halves[(_inn, vht)]          # 其餘必打滿三出局——
+                       if not e.get("is_change_player") and e.get("hitter_acnt")]
+                if not evs:
+                    continue
+                pre_k = "_pre_vs" if vht == "1" else "_pre_hs"
+                post_k = "_post_vs" if vht == "1" else "_post_hs"
+                end_score = max(e[post_k] for e in halves[(_inn, vht)])
+                # 每打席首（非更換）事件 = 狀態快照
                 seen: set = set()
                 for e in evs:
                     pa_key = (e.get("batting_order"), e.get("hitter_acnt"))
@@ -298,7 +311,7 @@ def build_run_expectancy(from_year: int, to_year: int, kind: str = "A") -> dict:
                              + ("2" if e.get("second_base") else "_")
                              + ("3" if e.get("third_base") else "_"))
                     outs = min(int(e.get("out_cnt") or 0), 2)
-                    rest = end_score - (e.get(score_key) or 0)
+                    rest = end_score - e[pre_k]
                     if rest < 0:
                         continue
                     s = stats[(bases, outs)]
@@ -314,3 +327,366 @@ def build_run_expectancy(from_year: int, to_year: int, kind: str = "A") -> dict:
              for (b, o), (s, n) in stats.items() if n >= 10])
     log.info("run_expectancy %s/%s：%d 場，%d 狀態", span, kind, len(games), len(stats))
     return {"games": len(games), "states": len(stats)}
+
+
+# ───────────────────────── Phase A 進階指標（可靠度優先）─────────────────────────
+# 設計原則：官方計數優先；推算只用在「會計恆等式可驗」處；樣本不足的指標（OAA/framing）不做。
+
+_ZH_BASE = {"一": 1, "二": 2, "三": 3}
+_SB_RE = re.compile(r"([一二三])壘跑者\S+?\s*(?:雙)?盜壘上([二三])壘")
+_SBH_RE = re.compile(r"三壘跑者\S+?\s*(?:雙)?盜壘回本壘得分")
+_CS_RE = re.compile(r"([一二三])壘跑者\S+?出局-盜壘刺")
+
+
+def _load_re_matrix(cur, span: str, kind: str) -> dict[tuple[str, int], float]:
+    cur.execute("SELECT bases, outs, re FROM cpbl.run_expectancy WHERE span=%s AND kind_code=%s",
+                (span, kind))
+    return {(b, o): float(r) for b, o, r in cur.fetchall()}
+
+
+def _move_runner(bases: str, frm: int, to: int | None) -> str | None:
+    """盜壘後壘位字串；to=None 表跑者移除（CS 出局/回本壘得分）。狀態不合回 None。"""
+    if bases[frm - 1] == "_":
+        return None
+    out = list(bases)
+    out[frm - 1] = "_"
+    if to is not None:
+        if out[to - 1] != "_":
+            return None
+        out[to - 1] = str(to)
+    return "".join(out)
+
+
+def build_run_values(from_year: int, to_year: int, kind: str = "A") -> dict:
+    """在地 runSB/runCS：livelog 盜壘事件的實際 (壘位,出局) 分布 × RE 矩陣 ΔRE 平均。
+
+    注意：out_cnt 是打席前出局數，同 content 內先三振後盜壘刺的少數事件出局數會偏 1，
+    屬權重雜訊不影響 RE 值本身。雙盜壘各跑者分別計一次（以事件前狀態近似）。
+    """
+    span = f"{from_year}-{to_year}"
+    with conn() as c:
+        cur = c.cursor()
+        re_map = _load_re_matrix(cur, span, kind)
+        if not re_map:
+            raise RuntimeError(f"run_expectancy 無 {span}/{kind}，先跑 build_run_expectancy")
+        cur.execute(
+            "SELECT content, first_base, second_base, third_base, out_cnt "
+            "FROM cpbl.game_livelog WHERE year BETWEEN %s AND %s AND kind_code=%s "
+            "AND content LIKE '%%盜壘%%'", (from_year, to_year, kind))
+        rows = cur.fetchall()
+    sb_sum, sb_n, cs_sum, cs_n, skipped = 0.0, 0, 0.0, 0, 0
+    for content, b1, b2, b3, oc in rows:
+        bases = ("1" if b1 else "_") + ("2" if b2 else "_") + ("3" if b3 else "_")
+        outs = min(int(oc or 0), 2)
+        src = re_map.get((bases, outs))
+        if src is None:
+            skipped += 1
+            continue
+        text = content or ""
+        for frm_zh, to_zh in _SB_RE.findall(text):
+            dest = _move_runner(bases, _ZH_BASE[frm_zh], _ZH_BASE[to_zh])
+            if dest is None:
+                skipped += 1
+                continue
+            sb_sum += re_map[(dest, outs)] - src
+            sb_n += 1
+        for _m in _SBH_RE.findall(text):
+            dest = _move_runner(bases, 3, None)
+            if dest is None:
+                skipped += 1
+                continue
+            sb_sum += re_map[(dest, outs)] + 1.0 - src
+            sb_n += 1
+        for (frm_zh,) in (m if isinstance(m, tuple) else (m,) for m in _CS_RE.findall(text)):
+            dest = _move_runner(bases, _ZH_BASE[frm_zh], None)
+            if dest is None:
+                skipped += 1
+                continue
+            after = re_map[(dest, outs + 1)] if outs + 1 <= 2 else 0.0
+            cs_sum += after - src
+            cs_n += 1
+    if sb_n < 1000 or cs_n < 300:
+        raise RuntimeError(f"盜壘事件樣本不足（SB={sb_n} CS={cs_n}），不產出係數")
+    run_sb, run_cs = sb_sum / sb_n, cs_sum / cs_n
+    with conn() as c:
+        c.cursor().executemany(
+            "INSERT INTO cpbl.sabr_run_values (span, kind_code, metric, value, samples) "
+            "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (span, kind_code, metric) "
+            "DO UPDATE SET value=EXCLUDED.value, samples=EXCLUDED.samples",
+            [(span, kind, "run_sb", round(run_sb, 4), sb_n),
+             (span, kind, "run_cs", round(run_cs, 4), cs_n)])
+    log.info("run_values %s/%s：runSB=%.4f (n=%d) runCS=%.4f (n=%d) skipped=%d "
+             "[對照 FG 慣用 runSB≈+0.2]", span, kind, run_sb, sb_n, run_cs, cs_n, skipped)
+    return {"run_sb": run_sb, "run_cs": run_cs, "sb_n": sb_n, "cs_n": cs_n}
+
+
+def build_wsb(span: str) -> dict:
+    """打者 wSB（1990–今，一軍例行）：官方 SB/CS/1B/BB/IBB/HBP + 在地 run 係數。
+
+    wSB_i = SB×runSB + CS×runCS − lgRate×opp_i，lgRate=聯盟(SB×runSB+CS×runCS)/Σopp、
+    opp=1B+BB−IBB+HBP（IBB 缺值年代視 0，同 FanGraphs 對缺欄位的處理）。
+    每年聯盟加總恆等於 0（構造保證），跨年代 run 係數固定並於方法說明揭露。
+    """
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute("SELECT metric, value FROM cpbl.sabr_run_values WHERE span=%s AND kind_code='A'",
+                    (span,))
+        rv = dict(cur.fetchall())
+        if "run_sb" not in rv or "run_cs" not in rv:
+            raise RuntimeError(f"sabr_run_values 無 {span} 係數，先跑 build_run_values")
+        run_sb, run_cs = float(rv["run_sb"]), float(rv["run_cs"])
+        cur.execute(
+            "SELECT year, player_id, sum(coalesce(sb,0)), sum(coalesce(cs,0)), "
+            "sum(coalesce(b1,0) + coalesce(bb,0) - coalesce(ibb,0) + coalesce(hbp,0)) "
+            "FROM cpbl.batting_seasons GROUP BY year, player_id "
+            "UNION ALL "
+            "SELECT year, player_id, sum(coalesce(sb,0)), sum(coalesce(cs,0)), "
+            "sum(coalesce(h,0) - coalesce(b2,0) - coalesce(b3,0) - coalesce(hr,0) "
+            "    + coalesce(bb,0) - coalesce(ibb,0) + coalesce(hbp,0)) "
+            "FROM cpbl.batting_current "
+            "WHERE year NOT IN (SELECT DISTINCT year FROM cpbl.batting_seasons) "
+            "GROUP BY year, player_id")
+        rows = cur.fetchall()
+    by_year: dict[int, list] = defaultdict(list)
+    for year, pid, sb, cs, opp in rows:
+        if (sb or cs or opp) and opp >= 0:
+            by_year[year].append((pid, int(sb), int(cs), int(opp)))
+    out_rows = []
+    for year, ps in by_year.items():
+        lg_num = sum(sb * run_sb + cs * run_cs for _, sb, cs, _o in ps)
+        lg_opp = sum(o for *_x, o in ps)
+        rate = lg_num / lg_opp if lg_opp else 0.0
+        out_rows += [(year, pid, sb, cs, opp, round(sb * run_sb + cs * run_cs - rate * opp, 2))
+                     for pid, sb, cs, opp in ps]
+    with conn() as c:
+        c.execute("DELETE FROM cpbl.batter_wsb")
+        c.cursor().executemany(
+            "INSERT INTO cpbl.batter_wsb (year, player_id, sb, cs, opp, wsb) "
+            "VALUES (%s, %s, %s, %s, %s, %s)", out_rows)
+    log.info("batter_wsb：%d 年 %d 列（runSB=%.4f runCS=%.4f）",
+             len(by_year), len(out_rows), run_sb, run_cs)
+    return {"years": len(by_year), "rows": len(out_rows)}
+
+
+def build_team_der() -> dict:
+    """Team DER（1990–今）：1 − (H−HR)/(BF−BB−HBP−SO−HR)，官方投球總計，零推算。
+
+    歷年=pitching_seasons 隊-年加總；current 年（2026+）=pitching_current 按 team_code
+    前 3 碼（franchise 代碼）加總對齊 seasons 的 team_id 空間。
+    """
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            "SELECT year, team_id, sum(bf), sum(h), sum(hr), sum(bb), "
+            "sum(coalesce(hbp,0)), sum(so) FROM cpbl.pitching_seasons "
+            "GROUP BY year, team_id "
+            "UNION ALL "
+            "SELECT year, left(team_code, 3), sum(pa), sum(h), sum(hr), sum(bb), "
+            "sum(coalesce(hbp,0)), sum(so) FROM cpbl.pitching_current "
+            "WHERE year NOT IN (SELECT DISTINCT year FROM cpbl.pitching_seasons) "
+            "GROUP BY year, left(team_code, 3)")
+        rows = cur.fetchall()
+    out_rows = []
+    for year, tid, bf, h, hr, bb, hbp, so in rows:
+        den = (bf or 0) - (bb or 0) - (hbp or 0) - (so or 0) - (hr or 0)
+        if not tid or not bf or den <= 0:
+            continue
+        der = 1.0 - ((h or 0) - (hr or 0)) / den
+        out_rows.append((year, tid, bf, h, hr, bb, hbp, so, round(der, 4)))
+    with conn() as c:
+        c.execute("DELETE FROM cpbl.team_der")
+        c.cursor().executemany(
+            "INSERT INTO cpbl.team_der (year, team_id, bf, h, hr, bb, hbp, so, der) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", out_rows)
+    log.info("team_der：%d 列", len(out_rows))
+    return {"rows": len(out_rows)}
+
+
+def build_catcher_runs(year: int, kind: str = "A") -> dict:
+    """捕手接捕時失分（RA 非 ERA——自責分無法拆段，誠實命名）→ catcher_runs。
+
+    score 欄位是「事件開始時比分」：打擊方比分在事件 i→i+1 間增加，該分數屬事件 i
+    的守備段，記給事件 i 的 catcher_acnt。終場殘差（再見分）補記給末事件捕手。
+    驗證：Σ捕手失分 ≈ Σ完成場總得分（恆等式，容差=無捕手事件的漏記）。
+    """
+    runs: dict[str, int] = defaultdict(int)
+    gset: dict[str, set] = defaultdict(set)
+    leaked = 0
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute("SELECT DISTINCT game_sno FROM cpbl.game_livelog "
+                    "WHERE year=%s AND kind_code=%s ORDER BY game_sno", (year, kind))
+        snos = [r[0] for r in cur.fetchall()]
+        for sno in snos:
+            events = _load_game(cur, year, kind, sno)
+            if not events:
+                continue
+            prev = {"1": 0, "2": 0}
+            last_evt: dict[str, dict | None] = {"1": None, "2": None}
+            for e in events:
+                s = str(e["visiting_home_type"])
+                key = "visiting_score" if s == "1" else "home_score"
+                cur_score = e.get(key) or 0
+                if cur_score > prev[s]:
+                    # 比分欄=事件後快照 → 得分屬本列的守備捕手；本列缺值才退回前列
+                    le = last_evt[s]
+                    ca = e.get("catcher_acnt") or (le.get("catcher_acnt") if le else None)
+                    if ca:
+                        runs[ca] += cur_score - prev[s]
+                    else:
+                        leaked += cur_score - prev[s]
+                    prev[s] = cur_score
+                if e.get("catcher_acnt"):
+                    gset[e["catcher_acnt"]].add(sno)
+                last_evt[s] = e
+            # 終場殘差（末打席得分未反映在後續事件的 score 快照）
+            cur.execute("SELECT away_score, home_score FROM cpbl.games "
+                        "WHERE year=%s AND kind_code=%s AND game_sno=%s", (year, kind, sno))
+            fin = cur.fetchone()
+            if fin:
+                for s, final in (("1", fin[0]), ("2", fin[1])):
+                    d = (final or 0) - prev[s]
+                    le = last_evt[s]
+                    ca = le.get("catcher_acnt") if le else None
+                    if d > 0 and ca:
+                        runs[ca] += d
+                    elif d > 0:
+                        leaked += d
+    with conn() as c:
+        c.execute("DELETE FROM cpbl.catcher_runs WHERE year=%s AND kind_code=%s", (year, kind))
+        c.cursor().executemany(
+            "INSERT INTO cpbl.catcher_runs (year, kind_code, player_id, runs, games) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            [(year, kind, p, r, len(gset[p])) for p, r in runs.items()])
+    total = sum(runs.values())
+    log.info("catcher_runs %s/%s：%d 場 %d 捕手，歸段 %d 分（漏記 %d）",
+             year, kind, len(snos), len(runs), total, leaked)
+    return {"games": len(snos), "catchers": len(runs), "runs": total, "leaked": leaked}
+
+
+# ───────────────────────── Phase B：RE24 ─────────────────────────
+_OUTS_ANN = re.compile(r"(\d)人出局")
+
+
+def _bases_of(e: dict) -> str:
+    return (("1" if e.get("first_base") else "_")
+            + ("2" if e.get("second_base") else "_")
+            + ("3" if e.get("third_base") else "_"))
+
+
+def build_re24(year: int, kind: str = "A", span: str = "2018-2025") -> dict:
+    """打者/投手 RE24（Retrosheet 慣例）→ batter_re24 / pitcher_re24。
+
+    **快照時點（關鍵）**：livelog 同一列的「壘位/out_cnt=事件前、比分=事件後」——
+    壘位在下一列才更新，得分直接記在造成得分的那一列。故先全場預跑一次，給每列標
+    事件前比分 `_pre`（=前一列的事件後比分，跨半局連續）。
+
+    打者歸因 = RE(下一打席起始態) − RE(本打席末事件態) + 末事件得分
+    （末事件得分 = 末列事件後分 − 末列事件前分，再見打席自動入帳）。
+    打席**中途**跑壘異動（盜壘/暴投/牽制）落在「跑者桶」，不污染打者/投手。
+    - 打席切界：同半局內連續同 hitter 的**非更換**事件（更換列 out_cnt 陳舊、代打列帶新打者）。
+    - 末事件態出局數 = 打席起始 out_cnt + 末事件**之前**內文宣告「N人出局」補正；≥3 即截斷。
+    - 截斷碎片（末事件 action_name 空 = 無打者結果）歸跑者桶。
+    - 半局末打席 RE_after=0（再見局 RE 依慣例歸零、得分照記）。
+    - 投手 = 末事件 pitcher_acnt，記同值（打者觀點，負=壓制）。
+    驗證恆等式：Σ打者+Σ跑者 = Σ得分 − 半局數×RE(空壘,0)（望遠鏡求和，結構性成立；
+    有意義的體檢是跑者桶量級應小——年 ±百分級，非千分級）。
+    """
+    bat: dict[str, list] = defaultdict(lambda: [0, 0.0])   # player -> [pa, re24]
+    pit: dict[str, list] = defaultdict(lambda: [0, 0.0])
+    runner_sum, runs_total, n_halves, skipped_pa = 0.0, 0, 0, 0
+    with conn() as c:
+        cur = c.cursor()
+        re_map = _load_re_matrix(cur, span, kind)
+        if not re_map:
+            raise RuntimeError(f"run_expectancy 無 {span}/{kind}，先跑 build_run_expectancy")
+        re_start = re_map[("___", 0)]
+        cur.execute("SELECT DISTINCT game_sno FROM cpbl.game_livelog "
+                    "WHERE year=%s AND kind_code=%s ORDER BY game_sno", (year, kind))
+        snos = [r[0] for r in cur.fetchall()]
+        for sno in snos:
+            events = _load_game(cur, year, kind, sno)
+            if not events:
+                continue
+            # 預跑：每列標「事件前比分」（None 比分沿用前值）
+            pv, ph = 0, 0
+            for e in events:
+                e["_pre_vs"], e["_pre_hs"] = pv, ph
+                pv = e["visiting_score"] if e.get("visiting_score") is not None else pv
+                ph = e["home_score"] if e.get("home_score") is not None else ph
+                e["_post_vs"], e["_post_hs"] = pv, ph
+            # 依半局分組（保序）
+            halves: dict[tuple, list[dict]] = {}
+            order: list[tuple] = []
+            for e in events:
+                k = (e["inning_seq"], str(e["visiting_home_type"]))
+                if k not in halves:
+                    halves[k] = []
+                    order.append(k)
+                halves[k].append(e)
+            for hk in order:
+                vht = hk[1]
+                pre_k = "_pre_vs" if vht == "1" else "_pre_hs"
+                post_k = "_post_vs" if vht == "1" else "_post_hs"
+                evs = [e for e in halves[hk] if not e.get("is_change_player")
+                       and e.get("hitter_acnt")]
+                if not evs:
+                    continue
+                n_halves += 1
+                runs_total += halves[hk][-1][post_k] - halves[hk][0][pre_k]
+                # 打席切界：連續同 hitter
+                pas: list[list[dict]] = []
+                for e in evs:
+                    if pas and pas[-1][-1]["hitter_acnt"] == e["hitter_acnt"]:
+                        pas[-1].append(e)
+                    else:
+                        pas.append([e])
+                for pi, pa in enumerate(pas):
+                    first, final = pa[0], pa[-1]
+                    s_state = (_bases_of(first), min(int(first.get("out_cnt") or 0), 2))
+                    outs_f = int(first.get("out_cnt") or 0)
+                    for e in pa[:-1]:
+                        for m in _OUTS_ANN.findall(e.get("content") or ""):
+                            outs_f = max(outs_f, int(m))
+                    runs_play = final[post_k] - final[pre_k]      # 末事件自身的得分
+                    mid_runs = final[pre_k] - first[pre_k]        # 打席中途（跑者）得分
+                    if pi + 1 < len(pas):
+                        nxt = pas[pi + 1][0]
+                        re_after = re_map[(_bases_of(nxt), min(int(nxt.get("out_cnt") or 0), 2))]
+                    else:
+                        re_after = 0.0
+                    truncated = outs_f >= 3 or not (final.get("action_name") or "").strip()
+                    re_f = re_map[(_bases_of(final), min(outs_f, 2))]
+                    # 跑者桶：打席中途異動（起始態→末事件前態 + 中途得分）
+                    runner_sum += re_f + mid_runs - re_map[s_state]
+                    delta = re_after + runs_play - re_f
+                    if truncated or runs_play < 0:
+                        runner_sum += delta
+                        skipped_pa += 1
+                        continue
+                    bat[final["hitter_acnt"]][0] += 1
+                    bat[final["hitter_acnt"]][1] += delta
+                    if final.get("pitcher_acnt"):
+                        p = pit[final["pitcher_acnt"]]
+                        p[0] += 1
+                        p[1] += delta
+    with conn() as c:
+        c.execute("DELETE FROM cpbl.batter_re24 WHERE year=%s AND kind_code=%s", (year, kind))
+        c.execute("DELETE FROM cpbl.pitcher_re24 WHERE year=%s AND kind_code=%s", (year, kind))
+        c.cursor().executemany(
+            "INSERT INTO cpbl.batter_re24 (year, kind_code, player_id, pa, re24) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            [(year, kind, p, n, round(v, 2)) for p, (n, v) in bat.items()])
+        c.cursor().executemany(
+            "INSERT INTO cpbl.pitcher_re24 (year, kind_code, player_id, bf, re24) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            [(year, kind, p, n, round(v, 2)) for p, (n, v) in pit.items()])
+    bat_sum = sum(v for _n, v in bat.values())
+    resid = bat_sum + runner_sum - (runs_total - n_halves * re_start)
+    log.info("re24 %s/%s：%d 場 %d 半局；打者Σ=%+.1f 跑者Σ=%+.1f 得分=%d "
+             "恆等式殘差=%+.1f（截斷/異常打席 %d）",
+             year, kind, len(snos), n_halves, bat_sum, runner_sum, runs_total,
+             resid, skipped_pa)
+    return {"halves": n_halves, "batters": len(bat), "pitchers": len(pit),
+            "bat_sum": round(bat_sum, 1), "runner_sum": round(runner_sum, 1),
+            "residual": round(resid, 1)}
