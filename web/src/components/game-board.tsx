@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import type { StatRow } from "@/lib/client";
 import { TeamLogo } from "@/components/ui";
 import { teamColor } from "@/lib/teams";
@@ -212,11 +212,20 @@ function ScoreLine({ sb, game, halves, curKey, onSelect }: {
 }
 
 // ───────────────────────── 逐打席賽況（選定半局）─────────────────────────
-function PlayByPlay({ log, events, idx, setIdx }: {
+function PlayByPlay({ log, events, idx, setIdx, userAction }: {
   log: StatRow[]; events: number[]; idx: number; setIdx: (i: number) => void;
+  userAction: MutableRefObject<boolean>;
 }) {
   const activeRef = useRef<HTMLButtonElement | null>(null);
-  useEffect(() => { activeRef.current?.scrollIntoView({ block: "nearest" }); }, [idx]);
+  // 只在使用者切半局／點打席時才把當前打席捲入視野。
+  // 載入時 page 會 setIdx(終局)，但那不是使用者操作（userAction=false），
+  // 不可捲動整頁——否則會把頂部記分條捲出視野、linescore 表頭卡進 sticky nav 下。
+  // 用 userAction ref 判定而非「跳過首次掛載」：後者會被 StrictMode 雙呼叫 effect 打敗。
+  useEffect(() => {
+    if (!userAction.current) return;
+    userAction.current = false;
+    activeRef.current?.scrollIntoView({ block: "nearest" });
+  }, [idx, userAction]);
 
   return (
     <div className="flex-1 rounded-xl border border-line bg-surface p-4">
@@ -238,7 +247,7 @@ function PlayByPlay({ log, events, idx, setIdx }: {
                 </div>
               )}
               <button ref={active ? activeRef : undefined} onClick={() => setIdx(gi)}
-                className={`block w-full rounded px-2 py-0.5 pl-5 text-left transition-colors hover:bg-surface-2 ${
+                className={`block w-full scroll-mt-16 rounded px-2 py-0.5 pl-5 text-left transition-colors hover:bg-surface-2 ${
                   active ? "bg-accent/10 ring-1 ring-accent/30" : ""} ${
                   isScore ? "text-accent" : isPitch ? "text-xs text-faint" : "text-sm text-ink"}`}>
                 {content}
@@ -323,6 +332,11 @@ export default function GameBoard({ data, idx, setIdx }: {
   const game = data.game!;
   const total = log.length;
 
+  // 使用者主動切換（點打席/選半局）時才允許把當前打席捲入視野；
+  // 區分 page 載入時程式化的 setIdx(終局)——後者不得捲動整頁。
+  const userAction = useRef(false);
+  const selectIdx = (i: number) => { userAction.current = true; setIdx(i); };
+
   const e = log[idx] ?? log[total - 1];
   const halves = useMemo(() => buildHalves(log), [log]);
 
@@ -361,11 +375,11 @@ export default function GameBoard({ data, idx, setIdx }: {
       <ScoreBar game={game} e={e} records={data.records} />
 
       <ScoreLine sb={data.scoreboard} game={game}
-        halves={halves} curKey={curKey} onSelect={(h) => setIdx(h.firstIdx)} />
+        halves={halves} curKey={curKey} onSelect={(h) => selectIdx(h.firstIdx)} />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
         {/* 左：逐打席賽況（選定半局）*/}
-        <PlayByPlay log={log} events={curEvents} idx={idx} setIdx={setIdx} />
+        <PlayByPlay log={log} events={curEvents} idx={idx} setIdx={selectIdx} userAction={userAction} />
 
         {/* 右：當前對戰 + 好球帶（sticky） */}
         <div className="space-y-4 lg:sticky lg:top-3 lg:self-start">
