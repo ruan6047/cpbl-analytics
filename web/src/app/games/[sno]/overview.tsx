@@ -52,8 +52,12 @@ function MomentRow({ m, homeName, awayName, homeColor, awayColor, onJump }: {
   const gain = m.delta > 0;                    // 主隊受益
   const team = gain ? homeName : awayName;
   const color = gain ? homeColor : awayColor;
-  // 雙色勝率條：左＝客隊(客色)、右＝主隊(主色)，交界＝主隊勝率(after)；
-  // 交界上疊一根 before 標記，直觀看出這一打席把交界推向哪隊。
+  // 雙色勝率條：左＝客隊(客色)、右＝主隊(主色)，交界＝主隊勝率(after)。
+  // 「改變區間」(before→after 交界之間) 疊上受益隊的輔助色(亮版隊色)，一眼看出這一打席
+  // 把 WP 推了多少、往哪隊——用色相相同但更亮的 tint 保持「同隊」語意又提高辨識度。
+  const lo = Math.min(1 - m.after, 1 - m.before);
+  const hi = Math.max(1 - m.after, 1 - m.before);
+  const aux = `color-mix(in srgb, ${color} 55%, white)`;
   return (
     <button onClick={() => onJump(m.evt)}
       className="block w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-surface-2">
@@ -70,8 +74,9 @@ function MomentRow({ m, homeName, awayName, homeColor, awayColor, onJump }: {
       <div className="relative mt-1.5 flex h-2 overflow-hidden rounded-full">
         <div style={{ width: pct(1 - m.after), background: awayColor }} />
         <div style={{ width: pct(m.after), background: homeColor }} />
-        {/* before 交界標記（白線，看 WP 從哪推到哪） */}
-        <div className="absolute inset-y-0 w-0.5 bg-white/80" style={{ left: pct(1 - m.before) }} />
+        {/* 改變區間：受益隊輔助色（亮版）標出這一打席造成的 WP 位移 */}
+        <div className="absolute inset-y-0 border-x border-white/70"
+          style={{ left: pct(lo), width: pct(hi - lo), background: aux }} />
       </div>
     </button>
   );
