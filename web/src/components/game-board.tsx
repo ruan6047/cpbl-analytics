@@ -31,6 +31,25 @@ const occupied = (v: StatRow[string]) => v !== null && v !== undefined && String
 const num = (v: StatRow[string]) => Number(v) || 0;
 const avg3 = (v: number) => v.toFixed(3).replace(/^0/, ""); // .278
 
+// 打席結果 → 2 字標籤 + 是否安打（用於 chip 配色）。優先取 batting_action_name（官方 2 字碼
+// 一安/二安/游滾/中飛…），缺值才從 action_name 歸納，避免「野手接球自踩壘包」等冗長字串。
+function todayLabel(r: StatRow): { label: string; hit: boolean } {
+  const ba = String(r.batting_action_name ?? "").trim();
+  if (ba) return { label: ba, hit: /安|打$/.test(ba) && ba !== "犧飛" && ba !== "雙殺" };
+  const a = String(r.action_name ?? "");
+  const m: [RegExp, string, boolean][] = [
+    [/全壘打/, "全打", true], [/三壘安打/, "三安", true], [/二壘安打/, "二安", true],
+    [/安打/, "一安", true], [/三振/, "三振", false], [/雙殺/, "雙殺", false],
+    [/四壞|故意四壞|裁定四壞/, "四壞", false], [/觸身/, "死球", false],
+    [/犧牲飛|犧牲界外飛/, "犧飛", false], [/犧牲短/, "犧觸", false], [/失誤/, "失誤", false],
+    [/野手選擇|野選/, "野選", false], [/妨礙打擊/, "妨打", false], [/突破僵局/, "上壘", false],
+    [/飛球接殺|高飛/, "飛球", false], [/刺殺|觸殺|踩壘|三呎|妨礙守備/, "滾地", false],
+  ];
+  for (const [re, label, hit] of m) if (re.test(a)) return { label, hit };
+  return { label: a.slice(0, 2), hit: false };
+}
+const paRbi = (r: StatRow): number => Number(String(r.content ?? "").match(/(\d+)分打點/)?.[1] ?? 0);
+
 // ───────────────────────── 球數燈 ─────────────────────────
 function Dots({ n, total, color }: { n: number; total: number; color: string }) {
   return (
@@ -124,10 +143,11 @@ function ScoreBar({ game, e, records }: { game: StatRow; e: StatRow; records: Re
 
 // ───────────────────────── 當前對戰（球數/出局統一在記分條，此處放投打累計）─────────────────────────
 type PitcherLive = { outs: number; k: number; h: number };
+type TodayPA = { label: string; hit: boolean; rbi: number; idx: number };
 
-function Matchup({ e, batterAvg, pcount, pstats, batterToday }: {
+function Matchup({ e, batterAvg, pcount, pstats, batterToday, onJump }: {
   e: StatRow; batterAvg: Record<string, number>; pcount: number;
-  pstats: PitcherLive; batterToday: string[];
+  pstats: PitcherLive; batterToday: TodayPA[]; onJump: (idx: number) => void;
 }) {
   const ba = batterAvg[String(e.hitter_acnt ?? "")];
   const ip = `${Math.floor(pstats.outs / 3)}${pstats.outs % 3 ? `.${pstats.outs % 3}` : ""}`;
@@ -144,8 +164,15 @@ function Matchup({ e, batterAvg, pcount, pstats, batterToday }: {
           <div className="text-xs text-muted">打者{e.batting_order ? `　第 ${num(e.batting_order)} 棒` : ""}</div>
           <div className="text-lg font-semibold text-ink">{String(e.hitter_name ?? "—")}</div>
           <div className="font-mono text-xs text-faint">本季打擊率 {ba !== undefined ? avg3(ba) : "—"}</div>
-          <div className="text-xs text-faint">
-            今日 {batterToday.length ? batterToday.join("、") : "首打席"}
+          <div className="mt-1.5 flex flex-wrap items-center gap-1">
+            <span className="text-xs text-faint">今日</span>
+            {batterToday.length ? batterToday.map((pa, i) => (
+              <button key={i} onClick={() => onJump(pa.idx)} title="看該打席"
+                className={`rounded px-1.5 py-0.5 text-xs font-medium transition-colors hover:brightness-95 ${
+                  pa.hit ? "bg-accent/10 text-accent" : "bg-surface-2 text-muted"}`}>
+                {pa.label}{pa.rbi ? ` ${pa.rbi}打點` : ""}
+              </button>
+            )) : <span className="text-xs text-faint">首打席</span>}
           </div>
         </div>
       </div>
@@ -382,16 +409,19 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", toolbar, on
     const outsBy: Record<string, number> = {};
     const kBy: Record<string, number> = {};
     const hBy: Record<string, number> = {};
-    const paResults: { hitter: string; label: string }[] = [];
+    const paResults: { hitter: string; label: string; hit: boolean; rbi: number; idx: number }[] = [];
     let curHalf = "", prevAnn = 0;
-    let paFinal: StatRow | null = null;
+    let paFinal: StatRow | null = null, paFinalIdx = -1;
     const flush = () => {
       if (!paFinal) return;
       const p = String(paFinal.pitcher_acnt ?? "");
       const a = String(paFinal.action_name ?? "").trim();
       if (a.includes("三振")) kBy[p] = (kBy[p] ?? 0) + 1;
       if (/安打|全壘打/.test(a)) hBy[p] = (hBy[p] ?? 0) + 1;
-      if (a) paResults.push({ hitter: String(paFinal.hitter_acnt), label: a.split(/\s+/)[0] });
+      if (a) {
+        const { label, hit } = todayLabel(paFinal);
+        paResults.push({ hitter: String(paFinal.hitter_acnt), label, hit, rbi: paRbi(paFinal), idx: paFinalIdx });
+      }
       paFinal = null;
     };
     for (let i = 0; i <= idx && i < total; i++) {
@@ -400,7 +430,7 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", toolbar, on
       if (hk !== curHalf) { flush(); curHalf = hk; prevAnn = 0; }
       if (r.is_change_player || !r.hitter_acnt) continue;
       if (paFinal && String((paFinal as StatRow).hitter_acnt) !== String(r.hitter_acnt)) flush();
-      paFinal = r;
+      paFinal = r; paFinalIdx = i;
       for (const m of String(r.content ?? "").matchAll(/(\d)人出局/g)) {
         const ann = Number(m[1]);
         if (ann > prevAnn) {
@@ -420,7 +450,7 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", toolbar, on
   }, [liveStats, e]);
   const batterToday = useMemo(() => {
     const h = String(e?.hitter_acnt ?? "");
-    return liveStats.paResults.filter((r) => r.hitter === h).map((r) => r.label);
+    return liveStats.paResults.filter((r) => r.hitter === h);
   }, [liveStats, e]);
 
   // 當前打席逐球（以 投手×打者×局 三鍵精準比對 tracking）
@@ -451,7 +481,7 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", toolbar, on
         {/* 右：當前對戰 + 好球帶（sticky） */}
         <div className="space-y-4 lg:sticky lg:top-3 lg:self-start">
           <Matchup e={e} batterAvg={data.batter_avg} pcount={pcount}
-            pstats={pstats} batterToday={batterToday} />
+            pstats={pstats} batterToday={batterToday} onJump={selectIdx} />
           <p className={`rounded-xl border px-4 py-3 text-sm ${isScore ? "border-accent/30 bg-accent/10 font-medium text-accent" : "border-line bg-surface text-ink"}`}>
             {String(e.content ?? "")}
           </p>
