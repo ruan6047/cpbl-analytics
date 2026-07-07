@@ -31,22 +31,26 @@ const occupied = (v: StatRow[string]) => v !== null && v !== undefined && String
 const num = (v: StatRow[string]) => Number(v) || 0;
 const avg3 = (v: number) => v.toFixed(3).replace(/^0/, ""); // .278
 
-// 打席結果 → 2 字標籤 + 是否安打（用於 chip 配色）。優先取 batting_action_name（官方 2 字碼
-// 一安/二安/游滾/中飛…），缺值才從 action_name 歸納，避免「野手接球自踩壘包」等冗長字串。
-function todayLabel(r: StatRow): { label: string; hit: boolean } {
+// 打席結果 → 2 字標籤 + 分類（hit 安打綠／walk 保送藍／out 出局灰）。優先取 batting_action_name
+// （官方 2 字碼 一安/二安/游滾/中飛…），缺值才從 action_name 歸納，避免冗長字串。
+type PaKind = "hit" | "walk" | "out";
+function todayLabel(r: StatRow): { label: string; kind: PaKind } {
+  const kindOf = (label: string): PaKind =>
+    /死球|四壞|敬遠/.test(label) ? "walk"
+    : (/安|打$/.test(label) && label !== "犧飛" && label !== "雙殺") ? "hit" : "out";
   const ba = String(r.batting_action_name ?? "").trim();
-  if (ba) return { label: ba, hit: /安|打$/.test(ba) && ba !== "犧飛" && ba !== "雙殺" };
+  if (ba) return { label: ba, kind: kindOf(ba) };
   const a = String(r.action_name ?? "");
-  const m: [RegExp, string, boolean][] = [
-    [/全壘打/, "全打", true], [/三壘安打/, "三安", true], [/二壘安打/, "二安", true],
-    [/安打/, "一安", true], [/三振/, "三振", false], [/雙殺/, "雙殺", false],
-    [/四壞|故意四壞|裁定四壞/, "四壞", false], [/觸身/, "死球", false],
-    [/犧牲飛|犧牲界外飛/, "犧飛", false], [/犧牲短/, "犧觸", false], [/失誤/, "失誤", false],
-    [/野手選擇|野選/, "野選", false], [/妨礙打擊/, "妨打", false], [/突破僵局/, "上壘", false],
-    [/飛球接殺|高飛/, "飛球", false], [/刺殺|觸殺|踩壘|三呎|妨礙守備/, "滾地", false],
+  const m: [RegExp, string][] = [
+    [/全壘打/, "全打"], [/三壘安打/, "三安"], [/二壘安打/, "二安"], [/安打/, "一安"],
+    [/三振/, "三振"], [/雙殺/, "雙殺"], [/四壞|故意四壞|裁定四壞/, "四壞"], [/觸身/, "死球"],
+    [/犧牲飛|犧牲界外飛/, "犧飛"], [/犧牲短/, "犧觸"], [/失誤/, "失誤"],
+    [/野手選擇|野選/, "野選"], [/妨礙打擊/, "妨打"], [/突破僵局/, "上壘"],
+    [/飛球接殺|高飛/, "飛球"], [/刺殺|觸殺|踩壘|三呎|妨礙守備/, "滾地"],
   ];
-  for (const [re, label, hit] of m) if (re.test(a)) return { label, hit };
-  return { label: a.slice(0, 2), hit: false };
+  for (const [re, label] of m) if (re.test(a)) return { label, kind: kindOf(label) };
+  const label = a.slice(0, 2);
+  return { label, kind: kindOf(label) };
 }
 const paRbi = (r: StatRow): number => Number(String(r.content ?? "").match(/(\d+)分打點/)?.[1] ?? 0);
 
@@ -143,7 +147,7 @@ function ScoreBar({ game, e, records }: { game: StatRow; e: StatRow; records: Re
 
 // ───────────────────────── 當前對戰（球數/出局統一在記分條，此處放投打累計）─────────────────────────
 type PitcherLive = { outs: number; k: number; h: number };
-type TodayPA = { label: string; hit: boolean; rbi: number; idx: number };
+type TodayPA = { label: string; kind: PaKind; rbi: number; idx: number };
 
 function Matchup({ e, batterAvg, pcount, pstats, batterToday, onJump }: {
   e: StatRow; batterAvg: Record<string, number>; pcount: number;
@@ -169,7 +173,9 @@ function Matchup({ e, batterAvg, pcount, pstats, batterToday, onJump }: {
             {batterToday.length ? batterToday.map((pa, i) => (
               <button key={i} onClick={() => onJump(pa.idx)} title="看該打席"
                 className={`rounded px-1.5 py-0.5 text-xs font-medium tabular-nums transition-colors hover:brightness-95 ${
-                  pa.hit ? "bg-emerald-500/10 text-emerald-700" : "bg-surface-2 text-muted"}`}>
+                  pa.kind === "hit" ? "bg-emerald-500/10 text-emerald-700"
+                  : pa.kind === "walk" ? "bg-sky-500/10 text-sky-700"
+                  : "bg-surface-2 text-muted"}`}>
                 {pa.label}{pa.rbi ? `(${pa.rbi})` : ""}
               </button>
             )) : <span className="text-xs text-faint">首打席</span>}
@@ -409,7 +415,7 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", toolbar, on
     const outsBy: Record<string, number> = {};
     const kBy: Record<string, number> = {};
     const hBy: Record<string, number> = {};
-    const paResults: { hitter: string; label: string; hit: boolean; rbi: number; idx: number }[] = [];
+    const paResults: { hitter: string; label: string; kind: PaKind; rbi: number; idx: number }[] = [];
     let curHalf = "", prevAnn = 0;
     let paFinal: StatRow | null = null, paFinalIdx = -1;
     const flush = () => {
@@ -419,8 +425,8 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", toolbar, on
       if (a.includes("三振")) kBy[p] = (kBy[p] ?? 0) + 1;
       if (/安打|全壘打/.test(a)) hBy[p] = (hBy[p] ?? 0) + 1;
       if (a) {
-        const { label, hit } = todayLabel(paFinal);
-        paResults.push({ hitter: String(paFinal.hitter_acnt), label, hit, rbi: paRbi(paFinal), idx: paFinalIdx });
+        const { label, kind } = todayLabel(paFinal);
+        paResults.push({ hitter: String(paFinal.hitter_acnt), label, kind, rbi: paRbi(paFinal), idx: paFinalIdx });
       }
       paFinal = null;
     };
