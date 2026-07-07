@@ -168,9 +168,9 @@ function Matchup({ e, batterAvg, pcount, pstats, batterToday, onJump }: {
             <span className="text-xs text-faint">今日</span>
             {batterToday.length ? batterToday.map((pa, i) => (
               <button key={i} onClick={() => onJump(pa.idx)} title="看該打席"
-                className={`rounded px-1.5 py-0.5 text-xs font-medium transition-colors hover:brightness-95 ${
-                  pa.hit ? "bg-accent/10 text-accent" : "bg-surface-2 text-muted"}`}>
-                {pa.label}{pa.rbi ? ` ${pa.rbi}打點` : ""}
+                className={`rounded px-1.5 py-0.5 text-xs font-medium tabular-nums transition-colors hover:brightness-95 ${
+                  pa.hit ? "bg-emerald-500/10 text-emerald-700" : "bg-surface-2 text-muted"}`}>
+                {pa.label}{pa.rbi ? `(${pa.rbi})` : ""}
               </button>
             )) : <span className="text-xs text-faint">首打席</span>}
           </div>
