@@ -45,11 +45,15 @@ export function buildMoments(wp: WpPoint[], log: StatRow[]): Moment[] {
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
-function MomentRow({ m, homeName, awayName, onJump }: {
-  m: Moment; homeName: string; awayName: string; onJump: (evt: string) => void;
+function MomentRow({ m, homeName, awayName, homeColor, awayColor, onJump }: {
+  m: Moment; homeName: string; awayName: string; homeColor: string; awayColor: string;
+  onJump: (evt: string) => void;
 }) {
   const gain = m.delta > 0;                    // 主隊受益
   const team = gain ? homeName : awayName;
+  const color = gain ? homeColor : awayColor;
+  // 雙色勝率條：左＝客隊(客色)、右＝主隊(主色)，交界＝主隊勝率(after)；
+  // 交界上疊一根 before 標記，直觀看出這一打席把交界推向哪隊。
   return (
     <button onClick={() => onJump(m.evt)}
       className="block w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-surface-2">
@@ -58,25 +62,24 @@ function MomentRow({ m, homeName, awayName, onJump }: {
           {m.inning}{m.half === "1" ? "上" : "下"}　{m.hitter}
           <span className="ml-1 text-faint">vs {m.pitcher}</span>
         </span>
-        <span className={`shrink-0 font-mono text-xs font-semibold tabular-nums ${gain ? "text-accent" : "text-sky-700"}`}>
+        <span className="shrink-0 font-mono text-xs font-semibold tabular-nums" style={{ color }}>
           {team} +{Math.abs(Math.round(m.delta * 100))}%
         </span>
       </div>
       <div className="mt-0.5 truncate text-sm text-ink">{m.desc}</div>
-      <div className="mt-1 flex items-center gap-1.5">
-        {/* WP 前→後 迷你條（主隊視角） */}
-        <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-line">
-          <div className="absolute inset-y-0 left-0 rounded-full bg-accent/30" style={{ width: pct(m.before) }} />
-          <div className="absolute inset-y-0 left-0 rounded-full bg-accent" style={{ width: pct(m.after) }} />
-        </div>
-        <span className="font-mono text-[10px] tabular-nums text-faint">{pct(m.before)}→{pct(m.after)}</span>
+      <div className="relative mt-1.5 flex h-2 overflow-hidden rounded-full">
+        <div style={{ width: pct(1 - m.after), background: awayColor }} />
+        <div style={{ width: pct(m.after), background: homeColor }} />
+        {/* before 交界標記（白線，看 WP 從哪推到哪） */}
+        <div className="absolute inset-y-0 w-0.5 bg-white/80" style={{ left: pct(1 - m.before) }} />
       </div>
     </button>
   );
 }
 
-export function GameOverview({ wp, log, homeName, awayName, onJump, highlights, info, mvp, decisions }: {
+export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor, onJump, highlights, info, mvp, decisions }: {
   wp: WpPoint[]; log: StatRow[]; homeName: string; awayName: string;
+  homeColor: string; awayColor: string;
   onJump: (evt: string) => void;
   highlights: string[]; info: [string, string][];
   mvp: { name: string; line: string } | null;
@@ -92,12 +95,19 @@ export function GameOverview({ wp, log, homeName, awayName, onJump, highlights, 
     <div className="grid gap-4 lg:grid-cols-2">
       {key.length > 0 && (
         <div className="rounded-xl border border-line bg-surface p-3">
-          <div className="mb-1.5 px-3 pt-1 text-sm font-semibold">
-            關鍵時刻 <span className="text-xs font-normal text-faint">（勝率大轉折・點擊看該打席）</span>
+          <div className="mb-1.5 flex items-baseline justify-between px-3 pt-1">
+            <span className="text-sm font-semibold">
+              關鍵時刻 <span className="text-xs font-normal text-faint">（點擊看該打席）</span>
+            </span>
+            <span className="flex items-center gap-2 text-[10px] text-muted">
+              <span className="flex items-center gap-1"><i className="inline-block h-2 w-2 rounded-full" style={{ background: awayColor }} />客 {awayName}</span>
+              <span className="flex items-center gap-1"><i className="inline-block h-2 w-2 rounded-full" style={{ background: homeColor }} />主 {homeName}</span>
+            </span>
           </div>
           <div className="space-y-0.5">
             {key.map((m) => (
-              <MomentRow key={m.evt} m={m} homeName={homeName} awayName={awayName} onJump={onJump} />
+              <MomentRow key={m.evt} m={m} homeName={homeName} awayName={awayName}
+                homeColor={homeColor} awayColor={awayColor} onJump={onJump} />
             ))}
           </div>
         </div>

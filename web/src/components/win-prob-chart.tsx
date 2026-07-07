@@ -60,7 +60,7 @@ export function WinProbChart({ items, homeName, awayName, homeColor, onSelect }:
             }}
             contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--color-line)",
               background: "var(--color-surface)" }} />
-          <Line type="stepAfter" dataKey="pct" stroke={homeColor} strokeWidth={2}
+          <Line type="linear" dataKey="pct" stroke={homeColor} strokeWidth={2}
             dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
         </LineChart>
       </ResponsiveContainer>

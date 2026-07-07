@@ -388,6 +388,8 @@ export default function GameLivePage() {
             <>
               <GameOverview wp={wp ?? []} log={data.livelog}
                 homeName={String(g.home_team_name)} awayName={String(g.away_team_name)}
+                homeColor={teamColor(String(g.home_team_code ?? ""))}
+                awayColor={teamColor(String(g.away_team_code ?? ""))}
                 onJump={jumpToPa} highlights={highlights} info={info}
                 mvp={mvp} decisions={decisionItems} />
               <WinProbChart items={wp ?? []}
