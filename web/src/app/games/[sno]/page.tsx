@@ -152,22 +152,77 @@ export default function GameLivePage() {
 
   const g = data.game;
 
-  // 本場焦點：滿貫/多響砲/猛打賞/完投完封/最速球（渲染於總覽右卡）
+  // 本場焦點（門檻原則＝一季只會出現幾次才配當焦點）：
+  // 賽事級（再見/逆轉/延長/和局/合力完封）→ 打者 → 投手 → 球速（≥155 才顯示）。
   const highlights: string[] = [];
+  const hs = n(g.home_score) as number;
+  const aw = n(g.away_score) as number;
+  const completed = hs + aw > 0;
+  if (completed) {
+    // 再見（主隊勝且全場最後一個得分事件在主隊末攻）：從末得分事件的 action_name 定名
+    if (hs > aw) {
+      const scores = data.livelog.filter((r) => r.is_score && !r.is_change_player);
+      const lastScore = scores[scores.length - 1];
+      const after = lastScore ? data.livelog.slice(data.livelog.indexOf(lastScore) + 1) : [];
+      const isLastPlay = !!lastScore && String(lastScore.visiting_home_type) === "2"
+        && !after.some((r) => r.hitter_acnt && !r.is_change_player
+            && String(r.main_event_no) !== String(lastScore.main_event_no) && !r.is_score
+            && !/比賽結束/.test(String(r.content ?? "")));
+      if (isLastPlay) {
+        const a = String(lastScore.action_name ?? "");
+        const label = a.includes("全壘打") ? "再見全壘打" : a.includes("安打") ? "再見安打"
+          : a.includes("四壞") ? "再見四壞" : a.includes("觸身") ? "再見觸身球"
+          : a.includes("犧牲") ? "再見犧牲打" : "再見勝";
+        highlights.push(`${String(lastScore.hitter_name ?? "")} ${label}`);
+      }
+    }
+    // 逆轉勝（勝隊曾落後 ≥3 分）：逐半局累計比分掃最大落後
+    if (hs !== aw) {
+      const cum = { a: 0, h: 0 };
+      let maxDef = 0;
+      const winnerHome = hs > aw;
+      const innings = [...new Set(data.scoreboard.map((r) => n(r.inning_seq) as number))].sort((x, y) => x - y);
+      for (const inn of innings) {
+        for (const half of ["1", "2"]) {
+          const row = data.scoreboard.find((r) => (n(r.inning_seq) as number) === inn
+            && String(r.visiting_home_type) === half);
+          if (!row) continue;
+          if (half === "1") cum.a += n(row.score_cnt) as number;
+          else cum.h += n(row.score_cnt) as number;
+          maxDef = Math.max(maxDef, winnerHome ? cum.a - cum.h : cum.h - cum.a);
+        }
+      }
+      if (maxDef >= 3) highlights.push(`落後 ${maxDef} 分逆轉勝`);
+    }
+    const maxInn = Math.max(0, ...data.scoreboard.map((r) => n(r.inning_seq) as number));
+    if (hs === aw) highlights.push(`${maxInn} 局和局`);       // 含未滿 9 局的裁定和局
+    else if (maxInn > 9) highlights.push(`延長 ${maxInn} 局`);
+    // 合力完封（敗方 0 分且勝方無單人完投）
+    if (hs !== aw && Math.min(hs, aw) === 0) {
+      const winSide = hs > aw ? "2" : "1";
+      const staff = data.pitching.filter((r) => String(r.visiting_home_type) === winSide);
+      if (staff.length > 1 && !staff.some((r) => r.is_complete_game)) highlights.push("合力完封");
+    }
+  }
   for (const r of data.batting) {
     const nm = String(r.hitter_name ?? "");
     const hr = n(r.home_runs) as number;
     if (n(r.grand_slam) as number) highlights.push(`${nm} 滿貫砲`);
     else if (hr >= 2) highlights.push(`${nm} ${hr} 響砲`);
     if ((n(r.hits) as number) >= 4) highlights.push(`${nm} ${r.hits} 安猛打賞`);
+    if ((n(r.rbi) as number) >= 4) highlights.push(`${nm} ${r.rbi} 打點`);
+    if ((n(r.sb) as number) >= 2) highlights.push(`${nm} ${r.sb} 次盜壘`);
   }
   for (const r of data.pitching) {
     const nm = String(r.pitcher_name ?? "");
     if (r.is_shutout) highlights.push(`${nm} 完封`);
     else if (r.is_complete_game) highlights.push(`${nm} 完投`);
+    if ((n(r.so) as number) >= 10) highlights.push(`${nm} ${r.so} 次三振`);
   }
+  // 最速球：≥155 才有焦點價值（日常最速無鑑別度）
   const maxSp = Math.max(0, ...data.pitching.map((r) => (n(r.max_speed) as number) || 0));
-  if (maxSp) highlights.push(`最速球 ${maxSp} km/h`);
+  if (maxSp >= 155) highlights.push(`最速球 ${maxSp} km/h`);
+  highlights.splice(10);
 
   // 賽事資訊（渲染於總覽右卡；天氣縮寫、裁判彙整）
   const info: [string, string][] = [];
