@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import type { StatRow } from "@/lib/client";
 import { TeamLogo } from "@/components/ui";
 import { teamColor } from "@/lib/teams";
+import type { WpPoint } from "@/components/win-prob-chart";
 
 type Rec = { w: number; l: number; form: string };
 export type TrackRow = {
@@ -140,6 +141,27 @@ function ScoreBar({ game, e, records }: { game: StatRow; e: StatRow; records: Re
       </div>
       <div className="border-t border-line px-5 py-1.5 text-center text-xs text-faint">
         {String(game.game_date ?? "")}　{String(game.venue ?? "")}
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────── 目前預期勝率（當前打席，推算）─────────────────────────
+function WpBar({ homeWp, homeName, awayName, homeColor, awayColor }: {
+  homeWp: number; homeName: string; awayName: string; homeColor: string; awayColor: string;
+}) {
+  const h = Math.round(homeWp * 100);
+  const a = 100 - h;
+  return (
+    <div className="rounded-xl border border-line bg-surface p-3">
+      <div className="mb-1.5 flex items-center justify-between text-xs">
+        <span className="font-semibold tabular-nums" style={{ color: awayColor }}>{awayName} {a}%</span>
+        <span className="text-[10px] text-faint">目前預期勝率（推算）</span>
+        <span className="font-semibold tabular-nums" style={{ color: homeColor }}>{homeName} {h}%</span>
+      </div>
+      <div className="flex h-2.5 overflow-hidden rounded-full">
+        <div style={{ width: `${a}%`, background: awayColor }} />
+        <div style={{ width: `${h}%`, background: homeColor }} />
       </div>
     </div>
   );
@@ -369,9 +391,10 @@ function StrikeZone({ pitches }: { pitches: TrackRow[] }) {
 }
 
 // ───────────────────────── 主板 ─────────────────────────
-export default function GameBoard({ data, idx, setIdx, view = "pbp", toolbar, onNavigate }: {
+export default function GameBoard({ data, idx, setIdx, view = "pbp", toolbar, onNavigate, wp }: {
   data: Live;
   idx: number; setIdx: (i: number) => void;
+  wp?: WpPoint[];                // 逐打席勝率（顯示當前打席的目前預期勝率）
   view?: "overview" | "pbp";     // overview=總覽（隱藏逐打席操作區）；pbp=逐打席
   toolbar?: React.ReactNode;     // 視圖切換列（渲染在逐局比分與內容之間）
   onNavigate?: () => void;       // 使用者選打席/選局時通知父層（總覽→切逐打席）
@@ -459,6 +482,20 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", toolbar, on
     return liveStats.paResults.filter((r) => r.hitter === h);
   }, [liveStats, e]);
 
+  // 當前打席的目前預期勝率：wp 為每打席一點（evt=打席首事件號），取 evt ≤ 當前事件號
+  // 的最後一點＝當前打席進場時的 WP（主隊視角）。
+  const curHomeWp = useMemo(() => {
+    if (!e || !wp?.length) return null;
+    const cur = Number(e.main_event_no);
+    let best: number | null = null, bestEvt = -1;
+    for (const p of wp) {
+      if (p.evt == null) continue;
+      const ne = Number(p.evt);
+      if (ne <= cur && ne > bestEvt) { bestEvt = ne; best = p.wp; }
+    }
+    return best;
+  }, [wp, e]);
+
   // 當前打席逐球（以 投手×打者×局 三鍵精準比對 tracking）
   const paPitches = useMemo(() => {
     if (!e || !e.pitcher_acnt || !e.hitter_acnt) return [];
@@ -486,6 +523,12 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", toolbar, on
 
         {/* 右：當前對戰 + 好球帶（sticky） */}
         <div className="space-y-4 lg:sticky lg:top-3 lg:self-start">
+          {curHomeWp != null && (
+            <WpBar homeWp={curHomeWp}
+              homeName={String(game.home_team_name ?? "")} awayName={String(game.away_team_name ?? "")}
+              homeColor={teamColor(String(game.home_team_code ?? ""))}
+              awayColor={teamColor(String(game.away_team_code ?? ""))} />
+          )}
           <Matchup e={e} batterAvg={data.batter_avg} pcount={pcount}
             pstats={pstats} batterToday={batterToday} onJump={selectIdx} />
           <p className={`rounded-xl border px-4 py-3 text-sm ${isScore ? "border-accent/30 bg-accent/10 font-medium text-accent" : "border-line bg-surface text-ink"}`}>

@@ -372,7 +372,7 @@ export default function GameLivePage() {
 
       {data.livelog.length > 0 ? (
         <section className="mb-8 mt-2 space-y-4">
-          <GameBoard data={data} idx={idx} setIdx={setIdx} view={view}
+          <GameBoard data={data} idx={idx} setIdx={setIdx} view={view} wp={wp ?? undefined}
             onNavigate={() => setView("pbp")}
             toolbar={
               <div className="inline-flex gap-1 rounded-lg bg-surface-2 p-1">
