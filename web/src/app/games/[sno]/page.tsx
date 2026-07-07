@@ -8,7 +8,7 @@ import { fmtIPParts } from "@/lib/format";
 import GameBoard, { type Live } from "@/components/game-board";
 import { WinProbChart, type WpPoint } from "@/components/win-prob-chart";
 import { teamColor } from "@/lib/teams";
-import { GameOverview } from "./overview";
+import { GameOverview, Pregame, type PregameMatchup } from "./overview";
 
 const n = (v: number | string | null) => (v === null || v === undefined ? "" : Number(v));
 
@@ -114,6 +114,7 @@ export default function GameLivePage() {
   // 頁面預設「比賽總覽」；逐打席為進階操作視圖
   const [view, setView] = useState<"overview" | "pbp">("overview");
   const [wp, setWp] = useState<WpPoint[] | null>(null);
+  const [pregame, setPregame] = useState<PregameMatchup | null>(null);
 
   useEffect(() => {
     detail.gameLive(Number(sno), kind, year)
@@ -121,6 +122,15 @@ export default function GameLivePage() {
         const dd = d as Live;
         setData(dd);
         setIdx(Math.max(0, dd.livelog.length - 1)); // 逐打席視圖預設停在終局
+        // 未開賽（無逐打席）→ 抓賽前展望（賽果模型近期對戰卡，比 date+主隊碼）
+        if (!dd.livelog.length && dd.game) {
+          const gd = String(dd.game.game_date ?? "");
+          const hc = String(dd.game.home_team_code ?? "");
+          detail.outcomeToday()
+            .then((o) => setPregame(o.items.find((it) =>
+              it.game_date === gd && it.home.code === hc) ?? null))
+            .catch(() => setPregame(null));
+        }
       })
       .catch(() => setErr(true));
     detail.winprob(Number(sno), kind, year).then((d) => setWp(d.items)).catch(() => setWp([]));
@@ -141,6 +151,44 @@ export default function GameLivePage() {
   if (!data.game) return <p className="text-sm text-muted">查無此場比賽。</p>;
 
   const g = data.game;
+
+  // 本場焦點：滿貫/多響砲/猛打賞/完投完封/最速球（渲染於總覽右卡）
+  const highlights: string[] = [];
+  for (const r of data.batting) {
+    const nm = String(r.hitter_name ?? "");
+    const hr = n(r.home_runs) as number;
+    if (n(r.grand_slam) as number) highlights.push(`${nm} 滿貫砲`);
+    else if (hr >= 2) highlights.push(`${nm} ${hr} 響砲`);
+    if ((n(r.hits) as number) >= 4) highlights.push(`${nm} ${r.hits} 安猛打賞`);
+  }
+  for (const r of data.pitching) {
+    const nm = String(r.pitcher_name ?? "");
+    if (r.is_shutout) highlights.push(`${nm} 完封`);
+    else if (r.is_complete_game) highlights.push(`${nm} 完投`);
+  }
+  const maxSp = Math.max(0, ...data.pitching.map((r) => (n(r.max_speed) as number) || 0));
+  if (maxSp) highlights.push(`最速球 ${maxSp} km/h`);
+
+  // 賽事資訊（渲染於總覽右卡；天氣縮寫、裁判彙整）
+  const info: [string, string][] = [];
+  if (data.detail) {
+    const d = data.detail;
+    const wx = String(d.weather_desc ?? "");
+    if (wx) {
+      const cond = wx.split("。")[0] ?? "";
+      const temp = wx.match(/攝氏(\d+)至(\d+)度/);
+      const icon = /雷|雨/.test(cond) ? "🌧️" : /多雲/.test(cond) ? "⛅"
+        : /陰/.test(cond) ? "☁️" : /晴/.test(cond) ? "☀️" : "🌡️";
+      info.push(["天氣", `${icon} ${cond}${temp ? ` ${temp[1]}–${temp[2]}°C` : ""}`]);
+    }
+    if (d.attendance) info.push(["觀眾", `${Number(d.attendance).toLocaleString()} 人`]);
+    if (d.game_time) info.push(["時長", String(d.game_time)]);
+    const umps = [["主審", d.head_umpire], ["一壘", d.first_umpire], ["二壘", d.second_umpire],
+      ["三壘", d.third_umpire], ["左審", d.left_umpire], ["右審", d.right_umpire]]
+      .filter(([, v]) => v).map(([l, v]) => `${l} ${v}`).join("、");
+    if (umps) info.push(["裁判", umps]);
+  }
+
   return (
     <div>
       <Link href="/games" className="text-xs text-faint hover:text-accent">← 返回賽況列表</Link>
@@ -163,14 +211,15 @@ export default function GameLivePage() {
             <>
               <GameOverview wp={wp ?? []} log={data.livelog}
                 homeName={String(g.home_team_name)} awayName={String(g.away_team_name)}
-                onJump={jumpToPa} />
+                onJump={jumpToPa} highlights={highlights} info={info} />
               <WinProbChart items={wp ?? []}
                 homeName={String(g.home_team_name)} awayName={String(g.away_team_name)}
                 homeColor={teamColor(String(g.home_team_code ?? ""))} onSelect={jumpToPa} />
             </>
           )}
         </section>
-      ) : (
+      ) : ((n(g.home_score) as number) + (n(g.away_score) as number)) > 0 ? (
+        /* 已完賽但無逐打席（歷史場）：沿用比分標題 */
         <header className="mb-6 mt-2">
           <h1 className="text-2xl font-bold">
             {String(g.away_team_name)} <span className="font-mono">{n(g.away_score)}</span>
@@ -179,6 +228,18 @@ export default function GameLivePage() {
           </h1>
           <p className="mt-1 text-sm text-muted">{String(g.game_date ?? "")}　{String(g.venue ?? "")}</p>
         </header>
+      ) : (
+        /* 未開賽：賽前展望（賽果模型對戰卡） */
+        <div className="mb-8 mt-2 space-y-4">
+          <header>
+            <h1 className="text-2xl font-bold">
+              {String(g.away_team_name)} <span className="mx-2 text-faint">@</span>
+              {String(g.home_team_name)}
+            </h1>
+            <p className="mt-1 text-sm text-muted">{String(g.game_date ?? "")}　{String(g.venue ?? "")}　尚未開賽</p>
+          </header>
+          {pregame && <Pregame m={pregame} />}
+        </div>
       )}
 
       {g.delay_kind && (() => {
@@ -224,61 +285,7 @@ export default function GameLivePage() {
         ) : null;
       })()}
 
-      {(() => {
-        // 本場焦點：滿貫/多響砲/猛打賞/完投完封/最速球
-        const hi: string[] = [];
-        for (const r of data.batting) {
-          const nm = String(r.hitter_name ?? "");
-          const hr = n(r.home_runs) as number;
-          if (n(r.grand_slam) as number) hi.push(`${nm} 滿貫砲`);
-          else if (hr >= 2) hi.push(`${nm} ${hr} 響砲`);
-          if ((n(r.hits) as number) >= 4) hi.push(`${nm} ${r.hits} 安猛打賞`);
-        }
-        for (const r of data.pitching) {
-          const nm = String(r.pitcher_name ?? "");
-          if (r.is_shutout) hi.push(`${nm} 完封`);
-          else if (r.is_complete_game) hi.push(`${nm} 完投`);
-        }
-        const maxSp = Math.max(0, ...data.pitching.map((r) => (n(r.max_speed) as number) || 0));
-        if (maxSp) hi.push(`最速球 ${maxSp} km/h`);
-        return hi.length ? (
-          <section className="mb-6">
-            <h2 className="mb-2 text-lg font-semibold">本場焦點</h2>
-            <div className="flex flex-wrap gap-2">
-              {hi.map((t, i) => (
-                <span key={i} className="rounded-full bg-cpbl/10 px-3 py-1 text-sm font-medium text-cpbl">{t}</span>
-              ))}
-            </div>
-          </section>
-        ) : null;
-      })()}
-
-      {data.detail && (() => {
-        const d = data.detail;
-        const umps = [["主審", d.head_umpire], ["一壘", d.first_umpire], ["二壘", d.second_umpire],
-          ["三壘", d.third_umpire], ["左審", d.left_umpire], ["右審", d.right_umpire]]
-          .filter(([, v]) => v).map(([l, v]) => `${l} ${v}`).join("、");
-        const info: string[] = [];
-        // 天氣（官方全文縮成「圖示 天況 溫度」，全文掛 title）
-        const wx = String(d.weather_desc ?? "");
-        let wxShort = "";
-        if (wx) {
-          const cond = wx.split("。")[0] ?? "";
-          const temp = wx.match(/攝氏(\d+)至(\d+)度/);
-          const icon = /雷|雨/.test(cond) ? "🌧️" : /多雲/.test(cond) ? "⛅"
-            : /陰/.test(cond) ? "☁️" : /晴/.test(cond) ? "☀️" : "🌡️";
-          wxShort = `${icon} ${cond}${temp ? ` ${temp[1]}–${temp[2]}°C` : ""}`;
-        }
-        if (d.attendance) info.push(`觀眾 ${Number(d.attendance).toLocaleString()} 人`);
-        if (d.game_time) info.push(`時長 ${String(d.game_time)}`);
-        return (info.length || umps || wxShort) ? (
-          <div className="mb-6 rounded-xl border border-line bg-surface px-4 py-3 text-sm text-muted">
-            {wxShort && <span className="mr-4" title={wx}>{wxShort}</span>}
-            {info.length > 0 && <span className="mr-4">{info.join("　·　")}</span>}
-            {umps && <span>裁判：{umps}</span>}
-          </div>
-        ) : null;
-      })()}
+      {/* 本場焦點 / 賽事資訊 已整併進總覽右卡（GameOverview），此處不重複 */}
 
       {data.batting.length > 0 && (
         <section className="mb-8">

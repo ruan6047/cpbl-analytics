@@ -104,6 +104,13 @@ function ScoreBar({ game, e, records }: { game: StatRow; e: StatRow; records: Re
           </div>
           <BasesOuts b1={occupied(e.first_base)} b2={occupied(e.second_base)}
             b3={occupied(e.third_base)} outs={num(e.out_cnt)} />
+          {/* 球數與出局同處（全站唯一顯示點） */}
+          <div className="flex items-center gap-2.5">
+            <span className="flex items-center gap-1"><span className="font-mono text-[10px] font-semibold text-muted">B</span>
+              <Dots n={num(e.ball_cnt)} total={3} color="#16a34a" /></span>
+            <span className="flex items-center gap-1"><span className="font-mono text-[10px] font-semibold text-muted">S</span>
+              <Dots n={num(e.strike_cnt)} total={2} color="#eab308" /></span>
+          </div>
         </div>
         <div className="font-mono text-4xl font-bold tabular-nums">{num(e.home_score)}</div>
         {side(hc, game.home_team_name, hr, true)}
@@ -115,29 +122,32 @@ function ScoreBar({ game, e, records }: { game: StatRow; e: StatRow; records: Re
   );
 }
 
-// ───────────────────────── 當前對戰 + 球數 ─────────────────────────
-function Matchup({ e, batterAvg, pcount }: { e: StatRow; batterAvg: Record<string, number>; pcount: number }) {
+// ───────────────────────── 當前對戰（球數/出局統一在記分條，此處放投打累計）─────────────────────────
+type PitcherLive = { outs: number; k: number; h: number };
+
+function Matchup({ e, batterAvg, pcount, pstats, batterToday }: {
+  e: StatRow; batterAvg: Record<string, number>; pcount: number;
+  pstats: PitcherLive; batterToday: string[];
+}) {
   const ba = batterAvg[String(e.hitter_acnt ?? "")];
+  const ip = `${Math.floor(pstats.outs / 3)}${pstats.outs % 3 ? `.${pstats.outs % 3}` : ""}`;
   return (
     <div className="rounded-xl border border-line bg-surface p-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
           <div className="text-xs text-muted">投手</div>
           <div className="text-lg font-semibold text-ink">{String(e.pitcher_name ?? "—")}</div>
+          <div className="font-mono text-xs text-faint">至此 {ip} 局・{pstats.k}K・被安 {pstats.h}</div>
           <div className="font-mono text-xs text-faint">本場第 {pcount} 球</div>
         </div>
         <div>
           <div className="text-xs text-muted">打者{e.batting_order ? `　第 ${num(e.batting_order)} 棒` : ""}</div>
           <div className="text-lg font-semibold text-ink">{String(e.hitter_name ?? "—")}</div>
           <div className="font-mono text-xs text-faint">本季打擊率 {ba !== undefined ? avg3(ba) : "—"}</div>
+          <div className="text-xs text-faint">
+            今日 {batterToday.length ? batterToday.join("、") : "首打席"}
+          </div>
         </div>
-      </div>
-      {/* 出局數只在頂部記分條顯示（BasesOuts），此處僅球數，避免重複資訊 */}
-      <div className="mt-3 flex items-center gap-5 border-t border-line pt-3">
-        <span className="flex items-center gap-1.5"><span className="w-5 font-mono text-xs font-semibold text-muted">B</span>
-          <Dots n={num(e.ball_cnt)} total={3} color="#16a34a" /></span>
-        <span className="flex items-center gap-1.5"><span className="w-5 font-mono text-xs font-semibold text-muted">S</span>
-          <Dots n={num(e.strike_cnt)} total={2} color="#eab308" /></span>
       </div>
     </div>
   );
@@ -364,6 +374,55 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", toolbar, on
     return c;
   }, [log, idx, total, e]);
 
+  // 投打即時累計（至 idx，排除進行中打席）：
+  // 投手局數用「出局宣告歸屬法」——content『N人出局』為半局內累計，宣告出現在造成出局
+  // 的那一列、該列 pitcher_acnt 即當時投手，換投中途歸屬亦正確（與後端 sabr 同構）。
+  // K/被安打以打席末事件的 action_name（打席層級傳播值）計。
+  const liveStats = useMemo(() => {
+    const outsBy: Record<string, number> = {};
+    const kBy: Record<string, number> = {};
+    const hBy: Record<string, number> = {};
+    const paResults: { hitter: string; label: string }[] = [];
+    let curHalf = "", prevAnn = 0;
+    let paFinal: StatRow | null = null;
+    const flush = () => {
+      if (!paFinal) return;
+      const p = String(paFinal.pitcher_acnt ?? "");
+      const a = String(paFinal.action_name ?? "").trim();
+      if (a.includes("三振")) kBy[p] = (kBy[p] ?? 0) + 1;
+      if (/安打|全壘打/.test(a)) hBy[p] = (hBy[p] ?? 0) + 1;
+      if (a) paResults.push({ hitter: String(paFinal.hitter_acnt), label: a.split(/\s+/)[0] });
+      paFinal = null;
+    };
+    for (let i = 0; i <= idx && i < total; i++) {
+      const r = log[i];
+      const hk = `${r.inning_seq}|${r.visiting_home_type}`;
+      if (hk !== curHalf) { flush(); curHalf = hk; prevAnn = 0; }
+      if (r.is_change_player || !r.hitter_acnt) continue;
+      if (paFinal && String((paFinal as StatRow).hitter_acnt) !== String(r.hitter_acnt)) flush();
+      paFinal = r;
+      for (const m of String(r.content ?? "").matchAll(/(\d)人出局/g)) {
+        const ann = Number(m[1]);
+        if (ann > prevAnn) {
+          const p = String(r.pitcher_acnt ?? "");
+          outsBy[p] = (outsBy[p] ?? 0) + (ann - prevAnn);
+          prevAnn = ann;
+        }
+      }
+    }
+    // 進行中打席不 flush（「今日之前」與投手累計都不含未完成打席）
+    return { outsBy, kBy, hBy, paResults };
+  }, [log, idx, total]);
+
+  const pstats = useMemo(() => {
+    const p = String(e?.pitcher_acnt ?? "");
+    return { outs: liveStats.outsBy[p] ?? 0, k: liveStats.kBy[p] ?? 0, h: liveStats.hBy[p] ?? 0 };
+  }, [liveStats, e]);
+  const batterToday = useMemo(() => {
+    const h = String(e?.hitter_acnt ?? "");
+    return liveStats.paResults.filter((r) => r.hitter === h).map((r) => r.label);
+  }, [liveStats, e]);
+
   // 當前打席逐球（以 投手×打者×局 三鍵精準比對 tracking）
   const paPitches = useMemo(() => {
     if (!e || !e.pitcher_acnt || !e.hitter_acnt) return [];
@@ -391,7 +450,8 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", toolbar, on
 
         {/* 右：當前對戰 + 好球帶（sticky） */}
         <div className="space-y-4 lg:sticky lg:top-3 lg:self-start">
-          <Matchup e={e} batterAvg={data.batter_avg} pcount={pcount} />
+          <Matchup e={e} batterAvg={data.batter_avg} pcount={pcount}
+            pstats={pstats} batterToday={batterToday} />
           <p className={`rounded-xl border px-4 py-3 text-sm ${isScore ? "border-accent/30 bg-accent/10 font-medium text-accent" : "border-line bg-surface text-ink"}`}>
             {String(e.content ?? "")}
           </p>

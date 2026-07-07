@@ -75,17 +75,17 @@ function MomentRow({ m, homeName, awayName, onJump }: {
   );
 }
 
-export function GameOverview({ wp, log, homeName, awayName, onJump }: {
+export function GameOverview({ wp, log, homeName, awayName, onJump, highlights, info }: {
   wp: WpPoint[]; log: StatRow[]; homeName: string; awayName: string;
   onJump: (evt: string) => void;
+  highlights: string[]; info: [string, string][];
 }) {
   const moments = buildMoments(wp, log);
   const key = [...moments].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
     .filter((m) => Math.abs(m.delta) >= 0.04).slice(0, 5)
     .sort((a, b) => (a.inning - b.inning) || a.evt.localeCompare(b.evt));
-  const scoring = moments.filter((m) => m.isScore);
 
-  if (!key.length && !scoring.length) return null;
+  if (!key.length && !highlights.length && !info.length) return null;
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       {key.length > 0 && (
@@ -100,29 +100,82 @@ export function GameOverview({ wp, log, homeName, awayName, onJump }: {
           </div>
         </div>
       )}
-      {scoring.length > 0 && (
-        <div className="rounded-xl border border-line bg-surface p-3">
-          <div className="mb-1.5 px-3 pt-1 text-sm font-semibold">
-            得分時刻 <span className="text-xs font-normal text-faint">（點擊看該打席）</span>
-          </div>
-          <div className="max-h-[340px] space-y-0.5 overflow-y-auto">
-            {scoring.map((m) => (
-              <button key={m.evt} onClick={() => onJump(m.evt)}
-                className="block w-full rounded-lg px-3 py-1.5 text-left transition-colors hover:bg-surface-2">
-                <div className="flex items-baseline gap-2">
-                  <span className="w-9 shrink-0 text-xs font-medium text-muted">
-                    {m.inning}{m.half === "1" ? "上" : "下"}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-sm text-ink">
-                    <span className="font-medium">{m.hitter}</span>
-                    <span className="ml-1.5 text-muted">{m.desc}</span>
-                  </span>
-                </div>
-              </button>
-            ))}
+      {(highlights.length > 0 || info.length > 0) && (
+        <div className="rounded-xl border border-line bg-surface p-4">
+          {highlights.length > 0 && (
+            <>
+              <div className="mb-2 text-sm font-semibold">本場焦點</div>
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                {highlights.map((t, i) => (
+                  <span key={i} className="rounded-md bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">{t}</span>
+                ))}
+              </div>
+            </>
+          )}
+          {info.length > 0 && (
+            <>
+              <div className="mb-1.5 text-sm font-semibold">賽事資訊</div>
+              <dl className="space-y-1 text-sm">
+                {info.map(([l, v]) => (
+                  <div key={l} className="flex gap-3">
+                    <dt className="w-10 shrink-0 text-muted">{l}</dt>
+                    <dd className="min-w-0 text-ink">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ───────────────────────── 未開賽：賽前展望 ─────────────────────────
+export type PregameMatchup = {
+  game_date: string; home_win_prob: number;
+  home: PregameSide; away: PregameSide;
+};
+export type PregameSide = {
+  code: string; name: string; win_pct: number | null; record: string | null; form: string | null;
+  starter?: { name: string; era: number | null; whip: number | null; k9: number | null } | null;
+};
+
+export function Pregame({ m }: { m: PregameMatchup }) {
+  const p = Math.round(m.home_win_prob * 100);
+  const side = (s: PregameSide, right: boolean) => (
+    <div className={right ? "text-right" : ""}>
+      <div className="text-base font-bold">{s.name}</div>
+      <div className="font-mono text-xs text-muted">{s.record ?? "—"}　近10 {s.form ?? "—"}</div>
+      {s.starter && (
+        <div className="mt-2 text-sm">
+          <span className="text-muted">預告先發</span> <span className="font-medium">{s.starter.name}</span>
+          <div className="font-mono text-xs text-faint">
+            ERA {s.starter.era ?? "—"}・WHIP {s.starter.whip ?? "—"}・K9 {s.starter.k9 ?? "—"}
           </div>
         </div>
       )}
+    </div>
+  );
+  return (
+    <div className="rounded-xl border border-line bg-surface p-4">
+      <div className="mb-3 text-sm font-semibold">
+        賽前展望 <span className="text-xs font-normal text-faint">（模型參考勝率・詳見賽事預測頁）</span>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        {side(m.away, false)}
+        {side(m.home, true)}
+      </div>
+      {/* 勝率對比條（主隊右側） */}
+      <div className="mt-4">
+        <div className="flex h-6 overflow-hidden rounded-md font-mono text-[11px] font-semibold text-white">
+          <div className="flex items-center bg-sky-700 pl-2" style={{ width: `${100 - p}%` }}>{100 - p}%</div>
+          <div className="flex items-center justify-end bg-accent pr-2" style={{ width: `${p}%` }}>{p}%</div>
+        </div>
+        <div className="mt-1.5 text-[10px] text-faint">
+          全特徵邏輯回歸即時擬合（回測 ~62%，全押主場 ~53%）；單場勝負可預測性有限，供參考與教育用途。
+        </div>
+      </div>
     </div>
   );
 }

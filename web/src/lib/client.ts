@@ -195,6 +195,9 @@ export const detail = {
     }>(`/api/v1/players/${id}/traits?role=${role}`),
   advanced: (id: string, kind: "A" | "D" = "A") =>
     clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/advanced?kind_code=${kind}`),
+  outcomeToday: () =>
+    clientGet<{ items: import("@/app/games/[sno]/overview").PregameMatchup[] }>(
+      "/api/v1/outcome/matchups?features=winrate_diff,prior_winpct_diff,runs_scored_diff,runs_allowed_diff,recent_form_diff,h2h_home,starter_era_diff,home_field&limit=12"),
   winprob: (sno: number, kind = "A", year?: number) =>
     clientGet<{
       span: string; completed: boolean;
