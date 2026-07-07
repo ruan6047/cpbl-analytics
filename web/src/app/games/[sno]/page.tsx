@@ -204,12 +204,20 @@ export default function GameLivePage() {
       if (staff.length > 1 && !staff.some((r) => r.is_complete_game)) highlights.push("合力完封");
     }
   }
+  // 裁定比賽（未打滿正常局數即終結；和局正常須 12 局、勝負正常須 9 局起）
+  if (completed && data.scoreboard.length > 0) {
+    const maxInn0 = Math.max(0, ...data.scoreboard.map((r) => n(r.inning_seq) as number));
+    if (hs !== aw && maxInn0 < 9) highlights.push(`${maxInn0} 局裁定比賽`);
+  }
   for (const r of data.batting) {
     const nm = String(r.hitter_name ?? "");
     const hr = n(r.home_runs) as number;
+    const h = n(r.hits) as number;
     if (n(r.grand_slam) as number) highlights.push(`${nm} 滿貫砲`);
     else if (hr >= 2) highlights.push(`${nm} ${hr} 響砲`);
-    if ((n(r.hits) as number) >= 4) highlights.push(`${nm} ${r.hits} 安猛打賞`);
+    // 術語：3安=猛打賞（box 內已標）、4安=鐵支、5安+ 直接報數
+    if (h === 4) highlights.push(`${nm} 鐵支（單場4安）`);
+    else if (h >= 5) highlights.push(`${nm} 單場 ${h} 安`);
     if ((n(r.rbi) as number) >= 4) highlights.push(`${nm} ${r.rbi} 打點`);
     if ((n(r.sb) as number) >= 2) highlights.push(`${nm} ${r.sb} 次盜壘`);
   }
@@ -218,11 +226,48 @@ export default function GameLivePage() {
     if (r.is_shutout) highlights.push(`${nm} 完封`);
     else if (r.is_complete_game) highlights.push(`${nm} 完投`);
     if ((n(r.so) as number) >= 10) highlights.push(`${nm} ${r.so} 次三振`);
+    // 劇場（網路用語）：救援成功但過程驚險——讓 ≥2 人上壘或有失分
+    if ((data.decisions ?? {})[String(r.pitcher_acnt)] === "SV") {
+      const runners = (n(r.hits) as number) + (n(r.bb) as number) + (n(r.hbp) as number);
+      if (runners >= 2 || (n(r.runs) as number) >= 1) highlights.push(`${nm} 劇場`);
+    }
   }
   // 最速球：≥155 才有焦點價值（日常最速無鑑別度）
   const maxSp = Math.max(0, ...data.pitching.map((r) => (n(r.max_speed) as number) || 0));
   if (maxSp >= 155) highlights.push(`最速球 ${maxSp} km/h`);
   highlights.splice(10);
+
+  // MVP 當場成績行（打者/投手 box 內 is_mvp）
+  const mvpBat = data.batting.find((r) => r.is_mvp);
+  const mvpPit = data.pitching.find((r) => r.is_mvp);
+  let mvp: { name: string; line: string } | null = null;
+  if (mvpBat) {
+    const parts = [`${n(mvpBat.at_bats)} 打數 ${n(mvpBat.hits)} 安`];
+    if (n(mvpBat.home_runs) as number) parts.push(`${mvpBat.home_runs} 轟`);
+    if (n(mvpBat.rbi) as number) parts.push(`${mvpBat.rbi} 打點`);
+    if (n(mvpBat.runs) as number) parts.push(`${mvpBat.runs} 得分`);
+    if (n(mvpBat.sb) as number) parts.push(`${mvpBat.sb} 盜`);
+    mvp = { name: String(mvpBat.hitter_name ?? ""), line: parts.join("・") };
+  } else if (mvpPit) {
+    const parts = [`${ipTxt(mvpPit)} 局`, `${n(mvpPit.so)}K`, `失 ${n(mvpPit.runs)} 分`];
+    if ((n(mvpPit.bb) as number) === 0) parts.push("無保送");
+    mvp = { name: String(mvpPit.pitcher_name ?? ""), line: parts.join("・") };
+  }
+
+  // 決勝資訊（併入焦點卡；歷史無逐打席場次仍走頁面下方 strip）
+  const ppl = data.people;
+  const holdNames = Object.entries(data.decisions ?? {})
+    .filter(([, v]) => v === "HLD")
+    .map(([acnt]) => data.pitching.find((r) => String(r.pitcher_acnt) === acnt)?.pitcher_name)
+    .filter(Boolean).join("、");
+  const decisionItems: [string, string][] = ([
+    ["先發(客)", ppl[String(g.away_starter_id)]],
+    ["先發(主)", ppl[String(g.home_starter_id)]],
+    ["勝投", ppl[String(g.winning_pitcher_id)]],
+    ["敗投", ppl[String(g.losing_pitcher_id)]],
+    ["救援", ppl[String(g.closer_id)]],
+    ["中繼", holdNames ? `${holdNames}（推算）` : undefined],
+  ] as [string, string | undefined][]).filter(([, v]) => v) as [string, string][];
 
   // 賽事資訊（渲染於總覽右卡；天氣縮寫、裁判彙整）
   const info: [string, string][] = [];
@@ -266,7 +311,8 @@ export default function GameLivePage() {
             <>
               <GameOverview wp={wp ?? []} log={data.livelog}
                 homeName={String(g.home_team_name)} awayName={String(g.away_team_name)}
-                onJump={jumpToPa} highlights={highlights} info={info} />
+                onJump={jumpToPa} highlights={highlights} info={info}
+                mvp={mvp} decisions={decisionItems} />
               <WinProbChart items={wp ?? []}
                 homeName={String(g.home_team_name)} awayName={String(g.away_team_name)}
                 homeColor={teamColor(String(g.home_team_code ?? ""))} onSelect={jumpToPa} />
@@ -315,30 +361,17 @@ export default function GameLivePage() {
         );
       })()}
 
-      {(() => {
-        const ppl = data.people;
-        // 中繼成功（HLD）：decisions 推算，名字從投手 box 對回
-        const holdNames = Object.entries(data.decisions ?? {})
-          .filter(([, v]) => v === "HLD")
-          .map(([acnt]) => data.pitching.find((r) => String(r.pitcher_acnt) === acnt)?.pitcher_name)
-          .filter(Boolean).join("、");
-        const items: [string, string | undefined][] = [
-          ["先發(客)", ppl[String(g.away_starter_id)]],
-          ["先發(主)", ppl[String(g.home_starter_id)]],
-          ["勝投", ppl[String(g.winning_pitcher_id)]],
-          ["敗投", ppl[String(g.losing_pitcher_id)]],
-          ["救援", ppl[String(g.closer_id)]],
-          ["中繼", holdNames ? `${holdNames}（推算）` : undefined],
-          ["MVP", ppl[String(g.mvp_id)]],
-        ].filter(([, v]) => v) as [string, string][];
-        return items.length ? (
-          <div className="mb-6 flex flex-wrap gap-x-5 gap-y-1.5 rounded-xl border border-line bg-surface px-4 py-3 text-sm">
-            {items.map(([l, v]) => (
-              <span key={l}><span className="text-muted">{l}</span> <span className="font-medium text-ink">{v}</span></span>
-            ))}
-          </div>
-        ) : null;
-      })()}
+      {/* 決勝資訊已併入總覽焦點卡；僅歷史無逐打席場次（無總覽）時在此顯示 */}
+      {data.livelog.length === 0 && (decisionItems.length > 0 || mvp) && (
+        <div className="mb-6 flex flex-wrap gap-x-5 gap-y-1.5 rounded-xl border border-line bg-surface px-4 py-3 text-sm">
+          {decisionItems.map(([l, v]) => (
+            <span key={l}><span className="text-muted">{l}</span> <span className="font-medium text-ink">{v}</span></span>
+          ))}
+          {ppl[String(g.mvp_id)] && (
+            <span><span className="text-muted">MVP</span> <span className="font-medium text-ink">{ppl[String(g.mvp_id)]}</span></span>
+          )}
+        </div>
+      )}
 
       {/* 本場焦點 / 賽事資訊 已整併進總覽右卡（GameOverview），此處不重複 */}
 

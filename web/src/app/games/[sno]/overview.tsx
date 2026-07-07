@@ -75,17 +75,19 @@ function MomentRow({ m, homeName, awayName, onJump }: {
   );
 }
 
-export function GameOverview({ wp, log, homeName, awayName, onJump, highlights, info }: {
+export function GameOverview({ wp, log, homeName, awayName, onJump, highlights, info, mvp, decisions }: {
   wp: WpPoint[]; log: StatRow[]; homeName: string; awayName: string;
   onJump: (evt: string) => void;
   highlights: string[]; info: [string, string][];
+  mvp: { name: string; line: string } | null;
+  decisions: [string, string][];
 }) {
   const moments = buildMoments(wp, log);
   const key = [...moments].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
     .filter((m) => Math.abs(m.delta) >= 0.04).slice(0, 5)
     .sort((a, b) => (a.inning - b.inning) || a.evt.localeCompare(b.evt));
 
-  if (!key.length && !highlights.length && !info.length) return null;
+  if (!key.length && !highlights.length && !info.length && !mvp && !decisions.length) return null;
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       {key.length > 0 && (
@@ -100,8 +102,17 @@ export function GameOverview({ wp, log, homeName, awayName, onJump, highlights, 
           </div>
         </div>
       )}
-      {(highlights.length > 0 || info.length > 0) && (
+      {(highlights.length > 0 || info.length > 0 || mvp || decisions.length > 0) && (
         <div className="rounded-xl border border-line bg-surface p-4">
+          {mvp && (
+            <div className="mb-3 flex items-center gap-3 rounded-lg bg-accent/5 px-3 py-2.5">
+              <span className="rounded-md bg-accent px-2 py-0.5 text-xs font-bold text-white">MVP</span>
+              <div>
+                <span className="text-base font-bold text-ink">{mvp.name}</span>
+                <span className="ml-2 font-mono text-xs tabular-nums text-muted">{mvp.line}</span>
+              </div>
+            </div>
+          )}
           {highlights.length > 0 && (
             <>
               <div className="mb-2 text-sm font-semibold">本場焦點</div>
@@ -111,6 +122,13 @@ export function GameOverview({ wp, log, homeName, awayName, onJump, highlights, 
                 ))}
               </div>
             </>
+          )}
+          {decisions.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-line pt-2.5 text-xs">
+              {decisions.map(([l, v]) => (
+                <span key={l}><span className="text-muted">{l}</span> <span className="font-medium text-ink">{v}</span></span>
+              ))}
+            </div>
           )}
           {info.length > 0 && (
             <>
