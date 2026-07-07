@@ -415,3 +415,29 @@ def special_records_endpoint(
     ]
     items.sort(key=lambda x: -(x["natural"][0] + x["artificial"][0]))
     return {"season": season, "items": items}
+
+
+@router.get("/api/v1/teams/{code}/der")
+def team_der_endpoint(code: str) -> dict:
+    """球隊守備效率 DER（推算=零；純官方投球總計算術）逐年 + 年度名次/聯盟均值。
+
+    DER = 1 − (H−HR)/(BF−BB−HBP−SO−HR)。franchise 含改名/轉賣前身（隊碼取前 3 碼對齊
+    opendata team_id 空間）。
+    """
+    fc = _franchise_of(code)
+    members = {c for c in (set(_FRANCHISE) | set(_FRANCHISE.values()) | {fc})
+               if _franchise_of(c) == fc} | {fc}
+    prefixes = sorted({m[:3] for m in members})
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            "WITH r AS (SELECT year, team_id, der, "
+            "  rank() OVER (PARTITION BY year ORDER BY der DESC) AS rnk, "
+            "  count(*) OVER (PARTITION BY year) AS n, "
+            "  round(avg(der) OVER (PARTITION BY year), 4) AS lg_der "
+            "  FROM cpbl.team_der) "
+            "SELECT year, team_id, der, rnk, n, lg_der FROM r "
+            "WHERE team_id = ANY(%s) ORDER BY year DESC",
+            (prefixes,))
+        items = _dicts(cur)
+    return {"team": code, "franchise": fc, "items": items}

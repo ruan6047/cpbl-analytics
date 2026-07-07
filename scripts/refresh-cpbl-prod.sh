@@ -96,6 +96,13 @@ sync_table projections "player_id,target_year,model_version,stat" predicted actu
 # sabermetrics 打底（本機 cpbl-build-sabr 產出，derived 故鏡像）
 sync_table fielding_innings "year,kind_code,player_id,pos" outs games
 sync_table run_expectancy "span,kind_code,bases,outs" re samples
+# sabermetrics Phase A+B 指標（wSB/DER/捕手失分/RE24；同為 derived 鏡像）
+sync_table sabr_run_values "span,kind_code,metric" value samples
+sync_table batter_wsb "year,player_id" sb cs opp wsb
+sync_table team_der "year,team_id" bf h hr bb hbp so der
+sync_table catcher_runs "year,kind_code,player_id" runs games
+sync_table batter_re24 "year,kind_code,player_id" pa re24
+sync_table pitcher_re24 "year,kind_code,player_id" bf re24
 sync_table batter_traits "year,kind_code,player_id" \
   pa p_pa go fo dir_left dir_center dir_right two_strike_pa two_strike_k two_strike_hit
 sync_table pitcher_traits "year,kind_code,player_id" bf p_pa go fo two_strike_pa two_strike_k

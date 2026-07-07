@@ -228,6 +228,10 @@ export const api = {
   officialStandings: (seg = 0, year?: number, kind = "A") =>
     get<OfficialStandingsResponse>(`/api/v1/standings?season_code=${seg}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 120),
   seasons: (kind = "A") => get<{ years: number[] }>(`/api/v1/seasons?kind_code=${kind}`, 600),
+  teamDer: (code: string) =>
+    get<{ team: string; franchise: string;
+      items: { year: number; team_id: string; der: string; rnk: number; n: number; lg_der: string }[];
+    }>(`/api/v1/teams/${code}/der`, 600),
   teamEras: (code: string) =>
     get<{
       franchise: string; origins: string | null;

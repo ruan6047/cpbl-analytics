@@ -195,6 +195,14 @@ export const detail = {
     }>(`/api/v1/players/${id}/traits?role=${role}`),
   advanced: (id: string, kind: "A" | "D" = "A") =>
     clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/advanced?kind_code=${kind}`),
+  sabr: (id: string, role: "batting" | "pitching") =>
+    clientGet<{
+      player_id: string; role: string;
+      years: { year: number; pa?: number | null; bf?: number | null; re24: string | null;
+        rnk: number | null; n: number | null; sb?: number | null; cs?: number | null; wsb?: string | null }[];
+      catcher?: { year: number; runs: number; games: number; outs: number; ra9: string | null;
+        cs: number | null; sba: number | null; cs_pct: number | null }[];
+    }>(`/api/v1/players/${id}/sabr?role=${role}`),
   abilityCard: (id: string) =>
     clientGet<{
       player_id: string;

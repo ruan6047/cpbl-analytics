@@ -810,3 +810,63 @@ def player_fielding(player_id: str, season: int = Query(DEFAULT_SEASON),
 
 
 # ---------- 每場賽況 ----------
+
+
+# ---------- 進階指標（sabr 推算） ----------
+@router.get("/api/v1/players/{player_id}/sabr")
+def player_sabr(player_id: str,
+                role: str = Query("batting", pattern="^(batting|pitching)$")) -> dict:
+    """進階指標（livelog/RE 矩陣推算，一軍）：打者 RE24+wSB、投手 RE24、捕手 RA9+阻殺。
+
+    RE24 2018+（rank 為該年 PA≥200 / BF≥200 合格者名次）；wSB 全史 1990+（官方 SB/CS×在地係數）。
+    捕手 RA/9 = 接捕時失分×27/接捕出局數（含非自責，故非 cERA）；阻殺率 = CS/(CS+被盜)。
+    """
+    out: dict[str, Any] = {"player_id": player_id, "role": role}
+    with conn() as c:
+        cur = c.cursor()
+        if role == "batting":
+            cur.execute(
+                "WITH q AS (SELECT year, player_id, "
+                "  rank() OVER (PARTITION BY year ORDER BY re24 DESC) AS rnk, "
+                "  count(*) OVER (PARTITION BY year) AS n "
+                "  FROM cpbl.batter_re24 WHERE kind_code='A' AND pa >= 200) "
+                "SELECT b.year, b.pa, b.re24, q.rnk, q.n, w.sb, w.cs, w.wsb "
+                "FROM cpbl.batter_re24 b "
+                "LEFT JOIN q ON q.year=b.year AND q.player_id=b.player_id "
+                "LEFT JOIN cpbl.batter_wsb w ON w.year=b.year AND w.player_id=b.player_id "
+                "WHERE b.kind_code='A' AND b.player_id=%s "
+                "UNION ALL "
+                "SELECT w.year, NULL, NULL, NULL, NULL, w.sb, w.cs, w.wsb "
+                "FROM cpbl.batter_wsb w WHERE w.player_id=%s AND w.year NOT IN "
+                "  (SELECT year FROM cpbl.batter_re24 WHERE kind_code='A' AND player_id=%s) "
+                "ORDER BY 1 DESC",
+                (player_id, player_id, player_id))
+            out["years"] = _dicts(cur)
+            cur.execute(
+                "SELECT cr.year, cr.runs, cr.games, fi.outs, "
+                "  round(cr.runs*27.0/nullif(fi.outs,0), 2) AS ra9, f.cs, f.sba "
+                "FROM cpbl.catcher_runs cr "
+                "JOIN cpbl.fielding_innings fi ON fi.year=cr.year AND fi.kind_code=cr.kind_code "
+                "  AND fi.player_id=cr.player_id AND fi.pos='C' "
+                "LEFT JOIN cpbl.fielding_current f ON f.year=cr.year AND f.kind_code='A' "
+                "  AND f.player_id=cr.player_id AND f.pos='捕手' "
+                "WHERE cr.kind_code='A' AND cr.player_id=%s AND fi.outs >= 150 "
+                "ORDER BY cr.year DESC", (player_id,))
+            catcher = _dicts(cur)
+            for r in catcher:  # 阻殺率：CS/(CS+被盜)；官方欄缺值年不算
+                att = (r.get("cs") or 0) + (r.get("sba") or 0)
+                r["cs_pct"] = round(100.0 * r["cs"] / att, 1) if r.get("cs") is not None and att else None
+            if catcher:
+                out["catcher"] = catcher
+        else:
+            cur.execute(
+                "WITH q AS (SELECT year, player_id, "
+                "  rank() OVER (PARTITION BY year ORDER BY re24 ASC) AS rnk, "
+                "  count(*) OVER (PARTITION BY year) AS n "
+                "  FROM cpbl.pitcher_re24 WHERE kind_code='A' AND bf >= 200) "
+                "SELECT r.year, r.bf, r.re24, q.rnk, q.n FROM cpbl.pitcher_re24 r "
+                "LEFT JOIN q ON q.year=r.year AND q.player_id=r.player_id "
+                "WHERE r.kind_code='A' AND r.player_id=%s ORDER BY r.year DESC",
+                (player_id,))
+            out["years"] = _dicts(cur)
+    return out

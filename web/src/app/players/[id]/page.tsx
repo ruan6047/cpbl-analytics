@@ -10,6 +10,7 @@ import { DetailSection } from "./detail";
 import { FieldingSection } from "./fielding";
 import { PlayerHero } from "./hero";
 import { Tabs } from "./parts";
+import { SabrSection } from "./sabr";
 import { CareerSummary, SeasonSection, TraitsChips } from "./season";
 import { BattedMixSection, QualitySection, TrackingSection } from "./tracking";
 import { TrendVsSection } from "./trend";
@@ -126,6 +127,7 @@ export default function PlayerPage() {
       <QualitySection advanced={advanced} role={role} />
       <BattedMixSection disc={disc} pitchMix={pitchMix} arsenal={arsenal} role={role} />
       <TrendVsSection trend={trend} careerMonthly={careerMonthly} vsTeam={vsTeam} role={role} />
+      <SabrSection id={id} role={role} />
       <FieldingSection fielding={fielding} fieldingCareer={fieldingCareer} fieldFromYear={fieldFromYear} />
       <DetailSection id={id} role={role} seasonKind={seasonKind} isRetired={isRetired} career={career} />
 
@@ -140,6 +142,7 @@ export default function PlayerPage() {
           <p>· <span className="text-muted">生涯／史上排名</span>：一軍例行賽各季合計（近兩季由逐場補）；史上排名以官方歷年累計、近兩季另計。生涯逐年源 cpbl-opendata（不含當季）。</p>
           <p>· <span className="text-muted">逐球追蹤</span>：部分球場未配置設備、涵蓋場次少於全季，與官方進階全季值會有差異；擊球品質分布紅框＝強勁擊球理想仰角帶（近似 barrel 甜蜜區）。</p>
           <p>· <span className="text-muted">一／二軍</span>：本季主要登錄層級由官網升降事件重建登錄天數判定。主守位＝本季出賽最多的守位或指定打擊（DH 由打擊出賽扣守備推算）。</p>
+          <p>· <span className="text-muted">進階指標（推算）</span>：RE24／wSB／捕手 RA9 以自建 CPBL 得分期望矩陣（逐打席 2018–25，經外部資料交叉驗證）與官方計數推算，非官方數據。RE24 名次為該年 PA≥200／BF≥200 合格者；捕手 RA/9 含非自責分（非 cERA）；跨年代比較受得分環境影響。</p>
         </div>
       </details>
 

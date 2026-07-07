@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function TeamPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
-  const [{ season, items }, derived, special, trend, games, bat, pit, eras, roster] = await Promise.all([
+  const [{ season, items }, derived, special, trend, games, bat, pit, eras, roster, der] = await Promise.all([
     api.officialStandings(0),
     api.standings(),
     api.specialRecords(),
@@ -20,6 +20,7 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
     api.pitchingLeaders("era", { limit: 500, minIp: 20 }),
     api.teamEras(code),
     api.teamPlayers(code),
+    api.teamDer(code).catch(() => ({ team: code, franchise: code, items: [] })),
   ]);
 
   const team = items.find((t) => t.team_code === code);
@@ -39,6 +40,8 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
   const color = _bd.letter !== "?" ? _bd.color : teamColor(code);
   const ink = contrastText(color);
 
+  // 本季 DER（守備效率；官方投球總計算術）：值 + 年度名次 + 聯盟均值
+  const derNow = team ? der.items.find((d) => d.year === season) : undefined;
   const teamGames = team ? games.items
     .filter((g) => g.home_team_code === code || g.away_team_code === code)
     .sort((a, b) => b.game_date.localeCompare(a.game_date))
@@ -90,11 +93,13 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
           <StatTile label="失分/場" value={f2(adv?.ra_pg)} />
           <StatTile label="得失分差" value={adv ? (adv.run_diff > 0 ? `+${adv.run_diff}` : `${adv.run_diff}`) : "—"} accent />
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
           <StatTile label="主場" value={team.home_record ?? "—"} />
           <StatTile label="客場" value={team.away_record ?? "—"} />
           <StatTile label="連勝/敗" value={team.streak ?? "—"} />
           <StatTile label="淘汰指數" value={team.elim && team.elim !== "" ? team.elim : "—"} />
+          <StatTile label={`守備效率 DER${derNow ? `（第 ${derNow.rnk} 名）` : ""}`}
+            value={derNow ? Number(derNow.der).toFixed(3) : "—"} />
         </div>
       </section>
       )}

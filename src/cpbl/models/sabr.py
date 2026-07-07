@@ -476,10 +476,11 @@ def build_team_der() -> dict:
     """
     with conn() as c:
         cur = c.cursor()
+        # team_id 一律取前 3 碼：opendata 歷史=3 碼，但 2025 起 seasons 由 current 回填帶 6 碼
         cur.execute(
-            "SELECT year, team_id, sum(bf), sum(h), sum(hr), sum(bb), "
+            "SELECT year, left(team_id, 3), sum(bf), sum(h), sum(hr), sum(bb), "
             "sum(coalesce(hbp,0)), sum(so) FROM cpbl.pitching_seasons "
-            "GROUP BY year, team_id "
+            "GROUP BY year, left(team_id, 3) "
             "UNION ALL "
             "SELECT year, left(team_code, 3), sum(pa), sum(h), sum(hr), sum(bb), "
             "sum(coalesce(hbp,0)), sum(so) FROM cpbl.pitching_current "
