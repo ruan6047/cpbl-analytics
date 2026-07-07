@@ -7,7 +7,7 @@ import { detail, type StatRow } from "@/lib/client";
 import { fmtIPParts } from "@/lib/format";
 import GameBoard, { type Live } from "@/components/game-board";
 import { WinProbChart, type WpPoint } from "@/components/win-prob-chart";
-import { teamColor } from "@/lib/teams";
+import { fanNick, teamColor, teamShort } from "@/lib/teams";
 import { GameOverview, Pregame, type PregameMatchup } from "./overview";
 
 const n = (v: number | string | null) => (v === null || v === undefined ? "" : Number(v));
@@ -209,6 +209,66 @@ export default function GameLivePage() {
     const maxInn0 = Math.max(0, ...data.scoreboard.map((r) => n(r.inning_seq) as number));
     if (hs !== aw && maxInn0 < 9) highlights.push(`${maxInn0} 局裁定比賽`);
   }
+  // 魯閣（網路用語，源自大魯閣打擊場＝投手像發球機一樣好打）：
+  // 單場失 10 分以上＝被打爆隊的暱稱前綴+魯閣；失 20 分以上＝雙魯閣。非官方、含嘲諷意味。
+  if (completed) {
+    const lukaku = (concededBy: string | null | undefined, runsAgainst: number) => {
+      if (runsAgainst < 10) return;
+      const p = fanNick(String(concededBy ?? ""))?.prefix ?? "";
+      highlights.push(runsAgainst >= 20 ? `雙${p}魯閣（失 ${runsAgainst} 分）` : `${p}魯閣（失 ${runsAgainst} 分）`);
+    };
+    lukaku(g.away_team_code as string, hs);   // 主隊得 10+ → 客隊被打爆
+    lukaku(g.home_team_code as string, aw);   // 客隊得 10+ → 主隊被打爆
+  }
+  // 中計（網路用語）：滿壘卻未得分收場；大中計＝無人出局滿壘未得分。
+  // 比分欄=事件後快照 → 滿壘點的「當下分數」須用前一列事件後分（防首球滿貫誤判）。
+  if (completed && data.livelog.length > 0) {
+    const pre = new Map<StatRow, number>();
+    let pv = 0, ph = 0;
+    for (const r of data.livelog) {
+      pre.set(r, String(r.visiting_home_type) === "1" ? pv : ph);
+      pv = r.visiting_score != null ? (n(r.visiting_score) as number) : pv;
+      ph = r.home_score != null ? (n(r.home_score) as number) : ph;
+    }
+    const byHalf = new Map<string, StatRow[]>();
+    for (const r of data.livelog) {
+      const k = `${r.inning_seq}|${r.visiting_home_type}`;
+      if (!byHalf.has(k)) byHalf.set(k, []);
+      byHalf.get(k)!.push(r);
+    }
+    const traps: Record<string, { normal: number; big: number }> = { "1": { normal: 0, big: 0 }, "2": { normal: 0, big: 0 } };
+    for (const [k, rows] of byHalf) {
+      const vht = k.split("|")[1];
+      const post = vht === "1" ? "visiting_score" : "home_score";
+      const endScore = Math.max(0, ...rows.map((r) => (n(r[post]) as number) || 0));
+      let prevHitter = "", trapped: "big" | "normal" | null = null;
+      for (const r of rows) {
+        if (r.is_change_player || !r.hitter_acnt) continue;
+        if (String(r.hitter_acnt) !== prevHitter) {           // 打席首事件
+          prevHitter = String(r.hitter_acnt);
+          const loaded = r.first_base && r.second_base && r.third_base;
+          if (loaded && endScore - (pre.get(r) ?? 0) === 0) {
+            trapped = (n(r.out_cnt) as number) === 0 ? "big" : (trapped ?? "normal");
+          }
+        }
+      }
+      if (trapped) traps[vht][trapped === "big" ? "big" : "normal"]++;
+    }
+    for (const [vht, t] of Object.entries(traps)) {
+      const team = teamShort(String(vht === "1" ? g.away_team_code : g.home_team_code));
+      if (t.big) highlights.push(`${team} 大中計${t.big > 1 ? ` ×${t.big}` : ""}（無人出局滿壘未得分）`);
+      if (t.normal) highlights.push(`${team} 中計${t.normal > 1 ? ` ×${t.normal}` : ""}（滿壘未得分）`);
+    }
+  }
+  // 煮粥（網路用語）：單局 2 次以上失誤（守備一鍋粥）。scoreboard 逐局 E 直接判。
+  if (completed) {
+    for (const r of data.scoreboard) {
+      if ((n(r.error_cnt) as number) >= 2) {
+        const team = teamShort(String(String(r.visiting_home_type) === "1" ? g.away_team_code : g.home_team_code));
+        highlights.push(`${team} 煮粥（${n(r.inning_seq)} 局 ${r.error_cnt} 失誤）`);
+      }
+    }
+  }
   for (const r of data.batting) {
     const nm = String(r.hitter_name ?? "");
     const hr = n(r.home_runs) as number;
@@ -220,14 +280,24 @@ export default function GameLivePage() {
     else if (h >= 5) highlights.push(`${nm} 單場 ${h} 安`);
     if ((n(r.rbi) as number) >= 4) highlights.push(`${nm} ${r.rbi} 打點`);
     if ((n(r.sb) as number) >= 2) highlights.push(`${nm} ${r.sb} 次盜壘`);
+    // 致勝打點（官方 box 欄）：每場勝方必有，作為焦點區的保底內容
+    if (n(r.gw_rbi) as number) highlights.push(`${nm} 致勝打點`);
   }
   for (const r of data.pitching) {
     const nm = String(r.pitcher_name ?? "");
+    const d = (data.decisions ?? {})[String(r.pitcher_acnt)];
     if (r.is_shutout) highlights.push(`${nm} 完封`);
     else if (r.is_complete_game) highlights.push(`${nm} 完投`);
     if ((n(r.so) as number) >= 10) highlights.push(`${nm} ${r.so} 次三振`);
+    // 問天（網路用語）：優質先發（≥6 局、自責 ≤3）卻吞敗或無關勝負
+    const isStarter = String(r.pitcher_acnt) === String(g.away_starter_id)
+      || String(r.pitcher_acnt) === String(g.home_starter_id);
+    const outs = (n(r.inning_pitched_cnt) as number) * 3 + (n(r.inning_pitched_div3) as number);
+    if (completed && isStarter && outs >= 18 && (n(r.earned_runs) as number) <= 3 && d !== "W") {
+      highlights.push(`${nm} 問天（優質先發${d === "L" ? "吞敗" : "無關勝負"}）`);
+    }
     // 劇場（網路用語）：救援成功但過程驚險——讓 ≥2 人上壘或有失分
-    if ((data.decisions ?? {})[String(r.pitcher_acnt)] === "SV") {
+    if (d === "SV") {
       const runners = (n(r.hits) as number) + (n(r.bb) as number) + (n(r.hbp) as number);
       if (runners >= 2 || (n(r.runs) as number) >= 1) highlights.push(`${nm} 劇場`);
     }
@@ -269,20 +339,22 @@ export default function GameLivePage() {
     ["中繼", holdNames ? `${holdNames}（推算）` : undefined],
   ] as [string, string | undefined][]).filter(([, v]) => v) as [string, string][];
 
-  // 賽事資訊（渲染於總覽右卡；天氣縮寫、裁判彙整）
+  // 賽事資訊（渲染於總覽右卡）：天氣/觀眾/時長併一列，裁判獨立一列
   const info: [string, string][] = [];
   if (data.detail) {
     const d = data.detail;
+    const parts: string[] = [];
     const wx = String(d.weather_desc ?? "");
     if (wx) {
       const cond = wx.split("。")[0] ?? "";
       const temp = wx.match(/攝氏(\d+)至(\d+)度/);
       const icon = /雷|雨/.test(cond) ? "🌧️" : /多雲/.test(cond) ? "⛅"
         : /陰/.test(cond) ? "☁️" : /晴/.test(cond) ? "☀️" : "🌡️";
-      info.push(["天氣", `${icon} ${cond}${temp ? ` ${temp[1]}–${temp[2]}°C` : ""}`]);
+      parts.push(`${icon} ${cond}${temp ? ` ${temp[1]}–${temp[2]}°C` : ""}`);
     }
-    if (d.attendance) info.push(["觀眾", `${Number(d.attendance).toLocaleString()} 人`]);
-    if (d.game_time) info.push(["時長", String(d.game_time)]);
+    if (d.attendance) parts.push(`觀眾 ${Number(d.attendance).toLocaleString()} 人`);
+    if (d.game_time) parts.push(`時長 ${String(d.game_time)}`);
+    if (parts.length) info.push(["資訊", parts.join("・")]);
     const umps = [["主審", d.head_umpire], ["一壘", d.first_umpire], ["二壘", d.second_umpire],
       ["三壘", d.third_umpire], ["左審", d.left_umpire], ["右審", d.right_umpire]]
       .filter(([, v]) => v).map(([l, v]) => `${l} ${v}`).join("、");

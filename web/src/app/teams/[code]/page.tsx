@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { StandingsTrend } from "@/components/standings-trend";
 import { ActivePill, Card, EraBadge, StatTile, TeamLogo } from "@/components/ui";
 import { api } from "@/lib/api";
-import { contrastText, nameMeta, teamColor } from "@/lib/teams";
+import { contrastText, fanNick, nameMeta, teamColor } from "@/lib/teams";
 import { CoachGrid, GROUPS, ManagersTable, PlayerTable, RetiredNumbers, RosterChips, RosterTable, f2, f3 } from "./parts";
 
 export const dynamic = "force-dynamic";
@@ -62,6 +62,11 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
           </div>
           <div className="text-sm opacity-90">
             {team ? `${season} 球季 · 第 ${team.rank} 名` : `${eras.eras[0]?.from}–${lastEra?.to} · 已退出一軍`}
+            {fanNick(code) && (
+              <span className="ml-2 opacity-75" title="球迷暱稱（非官方，源自網路社群，部分含自嘲意味）">
+                「{fanNick(code)!.nick}」
+              </span>
+            )}
           </div>
         </div>
         <div className="ml-auto text-right">

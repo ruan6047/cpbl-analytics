@@ -16,6 +16,21 @@ export const TEAMS: Record<string, TeamMeta> = {
 // CPBL 品牌色（CPBL TV：藍 + 紅）
 export const CPBL_BLUE = "#1B4DA1";
 
+// 球迷暱稱（**非官方**，源自 PTT/網路社群，部分含嘲諷/自嘲意味——如統一因獅屬貓科
+// 被稱「喵喵」；用於趣味標籤如「魯閣」，正式文案勿用）。prefix = 魯閣等梗的單字前綴。
+export const FAN_NICK: Record<string, { nick: string; prefix: string }> = {
+  AAA011: { nick: "龍龍", prefix: "龍" },   // 味全龍
+  ACN011: { nick: "爪爪", prefix: "爪" },   // 中信兄弟（象爪）
+  ADD011: { nick: "喵喵", prefix: "喵" },   // 統一獅（獅=貓科，自嘲）
+  AEO011: { nick: "邦邦", prefix: "邦" },   // 富邦悍將
+  AJL011: { nick: "吱吱", prefix: "吱" },   // 樂天桃猿（猿叫聲）
+  AKP011: { nick: "啾啾", prefix: "啾" },   // 台鋼雄鷹（鳥叫聲）
+};
+export const fanNick = (code?: string | null) => {
+  const fc = franchiseOf(code ?? undefined);
+  return fc ? FAN_NICK[fc] : undefined;
+};
+
 // 改名/轉賣視為同一支球隊：歷史隊代碼 → 現役 franchise 代碼（依 games 年份範圍實證）
 const FRANCHISE: Record<string, string> = {
   ACC011: "ACN011",                                   // 兄弟象 → 中信兄弟
