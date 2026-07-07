@@ -6,8 +6,9 @@ import { useEffect, useState } from "react";
 import { detail, type StatRow } from "@/lib/client";
 import { fmtIPParts } from "@/lib/format";
 import GameBoard, { type Live } from "@/components/game-board";
-import { WinProbChart } from "@/components/win-prob-chart";
+import { WinProbChart, type WpPoint } from "@/components/win-prob-chart";
 import { teamColor } from "@/lib/teams";
+import { GameOverview } from "./overview";
 
 const n = (v: number | string | null) => (v === null || v === undefined ? "" : Number(v));
 
@@ -110,16 +111,30 @@ export default function GameLivePage() {
   const [data, setData] = useState<Live | null>(null);
   const [err, setErr] = useState(false);
   const [idx, setIdx] = useState(0);
+  // 頁面預設「比賽總覽」；逐打席為進階操作視圖
+  const [view, setView] = useState<"overview" | "pbp">("overview");
+  const [wp, setWp] = useState<WpPoint[] | null>(null);
 
   useEffect(() => {
     detail.gameLive(Number(sno), kind, year)
       .then((d) => {
         const dd = d as Live;
         setData(dd);
-        setIdx(Math.max(0, dd.livelog.length - 1)); // 預設停在終局
+        setIdx(Math.max(0, dd.livelog.length - 1)); // 逐打席視圖預設停在終局
       })
       .catch(() => setErr(true));
+    detail.winprob(Number(sno), kind, year).then((d) => setWp(d.items)).catch(() => setWp([]));
   }, [sno, kind, year]);
+
+  // 總覽點關鍵時刻/得分時刻/勝率曲線 → 跳到該打席（切逐打席視圖 + 捲到操作區）
+  const jumpToPa = (evt: string) => {
+    const i = data?.livelog.findIndex((e) => String(e.main_event_no) === evt) ?? -1;
+    if (i < 0) return;
+    setIdx(i);
+    setView("pbp");
+    requestAnimationFrame(() =>
+      document.getElementById("pbp-section")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
 
   if (err) return <p className="text-sm text-muted">載入賽況失敗。</p>;
   if (!data) return <p className="text-sm text-faint">載入中…</p>;
@@ -132,10 +147,28 @@ export default function GameLivePage() {
 
       {data.livelog.length > 0 ? (
         <section className="mb-8 mt-2 space-y-4">
-          <GameBoard data={data} idx={idx} setIdx={setIdx} />
-          <WinProbChart sno={Number(sno)} kind={kind} year={year}
-            homeName={String(g.home_team_name)} awayName={String(g.away_team_name)}
-            homeColor={teamColor(String(g.home_team_code ?? ""))} />
+          <GameBoard data={data} idx={idx} setIdx={setIdx} view={view}
+            onNavigate={() => setView("pbp")}
+            toolbar={
+              <div className="inline-flex gap-1 rounded-lg bg-surface-2 p-1">
+                {([["overview", "比賽總覽"], ["pbp", "逐打席"]] as const).map(([v, label]) => (
+                  <button key={v} onClick={() => setView(v)}
+                    className={`rounded-md px-3 py-1 text-sm transition ${view === v ? "bg-ink text-white" : "text-muted hover:text-ink"}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            } />
+          {view === "overview" && (
+            <>
+              <GameOverview wp={wp ?? []} log={data.livelog}
+                homeName={String(g.home_team_name)} awayName={String(g.away_team_name)}
+                onJump={jumpToPa} />
+              <WinProbChart items={wp ?? []}
+                homeName={String(g.home_team_name)} awayName={String(g.away_team_name)}
+                homeColor={teamColor(String(g.home_team_code ?? ""))} onSelect={jumpToPa} />
+            </>
+          )}
         </section>
       ) : (
         <header className="mb-6 mt-2">
@@ -168,12 +201,18 @@ export default function GameLivePage() {
 
       {(() => {
         const ppl = data.people;
+        // 中繼成功（HLD）：decisions 推算，名字從投手 box 對回
+        const holdNames = Object.entries(data.decisions ?? {})
+          .filter(([, v]) => v === "HLD")
+          .map(([acnt]) => data.pitching.find((r) => String(r.pitcher_acnt) === acnt)?.pitcher_name)
+          .filter(Boolean).join("、");
         const items: [string, string | undefined][] = [
           ["先發(客)", ppl[String(g.away_starter_id)]],
           ["先發(主)", ppl[String(g.home_starter_id)]],
           ["勝投", ppl[String(g.winning_pitcher_id)]],
           ["敗投", ppl[String(g.losing_pitcher_id)]],
           ["救援", ppl[String(g.closer_id)]],
+          ["中繼", holdNames ? `${holdNames}（推算）` : undefined],
           ["MVP", ppl[String(g.mvp_id)]],
         ].filter(([, v]) => v) as [string, string][];
         return items.length ? (

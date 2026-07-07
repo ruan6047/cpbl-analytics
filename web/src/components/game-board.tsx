@@ -46,21 +46,27 @@ function Dots({ n, total, color }: { n: number; total: number; color: string }) 
   );
 }
 
-// ───────────────────────── 壘包鑽石 ─────────────────────────
-function Diamond({ b1, b2, b3, size = 56 }: { b1: boolean; b2: boolean; b3: boolean; size?: number }) {
+// ───────────────────────── 壘包＋出局（緊湊版：菱形品字群 + 出局點）─────────────────────────
+function BasesOuts({ b1, b2, b3, outs, size = 52 }: {
+  b1: boolean; b2: boolean; b3: boolean; outs: number; size?: number;
+}) {
+  // 品字排列：二壘上中、三壘左下、一壘右下，菱形緊靠；下方兩顆出局圓點
   const base = (cx: number, cy: number, on: boolean) => (
     <rect
-      x={cx - 11} y={cy - 11} width={22} height={22}
-      transform={`rotate(45 ${cx} ${cy})`} rx={3}
-      fill={on ? "var(--color-accent)" : "var(--color-surface)"}
-      stroke={on ? "var(--color-accent)" : "var(--color-faint)"} strokeWidth={2}
+      x={cx - 15} y={cy - 15} width={30} height={30}
+      transform={`rotate(45 ${cx} ${cy})`} rx={4}
+      fill={on ? "var(--color-accent)" : "var(--color-line)"}
+      stroke="var(--color-surface)" strokeWidth={3}
     />
   );
+  const o = Math.min(outs, 2);
   return (
-    <svg viewBox="0 0 120 120" width={size} height={size}>
-      {base(108, 60, b1)}
-      {base(60, 12, b2)}
-      {base(12, 60, b3)}
+    <svg viewBox="0 0 120 116" width={size} height={size * 116 / 120} aria-label={`壘上${[b1 && "一壘", b2 && "二壘", b3 && "三壘"].filter(Boolean).join("、") || "無人"}，${o} 出局`}>
+      {base(60, 26, b2)}
+      {base(36, 50, b3)}
+      {base(84, 50, b1)}
+      <circle cx={48} cy={92} r={9} fill={o >= 1 ? "var(--color-accent)" : "var(--color-line)"} />
+      <circle cx={72} cy={92} r={9} fill={o >= 2 ? "var(--color-accent)" : "var(--color-line)"} />
     </svg>
   );
 }
@@ -92,15 +98,12 @@ function ScoreBar({ game, e, records }: { game: StatRow; e: StatRow; records: Re
       <div className="grid grid-cols-[1fr_auto_auto_auto_1fr] items-center gap-4 px-5 py-4">
         {side(ac, game.away_team_name, ar, false)}
         <div className="font-mono text-4xl font-bold tabular-nums">{num(e.visiting_score)}</div>
-        <div className="flex flex-col items-center px-2">
+        <div className="flex flex-col items-center gap-0.5 px-2">
           <div className="text-xs font-semibold tracking-wide text-accent">
             {half === "1" ? "▲ TOP" : "▼ BOT"} {num(e.inning_seq)}
           </div>
-          <Diamond b1={occupied(e.first_base)} b2={occupied(e.second_base)} b3={occupied(e.third_base)} />
-          <div className="flex items-center gap-1 text-[11px] text-muted">
-            <span>OUT</span>
-            <Dots n={Math.min(num(e.out_cnt), 2)} total={2} color="var(--color-accent)" />
-          </div>
+          <BasesOuts b1={occupied(e.first_base)} b2={occupied(e.second_base)}
+            b3={occupied(e.third_base)} outs={num(e.out_cnt)} />
         </div>
         <div className="font-mono text-4xl font-bold tabular-nums">{num(e.home_score)}</div>
         {side(hc, game.home_team_name, hr, true)}
@@ -129,13 +132,12 @@ function Matchup({ e, batterAvg, pcount }: { e: StatRow; batterAvg: Record<strin
           <div className="font-mono text-xs text-faint">本季打擊率 {ba !== undefined ? avg3(ba) : "—"}</div>
         </div>
       </div>
+      {/* 出局數只在頂部記分條顯示（BasesOuts），此處僅球數，避免重複資訊 */}
       <div className="mt-3 flex items-center gap-5 border-t border-line pt-3">
         <span className="flex items-center gap-1.5"><span className="w-5 font-mono text-xs font-semibold text-muted">B</span>
           <Dots n={num(e.ball_cnt)} total={3} color="#16a34a" /></span>
         <span className="flex items-center gap-1.5"><span className="w-5 font-mono text-xs font-semibold text-muted">S</span>
           <Dots n={num(e.strike_cnt)} total={2} color="#eab308" /></span>
-        <span className="flex items-center gap-1.5"><span className="w-5 font-mono text-xs font-semibold text-muted">O</span>
-          <Dots n={Math.min(num(e.out_cnt), 2)} total={2} color="var(--color-accent)" /></span>
       </div>
     </div>
   );
@@ -324,9 +326,12 @@ function StrikeZone({ pitches }: { pitches: TrackRow[] }) {
 }
 
 // ───────────────────────── 主板 ─────────────────────────
-export default function GameBoard({ data, idx, setIdx }: {
+export default function GameBoard({ data, idx, setIdx, view = "pbp", toolbar, onNavigate }: {
   data: Live;
   idx: number; setIdx: (i: number) => void;
+  view?: "overview" | "pbp";     // overview=總覽（隱藏逐打席操作區）；pbp=逐打席
+  toolbar?: React.ReactNode;     // 視圖切換列（渲染在逐局比分與內容之間）
+  onNavigate?: () => void;       // 使用者選打席/選局時通知父層（總覽→切逐打席）
 }) {
   const log = data.livelog;
   const game = data.game!;
@@ -335,7 +340,7 @@ export default function GameBoard({ data, idx, setIdx }: {
   // 使用者主動切換（點打席/選半局）時才允許把當前打席捲入視野；
   // 區分 page 載入時程式化的 setIdx(終局)——後者不得捲動整頁。
   const userAction = useRef(false);
-  const selectIdx = (i: number) => { userAction.current = true; setIdx(i); };
+  const selectIdx = (i: number) => { userAction.current = true; setIdx(i); onNavigate?.(); };
 
   const e = log[idx] ?? log[total - 1];
   const halves = useMemo(() => buildHalves(log), [log]);
@@ -377,7 +382,10 @@ export default function GameBoard({ data, idx, setIdx }: {
       <ScoreLine sb={data.scoreboard} game={game}
         halves={halves} curKey={curKey} onSelect={(h) => selectIdx(h.firstIdx)} />
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+      {toolbar}
+
+      {view === "pbp" && (
+      <div id="pbp-section" className="grid scroll-mt-16 gap-4 lg:grid-cols-[1fr_360px]">
         {/* 左：逐打席賽況（選定半局）*/}
         <PlayByPlay log={log} events={curEvents} idx={idx} setIdx={selectIdx} userAction={userAction} />
 
@@ -402,6 +410,7 @@ export default function GameBoard({ data, idx, setIdx }: {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
