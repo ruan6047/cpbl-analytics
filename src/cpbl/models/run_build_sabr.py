@@ -44,6 +44,11 @@ def main() -> None:
     build_run_values(2018, this_year - 1)
     build_team_der()
     build_wsb(f"2018-{this_year - 1}")
+    # 逐打席勝率打底（run_dist 分布 + WE 邊界 DP；校準驗證印在 log）
+    from cpbl.models.winprob import build_run_dist, build_win_expectancy, validate_calibration
+    build_run_dist(2018, this_year - 1)
+    build_win_expectancy(f"2018-{this_year - 1}")
+    validate_calibration(2018, this_year - 1, f"2018-{this_year - 1}")
 
 
 if __name__ == "__main__":

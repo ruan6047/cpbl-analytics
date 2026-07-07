@@ -103,6 +103,9 @@ sync_table team_der "year,team_id" bf h hr bb hbp so der
 sync_table catcher_runs "year,kind_code,player_id" runs games
 sync_table batter_re24 "year,kind_code,player_id" pa re24
 sync_table pitcher_re24 "year,kind_code,player_id" bf re24
+# 逐打席勝率打底（run_dist 分布 + WE 邊界；API /games/{sno}/winprob 讀這兩張）
+sync_table run_dist "span,kind_code,side,bases,outs,k" p samples
+sync_table win_expectancy "span,kind_code,inning,half,diff" p_win p_tie
 sync_table batter_traits "year,kind_code,player_id" \
   pa p_pa go fo dir_left dir_center dir_right two_strike_pa two_strike_k two_strike_hit
 sync_table pitcher_traits "year,kind_code,player_id" bf p_pa go fo two_strike_pa two_strike_k

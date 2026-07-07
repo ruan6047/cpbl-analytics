@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { detail, type StatRow } from "@/lib/client";
 import { fmtIPParts } from "@/lib/format";
 import GameBoard, { type Live } from "@/components/game-board";
+import { WinProbChart } from "@/components/win-prob-chart";
+import { teamColor } from "@/lib/teams";
 
 const n = (v: number | string | null) => (v === null || v === undefined ? "" : Number(v));
 
@@ -129,8 +131,11 @@ export default function GameLivePage() {
       <Link href="/games" className="text-xs text-faint hover:text-accent">← 返回賽況列表</Link>
 
       {data.livelog.length > 0 ? (
-        <section className="mb-8 mt-2">
+        <section className="mb-8 mt-2 space-y-4">
           <GameBoard data={data} idx={idx} setIdx={setIdx} />
+          <WinProbChart sno={Number(sno)} kind={kind} year={year}
+            homeName={String(g.home_team_name)} awayName={String(g.away_team_name)}
+            homeColor={teamColor(String(g.home_team_code ?? ""))} />
         </section>
       ) : (
         <header className="mb-6 mt-2">

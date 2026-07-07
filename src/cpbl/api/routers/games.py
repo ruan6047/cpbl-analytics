@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON, _dicts
@@ -167,3 +169,74 @@ def game_live(
 # ---- 能力值卡（遊戲風雷達圖）：以全史生涯 rate 對全聯盟母體求百分位 [PR] ----
 # 不抄任何遊戲數字；每軸 = 我們自算的客觀指標相對「所有合格生涯球員」的 percent_rank。
 # 等級 S–G 純由 PR 換算，方便一眼讀懂（教育用途，呼應 /predict）。
+
+
+# ---------- 逐打席勝率（WP；推算） ----------
+@lru_cache(maxsize=4)
+def _wp_tables(span: str, kind: str):
+    """快取 run_dist + WE 求解器（表小、跨 request 重用；重建後重啟 API 生效）。"""
+    from cpbl.models.winprob import _load_dist, _we_solver
+    dist = _load_dist(span, kind)
+    we_top, we_bot = _we_solver(dist[("1", "___", 0)], dist[("2", "___", 0)])
+    return dist, we_top, we_bot
+
+
+@router.get("/api/v1/games/{game_sno}/winprob")
+def game_winprob(
+    game_sno: int,
+    season: int = Query(DEFAULT_SEASON),
+    kind_code: str = Query("A", pattern="^(A|C|E|D)$"),
+) -> dict:
+    """逐打席主隊勝率（推算）：自建 run_dist × WE 邊界 DP（span 2018-2025 一軍）。
+
+    每打席一點（打席開始時的局面 WP）；完賽補終點 1/0/0.5。中性隊伍 + 主場優勢，
+    不含先發/戰力差 → 開局 ≈ 聯盟主場基準 0.528。
+    """
+    from cpbl.models.winprob import wp_state
+    span = "2018-2025"
+    try:
+        dist, we_top, we_bot = _wp_tables(span, "A")
+    except RuntimeError:
+        return {"items": [], "note": "win_expectancy 未建置"}
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            "SELECT main_event_no, inning_seq, visiting_home_type, batting_order, out_cnt, "
+            "is_change_player, hitter_acnt, hitter_name, first_base, second_base, third_base, "
+            "visiting_score, home_score FROM cpbl.game_livelog "
+            "WHERE year=%s AND kind_code=%s AND game_sno=%s ORDER BY main_event_no",
+            (season, kind_code, game_sno))
+        events = _dicts(cur)
+        cur.execute("SELECT home_score, away_score FROM cpbl.games "
+                    "WHERE year=%s AND kind_code=%s AND game_sno=%s",
+                    (season, kind_code, game_sno))
+        fin = cur.fetchone()
+    events.sort(key=lambda r: int(r["main_event_no"]))
+    items, seen = [], set()
+    pv = ph = 0
+    for e in events:
+        pre_v, pre_h = pv, ph
+        pv = e["visiting_score"] if e.get("visiting_score") is not None else pv
+        ph = e["home_score"] if e.get("home_score") is not None else ph
+        if e.get("is_change_player") or not e.get("hitter_acnt"):
+            continue
+        pa_key = (e["inning_seq"], str(e["visiting_home_type"]),
+                  e.get("batting_order"), e["hitter_acnt"])
+        if pa_key in seen:
+            continue
+        seen.add(pa_key)
+        bases = (("1" if e.get("first_base") else "_")
+                 + ("2" if e.get("second_base") else "_")
+                 + ("3" if e.get("third_base") else "_"))
+        wp = wp_state(dist, we_top, we_bot, int(e["inning_seq"]),
+                      str(e["visiting_home_type"]), pre_h - pre_v,
+                      bases, int(e.get("out_cnt") or 0))
+        items.append({"evt": e["main_event_no"], "inning": e["inning_seq"],
+                      "half": str(e["visiting_home_type"]), "hitter": e.get("hitter_name"),
+                      "away": pre_v, "home": pre_h, "wp": round(wp, 4)})
+    completed = bool(fin and (fin[0] or 0) + (fin[1] or 0) > 0)
+    if completed and items:
+        final_wp = 1.0 if fin[0] > fin[1] else (0.0 if fin[0] < fin[1] else 0.5)
+        items.append({"evt": None, "inning": None, "half": None, "hitter": None,
+                      "away": fin[1], "home": fin[0], "wp": final_wp})
+    return {"span": span, "completed": completed, "items": items}
