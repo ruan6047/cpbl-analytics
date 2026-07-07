@@ -250,6 +250,30 @@ _B_MARKS = [("hits", "安", 500), ("home_runs", "轟", 50), ("rbi", "打點", 50
 _MILESTONE_G = 500  # 出賽場次關卡
 
 
+@lru_cache(maxsize=4)
+def _season_decisions(season: int, kind_code: str) -> dict[str, list[tuple[str, int, str]]]:
+    """{pitcher_acnt: [(game_date, game_sno, 'W'|'L'|'SV'|'HLD'), ...]} 全季逐場 decisions（快取，
+    只在 process 內首次請求該季/kind 時算一次；SV 需逐場 livelog 重建，量體才需快取）。"""
+    from collections import defaultdict
+    out: dict[str, list] = defaultdict(list)
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute("SELECT game_sno, game_date, home_score, away_score FROM cpbl.games "
+                    "WHERE year=%s AND kind_code=%s AND home_score+away_score>0 "
+                    "ORDER BY game_date, game_sno", (season, kind_code))
+        games = cur.fetchall()
+        for sno, gdate, hs, aws in games:
+            cur.execute("SELECT * FROM cpbl.game_livelog WHERE year=%s AND kind_code=%s AND game_sno=%s",
+                        (season, kind_code, sno))
+            livelog = _dicts(cur)
+            cur.execute("SELECT * FROM cpbl.pitching_gamelog WHERE year=%s AND kind_code=%s AND game_sno=%s",
+                        (season, kind_code, sno))
+            pitching = _dicts(cur)
+            for acnt, d in pitcher_decisions.decide(livelog, pitching, hs, aws).items():
+                out[acnt].append((str(gdate), sno, d))
+    return dict(out)
+
+
 @router.get("/api/v1/games/{game_sno}/milestones")
 def game_milestones(
     game_sno: int,
@@ -309,18 +333,22 @@ def game_milestones(
                 items.append({"player": name, "text": "一軍初登場"})
             elif (pg + 1) % _MILESTONE_G == 0:
                 items.append({"player": name, "text": f"生涯第 {pg + 1} 場出賽"})
-        # 投手：K/出賽/勝投
+        # 投手：K / 局數（取代出賽）/ 勝投 / 中繼(HLD) / 後援(SV)
+        # ip 欄為棒球記法 X.1=X⅓／X.2=X⅔，非小數，逐列轉出局數再加總（直接加小數會錯進位）。
         cur.execute(
             """
             WITH this AS (
-              SELECT pitcher_acnt pid, pitcher_name name, coalesce(so,0) so
+              SELECT pitcher_acnt pid, pitcher_name name, coalesce(so,0) so,
+                     coalesce(inning_pitched_cnt,0)*3 + coalesce(inning_pitched_div3,0) outs
               FROM cpbl.pitching_gamelog WHERE year=%(y)s AND kind_code='A' AND game_sno=%(sno)s
             ), hist AS (
-              SELECT player_id pid, sum(coalesce(so,0)) so, sum(coalesce(g,0)) g,
-                     sum(coalesce(w,0)) w
+              SELECT player_id pid, sum(coalesce(so,0)) so, sum(coalesce(w,0)) w,
+                     sum(coalesce(sv,0)) sv, sum(coalesce(hld,0)) hld,
+                     sum(floor(coalesce(ip,0))*3 + round((coalesce(ip,0)-floor(coalesce(ip,0)))*10)) outs
               FROM cpbl.pitching_seasons WHERE year < %(y)s GROUP BY player_id
             ), cur_season AS (
-              SELECT pg.pitcher_acnt pid, count(*) g, sum(coalesce(pg.so,0)) so
+              SELECT pg.pitcher_acnt pid, sum(coalesce(pg.so,0)) so,
+                     sum(coalesce(pg.inning_pitched_cnt,0)*3 + coalesce(pg.inning_pitched_div3,0)) outs
               FROM cpbl.pitching_gamelog pg
               JOIN cpbl.games g ON g.year=pg.year AND g.kind_code=pg.kind_code AND g.game_sno=pg.game_sno
               WHERE pg.year=%(y)s AND pg.kind_code='A'
@@ -332,23 +360,39 @@ def game_milestones(
                 AND (game_date < %(d)s OR (game_date = %(d)s AND game_sno < %(sno)s))
               GROUP BY winning_pitcher_id
             )
-            SELECT t.pid, t.name, t.so,
-                   coalesce(h.so,0)+coalesce(cs.so,0), coalesce(h.g,0)+coalesce(cs.g,0),
-                   coalesce(h.w,0)+coalesce(cw.w,0)
+            SELECT t.pid, t.name, t.so, t.outs,
+                   coalesce(h.so,0)+coalesce(cs.so,0),
+                   coalesce(h.w,0)+coalesce(cw.w,0),
+                   coalesce(h.outs,0)+coalesce(cs.outs,0), coalesce(h.sv,0), coalesce(h.hld,0)
             FROM this t LEFT JOIN hist h ON h.pid=t.pid
             LEFT JOIN cur_season cs ON cs.pid=t.pid LEFT JOIN cur_w cw ON cw.pid=t.pid
             """,
             {"y": season, "sno": game_sno, "d": gdate})
-        for pid, name, tso, pso, pg_, pw in cur.fetchall():
+        season_dec = _season_decisions(season, "A") if kind_code == "A" else {}
+        for pid, name, tso, this_outs, pso, pw, prior_outs, hist_sv, hist_hld in cur.fetchall():
             if tso and (pso + tso) // 500 > pso // 500:
                 items.append({"player": name, "text": f"生涯第 {((pso + tso) // 500) * 500} 次三振"})
-            if pg_ == 0:
+            total_outs = prior_outs + this_outs
+            if this_outs and total_outs // 1500 > prior_outs // 1500:   # 1500 出局＝500 局
+                items.append({"player": name, "text": f"生涯第 {(total_outs // 1500) * 500} 局"})
+            elif prior_outs == 0 and this_outs:
                 items.append({"player": name, "text": "一軍初登板"})
-            elif (pg_ + 1) % _MILESTONE_G == 0:
-                items.append({"player": name, "text": f"生涯第 {pg_ + 1} 場出賽"})
             if win_pid and str(pid) == str(win_pid):
                 if pw == 0:
                     items.append({"player": name, "text": "生涯首勝"})
                 elif (pw + 1) % 50 == 0:
                     items.append({"player": name, "text": f"生涯第 {pw + 1} 勝"})
+            # 中繼(HLD)/後援(SV) ×50：本季逐場 decisions 快取（同套邏輯已用於本場決勝標記）
+            games_this_p = season_dec.get(str(pid), [])
+            prior_games = [d for d in games_this_p if (d[0], d[1]) < (str(gdate), game_sno)]
+            today_dec = next((d[2] for d in games_this_p
+                              if d[0] == str(gdate) and d[1] == game_sno), None)
+            for label, step, code, hist_v in (("中繼", 50, "HLD", hist_hld), ("後援", 50, "SV", hist_sv)):
+                if today_dec != code:
+                    continue
+                pre_total = hist_v + sum(1 for d in prior_games if d[2] == code)
+                if pre_total == 0:
+                    items.append({"player": name, "text": f"生涯首次{label}"})
+                elif (pre_total + 1) % step == 0:
+                    items.append({"player": name, "text": f"生涯第 {pre_total + 1} 次{label}"})
     return {"items": items}
