@@ -21,6 +21,7 @@ from cpbl.db import conn
 COVER_OK = 0.80   # 判定「有設備」的球場：本季曾達此覆蓋率
 COVER_BAD = 0.70  # 低於此且在有設備球場 → 標為缺漏
 MIN_PITCHES = 50  # 太少球的場不判（避免雜訊）
+WEEK = 7          # 「上週/近幾天」窗口（中職週一固定休兵，週一檢查前 7 天剛好一輪）
 
 
 def _rows(year: int, kind: str) -> list[dict]:
@@ -72,8 +73,40 @@ def main() -> None:
             elif ratio < COVER_BAD:
                 partial.append(r)
 
+    today = date.today()
+    wk = [r for r in rows if r["completed"] and r["livelog"] > 0
+          and (today - r["game_date"]).days <= WEEK]
+
+    # 無設備球場：有完成場卻整季零逐球（如花蓮/嘉義市/台東等小場）。
+    no_equip: set[str] = set()
+    tracked_venues = {r["venue"] for r in rows if r["tracked"] > 0}
+    for r in rows:
+        if r["completed"] and r["pitches"] >= MIN_PITCHES and r["venue"] not in tracked_venues:
+            no_equip.add(r["venue"])
+    # 新增設備：某「原無逐球球場」在近一週首度出現逐球 → 疑似新裝機（該場之前零覆蓋屬正常）。
+    prior_tracked = {r["venue"] for r in rows if r["tracked"] > 0
+                     and (today - r["game_date"]).days > WEEK}
+    newly = sorted({r["venue"] for r in wk
+                    if r["tracked"] >= r["pitches"] * 0.5 and r["venue"] not in prior_tracked})
+
     print(f"=== 涵蓋率排查 {year}/{kind} ===")
     print(f"有 TrackMan 設備球場（本季實證）：{sorted(equipped)}")
+    if no_equip:
+        print(f"無設備球場（有完成場卻整季零逐球，勿誤報缺漏）：{sorted(no_equip)}")
+    if newly:
+        print(f"🆕 近 {WEEK} 天首度出現逐球（疑似新裝機！之前該場零覆蓋屬正常，"
+              f"往後該場應有逐球）：{newly}")
+
+    # 週一例行：上週（近 7 天）完成場逐球覆蓋概況——一眼看上週有無漏
+    if wk:
+        print(f"\n📅 近 {WEEK} 天完成場 {len(wk)} 場逐球覆蓋（週一檢查上週用）：")
+        for r in sorted(wk, key=lambda r: (r["game_date"], r["game_sno"])):
+            eq = r["venue"] in equipped
+            pctv = round(100 * r["tracked"] / r["pitches"]) if r["pitches"] else 0
+            flag = "" if (not eq or pctv >= 85) else ("  ⚠️缺" if r["tracked"] else "  ⚠️零")
+            eqmark = "" if eq else "（無設備場）"
+            print(f"    {r['game_date']} sno={r['game_sno']} {r['venue']}{eqmark}："
+                  f"{r['tracked']}/{r['pitches']} ({pctv}%){flag}")
 
     if gamelog_missing:
         print(f"\n⚠️  缺 gamelog 的完成場 {len(gamelog_missing)} 場（重跑 cpbl-scrape-gamelog）：")
