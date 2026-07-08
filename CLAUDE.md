@@ -2,7 +2,7 @@
 
 > **操作前先讀 [`docs/AI_RUNBOOK.md`](docs/AI_RUNBOOK.md)**：指令速查、資料流、本機→生產同步、API/web 地圖、陷阱清單的**事實單一來源**。
 > 本檔負責「準則與紅線（為什麼）」，Runbook 負責「怎麼做（事實）」；衝突時以現實 + Runbook 為準並回頭修正。
-> **多 AI 協作前先讀 [`docs/AI_WORKFLOW.md`](docs/AI_WORKFLOW.md)**：階段職責（規劃/執行/查核）、分支制、部署閘門、留痕與獨立性紅線；任務看板見 [`docs/TASKS.md`](docs/TASKS.md)。本檔的模型路由階梯供其「用哪級模型」，AI_WORKFLOW 供其「哪階段誰負責」。
+> **多 AI 協作前先讀 [`docs/AI_WORKFLOW.md`](docs/AI_WORKFLOW.md)**（stub → canonical `~/Dev/ai-workflow/AI_WORKFLOW.md`）：階段職責（規劃/執行/查核）、分支制、部署閘門、留痕與獨立性紅線；任務看板見 [`docs/TASKS.md`](docs/TASKS.md)。本檔的模型路由階梯供其「用哪級模型」，AI_WORKFLOW 供其「哪階段誰負責」。
 
 ## 專案概覽
 
