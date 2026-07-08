@@ -41,6 +41,22 @@ export default function PredictPage() {
   const [backtest, setBacktest] = useState<Backtest | null>(null);
   const [activeGroup, setActiveGroup] = useState<string>("");
 
+  const transitMode = (mo: Mode) => {
+    if (typeof document !== "undefined" && (document as any).startViewTransition) {
+      (document as any).startViewTransition(() => setMode(mo));
+    } else {
+      setMode(mo);
+    }
+  };
+
+  const transitActiveGroup = (gname: string) => {
+    if (typeof document !== "undefined" && (document as any).startViewTransition) {
+      (document as any).startViewTransition(() => setActiveGroup(gname));
+    } else {
+      setActiveGroup(gname);
+    }
+  };
+
   const label = useMemo(() => Object.fromEntries(feats.map((f) => [f.key, f.label])), [feats]);
   // 依群組分區（保留後端順序）
   const groups = useMemo(() => {
@@ -125,7 +141,7 @@ export default function PredictPage() {
         {(["upcoming", "simulate"] as Mode[]).map((mo) => (
           <button
             key={mo}
-            onClick={() => setMode(mo)}
+            onClick={() => transitMode(mo)}
             className={`rounded-md px-3 py-1.5 transition ${
               mode === mo ? "bg-ink text-white" : "text-muted hover:text-white"
             }`}
@@ -148,7 +164,7 @@ export default function PredictPage() {
                   const nSel = gfeats.filter((f) => selected.includes(f.key)).length;
                   const on = gname === cur;
                   return (
-                    <button key={gname} onClick={() => setActiveGroup(gname)}
+                    <button key={gname} onClick={() => transitActiveGroup(gname)}
                       className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
                         on ? "bg-ink text-white" : "bg-surface-2 text-muted hover:text-ink"}`}>
                       {gname}
@@ -218,7 +234,7 @@ export default function PredictPage() {
                   onChange={(e) =>
                     setWeights((w) => ({ ...w, [k]: parseFloat(e.target.value) }))
                   }
-                  className="flex-1 accent-accent"
+                  className="flex-1 accent-accent transition-transform duration-150 hover:scale-y-125 focus:scale-y-125 cursor-pointer"
                 />
                 <span className="w-10 text-right font-mono text-xs text-faint">
                   {(weights[k] ?? 0).toFixed(2)}

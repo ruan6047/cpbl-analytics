@@ -77,10 +77,17 @@ export function CompositionPie({ items, m }: { items: { k: string; label: string
 }
 
 export function Tabs<T extends string>({ opts, v, set, vertical = false }: { opts: { v: T; label: string }[]; v: T; set: (x: T) => void; vertical?: boolean }) {
+  const handleSelect = (val: T) => {
+    if (typeof document !== "undefined" && (document as any).startViewTransition) {
+      (document as any).startViewTransition(() => set(val));
+    } else {
+      set(val);
+    }
+  };
   return (
     <div className={`inline-flex gap-1 rounded-lg bg-surface-2 p-1 ${vertical ? "flex-col" : ""}`}>
       {opts.map((o) => (
-        <button key={o.v} onClick={() => set(o.v)}
+        <button key={o.v} onClick={() => handleSelect(o.v)}
           className={`rounded-md px-3 py-1 text-sm transition ${v === o.v ? "bg-ink text-white" : "text-muted hover:text-ink"}`}>
           {o.label}
         </button>
