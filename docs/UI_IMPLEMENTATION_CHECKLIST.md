@@ -2,9 +2,8 @@
 
 本文件為 **CPBL Analytics** 專案 UI/UX 優化的實作清單，旨在提供給**第三方 AI** 進行實作前的稽核、以及實作後的代碼審查（Code Review）與功能驗證。
 
-> **職責歸屬與交接規則見 [`AI_WORKFLOW.md`](AI_WORKFLOW.md)**（stub → canonical `~/Dev/ai-workflow`）。每個項目頂部的「職責歸屬」區塊即依該檔格式；**權威看板／狀態以 [`TASKS.md`](TASKS.md)（UI-1~5 卡）為準**，本檔區塊為就近速查。
->
-> **職責歸屬（spec 層級）**｜需求：使用者｜規劃：規劃 AI（外部）｜稽核：Claude-Opus-4.8（2026-07-08）｜紅線：⚪一般（全 UI）｜看板：[`TASKS.md`](TASKS.md) UI-1~5
+> **規則見 [`AI_WORKFLOW.md`](AI_WORKFLOW.md)**（stub → canonical `~/Dev/ai-workflow`）。本檔＝**spec（做什麼／怎麼做／驗收標準）**；**狀態與職責歸屬（誰做／查核／分支／log）一律以看板 [`TASKS.md`](TASKS.md) 的 UI-1~5 卡為權威**，本檔不再另記狀態，只保留**稽核發現**（供執行者/查核者參考）。
+> **需求：使用者｜規劃：規劃 AI（外部）｜稽核：Claude-Opus-4.8**（狀態詳見看板卡）
 
 ---
 
@@ -19,10 +18,6 @@
 ---
 
 ## 1. 深色模式支援 (Dark Mode) 🌙
-
-> **職責歸屬 (Provenance)**
-> - 規劃 [Plan]：規劃 AI（外部）　- 執行 [Impl]：Sonnet（建議）　- 查核 [Review]：**Opus**（建議，跨圖表色清查易錯）
-> - 狀態：⏳待執行（**低估工作量，建議獨立 sprint**）　- Commit/PR：—
 
 > **⚠️ 稽核（Claude-Opus-4.8, 2026-07-08）**：技術路徑正確——TW v4 `@theme` 的 token 會編成 `var(--color-*)`，於 `.dark{}` 覆寫 token 值即可讓 `bg-surface`/`text-ink`/`border-line` 全站自動換色，防閃爍 script 也對。**但真正的工作量在「全域配色清查」**（下方步驟 4），不是加一個 toggle。全站**約 19 個元件/頁面寫死了 hex 色**，不會跟著 token 變、暗色下會壞。另：兩份文件對 `--color-surface-2` 暗色值不一致（提案書 `#3a506b`／本清單 `#243056`，**請先拍板取一**）。且本專案 CLAUDE.md 明訂「日間 Navy+白」為刻意設計，導入暗色是**設計哲學擴張，需使用者有意識拍板**。
 
@@ -80,7 +75,6 @@
 
 ## 2. 視覺風格與運動風質感提升 (Sports Tech Aesthetic) 🎨
 
-> **職責歸屬**｜規劃：規劃 AI（外部）｜執行：Sonnet（建議）｜查核：Opus（視覺驗收）｜狀態：⏳待執行
 > **✅ 稽核（Opus, 07-08）**：前提正確。Header 現況確為 `bg-surface/90 backdrop-blur`（layout.tsx:33）；`AbilityRadarVS`/`Card` 皆在；**目前全站沒有 next/font**，加 Outfit 無衝突。可直接執行。
 
 ### 🎯 目標
@@ -119,7 +113,6 @@
 
 ## 3. 動態微動畫與微互動 (Micro-interactions) ⚡
 
-> **職責歸屬**｜規劃：規劃 AI（外部）｜執行：Sonnet（建議）｜查核：Sonnet｜狀態：⏳待執行
 > **✅ 稽核（Opus, 07-08）**：前提全對。`matchup-card.tsx` 勝率條確用 `style={{ width: ${homePct}% }}`（line 63）、`predict/page.tsx` 有 `<input type="range">`（line 212）、`nav-links.tsx` 存在。註：View Transitions 只適用**同頁 state 切換**（本季/生涯、月份），勿包路由導航；清單已含 `startViewTransition` 特性偵測 ✓。
 
 ### 🎯 目標
@@ -167,7 +160,6 @@
 
 ## 4. 行動端/響應式佈局優化 (Mobile & Responsive UX) 📱
 
-> **職責歸屬**｜規劃：規劃 AI（外部）｜執行：Sonnet（建議）｜查核：**Opus**（須真機/375px 實測）｜狀態：⏳待執行
 > **✅ 稽核（Opus, 07-08）**：前提正確。`games/page.tsx` 確為 `grid grid-cols-7` 月曆（line 139/144）、目前無行動端 list view（新增合理）；sticky-col 用 `var(--color-surface)` ✓（此寫法在暗色模式也正確，與提案 1 相容）。
 
 ### 🎯 目標
@@ -222,7 +214,6 @@
 
 ## 5. 新增「球員對比頁面 (Player Comparison)」與圖表互動 🚀
 
-> **職責歸屬**｜規劃：規劃 AI（外部）｜執行：**Opus**（建議，新路由+API 缺口+自繪 SVG）｜查核：Opus｜狀態：**↩退回**（spec 有硬錯，已於下方修正，修正後轉 ⏳待執行）
 > **❌ 稽核（Opus, 07-08）— 兩個硬錯誤（下方步驟已改正）**：
 > 1. **`/api/players/search` 不存在**。API 只有 `GET /api/v1/players/roster`。→ 改用 `roster()` 撈全名單、前端自建篩選框，**勿呼叫幽靈端點**。（好消息：`AbilityRadarVS({home, away, homeColor, awayColor})` **確實存在且吃兩位球員**，疊圖直接重用 ✓）
 > 2. **`zone-scatter.tsx` 是自繪 `<svg>`+`<circle>`，不是 Recharts**（無 `<Tooltip>` 可用）。且 discipline 的 `points` payload **只有 `x/y/result/ev/la/pt`，沒有球速/轉速**——要顯示 Statcast tooltip **得先改 API 把 `rel_speed`/`spin_rate` 加進 points**。
