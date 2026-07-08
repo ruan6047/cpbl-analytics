@@ -1,101 +1,119 @@
 # AI 協作工作流與職責歸屬準則 (AI Collaboration Workflow)
 
-> **目的**：多 AI／多模型協作下，讓每個功能可追溯——**誰規劃 [Plan]、哪個模型執行 [Implement]、哪個模型查核驗收 [Review]**。出錯能歸因、驗收有獨立性。
-> **與現有文件的分工**：CLAUDE.md 決定「用哪一**級**模型」（Fable/Opus/Sonnet/Haiku 路由階梯）；[`AI_RUNBOOK.md`](AI_RUNBOOK.md) 是「怎麼做」的操作事實；**本檔決定「哪個**階段**由誰負責、如何交接與留痕」**。三者衝突時以現實 + Runbook 為準並回頭修正。
+> **目的**：多 AI／多模型協作下，讓每個功能可追溯、可審核、可歸因——**誰提需求、誰規劃、哪個模型執行、哪個模型查核**，並確保「執行」與「查核」獨立。
+> **分工**：CLAUDE.md 決定「用哪一**級**模型」（Fable/Opus/Sonnet/Haiku 路由）；[`AI_RUNBOOK.md`](AI_RUNBOOK.md) 是「怎麼做」的操作事實；**本檔決定「哪個**階段**由誰負責、如何交接、如何留痕、如何合併與部署」**。
+> **看板**：進行中的任務卡見 [`TASKS.md`](TASKS.md)。
 
 ---
 
-## 1. 三階段與角色
+## 1. 角色與派工
 
-| 階段 | 產出 | 由誰 | 進入下一階段的門檻 |
-|---|---|---|---|
-| **規劃 [Plan]** | spec／提案／查核清單（含驗收標準） | 使用者直接下令 **或** 規劃 AI | 使用者核可 spec |
-| **執行 [Implement]** | 程式碼 + 自測（lint/typecheck/build 綠） | 執行模型（照 CLAUDE.md 路由） | 自測通過、commit 留痕 |
-| **查核驗收 [Review]** | 稽核報告 + **行為實測** + 通過/退回 | 查核模型（**須 ≠ 執行者**） | 對照 spec 全綠 → ✅通過 |
+| 角色 | 由誰 | 說明 |
+|---|---|---|
+| **需求／派工** | **使用者（人工）** | AI **不自動派工**；由使用者指派某張卡給某個執行者 |
+| **規劃 [Plan]** | 使用者 或 規劃 AI | 產出 spec／清單（含驗收標準） |
+| **執行 [Implement]** | 各 AI（Cursor/Gemini/Claude Code…） | 由使用者派；在**分支**上寫碼 |
+| **查核 [Review] + PM** | **預設 Claude Code** | 審核 + 進度看板守門 + merge 閘門。可委外（§4） |
+
+> **Claude Code 的雙重身分**：可當**執行者**也可當**審核者**，但見 §2 的分離鐵律——**不可對同一張卡又實作又審核**。
+
+---
+
+## 2. 三階段 + 「實作／審核分離」鐵律
 
 ```mermaid
 flowchart LR
-    U([使用者下令]) --> P[規劃 Plan]
-    P -->|spec 核可| I[執行 Implement]
-    I -->|自測綠 + commit| R[查核 Review]
-    R -->|對照 spec 全綠| D([✅ 完成])
-    R -->|發現缺陷| I
-    P -.重新規劃.-> P
+    U([使用者派工]) --> P[規劃 Plan]
+    P -->|spec 核可| I[執行 Implement<br/>在分支]
+    I -->|自測綠 + commit| R[查核 Review<br/>≠執行者]
+    R -->|對照 spec 全綠| M[merge 進 main]
+    M --> D([可部署])
+    R -->|缺陷| RJ[↩ 退回 + 缺陷報告]
+    RJ --> I
 ```
+
+**鐵律（不可違反）**：
+1. **同一張卡的「執行」與「查核」＝兩張不同任務、不同經手者、不可同時進行**。
+2. Claude Code 實作的卡 → **審核必委由使用者或另一 AI**（§4），Claude Code **不得自審自己實作的卡**。
+3. Claude Code 審核他人實作的卡時，**不得順手改碼**（改了就變自審）——只能退回（§5）。
 
 ---
 
-## 2. 職責歸屬紀錄 (Provenance) — 雙層，**git 為單一事實來源**
+## 3. 分支制 + 部署閘門
 
-### 2.1 Git commit trailers（durable、grep-able）
-每個功能的 commit 於既有 `Co-Authored-By` 之外，**加三行 trailer**：
+- **每張卡開分支**：`ai/<模型或工具>/<卡ID>`（例：`ai/gemini/ui-4`、`ai/claude-code/ui-5`）。
+- 執行者只在自己分支寫；**其他 AI 若在別的 clone／雲端，須 `git push origin` 分支**，PM 才 fetch 得到審。
+- 審核通過 → 由**審核者（Claude Code/PM）** merge 進 `main`。
+- **部署鐵律 🚀**：**只有 `main`（已審核合併）能部署**。**分支一律不得部署**。（cpbl 部署＝push main → bump submodule → CI，見 [`AI_RUNBOOK.md`](AI_RUNBOOK.md) §3 / memory `data-sync-local-to-prod`）
+- **硬性強制（建議）**：GitHub **branch protection** 開 `require pull request review before merging`，讓「未審不得進 main」由平台強制，而非只靠紀律。
 
+---
+
+## 4. 獨立性（兩維）+ 委外審核 + 紅線
+
+獨立性有**兩個維度**，同模型不同工具只保住其中一個：
+
+| 維度 | 抓什麼錯 | 同模型不同工具（如 Cursor-Claude 寫、ClaudeCode-Claude 審） |
+|---|---|---|
+| **context/session 獨立** | 疏忽、spec 偏移、作者自我合理化 | ✅ 仍成立（新 session 無對方推理記憶） |
+| **模型架構獨立** | 模型**系統性盲點**（同權重＝同偏誤） | ❌ 不成立（同一顆腦，換工具不換盲點） |
+
+**規則**：
+1. **一般卡**：context 獨立即可 → 同家族不同 session/工具審**可接受**。
+2. **紅線卡**（統計/ML 正確性、賽果/救援/RE/守備/球種重建…）：審核**必換模型家族或人審**（Gemini/GPT 或使用者），且**必跑實測**（非只看 diff）。同家族審（含 Opus 審 Sonnet）**不算數**。
+3. **委外審核**：可把審核派給其他 AI（跨家族）避免盲點——`Reviewed-by` 記**實際模型@工具**。
+4. **使用者是最終獨立背板**：最高風險項一律使用者 sign-off。
+
+---
+
+## 5. 審查失敗流程 (Rejection Flow)
+
+1. 審核發現缺陷 → 卡狀態轉 **↩退回**，產出**缺陷報告**（哪條驗收沒過 + 重現步驟）。
+2. 缺陷報告回**原執行者**；執行者在**同一分支**修正 → 標 `re-submit` → **重審**。
+3. 審核者**不得代改**（維持獨立）。
+4. **升級條件**：同一張卡連續 **≥3 次退回** → 升級處理（換更高階模型、換執行者、或退回重新規劃 spec）。
+5. 每次退回／重審**都留 log**（§6 卡片 log）。
+
+---
+
+## 6. 留痕 (Logging) — 三層，git 為單一事實來源
+
+### 6.1 Git commit trailers（durable、grep-able）
 ```
+Requested-by:   <需求提供方：使用者 | 業務/來源>
 Planned-by:     <使用者 | AI 名/模型>
-Implemented-by: <AI 名/模型>
-Reviewed-by:    <AI 名/模型>
+Implemented-by: <模型@工具>
+Reviewed-by:    <模型@工具>
 ```
+- 「模型@工具」寫具體：`Claude-Opus-4.8@ClaudeCode`、`Gemini-2.x@AIStudio`、`使用者`。
+- merge commit 額外記分支名。
+- 查詢：`git log --grep="Reviewed-by: Gemini"`、`git log -1 --format='%(trailers)'`。
 
-- 回溯：`git log --grep="Reviewed-by: Fable"`、`git log --grep="Implemented-by:"` 即可查誰做了什麼。
-- 「AI 名/模型」寫**具體識別**：如 `Claude-Opus-4.8`、`Claude-Sonnet-5`、`Gemini-2.x`、`GPT-x`；使用者親手做寫 `使用者`。
+### 6.2 TASKS.md 卡片 log
+每張卡一段時間線：`日期 | 階段 | 經手（模型@工具 / 需求方） | 通過/退回`。
 
-### 2.2 文件 ledger（human-readable 總覽）
-- **每個 checklist／spec 項目頂部**放一個「職責歸屬」metadata 區塊（範本見 §4）。
-- **本檔 §5** 維護一張總表，一功能一列——一眼看全局。
-- 文件與 git 衝突時 **以 git trailer 為準**（文件可能忘更新）。
-
----
-
-## 3. 模型指派準則（綁 CLAUDE.md 階梯）
-
-| 階段 | 指派原則 |
-|---|---|
-| **規劃** | 難題／架構／紅線 → Opus / Fable；標準 spec → Sonnet |
-| **執行** | 照 CLAUDE.md 路由：純機械 Haiku ／ 照 pattern Sonnet ／ 硬題 Opus ／ 統計 ML 紅線 Fable |
-| **查核** | **≠ 執行模型**，且**同級或更高**；踩統計/ML 紅線 → 查核**必用 Fable 或 Opus** |
-
-### 獨立性紅線（不可違反）
-1. **執行與查核不得同一模型同一 session**（禁止「自己查自己」）。跨 AI（如執行 Claude、查核 Gemini）獨立性更強。
-2. **紅線級**（統計/ML 正確性、賽果/救援/RE/守備重建、球種分類…）查核**必用 Fable 或 Opus，且必跑實測**（非只看 diff）——比照 CLAUDE.md「錯了難察覺」判準。
-3. 查核**不通過 → 退回執行階段**記一次「↩退回」，**查核者不得順手改**（改了就變自己查自己，喪失獨立性）。
-4. 查核**必含行為驗證**（跑起來、截圖、對照官方值），不只讀程式碼。
+### 6.3 Ledger 總表
+[`TASKS.md`](TASKS.md) 頂部一張表，一卡一列，一眼看全局。**文件與 git 衝突以 git 為準。**
 
 ---
 
-## 4. 狀態機 + 項目 metadata 範本
-
-**狀態**：`📝規劃中 → ⏳待執行 → 🔨執行中 → 🔍待查核 → ✅通過 / ↩退回 → 🏁完成`
-
-每個功能／清單項目頂部貼：
+## 7. 任務卡格式
 
 ```
-> **職責歸屬 (Provenance)**
-> - 規劃 [Plan]：<AI/使用者>
-> - 執行 [Impl]：<模型>
-> - 查核 [Review]：<模型>（須 ≠ 執行）
-> - 狀態：<狀態>
-> - Commit/PR：<sha / #>
+### <卡ID> <功能名>  〔🔴紅線 / ⚪一般〕
+- 需求提供方：<>　規劃：<>　分支：ai/<>/<卡ID>
+- 執行：<模型@工具>　查核：<模型@工具>（須 ≠ 執行）
+- 狀態：<狀態>　Commit/PR：<sha/#>
+- Log：
+  - MM-DD 規劃 by <>
+  - MM-DD 執行 by <模型@工具>（分支 push）
+  - MM-DD 查核 by <模型@工具> → ✅/↩(原因)
 ```
 
----
-
-## 5. 功能歸屬總表 (Ledger)
-
-> 一功能一列。「建議」欄為依 §3 準則的預設指派，使用者可覆寫。實際執行後把模型名補實、狀態更新。
-
-| # | 功能 | 規劃 [Plan] | 執行 [Impl]（建議） | 查核 [Review]（建議） | 狀態 | Commit |
-|---|---|---|---|---|---|---|
-| UI-1 | 深色模式 Dark Mode | 規劃 AI（外部） | Sonnet | **Opus**（跨圖表色清查易錯） | ⏳待執行 | — |
-| UI-2 | 運動風質感（字體/毛玻璃/hover 光暈） | 規劃 AI（外部） | Sonnet | Opus（視覺驗收） | ⏳待執行 | — |
-| UI-3 | 微互動（勝率條/滑桿/View Transition） | 規劃 AI（外部） | Sonnet | Sonnet | ⏳待執行 | — |
-| UI-4 | 響應式（sticky 首欄/月曆轉列表） | 規劃 AI（外部） | Sonnet | **Opus**（須真機 375px 實測） | ⏳待執行 | — |
-| UI-5 | 球員對比頁 + 好球帶 tooltip | 規劃 AI（外部） | **Opus**（新路由+API 缺口+自繪 SVG） | Opus | ↩退回（spec 有硬錯，見 checklist） | — |
-| — | 上述 5 項 spec 稽核 | 使用者下令 | — | **Claude-Opus-4.8** | 🏁完成 | 見 checklist §稽核修正紀錄 |
+**狀態機**：`📥Backlog → ⏳待執行 → 🔨執行中 → 🔍待查核 → ✅通過→merge → 🏁完成` ／ 任一審核 `↩退回 → 回🔨執行中`
 
 ---
 
-## 6. 交接規則（Handoff）
+## 8. 與主站同步
 
-- **規劃 → 執行**：spec 必含「預計修改檔案」「實作步驟」「查核標準」三段（現有 checklist 格式即合格）。spec 前提有誤先退回規劃，**執行者禁止腦補補齊**（比照 CLAUDE.md）。
-- **執行 → 查核**：執行者交付時附「自測結果 + commit sha」；查核者拿 spec 的『查核標準』逐條對。
-- **跨 AI 交接**：因不同 AI 無共享 context，spec／commit message 必須**自包含**（別預設對方看得到你的對話）。
+本機制為**通用治理**，非 cpbl 專屬。已同步至主站 **PersonalWebsite**（`docs/AI_WORKFLOW.md`）作為 canonical；cpbl 為其 submodule，**規則一致**，僅「部署細節」各依自身 repo（cpbl＝submodule bump、主站＝其 deploy flow）。兩邊各自維護自己的 `TASKS.md`。規則有更新時**兩邊同步**。
