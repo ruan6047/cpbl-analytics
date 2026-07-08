@@ -4,6 +4,7 @@
 // 素材全來自既有資料：winprob 逐打席序列 × livelog 事件文，零新請求。
 import type { StatRow } from "@/lib/client";
 import type { WpPoint } from "@/components/win-prob-chart";
+import { contrastText, teamColor } from "@/lib/teams";
 
 const num = (v: StatRow[string]) => Number(v) || 0;
 
@@ -199,11 +200,11 @@ export function Pregame({ m }: { m: PregameMatchup }) {
         {side(m.away, false)}
         {side(m.home, true)}
       </div>
-      {/* 勝率對比條（主隊右側） */}
+      {/* 勝率對比條（客左主右，各用隊伍顏色；百分比文字取對比色） */}
       <div className="mt-4">
-        <div className="flex h-6 overflow-hidden rounded-md font-mono text-[11px] font-semibold text-white">
-          <div className="flex items-center bg-sky-700 pl-2" style={{ width: `${100 - p}%` }}>{100 - p}%</div>
-          <div className="flex items-center justify-end bg-accent pr-2" style={{ width: `${p}%` }}>{p}%</div>
+        <div className="flex h-6 overflow-hidden rounded-md font-mono text-[11px] font-semibold">
+          <div className="flex items-center pl-2" style={{ width: `${100 - p}%`, background: teamColor(m.away.code), color: contrastText(teamColor(m.away.code)) }}>{100 - p}%</div>
+          <div className="flex items-center justify-end pr-2" style={{ width: `${p}%`, background: teamColor(m.home.code), color: contrastText(teamColor(m.home.code)) }}>{p}%</div>
         </div>
         <div className="mt-1.5 text-[10px] text-faint">
           全特徵邏輯回歸即時擬合（回測 ~62%，全押主場 ~53%）；單場勝負可預測性有限，供參考與教育用途。

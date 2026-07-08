@@ -368,22 +368,28 @@ export default function GameLivePage() {
 
   return (
     <div>
-      <Link href="/games" className="text-xs text-faint hover:text-accent">← 返回賽況列表</Link>
+      {/* 頂列：返回（左）＋ 日期球場／視圖切換（右）——填滿右側空白、並收掉記分條底列與獨立切換列 */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Link href="/games" className="text-xs text-faint hover:text-accent">← 返回賽況列表</Link>
+        {data.livelog.length > 0 && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <span className="text-xs text-faint">{String(g.game_date ?? "")}　賽事編號 {sno}　{String(g.venue ?? "")}</span>
+            <div className="inline-flex gap-1 rounded-lg bg-surface-2 p-1">
+              {([["overview", "比賽總覽"], ["pbp", "逐打席"]] as const).map(([v, label]) => (
+                <button key={v} onClick={() => setView(v)}
+                  className={`rounded-md px-3 py-1 text-sm transition ${view === v ? "bg-ink text-white" : "text-muted hover:text-ink"}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {data.livelog.length > 0 ? (
         <section className="mb-8 mt-2 space-y-4">
           <GameBoard data={data} idx={idx} setIdx={setIdx} view={view} wp={wp ?? undefined}
-            onNavigate={() => setView("pbp")}
-            toolbar={
-              <div className="inline-flex gap-1 rounded-lg bg-surface-2 p-1">
-                {([["overview", "比賽總覽"], ["pbp", "逐打席"]] as const).map(([v, label]) => (
-                  <button key={v} onClick={() => setView(v)}
-                    className={`rounded-md px-3 py-1 text-sm transition ${view === v ? "bg-ink text-white" : "text-muted hover:text-ink"}`}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            } />
+            onNavigate={() => setView("pbp")} />
           {view === "overview" && (
             <>
               <GameOverview wp={wp ?? []} log={data.livelog}
@@ -406,7 +412,7 @@ export default function GameLivePage() {
             <span className="mx-2 text-faint">@</span>
             {String(g.home_team_name)} <span className="font-mono">{n(g.home_score)}</span>
           </h1>
-          <p className="mt-1 text-sm text-muted">{String(g.game_date ?? "")}　{String(g.venue ?? "")}</p>
+          <p className="mt-1 text-sm text-muted">{String(g.game_date ?? "")}　賽事編號 {sno}　{String(g.venue ?? "")}</p>
         </header>
       ) : (
         /* 未開賽：賽前展望（賽果模型對戰卡） */
@@ -416,7 +422,7 @@ export default function GameLivePage() {
               {String(g.away_team_name)} <span className="mx-2 text-faint">@</span>
               {String(g.home_team_name)}
             </h1>
-            <p className="mt-1 text-sm text-muted">{String(g.game_date ?? "")}　{String(g.venue ?? "")}　尚未開賽</p>
+            <p className="mt-1 text-sm text-muted">{String(g.game_date ?? "")}　賽事編號 {sno}　{String(g.venue ?? "")}　尚未開賽</p>
           </header>
           {pregame && <Pregame m={pregame} />}
         </div>

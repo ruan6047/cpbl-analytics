@@ -9,7 +9,8 @@ import type { WpPoint } from "@/components/win-prob-chart";
 type Rec = { w: number; l: number; form: string };
 export type TrackRow = {
   pitcher_acnt: string; hitter_acnt: string; inning_seq: number; pitch_cnt: number;
-  ball_cnt: number; strike_cnt: number; auto_pitch_type: string | null;
+  ball_cnt: number; strike_cnt: number;
+  pitch_type_pred: string | null; tagged_pitch_type: string | null;
   rel_speed: number | null; plate_loc_side: number | null; plate_loc_height: number | null;
   pitch_call: string | null;
 };
@@ -139,9 +140,6 @@ function ScoreBar({ game, e, records }: { game: StatRow; e: StatRow; records: Re
         <div className="font-mono text-4xl font-bold tabular-nums">{num(e.home_score)}</div>
         {side(hc, game.home_team_name, hr, true)}
       </div>
-      <div className="border-t border-line px-5 py-1.5 text-center text-xs text-faint">
-        {String(game.game_date ?? "")}　{String(game.venue ?? "")}
-      </div>
     </div>
   );
 }
@@ -153,8 +151,8 @@ function WpBar({ homeWp, homeName, awayName, homeColor, awayColor }: {
   const h = Math.round(homeWp * 100);
   const a = 100 - h;
   return (
-    <div className="rounded-xl border border-line bg-surface p-3">
-      <div className="mb-1.5 flex items-center justify-between text-xs">
+    <div className="rounded-xl border border-line bg-surface px-3 py-2">
+      <div className="mb-1 flex items-center justify-between text-xs">
         <span className="font-semibold tabular-nums" style={{ color: awayColor }}>{awayName} {a}%</span>
         <span className="text-[10px] text-faint">目前預期勝率（推算）</span>
         <span className="font-semibold tabular-nums" style={{ color: homeColor }}>{homeName} {h}%</span>
@@ -171,37 +169,62 @@ function WpBar({ homeWp, homeName, awayName, homeColor, awayColor }: {
 type PitcherLive = { outs: number; k: number; h: number };
 type TodayPA = { label: string; kind: PaKind; rbi: number; idx: number };
 
-function Matchup({ e, batterAvg, pcount, pstats, batterToday, onJump }: {
-  e: StatRow; batterAvg: Record<string, number>; pcount: number;
-  pstats: PitcherLive; batterToday: TodayPA[]; onJump: (idx: number) => void;
+// 打者該場守位字母碼 → 2 字中文（既有 defend_station_code，逐事件精準、全史已填；含換守位/代打）
+const DEFEND_ZH: Record<string, string> = {
+  P: "投手", C: "捕手", "1B": "一壘", "2B": "二壘", "3B": "三壘", SS: "游擊",
+  LF: "左外", CF: "中外", RF: "右外", DH: "指打", PH: "代打",
+};
+
+// 廣播式選手卡（參考轉播下方橫幅）：隊色 logo 方塊 + 背號 + 名 + 右側守位/棒次/數據；
+// 打者卡再帶「今日」chip 列（沿用既有配色：安打綠/保送藍/出局灰）。
+function Matchup({ e, game, batterAvg, uniforms, pcount, pstats, batterToday, onJump }: {
+  e: StatRow; game: StatRow; batterAvg: Record<string, number>;
+  uniforms: { bat: Record<string, string>; pit: Record<string, string> };
+  pcount: number; pstats: PitcherLive; batterToday: TodayPA[]; onJump: (idx: number) => void;
 }) {
+  const batAway = String(e.visiting_home_type) === "1";     // 上半＝客隊打擊
+  const batCode = String((batAway ? game.away_team_code : game.home_team_code) ?? "");
+  const batTeam = String((batAway ? game.away_team_name : game.home_team_name) ?? "");
+  const pitCode = String((batAway ? game.home_team_code : game.away_team_code) ?? "");
+  const pitTeam = String((batAway ? game.home_team_name : game.away_team_name) ?? "");
+  const batNo = uniforms.bat[String(e.hitter_acnt ?? "")];
+  const pitNo = uniforms.pit[String(e.pitcher_acnt ?? "")];
+  const pos = DEFEND_ZH[String(e.defend_station_code ?? "")];
   const ba = batterAvg[String(e.hitter_acnt ?? "")];
   const ip = `${Math.floor(pstats.outs / 3)}${pstats.outs % 3 ? `.${pstats.outs % 3}` : ""}`;
   return (
-    <div className="rounded-xl border border-line bg-surface p-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <div className="text-xs text-muted">投手</div>
-          <div className="text-lg font-semibold text-ink">{String(e.pitcher_name ?? "—")}</div>
-          <div className="font-mono text-xs text-faint">至此 {ip} 局・{pstats.k}K・被安 {pstats.h}</div>
-          <div className="font-mono text-xs text-faint">本場第 {pcount} 球</div>
+    <div className="space-y-2">
+      {/* 投手橫幅 */}
+      <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-2.5 py-1.5">
+        <TeamLogo code={pitCode} name={pitTeam} size={30} />
+        <span className="text-[10px] font-semibold text-muted">投</span>
+        {pitNo && <span className="font-mono text-sm font-bold tabular-nums text-ink">{pitNo}</span>}
+        <span className="truncate text-base font-bold text-ink">{String(e.pitcher_name ?? "—")}</span>
+        <span className="ml-auto shrink-0 font-mono text-[11px] tabular-nums text-faint">{ip}局・{pstats.k}K・被安{pstats.h}・{pcount}球</span>
+      </div>
+      {/* 打者卡（頭條 + 今日 chip 列）*/}
+      <div className="overflow-hidden rounded-xl border border-line bg-surface">
+        <div className="flex items-center gap-2 px-2.5 py-1.5">
+          <TeamLogo code={batCode} name={batTeam} size={30} />
+          {batNo && <span className="font-mono text-sm font-bold tabular-nums text-ink">{batNo}</span>}
+          <span className="truncate text-base font-bold text-ink">{String(e.hitter_name ?? "—")}</span>
+          <span className="ml-auto flex shrink-0 items-center gap-1.5 tabular-nums">
+            {pos && <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] font-medium text-muted">{pos}</span>}
+            {e.batting_order ? <span className="font-mono text-[11px] text-faint">{num(e.batting_order)}棒</span> : null}
+            <span className="font-mono text-[11px] font-semibold text-ink">AVG {ba !== undefined ? avg3(ba) : "—"}</span>
+          </span>
         </div>
-        <div>
-          <div className="text-xs text-muted">打者{e.batting_order ? `　第 ${num(e.batting_order)} 棒` : ""}</div>
-          <div className="text-lg font-semibold text-ink">{String(e.hitter_name ?? "—")}</div>
-          <div className="font-mono text-xs text-faint">本季打擊率 {ba !== undefined ? avg3(ba) : "—"}</div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-1">
-            <span className="text-xs text-faint">今日</span>
-            {batterToday.length ? batterToday.map((pa, i) => (
-              <button key={i} onClick={() => onJump(pa.idx)} title="看該打席"
-                className={`rounded px-1.5 py-0.5 text-xs font-medium tabular-nums transition-colors hover:brightness-95 ${
-                  pa.kind === "hit" ? "bg-emerald-500/10 text-emerald-700"
-                  : pa.kind === "walk" ? "bg-sky-500/10 text-sky-700"
-                  : "bg-surface-2 text-muted"}`}>
-                {pa.label}{pa.rbi ? `(${pa.rbi})` : ""}
-              </button>
-            )) : <span className="text-xs text-faint">首打席</span>}
-          </div>
+        <div className="flex flex-wrap items-center gap-1 border-t border-line px-2.5 py-1.5">
+          <span className="mr-0.5 text-[10px] font-semibold tracking-wider text-muted">今日</span>
+          {batterToday.length ? batterToday.map((pa, i) => (
+            <button key={i} onClick={() => onJump(pa.idx)} title="看該打席"
+              className={`rounded px-1.5 py-0.5 text-[11px] font-medium tabular-nums transition-colors hover:brightness-95 ${
+                pa.kind === "hit" ? "bg-emerald-500/10 text-emerald-700"
+                : pa.kind === "walk" ? "bg-sky-500/10 text-sky-700"
+                : "bg-surface-2 text-muted"}`}>
+              {pa.label}{pa.rbi ? `(${pa.rbi})` : ""}
+            </button>
+          )) : <span className="text-[11px] text-faint">首打席</span>}
         </div>
       </div>
     </div>
@@ -246,14 +269,14 @@ function ScoreLine({ sb, game, halves, curKey, onSelect }: {
                 {String(cellScore(rows, inn))}
               </button>
             ) : (
-              <span className="block px-2.5 py-2 text-muted">{String(cellScore(rows, inn))}</span>
+              <span className="block px-2.5 py-1.5 text-muted">{String(cellScore(rows, inn))}</span>
             )}
           </td>
         );
       })}
-      <td className="px-2.5 py-2 text-center font-semibold text-accent">{score}</td>
-      <td className="px-2.5 py-2 text-center text-muted">{tot(rows, "hitting_cnt")}</td>
-      <td className="px-2.5 py-2 text-center text-muted">{tot(rows, "error_cnt")}</td>
+      <td className="px-2.5 py-1.5 text-center font-semibold text-accent">{score}</td>
+      <td className="px-2.5 py-1.5 text-center text-muted">{tot(rows, "hitting_cnt")}</td>
+      <td className="px-2.5 py-1.5 text-center text-muted">{tot(rows, "error_cnt")}</td>
     </tr>
   );
 
@@ -263,10 +286,10 @@ function ScoreLine({ sb, game, halves, curKey, onSelect }: {
         <thead className="bg-surface-2 text-muted">
           <tr>
             <th className="px-3 py-2 text-left font-medium">隊伍</th>
-            {innings.map((inn) => <th key={inn} className="px-2.5 py-2 font-medium">{inn}</th>)}
-            <th className="px-2.5 py-2 font-medium">R</th>
-            <th className="px-2.5 py-2 font-medium">H</th>
-            <th className="px-2.5 py-2 font-medium">E</th>
+            {innings.map((inn) => <th key={inn} className="px-2.5 py-1.5 font-medium">{inn}</th>)}
+            <th className="px-2.5 py-1.5 font-medium">R</th>
+            <th className="px-2.5 py-1.5 font-medium">H</th>
+            <th className="px-2.5 py-1.5 font-medium">E</th>
           </tr>
         </thead>
         <tbody>
@@ -294,32 +317,60 @@ function PlayByPlay({ log, events, idx, setIdx, userAction }: {
     activeRef.current?.scrollIntoView({ block: "nearest" });
   }, [idx, userAction]);
 
+  // 將本半局事件切成打席群組：連續同打者（非換人）＝一個打席；換人/跑者事件單獨成列。
+  // 收合時每個打席只顯示「結果行」（該打席末筆），點擊展開該打席的逐球（含當前 idx 的打席自動展開）。
+  type Grp =
+    | { kind: "pa"; hitter: string; name: string; pitcher: string; idxs: number[] }
+    | { kind: "sub"; gi: number };
+  const groups: Grp[] = [];
+  for (const gi of events) {
+    const ev = log[gi];
+    if (ev.is_change_player || !ev.hitter_acnt) { groups.push({ kind: "sub", gi }); continue; }
+    const last = groups[groups.length - 1];
+    if (last && last.kind === "pa" && last.hitter === String(ev.hitter_acnt)) last.idxs.push(gi);
+    else groups.push({ kind: "pa", hitter: String(ev.hitter_acnt), name: String(ev.hitter_name ?? ""), pitcher: String(ev.pitcher_name ?? ""), idxs: [gi] });
+  }
+
+  const lineBtn = (gi: number, showScore: boolean, extra?: React.ReactNode) => {
+    const ev = log[gi];
+    const content = String(ev.content ?? "").split(/[\r\n]/)[0];
+    const isScore = Boolean(ev.is_score);
+    const isPitch = content.length <= 8;
+    const active = gi === idx;
+    return (
+      <button key={gi} ref={active ? activeRef : undefined} onClick={() => setIdx(gi)}
+        className={`block w-full scroll-mt-16 rounded px-2 py-0.5 pl-5 text-left transition-colors hover:bg-surface-2 ${
+          active ? "bg-accent/10 ring-1 ring-accent/30" : ""} ${
+          isScore ? "text-accent" : isPitch ? "text-xs text-faint" : "text-sm text-ink"}`}>
+        {content}
+        {showScore && isScore && <span className="ml-2 font-mono text-xs">({num(ev.visiting_score)}-{num(ev.home_score)})</span>}
+        {extra}
+      </button>
+    );
+  };
+
   return (
     <div className="order-2 rounded-xl border border-line bg-surface p-4 lg:order-1">
-      <div className="space-y-0.5">
-        {events.map((gi, k) => {
-          const e = log[gi];
-          const prev = k > 0 ? log[events[k - 1]] : undefined;
-          const newBatter = !prev || prev.hitter_acnt !== e.hitter_acnt || prev.is_change_player !== e.is_change_player;
-          const isScore = Boolean(e.is_score);
-          const content = String(e.content ?? "").split(/[\r\n]/)[0];
-          const isPitch = content.length <= 8;
-          const active = gi === idx;
+      <div className="mb-2 flex items-baseline justify-between">
+        <span className="text-sm font-semibold">逐打席</span>
+        <span className="text-[10px] text-faint">點打席展開逐球</span>
+      </div>
+      {/* 內容過長時只捲動本區塊（不動整頁）*/}
+      <div className="max-h-[65vh] space-y-0.5 overflow-y-auto pr-1">
+        {groups.map((g, gk) => {
+          if (g.kind === "sub") return lineBtn(g.gi, false);
+          const outcomeIdx = g.idxs[g.idxs.length - 1];
+          const expanded = g.idxs.includes(idx);   // 當前打席自動展開
           return (
-            <div key={gi}>
-              {newBatter && e.hitter_name && !e.is_change_player && (
-                <div className="mt-2.5 text-sm font-medium text-ink">
-                  ⚾ {String(e.hitter_name)}
-                  <span className="ml-2 text-xs text-faint">投：{String(e.pitcher_name ?? "")}</span>
-                </div>
-              )}
-              <button ref={active ? activeRef : undefined} onClick={() => setIdx(gi)}
-                className={`block w-full scroll-mt-16 rounded px-2 py-0.5 pl-5 text-left transition-colors hover:bg-surface-2 ${
-                  active ? "bg-accent/10 ring-1 ring-accent/30" : ""} ${
-                  isScore ? "text-accent" : isPitch ? "text-xs text-faint" : "text-sm text-ink"}`}>
-                {content}
-                {isScore && <span className="ml-2 font-mono text-xs">({num(e.visiting_score)}-{num(e.home_score)})</span>}
-              </button>
+            <div key={gk}>
+              <div className="mt-2.5 text-sm font-medium text-ink">
+                ⚾ {g.name}
+                <span className="ml-2 text-xs text-faint">投：{g.pitcher}</span>
+              </div>
+              {expanded
+                ? g.idxs.map((gi) => lineBtn(gi, true))
+                : lineBtn(outcomeIdx, true,
+                    g.idxs.length > 1 ? <span className="ml-2 text-[10px] text-faint">＋{g.idxs.length - 1} 球</span> : undefined)}
             </div>
           );
         })}
@@ -329,8 +380,11 @@ function PlayByPlay({ log, events, idx, setIdx, userAction }: {
 }
 
 // ───────────────────────── 好球帶（逐球進壘）─────────────────────────
-const PITCH_ZH: Record<string, string> = { fastball: "速球", breakingball: "變化球", offspeed: "變速", other: "其他" };
-const pitchZh = (t: string | null) => (t && PITCH_ZH[t]) || t || "—";
+// tagged_pitch_type 弱標籤（二元）→ 中文，僅在推算球種缺值時 fallback。
+const TAGGED_ZH: Record<string, string> = { fastball: "速球", breakingball: "變化球", offspeed: "變速" };
+// 顯示球種：優先離線推算值（pitch_type_pred），缺則退回 tagged 二元，再缺則 —。
+const pitchZh = (pred: string | null, tagged: string | null) =>
+  pred || (tagged && TAGGED_ZH[tagged]) || "—";
 // 進壘判定 → 顏色（紅=好球/出局 綠=壞球 藍=擊出）
 function callStyle(call: string | null): { color: string; label: string } {
   const c = call || "";
@@ -350,10 +404,10 @@ function StrikeZone({ pitches }: { pitches: TrackRow[] }) {
   const gx1 = zl + (zr - zl) / 3, gx2 = zl + (2 * (zr - zl)) / 3;
   const gy1 = zt + (zb - zt) / 3, gy2 = zt + (2 * (zb - zt)) / 3;
   return (
-    <div className="rounded-xl border border-line bg-surface p-4">
-      <div className="mb-2 text-sm font-semibold">本打席進壘（逐球追蹤）</div>
-      <div className="flex gap-4">
-        <svg viewBox="0 0 200 200" className="h-44 w-44 shrink-0">
+    <div className="rounded-xl border border-line bg-surface px-3 py-2.5">
+      <div className="mb-1.5 text-xs font-semibold">本打席進壘（逐球追蹤・球種為推算）</div>
+      <div className="flex gap-3">
+        <svg viewBox="0 0 200 200" className="h-36 w-36 shrink-0">
           <rect x={zl} y={zt} width={zr - zl} height={zb - zt} fill="var(--color-surface-2)" stroke="var(--color-faint)" strokeWidth={1.5} />
           <line x1={gx1} y1={zt} x2={gx1} y2={zb} stroke="var(--color-line)" />
           <line x1={gx2} y1={zt} x2={gx2} y2={zb} stroke="var(--color-line)" />
@@ -372,14 +426,14 @@ function StrikeZone({ pitches }: { pitches: TrackRow[] }) {
             );
           })}
         </svg>
-        <ol className="flex-1 space-y-1 text-sm">
+        <ol className="min-w-0 flex-1 space-y-0.5 text-xs">
           {pitches.map((p, i) => {
             const { color, label } = callStyle(p.pitch_call);
             return (
-              <li key={i} className="flex items-center gap-2 font-mono tabular-nums">
-                <span className="flex h-5 w-5 items-center justify-center rounded text-xs font-bold text-white" style={{ background: color }}>{i + 1}</span>
-                <span className="w-12 font-sans text-muted">{label}</span>
-                <span className="font-sans text-ink">{pitchZh(p.auto_pitch_type)}</span>
+              <li key={i} className="flex items-center gap-1.5 whitespace-nowrap font-mono tabular-nums">
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[10px] font-bold text-white" style={{ background: color }}>{i + 1}</span>
+                <span className="w-8 shrink-0 font-sans text-muted">{label}</span>
+                <span className="font-sans text-ink">{pitchZh(p.pitch_type_pred, p.tagged_pitch_type)}</span>
                 {p.rel_speed != null && <span className="text-faint">{Math.round(p.rel_speed)} km/h</span>}
               </li>
             );
@@ -391,12 +445,11 @@ function StrikeZone({ pitches }: { pitches: TrackRow[] }) {
 }
 
 // ───────────────────────── 主板 ─────────────────────────
-export default function GameBoard({ data, idx, setIdx, view = "pbp", toolbar, onNavigate, wp }: {
+export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate, wp }: {
   data: Live;
   idx: number; setIdx: (i: number) => void;
   wp?: WpPoint[];                // 逐打席勝率（顯示當前打席的目前預期勝率）
   view?: "overview" | "pbp";     // overview=總覽（隱藏逐打席操作區）；pbp=逐打席
-  toolbar?: React.ReactNode;     // 視圖切換列（渲染在逐局比分與內容之間）
   onNavigate?: () => void;       // 使用者選打席/選局時通知父層（總覽→切逐打席）
 }) {
   const log = data.livelog;
@@ -481,6 +534,11 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", toolbar, on
     const h = String(e?.hitter_acnt ?? "");
     return liveStats.paResults.filter((r) => r.hitter === h);
   }, [liveStats, e]);
+  // 背號 map（自 box）：acnt → 背號
+  const uniforms = useMemo(() => ({
+    bat: Object.fromEntries(data.batting.map((r) => [String(r.hitter_acnt), String(r.uniform_no ?? "")])),
+    pit: Object.fromEntries(data.pitching.map((r) => [String(r.pitcher_acnt), String(r.uniform_no ?? "")])),
+  }), [data.batting, data.pitching]);
 
   // 當前打席的目前預期勝率：wp 為每打席一點（evt=打席首事件號），取 evt ≤ 當前事件號
   // 的最後一點＝當前打席進場時的 WP（主隊視角）。
@@ -505,7 +563,6 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", toolbar, on
   }, [data.tracking, e]);
 
   if (!e) return <p className="text-sm text-faint">無賽況資料。</p>;
-  const isScore = Boolean(e.is_score);
 
   return (
     <div className="space-y-4">
@@ -514,27 +571,23 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", toolbar, on
       <ScoreLine sb={data.scoreboard} game={game}
         halves={halves} curKey={curKey} onSelect={(h) => selectIdx(h.firstIdx)} />
 
-      {toolbar}
-
       {view === "pbp" && (
       <div id="pbp-section" className="grid scroll-mt-16 gap-4 lg:grid-cols-[1fr_360px]">
         {/* 左：逐打席賽況（選定半局）*/}
         <PlayByPlay log={log} events={curEvents} idx={idx} setIdx={selectIdx} userAction={userAction} />
 
         {/* 右：當前對戰 + 好球帶（sticky）。窄螢幕排到清單上方（order-1），避免長局把
-            當前打席/WP/好球帶擠到超長清單下方看不到；桌面維持右側（lg:order-2）。 */}
-        <div className="order-1 space-y-4 lg:order-2 lg:sticky lg:top-3 lg:self-start">
+            當前打席/WP/好球帶擠到超長清單下方看不到；桌面維持右側（lg:order-2）。
+            當前事件內容不另設框——已在左側清單呈現，避免重複。 */}
+        <div className="order-1 space-y-2 lg:order-2 lg:sticky lg:top-3 lg:self-start">
           {curHomeWp != null && (
             <WpBar homeWp={curHomeWp}
               homeName={String(game.home_team_name ?? "")} awayName={String(game.away_team_name ?? "")}
               homeColor={teamColor(String(game.home_team_code ?? ""))}
               awayColor={teamColor(String(game.away_team_code ?? ""))} />
           )}
-          <Matchup e={e} batterAvg={data.batter_avg} pcount={pcount}
+          <Matchup e={e} game={game} batterAvg={data.batter_avg} uniforms={uniforms} pcount={pcount}
             pstats={pstats} batterToday={batterToday} onJump={selectIdx} />
-          <p className={`rounded-xl border px-4 py-3 text-sm ${isScore ? "border-accent/30 bg-accent/10 font-medium text-accent" : "border-line bg-surface text-ink"}`}>
-            {String(e.content ?? "")}
-          </p>
           {data.has_tracking ? (
             paPitches.length > 0 ? (
               <StrikeZone pitches={paPitches} />
