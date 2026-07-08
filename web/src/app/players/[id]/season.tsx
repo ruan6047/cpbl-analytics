@@ -71,7 +71,7 @@ export function SeasonSection({ profile, s, role, seasonKind, setSeasonKind, adv
                  ["暴投", String(s.wp ?? "—")], ["犯規", String(s.bk ?? "—")], ["投球數", String(s.np ?? "—")],
                  ["失分", String(s.r ?? "—")], ["自責", String(s.er ?? "—")], ["出賽", String(s.g ?? "—")]];
             return (
-              <Card className="flex flex-1 flex-col gap-2">
+              <Card hoverable className="flex flex-1 flex-col gap-2">
                 <div className="grid grid-cols-3 gap-2">
                   {primary.map(([l, v, a]) => (
                     <div key={l} className="rounded-lg bg-surface-2 px-2 py-3 text-center">
@@ -94,7 +94,7 @@ export function SeasonSection({ profile, s, role, seasonKind, setSeasonKind, adv
         </div>
         <div className="flex flex-col">
           <h2 className="mb-3 text-lg font-semibold text-ink">官方進階 · 百分位 PR</h2>
-          <Card className="flex-1">
+          <Card hoverable className="flex-1">
             {prRows.length === 0 ? (
               <p className="py-8 text-center text-sm text-faint">{advanced === null ? "載入中…" : "無官方進階資料"}</p>
             ) : (

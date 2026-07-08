@@ -205,7 +205,7 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
         <section>
           <h2 className="mb-1 text-lg font-semibold">戰績走勢</h2>
           <p className="mb-3 text-[11px] text-faint">各隊累積勝-敗差；{team.team_name} 為 {team.rank} 名。</p>
-          <Card className="p-4"><StandingsTrend teams={trend.teams} points={trend.points} /></Card>
+          <Card teamColor={color} className="p-4"><StandingsTrend teams={trend.teams} points={trend.points} /></Card>
         </section>
       )}
 
@@ -215,7 +215,7 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
         <h2 className="mb-3 text-lg font-semibold">對戰各隊</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {opponents.map((o) => (
-            <Card key={o.team_code} className="flex items-center gap-2 p-3">
+            <Card key={o.team_code} teamColor={teamColor(o.team_code)} className="flex items-center gap-2 p-3">
               <TeamLogo code={o.team_code} size={22} />
               <span className="text-sm text-muted">{o.team_name}</span>
               <span className="ml-auto font-mono text-sm">{team.h2h?.[o.team_code] ?? "—"}</span>
@@ -267,7 +267,7 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
           <h2 className="mb-3 text-lg font-semibold">特殊戰績</h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {GROUPS.map((grp) => (
-              <Card key={grp.title} className="p-4">
+              <Card key={grp.title} teamColor={color} className="p-4">
                 <div className="mb-2 text-sm font-semibold text-ink">{grp.title}</div>
                 <dl className="space-y-1.5">
                   {grp.rows.map((r) => (

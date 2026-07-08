@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { type PlayerProfile, type StatRow, detail } from "@/lib/client";
+import { codeFromName, teamColor } from "@/lib/teams";
 import { type Ability, type CareerStats, type Disc, type Role } from "./lib";
 import { DetailSection } from "./detail";
 import { FieldingSection } from "./fielding";
@@ -106,8 +107,18 @@ export default function PlayerPage() {
   // 生涯資料是否存在（打者或投手任一）→ 控制「生涯」分頁顯示
   const hasCareer = !!(careerStats?.batting || careerStats?.pitching);
 
+  // 計算球員隊色作為 hover 光暈顏色
+  const ongoingCoach = careerStats?.coach_tenures?.find((t) => t.to == null) ?? null;
+  const primaryTeam = (careerStats?.teams ?? []).length
+    ? [...(careerStats?.teams ?? [])].sort((a, b) => (b.to - b.from) - (a.to - a.from))[0]
+    : null;
+  const tc = profile.team ? codeFromName(profile.team)
+    : ongoingCoach ? codeFromName(ongoingCoach.team)
+    : (primaryTeam?.code ?? null);
+  const color = teamColor(tc) || (role === "batting" ? "#1B4DA1" : "#15543C");
+
   return (
-    <div>
+    <div style={{ "--hover-color": color } as React.CSSProperties}>
       <PlayerHero profile={profile} careerStats={careerStats} ability={ability} role={role} s={s}
         isRetired={isRetired} hasCareer={hasCareer} dataTab={dataTab} setDataTab={setDataTab} />
 

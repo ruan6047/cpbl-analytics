@@ -63,8 +63,14 @@ export function TeamLogo({ code, name, size = 24, decorative = false }: { code?:
   );
 }
 
-export function Card({ className = "", children }: { className?: string; children: React.ReactNode }) {
-  return <div className={`card p-4 ${className}`}>{children}</div>;
+export function Card({ className = "", teamColor, hoverable = false, children }: { className?: string; teamColor?: string; hoverable?: boolean; children: React.ReactNode }) {
+  const style = teamColor ? { "--hover-color": teamColor } as React.CSSProperties : undefined;
+  const shouldHover = hoverable || !!teamColor;
+  return (
+    <div style={style} className={`card p-4 ${shouldHover ? "card-hover-team" : ""} ${className}`}>
+      {children}
+    </div>
+  );
 }
 
 export function StatTile({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
