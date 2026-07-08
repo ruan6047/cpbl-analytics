@@ -10,7 +10,7 @@
 | 卡ID | 功能 | 需求 | 規劃 | 執行(model@tool) | 查核(model@tool) | 分支 | 紅線 | 狀態 |
 |---|---|---|---|---|---|---|---|---|
 | UI-1 | 深色模式 | ruan6047 | 規劃AI(外部) | 暫無 | **Opus/跨家族** | — | ⚪ | 📥Backlog（封存）|
-| UI-2 | 運動風質感 | ruan6047 | 規劃AI(外部) | Antigravity@tool | Opus | `ai/antigravity/ui-2` | ⚪ | 🔍待查核 |
+| UI-2 | 運動風質感 | ruan6047 | 規劃AI(外部) | Antigravity@tool | Opus | `ai/antigravity/ui-2` | ⚪ | 🏁完成 |
 | UI-3 | 微互動 | ruan6047 | 規劃AI(外部) | Antigravity@tool | Sonnet(異 session) | `ai/antigravity/ui-3` | ⚪ | 🔍待查核 |
 | UI-4 | 響應式 | ruan6047 | 規劃AI(外部) | Antigravity@tool | Opus(真機實測) | `ai/antigravity/ui-4` | ⚪ | 🔍待查核 |
 | UI-5 | 球員對比頁 + 好球帶 tooltip | ruan6047 | 規劃AI(外部) | 暫無 | Opus | — | ⚪ | 📥Backlog（封存）|
@@ -33,10 +33,11 @@
 ### UI-2 運動風質感（Outfit 字型／毛玻璃／hover 隊色光暈）  〔⚪〕
 - 需求：ruan6047　規劃：規劃AI(外部)　分支：`ai/antigravity/ui-2`
 - 執行：Antigravity@tool　查核：Opus（視覺驗收）
-- 狀態：🔍待查核　Commit：`7f1a240`
+- 狀態：🏁完成　Commit：`7f1a240`
 - Log：
   - 07-08 規劃 by 規劃AI；稽核 by Claude-Opus → ✅前提正確可執行
   - 07-09 由 Antigravity 啟動執行並完成實作，提報審查
+  - 07-09 使用者 ruan6047 驗收通過，合併至 main
 
 ### UI-3 微互動（勝率條伸展／滑桿觸感／View Transition）  〔⚪〕
 - 需求：ruan6047　規劃：規劃AI(外部)　分支：`ai/antigravity/ui-3`
