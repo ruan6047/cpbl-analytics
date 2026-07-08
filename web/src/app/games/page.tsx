@@ -133,8 +133,8 @@ export default async function GamesPage({
         ) : <span className="px-2.5 py-1 text-sm text-faint">→</span>}
       </div>
 
-      {/* 月曆 */}
-      <div className="overflow-x-auto">
+      {/* 月曆 (桌機版) */}
+      <div className="hidden md:block overflow-x-auto">
         <div className="min-w-[720px]">
           <div className="grid grid-cols-7 gap-px">
             {WD.map((w, i) => (
@@ -192,6 +192,65 @@ export default async function GamesPage({
             ))}
           </div>
         </div>
+      </div>
+
+      {/* 行動端：直列式列表 */}
+      <div className="block md:hidden space-y-4">
+        {cells.filter(c => c.inMonth && c.games.length > 0).map(c => (
+          <div key={c.key} className="card p-4">
+            <div className={`text-xs font-semibold mb-2.5 pb-1 border-b border-line flex items-center justify-between ${c.key === todayStr ? "text-accent" : "text-muted"}`}>
+              <span>{c.key}</span>
+              {c.key === todayStr && <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold text-accent">今天</span>}
+            </div>
+            <div className="space-y-3">
+              {c.games.map((g) => {
+                const done = g.away_score + g.home_score > 0;
+                const awayWin = g.away_score > g.home_score;
+                const status = done ? "完賽" : (g.delay_kind ?? "未開打");
+                const statusCls = done ? "bg-surface-2 text-faint" : g.delay_kind ? "bg-amber-100 text-amber-800" : "bg-accent/15 text-accent";
+                const info = done
+                  ? (g.mvp ? `⭐ MVP: ${g.mvp}` : g.win_pitcher ? `勝投: ${g.win_pitcher}` : "")
+                  : (g.away_starter || g.home_starter ? `先發: ${g.away_starter ?? "未定"} vs ${g.home_starter ?? "未定"}` : (g.venue ?? ""));
+                const body = (
+                  <div className="flex flex-col gap-2 p-3 bg-surface-2/30 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] rounded font-medium leading-none max-w-fit">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${statusCls}`}>{status}</span>
+                        {done && g.delay_kind && <span title={`因雨${g.delay_kind}`}> ☔</span>}
+                      </span>
+                      {g.venue && <span className="text-[10px] text-faint">{g.venue}</span>}
+                    </div>
+                    <div className="flex items-center justify-between px-1">
+                      <span className="flex items-center gap-2 flex-1">
+                        <TeamLogo code={g.away_team_code} name={g.away_team_name} size={22} />
+                        <span className={`text-sm ${done && awayWin ? "font-bold text-ink" : "text-muted"}`}>{g.away_team_name}</span>
+                      </span>
+                      {done && <span className={`text-lg font-mono tabular-nums min-w-[2rem] text-right ${awayWin ? "font-bold text-accent" : "text-muted"}`}>{g.away_score}</span>}
+                    </div>
+                    <div className="flex items-center justify-between px-1">
+                      <span className="flex items-center gap-2 flex-1">
+                        <TeamLogo code={g.home_team_code} name={g.home_team_name} size={22} />
+                        <span className={`text-sm ${done && !awayWin ? "font-bold text-ink" : "text-muted"}`}>{g.home_team_name}</span>
+                      </span>
+                      {done && <span className={`text-lg font-mono tabular-nums min-w-[2rem] text-right ${!awayWin ? "font-bold text-accent" : "text-muted"}`}>{g.home_score}</span>}
+                    </div>
+                    {info && <div className="text-[10px] text-faint border-t border-line/40 pt-1.5 mt-0.5">{info}</div>}
+                  </div>
+                );
+                return hasDetail ? (
+                  <Link key={g.game_sno} href={`/games/${g.game_sno}?kind=${g.kind_code}&year=${g.year}`} className="block transition hover:opacity-80">
+                    {body}
+                  </Link>
+                ) : (
+                  <div key={g.game_sno}>{body}</div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+        {cells.filter(c => c.inMonth && c.games.length > 0).length === 0 && (
+          <p className="text-center text-sm text-faint py-8">本月無賽程安排。</p>
+        )}
       </div>
 
       <p className="mt-4 text-center text-xs text-faint">

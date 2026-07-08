@@ -366,7 +366,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
           <table className="w-full text-sm">
             <thead className="bg-surface-2 text-left text-muted">
               <tr>
-                {["#", "球隊", "出賽", "勝-和-敗", "勝率", "勝差", "淘汰指數", "連勝/敗", "主場", "客場", "近十場", "OPS", "ERA", "WHIP"].map(
+                <th className="whitespace-nowrap px-2.5 py-3 font-medium sticky-col w-10" style={{ left: 0 }}>#</th>
+                <th className="whitespace-nowrap px-2.5 py-3 font-medium sticky-col" style={{ left: '2.5rem' }}>球隊</th>
+                {["出賽", "勝-和-敗", "勝率", "勝差", "淘汰指數", "連勝/敗", "主場", "客場", "近十場", "OPS", "ERA", "WHIP"].map(
                   (h) => (
                     <th key={h} className="whitespace-nowrap px-2.5 py-3 font-medium"
                       title={h === "淘汰指數" ? "Magic Number：再贏幾場可確保不被該隊超越；領先隊不適用" : undefined}>{h}</th>
@@ -383,8 +385,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
                 const whips = items.map((x) => adv.get(x.team_code)?.whip);
                 return (
                   <tr key={t.team_code} className="border-t border-line hover:bg-surface-2">
-                    <td className="px-2.5 py-2.5 text-faint">{t.rank}</td>
-                    <td className="whitespace-nowrap px-2.5 py-2.5 font-sans">
+                    <td className="px-2.5 py-2.5 text-faint sticky-col w-10" style={{ left: 0 }}>{t.rank}</td>
+                    <td className="whitespace-nowrap px-2.5 py-2.5 font-sans sticky-col" style={{ left: '2.5rem' }}>
                       <span className="inline-flex items-center gap-1.5">
                         <LinkedTeam code={t.team_code} name={t.team_name} />
                         {t.is_champion && (

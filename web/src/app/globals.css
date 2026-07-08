@@ -94,4 +94,21 @@ h1, h2 {
   animation: barGrow 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* 行動端 Table 首欄固定 */
+.sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  background-color: var(--color-surface);
+}
+/* 首欄滾動時右側的一層微弱陰影 */
+.sticky-col::after {
+  content: '';
+  position: absolute;
+  right: 0; top: 0; bottom: 0; width: 4px;
+  box-shadow: inset -4px 0 8px -4px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+}
+
+
 
