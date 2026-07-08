@@ -10,8 +10,8 @@
 | 卡ID | 功能 | 需求 | 規劃 | 執行(model@tool) | 查核(model@tool) | 分支 | 紅線 | 狀態 |
 |---|---|---|---|---|---|---|---|---|
 | UI-1 | 深色模式 | ruan6047 | 規劃AI(外部) | 暫無 | **Opus/跨家族** | — | ⚪ | 📥Backlog（封存）|
-| UI-2 | 運動風質感 | ruan6047 | 規劃AI(外部) | Antigravity@tool | Opus | `ai/antigravity/ui-2` | ⚪ | 🔨執行中 |
-| UI-3 | 微互動 | ruan6047 | 規劃AI(外部) | Antigravity@tool | Sonnet(異 session) | `ai/antigravity/ui-3` | ⚪ | ⏳待執行 |
+| UI-2 | 運動風質感 | ruan6047 | 規劃AI(外部) | Antigravity@tool | Opus | `ai/antigravity/ui-2` | ⚪ | 🔍待查核 |
+| UI-3 | 微互動 | ruan6047 | 規劃AI(外部) | Antigravity@tool | Sonnet(異 session) | `ai/antigravity/ui-3` | ⚪ | 🔨執行中 |
 | UI-4 | 響應式 | ruan6047 | 規劃AI(外部) | Antigravity@tool | Opus(真機實測) | `ai/antigravity/ui-4` | ⚪ | ⏳待執行 |
 | UI-5 | 球員對比頁 + 好球帶 tooltip | ruan6047 | 規劃AI(外部) | 暫無 | Opus | — | ⚪ | 📥Backlog（封存）|
 
@@ -33,18 +33,18 @@
 ### UI-2 運動風質感（Outfit 字型／毛玻璃／hover 隊色光暈）  〔⚪〕
 - 需求：ruan6047　規劃：規劃AI(外部)　分支：`ai/antigravity/ui-2`
 - 執行：Antigravity@tool　查核：Opus（視覺驗收）
-- 狀態：🔨執行中　Commit：—
+- 狀態：🔍待查核　Commit：`7f1a240`
 - Log：
   - 07-08 規劃 by 規劃AI；稽核 by Claude-Opus → ✅前提正確可執行
-  - 07-09 由 Antigravity 啟動執行
+  - 07-09 由 Antigravity 啟動執行並完成實作，提報審查
 
 ### UI-3 微互動（勝率條伸展／滑桿觸感／View Transition）  〔⚪〕
 - 需求：ruan6047　規劃：規劃AI(外部)　分支：`ai/antigravity/ui-3`
 - 執行：Antigravity@tool　查核：Sonnet（**異 session**）
-- 狀態：⏳待執行　Commit：—
+- 狀態：🔨執行中　Commit：—
 - Log：
   - 07-08 規劃 by 規劃AI；稽核 by Claude-Opus → ✅前提全對
-  - 07-09 指派給 Antigravity
+  - 07-09 指派給 Antigravity，啟動執行
 
 ### UI-4 響應式（sticky 首欄／月曆轉列表）  〔⚪〕
 - 需求：ruan6047　規劃：規劃AI(外部)　分支：`ai/antigravity/ui-4`
