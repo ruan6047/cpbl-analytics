@@ -156,7 +156,11 @@ export default function GameLivePage() {
 
   // 本場焦點（門檻原則＝一季只會出現幾次才配當焦點）：
   // 賽事級（再見/逆轉/延長/和局/合力完封）→ 打者 → 投手 → 球速（≥155 才顯示）。
-  const highlights: string[] = [];
+  // 每條焦點帶所屬隊伍 code（供前端上色）；賽事級/中性（和局/延長/裁定/里程碑）team=null。
+  const highlights: { text: string; team: string | null }[] = [];
+  const teamOf = (vht: unknown) =>
+    String(vht) === "1" ? String(g.away_team_code ?? "") : String(g.home_team_code ?? "");
+  const H = (text: string, team: string | null = null) => highlights.push({ text, team });
   const hs = n(g.home_score) as number;
   const aw = n(g.away_score) as number;
   const completed = hs + aw > 0;
@@ -175,7 +179,7 @@ export default function GameLivePage() {
         const label = a.includes("全壘打") ? "再見全壘打" : a.includes("安打") ? "再見安打"
           : a.includes("四壞") ? "再見四壞" : a.includes("觸身") ? "再見觸身球"
           : a.includes("犧牲") ? "再見犧牲打" : "再見勝";
-        highlights.push(`${String(lastScore.hitter_name ?? "")} ${label}`);
+        H(`${String(lastScore.hitter_name ?? "")} ${label}`, String(g.home_team_code ?? ""));
       }
     }
     // 逆轉勝（勝隊曾落後 ≥3 分）：逐半局累計比分掃最大落後
@@ -194,22 +198,23 @@ export default function GameLivePage() {
           maxDef = Math.max(maxDef, winnerHome ? cum.a - cum.h : cum.h - cum.a);
         }
       }
-      if (maxDef >= 3) highlights.push(`落後 ${maxDef} 分逆轉勝`);
+      if (maxDef >= 3) H(`落後 ${maxDef} 分逆轉勝`, String((winnerHome ? g.home_team_code : g.away_team_code) ?? ""));
     }
     const maxInn = Math.max(0, ...data.scoreboard.map((r) => n(r.inning_seq) as number));
-    if (hs === aw) highlights.push(`${maxInn} 局和局`);       // 含未滿 9 局的裁定和局
-    else if (maxInn > 9) highlights.push(`延長 ${maxInn} 局`);
+    if (hs === aw) H(`${maxInn} 局和局`);       // 含未滿 9 局的裁定和局（中性）
+    else if (maxInn > 9) H(`延長 ${maxInn} 局`);
     // 合力完封（敗方 0 分且勝方無單人完投）
     if (hs !== aw && Math.min(hs, aw) === 0) {
       const winSide = hs > aw ? "2" : "1";
       const staff = data.pitching.filter((r) => String(r.visiting_home_type) === winSide);
-      if (staff.length > 1 && !staff.some((r) => r.is_complete_game)) highlights.push("合力完封");
+      if (staff.length > 1 && !staff.some((r) => r.is_complete_game))
+        H("合力完封", String((winSide === "2" ? g.home_team_code : g.away_team_code) ?? ""));
     }
   }
   // 裁定比賽（未打滿正常局數即終結；和局正常須 12 局、勝負正常須 9 局起）
   if (completed && data.scoreboard.length > 0) {
     const maxInn0 = Math.max(0, ...data.scoreboard.map((r) => n(r.inning_seq) as number));
-    if (hs !== aw && maxInn0 < 9) highlights.push(`${maxInn0} 局裁定比賽`);
+    if (hs !== aw && maxInn0 < 9) H(`${maxInn0} 局裁定比賽`);
   }
   // 魯閣（網路用語，源自大魯閣打擊場＝投手像發球機一樣好打）：
   // 單場失 10 分以上＝被打爆隊的暱稱前綴+魯閣；失 20 分以上＝雙魯閣。非官方、含嘲諷意味。
@@ -217,7 +222,8 @@ export default function GameLivePage() {
     const lukaku = (concededBy: string | null | undefined, runsAgainst: number) => {
       if (runsAgainst < 10) return;
       const p = fanNick(String(concededBy ?? ""))?.prefix ?? "";
-      highlights.push(runsAgainst >= 20 ? `雙${p}魯閣（失 ${runsAgainst} 分）` : `${p}魯閣（失 ${runsAgainst} 分）`);
+      H(runsAgainst >= 20 ? `雙${p}魯閣（失 ${runsAgainst} 分）` : `${p}魯閣（失 ${runsAgainst} 分）`,
+        String(concededBy ?? ""));
     };
     lukaku(g.away_team_code as string, hs);   // 主隊得 10+ → 客隊被打爆
     lukaku(g.home_team_code as string, aw);   // 客隊得 10+ → 主隊被打爆
@@ -257,59 +263,65 @@ export default function GameLivePage() {
       if (trapped) traps[vht][trapped === "big" ? "big" : "normal"]++;
     }
     for (const [vht, t] of Object.entries(traps)) {
-      const team = teamShort(String(vht === "1" ? g.away_team_code : g.home_team_code));
-      if (t.big) highlights.push(`${team} 大中計${t.big > 1 ? ` ×${t.big}` : ""}（無人出局滿壘未得分）`);
-      if (t.normal) highlights.push(`${team} 中計${t.normal > 1 ? ` ×${t.normal}` : ""}（滿壘未得分）`);
+      const code = String((vht === "1" ? g.away_team_code : g.home_team_code) ?? "");
+      const team = teamShort(code);
+      if (t.big) H(`${team} 大中計${t.big > 1 ? ` ×${t.big}` : ""}（無人出局滿壘未得分）`, code);
+      if (t.normal) H(`${team} 中計${t.normal > 1 ? ` ×${t.normal}` : ""}（滿壘未得分）`, code);
     }
   }
   // 煮粥（網路用語）：單局 2 次以上失誤（守備一鍋粥）。scoreboard 逐局 E 直接判。
   if (completed) {
     for (const r of data.scoreboard) {
       if ((n(r.error_cnt) as number) >= 2) {
-        const team = teamShort(String(String(r.visiting_home_type) === "1" ? g.away_team_code : g.home_team_code));
-        highlights.push(`${team} 煮粥（${n(r.inning_seq)} 局 ${r.error_cnt} 失誤）`);
+        const code = teamOf(r.visiting_home_type);
+        highlights.push({ text: `${teamShort(code)} 煮粥（${n(r.inning_seq)} 局 ${r.error_cnt} 失誤）`, team: code });
       }
     }
   }
   for (const r of data.batting) {
     const nm = String(r.hitter_name ?? "");
+    const tm = teamOf(r.visiting_home_type);
     const hr = n(r.home_runs) as number;
     const h = n(r.hits) as number;
-    if (n(r.grand_slam) as number) highlights.push(`${nm} 滿貫砲`);
-    else if (hr >= 2) highlights.push(`${nm} ${hr} 響砲`);
+    if (n(r.grand_slam) as number) H(`${nm} 滿貫砲`, tm);
+    else if (hr >= 2) H(`${nm} ${hr} 響砲`, tm);
     // 術語：3安=猛打賞、4安=鐵支、5安+ 直接報數
-    if (h === 3) highlights.push(`${nm} 猛打賞`);
-    else if (h === 4) highlights.push(`${nm} 鐵支（單場4安）`);
-    else if (h >= 5) highlights.push(`${nm} 單場 ${h} 安`);
-    if ((n(r.rbi) as number) >= 4) highlights.push(`${nm} ${r.rbi} 打點`);
-    if ((n(r.sb) as number) >= 2) highlights.push(`${nm} ${r.sb} 次盜壘`);
+    if (h === 3) H(`${nm} 猛打賞`, tm);
+    else if (h === 4) H(`${nm} 鐵支（單場4安）`, tm);
+    else if (h >= 5) H(`${nm} 單場 ${h} 安`, tm);
+    if ((n(r.rbi) as number) >= 4) H(`${nm} ${r.rbi} 打點`, tm);
+    if ((n(r.sb) as number) >= 2) H(`${nm} ${r.sb} 次盜壘`, tm);
     // 致勝打點（官方 box 欄）：每場勝方必有，作為焦點區的保底內容
-    if (n(r.gw_rbi) as number) highlights.push(`${nm} 致勝打點`);
+    if (n(r.gw_rbi) as number) H(`${nm} 致勝打點`, tm);
   }
   for (const r of data.pitching) {
     const nm = String(r.pitcher_name ?? "");
+    const tm = teamOf(r.visiting_home_type);
     const d = (data.decisions ?? {})[String(r.pitcher_acnt)];
-    if (r.is_shutout) highlights.push(`${nm} 完封`);
-    else if (r.is_complete_game) highlights.push(`${nm} 完投`);
-    if ((n(r.so) as number) >= 10) highlights.push(`${nm} ${r.so} 次三振`);
+    if (r.is_shutout) H(`${nm} 完封`, tm);
+    else if (r.is_complete_game) H(`${nm} 完投`, tm);
+    if ((n(r.so) as number) >= 10) H(`${nm} ${r.so} 次三振`, tm);
     // 問天（網路用語）：優質先發（≥6 局、自責 ≤3）卻吞敗或無關勝負
     const isStarter = String(r.pitcher_acnt) === String(g.away_starter_id)
       || String(r.pitcher_acnt) === String(g.home_starter_id);
     const outs = (n(r.inning_pitched_cnt) as number) * 3 + (n(r.inning_pitched_div3) as number);
     if (completed && isStarter && outs >= 18 && (n(r.earned_runs) as number) <= 3 && d !== "W") {
-      highlights.push(`${nm} 問天（優質先發${d === "L" ? "吞敗" : "無關勝負"}）`);
+      H(`${nm} 問天（優質先發${d === "L" ? "吞敗" : "無關勝負"}）`, tm);
     }
     // 劇場（網路用語）：救援成功但過程驚險——讓 ≥2 人上壘或有失分
     if (d === "SV") {
       const runners = (n(r.hits) as number) + (n(r.bb) as number) + (n(r.hbp) as number);
-      if (runners >= 2 || (n(r.runs) as number) >= 1) highlights.push(`${nm} 劇場`);
+      if (runners >= 2 || (n(r.runs) as number) >= 1) H(`${nm} 劇場`, tm);
     }
   }
   // 最速球：≥155 才有焦點價值（日常最速無鑑別度）
   const maxSp = Math.max(0, ...data.pitching.map((r) => (n(r.max_speed) as number) || 0));
-  if (maxSp >= 155) highlights.push(`最速球 ${maxSp} km/h`);
-  // 生涯里程碑/首次（後端精確判定）置頂
-  highlights.unshift(...milestones.map((m) => `🏆 ${m.player} ${m.text}`));
+  if (maxSp >= 155) {
+    const fast = data.pitching.find((r) => (n(r.max_speed) as number) === maxSp);
+    H(`最速球 ${maxSp} km/h`, fast ? teamOf(fast.visiting_home_type) : null);
+  }
+  // 生涯里程碑/首次（後端精確判定）置頂（中性 team=null，已有 🏆 區別）
+  highlights.unshift(...milestones.map((m) => ({ text: `🏆 ${m.player} ${m.text}`, team: null })));
   highlights.splice(12);
 
   // MVP 當場成績行（打者/投手 box 內 is_mvp）

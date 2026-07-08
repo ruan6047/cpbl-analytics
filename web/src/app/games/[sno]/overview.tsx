@@ -87,7 +87,7 @@ export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor
   wp: WpPoint[]; log: StatRow[]; homeName: string; awayName: string;
   homeColor: string; awayColor: string;
   onJump: (evt: string) => void;
-  highlights: string[]; info: [string, string][];
+  highlights: { text: string; team: string | null }[]; info: [string, string][];
   mvp: { name: string; line: string } | null;
   decisions: [string, string][];
 }) {
@@ -133,9 +133,13 @@ export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor
             <>
               <div className="mb-2 text-sm font-semibold">本場焦點</div>
               <div className="mb-3 flex flex-wrap gap-1.5">
-                {highlights.map((t, i) => (
-                  <span key={i} className="rounded-md bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">{t}</span>
-                ))}
+                {highlights.map((h, i) => {
+                  const c = h.team ? teamColor(h.team) : null;      // 依隊伍色上色；中性焦點用 accent
+                  return c
+                    ? <span key={i} className="rounded-md px-2.5 py-1 text-xs font-medium"
+                        style={{ background: `${c}1a`, color: c }}>{h.text}</span>
+                    : <span key={i} className="rounded-md bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">{h.text}</span>;
+                })}
               </div>
             </>
           )}
