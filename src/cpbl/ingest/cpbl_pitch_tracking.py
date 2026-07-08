@@ -40,6 +40,29 @@ def _i(v) -> int | None:
         return None
 
 
+_ZT_FALLBACK = 0.42  # ZoneTime 缺值時的飛行秒數估計（見 docs/PITCH_TYPE_PLAN.md §2）
+
+
+def _traj(pit: dict) -> tuple[float | None, float | None, float | None, float | None, float | None]:
+    """由 Flight.PolyFit.PitchTrajectory（二次多項式係數）+ ZoneTime 導出
+    (accel_y, accel_z, zone_time, ivb_cm, hb_cm)。TM 球 100% 有；缺任一則回 None 群。
+
+    座標軸（已實證）：Y=垂直（含重力），Z=水平（Z[0]≈−RelSide）。
+    IVB=0.5·(2Y₂+9.81)·t²·100 cm（正=四縫線上飄）；HB=0.5·(2Z₂)·t²·100 cm（未翻左右手）。
+    """
+    traj = ((pit.get("Flight") or {}).get("PolyFit") or {}).get("PitchTrajectory") or {}
+    y2 = _f((traj.get("Y") or [None, None, None])[2] if traj.get("Y") else None)
+    z2 = _f((traj.get("Z") or [None, None, None])[2] if traj.get("Z") else None)
+    if y2 is None or z2 is None:
+        return (None, None, None, None, None)
+    ay, az = 2.0 * y2, 2.0 * z2
+    zt = _f((pit.get("Location") or {}).get("ZoneTime"))
+    t = zt if zt else _ZT_FALLBACK
+    ivb = 0.5 * (ay + 9.81) * t * t * 100.0
+    hb = 0.5 * az * t * t * 100.0
+    return (round(ay, 4), round(az, 4), zt, round(ivb, 2), round(hb, 2))
+
+
 def _fetch_logs(client: httpx.Client, acnt: str, year: int, kind_code: str) -> list[dict]:
     r = client.get(LOGS_EP, params={
         "playerType": "pitcher", "acnt": acnt, "year": str(year), "kindCode": kind_code})
@@ -61,6 +84,7 @@ def _record(p: dict, kind_default: str) -> tuple | None:
     sno, pcnt, pacnt = _i(p.get("GameSno")), _i(p.get("PitchCnt")), p.get("PitcherAcnt")
     if sno is None or pcnt is None or not pacnt:
         return None
+    accel_y, accel_z, zone_time, ivb, hb = _traj(pit)
     return (
         _i(p.get("Year")), p.get("KindCode") or kind_default, sno, pacnt, pcnt,
         p.get("PitcherName"), p.get("HitterAcnt"), p.get("HitterName"),
@@ -72,6 +96,7 @@ def _record(p: dict, kind_default: str) -> tuple | None:
         _f(loc.get("ZoneSpeed")), _f(loc.get("PlateLocSide")), _f(loc.get("PlateLocHeight")),
         _f(launch.get("ExitSpeed")), _f(launch.get("Angle")), _f(launch.get("Direction")),
         _f(land.get("Distance")), _f(land.get("HangTime")),
+        accel_y, accel_z, zone_time, ivb, hb,
     )
 
 
@@ -79,7 +104,7 @@ _COLS = ("year,kind_code,game_sno,pitcher_acnt,pitch_cnt,pitcher_name,hitter_acn
          "inning_seq,ball_cnt,strike_cnt,out_cnt,batting_order,content,pitch_call,auto_pitch_type,"
          "tagged_pitch_type,rel_speed,spin_rate,rel_side,rel_height,extension,zone_speed,"
          "plate_loc_side,plate_loc_height,hit_exit_speed,hit_launch_angle,hit_direction,"
-         "hit_distance,hit_hang_time")
+         "hit_distance,hit_hang_time,traj_accel_y,traj_accel_z,zone_time,ivb_cm,hb_cm")
 
 
 def _upsert(records: list[tuple]) -> int:

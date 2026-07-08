@@ -143,7 +143,7 @@ def game_live(
         cur.execute(
             """
             SELECT pitcher_acnt, hitter_acnt, inning_seq, pitch_cnt, ball_cnt, strike_cnt,
-                   auto_pitch_type, rel_speed, plate_loc_side, plate_loc_height, pitch_call
+                   pitch_type_pred, tagged_pitch_type, rel_speed, plate_loc_side, plate_loc_height, pitch_call
             FROM cpbl.pitch_tracking
             WHERE year=%s AND kind_code=%s AND game_sno=%s
             ORDER BY pitcher_acnt, pitch_cnt
