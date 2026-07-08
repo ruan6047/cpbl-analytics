@@ -60,7 +60,10 @@ export function MatchupCard({
           const ac = teamColor(m.away.code), hc = teamColor(m.home.code);
           return (
             <div className="relative h-7 w-44 shrink-0 overflow-hidden rounded" style={{ background: ac }}>
-              <div className="absolute right-0 top-0 h-7" style={{ width: `${homePct}%`, background: hc }} />
+              <div
+                className="absolute right-0 top-0 h-7 animate-bar-grow"
+                style={{ "--target-width": `${homePct}%`, width: `${homePct}%`, background: hc } as React.CSSProperties}
+              />
               <span className="absolute inset-y-0 left-2 flex items-center font-mono text-[11px] font-semibold"
                 style={{ color: contrastText(ac) }}>
                 {(100 - homePct).toFixed(0)}

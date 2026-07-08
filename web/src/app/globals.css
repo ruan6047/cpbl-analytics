@@ -85,3 +85,13 @@ h1, h2 {
   box-shadow: 0 0 16px color-mix(in srgb, var(--hover-color) 20%, transparent) !important;
 }
 
+/* 勝率條伸展動畫 */
+@keyframes barGrow {
+  from { width: 0%; }
+  to { width: var(--target-width); }
+}
+.animate-bar-grow {
+  animation: barGrow 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+
