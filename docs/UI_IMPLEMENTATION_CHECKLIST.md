@@ -3,7 +3,7 @@
 本文件為 **CPBL Analytics** 專案 UI/UX 優化的實作清單，旨在提供給**第三方 AI** 進行實作前的稽核、以及實作後的代碼審查（Code Review）與功能驗證。
 
 > **規則見 [`AI_WORKFLOW.md`](AI_WORKFLOW.md)**（stub → canonical `~/Dev/ai-workflow`）。本檔＝**spec（做什麼／怎麼做／驗收標準）**；**狀態與職責歸屬（誰做／查核／分支／log）一律以看板 [`TASKS.md`](TASKS.md) 的 UI-1~5 卡為權威**，本檔不再另記狀態，只保留**稽核發現**（供執行者/查核者參考）。
-> **需求：使用者｜規劃：規劃 AI（外部）｜稽核：Claude-Opus-4.8**（狀態詳見看板卡）
+> **需求：ruan6047｜規劃：規劃 AI（外部）｜稽核：Claude-Opus-4.8**（狀態詳見看板卡）
 
 ---
 
