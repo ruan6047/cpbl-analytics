@@ -12,7 +12,7 @@
 | UI-1 | 深色模式 | ruan6047 | 規劃AI(外部) | 暫無 | **Opus/跨家族** | — | ⚪ | 📥Backlog（封存）|
 | UI-2 | 運動風質感 | ruan6047 | 規劃AI(外部) | Antigravity@tool | Opus | `ai/antigravity/ui-2` | ⚪ | 🔍待查核 |
 | UI-3 | 微互動 | ruan6047 | 規劃AI(外部) | Antigravity@tool | Sonnet(異 session) | `ai/antigravity/ui-3` | ⚪ | 🔍待查核 |
-| UI-4 | 響應式 | ruan6047 | 規劃AI(外部) | Antigravity@tool | Opus(真機實測) | `ai/antigravity/ui-4` | ⚪ | 🔨執行中 |
+| UI-4 | 響應式 | ruan6047 | 規劃AI(外部) | Antigravity@tool | Opus(真機實測) | `ai/antigravity/ui-4` | ⚪ | 🔍待查核 |
 | UI-5 | 球員對比頁 + 好球帶 tooltip | ruan6047 | 規劃AI(外部) | 暫無 | Opus | — | ⚪ | 📥Backlog（封存）|
 
 > 「待指派」＝ruan6047尚未派工。派工後把 model@tool 補實、狀態改 🔨。
@@ -49,10 +49,10 @@
 ### UI-4 響應式（sticky 首欄／月曆轉列表）  〔⚪〕
 - 需求：ruan6047　規劃：規劃AI(外部)　分支：`ai/antigravity/ui-4`
 - 執行：Antigravity@tool　查核：Opus（**須真機 375px 實測**）
-- 狀態：🔨執行中　Commit：—
+- 狀態：🔍待查核　Commit：`b91f7ac`
 - Log：
   - 07-08 規劃 by 規劃AI；稽核 by Claude-Opus → ✅前提正確
-  - 07-09 指派給 Antigravity，啟動執行
+  - 07-09 指派給 Antigravity，啟動執行並完成實作，提報審查
 
 ### UI-5 球員對比頁 + 好球帶 tooltip  〔⚪〕
 - 需求：ruan6047　規劃：規劃AI(外部)　分支：—
