@@ -11,6 +11,11 @@ from cpbl.db import conn
 
 router = APIRouter()
 
+# 推算球種：優先 pitch_type_pred（軌跡導 IVB/HB → KMeans 分類，見 models/pitch_type.py），
+# 缺值退回 tagged 二元弱標籤。所有逐球球種聚合/篩選共用此表達式，回中文標籤。
+PT_EXPR = ("COALESCE(pitch_type_pred, CASE tagged_pitch_type "
+           "WHEN 'fastball' THEN '速球' WHEN 'breakingball' THEN '變化球' END)")
+
 
 @router.get("/api/v1/players/{player_id}/advanced")
 def player_advanced(player_id: str, season: int = Query(DEFAULT_SEASON),
@@ -107,7 +112,7 @@ def player_discipline(
         cur.execute(
             f"""
             SELECT plate_loc_side, plate_loc_height, pitch_call, content, hit_exit_speed, hit_launch_angle,
-                   tagged_pitch_type
+                   {PT_EXPR}
             FROM cpbl.pitch_tracking
             WHERE {col} = %s AND year = %s AND kind_code = %s AND plate_loc_side IS NOT NULL
             """,
@@ -121,7 +126,7 @@ def player_discipline(
                   for s, h, pc, ct, ev, la, pt in cur.fetchall()]
         cur.execute(
             f"""
-            SELECT hit_direction, hit_distance, hit_exit_speed, content, tagged_pitch_type, hit_launch_angle
+            SELECT hit_direction, hit_distance, hit_exit_speed, content, {PT_EXPR}, hit_launch_angle
             FROM cpbl.pitch_tracking
             WHERE {col} = %s AND year = %s AND kind_code = %s AND pitch_call = 'InPlay'
               AND hit_distance IS NOT NULL AND hit_direction IS NOT NULL
@@ -160,16 +165,16 @@ def player_discipline(
             "avg_launch_angle": fl(la), "max_hit_dist": fl(maxd), "avg_exit_speed": fl(ev),
             "avg_extension": fl(ext), "avg_rel_height": fl(relh), "avg_speed": fl(rels)}
         quality = _q(la, maxd, ev, ext, relh, rels)
-        # 依球種拆的球質/擊球品質，供前端球種鏡頭切換（tagged_pitch_type：fastball/breakingball）
+        # 依推算球種拆的球質/擊球品質，供前端球種鏡頭切換（速球/指叉/卡特/滑球/曲球）
         cur.execute(
             f"""
-            SELECT tagged_pitch_type,
+            SELECT {PT_EXPR} pt,
                    round(avg(hit_launch_angle)::numeric, 1), round(max(hit_distance)::numeric, 1),
                    round(avg(hit_exit_speed)::numeric, 1), round(avg(extension)::numeric, 2),
                    round(avg(rel_height)::numeric, 2), round(avg(rel_speed)::numeric, 1)
             FROM cpbl.pitch_tracking
-            WHERE {col} = %s AND year = %s AND kind_code = %s AND tagged_pitch_type IS NOT NULL
-            GROUP BY tagged_pitch_type
+            WHERE {col} = %s AND year = %s AND kind_code = %s AND {PT_EXPR} IS NOT NULL
+            GROUP BY pt
             """,
             (player_id, season, kind_code),
         )
@@ -183,20 +188,20 @@ def player_arsenal(
     role: str = Query("pitching", pattern="^(batting|pitching)$"),
     season: int = Query(DEFAULT_SEASON),
 ) -> dict:
-    """球種應對：自 pitch_tracking 按球種彙總。pitching=投手配球、batting=打者面對。
-    回每球種：球數、用球/面對%、均速、(投手)轉速、揮空%、(打者)擊球初速。"""
+    """球種應對：自 pitch_tracking 按推算球種彙總。pitching=投手配球、batting=打者面對。
+    回每球種：球數、用球/面對%、均速、(投手)轉速、揮空%、(打者)擊球初速。球種為推算（見 PT_EXPR）。"""
     col = "pitcher_acnt" if role == "pitching" else "hitter_acnt"
     with conn() as c:
         cur = c.cursor()
         cur.execute(
             f"""
-            SELECT tagged_pitch_type, count(*) n, avg(rel_speed), avg(spin_rate),
+            SELECT {PT_EXPR} pt, count(*) n, avg(rel_speed), avg(spin_rate),
                    count(*) FILTER (WHERE pitch_call = 'StrikeSwinging'),
                    count(*) FILTER (WHERE pitch_call IN {_SWING}),
                    avg(hit_exit_speed)
             FROM cpbl.pitch_tracking
-            WHERE {col} = %s AND year = %s AND kind_code = 'A' AND tagged_pitch_type IS NOT NULL
-            GROUP BY tagged_pitch_type ORDER BY n DESC
+            WHERE {col} = %s AND year = %s AND kind_code = 'A' AND {PT_EXPR} IS NOT NULL
+            GROUP BY pt ORDER BY n DESC
             """,
             (player_id, season),
         )
@@ -233,31 +238,30 @@ def player_pitch_mix(
     season: int = Query(DEFAULT_SEASON),
     kind_code: str = Query("A", pattern="^(A|D)$"),
 ) -> dict:
-    """配球傾向：不同球數情境下的速球／變化球占比。pitching=投手配球、batting=打者面對。kind_code：A=一軍 D=二軍。"""
+    """配球傾向：不同球數情境下各推算球種占比。pitching=投手配球、batting=打者面對。kind_code：A=一軍 D=二軍。"""
     col = "pitcher_acnt" if role == "pitching" else "hitter_acnt"
     order = ["第一球", "打者領先", "平球數", "投手領先", "兩好球"]
-    agg: dict[str, dict[str, int]] = {k: {"fastball": 0, "breakingball": 0} for k in order}
+    agg: dict[str, dict[str, int]] = {k: {} for k in order}
     with conn() as c:
         cur = c.cursor()
         cur.execute(
             f"""
-            SELECT ball_cnt, strike_cnt, tagged_pitch_type
+            SELECT ball_cnt, strike_cnt, {PT_EXPR} pt
             FROM cpbl.pitch_tracking
-            WHERE {col} = %s AND year = %s AND kind_code = %s AND tagged_pitch_type IS NOT NULL
+            WHERE {col} = %s AND year = %s AND kind_code = %s AND {PT_EXPR} IS NOT NULL
               AND ball_cnt IS NOT NULL AND strike_cnt IS NOT NULL
             """,
             (player_id, season, kind_code),
         )
         for b, s, pt in cur.fetchall():
             bk = _count_bucket(b, s)
-            if pt in ("fastball", "breakingball"):
-                agg[bk][pt] += 1
+            agg[bk][pt] = agg[bk].get(pt, 0) + 1
     items = []
     for k in order:
-        n = agg[k]["fastball"] + agg[k]["breakingball"]
+        n = sum(agg[k].values())
         if not n:
             continue
-        items.append({"bucket": k, "n": n,
-                      "fastball": round(agg[k]["fastball"] / n * 100, 1),
-                      "breakingball": round(agg[k]["breakingball"] / n * 100, 1)})
+        mix = [{"pitch_type": pt, "pct": round(c / n * 100, 1)}
+               for pt, c in sorted(agg[k].items(), key=lambda x: -x[1])]
+        items.append({"bucket": k, "n": n, "mix": mix})
     return {"player_id": player_id, "role": role, "items": items}

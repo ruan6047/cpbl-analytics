@@ -114,9 +114,25 @@ export const PIT_METRICS: Metric[] = [
 ];
 export const axis = { tick: { fill: "#5b6b7a", fontSize: 12 }, stroke: "#cbd5e1" };
 
-// 球種鏡頭：逐球資料共用一個 pitchType state（速球/變化球；資料只有 tagged 二分）。
-export type PitchType = "all" | "fastball" | "breakingball";
-export const PITCH_TYPES: [PitchType, string][] = [["all", "全部"], ["fastball", "速球"], ["breakingball", "變化球"]];
+// 推算球種（pitch_type_pred；缺退 tagged 二元）：統一名稱→色→順序，逐球各視圖共用。
+// 順序＝快→慢/常見度；色為分類配色（賽況卡與此處一致）。
+export const PITCH_META: { key: string; color: string }[] = [
+  { key: "速球", color: "#1d6fb8" },
+  { key: "卡特/滑球", color: "#0ea5a4" },
+  { key: "指叉/變速", color: "#f59e0b" },
+  { key: "滑球/橫掃", color: "#8b5cf6" },
+  { key: "曲球", color: "#16a34a" },
+  { key: "變化球", color: "#94a3b8" },
+];
+export const PT_ORDER: string[] = PITCH_META.map((m) => m.key);
+const PT_COLOR: Record<string, string> = Object.fromEntries(PITCH_META.map((m) => [m.key, m.color]));
+export const ptColor = (pt: string): string => PT_COLOR[pt] ?? "#94a3b8";
+// 球種鏡頭：state 為 "all" 或某推算球種中文名。可選球種由該球員實際投/面對的資料決定（避免空按鈕）。
+export type PitchType = string;
+export const ptTypesFrom = (pts: (string | null)[]): string[] => {
+  const present = new Set(pts.filter((p): p is string => !!p));
+  return PT_ORDER.filter((t) => present.has(t));
+};
 
 // 分項類別：官網 item_group_code 在打/投間不一致，改用 item_name 內容判斷（穩健、跨角色）。
 export const SPLIT_CATS: { key: string; label: string; test: (n: string) => boolean }[] = [

@@ -6,7 +6,7 @@ import { LetterBadge, divBg } from "@/components/ui";
 import { type StatRow } from "@/lib/client";
 import { fmtIP } from "@/lib/format";
 import { codeFromName, eraBadge, teamShort } from "@/lib/teams";
-import { PITCH_TYPES, type PitchType, type Role, type Tenure, eraOf, f3, ipOf, ipText, n0, numOf } from "./lib";
+import { type PitchType, type Role, type Tenure, eraOf, f3, ipOf, ipText, n0, numOf } from "./lib";
 
 // hero 內「教練／行政」所屬隊伍列：依隊聚合年份、職稱進 tooltip（比照球員所屬隊伍）
 export function TenureChips({ label, tenures }: { label: string; tenures: Tenure[] }) {
@@ -108,12 +108,15 @@ export function BestSeasonGrid({ items }: { items: { label: string; value: strin
   );
 }
 
-export function PitchTypeToggle({ value, onChange }: { value: PitchType; onChange: (v: PitchType) => void }) {
+export function PitchTypeToggle({ value, onChange, types }: {
+  value: PitchType; onChange: (v: PitchType) => void; types: string[];
+}) {
   return (
-    <div className="flex gap-1 text-[11px]">
-      {PITCH_TYPES.map(([v, l]) => (
+    <div className="flex flex-wrap gap-1 text-[11px]">
+      {(["all", ...types] as PitchType[]).map((v) => (
         <button key={v} onClick={() => onChange(v)}
-          className={`rounded px-2 py-0.5 ${value === v ? "bg-ink text-white" : "bg-surface-2 text-muted"}`}>{l}</button>
+          className={`rounded px-2 py-0.5 ${value === v ? "bg-ink text-white" : "bg-surface-2 text-muted"}`}>
+          {v === "all" ? "全部" : v}</button>
       ))}
     </div>
   );

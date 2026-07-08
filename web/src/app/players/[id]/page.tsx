@@ -23,7 +23,7 @@ export default function PlayerPage() {
   const [season, setSeason] = useState<{ batting: StatRow | null; pitching: StatRow | null } | null>(null);
   const [advanced, setAdvanced] = useState<{ batting: StatRow | null; pitching: StatRow | null } | null>(null);
   const [disc, setDisc] = useState<Disc | null>(null);
-  const [pitchMix, setPitchMix] = useState<{ bucket: string; n: number; fastball: number; breakingball: number }[] | null>(null);
+  const [pitchMix, setPitchMix] = useState<{ bucket: string; n: number; mix: { pitch_type: string; pct: number }[] }[] | null>(null);
   const [arsenal, setArsenal] = useState<{ pitch_type: string; n: number; usage: number;
     avg_speed: number | null; avg_spin: number | null; whiff_pct: number | null; avg_ev: number | null }[] | null>(null);
   const [fielding, setFielding] = useState<StatRow[] | null>(null);

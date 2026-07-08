@@ -231,7 +231,7 @@ export const detail = {
       batted: { la: number; ev: number; result: string }[];
     }>(`/api/v1/players/${id}/discipline?role=${role}&kind_code=${kind}`),
   pitchMix: (id: string, role: "batting" | "pitching", kind: "A" | "D" = "A") =>
-    clientGet<{ items: { bucket: string; n: number; fastball: number; breakingball: number }[] }>(
+    clientGet<{ items: { bucket: string; n: number; mix: { pitch_type: string; pct: number }[] }[] }>(
       `/api/v1/players/${id}/pitch-mix?role=${role}&kind_code=${kind}`,
     ),
   arsenal: (id: string, role: "batting" | "pitching") =>
