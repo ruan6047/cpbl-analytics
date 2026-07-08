@@ -102,11 +102,6 @@ def _missing_gamelog_snos(year: int, kind_code: str = "A") -> list[int]:
     return [r[0] for r in rows]
 
 
-def _roster_ids(table: str) -> set[str]:
-    with conn() as c:
-        return {r[0] for r in c.execute(f"SELECT player_id FROM cpbl.{table}").fetchall()}
-
-
 def _sync_player_names() -> int:
     """以「最近一場逐場登錄名」更新 players.name（處理球員改名，如 象魔力→魔力藍）。
     gamelog 名為官方當場登錄名、最乾淨；current 表名帶 #/◎/* roster 標記故不用。
@@ -198,18 +193,18 @@ def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict
     # 賽況（逐局比分 + 逐打席事件）：當日完成場
     gamelog = scrape_gamelogs(year, snos)
     scrape_game_details(year, snos, "A")  # 觀眾/裁判/時長
+    # 當日出賽者全抓，不過濾現役名單（比照二軍 _farm_detail，完整涵蓋；避免當日被下放/
+    # 釋出的投手被漏掉。近 14 天實測過濾未漏人，但保守起見取消此潛在漏洞）。
     batters_played, pitchers_played = lineup_acnts(year, snos)
-    cur_b, cur_p = _roster_ids("batting_current"), _roster_ids("pitching_current")
-    rb = sorted(batters_played & cur_b)
-    rp = sorted(pitchers_played & cur_p)
+    rb, rp = sorted(batters_played), sorted(pitchers_played)
     if not rb and not rp:
         return {"completed_games": len(snos), "gamelog": gamelog,
                 "lineup_batters": 0, "lineup_pitchers": 0, "farm": farm}
     # 對戰：只重抓「當日打者 × 當日對手隊」的生涯對戰即涵蓋所有變動的 (打者,投手) 組合
     # （對手投手全在當日對手隊，故無需掃該打者生涯面對過的所有隊，省 ~15× 請求）。
+    # 不帶 pitcher_ids＝不濾對戰投手層級（比照二軍，完整保留對戰史）。
     day_targets = _day_opponents(year, snos)
-    m = scrape_matchups([YEAR_CAREER], delay=delay, batter_ids=rb,
-                        pitcher_ids=cur_p, day_targets=day_targets)
+    m = scrape_matchups([YEAR_CAREER], delay=delay, batter_ids=rb, day_targets=day_targets)
     # 分項（本季+生涯）與 vs-team 已全改重算：本季=build_splits、生涯=base+本季
     # （build_career，錨定見 anchor_career）。apart 爬蟲全停；季後賽 C/E 開打時
     # 把 C/E 加進 build_splits kinds 即自動累加（gamelog/livelog 照爬）。

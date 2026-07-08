@@ -133,12 +133,6 @@ def scrape_pitches(pitcher_acnts: list[str], year: int | None = None,
     return out
 
 
-def current_pitchers() -> list[str]:
-    with conn() as c:
-        return [r[0] for r in c.execute(
-            "SELECT DISTINCT player_id FROM cpbl.pitching_current ORDER BY player_id").fetchall()]
-
-
 def pitchers_by_kind(year: int, kind_code: str) -> list[str]:
     """有在該 year/kind 出賽的投手（自 pitching_gamelog）。供二軍/季後回填用。"""
     with conn() as c:
