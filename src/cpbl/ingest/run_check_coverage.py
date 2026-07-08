@@ -75,7 +75,7 @@ def main() -> None:
 
     today = date.today()
     wk = [r for r in rows if r["completed"] and r["livelog"] > 0
-          and (today - r["game_date"]).days <= WEEK]
+          and 0 <= (today - r["game_date"]).days <= WEEK]  # 非負：排除未來日誤入
 
     # 無設備球場：有完成場卻整季零逐球（如花蓮/嘉義市/台東等小場）。
     no_equip: set[str] = set()
