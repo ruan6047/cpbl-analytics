@@ -2,6 +2,11 @@
 
 本文件提供對 **CPBL Analytics** 專案的深入理解，並針對目前的 UI/UX 設計提出具體的修改規劃與改進建議。依據您的要求，此階段為**研究與規劃**，不進行實際的程式碼修改。
 
+> **職責歸屬 (Provenance)**（規則見 [`AI_WORKFLOW.md`](AI_WORKFLOW.md)）
+> - 需求提供方 [Requested]：使用者　規劃 [Plan]：規劃 AI（外部）　日期：2026-07-08
+> - 狀態：規劃完成 → 轉 [`UI_IMPLEMENTATION_CHECKLIST.md`](UI_IMPLEMENTATION_CHECKLIST.md) 執行；已經 Claude-Opus-4.8 稽核（修正見 checklist）
+> - 對應看板卡：[`TASKS.md`](TASKS.md) UI-1~5
+
 ---
 
 ## 一、 專案架構與核心功能理解
