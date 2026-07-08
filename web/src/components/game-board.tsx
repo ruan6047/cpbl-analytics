@@ -295,7 +295,7 @@ function PlayByPlay({ log, events, idx, setIdx, userAction }: {
   }, [idx, userAction]);
 
   return (
-    <div className="flex-1 rounded-xl border border-line bg-surface p-4">
+    <div className="order-2 rounded-xl border border-line bg-surface p-4 lg:order-1">
       <div className="space-y-0.5">
         {events.map((gi, k) => {
           const e = log[gi];
@@ -521,8 +521,9 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", toolbar, on
         {/* 左：逐打席賽況（選定半局）*/}
         <PlayByPlay log={log} events={curEvents} idx={idx} setIdx={selectIdx} userAction={userAction} />
 
-        {/* 右：當前對戰 + 好球帶（sticky） */}
-        <div className="space-y-4 lg:sticky lg:top-3 lg:self-start">
+        {/* 右：當前對戰 + 好球帶（sticky）。窄螢幕排到清單上方（order-1），避免長局把
+            當前打席/WP/好球帶擠到超長清單下方看不到；桌面維持右側（lg:order-2）。 */}
+        <div className="order-1 space-y-4 lg:order-2 lg:sticky lg:top-3 lg:self-start">
           {curHomeWp != null && (
             <WpBar homeWp={curHomeWp}
               homeName={String(game.home_team_name ?? "")} awayName={String(game.away_team_name ?? "")}
