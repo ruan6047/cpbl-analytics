@@ -353,7 +353,7 @@ export default function GameLivePage() {
     ["勝投", ppl[String(g.winning_pitcher_id)]],
     ["敗投", ppl[String(g.losing_pitcher_id)]],
     ["救援", ppl[String(g.closer_id)]],
-    ["中繼", holdNames ? `${holdNames}（推算）` : undefined],
+    ["中繼", holdNames || undefined],   // HLD 為官方 relief_point，非推算（SV 才是規則重建）
   ] as [string, string | undefined][]).filter(([, v]) => v) as [string, string][];
 
   // 賽事資訊（渲染於總覽右卡）：天氣/觀眾/時長併一列，裁判獨立一列
