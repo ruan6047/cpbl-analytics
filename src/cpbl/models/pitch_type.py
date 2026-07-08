@@ -27,6 +27,12 @@ log = logging.getLogger("cpbl.pitch_type")
 MIN_N = 150   # 少於此樣本不分群，退回 tagged 二元
 _K = 4        # 固定 4 群（見 _cluster）
 
+# 整場完整才分類：一場的逐球覆蓋率(tracked/pitches) 未達門檻，該場全部球不分（pred 留 NULL）。
+# 避免對「發布延遲/部分缺漏」的半套資料硬分（同投手抽樣被截斷、前端顯示到一半推算球種）。
+# 2026A 實測覆蓋率呈雙峰：有設備且發布齊 ≥95%、無設備場 0%、中間僅零星部分場——0.90 乾淨切開。
+_COVER_OK = 0.90    # 場級覆蓋率門檻（tracked/pitches）
+_MIN_PITCHES = 50   # 太少球的場不判（避免雜訊；比照 cpbl-check-coverage）
+
 # tagged_pitch_type 弱標籤 → 中文（fallback 用）
 _TAGGED_ZH = {"fastball": "速球", "breakingball": "變化球", "offspeed": "變速"}
 
@@ -113,6 +119,30 @@ def _classify_pitcher(rows: list[dict]) -> dict[tuple[int, int], str]:
     return out
 
 
+def _complete_games(year: int, kind_code: str) -> set[int]:
+    """TrackMan「整場完整」的 game_sno 集合＝逐球覆蓋率(tracked/pitches) ≥ _COVER_OK 的完成場。
+
+    pitches＝該場 livelog 的好壞球數（實投球數）；tracked＝pitch_tracking 筆數。無設備場
+    (tracked≈0)、發布延遲/部分缺漏場(覆蓋率不足)皆不列入 → 其球不分類、等發布齊下輪再補。
+    """
+    with conn() as c:
+        rows = c.execute(
+            """
+            SELECT g.game_sno,
+              (SELECT count(*) FROM cpbl.game_livelog ll
+                 WHERE ll.year=g.year AND ll.kind_code=g.kind_code AND ll.game_sno=g.game_sno
+                   AND (ll.is_ball OR ll.is_strike)) AS pitches,
+              (SELECT count(*) FROM cpbl.pitch_tracking pt
+                 WHERE pt.year=g.year AND pt.kind_code=g.kind_code AND pt.game_sno=g.game_sno) AS tracked
+            FROM cpbl.games g
+            WHERE g.year=%s AND g.kind_code=%s AND g.home_score + g.away_score > 0
+            """,
+            (year, kind_code),
+        ).fetchall()
+    return {sno for sno, pitches, tracked in rows
+            if pitches >= _MIN_PITCHES and tracked / pitches >= _COVER_OK}
+
+
 def _load(year: int, kind_code: str) -> dict[str, list[dict]]:
     cols = "game_sno,pitch_cnt,pitcher_acnt,rel_speed,ivb_cm,hb_cm,spin_rate,rel_side,tagged_pitch_type"
     by_pitcher: dict[str, list[dict]] = {}
@@ -158,13 +188,22 @@ def _write(year: int, kind_code: str, preds: list[tuple[int, str, int, str]]) ->
 
 
 def classify(year: int, kind_code: str = "A") -> dict:
-    """逐投手分類該 year/kind 全部逐球，寫回 pitch_type_pred。回傳統計摘要。"""
+    """逐投手分類該 year/kind 逐球，寫回 pitch_type_pred。回傳統計摘要。
+
+    只分「整場 TrackMan 完整」的場（見 _complete_games）：覆蓋不足場的球一律不分、pred 留
+    NULL，等官方發布齊下輪 classify 再補。分群/命名皆逐投手跨整季，但樣本僅取完整場。
+    """
+    complete = _complete_games(year, kind_code)
     by_pitcher = _load(year, kind_code)
     preds: list[tuple[int, str, int, str]] = []
-    n_gmm = n_fallback = 0
+    n_gmm = n_fallback = skipped = 0
     for acnt, rows in by_pitcher.items():
-        feat_n = sum(1 for r in rows if all(r[c] is not None for c in _FEATURES))
-        result = _classify_pitcher(rows)
+        crows = [r for r in rows if r["game_sno"] in complete]  # 只留完整場的球
+        skipped += len(rows) - len(crows)
+        if not crows:
+            continue
+        feat_n = sum(1 for r in crows if all(r[c] is not None for c in _FEATURES))
+        result = _classify_pitcher(crows)
         if feat_n >= MIN_N:
             n_gmm += 1
         else:
@@ -172,7 +211,8 @@ def classify(year: int, kind_code: str = "A") -> dict:
         for (g, pc), pred in result.items():
             preds.append((g, acnt, pc, pred))
     written = _write(year, kind_code, preds)
-    summary = {"pitchers": len(by_pitcher), "gmm": n_gmm, "fallback": n_fallback,
-               "labeled": len(preds), "written": written}
+    summary = {"pitchers": len(by_pitcher), "complete_games": len(complete),
+               "gmm": n_gmm, "fallback": n_fallback, "labeled": len(preds),
+               "skipped_incomplete": skipped, "written": written}
     log.info("classify %d/%s → %s", year, kind_code, summary)
     return summary
