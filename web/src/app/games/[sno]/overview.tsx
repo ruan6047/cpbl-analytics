@@ -83,24 +83,37 @@ function MomentRow({ m, homeName, awayName, homeColor, awayColor, onJump }: {
   );
 }
 
-export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor, onJump, highlights, info, mvp, decisions }: {
+export type DecItem = { label: string; value: string; note?: string };
+
+export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor, onJump, highlights, milestones, info, mvp, decisions }: {
   wp: WpPoint[]; log: StatRow[]; homeName: string; awayName: string;
   homeColor: string; awayColor: string;
   onJump: (evt: string) => void;
-  highlights: { text: string; team: string | null }[]; info: [string, string][];
-  mvp: { name: string; line: string } | null;
-  decisions: [string, string][];
+  highlights: { text: string; team: string | null }[];
+  milestones: { text: string; team: string | null }[];
+  info: [string, string][];
+  mvp: { name: string; line: string; count?: number | null } | null;
+  decisions: DecItem[];
 }) {
   const moments = buildMoments(wp, log);
   const key = [...moments].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
     .filter((m) => Math.abs(m.delta) >= 0.04).slice(0, 5)
     .sort((a, b) => (a.inning - b.inning) || a.evt.localeCompare(b.evt));
 
-  if (!key.length && !highlights.length && !info.length && !mvp && !decisions.length) return null;
+  // 焦點/紀錄共用 chip：帶隊 → 隊色淡底；中性 → accent
+  const chip = (text: string, team: string | null, key: number) => {
+    const c = team ? teamColor(team) : null;
+    return c
+      ? <span key={key} className="rounded-md px-2.5 py-1 text-xs font-medium"
+          style={{ background: `${c}1a`, color: c }}>{text}</span>
+      : <span key={key} className="rounded-md bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">{text}</span>;
+  };
+
+  if (!key.length && !highlights.length && !milestones.length && !info.length && !mvp && !decisions.length) return null;
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       {key.length > 0 && (
-        <div className="rounded-xl border border-line bg-surface p-3">
+        <div className="min-w-0 rounded-xl border border-line bg-surface p-3">
           <div className="mb-1.5 flex items-baseline justify-between px-3 pt-1">
             <span className="text-sm font-semibold">
               關鍵時刻 <span className="text-xs font-normal text-faint">（點擊看該打席）</span>
@@ -119,49 +132,55 @@ export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor
         </div>
       )}
       {(highlights.length > 0 || info.length > 0 || mvp || decisions.length > 0) && (
-        <div className="rounded-xl border border-line bg-surface p-4">
+        <div className="flex min-w-0 flex-col gap-4 rounded-xl border border-line bg-surface p-4">
           {mvp && (
-            <div className="mb-3 flex items-center gap-3 rounded-lg bg-accent/5 px-3 py-2.5">
-              <span className="rounded-md bg-accent px-2 py-0.5 text-xs font-bold text-white">MVP</span>
-              <div>
+            <div className="flex items-center gap-3 rounded-lg bg-accent/5 px-3 py-2.5">
+              <span className="shrink-0 rounded-md bg-accent px-2 py-0.5 text-xs font-bold text-white">MVP</span>
+              <div className="min-w-0">
                 <span className="text-base font-bold text-ink">{mvp.name}</span>
+                {mvp.count ? <span className="ml-1.5 text-xs font-normal text-muted">本季第 {mvp.count} 次</span> : null}
                 <span className="ml-2 font-mono text-xs tabular-nums text-muted">{mvp.line}</span>
               </div>
             </div>
           )}
           {highlights.length > 0 && (
-            <>
-              <div className="mb-2 text-sm font-semibold">本場焦點</div>
-              <div className="mb-3 flex flex-wrap gap-1.5">
-                {highlights.map((h, i) => {
-                  const c = h.team ? teamColor(h.team) : null;      // 依隊伍色上色；中性焦點用 accent
-                  return c
-                    ? <span key={i} className="rounded-md px-2.5 py-1 text-xs font-medium"
-                        style={{ background: `${c}1a`, color: c }}>{h.text}</span>
-                    : <span key={i} className="rounded-md bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">{h.text}</span>;
-                })}
+            <section>
+              <h3 className="mb-2 text-xs font-semibold text-muted">本場焦點</h3>
+              <div className="flex flex-wrap gap-1.5">
+                {highlights.map((h, i) => chip(h.text, h.team, i))}
               </div>
-            </>
+            </section>
+          )}
+          {milestones.length > 0 && (
+            <section>
+              <h3 className="mb-2 text-xs font-semibold text-muted">特殊紀錄</h3>
+              <div className="flex flex-wrap gap-1.5">
+                {milestones.map((m, i) => chip(m.text, m.team, i))}
+              </div>
+            </section>
           )}
           {decisions.length > 0 && (
-            <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-line pt-2.5 text-xs">
-              {decisions.map(([l, v]) => (
-                <span key={l}><span className="text-muted">{l}</span> <span className="font-medium text-ink">{v}</span></span>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 border-t border-line pt-3.5 sm:grid-cols-3">
+              {decisions.map((d) => (
+                <div key={d.label} className="min-w-0">
+                  <dt className="text-[11px] leading-tight text-muted">{d.label}</dt>
+                  <dd className="truncate text-sm font-semibold text-ink">
+                    {d.value}
+                    {d.note ? <span className="ml-1 text-[11px] font-normal text-muted">{d.note}</span> : null}
+                  </dd>
+                </div>
               ))}
-            </div>
+            </dl>
           )}
           {info.length > 0 && (
-            <>
-              <div className="mb-1.5 text-sm font-semibold">賽事資訊</div>
-              <dl className="space-y-1 text-sm">
-                {info.map(([l, v]) => (
-                  <div key={l} className="flex gap-3">
-                    <dt className="w-10 shrink-0 text-muted">{l}</dt>
-                    <dd className="min-w-0 text-ink">{v}</dd>
-                  </div>
-                ))}
-              </dl>
-            </>
+            <dl className="space-y-1.5 border-t border-line pt-3.5 text-sm">
+              {info.map(([l, v]) => (
+                <div key={l} className="flex gap-3">
+                  <dt className="w-10 shrink-0 text-muted">{l}</dt>
+                  <dd className="min-w-0 text-ink">{v}</dd>
+                </div>
+              ))}
+            </dl>
           )}
         </div>
       )}
