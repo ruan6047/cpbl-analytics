@@ -1,6 +1,7 @@
 # AI 協作工作流 (cpbl-analytics 採用)
 
-> **完整規則見 canonical：`~/Dev/ai-workflow/AI_WORKFLOW.md`**（唯一權威來源，改規則改那裡；採用說明見 `~/Dev/ai-workflow/ADOPTION.md`）。
+> **完整規則見 canonical（submodule）：[`../.ai-workflow/AI_WORKFLOW.md`](../.ai-workflow/AI_WORKFLOW.md)**（唯一權威來源，改規則到 [ruan6047/ai-workflow](https://github.com/ruan6047/ai-workflow)；採用說明見 [`../.ai-workflow/ADOPTION.md`](../.ai-workflow/ADOPTION.md)）。
+> 更新規則到最新：`git submodule update --remote .ai-workflow && git add .ai-workflow && git commit -m "chore: sync ai-workflow"`。
 > 本專案任務看板／log 見 [`TASKS.md`](TASKS.md)。以下為**核心鐵律速查**，細節與流程圖以 canonical 為準。
 
 ## 核心鐵律（速查）
