@@ -154,7 +154,8 @@ export default async function GamesPage({
                 <div className="space-y-1">
                   {c.games.map((g) => {
                     const done = g.away_score + g.home_score > 0;
-                    const awayWin = g.away_score > g.home_score;
+                    const awayWin = done && g.away_score > g.home_score;
+                    const homeWin = done && g.home_score > g.away_score;
                     // 打完就是「完賽」（延賽/保留性質改以 ☔ 小標記保留）；未打才顯示延賽/保留/未開打
                     const status = done ? "完賽" : (g.delay_kind ?? "未開打");
                     const statusCls = done ? "text-faint" : g.delay_kind ? "text-amber-600" : "text-accent/80";
@@ -172,7 +173,7 @@ export default async function GamesPage({
                             {status}{done && g.delay_kind && <span title={`因雨${g.delay_kind}`}> ☔</span>}
                           </span>
                           <span className="flex items-center gap-1">
-                            {done && <span className={`text-base tabular-nums ${!awayWin ? "font-bold text-accent" : "text-muted"}`}>{g.home_score}</span>}
+                            {done && <span className={`text-base tabular-nums ${homeWin ? "font-bold text-accent" : "text-muted"}`}>{g.home_score}</span>}
                             <TeamLogo code={g.home_team_code} name={g.home_team_name} size={20} />
                           </span>
                         </div>
@@ -205,7 +206,8 @@ export default async function GamesPage({
             <div className="space-y-3">
               {c.games.map((g) => {
                 const done = g.away_score + g.home_score > 0;
-                const awayWin = g.away_score > g.home_score;
+                const awayWin = done && g.away_score > g.home_score;
+                const homeWin = done && g.home_score > g.away_score;
                 const status = done ? "完賽" : (g.delay_kind ?? "未開打");
                 const statusCls = done ? "bg-surface-2 text-faint" : g.delay_kind ? "bg-amber-100 text-amber-800" : "bg-accent/15 text-accent";
                 const info = done
@@ -230,9 +232,9 @@ export default async function GamesPage({
                     <div className="flex items-center justify-between px-1">
                       <span className="flex items-center gap-2 flex-1">
                         <TeamLogo code={g.home_team_code} name={g.home_team_name} size={22} />
-                        <span className={`text-sm ${done && !awayWin ? "font-bold text-ink" : "text-muted"}`}>{g.home_team_name}</span>
+                        <span className={`text-sm ${done && homeWin ? "font-bold text-ink" : "text-muted"}`}>{g.home_team_name}</span>
                       </span>
-                      {done && <span className={`text-lg font-mono tabular-nums min-w-[2rem] text-right ${!awayWin ? "font-bold text-accent" : "text-muted"}`}>{g.home_score}</span>}
+                      {done && <span className={`text-lg font-mono tabular-nums min-w-[2rem] text-right ${homeWin ? "font-bold text-accent" : "text-muted"}`}>{g.home_score}</span>}
                     </div>
                     {info && <div className="text-[10px] text-faint border-t border-line/40 pt-1.5 mt-0.5">{info}</div>}
                   </div>

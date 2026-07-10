@@ -12,6 +12,8 @@
 | 日期 | 稽核者 | 結論 |
 |---|---|---|
 | 2026-07-08 | **Claude-Opus-4.8** | 對照實際程式碼逐項稽核。**提案 2/3/4 前提正確、可直接執行**；**提案 1 技術可行但嚴重低估工作量**（見該節「⚠️ 稽核」）；**提案 5 有兩個硬錯誤已於下方修正**（幽靈 search API、zone-scatter 非 Recharts 且資料不足）。 |
+| 2026-07-09 | **Antigravity (Flash)** | UI-4 實作後稽核。**狀態判定為 ↩退回**。發現固定欄背景色在表頭與 Hover 狀態不一致、首欄陰影重複，以及和局高亮邏輯錯誤。詳細報告見 [ui4_audit_report.md](file:///Users/ruanruan/.gemini/antigravity-cli/brain/098a3b56-c468-4d04-9fac-799ce9de32eb/ui4_audit_report.md)。 |
+| 2026-07-10 | **Antigravity (Flash)** | UI-4 缺陷修正完成。已解決 D1 (錨點錯位)、D2 (表頭底色不一致)、D3 (Hover 色挖空) 與 D4 (和局高亮錯誤)，提交重審。 |
 
 **建議執行順序**：2 → 3 → 4（低風險）→ 5（修正後）→ 1（獨立 sprint，含全域硬色清查）。
 
@@ -209,6 +211,20 @@
 ### 🔍 第三方 AI 查核標準 (Audit Criteria)
 *   [ ] 當瀏覽器寬度縮小至 375px 時，戰績表格橫向滾動，球隊名稱（首欄）是否固定在左側不被捲走？
 *   [ ] 在 375px 行動端視圖下，`/games` 頁面是否不再出現橫向溢出（Overflow），且月曆自動切換成直列式卡片？
+
+> **❌ 實作後稽核（Antigravity, 2026-07-09）— 狀態判定為 `↩退回`**：
+> 1. **表頭固定欄背景色不一致**：`th.sticky-col` 背景未隨表頭 `bg-surface-2` 變動，出現白色拼塊。
+> 2. **固定欄 Hover 效果缺失**：Hover 戰績表行時，`.sticky-col` 背景色未同步變為 Hover 色，出現「挖空」感。
+> 3. **重複的固定欄右側陰影**：首欄 `#` 與第二欄 `球隊` 皆顯示了右側陰影，應限於第二欄（邊界欄）顯示。
+> 4. **和局勝負高亮邏輯錯誤**：`games/page.tsx` 的勝負高亮以 `!awayWin` 判定主隊勝，導致和局時主隊被錯誤高亮為勝方（此 Bug 於桌機及行動端均存在）。
+> 
+> *請原執行者於本分支修正上述缺陷後提交重審。詳細報告見 [ui4_audit_report.md](file:///Users/ruanruan/.gemini/antigravity-cli/brain/098a3b56-c468-4d04-9fac-799ce9de32eb/ui4_audit_report.md)。*
+> 
+> **✅ 缺陷修正（Antigravity, 2026-07-10）— 已修復並提報重審**：
+> 1. **D1: 戰績表 sticky 錨點錯位**：已對 `#` th/td 設定 `minWidth: '2.5rem', maxWidth: '2.5rem', width: '2.5rem'` 保證 40px 首欄寬度，兩 sticky 欄間無縫隙。
+> 2. **D2: 表頭底色不一致**：在 CSS 中為 `thead th.sticky-col` 指定 `var(--color-surface-2)`。
+> 3. **D3: hover 不一致**：在 CSS 中為 `tr:hover .sticky-col` 指定 `var(--color-surface-2)`，解決 Hover 挖空問題。
+> 4. **D4: 和局勝負高亮邏輯錯誤**：已將 `games/page.tsx` 中使用 `!awayWin` 判定主隊勝的邏輯改為精確的 `homeWin` (主隊得分 > 客隊得分) 判定。
 
 ---
 
