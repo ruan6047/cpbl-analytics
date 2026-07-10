@@ -159,11 +159,57 @@ def game_live(
     # 投手角色：W/L/HLD 官方（game_result/relief_point）、SV 依規則 9.19 自 livelog 推算
     # （官方逐場無 save 旗標；2026 全季驗證與官方季累計 SV 一致率 63/64 投手）
     decisions = pitcher_decisions.game_decisions(season, kind_code, game_sno)
+    decision_counts = None
+    if g and kind_code == "A":
+        gg = g[0]
+        hold_acnts = [a for a, d in decisions.items() if d == "HLD"]
+        decision_counts = _decision_counts(
+            season, game_sno, gg.get("game_date"),
+            gg.get("winning_pitcher_id"), gg.get("losing_pitcher_id"),
+            gg.get("closer_id"), gg.get("mvp_id"), hold_acnts)
     return {"game": g[0] if g else None, "scoreboard": scoreboard, "livelog": livelog,
             "batting": batting, "pitching": pitching, "people": people,
             "records": records, "batter_avg": batter_avg, "detail": gd[0] if gd else None,
-            "decisions": decisions,
+            "decisions": decisions, "decision_counts": decision_counts,
             "has_tracking": len(tracking) > 0, "tracking": tracking}
+
+
+def _decision_counts(season: int, game_sno: int, gdate,
+                     win_pid, lose_pid, closer_pid, mvp_pid,
+                     hold_acnts: list[str]) -> dict | None:
+    """決勝資訊的本季累計次數（box score 慣例：含本場、(game_date,game_sno) ≤ 本場，leakage-safe）。
+    勝/敗/救援/MVP 直接數 games 表對應 id 欄（closer_id 唯救援場才落庫，與逐場 SV 判定一致）；
+    中繼無 game_result 旗標，改數 pitching_gamelog.relief_point>0（中繼點）。僅 kind A 有意義。"""
+    if not gdate:
+        return None
+    p = {"y": season, "sno": game_sno, "d": gdate}
+    with conn() as c:
+        cur = c.cursor()
+
+        def _games_cnt(sql: str, pid) -> int | None:
+            if not pid:
+                return None
+            cur.execute(sql, {**p, "pid": pid})
+            return cur.fetchone()[0]
+
+        _le = "(game_date < %(d)s OR (game_date = %(d)s AND game_sno <= %(sno)s))"
+        base = "SELECT count(*) FROM cpbl.games WHERE year=%(y)s AND kind_code='A' AND "
+        win = _games_cnt(base + f"winning_pitcher_id=%(pid)s AND {_le}", win_pid)
+        loss = _games_cnt(base + f"losing_pitcher_id=%(pid)s AND {_le}", lose_pid)
+        save = _games_cnt(base + f"closer_id=%(pid)s AND {_le}", closer_pid)
+        mvp = _games_cnt(base + f"mvp_id=%(pid)s AND {_le}", mvp_pid)
+        holds: dict[str, int] = {}
+        for acnt in hold_acnts:
+            cur.execute(
+                "SELECT count(*) FROM cpbl.pitching_gamelog pg "
+                "JOIN cpbl.games g ON g.year=pg.year AND g.kind_code=pg.kind_code "
+                "AND g.game_sno=pg.game_sno "
+                "WHERE pg.year=%(y)s AND pg.kind_code='A' AND pg.pitcher_acnt=%(a)s "
+                "AND coalesce(pg.relief_point,0)>0 "
+                "AND (g.game_date < %(d)s OR (g.game_date = %(d)s AND g.game_sno <= %(sno)s))",
+                {**p, "a": acnt})
+            holds[acnt] = cur.fetchone()[0]
+    return {"win": win, "loss": loss, "save": save, "mvp": mvp, "hold": holds}
 
 
 # ---- 能力值卡（遊戲風雷達圖）：以全史生涯 rate 對全聯盟母體求百分位 [PR] ----
@@ -274,16 +320,52 @@ def _season_decisions(season: int, kind_code: str) -> dict[str, list[tuple[str, 
     return dict(out)
 
 
+# ── 中職史上紀錄（生涯累計型）偵測 ──
+# 只做累計型（安/轟/打點/盜壘、三振/勝/救援/中繼）：seasons 表自 1990（聯盟元年）全史覆蓋，
+# 判定可精確。單場型紀錄（單場最多安等）不做——gamelog 僅 2018+，看不到早年，無法誠實宣稱。
+def _top2(totals: dict[str, int]) -> tuple[str | None, int, int]:
+    """(最高者pid, 最高值, 次高值)。並列最高時次高=同值 → 超越共同保持人仍判「打破」。"""
+    top_pid, top_v, second_v = None, 0, 0
+    for pid, v in totals.items():
+        if v > top_v:
+            top_pid, top_v, second_v = pid, v, top_v
+        elif v > second_v:
+            second_v = v
+    return top_pid, top_v, second_v
+
+
+def _other_max(t2: tuple[str | None, int, int], pid) -> int:
+    """排除自己後的史上最高值（自己是保持人時取次高）。"""
+    top_pid, top_v, second_v = t2
+    return second_v if str(top_pid) == str(pid) else top_v
+
+
+def _record_text(pre: int, this: int, other_max: int, label: str, unit: str) -> str | None:
+    """該場開打前 pre、本場貢獻 this、他人最高 other_max → 打破/追平/刷新 文案（無則 None）。"""
+    if not this:
+        return None
+    post = pre + this
+    if post < other_max:
+        return None
+    if pre > other_max:          # 已是唯一保持人：每一次都在改寫自己的紀錄
+        return f"刷新中職{label}紀錄（第 {post} {unit}）"
+    if post == other_max:
+        return f"追平中職{label}紀錄（{post} {unit}）"
+    return f"打破中職{label}紀錄（第 {post} {unit}）"
+
+
 @router.get("/api/v1/games/{game_sno}/milestones")
 def game_milestones(
     game_sno: int,
     season: int = Query(DEFAULT_SEASON),
     kind_code: str = Query("A", pattern="^(A|C|E|D)$"),
 ) -> dict:
-    """本場達成的生涯里程碑（安×500/轟×50/打點×500/盜×100/出賽×500；投手 K×500/出賽×500/勝投×50）。"""
+    """本場達成的生涯里程碑（安×500/轟×50/打點×500/盜×100/出賽×500；投手 K×500/出賽×500/勝投×50）
+    ＋中職史上紀錄（生涯累計 8 項的打破/追平/刷新，置頂；單場型紀錄因 gamelog 僅 2018+ 不做）。"""
     if kind_code != "A" or season < 2018:
         return {"items": []}
     items: list[dict] = []
+    rec_items: list[dict] = []   # 中職史上紀錄（打破/追平/刷新），排序置頂
     with conn() as c:
         cur = c.cursor()
         cur.execute("SELECT game_date, winning_pitcher_id FROM cpbl.games "
@@ -320,10 +402,40 @@ def game_milestones(
             FROM this t LEFT JOIN hist h ON h.pid=t.pid LEFT JOIN cur_season cs ON cs.pid=t.pid
             """,
             {"y": season, "sno": game_sno, "d": gdate})
-        for _pid, name, th, thr, trbi, tsb, ph, phr, prbi, psb, pg in cur.fetchall():
-            for (this_v, pre_v, label, step) in [
-                    (th, ph, "安", 500), (thr, phr, "轟", 50),
-                    (trbi, prbi, "打點", 500), (tsb, psb, "盜壘", 100)]:
+        bat_rows = cur.fetchall()
+        # 全聯盟打者生涯累計（截至該場開打前）→ 各項 top2，供史上紀錄判定
+        cur.execute(
+            """
+            WITH hist AS (
+              SELECT player_id pid, sum(coalesce(h,0)) h, sum(coalesce(hr,0)) hr,
+                     sum(coalesce(rbi,0)) rbi, sum(coalesce(sb,0)) sb
+              FROM cpbl.batting_seasons WHERE year < %(y)s GROUP BY player_id
+            ), cur_s AS (
+              SELECT bg.hitter_acnt pid, sum(coalesce(bg.hits,0)) h,
+                     sum(coalesce(bg.home_runs,0)) hr, sum(coalesce(bg.rbi,0)) rbi,
+                     sum(coalesce(bg.sb,0)) sb
+              FROM cpbl.batting_gamelog bg
+              JOIN cpbl.games g ON g.year=bg.year AND g.kind_code=bg.kind_code AND g.game_sno=bg.game_sno
+              WHERE bg.year=%(y)s AND bg.kind_code='A'
+                AND (g.game_date < %(d)s OR (g.game_date = %(d)s AND g.game_sno < %(sno)s))
+              GROUP BY bg.hitter_acnt
+            )
+            SELECT coalesce(h.pid, c.pid),
+                   coalesce(h.h,0)+coalesce(c.h,0), coalesce(h.hr,0)+coalesce(c.hr,0),
+                   coalesce(h.rbi,0)+coalesce(c.rbi,0), coalesce(h.sb,0)+coalesce(c.sb,0)
+            FROM hist h FULL OUTER JOIN cur_s c ON c.pid = h.pid
+            """,
+            {"y": season, "sno": game_sno, "d": gdate})
+        bat_all = cur.fetchall()
+        bat_top2 = [_top2({str(r[0]): int(r[i]) for r in bat_all}) for i in (1, 2, 3, 4)]
+        for _pid, name, th, thr, trbi, tsb, ph, phr, prbi, psb, pg in bat_rows:
+            for j, (this_v, pre_v, label, step, rlabel, unit) in enumerate([
+                    (th, ph, "安", 500, "安打", "安"), (thr, phr, "轟", 50, "全壘打", "轟"),
+                    (trbi, prbi, "打點", 500, "打點", "打點"), (tsb, psb, "盜壘", 100, "盜壘", "盜壘")]):
+                rec = _record_text(pre_v, this_v, _other_max(bat_top2[j], _pid), rlabel, unit)
+                if rec:
+                    rec_items.append({"player": name, "text": rec})
+                    continue   # 紀錄文案已含累計數字，同項整數關卡不重複標
                 if this_v and pre_v == 0:
                     items.append({"player": name, "text": f"生涯首{label}"})
                 elif this_v and (pre_v + this_v) // step > pre_v // step:
@@ -368,9 +480,49 @@ def game_milestones(
             LEFT JOIN cur_season cs ON cs.pid=t.pid LEFT JOIN cur_w cw ON cw.pid=t.pid
             """,
             {"y": season, "sno": game_sno, "d": gdate})
+        pit_rows = cur.fetchall()
         season_dec = _season_decisions(season, "A") if kind_code == "A" else {}
-        for pid, name, tso, this_outs, pso, pw, prior_outs, hist_sv, hist_hld in cur.fetchall():
-            if tso and (pso + tso) // 500 > pso // 500:
+        # 全聯盟投手生涯累計（截至該場開打前）→ 各項 top2，供史上紀錄判定。
+        # SV/HLD 本季增量與里程碑同源（season_dec 重建 / relief_point），與 hist 欄位口徑一致。
+        pp = {"y": season, "sno": game_sno, "d": gdate}
+        cur.execute(
+            "SELECT player_id, sum(coalesce(so,0)), sum(coalesce(w,0)), "
+            "sum(coalesce(sv,0)), sum(coalesce(hld,0)) "
+            "FROM cpbl.pitching_seasons WHERE year < %(y)s GROUP BY player_id", pp)
+        pit_hist = {str(r[0]): (int(r[1]), int(r[2]), int(r[3]), int(r[4])) for r in cur.fetchall()}
+        cur.execute(
+            "SELECT pg.pitcher_acnt, sum(coalesce(pg.so,0)) FROM cpbl.pitching_gamelog pg "
+            "JOIN cpbl.games g ON g.year=pg.year AND g.kind_code=pg.kind_code AND g.game_sno=pg.game_sno "
+            "WHERE pg.year=%(y)s AND pg.kind_code='A' "
+            "AND (g.game_date < %(d)s OR (g.game_date = %(d)s AND g.game_sno < %(sno)s)) "
+            "GROUP BY pg.pitcher_acnt", pp)
+        cur_so = {str(r[0]): int(r[1]) for r in cur.fetchall()}
+        cur.execute(
+            "SELECT winning_pitcher_id, count(*) FROM cpbl.games "
+            "WHERE year=%(y)s AND kind_code='A' AND winning_pitcher_id IS NOT NULL "
+            "AND (game_date < %(d)s OR (game_date = %(d)s AND game_sno < %(sno)s)) "
+            "GROUP BY winning_pitcher_id", pp)
+        cur_w = {str(r[0]): int(r[1]) for r in cur.fetchall()}
+
+        def _dec_prior(acnt: str, code: str) -> int:
+            return sum(1 for d in season_dec.get(acnt, [])
+                       if d[2] == code and (d[0], d[1]) < (str(gdate), game_sno))
+
+        pit_pids = set(pit_hist) | set(cur_so) | set(cur_w) | set(season_dec)
+        tot: dict[str, dict[str, int]] = {"so": {}, "w": {}, "sv": {}, "hld": {}}
+        for pid2 in pit_pids:
+            h4 = pit_hist.get(pid2, (0, 0, 0, 0))
+            tot["so"][pid2] = h4[0] + cur_so.get(pid2, 0)
+            tot["w"][pid2] = h4[1] + cur_w.get(pid2, 0)
+            tot["sv"][pid2] = h4[2] + _dec_prior(pid2, "SV")
+            tot["hld"][pid2] = h4[3] + _dec_prior(pid2, "HLD")
+        pit_top2 = {k: _top2(v) for k, v in tot.items()}
+
+        for pid, name, tso, this_outs, pso, pw, prior_outs, hist_sv, hist_hld in pit_rows:
+            rec = _record_text(pso, tso, _other_max(pit_top2["so"], pid), "三振", "次三振")
+            if rec:
+                rec_items.append({"player": name, "text": rec})
+            elif tso and (pso + tso) // 500 > pso // 500:
                 items.append({"player": name, "text": f"生涯第 {((pso + tso) // 500) * 500} 次三振"})
             total_outs = prior_outs + this_outs
             if this_outs and total_outs // 1500 > prior_outs // 1500:   # 1500 出局＝500 局
@@ -378,7 +530,10 @@ def game_milestones(
             elif prior_outs == 0 and this_outs:
                 items.append({"player": name, "text": "一軍初登板"})
             if win_pid and str(pid) == str(win_pid):
-                if pw == 0:
+                rec = _record_text(pw, 1, _other_max(pit_top2["w"], pid), "勝投", "勝")
+                if rec:
+                    rec_items.append({"player": name, "text": rec})
+                elif pw == 0:
                     items.append({"player": name, "text": "生涯首勝"})
                 elif (pw + 1) % 50 == 0:
                     items.append({"player": name, "text": f"生涯第 {pw + 1} 勝"})
@@ -387,12 +542,17 @@ def game_milestones(
             prior_games = [d for d in games_this_p if (d[0], d[1]) < (str(gdate), game_sno)]
             today_dec = next((d[2] for d in games_this_p
                               if d[0] == str(gdate) and d[1] == game_sno), None)
-            for label, step, code, hist_v in (("中繼", 50, "HLD", hist_hld), ("後援", 50, "SV", hist_sv)):
+            for label, step, code, hist_v, rkey, rlabel, runit in (
+                    ("中繼", 50, "HLD", hist_hld, "hld", "中繼", "次中繼"),
+                    ("後援", 50, "SV", hist_sv, "sv", "救援", "次救援")):
                 if today_dec != code:
                     continue
                 pre_total = hist_v + sum(1 for d in prior_games if d[2] == code)
-                if pre_total == 0:
+                rec = _record_text(pre_total, 1, _other_max(pit_top2[rkey], pid), rlabel, runit)
+                if rec:
+                    rec_items.append({"player": name, "text": rec})
+                elif pre_total == 0:
                     items.append({"player": name, "text": f"生涯首次{label}"})
                 elif (pre_total + 1) % step == 0:
                     items.append({"player": name, "text": f"生涯第 {pre_total + 1} 次{label}"})
-    return {"items": items}
+    return {"items": rec_items + items}
