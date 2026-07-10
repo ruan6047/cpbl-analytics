@@ -101,6 +101,14 @@ h1, h2 {
   z-index: 10;
   background-color: var(--color-surface);
 }
+/* 確保 table header 中的 sticky-col 也是 surface-2 底色 */
+thead th.sticky-col {
+  background-color: var(--color-surface-2);
+}
+/* 確保 table row hover 時 sticky-col 也會變色 */
+tr:hover .sticky-col {
+  background-color: var(--color-surface-2);
+}
 /* 首欄滾動時右側的一層微弱陰影 */
 .sticky-col::after {
   content: '';
