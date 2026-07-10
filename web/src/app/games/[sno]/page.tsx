@@ -8,7 +8,7 @@ import { fmtIPParts } from "@/lib/format";
 import GameBoard, { type Live } from "@/components/game-board";
 import { WinProbChart, type WpPoint } from "@/components/win-prob-chart";
 import { fanNick, teamColor, teamShort } from "@/lib/teams";
-import { GameOverview, Pregame, type PregameMatchup } from "./overview";
+import { GameOverview, Pregame, type PregameMatchup, type DecItem } from "./overview";
 
 const n = (v: number | string | null) => (v === null || v === undefined ? "" : Number(v));
 
@@ -291,8 +291,7 @@ export default function GameLivePage() {
     else if (h >= 5) H(`${nm} 單場 ${h} 安`, tm);
     if ((n(r.rbi) as number) >= 4) H(`${nm} ${r.rbi} 打點`, tm);
     if ((n(r.sb) as number) >= 2) H(`${nm} ${r.sb} 次盜壘`, tm);
-    // 致勝打點（官方 box 欄）：每場勝方必有，作為焦點區的保底內容
-    if (n(r.gw_rbi) as number) H(`${nm} 致勝打點`, tm);
+    // 致勝打點已移至決勝資訊列（勝投/敗投/救援同排），此處不再重複進焦點
   }
   for (const r of data.pitching) {
     const nm = String(r.pitcher_name ?? "");
@@ -320,41 +319,67 @@ export default function GameLivePage() {
     const fast = data.pitching.find((r) => (n(r.max_speed) as number) === maxSp);
     H(`最速球 ${maxSp} km/h`, fast ? teamOf(fast.visiting_home_type) : null);
   }
-  // 生涯里程碑/首次（後端精確判定）置頂（中性 team=null，已有 🏆 區別）
-  highlights.unshift(...milestones.map((m) => ({ text: `🏆 ${m.player} ${m.text}`, team: null })));
   highlights.splice(12);
+  // 生涯里程碑/首次（後端精確判定）獨立成「特殊紀錄」區，依球員本場所屬隊上色
+  // （避免與中性 accent 紅色混淆成味全）。球員名 → visiting_home_type → 隊碼。
+  const nameTeam = new Map<string, string>();
+  for (const r of data.pitching) {
+    const nm = String(r.pitcher_name ?? "");
+    if (nm) nameTeam.set(nm, teamOf(r.visiting_home_type));
+  }
+  for (const r of data.batting) {
+    const nm = String(r.hitter_name ?? "");
+    if (nm) nameTeam.set(nm, teamOf(r.visiting_home_type));
+  }
+  const milestoneItems = milestones.map((m) => ({
+    text: `🏆 ${m.player} ${m.text}`,
+    team: nameTeam.get(m.player) ?? null,
+  }));
 
-  // MVP 當場成績行（打者/投手 box 內 is_mvp）
+  // 決勝資訊的本季累計次數（box score 慣例「本季第 N 勝/敗/救援/中繼/次 MVP」，含本場）
+  const dc = data.decision_counts;
+
+  // MVP 當場成績行（打者/投手 box 內 is_mvp）＋本季單場 MVP 次數
   const mvpBat = data.batting.find((r) => r.is_mvp);
   const mvpPit = data.pitching.find((r) => r.is_mvp);
-  let mvp: { name: string; line: string } | null = null;
+  let mvp: { name: string; line: string; count?: number | null } | null = null;
   if (mvpBat) {
     const parts = [`${n(mvpBat.at_bats)} 打數 ${n(mvpBat.hits)} 安`];
     if (n(mvpBat.home_runs) as number) parts.push(`${mvpBat.home_runs} 轟`);
     if (n(mvpBat.rbi) as number) parts.push(`${mvpBat.rbi} 打點`);
     if (n(mvpBat.runs) as number) parts.push(`${mvpBat.runs} 得分`);
     if (n(mvpBat.sb) as number) parts.push(`${mvpBat.sb} 盜`);
-    mvp = { name: String(mvpBat.hitter_name ?? ""), line: parts.join("・") };
+    mvp = { name: String(mvpBat.hitter_name ?? ""), line: parts.join("・"), count: dc?.mvp };
   } else if (mvpPit) {
     const parts = [`${ipTxt(mvpPit)} 局`, `${n(mvpPit.so)}K`, `失 ${n(mvpPit.runs)} 分`];
     if ((n(mvpPit.bb) as number) === 0) parts.push("無保送");
-    mvp = { name: String(mvpPit.pitcher_name ?? ""), line: parts.join("・") };
+    mvp = { name: String(mvpPit.pitcher_name ?? ""), line: parts.join("・"), count: dc?.mvp };
   }
 
   // 決勝資訊（併入焦點卡；歷史無逐打席場次仍走頁面下方 strip）
   const ppl = data.people;
-  const holdNames = Object.entries(data.decisions ?? {})
-    .filter(([, v]) => v === "HLD")
-    .map(([acnt]) => data.pitching.find((r) => String(r.pitcher_acnt) === acnt)?.pitcher_name)
+  const holdAcnts = Object.entries(data.decisions ?? {})
+    .filter(([, v]) => v === "HLD").map(([acnt]) => acnt);
+  const holdNames = holdAcnts
+    .map((acnt) => data.pitching.find((r) => String(r.pitcher_acnt) === acnt)?.pitcher_name)
     .filter(Boolean).join("、");
-  const decisionItems: [string, string][] = ([
-    ["先發(客)", ppl[String(g.away_starter_id)]],
-    ["先發(主)", ppl[String(g.home_starter_id)]],
-    ["勝投", ppl[String(g.winning_pitcher_id)]],
-    ["敗投", ppl[String(g.losing_pitcher_id)]],
-    ["救援", ppl[String(g.closer_id)]],
-    ["中繼", holdNames || undefined],   // HLD 為官方 relief_point，非推算（SV 才是規則重建）
-  ] as [string, string | undefined][]).filter(([, v]) => v) as [string, string][];
+  // 中繼次數：單一中繼投手才在其後標「第 N 中繼」；多人時名字已擠，省略避免爆格
+  const holdNote = holdAcnts.length === 1 && dc?.hold?.[holdAcnts[0]]
+    ? `第${dc.hold[holdAcnts[0]]}中繼` : undefined;
+  // 致勝打點（官方 box gw_rbi 旗標；每場勝方通常一人，罕見多人以「、」併列）
+  const gwRbiNames = data.batting
+    .filter((r) => (n(r.gw_rbi) as number) > 0)
+    .map((r) => String(r.hitter_name ?? ""))
+    .filter(Boolean).join("、");
+  const decisionItems: DecItem[] = ([
+    { label: "先發(客)", value: ppl[String(g.away_starter_id)] },
+    { label: "先發(主)", value: ppl[String(g.home_starter_id)] },
+    { label: "勝投", value: ppl[String(g.winning_pitcher_id)], note: dc?.win ? `第${dc.win}勝` : undefined },
+    { label: "敗投", value: ppl[String(g.losing_pitcher_id)], note: dc?.loss ? `第${dc.loss}敗` : undefined },
+    { label: "救援", value: ppl[String(g.closer_id)], note: dc?.save ? `第${dc.save}救援` : undefined },
+    { label: "中繼", value: holdNames || undefined, note: holdNote },   // HLD 為官方 relief_point（中繼點）
+    { label: "致勝打點", value: gwRbiNames || undefined },
+  ] as DecItem[]).filter((d) => d.value);
 
   // 賽事資訊（渲染於總覽右卡）：天氣/觀眾/時長併一列，裁判獨立一列
   const info: [string, string][] = [];
@@ -371,7 +396,7 @@ export default function GameLivePage() {
     }
     if (d.attendance) parts.push(`觀眾 ${Number(d.attendance).toLocaleString()} 人`);
     if (d.game_time) parts.push(`時長 ${String(d.game_time)}`);
-    if (parts.length) info.push(["資訊", parts.join("・")]);
+    if (parts.length) info.push(["概況", parts.join("・")]);
     const umps = [["主審", d.head_umpire], ["一壘", d.first_umpire], ["二壘", d.second_umpire],
       ["三壘", d.third_umpire], ["左審", d.left_umpire], ["右審", d.right_umpire]]
       .filter(([, v]) => v).map(([l, v]) => `${l} ${v}`).join("、");
@@ -408,7 +433,7 @@ export default function GameLivePage() {
                 homeName={String(g.home_team_name)} awayName={String(g.away_team_name)}
                 homeColor={teamColor(String(g.home_team_code ?? ""))}
                 awayColor={teamColor(String(g.away_team_code ?? ""))}
-                onJump={jumpToPa} highlights={highlights} info={info}
+                onJump={jumpToPa} highlights={highlights} milestones={milestoneItems} info={info}
                 mvp={mvp} decisions={decisionItems} />
               <WinProbChart items={wp ?? []}
                 homeName={String(g.home_team_name)} awayName={String(g.away_team_name)}
@@ -461,11 +486,13 @@ export default function GameLivePage() {
       {/* 決勝資訊已併入總覽焦點卡；僅歷史無逐打席場次（無總覽）時在此顯示 */}
       {data.livelog.length === 0 && (decisionItems.length > 0 || mvp) && (
         <div className="mb-6 flex flex-wrap gap-x-5 gap-y-1.5 rounded-xl border border-line bg-surface px-4 py-3 text-sm">
-          {decisionItems.map(([l, v]) => (
-            <span key={l}><span className="text-muted">{l}</span> <span className="font-medium text-ink">{v}</span></span>
+          {decisionItems.map((d) => (
+            <span key={d.label}><span className="text-muted">{d.label}</span> <span className="font-medium text-ink">{d.value}</span>
+              {d.note ? <span className="ml-1 text-xs text-muted">{d.note}</span> : null}</span>
           ))}
           {ppl[String(g.mvp_id)] && (
-            <span><span className="text-muted">MVP</span> <span className="font-medium text-ink">{ppl[String(g.mvp_id)]}</span></span>
+            <span><span className="text-muted">MVP</span> <span className="font-medium text-ink">{ppl[String(g.mvp_id)]}</span>
+              {dc?.mvp ? <span className="ml-1 text-xs text-muted">本季第 {dc.mvp} 次</span> : null}</span>
           )}
         </div>
       )}
