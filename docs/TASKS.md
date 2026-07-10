@@ -28,6 +28,7 @@
   - 07-11 需求開卡 by ruan6047（Fable-5@Claude Code 代記）
   - 07-11 ruan6047 派規劃（原則先行、通用→個別、大→小）；規劃 by Fable-5@Claude Code 出 spec，🚦待核可
   - 07-11 ruan6047 補需求背景（三痛點）＋範圍裁示（三脫節頁暫緩）→ spec v2：痛點對應表、可視度量化下限、頁面解剖規範、UX-10 暫緩卡
+  - 07-11 ruan6047 裁定深色模式併入 UX-2；模組化審計 by Fable-5 → 證實偏低（卡片殼 inline×46、手寫表格×22/9檔、skeleton=0、components 佔 28%），量化基準入 spec 作 UX-3 驗收對照
 
 ### 開卡格式（範本）
 
