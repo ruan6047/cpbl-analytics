@@ -39,6 +39,7 @@
   - 07-08 規劃 by 規劃AI；稽核 by Claude-Opus → ✅前提正確可執行
   - 07-09 由 Antigravity 啟動執行並完成實作，提報審查
   - 07-09 使用者 ruan6047 驗收通過，合併至 main
+  - 07-10 上線後複審 by Fable-5@Claude Code（生產實測）→ ✅維持通過：Outfit 已載入且 tnum 等寬生效（表格皆掛 tabular-nums；無 tnum 者僅單行戰績無對齊需求）；header blur(12px)+bg/80；hover 光暈實測 20% alpha + 0.3s（cssText 序列化會顯示無 color-mix，計算值正確——複審務必量 computed）；reduced-motion 全域涵蓋
 
 ### UI-3 微互動（勝率條伸展／滑桿觸感／View Transition）  〔⚪〕
 - 需求：ruan6047　規劃：規劃AI(外部)　分支：`ai/antigravity/ui-3`
@@ -48,6 +49,7 @@
   - 07-08 規劃 by 規劃AI；稽核 by Claude-Opus → ✅前提全對
   - 07-09 指派給 Antigravity，啟動執行並完成實作，提報審查
   - 07-09 使用者 ruan6047 驗收通過，合併至 main
+  - 07-10 上線後複審 by Fable-5@Claude Code（生產實測）→ ✅維持通過：barGrow 0.8s+--target-width 正確；滑桿 hover/focus scale-y-125；View Transition 切換 mode/特徵群組實點無錯誤、佈局無塌陷、console 乾淨
 
 ### UI-4 響應式（sticky 首欄／月曆轉列表）  〔⚪〕
 - 需求：ruan6047　規劃：規劃AI(外部)　分支：`ai/antigravity/ui-4`
