@@ -12,11 +12,58 @@ from cpbl.models import matchup
 router = APIRouter()
 
 
+def _team_advanced_from_seasons(season: int) -> dict[str, dict]:
+    """歷史年度 team_current 缺值時，從季彙總回推團隊 OPS/ERA/WHIP。"""
+    bat: dict[str, dict] = {}
+    pit: dict[str, dict] = {}
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            "SELECT team_id, sum(ab), sum(h), sum(tb), sum(bb), sum(hbp), sum(sf) "
+            "FROM cpbl.batting_seasons WHERE year=%s GROUP BY team_id",
+            (season,),
+        )
+        for tid, ab, h, tb, bb, hbp, sf in cur.fetchall():
+            ab = int(ab or 0)
+            if ab <= 0:
+                continue
+            h = int(h or 0)
+            tb = int(tb or 0)
+            bb = int(bb or 0)
+            hbp = int(hbp or 0)
+            sf = int(sf or 0)
+            den = ab + bb + hbp + sf
+            obp = ((h + bb + hbp) / den) if den else None
+            slg = tb / ab
+            ops = (obp + slg) if obp is not None else None
+            code = str(tid)[:3]
+            bat[code] = {"ops": round(ops, 3) if ops is not None else None}
+        cur.execute(
+            "SELECT team_id, "
+            "sum(floor(ip)+(ip-floor(ip))*10/3.0), sum(er), sum(h), sum(bb) "
+            "FROM cpbl.pitching_seasons WHERE year=%s GROUP BY team_id",
+            (season,),
+        )
+        for tid, ip, er, h, bb in cur.fetchall():
+            rip = float(ip or 0)
+            if rip <= 0:
+                continue
+            code = str(tid)[:3]
+            pit[code] = {
+                "era": round((float(er or 0) * 9) / rip, 2),
+                "whip": round((float(h or 0) + float(bb or 0)) / rip, 2),
+            }
+    teams = set(bat) | set(pit)
+    return {t: {**bat.get(t, {}), **pit.get(t, {})} for t in teams}
+
+
 @router.get("/api/v1/season/standings")
 def season_standings(season: int = Query(DEFAULT_SEASON)) -> dict:
     """本季戰績榜（games 即時彙整 + team_current 團隊進階：OPS/ERA/WHIP）。"""
     stats = matchup.team_stats(season)
     adv = _team_advanced(season)
+    if not adv:
+        adv = _team_advanced_from_seasons(season)
     rows = [
         {
             "code": c, "name": v["name"], "w": v["w"], "l": v["l"], "g": v["g"],
@@ -24,22 +71,72 @@ def season_standings(season: int = Query(DEFAULT_SEASON)) -> dict:
             "rs_pg": round(v["rs_pg"], 2), "ra_pg": round(v["ra_pg"], 2),
             "run_diff": round(v["rs_pg"] - v["ra_pg"], 2),
             "form": v["last10"],
-            "ops": adv.get(c, {}).get("ops"),
-            "era": adv.get(c, {}).get("era"),
-            "whip": adv.get(c, {}).get("whip"),
+            "ops": (adv.get(c) or adv.get(c[:3]) or {}).get("ops"),
+            "era": (adv.get(c) or adv.get(c[:3]) or {}).get("era"),
+            "whip": (adv.get(c) or adv.get(c[:3]) or {}).get("whip"),
         }
         for c, v in stats.items()
     ]
     rows.sort(key=lambda r: (r["win_pct"], r["run_diff"]), reverse=True)
     return {"season": season, "standings": rows}
-def _computed_standings(season: int, kind_code: str) -> list[dict]:
-    """歷史年份無官方 team_standings → 由 games 逐場結果即時算全年戰績（結果 only）。"""
+
+
+@router.get("/api/v1/postseason-summary")
+def postseason_summary(season: int = Query(DEFAULT_SEASON)) -> dict:
+    """年度季後賽摘要（挑戰賽/台灣大賽）與系列大比分。"""
+    with conn() as c:
+        rows = c.execute(
+            "SELECT kind_code, home_team_code, home_team_name, away_team_code, away_team_name, "
+            "home_score, away_score, game_date "
+            "FROM cpbl.games "
+            "WHERE year=%s AND kind_code IN ('E','C') AND home_score+away_score>0 "
+            "ORDER BY game_date, game_sno",
+            (season,),
+        ).fetchall()
+    series: dict = {}
+    for kc, hc, hn, ac, an, hs, as_, gd in rows:
+        key = (kc, tuple(sorted((hc, ac))))
+        if key not in series:
+            series[key] = {"kind_code": kc, "teams": {
+                hc: {"name": hn, "wins": 0},
+                ac: {"name": an, "wins": 0},
+            }, "games": []}
+        if hs > as_:
+            series[key]["teams"][hc]["wins"] += 1
+        elif as_ > hs:
+            series[key]["teams"][ac]["wins"] += 1
+        # 逐場小比分（依日期序，勝隊由 game 端算）
+        series[key]["games"].append({
+            "game_no": len(series[key]["games"]) + 1,
+            "date": gd.isoformat() if gd else None,
+            "home_code": hc, "home_name": hn, "home_score": hs,
+            "away_code": ac, "away_name": an, "away_score": as_,
+        })
+    out = []
+    kind_name = {"E": "季後挑戰賽", "C": "台灣大賽"}
+    for s in series.values():
+        teams = list(s["teams"].items())
+        teams.sort(key=lambda x: (-x[1]["wins"], x[0]))
+        (c1, t1), (c2, t2) = teams
+        out.append({
+            "kind_code": s["kind_code"],
+            "kind_name": kind_name.get(s["kind_code"], s["kind_code"]),
+            "team1_code": c1, "team1_name": t1["name"], "team1_wins": t1["wins"],
+            "team2_code": c2, "team2_name": t2["name"], "team2_wins": t2["wins"],
+            "games": s["games"],
+        })
+    out.sort(key=lambda x: x["kind_code"], reverse=True)  # E 再 C
+    return {"season": season, "series": out}
+def _computed_standings(season: int, kind_code: str, season_code: int = 0) -> list[dict]:
+    """歷史年份無官方 team_standings → 由 games 逐場結果即時算戰績（全年/半季）。"""
     from collections import defaultdict
+    seg_sql = " AND game_season_code=%s" if season_code in (1, 2) else ""
+    params: tuple = (season, kind_code, str(season_code)) if season_code in (1, 2) else (season, kind_code)
     with conn() as c:
         games = c.execute(
             "SELECT home_team_code, home_team_name, away_team_code, away_team_name, home_score, away_score "
-            "FROM cpbl.games WHERE year=%s AND kind_code=%s AND home_score+away_score>0",
-            (season, kind_code),
+            f"FROM cpbl.games WHERE year=%s AND kind_code=%s AND home_score+away_score>0{seg_sql}",
+            params,
         ).fetchall()
     rec: dict = defaultdict(lambda: {
         "name": None, "w": 0, "l": 0, "t": 0, "rs": 0, "ra": 0,
@@ -133,7 +230,7 @@ def official_standings(
     season_code: int = Query(0, ge=0, le=2, description="0=全年 1=上半季 2=下半季"),
     kind_code: str = Query("A"),
 ) -> dict:
-    """官方球隊戰績；歷史年份(無官方資料)退回由 games 即時算全年戰績（結果 only）。
+    """官方球隊戰績；歷史年份(無官方資料)退回由 games 即時算全年/半季戰績（結果 only）。
 
     半季（season_code 1/2）另回傳 `half`：是否完賽、是否提前封王、半季冠軍隊代碼。
     """
@@ -145,8 +242,8 @@ def official_standings(
             (season, kind_code, season_code),
         )
         items = _dicts(cur)
-    if not items and season_code == 0:
-        items = _computed_standings(season, kind_code)  # 歷史退回 games 即時算
+    if not items:
+        items = _computed_standings(season, kind_code, season_code)  # 歷史退回 games 即時算
     half = None
     if season_code in (1, 2) and items:
         half = _annotate_half_champion(items, _half_progress(season, str(season_code), kind_code))
