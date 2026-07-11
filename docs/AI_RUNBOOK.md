@@ -180,7 +180,7 @@ cd web && npx tsc --noEmit        # 前端
 | **官網 token** | `/schedule` inline JS 抽 `RequestVerificationToken`，放 **header**；不是 hidden input 的 `__RequestVerificationToken`（會 500） |
 | **前端 env** | 用 `NEXT_PUBLIC_API_URL`，舊 README 的 `API_URL` 會連不到 |
 | **同年多隊** | 球員一年多列(多 team_id)，季彙總查詢要 `GROUP BY player_id, year` 加總 |
-| **build 污染 dev 快取** | `next build` 與 `next dev` 共用 `web/.next` → dev 跑著時跑 build，dev 讀到對不上的 `./NNN.js`＝Runtime Error。**驗證用 `npm run build:check`**（寫獨立 `.next-check`，見 next.config `NEXT_DIST_DIR`）；真要用 `npm run build` 先停 dev。中招時：停 dev → `rm -rf web/.next` → 重啟 dev |
+| **build 污染 dev 快取** | `next build` 與 `next dev` 共用 `web/.next` → dev 跑著時跑 build，dev 讀到對不上的 `./NNN.js`／`Internal Server Error`。**已有 `prebuild` 守衛**（`web/scripts/guard-build.mjs`）：偵測 :3000 有 dev 就中止 `npm run build`。**驗證一律用 `npm run build:check`**（獨立 `.next-check`，守衛不擋、不影響 dev）。萬一仍中招：停 dev → `rm -rf web/.next` → 重啟 dev |
 
 ---
 
