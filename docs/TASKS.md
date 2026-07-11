@@ -30,7 +30,7 @@
 - 需求：ruan6047（07-11）——**重新設計每個頁面的 UI/UX**。痛點：①頁面不統一 ②數據可視度不夠 ③頁面與區塊混亂；另 成績預測/賽事預測/裁判報告 三頁**操作模式與現實脫節**（抽出 UX-10 暫緩個別處理）。
 - 規劃：Fable-5@Claude Code → spec 見 [`UX_REDESIGN_SPEC.md`](UX_REDESIGN_SPEC.md)（八原則＋UX-2〜9 拆卡＋深色模式決策點）
 - 執行：子卡各自執行　查核：子卡各自查核（涉全站視覺，建議跨家族或人審驗收）
-- 狀態：🔨 spec v5 **已核可**（07-11），UX-2〜10 已開卡進 Ledger；本傘卡隨子卡全數結案後移 archive　Commit：—
+- 狀態：🔨 spec v5 **已核可**（07-11）；子卡進度：**UX-2／UX-3 🏁完成（已 archive）**、UX-4 ⏳待執行、UX-5〜9 待通用層、UX-10 暫緩。本傘卡隨子卡全數結案後移 archive　Commit：—
 - 前置事實（規劃時必讀）：現行設計系統＝日間 Navy+白（memory `frontend-redesign`）；UI-2/3/4 剛完成運動風質感/微互動/響應式（`docs/archive/`）；UI-1 深色模式與 UI-5 對比頁在封存區可視需要復活併入
 - Log：
   - 07-11 需求開卡 by ruan6047（Fable-5@Claude Code 代記）
@@ -40,6 +40,10 @@
   - 07-11 ruan6047 澄清「可視度」＝快速理解（過多數據→判讀負荷），非易讀性 → spec v4：原則 1 重寫（漸進揭露/數字不裸列/每區塊一問題/5 秒測試＝頁面卡首要驗收）
   - 07-11 ruan6047 令重評需求 → 規劃自查（審計數字實測仍準；ruan6047 核可四修正）→ spec v5：UX-2 瘦身（全頁雙色系驗收下放頁面卡）、圖表色票 API 歸 UX-2、UX-3 client island 約束、5 秒測試盲測定義、table 勘誤 11 檔
   - 07-11 ruan6047 **核可 spec v5** → 規劃階段收尾；UX-2〜10 依依賴序開卡進 Ledger，待 ruan6047 派工執行
+  - 07-11 **UX-2 🏁**（tokens/深色/圖表色票 API；Gemini-3.5-Flash@Antigravity 查核 → ✅ → archive）＋**UX-3 🏁**（元件/表遷移/三態/卡殼 sweep；Gemini-3.5-Flash@Antigravity 查核 → ✅ → archive）→ 通用層解鎖 **UX-4**
+
+---
+
 ### UX-4 骨架導覽＋標準頁面解剖落地  〔⚪一般〕
 - 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 通用層）　分支：`ai/<執行者>/UX-4`
 - 執行：待指派　查核：待指派（≠執行者）
