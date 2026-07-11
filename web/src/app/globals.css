@@ -68,6 +68,10 @@
 :root {
   color-scheme: light;
   --header-height: 57px;
+  --dur-fast: 0.15s;
+  --dur-base: 0.3s;
+  --dur-slow: 0.8s;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* 深色模式：覆寫同名 token（Navy 底翻深；文字/語意色提亮以維持 ≥4.5:1 對比） */
@@ -163,7 +167,7 @@ h1, h2 {
 
 /* 卡片 Hover 隊色光暈與邊框過渡 */
 .card-hover-team {
-  transition: border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard);
 }
 .card-hover-team:hover {
   border-color: var(--hover-color) !important;
@@ -176,7 +180,7 @@ h1, h2 {
   to { width: var(--target-width); }
 }
 .animate-bar-grow {
-  animation: barGrow 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: barGrow var(--dur-slow) cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* 行動端 Table 首欄固定 */
@@ -209,7 +213,7 @@ tr:hover .sticky-col {
   to { opacity: 1; }
 }
 .animate-fade-in {
-  animation: fadeIn 0.15s ease-out forwards;
+  animation: fadeIn var(--dur-fast) ease-out forwards;
 }
 
 
