@@ -10,6 +10,7 @@ export type TooltipProps = {
   delayIn?: number; // in milliseconds
   suppressUnderline?: boolean; // suppress default dotted underline styles
   interactive?: boolean; // whether popover content is interactive
+  decorative?: boolean; // trigger is purely decorative: don't steal focus / don't re-announce
 };
 
 export function Tooltip({
@@ -19,6 +20,7 @@ export function Tooltip({
   delayIn = 150,
   suppressUnderline = false,
   interactive = false,
+  decorative = false,
 }: TooltipProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
@@ -274,9 +276,11 @@ export function Tooltip({
 
   const triggerProps = {
     ref: triggerRef,
-    "aria-describedby": isVisible ? id : undefined,
-    "aria-label": hasAccessibleName ? undefined : "顯示說明",
-    tabIndex: child.props.tabIndex ?? 0,
+    "aria-describedby": isVisible && !decorative ? id : undefined,
+    "aria-label": decorative || hasAccessibleName ? undefined : "顯示說明",
+    "aria-hidden": decorative ? true : undefined,
+    // Decorative triggers must not enter the tab order nor re-announce content.
+    tabIndex: decorative ? child.props.tabIndex : (child.props.tabIndex ?? 0),
     className: `${child.props.className ?? ""} ${underlineClasses}`.trim() || undefined,
     onMouseEnter: composeEventHandlers(child.props.onMouseEnter, showTooltip),
     onMouseLeave: composeEventHandlers(child.props.onMouseLeave, handleTriggerMouseLeave),
