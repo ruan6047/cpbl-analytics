@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { contrastText, eraBadge, nameMeta, teamColor, teamLetter } from "@/lib/teams";
+import { Tooltip } from "./tooltip";
 
 // 字母方塊徽章（單一事實來源）：給定 {color, letter} 渲染隊色底＋對比字。
 // 各處（排行榜/紀錄室/球員頁/球隊頁沿革）原本各自手寫此 span，統一由此出。
@@ -190,4 +191,32 @@ export function divBg(v: number | null | undefined, vals: (number | null | undef
   let p = (v - min) / (max - min);
   if (lowerBetter) p = 1 - p;
   return { background: prColor(p * 100).replace("rgb", "rgba").replace(")", ",0.28)") };
+}
+
+// 進階數據名詞解釋對照表 (Common Baseball Advanced Metrics dictionary)
+export const METRIC_DESCRIPTIONS: Record<string, string> = {
+  OPS: "整體攻擊指數 (On-base Plus Slugging) = 上壘率 + 長打率，用以衡量打者的綜合進攻生產力能力。",
+  ERA: "防禦率 (Earned Run Average) = 自責分 × 9 ÷ 投球局數，代表投手每九局自責分。",
+  WHIP: "每局被上壘率 (Walks plus Hits per Inning Pitcher) = (安打 + 四壞) ÷ 投球局數，衡量投手控制被上壘的能力。",
+  "wRC+": "加權得分創造值 (Weighted Runs Created Plus) = 經球場與聯盟環境調整後的得分創造指數，100 為聯盟平均，越高越強。",
+  FIP: "獨立防禦率 (Fielding Independent Pitching) = 衡量投手自身純粹三振、保送、被全壘打的防禦率，排除守備與運氣因素。",
+  xwOBA: "預期加權上壘率 (Expected Weighted On-Base Average) = 依擊球初速與仰角計算的預期上壘價值，代表打者真實擊球品質。",
+  WAR: "替代值勝場數 (Wins Above Replacement) = 相比替補球員，該球員能為球隊多帶來幾場勝利的綜合貢獻值。",
+  BABIP: "場內安打率 (Batting Average on Balls In Play) = 球打進場內形成安打的機率，可用來觀察運氣或守備影響度。",
+  IsoP: "純長打率 (Isolated Power) = 長打率 - 打擊率，純粹衡量打者擊出長打的威力。",
+  BB: "四壞球保送次數 (Base on Balls)。",
+  SO: "三振次數 (Strikeout)。",
+  AVG: "打擊率 (Batting Average) = 安打 ÷ 打數。",
+  OBP: "上壘率 (On-base Percentage) = (安打 + 四壞 + 觸身) ÷ (打數 + 四壞 + 觸身 + 犧牲飛球)。",
+  SLG: "長打率 (Slugging Percentage) = 意指二壘安打/三壘安打/全壘打折合之壘打數 ÷ 打數。",
+};
+
+export function StatAbbr({ abbr, customDesc, className = "" }: { abbr: string; customDesc?: string; className?: string }) {
+  const desc = customDesc || METRIC_DESCRIPTIONS[abbr];
+  if (!desc) return <span className={className}>{abbr}</span>;
+  return (
+    <Tooltip content={desc}>
+      <span className={className}>{abbr}</span>
+    </Tooltip>
+  );
 }
