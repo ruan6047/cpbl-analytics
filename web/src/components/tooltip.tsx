@@ -152,7 +152,7 @@ export function Tooltip({
     }
   };
 
-  const child = React.Children.only(children) as React.ReactElement;
+  const child = React.Children.only(children) as React.ReactElement<any>;
   const triggerProps = {
     ref: triggerRef,
     "aria-describedby": isVisible ? id : undefined,
