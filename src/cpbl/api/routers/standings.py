@@ -82,16 +82,17 @@ def season_standings(season: int = Query(DEFAULT_SEASON)) -> dict:
 
 
 @router.get("/api/v1/postseason-summary")
-def postseason_summary(season: int = Query(DEFAULT_SEASON)) -> dict:
-    """年度季後賽摘要（挑戰賽/台灣大賽）與系列大比分。"""
+def postseason_summary(season: int = Query(DEFAULT_SEASON), kind_code: str = Query("A")) -> dict:
+    """年度季後賽摘要與系列大比分。一軍＝挑戰賽(E)+台灣大賽(C)；二軍(kind_code=D)＝二軍總冠軍賽(F)。"""
+    codes = ["F"] if kind_code == "D" else ["E", "C"]
     with conn() as c:
         rows = c.execute(
             "SELECT kind_code, home_team_code, home_team_name, away_team_code, away_team_name, "
             "home_score, away_score, game_date "
             "FROM cpbl.games "
-            "WHERE year=%s AND kind_code IN ('E','C') AND home_score+away_score>0 "
+            "WHERE year=%s AND kind_code = ANY(%s) AND home_score+away_score>0 "
             "ORDER BY game_date, game_sno",
-            (season,),
+            (season, codes),
         ).fetchall()
     series: dict = {}
     for kc, hc, hn, ac, an, hs, as_, gd in rows:
@@ -113,7 +114,7 @@ def postseason_summary(season: int = Query(DEFAULT_SEASON)) -> dict:
             "away_code": ac, "away_name": an, "away_score": as_,
         })
     out = []
-    kind_name = {"E": "季後挑戰賽", "C": "台灣大賽"}
+    kind_name = {"E": "季後挑戰賽", "C": "台灣大賽", "F": "二軍總冠軍賽"}
     for s in series.values():
         teams = list(s["teams"].items())
         teams.sort(key=lambda x: (-x[1]["wins"], x[0]))
