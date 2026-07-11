@@ -223,6 +223,29 @@ export type SpecialRecordsResponse = { season: number; items: SpecialRecord[] };
 // 戰績走勢：points 每筆含 date + 各 team_code 的累積勝-敗差
 export type StandingsTrendPoint = { date: string } & Record<string, number | string>;
 export type StandingsTrendResponse = { season: number; teams: string[]; names?: Record<string, string>; points: StandingsTrendPoint[] };
+export type PostseasonSummaryResponse = {
+  season: number;
+  series: {
+    kind_code: string;
+    kind_name: string;
+    team1_code: string;
+    team1_name: string;
+    team1_wins: number;
+    team2_code: string;
+    team2_name: string;
+    team2_wins: number;
+    games?: {
+      game_no: number;
+      date: string | null;
+      home_code: string;
+      home_name: string;
+      home_score: number;
+      away_code: string;
+      away_name: string;
+      away_score: number;
+    }[];
+  }[];
+};
 
 // 賽果預測 hub 卡：只取渲染所需子集（TeamSide 全欄見 client.ts Matchup）。
 const OUTCOME_DEFAULT_FEATURES =
@@ -286,6 +309,8 @@ export const api = {
     get<SpecialRecordsResponse>(`/api/v1/special-records${season ? `?season=${season}` : ""}`, 120),
   standingsTrend: (season?: number, kind = "A") =>
     get<StandingsTrendResponse>(`/api/v1/standings-trend?kind_code=${kind}${season ? `&season=${season}` : ""}`, 120),
+  postseasonSummary: (season?: number, kind = "A") =>
+    get<PostseasonSummaryResponse>(`/api/v1/postseason-summary?kind_code=${kind}${season ? `&season=${season}` : ""}`, 120),
   gamesRecent: (limit = 60, year?: number, kind = "A") =>
     get<GamesRecentResponse>(`/api/v1/games/recent?limit=${limit}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 120),
   gamesCalendar: (year?: number, kind = "A") =>
