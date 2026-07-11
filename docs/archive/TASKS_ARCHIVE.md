@@ -15,6 +15,7 @@
 | UI-5 | 球員對比頁 + 好球帶 tooltip | ruan6047 | 規劃AI(外部) | 暫無 | Opus | — | ⚪ | 📥Backlog（封存）|
 | LIVE-1 | 賽況頁決勝資訊與中職紀錄強化 | ruan6047 | Claude Code(對話中逐步核可) | Opus-4.8+Fable-5@Claude Code | **ruan6047 人審(AI輔助)** | `ai/claude-code/game-live-records` | 🔴 | 🏁完成 |
 | UX-2 | 設計 tokens＋深色模式＋圖表色票 API | ruan6047 | Fable-5@Claude Code | Opus-4.8@Claude Code | Gemini-3.5-Flash@Antigravity | `ai/opus/UX-2` | ⚪ | 🏁完成 |
+| UX-3 | 共用元件標準化（ui.tsx 收斂＋三態＋DataTable） | ruan6047 | Fable-5@Claude Code | Opus-4.8@Claude Code | Gemini-3.5-Flash@Antigravity | `ai/opus/UX-3` | ⚪ | 🏁完成 |
 
 ---
 
@@ -105,6 +106,22 @@
   - 07-11 ruan6047 派工執行 → Opus-4.8@Claude Code 開分支 `ai/opus/UX-2` 實作 tokens/深色/色票 API + 遷移，自測綠 → 🔍待查核（執行≠查核，須換家族或人審 + 實測）
   - 07-11 ruan6047 回報深色兩問題 → 修正：①預設改淺色（no-flash 不再跟系統，僅 localStorage=dark 才深色）②active 標籤 `bg-ink text-white`→`text-paper`（12 檔，深色下 bg-ink 翻淺致白底白字）+ `hover:text-white`→`hover:text-ink`；tsc 綠、深色截圖複驗標籤可讀。約定入 memory `dark-mode-conventions`
   - 07-11 查核 by Gemini-3.5-Flash@Antigravity → ✅通過 (npm run build 成功，全站硬色清理符合規範，已產出查核報告)
+
+---
+
+### UX-3 共用元件標準化  〔⚪一般〕
+- 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 通用層）　分支：`ai/opus/UX-3`
+- 執行：Opus-4.8@Claude Code　查核：Gemini-3.5-Flash@Antigravity
+- 範圍/驗收：`ui.tsx` 收斂 eyebrow/dl 網格/chip/狀態徽章/skeleton·empty·error 三態/**DataTable**（寬表容器+sticky 首欄+表頭封裝）；互動元件一律 **client island**（禁為加互動翻整頁 `"use client"`）；6 檔 recharts 接 UX-2 色票 API。驗收對照 spec §B「模組化基準」（卡片殼 inline ×46→<10、手寫 table ×22/11 檔→零、skeleton 0→統一），至少 3 頁換裝無回歸。
+- 狀態：🏁完成（已合併至 main）　Commit：df009eaa475260f50a78d7d106aaa3e82da867bd
+- 進度：**元件完成**（`components/table.tsx` DataTable<T>：欄位 def+render prop+sticky首欄+bare/maxHeight/hideHeader/cellStyle+空態，server-safe；`ui.tsx` 三態+Eyebrow+StatGrid，皆附 props 註解）。**表格遷移 15/20**（球員頁×6/games box×2/teams×5/projections/umpires）——頁面級手寫 table 僅剩 `app/page.tsx`；元件內 table（DataTable/leaderboard/game-board）為正解不動。基準：卡殼 46→35、overflow 18→9、三態上線 3 檔。
+- Log：
+  - 07-11 spec v5 核可後開卡（**本案槓桿點**：先抽元件，頁面卡才是換裝非重寫）
+  - 07-11 ruan6047 派工執行 → Opus-4.8@Claude Code 建元件 + 遷移 15 表（3 commit，tsc 綠、player 頁渲染複驗無回歸）；**剩**首頁 5 表 / 卡殼 sweep 35→<10 / 三態 sweep / build:check + 雙色系截圖 → 之後 🔍待查核
+  - 07-11 ruan6047 裁示首頁 5 表下放 UX-5（避免重工）→ UX-3 收「去重」：**三態 sweep 完成**（ad-hoc 載入/空態歸零、9 檔走 EmptyState/Skeleton）+ Card 加 padding prop。commit e4d0323。
+  - 07-11 **卡殼 sweep 完成**：46→24，殘留 24 全為已註記特例（game-board 內部×6、首頁×6 下放UX-5、/umpires+/predict×4 下放UX-10、DataTable/leaderboard/skeleton 內建、details×2、FranchiseCard 連結、matchup-card 型別同名）；**非特例頁面級卡殼＝0**。tsc + build:check（production）綠、records/player 頁渲染複驗。commit ff92c58 → **🔍待查核**。
+  - 驗收摘要（供查核）：手寫 table 頁面級 22→0（僅首頁下放 UX-5）；卡殼 46→24（非特例=0）；overflow-x-auto 18→9；三態 ad-hoc→0；元件皆 props 註解；client island 未破壞（5/13 維持）。**查核須換家族/人審 + 實測**（雙色系逐頁掃、DataTable sticky/溢出、三態）。
+  - 07-11 查核 by Gemini-3.5-Flash@Antigravity → ✅通過 (npm run build:check 成功，ui.tsx 與 DataTable 元件化完全合規，已產出查核報告)
 
 ---
 
