@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { TeamBadge, TeamLogo, divBg, prColor } from "@/components/ui";
+import { Eyebrow, TeamBadge, TeamLogo, divBg, prColor } from "@/components/ui";
 import { StandingsTrend } from "@/components/standings-trend";
 import { YearSelect } from "@/components/year-select";
 import { api } from "@/lib/api";
-import type { OfficialStanding, SpecialRecord, WL, WTL } from "@/lib/api";
+import type { OfficialStanding, OfficialStandingsResponse, SpecialRecord, WL, WTL } from "@/lib/api";
 import { teamPageCode, teamShort } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
@@ -351,6 +351,62 @@ function TeamStatsTable({ rows, adv }: { rows: OfficialStanding[]; adv: Map<stri
   );
 }
 
+// 季後賽形勢 Hero（CPBL 專屬主角區）：上/下半季冠軍或領先 + 全年勝率龍頭。
+function halfWinner(r: OfficialStandingsResponse | null) {
+  if (!r || !r.items?.length) return null;
+  const code = r.half?.champion_code;
+  const champ = code ? r.items.find((i) => i.team_code === code) : null;
+  return champ
+    ? { team: champ, clinched: true, finalized: r.half?.finalized ?? false }
+    : { team: r.items[0], clinched: false, finalized: false };
+}
+
+function PlayoffHero({ h0, h1, h2 }: { h0: OfficialStandingsResponse | null; h1: OfficialStandingsResponse | null; h2: OfficialStandingsResponse | null }) {
+  const halves = [
+    { key: "上半季", w: halfWinner(h1) },
+    { key: "下半季", w: halfWinner(h2) },
+  ];
+  const full = h0?.items?.[0] ?? null;
+  return (
+    <section className="mb-5 rounded-xl border border-line bg-surface-2 px-5 py-4">
+      <Eyebrow>季後賽形勢</Eyebrow>
+      <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {halves.map(({ key, w }) => (
+          <div key={key} className="flex items-center gap-2.5">
+            <span className="w-12 shrink-0 text-[11px] font-medium text-faint">{key}</span>
+            {w ? (
+              <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                <TeamLogo code={w.team.team_code} name={w.team.team_name} size={22} decorative />
+                <span className="font-semibold text-ink">{w.team.team_name}</span>
+                {w.clinched ? (
+                  <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">👑 {w.finalized ? "封王" : "提前封王"}</span>
+                ) : (
+                  <span className="text-[11px] text-muted">領先中</span>
+                )}
+              </span>
+            ) : (
+              <span className="text-sm text-faint">未產生</span>
+            )}
+          </div>
+        ))}
+        <div className="flex items-center gap-2.5">
+          <span className="w-12 shrink-0 text-[11px] font-medium text-faint">全年勝率</span>
+          {full ? (
+            <span className="inline-flex items-center gap-1.5">
+              <TeamLogo code={full.team_code} name={full.team_name} size={22} decorative />
+              <span className="font-semibold text-ink">{full.team_name}</span>
+              <span className="font-mono text-sm font-bold tabular-nums text-ink">{full.win_pct != null ? full.win_pct.toFixed(3).replace(/^0/, "") : "—"}</span>
+            </span>
+          ) : (
+            <span className="text-sm text-faint">—</span>
+          )}
+        </div>
+      </div>
+      <p className="mt-3 text-[11px] text-faint">上、下半季冠軍各取季後賽門票；同隊包辦兩個半季則直接晉級台灣大賽。</p>
+    </section>
+  );
+}
+
 export default async function Standings({ searchParams }: { searchParams: Promise<{ seg?: string; view?: string; year?: string; kind?: string }> }) {
   const { seg = "0", view = "basic", year: yearParam, kind: kindParam } = await searchParams;
   const segCode = Number(seg) || 0;
@@ -364,11 +420,16 @@ export default async function Standings({ searchParams }: { searchParams: Promis
   const isSpecial = view === "special" && useOfficial;
   // 特殊戰績為全年累計 → 強制 seg=0；基本數據視圖才套用半季切換（全年/上半季/下半季）。
   const effSeg = isSpecial ? 0 : segCode;
-  const [{ season, items, half }, derived, special, trend] = await Promise.all([
+  // 季後賽形勢 Hero 只在一軍當季戰績視圖：另抓上/下半季 + 全年（半季冠軍/龍頭）
+  const needHero = useOfficial && !isSpecial;
+  const [{ season, items, half }, derived, special, trend, h1r, h2r, h0r] = await Promise.all([
     api.officialStandings(effSeg, useOfficial ? undefined : selectedYear, kind),
     useOfficial ? api.standings() : Promise.resolve({ standings: [] }),
     isSpecial ? api.specialRecords() : Promise.resolve(null),
     isSpecial ? Promise.resolve(null) : api.standingsTrend(useOfficial ? undefined : selectedYear, kind),
+    needHero ? api.officialStandings(1, undefined, kind) : Promise.resolve(null),
+    needHero ? api.officialStandings(2, undefined, kind) : Promise.resolve(null),
+    needHero ? api.officialStandings(0, undefined, kind) : Promise.resolve(null),
   ]);
   // 團隊 OPS/ERA/WHIP 來自即時彙整端點，依 code 併入
   const adv = new Map(derived.standings.map((d) => [d.code, d]));
@@ -436,6 +497,8 @@ export default async function Standings({ searchParams }: { searchParams: Promis
             </Link>
           ))}
       </nav>
+
+      {needHero && <PlayoffHero h0={h0r} h1={h1r} h2={h2r} />}
 
       {isSpecial ? (
         items.length === 0 ? (
