@@ -559,6 +559,42 @@ function PostseasonBracket({ isCurrent, h0, h1, h2, series }: {
   );
 }
 
+// 二軍季後賽＝單一「二軍總冠軍賽」系列（無半季/挑戰賽）；用同一 SeriesCard 計分表呈現。
+function FarmChampion({ isCurrent, series, standings }: {
+  isCurrent: boolean; series: PostSeries[]; standings: OfficialStanding[];
+}) {
+  const champ = series.find((s) => s.kind_code === "F");
+  if (!champ) {
+    return <p className="text-sm text-faint">{isCurrent ? "本季二軍總冠軍賽尚未進行。" : "此年度無二軍總冠軍賽對戰資料。"}</p>;
+  }
+  const nameMap = new Map(standings.map((t) => [t.team_code, t.team_name]));
+  const rankOf = new Map(standings.map((t, i) => [t.team_code, i + 1]));
+  const nameOf = (c: string | null) => (c ? nameMap.get(c) ?? c : "");
+  const seed = (code: string) => { const r = rankOf.get(code); return r ? `全年 #${r}` : ""; };
+  // 賽制逐年不同（五/七戰）→ 由勝隊勝場反推所需勝場（系列已完成，勝隊勝場＝門檻）。
+  const needed = Math.max(champ.team1_wins, champ.team2_wins);
+  return (
+    <section>
+      <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 className="text-lg font-semibold text-ink">二軍總冠軍賽</h2>
+        <span className="text-[11px] text-faint">依實際對戰結果</span>
+      </div>
+      <div className="lg:max-w-xl">
+        <SeriesCard
+          title="二軍總冠軍賽"
+          format={`${needed * 2 - 1} 戰 ${needed} 勝`}
+          sideA={{ code: champ.team1_code, seed: seed(champ.team1_code), handicap: false }}
+          sideB={{ code: champ.team2_code, seed: seed(champ.team2_code), handicap: false }}
+          games={champ.games ?? []}
+          needed={needed}
+          crownWinner
+          nameOf={nameOf}
+        />
+      </div>
+    </section>
+  );
+}
+
 export default async function Standings({ searchParams }: { searchParams: Promise<{ seg?: string; view?: string; year?: string; kind?: string }> }) {
   const { seg = "0", view = "basic", year: yearParam, kind: kindParam } = await searchParams;
   const segCode = Number(seg) || 0;
@@ -572,14 +608,14 @@ export default async function Standings({ searchParams }: { searchParams: Promis
   // 戰績細項（特殊戰績）對所有一軍年度開放：端點吃 season、由 games+scoreboard 即時算；
   // <2018 無 livelog 的「再見」類型會自然退化為空。二軍不提供。
   const isSpecial = view === "special" && !isMinor;
-  // 季後賽 bracket 分頁（seg=3）：僅一軍（二軍無上下半季制、無季後賽）。
-  const isPostseason = !isMinor && !isSpecial && segCode === 3;
+  // 季後賽分頁（seg=3）：一軍＝挑戰賽/台灣大賽 bracket；二軍＝二軍總冠軍賽單一系列。
+  const isPostseason = !isSpecial && segCode === 3;
   // 特殊戰績/季後賽為全年概念 → officialStandings 強制 seg=0（0/1/2 才是有效 season_code）。
   const effSeg = (isSpecial || isPostseason) ? 0 : segCode;
-  // 半季資料：一軍非特殊視圖都抓（供 bracket 判半季冠軍 + 種子上色，含歷史年）。
+  // 半季資料（一軍專屬）：非特殊視圖都抓，供 bracket 判半季冠軍 + 種子上色（含歷史年）。
   const needPlayoffData = !isMinor && !isSpecial;
-  // 季後賽系列大比分：歷年有結果、或當季開了季後賽分頁（可能進行中/未開打）。
-  const needPostseasonSummary = !isMinor && (selectedYear < currentYear || isPostseason);
+  // 季後賽系列大比分：歷年有結果、或當季開了季後賽分頁；一軍抓 E/C、二軍抓 F。
+  const needPostseasonSummary = selectedYear < currentYear || isPostseason;
   const [{ season, items, half }, derived, special, trend, h1r, h2r, h0r, postseason] = await Promise.all([
     api.officialStandings(effSeg, useOfficial ? undefined : selectedYear, kind),
     !isMinor ? api.standings(selectedYear) : Promise.resolve({ standings: [] }),
@@ -588,13 +624,13 @@ export default async function Standings({ searchParams }: { searchParams: Promis
     needPlayoffData ? api.officialStandings(1, selectedYear, kind) : Promise.resolve(null),
     needPlayoffData ? api.officialStandings(2, selectedYear, kind) : Promise.resolve(null),
     needPlayoffData ? api.officialStandings(0, selectedYear, kind) : Promise.resolve(null),
-    needPostseasonSummary ? api.postseasonSummary(selectedYear) : Promise.resolve(null),
+    needPostseasonSummary ? api.postseasonSummary(selectedYear, kind) : Promise.resolve(null),
   ]);
   const hasPlayoffPanel = !!(h0r?.items?.length && h1r?.items?.length && h2r?.items?.length);
   const half1Champ = h1r?.half?.champion_code ?? null;
   const half2Champ = h2r?.half?.champion_code ?? null;
-  // 年度總冠軍＝台灣大賽（kind_code 'C'）系列的勝隊；僅歷年（有 postseason）才有值。
-  const twSeries = (postseason?.series ?? []).find((s) => s.kind_code === "C");
+  // 年度總冠軍＝台灣大賽(C)／二軍總冠軍賽(F)系列的勝隊；僅歷年（有 postseason）才有值。
+  const twSeries = (postseason?.series ?? []).find((s) => s.kind_code === "C" || s.kind_code === "F");
   const championCode = twSeries
     ? (twSeries.team1_wins > twSeries.team2_wins ? twSeries.team1_code : twSeries.team2_code)
     : null;
@@ -608,6 +644,8 @@ export default async function Standings({ searchParams }: { searchParams: Promis
   const eraVals = items.map((r) => adv.get(r.team_code)?.era);
   const whipVals = items.map((r) => adv.get(r.team_code)?.whip);
 
+  // 分頁列：一軍＝全年/上半季/下半季/季後賽（＋戰績細項）；二軍無半季/挑戰賽，只有全年＋總冠軍。
+  const segTabs = isMinor ? [{ v: 0, label: "全年" }, { v: 3, label: "總冠軍" }] : SEGS;
   const levelLabel = isMinor ? "二軍" : "";
   const subtitle = isMinor ? `${levelLabel}戰績` : useOfficial ? "本季戰績" : "歷年戰績";
   const headerDesc = isSpecial
@@ -638,22 +676,22 @@ export default async function Standings({ searchParams }: { searchParams: Promis
         </div>
       </header>
 
-      {/* 一軍：單一分頁列（全年/上半季/下半季/季後賽/戰績細項）——把時間切分與視圖收成一列，
-          不再是頭部旁的浮動子選單。二軍只有全年戰績、不顯示分頁。 */}
-      {!isMinor && (
-        <div className="mb-4">
-          <div className="inline-flex flex-wrap items-center rounded-full border border-line bg-surface p-1">
-            {SEGS.map((s) => (
-              <Link
-                key={s.v}
-                href={`/standings?kind=${kind}&year=${selectedYear}&seg=${s.v}`}
-                className={`rounded-full px-3 py-1 text-sm transition ${
-                  !isSpecial && segCode === s.v ? "bg-ink text-paper" : "text-muted hover:bg-surface-2"
-                }`}
-              >
-                {s.label}
-              </Link>
-            ))}
+      {/* 單一分頁列——把時間切分與視圖收成一列，不再是頭部旁的浮動子選單。
+          一軍：全年/上半季/下半季/季後賽/戰績細項；二軍：全年/總冠軍。 */}
+      <div className="mb-4">
+        <div className="inline-flex flex-wrap items-center rounded-full border border-line bg-surface p-1">
+          {segTabs.map((s) => (
+            <Link
+              key={s.v}
+              href={`/standings?kind=${kind}&year=${selectedYear}&seg=${s.v}`}
+              className={`rounded-full px-3 py-1 text-sm transition ${
+                !isSpecial && segCode === s.v ? "bg-ink text-paper" : "text-muted hover:bg-surface-2"
+              }`}
+            >
+              {s.label}
+            </Link>
+          ))}
+          {!isMinor && (
             <Link
               href={`/standings?kind=${kind}&year=${selectedYear}&view=special`}
               className={`rounded-full px-3 py-1 text-sm transition ${
@@ -662,9 +700,9 @@ export default async function Standings({ searchParams }: { searchParams: Promis
             >
               戰績細項
             </Link>
-          </div>
+          )}
         </div>
-      )}
+      </div>
       {headerDesc && <p className="mb-4 text-sm text-muted">{headerDesc}</p>}
 
       {isSpecial ? (
@@ -681,13 +719,17 @@ export default async function Standings({ searchParams }: { searchParams: Promis
           </>
         )
       ) : isPostseason ? (
-        <PostseasonBracket
-          isCurrent={useOfficial}
-          h0={h0r}
-          h1={h1r}
-          h2={h2r}
-          series={postseason?.series ?? []}
-        />
+        isMinor ? (
+          <FarmChampion isCurrent={useOfficial} series={postseason?.series ?? []} standings={items} />
+        ) : (
+          <PostseasonBracket
+            isCurrent={useOfficial}
+            h0={h0r}
+            h1={h1r}
+            h2={h2r}
+            series={postseason?.series ?? []}
+          />
+        )
       ) : items.length === 0 ? (
         <p className="text-sm text-faint">此區間尚無戰績（下半季可能未開始）。</p>
       ) : (

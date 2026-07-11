@@ -309,8 +309,8 @@ export const api = {
     get<SpecialRecordsResponse>(`/api/v1/special-records${season ? `?season=${season}` : ""}`, 120),
   standingsTrend: (season?: number, kind = "A") =>
     get<StandingsTrendResponse>(`/api/v1/standings-trend?kind_code=${kind}${season ? `&season=${season}` : ""}`, 120),
-  postseasonSummary: (season?: number) =>
-    get<PostseasonSummaryResponse>(`/api/v1/postseason-summary${season ? `?season=${season}` : ""}`, 120),
+  postseasonSummary: (season?: number, kind = "A") =>
+    get<PostseasonSummaryResponse>(`/api/v1/postseason-summary?kind_code=${kind}${season ? `&season=${season}` : ""}`, 120),
   gamesRecent: (limit = 60, year?: number, kind = "A") =>
     get<GamesRecentResponse>(`/api/v1/games/recent?limit=${limit}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 120),
   gamesCalendar: (year?: number, kind = "A") =>
