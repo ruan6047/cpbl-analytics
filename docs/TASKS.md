@@ -12,7 +12,7 @@
 |---|---|---|---|---|---|---|---|---|
 | UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🔨子卡執行中（spec v5 已核可 07-11） |
 | UX-3 | 共用元件標準化（ui.tsx 收斂＋三態＋DataTable） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行 |
-| UX-4 | 骨架導覽＋標準頁面解剖落地 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（待 UX-2/3） |
+| UX-4 | 骨架導覽＋標準頁面解剖落地 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（待 UX-3） |
 | UX-5 | 首頁（戰績）換裝 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（待通用層） |
 | UX-6 | 賽況群 `/games`、`/games/[sno]` | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（待通用層） |
 | UX-7 | 球員/球隊頁 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（待通用層） |
@@ -56,7 +56,7 @@
 - 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 通用層）　分支：`ai/<執行者>/UX-4`
 - 執行：待指派　查核：待指派（≠執行者）
 - 範圍/驗收：header 導覽資訊架構（10 項導覽分組/優先序）、**標準頁面解剖落地**（h1+副標/主角區/輔助區塊排序——直接回應「區塊混亂」）、footer、行動端導覽。驗收：375px 導覽可用；各頁標題與區塊結構一致。
-- 狀態：📥Backlog（待 UX-2/3）　Commit：—
+- 狀態：📥Backlog（待 UX-3）　Commit：—
 - Log：
   - 07-11 spec v5 核可後開卡
 
@@ -64,7 +64,7 @@
 - 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 頁面層）　分支：`ai/<執行者>/UX-5`
 - 執行：待指派　查核：待指派（≠執行者，關鍵頁建議人審）
 - 範圍/驗收：`/`；全站門面，戰績表+特殊戰績重排資訊層級。**首要驗收＝5 秒盲測**（375+1280 首屏截圖答得出「誰領先」且為視覺焦點）＋深淺雙色系截圖。
-- 狀態：📥Backlog（待通用層 UX-2/3/4）　Commit：—
+- 狀態：📥Backlog（待通用層 UX-3/4）　Commit：—
 - Log：
   - 07-11 spec v5 核可後開卡
 
