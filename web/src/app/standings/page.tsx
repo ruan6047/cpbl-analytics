@@ -263,8 +263,40 @@ function h2hBg(rec: string | null | undefined): React.CSSProperties | undefined 
   return { background: prColor((w / (w + l)) * 100).replace("rgb", "rgba").replace(")", ",0.3)") };
 }
 
-export default async function Standings({ searchParams }: { searchParams: Promise<{ seg?: string; view?: string; year?: string; kind?: string }> }) {
-  const { seg = "0", view = "basic", year: yearParam, kind: kindParam } = await searchParams;
+// 連勝/連敗標籤（資料格式 '勝3'/'敗3'）：綠連勝、紅連敗。取代獨立欄位，貼在隊名旁。
+function StreakBadge({ streak }: { streak: string | null }) {
+  if (!streak) return null;
+  const win = streak.startsWith("勝");
+  const lose = streak.startsWith("敗");
+  const cls = win ? "bg-up/15 text-up" : lose ? "bg-down/15 text-down" : "bg-surface-2 text-muted";
+  return <span className={`ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${cls}`}>{streak}</span>;
+}
+
+// 近十場（資料格式 'W-T-L'，如 '3-0-7'）：W-L 文字 + 勝率迷你條（數字不裸列）。
+function L10({ s }: { s: string | null }) {
+  if (!s) return <span className="text-faint">—</span>;
+  const [w, , l] = s.split("-").map(Number);
+  if (!Number.isFinite(w) || !Number.isFinite(l)) return <span className="text-faint">—</span>;
+  const tot = w + l;
+  const wpct = tot ? (w / tot) * 100 : 0;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="tabular-nums text-muted">{w}-{l}</span>
+      <span className="inline-block h-1.5 w-10 overflow-hidden rounded-full bg-down/30" aria-hidden>
+        <span className="block h-full rounded-full bg-up" style={{ width: `${wpct}%` }} />
+      </span>
+    </span>
+  );
+}
+
+const STATS = [
+  { v: "basic", label: "基本" },
+  { v: "adv", label: "進階" },
+];
+
+export default async function Standings({ searchParams }: { searchParams: Promise<{ seg?: string; view?: string; year?: string; kind?: string; stats?: string }> }) {
+  const { seg = "0", view = "basic", year: yearParam, kind: kindParam, stats = "basic" } = await searchParams;
+  const isAdv = stats === "adv";
   const segCode = Number(seg) || 0;
   const kind = kindParam === "D" ? "D" : "A";
   const isMinor = kind === "D";
@@ -285,6 +317,11 @@ export default async function Standings({ searchParams }: { searchParams: Promis
   // 團隊 OPS/ERA/WHIP 來自即時彙整端點，依 code 併入
   const adv = new Map(derived.standings.map((d) => [d.code, d]));
   const sp = new Map((special?.items ?? []).map((s) => [s.team_code, s]));
+  // 逐欄相對上色的比較基準（一次算，供 divBg）
+  const pcts = items.map((x) => x.win_pct);
+  const opss = items.map((x) => adv.get(x.team_code)?.ops);
+  const eras = items.map((x) => adv.get(x.team_code)?.era);
+  const whips = items.map((x) => adv.get(x.team_code)?.whip);
 
   const VIEWS = [
     { v: "basic", label: "基本數據" },
@@ -337,9 +374,23 @@ export default async function Standings({ searchParams }: { searchParams: Promis
           SEGS.map((s) => (
             <Link
               key={s.v}
-              href={`/standings?seg=${s.v}`}
+              href={`/standings?seg=${s.v}${isAdv ? "&stats=adv" : ""}`}
               className={`rounded-full px-3 py-1 text-sm transition ${
                 segCode === s.v ? "bg-ink text-paper" : "bg-surface-2 text-muted hover:bg-surface-2"
+              }`}
+            >
+              {s.label}
+            </Link>
+          ))}
+        {!isSpecial && <span className="mx-1 h-4 w-px bg-line" />}
+        {!isSpecial &&
+          STATS.map((s) => (
+            <Link
+              key={s.v}
+              href={`/standings?seg=${segCode}${s.v === "adv" ? "&stats=adv" : ""}${isMinor ? "&kind=D" : ""}${!useOfficial ? `&year=${selectedYear}` : ""}`}
+              title={s.v === "adv" ? "進階：淘汰指數 / 主客場 / 團隊 OPS·ERA·WHIP" : "基本：勝率 / 勝差 / 近十場"}
+              className={`rounded-full px-3 py-1 text-sm transition ${
+                (s.v === "adv") === isAdv ? "bg-ink text-paper" : "bg-surface-2 text-muted hover:bg-surface-2"
               }`}
             >
               {s.label}
@@ -362,61 +413,81 @@ export default async function Standings({ searchParams }: { searchParams: Promis
       ) : items.length === 0 ? (
         <p className="text-sm text-faint">此區間尚無戰績（下半季可能未開始）。</p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-line">
-          <table className="w-full text-sm">
-            <thead className="bg-surface-2 text-left text-muted">
-              <tr>
-                <th className="whitespace-nowrap px-2.5 py-3 font-medium sticky-col w-10" style={{ left: 0, width: '2.5rem', minWidth: '2.5rem', maxWidth: '2.5rem' }}>#</th>
-                <th className="whitespace-nowrap px-2.5 py-3 font-medium sticky-col" style={{ left: '2.5rem' }}>球隊</th>
-                {["出賽", "勝-和-敗", "勝率", "勝差", "淘汰指數", "連勝/敗", "主場", "客場", "近十場", "OPS", "ERA", "WHIP"].map(
-                  (h) => (
-                    <th key={h} className="whitespace-nowrap px-2.5 py-3 font-medium"
-                      title={h === "淘汰指數" ? "Magic Number：再贏幾場可確保不被該隊超越；領先隊不適用" : undefined}>{h}</th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody className="font-mono tabular-nums">
-              {items.map((t) => {
-                const a = adv.get(t.team_code);
-                const pcts = items.map((x) => x.win_pct);
-                const opss = items.map((x) => adv.get(x.team_code)?.ops);
-                const eras = items.map((x) => adv.get(x.team_code)?.era);
-                const whips = items.map((x) => adv.get(x.team_code)?.whip);
-                return (
-                  <tr key={t.team_code} className="border-t border-line hover:bg-surface-2">
-                    <td className="px-2.5 py-2.5 text-faint sticky-col w-10" style={{ left: 0, width: '2.5rem', minWidth: '2.5rem', maxWidth: '2.5rem' }}>{t.rank}</td>
-                    <td className="whitespace-nowrap px-2.5 py-2.5 font-sans sticky-col" style={{ left: '2.5rem' }}>
-                      <span className="inline-flex items-center gap-1.5">
-                        <LinkedTeam code={t.team_code} name={t.team_name} />
-                        {t.is_champion && (
-                          <span
-                            title={`${SEGS.find((s) => s.v === segCode)?.label}冠軍${half?.finalized ? "" : "（提前封王）"}`}
-                            className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700"
-                          >
-                            👑 {SEGS.find((s) => s.v === segCode)?.label}冠軍
-                          </span>
-                        )}
-                      </span>
-                    </td>
-                    <td className="px-2.5 py-2.5 text-muted">{t.g}</td>
-                    <td className="px-2.5 py-2.5">{t.w}-{t.t}-{t.l}</td>
-                    <td className="px-2.5 py-2.5 font-medium text-ink" style={divBg(t.win_pct, pcts)}>{t.win_pct?.toFixed(3) ?? "—"}</td>
-                    <td className="px-2.5 py-2.5 text-muted">{t.gb === 0 ? "—" : t.gb}</td>
-                    <td className="px-2.5 py-2.5 text-muted">{t.elim && t.elim !== "" ? t.elim : "—"}</td>
-                    <td className="px-2.5 py-2.5 text-muted">{t.streak ?? "—"}</td>
-                    <td className="px-2.5 py-2.5 text-muted">{t.home_record ?? "—"}</td>
-                    <td className="px-2.5 py-2.5 text-muted">{t.away_record ?? "—"}</td>
-                    <td className="px-2.5 py-2.5 text-muted">{t.last10 ?? "—"}</td>
-                    <td className="px-2.5 py-2.5" style={divBg(a?.ops, opss)}>{a?.ops?.toFixed(3) ?? "—"}</td>
-                    <td className="px-2.5 py-2.5" style={divBg(a?.era, eras, true)}>{a?.era?.toFixed(2) ?? "—"}</td>
-                    <td className="px-2.5 py-2.5" style={divBg(a?.whip, whips, true)}>{a?.whip?.toFixed(2) ?? "—"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <p className="mb-3 text-[11px] text-faint">
+            {isAdv
+              ? "進階：淘汰指數（Magic Number）／主客場／團隊 OPS·ERA·WHIP。右半＝對各隊對戰成績（勝-和-敗），依勝率藍↔紅上色。"
+              : "左半戰績（勝率／勝差／近十場，連勝連敗見隊名旁標籤），右半＝對各隊對戰成績（勝-和-敗）；同一列＝同一隊，依勝率藍↔紅上色。"}
+          </p>
+          <div className="overflow-x-auto rounded-xl border border-line">
+            <table className="w-full text-sm">
+              <thead className="bg-surface-2 text-left text-muted">
+                <tr>
+                  <th className="whitespace-nowrap px-2.5 py-3 font-medium sticky-col w-10" style={{ left: 0, width: '2.5rem', minWidth: '2.5rem', maxWidth: '2.5rem' }}>#</th>
+                  <th className="whitespace-nowrap px-2.5 py-3 font-medium sticky-col" style={{ left: '2.5rem' }}>球隊</th>
+                  {(isAdv
+                    ? [["淘汰", "Magic Number：再贏幾場可確保不被該隊超越；領先隊不適用"], ["主場"], ["客場"], ["OPS"], ["ERA"], ["WHIP"]]
+                    : [["勝-和-敗"], ["勝率"], ["勝差"], ["近十場"]]
+                  ).map(([h, title]) => (
+                    <th key={h} className="whitespace-nowrap px-2.5 py-3 font-medium" title={title}>{h}</th>
+                  ))}
+                  {items.map((c, i) => (
+                    <th key={c.team_code} className={`hidden px-2 py-3 text-center font-medium md:table-cell ${i === 0 ? "md:border-l-2 md:border-line" : ""}`}>
+                      <span className="inline-flex flex-col items-center" title={`對 ${c.team_name}`}><TeamLogo code={c.team_code} name={c.team_name} size={20} decorative /></span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="font-mono tabular-nums">
+                {items.map((t) => {
+                  const a = adv.get(t.team_code);
+                  return (
+                    <tr key={t.team_code} className="border-t border-line hover:bg-surface-2">
+                      <td className="px-2.5 py-2.5 text-faint sticky-col w-10" style={{ left: 0, width: '2.5rem', minWidth: '2.5rem', maxWidth: '2.5rem' }}>{t.rank}</td>
+                      <td className="whitespace-nowrap px-2.5 py-2.5 font-sans sticky-col" style={{ left: '2.5rem' }}>
+                        <span className="inline-flex items-center">
+                          <LinkedTeam code={t.team_code} name={t.team_name} />
+                          <StreakBadge streak={t.streak} />
+                          {t.is_champion && (
+                            <span
+                              title={`${SEGS.find((s) => s.v === segCode)?.label}冠軍${half?.finalized ? "" : "（提前封王）"}`}
+                              className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700"
+                            >
+                              👑
+                            </span>
+                          )}
+                        </span>
+                      </td>
+                      {isAdv ? (
+                        <>
+                          <td className="px-2.5 py-2.5 text-muted">{t.elim && t.elim !== "" ? t.elim : "—"}</td>
+                          <td className="px-2.5 py-2.5 text-muted">{t.home_record ?? "—"}</td>
+                          <td className="px-2.5 py-2.5 text-muted">{t.away_record ?? "—"}</td>
+                          <td className="px-2.5 py-2.5" style={divBg(a?.ops, opss)}>{a?.ops?.toFixed(3) ?? "—"}</td>
+                          <td className="px-2.5 py-2.5" style={divBg(a?.era, eras, true)}>{a?.era?.toFixed(2) ?? "—"}</td>
+                          <td className="px-2.5 py-2.5" style={divBg(a?.whip, whips, true)}>{a?.whip?.toFixed(2) ?? "—"}</td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-2.5 py-2.5">{t.w}-{t.t}-{t.l}</td>
+                          <td className="px-2.5 py-2.5 font-medium text-ink" style={divBg(t.win_pct, pcts)}>{t.win_pct != null ? t.win_pct.toFixed(3).replace(/^0/, "") : "—"}</td>
+                          <td className="px-2.5 py-2.5 text-muted">{t.gb ? t.gb : "—"}</td>
+                          <td className="px-2.5 py-2.5"><L10 s={t.last10} /></td>
+                        </>
+                      )}
+                      {items.map((col, i) => (
+                        <td key={col.team_code} className={`hidden px-2 py-2.5 text-center text-ink md:table-cell ${i === 0 ? "md:border-l-2 md:border-line" : ""}`}
+                          style={col.team_code === t.team_code ? undefined : h2hBg(t.h2h?.[col.team_code])}>
+                          {col.team_code === t.team_code ? <span className="text-faint">—</span> : (t.h2h?.[col.team_code] ?? "—")}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {!isSpecial && segCode !== 0 && items.length > 0 && half && (
@@ -437,43 +508,6 @@ export default async function Standings({ searchParams }: { searchParams: Promis
         </section>
       )}
 
-      {items.length > 0 && !isSpecial && (
-        <section className="mt-8">
-          <h2 className="mb-1 text-lg font-semibold">對戰成績</h2>
-          <p className="mb-3 text-[11px] text-faint">每列為該隊對各對手的 勝-和-敗（{SEGS.find((s) => s.v === segCode)?.label}）。</p>
-          <div className="overflow-x-auto rounded-xl border border-line">
-            <table className="w-full text-sm">
-              <thead className="bg-surface-2 text-left text-muted">
-                <tr>
-                  <th className="whitespace-nowrap px-2.5 py-3 font-medium">球隊＼對手</th>
-                  {items.map((c) => (
-                    <th key={c.team_code} className="px-2.5 py-3 text-center font-medium">
-                      <span className="inline-flex flex-col items-center gap-1"><TeamLogo code={c.team_code} name={c.team_name} size={20} /></span>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="font-mono tabular-nums">
-                {items.map((row) => (
-                  <tr key={row.team_code} className="border-t border-line hover:bg-surface-2">
-                    <td className="whitespace-nowrap px-2.5 py-2.5 font-sans"><TeamBadge code={row.team_code} name={row.team_name} /></td>
-                    {items.map((col) => (
-                      <td key={col.team_code} className="px-2.5 py-2.5 text-center text-ink"
-                        style={col.team_code === row.team_code ? undefined : h2hBg(row.h2h?.[col.team_code])}>
-                        {col.team_code === row.team_code ? (
-                          <span className="text-faint">—</span>
-                        ) : (
-                          row.h2h?.[col.team_code] ?? "—"
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
     </div>
   );
 }
