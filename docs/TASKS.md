@@ -53,6 +53,7 @@
 - Log：
   - 07-11 spec v5 核可後開卡（**本案槓桿點**：先抽元件，頁面卡才是換裝非重寫）
   - 07-11 ruan6047 派工執行 → Opus-4.8@Claude Code 建元件 + 遷移 15 表（3 commit，tsc 綠、player 頁渲染複驗無回歸）；**剩**首頁 5 表 / 卡殼 sweep 35→<10 / 三態 sweep / build:check + 雙色系截圖 → 之後 🔍待查核
+  - 07-11 ruan6047 裁示首頁 5 表下放 UX-5（避免重工）→ UX-3 收「去重」：**三態 sweep 完成**（ad-hoc 載入/空態歸零、9 檔走 EmptyState/Skeleton）+ Card 加 padding prop。tsc + build:check（獨立 distDir，順帶證明 production build 綠）皆綠、player 頁雙色系渲染複驗。commit e4d0323。**剩卡殼 35→<10 sweep（~18 檔 mechanical，pattern 已立）+ 更多頁截圖** → 再 🔍待查核
 
 ### UX-4 骨架導覽＋標準頁面解剖落地  〔⚪一般〕
 - 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 通用層）　分支：`ai/<執行者>/UX-4`
@@ -65,7 +66,7 @@
 ### UX-5 首頁（戰績）換裝  〔⚪一般〕
 - 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 頁面層）　分支：`ai/<執行者>/UX-5`
 - 執行：待指派　查核：待指派（≠執行者，關鍵頁建議人審）
-- 範圍/驗收：`/`；全站門面，戰績表+特殊戰績重排資訊層級。**首要驗收＝5 秒盲測**（375+1280 首屏截圖答得出「誰領先」且為視覺焦點）＋深淺雙色系截圖。
+- 範圍/驗收：`/`；全站門面，戰績表+特殊戰績重排資訊層級。**首要驗收＝5 秒盲測**（375+1280 首屏截圖答得出「誰領先」且為視覺焦點）＋深淺雙色系截圖。**含 app/page.tsx 5 表遷 DataTable**（ruan6047 07-11 自 UX-3 下放：避免 UX-3 先遷、UX-5 重排又重工；換裝時順手走 UX-3 的 DataTable）。
 - 狀態：📥Backlog（待通用層 UX-3/4）　Commit：—
 - Log：
   - 07-11 spec v5 核可後開卡
