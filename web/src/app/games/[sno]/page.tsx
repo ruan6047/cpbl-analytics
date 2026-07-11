@@ -439,12 +439,12 @@ export default function GameLivePage() {
       ) : (
         /* 未開賽：賽前展望（賽果模型對戰卡） */
         <div className="mb-8 mt-2 space-y-4">
-          <header>
-            <h1 className="text-2xl font-bold">
+          <header className="mb-6">
+            <h1 className="text-2xl font-extrabold tracking-tight text-ink">
               {String(g.away_team_name)} <span className="mx-2 text-faint">@</span>
               {String(g.home_team_name)}
             </h1>
-            <p className="mt-1 text-sm text-muted">{String(g.game_date ?? "")}　賽事編號 {sno}　{String(g.venue ?? "")}　尚未開賽</p>
+            <p className="mt-1.5 text-sm text-muted">{String(g.game_date ?? "")}　賽事編號 {sno}　{String(g.venue ?? "")}　尚未開賽</p>
           </header>
           {pregame && <Pregame m={pregame} />}
         </div>

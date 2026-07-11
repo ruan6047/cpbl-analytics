@@ -57,10 +57,10 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
       <div className="flex flex-wrap items-center gap-4 rounded-2xl p-6" style={{ background: color, color: ink }}>
         <TeamLogo code={code} name={displayName} size={56} />
         <div>
-          <div className="flex items-center gap-2 text-2xl font-extrabold tracking-tight">
+          <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-tight">
             {displayName}
             {!team && <span className="rounded bg-black/20 px-2 py-0.5 text-xs font-medium">已解散</span>}
-          </div>
+          </h1>
           <div className="text-sm opacity-90">
             {team ? `${season} 球季 · 第 ${team.rank} 名` : `${eras.eras[0]?.from}–${lastEra?.to} · 已退出一軍`}
             {fanNick(code) && (

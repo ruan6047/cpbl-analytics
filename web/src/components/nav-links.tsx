@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -13,23 +13,73 @@ type NavItem = {
 export function NavLinks({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const isMounted = useRef(false);
 
   // 當路徑改變時，自動關閉行動端選單
   useEffect(() => {
     setIsOpen(false);
   }, [pathname]);
 
-  // 行動端選單打開時防止底層頁面滾動
+  // 行動端選單打開時防止底層頁面滾動、處理 Escape 關閉
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === "Escape") {
+          setIsOpen(false);
+        }
+      };
+      window.addEventListener("keydown", handleKeyDown);
+      return () => {
+        document.body.style.overflow = "";
+        window.removeEventListener("keydown", handleKeyDown);
+      };
     } else {
       document.body.style.overflow = "";
     }
-    return () => {
-      document.body.style.overflow = "";
-    };
   }, [isOpen]);
+
+  // 行動選單開關時的焦點管理
+  useEffect(() => {
+    if (!isMounted.current) {
+      isMounted.current = true;
+      return;
+    }
+    if (isOpen) {
+      if (menuRef.current) {
+        menuRef.current.focus();
+      }
+    } else {
+      if (buttonRef.current) {
+        buttonRef.current.focus();
+      }
+    }
+  }, [isOpen]);
+
+  // 焦點陷阱 (Focus Trap)
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== "Tab") return;
+    if (!menuRef.current) return;
+    const focusables = menuRef.current.querySelectorAll<HTMLElement>(
+      'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        last.focus();
+        e.preventDefault();
+      }
+    } else {
+      if (document.activeElement === last) {
+        first.focus();
+        e.preventDefault();
+      }
+    }
+  };
 
   // 將選單項目依 group 分組，用於行動端面板的語意呈現
   const groupedItems = items.reduce((acc, item) => {
@@ -42,12 +92,12 @@ export function NavLinks({ items }: { items: NavItem[] }) {
   return (
     <>
       {/* ==================== 桌機版導覽列 ==================== */}
-      <nav aria-label="主導覽" className="hidden md:flex items-center gap-x-4 text-sm text-muted">
+      <nav aria-label="主導覽" className="hidden md:flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] lg:text-sm text-muted">
         {items.map((n, i) => {
           const active = n.href === "/" ? pathname === "/" : pathname.startsWith(n.href);
           const newGroup = i > 0 && n.group !== items[i - 1].group;
           return (
-            <span key={n.href} className="flex items-center gap-x-4">
+            <span key={n.href} className="flex items-center gap-x-3">
               {newGroup && <span aria-hidden className="h-4 w-px bg-line" />}
               <Link
                 href={n.href}
@@ -68,9 +118,10 @@ export function NavLinks({ items }: { items: NavItem[] }) {
       {/* ==================== 行動端選單按鈕 ==================== */}
       <div className="md:hidden flex items-center">
         <button
+          ref={buttonRef}
           onClick={() => setIsOpen(!isOpen)}
           aria-expanded={isOpen}
-          aria-haspopup="true"
+          aria-haspopup="dialog"
           aria-controls="mobile-menu"
           aria-label={isOpen ? "關閉選單" : "開啟選單"}
           className="relative z-50 flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface text-ink transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent"
@@ -94,11 +145,14 @@ export function NavLinks({ items }: { items: NavItem[] }) {
       {/* ==================== 行動端滑出選單面板 ==================== */}
       {isOpen && (
         <div
+          ref={menuRef}
           id="mobile-menu"
           role="dialog"
           aria-modal="true"
           aria-label="行動端選單"
-          className="fixed inset-x-0 bottom-0 top-[57px] z-40 flex flex-col bg-paper/95 px-6 py-6 backdrop-blur-lg border-t border-line animate-[fadeIn_0.15s_ease-out] overflow-y-auto"
+          tabIndex={-1}
+          onKeyDown={handleKeyDown}
+          className="fixed inset-x-0 bottom-0 top-[var(--header-height,57px)] z-40 flex flex-col bg-paper/95 px-6 py-6 backdrop-blur-lg border-t border-line animate-fade-in overflow-y-auto outline-none"
         >
           <nav className="flex-1 space-y-6 pb-8">
             {Object.entries(groupedItems).map(([groupName, groupList]) => (
@@ -119,8 +173,8 @@ export function NavLinks({ items }: { items: NavItem[] }) {
                         aria-current={active ? "page" : undefined}
                         className={
                           active
-                            ? "flex items-center justify-center h-11 px-3 rounded-xl bg-cpbl/10 border border-cpbl/20 text-sm font-bold text-cpbl transition-all active:scale-[0.98]"
-                            : "flex items-center justify-center h-11 px-3 rounded-xl bg-surface border border-line text-sm font-medium text-ink transition-all hover:bg-surface-2 active:scale-[0.98] active:bg-surface-3"
+                            ? "flex items-center justify-center h-11 px-3 rounded-xl bg-accent/10 border border-accent/20 text-sm font-bold text-accent transition-all active:scale-[0.98]"
+                            : "flex items-center justify-center h-11 px-3 rounded-xl bg-surface border border-line text-sm font-medium text-ink transition-all hover:bg-surface-2 active:scale-[0.98] active:bg-surface-2"
                         }
                       >
                         {n.label}

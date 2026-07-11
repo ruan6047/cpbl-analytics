@@ -67,6 +67,7 @@
 
 :root {
   color-scheme: light;
+  --header-height: 57px;
 }
 
 /* 深色模式：覆寫同名 token（Navy 底翻深；文字/語意色提亮以維持 ≥4.5:1 對比） */
@@ -200,6 +201,15 @@ tr:hover .sticky-col {
   right: 0; top: 0; bottom: 0; width: 4px;
   box-shadow: inset -4px 0 8px -4px rgba(0, 0, 0, 0.15);
   pointer-events: none;
+}
+
+/* 淡入動畫 */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in {
+  animation: fadeIn 0.15s ease-out forwards;
 }
 
 
