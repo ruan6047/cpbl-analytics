@@ -4,7 +4,7 @@ import { StandingsTrend } from "@/components/standings-trend";
 import { YearSelect } from "@/components/year-select";
 import { api } from "@/lib/api";
 import type { OfficialStanding, SpecialRecord, WL, WTL } from "@/lib/api";
-import { teamPageCode } from "@/lib/teams";
+import { teamPageCode, teamShort } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
@@ -289,14 +289,70 @@ function L10({ s }: { s: string | null }) {
   );
 }
 
-const STATS = [
-  { v: "basic", label: "基本" },
-  { v: "adv", label: "進階" },
-];
+// 戰績主表隊名格（手機用縮寫避免撐爆版面；桌機全名）＋連結各隊頁
+function TeamNameCell({ code, name }: { code: string; name: string }) {
+  const tc = teamPageCode(code);
+  const inner = (
+    <span className="inline-flex items-center gap-1.5">
+      <TeamLogo code={code} name={name} size={20} decorative />
+      <span className="hidden font-medium md:inline">{name}</span>
+      <span className="font-medium md:hidden">{teamShort(code) || name}</span>
+    </span>
+  );
+  return tc ? <Link href={`/teams/${tc}`} className="hover:underline" aria-label={name}>{inner}</Link> : inner;
+}
 
-export default async function Standings({ searchParams }: { searchParams: Promise<{ seg?: string; view?: string; year?: string; kind?: string; stats?: string }> }) {
-  const { seg = "0", view = "basic", year: yearParam, kind: kindParam, stats = "basic" } = await searchParams;
-  const isAdv = stats === "adv";
+// 勝差標籤（取代獨立欄）：領先隊不顯示；落後隊以中性 chip 呈現
+function GbTag({ gb }: { gb: number | null }) {
+  if (!gb) return null;
+  return <span className="ml-1.5 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted" title="勝差 Games Behind">-{gb}</span>;
+}
+
+// 戰績細項：主客場 + 淘汰指數 + 團隊攻守（OPS/ERA/WHIP）；自主表數據建，非 specialRecords
+function TeamStatsTable({ rows, adv }: { rows: OfficialStanding[]; adv: Map<string, { ops: number | null; era: number | null; whip: number | null }> }) {
+  const opss = rows.map((r) => adv.get(r.team_code)?.ops);
+  const eras = rows.map((r) => adv.get(r.team_code)?.era);
+  const whips = rows.map((r) => adv.get(r.team_code)?.whip);
+  return (
+    <section className="mb-6">
+      <h3 className="mb-2 text-sm font-semibold text-ink">
+        主客場與團隊攻守
+        <span className="ml-2 text-[11px] font-normal text-faint">淘汰＝Magic Number（再贏幾場確保晉級）；OPS/ERA/WHIP 為團隊攻守，依相對值藍↔紅上色</span>
+      </h3>
+      <div className="overflow-x-auto rounded-xl border border-line">
+        <table className="w-full text-sm">
+          <thead className="bg-surface-2 text-left text-muted">
+            <tr>
+              <th className="whitespace-nowrap px-2.5 py-2.5 font-medium">球隊</th>
+              {["淘汰", "主場", "客場", "OPS", "ERA", "WHIP"].map((h) => (
+                <th key={h} className="whitespace-nowrap px-2.5 py-2.5 font-medium">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="font-mono tabular-nums">
+            {rows.map((t) => {
+              const a = adv.get(t.team_code);
+              return (
+                <tr key={t.team_code} className="border-t border-line hover:bg-surface-2">
+                  <td className="whitespace-nowrap px-2.5 py-2 font-sans"><LinkedTeam code={t.team_code} name={t.team_name} /></td>
+                  <td className="px-2.5 py-2 text-muted">{t.elim && t.elim !== "" ? t.elim : "—"}</td>
+                  <td className="px-2.5 py-2 text-muted">{t.home_record ?? "—"}</td>
+                  <td className="px-2.5 py-2 text-muted">{t.away_record ?? "—"}</td>
+                  <td className="px-2.5 py-2" style={divBg(a?.ops, opss)}>{a?.ops?.toFixed(3) ?? "—"}</td>
+                  <td className="px-2.5 py-2" style={divBg(a?.era, eras, true)}>{a?.era?.toFixed(2) ?? "—"}</td>
+                  <td className="px-2.5 py-2" style={divBg(a?.whip, whips, true)}>{a?.whip?.toFixed(2) ?? "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+export default async function Standings({ searchParams }: { searchParams: Promise<{ seg?: string; view?: string; year?: string; kind?: string }> }) {
+  const { seg = "0", view = "basic", year: yearParam, kind: kindParam } = await searchParams;
   const segCode = Number(seg) || 0;
   const kind = kindParam === "D" ? "D" : "A";
   const isMinor = kind === "D";
@@ -317,15 +373,12 @@ export default async function Standings({ searchParams }: { searchParams: Promis
   // 團隊 OPS/ERA/WHIP 來自即時彙整端點，依 code 併入
   const adv = new Map(derived.standings.map((d) => [d.code, d]));
   const sp = new Map((special?.items ?? []).map((s) => [s.team_code, s]));
-  // 逐欄相對上色的比較基準（一次算，供 divBg）
+  // 勝率欄相對上色的比較基準（主客場/攻守色階在 TeamStatsTable 內自算）
   const pcts = items.map((x) => x.win_pct);
-  const opss = items.map((x) => adv.get(x.team_code)?.ops);
-  const eras = items.map((x) => adv.get(x.team_code)?.era);
-  const whips = items.map((x) => adv.get(x.team_code)?.whip);
 
   const VIEWS = [
-    { v: "basic", label: "基本數據" },
-    { v: "special", label: "特殊戰績" },
+    { v: "basic", label: "戰績" },
+    { v: "special", label: "戰績細項" },
   ];
   const levelLabel = isMinor ? "二軍" : "";
   const subtitle = isMinor ? `${levelLabel}戰績` : useOfficial ? "本季戰績" : "歷年戰績";
@@ -339,7 +392,7 @@ export default async function Standings({ searchParams }: { searchParams: Promis
             ? `${isMinor ? "二軍" : "歷史"}年度戰績（由逐場結果即時計算：勝-和-敗/勝率/勝差/對戰/主客場）。`
             : isSpecial
             ? "依場地、比分型、賽況軌跡、賽程與對手分類的隊級戰績（全年累計，逐場+逐局計算）。配對數值依勝率／正向比例以藍↔紅上色。"
-            : "官方戰績（含和局/勝差/連勝敗/主客場/近十場）。團隊 OPS/ERA/WHIP 為攻守指標。"}
+            : "官方戰績＋對各隊對戰成績（同一張表）。勝差、連勝連敗以隊名旁標籤呈現；主客場、團隊 OPS/ERA/WHIP 與情境分項移至「戰績細項」。"}
         </p>
       </header>
 
@@ -374,23 +427,9 @@ export default async function Standings({ searchParams }: { searchParams: Promis
           SEGS.map((s) => (
             <Link
               key={s.v}
-              href={`/standings?seg=${s.v}${isAdv ? "&stats=adv" : ""}`}
+              href={`/standings?seg=${s.v}`}
               className={`rounded-full px-3 py-1 text-sm transition ${
                 segCode === s.v ? "bg-ink text-paper" : "bg-surface-2 text-muted hover:bg-surface-2"
-              }`}
-            >
-              {s.label}
-            </Link>
-          ))}
-        {!isSpecial && <span className="mx-1 h-4 w-px bg-line" />}
-        {!isSpecial &&
-          STATS.map((s) => (
-            <Link
-              key={s.v}
-              href={`/standings?seg=${segCode}${s.v === "adv" ? "&stats=adv" : ""}${isMinor ? "&kind=D" : ""}${!useOfficial ? `&year=${selectedYear}` : ""}`}
-              title={s.v === "adv" ? "進階：淘汰指數 / 主客場 / 團隊 OPS·ERA·WHIP" : "基本：勝率 / 勝差 / 近十場"}
-              className={`rounded-full px-3 py-1 text-sm transition ${
-                (s.v === "adv") === isAdv ? "bg-ink text-paper" : "bg-surface-2 text-muted hover:bg-surface-2"
               }`}
             >
               {s.label}
@@ -403,6 +442,7 @@ export default async function Standings({ searchParams }: { searchParams: Promis
           <p className="text-sm text-faint">尚無戰績資料。</p>
         ) : (
           <>
+            <TeamStatsTable rows={items} adv={adv} />
             {SPECIAL_SECTIONS.map((sec) => (
               <SpecialTable key={sec.title} section={sec} rows={items} sp={sp} />
             ))}
@@ -415,9 +455,7 @@ export default async function Standings({ searchParams }: { searchParams: Promis
       ) : (
         <>
           <p className="mb-3 text-[11px] text-faint">
-            {isAdv
-              ? "進階：淘汰指數（Magic Number）／主客場／團隊 OPS·ERA·WHIP。右半＝對各隊對戰成績（勝-和-敗），依勝率藍↔紅上色。"
-              : "左半戰績（勝率／勝差／近十場，連勝連敗見隊名旁標籤），右半＝對各隊對戰成績（勝-和-敗）；同一列＝同一隊，依勝率藍↔紅上色。"}
+            左半戰績（勝率／近十場；勝差、連勝連敗見隊名旁標籤），右半＝對各隊對戰成績（勝-和-敗）；同一列＝同一隊，依勝率藍↔紅上色。主客場與團隊攻守（OPS/ERA/WHIP）見「戰績細項」。
           </p>
           <div className="overflow-x-auto rounded-xl border border-line">
             <table className="w-full text-sm">
@@ -425,11 +463,8 @@ export default async function Standings({ searchParams }: { searchParams: Promis
                 <tr>
                   <th className="whitespace-nowrap px-2.5 py-3 font-medium sticky-col w-10" style={{ left: 0, width: '2.5rem', minWidth: '2.5rem', maxWidth: '2.5rem' }}>#</th>
                   <th className="whitespace-nowrap px-2.5 py-3 font-medium sticky-col" style={{ left: '2.5rem' }}>球隊</th>
-                  {(isAdv
-                    ? [["淘汰", "Magic Number：再贏幾場可確保不被該隊超越；領先隊不適用"], ["主場"], ["客場"], ["OPS"], ["ERA"], ["WHIP"]]
-                    : [["勝-和-敗"], ["勝率"], ["勝差"], ["近十場"]]
-                  ).map(([h, title]) => (
-                    <th key={h} className="whitespace-nowrap px-2.5 py-3 font-medium" title={title}>{h}</th>
+                  {["勝-和-敗", "勝率", "近十場"].map((h) => (
+                    <th key={h} className="whitespace-nowrap px-2.5 py-3 font-medium">{h}</th>
                   ))}
                   {items.map((c, i) => (
                     <th key={c.team_code} className={`hidden px-2 py-3 text-center font-medium md:table-cell ${i === 0 ? "md:border-l-2 md:border-line" : ""}`}>
@@ -439,15 +474,16 @@ export default async function Standings({ searchParams }: { searchParams: Promis
                 </tr>
               </thead>
               <tbody className="font-mono tabular-nums">
-                {items.map((t) => {
-                  const a = adv.get(t.team_code);
-                  return (
-                    <tr key={t.team_code} className="border-t border-line hover:bg-surface-2">
-                      <td className="px-2.5 py-2.5 text-faint sticky-col w-10" style={{ left: 0, width: '2.5rem', minWidth: '2.5rem', maxWidth: '2.5rem' }}>{t.rank}</td>
-                      <td className="whitespace-nowrap px-2.5 py-2.5 font-sans sticky-col" style={{ left: '2.5rem' }}>
+                {items.map((t) => (
+                  <tr key={t.team_code} className="border-t border-line hover:bg-surface-2">
+                    <td className="px-2.5 py-2.5 text-faint sticky-col w-10" style={{ left: 0, width: '2.5rem', minWidth: '2.5rem', maxWidth: '2.5rem' }}>{t.rank}</td>
+                    <td className="whitespace-nowrap px-2.5 py-2.5 font-sans sticky-col" style={{ left: '2.5rem' }}>
+                      {/* 手機：標籤折到隊名下一行，收窄隊名格；桌機：同行 */}
+                      <span className="flex flex-col items-start gap-0.5 md:flex-row md:items-center">
+                        <TeamNameCell code={t.team_code} name={t.team_name} />
                         <span className="inline-flex items-center">
-                          <LinkedTeam code={t.team_code} name={t.team_name} />
                           <StreakBadge streak={t.streak} />
+                          <GbTag gb={t.gb} />
                           {t.is_champion && (
                             <span
                               title={`${SEGS.find((s) => s.v === segCode)?.label}冠軍${half?.finalized ? "" : "（提前封王）"}`}
@@ -457,33 +493,19 @@ export default async function Standings({ searchParams }: { searchParams: Promis
                             </span>
                           )}
                         </span>
+                      </span>
+                    </td>
+                    <td className="px-2.5 py-2.5">{t.w}-{t.t}-{t.l}</td>
+                    <td className="px-2.5 py-2.5 font-medium text-ink" style={divBg(t.win_pct, pcts)}>{t.win_pct != null ? t.win_pct.toFixed(3).replace(/^0/, "") : "—"}</td>
+                    <td className="px-2.5 py-2.5"><L10 s={t.last10} /></td>
+                    {items.map((col, i) => (
+                      <td key={col.team_code} className={`hidden px-2 py-2.5 text-center text-ink md:table-cell ${i === 0 ? "md:border-l-2 md:border-line" : ""}`}
+                        style={col.team_code === t.team_code ? undefined : h2hBg(t.h2h?.[col.team_code])}>
+                        {col.team_code === t.team_code ? <span className="text-faint">—</span> : (t.h2h?.[col.team_code] ?? "—")}
                       </td>
-                      {isAdv ? (
-                        <>
-                          <td className="px-2.5 py-2.5 text-muted">{t.elim && t.elim !== "" ? t.elim : "—"}</td>
-                          <td className="px-2.5 py-2.5 text-muted">{t.home_record ?? "—"}</td>
-                          <td className="px-2.5 py-2.5 text-muted">{t.away_record ?? "—"}</td>
-                          <td className="px-2.5 py-2.5" style={divBg(a?.ops, opss)}>{a?.ops?.toFixed(3) ?? "—"}</td>
-                          <td className="px-2.5 py-2.5" style={divBg(a?.era, eras, true)}>{a?.era?.toFixed(2) ?? "—"}</td>
-                          <td className="px-2.5 py-2.5" style={divBg(a?.whip, whips, true)}>{a?.whip?.toFixed(2) ?? "—"}</td>
-                        </>
-                      ) : (
-                        <>
-                          <td className="px-2.5 py-2.5">{t.w}-{t.t}-{t.l}</td>
-                          <td className="px-2.5 py-2.5 font-medium text-ink" style={divBg(t.win_pct, pcts)}>{t.win_pct != null ? t.win_pct.toFixed(3).replace(/^0/, "") : "—"}</td>
-                          <td className="px-2.5 py-2.5 text-muted">{t.gb ? t.gb : "—"}</td>
-                          <td className="px-2.5 py-2.5"><L10 s={t.last10} /></td>
-                        </>
-                      )}
-                      {items.map((col, i) => (
-                        <td key={col.team_code} className={`hidden px-2 py-2.5 text-center text-ink md:table-cell ${i === 0 ? "md:border-l-2 md:border-line" : ""}`}
-                          style={col.team_code === t.team_code ? undefined : h2hBg(t.h2h?.[col.team_code])}>
-                          {col.team_code === t.team_code ? <span className="text-faint">—</span> : (t.h2h?.[col.team_code] ?? "—")}
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                })}
+                    ))}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
