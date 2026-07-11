@@ -7,11 +7,18 @@
 ## 核心鐵律（速查）
 1. **實作／審核分離**：同一張卡的執行與查核＝不同任務、不同經手者；**任何人不得自審自己實作的卡**（含 Claude Code）。
 2. **分支 + 部署閘門**：**程式碼(A 類)每卡開分支** `ai/<模型或工具>/<卡ID>`（文件/資料維運不必，見 canonical §0.1）；**只有 `main`（已審核合併）能部署，分支不部署**。
-3. **獨立性紅線**：紅線卡（統計/ML 正確性、賽果/救援/RE/守備/球種重建、資料正確性…）審核**必換模型家族或人審**，且**必跑實測**——同家族審（含 Opus 審 Sonnet）不算數。一般卡同家族異 session 審可接受。
+3. **獨立性紅線**：紅線卡（安全/金流/統計 ML 正確性/資安/資料正確性）審核**必換模型家族或人審**，且**必跑實測**——同家族審（含 Opus 審 Sonnet）不算數。一般卡同家族異 session 審可接受。
 4. **退回不代改**：審核發現缺陷 → 退回 + 缺陷報告 → **原執行者同分支修** → 重審；審核者**不得順手改**。連續 ≥3 次退回 → 升級。
-5. **留痕**：commit 加 trailer `Requested-by` / `Planned-by` / `Implemented-by` / `Reviewed-by`（模型@工具具體寫）。
+5. **留痕 (Merge commit trailers)**：合併分支至 `main` 時，必須在 Merge/Squash commit 寫入以下 trailers（分支中途 commit 免寫。人＝GitHub 帳號如 `ruan6047`，勿寫「使用者」；AI＝`模型@工具`）：
+   ```
+   Requested-by:   <GitHub 帳號 | 業務/來源>
+   Planned-by:     <GitHub 帳號 | AI/模型>
+   Implemented-by: <模型@工具>
+   Reviewed-by:    <GitHub 帳號 | 模型@工具>
+   ```
+6. **算力與看板衛生**：`📥Backlog` 或 `⏳待執行` 狀態之卡片**僅保留 Ledger 總表一列**，不建卡片明細。卡片進入 `🔨執行中` 才新增明細；卡片 `🏁完成` 時，順手將整段卡片與 Ledger 列搬移至 `archive/TASKS_ARCHIVE.md`。
 
-**派工＝人工**（使用者）；**Claude Code 預設當審核 + PM（merge 閘門）**。
+**派工＝人工**（使用者指派）；**Claude Code 預設當審核 + PM（merge 閘門）**。
 
 ## cpbl 專屬
 - **部署細節**：push cpbl main → 主站 bump submodule → CI（見 [`AI_RUNBOOK.md`](AI_RUNBOOK.md) §3、memory `data-sync-local-to-prod`）。**分支不部署**這條在此語境＝分支不 bump submodule、不同步生產。
