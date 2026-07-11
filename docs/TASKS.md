@@ -11,8 +11,7 @@
 | 卡ID | 功能 | 需求 | 規劃 | 執行(model@tool) | 查核(model@tool) | 分支 | 紅線 | 狀態 |
 |---|---|---|---|---|---|---|---|---|
 | UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🔨子卡執行中（spec v5 已核可 07-11） |
-| UX-2 | 設計 tokens＋深色模式＋圖表色票 API | ruan6047 | Fable-5@Claude Code | Opus-4.8@Claude Code | Gemini-3.5-Flash@Antigravity | ai/opus/UX-2 | ⚪ | ✅通過 |
-| UX-3 | 共用元件標準化（ui.tsx 收斂＋三態＋DataTable） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（待 UX-2） |
+| UX-3 | 共用元件標準化（ui.tsx 收斂＋三態＋DataTable） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行 |
 | UX-4 | 骨架導覽＋標準頁面解剖落地 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（待 UX-2/3） |
 | UX-5 | 首頁（戰績）換裝 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（待通用層） |
 | UX-6 | 賽況群 `/games`、`/games/[sno]` | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（待通用層） |
@@ -22,7 +21,7 @@
 | UX-10 | 三頁互動模式重設計 | ruan6047 | 待各自小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（暫緩，不在本輪序） |
 
 > 「待指派」＝ruan6047尚未派工。派工後把 model@tool 補實、狀態改 🔨。
-> **依賴序**：UX-2 →（UX-3 → UX-4）通用層做完 → UX-5〜9 頁面層（大→小）。UX-10 暫緩。
+> **依賴序**：(UX-2 🏁) →（UX-3 → UX-4）通用層做完 → UX-5〜9 頁面層（大→小）。UX-10 暫緩。
 
 ---
 
@@ -45,28 +44,11 @@
 
 ---
 
-### UX-2 設計 tokens＋深色模式＋圖表色票 API  〔⚪一般〕
-- 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 通用層）　分支：`ai/opus/UX-2`
-- 執行：Opus-4.8@Claude Code　查核：Gemini-3.5-Flash@Antigravity
-- 範圍/驗收：spec §B 通用層 UX-2 列。重點——原則 A 寫進 `globals.css` 註解；硬編色清查（07-11 實測 **17 檔硬色**）歸零（隊色/圖表語意色除外，且此二者走色票 API）；深色模式 `data-theme` 切換＋暗色 token 組；**圖表色票 API**（讀 CSS var 的 chart theme helper，供 6 檔 recharts）。雙色系以 2〜3 頁抽驗，全頁雙色系截圖下放各頁面卡。
-- 狀態：✅通過（待人審 merge）　Commit：aa3f242ef92fc489b00ded759ab88b4ab8153dbf　分支：`ai/opus/UX-2`
-- 執行摘要（Opus-4.8@Claude Code，07-11）：
-  - globals.css：八原則＋色彩語意對照寫進檔頭註解；token 補文件與缺項（line-strong/amber/chart-1..6/zone-*/status-*）；新增 `:root[data-theme=dark]` 暗色組（Navy 底翻深、語意色提亮）＋暗色 .card 陰影。
-  - 主題切換：layout `<head>` 無閃爍 script（localStorage→系統）＋ `components/theme-toggle.tsx`（掛載後讀 data-theme 避免 hydration mismatch）；viewport themeColor 改深淺雙值。
-  - 圖表色票 API：`lib/chart-theme.ts` `useChartTheme()`（getComputedStyle 讀 token + MutationObserver 隨 data-theme 重讀）＋ chartAxis/chartTooltip/pitchColor/gradeColor 與語意調色盤（BATTED_OUTCOME/ZONE_OUTCOME/PITCH_CALL/GRADE/MEDAL/STATUS/PIE）。
-  - 遷移 20 檔硬色 → token/API：6 recharts 檔接 hook；raw SVG（spray/zone/heatmap/game-board/umpires）走 fill-/stroke- 工具類或 var()；prColor 固定色階文字（PR_CELL_TEXT）留 ui.tsx；隊色維持 teams.ts。grep 全站無 hex（僅 teams.ts/chart-theme.ts/ui.tsx 固定色階/globals.css/viewport meta 例外）。
-  - 驗收：`tsc --noEmit` 綠；首頁＋球員頁 light/dark 截圖無破版（雷達/PR條/散點/熱區/紀律條/pie/走勢圖皆隨主題換色且可讀）；球員頁 375px `scrollWidth==clientW` 無橫向溢出。
-- Log：
-  - 07-11 spec v5 核可後開卡
-  - 07-11 ruan6047 派工執行 → Opus-4.8@Claude Code 開分支 `ai/opus/UX-2` 實作 tokens/深色/色票 API + 遷移，自測綠 → 🔍待查核（執行≠查核，須換家族或人審 + 實測）
-  - 07-11 ruan6047 回報深色兩問題 → 修正：①預設改淺色（no-flash 不再跟系統，僅 localStorage=dark 才深色）②active 標籤 `bg-ink text-white`→`text-paper`（12 檔，深色下 bg-ink 翻淺致白底白字）+ `hover:text-white`→`hover:text-ink`；tsc 綠、深色截圖複驗標籤可讀。約定入 memory `dark-mode-conventions`
-  - 07-11 查核 by Gemini-3.5-Flash@Antigravity → ✅通過 (npm run build 成功，全站硬色清理符合規範，已產出查核報告)
-
 ### UX-3 共用元件標準化  〔⚪一般〕
 - 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 通用層）　分支：`ai/<執行者>/UX-3`
 - 執行：待指派　查核：待指派（≠執行者）
 - 範圍/驗收：`ui.tsx` 收斂 eyebrow/dl 網格/chip/狀態徽章/skeleton·empty·error 三態/**DataTable**（寬表容器+sticky 首欄+表頭封裝）；互動元件一律 **client island**（禁為加互動翻整頁 `"use client"`）；6 檔 recharts 接 UX-2 色票 API。驗收對照 spec §B「模組化基準」（卡片殼 inline ×46→<10、手寫 table ×22/11 檔→零、skeleton 0→統一），至少 3 頁換裝無回歸。
-- 狀態：📥Backlog（待 UX-2 tokens/色票 API 就緒）　Commit：—
+- 狀態：⏳待執行（待指派執行與查核）　Commit：—
 - Log：
   - 07-11 spec v5 核可後開卡（**本案槓桿點**：先抽元件，頁面卡才是換裝非重寫）
 
