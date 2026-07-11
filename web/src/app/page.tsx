@@ -295,9 +295,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
 
   return (
     <div>
-      <header className="mb-5">
-        <h1 className="text-2xl font-bold">{season} 球季 · {subtitle}</h1>
-        <p className="mt-2 text-sm text-muted">
+      <header className="mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-ink">{season} 球季 · {subtitle}</h1>
+        <p className="mt-1.5 text-sm text-muted">
           {!useOfficial
             ? `${isMinor ? "二軍" : "歷史"}年度戰績（由逐場結果即時計算：勝-和-敗/勝率/勝差/對戰/主客場）。`
             : isSpecial

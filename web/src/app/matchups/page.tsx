@@ -74,9 +74,9 @@ export default function MatchupsPage() {
 
   return (
     <div>
-      <header className="mb-5">
-        <h1 className="text-2xl font-bold">投打對決</h1>
-        <p className="mt-2 text-sm text-muted">
+      <header className="mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-ink">投打對決</h1>
+        <p className="mt-1.5 text-sm text-muted">
           選一位球員，列出他生涯對戰過的所有{oppLabel}（同隊不對戰，已自然排除）。
           點欄位排序、依對手球隊篩選、點對手名字看個人頁。
         </p>

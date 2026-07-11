@@ -58,7 +58,7 @@ export function PlayerHero({ profile, careerStats, ability, role, s, isRetired, 
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="text-3xl font-bold text-ink">{profile.name}</h1>
+                    <h1 className="text-2xl font-extrabold tracking-tight text-ink">{profile.name}</h1>
                     {profile.import_status && profile.import_status !== "local" && (
                       <span
                         className="rounded-md px-2 py-0.5 text-[11px] font-semibold leading-none"

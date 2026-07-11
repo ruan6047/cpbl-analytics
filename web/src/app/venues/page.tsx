@@ -71,10 +71,12 @@ export default async function VenuesPage() {
 
   return (
     <div>
-      <h1 className="mb-1 text-2xl font-extrabold tracking-tight">球場</h1>
-      <p className="mb-6 text-sm text-muted">
-        規格來自官網球場介紹（外野距離單位：呎）；場次與觀眾為 {data.season} 一軍例行賽統計。
-      </p>
+      <header className="mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-ink">球場</h1>
+        <p className="mt-1.5 text-sm text-muted">
+          規格來自官網球場介紹（外野距離單位：呎）；場次與觀眾為 {data.season} 一軍例行賽統計。
+        </p>
+      </header>
       <section className="mb-8">
         <h2 className="mb-3 text-lg font-semibold">本季使用中（{active.length}）</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{active.map(card)}</div>

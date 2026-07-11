@@ -49,9 +49,9 @@ export default async function BattersPage({ searchParams }: { searchParams: Prom
 
   return (
     <div>
-      <header className="mb-5">
-        <h1 className="text-2xl font-bold">{season} 球季 · {kind === "D" ? "二軍" : ""}打者排行</h1>
-        <p className="mt-2 text-sm text-muted">
+      <header className="mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-ink">{season} 球季 · {kind === "D" ? "二軍" : ""}打者排行</h1>
+        <p className="mt-1.5 text-sm text-muted">
           {kind === "D" || !isCurrent ? "由逐場/逐年成績彙整（二軍逐打席自 2018 起）。" : "全名單本季打者。"}
           點欄位標題排序（再點一次反向），可依球隊篩選。
         </p>

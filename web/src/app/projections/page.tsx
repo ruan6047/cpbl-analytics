@@ -36,18 +36,20 @@ export default async function ProjectionsPage({
 
   return (
     <div>
-      <h1 className="mb-1 text-2xl font-extrabold tracking-tight">成績預測</h1>
-      <p className="mb-4 text-sm text-muted">
-        {role === "pitching" ? (
-          <>Marcel 投手能力投影（加權前 3 季 + 回歸均值 + 年齡曲線；LightGBM 挑戰者於時間切分回測
-          3/4 項落敗故不採用——打不贏 baseline 的模型不上線）。</>
-        ) : (
-          <>LightGBM 打擊率能力投影（以逐年成績 lag 1–3 季 + 年齡 + 聯盟均值訓練，時間切分回測須勝過
-          Marcel baseline 才採用）。</>
-        )}
-        目標季 {data.target_year ?? "—"}・模型 {data.model_version ?? "—"}。
-        單場勝負預測見 <Link href="/predict" className="text-accent hover:underline">賽事預測</Link>。
-      </p>
+      <header className="mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-ink">成績預測</h1>
+        <p className="mt-1.5 text-sm text-muted">
+          {role === "pitching" ? (
+            <>Marcel 投手能力投影（加權前 3 季 + 回歸均值 + 年齡曲線；LightGBM 挑戰者於時間切分回測
+            3/4 項落敗故不採用——打不贏 baseline 的模型不上線）。</>
+          ) : (
+            <>LightGBM 打擊率能力投影（以逐年成績 lag 1–3 季 + 年齡 + 聯盟均值訓練，時間切分回測須勝過
+            Marcel baseline 才採用）。</>
+          )}
+          目標季 {data.target_year ?? "—"}・模型 {data.model_version ?? "—"}。
+          單場勝負預測見 <Link href="/predict" className="text-accent hover:underline">賽事預測</Link>。
+        </p>
+      </header>
       <div className="mb-3 flex gap-2">
         {([["batting", "打者"], ["pitching", "投手"]] as const).map(([r, label]) => (
           <Link key={r} href={`/projections?role=${r}`}
