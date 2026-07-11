@@ -18,6 +18,7 @@
 | UX-3 | 共用元件標準化（ui.tsx 收斂＋三態＋DataTable） | ruan6047 | Fable-5@Claude Code | Opus-4.8@Claude Code | Gemini-3.5-Flash@Antigravity | `ai/opus/UX-3` | ⚪ | 🏁完成 |
 | UX-4 | 骨架導覽＋標準頁面解剖落地 | ruan6047 | Fable-5@Claude Code | Gemini-3.5-Flash@Antigravity | 待指派 | `ai/antigravity/UX-4` | ⚪ | 🏁完成 |
 | UX-4.5 | 互動與動效準則＋提示元件 | ruan6047 | Fable-5@Claude Code | Gemini-3.5-Flash@Antigravity（+Claude-Opus-4@Junie 補修） | ruan6047（自查） | `ai/antigravity/UX-4.5` | ⚪ | 🏁完成 |
+| UX-5B | 首頁 hub v1（門面＋關鍵訊息）＋戰績搬 `/standings` | ruan6047 | Fable-5@Claude Code | Opus-4.8@Claude Code | ruan6047（人審 merge） | `ai/opus/UX-5B` | ⚪ | 🏁完成 |
 
 ---
 
@@ -147,6 +148,16 @@
   - 07-11 查核者指派 Claude-Opus-4@Junie（≠執行者）；`npm run build:check` 綠（exit 0）；核心交付（motion tokens＋Tooltip client island＋StatAbbr 範式＋sabr/leaderboard 示例＋spec §D）到位。待補：predict 頁殘留硬編色手寫 tooltip（UX-10 暫緩頁，標注沿用）、出場 fade-out/Popover/裝飾 a11y 屬 spec 措辭對齊、缺 375/1280 雙檔＋深淺雙色系盲測截圖證據
   - 07-11 ruan6047 令直接修改（改由他人查核）→ 收尾修正 by Claude-Opus-4@Junie：①`predict/page.tsx` 手寫硬編色 `bg-neutral-900` tooltip 改用共用 `Tooltip`（消原則 3 裸例、走色票）②spec §B/§D 措辭改 Tooltip-only（Popover 本輪不做，留後續卡）③`tooltip.tsx` 新增 `decorative` prop 落地「裝飾性不搶焦點/不重複朗讀」edge case，§D a11y 同步補述。`npm run build:check` 綠（exit 0）。查核者因分工需 ≠ 執行者，改回「待指派」交 ruan6047 派他人查核；仍缺 375/1280 雙檔＋深淺雙色系盲測截圖證據
   - 07-11 ruan6047 自查通過 → 令合併主線；`ai/antigravity/UX-4.5` 以 `--no-ff` merge 進 `main`（merge commit `b035c24`），`main` build:check 綠（exit 0）→ 🏁完成
+
+### UX-5B 首頁 hub v1 ＋ 戰績搬遷  〔⚪一般〕
+- 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 頁面層，對談中細化）　分支：`ai/opus/UX-5B`
+- 執行：Opus-4.8@Claude Code　查核：ruan6047（人審，令直接 merge）
+- 範圍：①戰績原封搬 `/standings`（純 route move，內部連結/nav/舊 `/?seg=` redirect 同步）②`/` 建 hub v1：slim 定位 hero ＋三張關鍵訊息指路牌卡（今日賽事／戰績領先 teaser／賽事預測 teaser），server 端渲染、各卡 `Promise.allSettled` 獨立降級。含 `<html>` hydration guard。完整版另立 UX-5C（壓 UX-6〜9 之後）。
+- 狀態：🏁完成　Commit：`e74853b`（merge main，含 `fd13043` docs＋`de1ce70` feat）
+- Log：
+  - 07-11 spec v5 核可後開卡（原 UX-5）→ ruan6047 令拆卡，hub 先做 v1、route move 併入 → 派 Opus-4.8@Claude Code
+  - 07-11 執行 by Opus-4.8@Claude Code：`git mv`→`/standings`（3 內部連結＋nav＋匯出改名）；新增 server `api.outcomeMatchups`；`/` hub v1。自測 tsc/build:check 綠、轉址正確、桌機 1280＋行動 375px 無溢出、console 乾淨
+  - 07-11 ruan6047 令直接 merge（含深淺雙色系實測補驗，深色 tokens 無破版）→ `--no-ff` merge `e74853b`，`main` build:check 綠 → 🏁完成
 
 ---
 
