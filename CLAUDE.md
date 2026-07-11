@@ -86,6 +86,7 @@ uv run cpbl-train                          # 成績預測：訓練 + 回測（Ma
 docker compose run --rm api cpbl-train-outcome   # 賽事預測走查回測（LightGBM；需容器 libgomp）
 uv run uvicorn cpbl.api.main:app --reload --port 4001
 cd web && npm install && NEXT_PUBLIC_API_URL=http://localhost:4001 npm run dev   # 前端 :3000
+npm run build:check                                                             # 驗證編譯：使用獨立 distDir，守衛不擋且不影響 dev 快取
 ```
 
 > 賽事預測的**互動探索器**不需離線訓練：API request 時依使用者選的特徵子集即時 fit
