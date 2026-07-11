@@ -8,6 +8,7 @@ export type TooltipProps = {
   children: React.ReactElement;
   placement?: "top" | "bottom";
   delayIn?: number; // in milliseconds
+  suppressUnderline?: boolean; // suppress default dotted underline styles
 };
 
 export function Tooltip({
@@ -15,6 +16,7 @@ export function Tooltip({
   children,
   placement = "top",
   delayIn = 150,
+  suppressUnderline = false,
 }: TooltipProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -45,32 +47,32 @@ export function Tooltip({
     let placementToUse = placement;
 
     if (placementToUse === "top") {
-      top = triggerRect.top - tooltipRect.height - offset + window.scrollY;
-      if (top - window.scrollY < 8) {
+      top = triggerRect.top - tooltipRect.height - offset;
+      if (top < 8) {
         // Collides with top of viewport -> flip to bottom
-        top = triggerRect.bottom + offset + window.scrollY;
+        top = triggerRect.bottom + offset;
         placementToUse = "bottom";
       }
     } else {
-      top = triggerRect.bottom + offset + window.scrollY;
-      if (top - window.scrollY + tooltipRect.height > window.innerHeight - 8) {
+      top = triggerRect.bottom + offset;
+      if (top + tooltipRect.height > window.innerHeight - 8) {
         // Collides with bottom of viewport -> flip to top
-        top = triggerRect.top - tooltipRect.height - offset + window.scrollY;
+        top = triggerRect.top - tooltipRect.height - offset;
         placementToUse = "top";
       }
     }
 
     // Horizontal centering
-    left = triggerRect.left + (triggerRect.width - tooltipRect.width) / 2 + window.scrollX;
+    left = triggerRect.left + (triggerRect.width - tooltipRect.width) / 2;
 
     // Bounds checking (RWD protection for 375px)
     const margin = 16;
-    if (left - window.scrollX < margin) {
-      left = margin + window.scrollX;
+    if (left < margin) {
+      left = margin;
     }
     const maxLeft = window.innerWidth - tooltipRect.width - margin;
-    if (left - window.scrollX > maxLeft) {
-      left = maxLeft + window.scrollX;
+    if (left > maxLeft) {
+      left = maxLeft;
     }
 
     setCoords({ top, left });
@@ -146,24 +148,50 @@ export function Tooltip({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    const target = e.target as HTMLElement;
+    const tagName = target.tagName.toLowerCase();
+    const isInteractive =
+      tagName === "button" ||
+      tagName === "a" ||
+      tagName === "input" ||
+      target.getAttribute("role") === "button";
+
     if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      setIsVisible((prev) => !prev);
+      if (!isInteractive) {
+        e.preventDefault();
+        setIsVisible((prev) => !prev);
+      }
     }
   };
 
+  const composeEventHandlers = <E extends React.SyntheticEvent>(
+    theirHandler?: (event: E) => void,
+    ourHandler?: (event: E) => void
+  ) => {
+    return (event: E) => {
+      theirHandler?.(event);
+      if (!event.defaultPrevented) {
+        ourHandler?.(event);
+      }
+    };
+  };
+
   const child = React.Children.only(children) as React.ReactElement<any>;
+  const underlineClasses = suppressUnderline
+    ? ""
+    : "cursor-help border-b border-dotted border-muted/60";
+
   const triggerProps = {
     ref: triggerRef,
     "aria-describedby": isVisible ? id : undefined,
     tabIndex: child.props.tabIndex ?? 0,
-    className: `${child.props.className ?? ""} cursor-help border-b border-dotted border-muted/60`,
-    onMouseEnter: showTooltip,
-    onMouseLeave: hideTooltip,
-    onFocus: showTooltip,
-    onBlur: hideTooltip,
-    onClick: handleToggle,
-    onKeyDown: handleKeyDown,
+    className: `${child.props.className ?? ""} ${underlineClasses}`.trim() || undefined,
+    onMouseEnter: composeEventHandlers(child.props.onMouseEnter, showTooltip),
+    onMouseLeave: composeEventHandlers(child.props.onMouseLeave, hideTooltip),
+    onFocus: composeEventHandlers(child.props.onFocus, showTooltip),
+    onBlur: composeEventHandlers(child.props.onBlur, hideTooltip),
+    onClick: composeEventHandlers(child.props.onClick, handleToggle),
+    onKeyDown: composeEventHandlers(child.props.onKeyDown, handleKeyDown),
   };
 
   const trigger = React.cloneElement(child, triggerProps);
@@ -179,7 +207,7 @@ export function Tooltip({
             id={id}
             role="tooltip"
             style={{
-              position: "absolute",
+              position: "fixed",
               top: coords.top,
               left: coords.left,
               visibility: isCalculated ? "visible" : "hidden",

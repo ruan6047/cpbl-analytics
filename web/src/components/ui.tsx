@@ -211,11 +211,21 @@ export const METRIC_DESCRIPTIONS: Record<string, string> = {
   SLG: "長打率 (Slugging Percentage) = 意指二壘安打/三壘安打/全壘打折合之壘打數 ÷ 打數。",
 };
 
-export function StatAbbr({ abbr, customDesc, className = "" }: { abbr: string; customDesc?: string; className?: string }) {
+export function StatAbbr({
+  abbr,
+  customDesc,
+  className = "",
+  suppressUnderline = false,
+}: {
+  abbr: string;
+  customDesc?: string;
+  className?: string;
+  suppressUnderline?: boolean;
+}) {
   const desc = customDesc || METRIC_DESCRIPTIONS[abbr];
   if (!desc) return <span className={className}>{abbr}</span>;
   return (
-    <Tooltip content={desc}>
+    <Tooltip content={desc} suppressUnderline={suppressUnderline}>
       <span className={className}>{abbr}</span>
     </Tooltip>
   );
