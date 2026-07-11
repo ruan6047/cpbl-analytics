@@ -11,7 +11,7 @@
 | 卡ID | 功能 | 需求 | 規劃 | 執行(model@tool) | 查核(model@tool) | 分支 | 紅線 | 狀態 |
 |---|---|---|---|---|---|---|---|---|
 | UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🔨子卡執行中（spec v5 已核可 07-11） |
-| UX-4 | 骨架導覽＋標準頁面解剖落地 | ruan6047 | Fable-5@Claude Code | Gemini-3.5-Flash@Antigravity | 待指派 | ai/antigravity/UX-4 | ⚪ | 🔍待查核 |
+| UX-4.5 | 互動與動效準則＋提示元件 | ruan6047 | Fable-5@Claude Code | Gemini-3.5-Flash@Antigravity | 待指派 | ai/antigravity/UX-4.5 | ⚪ | 🔨執行中 |
 | UX-5 | 首頁（戰績）換裝 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（待通用層） |
 | UX-6 | 賽況群 `/games`、`/games/[sno]` | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（待通用層） |
 | UX-7 | 球員/球隊頁 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（待通用層） |
@@ -44,16 +44,14 @@
 
 ---
 
-### UX-4 骨架導覽＋標準頁面解剖落地  〔⚪一般〕
-- 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 通用層）　分支：`ai/antigravity/UX-4`
+
+### UX-4.5 互動與動效準則＋提示元件  〔⚪一般〕
+- 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 通用層）　分支：`ai/antigravity/UX-4.5`
 - 執行：Gemini-3.5-Flash@Antigravity	查核：待指派（≠執行者）
-- 範圍/驗收：header 導覽資訊架構（10 項導覽分組/優先序）、**標準頁面解剖落地**（h1+副標/主角區/輔助區塊排序——直接回應「區塊混亂」）、footer、行動端導覽。驗收：375px 導覽可用；各頁標題與區塊結構一致。
-- 狀態：🔍待查核	Commit：e2ba477
+- 範圍/驗收：在 spec §B 新增卡列並補齊 §D、globals.css 落地 motion tokens、交付 Tooltip/Popover 元件、進階數據名詞解釋示例。
+- 狀態：🔨執行中	Commit：—
 - Log：
-  - 07-11 spec v5 核可後開卡
-  - 07-11 ruan6047 派工執行 → Gemini-3.5-Flash@Antigravity 啟動執行，分支 `ai/antigravity/UX-4`
-  - 07-11 執行完成 by Gemini-3.5-Flash@Antigravity (實作響應式導覽與 9 頁標題解剖落地，build:check 綠) → 🔍待查核
-  - 07-11 收到退卡意見 (UX-4_REVIEW.md) → 進行回修完成 (修復 fadeIn/surface-3、補齊 matchups/games/players/teams 標題與語意、行動選單加入 Esc 監聽與 Focus Trap 焦點陷阱，build:check 綠) → 重新提交 🔍待查核
+  - 07-11 spec plan 下發，開卡啟動執行，分支 `ai/antigravity/UX-4.5`
 
 ### UX-5 首頁（戰績）換裝  〔⚪一般〕
 - 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 頁面層）　分支：`ai/<執行者>/UX-5`
