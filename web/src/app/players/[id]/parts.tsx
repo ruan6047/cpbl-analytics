@@ -2,7 +2,7 @@
 
 // 球員頁純展示元件：無跨區 state，僅收 props。
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { LetterBadge, divBg } from "@/components/ui";
+import { EmptyState, LetterBadge, divBg } from "@/components/ui";
 import { DataTable, type Column } from "@/components/table";
 import { PIE_COLORS } from "@/lib/chart-theme";
 import { type StatRow } from "@/lib/client";
@@ -50,7 +50,7 @@ export function CompositionPie({ items, m }: { items: { k: string; label: string
   const data = items
     .map((it, i) => ({ name: it.label, value: m[it.k] == null ? 0 : +(m[it.k] * 100).toFixed(1), color: PIE_COLORS[i % PIE_COLORS.length] }))
     .filter((d) => d.value > 0);
-  if (!data.length) return <p className="py-6 text-center text-xs text-faint">無資料</p>;
+  if (!data.length) return <EmptyState>無資料</EmptyState>;
   return (
     <div className="flex items-center gap-3">
       <div className="h-28 w-28 shrink-0">

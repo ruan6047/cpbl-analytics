@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { detail, type StatRow } from "@/lib/client";
 import { fmtIPParts } from "@/lib/format";
 import GameBoard, { type Live } from "@/components/game-board";
+import { EmptyState } from "@/components/ui";
 import { DataTable, type Column } from "@/components/table";
 import { WinProbChart, type WpPoint } from "@/components/win-prob-chart";
 import { fanNick, teamColor, teamShort } from "@/lib/teams";
@@ -133,7 +134,7 @@ export default function GameLivePage() {
   };
 
   if (err) return <p className="text-sm text-muted">載入賽況失敗。</p>;
-  if (!data) return <p className="text-sm text-faint">載入中…</p>;
+  if (!data) return <EmptyState>載入中…</EmptyState>;
   if (!data.game) return <p className="text-sm text-muted">查無此場比賽。</p>;
 
   const g = data.game;

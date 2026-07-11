@@ -3,7 +3,7 @@
 // 賽季走勢（逐場累積/滾動）+ 對戰各隊。兩者皆空（退役球員）則整段隱藏。
 import { useEffect, useMemo, useState } from "react";
 import { Bar, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Card } from "@/components/ui";
+import { Card, EmptyState } from "@/components/ui";
 import { type StatRow } from "@/lib/client";
 import { chartAxis, chartTooltip, useChartTheme } from "@/lib/chart-theme";
 import { BAT_METRICS, PIT_METRICS, type Role } from "./lib";
@@ -83,7 +83,7 @@ export function TrendVsSection({ trend, careerMonthly, vsTeam, role }: {
                 {metrics.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
               </select>
             </div>
-            {trendData.length === 0 ? <p className="py-8 text-center text-sm text-faint">無資料</p> : (
+            {trendData.length === 0 ? <EmptyState>無資料</EmptyState> : (
               <ResponsiveContainer width="100%" height={220}>
                 <ComposedChart data={trendData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                   <CartesianGrid stroke={ct.surface2} />
@@ -110,8 +110,8 @@ export function TrendVsSection({ trend, careerMonthly, vsTeam, role }: {
           </Card>
           <Card className="h-full">
             <h3 className="mb-3 text-sm font-medium text-muted">對戰各隊（本季）</h3>
-            {vsTeam === null ? <p className="py-8 text-center text-sm text-faint">載入中…</p>
-              : vsTeam.length === 0 ? <p className="py-8 text-center text-sm text-faint">無資料</p>
+            {vsTeam === null ? <EmptyState>載入中…</EmptyState>
+              : vsTeam.length === 0 ? <EmptyState>無資料</EmptyState>
               : <VsTeamTable items={vsTeam} role={role} />}
           </Card>
         </div>

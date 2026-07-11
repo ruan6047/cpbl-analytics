@@ -63,11 +63,15 @@ export function TeamLogo({ code, name, size = 24, decorative = false }: { code?:
   );
 }
 
-export function Card({ className = "", teamColor, hoverable = false, children }: { className?: string; teamColor?: string; hoverable?: boolean; children: React.ReactNode }) {
+// 卡殼單一事實來源（.card＝surface 底 + border-line + rounded-xl + 微陰影）。
+// padding 預設 p-4，可覆寫（p-3 / "px-4 py-3" / "" 無內距如包表格）。全站禁再手寫
+// `rounded-xl border border-line`，一律走此元件（特例：DataTable/leaderboard 內建表殼、
+// <details> 折疊、game-board ESPN 內部面板）。
+export function Card({ className = "", padding = "p-4", teamColor, hoverable = false, children }: { className?: string; padding?: string; teamColor?: string; hoverable?: boolean; children: React.ReactNode }) {
   const style = teamColor ? { "--hover-color": teamColor } as React.CSSProperties : undefined;
   const shouldHover = hoverable || !!teamColor;
   return (
-    <div style={style} className={`card p-4 ${shouldHover ? "card-hover-team" : ""} ${className}`}>
+    <div style={style} className={`card ${padding} ${shouldHover ? "card-hover-team" : ""} ${className}`}>
       {children}
     </div>
   );

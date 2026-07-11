@@ -6,7 +6,7 @@ import { useState } from "react";
 import { LaEvScatter } from "@/components/la-ev-scatter";
 import { type HeatMetric, Grid3x3, PlateDisciplineBars } from "@/components/perf-heatmap";
 import { SprayChart } from "@/components/spray-chart";
-import { Card, PR_GRADIENT, StatTile } from "@/components/ui";
+import { Card, EmptyState, PR_GRADIENT, StatTile } from "@/components/ui";
 import { type StatRow } from "@/lib/client";
 import { ZoneScatter } from "@/components/zone-scatter";
 import { pitchColor, useChartTheme } from "@/lib/chart-theme";
@@ -39,15 +39,15 @@ export function TrackingSection({ disc, role, seasonKind }: { disc: Disc | null;
             <div className="grid gap-x-4 sm:grid-cols-2">
               <div className="relative flex flex-col">
                 <h3 className="absolute left-0 top-0 z-10 text-sm font-medium text-muted">擊球落點（{sprayF.length} 球）</h3>
-                {disc === null ? <p className="py-12 text-center text-sm text-faint">載入中…</p>
+                {disc === null ? <EmptyState className="py-12">載入中…</EmptyState>
                   : sprayF.length > 0 ? <div className="mt-auto mb-[13%]"><SprayChart points={sprayF} /></div>
-                  : <p className="py-12 text-center text-sm text-faint">{disc.spray.length ? "此球種無擊球" : "無擊球追蹤資料"}</p>}
+                  : <EmptyState className="py-12">{disc.spray.length ? "此球種無擊球" : "無擊球追蹤資料"}</EmptyState>}
               </div>
               <div className="relative">
                 <h3 className="absolute left-0 top-0 z-10 text-sm font-medium text-muted">進壘點（{pointsF.length} 球）</h3>
-                {disc === null ? <p className="py-12 text-center text-sm text-faint">載入中…</p>
+                {disc === null ? <EmptyState className="py-12">載入中…</EmptyState>
                   : pointsF.length > 0 ? <ZoneScatter points={pointsF} />
-                  : <p className="py-12 text-center text-sm text-faint">{disc.points.length ? "此球種無資料" : "無逐球資料"}</p>}
+                  : <EmptyState className="py-12">{disc.points.length ? "此球種無資料" : "無逐球資料"}</EmptyState>}
               </div>
             </div>
           </Card>

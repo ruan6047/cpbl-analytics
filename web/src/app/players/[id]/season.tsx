@@ -2,7 +2,7 @@
 
 // 本季成績卡 + 官方進階 PR（dataTab=season）；生涯成績 + 最佳單季 + 里程碑（dataTab=career）。
 import { useEffect, useMemo, useState } from "react";
-import { Card, PercentileBar, StatTile } from "@/components/ui";
+import { Card, EmptyState, PercentileBar, StatTile } from "@/components/ui";
 import { detail, type PlayerProfile, type StatRow } from "@/lib/client";
 import { fmtIP } from "@/lib/format";
 import { ADV, type CareerStats, type Role, f3, fmtAdv, numOf } from "./lib";
@@ -96,7 +96,7 @@ export function SeasonSection({ profile, s, role, seasonKind, setSeasonKind, adv
           <h2 className="mb-3 text-lg font-semibold text-ink">官方進階 · 百分位 PR</h2>
           <Card hoverable className="flex-1">
             {prRows.length === 0 ? (
-              <p className="py-8 text-center text-sm text-faint">{advanced === null ? "載入中…" : "無官方進階資料"}</p>
+              <EmptyState>{advanced === null ? "載入中…" : "無官方進階資料"}</EmptyState>
             ) : (
               <div className="space-y-1">
                 {prRows.map((d) => <PercentileBar key={d.name} name={d.name} value={d.value} pr={d.pr} def={d.def} />)}

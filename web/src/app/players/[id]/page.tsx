@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { type PlayerProfile, type StatRow, detail } from "@/lib/client";
+import { EmptyState } from "@/components/ui";
 import { codeFromName, teamColor } from "@/lib/teams";
 import { type Ability, type CareerStats, type Disc, type Role } from "./lib";
 import { DetailSection } from "./detail";
@@ -94,7 +95,7 @@ export default function PlayerPage() {
   }, [id, role, seasonKind]);
 
   if (notFound) return <p className="text-sm text-muted">查無此球員。</p>;
-  if (!profile) return <p className="text-sm text-muted">載入中…</p>;
+  if (!profile) return <EmptyState>載入中…</EmptyState>;
 
   // 退役/教練：本季完全無登錄層級(roster_level=null) → 本季數值與官方進階必空，整段隱藏。
   // 二軍-only 球員有 roster_level（二軍）故不算退役。
