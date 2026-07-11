@@ -263,7 +263,7 @@ function h2hBg(rec: string | null | undefined): React.CSSProperties | undefined 
   return { background: prColor((w / (w + l)) * 100).replace("rgb", "rgba").replace(")", ",0.3)") };
 }
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ seg?: string; view?: string; year?: string; kind?: string }> }) {
+export default async function Standings({ searchParams }: { searchParams: Promise<{ seg?: string; view?: string; year?: string; kind?: string }> }) {
   const { seg = "0", view = "basic", year: yearParam, kind: kindParam } = await searchParams;
   const segCode = Number(seg) || 0;
   const kind = kindParam === "D" ? "D" : "A";
@@ -310,7 +310,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
         {LEVELS.map((lv) => (
           <Link
             key={lv.v}
-            href={lv.v === "A" ? "/" : "/?kind=D"}
+            href={lv.v === "A" ? "/standings" : "/standings?kind=D"}
             className={`rounded-full px-3 py-1 text-sm font-medium transition ${
               (lv.v === "D") === isMinor ? "bg-ink text-paper" : "bg-surface-2 text-muted hover:bg-surface-2"
             }`}
@@ -324,7 +324,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
         {useOfficial && VIEWS.map((v) => (
           <Link
             key={v.v}
-            href={`/?view=${v.v}${v.v === "basic" ? `&seg=${segCode}` : ""}`}
+            href={`/standings?view=${v.v}${v.v === "basic" ? `&seg=${segCode}` : ""}`}
             className={`rounded-full px-3 py-1 text-sm font-medium transition ${
               (v.v === "special") === isSpecial ? "bg-accent text-white" : "bg-surface-2 text-muted hover:bg-surface-2"
             }`}
@@ -337,7 +337,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
           SEGS.map((s) => (
             <Link
               key={s.v}
-              href={`/?seg=${s.v}`}
+              href={`/standings?seg=${s.v}`}
               className={`rounded-full px-3 py-1 text-sm transition ${
                 segCode === s.v ? "bg-ink text-paper" : "bg-surface-2 text-muted hover:bg-surface-2"
               }`}

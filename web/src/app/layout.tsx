@@ -26,7 +26,7 @@ const NO_FLASH = `(function(){try{var t=localStorage.getItem('theme');document.d
 
 // group 變化處插入視覺分隔：賽事｜數據｜預測
 const NAV = [
-  { href: "/", label: "戰績", group: "賽事" },
+  { href: "/standings", label: "戰績", group: "賽事" },
   { href: "/games", label: "賽況", group: "賽事" },
   { href: "/matchups", label: "投打對決", group: "賽事" },
   { href: "/batters", label: "打者", group: "數據" },
