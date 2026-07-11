@@ -1,6 +1,7 @@
 // 球隊頁展示元件與常數（Server Component 可用；無 client hooks）。
 import Link from "next/link";
-import { ActivePill, Card } from "@/components/ui";
+import { ActivePill, Card, EmptyState } from "@/components/ui";
+import { DataTable, type Column } from "@/components/table";
 import type { SpecialRecord, WL, WTL, api } from "@/lib/api";
 
 type TeamPlayersData = Awaited<ReturnType<typeof api.teamPlayers>>;
@@ -129,36 +130,19 @@ export function ManagersTable({ managers }: { managers: Manager[] }) {
     <section>
       <h2 className="mb-1 text-lg font-semibold">歷任總教練</h2>
       <p className="mb-3 text-[11px] text-faint">名單來源：中文維基百科各球隊條目；前球員姓名可點入球員頁。<span className="text-accent">勝-和-敗</span>於該年無換帥／代理時以本站逐場一軍資料重算（維基數據常滯後當季）；有中途換帥的年度沿用維基拆分。部分球隊維基無此表故未列。</p>
-      <div className="overflow-x-auto rounded-xl border border-line">
-        <table className="w-full text-sm">
-          <thead className="bg-surface-2 text-left text-muted">
-            <tr>{["總教練", "任期", "勝-和-敗", "勝率", "季後賽", "總冠軍"].map((h) => (
-              <th key={h} className="whitespace-nowrap px-3 py-2 font-medium">{h}</th>
-            ))}</tr>
-          </thead>
-          <tbody className="font-mono tabular-nums">
-            {managers.map((m, i) => (
-              <tr key={`${m.name}-${m.from}-${i}`} className="border-t border-line hover:bg-surface-2">
-                <td className="whitespace-nowrap px-3 py-2 font-sans">
-                  {m.player_id ? (
-                    <Link href={`/players/${m.player_id}`} className="text-accent hover:underline">{m.name}</Link>
-                  ) : m.name}
-                  {m.era && <span className="ml-1.5 text-[10px] text-faint">{m.era}</span>}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-muted">{m.from === m.to ? m.from : `${m.from}–${m.to}`}</td>
-                <td className="whitespace-nowrap px-3 py-2"
-                  title={m.source === "db" ? "本站逐場一軍資料重算" : "維基百科數據"}>
-                  {m.w}-{m.t}-{m.l}
-                  {m.source === "db" && <span className="ml-1 text-[9px] text-up align-top">●</span>}
-                </td>
-                <td className="px-3 py-2 text-accent">{m.win_pct == null ? "—" : m.win_pct.toFixed(3).replace(/^0\./, ".")}</td>
-                <td className="px-3 py-2 text-muted">{m.postseason || "—"}</td>
-                <td className="px-3 py-2">{m.championships ? <span className="text-up">{m.championships}</span> : "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={[
+          { header: "總教練", cell: (m) => <>{m.player_id ? <Link href={`/players/${m.player_id}`} className="text-accent hover:underline">{m.name}</Link> : m.name}{m.era && <span className="ml-1.5 text-[10px] text-faint">{m.era}</span>}</>, nowrap: true, className: "font-sans" },
+          { header: "任期", cell: (m) => (m.from === m.to ? m.from : `${m.from}–${m.to}`), nowrap: true, className: "text-muted" },
+          { header: "勝-和-敗", cell: (m) => <span title={m.source === "db" ? "本站逐場一軍資料重算" : "維基百科數據"}>{m.w}-{m.t}-{m.l}{m.source === "db" && <span className="ml-1 text-[9px] text-up align-top">●</span>}</span>, nowrap: true },
+          { header: "勝率", cell: (m) => (m.win_pct == null ? "—" : m.win_pct.toFixed(3).replace(/^0\./, ".")), className: "text-accent" },
+          { header: "季後賽", cell: (m) => m.postseason || "—", className: "text-muted" },
+          { header: "總冠軍", cell: (m) => (m.championships ? <span className="text-up">{m.championships}</span> : "—") },
+        ] satisfies Column<(typeof managers)[number]>[]}
+        rows={managers}
+        rowKey={(m, i) => `${m.name}-${m.from}-${i}`}
+        dense
+      />
     </section>
   );
 }
@@ -220,51 +204,36 @@ export function RosterTable({ rows, cols }: {
   rows: { id: string; name: string; active: boolean; span: string; a: string; b: string }[];
   cols: string[];
 }) {
-  if (rows.length === 0) return <p className="text-sm text-faint">尚無資料。</p>;
+  if (rows.length === 0) return <EmptyState>尚無資料。</EmptyState>;
   return (
-    <div className="overflow-hidden rounded-xl border border-line">
-      <table className="w-full text-sm">
-        <thead className="bg-surface-2 text-left text-muted">
-          <tr>{cols.map((c) => <th key={c} className="px-3 py-2 font-medium">{c}</th>)}</tr>
-        </thead>
-        <tbody className="tabular-nums">
-          {rows.map((r) => (
-            <tr key={r.id} className="border-t border-line hover:bg-surface-2">
-              <td className="px-3 py-2">
-                <Link href={`/players/${r.id}`} className="inline-flex items-center gap-1.5 hover:underline">
-                  {r.name}
-                  {r.active && <ActivePill />}
-                </Link>
-              </td>
-              <td className="px-3 py-2 font-mono text-[11px] text-muted">{r.span}</td>
-              <td className="px-3 py-2 font-mono">{r.a}</td>
-              <td className="px-3 py-2 font-mono text-muted">{r.b}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      columns={[
+        { header: cols[0], cell: (r) => <Link href={`/players/${r.id}`} className="inline-flex items-center gap-1.5 hover:underline">{r.name}{r.active && <ActivePill />}</Link>, className: "font-sans" },
+        { header: cols[1], cell: (r) => r.span, className: "font-mono text-[11px] text-muted" },
+        { header: cols[2], cell: (r) => r.a, className: "font-mono" },
+        { header: cols[3], cell: (r) => r.b, className: "font-mono text-muted" },
+      ] satisfies Column<(typeof rows)[number]>[]}
+      rows={rows}
+      rowKey={(r) => r.id}
+      dense
+      bodyClassName="tabular-nums"
+    />
   );
 }
 
 export function PlayerTable({ rows, cols }: { rows: { id: string; name: string | null; a: string; b: string }[]; cols: [string, string, string] | string[] }) {
-  if (rows.length === 0) return <p className="text-sm text-faint">尚無資料。</p>;
+  if (rows.length === 0) return <EmptyState>尚無資料。</EmptyState>;
   return (
-    <div className="overflow-hidden rounded-xl border border-line">
-      <table className="w-full text-sm">
-        <thead className="bg-surface-2 text-left text-muted">
-          <tr>{cols.map((c) => <th key={c} className="px-3 py-2 font-medium">{c}</th>)}</tr>
-        </thead>
-        <tbody className="tabular-nums">
-          {rows.map((r) => (
-            <tr key={r.id} className="border-t border-line hover:bg-surface-2">
-              <td className="px-3 py-2"><Link href={`/players/${r.id}`} className="hover:underline">{r.name ?? "—"}</Link></td>
-              <td className="px-3 py-2 font-mono">{r.a}</td>
-              <td className="px-3 py-2 font-mono text-muted">{r.b}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      columns={[
+        { header: cols[0], cell: (r) => <Link href={`/players/${r.id}`} className="hover:underline">{r.name ?? "—"}</Link>, className: "font-sans" },
+        { header: cols[1], cell: (r) => r.a, className: "font-mono" },
+        { header: cols[2], cell: (r) => r.b, className: "font-mono text-muted" },
+      ] satisfies Column<(typeof rows)[number]>[]}
+      rows={rows}
+      rowKey={(r) => r.id}
+      dense
+      bodyClassName="tabular-nums"
+    />
   );
 }

@@ -40,6 +40,7 @@ export function DataTable<T>({
   emptyText = "無資料",
   maxHeight,
   bare = false,
+  hideHeader = false,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -53,6 +54,8 @@ export function DataTable<T>({
   maxHeight?: string;
   /** 已在 Card 內時傳 true：只留捲動容器，不畫卡殼邊框/底，避免雙層邊框。 */
   bare?: boolean;
+  /** 無表頭（純列表型，如近期賽事）。 */
+  hideHeader?: boolean;
 }) {
   if (!rows.length) return <EmptyState>{emptyText}</EmptyState>;
   const pad = dense ? "px-2.5 py-1.5" : "px-3 py-2.5";
@@ -73,9 +76,11 @@ export function DataTable<T>({
       className={`overflow-x-auto ${shell} ${maxHeight ? "overflow-y-auto" : ""} ${className}`}
     >
       <table className="w-full text-sm">
-        <thead className={`bg-surface-2 text-left text-muted ${maxHeight ? "sticky top-0 z-10" : ""}`}>
-          <tr>{columns.map(th)}</tr>
-        </thead>
+        {!hideHeader && (
+          <thead className={`bg-surface-2 text-left text-muted ${maxHeight ? "sticky top-0 z-10" : ""}`}>
+            <tr>{columns.map(th)}</tr>
+          </thead>
+        )}
         <tbody className={bodyClassName}>
           {rows.map((row, ri) => (
             <tr key={rowKey(row, ri)} className="border-t border-line hover:bg-surface-2">

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { detail, type StatRow } from "@/lib/client";
 import { fmtIPParts } from "@/lib/format";
 import GameBoard, { type Live } from "@/components/game-board";
+import { DataTable, type Column } from "@/components/table";
 import { WinProbChart, type WpPoint } from "@/components/win-prob-chart";
 import { fanNick, teamColor, teamShort } from "@/lib/teams";
 import { GameOverview, Pregame, type PregameMatchup, type DecItem } from "./overview";
@@ -31,29 +32,22 @@ function BoxBatting({ rows, team }: { rows: StatRow[]; team: string }) {
     ["2B", (r) => i0(r.doubles)], ["3B", (r) => i0(r.triples)], ["HR", (r) => i0(r.home_runs)],
     ["打點", (r) => i0(r.rbi)], ["BB", (r) => i0(r.bb)], ["SO", (r) => i0(r.so)], ["SB", (r) => i0(r.sb)],
   ];
-  return (
-    <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-      <table className="w-full text-sm">
-        <thead className="bg-surface-2 text-left text-muted">
-          <tr><th className="px-3 py-2 font-medium">{team}　打者</th>
-            {cols.map(([h]) => <th key={h} className="px-2 py-2 text-right font-medium">{h}</th>)}</tr>
-        </thead>
-        <tbody className="font-mono tabular-nums">
-          {rows.map((r, i) => {
-            const mark = batterMark(r);
-            return (
-              <tr key={i} className="border-t border-line">
-                <td className="whitespace-nowrap px-3 py-1.5 font-sans text-ink">{String(r.hitter_name ?? "")}
-                  <span className="ml-1 text-[10px] text-faint">{String(r.role_type ?? "")}</span>
-                  {mark && <span className="ml-1 text-[10px] font-semibold text-cpbl">{mark}</span>}</td>
-                {cols.map(([h, f]) => <td key={h} className="px-2 py-1.5 text-right">{f(r)}</td>)}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
+  const columns: Column<StatRow>[] = [
+    {
+      header: <>{team}　打者</>,
+      cell: (r) => {
+        const mark = batterMark(r);
+        return (
+          <>{String(r.hitter_name ?? "")}
+            <span className="ml-1 text-[10px] text-faint">{String(r.role_type ?? "")}</span>
+            {mark && <span className="ml-1 text-[10px] font-semibold text-cpbl">{mark}</span>}</>
+        );
+      },
+      nowrap: true, className: "font-sans text-ink",
+    },
+    ...cols.map(([h, f]): Column<StatRow> => ({ header: h, cell: f, align: "right" })),
+  ];
+  return <DataTable columns={columns} rows={rows} rowKey={(_r, i) => i} dense />;
 }
 
 // 投手結果標記：勝/敗官方、中繼官方(relief_point)；救援/中繼失敗依規則情境自 livelog 推算。
@@ -77,30 +71,20 @@ function BoxPitching({ rows, team, decisions }: { rows: StatRow[]; team: string;
     ["BB", (r) => i0(r.bb)], ["SO", (r) => i0(r.so)], ["被HR", (r) => i0(r.home_runs)],
     ["球數", (r) => i0(r.pitch_cnt)], ["最快", (r) => (r.max_speed ? `${r.max_speed}` : "—")],
   ];
-  return (
-    <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-      <table className="w-full text-sm">
-        <thead className="bg-surface-2 text-left text-muted">
-          <tr><th className="px-3 py-2 font-medium">{team}　投手</th>
-            {cols.map(([h]) => <th key={h} className="px-2 py-2 text-right font-medium">{h}</th>)}</tr>
-        </thead>
-        <tbody className="font-mono tabular-nums">
-          {rows.map((r, i) => {
-            const marks = pitcherMarks(r, decisions);
-            return (
-              <tr key={i} className="border-t border-line">
-                <td className="whitespace-nowrap px-3 py-1.5 font-sans text-ink">{String(r.pitcher_name ?? "")}
-                  {marks.map((m, j) => (
-                    <span key={j} className={`ml-1 text-[10px] font-semibold ${m.tone === "neg" ? "text-down" : "text-accent"}`}>{m.text}</span>
-                  ))}</td>
-                {cols.map(([h, f]) => <td key={h} className="px-2 py-1.5 text-right">{f(r)}</td>)}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
+  const columns: Column<StatRow>[] = [
+    {
+      header: <>{team}　投手</>,
+      cell: (r) => (
+        <>{String(r.pitcher_name ?? "")}
+          {pitcherMarks(r, decisions).map((m, j) => (
+            <span key={j} className={`ml-1 text-[10px] font-semibold ${m.tone === "neg" ? "text-down" : "text-accent"}`}>{m.text}</span>
+          ))}</>
+      ),
+      nowrap: true, className: "font-sans text-ink",
+    },
+    ...cols.map(([h, f]): Column<StatRow> => ({ header: h, cell: f, align: "right" })),
+  ];
+  return <DataTable columns={columns} rows={rows} rowKey={(_r, i) => i} dense />;
 }
 
 export default function GameLivePage() {

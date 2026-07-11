@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { StandingsTrend } from "@/components/standings-trend";
 import { ActivePill, Card, EraBadge, StatTile, TeamLogo } from "@/components/ui";
+import { DataTable, type Column } from "@/components/table";
 import { api } from "@/lib/api";
 import { contrastText, fanNick, nameMeta, teamColor } from "@/lib/teams";
 import { CoachGrid, GROUPS, ManagersTable, PlayerTable, RetiredNumbers, RosterChips, RosterTable, f2, f3 } from "./parts";
@@ -135,31 +136,17 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
         <section>
           <h2 className="mb-1 text-lg font-semibold">球隊沿革</h2>
           <p className="mb-3 text-[11px] text-faint">改名/轉賣視為同一支球隊，依隊名/年代分時期（一軍例行賽）。</p>
-          <div className="overflow-hidden rounded-xl border border-line">
-            <table className="w-full text-sm">
-              <thead className="bg-surface-2 text-left text-muted">
-                <tr>{["時期", "年代", "勝-和-敗", "勝率"].map((h) => <th key={h} className="px-3 py-2 font-medium">{h}</th>)}</tr>
-              </thead>
-              <tbody className="font-mono tabular-nums">
-                {eras.eras.map((e, i) => {
-                  return (
-                  <tr key={`${e.code}-${e.from}`} className="border-t border-line hover:bg-surface-2">
-                    <td className="whitespace-nowrap px-3 py-2 font-sans font-medium">
-                      <span className="inline-flex items-center gap-1.5">
-                        <EraBadge name={e.name} code={e.code} size={18} />
-                        {e.name}
-                        {team && i === eras.eras.length - 1 && <ActivePill className="ml-0.5 font-normal" />}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-muted">{e.from === e.to ? e.from : `${e.from}–${e.to}`}</td>
-                    <td className="px-3 py-2">{e.w}-{e.t}-{e.l}</td>
-                    <td className="px-3 py-2 text-accent">{e.win_pct == null ? "—" : f3(e.win_pct)}</td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={[
+              { header: "時期", cell: (e, i) => <span className="inline-flex items-center gap-1.5 font-medium"><EraBadge name={e.name} code={e.code} size={18} />{e.name}{team && i === eras.eras.length - 1 && <ActivePill className="ml-0.5 font-normal" />}</span>, nowrap: true, className: "font-sans" },
+              { header: "年代", cell: (e) => (e.from === e.to ? e.from : `${e.from}–${e.to}`), className: "text-muted" },
+              { header: "勝-和-敗", cell: (e) => `${e.w}-${e.t}-${e.l}` },
+              { header: "勝率", cell: (e) => (e.win_pct == null ? "—" : f3(e.win_pct)), className: "text-accent" },
+            ] satisfies Column<(typeof eras.eras)[number]>[]}
+            rows={eras.eras}
+            rowKey={(e) => `${e.code}-${e.from}`}
+            dense
+          />
         </section>
       )}
 
@@ -229,35 +216,32 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
       {team && (
       <section>
         <h2 className="mb-3 text-lg font-semibold">近期賽事</h2>
-        <div className="overflow-hidden rounded-xl border border-line">
-          <table className="w-full text-sm">
-            <tbody className="font-mono tabular-nums">
-              {teamGames.map((g) => {
-                const home = g.home_team_code === code;
-                const us = home ? g.home_score : g.away_score;
-                const them = home ? g.away_score : g.home_score;
-                const oppCode = home ? g.away_team_code : g.home_team_code;
-                const oppName = home ? g.away_team_name : g.home_team_name;
-                const win = us > them;
-                return (
-                  <tr key={g.game_sno} className="border-t border-line first:border-0 hover:bg-surface-2">
-                    <td className="px-3 py-2 text-faint">{g.game_date.slice(5)}</td>
-                    <td className="px-3 py-2 text-muted">{home ? "主" : "客"}</td>
-                    <td className="px-3 py-2 font-sans">
-                      <Link href={`/teams/${oppCode}`} className="inline-flex items-center gap-1.5 hover:underline">
-                        <TeamLogo code={oppCode} name={oppName} size={18} />{oppName}
-                      </Link>
-                    </td>
-                    <td className={`px-3 py-2 font-semibold ${win ? "text-up" : us === them ? "text-muted" : "text-down"}`}>
-                      {win ? "勝" : us === them ? "和" : "敗"}
-                    </td>
-                    <td className="px-3 py-2">{us}-{them}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          hideHeader
+          columns={[
+            { header: "", cell: (g) => g.game_date.slice(5), className: "text-faint" },
+            { header: "", cell: (g) => (g.home_team_code === code ? "主" : "客"), className: "text-muted" },
+            { header: "", cell: (g) => {
+              const home = g.home_team_code === code;
+              const oppCode = home ? g.away_team_code : g.home_team_code;
+              const oppName = home ? g.away_team_name : g.home_team_name;
+              return <Link href={`/teams/${oppCode}`} className="inline-flex items-center gap-1.5 hover:underline"><TeamLogo code={oppCode} name={oppName} size={18} />{oppName}</Link>;
+            }, className: "font-sans" },
+            { header: "", cell: (g) => {
+              const home = g.home_team_code === code;
+              const us = home ? g.home_score : g.away_score;
+              const them = home ? g.away_score : g.home_score;
+              return <span className={`font-semibold ${us > them ? "text-up" : us === them ? "text-muted" : "text-down"}`}>{us > them ? "勝" : us === them ? "和" : "敗"}</span>;
+            } },
+            { header: "", cell: (g) => {
+              const home = g.home_team_code === code;
+              return `${home ? g.home_score : g.away_score}-${home ? g.away_score : g.home_score}`;
+            } },
+          ] satisfies Column<(typeof teamGames)[number]>[]}
+          rows={teamGames}
+          rowKey={(g) => g.game_sno}
+          dense
+        />
       </section>
       )}
 
