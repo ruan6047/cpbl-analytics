@@ -138,7 +138,8 @@ export function Tooltip({
 
   const handleToggle = (e: React.MouseEvent) => {
     // Prevent hover states and touch states from overlapping on mobile
-    if (e.pointerType === "touch" || !("pointerType" in e)) {
+    const nativeEvent = e.nativeEvent as any;
+    if (nativeEvent.pointerType === "touch" || !("pointerType" in nativeEvent)) {
       e.preventDefault();
       setIsVisible((prev) => !prev);
     }
