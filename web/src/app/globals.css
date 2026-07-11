@@ -1,23 +1,103 @@
 @import "tailwindcss";
 
-/* 設計系統 tokens（日間 Navy+白；Tailwind v4 @theme 生成 bg-/text-/border- 工具類） */
+/* =========================================================================
+   UX 設計系統 — 全站原則（UX-2；驗收時逐條對照，改任何頁面前先讀）
+   -------------------------------------------------------------------------
+   1. 快速理解優先：預設只給結論層、細節漸進揭露；數字不裸列（配 PR 條/色階/
+      趨勢/均值對照）；每區塊回答一個問題；5 秒測試＝頁面主問題答得出。
+   2. 三層底色，不新增灰階：paper（頁底）→ surface（卡）→ surface-2（卡內強調）。
+      分界一律 border-line。禁止第四層灰或自定色票。
+   3. 顏色必有語意，禁裝飾用色：accent＝行動/焦點、隊色＝身分、up/down＝數據好壞、
+      amber＝狀態警示。同一語意全站同色。
+   4. 誠實 UX：預測附基準對照；資料缺口顯式標注；不做假精確（該 — 就 —，不補 0）。
+   5. 一致元件語彙：同概念全站同長相（eyebrow/dl 網格/隊色 chip/狀態徽章/.card）。
+      新頁面先找既有元件，禁平行發明。
+   6. 行動端一等公民：375px 無橫向溢出＝鐵則；寬表 sticky 首欄或卡片化；觸控 ≥44px。
+   7. 動效節制：只在入場/狀態變化動；受 prefers-reduced-motion 約束；不做無限裝飾。
+   8. 感知效能：skeleton/empty/error 三態統一；圖表 lazy；切換不塌陷（CLS）。
+
+   色彩語意對照（單一事實來源；新增顏色一律走 token，禁 tsx 內硬編 hex）：
+   ┌ 結構 ── paper/surface/surface-2＝三層底；line/line-strong＝分界；
+   │         ink/muted/faint＝文字三級。
+   ├ 語意 ── accent＝行動/焦點；up/down＝數據好壞；cpbl＝品牌藍；amber＝警示。
+   ├ 圖表 ── chart-1..6＝分類序列（含球種）；zone-*＝好球帶分區；status-*＝洋將身分。
+   │         recharts 走 props 不吃 CSS var → 用 lib/chart-theme.ts 的 useChartTheme()
+   │         讀本 token；raw SVG 用 fill-/stroke- 工具類或 style{{fill:'var(--…)'}}。
+   └ 隊色 ── lib/teams.ts 為唯一來源（身分色，非本檔 token）。
+   深色模式：由 layout 無閃爍 script 於 <html> 設 data-theme；下方 [data-theme=dark]
+   覆寫同名 token → 所有 var()/工具類自動換色，元件無需分支。
+   ========================================================================= */
+
+/* 設計系統 tokens（日間 Navy+白；Tailwind v4 @theme 生成 bg-/text-/border-/fill-/stroke- 工具類） */
 @theme {
-  --color-paper: #f5f7fa;
-  --color-surface: #ffffff;
-  --color-surface-2: #eef2f7;
-  --color-ink: #0a2540;
-  --color-muted: #5b6b7a;
-  --color-faint: #94a3b8;
-  --color-line: #e2e8f0;
-  --color-accent: #d62839;
-  --color-up: #1d6fb8;
-  --color-down: #d62839;
-  --color-cpbl: #1b4da1;
+  /* — 結構三層底 + 分界 — */
+  --color-paper: #f5f7fa;        /* 頁底 */
+  --color-surface: #ffffff;      /* 卡面 */
+  --color-surface-2: #eef2f7;    /* 卡內強調區 / 圖表格線 / 空態底 */
+  --color-line: #e2e8f0;         /* 卡片與區塊分界 */
+  --color-line-strong: #cbd5e1;  /* 圖表軸線 / 較強分隔 */
+  /* — 文字三級 — */
+  --color-ink: #0a2540;          /* 主要文字 / 圖表主資料 */
+  --color-muted: #5b6b7a;        /* 次要文字 / 軸刻度 */
+  --color-faint: #94a3b8;        /* 三級文字 / 參考線 / 未知隊 */
+  /* — 語意色 — */
+  --color-accent: #d62839;       /* 行動 / 焦點 */
+  --color-up: #1d6fb8;           /* 數據佳（藍） */
+  --color-down: #d62839;         /* 數據差（紅） */
+  --color-amber: #b45400;        /* 狀態警示 / 次級身分（延賽、保留、二軍、獎項） */
+  --color-cpbl: #1b4da1;         /* CPBL 品牌藍 */
+  /* — 圖表分類序列（含球種：速球/卡特滑球/指叉變速/滑球橫掃/曲球/變化球） — */
+  --chart-1: #1d6fb8;
+  --chart-2: #0ea5a4;
+  --chart-3: #f59e0b;
+  --chart-4: #8b5cf6;
+  --chart-5: #16a34a;
+  --chart-6: #94a3b8;
+  /* — 好球帶分區 — */
+  --zone-heart: #b91c1c;         /* 核心區 */
+  --zone-shadow: #ea580c;        /* 邊緣區 */
+  --zone-chase: #eab308;         /* 追打區 */
+  --zone-waste: #9ca3af;         /* 無效區 */
+  /* — 洋將身分徽章 — */
+  --status-import: #2563eb;      /* 洋將 */
+  --status-loree: #0f766e;       /* 羅力條款（本土洋將） */
+  --status-nagata: #7c3aed;      /* 永田條款（外籍本土） */
   --font-mono: var(--font-outfit), monospace;
 }
 
 :root {
   color-scheme: light;
+}
+
+/* 深色模式：覆寫同名 token（Navy 底翻深；文字/語意色提亮以維持 ≥4.5:1 對比） */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-paper: #0a1626;
+  --color-surface: #101f33;
+  --color-surface-2: #1a2c44;
+  --color-line: #24374f;
+  --color-line-strong: #3a5170;
+  --color-ink: #e8eef6;
+  --color-muted: #a1b2c6;
+  --color-faint: #7c90a8;
+  --color-accent: #ff5a6a;
+  --color-up: #4a9fe0;
+  --color-down: #ff5a6a;
+  --color-amber: #fb923c;
+  --color-cpbl: #5a8fe0;
+  --chart-1: #4a9fe0;
+  --chart-2: #2dd4bf;
+  --chart-3: #fbbf24;
+  --chart-4: #a78bfa;
+  --chart-5: #34d399;
+  --chart-6: #94a3b8;
+  --zone-heart: #ef4444;
+  --zone-shadow: #fb923c;
+  --zone-chase: #facc15;
+  --zone-waste: #9ca3af;
+  --status-import: #60a5fa;
+  --status-loree: #2dd4bf;
+  --status-nagata: #a78bfa;
 }
 
 body {
@@ -37,6 +117,10 @@ h1, h2 {
   border: 1px solid var(--color-line);
   border-radius: 0.75rem;
   box-shadow: 0 1px 2px rgb(10 37 64 / 0.04), 0 1px 3px rgb(10 37 64 / 0.06);
+}
+/* 深色下淺陰影不可見 → 加深，分層靠 border-line + 較深陰影 */
+:root[data-theme="dark"] .card {
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 1px 3px rgb(0 0 0 / 0.4);
 }
 
 /* 全域鍵盤焦點環（:focus-visible → 滑鼠點擊不顯示、Tab 導覽才顯示）。

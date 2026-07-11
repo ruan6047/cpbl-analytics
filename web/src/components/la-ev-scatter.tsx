@@ -2,21 +2,23 @@
 "use client";
 import { useState } from "react";
 import { CartesianGrid, ReferenceArea, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "recharts";
+import { BATTED_OUTCOME, chartAxis, chartTooltip, useChartTheme } from "@/lib/chart-theme";
 
 export type BattedBall = { la: number; ev: number; result: string };
 
 const RESULT: Record<string, { label: string; color: string }> = {
-  hr: { label: "全壘打", color: "#d62839" },
-  "3b": { label: "三壘打", color: "#f59e0b" },
-  "2b": { label: "二壘打", color: "#16a34a" },
-  "1b": { label: "一壘安打", color: "#1d6fb8" },
-  out: { label: "出局", color: "#94a3b8" },
+  hr: { label: "全壘打", color: BATTED_OUTCOME.hr },
+  "3b": { label: "三壘打", color: BATTED_OUTCOME["3b"] },
+  "2b": { label: "二壘打", color: BATTED_OUTCOME["2b"] },
+  "1b": { label: "一壘安打", color: BATTED_OUTCOME["1b"] },
+  out: { label: "出局", color: BATTED_OUTCOME.out },
 };
 const ORDER = ["out", "1b", "2b", "3b", "hr"] as const;
-const axis = { tick: { fill: "#5b6b7a", fontSize: 11 }, stroke: "#cbd5e1" };
 
 export function LaEvScatter({ balls }: { balls: BattedBall[] }) {
   const [off, setOff] = useState<Record<string, boolean>>({});
+  const ct = useChartTheme();
+  const axis = chartAxis(ct);
   const byResult = ORDER.map((k) => ({ k, pts: balls.filter((b) => b.result === k) }))
     .filter((g) => g.pts.length && !off[g.k]);
   return (
@@ -24,17 +26,17 @@ export function LaEvScatter({ balls }: { balls: BattedBall[] }) {
       <div role="img" aria-label={`擊球品質散布圖，橫軸仰角、縱軸初速，共 ${balls.length} 顆擊球，紅框為近似 barrel 甜蜜區`}>
       <ResponsiveContainer width="100%" height={300}>
         <ScatterChart margin={{ top: 8, right: 12, bottom: 16, left: 0 }}>
-          <CartesianGrid stroke="#eef2f7" />
+          <CartesianGrid stroke={ct.surface2} />
           {/* 強勁擊球 + 理想仰角帶（近似 barrel 區） */}
-          <ReferenceArea x1={8} x2={40} y1={145} y2={185} fill="#d62839" fillOpacity={0.06} />
+          <ReferenceArea x1={8} x2={40} y1={145} y2={185} fill={ct.down} fillOpacity={0.06} />
           <XAxis type="number" dataKey="la" name="仰角" unit="°" domain={[-40, 70]} allowDataOverflow
             ticks={[-40, -20, 0, 20, 40, 60]} tickFormatter={(v: number) => `${Math.round(v)}`} {...axis}
-            label={{ value: "擊球仰角 (°)", position: "insideBottom", offset: -8, fill: "#5b6b7a", fontSize: 11 }} />
+            label={{ value: "擊球仰角 (°)", position: "insideBottom", offset: -8, fill: ct.muted, fontSize: 11 }} />
           <YAxis type="number" dataKey="ev" name="初速" domain={[60, 185]} allowDataOverflow
             ticks={[60, 90, 120, 150, 180]} tickFormatter={(v: number) => `${Math.round(v)}`} width={30} {...axis} />
           <ZAxis range={[34, 34]} />
           <Tooltip cursor={{ strokeDasharray: "3 3" }}
-            contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 12 }}
+            contentStyle={chartTooltip(ct)}
             formatter={(v: number, n: string) => [n === "仰角" ? `${v.toFixed(0)}°` : `${v.toFixed(0)} km/h`, n]} />
           {byResult.map(({ k, pts }) => (
             <Scatter key={k} name={RESULT[k].label} data={pts} fill={RESULT[k].color}

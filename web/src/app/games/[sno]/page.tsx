@@ -91,7 +91,7 @@ function BoxPitching({ rows, team, decisions }: { rows: StatRow[]; team: string;
               <tr key={i} className="border-t border-line">
                 <td className="whitespace-nowrap px-3 py-1.5 font-sans text-ink">{String(r.pitcher_name ?? "")}
                   {marks.map((m, j) => (
-                    <span key={j} className={`ml-1 text-[10px] font-semibold ${m.tone === "neg" ? "text-[#C8102E]" : "text-accent"}`}>{m.text}</span>
+                    <span key={j} className={`ml-1 text-[10px] font-semibold ${m.tone === "neg" ? "text-down" : "text-accent"}`}>{m.text}</span>
                   ))}</td>
                 {cols.map(([h, f]) => <td key={h} className="px-2 py-1.5 text-right">{f(r)}</td>)}
               </tr>
@@ -414,7 +414,7 @@ export default function GameLivePage() {
             <div className="inline-flex gap-1 rounded-lg bg-surface-2 p-1">
               {([["overview", "比賽總覽"], ["pbp", "逐打席"]] as const).map(([v, label]) => (
                 <button key={v} onClick={() => setView(v)}
-                  className={`rounded-md px-3 py-1 text-sm transition ${view === v ? "bg-ink text-white" : "text-muted hover:text-ink"}`}>
+                  className={`rounded-md px-3 py-1 text-sm transition ${view === v ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}>
                   {label}
                 </button>
               ))}

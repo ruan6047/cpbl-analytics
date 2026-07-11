@@ -103,6 +103,13 @@ export function prColor(pr: number): string {
   return hex(lerp(232, 196, t), lerp(232, 18, t), lerp(232, 47, t));
 }
 
+// prColor 發散色階的 CSS gradient（圖例用；端點對齊 prColor 0/50/100）。固定 data-viz 色階，深淺共用。
+export const PR_GRADIENT = "linear-gradient(90deg, rgb(30,91,184), rgb(232,232,232), rgb(196,18,47))";
+
+// prColor 色格上的文字色：格底恆為淺色（藍↔白↔紅），故文字固定深墨+白 halo，不隨主題翻轉
+// （用 ct.ink 會在深色模式變成淺字疊在淺格上）。
+export const PR_CELL_TEXT = { ink: "#0a2540", halo: "#ffffff" };
+
 export function PercentileBar({ name, value, pr, def }: { name: string; value: string; pr: number; def?: string }) {
   return (
     <div className="flex items-center gap-2 text-xs">

@@ -5,7 +5,8 @@ import { AbilityCard, GradeChip } from "@/components/ability-card";
 import { LetterBadge, TeamLogo } from "@/components/ui";
 import { type PlayerProfile, type StatRow } from "@/lib/client";
 import { fmtIP } from "@/lib/format";
-import { codeFromName, eraBadge, teamColor } from "@/lib/teams";
+import { codeFromName, contrastText, eraBadge, teamColor } from "@/lib/teams";
+import { MEDAL_COLORS, STATUS_COLORS } from "@/lib/chart-theme";
 import { type Ability, type CareerStats, type Role, IMPORT_BADGE, f3, numOf } from "./lib";
 import { Tabs, TenureChips } from "./parts";
 
@@ -62,8 +63,8 @@ export function PlayerHero({ profile, careerStats, ability, role, s, isRetired, 
                       <span
                         className="rounded-md px-2 py-0.5 text-[11px] font-semibold leading-none"
                         style={{
-                          background: `${IMPORT_BADGE[profile.import_status].color}1a`,
-                          color: IMPORT_BADGE[profile.import_status].color,
+                          background: `${STATUS_COLORS[profile.import_status]}1a`,
+                          color: STATUS_COLORS[profile.import_status],
                         }}
                         title={`${IMPORT_BADGE[profile.import_status].hint}${profile.country ? `（國籍：${profile.country}）` : ""}`}>
                         {profile.import_label}
@@ -73,8 +74,8 @@ export function PlayerHero({ profile, careerStats, ability, role, s, isRetired, 
                       <span
                         className="rounded-md px-2 py-0.5 text-[11px] font-semibold leading-none"
                         style={profile.roster_level === "一軍"
-                          ? { background: "#1B4DA11a", color: "#1B4DA1" }
-                          : { background: "#B4540025", color: "#9A4A00" }}
+                          ? { background: "color-mix(in srgb, var(--color-cpbl) 12%, transparent)", color: "var(--color-cpbl)" }
+                          : { background: "color-mix(in srgb, var(--color-amber) 15%, transparent)", color: "var(--color-amber)" }}
                         title={`目前登錄層級（依最後一次升降事件判定）${profile.roster_days
                           ? `：本季累計 一軍 ${profile.roster_days.first} 天 · 二軍 ${profile.roster_days.farm} 天` : ""}`}>
                         {profile.roster_level}選手
@@ -200,9 +201,9 @@ export function PlayerHero({ profile, careerStats, ability, role, s, isRetired, 
               {careerStats?.championships && (
                 <span title={`總冠軍年份：${careerStats.championships.years.join("、")}`}
                   className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold"
-                  style={{ background: "#E6B42220", color: "#9A6B00", border: "1px solid #E6B42255" }}>
+                  style={{ background: `color-mix(in srgb, ${MEDAL_COLORS.金} 14%, transparent)`, color: "var(--color-amber)", border: `1px solid color-mix(in srgb, ${MEDAL_COLORS.金} 34%, transparent)` }}>
                   <span>🏆 總冠軍</span>
-                  <span className="rounded px-1 text-[10px] font-bold" style={{ background: "#E6B422", color: "#3a2a00" }}>×{careerStats.championships.count}</span>
+                  <span className="rounded px-1 text-[10px] font-bold" style={{ background: MEDAL_COLORS.金, color: contrastText(MEDAL_COLORS.金) }}>×{careerStats.championships.count}</span>
                 </span>
               )}
               {(() => {
@@ -215,7 +216,7 @@ export function PlayerHero({ profile, careerStats, ability, role, s, isRetired, 
                   grp.set(label, g);
                 }
                 const groups = [...grp.values()].sort((x, y) => y.years.length - x.years.length || y.years[0] - x.years[0]);
-                const MC: Record<string, string> = { 金: "#E6B422", 銀: "#9AA3AF", 銅: "#B0703C" };
+                const MC = MEDAL_COLORS;
                 return (
                   <>
                     {groups.map((g) => (
@@ -228,7 +229,7 @@ export function PlayerHero({ profile, careerStats, ability, role, s, isRetired, 
                     {(careerStats?.medals ?? []).map((m, i) => (
                       <span key={`${m.competition}-${m.year}-${i}`} title={m.year ? `'${String(m.year).slice(2)}` : undefined}
                         className="inline-flex items-center gap-1 rounded-md border border-line bg-surface px-2 py-1 text-xs">
-                        <span className="grid h-4 w-4 place-items-center rounded-full text-[10px] font-bold text-white" style={{ background: MC[m.color] ?? "#7C8696" }}>{m.color}</span>
+                        <span className="grid h-4 w-4 place-items-center rounded-full text-[10px] font-bold text-white" style={{ background: MC[m.color] ?? "var(--color-faint)" }}>{m.color}</span>
                         <span className="font-medium text-ink">{m.competition}</span>
                       </span>
                     ))}
@@ -251,8 +252,7 @@ export function PlayerHero({ profile, careerStats, ability, role, s, isRetired, 
           {abSel && (
             <div className="flex items-center gap-2 lg:border-l lg:border-line lg:pl-5">
               <div className="min-w-0 flex-1">
-                <AbilityCard card={abSel.card}
-                  color={teamColor(tc) || (role === "batting" ? "#1B4DA1" : "#15543C")} hideNote />
+                <AbilityCard card={abSel.card} color={teamColor(tc)} hideNote />
               </div>
               {/* 雷達右側：總評＋本季/生涯（直排），用側欄消化雷達下方空白 */}
               <div className="flex w-16 shrink-0 flex-col items-center justify-center gap-3">

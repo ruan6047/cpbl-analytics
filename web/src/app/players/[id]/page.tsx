@@ -115,7 +115,7 @@ export default function PlayerPage() {
   const tc = profile.team ? codeFromName(profile.team)
     : ongoingCoach ? codeFromName(ongoingCoach.team)
     : (primaryTeam?.code ?? null);
-  const color = teamColor(tc) || (role === "batting" ? "#1B4DA1" : "#15543C");
+  const color = teamColor(tc); // teamColor 已含 fallback（未知隊→faint 灰）
 
   return (
     <div style={{ "--hover-color": color } as React.CSSProperties}>

@@ -2,9 +2,9 @@
 "use client";
 import { CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { nameMeta, teamColor, teamShort } from "@/lib/teams";
+import { chartAxis, chartTooltip, useChartTheme } from "@/lib/chart-theme";
 import type { StandingsTrendPoint } from "@/lib/api";
 
-const axis = { tick: { fill: "#5b6b7a", fontSize: 11 }, stroke: "#cbd5e1" };
 const fmt = (v: number) => (v > 0 ? `+${v}` : `${v}`);
 
 // 隊名優先(era 名 + nameMeta 色)，無則退回代碼解析
@@ -19,17 +19,19 @@ function colorOf(code: string, names?: Record<string, string>) {
 }
 
 export function StandingsTrend({ teams, points, names }: { teams: string[]; points: StandingsTrendPoint[]; names?: Record<string, string> }) {
+  const ct = useChartTheme();
+  const axis = chartAxis(ct);
   return (
     <div role="img" aria-label="各隊累積勝敗差戰績走勢折線圖，隨賽季日期變化">
     <ResponsiveContainer width="100%" height={340}>
       <LineChart data={points} margin={{ top: 8, right: 16, bottom: 4, left: -16 }}>
-        <CartesianGrid stroke="#eef2f7" vertical={false} />
+        <CartesianGrid stroke={ct.surface2} vertical={false} />
         <XAxis dataKey="date" {...axis} minTickGap={36} />
         <YAxis {...axis} width={40} allowDecimals={false} tickFormatter={fmt} />
-        <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" label={{ value: ".500", position: "right", fill: "#94a3b8", fontSize: 10 }} />
+        <ReferenceLine y={0} stroke={ct.faint} strokeDasharray="4 4" label={{ value: ".500", position: "right", fill: ct.faint, fontSize: 10 }} />
         <Tooltip
-          contentStyle={{ background: "#0a2540", border: "none", borderRadius: 8, fontSize: 12 }}
-          labelStyle={{ color: "#cbd5e1" }}
+          contentStyle={chartTooltip(ct)}
+          labelStyle={{ color: ct.muted }}
           itemSorter={(i) => -(i.value as number)}
           formatter={(v: number, name: string) => [fmt(v), name]}
         />

@@ -3,6 +3,7 @@
 // 球員頁純展示元件：無跨區 state，僅收 props。
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { LetterBadge, divBg } from "@/components/ui";
+import { PIE_COLORS } from "@/lib/chart-theme";
 import { type StatRow } from "@/lib/client";
 import { fmtIP } from "@/lib/format";
 import { codeFromName, eraBadge, teamShort } from "@/lib/teams";
@@ -43,8 +44,7 @@ export function TenureChips({ label, tenures }: { label: string; tenures: Tenure
   );
 }
 
-// 組成型百分位 → 甜甜圈圖 + 圖例（彈道分布/拉打方向；值總和≈100%）
-const PIE_COLORS = ["#1B4DA1", "#3B82C4", "#E8842B", "#9AA3AF"];
+// 組成型百分位 → 甜甜圈圖 + 圖例（彈道分布/拉打方向；值總和≈100%）。色由色票 API PIE_COLORS 供給。
 export function CompositionPie({ items, m }: { items: { k: string; label: string }[]; m: Record<string, number> }) {
   const data = items
     .map((it, i) => ({ name: it.label, value: m[it.k] == null ? 0 : +(m[it.k] * 100).toFixed(1), color: PIE_COLORS[i % PIE_COLORS.length] }))
@@ -88,7 +88,7 @@ export function Tabs<T extends string>({ opts, v, set, vertical = false }: { opt
     <div className={`inline-flex gap-1 rounded-lg bg-surface-2 p-1 ${vertical ? "flex-col" : ""}`}>
       {opts.map((o) => (
         <button key={o.v} onClick={() => handleSelect(o.v)}
-          className={`rounded-md px-3 py-1 text-sm transition ${v === o.v ? "bg-ink text-white" : "text-muted hover:text-ink"}`}>
+          className={`rounded-md px-3 py-1 text-sm transition ${v === o.v ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}>
           {o.label}
         </button>
       ))}
@@ -122,7 +122,7 @@ export function PitchTypeToggle({ value, onChange, types }: {
     <div className="flex flex-wrap gap-1 text-[11px]">
       {(["all", ...types] as PitchType[]).map((v) => (
         <button key={v} onClick={() => onChange(v)}
-          className={`rounded px-2 py-0.5 ${value === v ? "bg-ink text-white" : "bg-surface-2 text-muted"}`}>
+          className={`rounded px-2 py-0.5 ${value === v ? "bg-ink text-paper" : "bg-surface-2 text-muted"}`}>
           {v === "all" ? "全部" : v}</button>
       ))}
     </div>

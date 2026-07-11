@@ -2,7 +2,8 @@
 //  進壘熱區 x 打擊成績 — Attack Zones 同心分區（Heart/Shadow/Chase/Waste）聚合成 3×3＋四角，
 //  每區聚合值＋樣本 n，發散色(藍↔紅、白=本人均值)、role 方向、低樣本灰底不上色。
 "use client";
-import { prColor } from "@/components/ui";
+import { PR_CELL_TEXT, prColor } from "@/components/ui";
+import { useChartTheme } from "@/lib/chart-theme";
 
 export type HPoint = { x: number; y: number; sw: boolean; wh: boolean; result: string; ev: number | null; la: number | null };
 // ev/la/ba/whiff/hard=九宮格(進壘熱區x打擊成績)
@@ -40,6 +41,7 @@ function cell13(x: number, y: number): string {
 
 // 單張 3×3＋四角 熱圖（官方版型；title 在上、本壘板在下；多張可排成 grid）
 export function Grid3x3({ points, metric, title }: { points: HPoint[]; metric: HeatMetric; title?: string }) {
+  const ct = useChartTheme();
   const acc: Record<string, { num: number; den: number }> = {};
   let gNum = 0, gDen = 0;
   const bip = (p: HPoint) => p.result === "hit" || p.result === "out";
@@ -57,7 +59,7 @@ export function Grid3x3({ points, metric, title }: { points: HPoint[]; metric: H
   const baseline = gDen ? gNum / gDen : 0;
   const cellOf = (k: string) => {
     const a = acc[k];
-    if (!a || a.den < MIN_N) return { fill: "#eef2f7", txt: "—", data: false };
+    if (!a || a.den < MIN_N) return { fill: ct.surface2, txt: "—", data: false };
     const v = a.num / a.den;
     const pr = 50 + 50 * Math.max(-1, Math.min(1, (v - baseline) / SPREAD[metric]));
     return { fill: prColor(pr), txt: fmtVal(metric, v), data: true };
@@ -85,8 +87,8 @@ export function Grid3x3({ points, metric, title }: { points: HPoint[]; metric: H
     const { txt, data } = cellOf(k);
     return (
       <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize={11}
-        fontWeight={700} fill={data ? "#0a2540" : "#94a3b8"}
-        stroke={data ? "#fff" : "none"} strokeWidth={data ? 2.4 : 0} style={{ paintOrder: "stroke" }}>{txt}</text>
+        fontWeight={700} fill={data ? PR_CELL_TEXT.ink : ct.faint}
+        stroke={data ? PR_CELL_TEXT.halo : "none"} strokeWidth={data ? 2.4 : 0} style={{ paintOrder: "stroke" }}>{txt}</text>
     );
   };
   return (
@@ -97,26 +99,27 @@ export function Grid3x3({ points, metric, title }: { points: HPoint[]; metric: H
         {quads.map((q) => (
           <rect key={q.k} x={q.x} y={q.y} width={OS / 2} height={OS / 2} fill={cellOf(q.k).fill} />
         ))}
-        <rect x={OX} y={OY} width={OS} height={OS} fill="none" stroke="#cbd5e1" strokeWidth={1} />
-        <rect x={IX - 2.5} y={IY - 2.5} width={IS + 5} height={IS + 5} rx={4} fill="#fff" />
+        <rect x={OX} y={OY} width={OS} height={OS} fill="none" stroke={ct.lineStrong} strokeWidth={1} />
+        <rect x={IX - 2.5} y={IY - 2.5} width={IS + 5} height={IS + 5} rx={4} fill={ct.surface} />
         {inner.map(({ k, x, y }) => (
-          <rect key={k} x={x} y={y} width={CS} height={CS} fill={cellOf(k).fill} stroke="#fff" strokeWidth={1.4} />
+          <rect key={k} x={x} y={y} width={CS} height={CS} fill={cellOf(k).fill} stroke={ct.surface} strokeWidth={1.4} />
         ))}
         {quads.map((q) => <Label key={q.k + "t"} x={q.tx} y={q.ty} k={q.k} />)}
         {inner.map(({ k, x, y }) => <Label key={k + "t"} x={x + CS / 2} y={y + CS / 2} k={k} />)}
         <polygon points={`${cx - 9},${hy} ${cx + 9},${hy} ${cx + 9},${hy + 5} ${cx},${hy + 10} ${cx - 9},${hy + 5}`}
-          fill="none" stroke="#94a3b8" strokeWidth={1} />
+          fill="none" stroke={ct.faint} strokeWidth={1} />
       </svg>
     </div>
   );
 }
 
-// 本壘板紀律：四區「揮/不揮」發散長條
-const ZONE_BAR: { key: ZoneKey; label: string; color: string; light: string }[] = [
-  { key: "heart", label: "核心區", color: "#b91c1c", light: "#f1d4d4" },
-  { key: "shadow", label: "邊緣區", color: "#ea580c", light: "#f7ddc9" },
-  { key: "chase", label: "追打區", color: "#eab308", light: "#f6ecc4" },
-  { key: "waste", label: "無效區", color: "#9ca3af", light: "#e5e7eb" },
+// 本壘板紀律：四區「揮/不揮」發散長條。色走好球帶分區 token（--zone-*），
+// 淺色版由 color-mix 與頁底混出（隨主題換色，深色模式自動變深）。
+const ZONE_BAR: { key: ZoneKey; label: string; v: string }[] = [
+  { key: "heart", label: "核心區", v: "--zone-heart" },
+  { key: "shadow", label: "邊緣區", v: "--zone-shadow" },
+  { key: "chase", label: "追打區", v: "--zone-chase" },
+  { key: "waste", label: "無效區", v: "--zone-waste" },
 ];
 export function PlateDisciplineBars({ points }: { points: HPoint[] }) {
   const acc: Record<ZoneKey, { sw: number; n: number }> =
@@ -131,9 +134,11 @@ export function PlateDisciplineBars({ points }: { points: HPoint[] }) {
         <span className="w-10 shrink-0" />
       </div>
       <div className="space-y-2.5">
-        {ZONE_BAR.map(({ key, label, color, light }) => {
+        {ZONE_BAR.map(({ key, label, v }) => {
           const a = acc[key]; const sw = a.n ? Math.round((a.sw / a.n) * 1000) / 10 : null;
           const s = sw ?? 0;  // 半尺度：100% → 半個軌道，分界線固定在 50% → 跨列對齊
+          const color = `var(${v})`;
+          const light = `color-mix(in srgb, var(${v}) 32%, var(--color-surface))`;
           return (
             <div key={key} className="flex items-center gap-2 text-[11px]">
               <span className="w-16 shrink-0 text-muted">{label} <b className="text-ink">{sw == null ? "—" : `${sw}%`}</b></span>
@@ -144,7 +149,7 @@ export function PlateDisciplineBars({ points }: { points: HPoint[] }) {
                     <div className="absolute top-0 h-full rounded-r" style={{ left: "50%", width: `${(100 - s) / 2}%`, background: light }} />
                   </>
                 )}
-                <div className="absolute top-0 left-1/2 h-full w-px -translate-x-1/2 bg-[#0a2540]/40" />
+                <div className="absolute top-0 left-1/2 h-full w-px -translate-x-1/2 bg-ink/40" />
               </div>
               <span className="w-10 shrink-0 text-right text-faint">{sw == null ? "" : `${Math.round((100 - sw) * 10) / 10}%`}</span>
             </div>

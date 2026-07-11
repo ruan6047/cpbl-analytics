@@ -1,6 +1,7 @@
 // 進壘點散布（SVG，捕手視角）：好球帶近似框 + 每球依「結果」著色。圖例可點擊開關。
 "use client";
 import { useState } from "react";
+import { ZONE_OUTCOME } from "@/lib/chart-theme";
 
 export type ZonePoint = { x: number; y: number; sw: boolean; wh: boolean; result: string; ev?: number | null; la?: number | null };
 
@@ -16,11 +17,11 @@ const lighten = (hex: string, f = 0.6) => {
 };
 
 const RESULT: Record<string, { label: string; color: string }> = {
-  hit: { label: "安打", color: "#16a34a" },
-  out: { label: "出局", color: "#1d6fb8" },
-  foul: { label: "界外", color: "#f59e0b" },
-  whiff: { label: "揮空", color: "#d62839" },
-  take: { label: "未揮棒", color: "#cbd5e1" },
+  hit: { label: "安打", color: ZONE_OUTCOME.hit },
+  out: { label: "出局", color: ZONE_OUTCOME.out },
+  foul: { label: "界外", color: ZONE_OUTCOME.foul },
+  whiff: { label: "揮空", color: ZONE_OUTCOME.whiff },
+  take: { label: "未揮棒", color: ZONE_OUTCOME.take },
 };
 const ORDER = ["take", "foul", "out", "whiff", "hit"] as const; // 灰底→重點在上
 
@@ -41,7 +42,7 @@ export function ZoneScatter({ points }: { points: ZonePoint[] }) {
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img"
         aria-label={`進壘點散布圖，好球帶框內外共 ${points.length} 顆進球，以打擊結果著色`}>
         <rect x={z.x1} y={z.y1} width={z.x2 - z.x1} height={z.y2 - z.y1}
-          fill="#eef2f7" stroke="#94a3b8" strokeWidth={1.2} />
+          className="fill-surface-2 stroke-faint" strokeWidth={1.2} />
         {ordered.map((p, i) => {
           const barrel = isBarrel(p);
           return (

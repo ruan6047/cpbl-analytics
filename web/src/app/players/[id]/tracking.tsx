@@ -6,10 +6,11 @@ import { useState } from "react";
 import { LaEvScatter } from "@/components/la-ev-scatter";
 import { type HeatMetric, Grid3x3, PlateDisciplineBars } from "@/components/perf-heatmap";
 import { SprayChart } from "@/components/spray-chart";
-import { Card, StatTile } from "@/components/ui";
+import { Card, PR_GRADIENT, StatTile } from "@/components/ui";
 import { type StatRow } from "@/lib/client";
 import { ZoneScatter } from "@/components/zone-scatter";
-import { type Disc, type PitchType, type Role, QUALITY_GROUPS, PT_ORDER, ptColor, ptTypesFrom } from "./lib";
+import { pitchColor, useChartTheme } from "@/lib/chart-theme";
+import { type Disc, type PitchType, type Role, QUALITY_GROUPS, PT_ORDER, ptTypesFrom } from "./lib";
 import { CompositionPie, PitchTypeToggle } from "./parts";
 
 export function TrackingSection({ disc, role, seasonKind }: { disc: Disc | null; role: Role; seasonKind: "A" | "D" }) {
@@ -87,7 +88,7 @@ export function TrackingSection({ disc, role, seasonKind }: { disc: Disc | null;
               ))}
             </div>
             <div className="mt-2 flex items-center justify-center gap-2 text-[10px] text-faint">
-              低<span className="inline-block h-2 w-20 rounded-full" style={{ background: "linear-gradient(90deg,#1e5bb8,#e8e8e8,#c4122f)" }} />高
+              低<span className="inline-block h-2 w-20 rounded-full" style={{ background: PR_GRADIENT }} />高
               <span>白＝本人均值 · 每格 n&lt;3 顯「—」· 捕手視角</span>
             </div>
           </div>
@@ -133,11 +134,12 @@ type ArsenalItem = { pitch_type: string; n: number; usage: number; avg_speed: nu
 
 // 球種卡：用量 + 均速 + 轉速 + 揮空%（TrackMan；球種為推算，見 models/pitch_type.py）
 function ArsenalCards({ items }: { items: ArsenalItem[] }) {
+  const ct = useChartTheme();
   if (!items.length) return null;
   return (
     <div className="mb-4 grid gap-3 sm:grid-cols-2">
       {items.map((a) => {
-        const color = ptColor(a.pitch_type);
+        const color = pitchColor(ct, a.pitch_type);
         return (
           <div key={a.pitch_type} className="rounded-lg border border-line p-3">
             <div className="mb-2 flex items-center justify-between">
@@ -175,6 +177,7 @@ export function BattedMixSection({ disc, pitchMix, arsenal, role }: {
   arsenal: ArsenalItem[] | null;
   role: Role;
 }) {
+  const ct = useChartTheme();
   if (role === "batting") {
     if ((disc?.batted.length ?? 0) === 0) return null;
     return (
@@ -209,7 +212,7 @@ export function BattedMixSection({ disc, pitchMix, arsenal, role }: {
                     <div className="flex h-5 flex-1 overflow-hidden rounded">
                       {segs.map((s) => (
                         <div key={s.t} className="flex items-center justify-center text-[10px] text-white"
-                          style={{ width: `${s.pct}%`, background: ptColor(s.t) }} title={`${s.t} ${s.pct}%`}>
+                          style={{ width: `${s.pct}%`, background: pitchColor(ct, s.t) }} title={`${s.t} ${s.pct}%`}>
                           {s.pct >= 14 ? `${s.pct}%` : ""}
                         </div>
                       ))}
@@ -222,7 +225,7 @@ export function BattedMixSection({ disc, pitchMix, arsenal, role }: {
             <div className="mt-2.5 flex flex-wrap justify-center gap-3 text-[11px] text-muted">
               {legend.map((t) => (
                 <span key={t} className="inline-flex items-center gap-1">
-                  <span className="inline-block h-2 w-2 rounded-full" style={{ background: ptColor(t) }} />{t}</span>
+                  <span className="inline-block h-2 w-2 rounded-full" style={{ background: pitchColor(ct, t) }} />{t}</span>
               ))}
             </div>
           </>

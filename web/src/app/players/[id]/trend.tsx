@@ -5,7 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Bar, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card } from "@/components/ui";
 import { type StatRow } from "@/lib/client";
-import { BAT_METRICS, PIT_METRICS, type Role, axis } from "./lib";
+import { chartAxis, chartTooltip, useChartTheme } from "@/lib/chart-theme";
+import { BAT_METRICS, PIT_METRICS, type Role } from "./lib";
 import { VsTeamTable } from "./parts";
 
 export function TrendVsSection({ trend, careerMonthly, vsTeam, role }: {
@@ -17,6 +18,8 @@ export function TrendVsSection({ trend, careerMonthly, vsTeam, role }: {
   const [monthMetric, setMonthMetric] = useState(role === "batting" ? "ops_plus" : "era_plus");
   const [trendScope, setTrendScope] = useState<"season" | "career">("season");
   useEffect(() => { setMonthMetric(role === "batting" ? "ops_plus" : "era_plus"); }, [role]);
+  const ct = useChartTheme();
+  const axis = chartAxis(ct);
 
   const metrics = role === "batting" ? BAT_METRICS : PIT_METRICS;
   const metric = metrics.find((m) => m.key === monthMetric) ?? metrics[0];
@@ -68,7 +71,7 @@ export function TrendVsSection({ trend, careerMonthly, vsTeam, role }: {
                   <div className="inline-flex overflow-hidden rounded-full border border-line text-[11px]">
                     {(["season", "career"] as const).map((s) => (
                       <button key={s} onClick={() => setTrendScope(s)}
-                        className={`px-2.5 py-0.5 transition ${effTrend === s ? "bg-ink text-white" : "bg-surface text-muted hover:text-ink"}`}>
+                        className={`px-2.5 py-0.5 transition ${effTrend === s ? "bg-ink text-paper" : "bg-surface text-muted hover:text-ink"}`}>
                         {s === "season" ? "本季" : "生涯"}
                       </button>
                     ))}
@@ -83,22 +86,22 @@ export function TrendVsSection({ trend, careerMonthly, vsTeam, role }: {
             {trendData.length === 0 ? <p className="py-8 text-center text-sm text-faint">無資料</p> : (
               <ResponsiveContainer width="100%" height={220}>
                 <ComposedChart data={trendData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-                  <CartesianGrid stroke="#eef2f7" />
+                  <CartesianGrid stroke={ct.surface2} />
                   {/* 生涯=月份分項(3月/4月…類別)；本季=逐場/週期日期 */}
                   <XAxis dataKey="name" {...axis} minTickGap={effTrend === "career" ? 4 : 28} />
                   <YAxis {...axis} domain={["auto", "auto"]} />
-                  <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 12 }}
+                  <Tooltip contentStyle={chartTooltip(ct)}
                     formatter={(v: number) => v?.toFixed(metric.dp)} />
                   {metric.ref != null && (
-                    <ReferenceLine y={metric.ref} stroke="#94a3b8" strokeDasharray="4 3"
-                      label={{ value: `聯盟 ${metric.ref}`, position: "insideTopRight", fill: "#94a3b8", fontSize: 10 }} />
+                    <ReferenceLine y={metric.ref} stroke={ct.faint} strokeDasharray="4 3"
+                      label={{ value: `聯盟 ${metric.ref}`, position: "insideTopRight", fill: ct.faint, fontSize: 10 }} />
                   )}
                   {metric.roll ? (
-                    <Line type="monotone" dataKey="v" name={metric.label} stroke="#0a2540" strokeWidth={2}
+                    <Line type="monotone" dataKey="v" name={metric.label} stroke={ct.ink} strokeWidth={2}
                       isAnimationActive={false} connectNulls
-                      dot={trendData.length > 18 ? false : { r: 3, fill: "#d62839" }} />
+                      dot={trendData.length > 18 ? false : { r: 3, fill: ct.down }} />
                   ) : (
-                    <Bar dataKey="v" name={metric.label} fill="#1B4DA1" isAnimationActive={false}
+                    <Bar dataKey="v" name={metric.label} fill={ct.cpbl} isAnimationActive={false}
                       maxBarSize={18} />
                   )}
                 </ComposedChart>

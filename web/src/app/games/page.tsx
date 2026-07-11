@@ -2,7 +2,7 @@ import Link from "next/link";
 import { TeamLogo } from "@/components/ui";
 import { YearSelect } from "@/components/year-select";
 import { api, type CalendarGame } from "@/lib/api";
-import { teamColor, teamFullName } from "@/lib/teams";
+import { contrastText, teamColor, teamFullName } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
@@ -97,7 +97,7 @@ export default async function GamesPage({
         {LEVELS.map((lv) => (
           <Link key={lv.v} href={lv.v === "A" ? "/games" : "/games?kind=D"}
             className={`rounded-full px-3 py-1 text-sm font-medium transition ${
-              (lv.v === "D") === (kind === "D") ? "bg-ink text-white" : "bg-surface-2 text-muted hover:bg-surface-2"}`}>
+              (lv.v === "D") === (kind === "D") ? "bg-ink text-paper" : "bg-surface-2 text-muted hover:bg-surface-2"}`}>
             {lv.label}
           </Link>
         ))}
@@ -108,13 +108,13 @@ export default async function GamesPage({
       {/* 球隊篩選 */}
       <nav className="mb-4 flex flex-wrap items-center gap-1.5">
         <Link href={qs({ team: "" })} className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
-          !team ? "bg-ink text-white" : "bg-surface-2 text-muted hover:text-ink"}`}>全部</Link>
+          !team ? "bg-ink text-paper" : "bg-surface-2 text-muted hover:text-ink"}`}>全部</Link>
         {teamCodes.map((code) => {
           const on = team === code;
           return (
             <Link key={code} href={qs({ team: on ? "" : code })}
               className="flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium transition"
-              style={on ? { background: teamColor(code), color: "#fff" } : undefined}>
+              style={on ? { background: teamColor(code), color: contrastText(teamColor(code)) } : undefined}>
               <TeamLogo code={code} name={names.get(code)} size={15} />
               <span className={on ? "" : "text-muted"}>{teamFullName(names.get(code) ?? "")}</span>
             </Link>

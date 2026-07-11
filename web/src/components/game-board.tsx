@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import type { StatRow } from "@/lib/client";
 import { TeamLogo } from "@/components/ui";
 import { teamColor } from "@/lib/teams";
+import { PITCH_CALL } from "@/lib/chart-theme";
 import type { WpPoint } from "@/components/win-prob-chart";
 
 type Rec = { w: number; l: number; form: string };
@@ -136,9 +137,9 @@ function ScoreBar({ game, e, records }: { game: StatRow; e: StatRow; records: Re
           {/* 球數與出局同處（全站唯一顯示點） */}
           <div className="flex items-center gap-2.5">
             <span className="flex items-center gap-1"><span className="font-mono text-[10px] font-semibold text-muted">B</span>
-              <Dots n={num(e.ball_cnt)} total={3} color="#16a34a" /></span>
+              <Dots n={num(e.ball_cnt)} total={3} color={PITCH_CALL.ball} /></span>
             <span className="flex items-center gap-1"><span className="font-mono text-[10px] font-semibold text-muted">S</span>
-              <Dots n={num(e.strike_cnt)} total={2} color="#eab308" /></span>
+              <Dots n={num(e.strike_cnt)} total={2} color={PITCH_CALL.foul} /></span>
           </div>
         </div>
         <div className="font-mono text-4xl font-bold tabular-nums">{num(e.home_score)}</div>
@@ -392,9 +393,9 @@ const pitchZh = (pred: string | null, tagged: string | null) =>
 // 進壘判定 → 顏色（紅=好球/出局 綠=壞球 藍=擊出）
 function callStyle(call: string | null): { color: string; label: string } {
   const c = call || "";
-  if (c === "BallCalled") return { color: "#16a34a", label: "壞球" };
-  if (c === "InPlay") return { color: "#2563eb", label: "擊出" };
-  if (c.startsWith("Foul")) return { color: "#eab308", label: "界外" };
+  if (c === "BallCalled") return { color: PITCH_CALL.ball, label: "壞球" };
+  if (c === "InPlay") return { color: PITCH_CALL.inplay, label: "擊出" };
+  if (c.startsWith("Foul")) return { color: PITCH_CALL.foul, label: "界外" };
   if (c.startsWith("Strike")) return { color: "var(--color-accent)", label: c === "StrikeSwinging" ? "揮空" : "好球" };
   return { color: "var(--color-faint)", label: c || "—" };
 }
@@ -425,7 +426,7 @@ function StrikeZone({ pitches }: { pitches: TrackRow[] }) {
             return (
               <g key={i}>
                 <circle cx={SX(p.plate_loc_side)} cy={SY(p.plate_loc_height)} r={9} fill={color} opacity={0.9} />
-                <text x={SX(p.plate_loc_side)} y={SY(p.plate_loc_height) + 3.5} textAnchor="middle" fontSize={10} fontWeight={700} fill="#fff">{i + 1}</text>
+                <text x={SX(p.plate_loc_side)} y={SY(p.plate_loc_height) + 3.5} textAnchor="middle" fontSize={10} fontWeight={700} className="fill-white">{i + 1}</text>
               </g>
             );
           })}

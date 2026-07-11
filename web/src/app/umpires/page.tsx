@@ -32,7 +32,7 @@ function Donut({ pct, label, sub }: { pct: number | null; label: string; sub?: s
       <svg viewBox="0 0 64 64" className="h-16 w-16">
         <circle cx="32" cy="32" r={r} fill="none" strokeWidth="6" className="stroke-line" />
         <circle cx="32" cy="32" r={r} fill="none" strokeWidth="6"
-          className={v >= 92 ? "stroke-[#1B4DA1]" : v >= 88 ? "stroke-[#2A7A4B]" : "stroke-[#C8102E]"}
+          className={v >= 92 ? "stroke-cpbl" : v >= 88 ? "stroke-[var(--chart-5)]" : "stroke-accent"}
           strokeDasharray={`${(v / 100) * c} ${c}`} strokeLinecap="round"
           transform="rotate(-90 32 32)" />
         <text x="32" y="36" textAnchor="middle" className="fill-current font-mono text-[13px] font-bold text-ink">
@@ -237,7 +237,7 @@ export default function UmpiresPage() {
                     {card.pitches.filter((p) => !missOnly || !judge(p, tol)).map((p, i) => (
                       <circle key={i} cx={px(p.side)} cy={py(p.height)}
                         r={judge(p, tol) ? 2.5 : 4.5}
-                        fill={judge(p, tol) ? (p.called_strike ? "#1B4DA1" : "#9AA3AF") : "#C8102E"}
+                        fill={judge(p, tol) ? (p.called_strike ? "var(--color-cpbl)" : "var(--color-faint)") : "var(--color-accent)"}
                         opacity={judge(p, tol) ? 0.35 : 0.95}>
                         <title>{`${p.inning_seq ?? "?"}局 ${p.hitter_name ?? ""} vs ${p.pitcher_name ?? ""}　${p.ball_cnt}-${p.strike_cnt}　判${p.called_strike ? "好球" : "壞球"}${judge(p, tol) ? "" : `（差 ${p.edge_cm}cm）`}`}</title>
                       </circle>
@@ -263,7 +263,7 @@ export default function UmpiresPage() {
                             判{p.called_strike ? "好球" : "壞球"}
                           </span>
                           <span className="text-faint">應為{p.in_zone ? "好球" : "壞球"}</span>
-                          <span className="ml-auto rounded bg-[#C8102E]/10 px-1.5 py-0.5 font-mono text-[#C8102E]">
+                          <span className="ml-auto rounded bg-accent/10 px-1.5 py-0.5 font-mono text-accent">
                             差 {p.edge_cm} cm
                           </span>
                         </div>

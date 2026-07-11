@@ -17,11 +17,11 @@ export type Disc = {
 export const numOf = (v: number | string | null | undefined) =>
   v === null || v === undefined || v === "" ? null : Number(v);
 
-// 洋將身分徽章樣式（local 不顯示）
-export const IMPORT_BADGE: Record<string, { color: string; hint: string }> = {
-  import: { color: "#2563EB", hint: "外籍洋將，占球隊洋將登錄名額" },
-  loree: { color: "#0F766E", hint: "羅力條款：在台累積球季並申請，視為本土洋將，不占洋將名額" },
-  nagata: { color: "#7C3AED", hint: "永田條款：循台灣學生棒球體系選秀進入職棒，視同本土選手" },
+// 洋將身分徽章 hint 文案（local 不顯示）。色由色票 API STATUS_COLORS 供給（單一來源）。
+export const IMPORT_BADGE: Record<string, { hint: string }> = {
+  import: { hint: "外籍洋將，占球隊洋將登錄名額" },
+  loree: { hint: "羅力條款：在台累積球季並申請，視為本土洋將，不占洋將名額" },
+  nagata: { hint: "永田條款：循台灣學生棒球體系選秀進入職棒，視同本土選手" },
 };
 
 // hero 內「教練／行政」所屬隊伍列型別（依隊聚合年份、職稱進 tooltip）
@@ -112,21 +112,9 @@ export const PIT_METRICS: Metric[] = [
   { key: "hits", label: "被安打", dp: 0, get: (r) => numOf(r.hits) },
   { key: "bb", label: "四壞", dp: 0, get: (r) => numOf(r.bb) },
 ];
-export const axis = { tick: { fill: "#5b6b7a", fontSize: 12 }, stroke: "#cbd5e1" };
-
-// 推算球種（pitch_type_pred；缺退 tagged 二元）：統一名稱→色→順序，逐球各視圖共用。
-// 順序＝快→慢/常見度；色為分類配色（賽況卡與此處一致）。
-export const PITCH_META: { key: string; color: string }[] = [
-  { key: "速球", color: "#1d6fb8" },
-  { key: "卡特/滑球", color: "#0ea5a4" },
-  { key: "指叉/變速", color: "#f59e0b" },
-  { key: "滑球/橫掃", color: "#8b5cf6" },
-  { key: "曲球", color: "#16a34a" },
-  { key: "變化球", color: "#94a3b8" },
-];
-export const PT_ORDER: string[] = PITCH_META.map((m) => m.key);
-const PT_COLOR: Record<string, string> = Object.fromEntries(PITCH_META.map((m) => [m.key, m.color]));
-export const ptColor = (pt: string): string => PT_COLOR[pt] ?? "#94a3b8";
+// 推算球種（pitch_type_pred；缺退 tagged 二元）：統一名稱→順序，逐球各視圖共用。
+// 順序＝快→慢/常見度。色由色票 API 供給：lib/chart-theme.ts pitchColor()（PITCH_ORDER 需與此對齊）。
+export const PT_ORDER: string[] = ["速球", "卡特/滑球", "指叉/變速", "滑球/橫掃", "曲球", "變化球"];
 // 球種鏡頭：state 為 "all" 或某推算球種中文名。可選球種由該球員實際投/面對的資料決定（避免空按鈕）。
 export type PitchType = string;
 export const ptTypesFrom = (pts: (string | null)[]): string[] => {

@@ -2,6 +2,7 @@
 // 球場向上扇形展開；點以「擊球結果」著色。圖例可點擊開關各結果。
 "use client";
 import { useState } from "react";
+import { BATTED_OUTCOME } from "@/lib/chart-theme";
 
 export type SprayPoint = { dir: number; dist: number; ev: number | null; la?: number | null; result: string };
 
@@ -16,11 +17,11 @@ const lighten = (hex: string, f = 0.6) => {
 };
 
 const RESULT = {
-  hr: { label: "全壘打", color: "#d62839" },
-  "3b": { label: "三壘打", color: "#f59e0b" },
-  "2b": { label: "二壘打", color: "#16a34a" },
-  "1b": { label: "一壘安打", color: "#1d6fb8" },
-  out: { label: "出局", color: "#94a3b8" },
+  hr: { label: "全壘打", color: BATTED_OUTCOME.hr },
+  "3b": { label: "三壘打", color: BATTED_OUTCOME["3b"] },
+  "2b": { label: "二壘打", color: BATTED_OUTCOME["2b"] },
+  "1b": { label: "一壘安打", color: BATTED_OUTCOME["1b"] },
+  out: { label: "出局", color: BATTED_OUTCOME.out },
 } as const;
 const LEGEND = ["hr", "3b", "2b", "1b", "out"] as const;
 
@@ -53,13 +54,13 @@ export function SprayChart({ points }: { points: SprayPoint[] }) {
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img"
         aria-label={`擊球落點分布圖，依方向與距離繪製 ${points.length} 顆擊球，以擊球結果著色`}>
         {/* 場地（含邊線與全壘打牆） */}
-        <path d={field} fill="#eef2f7" stroke="#cbd5e1" strokeWidth={1} />
+        <path d={field} className="fill-surface-2 stroke-line-strong" strokeWidth={1} />
         {/* 內野菱形 */}
         {(() => {
           const b = 27; // 壘間約 27m
           const [s1x, s1y] = pt(-45, b), [s2x, s2y] = pt(0, b * 1.414), [s3x, s3y] = pt(45, b);
           return <polygon points={`${cx},${baseY} ${s1x},${s1y} ${s2x},${s2y} ${s3x},${s3y}`}
-            fill="none" stroke="#cbd5e1" strokeWidth={1} />;
+            fill="none" className="stroke-line-strong" strokeWidth={1} />;
         })()}
         {ordered.map((p, i) => {
           // 落地距離與牆深會 overlap，但結果分類可靠 → 依結果定位：HR 推到牆外、其餘壓在牆內

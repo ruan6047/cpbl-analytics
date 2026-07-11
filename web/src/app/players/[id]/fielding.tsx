@@ -38,7 +38,7 @@ export function FieldingSection({ fielding, fieldingCareer, fieldFromYear }: {
           <div className="inline-flex overflow-hidden rounded-full border border-line text-[11px]">
             {(["season", "career"] as const).map((s) => (
               <button key={s} onClick={() => setFieldScope(s)}
-                className={`px-2.5 py-0.5 transition ${effField === s ? "bg-ink text-white" : "bg-surface text-muted hover:text-ink"}`}>
+                className={`px-2.5 py-0.5 transition ${effField === s ? "bg-ink text-paper" : "bg-surface text-muted hover:text-ink"}`}>
                 {s === "season" ? "本季" : "生涯"}
               </button>
             ))}

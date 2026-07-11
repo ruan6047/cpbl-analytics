@@ -10,7 +10,7 @@ export function LevelYearNav({ kind, years, selectedYear, base }: { kind: string
       {LEVELS.map((lv) => (
         <Link key={lv.v} href={lv.v === "A" ? base : `${base}?kind=D`}
           className={`rounded-full px-3 py-1 text-sm font-medium transition ${
-            (lv.v === "D") === (kind === "D") ? "bg-ink text-white" : "bg-surface-2 text-muted hover:bg-surface-2"}`}>
+            (lv.v === "D") === (kind === "D") ? "bg-ink text-paper" : "bg-surface-2 text-muted hover:bg-surface-2"}`}>
           {lv.label}
         </Link>
       ))}

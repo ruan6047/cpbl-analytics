@@ -143,7 +143,7 @@ export default function PredictPage() {
             key={mo}
             onClick={() => transitMode(mo)}
             className={`rounded-md px-3 py-1.5 transition ${
-              mode === mo ? "bg-ink text-white" : "text-muted hover:text-white"
+              mode === mo ? "bg-ink text-paper" : "text-muted hover:text-ink"
             }`}
           >
             {mo === "upcoming" ? "今日/近期賽事" : "任選兩隊模擬"}
@@ -166,7 +166,7 @@ export default function PredictPage() {
                   return (
                     <button key={gname} onClick={() => transitActiveGroup(gname)}
                       className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
-                        on ? "bg-ink text-white" : "bg-surface-2 text-muted hover:text-ink"}`}>
+                        on ? "bg-ink text-paper" : "bg-surface-2 text-muted hover:text-ink"}`}>
                       {gname}
                       {nSel > 0 && (
                         <span className={`rounded px-1 text-[10px] font-bold ${on ? "bg-white/25" : "bg-accent/15 text-accent"}`}>{nSel}</span>

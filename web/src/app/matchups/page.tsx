@@ -23,7 +23,7 @@ function Toggle<T extends string>({
           key={o.v}
           onClick={() => onChange(o.v)}
           className={`rounded-md px-3 py-1 text-sm transition ${
-            value === o.v ? "bg-ink text-white" : "text-muted hover:text-white"
+            value === o.v ? "bg-ink text-paper" : "text-muted hover:text-ink"
           }`}
         >
           {o.label}

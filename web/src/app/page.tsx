@@ -312,7 +312,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
             key={lv.v}
             href={lv.v === "A" ? "/" : "/?kind=D"}
             className={`rounded-full px-3 py-1 text-sm font-medium transition ${
-              (lv.v === "D") === isMinor ? "bg-ink text-white" : "bg-surface-2 text-muted hover:bg-surface-2"
+              (lv.v === "D") === isMinor ? "bg-ink text-paper" : "bg-surface-2 text-muted hover:bg-surface-2"
             }`}
           >
             {lv.label}
@@ -339,7 +339,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
               key={s.v}
               href={`/?seg=${s.v}`}
               className={`rounded-full px-3 py-1 text-sm transition ${
-                segCode === s.v ? "bg-ink text-white" : "bg-surface-2 text-muted hover:bg-surface-2"
+                segCode === s.v ? "bg-ink text-paper" : "bg-surface-2 text-muted hover:bg-surface-2"
               }`}
             >
               {s.label}

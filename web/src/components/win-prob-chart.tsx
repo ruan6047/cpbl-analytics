@@ -4,6 +4,7 @@
 // 每點=打席開始時的主隊勝率；完賽補終點。開局 ≈ 聯盟主場基準 52.8%。
 // 點擊任一點 → onSelect(evt) 跳到該打席（由父層切到逐打席視圖）。
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { chartTooltip, useChartTheme } from "@/lib/chart-theme";
 
 export type WpPoint = { evt: string | null; inning: number | null; half: string | null;
   hitter: string | null; away: number; home: number; wp: number };
@@ -12,6 +13,7 @@ export function WinProbChart({ items, homeName, awayName, homeColor, onSelect }:
   items: WpPoint[]; homeName: string; awayName: string; homeColor: string;
   onSelect?: (evt: string) => void;
 }) {
+  const ct = useChartTheme();
   if (!items || items.length < 4) return null;
   const data = items.map((p, i) => ({ ...p, i, pct: Math.round(p.wp * 1000) / 10 }));
   // X 軸刻度：每局第一個打席
@@ -38,18 +40,18 @@ export function WinProbChart({ items, homeName, awayName, homeColor, onSelect }:
             if (p?.evt && onSelect) onSelect(p.evt);
           }}
           style={onSelect ? { cursor: "pointer" } : undefined}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" />
+          <CartesianGrid strokeDasharray="3 3" stroke={ct.line} />
           <XAxis dataKey="i" type="number" domain={[0, data.length - 1]} ticks={ticks}
             tickFormatter={(v: number) => {
               const p = data[v];
               return p?.inning != null ? `${p.inning}` : "";
             }}
-            tick={{ fontSize: 10, fill: "var(--color-faint)" }} tickLine={false} axisLine={false}
-            label={{ value: "局", position: "insideBottomRight", offset: 0, fontSize: 10, fill: "var(--color-faint)" }} />
+            tick={{ fontSize: 10, fill: ct.faint }} tickLine={false} axisLine={false}
+            label={{ value: "局", position: "insideBottomRight", offset: 0, fontSize: 10, fill: ct.faint }} />
           <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]}
             tickFormatter={(v: number) => `${v}%`}
-            tick={{ fontSize: 10, fill: "var(--color-faint)" }} tickLine={false} axisLine={false} />
-          <ReferenceLine y={50} stroke="#94a3b8" strokeDasharray="4 4" />
+            tick={{ fontSize: 10, fill: ct.faint }} tickLine={false} axisLine={false} />
+          <ReferenceLine y={50} stroke={ct.faint} strokeDasharray="4 4" />
           <Tooltip
             formatter={(v) => [`${v}%`, `${homeName} 勝率`]}
             labelFormatter={(v: number) => {
@@ -58,8 +60,7 @@ export function WinProbChart({ items, homeName, awayName, homeColor, onSelect }:
               if (p.inning == null) return `終場 ${p.away}-${p.home}`;
               return `${p.inning}${p.half === "1" ? "上" : "下"} ${p.hitter ?? ""}（${awayName} ${p.away}-${p.home} ${homeName}）`;
             }}
-            contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--color-line)",
-              background: "var(--color-surface)" }} />
+            contentStyle={chartTooltip(ct)} />
           <Line type="linear" dataKey="pct" stroke={homeColor} strokeWidth={2}
             dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
         </LineChart>

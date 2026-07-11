@@ -8,6 +8,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { contrastText } from "@/lib/teams";
+import { gradeColor, useChartTheme } from "@/lib/chart-theme";
 
 // 能力值卡：以全史生涯 rate 的全聯盟百分位 [PR] 畫遊戲風雷達 + 等級條。
 // 資料皆我們自算的客觀指標，等級 S–G 純由 PR 換算（非抄遊戲數值）。
@@ -22,13 +23,7 @@ function axisTitle(a: Axis | undefined): string {
   return `${a.label}（PR ${a.pr}）＝ ` + a.components.map((c) => `${c.label} ${c.weight}%`).join(" · ");
 }
 
-// 遊戲感分段等級色（パワプロ 風）：S金 A紅 B橘 C黃 D綠 E青 F/G灰。
-const GRADE_COLOR: Record<string, string> = {
-  S: "#E6B422", A: "#D23A3A", B: "#E8842B", C: "#E0C53A",
-  D: "#4CAF50", E: "#3B82C4", F: "#7C8696", G: "#9AA3AF",
-};
-const gradeColor = (grade: string) => GRADE_COLOR[grade] ?? "#9AA3AF";
-
+// 等級色（S金 A紅 B橘 C黃 D綠 E青 F/G灰）由色票 API gradeColor() 供給（單一來源）。
 export function GradeChip({ grade, size = "sm" }: { grade: string | null; size?: "sm" | "lg" }) {
   const bg = gradeColor(grade ?? "G");
   const dim = size === "lg" ? "h-8 w-8 rounded-lg text-base" : "h-5 w-5 rounded text-[11px]";
@@ -47,7 +42,7 @@ export function GradeChip({ grade, size = "sm" }: { grade: string | null; size?:
 export function AbilityCard({
   card,
   title,
-  color = "#1B4DA1",
+  color,
   compact = false,
   hideNote = false,
 }: {
@@ -57,6 +52,8 @@ export function AbilityCard({
   compact?: boolean;
   hideNote?: boolean;
 }) {
+  const ct = useChartTheme();
+  const radarColor = color ?? ct.cpbl;
   if (!card?.available || !card.axes) return null;
   const axes = card.axes;
   const data = axes.map((a) => ({ axis: a.label, pr: a.pr ?? 0 }));
@@ -67,7 +64,7 @@ export function AbilityCard({
     const g = a?.grade ?? null;
     return (
       <text x={props.x} y={props.y} textAnchor={props.textAnchor} dominantBaseline="central"
-        fontSize={11} fontWeight={600} style={{ cursor: "help" }} fill={g ? gradeColor(g) : "#9AA3AF"}>
+        fontSize={11} fontWeight={600} style={{ cursor: "help" }} fill={gradeColor(g)}>
         <title>{axisTitle(a)}</title>
         {props.payload.value}
       </text>
@@ -99,9 +96,9 @@ export function AbilityCard({
         aria-label={`${title ?? "能力值"}雷達圖，各項為全聯盟百分位（越外圈越強）`}>
         <ResponsiveContainer width="100%" height="100%">
           <RadarChart data={data} outerRadius={compact ? "70%" : "78%"}>
-            <PolarGrid stroke="var(--color-line, #e2e8f0)" />
-            <PolarAngleAxis dataKey="axis" tick={compact ? { fontSize: 10, fill: "#64748b" } : renderTick} />
-            <Radar dataKey="pr" stroke={color} fill={color} fillOpacity={0.35} />
+            <PolarGrid stroke={ct.line} />
+            <PolarAngleAxis dataKey="axis" tick={compact ? { fontSize: 10, fill: ct.muted } : renderTick} />
+            <Radar dataKey="pr" stroke={radarColor} fill={radarColor} fillOpacity={0.35} />
           </RadarChart>
         </ResponsiveContainer>
       </div>
@@ -118,14 +115,15 @@ export function AbilityCard({
 export function AbilityRadarVS({
   home,
   away,
-  homeColor = "#C4122F",
-  awayColor = "#1B4DA1",
+  homeColor,
+  awayColor,
 }: {
   home: Card;
   away: Card;
   homeColor?: string;
   awayColor?: string;
 }) {
+  const ct = useChartTheme();
   if (!home?.available || !away?.available || !home.axes) return null;
   const data = home.axes.map((a, i) => ({
     axis: a.label,
@@ -136,10 +134,10 @@ export function AbilityRadarVS({
     <div className="h-44" role="img" aria-label="兩位先發投手能力值雷達疊圖，各項為全聯盟百分位">
       <ResponsiveContainer width="100%" height="100%">
         <RadarChart data={data} outerRadius="70%">
-          <PolarGrid stroke="var(--color-line, #e2e8f0)" />
-          <PolarAngleAxis dataKey="axis" tick={{ fontSize: 10, fill: "var(--color-muted, #64748b)" }} />
-          <Radar dataKey="away" stroke={awayColor} fill={awayColor} fillOpacity={0.25} />
-          <Radar dataKey="home" stroke={homeColor} fill={homeColor} fillOpacity={0.25} />
+          <PolarGrid stroke={ct.line} />
+          <PolarAngleAxis dataKey="axis" tick={{ fontSize: 10, fill: ct.muted }} />
+          <Radar dataKey="away" stroke={awayColor ?? ct.cpbl} fill={awayColor ?? ct.cpbl} fillOpacity={0.25} />
+          <Radar dataKey="home" stroke={homeColor ?? ct.down} fill={homeColor ?? ct.down} fillOpacity={0.25} />
         </RadarChart>
       </ResponsiveContainer>
     </div>
