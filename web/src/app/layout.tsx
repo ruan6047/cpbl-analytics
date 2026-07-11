@@ -40,7 +40,7 @@ const NAV = [
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh-Hant" className={outfit.variable}>
+    <html lang="zh-Hant" className={outfit.variable} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH }} />
       </head>
