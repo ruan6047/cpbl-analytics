@@ -224,6 +224,17 @@ export type SpecialRecordsResponse = { season: number; items: SpecialRecord[] };
 export type StandingsTrendPoint = { date: string } & Record<string, number | string>;
 export type StandingsTrendResponse = { season: number; teams: string[]; names?: Record<string, string>; points: StandingsTrendPoint[] };
 
+// 賽果預測 hub 卡：只取渲染所需子集（TeamSide 全欄見 client.ts Matchup）。
+const OUTCOME_DEFAULT_FEATURES =
+  "winrate_diff,prior_winpct_diff,runs_scored_diff,runs_allowed_diff,recent_form_diff,h2h_home,starter_era_diff,home_field";
+export type HubMatchup = {
+  game_date: string | null;
+  home: { code: string; name: string };
+  away: { code: string; name: string };
+  home_win_prob: number;
+};
+export type HubMatchupsResponse = { items: HubMatchup[] };
+
 export const api = {
   officialStandings: (seg = 0, year?: number, kind = "A") =>
     get<OfficialStandingsResponse>(`/api/v1/standings?season_code=${seg}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 120),
@@ -317,4 +328,8 @@ export const api = {
     get<BattingLeadersResponse>(`/api/v1/season/batting-leaders?sort=${sort}&limit=${limit}&min_pa=${minPa}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 60),
   pitchingLeaders: (sort = "era", { limit = 400, minIp = 0, year, kind = "A" }: { limit?: number; minIp?: number; year?: number; kind?: string } = {}) =>
     get<PitchingLeadersResponse>(`/api/v1/season/pitching-leaders?sort=${sort}&limit=${limit}&min_ip=${minIp}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 60),
+  // 首頁 hub 用：以定向預設特徵子集即時 fit，取即將開打賽事的主隊勝率預測。
+  // 特徵組對齊 predict 頁預設（client.ts）；此處 server 端渲染避免載入閃爍。
+  outcomeMatchups: (limit = 3) =>
+    get<HubMatchupsResponse>(`/api/v1/outcome/matchups?features=${OUTCOME_DEFAULT_FEATURES}&limit=${limit}`, 120),
 };
