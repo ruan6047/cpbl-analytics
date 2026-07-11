@@ -1,7 +1,7 @@
 # UX-1 全站 UI/UX 重新設計 — 規劃 Spec
 
-> 看板卡：[`TASKS.md`](TASKS.md) UX-1。規劃 by Fable-5@Claude Code（07-11），✅ ruan6047 **已核可 v5**（07-11）。
-> UX-2〜UX-10 已依依賴序開卡進 Ledger，待派工執行；本檔隨 UX-1 全數結案後移 `docs/archive/`（workflow §6.4）。
+> 看板卡與狀態：[`TASKS.md`](TASKS.md) UX-1（及子卡 UX-2〜10）。**狀態／派工／log 只住看板，本檔不另記**（workflow §7.1）。
+> 本檔＝內容（原則＋拆卡＋驗收標準）；隨 UX-1 全數結案移 `docs/archive/`（§6.4）。
 
 ---
 
