@@ -180,7 +180,7 @@ h1, h2 {
   to { width: var(--target-width); }
 }
 .animate-bar-grow {
-  animation: barGrow var(--dur-slow) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: barGrow var(--dur-slow) var(--ease-standard) forwards;
 }
 
 /* 行動端 Table 首欄固定 */
@@ -213,7 +213,16 @@ tr:hover .sticky-col {
   to { opacity: 1; }
 }
 .animate-fade-in {
-  animation: fadeIn var(--dur-fast) ease-out forwards;
+  animation: fadeIn var(--dur-base) var(--ease-standard) forwards;
+}
+
+/* 淡出動畫 */
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+.animate-fade-out {
+  animation: fadeOut var(--dur-fast) var(--ease-standard) forwards;
 }
 
 
