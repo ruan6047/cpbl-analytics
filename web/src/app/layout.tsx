@@ -52,14 +52,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <span className="text-cpbl">CPBL</span> <span className="text-accent">分析</span>
             </Link>
             <div className="flex items-center gap-2">
-              <NavLinks items={NAV} />
               <ThemeToggle />
+              <NavLinks items={NAV} />
             </div>
           </div>
         </header>
         <main id="main" className="mx-auto max-w-6xl px-6 py-8">{children}</main>
-        <footer className="mx-auto max-w-6xl px-6 py-10 text-xs text-faint">
-          資料來源：cpbl-opendata (MIT) + cpbl.com.tw + stats.cpbl.com.tw。僅供學習與作品集用途。
+        <footer className="mx-auto max-w-6xl border-t border-line/75 px-6 py-8 mt-12 text-xs text-faint flex flex-col md:flex-row items-center justify-between gap-4">
+          <div>
+            資料來源：cpbl-opendata (MIT) + cpbl.com.tw + stats.cpbl.com.tw。僅供學習與作品集用途。
+          </div>
+          <div>
+            © {new Date().getFullYear()} CPBL Analytics.
+          </div>
         </footer>
       </body>
     </html>

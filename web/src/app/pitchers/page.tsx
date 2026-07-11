@@ -65,9 +65,9 @@ export default async function PitchersPage({ searchParams }: { searchParams: Pro
 
   return (
     <div>
-      <header className="mb-5">
-        <h1 className="text-2xl font-bold">{season} 球季 · {kind === "D" ? "二軍" : ""}投手排行</h1>
-        <p className="mt-2 text-sm text-muted">
+      <header className="mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-ink">{season} 球季 · {kind === "D" ? "二軍" : ""}投手排行</h1>
+        <p className="mt-1.5 text-sm text-muted">
           {kind === "D" || !isCurrent ? "由逐場/逐年成績彙整（二軍逐打席自 2018 起；救援/中繼僅當季與歷年彙總有）。" : "全名單本季投手。"}
           點欄位標題排序，可依球隊篩選。
         </p>

@@ -94,9 +94,9 @@ export default async function RecordsPage() {
   const goneFr = fr.items.filter((f) => !f.active);
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="text-2xl font-bold">歷史紀錄室</h1>
-        <p className="mt-2 text-sm text-muted">
+      <header className="mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-ink">歷史紀錄室</h1>
+        <p className="mt-1.5 text-sm text-muted">
           中華職棒一軍歷史之最。比賽紀錄含全史（1990 起）；單季/生涯以官方歷年彙總（1990–2024，近兩季另計）。
         </p>
       </header>

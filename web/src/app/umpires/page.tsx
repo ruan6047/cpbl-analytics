@@ -114,10 +114,12 @@ export default function UmpiresPage() {
 
   return (
     <div>
-      <h1 className="mb-1 text-2xl font-extrabold tracking-tight">裁判報告</h1>
-      <p className="mb-6 text-sm text-muted">
-        主審好壞球判決 vs 規則好球帶（TrackMan 逐球）。非官方自動化推算；僅涵蓋有逐球設備的場次（2026 起）。
-      </p>
+      <header className="mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-ink">裁判報告</h1>
+        <p className="mt-1.5 text-sm text-muted">
+          主審好壞球判決 vs 規則好球帶（TrackMan 逐球）。非官方自動化推算；僅涵蓋有逐球設備的場次（2026 起）。
+        </p>
+      </header>
       <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
         <section>
           <h2 className="mb-3 text-lg font-semibold">主審排行（{board?.season ?? "—"}）</h2>

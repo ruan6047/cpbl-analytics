@@ -86,9 +86,9 @@ export default async function GamesPage({
 
   return (
     <div>
-      <header className="mb-5">
-        <h1 className="text-2xl font-bold">{season} 球季 · {kind === "D" ? "二軍賽況" : "賽況"}</h1>
-        <p className="mt-2 text-sm text-muted">
+      <header className="mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-ink">{season} 球季 · {kind === "D" ? "二軍賽況" : "賽況"}</h1>
+        <p className="mt-1.5 text-sm text-muted">
           {hasDetail ? "月曆檢視；點任一場看逐局比分與逐打席賽況（play-by-play）。" : "2018 年前僅逐場結果（無逐局/逐打席）。"}
         </p>
       </header>

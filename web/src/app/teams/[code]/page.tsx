@@ -57,7 +57,7 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
       <div className="flex flex-wrap items-center gap-4 rounded-2xl p-6" style={{ background: color, color: ink }}>
         <TeamLogo code={code} name={displayName} size={56} />
         <div>
-          <div className="flex items-center gap-2 text-2xl font-bold">
+          <div className="flex items-center gap-2 text-2xl font-extrabold tracking-tight">
             {displayName}
             {!team && <span className="rounded bg-black/20 px-2 py-0.5 text-xs font-medium">已解散</span>}
           </div>

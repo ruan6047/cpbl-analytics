@@ -120,9 +120,9 @@ export default function PredictPage() {
 
   return (
     <div>
-      <header className="mb-5">
-        <h1 className="text-2xl font-bold">賽事預測 · 單場對戰</h1>
-        <p className="mt-2 text-sm text-muted">
+      <header className="mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-ink">賽事預測 · 單場對戰</h1>
+        <p className="mt-1.5 text-sm text-muted">
           勾選你在意的變因,把雙方真實數字攤開比較;勝率用歷史學出的「預設權重」起算,
           你也能拖滑桿手動微調(拖大 = 更決斷)。
           {model && (
