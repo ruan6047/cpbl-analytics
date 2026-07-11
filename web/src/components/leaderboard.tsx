@@ -225,6 +225,6 @@ export default function Leaderboard({
           </tbody>
         </table>
       </div>
-
+    </div>
   );
 }
