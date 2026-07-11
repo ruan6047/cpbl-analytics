@@ -3,6 +3,7 @@
 // 球員頁純展示元件：無跨區 state，僅收 props。
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { LetterBadge, divBg } from "@/components/ui";
+import { DataTable, type Column } from "@/components/table";
 import { PIE_COLORS } from "@/lib/chart-theme";
 import { type StatRow } from "@/lib/client";
 import { fmtIP } from "@/lib/format";
@@ -130,7 +131,7 @@ export function PitchTypeToggle({ value, onChange, types }: {
 }
 
 export function VsTeamTable({ items, role }: { items: StatRow[]; role: Role }) {
-  const cols: { h: string; cell: (r: StatRow) => string; tone?: string }[] = role === "batting"
+  const stat: { h: string; cell: (r: StatRow) => string; tone?: string }[] = role === "batting"
     ? [{ h: "PA", cell: (r) => n0(r.plate_appearances) },
        { h: "安打", cell: (r) => n0(r.hits) },
        { h: "HR", cell: (r) => n0(r.home_runs) },
@@ -141,30 +142,16 @@ export function VsTeamTable({ items, role }: { items: StatRow[]; role: Role }) {
        { h: "WHIP", cell: (r) => numOf(r.whip)?.toFixed(2) ?? "—" },
        { h: "被安", cell: (r) => n0(r.hits) },
        { h: "三振", cell: (r) => n0(r.so) }];
-  return (
-    <div className="max-h-[230px] overflow-y-auto">
-      <table className="w-full text-xs">
-        <thead className="sticky top-0 bg-surface text-left text-muted">
-          <tr>
-            <th className="py-1 font-medium">對手</th>
-            {cols.map((c) => <th key={c.h} className="py-1 text-right font-medium">{c.h}</th>)}
-          </tr>
-        </thead>
-        <tbody className="font-mono tabular-nums">
-          {items.map((r) => (
-            <tr key={String(r.fight_team_name)} className="border-t border-line">
-              <td className="py-1.5 font-sans text-ink">{teamShort(codeFromName(String(r.fight_team_name))) || String(r.fight_team_name)}</td>
-              {cols.map((c) => <td key={c.h} className={`py-1.5 text-right ${c.tone ?? ""}`}>{c.cell(r)}</td>)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  const columns: Column<StatRow>[] = [
+    { header: "對手", cell: (r) => teamShort(codeFromName(String(r.fight_team_name))) || String(r.fight_team_name), nowrap: true, className: "font-sans text-ink" },
+    ...stat.map((c): Column<StatRow> => ({ header: c.h, cell: c.cell, align: "right", className: c.tone })),
+  ];
+  // Card 內 → bare（不重畫卡殼）；長列表 → 垂直捲動 + 表頭 sticky
+  return <DataTable columns={columns} rows={items} rowKey={(r) => String(r.fight_team_name)} dense bare maxHeight="230px" />;
 }
 
 export function CareerTable({ seasons, role }: { seasons: StatRow[]; role: Role }) {
-  const cols: { h: string; cell: (r: StatRow) => string; tone?: string }[] = role === "batting"
+  const stat: { h: string; cell: (r: StatRow) => string; tone?: string }[] = role === "batting"
     ? [{ h: "G", cell: (r) => n0(r.g) }, { h: "PA", cell: (r) => n0(r.pa) },
        { h: "AVG", cell: (r) => f3(numOf(r.avg)) }, { h: "OBP", cell: (r) => f3(numOf(r.obp)) },
        { h: "SLG", cell: (r) => f3(numOf(r.slg)) }, { h: "OPS", cell: (r) => f3(numOf(r.ops)), tone: "text-ink" },
@@ -174,75 +161,43 @@ export function CareerTable({ seasons, role }: { seasons: StatRow[]; role: Role 
        { h: "局數", cell: (r) => fmtIP(r.ip as number | string | null) }, { h: "ERA", cell: (r) => numOf(r.era)?.toFixed(2) ?? "—", tone: "text-ink" },
        { h: "WHIP", cell: (r) => numOf(r.whip)?.toFixed(2) ?? "—" }, { h: "三振", cell: (r) => n0(r.so) },
        { h: "K9", cell: (r) => numOf(r.k9)?.toFixed(2) ?? "—" }];
-  return (
-    <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-      <table className="w-full text-sm">
-        <thead className="bg-surface-2 text-left text-muted">
-          <tr>
-            <th className="px-3 py-2 font-medium">年度</th>
-            <th className="px-3 py-2 font-medium">球隊</th>
-            {cols.map((c) => <th key={c.h} className="px-3 py-2 text-right font-medium">{c.h}</th>)}
-          </tr>
-        </thead>
-        <tbody className="font-mono tabular-nums">
-          {seasons.map((r) => (
-            <tr key={String(r.year)} className="border-t border-line">
-              <td className="px-3 py-2 font-sans text-ink">{String(r.year)}</td>
-              <td className="px-3 py-2 font-sans text-muted">{String(r.teams ?? "—")}</td>
-              {cols.map((c) => <td key={c.h} className={`px-3 py-2 text-right ${c.tone ?? ""}`}>{c.cell(r)}</td>)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  const columns: Column<StatRow>[] = [
+    { header: "年度", cell: (r) => String(r.year), sticky: true, nowrap: true, className: "font-sans text-ink" },
+    { header: "球隊", cell: (r) => String(r.teams ?? "—"), nowrap: true, className: "font-sans text-muted" },
+    ...stat.map((c): Column<StatRow> => ({ header: c.h, cell: c.cell, align: "right", className: c.tone })),
+  ];
+  return <DataTable columns={columns} rows={seasons} rowKey={(r) => String(r.year)} dense />;
 }
 
 export function SplitsTable({ rows, role }: { rows: StatRow[]; role: Role }) {
-  const heads = role === "batting"
-    ? ["分項", "打席", "打數", "安打", "全壘打", "打點", "四壞", "三振", "打擊率", "OPS"]
-    : ["分項", "局數", "面對", "被安", "被轟", "四壞", "三振", "自責", "ERA"];
   // 組內發散上色：同家族各桶（主/客、各局數…）間對比（投手 ERA 低為佳）
   const numsOf = (f: (r: StatRow) => number | null | undefined) => rows.map(f);
   const avgs = numsOf((r) => r.avg as number | null);
   const opss = numsOf((r) => r.ops as number | null);
   const eras = numsOf((r) => eraOf(r));
-  return (
-    <table className="w-full text-sm">
-      <thead className="bg-surface-2 text-left text-muted">
-        <tr>{heads.map((h) => <th key={h} className="whitespace-nowrap px-2.5 py-2.5 font-medium">{h}</th>)}</tr>
-      </thead>
-      <tbody className="font-mono tabular-nums">
-        {rows.map((r, i) => (
-          <tr key={i} className="border-t border-line hover:bg-surface-2">
-            <td className="whitespace-nowrap px-2.5 py-2 font-sans text-ink">{String(r.item_name)}</td>
-            {role === "batting" ? (
-              <>
-                <td className="px-2.5 py-2">{String(r.plate_appearances ?? "—")}</td>
-                <td className="px-2.5 py-2 text-muted">{String(r.at_bats ?? "—")}</td>
-                <td className="px-2.5 py-2">{String(r.hits ?? "—")}</td>
-                <td className="px-2.5 py-2">{String(r.home_runs ?? "—")}</td>
-                <td className="px-2.5 py-2">{String(r.rbi ?? "—")}</td>
-                <td className="px-2.5 py-2 text-muted">{String(r.bb ?? "—")}</td>
-                <td className="px-2.5 py-2 text-muted">{String(r.so ?? "—")}</td>
-                <td className="px-2.5 py-2" style={divBg(r.avg as number | null, avgs)}>{f3(r.avg)}</td>
-                <td className="px-2.5 py-2 font-medium text-ink" style={divBg(r.ops as number | null, opss)}>{f3(r.ops)}</td>
-              </>
-            ) : (
-              <>
-                <td className="px-2.5 py-2">{ipOf(r)?.toFixed(1) ?? "—"}</td>
-                <td className="px-2.5 py-2 text-muted">{String(r.plate_appearances ?? "—")}</td>
-                <td className="px-2.5 py-2 text-muted">{String(r.hits ?? "—")}</td>
-                <td className="px-2.5 py-2 text-muted">{String(r.home_runs ?? "—")}</td>
-                <td className="px-2.5 py-2 text-muted">{String(r.bb ?? "—")}</td>
-                <td className="px-2.5 py-2">{String(r.so ?? "—")}</td>
-                <td className="px-2.5 py-2 text-muted">{String(r.earned_runs ?? "—")}</td>
-                <td className="px-2.5 py-2 font-medium text-ink" style={divBg(eraOf(r), eras, true)}>{eraOf(r)?.toFixed(2) ?? "—"}</td>
-              </>
-            )}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
+  const columns: Column<StatRow>[] = role === "batting"
+    ? [
+        { header: "分項", cell: (r) => String(r.item_name), nowrap: true, className: "font-sans text-ink" },
+        { header: "打席", cell: (r) => String(r.plate_appearances ?? "—") },
+        { header: "打數", cell: (r) => String(r.at_bats ?? "—"), className: "text-muted" },
+        { header: "安打", cell: (r) => String(r.hits ?? "—") },
+        { header: "全壘打", cell: (r) => String(r.home_runs ?? "—") },
+        { header: "打點", cell: (r) => String(r.rbi ?? "—") },
+        { header: "四壞", cell: (r) => String(r.bb ?? "—"), className: "text-muted" },
+        { header: "三振", cell: (r) => String(r.so ?? "—"), className: "text-muted" },
+        { header: "打擊率", cell: (r) => f3(r.avg), cellStyle: (r) => divBg(r.avg as number | null, avgs) },
+        { header: "OPS", cell: (r) => f3(r.ops), className: "font-medium text-ink", cellStyle: (r) => divBg(r.ops as number | null, opss) },
+      ]
+    : [
+        { header: "分項", cell: (r) => String(r.item_name), nowrap: true, className: "font-sans text-ink" },
+        { header: "局數", cell: (r) => ipOf(r)?.toFixed(1) ?? "—" },
+        { header: "面對", cell: (r) => String(r.plate_appearances ?? "—"), className: "text-muted" },
+        { header: "被安", cell: (r) => String(r.hits ?? "—"), className: "text-muted" },
+        { header: "被轟", cell: (r) => String(r.home_runs ?? "—"), className: "text-muted" },
+        { header: "四壞", cell: (r) => String(r.bb ?? "—"), className: "text-muted" },
+        { header: "三振", cell: (r) => String(r.so ?? "—") },
+        { header: "自責", cell: (r) => String(r.earned_runs ?? "—"), className: "text-muted" },
+        { header: "ERA", cell: (r) => eraOf(r)?.toFixed(2) ?? "—", className: "font-medium text-ink", cellStyle: (r) => divBg(eraOf(r), eras, true) },
+      ];
+  return <DataTable columns={columns} rows={rows} rowKey={(r) => String(r.item_name)} dense bare />;
 }

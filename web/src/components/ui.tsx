@@ -91,6 +91,57 @@ export function TeamBadge({ code, name, size = 20 }: { code?: string | null; nam
   );
 }
 
+// 區塊小標（eyebrow）：每個區塊回答一個問題，配此小標點題（原則 1/5）。
+export function Eyebrow({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <div className={`text-[11px] font-semibold uppercase tracking-wider text-faint ${className}`}>{children}</div>;
+}
+
+// dl 堆疊網格（決勝資訊式）：label 上、value 下，等寬數字。取代散寫的 label/value 對。
+export function StatGrid({ items, cols = 2, className = "" }: {
+  items: { label: React.ReactNode; value: React.ReactNode; tone?: "accent" | "muted" }[];
+  cols?: 2 | 3 | 4 | 5;
+  className?: string;
+}) {
+  const colCls = { 2: "grid-cols-2", 3: "grid-cols-3", 4: "grid-cols-4", 5: "grid-cols-5" }[cols];
+  return (
+    <dl className={`grid ${colCls} gap-2 ${className}`}>
+      {items.map((it, i) => (
+        <div key={i} className="rounded-lg bg-surface-2 px-3 py-2 text-center">
+          <dt className="text-[11px] text-muted">{it.label}</dt>
+          <dd className={`mt-0.5 font-mono text-lg tabular-nums ${it.tone === "accent" ? "text-accent" : it.tone === "muted" ? "text-muted" : "text-ink"}`}>{it.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+// —— 感知效能三態（skeleton / empty / error）：全站統一，取代各檔散寫的
+//    「載入中…」「無資料」與 ad-hoc 佔位（原則 8）。皆 server-safe。
+export function Skeleton({ className = "" }: { className?: string }) {
+  return <div className={`animate-pulse rounded bg-surface-2 ${className}`} aria-hidden />;
+}
+// 表格骨架：rows×cols 個灰塊，切換資料時不佈局塌陷（CLS）。
+export function TableSkeleton({ rows = 5, cols = 4, className = "" }: { rows?: number; cols?: number; className?: string }) {
+  return (
+    <div className={`overflow-hidden rounded-xl border border-line ${className}`} aria-hidden>
+      <div className="flex gap-3 bg-surface-2 px-3 py-2.5">
+        {Array.from({ length: cols }).map((_, i) => <Skeleton key={i} className="h-4 flex-1" />)}
+      </div>
+      {Array.from({ length: rows }).map((_, r) => (
+        <div key={r} className="flex gap-3 border-t border-line px-3 py-2.5">
+          {Array.from({ length: cols }).map((_, i) => <Skeleton key={i} className="h-4 flex-1" />)}
+        </div>
+      ))}
+    </div>
+  );
+}
+export function EmptyState({ children = "無資料", className = "" }: { children?: React.ReactNode; className?: string }) {
+  return <p className={`py-8 text-center text-sm text-faint ${className}`}>{children}</p>;
+}
+export function ErrorState({ children = "載入失敗", className = "" }: { children?: React.ReactNode; className?: string }) {
+  return <p className={`py-8 text-center text-sm text-accent ${className}`}>{children}</p>;
+}
+
 // 百分位發散色階：0=藍 50=灰 100=紅（Baseball Savant 式）
 export function prColor(pr: number): string {
   const lerp = (a: number, b: number, t: number) => Math.round(a + (b - a) * t);

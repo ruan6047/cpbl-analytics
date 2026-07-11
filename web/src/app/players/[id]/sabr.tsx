@@ -4,6 +4,7 @@
 // 全部自算（livelog + RE 矩陣 + 官方計數），非官方數據 → 區塊標「推算」。
 import { useEffect, useState } from "react";
 import { detail } from "@/lib/client";
+import { DataTable, type Column } from "@/components/table";
 import type { Role } from "./lib";
 
 type SabrYear = {
@@ -37,6 +38,26 @@ export function SabrSection({ id, role }: { id: string; role: Role }) {
     <span className={good(v) ? "font-semibold text-accent" : ""}>{signed(v)}</span>
   );
 
+  const reColumns: Column<SabrYear>[] = [
+    { header: "年度", cell: (y) => y.year, sticky: true, nowrap: true },
+    { header: role === "batting" ? "PA" : "BF", cell: (y) => y.pa ?? y.bf ?? "—", align: "right" },
+    { header: "RE24", cell: (y) => reCell(num(y.re24)), align: "right" },
+    { header: "年度名次", cell: (y) => (y.rnk ? `${y.rnk}/${y.n}` : "—"), align: "right", className: "text-muted" },
+    ...(role === "batting"
+      ? [
+          { header: "wSB", cell: (y: SabrYear) => (num(y.wsb) != null ? signed(num(y.wsb)!) : "—"), align: "right" as const },
+          { header: "盜壘 SB-CS", cell: (y: SabrYear) => (y.sb != null ? `${y.sb}-${y.cs ?? 0}` : "—"), align: "right" as const, className: "text-muted" },
+        ]
+      : []),
+  ];
+  const catColumns: Column<CatcherYear>[] = [
+    { header: "捕手守備", cell: (y) => y.year, sticky: true, nowrap: true },
+    { header: "接捕局數", cell: (y) => ipTxt(y.outs), align: "right" },
+    { header: <span title="接捕時每 9 局失分（含非自責）">RA/9</span>, cell: (y) => y.ra9 ?? "—", align: "right" },
+    { header: <span title="阻殺 / (阻殺+被盜)">阻殺率</span>, cell: (y) => (y.cs_pct != null ? `${y.cs_pct}%` : "—"), align: "right" },
+    { header: "CS-被盜", cell: (y) => (y.cs != null ? `${y.cs}-${y.sba ?? 0}` : "—"), align: "right", className: "text-muted" },
+  ];
+
   return (
     <section className="mb-8">
       <h2 className="mb-1 text-lg font-semibold">
@@ -47,68 +68,9 @@ export function SabrSection({ id, role }: { id: string; role: Role }) {
         皆以自建 CPBL 得分期望矩陣（2018–25）推算，{role === "batting" ? "正值" : "負值"}越大越好。
       </p>
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-          <table className="w-full text-sm">
-            <thead className="bg-surface-2 text-left text-muted">
-              <tr>
-                <th className="px-3 py-2 font-medium">年度</th>
-                <th className="px-2 py-2 text-right font-medium">{role === "batting" ? "PA" : "BF"}</th>
-                <th className="px-2 py-2 text-right font-medium">RE24</th>
-                <th className="px-2 py-2 text-right font-medium">年度名次</th>
-                {role === "batting" && <th className="px-2 py-2 text-right font-medium">wSB</th>}
-                {role === "batting" && <th className="px-3 py-2 text-right font-medium">盜壘 SB-CS</th>}
-              </tr>
-            </thead>
-            <tbody className="font-mono tabular-nums">
-              {years.slice(0, 9).map((y) => (
-                <tr key={y.year} className="border-t border-line">
-                  <td className="px-3 py-1.5">{y.year}</td>
-                  <td className="px-2 py-1.5 text-right">{y.pa ?? y.bf ?? "—"}</td>
-                  <td className="px-2 py-1.5 text-right">{reCell(num(y.re24))}</td>
-                  <td className="px-2 py-1.5 text-right text-muted">
-                    {y.rnk ? `${y.rnk}/${y.n}` : "—"}
-                  </td>
-                  {role === "batting" && (
-                    <td className="px-2 py-1.5 text-right">{num(y.wsb) != null ? signed(num(y.wsb)!) : "—"}</td>
-                  )}
-                  {role === "batting" && (
-                    <td className="px-3 py-1.5 text-right text-muted">
-                      {y.sb != null ? `${y.sb}-${y.cs ?? 0}` : "—"}
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
+        <DataTable columns={reColumns} rows={years.slice(0, 9)} rowKey={(y) => y.year} dense />
         {role === "batting" && catcher.length > 0 && (
-          <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-            <table className="w-full text-sm">
-              <thead className="bg-surface-2 text-left text-muted">
-                <tr>
-                  <th className="px-3 py-2 font-medium">捕手守備</th>
-                  <th className="px-2 py-2 text-right font-medium">接捕局數</th>
-                  <th className="px-2 py-2 text-right font-medium" title="接捕時每 9 局失分（含非自責）">RA/9</th>
-                  <th className="px-2 py-2 text-right font-medium" title="阻殺 / (阻殺+被盜)">阻殺率</th>
-                  <th className="px-3 py-2 text-right font-medium">CS-被盜</th>
-                </tr>
-              </thead>
-              <tbody className="font-mono tabular-nums">
-                {catcher.slice(0, 9).map((y) => (
-                  <tr key={y.year} className="border-t border-line">
-                    <td className="px-3 py-1.5">{y.year}</td>
-                    <td className="px-2 py-1.5 text-right">{ipTxt(y.outs)}</td>
-                    <td className="px-2 py-1.5 text-right">{y.ra9 ?? "—"}</td>
-                    <td className="px-2 py-1.5 text-right">{y.cs_pct != null ? `${y.cs_pct}%` : "—"}</td>
-                    <td className="px-3 py-1.5 text-right text-muted">
-                      {y.cs != null ? `${y.cs}-${y.sba ?? 0}` : "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable columns={catColumns} rows={catcher.slice(0, 9)} rowKey={(y) => y.year} dense />
         )}
       </div>
     </section>

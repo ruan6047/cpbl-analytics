@@ -3,6 +3,7 @@
 // 明細區：生涯逐年 / 分項明細 分頁。分項資料自抓（scope/kinds 只影響本區）。
 import { useEffect, useState } from "react";
 import { type StatRow, detail } from "@/lib/client";
+import { EmptyState, TableSkeleton } from "@/components/ui";
 import { type Role, SPLIT_CATS, splitCat } from "./lib";
 import { CareerTable, SplitsTable, Tabs } from "./parts";
 
@@ -65,8 +66,8 @@ export function DetailSection({ id, role, seasonKind, isRetired, career }: {
             </div>
           )}
         </div>
-        {!splits ? <p className="text-sm text-muted">載入中…</p>
-          : splits.length === 0 ? <p className="text-sm text-muted">此範圍無分項資料。</p> : (() => {
+        {!splits ? <TableSkeleton rows={4} cols={role === "batting" ? 10 : 9} />
+          : splits.length === 0 ? <EmptyState>此範圍無分項資料。</EmptyState> : (() => {
             const groups = [...SPLIT_CATS, { key: "other", label: "其他" }]
               .map((cat) => ({ cat, rows: (splits ?? []).filter((r) => splitCat(String(r.item_name)) === cat.key) }))
               .filter((g) => g.rows.length > 0);
@@ -77,7 +78,7 @@ export function DetailSection({ id, role, seasonKind, isRetired, career }: {
                     <summary className="cursor-pointer select-none px-4 py-2.5 text-sm font-medium text-ink hover:bg-surface-2">
                       {g.cat.label}<span className="ml-2 text-xs font-normal text-faint">{g.rows.length}</span>
                     </summary>
-                    <div className="overflow-x-auto border-t border-line"><SplitsTable rows={g.rows} role={role} /></div>
+                    <div className="border-t border-line"><SplitsTable rows={g.rows} role={role} /></div>
                   </details>
                 ))}
               </div>

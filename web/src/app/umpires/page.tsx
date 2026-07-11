@@ -4,6 +4,7 @@
 // 母體＝TrackMan called 球 vs 固定規則好球帶；覆蓋限 2026 起有設備場次；非官方分析。
 import { useEffect, useMemo, useState } from "react";
 import { clientGet } from "@/lib/client";
+import { DataTable, type Column } from "@/components/table";
 
 type Board = {
   season: number;
@@ -120,30 +121,18 @@ export default function UmpiresPage() {
       <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
         <section>
           <h2 className="mb-3 text-lg font-semibold">主審排行（{board?.season ?? "—"}）</h2>
-          <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-line text-left text-xs text-muted">
-                  <th className="px-3 py-2">主審</th>
-                  <th className="px-2 py-2 text-right">場</th>
-                  <th className="px-2 py-2 text-right">準確率</th>
-                  <th className="px-2 py-2 text-right">帶內</th>
-                  <th className="px-2 py-2 text-right">帶外</th>
-                </tr>
-              </thead>
-              <tbody className="font-mono tabular-nums">
-                {(board?.items ?? []).map((u) => (
-                  <tr key={u.umpire} className="border-b border-line/50 last:border-0">
-                    <td className="px-3 py-1.5 font-sans text-ink">{u.umpire}</td>
-                    <td className="px-2 py-1.5 text-right">{u.games}</td>
-                    <td className="px-2 py-1.5 text-right font-semibold">{u.acc}%</td>
-                    <td className="px-2 py-1.5 text-right">{u.strike_acc}%</td>
-                    <td className="px-2 py-1.5 text-right">{u.ball_acc}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={[
+              { header: "主審", cell: (u) => u.umpire, nowrap: true, className: "font-sans text-ink" },
+              { header: "場", cell: (u) => u.games, align: "right" },
+              { header: "準確率", cell: (u) => `${u.acc}%`, align: "right", className: "font-semibold" },
+              { header: "帶內", cell: (u) => `${u.strike_acc}%`, align: "right" },
+              { header: "帶外", cell: (u) => `${u.ball_acc}%`, align: "right" },
+            ] satisfies Column<NonNullable<typeof board>["items"][number]>[]}
+            rows={board?.items ?? []}
+            rowKey={(u) => u.umpire}
+            dense
+          />
         </section>
 
         <section>

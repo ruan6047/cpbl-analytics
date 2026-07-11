@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PlayerLink } from "@/components/ui";
+import { DataTable, type Column } from "@/components/table";
 import { api } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -67,26 +68,16 @@ export default async function ProjectionsPage({
           </Link>
         ))}
       </div>
-      <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-line text-left text-xs text-muted">
-              <th className="px-3 py-2 text-right">#</th>
-              <th className="px-3 py-2">球員</th>
-              <th className="px-3 py-2 text-right">投影 {stat.toUpperCase()}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.items.map((r, i) => (
-              <tr key={r.player_id} className="border-b border-line/50 last:border-0">
-                <td className="px-3 py-1.5 text-right font-mono text-faint">{i + 1}</td>
-                <td className="px-3 py-1.5"><PlayerLink pid={r.player_id} name={r.name ?? r.player_id} /></td>
-                <td className="px-3 py-1.5 text-right font-mono font-semibold tabular-nums">{fmt(r.predicted)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={[
+          { header: "#", cell: (_r, i) => i + 1, align: "right", className: "text-faint", width: "3rem" },
+          { header: "球員", cell: (r) => <PlayerLink pid={r.player_id} name={r.name ?? r.player_id} />, className: "font-sans" },
+          { header: `投影 ${stat.toUpperCase()}`, cell: (r) => fmt(r.predicted), align: "right", className: "font-semibold" },
+        ] satisfies Column<(typeof data.items)[number]>[]}
+        rows={data.items}
+        rowKey={(r) => r.player_id}
+        dense
+      />
       <p className="mt-3 text-xs text-faint">
         投影為賽季開始前的能力估計（非當下狀態）；rate stat 限定，計數型（HR/RBI、勝場/三振總數）需上場時間模型故不提供。
         {role === "pitching" && " ERA/WHIP/BB/9 低為佳（升冪）、K/9 高為佳（降冪）。"}

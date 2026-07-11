@@ -3,6 +3,7 @@
 // 守備表：本季 fielding_current / 生涯 1990– 彙總；退役無本季 → 自動切生涯。fieldScope 內化。
 import { useState } from "react";
 import { type StatRow } from "@/lib/client";
+import { DataTable, type Column } from "@/components/table";
 import { n0, numOf } from "./lib";
 
 export function FieldingSection({ fielding, fieldingCareer, fieldFromYear }: {
@@ -30,6 +31,21 @@ export function FieldingSection({ fielding, fieldingCareer, fieldFromYear }: {
     { key: "cs", label: "盜壘阻殺", tip: "阻殺：捕手傳殺盜壘跑者", catcher: true },
     { key: "sba", label: "被盜成功", tip: "被盜壘成功數", catcher: true },
   ].filter((c) => !c.catcher || hasC);
+  const columns: Column<StatRow>[] = [
+    { header: "守位", cell: (r) => String(r.pos), sticky: true, nowrap: true, className: "font-sans text-ink" },
+    ...cols.map((c): Column<StatRow> => ({
+      header: <span title={c.tip} className="cursor-help">{c.label}</span>,
+      cell: (r) => n0(r[c.key]),
+      align: "right",
+      className: c.tone,
+    })),
+    {
+      header: <span title="(刺殺＋助殺) ÷ 守備機會" className="cursor-help">守備率</span>,
+      cell: (r) => (r.fpct == null ? "—" : Number(r.fpct).toFixed(3).replace(/^0\./, ".")),
+      align: "right",
+      className: "text-ink",
+    },
+  ];
   return (
     <section className="mb-6">
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -48,30 +64,7 @@ export function FieldingSection({ fielding, fieldingCareer, fieldFromYear }: {
           <span className="text-[11px] text-faint">生涯累計（{fieldFromYear} 起）</span>
         )}
       </div>
-      <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-        <table className="w-full text-sm">
-          <thead className="bg-surface-2 text-left text-muted">
-            <tr>
-              <th className="px-3 py-2 font-medium">守位</th>
-              {cols.map((c) => (
-                <th key={c.key} title={c.tip} className="cursor-help px-3 py-2 text-right font-medium">{c.label}</th>
-              ))}
-              <th title="(刺殺＋助殺) ÷ 守備機會" className="cursor-help px-3 py-2 text-right font-medium">守備率</th>
-            </tr>
-          </thead>
-          <tbody className="font-mono tabular-nums">
-            {fld.map((r) => (
-              <tr key={String(r.pos)} className="border-t border-line">
-                <td className="px-3 py-2 font-sans text-ink">{String(r.pos)}</td>
-                {cols.map((c) => (
-                  <td key={c.key} className={`px-3 py-2 text-right ${c.tone ?? ""}`}>{n0(r[c.key])}</td>
-                ))}
-                <td className="px-3 py-2 text-right text-ink">{r.fpct == null ? "—" : Number(r.fpct).toFixed(3).replace(/^0\./, ".")}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable columns={columns} rows={fld} rowKey={(r) => String(r.pos)} dense />
     </section>
   );
 }
