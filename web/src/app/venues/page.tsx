@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { Card } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "球場 | CPBL 分析" };
@@ -24,7 +25,7 @@ export default async function VenuesPage() {
   const historic = data.items.filter((v) => !v.games_played && v.first_year != null);
 
   const card = (v: (typeof data.items)[number]) => (
-    <div key={v.venue} className="rounded-xl border border-line bg-surface p-4">
+    <Card key={v.venue}>
       <div className="flex items-baseline justify-between gap-2">
         <h3 className="text-base font-bold text-ink">{v.full_name ?? v.venue}</h3>
         <span className="shrink-0 text-xs text-faint">{v.city}</span>
@@ -65,7 +66,7 @@ export default async function VenuesPage() {
         {v.infield_seats != null && <span>內 {num(v.infield_seats)}／外 {num(v.outfield_seats)}</span>}
       </div>
       {v.address && <div className="mt-1 truncate text-[11px] text-faint" title={v.address}>{v.address}</div>}
-    </div>
+    </Card>
   );
 
   return (

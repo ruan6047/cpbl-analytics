@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Leaderboard from "@/components/leaderboard";
+import { Card } from "@/components/ui";
 import { matchupCols } from "@/lib/cols";
 import { detail, KIND_LABEL, type Roster, type RosterPlayer, type StatRow } from "@/lib/client";
 
@@ -121,9 +122,9 @@ export default function MatchupsPage() {
 
       {rows && !loading && (
         rows.length === 0 ? (
-          <p className="rounded-xl border border-line bg-surface p-4 text-sm text-muted">
+          <Card className="text-sm text-muted">
             {pName ?? "該球員"} 在「{KIND_LABEL[kind]}」生涯無對戰{oppLabel}紀錄。
-          </p>
+          </Card>
         ) : (
           <>
             <h2 className="mb-3 text-lg font-semibold">

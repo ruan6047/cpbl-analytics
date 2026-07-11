@@ -4,6 +4,7 @@
 // 素材全來自既有資料：winprob 逐打席序列 × livelog 事件文，零新請求。
 import type { StatRow } from "@/lib/client";
 import type { WpPoint } from "@/components/win-prob-chart";
+import { Card } from "@/components/ui";
 import { contrastText, teamColor } from "@/lib/teams";
 
 const num = (v: StatRow[string]) => Number(v) || 0;
@@ -113,7 +114,7 @@ export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       {key.length > 0 && (
-        <div className="min-w-0 rounded-xl border border-line bg-surface p-3">
+        <Card padding="p-3" className="min-w-0">
           <div className="mb-1.5 flex items-baseline justify-between px-3 pt-1">
             <span className="text-sm font-semibold">
               關鍵時刻 <span className="text-xs font-normal text-faint">（點擊看該打席）</span>
@@ -129,10 +130,10 @@ export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor
                 homeColor={homeColor} awayColor={awayColor} onJump={onJump} />
             ))}
           </div>
-        </div>
+        </Card>
       )}
       {(highlights.length > 0 || info.length > 0 || mvp || decisions.length > 0) && (
-        <div className="flex min-w-0 flex-col gap-4 rounded-xl border border-line bg-surface p-4">
+        <Card className="flex min-w-0 flex-col gap-4">
           {mvp && (
             <div className="flex items-center gap-3 rounded-lg bg-accent/5 px-3 py-2.5">
               <span className="shrink-0 rounded-md bg-accent px-2 py-0.5 text-xs font-bold text-white">MVP</span>
@@ -182,7 +183,7 @@ export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor
               ))}
             </dl>
           )}
-        </div>
+        </Card>
       )}
     </div>
   );
@@ -215,7 +216,7 @@ export function Pregame({ m }: { m: PregameMatchup }) {
     </div>
   );
   return (
-    <div className="rounded-xl border border-line bg-surface p-4">
+    <Card>
       <div className="mb-3 text-sm font-semibold">
         賽前展望 <span className="text-xs font-normal text-faint">（模型參考勝率・詳見賽事預測頁）</span>
       </div>
@@ -233,6 +234,6 @@ export function Pregame({ m }: { m: PregameMatchup }) {
           全特徵邏輯回歸即時擬合（回測 ~62%，全押主場 ~53%）；單場勝負可預測性有限，供參考與教育用途。
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

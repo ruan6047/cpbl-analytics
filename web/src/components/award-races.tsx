@@ -1,4 +1,4 @@
-import { PlayerLink } from "@/components/ui";
+import { Card, PlayerLink } from "@/components/ui";
 
 // 本季「年度獎項」競逐：各類別當季前五名（用現有排行資料即算，非歷史得獎次數）。
 // rate 類（打擊率/防禦率…）套規定門檻（qualKey ≥ qualMin），避免少打席洗榜。
@@ -46,7 +46,7 @@ export function AwardRaces({
           const list = top5(rows, cat, qualKey, qualMin);
           if (!list.length) return null;
           return (
-            <div key={cat.key} className="rounded-xl border border-line bg-surface p-3">
+            <Card key={cat.key} padding="p-3">
               <div className="mb-1.5 text-xs font-semibold text-muted">{cat.label}</div>
               <ol className="space-y-1 text-sm">
                 {list.map((p, i) => (
@@ -59,7 +59,7 @@ export function AwardRaces({
                   </li>
                 ))}
               </ol>
-            </div>
+            </Card>
           );
         })}
       </div>

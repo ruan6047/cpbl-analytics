@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { detail, type StatRow } from "@/lib/client";
 import { fmtIPParts } from "@/lib/format";
 import GameBoard, { type Live } from "@/components/game-board";
-import { EmptyState } from "@/components/ui";
+import { Card, EmptyState } from "@/components/ui";
 import { DataTable, type Column } from "@/components/table";
 import { WinProbChart, type WpPoint } from "@/components/win-prob-chart";
 import { fanNick, teamColor, teamShort } from "@/lib/teams";
@@ -470,7 +470,7 @@ export default function GameLivePage() {
 
       {/* 決勝資訊已併入總覽焦點卡；僅歷史無逐打席場次（無總覽）時在此顯示 */}
       {data.livelog.length === 0 && (decisionItems.length > 0 || mvp) && (
-        <div className="mb-6 flex flex-wrap gap-x-5 gap-y-1.5 rounded-xl border border-line bg-surface px-4 py-3 text-sm">
+        <Card padding="px-4 py-3" className="mb-6 flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
           {decisionItems.map((d) => (
             <span key={d.label}><span className="text-muted">{d.label}</span> <span className="font-medium text-ink">{d.value}</span>
               {d.note ? <span className="ml-1 text-xs text-muted">{d.note}</span> : null}</span>
@@ -479,7 +479,7 @@ export default function GameLivePage() {
             <span><span className="text-muted">MVP</span> <span className="font-medium text-ink">{ppl[String(g.mvp_id)]}</span>
               {dc?.mvp ? <span className="ml-1 text-xs text-muted">本季第 {dc.mvp} 次</span> : null}</span>
           )}
-        </div>
+        </Card>
       )}
 
       {/* 本場焦點 / 賽事資訊 已整併進總覽右卡（GameOverview），此處不重複 */}

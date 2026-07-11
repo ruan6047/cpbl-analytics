@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ActivePill, EraBadge, GonePill, NameTag, PlayerLink } from "@/components/ui";
+import { ActivePill, Card, EraBadge, GonePill, NameTag, PlayerLink } from "@/components/ui";
 import { api } from "@/lib/api";
 import { eraBadge } from "@/lib/teams";
 
@@ -12,7 +12,7 @@ type GameRec = { year: number; date: string; home: string; away: string; hs: num
 function GameCard({ label, rec, hint }: { label: string; rec: GameRec; hint: string }) {
   if (!rec) return null;
   return (
-    <div className="rounded-xl border border-line bg-surface p-4">
+    <Card>
       <div className="text-[11px] font-medium text-muted">{label}</div>
       <div className="mt-2 flex items-center justify-between text-sm">
         <NameTag name={rec.away} /><span className="font-mono text-lg font-bold tabular-nums">{rec.as}</span>
@@ -21,7 +21,7 @@ function GameCard({ label, rec, hint }: { label: string; rec: GameRec; hint: str
         <NameTag name={rec.home} /><span className="font-mono text-lg font-bold tabular-nums">{rec.hs}</span>
       </div>
       <div className="mt-2 text-[11px] text-faint">{rec.date}　{hint}</div>
-    </div>
+    </Card>
   );
 }
 
@@ -29,18 +29,18 @@ function SeasonTile({ label, rec, fmt }: { label: string; rec?: { name: string; 
   const r = rec?.[0];
   if (!r) return null;
   return (
-    <div className="rounded-xl border border-line bg-surface p-3">
+    <Card padding="p-3">
       <div className="text-[11px] text-muted">{label}</div>
       <div className="mt-0.5 font-mono text-xl font-bold tabular-nums text-accent">{fmt ? fmt(r.val) : r.val}</div>
       <div className="mt-0.5 text-xs text-ink"><PlayerLink pid={r.pid} name={r.name} /><span className="ml-1 text-faint">{r.year}</span></div>
-    </div>
+    </Card>
   );
 }
 
 function LeaderList({ title, rows, fmt }: { title: string; rows?: { name: string; pid: string; val: number; active?: boolean }[]; fmt?: (v: number) => string }) {
   if (!rows?.length) return null;
   return (
-    <div className="rounded-xl border border-line bg-surface p-4">
+    <Card>
       <div className="mb-2 text-sm font-semibold text-ink">{title}</div>
       <ol className="space-y-1.5 text-sm">
         {rows.map((r, i) => (
@@ -54,7 +54,7 @@ function LeaderList({ title, rows, fmt }: { title: string; rows?: { name: string
           </li>
         ))}
       </ol>
-    </div>
+    </Card>
   );
 }
 

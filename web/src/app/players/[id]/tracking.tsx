@@ -82,11 +82,11 @@ export function TrackingSection({ disc, role, seasonKind }: { disc: Disc | null;
         {disc && disc.points.length > 0 && (
           <div className="mt-6">
             <h3 className="mb-2 text-sm font-medium text-muted">進壘熱區 × 打擊成績</h3>
-            <div className="grid grid-cols-2 gap-3 rounded-xl border border-line bg-surface p-4 sm:grid-cols-3 lg:grid-cols-5">
+            <Card className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
               {(([["ev", "擊球初速 AVG"], ["la", "擊球仰角 AVG"], ["ba", "安打率"], ["hard", "強擊球%"], ["whiff", "揮空率"]] as [HeatMetric, string][])).map(([m, t]) => (
                 <Grid3x3 key={m} points={pointsF} metric={m} title={t} />
               ))}
-            </div>
+            </Card>
             <div className="mt-2 flex items-center justify-center gap-2 text-[10px] text-faint">
               低<span className="inline-block h-2 w-20 rounded-full" style={{ background: PR_GRADIENT }} />高
               <span>白＝本人均值 · 每格 n&lt;3 顯「—」· 捕手視角</span>

@@ -5,6 +5,7 @@
 // 點擊任一點 → onSelect(evt) 跳到該打席（由父層切到逐打席視圖）。
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { chartTooltip, useChartTheme } from "@/lib/chart-theme";
+import { Card } from "@/components/ui";
 
 export type WpPoint = { evt: string | null; inning: number | null; half: string | null;
   hitter: string | null; away: number; home: number; wp: number };
@@ -25,7 +26,7 @@ export function WinProbChart({ items, homeName, awayName, homeColor, onSelect }:
   });
 
   return (
-    <div className="rounded-xl border border-line bg-surface p-4">
+    <Card>
       <div className="mb-1 flex items-baseline justify-between">
         <div className="text-sm font-semibold">
           勝率變化 <span className="text-xs font-normal text-faint">（逐打席推算・{homeName} 視角{onSelect ? "・點擊跳至該打席" : ""}）</span>
@@ -65,6 +66,6 @@ export function WinProbChart({ items, homeName, awayName, homeColor, onSelect }:
             dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
         </LineChart>
       </ResponsiveContainer>
-    </div>
+    </Card>
   );
 }
