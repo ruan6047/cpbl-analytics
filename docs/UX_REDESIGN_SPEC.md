@@ -1,7 +1,7 @@
 # UX-1 全站 UI/UX 重新設計 — 規劃 Spec
 
-> 看板卡：[`TASKS.md`](TASKS.md) UX-1。規劃 by Fable-5@Claude Code（07-11），🚦待 ruan6047 核可。
-> 核可後子卡（UX-2〜UX-9）依序開卡執行；本檔隨 UX-1 全數結案後移 `docs/archive/`（workflow §6.4）。
+> 看板卡：[`TASKS.md`](TASKS.md) UX-1。規劃 by Fable-5@Claude Code（07-11），✅ ruan6047 **已核可 v5**（07-11）。
+> UX-2〜UX-10 已依依賴序開卡進 Ledger，待派工執行；本檔隨 UX-1 全數結案後移 `docs/archive/`（workflow §6.4）。
 
 ---
 
