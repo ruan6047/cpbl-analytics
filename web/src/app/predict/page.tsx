@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { MatchupCard } from "@/components/matchup-card";
+import { Tooltip } from "@/components/tooltip";
 import {
   type Backtest,
   clientGet,
@@ -179,21 +180,20 @@ export default function PredictPage() {
               <div className="flex flex-wrap gap-2">
                 {curFeats.map((f) => {
                   const on = selected.includes(f.key);
+                  const btn = (
+                    <button onClick={() => toggle(f.key)}
+                      className={`rounded-lg border px-3 py-1.5 text-sm transition ${
+                        on ? "border-accent bg-ink/15 text-accent"
+                          : "border-line bg-surface-2 text-faint hover:border-line"}`}>
+                      {on ? "✓ " : ""}
+                      {f.label}
+                    </button>
+                  );
                   return (
-                    <div key={f.key} className="group relative">
-                      <button onClick={() => toggle(f.key)}
-                        className={`rounded-lg border px-3 py-1.5 text-sm transition ${
-                          on ? "border-accent bg-ink/15 text-accent"
-                            : "border-line bg-surface-2 text-faint hover:border-line"}`}>
-                        {on ? "✓ " : ""}
-                        {f.label}
-                      </button>
-                      {f.desc && (
-                        <span role="tooltip"
-                          className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 w-60 -translate-x-1/2 rounded-lg border border-line bg-neutral-900 px-3 py-2 text-xs leading-relaxed text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-                          {f.desc}
-                        </span>
-                      )}
+                    <div key={f.key}>
+                      {f.desc
+                        ? <Tooltip content={f.desc} suppressUnderline>{btn}</Tooltip>
+                        : btn}
                     </div>
                   );
                 })}

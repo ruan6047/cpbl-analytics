@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { NameTag, prColor } from "@/components/ui";
 import { fmtIP } from "@/lib/format";
+import { Tooltip } from "@/components/tooltip";
 
 export type Fmt = "i" | "f1" | "f2" | "f3" | "ip";
 export type Tone = "accent" | "dim" | "warn";
@@ -65,7 +66,6 @@ export default function Leaderboard({
   const [sortKey, setSortKey] = useState(defaultSort);
   const [dir, setDir] = useState<1 | -1>(defaultDir);
   const [sel, setSel] = useState<Record<string, string>>({});
-  const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
 
   const options = useMemo(() => {
     const m: Record<string, string[]> = {};
@@ -156,13 +156,6 @@ export default function Leaderboard({
               {cols.map((c) => {
                 const active = c.key === sortKey;
                 const sortable = c.sortable !== false;
-                // 表頭 tooltip：滑鼠(hover)與鍵盤(focus)皆可觸發；focus 用元素矩形定位
-                const showTip = c.tip
-                  ? (x: number, y: number) => setTip({ text: c.tip!, x, y })
-                  : undefined;
-                const tipClass = c.tip
-                  ? "underline decoration-line decoration-dotted underline-offset-4"
-                  : "";
                 const arrow = active ? (dir === -1 ? " ↓" : " ↑") : sortable ? <span className="text-faint"> ↕</span> : "";
                 return (
                   <th
@@ -175,28 +168,23 @@ export default function Leaderboard({
                       <button
                         type="button"
                         onClick={() => onSort(c.key)}
-                        onMouseEnter={showTip ? (e) => showTip(e.clientX, e.clientY) : undefined}
-                        onMouseMove={showTip ? (e) => showTip(e.clientX, e.clientY) : undefined}
-                        onMouseLeave={() => setTip(null)}
-                        onFocus={showTip ? (e) => { const r = e.currentTarget.getBoundingClientRect(); showTip(r.left, r.bottom); } : undefined}
-                        onBlur={() => setTip(null)}
-                        className={`inline-flex items-center font-medium hover:text-ink ${tipClass}`}
+                        className="inline-flex items-center font-medium hover:text-ink"
                       >
-                        {c.label}
+                        {c.tip ? (
+                          <Tooltip content={c.tip}>
+                            <span className="underline decoration-line decoration-dotted underline-offset-4">{c.label}</span>
+                          </Tooltip>
+                        ) : (
+                          c.label
+                        )}
                         {arrow}
                       </button>
                     ) : c.tip ? (
-                      <span
-                        tabIndex={0}
-                        onMouseEnter={showTip ? (e) => showTip(e.clientX, e.clientY) : undefined}
-                        onMouseMove={showTip ? (e) => showTip(e.clientX, e.clientY) : undefined}
-                        onMouseLeave={() => setTip(null)}
-                        onFocus={showTip ? (e) => { const r = e.currentTarget.getBoundingClientRect(); showTip(r.left, r.bottom); } : undefined}
-                        onBlur={() => setTip(null)}
-                        className={tipClass}
-                      >
-                        {c.label}
-                      </span>
+                      <Tooltip content={c.tip}>
+                        <span className="underline decoration-line decoration-dotted underline-offset-4 outline-none focus-visible:text-ink">
+                          {c.label}
+                        </span>
+                      </Tooltip>
                     ) : (
                       c.label
                     )}
@@ -237,15 +225,6 @@ export default function Leaderboard({
           </tbody>
         </table>
       </div>
-
-      {tip && (
-        <div
-          className="pointer-events-none fixed z-50 max-w-xs rounded-md border border-line bg-zinc-800 px-2.5 py-1.5 text-xs leading-relaxed text-white shadow-xl"
-          style={{ left: tip.x + 14, top: tip.y + 16 }}
-        >
-          {tip.text}
-        </div>
-      )}
     </div>
   );
 }

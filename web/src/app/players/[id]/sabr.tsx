@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import { detail } from "@/lib/client";
 import { DataTable, type Column } from "@/components/table";
+import { StatAbbr } from "@/components/ui";
 import type { Role } from "./lib";
 
 type SabrYear = {
@@ -40,12 +41,12 @@ export function SabrSection({ id, role }: { id: string; role: Role }) {
 
   const reColumns: Column<SabrYear>[] = [
     { header: "年度", cell: (y) => y.year, sticky: true, nowrap: true },
-    { header: role === "batting" ? "PA" : "BF", cell: (y) => y.pa ?? y.bf ?? "—", align: "right" },
-    { header: "RE24", cell: (y) => reCell(num(y.re24)), align: "right" },
+    { header: role === "batting" ? <StatAbbr abbr="PA" customDesc="打席數 (Plate Appearances)。" /> : <StatAbbr abbr="BF" customDesc="投手面對打席數 (Batters Faced)。" />, cell: (y) => y.pa ?? y.bf ?? "—", align: "right" },
+    { header: <StatAbbr abbr="RE24" customDesc="期望得分值：以24種壘包出局狀態期望值，計算該打席創造的真實得分價值（投手為壓制值，負數代表表現佳）。" />, cell: (y) => reCell(num(y.re24)), align: "right" },
     { header: "年度名次", cell: (y) => (y.rnk ? `${y.rnk}/${y.n}` : "—"), align: "right", className: "text-muted" },
     ...(role === "batting"
       ? [
-          { header: "wSB", cell: (y: SabrYear) => (num(y.wsb) != null ? signed(num(y.wsb)!) : "—"), align: "right" as const },
+          { header: <StatAbbr abbr="wSB" customDesc="加權盜壘值：衡量該球員盜壘成功與失敗，相較於聯盟平均創造的得分價值。" />, cell: (y: SabrYear) => (num(y.wsb) != null ? signed(num(y.wsb)!) : "—"), align: "right" as const },
           { header: "盜壘 SB-CS", cell: (y: SabrYear) => (y.sb != null ? `${y.sb}-${y.cs ?? 0}` : "—"), align: "right" as const, className: "text-muted" },
         ]
       : []),
@@ -53,8 +54,8 @@ export function SabrSection({ id, role }: { id: string; role: Role }) {
   const catColumns: Column<CatcherYear>[] = [
     { header: "捕手守備", cell: (y) => y.year, sticky: true, nowrap: true },
     { header: "接捕局數", cell: (y) => ipTxt(y.outs), align: "right" },
-    { header: <span title="接捕時每 9 局失分（含非自責）">RA/9</span>, cell: (y) => y.ra9 ?? "—", align: "right" },
-    { header: <span title="阻殺 / (阻殺+被盜)">阻殺率</span>, cell: (y) => (y.cs_pct != null ? `${y.cs_pct}%` : "—"), align: "right" },
+    { header: <StatAbbr abbr="RA/9" customDesc="接捕失分率：捕手蹲捕時，每 9 局球隊被得到的所有分數（含自責與非自責分）。" />, cell: (y) => y.ra9 ?? "—", align: "right" },
+    { header: <StatAbbr abbr="阻殺率" customDesc="阻殺成功率 = 阻殺次數 ÷ (阻殺次數 + 被盜壘成功次數)。" />, cell: (y) => (y.cs_pct != null ? `${y.cs_pct}%` : "—"), align: "right" },
     { header: "CS-被盜", cell: (y) => (y.cs != null ? `${y.cs}-${y.sba ?? 0}` : "—"), align: "right", className: "text-muted" },
   ];
 
