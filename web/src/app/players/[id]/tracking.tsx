@@ -15,7 +15,7 @@ import {
 } from "recharts";
 import { DataTable, type Column } from "@/components/table";
 import { chartTooltip, pitchColor, useChartTheme } from "@/lib/chart-theme";
-import { type Disc, type PitchType, type Role, QUALITY_GROUPS, PT_ORDER, ptTypesFrom } from "./lib";
+import { type Disc, type PitchType, type Role, QUALITY_GROUPS, ptSort, ptTypesFrom } from "./lib";
 import { CompositionPie, PitchTypeToggle } from "./parts";
 
 export function TrackingSection({ disc, role, seasonKind }: { disc: Disc | null; role: Role; seasonKind: "A" | "D" }) {
@@ -202,13 +202,13 @@ export function BattedMixSection({ disc, pitchMix, arsenal, role }: {
         <ArsenalCards items={arsenal ?? []} />
         {(pitchMix?.length ?? 0) > 0 && (() => {
           // 圖例＝各球數情境出現過的球種，依標準順序；段序也依此以維持顏色位置一致
-          const legend = PT_ORDER.filter((t) => pitchMix!.some((b) => b.mix.some((m) => m.pitch_type === t)));
+          const legend = ptSort(pitchMix!.flatMap((b) => b.mix.map((m) => m.pitch_type)));
           return (
           <>
             <div className="mb-2 text-xs text-muted">依球數情境</div>
             <div className="space-y-2.5">
               {pitchMix!.map((b) => {
-                const segs = PT_ORDER
+                const segs = legend
                   .map((t) => ({ t, pct: b.mix.find((m) => m.pitch_type === t)?.pct ?? 0 }))
                   .filter((s) => s.pct > 0);
                 return (

@@ -20,7 +20,7 @@
    ┌ 結構 ── paper/surface/surface-2＝三層底；line/line-strong＝分界；
    │         ink/muted/faint＝文字三級。
    ├ 語意 ── accent＝行動/焦點；up/down＝數據好壞；cpbl＝品牌藍；amber＝警示。
-   ├ 圖表 ── chart-1..6＝分類序列（含球種）；zone-*＝好球帶分區；status-*＝洋將身分。
+   ├ 圖表 ── chart-1..8＝分類序列（含球種）；zone-*＝好球帶分區；status-*＝洋將身分。
    │         recharts 走 props 不吃 CSS var → 用 lib/chart-theme.ts 的 useChartTheme()
    │         讀本 token；raw SVG 用 fill-/stroke- 工具類或 style{{fill:'var(--…)'}}。
    └ 隊色 ── lib/teams.ts 為唯一來源（身分色，非本檔 token）。
@@ -53,6 +53,10 @@
   --chart-4: #8b5cf6;
   --chart-5: #16a34a;
   --chart-6: #94a3b8;
+  --chart-7: #f472b6;
+  --chart-8: #d4a373;
+  --chart-7: #db2777;
+  --chart-8: #a16207;
   /* — 好球帶分區 — */
   --zone-heart: #b91c1c;         /* 核心區 */
   --zone-shadow: #ea580c;        /* 邊緣區 */

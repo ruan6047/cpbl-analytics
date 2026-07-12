@@ -228,6 +228,98 @@ def classify_v2(year: int, kind_code: str = "A") -> dict:
     return metrics
 
 
+def recluster_v2(year: int, kind_code: str = "A") -> dict:
+    """Phase2.5：逐投手重分群（k=6）→ QDA 質心命名 → 逐球寫 pitch_type_pred_v2。
+
+    v1 釘死 k=4 因規則命名「多分即錯」；v2 用 QDA 命名質心，**多分安全**——同名
+    子群自動合併，混合群（朱承洋 指叉+滑球同群、質心中性）被拆開後各得正名。
+    小群（<MIN_GROUP_N）先併入最近質心（z 空間歐氏距離）再命名，不丟球。
+    聯盟 FF 錨沿用 v1「速球」群（v1 欄不動，錨穩定）。fallback（<MIN_N 樣本
+    投手）沿 classify_v2 的 v1 群組標籤路徑，此處不動其結果。
+    """
+    from sklearn.cluster import KMeans
+
+    from cpbl.models.pitch_type import MIN_N, _complete_games, _load
+
+    x_mlb, y_mlb, mlb_anchor, _ = _load_mlb()
+    clf = make_pipeline(
+        StandardScaler(),
+        QuadraticDiscriminantAnalysis(
+            reg_param=0.05, priors=np.full(len(set(y_mlb)), 1 / len(set(y_mlb)))),
+    ).fit(x_mlb, y_mlb)
+
+    # 聯盟 FF 錨（同 classify_v2：v1 速球群加權平均，glove frame）
+    cents = _load_centroids(year, kind_code)
+    by_p: dict[str, list[dict]] = {}
+    for g in cents:
+        by_p.setdefault(g["acnt"], []).append(g)
+    ff_w = ff_ivb = ff_hb = 0.0
+    for g in cents:
+        if g["pred"] == "速球":
+            rh = 1.0 if (sum(x["side"] * x["n"] for x in by_p[g["acnt"]]) >= 0) else -1.0
+            ff_w += g["n"]; ff_ivb += g["ivb"] * g["n"]; ff_hb += g["hb"] * rh * g["n"]
+    cpbl_anchor = (ff_ivb / ff_w, ff_hb / ff_w)
+    sc_ivb, sc_hb = mlb_anchor[0] / cpbl_anchor[0], mlb_anchor[1] / cpbl_anchor[1]
+
+    feats = ("rel_speed", "ivb_cm", "hb_cm", "spin_rate")   # 群內含 spin（同系統無跨域偏差）
+    complete = _complete_games(year, kind_code)
+    preds: list[tuple[int, str, int, str]] = []
+    n_re = 0
+    for acnt, rows in _load(year, kind_code).items():
+        crows = [r for r in rows if r["game_sno"] in complete
+                 and all(r[c] is not None for c in feats)]
+        if len(crows) < MIN_N:
+            continue    # fallback 投手：保留 classify_v2 的群組標籤
+        n_re += 1
+        x = np.array([[r[c] for c in feats] for r in crows], dtype=float)
+        mu, sd = x.mean(axis=0), x.std(axis=0)
+        sd[sd == 0] = 1.0
+        z = (x - mu) / sd
+        k = min(6, len(crows))
+        lab = KMeans(n_clusters=k, random_state=0, n_init=10).fit_predict(z)
+        # 小群併最近大群質心（z 空間）
+        sizes = {c: int((lab == c).sum()) for c in set(lab)}
+        big = [c for c, n in sizes.items() if n >= MIN_GROUP_N]
+        if not big:
+            continue
+        zc = {c: z[lab == c].mean(axis=0) for c in set(lab)}
+        remap = {c: (c if c in big else min(big, key=lambda b: float(((zc[c] - zc[b]) ** 2).sum())))
+                 for c in set(lab)}
+        lab = np.array([remap[c] for c in lab])
+        # 質心 → QDA 命名（同 classify_v2 特徵構造）
+        rh = 1.0 if float(np.nanmean([r["rel_side"] for r in crows
+                                      if r["rel_side"] is not None])) >= 0 else -1.0
+        cent = {c: x[lab == c].mean(axis=0) for c in set(lab)}
+        top = max(m[0] for m in cent.values())
+        name = {c: _name(clf, np.array([m[0] / top, m[1] * sc_ivb, m[2] * rh * sc_hb]))
+                for c, m in cent.items()}
+        for r, c in zip(crows, lab, strict=True):
+            preds.append((r["game_sno"], acnt, r["pitch_cnt"], name[c]))
+
+    # 寫回（沿 v1 _write 的 temp-table 模式；只清重分群投手涵蓋的球）
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute("CREATE TEMP TABLE _pp2 (game_sno int, pitcher_acnt text, pitch_cnt int, "
+                    "pred text) ON COMMIT DROP")
+        with cur.copy("COPY _pp2 (game_sno, pitcher_acnt, pitch_cnt, pred) FROM STDIN") as cp:
+            for g, pa, pc, pr in preds:
+                cp.write_row((g, pa, pc, pr))
+        cur.execute(
+            "UPDATE cpbl.pitch_tracking t SET pitch_type_pred_v2 = _pp2.pred "
+            "FROM _pp2 WHERE t.year=%s AND t.kind_code=%s AND t.game_sno=_pp2.game_sno "
+            "AND t.pitcher_acnt=_pp2.pitcher_acnt AND t.pitch_cnt=_pp2.pitch_cnt",
+            (year, kind_code),
+        )
+        written = cur.rowcount
+    p2, n2 = _binary_precision(year, kind_code, "pitch_type_pred_v2", ("四縫", "伸卡"))
+    p3, n3 = _binary_precision(year, kind_code, "pitch_type_pred_v2", ("四縫",))
+    m = {"reclustered_pitchers": n_re, "pitches": len(preds), "written": written,
+         "v2_fastball_precision": round(p2, 4), "v2_n": n2,
+         "v2_ff_only_precision": round(p3, 4), "v2_ff_n": n3}
+    log.info("recluster_v2 %d/%s → %s", year, kind_code, m)
+    return m
+
+
 def report(year: int, kind_code: str, names: list[str]) -> None:
     """驗收報表：指定投手的 v1→v2 對照（含用量），供人工比對公開球探資訊。"""
     with conn() as c:
@@ -260,8 +352,10 @@ def main() -> None:
     args = ap.parse_args()
     from cpbl.db import migrate
     migrate()
-    m = classify_v2(args.year, args.kind)
+    m = classify_v2(args.year, args.kind)          # 群組標籤（含 fallback 投手）
     print(json.dumps(m, ensure_ascii=False, indent=2))
+    m2 = recluster_v2(args.year, args.kind)        # Phase2.5：重分群覆蓋主力投手
+    print(json.dumps(m2, ensure_ascii=False, indent=2))
     # 驗收 free test set：羅戈 + PTT 文章六終結者
     report(args.year, args.kind, ["羅戈", "曾峻岳", "林凱威", "鍾允華", "朱承洋", "林詩翔", "李振昌"])
 

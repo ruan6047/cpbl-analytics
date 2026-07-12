@@ -13,7 +13,7 @@ router = APIRouter()
 
 # 推算球種：優先 pitch_type_pred（軌跡導 IVB/HB → KMeans 分類，見 models/pitch_type.py），
 # 缺值退回 tagged 二元弱標籤。所有逐球球種聚合/篩選共用此表達式，回中文標籤。
-PT_EXPR = ("COALESCE(pitch_type_pred, CASE tagged_pitch_type "
+PT_EXPR = ("COALESCE(pitch_type_pred_v2, pitch_type_pred, CASE tagged_pitch_type "
            "WHEN 'fastball' THEN '速球' WHEN 'breakingball' THEN '變化球' END)")
 
 
