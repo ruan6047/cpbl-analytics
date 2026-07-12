@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 // 主審判決報告（推算）：季排行 + 單場報告（版式參考社群 CPBL Umpire Scorecard）。
 // 母體＝TrackMan called 球 vs 固定規則好球帶；覆蓋限 2026 起有設備場次；非官方分析。
 import { useEffect, useMemo, useState } from "react";
@@ -125,7 +127,8 @@ export default function UmpiresPage() {
           <h2 className="mb-3 text-lg font-semibold">主審排行（{board?.season ?? "—"}）</h2>
           <DataTable
             columns={[
-              { header: "主審", cell: (u) => u.umpire, nowrap: true, className: "font-sans text-ink" },
+              { header: "主審", nowrap: true, className: "font-sans text-ink",
+                cell: (u) => <Link href={`/people/umpire/${encodeURIComponent(u.umpire)}`} className="hover:text-accent hover:underline">{u.umpire}</Link> },
               { header: "場", cell: (u) => u.games, align: "right" },
               { header: "準確率", cell: (u) => `${u.acc}%`, align: "right", className: "font-semibold" },
               { header: "帶內", cell: (u) => `${u.strike_acc}%`, align: "right" },
