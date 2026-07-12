@@ -13,7 +13,8 @@
 | UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🔨子卡執行中（spec v5 已核可 07-11） |
 | UX-5A | 戰績頁（`/standings`）換裝 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（待 UX-5B 搬遷落地後換裝） |
 | UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | 待小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（**壓到 UX-6〜9 完成後**重製） |
-| UX-6 | 賽況群 `/games`、`/games/[sno]` | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
+| UX-6 | 賽況群 `/games`、`/games/[sno]` | ruan6047 | Fable-5@Claude Code | Opus/Fable@Claude Code | 待指派 | `ai/opus/UX-6` | ⚪ | 🔨執行中（換裝+焦點+Box標籤頁+分析tab 已落地，待截圖驗收） |
+| ML-PT2 | 球種細分 v2（MLB 標籤遷移） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | 🔴統計紅線 | 📋規劃完成待派工（Phase1 前端可先行） |
 | UX-7 | 球員/球隊頁 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
 | UX-8 | 排行與紀錄群 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
 | UX-9 | 週邊群 `/matchups`、`/venues` | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
@@ -76,10 +77,28 @@
 ### UX-6 賽況群  〔⚪一般〕
 - 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 頁面層）　分支：`ai/<執行者>/UX-6`
 - 執行：待指派　查核：待指派（≠執行者）
-- 範圍/驗收：`/games`、`/games/[sno]`；LIVE-1/ESPN 狀態板剛完成，主要對齊新元件語彙，預期改動小。5 秒盲測（「今天誰贏」）＋雙色系截圖。
-- 狀態：⏳待執行（通用層已齊，已解鎖待派工）　Commit：—
+- 範圍/驗收：`/games`、`/games/[sno]`。**卡性質＝換裝對齊＋焦點三振/效率家族擴充（含新邏輯，非純換裝）**（ruan6047 07-12 裁定）。
+  - **Part A 換裝（全做）**：A1 抽 `StatusBadge`（完賽/延賽/保留/未開打，全站唯一狀態語彙，`ui.tsx` 現無）→ list 收斂手刻兩套 pill；A2 amber 硬色 ×5 走 warn 語意 token（隊色/圖表色除外）；A3 emerald/sky（安打/保送）收斂進 `chart-theme`（比照 `PITCH_CALL`）；A4 detail 載入態 `EmptyState`→skeleton（記分條+linescore 骨架，防 CLS）+錯誤走 `ErrorState`；A5 延賽 banner 抽 `Notice/Callout`（warn）；A6 `Box Score`/`本場焦點`/`特殊紀錄`小標走 `Eyebrow`。
+  - **B2′ 焦點擴充（投打跑家族，07-12 追加，含新判定邏輯）**：標準三振門檻 **10→8**；新增 ①**連續三振**（同投手連續 **≥5** 打席全三振，跨局；門檻可調）②**單局三振**（同投手單半局 3K 即標，含上壘後補 K，較寬版）③**三球關門**（效率局：半局內該投手投球數 **≤3** 且完成 3 出局，雙殺可壓縮球數，如雙殺+高飛＝2 球 3 出局，label 顯示實際球數）④**連續解決打者**（同投手 rolling 連續解決 **≥6** 名，無安打/四死/失誤上壘，跨局；「超過六上六下」，六上六下本身即入選，label 顯示連續數；與 ① 可並存，屬不同層）⑤**單局連續盜壘**（同一跑者單半局盜 **≥2** 壘包，二盜接三盜/含盜本）⑥**雙盜壘**（double steal，同球兩跑者同時盜成功）⑦**全打席上壘**（打者單場所有打席皆上壘＝安打/四死，失誤·野選破壞；**PA ≥4**，門檻可調；label「N 打席全上壘」；重用 livelog PA kind hit/walk/out）⑧**先發全員安打**（某隊 9 名先發打者＝`role_type`＝先發且棒次 1–9 各 ≥1 安，隊級 chip；重用 box `role_type`/`batting_order`/`hits`）⑨**萬磁王**（球迷用語：打者單場觸身球 **≥2**；重用 livelog 死球 kind 觸身；**落地時補進 memory `cpbl-fan-lingo`**，比照劇場/問天/魯閣）⑩**盜本壘**（單獨一次真盜本即成標；重用 `sabr.py:337` `_SBH_RE`＝`三壘跑者…盜壘回本壘得分`，只認真盜本、不含暴投/野選回來得分；與 ⑤「含盜本」部分重疊但獨立成標）。**注意：當局 2 失誤已存在＝煮粥**（`page.tsx:258` scoreboard `error_cnt≥2`，球迷用語），不重做（如需中性非暱稱版另議）。⑤⑥ 重用 `sabr.py:336` 現成盜壘 regex（`([一二三])壘跑者…(?:雙)?盜壘上([二三])壘`），非腦補。**注意：單場雙盜壘（SB≥2）已存在**（`page.tsx:278`「N 次盜壘」），不重做。全從 `data.livelog`/box 客戶端算（比照中計/煮粥），**無 migration/後端**；僅 2018+ 有逐打席故歷史場自然不顯示（誠實，與現況一致）。
+  - **必聲明特例（不改、寫進 PR 免被當回歸）**：(a) detail 整頁 `"use client"`＝本質互動非「為互動翻頁」，維持；(b) `game-board.tsx:290` `ScoreLine` 手刻 `<table>`＝可點擊逐局比分導覽（每格 button+active+RHE 轉置雙列），欄定義式 `DataTable` 不適配，維持手刻+特例註記；(c) game-board 9 處 inline card shell 為 live board 特化面板（padding 不合 `Card`），保留+特例註記。
+  - **不做（scope creep／低 ROI，已評估）**：B2 Game Leaders 摘要、B3 深連結 `?pa=`（可另開後續小卡）、打者vs投手生涯對戰史、黏頂即時比分列、OG 分享圖、傷兵/預測陣容（無資料源）。
+  - 驗收：全站 grep 無 amber 硬色（games 群）；三態統一無 CLS；5 秒盲測（「今天誰贏」）＋深淺雙色系 375/1280 截圖；**焦點新標籤 ①–⑩（連續三振/單局三振/三球關門/連續解決≥6/單局連續盜壘/雙盜壘/全打席上壘/先發全員安打/萬磁王/盜本壘）各附 2018+ 實際觸發樣本逐項驗證判定**；`tsc`＋`build:check` 綠。**執行維持 Opus**：逐球序/連續判定錯了難察覺（非 ML 紅線故不動 Fable）。
+- 狀態：🔨執行中（`ai/opus/UX-6`；Part A＋焦點①–⑩＋Box中文 已落地綠燈，待視覺驗收）　Commit：—
 - Log：
   - 07-11 spec v5 核可後開卡
+  - 07-12 ruan6047 規劃定案：Part A 換裝全做＋B1 上/下一場導覽加碼；B2/B3 排除。實測盤點：games 群硬色（amber×5 狀態警示／emerald·sky×4 圖表語意）、inline card shell 13 處、手寫 table 1（ScoreLine 特例）、`Eyebrow/Skeleton/StatAbbr` 現用量 0
+  - 07-12 ruan6047 追加焦點三振/效率家族並裁定併入本卡：8K 門檻、連續三振 ≥5、單局 3K（寬版）、三球關門（效率局，雙殺壓縮出局，如雙殺+高飛）。接受「純換裝盲測基準被稀釋」代價，PR 須明講含新判定邏輯＋逐球樣本驗證
+  - 07-12 執行（Opus）落地：**Part A 全 6 項**（`StatusBadge`/`Notice` 新元件、amber→token、hit/walk→`chart-theme.PA_KIND`、載入 skeleton、Eyebrow 小標）＋**Box Score 表頭中文**（ruan6047 追加，用專案 2 字語彙 打數/安打/全打/被轟…）＋**焦點①–⑩＋8K**（`[sno]/page.tsx` 稀有成就插 `nGameLevel` 之後）。`tsc`＋`build:check` 綠、games 群無數字硬色。DB 抽樣驗證：③三球關門 game84-inn5（高飛+雙殺=3球3出局，`pitch_cnt` delta 正確）、⑤⑥⑩盜壘 regex（雙盜本抓名正確）、⑧先發全員安打 2025一軍 12 場。**待辦**：視覺雙色系 375/1280 截圖驗收、焦點優先序微調（splice 12）
+  - 07-12 ruan6047 令：**B1 上/下一場導覽不做，刪除**（原「零新請求」前提不成立，取鄰場需額外資料源，ROI 不足）。UX-6 範圍收斂為 換裝＋焦點擴充
+  - 07-12 ruan6047 追加 6 項並落地（Opus，`tsc`＋`build:check`＋`ruff` 綠）：①**選手名連結**（Box Score/MVP/決勝/先發 包 `PlayerLink`，逐打席除外，低調 hover 樣式）②**延賽資訊移入賽事資訊卡裁判下方**（`info` dl，歷史無總覽場走 `Notice` fallback）③**計分板再見/免打局 Ｘ**（主隊獲勝末局：未打＝Ｘ、再見得分＝分數後Ｘ；「有無打」以 livelog 半局為準，scoreboard 對未打局有 phantom 0 不可信；無 livelog 不套用）④**季後賽併入月曆**（calendar API `kind ANY`：A→[A,E,C]／D→[D,F]；前端 key 補 kind_code 防撞號＋季後賽標記 台灣大賽/季後挑戰賽/二軍季後）。E=一軍挑戰賽·C=台灣大賽·F=二軍季後（已抽樣確認）
+  - 07-12 ruan6047 追加 **Box Score 標籤頁重構**（規劃→核可→落地，Fable）：官網式單隊分頁（客/主/分析）新元件 `box-tabs.tsx`——單隊全寬補欄（打者 棒次/守位/季AVG＝livelog 首事件推導；投手 面對打席/好球率＝PA島/『總球數−壞球』，界內球 is_ball/is_strike 皆 f 不能數 is_strike）＋分析 tab。逐打席 chips 欄裁定不做（純數字欄）。
+  - 07-12 ruan6047 二輪修正分析 tab（Fable）：**原始統計數改比率指數、砍重複圖**——(a) C1 攻擊對比 recharts 蝴蝶條（負值堆疊+LabelList 不可控）→ **手刻 `CompareRows` 對比條**（中央分軸客左主右、列內 max 正規化、粗體=較佳方含 lowBetter 反向）；指標改「box 一眼看不出」：上壘率/長打率/得點圈打擊率（livelog 打席島首事件壘況+末事件判 AB/安，附 x/y 樣本）/得分效率（得分÷上壘人次）/三振率；(b) **C2 累計得分刪除**（與 linescore 重複）；(c) **C4 球速散點刪除**（投手類型不同跨投手比速無意義）→ 改**投手效率指數卡**：好球率/首球好球率/揮空率（`揮棒落空`/`擊出` content 重建）/每打席用球/單場 WHIP；(d) C3 投手用球堆疊條保留（好球=隊色、壞球=同隊 tint）。全從 gameLive payload 客戶端推導零新請求；`tsc`＋`build:check` 綠（detail 20.2kB）
+  - 07-12 ruan6047 追加**擊球落點圖**（分析 tab 投手用球右側）——**已實作 ✅**（`ruff`+`tsc`+`build:check` 綠、detail 21.7kB；DB 抽驗每場 ~45–53 點、分類分布合理 33out/9·1b/5·2b/1·3b）。實作照下列規劃：
+    - 資料：後端 `/games/{sno}/live` 加 `spray` 陣列（`pitch_tracking` WHERE game + `pitch_call='InPlay'` + hit_direction/distance 非空，~60列/場；`_batted_result(content)` 分類 hr/3b/2b/1b/out）。**先把 `_batted_result` 從 `routers/tracking.py` 抬升 `api/helpers.py`** 兩 router 共用（單一事實來源）；否決「擴 tracking SELECT+前端分類」（TS 重寫分類器=雙事實來源）
+    - 前端：**重用既有 `components/spray-chart.tsx` 不改**（場地/牆深/HR推牆外/Barrel★/圖例開關/theme-safe 全備）；卡內客/主 chips 切換（預設客，同 Box 一次一隊哲學；點色=BATTED_OUTCOME 結果語意色不可換隊色）；`hitter_acnt`→side 用 batting box map；`Live` type 加 `spray?`
+    - 空態三層：無設備（既有虛線文案）／TrackMan 延遲（EmptyState）／單隊 0 筆
+    - 改動：helpers.py＋tracking.py＋games.py＋game-board.tsx(type)＋box-tabs.tsx；P2 可選 spray-chart 加 `<title>` tooltip＋`hideLegend`
+    - 驗收：2026 TrackMan 場點數=SQL 筆數、HR 牆外；375px/深色；`ruff`+`tsc`+`build:check` 綠
 
 ### UX-7 球員/球隊頁  〔⚪一般〕
 - 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 頁面層）　分支：`ai/<執行者>/UX-7`
@@ -96,6 +115,20 @@
 - 狀態：⏳待執行（通用層已齊，已解鎖待派工）　Commit：—
 - Log：
   - 07-11 spec v5 核可後開卡
+
+### ML-PT2 球種細分 v2（MLB 標籤遷移）  〔🔴紅線：統計/ML 正確性〕
+- 需求：ruan6047（07-12，源自 PTT 文章 https://www.ptt.cc/bbs/Baseball/M.1783764883.A.6A9.html ）　規劃：Fable-5@Claude Code　分支：`ai/<執行者>/ML-PT2`
+- 執行：待指派（Phase2 限 Fable）　查核：待指派（≠執行者，建議人審 repertoires）
+- 背景：文章方法＝①軌跡反推位移（我們 v1 已有 `ivb_cm/hb_cm` 99.95% 覆蓋+`spin_rate`）②MLB Statcast 有標籤資料訓練模型套中職細分球種（我們 v1 只有逐投手 KMeans k=4+啟發式命名）。可取處只有②標籤遷移。
+- **統計風險（必解，文章未解）**：(1) 速度域偏移——中職均速低 MLB ~8–10km/h，特徵必用「相對速度」（佔該投手速球均速比例）勿用絕對值；(2) 量測系統差 TrackMan vs Hawk-Eye——spin 用相對值或棄用、pfx 吋→cm、座標方向對齊；(3) 左投鏡像——`players.throws` 已驗證存在，訓練/推論統一鏡像；(4) 臨界球種抖動（文章實例：變速/指叉各半）。
+- **架構＝cluster-then-label**（保 v1 資產）：保留 v1 逐投手 KMeans（羅戈重現/fastball agreement 94%），MLB 分類器（LightGBM/GMM）只對 **cluster 質心**命名（相對速度/IVB/HB/ext，鏡像後）→ 四縫/二縫/卡特/滑球/sweeper/曲球/變速/指叉；臨界 cluster 誠實輸出複合名（「變速/指叉」）。⚠️ v1 踩雷「固定 k=4 勿自動選 k」，v2 若放寬 k 先回查原因。
+- 資料：pybaseball/Savant CSV 2023–25（~2M 球，篩掉 EP/KN 稀有種），一次性離線存 `data/`（gitignored），研究用途合規不散布。
+- **驗收紅線（全贏才換）**：(a) tagged 二元 agreement ≥ v1 94%；(b) 羅戈球路重現；(c) 人工比對 5–10 名有公開球探資訊投手——**文章 6 名終結者當 free test set**（曾峻岳速球/滑球、林凱威 sweeper、鍾允華/李振昌臨界案例）；(d) `model_versions(task='pitch_type')` 落庫、v1/v2 欄並存對照，贏了才切前端。
+- **執行序**：Phase1（低風險先行，⬇️Sonnet）＝D1 球員頁投手「球種位移圖」HB×IVB 散點（按球種著色+聯盟平均十字，資料全在庫不依賴 v2）＋D2 球種成績單（球種×均速/位移/轉速/使用率 vs 聯盟平均）；Phase2（🔴Fable、容器內）＝MLB 資料+特徵對齊+質心標籤器+驗收；Phase3（⬇️Haiku/Sonnet）＝全量重跑 `cpbl-classify-pitches`+前端換名。
+- 狀態：🔨Phase1 完成（`ai/opus/UX-6` 分支上；Phase2 待另開）　Commit：—
+- Log：
+  - 07-12 ruan6047 提 PTT 文章要求研究；Fable 規劃完成（先不實作）。已驗證：`players.throws` 存在、位移特徵覆蓋 99.95%
+  - 07-12 ruan6047 令執行 → **Phase1 落地 ✅**（Fable；`ruff`+`tsc`+`build:check` 綠）：後端 `/players/{id}/movement`（逐球 IVB×HB + 本人/聯盟各球種平均；**聯盟 HB 左投先鏡像右投視角再平均、回傳依本人慣用手翻回**）；前端 `MovementSection`（players 頁投手視角：HB×IVB 散點按球種著色 pitchColor+聯盟平均◆菱形+D2 成績單表 球數/使用率/均速/轉速/IVB/HB vs 聯盟，DataTable bare）。**實測命中文章觀察**：曾峻岳速球 151.6 vs 聯盟 144.7（文章「快非常多」✓）、羅戈四球種與 v1 一致、右投速球 HB 負/滑球正物理合理。**Phase2（MLB 標籤遷移，🔴Fable）未動**，照卡另開
 
 ### UX-9 週邊群  〔⚪一般〕
 - 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 頁面層）　分支：`ai/<執行者>/UX-9`
