@@ -209,7 +209,7 @@ URL（`http://cpbl-analytics:4001/api/info`）。
    - scope：`ingest` `features` `models` `api` `infra`（可省略）
 2. **一個邏輯變更一個 commit**。
 3. **嚴禁 commit**：`.env`、`data/`、`artifacts/`、`.venv/`、credentials。
-4. push 前確認 `uv run ruff check` 通過、`cpbl-train` 回測未退化。
+4. push 前確認 `uv run ruff check`＋`uv run pytest` 通過（路由快照：新端點同步加 EXPECTED）、`cpbl-train` 回測未退化。
 
 ---
 

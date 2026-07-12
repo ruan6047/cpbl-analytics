@@ -1,4 +1,4 @@
-"""路由快照：44 個端點一個都不能少（拆分 main.py 為 routers 時的守門測試）。
+"""路由快照：54 個端點一個都不能少（拆分 main.py 為 routers 時的守門測試）。
 
 新增端點時把路徑加進 EXPECTED；若這條測試因「少了路徑」而 fail，代表重構
 弄丟了端點，不是快照過期。
@@ -16,6 +16,9 @@ EXPECTED = {
     "/api/v1/games/calendar",
     "/api/v1/games/recent",
     "/api/v1/games/{game_sno}/live",
+    "/api/v1/games/{game_sno}/milestones",
+    "/api/v1/games/{game_sno}/umpire",
+    "/api/v1/games/{game_sno}/winprob",
     "/api/v1/matchups",
     "/api/v1/outcome/backtest",
     "/api/v1/outcome/evaluate",
@@ -32,15 +35,20 @@ EXPECTED = {
     "/api/v1/players/{player_id}/discipline",
     "/api/v1/players/{player_id}/fielding",
     "/api/v1/players/{player_id}/matchups",
+    "/api/v1/players/{player_id}/movement",
     "/api/v1/players/{player_id}/pitch-mix",
     "/api/v1/players/{player_id}/pitching",
     "/api/v1/players/{player_id}/profile",
+    "/api/v1/players/{player_id}/sabr",
     "/api/v1/players/{player_id}/season",
     "/api/v1/players/{player_id}/splits",
+    "/api/v1/players/{player_id}/traits",
     "/api/v1/players/{player_id}/trend",
     "/api/v1/players/{player_id}/trend-career",
     "/api/v1/players/{player_id}/vs-team",
+    "/api/v1/postseason-summary",
     "/api/v1/projections/batting",
+    "/api/v1/projections/pitching",
     "/api/v1/records",
     "/api/v1/season/batting-leaders",
     "/api/v1/season/fielding",
@@ -51,8 +59,10 @@ EXPECTED = {
     "/api/v1/standings",
     "/api/v1/standings-trend",
     "/api/v1/teams",
+    "/api/v1/teams/{code}/der",
     "/api/v1/teams/{code}/eras",
     "/api/v1/teams/{code}/players",
+    "/api/v1/umpires",
     "/api/v1/venues",
     "/healthz",
 }
