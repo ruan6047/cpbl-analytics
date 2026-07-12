@@ -49,6 +49,12 @@ _MERGE = {"SV": "CU", "KC": "CU", "FO": "FS"}     # 近親併類
 _ZH = {"FF": "四縫", "SI": "伸卡", "FC": "卡特", "SL": "滑球",
        "ST": "橫掃", "CU": "曲球", "CH": "變速", "FS": "指叉"}
 
+# 臨界帶有約定俗成球種名者用正名（ruan6047 07-12 查證）：指叉↔變速＝指叉變速球
+# (split-change)、滑球/橫掃↔曲球＝滑曲球 (slurve，2023 起 Statcast 官方球種)。
+# 其餘無正名的臨界對維持「top1/top2」方向複合名。
+_HYBRID = {frozenset({"FS", "CH"}): "指叉變速", frozenset({"SL", "CU"}): "滑曲球",
+           frozenset({"ST", "CU"}): "滑曲球"}
+
 MIN_GROUP_N = 20     # 質心樣本數下限：更小的群不命名（v2 留 NULL，誠實缺席）
 _P1_MIN = 0.55       # top1 posterior 低於此 → 複合名
 _P1_DOM = 1.8        # top1 ≥ 1.8×top2 才視為單一名
@@ -120,7 +126,7 @@ def _name(clf, feat: np.ndarray) -> str:
     p1, p2 = p[order[0]], p[order[1]]
     if p1 >= _P1_MIN and p1 >= _P1_DOM * p2:
         return _ZH[c1]
-    return f"{_ZH[c1]}/{_ZH[c2]}"
+    return _HYBRID.get(frozenset({c1, c2})) or f"{_ZH[c1]}/{_ZH[c2]}"
 
 
 def _binary_precision(year: int, kind_code: str, col: str, fastball_names: tuple[str, ...]) -> tuple[float, int]:

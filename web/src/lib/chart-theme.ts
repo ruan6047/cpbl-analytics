@@ -100,9 +100,10 @@ export function useChartTheme(): ChartTheme {
 // v2 細分球種（ML-PT2）：色槽依 top1 段（複合名取 '/' 前段）；
 // v1 遺留名（fallback 投手/二軍）：速球→四縫槽、變化球→faint、其餘複合名同樣取 top1。
 const PITCH_ORDER = ["四縫", "伸卡", "卡特", "滑球", "橫掃", "曲球", "變速", "指叉"] as const;
+const PITCH_ALIAS: Record<string, string> = { 速球: "四縫", 指叉變速: "指叉", 滑曲球: "曲球" };
 export function pitchColor(ct: ChartTheme, pitch: string): string {
   let seg = pitch.split("/")[0];
-  if (seg === "速球") seg = "四縫";
+  seg = PITCH_ALIAS[seg] ?? seg;
   const idx = PITCH_ORDER.indexOf(seg as (typeof PITCH_ORDER)[number]);
   return idx >= 0 ? ct.series[idx] : ct.faint;
 }
