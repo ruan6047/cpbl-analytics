@@ -12,7 +12,10 @@
 |---|---|---|---|---|---|---|---|---|
 | UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🔨子卡執行中（spec v5 已核可 07-11） |
 | UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | 待小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（**壓到 UX-6〜9 完成後**重製） |
-| UX-7 | 個人頁：球員/球隊換裝＋教練/裁判個人頁 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📋規劃完成待派工（07-12 擴為 Person Hub） |
+| UX-7 | 個人頁傘卡（Person Hub） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 📋已拆 7A/7B/7C（07-12） |
+| UX-7A | 球員頁換裝＋PR 氣泡＋出手點 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待派工（先行） |
+| UX-7B | 球隊頁＋教練身分（coaches/managers） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待派工（吃 7A 換裝定調） |
+| UX-7C | /people 命名空間（純教練/裁判個人頁） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待派工（獨立，可與 7A 平行） |
 | UX-8 | 排行與紀錄群 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
 | UX-9 | 週邊群 `/matchups`、`/venues` | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
 | UX-10 | 三頁互動模式重設計 | ruan6047 | 待各自小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（暫緩，不在本輪序） |
@@ -41,29 +44,48 @@
 
 > **UX-5 拆卡裁示（ruan6047 07-11）**：UX-5B hub v1＋搬遷（🏁）→ UX-5A 戰績換裝（🏁）→ **UX-5C 首頁 hub 完整版**（壓 UX-6〜9 完成後重製）。hub 卡＝「指路牌」，避免與戰績頁重複。
 
-### UX-7 個人頁：球員/球隊換裝 ＋ Person Hub（教練/裁判）  〔⚪一般〕
-- 需求：ruan6047（07-11 開卡；07-12 擴充「球員頁→個人頁」：教練/裁判/領隊/未來啦啦隊）　規劃：Fable-5@Claude Code　分支：`ai/<執行者>/UX-7`
-- 執行：待指派（建議 Opus：多檔＋新命名空間＋新端點）　查核：待指派（旗艦頁建議人審）
-- **資料現實（07-12 實測）**：教練 `coaches` 72 名（year/team/pos/背號，2026；**47/72 為 ex-player 可同名 join players**）；總教練 `managers` 90 era 記錄（W/L/T/勝率/冠軍，wiki）；裁判 30 名（`game_detail` 逐場執法＋`pitch_tracking` 好球帶報告，`/umpires` 聚合頁已有）；領隊/啦啦隊**無資料源**。
-- **架構裁定（ruan6047 07-12）**：
-  - URL＝**甲案雙軌**：有 acnt → `/players/[id]`（canonical 不動、不斷鏈）；無 acnt → `/people/[kind]/[name]`（kind=coach|umpire，中文名 URL-encode，同名以 kind 隔離；規模 25+30 可控）。**不建 person_dim**（留 PERSON-2）。
-  - 頁面模型＝**單頁多身分**：hero 身分 chips（球員｜教練｜總教練｜裁判），各身分一組 section、錨定現在身分。
-- 範圍：
-  1. `/players/[id]` 換裝對齊＋補缺口（Eyebrow/三態/StatAbbr 名詞解釋鋪設）
-  2. 球員頁**教練身分區塊**：coaches 同名 join（歷年職務/隊/背號）＋managers 總教練 era 戰績卡。**同名歧義守門**：coach 名對到多個 acnt → 不自動掛、記 needs_review（嚴禁腦補）
-  3. `/teams/[code]` 換裝＋**教練團名單**（coaches by team）＋**總教練歷代 era 卡**（managers 含勝率/冠軍）
-  4. `/people/coach/[name]`：25 名非球員教練（職務史＋若有 managers 戰績）
-  5. `/people/umpire/[name]`：裁判個人頁——執法場次/好球帶判定個人報告（自 umpires router 抽 per-name）/近期執法場列表（連 games）；順帶解 UX-10 裁判動線問題的一半
-  6. **提案 A 收編＝PR 呈現整併+氣泡化**（PROPOSAL_EVALUATION A 案）：球員頁既有三種 PR（能力值卡雷達/PercentileBar/官方進階 PR 區）整併——氣泡列=本季速讀（Savant 式，含 tracking 衍生 whiff/chase/barrel PR，樣本門檻 min_pa=G×3.1/min_bf=G×1.0）、雷達=生涯風格、官方 PR 收進氣泡。色走既有 `prColor`/`PR_GRADIENT`（報告的 hardcode hex 違反 tokens 紅線不採）；不加 Redis（SQL window/物化即可）
-  7. **提案 B 收編＝出手點 2D**（位移半案 07-12 已上線）：`rel_side`×`rel_height`（單位 m 非報告寫的 cm；覆蓋 99.96%）散點 by 球種+質心+「出手一致性」數值（各球種質心分散度，比信心橢圓便宜可讀）；掛 MovementSection 旁、movement 端點擴欄；左投鏡像沿既有慣例
-  8. 新端點同步 pytest EXPECTED（07-12 快照教訓）
-- 不做（PERSON-2 backlog）：person_dim 正規化、領隊、啦啦隊/應援團（**先查證官網有無名單**，有資料源再開卡）
-- 驗收：5 秒盲測（球員頁「這選手行不行」、裁判頁「這主審好球帶偏不偏」）＋雙色系 375/1280 截圖；同名守門有測試；`ruff`+`pytest`+`tsc`+`build:check` 綠
-- 狀態：📋規劃完成待派工　Commit：—
+### UX-7 個人頁傘卡（Person Hub）  〔⚪一般〕
+- 需求：ruan6047（07-11 開卡；07-12 擴「球員頁→個人頁」；07-12 令拆子卡）　規劃：Fable-5@Claude Code
+- **共同前提（三子卡皆讀）**：
+  - 資料現實（07-12 實測）：教練 `coaches` 72 名（year/team/pos/背號；47/72 ex-player 可同名 join players）；總教練 `managers` 90 era（W/L/T/勝率/冠軍，wiki）；裁判 30 名（`game_detail` 執法＋`pitch_tracking` 好球帶）；領隊/啦啦隊無資料源（PERSON-2 backlog：person_dim/領隊/啦啦隊，先查證官網有無名單）。
+  - 架構裁定：URL 甲案雙軌（有 acnt→`/players/[id]` 不動；無 acnt→`/people/[kind]/[name]`，kind=coach|umpire）；頁面模型=單頁多身分（hero 身分 chips）。
+  - 橫切驗收：新端點同步 pytest EXPECTED；`ruff`+`pytest`+`tsc`+`build:check` 綠；雙色系 375/1280 截圖。
+- 依賴序：**7A 先行**（換裝定調）→ **7B**（教練身分掛進球員頁，避免同檔衝突）；**7C 獨立**（新路由，可與 7A 平行）。
+- 狀態：📋已拆 7A/7B/7C　Commit：—
 - Log：
-  - 07-11 spec v5 核可後開卡
-  - 07-12 ruan6047 擴需求「球員頁→個人頁」；Fable 研究＝資料盤點（教練 72/47 joinable、managers 90 era、裁判 30、領隊/啦啦隊無源）→ 裁定甲案雙軌 URL＋UX-7 一次含 PERSON-1（純教練/裁判個人頁）；person_dim/領隊/啦啦隊列 PERSON-2 backlog
-  - 07-12 ruan6047 令複評 PROPOSAL_EVALUATION 四案 → **A/B 收編進 UX-7**（範圍 6/7；A=整併非新建、B 只剩出手點半案）、C 排季末（資料前提勘誤：pitch_tracking 僅 2026 非 2020–2026）、D 遠期連 UX-10；勘誤附錄見 PROPOSAL_EVALUATION.md
+  - 07-11 spec v5 核可後開卡；07-12 擴需求「球員頁→個人頁」＋研究裁定（甲案雙軌/單頁多身分）；07-12 複評 PROPOSAL_EVALUATION → A/B 收編；07-12 ruan6047 令拆三子卡（量大）
+
+### UX-7A 球員頁換裝＋PR 氣泡＋出手點  〔⚪一般〕
+- 需求：ruan6047　規劃：Fable-5@Claude Code　分支：`ai/<執行者>/UX-7A`
+- 執行：待指派（建議 Opus：PR 三呈現整併是設計判斷）　查核：待指派（旗艦頁建議人審）
+- 範圍：
+  1. `/players/[id]` 換裝對齊新語彙＋補缺口（Eyebrow/三態/StatAbbr 名詞解釋鋪設；P1/P2 基礎上）
+  2. **PR 呈現整併＋氣泡化**（提案 A）：既有三種 PR（能力值卡雷達/PercentileBar/官方進階 PR 區）整併——氣泡列=本季速讀（Savant 式，含 tracking 衍生 whiff/chase/barrel PR；樣本門檻 min_pa=G×3.1、min_bf=G×1.0）、雷達=生涯風格、官方 PR 收進氣泡。色走 `prColor`/`PR_GRADIENT`（禁 hardcode hex）；不加 Redis（SQL window/物化足夠）
+  3. **出手點 2D**（提案 B 剩餘半案）：`rel_side`×`rel_height`（單位 m；覆蓋 99.96%）散點 by 球種＋質心＋「出手一致性」數值（各球種質心分散度）；掛 MovementSection 旁、movement 端點擴欄；左投鏡像沿既有慣例
+- 驗收：5 秒盲測「這選手行不行」（氣泡列應為首屏答案）＋雙色系截圖；PR 整併後無重複呈現；橫切驗收見傘卡
+- 狀態：⏳待派工（先行）　Commit：—
+
+### UX-7B 球隊頁＋教練身分  〔⚪一般〕
+- 需求：ruan6047　規劃：Fable-5@Claude Code　分支：`ai/<執行者>/UX-7B`
+- 執行：待指派（Sonnet 可：守門規則已明確）　查核：待指派（≠執行者）
+- 範圍：
+  1. `/teams/[code]` 換裝＋**教練團名單**（coaches by team：職務/背號；ex-player 連 `/players/[id]`、純教練連 `/people/coach/[name]`——7C 未上線前純教練暫不連結）＋**總教練歷代 era 卡**（managers：任期/W-L-T/勝率/冠軍）
+  2. 球員頁**教練身分區塊**＋hero 身分 chips（球員｜教練｜總教練）：coaches 同名 join（歷年職務/隊/背號）＋managers era 戰績卡。**同名歧義守門（紅線）**：coach 名對到多個 player acnt → 不自動掛、記 needs_review，嚴禁腦補
+- 依賴：7A merge 後開工（同檔 `/players/[id]`，避免衝突）
+- 驗收：同名守門有測試（構造同名 fixture）；教練團/era 卡雙色系截圖；橫切驗收見傘卡
+- 狀態：⏳待派工　Commit：—
+
+### UX-7C /people 命名空間（純教練/裁判個人頁）  〔⚪一般〕
+- 需求：ruan6047　規劃：Fable-5@Claude Code　分支：`ai/<執行者>/UX-7C`
+- 執行：待指派（建議 Opus：新命名空間+新端點）　查核：待指派（≠執行者）
+- 範圍：
+  1. 路由 `/people/[kind]/[name]`（kind=coach|umpire；中文名 URL-encode，同名以 kind 隔離，規模 25+30 可控；不建 person_dim）
+  2. `/people/coach/[name]`：25 名非球員教練——職務史（coaches 歷年）＋若有 managers 戰績卡
+  3. `/people/umpire/[name]`：裁判個人頁——執法場次、好球帶判定個人報告（自 umpires router 抽 per-name 查詢）、近期執法場列表（連 games）；順帶解 UX-10 裁判動線問題的一半。**樣本誠實**：執法場次少的裁判判定傾向顯示須帶樣本數（比照 TrackMan 覆蓋慣例）
+  4. 新端點（如 `/api/v1/people/umpire/{name}`）入 pytest EXPECTED
+- 依賴：無（新路由獨立，可與 7A 平行；7B 的純教練連結等本卡上線後補）
+- 驗收：5 秒盲測「這主審好球帶偏不偏」；同名 kind 隔離驗證；橫切驗收見傘卡
+- 狀態：⏳待派工　Commit：—
 
 ### UX-8 排行與紀錄群  〔⚪一般〕
 - 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 頁面層）　分支：`ai/<執行者>/UX-8`
