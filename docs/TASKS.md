@@ -129,6 +129,7 @@
 - Log：
   - 07-12 ruan6047 提 PTT 文章要求研究；Fable 規劃完成（先不實作）。已驗證：`players.throws` 存在、位移特徵覆蓋 99.95%
   - 07-12 ruan6047 令執行 → **Phase1 落地 ✅**（Fable；`ruff`+`tsc`+`build:check` 綠）：後端 `/players/{id}/movement`（逐球 IVB×HB + 本人/聯盟各球種平均；**聯盟 HB 左投先鏡像右投視角再平均、回傳依本人慣用手翻回**）；前端 `MovementSection`（players 頁投手視角：HB×IVB 散點按球種著色 pitchColor+聯盟平均◆菱形+D2 成績單表 球數/使用率/均速/轉速/IVB/HB vs 聯盟，DataTable bare）。**實測命中文章觀察**：曾峻岳速球 151.6 vs 聯盟 144.7（文章「快非常多」✓）、羅戈四球種與 v1 一致、右投速球 HB 負/滑球正物理合理。**Phase2（MLB 標籤遷移，🔴Fable）未動**，照卡另開
+  - 07-12 **Phase2 落地 ✅**（Fable）：`models/pitch_type_v2.py`＋migration 051（`pitch_type_pred_v2` 與 v1 並存）＋CLI `cpbl-classify-pitches-v2`。資料＝Savant pitch-movement leaderboard 2023–25（投手×球種聚合 7,225 列，免逐球 2M 下載）。**三個實測踩雷已修**：(1) Savant `break_x` 是無符號量值（R/L 四縫同號實證）→ 按球種物理方向恢復符號；(2) 加性錨移失敗（CPBL 位移為增益型偏差，羅戈滑球 delta 超出 MLB 曲球域）→ 改乘法對齊（每軸 FF 錨比值）；(3) QDA `reg_param` 在未標準化特徵上淹掉 ratio 軸（133km/h 被判四縫）→ StandardScaler 前置＋uniform priors。**驗收**：四縫口徑 94.56%＞v1 94.24% ✓；嚴格口徑（含伸卡）91.7%＜v1，但缺口=13 個伸卡群全為投手最快球（ratio 0.998）且大宗為黃子鵬（847球，下勾伸卡名家，v1 誤標變化球）→ 官方弱標籤缺陷非 v2 錯誤，證據已存 model_versions。free test set：羅戈✓ 林凱威 sweeper✓ 鍾允華✓ 曾峻岳✓ 李振昌✓ 林詩翔✓；朱承洋=v1 混群（指叉+滑球同群，質心 hb−2.1 中性）已知限制。**Phase3 前端切換未做**：gated on 需求方裁決伸卡證據是否採認
 
 ### UX-9 週邊群  〔⚪一般〕
 - 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 頁面層）　分支：`ai/<執行者>/UX-9`
