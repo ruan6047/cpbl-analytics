@@ -45,7 +45,7 @@ const LIGHT_FALLBACK: ChartTheme = {
   down: "#d62839",
   accent: "#d62839",
   cpbl: "#1b4da1",
-  series: ["#1d6fb8", "#0ea5a4", "#f59e0b", "#8b5cf6", "#16a34a", "#94a3b8"],
+  series: ["#1d6fb8", "#0ea5a4", "#f59e0b", "#8b5cf6", "#16a34a", "#94a3b8", "#db2777", "#a16207"],
   zone: { heart: "#b91c1c", shadow: "#ea580c", chase: "#eab308", waste: "#9ca3af" },
   status: { import: "#2563eb", loree: "#0f766e", nagata: "#7c3aed" },
 };
@@ -68,7 +68,7 @@ function readTheme(): ChartTheme {
     down: v("--color-down", f.down),
     accent: v("--color-accent", f.accent),
     cpbl: v("--color-cpbl", f.cpbl),
-    series: [1, 2, 3, 4, 5, 6].map((i) => v(`--chart-${i}`, f.series[i - 1])),
+    series: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => v(`--chart-${i}`, f.series[i - 1])),
     zone: {
       heart: v("--zone-heart", f.zone.heart),
       shadow: v("--zone-shadow", f.zone.shadow),
@@ -97,9 +97,14 @@ export function useChartTheme(): ChartTheme {
 }
 
 // 球種 → 分類色（原 players/[id]/lib.ts 的 PT_COLOR 表；改由色票 API 統一供給，隨主題換色）。
-const PITCH_ORDER = ["速球", "卡特/滑球", "指叉/變速", "滑球/橫掃", "曲球", "變化球"] as const;
+// v2 細分球種（ML-PT2）：色槽依 top1 段（複合名取 '/' 前段）；
+// v1 遺留名（fallback 投手/二軍）：速球→四縫槽、變化球→faint、其餘複合名同樣取 top1。
+const PITCH_ORDER = ["四縫", "伸卡", "卡特", "滑球", "橫掃", "曲球", "變速", "指叉"] as const;
+const PITCH_ALIAS: Record<string, string> = { 速球: "四縫", 指叉變速: "指叉", 滑曲球: "曲球" };
 export function pitchColor(ct: ChartTheme, pitch: string): string {
-  const idx = PITCH_ORDER.indexOf(pitch as (typeof PITCH_ORDER)[number]);
+  let seg = pitch.split("/")[0];
+  seg = PITCH_ALIAS[seg] ?? seg;
+  const idx = PITCH_ORDER.indexOf(seg as (typeof PITCH_ORDER)[number]);
   return idx >= 0 ? ct.series[idx] : ct.faint;
 }
 export const PITCH_KEYS = PITCH_ORDER;
@@ -125,6 +130,8 @@ export const ZONE_OUTCOME: Record<string, string> = {
 };
 // 逐球判定（game-board：壞球/擊出/界外）
 export const PITCH_CALL = { ball: "#16a34a", inplay: "#2563eb", foul: "#eab308" } as const;
+// 打席結果語意色（安打=綠/保送=藍；出局走中性 surface-2）。比照 PITCH_CALL，供 game-board 今日 chip。
+export const PA_KIND = { hit: "#16a34a", walk: "#2563eb" } as const;
 // 能力評級 S..G（ability-card）
 export const GRADE_COLORS: Record<string, string> = {
   S: "#e6b422", A: "#d23a3a", B: "#e8842b", C: "#e0c53a",

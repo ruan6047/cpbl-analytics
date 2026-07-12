@@ -8,6 +8,25 @@ from typing import Any
 DEFAULT_SEASON = _date.today().year
 
 
+def _batted_result(content: str | None) -> str:
+    """從逐球 content 文字判斷擊球結果：hr/3b/2b/1b/out。
+    content 在 DB 為雙重編碼（UTF-8 bytes 被當 latin-1 存），讀取時先還原。
+    （tracking 與 games 兩 router 共用；勿在前端重寫分類，保持單一事實來源。）"""
+    try:
+        c = (content or "").encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        c = content or ""
+    if "全壘打" in c:
+        return "hr"
+    if "三壘安打" in c:
+        return "3b"
+    if "二壘安打" in c:
+        return "2b"
+    if "一壘安打" in c or "內野安打" in c:
+        return "1b"
+    return "out"
+
+
 def _ip_real(ip: float | None) -> float | None:
     """.1/.2 局數記法 → 真實局數（如 180.2 → 180⅔）。"""
     if ip is None:

@@ -6,11 +6,15 @@ from functools import lru_cache
 
 from fastapi import APIRouter, Query
 
-from cpbl.api.helpers import DEFAULT_SEASON, _dicts
+from cpbl.api.helpers import DEFAULT_SEASON, _batted_result, _dicts
 from cpbl.db import conn
 from cpbl.models import matchup, pitcher_decisions
 
 router = APIRouter()
+
+# 月曆層級 → 該層級包含的所有 kind_code（含季後賽）：
+# 一軍 A ＋ 季後挑戰賽 E ＋ 台灣大賽 C；二軍 D ＋ 二軍季後 F。季後賽併入同層月曆顯示。
+_CALENDAR_KINDS = {"A": ("A", "E", "C"), "D": ("D", "F")}
 
 
 @router.get("/api/v1/games/calendar")
@@ -18,8 +22,9 @@ def games_calendar(
     season: int = Query(DEFAULT_SEASON),
     kind_code: str = Query("A"),
 ) -> dict:
-    """整季所有場次（已完成 + 未開打）供月曆呈現。每筆帶比分/狀態/勝敗投/先發/
+    """整季所有場次（已完成 + 未開打，含季後賽）供月曆呈現。每筆帶比分/狀態/勝敗投/先發/
     球場/觀眾/時長/延賽備註。completed 由 home_score+away_score>0 判定。"""
+    kinds = list(_CALENDAR_KINDS.get(kind_code, (kind_code,)))
     with conn() as c:
         cur = c.cursor()
         cur.execute(
@@ -38,10 +43,10 @@ def games_calendar(
             LEFT JOIN cpbl.players aws ON aws.id = g.away_starter_id
             LEFT JOIN cpbl.game_detail d
                    ON d.year=g.year AND d.kind_code=g.kind_code AND d.game_sno=g.game_sno
-            WHERE g.year = %s AND g.kind_code = %s
-            ORDER BY g.game_date ASC, g.game_sno ASC
+            WHERE g.year = %s AND g.kind_code = ANY(%s)
+            ORDER BY g.game_date ASC, g.kind_code ASC, g.game_sno ASC
             """,
-            (season, kind_code),
+            (season, kinds),
         )
         return {"season": season, "items": _dicts(cur)}
 
@@ -143,7 +148,7 @@ def game_live(
         cur.execute(
             """
             SELECT pitcher_acnt, hitter_acnt, inning_seq, pitch_cnt, ball_cnt, strike_cnt,
-                   pitch_type_pred, tagged_pitch_type, rel_speed, plate_loc_side, plate_loc_height, pitch_call
+                   COALESCE(pitch_type_pred_v2, pitch_type_pred) AS pitch_type_pred, tagged_pitch_type, rel_speed, plate_loc_side, plate_loc_height, pitch_call
             FROM cpbl.pitch_tracking
             WHERE year=%s AND kind_code=%s AND game_sno=%s
             ORDER BY pitcher_acnt, pitch_cnt
@@ -151,6 +156,23 @@ def game_live(
             (season, kind_code, game_sno),
         )
         tracking = _dicts(cur)
+        # 擊球落點（分析 tab spray chart）：InPlay 且有方向/距離；result 由 content 分類（單一事實來源）
+        spray: list[dict] = []
+        if tracking:
+            cur.execute(
+                """
+                SELECT hitter_acnt, hit_direction, hit_distance, hit_exit_speed, hit_launch_angle, content
+                FROM cpbl.pitch_tracking
+                WHERE year=%s AND kind_code=%s AND game_sno=%s
+                  AND pitch_call='InPlay' AND hit_distance IS NOT NULL AND hit_direction IS NOT NULL
+                """,
+                (season, kind_code, game_sno),
+            )
+            spray = [{"hitter_acnt": ha, "dir": float(d), "dist": float(dist),
+                      "ev": float(ev) if ev is not None else None,
+                      "la": float(la) if la is not None else None,
+                      "result": _batted_result(ct)}
+                     for ha, d, dist, ev, la, ct in cur.fetchall()]
         cur.execute("SELECT attendance, game_time, head_umpire, first_umpire, second_umpire, "
                     "third_umpire, left_umpire, right_umpire, weather_code, weather_desc "
                     "FROM cpbl.game_detail "
@@ -171,7 +193,7 @@ def game_live(
             "batting": batting, "pitching": pitching, "people": people,
             "records": records, "batter_avg": batter_avg, "detail": gd[0] if gd else None,
             "decisions": decisions, "decision_counts": decision_counts,
-            "has_tracking": len(tracking) > 0, "tracking": tracking}
+            "has_tracking": len(tracking) > 0, "tracking": tracking, "spray": spray}
 
 
 def _decision_counts(season: int, game_sno: int, gdate,

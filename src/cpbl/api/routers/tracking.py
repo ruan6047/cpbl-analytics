@@ -6,14 +6,14 @@ from typing import Any
 
 from fastapi import APIRouter, Query
 
-from cpbl.api.helpers import DEFAULT_SEASON, _dicts
+from cpbl.api.helpers import DEFAULT_SEASON, _batted_result, _dicts
 from cpbl.db import conn
 
 router = APIRouter()
 
 # 推算球種：優先 pitch_type_pred（軌跡導 IVB/HB → KMeans 分類，見 models/pitch_type.py），
 # 缺值退回 tagged 二元弱標籤。所有逐球球種聚合/篩選共用此表達式，回中文標籤。
-PT_EXPR = ("COALESCE(pitch_type_pred, CASE tagged_pitch_type "
+PT_EXPR = ("COALESCE(pitch_type_pred_v2, pitch_type_pred, CASE tagged_pitch_type "
            "WHEN 'fastball' THEN '速球' WHEN 'breakingball' THEN '變化球' END)")
 
 
@@ -35,24 +35,6 @@ def player_advanced(player_id: str, season: int = Query(DEFAULT_SEASON),
 # 好球帶（公尺座標近似）：左右 ±0.25、上下 0.45~1.05
 _SWING = "('InPlay','FoulBallNotFieldable','FoulBallFieldable','StrikeSwinging')"
 _CONTACT = "('InPlay','FoulBallNotFieldable','FoulBallFieldable')"
-
-
-def _batted_result(content: str | None) -> str:
-    """從逐球 content 文字判斷擊球結果：hr/3b/2b/1b/out。
-    content 在 DB 為雙重編碼（UTF-8 bytes 被當 latin-1 存），讀取時先還原。"""
-    try:
-        c = (content or "").encode("latin-1").decode("utf-8")
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        c = content or ""
-    if "全壘打" in c:
-        return "hr"
-    if "三壘安打" in c:
-        return "3b"
-    if "二壘安打" in c:
-        return "2b"
-    if "一壘安打" in c or "內野安打" in c:
-        return "1b"
-    return "out"
 
 
 def _zone_result(pitch_call: str | None, content: str | None) -> str:
@@ -216,6 +198,71 @@ def player_arsenal(
         for pt, n, spd, spin, wh, sw, ev in rows
     ]
     return {"player_id": player_id, "role": role, "items": items}
+
+
+@router.get("/api/v1/players/{player_id}/movement")
+def player_movement(
+    player_id: str,
+    season: int = Query(DEFAULT_SEASON),
+    kind_code: str = Query("A", pattern="^(A|D)$"),
+) -> dict:
+    """球種位移（ML-PT2 Phase1）：逐球 IVB×HB 散點 + 本人/聯盟各球種平均（投手）。
+    HB 符號隨慣用手翻轉 → 聯盟平均先把左投鏡像到右投視角再平均，
+    回傳時依本人慣用手翻回，確保與本人散點同視角可比。IVB/速度/轉速不受慣用手影響。"""
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute("SELECT throws FROM cpbl.players WHERE id = %s", (player_id,))
+        row = cur.fetchone()
+        throws = row[0] if row else None
+        lefty = throws == "左投"
+        cur.execute(
+            f"""
+            SELECT {PT_EXPR} pt, hb_cm, ivb_cm
+            FROM cpbl.pitch_tracking
+            WHERE pitcher_acnt = %s AND year = %s AND kind_code = %s
+              AND ivb_cm IS NOT NULL AND hb_cm IS NOT NULL AND {PT_EXPR} IS NOT NULL
+            """,
+            (player_id, season, kind_code),
+        )
+        points = [{"pt": pt, "hb": round(float(hb), 1), "ivb": round(float(ivb), 1)}
+                  for pt, hb, ivb in cur.fetchall()]
+        cur.execute(
+            f"""
+            SELECT {PT_EXPR} pt, count(*), avg(rel_speed), avg(spin_rate), avg(ivb_cm), avg(hb_cm)
+            FROM cpbl.pitch_tracking
+            WHERE pitcher_acnt = %s AND year = %s AND kind_code = %s AND {PT_EXPR} IS NOT NULL
+            GROUP BY pt ORDER BY count(*) DESC
+            """,
+            (player_id, season, kind_code),
+        )
+        mine = cur.fetchall()
+        cur.execute(
+            f"""
+            SELECT {PT_EXPR} pt, avg(rel_speed), avg(spin_rate), avg(ivb_cm),
+                   avg(CASE WHEN pl.throws = '左投' THEN -t.hb_cm ELSE t.hb_cm END)
+            FROM cpbl.pitch_tracking t JOIN cpbl.players pl ON pl.id = t.pitcher_acnt
+            WHERE t.year = %s AND t.kind_code = %s AND {PT_EXPR} IS NOT NULL
+            GROUP BY pt
+            """,
+            (season, kind_code),
+        )
+        lg = {r[0]: r for r in cur.fetchall()}
+    total = sum(r[1] for r in mine) or 1
+    fl = lambda v, d=1: round(float(v), d) if v is not None else None  # noqa: E731
+    spn = lambda v: round(float(v)) if v is not None else None  # noqa: E731
+    summary = []
+    for pt, n, spd, spin, ivb, hb in mine:
+        lr = lg.get(pt)
+        summary.append({
+            "pt": pt, "n": n, "usage": round(n / total * 100, 1),
+            "speed": fl(spd), "spin": spn(spin), "ivb": fl(ivb), "hb": fl(hb),
+            "lg": {
+                "speed": fl(lr[1]) if lr else None, "spin": spn(lr[2]) if lr else None,
+                "ivb": fl(lr[3]) if lr else None,
+                "hb": fl(-lr[4] if lefty else lr[4]) if lr and lr[4] is not None else None,
+            },
+        })
+    return {"player_id": player_id, "throws": throws, "points": points, "summary": summary}
 
 
 def _count_bucket(b: int, s: int) -> str:

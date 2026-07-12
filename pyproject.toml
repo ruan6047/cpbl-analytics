@@ -50,6 +50,7 @@ cpbl-train = "cpbl.models.train:main"
 cpbl-train-pitching = "cpbl.models.train_pitching:main"
 cpbl-train-outcome = "cpbl.models.outcome_gbm:main"
 cpbl-classify-pitches = "cpbl.models.run_classify_pitches:main"
+cpbl-classify-pitches-v2 = "cpbl.models.pitch_type_v2:main"
 
 [dependency-groups]
 dev = [

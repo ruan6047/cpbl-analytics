@@ -114,13 +114,22 @@ export const PIT_METRICS: Metric[] = [
 ];
 // 推算球種（pitch_type_pred；缺退 tagged 二元）：統一名稱→順序，逐球各視圖共用。
 // 順序＝快→慢/常見度。色由色票 API 供給：lib/chart-theme.ts pitchColor()（PITCH_ORDER 需與此對齊）。
-export const PT_ORDER: string[] = ["速球", "卡特/滑球", "指叉/變速", "滑球/橫掃", "曲球", "變化球"];
+export const PT_ORDER: string[] = ["四縫", "伸卡", "卡特", "滑球", "橫掃", "曲球", "變速", "指叉", "速球", "變化球"];
 // 球種鏡頭：state 為 "all" 或某推算球種中文名。可選球種由該球員實際投/面對的資料決定（避免空按鈕）。
 export type PitchType = string;
-export const ptTypesFrom = (pts: (string | null)[]): string[] => {
-  const present = new Set(pts.filter((p): p is string => !!p));
-  return PT_ORDER.filter((t) => present.has(t));
+// 複合名（如「指叉/變速」）依 top1 段排入該槽之後；未知名殿後。
+export const ptSort = (types: Iterable<string>): string[] => {
+  const alias: Record<string, string> = { 指叉變速: "指叉", 滑曲球: "曲球" };
+  const key = (t: string) => {
+    const i = PT_ORDER.indexOf(t);
+    if (i >= 0) return i * 10;
+    const j = PT_ORDER.indexOf(alias[t] ?? t.split("/")[0]);
+    return (j >= 0 ? j * 10 : 900) + 5;
+  };
+  return [...new Set(types)].sort((a, b) => key(a) - key(b) || a.localeCompare(b));
 };
+export const ptTypesFrom = (pts: (string | null)[]): string[] =>
+  ptSort(pts.filter((p): p is string => !!p));
 
 // 分項類別：官網 item_group_code 在打/投間不一致，改用 item_name 內容判斷（穩健、跨角色）。
 export const SPLIT_CATS: { key: string; label: string; test: (n: string) => boolean }[] = [

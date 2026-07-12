@@ -209,7 +209,7 @@ URL（`http://cpbl-analytics:4001/api/info`）。
    - scope：`ingest` `features` `models` `api` `infra`（可省略）
 2. **一個邏輯變更一個 commit**。
 3. **嚴禁 commit**：`.env`、`data/`、`artifacts/`、`.venv/`、credentials。
-4. push 前確認 `uv run ruff check` 通過、`cpbl-train` 回測未退化。
+4. push 前確認 `uv run ruff check`＋`uv run pytest` 通過（路由快照：新端點同步加 EXPECTED）、`cpbl-train` 回測未退化。
 
 ---
 
@@ -217,7 +217,7 @@ URL（`http://cpbl-analytics:4001/api/info`）。
 
 - 條件不足強制反問，**嚴禁腦補**資料欄位 / 官網結構（先用 gh/WebFetch 查證）。
 - 觀點或前提有誤直接指出（例：有人要求用 opendata 做賽果預測 → 必須指出資料粒度不符）。
-- 改完跑驗證：`uv run ruff check` + 容器內 `cpbl-train` 看回測對照表。
+- 改完跑驗證：`uv run ruff check` + `uv run pytest` + 容器內 `cpbl-train` 看回測對照表。
 - 涉及 LightGBM/原生相依，預設容器內執行，不在 macOS host 裝 build 依賴。
 
 ## 模型路由（省成本：日常便宜、難題才逐級升）

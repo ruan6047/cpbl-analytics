@@ -147,6 +147,38 @@ export function ErrorState({ children = "載入失敗", className = "" }: { chil
   return <p className={`py-8 text-center text-sm text-accent ${className}`}>{children}</p>;
 }
 
+// 場次狀態徽章：全站唯一狀態語彙。done＝完賽（中性）／warn＝延賽·保留（amber 警示）／
+// live＝進行中（accent）／scheduled＝未開打（accent 淡）。走語意 token，不用 Tailwind amber-數字。
+export type StatusTone = "done" | "warn" | "live" | "scheduled";
+const STATUS_TONE_CLS: Record<StatusTone, { solid: string; bare: string }> = {
+  done: { solid: "bg-surface-2 text-faint", bare: "text-faint" },
+  warn: { solid: "bg-amber/15 text-amber", bare: "text-amber" },
+  live: { solid: "bg-accent/15 text-accent", bare: "text-accent" },
+  scheduled: { solid: "bg-accent/10 text-accent", bare: "text-accent/80" },
+};
+// variant solid＝實心 pill（列表）；bare＝純色文字（月曆格等窄空間）。兩型共用 tone→色。
+export function StatusBadge({ children, tone, variant = "solid", className = "" }: {
+  children: React.ReactNode; tone: StatusTone; variant?: "solid" | "bare"; className?: string;
+}) {
+  const t = STATUS_TONE_CLS[tone];
+  return variant === "bare"
+    ? <span className={`font-semibold leading-none ${t.bare} ${className}`}>{children}</span>
+    : <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none ${t.solid} ${className}`}>{children}</span>;
+}
+
+// 提示橫幅（warn＝amber 警示，如延賽/保留說明）。走語意 token。
+export function Notice({ tone = "warn", icon, children, className = "" }: {
+  tone?: "warn"; icon?: React.ReactNode; children: React.ReactNode; className?: string;
+}) {
+  const cls = tone === "warn" ? "border-amber/40 bg-amber/10 text-amber" : "border-line bg-surface-2 text-muted";
+  return (
+    <div className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm ${cls} ${className}`}>
+      {icon != null && <span>{icon}</span>}
+      <span className="font-medium">{children}</span>
+    </div>
+  );
+}
+
 // 百分位發散色階：0=藍 50=灰 100=紅（Baseball Savant 式）
 export function prColor(pr: number): string {
   const lerp = (a: number, b: number, t: number) => Math.round(a + (b - a) * t);

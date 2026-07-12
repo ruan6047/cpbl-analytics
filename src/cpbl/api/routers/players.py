@@ -92,6 +92,23 @@ def _roster_level(cur, player_id: str, season: int) -> dict | None:
                 first_days = total
         current_first = first_days >= farm_days   # 無事件時單一層級，即現在層級
 
+    # 調度豁免（ruan6047 2026-07-12）：現登錄二軍、但本季有一軍出賽且「最後一次下二軍後」
+    # 二軍出賽 ≤1 場 → 視為一軍。投手/洋將常因輪值調度紙上降二軍（例：羅戈 7/8 一軍先發、
+    # 7/9 降、二軍 0 出賽），分類應反映實際出賽層級而非登錄面。真降二軍者下放初期同樣
+    # 0 出賽會暫顯一軍，但一在二軍出賽第 2 場即轉二軍（自然收斂，免猜天數門檻）。
+    if not current_first and appeared_a and events:
+        last_down = max(t for t, kc in events if kc != "01")
+        cur.execute(
+            "SELECT (SELECT count(DISTINCT b.game_sno) FROM cpbl.batting_gamelog b "
+            "        JOIN cpbl.games g ON g.year=b.year AND g.kind_code=b.kind_code AND g.game_sno=b.game_sno "
+            "        WHERE b.hitter_acnt=%(p)s AND b.year=%(y)s AND b.kind_code='D' AND g.game_date>=%(d)s) "
+            "     + (SELECT count(DISTINCT pg.game_sno) FROM cpbl.pitching_gamelog pg "
+            "        JOIN cpbl.games g ON g.year=pg.year AND g.kind_code=pg.kind_code AND g.game_sno=pg.game_sno "
+            "        WHERE pg.pitcher_acnt=%(p)s AND pg.year=%(y)s AND pg.kind_code='D' AND g.game_date>=%(d)s)",
+            {"p": player_id, "y": season, "d": last_down})
+        if (cur.fetchone()[0] or 0) <= 1:
+            current_first = True
+
     # level＝現在登錄層級（非累計天數多者）：季中升上一軍的板凳球員即為一軍
     level = "一軍" if current_first else "二軍"
     return {"level": level, "first_days": first_days, "farm_days": farm_days}

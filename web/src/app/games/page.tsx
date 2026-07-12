@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { TeamLogo } from "@/components/ui";
+import { TeamLogo, StatusBadge, EmptyState, type StatusTone } from "@/components/ui";
 import { YearSelect } from "@/components/year-select";
 import { api, type CalendarGame } from "@/lib/api";
 import { contrastText, teamColor, teamFullName } from "@/lib/teams";
@@ -11,6 +11,13 @@ const LEVELS = [
   { v: "D", label: "二軍" },
 ];
 const WD = ["日", "一", "二", "三", "四", "五", "六"];
+// 場次狀態 → 標籤＋語意 tone（完賽=中性／延賽·保留=warn／未開打=scheduled）
+const statusOf = (done: boolean, delay: string | null | undefined): { label: string; tone: StatusTone } =>
+  done ? { label: "完賽", tone: "done" }
+    : delay ? { label: delay, tone: "warn" }
+      : { label: "未開打", tone: "scheduled" };
+// 季後賽層級標記（C=台灣大賽/E=季後挑戰賽/F=二軍季後；例行賽 A/D 無標記）
+const POST_LABEL: Record<string, string> = { C: "台灣大賽", E: "季後挑戰賽", F: "二軍季後" };
 const pad = (n: number) => String(n).padStart(2, "0");
 const ymOf = (d: string) => d.slice(0, 7);
 const addMonth = (ym: string, delta: number) => {
@@ -157,20 +164,21 @@ export default async function GamesPage({
                     const awayWin = done && g.away_score > g.home_score;
                     const homeWin = done && g.home_score > g.away_score;
                     // 打完就是「完賽」（延賽/保留性質改以 ☔ 小標記保留）；未打才顯示延賽/保留/未開打
-                    const status = done ? "完賽" : (g.delay_kind ?? "未開打");
-                    const statusCls = done ? "text-faint" : g.delay_kind ? "text-amber-600" : "text-accent/80";
+                    const st = statusOf(done, g.delay_kind);
                     const info = done
                       ? (g.mvp ? `⭐ ${g.mvp}` : g.win_pitcher ? `勝 ${g.win_pitcher}` : "")
                       : (g.away_starter || g.home_starter ? `${g.away_starter ?? "未定"} · ${g.home_starter ?? "未定"}` : (g.venue ?? ""));
                     const body = (
                       <>
+                        {POST_LABEL[g.kind_code] && <div className="mb-0.5 text-center text-[8px] font-bold leading-none text-accent">{POST_LABEL[g.kind_code]}</div>}
                         <div className="flex items-center justify-between gap-1 leading-none">
                           <span className="flex items-center gap-1">
                             <TeamLogo code={g.away_team_code} name={g.away_team_name} size={20} />
                             {done && <span className={`text-base tabular-nums ${awayWin ? "font-bold text-accent" : "text-muted"}`}>{g.away_score}</span>}
                           </span>
-                          <span className={`text-[9px] leading-tight ${statusCls}`}>
-                            {status}{done && g.delay_kind && <span title={`因雨${g.delay_kind}`}> ☔</span>}
+                          <span className="text-[9px] leading-tight">
+                            <StatusBadge tone={st.tone} variant="bare">{st.label}</StatusBadge>
+                            {done && g.delay_kind && <span title={`因雨${g.delay_kind}`} className="text-faint"> ☔</span>}
                           </span>
                           <span className="flex items-center gap-1">
                             {done && <span className={`text-base tabular-nums ${homeWin ? "font-bold text-accent" : "text-muted"}`}>{g.home_score}</span>}
@@ -182,10 +190,10 @@ export default async function GamesPage({
                     );
                     const cls = "block rounded-md bg-surface-2/50 px-1.5 py-1";
                     return hasDetail ? (
-                      <Link key={g.game_sno} href={`/games/${g.game_sno}?kind=${g.kind_code}&year=${g.year}`}
+                      <Link key={`${g.kind_code}-${g.game_sno}`} href={`/games/${g.game_sno}?kind=${g.kind_code}&year=${g.year}`}
                         className={`${cls} transition hover:bg-surface-2`}>{body}</Link>
                     ) : (
-                      <div key={g.game_sno} className={cls}>{body}</div>
+                      <div key={`${g.kind_code}-${g.game_sno}`} className={cls}>{body}</div>
                     );
                   })}
                 </div>
@@ -208,17 +216,17 @@ export default async function GamesPage({
                 const done = g.away_score + g.home_score > 0;
                 const awayWin = done && g.away_score > g.home_score;
                 const homeWin = done && g.home_score > g.away_score;
-                const status = done ? "完賽" : (g.delay_kind ?? "未開打");
-                const statusCls = done ? "bg-surface-2 text-faint" : g.delay_kind ? "bg-amber-100 text-amber-800" : "bg-accent/15 text-accent";
+                const st = statusOf(done, g.delay_kind);
                 const info = done
                   ? (g.mvp ? `⭐ MVP: ${g.mvp}` : g.win_pitcher ? `勝投: ${g.win_pitcher}` : "")
                   : (g.away_starter || g.home_starter ? `先發: ${g.away_starter ?? "未定"} vs ${g.home_starter ?? "未定"}` : (g.venue ?? ""));
                 const body = (
                   <div className="flex flex-col gap-2 p-3 bg-surface-2/30 rounded-lg">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] rounded font-medium leading-none max-w-fit">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${statusCls}`}>{status}</span>
-                        {done && g.delay_kind && <span title={`因雨${g.delay_kind}`}> ☔</span>}
+                      <span className="flex max-w-fit items-center gap-1.5 leading-none">
+                        <StatusBadge tone={st.tone}>{st.label}</StatusBadge>
+                        {POST_LABEL[g.kind_code] && <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-bold text-accent">{POST_LABEL[g.kind_code]}</span>}
+                        {done && g.delay_kind && <span title={`因雨${g.delay_kind}`} className="text-[10px] text-faint"> ☔</span>}
                       </span>
                       {g.venue && <span className="text-[10px] text-faint">{g.venue}</span>}
                     </div>
@@ -240,18 +248,18 @@ export default async function GamesPage({
                   </div>
                 );
                 return hasDetail ? (
-                  <Link key={g.game_sno} href={`/games/${g.game_sno}?kind=${g.kind_code}&year=${g.year}`} className="block transition hover:opacity-80">
+                  <Link key={`${g.kind_code}-${g.game_sno}`} href={`/games/${g.game_sno}?kind=${g.kind_code}&year=${g.year}`} className="block transition hover:opacity-80">
                     {body}
                   </Link>
                 ) : (
-                  <div key={g.game_sno}>{body}</div>
+                  <div key={`${g.kind_code}-${g.game_sno}`}>{body}</div>
                 );
               })}
             </div>
           </div>
         ))}
         {cells.filter(c => c.inMonth && c.games.length > 0).length === 0 && (
-          <p className="text-center text-sm text-faint py-8">本月無賽程安排。</p>
+          <EmptyState>本月無賽程安排。</EmptyState>
         )}
       </div>
 
