@@ -125,6 +125,8 @@ export const ZONE_OUTCOME: Record<string, string> = {
 };
 // 逐球判定（game-board：壞球/擊出/界外）
 export const PITCH_CALL = { ball: "#16a34a", inplay: "#2563eb", foul: "#eab308" } as const;
+// 打席結果語意色（安打=綠/保送=藍；出局走中性 surface-2）。比照 PITCH_CALL，供 game-board 今日 chip。
+export const PA_KIND = { hit: "#16a34a", walk: "#2563eb" } as const;
 // 能力評級 S..G（ability-card）
 export const GRADE_COLORS: Record<string, string> = {
   S: "#e6b422", A: "#d23a3a", B: "#e8842b", C: "#e0c53a",

@@ -6,87 +6,15 @@ import { useEffect, useState } from "react";
 import { detail, type StatRow } from "@/lib/client";
 import { fmtIPParts } from "@/lib/format";
 import GameBoard, { type Live } from "@/components/game-board";
-import { Card, EmptyState } from "@/components/ui";
-import { DataTable, type Column } from "@/components/table";
+import { Card, Eyebrow, Notice, Skeleton, ErrorState, EmptyState, PlayerLink } from "@/components/ui";
+import BoxTabs from "./box-tabs";
 import { WinProbChart, type WpPoint } from "@/components/win-prob-chart";
 import { fanNick, teamColor, teamShort } from "@/lib/teams";
 import { GameOverview, Pregame, type PregameMatchup, type DecItem } from "./overview";
 
 const n = (v: number | string | null) => (v === null || v === undefined ? "" : Number(v));
 
-const i0 = (v: number | string | null | undefined) => (v === null || v === undefined ? "—" : String(v));
 const ipTxt = (r: StatRow) => fmtIPParts(r.inning_pitched_cnt as number | null, r.inning_pitched_div3 as number | null);
-
-// 打者亮點標記：滿貫/猛打賞(3安+)/致勝打點/MVP
-function batterMark(r: StatRow): string {
-  const t: string[] = [];
-  if (n(r.grand_slam) as number) t.push("滿貫");
-  if ((n(r.hits) as number) >= 3) t.push("猛打賞");
-  if (n(r.gw_rbi) as number) t.push("致勝打點");
-  if (r.is_mvp) t.push("MVP");
-  return t.join("·");
-}
-
-function BoxBatting({ rows, team }: { rows: StatRow[]; team: string }) {
-  const cols: [string, (r: StatRow) => string][] = [
-    ["AB", (r) => i0(r.at_bats)], ["R", (r) => i0(r.runs)], ["H", (r) => i0(r.hits)],
-    ["2B", (r) => i0(r.doubles)], ["3B", (r) => i0(r.triples)], ["HR", (r) => i0(r.home_runs)],
-    ["打點", (r) => i0(r.rbi)], ["BB", (r) => i0(r.bb)], ["SO", (r) => i0(r.so)], ["SB", (r) => i0(r.sb)],
-  ];
-  const columns: Column<StatRow>[] = [
-    {
-      header: <>{team}　打者</>,
-      cell: (r) => {
-        const mark = batterMark(r);
-        return (
-          <>{String(r.hitter_name ?? "")}
-            <span className="ml-1 text-[10px] text-faint">{String(r.role_type ?? "")}</span>
-            {mark && <span className="ml-1 text-[10px] font-semibold text-cpbl">{mark}</span>}</>
-        );
-      },
-      nowrap: true, className: "font-sans text-ink",
-    },
-    ...cols.map(([h, f]): Column<StatRow> => ({ header: h, cell: f, align: "right" })),
-  ];
-  return <DataTable columns={columns} rows={rows} rowKey={(_r, i) => i} dense />;
-}
-
-// 投手結果標記：勝/敗官方、中繼官方(relief_point)；救援/中繼失敗依規則情境自 livelog 推算。
-// 回傳 token 陣列（成敗、色調），救援/中繼失敗標紅。
-const MARK: Record<string, { text: string; tone: "pos" | "neg" }> = {
-  W: { text: "勝", tone: "pos" }, L: { text: "敗", tone: "neg" },
-  SV: { text: "SV", tone: "pos" }, HLD: { text: "H", tone: "pos" },
-  BS: { text: "救援失敗", tone: "neg" }, BH: { text: "中繼失敗", tone: "neg" },
-};
-function pitcherMarks(r: StatRow, decisions: Record<string, string>): { text: string; tone: "pos" | "neg" }[] {
-  const out: { text: string; tone: "pos" | "neg" }[] = [];
-  const d = decisions[String(r.pitcher_acnt)];
-  if (d) for (const tok of d.split("·")) if (MARK[tok]) out.push(MARK[tok]);
-  if (r.is_complete_game) out.push({ text: r.is_shutout ? "完封" : "完投", tone: "pos" });
-  return out;
-}
-
-function BoxPitching({ rows, team, decisions }: { rows: StatRow[]; team: string; decisions: Record<string, string> }) {
-  const cols: [string, (r: StatRow) => string][] = [
-    ["IP", ipTxt], ["H", (r) => i0(r.hits)], ["R", (r) => i0(r.runs)], ["ER", (r) => i0(r.earned_runs)],
-    ["BB", (r) => i0(r.bb)], ["SO", (r) => i0(r.so)], ["被HR", (r) => i0(r.home_runs)],
-    ["球數", (r) => i0(r.pitch_cnt)], ["最快", (r) => (r.max_speed ? `${r.max_speed}` : "—")],
-  ];
-  const columns: Column<StatRow>[] = [
-    {
-      header: <>{team}　投手</>,
-      cell: (r) => (
-        <>{String(r.pitcher_name ?? "")}
-          {pitcherMarks(r, decisions).map((m, j) => (
-            <span key={j} className={`ml-1 text-[10px] font-semibold ${m.tone === "neg" ? "text-down" : "text-accent"}`}>{m.text}</span>
-          ))}</>
-      ),
-      nowrap: true, className: "font-sans text-ink",
-    },
-    ...cols.map(([h, f]): Column<StatRow> => ({ header: h, cell: f, align: "right" })),
-  ];
-  return <DataTable columns={columns} rows={rows} rowKey={(_r, i) => i} dense />;
-}
 
 export default function GameLivePage() {
   const { sno } = useParams<{ sno: string }>();
@@ -133,9 +61,18 @@ export default function GameLivePage() {
       document.getElementById("pbp-section")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
-  if (err) return <p className="text-sm text-muted">載入賽況失敗。</p>;
-  if (!data) return <EmptyState>載入中…</EmptyState>;
-  if (!data.game) return <p className="text-sm text-muted">查無此場比賽。</p>;
+  if (err) return <ErrorState>載入賽況失敗。</ErrorState>;
+  // 載入骨架：對齊記分條(rounded-2xl)＋linescore＋總覽雙卡的量體，避免 CLS
+  if (!data) return (
+    <div className="mt-2 space-y-4">
+      <Skeleton className="h-28 rounded-2xl" />
+      <Skeleton className="h-24 rounded-xl" />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Skeleton className="h-40 rounded-xl" /><Skeleton className="h-40 rounded-xl" />
+      </div>
+    </div>
+  );
+  if (!data.game) return <EmptyState>查無此場比賽。</EmptyState>;
 
   const g = data.game;
 
@@ -201,6 +138,9 @@ export default function GameLivePage() {
     const maxInn0 = Math.max(0, ...data.scoreboard.map((r) => n(r.inning_seq) as number));
     if (hs !== aw && maxInn0 < 9) H(`${maxInn0} 局裁定比賽`);
   }
+  // 賽事級焦點（再見/逆轉/延長/和局/合力完封/裁定）數量錨點：稀有成就（extra）插在其後、
+  // 常見焦點（魯閣/中計/猛打賞…）之前，確保稀有標籤不被 splice(12) 擠掉。
+  const nGameLevel = highlights.length;
   // 魯閣（網路用語，源自大魯閣打擊場＝投手像發球機一樣好打）：
   // 單場失 10 分以上＝被打爆隊的暱稱前綴+魯閣；失 20 分以上＝雙魯閣。非官方、含嘲諷意味。
   if (completed) {
@@ -284,7 +224,7 @@ export default function GameLivePage() {
     const d = (data.decisions ?? {})[String(r.pitcher_acnt)];
     if (r.is_shutout) H(`${nm} 完封`, tm);
     else if (r.is_complete_game) H(`${nm} 完投`, tm);
-    if ((n(r.so) as number) >= 10) H(`${nm} ${r.so} 次三振`, tm);
+    if ((n(r.so) as number) >= 8) H(`${nm} ${r.so} 次三振`, tm);
     // 問天（網路用語）：優質先發（≥6 局、自責 ≤3）卻吞敗或無關勝負
     const isStarter = String(r.pitcher_acnt) === String(g.away_starter_id)
       || String(r.pitcher_acnt) === String(g.home_starter_id);
@@ -304,6 +244,140 @@ export default function GameLivePage() {
     const fast = data.pitching.find((r) => (n(r.max_speed) as number) === maxSp);
     H(`最速球 ${maxSp} km/h`, fast ? teamOf(fast.visiting_home_type) : null);
   }
+  // ───────── 焦點擴充（07-12：三振/效率/盜壘/上壘家族，全從 livelog+box 客戶端算，2018+）─────────
+  const extra: { text: string; team: string | null }[] = [];
+  if (completed && data.livelog.length > 0) {
+    const pitchTeam = (half: string) => String((half === "1" ? g.home_team_code : g.away_team_code) ?? "");
+    const batTeam = (half: string) => String((half === "1" ? g.away_team_code : g.home_team_code) ?? "");
+    const pName = new Map<string, string>();
+    for (const r of data.pitching) pName.set(String(r.pitcher_acnt), String(r.pitcher_name ?? ""));
+    const hName = new Map<string, string>(), hTeam = new Map<string, string>();
+    for (const r of data.batting) {
+      hName.set(String(r.hitter_acnt), String(r.hitter_name ?? ""));
+      hTeam.set(String(r.hitter_acnt), teamOf(r.visiting_home_type));
+    }
+
+    // 逐打席序列（PA 島＝連續同打者非換人事件，末筆為結果；沿用中計/pstats 島切法）
+    type PA = { pitcher: string; hitter: string; inning: number; half: string; isK: boolean; onBase: boolean; retired: boolean };
+    const paList: PA[] = [];
+    let cur: StatRow | null = null;
+    const flushPA = () => {
+      if (!cur) return;
+      const a = String(cur.action_name ?? "");
+      const onBase = /安打|全壘打|四壞|敬遠|觸身/.test(a);              // 乾淨上壘（安打/四死）
+      const reachedAny = onBase || /失誤|野手選擇|野選|妨礙/.test(a);   // 含失誤/野選上壘 → 破壞連續解決
+      paList.push({
+        pitcher: String(cur.pitcher_acnt ?? ""), hitter: String(cur.hitter_acnt ?? ""),
+        inning: n(cur.inning_seq) as number, half: String(cur.visiting_home_type ?? ""),
+        isK: /三振/.test(a), onBase, retired: !reachedAny,
+      });
+      cur = null;
+    };
+    for (const r of data.livelog) {
+      if (r.is_change_player || !r.hitter_acnt) continue;
+      if (cur && String(cur.hitter_acnt) !== String(r.hitter_acnt)) flushPA();
+      cur = r;
+    }
+    flushPA();
+    const pHalf: Record<string, string> = {};
+    for (const pa of paList) pHalf[pa.pitcher] = pa.half;
+
+    // ①④ 連續三振 ≥5 / 連續解決 ≥6（per pitcher rolling，跨局；他隊打席不影響其連續）
+    const kS: Record<string, number> = {}, kMax: Record<string, number> = {};
+    const rS: Record<string, number> = {}, rMax: Record<string, number> = {};
+    for (const pa of paList) {
+      const p = pa.pitcher;
+      kS[p] = pa.isK ? (kS[p] ?? 0) + 1 : 0; kMax[p] = Math.max(kMax[p] ?? 0, kS[p]);
+      rS[p] = pa.retired ? (rS[p] ?? 0) + 1 : 0; rMax[p] = Math.max(rMax[p] ?? 0, rS[p]);
+    }
+    for (const [p, mx] of Object.entries(kMax))
+      if (mx >= 5) extra.push({ text: `${pName.get(p) ?? ""} 連續 ${mx} 三振`, team: pitchTeam(pHalf[p]) });
+    for (const [p, mx] of Object.entries(rMax))
+      if (mx >= 6) extra.push({ text: `${pName.get(p) ?? ""} 連續解決 ${mx} 人`, team: pitchTeam(pHalf[p]) });
+
+    // ② 單局三振（per pitcher×half ≥3K；寬版含上壘後補 K）
+    const inK: Record<string, number> = {};
+    for (const pa of paList) if (pa.isK) { const k = `${pa.pitcher}|${pa.inning}|${pa.half}`; inK[k] = (inK[k] ?? 0) + 1; }
+    for (const [k, c] of Object.entries(inK)) if (c >= 3) {
+      const [p, inn, half] = k.split("|");
+      extra.push({ text: `${pName.get(p) ?? ""} ${inn} 局單局 ${c}K`, team: pitchTeam(half) });
+    }
+
+    // ⑦ 全打席上壘（PA ≥4 全上壘＝安打/四死；失誤/野選破壞）
+    const paByH: Record<string, PA[]> = {};
+    for (const pa of paList) (paByH[pa.hitter] ??= []).push(pa);
+    for (const [h, list] of Object.entries(paByH))
+      if (list.length >= 4 && list.every((x) => x.onBase))
+        extra.push({ text: `${hName.get(h) ?? ""} ${list.length} 打席全上壘`, team: batTeam(list[0].half) });
+
+    // ③ 三球關門（半局內單一投手 ≤3 球完成 3 出局；雙殺壓縮球數）。
+    // 球數用 pitch_cnt（投手累計，界內球亦計；is_ball/is_strike 會漏界內球）。半局球數＝該半局末 − 進半局前該投手累計。
+    const lastMaxByP: Record<string, number> = {};
+    let curKey = "", curOut = 0, curMax: Record<string, number> = {};
+    const closeHalf = () => {
+      if (curKey) {
+        const ps = Object.keys(curMax);
+        if (curOut >= 3 && ps.length === 1) {
+          const p = ps[0], pitches = curMax[p] - (lastMaxByP[p] ?? 0);
+          if (pitches > 0 && pitches <= 3)
+            extra.push({ text: `${pName.get(p) ?? ""} ${pitches} 球關門（${curKey.split("|")[0]} 局）`, team: pitchTeam(curKey.split("|")[1]) });
+        }
+        for (const p of ps) lastMaxByP[p] = curMax[p];
+      }
+      curMax = {}; curOut = 0;
+    };
+    for (const r of data.livelog) {
+      const key = `${n(r.inning_seq)}|${r.visiting_home_type}`;
+      if (key !== curKey) { closeHalf(); curKey = key; }
+      const p = String(r.pitcher_acnt ?? ""), pc = n(r.pitch_cnt) as number;
+      if (p && pc) curMax[p] = Math.max(curMax[p] ?? 0, pc);
+      for (const m of String(r.content ?? "").matchAll(/(\d)人出局/g)) curOut = Math.max(curOut, Number(m[1]));
+    }
+    closeHalf();
+
+    // ⑤⑥⑩ 盜壘家族（重用 sabr regex；「盜壘刺」＝失敗不含）
+    const sbRe = /([一二三])壘跑者\*?([^\s盜]+?)\s*(?:雙)?盜壘上([二三])壘/g;
+    const sbhRe = /三壘跑者\*?([^\s盜]+?)\s*(?:雙)?盜壘回本壘得分/;
+    const runSteals: Record<string, { count: number; half: string; name: string }> = {};  // runner|inn|half
+    for (const r of data.livelog) {
+      const content = String(r.content ?? ""), half = String(r.visiting_home_type ?? ""), inn = n(r.inning_seq) as number;
+      let evt = 0, m: RegExpExecArray | null; const re = new RegExp(sbRe);
+      while ((m = re.exec(content))) {
+        const name = m[2]; evt++;
+        const key = `${name}|${inn}|${half}`;
+        (runSteals[key] ??= { count: 0, half, name }).count++;
+      }
+      const mh = content.match(sbhRe);
+      if (mh) {
+        const name = mh[1]; evt++;
+        extra.push({ text: `${name} 盜本壘`, team: batTeam(half) });
+        const key = `${name}|${inn}|${half}`;
+        (runSteals[key] ??= { count: 0, half, name }).count++;
+      }
+      if (evt >= 2) extra.push({ text: "雙盜壘", team: batTeam(half) });   // 同一球 ≥2 跑者盜成功
+    }
+    for (const v of Object.values(runSteals))
+      if (v.count >= 2) extra.push({ text: `${v.name} 單局 ${v.count} 盜`, team: batTeam(v.half) });
+
+    // ⑧ 先發全員安打（每隊 role_type=先發 全部 ≥1 安）
+    for (const side of ["1", "2"]) {
+      const st = data.batting.filter((r) => String(r.visiting_home_type) === side && String(r.role_type) === "先發");
+      if (st.length >= 9 && st.every((r) => (n(r.hits) as number) >= 1)) {
+        const code = teamOf(side);
+        extra.push({ text: `${teamShort(code)} 先發全員安打`, team: code });
+      }
+    }
+
+    // ⑨ 萬磁王（球迷用語：單場觸身 ≥2；從 livelog 觸身死球 計，box hbp 未必回傳）
+    const hbpBy: Record<string, number> = {};
+    for (const r of data.livelog) if (/觸身/.test(String(r.action_name ?? ""))) {
+      const h = String(r.hitter_acnt ?? ""); hbpBy[h] = (hbpBy[h] ?? 0) + 1;
+    }
+    for (const [h, c] of Object.entries(hbpBy))
+      if (c >= 2) extra.push({ text: `${hName.get(h) ?? ""} 萬磁王（${c} 觸身）`, team: hTeam.get(h) ?? null });
+  }
+  // 稀有成就插在賽事級之後、常見焦點之前
+  highlights.splice(nGameLevel, 0, ...extra);
   highlights.splice(12);
   // 生涯里程碑/首次（後端精確判定）獨立成「特殊紀錄」區，依球員本場所屬隊上色
   // （避免與中性 accent 紅色混淆成味全）。球員名 → visiting_home_type → 隊碼。
@@ -327,18 +401,18 @@ export default function GameLivePage() {
   // MVP 當場成績行（打者/投手 box 內 is_mvp）＋本季單場 MVP 次數
   const mvpBat = data.batting.find((r) => r.is_mvp);
   const mvpPit = data.pitching.find((r) => r.is_mvp);
-  let mvp: { name: string; line: string; count?: number | null } | null = null;
+  let mvp: { name: string; line: string; count?: number | null; pid?: string } | null = null;
   if (mvpBat) {
     const parts = [`${n(mvpBat.at_bats)} 打數 ${n(mvpBat.hits)} 安`];
     if (n(mvpBat.home_runs) as number) parts.push(`${mvpBat.home_runs} 轟`);
     if (n(mvpBat.rbi) as number) parts.push(`${mvpBat.rbi} 打點`);
     if (n(mvpBat.runs) as number) parts.push(`${mvpBat.runs} 得分`);
     if (n(mvpBat.sb) as number) parts.push(`${mvpBat.sb} 盜`);
-    mvp = { name: String(mvpBat.hitter_name ?? ""), line: parts.join("・"), count: dc?.mvp };
+    mvp = { name: String(mvpBat.hitter_name ?? ""), line: parts.join("・"), count: dc?.mvp, pid: String(mvpBat.hitter_acnt ?? "") };
   } else if (mvpPit) {
     const parts = [`${ipTxt(mvpPit)} 局`, `${n(mvpPit.so)}K`, `失 ${n(mvpPit.runs)} 分`];
     if ((n(mvpPit.bb) as number) === 0) parts.push("無保送");
-    mvp = { name: String(mvpPit.pitcher_name ?? ""), line: parts.join("・"), count: dc?.mvp };
+    mvp = { name: String(mvpPit.pitcher_name ?? ""), line: parts.join("・"), count: dc?.mvp, pid: String(mvpPit.pitcher_acnt ?? "") };
   }
 
   // 決勝資訊（併入焦點卡；歷史無逐打席場次仍走頁面下方 strip）
@@ -357,11 +431,11 @@ export default function GameLivePage() {
     .map((r) => String(r.hitter_name ?? ""))
     .filter(Boolean).join("、");
   const decisionItems: DecItem[] = ([
-    { label: "先發(客)", value: ppl[String(g.away_starter_id)] },
-    { label: "先發(主)", value: ppl[String(g.home_starter_id)] },
-    { label: "勝投", value: ppl[String(g.winning_pitcher_id)], note: dc?.win ? `第${dc.win}勝` : undefined },
-    { label: "敗投", value: ppl[String(g.losing_pitcher_id)], note: dc?.loss ? `第${dc.loss}敗` : undefined },
-    { label: "救援", value: ppl[String(g.closer_id)], note: dc?.save ? `第${dc.save}救援` : undefined },
+    { label: "先發(客)", value: ppl[String(g.away_starter_id)], pid: String(g.away_starter_id ?? "") },
+    { label: "先發(主)", value: ppl[String(g.home_starter_id)], pid: String(g.home_starter_id ?? "") },
+    { label: "勝投", value: ppl[String(g.winning_pitcher_id)], note: dc?.win ? `第${dc.win}勝` : undefined, pid: String(g.winning_pitcher_id ?? "") },
+    { label: "敗投", value: ppl[String(g.losing_pitcher_id)], note: dc?.loss ? `第${dc.loss}敗` : undefined, pid: String(g.losing_pitcher_id ?? "") },
+    { label: "救援", value: ppl[String(g.closer_id)], note: dc?.save ? `第${dc.save}救援` : undefined, pid: String(g.closer_id ?? "") },
     { label: "中繼", value: holdNames || undefined, note: holdNote },   // HLD 為官方 relief_point（中繼點）
     { label: "致勝打點", value: gwRbiNames || undefined },
   ] as DecItem[]).filter((d) => d.value);
@@ -386,6 +460,17 @@ export default function GameLivePage() {
       ["三壘", d.third_umpire], ["左審", d.left_umpire], ["右審", d.right_umpire]]
       .filter(([, v]) => v).map(([l, v]) => `${l} ${v}`).join("、");
     if (umps) info.push(["裁判", umps]);
+  }
+  // 延賽/保留說明：放進賽事資訊卡（裁判下方）；歷史無總覽場走頁面下方 Notice fallback
+  let delayNote = "";
+  if (g.delay_kind) {
+    const md = (s: unknown) => { const p = String(s ?? "").slice(5).split("-"); return p.length === 2 ? `${+p[0]}/${+p[1]}` : ""; };
+    const orig = md(g.orig_date), played = md(g.game_date);
+    const doneD = n(g.present_status) === 1 && ((n(g.home_score) as number) + (n(g.away_score) as number)) > 0;
+    delayNote = g.delay_kind === "保留"
+      ? `原 ${orig} 開賽${doneD ? `，${played} 續賽完成` : "，擇期續賽"}`
+      : `原定 ${orig}${doneD && played !== orig ? `，${played} 補賽` : "，擇期補賽"}`;
+    info.push([String(g.delay_kind), `☔ ${delayNote}`]);
   }
 
   return (
@@ -450,33 +535,22 @@ export default function GameLivePage() {
         </div>
       )}
 
-      {g.delay_kind && (() => {
-        const md = (s: unknown) => {
-          const p = String(s ?? "").slice(5).split("-");
-          return p.length === 2 ? `${+p[0]}/${+p[1]}` : "";
-        };
-        const orig = md(g.orig_date);
-        const played = md(g.game_date);
-        const done = n(g.present_status) === 1 && ((n(g.home_score) as number) + (n(g.away_score) as number)) > 0;
-        const note = g.delay_kind === "保留"
-          ? `因雨保留比賽　原 ${orig} 開賽${done ? `，${played} 續賽完成` : "，擇期續賽"}`
-          : `因雨延賽　原定 ${orig}${done && played !== orig ? `，${played} 補賽` : "，擇期補賽"}`;
-        return (
-          <div className="mb-6 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
-            <span>☔</span><span className="font-medium">{note}</span>
-          </div>
-        );
-      })()}
+      {/* 延賽/保留：有總覽場已併入賽事資訊卡（裁判下方）；歷史無總覽場在此 fallback */}
+      {g.delay_kind && delayNote && data.livelog.length === 0 && (
+        <Notice className="mb-6" icon="☔">因雨{String(g.delay_kind)}　{delayNote}</Notice>
+      )}
 
       {/* 決勝資訊已併入總覽焦點卡；僅歷史無逐打席場次（無總覽）時在此顯示 */}
       {data.livelog.length === 0 && (decisionItems.length > 0 || mvp) && (
         <Card padding="px-4 py-3" className="mb-6 flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
           {decisionItems.map((d) => (
-            <span key={d.label}><span className="text-muted">{d.label}</span> <span className="font-medium text-ink">{d.value}</span>
+            <span key={d.label}><span className="text-muted">{d.label}</span>{" "}
+              <span className="font-medium text-ink">{d.pid ? <PlayerLink pid={d.pid} name={d.value} className="hover:text-accent hover:underline" /> : d.value}</span>
               {d.note ? <span className="ml-1 text-xs text-muted">{d.note}</span> : null}</span>
           ))}
           {ppl[String(g.mvp_id)] && (
-            <span><span className="text-muted">MVP</span> <span className="font-medium text-ink">{ppl[String(g.mvp_id)]}</span>
+            <span><span className="text-muted">MVP</span>{" "}
+              <span className="font-medium text-ink"><PlayerLink pid={String(g.mvp_id ?? "")} name={String(ppl[String(g.mvp_id)])} className="hover:text-accent hover:underline" /></span>
               {dc?.mvp ? <span className="ml-1 text-xs text-muted">本季第 {dc.mvp} 次</span> : null}</span>
           )}
         </Card>
@@ -486,13 +560,8 @@ export default function GameLivePage() {
 
       {data.batting.length > 0 && (
         <section className="mb-8">
-          <h2 className="mb-3 text-lg font-semibold">Box Score</h2>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <BoxBatting rows={data.batting.filter((r) => String(r.visiting_home_type) === "1")} team={String(g.away_team_name)} />
-            <BoxBatting rows={data.batting.filter((r) => String(r.visiting_home_type) === "2")} team={String(g.home_team_name)} />
-            <BoxPitching rows={data.pitching.filter((r) => String(r.visiting_home_type) === "1")} team={String(g.away_team_name)} decisions={data.decisions ?? {}} />
-            <BoxPitching rows={data.pitching.filter((r) => String(r.visiting_home_type) === "2")} team={String(g.home_team_name)} decisions={data.decisions ?? {}} />
-          </div>
+          <Eyebrow className="mb-3">Box Score・分析</Eyebrow>
+          <BoxTabs data={data} />
         </section>
       )}
     </div>

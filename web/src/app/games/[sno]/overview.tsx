@@ -4,7 +4,7 @@
 // 素材全來自既有資料：winprob 逐打席序列 × livelog 事件文，零新請求。
 import type { StatRow } from "@/lib/client";
 import type { WpPoint } from "@/components/win-prob-chart";
-import { Card } from "@/components/ui";
+import { Card, Eyebrow, PlayerLink } from "@/components/ui";
 import { contrastText, teamColor } from "@/lib/teams";
 
 const num = (v: StatRow[string]) => Number(v) || 0;
@@ -84,7 +84,7 @@ function MomentRow({ m, homeName, awayName, homeColor, awayColor, onJump }: {
   );
 }
 
-export type DecItem = { label: string; value: string; note?: string };
+export type DecItem = { label: string; value: string; note?: string; pid?: string };
 
 export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor, onJump, highlights, milestones, info, mvp, decisions }: {
   wp: WpPoint[]; log: StatRow[]; homeName: string; awayName: string;
@@ -93,7 +93,7 @@ export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor
   highlights: { text: string; team: string | null }[];
   milestones: { text: string; team: string | null }[];
   info: [string, string][];
-  mvp: { name: string; line: string; count?: number | null } | null;
+  mvp: { name: string; line: string; count?: number | null; pid?: string } | null;
   decisions: DecItem[];
 }) {
   const moments = buildMoments(wp, log);
@@ -138,7 +138,7 @@ export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor
             <div className="flex items-center gap-3 rounded-lg bg-accent/5 px-3 py-2.5">
               <span className="shrink-0 rounded-md bg-accent px-2 py-0.5 text-xs font-bold text-white">MVP</span>
               <div className="min-w-0">
-                <span className="text-base font-bold text-ink">{mvp.name}</span>
+                <PlayerLink pid={mvp.pid} name={mvp.name} className="text-base font-bold text-ink hover:text-accent hover:underline" />
                 {mvp.count ? <span className="ml-1.5 text-xs font-normal text-muted">本季第 {mvp.count} 次</span> : null}
                 <span className="ml-2 font-mono text-xs tabular-nums text-muted">{mvp.line}</span>
               </div>
@@ -146,7 +146,7 @@ export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor
           )}
           {highlights.length > 0 && (
             <section>
-              <h3 className="mb-2 text-xs font-semibold text-muted">本場焦點</h3>
+              <Eyebrow className="mb-2">本場焦點</Eyebrow>
               <div className="flex flex-wrap gap-1.5">
                 {highlights.map((h, i) => chip(h.text, h.team, i))}
               </div>
@@ -154,7 +154,7 @@ export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor
           )}
           {milestones.length > 0 && (
             <section>
-              <h3 className="mb-2 text-xs font-semibold text-muted">特殊紀錄</h3>
+              <Eyebrow className="mb-2">特殊紀錄</Eyebrow>
               <div className="flex flex-wrap gap-1.5">
                 {milestones.map((m, i) => chip(m.text, m.team, i))}
               </div>
@@ -166,7 +166,7 @@ export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor
                 <div key={d.label} className="min-w-0">
                   <dt className="text-[11px] leading-tight text-muted">{d.label}</dt>
                   <dd className="truncate text-sm font-semibold text-ink">
-                    {d.value}
+                    {d.pid ? <PlayerLink pid={d.pid} name={d.value} className="hover:text-accent hover:underline" /> : d.value}
                     {d.note ? <span className="ml-1 text-[11px] font-normal text-muted">{d.note}</span> : null}
                   </dd>
                 </div>

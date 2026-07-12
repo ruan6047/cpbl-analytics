@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import type { StatRow } from "@/lib/client";
 import { TeamLogo } from "@/components/ui";
 import { teamColor } from "@/lib/teams";
-import { PITCH_CALL } from "@/lib/chart-theme";
+import { PITCH_CALL, PA_KIND } from "@/lib/chart-theme";
 import type { WpPoint } from "@/components/win-prob-chart";
 
 type Rec = { w: number; l: number; form: string };
@@ -32,6 +32,7 @@ export type Live = {
   } | null;
   has_tracking: boolean;
   tracking: TrackRow[];
+  spray?: { hitter_acnt: string; dir: number; dist: number; ev: number | null; la: number | null; result: string }[];
 };
 
 const occupied = (v: StatRow[string]) => v !== null && v !== undefined && String(v) !== "";
@@ -175,7 +176,7 @@ type PitcherLive = { outs: number; k: number; h: number };
 type TodayPA = { label: string; kind: PaKind; rbi: number; idx: number };
 
 // 打者該場守位字母碼 → 2 字中文（既有 defend_station_code，逐事件精準、全史已填；含換守位/代打）
-const DEFEND_ZH: Record<string, string> = {
+export const DEFEND_ZH: Record<string, string> = {
   P: "投手", C: "捕手", "1B": "一壘", "2B": "二壘", "3B": "三壘", SS: "游擊",
   LF: "左外", CF: "中外", RF: "右外", DH: "指打", PH: "代打",
 };
@@ -221,15 +222,16 @@ function Matchup({ e, game, batterAvg, uniforms, pcount, pstats, batterToday, on
         </div>
         <div className="flex flex-wrap items-center gap-1 border-t border-line px-2.5 py-1.5">
           <span className="mr-0.5 text-[10px] font-semibold tracking-wider text-muted">今日</span>
-          {batterToday.length ? batterToday.map((pa, i) => (
-            <button key={i} onClick={() => onJump(pa.idx)} title="看該打席"
-              className={`rounded px-1.5 py-0.5 text-[11px] font-medium tabular-nums transition-colors hover:brightness-95 ${
-                pa.kind === "hit" ? "bg-emerald-500/10 text-emerald-700"
-                : pa.kind === "walk" ? "bg-sky-500/10 text-sky-700"
-                : "bg-surface-2 text-muted"}`}>
-              {pa.label}{pa.rbi ? `(${pa.rbi})` : ""}
-            </button>
-          )) : <span className="text-[11px] text-faint">首打席</span>}
+          {batterToday.length ? batterToday.map((pa, i) => {
+            const c = pa.kind === "hit" ? PA_KIND.hit : pa.kind === "walk" ? PA_KIND.walk : null;
+            return (
+              <button key={i} onClick={() => onJump(pa.idx)} title="看該打席"
+                className={`rounded px-1.5 py-0.5 text-[11px] font-medium tabular-nums transition-colors hover:brightness-95 ${c ? "" : "bg-surface-2 text-muted"}`}
+                style={c ? { background: `color-mix(in srgb, ${c} 12%, transparent)`, color: c } : undefined}>
+                {pa.label}{pa.rbi ? `(${pa.rbi})` : ""}
+              </button>
+            );
+          }) : <span className="text-[11px] text-faint">首打席</span>}
         </div>
       </div>
     </div>
@@ -258,6 +260,17 @@ function ScoreLine({ sb, game, halves, curKey, onSelect }: {
   const halfBy = new Map(halves.map((h) => [`${h.inning}|${h.half}`, h]));
   const cellScore = (rows: StatRow[], inn: number) => rows.find((r) => num(r.inning_seq) === inn)?.score_cnt ?? "";
   const tot = (rows: StatRow[], key: string) => rows.reduce((s, r) => s + (num(r[key]) || 0), 0);
+  // 主隊末局 Ｘ：主隊獲勝時，末局若未打（領先免打）標「Ｘ」，若打了（再見得分）標「{分}Ｘ」。僅主列(half 2)末局。
+  // 「有無打末局」以 livelog 半局為準——scoreboard 對未打局仍有 phantom 0 列，不可信；無 livelog(歷史場)則不套用。
+  const maxInn = innings.length ? innings[innings.length - 1] : 0;
+  const homeWon = (num(game.home_score) + num(game.away_score)) > 0 && num(game.home_score) > num(game.away_score);
+  const homeBattedFinal = halfBy.has(`${maxInn}|2`);
+  const cellNode = (rows: StatRow[], inn: number, half: string) => {
+    const base = String(cellScore(rows, inn));
+    if (half === "2" && inn === maxInn && homeWon && halves.length > 0)
+      return homeBattedFinal ? <>{base}<span className="text-faint">Ｘ</span></> : <span className="text-faint">Ｘ</span>;
+    return base;
+  };
 
   const row = (label: StatRow[string], rows: StatRow[], half: string, score: number) => (
     <tr className="border-t border-line">
@@ -271,10 +284,10 @@ function ScoreLine({ sb, game, halves, curKey, onSelect }: {
             {h ? (
               <button onClick={() => onSelect(h)}
                 className={`h-9 w-full px-2.5 transition-colors hover:bg-surface-2 ${active ? "bg-accent font-semibold text-white" : "text-muted"}`}>
-                {String(cellScore(rows, inn))}
+                {cellNode(rows, inn, half)}
               </button>
             ) : (
-              <span className="block px-2.5 py-1.5 text-muted">{String(cellScore(rows, inn))}</span>
+              <span className="block px-2.5 py-1.5 text-muted">{cellNode(rows, inn, half)}</span>
             )}
           </td>
         );
