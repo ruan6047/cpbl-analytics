@@ -13,9 +13,9 @@
 | UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🔨子卡執行中（spec v5 已核可 07-11） |
 | UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | 待小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（**壓到 UX-6〜9 完成後**重製） |
 | UX-7 | 個人頁傘卡（Person Hub） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 📋已拆 7A/7B/7C（07-12） |
-| UX-7A | 球員頁換裝＋PR 氣泡＋出手點 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待派工（先行） |
+| UX-7A | 球員頁換裝＋PR 氣泡＋出手點 | ruan6047 | Fable-5@Claude Code | Gemini（首輪，已還原） | Fable-5（審） | `ai/opus/UX-7A`(WIP) | ⚪ | ↩已還原（需求方裁定效果未達；重做參考 findings 見卡） |
 | UX-7B | 球隊頁＋教練身分（coaches/managers） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待派工（吃 7A 換裝定調） |
-| UX-7C | /people 命名空間（純教練/裁判個人頁） | ruan6047 | Fable-5@Claude Code | Fable-5@Claude Code | 待指派（≠執行者） | `ai/fable/UX-7C` | ⚪ | ✅執行完成待查核（worktree `../cpbl-analytics-7c`，審核可進駐） |
+| UX-7C | /people 命名空間（純教練/裁判個人頁） | ruan6047 | Fable-5@Claude Code | Fable-5@Claude Code | Gemini | `ai/fable/UX-7C` | ⚪ | ✅查核通過已 merge（`9c33f32`），待部署 |
 | UX-8 | 排行與紀錄群 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
 | UX-9 | 週邊群 `/matchups`、`/venues` | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
 | UX-10 | 三頁互動模式重設計 | ruan6047 | 待各自小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（暫緩，不在本輪序） |
@@ -64,7 +64,15 @@
   2. **PR 呈現整併＋氣泡化**（提案 A）：既有三種 PR（能力值卡雷達/PercentileBar/官方進階 PR 區）整併——氣泡列=本季速讀（Savant 式，含 tracking 衍生 whiff/chase/barrel PR；樣本門檻 min_pa=G×3.1、min_bf=G×1.0）、雷達=生涯風格、官方 PR 收進氣泡。色走 `prColor`/`PR_GRADIENT`（禁 hardcode hex）；不加 Redis（SQL window/物化足夠）
   3. **出手點 2D**（提案 B 剩餘半案）：`rel_side`×`rel_height`（單位 m；覆蓋 99.96%）散點 by 球種＋質心＋「出手一致性」數值（各球種質心分散度）；掛 MovementSection 旁、movement 端點擴欄；左投鏡像沿既有慣例
 - 驗收：5 秒盲測「這選手行不行」（氣泡列應為首屏答案）＋雙色系截圖；PR 整併後無重複呈現；橫切驗收見傘卡
-- 狀態：⏳待派工（先行）　Commit：—
+- 狀態：↩已還原（07-12 ruan6047 裁定「效果沒有變得比較好」；Gemini 首輪 WIP 快照留分支 `ai/opus/UX-7A`@`d6ca243`，main 從未受影響）　Commit：—
+- **重做參考（Fable 審核 findings，07-12；避免二輪重蹈）**：
+  - F1（高·雙重事實源）：卡片要求「官方 PR 收進氣泡」，首輪把官方 PR 區移除後**全部自算 PR**——但 `advanced_stats` 有 9 個官方 `_pr` 欄、`batting_current.ops_plus` 官方欄也存在（trend.py 另有滾動版=第三套）。同指標會與官方數字不一致。重做：氣泡直接用官方 `_pr`，官方沒有的才自算並標注
+  - F2（高·誠實）：雷達被寫死 `selectAbility(..., "career")` 但旁邊本季/生涯 toggle 仍在且亮「本季」——標示與內容不符。固定生涯就同步改 toggle 語意
+  - F3（中）：高相關指標成對佔位（截圖實證 ERA+ 92 與防禦率 92 同 PR）——每對取一
+  - F4（中·版面）：位移/出手點/成績單 3 欄 grid 在 1280 擠爆，表格「放球點/一致性」欄被裁切
+  - F5（低）：「已鏡像鏡像」typo；一致性建議 cm；單球群 variance null→coalesce 0 顯示 0.000 誤導，樣本過小應顯「—」
+  - 好的部分可沿用：氣泡視覺/樣本門檻+未達門檻標注/骨架屏/出手點+一致性照卡實作/整併方向正確
+  - 流程：首輪未 commit 未推送即交審（§3.1 交接驗證未過）——二輪務必收尾再交
 
 ### UX-7B 球隊頁＋教練身分  〔⚪一般〕
 - 需求：ruan6047　規劃：Fable-5@Claude Code　分支：`ai/<執行者>/UX-7B`
@@ -86,7 +94,7 @@
   4. 新端點（如 `/api/v1/people/umpire/{name}`）入 pytest EXPECTED
 - 依賴：無（新路由獨立，可與 7A 平行；7B 的純教練連結等本卡上線後補）
 - 驗收：5 秒盲測「這主審好球帶偏不偏」；同名 kind 隔離驗證；橫切驗收見傘卡
-- 狀態：✅執行完成待查核　Commit：分支 `ai/fable/UX-7C` 已推送；worktree `../cpbl-analytics-7c`（環境現成，審核可照 §3.1 進駐）
+- 狀態：✅Gemini 查核通過、已 merge `9c33f32`，待部署　Commit：分支 `ai/fable/UX-7C` 已推送；worktree `../cpbl-analytics-7c`（環境現成，審核可照 §3.1 進駐）
 - Log：
   - 07-12 Fable 執行（worktree 首例）：people router 雙端點（教練=coaches+managers、同名唯一才回連球員頁；裁判=崗位場次+記分卡沿 umpires 常數+近期場）＋前端 /people/[kind]/[name]＋/umpires 名字連結入口。pytest 20 passed（EXPECTED 54→56）/ruff/tsc/build 綠；實資料抽驗 葉君璋/平野惠一/蔡豐澤、375 無溢出
 
