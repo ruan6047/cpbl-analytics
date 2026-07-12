@@ -13,7 +13,7 @@
 | UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🔨子卡執行中（spec v5 已核可 07-11） |
 | UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | 待小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（**壓到 UX-6〜9 完成後**重製） |
 | UX-7 | 個人頁傘卡（Person Hub） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 📋已拆 7A/7B/7C（07-12） |
-| UX-7A | 球員頁換裝＋PR 氣泡＋出手點 | ruan6047 | Fable-5@Claude Code | Gemini（首輪，已還原） | Fable-5（審） | `ai/opus/UX-7A`(WIP) | ⚪ | ↩已還原（需求方裁定效果未達；重做參考 findings 見卡） |
+| UX-7A | 球員頁換裝＋出手點（氣泡案已否決） | ruan6047 | Fable-5@Claude Code | 待重派 | 待指派 | `ai/opus/UX-7A`(WIP留參) | ⚪ | ↩已還原＋需求校正（PR 維持柱狀圖；範圍修訂見卡） |
 | UX-7B | 球隊頁＋教練身分（coaches/managers） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待派工（吃 7A 換裝定調） |
 | UX-7C | /people 命名空間（純教練/裁判個人頁） | ruan6047 | Fable-5@Claude Code | Fable-5@Claude Code | Gemini | `ai/fable/UX-7C` | ⚪ | ✅查核通過已 merge（`9c33f32`），待部署 |
 | UX-8 | 排行與紀錄群 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
@@ -65,6 +65,7 @@
   3. **出手點 2D**（提案 B 剩餘半案）：`rel_side`×`rel_height`（單位 m；覆蓋 99.96%）散點 by 球種＋質心＋「出手一致性」數值（各球種質心分散度）；掛 MovementSection 旁、movement 端點擴欄；左投鏡像沿既有慣例
 - 驗收：5 秒盲測「這選手行不行」（氣泡列應為首屏答案）＋雙色系截圖；PR 整併後無重複呈現；橫切驗收見傘卡
 - 狀態：↩已還原（07-12 ruan6047 裁定「效果沒有變得比較好」；Gemini 首輪 WIP 快照留分支 `ai/opus/UX-7A`@`d6ca243`，main 從未受影響）　Commit：—
+- **需求校正（ruan6047 07-12，一輪還原後定案）**：**氣泡方案正式否決**——柱狀圖（既有 `PercentileBar`）一列同時呈現「數值＋PR＋長度視覺＋定義 tooltip」，氣泡只剩 PR 圓圈＝**資訊變少**，且呈現的指標原本就有。**PR 呈現以官方 PR 柱狀圖為準**（保留「官方進階 · 百分位 PR」區）。7A 範圍修訂：①球員頁換裝對齊（原範圍 1）②出手點 2D（原範圍 3，修 F4 版面）③（選擇性）柱狀圖區**補列** tracking 衍生指標（whiff/chase 等官方 `_pr` 有的），不改呈現形式。提案 A（原 UX-11）氣泡化至此結案否決。
 - **重做參考（Fable 審核 findings，07-12；避免二輪重蹈）**：
   - F1（高·雙重事實源）：卡片要求「官方 PR 收進氣泡」，首輪把官方 PR 區移除後**全部自算 PR**——但 `advanced_stats` 有 9 個官方 `_pr` 欄、`batting_current.ops_plus` 官方欄也存在（trend.py 另有滾動版=第三套）。同指標會與官方數字不一致。重做：氣泡直接用官方 `_pr`，官方沒有的才自算並標注
   - F2（高·誠實）：雷達被寫死 `selectAbility(..., "career")` 但旁邊本季/生涯 toggle 仍在且亮「本季」——標示與內容不符。固定生涯就同步改 toggle 語意

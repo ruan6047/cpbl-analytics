@@ -116,7 +116,7 @@
 
 | 案 | 裁定 | 勘誤/修正 |
 |---|---|---|
-| **A 氣泡卡** | ✅ 併入 UX-7 | 非新建——既有三種 PR 呈現（能力值卡雷達/PercentileBar/官方進階 PR 區）之**整併+氣泡化**，工時低於報告估；hardcode 色（#ff2a2a/#3b82f6）違反 tokens 紅線 → 用既有 `prColor`/`PR_GRADIENT`；Redis 快取過度工程（本專案無 Redis，SQL window/物化足夠） |
+| **A 氣泡卡** | ❌ **否決**（07-12 原型實測後 ruan6047 裁定：柱狀圖=數值+PR+長度+定義四合一，氣泡只剩 PR 圓圈＝資訊密度下降）| 非新建——既有三種 PR 呈現（能力值卡雷達/PercentileBar/官方進階 PR 區）之**整併+氣泡化**，工時低於報告估；hardcode 色（#ff2a2a/#3b82f6）違反 tokens 紅線 → 用既有 `prColor`/`PR_GRADIENT`；Redis 快取過度工程（本專案無 Redis，SQL window/物化足夠） |
 | **B 出手點** | ✅ 併入 UX-7 | 位移半案（HB×IVB）07-12 已上線，僅剩出手點；欄名為 `rel_side`/`rel_height`（單位 m，非 `*_cm`）；信心橢圓改「出手一致性」數值（質心分散度）更省更可讀 |
 | **C Stuff+** | 📥 ML-PT3，排 2026 季末 | **資料前提錯誤**：pitch_tracking 僅 2026 起（非 2020–2026），單季 ~69k 球樣本風險高一級 → 等全季收完再訓練；MLB 預訓練需逐球資料（非 leaderboard 聚合）；補紅線：**須贏過「whiff% 排名」baseline** 才採用；可重用 ML-PT2 特徵對齊管線與 sabr RE 矩陣 |
 | **D 模擬器 v2** | 📥 ML-SIM1，遠期 | 「動畫棒球飛入」違反動效準則（裝飾動畫）刪；**補誠實紅線**：輸出必附基準對照+不確定性（承賽果預測準則）；Redis 預計算 → 物化表；與 UX-10 predict 互動重設計合併規劃 |
