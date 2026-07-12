@@ -16,10 +16,10 @@
 | UX-8 | 排行與紀錄群 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
 | UX-9 | 週邊群 `/matchups`、`/venues` | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
 | UX-10 | 三頁互動模式重設計 | ruan6047 | 待各自小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（暫緩，不在本輪序） |
-| UX-11 | 選手百分位數氣泡卡 (Percentile Player Cards) | ruan6047 | 評估報告已建 | 待指派 | 待指派 | — | ⚪ | 📥Backlog（見 PROPOSAL_EVALUATION.md） |
-| UX-12 | 出手點與球路軌跡 2D 分布圖 (Release/Movement) | ruan6047 | 評估報告已建 | 待指派 | 待指派 | — | ⚪ | 📥Backlog（見 PROPOSAL_EVALUATION.md） |
-| ML-PT3 | 中職版球路品質指數 (CPBL Stuff+ Index) | ruan6047 | 評估報告已建 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（見 PROPOSAL_EVALUATION.md） |
-| ML-SIM1 | 互動式 H2H 對戰模擬器 v2 | ruan6047 | 評估報告已建 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（見 PROPOSAL_EVALUATION.md） |
+| UX-11 | 選手百分位數氣泡卡 | ruan6047 | Fable 複評 07-12 | —（併卡） | — | — | ⚪ | 🏁併入 UX-7 範圍 1（=既有三 PR 呈現整併+氣泡化，非新建） |
+| UX-12 | 出手點 2D 分布圖 | ruan6047 | Fable 複評 07-12 | —（併卡） | — | — | ⚪ | 🏁併入 UX-7（位移半案 07-12 已上線，僅剩出手點） |
+| ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
+| ML-SIM1 | 互動式 H2H 對戰模擬器 v2 | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（遠期，與 UX-10 predict 重設計合併規劃） |
 
 > 「待指派」＝ruan6047尚未派工。派工後把 model@tool 補實、狀態改 🔨。
 > **依賴序**：(UX-2 🏁 / UX-3 🏁 / UX-4 🏁 / UX-4.5 🏁) 通用層已齊 → UX-5〜9 頁面層（大→小）已解鎖。UX-5 已拆 **UX-5B（hub v1＋搬遷，🏁 merge `e74853b`）→ UX-5A（戰績換裝）→ UX-5C（首頁完整版，壓 UX-6〜9 之後重製）**。UX-10 暫緩。
@@ -54,13 +54,16 @@
   3. `/teams/[code]` 換裝＋**教練團名單**（coaches by team）＋**總教練歷代 era 卡**（managers 含勝率/冠軍）
   4. `/people/coach/[name]`：25 名非球員教練（職務史＋若有 managers 戰績）
   5. `/people/umpire/[name]`：裁判個人頁——執法場次/好球帶判定個人報告（自 umpires router 抽 per-name）/近期執法場列表（連 games）；順帶解 UX-10 裁判動線問題的一半
-  6. 新端點同步 pytest EXPECTED（07-12 快照教訓）
+  6. **提案 A 收編＝PR 呈現整併+氣泡化**（PROPOSAL_EVALUATION A 案）：球員頁既有三種 PR（能力值卡雷達/PercentileBar/官方進階 PR 區）整併——氣泡列=本季速讀（Savant 式，含 tracking 衍生 whiff/chase/barrel PR，樣本門檻 min_pa=G×3.1/min_bf=G×1.0）、雷達=生涯風格、官方 PR 收進氣泡。色走既有 `prColor`/`PR_GRADIENT`（報告的 hardcode hex 違反 tokens 紅線不採）；不加 Redis（SQL window/物化即可）
+  7. **提案 B 收編＝出手點 2D**（位移半案 07-12 已上線）：`rel_side`×`rel_height`（單位 m 非報告寫的 cm；覆蓋 99.96%）散點 by 球種+質心+「出手一致性」數值（各球種質心分散度，比信心橢圓便宜可讀）；掛 MovementSection 旁、movement 端點擴欄；左投鏡像沿既有慣例
+  8. 新端點同步 pytest EXPECTED（07-12 快照教訓）
 - 不做（PERSON-2 backlog）：person_dim 正規化、領隊、啦啦隊/應援團（**先查證官網有無名單**，有資料源再開卡）
 - 驗收：5 秒盲測（球員頁「這選手行不行」、裁判頁「這主審好球帶偏不偏」）＋雙色系 375/1280 截圖；同名守門有測試；`ruff`+`pytest`+`tsc`+`build:check` 綠
 - 狀態：📋規劃完成待派工　Commit：—
 - Log：
   - 07-11 spec v5 核可後開卡
   - 07-12 ruan6047 擴需求「球員頁→個人頁」；Fable 研究＝資料盤點（教練 72/47 joinable、managers 90 era、裁判 30、領隊/啦啦隊無源）→ 裁定甲案雙軌 URL＋UX-7 一次含 PERSON-1（純教練/裁判個人頁）；person_dim/領隊/啦啦隊列 PERSON-2 backlog
+  - 07-12 ruan6047 令複評 PROPOSAL_EVALUATION 四案 → **A/B 收編進 UX-7**（範圍 6/7；A=整併非新建、B 只剩出手點半案）、C 排季末（資料前提勘誤：pitch_tracking 僅 2026 非 2020–2026）、D 遠期連 UX-10；勘誤附錄見 PROPOSAL_EVALUATION.md
 
 ### UX-8 排行與紀錄群  〔⚪一般〕
 - 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 頁面層）　分支：`ai/<執行者>/UX-8`
