@@ -50,9 +50,8 @@ function pitcherMarks(r: StatRow, decisions: Record<string, string>): { text: st
 }
 
 // ───────────────────────── 單隊表 ─────────────────────────
-function BattingTable({ rows, avgMap, orderBy, posBy }: {
-  rows: StatRow[]; avgMap: Record<string, number>;
-  orderBy: Map<string, string>; posBy: Map<string, string>;
+function BattingTable({ rows, avgMap, posBy }: {
+  rows: StatRow[]; avgMap: Record<string, number>; posBy: Map<string, string>;
 }) {
   const cols: [string, (r: StatRow) => string][] = [
     ["打數", (r) => i0(r.at_bats)], ["得分", (r) => i0(r.runs)], ["安打", (r) => i0(r.hits)],
@@ -60,7 +59,7 @@ function BattingTable({ rows, avgMap, orderBy, posBy }: {
     ["打點", (r) => i0(r.rbi)], ["四壞", (r) => i0(r.bb)], ["三振", (r) => i0(r.so)], ["盜壘", (r) => i0(r.sb)],
   ];
   const columns: Column<StatRow>[] = [
-    { header: "棒", cell: (r) => orderBy.get(String(r.hitter_acnt)) ?? "", align: "center", className: "text-faint", width: "2rem" },
+    // 「棒次」不做：livelog batting_order 是「該局第幾位」非先發棒次（實測每人一場 2–4 值），無可靠棒次來源
     { header: "守", cell: (r) => posBy.get(String(r.hitter_acnt)) ?? "—", align: "center", nowrap: true, className: "font-sans text-[11px] text-muted" },
     {
       header: "打者",
@@ -191,7 +190,7 @@ export default function BoxTabs({ data }: { data: Live }) {
 
   // livelog 衍生：棒次/守位（打者首事件）、壞球數/面對打席（投手）、得點圈打席（隊）
   const derived = useMemo(() => {
-    const orderBy = new Map<string, string>(), posBy = new Map<string, string>();
+    const posBy = new Map<string, string>();
     const ballsBy = new Map<string, number>(), paBy = new Map<string, number>();
     // 得點圈＝打席首事件時二/三壘有人；AB/安打以打席末事件 action_name 判
     const risp: Record<string, { ab: number; hits: number }> = { "1": { ab: 0, hits: 0 }, "2": { ab: 0, hits: 0 } };
@@ -237,14 +236,13 @@ export default function BoxTabs({ data }: { data: Live }) {
       else if (/擊出/.test(c)) pIdx[pitchSide].swing++;
       paLast = r;
       lastPitcher = String(r.pitcher_acnt ?? "");
-      if (!orderBy.has(h) && r.batting_order) orderBy.set(h, String(r.batting_order));
       if (!posBy.has(h)) {
         const z = DEFEND_ZH[String(r.defend_station_code ?? "")];
         if (z) posBy.set(h, z);
       }
     }
     flush();
-    return { orderBy, posBy, ballsBy, paBy, risp, pIdx };
+    return { posBy, ballsBy, paBy, risp, pIdx };
   }, [data.livelog]);
 
   const side = (vht: string, rows: StatRow[]) => rows.filter((r) => String(r.visiting_home_type) === vht);
@@ -350,7 +348,7 @@ export default function BoxTabs({ data }: { data: Live }) {
       {tab !== "ana" && (
         <div className="space-y-4">
           <BattingTable rows={side(tab === "away" ? "1" : "2", data.batting)} avgMap={data.batter_avg}
-            orderBy={derived.orderBy} posBy={derived.posBy} />
+            posBy={derived.posBy} />
           <PitchingTable rows={side(tab === "away" ? "1" : "2", data.pitching)} decisions={data.decisions ?? {}}
             ballsBy={derived.ballsBy} paBy={derived.paBy} />
         </div>

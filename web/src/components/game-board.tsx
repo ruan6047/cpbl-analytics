@@ -216,7 +216,6 @@ function Matchup({ e, game, batterAvg, uniforms, pcount, pstats, batterToday, on
           <span className="truncate text-base font-bold text-ink">{String(e.hitter_name ?? "—")}</span>
           <span className="ml-auto flex shrink-0 items-center gap-1.5 tabular-nums">
             {pos && <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] font-medium text-muted">{pos}</span>}
-            {e.batting_order ? <span className="font-mono text-[11px] text-faint">{num(e.batting_order)}棒</span> : null}
             <span className="font-mono text-[11px] font-semibold text-ink">AVG {ba !== undefined ? avg3(ba) : "—"}</span>
           </span>
         </div>

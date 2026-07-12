@@ -368,13 +368,20 @@ export default function GameLivePage() {
       }
     }
 
-    // ⑨ 萬磁王（球迷用語：單場觸身 ≥2；從 livelog 觸身死球 計，box hbp 未必回傳）
+    // ⑨ 萬磁王（球迷用語：單場觸身 ≥2）。以 content『觸身死球』計（單一事件行）——
+    // action_name 是打席層級值、同打席每列重複，數列會爆量（實測 8 觸身誤報）。
     const hbpBy: Record<string, number> = {};
-    for (const r of data.livelog) if (/觸身/.test(String(r.action_name ?? ""))) {
+    for (const r of data.livelog) if (/觸身死球/.test(String(r.content ?? ""))) {
       const h = String(r.hitter_acnt ?? ""); hbpBy[h] = (hbpBy[h] ?? 0) + 1;
     }
     for (const [h, c] of Object.entries(hbpBy))
       if (c >= 2) extra.push({ text: `${hName.get(h) ?? ""} 萬磁王（${c} 觸身）`, team: hTeam.get(h) ?? null });
+  }
+  // 去重：有「單局 N 盜」者，box 級「N 次盜壘」重複、移除
+  const inningSteal = new Set(extra.filter((e) => / 單局 \d+ 盜$/.test(e.text)).map((e) => e.text.split(" ")[0]));
+  if (inningSteal.size) {
+    const dup = (t: string) => { const m = t.match(/^(\S+) \d+ 次盜壘$/); return !!m && inningSteal.has(m[1]); };
+    for (let i = highlights.length - 1; i >= 0; i--) if (dup(highlights[i].text)) highlights.splice(i, 1);
   }
   // 稀有成就插在賽事級之後、常見焦點之前
   highlights.splice(nGameLevel, 0, ...extra);
