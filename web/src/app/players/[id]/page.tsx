@@ -14,7 +14,7 @@ import { PlayerHero } from "./hero";
 import { Tabs } from "./parts";
 import { SabrSection } from "./sabr";
 import { CareerSummary, SeasonSection, TraitsChips } from "./season";
-import { BattedMixSection, QualitySection, TrackingSection } from "./tracking";
+import { BattedMixSection, MovementSection, type Movement, QualitySection, TrackingSection } from "./tracking";
 import { TrendVsSection } from "./trend";
 
 export default function PlayerPage() {
@@ -28,6 +28,7 @@ export default function PlayerPage() {
   const [pitchMix, setPitchMix] = useState<{ bucket: string; n: number; mix: { pitch_type: string; pct: number }[] }[] | null>(null);
   const [arsenal, setArsenal] = useState<{ pitch_type: string; n: number; usage: number;
     avg_speed: number | null; avg_spin: number | null; whiff_pct: number | null; avg_ev: number | null }[] | null>(null);
+  const [mov, setMov] = useState<Movement | null>(null);
   const [fielding, setFielding] = useState<StatRow[] | null>(null);
   const [fieldingCareer, setFieldingCareer] = useState<StatRow[] | null>(null);
   const [fieldFromYear, setFieldFromYear] = useState<number | null>(null);
@@ -90,6 +91,9 @@ export default function PlayerPage() {
     // 球種卡（arsenal 端點僅一軍樣本）
     if (seasonKind === "A") detail.arsenal(id, role).then((d) => setArsenal(d.items)).catch(() => setArsenal([]));
     else setArsenal([]);
+    // 球種位移（ML-PT2 Phase1；僅投手視角）
+    if (role === "pitching") detail.movement(id, seasonKind).then(setMov).catch(() => setMov(null));
+    else setMov(null);
     detail.fielding(id, "season", seasonKind).then((d) => setFielding(d.items)).catch(() => setFielding([]));
     detail.advanced(id, seasonKind).then(setAdvanced).catch(() => setAdvanced(null));
   }, [id, role, seasonKind]);
@@ -137,6 +141,7 @@ export default function PlayerPage() {
       {/* key 重掛：id/role/seasonKind 變更時重置球種鏡頭（沿用原重置語義） */}
       <TrackingSection key={`${id}-${role}-${seasonKind}`} disc={disc} role={role} seasonKind={seasonKind} />
       <QualitySection advanced={advanced} role={role} />
+      {role === "pitching" && <MovementSection mov={mov} />}
       <BattedMixSection disc={disc} pitchMix={pitchMix} arsenal={arsenal} role={role} />
       <TrendVsSection trend={trend} careerMonthly={careerMonthly} vsTeam={vsTeam} role={role} />
       <SabrSection id={id} role={role} />

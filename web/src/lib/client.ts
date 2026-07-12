@@ -234,6 +234,14 @@ export const detail = {
     clientGet<{ items: { bucket: string; n: number; mix: { pitch_type: string; pct: number }[] }[] }>(
       `/api/v1/players/${id}/pitch-mix?role=${role}&kind_code=${kind}`,
     ),
+  movement: (id: string, kind: "A" | "D" = "A") =>
+    clientGet<{
+      throws: string | null;
+      points: { pt: string; hb: number; ivb: number }[];
+      summary: { pt: string; n: number; usage: number; speed: number | null; spin: number | null;
+        ivb: number | null; hb: number | null;
+        lg: { speed: number | null; spin: number | null; ivb: number | null; hb: number | null } }[];
+    }>(`/api/v1/players/${id}/movement?kind_code=${kind}`),
   arsenal: (id: string, role: "batting" | "pitching") =>
     clientGet<{ items: { pitch_type: string; n: number; usage: number; avg_speed: number | null;
       avg_spin: number | null; whiff_pct: number | null; avg_ev: number | null }[] }>(

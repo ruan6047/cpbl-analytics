@@ -9,7 +9,12 @@ import { SprayChart } from "@/components/spray-chart";
 import { Card, EmptyState, PR_GRADIENT, StatTile } from "@/components/ui";
 import { type StatRow } from "@/lib/client";
 import { ZoneScatter } from "@/components/zone-scatter";
-import { pitchColor, useChartTheme } from "@/lib/chart-theme";
+import {
+  CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart,
+  Tooltip as ChartTip, XAxis, YAxis,
+} from "recharts";
+import { DataTable, type Column } from "@/components/table";
+import { chartTooltip, pitchColor, useChartTheme } from "@/lib/chart-theme";
 import { type Disc, type PitchType, type Role, QUALITY_GROUPS, PT_ORDER, ptTypesFrom } from "./lib";
 import { CompositionPie, PitchTypeToggle } from "./parts";
 
@@ -231,6 +236,85 @@ export function BattedMixSection({ disc, pitchMix, arsenal, role }: {
           </>
           );
         })()}
+      </Card>
+    </section>
+  );
+}
+
+// ───────── 球種位移（ML-PT2 Phase1）：IVB×HB 散點 + 球種成績單 vs 聯盟 ─────────
+// 位移為軌跡推算（ivb_cm/hb_cm）；聯盟平均已在後端依慣用手鏡像對齊本人視角。
+export type Movement = {
+  throws: string | null;
+  points: { pt: string; hb: number; ivb: number }[];
+  summary: { pt: string; n: number; usage: number; speed: number | null; spin: number | null;
+    ivb: number | null; hb: number | null;
+    lg: { speed: number | null; spin: number | null; ivb: number | null; hb: number | null } }[];
+};
+
+export function MovementSection({ mov }: { mov: Movement | null }) {
+  const ct = useChartTheme();
+  if (!mov || mov.points.length === 0) return null;
+  const order = mov.summary.map((s) => s.pt);
+  const ext = Math.ceil((Math.max(30, ...mov.points.map((p) => Math.max(Math.abs(p.hb), Math.abs(p.ivb)))) + 5) / 10) * 10;
+  const lgMarks = mov.summary.filter((s) => s.lg.ivb != null && s.lg.hb != null)
+    .map((s) => ({ pt: s.pt, hb: s.lg.hb!, ivb: s.lg.ivb! }));
+  const vs = (v: number | null, l: number | null) => (
+    <div className="leading-tight">
+      <div className="font-semibold text-ink">{v ?? "—"}</div>
+      <div className="text-[10px] text-faint">聯盟 {l ?? "—"}</div>
+    </div>
+  );
+  const cols: Column<Movement["summary"][number]>[] = [
+    {
+      header: "球種", nowrap: true,
+      cell: (r) => (
+        <span className="flex items-center gap-1.5 font-sans text-ink">
+          <i className="inline-block h-2 w-2 rounded-full" style={{ background: pitchColor(ct, r.pt) }} />{r.pt}
+        </span>
+      ),
+    },
+    { header: "球數", cell: (r) => String(r.n), align: "right" },
+    { header: "使用率", cell: (r) => `${r.usage}%`, align: "right" },
+    { header: "均速", cell: (r) => vs(r.speed, r.lg.speed), align: "right" },
+    { header: "轉速", cell: (r) => vs(r.spin, r.lg.spin), align: "right" },
+    { header: "IVB(cm)", cell: (r) => vs(r.ivb, r.lg.ivb), align: "right" },
+    { header: "HB(cm)", cell: (r) => vs(r.hb, r.lg.hb), align: "right" },
+  ];
+  return (
+    <section className="mb-8">
+      <Card>
+        <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="text-sm font-medium text-muted">球種位移（軌跡推算・{mov.points.length} 球）</h3>
+          <span className="text-[10px] text-faint">
+            ◆＝聯盟同球種平均{mov.throws === "左投" ? "（已鏡像至左投視角）" : ""}・IVB=垂直誘導位移、HB=橫向位移
+          </span>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-[minmax(280px,400px)_1fr]">
+          <ResponsiveContainer width="100%" height={300}>
+            <ScatterChart margin={{ top: 8, right: 8, bottom: 4, left: -16 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={ct.line} />
+              <XAxis type="number" dataKey="hb" domain={[-ext, ext]}
+                tick={{ fontSize: 10, fill: ct.faint }} tickLine={false} axisLine={false}
+                label={{ value: "HB (cm)", position: "insideBottomRight", offset: -2, fontSize: 10, fill: ct.faint }} />
+              <YAxis type="number" dataKey="ivb" domain={[-ext, ext]}
+                tick={{ fontSize: 10, fill: ct.faint }} tickLine={false} axisLine={false}
+                label={{ value: "IVB", angle: -90, position: "insideLeft", fontSize: 10, fill: ct.faint }} />
+              <ReferenceLine x={0} stroke={ct.lineStrong} />
+              <ReferenceLine y={0} stroke={ct.lineStrong} />
+              <ChartTip contentStyle={chartTooltip(ct)} labelFormatter={() => ""}
+                formatter={(v: number, name: string) => [`${v} cm`, name === "hb" ? "HB" : "IVB"]} />
+              {order.map((pt) => (
+                <Scatter key={pt} name={pt} data={mov.points.filter((p) => p.pt === pt)}
+                  fill={pitchColor(ct, pt)} fillOpacity={0.45} isAnimationActive={false} />
+              ))}
+              {/* 聯盟平均：菱形、描邊突出 */}
+              <Scatter data={lgMarks} shape="diamond" isAnimationActive={false}>
+                {lgMarks.map((m, i) => <Cell key={i} fill={pitchColor(ct, m.pt)} stroke={ct.ink} strokeWidth={1.2} />)}
+              </Scatter>
+            </ScatterChart>
+          </ResponsiveContainer>
+          <DataTable columns={cols} rows={mov.summary} rowKey={(r) => r.pt} dense bare className="self-start" />
+        </div>
       </Card>
     </section>
   );
