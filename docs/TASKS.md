@@ -15,7 +15,7 @@
 | UX-7 | 個人頁傘卡（Person Hub） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 📋已拆 7A/7B/7C（07-12） |
 | UX-7A | 球員頁換裝＋PR 氣泡＋出手點 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待派工（先行） |
 | UX-7B | 球隊頁＋教練身分（coaches/managers） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待派工（吃 7A 換裝定調） |
-| UX-7C | /people 命名空間（純教練/裁判個人頁） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待派工（獨立，可與 7A 平行） |
+| UX-7C | /people 命名空間（純教練/裁判個人頁） | ruan6047 | Fable-5@Claude Code | Fable-5@Claude Code | 待指派（≠執行者） | `ai/fable/UX-7C` | ⚪ | ✅執行完成待查核（worktree `../cpbl-analytics-7c`，審核可進駐） |
 | UX-8 | 排行與紀錄群 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
 | UX-9 | 週邊群 `/matchups`、`/venues` | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
 | UX-10 | 三頁互動模式重設計 | ruan6047 | 待各自小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（暫緩，不在本輪序） |
@@ -85,7 +85,9 @@
   4. 新端點（如 `/api/v1/people/umpire/{name}`）入 pytest EXPECTED
 - 依賴：無（新路由獨立，可與 7A 平行；7B 的純教練連結等本卡上線後補）
 - 驗收：5 秒盲測「這主審好球帶偏不偏」；同名 kind 隔離驗證；橫切驗收見傘卡
-- 狀態：⏳待派工　Commit：—
+- 狀態：✅執行完成待查核　Commit：分支 `ai/fable/UX-7C` 已推送；worktree `../cpbl-analytics-7c`（環境現成，審核可照 §3.1 進駐）
+- Log：
+  - 07-12 Fable 執行（worktree 首例）：people router 雙端點（教練=coaches+managers、同名唯一才回連球員頁；裁判=崗位場次+記分卡沿 umpires 常數+近期場）＋前端 /people/[kind]/[name]＋/umpires 名字連結入口。pytest 20 passed（EXPECTED 54→56）/ruff/tsc/build 綠；實資料抽驗 葉君璋/平野惠一/蔡豐澤、375 無溢出
 
 ### UX-8 排行與紀錄群  〔⚪一般〕
 - 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 頁面層）　分支：`ai/<執行者>/UX-8`
