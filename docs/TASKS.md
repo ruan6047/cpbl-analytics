@@ -13,6 +13,7 @@
 | UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🔨子卡執行中（餘 UX-8/5C；UX-7 群、UX-9 07-14 已結案） |
 | UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | 待小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（**壓到 UX-6〜9 完成後**重製） |
 | UX-8 | 排行與紀錄群 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
+| SEC-NEXT-15520 | Next.js 15.5.20 安全升級 | ruan6047 | GPT-5@Codex | GPT-5@Codex | 待指派（跨家族或人審） | `ai/codex/SEC-NEXT-15520` | 🔴 | 🔍待查核 |
 | UX-10 | 互動模式拆分（projection 公開瀏覽取消） | ruan6047 | 待各自小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（UX-10P 取消；其餘待收斂） |
 | COACH-HIST | 歷年教練職務史（twbsball 經歷節） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（7C 已上線，接點就緒可排） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
@@ -39,6 +40,16 @@
   - 07-12 **歸檔切割修復**（Fable）：Gemini 歸檔時本卡被截斷（位元組級損毀）且 UX-6 孤兒內容殘留，已重建（archive 副本完整，無資料損失）
 
 > **UX-5 拆卡裁示（ruan6047 07-11）**：UX-5B hub v1＋搬遷（🏁）→ UX-5A 戰績換裝（🏁）→ **UX-5C 首頁 hub 完整版**（壓 UX-6〜9 完成後重製）。hub 卡＝「指路牌」，避免與戰績頁重複。
+
+### SEC-NEXT-15520 Next.js 15.5.20 安全升級 〔🔴紅線：前端相依安全〕
+- 需求：ruan6047（07-14）　規劃：GPT-5@Codex（已知局部修補）　分支：`ai/codex/SEC-NEXT-15520`
+- 執行：GPT-5@Codex　查核：待指派（跨家族或人審；≠執行者）
+- 範圍／驗收：將 `next` 由 15.5.4 升至 npm audit 指定的 15.5.20，更新 lockfile；`npm audit --audit-level=high` 不再回報 Next.js critical、`tsc`／`build:check`／瀏覽器 smoke test 綠。不得順手升 React、Tailwind 或改產品程式碼。
+- 狀態：🔍待查核　Commit：見分支 `ai/codex/SEC-NEXT-15520`
+- Log：
+  - 07-14 ruan6047 派工；GPT-5@Codex 建立 worktree `/Users/ruanruan/Dev/cpbl-analytics-sec-next-15520`，從 main `397860a` 開始執行
+  - 07-14 GPT-5@Codex 升級 `next` 15.5.4→15.5.20（僅 package.json/lockfile）；`npm audit --audit-level=high` 綠，尚有 Next 內嵌 PostCSS 的 2 項 moderate（audit 的唯一 auto-fix 會錯降 Next 9，未採用）
+  - 07-14 自測：`tsc`、`build:check`、Ruff、pytest 42 項全綠；Playwright `/`、`/batters`、`/records` 皆 200、zero console/network error/overflow。`npm run lint` 因既有未配置 ESLint 進互動初始化，未混入本卡修正
 
 ### UX-8 排行與紀錄群  〔⚪一般〕
 - 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 頁面層）　分支：`ai/<執行者>/UX-8`
