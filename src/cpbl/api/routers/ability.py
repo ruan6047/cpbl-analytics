@@ -42,7 +42,7 @@ _ABILITY_AXES = {
 _COMPOSITE = {
     "batting": {
         "contact": [("trad", "contact", "接觸率", 0.45), ("adv", "whiffp_pr", "揮空抑制", 0.55)],
-        "power": [("trad", "power", "ISO", 0.30), ("adv", "ev_pr", "擊球initial速", 0.25),
+        "power": [("trad", "power", "ISO", 0.30), ("adv", "ev_pr", "擊球初速", 0.25),
                   ("adv", "hardhitp_pr", "強擊球%", 0.25), ("adv", "brlp_pr", "Barrel%", 0.20)],
         "eye": [("trad", "eye", "保送率", 0.5), ("adv", "chasep_pr", "追打抑制", 0.5)],
         "speed": [("trad", "speed", "盜壘＋三壘打", 1.0)],
