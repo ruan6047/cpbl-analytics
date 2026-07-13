@@ -191,6 +191,11 @@ def _career_teams(cur, player_id: str) -> list[dict]:
     return stints
 
 
+def _coach_linkage_ambiguous(name_match_count: int, has_coach_records: bool) -> bool:
+    """是否需啟用同名守門（只對真有教練/總教練紀錄者判定）。"""
+    return has_coach_records and name_match_count > 1
+
+
 @router.get("/api/v1/players/{player_id}/career")
 def player_career(player_id: str) -> dict:
     """球員生涯：累計成績、最佳單季、里程碑日期、史上排名脈絡（打者）+ 效力球隊。"""
@@ -234,6 +239,52 @@ def player_career(player_id: str) -> dict:
             "WHERE player_id=%s ORDER BY year NULLS LAST, seq", (player_id,))
         medals = [{"color": co, "competition": cp, "event": ev, "year": yr}
                   for co, cp, ev, yr in cur.fetchall()]
+
+        # 官方教練經歷與總教練戰績查詢（含同名歧義守門）
+        cur.execute("SELECT name FROM cpbl.players WHERE id = %s", (player_id,))
+        pname_row = cur.fetchone()
+        pname = pname_row[0] if pname_row else None
+
+        official_coach_tenures = []
+        manager_stats = []
+        coach_ambiguous = False
+
+        if pname:
+            cur.execute(
+                "SELECT EXISTS(SELECT 1 FROM cpbl.coaches WHERE name=%s), "
+                "       EXISTS(SELECT 1 FROM cpbl.managers WHERE name=%s)",
+                (pname, pname),
+            )
+            has_coach_records = any(cur.fetchone() or (False, False))
+
+            if has_coach_records:
+                cur.execute("SELECT count(*) FROM cpbl.players WHERE name = %s", (pname,))
+                name_match_count = int(cur.fetchone()[0] or 0)
+                coach_ambiguous = _coach_linkage_ambiguous(name_match_count, has_coach_records)
+
+            if has_coach_records and not coach_ambiguous:
+                cur.execute(
+                    "SELECT c.year, c.team_code, t.short AS team_name, c.pos, c.uniform_no "
+                    "FROM cpbl.coaches c LEFT JOIN cpbl.team_dim t ON t.team_code = c.team_code "
+                    "WHERE c.name = %s ORDER BY c.year DESC, c.team_code",
+                    (pname,),
+                )
+                official_coach_tenures = _dicts(cur)
+
+                cur.execute(
+                    "SELECT m.team_code, t.short AS team_name, m.era_name, m.from_year, m.to_year, "
+                    "       m.g, m.w, m.l, m.t AS ties, m.win_pct, m.postseason, m.championships "
+                    "FROM cpbl.managers m LEFT JOIN cpbl.team_dim t ON t.team_code = m.team_code "
+                    "WHERE m.name = %s ORDER BY m.from_year",
+                    (pname,),
+                )
+                manager_stats = _dicts(cur)
+
+        _coach_extra = {
+            "official_coach_tenures": official_coach_tenures,
+            "manager_stats": manager_stats,
+            "coach_ambiguous": coach_ambiguous,
+        }
         # 逐年（opendata ≤2024 + 2025/2026 由 gamelog 補；同年多隊加總）
         cur.execute(
             "SELECT year, sum(g),sum(pa),sum(ab),sum(h),sum(b2),sum(b3),sum(hr),sum(rbi),sum(sb),"
@@ -294,7 +345,8 @@ def player_career(player_id: str) -> dict:
             pbests = {"w": _pmax(2), "sv": _pmax(4), "so": _pmax(7), "era": _pera}
         _pit_extra = {"pitching": pcareer, "best_p": pbests,
                       "rank_p": {"w": prk[0], "sv": prk[1], "so": prk[2]} if prk else None,
-                      "championships": championships}
+                      "championships": championships,
+                      **_coach_extra}
         if not per:
             return {"player_id": player_id, "batting": None, "teams": teams,
                     "overseas": overseas, "awards": awards, "wiki_awards": wiki_awards,

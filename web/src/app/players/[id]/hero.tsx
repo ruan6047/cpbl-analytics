@@ -43,6 +43,12 @@ export function PlayerHero({ profile, careerStats, ability, role, s, isRetired, 
     : (primaryTeam?.code ?? null);
   const abSel = selectAbility(ability, role, dataTab);
 
+  const hasPlayerRole = hasCareer || !!profile.roster_level;
+  const hasCoachRole = (careerStats?.official_coach_tenures && careerStats.official_coach_tenures.length > 0) || (careerStats?.coach_tenures && careerStats.coach_tenures.length > 0);
+  const hasManagerRole = (careerStats?.manager_stats && careerStats.manager_stats.length > 0) ||
+    careerStats?.official_coach_tenures?.some((t) => t.pos.includes("總教練") || t.pos.includes("監督")) ||
+    careerStats?.coach_tenures?.some((t) => t.role?.includes("總教練") || t.role?.includes("監督"));
+
   return (
       <div className="card mb-6 overflow-hidden">
         <div className="h-1.5" style={{ background: teamColor(tc) }} />
@@ -59,6 +65,15 @@ export function PlayerHero({ profile, careerStats, ability, role, s, isRetired, 
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h1 className="text-2xl font-extrabold tracking-tight text-ink">{profile.name}</h1>
+                    {hasPlayerRole && (
+                      <span className="rounded-md bg-ink/10 px-2 py-0.5 text-[11px] font-semibold leading-none text-ink">球員</span>
+                    )}
+                    {hasCoachRole && (
+                      <span className="rounded-md bg-muted/15 px-2 py-0.5 text-[11px] font-semibold leading-none text-muted">教練</span>
+                    )}
+                    {hasManagerRole && (
+                      <span className="rounded-md bg-accent/10 px-2 py-0.5 text-[11px] font-semibold leading-none text-accent">總教練</span>
+                    )}
                     {profile.import_status && profile.import_status !== "local" && (
                       <span
                         className="rounded-md px-2 py-0.5 text-[11px] font-semibold leading-none"
