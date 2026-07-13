@@ -106,13 +106,18 @@
 
 ### UX-7A-R 7A 複審缺漏修復（§4.1 重檢）  〔⚪一般〕
 - 需求：ruan6047（07-13 依新增 AI_WORKFLOW §4.1 審核原則重檢已 merge 的 7A → Fable 自檢出兩項缺漏）　分支：`ai/fable/UX-7A-R`（worktree `../cpbl-analytics-7ar`）
-- 執行：Fable-5@Claude Code　查核：待指派（≠執行者）
+- 執行：Fable-5@Claude Code　查核：Antigravity（07-13 指派）
 - 範圍（兩項皆 `tracking.tsx`）：
   1. **R1（§4.1-5 互動識別）**：位移/出手點散點 hover 只顯座標數值，不知點屬哪個球種、質心 ◆ 無識別 → ChartTip 改自訂 content：色點＋球種名＋標記（質心/聯盟平均）＋座標
   2. **R2（§4.1-1 分母語意）**：熱區「安打率/被安打率」分母僅場內球（hit/out），不含三振，系統性高於官方打擊率定義 → 標籤改「場內安打率/場內被安打率」＋圖例注記「場內＝不含三振」
 - 觀察項（不處理，留檔）：投球分佈%白基準＝13 區均勻，但四角面積大、期望佔比天然 >1/13 → 角落偏紅傾向；圖例已標注，若要更嚴謹需面積加權基準，後續視需求
 - 驗證：ruff+pytest 20+tsc+build:check 綠；hover 實測截圖（滑球/橫掃＋出手側/高）✓；「場內被安打率」渲染 ✓
-- 狀態：🔍待查核　Commit：分支 `ai/fable/UX-7A-R`
+- 狀態：✅通過（已審核，等 merge）　Commit：分支 `ai/fable/UX-7A-R`
+- Log：
+  - 07-13 Antigravity 查核通過：
+    - Python ruff 與 pytest (20項) 全數通過。
+    - Web Next.js 靜態編譯型別檢查 (tsc + build:check) 通過。
+    - 實測確認：散點圖 hover Tooltip 自訂內容順利顯示球種名、質心與聯盟平均標記；熱區「場內安打率/場內被安打率」更名與「場內＝不含三振」註記語意精準且符合 AI_WORKFLOW §4.1-1 與 §4.1-5 規範。
 
 ### UX-7B 球隊頁＋教練身分  〔⚪一般〕
 - 需求：ruan6047　規劃：Fable-5@Claude Code　分支：`ai/<執行者>/UX-7B`
