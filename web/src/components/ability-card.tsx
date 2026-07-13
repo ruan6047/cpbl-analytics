@@ -3,6 +3,7 @@
 import {
   PolarAngleAxis,
   PolarGrid,
+  PolarRadiusAxis,
   Radar,
   RadarChart,
   ResponsiveContainer,
@@ -141,6 +142,9 @@ export function AbilityCard({
           <RadarChart data={data} outerRadius={compact ? "70%" : "78%"}>
             <PolarGrid stroke={ct.line} />
             <PolarAngleAxis dataKey="axis" tick={compact ? { fontSize: 10, fill: ct.muted } : renderTick} />
+            {/* 半徑軸釘死 0–100：不設的話 recharts 自動縮放到本人最大值，
+                圖形變「相對自己」而等級是絕對 PR（羅戈 續航78/B 被畫到滿格）*/}
+            <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
             <Radar dataKey="pr" stroke={radarColor} fill={radarColor} fillOpacity={0.35} />
           </RadarChart>
         </ResponsiveContainer>
@@ -179,6 +183,8 @@ export function AbilityRadarVS({
         <RadarChart data={data} outerRadius="70%">
           <PolarGrid stroke={ct.line} />
           <PolarAngleAxis dataKey="axis" tick={{ fontSize: 10, fill: ct.muted }} />
+          {/* 同上：兩人疊圖更不能各自縮放，0–100 絕對刻度才可比 */}
+          <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
           <Radar dataKey="away" stroke={awayColor ?? ct.cpbl} fill={awayColor ?? ct.cpbl} fillOpacity={0.25} />
           <Radar dataKey="home" stroke={homeColor ?? ct.down} fill={homeColor ?? ct.down} fillOpacity={0.25} />
         </RadarChart>
