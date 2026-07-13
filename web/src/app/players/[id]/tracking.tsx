@@ -171,39 +171,29 @@ function ArsenalUsageBar({ items }: { items: ArsenalItem[] }) {
   );
 }
 
-// 球種卡：用量 + 均速 + 轉速 + 揮空%（TrackMan；球種為推算，見 models/pitch_type.py）
-function ArsenalCards({ items }: { items: ArsenalItem[] }) {
+// 球種明細表：球數/用量/均速/轉速/揮空（取代卡牆——五張卡各四格重量級呈現，
+// 掃讀不如表格；順序與上方共用比例條一致）。
+function ArsenalTable({ items }: { items: ArsenalItem[] }) {
   const ct = useChartTheme();
   if (!items.length) return null;
-  return (
-    <div className="mb-4 grid gap-3 sm:grid-cols-2">
-      {items.map((a) => {
-        const color = pitchColor(ct, a.pitch_type);
-        return (
-          <div key={a.pitch_type} className="rounded-lg border border-line p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">
-                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: color }} />
-                {a.pitch_type}
-              </span>
-              <span className="font-mono text-xs text-faint">{a.n} 球</span>
-            </div>
-            <div className="grid grid-cols-4 gap-1 text-center">
-              {([["用量", a.usage, "%"], ["均速", a.avg_speed, "km/h"],
-                 ["轉速", a.avg_spin, "rpm"], ["揮空", a.whiff_pct, "%"]] as const).map(([l, v, u]) => (
-                <div key={l}>
-                  <div className="text-[10px] text-muted">{l}</div>
-                  <div className="font-mono text-sm tabular-nums text-ink">
-                    {v == null ? "—" : v}<span className="ml-0.5 text-[9px] text-faint">{u}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+  const order = ptSort(items.map((a) => a.pitch_type));
+  const rows = order.map((t) => items.find((a) => a.pitch_type === t)!).filter(Boolean);
+  const cols: Column<ArsenalItem>[] = [
+    {
+      header: "球種", nowrap: true,
+      cell: (r) => (
+        <span className="flex items-center gap-1.5 font-sans text-ink">
+          <i className="inline-block h-2 w-2 rounded-full" style={{ background: pitchColor(ct, r.pitch_type) }} />{r.pitch_type}
+        </span>
+      ),
+    },
+    { header: "球數", cell: (r) => String(r.n), align: "right" },
+    { header: "用量", cell: (r) => `${r.usage}%`, align: "right" },
+    { header: "均速", cell: (r) => r.avg_speed == null ? "—" : String(r.avg_speed), align: "right" },
+    { header: "轉速", cell: (r) => r.avg_spin == null ? "—" : String(r.avg_spin), align: "right" },
+    { header: "揮空%", cell: (r) => r.whiff_pct == null ? "—" : `${r.whiff_pct}%`, align: "right" },
+  ];
+  return <DataTable columns={cols} rows={rows} rowKey={(r) => r.pitch_type} dense bare className="self-start" />;
 }
 
 // 打者：擊球品質散點（仰角×初速） / 投手：球種卡 + 配球傾向（依球數）
@@ -231,43 +221,46 @@ export function BattedMixSection({ disc, pitchMix, arsenal, role }: {
       <h2 className="mb-3 text-lg font-semibold text-ink">配球傾向<span className="ml-2 align-middle text-xs font-normal text-faint">TrackMan 逐球樣本 · 球種為軌跡推算，「A/B」＝介於兩球種的臨界球路（樣本累積後再細分）</span></h2>
       <Card>
         <ArsenalUsageBar items={arsenal ?? []} />
-        <ArsenalCards items={arsenal ?? []} />
-        {(pitchMix?.length ?? 0) > 0 && (() => {
-          // 圖例＝各球數情境出現過的球種，依標準順序；段序也依此以維持顏色位置一致
-          const legend = ptSort(pitchMix!.flatMap((b) => b.mix.map((m) => m.pitch_type)));
-          return (
-          <>
-            <div className="mb-2 text-xs text-muted">依球數情境</div>
-            <div className="space-y-2.5">
-              {pitchMix!.map((b) => {
-                const segs = legend
-                  .map((t) => ({ t, pct: b.mix.find((m) => m.pitch_type === t)?.pct ?? 0 }))
-                  .filter((s) => s.pct > 0);
-                return (
-                  <div key={b.bucket} className="flex items-center gap-2 text-xs">
-                    <span className="w-16 shrink-0 text-muted">{b.bucket}</span>
-                    <div className="flex h-5 flex-1 gap-px overflow-hidden rounded">
-                      {segs.map((s) => (
-                        <div key={s.t} className="flex items-center justify-center text-[10px] text-white"
-                          style={{ width: `${s.pct}%`, background: pitchColor(ct, s.t) }} title={`${s.t} ${s.pct}%`}>
-                          {s.pct >= 14 ? `${s.pct}%` : ""}
-                        </div>
-                      ))}
+        {/* 明細表 × 依球數情境 左右並排（窄幅堆疊）：一屏看完配球全貌 */}
+        <div className="grid items-start gap-x-8 gap-y-4 lg:grid-cols-2">
+          <ArsenalTable items={arsenal ?? []} />
+          {(pitchMix?.length ?? 0) > 0 && (() => {
+            // 圖例＝各球數情境出現過的球種，依標準順序；段序也依此以維持顏色位置一致
+            const legend = ptSort(pitchMix!.flatMap((b) => b.mix.map((m) => m.pitch_type)));
+            return (
+            <div>
+              <div className="mb-2 text-xs text-muted">依球數情境</div>
+              <div className="space-y-2.5">
+                {pitchMix!.map((b) => {
+                  const segs = legend
+                    .map((t) => ({ t, pct: b.mix.find((m) => m.pitch_type === t)?.pct ?? 0 }))
+                    .filter((s) => s.pct > 0);
+                  return (
+                    <div key={b.bucket} className="flex items-center gap-2 text-xs">
+                      <span className="w-16 shrink-0 text-muted">{b.bucket}</span>
+                      <div className="flex h-5 flex-1 gap-px overflow-hidden rounded">
+                        {segs.map((s) => (
+                          <div key={s.t} className="flex items-center justify-center text-[10px] text-white"
+                            style={{ width: `${s.pct}%`, background: pitchColor(ct, s.t) }} title={`${s.t} ${s.pct}%`}>
+                            {s.pct >= 14 ? `${s.pct}%` : ""}
+                          </div>
+                        ))}
+                      </div>
+                      <span className="w-10 shrink-0 text-right font-mono text-faint">{b.n}</span>
                     </div>
-                    <span className="w-10 shrink-0 text-right font-mono text-faint">{b.n}</span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+              <div className="mt-2.5 flex flex-wrap justify-center gap-3 text-[11px] text-muted">
+                {legend.map((t) => (
+                  <span key={t} className="inline-flex items-center gap-1">
+                    <span className="inline-block h-2 w-2 rounded-full" style={{ background: pitchColor(ct, t) }} />{t}</span>
+                ))}
+              </div>
             </div>
-            <div className="mt-2.5 flex flex-wrap justify-center gap-3 text-[11px] text-muted">
-              {legend.map((t) => (
-                <span key={t} className="inline-flex items-center gap-1">
-                  <span className="inline-block h-2 w-2 rounded-full" style={{ background: pitchColor(ct, t) }} />{t}</span>
-              ))}
-            </div>
-          </>
-          );
-        })()}
+            );
+          })()}
+        </div>
       </Card>
     </section>
   );
