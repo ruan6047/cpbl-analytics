@@ -27,6 +27,12 @@ function methodNote(card: Card) {
       <p className="font-semibold">本站自製能力指標</p>
       <p>各軸＝該面向 rate 數據在全聯盟的百分位 [PR]（0–100，越外圈越強），全部由本站自算，並非遊戲或官方數值。</p>
       <p>{scopeLine}</p>
+      {card.role === "pitching" && (
+        <p>最上軸為<b>特色軸</b>：軸名隨投手動態（三振／滾地／飛球，取最突出的出局方式），數值＝該出局方式在全聯盟的 PR——代表「特化程度」而非絕對優劣。</p>
+      )}
+      {card.role === "batting" && (
+        <p>純 DH（無守備數據）的守備軸以打擊火力替代並標示「指打」，避免誤讀為守備弱點。</p>
+      )}
       <p>等級由 PR 換算：S≥90 · A≥80 · B≥65 · C≥50 · D≥35 · E≥20 · F≥10 · G。</p>
       <p className="opacity-70">滑鼠移到（或點擊）軸名可看該軸的組成指標與權重{card.has_advanced ? "；本季卡已摻入官方進階數據" : ""}。</p>
     </div>
@@ -45,6 +51,7 @@ function axisTipContent(a: Axis) {
           <span className="font-mono tabular-nums">{c.weight}%　PR {c.pr}</span>
         </p>
       ))}
+      {a.key === "weapon" && <p className="opacity-70">特色軸：三振／滾地／飛球取最突出者為軸名</p>}
       {a.components.length > 1 && <p className="opacity-70">依權重加權平均後換算等級</p>}
     </div>
   );
