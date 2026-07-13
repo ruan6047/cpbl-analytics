@@ -22,14 +22,14 @@ export type Card = { available: boolean; role: string; scope?: string; has_advan
 function methodNote(card: Card) {
   const scopeLine = card.scope === "season"
     ? "本季尺度：母體＝本季 打者 AB≥50／投手 IP≥20 的球員。"
-    : "生涯尺度：母體＝生涯累積 打者 AB≥300／投手 IP≥100 的球員。";
+    : "生涯尺度：母體＝生涯累積 打者 AB≥300／投手 IP≥100 的球員；各年數據先除以該年聯盟均值再彙總（年代校正），跨年代球員才可比。";
   return (
     <div className="space-y-1">
       <p className="font-semibold">本站自製能力指標</p>
       <p>各軸＝該面向 rate 數據在全聯盟的百分位 [PR]（0–100，越外圈越強），全部由本站自算，並非遊戲或官方數值。</p>
       <p>{scopeLine}</p>
       {card.role === "pitching" && (
-        <p>最上軸為<b>特色軸</b>：軸名隨投手動態（三振／滾地／飛球，取最突出的出局方式），數值＝該出局方式在全聯盟的 PR——代表「特化程度」而非絕對優劣。</p>
+        <p>最上軸為<b>三振軸</b>（K/9，本季摻官方揮空率）：所有投手同一把尺、跨投手可比。投球「風格」（三振／滾地／飛球，最突出的出局方式）以標題旁徽章標示——風格是類型不是優劣。</p>
       )}
       {card.role === "batting" && (
         <p>純 DH（無守備數據）的守備軸以打擊火力替代並標示「指打」，避免誤讀為守備弱點。</p>
@@ -52,7 +52,7 @@ function axisTipContent(a: Axis) {
           <span className="font-mono tabular-nums">{c.weight}%　PR {c.pr}</span>
         </p>
       ))}
-      {a.key === "weapon" && <p className="opacity-70">特色軸：三振／滾地／飛球取最突出者為軸名</p>}
+      {a.key === "weapon" && <p className="opacity-70">三振＝真技能軸；滾地／飛球風格見標題旁徽章</p>}
       {a.components.length > 1 && <p className="opacity-70">依權重加權平均後換算等級</p>}
     </div>
   );
