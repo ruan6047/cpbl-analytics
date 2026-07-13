@@ -340,9 +340,12 @@ export function MovementSection({ mov }: { mov: Movement | null }) {
               <ReferenceLine y={0} stroke={ct.lineStrong} />
               <ChartTip contentStyle={chartTooltip(ct)} labelFormatter={() => ""}
                 formatter={(v: number, name: string) => [`${v} cm`, name === "hb" ? "HB" : "IVB"]} />
+              {/* 複合名（臨界球路）近空心：同色槽相鄰單名（伸卡 vs 伸卡/變速）才分得開 */}
               {order.map((pt) => (
                 <Scatter key={pt} name={pt} data={mov.points.filter((p) => p.pt === pt)}
-                  fill={pitchColor(ct, pt)} fillOpacity={0.45} isAnimationActive={false} />
+                  fill={pitchColor(ct, pt)} fillOpacity={pt.includes("/") ? 0.1 : 0.45}
+                  stroke={pt.includes("/") ? pitchColor(ct, pt) : undefined}
+                  strokeOpacity={0.7} isAnimationActive={false} />
               ))}
               {/* 聯盟平均：菱形、描邊突出 */}
               <Scatter data={lgMarks} shape="diamond" isAnimationActive={false}>
@@ -408,9 +411,12 @@ function ReleaseCard({ mov }: { mov: Movement }) {
               label={{ value: "出手高 (m)", angle: -90, position: "insideLeft", fontSize: 10, fill: ct.faint }} />
             <ChartTip contentStyle={chartTooltip(ct)} labelFormatter={() => ""}
               formatter={(v: number, name: string) => [`${v} m`, name === "x" ? "出手側" : "出手高"]} />
+            {/* 複合名近空心，同 MovementSection 慣例 */}
             {order.map((pt) => (
               <Scatter key={pt} name={pt} data={rel.points.filter((p) => p.pt === pt)}
-                fill={pitchColor(ct, pt)} fillOpacity={0.4} isAnimationActive={false} />
+                fill={pitchColor(ct, pt)} fillOpacity={pt.includes("/") ? 0.1 : 0.4}
+                stroke={pt.includes("/") ? pitchColor(ct, pt) : undefined}
+                strokeOpacity={0.7} isAnimationActive={false} />
             ))}
             {/* 各球種質心：菱形描邊 */}
             <Scatter data={centroids} shape="diamond" isAnimationActive={false}>
