@@ -22,7 +22,7 @@
 | COACH-HIST | 歷年教練職務史（twbsball 經歷節） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（7C 查核後可排） |
 | UX-11 | 選手百分位數氣泡卡 | ruan6047 | Fable 複評 07-12 | —（併卡） | — | — | ⚪ | 🏁併入 UX-7 範圍 1（=既有三 PR 呈現整併+氣泡化，非新建） |
 | UX-12 | 出手點 2D 分布圖 | ruan6047 | Fable 複評 07-12 | —（併卡） | — | — | ⚪ | 🏁併入 UX-7（位移半案 07-12 已上線，僅剩出手點） |
-| ABILITY-2 | 能力值卡演算法升級（wSB/FIP/年代校正） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | 🔴 | ⏳待派工（07-13 評估採納開卡） |
+| ABILITY-2 | 能力值卡演算法升級（wSB/FIP/年代校正） | ruan6047 | Fable-5@Claude Code | Fable-5@Claude Code | 待指派（需異家族/人審） | `ai/fable-5/ABILITY-2` | 🔴 | 🔍待查核（07-13 執行完成） |
 | SPLITS-IP | 投手分項局數重算漏整數局（hotfix） | ruan6047 | —（bug 修復） | Fable-5@Claude Code | Antigravity | `ai/fable/SPLITS-IP` | 🔴 | ✅通過（已 merge，生產待同步） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
 | ML-SIM1 | 互動式 H2H 對戰模擬器 v2 | ruan6047 | —（併卡） | — | — | — | 🔴 | 🏁併入 UX-10（ruan6047 07-12；predict 互動重設計一起出小 spec） |
@@ -163,8 +163,8 @@
   - 07-11 spec v5 核可後開卡
 
 ### ABILITY-2 能力值卡演算法升級（wSB/FIP/年代校正）  〔🔴紅線：統計正確性〕
-- 需求：ruan6047（07-13「雷達圖製作時數據較少，評估優化」→ 採納 Fable 評估開卡）　規劃：Fable-5@Claude Code　分支：`ai/<執行者>/ABILITY-2`
-- 執行：待指派（建議 Opus 實作）　查核：待指派（🔴 年代校正屬統計紅線，查核建議 Fable 或人審）
+- 需求：ruan6047（07-13「雷達圖製作時數據較少，評估優化」→ 採納 Fable 評估開卡）　規劃：Fable-5@Claude Code　分支：`ai/fable-5/ABILITY-2`
+- 執行：Fable-5@Claude Code（ruan6047 07-13 直接派 Fable）　查核：待指派（🔴 統計紅線＋執行者為 Fable → 查核**必換家族或人審**且必跑實測）
 - 範圍（全在 `api/routers/ability.py` 的 SQL 與 `_COMPOSITE`，無 schema 變更）：
   1. **速度軸融入 wSB**：現行 `(SB+3B)/G` 太粗（三壘打摻長打/球場因素、盜壘不計成功率）。組成改 `[wSB rate（wsb/opp）0.6, (SB+3B)/G 0.4]`；`batter_wsb` 1990+ 全覆蓋，生涯/本季皆適用
   2. **壓制軸摻 FIP**：ERA 含守備與運氣。組成改 `[ERA 0.5, FIP 0.5]`；FIP 全史自算（HR/BB/SO/IP 齊，HBP 缺值年代容 0 沿 ingest 慣例），FIP 常數逐年聯盟校準（與 3 同一套聯盟均值 CTE）
@@ -180,9 +180,17 @@
 - **紅線約束**：2018+/2026-only 數據（RE24/livelog 好球率/TrackMan 衍生）**禁入生涯 PR 母體**——同池不同人組成不同即失去可比性；RE24/WPA 屬情境價值不進雷達（留 sabr 區塊）；OAA/framing 維持不做
 - 驗收：改前後抽 5–10 名**跨年代**球員（含 90 年代、2016 打高投低、現役）PR 位移對照表人工判讀；`ruff`+`pytest`；前端 axisTitle tooltip 自動吃 components 標籤應零改動，7A 的 info 說明文案若已上需同步組成描述
 - 依賴：與 UX-7A 平行可（7A 動前端 tooltip/版面、本卡動後端 ability.py，不同檔不衝突；先後皆可）
-- 狀態：⏳待派工　Commit：—
+- 狀態：🔍待查核　Commit：（見分支）
 - Log：
   - 07-13 ruan6047 提問「雷達圖數據較少時做的，有無優化方案」→ Fable 盤點庫內既有數據（batter_wsb 1990+/batter_re24 2018+/catcher_runs 2018+/livelog is_strike）出評估，ruan6047 裁定依建議開卡
+  - 07-13 Fable 執行完成（範圍 1–6 全採，6 採主案固定三振軸）。實作要點：
+    - 年代校正＝各年 rate÷該年聯盟均值（全聯盟總和 rate）、按各自分母（PA/AB/G/IP、捕手按阻殺機會）加權彙總再 percent_rank；**守備（守位×年均值）一併校正**（聯盟 K 升→滾進球減，範圍值跨年代同樣不可比）；OPS（ov 重排用）同法校正。**續航刻意不校正**（先發 IP/G＝真實負荷差異，後援=登板數屬計數）並留註解
+    - wSB 不再除年均值（wSB 係數本身逐年對聯盟校準，天然年代中性），生涯=Σwsb/Σopp；FIP 常數逐年校準到該年聯盟 ERA、生涯再÷該年聯盟 ERA；本季 command 組成 [ERA .5, FIP .5]（原 woba_pr 依卡面規格移除）
+    - `_ability_card` 改欄名（cursor.description）取值免除位置依賴；percent_rank 對 NULL 列一律 PARTITION BY IS NULL 隔離（**順帶修舊版潛在 bug**：gb/fb NULL 者會拿到 ~100 PR）
+    - 順手修既存 bug：本季守備母體 `fielding_current` 未過濾 `kind_code='A'`（2026 混入 555 筆二軍列）
+    - 前端同步：`ability-card.tsx` 方法說明改「固定三振軸＋風格徽章＋年代校正揭露」；VS 疊圖 W3 因軸固定自然解除，matchup-card 零改動
+  - 07-13 驗收（Fable 自驗，供查核者複核）：`ruff`+`pytest` 20 passed+`build:check` 綠；TestClient 端點 smoke（含查無球員 available:false）；**跨年代 26 卡對照表人工判讀全數方向正確**——90 年代低 K 灌水消除（林易增控制99→95、王光輝90→84）、2016 打高年代反向修正（王柏融 contact 76→90、陳禹勳壓制58→68）、低 K 投手誠實落底（潘威倫三振53→22、黃子鵬52→21，W1 下限解除）、年代校正連帶修正黃子鵬生涯風格誤判（飛球→滾地，符實）、陳傑憲速度92→54 經查 wSB 原始數據屬實（生涯多年負值、2026 年 2 盜 5 阻殺）。已知副作用留給查核判讀：wSB≈0 的不跑者（如林泓育速度9→43）落在中位附近，語意=「盜壘價值」非純腳程，權重 0.4 的粗率仍保留腳程訊號
+  - 對照快照重現：`scripts/ability_snapshot.py`（本卡入庫）——查核者於 main 與本分支各跑一次再 diff 即得同一張對照表；日後動 ability.py 也照此回歸抽驗
 
 ### COACH-HIST 歷年教練職務史（twbsball 經歷節）  〔⚪一般〕
 - 需求：ruan6047（07-12「教練從其他管道拿歷年教練團？」）　規劃：Fable-5@Claude Code　分支：`ai/<執行者>/COACH-HIST`
