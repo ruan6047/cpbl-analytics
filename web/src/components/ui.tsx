@@ -241,6 +241,9 @@ export const METRIC_DESCRIPTIONS: Record<string, string> = {
   AVG: "打擊率 (Batting Average) = 安打 ÷ 打數。",
   OBP: "上壘率 (On-base Percentage) = (安打 + 四壞 + 觸身) ÷ (打數 + 四壞 + 觸身 + 犧牲飛球)。",
   SLG: "長打率 (Slugging Percentage) = 意指二壘安打/三壘安打/全壘打折合之壘打數 ÷ 打數。",
+  "OPS+": "調整攻擊指數 (OPS Plus) = OPS 經聯盟環境調整後的指數，100 為聯盟平均，120 代表優於平均 20%。",
+  "ERA+": "調整防禦率 (ERA Plus) = 聯盟平均 ERA 相對本人 ERA 的指數，100 為聯盟平均，越高越好。",
+  K9: "每九局三振數 (Strikeouts per 9 Innings) = 三振 × 9 ÷ 投球局數。",
 };
 
 export function StatAbbr({

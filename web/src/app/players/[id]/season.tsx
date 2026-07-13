@@ -2,13 +2,33 @@
 
 // 本季成績卡 + 官方進階 PR（dataTab=season）；生涯成績 + 最佳單季 + 里程碑（dataTab=career）。
 import { useEffect, useMemo, useState } from "react";
-import { Card, EmptyState, PercentileBar, StatTile } from "@/components/ui";
+import { Card, EmptyState, PercentileBar, StatAbbr, StatTile, prColor } from "@/components/ui";
 import { detail, type PlayerProfile, type StatRow } from "@/lib/client";
 import { fmtIP } from "@/lib/format";
 import { ADV, type CareerStats, type Role, f3, fmtAdv, numOf } from "./lib";
 import { BestSeasonGrid } from "./parts";
 
 type AdvPair = { batting: StatRow | null; pitching: StatRow | null } | null;
+
+// 主指標 tile 融入官方 PR（UX-7A）：值下方加 prColor 迷你條＋PR 數字。
+// PR 一律用官方 `_pr` 欄（F1 紅線：官方沒有的指標不自算、不顯示條）。
+// label 為英文縮寫時走 StatAbbr 名詞解釋（換裝語彙）。
+function PrTile({ label, value, accent, pr }: { label: string; value: string; accent?: boolean; pr?: number | null }) {
+  return (
+    <div className="rounded-lg bg-surface-2 px-2 py-3 text-center">
+      <div className="text-[11px] text-muted"><StatAbbr abbr={label} /></div>
+      <div className={`mt-1 font-mono text-2xl leading-none tabular-nums ${accent ? "text-accent" : "text-ink"}`}>{value}</div>
+      {pr != null && (
+        <div className="mx-auto mt-1.5 flex max-w-24 items-center gap-1" title={`官方百分位 PR ${pr}（0–100，越高越好）`}>
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-line/60">
+            <div className="h-full rounded-full" style={{ width: `${pr}%`, background: prColor(pr) }} />
+          </div>
+          <span className="font-mono text-[10px] leading-none tabular-nums text-faint">{pr}</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function SeasonSection({ profile, s, role, seasonKind, setSeasonKind, advanced }: {
   profile: PlayerProfile;
@@ -18,15 +38,22 @@ export function SeasonSection({ profile, s, role, seasonKind, setSeasonKind, adv
   setSeasonKind: (k: "A" | "D") => void;
   advanced: AdvPair;
 }) {
+  const advRow = advanced ? (role === "batting" ? advanced.batting : advanced.pitching) : null;
+  // 官方 PR 查值（Math.round 對齊 PercentileBar 口徑）；供 tile 融入與去重共用。
+  const advPr = (key: string): number | null => {
+    const v = advRow ? numOf(advRow[key]) : null;
+    return v === null ? null : Math.round(v);
+  };
   const prRows = useMemo(() => {
-    const a = advanced ? (role === "batting" ? advanced.batting : advanced.pitching) : null;
-    if (!a) return [];
-    return ADV.map((m) => {
-      const val = numOf(a[m.key]), pr = numOf(a[m.pr]);
+    if (!advRow) return [];
+    // tile 已融入的指標不在柱狀圖區重複列（打者 ba/obp/slg）；brl 為 brlp 的計數重複（F3 成對取一）。
+    const fused = new Set(role === "batting" ? ["ba", "obp", "slg", "brl"] : ["brl"]);
+    return ADV.filter((m) => !fused.has(m.key)).map((m) => {
+      const val = numOf(advRow[m.key]), pr = numOf(advRow[m.pr]);
       return { name: role === "batting" ? m.bl : m.pl, def: m.def,
         value: val === null ? "—" : fmtAdv(val, m.kind), pr: pr === null ? null : Math.round(pr) };
     }).filter((d): d is { name: string; def: string; value: string; pr: number } => d.pr !== null);
-  }, [advanced, role]);
+  }, [advRow, role]);
 
   return (
       <section className="mb-6 grid items-stretch gap-6 lg:grid-cols-2">
@@ -51,12 +78,15 @@ export function SeasonSection({ profile, s, role, seasonKind, setSeasonKind, adv
             )}
           </div>
           {s ? (() => {
-            const primary: [string, string, boolean][] = role === "batting"
-              ? [["打擊率", f3(s.avg), true], ["上壘率", f3(s.obp), false], ["長打率", f3(s.slg), false],
-                 ["OPS+", String(s.ops_plus ?? "—"), true], ["全壘打", String(s.hr ?? "—"), false], ["打點", String(s.rbi ?? "—"), false]]
-              : [["防禦率", numOf(s.era)?.toFixed(2) ?? "—", true], ["WHIP", numOf(s.whip)?.toFixed(2) ?? "—", false],
-                 ["FIP", numOf(s.fip)?.toFixed(2) ?? "—", false], ["三振", String(s.so ?? "—"), true],
-                 ["勝-敗", `${s.w ?? 0}-${s.l ?? 0}`, false], ["ERA+", String(s.era_plus ?? "—"), false]];
+            // [label, value, accent, 官方 PR（僅打者 rate 三圍有官方 _pr；其餘 null 不畫條）]
+            const primary: [string, string, boolean, number | null][] = role === "batting"
+              ? [["打擊率", f3(s.avg), true, advPr("ba_pr")], ["上壘率", f3(s.obp), false, advPr("obp_pr")],
+                 ["長打率", f3(s.slg), false, advPr("slg_pr")],
+                 ["OPS+", String(s.ops_plus ?? "—"), true, null], ["全壘打", String(s.hr ?? "—"), false, null],
+                 ["打點", String(s.rbi ?? "—"), false, null]]
+              : [["防禦率", numOf(s.era)?.toFixed(2) ?? "—", true, null], ["WHIP", numOf(s.whip)?.toFixed(2) ?? "—", false, null],
+                 ["FIP", numOf(s.fip)?.toFixed(2) ?? "—", false, null], ["三振", String(s.so ?? "—"), true, null],
+                 ["勝-敗", `${s.w ?? 0}-${s.l ?? 0}`, false, null], ["ERA+", String(s.era_plus ?? "—"), false, null]];
             const secondary: [string, string][] = role === "batting"
               ? [["OPS", f3(s.ops)], ["安打", String(s.h ?? "—")], ["二安", String(s.b2 ?? "—")],
                  ["三安", String(s.b3 ?? "—")], ["壘打數", String(s.tb ?? "—")], ["得分", String(s.r ?? "—")],
@@ -71,29 +101,28 @@ export function SeasonSection({ profile, s, role, seasonKind, setSeasonKind, adv
                  ["暴投", String(s.wp ?? "—")], ["犯規", String(s.bk ?? "—")], ["投球數", String(s.np ?? "—")],
                  ["失分", String(s.r ?? "—")], ["自責", String(s.er ?? "—")], ["出賽", String(s.g ?? "—")]];
             return (
-              <Card hoverable className="flex flex-1 flex-col gap-2">
+              <Card hoverable className="flex flex-1 flex-col gap-3">
                 <div className="grid grid-cols-3 gap-2">
-                  {primary.map(([l, v, a]) => (
-                    <div key={l} className="rounded-lg bg-surface-2 px-2 py-3 text-center">
-                      <div className="text-[11px] text-muted">{l}</div>
-                      <div className={`mt-1 font-mono text-2xl leading-none tabular-nums ${a ? "text-accent" : "text-ink"}`}>{v}</div>
-                    </div>
-                  ))}
+                  {primary.map(([l, v, a, pr]) => <PrTile key={l} label={l} value={v} accent={a} pr={pr} />)}
                 </div>
-                <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-5">
+                {/* 次要計數：輕量表列（label–值成對、細分隔線），取代同重量級的盒子牆降低視覺噪音 */}
+                <div className="grid grid-cols-3 gap-x-5 gap-y-0.5 sm:grid-cols-4">
                   {secondary.filter(([, v]) => v !== "0").map(([l, v]) => (
-                    <div key={l} className="rounded-lg bg-surface-2 px-1.5 py-1.5 text-center">
-                      <div className="text-[10px] leading-tight text-muted">{l}</div>
-                      <div className="mt-0.5 font-mono text-sm leading-none tabular-nums text-ink">{v}</div>
+                    <div key={l} className="flex items-baseline justify-between gap-2 border-b border-line/60 py-1 text-xs">
+                      <span className="truncate text-muted"><StatAbbr abbr={l} /></span>
+                      <span className="font-mono tabular-nums text-ink">{v}</span>
                     </div>
                   ))}
                 </div>
               </Card>
             );
-          })() : <p className="text-sm text-muted">本季無{role === "batting" ? "打擊" : "投球"}成績。</p>}
+          })() : <Card className="flex-1"><EmptyState>本季無{role === "batting" ? "打擊" : "投球"}成績</EmptyState></Card>}
         </div>
         <div className="flex flex-col">
-          <h2 className="mb-3 text-lg font-semibold text-ink">官方進階 · 百分位 PR</h2>
+          <h2 className="mb-3 text-lg font-semibold text-ink">官方進階 · 百分位 PR
+            {role === "batting" && prRows.length > 0 &&
+              <span className="ml-2 align-middle text-xs font-normal text-faint">三圍 PR 已融入左側主指標</span>}
+          </h2>
           <Card hoverable className="flex-1">
             {prRows.length === 0 ? (
               <EmptyState>{advanced === null ? "載入中…" : "無官方進階資料"}</EmptyState>
