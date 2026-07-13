@@ -14,6 +14,7 @@
 | UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | 待小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（**壓到 UX-6〜9 完成後**重製） |
 | UX-7 | 個人頁傘卡（Person Hub） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 📋已拆 7A/7B/7C（07-12） |
 | UX-7A | 球員頁換裝＋出手點＋PR 融入本季卡 | ruan6047 | Fable-5@Claude Code | Fable-5@Claude Code | Antigravity | `ai/fable/UX-7A` | ⚪ | ✅通過已 merge（`301f7f6`），待部署 |
+| UX-7A-R | 7A 複審缺漏修復（§4.1 重檢） | ruan6047 | —（複審 findings） | Fable-5@Claude Code | 待指派 | `ai/fable/UX-7A-R` | ⚪ | 🔍待查核 |
 | UX-7B | 球隊頁＋教練身分（coaches/managers） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待派工（吃 7A 換裝定調） |
 | UX-7C | /people 命名空間（純教練/裁判個人頁） | ruan6047 | Fable-5@Claude Code | Fable-5@Claude Code | Gemini | `ai/fable/UX-7C` | ⚪ | ✅查核通過已 merge（`9c33f32`），待部署 |
 | UX-8 | 排行與紀錄群 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
@@ -102,6 +103,21 @@
 - **驗證（本機已過）**：黃子鵬 vs 味全 1⅓→34⅓ 局（ERA 20.25→0.79）；全聯盟 92 名投手（IP≥10）vs-team 加總 vs 官方全季 **0 誤差**；生涯 9999 主+客=923 局≈官方生涯總和；ruff+pytest 20 綠
 - **待辦**：merge 後生產要 ①部署新碼 ②照 Runbook §3 同步重跑生產 `cpbl-build-splits 2026`（derived 表，本機重建不自動到生產）
 - 狀態：✅通過　Commit：分支 `ai/fable/SPLITS-IP`
+
+### UX-7A-R 7A 複審缺漏修復（§4.1 重檢）  〔⚪一般〕
+- 需求：ruan6047（07-13 依新增 AI_WORKFLOW §4.1 審核原則重檢已 merge 的 7A → Fable 自檢出兩項缺漏）　分支：`ai/fable/UX-7A-R`（worktree `../cpbl-analytics-7ar`）
+- 執行：Fable-5@Claude Code　查核：Antigravity（07-13 指派）
+- 範圍（兩項皆 `tracking.tsx`）：
+  1. **R1（§4.1-5 互動識別）**：位移/出手點散點 hover 只顯座標數值，不知點屬哪個球種、質心 ◆ 無識別 → ChartTip 改自訂 content：色點＋球種名＋標記（質心/聯盟平均）＋座標
+  2. **R2（§4.1-1 分母語意）**：熱區「安打率/被安打率」分母僅場內球（hit/out），不含三振，系統性高於官方打擊率定義 → 標籤改「場內安打率/場內被安打率」＋圖例注記「場內＝不含三振」
+- 觀察項（不處理，留檔）：投球分佈%白基準＝13 區均勻，但四角面積大、期望佔比天然 >1/13 → 角落偏紅傾向；圖例已標注，若要更嚴謹需面積加權基準，後續視需求
+- 驗證：ruff+pytest 20+tsc+build:check 綠；hover 實測截圖（滑球/橫掃＋出手側/高）✓；「場內被安打率」渲染 ✓
+- 狀態：✅通過（已審核，等 merge）　Commit：分支 `ai/fable/UX-7A-R`
+- Log：
+  - 07-13 Antigravity 查核通過：
+    - Python ruff 與 pytest (20項) 全數通過。
+    - Web Next.js 靜態編譯型別檢查 (tsc + build:check) 通過。
+    - 實測確認：散點圖 hover Tooltip 自訂內容順利顯示球種名、質心與聯盟平均標記；熱區「場內安打率/場內被安打率」更名與「場內＝不含三振」註記語意精準且符合 AI_WORKFLOW §4.1-1 與 §4.1-5 規範。
 
 ### UX-7B 球隊頁＋教練身分  〔⚪一般〕
 - 需求：ruan6047　規劃：Fable-5@Claude Code　分支：`ai/<執行者>/UX-7B`

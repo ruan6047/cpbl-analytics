@@ -86,9 +86,11 @@ export function TrackingSection({ disc, role, seasonKind }: { disc: Disc | null;
         {/* 好球帶 13 區熱圖（3×3＋四角，依球種篩）：標題與指標分角色——打者看打擊表現、
             投手看壓制表現（被打擊）＋配球位置分佈；「擊球仰角」對投手無讀法故僅打者版有 */}
         {disc && disc.points.length > 0 && (() => {
+          {/* 「場內」前綴＝分母僅場內球（hit/out），不含三振——與官方打擊率（含三振）語意不同，
+              標籤誠實標注（AI_WORKFLOW §4.1-1） */}
           const grids: [HeatMetric, string][] = role === "batting"
-            ? [["ev", "擊球初速 AVG"], ["la", "擊球仰角 AVG"], ["ba", "安打率"], ["hard", "強擊球%"], ["whiff", "揮空率"]]
-            : [["usage", "投球分佈%"], ["whiff", "揮空率"], ["ba", "被安打率"], ["hard", "被強擊球%"]];
+            ? [["ev", "擊球初速 AVG"], ["la", "擊球仰角 AVG"], ["ba", "場內安打率"], ["hard", "強擊球%"], ["whiff", "揮空率"]]
+            : [["usage", "投球分佈%"], ["whiff", "揮空率"], ["ba", "場內被安打率"], ["hard", "被強擊球%"]];
           return (
           <div className="mt-6">
             <h3 className="mb-2 text-sm font-medium text-muted">
@@ -99,7 +101,7 @@ export function TrackingSection({ disc, role, seasonKind }: { disc: Disc | null;
             </Card>
             <div className="mt-2 flex items-center justify-center gap-2 text-[10px] text-faint">
               低<span className="inline-block h-2 w-20 rounded-full" style={{ background: PR_GRADIENT }} />高
-              <span>白＝本人均值{role === "pitching" ? "（分佈格＝13 區均勻基準）" : ""} · 樣本不足顯「—」· 捕手視角</span>
+              <span>白＝本人均值{role === "pitching" ? "（分佈格＝13 區均勻基準）" : ""} · 場內＝不含三振 · 樣本不足顯「—」· 捕手視角</span>
             </div>
           </div>
           );
@@ -266,6 +268,27 @@ export function BattedMixSection({ disc, pitchMix, arsenal, role }: {
   );
 }
 
+// 散點 hover 識別（AI_WORKFLOW §4.1-5）：顯示球種名＋標記（質心/聯盟平均），
+// 取代僅座標數值的預設 tooltip——同色點與 ◆ 才知道屬於哪個球種。
+function ptTip(ct: ReturnType<typeof useChartTheme>, fmt: (d: Record<string, number>) => string) {
+  function PtTipContent({ active, payload }: {
+    active?: boolean; payload?: { payload?: Record<string, unknown> }[];
+  }) {
+    const d = payload?.[0]?.payload as ({ pt: string; mark?: string } & Record<string, number>) | undefined;
+    if (!active || !d?.pt) return null;
+    return (
+      <div style={chartTooltip(ct)} className="px-2.5 py-1.5">
+        <p className="mb-0.5 flex items-center gap-1.5 text-xs font-semibold">
+          <i className="inline-block h-2 w-2 rounded-full" style={{ background: pitchColor(ct, d.pt) }} />
+          {d.pt}{d.mark ? `・${d.mark}` : ""}
+        </p>
+        <p className="font-mono text-[11px] tabular-nums">{fmt(d)}</p>
+      </div>
+    );
+  }
+  return PtTipContent;
+}
+
 // ───────── 球種位移（ML-PT2 Phase1）：IVB×HB 散點 + 球種成績單 vs 聯盟 ─────────
 // 位移為軌跡推算（ivb_cm/hb_cm）；聯盟平均已在後端依慣用手鏡像對齊本人視角。
 export type Movement = {
@@ -287,7 +310,7 @@ export function MovementSection({ mov }: { mov: Movement | null }) {
   const order = mov.summary.map((s) => s.pt);
   const ext = Math.ceil((Math.max(30, ...mov.points.map((p) => Math.max(Math.abs(p.hb), Math.abs(p.ivb)))) + 5) / 10) * 10;
   const lgMarks = mov.summary.filter((s) => s.lg.ivb != null && s.lg.hb != null)
-    .map((s) => ({ pt: s.pt, hb: s.lg.hb!, ivb: s.lg.ivb! }));
+    .map((s) => ({ pt: s.pt, hb: s.lg.hb!, ivb: s.lg.ivb!, mark: "聯盟平均" }));
   const vs = (v: number | null, l: number | null) => (
     <div className="leading-tight">
       <div className="font-semibold text-ink">{v ?? "—"}</div>
@@ -331,8 +354,7 @@ export function MovementSection({ mov }: { mov: Movement | null }) {
                 label={{ value: "IVB", angle: -90, position: "insideLeft", fontSize: 10, fill: ct.faint }} />
               <ReferenceLine x={0} stroke={ct.lineStrong} />
               <ReferenceLine y={0} stroke={ct.lineStrong} />
-              <ChartTip contentStyle={chartTooltip(ct)} labelFormatter={() => ""}
-                formatter={(v: number, name: string) => [`${v} cm`, name === "hb" ? "HB" : "IVB"]} />
+              <ChartTip content={ptTip(ct, (d) => `HB ${d.hb} cm · IVB ${d.ivb} cm`)} />
               {/* 複合名（臨界球路）近空心：同色槽相鄰單名（伸卡 vs 伸卡/變速）才分得開 */}
               {order.map((pt) => (
                 <Scatter key={pt} name={pt} data={mov.points.filter((p) => p.pt === pt)}
@@ -369,7 +391,7 @@ function ReleaseCard({ mov }: { mov: Movement }) {
     return [Math.floor(lo * 10) / 10, Math.ceil(hi * 10) / 10];
   };
   const centroids = rel.summary.filter((s) => s.x != null && s.y != null)
-    .map((s) => ({ pt: s.pt, x: s.x!, y: s.y! }));
+    .map((s) => ({ pt: s.pt, x: s.x!, y: s.y!, mark: "質心" }));
   const relCols: Column<Movement["release"]["summary"][number]>[] = [
     {
       header: "球種", nowrap: true,
@@ -402,8 +424,7 @@ function ReleaseCard({ mov }: { mov: Movement }) {
             <YAxis type="number" dataKey="y" domain={dom(ys)} tickCount={6}
               tick={{ fontSize: 10, fill: ct.faint }} tickLine={false} axisLine={false}
               label={{ value: "出手高 (m)", angle: -90, position: "insideLeft", fontSize: 10, fill: ct.faint }} />
-            <ChartTip contentStyle={chartTooltip(ct)} labelFormatter={() => ""}
-              formatter={(v: number, name: string) => [`${v} m`, name === "x" ? "出手側" : "出手高"]} />
+            <ChartTip content={ptTip(ct, (d) => `出手側 ${d.x} m · 出手高 ${d.y} m`)} />
             {/* 複合名近空心，同 MovementSection 慣例 */}
             {order.map((pt) => (
               <Scatter key={pt} name={pt} data={rel.points.filter((p) => p.pt === pt)}
