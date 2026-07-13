@@ -56,8 +56,13 @@ def _official(table: str, year: int, kind: str) -> tuple[dict, dict[str, date]]:
         acnt = d["acnt"]
         key = ((acnt, "VT", d["fight_team_name"]) if is_vs
                else (acnt, d["item_group_code"], d["item_name"]))
-        out[key] = {k: int(v) for k, v in d.items()
+        row_dict = {k: int(v) for k, v in d.items()
                     if k not in _SKIP_COLS and isinstance(v, int)}
+        if table.startswith("pitching") and "inning_pitched_div3" in d:
+            cnt = d.get("inning_pitched_cnt") or 0
+            div3 = d.get("inning_pitched_div3") or 0
+            row_dict["inning_pitched_div3"] = cnt * 3 + div3
+        out[key] = row_dict
         upd = r[i_upd]
         if upd is not None:
             prev = cutoff.get(r[i_acnt])
