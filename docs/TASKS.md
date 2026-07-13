@@ -14,7 +14,7 @@
 | UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | 待小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（**壓到 UX-6〜9 完成後**重製） |
 | UX-7 | 個人頁傘卡（Person Hub） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 📋已拆 7A/7B/7C（07-12） |
 | UX-7A | 球員頁換裝＋出手點＋PR 融入本季卡 | ruan6047 | Fable-5@Claude Code | Fable-5@Claude Code | Antigravity | `ai/fable/UX-7A` | ⚪ | ✅通過已 merge（`301f7f6`），待部署 |
-| UX-7B | 球隊頁＋教練身分（coaches/managers） | ruan6047 | Fable-5@Claude Code | Antigravity@Antigravity-CLI | Fable-5@Claude Code | `ai/antigravity/UX-7B` | ⚪ | ↩退回（D1 CI 紅/D2 誤掛警示） |
+| UX-7B | 球隊頁＋教練身分（coaches/managers） | ruan6047 | Fable-5@Claude Code | Antigravity@Antigravity-CLI | Fable-5@Claude Code | `ai/antigravity/UX-7B` | ⚪ | ✅通過已 merge（`74353cc`），待部署 |
 | UX-7C | /people 命名空間（純教練/裁判個人頁） | ruan6047 | Fable-5@Claude Code | Fable-5@Claude Code | Gemini | `ai/fable/UX-7C` | ⚪ | ✅查核通過已 merge（`9c33f32`），待部署 |
 | UX-8 | 排行與紀錄群 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
 | UX-9 | 週邊群 `/matchups`、`/venues` | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
@@ -111,7 +111,7 @@
   2. 球員頁**教練身分區塊**＋hero 身分 chips（球員｜教練｜總教練）：coaches 同名 join（歷年職務/隊/背號）＋managers era 戰績卡。**同名歧義守門（紅線）**：coach 名對到多個 player acnt → 不自動掛、記 needs_review，嚴禁腦補
 - 依賴：7A merge 後開工（同檔 `/players/[id]`，避免衝突）
 - 驗收：同名守門有測試（構造同名 fixture）；教練團/era 卡雙色系截圖；橫切驗收見傘卡
-- 狀態：↩退回（D1 blocker＋D2 major，原執行者同分支修後重審）　Commit：分支 `ai/antigravity/UX-7B`
+- 狀態：✅通過已 merge（`74353cc`），待部署　Commit：`74353cc`
 - Log：
   - 07-13 Antigravity 實作完成：
     - FastAPI 後端路由：`/api/v1/players/{player_id}/career` 新增 `official_coach_tenures`、`manager_stats` 與 `coach_ambiguous` 欄位，實作同名同姓球員的歧義排除 guard。
@@ -127,6 +127,8 @@
     - M1（minor）375 執教戰績表「出賽」「勝-和-敗」欄折行醜（90-1-88 折三行）：該兩欄補 `nowrap: true` 即可（無溢出，僅觀感）
     - M2（minor）`t.pos.includes`/`c.pos.replace` 假設 pos 非 NULL——schema 允許 NULL（migration 025），現資料 0 筆 NULL 故未炸，建議改 optional chaining；`client.ts` `postseason: string|null` 與 DB INT 型別不符（runtime 無害，順手修）
     - 通過項：葉君璋/林智勝身分 chips＋執教戰績表＋官方經歷表正確；路易士守門正確；teams 頁純教練 6 連結→`/people/coach/*` 可達（平野惠一驗證）；雙色系/375 無溢出；ruff+tsc+build 綠；範圍 1 的名單/era 卡屬先前卡既有，本卡補純教練連結即完成 delta ✓（葉君璋味全 era_name/季後賽/冠軍「—」為 wiki 資料缺值非程式）
+  - 07-13 退回修復完成（同分支）：D1 改純函式單元測試（移除活 DB 依賴，CI 不再紅）；D2 改為「僅當名字存在於 coaches/managers 時才啟用同名守門」避免誤掛警示（`db45991`）
+  - 07-13 合併主線：merge `ai/antigravity/UX-7B` → `main`（`74353cc`），worktree 已關閉
 
 ### UX-7C /people 命名空間（純教練/裁判個人頁）  〔⚪一般〕
 - 需求：ruan6047　規劃：Fable-5@Claude Code　分支：`ai/<執行者>/UX-7C`
