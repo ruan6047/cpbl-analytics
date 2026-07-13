@@ -392,3 +392,15 @@
 | UX-7 | 個人頁傘卡（Person Hub） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | ⚪ | 🏁完成（子卡全數上線 07-14） |
 | UX-11 | 選手百分位數氣泡卡 | ruan6047 | Fable 複評 07-12 | —（併卡） | — | — | ⚪ | 🏁併入 UX-7 範圍 1（=既有三 PR 呈現整併+氣泡化，非新建） |
 | UX-12 | 出手點 2D 分布圖 | ruan6047 | Fable 複評 07-12 | —（併卡） | — | — | ⚪ | 🏁併入 UX-7（位移半案 07-12 已上線，僅剩出手點） |
+
+
+### SPLITS-IP 投手分項局數重算漏整數局（hotfix）  〔🔴資料正確性〕
+- 需求：ruan6047（07-13「鋼龍對戰各隊局數怪怪的：全季 80 局、各隊加總不到一局」）　分支：`ai/fable/SPLITS-IP`（worktree `../cpbl-analytics-splitsfix`）
+- 執行：Fable-5@Claude Code　查核：Antigravity（🔴 資料正確性建議跨家族或人審＋實測）
+- **Root cause**：`splits_calc.calc_pitching_t1` 的 SQL 只取 `pg.inning_pitched_div3`（餘出局 0–2），漏了整數局 `inning_pitched_cnt`，而下游把 Counter 累加值當「總出局數」拆欄——投手 T1 全家族（主客/先發後援/月份/球場/vs各隊）局數只剩零頭，ERA/WHIP 連帶全錯；生涯 9999＝base＋本季合成也被污染。**Phase 1 上線起即存在**（生產同錯）。打者側無 IP 欄不受影響；harness 對照（run_verify_splits）為何沒抓到 → 查核時順帶確認（疑 harness 未比 IP 欄）
+- **修復**：SQL 改 `(inning_pitched_cnt*3 + inning_pitched_div3) AS ip_outs`（一行）＋docstring 明定「Counter 內 IP＝總出局數」慣例；`cpbl-build-splits 2026` 重建 A/D＋生涯合成
+- **驗證（本機已過）**：黃子鵬 vs 味全 1⅓→34⅓ 局（ERA 20.25→0.79）；全聯盟 92 名投手（IP≥10）vs-team 加總 vs 官方全季 **0 誤差**；生涯 9999 主+客=923 局≈官方生涯總和；ruff+pytest 20 綠
+- **生產狀態（07-14 實測對帳）**：①程式碼隨 07-14 部署上線 ✓ ②derived 分項**生產已是修正值**——先前某次同步已一併帶上（本機 vs 生產 checksum 全同：pitching_splits 31,591 列／908,424 出局數／127,248 自責分）。線上 API 驗證黃子鵬 2026 vs 味全 **34⅓ 局 ERA 0.79**（壞資料時為 1⅓ 局 ERA 20.25）、對戰五隊加總 82.1 局＝主場38.1+客場44.0 ✓。**無殘留待辦**
+- 狀態：🏁完成（碼已部署＋生產資料已對帳正確，07-14 結案）　Commit：`edec0a2`（fix）＋`21415b0`（harness 補比 IP）
+> Ledger 列（歸檔）：
+| SPLITS-IP | 投手分項局數重算漏整數局（hotfix） | ruan6047 | —（bug 修復） | Fable-5@Claude Code | Antigravity | `ai/fable/SPLITS-IP` | 🔴 | 🔴 | 🏁完成（07-14 部署＋生產資料對帳正確） |

@@ -16,7 +16,6 @@
 | UX-9 | 週邊群 `/matchups`、`/venues` | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
 | UX-10 | 三頁互動模式重設計 | ruan6047 | 待各自小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（暫緩，不在本輪序） |
 | COACH-HIST | 歷年教練職務史（twbsball 經歷節） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（7C 已上線，接點就緒可排） |
-| SPLITS-IP | 投手分項局數重算漏整數局（hotfix） | ruan6047 | —（bug 修復） | Fable-5@Claude Code | Antigravity | `ai/fable/SPLITS-IP` | 🔴 | ✅通過（碼已部署；**生產 derived 分項待重跑同步**） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
 | ML-SIM1 | 互動式 H2H 對戰模擬器 v2 | ruan6047 | —（併卡） | — | — | — | 🔴 | 🏁併入 UX-10（ruan6047 07-12；predict 互動重設計一起出小 spec） |
 
@@ -39,15 +38,6 @@
   - 07-12 **歸檔切割修復**（Fable）：Gemini 歸檔時本卡被截斷（位元組級損毀）且 UX-6 孤兒內容殘留，已重建（archive 副本完整，無資料損失）
 
 > **UX-5 拆卡裁示（ruan6047 07-11）**：UX-5B hub v1＋搬遷（🏁）→ UX-5A 戰績換裝（🏁）→ **UX-5C 首頁 hub 完整版**（壓 UX-6〜9 完成後重製）。hub 卡＝「指路牌」，避免與戰績頁重複。
-
-### SPLITS-IP 投手分項局數重算漏整數局（hotfix）  〔🔴資料正確性〕
-- 需求：ruan6047（07-13「鋼龍對戰各隊局數怪怪的：全季 80 局、各隊加總不到一局」）　分支：`ai/fable/SPLITS-IP`（worktree `../cpbl-analytics-splitsfix`）
-- 執行：Fable-5@Claude Code　查核：Antigravity（🔴 資料正確性建議跨家族或人審＋實測）
-- **Root cause**：`splits_calc.calc_pitching_t1` 的 SQL 只取 `pg.inning_pitched_div3`（餘出局 0–2），漏了整數局 `inning_pitched_cnt`，而下游把 Counter 累加值當「總出局數」拆欄——投手 T1 全家族（主客/先發後援/月份/球場/vs各隊）局數只剩零頭，ERA/WHIP 連帶全錯；生涯 9999＝base＋本季合成也被污染。**Phase 1 上線起即存在**（生產同錯）。打者側無 IP 欄不受影響；harness 對照（run_verify_splits）為何沒抓到 → 查核時順帶確認（疑 harness 未比 IP 欄）
-- **修復**：SQL 改 `(inning_pitched_cnt*3 + inning_pitched_div3) AS ip_outs`（一行）＋docstring 明定「Counter 內 IP＝總出局數」慣例；`cpbl-build-splits 2026` 重建 A/D＋生涯合成
-- **驗證（本機已過）**：黃子鵬 vs 味全 1⅓→34⅓ 局（ERA 20.25→0.79）；全聯盟 92 名投手（IP≥10）vs-team 加總 vs 官方全季 **0 誤差**；生涯 9999 主+客=923 局≈官方生涯總和；ruff+pytest 20 綠
-- **待辦**：merge 後生產要 ①部署新碼 ②照 Runbook §3 同步重跑生產 `cpbl-build-splits 2026`（derived 表，本機重建不自動到生產）
-- 狀態：✅通過（程式碼 07-14 已隨部署上線；**生產 derived 分項表仍待重跑同步**）　Commit：分支 `ai/fable/SPLITS-IP`
 
 ### UX-8 排行與紀錄群  〔⚪一般〕
 - 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 頁面層）　分支：`ai/<執行者>/UX-8`
