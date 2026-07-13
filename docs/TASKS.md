@@ -12,7 +12,7 @@
 |---|---|---|---|---|---|---|---|---|
 | UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🔨子卡執行中（餘 UX-8/9/5C；UX-7 群 07-14 已結案） |
 | UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | 待小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（**壓到 UX-6〜9 完成後**重製） |
-| UX-8 | 排行與紀錄群 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
+| UX-8 | 排行與紀錄群 | ruan6047 | Fable-5@Claude Code | GPT-5@Codex | 待指派（獨立 session） | `ai/codex/UX-8` | ⚪ | 🔍待查核 |
 | UX-9 | 週邊群 `/matchups`、`/venues` | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
 | UX-10 | 互動模式拆分（projection 公開瀏覽取消） | ruan6047 | 待各自小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（UX-10P 取消；其餘待收斂） |
 | COACH-HIST | 歷年教練職務史（twbsball 經歷節） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（7C 已上線，接點就緒可排） |
@@ -42,12 +42,15 @@
 > **UX-5 拆卡裁示（ruan6047 07-11）**：UX-5B hub v1＋搬遷（🏁）→ UX-5A 戰績換裝（🏁）→ **UX-5C 首頁 hub 完整版**（壓 UX-6〜9 完成後重製）。hub 卡＝「指路牌」，避免與戰績頁重複。
 
 ### UX-8 排行與紀錄群  〔⚪一般〕
-- 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 頁面層）　分支：`ai/<執行者>/UX-8`
-- 執行：待指派　查核：待指派（≠執行者）
+- 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 頁面層）　分支：`ai/codex/UX-8`
+- 執行：GPT-5@Codex　查核：待指派（獨立 session；≠執行者）
 - 範圍/驗收：`/batters`、`/pitchers`、`/records`；表格家族，一張卡統一模式（全數走 DataTable）。5 秒盲測＋雙色系截圖。
-- 狀態：⏳待執行（通用層已齊，已解鎖待派工）　Commit：—
+- 狀態：🔍待查核　Commit：見分支 `ai/codex/UX-8`
 - Log：
   - 07-11 spec v5 核可後開卡
+  - 07-14 ruan6047 派工；GPT-5@Codex 建立 worktree `/Users/ruanruan/Dev/cpbl-analytics-ux8` 與分支 `ai/codex/UX-8` 開始執行
+  - 07-14 GPT-5@Codex 實作完成：`Leaderboard` 收斂至 DataTable；打者／投手補完整排名層級；紀錄室的比賽、單季、生涯與球團沿革改為 5 張 DataTable
+  - 07-14 自測：`tsc --noEmit`、`build:check`、Ruff、pytest 42 項全綠；Playwright 375/1280 × 明暗主題三頁皆 200、零 console/network error、零頁面橫向溢出，OPS/ERA 排序 aria-sort 可反轉。既有 `npm run lint` 會進互動初始化、`npm audit` 回報 Next 15.5.4 critical，未混入 UX-8 處理
 
 
 

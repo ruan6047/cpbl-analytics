@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { DataTable, type Column } from "@/components/table";
+import { Tooltip } from "@/components/tooltip";
 import { NameTag, prColor } from "@/components/ui";
 import { fmtIP } from "@/lib/format";
-import { Tooltip } from "@/components/tooltip";
 
 export type Fmt = "i" | "f1" | "f2" | "f3" | "ip";
 export type Tone = "accent" | "dim" | "warn";
@@ -123,6 +124,63 @@ export default function Leaderboard({
     );
   };
 
+  const header = (c: Col) => {
+    const active = c.key === sortKey;
+    const sortable = c.sortable !== false;
+    const label = c.tip ? (
+      <Tooltip content={c.tip}>
+        <span className="underline decoration-line decoration-dotted underline-offset-4">{c.label}</span>
+      </Tooltip>
+    ) : c.label;
+    if (!sortable) return label;
+    return (
+      <button
+        type="button"
+        onClick={() => onSort(c.key)}
+        className={`inline-flex w-full items-center gap-1 font-medium hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${c.fmt ? "justify-end" : "justify-start"}`}
+      >
+        {label}
+        <span aria-hidden className={active ? "text-accent" : "text-faint"}>
+          {active ? (dir === -1 ? "↓" : "↑") : "↕"}
+        </span>
+      </button>
+    );
+  };
+
+  const columns: Column<Row>[] = [
+    {
+      header: "#",
+      cell: (_row, i) => i + 1,
+      align: "right",
+      nowrap: true,
+      className: "text-faint",
+      width: "3rem",
+    },
+    ...cols.map((c): Column<Row> => {
+      const active = c.key === sortKey;
+      return {
+        header: header(c),
+        ariaSort: active ? (dir === -1 ? "descending" : "ascending") : c.sortable === false ? undefined : "none",
+        align: c.fmt ? "right" : "left",
+        nowrap: true,
+        sticky: c === cols[0],
+        headClassName: active ? "text-accent" : "",
+        className: `${c.fmt ? "" : "font-sans"} ${active ? "font-medium text-ink" : toneCls(c.tone)}`,
+        cell: (r) => c.team ? (
+          <NameTag name={String(r[c.key] ?? "")} />
+        ) : c.link ? (
+          <Link href={`${c.link.base}${r[c.link.idKey]}`} className="text-accent hover:underline">
+            {fmtVal(r[c.key], c.fmt)}
+          </Link>
+        ) : c.bar ? (
+          barCell(c, r[c.key])
+        ) : (
+          fmtVal(r[c.key], c.fmt)
+        ),
+      };
+    }),
+  ];
+
   return (
     <div>
       {filters.length > 0 && (
@@ -148,83 +206,12 @@ export default function Leaderboard({
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-line">
-        <table className="w-full text-sm">
-          <thead className="bg-surface-2 text-left text-muted">
-            <tr>
-              <th scope="col" className="px-2.5 py-3 font-medium">#</th>
-              {cols.map((c) => {
-                const active = c.key === sortKey;
-                const sortable = c.sortable !== false;
-                const arrow = active ? (dir === -1 ? " ↓" : " ↑") : sortable ? <span className="text-faint"> ↕</span> : "";
-                return (
-                  <th
-                    key={c.key}
-                    scope="col"
-                    aria-sort={active ? (dir === -1 ? "descending" : "ascending") : sortable ? "none" : undefined}
-                    className={`whitespace-nowrap px-2.5 py-3 font-medium ${active ? "text-accent" : ""}`}
-                  >
-                    {sortable ? (
-                      <button
-                        type="button"
-                        onClick={() => onSort(c.key)}
-                        className="inline-flex items-center font-medium hover:text-ink"
-                      >
-                        {c.tip ? (
-                          <Tooltip content={c.tip}>
-                            <span className="underline decoration-line decoration-dotted underline-offset-4">{c.label}</span>
-                          </Tooltip>
-                        ) : (
-                          c.label
-                        )}
-                        {arrow}
-                      </button>
-                    ) : c.tip ? (
-                      <Tooltip content={c.tip}>
-                        <span className="underline decoration-line decoration-dotted underline-offset-4 outline-none focus-visible:text-ink">
-                          {c.label}
-                        </span>
-                      </Tooltip>
-                    ) : (
-                      c.label
-                    )}
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody className="font-mono tabular-nums">
-            {view.map((r, i) => (
-              <tr key={i} className="border-t border-line hover:bg-surface-2">
-                <td className="px-2.5 py-2.5 text-faint">{i + 1}</td>
-                {cols.map((c) => (
-                  <td
-                    key={c.key}
-                    className={`whitespace-nowrap px-2.5 py-2.5 ${c.fmt ? "" : "font-sans"} ${
-                      c.key === sortKey ? "font-medium text-ink" : toneCls(c.tone)
-                    }`}
-                  >
-                    {c.team ? (
-                      <NameTag name={String(r[c.key] ?? "")} />
-                    ) : c.link ? (
-                      <Link
-                        href={`${c.link.base}${r[c.link.idKey]}`}
-                        className="text-accent hover:underline"
-                      >
-                        {fmtVal(r[c.key], c.fmt)}
-                      </Link>
-                    ) : c.bar ? (
-                      barCell(c, r[c.key])
-                    ) : (
-                      fmtVal(r[c.key], c.fmt)
-                    )}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={columns}
+        rows={view}
+        rowKey={(r, i) => String(r.player_id ?? r.opp_id ?? `${r.name ?? r.opp_name ?? "row"}-${r.team ?? r.opp_team ?? ""}-${i}`)}
+        dense
+      />
     </div>
   );
 }
