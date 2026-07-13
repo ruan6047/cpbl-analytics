@@ -13,7 +13,7 @@
 | UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🔨子卡執行中（spec v5 已核可 07-11） |
 | UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | 待小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（**壓到 UX-6〜9 完成後**重製） |
 | UX-7 | 個人頁傘卡（Person Hub） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 📋已拆 7A/7B/7C（07-12） |
-| UX-7A | 球員頁換裝＋出手點＋PR 融入本季卡 | ruan6047 | Fable-5@Claude Code | Fable-5@Claude Code | Antigravity | `ai/fable/UX-7A` | ⚪ | 🔍查核中（Antigravity，07-13） |
+| UX-7A | 球員頁換裝＋出手點＋PR 融入本季卡 | ruan6047 | Fable-5@Claude Code | Fable-5@Claude Code | Antigravity | `ai/fable/UX-7A` | ⚪ | ✅通過已 merge（`301f7f6`），待部署 |
 | UX-7B | 球隊頁＋教練身分（coaches/managers） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待派工（吃 7A 換裝定調） |
 | UX-7C | /people 命名空間（純教練/裁判個人頁） | ruan6047 | Fable-5@Claude Code | Fable-5@Claude Code | Gemini | `ai/fable/UX-7C` | ⚪ | ✅查核通過已 merge（`9c33f32`），待部署 |
 | UX-8 | 排行與紀錄群 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
@@ -69,7 +69,7 @@
   5. **進壘熱區區塊改名＋指標分角色**（新）：「進壘熱區 × 打擊成績」對投手語意錯置（是**被**打擊）且指標投打共用。改：①標題分角色——打者「好球帶熱區 · 打擊表現」、投手「進壘位置 · 壓制表現」（文案執行時微調，投手側禁再現「打擊成績」）；②投手指標重選：投球分佈%（各格佔比，看配球位置）＋揮空率＋被安打率＋被強擊球%，**刪「擊球仰角 AVG」**（對投手無讀法）；打者維持 ev/ba/hard/whiff，la 是否保留執行時看版面
   6. **出手點 2D**（原範圍③不變）：`rel_side`×`rel_height`（m；覆蓋 99.96%）散點 by 球種＋質心＋出手一致性；掛 MovementSection 旁、movement 端點擴欄；左投鏡像沿慣例；修 F4（1280 三欄擠爆→兩欄或上下堆疊）、F5（一致性用 cm、樣本過小顯「—」）
 - 驗收：5 秒盲測＋雙色系 375/1280 截圖；PR 融入後無重複呈現；球種合併抽 1–2 名有卡特的投手驗 usage 加總與各視圖一致；投打各截一張熱區區塊；橫切驗收見傘卡
-- 狀態：✅通過（已審核，等 merge）　Commit：分支 `ai/fable/UX-7A`（worktree `../cpbl-analytics-ux-7a`，環境現成可照 §3.1 進駐審核）
+- 狀態：✅通過已 merge（`301f7f6`，trailers 完整），待部署　Commit：`301f7f6`
 - **需求校正（ruan6047 07-12，仍有效）**：**氣泡方案正式否決**——PercentileBar 柱狀圖一列同時呈現「數值＋PR＋長度視覺＋定義 tooltip」，氣泡只剩 PR 圓圈＝資訊變少。**PR 呈現以官方 PR 柱狀圖語彙為準**。提案 A（原 UX-11）氣泡化結案否決；v3 範圍 3 的「融入」是把柱狀圖語彙帶進 tile，不是氣泡復活。
 - **重做參考（Fable 審核 findings，07-12；避免二輪重蹈）**：
   - F1（高·雙重事實源）：卡片要求「官方 PR 收進氣泡」，首輪把官方 PR 區移除後**全部自算 PR**——但 `advanced_stats` 有 9 個官方 `_pr` 欄、`batting_current.ops_plus` 官方欄也存在（trend.py 另有滾動版=第三套）。同指標會與官方數字不一致。重做：氣泡直接用官方 `_pr`，官方沒有的才自算並標注
