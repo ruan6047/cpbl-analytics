@@ -23,7 +23,7 @@
 | UX-11 | 選手百分位數氣泡卡 | ruan6047 | Fable 複評 07-12 | —（併卡） | — | — | ⚪ | 🏁併入 UX-7 範圍 1（=既有三 PR 呈現整併+氣泡化，非新建） |
 | UX-12 | 出手點 2D 分布圖 | ruan6047 | Fable 複評 07-12 | —（併卡） | — | — | ⚪ | 🏁併入 UX-7（位移半案 07-12 已上線，僅剩出手點） |
 | ABILITY-2 | 能力值卡演算法升級（wSB/FIP/年代校正） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | 🔴 | ⏳待派工（07-13 評估採納開卡） |
-| SPLITS-IP | 投手分項局數重算漏整數局（hotfix） | ruan6047 | —（bug 修復） | Fable-5@Claude Code | 待指派 | `ai/fable/SPLITS-IP` | 🔴 | 🔍待查核（本機資料已重建；生產待 merge+同步） |
+| SPLITS-IP | 投手分項局數重算漏整數局（hotfix） | ruan6047 | —（bug 修復） | Fable-5@Claude Code | Antigravity | `ai/fable/SPLITS-IP` | 🔴 | ✅通過（已 merge，生產待同步） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
 | ML-SIM1 | 互動式 H2H 對戰模擬器 v2 | ruan6047 | —（併卡） | — | — | — | 🔴 | 🏁併入 UX-10（ruan6047 07-12；predict 互動重設計一起出小 spec） |
 
@@ -86,12 +86,12 @@
 
 ### SPLITS-IP 投手分項局數重算漏整數局（hotfix）  〔🔴資料正確性〕
 - 需求：ruan6047（07-13「鋼龍對戰各隊局數怪怪的：全季 80 局、各隊加總不到一局」）　分支：`ai/fable/SPLITS-IP`（worktree `../cpbl-analytics-splitsfix`）
-- 執行：Fable-5@Claude Code　查核：待指派（🔴 資料正確性建議跨家族或人審＋實測）
+- 執行：Fable-5@Claude Code　查核：Antigravity（🔴 資料正確性建議跨家族或人審＋實測）
 - **Root cause**：`splits_calc.calc_pitching_t1` 的 SQL 只取 `pg.inning_pitched_div3`（餘出局 0–2），漏了整數局 `inning_pitched_cnt`，而下游把 Counter 累加值當「總出局數」拆欄——投手 T1 全家族（主客/先發後援/月份/球場/vs各隊）局數只剩零頭，ERA/WHIP 連帶全錯；生涯 9999＝base＋本季合成也被污染。**Phase 1 上線起即存在**（生產同錯）。打者側無 IP 欄不受影響；harness 對照（run_verify_splits）為何沒抓到 → 查核時順帶確認（疑 harness 未比 IP 欄）
 - **修復**：SQL 改 `(inning_pitched_cnt*3 + inning_pitched_div3) AS ip_outs`（一行）＋docstring 明定「Counter 內 IP＝總出局數」慣例；`cpbl-build-splits 2026` 重建 A/D＋生涯合成
 - **驗證（本機已過）**：黃子鵬 vs 味全 1⅓→34⅓ 局（ERA 20.25→0.79）；全聯盟 92 名投手（IP≥10）vs-team 加總 vs 官方全季 **0 誤差**；生涯 9999 主+客=923 局≈官方生涯總和；ruff+pytest 20 綠
 - **待辦**：merge 後生產要 ①部署新碼 ②照 Runbook §3 同步重跑生產 `cpbl-build-splits 2026`（derived 表，本機重建不自動到生產）
-- 狀態：🔍待查核　Commit：分支 `ai/fable/SPLITS-IP`
+- 狀態：✅通過　Commit：分支 `ai/fable/SPLITS-IP`
 
 ### UX-7B 球隊頁＋教練身分  〔⚪一般〕
 - 需求：ruan6047　規劃：Fable-5@Claude Code　分支：`ai/<執行者>/UX-7B`
