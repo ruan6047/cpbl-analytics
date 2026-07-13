@@ -13,7 +13,7 @@
 | UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🔨子卡執行中（餘 UX-8/9/5C；UX-7 群 07-14 已結案） |
 | UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | 待小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（**壓到 UX-6〜9 完成後**重製） |
 | UX-8 | 排行與紀錄群 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
-| UX-9 | 週邊群 `/matchups`、`/venues` | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
+| UX-9 | 週邊群 `/matchups`、`/venues` | ruan6047 | Fable-5@Claude Code | Sonnet-5@Claude Code | 待指派（獨立 session） | `ai/sonnet/UX-9` | ⚪ | 🔍待查核 |
 | UX-10 | 互動模式拆分（projection 公開瀏覽取消） | ruan6047 | 待各自小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（UX-10P 取消；其餘待收斂） |
 | COACH-HIST | 歷年教練職務史（twbsball 經歷節） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（7C 已上線，接點就緒可排） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
@@ -52,12 +52,15 @@
 
 
 ### UX-9 週邊群  〔⚪一般〕
-- 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 頁面層）　分支：`ai/<執行者>/UX-9`
-- 執行：待指派　查核：待指派（≠執行者）
+- 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 頁面層）　分支：`ai/sonnet/UX-9`
+- 執行：Sonnet-5@Claude Code　查核：待指派（獨立 session；≠執行者）
 - 範圍/驗收：`/matchups`、`/venues`；對齊新語彙即可，改動最小。5 秒盲測＋雙色系截圖。
-- 狀態：⏳待執行（通用層已齊，本輪最後，已解鎖待派工）　Commit：—
+- 狀態：🔍待查核　Commit：見分支 `ai/sonnet/UX-9`（`a51937a`）
 - Log：
   - 07-11 spec v5 核可後開卡
+  - 07-14 ruan6047 派工；建立 worktree `/Users/ruanruan/Dev/cpbl-analytics-ux9` 與分支 `ai/sonnet/UX-9` 開始執行
+  - 07-14 實作：對照通用層元件庫（`ui.tsx`）與已換裝頁（games/[sno]、players/[id]/detail 等）比對——`/matchups` 三態改走共用 `EmptyState`/`TableSkeleton`（原 ad-hoc 文字與 `<Card>` 包錯誤訊息）；`/venues` 順帶修一處既有小 bug（外野距離列 `w-8` 標籤太窄擠成兩行折行，改 `w-10 shrink-0 whitespace-nowrap`）。header/Card/token 用色已對齊，不需大改
+  - 07-14 自測：`npm run build:check`（tsc+lint+build 全綠）；Chrome DevTools 375px/1280px × 明暗雙主題各截圖，兩頁 5 秒測試可答出主問題、console 零錯誤、`document.documentElement.scrollWidth` 無溢出
 
 ### COACH-HIST 歷年教練職務史（twbsball 經歷節）  〔⚪一般〕
 - 需求：ruan6047（07-12「教練從其他管道拿歷年教練團？」）　規劃：Fable-5@Claude Code　分支：`ai/<執行者>/COACH-HIST`
