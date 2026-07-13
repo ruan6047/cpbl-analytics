@@ -403,4 +403,19 @@
 - **生產狀態（07-14 實測對帳）**：①程式碼隨 07-14 部署上線 ✓ ②derived 分項**生產已是修正值**——先前某次同步已一併帶上（本機 vs 生產 checksum 全同：pitching_splits 31,591 列／908,424 出局數／127,248 自責分）。線上 API 驗證黃子鵬 2026 vs 味全 **34⅓ 局 ERA 0.79**（壞資料時為 1⅓ 局 ERA 20.25）、對戰五隊加總 82.1 局＝主場38.1+客場44.0 ✓。**無殘留待辦**
 - 狀態：🏁完成（碼已部署＋生產資料已對帳正確，07-14 結案）　Commit：`edec0a2`（fix）＋`21415b0`（harness 補比 IP）
 > Ledger 列（歸檔）：
-| SPLITS-IP | 投手分項局數重算漏整數局（hotfix） | ruan6047 | —（bug 修復） | Fable-5@Claude Code | Antigravity | `ai/fable/SPLITS-IP` | 🔴 | 🔴 | 🏁完成（07-14 部署＋生產資料對帳正確） |
+| SPLITS-IP | 投手分項局數重算漏整數局（hotfix） | ruan6047 | —（bug 修復） | FIP / Fable-5@Claude Code | Antigravity | `ai/fable/SPLITS-IP` | 🔴 | 🔴 | 🏁完成（07-14 部署＋生產資料對帳正確） |
+
+### UX-9 週邊群  〔⚪一般〕
+- 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 頁面層）　分支：`ai/sonnet/UX-9`
+- 執行：Sonnet-5@Claude Code　查核：Gemini-3.5-Flash@Antigravity
+- 範圍/驗收：`/matchups`、`/venues`；對齊新語彙即可，改動最小。5 秒盲測＋雙色系截圖。
+- 狀態：🏁完成（已合併至 main）　Commit：見分支 `ai/sonnet/UX-9`（`a51937a`）
+- Log：
+  - 07-11 spec v5 核可後開卡
+  - 07-14 ruan6047 派工；建立 worktree `/Users/ruanruan/Dev/cpbl-analytics-ux9` 與分支 `ai/sonnet/UX-9` 開始執行
+  - 07-14 實作：對照通用層元件庫（`ui.tsx`）與已換裝頁（games/[sno]、players/[id]/detail 等）比對——`/matchups` 三態改走共用 `EmptyState`/`TableSkeleton`（原 ad-hoc 文字與 `<Card>` 包錯誤訊息）；`/venues` 順帶修一處既有小 bug（外野距離列 `w-8` 標籤太窄擠成兩行折行，改 `w-10 shrink-0 whitespace-nowrap`）。header/Card/token 用色已對齊，不需大改
+  - 07-14 自測：`npm run build:check`（tsc+lint+build 全綠）；Chrome DevTools 375px/1280px × 明暗雙主題各截圖，兩頁 5 秒測試可答出主問題、console 零錯誤、`document.documentElement.scrollWidth` 無溢出
+  - 07-14 Antigravity 查核通過：確認 `npm run build:check` 靜態編譯型別與 Linter 完全通過，`/matchups` 及 `/venues` 程式碼邏輯與樣式修復符合 UX 規範；完成與 `main` 合併並關閉 worktree。
+> Ledger 列（歸檔）：
+| UX-9 | 週邊群 `/matchups`、`/venues` | ruan6047 | Fable-5@Claude Code | Sonnet-5@Claude Code | Gemini-3.5-Flash@Antigravity | `ai/sonnet/UX-9` | ⚪ | 🏁完成 |
+
