@@ -199,9 +199,11 @@ export const PR_GRADIENT = "linear-gradient(90deg, rgb(30,91,184), rgb(232,232,2
 export const PR_CELL_TEXT = { ink: "#0a2540", halo: "#ffffff" };
 
 export function PercentileBar({ name, value, pr, def }: { name: string; value: string; pr: number; def?: string }) {
+  // 定義提示走共用 Tooltip（原生 title 有延遲且觸控無效）
+  const label = <span className="w-16 shrink-0 truncate text-muted">{name}</span>;
   return (
     <div className="flex items-center gap-2 text-xs">
-      <span title={def} className={`w-16 shrink-0 truncate text-muted ${def ? "cursor-help" : ""}`}>{name}</span>
+      {def ? <Tooltip content={def}>{label}</Tooltip> : label}
       <div className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-surface-2">
         <div className="h-full rounded-full" style={{ width: `${pr}%`, background: prColor(pr) }} />
       </div>
