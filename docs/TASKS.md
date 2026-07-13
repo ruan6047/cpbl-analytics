@@ -87,6 +87,7 @@
     - web×3：雷達 ? 方法論+軸組成自訂 tooltip（順修 ability.py「擊球initial速」typo）；本季 tile 融官方 PR（打者三圍條、投手無官方 _pr 不自算、右卡去重+brl 刪除、secondary 改表列）；熱區分角色（投手 投球分佈%/揮空/被安/被強擊，usage 格 13 區均勻基準+總數<30 不上色）+出手點卡（上下堆疊修 F4）+A/B 臨界球路標注+Skeleton 三態+OPS+/ERA+/K9 StatAbbr
     - 驗證：ruff ✓ pytest 20 ✓ tsc ✓ build:check ✓；截圖 王柏融（打者）/黃子鵬（投手，側投出手高 0.75–0.84m 合理）×深淺色×1280/375 無溢出；tooltip hover/點擊實測
   - 07-13 追加（ruan6047 回饋×2，待查核分支上補 commit）：①投手特色軸 info 說明＋打者 DH 指打說明（`907f040`；並評估出武器軸 ~50 下限統計缺陷 → ABILITY-2 範圍 6）②配球傾向改共用堆疊比例條（取代各卡自畫用量條；gap-px 段界解同色槽複合名相鄰不可分），截圖驗證 ✓
+  - 07-13 收尾四項（Fable 盤點→ruan6047 圈選全做）：A 球種鏡頭 ≥20 球門檻（打者 19→10 顆按鈕）；B 散點複合名近空心（同色槽可分）；C PR 卡 Skeleton＋PercentileBar 定義換共用 Tooltip；D 配球傾向重排版（卡牆→明細表×依球數情境並排，一卡收完）。tsc/build 綠、截圖驗證 ✓
 
 ### UX-7B 球隊頁＋教練身分  〔⚪一般〕
 - 需求：ruan6047　規劃：Fable-5@Claude Code　分支：`ai/<執行者>/UX-7B`
