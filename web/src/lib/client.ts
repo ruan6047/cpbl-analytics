@@ -241,6 +241,11 @@ export const detail = {
       summary: { pt: string; n: number; usage: number; speed: number | null; spin: number | null;
         ivb: number | null; hb: number | null;
         lg: { speed: number | null; spin: number | null; ivb: number | null; hb: number | null } }[];
+      release: {
+        points: { pt: string; x: number; y: number }[];
+        summary: { pt: string; n: number; x: number | null; y: number | null; spread_cm: number | null }[];
+        consistency_cm: number | null;
+      };
     }>(`/api/v1/players/${id}/movement?kind_code=${kind}`),
   arsenal: (id: string, role: "batting" | "pitching") =>
     clientGet<{ items: { pitch_type: string; n: number; usage: number; avg_speed: number | null;

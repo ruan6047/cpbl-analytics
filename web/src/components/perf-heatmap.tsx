@@ -6,8 +6,8 @@ import { PR_CELL_TEXT, prColor } from "@/components/ui";
 import { useChartTheme } from "@/lib/chart-theme";
 
 export type HPoint = { x: number; y: number; sw: boolean; wh: boolean; result: string; ev: number | null; la: number | null };
-// ev/la/ba/whiff/hard=九宮格(進壘熱區x打擊成績)
-export type HeatMetric = "ev" | "la" | "ba" | "whiff" | "hard";
+// ev/la/ba/whiff/hard=九宮格聚合值；usage=該格球數占比（投手「投球分佈」用，色基準=13 區均勻）
+export type HeatMetric = "ev" | "la" | "ba" | "whiff" | "hard" | "usage";
 
 // 視窗（與散點一致；inWin 供本壘板紀律過濾用）。
 const xMin = -0.5, xMax = 0.5, yMin = 0.05, yMax = 1.4;
@@ -26,9 +26,11 @@ const zoneOf = (p: { x: number; y: number }): ZoneKey =>
 
 // ---------- 進壘熱區 x 打擊成績：3×3 九宮格 ＋ 四角（官方版型）----------
 const MIN_N = 3;
-const SPREAD: Record<string, number> = { ev: 8, la: 12, ba: 0.15, whiff: 0.15, hard: 0.18 };
+const USAGE_MIN_TOTAL = 30;  // 投球分佈：總球數門檻（格值=占比，樣本太小整張不上色）
+const SPREAD: Record<string, number> = { ev: 8, la: 12, ba: 0.15, whiff: 0.15, hard: 0.18, usage: 0.08 };
 const fmtVal = (m: HeatMetric, v: number) =>
-  m === "ev" || m === "la" ? v.toFixed(1) : v.toFixed(3).replace(/^0\./, ".");
+  m === "usage" ? `${Math.round(v * 100)}%`
+    : m === "ev" || m === "la" ? v.toFixed(1) : v.toFixed(3).replace(/^0\./, ".");
 // 13 區：好球帶 3×3（row0=上）＋ 四角 c-{t|b}{l|r}
 function cell13(x: number, y: number): string {
   if (Math.abs(x) <= ZHW && y >= ZCY - ZHH && y <= ZCY + ZHH) {
@@ -47,7 +49,8 @@ export function Grid3x3({ points, metric, title }: { points: HPoint[]; metric: H
   const bip = (p: HPoint) => p.result === "hit" || p.result === "out";
   for (const p of points) {
     let inc = false, val = 0;
-    if (metric === "whiff") { if (p.sw) { inc = true; val = p.wh ? 1 : 0; } }
+    if (metric === "usage") { inc = true; val = 1; }
+    else if (metric === "whiff") { if (p.sw) { inc = true; val = p.wh ? 1 : 0; } }
     else if (metric === "ba") { if (bip(p)) { inc = true; val = p.result === "hit" ? 1 : 0; } }
     else if (metric === "ev") { if (bip(p) && p.ev != null) { inc = true; val = p.ev; } }
     else if (metric === "la") { if (bip(p) && p.la != null) { inc = true; val = p.la; } }
@@ -58,6 +61,13 @@ export function Grid3x3({ points, metric, title }: { points: HPoint[]; metric: H
   }
   const baseline = gDen ? gNum / gDen : 0;
   const cellOf = (k: string) => {
+    // 投球分佈：格值＝該格占總球數比例（無球格＝0%），白基準＝13 區均勻分佈。
+    if (metric === "usage") {
+      if (gDen < USAGE_MIN_TOTAL) return { fill: ct.surface2, txt: "—", data: false };
+      const v = (acc[k]?.den ?? 0) / gDen;
+      const pr = 50 + 50 * Math.max(-1, Math.min(1, (v - 1 / 13) / SPREAD.usage));
+      return { fill: prColor(pr), txt: fmtVal(metric, v), data: true };
+    }
     const a = acc[k];
     if (!a || a.den < MIN_N) return { fill: ct.surface2, txt: "—", data: false };
     const v = a.num / a.den;

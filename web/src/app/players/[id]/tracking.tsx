@@ -6,7 +6,7 @@ import { useState } from "react";
 import { LaEvScatter } from "@/components/la-ev-scatter";
 import { type HeatMetric, Grid3x3, PlateDisciplineBars } from "@/components/perf-heatmap";
 import { SprayChart } from "@/components/spray-chart";
-import { Card, EmptyState, PR_GRADIENT, StatTile } from "@/components/ui";
+import { Card, EmptyState, PR_GRADIENT, Skeleton, StatTile } from "@/components/ui";
 import { type StatRow } from "@/lib/client";
 import { ZoneScatter } from "@/components/zone-scatter";
 import {
@@ -44,13 +44,13 @@ export function TrackingSection({ disc, role, seasonKind }: { disc: Disc | null;
             <div className="grid gap-x-4 sm:grid-cols-2">
               <div className="relative flex flex-col">
                 <h3 className="absolute left-0 top-0 z-10 text-sm font-medium text-muted">擊球落點（{sprayF.length} 球）</h3>
-                {disc === null ? <EmptyState className="py-12">載入中…</EmptyState>
+                {disc === null ? <Skeleton className="mt-6 h-48 w-full" />
                   : sprayF.length > 0 ? <div className="mt-auto mb-[13%]"><SprayChart points={sprayF} /></div>
                   : <EmptyState className="py-12">{disc.spray.length ? "此球種無擊球" : "無擊球追蹤資料"}</EmptyState>}
               </div>
               <div className="relative">
                 <h3 className="absolute left-0 top-0 z-10 text-sm font-medium text-muted">進壘點（{pointsF.length} 球）</h3>
-                {disc === null ? <EmptyState className="py-12">載入中…</EmptyState>
+                {disc === null ? <Skeleton className="mt-6 h-48 w-full" />
                   : pointsF.length > 0 ? <ZoneScatter points={pointsF} />
                   : <EmptyState className="py-12">{disc.points.length ? "此球種無資料" : "無逐球資料"}</EmptyState>}
               </div>
@@ -83,21 +83,27 @@ export function TrackingSection({ disc, role, seasonKind }: { disc: Disc | null;
             </Card>
           )}
         </div>
-        {/* 進壘熱區 × 打擊成績（3×3＋四角 熱圖，依球種篩）*/}
-        {disc && disc.points.length > 0 && (
+        {/* 好球帶 13 區熱圖（3×3＋四角，依球種篩）：標題與指標分角色——打者看打擊表現、
+            投手看壓制表現（被打擊）＋配球位置分佈；「擊球仰角」對投手無讀法故僅打者版有 */}
+        {disc && disc.points.length > 0 && (() => {
+          const grids: [HeatMetric, string][] = role === "batting"
+            ? [["ev", "擊球初速 AVG"], ["la", "擊球仰角 AVG"], ["ba", "安打率"], ["hard", "強擊球%"], ["whiff", "揮空率"]]
+            : [["usage", "投球分佈%"], ["whiff", "揮空率"], ["ba", "被安打率"], ["hard", "被強擊球%"]];
+          return (
           <div className="mt-6">
-            <h3 className="mb-2 text-sm font-medium text-muted">進壘熱區 × 打擊成績</h3>
-            <Card className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-              {(([["ev", "擊球初速 AVG"], ["la", "擊球仰角 AVG"], ["ba", "安打率"], ["hard", "強擊球%"], ["whiff", "揮空率"]] as [HeatMetric, string][])).map(([m, t]) => (
-                <Grid3x3 key={m} points={pointsF} metric={m} title={t} />
-              ))}
+            <h3 className="mb-2 text-sm font-medium text-muted">
+              {role === "batting" ? "好球帶熱區 · 打擊表現" : "進壘位置 · 壓制表現"}
+            </h3>
+            <Card className={`grid grid-cols-2 gap-3 ${role === "batting" ? "sm:grid-cols-3 lg:grid-cols-5" : "sm:grid-cols-4"}`}>
+              {grids.map(([m, t]) => <Grid3x3 key={m} points={pointsF} metric={m} title={t} />)}
             </Card>
             <div className="mt-2 flex items-center justify-center gap-2 text-[10px] text-faint">
               低<span className="inline-block h-2 w-20 rounded-full" style={{ background: PR_GRADIENT }} />高
-              <span>白＝本人均值 · 每格 n&lt;3 顯「—」· 捕手視角</span>
+              <span>白＝本人均值{role === "pitching" ? "（分佈格＝13 區均勻基準）" : ""} · 樣本不足顯「—」· 捕手視角</span>
             </div>
           </div>
-        )}
+          );
+        })()}
       </section>
   );
 }
@@ -197,7 +203,7 @@ export function BattedMixSection({ disc, pitchMix, arsenal, role }: {
   if ((pitchMix?.length ?? 0) === 0 && (arsenal?.length ?? 0) === 0) return null;
   return (
     <section className="mb-6">
-      <h2 className="mb-3 text-lg font-semibold text-ink">配球傾向<span className="ml-2 align-middle text-xs font-normal text-faint">TrackMan 逐球樣本</span></h2>
+      <h2 className="mb-3 text-lg font-semibold text-ink">配球傾向<span className="ml-2 align-middle text-xs font-normal text-faint">TrackMan 逐球樣本 · 球種為軌跡推算，「A/B」＝介於兩球種的臨界球路（樣本累積後再細分）</span></h2>
       <Card>
         <ArsenalCards items={arsenal ?? []} />
         {(pitchMix?.length ?? 0) > 0 && (() => {
@@ -249,6 +255,11 @@ export type Movement = {
   summary: { pt: string; n: number; usage: number; speed: number | null; spin: number | null;
     ivb: number | null; hb: number | null;
     lg: { speed: number | null; spin: number | null; ivb: number | null; hb: number | null } }[];
+  release: {
+    points: { pt: string; x: number; y: number }[];
+    summary: { pt: string; n: number; x: number | null; y: number | null; spread_cm: number | null }[];
+    consistency_cm: number | null;
+  };
 };
 
 export function MovementSection({ mov }: { mov: Movement | null }) {
@@ -316,6 +327,83 @@ export function MovementSection({ mov }: { mov: Movement | null }) {
           <DataTable columns={cols} rows={mov.summary} rowKey={(r) => r.pt} dense bare className="self-start" />
         </div>
       </Card>
+      <ReleaseCard mov={mov} />
     </section>
+  );
+}
+
+// ───────── 出手點 2D（UX-7A）：rel_side×rel_height 散點 by 球種＋質心＋一致性 ─────────
+// 座標「＋＝持球臂側」（後端已把左投翻號，左右投同向可比讀）；質心=◆。
+// 一致性（跨球種質心離散，cm）＝愈小愈難從出手點識破球種；穩定球種 <2 時樣本不足顯「—」。
+function ReleaseCard({ mov }: { mov: Movement }) {
+  const ct = useChartTheme();
+  const rel = mov.release;
+  if (!rel || rel.points.length === 0) return null;
+  const order = rel.summary.map((s) => s.pt);
+  const xs = rel.points.map((p) => p.x), ys = rel.points.map((p) => p.y);
+  const pad = 0.15;
+  const dom = (vs: number[]): [number, number] => {
+    const lo = Math.min(...vs) - pad, hi = Math.max(...vs) + pad;
+    return [Math.floor(lo * 10) / 10, Math.ceil(hi * 10) / 10];
+  };
+  const centroids = rel.summary.filter((s) => s.x != null && s.y != null)
+    .map((s) => ({ pt: s.pt, x: s.x!, y: s.y! }));
+  const relCols: Column<Movement["release"]["summary"][number]>[] = [
+    {
+      header: "球種", nowrap: true,
+      cell: (r) => (
+        <span className="flex items-center gap-1.5 font-sans text-ink">
+          <i className="inline-block h-2 w-2 rounded-full" style={{ background: pitchColor(ct, r.pt) }} />{r.pt}
+        </span>
+      ),
+    },
+    { header: "球數", cell: (r) => String(r.n), align: "right" },
+    { header: "出手側(m)", cell: (r) => r.x == null ? "—" : r.x.toFixed(2), align: "right" },
+    { header: "出手高(m)", cell: (r) => r.y == null ? "—" : r.y.toFixed(2), align: "right" },
+    { header: "離散(cm)", cell: (r) => r.spread_cm == null ? "—" : r.spread_cm.toFixed(1), align: "right" },
+  ];
+  return (
+    <Card className="mt-4">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-sm font-medium text-muted">出手點（{rel.points.length} 球）</h3>
+        <span className="text-[10px] text-faint">
+          ◆＝球種質心・橫軸＋＝持球臂側{mov.throws === "左投" ? "（左投已翻向對齊）" : ""}・離散＝該球種逐球對質心的 RMS 距離
+        </span>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ResponsiveContainer width="100%" height={300}>
+          <ScatterChart margin={{ top: 8, right: 8, bottom: 4, left: -16 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={ct.line} />
+            <XAxis type="number" dataKey="x" domain={dom(xs)} tickCount={6}
+              tick={{ fontSize: 10, fill: ct.faint }} tickLine={false} axisLine={false}
+              label={{ value: "出手側 (m)", position: "insideBottomRight", offset: -2, fontSize: 10, fill: ct.faint }} />
+            <YAxis type="number" dataKey="y" domain={dom(ys)} tickCount={6}
+              tick={{ fontSize: 10, fill: ct.faint }} tickLine={false} axisLine={false}
+              label={{ value: "出手高 (m)", angle: -90, position: "insideLeft", fontSize: 10, fill: ct.faint }} />
+            <ChartTip contentStyle={chartTooltip(ct)} labelFormatter={() => ""}
+              formatter={(v: number, name: string) => [`${v} m`, name === "x" ? "出手側" : "出手高"]} />
+            {order.map((pt) => (
+              <Scatter key={pt} name={pt} data={rel.points.filter((p) => p.pt === pt)}
+                fill={pitchColor(ct, pt)} fillOpacity={0.4} isAnimationActive={false} />
+            ))}
+            {/* 各球種質心：菱形描邊 */}
+            <Scatter data={centroids} shape="diamond" isAnimationActive={false}>
+              {centroids.map((m, i) => <Cell key={i} fill={pitchColor(ct, m.pt)} stroke={ct.ink} strokeWidth={1.2} />)}
+            </Scatter>
+          </ScatterChart>
+        </ResponsiveContainer>
+        <div className="flex min-w-0 flex-col gap-3 self-start">
+          <div className="flex items-baseline gap-2 rounded-lg bg-surface-2 px-3 py-2"
+            title="各球種出手質心對加權總質心的 RMS 距離。愈小＝各球種出手愈一致、打者愈難從出手點預判球種；穩定球種（n≥10）不足兩種時顯「—」。">
+            <span className="text-xs text-muted">跨球種出手一致性</span>
+            <span className="font-mono text-lg font-semibold tabular-nums text-ink">
+              {rel.consistency_cm == null ? "—" : rel.consistency_cm.toFixed(1)}
+            </span>
+            <span className="text-[10px] text-faint">cm（愈小愈難識破）</span>
+          </div>
+          <DataTable columns={relCols} rows={rel.summary} rowKey={(r) => r.pt} dense bare />
+        </div>
+      </div>
+    </Card>
   );
 }
