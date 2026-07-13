@@ -10,24 +10,18 @@
 
 | 卡ID | 功能 | 需求 | 規劃 | 執行(model@tool) | 查核(model@tool) | 分支 | 紅線 | 狀態 |
 |---|---|---|---|---|---|---|---|---|
-| UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🔨子卡執行中（spec v5 已核可 07-11） |
+| UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🔨子卡執行中（餘 UX-8/9/5C；UX-7 群 07-14 已結案） |
 | UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | 待小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（**壓到 UX-6〜9 完成後**重製） |
-| UX-7 | 個人頁傘卡（Person Hub） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 📋已拆 7A/7B/7C（07-12） |
-| UX-7A | 球員頁換裝＋出手點＋PR 融入本季卡 | ruan6047 | Fable-5@Claude Code | Fable-5@Claude Code | Antigravity | `ai/fable/UX-7A` | ⚪ | ✅通過已 merge（`301f7f6`），待部署 |
-| UX-7B | 球隊頁＋教練身分（coaches/managers） | ruan6047 | Fable-5@Claude Code | Antigravity@Antigravity-CLI | Fable-5@Claude Code | `ai/antigravity/UX-7B` | ⚪ | ✅通過已 merge（`74353cc`），待部署 |
-| UX-7C | /people 命名空間（純教練/裁判個人頁） | ruan6047 | Fable-5@Claude Code | Fable-5@Claude Code | Gemini | `ai/fable/UX-7C` | ⚪ | ✅查核通過已 merge（`9c33f32`），待部署 |
 | UX-8 | 排行與紀錄群 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
 | UX-9 | 週邊群 `/matchups`、`/venues` | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
 | UX-10 | 三頁互動模式重設計 | ruan6047 | 待各自小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（暫緩，不在本輪序） |
-| COACH-HIST | 歷年教練職務史（twbsball 經歷節） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（7C 查核後可排） |
-| UX-11 | 選手百分位數氣泡卡 | ruan6047 | Fable 複評 07-12 | —（併卡） | — | — | ⚪ | 🏁併入 UX-7 範圍 1（=既有三 PR 呈現整併+氣泡化，非新建） |
-| UX-12 | 出手點 2D 分布圖 | ruan6047 | Fable 複評 07-12 | —（併卡） | — | — | ⚪ | 🏁併入 UX-7（位移半案 07-12 已上線，僅剩出手點） |
-| SPLITS-IP | 投手分項局數重算漏整數局（hotfix） | ruan6047 | —（bug 修復） | Fable-5@Claude Code | Antigravity | `ai/fable/SPLITS-IP` | 🔴 | ✅通過（已 merge，生產待同步） |
+| COACH-HIST | 歷年教練職務史（twbsball 經歷節） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（7C 已上線，接點就緒可排） |
+| SPLITS-IP | 投手分項局數重算漏整數局（hotfix） | ruan6047 | —（bug 修復） | Fable-5@Claude Code | Antigravity | `ai/fable/SPLITS-IP` | 🔴 | ✅通過（碼已部署；**生產 derived 分項待重跑同步**） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
 | ML-SIM1 | 互動式 H2H 對戰模擬器 v2 | ruan6047 | —（併卡） | — | — | — | 🔴 | 🏁併入 UX-10（ruan6047 07-12；predict 互動重設計一起出小 spec） |
 
 > 「待指派」＝ruan6047尚未派工。派工後把 model@tool 補實、狀態改 🔨。
-> **依賴序**：(UX-2 🏁 / UX-3 🏁 / UX-4 🏁 / UX-4.5 🏁) 通用層已齊 → UX-5〜9 頁面層（大→小）已解鎖。UX-5 已拆 **UX-5B（hub v1＋搬遷，🏁 merge `e74853b`）→ UX-5A（戰績換裝）→ UX-5C（首頁完整版，壓 UX-6〜9 之後重製）**。UX-10 暫緩。
+> **依賴序**：通用層（UX-2/3/4/4.5）🏁 → 頁面層 UX-5〜9 已解鎖。**UX-5A/5B/6/7 群 🏁完成並上線**；剩 **UX-8 → UX-9 → UX-5C（首頁完整版，壓最後重製）**。UX-10 暫緩。
 
 ---
 
@@ -37,7 +31,7 @@
 - 需求：ruan6047（07-11）——**重新設計每個頁面的 UI/UX**。痛點：①頁面不統一 ②數據可視度不夠 ③頁面與區塊混亂；另 成績預測/賽事預測/裁判報告 三頁**操作模式與現實脫節**（抽出 UX-10 暫緩個別處理）。
 - 規劃：Fable-5@Claude Code → spec 見 [`UX_REDESIGN_SPEC.md`](UX_REDESIGN_SPEC.md)（八原則＋UX-2〜9 拆卡＋深色模式決策點）
 - 執行：子卡各自執行　查核：子卡各自查核（涉全站視覺，建議跨家族或人審驗收）
-- 狀態：🔨 spec v5 **已核可**（07-11）；子卡進度：**UX-2/3/4/4.5/5B/5A/6 🏁完成（已 archive）**、UX-7〜9 ⏳待執行、UX-5C 📥（壓 UX-6〜9 後）、UX-10 暫緩。本傘卡隨子卡全數結案後移 archive　Commit：—
+- 狀態：🔨 spec v5 **已核可**（07-11）；子卡進度：**UX-2/3/4/4.5/5B/5A/6 🏁完成、UX-7 群（7A/7B/7C）🏁完成並於 07-14 上線**（皆已 archive）、UX-8/9 ⏳待執行、UX-5C 📥（壓 UX-8/9 後）、UX-10 暫緩。本傘卡隨子卡全數結案後移 archive　Commit：—
 - 前置事實（規劃時必讀）：現行設計系統＝日間 Navy+白（memory `frontend-redesign`）；UI-2/3/4 完成運動風質感/微互動/響應式（`docs/archive/`）
 - Log：
   - 07-11 需求開卡；派規劃 → spec 迭代 v2〜v5（痛點對應/可視度=快速理解/模組化審計/盲測定義），ruan6047 **核可 spec v5**
@@ -46,53 +40,6 @@
 
 > **UX-5 拆卡裁示（ruan6047 07-11）**：UX-5B hub v1＋搬遷（🏁）→ UX-5A 戰績換裝（🏁）→ **UX-5C 首頁 hub 完整版**（壓 UX-6〜9 完成後重製）。hub 卡＝「指路牌」，避免與戰績頁重複。
 
-### UX-7 個人頁傘卡（Person Hub）  〔⚪一般〕
-- 需求：ruan6047（07-11 開卡；07-12 擴「球員頁→個人頁」；07-12 令拆子卡）　規劃：Fable-5@Claude Code
-- **共同前提（三子卡皆讀）**：
-  - 資料現實（07-12 實測）：教練 `coaches` 72 名（year/team/pos/背號；47/72 ex-player 可同名 join players）；總教練 `managers` 90 era（W/L/T/勝率/冠軍，wiki）；裁判 30 名（`game_detail` 執法＋`pitch_tracking` 好球帶）；領隊/啦啦隊無資料源（PERSON-2 backlog：person_dim/領隊/啦啦隊，先查證官網有無名單）。
-  - 架構裁定：URL 甲案雙軌（有 acnt→`/players/[id]` 不動；無 acnt→`/people/[kind]/[name]`，kind=coach|umpire）；頁面模型=單頁多身分（hero 身分 chips）。
-  - 橫切驗收：新端點同步 pytest EXPECTED；`ruff`+`pytest`+`tsc`+`build:check` 綠；雙色系 375/1280 截圖。
-- 依賴序：**7A 先行**（換裝定調）→ **7B**（教練身分掛進球員頁，避免同檔衝突）；**7C 獨立**（新路由，可與 7A 平行）。
-- 狀態：📋已拆 7A/7B/7C　Commit：—
-- Log：
-  - 07-11 spec v5 核可後開卡；07-12 擴需求「球員頁→個人頁」＋研究裁定（甲案雙軌/單頁多身分）；07-12 複評 PROPOSAL_EVALUATION → A/B 收編；07-12 ruan6047 令拆三子卡（量大）
-
-### UX-7A 球員頁換裝＋出手點＋PR 融入本季卡（範圍 v3）  〔⚪一般〕
-- 需求：ruan6047（07-12 校正＋07-13 補四項回饋）　規劃：Fable-5@Claude Code（v3 07-13）　分支：`ai/<執行者>/UX-7A`
-- 執行：Fable-5@Claude Code（ruan6047 07-13 派工）　查核：Antigravity（ruan6047 07-13 指派）
-- **範圍 v3（07-13 重規劃；取代 07-12 修訂版）**：
-  1. **換裝對齊**（原範圍①不變）：`/players/[id]` 對齊新語彙＋補缺口（Eyebrow/三態/StatAbbr 名詞解釋鋪設；P1/P2 基礎上）
-  2. **能力值卡雷達說明**（新）：現況只有軸名掛原生 SVG `<title>`（延遲、觸控無效、雷達面 hover 無反應）。改：①卡片標題旁 info 提示（沿 `components/tooltip.tsx`）說明**這是自製指標**——生涯 rate 的全聯盟百分位 PR（母體門檻 打者 AB≥300／投手 IP≥100）、S–G 等級純由 PR 換算、非遊戲官方數值；②軸組成（成分指標＋權重＋PR）改自訂 tooltip，hover 即顯、觸控可點（compact 對戰卡模式不動）
-  3. **本季成績排版重整＋PR 融入**（新；取代 07-12 修訂版③補列案）：現況左「本季成績」tiles＋右「官方進階 · 百分位 PR」兩卡並列，且 secondary 17 顆小 tiles 過密。改：①主指標 tile 有官方 `_pr` 者（ba/obp/slg/whiffp…對映 `lib.ts ADV`）直接在 tile 內融入 PR（prColor 迷你條＋PR 數字，語彙沿 PercentileBar：數值＋PR＋長度＋定義 tooltip）；②官方 PR 柱狀圖區只留 tiles 未涵蓋的指標、去重（F3 高相關成對取一）；③secondary 計數 tiles 分組降密度。F1 紅線：**官方 `_pr` 優先，官方沒有的不自算**（要自算必標注）
-  4. **球種複合名正規化：AB 標注去方向**（07-13 需求澄清後改版）：v2 臨界複合名帶方向（top1/top2），同一對球種出現兩標籤（滑球/卡特 530 球 vs 卡特/滑球 349 球等 5 組方向對），全域標籤 24 種過多。改：後端 `tracking.py` `PT_EXPR` 輸出層把複合名**正規化為固定順序單一標注**（成分照 `PT_ORDER` 排序，如一律「卡特/滑球」），比照指叉變速/滑曲球既有正名精神；「較偏哪個」的方向資訊移 tooltip（或捨棄，執行時定）；DB `pitch_type_pred_v2` **不動**（可逆）；前端 `PITCH_ALIAS`/色票補複合名→成分第一球種色。**否決「併入最相近球種」**：posterior<0.55 硬拗單一球種違反 v2「寧粗勿錯」誠實原則，且會污染單名球種的均速/位移統計。預期全域 24→19 標籤；跨家族小樣本複合群（n<100 或僅 1 投手，如 曲球/指叉 48 球）若仍嫌雜，執行時可個案評估收斂，但預設保留
-  5. **進壘熱區區塊改名＋指標分角色**（新）：「進壘熱區 × 打擊成績」對投手語意錯置（是**被**打擊）且指標投打共用。改：①標題分角色——打者「好球帶熱區 · 打擊表現」、投手「進壘位置 · 壓制表現」（文案執行時微調，投手側禁再現「打擊成績」）；②投手指標重選：投球分佈%（各格佔比，看配球位置）＋揮空率＋被安打率＋被強擊球%，**刪「擊球仰角 AVG」**（對投手無讀法）；打者維持 ev/ba/hard/whiff，la 是否保留執行時看版面
-  6. **出手點 2D**（原範圍③不變）：`rel_side`×`rel_height`（m；覆蓋 99.96%）散點 by 球種＋質心＋出手一致性；掛 MovementSection 旁、movement 端點擴欄；左投鏡像沿慣例；修 F4（1280 三欄擠爆→兩欄或上下堆疊）、F5（一致性用 cm、樣本過小顯「—」）
-- 驗收：5 秒盲測＋雙色系 375/1280 截圖；PR 融入後無重複呈現；球種合併抽 1–2 名有卡特的投手驗 usage 加總與各視圖一致；投打各截一張熱區區塊；橫切驗收見傘卡
-- 狀態：✅通過已 merge（`301f7f6`，trailers 完整），待部署　Commit：`301f7f6`
-- **需求校正（ruan6047 07-12，仍有效）**：**氣泡方案正式否決**——PercentileBar 柱狀圖一列同時呈現「數值＋PR＋長度視覺＋定義 tooltip」，氣泡只剩 PR 圓圈＝資訊變少。**PR 呈現以官方 PR 柱狀圖語彙為準**。提案 A（原 UX-11）氣泡化結案否決；v3 範圍 3 的「融入」是把柱狀圖語彙帶進 tile，不是氣泡復活。
-- **重做參考（Fable 審核 findings，07-12；避免二輪重蹈）**：
-  - F1（高·雙重事實源）：卡片要求「官方 PR 收進氣泡」，首輪把官方 PR 區移除後**全部自算 PR**——但 `advanced_stats` 有 9 個官方 `_pr` 欄、`batting_current.ops_plus` 官方欄也存在（trend.py 另有滾動版=第三套）。同指標會與官方數字不一致。重做：氣泡直接用官方 `_pr`，官方沒有的才自算並標注
-  - F2（高·誠實）：雷達被寫死 `selectAbility(..., "career")` 但旁邊本季/生涯 toggle 仍在且亮「本季」——標示與內容不符。固定生涯就同步改 toggle 語意
-  - F3（中）：高相關指標成對佔位（截圖實證 ERA+ 92 與防禦率 92 同 PR）——每對取一
-  - F4（中·版面）：位移/出手點/成績單 3 欄 grid 在 1280 擠爆，表格「放球點/一致性」欄被裁切
-  - F5（低）：「已鏡像鏡像」typo；一致性建議 cm；單球群 variance null→coalesce 0 顯示 0.000 誤導，樣本過小應顯「—」
-  - 好的部分可沿用：樣本門檻+未達門檻標注/骨架屏/出手點+一致性照卡實作/整併方向正確（氣泡視覺除外，已否決）
-  - 流程：首輪未 commit 未推送即交審（§3.1 交接驗證未過）——二輪務必收尾再交
-- Log：
-  - 07-12 首輪還原＋需求校正（氣泡否決）；07-13 ruan6047 補四項回饋（雷達無說明/本季成績排版+PR 融入/球種標籤/熱區區塊名稱與指標）→ Fable 重規劃範圍 v3
-  - 07-13 範圍 4 需求澄清：非「卡特併滑球」，是複合名方向重複（A/B vs B/A）造成標籤過多 → Fable 以實際分布評估（24 標籤、5 組方向對、單投手雙向僅 1 例），採 ruan6047 傾向的 AB 固定標注案、否決併入單一球種案（違反寧粗勿錯）
-  - 07-13 雷達演算法優化另拆 ABILITY-2（wSB/FIP/年代校正；7A 只動雷達說明 tooltip 不動演算法）
-  - 07-13 Fable 執行完畢（worktree `../cpbl-analytics-ux-7a`，5 commits）：
-    - api×2：PT_EXPR 複合名正規化（實測 24→19 標籤、黃子鵬 滑球/橫掃 雙向 98+135 合併 233 ✓）；movement 擴 release（rel_side 實測 右投+0.56/左投-0.55→＋＝臂側統一、跨球種一致性加權 RMS、n<10 spread 誠實缺席、<2 穩定球種一致性顯「—」）
-    - web×3：雷達 ? 方法論+軸組成自訂 tooltip（順修 ability.py「擊球initial速」typo）；本季 tile 融官方 PR（打者三圍條、投手無官方 _pr 不自算、右卡去重+brl 刪除、secondary 改表列）；熱區分角色（投手 投球分佈%/揮空/被安/被強擊，usage 格 13 區均勻基準+總數<30 不上色）+出手點卡（上下堆疊修 F4）+A/B 臨界球路標注+Skeleton 三態+OPS+/ERA+/K9 StatAbbr
-    - 驗證：ruff ✓ pytest 20 ✓ tsc ✓ build:check ✓；截圖 王柏融（打者）/黃子鵬（投手，側投出手高 0.75–0.84m 合理）×深淺色×1280/375 無溢出；tooltip hover/點擊實測
-  - 07-13 追加（ruan6047 回饋×2，待查核分支上補 commit）：①投手特色軸 info 說明＋打者 DH 指打說明（`907f040`；並評估出武器軸 ~50 下限統計缺陷 → ABILITY-2 範圍 6）②配球傾向改共用堆疊比例條（取代各卡自畫用量條；gap-px 段界解同色槽複合名相鄰不可分），截圖驗證 ✓
-  - 07-13 收尾四項（Fable 盤點→ruan6047 圈選全做）：A 球種鏡頭 ≥20 球門檻（打者 19→10 顆按鈕）；B 散點複合名近空心（同色槽可分）；C PR 卡 Skeleton＋PercentileBar 定義換共用 Tooltip；D 配球傾向重排版（卡牆→明細表×依球數情境並排，一卡收完）。tsc/build 綠、截圖驗證 ✓
-  - 07-13 **雷達刻度 bug 修復**（ruan6047 抓到：羅戈續航 78/B 畫到滿格）：未設 PolarRadiusAxis → recharts 半徑自動縮放到本人最大軸值，圖形「相對自己」vs 等級「絕對 PR」錯位；生涯卡看似正常純因最大值近 100。單人卡+對戰疊圖皆釘 domain=[0,100]（`c463c62`），羅戈頁截圖驗證 ✓
-  - 07-13 Antigravity 審核通過：
-    - Python/FastAPI 測試（ruff + pytest）與 Web/Next.js 靜態編譯型別檢查（tsc --noEmit + build:check）全數綠燈通過。
-    - 對照 v3 範圍逐一實測：自訂雷達說明與軸 tooltip 觸控靈敏、本季 stat tile 成績完美融入官方 PR 條、複合名按優先序正規化合併並去方向、出手點 2D 鏡像及加權 RMS 一致性正確（低樣本時顯「—」）、好球帶分角色熱區指標與雙色窄幅布局無溢出。已完成驗證。
-
 ### SPLITS-IP 投手分項局數重算漏整數局（hotfix）  〔🔴資料正確性〕
 - 需求：ruan6047（07-13「鋼龍對戰各隊局數怪怪的：全季 80 局、各隊加總不到一局」）　分支：`ai/fable/SPLITS-IP`（worktree `../cpbl-analytics-splitsfix`）
 - 執行：Fable-5@Claude Code　查核：Antigravity（🔴 資料正確性建議跨家族或人審＋實測）
@@ -100,48 +47,7 @@
 - **修復**：SQL 改 `(inning_pitched_cnt*3 + inning_pitched_div3) AS ip_outs`（一行）＋docstring 明定「Counter 內 IP＝總出局數」慣例；`cpbl-build-splits 2026` 重建 A/D＋生涯合成
 - **驗證（本機已過）**：黃子鵬 vs 味全 1⅓→34⅓ 局（ERA 20.25→0.79）；全聯盟 92 名投手（IP≥10）vs-team 加總 vs 官方全季 **0 誤差**；生涯 9999 主+客=923 局≈官方生涯總和；ruff+pytest 20 綠
 - **待辦**：merge 後生產要 ①部署新碼 ②照 Runbook §3 同步重跑生產 `cpbl-build-splits 2026`（derived 表，本機重建不自動到生產）
-- 狀態：✅通過　Commit：分支 `ai/fable/SPLITS-IP`
-
-### UX-7B 球隊頁＋教練身分  〔⚪一般〕
-- 需求：ruan6047　規劃：Fable-5@Claude Code　分支：`ai/antigravity/UX-7B`
-- 執行：Antigravity@Antigravity-CLI　查核：Fable-5@Claude Code
-- 範圍：
-  1. `/teams/[code]` 換裝＋**教練團名單**（coaches by team：職務/背號；ex-player 連 `/players/[id]`、純教練連 `/people/coach/[name]`——7C 未上線前純教練暫不連結）＋**總教練歷代 era 卡**（managers：任期/W-L-T/勝率/冠軍）
-  2. 球員頁**教練身分區塊**＋hero 身分 chips（球員｜教練｜總教練）：coaches 同名 join（歷年職務/隊/背號）＋managers era 戰績卡。**同名歧義守門（紅線）**：coach 名對到多個 player acnt → 不自動掛、記 needs_review，嚴禁腦補
-- 依賴：7A merge 後開工（同檔 `/players/[id]`，避免衝突）
-- 驗收：同名守門有測試（構造同名 fixture）；教練團/era 卡雙色系截圖；橫切驗收見傘卡
-- 狀態：✅通過已 merge（`74353cc`），待部署　Commit：`74353cc`
-- Log：
-  - 07-13 Antigravity 實作完成：
-    - FastAPI 後端路由：`/api/v1/players/{player_id}/career` 新增 `official_coach_tenures`、`manager_stats` 與 `coach_ambiguous` 欄位，實作同名同姓球員的歧義排除 guard。
-    - Next.js 前端介面：
-      - 球員個人頁 Hero 姓名旁新增 `球員`、`教練`、`總教練` 身分 Chips。
-      - 球員個人頁的生涯分頁新增「總教練生涯執教戰績表」與「官方登錄教練經歷表」，若同名歧義則顯示黃色警示橫幅。
-      - 球隊頁 `/teams/[code]` 中的純教練（無 `player_id` 者）改為點擊連至 `/people/coach/[name]` 經歷頁。
-    - 測試：撰寫 `tests/test_coaches_guard.py` 驗證同名歧義守門邏輯。
-    - 檢驗：ruff / pytest 21項全綠，tsc 與 Next.js 生產建置無錯誤。
-  - 07-13 Fable 查核（實測：分支 worktree 起前後端、TestClient 四案例、pytest 含模擬 CI 無 DB、tsc+build:check、1280/375 雙色系截圖）→ **↩退回**，缺陷報告：
-    - **D1（blocker）`test_coaches_guard.py` 需要活 DB，merge 後 CI 必紅**：CI（`.github/workflows/ci.yml`）無 Postgres service，既有測試刻意 DB-free（`test_api_contract` 甚至模擬斷池驗降級）。實證：`DATABASE_URL` 指向不可達端口跑 pytest → 該測試 FAILED 且吃 60 秒 pool timeout（其餘 20 綠）。修法任選：測試改可注入/可 mock 的純函式單元測試、或 DB 不可達時 skip（標註 integration）、或 CI 加 PG service＋migrate——由執行者擇一，但「CI 綠」是硬條件
-    - **D2（major）`coach_ambiguous` 誤觸發於同名但從未任教練的球員**：後端只查 `players.name` 重複數，不看 coaches/managers 是否真有該名紀錄。全庫同名名字 **100 個**（多為洋將譯名：麥克×8、賈西亞×4…），這些球員生涯頁全都掛「⚠️ 已暫停自動關聯教練與總教練經歷」誤導警示（實證截圖：/players/0000000163 麥克，1990–93 洋將）。正解：僅當該名字於 coaches/managers 有紀錄時才標 ambiguous/顯示警示。真同名教練案例（路易士：教練 1 筆、同名球員 3 人）guard 攔截正確 ✓ 保留
-    - M1（minor）375 執教戰績表「出賽」「勝-和-敗」欄折行醜（90-1-88 折三行）：該兩欄補 `nowrap: true` 即可（無溢出，僅觀感）
-    - M2（minor）`t.pos.includes`/`c.pos.replace` 假設 pos 非 NULL——schema 允許 NULL（migration 025），現資料 0 筆 NULL 故未炸，建議改 optional chaining；`client.ts` `postseason: string|null` 與 DB INT 型別不符（runtime 無害，順手修）
-    - 通過項：葉君璋/林智勝身分 chips＋執教戰績表＋官方經歷表正確；路易士守門正確；teams 頁純教練 6 連結→`/people/coach/*` 可達（平野惠一驗證）；雙色系/375 無溢出；ruff+tsc+build 綠；範圍 1 的名單/era 卡屬先前卡既有，本卡補純教練連結即完成 delta ✓（葉君璋味全 era_name/季後賽/冠軍「—」為 wiki 資料缺值非程式）
-  - 07-13 退回修復完成（同分支）：D1 改純函式單元測試（移除活 DB 依賴，CI 不再紅）；D2 改為「僅當名字存在於 coaches/managers 時才啟用同名守門」避免誤掛警示（`db45991`）
-  - 07-13 合併主線：merge `ai/antigravity/UX-7B` → `main`（`74353cc`），worktree 已關閉
-
-### UX-7C /people 命名空間（純教練/裁判個人頁）  〔⚪一般〕
-- 需求：ruan6047　規劃：Fable-5@Claude Code　分支：`ai/<執行者>/UX-7C`
-- 執行：待指派（建議 Opus：新命名空間+新端點）　查核：待指派（≠執行者）
-- 範圍：
-  1. 路由 `/people/[kind]/[name]`（kind=coach|umpire；中文名 URL-encode，同名以 kind 隔離，規模 25+30 可控；不建 person_dim）
-  2. `/people/coach/[name]`：25 名非球員教練——職務史（coaches 歷年）＋若有 managers 戰績卡
-  3. `/people/umpire/[name]`：裁判個人頁——執法場次、好球帶判定個人報告（自 umpires router 抽 per-name 查詢）、近期執法場列表（連 games）；順帶解 UX-10 裁判動線問題的一半。**樣本誠實**：執法場次少的裁判判定傾向顯示須帶樣本數（比照 TrackMan 覆蓋慣例）
-  4. 新端點（如 `/api/v1/people/umpire/{name}`）入 pytest EXPECTED
-- 依賴：無（新路由獨立，可與 7A 平行；7B 的純教練連結等本卡上線後補）
-- 驗收：5 秒盲測「這主審好球帶偏不偏」；同名 kind 隔離驗證；橫切驗收見傘卡
-- 狀態：✅Gemini 查核通過、已 merge `9c33f32`，待部署　Commit：分支 `ai/fable/UX-7C` 已推送；worktree `../cpbl-analytics-7c`（環境現成，審核可照 §3.1 進駐）
-- Log：
-  - 07-12 Fable 執行（worktree 首例）：people router 雙端點（教練=coaches+managers、同名唯一才回連球員頁；裁判=崗位場次+記分卡沿 umpires 常數+近期場）＋前端 /people/[kind]/[name]＋/umpires 名字連結入口。pytest 20 passed（EXPECTED 54→56）/ruff/tsc/build 綠；實資料抽驗 葉君璋/平野惠一/蔡豐澤、375 無溢出
+- 狀態：✅通過（程式碼 07-14 已隨部署上線；**生產 derived 分項表仍待重跑同步**）　Commit：分支 `ai/fable/SPLITS-IP`
 
 ### UX-8 排行與紀錄群  〔⚪一般〕
 - 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 頁面層）　分支：`ai/<執行者>/UX-8`
