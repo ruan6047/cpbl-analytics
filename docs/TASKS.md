@@ -14,7 +14,7 @@
 | UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | 待小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（**壓到 UX-6〜9 完成後**重製） |
 | UX-7 | 個人頁傘卡（Person Hub） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 📋已拆 7A/7B/7C（07-12） |
 | UX-7A | 球員頁換裝＋出手點＋PR 融入本季卡 | ruan6047 | Fable-5@Claude Code | Fable-5@Claude Code | Antigravity | `ai/fable/UX-7A` | ⚪ | ✅通過已 merge（`301f7f6`），待部署 |
-| UX-7B | 球隊頁＋教練身分（coaches/managers） | ruan6047 | Fable-5@Claude Code | Antigravity@Antigravity-CLI | 待指派 | `ai/antigravity/UX-7B` | ⚪ | 🔍待查核 |
+| UX-7B | 球隊頁＋教練身分（coaches/managers） | ruan6047 | Fable-5@Claude Code | Antigravity@Antigravity-CLI | Fable-5@Claude Code | `ai/antigravity/UX-7B` | ⚪ | ↩退回（D1 CI 紅/D2 誤掛警示） |
 | UX-7C | /people 命名空間（純教練/裁判個人頁） | ruan6047 | Fable-5@Claude Code | Fable-5@Claude Code | Gemini | `ai/fable/UX-7C` | ⚪ | ✅查核通過已 merge（`9c33f32`），待部署 |
 | UX-8 | 排行與紀錄群 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
 | UX-9 | 週邊群 `/matchups`、`/venues` | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
@@ -105,13 +105,13 @@
 
 ### UX-7B 球隊頁＋教練身分  〔⚪一般〕
 - 需求：ruan6047　規劃：Fable-5@Claude Code　分支：`ai/antigravity/UX-7B`
-- 執行：Antigravity@Antigravity-CLI　查核：待指派（≠執行者）
+- 執行：Antigravity@Antigravity-CLI　查核：Fable-5@Claude Code
 - 範圍：
   1. `/teams/[code]` 換裝＋**教練團名單**（coaches by team：職務/背號；ex-player 連 `/players/[id]`、純教練連 `/people/coach/[name]`——7C 未上線前純教練暫不連結）＋**總教練歷代 era 卡**（managers：任期/W-L-T/勝率/冠軍）
   2. 球員頁**教練身分區塊**＋hero 身分 chips（球員｜教練｜總教練）：coaches 同名 join（歷年職務/隊/背號）＋managers era 戰績卡。**同名歧義守門（紅線）**：coach 名對到多個 player acnt → 不自動掛、記 needs_review，嚴禁腦補
 - 依賴：7A merge 後開工（同檔 `/players/[id]`，避免衝突）
 - 驗收：同名守門有測試（構造同名 fixture）；教練團/era 卡雙色系截圖；橫切驗收見傘卡
-- 狀態：🔍待查核　Commit：分支 `ai/antigravity/UX-7B`
+- 狀態：↩退回（D1 blocker＋D2 major，原執行者同分支修後重審）　Commit：分支 `ai/antigravity/UX-7B`
 - Log：
   - 07-13 Antigravity 實作完成：
     - FastAPI 後端路由：`/api/v1/players/{player_id}/career` 新增 `official_coach_tenures`、`manager_stats` 與 `coach_ambiguous` 欄位，實作同名同姓球員的歧義排除 guard。
@@ -121,6 +121,12 @@
       - 球隊頁 `/teams/[code]` 中的純教練（無 `player_id` 者）改為點擊連至 `/people/coach/[name]` 經歷頁。
     - 測試：撰寫 `tests/test_coaches_guard.py` 驗證同名歧義守門邏輯。
     - 檢驗：ruff / pytest 21項全綠，tsc 與 Next.js 生產建置無錯誤。
+  - 07-13 Fable 查核（實測：分支 worktree 起前後端、TestClient 四案例、pytest 含模擬 CI 無 DB、tsc+build:check、1280/375 雙色系截圖）→ **↩退回**，缺陷報告：
+    - **D1（blocker）`test_coaches_guard.py` 需要活 DB，merge 後 CI 必紅**：CI（`.github/workflows/ci.yml`）無 Postgres service，既有測試刻意 DB-free（`test_api_contract` 甚至模擬斷池驗降級）。實證：`DATABASE_URL` 指向不可達端口跑 pytest → 該測試 FAILED 且吃 60 秒 pool timeout（其餘 20 綠）。修法任選：測試改可注入/可 mock 的純函式單元測試、或 DB 不可達時 skip（標註 integration）、或 CI 加 PG service＋migrate——由執行者擇一，但「CI 綠」是硬條件
+    - **D2（major）`coach_ambiguous` 誤觸發於同名但從未任教練的球員**：後端只查 `players.name` 重複數，不看 coaches/managers 是否真有該名紀錄。全庫同名名字 **100 個**（多為洋將譯名：麥克×8、賈西亞×4…），這些球員生涯頁全都掛「⚠️ 已暫停自動關聯教練與總教練經歷」誤導警示（實證截圖：/players/0000000163 麥克，1990–93 洋將）。正解：僅當該名字於 coaches/managers 有紀錄時才標 ambiguous/顯示警示。真同名教練案例（路易士：教練 1 筆、同名球員 3 人）guard 攔截正確 ✓ 保留
+    - M1（minor）375 執教戰績表「出賽」「勝-和-敗」欄折行醜（90-1-88 折三行）：該兩欄補 `nowrap: true` 即可（無溢出，僅觀感）
+    - M2（minor）`t.pos.includes`/`c.pos.replace` 假設 pos 非 NULL——schema 允許 NULL（migration 025），現資料 0 筆 NULL 故未炸，建議改 optional chaining；`client.ts` `postseason: string|null` 與 DB INT 型別不符（runtime 無害，順手修）
+    - 通過項：葉君璋/林智勝身分 chips＋執教戰績表＋官方經歷表正確；路易士守門正確；teams 頁純教練 6 連結→`/people/coach/*` 可達（平野惠一驗證）；雙色系/375 無溢出；ruff+tsc+build 綠；範圍 1 的名單/era 卡屬先前卡既有，本卡補純教練連結即完成 delta ✓（葉君璋味全 era_name/季後賽/冠軍「—」為 wiki 資料缺值非程式）
 
 ### UX-7C /people 命名空間（純教練/裁判個人頁）  〔⚪一般〕
 - 需求：ruan6047　規劃：Fable-5@Claude Code　分支：`ai/<執行者>/UX-7C`
