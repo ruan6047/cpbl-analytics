@@ -257,3 +257,37 @@
 > Ledger 列（歸檔）：
 | UX-7A-R | 7A 複審缺漏修復（§4.1 重檢） | ruan6047 | —（複審 findings） | Fable-5@Claude Code | Antigravity@Antigravity-CLI | `ai/fable/UX-7A-R` | ⚪ | 🏁完成（merge `ad43139`，trailers 完整） |
 
+
+### ABILITY-2 能力值卡演算法升級（wSB/FIP/年代校正）  〔🔴紅線：統計正確性〕
+- 需求：ruan6047（07-13「雷達圖製作時數據較少，評估優化」→ 採納 Fable 評估開卡）　規劃：Fable-5@Claude Code　分支：`ai/fable-5/ABILITY-2`
+- 執行：Fable-5@Claude Code（ruan6047 07-13 直接派 Fable）　查核：GPT@Codex（異家族＋實測，符合紅線；07-14 通過）
+- 範圍（全在 `api/routers/ability.py` 的 SQL 與 `_COMPOSITE`，無 schema 變更）：
+  1. **速度軸融入 wSB**：現行 `(SB+3B)/G` 太粗（三壘打摻長打/球場因素、盜壘不計成功率）。組成改 `[wSB rate（wsb/opp）0.6, (SB+3B)/G 0.4]`；`batter_wsb` 1990+ 全覆蓋，生涯/本季皆適用
+  2. **壓制軸摻 FIP**：ERA 含守備與運氣。組成改 `[ERA 0.5, FIP 0.5]`；FIP 全史自算（HR/BB/SO/IP 齊，HBP 缺值年代容 0 沿 ingest 慣例），FIP 常數逐年聯盟校準（與 3 同一套聯盟均值 CTE）
+  3. **年代校正 [era adjustment]**（🔴 本卡核心）：現行生涯 PR 把 1990 至今原始 rate 直接 `percent_rank`，跨年代系統性偏差（三振率逐年代升→老球員 contact PR 灌水；打高投低年代投手 ERA PR 被壓）。改：各 rate 先除以**該年聯盟均值**、按 PA/IP 加權彙總成 era-relative rate，再進 PR
+  4. **本季投手武器軸摻官方 `whiffp_pr`**（誘揮空，官方欄現閒置；若採 6 主案併入固定三振軸）
+  5. **捕手守備本季摻 `catcher_runs` RA9**（2018+，**僅本季 scope**）
+  6. **投手特色軸（武器）統計修正**（07-13 追加，ruan6047 詢問後 Fable 評估）：
+     - W1（🔴 刻度失真）：`GREATEST(k_pr, gb_pr, fb_pr)` 有數學下限——gb=GO/AO 與 fb=AO/GO 互為倒數，percent_rank 互補（gb_pr≈1−fb_pr）→ max 必 ≥~50。**2026 實測 61 名合格投手：最低 51.7、平均 80.5、無人 <50**，半個刻度永不使用、人人 A/S 級武器，鑑別度砍半
+     - W2（語意）：飛球特化不必然是武器（被轟風險），風格≠能力，卻與三振（真技能）同軸計分
+     - W3（既存 bug）：`AbilityRadarVS` 疊圖以主投軸名標軸、客投按 index 對位——兩投手 weapon_type 不同時，同一軸比較的是不同指標
+     - **主案（建議）**：武器軸改固定「三振」軸（k_pr，季 scope 摻 whiffp_pr）——真技能、跨投手可比、VS 疊圖語意自然一致；滾地/飛球風格保留於 hero「XX型」signature 徽章＋info 說明（7A 已補），風格資訊不遺失。overall 重排受影響 → 照本卡回歸抽驗
+     - 過渡：7A 已在 info/軸 tooltip 標注「特化程度非絕對優劣」（分支 `907f040`），修正前先誠實揭露
+- **紅線約束**：2018+/2026-only 數據（RE24/livelog 好球率/TrackMan 衍生）**禁入生涯 PR 母體**——同池不同人組成不同即失去可比性；RE24/WPA 屬情境價值不進雷達（留 sabr 區塊）；OAA/framing 維持不做
+- 驗收：改前後抽 5–10 名**跨年代**球員（含 90 年代、2016 打高投低、現役）PR 位移對照表人工判讀；`ruff`+`pytest`；前端 axisTitle tooltip 自動吃 components 標籤應零改動，7A 的 info 說明文案若已上需同步組成描述
+- 依賴：與 UX-7A 平行可（7A 動前端 tooltip/版面、本卡動後端 ability.py，不同檔不衝突；先後皆可）
+- 狀態：🏁完成　Commit：merge `1a84a66`（trailers 完整）
+- Log：
+  - 07-13 ruan6047 提問「雷達圖數據較少時做的，有無優化方案」→ Fable 盤點庫內既有數據（batter_wsb 1990+/batter_re24 2018+/catcher_runs 2018+/livelog is_strike）出評估，ruan6047 裁定依建議開卡
+  - 07-13 Fable 執行完成（範圍 1–6 全採，6 採主案固定三振軸）。實作要點：
+    - 年代校正＝各年 rate÷該年聯盟均值（全聯盟總和 rate）、按各自分母（PA/AB/G/IP、捕手按阻殺機會）加權彙總再 percent_rank；**守備（守位×年均值）一併校正**（聯盟 K 升→滾進球減，範圍值跨年代同樣不可比）；OPS（ov 重排用）同法校正。**續航刻意不校正**（先發 IP/G＝真實負荷差異，後援=登板數屬計數）並留註解
+    - wSB 不再除年均值（wSB 係數本身逐年對聯盟校準，天然年代中性），生涯=Σwsb/Σopp；FIP 常數逐年校準到該年聯盟 ERA、生涯再÷該年聯盟 ERA；本季 command 組成 [ERA .5, FIP .5]（原 woba_pr 依卡面規格移除）
+    - `_ability_card` 改欄名（cursor.description）取值免除位置依賴；percent_rank 對 NULL 列一律 PARTITION BY IS NULL 隔離（**順帶修舊版潛在 bug**：gb/fb NULL 者會拿到 ~100 PR）
+    - 順手修既存 bug：本季守備母體 `fielding_current` 未過濾 `kind_code='A'`（2026 混入 555 筆二軍列）
+    - 前端同步：`ability-card.tsx` 方法說明改「固定三振軸＋風格徽章＋年代校正揭露」；VS 疊圖 W3 因軸固定自然解除，matchup-card 零改動
+  - 07-13 驗收（Fable 自驗，供查核者複核）：`ruff`+`pytest` 20 passed+`build:check` 綠；TestClient 端點 smoke（含查無球員 available:false）；**跨年代 26 卡對照表人工判讀全數方向正確**——90 年代低 K 灌水消除（林易增控制99→95、王光輝90→84）、2016 打高年代反向修正（王柏融 contact 76→90、陳禹勳壓制58→68）、低 K 投手誠實落底（潘威倫三振53→22、黃子鵬52→21，W1 下限解除）、年代校正連帶修正黃子鵬生涯風格誤判（飛球→滾地，符實）、陳傑憲速度92→54 經查 wSB 原始數據屬實（生涯多年負值、2026 年 2 盜 5 阻殺）。已知副作用留給查核判讀：wSB≈0 的不跑者（如林泓育速度9→43）落在中位附近，語意=「盜壘價值」非純腳程，權重 0.4 的粗率仍保留腳程訊號
+  - 對照快照重現：`scripts/ability_snapshot.py`（本卡入庫）——查核者於 main 與本分支各跑一次再 diff 即得同一張對照表；日後動 ability.py 也照此回歸抽驗
+  - 07-14 GPT@Codex 異家族查核**通過**（ruan6047 轉達結論）：核心範圍 1–6 無漏實作；3 項非阻塞建議 → 原執行者同分支補強
+  - 07-14 補強（Fable，同分支）：①核心行為自動化測試 `tests/test_ability_card.py`（`4e1ee90`，19 測：kind_code='A' 母體過濾、percent_rank NULL 隔離、三振固定軸無 GREATEST 下限、生涯÷逐年聯盟均值年代校正／本季不校正／續航刻意不校正／部分覆蓋指標不入生涯母體之 SQL 不變量＋fake cursor 直測 wSB 60/40 與缺值退回 100/0 權重重正規化、ERA/FIP 各半）②前端方法說明明示 wSB 缺值退回粗率 100% 的可比性邊界（`eb20ecf`）③看板收案。ruff＋pytest 42 passed＋build:check 綠 → merge `1a84a66` 收案
+> Ledger 列（歸檔）：
+| ABILITY-2 | 能力值卡演算法升級（wSB/FIP/年代校正） | ruan6047 | Fable-5@Claude Code | Fable-5@Claude Code | GPT@Codex（異家族） | `ai/fable-5/ABILITY-2` | 🔴 | 🏁完成（merge `1a84a66`，trailers 完整） |
