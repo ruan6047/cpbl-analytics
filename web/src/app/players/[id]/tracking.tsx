@@ -143,6 +143,34 @@ export function QualitySection({ advanced, role }: {
 type ArsenalItem = { pitch_type: string; n: number; usage: number; avg_speed: number | null;
   avg_spin: number | null; whiff_pct: number | null; avg_ev: number | null };
 
+// 整體球種比例：單一共用堆疊條（與下方「依球數情境」同視覺語彙，可上下對照）。
+// 取代原本各卡自畫用量條——各自為政的條讀不出相對比例（UX-7A 回饋）。
+function ArsenalUsageBar({ items }: { items: ArsenalItem[] }) {
+  const ct = useChartTheme();
+  if (items.length < 2) return null;
+  const order = ptSort(items.map((a) => a.pitch_type));
+  const ordered = order.map((t) => items.find((a) => a.pitch_type === t)!).filter(Boolean);
+  const total = items.reduce((s, a) => s + a.n, 0);
+  return (
+    <div className="mb-4">
+      <div className="mb-1.5 flex items-baseline justify-between text-xs">
+        <span className="text-muted">整體球種比例</span>
+        <span className="font-mono text-faint">{total} 球</span>
+      </div>
+      {/* gap-px 細縫＝段界：同色槽的複合名（伸卡 vs 伸卡/變速）相鄰時才分得開 */}
+      <div className="flex h-6 gap-px overflow-hidden rounded">
+        {ordered.map((a) => (
+          <div key={a.pitch_type} title={`${a.pitch_type} ${a.usage}%`}
+            className="flex items-center justify-center whitespace-nowrap text-[10px] leading-none text-white"
+            style={{ width: `${a.usage}%`, background: pitchColor(ct, a.pitch_type) }}>
+            {a.usage >= 13 ? `${a.pitch_type} ${Math.round(a.usage)}%` : a.usage >= 6 ? `${Math.round(a.usage)}%` : ""}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // 球種卡：用量 + 均速 + 轉速 + 揮空%（TrackMan；球種為推算，見 models/pitch_type.py）
 function ArsenalCards({ items }: { items: ArsenalItem[] }) {
   const ct = useChartTheme();
@@ -159,9 +187,6 @@ function ArsenalCards({ items }: { items: ArsenalItem[] }) {
                 {a.pitch_type}
               </span>
               <span className="font-mono text-xs text-faint">{a.n} 球</span>
-            </div>
-            <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-line/60">
-              <div className="h-full rounded-full" style={{ width: `${a.usage}%`, background: color }} />
             </div>
             <div className="grid grid-cols-4 gap-1 text-center">
               {([["用量", a.usage, "%"], ["均速", a.avg_speed, "km/h"],
@@ -205,6 +230,7 @@ export function BattedMixSection({ disc, pitchMix, arsenal, role }: {
     <section className="mb-6">
       <h2 className="mb-3 text-lg font-semibold text-ink">配球傾向<span className="ml-2 align-middle text-xs font-normal text-faint">TrackMan 逐球樣本 · 球種為軌跡推算，「A/B」＝介於兩球種的臨界球路（樣本累積後再細分）</span></h2>
       <Card>
+        <ArsenalUsageBar items={arsenal ?? []} />
         <ArsenalCards items={arsenal ?? []} />
         {(pitchMix?.length ?? 0) > 0 && (() => {
           // 圖例＝各球數情境出現過的球種，依標準順序；段序也依此以維持顏色位置一致
@@ -220,7 +246,7 @@ export function BattedMixSection({ disc, pitchMix, arsenal, role }: {
                 return (
                   <div key={b.bucket} className="flex items-center gap-2 text-xs">
                     <span className="w-16 shrink-0 text-muted">{b.bucket}</span>
-                    <div className="flex h-5 flex-1 overflow-hidden rounded">
+                    <div className="flex h-5 flex-1 gap-px overflow-hidden rounded">
                       {segs.map((s) => (
                         <div key={s.t} className="flex items-center justify-center text-[10px] text-white"
                           style={{ width: `${s.pct}%`, background: pitchColor(ct, s.t) }} title={`${s.t} ${s.pct}%`}>
