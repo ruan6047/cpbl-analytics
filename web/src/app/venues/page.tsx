@@ -10,7 +10,7 @@ function DistBar({ label, ft, max = 410 }: { label: string; ft: number | null; m
   if (ft == null) return null;
   return (
     <div className="flex items-center gap-2 text-[11px]">
-      <span className="w-8 text-faint">{label}</span>
+      <span className="w-10 shrink-0 whitespace-nowrap text-faint">{label}</span>
       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-line/60">
         <div className="h-full rounded-full bg-accent/70" style={{ width: `${(ft / max) * 100}%` }} />
       </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Leaderboard from "@/components/leaderboard";
-import { Card } from "@/components/ui";
+import { EmptyState, TableSkeleton } from "@/components/ui";
 import { matchupCols } from "@/lib/cols";
 import { detail, KIND_LABEL, type Roster, type RosterPlayer, type StatRow } from "@/lib/client";
 
@@ -117,14 +117,14 @@ export default function MatchupsPage() {
         />
       </div>
 
-      {!pid && <p className="text-sm text-faint">請先選擇一位{role === "batting" ? "打者" : "投手"}。</p>}
-      {loading && <p className="text-sm text-faint">查詢中…</p>}
+      {!pid && <EmptyState>請先選擇一位{role === "batting" ? "打者" : "投手"}。</EmptyState>}
+      {loading && <TableSkeleton rows={5} cols={6} />}
 
       {rows && !loading && (
         rows.length === 0 ? (
-          <Card className="text-sm text-muted">
+          <EmptyState>
             {pName ?? "該球員"} 在「{KIND_LABEL[kind]}」生涯無對戰{oppLabel}紀錄。
-          </Card>
+          </EmptyState>
         ) : (
           <>
             <h2 className="mb-3 text-lg font-semibold">
