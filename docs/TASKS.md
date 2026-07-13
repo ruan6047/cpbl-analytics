@@ -14,7 +14,7 @@
 | UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | 待小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（**壓到 UX-6〜9 完成後**重製） |
 | UX-7 | 個人頁傘卡（Person Hub） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 📋已拆 7A/7B/7C（07-12） |
 | UX-7A | 球員頁換裝＋出手點＋PR 融入本季卡 | ruan6047 | Fable-5@Claude Code | Fable-5@Claude Code | Antigravity | `ai/fable/UX-7A` | ⚪ | ✅通過已 merge（`301f7f6`），待部署 |
-| UX-7B | 球隊頁＋教練身分（coaches/managers） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待派工（吃 7A 換裝定調） |
+| UX-7B | 球隊頁＋教練身分（coaches/managers） | ruan6047 | Fable-5@Claude Code | Antigravity@Antigravity-CLI | 待指派 | `ai/antigravity/UX-7B` | ⚪ | 🔨執行中 |
 | UX-7C | /people 命名空間（純教練/裁判個人頁） | ruan6047 | Fable-5@Claude Code | Fable-5@Claude Code | Gemini | `ai/fable/UX-7C` | ⚪ | ✅查核通過已 merge（`9c33f32`），待部署 |
 | UX-8 | 排行與紀錄群 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
 | UX-9 | 週邊群 `/matchups`、`/venues` | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
@@ -104,14 +104,14 @@
 - 狀態：✅通過　Commit：分支 `ai/fable/SPLITS-IP`
 
 ### UX-7B 球隊頁＋教練身分  〔⚪一般〕
-- 需求：ruan6047　規劃：Fable-5@Claude Code　分支：`ai/<執行者>/UX-7B`
-- 執行：待指派（Sonnet 可：守門規則已明確）　查核：待指派（≠執行者）
+- 需求：ruan6047　規劃：Fable-5@Claude Code　分支：`ai/antigravity/UX-7B`
+- 執行：Antigravity@Antigravity-CLI　查核：待指派（≠執行者）
 - 範圍：
   1. `/teams/[code]` 換裝＋**教練團名單**（coaches by team：職務/背號；ex-player 連 `/players/[id]`、純教練連 `/people/coach/[name]`——7C 未上線前純教練暫不連結）＋**總教練歷代 era 卡**（managers：任期/W-L-T/勝率/冠軍）
   2. 球員頁**教練身分區塊**＋hero 身分 chips（球員｜教練｜總教練）：coaches 同名 join（歷年職務/隊/背號）＋managers era 戰績卡。**同名歧義守門（紅線）**：coach 名對到多個 player acnt → 不自動掛、記 needs_review，嚴禁腦補
 - 依賴：7A merge 後開工（同檔 `/players/[id]`，避免衝突）
 - 驗收：同名守門有測試（構造同名 fixture）；教練團/era 卡雙色系截圖；橫切驗收見傘卡
-- 狀態：⏳待派工　Commit：—
+- 狀態：🔨執行中　Commit：分支 `ai/antigravity/UX-7B`
 
 ### UX-7C /people 命名空間（純教練/裁判個人頁）  〔⚪一般〕
 - 需求：ruan6047　規劃：Fable-5@Claude Code　分支：`ai/<執行者>/UX-7C`
