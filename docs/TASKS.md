@@ -59,7 +59,7 @@
 
 ### UX-7A 球員頁換裝＋出手點＋PR 融入本季卡（範圍 v3）  〔⚪一般〕
 - 需求：ruan6047（07-12 校正＋07-13 補四項回饋）　規劃：Fable-5@Claude Code（v3 07-13）　分支：`ai/<執行者>/UX-7A`
-- 執行：Fable-5@Claude Code（ruan6047 07-13 派工）　查核：待指派（旗艦頁建議人審或跨家族；一般卡同家族異 session 亦可）
+- 執行：Fable-5@Claude Code（ruan6047 07-13 派工）　查核：Antigravity（ruan6047 07-13 指派）
 - **範圍 v3（07-13 重規劃；取代 07-12 修訂版）**：
   1. **換裝對齊**（原範圍①不變）：`/players/[id]` 對齊新語彙＋補缺口（Eyebrow/三態/StatAbbr 名詞解釋鋪設；P1/P2 基礎上）
   2. **能力值卡雷達說明**（新）：現況只有軸名掛原生 SVG `<title>`（延遲、觸控無效、雷達面 hover 無反應）。改：①卡片標題旁 info 提示（沿 `components/tooltip.tsx`）說明**這是自製指標**——生涯 rate 的全聯盟百分位 PR（母體門檻 打者 AB≥300／投手 IP≥100）、S–G 等級純由 PR 換算、非遊戲官方數值；②軸組成（成分指標＋權重＋PR）改自訂 tooltip，hover 即顯、觸控可點（compact 對戰卡模式不動）
