@@ -234,6 +234,44 @@ def player_career(player_id: str) -> dict:
             "WHERE player_id=%s ORDER BY year NULLS LAST, seq", (player_id,))
         medals = [{"color": co, "competition": cp, "event": ev, "year": yr}
                   for co, cp, ev, yr in cur.fetchall()]
+
+        # 官方教練經歷與總教練戰績查詢（含同名歧義守門）
+        cur.execute("SELECT name FROM cpbl.players WHERE id = %s", (player_id,))
+        pname_row = cur.fetchone()
+        pname = pname_row[0] if pname_row else None
+
+        official_coach_tenures = []
+        manager_stats = []
+        coach_ambiguous = False
+
+        if pname:
+            cur.execute("SELECT id FROM cpbl.players WHERE name = %s", (pname,))
+            matching_ids = [r[0] for r in cur.fetchall()]
+            if len(matching_ids) > 1:
+                coach_ambiguous = True
+            else:
+                cur.execute(
+                    "SELECT c.year, c.team_code, t.short AS team_name, c.pos, c.uniform_no "
+                    "FROM cpbl.coaches c LEFT JOIN cpbl.team_dim t ON t.team_code = c.team_code "
+                    "WHERE c.name = %s ORDER BY c.year DESC, c.team_code",
+                    (pname,),
+                )
+                official_coach_tenures = _dicts(cur)
+
+                cur.execute(
+                    "SELECT m.team_code, t.short AS team_name, m.era_name, m.from_year, m.to_year, "
+                    "       m.g, m.w, m.l, m.t AS ties, m.win_pct, m.postseason, m.championships "
+                    "FROM cpbl.managers m LEFT JOIN cpbl.team_dim t ON t.team_code = m.team_code "
+                    "WHERE m.name = %s ORDER BY m.from_year",
+                    (pname,),
+                )
+                manager_stats = _dicts(cur)
+
+        _coach_extra = {
+            "official_coach_tenures": official_coach_tenures,
+            "manager_stats": manager_stats,
+            "coach_ambiguous": coach_ambiguous,
+        }
         # 逐年（opendata ≤2024 + 2025/2026 由 gamelog 補；同年多隊加總）
         cur.execute(
             "SELECT year, sum(g),sum(pa),sum(ab),sum(h),sum(b2),sum(b3),sum(hr),sum(rbi),sum(sb),"
@@ -294,7 +332,8 @@ def player_career(player_id: str) -> dict:
             pbests = {"w": _pmax(2), "sv": _pmax(4), "so": _pmax(7), "era": _pera}
         _pit_extra = {"pitching": pcareer, "best_p": pbests,
                       "rank_p": {"w": prk[0], "sv": prk[1], "so": prk[2]} if prk else None,
-                      "championships": championships}
+                      "championships": championships,
+                      **_coach_extra}
         if not per:
             return {"player_id": player_id, "batting": None, "teams": teams,
                     "overseas": overseas, "awards": awards, "wiki_awards": wiki_awards,

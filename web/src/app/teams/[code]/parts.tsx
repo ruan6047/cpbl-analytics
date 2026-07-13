@@ -113,7 +113,9 @@ export function CoachGrid({ coaches, color }: { coaches: Coach[]; color: string 
                   {co.name}
                 </Link>
               ) : (
-                <div className="truncate font-medium text-ink">{co.name}</div>
+                <Link href={`/people/coach/${encodeURIComponent(co.name)}`} className="truncate block font-medium text-ink hover:text-accent hover:underline" title="純教練 · 看經歷頁">
+                  {co.name}
+                </Link>
               )}
             </div>
           </Card>

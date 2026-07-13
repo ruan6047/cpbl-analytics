@@ -2,7 +2,9 @@
 
 // 本季成績卡 + 官方進階 PR（dataTab=season）；生涯成績 + 最佳單季 + 里程碑（dataTab=career）。
 import { useEffect, useMemo, useState } from "react";
-import { Card, EmptyState, PercentileBar, Skeleton, StatAbbr, StatTile, prColor } from "@/components/ui";
+import Link from "next/link";
+import { Card, EmptyState, PercentileBar, Skeleton, StatAbbr, StatTile, TeamLogo, prColor } from "@/components/ui";
+import { DataTable, type Column } from "@/components/table";
 import { detail, type PlayerProfile, type StatRow } from "@/lib/client";
 import { fmtIP } from "@/lib/format";
 import { ADV, type CareerStats, type Role, f3, fmtAdv, numOf } from "./lib";
@@ -186,6 +188,65 @@ export function TraitsChips({ id, role }: { id: string; role: Role }) {
 
 // 生涯成績 + 最佳單季 + 里程碑 + 史上排名（依 role 分支；無生涯資料回 null）
 export function CareerSummary({ careerStats, role }: { careerStats: CareerStats | null; role: Role }) {
+  const hasManager = careerStats?.manager_stats && careerStats.manager_stats.length > 0;
+  const hasOfficialCoach = careerStats?.official_coach_tenures && careerStats.official_coach_tenures.length > 0;
+
+  const coachSections = (
+    <>
+      {careerStats?.coach_ambiguous && (
+        <div className="mb-6 rounded-lg bg-amber/10 p-3 text-xs text-amber border border-amber/20">
+          ⚠️ 系統檢測到同名同姓球員，為保障資料精確度，已暫停自動關聯教練與總教練經歷。
+        </div>
+      )}
+      {hasManager && (
+        <section className="mb-6">
+          <h2 className="mb-2.5 text-base font-semibold text-ink">總教練生涯執教戰績</h2>
+          <DataTable
+            columns={[
+              { header: "執教時期", cell: (m) => <span className="font-medium">{m.era_name || "—"}</span>, nowrap: true },
+              { header: "球隊", cell: (m) => m.team_code ? (
+                <Link href={`/teams/${m.team_code}`} className="inline-flex items-center gap-1.5 hover:underline">
+                  <TeamLogo code={m.team_code} size={16} />
+                  {m.team_name || m.team_code}
+                </Link>
+              ) : "—", nowrap: true },
+              { header: "年度", cell: (m) => m.from_year === m.to_year ? String(m.from_year) : `${m.from_year}–${m.to_year}`, nowrap: true, className: "text-muted" },
+              { header: "出賽", cell: (m) => String(m.g ?? "—"), className: "font-mono" },
+              { header: "勝-和-敗", cell: (m) => `${m.w ?? 0}-${m.ties ?? 0}-${m.l ?? 0}`, className: "font-mono" },
+              { header: "勝率", cell: (m) => m.win_pct == null ? "—" : m.win_pct.toFixed(3).replace(/^0\./, "."), className: "font-mono text-accent font-semibold" },
+              { header: "季後賽", cell: (m) => m.postseason || "—", className: "text-muted" },
+              { header: "總冠軍", cell: (m) => m.championships ? <span className="inline-flex items-center gap-0.5 text-up font-bold">🏆 {m.championships}</span> : "—" },
+            ] satisfies Column<NonNullable<CareerStats["manager_stats"]>[number]>[]}
+            rows={careerStats.manager_stats || []}
+            rowKey={(m, i) => `${m.team_code}-${m.from_year}-${i}`}
+            dense
+          />
+        </section>
+      )}
+      {hasOfficialCoach && (
+        <section className="mb-6">
+          <h2 className="mb-2.5 text-base font-semibold text-ink">官方登錄教練經歷</h2>
+          <DataTable
+            columns={[
+              { header: "年度", cell: (c) => String(c.year), nowrap: true, className: "font-mono text-muted" },
+              { header: "球隊", cell: (c) => c.team_code ? (
+                <Link href={`/teams/${c.team_code}`} className="inline-flex items-center gap-1.5 hover:underline">
+                  <TeamLogo code={c.team_code} size={16} />
+                  {c.team_name || c.team_code}
+                </Link>
+              ) : "—", nowrap: true },
+              { header: "職務", cell: (c) => c.pos.replace(/^一軍/, ""), className: "font-medium" },
+              { header: "背號", cell: (c) => c.uniform_no ? `#${c.uniform_no}` : "—", className: "font-mono text-faint" },
+            ] satisfies Column<NonNullable<CareerStats["official_coach_tenures"]>[number]>[]}
+            rows={careerStats.official_coach_tenures || []}
+            rowKey={(c, i) => `${c.year}-${c.team_code}-${i}`}
+            dense
+          />
+        </section>
+      )}
+    </>
+  );
+
   if (role === "pitching" && careerStats?.pitching) {
     const cp = careerStats.pitching!;
     const bp = careerStats.best_p ?? {};
@@ -198,35 +259,36 @@ export function CareerSummary({ careerStats, role }: { careerStats: CareerStats 
     ].filter(Boolean) as { label: string; value: string; year: number }[];
     return (
       <>
-      <section className="mb-6">
-        <h2 className="mb-3 text-lg font-semibold text-ink">生涯成績</h2>
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-8">
-          <StatTile label={`生涯 ${cp.seasons} 季`} value={`${cp.g} 場`} />
-          <StatTile label="先發" value={String(cp.gs)} />
-          <StatTile label="勝-敗" value={`${cp.w}-${cp.l}`} accent />
-          <StatTile label="勝率" value={f3(cp.winpct)} />
-          <StatTile label="救援" value={String(cp.sv)} />
-          <StatTile label="中繼" value={String(cp.hld)} />
-          <StatTile label="局數" value={String(cp.ip)} />
-          <StatTile label="ERA" value={numOf(cp.era)?.toFixed(2) ?? "—"} accent />
-          <StatTile label="三振" value={String(cp.so)} accent />
-          <StatTile label="被安打" value={String(cp.h)} />
-          <StatTile label="四壞" value={String(cp.bb)} />
-          <StatTile label="自責分" value={String(cp.er)} />
-          <StatTile label="WHIP" value={numOf(cp.whip)?.toFixed(2) ?? "—"} />
-          <StatTile label="K/9" value={numOf(cp.k9)?.toFixed(2) ?? "—"} />
-          <StatTile label="K/BB" value={numOf(cp.kbb)?.toFixed(2) ?? "—"} />
-          {(() => {
-            const parts = rkp
-              ? ([["勝", rkp.w], ["救", rkp.sv], ["奪", rkp.so]] as [string, number][])
-                  .filter(([, v]) => v != null && v <= 30)
-                  .map(([l, v]) => `${l}#${v}`)
-              : [];
-            return parts.length > 0 ? <StatTile label="史上排名" value={parts.join("·")} /> : null;
-          })()}
-        </div>
-      </section>
-      <BestSeasonGrid items={bestP} />
+        <section className="mb-6">
+          <h2 className="mb-3 text-lg font-semibold text-ink">生涯成績</h2>
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+            <StatTile label={`生涯 ${cp.seasons} 季`} value={`${cp.g} 場`} />
+            <StatTile label="先發" value={String(cp.gs)} />
+            <StatTile label="勝-敗" value={`${cp.w}-${cp.l}`} accent />
+            <StatTile label="勝率" value={f3(cp.winpct)} />
+            <StatTile label="救援" value={String(cp.sv)} />
+            <StatTile label="中繼" value={String(cp.hld)} />
+            <StatTile label="局數" value={String(cp.ip)} />
+            <StatTile label="ERA" value={numOf(cp.era)?.toFixed(2) ?? "—"} accent />
+            <StatTile label="三振" value={String(cp.so)} accent />
+            <StatTile label="被安打" value={String(cp.h)} />
+            <StatTile label="四壞" value={String(cp.bb)} />
+            <StatTile label="自責分" value={String(cp.er)} />
+            <StatTile label="WHIP" value={numOf(cp.whip)?.toFixed(2) ?? "—"} />
+            <StatTile label="K/9" value={numOf(cp.k9)?.toFixed(2) ?? "—"} />
+            <StatTile label="K/BB" value={numOf(cp.kbb)?.toFixed(2) ?? "—"} />
+            {(() => {
+              const parts = rkp
+                ? ([["勝", rkp.w], ["救", rkp.sv], ["奪", rkp.so]] as [string, number][])
+                    .filter(([, v]) => v != null && v <= 30)
+                    .map(([l, v]) => `${l}#${v}`)
+                : [];
+              return parts.length > 0 ? <StatTile label="史上排名" value={parts.join("·")} /> : null;
+            })()}
+          </div>
+        </section>
+        <BestSeasonGrid items={bestP} />
+        {coachSections}
       </>
     );
   }
@@ -245,42 +307,47 @@ export function CareerSummary({ careerStats, role }: { careerStats: CareerStats 
     ].filter(Boolean) as { label: string; value: string; year: number }[];
     return (
       <>
-      <section className="mb-6">
-        <h2 className="mb-3 text-lg font-semibold text-ink">生涯成績</h2>
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-8">
-          <StatTile label={`生涯 ${cb.seasons} 季`} value={`${cb.g} 場`} />
-          <StatTile label="打數" value={String(cb.ab)} />
-          <StatTile label="安打" value={String(cb.h)} accent />
-          <StatTile label="二安" value={String(cb.b2)} />
-          <StatTile label="三安" value={String(cb.b3)} />
-          <StatTile label="全壘打" value={String(cb.hr)} accent />
-          <StatTile label="打點" value={String(cb.rbi)} />
-          <StatTile label="盜壘" value={String(cb.sb)} />
-          <StatTile label="四壞" value={String(cb.bb)} />
-          <StatTile label="三振" value={String(cb.so)} />
-          <StatTile label="壘打數" value={String(cb.tb)} />
-          <StatTile label="打擊率" value={f3(cb.avg)} />
-          <StatTile label="上壘率" value={f3(cb.obp)} />
-          <StatTile label="長打率" value={f3(cb.slg)} />
-          <StatTile label="OPS" value={f3(cb.ops)} accent />
-          {(() => {
-            const parts = rk
-              ? ([["轟", rk.hr], ["安", rk.h], ["盜", rk.sb]] as [string, number][])
-                  .filter(([, v]) => v != null && v <= 30)
-                  .map(([l, v]) => `${l}#${v}`)
-              : [];
-            return parts.length > 0 ? <StatTile label="史上排名" value={parts.join("·")} /> : null;
-          })()}
-        </div>
-      </section>
-      <BestSeasonGrid items={bestB} />
-      {(ms.first_hit || ms.first_hr) && (
-        <p className="-mt-3 mb-6 text-[11px] text-faint">
-          里程碑：{ms.first_hit && `首安 ${ms.first_hit}`}{ms.first_hr && `・首轟 ${ms.first_hr}`}
-        </p>
-      )}
+        <section className="mb-6">
+          <h2 className="mb-3 text-lg font-semibold text-ink">生涯成績</h2>
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+            <StatTile label={`生涯 ${cb.seasons} 季`} value={`${cb.g} 場`} />
+            <StatTile label="打數" value={String(cb.ab)} />
+            <StatTile label="安打" value={String(cb.h)} accent />
+            <StatTile label="二安" value={String(cb.b2)} />
+            <StatTile label="三安" value={String(cb.b3)} />
+            <StatTile label="全壘打" value={String(cb.hr)} accent />
+            <StatTile label="打點" value={String(cb.rbi)} />
+            <StatTile label="盜壘" value={String(cb.sb)} />
+            <StatTile label="四壞" value={String(cb.bb)} />
+            <StatTile label="三振" value={String(cb.so)} />
+            <StatTile label="壘打數" value={String(cb.tb)} />
+            <StatTile label="打擊率" value={f3(cb.avg)} />
+            <StatTile label="上壘率" value={f3(cb.obp)} />
+            <StatTile label="長打率" value={f3(cb.slg)} />
+            <StatTile label="OPS" value={f3(cb.ops)} accent />
+            {(() => {
+              const parts = rk
+                ? ([["轟", rk.hr], ["安", rk.h], ["盜", rk.sb]] as [string, number][])
+                    .filter(([, v]) => v != null && v <= 30)
+                    .map(([l, v]) => `${l}#${v}`)
+                : [];
+              return parts.length > 0 ? <StatTile label="史上排名" value={parts.join("·")} /> : null;
+            })()}
+          </div>
+        </section>
+        <BestSeasonGrid items={bestB} />
+        {(ms.first_hit || ms.first_hr) && (
+          <p className="-mt-3 mb-6 text-[11px] text-faint">
+            里程碑：{ms.first_hit && `首安 ${ms.first_hit}`}{ms.first_hr && `・首轟 ${ms.first_hr}`}
+          </p>
+        )}
+        {coachSections}
       </>
     );
+  }
+
+  if (hasManager || hasOfficialCoach || careerStats?.coach_ambiguous) {
+    return coachSections;
   }
 
   return null;
