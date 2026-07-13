@@ -390,8 +390,8 @@
   - 07-14 子卡全數結案：7A（Antigravity 審）/7B（Fable 審，退回修復後 merge）/7C（Gemini 審）皆已上線；PERSON-2（person_dim/領隊/啦啦隊）與 COACH-HIST 為後續獨立卡
 > Ledger 列（歸檔）：
 | UX-7 | 個人頁傘卡（Person Hub） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | ⚪ | 🏁完成（子卡全數上線 07-14） |
-| UX-11 | 選手百分位數氣泡卡 | ruan6047 | Fable 複評 07-12 | —（併卡） | — | — | ⚪ | 🏁併入 UX-7 範圍 1（=既有三 PR 呈現整併+氣泡化，非新建） |
-| UX-12 | 出手點 2D 分布圖 | ruan6047 | Fable 複評 07-12 | —（併卡） | — | — | ⚪ | 🏁併入 UX-7（位移半案 07-12 已上線，僅剩出手點） |
+| UX-11 | 選手百分位數氣泡卡 | ruan6047 | Fable 複評 07-12 | —（取消） | — | — | ⚪ | 📥封存（07-14 確定不做；氣泡資訊密度較低，保留已上線 PercentileBar 柱狀 PR） |
+| UX-12 | 出手點 2D 分布圖 | ruan6047 | Fable 複評 07-12 | Fable-5@Claude Code（併 UX-7A） | Antigravity | `ai/fable/UX-7A` | ⚪ | 🏁完成（commit `301f7f6`，07-14 已部署） |
 
 
 ### SPLITS-IP 投手分項局數重算漏整數局（hotfix）  〔🔴資料正確性〕

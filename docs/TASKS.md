@@ -14,10 +14,12 @@
 | UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | 待小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（**壓到 UX-6〜9 完成後**重製） |
 | UX-8 | 排行與紀錄群 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
 | UX-9 | 週邊群 `/matchups`、`/venues` | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
-| UX-10 | 三頁互動模式重設計 | ruan6047 | 待各自小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（暫緩，不在本輪序） |
+| UX-10 | 互動模式拆分（projection 公開瀏覽取消） | ruan6047 | 待各自小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（UX-10P 取消；其餘待收斂） |
 | COACH-HIST | 歷年教練職務史（twbsball 經歷節） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（7C 已上線，接點就緒可排） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
-| ML-SIM1 | 互動式 H2H 對戰模擬器 v2 | ruan6047 | —（併卡） | — | — | — | 🔴 | 🏁併入 UX-10（ruan6047 07-12；predict 互動重設計一起出小 spec） |
+| ML-SIM1 | 簡易勝負預測＋單一打席情境模擬 | ruan6047 | 待細 spec | 待指派 | 待指派 | — | 🔴 | 📥Backlog（取代 UX-10O；去重複訊號，不模擬後續全打席） |
+| ML-SIM2 | 全場狀態模擬器（完整陣容／牛棚／後續打席） | ruan6047 | 待遠期評估 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**遠期目標，暫時不做**） |
+| TEAM-STYLE1 | 球隊球風研究（年度／時期風格向量→球隊頁＋賽果候選特徵） | ruan6047 | 待研究 spec | 待指派 | 待指派 | — | 🔴 | 📥Backlog（速度戰／投手戰等為待驗證假說；先描述，增量回測通過才進模型） |
 
 > 「待指派」＝ruan6047尚未派工。派工後把 model@tool 補實、狀態改 🔨。
 > **依賴序**：通用層（UX-2/3/4/4.5）🏁 → 頁面層 UX-5〜9 已解鎖。**UX-5A/5B/6/7 群 🏁完成並上線**；剩 **UX-8 → UX-9 → UX-5C（首頁完整版，壓最後重製）**。UX-10 暫緩。
@@ -72,30 +74,18 @@
 - Log：
   - 07-12 需求＋管道查證＋開卡（Fable）；twbsball 逐年球隊條目假設被否、人物中心路線實測可行
 
-### UX-10 三頁互動模式重設計（暫緩）  〔⚪一般〕
+### UX-10 互動模式拆分（暫緩）  〔⚪一般〕
 - 需求：ruan6047（07-11）　規劃：待各自小 spec　分支：`ai/<執行者>/UX-10-*`
 - 執行：待指派　查核：待指派
-- 範圍：`/projections`、`/predict`、`/umpires`——問題在**互動模型不在視覺**（predict 特徵子集探索器、projections 投影瀏覽、umpires 報告閱讀動線）。**不在本輪執行序**；屆時拆三張卡各出小 spec。本輪 UX-2/3/4 的 tokens/元件仍會套到這三頁（外觀統一），但不動互動模型。
-- **併入 ML-SIM1**（ruan6047 07-12）：H2H 對戰模擬器 v2（PROPOSAL_EVALUATION D 案）併進 predict 小 spec 一起規劃——蒙特卡羅/馬可夫打席模擬（pitch mix×打者對球種決策），🔴 紅線：輸出必附基準對照+不確定性（承賽果預測準則）、預計算用物化表非 Redis、禁裝飾動畫；umpires 部分注意 UX-7C 已先解掉裁判個人頁那半。
+- 範圍：`/predict`、`/umpires` 的互動模式另行收斂；**成績預測瀏覽 UX-10P 已取消**，不再重設計 `/projections`。
+- **成績預測資產裁示（ruan6047 07-14）**：後續只下架公開 `/projections` 頁面與主選單入口；保留 projection API、`cpbl-train`／`cpbl-train-pitching` 離線訓練與回測、`cpbl.projections`／`model_versions`、以及 `/api/info` 模型指標，作為研究與模型誠實性驗證資產。實作下架時不得順手刪除後端管線。
+- **`/predict` 由 ML-SIM1 取代**（ruan6047 07-14）：分兩模式——①固定、去重複訊號的簡易賽前勝負預測（目前自由勾選特徵＋手調權重取消）；②單一打席互斥結果機率，依局數／上下半局／比分／壘況／出局轉成下一狀態，再復用既有 `wp_state()` 加權計算整場勝率。兩者皆不逐一模擬後續打者；完整陣容、牛棚與後續全打席個人化另列 ML-SIM2 遠期目標，暫時不做。細部輸入／輸出於派工前另出 spec。
 - 狀態：📥Backlog（暫緩）　Commit：—
 - Log：
   - 07-11 自 UX-1 抽出暫緩
-
-### UX-11 選手百分位數氣泡卡 (Percentile Player Cards)  〔⚪一般〕
-- 需求：ruan6047（07-12）　規劃：Fable-5@Claude Code（見 PROPOSAL_EVALUATION.md）　分支：`ai/<執行者>/UX-11`
-- 執行：待指派　查核：待指派
-- 範圍/驗收：選手個人頁頂部百分位數（PR 0–99）紅藍氣泡指標卡。
-- 狀態：📥Backlog（見 PROPOSAL_EVALUATION.md）　Commit：—
-- Log：
-  - 07-12 評估報告已完成
-
-### UX-12 出手點與球路軌跡 2D 分布圖 (Release/Movement)  〔⚪一般〕
-- 需求：ruan6047（07-12）　規劃：Fable-5@Claude Code（見 PROPOSAL_EVALUATION.md）　分支：`ai/<執行者>/UX-12`
-- 執行：待指派　查核：待指派
-- 範圍/驗收：選手頁 Release Point 2D 散點與信心區間圖（含 X/Y 坐標與左右手鏡像）。
-- 狀態：📥Backlog（見 PROPOSAL_EVALUATION.md）　Commit：—
-- Log：
-  - 07-12 評估報告已完成
+  - 07-14 ruan6047 裁示取消公開成績預測瀏覽；只下架頁面／導覽，後端研究資產完整保留
+  - 07-14 ruan6047 裁示 ML-SIM1 取代 UX-10O；全場狀態模擬另列 ML-SIM2 遠期目標
+  - 07-14 ruan6047 裁示 ML-SIM1 加入簡易勝負預測，取代目前重複訊號＋自由調權重的賽事預測
 
 ### ML-PT3 中職版球路品質指數 (CPBL Stuff+ Index)  〔🔴紅線：ML/統計正確性〕
 - 需求：ruan6047（07-12）　規劃：Fable-5@Claude Code（見 PROPOSAL_EVALUATION.md）　分支：`ai/<執行者>/ML-PT3`
@@ -105,13 +95,18 @@
 - Log：
   - 07-12 評估報告已完成
 
-### ML-SIM1 互動式 H2H 對戰模擬器 v2  〔🔴紅線：統計正確性〕
+### ML-SIM1 簡易勝負預測＋單一打席情境模擬  〔🔴紅線：統計正確性〕
 - 需求：ruan6047（07-12）　規劃：Fable-5@Claude Code（見 PROPOSAL_EVALUATION.md）　分支：`ai/<執行者>/ML-SIM1`
 - 執行：待指派　查核：待指派
-- 範圍/驗收：雙欄投打選取器，結合配球與揮空/選球熱熱圖，模擬對戰概率分布。
+- 範圍／驗收分兩模式：
+  1. **簡易勝負預測（現有賽事預測修正版）**：預測賽前主／客勝率；取消使用者自由勾選特徵與權重滑桿。固定模型按「整體戰力、打線、失分抑制／先發、賽程／主場」等語意群設計，每群只能使用一個代表訊號或一個明確定義的合成值，禁止把勝率／近況、得分／OPS／AVG 等同義代理同時當成多份獨立證據。輸出須列實際採用訊號、方向、樣本期間與不確定性；時間走查回測同時比較全押主場 baseline、既有全特徵模型，至少回報 Accuracy、Brier、LogLoss 與校準，未勝 baseline 不上線。
+  2. **單一打席情境模擬**：投手×打者的互斥結果機率；依當下局數／上下半局／比分／壘況／出局映射下一狀態，復用既有 `wp_state()` 計算各結果與加權後整場勝率。可由賽況 `year+kind_code+game_sno+main_event_no` 帶入真實打席。
+- 共同邊界：**不含完整陣容、牛棚與後續全打席個人化模擬**；細節待派工前另出 spec。
 - 狀態：📥Backlog（見 PROPOSAL_EVALUATION.md）　Commit：—
 - Log：
   - 07-12 評估報告已完成
+  - 07-14 ruan6047 裁示取代 UX-10O；全場狀態模擬拆為 ML-SIM2 遠期目標，暫時不做
+  - 07-14 ruan6047 裁示加入簡易勝負預測，修正現版指標重複計算與手調權重參考性不足問題
 
 ### 開卡格式（範本）
 
