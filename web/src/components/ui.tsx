@@ -199,9 +199,11 @@ export const PR_GRADIENT = "linear-gradient(90deg, rgb(30,91,184), rgb(232,232,2
 export const PR_CELL_TEXT = { ink: "#0a2540", halo: "#ffffff" };
 
 export function PercentileBar({ name, value, pr, def }: { name: string; value: string; pr: number; def?: string }) {
+  // 定義提示走共用 Tooltip（原生 title 有延遲且觸控無效）
+  const label = <span className="w-16 shrink-0 truncate text-muted">{name}</span>;
   return (
     <div className="flex items-center gap-2 text-xs">
-      <span title={def} className={`w-16 shrink-0 truncate text-muted ${def ? "cursor-help" : ""}`}>{name}</span>
+      {def ? <Tooltip content={def}>{label}</Tooltip> : label}
       <div className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-surface-2">
         <div className="h-full rounded-full" style={{ width: `${pr}%`, background: prColor(pr) }} />
       </div>
@@ -241,6 +243,9 @@ export const METRIC_DESCRIPTIONS: Record<string, string> = {
   AVG: "打擊率 (Batting Average) = 安打 ÷ 打數。",
   OBP: "上壘率 (On-base Percentage) = (安打 + 四壞 + 觸身) ÷ (打數 + 四壞 + 觸身 + 犧牲飛球)。",
   SLG: "長打率 (Slugging Percentage) = 意指二壘安打/三壘安打/全壘打折合之壘打數 ÷ 打數。",
+  "OPS+": "調整攻擊指數 (OPS Plus) = OPS 經聯盟環境調整後的指數，100 為聯盟平均，120 代表優於平均 20%。",
+  "ERA+": "調整防禦率 (ERA Plus) = 聯盟平均 ERA 相對本人 ERA 的指數，100 為聯盟平均，越高越好。",
+  K9: "每九局三振數 (Strikeouts per 9 Innings) = 三振 × 9 ÷ 投球局數。",
 };
 
 export function StatAbbr({

@@ -128,8 +128,13 @@ export const ptSort = (types: Iterable<string>): string[] => {
   };
   return [...new Set(types)].sort((a, b) => key(a) - key(b) || a.localeCompare(b));
 };
-export const ptTypesFrom = (pts: (string | null)[]): string[] =>
-  ptSort(pts.filter((p): p is string => !!p));
+// 球種鏡頭按鈕門檻：樣本 <20 球的球種不成按鈕（打者面對全聯盟投手會沾到十幾種，
+// 切過去多半是空疏圖；「全部」仍涵蓋全部樣本，僅按鈕收斂）。
+export const ptTypesFrom = (pts: (string | null)[], minN = 20): string[] => {
+  const cnt = new Map<string, number>();
+  for (const p of pts) if (p) cnt.set(p, (cnt.get(p) ?? 0) + 1);
+  return ptSort([...cnt.entries()].filter(([, n]) => n >= minN).map(([t]) => t));
+};
 
 // 分項類別：官網 item_group_code 在打/投間不一致，改用 item_name 內容判斷（穩健、跨角色）。
 export const SPLIT_CATS: { key: string; label: string; test: (n: string) => boolean }[] = [

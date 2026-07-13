@@ -13,7 +13,7 @@
 | UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🔨子卡執行中（spec v5 已核可 07-11） |
 | UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | 待小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（**壓到 UX-6〜9 完成後**重製） |
 | UX-7 | 個人頁傘卡（Person Hub） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 📋已拆 7A/7B/7C（07-12） |
-| UX-7A | 球員頁換裝＋出手點＋PR 融入本季卡 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | `ai/opus/UX-7A`(WIP留參) | ⚪ | ⏳待派工（範圍 v3 重規劃 07-13，含球種合併/熱區改名） |
+| UX-7A | 球員頁換裝＋出手點＋PR 融入本季卡 | ruan6047 | Fable-5@Claude Code | Fable-5@Claude Code | Antigravity | `ai/fable/UX-7A` | ⚪ | 🔍查核中（Antigravity，07-13） |
 | UX-7B | 球隊頁＋教練身分（coaches/managers） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待派工（吃 7A 換裝定調） |
 | UX-7C | /people 命名空間（純教練/裁判個人頁） | ruan6047 | Fable-5@Claude Code | Fable-5@Claude Code | Gemini | `ai/fable/UX-7C` | ⚪ | ✅查核通過已 merge（`9c33f32`），待部署 |
 | UX-8 | 排行與紀錄群 | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | ⏳待執行（通用層已齊，待派工） |
@@ -60,7 +60,7 @@
 
 ### UX-7A 球員頁換裝＋出手點＋PR 融入本季卡（範圍 v3）  〔⚪一般〕
 - 需求：ruan6047（07-12 校正＋07-13 補四項回饋）　規劃：Fable-5@Claude Code（v3 07-13）　分支：`ai/<執行者>/UX-7A`
-- 執行：待指派（建議 Opus：版面整併是設計判斷＋球種合併動到後端多端點）　查核：待指派（旗艦頁建議人審）
+- 執行：Fable-5@Claude Code（ruan6047 07-13 派工）　查核：Antigravity（ruan6047 07-13 指派）
 - **範圍 v3（07-13 重規劃；取代 07-12 修訂版）**：
   1. **換裝對齊**（原範圍①不變）：`/players/[id]` 對齊新語彙＋補缺口（Eyebrow/三態/StatAbbr 名詞解釋鋪設；P1/P2 基礎上）
   2. **能力值卡雷達說明**（新）：現況只有軸名掛原生 SVG `<title>`（延遲、觸控無效、雷達面 hover 無反應）。改：①卡片標題旁 info 提示（沿 `components/tooltip.tsx`）說明**這是自製指標**——生涯 rate 的全聯盟百分位 PR（母體門檻 打者 AB≥300／投手 IP≥100）、S–G 等級純由 PR 換算、非遊戲官方數值；②軸組成（成分指標＋權重＋PR）改自訂 tooltip，hover 即顯、觸控可點（compact 對戰卡模式不動）
@@ -69,7 +69,7 @@
   5. **進壘熱區區塊改名＋指標分角色**（新）：「進壘熱區 × 打擊成績」對投手語意錯置（是**被**打擊）且指標投打共用。改：①標題分角色——打者「好球帶熱區 · 打擊表現」、投手「進壘位置 · 壓制表現」（文案執行時微調，投手側禁再現「打擊成績」）；②投手指標重選：投球分佈%（各格佔比，看配球位置）＋揮空率＋被安打率＋被強擊球%，**刪「擊球仰角 AVG」**（對投手無讀法）；打者維持 ev/ba/hard/whiff，la 是否保留執行時看版面
   6. **出手點 2D**（原範圍③不變）：`rel_side`×`rel_height`（m；覆蓋 99.96%）散點 by 球種＋質心＋出手一致性；掛 MovementSection 旁、movement 端點擴欄；左投鏡像沿慣例；修 F4（1280 三欄擠爆→兩欄或上下堆疊）、F5（一致性用 cm、樣本過小顯「—」）
 - 驗收：5 秒盲測＋雙色系 375/1280 截圖；PR 融入後無重複呈現；球種合併抽 1–2 名有卡特的投手驗 usage 加總與各視圖一致；投打各截一張熱區區塊；橫切驗收見傘卡
-- 狀態：⏳待派工（範圍 v3 已定，07-13）　Commit：—
+- 狀態：✅通過（已審核，等 merge）　Commit：分支 `ai/fable/UX-7A`（worktree `../cpbl-analytics-ux-7a`，環境現成可照 §3.1 進駐審核）
 - **需求校正（ruan6047 07-12，仍有效）**：**氣泡方案正式否決**——PercentileBar 柱狀圖一列同時呈現「數值＋PR＋長度視覺＋定義 tooltip」，氣泡只剩 PR 圓圈＝資訊變少。**PR 呈現以官方 PR 柱狀圖語彙為準**。提案 A（原 UX-11）氣泡化結案否決；v3 範圍 3 的「融入」是把柱狀圖語彙帶進 tile，不是氣泡復活。
 - **重做參考（Fable 審核 findings，07-12；避免二輪重蹈）**：
   - F1（高·雙重事實源）：卡片要求「官方 PR 收進氣泡」，首輪把官方 PR 區移除後**全部自算 PR**——但 `advanced_stats` 有 9 個官方 `_pr` 欄、`batting_current.ops_plus` 官方欄也存在（trend.py 另有滾動版=第三套）。同指標會與官方數字不一致。重做：氣泡直接用官方 `_pr`，官方沒有的才自算並標注
@@ -83,6 +83,16 @@
   - 07-12 首輪還原＋需求校正（氣泡否決）；07-13 ruan6047 補四項回饋（雷達無說明/本季成績排版+PR 融入/球種標籤/熱區區塊名稱與指標）→ Fable 重規劃範圍 v3
   - 07-13 範圍 4 需求澄清：非「卡特併滑球」，是複合名方向重複（A/B vs B/A）造成標籤過多 → Fable 以實際分布評估（24 標籤、5 組方向對、單投手雙向僅 1 例），採 ruan6047 傾向的 AB 固定標注案、否決併入單一球種案（違反寧粗勿錯）
   - 07-13 雷達演算法優化另拆 ABILITY-2（wSB/FIP/年代校正；7A 只動雷達說明 tooltip 不動演算法）
+  - 07-13 Fable 執行完畢（worktree `../cpbl-analytics-ux-7a`，5 commits）：
+    - api×2：PT_EXPR 複合名正規化（實測 24→19 標籤、黃子鵬 滑球/橫掃 雙向 98+135 合併 233 ✓）；movement 擴 release（rel_side 實測 右投+0.56/左投-0.55→＋＝臂側統一、跨球種一致性加權 RMS、n<10 spread 誠實缺席、<2 穩定球種一致性顯「—」）
+    - web×3：雷達 ? 方法論+軸組成自訂 tooltip（順修 ability.py「擊球initial速」typo）；本季 tile 融官方 PR（打者三圍條、投手無官方 _pr 不自算、右卡去重+brl 刪除、secondary 改表列）；熱區分角色（投手 投球分佈%/揮空/被安/被強擊，usage 格 13 區均勻基準+總數<30 不上色）+出手點卡（上下堆疊修 F4）+A/B 臨界球路標注+Skeleton 三態+OPS+/ERA+/K9 StatAbbr
+    - 驗證：ruff ✓ pytest 20 ✓ tsc ✓ build:check ✓；截圖 王柏融（打者）/黃子鵬（投手，側投出手高 0.75–0.84m 合理）×深淺色×1280/375 無溢出；tooltip hover/點擊實測
+  - 07-13 追加（ruan6047 回饋×2，待查核分支上補 commit）：①投手特色軸 info 說明＋打者 DH 指打說明（`907f040`；並評估出武器軸 ~50 下限統計缺陷 → ABILITY-2 範圍 6）②配球傾向改共用堆疊比例條（取代各卡自畫用量條；gap-px 段界解同色槽複合名相鄰不可分），截圖驗證 ✓
+  - 07-13 收尾四項（Fable 盤點→ruan6047 圈選全做）：A 球種鏡頭 ≥20 球門檻（打者 19→10 顆按鈕）；B 散點複合名近空心（同色槽可分）；C PR 卡 Skeleton＋PercentileBar 定義換共用 Tooltip；D 配球傾向重排版（卡牆→明細表×依球數情境並排，一卡收完）。tsc/build 綠、截圖驗證 ✓
+  - 07-13 **雷達刻度 bug 修復**（ruan6047 抓到：羅戈續航 78/B 畫到滿格）：未設 PolarRadiusAxis → recharts 半徑自動縮放到本人最大軸值，圖形「相對自己」vs 等級「絕對 PR」錯位；生涯卡看似正常純因最大值近 100。單人卡+對戰疊圖皆釘 domain=[0,100]（`c463c62`），羅戈頁截圖驗證 ✓
+  - 07-13 Antigravity 審核通過：
+    - Python/FastAPI 測試（ruff + pytest）與 Web/Next.js 靜態編譯型別檢查（tsc --noEmit + build:check）全數綠燈通過。
+    - 對照 v3 範圍逐一實測：自訂雷達說明與軸 tooltip 觸控靈敏、本季 stat tile 成績完美融入官方 PR 條、複合名按優先序正規化合併並去方向、出手點 2D 鏡像及加權 RMS 一致性正確（低樣本時顯「—」）、好球帶分角色熱區指標與雙色窄幅布局無溢出。已完成驗證。
 
 ### SPLITS-IP 投手分項局數重算漏整數局（hotfix）  〔🔴資料正確性〕
 - 需求：ruan6047（07-13「鋼龍對戰各隊局數怪怪的：全季 80 局、各隊加總不到一局」）　分支：`ai/fable/SPLITS-IP`（worktree `../cpbl-analytics-splitsfix`）
