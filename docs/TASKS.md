@@ -132,8 +132,14 @@
   1. **速度軸融入 wSB**：現行 `(SB+3B)/G` 太粗（三壘打摻長打/球場因素、盜壘不計成功率）。組成改 `[wSB rate（wsb/opp）0.6, (SB+3B)/G 0.4]`；`batter_wsb` 1990+ 全覆蓋，生涯/本季皆適用
   2. **壓制軸摻 FIP**：ERA 含守備與運氣。組成改 `[ERA 0.5, FIP 0.5]`；FIP 全史自算（HR/BB/SO/IP 齊，HBP 缺值年代容 0 沿 ingest 慣例），FIP 常數逐年聯盟校準（與 3 同一套聯盟均值 CTE）
   3. **年代校正 [era adjustment]**（🔴 本卡核心）：現行生涯 PR 把 1990 至今原始 rate 直接 `percent_rank`，跨年代系統性偏差（三振率逐年代升→老球員 contact PR 灌水；打高投低年代投手 ERA PR 被壓）。改：各 rate 先除以**該年聯盟均值**、按 PA/IP 加權彙總成 era-relative rate，再進 PR
-  4. **本季投手武器軸摻官方 `whiffp_pr`**（誘揮空，官方欄現閒置）
+  4. **本季投手武器軸摻官方 `whiffp_pr`**（誘揮空，官方欄現閒置；若採 6 主案併入固定三振軸）
   5. **捕手守備本季摻 `catcher_runs` RA9**（2018+，**僅本季 scope**）
+  6. **投手特色軸（武器）統計修正**（07-13 追加，ruan6047 詢問後 Fable 評估）：
+     - W1（🔴 刻度失真）：`GREATEST(k_pr, gb_pr, fb_pr)` 有數學下限——gb=GO/AO 與 fb=AO/GO 互為倒數，percent_rank 互補（gb_pr≈1−fb_pr）→ max 必 ≥~50。**2026 實測 61 名合格投手：最低 51.7、平均 80.5、無人 <50**，半個刻度永不使用、人人 A/S 級武器，鑑別度砍半
+     - W2（語意）：飛球特化不必然是武器（被轟風險），風格≠能力，卻與三振（真技能）同軸計分
+     - W3（既存 bug）：`AbilityRadarVS` 疊圖以主投軸名標軸、客投按 index 對位——兩投手 weapon_type 不同時，同一軸比較的是不同指標
+     - **主案（建議）**：武器軸改固定「三振」軸（k_pr，季 scope 摻 whiffp_pr）——真技能、跨投手可比、VS 疊圖語意自然一致；滾地/飛球風格保留於 hero「XX型」signature 徽章＋info 說明（7A 已補），風格資訊不遺失。overall 重排受影響 → 照本卡回歸抽驗
+     - 過渡：7A 已在 info/軸 tooltip 標注「特化程度非絕對優劣」（分支 `907f040`），修正前先誠實揭露
 - **紅線約束**：2018+/2026-only 數據（RE24/livelog 好球率/TrackMan 衍生）**禁入生涯 PR 母體**——同池不同人組成不同即失去可比性；RE24/WPA 屬情境價值不進雷達（留 sabr 區塊）；OAA/framing 維持不做
 - 驗收：改前後抽 5–10 名**跨年代**球員（含 90 年代、2016 打高投低、現役）PR 位移對照表人工判讀；`ruff`+`pytest`；前端 axisTitle tooltip 自動吃 components 標籤應零改動，7A 的 info 說明文案若已上需同步組成描述
 - 依賴：與 UX-7A 平行可（7A 動前端 tooltip/版面、本卡動後端 ability.py，不同檔不衝突；先後皆可）
