@@ -13,8 +13,20 @@ router = APIRouter()
 
 # 推算球種：優先 pitch_type_pred（軌跡導 IVB/HB → KMeans 分類，見 models/pitch_type.py），
 # 缺值退回 tagged 二元弱標籤。所有逐球球種聚合/篩選共用此表達式，回中文標籤。
-PT_EXPR = ("COALESCE(pitch_type_pred_v2, pitch_type_pred, CASE tagged_pitch_type "
+_PT_RAW = ("COALESCE(pitch_type_pred_v2, pitch_type_pred, CASE tagged_pitch_type "
            "WHEN 'fastball' THEN '速球' WHEN 'breakingball' THEN '變化球' END)")
+# v2 臨界複合名（top1/top2）帶方向 → 同一對球種產生 A/B 與 B/A 兩種標籤（如 滑球/橫掃
+# 與 橫掃/滑球），聚合時被拆成兩群。顯示層統一正規化為固定順序（成分依 _PT_ORD 排序）
+# 的單一標注（UX-7A）；DB 原值不動，方向資訊仍在庫可逆。成分不在表者（速球/變化球）不含 '/'
+# 不受影響；array_position 對未知成分回 NULL → 比較為 NULL → 走 ELSE 保留原值。
+_PT_ORD = "ARRAY['四縫','伸卡','卡特','滑球','橫掃','曲球','變速','指叉']"
+PT_EXPR = (
+    f"(CASE WHEN strpos({_PT_RAW}, '/') > 0"
+    f" AND array_position({_PT_ORD}, split_part({_PT_RAW}, '/', 1))"
+    f" > array_position({_PT_ORD}, split_part({_PT_RAW}, '/', 2))"
+    f" THEN split_part({_PT_RAW}, '/', 2) || '/' || split_part({_PT_RAW}, '/', 1)"
+    f" ELSE {_PT_RAW} END)"
+)
 
 
 @router.get("/api/v1/players/{player_id}/advanced")
