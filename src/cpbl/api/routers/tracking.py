@@ -259,6 +259,33 @@ def player_movement(
             (season, kind_code),
         )
         lg = {r[0]: r for r in cur.fetchall()}
+        # 出手點 2D（UX-7A）：rel_side×rel_height 逐球 + 各球種質心/重複性。
+        # rel_side 實測慣例：右投均值 +0.56、左投 -0.55 → 正值＝持球臂側該側。
+        # 顯示統一「＋＝臂側」：左投翻號，避免左右投圖形互為鏡像難比讀。
+        side = "-rel_side" if lefty else "rel_side"
+        cur.execute(
+            f"""
+            SELECT {PT_EXPR} pt, round(({side})::numeric, 2), round(rel_height::numeric, 2)
+            FROM cpbl.pitch_tracking
+            WHERE pitcher_acnt = %s AND year = %s AND kind_code = %s
+              AND rel_side IS NOT NULL AND rel_height IS NOT NULL AND {PT_EXPR} IS NOT NULL
+            """,
+            (player_id, season, kind_code),
+        )
+        rel_points = [{"pt": pt, "x": float(x), "y": float(y)} for pt, x, y in cur.fetchall()]
+        # 各球種質心＋重複性 spread（質心距離 RMS，cm）；樣本 <10 不給 spread（誠實缺席）。
+        cur.execute(
+            f"""
+            SELECT {PT_EXPR} pt, count(*) n, avg({side}) sx, avg(rel_height) sy,
+                   sqrt(var_pop({side}) + var_pop(rel_height)) * 100 spread
+            FROM cpbl.pitch_tracking
+            WHERE pitcher_acnt = %s AND year = %s AND kind_code = %s
+              AND rel_side IS NOT NULL AND rel_height IS NOT NULL AND {PT_EXPR} IS NOT NULL
+            GROUP BY pt ORDER BY n DESC
+            """,
+            (player_id, season, kind_code),
+        )
+        rel_rows = cur.fetchall()
     total = sum(r[1] for r in mine) or 1
     fl = lambda v, d=1: round(float(v), d) if v is not None else None  # noqa: E731
     spn = lambda v: round(float(v)) if v is not None else None  # noqa: E731
@@ -274,7 +301,22 @@ def player_movement(
                 "hb": fl(-lr[4] if lefty else lr[4]) if lr and lr[4] is not None else None,
             },
         })
-    return {"player_id": player_id, "throws": throws, "points": points, "summary": summary}
+    rel_summary = [{"pt": pt, "n": n, "x": fl(sx, 2), "y": fl(sy, 2),
+                    "spread_cm": fl(spread) if n >= 10 else None}
+                   for pt, n, sx, sy, spread in rel_rows]
+    # 跨球種出手一致性（tipping 風險指標）：各球種質心對加權總質心的 RMS 距離（cm）。
+    # 質心夠穩（n≥10）的球種 <2 種時樣本不足 → None（前端顯「—」，勿以 0 誤導）。
+    solid = [r for r in rel_summary if r["spread_cm"] is not None and r["x"] is not None]
+    consistency_cm = None
+    if len(solid) >= 2:
+        tot_n = sum(r["n"] for r in solid)
+        cx = sum(r["x"] * r["n"] for r in solid) / tot_n
+        cy = sum(r["y"] * r["n"] for r in solid) / tot_n
+        var = sum(((r["x"] - cx) ** 2 + (r["y"] - cy) ** 2) * r["n"] for r in solid) / tot_n
+        consistency_cm = round(var ** 0.5 * 100, 1)
+    return {"player_id": player_id, "throws": throws, "points": points, "summary": summary,
+            "release": {"points": rel_points, "summary": rel_summary,
+                        "consistency_cm": consistency_cm}}
 
 
 def _count_bucket(b: int, s: int) -> str:
