@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { AriaAttributes, CSSProperties, ReactNode } from "react";
 import { EmptyState } from "@/components/ui";
 
 // 靜態資料表（presentational，無 hook → 可直接用於 server component，勿為它翻 "use client"）。
@@ -25,6 +25,7 @@ export type Column<T> = {
   cellStyle?: (row: T, index: number) => CSSProperties | undefined;
   headClassName?: string;
   width?: string;
+  ariaSort?: AriaAttributes["aria-sort"];
 };
 
 const alignCls = (a?: Column<unknown>["align"]) =>
@@ -64,6 +65,7 @@ export function DataTable<T>({
     <th
       key={i}
       scope="col"
+      aria-sort={c.ariaSort}
       style={c.width ? { width: c.width } : undefined}
       className={`${pad} font-medium ${alignCls(c.align)} ${c.nowrap ? "whitespace-nowrap" : ""} ${c.sticky ? "sticky-col" : ""} ${c.headClassName ?? ""}`}
     >

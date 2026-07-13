@@ -1,6 +1,7 @@
 import { AwardRaces, type Cat } from "@/components/award-races";
 import Leaderboard, { type Col } from "@/components/leaderboard";
 import { LevelYearNav } from "@/components/level-year-nav";
+import { Eyebrow } from "@/components/ui";
 import { api } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -66,6 +67,7 @@ export default async function PitchersPage({ searchParams }: { searchParams: Pro
   return (
     <div>
       <header className="mb-6">
+        <Eyebrow className="mb-2">排行中心・投手</Eyebrow>
         <h1 className="text-2xl font-extrabold tracking-tight text-ink">{season} 球季 · {kind === "D" ? "二軍" : ""}投手排行</h1>
         <p className="mt-1.5 text-sm text-muted">
           {kind === "D" || !isCurrent ? "由逐場/逐年成績彙整（二軍逐打席自 2018 起；救援/中繼僅當季與歷年彙總有）。" : "全名單本季投手。"}
@@ -82,13 +84,17 @@ export default async function PitchersPage({ searchParams }: { searchParams: Pro
           note={`規定投球局數約 ${qual}（防禦率/WHIP/K9 套用）。`} />;
       })()}
 
-      <Leaderboard
-        rows={rows}
-        cols={COLS}
-        defaultSort="era"
-        defaultDir={1}
-        filters={[{ key: "team", label: "球隊" }, { key: "role", label: "角色" }]}
-      />
+      <section aria-labelledby="pitching-leaderboard">
+        <Eyebrow className="mb-2">完整排名・共 {rows.length} 人</Eyebrow>
+        <h2 id="pitching-leaderboard" className="sr-only">投手完整排名</h2>
+        <Leaderboard
+          rows={rows}
+          cols={COLS}
+          defaultSort="era"
+          defaultDir={1}
+          filters={[{ key: "team", label: "球隊" }, { key: "role", label: "角色" }]}
+        />
+      </section>
     </div>
   );
 }

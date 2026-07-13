@@ -419,3 +419,17 @@
 > Ledger 列（歸檔）：
 | UX-9 | 週邊群 `/matchups`、`/venues` | ruan6047 | Fable-5@Claude Code | Sonnet-5@Claude Code | Gemini-3.5-Flash@Antigravity | `ai/sonnet/UX-9` | ⚪ | 🏁完成 |
 
+### UX-8 排行與紀錄群  〔⚪一般〕
+- 需求：ruan6047（07-11）　規劃：Fable-5@Claude Code（spec §B 頁面層）　分支：`ai/codex/UX-8`
+- 執行：GPT-5@Codex　查核：Sonnet-5@Claude Code（獨立 session，跨工具/家族）
+- 範圍/驗收：`/batters`、`/pitchers`、`/records`；表格家族，一張卡統一模式（全數走 DataTable）。5 秒盲測＋雙色系截圖。
+- 狀態：🏁完成（已合併至 main）　Commit：見分支 `ai/codex/UX-8`（`1974df9`）
+- Log：
+  - 07-11 spec v5 核可後開卡
+  - 07-14 ruan6047 派工；GPT-5@Codex 建立 worktree `/Users/ruanruan/Dev/cpbl-analytics-ux8` 與分支 `ai/codex/UX-8` 開始執行
+  - 07-14 GPT-5@Codex 實作完成：`Leaderboard` 收斂至 DataTable；打者／投手補完整排名層級；紀錄室的比賽、單季、生涯與球團沿革改為 5 張 DataTable
+  - 07-14 自測：`tsc --noEmit`、`build:check` 全綠
+  - 07-14 Sonnet-5@Claude Code 查核：tsc/build:check 重跑全綠；本機 API + Chrome DevTools 實測 `/batters`、`/pitchers`、`/records` 375px/1280px × 明暗雙主題，皆 200、零 console error、`document.documentElement.scrollWidth` 無頁面級橫向溢出，排序/連結/tooltip 正常。初次以 `git diff main..HEAD` 比對疑似發現 `/matchups`、`/venues` 被還原成 UX-9 修復前的 ad-hoc 版本；以 `git diff <merge-base>..HEAD` 覆核後確認 UX-8 分支本身未動這兩檔，純因分支早於 UX-9 分岔——實測 `git merge --no-commit` 這兩檔案可自動合併、結果與 main（含 UX-9 修復）完全一致，非真實回歸，予以排除。唯一衝突為 `docs/TASKS.md`（Ledger 重疊列），已人工整併。merge 後移除分支根目錄下的暫存待辦檔 `ux-8.md`（內容已併入本卡 Log）。查核通過，merge 進 main，worktree 已清理。
+> Ledger 列（歸檔）：
+| UX-8 | 排行與紀錄群 | ruan6047 | Fable-5@Claude Code | GPT-5@Codex | Sonnet-5@Claude Code | `ai/codex/UX-8` | ⚪ | 🏁完成 |
+

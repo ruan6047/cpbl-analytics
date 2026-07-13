@@ -1,6 +1,7 @@
 import { AwardRaces, type Cat } from "@/components/award-races";
 import Leaderboard, { type Col } from "@/components/leaderboard";
 import { LevelYearNav } from "@/components/level-year-nav";
+import { Eyebrow } from "@/components/ui";
 import { api } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +51,7 @@ export default async function BattersPage({ searchParams }: { searchParams: Prom
   return (
     <div>
       <header className="mb-6">
+        <Eyebrow className="mb-2">排行中心・打者</Eyebrow>
         <h1 className="text-2xl font-extrabold tracking-tight text-ink">{season} 球季 · {kind === "D" ? "二軍" : ""}打者排行</h1>
         <p className="mt-1.5 text-sm text-muted">
           {kind === "D" || !isCurrent ? "由逐場/逐年成績彙整（二軍逐打席自 2018 起）。" : "全名單本季打者。"}
@@ -66,12 +68,16 @@ export default async function BattersPage({ searchParams }: { searchParams: Prom
           note={`規定打席約 ${qual}（打擊率/OPS 套用）。`} />;
       })()}
 
-      <Leaderboard
-        rows={items}
-        cols={COLS}
-        defaultSort="ops"
-        filters={[{ key: "team", label: "球隊" }, { key: "pos", label: "守位" }]}
-      />
+      <section aria-labelledby="batting-leaderboard">
+        <Eyebrow className="mb-2">完整排名・共 {items.length} 人</Eyebrow>
+        <h2 id="batting-leaderboard" className="sr-only">打者完整排名</h2>
+        <Leaderboard
+          rows={items}
+          cols={COLS}
+          defaultSort="ops"
+          filters={[{ key: "team", label: "球隊" }, { key: "pos", label: "守位" }]}
+        />
+      </section>
     </div>
   );
 }
