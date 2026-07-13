@@ -238,3 +238,22 @@
   - 07-12 **Phase2 落地 ✅**（Fable）：`models/pitch_type_v2.py`＋migration 051（`pitch_type_pred_v2` 與 v1 並存）＋CLI `cpbl-classify-pitches-v2`。資料＝Savant pitch-movement leaderboard 2023–25（投手×球種聚合 7,225 列，免逐球 2M 下載）。**三個實測踩雷已修**：(1) Savant `break_x` 是無符號量值（R/L 四縫同號實證）→ 按球種物理方向恢復符號；(2) 加性錨移失敗（CPBL 位移為增益型偏差，羅戈滑球 delta 超出 MLB 曲球域）→ 改乘法對齊（每軸 FF 錨比值）；(3) QDA `reg_param` 在未標準化特徵上淹掉 ratio 軸（133km/h 被判四縫）→ StandardScaler 前置＋uniform priors。**驗收**：四縫口徑 94.56%＞v1 94.24% ✓；嚴格口徑（含伸卡）91.7%＜v1，但缺口=13 個伸卡群全為投手最快球（ratio 0.998）且大宗為黃子鵬（847球，下勾伸卡名家，v1 誤標變化球）→ 官方弱標籤缺陷非 v2 錯誤，證據已存 model_versions。free test set：羅戈✓ 林凱威 sweeper✓ 鍾允華✓ 曾峻岳✓ 李振昌✓ 林詩翔✓；朱承洋=v1 混群（指叉+滑球同群，質心 hb−2.1 中性）已知限制。**Phase3 前端切換未做**：gated on 需求方裁決伸卡證據是否採認
   - 07-12 ruan6047 裁決**採用 v2 為主**＋令執行 **Phase2.5 ✅**（Fable）：逐投手重分群 k=6（v2 質心命名使「多分安全」——同名子群自動合併，v1 釘 k=4 的前提失效）＋小群併最近質心；90 投手 40,467 球逐球重標。**嚴格口徑 97.1%／四縫口徑 98.0%，雙雙勝 v1 94.2%＝真·全贏**。李振昌速球拆出伸卡系（知名二縫投手✓）、林詩翔指叉拆指叉+變速、朱承洋查明為 gyro 滑球（質心 spin 2344 非指叉，文章樣本異季）。**採用落地**：`PT_EXPR` 改 v2 優先（arsenal/movement/pitch-mix/discipline/quality_by_pt 全自動切換）、game live tracking COALESCE v2、前端色票擴 8 槽（chart-7/8 深淺）＋`pitchColor` 按 top1 段對色（速球→四縫槽/變化球→faint 相容 fallback）＋`ptSort` 容納複合名排序。黃子鵬 API 抽驗=伸卡主戰✓
   - 07-12 **Phase3 對帳**（ruan6047 問「不用執行 Phase3?」）：前端換名＋一軍全量重跑已於「採用」步驟做掉；殘留二軍 D 補跑 → **D 未過紅線**（嚴格口徑 94.4% ＜ v1 96.6%，二軍樣本小 k=6 過切）→ 照「全贏才換」**D 不採用、v2 欄清空**（PT_EXPR 自動退回 v1），metrics 留 model_versions 存證；v2-D 投參列後續（樣本門檻/k 降級）。**生產部署仍待**：migration 051＋`pitch_type_pred_v2`（A）資料 local→prod 鏡像（derived，照 outcome 慣例），掛部署閘門與 UX-6 一起上
+
+### UX-7A-R 7A 複審缺漏修復（§4.1 重檢）  〔⚪一般〕
+- 需求：ruan6047（07-13 依新增 AI_WORKFLOW §4.1 審核原則重檢已 merge 的 7A → Fable 自檢出兩項缺漏）　分支：`ai/fable/UX-7A-R`（worktree `../cpbl-analytics-7ar`）
+- 執行：Fable-5@Claude Code　查核：Antigravity（07-13 指派）
+- 範圍（兩項皆 `tracking.tsx`）：
+  1. **R1（§4.1-5 互動識別）**：位移/出手點散點 hover 只顯座標數值，不知點屬哪個球種、質心 ◆ 無識別 → ChartTip 改自訂 content：色點＋球種名＋標記（質心/聯盟平均）＋座標
+  2. **R2（§4.1-1 分母語意）**：熱區「安打率/被安打率」分母僅場內球（hit/out），不含三振，系統性高於官方打擊率定義 → 標籤改「場內安打率/場內被安打率」＋圖例注記「場內＝不含三振」
+- 觀察項（不處理，留檔）：投球分佈%白基準＝13 區均勻，但四角面積大、期望佔比天然 >1/13 → 角落偏紅傾向；圖例已標注，若要更嚴謹需面積加權基準，後續視需求
+- 驗證：ruff+pytest 20+tsc+build:check 綠；hover 實測截圖（滑球/橫掃＋出手側/高）✓；「場內被安打率」渲染 ✓
+- 狀態：🏁完成　Commit：merge `ad43139`（trailers 完整）
+- Log：
+  - 07-13 Antigravity 查核通過：
+    - Python ruff 與 pytest (20項) 全數通過。
+    - Web Next.js 靜態編譯型別檢查 (tsc + build:check) 通過。
+    - 實測確認：散點圖 hover Tooltip 自訂內容順利顯示球種名、質心與聯盟平均標記；熱區「場內安打率/場內被安打率」更名與「場內＝不含三振」註記語意精準且符合 AI_WORKFLOW §4.1-1 與 §4.1-5 規範。
+
+> Ledger 列（歸檔）：
+| UX-7A-R | 7A 複審缺漏修復（§4.1 重檢） | ruan6047 | —（複審 findings） | Fable-5@Claude Code | Antigravity@Antigravity-CLI | `ai/fable/UX-7A-R` | ⚪ | 🏁完成（merge `ad43139`，trailers 完整） |
+
