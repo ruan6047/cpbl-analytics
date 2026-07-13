@@ -191,6 +191,11 @@ def _career_teams(cur, player_id: str) -> list[dict]:
     return stints
 
 
+def _coach_linkage_ambiguous(name_match_count: int, has_coach_records: bool) -> bool:
+    """是否需啟用同名守門（只對真有教練/總教練紀錄者判定）。"""
+    return has_coach_records and name_match_count > 1
+
+
 @router.get("/api/v1/players/{player_id}/career")
 def player_career(player_id: str) -> dict:
     """球員生涯：累計成績、最佳單季、里程碑日期、史上排名脈絡（打者）+ 效力球隊。"""
@@ -245,11 +250,19 @@ def player_career(player_id: str) -> dict:
         coach_ambiguous = False
 
         if pname:
-            cur.execute("SELECT id FROM cpbl.players WHERE name = %s", (pname,))
-            matching_ids = [r[0] for r in cur.fetchall()]
-            if len(matching_ids) > 1:
-                coach_ambiguous = True
-            else:
+            cur.execute(
+                "SELECT EXISTS(SELECT 1 FROM cpbl.coaches WHERE name=%s), "
+                "       EXISTS(SELECT 1 FROM cpbl.managers WHERE name=%s)",
+                (pname, pname),
+            )
+            has_coach_records = any(cur.fetchone() or (False, False))
+
+            if has_coach_records:
+                cur.execute("SELECT count(*) FROM cpbl.players WHERE name = %s", (pname,))
+                name_match_count = int(cur.fetchone()[0] or 0)
+                coach_ambiguous = _coach_linkage_ambiguous(name_match_count, has_coach_records)
+
+            if has_coach_records and not coach_ambiguous:
                 cur.execute(
                     "SELECT c.year, c.team_code, t.short AS team_name, c.pos, c.uniform_no "
                     "FROM cpbl.coaches c LEFT JOIN cpbl.team_dim t ON t.team_code = c.team_code "
