@@ -56,3 +56,21 @@ def test_multiple_coach_candidates_without_birthday_are_skipped(monkeypatch):
     monkeypatch.setattr(ch.time, "sleep", lambda _s: None)
 
     assert ch.resolve_disambiguation("大威", disambig, []) is None
+
+
+def test_strip_team_rename_keeps_role_only():
+    """維基把改名寫成「A隊→B隊 職務」，職務欄殘留的隊名前綴要剝掉（純顯示，不動語意）。"""
+    assert ch.strip_team_rename("La New熊隊→總教練") == "總教練"
+    assert ch.strip_team_rename("統一獅隊→首席教練") == "首席教練"
+    assert ch.strip_team_rename("總教練") == "總教練"
+
+
+def test_strip_team_rename_yields_empty_for_pure_rename():
+    """整行只有隊名沿革、沒有職務（純效力年資）→ 回空字串，由呼叫端 fallback 成 team_raw。"""
+    assert ch.strip_team_rename("統一獅隊→") == ""
+    assert ch.strip_team_rename("→大阪近鐵猛牛隊") == ""
+
+
+def test_manual_title_override_is_recorded():
+    """自動規則 fail-closed 的同名者，答案寫在人工指定表，不由程式猜。"""
+    assert ch.MANUAL_PAGE_TITLES["大威"] == "大威D.W"

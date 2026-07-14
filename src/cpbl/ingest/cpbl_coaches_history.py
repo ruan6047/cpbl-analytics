@@ -128,6 +128,30 @@ def parse_birthdate(wikitext: str) -> tuple[int, int, int] | None:
     return None
 
 
+# 同名消歧義的人工指定（ruan6047 裁決）。自動規則無法確信時，答案寫在這裡而不是猜。
+# 大威：2014 義大犀牛總教練；D.W／D.D 皆有中職教練經歷、生日又對不上 DB 同名球員，
+# 自動規則 fail-closed → 由使用者指定 D.W（教練經歷 6 行，最多）。
+MANUAL_PAGE_TITLES = {
+    "大威": "大威D.W",
+}
+
+
+def strip_team_rename(role: str) -> str:
+    """剝掉職務欄裡的球隊沿革前綴：`La New熊隊→總教練` → `總教練`。
+
+    維基把改名寫成「A隊→B隊 職務」，解析器認出後面的隊名、把「A隊→」留在職務欄。
+    只影響顯示、不影響語意；沿革本身已由 team_raw／team_code 表達。
+    末段若仍是隊名（無職稱關鍵字）代表該行本就沒有職務（純效力年資），回空字串
+    交由呼叫端 fallback 成 team_raw。
+    """
+    if "→" not in role:
+        return role
+    tail = role.split("→")[-1].strip()
+    if tail.endswith("隊") and not any(k in tail for k in ("教練", "監督", "領隊", "球員")):
+        return ""
+    return tail
+
+
 def is_disambiguation(wikitext: str) -> bool:
     """twbsball 同名者多時，主條目為消歧義頁（無經歷節）。"""
     return "{{Disambig}}" in wikitext or "您要找的是" in wikitext
@@ -153,8 +177,8 @@ def _cpbl_coach_score(wikitext: str) -> int:
 
 def resolve_disambiguation(
     name: str, wikitext: str, db_births: list[tuple[int, int, int]],
-) -> tuple[str, str] | None:
-    """消歧義頁 → 實際條目。回 (title, wikitext)；無法確信時回 None（不腦補歸戶）。
+) -> tuple[str, str, bool] | None:
+    """消歧義頁 → 實際條目。回 (title, wikitext, 生日已核對)；無法確信時回 None（不腦補歸戶）。
 
     **先教練、後生日**（順序是紅線）：種子名單來自 coaches/managers，要找的是「教練這個人」，
     故第一道篩選必須是「該條目有中職教練經歷」。生日只用來在多位教練候選之間裁決。
@@ -162,6 +186,9 @@ def resolve_disambiguation(
     反例（實測）：路易士有 4 位同名者，其中 `路易士R.L` 的生日對得上 DB 球員但**毫無教練
     經歷**——若讓生日優先，就會把球員的生平掛到教練頭上。洋將譯名相同者根本是不同人，
     生日能認出「同名球員是誰」，不能認出「教練是誰」。
+
+    第三個回傳值標示是否經生日核對：僅靠「唯一教練候選」選出者未經核對，呼叫端須標
+    needs_review。
     """
     cands: list[tuple[str, str]] = []
     for title in disambiguation_candidates(name, wikitext):
@@ -171,12 +198,12 @@ def resolve_disambiguation(
         time.sleep(0.3)
 
     coaches = [(t, w) for t, w in cands if _cpbl_coach_score(w) > 0]
-    if len(coaches) == 1:
-        return coaches[0]
     if len(coaches) > 1 and db_births:  # 多位教練候選 → 生日裁決
         matched = [(t, w) for t, w in coaches if parse_birthdate(w) in db_births]
         if len(matched) == 1:
-            return matched[0]
+            return (*matched[0], True)
+    if len(coaches) == 1:
+        return (*coaches[0], False)
     return None
 
 
@@ -291,6 +318,7 @@ def parse_experience_row(raw_line: str) -> dict | None:
     # 清理 role 開頭和結尾的無用字元
     role = re.sub(r"^[兼，,、\s]+", "", role).strip()
     role = re.sub(r"[兼，,、\s]+$", "", role).strip()
+    role = strip_team_rename(role)
 
     # 6. 分類 phase (player | coach | other | amateur | note)
     # 判斷是否為敘事列或無年份列：如果是，標 phase = 'note'
@@ -371,7 +399,8 @@ def run(throttle: float = 0.8, limit: int | None = None) -> dict:
           "disambig": 0, "disambig_unresolved": 0}
 
     for name in targets:
-        wt = fetch_wikitext(name)
+        manual_title = MANUAL_PAGE_TITLES.get(name)
+        wt = fetch_wikitext(manual_title or name)
         if not wt:
             st["nopage"] += 1
             time.sleep(throttle)
@@ -383,8 +412,13 @@ def run(throttle: float = 0.8, limit: int | None = None) -> dict:
             cur.execute("SELECT id, birthday FROM cpbl.players WHERE name = %s", (name,))
             db_players = cur.fetchall()
 
+        # 條目身分是否已確信：人工指定＝已確信；消歧義自動解析須看是否經生日核對
+        identity_verified = manual_title is not None
+        if manual_title:
+            st["manual"] = st.get("manual", 0) + 1
+            log.info("%s 人工指定 → %s", name, manual_title)
         # 同名者多 → 主條目是消歧義頁（無經歷節，過去會靜默產生 0 筆，整個人不見）
-        if is_disambiguation(wt):
+        elif is_disambiguation(wt):
             st["disambig"] += 1
             births = [(b.year, b.month, b.day) for _, b in db_players if b]
             resolved = resolve_disambiguation(name, wt, births)
@@ -393,8 +427,10 @@ def run(throttle: float = 0.8, limit: int | None = None) -> dict:
                 log.warning("%s 消歧義頁無法確信解析，略過（不腦補歸戶）", name)
                 time.sleep(throttle)
                 continue
-            title, wt = resolved
-            log.info("%s 消歧義 → %s", name, title)
+            title, wt, identity_verified = resolved
+            log.info("%s 消歧義 → %s（生日核對=%s）", name, title, identity_verified)
+        else:
+            identity_verified = True  # 唯一條目，無同名歧義
 
         st["page"] += 1
 
@@ -405,9 +441,11 @@ def run(throttle: float = 0.8, limit: int | None = None) -> dict:
         review = False
 
         if len(db_players) == 0:
-            # DB 無此球員：為教練專屬帳戶，無須歸戶。若 Wiki 無生日則標記 needs_review
+            # DB 無同名球員（日籍/洋將教練居多）：player_id 本就為 NULL，不存在歸錯戶的風險。
+            # 僅在「條目身分未確信」（消歧義頁靠教練經歷選出、未經生日核對）時才標 needs_review，
+            # 避免整頁列皆掛「待查」而失去訊號量。
             player_id = None
-            review = (info_birth is None)
+            review = not identity_verified
         elif len(db_players) == 1:
             pid, bday = db_players[0]
             if info_birth and bday:
