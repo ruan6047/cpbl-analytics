@@ -82,7 +82,7 @@
 - **個人頁**：以既有裁判個人頁為基礎，呈現主審判決摘要、執法位置與可回到各場賽況報告的清單；全數持續標示 TrackMan 覆蓋場數、固定規則好球帶與「推算、非官方」限制。
 - **賽事報告**：保留目前逐球好壞球判決、好球帶位置與關鍵漏判呈現；報告只涵蓋主審且僅納入有 TrackMan 的 called 球，沒有追蹤資料時明確退化為「無法評估」，不得以缺值推論裁判表現。
 - **邊界**：不估算「誤判預期得利」；該反事實估計 [counterfactual estimation] 與是否產品化，完全交由 ML-UMP1 研究卡處理。
-- 狀態：🔍待查核（缺陷已修復，待重新查核）　Commit：`cda7cf1`
+- 狀態：🔍待查核（缺陷已修復，依 AI_WORKFLOW §連續退回規則應升級查核）　Commit：`9e6ef13`
 - Log：
   - 07-11 自 UX-1 抽出暫緩
   - 07-14 成績預測公開瀏覽取消，改由獨立下架工作處理；`/predict` 規劃完全移交 ML-SIM1／ML-SIM2
@@ -90,8 +90,10 @@
   - 07-14 依 AI_WORKFLOW 拆分一般 UI 與統計紅線：UX-10 採 Sonnet 執行／Opus 獨立查核；誤判影響研究移 ML-UMP1 採 Fable＋跨家族或人審
   - 07-14 Antigravity 實作完成：主選單導航移除「裁判報告」；賽況總覽裁判名改為 Link 連結個人頁；在 BoxTabs 中整合「主審報告」Tab，支援動態散點圖、關鍵漏判及容錯範圍，無資料時顯示無法評估；個人頁「看單場 →」新增 tab=umpire 與 year 參數引導。
   - 07-14 Sonnet@Claude Code 接手收尾：worktree 內工作區原為未 commit 狀態，補跑驗證後 commit `1dc6e6a`——`ruff check`／`pytest`（42 passed）／`npm run build:check` 全綠；Chrome DevTools 實測 `/games/204` 真實資料，確認裁判連結／主審報告／個人頁深連結皆正確。待 Opus 獨立 session 查核。
-  - 07-14 Opus 查核退回缺陷：`box-tabs.tsx:268` 的 `umpCard` 未依 `game_sno` 重置——App Router 同路由樣板換場（如個人頁「看單場」清單點不同場次）元件被重用而非重掛載，會沿用前一場主審報告；另指出 worktree 內 `.venv`（symlink 指向主 repo）未被 `.gitignore` 排除，未達乾淨交接條件。
-  - 07-14 Sonnet@Claude Code 修復並 commit `cda7cf1`：新增依 `gameSno` 的 reset effect，換場即清空 `umpCard`/`umpError` 讓資料重抓；`.gitignore` 的 `.venv/` 改 `.venv`（能匹配 symlink）。**實測方式**：暫時在頁面插入一個真正的 Next `<Link>` 從 `/games/204` 導到 `/games/203`（點擊觸發 client-side 同路由樣板換頁，非整頁重載，才會踩到原本的重用型 bug），確認主審報告從 204 的楊崇煇正確換成 203 的吳家維後移除該臨時測試連結（未進 commit）。修復後重跑 `ruff check`／`pytest`（42 passed）／`build:check` 全綠，`git status` 僅剩 Next 自動產生、與本卡無關的 `next-env.d.ts` 差異。待重新查核。
+  - 07-14 查核退回（第 1 次）：`box-tabs.tsx:268` 的 `umpCard` 未依 `game_sno` 重置——App Router 同路由樣板換場（如個人頁「看單場」清單點不同場次）元件被重用而非重掛載，會沿用前一場主審報告；另指出 worktree 內 `.venv`（symlink 指向主 repo）未被 `.gitignore` 排除，未達乾淨交接條件。
+  - 07-14 Sonnet@Claude Code 修復並 commit `cda7cf1`：新增依 `gameSno` 的 reset effect，換場即清空 `umpCard`/`umpError` 讓資料重抓；`.gitignore` 的 `.venv/` 改 `.venv`（能匹配 symlink）。實測：暫時在頁面插入真正的 Next `<Link>` 從 204 導到 203（client-side 同路由樣板換頁，非整頁重載），確認報告從楊崇煇正確換成吳家維後移除臨時連結（未進 commit）。
+  - 07-14 查核退回（第 2 次）：僅清空 state 未處理**進行中請求的競態**——換場後若舊場次 API 回應較慢，仍可能在清空後才落地覆寫新場次 umpCard；另指出 `web/next-env.d.ts` 仍有未 commit 的生成檔差異，未達乾淨交接。依協作流程「同卡連續 ≥3 次退回 → 升級」已達門檻。
+  - 07-14 Sonnet@Claude Code 修復並 commit `9e6ef13`：effect 內以區域變數 `cancelled` 標記本次請求，`gameSno` 變動觸發 cleanup 設為 true，resolve/catch 前檢查 cancelled 才更新 state。**實測（確定性競態重現）**：用 `initScript` monkey-patch `window.fetch`，讓 `/games/204/umpire` 回應延遲 4 秒，延遲期間 client-side 換到 203（確認非整頁重載：無 RSC fallback 錯誤），畫面立即顯示 203 吳家維；delay 到期後舊回應落地，畫面仍維持吳家維、未被 204 楊崇煇覆寫，console 無錯誤。另 `git checkout -- web/next-env.d.ts` 還原生成檔。修復後重跑 `ruff check`／`pytest`（42 passed）／`npx tsc --noEmit`／`build:check` 全綠，`git status` 乾淨。**因已達 3 次退回門檻，建議下一輪查核換更高階模型（Opus→Fable）或換查核者**，勿再由同模型家族重複審。
 
 
 ### ML-UMP1 裁判誤判預期影響研究  〔🔴紅線：統計／反事實估計〕
