@@ -218,7 +218,8 @@ def player_career(player_id: str) -> dict:
             "WHERE player_id=%s AND award NOT LIKE '%%中華職棒%%' ORDER BY seq", (player_id,))
         wiki_awards = [{"award": aw, "years": ys or [], "note": nt}
                        for aw, ys, nt in cur.fetchall()]
-        # 年度總冠軍（隊伍榮銜，個人獎項表沒有）：由官網 games 推導 → championship_members
+        # 年度總冠軍（隊伍榮銜，個人獎項表沒有）：由 canonical championships 決定
+        # 冠軍隊，再重建 championship_members。
         # （該年一軍有成績的球員＋總教練；見 ingest/championships.py）
         cur.execute(
             "SELECT year FROM cpbl.championship_members WHERE player_id=%s ORDER BY year",
