@@ -277,18 +277,24 @@ export default function BoxTabs({ data }: { data: Live }) {
 
   useEffect(() => {
     if (tab === "umpire" && !umpCard && !umpError && data.game) {
+      let cancelled = false;
       setUmpLoading(true);
       const season = Number(data.game.year || 2026);
       const kindCode = String(data.game.kind_code || "A");
       clientGet<UmpireCardData>(`/api/v1/games/${gameSno}/umpire?season=${season}&kind_code=${kindCode}`)
         .then((c) => {
+          if (cancelled) return;   // 換場後才回來的舊請求：捨棄，不覆寫新場次 state
           setUmpCard(c);
           setUmpLoading(false);
         })
         .catch(() => {
+          if (cancelled) return;
           setUmpError(true);
           setUmpLoading(false);
         });
+      // gameSno 變動會先跑這個 cleanup 再重跑 effect：把當次請求標記作廢，
+      // 避免前一場較慢的回應在切場後才落地、蓋掉新場次的 umpCard。
+      return () => { cancelled = true; };
     }
   }, [tab, umpCard, umpError, data.game, gameSno]);
 
