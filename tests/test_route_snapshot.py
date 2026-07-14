@@ -66,6 +66,9 @@ EXPECTED = {
     "/api/v1/teams/{code}/players",
     "/api/v1/umpires",
     "/api/v1/venues",
+    "/api/v1/venues/{venue}/factors",
+    "/api/v1/venues/{venue}/players",
+    "/api/v1/venues/{venue}/stats",
     "/healthz",
 }
 
