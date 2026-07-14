@@ -17,7 +17,7 @@
 | UX-MATCHUP2 | 投打對決整合球員個人頁 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-MATCHUP2` | ⚪ | 📥Backlog（依賴 UX-MATCHUP1；共用元件與 deep-link） |
 | RECORD-DATA1 | 歷年總冠軍權威資料集與球團映射 | ruan6047 | GPT-5@Codex（[`spec`](../records-redesign.md)；建議 Fable） | GPT-5@Codex | Opus-4.8@Claude Code | `ai/gpt-5-codex/RECORD-DATA1` | 🔴 | ✅通過（07-14 事後查核：33 季由 games kind C 獨立推導零差異；1992/94/95 以半季戰績重建佐證；教練獎 24/24 交叉驗證） |
 | RECORD-API1 | 紀錄室分類排行與冠軍 API | ruan6047 | Opus-4.8@Claude Code | Opus-4.8@Claude Code | 待指派（≠執行者） | `ai/opus-4.8/RECORD-API1` | ⚪ | 🔍待查核（**已合併 main，需事後查核**；`/records/championships`：36 季冠亞軍+教練、王朝榜、球員榜；coverage 缺年直接不回排行） |
-| RECORD-API1-FIX1 | 修正冠軍榜現役判定與球團榜 top N | ruan6047 | 待指派 | 待指派 | 待指派（≠執行者） | `ai/<執行者>/RECORD-API1-FIX1` | ⚪ | 📥Backlog（事後查核發現：球員榜漏「本季有成績」現役來源；`limit` 未套用球團王朝榜） |
+| RECORD-API1-FIX1 | 修正冠軍榜現役判定與球團榜 top N | ruan6047 | Opus-4.8@Claude Code | Opus-4.8@Claude Code | GPT-5@Codex | `ai/opus-4.8/RECORD-API1-FIX1` | ⚪ | ✅通過（07-15 查核：現役聯集、並列 top N、pytest 乾淨 collection 與 coverage fail-closed 均實測通過） |
 | UX-RECORD1 | `/records` 歷史重要性導向重製 | ruan6047 | GPT-5@Codex（[`spec`](../records-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-RECORD1` | ⚪ | 📥Backlog（依賴 RECORD-API1；首屏標竿、生涯榜、冠軍王朝） |
 | ML-UMP1 | 裁判誤判預期影響研究 | ruan6047 | 待研究 spec（建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-UMP1` | 🔴 | 📥Backlog（先驗證再決定是否產品化，不併 UX-10） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
@@ -53,6 +53,13 @@
   - 07-15 ruan6047 派工；spec 檔不存在 → 反問定範圍後執行
   - 07-15 執行完成但**流程有誤**：直接推 main、刪分支與 worktree；經 ruan6047 指正後重建，改採事後查核。教訓已寫入記憶 `review-before-merge`。
   - 07-15 查核 by GPT-5@Codex → ↩退回（事後查核；開 `RECORD-API1-FIX1`：冠軍球員榜現役判定漏本季成績來源；球團王朝榜未套用 `?limit=`）
+
+### RECORD-API1-FIX1 修正冠軍榜現役判定與球團榜 top N 〔⚪一般〕
+- 需求：ruan6047　規劃／執行：Opus-4.8@Claude Code　查核：GPT-5@Codex　分支：`ai/opus-4.8/RECORD-API1-FIX1`
+- 範圍：修復 RECORD-API1 事後查核的現役判定與王朝榜 `limit`；補乾淨 checkout 的 pytest collection 設定與回歸測試。
+- 狀態：✅通過　Commit：`85e61ce`、`2e12422`
+- Log：
+  - 07-15 查核 by GPT-5@Codex → ✅通過：乾淨 main 未設 `PYTHONPATH` 時 pytest collection 確實因 `tests` 無法 import 而失敗；兩支新回歸測試植入修復前碼皆紅。修復分支 `uv run ruff check` 綠、`uv run pytest` 122 passed；張志豪（0000003183）API `active=true`，`limit=1` 僅回兄弟／統一並列第一，36 冠總數與 coverage fail-closed 突變皆通過（2013 已還原）。
 
 ### ML-UMP1 裁判誤判預期影響研究  〔🔴紅線：統計／反事實估計〕
 - 需求：ruan6047（07-14）　規劃：Fable（統計定義／驗證設計）　分支：`ai/<執行者>/ML-UMP1`
