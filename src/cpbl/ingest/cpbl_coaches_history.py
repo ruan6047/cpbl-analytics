@@ -453,10 +453,13 @@ def run(throttle: float = 0.8, limit: int | None = None) -> dict:
                     player_id = pid
                     review = False
                 else:
+                    # 生日不符＝同名但**不是同一人**（教練另有其人）。正解是不歸戶；
+                    # 條目身分若已確信（人工指定／唯一條目）就不必標「待查」——該旗標的語意是
+                    # 「身分未確認」，不是「沒歸戶」。
                     player_id = None
-                    review = True
+                    review = not identity_verified
             else:
-                # 缺少一方的生日資訊，無法確信比對，故雖然 unique 仍標記 needs_review = True
+                # 缺少一方的生日資訊 → 仍歸戶但無法交叉核對，這是真的有歸錯戶風險，標「待查」
                 player_id = pid
                 review = True
         else:
@@ -471,11 +474,11 @@ def run(throttle: float = 0.8, limit: int | None = None) -> dict:
                     review = False
                 else:
                     player_id = None
-                    review = True
+                    review = not identity_verified
             else:
-                # Wiki 無生日，且 DB 有同名多人：嚴禁腦補歸戶，needs_review = True，player_id = None
+                # Wiki 無生日，且 DB 有同名多人：嚴禁腦補歸戶，player_id = None
                 player_id = None
-                review = True
+                review = not identity_verified
 
         raw_lines = parse_experience_lines(wt)
         parsed_rows = []
