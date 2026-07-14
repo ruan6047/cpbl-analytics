@@ -21,7 +21,7 @@
 | RECORD-API1 | 紀錄室分類排行與冠軍 API | ruan6047 | GPT-5@Codex（[`spec`](../records-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/RECORD-API1` | ⚪ | 📥Backlog（依賴 RECORD-DATA1；相容擴充、並列排名、現役篩選） |
 | UX-RECORD1 | `/records` 歷史重要性導向重製 | ruan6047 | GPT-5@Codex（[`spec`](../records-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-RECORD1` | ⚪ | 📥Backlog（依賴 RECORD-API1；首屏標竿、生涯榜、冠軍王朝） |
 | ML-UMP1 | 裁判誤判預期影響研究 | ruan6047 | 待研究 spec（建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-UMP1` | 🔴 | 📥Backlog（先驗證再決定是否產品化，不併 UX-10） |
-| VENUE-PARK1 | 球場滾飛比／Park Factor／選手極端表現（資料＋API） | ruan6047 | Fable（park factor 公式＋小樣本呈現需統計判斷） | Fable-5@Claude Code | 待指派（跨家族模型或人審） | `ai/fable-5/VENUE-PARK1` | 🔴 | 🔍待查核（回填+API+contract 完成；worktree `../cpbl-analytics-venue-park1`） |
+| VENUE-PARK1 | 球場滾飛比／Park Factor／選手極端表現（資料＋API） | ruan6047 | Fable（park factor 公式＋小樣本呈現需統計判斷） | Fable-5@Claude Code | GPT-5@Codex | `ai/fable-5/VENUE-PARK1` | 🔴 | 📦已合併／🚀待部署（07-14；67 tests＋真 DB 實測） |
 | UX-VENUE1 | `/venues/[venue]` 球場詳情頁 | ruan6047 | Sonnet@Claude Code | 待指派（Sonnet） | 待指派（≠執行者） | `ai/<執行者>/UX-VENUE1` | ⚪ | 📥Backlog（依賴 VENUE-PARK1；純 UI，吃前卡 API） |
 | COACH-HIST | 歷年教練職務史（twbsball 經歷節） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（7C 已上線，接點就緒可排） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
@@ -118,8 +118,8 @@
 - **誠實揭露（紅線）**：
   1. 資料僅涵蓋 2018+（`batting_gamelog`/livelog 起始年，1990–2017 無法歸因球場）。
   2. 單球場單季主場數僅 10–25 場，輸出必須附樣本數／場次，用字避免「這球場就是不容易全壘打」式斷言；park factor 採主客對照法（控制球隊強弱），不比聯盟平均（避免被強弱隊主場用量差干擾）。
-- 交付物：API contract（含樣本數欄位）＋資料驗證報告，供 UX-VENUE1 直接消費 → **[`VENUE_PARK1_CONTRACT.md`](VENUE_PARK1_CONTRACT.md)**（分支上）。
-- 狀態：🔍待查核（第 1 次退回已修復，待重新查核）　Commit：`08c1bed`、`072699c`、`df72c38`、`1813647`
+- 交付物：API contract（含樣本數欄位）＋資料驗證報告，供 UX-VENUE1 直接消費 → **[`VENUE_PARK1_CONTRACT.md`](VENUE_PARK1_CONTRACT.md)**。
+- 狀態：📦已合併／🚀待部署　Merge commit：`216a263`
 - Log：
   - 07-14 需求＋現況盤點（Sonnet）：確認滾飛比／選手極端表現免新爬蟲（沿用既有 `batting_splits`/`pitching_splits` 球場 family）；park factor 需新算式（主客對照法，ruan6047 07-14 選定）；逐年回填（2018–2025，ruan6047 07-14 選定）靠既有 `cpbl-build-splits <year>` CLI，屬資料維運非程式碼變更
   - 07-14 ruan6047 裁示拆卡：紅線（公式／樣本數判斷）與 UI 分離，方便各自配模型（Fable vs Sonnet）→ 拆出 UX-VENUE1，本卡收斂為資料＋API
@@ -129,6 +129,7 @@
   - 07-14 Fable-5@Claude Code 實作完成 commit `08c1bed`（ingest 詞彙+別名）、`072699c`（API 三端點+無 DB 測試）、`df72c38`（contract+驗證報告）：`/venues/{venue}/factors|stats|players`。方法論＝主客對照 PF（分季配對、合併=Σobs/Σexp 非 PF 平均、n_else=0 排除、單季<30/合併<60 場 low_sample、不做 shrinkage）；`ruff`+`pytest` 51 passed；實測抽驗：大巨蛋 HR PF 0.661（124 場，逐季一致）、新莊 2024 1.33、桃園別名合併 9 季 489 場、未知球場 404、王柏融大巨蛋 Δ−.35（128 PA 明示）。待跨家族查核（審核者可進駐 worktree `../cpbl-analytics-venue-park1`）
   - 07-14 查核退回（第 1 次）：①`games`=隊-場/2，單方隊-季被排除時輸出 0.5 場，違反場次語意且 low_sample 失真（`venues.py` 舊 179 行）②worktree 內 `TASKS.md` 停在分支時點快照與看板現況不符 ③查核環境 Docker db 未啟動，紅線卡待補真 DB 實測
   - 07-14 Fable-5@Claude Code 修復 commit `1813647`：`games` 改回傳實際完成場次（整數；SQL 端每場恆 2 隊列、排除只在 Python 聚合，Σ含排除/2 恆整數），估計基礎另立 `eligible_team_games`/`excluded_team_games`（逐季+合併皆帶），`low_sample` 改依估計基礎（單季<2×30、合併<2×60 隊-場）；obs/exp/PF 數學不變。新增回歸測試重現單方排除（舊 0.5 → 修後 games=1 int）；契約文件同步。真 DB 實測（本機 db 已起）：大巨蛋/花蓮/桃園逐季+合併 games 全整數、PF 與修前一致（0.661/1.36/0.998）。另 merge main 進分支（`cf2ae57`）使 worktree 看板同步現況；合併後全套 67 tests 綠。待重新查核——**紅線卡查核需起本機 db（`docker compose up -d db`）做端點實測與回填對帳**
+  - 07-14 跨家族查核（GPT-5@Codex）：`pytest` 67/67、`ruff` 綠；真 DB 實測大巨蛋／樂天桃園／新莊皆滿足 `eligible_team_games + excluded_team_games = games × 2`，HR PF 分別為 0.661／0.998／0.900；通過後合併 main（`216a263`），待部署驗證
 
 ### UX-VENUE1 `/venues/[venue]` 球場詳情頁  〔⚪一般〕
 - 需求：ruan6047（07-14，與 VENUE-PARK1 同源）　規劃：Sonnet@Claude Code　分支：`ai/<執行者>/UX-VENUE1`
