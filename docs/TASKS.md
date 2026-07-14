@@ -10,10 +10,7 @@
 
 | 卡ID | 功能 | 需求 | 規劃 | 執行(model@tool) | 查核(model@tool) | 分支 | 紅線 | 狀態 |
 |---|---|---|---|---|---|---|---|---|
-| UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🏁完成（UX-5C 已於 07-14 結案並合併 main） |
-| UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | Gemini-3.5-Flash@Antigravity | Gemini-3.5-Flash@Antigravity | 待指派 | `ai/gemini/UX-5C` | ⚪ | ✅已結案（07-14 合併 main） |
 | UX-OUTCOME-HOME | 首頁賽事勝率預測整合與重製 | ruan6047 | 待小 spec | 待指派 | 待指派 | `ai/<執行者>/UX-OUTCOME-HOME` | ⚪ | 📥Backlog（首頁移除後獨立成新卡） |
-| MATCHUP-DATA1 | 投打對決資料範圍與查詢 API 正確化 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | GPT-5@Codex | Sonnet@Copilot CLI | `ai/codex/MATCHUP-DATA1` | 🔴 | ✅已結案（07-14 合併 main，57 tests 綠） |
 | ML-MATCHUP1 | 天敵候選／優勢對位統計洞察 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)；建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-MATCHUP1` | 🔴 | 📥Backlog（依賴 MATCHUP-DATA1；baseline、shrinkage、敏感度驗證） |
 | UX-MATCHUP1 | `/matchups` 查詢式頁面重製 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-MATCHUP1` | ⚪ | 📥Backlog（依賴 MATCHUP-DATA1＋ML-MATCHUP1） |
 | UX-MATCHUP2 | 投打對決整合球員個人頁 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-MATCHUP2` | ⚪ | 📥Backlog（依賴 UX-MATCHUP1；共用元件與 deep-link） |
@@ -38,35 +35,6 @@
 ---
 
 ## 進行中／待辦卡
-
-### MATCHUP-DATA1 投打對決資料範圍與查詢 API 正確化  〔🔴紅線：資料正確性〕
-- 需求：ruan6047　規劃：GPT-5@Codex（[`spec`](../matchups-redesign.md)）　分支：`ai/codex/MATCHUP-DATA1`
-- 執行：GPT-5@Codex　查核：待指派（跨模型家族或人審＋資料實測）
-- 範圍：本季／生涯／指定年度聚合、歷史隊伍 mapping、球員搜尋、隊伍／對手篩選、白名單排序與 API contract；不含天敵／優勢統計與前端重製。
-- 驗收：跨年度只加總原始計數再重算 rate；年度範圍不重複混入官網生涯列；歷史對手隊不以當季隊名推論；查詢參數化且排序白名單；route snapshot、API 測試與真實資料對帳通過。
-- 狀態：🔍待跨家族查核　Commit：`275fba9`、`6cda62c`
-- Log：
-  - 07-14 ruan6047 派工；建立隔離 worktree，開始盤點 matchup schema、API contract 與真實資料分布
-  - 07-14 實作完成：新增互斥 career／season／range scope、跨年原始計數聚合、歷史 franchise 隊碼篩選、有限 roster 搜尋、對手／排序／limit 與單組詳情 contract；舊頁未帶 role 時維持完整 roster 相容
-  - 07-14 自測：`ruff` 綠、`pytest` 57 passed、`tsc`＋`build:check` 綠；npm high audit 通過（既有 2 個 moderate PostCSS advisory，修復需 breaking Next downgrade，未擅改 lockfile）
-  - 07-14 真實資料 QA：白天單抓陳傑憲 2026 A 成功寫入 63 列；API coverage=[2026]，伍鐸列 9 PA／8 AB／4 H 的 AVG .5000、OBP .5556、SLG .5000 與 DB 原始計數一致；驗證後精確刪除 63 列，DB 恢復僅 9999 生涯資料
-  - 07-14 部署前資料閘門：正式啟用年度 UI 前須完整跑 `cpbl-scrape-fighting 2026` 並做全 roster coverage QA；API 在缺年度資料時明確回空，不以生涯列代替
-  - 07-14 ruan6047 授權準備跨家族查核；分支交付 `origin/ai/codex/MATCHUP-DATA1`，查核者須換非 OpenAI 模型家族並重跑真 DB 實測
-  - 07-14 跨家族查核（Sonnet@Copilot CLI）：ruff ✅、pytest 57/57 ✅、真 DB 實測 ✅（陳傑憲 career scope 185 筆，伍鐸 H=50/AB=126/AVG=0.3968 與 DB 原始計數一致；season/range scope 缺年資料時明確回空、不偷用 9999 生涯列；kind_code='A' 隔離 kind_code='E' 正確）；07-14 合併 main，本卡結案
-
-### UX-1 全站頁面 UI/UX 重新設計  〔⚪（大卡：規劃後預期拆多張子卡，涉全站視覺）〕
-- 需求：ruan6047（07-11）——**重新設計每個頁面的 UI/UX**。痛點：①頁面不統一 ②數據可視度不夠 ③頁面與區塊混亂；裁判報告的資訊架構另抽 UX-10 處理。
-- 規劃：Fable-5@Claude Code → spec 見 [`UX_REDESIGN_SPEC.md`](UX_REDESIGN_SPEC.md)（八原則＋UX-2〜9 拆卡＋深色模式決策點）
-- 執行：子卡各自執行　查核：子卡各自查核（涉全站視覺，建議跨家族或人審驗收）
-- 狀態：🏁完成（子卡已全部完成上線，本卡與 UX-5C 隨合併結案，將於下一次整理移至 archive）
-- 前置事實（規劃時必讀）：現行設計系統＝日間 Navy+白（memory `frontend-redesign`）；UI-2/3/4 完成運動風質感/微互動/響應式（`docs/archive/`）
-- Log：
-  - 07-11 需求開卡；派規劃 → spec 迭代 v2〜v5（痛點對應/可視度=快速理解/模組化審計/盲測定義），ruan6047 **核可 spec v5**
-  - 07-11〜12 UX-2/3/4/4.5 🏁（通用層全齊）→ UX-5B/5A 🏁 → UX-6＋ML-PT2 🏁（截圖驗收＋Gemini 查核＋merge `66a5752`＋push）；詳 archive
-  - 07-12 **歸檔切割修復**（Fable）：Gemini 歸檔時本卡被截斷（位元組級損毀）且 UX-6 孤兒內容殘留，已重建（archive 副本完整，無資料損失）
-  - 07-14 首頁重構 (UX-5C) 實作微調與優化，經審核直接合併 main 結案。
-
-> **UX-5 拆卡裁示（ruan6047 07-11）**：UX-5B hub v1＋搬遷（🏁）→ UX-5A 戰績換裝（🏁）→ **UX-5C 首頁 hub 完整版**（壓 UX-6〜9 完成後重製）。hub 卡＝「指路牌」，避免與戰績頁重複。
 
 ### COACH-HIST 歷年教練職務史（twbsball 經歷節）  〔⚪一般〕
 - 需求：ruan6047（07-12「教練從其他管道拿歷年教練團？」）　規劃：Fable-5@Claude Code　分支：`ai/<執行者>/COACH-HIST`
