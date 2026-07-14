@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON, _dicts
+from cpbl.api.routers.venues import _NORM_VENUE
 from cpbl.api.rows import _ERA_SPLIT
 from cpbl.db import conn
 from cpbl.franchises import FRANCHISE_MAP as _FRANCHISE
@@ -350,9 +351,6 @@ def team_players(code: str) -> dict:
             "roster": roster, "managers": managers, "retired": retired}
 
 
-_NORM_GAME_VENUE = ("CASE g.venue WHEN '桃園' THEN '樂天桃園' "
-                    "WHEN '亞太副場' THEN '亞太副' ELSE g.venue END")
-
 _VENUES_DIM_SQL = f"""
             SELECT v.venue, v.full_name, v.turf, v.indoor, v.city, v.capacity,
                    v.infield_seats, v.outfield_seats, v.lf_dist, v.cf_dist, v.rf_dist,
@@ -361,19 +359,19 @@ _VENUES_DIM_SQL = f"""
                    h.first_year, h.last_year
             FROM cpbl.venue_dim v
             LEFT JOIN (
-                SELECT {_NORM_GAME_VENUE} AS venue, count(*) AS games_played,
+                SELECT {_NORM_VENUE} AS venue, count(*) AS games_played,
                        round(avg(d.attendance)) AS avg_attendance,
                        string_agg(DISTINCT g.home_team_name, '、') AS home_teams
                 FROM cpbl.games g
                 LEFT JOIN cpbl.game_detail d USING (year, kind_code, game_sno)
                 WHERE g.year = %s AND g.kind_code = 'A'
                   AND g.home_score + g.away_score > 0
-                GROUP BY {_NORM_GAME_VENUE}
+                GROUP BY {_NORM_VENUE}
             ) s ON s.venue = v.venue
             LEFT JOIN (
-                SELECT {_NORM_GAME_VENUE} AS venue, min(g.year) AS first_year,
+                SELECT {_NORM_VENUE} AS venue, min(g.year) AS first_year,
                        max(g.year) AS last_year
-                FROM cpbl.games g WHERE g.kind_code = 'A' GROUP BY {_NORM_GAME_VENUE}
+                FROM cpbl.games g WHERE g.kind_code = 'A' GROUP BY {_NORM_VENUE}
             ) h ON h.venue = v.venue
             ORDER BY s.games_played DESC NULLS LAST, v.capacity DESC NULLS LAST
 """
