@@ -11,8 +11,8 @@
 | 卡ID | 功能 | 需求 | 規劃 | 執行(model@tool) | 查核(model@tool) | 分支 | 紅線 | 狀態 |
 |---|---|---|---|---|---|---|---|---|
 | UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🔨子卡執行中（餘 UX-5C；UX-7 群、UX-8、UX-9 07-14 已結案） |
-| UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | Gemini-3.5-Flash@Antigravity | Gemini-3.5-Flash@Antigravity | 待指派 | `ai/gemini/UX-5C` | ⚪ | 🔍待查核（實作完成，編譯通過） |
-| MATCHUP-DATA1 | 投打對決資料範圍與查詢 API 正確化 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/MATCHUP-DATA1` | 🔴 | 📥Backlog（先行；年度／生涯聚合、歷史隊伍 mapping、搜尋與篩選 contract） |
+| UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | Gemini-3.5-Flash@Antigravity | Gemini-3.5-Flash@Antigravity | Sonnet@Copilot CLI | `ai/gemini/UX-5C` | ⚪ | ✅已結案（07-14 合併 main） |
+| MATCHUP-DATA1 | 投打對決資料範圍與查詢 API 正確化 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | GPT-5@Codex | Sonnet@Copilot CLI | `ai/codex/MATCHUP-DATA1` | 🔴 | ✅已結案（07-14 合併 main，57 tests 綠） |
 | ML-MATCHUP1 | 天敵候選／優勢對位統計洞察 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)；建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-MATCHUP1` | 🔴 | 📥Backlog（依賴 MATCHUP-DATA1；baseline、shrinkage、敏感度驗證） |
 | UX-MATCHUP1 | `/matchups` 查詢式頁面重製 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-MATCHUP1` | ⚪ | 📥Backlog（依賴 MATCHUP-DATA1＋ML-MATCHUP1） |
 | UX-MATCHUP2 | 投打對決整合球員個人頁 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-MATCHUP2` | ⚪ | 📥Backlog（依賴 UX-MATCHUP1；共用元件與 deep-link） |
@@ -37,6 +37,20 @@
 ---
 
 ## 進行中／待辦卡
+
+### MATCHUP-DATA1 投打對決資料範圍與查詢 API 正確化  〔🔴紅線：資料正確性〕
+- 需求：ruan6047　規劃：GPT-5@Codex（[`spec`](../matchups-redesign.md)）　分支：`ai/codex/MATCHUP-DATA1`
+- 執行：GPT-5@Codex　查核：待指派（跨模型家族或人審＋資料實測）
+- 範圍：本季／生涯／指定年度聚合、歷史隊伍 mapping、球員搜尋、隊伍／對手篩選、白名單排序與 API contract；不含天敵／優勢統計與前端重製。
+- 驗收：跨年度只加總原始計數再重算 rate；年度範圍不重複混入官網生涯列；歷史對手隊不以當季隊名推論；查詢參數化且排序白名單；route snapshot、API 測試與真實資料對帳通過。
+- 狀態：🔍待跨家族查核　Commit：`275fba9`、`6cda62c`
+- Log：
+  - 07-14 ruan6047 派工；建立隔離 worktree，開始盤點 matchup schema、API contract 與真實資料分布
+  - 07-14 實作完成：新增互斥 career／season／range scope、跨年原始計數聚合、歷史 franchise 隊碼篩選、有限 roster 搜尋、對手／排序／limit 與單組詳情 contract；舊頁未帶 role 時維持完整 roster 相容
+  - 07-14 自測：`ruff` 綠、`pytest` 57 passed、`tsc`＋`build:check` 綠；npm high audit 通過（既有 2 個 moderate PostCSS advisory，修復需 breaking Next downgrade，未擅改 lockfile）
+  - 07-14 真實資料 QA：白天單抓陳傑憲 2026 A 成功寫入 63 列；API coverage=[2026]，伍鐸列 9 PA／8 AB／4 H 的 AVG .5000、OBP .5556、SLG .5000 與 DB 原始計數一致；驗證後精確刪除 63 列，DB 恢復僅 9999 生涯資料
+  - 07-14 部署前資料閘門：正式啟用年度 UI 前須完整跑 `cpbl-scrape-fighting 2026` 並做全 roster coverage QA；API 在缺年度資料時明確回空，不以生涯列代替
+  - 07-14 ruan6047 授權準備跨家族查核；分支交付 `origin/ai/codex/MATCHUP-DATA1`，查核者須換非 OpenAI 模型家族並重跑真 DB 實測
 
 ### UX-1 全站頁面 UI/UX 重新設計  〔⚪（大卡：規劃後預期拆多張子卡，涉全站視覺）〕
 - 需求：ruan6047（07-11）——**重新設計每個頁面的 UI/UX**。痛點：①頁面不統一 ②數據可視度不夠 ③頁面與區塊混亂；裁判報告的資訊架構另抽 UX-10 處理。
@@ -102,12 +116,15 @@
 - **誠實揭露（紅線）**：
   1. 資料僅涵蓋 2018+（`batting_gamelog`/livelog 起始年，1990–2017 無法歸因球場）。
   2. 單球場單季主場數僅 10–25 場，輸出必須附樣本數／場次，用字避免「這球場就是不容易全壘打」式斷言；park factor 採主客對照法（控制球隊強弱），不比聯盟平均（避免被強弱隊主場用量差干擾）。
-- 交付物：API contract（含樣本數欄位）＋資料驗證報告，供 UX-VENUE1 直接消費。
-- 狀態：🔨執行中　Commit：—
+- 交付物：API contract（含樣本數欄位）＋資料驗證報告，供 UX-VENUE1 直接消費 → **[`VENUE_PARK1_CONTRACT.md`](VENUE_PARK1_CONTRACT.md)**（分支上）。
+- 狀態：🔍待查核　Commit：`08c1bed`、`072699c`、`df72c38`
 - Log：
   - 07-14 需求＋現況盤點（Sonnet）：確認滾飛比／選手極端表現免新爬蟲（沿用既有 `batting_splits`/`pitching_splits` 球場 family）；park factor 需新算式（主客對照法，ruan6047 07-14 選定）；逐年回填（2018–2025，ruan6047 07-14 選定）靠既有 `cpbl-build-splits <year>` CLI，屬資料維運非程式碼變更
   - 07-14 ruan6047 裁示拆卡：紅線（公式／樣本數判斷）與 UI 分離，方便各自配模型（Fable vs Sonnet）→ 拆出 UX-VENUE1，本卡收斂為資料＋API
   - 07-14 ruan6047 派工 Fable-5@Claude Code；開 worktree `../cpbl-analytics-venue-park1`（分支 `ai/fable-5/VENUE-PARK1`）
+  - 07-14 ⚠️ 規劃修正：`cpbl-build-splits <year>` CLI 會連跑 `build_career`（生涯=base+**指定年**，base 錨定 2026）——對歷史年跑會**改寫生涯表**。回填改直接呼叫 `build_splits()`、不經 CLI；規劃卡「屬資料維運」的前提部分不成立（需先補 14 個歷史詞彙＋2 個球場別名的 A 類程式碼變更）
+  - 07-14 回填完成：2018–2025×(A,D) 全綠零未知詞彙（14 詞逐個抽 content 原文定案語意，`失`/`裁決` 型態不明不猜滾飛、比照「違規」，全史 ~33 例缺口記報告）；PA 量級核對 ≈78/場 ✓；僅本機 DB、生產未同步
+  - 07-14 Fable-5@Claude Code 實作完成 commit `08c1bed`（ingest 詞彙+別名）、`072699c`（API 三端點+無 DB 測試）、`df72c38`（contract+驗證報告）：`/venues/{venue}/factors|stats|players`。方法論＝主客對照 PF（分季配對、合併=Σobs/Σexp 非 PF 平均、n_else=0 排除、單季<30/合併<60 場 low_sample、不做 shrinkage）；`ruff`+`pytest` 51 passed；實測抽驗：大巨蛋 HR PF 0.661（124 場，逐季一致）、新莊 2024 1.33、桃園別名合併 9 季 489 場、未知球場 404、王柏融大巨蛋 Δ−.35（128 PA 明示）。待跨家族查核（審核者可進駐 worktree `../cpbl-analytics-venue-park1`）
 
 ### UX-VENUE1 `/venues/[venue]` 球場詳情頁  〔⚪一般〕
 - 需求：ruan6047（07-14，與 VENUE-PARK1 同源）　規劃：Sonnet@Claude Code　分支：`ai/<執行者>/UX-VENUE1`
