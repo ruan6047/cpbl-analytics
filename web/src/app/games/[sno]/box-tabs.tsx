@@ -265,10 +265,19 @@ export default function BoxTabs({ data }: { data: Live }) {
   const [tol, setTol] = useState(0);
   const [missOnly, setMissOnly] = useState(true);
 
+  const gameSno = data.game ? Number(data.game.game_sno) : null;
+
+  // 賽事切換（同頁面元件重用，App Router 不會因 params 變動而重掛載）時，
+  // 前一場的主審報告不得沿用——依 gameSno 重置後再讓下方 effect 重新抓該場資料。
   useEffect(() => {
-    if (tab === "umpire" && !umpCard && data.game) {
+    setUmpCard(null);
+    setUmpError(false);
+    setUmpLoading(false);
+  }, [gameSno]);
+
+  useEffect(() => {
+    if (tab === "umpire" && !umpCard && !umpError && data.game) {
       setUmpLoading(true);
-      const gameSno = Number(data.game.game_sno);
       const season = Number(data.game.year || 2026);
       const kindCode = String(data.game.kind_code || "A");
       clientGet<UmpireCardData>(`/api/v1/games/${gameSno}/umpire?season=${season}&kind_code=${kindCode}`)
@@ -281,7 +290,7 @@ export default function BoxTabs({ data }: { data: Live }) {
           setUmpLoading(false);
         });
     }
-  }, [tab, umpCard, data.game]);
+  }, [tab, umpCard, umpError, data.game, gameSno]);
 
   const stats = useMemo(() => {
     if (!umpCard || !umpCard.pitches.length) return null;
