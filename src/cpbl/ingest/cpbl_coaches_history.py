@@ -2,7 +2,7 @@
 
 針對現役教練團與歷任總教練，抓取其在 TwBsBall 的完整生平經歷，
 解析年份、隊伍（映射至 6 大 active franchise 隊碼）與職稱角色，
-存入 cpbl.coach_history，供前端生平時間軸展示。
+存入 cpbl.person_history，供前端生平時間軸展示。
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ import re
 import time
 import urllib.parse
 import urllib.request
+from datetime import date
 
 from cpbl.db import conn
 from cpbl.franchises import franchise_of
@@ -175,15 +176,24 @@ def disambiguation_candidates(name: str, wikitext: str) -> list[str]:
 
 
 def _cpbl_coach_score(wikitext: str) -> int:
-    """該條目的中職教練經歷行數；用於無生日可比對時挑出正確的同名者。"""
+    """該條目的中職**教練**經歷行數。"""
     return sum(
         1 for line in parse_experience_lines(wikitext)
         if "中華職棒" in line and ("教練" in line or "監督" in line)
     )
 
 
+def _cpbl_score(wikitext: str) -> int:
+    """該條目的中職經歷行數（不限教練）。
+
+    球員 scope 不能沿用教練的判準——球員沒有教練經歷，若要求「候選須有中職教練經歷」，
+    候選會一律歸零而全被 fail-closed 丟掉（實測 57 位選手因此完全沒有資料）。
+    """
+    return sum(1 for line in parse_experience_lines(wikitext) if "中華職棒" in line)
+
+
 def resolve_disambiguation(
-    name: str, wikitext: str, db_births: list[tuple[int, int, int]],
+    name: str, wikitext: str, db_births: list[tuple[int, int, int]], scope: str = "coaches",
 ) -> tuple[str, str, bool] | None:
     """消歧義頁 → 實際條目。回 (title, wikitext, 生日已核對)；無法確信時回 None（不腦補歸戶）。
 
@@ -204,13 +214,19 @@ def resolve_disambiguation(
             cands.append((title, wt))
         time.sleep(0.3)
 
-    coaches = [(t, w) for t, w in cands if _cpbl_coach_score(w) > 0]
-    if len(coaches) > 1 and db_births:  # 多位教練候選 → 生日裁決
-        matched = [(t, w) for t, w in coaches if parse_birthdate(w) in db_births]
+    # 判準依 scope 分流：教練要「有中職教練經歷」；球員只要「有中職經歷」——球員沒有教練
+    # 經歷，沿用教練判準會讓候選全歸零而被 fail-closed 丟掉（實測 57 位選手因此完全沒資料）。
+    score = _cpbl_coach_score if scope == "coaches" else _cpbl_score  # persons/all/players 用寬判準
+    hits = [(t, w) for t, w in cands if score(w) > 0]
+
+    if len(hits) > 1 and db_births:  # 多位候選 → 生日裁決
+        matched = [(t, w) for t, w in hits if parse_birthdate(w) in db_births]
         if len(matched) == 1:
             return (*matched[0], True)
-    if len(coaches) == 1:
-        return (*coaches[0], False)
+    if len(hits) == 1:
+        # 球員的生日在 DB 幾乎齊全，能核對就核對（教練則常無球員身分故多為 False）
+        verified = bool(db_births) and parse_birthdate(hits[0][1]) in db_births
+        return (*hits[0], verified)
     return None
 
 
@@ -406,24 +422,93 @@ def _seed_tenures(cur, name: str) -> list[tuple[int, str]]:
     return [(y, t) for y, t in cur.fetchall() if y and t]
 
 
-def _targets(cur) -> list[str]:
-    """自 coaches 與 managers 中抓出所有教練種子名稱。"""
-    sql = """
-    SELECT DISTINCT name FROM cpbl.coaches
-    UNION
-    SELECT DISTINCT name FROM cpbl.managers
-    ORDER BY name
+# 暱稱：結構化欄位（`:*綽號別稱：'''天哥'''、'''阿信'''`）可直接採用；
+# 只寫在內文者（林智勝「外號『大師兄』」）句型鬆散、易誤抓他人綽號 → 一律 needs_review。
+_NICK_FIELD = re.compile(r"綽號別稱：\s*(.+)")
+_NICK_PROSE = re.compile(r"(?:外號|綽號|暱稱)[為叫是稱]?\s*[「『]([^」』]{1,8})[」』]")
+
+
+def parse_nickname(wikitext: str) -> tuple[list[str], str] | None:
+    """回 (暱稱清單, 來源 field|prose)；查無回 None。"""
+    txt = re.sub(r"\[\[|\]\]|'''|''", "", wikitext)
+    m = _NICK_FIELD.search(txt)
+    if m:
+        names = [n.strip() for n in re.split(r"[、,，/／]", m.group(1)) if 1 <= len(n.strip()) <= 10]
+        if names:
+            return names, "field"
+    m = _NICK_PROSE.search(txt)
+    if m:
+        return [m.group(1).strip()], "prose"
+    return None
+
+
+def _targets(cur, scope: str = "coaches") -> list[str]:
+    """種子名單。
+
+    coaches：現任教練 ∪ 歷任總教練。
+    players：本季現役（*_current）∪ **近三季有季成績**（涵蓋旅外的古林睿煬／徐若熙／林安可
+             ——他們今年沒有中職成績，用「本季」當條件會整批漏掉，且未來旅外者會重蹈）
+             ∪ 生涯各榜前十（歷史名將）。
     """
-    cur.execute(sql)
+    if scope == "coaches":
+        cur.execute("SELECT DISTINCT name FROM cpbl.coaches "
+                    "UNION SELECT DISTINCT name FROM cpbl.managers ORDER BY name")
+        return [r[0] for r in cur.fetchall()]
+
+    if scope == "persons":
+        # 已收錄的所有人物（球員＋教練）。暱稱抽取需涵蓋教練——郭泰源（小郭）1985–97 在日職、
+        # 回台只當教練，`players` 表根本沒有他，任何以 players 為種子的 scope 都碰不到。
+        cur.execute("SELECT DISTINCT name FROM cpbl.person_history ORDER BY name")
+        return [r[0] for r in cur.fetchall()]
+
+    if scope == "all":
+        # 全史球員。暱稱是「大家公認」的指標性資料（金臂人／恰恰／大師兄），而指標人物多半
+        # 是退休名將——他們既不在登錄名單、也不在近三季、更不一定進得了各榜前十（黃平洋
+        # 即實例）。要不遺漏，只能全爬。一次抓＋手動刷新，沿 wiki 資料源既有慣例。
+        cur.execute("SELECT DISTINCT name FROM cpbl.players ORDER BY name")
+        return [r[0] for r in cur.fetchall()]
+
+    cur.execute("""
+        WITH recent AS (
+            -- 現役以**官方登錄名單**為準（ruan6047 裁示）：登錄但整季未出賽者，用出賽推導會漏。
+            SELECT player_id FROM cpbl.team_roster WHERE year = %(y)s
+            -- 但登錄名單是「當下的一軍快照」：升降過、季中離隊者不在其中（實測 141 人），
+            -- 故仍聯集出賽紀錄與近三季季成績（後者亦涵蓋旅外的古林睿煬／徐若熙／林安可）。
+            UNION SELECT player_id FROM cpbl.batting_current  WHERE year = %(y)s
+            UNION SELECT player_id FROM cpbl.pitching_current WHERE year = %(y)s
+            UNION SELECT player_id FROM cpbl.batting_seasons  WHERE year >= %(y)s - 2
+            UNION SELECT player_id FROM cpbl.pitching_seasons WHERE year >= %(y)s - 2
+        ),
+        career AS (
+            SELECT player_id, sum(hr) hr, sum(h) h, sum(rbi) rbi, sum(sb) sb
+            FROM cpbl.batting_seasons GROUP BY 1
+        ),
+        pcareer AS (
+            SELECT player_id, sum(w) w, sum(so) so, sum(sv) sv
+            FROM cpbl.pitching_seasons GROUP BY 1
+        ),
+        leaders AS (
+            (SELECT player_id FROM career  ORDER BY hr  DESC NULLS LAST LIMIT 10)
+            UNION (SELECT player_id FROM career  ORDER BY h   DESC NULLS LAST LIMIT 10)
+            UNION (SELECT player_id FROM career  ORDER BY rbi DESC NULLS LAST LIMIT 10)
+            UNION (SELECT player_id FROM career  ORDER BY sb  DESC NULLS LAST LIMIT 10)
+            UNION (SELECT player_id FROM pcareer ORDER BY w   DESC NULLS LAST LIMIT 10)
+            UNION (SELECT player_id FROM pcareer ORDER BY so  DESC NULLS LAST LIMIT 10)
+            UNION (SELECT player_id FROM pcareer ORDER BY sv  DESC NULLS LAST LIMIT 10)
+        )
+        SELECT DISTINCT p.name FROM cpbl.players p
+        WHERE p.id IN (SELECT player_id FROM recent UNION SELECT player_id FROM leaders)
+        ORDER BY p.name
+    """, {"y": date.today().year})
     return [r[0] for r in cur.fetchall()]
 
 
 def _store(cur, name: str, player_id: str | None, rows: list[dict], review: bool) -> None:
-    cur.execute("DELETE FROM cpbl.coach_history WHERE name=%s", (name,))
+    cur.execute("DELETE FROM cpbl.person_history WHERE name=%s", (name,))
     for r in rows:
         cur.execute(
             """
-            INSERT INTO cpbl.coach_history
+            INSERT INTO cpbl.person_history
             (player_id, name, raw_text, phase, league, team_raw, team_code, pos, from_year, to_year, needs_review)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
@@ -432,16 +517,19 @@ def _store(cur, name: str, player_id: str | None, rows: list[dict], review: bool
         )
 
 
-def run(throttle: float = 0.8, limit: int | None = None) -> dict:
-    """抓取 TwBsBall 教練經歷入庫。"""
+def run(throttle: float = 0.8, limit: int | None = None, scope: str = "coaches") -> dict:
+    """抓取 TwBsBall 個人條目經歷節入庫（scope=coaches｜players）。
+
+    players scope 另抽暱稱寫回 `players.nickname`（官網 person 頁無此欄位）。
+    """
     with conn() as c:
-        targets = _targets(c.cursor())
-    
+        targets = _targets(c.cursor(), scope)
+
     if limit:
         targets = targets[:limit]
 
-    st = {"targets": len(targets), "page": 0, "matched": 0, "nopage": 0, "records": 0,
-          "disambig": 0, "disambig_unresolved": 0}
+    st = {"scope": scope, "targets": len(targets), "page": 0, "matched": 0, "nopage": 0,
+          "records": 0, "disambig": 0, "disambig_unresolved": 0, "nickname": 0}
 
     for name in targets:
         manual_title = MANUAL_PAGE_TITLES.get(name)
@@ -466,7 +554,7 @@ def run(throttle: float = 0.8, limit: int | None = None) -> dict:
         elif is_disambiguation(wt):
             st["disambig"] += 1
             births = [(b.year, b.month, b.day) for _, b in db_players if b]
-            resolved = resolve_disambiguation(name, wt, births)
+            resolved = resolve_disambiguation(name, wt, births, scope)
             if not resolved:
                 st["disambig_unresolved"] += 1
                 log.warning("%s 消歧義頁無法確信解析，略過（不腦補歸戶）", name)
@@ -546,6 +634,23 @@ def run(throttle: float = 0.8, limit: int | None = None) -> dict:
 
         with conn() as c:
             _store(c.cursor(), name, player_id, parsed_rows, review)
+
+        # 暱稱：以人名為主鍵（郭泰源等非中職球員在 players 表根本沒有列，掛 players 會漏）。
+        # 僅在條目身分已確認時寫入，避免把別人的綽號安在此人頭上；player_id 能歸戶才附。
+        if not review:
+            nick = parse_nickname(wt)
+            if nick:
+                names, src = nick
+                with conn() as c:
+                    c.execute(
+                        "INSERT INTO cpbl.person_nickname (name, nickname, player_id, source, "
+                        "needs_review) VALUES (%s,%s,%s,%s,%s) ON CONFLICT (name) DO UPDATE SET "
+                        "nickname=EXCLUDED.nickname, player_id=EXCLUDED.player_id, "
+                        "source=EXCLUDED.source, needs_review=EXCLUDED.needs_review, "
+                        "updated_at=now()",
+                        (name, names, player_id, src, src == "prose"),
+                    )
+                st["nickname"] += 1
         
         st["matched"] += 1
         st["records"] += len(parsed_rows)

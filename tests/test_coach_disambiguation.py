@@ -130,3 +130,20 @@ def test_seed_tenure_confirms_identity_without_player_birthday():
     assert not ch.seed_confirms_identity(rows, [(2026, "ADD011")])  # 隊別不符
     assert not ch.seed_confirms_identity(rows, [(2015, "ACN011")])  # 年份不在任期內
     assert not ch.seed_confirms_identity(rows, [])
+
+
+def test_parse_nickname_structured_field():
+    """twbsball 的結構化欄位「綽號別稱」可直接採用（郭天信＝天哥／阿信）。"""
+    assert ch.parse_nickname(":*綽號別稱：'''天哥'''、'''阿信'''") == (["天哥", "阿信"], "field")
+    assert ch.parse_nickname(":*綽號別稱：[[金臂人]]") == (["金臂人"], "field")
+
+
+def test_parse_nickname_prose_is_flagged_as_lower_confidence():
+    """只寫在內文者（林智勝「大師兄」）句型鬆散、易誤抓，來源標 prose 供 needs_review。"""
+    nick, src = ch.parse_nickname("'''林智勝'''，原名林智盛，外號「[[大師兄]]」，職棒時期改為現名。")
+    assert nick == ["大師兄"]
+    assert src == "prose"
+
+
+def test_parse_nickname_absent():
+    assert ch.parse_nickname("出生日期：{{BD|1990-01-01}}") is None
