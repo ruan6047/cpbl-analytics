@@ -40,7 +40,7 @@ def coach_profile(name: str) -> dict:
         cur.execute(
             "SELECT phase, league, team_raw, team_code, pos, from_year, to_year, needs_review "
             "FROM cpbl.coach_history "
-            "WHERE name = %s "
+            "WHERE name = %s AND phase != 'note' "
             "ORDER BY from_year DESC NULLS LAST, to_year DESC NULLS LAST, id DESC",
             (name,),
         )

@@ -20,6 +20,12 @@ def test_parse_birthdate():
     wt4 = "沒有出生日期資料"
     assert parse_birthdate(wt4) is None
 
+    wt5 = "出生日期：{{BD|1972-10-30||:}}"
+    assert parse_birthdate(wt5) == (1972, 10, 30)
+
+    wt6 = "出生日期：{{BD|1972年10月30日|...}}"
+    assert parse_birthdate(wt6) == (1972, 10, 30)
+
 
 def test_parse_experience_lines():
     wt = """
@@ -90,6 +96,7 @@ def test_parse_experience_row_amateur():
 
 def test_coach_profile_api_returns_history():
     from fastapi.testclient import TestClient
+
     from cpbl.api.main import app
 
     client = TestClient(app)
@@ -108,6 +115,7 @@ def test_coach_profile_api_returns_history():
 
 def test_player_career_api_returns_coach_history():
     from fastapi.testclient import TestClient
+
     from cpbl.api.main import app
 
     client = TestClient(app)
@@ -116,3 +124,26 @@ def test_player_career_api_returns_coach_history():
     data = response.json()
     assert "coach_history" in data
     assert len(data["coach_history"]) > 0
+
+
+def test_parse_experience_row_narrative():
+    line = "2019年 --12月16日，球團宣布2020年新球季將擔任中信兄弟一軍總教練，並同時宣告預計採用全本土教練組成教練團…"
+    res = parse_experience_row(line)
+    assert res is not None
+    assert res["phase"] == "note"
+
+
+def test_parse_experience_row_foreign_collision():
+    line = "[[日本職棒]][[東北樂天金鷲隊]]二軍[[監督]]（[[2016年]]～[[2017年]]）"
+    res = parse_experience_row(line)
+    assert res is not None
+    assert res["team_code"] is None
+    assert res["team_raw"] == "東北樂天金鷲隊"
+
+
+def test_parse_experience_row_historical_mapping():
+    line = "[[中華職棒]][[兄弟象隊]]（[[1992年]]～[[1999年]]）"
+    res = parse_experience_row(line)
+    assert res is not None
+    assert res["team_code"] == "ACN011"
+    assert res["team_raw"] == "兄弟象隊"

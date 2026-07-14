@@ -11,6 +11,7 @@
 | 卡ID | 功能 | 需求 | 規劃 | 執行(model@tool) | 查核(model@tool) | 分支 | 紅線 | 狀態 |
 |---|---|---|---|---|---|---|---|---|
 | [BUG-VENUE-ALIAS](tasks/BUG-VENUE-ALIAS.md) | 球場列表歷史別名歸一 | ruan6047 | GPT-5@Codex | GPT-5@Codex | Opus-4.8@Claude Code | `fix/venue-list-alias-normalization` | ⚪ | ✅通過（事後查核；別名前提經資料驗證，附帶消除第三份規則拷貝） |
+| COACH-HIST | 歷年教練職務史（twbsball 經歷節） | ruan6047 | Fable-5@Claude Code | Antigravity | ruan6047 | `ai/antigravity/COACH-HIST-FIX` | ⚪ | ↩退回（重編防禦生日與隊碼碰撞） |
 | VENUE-DEFUNCT | 已拆除球場納入球場維度（老台中球場等） | ruan6047 | 待小 spec | 待指派 | 待指派（≠執行者） | `ai/<執行者>/VENUE-DEFUNCT` | ⚪ | 📥Backlog（`台中` 1120 場一軍無 `venue_dim` 列故 `/venues` 不顯示；先定產品範圍） |
 | UX-OUTCOME-HOME | 首頁賽事勝率預測整合與重製 | ruan6047 | 待小 spec | 待指派 | 待指派 | `ai/<執行者>/UX-OUTCOME-HOME` | ⚪ | 📥Backlog（首頁移除後獨立成新卡） |
 | ML-MATCHUP1 | 天敵候選／優勢對位統計洞察 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)；建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-MATCHUP1` | 🔴 | 📥Backlog（依賴 MATCHUP-DATA1；baseline、shrinkage、敏感度驗證） |
@@ -34,6 +35,26 @@
 ---
 
 ## 進行中／待辦卡
+
+### COACH-HIST 歷年教練職務史（twbsball 經歷節）  〔⚪一般〕
+- 需求：ruan6047（07-12）　規劃：Fable-5@Claude Code　分支：`ai/antigravity/COACH-HIST-FIX`
+- 執行：Antigravity　查核：ruan6047
+- 範圍：
+  1. 種子名單＝現任 coaches 72＋managers 90（去重）；爬個人條目經歷節（~150 頁，一次抓+手動刷新，照 wiki-data-sources 慣例）
+  2. 解析教練職務行 → 新表 `coach_history(name, team_code, pos, from_date, to_date, source, needs_review)`（migration 冪等）
+  3. **解析守則（不腦補）**：行格式變異（兼任/代理/客座 前綴保留進 pos）；日期粒度不一（年/年月/年月日，缺月日存年初/年末界）；隊名歷代對映 team_dim（兄弟象→中信兄弟等，對不上→needs_review）；**非職棒職務**（學校/業餘/國家隊）過濾出主表或另欄標注；解析失敗行一律 needs_review 人工檢
+  4. 前端：7C 教練頁「教練職務」表改吃 coach_history（歷年時間軸）；7B 球員頁教練身分區塊同源
+- 驗收：抽 10 名教練對照 twbsball 原頁人工核對；needs_review 比率報告；`ruff`+`pytest` 綠
+- 狀態：↩退回
+- Log：
+  - 07-12 需求＋開卡；twbsball 人物經歷節路線可行
+  - 07-14 實作資料庫表、經歷解析器、全量爬取 133 名教練生平 6646 條。API 與 Web 端均重構完成。
+  - 07-14 查核退回：偵測到跨聯盟隊名字串碰撞（東北樂天金鷲誤對中職樂天桃猿）、敘事型髒資料（無年份、長散文）、同名生日守門漏洞（Wiki無生日直接跳過驗證 review=False）。
+  - 07-14 修復實作：
+    1. 隊名對照改走 franchises.py 作為單一事實來源；限 `league == '中華職棒'` 匹配，外國一律 `NULL`，加入東北樂天金鷲等關鍵字排除防禦。
+    2. 敘事型列（無年份或長散文）於解析時將 phase 標為 `"note"`，並在 API 端點（`people.py` 與 `players.py`）進行 SQL 過濾。
+    3. 守門防禦：若同名且 Wiki 無生日（或 DB 無生日）無法互相比對，強制標記 `needs_review = True`，且 `player_id` 設為 `NULL` 阻斷自動歸戶。
+    4. 重新全量執行 scraper 過濾數據入庫，更新 pytest 覆蓋各項新案例，全綠通過。
 
 ### ML-UMP1 裁判誤判預期影響研究  〔🔴紅線：統計／反事實估計〕
 - 需求：ruan6047（07-14）　規劃：Fable（統計定義／驗證設計）　分支：`ai/<執行者>/ML-UMP1`
