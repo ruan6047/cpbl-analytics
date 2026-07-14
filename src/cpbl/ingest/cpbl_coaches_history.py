@@ -77,6 +77,16 @@ CPBL_TEAM_MAP = {
     "米迪亞": "AIL011",
 }
 
+# 隊名**簡稱**（上表中不含「隊」的鍵）只在該行明確標示「中華職棒」時才可採用。
+# 沒有聯盟標示時用簡稱比對會誤判母企業旗下的其他隊伍與同名機構——實測踩到的坑：
+#   富邦勇士**籃球隊**體能教練 → 誤掛富邦悍將；中信金融管理**學院**棒球隊 → 誤掛中信鯨；
+#   兄弟**飯店**棒球隊／俊國**建設**棒球隊（業餘前身，1990 中職成立前）→ 誤掛現行球團。
+# 全名（含「隊」或完整隊名，如 時報鷹隊／中信鯨隊）不受此限，因其本身已無歧義。
+CPBL_TEAM_SHORT = {
+    "兄弟", "統一", "富邦", "義大", "俊國", "樂天", "Lamigo", "La New",
+    "第一", "台鋼", "味全", "三商", "時報", "和信", "中信", "米迪亞",
+}
+
 
 def _get(params: dict) -> dict:
     """調用 TwBsBall API，帶退避重試。"""
@@ -218,7 +228,8 @@ def parse_experience_lines(wikitext: str) -> list[str]:
         if in_exp and (line_s.startswith("*") or line_s.startswith(":*")):
             # 移出條列符號
             clean_line = re.sub(r"^:\*+|\*+", "", line_s).strip()
-            if clean_line:
+            # 同一行常同時出現在「經歷」與「年表」兩節（實測 8 列重複），去重。
+            if clean_line and clean_line not in exp_lines:
                 exp_lines.append(clean_line)
     return exp_lines
 
@@ -266,9 +277,10 @@ def parse_experience_row(raw_line: str) -> dict | None:
         has_foreign_or_amateur = any(
             x in pos_body for x in [
                 "日本", "美國", "韓國", "澳洲", "大聯盟", "MLB", "NPB", "KBO", "ABL",
-                "少棒", "青少棒", "青棒", "大學", "中學", "小學", "高中", "學校",
+                "少棒", "青少棒", "青棒", "大學", "中學", "小學", "高中", "學校", "學院",
                 "代表隊", "國家隊", "中華隊", "奧運", "亞運", "洲際盃", "世界盃",
-                "東北樂天", "樂天金鷲", "金鷲"
+                "東北樂天", "樂天金鷲", "金鷲",
+                "籃球", "建設", "飯店", "俱樂部", "科技",  # 母企業旗下的非中職隊伍／同名機構
             ]
         )
         if not has_foreign_or_amateur:
@@ -283,6 +295,9 @@ def parse_experience_row(raw_line: str) -> dict | None:
             if kw in pos_body:
                 # 特殊防禦：避免東北樂天金鷲匹配到樂天
                 if kw == "樂天" and any(x in pos_body for x in ["東北", "金鷲", "樂天金鷲"]):
+                    continue
+                # 簡稱僅在明確標示中華職棒時可用（見 CPBL_TEAM_SHORT 註解的誤判實例）
+                if kw in CPBL_TEAM_SHORT and league != "中華職棒":
                     continue
                 team_code = franchise_of(code)
                 idx = pos_body.find(kw)
@@ -334,9 +349,13 @@ def parse_experience_row(raw_line: str) -> dict | None:
         admin_kws = ["副領隊", "領隊", "總監", "顧問", "球探", "情蒐", "特別助理", "代表", "處長", "經理", "球評"]
         amateur_kws = ["少棒", "青少棒", "青棒", "大學", "國小", "國中", "高中", "學校", "棒球隊", "業餘", "乙組"]
 
-        if any(kw in role for kw in coach_kws):
+        # role 為空代表沒對到球隊、整行都是隊名＋職務（如「獨立聯盟 XX 隊總教練」）；
+        # 此時要用整行判斷，否則會落到預設值「球員」——史耐德的獨立聯盟總教練即曾被誤判。
+        judged = role or pos_body
+
+        if any(kw in judged for kw in coach_kws):
             phase = "coach"
-        elif any(kw in role for kw in admin_kws):
+        elif any(kw in judged for kw in admin_kws):
             phase = "other"
         elif any(kw in pos_body for kw in amateur_kws) or (not league and not team_code and any(kw in pos_body for kw in ["少棒", "青少棒", "青棒", "學校", "大學"])):
             phase = "amateur"
