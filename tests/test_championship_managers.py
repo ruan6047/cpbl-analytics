@@ -10,6 +10,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 from tests.test_championships import _seed_rows as _champion_rows
 
 _MIGRATION = Path(__file__).parents[1] / "migrations" / "054_championship_managers.sql"
@@ -64,3 +66,43 @@ def test_known_championship_totals():
     assert counts["古久保健二"] == 1  # 2025（維基記 0）
     assert "羅國璋" not in counts     # 首席教練／短暫代理，非冠軍總教練
     assert sum(counts.values()) == 36
+
+
+def _award_winners() -> dict[int, str]:
+    """DB 內的年度最佳總教練得獎者（player_awards）。無 DB 時回 None 供跳過。"""
+    from cpbl.db import conn
+
+    with conn() as c:
+        rows = c.execute(
+            "SELECT a.year, p.name FROM cpbl.player_awards a "
+            "JOIN cpbl.players p ON p.id = a.player_id "
+            "WHERE a.award = '年度最佳總教練'"
+        ).fetchall()
+    return {int(year): name for year, name in rows}
+
+
+def test_award_winners_agree_with_canonical_managers():
+    """**第三來源交叉驗證**：年度最佳總教練得獎者必須等於該年 canonical 冠軍教練。
+
+    此獎為票選榮銜、**不是**冠軍歸屬的來源（非球員出身教練無 player_id 故缺 2024/25，
+    且票選理論上可頒給非冠軍教練），但 2000–2023 實測 24/24 與 canonical 一致，是獨立
+    於「維基任期 × twbsball 職稱」之外的驗證訊號——尤其守住季中換帥年。
+    缺獎項資料的年份自然跳過（該獎本就不是來源，不得據以推翻 canonical）。
+
+    需本機 DB；CI 無 Postgres 故跳過（push 前本機 pytest 會跑到）。
+    """
+    try:
+        awards = _award_winners()
+    except Exception as exc:  # noqa: BLE001 - 無 DB/表未建時跳過而非失敗
+        pytest.skip(f"需本機 DB：{exc}")
+
+    if not awards:
+        pytest.skip("player_awards 無年度最佳總教練資料")
+
+    managers = _manager_rows()
+    mismatched = {
+        year: (winner, managers[year][0])
+        for year, winner in awards.items()
+        if year in managers and managers[year][0] != winner
+    }
+    assert not mismatched, f"得獎者與 canonical 冠軍教練不符：{mismatched}"
