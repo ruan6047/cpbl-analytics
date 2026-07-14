@@ -256,6 +256,7 @@ def player_career(player_id: str) -> dict:
 
         official_coach_tenures = []
         manager_stats = []
+        coach_history = []
         coach_ambiguous = False
 
         if pname:
@@ -289,9 +290,19 @@ def player_career(player_id: str) -> dict:
                 )
                 manager_stats = _dicts(cur)
 
+                cur.execute(
+                    "SELECT phase, league, team_raw, team_code, pos, from_year, to_year, needs_review "
+                    "FROM cpbl.coach_history "
+                    "WHERE name = %s "
+                    "ORDER BY from_year DESC NULLS LAST, to_year DESC NULLS LAST, id DESC",
+                    (pname,),
+                )
+                coach_history = _dicts(cur)
+
         _coach_extra = {
             "official_coach_tenures": official_coach_tenures,
             "manager_stats": manager_stats,
+            "coach_history": coach_history,
             "coach_ambiguous": coach_ambiguous,
         }
         # 逐年（opendata ≤2024 + 2025/2026 由 gamelog 補；同年多隊加總）

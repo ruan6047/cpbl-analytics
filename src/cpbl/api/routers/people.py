@@ -37,6 +37,14 @@ def coach_profile(name: str) -> dict:
             (name,),
         )
         manager_eras = _dicts(cur)
+        cur.execute(
+            "SELECT phase, league, team_raw, team_code, pos, from_year, to_year, needs_review "
+            "FROM cpbl.coach_history "
+            "WHERE name = %s "
+            "ORDER BY from_year DESC NULLS LAST, to_year DESC NULLS LAST, id DESC",
+            (name,),
+        )
+        history = _dicts(cur)
         # 同名守門：唯一對應才附 player_id（嚴禁腦補歸戶）
         cur.execute("SELECT id FROM cpbl.players WHERE name = %s", (name,))
         ids = [r[0] for r in cur.fetchall()]
@@ -44,6 +52,7 @@ def coach_profile(name: str) -> dict:
         "name": name,
         "roles": roles,
         "manager_eras": manager_eras,
+        "history": history,
         "player_id": ids[0] if len(ids) == 1 else None,
         "player_ambiguous": len(ids) > 1,
     }

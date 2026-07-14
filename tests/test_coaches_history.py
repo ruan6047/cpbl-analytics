@@ -86,3 +86,33 @@ def test_parse_experience_row_amateur():
     assert res["pos"] == "客座打擊教練"
     assert res["from_year"] == 2024
     assert res["to_year"] == 2024
+
+
+def test_coach_profile_api_returns_history():
+    from fastapi.testclient import TestClient
+    from cpbl.api.main import app
+
+    client = TestClient(app)
+    response = client.get("/api/v1/people/coach/丘昌榮")
+    assert response.status_code == 200
+    data = response.json()
+    assert "history" in data
+    history = data["history"]
+    assert len(history) > 0
+    first_item = history[0]
+    assert "phase" in first_item
+    assert "team_raw" in first_item
+    assert "pos" in first_item
+    assert "from_year" in first_item
+
+
+def test_player_career_api_returns_coach_history():
+    from fastapi.testclient import TestClient
+    from cpbl.api.main import app
+
+    client = TestClient(app)
+    response = client.get("/api/v1/players/0000000797/career")
+    assert response.status_code == 200
+    data = response.json()
+    assert "coach_history" in data
+    assert len(data["coach_history"]) > 0
