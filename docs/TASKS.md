@@ -12,7 +12,7 @@
 |---|---|---|---|---|---|---|---|---|
 | UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🔨子卡執行中（餘 UX-5C；UX-7 群、UX-8、UX-9 07-14 已結案） |
 | UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | 待小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（**壓到 UX-6〜9 完成後**重製） |
-| MATCHUP-DATA1 | 投打對決資料範圍與查詢 API 正確化 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/MATCHUP-DATA1` | 🔴 | 📥Backlog（先行；年度／生涯聚合、歷史隊伍 mapping、搜尋與篩選 contract） |
+| MATCHUP-DATA1 | 投打對決資料範圍與查詢 API 正確化 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | GPT-5@Codex | 待指派（跨家族模型或人審） | `ai/codex/MATCHUP-DATA1` | 🔴 | 🔨執行中（worktree `../cpbl-analytics-matchup-data1`） |
 | ML-MATCHUP1 | 天敵候選／優勢對位統計洞察 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)；建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-MATCHUP1` | 🔴 | 📥Backlog（依賴 MATCHUP-DATA1；baseline、shrinkage、敏感度驗證） |
 | UX-MATCHUP1 | `/matchups` 查詢式頁面重製 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-MATCHUP1` | ⚪ | 📥Backlog（依賴 MATCHUP-DATA1＋ML-MATCHUP1） |
 | UX-MATCHUP2 | 投打對決整合球員個人頁 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-MATCHUP2` | ⚪ | 📥Backlog（依賴 UX-MATCHUP1；共用元件與 deep-link） |
@@ -37,6 +37,15 @@
 ---
 
 ## 進行中／待辦卡
+
+### MATCHUP-DATA1 投打對決資料範圍與查詢 API 正確化  〔🔴紅線：資料正確性〕
+- 需求：ruan6047　規劃：GPT-5@Codex（[`spec`](../matchups-redesign.md)）　分支：`ai/codex/MATCHUP-DATA1`
+- 執行：GPT-5@Codex　查核：待指派（跨模型家族或人審＋資料實測）
+- 範圍：本季／生涯／指定年度聚合、歷史隊伍 mapping、球員搜尋、隊伍／對手篩選、白名單排序與 API contract；不含天敵／優勢統計與前端重製。
+- 驗收：跨年度只加總原始計數再重算 rate；年度範圍不重複混入官網生涯列；歷史對手隊不以當季隊名推論；查詢參數化且排序白名單；route snapshot、API 測試與真實資料對帳通過。
+- 狀態：🔨執行中　Commit：—
+- Log：
+  - 07-14 ruan6047 派工；建立隔離 worktree，開始盤點 matchup schema、API contract 與真實資料分布
 
 ### UX-1 全站頁面 UI/UX 重新設計  〔⚪（大卡：規劃後預期拆多張子卡，涉全站視覺）〕
 - 需求：ruan6047（07-11）——**重新設計每個頁面的 UI/UX**。痛點：①頁面不統一 ②數據可視度不夠 ③頁面與區塊混亂；裁判報告的資訊架構另抽 UX-10 處理。
