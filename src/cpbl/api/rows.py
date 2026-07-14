@@ -140,3 +140,18 @@ def _team_advanced(season: int) -> dict[str, dict]:
                    "whip": float(whip) if whip is not None else None}
             for code, ops, hr, era, whip in cur.fetchall()
         }
+
+
+# 總教練 era 卡（教練頁／球員頁共用）。冠軍數**不取 managers.championships**（維基來源，36 個
+# 冠軍年中 17 筆為 0），改由 canonical championship_managers 即時計數；季中換帥年由該表定案。
+_MANAGER_ERAS_SQL = """
+SELECT m.team_code, t.short AS team_name, m.era_name, m.from_year, m.to_year,
+       m.g, m.w, m.l, m.t AS ties, m.win_pct, m.postseason,
+       (SELECT count(*) FROM cpbl.championship_managers cm
+         WHERE cm.verification_status = 'verified'
+           AND cm.manager_name = m.name
+           AND cm.franchise_code = m.team_code
+           AND cm.year BETWEEN m.from_year AND COALESCE(m.to_year, 9999)) AS championships
+FROM cpbl.managers m LEFT JOIN cpbl.team_dim t ON t.team_code = m.team_code
+WHERE m.name = %s ORDER BY m.from_year
+"""

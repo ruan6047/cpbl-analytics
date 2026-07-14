@@ -11,6 +11,7 @@ from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON, _dicts
 from cpbl.api.routers.umpires import _CALLED, HALF_W, Z_BOT, Z_TOP
+from cpbl.api.rows import _MANAGER_ERAS_SQL
 from cpbl.db import conn
 
 router = APIRouter()
@@ -29,13 +30,7 @@ def coach_profile(name: str) -> dict:
             (name,),
         )
         roles = _dicts(cur)
-        cur.execute(
-            "SELECT m.team_code, t.short AS team_name, m.era_name, m.from_year, m.to_year, "
-            "       m.g, m.w, m.l, m.t AS ties, m.win_pct, m.postseason, m.championships "
-            "FROM cpbl.managers m LEFT JOIN cpbl.team_dim t ON t.team_code = m.team_code "
-            "WHERE m.name = %s ORDER BY m.from_year",
-            (name,),
-        )
+        cur.execute(_MANAGER_ERAS_SQL, (name,))
         manager_eras = _dicts(cur)
         cur.execute(
             "SELECT phase, league, team_raw, team_code, pos, from_year, to_year, needs_review "

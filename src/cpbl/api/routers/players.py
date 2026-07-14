@@ -16,7 +16,7 @@ from cpbl.api.matchups import (
     resolve_matchup_scope,
     sort_matchup_items,
 )
-from cpbl.api.rows import _ERA_SPLIT, _POS_CANON, _batting_rows, _pitching_rows
+from cpbl.api.rows import _ERA_SPLIT, _MANAGER_ERAS_SQL, _POS_CANON, _batting_rows, _pitching_rows
 from cpbl.db import conn
 from cpbl.franchises import franchise_of, franchise_prefixes
 
@@ -281,13 +281,7 @@ def player_career(player_id: str) -> dict:
                 )
                 official_coach_tenures = _dicts(cur)
 
-                cur.execute(
-                    "SELECT m.team_code, t.short AS team_name, m.era_name, m.from_year, m.to_year, "
-                    "       m.g, m.w, m.l, m.t AS ties, m.win_pct, m.postseason, m.championships "
-                    "FROM cpbl.managers m LEFT JOIN cpbl.team_dim t ON t.team_code = m.team_code "
-                    "WHERE m.name = %s ORDER BY m.from_year",
-                    (pname,),
-                )
+                cur.execute(_MANAGER_ERAS_SQL, (pname,))
                 manager_stats = _dicts(cur)
 
                 cur.execute(
