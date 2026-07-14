@@ -100,7 +100,7 @@ function UmpireView({ d }: { d: UmpData }) {
     {
       header: "記分卡", align: "right",
       cell: (r) => (r.called > 0
-        ? <Link href={`/games/${r.game_sno}`} className="text-accent hover:underline">看單場 →</Link>
+        ? <Link href={`/games/${r.game_sno}?tab=umpire&year=${d.season}`} className="text-accent hover:underline">看單場 →</Link>
         : <span className="text-faint">無追蹤</span>),
     },
   ];

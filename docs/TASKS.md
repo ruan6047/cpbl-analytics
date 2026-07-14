@@ -13,7 +13,8 @@
 | UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🔨子卡執行中（餘 UX-5C；UX-7 群、UX-8、UX-9 07-14 已結案） |
 | UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | 待小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（**壓到 UX-6〜9 完成後**重製） |
 | SEC-NEXT-15520 | Next.js 15.5.20 安全升級 | ruan6047 | GPT-5@Codex | GPT-5@Codex | ruan6047 | `ai/codex/SEC-NEXT-15520` | 🔴 | 📦已合併・⏸未部署 |
-| UX-10 | 互動模式拆分（projection 公開瀏覽取消） | ruan6047 | 待各自小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（UX-10P 取消；其餘待收斂） |
+| UX-10 | 裁判個人頁與賽事裁判報告整合 | ruan6047 | Sonnet-5@ClaudeCode | Sonnet@Antigravity | GPT-5@Codex | `ai/antigravity/UX-10` | ⚪ | 📦已合併・⏸未部署 |
+| ML-UMP1 | 裁判誤判預期影響研究 | ruan6047 | 待研究 spec（建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-UMP1` | 🔴 | 📥Backlog（先驗證再決定是否產品化，不併 UX-10） |
 | COACH-HIST | 歷年教練職務史（twbsball 經歷節） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（7C 已上線，接點就緒可排） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
 | ML-SIM1 | 簡易勝負預測＋單一打席情境模擬 | ruan6047 | 待細 spec | 待指派 | 待指派 | — | 🔴 | 📥Backlog（取代 UX-10O；去重複訊號，不模擬後續全打席） |
@@ -21,17 +22,17 @@
 | TEAM-STYLE1 | 球隊球風研究（年度／時期風格向量→球隊頁＋賽果候選特徵） | ruan6047 | 待研究 spec | 待指派 | 待指派 | — | 🔴 | 📥Backlog（速度戰／投手戰等為待驗證假說；先描述，增量回測通過才進模型） |
 
 > 「待指派」＝ruan6047尚未派工。派工後把 model@tool 補實、狀態改 🔨。
-> **依賴序**：通用層（UX-2/3/4/4.5）🏁 → 頁面層 UX-5〜9 已解鎖。**UX-5A/5B/6/7/8/9 群 🏁完成並上線**；剩 **UX-5C（首頁完整版，壓最後重製）**。UX-10 暫緩。
+> **依賴序**：通用層（UX-2/3/4/4.5）🏁 → 頁面層 UX-5〜9 已解鎖。**UX-5A/5B/6/7/8/9 群 🏁完成並上線**；剩 **UX-5C（首頁完整版，壓最後重製）**。UX-10 已合併、待部署。
 
 ---
 
 ## 進行中／待辦卡
 
 ### UX-1 全站頁面 UI/UX 重新設計  〔⚪（大卡：規劃後預期拆多張子卡，涉全站視覺）〕
-- 需求：ruan6047（07-11）——**重新設計每個頁面的 UI/UX**。痛點：①頁面不統一 ②數據可視度不夠 ③頁面與區塊混亂；另 成績預測/賽事預測/裁判報告 三頁**操作模式與現實脫節**（抽出 UX-10 暫緩個別處理）。
+- 需求：ruan6047（07-11）——**重新設計每個頁面的 UI/UX**。痛點：①頁面不統一 ②數據可視度不夠 ③頁面與區塊混亂；裁判報告的資訊架構另抽 UX-10 處理。
 - 規劃：Fable-5@Claude Code → spec 見 [`UX_REDESIGN_SPEC.md`](UX_REDESIGN_SPEC.md)（八原則＋UX-2〜9 拆卡＋深色模式決策點）
 - 執行：子卡各自執行　查核：子卡各自查核（涉全站視覺，建議跨家族或人審驗收）
-- 狀態：🔨 spec v5 **已核可**（07-11）；子卡進度：**UX-2/3/4/4.5/5B/5A/6/8/9 🏁完成、UX-7 群（7A/7B/7C）🏁完成並於 07-14 合併/上線**（皆已 archive）、UX-5C 📥（壓 UX-8/9 後）、UX-10 暫緩。本傘卡隨子卡全數結案後移 archive　Commit：—
+- 狀態：🔨 spec v5 **已核可**（07-11）；子卡進度：**UX-2/3/4/4.5/5B/5A/6/8/9 🏁完成、UX-7 群（7A/7B/7C）🏁完成並於 07-14 合併/上線**（皆已 archive）、UX-5C 📥（壓 UX-8/9 後）、UX-10 📦已合併待部署。本傘卡隨子卡全數結案後移 archive　Commit：—
 - 前置事實（規劃時必讀）：現行設計系統＝日間 Navy+白（memory `frontend-redesign`）；UI-2/3/4 完成運動風質感/微互動/響應式（`docs/archive/`）
 - Log：
   - 07-11 需求開卡；派規劃 → spec 迭代 v2〜v5（痛點對應/可視度=快速理解/模組化審計/盲測定義），ruan6047 **核可 spec v5**
@@ -66,18 +67,35 @@
 - Log：
   - 07-12 需求＋管道查證＋開卡（Fable）；twbsball 逐年球隊條目假設被否、人物中心路線實測可行
 
-### UX-10 互動模式拆分（暫緩）  〔⚪一般〕
-- 需求：ruan6047（07-11）　規劃：待各自小 spec　分支：`ai/<執行者>/UX-10-*`
-- 執行：待指派　查核：待指派
-- 範圍：`/predict`、`/umpires` 的互動模式另行收斂；**成績預測瀏覽 UX-10P 已取消**，不再重設計 `/projections`。
-- **成績預測資產裁示（ruan6047 07-14）**：後續只下架公開 `/projections` 頁面與主選單入口；保留 projection API、`cpbl-train`／`cpbl-train-pitching` 離線訓練與回測、`cpbl.projections`／`model_versions`、以及 `/api/info` 模型指標，作為研究與模型誠實性驗證資產。實作下架時不得順手刪除後端管線。
-- **`/predict` 由 ML-SIM1 取代**（ruan6047 07-14）：分兩模式——①固定、去重複訊號的簡易賽前勝負預測（目前自由勾選特徵＋手調權重取消）；②單一打席互斥結果機率，依局數／上下半局／比分／壘況／出局轉成下一狀態，再復用既有 `wp_state()` 加權計算整場勝率。兩者皆不逐一模擬後續打者；完整陣容、牛棚與後續全打席個人化另列 ML-SIM2 遠期目標，暫時不做。細部輸入／輸出於派工前另出 spec。
-- 狀態：📥Backlog（暫緩）　Commit：—
+### UX-10 裁判個人頁與賽事裁判報告整合  〔⚪一般〕
+- 需求：ruan6047（07-11；07-14 重整範圍）　規劃：Sonnet（沿既有 API 的 UI／導覽規劃）　分支：`ai/Antigravity/UX-10`
+- 執行：Sonnet@Antigravity　查核：GPT-5@Codex（升級查核；≠執行者）
+- **資訊架構**：裁判報告由獨立 `/umpires` 頁移入各場 `/games/{sno}` 賽況頁，成為該場主審的判決報告；賽況頁的裁判姓名改為連至 `/people/umpire/{name}` 裁判個人頁。主選單移除「裁判報告」，但保留 `/umpires` 索引路由作為搜尋／深連結入口，不做 404 或刪除既有 API。
+- **個人頁**：以既有裁判個人頁為基礎，呈現主審判決摘要、執法位置與可回到各場賽況報告的清單；全數持續標示 TrackMan 覆蓋場數、固定規則好球帶與「推算、非官方」限制。
+- **賽事報告**：保留目前逐球好壞球判決、好球帶位置與關鍵漏判呈現；報告只涵蓋主審且僅納入有 TrackMan 的 called 球，沒有追蹤資料時明確退化為「無法評估」，不得以缺值推論裁判表現。
+- **邊界**：不估算「誤判預期得利」；該反事實估計 [counterfactual estimation] 與是否產品化，完全交由 ML-UMP1 研究卡處理。
+- 狀態：📦已合併・⏸未部署　Commit：本次 merge commit
 - Log：
   - 07-11 自 UX-1 抽出暫緩
-  - 07-14 ruan6047 裁示取消公開成績預測瀏覽；只下架頁面／導覽，後端研究資產完整保留
-  - 07-14 ruan6047 裁示 ML-SIM1 取代 UX-10O；全場狀態模擬另列 ML-SIM2 遠期目標
-  - 07-14 ruan6047 裁示 ML-SIM1 加入簡易勝負預測，取代目前重複訊號＋自由調權重的賽事預測
+  - 07-14 成績預測公開瀏覽取消，改由獨立下架工作處理；`/predict` 規劃完全移交 ML-SIM1／ML-SIM2
+  - 07-14 ruan6047 裁示本卡改處理裁判：賽事內報告、裁判個人頁導覽與誤判預期得利可行性
+  - 07-14 依 AI_WORKFLOW 拆分一般 UI 與統計紅線：UX-10 採 Sonnet 執行／Opus 獨立查核；誤判影響研究移 ML-UMP1 採 Fable＋跨家族或人審
+  - 07-14 Antigravity 實作完成：主選單導航移除「裁判報告」；賽況總覽裁判名改為 Link 連結個人頁；在 BoxTabs 中整合「主審報告」Tab，支援動態散點圖、關鍵漏判及容錯範圍，無資料時顯示無法評估；個人頁「看單場 →」新增 tab=umpire 與 year 參數引導。
+  - 07-14 Sonnet@Claude Code 接手收尾：worktree 內工作區原為未 commit 狀態，補跑驗證後 commit `1dc6e6a`——`ruff check`／`pytest`（42 passed）／`npm run build:check` 全綠；Chrome DevTools 實測 `/games/204` 真實資料，確認裁判連結／主審報告／個人頁深連結皆正確。待 Opus 獨立 session 查核。
+  - 07-14 查核退回（第 1 次）：`box-tabs.tsx:268` 的 `umpCard` 未依 `game_sno` 重置——App Router 同路由樣板換場（如個人頁「看單場」清單點不同場次）元件被重用而非重掛載，會沿用前一場主審報告；另指出 worktree 內 `.venv`（symlink 指向主 repo）未被 `.gitignore` 排除，未達乾淨交接條件。
+  - 07-14 Sonnet@Claude Code 修復並 commit `cda7cf1`：新增依 `gameSno` 的 reset effect，換場即清空 `umpCard`/`umpError` 讓資料重抓；`.gitignore` 的 `.venv/` 改 `.venv`（能匹配 symlink）。實測：暫時在頁面插入真正的 Next `<Link>` 從 204 導到 203（client-side 同路由樣板換頁，非整頁重載），確認報告從楊崇煇正確換成吳家維後移除臨時連結（未進 commit）。
+  - 07-14 查核退回（第 2 次）：僅清空 state 未處理**進行中請求的競態**——換場後若舊場次 API 回應較慢，仍可能在清空後才落地覆寫新場次 umpCard；另指出 `web/next-env.d.ts` 仍有未 commit 的生成檔差異，未達乾淨交接。依協作流程「同卡連續 ≥3 次退回 → 升級」已達門檻。
+  - 07-14 Sonnet@Claude Code 修復並 commit `9e6ef13`：effect 內以區域變數 `cancelled` 標記本次請求，`gameSno` 變動觸發 cleanup 設為 true，resolve/catch 前檢查 cancelled 才更新 state。**實測（確定性競態重現）**：用 `initScript` monkey-patch `window.fetch`，讓 `/games/204/umpire` 回應延遲 4 秒，延遲期間 client-side 換到 203（確認非整頁重載：無 RSC fallback 錯誤），畫面立即顯示 203 吳家維；delay 到期後舊回應落地，畫面仍維持吳家維、未被 204 楊崇煇覆寫，console 無錯誤。另 `git checkout -- web/next-env.d.ts` 還原生成檔。修復後重跑 `ruff check`／`pytest`（42 passed）／`npx tsc --noEmit`／`build:check` 全綠，`git status` 乾淨。**因已達 3 次退回門檻，建議下一輪查核換更高階模型（Opus→Fable）或換查核者**，勿再由同模型家族重複審。
+  - 07-14 GPT-5@Codex 升級最終查核通過：舊請求 cleanup／跨場 state 重設、深連結與無資料退化邏輯正確；`ruff check`、`pytest`（42 passed）、TypeScript、`build:check` 全綠。合併至 main，未要求部署。
+
+
+### ML-UMP1 裁判誤判預期影響研究  〔🔴紅線：統計／反事實估計〕
+- 需求：ruan6047（07-14）　規劃：Fable（統計定義／驗證設計）　分支：`ai/<執行者>/ML-UMP1`
+- 執行：待指派　查核：待指派
+- 範圍／驗收：定義每個錯判在判決前狀態的預期得分或勝率差（實際判決對比正確判決的反事實結果），按攻守隊與裁判聚合；先建立可重現的 RE24 或勝率基準、資料切分、校準與不確定性，並對照「漏判數／距離」baseline。僅用有 TrackMan 的 called 球；未通過獨立審核與實測前，不寫入 UI、不稱為球隊實際得利或失分。
+- 狀態：📥Backlog　Commit：—
+- Log：
+  - 07-14 自 UX-10 拆出：反事實估計不宜與一般 UI 同卡；依 AI_WORKFLOW 採 Fable 執行、跨家族或人審查核
 
 ### ML-PT3 中職版球路品質指數 (CPBL Stuff+ Index)  〔🔴紅線：ML/統計正確性〕
 - 需求：ruan6047（07-12）　規劃：Fable-5@Claude Code（見 PROPOSAL_EVALUATION.md）　分支：`ai/<執行者>/ML-PT3`
