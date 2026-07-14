@@ -33,7 +33,6 @@ const NAV = [
   { href: "/pitchers", label: "投手", group: "數據" },
   { href: "/records", label: "紀錄室", group: "數據" },
   { href: "/venues", label: "球場", group: "數據" },
-  { href: "/projections", label: "成績預測", group: "預測" },
   { href: "/predict", label: "賽事預測", group: "預測" },
 ];
 
