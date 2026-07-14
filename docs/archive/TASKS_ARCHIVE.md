@@ -24,6 +24,8 @@
 | UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🏁完成（UX-5C 07-14 合併 main） |
 | UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | Gemini-3.5-Flash@Antigravity | Gemini-3.5-Flash@Antigravity | 待指派 | `ai/gemini/UX-5C` | ⚪ | ✅已結案（07-14 合併 main；明細併入 UX-1） |
 | MATCHUP-DATA1 | 投打對決資料範圍與查詢 API 正確化 | ruan6047 | GPT-5@Codex（[`spec`](../../matchups-redesign.md)） | GPT-5@Codex | Sonnet@Copilot CLI | `ai/codex/MATCHUP-DATA1` | 🔴 | 🏁完成（07-14 合併 main，57 tests 綠） |
+| [BUG-VENUE-ALIAS](tasks/BUG-VENUE-ALIAS.md) | 球場列表歷史別名歸一 | ruan6047 | GPT-5@Codex | GPT-5@Codex | Opus-4.8@Claude Code | `fix/venue-list-alias-normalization` | ⚪ | 🏁完成（事後查核；別名前提經資料驗證，附帶消除第三份規則拷貝） |
+| COACH-HIST | 歷年教練職務史（twbsball 經歷節） | ruan6047 | Fable-5@Claude Code | Antigravity | Opus-4.8@Claude Code | `ai/antigravity/COACH-HIST-FIX` | ⚪ | 🏁完成（跨聯盟碰撞 28→0、敘事列過濾、同名守門重寫；待部署＋生產資料同步） |
 | PLAYER-BIO | 選手生涯歷程＋暱稱＋官方登錄名單 | ruan6047 | Opus-4.8@Claude Code | Opus-4.8@Claude Code | ruan6047（人審） | `feat/player-bio` | ⚪ | 🏁完成（07-15 上線；2,922 人／128,704 列生涯歷程、924 暱稱、登錄名單 163 人） |
 | TEAM-HIST1 | 隊史年表補缺（歷年教練團／球隊異動／二軍獎項） | ruan6047 | Opus-4.8@Claude Code | Opus-4.8@Claude Code | ruan6047（人審） | `ai/opus-4.8/TEAM-HIST1` | ⚪ | 🏁完成（07-15 上線；教練 1,010 筆/284 人（92 人新增）、異動 1,397、二軍獎項 18；**冠軍教練第三方驗證 15/15**） |
 | VENUE-PARK1 | 球場滾飛比／Park Factor／選手極端表現（資料＋API） | ruan6047 | Fable（park factor 公式＋小樣本呈現需統計判斷） | Fable-5@Claude Code | GPT-5@Codex | `ai/fable-5/VENUE-PARK1` | 🔴 | 🏁完成（07-14 已補齊歷史 splits 並重驗通過） |
@@ -558,3 +560,32 @@
 - **⚠️ 開卡假設被實測推翻**：原判「歷年改名是唯一無替代來源的缺口，優先級最高」錯誤——182 頁中**只有 3 頁**真的寫了「更改姓名」（7 筆，全部解析成功）。真正權威來源是**官方登錄名單＋gamelog**。
 - **自我回歸（測試攔下）**：為修教練「季中換人」箭頭（黃煚隆→林瑋恩＝兩人）而在切分函式加箭頭切分，卻把改名欄的「舊名-->新名」（同一人、語意相反）也切開，改名 7→0 筆；已用 `split_arrow` 參數區隔。
 - 狀態：🏁完成（已部署上線＋生產同步）　Commit：`7d58e85`、`49b1833`
+
+### COACH-HIST 歷年教練職務史（twbsball 經歷節）  〔⚪一般〕
+- 需求：ruan6047（07-12）　規劃：Fable-5@Claude Code　分支：`ai/antigravity/COACH-HIST-FIX`
+- 執行：Antigravity　查核：Opus-4.8@Claude Code（≠ 執行）
+- 範圍：
+  1. 種子名單＝現任 coaches 72＋managers 90（去重）；爬個人條目經歷節（~150 頁，一次抓+手動刷新，照 wiki-data-sources 慣例）
+  2. 解析教練職務行 → 新表 `coach_history(name, team_code, pos, from_date, to_date, source, needs_review)`（migration 冪等）
+  3. **解析守則（不腦補）**：行格式變異（兼任/代理/客座 前綴保留進 pos）；日期粒度不一（年/年月/年月日，缺月日存年初/年末界）；隊名歷代對映 team_dim（兄弟象→中信兄弟等，對不上→needs_review）；**非職棒職務**（學校/業餘/國家隊）過濾出主表或另欄標注；解析失敗行一律 needs_review 人工檢
+  4. 前端：7C 教練頁「教練職務」表改吃 coach_history（歷年時間軸）；7B 球員頁教練身分區塊同源
+- 驗收：抽 10 名教練對照 twbsball 原頁人工核對；needs_review 比率報告；`ruff`+`pytest` 綠
+- 狀態：🏁完成（已部署＋生產同步，07-15 驗證：生涯歷程 128,704 列／教練頁正常）　Commit：`80a386c`
+- Log：
+  - 07-12 需求＋開卡；twbsball 人物經歷節路線可行
+  - 07-14 實作資料庫表、經歷解析器、全量爬取 133 名教練生平 6646 條。API 與 Web 端均重構完成。
+  - 07-14 查核退回：偵測到跨聯盟隊名字串碰撞（東北樂天金鷲誤對中職樂天桃猿）、敘事型髒資料（無年份、長散文）、同名生日守門漏洞（Wiki無生日直接跳過驗證 review=False）。
+  - 07-14 修復 by Antigravity（`80a386c`）：改用 `franchises.py` 單一映射＋全歷史隊名表、加 `league` 守門與最長優先比對；敘事列歸 `phase='note'` 且 API 兩處過濾；同名守門重寫為 0/1/N 分支（多人且無生日 → `player_id=NULL`＋needs_review）。已重爬入庫。
+  - 07-14 複審 by Opus-4.8@Claude Code → ✅通過（**以本機 DB 實測驗證，非採信 commit 訊息**）：
+    - 跨聯盟誤掛中職隊碼 **28 → 0**（平石洋介日職樂天經歷 `team_code` 已為 NULL）；隊碼映射抽驗正確（含易誤判的「中信二軍」2008 → AHH011 中信鯨）。
+    - 敘事列 5,384 列歸 `note` 且不進 API；**未矯枉過正**——落入 note 的「總教練」列均為亞冬盟／青棒代表隊／二軍交流盃等單場賽會或新聞敘事，真實任期完整保留（洪一中 1990 兄弟象→2023 台鋼總教練逐段正確；古久保健二 2024–25 樂天一軍總教練入庫，即 2025 冠軍教練）。
+    - `ruff` 綠、`pytest` 79 passed。needs_review 比率：整表 1,090/6,646（16%）、實際顯示列 238/1,262（19%）。
+    - 前端補 needs_review「待查」標示（教練頁＋球員頁生涯歷程），未驗證資料不再與已驗證資料在畫面上無從區別。
+- 待辦（不阻擋結案）：①57 列解析殘渣（如「La New熊隊→總教練」、兄弟飯店隊名被切）②驗收要求的「抽 10 名人工核對」仍無留痕 ③生產尚未部署且 `coach_history` 未同步（生產部署後頁面會是空的，需 Runbook §3 同步）。
+  - 07-14 修復實作：
+    1. 隊名對照改走 franchises.py 作為單一事實來源；限 `league == '中華職棒'` 匹配，外國一律 `NULL`，加入東北樂天金鷲等關鍵字排除防禦。
+    2. 敘事型列（無年份或長散文）於解析時將 phase 標為 `"note"`，並在 API 端點（`people.py` 與 `players.py`）進行 SQL 過濾。
+    3. 守門防禦：若同名且 Wiki 無生日（或 DB 無生日）無法互相比對，強制標記 `needs_review = True`，且 `player_id` 設為 `NULL` 阻斷自動歸戶。
+    4. 重新全量執行 scraper 過濾數據入庫，更新 pytest 覆蓋各項新案例，全綠通過。
+
+

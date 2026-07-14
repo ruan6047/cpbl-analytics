@@ -10,14 +10,12 @@
 
 | 卡ID | 功能 | 需求 | 規劃 | 執行(model@tool) | 查核(model@tool) | 分支 | 紅線 | 狀態 |
 |---|---|---|---|---|---|---|---|---|
-| [BUG-VENUE-ALIAS](tasks/BUG-VENUE-ALIAS.md) | 球場列表歷史別名歸一 | ruan6047 | GPT-5@Codex | GPT-5@Codex | Opus-4.8@Claude Code | `fix/venue-list-alias-normalization` | ⚪ | ✅通過（事後查核；別名前提經資料驗證，附帶消除第三份規則拷貝） |
-| COACH-HIST | 歷年教練職務史（twbsball 經歷節） | ruan6047 | Fable-5@Claude Code | Antigravity | Opus-4.8@Claude Code | `ai/antigravity/COACH-HIST-FIX` | ⚪ | ✅通過（跨聯盟碰撞 28→0、敘事列過濾、同名守門重寫；待部署＋生產資料同步） |
 | VENUE-DEFUNCT | 已拆除球場納入球場維度（老台中球場等） | ruan6047 | 待小 spec | 待指派 | 待指派（≠執行者） | `ai/<執行者>/VENUE-DEFUNCT` | ⚪ | 📥Backlog（`台中` 1120 場一軍無 `venue_dim` 列故 `/venues` 不顯示；先定產品範圍） |
 | UX-OUTCOME-HOME | 首頁賽事勝率預測整合與重製 | ruan6047 | 待小 spec | 待指派 | 待指派 | `ai/<執行者>/UX-OUTCOME-HOME` | ⚪ | 📥Backlog（首頁移除後獨立成新卡） |
 | ML-MATCHUP1 | 天敵候選／優勢對位統計洞察 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)；建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-MATCHUP1` | 🔴 | 📥Backlog（依賴 MATCHUP-DATA1；baseline、shrinkage、敏感度驗證） |
 | UX-MATCHUP1 | `/matchups` 查詢式頁面重製 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-MATCHUP1` | ⚪ | 📥Backlog（依賴 MATCHUP-DATA1＋ML-MATCHUP1） |
 | UX-MATCHUP2 | 投打對決整合球員個人頁 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-MATCHUP2` | ⚪ | 📥Backlog（依賴 UX-MATCHUP1；共用元件與 deep-link） |
-| RECORD-DATA1 | 歷年總冠軍權威資料集與球團映射 | ruan6047 | GPT-5@Codex（[`spec`](../records-redesign.md)；建議 Fable） | GPT-5@Codex | 待指派（跨家族模型或人審） | `ai/gpt-5-codex/RECORD-DATA1` | 🔴 | 🔍待查核（36 季完整；待指派人審或跨家族模型查核） |
+| RECORD-DATA1 | 歷年總冠軍權威資料集與球團映射 | ruan6047 | GPT-5@Codex（[`spec`](../records-redesign.md)；建議 Fable） | GPT-5@Codex | Opus-4.8@Claude Code | `ai/gpt-5-codex/RECORD-DATA1` | 🔴 | ✅通過（07-14 事後查核：33 季由 games kind C 獨立推導零差異；1992/94/95 以半季戰績重建佐證；教練獎 24/24 交叉驗證） |
 | RECORD-API1 | 紀錄室分類排行與冠軍 API | ruan6047 | GPT-5@Codex（[`spec`](../records-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/RECORD-API1` | ⚪ | 📥Backlog（依賴 RECORD-DATA1；相容擴充、並列排名、現役篩選） |
 | UX-RECORD1 | `/records` 歷史重要性導向重製 | ruan6047 | GPT-5@Codex（[`spec`](../records-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-RECORD1` | ⚪ | 📥Backlog（依賴 RECORD-API1；首屏標竿、生涯榜、冠軍王朝） |
 | ML-UMP1 | 裁判誤判預期影響研究 | ruan6047 | 待研究 spec（建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-UMP1` | 🔴 | 📥Backlog（先驗證再決定是否產品化，不併 UX-10） |
@@ -36,33 +34,6 @@
 
 ## 進行中／待辦卡
 
-### COACH-HIST 歷年教練職務史（twbsball 經歷節）  〔⚪一般〕
-- 需求：ruan6047（07-12）　規劃：Fable-5@Claude Code　分支：`ai/antigravity/COACH-HIST-FIX`
-- 執行：Antigravity　查核：Opus-4.8@Claude Code（≠ 執行）
-- 範圍：
-  1. 種子名單＝現任 coaches 72＋managers 90（去重）；爬個人條目經歷節（~150 頁，一次抓+手動刷新，照 wiki-data-sources 慣例）
-  2. 解析教練職務行 → 新表 `coach_history(name, team_code, pos, from_date, to_date, source, needs_review)`（migration 冪等）
-  3. **解析守則（不腦補）**：行格式變異（兼任/代理/客座 前綴保留進 pos）；日期粒度不一（年/年月/年月日，缺月日存年初/年末界）；隊名歷代對映 team_dim（兄弟象→中信兄弟等，對不上→needs_review）；**非職棒職務**（學校/業餘/國家隊）過濾出主表或另欄標注；解析失敗行一律 needs_review 人工檢
-  4. 前端：7C 教練頁「教練職務」表改吃 coach_history（歷年時間軸）；7B 球員頁教練身分區塊同源
-- 驗收：抽 10 名教練對照 twbsball 原頁人工核對；needs_review 比率報告；`ruff`+`pytest` 綠
-- 狀態：✅通過（待部署＋生產資料同步）　Commit：`80a386c`
-- Log：
-  - 07-12 需求＋開卡；twbsball 人物經歷節路線可行
-  - 07-14 實作資料庫表、經歷解析器、全量爬取 133 名教練生平 6646 條。API 與 Web 端均重構完成。
-  - 07-14 查核退回：偵測到跨聯盟隊名字串碰撞（東北樂天金鷲誤對中職樂天桃猿）、敘事型髒資料（無年份、長散文）、同名生日守門漏洞（Wiki無生日直接跳過驗證 review=False）。
-  - 07-14 修復 by Antigravity（`80a386c`）：改用 `franchises.py` 單一映射＋全歷史隊名表、加 `league` 守門與最長優先比對；敘事列歸 `phase='note'` 且 API 兩處過濾；同名守門重寫為 0/1/N 分支（多人且無生日 → `player_id=NULL`＋needs_review）。已重爬入庫。
-  - 07-14 複審 by Opus-4.8@Claude Code → ✅通過（**以本機 DB 實測驗證，非採信 commit 訊息**）：
-    - 跨聯盟誤掛中職隊碼 **28 → 0**（平石洋介日職樂天經歷 `team_code` 已為 NULL）；隊碼映射抽驗正確（含易誤判的「中信二軍」2008 → AHH011 中信鯨）。
-    - 敘事列 5,384 列歸 `note` 且不進 API；**未矯枉過正**——落入 note 的「總教練」列均為亞冬盟／青棒代表隊／二軍交流盃等單場賽會或新聞敘事，真實任期完整保留（洪一中 1990 兄弟象→2023 台鋼總教練逐段正確；古久保健二 2024–25 樂天一軍總教練入庫，即 2025 冠軍教練）。
-    - `ruff` 綠、`pytest` 79 passed。needs_review 比率：整表 1,090/6,646（16%）、實際顯示列 238/1,262（19%）。
-    - 前端補 needs_review「待查」標示（教練頁＋球員頁生涯歷程），未驗證資料不再與已驗證資料在畫面上無從區別。
-- 待辦（不阻擋結案）：①57 列解析殘渣（如「La New熊隊→總教練」、兄弟飯店隊名被切）②驗收要求的「抽 10 名人工核對」仍無留痕 ③生產尚未部署且 `coach_history` 未同步（生產部署後頁面會是空的，需 Runbook §3 同步）。
-  - 07-14 修復實作：
-    1. 隊名對照改走 franchises.py 作為單一事實來源；限 `league == '中華職棒'` 匹配，外國一律 `NULL`，加入東北樂天金鷲等關鍵字排除防禦。
-    2. 敘事型列（無年份或長散文）於解析時將 phase 標為 `"note"`，並在 API 端點（`people.py` 與 `players.py`）進行 SQL 過濾。
-    3. 守門防禦：若同名且 Wiki 無生日（或 DB 無生日）無法互相比對，強制標記 `needs_review = True`，且 `player_id` 設為 `NULL` 阻斷自動歸戶。
-    4. 重新全量執行 scraper 過濾數據入庫，更新 pytest 覆蓋各項新案例，全綠通過。
-
 
 ### ML-UMP1 裁判誤判預期影響研究  〔🔴紅線：統計／反事實估計〕
 - 需求：ruan6047（07-14）　規劃：Fable（統計定義／驗證設計）　分支：`ai/<執行者>/ML-UMP1`
@@ -77,13 +48,18 @@
 - 執行：GPT-5@Codex　查核：待指派（跨模型家族或人審＋資料實測）
 - 範圍：1990–2025 共 36 季 canonical championships dataset、逐年官方來源、歷史隊碼→franchise mapping、coverage 契約；`championship_members` 改以 canonical dataset 決定冠軍隊。
 - 驗收：36 季無缺漏；1992／1994／1995 有官方來源；franchise mapping 與既有沿革一致；重跑冪等；缺年時 coverage 必須降級，不得產生完整歷史結論。
-- 狀態：🔍待查核　Commit：`7f4dbc9`、`760e942`
+- 狀態：✅通過　查核：Opus-4.8@Claude Code（≠ 執行）　Commit：`7f4dbc9`、`760e942`
 - Log：
   - 07-14 ruan6047 派工；建立隔離 worktree，開始官方來源與既有 33 季 games 推導結果交叉核對
   - 07-14 實作完成：新增 `championships` canonical dataset（1990–2025）、共用 franchise mapping、coverage fail-closed 契約；`championship_members` 改由已驗證資料重建
   - 07-14 自測：migration 連跑兩次維持 36 季；33 季 vs games 冠軍零差異；1992／1994／1995 補入 25／23／30 名球員；重建連跑兩次皆 1,461 列；`ruff` 綠、`pytest` 49 passed（1 個既有 Starlette deprecation warning）
   - 07-14 push 因公開 GitHub 外傳需明確授權而被安全審查拒絕；依交接出口條件維持 🔨，待 ruan6047 明確授權 push 後再轉 🔍待查核
   - 07-14 ruan6047 授權 PUSH：確認程式碼已併入 main 並推至 origin/main；正式轉為 🔍待查核，等待指派查核
+  - 07-14 查核 by Opus-4.8@Claude Code → ✅通過（**以資料獨立重建驗證，非讀 code**）：
+    - 33 個有台灣大賽的年份，**冠軍／亞軍／系列賽比分全部逐年吻合**（由 games kind C 自行推導）。2002/2017/2018 的「3 勝封王」正對應半季雙冠的讓一勝，非資料缺漏。
+    - 最該懷疑的 1992/1994/1995（無台灣大賽）：以逐場資料重建上下半季戰績，1992/94 兄弟象、1995 統一獅**皆兩個半季居首**，獨立佐證「包辦半季直接封王」。
+    - 建置面：36 季、championship_members 1,461 列、1992/94/95 各 25/23/30 名；TRUNCATE 重建冪等；僅採 verification_status='verified'。
+    - 交接風險（已於 054 卡處理）：`championship_coverage()` 當時無 API 消費、`CANONICAL_THROUGH_YEAR` 寫死。
 
 ### UX-OUTCOME-HOME 首頁賽事勝率預測整合與重製  〔⚪一般〕
 - 需求：ruan6047（07-14）——配合首頁微調將原賽事預測 teaser 移除，未來搭配 `ML-SIM1` 簡易勝負預測模型開發完成後，重新設計高質感的預測卡片整合回首頁。
