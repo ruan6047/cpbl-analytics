@@ -12,7 +12,7 @@
 |---|---|---|---|---|---|---|---|---|
 | UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🔨子卡執行中（餘 UX-5C；UX-7 群、UX-8、UX-9 07-14 已結案） |
 | UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | 待小 spec | 待指派 | 待指派 | — | ⚪ | 📥Backlog（**壓到 UX-6〜9 完成後**重製） |
-| MATCHUP-DATA1 | 投打對決資料範圍與查詢 API 正確化 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | GPT-5@Codex | 待指派（跨家族模型或人審） | `ai/codex/MATCHUP-DATA1` | 🔴 | 🔨執行中（worktree `../cpbl-analytics-matchup-data1`） |
+| MATCHUP-DATA1 | 投打對決資料範圍與查詢 API 正確化 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | GPT-5@Codex | 待指派（跨家族模型或人審） | `ai/codex/MATCHUP-DATA1` | 🔴 | 🔨實作完成，待授權 push（57 tests＋真 DB 年度鏈路對帳綠） |
 | ML-MATCHUP1 | 天敵候選／優勢對位統計洞察 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)；建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-MATCHUP1` | 🔴 | 📥Backlog（依賴 MATCHUP-DATA1；baseline、shrinkage、敏感度驗證） |
 | UX-MATCHUP1 | `/matchups` 查詢式頁面重製 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-MATCHUP1` | ⚪ | 📥Backlog（依賴 MATCHUP-DATA1＋ML-MATCHUP1） |
 | UX-MATCHUP2 | 投打對決整合球員個人頁 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-MATCHUP2` | ⚪ | 📥Backlog（依賴 UX-MATCHUP1；共用元件與 deep-link） |
@@ -43,9 +43,13 @@
 - 執行：GPT-5@Codex　查核：待指派（跨模型家族或人審＋資料實測）
 - 範圍：本季／生涯／指定年度聚合、歷史隊伍 mapping、球員搜尋、隊伍／對手篩選、白名單排序與 API contract；不含天敵／優勢統計與前端重製。
 - 驗收：跨年度只加總原始計數再重算 rate；年度範圍不重複混入官網生涯列；歷史對手隊不以當季隊名推論；查詢參數化且排序白名單；route snapshot、API 測試與真實資料對帳通過。
-- 狀態：🔨執行中　Commit：—
+- 狀態：🔨實作完成，待授權 push　Commit：`275fba9`、`6cda62c`
 - Log：
   - 07-14 ruan6047 派工；建立隔離 worktree，開始盤點 matchup schema、API contract 與真實資料分布
+  - 07-14 實作完成：新增互斥 career／season／range scope、跨年原始計數聚合、歷史 franchise 隊碼篩選、有限 roster 搜尋、對手／排序／limit 與單組詳情 contract；舊頁未帶 role 時維持完整 roster 相容
+  - 07-14 自測：`ruff` 綠、`pytest` 57 passed、`tsc`＋`build:check` 綠；npm high audit 通過（既有 2 個 moderate PostCSS advisory，修復需 breaking Next downgrade，未擅改 lockfile）
+  - 07-14 真實資料 QA：白天單抓陳傑憲 2026 A 成功寫入 63 列；API coverage=[2026]，伍鐸列 9 PA／8 AB／4 H 的 AVG .5000、OBP .5556、SLG .5000 與 DB 原始計數一致；驗證後精確刪除 63 列，DB 恢復僅 9999 生涯資料
+  - 07-14 部署前資料閘門：正式啟用年度 UI 前須完整跑 `cpbl-scrape-fighting 2026` 並做全 roster coverage QA；API 在缺年度資料時明確回空，不以生涯列代替
 
 ### UX-1 全站頁面 UI/UX 重新設計  〔⚪（大卡：規劃後預期拆多張子卡，涉全站視覺）〕
 - 需求：ruan6047（07-11）——**重新設計每個頁面的 UI/UX**。痛點：①頁面不統一 ②數據可視度不夠 ③頁面與區塊混亂；裁判報告的資訊架構另抽 UX-10 處理。
