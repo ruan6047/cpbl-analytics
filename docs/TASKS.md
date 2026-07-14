@@ -20,7 +20,7 @@
 | RECORD-API1 | 紀錄室分類排行與冠軍 API | ruan6047 | GPT-5@Codex（[`spec`](../records-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/RECORD-API1` | ⚪ | 📥Backlog（依賴 RECORD-DATA1；相容擴充、並列排名、現役篩選） |
 | UX-RECORD1 | `/records` 歷史重要性導向重製 | ruan6047 | GPT-5@Codex（[`spec`](../records-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-RECORD1` | ⚪ | 📥Backlog（依賴 RECORD-API1；首屏標竿、生涯榜、冠軍王朝） |
 | ML-UMP1 | 裁判誤判預期影響研究 | ruan6047 | 待研究 spec（建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-UMP1` | 🔴 | 📥Backlog（先驗證再決定是否產品化，不併 UX-10） |
-| VENUE-PARK1 | 球場滾飛比／Park Factor／選手極端表現（資料＋API） | ruan6047 | Fable（park factor 公式＋小樣本呈現需統計判斷） | 待指派（Fable） | 待指派（跨家族模型或人審） | `ai/<執行者>/VENUE-PARK1` | 🔴 | 📥Backlog（先行；2018–2025 逐年回填為資料維運，免開分支） |
+| VENUE-PARK1 | 球場滾飛比／Park Factor／選手極端表現（資料＋API） | ruan6047 | Fable（park factor 公式＋小樣本呈現需統計判斷） | Fable-5@Claude Code | 待指派（跨家族模型或人審） | `ai/fable-5/VENUE-PARK1` | 🔴 | 🔨執行中（worktree `../cpbl-analytics-venue-park1`） |
 | UX-VENUE1 | `/venues/[venue]` 球場詳情頁 | ruan6047 | Sonnet@Claude Code | 待指派（Sonnet） | 待指派（≠執行者） | `ai/<執行者>/UX-VENUE1` | ⚪ | 📥Backlog（依賴 VENUE-PARK1；純 UI，吃前卡 API） |
 | COACH-HIST | 歷年教練職務史（twbsball 經歷節） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（7C 已上線，接點就緒可排） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
@@ -90,10 +90,11 @@
   1. 資料僅涵蓋 2018+（`batting_gamelog`/livelog 起始年，1990–2017 無法歸因球場）。
   2. 單球場單季主場數僅 10–25 場，輸出必須附樣本數／場次，用字避免「這球場就是不容易全壘打」式斷言；park factor 採主客對照法（控制球隊強弱），不比聯盟平均（避免被強弱隊主場用量差干擾）。
 - 交付物：API contract（含樣本數欄位）＋資料驗證報告，供 UX-VENUE1 直接消費。
-- 狀態：📥Backlog（規劃已核可，待派工）　Commit：—
+- 狀態：🔨執行中　Commit：—
 - Log：
   - 07-14 需求＋現況盤點（Sonnet）：確認滾飛比／選手極端表現免新爬蟲（沿用既有 `batting_splits`/`pitching_splits` 球場 family）；park factor 需新算式（主客對照法，ruan6047 07-14 選定）；逐年回填（2018–2025，ruan6047 07-14 選定）靠既有 `cpbl-build-splits <year>` CLI，屬資料維運非程式碼變更
   - 07-14 ruan6047 裁示拆卡：紅線（公式／樣本數判斷）與 UI 分離，方便各自配模型（Fable vs Sonnet）→ 拆出 UX-VENUE1，本卡收斂為資料＋API
+  - 07-14 ruan6047 派工 Fable-5@Claude Code；開 worktree `../cpbl-analytics-venue-park1`（分支 `ai/fable-5/VENUE-PARK1`）
 
 ### UX-VENUE1 `/venues/[venue]` 球場詳情頁  〔⚪一般〕
 - 需求：ruan6047（07-14，與 VENUE-PARK1 同源）　規劃：Sonnet@Claude Code　分支：`ai/<執行者>/UX-VENUE1`
