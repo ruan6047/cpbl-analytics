@@ -19,6 +19,8 @@
 | UX-4 | 骨架導覽＋標準頁面解剖落地 | ruan6047 | Fable-5@Claude Code | Gemini-3.5-Flash@Antigravity | 待指派 | `ai/antigravity/UX-4` | ⚪ | 🏁完成 |
 | UX-4.5 | 互動與動效準則＋提示元件 | ruan6047 | Fable-5@Claude Code | Gemini-3.5-Flash@Antigravity（+Claude-Opus-4@Junie 補修） | ruan6047（自查） | `ai/antigravity/UX-4.5` | ⚪ | 🏁完成 |
 | UX-5B | 首頁 hub v1（門面＋關鍵訊息）＋戰績搬 `/standings` | ruan6047 | Fable-5@Claude Code | Opus-4.8@Claude Code | ruan6047（人審 merge） | `ai/opus/UX-5B` | ⚪ | 🏁完成 |
+| SEC-NEXT-15520 | Next.js 15.5.20 安全升級 | ruan6047 | GPT-5@Codex | GPT-5@Codex | ruan6047 | `ai/codex/SEC-NEXT-15520` | 🔴 | 🏁完成（merge `8f52e51`，07-14 已部署） |
+| UX-10 | 裁判個人頁與賽事裁判報告整合 | ruan6047 | Sonnet-5@ClaudeCode | Sonnet@Antigravity | GPT-5@Codex | `ai/antigravity/UX-10` | ⚪ | 🏁完成（merge `5478ded`，07-14 已部署） |
 
 ---
 
@@ -433,3 +435,33 @@
 > Ledger 列（歸檔）：
 | UX-8 | 排行與紀錄群 | ruan6047 | Fable-5@Claude Code | GPT-5@Codex | Sonnet-5@Claude Code | `ai/codex/UX-8` | ⚪ | 🏁完成 |
 
+### SEC-NEXT-15520 Next.js 15.5.20 安全升級 〔🔴紅線：前端相依安全〕
+- 需求：ruan6047（07-14）　規劃：GPT-5@Codex（已知局部修補）　分支：`ai/codex/SEC-NEXT-15520`
+- 執行：GPT-5@Codex　查核：ruan6047（人審；≠執行者）
+- 範圍／驗收：將 `next` 由 15.5.4 升至 npm audit 指定的 15.5.20，更新 lockfile；`npm audit --audit-level=high` 不再回報 Next.js critical、`tsc`／`build:check`／瀏覽器 smoke test 綠。不得順手升 React、Tailwind 或改產品程式碼。
+- 狀態：🏁完成（merge `8f52e51`，07-14 隨主站 `27f25f0` 部署上線）　Commit：`45fab31`、`8f52e51`
+- Log：
+  - 07-14 ruan6047 派工；GPT-5@Codex 建立 worktree `/Users/ruanruan/Dev/cpbl-analytics-sec-next-15520`，從 main `397860a` 開始執行
+  - 07-14 GPT-5@Codex 升級 `next` 15.5.4→15.5.20（僅 package.json/lockfile）；`npm audit --audit-level=high` 綠，尚有 Next 內嵌 PostCSS 的 2 項 moderate（audit 的唯一 auto-fix 會錯降 Next 9，未採用）
+  - 07-14 自測：`tsc`、`build:check`、Ruff、pytest 42 項全綠；Playwright `/`、`/batters`、`/records` 皆 200、zero console/network error/overflow。`npm run lint` 因既有未配置 ESLint 進互動初始化，未混入本卡修正
+  - 07-14 ruan6047 人工審核通過，授權合併 main
+  - 07-14 主站 submodule bump `27f25f0`；CI `29299476623`、Deploy `29299587846` 成功，線上 `/api/info` 與頁面 smoke test 200
+
+### UX-10 裁判個人頁與賽事裁判報告整合 〔⚪一般〕
+- 需求：ruan6047（07-11；07-14 重整範圍）　規劃：Sonnet（沿既有 API 的 UI／導覽規劃）　分支：`ai/antigravity/UX-10`
+- 執行：Sonnet@Antigravity　查核：GPT-5@Codex（升級查核；≠執行者）
+- **資訊架構**：裁判報告由獨立 `/umpires` 頁移入各場 `/games/{sno}` 賽況頁，成為該場主審的判決報告；賽況頁的裁判姓名改為連至 `/people/umpire/{name}` 裁判個人頁。主選單移除「裁判報告」，但保留 `/umpires` 索引路由作為搜尋／深連結入口，不做 404 或刪除既有 API。
+- **個人頁**：以既有裁判個人頁為基礎，呈現主審判決摘要、執法位置與可回到各場賽況報告的清單；全數持續標示 TrackMan 覆蓋場數、固定規則好球帶與「推算、非官方」限制。
+- **賽事報告**：保留目前逐球好壞球判決、好球帶位置與關鍵漏判呈現；報告只涵蓋主審且僅納入有 TrackMan 的 called 球，沒有追蹤資料時明確退化為「無法評估」，不得以缺值推論裁判表現。
+- **邊界**：不估算「誤判預期得利」；該反事實估計 [counterfactual estimation] 與是否產品化，完全交由 ML-UMP1 研究卡處理。
+- 狀態：🏁完成（merge `5478ded`，07-14 隨主站 `27f25f0` 部署上線）　Commit：`1dc6e6a`、`cda7cf1`、`9e6ef13`、`5478ded`
+- Log：
+  - 07-11 自 UX-1 抽出暫緩
+  - 07-14 成績預測公開瀏覽取消，改由獨立下架工作處理；`/predict` 規劃完全移交 ML-SIM1／ML-SIM2
+  - 07-14 ruan6047 裁示本卡改處理裁判：賽事內報告、裁判個人頁導覽與誤判預期得利可行性
+  - 07-14 依 AI_WORKFLOW 拆分一般 UI 與統計紅線：UX-10 採 Sonnet 執行／獨立查核；誤判影響研究移 ML-UMP1 採 Fable＋跨家族或人審
+  - 07-14 Antigravity 實作完成：主選單導航移除「裁判報告」；賽況總覽裁判名改連個人頁；BoxTabs 整合「主審報告」Tab，支援動態散點圖、關鍵漏判、容錯範圍與無資料退化；個人頁新增單場 deep-link
+  - 07-14 查核退回第 1 次：跨場切換未依 `game_sno` 重置主審報告；另有 `.venv` symlink 未忽略。修復 commit `cda7cf1`
+  - 07-14 查核退回第 2 次：僅清空 state 未處理舊請求晚回覆的競態；另有 `next-env.d.ts` 生成差異。修復 commit `9e6ef13`，以延遲舊請求＋client-side 換場確定性重現驗證通過
+  - 07-14 GPT-5@Codex 升級最終查核通過：舊請求 cleanup、跨場 state 重設、深連結與無資料退化正確；Ruff、pytest 42、TypeScript、`build:check` 全綠
+  - 07-14 主站 submodule bump `27f25f0`；CI `29299476623`、Deploy `29299587846` 成功，線上裁判個人頁 smoke test 200
