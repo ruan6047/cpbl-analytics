@@ -20,7 +20,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Scrape coach history from TwBsBall")
     parser.add_argument("--throttle", type=float, default=0.8, help="Throttle delay between API queries")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of coaches to query (for testing)")
-    parser.add_argument("--scope", choices=("coaches", "players", "all", "persons"), default="coaches",
+    parser.add_argument("--scope", choices=("coaches", "players", "all", "persons", "staff"), default="coaches",
                         help="種子範圍：coaches｜players｜all")
     args = parser.parse_args()
 

@@ -455,6 +455,17 @@ def _targets(cur, scope: str = "coaches") -> list[str]:
                     "UNION SELECT DISTINCT name FROM cpbl.managers ORDER BY name")
         return [r[0] for r in cur.fetchall()]
 
+    if scope == "staff":
+        # 隊史年表（TEAM-HIST1）新發現、但 person_history 還沒有的歷年教練。
+        # 沒有這一步資料是斷的：查得到「牧野幸輝 1995 在味全當教練」，卻查不到他的生平。
+        # 種子必須在隊史爬完後才算，因為人數會隨頁面增加。
+        cur.execute("""
+            SELECT DISTINCT s.name FROM cpbl.team_year_staff s
+            WHERE NOT EXISTS (SELECT 1 FROM cpbl.person_history h WHERE h.name = s.name)
+            ORDER BY s.name
+        """)
+        return [r[0] for r in cur.fetchall()]
+
     if scope == "persons":
         # 已收錄的所有人物（球員＋教練）。暱稱抽取需涵蓋教練——郭泰源（小郭）1985–97 在日職、
         # 回台只當教練，`players` 表根本沒有他，任何以 players 為種子的 scope 都碰不到。
