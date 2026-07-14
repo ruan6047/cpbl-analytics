@@ -189,7 +189,7 @@ export function TraitsChips({ id, role }: { id: string; role: Role }) {
 // 生涯成績 + 最佳單季 + 里程碑 + 史上排名（依 role 分支；無生涯資料回 null）
 export function CareerSummary({ careerStats, role }: { careerStats: CareerStats | null; role: Role }) {
   const hasManager = careerStats?.manager_stats && careerStats.manager_stats.length > 0;
-  const hasOfficialCoach = careerStats?.official_coach_tenures && careerStats.official_coach_tenures.length > 0;
+  const hasCoachHistory = careerStats?.coach_history && careerStats.coach_history.length > 0;
 
   const coachSections = (
     <>
@@ -223,23 +223,57 @@ export function CareerSummary({ careerStats, role }: { careerStats: CareerStats 
           />
         </section>
       )}
-      {hasOfficialCoach && (
+      {hasCoachHistory && (
         <section className="mb-6">
-          <h2 className="mb-2.5 text-base font-semibold text-ink">官方登錄教練經歷</h2>
+          <h2 className="mb-2.5 text-base font-semibold text-ink">生涯歷程</h2>
           <DataTable
             columns={[
-              { header: "年度", cell: (c) => String(c.year), nowrap: true, className: "font-mono text-muted" },
-              { header: "球隊", cell: (c) => c.team_code ? (
-                <Link href={`/teams/${c.team_code}`} className="inline-flex items-center gap-1.5 hover:underline">
-                  <TeamLogo code={c.team_code} size={16} />
-                  {c.team_name || c.team_code}
-                </Link>
-              ) : "—", nowrap: true },
-              { header: "職務", cell: (c) => c.pos.replace(/^一軍/, ""), className: "font-medium" },
-              { header: "背號", cell: (c) => c.uniform_no ? `#${c.uniform_no}` : "—", className: "font-mono text-faint" },
-            ] satisfies Column<NonNullable<CareerStats["official_coach_tenures"]>[number]>[]}
-            rows={careerStats.official_coach_tenures || []}
-            rowKey={(c, i) => `${c.year}-${c.team_code}-${i}`}
+              {
+                header: "期間",
+                cell: (r) => {
+                  if (r.from_year && r.to_year) {
+                    return r.from_year === r.to_year ? String(r.from_year) : `${r.from_year}–${r.to_year}`;
+                  }
+                  if (r.from_year) return `${r.from_year}–`;
+                  return "—";
+                },
+                align: "right",
+                nowrap: true,
+              },
+              {
+                header: "類別",
+                cell: (r) => {
+                  const labels: Record<string, string> = {
+                    player: "球員",
+                    coach: "教練",
+                    amateur: "業餘",
+                    other: "行政",
+                  };
+                  return labels[r.phase] ?? r.phase;
+                },
+                nowrap: true,
+              },
+              { header: "聯盟/層級", cell: (r) => r.league ?? "—", nowrap: true },
+              {
+                header: "球隊/單位",
+                cell: (r) => (
+                  <span className="flex items-center gap-1.5 font-sans">
+                    {r.team_code ? (
+                      <Link href={`/teams/${r.team_code}`} className="inline-flex items-center gap-1.5 hover:underline">
+                        <TeamLogo code={r.team_code} size={16} />
+                        {r.team_raw}
+                      </Link>
+                    ) : (
+                      r.team_raw
+                    )}
+                  </span>
+                ),
+                nowrap: true,
+              },
+              { header: "職務/身分", cell: (r) => r.pos, nowrap: true, className: "font-sans text-ink" },
+            ] satisfies Column<NonNullable<CareerStats["coach_history"]>[number]>[]}
+            rows={careerStats.coach_history || []}
+            rowKey={(r, i) => `${r.from_year}-${r.to_year}-${r.team_raw}-${i}`}
             dense
           />
         </section>
@@ -346,7 +380,7 @@ export function CareerSummary({ careerStats, role }: { careerStats: CareerStats 
     );
   }
 
-  if (hasManager || hasOfficialCoach || careerStats?.coach_ambiguous) {
+  if (hasManager || hasCoachHistory || careerStats?.coach_ambiguous) {
     return coachSections;
   }
 

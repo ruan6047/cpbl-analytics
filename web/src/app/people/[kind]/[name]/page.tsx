@@ -15,6 +15,8 @@ type CoachData = {
   roles: { year: number; team_code: string; team_name: string | null; pos: string; uniform_no: string | null }[];
   manager_eras: { team_code: string; team_name: string | null; era_name: string; from_year: number; to_year: number;
     g: number; w: number; l: number; ties: number; win_pct: number | null; postseason: number; championships: number }[];
+  history: { phase: string; league: string | null; team_raw: string; team_code: string | null; pos: string;
+    from_year: number | null; to_year: number | null; needs_review: boolean }[];
   player_id: string | null;
   player_ambiguous: boolean;
 };
@@ -29,11 +31,44 @@ type UmpData = {
 
 function CoachView({ d }: { d: CoachData }) {
   const cur = d.roles[0];
-  const cols: Column<CoachData["roles"][number]>[] = [
-    { header: "年度", cell: (r) => String(r.year), align: "right" },
-    { header: "球隊", cell: (r) => <span className="flex items-center gap-1.5 font-sans"><TeamLogo code={r.team_code} name={r.team_name} size={16} />{r.team_name ?? r.team_code}</span>, nowrap: true },
-    { header: "職務", cell: (r) => r.pos, nowrap: true, className: "font-sans text-ink" },
-    { header: "背號", cell: (r) => r.uniform_no ?? "—", align: "right" },
+  const cols: Column<CoachData["history"][number]>[] = [
+    {
+      header: "期間",
+      cell: (r) => {
+        if (r.from_year && r.to_year) {
+          return r.from_year === r.to_year ? String(r.from_year) : `${r.from_year}–${r.to_year}`;
+        }
+        if (r.from_year) return `${r.from_year}–`;
+        return "—";
+      },
+      align: "right",
+      nowrap: true,
+    },
+    {
+      header: "類別",
+      cell: (r) => {
+        const labels: Record<string, string> = {
+          player: "球員",
+          coach: "教練",
+          amateur: "業餘",
+          other: "行政",
+        };
+        return labels[r.phase] ?? r.phase;
+      },
+      nowrap: true,
+    },
+    { header: "聯盟/層級", cell: (r) => r.league ?? "—", nowrap: true },
+    {
+      header: "球隊/單位",
+      cell: (r) => (
+        <span className="flex items-center gap-1.5 font-sans">
+          {r.team_code && <TeamLogo code={r.team_code} name={r.team_raw} size={16} />}
+          {r.team_raw}
+        </span>
+      ),
+      nowrap: true,
+    },
+    { header: "職務/身分", cell: (r) => r.pos, nowrap: true, className: "font-sans text-ink" },
   ];
   const mcols: Column<CoachData["manager_eras"][number]>[] = [
     { header: "球隊", cell: (r) => <span className="flex items-center gap-1.5 font-sans"><TeamLogo code={r.team_code} name={r.team_name} size={16} />{r.team_name ?? r.team_code}</span>, nowrap: true },
@@ -69,9 +104,9 @@ function CoachView({ d }: { d: CoachData }) {
         </section>
       )}
       <section className="mb-8">
-        <Eyebrow className="mb-3">教練職務</Eyebrow>
-        <DataTable columns={cols} rows={d.roles} rowKey={(r, i) => `${r.year}-${r.team_code}-${i}`} dense
-          emptyText="無教練職務紀錄" />
+        <Eyebrow className="mb-3">生涯歷程</Eyebrow>
+        <DataTable columns={cols} rows={d.history} rowKey={(r, i) => `${r.from_year}-${r.to_year}-${r.team_raw}-${i}`} dense
+          emptyText="無生涯歷程紀錄" />
       </section>
     </div>
   );

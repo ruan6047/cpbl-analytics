@@ -189,6 +189,7 @@ export const detail = {
       official_coach_tenures?: { year: number; team_code: string; team_name: string | null; pos: string; uniform_no: string | null }[];
       manager_stats?: { team_code: string; team_name: string | null; era_name: string | null; from_year: number | null; to_year: number | null; g: number | null; w: number | null; l: number | null; ties: number | null; win_pct: number | null; postseason: string | null; championships: number | null }[];
       coach_ambiguous?: boolean;
+      coach_history?: { phase: string; league: string | null; team_raw: string; team_code: string | null; pos: string; from_year: number | null; to_year: number | null; needs_review: boolean }[];
     }>(`/api/v1/players/${id}/career`),
   traits: (id: string, role: "batting" | "pitching") =>
     clientGet<{
