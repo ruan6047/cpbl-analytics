@@ -448,7 +448,7 @@ export default function GameLivePage() {
   ] as DecItem[]).filter((d) => d.value);
 
   // 賽事資訊（渲染於總覽右卡）：天氣/觀眾/時長併一列，裁判獨立一列
-  const info: [string, string][] = [];
+  const info: [string, React.ReactNode][] = [];
   if (data.detail) {
     const d = data.detail;
     const parts: string[] = [];
@@ -465,8 +465,23 @@ export default function GameLivePage() {
     if (parts.length) info.push(["概況", parts.join("・")]);
     const umps = [["主審", d.head_umpire], ["一壘", d.first_umpire], ["二壘", d.second_umpire],
       ["三壘", d.third_umpire], ["左審", d.left_umpire], ["右審", d.right_umpire]]
-      .filter(([, v]) => v).map(([l, v]) => `${l} ${v}`).join("、");
-    if (umps) info.push(["裁判", umps]);
+      .filter(([, v]) => v) as [string, string][];
+    if (umps.length) {
+      info.push([
+        "裁判",
+        <span key="umps" className="flex flex-wrap gap-x-1.5 gap-y-0.5">
+          {umps.map(([l, v], idx) => (
+            <span key={l}>
+              {idx > 0 && "、"}
+              <span className="text-muted">{l}</span>{" "}
+              <Link href={`/people/umpire/${encodeURIComponent(v)}`} className="text-accent hover:underline">
+                {v}
+              </Link>
+            </span>
+          ))}
+        </span>
+      ]);
+    }
   }
   // 延賽/保留說明：放進賽事資訊卡（裁判下方）；歷史無總覽場走頁面下方 Notice fallback
   let delayNote = "";

@@ -92,7 +92,7 @@ export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor
   onJump: (evt: string) => void;
   highlights: { text: string; team: string | null }[];
   milestones: { text: string; team: string | null }[];
-  info: [string, string][];
+  info: [string, React.ReactNode][];
   mvp: { name: string; line: string; count?: number | null; pid?: string } | null;
   decisions: DecItem[];
 }) {
