@@ -48,3 +48,36 @@ def test_info_status_vocabulary(client, broken_db):
     """status 只允許契約詞彙。"""
     res = client.get("/api/info")
     assert res.json()["status"] in ("running", "maintenance", "stopped")
+
+
+def test_matchup_query_parameters_are_exposed_in_openapi():
+    paths = app.openapi()["paths"]
+
+    roster_params = {
+        parameter["name"]
+        for parameter in paths["/api/v1/players/roster"]["get"]["parameters"]
+    }
+    assert {"role", "season", "q", "limit"} <= roster_params
+
+    player_params = {
+        parameter["name"]
+        for parameter in paths["/api/v1/players/{player_id}/matchups"]["get"]["parameters"]
+    }
+    assert {
+        "role",
+        "kind_code",
+        "scope",
+        "season",
+        "from_year",
+        "to_year",
+        "opponent_team",
+        "opponent_id",
+        "limit",
+        "sort",
+        "order",
+    } <= player_params
+
+    detail_params = {
+        parameter["name"] for parameter in paths["/api/v1/matchups"]["get"]["parameters"]
+    }
+    assert {"kind_code", "scope", "season", "from_year", "to_year"} <= detail_params
