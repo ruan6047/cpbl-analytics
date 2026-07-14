@@ -422,24 +422,49 @@ def _seed_tenures(cur, name: str) -> list[tuple[int, str]]:
     return [(y, t) for y, t in cur.fetchall() if y and t]
 
 
-# 暱稱：結構化欄位（`:*綽號別稱：'''天哥'''、'''阿信'''`）可直接採用；
-# 只寫在內文者（林智勝「外號『大師兄』」）句型鬆散、易誤抓他人綽號 → 一律 needs_review。
-_NICK_FIELD = re.compile(r"綽號別稱：\s*(.+)")
+# 暱稱欄位的標籤**沒有統一**（實測 70 頁：綽號別稱 10、暱稱別號 6、別號暱稱 3，另有暱號別號）。
+# 只認一種會漏掉近半結構化暱稱，然後錯誤退回內文抽取——「蒼蠅」事件即此：陳禹勳頁用的是
+# 「暱號別號：鄉長、虎神、香腸」，漏抓後內文規則抓到一句在解釋**已棄用舊綽號**的句子
+# （「原本綽號叫『蒼蠅』，後來改叫虎神」），得出錯誤答案（ruan6047 指正）。
+_NICK_FIELD = re.compile(
+    r"^:?\*+[^：\n]{0,6}(?:綽號|暱稱|暱號|別號|別稱)[^：\n]{0,6}：\s*(.+)$", re.M
+)
+# 內文型只在無結構化欄位時退而求其次；排除「原本／曾經／以前」這類**已棄用**的舊稱。
 _NICK_PROSE = re.compile(r"(?:外號|綽號|暱稱)[為叫是稱]?\s*[「『]([^」』]{1,8})[」』]")
+_NICK_OBSOLETE = re.compile(r"(?:原本|曾經|以前|早期|舊)[^。]{0,20}(?:外號|綽號|暱稱)")
 
 
 def parse_nickname(wikitext: str) -> tuple[list[str], str] | None:
-    """回 (暱稱清單, 來源 field|prose)；查無回 None。"""
-    txt = re.sub(r"\[\[|\]\]|'''|''", "", wikitext)
+    """回 (暱稱清單, 來源 field|prose)；查無回 None。
+
+    `<ref>` 註腳先剝除——它裝的是綽號由來的敘述（含已棄用的舊稱），留著會污染抽取。
+    """
+    txt = re.sub(r"<ref[^>]*>.*?</ref>|<ref[^>]*/>", "", wikitext, flags=re.S)
+    # [[連結目標|顯示文字]] → 顯示文字，否則「鋒哥|抗日英雄」會整串被當成一個綽號
+    txt = re.sub(r"\[\[[^\]|]*\|([^\]]*)\]\]", r"\1", txt)
+    txt = re.sub(r"\[\[|\]\]|'''|''", "", txt)
+
+    names: list[str] = []
     m = _NICK_FIELD.search(txt)
     if m:
-        names = [n.strip() for n in re.split(r"[、,，/／]", m.group(1)) if 1 <= len(n.strip()) <= 10]
-        if names:
-            return names, "field"
-    m = _NICK_PROSE.search(txt)
-    if m:
-        return [m.group(1).strip()], "prose"
-    return None
+        names = [n.strip() for n in re.split(r"[、,，/／]", m.group(1))
+                 if 1 <= len(n.strip()) <= 10]
+
+    # 欄位與內文取**聯集**，不是欄位優先就不看內文：彭政閔的欄位列了火星恰／恰哥／恰總，
+    # 卻沒有他最廣為人知的「恰恰」（該詞在頁面上只出現在內文與圖檔名）。
+    prose: list[str] = []
+    for pm in _NICK_PROSE.finditer(txt):
+        head = txt[max(0, pm.start() - 30):pm.start()]
+        if _NICK_OBSOLETE.search(head):
+            continue          # 「原本綽號叫 X」＝已棄用，不採（陳禹勳的「蒼蠅」即此）
+        n = pm.group(1).strip()
+        if n and n not in names and n not in prose:
+            prose.append(n)
+
+    if not names and not prose:
+        return None
+    source = "field+prose" if names and prose else ("field" if names else "prose")
+    return names + prose, source
 
 
 def _targets(cur, scope: str = "coaches") -> list[str]:
@@ -659,7 +684,7 @@ def run(throttle: float = 0.8, limit: int | None = None, scope: str = "coaches")
                         "nickname=EXCLUDED.nickname, player_id=EXCLUDED.player_id, "
                         "source=EXCLUDED.source, needs_review=EXCLUDED.needs_review, "
                         "updated_at=now()",
-                        (name, names, player_id, src, src == "prose"),
+                        (name, names, player_id, src, "prose" in src),
                     )
                 st["nickname"] += 1
         

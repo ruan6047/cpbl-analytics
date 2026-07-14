@@ -147,3 +147,36 @@ def test_parse_nickname_prose_is_flagged_as_lower_confidence():
 
 def test_parse_nickname_absent():
     assert ch.parse_nickname("出生日期：{{BD|1990-01-01}}") is None
+
+
+def test_nickname_field_label_variants():
+    """欄位標籤沒有統一（實測：綽號別稱／暱稱別號／別號暱稱／暱號別號），只認一種會漏近半。"""
+    for label in ("綽號別稱", "暱稱別號", "別號暱稱", "暱號別號"):
+        assert ch.parse_nickname(f":*{label}：鄉長、香腸") == (["鄉長", "香腸"], "field")
+
+
+def test_nickname_ignores_obsolete_prose_and_refs():
+    """<ref> 註腳裝的是綽號由來（含已棄用舊稱）；「原本綽號叫 X」不得採用。
+
+    ruan6047 指正：陳禹勳被抓成「蒼蠅」——那是他早已不用的舊稱，出現在解釋句與 ref 裡。
+    """
+    wt = (":*暱號別號：鄉長<ref>因以鄉民稱呼球迷</ref>、虎神"
+          "<ref>原本陳禹勳的綽號叫「蒼蠅」，後來改叫「虎神」。</ref>、香腸")
+    nick, src = ch.parse_nickname(wt)
+    assert nick == ["鄉長", "虎神", "香腸"]
+    assert "蒼蠅" not in nick
+    assert src == "field"
+
+
+def test_nickname_unions_field_and_prose():
+    """欄位與內文取聯集：彭政閔欄位沒有他最著名的「恰恰」，該詞只在內文。"""
+    wt = ":*綽號別稱：火星恰、恰哥\n他的外號「恰恰」廣為人知。"
+    nick, src = ch.parse_nickname(wt)
+    assert nick == ["火星恰", "恰哥", "恰恰"]
+    assert src == "field+prose"
+
+
+def test_nickname_strips_pipe_links():
+    """[[鋒哥|抗日英雄]] 要取顯示文字，否則整串會被當成一個綽號。"""
+    nick, _ = ch.parse_nickname(":*綽號別稱：[[鋒哥|抗日英雄]]、台灣巨砲")
+    assert nick == ["抗日英雄", "台灣巨砲"]
