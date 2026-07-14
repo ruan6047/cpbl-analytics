@@ -16,7 +16,7 @@
 | UX-MATCHUP1 | `/matchups` 查詢式頁面重製 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-MATCHUP1` | ⚪ | 📥Backlog（依賴 MATCHUP-DATA1＋ML-MATCHUP1） |
 | UX-MATCHUP2 | 投打對決整合球員個人頁 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-MATCHUP2` | ⚪ | 📥Backlog（依賴 UX-MATCHUP1；共用元件與 deep-link） |
 | RECORD-DATA1 | 歷年總冠軍權威資料集與球團映射 | ruan6047 | GPT-5@Codex（[`spec`](../records-redesign.md)；建議 Fable） | GPT-5@Codex | Opus-4.8@Claude Code | `ai/gpt-5-codex/RECORD-DATA1` | 🔴 | ✅通過（07-14 事後查核：33 季由 games kind C 獨立推導零差異；1992/94/95 以半季戰績重建佐證；教練獎 24/24 交叉驗證） |
-| RECORD-API1 | 紀錄室分類排行與冠軍 API | ruan6047 | GPT-5@Codex（[`spec`](../records-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/RECORD-API1` | ⚪ | 📥Backlog（依賴 RECORD-DATA1；相容擴充、並列排名、現役篩選） |
+| RECORD-API1 | 紀錄室分類排行與冠軍 API | ruan6047 | Opus-4.8@Claude Code | Opus-4.8@Claude Code | 待指派（≠執行者） | `ai/opus-4.8/RECORD-API1` | ⚪ | 🔍待查核（`/records/championships`：36 季冠亞軍+教練、王朝榜、球員榜；**coverage 缺年直接不回排行**，突變測試驗證） |
 | UX-RECORD1 | `/records` 歷史重要性導向重製 | ruan6047 | GPT-5@Codex（[`spec`](../records-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-RECORD1` | ⚪ | 📥Backlog（依賴 RECORD-API1；首屏標竿、生涯榜、冠軍王朝） |
 | ML-UMP1 | 裁判誤判預期影響研究 | ruan6047 | 待研究 spec（建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-UMP1` | 🔴 | 📥Backlog（先驗證再決定是否產品化，不併 UX-10） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
@@ -34,6 +34,20 @@
 
 ## 進行中／待辦卡
 
+
+### RECORD-API1 紀錄室分類排行與冠軍 API  〔⚪一般〕
+- 需求：ruan6047　規劃／執行：Opus-4.8@Claude Code　查核：待指派（≠ 執行者）　分支：`ai/opus-4.8/RECORD-API1`
+- **範圍由 ruan6047 當場定案**（原 spec `records-redesign.md` 不存在，卡片無詳細段落 → 反問而非腦補）：完整冠軍編＋並列排名＋現役標記＋可調 top N。
+- 產出：
+  1. **新端點 `/api/v1/records/championships`**：36 季逐年冠亞軍＋奪冠總教練、球團王朝榜（兄弟／統一並列 10 座，總和 36 = 季數）、球員冠軍次數榜。冠軍教練取自 canonical `championship_managers`，**非** `managers.championships`（維基來源、漏記 7 筆）。
+  2. **紅線兌現**：看板明訂「冠軍資料缺年不得公開歷史最多冠軍結論」，但 `championship_coverage()` 先前**只在建置期跑、沒有任何 API 消費**——契約形同虛設。現在 coverage 隨回應附帶，且**缺年時直接不回傳累計排行**（API 擋，非前端自律）。突變測試：把 2013 標為未驗證 → `complete=false`、排行消失、附原因；還原後才回來。
+  3. **並列排名**：生涯榜改 `rank()`（同值同名次）。舊版直接 LIMIT 會把同分者任意切掉——生涯同分常見，切掉誰是隨機的＝假排名。故回傳列數可能超過 `limit`。
+  4. **現役判定**改為官方登錄名單 ∪ 本季有成績（單用任一都會漏；見記憶 player-name-authority）。
+- 相容性：舊 `/api/v1/records` 回應結構不變，僅新增 `rk` 欄位與 `?limit=`。
+- 驗收：`ruff` 綠、`pytest` 120 passed（含路由快照 EXPECTED 同步）；coverage 紅線有突變測試。
+- 狀態：🔍待查核　Commit：`f364f01`
+- Log：
+  - 07-15 ruan6047 派工；spec 檔不存在 → 反問定範圍後執行
 
 ### ML-UMP1 裁判誤判預期影響研究  〔🔴紅線：統計／反事實估計〕
 - 需求：ruan6047（07-14）　規劃：Fable（統計定義／驗證設計）　分支：`ai/<執行者>/ML-UMP1`
