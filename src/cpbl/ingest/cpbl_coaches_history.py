@@ -377,6 +377,35 @@ def parse_experience_row(raw_line: str) -> dict | None:
     }
 
 
+def seed_confirms_identity(parsed_rows: list[dict], seed: list[tuple[int, str]]) -> bool:
+    """條目的中職執教紀錄是否對得上我們自己資料庫記載的實際任職（隊別＋年份）。
+
+    **為什麼需要這條**：原本只用「生日對得上中職**球員**」驗證身分，但教練不一定當過中職
+    球員——王建民在大聯盟出賽、中職無出賽紀錄，這個條件他永遠無法滿足，於是被永久標
+    「待查」。而種子名單（coaches/managers）本身就記載了他在哪一隊、哪一年任職；條目裡
+    若有相符的中職執教紀錄，這個人就是我們要找的教練，不必繞道球員生日。
+
+    比對採「同隊且任期涵蓋該年」，避免只憑姓名或只憑球隊就認定。
+    """
+    for seed_year, seed_team in seed:
+        for r in parsed_rows:
+            if r.get("team_code") != seed_team or r.get("from_year") is None:
+                continue
+            if r["from_year"] <= seed_year <= (r.get("to_year") or 9999):
+                return True
+    return False
+
+
+def _seed_tenures(cur, name: str) -> list[tuple[int, str]]:
+    """該教練在我們資料庫中的實際任職（年份, 隊碼），供身分交叉驗證。"""
+    cur.execute(
+        "SELECT year, team_code FROM cpbl.coaches WHERE name = %s "
+        "UNION SELECT from_year, team_code FROM cpbl.managers WHERE name = %s",
+        (name, name),
+    )
+    return [(y, t) for y, t in cur.fetchall() if y and t]
+
+
 def _targets(cur) -> list[str]:
     """自 coaches 與 managers 中抓出所有教練種子名稱。"""
     sql = """
@@ -503,7 +532,18 @@ def run(throttle: float = 0.8, limit: int | None = None) -> dict:
             if row:
                 row["raw_text"] = line
                 parsed_rows.append(row)
-        
+
+        # 身分的第二條驗證路徑：條目的中職執教紀錄 vs 我們資料庫記載的實際任職（隊＋年）。
+        # 教練不一定當過中職球員（王建民只有大聯盟出賽紀錄），單靠球員生日永遠無法確認他們，
+        # 會被永久誤標「待查」。種子名單本身就是權威的任職紀錄，對得上即為同一人。
+        if review and not identity_verified:
+            with conn() as c:
+                seed = _seed_tenures(c.cursor(), name)
+            if seed_confirms_identity(parsed_rows, seed):
+                review = False
+                st["seed_verified"] = st.get("seed_verified", 0) + 1
+                log.info("%s 以種子任職紀錄確認身分（%s）", name, seed)
+
         with conn() as c:
             _store(c.cursor(), name, player_id, parsed_rows, review)
         

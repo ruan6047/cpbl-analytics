@@ -113,3 +113,20 @@ def test_experience_lines_are_deduplicated():
     """同一行同時出現在「經歷」與「年表」兩節時只取一次。"""
     wt = "==經歷==\n*[[台灣電力棒球隊]]\n==年表==\n*[[台灣電力棒球隊]]\n"
     assert ch.parse_experience_lines(wt) == ["[[台灣電力棒球隊]]"]
+
+
+def test_seed_tenure_confirms_identity_without_player_birthday():
+    """教練不一定當過中職球員（王建民只有大聯盟出賽），不能只靠球員生日驗證身分。
+
+    種子名單（coaches/managers）記載了他實際在哪一隊、哪一年任職；條目若有相符的中職
+    執教紀錄，即為同一人。比對要求同隊且任期涵蓋該年——只對到球隊或只對到年份都不算。
+    """
+    rows = [
+        {"team_code": "ACN011", "from_year": 2023, "to_year": None, "pos": "投手教練"},
+        {"team_code": "AEO011", "from_year": 2018, "to_year": 2019, "pos": "二軍客座投手教練"},
+    ]
+    assert ch.seed_confirms_identity(rows, [(2026, "ACN011")])   # 任期涵蓋 2026
+    assert ch.seed_confirms_identity(rows, [(2018, "AEO011")])
+    assert not ch.seed_confirms_identity(rows, [(2026, "ADD011")])  # 隊別不符
+    assert not ch.seed_confirms_identity(rows, [(2015, "ACN011")])  # 年份不在任期內
+    assert not ch.seed_confirms_identity(rows, [])
