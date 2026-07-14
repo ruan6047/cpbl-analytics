@@ -19,6 +19,25 @@ from cpbl.db import conn
 
 log = logging.getLogger("cpbl.champ")
 
+CANONICAL_FROM_YEAR = 1990
+CANONICAL_THROUGH_YEAR = 2025
+
+
+def championship_coverage(
+    years: list[int] | tuple[int, ...], *, as_of: object | None
+) -> dict[str, object]:
+    """回傳 canonical 歷史範圍的完整性；範圍外年份不影響判定。"""
+    expected = set(range(CANONICAL_FROM_YEAR, CANONICAL_THROUGH_YEAR + 1))
+    present = expected.intersection(years)
+    missing = sorted(expected - present)
+    return {
+        "from_year": CANONICAL_FROM_YEAR,
+        "through_year": CANONICAL_THROUGH_YEAR,
+        "complete": not missing,
+        "missing_years": missing,
+        "as_of": as_of,
+    }
+
 # 各年冠軍隊（系列賽勝場最多者）。team_code 形如 AAA011，前三碼對 season 表 team_id。
 _CHAMP_SQL = """
 WITH cg AS (

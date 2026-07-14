@@ -7,6 +7,8 @@ from fastapi import APIRouter, Query
 from cpbl.api.helpers import DEFAULT_SEASON, _dicts
 from cpbl.api.rows import _ERA_SPLIT
 from cpbl.db import conn
+from cpbl.franchises import FRANCHISE_MAP as _FRANCHISE
+from cpbl.franchises import franchise_of as _franchise_of
 from cpbl.models import special_records
 
 router = APIRouter()
@@ -22,19 +24,6 @@ def teams_dim(active: bool = Query(True)) -> dict:
             "FROM cpbl.team_dim" + (" WHERE active=true" if active else "") + " ORDER BY team_code"
         )
         return {"items": _dicts(cur)}
-
-
-# 改名/轉賣視為同一支球隊：歷史代碼 → 現役 franchise 代碼（依 games 年份範圍實證）
-_FRANCHISE = {
-    "ACC011": "ACN011",                                    # 兄弟象 → 中信兄弟
-    "AEE011": "AEO011", "AEG011": "AEO011", "AEM011": "AEO011",  # 俊國→興農→義大→富邦
-    "AJJ011": "AJL011", "AJK011": "AJL011",                # 第一金剛→La New/Lamigo→樂天
-    "AIL011": "AII011",                                    # 誠泰Cobras → 米迪亞暴龍（同血脈，2008 解散）
-}
-
-
-def _franchise_of(code: str) -> str:
-    return _FRANCHISE.get(code, code)
 
 
 def _franchise_year_record(cur, fc: str, kind_code: str = "A") -> dict[int, dict]:
