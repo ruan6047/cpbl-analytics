@@ -26,10 +26,27 @@
 | MATCHUP-DATA1 | 投打對決資料範圍與查詢 API 正確化 | ruan6047 | GPT-5@Codex（[`spec`](../../matchups-redesign.md)） | GPT-5@Codex | Sonnet@Copilot CLI | `ai/codex/MATCHUP-DATA1` | 🔴 | 🏁完成（07-14 合併 main，57 tests 綠） |
 | VENUE-PARK1 | 球場滾飛比／Park Factor／選手極端表現（資料＋API） | ruan6047 | Fable（park factor 公式＋小樣本呈現需統計判斷） | Fable-5@Claude Code | GPT-5@Codex | `ai/fable-5/VENUE-PARK1` | 🔴 | 🏁完成（07-14 已補齊歷史 splits 並重驗通過） |
 | UX-VENUE1 | `/venues/[venue]` 球場詳情頁 | ruan6047 | Sonnet@Claude Code | Opus-4.8@Claude Code | Gemini-3.5-Flash@Antigravity | `ai/opus-4.8/UX-VENUE1` | ⚪ | 🏁完成（07-14 合併 main，100% roster coverage） |
+| COACH-HIST | 歷年教練職務史（twbsball 經歷節） | ruan6047 | Fable-5@Claude Code | Antigravity | ruan6047 | `main` | ⚪ | 🏁完成 |
 
 ---
 
 ## 卡片明細
+
+### COACH-HIST 歷年教練職務史（twbsball 經歷節）  〔⚪一般〕
+- 需求：ruan6047（07-12「教練從其他管道拿歷年教練團？」）　規劃：Fable-5@Claude Code　分支：`main`
+- 執行：Antigravity　查核：ruan6047
+- **管道查證（07-12 實測）**：twbsball **無**逐年球隊條目（`2015年中信兄弟` 不存在，allpages 驗證）→ 改**人物中心**：個人條目「經歷」節有結構化教練職務＋精確起訖（林威助實測：`:*[[中華職棒]][[中信兄弟隊]][[總教練]]（[[2020年]]12月07日～[[2023年]]05月10日）`）。存取沿 `cpbl_overseas.py` 的 query API 模式（`action=query&prop=revisions`，UA+退避，無 Anubis 問題已驗證）。
+- 範圍：
+  1. 種子名單＝現任 coaches 72＋managers 90（去重）；爬個人條目經歷節（~150 頁，一次抓+手動刷新，照 wiki-data-sources 慣例）
+  2. 解析教練職務行 → 新表 `coach_history(name, team_code, pos, from_date, to_date, source, needs_review)`（migration 冪等）
+  3. **解析守則（不腦補）**：行格式變異（兼任/代理/客座 前綴保留進 pos）；日期粒度不一（年/年月/年月日，缺月日存年初/年末界）；隊名歷代對映 team_dim（兄弟象→中信兄弟等，對不上→needs_review）；**非職棒職務**（學校/業餘/國家隊）過濾出主表或另欄標注；解析失敗行一律 needs_review 人工檢
+  4. 前端：7C 教練頁「教練職務」表改吃 coach_history（歷年時間軸）；7B 球員頁教練身分區塊同源
+- 驗收：抽 10 名教練對照 twbsball 原頁人工核對；needs_review 比率報告；`ruff`+`pytest` 綠
+- 依賴：7C merge 後（前端接點在 7C 的頁）
+- 狀態：🏁完成（已補齊 migration、爬蟲 CLI 跑完 6646 筆、API 與前端頁面渲染生涯時間軸）　Commit：`5d035d1`
+- Log：
+  - 07-12 需求＋管道查證＋開卡（Fable）；twbsball 逐年球隊條目假設被否、人物中心路線實測可行
+  - 07-14 實作資料庫表、經歷解析器（經 user 同意簡化為年份起訖，並設計 fallback '隊' 字分割以完美適應日職與業餘隊伍）、CLI 爬取 133 名教練生平資料入庫 6646 條。API 與 Web 端 (people 頁/players 頁) 均重構為以 '生涯歷程' 表取代舊 official_coach_tenures 列表，Next.js build 成功。
 
 ### VENUE-PARK1 球場滾飛比／Park Factor／選手極端表現（資料＋API）  〔🔴紅線：統計正確性（小樣本描述性統計仍可能誤導，同 Marcel／賽果誠實原則）〕
 - 需求：ruan6047（07-14）——現有 `/venues` 只有球場規格／使用量，對數據解讀沒有參考意義；要記錄每個球場的滾飛比、球場數據特色（如不容易全壘打）、在該球場表現特別出眾／特別差的選手。
