@@ -128,6 +128,58 @@ def parse_birthdate(wikitext: str) -> tuple[int, int, int] | None:
     return None
 
 
+def is_disambiguation(wikitext: str) -> bool:
+    """twbsball 同名者多時，主條目為消歧義頁（無經歷節）。"""
+    return "{{Disambig}}" in wikitext or "您要找的是" in wikitext
+
+
+def disambiguation_candidates(name: str, wikitext: str) -> list[str]:
+    """消歧義頁列出的候選條目標題（如 `呂文生(1962)`）。"""
+    seen: list[str] = []
+    for target in re.findall(r"\[\[([^\]|]+)(?:\|[^\]]*)?\]\]", wikitext):
+        t = target.strip()
+        if t.startswith(name) and t != name and t not in seen:
+            seen.append(t)
+    return seen
+
+
+def _cpbl_coach_score(wikitext: str) -> int:
+    """該條目的中職教練經歷行數；用於無生日可比對時挑出正確的同名者。"""
+    return sum(
+        1 for line in parse_experience_lines(wikitext)
+        if "中華職棒" in line and ("教練" in line or "監督" in line)
+    )
+
+
+def resolve_disambiguation(
+    name: str, wikitext: str, db_births: list[tuple[int, int, int]],
+) -> tuple[str, str] | None:
+    """消歧義頁 → 實際條目。回 (title, wikitext)；無法確信時回 None（不腦補歸戶）。
+
+    **先教練、後生日**（順序是紅線）：種子名單來自 coaches/managers，要找的是「教練這個人」，
+    故第一道篩選必須是「該條目有中職教練經歷」。生日只用來在多位教練候選之間裁決。
+
+    反例（實測）：路易士有 4 位同名者，其中 `路易士R.L` 的生日對得上 DB 球員但**毫無教練
+    經歷**——若讓生日優先，就會把球員的生平掛到教練頭上。洋將譯名相同者根本是不同人，
+    生日能認出「同名球員是誰」，不能認出「教練是誰」。
+    """
+    cands: list[tuple[str, str]] = []
+    for title in disambiguation_candidates(name, wikitext):
+        wt = fetch_wikitext(title)
+        if wt and not is_disambiguation(wt):
+            cands.append((title, wt))
+        time.sleep(0.3)
+
+    coaches = [(t, w) for t, w in cands if _cpbl_coach_score(w) > 0]
+    if len(coaches) == 1:
+        return coaches[0]
+    if len(coaches) > 1 and db_births:  # 多位教練候選 → 生日裁決
+        matched = [(t, w) for t, w in coaches if parse_birthdate(w) in db_births]
+        if len(matched) == 1:
+            return matched[0]
+    return None
+
+
 def parse_experience_lines(wikitext: str) -> list[str]:
     """提取 ==經歷== 節底下的所有清單列。"""
     in_exp = False
@@ -315,25 +367,39 @@ def run(throttle: float = 0.8, limit: int | None = None) -> dict:
     if limit:
         targets = targets[:limit]
 
-    st = {"targets": len(targets), "page": 0, "matched": 0, "nopage": 0, "records": 0}
-    
+    st = {"targets": len(targets), "page": 0, "matched": 0, "nopage": 0, "records": 0,
+          "disambig": 0, "disambig_unresolved": 0}
+
     for name in targets:
         wt = fetch_wikitext(name)
         if not wt:
             st["nopage"] += 1
             time.sleep(throttle)
             continue
-        
-        st["page"] += 1
-        
-        # 取得 Wiki 出生日期
-        info_birth = parse_birthdate(wt)
-        
+
         # 查詢同名球員名冊
         with conn() as c:
             cur = c.cursor()
             cur.execute("SELECT id, birthday FROM cpbl.players WHERE name = %s", (name,))
             db_players = cur.fetchall()
+
+        # 同名者多 → 主條目是消歧義頁（無經歷節，過去會靜默產生 0 筆，整個人不見）
+        if is_disambiguation(wt):
+            st["disambig"] += 1
+            births = [(b.year, b.month, b.day) for _, b in db_players if b]
+            resolved = resolve_disambiguation(name, wt, births)
+            if not resolved:
+                st["disambig_unresolved"] += 1
+                log.warning("%s 消歧義頁無法確信解析，略過（不腦補歸戶）", name)
+                time.sleep(throttle)
+                continue
+            title, wt = resolved
+            log.info("%s 消歧義 → %s", name, title)
+
+        st["page"] += 1
+
+        # 取得 Wiki 出生日期
+        info_birth = parse_birthdate(wt)
 
         player_id = None
         review = False
