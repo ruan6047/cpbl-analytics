@@ -17,7 +17,7 @@
 | UX-MATCHUP2 | 投打對決整合球員個人頁 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-MATCHUP2` | ⚪ | 📥Backlog（依賴 UX-MATCHUP1；共用元件與 deep-link） |
 | RECORD-DATA1 | 歷年總冠軍權威資料集與球團映射 | ruan6047 | GPT-5@Codex（[`spec`](../records-redesign.md)；建議 Fable） | GPT-5@Codex | Opus-4.8@Claude Code | `ai/gpt-5-codex/RECORD-DATA1` | 🔴 | ✅通過（07-14 事後查核：33 季由 games kind C 獨立推導零差異；1992/94/95 以半季戰績重建佐證；教練獎 24/24 交叉驗證） |
 | RECORD-API1 | 紀錄室分類排行與冠軍 API | ruan6047 | Opus-4.8@Claude Code | Opus-4.8@Claude Code | GPT-5@Codex | `ai/opus-4.8/RECORD-API1` | ⚪ | ↩退回（07-15 事後查核 → 兩項 findings，轉 `RECORD-API1-FIX1` 修） |
-| RECORD-API1-FIX1 | 修正冠軍榜現役判定與球團榜 top N | ruan6047 | Opus-4.8@Claude Code | Opus-4.8@Claude Code | 待指派（≠執行者） | `ai/opus-4.8/RECORD-API1-FIX1` | ⚪ | 🔍待查核（worktree `~/Dev/cpbl-analytics-recfix`；另修好整套 pytest 在乾淨 checkout 收集失敗） |
+| RECORD-API1-FIX1 | 修正冠軍榜現役判定與球團榜 top N | ruan6047 | Opus-4.8@Claude Code | Opus-4.8@Claude Code | GPT-5@Codex | `ai/opus-4.8/RECORD-API1-FIX1` | ⚪ | ✅通過（07-15 查核：現役聯集、並列 top N、pytest 乾淨 collection 與 coverage fail-closed 均實測通過） |
 | UX-RECORD1 | `/records` 歷史重要性導向重製 | ruan6047 | GPT-5@Codex（[`spec`](../records-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-RECORD1` | ⚪ | 📥Backlog（依賴 RECORD-API1；首屏標竿、生涯榜、冠軍王朝） |
 | ML-UMP1 | 裁判誤判預期影響研究 | ruan6047 | 待研究 spec（建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-UMP1` | 🔴 | 📥Backlog（先驗證再決定是否產品化，不併 UX-10） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
@@ -55,7 +55,7 @@
   - 07-15 查核 by GPT-5@Codex → ↩退回（事後查核；開 `RECORD-API1-FIX1`：冠軍球員榜現役判定漏本季成績來源；球團王朝榜未套用 `?limit=`）
 
 ### RECORD-API1-FIX1 修正冠軍榜現役判定與球團榜 top N  〔⚪一般〕
-- 需求：ruan6047　執行：Opus-4.8@Claude Code　查核：待指派（≠ 執行者）　分支：`ai/opus-4.8/RECORD-API1-FIX1`
+- 需求：ruan6047　執行：Opus-4.8@Claude Code　查核：GPT-5@Codex　分支：`ai/opus-4.8/RECORD-API1-FIX1`
 - 來源：RECORD-API1 事後查核（GPT-5@Codex）的兩項 findings。
 - 產出：
   1. **現役判定分岔**（P1）：現役定義（登錄名單 ∪ 本季有成績）原本在 `leaders.py` 寫了**兩份**，冠軍球員榜那份漏了 `*_current`，導致本季有成績但不在現行登錄名單者（升降／離隊，如張志豪 `0000003183`）被標成非現役。抽成 `_active_expr(alias)` 由生涯榜與冠軍榜共用，杜絕再次分岔。
@@ -63,9 +63,10 @@
   3. **附帶修好驗證迴圈**：`tests/test_championship_managers.py` 會 `import tests.test_championships`，但 repo 既無 root `conftest.py` 也未設 `pythonpath` → **乾淨 checkout 下整套 pytest collection 直接失敗**。先前的「pytest 綠」是在帶 `PYTHONPATH` 的環境跑出來的，等於驗證迴圈失效。`pyproject.toml` 補 `pythonpath = ["."]`。
 - 驗收：`ruff` 綠、`pytest` **122 passed**（新增 2 支）。兩支新測試**對修復前的程式碼皆為紅**（已實跑確認），確定擋得住回歸。實測：張志豪 `active` 由 `false` → `true`；`limit=1` 球團榜回兄弟／統一（rk 皆 1）；王朝榜總座數 36 = 季數 36。
 - **查核者進駐**：worktree `/Users/ruanruan/Dev/cpbl-analytics-recfix`（分支已推遠端，環境現成）。查核範圍＝`85e61ce`、`2e12422`。**本卡未 push main**，merge 待查核通過。
-- 狀態：🔍待查核　Commit：`85e61ce`、`2e12422`
+- 狀態：✅通過　Commit：`85e61ce`、`2e12422`
 - Log：
   - 07-15 依查核 findings 執行；流程照 §2 走（推分支、留 worktree、不碰 main）
+  - 07-15 查核 by GPT-5@Codex → ✅通過：乾淨 main 未設 `PYTHONPATH` 時 pytest collection 確實因 `tests` 無法 import 而失敗；兩支新回歸測試植入修復前碼皆紅。修復分支 `uv run ruff check` 綠、`uv run pytest` 122 passed；張志豪（0000003183）API `active=true`，`limit=1` 僅回兄弟／統一並列第一，36 冠總數與 coverage fail-closed 突變皆通過（2013 已還原）。
 
 ### ML-UMP1 裁判誤判預期影響研究  〔🔴紅線：統計／反事實估計〕
 - 需求：ruan6047（07-14）　規劃：Fable（統計定義／驗證設計）　分支：`ai/<執行者>/ML-UMP1`

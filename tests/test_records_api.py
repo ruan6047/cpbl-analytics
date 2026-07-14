@@ -78,6 +78,45 @@ def test_career_leaders_use_tie_aware_rank():
         assert a["rk"] <= b["rk"]
 
 
+def test_limit_applies_to_franchise_ranking():
+    """`limit` 必須套用到球團王朝榜（RECORD-API1-FIX1）。
+
+    並列排名下 limit=1 應回「並列第一的所有球團」，而不是整份五隊全回。
+    """
+    d = _get("/api/v1/records/championships?limit=1")
+    if not d["coverage"]["complete"]:
+        pytest.skip("coverage 未完整")
+
+    fr = d["franchise_ranking"]
+    assert fr, "球團榜不應為空"
+    assert {t["rk"] for t in fr} == {1}, "limit=1 只該留下第一名（並列者可多列）"
+    assert len(fr) < len(_get("/api/v1/records/championships?limit=10")["franchise_ranking"])
+
+
+def test_active_includes_current_season_stats_source():
+    """現役＝登錄名單 ∪ 本季有成績（RECORD-API1-FIX1）。
+
+    只查 `team_roster` 會把「本季有成績但已離隊/升降不在現行名單」者誤標為非現役
+    （查核者以張志豪為例）。生涯榜與冠軍榜必須共用同一份定義。
+    """
+    d = _get("/api/v1/records/championships?limit=50")
+    if not d["coverage"]["complete"]:
+        pytest.skip("coverage 未完整")
+
+    champ = {p["pid"]: p["active"] for p in d["player_ranking"]}
+
+    car = _get("/api/v1/records?limit=50")
+    career_active = {r["pid"] for grp in car["career_batting"].values() for r in grp if r["active"]}
+
+    # 生涯榜認定為現役者，若同時在冠軍榜上，冠軍榜也必須標現役。
+    # 方向很重要：原 bug 是冠軍榜**漏標**，反向斷言恆綠、抓不到。
+    overlap = career_active & champ.keys()
+    if not overlap:
+        pytest.skip("兩榜無現役重疊者")
+    for pid in overlap:
+        assert champ[pid], f"{pid} 在生涯榜為現役、冠軍榜卻標成非現役"
+
+
 def test_coverage_contract_fails_closed_on_missing_year():
     """契約函式本身（不需 DB）：缺一年就必須 complete=false。"""
     full = list(range(1990, 2026))
