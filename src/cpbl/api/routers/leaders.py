@@ -12,6 +12,18 @@ from cpbl.ingest.championships import championship_coverage
 router = APIRouter()
 
 
+def _active_expr(alias: str) -> str:
+    """現役＝**官方登錄名單**（team_roster）∪ 本季有成績。單用登錄名單會漏升降/離隊者，
+    單用出賽會漏「登錄但整季未出賽」者（見記憶 player-name-authority）。
+
+    `alias` 為外層 CTE 的別名；SQL 需帶 `%(y)s` 參數（當季）。
+    """
+    return (
+        f"(EXISTS(SELECT 1 FROM cpbl.team_roster tr WHERE tr.player_id={alias}.player_id AND tr.year=%(y)s) "
+        f" OR EXISTS(SELECT 1 FROM cpbl.batting_current bc WHERE bc.player_id={alias}.player_id) "
+        f" OR EXISTS(SELECT 1 FROM cpbl.pitching_current pc WHERE pc.player_id={alias}.player_id)) active")
+
+
 @router.get("/api/v1/records")
 def records(kind_code: str = Query("A"), limit: int = Query(5, ge=1, le=50)) -> dict:
     """歷史紀錄室：比賽紀錄 + 單季之最 + 生涯排行（一軍；單季/生涯以官方歷年彙總，近兩季另計）。
@@ -59,12 +71,7 @@ def records(kind_code: str = Query("A"), limit: int = Query(5, ge=1, le=50)) -> 
                "ORDER BY val DESC LIMIT 1")
         season_pit = {k: top(ssp.format(col=k)) for k in ("w", "sv", "so")}
 
-        # 現役＝**官方登錄名單**（team_roster）∪ 本季有成績。單用登錄名單會漏升降/離隊者，
-        # 單用出賽會漏「登錄但整季未出賽」者（見記憶 player-name-authority）。
-        active_expr = (
-            "(EXISTS(SELECT 1 FROM cpbl.team_roster tr WHERE tr.player_id=c.player_id AND tr.year=%(y)s) "
-            " OR EXISTS(SELECT 1 FROM cpbl.batting_current bc WHERE bc.player_id=c.player_id) "
-            " OR EXISTS(SELECT 1 FROM cpbl.pitching_current pc WHERE pc.player_id=c.player_id)) active")
+        active_expr = _active_expr("c")
 
         # **並列排名**：同數值給同名次（1,2,2,4）。舊版直接 LIMIT 會把同分者任意切掉——
         # 生涯榜同分很常見（如生涯 100 轟），切掉誰是隨機的，等於製造假排名。
@@ -132,26 +139,25 @@ def championships(limit: int = Query(10, ge=1, le=50)) -> dict:
               SELECT ch.franchise_code AS team_code, count(*) AS titles,
                      array_agg(ch.year ORDER BY ch.year) AS years
               FROM cpbl.championships ch WHERE ch.verification_status='verified'
-              GROUP BY ch.franchise_code)
-            SELECT t.team_code, d.short AS team, t.titles, t.years,
-                   rank() OVER (ORDER BY t.titles DESC) AS rk
-            FROM t LEFT JOIN cpbl.team_dim d ON d.team_code = t.team_code
-            ORDER BY rk, t.team_code
-        """)
+              GROUP BY ch.franchise_code),
+            r AS (
+              SELECT t.team_code, d.short AS team, t.titles, t.years,
+                     rank() OVER (ORDER BY t.titles DESC) AS rk
+              FROM t LEFT JOIN cpbl.team_dim d ON d.team_code = t.team_code)
+            SELECT * FROM r WHERE rk <= %(n)s ORDER BY rk, team_code
+        """, {"n": limit})
         cols = [d[0] for d in cur.description]
         out["franchise_ranking"] = [dict(zip(cols, r, strict=False)) for r in cur.fetchall()]
 
         # 球員冠軍次數（championship_members role='player'；並列排名同上）
-        cur.execute("""
+        cur.execute(f"""
             WITH m AS (
               SELECT cm.player_id, count(*) AS titles,
                      array_agg(cm.year ORDER BY cm.year) AS years
               FROM cpbl.championship_members cm WHERE cm.role='player'
               GROUP BY cm.player_id),
             r AS (
-              SELECT p.name, p.id AS pid, m.titles, m.years,
-                     EXISTS(SELECT 1 FROM cpbl.team_roster tr
-                             WHERE tr.player_id=m.player_id AND tr.year=%(y)s) AS active,
+              SELECT p.name, p.id AS pid, m.titles, m.years, {_active_expr("m")},
                      rank() OVER (ORDER BY m.titles DESC) AS rk
               FROM m JOIN cpbl.players p ON p.id = m.player_id)
             SELECT * FROM r WHERE rk <= %(n)s ORDER BY rk, name
