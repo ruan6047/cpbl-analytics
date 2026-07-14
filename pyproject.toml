@@ -74,6 +74,9 @@ packages = ["src/cpbl"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# repo root 進 sys.path：測試之間會互相 import（如 test_championship_managers 取用
+# test_championships 的種子列）。少了這行，乾淨環境下整套 collection 就失敗。
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100
