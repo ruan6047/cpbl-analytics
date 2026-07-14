@@ -82,13 +82,14 @@
 - **個人頁**：以既有裁判個人頁為基礎，呈現主審判決摘要、執法位置與可回到各場賽況報告的清單；全數持續標示 TrackMan 覆蓋場數、固定規則好球帶與「推算、非官方」限制。
 - **賽事報告**：保留目前逐球好壞球判決、好球帶位置與關鍵漏判呈現；報告只涵蓋主審且僅納入有 TrackMan 的 called 球，沒有追蹤資料時明確退化為「無法評估」，不得以缺值推論裁判表現。
 - **邊界**：不估算「誤判預期得利」；該反事實估計 [counterfactual estimation] 與是否產品化，完全交由 ML-UMP1 研究卡處理。
-- 狀態：🔍待查核　Commit：—
+- 狀態：🔍待查核　Commit：`1dc6e6a`
 - Log：
   - 07-11 自 UX-1 抽出暫緩
   - 07-14 成績預測公開瀏覽取消，改由獨立下架工作處理；`/predict` 規劃完全移交 ML-SIM1／ML-SIM2
   - 07-14 ruan6047 裁示本卡改處理裁判：賽事內報告、裁判個人頁導覽與誤判預期得利可行性
   - 07-14 依 AI_WORKFLOW 拆分一般 UI 與統計紅線：UX-10 採 Sonnet 執行／Opus 獨立查核；誤判影響研究移 ML-UMP1 採 Fable＋跨家族或人審
   - 07-14 Antigravity 實作完成：主選單導航移除「裁判報告」；賽況總覽裁判名改為 Link 連結個人頁；在 BoxTabs 中整合「主審報告」Tab，支援動態散點圖、關鍵漏判及容錯範圍，無資料時顯示無法評估；個人頁「看單場 →」新增 tab=umpire 與 year 參數引導。
+  - 07-14 Sonnet@Claude Code 接手收尾：worktree 內工作區原為未 commit 狀態，補跑驗證後 commit `1dc6e6a`——`ruff check`／`pytest`（42 passed）／`npm run build:check` 全綠；Chrome DevTools 實測 `/games/204` 真實資料（2026-07-12 樂天桃猿 vs 台鋼雄鷹）：賽況總覽裁判姓名可點、BoxTabs「主審報告」渲染好球帶散點圖＋關鍵漏判＋容錯滑桿、個人頁 `/people/umpire/楊崇煇` 記分卡與「看單場 →」深連結（`?tab=umpire&year=2026`）回跳報告皆正確。待 Opus 獨立 session 查核。
 
 
 ### ML-UMP1 裁判誤判預期影響研究  〔🔴紅線：統計／反事實估計〕
