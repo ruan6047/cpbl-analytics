@@ -15,6 +15,8 @@
 | SEC-NEXT-15520 | Next.js 15.5.20 安全升級 | ruan6047 | GPT-5@Codex | GPT-5@Codex | ruan6047 | `ai/codex/SEC-NEXT-15520` | 🔴 | 📦已合併・⏸未部署 |
 | UX-10 | 裁判個人頁與賽事裁判報告整合 | ruan6047 | Sonnet-5@ClaudeCode | Sonnet@Antigravity | GPT-5@Codex | `ai/antigravity/UX-10` | ⚪ | 📦已合併・⏸未部署 |
 | ML-UMP1 | 裁判誤判預期影響研究 | ruan6047 | 待研究 spec（建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-UMP1` | 🔴 | 📥Backlog（先驗證再決定是否產品化，不併 UX-10） |
+| VENUE-PARK1 | 球場滾飛比／Park Factor／選手極端表現（資料＋API） | ruan6047 | Fable（park factor 公式＋小樣本呈現需統計判斷） | 待指派（Fable） | 待指派（跨家族模型或人審） | `ai/<執行者>/VENUE-PARK1` | 🔴 | 📥Backlog（先行；2018–2025 逐年回填為資料維運，免開分支） |
+| UX-VENUE1 | `/venues/[venue]` 球場詳情頁 | ruan6047 | Sonnet@Claude Code | 待指派（Sonnet） | 待指派（≠執行者） | `ai/<執行者>/UX-VENUE1` | ⚪ | 📥Backlog（依賴 VENUE-PARK1；純 UI，吃前卡 API） |
 | COACH-HIST | 歷年教練職務史（twbsball 經歷節） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（7C 已上線，接點就緒可排） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
 | ML-SIM1 | 簡易勝負預測＋單一打席情境模擬 | ruan6047 | 待細 spec | 待指派 | 待指派 | — | 🔴 | 📥Backlog（取代 UX-10O；去重複訊號，不模擬後續全打席） |
@@ -23,6 +25,7 @@
 
 > 「待指派」＝ruan6047尚未派工。派工後把 model@tool 補實、狀態改 🔨。
 > **依賴序**：通用層（UX-2/3/4/4.5）🏁 → 頁面層 UX-5〜9 已解鎖。**UX-5A/5B/6/7/8/9 群 🏁完成並上線**；剩 **UX-5C（首頁完整版，壓最後重製）**。UX-10 已合併、待部署。
+> **球場依賴序**：`VENUE-PARK1 → UX-VENUE1`。前卡為統計紅線（park factor 公式／小樣本呈現），須先獨立查核通過，UI 卡才能開工。
 
 ---
 
@@ -96,6 +99,36 @@
 - 狀態：📥Backlog　Commit：—
 - Log：
   - 07-14 自 UX-10 拆出：反事實估計不宜與一般 UI 同卡；依 AI_WORKFLOW 採 Fable 執行、跨家族或人審查核
+
+### VENUE-PARK1 球場滾飛比／Park Factor／選手極端表現（資料＋API）  〔🔴紅線：統計正確性（小樣本描述性統計仍可能誤導，同 Marcel／賽果誠實原則）〕
+- 需求：ruan6047（07-14）——現有 `/venues` 只有球場規格／使用量，對數據解讀沒有參考意義；要記錄每個球場的滾飛比、球場數據特色（如不容易全壘打）、在該球場表現特別出眾／特別差的選手。
+- 規劃：Sonnet@Claude Code 查證（見下方現況盤點），park factor 公式與小樣本呈現方式定案交 Fable。
+- **現況盤點（已查證，非腦補）**：
+  1. **滾飛比免新爬蟲**：`batting_splits`／`pitching_splits` 已有「球場」split family（`item_group_code`，含 `ground_outs`/`fly_outs`），只是從未按球場軸彙總過。
+  2. **Park factor 沒有現成欄位**，需新算式；`games`／`batting_gamelog` 有逐場比分/HR 可用「主客對照法」（同隊主場 vs 該隊客場 HR／長打率比值，控制球隊強弱差異）。
+  3. **選手極端表現免新爬蟲**：同一組球場 split family 就是「每位選手在每個球場」的 rate stats（AVG/OBP/SLG/OPS），要做的是排序找極端值（設最低樣本門檻）。
+  4. **時間粒度**：`batting_splits` 目前只存 `year=2026`（本季即時重算）＋生涯累計（`9999`），無逐年歷史列。但 `cpbl-build-splits <year>` CLI **本來就吃 year 參數**且表 PK 含 `year`，對 2018–2025 逐年各跑一次即可回填、不會互相覆蓋——**這是資料維運（C 類），不用開分支／不算程式碼變更**，需要驗證的是各年球場 family 是否正常產出（`splits_calc.py` 已有未知 item fail-loud 機制）。
+- **範圍**：
+  1. 資料維運：對 2018–2025 逐年跑 `cpbl-build-splits <year>`，確認球場 family 各年正常、無 diagnostics 未知 item。
+  2. 定案 park factor 公式（主客對照法）、GB/FB 彙總邏輯、選手極端值排序邏輯與最低樣本門檻。
+  3. 新 API：本季／生涯／逐年的球場滾飛比、主客對照 park factor、選手在該球場 rate stats 對生涯排序找極端值。
+- **誠實揭露（紅線）**：
+  1. 資料僅涵蓋 2018+（`batting_gamelog`/livelog 起始年，1990–2017 無法歸因球場）。
+  2. 單球場單季主場數僅 10–25 場，輸出必須附樣本數／場次，用字避免「這球場就是不容易全壘打」式斷言；park factor 採主客對照法（控制球隊強弱），不比聯盟平均（避免被強弱隊主場用量差干擾）。
+- 交付物：API contract（含樣本數欄位）＋資料驗證報告，供 UX-VENUE1 直接消費。
+- 狀態：📥Backlog（規劃已核可，待派工）　Commit：—
+- Log：
+  - 07-14 需求＋現況盤點（Sonnet）：確認滾飛比／選手極端表現免新爬蟲（沿用既有 `batting_splits`/`pitching_splits` 球場 family）；park factor 需新算式（主客對照法，ruan6047 07-14 選定）；逐年回填（2018–2025，ruan6047 07-14 選定）靠既有 `cpbl-build-splits <year>` CLI，屬資料維運非程式碼變更
+  - 07-14 ruan6047 裁示拆卡：紅線（公式／樣本數判斷）與 UI 分離，方便各自配模型（Fable vs Sonnet）→ 拆出 UX-VENUE1，本卡收斂為資料＋API
+
+### UX-VENUE1 `/venues/[venue]` 球場詳情頁  〔⚪一般〕
+- 需求：ruan6047（07-14，與 VENUE-PARK1 同源）　規劃：Sonnet@Claude Code　分支：`ai/<執行者>/UX-VENUE1`
+- 依賴：**VENUE-PARK1 查核通過**（API contract 定案）才能開工。
+- **範圍**：新頁 `/venues/[venue]`：球場規格（沿用現有 `venue_dim`：`lf_dist`/`cf_dist`/`rf_dist`/`big_screen` 等，`043_venue_specs.sql`）＋ VENUE-PARK1 產出的滾飛比／park factor／選手極端值清單；`/venues` 列表卡片改可點擊進入。UI 呈現須帶樣本數／場次（沿用 VENUE-PARK1 的誠實揭露要求，不得只列排名不列樣本）。
+- 狀態：📥Backlog（待 VENUE-PARK1 解鎖）　Commit：—
+- Log：
+  - 07-14 自 VENUE-PARK1 拆出：UI 卡與統計紅線卡分離，方便各自配模型
+
 
 ### ML-PT3 中職版球路品質指數 (CPBL Stuff+ Index)  〔🔴紅線：ML/統計正確性〕
 - 需求：ruan6047（07-12）　規劃：Fable-5@Claude Code（見 PROPOSAL_EVALUATION.md）　分支：`ai/<執行者>/ML-PT3`
