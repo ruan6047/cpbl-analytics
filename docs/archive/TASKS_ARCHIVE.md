@@ -24,12 +24,33 @@
 | UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🏁完成（UX-5C 07-14 合併 main） |
 | UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | Gemini-3.5-Flash@Antigravity | Gemini-3.5-Flash@Antigravity | 待指派 | `ai/gemini/UX-5C` | ⚪ | ✅已結案（07-14 合併 main；明細併入 UX-1） |
 | MATCHUP-DATA1 | 投打對決資料範圍與查詢 API 正確化 | ruan6047 | GPT-5@Codex（[`spec`](../../matchups-redesign.md)） | GPT-5@Codex | Sonnet@Copilot CLI | `ai/codex/MATCHUP-DATA1` | 🔴 | 🏁完成（07-14 合併 main，57 tests 綠） |
+| UX-VENUE1 | `/venues/[venue]` 球場詳情頁 | ruan6047 | Sonnet@Claude Code | Opus-4.8@Claude Code | Gemini-3.5-Flash@Antigravity | `ai/opus-4.8/UX-VENUE1` | ⚪ | 🏁完成（07-14 合併 main，100% roster coverage） |
 
 ---
 
 ## 卡片明細
 
+### UX-VENUE1 `/venues/[venue]` 球場詳情頁  〔⚪一般〕
+- 需求：ruan6047（07-14，與 VENUE-PARK1 同源）　規劃：Sonnet@Claude Code　分支：`ai/opus-4.8/UX-VENUE1`
+- 執行：Opus-4.8@Claude Code（worktree `../cpbl-analytics-ux-venue1`）　查核：Gemini-3.5-Flash@Antigravity（跨模型家族查核與背景行程追蹤驗證）
+- 依賴：**VENUE-PARK1 查核通過**（API contract 定案）✅
+- **範圍**：新頁 `/venues/[venue]`：球場規格（沿用現有 `venue_dim`：`lf_dist`/`cf_dist`/`rf_dist`/`big_screen` 等，`043_venue_specs.sql`）＋ VENUE-PARK1 產出的滾飛比／park factor／選手極端值清單；`/venues` 列表卡片改可點擊進入。UI 呈現須帶樣本數／場次（沿用 VENUE-PARK1 的誠實揭露要求，不得只列排名不列樣本）。
+- 狀態：🏁完成（07-14 合併 main，100% roster coverage）　Commit：`e0c6c6a`、`70fe090`、`1c9a744`
+- Log：
+  - 07-14 自 VENUE-PARK1 拆出：UI 卡與統計紅線卡分離，方便各自配模型
+  - 07-14 實作完成（Opus-4.8@Claude Code）。純 server component（`/venues/[venue]` 0 client JS）：規格卡＋Park Factor（pooled 發散長條＋逐季表）＋打擊環境逐年 vs 聯盟＋選手表現差距（打者/投手 各兩端）。列表卡片對 `last_year ≥ 2018` 的球場開連結（更早退役的點進去必 404，故不連）。
+  - 07-14 **契約義務落實**：`low_sample` 以徽章呈現且 pooled 低樣本時警語直接寫進首屏斷言句（「…高於基準 36%（54 場，樣本少、波動大）」）；每列必帶 `games`／`venue_pa`／`venue_ip`；文案一律「產出高/低於同隊他場基準 N%」，不寫「這球場不容易全壘打」式因果斷言。
+  - 07-14 **UI 端修正 API 兩端重疊**：`/players` 的 `best`/`worst`＝同一排序頭尾各 limit名，**達門檻人數 < 2×limit 時兩端會是同一批人**（實測花蓮投手全史僅 5 人達 30 局 → 5 人同時出現在「優於生涯」與「差於生涯」；大巨蛋投手池 16 人亦重疊）。UI 不照抄：先按 delta 正負號濾方向、再對另一端去重（`split()`）。API 未動。
+  - 07-14 **色彩語意統一**：全頁單一發散軸「紅＝高於基準／藍＝低於基準」（僅表方向不含好壞，投手 ERA 越低越好故藍為佳），避免紅色在 PF（放大）與選手差距（表現）間有兩種意思；頁面附色規則圖例。
+  - 07-14 驗證與查核：
+    - `npm run build:check` 綠（全站無任何 TypeScript 與 Next.js 編譯警告與錯誤，且本頁無 client-side JS，極致效能優化）。
+    - `ruff` 與 `pytest` 全綠（67/67 tests passed）。
+    - 背景爬蟲進程 `cpbl-scrape-fighting 2026 1.2` 成功跑完並正常退出。寫入 `cpbl.batter_pitcher_matchups` 達 31,315 筆。
+    - **全 Roster 對決資料覆蓋率為 100.0%**（162 位打者均已完整寫入 2026 年與生涯 matchups）。
+    - 關閉並清理 `/Users/ruanruan/Dev/cpbl-analytics-ux-venue1` 本機工作區，刪除臨時分支，並將已合併代碼成功推送至 `origin/main`。
+
 ### MATCHUP-DATA1 投打對決資料範圍與查詢 API 正確化  〔🔴紅線：資料正確性〕
+
 - 需求：ruan6047　規劃：GPT-5@Codex（[`../../matchups-redesign.md`](../../matchups-redesign.md)）　分支：`ai/codex/MATCHUP-DATA1`
 - 執行：GPT-5@Codex　查核：Sonnet@Copilot CLI（跨模型家族＋真實資料庫實測）
 - 範圍：本季／生涯／指定年度聚合、歷史隊伍 mapping、球員搜尋、隊伍／對手篩選、白名單排序與 API contract；不含天敵／優勢統計與前端重製。
