@@ -1,35 +1,51 @@
 """年度總冠軍成員：離線重建 cpbl.championship_members。
 
-冠軍隊由官網已入庫的 games(kind_code='C', 總冠軍賽) 推導（系列賽勝場最多者），
-不需另爬。對每個冠軍 (year, team_code)：
+冠軍隊由 cpbl.championships canonical dataset 決定；該表逐年保留 CPBL 官方來源，
+包含未進行總冠軍賽的 1992／1994／1995。對每個冠軍 (year, team_code)：
   - 球員：該年一軍有成績者。pre-2018 用 season 表(team_id=隊碼前三碼)；
     2018+（含 season 表缺漏的 2025）改用 gamelog，以 visiting_home_type 判隊
     （'2'=主、'1'=客）。投打 season/gamelog 全 UNION 去重。
   - 總教練：managers 表（姓名→players.id，任期涵蓋冠軍年）。
 
-冪等：每次 TRUNCATE 後重建。資料界線：games kind C 缺的年份（如 1992/1994/1995）
-無法標注；總冠軍總教練僅限 managers 姓名能對到 players.id 者。
+冪等：每次 TRUNCATE 後重建。總冠軍總教練僅限 managers 姓名能對到 players.id 者。
 """
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
+from datetime import datetime
 
 from cpbl.db import conn
 
 log = logging.getLogger("cpbl.champ")
 
-# 各年冠軍隊（系列賽勝場最多者）。team_code 形如 AAA011，前三碼對 season 表 team_id。
+CANONICAL_FROM_YEAR = 1990
+CANONICAL_THROUGH_YEAR = 2025
+
+
+def championship_coverage(
+    years: Iterable[int], *, as_of: datetime | None
+) -> dict[str, object]:
+    """回傳 canonical 歷史範圍的完整性；範圍外年份不影響判定。"""
+    expected = set(range(CANONICAL_FROM_YEAR, CANONICAL_THROUGH_YEAR + 1))
+    present = expected.intersection(years)
+    missing = sorted(expected - present)
+    return {
+        "from_year": CANONICAL_FROM_YEAR,
+        "through_year": CANONICAL_THROUGH_YEAR,
+        "complete": not missing,
+        "missing_years": missing,
+        "as_of": as_of,
+    }
+
+# 各年已驗證冠軍。team_code 形如 AAA011，前三碼對 season 表 team_id；
+# franchise_code 對 managers 與未來球團累積排行。
 _CHAMP_SQL = """
-WITH cg AS (
-  SELECT year,
-    CASE WHEN home_score > away_score THEN home_team_code ELSE away_team_code END AS wcode
-  FROM cpbl.games WHERE kind_code = 'C' AND home_score <> away_score
-), champ AS (
-  SELECT year, wcode, row_number() OVER (PARTITION BY year ORDER BY count(*) DESC) rn
-  FROM cg GROUP BY year, wcode
-)
-SELECT year, wcode FROM champ WHERE rn = 1 ORDER BY year
+SELECT year, champion_team_code, franchise_code, verified_at
+FROM cpbl.championships
+WHERE verification_status = 'verified'
+ORDER BY year
 """
 
 # 冠軍隊該年一軍球員：season 表(team_id) + gamelog(vht 判隊)，投打全 UNION。
@@ -60,7 +76,7 @@ _MANAGER_SQL = """
 INSERT INTO cpbl.championship_members (player_id, year, team_code, role)
 SELECT DISTINCT p.id, %(year)s, %(code)s, 'manager'
 FROM cpbl.managers m JOIN cpbl.players p ON p.name = m.name
-WHERE m.team_code = %(code)s AND %(year)s BETWEEN m.from_year AND m.to_year
+WHERE m.team_code = %(fcode)s AND %(year)s BETWEEN m.from_year AND m.to_year
 ON CONFLICT (player_id, year) DO NOTHING
 """
 
@@ -72,14 +88,17 @@ def build_championships() -> dict:
         champs = cur.fetchall()
         cur.execute("TRUNCATE cpbl.championship_members")
         n_player = n_mgr = 0
-        for year, code in champs:
-            args = {"year": year, "code": code, "tid": code[:3]}
+        for year, code, franchise_code, _verified_at in champs:
+            args = {"year": year, "code": code, "fcode": franchise_code, "tid": code[:3]}
             cur.execute(_PLAYERS_SQL, args)
             n_player += cur.rowcount
             cur.execute(_MANAGER_SQL, args)
             n_mgr += cur.rowcount
+        verified_at = max((row[3] for row in champs), default=None)
+        coverage = championship_coverage([row[0] for row in champs], as_of=verified_at)
         out = {"champions": len(champs),
-               "years": [y for y, _ in champs],
+               "years": [row[0] for row in champs],
+               "coverage": coverage,
                "player_rows": n_player, "manager_rows": n_mgr}
     log.info("championship_members rebuilt: %s", out)
     return out

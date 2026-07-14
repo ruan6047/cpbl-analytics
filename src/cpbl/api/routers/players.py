@@ -5,12 +5,20 @@ from __future__ import annotations
 from datetime import date as _date
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from cpbl import imports
 from cpbl.api.helpers import DEFAULT_SEASON, _dicts, _real_ip, _round
+from cpbl.api.matchups import (
+    CAREER_YEAR,
+    MatchupScope,
+    aggregate_matchup_rows,
+    resolve_matchup_scope,
+    sort_matchup_items,
+)
 from cpbl.api.rows import _ERA_SPLIT, _POS_CANON, _batting_rows, _pitching_rows
 from cpbl.db import conn
+from cpbl.franchises import franchise_of, franchise_prefixes
 
 router = APIRouter()
 
@@ -218,7 +226,8 @@ def player_career(player_id: str) -> dict:
             "WHERE player_id=%s AND award NOT LIKE '%%中華職棒%%' ORDER BY seq", (player_id,))
         wiki_awards = [{"award": aw, "years": ys or [], "note": nt}
                        for aw, ys, nt in cur.fetchall()]
-        # 年度總冠軍（隊伍榮銜，個人獎項表沒有）：由官網 games 推導 → championship_members
+        # 年度總冠軍（隊伍榮銜，個人獎項表沒有）：由 canonical championships 決定
+        # 冠軍隊，再重建 championship_members。
         # （該年一軍有成績的球員＋總教練；見 ingest/championships.py）
         cur.execute(
             "SELECT year FROM cpbl.championship_members WHERE player_id=%s ORDER BY year",
@@ -441,44 +450,132 @@ def player_pitching(player_id: str) -> dict:
 
 
 # ---------- 對戰各隊 / 分項 / 投打對決 ----------
+def _search_roster(cur, role: str, season: int, q: str | None, limit: int) -> list[dict]:
+    table = "batting_current" if role == "batting" else "pitching_current"
+    # table 由 role 白名單決定。
+    sql = f"""
+        SELECT p.player_id AS id, p.name, p.team_code,
+               coalesce(tc.name, tm.name) AS team
+        FROM cpbl.{table} p
+        LEFT JOIN cpbl.team_current tc ON tc.team_code=p.team_code AND tc.year=p.year
+        LEFT JOIN cpbl.teams tm ON tm.team_id=left(p.team_code, 3)
+        WHERE p.year=%s
+    """
+    params: list[Any] = [season]
+    if q:
+        sql += " AND (p.name ILIKE %s OR coalesce(tc.name, tm.name, '') ILIKE %s)"
+        needle = f"%{q.strip()}%"
+        params.extend((needle, needle))
+    sql += " ORDER BY p.name LIMIT %s"
+    params.append(limit)
+    cur.execute(sql, params)
+    items = _dicts(cur)
+    for item in items:
+        item["franchise"] = franchise_of(item["team_code"]) if item.get("team_code") else None
+    return items
+
+
 @router.get("/api/v1/players/roster")
-def roster(season: int = Query(DEFAULT_SEASON)) -> dict:
-    """本季登錄打者/投手名單（投打對決與細項頁的選單來源）。"""
+def roster(
+    season: int = Query(DEFAULT_SEASON, ge=1990),
+    role: str | None = Query(None, pattern="^(batting|pitching)$"),
+    q: str | None = Query(None, min_length=1, max_length=50),
+    limit: int = Query(20, ge=1, le=100),
+) -> dict:
+    """依角色／年度搜尋有限筆球員；未指定 role 時保留舊版雙名單 contract。"""
     with conn() as c:
         cur = c.cursor()
-        cur.execute(
-            """
-            SELECT b.player_id, b.name, t.name FROM cpbl.batting_current b
-            LEFT JOIN cpbl.team_current t ON t.team_code = b.team_code AND t.year = b.year
-            WHERE b.year = %s ORDER BY b.name
-            """, (season,),
-        )
-        batters = [{"id": i, "name": n, "team": tm} for i, n, tm in cur.fetchall()]
-        cur.execute(
-            """
-            SELECT p.player_id, p.name, t.name FROM cpbl.pitching_current p
-            LEFT JOIN cpbl.team_current t ON t.team_code = p.team_code AND t.year = p.year
-            WHERE p.year = %s ORDER BY p.name
-            """, (season,),
-        )
-        pitchers = [{"id": i, "name": n, "team": tm} for i, n, tm in cur.fetchall()]
-    return {"season": season, "batters": batters, "pitchers": pitchers}
+        if role:
+            return {
+                "season": season,
+                "role": role,
+                "q": q,
+                "items": _search_roster(cur, role, season, q, limit),
+            }
+        # 舊版 /matchups 尚未改成搜尋式 UI；未帶 role 時暫保留完整名單。
+        legacy_limit = 500
+        batters = _search_roster(cur, "batting", season, q, legacy_limit)
+        pitchers = _search_roster(cur, "pitching", season, q, legacy_limit)
+        return {"season": season, "batters": batters, "pitchers": pitchers}
+
+
+def _scope_or_422(
+    scope: str,
+    season: int,
+    from_year: int | None,
+    to_year: int | None,
+) -> MatchupScope:
+    try:
+        return resolve_matchup_scope(scope, season, from_year, to_year)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _coverage(years: list[int]) -> dict:
+    return {
+        "career": CAREER_YEAR in years,
+        "annual_years": sorted(year for year in years if year != CAREER_YEAR),
+    }
+
+
+_MATCHUP_COUNT_SELECT = """
+    m.plate_appearances, m.at_bats, m.hits, m.rbi, m.singles, m.doubles, m.triples,
+    m.home_runs, m.total_bases, m.sac_hit, m.sac_fly, m.bb, m.ibb, m.hbp, m.so,
+    m.ground_out, m.fly_out, m.goao, m.strike_pct, m.ball_pct, m.swing_pct,
+    m.first_pitch_swing_pct, m.whiff_pct, m.gb_pct, m.ld_pct, m.fb_pct
+"""
 
 
 @router.get("/api/v1/matchups")
 def matchups(
     hitter: str = Query(..., description="打者 player_id"),
     pitcher: str = Query(..., description="投手 player_id"),
+    kind_code: str | None = Query(None, pattern="^(A|C|E)$"),
+    scope: str = Query("career", pattern="^(career|season|range)$"),
+    season: int = Query(DEFAULT_SEASON, ge=1990),
+    from_year: int | None = Query(None, ge=1990),
+    to_year: int | None = Query(None, ge=1990),
 ) -> dict:
-    """單組打者 vs 投手的生涯對戰（A/C/E 各一列）。"""
+    """單組打者 vs 投手詳情；生涯與年度列互斥，跨年由原始計數重算 rate。"""
+    selected = _scope_or_422(scope, season, from_year, to_year)
     with conn() as c:
         cur = c.cursor()
+        sql = f"""
+            SELECT m.kind_code, m.year, m.hitter_name, m.pitcher_name,
+                   m.hitter_team_no AS hitter_team_code,
+                   m.pitcher_team_no AS pitcher_team_code,
+                   {_MATCHUP_COUNT_SELECT}
+            FROM cpbl.batter_pitcher_matchups m
+            WHERE m.hitter_acnt=%s AND m.pitcher_acnt=%s
+              AND m.year BETWEEN %s AND %s
+        """  # noqa: S608 — SELECT 片段為本模組固定欄位
+        params: list[Any] = [hitter, pitcher, selected.from_year, selected.to_year]
+        if kind_code:
+            sql += " AND m.kind_code=%s"
+            params.append(kind_code)
+        cur.execute(sql, params)
+        items = aggregate_matchup_rows(_dicts(cur), group_keys=("kind_code",))
         cur.execute(
-            "SELECT * FROM cpbl.batter_pitcher_matchups WHERE hitter_acnt = %s AND pitcher_acnt = %s "
-            "ORDER BY kind_code",
+            "SELECT DISTINCT year FROM cpbl.batter_pitcher_matchups "
+            "WHERE hitter_acnt=%s AND pitcher_acnt=%s ORDER BY year",
             (hitter, pitcher),
         )
-        return {"hitter": hitter, "pitcher": pitcher, "items": _dicts(cur)}
+        years = [row[0] for row in cur.fetchall()]
+    for item in items:
+        item["hitter_franchise"] = franchise_of(item["hitter_team_code"])
+        item["pitcher_franchise"] = franchise_of(item["pitcher_team_code"])
+    items.sort(key=lambda item: item["kind_code"])
+    return {
+        "hitter": hitter,
+        "pitcher": pitcher,
+        "kind_code": kind_code,
+        "scope": selected.name,
+        "from_year": selected.from_year,
+        "to_year": selected.to_year,
+        "source": selected.source,
+        "coverage": _coverage(years),
+        "items": items,
+    }
 
 
 @router.get("/api/v1/players/{player_id}/traits")
@@ -721,26 +818,73 @@ def player_matchups(
     player_id: str,
     role: str = Query("batting", pattern="^(batting|pitching)$"),
     kind_code: str = Query("A", pattern="^(A|C|E)$"),
-    season: int = Query(DEFAULT_SEASON),
+    scope: str = Query("career", pattern="^(career|season|range)$"),
+    season: int = Query(DEFAULT_SEASON, ge=1990),
+    from_year: int | None = Query(None, ge=1990),
+    to_year: int | None = Query(None, ge=1990),
+    opponent_team: str | None = Query(None, min_length=3, max_length=6),
+    opponent_id: str | None = Query(None, min_length=10, max_length=10),
+    limit: int = Query(50, ge=1, le=200),
+    sort: str = Query(
+        "plate_appearances",
+        pattern="^(plate_appearances|avg|ops|home_runs|so|recent_year)$",
+    ),
+    order: str = Query("desc", pattern="^(asc|desc)$"),
 ) -> dict:
-    """某球員的全部投打對決（role=batting：對戰各投手；pitching：對戰各打者）。
-    對手球隊名以本季 team_current 對照；同隊不可能對戰故天然排除。"""
+    """查詢球員對戰；可限定資料範圍、歷史 franchise、對手、排序與筆數。"""
+    selected = _scope_or_422(scope, season, from_year, to_year)
     self_col, opp_col = ("hitter_acnt", "pitcher") if role == "batting" else ("pitcher_acnt", "hitter")
     with conn() as c:
         cur = c.cursor()
-        cur.execute(
-            f"""
-            SELECT m.{opp_col}_acnt AS opp_id, m.{opp_col}_name AS opp_name, t.name AS opp_team,
-                   m.plate_appearances, m.at_bats, m.hits, m.home_runs, m.rbi, m.bb, m.so,
-                   m.avg, m.obp, m.slg, m.ops, m.whiff_pct
+        # self_col/opp_col 由 role 白名單決定。
+        sql = f"""
+            SELECT m.year, m.{opp_col}_acnt AS opp_id, m.{opp_col}_name AS opp_name,
+                   m.{opp_col}_team_no AS opp_team_code, tm.name AS opp_team,
+                   {_MATCHUP_COUNT_SELECT}
             FROM cpbl.batter_pitcher_matchups m
-            LEFT JOIN cpbl.team_current t ON t.team_code = m.{opp_col}_team_no AND t.year = %s
-            WHERE m.{self_col} = %s AND m.kind_code = %s
-            ORDER BY m.plate_appearances DESC NULLS LAST
-            """,
-            (season, player_id, kind_code),
+            LEFT JOIN cpbl.teams tm ON tm.team_id=left(m.{opp_col}_team_no, 3)
+            WHERE m.{self_col}=%s AND m.kind_code=%s
+              AND m.year BETWEEN %s AND %s
+        """
+        params: list[Any] = [player_id, kind_code, selected.from_year, selected.to_year]
+        if opponent_id:
+            sql += f" AND m.{opp_col}_acnt=%s"  # noqa: S608 — opp_col 由 role 白名單決定
+            params.append(opponent_id)
+        if opponent_team:
+            sql += f" AND left(m.{opp_col}_team_no, 3)=ANY(%s)"  # noqa: S608
+            params.append(sorted(franchise_prefixes(opponent_team)))
+        cur.execute(sql, params)
+        items = aggregate_matchup_rows(_dicts(cur))
+        cur.execute(  # noqa: S608 — self_col 由 role 白名單決定
+            f"SELECT DISTINCT year FROM cpbl.batter_pitcher_matchups "
+            f"WHERE {self_col}=%s AND kind_code=%s ORDER BY year",
+            (player_id, kind_code),
         )
-        return {"player_id": player_id, "role": role, "kind_code": kind_code, "items": _dicts(cur)}
+        years = [row[0] for row in cur.fetchall()]
+    for item in items:
+        item["opp_franchise"] = franchise_of(item["opp_team_code"])
+    try:
+        items = sort_matchup_items(items, sort, order)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    available_count = len(items)
+    return {
+        "player_id": player_id,
+        "role": role,
+        "kind_code": kind_code,
+        "scope": selected.name,
+        "from_year": selected.from_year,
+        "to_year": selected.to_year,
+        "source": selected.source,
+        "coverage": _coverage(years),
+        "filters": {"opponent_team": opponent_team, "opponent_id": opponent_id},
+        "sort": sort,
+        "order": order,
+        "available_count": available_count,
+        "items": items[:limit],
+    }
+
+
 def _farm_season(player_id: str, season: int) -> dict:
     """二軍本季成績（gamelog kind=D 彙整）：供二軍選手成績卡。rate 由原始計數即時算；
     OPS+/ERA+/FIP 無二軍聯盟基準故留空（前端顯示 —）。欄位對齊一軍卡。"""

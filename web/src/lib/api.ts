@@ -357,4 +357,10 @@ export const api = {
   // 特徵組對齊 predict 頁預設（client.ts）；此處 server 端渲染避免載入閃爍。
   outcomeMatchups: (limit = 3) =>
     get<HubMatchupsResponse>(`/api/v1/outcome/matchups?features=${OUTCOME_DEFAULT_FEATURES}&limit=${limit}`, 120),
+  playersRoster: (season?: number) =>
+    get<{
+      season: number;
+      batters: { id: string; name: string; team: string }[];
+      pitchers: { id: string; name: string; team: string }[];
+    }>(`/api/v1/players/roster${season ? `?season=${season}` : ""}`, 600),
 };

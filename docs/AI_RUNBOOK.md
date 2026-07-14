@@ -109,7 +109,7 @@ curl -s https://cpbl.ruan-ruan.com/api/info | python3 -m json.tool
 | `cpbl-build-splits [year] [kinds]` | **重算**本季 splits+vs各隊四表並寫回 + 生涯(base+本季)（純 DB 不爬，**生產可自跑**） | 已含於 refresh；手動重建分項 |
 | `cpbl-anchor-career <season> <csv_dir>` | 錨定生涯基底（官方生涯−官方本季同刻相減，一次性/重錨） | 跨年 roll 或重錨（見其 docstring） |
 | `cpbl-verify-splits [year] [kind]` | 分項重算 vs 官方爬值逐格對照 harness | 只對「新爬的官方值」有意義（寫回後即自比） |
-| `cpbl-build-championships` | 由 games(kind C) 推導歷年冠軍→標該年一軍球員+總教練(物化 `championship_members`，純 SQL 不爬) | 改冠軍邏輯後（已含於 refresh-recent） |
+| `cpbl-build-championships` | 由逐年可追溯的 `championships` canonical dataset 決定冠軍→標該年一軍球員+總教練（物化 `championship_members`，純 DB 不爬） | 改冠軍資料／成員邏輯後（已含於 refresh-recent） |
 | `cpbl-build-features` | 賽果預測特徵表(leakage-safe) | 改賽果特徵後 |
 | `cpbl-train` | 成績預測訓練+回測（**需 LightGBM → 容器內跑**） | 改成績模型/特徵後 |
 
@@ -133,6 +133,18 @@ host 缺 `libomp.dylib`。**勿 `brew install libomp` 污染 host**；需 LightG
 | 戰績 | `/season/standings`、`/standings` |
 | 球員頁 | `/players/{id}/batting|pitching|season|profile|fielding|vs-team|splits|matchups|advanced|discipline|arsenal|pitch-mix|trend`、`/players/roster`、`/matchups` |
 | 賽況 | `/games/recent`、`/games/{sno}/live`（含 records/batter_avg/has_tracking/tracking） |
+
+### 投打對決查詢 contract
+
+- `/players/roster`：帶 `role=batting|pitching&q=&season=&limit=` 時回有限筆 `items`；未帶
+  `role` 暫保留舊 `/matchups` 頁需要的完整 `batters`／`pitchers` 雙名單。
+- `/players/{id}/matchups`：`scope=career|season|range`；`range` 必帶 `from_year`＋
+  `to_year`。可用 `opponent_team`（自動展開歷史 franchise 隊碼）、`opponent_id`、`limit`、
+  `sort`、`order` 篩選。跨年只加總原始計數再重算 rate；無可加總分母的逐年百分比回 `null`。
+- `/matchups?hitter=&pitcher=`：同樣支援 scope／年度與 `kind_code`，保留單組進階欄位。
+- `year=9999` 是官網生涯彙總保留值。年度 scope 永不 fallback 到 9999；response 的 `coverage`
+  會分開回報 `career` 與 `annual_years`。**啟用「本季／指定年度」UI 前必先完整執行
+  `cpbl-scrape-fighting <year>` 並確認所有目標球員都有年度 coverage**，不可用單人抽樣資料上線。
 
 ---
 
@@ -187,6 +199,7 @@ cd web && npx tsc --noEmit        # 前端
 ## 9. DB schema 重點（`cpbl`，migrations 001–022）
 
 - season/ML：`*_seasons`、`projections`、`model_versions`。
+- 歷史冠軍：`championships`（1990–2025 逐年官方來源＋franchise）→ `championship_members`（離線重建成員）。
 - 逐場：`games`、`game_scoreboard`、`game_livelog`、`batting_gamelog`、`pitching_gamelog`、`game_features`。
 - 當季累計：`batting_current`、`pitching_current`、`team_current`、`fielding_current`。
 - 對戰/分項：`matchups`、`vs_team_splits`、`batting_splits`、`pitching_splits`。
