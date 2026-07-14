@@ -258,6 +258,65 @@ export type HubMatchup = {
 };
 export type HubMatchupsResponse = { items: HubMatchup[] };
 
+// —— 球場數據特色（VENUE-PARK1 契約；方法論見 docs/VENUE_PARK1_CONTRACT.md）——
+// PF>1＝該球場放大該事件。games＝實際完成場次；估計基礎是 eligible_team_games（隊-場），
+// low_sample 依估計基礎判定 —— UI 有義務同時揭露樣本與 low_sample，不得只列數字。
+export const FACTOR_STATS = ["r", "hr", "xbh", "h", "bb", "so"] as const;
+export type FactorStat = (typeof FACTOR_STATS)[number];
+export type Factors = Record<FactorStat, { observed: number; expected: number; pf: number | null }>;
+export type FactorSplit = {
+  games: number;
+  eligible_team_games: number;
+  excluded_team_games: number;
+  low_sample: boolean;
+  factors: Factors;
+};
+export type VenueFactorsResponse = {
+  venue: string;
+  kind_code: string;
+  from_year: number;
+  to_year: number;
+  method: string;
+  method_note: string;
+  data_floor_note: string;
+  seasons: (FactorSplit & { year: number })[];
+  pooled: FactorSplit;
+  excluded_team_games: number;
+};
+
+export type VenueEnvLine = {
+  year: number;
+  pa: number | null; ab: number | null; h: number | null; hr: number | null;
+  doubles: number | null; triples: number | null;
+  avg: number | null; obp: number | null; slg: number | null; ops: number | null;
+  hr_pct: number | null; so_pct: number | null; bb_pct: number | null;
+  go: number | null; fo: number | null; go_ao: number | null;
+};
+export type VenueStatsResponse = {
+  venue: string; item_name: string; kind_code: string;
+  seasons: VenueEnvLine[];
+  league: VenueEnvLine[];
+  note: string;
+};
+
+// 生涯口徑（官方分項 year=9999，含 2018 以前）。delta＝該球場減自身生涯，描述性統計。
+export type VenueBatter = {
+  player_id: string; name: string | null;
+  venue_pa: number; venue_avg: number | null; venue_ops: number | null; venue_hr: number | null;
+  career_pa: number; career_ops: number; delta_ops: number;
+};
+export type VenuePitcher = {
+  player_id: string; name: string | null;
+  venue_ip: number; venue_era: number | null; venue_k_pct: number | null;
+  career_ip: number; career_era: number | null; delta_era: number;
+};
+export type VenuePlayersResponse<T> = {
+  venue: string; item_name: string; role: string;
+  thresholds: { min_pa: number; min_outs: number };
+  best: T[]; worst: T[];
+  note: string;
+};
+
 export const api = {
   officialStandings: (seg = 0, year?: number, kind = "A") =>
     get<OfficialStandingsResponse>(`/api/v1/standings?season_code=${seg}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 120),
@@ -339,6 +398,14 @@ export const api = {
         first_year: number | null; last_year: number | null;
       }[];
     }>(`/api/v1/venues${season ? `?season=${season}` : ""}`, 600),
+  // 球場詳情三端點。{venue} 為短名（含中文 → encodeURIComponent）；查無資料回 404 → 呼叫端 notFound()。
+  venueFactors: (venue: string) =>
+    get<VenueFactorsResponse>(`/api/v1/venues/${encodeURIComponent(venue)}/factors`, 600),
+  venueStats: (venue: string) =>
+    get<VenueStatsResponse>(`/api/v1/venues/${encodeURIComponent(venue)}/stats`, 600),
+  venuePlayers: <T>(venue: string, role: "batting" | "pitching", limit = 6) =>
+    get<VenuePlayersResponse<T>>(
+      `/api/v1/venues/${encodeURIComponent(venue)}/players?role=${role}&limit=${limit}`, 600),
   projections: (stat = "ops", limit = 50) =>
     get<{
       model_version: string | null; stat: string; target_year: number | null;
