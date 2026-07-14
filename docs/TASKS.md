@@ -17,6 +17,7 @@
 | UX-MATCHUP2 | 投打對決整合球員個人頁 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-MATCHUP2` | ⚪ | 📥Backlog（依賴 UX-MATCHUP1；共用元件與 deep-link） |
 | RECORD-DATA1 | 歷年總冠軍權威資料集與球團映射 | ruan6047 | GPT-5@Codex（[`spec`](../records-redesign.md)；建議 Fable） | GPT-5@Codex | Opus-4.8@Claude Code | `ai/gpt-5-codex/RECORD-DATA1` | 🔴 | ✅通過（07-14 事後查核：33 季由 games kind C 獨立推導零差異；1992/94/95 以半季戰績重建佐證；教練獎 24/24 交叉驗證） |
 | RECORD-API1 | 紀錄室分類排行與冠軍 API | ruan6047 | Opus-4.8@Claude Code | Opus-4.8@Claude Code | 待指派（≠執行者） | `ai/opus-4.8/RECORD-API1` | ⚪ | 🔍待查核（**已合併 main，需事後查核**；`/records/championships`：36 季冠亞軍+教練、王朝榜、球員榜；coverage 缺年直接不回排行） |
+| RECORD-API1-FIX1 | 修正冠軍榜現役判定與球團榜 top N | ruan6047 | 待指派 | 待指派 | 待指派（≠執行者） | `ai/<執行者>/RECORD-API1-FIX1` | ⚪ | 📥Backlog（事後查核發現：球員榜漏「本季有成績」現役來源；`limit` 未套用球團王朝榜） |
 | UX-RECORD1 | `/records` 歷史重要性導向重製 | ruan6047 | GPT-5@Codex（[`spec`](../records-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-RECORD1` | ⚪ | 📥Backlog（依賴 RECORD-API1；首屏標竿、生涯榜、冠軍王朝） |
 | ML-UMP1 | 裁判誤判預期影響研究 | ruan6047 | 待研究 spec（建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-UMP1` | 🔴 | 📥Backlog（先驗證再決定是否產品化，不併 UX-10） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
@@ -51,6 +52,7 @@
 - Log：
   - 07-15 ruan6047 派工；spec 檔不存在 → 反問定範圍後執行
   - 07-15 執行完成但**流程有誤**：直接推 main、刪分支與 worktree；經 ruan6047 指正後重建，改採事後查核。教訓已寫入記憶 `review-before-merge`。
+  - 07-15 查核 by GPT-5@Codex → ↩退回（事後查核；開 `RECORD-API1-FIX1`：冠軍球員榜現役判定漏本季成績來源；球團王朝榜未套用 `?limit=`）
 
 ### ML-UMP1 裁判誤判預期影響研究  〔🔴紅線：統計／反事實估計〕
 - 需求：ruan6047（07-14）　規劃：Fable（統計定義／驗證設計）　分支：`ai/<執行者>/ML-UMP1`
