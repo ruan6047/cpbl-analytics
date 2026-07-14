@@ -7,13 +7,17 @@ from fastapi import APIRouter, Query
 from cpbl.api.helpers import DEFAULT_SEASON, _ip_disp
 from cpbl.api.rows import _batting_rows, _pitching_rows, _primary_positions
 from cpbl.db import conn
+from cpbl.ingest.championships import championship_coverage
 
 router = APIRouter()
 
 
 @router.get("/api/v1/records")
-def records(kind_code: str = Query("A")) -> dict:
-    """歷史紀錄室：比賽紀錄 + 單季之最 + 生涯排行（一軍；單季/生涯以官方歷年彙總，近兩季另計）。"""
+def records(kind_code: str = Query("A"), limit: int = Query(5, ge=1, le=50)) -> dict:
+    """歷史紀錄室：比賽紀錄 + 單季之最 + 生涯排行（一軍；單季/生涯以官方歷年彙總，近兩季另計）。
+
+    生涯榜為**並列排名**（同數值同名次），故回傳列數可能超過 `limit`。
+    """
     with conn() as c:
         cur = c.cursor()
 
@@ -55,20 +59,107 @@ def records(kind_code: str = Query("A")) -> dict:
                "ORDER BY val DESC LIMIT 1")
         season_pit = {k: top(ssp.format(col=k)) for k in ("w", "sv", "so")}
 
-        # 現役 = 本季登錄打/投；生涯排行標注供前端區分現役/退役
-        active_expr = ("(EXISTS(SELECT 1 FROM cpbl.batting_current bc WHERE bc.player_id=c.player_id) "
-                       "OR EXISTS(SELECT 1 FROM cpbl.pitching_current pc WHERE pc.player_id=c.player_id)) active")
-        cb = ("WITH c AS (SELECT player_id, sum({col}) v FROM cpbl.batting_seasons GROUP BY player_id) "
-              "SELECT p.name, p.id pid, c.v val, " + active_expr +
-              " FROM c JOIN cpbl.players p ON p.id=c.player_id ORDER BY v DESC LIMIT 5")
-        career_bat = {k: top(cb.format(col=k), 5) for k in ("hr", "h", "rbi", "sb")}
-        cp = ("WITH c AS (SELECT player_id, sum({col}) v FROM cpbl.pitching_seasons GROUP BY player_id) "
-              "SELECT p.name, p.id pid, c.v val, " + active_expr +
-              " FROM c JOIN cpbl.players p ON p.id=c.player_id ORDER BY v DESC LIMIT 5")
-        career_pit = {k: top(cp.format(col=k), 5) for k in ("w", "sv", "so")}
+        # 現役＝**官方登錄名單**（team_roster）∪ 本季有成績。單用登錄名單會漏升降/離隊者，
+        # 單用出賽會漏「登錄但整季未出賽」者（見記憶 player-name-authority）。
+        active_expr = (
+            "(EXISTS(SELECT 1 FROM cpbl.team_roster tr WHERE tr.player_id=c.player_id AND tr.year=%(y)s) "
+            " OR EXISTS(SELECT 1 FROM cpbl.batting_current bc WHERE bc.player_id=c.player_id) "
+            " OR EXISTS(SELECT 1 FROM cpbl.pitching_current pc WHERE pc.player_id=c.player_id)) active")
+
+        # **並列排名**：同數值給同名次（1,2,2,4）。舊版直接 LIMIT 會把同分者任意切掉——
+        # 生涯榜同分很常見（如生涯 100 轟），切掉誰是隨機的，等於製造假排名。
+        # 取法：先算 rank，再取 rank <= limit（故實際列數可能 > limit）。
+        def career(table: str, col: str, lim: int) -> list[dict]:
+            sql = (
+                f"WITH c AS (SELECT player_id, sum({col}) v FROM cpbl.{table} GROUP BY player_id), "
+                f"r AS (SELECT p.name, p.id pid, c.v val, {active_expr}, "
+                f"       rank() OVER (ORDER BY c.v DESC) rk FROM c "
+                f"       JOIN cpbl.players p ON p.id=c.player_id WHERE c.v > 0) "
+                f"SELECT * FROM r WHERE rk <= %(n)s ORDER BY rk, name")
+            cur.execute(sql, {"n": lim, "y": DEFAULT_SEASON})
+            cols = [d[0] for d in cur.description]
+            return [dict(zip(cols, row, strict=False)) for row in cur.fetchall()]
+
+        career_bat = {k: career("batting_seasons", k, limit) for k in ("hr", "h", "rbi", "sb")}
+        career_pit = {k: career("pitching_seasons", k, limit) for k in ("w", "sv", "so")}
 
     return {"games": games, "season_batting": season_bat, "season_pitching": season_pit,
             "career_batting": career_bat, "career_pitching": career_pit}
+
+
+@router.get("/api/v1/records/championships")
+def championships(limit: int = Query(10, ge=1, le=50)) -> dict:
+    """冠軍編：逐年冠亞軍＋奪冠總教練、球團王朝榜、球員冠軍次數榜。
+
+    **紅線：`coverage` 必須隨回應附帶，且缺年時 `complete=false`**（看板依賴序：冠軍資料
+    缺年屬資料正確性紅線，未補齊不得公開「歷史最多冠軍」結論）。前端在 `complete=false`
+    時**不得**呈現累計排行為完整歷史結論——故此時 `franchise_ranking`／`player_ranking`
+    直接不回傳，而非讓前端自行決定要不要顯示。
+
+    冠軍教練來自 canonical `championship_managers`（非 `managers.championships`，該欄為維基
+    來源、漏記 7 筆；見記憶 championship-managers-canonical）。
+    """
+    with conn() as c:
+        cur = c.cursor()
+
+        cur.execute("""
+            SELECT ch.year, ch.champion_team_code, tc.short AS champion,
+                   ch.runner_up_team_code, tr.short AS runner_up,
+                   ch.franchise_code, cm.manager_name, ch.source_url
+            FROM cpbl.championships ch
+            LEFT JOIN cpbl.team_dim tc ON tc.team_code = ch.champion_team_code
+            LEFT JOIN cpbl.team_dim tr ON tr.team_code = ch.runner_up_team_code
+            LEFT JOIN cpbl.championship_managers cm
+                   ON cm.year = ch.year AND cm.verification_status = 'verified'
+            WHERE ch.verification_status = 'verified'
+            ORDER BY ch.year DESC
+        """)
+        cols = [d[0] for d in cur.description]
+        seasons = [dict(zip(cols, r, strict=False)) for r in cur.fetchall()]
+
+        cov = championship_coverage([s["year"] for s in seasons], as_of=None)
+        cov["as_of"] = None
+        out: dict = {"coverage": cov, "seasons": seasons}
+
+        # 缺年 → fail-closed：不產出任何「歷史最多」的累計結論
+        if not cov["complete"]:
+            out["note"] = ("冠軍資料缺年（%s），依資料正確性紅線不產出累計排行"
+                           % ", ".join(map(str, cov["missing_years"])))
+            return out
+
+        cur.execute("""
+            WITH t AS (
+              SELECT ch.franchise_code AS team_code, count(*) AS titles,
+                     array_agg(ch.year ORDER BY ch.year) AS years
+              FROM cpbl.championships ch WHERE ch.verification_status='verified'
+              GROUP BY ch.franchise_code)
+            SELECT t.team_code, d.short AS team, t.titles, t.years,
+                   rank() OVER (ORDER BY t.titles DESC) AS rk
+            FROM t LEFT JOIN cpbl.team_dim d ON d.team_code = t.team_code
+            ORDER BY rk, t.team_code
+        """)
+        cols = [d[0] for d in cur.description]
+        out["franchise_ranking"] = [dict(zip(cols, r, strict=False)) for r in cur.fetchall()]
+
+        # 球員冠軍次數（championship_members role='player'；並列排名同上）
+        cur.execute("""
+            WITH m AS (
+              SELECT cm.player_id, count(*) AS titles,
+                     array_agg(cm.year ORDER BY cm.year) AS years
+              FROM cpbl.championship_members cm WHERE cm.role='player'
+              GROUP BY cm.player_id),
+            r AS (
+              SELECT p.name, p.id AS pid, m.titles, m.years,
+                     EXISTS(SELECT 1 FROM cpbl.team_roster tr
+                             WHERE tr.player_id=m.player_id AND tr.year=%(y)s) AS active,
+                     rank() OVER (ORDER BY m.titles DESC) AS rk
+              FROM m JOIN cpbl.players p ON p.id = m.player_id)
+            SELECT * FROM r WHERE rk <= %(n)s ORDER BY rk, name
+        """, {"n": limit, "y": DEFAULT_SEASON})
+        cols = [d[0] for d in cur.description]
+        out["player_ranking"] = [dict(zip(cols, r, strict=False)) for r in cur.fetchall()]
+
+    return out
 
 
 @router.get("/api/v1/season/batting-leaders")
