@@ -68,8 +68,22 @@ function CoachView({ d }: { d: CoachData }) {
       ),
       nowrap: true,
     },
-    { header: "職務/身分", cell: (r) => r.pos, nowrap: true, className: "font-sans text-ink" },
+    {
+      header: "職務/身分",
+      cell: (r) => (
+        <span className="flex items-center gap-1.5">
+          {r.pos}
+          {r.needs_review && (
+            <span title="來源未經生日核對，可能為同名者資料"
+              className="rounded bg-surface-2 px-1 py-0.5 text-[10px] font-semibold text-faint">待查</span>
+          )}
+        </span>
+      ),
+      nowrap: true,
+      className: "font-sans text-ink",
+    },
   ];
+  const historyNeedsReview = d.history.some((r) => r.needs_review);
   const mcols: Column<CoachData["manager_eras"][number]>[] = [
     { header: "球隊", cell: (r) => <span className="flex items-center gap-1.5 font-sans"><TeamLogo code={r.team_code} name={r.team_name} size={16} />{r.team_name ?? r.team_code}</span>, nowrap: true },
     { header: "任期", cell: (r) => (r.from_year === r.to_year ? String(r.from_year) : `${r.from_year}–${r.to_year}`), nowrap: true },
@@ -107,6 +121,11 @@ function CoachView({ d }: { d: CoachData }) {
         <Eyebrow className="mb-3">生涯歷程</Eyebrow>
         <DataTable columns={cols} rows={d.history} rowKey={(r, i) => `${r.from_year}-${r.to_year}-${r.team_raw}-${i}`} dense
           emptyText="無生涯歷程紀錄" />
+        {historyNeedsReview && (
+          <p className="mt-2 text-xs text-faint">
+            標「待查」的列來自台灣棒球維基館，未能以出生日期核對身分（同名者可能混入），尚待人工複查。
+          </p>
+        )}
       </section>
     </div>
   );
