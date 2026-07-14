@@ -24,11 +24,33 @@
 | UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🏁完成（UX-5C 07-14 合併 main） |
 | UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | Gemini-3.5-Flash@Antigravity | Gemini-3.5-Flash@Antigravity | 待指派 | `ai/gemini/UX-5C` | ⚪ | ✅已結案（07-14 合併 main；明細併入 UX-1） |
 | MATCHUP-DATA1 | 投打對決資料範圍與查詢 API 正確化 | ruan6047 | GPT-5@Codex（[`spec`](../../matchups-redesign.md)） | GPT-5@Codex | Sonnet@Copilot CLI | `ai/codex/MATCHUP-DATA1` | 🔴 | 🏁完成（07-14 合併 main，57 tests 綠） |
+| VENUE-PARK1 | 球場滾飛比／Park Factor／選手極端表現（資料＋API） | ruan6047 | Fable（park factor 公式＋小樣本呈現需統計判斷） | Fable-5@Claude Code | GPT-5@Codex | `ai/fable-5/VENUE-PARK1` | 🔴 | 🏁完成（07-14 已補齊歷史 splits 並重驗通過） |
 | UX-VENUE1 | `/venues/[venue]` 球場詳情頁 | ruan6047 | Sonnet@Claude Code | Opus-4.8@Claude Code | Gemini-3.5-Flash@Antigravity | `ai/opus-4.8/UX-VENUE1` | ⚪ | 🏁完成（07-14 合併 main，100% roster coverage） |
 
 ---
 
 ## 卡片明細
+
+### VENUE-PARK1 球場滾飛比／Park Factor／選手極端表現（資料＋API）  〔🔴紅線：統計正確性（小樣本描述性統計仍可能誤導，同 Marcel／賽果誠實原則）〕
+- 需求：ruan6047（07-14）——現有 `/venues` 只有球場規格／使用量，對數據解讀沒有參考意義；要記錄每個球場的滾飛比、球場數據特色（如不容易全壘打）、在該球場表現特別出眾／特別差的選手。
+- 規劃：Sonnet@Claude Code 查證，park factor 公式與小樣本呈現方式定案交 Fable。
+- **現況盤點**：
+  1. **滾飛比免新爬蟲**：`batting_splits`／`pitching_splits` 已有「球場」split family，只是從未按球場軸彙總過。
+  2. **Park factor 沒有現成欄位**，需新算式；`games`／`batting_gamelog` 有逐場比分/HR 可用「主客對照法」比值。
+  3. **選手極端表現免新爬蟲**：同一組球場 split family 就是「每位選手在每個球場」的 rate stats。
+- 範圍：
+  1. 資料維運：對 2018–2025 逐年跑 `cpbl-build-splits <year>`，確認球場 family 各年正常。
+  2. 定案 park factor 公式（主客對照法）、GB/FB 彙總邏輯、選手極端值排序與最低樣本門檻。
+  3. 新 API：本季／生涯／逐年的球場滾飛比、主客對照 park factor、選手在該球場 rate stats 對生涯排序。
+- 誠實揭露（紅線）：資料僅涵蓋 2018+；輸出必須附樣本數／場次，用字避免斷言；park factor 採主客對照法。
+- 狀態：🏁完成（07-14 已補齊歷史 splits 並重驗通過）　Commit：`216a263`、`08c1bed`、`072699c`、`df72c38`、`1813647`
+- Log：
+  - 07-14 需求開卡，拆分一般 UI 與統計紅線，本卡收斂為資料與 API。
+  - 07-14 Fable-5 實作完成，主客對照 PF 數學定案，`ruff`+`pytest` 51 passed。
+  - 07-14 查核退回（第 1 次）：修復單方隊-季被排除時 `games` 輸出非整數與 low_sample 失真問題，commit `1813647` 修復。
+  - 07-14 重新查核通過（GPT-5@Codex），合併 `main`（`216a263`）。
+  - 07-14 部署：CI/Deploy 成功。驗證失敗：線上缺 2018–2025 `batting_splits` 歷史資料。
+  - 07-14 數據回填與重驗：本機補齊 2018–2025 splits 資料，經明確授權後執行同步指令 `SKIP_SCRAPE=1 WITH_DETAIL=1 ./scripts/refresh-cpbl-prod.sh`。同步完畢後，測試線上 API `/venues/大巨蛋/stats` 成功回傳 2024–2025 歷史數據，部署驗證通過，正式結案。
 
 ### UX-VENUE1 `/venues/[venue]` 球場詳情頁  〔⚪一般〕
 - 需求：ruan6047（07-14，與 VENUE-PARK1 同源）　規劃：Sonnet@Claude Code　分支：`ai/opus-4.8/UX-VENUE1`
