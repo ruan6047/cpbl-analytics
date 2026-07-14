@@ -74,3 +74,12 @@ def test_strip_team_rename_yields_empty_for_pure_rename():
 def test_manual_title_override_is_recorded():
     """自動規則 fail-closed 的同名者，答案寫在人工指定表，不由程式猜。"""
     assert ch.MANUAL_PAGE_TITLES["大威"] == "大威D.W"
+
+
+def test_parse_birthdate_handles_all_twbsball_formats():
+    """實測 twbsball 有四種寫法；逐一寫死會漏（曾漏掉斜線與「生日」模板 → 148 列誤標待查）。"""
+    assert ch.parse_birthdate("出生日期：{{BD|1961-05-14||:}}") == (1961, 5, 14)   # 洪一中
+    assert ch.parse_birthdate("出生日期：{{BD|1978/8/6}}") == (1978, 8, 6)         # 彭政閔
+    assert ch.parse_birthdate("出生日期：{{生日|1973/09/13}}") == (1973, 9, 13)    # 陳連宏
+    assert ch.parse_birthdate("出生日期：1972年10月30日") == (1972, 10, 30)
+    assert ch.parse_birthdate("查無此欄") is None

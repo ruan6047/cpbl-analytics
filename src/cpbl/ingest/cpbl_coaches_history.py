@@ -107,24 +107,21 @@ def fetch_wikitext(title: str) -> str | None:
     return None
 
 
+# 出生日期的實測寫法（逐一寫死會漏，故一條規則涵蓋）：
+#   {{BD|1961-05-14||:}}（洪一中）／{{BD|1978/8/6}}（彭政閔）／{{生日|1973/09/13}}（陳連宏）
+#   ／出生日期：1972年10月30日（純文字）
+# 模板名不限 BD（另有「生日」），分隔符不限 `-`（另有 `/` 與 年月日）。
+_BIRTH_RE = re.compile(
+    r"出生日期：\s*(?:\{\{\s*[^|{}]*\|\s*)?"      # 可選的模板前綴（BD／生日／…）
+    r"(\d{4})\s*[-/年]\s*(\d{1,2})\s*[-/月]\s*(\d{1,2})"
+)
+
+
 def parse_birthdate(wikitext: str) -> tuple[int, int, int] | None:
     """從 wikitext 中提取出生日期 (年, 月, 日) 以供身分比對。"""
-    # 1. 匹配 {{BD|1972-10-30|...}}
-    m = re.search(r"出生日期：\s*\{\{BD\|(\d{4})-(\d{1,2})-(\d{1,2})", wikitext, re.IGNORECASE)
+    m = _BIRTH_RE.search(re.sub(r"\[\[|\]\]", "", wikitext))
     if m:
         return int(m.group(1)), int(m.group(2)), int(m.group(3))
-        
-    # 2. 匹配 1972年10月30日
-    text = re.sub(r"\[\[|\]\]", "", wikitext)
-    m = re.search(r"出生日期：\s*(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日", text)
-    if m:
-        return int(m.group(1)), int(m.group(2)), int(m.group(3))
-        
-    # 3. 匹配 {{BD|1972年10月30日|...}}
-    m = re.search(r"出生日期：\s*\{\{BD\|(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日", wikitext, re.IGNORECASE)
-    if m:
-        return int(m.group(1)), int(m.group(2)), int(m.group(3))
-        
     return None
 
 
