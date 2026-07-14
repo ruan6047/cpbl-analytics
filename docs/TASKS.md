@@ -52,6 +52,7 @@
   - 07-14 真實資料 QA：白天單抓陳傑憲 2026 A 成功寫入 63 列；API coverage=[2026]，伍鐸列 9 PA／8 AB／4 H 的 AVG .5000、OBP .5556、SLG .5000 與 DB 原始計數一致；驗證後精確刪除 63 列，DB 恢復僅 9999 生涯資料
   - 07-14 部署前資料閘門：正式啟用年度 UI 前須完整跑 `cpbl-scrape-fighting 2026` 並做全 roster coverage QA；API 在缺年度資料時明確回空，不以生涯列代替
   - 07-14 ruan6047 授權準備跨家族查核；分支交付 `origin/ai/codex/MATCHUP-DATA1`，查核者須換非 OpenAI 模型家族並重跑真 DB 實測
+  - 07-14 跨家族查核（Sonnet@Copilot CLI）：ruff ✅、pytest 57/57 ✅、真 DB 實測 ✅（陳傑憲 career scope 185 筆，伍鐸 H=50/AB=126/AVG=0.3968 與 DB 原始計數一致；season/range scope 缺年資料時明確回空、不偷用 9999 生涯列；kind_code='A' 隔離 kind_code='E' 正確）；07-14 合併 main，本卡結案
 
 ### UX-1 全站頁面 UI/UX 重新設計  〔⚪（大卡：規劃後預期拆多張子卡，涉全站視覺）〕
 - 需求：ruan6047（07-11）——**重新設計每個頁面的 UI/UX**。痛點：①頁面不統一 ②數據可視度不夠 ③頁面與區塊混亂；裁判報告的資訊架構另抽 UX-10 處理。
