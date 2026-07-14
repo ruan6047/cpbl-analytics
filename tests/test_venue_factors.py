@@ -79,21 +79,41 @@ def test_pf_math_hand_computed():
     ]
     out = _aggregate_factors(rows)
     s = out["seasons"][0]
-    assert s["games"] == 10.0          # 20 隊-場 ÷ 2
+    assert s["games"] == 10 and isinstance(s["games"], int)   # 20 隊-場 = 10 場
+    assert s["eligible_team_games"] == 20
     assert s["factors"]["hr"]["observed"] == 30.0
     assert s["factors"]["hr"]["expected"] == 30.0
     assert s["factors"]["hr"]["pf"] == 1.0
 
 
 def test_pf_excludes_team_without_elsewhere_baseline():
-    # n_else=0 的隊-季（整季只在此場打）無法估基準 → 排除並記數，不硬湊
+    # n_else=0 的隊-季（整季只在此場打）無法估基準 → 排除於 obs/exp 並記數，不硬湊；
+    # 但 games（實際場次）仍含被排除方的比賽
     rows = [
         _row(2024, "X", 10, {"hr": 20}, 50, {"hr": 50}),
         _row(2024, "Z", 6, {"hr": 99}, 0, {}),
     ]
     out = _aggregate_factors(rows)
+    s = out["seasons"][0]
     assert out["excluded_team_games"] == 6
-    assert out["seasons"][0]["factors"]["hr"]["observed"] == 20.0   # Z 未混入
+    assert s["excluded_team_games"] == 6 and s["eligible_team_games"] == 10
+    assert s["games"] == 8               # (10+6) 隊-場 = 8 場實際比賽
+    assert s["factors"]["hr"]["observed"] == 20.0   # Z 未混入
+
+
+def test_games_stays_integer_when_one_side_of_a_game_is_excluded():
+    # 查核退回缺陷重現：一場比賽只有單方有其他球場基準（另一方 n_else=0）。
+    # 舊實作 games=隊-場/2=0.5，違反「場次」語意；修正後 games=1（整數）、
+    # 估計基礎以 eligible_team_games=1 明示
+    rows = [
+        _row(2024, "X", 1, {"hr": 1}, 30, {"hr": 30}),   # 有基準
+        _row(2024, "Z", 1, {"hr": 2}, 0, {}),            # 同一場的對手，被排除
+    ]
+    out = _aggregate_factors(rows)
+    s = out["seasons"][0]
+    assert s["games"] == 1 and isinstance(s["games"], int)
+    assert s["eligible_team_games"] == 1 and s["excluded_team_games"] == 1
+    assert out["pooled"]["games"] == 1 and isinstance(out["pooled"]["games"], int)
 
 
 def test_pooled_sums_obs_exp_across_seasons_not_average_of_pf():
@@ -109,9 +129,15 @@ def test_pooled_sums_obs_exp_across_seasons_not_average_of_pf():
     assert pooled["pf"] == 1.048
 
 
-def test_low_sample_flags():
-    rows = [_row(2024, "X", 10, {"hr": 5}, 50, {"hr": 50})]   # 5 場 < 30
+def test_low_sample_flags_keyed_on_eligible_team_games():
+    # 10 隊-場 < 2×30 → 單季 low；也 < 2×60 → 合併 low
+    rows = [_row(2024, "X", 10, {"hr": 5}, 50, {"hr": 50})]
     out = _aggregate_factors(rows)
     assert out["seasons"][0]["low_sample"] is True
     assert out["pooled"]["low_sample"] is True
+    # 估計基礎達門檻即不掛 low（60 隊-場 = 門檻 30 場的 2 倍）
+    rows = [_row(2024, "X", 30, {"hr": 5}, 30, {"hr": 5}),
+            _row(2024, "Y", 30, {"hr": 5}, 30, {"hr": 5})]
+    out = _aggregate_factors(rows)
+    assert out["seasons"][0]["low_sample"] is False
     assert MIN_SEASON_GAMES == 30 and MIN_POOLED_GAMES == 60   # 門檻改動需連動文件

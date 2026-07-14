@@ -19,19 +19,27 @@ Park factor（主客對照法），一軍例行賽（kind A），逐季＋跨季
   "method": "matched-team",
   "method_note": "…", "data_floor_note": "逐場資料自 2018 年起…",
   "seasons": [{
-    "year": 2024, "games": 38.0, "low_sample": false,   // < 30 場 → true
-    "factors": {                                          // r/hr/xbh/h/bb/so 六項
+    "year": 2024,
+    "games": 38,                  // 該場該季實際完成場次（整數）
+    "eligible_team_games": 76,    // 進入 obs/exp 估計的隊-場數（每場最多 2）
+    "excluded_team_games": 0,     // 無法估基準而排除的隊-場（該隊該季只在此場打）
+    "low_sample": false,          // eligible_team_games < 2×30 → true
+    "factors": {                  // r/hr/xbh/h/bb/so 六項
       "hr": {"observed": 29.0, "expected": 42.1, "pf": 0.689}
     }
   }],
-  "pooled": { "games": 124.0, "low_sample": false, "factors": { /* 同上結構 */ } },
-  "excluded_team_games": 0    // 無法估基準而排除的隊-場數（該隊該季只在此場打）
+  "pooled": { "games": 124, "eligible_team_games": 248, "excluded_team_games": 0,
+              "low_sample": false, "factors": { /* 同上結構 */ } },
+  "excluded_team_games": 0        // 跨季合計（同 pooled.excluded_team_games）
 }
 ```
 
 - **PF > 1＝該球場放大該事件**；`xbh`＝二安+三安（不含 HR）。
-- **公式**：observed＝該場所有「隊-場」的事件合計；expected＝Σ(該隊同季其他球場
+- **公式**：observed＝納入估計的「隊-場」事件合計；expected＝Σ(該隊同季其他球場
   場均 × 在該場場數)；PF＝obs/exp。合併＝分季 obs/exp 各自加總再相除。
+- **場次語意**（查核修正後定案）：`games` 是**實際完成場次（整數）**，含估計被排除
+  方的比賽；估計樣本看 `eligible_team_games`（隊-場，一場貢獻主客 2 個觀測）。
+  `low_sample` 依估計基礎判（單季 <2×30、合併 <2×60 隊-場）。
 - **UI 義務**：`low_sample=true` 必須可見（如淡化/標籤）；顯示 `games` 樣本；
   文案禁止寫成因果斷言（「不容易全壘打」→「HR 產出低於同隊他場基準 34%（124 場）」）。
 

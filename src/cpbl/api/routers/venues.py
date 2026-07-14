@@ -152,33 +152,45 @@ def _aggregate_factors(rows: list[tuple]) -> dict[str, Any]:
 
     每列：(year, team, n, r..so ×6, n_else, r_else..so_else ×6)。
     expected 貢獻 = n × stat_else / n_else；n_else=0（該隊該季只在此場打）無法估
-    基準 → 整隊-季列排除並記 excluded_team_games，不硬湊。
+    基準 → 該隊-季列排除於 obs/exp 之外並記 excluded_team_games，不硬湊。
+
+    場次語意（查核退回修正）：`games`＝該場**實際完成場次**（整數）——SQL 端每場
+    恆貢獻主客 2 列隊-場、排除只發生在本函式，故 Σn（含被排除）/2 恆為整數；
+    估計基礎另以 `eligible_team_games`（隊-場，整數）回傳，**不得**把隊-場/2 當
+    場次（單方被排除時會出現 0.5 場）。low_sample 依估計基礎判：
+    eligible < 2×門檻（一場貢獻 2 個隊-場觀測）。
     """
     seasons: dict[int, dict[str, float]] = {}
-    excluded = 0
     for row in rows:
         # SQL sum() 回 numeric（psycopg → Decimal），統一轉 float/int 再算
         year, _team, n = row[0], row[1], int(row[2])
         obs = dict(zip(FACTOR_STATS, row[3:9], strict=True))
         n_else = int(row[9])
         els = dict(zip(FACTOR_STATS, row[10:16], strict=True))
-        s = seasons.setdefault(year, {"team_games": 0.0, **{f"obs_{k}": 0.0 for k in FACTOR_STATS},
+        s = seasons.setdefault(year, {"total_tg": 0, "eligible_tg": 0, "excluded_tg": 0,
+                                      **{f"obs_{k}": 0.0 for k in FACTOR_STATS},
                                       **{f"exp_{k}": 0.0 for k in FACTOR_STATS}})
+        s["total_tg"] += n
         if not n_else:
-            excluded += n
+            s["excluded_tg"] += n
             continue
-        s["team_games"] += n
+        s["eligible_tg"] += n
         for k in FACTOR_STATS:
             s[f"obs_{k}"] += float(obs[k])
             s[f"exp_{k}"] += n * float(els[k]) / n_else
     out_seasons = []
-    pooled = {"games": 0.0, **{f"obs_{k}": 0.0 for k in FACTOR_STATS},
+    pooled = {"games": 0, "eligible_tg": 0, "excluded_tg": 0,
+              **{f"obs_{k}": 0.0 for k in FACTOR_STATS},
               **{f"exp_{k}": 0.0 for k in FACTOR_STATS}}
     for year in sorted(seasons):
         s = seasons[year]
-        games = s["team_games"] / 2   # 每場 2 隊列
-        entry: dict[str, Any] = {"year": year, "games": round(games, 1),
-                                 "low_sample": games < MIN_SEASON_GAMES, "factors": {}}
+        games = round(s["total_tg"] / 2)   # 每場恆 2 隊列（排除在 Python 端）→ 整數
+        entry: dict[str, Any] = {
+            "year": year, "games": games,
+            "eligible_team_games": s["eligible_tg"],
+            "excluded_team_games": s["excluded_tg"],
+            "low_sample": s["eligible_tg"] < 2 * MIN_SEASON_GAMES,
+            "factors": {}}
         for k in FACTOR_STATS:
             entry["factors"][k] = {"observed": round(s[f"obs_{k}"], 1),
                                    "expected": round(s[f"exp_{k}"], 1),
@@ -186,16 +198,21 @@ def _aggregate_factors(rows: list[tuple]) -> dict[str, Any]:
             pooled[f"obs_{k}"] += s[f"obs_{k}"]
             pooled[f"exp_{k}"] += s[f"exp_{k}"]
         pooled["games"] += games
+        pooled["eligible_tg"] += s["eligible_tg"]
+        pooled["excluded_tg"] += s["excluded_tg"]
         out_seasons.append(entry)
-    pooled_out: dict[str, Any] = {"games": round(pooled["games"], 1),
-                                  "low_sample": pooled["games"] < MIN_POOLED_GAMES,
-                                  "factors": {}}
+    pooled_out: dict[str, Any] = {
+        "games": pooled["games"],
+        "eligible_team_games": pooled["eligible_tg"],
+        "excluded_team_games": pooled["excluded_tg"],
+        "low_sample": pooled["eligible_tg"] < 2 * MIN_POOLED_GAMES,
+        "factors": {}}
     for k in FACTOR_STATS:
         pooled_out["factors"][k] = {"observed": round(pooled[f"obs_{k}"], 1),
                                     "expected": round(pooled[f"exp_{k}"], 1),
                                     "pf": _rt(pooled[f"obs_{k}"], pooled[f"exp_{k}"])}
     return {"seasons": out_seasons, "pooled": pooled_out,
-            "excluded_team_games": excluded}
+            "excluded_team_games": pooled["excluded_tg"]}
 
 
 def _canon(venue: str) -> str:
