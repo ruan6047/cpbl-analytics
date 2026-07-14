@@ -37,7 +37,6 @@ export default function PlayerSearch() {
 
     setLoading(true);
     try {
-      // 復用 client.ts 的 detail.roster()
       const data = await detail.roster();
       
       const batters: PlayerItem[] = (data.batters || []).map((b) => ({

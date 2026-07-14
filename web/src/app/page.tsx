@@ -27,30 +27,34 @@ export default async function Home({
   }
 
   // 併發獲取首頁所有需要的數據，即使部分失敗也能優雅降級不 500
+  // 改採中職年度獎項項目：打者 (AVG, H, HR, RBI, SB) + 投手 (ERA, W, HLD, SV, SO)
+  // 移除賽事預測 API outcomeMatchups
   const [
     calR,
     standR,
-    mueR,
-    opsR,
     avgR,
+    hR,
     hrR,
     rbiR,
+    sbR,
     eraR,
-    whipR,
-    soR,
+    wR,
+    hldR,
     svR,
+    soR,
   ] = await Promise.allSettled([
     api.gamesCalendar(),
     api.officialStandings(0),
-    api.outcomeMatchups(3),
-    api.battingLeaders("ops", { limit: 5, minPa: 80 }),
     api.battingLeaders("avg", { limit: 5, minPa: 80 }),
+    api.battingLeaders("h", { limit: 5, minPa: 0 }),
     api.battingLeaders("hr", { limit: 5, minPa: 0 }),
     api.battingLeaders("rbi", { limit: 5, minPa: 0 }),
+    api.battingLeaders("sb", { limit: 5, minPa: 0 }),
     api.pitchingLeaders("era", { limit: 5, minIp: 25 }),
-    api.pitchingLeaders("whip", { limit: 5, minIp: 25 }),
-    api.pitchingLeaders("so", { limit: 5, minIp: 0 }),
+    api.pitchingLeaders("w", { limit: 5, minIp: 0 }),
+    api.pitchingLeaders("hld", { limit: 5, minIp: 0 }),
     api.pitchingLeaders("sv", { limit: 5, minIp: 0 }),
+    api.pitchingLeaders("so", { limit: 5, minIp: 0 }),
   ]);
 
   // 今日與近期賽事計算
@@ -64,10 +68,8 @@ export default async function Home({
   const dayGames = cal.filter((g) => g.game_date === matchday).slice(0, 4);
   const dayLabel = matchday === today ? "今日賽事" : `近期賽事 · ${matchday?.slice(5) ?? ""}`;
 
-  // 戰績與預測
+  // 戰績數據
   const standings = standR.status === "fulfilled" ? standR.value.items : [];
-  const matchups = mueR.status === "fulfilled" ? mueR.value.items : [];
-  const topMatch = matchups[0] ?? null;
 
   // 領先榜數據轉換
   const getItems = (r: PromiseSettledResult<any>) =>
@@ -81,50 +83,51 @@ export default async function Home({
       : [];
 
   const batting = {
-    ops: getItems(opsR),
     avg: getItems(avgR),
+    h: getItems(hR),
     hr: getItems(hrR),
     rbi: getItems(rbiR),
+    sb: getItems(sbR),
   };
 
   const pitching = {
     era: getItems(eraR),
-    whip: getItems(whipR),
-    so: getItems(soR),
+    w: getItems(wR),
+    hld: getItems(hldR),
     sv: getItems(svR),
+    so: getItems(soR),
   };
 
   return (
     <div className="space-y-8">
       {/* Hero section */}
-      <header className="relative overflow-hidden rounded-xl border border-line bg-surface-2 px-6 py-10 text-center sm:px-12">
-        <div className="relative z-10 mx-auto max-w-2xl space-y-4">
-          <h1 className="text-3xl font-extrabold tracking-tight text-ink sm:text-4xl md:text-5xl">
-            用視覺化把中職數據講清楚
+      <header className="relative overflow-hidden rounded-xl border border-line bg-surface-2 px-6 py-8 text-center sm:px-12">
+        <div className="relative z-10 mx-auto max-w-2xl space-y-3.5">
+          <h1 className="text-2xl font-extrabold tracking-tight text-ink sm:text-3xl md:text-4xl">
+            非官方中華職棒 [CPBL] 數據視覺化網站
           </h1>
-          <p className="mx-auto max-w-lg text-sm text-muted sm:text-base">
-            非官方中華職棒 [CPBL] 數據視覺化網站——提供當季戰績、官方進階數據、
-            逐球追蹤，以及基於機器學習的賽事預測。
+          <p className="mx-auto max-w-lg text-xs text-muted sm:text-sm">
+            基於官方數據製作提供讓視覺化把中職數據講清楚
           </p>
-          <div className="pt-2">
+          <div className="pt-1.5">
             <PlayerSearch />
           </div>
-          <div className="flex flex-wrap justify-center gap-2 pt-2 text-xs sm:text-sm">
+          <div className="flex flex-wrap justify-center gap-2 pt-1 text-xs sm:text-sm">
             <Link
               href="/standings"
-              className="rounded-full bg-ink px-4 py-2 font-medium text-paper transition hover:opacity-90"
+              className="rounded-full bg-ink px-4 py-1.5 font-medium text-paper transition hover:opacity-90"
             >
               本季戰績
             </Link>
             <Link
               href="/games"
-              className="rounded-full bg-surface px-4 py-2 font-medium text-ink border border-line transition hover:bg-surface-2"
+              className="rounded-full bg-surface px-4 py-1.5 font-medium text-ink border border-line transition hover:bg-surface-2"
             >
               賽況與 Box
             </Link>
             <Link
               href="/predict"
-              className="rounded-full bg-surface px-4 py-2 font-medium text-ink border border-line transition hover:bg-surface-2"
+              className="rounded-full bg-surface px-4 py-1.5 font-medium text-ink border border-line transition hover:bg-surface-2"
             >
               賽事預測探索
             </Link>
@@ -134,7 +137,7 @@ export default async function Home({
 
       {/* 雙欄主版塊 */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* 左側大欄 - 聯盟領先榜 */}
+        {/* 左側大欄 - 聯盟領先榜 (中職年度獎項指標) */}
         <div className="lg:col-span-2">
           <LeagueLeaders batting={batting} pitching={pitching} />
         </div>
@@ -206,70 +209,6 @@ export default async function Home({
                   );
                 })}
               </ul>
-            )}
-          </Card>
-
-          {/* 賽事預測 (Teaser) */}
-          <Card className="flex flex-col">
-            <div className="mb-3 flex items-center justify-between border-b border-line pb-2">
-              <Eyebrow className="text-xs font-bold text-ink">賽事勝率預測</Eyebrow>
-              <Link href="/predict" className="text-xs text-accent hover:underline">
-                特徵探索 →
-              </Link>
-            </div>
-            {!topMatch ? (
-              <EmptyState className="py-6">近期無排定賽事</EmptyState>
-            ) : (
-              <div className="flex flex-1 flex-col justify-center space-y-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-2">
-                    <TeamLogo
-                      code={topMatch.away.code}
-                      name={topMatch.away.name}
-                      size={18}
-                      decorative
-                    />
-                    <span className="font-medium text-ink">{topMatch.away.name}</span>
-                  </span>
-                  <span className="text-xs text-faint">@</span>
-                  <span className="flex items-center gap-2">
-                    <span className="font-medium text-ink">{topMatch.home.name}</span>
-                    <TeamLogo
-                      code={topMatch.home.code}
-                      name={topMatch.home.name}
-                      size={18}
-                      decorative
-                    />
-                  </span>
-                </div>
-
-                {/* 雙色進度條展示勝率 */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between font-mono text-xs font-semibold">
-                    <span className="text-muted">
-                      {topMatch.away.name} {100 - Math.round(topMatch.home_win_prob * 100)}%
-                    </span>
-                    <span className="text-accent">
-                      {topMatch.home.name} {Math.round(topMatch.home_win_prob * 100)}%
-                    </span>
-                  </div>
-                  <div className="h-2 w-full rounded-full bg-surface-3 flex overflow-hidden border border-line/20">
-                    <div
-                      className="h-full bg-muted/30 transition-all duration-500"
-                      style={{ width: `${100 - Math.round(topMatch.home_win_prob * 100)}%` }}
-                    />
-                    <div
-                      className="h-full bg-accent transition-all duration-500"
-                      style={{ width: `${Math.round(topMatch.home_win_prob * 100)}%` }}
-                    />
-                  </div>
-                </div>
-
-                <p className="text-[10px] leading-relaxed text-faint">
-                  預測基於機器學習模型（已排除資訊洩漏），即時適配當前勝率、近況與先發投手等特徵。
-                  單場勝負天花板約 60%，預測結果僅供學術與球迷互動探索。
-                </p>
-              </div>
             )}
           </Card>
         </div>

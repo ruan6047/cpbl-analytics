@@ -35,6 +35,12 @@ export default function LeagueLeaders({
       items: batting.avg || [],
     },
     {
+      label: "安打 (H)",
+      key: "h",
+      format: (v) => Math.round(v).toString(),
+      items: batting.h || [],
+    },
+    {
       label: "全壘打 (HR)",
       key: "hr",
       format: (v) => Math.round(v).toString(),
@@ -47,10 +53,10 @@ export default function LeagueLeaders({
       items: batting.rbi || [],
     },
     {
-      label: "整體攻擊指數 (OPS)",
-      key: "ops",
-      format: (v) => v.toFixed(3),
-      items: batting.ops || [],
+      label: "盜壘成功 (SB)",
+      key: "sb",
+      format: (v) => Math.round(v).toString(),
+      items: batting.sb || [],
     },
   ];
 
@@ -62,22 +68,28 @@ export default function LeagueLeaders({
       items: pitching.era || [],
     },
     {
-      label: "每局被上壘率 (WHIP)",
-      key: "whip",
-      format: (v) => v.toFixed(2),
-      items: pitching.whip || [],
+      label: "勝投 (W)",
+      key: "w",
+      format: (v) => Math.round(v).toString(),
+      items: pitching.w || [],
     },
     {
-      label: "奪三振 (SO)",
-      key: "so",
+      label: "中繼成功 (HLD)",
+      key: "hld",
       format: (v) => Math.round(v).toString(),
-      items: pitching.so || [],
+      items: pitching.hld || [],
     },
     {
       label: "救援成功 (SV)",
       key: "sv",
       format: (v) => Math.round(v).toString(),
       items: pitching.sv || [],
+    },
+    {
+      label: "奪三振 (SO)",
+      key: "so",
+      format: (v) => Math.round(v).toString(),
+      items: pitching.so || [],
     },
   ];
 
@@ -111,32 +123,32 @@ export default function LeagueLeaders({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
         {categories.map((cat) => {
           const top1 = cat.items[0];
           const runnerUps = cat.items.slice(1, 5);
 
           return (
-            <Card key={cat.key} className="flex flex-col justify-between">
+            <Card key={cat.key} className="flex flex-col justify-between" padding="p-3">
               <div>
-                <Eyebrow className="mb-3">{cat.label}</Eyebrow>
+                <Eyebrow className="mb-2">{cat.label}</Eyebrow>
                 
                 {top1 ? (
-                  <div className="mb-4 flex items-center justify-between border-b border-line pb-3">
+                  <div className="mb-3 flex items-center justify-between border-b border-line pb-2">
                     <Link
                       href={`/players/${top1.player_id}`}
-                      className="group flex items-center gap-3"
+                      className="group flex items-center gap-2"
                     >
-                      <TeamLogo code={null} name={top1.team} size={36} decorative />
-                      <div>
-                        <div className="font-bold text-ink group-hover:text-accent transition">
+                      <TeamLogo code={null} name={top1.team} size={28} decorative />
+                      <div className="min-w-0">
+                        <div className="font-bold text-sm text-ink group-hover:text-accent transition truncate max-w-[80px]">
                           {top1.name}
                         </div>
-                        <div className="text-xs text-muted">{top1.team || "—"}</div>
+                        <div className="text-[10px] text-muted truncate max-w-[80px]">{top1.team || "—"}</div>
                       </div>
                     </Link>
                     <div className="text-right">
-                      <div className="font-mono text-2xl font-black text-ink">
+                      <div className="font-mono text-xl font-black text-ink">
                         {cat.format(top1.val)}
                       </div>
                     </div>
@@ -147,23 +159,23 @@ export default function LeagueLeaders({
               </div>
 
               {runnerUps.length > 0 && (
-                <ul className="space-y-1.5 text-xs">
+                <ul className="space-y-1 text-[11px]">
                   {runnerUps.map((item, idx) => (
                     <li
                       key={item.player_id}
-                      className="flex items-center justify-between py-1 border-t border-line/40 first:border-0"
+                      className="flex items-center justify-between py-0.5 border-t border-line/30 first:border-0"
                     >
-                      <span className="flex items-center gap-2">
-                        <span className="w-4 font-mono font-bold text-faint text-right">
+                      <span className="flex items-center gap-1.5 min-w-0">
+                        <span className="w-3.5 font-mono font-bold text-faint text-right">
                           {idx + 2}
                         </span>
                         <Link
                           href={`/players/${item.player_id}`}
-                          className="font-medium text-ink hover:text-accent transition"
+                          className="font-medium text-ink hover:text-accent transition truncate max-w-[60px]"
                         >
                           {item.name}
                         </Link>
-                        <span className="text-[10px] text-muted">({item.team})</span>
+                        <span className="text-[9px] text-muted truncate max-w-[45px]">({item.team})</span>
                       </span>
                       <span className="font-mono font-semibold text-ink">
                         {cat.format(item.val)}

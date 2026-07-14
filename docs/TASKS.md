@@ -11,7 +11,8 @@
 | 卡ID | 功能 | 需求 | 規劃 | 執行(model@tool) | 查核(model@tool) | 分支 | 紅線 | 狀態 |
 |---|---|---|---|---|---|---|---|---|
 | UX-1 | 全站頁面 UI/UX 重新設計（傘卡） | ruan6047 | Fable-5@Claude Code | —（子卡執行） | —（子卡查核） | — | ⚪ | 🔨子卡執行中（餘 UX-5C；UX-7 群、UX-8、UX-9 07-14 已結案） |
-| UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | Gemini-3.5-Flash@Antigravity | Gemini-3.5-Flash@Antigravity | Sonnet@Copilot CLI | `ai/gemini/UX-5C` | ⚪ | ✅已結案（07-14 合併 main） |
+| UX-5C | 首頁 hub 完整版（各頁關鍵訊息總集） | ruan6047 | Gemini-3.5-Flash@Antigravity | Gemini-3.5-Flash@Antigravity | 待指派 | `ai/gemini/UX-5C` | ⚪ | 🔍待查核（微調：年度獎項、修復戰績表、移除預測） |
+| UX-OUTCOME-HOME | 首頁賽事勝率預測整合與重製 | ruan6047 | 待小 spec | 待指派 | 待指派 | `ai/<執行者>/UX-OUTCOME-HOME` | ⚪ | 📥Backlog（首頁移除後獨立成新卡） |
 | MATCHUP-DATA1 | 投打對決資料範圍與查詢 API 正確化 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | GPT-5@Codex | Sonnet@Copilot CLI | `ai/codex/MATCHUP-DATA1` | 🔴 | ✅已結案（07-14 合併 main，57 tests 綠） |
 | ML-MATCHUP1 | 天敵候選／優勢對位統計洞察 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)；建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-MATCHUP1` | 🔴 | 📥Backlog（依賴 MATCHUP-DATA1；baseline、shrinkage、敏感度驗證） |
 | UX-MATCHUP1 | `/matchups` 查詢式頁面重製 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-MATCHUP1` | ⚪ | 📥Backlog（依賴 MATCHUP-DATA1＋ML-MATCHUP1） |
@@ -133,6 +134,14 @@
 - 狀態：📥Backlog（待 VENUE-PARK1 解鎖）　Commit：—
 - Log：
   - 07-14 自 VENUE-PARK1 拆出：UI 卡與統計紅線卡分離，方便各自配模型
+
+### UX-OUTCOME-HOME 首頁賽事勝率預測整合與重製  〔⚪一般〕
+- 需求：ruan6047（07-14）——配合首頁微調將原賽事預測 teaser 移除，未來搭配 `ML-SIM1` 簡易勝負預測模型開發完成後，重新設計高質感的預測卡片整合回首頁。
+- 規劃：待指派　分支：`ai/<執行者>/UX-OUTCOME-HOME`
+- 執行：待指派　查核：待指派
+- 狀態：📥Backlog
+- Log：
+  - 07-14 自 UX-5C 移除首頁預測 teaser，並獨立開卡至 Backlog
 
 ### ML-PT3 中職版球路品質指數 (CPBL Stuff+ Index)  〔🔴紅線：ML/統計正確性〕
 - 需求：ruan6047（07-12）　規劃：Fable-5@Claude Code（見 PROPOSAL_EVALUATION.md）　分支：`ai/<執行者>/ML-PT3`
