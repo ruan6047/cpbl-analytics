@@ -15,3 +15,17 @@ FRANCHISE_MAP = {
 
 def franchise_of(team_code: str) -> str:
     return FRANCHISE_MAP.get(team_code, team_code)
+
+
+def franchise_prefixes(team_code: str) -> set[str]:
+    """回傳同一 franchise 的所有三碼歷史隊碼，供跨年度資料篩選。"""
+    prefix = team_code[:3]
+    canonical = franchise_of(team_code)[:3]
+    if canonical == prefix:
+        canonical = franchise_of(f"{prefix}011")[:3]
+    known_codes = set(FRANCHISE_MAP) | set(FRANCHISE_MAP.values()) | {team_code}
+    return {
+        code[:3]
+        for code in known_codes
+        if franchise_of(code)[:3] == canonical
+    }
