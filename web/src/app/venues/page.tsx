@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui";
 
@@ -5,6 +6,11 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "球場 | CPBL 分析" };
 
 const num = (v: number | null) => (v == null ? "—" : Number(v).toLocaleString());
+
+// 詳情頁（park factor／打擊環境／選手差距）全部靠 2018+ 逐場歸因；更早退役的球場點進去只會 404，
+// 故僅對 2018 年後仍有一軍賽事的球場開連結。
+const VENUE_DATA_FROM = 2018;
+const hasDetail = (v: { last_year: number | null }) => (v.last_year ?? 0) >= VENUE_DATA_FROM;
 
 function DistBar({ label, ft, max = 410 }: { label: string; ft: number | null; max?: number }) {
   if (ft == null) return null;
@@ -25,9 +31,17 @@ export default async function VenuesPage() {
   const historic = data.items.filter((v) => !v.games_played && v.first_year != null);
 
   const card = (v: (typeof data.items)[number]) => (
-    <Card key={v.venue}>
+    <Card key={v.venue} hoverable={hasDetail(v)}>
       <div className="flex items-baseline justify-between gap-2">
-        <h3 className="text-base font-bold text-ink">{v.full_name ?? v.venue}</h3>
+        <h3 className="text-base font-bold text-ink">
+          {hasDetail(v) ? (
+            <Link href={`/venues/${encodeURIComponent(v.venue)}`} className="hover:text-accent hover:underline">
+              {v.full_name ?? v.venue}
+            </Link>
+          ) : (
+            (v.full_name ?? v.venue)
+          )}
+        </h3>
         <span className="shrink-0 text-xs text-faint">{v.city}</span>
       </div>
       <div className="mt-1 flex flex-wrap gap-1.5 text-[11px]">
@@ -66,6 +80,14 @@ export default async function VenuesPage() {
         {v.infield_seats != null && <span>內 {num(v.infield_seats)}／外 {num(v.outfield_seats)}</span>}
       </div>
       {v.address && <div className="mt-1 truncate text-[11px] text-faint" title={v.address}>{v.address}</div>}
+      {hasDetail(v) && (
+        <Link
+          href={`/venues/${encodeURIComponent(v.venue)}`}
+          className="mt-3 block border-t border-line pt-2 text-[11px] font-medium text-accent hover:underline"
+        >
+          Park Factor · 打擊環境 · 選手表現差距 →
+        </Link>
+      )}
     </Card>
   );
 
