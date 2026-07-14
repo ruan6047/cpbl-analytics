@@ -19,7 +19,7 @@
 | UX-RECORD1 | `/records` 歷史重要性導向重製 | ruan6047 | GPT-5@Codex（[`spec`](../records-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-RECORD1` | ⚪ | 📥Backlog（依賴 RECORD-API1；首屏標竿、生涯榜、冠軍王朝） |
 | ML-UMP1 | 裁判誤判預期影響研究 | ruan6047 | 待研究 spec（建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-UMP1` | 🔴 | 📥Backlog（先驗證再決定是否產品化，不併 UX-10） |
 | VENUE-PARK1 | 球場滾飛比／Park Factor／選手極端表現（資料＋API） | ruan6047 | Fable（park factor 公式＋小樣本呈現需統計判斷） | Fable-5@Claude Code | GPT-5@Codex | `ai/fable-5/VENUE-PARK1` | 🔴 | ❌部署驗證失敗（程式已上線；production 缺 2018–2025 splits） |
-| UX-VENUE1 | `/venues/[venue]` 球場詳情頁 | ruan6047 | Sonnet@Claude Code | 待指派（Sonnet） | 待指派（≠執行者） | `ai/<執行者>/UX-VENUE1` | ⚪ | 📥Backlog（依賴 VENUE-PARK1；純 UI，吃前卡 API） |
+| UX-VENUE1 | `/venues/[venue]` 球場詳情頁 | ruan6047 | Sonnet@Claude Code | Opus-4.8@Claude Code | 待指派（≠執行者） | `ai/opus-4.8/UX-VENUE1` | ⚪ | 🔍待查核（純 UI；build/ruff/pytest 綠，真 DB 實測 4 球場） |
 | COACH-HIST | 歷年教練職務史（twbsball 經歷節） | ruan6047 | Fable-5@Claude Code | 待指派 | 待指派 | — | ⚪ | 📥Backlog（7C 已上線，接點就緒可排） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
 | ML-SIM1 | 簡易勝負預測＋單一打席情境模擬 | ruan6047 | 待細 spec | 待指派 | 待指派 | — | 🔴 | 📥Backlog（取代 UX-10O；去重複訊號，不模擬後續全打席） |
@@ -101,12 +101,19 @@
   - 07-14 部署：cpbl main `77ffa63` → 主站 submodule `6b9b0a1` → GitHub CI/Deploy 成功；公開 `/api/info` 與三個新端點皆 200。**驗證失敗**：`/venues/大巨蛋/stats?from_year=2018` 僅回 2026（預期含 2018–2025），production 缺歷史 `batting_splits` 回填資料；未安全比較本機／production 資料新鮮度前，禁止用整 schema 覆寫。待資料同步後重驗並更新狀態。
 
 ### UX-VENUE1 `/venues/[venue]` 球場詳情頁  〔⚪一般〕
-- 需求：ruan6047（07-14，與 VENUE-PARK1 同源）　規劃：Sonnet@Claude Code　分支：`ai/<執行者>/UX-VENUE1`
-- 依賴：**VENUE-PARK1 查核通過**（API contract 定案）才能開工。
+- 需求：ruan6047（07-14，與 VENUE-PARK1 同源）　規劃：Sonnet@Claude Code　分支：`ai/opus-4.8/UX-VENUE1`
+- 執行：Opus-4.8@Claude Code（worktree `../cpbl-analytics-ux-venue1`）　查核：待指派（≠執行者）
+- 依賴：**VENUE-PARK1 查核通過**（API contract 定案）✅
 - **範圍**：新頁 `/venues/[venue]`：球場規格（沿用現有 `venue_dim`：`lf_dist`/`cf_dist`/`rf_dist`/`big_screen` 等，`043_venue_specs.sql`）＋ VENUE-PARK1 產出的滾飛比／park factor／選手極端值清單；`/venues` 列表卡片改可點擊進入。UI 呈現須帶樣本數／場次（沿用 VENUE-PARK1 的誠實揭露要求，不得只列排名不列樣本）。
-- 狀態：📥Backlog（待 VENUE-PARK1 解鎖）　Commit：—
+- 狀態：🔍待查核　Commit：見分支
 - Log：
   - 07-14 自 VENUE-PARK1 拆出：UI 卡與統計紅線卡分離，方便各自配模型
+  - 07-14 實作完成（Opus-4.8@Claude Code）。純 server component（`/venues/[venue]` 0 client JS）：規格卡＋Park Factor（pooled 發散長條＋逐季表）＋打擊環境逐年 vs 聯盟＋選手表現差距（打者/投手 各兩端）。列表卡片對 `last_year ≥ 2018` 的球場開連結（更早退役的點進去必 404，故不連）。
+  - 07-14 **契約義務落實**：`low_sample` 以徽章呈現且 pooled 低樣本時警語直接寫進首屏斷言句（「…高於基準 36%（54 場，樣本少、波動大）」）；每列必帶 `games`／`venue_pa`／`venue_ip`；文案一律「產出高/低於同隊他場基準 N%」，不寫「這球場不容易全壘打」式因果斷言。
+  - 07-14 **UI 端修正 API 兩端重疊**：`/players` 的 `best`/`worst`＝同一排序頭尾各 limit 名，**達門檻人數 < 2×limit 時兩端會是同一批人**（實測花蓮投手全史僅 5 人達 30 局 → 5 人同時出現在「優於生涯」與「差於生涯」；大巨蛋投手池 16 人亦重疊）。UI 不照抄：先按 delta 正負號濾方向、再對另一端去重（`split()`）。API 未動。
+  - 07-14 **色彩語意統一**：全頁單一發散軸「紅＝高於基準／藍＝低於基準」（僅表方向不含好壞，投手 ERA 越低越好故藍為佳），避免紅色在 PF（放大）與選手差距（表現）間有兩種意思；頁面附色規則圖例。
+  - 07-14 驗證：`npm run build:check` ✓（`/venues/[venue]` 註冊、無 client JS）、`ruff` ✓、`pytest` 67 passed；真 DB 實測 4 球場：大巨蛋（HR PF 0.661／124 場）、花蓮（全季 low_sample、投手池 5 人去重後 2+3）、桃園別名歸一 → 樂天桃園（489 場／9 季、HR PF 1.00）、台北市（2000 年停用 → 404）；深色模式與 390px 手機版皆檢視過。
+  - 07-14 ⚠️ **回報既有 API 缺陷（非本卡引入，未修）**：`GET /api/v1/venues` 列表的 `first_year`/`last_year` 直接 `GROUP BY games.venue`、**未套歷史別名歸一** → 樂天桃園顯示「一軍使用 2022–2026」，但同座球場 2010–2021 以「桃園」名義另有 682 場一軍賽事（列表完全看不到）。本頁已迴避（詳情頁不顯示該欄，只講有資料背書的涵蓋範圍），但 `/venues` 列表仍是錯的。修法＝列表 SQL 套用 `venues.py` 既有的 `_NORM_VENUE` CASE；屬 API 變更，待 ruan6047 裁示是否納入本卡或另開卡。
 
 ### UX-OUTCOME-HOME 首頁賽事勝率預測整合與重製  〔⚪一般〕
 - 需求：ruan6047（07-14）——配合首頁微調將原賽事預測 teaser 移除，未來搭配 `ML-SIM1` 簡易勝負預測模型開發完成後，重新設計高質感的預測卡片整合回首頁。
