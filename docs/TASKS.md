@@ -13,6 +13,7 @@
 | [BUG-VENUE-ALIAS](tasks/BUG-VENUE-ALIAS.md) | 球場列表歷史別名歸一 | ruan6047 | GPT-5@Codex | GPT-5@Codex | Opus-4.8@Claude Code | `fix/venue-list-alias-normalization` | ⚪ | ✅通過（事後查核；別名前提經資料驗證，附帶消除第三份規則拷貝） |
 | COACH-HIST | 歷年教練職務史（twbsball 經歷節） | ruan6047 | Fable-5@Claude Code | Antigravity | Opus-4.8@Claude Code | `ai/antigravity/COACH-HIST-FIX` | ⚪ | ✅通過（跨聯盟碰撞 28→0、敘事列過濾、同名守門重寫；待部署＋生產資料同步） |
 | PLAYER-BIO | 選手生涯歷程＋暱稱＋官方登錄名單 | ruan6047 | Opus-4.8@Claude Code | Opus-4.8@Claude Code | 待指派（≠執行者） | `feat/player-bio` | ⚪ | 🔍待查核（2,840 人 / 125,935 列生涯歷程；603 暱稱；team_roster 163 人） |
+| TEAM-HIST1 | 隊史年表補缺（歷年教練團／球隊異動／二軍獎項） | ruan6047 | Opus-4.8@Claude Code | 待指派 | 待指派（≠執行者） | `ai/<執行者>/TEAM-HIST1` | ⚪ | ⏳待執行（twbsball 分類:職棒球隊年表 246 頁；**改名紀錄無替代來源**，優先） |
 | VENUE-DEFUNCT | 已拆除球場納入球場維度（老台中球場等） | ruan6047 | 待小 spec | 待指派 | 待指派（≠執行者） | `ai/<執行者>/VENUE-DEFUNCT` | ⚪ | 📥Backlog（`台中` 1120 場一軍無 `venue_dim` 列故 `/venues` 不顯示；先定產品範圍） |
 | UX-OUTCOME-HOME | 首頁賽事勝率預測整合與重製 | ruan6047 | 待小 spec | 待指派 | 待指派 | `ai/<執行者>/UX-OUTCOME-HOME` | ⚪ | 📥Backlog（首頁移除後獨立成新卡） |
 | ML-MATCHUP1 | 天敵候選／優勢對位統計洞察 | ruan6047 | GPT-5@Codex（[`spec`](../matchups-redesign.md)；建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-MATCHUP1` | 🔴 | 📥Backlog（依賴 MATCHUP-DATA1；baseline、shrinkage、敏感度驗證） |
@@ -63,6 +64,23 @@
     2. 敘事型列（無年份或長散文）於解析時將 phase 標為 `"note"`，並在 API 端點（`people.py` 與 `players.py`）進行 SQL 過濾。
     3. 守門防禦：若同名且 Wiki 無生日（或 DB 無生日）無法互相比對，強制標記 `needs_review = True`，且 `player_id` 設為 `NULL` 阻斷自動歸戶。
     4. 重新全量執行 scraper 過濾數據入庫，更新 pytest 覆蓋各項新案例，全綠通過。
+
+### TEAM-HIST1 隊史年表補缺（歷年教練團／球隊異動／二軍獎項）  〔⚪一般〕
+- 需求：ruan6047（07-15，發現 twbsball [`分類:職棒球隊年表`](https://twbsball.dils.tku.edu.tw/index.php?title=分類:職棒球隊年表)）　規劃：Opus-4.8@Claude Code　分支：`ai/<執行者>/TEAM-HIST1`
+- 執行：待指派　查核：待指派（≠執行者）
+- **資料源**：246 個「球隊×年度」頁，結構化區塊：年度簡介／球隊人員（總教練・教練・逐年陣容）／球隊異動／年度戰績（含總教練欄＋季中解任註記）／獲獎紀錄（分一軍二軍）／年度大事紀。
+- **範圍（做這三塊）**：
+  1. **歷年教練團** — 現有種子是「2026 現任 coaches ∪ 歷任 managers」，1995 味全的中村典夫／成田幸洋這類**歷年教練完全沒有**。抽樣 60 頁已找到 29 位未收錄者，全量預估 100+。
+     **職稱照抄原始欄位（早期只有「總教練」與「教練」兩級，嚴禁腦補成助理教練／投手教練 — ruan6047 07-15 指正）**。
+  2. **歷年球隊異動** — `player_transactions` **只有 2026**（620 筆），1990–2025 全空。頁面每年列「合約所屬轉註冊／註銷註冊／更改姓名／新進人員」。
+     **`更改姓名` 優先級最高：唯一無替代來源、且影響資料正確性的缺口**（`players` 無舊名/別名欄；現行改名靠每日 gamelog 事後同步，歷史改名紀錄等於全失）。
+  3. **二軍獎項** — `player_awards` 1990–2025 共 23 種獎項覆蓋良好，但**二軍獎項 0 筆**；頁面「獲獎紀錄」分一軍／二軍。
+- **附帶（不新增資料，只做驗證）**：年度戰績表有「總教練」欄與「季中解任」註記，是獨立於維基球隊條目與 twbsball 個人條目之外的**第三來源** → 交叉驗證 `championship_managers`（尤其 12 個季中換帥年）。不一致必須報告，不得逕自改 canonical。
+- **不做**：逐年球員陣容（頁面自述來源為「本站歷年球員背號頁」與民生報年鑑，屬**次級來源**；球員資料已有官網逐場一手來源，不得以次級資料疊加）；年度大事紀／特殊事蹟（敘事型，且 `special_records` 由 games 實算）。
+- **驗收**：246 頁全解析；教練職稱與原始欄位逐字一致（抽 10 頁人工核對）；改名紀錄可回溯串接球員生涯；解析失敗一律 needs_review 不腦補；`ruff`＋`pytest` 綠。
+- 狀態：⏳待執行
+- Log：
+  - 07-15 ruan6047 提供資料源並指出「早期只有總教練與教練兩級」；Opus 盤點 8 區塊 vs 現有資料，定範圍：做教練團／異動／二軍獎項，跳過次級來源的逐年陣容
 
 ### ML-UMP1 裁判誤判預期影響研究  〔🔴紅線：統計／反事實估計〕
 - 需求：ruan6047（07-14）　規劃：Fable（統計定義／驗證設計）　分支：`ai/<執行者>/ML-UMP1`
