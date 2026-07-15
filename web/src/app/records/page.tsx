@@ -85,34 +85,33 @@ const seasonColumns: Column<SeasonRow>[] = [
   { header: "紀錄值", cell: (r) => r.format === "rate" ? f3(r.rec.val) : r.rec.val, align: "right", nowrap: true, className: "font-semibold text-accent" },
 ];
 
-// —— 冠軍王朝榜（hero）：各球團奪冠數長條圖，並列排名（rk）。條長 ∝ titles / 榜首。
-function DynastyBars({ rows }: { rows: Dynasty[] }) {
+// —— 冠軍王朝榜：緊湊表格（每隊一列），並列排名（rk）。冠軍數帶迷你長條（∝ titles/榜首），
+// 奪冠年份 inline，密度高又保留視覺。
+function DynastyTable({ rows }: { rows: Dynasty[] }) {
   const max = rows[0]?.titles ?? 1;
-  return (
-    <ol className="space-y-3">
-      {rows.map((r) => {
-        const color = teamColor(r.team_code);
-        return (
-          <li key={r.team_code} className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
-            <Link href={`/teams/${r.team_code}`} className="flex w-24 items-center gap-1.5 font-sans font-medium hover:underline sm:w-28">
-              <span className="w-4 shrink-0 text-right font-mono text-xs tabular-nums text-faint">{r.rk}</span>
-              <TeamBadge code={r.team_code} name={r.team} />
-            </Link>
-            <div className="h-5 overflow-hidden rounded bg-surface-2">
-              <div className="flex h-full items-center justify-end rounded pr-2" style={{ width: `${Math.max(12, (r.titles / max) * 100)}%`, background: color }}>
-                <span className="font-mono text-xs font-bold tabular-nums text-white">{r.titles}</span>
-              </div>
-            </div>
-            <div className="col-start-2 flex flex-wrap gap-1">
-              {r.years.map((y) => (
-                <span key={y} className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-muted">{y}</span>
-              ))}
-            </div>
-          </li>
-        );
-      })}
-    </ol>
-  );
+  const columns: Column<Dynasty>[] = [
+    { header: "名次", cell: (r) => r.rk, sticky: true, align: "right", nowrap: true, className: "text-faint" },
+    {
+      header: "球團",
+      cell: (r) => <Link href={`/teams/${r.team_code}`} className="font-medium hover:underline"><TeamBadge code={r.team_code} name={r.team} /></Link>,
+      nowrap: true,
+      className: "font-sans",
+    },
+    {
+      header: "冠軍",
+      cell: (r) => (
+        <span className="inline-flex items-center gap-2">
+          <span className="hidden h-2 w-20 overflow-hidden rounded-full bg-surface-2 sm:inline-block">
+            <span className="block h-full rounded-full" style={{ width: `${Math.max(8, (r.titles / max) * 100)}%`, background: teamColor(r.team_code) }} />
+          </span>
+          <span className="w-5 text-right font-bold tabular-nums text-accent">{r.titles}</span>
+        </span>
+      ),
+      nowrap: true,
+    },
+    { header: "奪冠年份", cell: (r) => r.years.join("、"), nowrap: true, className: "font-mono text-[11px] tabular-nums text-muted" },
+  ];
+  return <DataTable columns={columns} rows={rows} rowKey={(r) => r.team_code} dense />;
 }
 
 // 徽章色用當年隊名（nameMeta 全涵蓋含已解散隊），顯示文字補成全名（teamFullName）。
@@ -217,9 +216,7 @@ export default async function RecordsPage() {
       <section aria-labelledby="dynasty">
         <h2 id="dynasty" className="mb-3 text-lg font-semibold text-ink">冠軍王朝榜</h2>
         {covComplete && dynasties.length ? (
-          <div className="card p-5">
-            <DynastyBars rows={dynasties} />
-          </div>
+          <DynastyTable rows={dynasties} />
         ) : (
           <Notice>{ch.note ?? "冠軍資料尚未補齊，暫不呈現累計王朝排行。"}</Notice>
         )}
