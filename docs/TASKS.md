@@ -21,7 +21,7 @@
 | UX-RECORD1 | `/records` 歷史重要性導向重製 | ruan6047 | Opus-4.8@Claude Code（spec 不存在→當場定範圍） | Opus-4.8@Claude Code | 待指派（≠執行者） | `ai/opus-4.8/UX-RECORD1` | ⚪ | 🔍待查核（07-15 冠軍為核心＋重排：王朝榜 hero＋生涯榜提第二＋逐年冠亞軍＋球員冠軍次數；coverage fail-closed；build:check/tsc 綠、深淺色截圖驗證） |
 | ML-UMP1 | 裁判誤判預期影響研究 | ruan6047 | 待研究 spec（建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-UMP1` | 🔴 | 📥Backlog（先驗證再決定是否產品化，不併 UX-10） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
-| ML-SIM1 | 簡易勝負預測＋單一打席情境模擬 | ruan6047 | GPT-5@Codex（[`spec`](../ml-sim1-spec.md)；07-15 核可） | GPT-5@Codex | 待指派（跨模型家族或人審） | `ai/gpt-5-codex/ML-SIM1` | 🔴 | 🔍待查核（資料／校準／時間走查閘門通過；禁止 GPT 家族自審） |
+| ML-SIM1 | 簡易勝負預測＋單一打席情境模擬 | ruan6047 | GPT-5@Codex（[`spec`](../ml-sim1-spec.md)；07-15 核可） | GPT-5@Codex | Fable-5@Claude Code | `ai/gpt-5-codex/ML-SIM1` | 🔴 | ↩退回（07-15 跨家族查核 FAIL：PA 重建未濾 `is_change_player`→幽靈打席/錯誤歸屬/狀態污染；覆蓋率閘門恆等失效。模式 A 賽前模型全項通過。缺陷報告 [`ml-sim1-review.md`](../ml-sim1-review.md)） |
 | ML-SIM2 | 全場狀態模擬器（完整陣容／牛棚／後續打席） | ruan6047 | 待遠期評估 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**遠期目標，暫時不做**） |
 | TEAM-STYLE1 | 球隊球風研究（年度／時期風格向量→球隊頁＋賽果候選特徵） | ruan6047 | 待研究 spec | 待指派 | 待指派 | — | 🔴 | 📥Backlog（速度戰／投手戰等為待驗證假說；先描述，增量回測通過才進模型） |
 
@@ -131,7 +131,7 @@
 
 ### ML-SIM1 簡易勝負預測＋單一打席情境模擬  〔🔴紅線：統計正確性〕
 - 需求：ruan6047（07-12）　規劃：GPT-5@Codex（[`spec`](../ml-sim1-spec.md)；07-15 核可）　分支：`ai/gpt-5-codex/ML-SIM1`
-- 執行：GPT-5@Codex　查核：待指派（跨模型家族或人審）
+- 執行：GPT-5@Codex　查核：Fable-5@Claude Code（跨模型家族，07-15）
 - 範圍／驗收分兩模式：
   1. **簡易勝負預測（現有賽事預測修正版）**：預測賽前主／客勝率；取消使用者自由勾選特徵與權重滑桿。固定模型按「整體戰力、打線、失分抑制／先發、賽程／主場」等語意群設計，每群只能使用一個代表訊號或一個明確定義的合成值，禁止把勝率／近況、得分／OPS／AVG 等同義代理同時當成多份獨立證據。輸出須列實際採用訊號、方向、樣本期間與不確定性；時間走查回測同時比較全押主場 baseline、既有全特徵模型，至少回報 Accuracy、Brier、LogLoss 與校準，未勝 baseline 不上線。
   2. **單一打席情境模擬**：投手×打者的互斥結果機率；依當下局數／上下半局／比分／壘況／出局映射下一狀態，復用既有 `wp_state()` 計算各結果與加權後整場勝率。可由賽況 `year+kind_code+game_sno+main_event_no` 帶入真實打席。
@@ -150,6 +150,7 @@
   - 07-15 固定模型配對日曆週 block bootstrap 2,000 次：Brier delta 95% CI [-0.022872, -0.012129]、LogLoss delta 95% CI [-0.047423, -0.023271]；校準 intercept 0.063707、slope 1.054728，部署閘門通過
   - 07-15 新增固定賽前／回測、PA 任意情境／真實賽況 deep-link 唯讀 API 與 artifact CLI；2026 A 類實際 event smoke test 通過，歷史年份 artifact cutoff fail-closed
   - 07-15 驗證：Ruff 全綠；pytest 156 passed；LightGBM 賽前模型於容器完成正式走查。進入跨模型家族或人審，執行者不得自審／合併
+  - 07-15 查核 by Fable-5@Claude Code → **↩退回（FAIL）**：缺陷報告 [`ml-sim1-review.md`](../ml-sim1-review.md)。P0：PA snapshot 未過濾 `is_change_player`（winprob.py 有濾），實測幽靈打席 1,464、出局倒退轉移 11,340（6.2%）、PA 數對官方 box 逐年 +148〜+261；滿壘保送再見機率 0.9921≠1.0、from-game deep-link 回傳被換下場球員（2026/A/3/720001000）。P1：rebuild rate ≡ classification rate，覆蓋率閘門無法偵測狀態污染，「100%」建立在污染分母上。反事實驗證：加 is_change 過濾後 PA 差收斂至 +0.09%、異常降至 543。**模式 A（賽前固定模型）全項通過**：無洩漏、同池比較、fold 2025 指標獨立重算逐位一致、bootstrap/閘門方向正確、容器重跑重現（test 實為 2021–2025，上方 log「2022–2026」為誤記）。API 契約冒煙全過（cutoff/fail-closed/唯讀/機率總和/方向）。依 §5 退回原執行者同分支修復後重審
 
 ### 開卡格式（範本）
 
