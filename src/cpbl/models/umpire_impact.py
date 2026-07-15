@@ -75,6 +75,61 @@ class PitchState:
 
 
 @dataclass(frozen=True, slots=True)
+class CalledPitch:
+    year: int
+    kind_code: str
+    game_sno: int
+    pitcher_acnt: str
+    pitch_cnt: int
+    umpire: str
+    batting_team: str
+    fielding_team: str
+    catcher_acnt: str
+    venue: str
+    state: PitchState
+    plate_loc_side: float
+    plate_loc_height: float
+    observed_call: Call
+
+    @property
+    def game_id(self) -> str:
+        return f"{self.year}-{self.kind_code}-{self.game_sno}"
+
+
+@dataclass(frozen=True, slots=True)
+class PitchScore:
+    pitch: CalledPitch
+    proxy_call: Call
+    proxy_disagreement: bool
+    edge_distance_cm: float
+    run_value_ball: float
+    run_value_strike: float
+    delta_runs_offense: float
+    backed_off: bool
+    zone_definition: str = "fixed_zone_proxy_v1"
+    delta_wp_home: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class UmpireAggregate:
+    umpire: str
+    games: int
+    called_pitches: int
+    proxy_disagreements: int
+    sum_delta_runs_offense: float
+    per_100_called: float
+
+
+@dataclass(frozen=True, slots=True)
+class TeamAggregate:
+    team: str
+    calls_for: int
+    calls_against: int
+    state_value_for: float
+    state_value_against: float
+
+
+@dataclass(frozen=True, slots=True)
 class Transition:
     next_state: PitchState | None
     immediate_runs: int
@@ -651,6 +706,72 @@ def post_to_pre_count(call: Call, post_balls: int, post_strikes: int) -> tuple[i
 def proxy_call(side: float, height: float, zone: ProxyZone = DEFAULT_PROXY_ZONE) -> Call:
     in_zone = abs(side) <= zone.half_width and zone.bottom <= height <= zone.top
     return Call.STRIKE if in_zone else Call.BALL
+
+
+def score_called_pitch(
+    pitch: CalledPitch,
+    run_model: RunValueModel,
+    zone: ProxyZone = DEFAULT_PROXY_ZONE,
+) -> PitchScore:
+    proxy = proxy_call(pitch.plate_loc_side, pitch.plate_loc_height, zone)
+    values = run_model.call_values(pitch.state)
+    observed_value = values.ball if pitch.observed_call is Call.BALL else values.strike
+    proxy_value = values.ball if proxy is Call.BALL else values.strike
+    return PitchScore(
+        pitch=pitch,
+        proxy_call=proxy,
+        proxy_disagreement=pitch.observed_call is not proxy,
+        edge_distance_cm=signed_edge_distance_cm(
+            pitch.plate_loc_side, pitch.plate_loc_height, zone
+        ),
+        run_value_ball=values.ball,
+        run_value_strike=values.strike,
+        delta_runs_offense=observed_value - proxy_value,
+        backed_off=values.backed_off,
+    )
+
+
+def aggregate_umpires(scores: Iterable[PitchScore]) -> list[UmpireAggregate]:
+    grouped: dict[str, list[PitchScore]] = defaultdict(list)
+    for score in scores:
+        grouped[score.pitch.umpire].append(score)
+    output: list[UmpireAggregate] = []
+    for umpire, rows in grouped.items():
+        total = sum(row.delta_runs_offense for row in rows)
+        output.append(
+            UmpireAggregate(
+                umpire=umpire,
+                games=len({row.pitch.game_id for row in rows}),
+                called_pitches=len(rows),
+                proxy_disagreements=sum(row.proxy_disagreement for row in rows),
+                sum_delta_runs_offense=total,
+                per_100_called=total / len(rows) * 100,
+            )
+        )
+    return sorted(output, key=lambda row: row.umpire)
+
+
+def aggregate_teams(scores: Iterable[PitchScore]) -> list[TeamAggregate]:
+    calls_for: Counter[str] = Counter()
+    calls_against: Counter[str] = Counter()
+    value_for: Counter[str] = Counter()
+    value_against: Counter[str] = Counter()
+    for score in scores:
+        calls_for[score.pitch.batting_team] += 1
+        calls_against[score.pitch.fielding_team] += 1
+        value_for[score.pitch.batting_team] += score.delta_runs_offense
+        value_against[score.pitch.fielding_team] += score.delta_runs_offense
+    teams = sorted(set(calls_for) | set(calls_against))
+    return [
+        TeamAggregate(
+            team,
+            calls_for[team],
+            calls_against[team],
+            value_for[team],
+            value_against[team],
+        )
+        for team in teams
+    ]
 
 
 def signed_edge_distance_cm(

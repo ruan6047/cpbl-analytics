@@ -4,6 +4,7 @@ import pytest
 
 from cpbl.models.umpire_impact import (
     Call,
+    CalledPitch,
     PitchState,
     ProxyZone,
     RunObservation,
@@ -11,10 +12,13 @@ from cpbl.models.umpire_impact import (
     RunValueModel,
     WinObservation,
     WinProbabilityModel,
+    aggregate_teams,
+    aggregate_umpires,
     bootstrap_metric_deltas,
     bootstrap_probability_deltas,
     post_to_pre_count,
     proxy_call,
+    score_called_pitch,
     signed_edge_distance_cm,
     transition_called_pitch,
     tune_alpha,
@@ -357,3 +361,65 @@ def test_win_probability_bootstrap_uses_paired_game_clusters() -> None:
     assert result.iterations == 200
     assert result.brier_delta.high < 0
     assert result.log_loss_delta.high < 0
+
+
+def _called_pitch(*, observed: Call = Call.BALL, umpire: str = "主審甲") -> CalledPitch:
+    return CalledPitch(
+        year=2026,
+        kind_code="A",
+        game_sno=1,
+        pitcher_acnt="pitcher",
+        pitch_cnt=1,
+        umpire=umpire,
+        batting_team="AWAY",
+        fielding_team="HOME",
+        catcher_acnt="catcher",
+        venue="球場",
+        state=_state(),
+        plate_loc_side=0.0,
+        plate_loc_height=0.75,
+        observed_call=observed,
+    )
+
+
+def test_called_pitch_score_is_observed_minus_proxy_for_offense() -> None:
+    run_model = RunValueModel.fit(_wp_training_rows(), alpha=0.1)
+
+    score = score_called_pitch(_called_pitch(), run_model)
+
+    assert score.proxy_call is Call.STRIKE
+    assert score.proxy_disagreement
+    assert score.delta_runs_offense == pytest.approx(
+        score.run_value_ball - score.run_value_strike
+    )
+    assert score.delta_runs_offense > 0
+    assert score.delta_wp_home is None
+    assert score.zone_definition == "fixed_zone_proxy_v1"
+
+
+def test_umpire_and_team_aggregates_preserve_signed_totals() -> None:
+    run_model = RunValueModel.fit(_wp_training_rows(), alpha=0.1)
+    scores = [
+        score_called_pitch(_called_pitch(observed=Call.BALL), run_model),
+        score_called_pitch(
+            _called_pitch(observed=Call.STRIKE, umpire="主審甲"), run_model
+        ),
+    ]
+
+    umpire = aggregate_umpires(scores)[0]
+    teams = {row.team: row for row in aggregate_teams(scores)}
+
+    assert umpire.called_pitches == 2
+    assert umpire.proxy_disagreements == 1
+    assert umpire.sum_delta_runs_offense == pytest.approx(
+        sum(score.delta_runs_offense for score in scores)
+    )
+    assert umpire.per_100_called == pytest.approx(
+        umpire.sum_delta_runs_offense / 2 * 100
+    )
+    assert teams["AWAY"].state_value_for == pytest.approx(
+        umpire.sum_delta_runs_offense
+    )
+    assert teams["HOME"].state_value_against == pytest.approx(
+        umpire.sum_delta_runs_offense
+    )

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from cpbl.models.umpire_impact import RunStateKey
 from cpbl.models.umpire_impact_data import (
     HISTORICAL_LIVELOG_SQL,
     LINKED_CALLED_CTE,
+    SCORED_CALLED_SQL,
+    LinkedCalledRow,
     LivelogRow,
     TrackingAudit,
+    build_called_pitches,
     build_run_observations,
 )
 
@@ -165,4 +170,48 @@ def test_historical_query_is_read_only_and_time_bounded() -> None:
     assert "from cpbl.game_livelog" in sql
     assert "year between %(from_year)s and %(to_year)s" in sql
     assert "kind_code = %(kind)s" in sql
+    assert all(keyword not in sql for keyword in ("insert ", "update ", "delete "))
+
+
+def test_scoring_loader_reconstructs_called_pitch_and_fixed_exclusions() -> None:
+    valid = LinkedCalledRow(
+        year=2026,
+        kind_code="A",
+        game_sno=1,
+        pitcher_acnt="p1",
+        pitch_cnt=1,
+        pitch_call="BallCalled",
+        ball_cnt=1,
+        strike_cnt=0,
+        out_cnt=0,
+        inning_seq=1,
+        visiting_home_type="1",
+        first_base=None,
+        second_base=None,
+        third_base=None,
+        pre_away_score=0,
+        pre_home_score=0,
+        plate_loc_side=0.0,
+        plate_loc_height=0.75,
+        catcher_acnt="c1",
+        head_umpire="主審甲",
+        venue="球場",
+        home_team_code="HOME",
+        away_team_code="AWAY",
+    )
+    invalid_count = replace(valid, pitch_cnt=2, ball_cnt=0)
+
+    result = build_called_pitches([valid, invalid_count])
+
+    assert len(result.pitches) == 1
+    assert result.pitches[0].state.balls == 0
+    assert result.pitches[0].observed_call.value == "ball"
+    assert result.exclusions == {"invalid_post_count": 1}
+
+
+def test_scoring_query_joins_umpire_venue_and_team_metadata_read_only() -> None:
+    sql = _norm(SCORED_CALLED_SQL).lower()
+
+    for token in ("head_umpire", "venue", "home_team_code", "away_team_code"):
+        assert token in sql
     assert all(keyword not in sql for keyword in ("insert ", "update ", "delete "))
