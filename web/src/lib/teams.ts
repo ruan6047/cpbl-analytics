@@ -95,7 +95,7 @@ export const codeFromName = (name?: string | null) => (name && NAME_CODE[name]) 
 const FULL_NAME: Record<string, string> = {
   "三商": "三商虎", "興農": "興農牛", "中信": "中信鯨", "誠泰": "誠泰COBRAS",
   "兄弟": "兄弟象", "義大": "義大犀牛", "俊國": "俊國熊", "時報": "時報鷹",
-  "米迪亞": "米迪亞暴龍", "第一": "第一金剛",
+  "米迪亞": "米迪亞暴龍", "第一": "第一金剛", "Lamigo": "Lamigo桃猿", "La New": "La New熊",
 };
 export const teamFullName = (name?: string | null): string => {
   if (!name) return "";

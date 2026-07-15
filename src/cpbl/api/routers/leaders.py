@@ -109,13 +109,32 @@ def championships(limit: int = Query(10, ge=1, le=50)) -> dict:
     with conn() as c:
         cur = c.cursor()
 
+        # 冠亞軍名稱取自 games 的**當年實際隊名**（era-accurate），不用 team_dim。
+        # team_dim 只收現役 franchise 碼（AAA011…），歷史／已解散隊碼（三商 ABB011、
+        # 時報 AFF011、Lamigo AJK011、義大 AEM011…）查不到 → 名稱為 null。games 每場
+        # 都存當年 team_code+team_name，故 code→當年最常見名稱即為權威 era 名稱。
         cur.execute("""
-            SELECT ch.year, ch.champion_team_code, tc.short AS champion,
-                   ch.runner_up_team_code, tr.short AS runner_up,
+            WITH tn AS (
+              SELECT code, name FROM (
+                SELECT code, name,
+                       row_number() OVER (PARTITION BY code ORDER BY sum(cnt) DESC) rn
+                FROM (
+                  SELECT home_team_code code, home_team_name name, count(*) cnt
+                  FROM cpbl.games WHERE home_team_code IS NOT NULL AND home_team_name IS NOT NULL
+                  GROUP BY 1, 2
+                  UNION ALL
+                  SELECT away_team_code, away_team_name, count(*)
+                  FROM cpbl.games WHERE away_team_code IS NOT NULL AND away_team_name IS NOT NULL
+                  GROUP BY 1, 2
+                ) g GROUP BY code, name
+              ) r WHERE rn = 1
+            )
+            SELECT ch.year, ch.champion_team_code, tc.name AS champion,
+                   ch.runner_up_team_code, tr.name AS runner_up,
                    ch.franchise_code, cm.manager_name, ch.source_url
             FROM cpbl.championships ch
-            LEFT JOIN cpbl.team_dim tc ON tc.team_code = ch.champion_team_code
-            LEFT JOIN cpbl.team_dim tr ON tr.team_code = ch.runner_up_team_code
+            LEFT JOIN tn tc ON tc.code = ch.champion_team_code
+            LEFT JOIN tn tr ON tr.code = ch.runner_up_team_code
             LEFT JOIN cpbl.championship_managers cm
                    ON cm.year = ch.year AND cm.verification_status = 'verified'
             WHERE ch.verification_status = 'verified'
