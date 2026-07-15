@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import math
+import random
 from collections import Counter, defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
@@ -148,6 +149,20 @@ class AlphaTuning:
     metrics_by_alpha: dict[float, ValueMetrics]
 
 
+@dataclass(frozen=True, slots=True)
+class ConfidenceInterval:
+    low: float
+    high: float
+
+
+@dataclass(frozen=True, slots=True)
+class BootstrapComparison:
+    games: int
+    iterations: int
+    nll_delta: ConfidenceInterval
+    mae_delta: ConfidenceInterval
+
+
 ParentKey = tuple[str, str, int]
 
 
@@ -245,19 +260,27 @@ class RunValueModel:
         nll = 0.0
         absolute_error = 0.0
         for row in rows:
-            distribution = (
-                self.parent_distribution(row.key)
-                if parent_only
-                else self.distribution(row.key)
-            )
-            probability = (
-                distribution[row.remaining_runs]
-                if row.remaining_runs < len(distribution)
-                else 1e-15
-            )
-            nll -= math.log(max(probability, 1e-15))
-            absolute_error += abs(self._expectation(distribution) - row.remaining_runs)
+            row_nll, row_mae = self._losses(row, parent_only=parent_only)
+            nll += row_nll
+            absolute_error += row_mae
         return ValueMetrics(nll=nll / len(rows), mae=absolute_error / len(rows), n=len(rows))
+
+    def _losses(
+        self, observation: RunObservation, *, parent_only: bool
+    ) -> tuple[float, float]:
+        distribution = (
+            self.parent_distribution(observation.key)
+            if parent_only
+            else self.distribution(observation.key)
+        )
+        probability = (
+            distribution[observation.remaining_runs]
+            if observation.remaining_runs < len(distribution)
+            else 1e-15
+        )
+        nll = -math.log(max(probability, 1e-15))
+        mae = abs(self._expectation(distribution) - observation.remaining_runs)
+        return nll, mae
 
     def _transition_value(
         self, transition: Transition, *, parent_only: bool = False
@@ -303,6 +326,59 @@ def tune_alpha(
     }
     best_alpha = min(candidate_values, key=lambda alpha: metrics_by_alpha[alpha].nll)
     return AlphaTuning(alpha=best_alpha, metrics_by_alpha=metrics_by_alpha)
+
+
+def _percentile(values: list[float], probability: float) -> float:
+    ordered = sorted(values)
+    index = (len(ordered) - 1) * probability
+    lower = math.floor(index)
+    upper = math.ceil(index)
+    if lower == upper:
+        return ordered[lower]
+    fraction = index - lower
+    return ordered[lower] * (1 - fraction) + ordered[upper] * fraction
+
+
+def bootstrap_metric_deltas(
+    model: RunValueModel,
+    observations: Iterable[RunObservation],
+    *,
+    iterations: int = 2_000,
+    seed: int = 0,
+) -> BootstrapComparison:
+    """以整場為 cluster 重抽，回傳 candidate − parent baseline 的 95% CI。"""
+    if iterations <= 0:
+        raise ValueError("iterations must be positive")
+    by_game: dict[str, list[float]] = defaultdict(lambda: [0.0] * 5)
+    for row in observations:
+        candidate_nll, candidate_mae = model._losses(row, parent_only=False)
+        baseline_nll, baseline_mae = model._losses(row, parent_only=True)
+        aggregate = by_game[row.game_id]
+        aggregate[0] += candidate_nll - baseline_nll
+        aggregate[1] += candidate_mae - baseline_mae
+        aggregate[2] += 1
+    if not by_game:
+        raise ValueError("observations must not be empty")
+
+    clusters = list(by_game.values())
+    rng = random.Random(seed)
+    nll_deltas: list[float] = []
+    mae_deltas: list[float] = []
+    for _ in range(iterations):
+        sampled = rng.choices(clusters, k=len(clusters))
+        count = sum(cluster[2] for cluster in sampled)
+        nll_deltas.append(sum(cluster[0] for cluster in sampled) / count)
+        mae_deltas.append(sum(cluster[1] for cluster in sampled) / count)
+    return BootstrapComparison(
+        games=len(clusters),
+        iterations=iterations,
+        nll_delta=ConfidenceInterval(
+            _percentile(nll_deltas, 0.025), _percentile(nll_deltas, 0.975)
+        ),
+        mae_delta=ConfidenceInterval(
+            _percentile(mae_deltas, 0.025), _percentile(mae_deltas, 0.975)
+        ),
+    )
 
 
 def post_to_pre_count(call: Call, post_balls: int, post_strikes: int) -> tuple[int, int]:

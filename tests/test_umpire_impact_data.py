@@ -1,6 +1,13 @@
 from __future__ import annotations
 
-from cpbl.models.umpire_impact_data import LINKED_CALLED_CTE, TrackingAudit
+from cpbl.models.umpire_impact import RunStateKey
+from cpbl.models.umpire_impact_data import (
+    HISTORICAL_LIVELOG_SQL,
+    LINKED_CALLED_CTE,
+    LivelogRow,
+    TrackingAudit,
+    build_run_observations,
+)
 
 
 def _norm(sql: str) -> str:
@@ -52,3 +59,107 @@ def test_tracking_audit_fails_when_no_called_pitches_exist() -> None:
     assert audit.link_rate == 0.0
     assert audit.valid_count_rate == 0.0
     assert not audit.passes
+
+
+def _row(
+    event: int,
+    *,
+    inning: int = 1,
+    side: str = "1",
+    batting_order: int = 1,
+    hitter: str = "h1",
+    pitcher: str = "p1",
+    pitch_cnt: int | None = 1,
+    outs: int = 0,
+    balls: int = 0,
+    strikes: int = 0,
+    first: str | None = None,
+    is_ball: bool = False,
+    is_strike: bool = False,
+    action: str | None = None,
+    away_score: int = 0,
+    home_score: int = 0,
+) -> LivelogRow:
+    return LivelogRow(
+        year=2020,
+        kind_code="A",
+        game_sno=1,
+        main_event_no=event,
+        inning=inning,
+        side=side,
+        batting_order=batting_order,
+        hitter_acnt=hitter,
+        pitcher_acnt=pitcher,
+        pitch_cnt=pitch_cnt,
+        outs=outs,
+        balls=balls,
+        strikes=strikes,
+        first_base=first,
+        second_base=None,
+        third_base=None,
+        is_ball=is_ball,
+        is_strike=is_strike,
+        batting_action_name=action,
+        is_change_player=False,
+        away_score=away_score,
+        home_score=home_score,
+    )
+
+
+def test_historical_loader_reconstructs_pre_pitch_count_and_remaining_runs() -> None:
+    rows = [
+        _row(1, pitch_cnt=1, balls=1, is_ball=True),
+        _row(2, pitch_cnt=2, balls=1, strikes=1, is_strike=True),
+        # 同一球的投球列與結果列只能形成一個 state；結果列才更新比分。
+        _row(3, pitch_cnt=3, balls=1, strikes=1, is_strike=True),
+        _row(4, pitch_cnt=3, balls=1, strikes=1, action="一壘安打", away_score=1),
+        _row(
+            5,
+            batting_order=2,
+            hitter="h2",
+            pitch_cnt=4,
+            balls=0,
+            strikes=1,
+            is_strike=True,
+            first="runner",
+            away_score=1,
+        ),
+        # 每場最後半局可能因再見而截斷，必須整個排除。
+        _row(6, side="2", pitcher="p2", pitch_cnt=1, balls=1, is_ball=True, away_score=1),
+    ]
+
+    result = build_run_observations(rows)
+
+    assert [row.key for row in result.observations] == [
+        RunStateKey("1", "___", 0, 0, 0),
+        RunStateKey("1", "___", 0, 1, 0),
+        RunStateKey("1", "___", 0, 1, 1),
+        RunStateKey("1", "1__", 0, 0, 0),
+    ]
+    assert [row.remaining_runs for row in result.observations] == [1, 1, 1, 0]
+    assert result.games == 1
+    assert result.excluded_final_halves == 1
+    assert result.duplicate_pitch_rows == 1
+    assert result.invalid_states == 0
+
+
+def test_historical_loader_skips_invalid_counts_instead_of_clamping() -> None:
+    rows = [
+        _row(1, pitch_cnt=1, balls=4, is_ball=True),
+        _row(2, pitch_cnt=2, balls=4, strikes=1, is_strike=True),
+        _row(3, side="2", pitcher="p2", pitch_cnt=1, is_strike=True),
+    ]
+
+    result = build_run_observations(rows)
+
+    assert len(result.observations) == 1
+    assert result.invalid_states == 1
+
+
+def test_historical_query_is_read_only_and_time_bounded() -> None:
+    sql = _norm(HISTORICAL_LIVELOG_SQL).lower()
+
+    assert "from cpbl.game_livelog" in sql
+    assert "year between %(from_year)s and %(to_year)s" in sql
+    assert "kind_code = %(kind)s" in sql
+    assert all(keyword not in sql for keyword in ("insert ", "update ", "delete "))

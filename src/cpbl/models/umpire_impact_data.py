@@ -6,8 +6,12 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import asdict, dataclass
+from itertools import groupby
 from typing import Any
+
+from cpbl.models.umpire_impact import RunObservation, RunStateKey
 
 LINKED_CALLED_CTE = """
 WITH tracking AS (
@@ -60,6 +64,183 @@ WITH tracking AS (
   WHERE m.match_count = 1 AND c.main_event_no IS NOT NULL
 )
 """
+
+
+HISTORICAL_LIVELOG_SQL = """
+SELECT year, kind_code, game_sno, main_event_no::bigint,
+       inning_seq, visiting_home_type, batting_order,
+       hitter_acnt, pitcher_acnt, pitch_cnt, out_cnt, ball_cnt, strike_cnt,
+       first_base, second_base, third_base,
+       is_ball, is_strike, batting_action_name, is_change_player,
+       visiting_score, home_score
+FROM cpbl.game_livelog
+WHERE year BETWEEN %(from_year)s AND %(to_year)s
+  AND kind_code = %(kind)s
+ORDER BY year, game_sno, main_event_no::bigint
+"""
+
+
+@dataclass(frozen=True, slots=True)
+class LivelogRow:
+    year: int
+    kind_code: str
+    game_sno: int
+    main_event_no: int
+    inning: int | None
+    side: str | None
+    batting_order: int | None
+    hitter_acnt: str | None
+    pitcher_acnt: str | None
+    pitch_cnt: int | None
+    outs: int | None
+    balls: int | None
+    strikes: int | None
+    first_base: str | None
+    second_base: str | None
+    third_base: str | None
+    is_ball: bool | None
+    is_strike: bool | None
+    batting_action_name: str | None
+    is_change_player: bool | None
+    away_score: int | None
+    home_score: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class HistoricalRunData:
+    observations: tuple[RunObservation, ...]
+    games: int
+    excluded_final_halves: int
+    duplicate_pitch_rows: int
+    invalid_states: int
+
+
+def _pitch_candidate(row: LivelogRow) -> bool:
+    return bool(
+        not row.is_change_player
+        and row.hitter_acnt
+        and row.pitcher_acnt
+        and row.pitch_cnt is not None
+        and (row.is_ball or row.is_strike or row.batting_action_name)
+    )
+
+
+def _build_game_observations(
+    rows: list[LivelogRow],
+) -> tuple[list[RunObservation], int, int, int]:
+    """單場重建；回 observations、末半局數、重複投球列數、無效狀態數。"""
+    if not rows:
+        return [], 0, 0, 0
+
+    pre_scores: dict[int, tuple[int, int]] = {}
+    half_order: list[tuple[int, str]] = []
+    half_scores: dict[tuple[int, str], int] = {}
+    away_score = home_score = 0
+    for row in rows:
+        pre_scores[row.main_event_no] = away_score, home_score
+        if row.away_score is not None:
+            away_score = row.away_score
+        if row.home_score is not None:
+            home_score = row.home_score
+        if row.inning is None or row.side not in {"1", "2"}:
+            continue
+        half = row.inning, row.side
+        if half not in half_scores:
+            half_order.append(half)
+        batting_score = away_score if row.side == "1" else home_score
+        half_scores[half] = max(half_scores.get(half, 0), batting_score)
+
+    if not half_order:
+        return [], 0, 0, 0
+    excluded_halves = {half_order[-1]}
+
+    pitch_groups: dict[tuple[int, str, str, int], list[LivelogRow]] = defaultdict(list)
+    for row in rows:
+        if not _pitch_candidate(row) or row.inning is None or row.side not in {"1", "2"}:
+            continue
+        identity = row.inning, row.side, str(row.pitcher_acnt), int(row.pitch_cnt)
+        pitch_groups[identity].append(row)
+
+    selected: list[LivelogRow] = []
+    duplicate_pitch_rows = 0
+    for candidates in pitch_groups.values():
+        duplicate_pitch_rows += len(candidates) - 1
+        called = [row for row in candidates if row.is_ball or row.is_strike]
+        selected.append(min(called or candidates, key=lambda row: row.main_event_no))
+    selected.sort(key=lambda row: row.main_event_no)
+
+    observations: list[RunObservation] = []
+    invalid_states = 0
+    previous_pa: tuple[int, str, int | None, str] | None = None
+    previous_post_count: tuple[int | None, int | None] = (None, None)
+    game_id = f"{rows[0].year}-{rows[0].kind_code}-{rows[0].game_sno}"
+    for row in selected:
+        half = int(row.inning), str(row.side)
+        if half in excluded_halves:
+            continue
+        pa = half[0], half[1], row.batting_order, str(row.hitter_acnt)
+        balls, strikes = (0, 0) if pa != previous_pa else previous_post_count
+        previous_pa = pa
+        previous_post_count = row.balls, row.strikes
+        if (
+            row.outs is None
+            or balls is None
+            or strikes is None
+            or not 0 <= row.outs <= 2
+            or not 0 <= balls <= 3
+            or not 0 <= strikes <= 2
+        ):
+            invalid_states += 1
+            continue
+
+        bases = (
+            ("1" if row.first_base else "_")
+            + ("2" if row.second_base else "_")
+            + ("3" if row.third_base else "_")
+        )
+        pre_away, pre_home = pre_scores[row.main_event_no]
+        pre_batting_score = pre_away if half[1] == "1" else pre_home
+        remaining_runs = half_scores[half] - pre_batting_score
+        if remaining_runs < 0:
+            invalid_states += 1
+            continue
+        observations.append(
+            RunObservation(
+                key=RunStateKey(half[1], bases, row.outs, balls, strikes),
+                remaining_runs=remaining_runs,
+                game_id=game_id,
+            )
+        )
+    return observations, len(excluded_halves), duplicate_pitch_rows, invalid_states
+
+
+def build_run_observations(rows: list[LivelogRow]) -> HistoricalRunData:
+    observations: list[RunObservation] = []
+    games = excluded = duplicates = invalid = 0
+    ordered = sorted(rows, key=lambda row: (row.year, row.game_sno, row.main_event_no))
+    for _, game_rows_iter in groupby(ordered, key=lambda row: (row.year, row.kind_code, row.game_sno)):
+        game_rows = list(game_rows_iter)
+        game_observations, game_excluded, game_duplicates, game_invalid = (
+            _build_game_observations(game_rows)
+        )
+        observations.extend(game_observations)
+        games += 1
+        excluded += game_excluded
+        duplicates += game_duplicates
+        invalid += game_invalid
+    return HistoricalRunData(tuple(observations), games, excluded, duplicates, invalid)
+
+
+def load_run_observations(
+    connection: Any, from_year: int, to_year: int, kind: str = "A"
+) -> HistoricalRunData:
+    """從唯讀 livelog 查詢載入歷史計數狀態。"""
+    cursor = connection.execute(
+        HISTORICAL_LIVELOG_SQL,
+        {"from_year": from_year, "to_year": to_year, "kind": kind},
+    )
+    rows = [LivelogRow(*row) for row in cursor]
+    return build_run_observations(rows)
 
 
 @dataclass(frozen=True, slots=True)

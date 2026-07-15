@@ -9,6 +9,7 @@ from cpbl.models.umpire_impact import (
     RunObservation,
     RunStateKey,
     RunValueModel,
+    bootstrap_metric_deltas,
     post_to_pre_count,
     proxy_call,
     signed_edge_distance_cm,
@@ -206,6 +207,31 @@ def test_run_value_metrics_compare_count_model_with_parent_baseline() -> None:
 
     assert candidate.nll < baseline.nll
     assert candidate.mae < baseline.mae
+
+
+def test_metric_bootstrap_resamples_whole_games_and_is_reproducible() -> None:
+    favorable = RunStateKey("1", "___", 0, 1, 0)
+    unfavorable = RunStateKey("1", "___", 0, 0, 1)
+    train = [
+        *_observations(favorable, [1, 1, 2, 2]),
+        *_observations(unfavorable, [0, 0, 0, 0]),
+    ]
+    test = [
+        RunObservation(favorable, 1, "game-a"),
+        RunObservation(favorable, 2, "game-a"),
+        RunObservation(unfavorable, 0, "game-b"),
+        RunObservation(unfavorable, 0, "game-b"),
+    ]
+    model = RunValueModel.fit(train, alpha=0.1)
+
+    first = bootstrap_metric_deltas(model, test, iterations=200, seed=42)
+    second = bootstrap_metric_deltas(model, test, iterations=200, seed=42)
+
+    assert first == second
+    assert first.games == 2
+    assert first.iterations == 200
+    assert first.nll_delta.high < 0
+    assert first.mae_delta.high < 0
 
 
 def test_tune_alpha_uses_validation_nll() -> None:
