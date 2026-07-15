@@ -7,6 +7,8 @@
 from __future__ import annotations
 
 import math
+from collections import Counter, defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from enum import StrEnum
 
@@ -75,6 +77,232 @@ class Transition:
     next_state: PitchState | None
     immediate_runs: int
     half_over: bool
+
+
+@dataclass(frozen=True, slots=True)
+class RunStateKey:
+    """半局內的得分價值狀態；刻意排除局數與比數。"""
+
+    batting_side: str
+    bases: str
+    outs: int
+    balls: int
+    strikes: int
+
+    def __post_init__(self) -> None:
+        PitchState(
+            batting_side=self.batting_side,
+            inning=1,
+            score_diff_home=0,
+            bases=self.bases,
+            outs=self.outs,
+            balls=self.balls,
+            strikes=self.strikes,
+        )
+
+    @classmethod
+    def from_pitch_state(cls, state: PitchState) -> RunStateKey:
+        return cls(
+            state.batting_side,
+            state.bases,
+            state.outs,
+            state.balls,
+            state.strikes,
+        )
+
+    @property
+    def parent(self) -> tuple[str, str, int]:
+        return self.batting_side, self.bases, self.outs
+
+
+@dataclass(frozen=True, slots=True)
+class RunObservation:
+    key: RunStateKey
+    remaining_runs: int
+    game_id: str
+
+    def __post_init__(self) -> None:
+        if self.remaining_runs < 0:
+            raise ValueError("remaining_runs must be non-negative")
+        if not self.game_id:
+            raise ValueError("game_id must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ValueMetrics:
+    nll: float
+    mae: float
+    n: int
+
+
+@dataclass(frozen=True, slots=True)
+class CallValues:
+    ball: float
+    strike: float
+    backed_off: bool
+
+
+@dataclass(frozen=True, slots=True)
+class AlphaTuning:
+    alpha: float
+    metrics_by_alpha: dict[float, ValueMetrics]
+
+
+ParentKey = tuple[str, str, int]
+
+
+class RunValueModel:
+    """計數感知的剩餘得分分布，使用父狀態與全域分布階層式收縮。"""
+
+    def __init__(
+        self,
+        *,
+        alpha: float,
+        max_runs: int,
+        global_distribution: tuple[float, ...],
+        parent_distributions: dict[ParentKey, tuple[float, ...]],
+        state_distributions: dict[RunStateKey, tuple[float, ...]],
+    ) -> None:
+        self.alpha = alpha
+        self.max_runs = max_runs
+        self._global_distribution = global_distribution
+        self._parent_distributions = parent_distributions
+        self._state_distributions = state_distributions
+
+    @classmethod
+    def fit(
+        cls, observations: Iterable[RunObservation], *, alpha: float
+    ) -> RunValueModel:
+        rows = list(observations)
+        if not rows:
+            raise ValueError("observations must not be empty")
+        if alpha <= 0:
+            raise ValueError("alpha must be positive")
+
+        max_runs = max(row.remaining_runs for row in rows)
+        support = range(max_runs + 1)
+        global_counts = Counter(row.remaining_runs for row in rows)
+        # 極小均勻先驗只為保證有限 NLL，不替代由 validation 選出的 alpha。
+        epsilon = 1e-9
+        global_total = len(rows) + epsilon * (max_runs + 1)
+        global_distribution = tuple(
+            (global_counts[runs] + epsilon) / global_total for runs in support
+        )
+
+        parent_counts: dict[ParentKey, Counter[int]] = defaultdict(Counter)
+        state_counts: dict[RunStateKey, Counter[int]] = defaultdict(Counter)
+        for row in rows:
+            parent_counts[row.key.parent][row.remaining_runs] += 1
+            state_counts[row.key][row.remaining_runs] += 1
+
+        parent_distributions: dict[ParentKey, tuple[float, ...]] = {}
+        for parent, counts in parent_counts.items():
+            total = sum(counts.values()) + alpha
+            parent_distributions[parent] = tuple(
+                (counts[runs] + alpha * global_distribution[runs]) / total
+                for runs in support
+            )
+
+        state_distributions: dict[RunStateKey, tuple[float, ...]] = {}
+        for key, counts in state_counts.items():
+            parent_distribution = parent_distributions[key.parent]
+            total = sum(counts.values()) + alpha
+            state_distributions[key] = tuple(
+                (counts[runs] + alpha * parent_distribution[runs]) / total
+                for runs in support
+            )
+
+        return cls(
+            alpha=alpha,
+            max_runs=max_runs,
+            global_distribution=global_distribution,
+            parent_distributions=parent_distributions,
+            state_distributions=state_distributions,
+        )
+
+    def parent_distribution(self, key: RunStateKey) -> tuple[float, ...]:
+        return self._parent_distributions.get(key.parent, self._global_distribution)
+
+    def distribution(self, key: RunStateKey) -> tuple[float, ...]:
+        return self._state_distributions.get(key, self.parent_distribution(key))
+
+    @staticmethod
+    def _expectation(distribution: tuple[float, ...]) -> float:
+        return sum(runs * probability for runs, probability in enumerate(distribution))
+
+    def expected_runs(self, key: RunStateKey, *, parent_only: bool = False) -> float:
+        distribution = (
+            self.parent_distribution(key) if parent_only else self.distribution(key)
+        )
+        return self._expectation(distribution)
+
+    def metrics(
+        self, observations: Iterable[RunObservation], *, parent_only: bool = False
+    ) -> ValueMetrics:
+        rows = list(observations)
+        if not rows:
+            raise ValueError("observations must not be empty")
+        nll = 0.0
+        absolute_error = 0.0
+        for row in rows:
+            distribution = (
+                self.parent_distribution(row.key)
+                if parent_only
+                else self.distribution(row.key)
+            )
+            probability = (
+                distribution[row.remaining_runs]
+                if row.remaining_runs < len(distribution)
+                else 1e-15
+            )
+            nll -= math.log(max(probability, 1e-15))
+            absolute_error += abs(self._expectation(distribution) - row.remaining_runs)
+        return ValueMetrics(nll=nll / len(rows), mae=absolute_error / len(rows), n=len(rows))
+
+    def _transition_value(
+        self, transition: Transition, *, parent_only: bool = False
+    ) -> float:
+        if transition.half_over:
+            return float(transition.immediate_runs)
+        if transition.next_state is None:
+            raise ValueError("nonterminal transition must have next_state")
+        key = RunStateKey.from_pitch_state(transition.next_state)
+        return transition.immediate_runs + self.expected_runs(key, parent_only=parent_only)
+
+    def call_values(self, state: PitchState) -> CallValues:
+        ball_transition = transition_called_pitch(state, Call.BALL)
+        strike_transition = transition_called_pitch(state, Call.STRIKE)
+        ball = self._transition_value(ball_transition)
+        strike = self._transition_value(strike_transition)
+        if ball >= strike:
+            return CallValues(ball=ball, strike=strike, backed_off=False)
+
+        # 稀疏計數格若估出反向價值，回退到較穩健的父狀態估計。
+        parent_ball = self._transition_value(ball_transition, parent_only=True)
+        parent_strike = self._transition_value(strike_transition, parent_only=True)
+        if parent_ball < parent_strike:
+            conservative = (parent_ball + parent_strike) / 2
+            parent_ball = parent_strike = conservative
+        return CallValues(ball=parent_ball, strike=parent_strike, backed_off=True)
+
+
+def tune_alpha(
+    train: Iterable[RunObservation],
+    validation: Iterable[RunObservation],
+    *,
+    candidates: Iterable[float],
+) -> AlphaTuning:
+    train_rows = list(train)
+    validation_rows = list(validation)
+    candidate_values = tuple(candidates)
+    if not candidate_values:
+        raise ValueError("candidates must not be empty")
+    metrics_by_alpha = {
+        alpha: RunValueModel.fit(train_rows, alpha=alpha).metrics(validation_rows)
+        for alpha in candidate_values
+    }
+    best_alpha = min(candidate_values, key=lambda alpha: metrics_by_alpha[alpha].nll)
+    return AlphaTuning(alpha=best_alpha, metrics_by_alpha=metrics_by_alpha)
 
 
 def post_to_pre_count(call: Call, post_balls: int, post_strikes: int) -> tuple[int, int]:
