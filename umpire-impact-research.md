@@ -1,6 +1,6 @@
 # ML-UMP1 研究規格：裁判判決差異的預期狀態影響
 
-> 狀態：Draft，待 ruan6047 核可
+> 狀態：Approved（ruan6047，2026-07-15）
 > 卡片：`ML-UMP1`
 > 規劃：GPT-5@Codex
 > 日期：2026-07-15
@@ -433,9 +433,11 @@ def transition_called_pitch(state: PitchState, call: Call) -> Transition:
   - Verify：查核紀錄與實測輸出進卡片 Log。
   - Files：不由查核者修改實作；缺陷退回原執行者。
 
-## 14. 核可時需確認的決策
+## 14. 已核可決策
 
-1. 接受研究與未來產品文案改用「代理帶判決差異」，不使用「裁判誤判」作為 canonical 名稱。
-2. 接受本卡主要交付為 run value；WP 是通過獨立 gate 才附加的條件式輸出。
-3. 接受研究階段只做離線報告，不新增 API／UI／production table。
-4. 接受 fixed proxy v1 只為相容現有頁面，必須附邊界敏感度且不得當 ground truth。
+ruan6047 於 2026-07-15 核可以下四項：
+
+1. 研究與未來產品文案改用「代理帶判決差異」，不使用「裁判誤判」作為 canonical 名稱。
+2. 本卡主要交付為 run value；WP 是通過獨立 gate 才附加的條件式輸出。
+3. 研究階段只做離線報告，不新增 API／UI／production table。
+4. fixed proxy v1 只為相容現有頁面，必須附邊界敏感度且不得當 ground truth。
