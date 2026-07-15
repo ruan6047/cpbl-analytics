@@ -46,14 +46,13 @@ const columns: Column<ChampRow>[] = [
     className: "font-sans",
   },
   {
-    // 現役／退役／教練：三個獨立標籤，統一走 Pill 格式（形狀一致、色別區分）。
+    // 現役／退役／教練：三選一互斥的單一標籤（統一 Pill 格式，色別區分）。曾以教練奪冠者
+    // 一律顯示「教練」（皆已非現役球員），否則依球員現役/退役。
     header: "現況",
-    cell: (r) => (
-      <span className="inline-flex flex-wrap items-center justify-center gap-1.5">
-        {r.active ? <ActivePill /> : <Pill tone="muted">退役</Pill>}
-        {r.isManager && <Pill tone="muted" className="!bg-accent/15 !text-accent">教練</Pill>}
-      </span>
-    ),
+    cell: (r) =>
+      r.isManager ? <Pill tone="muted" className="!bg-accent/15 !text-accent">教練</Pill>
+        : r.active ? <ActivePill />
+          : <Pill tone="muted">退役</Pill>,
     align: "center",
     nowrap: true,
     className: "font-sans",
