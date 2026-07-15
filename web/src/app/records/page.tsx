@@ -2,8 +2,9 @@ import Link from "next/link";
 import { DataTable, type Column } from "@/components/table";
 import { ActivePill, GonePill, NameTag, Notice, PlayerLink, TeamBadge, TeamLogo } from "@/components/ui";
 import { api } from "@/lib/api";
-import { teamColor, teamFullName } from "@/lib/teams";
+import { teamFullName } from "@/lib/teams";
 import { ChampionsPlayerTable, type ChampRow } from "./champions-player-table";
+import { DynastyChart } from "./dynasty-chart";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,6 @@ type Franchises = Awaited<ReturnType<typeof api.franchises>>["items"];
 type GameRec = NonNullable<Records["games"][keyof Records["games"]]>;
 type SeasonRec = { name: string; pid: string; year: number; val: number | string };
 type CareerRec = { name: string; pid: string; val: number; active: boolean };
-type Dynasty = NonNullable<Championships["franchise_ranking"]>[number];
 type ChampSeason = Championships["seasons"][number];
 
 type GameRow = { key: string; label: string; rec: GameRec; value: string };
@@ -84,35 +84,6 @@ const seasonColumns: Column<SeasonRow>[] = [
   { header: "球季", cell: (r) => r.rec.year, align: "right", nowrap: true, className: "text-muted" },
   { header: "紀錄值", cell: (r) => r.format === "rate" ? f3(r.rec.val) : r.rec.val, align: "right", nowrap: true, className: "font-semibold text-accent" },
 ];
-
-// —— 冠軍王朝榜：緊湊表格（每隊一列），並列排名（rk）。冠軍數帶迷你長條（∝ titles/榜首），
-// 奪冠年份 inline，密度高又保留視覺。
-function DynastyTable({ rows }: { rows: Dynasty[] }) {
-  const max = rows[0]?.titles ?? 1;
-  const columns: Column<Dynasty>[] = [
-    { header: "名次", cell: (r) => r.rk, sticky: true, align: "right", nowrap: true, className: "text-faint" },
-    {
-      header: "球團",
-      cell: (r) => <Link href={`/teams/${r.team_code}`} className="font-medium hover:underline"><TeamBadge code={r.team_code} name={r.team} /></Link>,
-      nowrap: true,
-      className: "font-sans",
-    },
-    {
-      header: "冠軍",
-      cell: (r) => (
-        <span className="inline-flex items-center gap-2">
-          <span className="hidden h-2 w-20 overflow-hidden rounded-full bg-surface-2 sm:inline-block">
-            <span className="block h-full rounded-full" style={{ width: `${Math.max(8, (r.titles / max) * 100)}%`, background: teamColor(r.team_code) }} />
-          </span>
-          <span className="w-5 text-right font-bold tabular-nums text-accent">{r.titles}</span>
-        </span>
-      ),
-      nowrap: true,
-    },
-    { header: "奪冠年份", cell: (r) => r.years.join("、"), nowrap: true, className: "font-mono text-[11px] tabular-nums text-muted" },
-  ];
-  return <DataTable columns={columns} rows={rows} rowKey={(r) => r.team_code} dense />;
-}
 
 // 徽章色用當年隊名（nameMeta 全涵蓋含已解散隊），顯示文字補成全名（teamFullName）。
 function ChampTeam({ name }: { name: string | null }) {
@@ -216,7 +187,7 @@ export default async function RecordsPage() {
       <section aria-labelledby="dynasty">
         <h2 id="dynasty" className="mb-3 text-lg font-semibold text-ink">冠軍王朝榜</h2>
         {covComplete && dynasties.length ? (
-          <DynastyTable rows={dynasties} />
+          <DynastyChart rows={dynasties} />
         ) : (
           <Notice>{ch.note ?? "冠軍資料尚未補齊，暫不呈現累計王朝排行。"}</Notice>
         )}
