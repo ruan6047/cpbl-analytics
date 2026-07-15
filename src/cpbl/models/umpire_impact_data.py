@@ -11,7 +11,12 @@ from dataclasses import asdict, dataclass
 from itertools import groupby
 from typing import Any
 
-from cpbl.models.umpire_impact import RunObservation, RunStateKey
+from cpbl.models.umpire_impact import (
+    PitchState,
+    RunObservation,
+    RunStateKey,
+    WinObservation,
+)
 
 LINKED_CALLED_CTE = """
 WITH tracking AS (
@@ -109,6 +114,7 @@ class LivelogRow:
 @dataclass(frozen=True, slots=True)
 class HistoricalRunData:
     observations: tuple[RunObservation, ...]
+    win_observations: tuple[WinObservation, ...]
     games: int
     excluded_final_halves: int
     duplicate_pitch_rows: int
@@ -127,10 +133,10 @@ def _pitch_candidate(row: LivelogRow) -> bool:
 
 def _build_game_observations(
     rows: list[LivelogRow],
-) -> tuple[list[RunObservation], int, int, int]:
+) -> tuple[list[RunObservation], list[WinObservation], int, int, int]:
     """單場重建；回 observations、末半局數、重複投球列數、無效狀態數。"""
     if not rows:
-        return [], 0, 0, 0
+        return [], [], 0, 0, 0
 
     pre_scores: dict[int, tuple[int, int]] = {}
     half_order: list[tuple[int, str]] = []
@@ -151,7 +157,7 @@ def _build_game_observations(
         half_scores[half] = max(half_scores.get(half, 0), batting_score)
 
     if not half_order:
-        return [], 0, 0, 0
+        return [], [], 0, 0, 0
     excluded_halves = {half_order[-1]}
 
     pitch_groups: dict[tuple[int, str, str, int], list[LivelogRow]] = defaultdict(list)
@@ -170,10 +176,12 @@ def _build_game_observations(
     selected.sort(key=lambda row: row.main_event_no)
 
     observations: list[RunObservation] = []
+    win_observations: list[WinObservation] = []
     invalid_states = 0
     previous_pa: tuple[int, str, int | None, str] | None = None
     previous_post_count: tuple[int | None, int | None] = (None, None)
     game_id = f"{rows[0].year}-{rows[0].kind_code}-{rows[0].game_sno}"
+    outcome_home = 1.0 if home_score > away_score else (0.0 if home_score < away_score else 0.5)
     for row in selected:
         half = int(row.inning), str(row.side)
         if half in excluded_halves:
@@ -204,31 +212,56 @@ def _build_game_observations(
         if remaining_runs < 0:
             invalid_states += 1
             continue
-        observations.append(
-            RunObservation(
-                key=RunStateKey(half[1], bases, row.outs, balls, strikes),
-                remaining_runs=remaining_runs,
-                game_id=game_id,
-            )
+        state = PitchState(
+            batting_side=half[1],
+            inning=half[0],
+            score_diff_home=pre_home - pre_away,
+            bases=bases,
+            outs=row.outs,
+            balls=balls,
+            strikes=strikes,
         )
-    return observations, len(excluded_halves), duplicate_pitch_rows, invalid_states
+        observations.append(
+            RunObservation(RunStateKey.from_pitch_state(state), remaining_runs, game_id)
+        )
+        win_observations.append(WinObservation(state, outcome_home, game_id))
+    return (
+        observations,
+        win_observations,
+        len(excluded_halves),
+        duplicate_pitch_rows,
+        invalid_states,
+    )
 
 
 def build_run_observations(rows: list[LivelogRow]) -> HistoricalRunData:
     observations: list[RunObservation] = []
+    win_observations: list[WinObservation] = []
     games = excluded = duplicates = invalid = 0
     ordered = sorted(rows, key=lambda row: (row.year, row.game_sno, row.main_event_no))
     for _, game_rows_iter in groupby(ordered, key=lambda row: (row.year, row.kind_code, row.game_sno)):
         game_rows = list(game_rows_iter)
-        game_observations, game_excluded, game_duplicates, game_invalid = (
-            _build_game_observations(game_rows)
-        )
+        (
+            game_observations,
+            game_win_observations,
+            game_excluded,
+            game_duplicates,
+            game_invalid,
+        ) = _build_game_observations(game_rows)
         observations.extend(game_observations)
+        win_observations.extend(game_win_observations)
         games += 1
         excluded += game_excluded
         duplicates += game_duplicates
         invalid += game_invalid
-    return HistoricalRunData(tuple(observations), games, excluded, duplicates, invalid)
+    return HistoricalRunData(
+        tuple(observations),
+        tuple(win_observations),
+        games,
+        excluded,
+        duplicates,
+        invalid,
+    )
 
 
 def load_run_observations(

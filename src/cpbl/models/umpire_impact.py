@@ -12,6 +12,7 @@ from collections import Counter, defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from enum import StrEnum
+from typing import Protocol
 
 
 class Call(StrEnum):
@@ -163,6 +164,41 @@ class BootstrapComparison:
     mae_delta: ConfidenceInterval
 
 
+@dataclass(frozen=True, slots=True)
+class WinObservation:
+    state: PitchState
+    outcome_home: float
+    game_id: str
+
+    def __post_init__(self) -> None:
+        if not 0 <= self.outcome_home <= 1:
+            raise ValueError("outcome_home must be between zero and one")
+        if not self.game_id:
+            raise ValueError("game_id must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ProbabilityMetrics:
+    brier: float
+    log_loss: float
+    calibration_intercept: float
+    calibration_slope: float
+    ece: float
+    n: int
+
+
+@dataclass(frozen=True, slots=True)
+class ProbabilityBootstrapComparison:
+    games: int
+    iterations: int
+    brier_delta: ConfidenceInterval
+    log_loss_delta: ConfidenceInterval
+
+
+class ProbabilityPredictor(Protocol):
+    def predict(self, state: PitchState) -> float: ...
+
+
 ParentKey = tuple[str, str, int]
 
 
@@ -307,6 +343,226 @@ class RunValueModel:
             conservative = (parent_ball + parent_strike) / 2
             parent_ball = parent_strike = conservative
         return CallValues(ball=parent_ball, strike=parent_strike, backed_off=True)
+
+
+class WinProbabilityModel:
+    """以 count-aware 或父狀態得分分布驅動相同的 CPBL 半局邊界 DP。"""
+
+    def __init__(self, run_model: RunValueModel, *, count_aware: bool) -> None:
+        from cpbl.models.winprob import _we_solver
+
+        self.run_model = run_model
+        self.count_aware = count_aware
+        top = self._distribution(RunStateKey("1", "___", 0, 0, 0))
+        bottom = self._distribution(RunStateKey("2", "___", 0, 0, 0))
+        self._we_top, self._we_bottom = _we_solver(list(top), list(bottom))
+
+    def _distribution(self, key: RunStateKey) -> tuple[float, ...]:
+        if self.count_aware:
+            return self.run_model.distribution(key)
+        return self.run_model.parent_distribution(key)
+
+    @staticmethod
+    def _clip_diff(diff: int) -> int:
+        from cpbl.models.winprob import DIFF_CLIP
+
+        return max(-DIFF_CLIP, min(DIFF_CLIP, diff))
+
+    @staticmethod
+    def _score(win_tie: tuple[float, float]) -> float:
+        win, tie = win_tie
+        return win + 0.5 * tie
+
+    def _after_half(self, state: PitchState) -> float:
+        from cpbl.models.winprob import MAX_INNING
+
+        inning = min(state.inning, MAX_INNING)
+        diff = self._clip_diff(state.score_diff_home)
+        if state.batting_side == "1":
+            if inning >= 9 and diff > 0:
+                return 1.0
+            return self._score(self._we_bottom(inning, diff))
+        if inning >= 9:
+            if diff > 0:
+                return 1.0
+            if diff < 0:
+                return 0.0
+            if inning >= MAX_INNING:
+                return 0.5
+        return self._score(self._we_top(inning + 1, diff))
+
+    def predict(self, state: PitchState) -> float:
+        from cpbl.models.winprob import MAX_INNING
+
+        inning = min(state.inning, MAX_INNING)
+        distribution = self._distribution(RunStateKey.from_pitch_state(state))
+        probability = 0.0
+        for runs, weight in enumerate(distribution):
+            if not weight:
+                continue
+            run_diff = -runs if state.batting_side == "1" else runs
+            boundary_state = replace(
+                state,
+                inning=inning,
+                score_diff_home=self._clip_diff(state.score_diff_home + run_diff),
+            )
+            probability += weight * self._after_half(boundary_state)
+        return min(1.0, max(0.0, probability))
+
+    def _transition_probability(self, state: PitchState, call: Call) -> float:
+        transition = transition_called_pitch(state, call)
+        if transition.half_over:
+            boundary = replace(
+                state,
+                score_diff_home=state.score_diff_home
+                + (
+                    transition.immediate_runs
+                    if state.batting_side == "2"
+                    else -transition.immediate_runs
+                ),
+            )
+            return self._after_half(boundary)
+        if transition.next_state is None:
+            raise ValueError("nonterminal transition must have next_state")
+        return self.predict(transition.next_state)
+
+    def call_values(self, state: PitchState) -> CallValues:
+        ball = self._transition_probability(state, Call.BALL)
+        strike = self._transition_probability(state, Call.STRIKE)
+        monotone = ball >= strike if state.batting_side == "2" else ball <= strike
+        if monotone:
+            return CallValues(ball, strike, False)
+
+        baseline = WinProbabilityModel(self.run_model, count_aware=False)
+        parent_ball = baseline._transition_probability(state, Call.BALL)
+        parent_strike = baseline._transition_probability(state, Call.STRIKE)
+        parent_monotone = (
+            parent_ball >= parent_strike
+            if state.batting_side == "2"
+            else parent_ball <= parent_strike
+        )
+        if not parent_monotone:
+            conservative = (parent_ball + parent_strike) / 2
+            parent_ball = parent_strike = conservative
+        return CallValues(parent_ball, parent_strike, True)
+
+    def metrics(self, observations: Iterable[WinObservation]) -> ProbabilityMetrics:
+        rows = list(observations)
+        if not rows:
+            raise ValueError("observations must not be empty")
+        predictions = [self.predict(row.state) for row in rows]
+        outcomes = [row.outcome_home for row in rows]
+        epsilon = 1e-15
+        brier = sum((prediction - outcome) ** 2 for prediction, outcome in zip(predictions, outcomes, strict=True)) / len(rows)
+        log_loss = -sum(
+            outcome * math.log(max(prediction, epsilon))
+            + (1 - outcome) * math.log(max(1 - prediction, epsilon))
+            for prediction, outcome in zip(predictions, outcomes, strict=True)
+        ) / len(rows)
+        intercept, slope = _calibration_fit(predictions, outcomes)
+        buckets: list[list[float]] = [[0.0, 0.0, 0.0] for _ in range(10)]
+        for prediction, outcome in zip(predictions, outcomes, strict=True):
+            bucket = buckets[min(int(prediction * 10), 9)]
+            bucket[0] += prediction
+            bucket[1] += outcome
+            bucket[2] += 1
+        ece = sum(
+            abs(bucket[0] / bucket[2] - bucket[1] / bucket[2]) * bucket[2]
+            for bucket in buckets
+            if bucket[2]
+        ) / len(rows)
+        return ProbabilityMetrics(brier, log_loss, intercept, slope, ece, len(rows))
+
+
+def _calibration_fit(
+    predictions: list[float], outcomes: list[float]
+) -> tuple[float, float]:
+    """以 fractional-binomial Newton steps 估 calibration intercept／slope。"""
+    epsilon = 1e-9
+    logits = [
+        math.log(min(1 - epsilon, max(epsilon, probability)) / (1 - min(1 - epsilon, max(epsilon, probability))))
+        for probability in predictions
+    ]
+    intercept, slope = 0.0, 1.0
+    for _ in range(50):
+        gradient_0 = gradient_1 = 0.0
+        info_00 = info_01 = info_11 = 1e-8
+        for logit, outcome in zip(logits, outcomes, strict=True):
+            linear = max(-30.0, min(30.0, intercept + slope * logit))
+            fitted = 1 / (1 + math.exp(-linear))
+            residual = outcome - fitted
+            weight = fitted * (1 - fitted)
+            gradient_0 += residual
+            gradient_1 += residual * logit
+            info_00 += weight
+            info_01 += weight * logit
+            info_11 += weight * logit * logit
+        determinant = info_00 * info_11 - info_01 * info_01
+        if determinant <= 0:
+            break
+        delta_intercept = (info_11 * gradient_0 - info_01 * gradient_1) / determinant
+        delta_slope = (-info_01 * gradient_0 + info_00 * gradient_1) / determinant
+        intercept += delta_intercept
+        slope += delta_slope
+        if max(abs(delta_intercept), abs(delta_slope)) < 1e-8:
+            break
+    return intercept, slope
+
+
+def bootstrap_probability_deltas(
+    candidate: ProbabilityPredictor,
+    baseline: ProbabilityPredictor,
+    observations: Iterable[WinObservation],
+    *,
+    iterations: int = 2_000,
+    seed: int = 0,
+) -> ProbabilityBootstrapComparison:
+    """以整場 paired cluster 重抽 candidate − baseline 的 Brier／LogLoss。"""
+    if iterations <= 0:
+        raise ValueError("iterations must be positive")
+    epsilon = 1e-15
+    by_game: dict[str, list[float]] = defaultdict(lambda: [0.0, 0.0, 0.0])
+    for row in observations:
+        candidate_probability = min(1 - epsilon, max(epsilon, candidate.predict(row.state)))
+        baseline_probability = min(1 - epsilon, max(epsilon, baseline.predict(row.state)))
+        outcome = row.outcome_home
+        candidate_brier = (candidate_probability - outcome) ** 2
+        baseline_brier = (baseline_probability - outcome) ** 2
+        candidate_log_loss = -(
+            outcome * math.log(candidate_probability)
+            + (1 - outcome) * math.log(1 - candidate_probability)
+        )
+        baseline_log_loss = -(
+            outcome * math.log(baseline_probability)
+            + (1 - outcome) * math.log(1 - baseline_probability)
+        )
+        aggregate = by_game[row.game_id]
+        aggregate[0] += candidate_brier - baseline_brier
+        aggregate[1] += candidate_log_loss - baseline_log_loss
+        aggregate[2] += 1
+    if not by_game:
+        raise ValueError("observations must not be empty")
+
+    clusters = list(by_game.values())
+    rng = random.Random(seed)
+    brier_deltas: list[float] = []
+    log_loss_deltas: list[float] = []
+    for _ in range(iterations):
+        sampled = rng.choices(clusters, k=len(clusters))
+        count = sum(cluster[2] for cluster in sampled)
+        brier_deltas.append(sum(cluster[0] for cluster in sampled) / count)
+        log_loss_deltas.append(sum(cluster[1] for cluster in sampled) / count)
+    return ProbabilityBootstrapComparison(
+        games=len(clusters),
+        iterations=iterations,
+        brier_delta=ConfidenceInterval(
+            _percentile(brier_deltas, 0.025), _percentile(brier_deltas, 0.975)
+        ),
+        log_loss_delta=ConfidenceInterval(
+            _percentile(log_loss_deltas, 0.025),
+            _percentile(log_loss_deltas, 0.975),
+        ),
+    )
 
 
 def tune_alpha(

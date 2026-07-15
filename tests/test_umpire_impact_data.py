@@ -137,6 +137,9 @@ def test_historical_loader_reconstructs_pre_pitch_count_and_remaining_runs() -> 
         RunStateKey("1", "1__", 0, 0, 0),
     ]
     assert [row.remaining_runs for row in result.observations] == [1, 1, 1, 0]
+    assert [row.state.score_diff_home for row in result.win_observations] == [0, 0, 0, -1]
+    assert {row.outcome_home for row in result.win_observations} == {0.0}
+    assert all(row.game_id == "2020-A-1" for row in result.win_observations)
     assert result.games == 1
     assert result.excluded_final_halves == 1
     assert result.duplicate_pitch_rows == 1

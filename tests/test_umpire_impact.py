@@ -9,7 +9,10 @@ from cpbl.models.umpire_impact import (
     RunObservation,
     RunStateKey,
     RunValueModel,
+    WinObservation,
+    WinProbabilityModel,
     bootstrap_metric_deltas,
+    bootstrap_probability_deltas,
     post_to_pre_count,
     proxy_call,
     signed_edge_distance_cm,
@@ -278,3 +281,79 @@ def test_run_call_values_back_off_instead_of_emitting_reverse_value() -> None:
 
     assert values.ball == pytest.approx(values.strike)
     assert values.backed_off
+
+
+def _wp_training_rows() -> list[RunObservation]:
+    rows: list[RunObservation] = []
+    for side in ("1", "2"):
+        for balls, strikes, runs in ((0, 0, 0), (1, 0, 2), (0, 1, 0)):
+            key = RunStateKey(side, "___", 0, balls, strikes)
+            rows.extend(_observations(key, [runs] * 20, game_prefix=f"{side}-{balls}-{strikes}-"))
+    return rows
+
+
+def test_count_aware_win_probability_uses_count_distribution() -> None:
+    run_model = RunValueModel.fit(_wp_training_rows(), alpha=0.1)
+    candidate = WinProbabilityModel(run_model, count_aware=True)
+    baseline = WinProbabilityModel(run_model, count_aware=False)
+    state = _state(batting_side="2")
+
+    candidate_probability = candidate.predict(state)
+    baseline_probability = baseline.predict(state)
+    values = candidate.call_values(state)
+
+    assert 0 <= candidate_probability <= 1
+    assert 0 <= baseline_probability <= 1
+    assert candidate_probability != pytest.approx(baseline_probability)
+    assert values.ball >= values.strike
+    assert not values.backed_off
+
+
+def test_win_probability_metrics_include_calibration_and_ece() -> None:
+    run_model = RunValueModel.fit(_wp_training_rows(), alpha=0.1)
+    model = WinProbabilityModel(run_model, count_aware=True)
+    observations = [
+        WinObservation(_state(batting_side="2", score_diff_home=-1), 0.0, "g1"),
+        WinObservation(_state(batting_side="2", score_diff_home=0), 1.0, "g2"),
+        WinObservation(_state(batting_side="1", score_diff_home=1), 1.0, "g3"),
+        WinObservation(_state(batting_side="1", score_diff_home=0), 0.0, "g4"),
+    ]
+
+    metrics = model.metrics(observations)
+
+    assert metrics.n == 4
+    assert 0 <= metrics.brier <= 1
+    assert metrics.log_loss > 0
+    assert metrics.ece >= 0
+    assert metrics.calibration_intercept == pytest.approx(
+        metrics.calibration_intercept
+    )
+    assert metrics.calibration_slope == pytest.approx(metrics.calibration_slope)
+
+
+def test_win_probability_bootstrap_uses_paired_game_clusters() -> None:
+    class Candidate:
+        @staticmethod
+        def predict(state: PitchState) -> float:
+            return 0.9 if state.score_diff_home > 0 else 0.1
+
+    class Baseline:
+        @staticmethod
+        def predict(state: PitchState) -> float:
+            return 0.5
+
+    observations = [
+        WinObservation(_state(score_diff_home=1), 1.0, "g1"),
+        WinObservation(_state(score_diff_home=1, balls=1), 1.0, "g1"),
+        WinObservation(_state(score_diff_home=-1), 0.0, "g2"),
+        WinObservation(_state(score_diff_home=-1, strikes=1), 0.0, "g2"),
+    ]
+
+    result = bootstrap_probability_deltas(
+        Candidate(), Baseline(), observations, iterations=200, seed=42
+    )
+
+    assert result.games == 2
+    assert result.iterations == 200
+    assert result.brier_delta.high < 0
+    assert result.log_loss_delta.high < 0
