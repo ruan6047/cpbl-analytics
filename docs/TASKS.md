@@ -12,7 +12,7 @@
 | [ML-MATCHUP1](tasks/ML-MATCHUP1.md) | 天敵候選／優勢對位統計洞察 | ruan6047 | 待指派 | 待指派 | `ai/<執行者>/ML-MATCHUP1` | 🔴 | 📥Backlog | —不適用 |
 | [UX-MATCHUP1](tasks/UX-MATCHUP1.md) | `/matchups` 查詢式頁面重製 | ruan6047 | 待指派 | 待指派 | `ai/<執行者>/UX-MATCHUP1` | ⚪ | 📥Backlog | —不適用 |
 | [UX-MATCHUP2](tasks/UX-MATCHUP2.md) | 投打對決整合球員個人頁 | ruan6047 | 待指派 | 待指派 | `ai/<執行者>/UX-MATCHUP2` | ⚪ | 📥Backlog | —不適用 |
-| [UX-RECORD1](tasks/UX-RECORD1.md) | `/records` 歷史重要性導向重製 | ruan6047 | Opus-4.8@ClaudeCode | 待指派 | `ai/opus-4.8/UX-RECORD1` | ⚪ | 🔍待查核 | ⏸未部署 |
+| [UX-RECORD1](tasks/UX-RECORD1.md) | `/records` 歷史重要性導向重製 | ruan6047 | Opus-4.8@ClaudeCode | 通過（07-16 轉述） | 已合併（`3b548dc`） | ⚪ | 📦已合併（07-16 事後查核通過：DB 重算／紀錄口徑／era 名稱／coverage fail-closed／瀏覽器實跑全過） | ⏸未部署 |
 | [ML-UMP1](tasks/ML-UMP1.md) | 好球帶判決差異研究 | ruan6047 | GPT-5@Codex | Fable-5@Claude Code | 已合併（`7585604`） | 🔴 | 📦已合併（07-16 複查 PASS；run-value 僅研究元件、WP／固定帶方向性產品 no-go，詳 [`results`](research/ML-UMP1_RESULTS.md)） | —不適用（離線研究） |
 | [ML-UMP2](tasks/ML-UMP2.md) | 身高比例逐打者代理帶敏感度重跑 | ruan6047 | 待指派 | 待指派 | `ai/<執行者>/ML-UMP2` | 🔴 | 📥Backlog | —不適用 |
 | [ML-PT3](tasks/ML-PT3.md) | 中職版球路品質指數 | ruan6047 | 待指派 | 待指派 | — | 🔴 | 📥Backlog | —不適用 |
