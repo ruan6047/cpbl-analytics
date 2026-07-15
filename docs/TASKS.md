@@ -21,7 +21,7 @@
 | UX-RECORD1 | `/records` 歷史重要性導向重製 | ruan6047 | Opus-4.8@Claude Code（spec 不存在→當場定範圍） | Opus-4.8@Claude Code | 待指派（≠執行者） | `ai/opus-4.8/UX-RECORD1` | ⚪ | 🔍待查核（07-15 冠軍為核心＋重排：王朝榜 hero＋生涯榜提第二＋逐年冠亞軍＋球員冠軍次數；coverage fail-closed；build:check/tsc 綠、深淺色截圖驗證） |
 | ML-UMP1 | 裁判誤判預期影響研究 | ruan6047 | 待研究 spec（建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-UMP1` | 🔴 | 📥Backlog（先驗證再決定是否產品化，不併 UX-10） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
-| ML-SIM1 | 簡易勝負預測＋單一打席情境模擬 | ruan6047 | GPT-5@Codex（[`spec`](../ml-sim1-spec.md)；07-15 核可） | GPT-5@Codex | Fable-5@Claude Code | `ai/gpt-5-codex/ML-SIM1` | 🔴 | ↩退回（07-15 跨家族查核 FAIL：PA 重建未濾 `is_change_player`→幽靈打席/錯誤歸屬/狀態污染；覆蓋率閘門恆等失效。模式 A 賽前模型全項通過。缺陷報告 [`ml-sim1-review.md`](../ml-sim1-review.md)） |
+| ML-SIM1 | 簡易勝負預測＋單一打席情境模擬 | ruan6047 | GPT-5@Codex（[`spec`](../ml-sim1-spec.md)；07-15 核可） | GPT-5@Codex | Fable-5@Claude Code | `ai/gpt-5-codex/ML-SIM1` | 🔴 | 🔍待複查（P0/P1 已依缺陷報告修復並重跑全指標；原 reviewer 須獨立確認） |
 | ML-SIM2 | 全場狀態模擬器（完整陣容／牛棚／後續打席） | ruan6047 | 待遠期評估 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**遠期目標，暫時不做**） |
 | TEAM-STYLE1 | 球隊球風研究（年度／時期風格向量→球隊頁＋賽果候選特徵） | ruan6047 | 待研究 spec | 待指派 | 待指派 | — | 🔴 | 📥Backlog（速度戰／投手戰等為待驗證假說；先描述，增量回測通過才進模型） |
 
@@ -136,7 +136,7 @@
   1. **簡易勝負預測（現有賽事預測修正版）**：預測賽前主／客勝率；取消使用者自由勾選特徵與權重滑桿。固定模型按「整體戰力、打線、失分抑制／先發、賽程／主場」等語意群設計，每群只能使用一個代表訊號或一個明確定義的合成值，禁止把勝率／近況、得分／OPS／AVG 等同義代理同時當成多份獨立證據。輸出須列實際採用訊號、方向、樣本期間與不確定性；時間走查回測同時比較全押主場 baseline、既有全特徵模型，至少回報 Accuracy、Brier、LogLoss 與校準，未勝 baseline 不上線。
   2. **單一打席情境模擬**：投手×打者的互斥結果機率；依當下局數／上下半局／比分／壘況／出局映射下一狀態，復用既有 `wp_state()` 計算各結果與加權後整場勝率。可由賽況 `year+kind_code+game_sno+main_event_no` 帶入真實打席。
 - 共同邊界：**不含完整陣容、牛棚與後續全打席個人化模擬**；細節待派工前另出 spec。
-- 狀態：🔍待查核（見 [`ml-sim1-spec.md`](../ml-sim1-spec.md)、[`ml-sim1-plan.md`](../ml-sim1-plan.md)）　Commit：`0ac1437..HEAD`
+- 狀態：🔍待複查（見 [`ml-sim1-spec.md`](../ml-sim1-spec.md)、[`ml-sim1-plan.md`](../ml-sim1-plan.md)、[`ml-sim1-review.md`](../ml-sim1-review.md)）　Commit：`0ac1437..HEAD`
 - Log：
   - 07-12 評估報告已完成
   - 07-14 ruan6047 裁示取代 UX-10O；全場狀態模擬拆為 ML-SIM2 遠期目標，暫時不做
@@ -146,11 +146,18 @@
   - 07-15 PA 資料稽核：2018–2025 共 181,842 打席，逐年分類與狀態重建覆蓋率皆 100%，未知 action 0；低於 99% 會 fail-closed
   - 07-15 PA 走查（2021–2025，n=124,255）：combined LogLoss 1.407576、Brier 0.681067、ECE 0.019926，優於 league 1.421239／0.685441／0.026154
   - 07-15 狀態轉移留出季驗證（n=124,255）：transition LogLoss 1.157256、next-WP MAE 0.032814；weighted-WP Brier 0.151080 僅小幅優於 current-WP 0.151153，不放大解讀；run distribution 排除每場末半局截尾
-  - 07-15 固定賽前模型走查（2022–2026）：Accuracy 0.612618、Brier 0.232037、LogLoss 0.656567、ECE 0.028952；全押主場 baseline 為 0.528076／0.249372／0.691891；五季皆勝 baseline
+  - 07-15 固定賽前模型走查（2021–2025）：Accuracy 0.612618、Brier 0.232037、LogLoss 0.656567、ECE 0.028952；全押主場 baseline 為 0.528076／0.249372／0.691891；五季皆勝 baseline
   - 07-15 固定模型配對日曆週 block bootstrap 2,000 次：Brier delta 95% CI [-0.022872, -0.012129]、LogLoss delta 95% CI [-0.047423, -0.023271]；校準 intercept 0.063707、slope 1.054728，部署閘門通過
   - 07-15 新增固定賽前／回測、PA 任意情境／真實賽況 deep-link 唯讀 API 與 artifact CLI；2026 A 類實際 event smoke test 通過，歷史年份 artifact cutoff fail-closed
   - 07-15 驗證：Ruff 全綠；pytest 156 passed；LightGBM 賽前模型於容器完成正式走查。進入跨模型家族或人審，執行者不得自審／合併
   - 07-15 查核 by Fable-5@Claude Code → **↩退回（FAIL）**：缺陷報告 [`ml-sim1-review.md`](../ml-sim1-review.md)。P0：PA snapshot 未過濾 `is_change_player`（winprob.py 有濾），實測幽靈打席 1,464、出局倒退轉移 11,340（6.2%）、PA 數對官方 box 逐年 +148〜+261；滿壘保送再見機率 0.9921≠1.0、from-game deep-link 回傳被換下場球員（2026/A/3/720001000）。P1：rebuild rate ≡ classification rate，覆蓋率閘門無法偵測狀態污染，「100%」建立在污染分母上。反事實驗證：加 is_change 過濾後 PA 差收斂至 +0.09%、異常降至 543。**模式 A（賽前固定模型）全項通過**：無洩漏、同池比較、fold 2025 指標獨立重算逐位一致、bootstrap/閘門方向正確、容器重跑重現（test 實為 2021–2025，上方 log「2022–2026」為誤記）。API 契約冒煙全過（cutoff/fail-closed/唯讀/機率總和/方向）。依 §5 退回原執行者同分支修復後重審
+  - 07-15 P0 修復：比分仍讀全列，但 PA 分島排除 `is_change_player`／缺投打者；換人 deep-link 確定性映射同半局下一個真實 PA。reviewer 指定 2026/A/3/720001000 現解析為代打 `0000007589`、0 出局、PA 720003000–720005000
+  - 07-15 P1/P2 修復：稽核分母改為全部 PA islands（含無 action），重建率由比分／出局／局序／強迫進壘獨立驗證；牽制等 control event 的 `out_cnt=NULL` 改採同 PA 第一個已知值。新增逐年 games、官方 box PA 與差異閘門，分類／重建／box 對帳任一低於 99% 即 fail-closed
+  - 07-15 修正後資料稽核：2018–2025 共 2,335 場、181,316 PA islands；180,377 可分類、180,310 可重建、官方 box 180,217。各年 classification 99.22%–99.67%、rebuild 99.21%–99.66%、box delta 0.46%–0.94%，未知 action 0；無法修復列排除且逐類持久化
+  - 07-15 滿壘 BB/HBP invariant：零得分且出局數不變的物理不可能轉移由 20（污染 artifact）降為 0；保留 2 筆同 PA 內跑者出局後再四壞的真實零得分轉移，故該 outcome 的 walkoff WP 可接近但不必恆等 1
+  - 07-15 修正後 PA 走查（2021–2025，n=123,279）：combined LogLoss 1.406731、Brier 0.680715、ECE 0.019798，優於 league 1.421000／0.685257／0.025999；transition LogLoss 由污染版 1.157256 降至 0.610516，next-WP MAE 0.034837
+  - 07-15 weighted-WP Brier 0.151635 僅小幅優於 current-WP 0.151727，維持「僅供結果拆解、不得宣稱預測提升」紅線；API 補 shrinkage weights，損毀 artifact 改乾淨 fail-closed
+  - 07-15 修復驗證：Ruff 全綠、pytest 163 passed；正式 PA CLI 已重跑並持久化 `pa-sim-1784131303`。修復提交後推送同分支，交回 Fable-5@Claude Code 複查；GPT 執行者不自審、不合併
 
 ### 開卡格式（範本）
 
