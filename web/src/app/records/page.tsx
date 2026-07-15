@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/table";
-import { ActivePill, GonePill, NameTag, Notice, PlayerLink, TeamBadge, TeamLogo } from "@/components/ui";
+import { ActivePill, GonePill, Notice, PlayerLink, TeamBadge, TeamLogo } from "@/components/ui";
 import { api } from "@/lib/api";
 import { teamFullName } from "@/lib/teams";
 import { CareerLeaders } from "./career-leaders";
@@ -14,26 +14,12 @@ const f3 = (v: number | string | null) => (v == null ? "—" : Number(v).toFixed
 type Records = Awaited<ReturnType<typeof api.records>>;
 type Championships = Awaited<ReturnType<typeof api.championships>>;
 type Franchises = Awaited<ReturnType<typeof api.franchises>>["items"];
-type GameRec = NonNullable<Records["games"][keyof Records["games"]]>;
 type SeasonRec = { name: string; pid: string; year: number; val: number | string };
 type CareerRec = { name: string; pid: string; val: number; active: boolean };
 type Postseason = Awaited<ReturnType<typeof api.postseason>>["teams"][number];
-type Streak = Awaited<ReturnType<typeof api.streaks>>["win"][number];
+type TeamRecord = Awaited<ReturnType<typeof api.teamRecords>>["records"][number];
 
-type GameRow = { key: string; label: string; rec: GameRec; value: string };
 type SeasonRow = { key: string; group: string; label: string; rec: SeasonRec; format?: "rate" };
-
-function gameRows(games: Records["games"]): GameRow[] {
-  const defs: { key: keyof Records["games"]; label: string; value: (r: GameRec) => string }[] = [
-    { key: "max_margin", label: "單場最大分差", value: (r) => `${Math.abs(r.hs - r.as)} 分` },
-    { key: "max_team_runs", label: "單隊單場最多得分", value: (r) => `${Math.max(r.hs, r.as)} 分` },
-    { key: "max_combined", label: "單場雙方最多得分", value: (r) => `${r.hs + r.as} 分` },
-  ];
-  return defs.flatMap((d) => {
-    const rec = games[d.key];
-    return rec ? [{ key: d.key, label: d.label, rec, value: d.value(rec) }] : [];
-  });
-}
 
 function seasonRows(d: Records): SeasonRow[] {
   const defs: { group: string; key: string; label: string; rec?: SeasonRec[]; format?: "rate" }[] = [
@@ -48,15 +34,6 @@ function seasonRows(d: Records): SeasonRow[] {
   return defs.flatMap((d) => d.rec?.[0] ? [{ key: `${d.group}-${d.key}`, group: d.group, label: d.label, rec: d.rec[0], format: d.format }] : []);
 }
 
-// 生涯排行：每一項獨立一張排行卡（勿把 HR/H/RBI/SB 黏在同一表用「紀錄」欄硬分，看不清）。
-const gameColumns: Column<GameRow>[] = [
-  { header: "紀錄", cell: (r) => r.label, sticky: true, nowrap: true, className: "font-sans font-medium text-ink" },
-  { header: "紀錄值", cell: (r) => r.value, align: "right", nowrap: true, className: "font-semibold text-accent" },
-  { header: "客隊", cell: (r) => <NameTag name={r.rec.away} />, nowrap: true, className: "font-sans" },
-  { header: "比分", cell: (r) => `${r.rec.as}：${r.rec.hs}`, align: "center", nowrap: true, className: "font-bold text-ink" },
-  { header: "主隊", cell: (r) => <NameTag name={r.rec.home} />, nowrap: true, className: "font-sans" },
-  { header: "日期", cell: (r) => r.rec.date, align: "right", nowrap: true, className: "text-muted" },
-];
 
 // 單季之最：打者／投手分開兩表（勿用「類別」欄把兩者黏在一起，語意不同看不清）。
 const seasonColumns: Column<SeasonRow>[] = [
@@ -67,29 +44,12 @@ const seasonColumns: Column<SeasonRow>[] = [
 ];
 
 // 徽章色用當年隊名（nameMeta 全涵蓋含已解散隊）；季後賽表用短名故不補全名。
-// 例行賽最長連勝／連敗卡：球隊（當年隊名）＋年份＋連續場數。
-function StreakCard({ title, rows, unit }: { title: string; rows: Streak[]; unit: string }) {
-  return (
-    <div className="card p-4">
-      <h4 className="mb-2.5 text-sm font-semibold text-ink">{title}</h4>
-      <ol className="space-y-1.5">
-        {rows.map((r, i) => (
-          <li key={`${r.team_code}-${r.year}`} className="flex items-center gap-2 text-sm">
-            <span className="w-4 shrink-0 text-right font-mono text-xs tabular-nums text-faint">{i + 1}</span>
-            <span className="inline-flex min-w-0 items-center gap-1.5 font-sans">
-              <TeamLogo name={r.team} size={16} decorative />
-              <span className="truncate">{r.team}</span>
-            </span>
-            <span className="font-mono text-xs tabular-nums text-muted">{r.year}</span>
-            <span className="ml-auto shrink-0 font-bold tabular-nums text-accent">
-              {r.streak} <span className="text-[11px] font-normal text-muted">{unit}</span>
-            </span>
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
-}
+const teamRecordColumns: Column<TeamRecord>[] = [
+  { header: "紀錄", cell: (r) => r.label, sticky: true, nowrap: true, className: "font-sans font-medium text-ink" },
+  { header: "保持者", cell: (r) => <span className="inline-flex items-center gap-1.5 font-sans"><TeamLogo name={r.team} size={16} decorative /><span>{r.team}</span></span>, nowrap: true },
+  { header: "紀錄值", cell: (r) => <span className="font-bold text-accent">{r.value} <span className="text-[11px] font-normal text-muted">{r.unit}</span></span>, align: "right", nowrap: true },
+  { header: "年度", cell: (r) => r.year, align: "right", nowrap: true, className: "text-muted" },
+];
 
 function PostseasonTeam({ name }: { name: string | null }) {
   if (!name) return null;
@@ -134,8 +94,7 @@ function FranchiseTable({ rows }: { rows: Franchises }) {
 }
 
 export default async function RecordsPage() {
-  const [d, fr, ch, ps, st] = await Promise.all([api.records(), api.franchises(), api.championships(), api.postseason(), api.streaks()]);
-  const games = gameRows(d.games);
+  const [d, fr, ch, ps, tr] = await Promise.all([api.records(), api.franchises(), api.championships(), api.postseason(), api.teamRecords()]);
   const seasons = seasonRows(d);
   const battingCareer = [
     { title: "生涯全壘打", rows: d.career_batting.hr },
@@ -240,18 +199,10 @@ export default async function RecordsPage() {
         </div>
       </section>
 
-      <section aria-labelledby="game-records">
-        <h2 id="game-records" className="mb-3 text-lg font-semibold text-ink">比賽紀錄</h2>
-        <DataTable columns={gameColumns} rows={games} rowKey={(r) => r.key} dense />
-      </section>
-
-      <section aria-labelledby="streaks">
-        <h2 id="streaks" className="mb-3 text-lg font-semibold text-ink">例行賽連勝連敗</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <StreakCard title="最長連勝" rows={st.win} unit="連勝" />
-          <StreakCard title="最長連敗" rows={st.loss} unit="連敗" />
-        </div>
-        <p className="mt-2 text-[11px] text-faint">例行賽單季內連續同結果；和局中斷。以當年隊名歸屬。</p>
+      <section aria-labelledby="team-records">
+        <h2 id="team-records" className="mb-3 text-lg font-semibold text-ink">例行賽紀錄集錦</h2>
+        <DataTable columns={teamRecordColumns} rows={tr.records} rowKey={(r) => r.label} dense />
+        <p className="mt-2 text-[11px] text-faint">全史；連勝／連敗／連續完封為單季內、和局中斷。以當年隊名歸屬。</p>
       </section>
 
       <section aria-labelledby="franchise-history">
