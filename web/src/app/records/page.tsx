@@ -46,7 +46,7 @@ const seasonColumns: Column<SeasonRow>[] = [
 // 徽章色用當年隊名（nameMeta 全涵蓋含已解散隊）；季後賽表用短名故不補全名。
 const teamRecordColumns: Column<TeamRecord>[] = [
   { header: "紀錄", cell: (r) => r.label, sticky: true, nowrap: true, className: "font-sans font-medium text-ink" },
-  { header: "保持者", cell: (r) => <span className="inline-flex items-center gap-1.5 font-sans"><TeamLogo name={r.team} size={16} decorative /><span>{r.team}</span></span>, nowrap: true },
+  { header: "保持者", cell: (r) => <span className="inline-flex items-center gap-1.5 font-sans"><TeamLogo name={r.team} size={16} decorative /><span>{teamFullName(r.team)}</span></span>, nowrap: true },
   { header: "紀錄值", cell: (r) => <span className="font-bold text-accent">{r.value} <span className="text-[11px] font-normal text-muted">{r.unit}</span></span>, align: "right", nowrap: true },
   { header: "年度", cell: (r) => r.year, align: "right", nowrap: true, className: "text-muted" },
 ];
@@ -154,14 +154,18 @@ export default async function RecordsPage() {
     .map((t) => ({ code: t.code, name: t.name, win_pct: t.win_pct, w: t.w, l: t.l }))
     .sort((a, b) => (b.win_pct ?? 0) - (a.win_pct ?? 0));
 
+  // 王朝榜隊名改用 franchise 全名（中信兄弟／統一7-ELEVEn獅…）。
+  const frName = new Map(fr.items.map((t) => [t.code, t.name]));
+  const dynastyRows = dynasties.map((r) => ({ ...r, team: frName.get(r.team_code) ?? r.team }));
+
   return (
     <div className="space-y-10">
       <h1 className="text-2xl font-extrabold tracking-tight text-ink">歷史紀錄室</h1>
 
       <section aria-labelledby="dynasty">
-        <h2 id="dynasty" className="mb-3 text-lg font-semibold text-ink">冠軍王朝榜</h2>
+        <h2 id="dynasty" className="mb-3 text-lg font-semibold text-ink">歷代總冠軍</h2>
         {covComplete && dynasties.length ? (
-          <DynastyChart rows={dynasties} regular={regular} />
+          <DynastyChart rows={dynastyRows} regular={regular} />
         ) : (
           <Notice>{ch.note ?? "冠軍資料尚未補齊，暫不呈現累計王朝排行。"}</Notice>
         )}
