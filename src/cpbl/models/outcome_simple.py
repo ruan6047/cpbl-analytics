@@ -6,7 +6,9 @@ import itertools
 import math
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 
+import joblib
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, brier_score_loss, log_loss
@@ -31,6 +33,9 @@ class OutcomeRow:
     game_date: date
     home_win: int
     features: dict[str, float | None]
+    game_sno: int = 0
+    home: str = ""
+    away: str = ""
 
 
 @dataclass
@@ -60,15 +65,19 @@ def load_outcome_rows(completed_only: bool = True) -> list[OutcomeRow]:
     with conn() as connection:
         cur = connection.cursor()
         cur.execute(
-            f"SELECT season, game_date, home_win, {columns} FROM cpbl.game_features "
+            f"SELECT season, game_date, game_sno, home_team_name, away_team_name, "
+            f"home_win, {columns} FROM cpbl.game_features "
             f"WHERE {where} ORDER BY game_date, game_sno"
         )
         return [
             OutcomeRow(
                 season=int(row[0]),
                 game_date=row[1],
-                home_win=int(row[2]) if row[2] is not None else 0,
-                features=dict(zip(FULL_SIGNALS, row[3:], strict=True)),
+                home_win=int(row[5]) if row[5] is not None else 0,
+                features=dict(zip(FULL_SIGNALS, row[6:], strict=True)),
+                game_sno=int(row[2]),
+                home=row[3],
+                away=row[4],
             )
             for row in cur.fetchall()
         ]
@@ -97,6 +106,25 @@ def _fit(rows: list[OutcomeRow], signals: tuple[str, ...]) -> FittedOutcomeModel
         scaler.transform(matrix), np.array([row.home_win for row in rows]),
     )
     return FittedOutcomeModel(signals, medians, scaler, classifier)
+
+
+def _lightgbm_probability(train: list[OutcomeRow], test: list[OutcomeRow]) -> np.ndarray:
+    from lightgbm import LGBMClassifier
+
+    from cpbl.models.outcome_gbm import _GBM_PARAMS
+
+    train_matrix = _matrix(train, FULL_SIGNALS)
+    test_matrix = _matrix(test, FULL_SIGNALS)
+    medians = np.array([
+        0.0 if np.isnan(column).all() else float(np.nanmedian(column))
+        for column in train_matrix.T
+    ])
+    train_matrix = np.where(np.isnan(train_matrix), medians, train_matrix)
+    test_matrix = np.where(np.isnan(test_matrix), medians, test_matrix)
+    model = LGBMClassifier(**_GBM_PARAMS).fit(
+        train_matrix, np.array([row.home_win for row in train]),
+    )
+    return model.predict_proba(test_matrix)[:, 1]
 
 
 def _metrics(actual: np.ndarray, probability: np.ndarray) -> dict:
@@ -146,10 +174,14 @@ def _select_signals(rows: list[OutcomeRow]) -> dict[str, str]:
 
 def walk_forward_backtest(
     rows: list[OutcomeRow], test_years: list[int] | None = None,
+    include_lightgbm: bool = False,
 ) -> dict:
     seasons = sorted({row.season for row in rows})
     test_years = test_years or seasons[-5:]
-    names = ("home_baseline", "full_logistic", "fixed_semantic")
+    names = (
+        ("home_baseline", "full_logistic", "lightgbm", "fixed_semantic")
+        if include_lightgbm else ("home_baseline", "full_logistic", "fixed_semantic")
+    )
     pooled_actual: list[int] = []
     pooled = {name: [] for name in names}
     folds = []
@@ -167,6 +199,8 @@ def walk_forward_backtest(
         fold_probabilities = {
             "home_baseline": baseline, "full_logistic": full, "fixed_semantic": fixed,
         }
+        if include_lightgbm:
+            fold_probabilities["lightgbm"] = _lightgbm_probability(train, test)
         fold_metrics = {name: _metrics(actual, probability)
                         for name, probability in fold_probabilities.items()}
         fixed_wins += fold_metrics["fixed_semantic"]["brier"] < fold_metrics["home_baseline"]["brier"]
@@ -180,7 +214,7 @@ def walk_forward_backtest(
     actual = np.array(pooled_actual)
     models = [{"name": name, **_metrics(actual, np.array(pooled[name]))} for name in names]
     baseline = models[0]
-    fixed = models[-1]
+    fixed = next(model for model in models if model["name"] == "fixed_semantic")
     return {
         "test_years": [fold["year"] for fold in folds],
         "n_test": len(actual),
@@ -193,3 +227,53 @@ def walk_forward_backtest(
             and fixed_wins >= math.ceil(len(folds) / 2)
         ),
     }
+
+
+def train_final_model(
+    rows: list[OutcomeRow], trained_through: int, bootstrap_models: int = 50,
+) -> dict:
+    training = [row for row in rows if row.season <= trained_through]
+    if not training:
+        raise ValueError("無可訓練資料")
+    selection = _select_signals(training)
+    signals = tuple(selection.values())
+    rng = np.random.default_rng(42)
+    blocks: dict[tuple[int, int], list[OutcomeRow]] = {}
+    for row in training:
+        blocks.setdefault((row.season, row.game_date.isocalendar().week), []).append(row)
+    block_rows = list(blocks.values())
+    ensemble = []
+    for _ in range(bootstrap_models):
+        sample = [row for index in rng.integers(0, len(block_rows), len(block_rows))
+                  for row in block_rows[index]]
+        ensemble.append(_fit(sample, signals))
+    return {
+        "version": 1,
+        "trained_through": trained_through,
+        "signals": selection,
+        "model": _fit(training, signals),
+        "ensemble": ensemble,
+        "interval": "calendar-week block bootstrap 5th-95th percentile",
+    }
+
+
+def save_artifact(artifact: dict, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(artifact, path)
+
+
+def load_artifact(path: Path) -> dict:
+    return joblib.load(path)
+
+
+def deployment_gate(result: dict, required_season_wins: int = 3) -> dict:
+    baseline = next(model for model in result["models"] if model["name"] == "home_baseline")
+    fixed = next(model for model in result["models"] if model["name"] == "fixed_semantic")
+    checks = {
+        "brier": fixed["brier"] < baseline["brier"],
+        "log_loss": fixed["log_loss"] < baseline["log_loss"],
+        "season_stability": result["seasons_beating_baseline"] >= required_season_wins,
+        "calibration_intercept": abs(fixed["calibration_intercept"]) <= 0.1,
+        "calibration_slope": 0.8 <= fixed["calibration_slope"] <= 1.2,
+    }
+    return {"deployable": all(checks.values()), "checks": checks}

@@ -17,8 +17,11 @@ from cpbl.models.pa_sim import (
     events_from_rows,
     fit_empirical_bayes,
     fit_transition_kernel,
+    load_pa_artifact,
     predict_outcomes,
+    save_pa_artifact,
     simulate_plate_appearance,
+    train_pa_artifact,
 )
 
 
@@ -190,12 +193,14 @@ def test_transition_kernel_uses_exact_state_then_falls_back():
     ]
     kernel = fit_transition_kernel(snapshots)
 
-    exact, exact_level = kernel.distribution("1B", "___", 0)
-    fallback, fallback_level = kernel.distribution("1B", "_2_", 0)
+    exact, exact_level, exact_n = kernel.distribution("1B", "___", 0)
+    fallback, fallback_level, fallback_n = kernel.distribution("1B", "_2_", 0)
 
     assert exact_level == "result+bases+outs"
+    assert exact_n == 1
     assert exact == [(Transition(0, "1__", 0, False), 1.0)]
     assert fallback_level == "result+outs"
+    assert fallback_n == 1
     assert sum(probability for _, probability in fallback) == pytest.approx(1.0)
 
 
@@ -219,3 +224,20 @@ def test_simulate_plate_appearance_walkoff_does_not_call_future_wp():
 
     assert result["outcomes"]["HR"]["win_probability"] == 1.0
     assert 0.0 <= result["weighted_win_probability"] <= 1.0
+
+
+def test_pa_artifact_round_trip_preserves_metadata_and_probabilities(tmp_path):
+    training = [_snapshot(outcome) for outcome in (
+        "K", "BB_HBP", "1B", "XBH", "HR", "BIP_OUT", "OTHER_REACH",
+    )]
+    artifact = train_pa_artifact(training, trained_through=2024, strengths=(10, 20, 30))
+    path = tmp_path / "pa-sim.joblib"
+
+    save_pa_artifact(artifact, path)
+    restored = load_pa_artifact(path)
+
+    assert restored["trained_through"] == 2024
+    assert restored["strengths"] == (10, 20, 30)
+    assert predict_outcomes(restored["model"], "h1", "p1") == pytest.approx(
+        predict_outcomes(artifact["model"], "h1", "p1")
+    )

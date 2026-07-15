@@ -7,6 +7,9 @@ from collections import Counter
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
+
+import joblib
 
 from cpbl.db import conn
 from cpbl.ingest.splits_calc import PA_OUTCOME
@@ -59,6 +62,7 @@ class PASnapshot:
     year: int = 0
     game_sno: int = 0
     game_date: date | None = None
+    end_event_no: int = 0
 
 
 @dataclass(frozen=True)
@@ -110,7 +114,7 @@ class TransitionKernel:
 
     def distribution(
         self, result: str, bases: str, outs: int,
-    ) -> tuple[list[tuple[Transition, float]], str]:
+    ) -> tuple[list[tuple[Transition, float]], str, int]:
         candidates = (
             (self.exact.get((result, bases, outs)), "result+bases+outs"),
             (self.by_outs.get((result, outs)), "result+outs"),
@@ -120,7 +124,7 @@ class TransitionKernel:
             if counts:
                 total = sum(counts.values())
                 rows = sorted(counts.items(), key=lambda item: repr(item[0]))
-                return [(transition, count / total) for transition, count in rows], level
+                return [(transition, count / total) for transition, count in rows], level, total
         raise RuntimeError(f"無 {result} 的狀態轉移樣本")
 
 
@@ -256,6 +260,7 @@ def build_pa_snapshots(
                 year=first.year,
                 game_sno=first.game_sno,
                 game_date=first.game_date,
+                end_event_no=group[-1].event_no,
             )
         )
     return snapshots
@@ -356,6 +361,40 @@ def load_pa_dataset(from_year: int, to_year: int, kind: str = "A") -> PADataset:
             game_rows.append(row)
         consume(game_rows)
     return PADataset(snapshots=snapshots, audits=audits)
+
+
+def load_game_pa_snapshot(
+    year: int, kind: str, game_sno: int, event_no: int,
+) -> PASnapshot | None:
+    """解析指定事件所屬打席；無法唯一定位即回 None。"""
+    with conn() as connection:
+        cur = connection.cursor()
+        cur.execute(
+            """
+            SELECT l.year, l.game_sno, g.game_date, l.main_event_no::bigint AS event_no,
+                   l.inning_seq AS inning, l.visiting_home_type AS half,
+                   l.hitter_acnt AS hitter, l.pitcher_acnt AS pitcher,
+                   l.first_base, l.second_base, l.third_base, l.out_cnt AS outs,
+                   l.visiting_score AS post_away, l.home_score AS post_home,
+                   l.batting_action_name AS action,
+                   g.away_score AS final_away, g.home_score AS final_home
+            FROM cpbl.game_livelog l
+            JOIN cpbl.games g ON g.year=l.year AND g.kind_code=l.kind_code
+                             AND g.game_sno=l.game_sno
+            WHERE l.year=%s AND l.kind_code=%s AND l.game_sno=%s
+            ORDER BY l.main_event_no::bigint
+            """,
+            (year, kind, game_sno),
+        )
+        columns = [column.name for column in cur.description]
+        rows = [dict(zip(columns, values, strict=True)) for values in cur.fetchall()]
+    if not rows:
+        return None
+    events = events_from_rows(rows)
+    final_score = (int(rows[-1]["final_away"]), int(rows[-1]["final_home"]))
+    matches = [snapshot for snapshot in build_pa_snapshots(events, final_score)
+               if snapshot.event_no <= event_no <= snapshot.end_event_no]
+    return matches[0] if len(matches) == 1 else None
 
 
 def fit_empirical_bayes(
@@ -492,7 +531,7 @@ def simulate_plate_appearance(
     outcomes: dict[str, dict] = {}
     weighted = 0.0
     for result, probability in probabilities.items():
-        transitions, level = kernel.distribution(result, state.bases, state.outs)
+        transitions, level, sample_count = kernel.distribution(result, state.bases, state.outs)
         result_wp = sum(
             transition_probability * _transition_wp(state, transition, wp)
             for transition, transition_probability in transitions
@@ -502,7 +541,7 @@ def simulate_plate_appearance(
             "win_probability": result_wp,
             "delta_wp": result_wp - current_wp,
             "transition_level": level,
-            "transition_samples": len(transitions),
+            "transition_samples": sample_count,
         }
         weighted += probability * result_wp
     return {
@@ -510,3 +549,31 @@ def simulate_plate_appearance(
         "weighted_win_probability": weighted,
         "outcomes": outcomes,
     }
+
+
+def train_pa_artifact(
+    snapshots: list[PASnapshot],
+    trained_through: int,
+    strengths: tuple[float, float, float],
+    wp_span: str | None = None,
+) -> dict:
+    training = [snapshot for snapshot in snapshots if snapshot.year <= trained_through]
+    if not training:
+        raise ValueError("無可訓練打席")
+    return {
+        "version": 1,
+        "trained_through": trained_through,
+        "wp_span": wp_span or f"2018-{trained_through}",
+        "strengths": strengths,
+        "model": fit_empirical_bayes(training, *strengths),
+        "kernel": fit_transition_kernel(training),
+    }
+
+
+def save_pa_artifact(artifact: dict, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(artifact, path)
+
+
+def load_pa_artifact(path: Path) -> dict:
+    return joblib.load(path)

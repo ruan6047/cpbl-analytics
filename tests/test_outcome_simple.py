@@ -6,6 +6,10 @@ from cpbl.models.outcome_simple import (
     GROUP_CANDIDATES,
     OutcomeRow,
     candidate_signal_sets,
+    deployment_gate,
+    load_artifact,
+    save_artifact,
+    train_final_model,
     walk_forward_backtest,
 )
 
@@ -53,3 +57,36 @@ def test_walk_forward_fixed_model_beats_home_baseline_on_predictive_signal():
     baseline = next(model for model in result["models"] if model["name"] == "home_baseline")
     assert fixed["brier"] < baseline["brier"]
     assert fixed["log_loss"] < baseline["log_loss"]
+
+
+def test_final_artifact_round_trip_preserves_probability(tmp_path):
+    rows = []
+    for season in (2021, 2022, 2023):
+        rows.extend([_row(season, 2.0, 1), _row(season, -2.0, 0)] * 8)
+    artifact = train_final_model(rows, trained_through=2023, bootstrap_models=3)
+    path = tmp_path / "outcome-simple.joblib"
+
+    save_artifact(artifact, path)
+    restored = load_artifact(path)
+
+    assert restored["trained_through"] == 2023
+    assert restored["signals"] == artifact["signals"]
+    assert len(restored["ensemble"]) == 3
+    assert restored["model"].predict([_row(2024, 1.0, 1)])[0] == artifact["model"].predict([
+        _row(2024, 1.0, 1)
+    ])[0]
+
+
+def test_deployment_gate_requires_probability_metrics_season_stability_and_calibration():
+    result = {
+        "seasons_beating_baseline": 3,
+        "models": [
+            {"name": "home_baseline", "brier": 0.25, "log_loss": 0.69},
+            {"name": "fixed_semantic", "brier": 0.24, "log_loss": 0.67,
+             "calibration_intercept": 0.05, "calibration_slope": 1.05},
+        ],
+    }
+
+    assert deployment_gate(result, required_season_wins=3)["deployable"] is True
+    result["models"][1]["calibration_slope"] = 1.3
+    assert deployment_gate(result, required_season_wins=3)["deployable"] is False

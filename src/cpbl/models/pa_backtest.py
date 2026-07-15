@@ -68,7 +68,7 @@ def _component_probabilities(model, snapshot: PASnapshot, component: str) -> dic
     return predict_outcomes(model, snapshot.hitter, snapshot.pitcher)
 
 
-def _select_strengths(
+def select_prior_strengths(
     rows: list[PASnapshot], strength_grid: list[tuple[float, float, float]],
 ) -> tuple[float, float, float]:
     seasons = sorted({row.year for row in rows})
@@ -113,7 +113,7 @@ def walk_forward_backtest(
         test = [row for row in rows if row.year == year]
         if not train or not test:
             continue
-        strengths = _select_strengths(train, strength_grid)
+        strengths = select_prior_strengths(train, strength_grid)
         model = fit_empirical_bayes(train, *strengths)
         actual = [row.result for row in test]
         pooled_actual.extend(actual)
