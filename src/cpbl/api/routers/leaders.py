@@ -345,53 +345,78 @@ def _resolve_names(cur, codes: set[str]) -> dict[str, str]:
     return name
 
 
-@router.get("/api/v1/records/streaks")
-def streak_records(limit: int = Query(6, ge=1, le=20)) -> dict:
-    """例行賽單季最長連勝／連敗（全史 kind A）。以**當年隊名**歸屬（興農≠富邦）。
+@router.get("/api/v1/records/team")
+def team_records() -> dict:
+    """例行賽球隊紀錄集錦（**僅完整資料**，全史 kind A / 官方季彙總）：每項僅列現任保持者。
 
-    定義：**單季內**連續同結果場次；**和局（沒贏沒輸）中斷**連勝與連敗。並列同長度皆列。
+    含連勝／連敗／連續完封（單季內、和局中斷）、單季最多勝、單季團隊最多全壘打。以**當年
+    隊名**歸屬（興農≠富邦）。**不含單局最大得分等逐局／逐場紀錄**（game_scoreboard 僅 2018+
+    不完整 → 依誠實紅線不呈現）。
     """
     from collections import defaultdict
 
     with conn() as c:
         cur = c.cursor()
-        cur.execute("SELECT game_date, home_team_code, away_team_code, home_score, away_score, year "
+        cur.execute("SELECT home_team_code, away_team_code, home_score, away_score, year "
                     "FROM cpbl.games WHERE kind_code='A' AND home_score+away_score>0 "
                     "ORDER BY game_date, game_sno")
-        seq: dict[tuple[str, int], list[tuple[str, object]]] = defaultdict(list)
-        for d, hc, ac, hs, as_, y in cur.fetchall():
-            seq[(hc, y)].append(("W" if hs > as_ else "L" if as_ > hs else "T", d))
-            seq[(ac, y)].append(("W" if as_ > hs else "L" if hs > as_ else "T", d))
+        # 逐 (code, year)：勝敗序（W/L/T）、完封對手序（1/0）、勝場數
+        res_seq: dict[tuple[str, int], list[str]] = defaultdict(list)
+        shut_seq: dict[tuple[str, int], list[int]] = defaultdict(list)
+        season_w: dict[tuple[str, int], int] = defaultdict(int)
+        max_runs = (0, "", 0)    # 單場單隊最多得分 (value, code, year)
+        max_margin = (0, "", 0)  # 單場最大分差
+        for hc, ac, hs, as_, y in cur.fetchall():
+            res_seq[(hc, y)].append("W" if hs > as_ else "L" if as_ > hs else "T")
+            res_seq[(ac, y)].append("W" if as_ > hs else "L" if hs > as_ else "T")
+            shut_seq[(hc, y)].append(1 if as_ == 0 else 0)
+            shut_seq[(ac, y)].append(1 if hs == 0 else 0)
+            if hs > as_:
+                season_w[(hc, y)] += 1
+            elif as_ > hs:
+                season_w[(ac, y)] += 1
+            tm, tmcode = (hs, hc) if hs >= as_ else (as_, ac)
+            if tm > max_runs[0]:
+                max_runs = (tm, tmcode, y)
+            mg = abs(hs - as_)
+            if mg > max_margin[0]:
+                max_margin = (mg, hc if hs > as_ else ac, y)
 
-        def longest(res: list[tuple[str, object]], target: str) -> tuple[int, object]:
+        def longest_run(seq: list, hit) -> int:
             best = run = 0
-            best_end = None
-            for r, d in res:
-                if r == target:
-                    run += 1
-                    if run > best:
-                        best, best_end = run, d
-                else:
-                    run = 0  # 和局或反向 → 中斷
-            return best, best_end
+            for x in seq:
+                run = run + 1 if hit(x) else 0
+                best = max(best, run)
+            return best
 
-        wins, losses = [], []
-        for (code, y), res in seq.items():
-            bw, ew = longest(res, "W")
-            bl, el = longest(res, "L")
-            if bw >= 2:
-                wins.append((code, y, bw, ew))
-            if bl >= 2:
-                losses.append((code, y, bl, el))
+        # 每項取全史最大 → (value, code, year)
+        def best_of(items):
+            return max(items, key=lambda t: (t[0], t[2]))  # 同值取較近年份
 
-        name = _resolve_names(cur, {c for c, *_ in wins} | {c for c, *_ in losses})
+        win = best_of([(longest_run(v, lambda r: r == "W"), code, y) for (code, y), v in res_seq.items()])
+        loss = best_of([(longest_run(v, lambda r: r == "L"), code, y) for (code, y), v in res_seq.items()])
+        shutout = best_of([(longest_run(v, lambda x: x == 1), code, y) for (code, y), v in shut_seq.items()])
+        most_w = best_of([(w, code, y) for (code, y), w in season_w.items()])
 
-    def top(lst: list) -> list[dict]:
-        lst.sort(key=lambda x: (x[2], x[1]), reverse=True)
-        return [{"team_code": code, "team": name.get(code), "streak": s,
-                 "year": y, "end_date": str(e)} for code, y, s, e in lst[:limit]]
+        # 單季團隊最多全壘打（batting_seasons，team_id 為 3 碼 → +011）
+        cur.execute("SELECT team_id, year, sum(hr) FROM cpbl.batting_seasons GROUP BY team_id, year")
+        team_hr = best_of([(int(hr or 0), f"{tid}011", y) for tid, y, hr in cur.fetchall()])
 
-    return {"win": top(wins), "loss": top(losses)}
+        recs = [
+            ("單場最多得分", *max_runs, "分"),
+            ("單場最大分差", *max_margin, "分"),
+            ("最長連勝", *win, "場"),
+            ("最長連敗", *loss, "場"),
+            ("最長連續完封", *shutout, "場"),
+            ("單季最多勝", *most_w, "勝"),
+            ("單季團隊最多全壘打", *team_hr, "轟"),
+        ]
+        name = _resolve_names(cur, {r[2] for r in recs})
+
+    return {"records": [
+        {"label": label, "team_code": code, "team": name.get(code), "value": val, "unit": unit, "year": y}
+        for label, val, code, y, unit in recs
+    ]}
 
 
 @router.get("/api/v1/season/batting-leaders")

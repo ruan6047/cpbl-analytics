@@ -54,7 +54,7 @@ EXPECTED = {
     "/api/v1/records",
     "/api/v1/records/championships",
     "/api/v1/records/postseason",
-    "/api/v1/records/streaks",
+    "/api/v1/records/team",
     "/api/v1/season/batting-leaders",
     "/api/v1/season/fielding",
     "/api/v1/season/pitching-leaders",
