@@ -16,6 +16,7 @@ from cpbl.models.umpire_impact import (
     WinProbabilityModel,
     aggregate_teams,
     aggregate_umpires,
+    bootstrap_impact_aggregates,
     bootstrap_metric_deltas,
     bootstrap_probability_deltas,
     bootstrap_umpire_aggregates,
@@ -457,3 +458,25 @@ def test_umpire_bootstrap_refits_history_and_resamples_scoring_games() -> None:
     assert result[0].iterations == 50
     assert result[0].total.high >= result[0].total.low
     assert result[0].per_100_called.high >= result[0].per_100_called.low
+
+
+def test_impact_bootstrap_returns_team_intervals_from_same_replicates() -> None:
+    historical = [
+        *_observations(RunStateKey("1", "___", 0, 1, 0), [1, 1], game_prefix="h1-"),
+        *_observations(RunStateKey("1", "___", 0, 0, 1), [0, 0], game_prefix="h2-"),
+    ]
+    pitches = [
+        _called_pitch(observed=Call.BALL),
+        replace(_called_pitch(observed=Call.BALL), game_sno=2),
+    ]
+
+    result = bootstrap_impact_aggregates(
+        historical, pitches, alpha=0.1, iterations=50, seed=42
+    )
+    teams = {row.team: row for row in result.teams}
+
+    assert result.umpires[0].iterations == 50
+    assert teams["AWAY"].iterations == 50
+    assert teams["AWAY"].state_value_for == teams["HOME"].state_value_against
+    assert teams["AWAY"].per_100_for.high >= teams["AWAY"].per_100_for.low
+    assert teams["HOME"].per_100_against.high >= teams["HOME"].per_100_against.low

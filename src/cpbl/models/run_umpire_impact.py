@@ -15,9 +15,9 @@ from cpbl.models.umpire_impact import (
     WinProbabilityModel,
     aggregate_teams,
     aggregate_umpires,
+    bootstrap_impact_aggregates,
     bootstrap_metric_deltas,
     bootstrap_probability_deltas,
-    bootstrap_umpire_aggregates,
     score_called_pitch,
     tune_alpha,
 )
@@ -156,14 +156,15 @@ def _score(season: int, kind: str, iterations: int, output: Path) -> dict[str, A
             team_venue_for[team].append(row.state_value_for if row else 0.0)
             team_venue_against[team].append(row.state_value_against if row else 0.0)
 
-    uncertainty = bootstrap_umpire_aggregates(
+    uncertainty = bootstrap_impact_aggregates(
         historical.observations,
         scoring.pitches,
         alpha=250.0,
         iterations=iterations,
         seed=20260715,
     )
-    uncertainty_by_umpire = {row.umpire: row for row in uncertainty}
+    uncertainty_by_umpire = {row.umpire: row for row in uncertainty.umpires}
+    uncertainty_by_team = {row.team: row for row in uncertainty.teams}
     reference_by_umpire = {
         row.umpire: row.sum_delta_runs_offense for row in umpire_rows
     }
@@ -271,7 +272,11 @@ def _score(season: int, kind: str, iterations: int, output: Path) -> dict[str, A
             for row in umpire_rows
         ],
         "teams": [
-            {**asdict(row), "sensitivity": team_sensitivity[row.team]}
+            {
+                **asdict(row),
+                "bootstrap": asdict(uncertainty_by_team[row.team]),
+                "sensitivity": team_sensitivity[row.team],
+            }
             for row in team_rows
         ],
         "pitch_audit": str(audit_path),

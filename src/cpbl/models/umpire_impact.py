@@ -138,6 +138,22 @@ class UmpireBootstrap:
 
 
 @dataclass(frozen=True, slots=True)
+class TeamBootstrap:
+    team: str
+    iterations: int
+    state_value_for: QuantileInterval
+    state_value_against: QuantileInterval
+    per_100_for: QuantileInterval
+    per_100_against: QuantileInterval
+
+
+@dataclass(frozen=True, slots=True)
+class ImpactBootstrap:
+    umpires: tuple[UmpireBootstrap, ...]
+    teams: tuple[TeamBootstrap, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class Transition:
     next_state: PitchState | None
     immediate_runs: int
@@ -839,7 +855,27 @@ def bootstrap_umpire_aggregates(
     iterations: int = 2_000,
     seed: int = 0,
 ) -> list[UmpireBootstrap]:
-    """同時重抽歷史場次重建 value table，並重抽 scoring 場次重算主審聚合。"""
+    """相容舊介面；主審與球隊仍由同一組 replicate 共同估計。"""
+    return list(
+        bootstrap_impact_aggregates(
+            historical,
+            pitches,
+            alpha=alpha,
+            iterations=iterations,
+            seed=seed,
+        ).umpires
+    )
+
+
+def bootstrap_impact_aggregates(
+    historical: Iterable[RunObservation],
+    pitches: Iterable[CalledPitch],
+    *,
+    alpha: float,
+    iterations: int = 2_000,
+    seed: int = 0,
+) -> ImpactBootstrap:
+    """同時重抽歷史與 scoring 場次，重算主審及球隊聚合的 95% 區間。"""
     if iterations <= 0:
         raise ValueError("iterations must be positive")
     history_profiles: dict[str, Counter[tuple[RunStateKey, int]]] = defaultdict(Counter)
@@ -854,8 +890,20 @@ def bootstrap_umpire_aggregates(
     history_ids = list(history_profiles)
     scoring_ids = list(scoring_games)
     umpires = sorted({pitch.umpire for rows in scoring_games.values() for pitch in rows})
+    teams = sorted(
+        {
+            team
+            for rows in scoring_games.values()
+            for pitch in rows
+            for team in (pitch.batting_team, pitch.fielding_team)
+        }
+    )
     total_samples: dict[str, list[float]] = defaultdict(list)
     rate_samples: dict[str, list[float]] = defaultdict(list)
+    team_for_samples: dict[str, list[float]] = defaultdict(list)
+    team_against_samples: dict[str, list[float]] = defaultdict(list)
+    team_for_rate_samples: dict[str, list[float]] = defaultdict(list)
+    team_against_rate_samples: dict[str, list[float]] = defaultdict(list)
     rng = random.Random(seed)
     for _ in range(iterations):
         history_weights = Counter(rng.choices(history_ids, k=len(history_ids)))
@@ -868,10 +916,16 @@ def bootstrap_umpire_aggregates(
         scoring_weights = Counter(rng.choices(scoring_ids, k=len(scoring_ids)))
         totals: Counter[str] = Counter()
         calls: Counter[str] = Counter()
+        team_for_totals: Counter[str] = Counter()
+        team_against_totals: Counter[str] = Counter()
+        team_for_calls: Counter[str] = Counter()
+        team_against_calls: Counter[str] = Counter()
         value_cache: dict[tuple[RunStateKey, Call, Call], float] = {}
         for game_id, weight in scoring_weights.items():
             for pitch in scoring_games[game_id]:
                 calls[pitch.umpire] += weight
+                team_for_calls[pitch.batting_team] += weight
+                team_against_calls[pitch.fielding_team] += weight
                 proxy = proxy_call(pitch.plate_loc_side, pitch.plate_loc_height)
                 cache_key = (
                     RunStateKey.from_pitch_state(pitch.state),
@@ -886,13 +940,28 @@ def bootstrap_umpire_aggregates(
                     proxy_value = values.ball if proxy is Call.BALL else values.strike
                     value_cache[cache_key] = observed_value - proxy_value
                 totals[pitch.umpire] += value_cache[cache_key] * weight
+                team_for_totals[pitch.batting_team] += value_cache[cache_key] * weight
+                team_against_totals[pitch.fielding_team] += value_cache[cache_key] * weight
         for umpire in umpires:
             total_samples[umpire].append(totals[umpire])
             rate_samples[umpire].append(
                 totals[umpire] / calls[umpire] * 100 if calls[umpire] else 0.0
             )
+        for team in teams:
+            team_for_samples[team].append(team_for_totals[team])
+            team_against_samples[team].append(team_against_totals[team])
+            team_for_rate_samples[team].append(
+                team_for_totals[team] / team_for_calls[team] * 100
+                if team_for_calls[team]
+                else 0.0
+            )
+            team_against_rate_samples[team].append(
+                team_against_totals[team] / team_against_calls[team] * 100
+                if team_against_calls[team]
+                else 0.0
+            )
 
-    return [
+    umpire_intervals = tuple(
         UmpireBootstrap(
             umpire=umpire,
             iterations=iterations,
@@ -908,7 +977,27 @@ def bootstrap_umpire_aggregates(
             ),
         )
         for umpire in umpires
-    ]
+    )
+
+    def interval(samples: list[float]) -> QuantileInterval:
+        return QuantileInterval(
+            _percentile(samples, 0.025),
+            _percentile(samples, 0.5),
+            _percentile(samples, 0.975),
+        )
+
+    team_intervals = tuple(
+        TeamBootstrap(
+            team=team,
+            iterations=iterations,
+            state_value_for=interval(team_for_samples[team]),
+            state_value_against=interval(team_against_samples[team]),
+            per_100_for=interval(team_for_rate_samples[team]),
+            per_100_against=interval(team_against_rate_samples[team]),
+        )
+        for team in teams
+    )
+    return ImpactBootstrap(umpires=umpire_intervals, teams=team_intervals)
 
 
 def signed_edge_distance_cm(
