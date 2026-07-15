@@ -7,10 +7,9 @@ export const metadata = { title: "球場 | CPBL 分析" };
 
 const num = (v: number | null) => (v == null ? "—" : Number(v).toLocaleString());
 
-// 詳情頁（park factor／打擊環境／選手差距）全部靠 2018+ 逐場歸因；更早退役的球場點進去只會 404，
-// 故僅對 2018 年後仍有一軍賽事的球場開連結。
+// 詳情頁的逐場分析靠 2018+ 歸因；更早的歷史 CPBL 場地仍可檢視規格與使用年份。
 const VENUE_DATA_FROM = 2018;
-const hasDetail = (v: { last_year: number | null }) => (v.last_year ?? 0) >= VENUE_DATA_FROM;
+const hasDetail = (v: { first_year: number | null }) => v.first_year != null;
 
 function DistBar({ label, ft, max = 410 }: { label: string; ft: number | null; max?: number }) {
   if (ft == null) return null;
@@ -85,7 +84,9 @@ export default async function VenuesPage() {
           href={`/venues/${encodeURIComponent(v.venue)}`}
           className="mt-3 block border-t border-line pt-2 text-[11px] font-medium text-accent hover:underline"
         >
-          Park Factor · 打擊環境 · 選手表現差距 →
+          {(v.last_year ?? 0) >= VENUE_DATA_FROM
+            ? "Park Factor · 打擊環境 · 選手表現差距 →"
+            : "球場規格 · CPBL 使用紀錄 →"}
         </Link>
       )}
     </Card>

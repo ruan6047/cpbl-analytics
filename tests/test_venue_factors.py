@@ -34,6 +34,14 @@ def test_factors_sql_normalizes_venue_aliases():
     assert "WHEN '亞太副場' THEN '亞太副'" in sql
 
 
+def test_venue_sql_normalizes_historic_taichung_name():
+    """台中與國體為同座歷史 CPBL 場地，列表與詳情不可拆成兩座。"""
+    factors = _norm(_FACTORS_SQL)
+    listing = _norm(_VENUES_DIM_SQL)
+    assert "WHEN '台中' THEN '國體'" in factors
+    assert listing.count("WHEN '台中' THEN '國體'") >= 2
+
+
 def test_venue_list_sql_normalizes_historical_aliases():
     """列表與詳情必須把同座球場的歷史名稱合併，避免桃園遺失 2018–21 年份。"""
     sql = _norm(_VENUES_DIM_SQL)
@@ -66,6 +74,7 @@ def test_extreme_sql_uses_official_career_and_min_sample():
 def test_canon_aliases():
     assert _canon("桃園") == "樂天桃園"
     assert _canon("亞太副場") == "亞太副"
+    assert _canon("台中") == "國體"
     assert _canon("大巨蛋") == "大巨蛋"
 
 

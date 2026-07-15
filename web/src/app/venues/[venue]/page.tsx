@@ -10,6 +10,8 @@ import {
   type VenueFactorsResponse,
   type VenuePitcher,
 } from "@/lib/api";
+import { optionalNotFound } from "@/lib/http-error";
+import { canonicalVenue, hasSplitRows } from "./page-logic";
 import { FACTOR_LABEL, LowSample, PfBar, VsLeague, f1, f2, f3, num, pfPhrase } from "./parts";
 
 export const dynamic = "force-dynamic";
@@ -19,11 +21,9 @@ export async function generateMetadata({ params }: { params: Promise<{ venue: st
   return { title: `${decodeURIComponent(venue)} | 球場 | CPBL 分析` };
 }
 
-// 三端點皆為「2018+ 才有逐場歸因」；查無資料回 404 → 該球場不開詳情頁（列表端亦不連結）。
-const orNull = <T,>(p: Promise<T>) => p.catch(() => null);
-
 const SHOW = 6;      // 每端顯示人數
 const POOL = 30;     // 向 API 要的兩端長度（> SHOW，供過濾後仍有餘裕）
+const VENUE_DATA_FROM = 2018;
 
 // API 的 best/worst＝同一排序的頭尾各 limit 名。**達門檻選手可能不足 2×limit**
 // （例：花蓮投手全史僅 5 人達 30 局）→ 頭尾會撈到同一批人，且「差於生涯最多」那端
@@ -42,22 +42,24 @@ function split<T extends { player_id: string }>(
 
 export default async function VenuePage({ params }: { params: Promise<{ venue: string }> }) {
   const { venue: rawParam } = await params;
-  const raw = decodeURIComponent(rawParam);
+  const venueParam = canonicalVenue(decodeURIComponent(rawParam));
   const [list, factors, stats, bat, pit] = await Promise.all([
     api.venues(),
-    orNull(api.venueFactors(raw)),
-    orNull(api.venueStats(raw)),
-    orNull(api.venuePlayers<VenueBatter>(raw, "batting", POOL)),
-    orNull(api.venuePlayers<VenuePitcher>(raw, "pitching", POOL)),
+    optionalNotFound(api.venueFactors(venueParam)),
+    optionalNotFound(api.venueStats(venueParam)),
+    optionalNotFound(api.venuePlayers<VenueBatter>(venueParam, "batting", POOL)),
+    optionalNotFound(api.venuePlayers<VenuePitcher>(venueParam, "pitching", POOL)),
   ]);
-  if (!factors && !stats) notFound();
+  const spec = list.items.find((v) => v.venue === venueParam);
+  if (!factors && !stats && !spec) notFound();
 
   const batSplit = bat && split(bat.best, bat.worst, (r) => r.delta_ops, false);
   const pitSplit = pit && split(pit.best, pit.worst, (r) => r.delta_era, true);
+  const showBat = batSplit != null && hasSplitRows(batSplit);
+  const showPit = pitSplit != null && hasSplitRows(pitSplit);
 
   // API 端已把歷史別名歸一（桃園→樂天桃園）；規格卡以歸一後短名回列表查。
-  const venue = factors?.venue ?? stats?.venue ?? raw;
-  const spec = list.items.find((v) => v.venue === venue);
+  const venue = factors?.venue ?? stats?.venue ?? venueParam;
   const name = spec?.full_name ?? stats?.item_name ?? venue;
   const league = new Map((stats?.league ?? []).map((l) => [l.year, l]));
 
@@ -73,6 +75,9 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
           <span>{spec?.city}</span>
           {factors && (
             <span>· 資料涵蓋 {factors.from_year}–{factors.to_year}，共 {factors.pooled.games} 場一軍例行賽</span>
+          )}
+          {!factors && spec?.first_year != null && (
+            <span>· CPBL 一軍使用 {spec.first_year}–{spec.last_year}</span>
           )}
         </div>
         {spec && (
@@ -126,6 +131,16 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
         </section>
       )}
 
+      {!factors && !stats && spec && (
+        <Card>
+          <p className="text-sm font-medium text-ink">歷史 CPBL 場地</p>
+          <p className="mt-1 text-sm text-muted">
+            逐場分析資料目前自 {VENUE_DATA_FROM} 年起；此場地沒有可用的 Park Factor 與打擊環境資料。
+            本頁僅呈現官方規格與 CPBL 一軍使用紀錄，未據此推論場地目前是否營運。
+          </p>
+        </Card>
+      )}
+
       {factors && <ParkFactors factors={factors} />}
 
       {/* 打擊環境：球場逐年 vs 聯盟同年 */}
@@ -147,7 +162,7 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
       )}
 
       {/* 選手極端表現（生涯口徑，含 2018 以前）*/}
-      {(bat || pit) && (
+      {(showBat || showPit) && (
         <section>
           <Eyebrow className="mb-1">選手表現差距</Eyebrow>
           <h2 className="mb-1 text-lg font-semibold">在此球場與自身生涯基準差距最大的選手</h2>
@@ -160,7 +175,7 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
             <span className="font-medium text-up">藍＝低於基準</span>（僅表方向，不含好壞；投手 ERA 越低越好，故藍色為佳）。
           </p>
           <div className="grid gap-4 lg:grid-cols-2">
-            {bat && batSplit && (
+            {bat && batSplit && showBat && (
               <Card>
                 <h3 className="mb-2 text-sm font-semibold text-ink">
                   打者 <span className="font-normal text-faint">（生涯在此 ≥ {bat.thresholds.min_pa} PA）</span>
@@ -169,7 +184,7 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
                 <ExtremeTable rows={batSplit.bottom} columns={batColumns} title="OPS 低於自身生涯" className="mt-4" />
               </Card>
             )}
-            {pit && pitSplit && (
+            {pit && pitSplit && showPit && (
               <Card>
                 <h3 className="mb-2 text-sm font-semibold text-ink">
                   投手 <span className="font-normal text-faint">（生涯在此 ≥ {(pit.thresholds.min_outs / 3).toFixed(0)} 局）</span>
