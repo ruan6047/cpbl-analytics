@@ -18,7 +18,7 @@
 | RECORD-DATA1 | 歷年總冠軍權威資料集與球團映射 | ruan6047 | GPT-5@Codex（[`spec`](../records-redesign.md)；建議 Fable） | GPT-5@Codex | Opus-4.8@Claude Code | `ai/gpt-5-codex/RECORD-DATA1` | 🔴 | ✅通過（07-14 事後查核：33 季由 games kind C 獨立推導零差異；1992/94/95 以半季戰績重建佐證；教練獎 24/24 交叉驗證） |
 | RECORD-API1 | 紀錄室分類排行與冠軍 API | ruan6047 | Opus-4.8@Claude Code | Opus-4.8@Claude Code | GPT-5@Codex | `ai/opus-4.8/RECORD-API1` | ⚪ | ✅完成（07-15 兩項 findings 已由 RECORD-API1-FIX1 修復、查核通過並合併 main） |
 | RECORD-API1-FIX1 | 修正冠軍榜現役判定與球團榜 top N | ruan6047 | Opus-4.8@Claude Code | Opus-4.8@Claude Code | GPT-5@Codex | `ai/opus-4.8/RECORD-API1-FIX1` | ⚪ | ✅通過（07-15 查核：現役聯集、並列 top N、pytest 乾淨 collection 與 coverage fail-closed 均實測通過） |
-| UX-RECORD1 | `/records` 歷史重要性導向重製 | ruan6047 | GPT-5@Codex（[`spec`](../records-redesign.md)） | 待指派 | 待指派（≠執行者） | `ai/<執行者>/UX-RECORD1` | ⚪ | 📥Backlog（依賴 RECORD-API1；首屏標竿、生涯榜、冠軍王朝） |
+| UX-RECORD1 | `/records` 歷史重要性導向重製 | ruan6047 | Opus-4.8@Claude Code（spec 不存在→當場定範圍） | Opus-4.8@Claude Code | 待指派（≠執行者） | `ai/opus-4.8/UX-RECORD1` | ⚪ | 🔍待查核（07-15 冠軍為核心＋重排：王朝榜 hero＋生涯榜提第二＋逐年冠亞軍＋球員冠軍次數；coverage fail-closed；build:check/tsc 綠、深淺色截圖驗證） |
 | ML-UMP1 | 裁判誤判預期影響研究 | ruan6047 | 待研究 spec（建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-UMP1` | 🔴 | 📥Backlog（先驗證再決定是否產品化，不併 UX-10） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
 | ML-SIM1 | 簡易勝負預測＋單一打席情境模擬 | ruan6047 | 待細 spec | 待指派 | 待指派 | — | 🔴 | 📥Backlog（取代 UX-10O；去重複訊號，不模擬後續全打席） |
@@ -68,6 +68,24 @@
 - Log：
   - 07-15 依查核 findings 執行；流程照 §2 走（推分支、留 worktree、不碰 main）
   - 07-15 查核 by GPT-5@Codex → ✅通過：乾淨 main 未設 `PYTHONPATH` 時 pytest collection 確實因 `tests` 無法 import 而失敗；兩支新回歸測試植入修復前碼皆紅。修復分支 `uv run ruff check` 綠、`uv run pytest` 122 passed；張志豪（0000003183）API `active=true`，`limit=1` 僅回兄弟／統一並列第一，36 冠總數與 coverage fail-closed 突變皆通過（2013 已還原）。
+
+### UX-RECORD1 `/records` 歷史重要性導向重製  〔⚪一般〕
+- 需求：ruan6047　規劃／執行：Opus-4.8@Claude Code　查核：待指派（≠ 執行者）　分支：`ai/opus-4.8/UX-RECORD1`
+- **範圍由 ruan6047 當場定案**（spec `records-redesign.md` 不存在 → 反問而非腦補）：中度重製，冠軍為核心＋重排。**生涯排行（各項數據歷史榜）提到第二**（ruan6047 補充：不沉到頁尾）。
+- 動機：RECORD-API1 新做的 `/api/v1/records/championships`（王朝榜／逐年冠亞軍／球員冠軍次數）**先前前端完全未消費**——整條紅線資料鏈（RECORD-DATA1→API1）沒有任何 UI 出口。
+- 產出（純前端，`web/src/app/records/page.tsx` ＋ `web/src/lib/api.ts`，**無 Python／無新端點**）：
+  1. 首屏「冠軍王朝榜」：各球團奪冠數**隊色長條圖**，並列排名（兄弟／統一並列 10、樂天 8、味全 5、富邦 3；總和 36＝季數）＋逐年奪冠 chip。
+  2. 生涯排行提第二（打者／投手兩欄）。
+  3. 逐年冠亞軍時間軸（2025→1990）＋奪冠總教練（canonical `championship_managers`）。
+  4. 球員冠軍次數榜（並列排名、現役標記、奪冠年份）。
+  5. **coverage fail-closed**：API 缺年時不回 `franchise_ranking`／`player_ranking`，前端據此**不呈現累計王朝結論**、改顯示 `Notice`（兌現看板紅線「缺年不得公開歷史最多冠軍」）。
+  6. 整頁重排：冠軍王朝→生涯排行→逐年冠亞軍→球員冠軍→單季之最→比賽紀錄→歷代球隊。
+- 驗收：`npm run build:check` 綠、`tsc --noEmit` 綠、`/records` 深淺色截圖均驗證（王朝榜隊色長條、並列排名、年份 chip 皆正確）。無 Python 變更故 pytest 路由快照不受影響。
+- **查核者進駐**：worktree `/Users/ruanruan/Dev/cpbl-analytics-record`（分支已推遠端，環境現成、`web/node_modules` 已裝）。查核範圍＝`b593181`（單一 commit）。**本卡未 push main**，merge 待查核通過。
+- 狀態：🔍待查核　Commit：`b593181`
+- Log：
+  - 07-15 ruan6047 派工；spec 不存在 → 反問定範圍（中度：冠軍為核心＋重排）後執行；補充「生涯榜提第二」
+  - 07-15 執行完成，流程照 §2 走（開 worktree、推分支、留 worktree、不碰 main）
 
 ### ML-UMP1 裁判誤判預期影響研究  〔🔴紅線：統計／反事實估計〕
 - 需求：ruan6047（07-14）　規劃：Fable（統計定義／驗證設計）　分支：`ai/<執行者>/ML-UMP1`
