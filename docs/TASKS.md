@@ -19,7 +19,7 @@
 | RECORD-API1 | 紀錄室分類排行與冠軍 API | ruan6047 | Opus-4.8@Claude Code | Opus-4.8@Claude Code | GPT-5@Codex | `ai/opus-4.8/RECORD-API1` | ⚪ | ✅完成（07-15 兩項 findings 已由 RECORD-API1-FIX1 修復、查核通過並合併 main） |
 | RECORD-API1-FIX1 | 修正冠軍榜現役判定與球團榜 top N | ruan6047 | Opus-4.8@Claude Code | Opus-4.8@Claude Code | GPT-5@Codex | `ai/opus-4.8/RECORD-API1-FIX1` | ⚪ | ✅通過（07-15 查核：現役聯集、並列 top N、pytest 乾淨 collection 與 coverage fail-closed 均實測通過） |
 | UX-RECORD1 | `/records` 歷史重要性導向重製 | ruan6047 | Opus-4.8@Claude Code（spec 不存在→當場定範圍） | Opus-4.8@Claude Code | 待指派（≠執行者） | `ai/opus-4.8/UX-RECORD1` | ⚪ | 🔍待查核（07-15 冠軍為核心＋重排：王朝榜 hero＋生涯榜提第二＋逐年冠亞軍＋球員冠軍次數；coverage fail-closed；build:check/tsc 綠、深淺色截圖驗證） |
-| ML-UMP1 | 好球帶判決差異的預期影響研究 | ruan6047 | GPT-5@Codex（[`approved spec`](../umpire-impact-research.md)） | GPT-5@Codex | 待指派（跨家族模型或人審） | `ai/gpt-5-codex/ML-UMP1` | 🔴 | 🔍待查核（run value gate 通過；WP／固定代理帶方向性產品 no-go；[`results`](research/ML-UMP1_RESULTS.md)） |
+| ML-UMP1 | 好球帶判決差異的預期影響研究 | ruan6047 | GPT-5@Codex（[`approved spec`](../umpire-impact-research.md)） | GPT-5@Codex | Fable（獨立重建） | `ai/gpt-5-codex/ML-UMP1` | 🔴 | 🔍待複查（P2-1／P2-2 已修正；run value 僅研究元件、WP／方向性產品 no-go；[`results`](research/ML-UMP1_RESULTS.md)） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
 | ML-SIM1 | 簡易勝負預測＋單一打席情境模擬 | ruan6047 | 待細 spec | 待指派 | 待指派 | — | 🔴 | 📥Backlog（取代 UX-10O；去重複訊號，不模擬後續全打席） |
 | ML-SIM2 | 全場狀態模擬器（完整陣容／牛棚／後續打席） | ruan6047 | 待遠期評估 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**遠期目標，暫時不做**） |
@@ -89,9 +89,9 @@
 
 ### ML-UMP1 好球帶判決差異的預期影響研究  〔🔴紅線：統計／反事實估計〕
 - 需求：ruan6047（07-14）　規劃：GPT-5@Codex（[`approved spec`](../umpire-impact-research.md)）　分支：`ai/gpt-5-codex/ML-UMP1`
-- 執行：GPT-5@Codex　查核：待指派（跨家族模型或人審＋實測）
+- 執行：GPT-5@Codex　查核：Fable（獨立重建 artifacts＋實測）
 - 範圍／驗收：固定垂直帶因缺逐打者 `sz_top/sz_bot`，不是規則真值，canonical 名稱採「好球帶判決差異」，技術欄位仍保留 proxy 語意。建立 count-aware 壘況／出局狀態價值；RE24 本身不能替 called ball/strike 定價。以 2018–2024 建模／調參、2025 untouched test、2018–2025 final refit 評分 2026 TrackMan called 球，按攻守隊與主審做帶 coverage、game-cluster 95% interval、zone／venue sensitivity 的描述性聚合。run value 必勝 count-agnostic baseline；WP 未勝現有 `wp_state()` 即不產出。未通過跨家族紅線查核前，不進 API／UI／production table，不稱實際得失分或裁判真實誤判。
-- 狀態：🔍待查核　Commit：`a48c47e`、`2136c8b`、`870d310`、`e3583ba`、`b043d9b`、`acea786`、`141e452`
+- 狀態：🔍待複查　Commit：`a48c47e`、`2136c8b`、`870d310`、`e3583ba`、`b043d9b`、`acea786`、`141e452`、`57bab21`、`f223148`、`923ff66`
 - Log：
   - 07-14 自 UX-10 拆出：反事實估計不宜與一般 UI 同卡；依 AI_WORKFLOW 採 Fable 執行、跨家族或人審查核
   - 07-15 ruan6047 指派研究規格；GPT-5@Codex 建獨立 worktree。唯讀稽核：2026 A called pitches 24,270，24,195（99.69%）唯一連到 livelog，24,226（99.82%）可合法還原 pre-call 球數；歷史 2018–2025 有 730,112 pitch rows／2,335 場。spec 糾正兩個前提：固定帶非規則真值、RE24 不含球數故不可直接定價。
@@ -101,6 +101,9 @@
   - 07-15 正式 scoring：2,661 proxy disagreements、260 backoffs；2,000 次 bootstrap 每次同時重建歷史 value table 與 2026 場次聚合。18/18 主審與 6/6 球隊皆 zone-sensitive，coverage 165/200 場，故固定代理帶方向性產品 no-go；API/UI/production table 均未新增。完整報告見 [`docs/research/ML-UMP1_RESULTS.md`](research/ML-UMP1_RESULTS.md)。
   - 07-15 全專案 `ruff check` 綠、`pytest` 165 passed（1 個既有 Starlette/httpx deprecation warning）；CLI audit/validate/score 與 24,192 行 ignored pitch artifact 實測完成。worktree 保留，等待跨家族或人工獨立查核。
   - 07-15 ruan6047 補充 canonical 對外名稱改為「好球帶判決差異」；技術欄位與限制仍保留 `fixed_zone_proxy_v1`／`proxy_disagreement`，避免誤讀為逐打者規則真值。
+  - 07-16 Fable 於 detached review worktree 獨立重建全部 artifacts；統計核心、連結契約、狀態轉移、時間切分、bootstrap、gate 與數字均精確重現。退回 P2-1 球隊缺 game-cluster interval、P2-2 預先註冊 baseline／敏感度缺項；未修改實作檔案。
+  - 07-16 GPT-5@Codex 修正 P2-1／P2-2：球隊 for/against 與主審共用同一 bootstrap replicate 並附累計及每百顆 95% interval；補主場常數 WP sanity baseline、差異顆數／離帶距離 baseline、home/away／月份分層、現行非對稱 50cm filter 對照。正式 2,000 次重建完成，既有 gate 與所有主結論不變，轉 🔍待 Fable 快速複查。
+  - 07-16 修正後驗證：全專案 ruff 綠、pytest 170 passed（僅既有 Starlette deprecation warning）；audit 24,270／24,195／24,226／24,192／3 精確不變，validate 2,000 次與原 gate 數字逐位相同，score 2,000 次 artifacts 已重建。
 
 ### RECORD-DATA1 歷年總冠軍權威資料集與球團映射  〔🔴紅線：歷史資料正確性〕
 - 需求：ruan6047　規劃：GPT-5@Codex（[`spec`](../records-redesign.md)）　分支：`ai/gpt-5-codex/RECORD-DATA1`

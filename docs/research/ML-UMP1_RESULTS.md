@@ -1,7 +1,7 @@
 ---
 title: ML-UMP1 好球帶判決差異研究結果
 date: 2026-07-15
-status: implementation-review-pending
+status: implementation-re-review-pending
 tags:
   - cpbl
   - machine-learning
@@ -22,7 +22,7 @@ aliases:
 | count-aware run-value 引擎 | **GO（研究元件）** | 2025 untouched test 的 NLL 勝過 count-agnostic baseline，MAE 未退化 |
 | count-aware WP | **NO-SHIP** | Brier／LogLoss 點估計雖略優，但兩者 game-cluster 95% interval 都跨 0 |
 | 固定代理帶的主審／球隊方向性產品 | **NO-GO** | 18/18 主審、6/6 球隊在 ±1/2/3/5cm 情境至少一次翻轉；2026 場次 coverage 僅 82.5% |
-| API／UI／production table | **不得進入** | 固定代理帶不是規則真值，且獨立跨家族實測查核尚未完成 |
+| API／UI／production table | **不得進入** | 固定代理帶不是規則真值；Fable 獨立查核退回的 P2 契約已修正，尚待快速複查 |
 
 本研究的正值只代表「實際判決相對 `fixed_zone_proxy_v1`，提高打擊方的聯盟平均狀態價值」。它不是實際增加的得分、因果效果，也不是裁判好壞排名。
 
@@ -51,7 +51,7 @@ test        2025        96,987 states
 scoring     2026        24,192 called pitches
 ```
 
-`alpha` 只以 2024 multinomial NLL 選擇；候選範圍 1–5,000，最終為 250。2025 test 未參與調參；2026 scoring 使用 2018–2025 final refit。state 分布按 `(side, bases, outs, balls, strikes)` 建立，稀疏格回縮到 `(side, bases, outs)`，再回縮到全域分布。
+`alpha` 只以 2024 multinomial NLL 選擇；候選範圍 1–5,000，最終為 250。2025 gate 評估先以 2018–2024（train＋validation）refit，再評測 untouched 2025；2025 未參與調參。2026 scoring 使用 2018–2025 final refit。state 分布按 `(side, bases, outs, balls, strikes)` 建立，稀疏格回縮到 `(side, bases, outs)`，再回縮到全域分布。
 
 ### Run-value gate
 
@@ -76,6 +76,8 @@ scoring     2026        24,192 called pitches
 | calibration intercept | -0.0874 | -0.0975 |
 | calibration slope | 1.2336 | 1.2400 |
 | ECE | 0.02946 | 0.03052 |
+
+另以 2018–2024 每場只計一次的主場結果建立聯盟常數勝率 sanity baseline：`p(home)=0.536943`；在 2025 test 的 Brier 為 `0.247898`、LogLoss 為 `0.692037`。它只檢查 WP pipeline 是否明顯失常，不參與 candidate 對現有 state baseline 的預先 gate。
 
 2,000 次 paired game-cluster bootstrap：
 
@@ -128,6 +130,35 @@ scoring     2026        24,192 called pitches
 | 陳均瑋 | 10 | 1,520 | 178 | 5.420 | 0.131 / 4.899 / 12.576 | yes | no |
 
 固定代理帶邊界對稱收縮／擴張 1、2、3、5cm 後，18 位主審與 6 隊的方向都至少翻轉一次；因此上表只能作 audit 描述，不可作方向性結論。Leave-one-venue-out 另使王俊宏、羅鈞鴻翻轉；球隊未因單一球場排除而翻轉。
+
+球隊 `state_value_for/against` 也在與主審完全相同的每個 replicate 內同步累計；下表為點估計與 game-cluster 95% interval，不是球隊得失分或排名。
+
+| team | for point | for 95% interval | against point | against 95% interval |
+|---|---:|---:|---:|---:|
+| AAA011 | 13.318 | [6.764, 19.890] | 10.656 | [3.356, 19.300] |
+| ACN011 | 13.304 | [5.173, 22.668] | 11.606 | [4.427, 19.921] |
+| ADD011 | 18.660 | [10.215, 28.633] | 11.348 | [4.735, 18.548] |
+| AEO011 | 13.912 | [5.187, 23.276] | 22.507 | [10.443, 37.053] |
+| AJL011 | 5.910 | [-1.501, 14.003] | 18.240 | [10.698, 26.584] |
+| AKP011 | 19.317 | [8.613, 33.729] | 10.064 | [1.335, 19.661] |
+
+## Baseline 與額外敏感度對照
+
+產品 baseline 以相同 24,192 顆母體聚合：proxy disagreement 為 `2,661`（`10.9995%`），`sum(abs(edge_distance_cm))=359,157.675cm`。前者只計數判決不同顆數，後者是不帶方向的幾何距離；兩者都不含球數、壘況、出局與狀態轉移，因此不能取代 state value。加入情境後雖可得到 `84.421841` 的聯盟平均狀態價值差，但 18/18 主審與 6/6 球隊仍會隨代理帶情境翻向，Q3 的產品結論不變：不得形成方向性排行或產品訊號。
+
+| 分層 | games | called | proxy diff | state value | per 100 called |
+|---|---:|---:|---:|---:|---:|
+| 客隊進攻 | 165 | 12,329 | 1,329 | 36.697 | 0.298 |
+| 主隊進攻 | 165 | 11,863 | 1,332 | 47.725 | 0.402 |
+| 3 月 | 7 | 960 | 116 | 4.973 | 0.518 |
+| 4 月 | 46 | 6,484 | 756 | 19.872 | 0.306 |
+| 5 月 | 49 | 7,245 | 791 | 26.347 | 0.364 |
+| 6 月 | 42 | 6,255 | 636 | 21.140 | 0.338 |
+| 7 月 | 21 | 3,248 | 362 | 12.090 | 0.372 |
+
+每位主審的 home／away、月份 called pitches、games、proxy disagreements 與 state value 均保存在 `summary.json`；3/18 位主審至少一個主客分層與全體點估計反號，10/18 位至少一個月份分層反號。這是樣本與覆蓋敏感度警訊，不作個人方向性解讀。
+
+現行 leaderboard 的非對稱 50cm filter 僅作對照：它只排除「代理帶外 called strike 且任一單軸超出 50cm」，本次排除 1／24,192 顆。對照總值為 `84.485183`，proxy disagreement 為 2,660，距離累計為 `359,075.605cm`；18 位主審與 6 隊的方向皆未因此翻轉。此規則仍是 outcome-dependent filter，不納入主分析。
 
 ## Coverage
 
