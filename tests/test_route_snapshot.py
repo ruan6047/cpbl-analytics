@@ -41,6 +41,7 @@ EXPECTED = {
     "/api/v1/players/{player_id}/discipline",
     "/api/v1/players/{player_id}/fielding",
     "/api/v1/players/{player_id}/matchups",
+    "/api/v1/players/{player_id}/matchups/insights",
     "/api/v1/players/{player_id}/movement",
     "/api/v1/players/{player_id}/pitch-mix",
     "/api/v1/players/{player_id}/pitching",

@@ -13,12 +13,23 @@ from cpbl.api.matchups import (
     CAREER_YEAR,
     MatchupScope,
     aggregate_matchup_rows,
+    load_insight_universe,
     resolve_matchup_scope,
     sort_matchup_items,
 )
 from cpbl.api.rows import _ERA_SPLIT, _MANAGER_ERAS_SQL, _POS_CANON, _batting_rows, _pitching_rows
 from cpbl.db import conn
 from cpbl.franchises import franchise_of, franchise_prefixes
+from cpbl.models.matchup_insights import (
+    CREDIBILITY_GATE,
+    WOBA_VERSION,
+    InsightCandidate,
+    PairSample,
+    evaluate_pairs,
+    rank_insights,
+    sensitivity_report,
+    woba_line,
+)
 
 router = APIRouter()
 
@@ -887,6 +898,174 @@ def player_matchups(
         "order": order,
         "available_count": available_count,
         "items": items[:limit],
+    }
+
+
+_INSIGHT_DISCLAIMER = (
+    "描述性統計（經驗貝氏收縮後的 wOBA 差），不代表因果或未來預測；"
+    "小樣本已回縮並以可信度閘門過濾。"
+)
+
+
+@router.get("/api/v1/players/{player_id}/matchups/insights")
+def player_matchup_insights(
+    player_id: str,
+    role: str = Query("batting", pattern="^(batting|pitching)$"),
+    kind_code: str = Query("A", pattern="^(A|C|E)$"),
+    scope: str = Query("career", pattern="^(career|season|range)$"),
+    season: int = Query(DEFAULT_SEASON, ge=1990),
+    from_year: int | None = Query(None, ge=1990),
+    to_year: int | None = Query(None, ge=1990),
+    opponent_team: str | None = Query(None, min_length=3, max_length=6),
+    limit: int = Query(3, ge=1, le=5),
+) -> dict:
+    """天敵候選／優勢對位（ML-MATCHUP1）。
+
+    API 統一計算：baseline、經驗貝氏收縮、效果量×可信度排名與敏感度；
+    前端不得自行重做統計判定。樣本不足時候選為空（誠實退化）。
+    """
+    selected = _scope_or_422(scope, season, from_year, to_year)
+    self_col, opp_col = (
+        ("hitter_acnt", "pitcher") if role == "batting" else ("pitcher_acnt", "hitter")
+    )
+    with conn() as c:
+        cur = c.cursor()
+        try:
+            universe = load_insight_universe(
+                cur, kind_code, selected.from_year, selected.to_year
+            )
+        except ValueError:
+            return _empty_insights(player_id, role, kind_code, selected,
+                                   "該範圍沒有可用對戰資料")
+        # 目標球員逐對手列（含姓名／隊伍，供顯示與 opponent_team 篩選）。
+        sql = f"""
+            SELECT m.year, m.{opp_col}_acnt AS opp_id, m.{opp_col}_name AS opp_name,
+                   m.{opp_col}_team_no AS opp_team_code, tm.name AS opp_team,
+                   {_MATCHUP_COUNT_SELECT}
+            FROM cpbl.batter_pitcher_matchups m
+            LEFT JOIN cpbl.teams tm ON tm.team_id=left(m.{opp_col}_team_no, 3)
+            WHERE m.{self_col}=%s AND m.kind_code=%s
+              AND m.year BETWEEN %s AND %s
+        """  # noqa: S608 — self_col/opp_col 由 role 白名單決定
+        params: list[Any] = [player_id, kind_code, selected.from_year, selected.to_year]
+        if opponent_team:
+            sql += f" AND left(m.{opp_col}_team_no, 3)=ANY(%s)"  # noqa: S608
+            params.append(sorted(franchise_prefixes(opponent_team)))
+        cur.execute(sql, params)
+        items = aggregate_matchup_rows(_dicts(cur))
+
+    if not items:
+        return _empty_insights(player_id, role, kind_code, selected,
+                               "該球員在此範圍沒有對戰紀錄")
+
+    display = {item["opp_id"]: item for item in items}
+    pairs = []
+    for item in items:
+        line = woba_line(item)
+        if line.opportunities <= 0:
+            continue
+        hitter = player_id if role == "batting" else item["opp_id"]
+        pitcher = item["opp_id"] if role == "batting" else player_id
+        pairs.append(PairSample(hitter_id=hitter, pitcher_id=pitcher, line=line))
+
+    candidates = evaluate_pairs(
+        pairs,
+        role=role,
+        hitter_totals=universe.hitter_totals,
+        pitcher_totals=universe.pitcher_totals,
+        league_mean=universe.league_mean,
+        hyper=universe.hyper,
+    )
+    ranked = rank_insights(candidates, role=role, limit=limit)
+    sensitivity = sensitivity_report(
+        candidates, role=role, limit=limit, hyper=universe.hyper
+    )
+
+    totals = universe.hitter_totals if role == "batting" else universe.pitcher_totals
+    own_line = totals.get(player_id)
+    note = None
+    if not ranked.advantages and not ranked.disadvantages:
+        note = "樣本不足或差異不可信，僅提供一般對戰紀錄，不產生洞察排行"
+
+    return {
+        "player_id": player_id,
+        "role": role,
+        "kind_code": kind_code,
+        "scope": selected.name,
+        "from_year": selected.from_year,
+        "to_year": selected.to_year,
+        "source": selected.source,
+        "filters": {"opponent_team": opponent_team},
+        "baseline": {
+            "woba": _round(own_line.rate, 4) if own_line else None,
+            "opportunities": own_line.opportunities if own_line else 0,
+        },
+        "league": {
+            "woba": _round(universe.league_mean, 4),
+            "opportunities": universe.league.opportunities,
+        },
+        "advantages": [_insight_item(c, display) for c in ranked.advantages],
+        "disadvantages": [_insight_item(c, display) for c in ranked.disadvantages],
+        "eligible": ranked.eligible,
+        "gated_out": ranked.gated_out,
+        "sample_note": note,
+        "sensitivity": sensitivity,
+        "method": {
+            "metric": WOBA_VERSION,
+            "expected": "additive: batter + pitcher − league（對稱，角色翻轉不得雙方同優）",
+            "sigma2": _round(universe.hyper.sigma2, 6),
+            "tau2": _round(universe.hyper.tau2, 8),
+            "prior_strength": _round(universe.hyper.prior_strength, 1),
+            "credibility_gate": CREDIBILITY_GATE,
+            "pairs_used": universe.hyper.pairs_used,
+        },
+        "disclaimer": _INSIGHT_DISCLAIMER,
+    }
+
+
+def _insight_item(candidate: InsightCandidate, display: dict[str, dict]) -> dict:
+    meta = display.get(candidate.opponent_id, {})
+    return {
+        "opp_id": candidate.opponent_id,
+        "opp_name": meta.get("opp_name"),
+        "opp_team_code": meta.get("opp_team_code"),
+        "opp_franchise": franchise_of(meta.get("opp_team_code"))
+        if meta.get("opp_team_code") else None,
+        "plate_appearances": meta.get("plate_appearances"),
+        "opportunities": candidate.opportunities,
+        "avg": meta.get("avg"),
+        "ops": meta.get("ops"),
+        "observed_woba": _round(candidate.observed, 4),
+        "expected_woba": _round(candidate.expected, 4),
+        "delta_shrunk": _round(candidate.shrunk.delta_shrunk, 4),
+        "credibility": _round(candidate.shrunk.credibility, 3),
+        "from_year": meta.get("from_year"),
+        "to_year": meta.get("to_year"),
+    }
+
+
+def _empty_insights(
+    player_id: str, role: str, kind_code: str, selected: MatchupScope, reason: str
+) -> dict:
+    return {
+        "player_id": player_id,
+        "role": role,
+        "kind_code": kind_code,
+        "scope": selected.name,
+        "from_year": selected.from_year,
+        "to_year": selected.to_year,
+        "source": selected.source,
+        "filters": {"opponent_team": None},
+        "baseline": None,
+        "league": None,
+        "advantages": [],
+        "disadvantages": [],
+        "eligible": 0,
+        "gated_out": 0,
+        "sample_note": reason,
+        "sensitivity": None,
+        "method": {"metric": WOBA_VERSION, "credibility_gate": CREDIBILITY_GATE},
+        "disclaimer": _INSIGHT_DISCLAIMER,
     }
 
 
