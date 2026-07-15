@@ -382,7 +382,7 @@ export const api = {
       season_batting: Record<string, { name: string; pid: string; year: number; val: number | string }[]>;
       season_pitching: Record<string, { name: string; pid: string; year: number; val: number }[]>;
       career_batting: Record<string, { name: string; pid: string; val: number; active: boolean }[]>;
-      career_pitching: Record<string, { name: string; pid: string; val: number; active: boolean }[]>;
+      career_pitching: Record<string, { name: string; pid: string; val: number | string; active: boolean }[]>;
     }>("/api/v1/records", 600),
   // 冠軍編：coverage fail-closed（缺年時 API 不回傳 franchise/player_ranking，前端據此不呈現累計結論）。
   championships: () =>

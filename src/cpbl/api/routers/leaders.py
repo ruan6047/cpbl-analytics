@@ -103,8 +103,30 @@ def records(kind_code: str = Query("A"), limit: int = Query(5, ge=1, le=50)) -> 
             cols = [d[0] for d in cur.description]
             return [dict(zip(cols, row, strict=False)) for row in cur.fetchall()]
 
-        career_bat = {k: career("batting_seasons", k, limit) for k in ("hr", "h", "rbi", "sb")}
-        career_pit = {k: career("pitching_seasons", k, limit) for k in ("w", "sv", "so")}
+        career_bat = {k: career("batting_seasons", k, limit) for k in ("hr", "h", "rbi", "sb", "pa")}
+        career_pit = {k: career("pitching_seasons", k, limit) for k in ("w", "so", "sv", "hld")}
+
+        # 生涯局數：ip 為 .1/.2 記法（X.1=X⅓局），**不可 naive sum**（0.1+0.1+0.1≠0.3）。
+        # 轉 outs（整數）加總再轉回顯示局數 X.Y，排序依 outs。
+        cur.execute(f"""
+            WITH c AS (
+              SELECT player_id,
+                     sum(floor(ip)::int * 3 + round((ip - floor(ip)) * 10)::int) AS outs
+              FROM cpbl.pitching_seasons WHERE ip IS NOT NULL GROUP BY player_id),
+            r AS (
+              SELECT p.name, p.id AS pid, c.outs, {_active_expr("c")},
+                     rank() OVER (ORDER BY c.outs DESC) AS rk
+              FROM c JOIN cpbl.players p ON p.id = c.player_id WHERE c.outs > 0)
+            SELECT * FROM r WHERE rk <= %(n)s ORDER BY rk, name
+        """, {"n": limit, "y": DEFAULT_SEASON})
+        ipcols = [d[0] for d in cur.description]
+        ip_rows = []
+        for row in cur.fetchall():
+            r = dict(zip(ipcols, row, strict=False))
+            o = r.pop("outs")
+            r["val"] = f"{o // 3}.{o % 3}"  # 局數 X.Y（Y=0/1/2）
+            ip_rows.append(r)
+        career_pit["ip"] = ip_rows
 
     return {"games": games, "season_batting": season_bat, "season_pitching": season_pit,
             "career_batting": career_bat, "career_pitching": career_pit}
