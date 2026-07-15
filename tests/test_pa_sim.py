@@ -19,6 +19,7 @@ from cpbl.models.pa_sim import (
     fit_transition_kernel,
     load_pa_artifact,
     predict_outcomes,
+    resolve_pa_event_no,
     save_pa_artifact,
     simulate_plate_appearance,
     train_pa_artifact,
@@ -135,6 +136,101 @@ def test_events_from_rows_converts_post_event_score_to_pre_event_score():
 
     assert (events[0].away_score, events[0].home_score) == (0, 0)
     assert (events[1].away_score, events[1].home_score) == (1, 0)
+
+
+def test_events_from_rows_skips_change_player_but_keeps_score_progression():
+    rows = [
+        {
+            "event_no": 1, "inning": 7, "half": "2", "hitter": "replaced",
+            "pitcher": "old-pitcher", "first_base": None, "second_base": None,
+            "third_base": None, "outs": 2, "post_away": 3, "post_home": 2,
+            "action": "一滾", "is_change_player": True,
+        },
+        {
+            "event_no": 2, "inning": 7, "half": "2", "hitter": "pinch-hitter",
+            "pitcher": "new-pitcher", "first_base": None, "second_base": None,
+            "third_base": None, "outs": 0, "post_away": 3, "post_home": 2,
+            "action": "一滾", "is_change_player": False,
+        },
+    ]
+
+    events = events_from_rows(rows)
+
+    assert len(events) == 1
+    assert events[0].hitter == "pinch-hitter"
+    assert (events[0].away_score, events[0].home_score) == (3, 2)
+
+
+def test_resolve_pa_event_no_maps_change_announcement_to_next_real_pa():
+    rows = [
+        {"event_no": 1000, "inning": 7, "half": "2", "hitter": "replaced",
+         "pitcher": "old", "is_change_player": True},
+        {"event_no": 2000, "inning": 7, "half": "2", "hitter": "pinch",
+         "pitcher": "new", "is_change_player": True},
+        {"event_no": 3000, "inning": 7, "half": "2", "hitter": "pinch",
+         "pitcher": "new", "is_change_player": False},
+    ]
+
+    assert resolve_pa_event_no(rows, 1000) == 3000
+    assert resolve_pa_event_no(rows, 3000) == 3000
+    assert resolve_pa_event_no(rows, 9999) is None
+
+
+def test_audit_counts_missing_action_and_invalid_state_as_unrebuilt():
+    events = [
+        PAEvent(1, 1, "1", "h1", "p1", "___", 2, 0, 0, "一滾"),
+        PAEvent(2, 1, "1", "h2", "p1", "___", 1, 0, 0, "一安"),
+        PAEvent(3, 1, "1", "h3", "p1", "1__", 1, 0, 0, None),
+    ]
+
+    audit = audit_pa_events(events, final_score=(0, 0))
+
+    assert audit.total_pa == 3
+    assert audit.classified_pa == 2
+    assert audit.rebuilt_pa == 1
+    assert audit.missing_action_pa == 1
+    assert audit.state_errors == {"outs_regressed": 1}
+
+
+def test_build_pa_snapshots_uses_first_known_out_count_after_control_event():
+    rows = [
+        {"event_no": 1, "inning": 4, "half": "2", "hitter": "h1", "pitcher": "p",
+         "first_base": None, "second_base": None, "third_base": None, "outs": 1,
+         "post_away": 0, "post_home": 0, "action": "一安"},
+        {"event_no": 2, "inning": 4, "half": "2", "hitter": "h2", "pitcher": "p",
+         "first_base": "runner", "second_base": None, "third_base": None, "outs": None,
+         "post_away": 0, "post_home": 0, "action": "游滾"},
+        {"event_no": 3, "inning": 4, "half": "2", "hitter": "h2", "pitcher": "p",
+         "first_base": "runner", "second_base": None, "third_base": None, "outs": 1,
+         "post_away": 0, "post_home": 0, "action": "游滾"},
+        {"event_no": 4, "inning": 4, "half": "2", "hitter": "h3", "pitcher": "p",
+         "first_base": "runner2", "second_base": None, "third_base": None, "outs": 1,
+         "post_away": 0, "post_home": 0, "action": "四壞"},
+    ]
+
+    audit = audit_pa_events(events_from_rows(rows), final_score=(0, 0))
+
+    assert audit.rebuilt_pa == 3
+    assert audit.state_errors == {}
+
+
+def test_audit_rejects_full_bases_walk_without_forced_advance():
+    events = [
+        PAEvent(1, 2, "2", "h1", "p", "123", 0, 1, 0, "四壞"),
+        PAEvent(2, 2, "2", "h2", "p", "123", 0, 1, 0, "內飛"),
+    ]
+
+    audit = audit_pa_events(events, final_score=(1, 0))
+
+    assert audit.rebuilt_pa == 1
+    assert audit.state_errors == {"forced_advance_missing": 1}
+
+
+def test_assert_audit_coverage_checks_box_plate_appearance_reconciliation():
+    audits = {2025: PAAudit(100, 100, 100, {}, box_pa=98)}
+
+    with pytest.raises(RuntimeError, match="box_delta=2.041%"):
+        assert_audit_coverage(audits, minimum=0.99)
 
 
 def test_snapshot_carries_game_metadata_for_time_cutoff():

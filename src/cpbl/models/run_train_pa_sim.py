@@ -10,6 +10,7 @@ from datetime import date
 from cpbl.config import settings
 from cpbl.db import conn
 from cpbl.models.pa_backtest import (
+    DEFAULT_STRENGTH_GRID,
     select_prior_strengths,
     transition_walk_forward,
     walk_forward_backtest,
@@ -49,8 +50,17 @@ def main() -> None:
         dataset.snapshots, test_years, strengths_by_year,
     )
     coverage = {
-        str(year): {"pa": audit.total_pa, "classification": audit.classification_rate,
-                    "rebuild": audit.rebuild_rate, "unknown": audit.unknown_actions}
+        str(year): {
+            "games": audit.games,
+            "pa": audit.total_pa,
+            "box_pa": audit.box_pa,
+            "box_delta": audit.box_delta_rate,
+            "classification": audit.classification_rate,
+            "rebuild": audit.rebuild_rate,
+            "missing_action": audit.missing_action_pa,
+            "state_errors": audit.state_errors,
+            "unknown": audit.unknown_actions,
+        }
         for year, audit in dataset.audits.items()
     }
     version = _persist(result, coverage)
@@ -65,8 +75,7 @@ def main() -> None:
     log.info("transition LogLoss=%.4f next-WP MAE=%.4f weighted-WP Brier=%.4f current-WP Brier=%.4f",
              transition["transition_log_loss"], transition["next_wp_mae"],
              transition["weighted_wp_brier"], transition["current_wp_brier"])
-    strengths = select_prior_strengths(dataset.snapshots, [(100.0, 400.0, 200.0),
-                                                            (200.0, 400.0, 200.0)])
+    strengths = select_prior_strengths(dataset.snapshots, DEFAULT_STRENGTH_GRID)
     artifact = train_pa_artifact(dataset.snapshots, trained_through, strengths)
     save_pa_artifact(artifact, settings.artifact_dir / "pa_sim.joblib")
     log.info("artifact=%s strengths=%s", settings.artifact_dir / "pa_sim.joblib", strengths)

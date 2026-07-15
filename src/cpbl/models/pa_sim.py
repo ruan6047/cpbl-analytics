@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from datetime import date
 from pathlib import Path
 
@@ -29,7 +29,7 @@ class PAEvent:
     hitter: str
     pitcher: str
     bases: str
-    outs: int
+    outs: int | None
     away_score: int
     home_score: int
     action: str | None
@@ -72,6 +72,10 @@ class PAAudit:
     classified_pa: int
     rebuilt_pa: int
     unknown_actions: dict[str, int]
+    missing_action_pa: int = 0
+    state_errors: dict[str, int] = field(default_factory=dict)
+    box_pa: int | None = None
+    games: int = 1
 
     @property
     def classification_rate(self) -> float:
@@ -80,6 +84,12 @@ class PAAudit:
     @property
     def rebuild_rate(self) -> float:
         return self.rebuilt_pa / self.total_pa if self.total_pa else 0.0
+
+    @property
+    def box_delta_rate(self) -> float | None:
+        if not self.box_pa:
+            return None
+        return abs(self.total_pa - self.box_pa) / self.box_pa
 
 
 @dataclass(frozen=True)
@@ -154,7 +164,9 @@ def events_from_rows(rows: Iterable[Mapping]) -> list[PAEvent]:
     away_score = home_score = 0
     events: list[PAEvent] = []
     for row in rows:
-        if all(row.get(key) is not None for key in ("inning", "half", "hitter", "pitcher")):
+        has_state = all(row.get(key) is not None for key in ("inning", "half"))
+        if (has_state and row.get("hitter") and row.get("pitcher")
+                and not row.get("is_change_player")):
             bases = (
                 ("1" if row.get("first_base") else "_")
                 + ("2" if row.get("second_base") else "_")
@@ -168,7 +180,7 @@ def events_from_rows(rows: Iterable[Mapping]) -> list[PAEvent]:
                     hitter=str(row["hitter"]),
                     pitcher=str(row["pitcher"]),
                     bases=bases,
-                    outs=int(row.get("outs") or 0),
+                    outs=(int(row["outs"]) if row.get("outs") is not None else None),
                     away_score=away_score,
                     home_score=home_score,
                     action=row.get("action"),
@@ -184,7 +196,27 @@ def events_from_rows(rows: Iterable[Mapping]) -> list[PAEvent]:
     return events
 
 
+def resolve_pa_event_no(rows: list[Mapping], event_no: int) -> int | None:
+    """將換人宣告事件確定性映射到同半局下一個真實打席事件。"""
+    index = next(
+        (i for i, row in enumerate(rows) if int(row["event_no"]) == event_no), None,
+    )
+    if index is None:
+        return None
+    target = rows[index]
+    half_key = (target.get("inning"), str(target.get("half")))
+    for row in rows[index:]:
+        if (row.get("inning"), str(row.get("half"))) != half_key:
+            return None
+        if (not row.get("is_change_player") and row.get("hitter")
+                and row.get("pitcher")):
+            return int(row["event_no"])
+    return None
+
+
 def _state(event: PAEvent) -> GameState:
+    if event.outs is None:
+        raise ValueError("建立 GameState 前必須解析出局數")
     return GameState(
         inning=event.inning,
         half=event.half,
@@ -209,6 +241,11 @@ def _group_events(events: list[PAEvent]) -> list[list[PAEvent]]:
     return groups
 
 
+def _first_state_event(group: list[PAEvent]) -> PAEvent | None:
+    """牽制等 control event 可能無 out_cnt；採同 PA 首個有完整局面者。"""
+    return next((event for event in group if event.outs is not None), None)
+
+
 def build_pa_snapshots(
     events: list[PAEvent], final_score: tuple[int, int] | None = None,
 ) -> list[PASnapshot]:
@@ -216,11 +253,18 @@ def build_pa_snapshots(
 
     最後一個打席沒有下一狀態時不猜測，由資料稽核列入未重建樣本。
     """
+    return _build_pa_snapshots(events, final_score)[0]
+
+
+def _build_pa_snapshots(
+    events: list[PAEvent], final_score: tuple[int, int] | None = None,
+) -> tuple[list[PASnapshot], Counter]:
     if not events:
-        return []
+        return [], Counter()
     groups = _group_events(events)
 
     snapshots: list[PASnapshot] = []
+    state_errors: Counter = Counter()
     game_outcome = 0.5
     if final_score is not None:
         game_outcome = (1.0 if final_score[1] > final_score[0]
@@ -231,7 +275,11 @@ def build_pa_snapshots(
         if result is None:
             continue
         first = group[0]
-        before = _state(first)
+        before_event = _first_state_event(group)
+        if before_event is None:
+            state_errors["missing_outs"] += 1
+            continue
+        before = _state(before_event)
         game_ended = index == len(groups) - 1
         if game_ended:
             if final_score is None:
@@ -246,9 +294,26 @@ def build_pa_snapshots(
                 home_score=home_score,
             )
         else:
-            after = _state(groups[index + 1][0])
+            next_event = _first_state_event(groups[index + 1])
+            if next_event is None:
+                state_errors["missing_next_outs"] += 1
+                continue
+            error = _state_transition_error(before_event, next_event)
+            if error:
+                state_errors[error] += 1
+                continue
+            after = _state(next_event)
         batting_before = before.away_score if before.half == "1" else before.home_score
         batting_after = after.away_score if before.half == "1" else after.home_score
+        if batting_after < batting_before:
+            state_errors["batting_score_regressed"] += 1
+            continue
+        runs_delta = batting_after - batting_before
+        same_half = (before.inning, before.half) == (after.inning, after.half)
+        if (result == "BB_HBP" and before.bases == "123" and same_half
+                and after.outs == before.outs and runs_delta == 0):
+            state_errors["forced_advance_missing"] += 1
+            continue
         snapshots.append(
             PASnapshot(
                 event_no=first.event_no,
@@ -257,7 +322,7 @@ def build_pa_snapshots(
                 result=result,
                 before=before,
                 after=after,
-                runs_delta=max(0, batting_after - batting_before),
+                runs_delta=runs_delta,
                 inning_ended=game_ended or (
                     (before.inning, before.half) != (after.inning, after.half)
                 ),
@@ -269,7 +334,24 @@ def build_pa_snapshots(
                 game_outcome=game_outcome,
             )
         )
-    return snapshots
+    return snapshots, state_errors
+
+
+def _state_transition_error(before: PAEvent, after: PAEvent) -> str | None:
+    """驗證下一打席首事件確實是可達的 post-state，不以 clamp 隱藏資料污染。"""
+    if before.outs is None or after.outs is None:
+        return "missing_outs"
+    if before.outs not in range(3) or after.outs not in range(3):
+        return "outs_out_of_range"
+    if after.away_score < before.away_score or after.home_score < before.home_score:
+        return "score_regressed"
+    current = (before.inning, before.half)
+    following = (after.inning, after.half)
+    if following == current:
+        return "outs_regressed" if after.outs < before.outs else None
+    expected = ((before.inning, "2") if before.half == "1"
+                else (before.inning + 1, "1"))
+    return None if following == expected else "inning_sequence_invalid"
 
 
 def audit_pa_events(
@@ -283,24 +365,30 @@ def audit_pa_events(
     ]
     terminal_actions = [action for action in actions if action]
     unknown = Counter(action for action in terminal_actions if classify_action(action) is None)
-    classified = sum(classify_action(action) is not None for action in terminal_actions)
-    rebuilt = len(build_pa_snapshots(events, final_score))
+    classified = sum(classify_action(action) is not None for action in actions)
+    rebuilt, state_errors = _build_pa_snapshots(events, final_score)
     return PAAudit(
-        total_pa=len(terminal_actions),
+        total_pa=len(groups),
         classified_pa=classified,
-        rebuilt_pa=rebuilt,
+        rebuilt_pa=len(rebuilt),
         unknown_actions=dict(sorted(unknown.items())),
+        missing_action_pa=sum(not action for action in actions),
+        state_errors=dict(sorted(state_errors.items())),
     )
 
 
 def assert_audit_coverage(audits: Mapping[int, PAAudit], minimum: float = 0.99) -> None:
     """逐年分類與狀態重建率都須達標；任一年不足即停止訓練。"""
-    failures = [
-        f"{year}: classification={audit.classification_rate:.3%}, "
-        f"rebuild={audit.rebuild_rate:.3%}"
-        for year, audit in sorted(audits.items())
-        if audit.classification_rate < minimum or audit.rebuild_rate < minimum
-    ]
+    failures = []
+    for year, audit in sorted(audits.items()):
+        box_delta = audit.box_delta_rate
+        if (audit.classification_rate < minimum or audit.rebuild_rate < minimum
+                or (box_delta is not None and box_delta > 1 - minimum)):
+            detail = (f"{year}: classification={audit.classification_rate:.3%}, "
+                      f"rebuild={audit.rebuild_rate:.3%}")
+            if box_delta is not None:
+                detail += f", box_delta={box_delta:.3%}"
+            failures.append(detail)
     if failures:
         raise RuntimeError("PA coverage 未達門檻：" + "; ".join(failures))
 
@@ -310,11 +398,17 @@ def _merge_audit(current: PAAudit | None, added: PAAudit) -> PAAudit:
         return added
     unknown = Counter(current.unknown_actions)
     unknown.update(added.unknown_actions)
+    state_errors = Counter(current.state_errors)
+    state_errors.update(added.state_errors)
     return PAAudit(
         total_pa=current.total_pa + added.total_pa,
         classified_pa=current.classified_pa + added.classified_pa,
         rebuilt_pa=current.rebuilt_pa + added.rebuilt_pa,
         unknown_actions=dict(sorted(unknown.items())),
+        missing_action_pa=current.missing_action_pa + added.missing_action_pa,
+        state_errors=dict(sorted(state_errors.items())),
+        box_pa=(current.box_pa or 0) + (added.box_pa or 0) or None,
+        games=current.games + added.games,
     )
 
 
@@ -329,7 +423,7 @@ def load_pa_dataset(from_year: int, to_year: int, kind: str = "A") -> PADataset:
                l.hitter_acnt AS hitter, l.pitcher_acnt AS pitcher,
                l.first_base, l.second_base, l.third_base, l.out_cnt AS outs,
                l.visiting_score AS post_away, l.home_score AS post_home,
-               l.batting_action_name AS action,
+               l.batting_action_name AS action, l.is_change_player,
                g.away_score AS final_away, g.home_score AS final_home
         FROM cpbl.game_livelog l
         JOIN cpbl.games g ON g.year=l.year AND g.kind_code=l.kind_code
@@ -352,6 +446,12 @@ def load_pa_dataset(from_year: int, to_year: int, kind: str = "A") -> PADataset:
         snapshots.extend(build_pa_snapshots(events, final_score))
 
     with conn() as connection:
+        box_by_year = dict(connection.execute(
+            "SELECT year, COALESCE(SUM(plate_appearances), 0) "
+            "FROM cpbl.batting_gamelog WHERE year BETWEEN %s AND %s AND kind_code=%s "
+            "GROUP BY year",
+            (from_year, to_year, kind),
+        ).fetchall())
         cur = connection.cursor(name="pa_sim_dataset")
         cur.execute(sql, (from_year, to_year, kind))
         columns = [column.name for column in cur.description]
@@ -366,6 +466,10 @@ def load_pa_dataset(from_year: int, to_year: int, kind: str = "A") -> PADataset:
             game_key = row_key
             game_rows.append(row)
         consume(game_rows)
+    audits = {
+        year: replace(audit, box_pa=int(box_by_year[year]) if year in box_by_year else None)
+        for year, audit in audits.items()
+    }
     return PADataset(snapshots=snapshots, audits=audits)
 
 
@@ -382,7 +486,7 @@ def load_game_pa_snapshot(
                    l.hitter_acnt AS hitter, l.pitcher_acnt AS pitcher,
                    l.first_base, l.second_base, l.third_base, l.out_cnt AS outs,
                    l.visiting_score AS post_away, l.home_score AS post_home,
-                   l.batting_action_name AS action,
+                   l.batting_action_name AS action, l.is_change_player,
                    g.away_score AS final_away, g.home_score AS final_home
             FROM cpbl.game_livelog l
             JOIN cpbl.games g ON g.year=l.year AND g.kind_code=l.kind_code
@@ -396,10 +500,13 @@ def load_game_pa_snapshot(
         rows = [dict(zip(columns, values, strict=True)) for values in cur.fetchall()]
     if not rows:
         return None
+    resolved_event_no = resolve_pa_event_no(rows, event_no)
+    if resolved_event_no is None:
+        return None
     events = events_from_rows(rows)
     final_score = (int(rows[-1]["final_away"]), int(rows[-1]["final_home"]))
     matches = [snapshot for snapshot in build_pa_snapshots(events, final_score)
-               if snapshot.event_no <= event_no <= snapshot.end_event_no]
+               if snapshot.event_no <= resolved_event_no <= snapshot.end_event_no]
     return matches[0] if len(matches) == 1 else None
 
 

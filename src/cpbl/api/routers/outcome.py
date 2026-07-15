@@ -176,9 +176,28 @@ def _pa_response(artifact: dict, hitter: str, pitcher: str, state: GameState) ->
         "wp_span": artifact["wp_span"],
         "uncertainty_method": "normal approximation over shrinkage effective sample size",
         "sample": {"hitter_pa": hitter_n, "pitcher_pa": pitcher_n,
-                   "direct_pa": direct_n, "low_sample": direct_n < 20},
+                   "direct_pa": direct_n, "low_sample": direct_n < 20,
+                   "shrinkage_weight": {
+                       "hitter": hitter_n / (hitter_n + model.hitter_strength),
+                       "pitcher": pitcher_n / (pitcher_n + model.pitcher_strength),
+                       "direct": direct_n / (direct_n + model.direct_strength),
+                   }},
         "state": state.__dict__, **result,
     }
+
+
+def _read_pa_artifact() -> tuple[dict | None, str | None]:
+    path = settings.artifact_dir / "pa_sim.joblib"
+    if not path.exists():
+        return None, "pa_sim artifact 未建置"
+    try:
+        artifact = load_pa_artifact(path)
+        required = {"trained_through", "wp_span", "model", "kernel"}
+        if not isinstance(artifact, dict) or not required <= artifact.keys():
+            raise ValueError("artifact contract 不完整")
+    except Exception:
+        return None, "pa_sim artifact 無法載入"
+    return artifact, None
 
 
 @router.get("/api/v1/outcome/plate-appearance")
@@ -189,10 +208,9 @@ def outcome_plate_appearance(
     bases: str = Query("___", pattern="^(_|1)(_|2)(_|3)$"),
     outs: int = Query(..., ge=0, le=2),
 ) -> dict:
-    path = settings.artifact_dir / "pa_sim.joblib"
-    if not path.exists():
-        return {"available": False, "reason": "pa_sim artifact 未建置"}
-    artifact = load_pa_artifact(path)
+    artifact, reason = _read_pa_artifact()
+    if artifact is None:
+        return {"available": False, "reason": reason}
     return _pa_response(artifact, hitter, pitcher,
                         GameState(inning, half, bases, outs, away_score, home_score))
 
@@ -205,10 +223,9 @@ def outcome_plate_appearance_from_game(
     snapshot = load_game_pa_snapshot(year, kind_code, game_sno, main_event_no)
     if not snapshot or not snapshot.game_date:
         return {"available": False, "reason": "無法唯一定位完整打席"}
-    path = settings.artifact_dir / "pa_sim.joblib"
-    if not path.exists():
-        return {"available": False, "reason": "pa_sim artifact 未建置"}
-    artifact = load_pa_artifact(path)
+    artifact, reason = _read_pa_artifact()
+    if artifact is None:
+        return {"available": False, "reason": reason}
     if artifact["trained_through"] >= snapshot.game_date.year:
         return {"available": False, "reason": "無符合 trained_through < game_date 的 artifact"}
     return {"source": {"year": year, "kind_code": kind_code, "game_sno": game_sno,
