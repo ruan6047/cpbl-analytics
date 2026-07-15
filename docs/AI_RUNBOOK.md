@@ -160,6 +160,27 @@ host 缺 `libomp.dylib`。**勿 `brew install libomp` 污染 host**；需 LightG
 
 ## 7. 驗證與部署
 
+### 7.1 多 AI 控制平面（Coordinator + 原子 lease）
+
+本機 Coordinator 為 **ruan6047**；未經使用者明確指派，不得由 AI 自行派工、認領或釋放其他卡。Coordinator 是本專案 canonical §4.1 的 control-plane adapter，唯一可執行 claim、handoff、merge 與 release。
+
+鎖根目錄固定為 `/private/tmp/cpbl-analytics-control-plane`（不進 git）；以 `mkdir` 的原子成功／失敗作為唯一 lock 判定，**Markdown、TASKS 狀態與聊天訊息都不是鎖**。每個 claim 目錄保存 `card_id`、owner、worktree、`claimed_at`、`lease_expires_at`、`resources`；預設 lease 4 小時，可續約。共享可寫資源須逐一宣告，例如 `file:<path>`、`port:<n>`、`container:<name>`、`db:local:cpbl`、`db:production:cpbl`。
+
+```bash
+# Coordinator：先確認卡可執行、依賴已滿足且無有效 owner，再原子 claim。
+mkdir -p /private/tmp/cpbl-analytics-control-plane
+mkdir /private/tmp/cpbl-analytics-control-plane/<CARD_ID>  # 已存在即 claim 失敗，停止
+# 建立 lease.json（不得含 secret），再建 ../cpbl-analytics-<CARD_FAMILY> worktree。
+
+# handoff／merge／release 前後：對帳所有活卡與 worktree。
+git worktree list
+find /private/tmp/cpbl-analytics-control-plane -mindepth 1 -maxdepth 1 -type d
+```
+
+- 逾期前可由 owner 續約；回收前 Coordinator 必須檢查 worktree 的未提交變更，禁止靜默刪除工作內容。
+- 同一卡族（原卡及 `<CARD_ID>-FIX<n>`）共用一個 worktree。merge 者在卡族全數結案後依序移除 worktree、刪本地分支、刪遠端分支。
+- 對 DB 的 claim 另依 [`DATABASE_CONTRACT.md`](DATABASE_CONTRACT.md) 取得資源 lease；schema 與 data migration 不可並行。
+
 ```bash
 # 改完一定要過：
 uv run ruff check                 # 後端

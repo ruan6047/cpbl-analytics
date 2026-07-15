@@ -1,25 +1,17 @@
-# AI 協作工作流 (cpbl-analytics 採用)
+# AI 協作工作流（cpbl-analytics 採用）
 
-> **完整規則見 canonical（submodule）：[`../.ai-workflow/AI_WORKFLOW.md`](../.ai-workflow/AI_WORKFLOW.md)**（唯一權威來源，改規則到 [ruan6047/ai-workflow](https://github.com/ruan6047/ai-workflow)；採用說明見 [`../.ai-workflow/ADOPTION.md`](../.ai-workflow/ADOPTION.md)）。
-> 更新規則到最新：`git submodule update --remote .ai-workflow && git add .ai-workflow && git commit -m "chore: sync ai-workflow"`。
-> 本專案任務看板／log 見 [`TASKS.md`](TASKS.md)。以下為**核心鐵律速查**，細節與流程圖以 canonical 為準。
+> **完整規則見 canonical（submodule）：[`../.ai-workflow/AI_WORKFLOW.md`](../.ai-workflow/AI_WORKFLOW.md)**（唯一權威來源；規則改動在 [ruan6047/ai-workflow](https://github.com/ruan6047/ai-workflow)）。採用與遷移說明見 [`../.ai-workflow/ADOPTION.md`](../.ai-workflow/ADOPTION.md)。
+> 本專案的任務 Ledger 見 [`TASKS.md`](TASKS.md)，卡片明細在 [`tasks/`](tasks/)；控制平面 [control plane]、資料庫與部署操作分別見 [`AI_RUNBOOK.md`](AI_RUNBOOK.md)、[`DATABASE_CONTRACT.md`](DATABASE_CONTRACT.md) 與 Runbook §7。模型選擇見 [`MODEL_ROUTING.md`](MODEL_ROUTING.md)。
 
 ## 核心鐵律（速查）
-1. **實作／審核分離**：同一張卡的執行與查核＝不同任務、不同經手者；**任何人不得自審自己實作的卡**（含 Claude Code）。
-2. **分支 + 部署閘門**：**程式碼(A 類)每卡開分支** `ai/<模型或工具>/<卡ID>`（文件/資料維運不必，見 canonical §0.1）；**只有 `main`（已審核合併）能部署，分支不部署**。在使用多工作區 (Worktree) 平行開發時，**各任務的看板狀態更新（docs/TASKS.md）必須在該任務的分支/工作區內修改並 commit**，嚴禁在其他獨立分支中代為修改看板狀態，以防 commit 混亂。
-3. **獨立性紅線**：紅線卡（安全/金流/統計 ML 正確性/資安/資料正確性）審核**必換模型家族或人審**，且**必跑實測**——同家族審（含 Opus 審 Sonnet）不算數。一般卡同家族異 session 審可接受。
-4. **退回不代改**：審核發現缺陷 → 退回 + 缺陷報告 → **原執行者同分支修** → 重審；審核者**不得順手改**。連續 ≥3 次退回 → 升級。
-5. **留痕 (Merge commit trailers)**：合併分支至 `main` 時，必須在 Merge/Squash commit 寫入以下 trailers（分支中途 commit 免寫。人＝GitHub 帳號如 `ruan6047`，勿寫「使用者」；AI＝`模型@工具`）：
-   ```
-   Requested-by:   <GitHub 帳號 | 業務/來源>
-   Planned-by:     <GitHub 帳號 | AI/模型>
-   Implemented-by: <模型@工具>
-   Reviewed-by:    <GitHub 帳號 | 模型@工具>
-   ```
-6. **算力與看板衛生**：`📥Backlog` 或 `⏳待執行` 狀態之卡片**僅保留 Ledger 總表一列**，不建卡片明細。卡片進入 `🔨執行中` 才新增明細；卡片 `🏁完成` 時，順手將整段卡片與 Ledger 列搬移至 `archive/TASKS_ARCHIVE.md`。
 
-**派工＝人工**（使用者指派）；**Claude Code 預設當審核 + PM（merge 閘門）**。
+1. **實作／審核分離**：同一張 A 類卡的執行、查核與 merge 必須是不同經手者；查核者只退回、不代改。
+2. **分支 + 部署閘門**：程式碼（A 類）每卡開分支與獨立 worktree；僅已審核合併至 `main` 的提交可部署。A 類 repo 必須以 branch protection／required checks 強制。
+3. **紅線獨立性**：安全、金流、統計／ML、資料正確性、資安部署與 production migration 必須換模型家族或人工查核，並附實測證據。
+4. **控制平面**：只有 Runbook 指定的 Coordinator 可原子 claim／release 卡片、建立 worktree、核發共享資源 lease；看板文字與聊天訊息不是鎖。
+5. **資料庫契約**：碰 DB 的卡片必填 `db_scope`；schema／data migration 為紅線，依 [`DATABASE_CONTRACT.md`](DATABASE_CONTRACT.md) 宣告 namespace、鎖、備份、回滾與驗證。
+6. **可驗證交接**：執行→查核前必須工作區乾淨、分支已推、自測與環境證據齊全；任何回歸測試必須先對缺陷版本跑紅。
+7. **留痕**：commit 加 `Requested-by`、`Planned-by`、`Implemented-by`、`Reviewed-by` trailers；人以 GitHub 帳號記錄、AI 以 `模型@工具` 記錄。
+8. **狀態與封存**：交付與部署分欄；需部署的卡唯有驗證成功才可完成。`TASKS.md` 僅留活卡 Ledger，卡片一檔，結案後封存。
 
-## cpbl 專屬
-- **部署細節**：push cpbl main → 主站 bump submodule → CI（見 [`AI_RUNBOOK.md`](AI_RUNBOOK.md) §3、memory `data-sync-local-to-prod`）。**分支不部署**這條在此語境＝分支不 bump submodule、不同步生產。
-- **紅線範圍**：統計/ML（Marcel 紅線、救援/RE/守備/球種分類）＝ CLAUDE.md 的 Fable 級——查核比照本檔紅線（換家族或人審 + 實測）。
+派工由人工進行；Coordinator 由 `AI_RUNBOOK.md` 指定。任何工具擔任執行者時，均不得兼任該卡查核者。

@@ -2,7 +2,7 @@
 
 > **操作前先讀 [`docs/AI_RUNBOOK.md`](docs/AI_RUNBOOK.md)**：指令速查、資料流、本機→生產同步、API/web 地圖、陷阱清單的**事實單一來源**。
 > 本檔負責「準則與紅線（為什麼）」，Runbook 負責「怎麼做（事實）」；衝突時以現實 + Runbook 為準並回頭修正。
-> **多 AI 協作前先讀 [`docs/AI_WORKFLOW.md`](docs/AI_WORKFLOW.md)**（stub → canonical `.ai-workflow/AI_WORKFLOW.md`，submodule）：階段職責（規劃/執行/查核）、分支制、部署閘門、留痕與獨立性紅線；任務看板見 [`docs/TASKS.md`](docs/TASKS.md)。本檔的模型路由階梯供其「用哪級模型」，AI_WORKFLOW 供其「哪階段誰負責」。
+> **多 AI 協作前先讀 [`docs/AI_WORKFLOW.md`](docs/AI_WORKFLOW.md)**（stub → canonical `.ai-workflow/AI_WORKFLOW.md`，submodule）：階段職責、分支制、部署閘門與留痕；活卡 Ledger 見 [`docs/TASKS.md`](docs/TASKS.md)。模型能力選擇的唯一來源是 [`docs/MODEL_ROUTING.md`](docs/MODEL_ROUTING.md)，資料庫寫入契約見 [`docs/DATABASE_CONTRACT.md`](docs/DATABASE_CONTRACT.md)。
 
 ## 專案概覽
 
@@ -219,19 +219,3 @@ URL（`http://cpbl-analytics:4001/api/info`）。
 - 觀點或前提有誤直接指出（例：有人要求用 opendata 做賽果預測 → 必須指出資料粒度不符）。
 - 改完跑驗證：`uv run ruff check` + `uv run pytest` + 容器內 `cpbl-train` 看回測對照表。
 - 涉及 LightGBM/原生相依，預設容器內執行，不在 macOS host 裝 build 依賴。
-
-## 模型路由（省成本：日常便宜、難題才逐級升）
-
-使用者以 `/model` 控制 session 模型（`haiku`/`sonnet`/`opus`/`fable`）。**AI 不能自己換模型，
-但每次都要主動在回覆開頭標示建議層級**（使用者看到再自行按 `/model`）。四層階梯（貴 → 便宜）：
-
-| 層級 | 適用 |
-|---|---|
-| **Fable** | 紅線級：統計/ML 正確性（Marcel 紅線、救援/RE/守備等重建邏輯）、新演算法、錯了難察覺的決策 |
-| **Opus** | 一般硬題：跨多檔非顯而易見決策、原因不明除錯、架構取捨、官網改版逆向（夠強又比 Fable 省）|
-| **Sonnet** | 標準寫碼：照既有 pattern 加 API/前端頁、遷移檔、已知原因的小修 |
-| **Haiku** | 純機械：跑爬蟲/同步/驗證/截圖、文件與記憶更新、commit |
-
-判準：**答案唯一、照抄現有模式 → 降；需判斷且錯了難發現 → 升。** 難題先升 **Opus**，只有踩到
-統計/ML 正確性等紅線才動用 **Fable**。切換保留對話 context，可在同一串裡「難段升、雜段降」
-無縫接續。標示格式：回覆開頭放 `⬆️ 升 Opus/Fable` 或 `⬇️ 降 Sonnet/Haiku` + 一句原因。

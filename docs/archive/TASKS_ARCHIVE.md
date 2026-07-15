@@ -1,5 +1,12 @@
 # 任務看板封存 (Archived Cards)
 
+## WF-12 封存 Ledger
+
+| 卡ID | 功能 | 交付狀態 | 部署狀態 | 封存位置 |
+|---|---|---|---|---|
+| BUG-VENUE-ALIAS | 球場列表遺漏歷史桃園使用年份 | 🏁完成 | ✅已驗證 | [`tasks/BUG-VENUE-ALIAS.md`](tasks/BUG-VENUE-ALIAS.md) |
+| Legacy pre-WF-12 | 2026-07-15 前的 Ledger 與所有卡片明細 | 已封存 | 依原始紀錄 | [`TASKS_PRE_WF12.md`](TASKS_PRE_WF12.md) |
+
 > 已完成（🏁）與封存（📥）的卡片移到此處，讓 [`../TASKS.md`](../TASKS.md) 只留活卡（省 AI 讀取算力）。
 > **git commit trailer 仍為單一事實來源**；本檔為歷史總覽。規格文件同在本目錄
 > （[`UI_IMPLEMENTATION_CHECKLIST.md`](UI_IMPLEMENTATION_CHECKLIST.md)、[`UI_IMPROVEMENT_PROPOSALS.md`](UI_IMPROVEMENT_PROPOSALS.md)、[`PITCH_TYPE_PLAN.md`](PITCH_TYPE_PLAN.md)）。
@@ -587,5 +594,4 @@
     2. 敘事型列（無年份或長散文）於解析時將 phase 標為 `"note"`，並在 API 端點（`people.py` 與 `players.py`）進行 SQL 過濾。
     3. 守門防禦：若同名且 Wiki 無生日（或 DB 無生日）無法互相比對，強制標記 `needs_review = True`，且 `player_id` 設為 `NULL` 阻斷自動歸戶。
     4. 重新全量執行 scraper 過濾數據入庫，更新 pytest 覆蓋各項新案例，全綠通過。
-
 
