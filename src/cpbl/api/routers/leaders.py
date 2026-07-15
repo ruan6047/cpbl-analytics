@@ -124,7 +124,7 @@ def records(kind_code: str = Query("A"), limit: int = Query(5, ge=1, le=50)) -> 
         for row in cur.fetchall():
             r = dict(zip(ipcols, row, strict=False))
             o = r.pop("outs")
-            r["val"] = f"{o // 3}.{o % 3}"  # 局數 X.Y（Y=0/1/2）
+            r["val"] = f"{o // 3}{('', '⅓', '⅔')[o % 3]}"  # 局數分數顯示（棒球慣例 X⅓/X⅔）
             ip_rows.append(r)
         career_pit["ip"] = ip_rows
 
@@ -321,6 +321,77 @@ def postseason_records() -> dict:
     # 依季後賽勝率排序（無出賽者殿後）；出賽年數欄可見樣本大小，誠實呈現
     teams.sort(key=lambda t: (t["win_pct"] is not None, t["win_pct"] or 0, t["g"]), reverse=True)
     return {"teams": teams, "postseason_kinds": ["C", "E"]}
+
+
+def _resolve_names(cur, codes: set[str]) -> dict[str, str]:
+    """隊碼→隊名：現役 franchise 取 team_dim.short，已解散隊取 games 當年最常見隊名。"""
+    cur.execute("SELECT team_code, short FROM cpbl.team_dim")
+    name = dict(cur.fetchall())
+    missing = [c for c in codes if c not in name]
+    if missing:
+        cur.execute("""
+            SELECT code, name FROM (
+              SELECT code, name, row_number() OVER (PARTITION BY code ORDER BY sum(cnt) DESC) rn
+              FROM (
+                SELECT home_team_code code, home_team_name name, count(*) cnt FROM cpbl.games
+                WHERE home_team_code = ANY(%s) GROUP BY 1,2
+                UNION ALL
+                SELECT away_team_code, away_team_name, count(*) FROM cpbl.games
+                WHERE away_team_code = ANY(%s) GROUP BY 1,2
+              ) g GROUP BY code, name) r WHERE rn=1
+        """, (missing, missing))
+        for code, nm in cur.fetchall():
+            name[code] = nm
+    return name
+
+
+@router.get("/api/v1/records/streaks")
+def streak_records(limit: int = Query(6, ge=1, le=20)) -> dict:
+    """例行賽單季最長連勝／連敗（全史 kind A）。以**當年隊名**歸屬（興農≠富邦）。
+
+    定義：**單季內**連續同結果場次；**和局（沒贏沒輸）中斷**連勝與連敗。並列同長度皆列。
+    """
+    from collections import defaultdict
+
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute("SELECT game_date, home_team_code, away_team_code, home_score, away_score, year "
+                    "FROM cpbl.games WHERE kind_code='A' AND home_score+away_score>0 "
+                    "ORDER BY game_date, game_sno")
+        seq: dict[tuple[str, int], list[tuple[str, object]]] = defaultdict(list)
+        for d, hc, ac, hs, as_, y in cur.fetchall():
+            seq[(hc, y)].append(("W" if hs > as_ else "L" if as_ > hs else "T", d))
+            seq[(ac, y)].append(("W" if as_ > hs else "L" if hs > as_ else "T", d))
+
+        def longest(res: list[tuple[str, object]], target: str) -> tuple[int, object]:
+            best = run = 0
+            best_end = None
+            for r, d in res:
+                if r == target:
+                    run += 1
+                    if run > best:
+                        best, best_end = run, d
+                else:
+                    run = 0  # 和局或反向 → 中斷
+            return best, best_end
+
+        wins, losses = [], []
+        for (code, y), res in seq.items():
+            bw, ew = longest(res, "W")
+            bl, el = longest(res, "L")
+            if bw >= 2:
+                wins.append((code, y, bw, ew))
+            if bl >= 2:
+                losses.append((code, y, bl, el))
+
+        name = _resolve_names(cur, {c for c, *_ in wins} | {c for c, *_ in losses})
+
+    def top(lst: list) -> list[dict]:
+        lst.sort(key=lambda x: (x[2], x[1]), reverse=True)
+        return [{"team_code": code, "team": name.get(code), "streak": s,
+                 "year": y, "end_date": str(e)} for code, y, s, e in lst[:limit]]
+
+    return {"win": top(wins), "loss": top(losses)}
 
 
 @router.get("/api/v1/season/batting-leaders")
