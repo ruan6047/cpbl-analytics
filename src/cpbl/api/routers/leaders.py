@@ -324,25 +324,22 @@ def postseason_records() -> dict:
 
 
 def _resolve_names(cur, codes: set[str]) -> dict[str, str]:
-    """隊碼→隊名：現役 franchise 取 team_dim.short，已解散隊取 games 當年最常見隊名。"""
-    cur.execute("SELECT team_code, short FROM cpbl.team_dim")
-    name = dict(cur.fetchall())
-    missing = [c for c in codes if c not in name]
-    if missing:
-        cur.execute("""
-            SELECT code, name FROM (
-              SELECT code, name, row_number() OVER (PARTITION BY code ORDER BY sum(cnt) DESC) rn
-              FROM (
-                SELECT home_team_code code, home_team_name name, count(*) cnt FROM cpbl.games
-                WHERE home_team_code = ANY(%s) GROUP BY 1,2
-                UNION ALL
-                SELECT away_team_code, away_team_name, count(*) FROM cpbl.games
-                WHERE away_team_code = ANY(%s) GROUP BY 1,2
-              ) g GROUP BY code, name) r WHERE rn=1
-        """, (missing, missing))
-        for code, nm in cur.fetchall():
-            name[code] = nm
-    return name
+    """隊碼→**當年隊名**（era-accurate，全 games 最常見名）：現役隊給全名（中信兄弟），已解散
+    隊給短名（興農，前端再以 teamFullName 補全）。不用 team_dim.short（「兄弟」無法區分兄弟象／
+    中信兄弟）。"""
+    codes = list(codes)
+    cur.execute("""
+        SELECT code, name FROM (
+          SELECT code, name, row_number() OVER (PARTITION BY code ORDER BY sum(cnt) DESC) rn
+          FROM (
+            SELECT home_team_code code, home_team_name name, count(*) cnt FROM cpbl.games
+            WHERE home_team_code = ANY(%s) GROUP BY 1,2
+            UNION ALL
+            SELECT away_team_code, away_team_name, count(*) FROM cpbl.games
+            WHERE away_team_code = ANY(%s) GROUP BY 1,2
+          ) g GROUP BY code, name) r WHERE rn=1
+    """, (codes, codes))
+    return dict(cur.fetchall())
 
 
 @router.get("/api/v1/records/team")
