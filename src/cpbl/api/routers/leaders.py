@@ -7,9 +7,25 @@ from fastapi import APIRouter, Query
 from cpbl.api.helpers import DEFAULT_SEASON, _ip_disp
 from cpbl.api.rows import _batting_rows, _pitching_rows, _primary_positions
 from cpbl.db import conn
+from cpbl.franchises import franchise_of
 from cpbl.ingest.championships import championship_coverage
 
 router = APIRouter()
+
+
+def _longest_title_streak(years: list[int]) -> tuple[int, int, int]:
+    """回傳 (最長連霸數, 起, 迄)。years 為某球團奪冠年份。"""
+    ys = sorted(set(years))
+    best, best_from, best_to = 1, ys[0], ys[0]
+    run, run_from = 1, ys[0]
+    for i in range(1, len(ys)):
+        if ys[i] == ys[i - 1] + 1:
+            run += 1
+        else:
+            run, run_from = 1, ys[i]
+        if run > best:
+            best, best_from, best_to = run, run_from, ys[i]
+    return best, best_from, best_to
 
 
 def _active_expr(alias: str) -> str:
@@ -202,6 +218,87 @@ def championships(limit: int = Query(10, ge=1, le=50)) -> dict:
         out["player_ranking"] = [dict(zip(cols, r, strict=False)) for r in cur.fetchall()]
 
     return out
+
+
+@router.get("/api/v1/records/postseason")
+def postseason_records() -> dict:
+    """季後賽球團戰績（**僅完整資料**）：台灣大賽亞軍數、最長連霸、季後賽勝率、出賽年數。
+
+    來源皆為全史完整資料：亞軍/連霸取自 canonical `championships`（1990–）；勝率/出賽取自
+    `games` 一軍季後賽（kind C 台灣大賽 1990–、kind E 挑戰賽 1998–，官方逐場結果完整）。
+    **刻意不含季後賽個人打擊紀錄**（batting_gamelog 僅 2018+，不完整 → 依誠實紅線不呈現）。
+    球團以 franchise 合併（兄弟象＋中信兄弟等），已解散隊（三商虎/時報鷹…）以當年隊名呈現。
+    """
+    from collections import defaultdict
+
+    with conn() as c:
+        cur = c.cursor()
+
+        # 冠軍年份（連霸）、亞軍數 by franchise
+        cur.execute("SELECT champion_team_code, runner_up_team_code, year "
+                    "FROM cpbl.championships WHERE verification_status='verified'")
+        champ_years: dict[str, list[int]] = defaultdict(list)
+        runner_up: dict[str, int] = defaultdict(int)
+        for champ, ru, year in cur.fetchall():
+            champ_years[franchise_of(champ)].append(year)
+            if ru:
+                runner_up[franchise_of(ru)] += 1
+
+        # 季後賽 W/L + 出賽年數（kind C 台灣大賽、E 挑戰賽）
+        cur.execute("SELECT home_team_code, away_team_code, home_score, away_score, year "
+                    "FROM cpbl.games WHERE kind_code IN ('C','E') AND home_score+away_score>0")
+        wins: dict[str, int] = defaultdict(int)
+        losses: dict[str, int] = defaultdict(int)
+        years_seen: dict[str, set[int]] = defaultdict(set)
+        for h, a, hs, as_, year in cur.fetchall():
+            fh, fa = franchise_of(h), franchise_of(a)
+            years_seen[fh].add(year)
+            years_seen[fa].add(year)
+            if hs > as_:
+                wins[fh] += 1
+                losses[fa] += 1
+            elif as_ > hs:
+                wins[fa] += 1
+                losses[fh] += 1
+
+        codes = set(champ_years) | set(runner_up) | set(wins) | set(losses)
+
+        # 隊名：現役 franchise 取 team_dim.short；已解散隊取 games 當年最常見隊名（era-accurate）
+        cur.execute("SELECT team_code, short FROM cpbl.team_dim")
+        name: dict[str, str] = {code: short for code, short in cur.fetchall()}
+        missing = [c for c in codes if c not in name]
+        if missing:
+            cur.execute("""
+                SELECT code, name FROM (
+                  SELECT code, name, row_number() OVER (PARTITION BY code ORDER BY sum(cnt) DESC) rn
+                  FROM (
+                    SELECT home_team_code code, home_team_name name, count(*) cnt FROM cpbl.games
+                    WHERE home_team_code = ANY(%s) GROUP BY 1,2
+                    UNION ALL
+                    SELECT away_team_code, away_team_name, count(*) FROM cpbl.games
+                    WHERE away_team_code = ANY(%s) GROUP BY 1,2
+                  ) g GROUP BY code, name) r WHERE rn=1
+            """, (missing, missing))
+            for code, nm in cur.fetchall():
+                name[code] = nm
+
+    teams = []
+    for code in codes:
+        w, ln = wins[code], losses[code]
+        g = w + ln
+        streak = _longest_title_streak(champ_years[code]) if champ_years.get(code) else (0, 0, 0)
+        teams.append({
+            "team_code": code,
+            "team": name.get(code),
+            "runner_up": runner_up.get(code, 0),
+            "appearances": len(years_seen.get(code, ())),
+            "w": w, "l": ln, "g": g,
+            "win_pct": round(w / g, 3) if g else None,
+            "streak": streak[0], "streak_from": streak[1], "streak_to": streak[2],
+        })
+    # 依季後賽勝率排序（無出賽者殿後）；出賽年數欄可見樣本大小，誠實呈現
+    teams.sort(key=lambda t: (t["win_pct"] is not None, t["win_pct"] or 0, t["g"]), reverse=True)
+    return {"teams": teams, "postseason_kinds": ["C", "E"]}
 
 
 @router.get("/api/v1/season/batting-leaders")
