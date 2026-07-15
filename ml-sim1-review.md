@@ -84,3 +84,37 @@
 ## Workflow handoff
 - 依 AI_WORKFLOW §5：卡轉 **↩退回**，本報告為缺陷報告；由原執行者（GPT-5@Codex）於**同分支同 worktree** 修復後 re-submit 重審。
 - 查核者未 merge、未部署、未刪除 worktree、未修改任何實作碼；僅新增本報告與 TASKS.md 留痕。
+
+---
+
+# 複查報告（Re-review，2026-07-16）
+
+- **複查者**：Claude Fable 5（`claude-fable-5`）@ Claude Code CLI（原 reviewer，非 GPT 家族）
+- **複查對象**：修復 commit `9b70150`＋留痕 `1231c2e`（HEAD `1231c2e` == origin 分支尖端，工作區乾淨）
+
+## Verdict：**PASS（✅通過）**
+
+## 原 findings 關閉狀態
+
+| Finding | 狀態 | 獨立證據 |
+|---|---|---|
+| P0 `is_change_player` 污染 | **CLOSED** | `events_from_rows` 排除換人列與缺投打者列、比分仍走全列；獨立重算（自寫 grouping＋SQL）2,335 場、181,316 islands、180,377 可分類，**逐年逐位**與稽核一致；deep-link 2026/A/3/720001000 現回代打 `0000007589`／投手 `0000001821`／0 出局／空壘／PA 720003000–720005000，不再回被換下場的 `0000006240`；換人事件確定性映射同半局下一真實 PA，跨半局以 2018/33/1020020000 真實案例實測回 None fail-closed |
+| P1 coverage 恆等 | **CLOSED** | 分母改為全部 islands（含無 action）；rebuild 由比分／出局／局序／滿壘強迫進壘獨立驗證，classification（99.22–99.67%）與 rebuild（99.21–99.65%）不再恆等；box 對帳（0.46–0.94%）納入 `assert_audit_coverage` 三重閘門（任一 >1% 缺口即 fail）；失敗列以 `state_errors` 逐類持久化且**確實排除於 snapshots／kernel**（builder `continue` 於 append 前）|
+| P2 2019/2020 out_cnt | **CLOSED** | 根因獨立證實＝「投手牽制」control event `out_cnt=NULL`（2018/2019/2020＝21/1,843/1,921 筆，2021+ 為 0）；修復採同 PA 內第一個已知 out count（`_first_state_event` 僅限本 group，無跨 PA／跨半局回填）；殘留異常列入 state_errors 排除（2019 全類合計 22、2020 全類 18）；99% 門檻未調降 |
+| P3 TASKS 年份誤記 | **CLOSED** | `docs/TASKS.md` 已改 2021–2025，與持久化 test_years 一致 |
+| P3 artifact 損毀 500 | **CLOSED** | `_read_pa_artifact` 捕捉載入例外＋契約鍵檢查；live 實測損毀檔回 200＋`available=false`＋`pa_sim artifact 無法載入`；另有單元測試 |
+| P3 strength grid 不一致 | **CLOSED** | 正式 artifact 改用 `DEFAULT_STRENGTH_GRID`（27 組）內層選擇，選出 (200,400,200) |
+| shrinkage weight 缺失 | **CLOSED** | API `sample.shrinkage_weight` 回傳 hitter／pitcher／direct 三層權重；未見球員全為 0.0＋low_sample=true |
+
+## 新增 findings
+無 P0–P2。P3 備註兩則（不阻擋）：(1) box 對帳 SQL 未 join 完成場過濾，目前數值與 join 版完全一致，未來若 box 出現未完成場資料會使閘門偏嚴（fail-closed 方向，安全）；(2) `_first_state_event` 以 PA 內首個含 out count 事件錨定 before 壘況，若牽制前有盜壘會取到 mid-PA 壘況——2018–2020 抽樣皆為牽制（不改壘位），影響可忽略。
+
+## 獨立驗證
+- `uv sync --frozen`／`ruff` 全綠；`pytest` **163 passed**（新增 7 支，含損毀 artifact、換人映射、滿壘保送 invariant、box 對帳突變測試）。
+- 重跑 `.venv/bin/python -u -m cpbl.models.run_train_pa_sim`：**完全重現**宣稱值——n_test 123,279；combined LogLoss 1.406731／Brier 0.680715／ECE 0.019798，league 1.421000／0.685257／0.025999；transition LogLoss 0.610516、next-WP MAE 0.034837；weighted-WP 0.151635 vs current 0.151727（複查重跑覆寫 model_versions 為 `pa-sim-1784131944`，指標同 `pa-sim-1784131303`）。
+- **滿壘 BB/HBP invariant**：新 kernel「零得分且出局不變」= 0（污染版為 20）；殘留 2 筆「零得分且出局＋1」經原始 content 逐筆核實為真實事件（2018/100 周思齊三壘遭觸殺後打者補死球；2021/20 梁家榮遭觸殺〔重播輔助判決〕後完成故四）——修復未過度清洗合法轉移，也未把「滿壘四壞必得分」錯當硬規則。
+- **transition LogLoss 下降機制分解**（fold 2025，舊碼 vs 新碼同法重算）：clamp（actual 不在 kernel）占比 0.230%→0.247% 幾乎不變、測試列僅少 0.76%；avg NLL 0.9567→0.5104 的下降來自**兩側污染清理後留存列機率集中**——非選擇性刪列、非洩漏；排除規則為物理一致性判準、與 outcome 無關、train/test 同套。
+- Deep-link／cutoff／未見球員／損毀 artifact／唯讀性全數實測通過（詳上表）。
+
+## 殘餘風險（維持不變）
+weighted-WP 改善 0.000092 在雜訊水準——「僅供結果拆解、不得宣稱整場勝率預測提升」紅線由 UX 卡承接；PA 不確定性區間為 normal approximation、賽前區間為 bootstrap 模型敏感度，均非正式統計信賴區間；artifact freshness 依離線 CLI；官網 livelog 改版（換人列／control event 語意）會直接衝擊重建，box 對帳閘門現在能自動攔截此類回歸。

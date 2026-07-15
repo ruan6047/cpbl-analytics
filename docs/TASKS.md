@@ -21,7 +21,7 @@
 | UX-RECORD1 | `/records` 歷史重要性導向重製 | ruan6047 | Opus-4.8@Claude Code（spec 不存在→當場定範圍） | Opus-4.8@Claude Code | 待指派（≠執行者） | `ai/opus-4.8/UX-RECORD1` | ⚪ | 🔍待查核（07-15 冠軍為核心＋重排：王朝榜 hero＋生涯榜提第二＋逐年冠亞軍＋球員冠軍次數；coverage fail-closed；build:check/tsc 綠、深淺色截圖驗證） |
 | ML-UMP1 | 裁判誤判預期影響研究 | ruan6047 | 待研究 spec（建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-UMP1` | 🔴 | 📥Backlog（先驗證再決定是否產品化，不併 UX-10） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
-| ML-SIM1 | 簡易勝負預測＋單一打席情境模擬 | ruan6047 | GPT-5@Codex（[`spec`](../ml-sim1-spec.md)；07-15 核可） | GPT-5@Codex | Fable-5@Claude Code | `ai/gpt-5-codex/ML-SIM1` | 🔴 | 🔍待複查（P0/P1 已依缺陷報告修復並重跑全指標；原 reviewer 須獨立確認） |
+| ML-SIM1 | 簡易勝負預測＋單一打席情境模擬 | ruan6047 | GPT-5@Codex（[`spec`](../ml-sim1-spec.md)；07-15 核可） | GPT-5@Codex | Fable-5@Claude Code | `ai/gpt-5-codex/ML-SIM1` | 🔴 | ✅通過（07-16 複查 by Fable-5：P0/P1/P2/P3 七項 findings 全數 CLOSED、獨立重算與滿壘 invariant／deep-link 實測通過；見 [`ml-sim1-review.md`](../ml-sim1-review.md) 複查節。待 PM merge） |
 | ML-SIM2 | 全場狀態模擬器（完整陣容／牛棚／後續打席） | ruan6047 | 待遠期評估 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**遠期目標，暫時不做**） |
 | TEAM-STYLE1 | 球隊球風研究（年度／時期風格向量→球隊頁＋賽果候選特徵） | ruan6047 | 待研究 spec | 待指派 | 待指派 | — | 🔴 | 📥Backlog（速度戰／投手戰等為待驗證假說；先描述，增量回測通過才進模型） |
 
@@ -158,6 +158,7 @@
   - 07-15 修正後 PA 走查（2021–2025，n=123,279）：combined LogLoss 1.406731、Brier 0.680715、ECE 0.019798，優於 league 1.421000／0.685257／0.025999；transition LogLoss 由污染版 1.157256 降至 0.610516，next-WP MAE 0.034837
   - 07-15 weighted-WP Brier 0.151635 僅小幅優於 current-WP 0.151727，維持「僅供結果拆解、不得宣稱預測提升」紅線；API 補 shrinkage weights，損毀 artifact 改乾淨 fail-closed
   - 07-15 修復驗證：Ruff 全綠、pytest 163 passed；正式 PA CLI 已重跑並持久化 `pa-sim-1784131303`。修復提交後推送同分支，交回 Fable-5@Claude Code 複查；GPT 執行者不自審、不合併
+  - 07-16 複查 by Fable-5@Claude Code → **✅通過**：七項 findings 全數 CLOSED（詳 [`ml-sim1-review.md`](../ml-sim1-review.md) 複查節）。獨立重算（自寫 grouping）2,335 場／181,316 islands／180,377 可分類逐年逐位一致；CLI 重跑重現全部指標（n=123,279、combined 1.406731、transition 0.610516、weighted 0.151635 vs current 0.151727）；滿壘 BB/HBP「零得分且出局不變」=0，殘留 2 筆經原始 content 核實為真實跑者出局（2018/100、2021/20）；deep-link 2026/A/3/720001000 正確解析代打 7589、跨半局換人列 fail-closed（2018/33 實測）；P2 根因證實＝牽制 control event out_cnt NULL（2019/2020 各 1,843/1,921 筆）；transition LogLoss 下降經舊碼對照分解確認為污染清理、非選擇性刪列（clamp 占比 0.23%→0.25% 幾乎不變）。維持 weighted-WP「僅供拆解、不得宣稱預測提升」紅線。複查者不 merge，交 PM 走 merge 閘門
 
 ### 開卡格式（範本）
 
