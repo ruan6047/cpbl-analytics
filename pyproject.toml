@@ -55,6 +55,7 @@ cpbl-train-outcome-simple = "cpbl.models.run_train_outcome_simple:main"
 cpbl-train-pa-sim = "cpbl.models.run_train_pa_sim:main"
 cpbl-classify-pitches = "cpbl.models.run_classify_pitches:main"
 cpbl-classify-pitches-v2 = "cpbl.models.pitch_type_v2:main"
+cpbl-research-umpire-impact = "cpbl.models.run_umpire_impact:main"
 
 [dependency-groups]
 dev = [
