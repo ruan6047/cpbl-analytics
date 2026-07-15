@@ -14,6 +14,7 @@
 | [UX-MATCHUP2](tasks/UX-MATCHUP2.md) | 投打對決整合球員個人頁 | ruan6047 | 待指派 | 待指派 | `ai/<執行者>/UX-MATCHUP2` | ⚪ | 📥Backlog | —不適用 |
 | [UX-RECORD1](tasks/UX-RECORD1.md) | `/records` 歷史重要性導向重製 | ruan6047 | Opus-4.8@ClaudeCode | 待指派 | `ai/opus-4.8/UX-RECORD1` | ⚪ | 🔍待查核 | ⏸未部署 |
 | [ML-UMP1](tasks/ML-UMP1.md) | 好球帶判決差異研究 | ruan6047 | GPT-5@Codex | Fable-5@Claude Code | 已合併（`7585604`） | 🔴 | 📦已合併（07-16 複查 PASS；run-value 僅研究元件、WP／固定帶方向性產品 no-go，詳 [`results`](research/ML-UMP1_RESULTS.md)） | —不適用（離線研究） |
+| [ML-UMP2](tasks/ML-UMP2.md) | 身高比例逐打者代理帶敏感度重跑 | ruan6047 | 待指派 | 待指派 | `ai/<執行者>/ML-UMP2` | 🔴 | 📥Backlog | —不適用 |
 | [ML-PT3](tasks/ML-PT3.md) | 中職版球路品質指數 | ruan6047 | 待指派 | 待指派 | — | 🔴 | 📥Backlog | —不適用 |
 | [ML-SIM1](../ml-sim1-spec.md) | 簡易勝負預測＋單一打席模擬 | ruan6047 | GPT-5@Codex | Fable-5@Claude Code | 已合併（`7dfa82f`） | 🔴 | 📦已合併（07-16 複查 PASS；七項 findings 全數 CLOSED，詳 [`review`](../ml-sim1-review.md)／[`plan`](../ml-sim1-plan.md)） | ⏸未部署 |
 | [ML-SIM2](tasks/ML-SIM2.md) | 全場狀態模擬器 | ruan6047 | 待指派 | 待指派 | — | 🔴 | 📥Backlog | —不適用 |
@@ -24,4 +25,5 @@
 - `MATCHUP-DATA1 → ML-MATCHUP1 → UX-MATCHUP1 → UX-MATCHUP2`；前兩卡為資料／統計紅線，未獨立查核不得啟動 UI 卡。
 - `RECORD-DATA1 → RECORD-API1 → UX-RECORD1`；前兩卡已結案並封存，UX-RECORD1 正待獨立查核。
 - `VENUE-DEFUNCT` 目前存在對應 worktree／分支，但 Ledger 仍是 Backlog；Coordinator 必須在下次 claim 前先對帳、確認是否為有效 lease，不能直接視為已派工。
+- `ML-UMP1`（已合併）→ `ML-UMP2`：身高比例帶重跑完全複用 ML-UMP1 引擎與敏感度框架；方向性呈現（含「判決偏向哪隊」）以 ML-UMP2 翻轉測試為前置閘門。
 - 2026-07-15 前的完整看板文字與已完成卡歷史已封存於 [`archive/TASKS_PRE_WF12.md`](archive/TASKS_PRE_WF12.md)。
