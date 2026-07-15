@@ -3,6 +3,7 @@ import { DataTable, type Column } from "@/components/table";
 import { ActivePill, GonePill, NameTag, Notice, PlayerLink, TeamBadge, TeamLogo } from "@/components/ui";
 import { api } from "@/lib/api";
 import { teamFullName } from "@/lib/teams";
+import { CareerLeaders } from "./career-leaders";
 import { ChampionsPlayerTable, type ChampRow } from "./champions-player-table";
 import { DynastyChart } from "./dynasty-chart";
 
@@ -47,27 +48,6 @@ function seasonRows(d: Records): SeasonRow[] {
 }
 
 // 生涯排行：每一項獨立一張排行卡（勿把 HR/H/RBI/SB 黏在同一表用「紀錄」欄硬分，看不清）。
-function LeaderCard({ title, rows }: { title: string; rows?: CareerRec[] }) {
-  const items = rows ?? [];
-  return (
-    <div className="card p-4">
-      <h4 className="mb-2.5 text-sm font-semibold text-ink">{title}</h4>
-      <ol className="space-y-1.5">
-        {items.map((r, i) => (
-          <li key={`${r.pid}-${i}`} className="flex items-center gap-2 text-sm">
-            <span className="w-4 shrink-0 text-right font-mono text-xs tabular-nums text-faint">{i + 1}</span>
-            <span className="min-w-0 flex-1 truncate font-sans">
-              <PlayerLink pid={r.pid} name={r.name} />
-              {r.active && <span className="ml-1.5 text-[10px] font-medium text-up">現役</span>}
-            </span>
-            <span className="shrink-0 font-mono font-semibold tabular-nums text-accent">{r.val}</span>
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
-}
-
 const gameColumns: Column<GameRow>[] = [
   { header: "紀錄", cell: (r) => r.label, sticky: true, nowrap: true, className: "font-sans font-medium text-ink" },
   { header: "紀錄值", cell: (r) => r.value, align: "right", nowrap: true, className: "font-semibold text-accent" },
@@ -136,12 +116,15 @@ export default async function RecordsPage() {
     { title: "生涯全壘打", rows: d.career_batting.hr },
     { title: "生涯安打", rows: d.career_batting.h },
     { title: "生涯打點", rows: d.career_batting.rbi },
+    { title: "生涯打席", rows: d.career_batting.pa },
     { title: "生涯盜壘", rows: d.career_batting.sb },
   ];
   const pitchingCareer = [
     { title: "生涯勝投", rows: d.career_pitching.w },
-    { title: "生涯救援", rows: d.career_pitching.sv },
     { title: "生涯三振", rows: d.career_pitching.so },
+    { title: "生涯救援", rows: d.career_pitching.sv },
+    { title: "生涯中繼", rows: d.career_pitching.hld },
+    { title: "生涯局數", rows: d.career_pitching.ip },
   ];
 
   // 冠軍資料 coverage fail-closed：缺年時 API 不回傳 franchise/player_ranking，前端據此
@@ -181,6 +164,12 @@ export default async function RecordsPage() {
   }
   const champRows = [...champGroups.values()];
 
+  // 例行賽勝率（全史 kind A）：現役球團依勝率排序，供王朝榜第三欄與冠軍分布對照。
+  const regular = fr.items
+    .filter((t) => t.active)
+    .map((t) => ({ code: t.code, name: t.name, win_pct: t.win_pct, w: t.w, l: t.l }))
+    .sort((a, b) => (b.win_pct ?? 0) - (a.win_pct ?? 0));
+
   return (
     <div className="space-y-10">
       <h1 className="text-2xl font-extrabold tracking-tight text-ink">歷史紀錄室</h1>
@@ -188,26 +177,15 @@ export default async function RecordsPage() {
       <section aria-labelledby="dynasty">
         <h2 id="dynasty" className="mb-3 text-lg font-semibold text-ink">冠軍王朝榜</h2>
         {covComplete && dynasties.length ? (
-          <DynastyChart rows={dynasties} />
+          <DynastyChart rows={dynasties} regular={regular} />
         ) : (
           <Notice>{ch.note ?? "冠軍資料尚未補齊，暫不呈現累計王朝排行。"}</Notice>
         )}
       </section>
 
-      <section aria-labelledby="career-records" className="space-y-4">
-        <h2 id="career-records" className="text-lg font-semibold text-ink">生涯排行</h2>
-        <div>
-          <h3 className="mb-2 text-sm font-semibold text-muted">打者紀錄</h3>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {battingCareer.map((c) => <LeaderCard key={c.title} title={c.title} rows={c.rows} />)}
-          </div>
-        </div>
-        <div>
-          <h3 className="mb-2 text-sm font-semibold text-muted">投手紀錄</h3>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {pitchingCareer.map((c) => <LeaderCard key={c.title} title={c.title} rows={c.rows} />)}
-          </div>
-        </div>
+      <section aria-labelledby="career-records">
+        <h2 id="career-records" className="mb-3 text-lg font-semibold text-ink">生涯排行</h2>
+        <CareerLeaders batting={battingCareer} pitching={pitchingCareer} />
       </section>
 
       <section aria-labelledby="postseason">
