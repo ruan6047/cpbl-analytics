@@ -79,7 +79,8 @@ SCORED_CALLED_SQL = LINKED_CALLED_CTE + """
   SELECT year, kind_code, game_sno,
          min(venue) AS venue,
          min(home_team_code) AS home_team_code,
-         min(away_team_code) AS away_team_code
+         min(away_team_code) AS away_team_code,
+         extract(month FROM min(game_date))::int AS game_month
   FROM cpbl.games
   WHERE year = %(season)s AND kind_code = %(kind)s
   GROUP BY year, kind_code, game_sno
@@ -90,7 +91,7 @@ SELECT l.year, l.kind_code, l.game_sno, l.pitcher_acnt, l.pitch_cnt,
        l.visiting_home_type, l.first_base, l.second_base, l.third_base,
        l.pre_away_score, l.pre_home_score,
        l.plate_loc_side, l.plate_loc_height, l.catcher_acnt,
-       d.head_umpire, g.venue, g.home_team_code, g.away_team_code
+       d.head_umpire, g.venue, g.home_team_code, g.away_team_code, g.game_month
 FROM linked_called l
 LEFT JOIN game_meta g USING (year, kind_code, game_sno)
 LEFT JOIN cpbl.game_detail d USING (year, kind_code, game_sno)
@@ -123,6 +124,7 @@ class LinkedCalledRow:
     venue: str | None
     home_team_code: str | None
     away_team_code: str | None
+    game_month: int | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,6 +155,7 @@ def build_called_pitches(rows: list[LinkedCalledRow]) -> ScoringPitchData:
             or row.venue is None
             or row.home_team_code is None
             or row.away_team_code is None
+            or row.game_month is None
         ):
             exclusions["missing_game_metadata"] += 1
             continue
@@ -202,6 +205,7 @@ def build_called_pitches(rows: list[LinkedCalledRow]) -> ScoringPitchData:
                 plate_loc_side=row.plate_loc_side,
                 plate_loc_height=row.plate_loc_height,
                 observed_call=observed,
+                game_month=row.game_month,
             )
         )
     return ScoringPitchData(tuple(pitches), dict(exclusions))

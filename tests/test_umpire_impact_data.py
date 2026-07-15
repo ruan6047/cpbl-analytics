@@ -198,6 +198,7 @@ def test_scoring_loader_reconstructs_called_pitch_and_fixed_exclusions() -> None
         venue="球場",
         home_team_code="HOME",
         away_team_code="AWAY",
+        game_month=4,
     )
     invalid_count = replace(valid, pitch_cnt=2, ball_cnt=0)
 
@@ -206,12 +207,19 @@ def test_scoring_loader_reconstructs_called_pitch_and_fixed_exclusions() -> None
     assert len(result.pitches) == 1
     assert result.pitches[0].state.balls == 0
     assert result.pitches[0].observed_call.value == "ball"
+    assert result.pitches[0].game_month == 4
     assert result.exclusions == {"invalid_post_count": 1}
 
 
 def test_scoring_query_joins_umpire_venue_and_team_metadata_read_only() -> None:
     sql = _norm(SCORED_CALLED_SQL).lower()
 
-    for token in ("head_umpire", "venue", "home_team_code", "away_team_code"):
+    for token in (
+        "head_umpire",
+        "venue",
+        "home_team_code",
+        "away_team_code",
+        "game_month",
+    ):
         assert token in sql
     assert all(keyword not in sql for keyword in ("insert ", "update ", "delete "))

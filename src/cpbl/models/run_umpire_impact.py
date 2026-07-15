@@ -11,13 +11,18 @@ from typing import Any
 from cpbl.db import conn
 from cpbl.models.umpire_impact import (
     DEFAULT_PROXY_ZONE,
+    ConstantProbabilityModel,
     RunValueModel,
     WinProbabilityModel,
+    aggregate_product_baselines,
+    aggregate_score_strata,
     aggregate_teams,
     aggregate_umpires,
     bootstrap_impact_aggregates,
     bootstrap_metric_deltas,
     bootstrap_probability_deltas,
+    constant_home_probability,
+    retain_legacy_asymmetric_50cm,
     score_called_pitch,
     tune_alpha,
 )
@@ -62,6 +67,7 @@ def _validate(kind: str, iterations: int) -> dict[str, Any]:
     validation = [row for row in data.observations if row.game_id.startswith("2024-")]
     test_run = [row for row in data.observations if row.game_id.startswith("2025-")]
     test_win = [row for row in data.win_observations if row.game_id.startswith("2025-")]
+    train_win = [row for row in data.win_observations if int(row.game_id[:4]) <= 2024]
     tuning = tune_alpha(train, validation, candidates=ALPHA_CANDIDATES)
     model = RunValueModel.fit([*train, *validation], alpha=tuning.alpha)
     run_candidate = model.metrics(test_run)
@@ -73,6 +79,8 @@ def _validate(kind: str, iterations: int) -> dict[str, Any]:
     win_baseline_model = WinProbabilityModel(model, count_aware=False)
     win_candidate = win_candidate_model.metrics(test_win)
     win_baseline = win_baseline_model.metrics(test_win)
+    constant_probability = constant_home_probability(train_win)
+    win_sanity = ConstantProbabilityModel(constant_probability).metrics(test_win)
     win_bootstrap = bootstrap_probability_deltas(
         win_candidate_model,
         win_baseline_model,
@@ -90,6 +98,7 @@ def _validate(kind: str, iterations: int) -> dict[str, Any]:
     )
     return {
         "split": {"train": len(train), "validation": len(validation), "test": len(test_run)},
+        "gate_refit_span": "2018-2024",
         "alpha": tuning.alpha,
         "validation_by_alpha": tuning.metrics_by_alpha,
         "run_value": {
@@ -102,6 +111,10 @@ def _validate(kind: str, iterations: int) -> dict[str, Any]:
         "win_probability": {
             "candidate": win_candidate,
             "baseline": win_baseline,
+            "sanity_baseline": {
+                "training_home_win_probability": constant_probability,
+                "metrics": win_sanity,
+            },
             "bootstrap": win_bootstrap,
             "gate_passed": wp_gate,
         },
@@ -126,6 +139,14 @@ def _score(season: int, kind: str, iterations: int, output: Path) -> dict[str, A
     scores = [score_called_pitch(pitch, model) for pitch in scoring.pitches]
     umpire_rows = aggregate_umpires(scores)
     team_rows = aggregate_teams(scores)
+    product_baselines = aggregate_product_baselines(scores)
+    score_strata = aggregate_score_strata(scores)
+    umpire_strata = {
+        row.umpire: aggregate_score_strata(
+            [score for score in scores if score.pitch.umpire == row.umpire]
+        )
+        for row in umpire_rows
+    }
 
     zone_by_umpire: dict[str, dict[str, float]] = {}
     zone_by_team: dict[str, dict[str, dict[str, float]]] = {}
@@ -176,6 +197,20 @@ def _score(season: int, kind: str, iterations: int, output: Path) -> dict[str, A
             "coverage_sensitive": _sign_flipped(
                 reference_by_umpire[umpire], venue_alternatives[umpire]
             ),
+            "home_away_sensitive": _sign_flipped(
+                reference_by_umpire[umpire],
+                [
+                    row.sum_delta_runs_offense
+                    for row in umpire_strata[umpire]["home_away"].values()
+                ],
+            ),
+            "month_sensitive": _sign_flipped(
+                reference_by_umpire[umpire],
+                [
+                    row.sum_delta_runs_offense
+                    for row in umpire_strata[umpire]["month"].values()
+                ],
+            ),
             "zone_totals": zone_by_umpire[umpire],
         }
         for umpire in reference_by_umpire
@@ -198,6 +233,45 @@ def _score(season: int, kind: str, iterations: int, output: Path) -> dict[str, A
             "zone_totals": zone_by_team[row.team],
         }
         for row in team_rows
+    }
+
+    legacy_scores = [
+        score for score in scores if retain_legacy_asymmetric_50cm(score.pitch)
+    ]
+    legacy_umpires = {
+        row.umpire: row for row in aggregate_umpires(legacy_scores)
+    }
+    legacy_teams = {row.team: row for row in aggregate_teams(legacy_scores)}
+    legacy_filter = {
+        "role": "sensitivity_only_not_primary",
+        "contract": "called strike outside proxy and >50cm on any single axis",
+        "excluded_called_pitches": len(scores) - len(legacy_scores),
+        "product_baselines": asdict(aggregate_product_baselines(legacy_scores)),
+        "sum_delta_runs_offense": sum(
+            score.delta_runs_offense for score in legacy_scores
+        ),
+        "umpires": {
+            row.umpire: {
+                "sum_delta_runs_offense": legacy_umpires[row.umpire].sum_delta_runs_offense,
+                "direction_changed": row.sum_delta_runs_offense
+                * legacy_umpires[row.umpire].sum_delta_runs_offense
+                < 0,
+            }
+            for row in umpire_rows
+        },
+        "teams": {
+            row.team: {
+                "state_value_for": legacy_teams[row.team].state_value_for,
+                "state_value_against": legacy_teams[row.team].state_value_against,
+                "for_direction_changed": row.state_value_for
+                * legacy_teams[row.team].state_value_for
+                < 0,
+                "against_direction_changed": row.state_value_against
+                * legacy_teams[row.team].state_value_against
+                < 0,
+            }
+            for row in team_rows
+        },
     }
 
     completed_by_venue = {str(venue): int(games) for venue, games in completed_rows}
@@ -232,6 +306,7 @@ def _score(season: int, kind: str, iterations: int, output: Path) -> dict[str, A
                 "fielding_team": pitch.fielding_team,
                 "catcher_acnt": pitch.catcher_acnt,
                 "venue": pitch.venue,
+                "game_month": pitch.game_month,
                 "pre_call_state": asdict(pitch.state),
                 "plate_loc_side": pitch.plate_loc_side,
                 "plate_loc_height": pitch.plate_loc_height,
@@ -262,11 +337,28 @@ def _score(season: int, kind: str, iterations: int, output: Path) -> dict[str, A
         "proxy_disagreements": sum(score.proxy_disagreement for score in scores),
         "backoffs": sum(score.backed_off for score in scores),
         "sum_delta_runs_offense": sum(score.delta_runs_offense for score in scores),
+        "product_baselines": asdict(product_baselines),
+        "sample_distribution": {
+            dimension: {key: asdict(value) for key, value in groups.items()}
+            for dimension, groups in score_strata.items()
+        },
+        "legacy_asymmetric_50cm_filter": legacy_filter,
         "coverage": coverage,
         "umpires": [
             {
                 **asdict(row),
                 "bootstrap": asdict(uncertainty_by_umpire[row.umpire]),
+                "product_baselines": asdict(
+                    aggregate_product_baselines(
+                        [score for score in scores if score.pitch.umpire == row.umpire]
+                    )
+                ),
+                "sample_distribution": {
+                    dimension: {
+                        key: asdict(value) for key, value in groups.items()
+                    }
+                    for dimension, groups in umpire_strata[row.umpire].items()
+                },
                 "sensitivity": sensitivity[row.umpire],
             }
             for row in umpire_rows
@@ -275,6 +367,26 @@ def _score(season: int, kind: str, iterations: int, output: Path) -> dict[str, A
             {
                 **asdict(row),
                 "bootstrap": asdict(uncertainty_by_team[row.team]),
+                "product_baselines": {
+                    "for": asdict(
+                        aggregate_product_baselines(
+                            [
+                                score
+                                for score in scores
+                                if score.pitch.batting_team == row.team
+                            ]
+                        )
+                    ),
+                    "against": asdict(
+                        aggregate_product_baselines(
+                            [
+                                score
+                                for score in scores
+                                if score.pitch.fielding_team == row.team
+                            ]
+                        )
+                    ),
+                },
                 "sensitivity": team_sensitivity[row.team],
             }
             for row in team_rows

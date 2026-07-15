@@ -7,6 +7,7 @@ import pytest
 from cpbl.models.umpire_impact import (
     Call,
     CalledPitch,
+    ConstantProbabilityModel,
     PitchState,
     ProxyZone,
     RunObservation,
@@ -14,14 +15,18 @@ from cpbl.models.umpire_impact import (
     RunValueModel,
     WinObservation,
     WinProbabilityModel,
+    aggregate_product_baselines,
+    aggregate_score_strata,
     aggregate_teams,
     aggregate_umpires,
     bootstrap_impact_aggregates,
     bootstrap_metric_deltas,
     bootstrap_probability_deltas,
     bootstrap_umpire_aggregates,
+    constant_home_probability,
     post_to_pre_count,
     proxy_call,
+    retain_legacy_asymmetric_50cm,
     score_called_pitch,
     signed_edge_distance_cm,
     transition_called_pitch,
@@ -350,6 +355,30 @@ def test_win_probability_metrics_include_calibration_and_ece() -> None:
     assert metrics.calibration_slope == pytest.approx(metrics.calibration_slope)
 
 
+def test_constant_probability_model_reports_wp_sanity_metrics() -> None:
+    model = ConstantProbabilityModel(0.6)
+    observations = [
+        WinObservation(_state(), 1.0, "g1"),
+        WinObservation(_state(), 0.0, "g2"),
+    ]
+
+    metrics = model.metrics(observations)
+
+    assert model.predict(_state()) == pytest.approx(0.6)
+    assert metrics.brier == pytest.approx((0.4**2 + 0.6**2) / 2)
+    assert metrics.n == 2
+
+
+def test_constant_home_probability_weights_each_training_game_once() -> None:
+    observations = [
+        WinObservation(_state(), 1.0, "g1"),
+        WinObservation(_state(balls=1), 1.0, "g1"),
+        WinObservation(_state(), 0.0, "g2"),
+    ]
+
+    assert constant_home_probability(observations) == pytest.approx(0.5)
+
+
 def test_win_probability_bootstrap_uses_paired_game_clusters() -> None:
     class Candidate:
         @staticmethod
@@ -378,7 +407,9 @@ def test_win_probability_bootstrap_uses_paired_game_clusters() -> None:
     assert result.log_loss_delta.high < 0
 
 
-def _called_pitch(*, observed: Call = Call.BALL, umpire: str = "主審甲") -> CalledPitch:
+def _called_pitch(
+    *, observed: Call = Call.BALL, umpire: str = "主審甲", month: int = 4
+) -> CalledPitch:
     return CalledPitch(
         year=2026,
         kind_code="A",
@@ -394,6 +425,7 @@ def _called_pitch(*, observed: Call = Call.BALL, umpire: str = "主審甲") -> C
         plate_loc_side=0.0,
         plate_loc_height=0.75,
         observed_call=observed,
+        game_month=month,
     )
 
 
@@ -438,6 +470,39 @@ def test_umpire_and_team_aggregates_preserve_signed_totals() -> None:
     assert teams["HOME"].state_value_against == pytest.approx(
         umpire.sum_delta_runs_offense
     )
+
+
+def test_product_baselines_and_home_away_month_strata_are_aggregated() -> None:
+    run_model = RunValueModel.fit(_wp_training_rows(), alpha=0.1)
+    away = score_called_pitch(_called_pitch(month=4), run_model)
+    home = score_called_pitch(
+        replace(_called_pitch(month=5), state=_state(batting_side="2")), run_model
+    )
+
+    baseline = aggregate_product_baselines([away, home])
+    strata = aggregate_score_strata([away, home])
+
+    assert baseline.called_pitches == 2
+    assert baseline.sum_abs_edge_distance_cm == pytest.approx(
+        abs(away.edge_distance_cm) + abs(home.edge_distance_cm)
+    )
+    assert set(strata["home_away"]) == {"away", "home"}
+    assert set(strata["month"]) == {"4", "5"}
+
+
+def test_legacy_50cm_filter_matches_existing_asymmetric_axis_contract() -> None:
+    called_strike = _called_pitch(observed=Call.STRIKE)
+    horizontal_outlier = replace(called_strike, plate_loc_side=0.754)
+    diagonal_outlier = replace(
+        called_strike,
+        plate_loc_side=0.613,
+        plate_loc_height=0.063,
+    )
+    called_ball = replace(horizontal_outlier, observed_call=Call.BALL)
+
+    assert not retain_legacy_asymmetric_50cm(horizontal_outlier)
+    assert retain_legacy_asymmetric_50cm(diagonal_outlier)
+    assert retain_legacy_asymmetric_50cm(called_ball)
 
 
 def test_umpire_bootstrap_refits_history_and_resamples_scoring_games() -> None:

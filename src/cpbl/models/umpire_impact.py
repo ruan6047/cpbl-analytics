@@ -90,6 +90,7 @@ class CalledPitch:
     plate_loc_side: float
     plate_loc_height: float
     observed_call: Call
+    game_month: int = 0
 
     @property
     def game_id(self) -> str:
@@ -127,6 +128,23 @@ class TeamAggregate:
     calls_against: int
     state_value_for: float
     state_value_against: float
+
+
+@dataclass(frozen=True, slots=True)
+class ProductBaselines:
+    called_pitches: int
+    proxy_disagreements: int
+    proxy_disagreement_rate: float
+    sum_abs_edge_distance_cm: float
+
+
+@dataclass(frozen=True, slots=True)
+class ScoreStratum:
+    games: int
+    called_pitches: int
+    proxy_disagreements: int
+    sum_delta_runs_offense: float
+    per_100_called: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -293,6 +311,32 @@ class ProbabilityBootstrapComparison:
 
 class ProbabilityPredictor(Protocol):
     def predict(self, state: PitchState) -> float: ...
+
+
+class ConstantProbabilityModel:
+    """以訓練期聯盟主場勝率作固定預測的 sanity baseline。"""
+
+    def __init__(self, probability: float) -> None:
+        if not 0 < probability < 1:
+            raise ValueError("probability must be strictly between zero and one")
+        self.probability = probability
+
+    def predict(self, state: PitchState) -> float:
+        return self.probability
+
+    def metrics(self, observations: Iterable[WinObservation]) -> ProbabilityMetrics:
+        return probability_metrics(self, observations)
+
+
+def constant_home_probability(observations: Iterable[WinObservation]) -> float:
+    outcomes: dict[str, float] = {}
+    for row in observations:
+        previous = outcomes.setdefault(row.game_id, row.outcome_home)
+        if previous != row.outcome_home:
+            raise ValueError("game has inconsistent home outcomes")
+    if not outcomes:
+        raise ValueError("observations must not be empty")
+    return sum(outcomes.values()) / len(outcomes)
 
 
 ParentKey = tuple[str, str, int]
@@ -562,10 +606,16 @@ class WinProbabilityModel:
         return CallValues(parent_ball, parent_strike, True)
 
     def metrics(self, observations: Iterable[WinObservation]) -> ProbabilityMetrics:
+        return probability_metrics(self, observations)
+
+
+def probability_metrics(
+    predictor: ProbabilityPredictor, observations: Iterable[WinObservation]
+) -> ProbabilityMetrics:
         rows = list(observations)
         if not rows:
             raise ValueError("observations must not be empty")
-        predictions = [self.predict(row.state) for row in rows]
+        predictions = [predictor.predict(row.state) for row in rows]
         outcomes = [row.outcome_home for row in rows]
         epsilon = 1e-15
         brier = sum((prediction - outcome) ** 2 for prediction, outcome in zip(predictions, outcomes, strict=True)) / len(rows)
@@ -845,6 +895,66 @@ def aggregate_teams(scores: Iterable[PitchScore]) -> list[TeamAggregate]:
         )
         for team in teams
     ]
+
+
+def aggregate_product_baselines(scores: Iterable[PitchScore]) -> ProductBaselines:
+    rows = list(scores)
+    if not rows:
+        raise ValueError("scores must not be empty")
+    disagreements = sum(row.proxy_disagreement for row in rows)
+    return ProductBaselines(
+        called_pitches=len(rows),
+        proxy_disagreements=disagreements,
+        proxy_disagreement_rate=disagreements / len(rows),
+        sum_abs_edge_distance_cm=sum(abs(row.edge_distance_cm) for row in rows),
+    )
+
+
+def aggregate_score_strata(
+    scores: Iterable[PitchScore],
+) -> dict[str, dict[str, ScoreStratum]]:
+    rows = list(scores)
+    if not rows:
+        raise ValueError("scores must not be empty")
+
+    def aggregate(grouped: dict[str, list[PitchScore]]) -> dict[str, ScoreStratum]:
+        return {
+            key: ScoreStratum(
+                games=len({row.pitch.game_id for row in group}),
+                called_pitches=len(group),
+                proxy_disagreements=sum(row.proxy_disagreement for row in group),
+                sum_delta_runs_offense=sum(
+                    row.delta_runs_offense for row in group
+                ),
+                per_100_called=sum(row.delta_runs_offense for row in group)
+                / len(group)
+                * 100,
+            )
+            for key, group in sorted(grouped.items())
+        }
+
+    by_side: dict[str, list[PitchScore]] = defaultdict(list)
+    by_month: dict[str, list[PitchScore]] = defaultdict(list)
+    for row in rows:
+        side = "away" if row.pitch.state.batting_side == "1" else "home"
+        by_side[side].append(row)
+        by_month[str(row.pitch.game_month)].append(row)
+    return {"home_away": aggregate(by_side), "month": aggregate(by_month)}
+
+
+def retain_legacy_asymmetric_50cm(
+    pitch: CalledPitch, zone: ProxyZone = DEFAULT_PROXY_ZONE
+) -> bool:
+    """精確重現既有 leaderboard 的單軸、判決相依排除規則。"""
+    outside = proxy_call(pitch.plate_loc_side, pitch.plate_loc_height, zone) is Call.BALL
+    beyond_axis_margin = (
+        abs(pitch.plate_loc_side) > zone.half_width + 0.5
+        or pitch.plate_loc_height < zone.bottom - 0.5
+        or pitch.plate_loc_height > zone.top + 0.5
+    )
+    return not (
+        pitch.observed_call is Call.STRIKE and outside and beyond_axis_margin
+    )
 
 
 def bootstrap_umpire_aggregates(
