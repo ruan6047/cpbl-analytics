@@ -42,10 +42,10 @@ export function DynastyChart({ rows }: { rows: DynastyRow[] }) {
             <Pie data={rows} dataKey="titles" nameKey="team" innerRadius="60%" outerRadius="95%" paddingAngle={2} stroke="none">
               {rows.map((r) => <Cell key={r.team_code} fill={teamColor(r.team_code)} />)}
             </Pie>
-            <Tooltip content={<YearTooltip />} />
+            <Tooltip content={<YearTooltip />} wrapperStyle={{ zIndex: 20 }} />
           </PieChart>
         </ResponsiveContainer>
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+        <div className="pointer-events-none absolute inset-0 z-0 flex flex-col items-center justify-center">
           <span className="font-mono text-3xl font-extrabold tabular-nums text-ink">{total}</span>
           <span className="text-[11px] text-muted">座冠軍・{rows.length} 隊</span>
         </div>
