@@ -1,13 +1,24 @@
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 
 from cpbl.models.pa_sim import (
+    GameState,
+    PAAudit,
     PAEvent,
+    PASnapshot,
+    Transition,
+    assert_audit_coverage,
     audit_pa_events,
     build_pa_snapshots,
     classify_action,
     events_from_rows,
+    fit_empirical_bayes,
+    fit_transition_kernel,
+    predict_outcomes,
+    simulate_plate_appearance,
 )
 
 
@@ -121,3 +132,90 @@ def test_events_from_rows_converts_post_event_score_to_pre_event_score():
 
     assert (events[0].away_score, events[0].home_score) == (0, 0)
     assert (events[1].away_score, events[1].home_score) == (1, 0)
+
+
+def test_snapshot_carries_game_metadata_for_time_cutoff():
+    events = [
+        PAEvent(1, 1, "1", "h1", "p1", "___", 0, 0, 0, "一安",
+                year=2025, game_sno=7, game_date=date(2025, 4, 1)),
+        PAEvent(2, 1, "1", "h2", "p1", "1__", 0, 0, 0, None,
+                year=2025, game_sno=7, game_date=date(2025, 4, 1)),
+    ]
+
+    snapshot = build_pa_snapshots(events)[0]
+
+    assert snapshot.year == 2025
+    assert snapshot.game_sno == 7
+    assert snapshot.game_date == date(2025, 4, 1)
+
+
+def test_assert_audit_coverage_fails_closed_below_threshold():
+    audits = {2025: PAAudit(100, 98, 98, {"未知": 2})}
+
+    with pytest.raises(RuntimeError, match="2025.*classification=98.000%.*rebuild=98.000%"):
+        assert_audit_coverage(audits, minimum=0.99)
+
+
+def _snapshot(result: str, hitter: str = "h1", pitcher: str = "p1") -> PASnapshot:
+    before = GameState(1, "1", "___", 0, 0, 0)
+    after = GameState(1, "1", "___", 1, 0, 0)
+    return PASnapshot(1, hitter, pitcher, result, before, after, 0, False, False, year=2024)
+
+
+def test_empirical_bayes_probabilities_are_mutually_exclusive_and_normalized():
+    model = fit_empirical_bayes([
+        _snapshot("K"), _snapshot("K"), _snapshot("HR"),
+        _snapshot("1B", "h2", "p2"), _snapshot("BIP_OUT", "h2", "p2"),
+    ], hitter_strength=2, pitcher_strength=2, direct_strength=3)
+
+    probabilities = predict_outcomes(model, "h1", "p1")
+
+    assert set(probabilities) == {"K", "BB_HBP", "1B", "XBH", "HR", "BIP_OUT", "OTHER_REACH"}
+    assert sum(probabilities.values()) == pytest.approx(1.0)
+    assert all(probability > 0 for probability in probabilities.values())
+
+
+def test_empirical_bayes_unseen_players_fall_back_to_league_distribution():
+    model = fit_empirical_bayes([_snapshot("K"), _snapshot("HR", "h2", "p2")])
+
+    assert predict_outcomes(model, "rookie", "new-pitcher") == pytest.approx(model.league)
+
+
+def test_transition_kernel_uses_exact_state_then_falls_back():
+    snapshots = [
+        PASnapshot(1, "h", "p", "1B", GameState(1, "1", "___", 0, 0, 0),
+                   GameState(1, "1", "1__", 0, 0, 0), 0, False, False),
+        PASnapshot(2, "h", "p", "1B", GameState(1, "1", "12_", 1, 0, 0),
+                   GameState(1, "1", "123", 1, 0, 0), 0, False, False),
+    ]
+    kernel = fit_transition_kernel(snapshots)
+
+    exact, exact_level = kernel.distribution("1B", "___", 0)
+    fallback, fallback_level = kernel.distribution("1B", "_2_", 0)
+
+    assert exact_level == "result+bases+outs"
+    assert exact == [(Transition(0, "1__", 0, False), 1.0)]
+    assert fallback_level == "result+outs"
+    assert sum(probability for _, probability in fallback) == pytest.approx(1.0)
+
+
+def test_simulate_plate_appearance_walkoff_does_not_call_future_wp():
+    training = [
+        PASnapshot(1, "h", "p", "HR", GameState(9, "2", "___", 1, 2, 2),
+                   GameState(9, "2", "___", 1, 2, 3), 1, False, False),
+    ]
+    for index, outcome in enumerate(("K", "BB_HBP", "1B", "XBH", "BIP_OUT", "OTHER_REACH"), 2):
+        training.append(PASnapshot(
+            index, "h", "p", outcome, GameState(9, "2", "___", 1, 2, 2),
+            GameState(9, "2", "___", 2, 2, 2), 0, False, False,
+        ))
+    model = fit_empirical_bayes(training)
+    kernel = fit_transition_kernel(training)
+
+    result = simulate_plate_appearance(
+        model, kernel, "h1", "p1", GameState(9, "2", "___", 1, 2, 2),
+        lambda _: 0.25,
+    )
+
+    assert result["outcomes"]["HR"]["win_probability"] == 1.0
+    assert 0.0 <= result["weighted_win_probability"] <= 1.0

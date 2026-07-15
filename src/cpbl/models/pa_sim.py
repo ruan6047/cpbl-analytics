@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import math
 from collections import Counter
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
+from datetime import date
 
+from cpbl.db import conn
 from cpbl.ingest.splits_calc import PA_OUTCOME
 
 OUTCOMES = ("K", "BB_HBP", "1B", "XBH", "HR", "BIP_OUT", "OTHER_REACH")
@@ -27,6 +30,9 @@ class PAEvent:
     away_score: int
     home_score: int
     action: str | None
+    year: int = 0
+    game_sno: int = 0
+    game_date: date | None = None
 
 
 @dataclass(frozen=True)
@@ -50,6 +56,9 @@ class PASnapshot:
     runs_delta: int
     inning_ended: bool
     game_ended: bool
+    year: int = 0
+    game_sno: int = 0
+    game_date: date | None = None
 
 
 @dataclass(frozen=True)
@@ -66,6 +75,53 @@ class PAAudit:
     @property
     def rebuild_rate(self) -> float:
         return self.rebuilt_pa / self.total_pa if self.total_pa else 0.0
+
+
+@dataclass(frozen=True)
+class PADataset:
+    snapshots: list[PASnapshot]
+    audits: dict[int, PAAudit]
+
+
+@dataclass(frozen=True)
+class EmpiricalBayesModel:
+    league: dict[str, float]
+    hitters: dict[str, Counter]
+    pitchers: dict[str, Counter]
+    direct: dict[tuple[str, str], Counter]
+    hitter_strength: float
+    pitcher_strength: float
+    direct_strength: float
+
+
+@dataclass(frozen=True)
+class Transition:
+    runs_delta: int
+    bases: str
+    outs: int
+    inning_ended: bool
+
+
+@dataclass(frozen=True)
+class TransitionKernel:
+    exact: dict[tuple[str, str, int], Counter]
+    by_outs: dict[tuple[str, int], Counter]
+    by_result: dict[str, Counter]
+
+    def distribution(
+        self, result: str, bases: str, outs: int,
+    ) -> tuple[list[tuple[Transition, float]], str]:
+        candidates = (
+            (self.exact.get((result, bases, outs)), "result+bases+outs"),
+            (self.by_outs.get((result, outs)), "result+outs"),
+            (self.by_result.get(result), "result"),
+        )
+        for counts, level in candidates:
+            if counts:
+                total = sum(counts.values())
+                rows = sorted(counts.items(), key=lambda item: repr(item[0]))
+                return [(transition, count / total) for transition, count in rows], level
+        raise RuntimeError(f"無 {result} 的狀態轉移樣本")
 
 
 def classify_action(action: str | None) -> str | None:
@@ -111,6 +167,9 @@ def events_from_rows(rows: Iterable[Mapping]) -> list[PAEvent]:
                     away_score=away_score,
                     home_score=home_score,
                     action=row.get("action"),
+                    year=int(row.get("year") or 0),
+                    game_sno=int(row.get("game_sno") or 0),
+                    game_date=row.get("game_date"),
                 )
             )
         if row.get("post_away") is not None:
@@ -194,6 +253,9 @@ def build_pa_snapshots(
                     (before.inning, before.half) != (after.inning, after.half)
                 ),
                 game_ended=game_ended,
+                year=first.year,
+                game_sno=first.game_sno,
+                game_date=first.game_date,
             )
         )
     return snapshots
@@ -218,3 +280,233 @@ def audit_pa_events(
         rebuilt_pa=rebuilt,
         unknown_actions=dict(sorted(unknown.items())),
     )
+
+
+def assert_audit_coverage(audits: Mapping[int, PAAudit], minimum: float = 0.99) -> None:
+    """逐年分類與狀態重建率都須達標；任一年不足即停止訓練。"""
+    failures = [
+        f"{year}: classification={audit.classification_rate:.3%}, "
+        f"rebuild={audit.rebuild_rate:.3%}"
+        for year, audit in sorted(audits.items())
+        if audit.classification_rate < minimum or audit.rebuild_rate < minimum
+    ]
+    if failures:
+        raise RuntimeError("PA coverage 未達門檻：" + "; ".join(failures))
+
+
+def _merge_audit(current: PAAudit | None, added: PAAudit) -> PAAudit:
+    if current is None:
+        return added
+    unknown = Counter(current.unknown_actions)
+    unknown.update(added.unknown_actions)
+    return PAAudit(
+        total_pa=current.total_pa + added.total_pa,
+        classified_pa=current.classified_pa + added.classified_pa,
+        rebuilt_pa=current.rebuilt_pa + added.rebuilt_pa,
+        unknown_actions=dict(sorted(unknown.items())),
+    )
+
+
+def load_pa_dataset(from_year: int, to_year: int, kind: str = "A") -> PADataset:
+    """串流讀取已完成賽事，重建可供走查的逐打席 snapshot 與逐年稽核。"""
+    if from_year > to_year:
+        raise ValueError("from_year 不可大於 to_year")
+    sql = """
+        SELECT l.year, l.game_sno, g.game_date,
+               l.main_event_no::bigint AS event_no,
+               l.inning_seq AS inning, l.visiting_home_type AS half,
+               l.hitter_acnt AS hitter, l.pitcher_acnt AS pitcher,
+               l.first_base, l.second_base, l.third_base, l.out_cnt AS outs,
+               l.visiting_score AS post_away, l.home_score AS post_home,
+               l.batting_action_name AS action,
+               g.away_score AS final_away, g.home_score AS final_home
+        FROM cpbl.game_livelog l
+        JOIN cpbl.games g ON g.year=l.year AND g.kind_code=l.kind_code
+                         AND g.game_sno=l.game_sno
+        WHERE l.year BETWEEN %s AND %s AND l.kind_code=%s
+          AND g.home_score + g.away_score > 0
+        ORDER BY l.year, l.game_sno, l.main_event_no::bigint
+    """
+    snapshots: list[PASnapshot] = []
+    audits: dict[int, PAAudit] = {}
+
+    def consume(rows: list[dict]) -> None:
+        if not rows:
+            return
+        events = events_from_rows(rows)
+        final_score = (int(rows[-1]["final_away"]), int(rows[-1]["final_home"]))
+        year = int(rows[0]["year"])
+        audit = audit_pa_events(events, final_score)
+        audits[year] = _merge_audit(audits.get(year), audit)
+        snapshots.extend(build_pa_snapshots(events, final_score))
+
+    with conn() as connection:
+        cur = connection.cursor(name="pa_sim_dataset")
+        cur.execute(sql, (from_year, to_year, kind))
+        columns = [column.name for column in cur.description]
+        game_key = None
+        game_rows: list[dict] = []
+        for values in cur:
+            row = dict(zip(columns, values, strict=True))
+            row_key = (row["year"], row["game_sno"])
+            if game_key is not None and row_key != game_key:
+                consume(game_rows)
+                game_rows = []
+            game_key = row_key
+            game_rows.append(row)
+        consume(game_rows)
+    return PADataset(snapshots=snapshots, audits=audits)
+
+
+def fit_empirical_bayes(
+    snapshots: Iterable[PASnapshot],
+    hitter_strength: float = 200.0,
+    pitcher_strength: float = 300.0,
+    direct_strength: float = 100.0,
+) -> EmpiricalBayesModel:
+    """建立分層計數；strength 由外層訓練資料的內層走查選定。"""
+    if min(hitter_strength, pitcher_strength, direct_strength) <= 0:
+        raise ValueError("prior strength 必須大於 0")
+    league_counts = Counter({outcome: 0.5 for outcome in OUTCOMES})
+    hitters: dict[str, Counter] = {}
+    pitchers: dict[str, Counter] = {}
+    direct: dict[tuple[str, str], Counter] = {}
+    for snapshot in snapshots:
+        league_counts[snapshot.result] += 1
+        hitters.setdefault(snapshot.hitter, Counter())[snapshot.result] += 1
+        pitchers.setdefault(snapshot.pitcher, Counter())[snapshot.result] += 1
+        direct.setdefault((snapshot.hitter, snapshot.pitcher), Counter())[snapshot.result] += 1
+    total = sum(league_counts.values())
+    league = {outcome: league_counts[outcome] / total for outcome in OUTCOMES}
+    return EmpiricalBayesModel(
+        league=league,
+        hitters=hitters,
+        pitchers=pitchers,
+        direct=direct,
+        hitter_strength=hitter_strength,
+        pitcher_strength=pitcher_strength,
+        direct_strength=direct_strength,
+    )
+
+
+def _posterior(counts: Counter | None, league: Mapping[str, float], strength: float) -> dict:
+    counts = counts or Counter()
+    total = sum(counts.values())
+    return {
+        outcome: (counts[outcome] + strength * league[outcome]) / (total + strength)
+        for outcome in OUTCOMES
+    }
+
+
+def _softmax(logits: Mapping[str, float]) -> dict[str, float]:
+    peak = max(logits.values())
+    weights = {key: math.exp(value - peak) for key, value in logits.items()}
+    total = sum(weights.values())
+    return {key: value / total for key, value in weights.items()}
+
+
+def predict_outcomes(
+    model: EmpiricalBayesModel, hitter: str, pitcher: str,
+) -> dict[str, float]:
+    """合成打者與投手 composition；直接對戰以 base 為先驗連續 shrink。"""
+    hitter_p = _posterior(model.hitters.get(hitter), model.league, model.hitter_strength)
+    pitcher_p = _posterior(model.pitchers.get(pitcher), model.league, model.pitcher_strength)
+    base = _softmax({
+        outcome: math.log(hitter_p[outcome]) + math.log(pitcher_p[outcome])
+        - math.log(model.league[outcome])
+        for outcome in OUTCOMES
+    })
+    direct = model.direct.get((hitter, pitcher))
+    if not direct:
+        return base
+    total = sum(direct.values())
+    return {
+        outcome: (direct[outcome] + model.direct_strength * base[outcome])
+        / (total + model.direct_strength)
+        for outcome in OUTCOMES
+    }
+
+
+def fit_transition_kernel(snapshots: Iterable[PASnapshot]) -> TransitionKernel:
+    """建立結果條件轉移核；終場列不混入一般跑者推進分布。"""
+    exact: dict[tuple[str, str, int], Counter] = {}
+    by_outs: dict[tuple[str, int], Counter] = {}
+    by_result: dict[str, Counter] = {}
+    for snapshot in snapshots:
+        if snapshot.game_ended:
+            continue
+        transition = Transition(
+            runs_delta=snapshot.runs_delta,
+            bases=snapshot.after.bases,
+            outs=snapshot.after.outs,
+            inning_ended=snapshot.inning_ended,
+        )
+        exact.setdefault(
+            (snapshot.result, snapshot.before.bases, snapshot.before.outs), Counter()
+        )[transition] += 1
+        by_outs.setdefault((snapshot.result, snapshot.before.outs), Counter())[transition] += 1
+        by_result.setdefault(snapshot.result, Counter())[transition] += 1
+    return TransitionKernel(exact=exact, by_outs=by_outs, by_result=by_result)
+
+
+def _transition_wp(
+    state: GameState, transition: Transition, wp: Callable[[GameState], float],
+) -> float:
+    away, home = state.away_score, state.home_score
+    if state.half == "1":
+        away += transition.runs_delta
+    else:
+        home += transition.runs_delta
+
+    if state.half == "2" and state.inning >= 9 and home > away:
+        return 1.0
+    if transition.inning_ended:
+        if state.half == "1":
+            if state.inning >= 9 and home > away:
+                return 1.0
+            next_state = GameState(state.inning, "2", "___", 0, away, home)
+        else:
+            if state.inning >= 9 and home < away:
+                return 0.0
+            if state.inning >= 12 and home == away:
+                return 0.5
+            next_state = GameState(state.inning + 1, "1", "___", 0, away, home)
+    else:
+        next_state = GameState(
+            state.inning, state.half, transition.bases, transition.outs, away, home,
+        )
+    return wp(next_state)
+
+
+def simulate_plate_appearance(
+    model: EmpiricalBayesModel,
+    kernel: TransitionKernel,
+    hitter: str,
+    pitcher: str,
+    state: GameState,
+    wp: Callable[[GameState], float],
+) -> dict:
+    """計算各互斥結果及其經驗 next-state 加權後主隊勝率。"""
+    probabilities = predict_outcomes(model, hitter, pitcher)
+    current_wp = wp(state)
+    outcomes: dict[str, dict] = {}
+    weighted = 0.0
+    for result, probability in probabilities.items():
+        transitions, level = kernel.distribution(result, state.bases, state.outs)
+        result_wp = sum(
+            transition_probability * _transition_wp(state, transition, wp)
+            for transition, transition_probability in transitions
+        )
+        outcomes[result] = {
+            "probability": probability,
+            "win_probability": result_wp,
+            "delta_wp": result_wp - current_wp,
+            "transition_level": level,
+            "transition_samples": len(transitions),
+        }
+        weighted += probability * result_wp
+    return {
+        "current_win_probability": current_wp,
+        "weighted_win_probability": weighted,
+        "outcomes": outcomes,
+    }
