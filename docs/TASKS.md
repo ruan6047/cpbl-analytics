@@ -19,7 +19,7 @@
 | RECORD-API1 | 紀錄室分類排行與冠軍 API | ruan6047 | Opus-4.8@Claude Code | Opus-4.8@Claude Code | GPT-5@Codex | `ai/opus-4.8/RECORD-API1` | ⚪ | ✅完成（07-15 兩項 findings 已由 RECORD-API1-FIX1 修復、查核通過並合併 main） |
 | RECORD-API1-FIX1 | 修正冠軍榜現役判定與球團榜 top N | ruan6047 | Opus-4.8@Claude Code | Opus-4.8@Claude Code | GPT-5@Codex | `ai/opus-4.8/RECORD-API1-FIX1` | ⚪ | ✅通過（07-15 查核：現役聯集、並列 top N、pytest 乾淨 collection 與 coverage fail-closed 均實測通過） |
 | UX-RECORD1 | `/records` 歷史重要性導向重製 | ruan6047 | Opus-4.8@Claude Code（spec 不存在→當場定範圍） | Opus-4.8@Claude Code | 待指派（≠執行者） | `ai/opus-4.8/UX-RECORD1` | ⚪ | 🔍待查核（07-15 冠軍為核心＋重排：王朝榜 hero＋生涯榜提第二＋逐年冠亞軍＋球員冠軍次數；coverage fail-closed；build:check/tsc 綠、深淺色截圖驗證） |
-| ML-UMP1 | 裁判誤判預期影響研究 | ruan6047 | 待研究 spec（建議 Fable） | 待指派 | 待指派（跨家族模型或人審） | `ai/<執行者>/ML-UMP1` | 🔴 | 📥Backlog（先驗證再決定是否產品化，不併 UX-10） |
+| ML-UMP1 | 裁判代理帶判決差異的預期影響研究 | ruan6047 | GPT-5@Codex（[`draft spec`](../umpire-impact-research.md)） | 待 spec 核可後指派 | 待指派（跨家族模型或人審） | `ai/gpt-5-codex/ML-UMP1` | 🔴 | ⏳待執行（研究 spec 待 ruan6047 核可；固定帶非規則真值） |
 | ML-PT3 | 中職版球路品質指數 (CPBL Stuff+) | ruan6047 | 評估報告+Fable 勘誤 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**排 2026 季末**；勘誤見 PROPOSAL_EVALUATION.md 附錄） |
 | ML-SIM1 | 簡易勝負預測＋單一打席情境模擬 | ruan6047 | 待細 spec | 待指派 | 待指派 | — | 🔴 | 📥Backlog（取代 UX-10O；去重複訊號，不模擬後續全打席） |
 | ML-SIM2 | 全場狀態模擬器（完整陣容／牛棚／後續打席） | ruan6047 | 待遠期評估 | 待指派 | 待指派 | — | 🔴 | 📥Backlog（**遠期目標，暫時不做**） |
@@ -87,13 +87,14 @@
   - 07-15 ruan6047 派工；spec 不存在 → 反問定範圍（中度：冠軍為核心＋重排）後執行；補充「生涯榜提第二」
   - 07-15 執行完成，流程照 §2 走（開 worktree、推分支、留 worktree、不碰 main）
 
-### ML-UMP1 裁判誤判預期影響研究  〔🔴紅線：統計／反事實估計〕
-- 需求：ruan6047（07-14）　規劃：Fable（統計定義／驗證設計）　分支：`ai/<執行者>/ML-UMP1`
-- 執行：待指派　查核：待指派
-- 範圍／驗收：定義每個錯判在判決前狀態的預期得分或勝率差（實際判決對比正確判決的反事實結果），按攻守隊與裁判聚合；先建立可重現的 RE24 或勝率基準、資料切分、校準與不確定性，並對照「漏判數／距離」baseline。僅用有 TrackMan 的 called 球；未通過獨立審核與實測前，不寫入 UI、不稱為球隊實際得利或失分。
-- 狀態：📥Backlog　Commit：—
+### ML-UMP1 裁判代理帶判決差異的預期影響研究  〔🔴紅線：統計／反事實估計〕
+- 需求：ruan6047（07-14）　規劃：GPT-5@Codex（[`draft spec`](../umpire-impact-research.md)）　分支：`ai/gpt-5-codex/ML-UMP1`
+- 執行：待 spec 核可後指派　查核：待指派（跨家族模型或人審＋實測）
+- 範圍／驗收：固定垂直帶因缺逐打者 `sz_top/sz_bot`，不是規則真值，canonical 名稱改為「代理帶判決差異」。建立 count-aware 壘況／出局狀態價值；RE24 本身不能替 called ball/strike 定價。以 2018–2024 建模／調參、2025 untouched test、2018–2025 final refit 評分 2026 TrackMan called 球，按攻守隊與主審做帶 coverage、game-cluster 95% interval、zone／venue sensitivity 的描述性聚合。run value 必勝 count-agnostic baseline；WP 未勝現有 `wp_state()` 即不產出。未通過跨家族紅線查核前，不進 API／UI／production table，不稱實際得失分或裁判真實誤判。
+- 狀態：⏳待執行（研究 spec 待 ruan6047 核可）　Commit：—
 - Log：
   - 07-14 自 UX-10 拆出：反事實估計不宜與一般 UI 同卡；依 AI_WORKFLOW 採 Fable 執行、跨家族或人審查核
+  - 07-15 ruan6047 指派研究規格；GPT-5@Codex 建獨立 worktree。唯讀稽核：2026 A called pitches 24,270，24,195（99.69%）唯一連到 livelog，24,226（99.82%）可合法還原 pre-call 球數；歷史 2018–2025 有 730,112 pitch rows／2,335 場。spec 糾正兩個前提：固定帶非規則真值、RE24 不含球數故不可直接定價。
 
 ### RECORD-DATA1 歷年總冠軍權威資料集與球團映射  〔🔴紅線：歷史資料正確性〕
 - 需求：ruan6047　規劃：GPT-5@Codex（[`spec`](../records-redesign.md)）　分支：`ai/gpt-5-codex/RECORD-DATA1`
