@@ -1,33 +1,25 @@
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/table";
-import { ActivePill, Eyebrow, GonePill, NameTag, PlayerLink, TeamBadge } from "@/components/ui";
+import { ActivePill, GonePill, Notice, PlayerLink, TeamBadge, TeamLogo } from "@/components/ui";
 import { api } from "@/lib/api";
+import { teamFullName } from "@/lib/teams";
+import { CareerLeaders } from "./career-leaders";
+import { ChampionsPlayerTable, type ChampRow } from "./champions-player-table";
+import { DynastyChart } from "./dynasty-chart";
 
 export const dynamic = "force-dynamic";
 
 const f3 = (v: number | string | null) => (v == null ? "—" : Number(v).toFixed(3).replace(/^0/, ""));
 
 type Records = Awaited<ReturnType<typeof api.records>>;
+type Championships = Awaited<ReturnType<typeof api.championships>>;
 type Franchises = Awaited<ReturnType<typeof api.franchises>>["items"];
-type GameRec = NonNullable<Records["games"][keyof Records["games"]]>;
 type SeasonRec = { name: string; pid: string; year: number; val: number | string };
 type CareerRec = { name: string; pid: string; val: number; active: boolean };
+type Postseason = Awaited<ReturnType<typeof api.postseason>>["teams"][number];
+type TeamRecord = Awaited<ReturnType<typeof api.teamRecords>>["records"][number];
 
-type GameRow = { key: string; label: string; rec: GameRec; value: string };
 type SeasonRow = { key: string; group: string; label: string; rec: SeasonRec; format?: "rate" };
-type CareerRow = { key: string; label: string; rank: number; rec: CareerRec };
-
-function gameRows(games: Records["games"]): GameRow[] {
-  const defs: { key: keyof Records["games"]; label: string; value: (r: GameRec) => string }[] = [
-    { key: "max_margin", label: "單場最大分差", value: (r) => `${Math.abs(r.hs - r.as)} 分` },
-    { key: "max_team_runs", label: "單隊單場最多得分", value: (r) => `${Math.max(r.hs, r.as)} 分` },
-    { key: "max_combined", label: "單場雙方最多得分", value: (r) => `${r.hs + r.as} 分` },
-  ];
-  return defs.flatMap((d) => {
-    const rec = games[d.key];
-    return rec ? [{ key: d.key, label: d.label, rec, value: d.value(rec) }] : [];
-  });
-}
 
 function seasonRows(d: Records): SeasonRow[] {
   const defs: { group: string; key: string; label: string; rec?: SeasonRec[]; format?: "rate" }[] = [
@@ -42,33 +34,40 @@ function seasonRows(d: Records): SeasonRow[] {
   return defs.flatMap((d) => d.rec?.[0] ? [{ key: `${d.group}-${d.key}`, group: d.group, label: d.label, rec: d.rec[0], format: d.format }] : []);
 }
 
-function careerRows(groups: { key: string; label: string; rows?: CareerRec[] }[]): CareerRow[] {
-  return groups.flatMap((g) => (g.rows ?? []).map((rec, i) => ({ key: `${g.key}-${rec.pid}-${i}`, label: g.label, rank: i + 1, rec })));
-}
 
-const gameColumns: Column<GameRow>[] = [
-  { header: "紀錄", cell: (r) => r.label, sticky: true, nowrap: true, className: "font-sans font-medium text-ink" },
-  { header: "紀錄值", cell: (r) => r.value, align: "right", nowrap: true, className: "font-semibold text-accent" },
-  { header: "客隊", cell: (r) => <NameTag name={r.rec.away} />, nowrap: true, className: "font-sans" },
-  { header: "比分", cell: (r) => `${r.rec.as}：${r.rec.hs}`, align: "center", nowrap: true, className: "font-bold text-ink" },
-  { header: "主隊", cell: (r) => <NameTag name={r.rec.home} />, nowrap: true, className: "font-sans" },
-  { header: "日期", cell: (r) => r.rec.date, align: "right", nowrap: true, className: "text-muted" },
-];
-
+// 單季之最：打者／投手分開兩表（勿用「類別」欄把兩者黏在一起，語意不同看不清）。
 const seasonColumns: Column<SeasonRow>[] = [
-  { header: "類別", cell: (r) => r.group, sticky: true, nowrap: true, className: "font-sans text-muted" },
-  { header: "紀錄", cell: (r) => r.label, nowrap: true, className: "font-sans font-medium text-ink" },
+  { header: "紀錄", cell: (r) => r.label, sticky: true, nowrap: true, className: "font-sans font-medium text-ink" },
   { header: "球員", cell: (r) => <PlayerLink pid={r.rec.pid} name={r.rec.name} />, nowrap: true, className: "font-sans" },
   { header: "球季", cell: (r) => r.rec.year, align: "right", nowrap: true, className: "text-muted" },
   { header: "紀錄值", cell: (r) => r.format === "rate" ? f3(r.rec.val) : r.rec.val, align: "right", nowrap: true, className: "font-semibold text-accent" },
 ];
 
-const careerColumns: Column<CareerRow>[] = [
+// 徽章色用當年隊名（nameMeta 全涵蓋含已解散隊）；季後賽表用短名故不補全名。
+const teamRecordColumns: Column<TeamRecord>[] = [
   { header: "紀錄", cell: (r) => r.label, sticky: true, nowrap: true, className: "font-sans font-medium text-ink" },
-  { header: "名次", cell: (r) => r.rank, align: "right", nowrap: true, className: "text-faint" },
-  { header: "球員", cell: (r) => <PlayerLink pid={r.rec.pid} name={r.rec.name} />, nowrap: true, className: "font-sans" },
-  { header: "現況", cell: (r) => r.rec.active ? <ActivePill /> : <span className="text-faint">退役</span>, align: "center", nowrap: true, className: "font-sans" },
-  { header: "累計", cell: (r) => r.rec.val, align: "right", nowrap: true, className: "font-semibold text-accent" },
+  { header: "保持者", cell: (r) => <span className="inline-flex items-center gap-1.5 font-sans"><TeamLogo name={r.team} size={16} decorative /><span>{teamFullName(r.team)}</span></span>, nowrap: true },
+  { header: "紀錄值", cell: (r) => <span className="font-bold text-accent">{r.value} <span className="text-[11px] font-normal text-muted">{r.unit}</span></span>, align: "right", nowrap: true },
+  { header: "年度", cell: (r) => r.year, align: "right", nowrap: true, className: "text-muted" },
+];
+
+function PostseasonTeam({ name }: { name: string | null }) {
+  if (!name) return null;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <TeamLogo name={name} size={16} decorative />
+      <span>{name}</span>
+    </span>
+  );
+}
+
+const postseasonColumns: Column<Postseason>[] = [
+  { header: "球團", cell: (r) => <PostseasonTeam name={r.team} />, sticky: true, nowrap: true, className: "font-sans font-medium text-ink" },
+  { header: "亞軍", cell: (r) => r.runner_up, align: "right", nowrap: true, className: "font-semibold text-accent" },
+  { header: "出賽", cell: (r) => `${r.appearances} 次`, align: "right", nowrap: true, className: "text-muted" },
+  { header: "勝–敗", cell: (r) => `${r.w}–${r.l}`, align: "right", nowrap: true },
+  { header: "勝率", cell: (r) => f3(r.win_pct), align: "right", nowrap: true, className: "font-semibold text-ink" },
+  { header: "最長連霸", cell: (r) => r.streak >= 2 ? `${r.streak} 連霸（${r.streak_from}–${r.streak_to}）` : "—", nowrap: true, className: "text-muted" },
 ];
 
 function FranchiseTable({ rows }: { rows: Franchises }) {
@@ -95,62 +94,123 @@ function FranchiseTable({ rows }: { rows: Franchises }) {
 }
 
 export default async function RecordsPage() {
-  const [d, fr] = await Promise.all([api.records(), api.franchises()]);
-  const games = gameRows(d.games);
+  const [d, fr, ch, ps, tr] = await Promise.all([api.records(), api.franchises(), api.championships(), api.postseason(), api.teamRecords()]);
   const seasons = seasonRows(d);
-  const battingCareer = careerRows([
-    { key: "hr", label: "生涯全壘打", rows: d.career_batting.hr },
-    { key: "h", label: "生涯安打", rows: d.career_batting.h },
-    { key: "rbi", label: "生涯打點", rows: d.career_batting.rbi },
-    { key: "sb", label: "生涯盜壘", rows: d.career_batting.sb },
-  ]);
-  const pitchingCareer = careerRows([
-    { key: "w", label: "生涯勝投", rows: d.career_pitching.w },
-    { key: "sv", label: "生涯救援", rows: d.career_pitching.sv },
-    { key: "so", label: "生涯三振", rows: d.career_pitching.so },
-  ]);
+  const battingCareer = [
+    { title: "生涯全壘打", rows: d.career_batting.hr },
+    { title: "生涯安打", rows: d.career_batting.h },
+    { title: "生涯打點", rows: d.career_batting.rbi },
+    { title: "生涯打席", rows: d.career_batting.pa },
+    { title: "生涯盜壘", rows: d.career_batting.sb },
+  ];
+  const pitchingCareer = [
+    { title: "生涯勝投", rows: d.career_pitching.w },
+    { title: "生涯三振", rows: d.career_pitching.so },
+    { title: "生涯救援", rows: d.career_pitching.sv },
+    { title: "生涯中繼", rows: d.career_pitching.hld },
+    { title: "生涯局數", rows: d.career_pitching.ip },
+  ];
+
+  // 冠軍資料 coverage fail-closed：缺年時 API 不回傳 franchise/player_ranking，前端據此
+  // 不呈現「歷史最多冠軍」累計結論（看板紅線：冠軍資料缺年不得公開歷史最多）。
+  const covComplete = ch.coverage.complete;
+  const dynasties = ch.franchise_ranking ?? [];
+  const champPlayers = ch.player_ranking ?? [];
+
+  // 把奪冠年份解析成「當年隸屬球隊」徽章（含教練身分年份）。用**當年隊名**（era-accurate）：
+  // 張泰山 2004/05 是興農牛奪冠（興農 franchise 今為富邦），顯示富邦是錯的；已解散隊
+  // （三商虎/中信鯨）更沒有現役 franchise。依**當年隊碼**去重：同隊合併一枚，改過名的隊
+  // （Lamigo→樂天桃猿 是不同碼）獨立列出。每枚帶自己的奪冠年份供 hover。
+  const yearInfo = new Map(ch.seasons.map((s) => [s.year, s]));
+  const teamsOf = (years: number[]) => {
+    const byCode = new Map<string, { code: string; name: string; years: number[] }>();
+    for (const y of years) {
+      const s = yearInfo.get(y);
+      if (!s?.champion_team_code || !s.champion) continue;
+      const e = byCode.get(s.champion_team_code);
+      if (e) e.years.push(y);
+      else byCode.set(s.champion_team_code, { code: s.champion_team_code, name: teamFullName(s.champion), years: [y] });
+    }
+    return [...byCode.values()].sort((a, b) => Math.min(...a.years) - Math.min(...b.years));
+  };
+
+  // 合併同一行：奪冠年份 + 狀態（現役/教練）皆相同的選手併成一列（如樂天/Lamigo 王朝
+  // 群 7 冠現役球員）。champPlayers 已依 rk（冠軍次數 desc）排序，Map 保序 → 群仍由高到低。
+  const champGroups = new Map<string, ChampRow>();
+  for (const p of champPlayers) {
+    const key = `${p.years.join(",")}|${p.active}|${p.is_manager}`;
+    const g = champGroups.get(key);
+    if (g) g.players.push({ pid: p.pid, name: p.name });
+    else champGroups.set(key, {
+      key, titles: p.titles, players: [{ pid: p.pid, name: p.name }],
+      teams: teamsOf(p.years), active: p.active, isManager: p.is_manager,
+    });
+  }
+  const champRows = [...champGroups.values()];
+
+  // 例行賽勝率（全史 kind A）：現役球團依勝率排序，供王朝榜第三欄與冠軍分布對照。
+  const regular = fr.items
+    .filter((t) => t.active)
+    .map((t) => ({ code: t.code, name: t.name, win_pct: t.win_pct, w: t.w, l: t.l }))
+    .sort((a, b) => (b.win_pct ?? 0) - (a.win_pct ?? 0));
+
+  // 王朝榜隊名改用 franchise 全名（中信兄弟／統一7-ELEVEn獅…）。
+  const frName = new Map(fr.items.map((t) => [t.code, t.name]));
+  const dynastyRows = dynasties.map((r) => ({ ...r, team: frName.get(r.team_code) ?? r.team }));
 
   return (
-    <div className="space-y-8">
-      <header className="mb-6">
-        <Eyebrow className="mb-2">聯盟史冊・1990 至今</Eyebrow>
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink">歷史紀錄室</h1>
-        <p className="mt-1.5 max-w-3xl text-sm text-muted">
-          中華職棒一軍歷史之最。比賽紀錄含全史；單季與生涯紀錄以官方歷年彙總為基礎，近兩季另計。
-        </p>
-      </header>
+    <div className="space-y-10">
+      <h1 className="text-2xl font-extrabold tracking-tight text-ink">歷史紀錄室</h1>
 
-      <section aria-labelledby="game-records">
-        <Eyebrow className="mb-2">一場比賽能走到多極端？</Eyebrow>
-        <h2 id="game-records" className="mb-3 text-lg font-semibold text-ink">比賽紀錄</h2>
-        <DataTable columns={gameColumns} rows={games} rowKey={(r) => r.key} dense />
-      </section>
-
-      <section aria-labelledby="season-records">
-        <Eyebrow className="mb-2">單一球季的最高峰</Eyebrow>
-        <h2 id="season-records" className="mb-3 text-lg font-semibold text-ink">單季之最</h2>
-        <DataTable columns={seasonColumns} rows={seasons} rowKey={(r) => r.key} dense />
+      <section aria-labelledby="dynasty">
+        <h2 id="dynasty" className="mb-3 text-lg font-semibold text-ink">歷代總冠軍</h2>
+        {covComplete && dynasties.length ? (
+          <DynastyChart rows={dynastyRows} regular={regular} />
+        ) : (
+          <Notice>{ch.note ?? "冠軍資料尚未補齊，暫不呈現累計王朝排行。"}</Notice>
+        )}
       </section>
 
       <section aria-labelledby="career-records">
-        <Eyebrow className="mb-2">長期累積的聯盟標竿</Eyebrow>
         <h2 id="career-records" className="mb-3 text-lg font-semibold text-ink">生涯排行</h2>
+        <CareerLeaders batting={battingCareer} pitching={pitchingCareer} />
+      </section>
+
+      <section aria-labelledby="postseason">
+        <h2 id="postseason" className="mb-3 text-lg font-semibold text-ink">季後賽紀錄</h2>
+        <DataTable columns={postseasonColumns} rows={ps.teams} rowKey={(r) => r.team_code} dense />
+        <p className="mt-2 text-[11px] text-faint">一軍季後賽（台灣大賽＋挑戰賽）全史；亞軍＝台灣大賽敗者，依勝率排序。</p>
+      </section>
+
+      {covComplete && champPlayers.length > 0 && (
+        <section aria-labelledby="champ-players">
+          <h2 id="champ-players" className="mb-3 text-lg font-semibold text-ink">個人冠軍次數榜</h2>
+          <ChampionsPlayerTable rows={champRows} />
+        </section>
+      )}
+
+      <section aria-labelledby="season-records">
+        <h2 id="season-records" className="mb-3 text-lg font-semibold text-ink">單季之最</h2>
         <div className="grid gap-4 lg:grid-cols-2">
           <div>
             <h3 className="mb-2 text-sm font-semibold text-ink">打者紀錄</h3>
-            <DataTable columns={careerColumns} rows={battingCareer} rowKey={(r) => r.key} dense />
+            <DataTable columns={seasonColumns} rows={seasons.filter((r) => r.group === "打者")} rowKey={(r) => r.key} dense />
           </div>
           <div>
             <h3 className="mb-2 text-sm font-semibold text-ink">投手紀錄</h3>
-            <DataTable columns={careerColumns} rows={pitchingCareer} rowKey={(r) => r.key} dense />
+            <DataTable columns={seasonColumns} rows={seasons.filter((r) => r.group === "投手")} rowKey={(r) => r.key} dense />
           </div>
         </div>
       </section>
 
+      <section aria-labelledby="team-records">
+        <h2 id="team-records" className="mb-3 text-lg font-semibold text-ink">例行賽紀錄集錦</h2>
+        <DataTable columns={teamRecordColumns} rows={tr.records} rowKey={(r) => r.label} dense />
+        <p className="mt-2 text-[11px] text-faint">全史；連勝／連敗／連續完封為單季內、和局中斷。以當年隊名歸屬。</p>
+      </section>
+
       <section aria-labelledby="franchise-history">
-        <Eyebrow className="mb-2">球團更名、轉賣與存續</Eyebrow>
-        <h2 id="franchise-history" className="mb-1 text-lg font-semibold text-ink">歷代球隊</h2>
-        <p className="mb-3 text-[11px] text-faint">點球團名稱進入隊史頁；沿革依時間由左至右排列。</p>
+        <h2 id="franchise-history" className="mb-3 text-lg font-semibold text-ink">歷代球隊</h2>
         <FranchiseTable rows={fr.items} />
       </section>
     </div>
