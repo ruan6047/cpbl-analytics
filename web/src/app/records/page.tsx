@@ -1,17 +1,22 @@
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/table";
-import { ActivePill, Eyebrow, GonePill, NameTag, PlayerLink, TeamBadge } from "@/components/ui";
+import { ActivePill, Eyebrow, GonePill, NameTag, Notice, PlayerLink, TeamBadge } from "@/components/ui";
 import { api } from "@/lib/api";
+import { teamColor } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
 const f3 = (v: number | string | null) => (v == null ? "—" : Number(v).toFixed(3).replace(/^0/, ""));
 
 type Records = Awaited<ReturnType<typeof api.records>>;
+type Championships = Awaited<ReturnType<typeof api.championships>>;
 type Franchises = Awaited<ReturnType<typeof api.franchises>>["items"];
 type GameRec = NonNullable<Records["games"][keyof Records["games"]]>;
 type SeasonRec = { name: string; pid: string; year: number; val: number | string };
 type CareerRec = { name: string; pid: string; val: number; active: boolean };
+type Dynasty = NonNullable<Championships["franchise_ranking"]>[number];
+type ChampSeason = Championships["seasons"][number];
+type ChampPlayer = NonNullable<Championships["player_ranking"]>[number];
 
 type GameRow = { key: string; label: string; rec: GameRec; value: string };
 type SeasonRow = { key: string; group: string; label: string; rec: SeasonRec; format?: "rate" };
@@ -71,6 +76,51 @@ const careerColumns: Column<CareerRow>[] = [
   { header: "累計", cell: (r) => r.rec.val, align: "right", nowrap: true, className: "font-semibold text-accent" },
 ];
 
+// —— 冠軍王朝榜（hero）：各球團奪冠數長條圖，並列排名（rk）。條長 ∝ titles / 榜首。
+function DynastyBars({ rows }: { rows: Dynasty[] }) {
+  const max = rows[0]?.titles ?? 1;
+  return (
+    <ol className="space-y-3">
+      {rows.map((r) => {
+        const color = teamColor(r.team_code);
+        return (
+          <li key={r.team_code} className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
+            <Link href={`/teams/${r.team_code}`} className="flex w-24 items-center gap-1.5 font-sans font-medium hover:underline sm:w-28">
+              <span className="w-4 shrink-0 text-right font-mono text-xs tabular-nums text-faint">{r.rk}</span>
+              <TeamBadge code={r.team_code} name={r.team} />
+            </Link>
+            <div className="h-5 overflow-hidden rounded bg-surface-2">
+              <div className="flex h-full items-center justify-end rounded pr-2" style={{ width: `${Math.max(12, (r.titles / max) * 100)}%`, background: color }}>
+                <span className="font-mono text-xs font-bold tabular-nums text-white">{r.titles}</span>
+              </div>
+            </div>
+            <div className="col-start-2 flex flex-wrap gap-1">
+              {r.years.map((y) => (
+                <span key={y} className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-muted">{y}</span>
+              ))}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+const seasonChampColumns: Column<ChampSeason>[] = [
+  { header: "年度", cell: (r) => r.year, sticky: true, align: "right", nowrap: true, className: "font-semibold text-ink" },
+  { header: "冠軍", cell: (r) => <TeamBadge code={r.champion_team_code} name={r.champion} />, nowrap: true, className: "font-sans font-semibold text-ink" },
+  { header: "亞軍", cell: (r) => <TeamBadge code={r.runner_up_team_code} name={r.runner_up} />, nowrap: true, className: "font-sans text-muted" },
+  { header: "奪冠總教練", cell: (r) => r.manager_name ?? "—", nowrap: true, className: "font-sans text-muted" },
+];
+
+const champPlayerColumns: Column<ChampPlayer>[] = [
+  { header: "名次", cell: (r) => r.rk, sticky: true, align: "right", nowrap: true, className: "text-faint" },
+  { header: "球員", cell: (r) => <PlayerLink pid={r.pid} name={r.name} />, nowrap: true, className: "font-sans" },
+  { header: "冠軍次數", cell: (r) => r.titles, align: "right", nowrap: true, className: "font-semibold text-accent" },
+  { header: "現況", cell: (r) => r.active ? <ActivePill /> : <span className="text-faint">退役</span>, align: "center", nowrap: true, className: "font-sans" },
+  { header: "奪冠年份", cell: (r) => r.years.join("、"), nowrap: true, className: "font-mono text-[11px] tabular-nums text-muted" },
+];
+
 function FranchiseTable({ rows }: { rows: Franchises }) {
   const columns: Column<Franchises[number]>[] = [
     {
@@ -95,7 +145,7 @@ function FranchiseTable({ rows }: { rows: Franchises }) {
 }
 
 export default async function RecordsPage() {
-  const [d, fr] = await Promise.all([api.records(), api.franchises()]);
+  const [d, fr, ch] = await Promise.all([api.records(), api.franchises(), api.championships()]);
   const games = gameRows(d.games);
   const seasons = seasonRows(d);
   const battingCareer = careerRows([
@@ -110,26 +160,38 @@ export default async function RecordsPage() {
     { key: "so", label: "生涯三振", rows: d.career_pitching.so },
   ]);
 
+  // 冠軍資料 coverage fail-closed：缺年時 API 不回傳 franchise/player_ranking，前端據此
+  // 不呈現「歷史最多冠軍」累計結論（看板紅線：冠軍資料缺年不得公開歷史最多）。
+  const covComplete = ch.coverage.complete;
+  const dynasties = ch.franchise_ranking ?? [];
+  const champPlayers = ch.player_ranking ?? [];
+  const totalTitles = dynasties.reduce((s, r) => s + r.titles, 0);
+
   return (
-    <div className="space-y-8">
-      <header className="mb-6">
+    <div className="space-y-10">
+      <header className="mb-2">
         <Eyebrow className="mb-2">聯盟史冊・1990 至今</Eyebrow>
         <h1 className="text-2xl font-extrabold tracking-tight text-ink">歷史紀錄室</h1>
         <p className="mt-1.5 max-w-3xl text-sm text-muted">
-          中華職棒一軍歷史之最。比賽紀錄含全史；單季與生涯紀錄以官方歷年彙總為基礎，近兩季另計。
+          中華職棒一軍歷史之最，以歷史重要性排序：先看王朝與生涯標竿，再看單季與單場極值。
+          冠軍由官方台灣大賽戰績逐年推導；單季與生涯紀錄以官方歷年彙總為基礎，近兩季另計。
         </p>
       </header>
 
-      <section aria-labelledby="game-records">
-        <Eyebrow className="mb-2">一場比賽能走到多極端？</Eyebrow>
-        <h2 id="game-records" className="mb-3 text-lg font-semibold text-ink">比賽紀錄</h2>
-        <DataTable columns={gameColumns} rows={games} rowKey={(r) => r.key} dense />
-      </section>
-
-      <section aria-labelledby="season-records">
-        <Eyebrow className="mb-2">單一球季的最高峰</Eyebrow>
-        <h2 id="season-records" className="mb-3 text-lg font-semibold text-ink">單季之最</h2>
-        <DataTable columns={seasonColumns} rows={seasons} rowKey={(r) => r.key} dense />
+      <section aria-labelledby="dynasty">
+        <Eyebrow className="mb-2">誰的王朝最長青？</Eyebrow>
+        <h2 id="dynasty" className="mb-3 text-lg font-semibold text-ink">冠軍王朝榜</h2>
+        {covComplete && dynasties.length ? (
+          <div className="card p-5">
+            <DynastyBars rows={dynasties} />
+            <p className="mt-4 border-t border-line pt-3 text-[11px] text-faint">
+              {ch.coverage.from_year}–{ch.coverage.through_year} 共 {ch.seasons.length} 座冠軍，
+              分屬 {dynasties.length} 個現存球團（總和 {totalTitles} = 季數）。並列同名次；點球團名進入隊史頁。
+            </p>
+          </div>
+        ) : (
+          <Notice>{ch.note ?? "冠軍資料尚未補齊，暫不呈現累計王朝排行。"}</Notice>
+        )}
       </section>
 
       <section aria-labelledby="career-records">
@@ -145,6 +207,32 @@ export default async function RecordsPage() {
             <DataTable columns={careerColumns} rows={pitchingCareer} rowKey={(r) => r.key} dense />
           </div>
         </div>
+      </section>
+
+      <section aria-labelledby="champ-seasons">
+        <Eyebrow className="mb-2">逐年封王之路</Eyebrow>
+        <h2 id="champ-seasons" className="mb-3 text-lg font-semibold text-ink">歷年冠亞軍</h2>
+        <DataTable columns={seasonChampColumns} rows={ch.seasons} rowKey={(r) => r.year} dense maxHeight="26rem" />
+      </section>
+
+      {covComplete && champPlayers.length > 0 && (
+        <section aria-labelledby="champ-players">
+          <Eyebrow className="mb-2">戒指收藏家</Eyebrow>
+          <h2 id="champ-players" className="mb-3 text-lg font-semibold text-ink">球員冠軍次數榜</h2>
+          <DataTable columns={champPlayerColumns} rows={champPlayers} rowKey={(r) => r.pid} dense />
+        </section>
+      )}
+
+      <section aria-labelledby="season-records">
+        <Eyebrow className="mb-2">單一球季的最高峰</Eyebrow>
+        <h2 id="season-records" className="mb-3 text-lg font-semibold text-ink">單季之最</h2>
+        <DataTable columns={seasonColumns} rows={seasons} rowKey={(r) => r.key} dense />
+      </section>
+
+      <section aria-labelledby="game-records">
+        <Eyebrow className="mb-2">一場比賽能走到多極端？</Eyebrow>
+        <h2 id="game-records" className="mb-3 text-lg font-semibold text-ink">比賽紀錄</h2>
+        <DataTable columns={gameColumns} rows={games} rowKey={(r) => r.key} dense />
       </section>
 
       <section aria-labelledby="franchise-history">

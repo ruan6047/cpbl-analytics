@@ -384,6 +384,19 @@ export const api = {
       career_batting: Record<string, { name: string; pid: string; val: number; active: boolean }[]>;
       career_pitching: Record<string, { name: string; pid: string; val: number; active: boolean }[]>;
     }>("/api/v1/records", 600),
+  // 冠軍編：coverage fail-closed（缺年時 API 不回傳 franchise/player_ranking，前端據此不呈現累計結論）。
+  championships: () =>
+    get<{
+      coverage: { from_year: number; through_year: number; complete: boolean; missing_years: number[]; as_of: string | null };
+      seasons: {
+        year: number; champion_team_code: string | null; champion: string | null;
+        runner_up_team_code: string | null; runner_up: string | null;
+        franchise_code: string | null; manager_name: string | null; source_url: string | null;
+      }[];
+      note?: string;
+      franchise_ranking?: { team_code: string; team: string | null; titles: number; years: number[]; rk: number }[];
+      player_ranking?: { name: string; pid: string; titles: number; years: number[]; active: boolean; rk: number }[];
+    }>("/api/v1/records/championships", 600),
   // 排行榜改由前端點欄位排序/隊伍篩選，故抓全名單（低門檻、大 limit）。
   // revalidate=60：資料隨爬蟲更新，縮短快取避免欄位/數值過時。
   venues: (season?: number) =>
