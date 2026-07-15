@@ -60,9 +60,9 @@ const gameColumns: Column<GameRow>[] = [
   { header: "日期", cell: (r) => r.rec.date, align: "right", nowrap: true, className: "text-muted" },
 ];
 
+// 單季之最：打者／投手分開兩表（勿用「類別」欄把兩者黏在一起，語意不同看不清）。
 const seasonColumns: Column<SeasonRow>[] = [
-  { header: "類別", cell: (r) => r.group, sticky: true, nowrap: true, className: "font-sans text-muted" },
-  { header: "紀錄", cell: (r) => r.label, nowrap: true, className: "font-sans font-medium text-ink" },
+  { header: "紀錄", cell: (r) => r.label, sticky: true, nowrap: true, className: "font-sans font-medium text-ink" },
   { header: "球員", cell: (r) => <PlayerLink pid={r.rec.pid} name={r.rec.name} />, nowrap: true, className: "font-sans" },
   { header: "球季", cell: (r) => r.rec.year, align: "right", nowrap: true, className: "text-muted" },
   { header: "紀錄值", cell: (r) => r.format === "rate" ? f3(r.rec.val) : r.rec.val, align: "right", nowrap: true, className: "font-semibold text-accent" },
@@ -226,7 +226,16 @@ export default async function RecordsPage() {
       <section aria-labelledby="season-records">
         <Eyebrow className="mb-2">單一球季的最高峰</Eyebrow>
         <h2 id="season-records" className="mb-3 text-lg font-semibold text-ink">單季之最</h2>
-        <DataTable columns={seasonColumns} rows={seasons} rowKey={(r) => r.key} dense />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div>
+            <h3 className="mb-2 text-sm font-semibold text-ink">打者紀錄</h3>
+            <DataTable columns={seasonColumns} rows={seasons.filter((r) => r.group === "打者")} rowKey={(r) => r.key} dense />
+          </div>
+          <div>
+            <h3 className="mb-2 text-sm font-semibold text-ink">投手紀錄</h3>
+            <DataTable columns={seasonColumns} rows={seasons.filter((r) => r.group === "投手")} rowKey={(r) => r.key} dense />
+          </div>
+        </div>
       </section>
 
       <section aria-labelledby="game-records">
