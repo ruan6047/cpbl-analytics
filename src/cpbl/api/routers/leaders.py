@@ -168,15 +168,32 @@ def championships(limit: int = Query(10, ge=1, le=50)) -> dict:
         cols = [d[0] for d in cur.description]
         out["franchise_ranking"] = [dict(zip(cols, r, strict=False)) for r in cur.fetchall()]
 
-        # 球員冠軍次數（championship_members role='player'；並列排名同上）
+        # 個人冠軍次數：球員身分（championship_members role='player'）＋教練身分。
+        # 教練奪冠**必用 canonical championship_managers**（migration 054，唯一事實來源）；
+        # championship_members role='manager' 為姓名比對推導、含錯記（羅國璋被灌 5 座、陳威成
+        # 雜訊），**不可用**（見記憶 championship-managers-canonical）。canonical 只有 manager_name，
+        # 以姓名對回 player_id（實測 1:1 乾淨，無多重比對；外籍/非 CPBL 球員如古久保無 id 自然
+        # 排除）。UNION 去重同人同年，`is_manager` 標記曾以教練奪冠者供前端加「教練」標籤。
         cur.execute(f"""
-            WITH m AS (
-              SELECT cm.player_id, count(*) AS titles,
-                     array_agg(cm.year ORDER BY cm.year) AS years
-              FROM cpbl.championship_members cm WHERE cm.role='player'
-              GROUP BY cm.player_id),
+            WITH pm AS (
+              SELECT player_id, year FROM cpbl.championship_members WHERE role='player'),
+            mgr AS (
+              SELECT p.id AS player_id, cmg.year
+              FROM cpbl.championship_managers cmg
+              JOIN cpbl.players p ON p.name = cmg.manager_name
+              WHERE cmg.verification_status = 'verified'),
+            allc AS (
+              SELECT player_id, year FROM pm
+              UNION
+              SELECT player_id, year FROM mgr),
+            m AS (
+              SELECT player_id, count(*) AS titles,
+                     array_agg(year ORDER BY year) AS years
+              FROM allc GROUP BY player_id),
             r AS (
-              SELECT p.name, p.id AS pid, m.titles, m.years, {_active_expr("m")},
+              SELECT p.name, p.id AS pid, m.titles, m.years,
+                     EXISTS(SELECT 1 FROM mgr WHERE mgr.player_id = m.player_id) AS is_manager,
+                     {_active_expr("m")},
                      rank() OVER (ORDER BY m.titles DESC) AS rk
               FROM m JOIN cpbl.players p ON p.id = m.player_id)
             SELECT * FROM r WHERE rk <= %(n)s ORDER BY rk, name

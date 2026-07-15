@@ -395,7 +395,7 @@ export const api = {
       }[];
       note?: string;
       franchise_ranking?: { team_code: string; team: string | null; titles: number; years: number[]; rk: number }[];
-      player_ranking?: { name: string; pid: string; titles: number; years: number[]; active: boolean; rk: number }[];
+      player_ranking?: { name: string; pid: string; titles: number; years: number[]; active: boolean; is_manager: boolean; rk: number }[];
     }>("/api/v1/records/championships", 600),
   // 排行榜改由前端點欄位排序/隊伍篩選，故抓全名單（低門檻、大 limit）。
   // revalidate=60：資料隨爬蟲更新，縮短快取避免欄位/數值過時。
