@@ -16,7 +16,7 @@ type Franchises = Awaited<ReturnType<typeof api.franchises>>["items"];
 type GameRec = NonNullable<Records["games"][keyof Records["games"]]>;
 type SeasonRec = { name: string; pid: string; year: number; val: number | string };
 type CareerRec = { name: string; pid: string; val: number; active: boolean };
-type ChampSeason = Championships["seasons"][number];
+type Postseason = Awaited<ReturnType<typeof api.postseason>>["teams"][number];
 
 type GameRow = { key: string; label: string; rec: GameRec; value: string };
 type SeasonRow = { key: string; group: string; label: string; rec: SeasonRec; format?: "rate" };
@@ -85,23 +85,24 @@ const seasonColumns: Column<SeasonRow>[] = [
   { header: "紀錄值", cell: (r) => r.format === "rate" ? f3(r.rec.val) : r.rec.val, align: "right", nowrap: true, className: "font-semibold text-accent" },
 ];
 
-// 徽章色用當年隊名（nameMeta 全涵蓋含已解散隊），顯示文字補成全名（teamFullName）。
-function ChampTeam({ name }: { name: string | null }) {
+// 徽章色用當年隊名（nameMeta 全涵蓋含已解散隊）；季後賽表用短名故不補全名。
+function PostseasonTeam({ name }: { name: string | null }) {
   if (!name) return null;
   return (
     <span className="inline-flex items-center gap-1.5">
       <TeamLogo name={name} size={16} decorative />
-      <span>{teamFullName(name)}</span>
+      <span>{name}</span>
     </span>
   );
 }
 
-const seasonChampColumns: Column<ChampSeason>[] = [
-  { header: "年度", cell: (r) => r.year, sticky: true, align: "right", nowrap: true, className: "font-semibold text-ink" },
-  { header: "冠軍", cell: (r) => <ChampTeam name={r.champion} />, nowrap: true, className: "font-sans font-semibold text-ink" },
-  // 沒有亞軍（1992/94/95 包辦上下半季，無台灣大賽對手）→ 不顯示、不留空白佔位。
-  { header: "亞軍", cell: (r) => r.runner_up_team_code ? <ChampTeam name={r.runner_up} /> : null, nowrap: true, className: "font-sans text-muted" },
-  { header: "奪冠總教練", cell: (r) => r.manager_name ?? "—", nowrap: true, className: "font-sans text-muted" },
+const postseasonColumns: Column<Postseason>[] = [
+  { header: "球團", cell: (r) => <PostseasonTeam name={r.team} />, sticky: true, nowrap: true, className: "font-sans font-medium text-ink" },
+  { header: "亞軍", cell: (r) => r.runner_up, align: "right", nowrap: true, className: "font-semibold text-accent" },
+  { header: "出賽", cell: (r) => `${r.appearances} 次`, align: "right", nowrap: true, className: "text-muted" },
+  { header: "勝–敗", cell: (r) => `${r.w}–${r.l}`, align: "right", nowrap: true },
+  { header: "勝率", cell: (r) => f3(r.win_pct), align: "right", nowrap: true, className: "font-semibold text-ink" },
+  { header: "最長連霸", cell: (r) => r.streak >= 2 ? `${r.streak} 連霸（${r.streak_from}–${r.streak_to}）` : "—", nowrap: true, className: "text-muted" },
 ];
 
 function FranchiseTable({ rows }: { rows: Franchises }) {
@@ -128,7 +129,7 @@ function FranchiseTable({ rows }: { rows: Franchises }) {
 }
 
 export default async function RecordsPage() {
-  const [d, fr, ch] = await Promise.all([api.records(), api.franchises(), api.championships()]);
+  const [d, fr, ch, ps] = await Promise.all([api.records(), api.franchises(), api.championships(), api.postseason()]);
   const games = gameRows(d.games);
   const seasons = seasonRows(d);
   const battingCareer = [
@@ -209,9 +210,10 @@ export default async function RecordsPage() {
         </div>
       </section>
 
-      <section aria-labelledby="champ-seasons">
-        <h2 id="champ-seasons" className="mb-3 text-lg font-semibold text-ink">歷年冠亞軍</h2>
-        <DataTable columns={seasonChampColumns} rows={ch.seasons} rowKey={(r) => r.year} dense maxHeight="26rem" />
+      <section aria-labelledby="postseason">
+        <h2 id="postseason" className="mb-3 text-lg font-semibold text-ink">季後賽紀錄</h2>
+        <DataTable columns={postseasonColumns} rows={ps.teams} rowKey={(r) => r.team_code} dense />
+        <p className="mt-2 text-[11px] text-faint">一軍季後賽（台灣大賽＋挑戰賽）全史；亞軍＝台灣大賽敗者，依勝率排序。</p>
       </section>
 
       {covComplete && champPlayers.length > 0 && (
