@@ -397,6 +397,12 @@ export const api = {
       franchise_ranking?: { team_code: string; team: string | null; titles: number; years: number[]; rk: number }[];
       player_ranking?: { name: string; pid: string; titles: number; years: number[]; active: boolean; is_manager: boolean; rk: number }[];
     }>("/api/v1/records/championships", 600),
+  // 例行賽單季最長連勝／連敗（全史；當年隊名歸屬）。
+  streaks: () =>
+    get<{
+      win: { team_code: string; team: string | null; streak: number; year: number; end_date: string }[];
+      loss: { team_code: string; team: string | null; streak: number; year: number; end_date: string }[];
+    }>("/api/v1/records/streaks", 600),
   // 季後賽球團戰績（僅完整資料：亞軍/連霸/勝率/出賽）。
   postseason: () =>
     get<{
