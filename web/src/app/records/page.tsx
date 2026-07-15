@@ -3,6 +3,7 @@ import { DataTable, type Column } from "@/components/table";
 import { ActivePill, GonePill, NameTag, Notice, PlayerLink, TeamBadge, TeamLogo } from "@/components/ui";
 import { api } from "@/lib/api";
 import { teamColor, teamFullName } from "@/lib/teams";
+import { ChampionsPlayerTable, type ChampRow } from "./champions-player-table";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,6 @@ type SeasonRec = { name: string; pid: string; year: number; val: number | string
 type CareerRec = { name: string; pid: string; val: number; active: boolean };
 type Dynasty = NonNullable<Championships["franchise_ranking"]>[number];
 type ChampSeason = Championships["seasons"][number];
-type ChampPlayer = NonNullable<Championships["player_ranking"]>[number];
 
 type GameRow = { key: string; label: string; rec: GameRec; value: string };
 type SeasonRow = { key: string; group: string; label: string; rec: SeasonRec; format?: "rate" };
@@ -134,14 +134,6 @@ const seasonChampColumns: Column<ChampSeason>[] = [
   { header: "奪冠總教練", cell: (r) => r.manager_name ?? "—", nowrap: true, className: "font-sans text-muted" },
 ];
 
-const champPlayerColumns: Column<ChampPlayer>[] = [
-  { header: "名次", cell: (r) => r.rk, sticky: true, align: "right", nowrap: true, className: "text-faint" },
-  { header: "球員", cell: (r) => <PlayerLink pid={r.pid} name={r.name} />, nowrap: true, className: "font-sans" },
-  { header: "冠軍次數", cell: (r) => r.titles, align: "right", nowrap: true, className: "font-semibold text-accent" },
-  { header: "現況", cell: (r) => r.active ? <ActivePill /> : <span className="text-faint">退役</span>, align: "center", nowrap: true, className: "font-sans" },
-  { header: "奪冠年份", cell: (r) => r.years.join("、"), nowrap: true, className: "font-mono text-[11px] tabular-nums text-muted" },
-];
-
 function FranchiseTable({ rows }: { rows: Franchises }) {
   const columns: Column<Franchises[number]>[] = [
     {
@@ -187,6 +179,37 @@ export default async function RecordsPage() {
   const dynasties = ch.franchise_ranking ?? [];
   const champPlayers = ch.player_ranking ?? [];
 
+  // 把奪冠年份解析成「當年隸屬球隊」徽章（含教練身分年份）。用**當年隊名**（era-accurate）：
+  // 張泰山 2004/05 是興農牛奪冠（興農 franchise 今為富邦），顯示富邦是錯的；已解散隊
+  // （三商虎/中信鯨）更沒有現役 franchise。依**當年隊碼**去重：同隊合併一枚，改過名的隊
+  // （Lamigo→樂天桃猿 是不同碼）獨立列出。每枚帶自己的奪冠年份供 hover。
+  const yearInfo = new Map(ch.seasons.map((s) => [s.year, s]));
+  const teamsOf = (years: number[]) => {
+    const byCode = new Map<string, { code: string; name: string; years: number[] }>();
+    for (const y of years) {
+      const s = yearInfo.get(y);
+      if (!s?.champion_team_code || !s.champion) continue;
+      const e = byCode.get(s.champion_team_code);
+      if (e) e.years.push(y);
+      else byCode.set(s.champion_team_code, { code: s.champion_team_code, name: teamFullName(s.champion), years: [y] });
+    }
+    return [...byCode.values()].sort((a, b) => Math.min(...a.years) - Math.min(...b.years));
+  };
+
+  // 合併同一行：奪冠年份 + 狀態（現役/教練）皆相同的選手併成一列（如樂天/Lamigo 王朝
+  // 群 7 冠現役球員）。champPlayers 已依 rk（冠軍次數 desc）排序，Map 保序 → 群仍由高到低。
+  const champGroups = new Map<string, ChampRow>();
+  for (const p of champPlayers) {
+    const key = `${p.years.join(",")}|${p.active}|${p.is_manager}`;
+    const g = champGroups.get(key);
+    if (g) g.players.push({ pid: p.pid, name: p.name });
+    else champGroups.set(key, {
+      key, titles: p.titles, players: [{ pid: p.pid, name: p.name }],
+      teams: teamsOf(p.years), active: p.active, isManager: p.is_manager,
+    });
+  }
+  const champRows = [...champGroups.values()];
+
   return (
     <div className="space-y-10">
       <h1 className="text-2xl font-extrabold tracking-tight text-ink">歷史紀錄室</h1>
@@ -225,8 +248,8 @@ export default async function RecordsPage() {
 
       {covComplete && champPlayers.length > 0 && (
         <section aria-labelledby="champ-players">
-          <h2 id="champ-players" className="mb-3 text-lg font-semibold text-ink">球員冠軍次數榜</h2>
-          <DataTable columns={champPlayerColumns} rows={champPlayers} rowKey={(r) => r.pid} dense />
+          <h2 id="champ-players" className="mb-3 text-lg font-semibold text-ink">個人冠軍次數榜</h2>
+          <ChampionsPlayerTable rows={champRows} />
         </section>
       )}
 
