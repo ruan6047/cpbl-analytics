@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from cpbl.models.umpire_impact import (
@@ -16,6 +18,7 @@ from cpbl.models.umpire_impact import (
     aggregate_umpires,
     bootstrap_metric_deltas,
     bootstrap_probability_deltas,
+    bootstrap_umpire_aggregates,
     post_to_pre_count,
     proxy_call,
     score_called_pitch,
@@ -196,6 +199,16 @@ def test_run_value_model_shrinks_state_distribution_and_backs_off() -> None:
     assert 0 < model.expected_runs(zero_zero) < 1
 
 
+def test_run_value_model_can_refit_from_weighted_sufficient_counts() -> None:
+    key = RunStateKey("1", "___", 0, 0, 0)
+    observations = _observations(key, [0, 0, 1])
+
+    direct = RunValueModel.fit(observations, alpha=2.0)
+    counted = RunValueModel.fit_counts({(key, 0): 2, (key, 1): 1}, alpha=2.0)
+
+    assert counted.distribution(key) == pytest.approx(direct.distribution(key))
+
+
 def test_run_value_metrics_compare_count_model_with_parent_baseline() -> None:
     favorable = RunStateKey("1", "___", 0, 1, 0)
     unfavorable = RunStateKey("1", "___", 0, 0, 1)
@@ -329,6 +342,7 @@ def test_win_probability_metrics_include_calibration_and_ece() -> None:
     assert 0 <= metrics.brier <= 1
     assert metrics.log_loss > 0
     assert metrics.ece >= 0
+    assert sum(bucket.n for bucket in metrics.reliability) == metrics.n
     assert metrics.calibration_intercept == pytest.approx(
         metrics.calibration_intercept
     )
@@ -423,3 +437,23 @@ def test_umpire_and_team_aggregates_preserve_signed_totals() -> None:
     assert teams["HOME"].state_value_against == pytest.approx(
         umpire.sum_delta_runs_offense
     )
+
+
+def test_umpire_bootstrap_refits_history_and_resamples_scoring_games() -> None:
+    historical = [
+        *_observations(RunStateKey("1", "___", 0, 1, 0), [1, 1], game_prefix="h1-"),
+        *_observations(RunStateKey("1", "___", 0, 0, 1), [0, 0], game_prefix="h2-"),
+    ]
+    pitches = [
+        _called_pitch(observed=Call.BALL, umpire="主審甲"),
+        replace(_called_pitch(observed=Call.BALL), game_sno=2),
+    ]
+
+    result = bootstrap_umpire_aggregates(
+        historical, pitches, alpha=0.1, iterations=50, seed=42
+    )
+
+    assert result[0].umpire == "主審甲"
+    assert result[0].iterations == 50
+    assert result[0].total.high >= result[0].total.low
+    assert result[0].per_100_called.high >= result[0].per_100_called.low

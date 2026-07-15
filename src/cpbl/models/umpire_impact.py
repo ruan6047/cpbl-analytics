@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 import random
 from collections import Counter, defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import Protocol
@@ -130,6 +130,14 @@ class TeamAggregate:
 
 
 @dataclass(frozen=True, slots=True)
+class UmpireBootstrap:
+    umpire: str
+    iterations: int
+    total: QuantileInterval
+    per_100_called: QuantileInterval
+
+
+@dataclass(frozen=True, slots=True)
 class Transition:
     next_state: PitchState | None
     immediate_runs: int
@@ -239,7 +247,24 @@ class ProbabilityMetrics:
     calibration_intercept: float
     calibration_slope: float
     ece: float
+    reliability: tuple[ReliabilityBin, ...]
     n: int
+
+
+@dataclass(frozen=True, slots=True)
+class ReliabilityBin:
+    lower: float
+    upper: float
+    mean_prediction: float
+    mean_outcome: float
+    n: int
+
+
+@dataclass(frozen=True, slots=True)
+class QuantileInterval:
+    low: float
+    median: float
+    high: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -282,24 +307,43 @@ class RunValueModel:
         rows = list(observations)
         if not rows:
             raise ValueError("observations must not be empty")
+        counts = Counter((row.key, row.remaining_runs) for row in rows)
+        return cls.fit_counts(counts, alpha=alpha)
+
+    @classmethod
+    def fit_counts(
+        cls,
+        counts: Mapping[tuple[RunStateKey, int], int],
+        *,
+        alpha: float,
+    ) -> RunValueModel:
         if alpha <= 0:
             raise ValueError("alpha must be positive")
+        weighted = {
+            (key, runs): count
+            for (key, runs), count in counts.items()
+            if count > 0
+        }
+        if not weighted:
+            raise ValueError("counts must contain positive observations")
 
-        max_runs = max(row.remaining_runs for row in rows)
+        max_runs = max(runs for _, runs in weighted)
         support = range(max_runs + 1)
-        global_counts = Counter(row.remaining_runs for row in rows)
+        global_counts: Counter[int] = Counter()
+        for (_, runs), count in weighted.items():
+            global_counts[runs] += count
         # 極小均勻先驗只為保證有限 NLL，不替代由 validation 選出的 alpha。
         epsilon = 1e-9
-        global_total = len(rows) + epsilon * (max_runs + 1)
+        global_total = sum(weighted.values()) + epsilon * (max_runs + 1)
         global_distribution = tuple(
             (global_counts[runs] + epsilon) / global_total for runs in support
         )
 
         parent_counts: dict[ParentKey, Counter[int]] = defaultdict(Counter)
         state_counts: dict[RunStateKey, Counter[int]] = defaultdict(Counter)
-        for row in rows:
-            parent_counts[row.key.parent][row.remaining_runs] += 1
-            state_counts[row.key][row.remaining_runs] += 1
+        for (key, runs), count in weighted.items():
+            parent_counts[key.parent][runs] += count
+            state_counts[key][runs] += count
 
         parent_distributions: dict[ParentKey, tuple[float, ...]] = {}
         for parent, counts in parent_counts.items():
@@ -526,7 +570,20 @@ class WinProbabilityModel:
             for bucket in buckets
             if bucket[2]
         ) / len(rows)
-        return ProbabilityMetrics(brier, log_loss, intercept, slope, ece, len(rows))
+        reliability = tuple(
+            ReliabilityBin(
+                lower=index / 10,
+                upper=(index + 1) / 10,
+                mean_prediction=bucket[0] / bucket[2],
+                mean_outcome=bucket[1] / bucket[2],
+                n=int(bucket[2]),
+            )
+            for index, bucket in enumerate(buckets)
+            if bucket[2]
+        )
+        return ProbabilityMetrics(
+            brier, log_loss, intercept, slope, ece, reliability, len(rows)
+        )
 
 
 def _calibration_fit(
@@ -771,6 +828,86 @@ def aggregate_teams(scores: Iterable[PitchScore]) -> list[TeamAggregate]:
             value_against[team],
         )
         for team in teams
+    ]
+
+
+def bootstrap_umpire_aggregates(
+    historical: Iterable[RunObservation],
+    pitches: Iterable[CalledPitch],
+    *,
+    alpha: float,
+    iterations: int = 2_000,
+    seed: int = 0,
+) -> list[UmpireBootstrap]:
+    """同時重抽歷史場次重建 value table，並重抽 scoring 場次重算主審聚合。"""
+    if iterations <= 0:
+        raise ValueError("iterations must be positive")
+    history_profiles: dict[str, Counter[tuple[RunStateKey, int]]] = defaultdict(Counter)
+    for row in historical:
+        history_profiles[row.game_id][(row.key, row.remaining_runs)] += 1
+    scoring_games: dict[str, list[CalledPitch]] = defaultdict(list)
+    for pitch in pitches:
+        scoring_games[pitch.game_id].append(pitch)
+    if not history_profiles or not scoring_games:
+        raise ValueError("historical and pitches must not be empty")
+
+    history_ids = list(history_profiles)
+    scoring_ids = list(scoring_games)
+    umpires = sorted({pitch.umpire for rows in scoring_games.values() for pitch in rows})
+    total_samples: dict[str, list[float]] = defaultdict(list)
+    rate_samples: dict[str, list[float]] = defaultdict(list)
+    rng = random.Random(seed)
+    for _ in range(iterations):
+        history_weights = Counter(rng.choices(history_ids, k=len(history_ids)))
+        combined: Counter[tuple[RunStateKey, int]] = Counter()
+        for game_id, weight in history_weights.items():
+            for cell, count in history_profiles[game_id].items():
+                combined[cell] += count * weight
+        model = RunValueModel.fit_counts(combined, alpha=alpha)
+
+        scoring_weights = Counter(rng.choices(scoring_ids, k=len(scoring_ids)))
+        totals: Counter[str] = Counter()
+        calls: Counter[str] = Counter()
+        value_cache: dict[tuple[RunStateKey, Call, Call], float] = {}
+        for game_id, weight in scoring_weights.items():
+            for pitch in scoring_games[game_id]:
+                calls[pitch.umpire] += weight
+                proxy = proxy_call(pitch.plate_loc_side, pitch.plate_loc_height)
+                cache_key = (
+                    RunStateKey.from_pitch_state(pitch.state),
+                    pitch.observed_call,
+                    proxy,
+                )
+                if cache_key not in value_cache:
+                    values = model.call_values(pitch.state)
+                    observed_value = (
+                        values.ball if pitch.observed_call is Call.BALL else values.strike
+                    )
+                    proxy_value = values.ball if proxy is Call.BALL else values.strike
+                    value_cache[cache_key] = observed_value - proxy_value
+                totals[pitch.umpire] += value_cache[cache_key] * weight
+        for umpire in umpires:
+            total_samples[umpire].append(totals[umpire])
+            rate_samples[umpire].append(
+                totals[umpire] / calls[umpire] * 100 if calls[umpire] else 0.0
+            )
+
+    return [
+        UmpireBootstrap(
+            umpire=umpire,
+            iterations=iterations,
+            total=QuantileInterval(
+                _percentile(total_samples[umpire], 0.025),
+                _percentile(total_samples[umpire], 0.5),
+                _percentile(total_samples[umpire], 0.975),
+            ),
+            per_100_called=QuantileInterval(
+                _percentile(rate_samples[umpire], 0.025),
+                _percentile(rate_samples[umpire], 0.5),
+                _percentile(rate_samples[umpire], 0.975),
+            ),
+        )
+        for umpire in umpires
     ]
 
 
