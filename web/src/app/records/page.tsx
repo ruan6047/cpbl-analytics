@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/table";
-import { ActivePill, Eyebrow, GonePill, NameTag, Notice, PlayerLink, TeamBadge } from "@/components/ui";
+import { ActivePill, GonePill, NameTag, Notice, PlayerLink, TeamBadge, TeamLogo } from "@/components/ui";
 import { api } from "@/lib/api";
-import { teamColor } from "@/lib/teams";
+import { teamColor, teamFullName } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
@@ -115,10 +115,22 @@ function DynastyBars({ rows }: { rows: Dynasty[] }) {
   );
 }
 
+// 徽章色用當年隊名（nameMeta 全涵蓋含已解散隊），顯示文字補成全名（teamFullName）。
+function ChampTeam({ name }: { name: string | null }) {
+  if (!name) return null;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <TeamLogo name={name} size={16} decorative />
+      <span>{teamFullName(name)}</span>
+    </span>
+  );
+}
+
 const seasonChampColumns: Column<ChampSeason>[] = [
   { header: "年度", cell: (r) => r.year, sticky: true, align: "right", nowrap: true, className: "font-semibold text-ink" },
-  { header: "冠軍", cell: (r) => <TeamBadge code={r.champion_team_code} name={r.champion} />, nowrap: true, className: "font-sans font-semibold text-ink" },
-  { header: "亞軍", cell: (r) => <TeamBadge code={r.runner_up_team_code} name={r.runner_up} />, nowrap: true, className: "font-sans text-muted" },
+  { header: "冠軍", cell: (r) => <ChampTeam name={r.champion} />, nowrap: true, className: "font-sans font-semibold text-ink" },
+  // 沒有亞軍（1992/94/95 包辦上下半季，無台灣大賽對手）→ 不顯示、不留空白佔位。
+  { header: "亞軍", cell: (r) => r.runner_up_team_code ? <ChampTeam name={r.runner_up} /> : null, nowrap: true, className: "font-sans text-muted" },
   { header: "奪冠總教練", cell: (r) => r.manager_name ?? "—", nowrap: true, className: "font-sans text-muted" },
 ];
 
@@ -174,29 +186,16 @@ export default async function RecordsPage() {
   const covComplete = ch.coverage.complete;
   const dynasties = ch.franchise_ranking ?? [];
   const champPlayers = ch.player_ranking ?? [];
-  const totalTitles = dynasties.reduce((s, r) => s + r.titles, 0);
 
   return (
     <div className="space-y-10">
-      <header className="mb-2">
-        <Eyebrow className="mb-2">聯盟史冊・1990 至今</Eyebrow>
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink">歷史紀錄室</h1>
-        <p className="mt-1.5 max-w-3xl text-sm text-muted">
-          中華職棒一軍歷史之最，以歷史重要性排序：先看王朝與生涯標竿，再看單季與單場極值。
-          冠軍由官方台灣大賽戰績逐年推導；單季與生涯紀錄以官方歷年彙總為基礎，近兩季另計。
-        </p>
-      </header>
+      <h1 className="text-2xl font-extrabold tracking-tight text-ink">歷史紀錄室</h1>
 
       <section aria-labelledby="dynasty">
-        <Eyebrow className="mb-2">誰的王朝最長青？</Eyebrow>
         <h2 id="dynasty" className="mb-3 text-lg font-semibold text-ink">冠軍王朝榜</h2>
         {covComplete && dynasties.length ? (
           <div className="card p-5">
             <DynastyBars rows={dynasties} />
-            <p className="mt-4 border-t border-line pt-3 text-[11px] text-faint">
-              {ch.coverage.from_year}–{ch.coverage.through_year} 共 {ch.seasons.length} 座冠軍，
-              分屬 {dynasties.length} 個現存球團（總和 {totalTitles} = 季數）。並列同名次；點球團名進入隊史頁。
-            </p>
           </div>
         ) : (
           <Notice>{ch.note ?? "冠軍資料尚未補齊，暫不呈現累計王朝排行。"}</Notice>
@@ -204,10 +203,7 @@ export default async function RecordsPage() {
       </section>
 
       <section aria-labelledby="career-records" className="space-y-4">
-        <div>
-          <Eyebrow className="mb-2">長期累積的聯盟標竿</Eyebrow>
-          <h2 id="career-records" className="text-lg font-semibold text-ink">生涯排行</h2>
-        </div>
+        <h2 id="career-records" className="text-lg font-semibold text-ink">生涯排行</h2>
         <div>
           <h3 className="mb-2 text-sm font-semibold text-muted">打者紀錄</h3>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -223,21 +219,18 @@ export default async function RecordsPage() {
       </section>
 
       <section aria-labelledby="champ-seasons">
-        <Eyebrow className="mb-2">逐年封王之路</Eyebrow>
         <h2 id="champ-seasons" className="mb-3 text-lg font-semibold text-ink">歷年冠亞軍</h2>
         <DataTable columns={seasonChampColumns} rows={ch.seasons} rowKey={(r) => r.year} dense maxHeight="26rem" />
       </section>
 
       {covComplete && champPlayers.length > 0 && (
         <section aria-labelledby="champ-players">
-          <Eyebrow className="mb-2">戒指收藏家</Eyebrow>
           <h2 id="champ-players" className="mb-3 text-lg font-semibold text-ink">球員冠軍次數榜</h2>
           <DataTable columns={champPlayerColumns} rows={champPlayers} rowKey={(r) => r.pid} dense />
         </section>
       )}
 
       <section aria-labelledby="season-records">
-        <Eyebrow className="mb-2">單一球季的最高峰</Eyebrow>
         <h2 id="season-records" className="mb-3 text-lg font-semibold text-ink">單季之最</h2>
         <div className="grid gap-4 lg:grid-cols-2">
           <div>
@@ -252,15 +245,12 @@ export default async function RecordsPage() {
       </section>
 
       <section aria-labelledby="game-records">
-        <Eyebrow className="mb-2">一場比賽能走到多極端？</Eyebrow>
         <h2 id="game-records" className="mb-3 text-lg font-semibold text-ink">比賽紀錄</h2>
         <DataTable columns={gameColumns} rows={games} rowKey={(r) => r.key} dense />
       </section>
 
       <section aria-labelledby="franchise-history">
-        <Eyebrow className="mb-2">球團更名、轉賣與存續</Eyebrow>
-        <h2 id="franchise-history" className="mb-1 text-lg font-semibold text-ink">歷代球隊</h2>
-        <p className="mb-3 text-[11px] text-faint">點球團名稱進入隊史頁；沿革依時間由左至右排列。</p>
+        <h2 id="franchise-history" className="mb-3 text-lg font-semibold text-ink">歷代球隊</h2>
         <FranchiseTable rows={fr.items} />
       </section>
     </div>
