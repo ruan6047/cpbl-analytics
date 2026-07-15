@@ -63,6 +63,7 @@ class PASnapshot:
     game_sno: int = 0
     game_date: date | None = None
     end_event_no: int = 0
+    game_outcome: float = 0.5
 
 
 @dataclass(frozen=True)
@@ -220,6 +221,10 @@ def build_pa_snapshots(
     groups = _group_events(events)
 
     snapshots: list[PASnapshot] = []
+    game_outcome = 0.5
+    if final_score is not None:
+        game_outcome = (1.0 if final_score[1] > final_score[0]
+                        else (0.0 if final_score[1] < final_score[0] else 0.5))
     for index, group in enumerate(groups):
         action = next((row.action for row in reversed(group) if row.action), None)
         result = classify_action(action)
@@ -261,6 +266,7 @@ def build_pa_snapshots(
                 game_sno=first.game_sno,
                 game_date=first.game_date,
                 end_event_no=group[-1].event_no,
+                game_outcome=game_outcome,
             )
         )
     return snapshots

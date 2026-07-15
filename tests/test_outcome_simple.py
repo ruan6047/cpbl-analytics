@@ -80,6 +80,8 @@ def test_final_artifact_round_trip_preserves_probability(tmp_path):
 def test_deployment_gate_requires_probability_metrics_season_stability_and_calibration():
     result = {
         "seasons_beating_baseline": 3,
+        "paired_bootstrap": {"brier_delta_ci95": [-0.02, -0.001],
+                             "log_loss_delta_ci95": [-0.04, -0.002]},
         "models": [
             {"name": "home_baseline", "brier": 0.25, "log_loss": 0.69},
             {"name": "fixed_semantic", "brier": 0.24, "log_loss": 0.67,

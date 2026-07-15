@@ -184,6 +184,7 @@ def walk_forward_backtest(
     )
     pooled_actual: list[int] = []
     pooled = {name: [] for name in names}
+    pooled_blocks: list[tuple[int, int]] = []
     folds = []
     fixed_wins = 0
     for season in test_years:
@@ -205,6 +206,7 @@ def walk_forward_backtest(
                         for name, probability in fold_probabilities.items()}
         fixed_wins += fold_metrics["fixed_semantic"]["brier"] < fold_metrics["home_baseline"]["brier"]
         pooled_actual.extend(actual.tolist())
+        pooled_blocks.extend((row.season, row.game_date.isocalendar().week) for row in test)
         for name, probability in fold_probabilities.items():
             pooled[name].extend(probability.tolist())
         folds.append({"year": season, "n_train": len(train), "n_test": len(test),
@@ -215,17 +217,55 @@ def walk_forward_backtest(
     models = [{"name": name, **_metrics(actual, np.array(pooled[name]))} for name in names]
     baseline = models[0]
     fixed = next(model for model in models if model["name"] == "fixed_semantic")
+    paired_bootstrap = _paired_block_bootstrap(
+        actual, np.array(pooled["home_baseline"]), np.array(pooled["fixed_semantic"]),
+        pooled_blocks,
+    )
     return {
         "test_years": [fold["year"] for fold in folds],
         "n_test": len(actual),
         "models": models,
         "folds": folds,
+        "paired_bootstrap": paired_bootstrap,
         "seasons_beating_baseline": int(fixed_wins),
         "beats_baseline": (
             fixed["brier"] < baseline["brier"]
             and fixed["log_loss"] < baseline["log_loss"]
             and fixed_wins >= math.ceil(len(folds) / 2)
         ),
+    }
+
+
+def _paired_block_bootstrap(
+    actual: np.ndarray,
+    baseline: np.ndarray,
+    fixed: np.ndarray,
+    blocks: list[tuple[int, int]],
+    iterations: int = 2000,
+) -> dict:
+    grouped: dict[tuple[int, int], list[int]] = {}
+    for index, block in enumerate(blocks):
+        grouped.setdefault(block, []).append(index)
+    block_indices = list(grouped.values())
+    rng = np.random.default_rng(42)
+    brier_delta = []
+    log_loss_delta = []
+    for _ in range(iterations):
+        sample = np.array([index for selected in rng.integers(0, len(block_indices),
+                                                              len(block_indices))
+                           for index in block_indices[selected]])
+        y = actual[sample]
+        base = np.clip(baseline[sample], 1e-6, 1 - 1e-6)
+        model = np.clip(fixed[sample], 1e-6, 1 - 1e-6)
+        brier_delta.append(float(np.mean((model - y) ** 2 - (base - y) ** 2)))
+        base_ll = -(y * np.log(base) + (1 - y) * np.log(1 - base))
+        model_ll = -(y * np.log(model) + (1 - y) * np.log(1 - model))
+        log_loss_delta.append(float(np.mean(model_ll - base_ll)))
+    return {
+        "method": "paired calendar-week block bootstrap",
+        "iterations": iterations,
+        "brier_delta_ci95": np.quantile(brier_delta, [0.025, 0.975]).tolist(),
+        "log_loss_delta_ci95": np.quantile(log_loss_delta, [0.025, 0.975]).tolist(),
     }
 
 
@@ -275,5 +315,7 @@ def deployment_gate(result: dict, required_season_wins: int = 3) -> dict:
         "season_stability": result["seasons_beating_baseline"] >= required_season_wins,
         "calibration_intercept": abs(fixed["calibration_intercept"]) <= 0.1,
         "calibration_slope": 0.8 <= fixed["calibration_slope"] <= 1.2,
+        "brier_ci": result["paired_bootstrap"]["brier_delta_ci95"][1] <= 0,
+        "log_loss_ci": result["paired_bootstrap"]["log_loss_delta_ci95"][1] <= 0,
     }
     return {"deployable": all(checks.values()), "checks": checks}

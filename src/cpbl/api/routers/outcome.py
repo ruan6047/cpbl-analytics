@@ -174,6 +174,7 @@ def _pa_response(artifact: dict, hitter: str, pitcher: str, state: GameState) ->
     return {
         "available": True, "trained_through": artifact["trained_through"],
         "wp_span": artifact["wp_span"],
+        "uncertainty_method": "normal approximation over shrinkage effective sample size",
         "sample": {"hitter_pa": hitter_n, "pitcher_pa": pitcher_n,
                    "direct_pa": direct_n, "low_sample": direct_n < 20},
         "state": state.__dict__, **result,

@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
+import gc
 import math
-from collections.abc import Iterable
+from collections import defaultdict
+from collections.abc import Callable, Iterable
 from dataclasses import replace
 
 from cpbl.models.pa_sim import (
     OUTCOMES,
+    GameState,
     PASnapshot,
+    Transition,
     _posterior,
     fit_empirical_bayes,
+    fit_transition_kernel,
     predict_outcomes,
+    simulate_plate_appearance,
 )
 
 DEFAULT_STRENGTH_GRID = [
@@ -133,5 +139,116 @@ def walk_forward_backtest(
             {"name": name, **multiclass_metrics(pooled_actual, pooled_predictions[name])}
             for name in names
         ],
+        "folds": folds,
+    }
+
+
+def build_run_dist_from_snapshots(
+    snapshots: Iterable[PASnapshot],
+) -> dict[tuple[str, str, int], list[float]]:
+    """只用訓練 fold 重建半局剩餘得分分布，供 WP 驗證避免跨季洩漏。"""
+    from cpbl.models.winprob import K_CAP
+
+    groups: dict[tuple[int, int, int, str], list[PASnapshot]] = defaultdict(list)
+    for snapshot in snapshots:
+        groups[(snapshot.year, snapshot.game_sno, snapshot.before.inning,
+                snapshot.before.half)].append(snapshot)
+    last_half = {
+        game: max((inning, half) for year, sno, inning, half in groups
+                  if (year, sno) == game)
+        for game in {(year, sno) for year, sno, _, _ in groups}
+    }
+    counts: dict[tuple[str, str, int], list[int]] = defaultdict(lambda: [0] * (K_CAP + 1))
+    for (year, sno, inning, half), group in groups.items():
+        if (inning, half) == last_half[(year, sno)]:
+            continue  # 再見／免打下半局會截短得分，與正式 winprob.py 同樣排除末半局
+        end_score = max(
+            snapshot.after.away_score if half == "1" else snapshot.after.home_score
+            for snapshot in group
+        )
+        for snapshot in group:
+            start_score = (snapshot.before.away_score if half == "1"
+                           else snapshot.before.home_score)
+            remaining = max(0, min(K_CAP, end_score - start_score))
+            counts[(half, snapshot.before.bases, snapshot.before.outs)][remaining] += 1
+    return {
+        key: [count / sum(values) for count in values]
+        for key, values in counts.items() if sum(values)
+    }
+
+
+def _wp_from_training(snapshots: list[PASnapshot]) -> Callable[[GameState], float]:
+    from cpbl.models.winprob import _we_solver, wp_state
+
+    distribution = build_run_dist_from_snapshots(snapshots)
+    for half in ("1", "2"):
+        if (half, "___", 0) not in distribution:
+            raise ValueError(f"訓練 fold 缺少 {half}/___/0 run distribution")
+    we_top, we_bot = _we_solver(distribution[("1", "___", 0)],
+                                distribution[("2", "___", 0)])
+
+    def calculate(state: GameState) -> float:
+        return wp_state(distribution, we_top, we_bot, state.inning, state.half,
+                        state.home_score - state.away_score, state.bases, state.outs)
+
+    return calculate
+
+
+def transition_walk_forward(
+    snapshots: Iterable[PASnapshot], test_years: list[int],
+    strengths_by_year: dict[int, tuple[float, float, float]] | None = None,
+) -> dict:
+    """留出季驗證轉移分布與加權 WP；所有 run_dist／kernel 只由較早季建立。"""
+    rows = list(snapshots)
+    folds = []
+    total = transition_total = 0
+    next_wp_error = model_brier = current_brier = transition_nll = 0.0
+    for year in test_years:
+        train = [row for row in rows if row.year < year]
+        test = [row for row in rows if row.year == year]
+        if not train or not test:
+            continue
+        strengths = ((strengths_by_year or {}).get(year)
+                     or select_prior_strengths(train, DEFAULT_STRENGTH_GRID))
+        model = fit_empirical_bayes(train, *strengths)
+        kernel = fit_transition_kernel(train)
+        wp = _wp_from_training(train)
+        fold_n = 0
+        for snapshot in test:
+            try:
+                simulated = simulate_plate_appearance(
+                    model, kernel, snapshot.hitter, snapshot.pitcher, snapshot.before, wp,
+                )
+            except RuntimeError:
+                continue
+            predicted_wp = simulated["weighted_win_probability"]
+            actual_next_wp = snapshot.game_outcome if snapshot.game_ended else wp(snapshot.after)
+            next_wp_error += abs(predicted_wp - actual_next_wp)
+            model_brier += (predicted_wp - snapshot.game_outcome) ** 2
+            current_brier += (simulated["current_win_probability"] - snapshot.game_outcome) ** 2
+            if not snapshot.game_ended:
+                actual_transition = Transition(snapshot.runs_delta, snapshot.after.bases,
+                                               snapshot.after.outs, snapshot.inning_ended)
+                distribution, _, _ = kernel.distribution(
+                    snapshot.result, snapshot.before.bases, snapshot.before.outs,
+                )
+                probability = next((p for transition, p in distribution
+                                    if transition == actual_transition), 0.0)
+                transition_nll -= math.log(max(probability, 1e-15))
+                transition_total += 1
+            total += 1
+            fold_n += 1
+        folds.append({"year": year, "n_test": fold_n, "strengths": strengths})
+        del model, kernel, wp, train, test
+        gc.collect()
+    if not total:
+        raise ValueError("無可驗證打席")
+    return {
+        "test_years": [fold["year"] for fold in folds],
+        "n_test": total,
+        "next_wp_mae": next_wp_error / total,
+        "weighted_wp_brier": model_brier / total,
+        "current_wp_brier": current_brier / total,
+        "transition_log_loss": transition_nll / transition_total if transition_total else None,
         "folds": folds,
     }

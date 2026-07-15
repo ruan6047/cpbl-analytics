@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from cpbl.models.pa_backtest import multiclass_metrics, walk_forward_backtest
+from cpbl.models.pa_backtest import (
+    build_run_dist_from_snapshots,
+    multiclass_metrics,
+    walk_forward_backtest,
+)
 from cpbl.models.pa_sim import OUTCOMES, GameState, PASnapshot
 
 
@@ -42,3 +46,25 @@ def test_walk_forward_backtest_compares_league_hitter_pitcher_and_combined():
         "league", "hitter_only", "pitcher_only", "combined",
     }
     assert result["models"][-1]["log_loss"] < result["models"][0]["log_loss"]
+
+
+def test_build_run_dist_from_snapshots_separates_home_and_away_halves():
+    rows = [
+        PASnapshot(1, "h", "p", "HR", GameState(1, "1", "___", 0, 0, 0),
+                   GameState(1, "1", "___", 0, 1, 0), 1, False, False,
+                   year=2024, game_sno=1),
+        PASnapshot(2, "h", "p", "BIP_OUT", GameState(1, "2", "___", 0, 1, 0),
+                   GameState(1, "2", "___", 1, 1, 0), 0, False, False,
+                   year=2024, game_sno=1),
+        PASnapshot(3, "h", "p", "BIP_OUT", GameState(1, "2", "___", 0, 0, 0),
+                   GameState(1, "2", "___", 1, 0, 0), 0, False, False,
+                   year=2024, game_sno=2),
+        PASnapshot(4, "h", "p", "BIP_OUT", GameState(2, "1", "___", 0, 0, 0),
+                   GameState(2, "1", "___", 1, 0, 0), 0, False, False,
+                   year=2024, game_sno=2),
+    ]
+
+    distribution = build_run_dist_from_snapshots(rows)
+
+    assert distribution[("1", "___", 0)][1] == 1.0
+    assert distribution[("2", "___", 0)][0] == 1.0
