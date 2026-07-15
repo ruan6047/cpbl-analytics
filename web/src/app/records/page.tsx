@@ -20,7 +20,6 @@ type ChampPlayer = NonNullable<Championships["player_ranking"]>[number];
 
 type GameRow = { key: string; label: string; rec: GameRec; value: string };
 type SeasonRow = { key: string; group: string; label: string; rec: SeasonRec; format?: "rate" };
-type CareerRow = { key: string; label: string; rank: number; rec: CareerRec };
 
 function gameRows(games: Records["games"]): GameRow[] {
   const defs: { key: keyof Records["games"]; label: string; value: (r: GameRec) => string }[] = [
@@ -47,8 +46,26 @@ function seasonRows(d: Records): SeasonRow[] {
   return defs.flatMap((d) => d.rec?.[0] ? [{ key: `${d.group}-${d.key}`, group: d.group, label: d.label, rec: d.rec[0], format: d.format }] : []);
 }
 
-function careerRows(groups: { key: string; label: string; rows?: CareerRec[] }[]): CareerRow[] {
-  return groups.flatMap((g) => (g.rows ?? []).map((rec, i) => ({ key: `${g.key}-${rec.pid}-${i}`, label: g.label, rank: i + 1, rec })));
+// 生涯排行：每一項獨立一張排行卡（勿把 HR/H/RBI/SB 黏在同一表用「紀錄」欄硬分，看不清）。
+function LeaderCard({ title, rows }: { title: string; rows?: CareerRec[] }) {
+  const items = rows ?? [];
+  return (
+    <div className="card p-4">
+      <h4 className="mb-2.5 text-sm font-semibold text-ink">{title}</h4>
+      <ol className="space-y-1.5">
+        {items.map((r, i) => (
+          <li key={`${r.pid}-${i}`} className="flex items-center gap-2 text-sm">
+            <span className="w-4 shrink-0 text-right font-mono text-xs tabular-nums text-faint">{i + 1}</span>
+            <span className="min-w-0 flex-1 truncate font-sans">
+              <PlayerLink pid={r.pid} name={r.name} />
+              {r.active && <span className="ml-1.5 text-[10px] font-medium text-up">現役</span>}
+            </span>
+            <span className="shrink-0 font-mono font-semibold tabular-nums text-accent">{r.val}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
 }
 
 const gameColumns: Column<GameRow>[] = [
@@ -66,14 +83,6 @@ const seasonColumns: Column<SeasonRow>[] = [
   { header: "球員", cell: (r) => <PlayerLink pid={r.rec.pid} name={r.rec.name} />, nowrap: true, className: "font-sans" },
   { header: "球季", cell: (r) => r.rec.year, align: "right", nowrap: true, className: "text-muted" },
   { header: "紀錄值", cell: (r) => r.format === "rate" ? f3(r.rec.val) : r.rec.val, align: "right", nowrap: true, className: "font-semibold text-accent" },
-];
-
-const careerColumns: Column<CareerRow>[] = [
-  { header: "紀錄", cell: (r) => r.label, sticky: true, nowrap: true, className: "font-sans font-medium text-ink" },
-  { header: "名次", cell: (r) => r.rank, align: "right", nowrap: true, className: "text-faint" },
-  { header: "球員", cell: (r) => <PlayerLink pid={r.rec.pid} name={r.rec.name} />, nowrap: true, className: "font-sans" },
-  { header: "現況", cell: (r) => r.rec.active ? <ActivePill /> : <span className="text-faint">退役</span>, align: "center", nowrap: true, className: "font-sans" },
-  { header: "累計", cell: (r) => r.rec.val, align: "right", nowrap: true, className: "font-semibold text-accent" },
 ];
 
 // —— 冠軍王朝榜（hero）：各球團奪冠數長條圖，並列排名（rk）。條長 ∝ titles / 榜首。
@@ -148,17 +157,17 @@ export default async function RecordsPage() {
   const [d, fr, ch] = await Promise.all([api.records(), api.franchises(), api.championships()]);
   const games = gameRows(d.games);
   const seasons = seasonRows(d);
-  const battingCareer = careerRows([
-    { key: "hr", label: "生涯全壘打", rows: d.career_batting.hr },
-    { key: "h", label: "生涯安打", rows: d.career_batting.h },
-    { key: "rbi", label: "生涯打點", rows: d.career_batting.rbi },
-    { key: "sb", label: "生涯盜壘", rows: d.career_batting.sb },
-  ]);
-  const pitchingCareer = careerRows([
-    { key: "w", label: "生涯勝投", rows: d.career_pitching.w },
-    { key: "sv", label: "生涯救援", rows: d.career_pitching.sv },
-    { key: "so", label: "生涯三振", rows: d.career_pitching.so },
-  ]);
+  const battingCareer = [
+    { title: "生涯全壘打", rows: d.career_batting.hr },
+    { title: "生涯安打", rows: d.career_batting.h },
+    { title: "生涯打點", rows: d.career_batting.rbi },
+    { title: "生涯盜壘", rows: d.career_batting.sb },
+  ];
+  const pitchingCareer = [
+    { title: "生涯勝投", rows: d.career_pitching.w },
+    { title: "生涯救援", rows: d.career_pitching.sv },
+    { title: "生涯三振", rows: d.career_pitching.so },
+  ];
 
   // 冠軍資料 coverage fail-closed：缺年時 API 不回傳 franchise/player_ranking，前端據此
   // 不呈現「歷史最多冠軍」累計結論（看板紅線：冠軍資料缺年不得公開歷史最多）。
@@ -194,17 +203,21 @@ export default async function RecordsPage() {
         )}
       </section>
 
-      <section aria-labelledby="career-records">
-        <Eyebrow className="mb-2">長期累積的聯盟標竿</Eyebrow>
-        <h2 id="career-records" className="mb-3 text-lg font-semibold text-ink">生涯排行</h2>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div>
-            <h3 className="mb-2 text-sm font-semibold text-ink">打者紀錄</h3>
-            <DataTable columns={careerColumns} rows={battingCareer} rowKey={(r) => r.key} dense />
+      <section aria-labelledby="career-records" className="space-y-4">
+        <div>
+          <Eyebrow className="mb-2">長期累積的聯盟標竿</Eyebrow>
+          <h2 id="career-records" className="text-lg font-semibold text-ink">生涯排行</h2>
+        </div>
+        <div>
+          <h3 className="mb-2 text-sm font-semibold text-muted">打者紀錄</h3>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {battingCareer.map((c) => <LeaderCard key={c.title} title={c.title} rows={c.rows} />)}
           </div>
-          <div>
-            <h3 className="mb-2 text-sm font-semibold text-ink">投手紀錄</h3>
-            <DataTable columns={careerColumns} rows={pitchingCareer} rowKey={(r) => r.key} dense />
+        </div>
+        <div>
+          <h3 className="mb-2 text-sm font-semibold text-muted">投手紀錄</h3>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {pitchingCareer.map((c) => <LeaderCard key={c.title} title={c.title} rows={c.rows} />)}
           </div>
         </div>
       </section>
