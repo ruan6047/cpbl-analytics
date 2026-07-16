@@ -5,6 +5,7 @@
 | 卡ID | 功能 | 交付狀態 | 部署狀態 | 封存位置 |
 |---|---|---|---|---|
 | BUG-VENUE-ALIAS | 球場列表遺漏歷史桃園使用年份 | 🏁完成 | ✅已驗證 | [`tasks/BUG-VENUE-ALIAS.md`](tasks/BUG-VENUE-ALIAS.md) |
+| ML-MATCHUP1 | 天敵候選／優勢對位統計洞察 | 🏁完成 | —不適用 | [`tasks/ML-MATCHUP1.md`](tasks/ML-MATCHUP1.md)（WF-15；三輪跨家族審核，merge 336ee01） |
 | Legacy pre-WF-12 | 2026-07-15 前的 Ledger 與所有卡片明細 | 已封存 | 依原始紀錄 | [`TASKS_PRE_WF12.md`](TASKS_PRE_WF12.md) |
 
 > 已完成（🏁）與封存（📥）的卡片移到此處，讓 [`../TASKS.md`](../TASKS.md) 只留活卡（省 AI 讀取算力）。

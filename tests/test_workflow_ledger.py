@@ -79,3 +79,34 @@ def test_render_ledger_rejects_a_missing_state_version() -> None:
         assert "state_version" in str(error)
     else:
         raise AssertionError("缺少 state_version 的事件必須失敗")
+
+
+def test_render_ledger_excludes_released_cards() -> None:
+    def _event(card_id: str, state_version: int, delivery_status: str) -> dict:
+        return {
+            "event_id": f"{card_id}-{state_version}",
+            "card_id": card_id,
+            "type": "release" if delivery_status == "🏁完成" else "migration-baseline",
+            "actor": "ruan6047",
+            "occurred_at": "2026-07-16T22:00:00+08:00",
+            "state_version": state_version,
+            "iteration": 1,
+            "source_sha": "abc1234",
+            "evidence": "test",
+            "initiative": "—",
+            "tier": "T4",
+            "feature": "測試卡",
+            "owner": "—",
+            "branch_worktree": "—",
+            "delivery_status": delivery_status,
+            "deployment_status": "—不適用",
+        }
+
+    rendered = workflow_ledger.render_ledger([
+        _event("CARD-OPEN", 1, "📥Backlog"),
+        _event("CARD-DONE", 1, "🏁完成"),
+    ])
+
+    # 活卡 Ledger 只留未結案卡；🏁完成 卡由 archive 索引承接。
+    assert "CARD-OPEN" in rendered
+    assert "CARD-DONE" not in rendered

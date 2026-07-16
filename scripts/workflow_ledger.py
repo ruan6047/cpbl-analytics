@@ -39,10 +39,17 @@ def _cell(value: object) -> str:
     return str(value).replace("|", "\\|").replace("\n", "<br>")
 
 
+# 活卡 Ledger 排除已結案卡（archive header：「已完成（🏁）的卡片移到 archive，
+# 讓 TASKS.md 只留活卡」）；封存索引與卡片明細在 docs/archive/。event log 仍保留全史。
+_CLOSED_STATUSES = {"🏁完成"}
+
+
 def render_ledger(events: Iterable[dict[str, object]]) -> str:
-    """渲染可由事件重建的 `docs/TASKS.md` current-state projection。"""
+    """渲染可由事件重建的 `docs/TASKS.md` current-state projection（僅活卡）。"""
     rows = []
     for event in _latest_events(events):
+        if str(event["delivery_status"]) in _CLOSED_STATUSES:
+            continue
         card_id = _cell(event["card_id"])
         branch_worktree = _cell(event["branch_worktree"])
         if branch_worktree != "—":
@@ -63,10 +70,10 @@ def render_ledger(events: Iterable[dict[str, object]]) -> str:
         "", "## Ledger 總表（活卡）", "",
         "| 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |",
         "|---|---|---|---|---|---|---|---|---|---|", *rows, "", "## 依賴與資源註記", "",
-        "- `MATCHUP-DATA1 → ML-MATCHUP1 → UX-MATCHUP1 → UX-MATCHUP2`；前兩卡為資料／統計紅線，未獨立查核不得啟動 UI 卡。",
+        "- `MATCHUP-DATA1 → ML-MATCHUP1 → UX-MATCHUP1 → UX-MATCHUP2`；前兩卡已結案（ML-MATCHUP1 三輪跨家族審核後 merge `336ee01`，封存於 archive），UI 卡可啟動。",
         "- `RECORD-DATA1 → RECORD-API1 → UX-RECORD1`；前兩卡已結案並封存。",
         "- `ML-UMP1 → ML-UMP2`：身高比例帶重跑複用前者引擎與敏感度框架；方向性呈現仍以 ML-UMP2 翻轉測試為前置閘門。",
-        "- `ML-MATCHUP1`、`ML-SIM1` 的舊 Ledger 與卡片內容互相矛盾；migration baseline 已 fail-closed 設為 `⏸阻塞`，Coordinator 對帳後才可發新 lifecycle event。",
+        "- `ML-SIM1` 的舊 Ledger 與卡片內容互相矛盾；migration baseline 已 fail-closed 設為 `⏸阻塞`，Coordinator 對帳後才可發新 lifecycle event。",
         "- 升級前歷史仍封存於 [`archive/TASKS_PRE_WF12.md`](archive/TASKS_PRE_WF12.md)，不得為新格式回寫。", "",
     ])
 
