@@ -15,10 +15,10 @@ from cpbl.models.matchup_insights import (
     InsightCandidate,
     PairSample,
     WobaLine,
+    additive_expected,
     estimate_hyperparameters,
     evaluate_pairs,
     merge_lines,
-    pair_expected,
     per_opportunity_variance,
     rank_insights,
     sensitivity_report,
@@ -64,46 +64,40 @@ def test_per_opportunity_variance_matches_hand_computation():
     assert sigma2 == pytest.approx(expected)
 
 
-def _totals(pair_line: WobaLine, external_rate: float, external_n: int) -> WobaLine:
-    """球員總量 = 該配對 + 外部樣本（leave-pair-out 後恰為 external）。"""
-    return WobaLine(
-        pair_line.weighted_sum + external_rate * external_n,
-        pair_line.opportunities + external_n,
-    )
+_BIG_OPPS = {"H1": 10_000, "H2": 10_000, "P1": 10_000, "P2": 10_000}
 
 
 def test_method_of_moments_recovers_between_pair_variance():
-    # 兩組配對殘差 ±0.1、各 n=100；loo baseline 皆 0.35（外部各 200 機會）。
-    # noise 校正 = sigma²·(1 + 100/200 + 100/200) = 2·sigma²。
-    # tau² = Σ(n·r² − noise)/Σn = (100·0.01 − 0.8)·2 / 200 = 0.002。
-    line1 = WobaLine(0.45 * 100, 100)
-    line2 = WobaLine(0.25 * 100, 100)
-    pairs = [PairSample("H1", "P1", line1), PairSample("H2", "P2", line2)]
-    hitter_totals = {"H1": _totals(line1, 0.35, 200), "H2": _totals(line2, 0.35, 200)}
-    pitcher_totals = {"P1": _totals(line1, 0.35, 200), "P2": _totals(line2, 0.35, 200)}
+    # 兩組配對殘差 ±0.1、各 n=100；官方 baseline 大（10k）→ noise ≈ sigma²。
+    # tau² = Σ(n·r² − sigma²·(1+n/10000·2))/Σn ≈ (100·0.01 − 0.408)·2 / 200 = 0.00296。
+    pairs = [
+        PairSample("H1", "P1", WobaLine(0.45 * 100, 100)),
+        PairSample("H2", "P2", WobaLine(0.25 * 100, 100)),
+    ]
+    expected = {("H1", "P1"): 0.35, ("H2", "P2"): 0.35}
     hyper = estimate_hyperparameters(
-        pairs, hitter_totals=hitter_totals, pitcher_totals=pitcher_totals,
-        league_mean=0.35, sigma2=0.4,
+        pairs, expected=expected, hitter_opps=_BIG_OPPS,
+        pitcher_opps=_BIG_OPPS, sigma2=0.4,
     )
 
-    assert hyper.tau2 == pytest.approx(0.002)
+    noise = 0.4 * (1 + 100 / 10_000 + 100 / 10_000)
+    assert hyper.tau2 == pytest.approx((100 * 0.01 - noise) * 2 / 200)
     assert hyper.pairs_used == 2
-    assert hyper.prior_strength == pytest.approx(0.4 / 0.002)
+    assert hyper.prior_strength == pytest.approx(0.4 / hyper.tau2)
 
 
-def test_estimation_excludes_tiny_pairs_and_thin_baselines():
-    # 微樣本配對（n<10）與外部 baseline 不足（<100）都不得進 tau² 估計：
-    # 實資料診斷顯示它們的負偏噪音會把 tau² 壓到 0（訊號被誤殺）。
-    line = WobaLine(0.45 * 100, 100)
-    good = PairSample("H1", "P1", line)
-    tiny = PairSample("H1", "P2", WobaLine(2.10 * 5, 5))
-    thin = PairSample("H2", "P1", WobaLine(0.45 * 100, 100))  # H2 外部只有 50
-    hitter_totals = {"H1": _totals(line, 0.35, 400), "H2": _totals(line, 0.35, 50)}
-    pitcher_totals = {"P1": WobaLine(line.weighted_sum * 2 + 0.35 * 400, 600),
-                      "P2": _totals(WobaLine(2.10 * 5, 5), 0.35, 400)}
+def test_estimation_excludes_tiny_pairs_and_missing_baselines():
+    # 微樣本配對（n<10）與缺官方 baseline 的配對都不得進 tau² 估計。
+    good = PairSample("H1", "P1", WobaLine(0.45 * 100, 100))
+    tiny = PairSample("H1", "P2", WobaLine(2.10 * 5, 5))       # n<10
+    orphan = PairSample("H2", "P1", WobaLine(0.45 * 100, 100))  # H2 無官方 baseline
+    expected = {
+        ("H1", "P1"): 0.35, ("H1", "P2"): 0.35, ("H2", "P1"): 0.35,
+    }
+    hitter_opps = {"H1": 10_000}  # 無 H2
     hyper = estimate_hyperparameters(
-        [good, tiny, thin], hitter_totals=hitter_totals,
-        pitcher_totals=pitcher_totals, league_mean=0.35, sigma2=0.4,
+        [good, tiny, orphan], expected=expected,
+        hitter_opps=hitter_opps, pitcher_opps=_BIG_OPPS, sigma2=0.4,
     )
 
     assert hyper.pairs_used == 1
@@ -121,31 +115,34 @@ def test_shrinkage_pulls_small_samples_to_zero():
     assert large.credibility > 0.95
 
 
-def test_pair_expected_is_symmetric_and_clipped():
-    assert pair_expected(0.30, 0.36, 0.32) == pytest.approx(0.34)
-    assert pair_expected(0.01, 0.02, 0.32) == 0.0  # 夾下界
+def test_additive_expected_is_symmetric_and_clipped():
+    # league + batter_dev + pitcher_dev；偏差相加對稱。
+    assert additive_expected(0.30 - 0.32, 0.36 - 0.32, 0.32) == pytest.approx(0.34)
+    assert additive_expected(-0.31, -0.30, 0.32) == 0.0  # 夾下界
 
 
 def _universe(pair: PairSample):
-    """合成母體：聯盟均值 0.32；兩側外部 baseline 各 1000 機會 @0.32。"""
-    hitter_totals = {pair.hitter_id: _totals(pair.line, 0.32, 1000)}
-    pitcher_totals = {pair.pitcher_id: _totals(pair.line, 0.32, 1000)}
+    """合成母體：聯盟均值 0.32；兩側官方 baseline 各 10k 機會 @0.32（偏差 0）。"""
+    hitter_opps = {pair.hitter_id: 10_000}
+    pitcher_opps = {pair.pitcher_id: 10_000}
+    # 官方 baseline 都是聯盟均值 → expected = 0.32。
+    expected = {(pair.hitter_id, pair.pitcher_id): 0.32}
     hyper = Hyperparameters(sigma2=0.4, tau2=0.002, pairs_used=50)
-    return hitter_totals, pitcher_totals, hyper
+    return expected, hitter_opps, pitcher_opps, hyper
 
 
 def test_symmetry_role_flip_mirrors_labels_without_double_advantage():
     # BAT vs ACE：200 機會、觀察 0.20（低於期望 0.32）→ 有利投手。
     pair = PairSample("BAT", "ACE", WobaLine(0.20 * 200, 200))
-    hitter_totals, pitcher_totals, hyper = _universe(pair)
+    expected, hitter_opps, pitcher_opps, hyper = _universe(pair)
 
     as_batter = evaluate_pairs(
-        [pair], role="batting", hitter_totals=hitter_totals,
-        pitcher_totals=pitcher_totals, league_mean=0.32, hyper=hyper,
+        [pair], role="batting", expected=expected, hitter_opps=hitter_opps,
+        pitcher_opps=pitcher_opps, hyper=hyper,
     )[0]
     as_pitcher = evaluate_pairs(
-        [pair], role="pitching", hitter_totals=hitter_totals,
-        pitcher_totals=pitcher_totals, league_mean=0.32, hyper=hyper,
+        [pair], role="pitching", expected=expected, hitter_opps=hitter_opps,
+        pitcher_opps=pitcher_opps, hyper=hyper,
     )[0]
 
     # 同一組對戰：|delta| 與可信度完全相同（對稱期望保證單一號向）。
@@ -164,10 +161,11 @@ def test_symmetry_role_flip_mirrors_labels_without_double_advantage():
 def test_one_hit_wonder_never_becomes_nemesis():
     # 1 打數 1 全壘打：raw delta 巨大，但收縮＋閘門後不得成為候選。
     pair = PairSample("BAT", "NOBODY", WobaLine(2.10, 1))
-    hitter_totals, pitcher_totals, hyper = _universe(pair)
+    expected = {("BAT", "NOBODY"): 0.32}
     candidates = evaluate_pairs(
-        [pair], role="batting", hitter_totals=hitter_totals,
-        pitcher_totals=pitcher_totals, league_mean=0.32, hyper=hyper,
+        [pair], role="batting", expected=expected,
+        hitter_opps={"BAT": 10_000}, pitcher_opps={"NOBODY": 10_000},
+        hyper=Hyperparameters(sigma2=0.4, tau2=0.002, pairs_used=50),
     )
     ranked = rank_insights(candidates, role="batting")
 
@@ -195,7 +193,7 @@ def test_sensitivity_report_is_stable_for_clear_effects():
     hyper = Hyperparameters(sigma2=0.4, tau2=0.01, pairs_used=10)
     clear = InsightCandidate(
         opponent_id="A", opportunities=500, observed=0.62, expected=0.32,
-        shrunk=shrink_delta(0.30, 500, hyper),
+        shrunk=shrink_delta(0.30, 500, hyper), opponent_baseline_opportunities=5_000,
     )
     report = sensitivity_report([clear], role="batting", limit=3, hyper=hyper)
 
@@ -204,7 +202,21 @@ def test_sensitivity_report_is_stable_for_clear_effects():
     assert set(report["variants"]) == {
         "gate_0.70", "gate_0.75", "gate_0.80",
         "prior_x0.5", "prior_x1", "prior_x2",
+        "opp_baseline_ge_100",
     }
+
+
+def test_sensitivity_flags_thin_opponent_baseline():
+    # 對手官方 baseline 稀疏（<100）：覆蓋敏感度移除後名單改變 → unstable。
+    hyper = Hyperparameters(sigma2=0.4, tau2=0.01, pairs_used=10)
+    thin = InsightCandidate(
+        opponent_id="THIN", opportunities=500, observed=0.62, expected=0.32,
+        shrunk=shrink_delta(0.30, 500, hyper), opponent_baseline_opportunities=40,
+    )
+    report = sensitivity_report([thin], role="batting", limit=3, hyper=hyper)
+
+    assert report["variants"]["opp_baseline_ge_100"] == []
+    assert report["stable"] is False
 
 
 def test_sensitivity_report_flags_borderline_candidates():
@@ -228,7 +240,7 @@ def test_sensitivity_report_flags_borderline_candidates():
 def test_estimate_hyperparameters_requires_pairs():
     with pytest.raises(ValueError):
         estimate_hyperparameters(
-            [], hitter_totals={}, pitcher_totals={}, league_mean=0.32, sigma2=0.4
+            [], expected={}, hitter_opps={}, pitcher_opps={}, sigma2=0.4
         )
 
 

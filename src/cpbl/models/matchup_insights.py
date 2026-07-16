@@ -121,55 +121,53 @@ def per_opportunity_variance(league: WobaLine, event_counts: Mapping[str, int]) 
     return variance / n
 
 
-def loo_baseline(total: WobaLine, pair: WobaLine) -> WobaLine:
-    """leave-pair-out baseline：從球員總量移除該配對，避免期望被觀察值本身拉動。"""
-    return WobaLine(
-        total.weighted_sum - pair.weighted_sum,
-        total.opportunities - pair.opportunities,
-    )
+# 估 tau² 的最小配對機會數。期望值改由官方完整 baseline 提供，不需 leave-pair-out。
+# 門檻設 50 而非 10：動差估計對「大量微樣本配對」敏感——它們幾乎全是抽樣噪音，
+# 噪音模型的殘餘偏差會把 tau² 系統性壓低（實資料診斷：全池估 0.00018，但 n≥50／
+# n≥100 分層一致指向 ~0.0005）。只用可偵測到 matchup 訊號的樣本估先驗才誠實。
+_EST_MIN_N = 50
+
+PairKey = tuple[str, str]
 
 
-# 估 tau² 的樣本篩選（估計子集，非顯示門檻）：配對至少 _EST_MIN_N 機會、
-# 兩側 leave-pair-out baseline 至少 _EST_MIN_EXTERNAL 機會，否則 baseline 噪音
-# 會淹沒配對訊號（實資料診斷：微樣本配對把 tau² 壓到 0）。
-_EST_MIN_N = 10
-_EST_MIN_EXTERNAL = 100
+def additive_expected(
+    batter_dev: float, pitcher_dev: float, league_mean: float
+) -> float:
+    """對戰期望 = 聯盟均值 + 打者偏差 + 投手偏差（各以自身母體均值中心化）。
+
+    偏差相加保證對稱：角色翻轉不改變期望，故 delta 只有一個號向。
+    夾在 [0, 權重上限] 內。
+    """
+    raw = league_mean + batter_dev + pitcher_dev
+    return min(max(raw, 0.0), max(_WOBA_WEIGHTS.values()))
 
 
 def estimate_hyperparameters(
     pairs: Iterable[PairSample],
     *,
-    hitter_totals: Mapping[str, WobaLine],
-    pitcher_totals: Mapping[str, WobaLine],
-    league_mean: float,
+    expected: Mapping[PairKey, float],
+    hitter_opps: Mapping[str, int],
+    pitcher_opps: Mapping[str, int],
     sigma2: float,
 ) -> Hyperparameters:
-    """動差法估 tau²，期望採 leave-pair-out 並校正 baseline 抽樣噪音。
+    """動差法估 tau²；期望值來自官方完整 baseline，校正殘餘 baseline 噪音。
 
-    E[r²] ≈ tau² + sigma²·(1/n + 1/h_n + 1/p_n)，故
-    tau² = max( Σ n·r² − sigma²·(1 + n/h_n + n/p_n) 之和 / Σ n , floor )。
+    E[r²] ≈ tau² + sigma²·(1/n + 1/h_off + 1/p_off)，其中 h_off/p_off 為官方
+    生涯機會數（大 → 校正 ≈ sigma²）。tau² = max(Σ(n·r² − noise)/Σn, floor)。
+    只納入配對機會數 ≥ _EST_MIN_N 且兩側皆有官方 baseline 的列。
     """
     numerator = weight_total = 0.0
     used = 0
     for pair in pairs:
         n = pair.line.opportunities
         rate = pair.line.rate
-        hitter_total = hitter_totals.get(pair.hitter_id)
-        pitcher_total = pitcher_totals.get(pair.pitcher_id)
-        if n < _EST_MIN_N or rate is None or hitter_total is None or pitcher_total is None:
+        key = (pair.hitter_id, pair.pitcher_id)
+        h_off = hitter_opps.get(pair.hitter_id)
+        p_off = pitcher_opps.get(pair.pitcher_id)
+        if n < _EST_MIN_N or rate is None or key not in expected or not h_off or not p_off:
             continue
-        hitter_out = loo_baseline(hitter_total, pair.line)
-        pitcher_out = loo_baseline(pitcher_total, pair.line)
-        if (
-            hitter_out.opportunities < _EST_MIN_EXTERNAL
-            or pitcher_out.opportunities < _EST_MIN_EXTERNAL
-        ):
-            continue
-        expected = pair_expected(hitter_out.rate, pitcher_out.rate, league_mean)
-        residual = rate - expected
-        noise = sigma2 * (
-            1.0 + n / hitter_out.opportunities + n / pitcher_out.opportunities
-        )
+        residual = rate - expected[key]
+        noise = sigma2 * (1.0 + n / h_off + n / p_off)
         numerator += n * residual**2 - noise
         weight_total += n
         used += 1
@@ -177,14 +175,6 @@ def estimate_hyperparameters(
         raise ValueError("no pairs available for hyperparameter estimation")
     tau2 = max(numerator / weight_total, _TAU2_FLOOR)
     return Hyperparameters(sigma2=sigma2, tau2=tau2, pairs_used=used)
-
-
-def pair_expected(
-    batter_baseline: float, pitcher_baseline: float, league_mean: float
-) -> float:
-    """加法型對戰期望（log5 的率差近似）；夾在 [0, 權重上限] 內。"""
-    raw = batter_baseline + pitcher_baseline - league_mean
-    return min(max(raw, 0.0), max(_WOBA_WEIGHTS.values()))
 
 
 @dataclass(frozen=True, slots=True)
@@ -224,51 +214,54 @@ class InsightCandidate:
     expected: float
     shrunk: ShrunkDelta
     effective_opportunities: float = 0.0
+    opponent_baseline_opportunities: int = 0
+
+
+# 對手官方 baseline 至少這麼多機會數，其期望值才夠穩定；用於覆蓋率敏感度。
+OPPONENT_BASELINE_FLOOR = 100
 
 
 def evaluate_pairs(
     pairs: Iterable[PairSample],
     *,
     role: str,
-    hitter_totals: Mapping[str, WobaLine],
-    pitcher_totals: Mapping[str, WobaLine],
-    league_mean: float,
+    expected: Mapping[PairKey, float],
+    hitter_opps: Mapping[str, int],
+    pitcher_opps: Mapping[str, int],
     hyper: Hyperparameters,
 ) -> list[InsightCandidate]:
-    """算每個對手的收縮後 delta（期望採 leave-pair-out）。
+    """算每個對手的收縮後 delta；期望值來自官方完整 baseline。
 
-    無外部 baseline（球員只有這組對戰）時跳過——期望無從定義，誠實不評。
-    有效機會數 n_eff = 1/(1/n + 1/h_n + 1/p_n)，把 baseline 抽樣噪音折進
-    可信度，避免小 baseline 對手被高估。
+    缺官方 baseline（球員在官方季表無紀錄）時跳過——期望無從定義，誠實不評。
+    有效機會數 n_eff = 1/(1/n + 1/h_off + 1/p_off) 把 baseline 抽樣噪音折進
+    可信度；官方生涯機會數大，n_eff ≈ n。
     """
     if role not in {"batting", "pitching"}:
         raise ValueError(f"不支援的角色：{role}")
     out: list[InsightCandidate] = []
     for pair in pairs:
         rate = pair.line.rate
-        hitter_total = hitter_totals.get(pair.hitter_id)
-        pitcher_total = pitcher_totals.get(pair.pitcher_id)
-        if rate is None or hitter_total is None or pitcher_total is None:
+        key = (pair.hitter_id, pair.pitcher_id)
+        h_off = hitter_opps.get(pair.hitter_id)
+        p_off = pitcher_opps.get(pair.pitcher_id)
+        if rate is None or key not in expected or not h_off or not p_off:
             continue
-        hitter_out = loo_baseline(hitter_total, pair.line)
-        pitcher_out = loo_baseline(pitcher_total, pair.line)
-        if hitter_out.opportunities <= 0 or pitcher_out.opportunities <= 0:
-            continue
-        expected = pair_expected(hitter_out.rate, pitcher_out.rate, league_mean)
         n = pair.line.opportunities
-        n_eff = 1.0 / (
-            1.0 / n + 1.0 / hitter_out.opportunities + 1.0 / pitcher_out.opportunities
-        )
-        shrunk = shrink_delta(rate - expected, n_eff, hyper)
-        opponent = pair.pitcher_id if role == "batting" else pair.hitter_id
+        n_eff = 1.0 / (1.0 / n + 1.0 / h_off + 1.0 / p_off)
+        shrunk = shrink_delta(rate - expected[key], n_eff, hyper)
+        if role == "batting":
+            opponent, opp_off = pair.pitcher_id, p_off
+        else:
+            opponent, opp_off = pair.hitter_id, h_off
         out.append(
             InsightCandidate(
                 opponent_id=opponent,
                 opportunities=n,
                 observed=rate,
-                expected=expected,
+                expected=expected[key],
                 shrunk=shrunk,
                 effective_opportunities=n_eff,
+                opponent_baseline_opportunities=opp_off,
             )
         )
     return out
@@ -325,11 +318,12 @@ def sensitivity_report(
     limit: int,
     hyper: Hyperparameters,
 ) -> dict[str, Any]:
-    """閘門與先驗強度敏感度：候選名單成員是否隨合理擾動改變。
+    """閘門、先驗強度與對手覆蓋敏感度：候選名單成員是否隨合理擾動改變。
 
     - gate 掃 GATE_SCAN；
-    - 先驗強度乘 PRIOR_SCAN（tau² 反向縮放後重算收縮與 credibility）。
-    名單（不含順序）在所有情境相同 → stable=true；否則列出各情境成員數。
+    - 先驗強度乘 PRIOR_SCAN（tau² 反向縮放後重算收縮與 credibility）；
+    - 覆蓋：排除官方 baseline 稀疏（期望不穩）的對手後重排。
+    名單（不含順序）在所有情境相同 → stable=true；否則列出各情境成員。
     """
     def members(cands: list[InsightCandidate], gate: float) -> frozenset[str]:
         ranked = rank_insights(cands, role=role, limit=limit, credibility_gate=gate)
@@ -357,12 +351,23 @@ def sensitivity_report(
                     scaled,
                 ),
                 effective_opportunities=c.effective_opportunities,
+                opponent_baseline_opportunities=c.opponent_baseline_opportunities,
             )
             for c in candidates
         ]
         prior_variants[f"prior_x{scale:g}"] = members(rescored, CREDIBILITY_GATE)
 
-    variants = {**gate_variants, **prior_variants}
+    well_covered = [
+        c for c in candidates
+        if c.opponent_baseline_opportunities >= OPPONENT_BASELINE_FLOOR
+    ]
+    coverage_variants = {
+        f"opp_baseline_ge_{OPPONENT_BASELINE_FLOOR}": members(
+            well_covered, CREDIBILITY_GATE
+        )
+    }
+
+    variants = {**gate_variants, **prior_variants, **coverage_variants}
     stable = all(v == reference for v in variants.values())
     return {
         "stable": stable,

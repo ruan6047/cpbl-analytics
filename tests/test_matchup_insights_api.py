@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from cpbl.api.main import app
 from cpbl.api.matchups import InsightUniverse
 from cpbl.api.routers import players as players_module
-from cpbl.models.matchup_insights import Hyperparameters, PairSample, WobaLine
+from cpbl.models.matchup_insights import Hyperparameters, WobaLine
 
 _COLUMNS = (
     "year", "opp_id", "opp_name", "opp_team_code", "opp_team",
@@ -58,26 +58,22 @@ class _FakeConn:
 
 
 def _fake_universe():
-    hyper = Hyperparameters(sigma2=0.4, tau2=0.002, pairs_used=99)
-    ace_line = WobaLine(0.089 * 300, 300)   # 對應 SQL rows：300AB 30 一安
-    nobody_line = WobaLine(2.10, 1)
-    pairs = (
-        PairSample("BAT", "ACE", ace_line),
-        PairSample("BAT", "NOBODY", nobody_line),
-    )
-    bat_total = WobaLine(
-        ace_line.weighted_sum + nobody_line.weighted_sum + 0.32 * 2000,
-        301 + 2000,
-    )
+    """官方 baseline universe：BAT 官方生涯 320 機會（覆蓋率會 ~100%），
+    ACE 官方被打 wOBA 略高於聯盟（天敵候選）、NOBODY 官方接近聯盟。"""
+    hyper = Hyperparameters(sigma2=0.4, tau2=0.01, pairs_used=99)
     return InsightUniverse(
-        league=WobaLine(0.32 * 10_000, 10_000),
-        league_mean=0.32,
-        hitter_totals={"BAT": bat_total},
-        pitcher_totals={
-            "ACE": WobaLine(ace_line.weighted_sum + 0.32 * 1500, 1800),
-            "NOBODY": WobaLine(nobody_line.weighted_sum + 0.32 * 300, 301),
+        bat_league_mean=0.320,
+        pit_league_mean=0.315,
+        sigma2=0.4,
+        hitter_baselines={"BAT": WobaLine(0.320 * 320, 320)},
+        pitcher_baselines={
+            "ACE": WobaLine(0.315 * 4000, 4000),
+            "NOBODY": WobaLine(0.315 * 4000, 4000),
         },
-        pairs=pairs,
+        hitter_opps={"BAT": 320},
+        pitcher_opps={"ACE": 4000, "NOBODY": 4000},
+        pairs=(),
+        expected={},
         hyper=hyper,
     )
 
@@ -102,7 +98,7 @@ def client(monkeypatch):
     return TestClient(app)
 
 
-def test_insights_surface_credible_suppression_and_gate_small_samples(client):
+def test_batter_insights_use_official_baseline_and_pass_coverage(client):
     res = client.get(
         "/api/v1/players/BAT/matchups/insights",
         params={"role": "batting", "scope": "range", "from_year": 2024, "to_year": 2025},
@@ -110,17 +106,39 @@ def test_insights_surface_credible_suppression_and_gate_small_samples(client):
     assert res.status_code == 200
     body = res.json()
 
+    # 覆蓋率：樣本 301 機會 / 官方生涯 320 ≈ 0.94，過閘門。
+    assert body["coverage"]["passed"] is True
+    assert body["coverage"]["official_opportunities"] == 320
+    assert body["coverage"]["ratio"] == pytest.approx(0.941, abs=0.01)
+    # ACE 官方被打接近聯盟，但對 BAT 觀察 wOBA 極低 → 天敵；1 轟路人被閘門擋下。
     assert [c["opp_id"] for c in body["disadvantages"]] == ["ACE"]
-    assert body["advantages"] == []          # 1 轟路人被閘門擋下
-    assert body["gated_out"] >= 1
-    # 跨年先加總：ACE 顯示的資料期間涵蓋兩年。
+    assert body["advantages"] == []
     ace = body["disadvantages"][0]
-    assert (ace["from_year"], ace["to_year"]) == (2024, 2025)
     assert ace["opportunities"] == 300
+    assert ace["opponent_official_opportunities"] == 4000
     assert ace["credibility"] >= body["method"]["credibility_gate"]
-    assert body["method"]["metric"] == "woba_generic_v1"
-    assert body["sensitivity"]["reference_members"] == ["ACE"]
-    assert "描述性統計" in body["disclaimer"]
+    # baseline 與聯盟均值來自官方完整季彙總，非對戰樣本。
+    assert body["baseline"]["official_opportunities"] == 320
+    assert body["league"]["source"] == "official_season_aggregates"
+    assert body["method"]["baseline_source"].startswith("official")
+    assert "官方完整季彙總" in body["disclaimer"]
+
+
+def test_pitcher_insights_fail_closed_on_low_coverage(client):
+    # 投手主角：官方生涯 4000 機會，但對戰樣本只覆蓋 300（僅本季登錄打者）→
+    # 覆蓋率 0.075 << 0.60，fail-closed 不輸出方向性結論。
+    res = client.get(
+        "/api/v1/players/ACE/matchups/insights",
+        params={"role": "pitching", "scope": "range", "from_year": 2024, "to_year": 2025},
+    )
+    assert res.status_code == 200
+    body = res.json()
+
+    assert body["coverage"]["passed"] is False
+    assert body["coverage"]["ratio"] < 0.60
+    assert body["advantages"] == [] and body["disadvantages"] == []
+    assert body["sensitivity"] is None
+    assert "覆蓋" in body["sample_note"]
 
 
 def test_insights_degrade_honestly_without_rows(client, monkeypatch):

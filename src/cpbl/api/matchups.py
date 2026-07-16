@@ -9,9 +9,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from cpbl.models.matchup_insights import (
+    _WOBA_WEIGHTS,
     Hyperparameters,
     PairSample,
     WobaLine,
+    additive_expected,
     estimate_hyperparameters,
     merge_lines,
     per_opportunity_variance,
@@ -173,90 +175,196 @@ def sort_matchup_items(
     return present + missing
 
 
-# ───────────────────── ML-MATCHUP1：洞察用全域彙總（universe） ─────────────────────
-# 天敵候選／優勢對位需要三種聚合：聯盟事件分布（估 sigma²）、逐球員 baseline、
-# 逐配對樣本（估 tau² 與收縮）。同一次 GROUP BY 掃描全部取得，並以
-# (kind, from, to) 快取（資料日更、API 每日重啟或 TTL 到期即重算）。
+# ───────────────────── ML-MATCHUP1：洞察用官方 baseline universe ─────────────────────
+# 審核紅線：baseline 與 league_mean 不得取自對戰爬蟲子集（只含本季登錄打者，母體
+# 隨名單漂移）。改由**官方完整季彙總**（batting_seasons/pitching_seasons + current）
+# 計算，涵蓋全史 933 打者／1242 投手、可由官方數字驗證。對戰爬蟲樣本只提供「該配對
+# 的觀察 rate」與「主角覆蓋率」；覆蓋不足時 fail-closed，不輸出方向性結論。
+#
+# 投手官方季表只有總安打 h（無 1B/2B/3B 細分），以聯盟非全壘打長打比例拆分（HR 精確、
+# 長打分佈屬 BABIP 噪音，用聯盟比例是可驗證近似）。投手 wOBA 分母 ≈ BF − IBB。
 
-_INSIGHT_EVENT_COLUMNS = (
-    "at_bats",
-    "singles",
-    "doubles",
-    "triples",
-    "home_runs",
-    "bb",
-    "ibb",
-    "hbp",
-    "sac_fly",
-)
-
+_CAREER_BOUNDS = (1990, 2026)
 _UNIVERSE_TTL_SECONDS = 3600
 _universe_cache: dict[tuple[str, int, int], tuple[float, InsightUniverse]] = {}
+
+_BATTING_OFFICIAL_SQL = """
+WITH src AS (
+  SELECT player_id, year AS yr, ab, h, b2, b3, hr, bb, ibb, hbp, sf
+  FROM cpbl.batting_seasons
+  UNION ALL
+  SELECT player_id, 2026 AS yr, ab, h, b2, b3, hr, bb, ibb, hbp, sf
+  FROM cpbl.batting_current
+)
+SELECT player_id, sum(ab), sum(h), sum(b2), sum(b3), sum(hr),
+       sum(bb), sum(ibb), sum(hbp), sum(sf)
+FROM src WHERE yr BETWEEN %(lo)s AND %(hi)s GROUP BY player_id
+"""
+
+_PITCHING_OFFICIAL_SQL = """
+WITH src AS (
+  SELECT player_id, year AS yr, bf, h, hr, bb, ibb, hbp
+  FROM cpbl.pitching_seasons
+  UNION ALL
+  SELECT player_id, 2026 AS yr, pa AS bf, h, hr, bb, ibb, hbp
+  FROM cpbl.pitching_current WHERE year = 2026
+)
+SELECT player_id, sum(bf), sum(h), sum(hr), sum(bb), sum(ibb), sum(hbp)
+FROM src WHERE yr BETWEEN %(lo)s AND %(hi)s GROUP BY player_id
+"""
+
+_MATCHUP_PAIR_SQL = """
+SELECT hitter_acnt, pitcher_acnt,
+       sum(at_bats), sum(singles), sum(doubles), sum(triples),
+       sum(home_runs), sum(bb), sum(ibb), sum(hbp), sum(sac_fly)
+FROM cpbl.batter_pitcher_matchups
+WHERE kind_code=%(kind)s AND year BETWEEN %(from_year)s AND %(to_year)s
+GROUP BY hitter_acnt, pitcher_acnt
+"""
+
+_PAIR_EVENT_COLUMNS = (
+    "at_bats", "singles", "doubles", "triples", "home_runs",
+    "bb", "ibb", "hbp", "sac_fly",
+)
 
 
 @dataclass(frozen=True)
 class InsightUniverse:
-    """單一 (kind, 年度範圍) 的洞察母體：聯盟均值、球員總量與先驗。"""
+    """單一 (kind, 年度範圍) 的洞察母體。
 
-    league: WobaLine
-    league_mean: float
-    hitter_totals: dict[str, WobaLine]
-    pitcher_totals: dict[str, WobaLine]
+    baseline 與 league_mean 來自官方完整季表（可驗證）；pairs／expected 來自對戰
+    爬蟲樣本；hitter_opps/pitcher_opps 為官方生涯機會數（覆蓋率分母）。
+    """
+
+    bat_league_mean: float
+    pit_league_mean: float
+    sigma2: float
+    hitter_baselines: dict[str, WobaLine]
+    pitcher_baselines: dict[str, WobaLine]
+    hitter_opps: dict[str, int]
+    pitcher_opps: dict[str, int]
     pairs: tuple[PairSample, ...]
+    expected: dict[tuple[str, str], float]
     hyper: Hyperparameters
 
 
-def _build_universe(rows: list[tuple]) -> InsightUniverse:
-    pair_lines: dict[tuple[str, str], WobaLine] = {}
-    hitter_lines: dict[str, list[WobaLine]] = defaultdict(list)
-    pitcher_lines: dict[str, list[WobaLine]] = defaultdict(list)
+def _batter_line(row: tuple) -> WobaLine:
+    _pid, ab, h, b2, b3, hr, bb, ibb, hbp, sf = (int(v or 0) for v in row)
+    b1 = max(h - b2 - b3 - hr, 0)
+    return woba_line({
+        "at_bats": ab, "singles": b1, "doubles": b2, "triples": b3,
+        "home_runs": hr, "bb": bb, "ibb": ibb, "hbp": hbp, "sac_fly": sf,
+    })
+
+
+def _league_hit_split(batter_rows: list[tuple]) -> tuple[float, float, float]:
+    """聯盟非全壘打安打的 1B:2B:3B 比例，用於拆分投手總安打。"""
+    b1 = b2 = b3 = 0
+    for row in batter_rows:
+        _pid, _ab, h, d2, d3, hr, *_ = (int(v or 0) for v in row)
+        b1 += max(h - d2 - d3 - hr, 0)
+        b2 += d2
+        b3 += d3
+    total = b1 + b2 + b3
+    if total <= 0:
+        return 1.0, 0.0, 0.0
+    return b1 / total, b2 / total, b3 / total
+
+
+def _pitcher_line(row: tuple, split: tuple[float, float, float]) -> WobaLine:
+    _pid, bf, h, hr, bb, ibb, hbp = (int(v or 0) for v in row)
+    nonhr = max(h - hr, 0)
+    p1, p2, p3 = split
+    weighted = (
+        _WOBA_WEIGHTS["singles"] * nonhr * p1
+        + _WOBA_WEIGHTS["doubles"] * nonhr * p2
+        + _WOBA_WEIGHTS["triples"] * nonhr * p3
+        + _WOBA_WEIGHTS["home_runs"] * hr
+        + _WOBA_WEIGHTS["ubb"] * max(bb - ibb, 0)
+        + _WOBA_WEIGHTS["hbp"] * hbp
+    )
+    opportunities = max(bf - ibb, 0)  # 近似 wOBA 分母（排除故意四壞）
+    return WobaLine(weighted, opportunities)
+
+
+def _build_universe(
+    batter_rows: list[tuple], pitcher_rows: list[tuple], pair_rows: list[tuple]
+) -> InsightUniverse:
+    if not batter_rows or not pitcher_rows:
+        raise ValueError("官方 baseline 母體為空：該範圍無官方季彙總")
+    split = _league_hit_split(batter_rows)
+
+    hitter_baselines = {
+        row[0]: line
+        for row in batter_rows
+        if (line := _batter_line(row)).opportunities > 0
+    }
+    pitcher_baselines = {
+        row[0]: line
+        for row in pitcher_rows
+        if (line := _pitcher_line(row, split)).opportunities > 0
+    }
+    bat_league = merge_lines(hitter_baselines.values())
+    pit_league = merge_lines(pitcher_baselines.values())
+    bat_league_mean = bat_league.weighted_sum / bat_league.opportunities
+    pit_league_mean = pit_league.weighted_sum / pit_league.opportunities
+
+    # sigma²：聯盟每機會 wOBA 值變異，取自官方打者事件分布（完整可驗證）。
     event_totals: dict[str, int] = defaultdict(int)
-    for row in rows:
+    for row in batter_rows:
+        _pid, ab, h, b2, b3, hr, bb, ibb, hbp, sf = (int(v or 0) for v in row)
+        event_totals["singles"] += max(h - b2 - b3 - hr, 0)
+        event_totals["doubles"] += b2
+        event_totals["triples"] += b3
+        event_totals["home_runs"] += hr
+        event_totals["ubb"] += max(bb - ibb, 0)
+        event_totals["hbp"] += hbp
+    sigma2 = per_opportunity_variance(bat_league, event_totals)
+
+    hitter_opps = {pid: line.opportunities for pid, line in hitter_baselines.items()}
+    pitcher_opps = {pid: line.opportunities for pid, line in pitcher_baselines.items()}
+
+    pairs: list[PairSample] = []
+    expected: dict[tuple[str, str], float] = {}
+    for row in pair_rows:
         hitter, pitcher, *counts = row
-        record = dict(zip(_INSIGHT_EVENT_COLUMNS, counts, strict=True))
-        line = woba_line(record)
+        line = woba_line(dict(zip(_PAIR_EVENT_COLUMNS, counts, strict=True)))
         if line.opportunities <= 0:
             continue
-        pair_lines[(hitter, pitcher)] = line
-        hitter_lines[hitter].append(line)
-        pitcher_lines[pitcher].append(line)
-        ubb = max(int(record["bb"] or 0) - int(record["ibb"] or 0), 0)
-        event_totals["ubb"] += ubb
-        for key in ("hbp", "singles", "doubles", "triples", "home_runs"):
-            event_totals[key] += int(record[key] or 0)
-    if not pair_lines:
-        raise ValueError("洞察母體為空：該範圍沒有可用對戰列")
+        pairs.append(PairSample(hitter_id=hitter, pitcher_id=pitcher, line=line))
+        h_base = hitter_baselines.get(hitter)
+        p_base = pitcher_baselines.get(pitcher)
+        if h_base is None or p_base is None:
+            continue
+        expected[(hitter, pitcher)] = additive_expected(
+            h_base.rate - bat_league_mean,
+            p_base.rate - pit_league_mean,
+            bat_league_mean,
+        )
 
-    league = merge_lines(pair_lines.values())
-    league_mean = league.weighted_sum / league.opportunities
-    hitter_totals = {
-        pid: merged
-        for pid, lines in hitter_lines.items()
-        if (merged := merge_lines(lines)).opportunities > 0
-    }
-    pitcher_totals = {
-        pid: merged
-        for pid, lines in pitcher_lines.items()
-        if (merged := merge_lines(lines)).opportunities > 0
-    }
-    pairs = tuple(
-        PairSample(hitter_id=h, pitcher_id=p, line=line)
-        for (h, p), line in pair_lines.items()
-    )
-    sigma2 = per_opportunity_variance(league, event_totals)
-    hyper = estimate_hyperparameters(
-        pairs,
-        hitter_totals=hitter_totals,
-        pitcher_totals=pitcher_totals,
-        league_mean=league_mean,
-        sigma2=sigma2,
-    )
+    try:
+        hyper = estimate_hyperparameters(
+            pairs,
+            expected=expected,
+            hitter_opps=hitter_opps,
+            pitcher_opps=pitcher_opps,
+            sigma2=sigma2,
+        )
+    except ValueError:
+        # 無足夠配對估 tau²（如非 A 組無官方 baseline）：退回極小先驗，
+        # 一切都會被覆蓋率／可信度閘門擋下，不致誤輸出。
+        hyper = Hyperparameters(sigma2=sigma2, tau2=sigma2, pairs_used=0)
+
     return InsightUniverse(
-        league=league,
-        league_mean=league_mean,
-        hitter_totals=hitter_totals,
-        pitcher_totals=pitcher_totals,
-        pairs=pairs,
+        bat_league_mean=bat_league_mean,
+        pit_league_mean=pit_league_mean,
+        sigma2=sigma2,
+        hitter_baselines=hitter_baselines,
+        pitcher_baselines=pitcher_baselines,
+        hitter_opps=hitter_opps,
+        pitcher_opps=pitcher_opps,
+        pairs=tuple(pairs),
+        expected=expected,
         hyper=hyper,
     )
 
@@ -264,24 +372,23 @@ def _build_universe(rows: list[tuple]) -> InsightUniverse:
 def load_insight_universe(
     cur: Any, kind_code: str, from_year: int, to_year: int
 ) -> InsightUniverse:
-    """讀取（或重用快取的）洞察母體；scope 邊界互斥，生涯與年度不混用。"""
+    """讀取（或重用快取的）洞察母體；baseline 取官方完整季表，scope 邊界互斥。"""
     key = (kind_code, from_year, to_year)
     cached = _universe_cache.get(key)
     now = _time.monotonic()
     if cached and now - cached[0] < _UNIVERSE_TTL_SECONDS:
         return cached[1]
+    lo, hi = _CAREER_BOUNDS if from_year >= 9999 else (from_year, to_year)
+    cur.execute(_BATTING_OFFICIAL_SQL, {"lo": lo, "hi": hi})
+    batter_rows = cur.fetchall()
+    cur.execute(_PITCHING_OFFICIAL_SQL, {"lo": lo, "hi": hi})
+    pitcher_rows = cur.fetchall()
     cur.execute(
-        """
-        SELECT hitter_acnt, pitcher_acnt,
-               sum(at_bats), sum(singles), sum(doubles), sum(triples),
-               sum(home_runs), sum(bb), sum(ibb), sum(hbp), sum(sac_fly)
-        FROM cpbl.batter_pitcher_matchups
-        WHERE kind_code=%s AND year BETWEEN %s AND %s
-        GROUP BY hitter_acnt, pitcher_acnt
-        """,
-        (kind_code, from_year, to_year),
+        _MATCHUP_PAIR_SQL,
+        {"kind": kind_code, "from_year": from_year, "to_year": to_year},
     )
-    universe = _build_universe(cur.fetchall())
+    pair_rows = cur.fetchall()
+    universe = _build_universe(batter_rows, pitcher_rows, pair_rows)
     _universe_cache[key] = (now, universe)
     if len(_universe_cache) > 16:
         oldest = min(_universe_cache, key=lambda k: _universe_cache[k][0])
