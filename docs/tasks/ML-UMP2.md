@@ -2,7 +2,7 @@
 
 - 需求：ruan6047（07-16）　規劃：GPT-5@Codex（沿用 [`umpire-impact-research.md`](../../umpire-impact-research.md)；07-16 需求方核可本卡增補 gate）
 - 執行：GPT-5@Codex　查核：待指派（必須跨家族模型或人審＋實測）
-- 分支：`ai/gpt-5-codex/ML-UMP2`　worktree：`../cpbl-analytics-UMP2`
+- 分支：`ai/gpt-5-codex/ML-UMP2`　worktree：`/private/tmp/cpbl-analytics-UMP2`（Codex sandbox 可寫隔離目錄）
 - DB：`db_scope: write`；僅允許本機補齊 2026 called-pitch 打者 `players.height_cm`，之後研究全程唯讀；不新增表／migration
 - DB resources：`db:local:cpbl`、`db:local:table:players`；清理：僅 UPSERT 官網 bio 的現存欄位，不刪除資料
 - 部署：否（離線研究，僅 ignored artifacts＋報告增補）
