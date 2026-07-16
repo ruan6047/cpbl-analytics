@@ -5,7 +5,7 @@
 - 分支：`ai/<執行者>/ML-UMP2`　worktree：依 §3.1 另開
 - DB：`db_scope: read`；不新增表／migration
 - 部署：否（離線研究，僅 ignored artifacts＋報告增補）
-- 依賴：[ML-UMP1](ML-UMP1.md)（已合併）——引擎、連結管線、敏感度框架全部複用，只換帶定義。
+- 依賴：[ML-UMP1](../archive/tasks/ML-UMP1.md)（已結案封存）——引擎、連結管線、敏感度框架全部複用，只換帶定義。
 
 ## 動機
 

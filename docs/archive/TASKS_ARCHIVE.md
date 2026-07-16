@@ -6,6 +6,9 @@
 |---|---|---|---|---|
 | BUG-VENUE-ALIAS | 球場列表遺漏歷史桃園使用年份 | 🏁完成 | ✅已驗證 | [`tasks/BUG-VENUE-ALIAS.md`](tasks/BUG-VENUE-ALIAS.md) |
 | ML-MATCHUP1 | 天敵候選／優勢對位統計洞察 | 🏁完成 | —不適用 | [`tasks/ML-MATCHUP1.md`](tasks/ML-MATCHUP1.md)（WF-15；三輪跨家族審核，merge 336ee01） |
+| ML-SIM1 | 簡易勝負預測＋單一打席模擬 | 🏁完成 | ✅已驗證 | [`tasks/ML-SIM1.md`](tasks/ML-SIM1.md)（跨家族複查 PASS；merge a28170b） |
+| ML-UMP1 | 好球帶判決差異研究 | 🏁完成 | —不適用 | [`tasks/ML-UMP1.md`](tasks/ML-UMP1.md)（離線研究；merge 5f9077e） |
+| UX-RECORD1 | `/records` 歷史重要性導向重製 | 🏁完成 | ✅已驗證 | [`tasks/UX-RECORD1.md`](tasks/UX-RECORD1.md)（事後獨立查核 PASS；merge 3b548dc） |
 | Legacy pre-WF-12 | 2026-07-15 前的 Ledger 與所有卡片明細 | 已封存 | 依原始紀錄 | [`TASKS_PRE_WF12.md`](TASKS_PRE_WF12.md) |
 
 > 已完成（🏁）與封存（📥）的卡片移到此處，讓 [`../TASKS.md`](../TASKS.md) 只留活卡（省 AI 讀取算力）。
@@ -595,4 +598,3 @@
     2. 敘事型列（無年份或長散文）於解析時將 phase 標為 `"note"`，並在 API 端點（`people.py` 與 `players.py`）進行 SQL 過濾。
     3. 守門防禦：若同名且 Wiki 無生日（或 DB 無生日）無法互相比對，強制標記 `needs_review = True`，且 `player_id` 設為 `NULL` 阻斷自動歸戶。
     4. 重新全量執行 scraper 過濾數據入庫，更新 pytest 覆蓋各項新案例，全綠通過。
-
