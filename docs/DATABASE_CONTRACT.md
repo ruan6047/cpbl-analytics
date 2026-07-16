@@ -10,7 +10,7 @@
 | 存取層／migration 工具 | psycopg3 raw SQL；冪等 `migrations/*.sql`，由 `cpbl.db.migrate()` 依序執行 |
 | 本機 migration runner | `uv run cpbl-backfill`；LightGBM 訓練不屬 migration，於 API 容器內執行 |
 | 正式 migration runner | `prod_cpbl_api` 容器內的 `cpbl.db.migrate()`；僅 main 已審核 source SHA 的部署鏈可執行 |
-| Control-plane adapter | Runbook §7.1 的 `ruan6047` Coordinator + 原子目錄鎖 |
+| Control-plane adapter | [`CONTROL_PLANE_CONTRACT.md`](CONTROL_PLANE_CONTRACT.md)：`ruan6047` remote lifecycle writer + local 原子目錄資源鎖 |
 | Secret 來源 | 本機 `.env` 與正式環境受保護設定；文件與 git 不記錄值 |
 
 ## 2. 環境與 namespace
@@ -35,7 +35,7 @@ migration_phase: none | expand | migrate | contract
 ```
 
 - `schema` 與 `data-migration` 為資料正確性紅線；同一 `<environment, schema>` 僅一個 migration writer。
-- Coordinator 以 Runbook §7.1 原子 claim 取得 `db:*` resource lease；共用 local DB 只在明載 owner、清理方式與 lease 時允許寫入。
+- Coordinator 先追加 control-plane lifecycle event，再以 Runbook §7.1 local lock 取得 `db:*` resource lease；共用 local DB 只在明載 owner、清理方式與 lease 時允許寫入。
 - schema 卡按 lane 順序 merge；不得平行建立互相依賴的 migration。資料 migration 必須冪等、可續跑、批次化，並預先列出對帳與復原方案。
 
 ## 4. Migration 執行與驗證

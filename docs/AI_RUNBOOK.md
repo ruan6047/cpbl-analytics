@@ -160,24 +160,26 @@ host 缺 `libomp.dylib`。**勿 `brew install libomp` 污染 host**；需 LightG
 
 ## 7. 驗證與部署
 
-### 7.1 多 AI 控制平面（Coordinator + 原子 lease）
+### 7.1 多 AI 控制平面（remote coordination + local resource lock）
 
-本機 Coordinator 為 **ruan6047**；未經使用者明確指派，不得由 AI 自行派工、認領或釋放其他卡。Coordinator 是本專案 canonical §4.1 的 control-plane adapter，唯一可執行 claim、handoff、merge 與 release。
+完整契約見 [`CONTROL_PLANE_CONTRACT.md`](CONTROL_PLANE_CONTRACT.md)。本機 Coordinator 為 **ruan6047**；未經使用者明確指派，AI 不得自行派工、認領或釋放其他卡。
 
-鎖根目錄固定為 `/private/tmp/cpbl-analytics-control-plane`（不進 git）；以 `mkdir` 的原子成功／失敗作為唯一 lock 判定，**Markdown、TASKS 狀態與聊天訊息都不是鎖**。每個 claim 目錄保存 `card_id`、owner、worktree、`claimed_at`、`lease_expires_at`、`resources`；預設 lease 4 小時，可續約。共享可寫資源須逐一宣告，例如 `file:<path>`、`port:<n>`、`container:<name>`、`db:local:cpbl`、`db:production:cpbl`。
+- **Remote coordination**：GitHub protected `main` 與 Coordinator 是唯一 lifecycle writer。[`control-plane/events.jsonl`](control-plane/events.jsonl) 為 append-only event log；[`TASKS.md`](TASKS.md) 僅是由 `uv run python scripts/workflow_ledger.py --write` 產生的 current-state projection，禁止手改。
+- **Local resource lock**：鎖根目錄固定為 `/private/tmp/cpbl-analytics-control-plane`（不進 git）；`mkdir` 的原子成功／失敗只保護暫時資源，**不得改 card state**。每個 claim 目錄保存 `card_id`、owner、worktree、`claimed_at`、`lease_expires_at`、`resources`；預設 lease 4 小時，可續約。共享可寫資源須逐一宣告，例如 `file:<path>`、`port:<n>`、`container:<name>`、`db:local:cpbl`、`db:production:cpbl`。
 
 ```bash
-# Coordinator：先確認卡可執行、依賴已滿足且無有效 owner，再原子 claim。
+# Coordinator：先確認 event projection、依賴、WIP 與無有效 owner，追加 claim event 後才建立 local lease。
 mkdir -p /private/tmp/cpbl-analytics-control-plane
 mkdir /private/tmp/cpbl-analytics-control-plane/<CARD_ID>  # 已存在即 claim 失敗，停止
 # 建立 lease.json（不得含 secret），再建 ../cpbl-analytics-<CARD_FAMILY> worktree。
 
-# handoff／merge／release 前後：對帳所有活卡與 worktree。
+# claim／handoff／review／merge／release 前後：對帳所有活卡與 worktree。
 git worktree list
 find /private/tmp/cpbl-analytics-control-plane -mindepth 1 -maxdepth 1 -type d
+uv run python scripts/workflow_ledger.py --check
 ```
 
-- 逾期前可由 owner 續約；回收前 Coordinator 必須檢查 worktree 的未提交變更，禁止靜默刪除工作內容。
+- 遠端 event 的 `state_version` 由 1 單調遞增；handoff、review、merge、release 必填 source SHA 與 evidence。逾期前可由 owner 續約；回收前 Coordinator 必須檢查 worktree 的未提交變更，禁止靜默刪除工作內容。
 - 同一卡族（原卡及 `<CARD_ID>-FIX<n>`）共用一個 worktree。merge 者在卡族全數結案後依序移除 worktree、刪本地分支、刪遠端分支。
 - 對 DB 的 claim 另依 [`DATABASE_CONTRACT.md`](DATABASE_CONTRACT.md) 取得資源 lease；schema 與 data migration 不可並行。
 

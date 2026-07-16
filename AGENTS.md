@@ -2,7 +2,7 @@
 
 > **操作前先讀 [`docs/AI_RUNBOOK.md`](docs/AI_RUNBOOK.md)**：指令速查、資料流、本機→生產同步、API/web 地圖、陷阱清單的**事實單一來源**。
 > 本檔負責「準則與紅線（為什麼）」，Runbook 負責「怎麼做（事實）」；衝突時以現實 + Runbook 為準並回頭修正。
-> **多 AI 協作前先讀 [`docs/AI_WORKFLOW.md`](docs/AI_WORKFLOW.md)**（stub → canonical `.ai-workflow/AI_WORKFLOW.md`，submodule）：階段職責、分支制、部署閘門與留痕；活卡 Ledger 見 [`docs/TASKS.md`](docs/TASKS.md)。模型能力選擇的唯一來源是 [`docs/MODEL_ROUTING.md`](docs/MODEL_ROUTING.md)，資料庫寫入契約見 [`docs/DATABASE_CONTRACT.md`](docs/DATABASE_CONTRACT.md)。
+> **多 AI 協作前先讀 [`docs/AI_WORKFLOW.md`](docs/AI_WORKFLOW.md)**（stub → canonical `.ai-workflow/AI_WORKFLOW.md`，submodule）：變更分級、Discovery／Design Gate、分支制與留痕；活卡 Ledger 見 [`docs/TASKS.md`](docs/TASKS.md)，其狀態來源與資源鎖見 [`docs/CONTROL_PLANE_CONTRACT.md`](docs/CONTROL_PLANE_CONTRACT.md)。模型能力選擇的唯一來源是 [`docs/MODEL_ROUTING.md`](docs/MODEL_ROUTING.md)，資料庫寫入契約見 [`docs/DATABASE_CONTRACT.md`](docs/DATABASE_CONTRACT.md)。
 
 ## 專案概覽
 
