@@ -9,7 +9,7 @@
 |---|---|---|---|---|---|---|---|---|
 | [VENUE-DEFUNCT](tasks/VENUE-DEFUNCT.md) | 已拆除球場納入球場維度 | ruan6047 | 待指派 | 待指派 | `ai/<執行者>/VENUE-DEFUNCT` | ⚪ | 📥Backlog | —不適用 |
 | [UX-OUTCOME-HOME](tasks/UX-OUTCOME-HOME.md) | 首頁賽事勝率預測整合 | ruan6047 | 待指派 | 待指派 | `ai/<執行者>/UX-OUTCOME-HOME` | ⚪ | 📥Backlog | —不適用 |
-| [ML-MATCHUP1](tasks/ML-MATCHUP1.md) | 天敵候選／優勢對位統計洞察 | ruan6047 | Fable-5@Claude Code | 待指派（跨家族或人工） | `ai/fable-5/ML-MATCHUP1` | 🔴 | 🔍待查核（07-16 EB 收縮＋對稱期望＋敏感度；tau² 診斷留痕；pytest 229 綠） | —不適用 |
+| [ML-MATCHUP1](tasks/ML-MATCHUP1.md) | 天敵候選／優勢對位統計洞察 | ruan6047 | Fable-5＋Opus-4.8@Claude Code | 跨家族（07-16 退回，待複查） | `ai/fable-5/ML-MATCHUP1` | 🔴 | 🔁退回修正已處理→待複查（baseline 改官方完整母體＋覆蓋率閘門；trailers 補齊；pytest 231 綠） | —不適用 |
 | [UX-MATCHUP1](tasks/UX-MATCHUP1.md) | `/matchups` 查詢式頁面重製 | ruan6047 | 待指派 | 待指派 | `ai/<執行者>/UX-MATCHUP1` | ⚪ | 📥Backlog | —不適用 |
 | [UX-MATCHUP2](tasks/UX-MATCHUP2.md) | 投打對決整合球員個人頁 | ruan6047 | 待指派 | 待指派 | `ai/<執行者>/UX-MATCHUP2` | ⚪ | 📥Backlog | —不適用 |
 | [UX-RECORD1](tasks/UX-RECORD1.md) | `/records` 歷史重要性導向重製 | ruan6047 | Opus-4.8@ClaudeCode | 通過（07-16 轉述） | 已合併（`3b548dc`） | ⚪ | 📦已合併（07-16 事後查核通過：DB 重算／紀錄口徑／era 名稱／coverage fail-closed／瀏覽器實跑全過） | ⏸未部署 |
