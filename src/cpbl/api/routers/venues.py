@@ -37,7 +37,8 @@ FACTOR_STATS = ("r", "hr", "xbh", "h", "bb", "so")
 
 # games.venue 歷史別名 → 現行短名（同座球場；splits 端對映見 splits_calc）
 _NORM_VENUE = ("CASE g.venue WHEN '桃園' THEN '樂天桃園' "
-               "WHEN '亞太副場' THEN '亞太副' ELSE g.venue END")
+               "WHEN '亞太副場' THEN '亞太副' "
+               "WHEN '台中' THEN '國體' ELSE g.venue END")
 
 # 每「隊-場」一列（每場 2 列）：得分自 games、打擊事件自 gamelog 合計。
 # tv=隊×季×球場小計、ty=隊×季總計；expected 由 (ty−tv)/(n_else) 場均 × tv.n 還原，
@@ -217,7 +218,7 @@ def _aggregate_factors(rows: list[tuple]) -> dict[str, Any]:
 
 def _canon(venue: str) -> str:
     """歷史別名 → 現行短名；未知球場原樣（由查無資料自然回空）。"""
-    return {"桃園": "樂天桃園", "亞太副場": "亞太副"}.get(venue, venue)
+    return {"桃園": "樂天桃園", "亞太副場": "亞太副", "台中": "國體"}.get(venue, venue)
 
 
 @router.get("/api/v1/venues/{venue}/factors")

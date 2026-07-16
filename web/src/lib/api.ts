@@ -1,4 +1,6 @@
 // FastAPI 資料層 client（Server Component 用）。prod 走 Docker 內網，dev 走 localhost。
+import { ApiError } from "./http-error";
+
 const API_URL = process.env.API_URL ?? "http://localhost:4001";
 
 export type Standing = {
@@ -21,7 +23,7 @@ export type StandingsResponse = { season: number; standings: Standing[] };
 
 async function get<T>(path: string, revalidate = 600): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, { next: { revalidate } });
-  if (!res.ok) throw new Error(`API ${path} → ${res.status}`);
+  if (!res.ok) throw new ApiError(path, res.status);
   return res.json() as Promise<T>;
 }
 
