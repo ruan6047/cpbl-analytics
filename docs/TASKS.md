@@ -7,7 +7,7 @@
 
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
-| [ML-MATCHUP1](tasks/ML-MATCHUP1.md) | — | T4 | 天敵候選／優勢對位統計洞察 | ruan6047（merge） | `ai/fable-5/ML-MATCHUP1 @ ../cpbl-analytics-MATCHUP` | 3 | ✅通過／待合併 | —不適用 | 2026-07-16T21:30:39+08:00 |
+| [ML-MATCHUP1](tasks/ML-MATCHUP1.md) | — | T4 | 天敵候選／優勢對位統計洞察 | ruan6047 | `ai/fable-5/ML-MATCHUP1 @ ../cpbl-analytics-MATCHUP` | 3 | 📦已合併 | —不適用 | 2026-07-16T21:38:44+08:00 |
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
 | [ML-SIM1](tasks/ML-SIM1.md) | — | T4 | 簡易勝負預測＋單一打席模擬 | ruan6047（待對帳） | — | 1 | ⏸阻塞 | ⏸未部署 | 2026-07-16T12:30:00+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
