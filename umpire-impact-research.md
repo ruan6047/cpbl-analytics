@@ -441,3 +441,28 @@ ruan6047 於 2026-07-15 核可以下四項：
 2. 本卡主要交付為 run value；WP 是通過獨立 gate 才附加的條件式輸出。
 3. 研究階段只做離線報告，不新增 API／UI／production table。
 4. fixed proxy v1 只為相容現有頁面，必須附邊界敏感度且不得當 ground truth。
+
+## 15. ML-UMP2 增補：逐打者身高比例代理帶
+
+> 狀態：Approved（ruan6047，2026-07-16）
+> 卡片：`ML-UMP2`；執行：GPT-5@Codex；查核必須跨模型家族或人審。
+
+### 15.1 定義與資料 gate
+
+- canonical 名稱為 `height_scaled_proxy_v2`：`sz_top=0.535×身高`、`sz_bot=0.270×身高`，水平半寬沿用 0.253m。
+- 這仍是站立身高比例代理，不是準備揮擊姿態的規則真值；文案不得使用「誤判」。
+- `pitch_tracking.hitter_acnt` 必須精確連到 `players.id`；無球員列與 `height_cm IS NULL` 分開計數，不得 fallback 到 fixed v1。
+- pitch-weighted coverage 與 distinct-hitter coverage 皆需 ≥99.5%，且評分後必須仍含 18 主審／6 隊；否則 fail closed，不產生方向性結論。
+
+### 15.2 敏感度與主 gate
+
+- v2 主情境及所有上下左右邊界對稱 ±1/2/3/5cm，每個 margin 都依各球打者身高重建帶。
+- 主 gate 是零翻轉：18 主審與 6 隊在全 margins 中的符號翻轉數必須同時為 0；球隊任一 `for`／`against` 翻轉即計為該隊翻轉。
+- 同時保留 fixed v1 全表對照、leave-one-venue-out、home/away、月份、既有非對稱 50cm filter；bootstrap 仍以 game 為 cluster、2,000 replicates。
+- 球緣情境只是 secondary sensitivity：依官方球周長 22.9–23.5cm 取中點換算半徑，以球心到矩形帶的歐氏距離判定是否觸帶；不影響主 gate。
+
+### 15.3 決策解讀
+
+- 任一主審或球隊的 margin 方向翻轉：方向性產品繼續 no-go。
+- 只有零翻轉 gate 通過，才能說「判決差異偏向 X 隊」；仍必須附區間與敏感度，且 API／UI 需另卡核可。
+- state value 不是實際得失分、因果效果或「裁判送分」；描述性聚合不做精確排行。

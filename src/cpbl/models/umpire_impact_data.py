@@ -86,16 +86,38 @@ SCORED_CALLED_SQL = LINKED_CALLED_CTE + """
   GROUP BY year, kind_code, game_sno
   HAVING count(DISTINCT ROW(venue, home_team_code, away_team_code)) = 1
 )
-SELECT l.year, l.kind_code, l.game_sno, l.pitcher_acnt, l.pitch_cnt,
+SELECT l.year, l.kind_code, l.game_sno, l.pitcher_acnt, l.hitter_acnt, l.pitch_cnt,
        l.pitch_call, l.ball_cnt, l.strike_cnt, l.out_cnt, l.inning_seq,
        l.visiting_home_type, l.first_base, l.second_base, l.third_base,
        l.pre_away_score, l.pre_home_score,
        l.plate_loc_side, l.plate_loc_height, l.catcher_acnt,
-       d.head_umpire, g.venue, g.home_team_code, g.away_team_code, g.game_month
+       d.head_umpire, g.venue, g.home_team_code, g.away_team_code, g.game_month,
+       p.id AS hitter_player_id, p.height_cm AS batter_height_cm
 FROM linked_called l
 LEFT JOIN game_meta g USING (year, kind_code, game_sno)
 LEFT JOIN cpbl.game_detail d USING (year, kind_code, game_sno)
+LEFT JOIN cpbl.players p ON p.id = l.hitter_acnt
 ORDER BY l.game_sno, l.pitcher_acnt, l.pitch_cnt
+"""
+
+
+HEIGHT_COVERAGE_SQL = LINKED_CALLED_CTE + """
+SELECT count(*) AS linked_pitches,
+       count(DISTINCT l.hitter_acnt) AS linked_hitters,
+       count(*) FILTER (WHERE p.height_cm > 0) AS covered_pitches,
+       count(DISTINCT l.hitter_acnt) FILTER (
+         WHERE p.height_cm > 0) AS covered_hitters,
+       count(*) FILTER (WHERE p.id IS NULL) AS missing_player_pitches,
+       count(DISTINCT l.hitter_acnt) FILTER (
+         WHERE p.id IS NULL) AS missing_player_hitters,
+       count(*) FILTER (
+         WHERE p.id IS NOT NULL AND (p.height_cm IS NULL OR p.height_cm <= 0)
+       ) AS missing_height_pitches,
+       count(DISTINCT l.hitter_acnt) FILTER (
+         WHERE p.id IS NOT NULL AND (p.height_cm IS NULL OR p.height_cm <= 0)
+       ) AS missing_height_hitters
+FROM linked_called l
+LEFT JOIN cpbl.players p ON p.id = l.hitter_acnt
 """
 
 
@@ -105,6 +127,7 @@ class LinkedCalledRow:
     kind_code: str
     game_sno: int
     pitcher_acnt: str
+    hitter_acnt: str
     pitch_cnt: int
     pitch_call: str
     ball_cnt: int | None
@@ -125,6 +148,8 @@ class LinkedCalledRow:
     home_team_code: str | None
     away_team_code: str | None
     game_month: int | None
+    hitter_player_id: str | None
+    batter_height_cm: int | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,10 +158,22 @@ class ScoringPitchData:
     exclusions: dict[str, int]
 
 
-def build_called_pitches(rows: list[LinkedCalledRow]) -> ScoringPitchData:
+def build_called_pitches(
+    rows: list[LinkedCalledRow],
+    *,
+    require_batter_height: bool = False,
+) -> ScoringPitchData:
     pitches: list[CalledPitch] = []
     exclusions: dict[str, int] = defaultdict(int)
     for row in rows:
+        if require_batter_height and row.hitter_player_id is None:
+            exclusions["missing_hitter_player"] += 1
+            continue
+        if require_batter_height and (
+            row.batter_height_cm is None or row.batter_height_cm <= 0
+        ):
+            exclusions["missing_batter_height"] += 1
+            continue
         if row.plate_loc_side is None or row.plate_loc_height is None:
             exclusions["missing_location"] += 1
             continue
@@ -206,16 +243,76 @@ def build_called_pitches(rows: list[LinkedCalledRow]) -> ScoringPitchData:
                 plate_loc_height=row.plate_loc_height,
                 observed_call=observed,
                 game_month=row.game_month,
+                hitter_acnt=row.hitter_acnt,
+                batter_height_cm=row.batter_height_cm,
             )
         )
     return ScoringPitchData(tuple(pitches), dict(exclusions))
 
 
 def load_called_pitches(
-    connection: Any, season: int, kind: str = "A"
+    connection: Any,
+    season: int,
+    kind: str = "A",
+    *,
+    require_batter_height: bool = False,
 ) -> ScoringPitchData:
     cursor = connection.execute(SCORED_CALLED_SQL, {"season": season, "kind": kind})
-    return build_called_pitches([LinkedCalledRow(*row) for row in cursor])
+    return build_called_pitches(
+        [LinkedCalledRow(*row) for row in cursor],
+        require_batter_height=require_batter_height,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class HeightCoverageAudit:
+    linked_pitches: int
+    linked_hitters: int
+    covered_pitches: int
+    covered_hitters: int
+    missing_player_pitches: int
+    missing_player_hitters: int
+    missing_height_pitches: int
+    missing_height_hitters: int
+
+    @property
+    def pitch_coverage_rate(self) -> float:
+        return self.covered_pitches / self.linked_pitches if self.linked_pitches else 0.0
+
+    @property
+    def hitter_coverage_rate(self) -> float:
+        return self.covered_hitters / self.linked_hitters if self.linked_hitters else 0.0
+
+    @property
+    def passes(self) -> bool:
+        return (
+            self.linked_pitches > 0
+            and self.linked_hitters > 0
+            and self.pitch_coverage_rate >= 0.995
+            and self.hitter_coverage_rate >= 0.995
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            **asdict(self),
+            "pitch_coverage_rate": self.pitch_coverage_rate,
+            "hitter_coverage_rate": self.hitter_coverage_rate,
+            "passes": self.passes,
+        }
+
+
+def audit_height_coverage(
+    connection: Any,
+    season: int,
+    kind: str = "A",
+) -> HeightCoverageAudit:
+    row = connection.execute(
+        HEIGHT_COVERAGE_SQL,
+        {"season": season, "kind": kind},
+    ).fetchone()
+    if row is None:
+        return HeightCoverageAudit(0, 0, 0, 0, 0, 0, 0, 0)
+    return HeightCoverageAudit(*(int(value) for value in row))
 
 
 HISTORICAL_LIVELOG_SQL = """
