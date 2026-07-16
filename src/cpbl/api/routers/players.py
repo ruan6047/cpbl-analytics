@@ -24,9 +24,11 @@ from cpbl.models.matchup_insights import (
     CREDIBILITY_GATE,
     WOBA_VERSION,
     InsightCandidate,
+    PairContext,
+    PairKey,
     PairSample,
-    additive_expected,
     evaluate_pairs,
+    pair_context,
     rank_insights,
     sensitivity_report,
     woba_line,
@@ -931,6 +933,13 @@ def player_matchup_insights(
     前端不得自行重做統計判定。樣本不足時候選為空（誠實退化）。
     """
     selected = _scope_or_422(scope, season, from_year, to_year)
+    if kind_code != "A":
+        # 官方季彙總只涵蓋例行賽（A）：C/E 沒有同賽事類型官方 baseline，
+        # 不得借 A 組 baseline 假裝可比較 → fail-closed。
+        return _empty_insights(
+            player_id, role, kind_code, selected, opponent_team,
+            "季後賽／總冠軍賽無同賽事類型官方季彙總 baseline，不輸出洞察",
+        )
     self_col, opp_col = (
         ("hitter_acnt", "pitcher") if role == "batting" else ("pitcher_acnt", "hitter")
     )
@@ -942,8 +951,9 @@ def player_matchup_insights(
             )
         except ValueError:
             return _empty_insights(player_id, role, kind_code, selected,
-                                   "該範圍沒有官方季彙總可建立 baseline")
-        # 目標球員逐對手列（含姓名／隊伍，供顯示與 opponent_team 篩選）。
+                                   opponent_team, "該範圍沒有官方季彙總可建立 baseline")
+        # 目標球員逐對手列（含姓名／隊伍）。opponent_team 不進 SQL：資料完整性
+        # （覆蓋率）必須以全 scope 評估，隊伍篩選只限制「候選對手」（審核 P1-1）。
         sql = f"""
             SELECT m.year, m.{opp_col}_acnt AS opp_id, m.{opp_col}_name AS opp_name,
                    m.{opp_col}_team_no AS opp_team_code, tm.name AS opp_team,
@@ -954,71 +964,102 @@ def player_matchup_insights(
               AND m.year BETWEEN %s AND %s
         """  # noqa: S608 — self_col/opp_col 由 role 白名單決定
         params: list[Any] = [player_id, kind_code, selected.from_year, selected.to_year]
-        if opponent_team:
-            sql += f" AND left(m.{opp_col}_team_no, 3)=ANY(%s)"  # noqa: S608
-            params.append(sorted(franchise_prefixes(opponent_team)))
         cur.execute(sql, params)
-        items = aggregate_matchup_rows(_dicts(cur))
+        rows = _dicts(cur)
 
+    items = aggregate_matchup_rows(rows)
     if not items:
         return _empty_insights(player_id, role, kind_code, selected,
-                               "該球員在此範圍沒有對戰紀錄")
+                               opponent_team, "該球員在此範圍沒有對戰紀錄")
 
-    # 覆蓋率：對戰爬蟲只含本季登錄打者，投手 baseline 尤其不完整（見審核）。
-    # 主角覆蓋率 = 樣本觀察機會數 / 官方生涯機會數；不足即 fail-closed。
+    # 對手隸屬 franchise（跨年可能有多個歷史隊碼，全記）供隊伍篩選。
+    opp_prefixes: dict[str, set[str]] = {}
+    for row in rows:
+        code = (row.get("opp_team_code") or "")[:3]
+        if code:
+            opp_prefixes.setdefault(row["opp_id"], set()).add(code)
+
+    # 覆蓋率（全 scope）：對戰爬蟲只含本季登錄打者，投手 baseline 尤其不完整。
+    # 主角覆蓋率 = 全體對戰樣本觀察機會數 / 官方生涯機會數；不足即 fail-closed。
     subject_opps = universe.hitter_opps if role == "batting" else universe.pitcher_opps
     official_opps = subject_opps.get(player_id, 0)
     sampled_opps = 0
     display = {item["opp_id"]: item for item in items}
+    item_opps: dict[str, int] = {}
     pairs = []
-    local_expected: dict[tuple[str, str], float] = {}
+    local_contexts: dict[PairKey, PairContext] = {}
     for item in items:
         line = woba_line(item)
         if line.opportunities <= 0:
             continue
         sampled_opps += line.opportunities
+        item_opps[item["opp_id"]] = line.opportunities
         hitter = player_id if role == "batting" else item["opp_id"]
         pitcher = item["opp_id"] if role == "batting" else player_id
         pairs.append(PairSample(hitter_id=hitter, pitcher_id=pitcher, line=line))
         h_base = universe.hitter_baselines.get(hitter)
         p_base = universe.pitcher_baselines.get(pitcher)
         if h_base is not None and p_base is not None:
-            local_expected[(hitter, pitcher)] = additive_expected(
-                h_base.rate - universe.bat_league_mean,
-                p_base.rate - universe.pit_league_mean,
-                universe.bat_league_mean,
+            ctx = pair_context(
+                line, h_base, p_base,
+                bat_league_mean=universe.bat_league_mean,
+                pit_league_mean=universe.pit_league_mean,
             )
+            if ctx is not None:
+                local_contexts[(hitter, pitcher)] = ctx
     coverage = sampled_opps / official_opps if official_opps else 0.0
-
-    candidates = evaluate_pairs(
-        pairs,
-        role=role,
-        expected=local_expected,
-        hitter_opps=universe.hitter_opps,
-        pitcher_opps=universe.pitcher_opps,
-        hyper=universe.hyper,
-    )
     coverage_ok = coverage >= _COVERAGE_GATE
-    if coverage_ok:
-        ranked = rank_insights(candidates, role=role, limit=limit)
-        sensitivity = sensitivity_report(
-            candidates, role=role, limit=limit, hyper=universe.hyper
-        )
-        note = None
-        if not ranked.advantages and not ranked.disadvantages:
-            note = "樣本不足或差異不可信，僅提供一般對戰紀錄，不產生洞察排行"
-        advantages = [_insight_item(c, display) for c in ranked.advantages]
-        disadvantages = [_insight_item(c, display) for c in ranked.disadvantages]
-        eligible, gated_out = ranked.eligible, ranked.gated_out
-    else:
-        # fail-closed：覆蓋率不足（多為投手，官方生涯只被本季登錄打者對戰覆蓋
-        # 不到六成），不輸出方向性結論，僅回報覆蓋率與原因。
+    prior_available = universe.hyper is not None
+
+    # 隊伍篩選只限制候選對手（含歷史隊碼 franchise 映射），不影響覆蓋率。
+    query_ids: set[str] | None = None
+    if opponent_team:
+        allowed = franchise_prefixes(opponent_team)
+        query_ids = {
+            opp for opp, prefixes in opp_prefixes.items() if prefixes & allowed
+        }
+    query_opponents = [
+        opp for opp in item_opps if query_ids is None or opp in query_ids
+    ]
+    query_opps = sum(item_opps[opp] for opp in query_opponents)
+
+    if not coverage_ok:
+        # fail-closed：全 scope 覆蓋率不足（多為投手，官方生涯只被本季登錄打者
+        # 對戰覆蓋不到六成），不輸出方向性結論，僅回報覆蓋率與原因。
         sensitivity, advantages, disadvantages = None, [], []
-        eligible, gated_out = 0, len(candidates)
+        eligible, gated_out = 0, len(pairs)
         note = (
             f"對戰樣本僅覆蓋官方生涯 {coverage:.0%}（門檻 {_COVERAGE_GATE:.0%}），"
             "非隨機子集，不輸出天敵／優勢排行"
         )
+    elif not prior_available:
+        # fail-closed：可用配對不足、tau² 先驗無法可靠估計（如單季 scope 幾乎
+        # 沒有 n≥50 配對），不得用任意常數先驗頂替（審核 P1-2）。
+        sensitivity, advantages, disadvantages = None, [], []
+        eligible, gated_out = 0, len(pairs)
+        note = (
+            "該範圍可用配對樣本不足，經驗貝氏先驗（tau²）無法可靠估計，"
+            "不輸出天敵／優勢排行"
+        )
+    else:
+        candidates = evaluate_pairs(
+            pairs, role=role, contexts=local_contexts, hyper=universe.hyper
+        )
+        if query_ids is not None:
+            candidates = [c for c in candidates if c.opponent_id in query_ids]
+        ranked = rank_insights(candidates, role=role, limit=limit)
+        sensitivity = sensitivity_report(
+            candidates, role=role, limit=limit, hyper=universe.hyper
+        )
+        if not query_opponents:
+            note = "該球員對指定隊伍在此範圍沒有對戰紀錄"
+        elif not ranked.advantages and not ranked.disadvantages:
+            note = "樣本不足或差異不可信，僅提供一般對戰紀錄，不產生洞察排行"
+        else:
+            note = None
+        advantages = [_insight_item(c, display) for c in ranked.advantages]
+        disadvantages = [_insight_item(c, display) for c in ranked.disadvantages]
+        eligible, gated_out = ranked.eligible, ranked.gated_out
 
     own_line = universe.hitter_baselines.get(player_id) if role == "batting" \
         else universe.pitcher_baselines.get(player_id)
@@ -1033,7 +1074,6 @@ def player_matchup_insights(
         "from_year": selected.from_year,
         "to_year": selected.to_year,
         "source": selected.source,
-        "filters": {"opponent_team": opponent_team},
         "baseline": {
             "woba": _round(own_line.rate, 4) if own_line else None,
             "official_opportunities": own_line.opportunities if own_line else 0,
@@ -1042,12 +1082,19 @@ def player_matchup_insights(
             "woba": _round(league_mean, 4),
             "source": "official_season_aggregates",
         },
+        # 資料完整性（全 scope，不受 opponent_team 影響）與查詢後樣本量分開回報。
         "coverage": {
+            "scope": "all_opponents",
             "sampled_opportunities": sampled_opps,
             "official_opportunities": official_opps,
             "ratio": _round(coverage, 3),
             "gate": _COVERAGE_GATE,
             "passed": coverage_ok,
+        },
+        "query_sample": {
+            "opponent_team": opponent_team,
+            "opponents": len(query_opponents),
+            "sampled_opportunities": query_opps,
         },
         "advantages": advantages,
         "disadvantages": disadvantages,
@@ -1059,12 +1106,19 @@ def player_matchup_insights(
             "metric": WOBA_VERSION,
             "baseline_source": "official_season_aggregates（全史，可驗證）",
             "observed_source": "batter_pitcher_matchups 對戰爬蟲樣本",
-            "expected": "league + batter_dev + pitcher_dev（對稱，角色翻轉不得雙方同優）",
-            "sigma2": _round(universe.hyper.sigma2, 6),
-            "tau2": _round(universe.hyper.tau2, 8),
-            "prior_strength": _round(universe.hyper.prior_strength, 1),
+            "expected": (
+                "league + batter_dev + pitcher_dev"
+                "（leave-pair-out：兩側 baseline 先扣除被評配對；"
+                "對稱，角色翻轉不得雙方同優）"
+            ),
+            "sigma2": _round(universe.sigma2, 6),
+            "tau2": _round(universe.hyper.tau2, 8) if prior_available else None,
+            "prior_strength": (
+                _round(universe.hyper.prior_strength, 1) if prior_available else None
+            ),
             "credibility_gate": CREDIBILITY_GATE,
-            "pairs_used": universe.hyper.pairs_used,
+            "prior_available": prior_available,
+            "pairs_used": universe.hyper.pairs_used if prior_available else 0,
         },
         "disclaimer": _INSIGHT_DISCLAIMER,
     }
@@ -1093,7 +1147,8 @@ def _insight_item(candidate: InsightCandidate, display: dict[str, dict]) -> dict
 
 
 def _empty_insights(
-    player_id: str, role: str, kind_code: str, selected: MatchupScope, reason: str
+    player_id: str, role: str, kind_code: str, selected: MatchupScope,
+    opponent_team: str | None, reason: str,
 ) -> dict:
     return {
         "player_id": player_id,
@@ -1103,10 +1158,14 @@ def _empty_insights(
         "from_year": selected.from_year,
         "to_year": selected.to_year,
         "source": selected.source,
-        "filters": {"opponent_team": None},
         "baseline": None,
         "league": None,
         "coverage": None,
+        "query_sample": {
+            "opponent_team": opponent_team,
+            "opponents": 0,
+            "sampled_opportunities": 0,
+        },
         "advantages": [],
         "disadvantages": [],
         "eligible": 0,

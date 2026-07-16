@@ -11,14 +11,18 @@ import pytest
 
 from cpbl.models.matchup_insights import (
     CREDIBILITY_GATE,
+    MIN_PAIRS_FOR_PRIOR,
     Hyperparameters,
     InsightCandidate,
+    PairContext,
     PairSample,
     WobaLine,
     additive_expected,
     estimate_hyperparameters,
     evaluate_pairs,
+    leave_pair_out,
     merge_lines,
+    pair_context,
     per_opportunity_variance,
     rank_insights,
     sensitivity_report,
@@ -64,43 +68,95 @@ def test_per_opportunity_variance_matches_hand_computation():
     assert sigma2 == pytest.approx(expected)
 
 
-_BIG_OPPS = {"H1": 10_000, "H2": 10_000, "P1": 10_000, "P2": 10_000}
+def _ctx(expected: float, rem: int = 10_000, official: int = 10_000) -> PairContext:
+    return PairContext(
+        expected=expected, hitter_rem=rem, pitcher_rem=rem,
+        hitter_official=official, pitcher_official=official,
+    )
+
+
+def test_leave_pair_out_subtracts_raw_counts():
+    baseline = WobaLine(100.0, 400)
+    pair = WobaLine(30.0, 120)
+    rem = leave_pair_out(baseline, pair)
+
+    assert rem is not None
+    assert rem.weighted_sum == pytest.approx(70.0)
+    assert rem.opportunities == 280
+    # 扣除後分母不為正、或加權和為負 → 不可評估（None），不得硬夾。
+    assert leave_pair_out(WobaLine(30.0, 120), WobaLine(30.0, 120)) is None
+    assert leave_pair_out(WobaLine(10.0, 400), WobaLine(20.0, 120)) is None
+
+
+def test_pair_context_uses_leave_pair_out_expected():
+    # 打者官方 400 機會 @0.35，其中配對佔 100 機會 @0.50 → 剩餘 (140−50)/300=0.30。
+    # 投手官方 4000 機會 @0.34，配對同 100 機會 @0.50 → 剩餘 (1360−50)/3900≈0.3359。
+    pair = WobaLine(0.50 * 100, 100)
+    ctx = pair_context(
+        pair,
+        WobaLine(0.35 * 400, 400),
+        WobaLine(0.34 * 4000, 4000),
+        bat_league_mean=0.32,
+        pit_league_mean=0.315,
+    )
+
+    assert ctx is not None
+    assert ctx.hitter_rem == 300 and ctx.pitcher_rem == 3900
+    assert ctx.hitter_official == 400 and ctx.pitcher_official == 4000
+    lpo_bat_dev = (0.35 * 400 - 50.0) / 300 - 0.32
+    lpo_pit_dev = (0.34 * 4000 - 50.0) / 3900 - 0.315
+    assert ctx.expected == pytest.approx(0.32 + lpo_bat_dev + lpo_pit_dev)
+    # 配對吃光其中一側母體 → 整體不可評估。
+    assert pair_context(
+        pair, WobaLine(0.50 * 100, 100), WobaLine(0.34 * 4000, 4000),
+        bat_league_mean=0.32, pit_league_mean=0.315,
+    ) is None
+
+
+def _formula_pairs():
+    """20 組殘差 ±0.1、各 n=100 的配對（達 MIN_PAIRS_FOR_PRIOR），數字可手算。"""
+    pairs, contexts = [], {}
+    for i in range(20):
+        rate = 0.45 if i % 2 == 0 else 0.25
+        key = (f"H{i:02d}", f"P{i:02d}")
+        pairs.append(PairSample(key[0], key[1], WobaLine(rate * 100, 100)))
+        contexts[key] = _ctx(0.35)
+    return pairs, contexts
 
 
 def test_method_of_moments_recovers_between_pair_variance():
-    # 兩組配對殘差 ±0.1、各 n=100；官方 baseline 大（10k）→ noise ≈ sigma²。
-    # tau² = Σ(n·r² − sigma²·(1+n/10000·2))/Σn ≈ (100·0.01 − 0.408)·2 / 200 = 0.00296。
-    pairs = [
-        PairSample("H1", "P1", WobaLine(0.45 * 100, 100)),
-        PairSample("H2", "P2", WobaLine(0.25 * 100, 100)),
-    ]
-    expected = {("H1", "P1"): 0.35, ("H2", "P2"): 0.35}
-    hyper = estimate_hyperparameters(
-        pairs, expected=expected, hitter_opps=_BIG_OPPS,
-        pitcher_opps=_BIG_OPPS, sigma2=0.4,
-    )
+    # 殘差 ±0.1、n=100；leave-pair-out 剩餘 10k → noise ≈ sigma²。
+    # tau² = Σ(n·r² − sigma²·(1+n/10000·2))/Σn = (100·0.01 − 0.408)/100 = 0.00592。
+    pairs, contexts = _formula_pairs()
+    hyper = estimate_hyperparameters(pairs, contexts=contexts, sigma2=0.4)
 
     noise = 0.4 * (1 + 100 / 10_000 + 100 / 10_000)
-    assert hyper.tau2 == pytest.approx((100 * 0.01 - noise) * 2 / 200)
-    assert hyper.pairs_used == 2
+    assert hyper.tau2 == pytest.approx((100 * 0.01 - noise) / 100)
+    assert hyper.pairs_used == 20
     assert hyper.prior_strength == pytest.approx(0.4 / hyper.tau2)
 
 
-def test_estimation_excludes_tiny_pairs_and_missing_baselines():
-    # 微樣本配對（n<10）與缺官方 baseline 的配對都不得進 tau² 估計。
-    good = PairSample("H1", "P1", WobaLine(0.45 * 100, 100))
-    tiny = PairSample("H1", "P2", WobaLine(2.10 * 5, 5))       # n<10
-    orphan = PairSample("H2", "P1", WobaLine(0.45 * 100, 100))  # H2 無官方 baseline
-    expected = {
-        ("H1", "P1"): 0.35, ("H1", "P2"): 0.35, ("H2", "P1"): 0.35,
-    }
-    hitter_opps = {"H1": 10_000}  # 無 H2
+def test_estimation_excludes_tiny_pairs_and_missing_contexts():
+    # 微樣本配對（n<50）與缺 leave-pair-out 脈絡的配對都不得進 tau² 估計。
+    pairs, contexts = _formula_pairs()
+    tiny = PairSample("H98", "P98", WobaLine(2.10 * 5, 5))        # n<50
+    orphan = PairSample("H99", "P99", WobaLine(0.45 * 100, 100))  # 無脈絡
+    contexts[("H98", "P98")] = _ctx(0.35)
     hyper = estimate_hyperparameters(
-        [good, tiny, orphan], expected=expected,
-        hitter_opps=hitter_opps, pitcher_opps=_BIG_OPPS, sigma2=0.4,
+        [*pairs, tiny, orphan], contexts=contexts, sigma2=0.4
     )
 
-    assert hyper.pairs_used == 1
+    assert hyper.pairs_used == 20
+
+
+def test_estimation_fails_closed_below_min_pairs():
+    # 可用配對 < MIN_PAIRS_FOR_PRIOR → 先驗不可靠，必須拋錯（呼叫端 fail-closed），
+    # 不得回傳任意常數先驗。
+    pairs, contexts = _formula_pairs()
+    with pytest.raises(ValueError):
+        estimate_hyperparameters(
+            pairs[: MIN_PAIRS_FOR_PRIOR - 1], contexts=contexts, sigma2=0.4
+        )
 
 
 def test_shrinkage_pulls_small_samples_to_zero():
@@ -122,30 +178,26 @@ def test_additive_expected_is_symmetric_and_clipped():
 
 
 def _universe(pair: PairSample):
-    """合成母體：聯盟均值 0.32；兩側官方 baseline 各 10k 機會 @0.32（偏差 0）。"""
-    hitter_opps = {pair.hitter_id: 10_000}
-    pitcher_opps = {pair.pitcher_id: 10_000}
-    # 官方 baseline 都是聯盟均值 → expected = 0.32。
-    expected = {(pair.hitter_id, pair.pitcher_id): 0.32}
+    """合成母體：聯盟均值 0.32；兩側 leave-pair-out 剩餘各 10k 機會（期望 0.32）。"""
+    contexts = {(pair.hitter_id, pair.pitcher_id): _ctx(0.32)}
     hyper = Hyperparameters(sigma2=0.4, tau2=0.002, pairs_used=50)
-    return expected, hitter_opps, pitcher_opps, hyper
+    return contexts, hyper
 
 
 def test_symmetry_role_flip_mirrors_labels_without_double_advantage():
     # BAT vs ACE：200 機會、觀察 0.20（低於期望 0.32）→ 有利投手。
     pair = PairSample("BAT", "ACE", WobaLine(0.20 * 200, 200))
-    expected, hitter_opps, pitcher_opps, hyper = _universe(pair)
+    contexts, hyper = _universe(pair)
 
     as_batter = evaluate_pairs(
-        [pair], role="batting", expected=expected, hitter_opps=hitter_opps,
-        pitcher_opps=pitcher_opps, hyper=hyper,
+        [pair], role="batting", contexts=contexts, hyper=hyper,
     )[0]
     as_pitcher = evaluate_pairs(
-        [pair], role="pitching", expected=expected, hitter_opps=hitter_opps,
-        pitcher_opps=pitcher_opps, hyper=hyper,
+        [pair], role="pitching", contexts=contexts, hyper=hyper,
     )[0]
 
-    # 同一組對戰：|delta| 與可信度完全相同（對稱期望保證單一號向）。
+    # 同一組對戰：期望、|delta| 與可信度完全相同（角色翻轉不變）。
+    assert as_batter.expected == pytest.approx(as_pitcher.expected)
     assert as_batter.shrunk.delta_shrunk == pytest.approx(as_pitcher.shrunk.delta_shrunk)
     assert as_batter.shrunk.credibility == pytest.approx(as_pitcher.shrunk.credibility)
 
@@ -161,10 +213,8 @@ def test_symmetry_role_flip_mirrors_labels_without_double_advantage():
 def test_one_hit_wonder_never_becomes_nemesis():
     # 1 打數 1 全壘打：raw delta 巨大，但收縮＋閘門後不得成為候選。
     pair = PairSample("BAT", "NOBODY", WobaLine(2.10, 1))
-    expected = {("BAT", "NOBODY"): 0.32}
     candidates = evaluate_pairs(
-        [pair], role="batting", expected=expected,
-        hitter_opps={"BAT": 10_000}, pitcher_opps={"NOBODY": 10_000},
+        [pair], role="batting", contexts={("BAT", "NOBODY"): _ctx(0.32)},
         hyper=Hyperparameters(sigma2=0.4, tau2=0.002, pairs_used=50),
     )
     ranked = rank_insights(candidates, role="batting")
@@ -239,9 +289,7 @@ def test_sensitivity_report_flags_borderline_candidates():
 
 def test_estimate_hyperparameters_requires_pairs():
     with pytest.raises(ValueError):
-        estimate_hyperparameters(
-            [], expected={}, hitter_opps={}, pitcher_opps={}, sigma2=0.4
-        )
+        estimate_hyperparameters([], contexts={}, sigma2=0.4)
 
 
 def test_credibility_is_two_sided_posterior_sign_probability():
@@ -249,3 +297,97 @@ def test_credibility_is_two_sided_posterior_sign_probability():
     s = shrink_delta(0.2, 100, hyper)
     z = abs(s.delta_shrunk) / s.posterior_sd
     assert s.credibility == pytest.approx(0.5 * (1 + math.erf(z / math.sqrt(2))))
+
+
+# ───────────── 第二輪審核 regression（P1-2／P1-3）：universe 層級 ─────────────
+# 這批測試繞過純函式簽名、直接打 `_build_universe`（缺陷版 a1fcbe7 同樣存在此
+# 介面），確保「缺陷版跑紅、修正版跑綠」是行為層級的證據，不是 import error。
+
+import random  # noqa: E402
+
+from cpbl.api.matchups import _build_universe  # noqa: E402
+
+
+def test_universe_prior_unavailable_when_no_estimable_pairs():
+    """P1-2：全部配對 n<50 → tau² 無法可靠估計 → hyper 必須為 None（fail-closed）。
+
+    缺陷版 fallback 是 Hyperparameters(tau2=sigma2)（等效先驗僅 1 機會，
+    1 PA 對手 credibility 可達 0.99），此測試在 a1fcbe7 必紅。
+    """
+    batter_rows = [("9001", 600, 180, 30, 5, 10, 50, 5, 5, 5)]
+    pitcher_rows = [("8001", 600, 150, 12, 40, 4, 6)]
+    pair_rows = [("9001", "8001", 10, 3, 0, 0, 0, 1, 0, 0, 0)]
+
+    universe = _build_universe(batter_rows, pitcher_rows, pair_rows)
+
+    assert universe.hyper is None
+
+
+# 合成宇宙的真值：tau²(wOBA) = (0.89 × d 機率標準差)²。
+_SYN_TAU_PROB_SD = 0.0225
+_SYN_TAU2_TRUE = (0.89 * _SYN_TAU_PROB_SD) ** 2  # ≈ 0.0004
+
+
+def _synthetic_matchup_rows():
+    """合成 matchup 宇宙：官方 baseline『明確包含』被評配對（sum of pairs）。
+
+    形狀貼近真實 regime（噪音 sigma²/n >> tau²、每打者對手數十人）：
+    - 400 打者 × 25 投手全配對、各 n=50（過 _EST_MIN_N）。打者官方母體
+      N=1250、自我納入比重 n/N=4%——缺陷版對每一對都用「含配對」baseline
+      並以獨立樣本假設扣噪，兩項相依偏差合計會把 tau² 壓到接近 0。
+    - 事件只有一壘安打（權重 0.89）：sigma² 可由聯盟分布精確重現、
+      投手安打拆分無近似誤差。
+    - 真實率 p_ij = p0 + b_i + q_j + d_ij，d ~ N(0, 0.0225²)（機率單位）
+      → tau²(wOBA) ≈ 0.0004，與實資料估出的量級一致。
+    """
+    rng = random.Random(20260716)
+    n = 50
+    p0 = 0.36
+    offsets = (-0.03, -0.01, 0.01, 0.03)
+    hitters = [f"9{i:03d}" for i in range(400)]  # player_id 需為數字字串（int() 相容）
+    pitchers = [f"8{j:03d}" for j in range(25)]
+
+    pair_rows = []
+    bat_totals = {h: [0, 0] for h in hitters}   # [ab, hits]
+    pit_totals = {p: [0, 0] for p in pitchers}
+    for i, hitter in enumerate(hitters):
+        for j, pitcher in enumerate(pitchers):
+            d = rng.gauss(0.0, _SYN_TAU_PROB_SD)
+            p = min(max(p0 + offsets[i % 4] + offsets[j % 4] + d, 0.02), 0.98)
+            hits = rng.binomialvariate(n, p)
+            pair_rows.append((hitter, pitcher, n, hits, 0, 0, 0, 0, 0, 0, 0))
+            bat_totals[hitter][0] += n
+            bat_totals[hitter][1] += hits
+            pit_totals[pitcher][0] += n
+            pit_totals[pitcher][1] += hits
+
+    batter_rows = [
+        (h, ab, hits, 0, 0, 0, 0, 0, 0, 0) for h, (ab, hits) in bat_totals.items()
+    ]
+    pitcher_rows = [
+        (p, bf, hits, 0, 0, 0, 0) for p, (bf, hits) in pit_totals.items()
+    ]
+    return batter_rows, pitcher_rows, pair_rows
+
+
+def test_universe_tau2_recovery_with_self_inclusive_official_baseline():
+    """P1-3：已知 tau² 的合成宇宙，官方 baseline 含被評配對。
+
+    修正版（leave-pair-out expected＋一致的 noise 公式）須在 ±45% 內回收
+    tau²≈0.0004；缺陷版（full-baseline expected＋獨立樣本 noise 假設）忽略
+    配對與 baseline 的 covariance、過度扣噪，tau² 被壓到趨近 floor
+    （固定 seed 下遠低於容忍帶）→ a1fcbe7 必紅。
+    """
+    batter_rows, pitcher_rows, pair_rows = _synthetic_matchup_rows()
+    # 結構自證：官方打者母體 = 該打者所有配對之和（self-inclusion 成立）。
+    h0_official = next(row[1] for row in batter_rows if row[0] == "9000")
+    h0_pairs = sum(row[2] for row in pair_rows if row[0] == "9000")
+    assert h0_official == h0_pairs
+
+    universe = _build_universe(batter_rows, pitcher_rows, pair_rows)
+
+    assert universe.hyper is not None
+    assert universe.hyper.pairs_used == 400 * 25
+    assert 0.55 * _SYN_TAU2_TRUE <= universe.hyper.tau2 <= 1.45 * _SYN_TAU2_TRUE, (
+        f"tau2={universe.hyper.tau2:.6f} 偏離真值 {_SYN_TAU2_TRUE:.6f}"
+    )

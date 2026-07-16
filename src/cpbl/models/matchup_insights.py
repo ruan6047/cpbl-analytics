@@ -5,11 +5,19 @@
 - 主指標為 wOBA 型線性加權率（`woba_generic_v1`，MLB 通用權重）。權重僅作
   「相對差異」比較——主角、對手與聯盟都用同一組權重，尺度偏差在差值中對消；
   本輸出為描述性統計，不代表因果或未來預測。
-- 對稱期望：expected(pair) = batter_baseline + pitcher_baseline − league_mean。
-  差值 delta = observed − expected 只有一個號向（正=有利打者），角色翻轉時
-  同一組對戰不可能被雙方同時標成優勢（spec 對稱測試由建構保證）。
+- **leave-pair-out baseline**（第二輪審核必改）：官方 batter/pitcher 母體本身
+  「包含」被評配對，直接當 baseline 會與配對樣本相依（covariance），噪音被
+  過度扣除、tau² 系統性低估。故先從兩側官方彙總扣除該配對的原始計數，得
+  leave-pair-out 剩餘 baseline，期望與殘差全以此定義；扣除後計數或分母不為
+  正者視為不可評估。
+- 對稱期望：expected(pair) = league_mean + batter_dev + pitcher_dev（兩側偏差
+  皆以 leave-pair-out 剩餘 rate 對聯盟均值中心化）。差值 delta = observed −
+  expected 只有一個號向（正=有利打者），角色翻轉時同一組對戰不可能被雙方
+  同時標成優勢（spec 對稱測試由建構保證）。
 - 經驗貝氏收縮 [empirical Bayes shrinkage]：delta 以 N(0, tau²) 先驗回縮，
-  抽樣變異 sigma²/n 與 tau² 皆由資料估計（動差法），不靠人工拍門檻。
+  抽樣變異 sigma²/n 與 tau² 皆由資料估計（動差法），不靠人工拍門檻；
+  tau² 無法可靠估計時整體 fail-closed（由呼叫端以 hyper=None 表達），
+  嚴禁退回任意常數先驗。
 - 排名以收縮後效果量排序；顯示閘門用後驗同號機率（credibility），未達閘門
   一律不進候選（樣本不足誠實退化）。閘門與先驗強度附敏感度檢查。
 """
@@ -121,11 +129,15 @@ def per_opportunity_variance(league: WobaLine, event_counts: Mapping[str, int]) 
     return variance / n
 
 
-# 估 tau² 的最小配對機會數。期望值改由官方完整 baseline 提供，不需 leave-pair-out。
-# 門檻設 50 而非 10：動差估計對「大量微樣本配對」敏感——它們幾乎全是抽樣噪音，
-# 噪音模型的殘餘偏差會把 tau² 系統性壓低（實資料診斷：全池估 0.00018，但 n≥50／
-# n≥100 分層一致指向 ~0.0005）。只用可偵測到 matchup 訊號的樣本估先驗才誠實。
+# 估 tau² 的最小配對機會數。門檻設 50 而非 10：動差估計對「大量微樣本配對」
+# 敏感——它們幾乎全是抽樣噪音，噪音模型的殘餘偏差會把 tau² 系統性壓低
+# （實資料診斷：全池估 0.00018，但 n≥50／n≥100 分層一致指向 ~0.0005）。
+# 只用可偵測到 matchup 訊號的樣本估先驗才誠實。
 _EST_MIN_N = 50
+# 可靠估計 tau² 的最少配對數（預先註冊）：動差估計的相對標準誤 ~ sqrt(2/K)，
+# K<20 時誤差 >30%，先驗本身不可信 → 呼叫端應 fail-closed（hyper=None），
+# 不得用任意常數先驗頂替。生涯 kind A 實資料約 344 對，單季通常掛零。
+MIN_PAIRS_FOR_PRIOR = 20
 
 PairKey = tuple[str, str]
 
@@ -142,37 +154,92 @@ def additive_expected(
     return min(max(raw, 0.0), max(_WOBA_WEIGHTS.values()))
 
 
+def leave_pair_out(baseline: WobaLine, pair: WobaLine) -> WobaLine | None:
+    """自官方彙總扣除被評配對的原始計數，回傳剩餘 baseline。
+
+    扣除後分母不為正、或加權和為負（官方彙總含近似拆分時的邊角）→ 回 None
+    表示不可評估，呼叫端必須跳過該配對，不得硬夾成 0。
+    """
+    rem_n = baseline.opportunities - pair.opportunities
+    rem_w = baseline.weighted_sum - pair.weighted_sum
+    if rem_n <= 0 or rem_w < 0:
+        return None
+    return WobaLine(rem_w, rem_n)
+
+
+@dataclass(frozen=True, slots=True)
+class PairContext:
+    """單一配對的 leave-pair-out 評估脈絡（期望、兩側剩餘與官方機會數）。"""
+
+    expected: float
+    hitter_rem: int
+    pitcher_rem: int
+    hitter_official: int
+    pitcher_official: int
+
+
+def pair_context(
+    pair_line: WobaLine,
+    hitter_baseline: WobaLine,
+    pitcher_baseline: WobaLine,
+    *,
+    bat_league_mean: float,
+    pit_league_mean: float,
+) -> PairContext | None:
+    """由官方兩側彙總建 leave-pair-out 期望；不可評估回 None。
+
+    投手官方分母（BF−IBB）比 wOBA 分母多犧牲觸擊等少量事件，扣除配對的
+    wOBA 機會數屬可驗證近似；殘餘自我納入僅剩該配對的犧牲觸擊，量級可忽略。
+    """
+    h_rem = leave_pair_out(hitter_baseline, pair_line)
+    p_rem = leave_pair_out(pitcher_baseline, pair_line)
+    if h_rem is None or p_rem is None:
+        return None
+    expected = additive_expected(
+        h_rem.rate - bat_league_mean,
+        p_rem.rate - pit_league_mean,
+        bat_league_mean,
+    )
+    return PairContext(
+        expected=expected,
+        hitter_rem=h_rem.opportunities,
+        pitcher_rem=p_rem.opportunities,
+        hitter_official=hitter_baseline.opportunities,
+        pitcher_official=pitcher_baseline.opportunities,
+    )
+
+
 def estimate_hyperparameters(
     pairs: Iterable[PairSample],
     *,
-    expected: Mapping[PairKey, float],
-    hitter_opps: Mapping[str, int],
-    pitcher_opps: Mapping[str, int],
+    contexts: Mapping[PairKey, PairContext],
     sigma2: float,
 ) -> Hyperparameters:
-    """動差法估 tau²；期望值來自官方完整 baseline，校正殘餘 baseline 噪音。
+    """動差法估 tau²；期望與噪音校正一致採 leave-pair-out 定義。
 
-    E[r²] ≈ tau² + sigma²·(1/n + 1/h_off + 1/p_off)，其中 h_off/p_off 為官方
-    生涯機會數（大 → 校正 ≈ sigma²）。tau² = max(Σ(n·r² − noise)/Σn, floor)。
-    只納入配對機會數 ≥ _EST_MIN_N 且兩側皆有官方 baseline 的列。
+    配對樣本與剩餘 baseline 由不相交的機會構成（獨立成立），
+    Var(residual) = tau² + sigma²·(1/n + 1/h_rem + 1/p_rem)，故
+    tau² = max(Σ(n·r² − sigma²·(1 + n/h_rem + n/p_rem))/Σn, floor)。
+    只納入配對機會數 ≥ _EST_MIN_N 且可建 leave-pair-out 脈絡的列；
+    可用配對 < MIN_PAIRS_FOR_PRIOR 時拋 ValueError（呼叫端 fail-closed）。
     """
     numerator = weight_total = 0.0
     used = 0
     for pair in pairs:
         n = pair.line.opportunities
         rate = pair.line.rate
-        key = (pair.hitter_id, pair.pitcher_id)
-        h_off = hitter_opps.get(pair.hitter_id)
-        p_off = pitcher_opps.get(pair.pitcher_id)
-        if n < _EST_MIN_N or rate is None or key not in expected or not h_off or not p_off:
+        ctx = contexts.get((pair.hitter_id, pair.pitcher_id))
+        if n < _EST_MIN_N or rate is None or ctx is None:
             continue
-        residual = rate - expected[key]
-        noise = sigma2 * (1.0 + n / h_off + n / p_off)
+        residual = rate - ctx.expected
+        noise = sigma2 * (1.0 + n / ctx.hitter_rem + n / ctx.pitcher_rem)
         numerator += n * residual**2 - noise
         weight_total += n
         used += 1
-    if weight_total <= 0:
-        raise ValueError("no pairs available for hyperparameter estimation")
+    if used < MIN_PAIRS_FOR_PRIOR or weight_total <= 0:
+        raise ValueError(
+            f"estimable pairs={used} < {MIN_PAIRS_FOR_PRIOR}，tau² 不可靠，須 fail-closed"
+        )
     tau2 = max(numerator / weight_total, _TAU2_FLOOR)
     return Hyperparameters(sigma2=sigma2, tau2=tau2, pairs_used=used)
 
@@ -225,40 +292,36 @@ def evaluate_pairs(
     pairs: Iterable[PairSample],
     *,
     role: str,
-    expected: Mapping[PairKey, float],
-    hitter_opps: Mapping[str, int],
-    pitcher_opps: Mapping[str, int],
+    contexts: Mapping[PairKey, PairContext],
     hyper: Hyperparameters,
 ) -> list[InsightCandidate]:
-    """算每個對手的收縮後 delta；期望值來自官方完整 baseline。
+    """算每個對手的收縮後 delta；期望與噪音一致採 leave-pair-out 定義。
 
-    缺官方 baseline（球員在官方季表無紀錄）時跳過——期望無從定義，誠實不評。
-    有效機會數 n_eff = 1/(1/n + 1/h_off + 1/p_off) 把 baseline 抽樣噪音折進
-    可信度；官方生涯機會數大，n_eff ≈ n。
+    缺脈絡（官方季表無紀錄、或扣除配對後不可評估）時跳過——期望無從定義，
+    誠實不評。有效機會數 n_eff = 1/(1/n + 1/h_rem + 1/p_rem) 把剩餘 baseline
+    的抽樣噪音折進可信度；剩餘機會數大，n_eff ≈ n。
     """
     if role not in {"batting", "pitching"}:
         raise ValueError(f"不支援的角色：{role}")
     out: list[InsightCandidate] = []
     for pair in pairs:
         rate = pair.line.rate
-        key = (pair.hitter_id, pair.pitcher_id)
-        h_off = hitter_opps.get(pair.hitter_id)
-        p_off = pitcher_opps.get(pair.pitcher_id)
-        if rate is None or key not in expected or not h_off or not p_off:
+        ctx = contexts.get((pair.hitter_id, pair.pitcher_id))
+        if rate is None or ctx is None:
             continue
         n = pair.line.opportunities
-        n_eff = 1.0 / (1.0 / n + 1.0 / h_off + 1.0 / p_off)
-        shrunk = shrink_delta(rate - expected[key], n_eff, hyper)
+        n_eff = 1.0 / (1.0 / n + 1.0 / ctx.hitter_rem + 1.0 / ctx.pitcher_rem)
+        shrunk = shrink_delta(rate - ctx.expected, n_eff, hyper)
         if role == "batting":
-            opponent, opp_off = pair.pitcher_id, p_off
+            opponent, opp_off = pair.pitcher_id, ctx.pitcher_official
         else:
-            opponent, opp_off = pair.hitter_id, h_off
+            opponent, opp_off = pair.hitter_id, ctx.hitter_official
         out.append(
             InsightCandidate(
                 opponent_id=opponent,
                 opportunities=n,
                 observed=rate,
-                expected=expected[key],
+                expected=ctx.expected,
                 shrunk=shrunk,
                 effective_opportunities=n_eff,
                 opponent_baseline_opportunities=opp_off,

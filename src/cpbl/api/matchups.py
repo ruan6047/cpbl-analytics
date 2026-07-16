@@ -11,11 +11,13 @@ from typing import Any
 from cpbl.models.matchup_insights import (
     _WOBA_WEIGHTS,
     Hyperparameters,
+    PairContext,
+    PairKey,
     PairSample,
     WobaLine,
-    additive_expected,
     estimate_hyperparameters,
     merge_lines,
+    pair_context,
     per_opportunity_variance,
     woba_line,
 )
@@ -232,8 +234,10 @@ _PAIR_EVENT_COLUMNS = (
 class InsightUniverse:
     """單一 (kind, 年度範圍) 的洞察母體。
 
-    baseline 與 league_mean 來自官方完整季表（可驗證）；pairs／expected 來自對戰
-    爬蟲樣本；hitter_opps/pitcher_opps 為官方生涯機會數（覆蓋率分母）。
+    baseline 與 league_mean 來自官方完整季表（可驗證）；pairs／contexts 來自對戰
+    爬蟲樣本（contexts 為 leave-pair-out 期望與剩餘機會數）；hitter_opps／
+    pitcher_opps 為官方生涯機會數（覆蓋率分母）。hyper=None 代表 tau² 無法
+    可靠估計（可用配對不足），呼叫端必須 fail-closed，不得輸出方向性排行。
     """
 
     bat_league_mean: float
@@ -244,8 +248,8 @@ class InsightUniverse:
     hitter_opps: dict[str, int]
     pitcher_opps: dict[str, int]
     pairs: tuple[PairSample, ...]
-    expected: dict[tuple[str, str], float]
-    hyper: Hyperparameters
+    contexts: dict[PairKey, PairContext]
+    hyper: Hyperparameters | None
 
 
 def _batter_line(row: tuple) -> WobaLine:
@@ -325,7 +329,7 @@ def _build_universe(
     pitcher_opps = {pid: line.opportunities for pid, line in pitcher_baselines.items()}
 
     pairs: list[PairSample] = []
-    expected: dict[tuple[str, str], float] = {}
+    contexts: dict[PairKey, PairContext] = {}
     for row in pair_rows:
         hitter, pitcher, *counts = row
         line = woba_line(dict(zip(_PAIR_EVENT_COLUMNS, counts, strict=True)))
@@ -336,24 +340,25 @@ def _build_universe(
         p_base = pitcher_baselines.get(pitcher)
         if h_base is None or p_base is None:
             continue
-        expected[(hitter, pitcher)] = additive_expected(
-            h_base.rate - bat_league_mean,
-            p_base.rate - pit_league_mean,
-            bat_league_mean,
+        ctx = pair_context(
+            line,
+            h_base,
+            p_base,
+            bat_league_mean=bat_league_mean,
+            pit_league_mean=pit_league_mean,
         )
+        if ctx is not None:
+            contexts[(hitter, pitcher)] = ctx
 
     try:
-        hyper = estimate_hyperparameters(
-            pairs,
-            expected=expected,
-            hitter_opps=hitter_opps,
-            pitcher_opps=pitcher_opps,
-            sigma2=sigma2,
+        hyper: Hyperparameters | None = estimate_hyperparameters(
+            pairs, contexts=contexts, sigma2=sigma2
         )
     except ValueError:
-        # 無足夠配對估 tau²（如非 A 組無官方 baseline）：退回極小先驗，
-        # 一切都會被覆蓋率／可信度閘門擋下，不致誤輸出。
-        hyper = Hyperparameters(sigma2=sigma2, tau2=sigma2, pairs_used=0)
+        # 可用配對不足、tau² 不可靠估計：hyper=None，呼叫端必須 fail-closed，
+        # 嚴禁退回任意常數先驗（第二輪審核 P1-2：tau²=sigma² 等效先驗僅 1 機會，
+        # 會讓 1 PA 對手拿到 0.99 credibility）。
+        hyper = None
 
     return InsightUniverse(
         bat_league_mean=bat_league_mean,
@@ -364,7 +369,7 @@ def _build_universe(
         hitter_opps=hitter_opps,
         pitcher_opps=pitcher_opps,
         pairs=tuple(pairs),
-        expected=expected,
+        contexts=contexts,
         hyper=hyper,
     )
 
