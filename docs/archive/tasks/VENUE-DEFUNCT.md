@@ -56,3 +56,4 @@
 - 2026-07-16 查核退回：升級為 T4 資料正確性紅線卡；修正前端別名、來源錯誤降級與空白選手區塊後再送獨立查核。
 - 2026-07-16 修正驗證：fresh PostgreSQL 17 隔離容器連續執行 59 個 migrations 兩次皆通過；第二次 `coach_history` 已為 view（`relkind='v'`），`059` seed 為 `國體` 8,500 人、340／400／340 呎。
 - 前端驗證：Node 純函式回歸 5/5、`tsc --noEmit`、`build:check` 通過；Chrome DevTools 實測 `/venues/台中` HTTP 200，畫面顯示「臺中棒球場」與 1990–2013，API request 已改送 canonical `國體`。console 僅既有缺少 `favicon.ico` 的 404，與本卡無關。
+- 2026-07-16 人工 T4 復審固定 SHA `099bc298`：APPROVE，P0–P2 findings 歸零。non-fast-forward merge `876a70b`；GitHub Actions CI run `29512142200` 全綠後封存，worktree 與本地／遠端分支均已清理。

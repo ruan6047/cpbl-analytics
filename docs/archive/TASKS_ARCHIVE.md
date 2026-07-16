@@ -5,6 +5,7 @@
 | 卡ID | 功能 | 交付狀態 | 部署狀態 | 封存位置 |
 |---|---|---|---|---|
 | BUG-VENUE-ALIAS | 球場列表遺漏歷史桃園使用年份 | 🏁完成 | ✅已驗證 | [`tasks/BUG-VENUE-ALIAS.md`](tasks/BUG-VENUE-ALIAS.md) |
+| VENUE-DEFUNCT | 歷史 CPBL 球場納入球場維度 | 🏁完成 | ⏸未部署 | [`tasks/VENUE-DEFUNCT.md`](tasks/VENUE-DEFUNCT.md)（人工 T4 APPROVE；merge 876a70b） |
 | ML-MATCHUP1 | 天敵候選／優勢對位統計洞察 | 🏁完成 | —不適用 | [`tasks/ML-MATCHUP1.md`](tasks/ML-MATCHUP1.md)（WF-15；三輪跨家族審核，merge 336ee01） |
 | ML-SIM1 | 簡易勝負預測＋單一打席模擬 | 🏁完成 | ✅已驗證 | [`tasks/ML-SIM1.md`](tasks/ML-SIM1.md)（跨家族複查 PASS；merge a28170b） |
 | ML-UMP1 | 好球帶判決差異研究 | 🏁完成 | —不適用 | [`tasks/ML-UMP1.md`](tasks/ML-UMP1.md)（離線研究；merge 5f9077e） |
