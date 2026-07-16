@@ -9,6 +9,7 @@
 | ML-MATCHUP1 | 天敵候選／優勢對位統計洞察 | 🏁完成 | —不適用 | [`tasks/ML-MATCHUP1.md`](tasks/ML-MATCHUP1.md)（WF-15；三輪跨家族審核，merge 336ee01） |
 | ML-SIM1 | 簡易勝負預測＋單一打席模擬 | 🏁完成 | ✅已驗證 | [`tasks/ML-SIM1.md`](tasks/ML-SIM1.md)（跨家族複查 PASS；merge a28170b） |
 | ML-UMP1 | 好球帶判決差異研究 | 🏁完成 | —不適用 | [`tasks/ML-UMP1.md`](tasks/ML-UMP1.md)（離線研究；merge 5f9077e） |
+| ML-UMP2 | 身高比例逐打者代理帶敏感度重跑 | 🏁完成 | —不適用 | [`tasks/ML-UMP2.md`](tasks/ML-UMP2.md)（Claude Fable 5 T4 APPROVE；merge d8691e6；方向性 NO-GO） |
 | UX-RECORD1 | `/records` 歷史重要性導向重製 | 🏁完成 | ✅已驗證 | [`tasks/UX-RECORD1.md`](tasks/UX-RECORD1.md)（事後獨立查核 PASS；merge 3b548dc） |
 | Legacy pre-WF-12 | 2026-07-15 前的 Ledger 與所有卡片明細 | 已封存 | 依原始紀錄 | [`TASKS_PRE_WF12.md`](TASKS_PRE_WF12.md) |
 
