@@ -24,7 +24,7 @@
 | [UX-MATCHUP1](tasks/UX-MATCHUP1.md) | — | T3 | /matchups 查詢式頁面重製 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
 | [UX-MATCHUP2](tasks/UX-MATCHUP2.md) | — | T3 | 投打對決整合球員個人頁 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
 | [UX-OUTCOME-HOME](tasks/UX-OUTCOME-HOME.md) | — | T3 | 首頁賽事勝率預測整合 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
-| [VENUE-DEFUNCT](tasks/VENUE-DEFUNCT.md) | — | T4 | 歷史 CPBL 球場納入球場維度 | ruan6047（merge） | `ai/gpt-5-codex/VENUE-DEFUNCT @ /private/tmp/cpbl-analytics-VENUE-DEFUNCT` | 2 | ✅通過／待合併 | ⏸未部署 | 2026-07-16T23:36:34+08:00 |
+| [VENUE-DEFUNCT](tasks/VENUE-DEFUNCT.md) | — | T4 | 歷史 CPBL 球場納入球場維度 | ruan6047（push／release） | `ai/gpt-5-codex/VENUE-DEFUNCT @ /private/tmp/cpbl-analytics-VENUE-DEFUNCT` | 2 | 📦已合併 | ⏸未部署 | 2026-07-16T23:38:35+08:00 |
 
 ## 依賴與資源註記
 
