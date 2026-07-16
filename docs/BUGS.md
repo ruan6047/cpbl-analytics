@@ -8,4 +8,4 @@
 
 ---
 
-_（尚無 WF-15 後的 T2 快線 bug。）_
+- 2026-07-16T21:55+08:00 CI api job 紅（無 Postgres）：coach-history 兩筆 API 測試直連 DB PoolTimeout → 001ee68（by Fable-5@Claude Code；iteration 1；回歸測試 tests/test_coaches_history.py:test_coach_profile_api_returns_history/test_player_career_api_returns_coach_history 先紅後綠；查核 ruan6047 快線指示＋CI 綠驗收）
