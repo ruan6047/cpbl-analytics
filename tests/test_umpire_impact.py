@@ -5,6 +5,7 @@ from dataclasses import replace
 import pytest
 
 from cpbl.models.umpire_impact import (
+    BALL_RADIUS_M,
     Call,
     CalledPitch,
     ConstantProbabilityModel,
@@ -24,8 +25,10 @@ from cpbl.models.umpire_impact import (
     bootstrap_probability_deltas,
     bootstrap_umpire_aggregates,
     constant_home_probability,
+    height_scaled_proxy_zone,
     post_to_pre_count,
     proxy_call,
+    proxy_call_with_ball_edge,
     retain_legacy_asymmetric_50cm,
     score_called_pitch,
     signed_edge_distance_cm,
@@ -426,6 +429,8 @@ def _called_pitch(
         plate_loc_height=0.75,
         observed_call=observed,
         game_month=month,
+        hitter_acnt="hitter",
+        batter_height_cm=180,
     )
 
 
@@ -442,6 +447,62 @@ def test_called_pitch_score_is_observed_minus_proxy_for_offense() -> None:
     assert score.delta_runs_offense > 0
     assert score.delta_wp_home is None
     assert score.zone_definition == "fixed_zone_proxy_v1"
+
+
+def test_height_scaled_zone_uses_batter_height_and_symmetric_margin() -> None:
+    zone = height_scaled_proxy_zone(180)
+    expanded = height_scaled_proxy_zone(180, margin_cm=2)
+
+    assert zone.half_width == pytest.approx(0.253)
+    assert zone.bottom == pytest.approx(0.486)
+    assert zone.top == pytest.approx(0.963)
+    assert expanded.half_width == pytest.approx(0.273)
+    assert expanded.bottom == pytest.approx(0.466)
+    assert expanded.top == pytest.approx(0.983)
+
+
+@pytest.mark.parametrize("height_cm", [None, 0, -1])
+def test_height_scaled_zone_fails_closed_for_missing_or_invalid_height(
+    height_cm: int | None,
+) -> None:
+    with pytest.raises(ValueError, match="batter height"):
+        height_scaled_proxy_zone(height_cm)
+
+
+def test_ball_edge_scenario_uses_distance_to_zone_not_square_expansion() -> None:
+    zone = height_scaled_proxy_zone(180)
+
+    assert (
+        proxy_call_with_ball_edge(
+            zone.half_width + BALL_RADIUS_M,
+            0.75,
+            zone,
+        )
+        is Call.STRIKE
+    )
+    assert (
+        proxy_call_with_ball_edge(
+            zone.half_width + BALL_RADIUS_M,
+            zone.top + BALL_RADIUS_M,
+            zone,
+        )
+        is Call.BALL
+    )
+
+
+def test_height_scaled_score_records_v2_definition() -> None:
+    run_model = RunValueModel.fit(_wp_training_rows(), alpha=0.1)
+    pitch = replace(_called_pitch(), plate_loc_height=1.0)
+
+    score = score_called_pitch(
+        pitch,
+        run_model,
+        zone=height_scaled_proxy_zone(pitch.batter_height_cm),
+        zone_definition="height_scaled_proxy_v2",
+    )
+
+    assert score.proxy_call is Call.BALL
+    assert score.zone_definition == "height_scaled_proxy_v2"
 
 
 def test_umpire_and_team_aggregates_preserve_signed_totals() -> None:
@@ -545,3 +606,33 @@ def test_impact_bootstrap_returns_team_intervals_from_same_replicates() -> None:
     assert teams["AWAY"].state_value_for == teams["HOME"].state_value_against
     assert teams["AWAY"].per_100_for.high >= teams["AWAY"].per_100_for.low
     assert teams["HOME"].per_100_against.high >= teams["HOME"].per_100_against.low
+
+
+def test_impact_bootstrap_applies_per_pitch_height_scaled_zone() -> None:
+    historical = [
+        *_observations(RunStateKey("1", "___", 0, 1, 0), [1, 1], game_prefix="h1-"),
+        *_observations(RunStateKey("1", "___", 0, 0, 1), [0, 0], game_prefix="h2-"),
+    ]
+    pitch = replace(
+        _called_pitch(observed=Call.BALL),
+        plate_loc_height=1.0,
+    )
+
+    fixed = bootstrap_impact_aggregates(
+        historical,
+        [pitch],
+        alpha=0.1,
+        iterations=10,
+        seed=42,
+    )
+    height_scaled = bootstrap_impact_aggregates(
+        historical,
+        [pitch],
+        alpha=0.1,
+        iterations=10,
+        seed=42,
+        zone_for_pitch=lambda row: height_scaled_proxy_zone(row.batter_height_cm),
+    )
+
+    assert fixed.umpires[0].total.median > 0
+    assert height_scaled.umpires[0].total.median == 0

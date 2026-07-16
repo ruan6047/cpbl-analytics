@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 import random
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import Protocol
@@ -43,6 +43,25 @@ class ProxyZone:
 
 
 DEFAULT_PROXY_ZONE = ProxyZone()
+
+# 官方規則球周長 22.9–23.5 cm；secondary sensitivity 取中點周長換算半徑。
+BALL_RADIUS_M = ((22.9 + 23.5) / 2 / (2 * math.pi)) / 100
+
+
+def height_scaled_proxy_zone(
+    batter_height_cm: int | None,
+    *,
+    margin_cm: float = 0.0,
+) -> ProxyZone:
+    """逐打者身高比例代理帶 v2；仍非準備揮擊姿態的規則真值。"""
+    if batter_height_cm is None or batter_height_cm <= 0:
+        raise ValueError("batter height must be positive")
+    height_m = batter_height_cm / 100
+    return ProxyZone(
+        half_width=DEFAULT_PROXY_ZONE.half_width,
+        bottom=0.270 * height_m,
+        top=0.535 * height_m,
+    ).shifted(margin_cm)
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +110,8 @@ class CalledPitch:
     plate_loc_height: float
     observed_call: Call
     game_month: int = 0
+    hitter_acnt: str = ""
+    batter_height_cm: int | None = None
 
     @property
     def game_id(self) -> str:
@@ -831,12 +852,39 @@ def proxy_call(side: float, height: float, zone: ProxyZone = DEFAULT_PROXY_ZONE)
     return Call.STRIKE if in_zone else Call.BALL
 
 
+def proxy_call_with_ball_edge(
+    side: float,
+    height: float,
+    zone: ProxyZone,
+    *,
+    ball_radius_m: float = BALL_RADIUS_M,
+) -> Call:
+    """球心到矩形帶的歐氏距離不大於半徑即視為球緣觸帶。"""
+    if ball_radius_m < 0:
+        raise ValueError("ball radius must not be negative")
+    dx = max(abs(side) - zone.half_width, 0.0)
+    dy = max(zone.bottom - height, height - zone.top, 0.0)
+    return Call.STRIKE if math.hypot(dx, dy) <= ball_radius_m else Call.BALL
+
+
 def score_called_pitch(
     pitch: CalledPitch,
     run_model: RunValueModel,
     zone: ProxyZone = DEFAULT_PROXY_ZONE,
+    *,
+    zone_definition: str = "fixed_zone_proxy_v1",
+    ball_radius_m: float = 0.0,
 ) -> PitchScore:
-    proxy = proxy_call(pitch.plate_loc_side, pitch.plate_loc_height, zone)
+    proxy = (
+        proxy_call_with_ball_edge(
+            pitch.plate_loc_side,
+            pitch.plate_loc_height,
+            zone,
+            ball_radius_m=ball_radius_m,
+        )
+        if ball_radius_m
+        else proxy_call(pitch.plate_loc_side, pitch.plate_loc_height, zone)
+    )
     values = run_model.call_values(pitch.state)
     observed_value = values.ball if pitch.observed_call is Call.BALL else values.strike
     proxy_value = values.ball if proxy is Call.BALL else values.strike
@@ -851,6 +899,7 @@ def score_called_pitch(
         run_value_strike=values.strike,
         delta_runs_offense=observed_value - proxy_value,
         backed_off=values.backed_off,
+        zone_definition=zone_definition,
     )
 
 
@@ -964,6 +1013,8 @@ def bootstrap_umpire_aggregates(
     alpha: float,
     iterations: int = 2_000,
     seed: int = 0,
+    zone_for_pitch: Callable[[CalledPitch], ProxyZone] | None = None,
+    ball_radius_m: float = 0.0,
 ) -> list[UmpireBootstrap]:
     """相容舊介面；主審與球隊仍由同一組 replicate 共同估計。"""
     return list(
@@ -973,6 +1024,8 @@ def bootstrap_umpire_aggregates(
             alpha=alpha,
             iterations=iterations,
             seed=seed,
+            zone_for_pitch=zone_for_pitch,
+            ball_radius_m=ball_radius_m,
         ).umpires
     )
 
@@ -984,6 +1037,8 @@ def bootstrap_impact_aggregates(
     alpha: float,
     iterations: int = 2_000,
     seed: int = 0,
+    zone_for_pitch: Callable[[CalledPitch], ProxyZone] | None = None,
+    ball_radius_m: float = 0.0,
 ) -> ImpactBootstrap:
     """同時重抽歷史與 scoring 場次，重算主審及球隊聚合的 95% 區間。"""
     if iterations <= 0:
@@ -1036,7 +1091,21 @@ def bootstrap_impact_aggregates(
                 calls[pitch.umpire] += weight
                 team_for_calls[pitch.batting_team] += weight
                 team_against_calls[pitch.fielding_team] += weight
-                proxy = proxy_call(pitch.plate_loc_side, pitch.plate_loc_height)
+                zone = (
+                    zone_for_pitch(pitch)
+                    if zone_for_pitch is not None
+                    else DEFAULT_PROXY_ZONE
+                )
+                proxy = (
+                    proxy_call_with_ball_edge(
+                        pitch.plate_loc_side,
+                        pitch.plate_loc_height,
+                        zone,
+                        ball_radius_m=ball_radius_m,
+                    )
+                    if ball_radius_m
+                    else proxy_call(pitch.plate_loc_side, pitch.plate_loc_height, zone)
+                )
                 cache_key = (
                     RunStateKey.from_pitch_state(pitch.state),
                     pitch.observed_call,

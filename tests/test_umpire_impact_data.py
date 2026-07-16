@@ -4,9 +4,11 @@ from dataclasses import replace
 
 from cpbl.models.umpire_impact import RunStateKey
 from cpbl.models.umpire_impact_data import (
+    HEIGHT_COVERAGE_SQL,
     HISTORICAL_LIVELOG_SQL,
     LINKED_CALLED_CTE,
     SCORED_CALLED_SQL,
+    HeightCoverageAudit,
     LinkedCalledRow,
     LivelogRow,
     TrackingAudit,
@@ -179,6 +181,7 @@ def test_scoring_loader_reconstructs_called_pitch_and_fixed_exclusions() -> None
         kind_code="A",
         game_sno=1,
         pitcher_acnt="p1",
+        hitter_acnt="h1",
         pitch_cnt=1,
         pitch_call="BallCalled",
         ball_cnt=1,
@@ -199,6 +202,8 @@ def test_scoring_loader_reconstructs_called_pitch_and_fixed_exclusions() -> None
         home_team_code="HOME",
         away_team_code="AWAY",
         game_month=4,
+        hitter_player_id="h1",
+        batter_height_cm=180,
     )
     invalid_count = replace(valid, pitch_cnt=2, ball_cnt=0)
 
@@ -208,7 +213,69 @@ def test_scoring_loader_reconstructs_called_pitch_and_fixed_exclusions() -> None
     assert result.pitches[0].state.balls == 0
     assert result.pitches[0].observed_call.value == "ball"
     assert result.pitches[0].game_month == 4
+    assert result.pitches[0].hitter_acnt == "h1"
+    assert result.pitches[0].batter_height_cm == 180
     assert result.exclusions == {"invalid_post_count": 1}
+
+
+def test_height_scaled_loader_excludes_missing_player_and_height_without_fallback() -> None:
+    valid = LinkedCalledRow(
+        year=2026,
+        kind_code="A",
+        game_sno=1,
+        pitcher_acnt="p1",
+        hitter_acnt="h1",
+        pitch_cnt=1,
+        pitch_call="BallCalled",
+        ball_cnt=1,
+        strike_cnt=0,
+        out_cnt=0,
+        inning_seq=1,
+        visiting_home_type="1",
+        first_base=None,
+        second_base=None,
+        third_base=None,
+        pre_away_score=0,
+        pre_home_score=0,
+        plate_loc_side=0.0,
+        plate_loc_height=0.75,
+        catcher_acnt="c1",
+        head_umpire="主審甲",
+        venue="球場",
+        home_team_code="HOME",
+        away_team_code="AWAY",
+        game_month=4,
+        hitter_player_id="h1",
+        batter_height_cm=180,
+    )
+
+    result = build_called_pitches(
+        [
+            valid,
+            replace(valid, pitch_cnt=2, hitter_acnt="missing", hitter_player_id=None),
+            replace(valid, pitch_cnt=3, hitter_acnt="no-height", batter_height_cm=None),
+            replace(valid, pitch_cnt=4, hitter_acnt="bad-height", batter_height_cm=0),
+        ],
+        require_batter_height=True,
+    )
+
+    assert len(result.pitches) == 1
+    assert result.exclusions == {
+        "missing_hitter_player": 1,
+        "missing_batter_height": 2,
+    }
+
+
+def test_height_coverage_gate_requires_pitch_and_hitter_rates() -> None:
+    passing = HeightCoverageAudit(1_000, 100, 995, 100, 0, 0, 5, 0)
+    low_pitch = HeightCoverageAudit(1_000, 100, 994, 100, 0, 0, 6, 0)
+    low_hitter = HeightCoverageAudit(1_000, 100, 1_000, 99, 0, 0, 0, 1)
+
+    assert passing.passes
+    assert not low_pitch.passes
+    assert not low_hitter.passes
+    assert passing.pitch_coverage_rate == 0.995
+    assert passing.hitter_coverage_rate == 1.0
 
 
 def test_scoring_query_joins_umpire_venue_and_team_metadata_read_only() -> None:
@@ -220,6 +287,15 @@ def test_scoring_query_joins_umpire_venue_and_team_metadata_read_only() -> None:
         "home_team_code",
         "away_team_code",
         "game_month",
+        "hitter_acnt",
+        "height_cm",
     ):
         assert token in sql
     assert all(keyword not in sql for keyword in ("insert ", "update ", "delete "))
+
+    coverage_sql = _norm(HEIGHT_COVERAGE_SQL).lower()
+    assert "left join cpbl.players" in coverage_sql
+    assert "height_cm" in coverage_sql
+    assert all(
+        keyword not in coverage_sql for keyword in ("insert ", "update ", "delete ")
+    )

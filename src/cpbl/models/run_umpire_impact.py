@@ -10,8 +10,12 @@ from typing import Any
 
 from cpbl.db import conn
 from cpbl.models.umpire_impact import (
+    BALL_RADIUS_M,
     DEFAULT_PROXY_ZONE,
+    CalledPitch,
     ConstantProbabilityModel,
+    PitchScore,
+    ProxyZone,
     RunValueModel,
     WinProbabilityModel,
     aggregate_product_baselines,
@@ -22,11 +26,13 @@ from cpbl.models.umpire_impact import (
     bootstrap_metric_deltas,
     bootstrap_probability_deltas,
     constant_home_probability,
+    height_scaled_proxy_zone,
     retain_legacy_asymmetric_50cm,
     score_called_pitch,
     tune_alpha,
 )
 from cpbl.models.umpire_impact_data import (
+    audit_height_coverage,
     audit_tracking,
     load_called_pitches,
     load_run_observations,
@@ -53,10 +59,22 @@ def _audit(season: int, kind: str) -> dict[str, Any]:
     with conn() as connection:
         audit = audit_tracking(connection, season, kind)
         scoring = load_called_pitches(connection, season, kind)
+        height_coverage = audit_height_coverage(connection, season, kind)
+        height_scoring = load_called_pitches(
+            connection,
+            season,
+            kind,
+            require_batter_height=True,
+        )
     return {
         **audit.to_dict(),
         "scoring_eligible": len(scoring.pitches),
         "post_link_exclusions": scoring.exclusions,
+        "height_scaled_proxy_v2": {
+            "coverage": height_coverage.to_dict(),
+            "scoring_eligible": len(height_scoring.pitches),
+            "post_link_exclusions": height_scoring.exclusions,
+        },
     }
 
 
@@ -125,18 +143,66 @@ def _sign_flipped(reference: float, alternatives: list[float]) -> bool:
     return any(reference * value < 0 for value in alternatives)
 
 
-def _score(season: int, kind: str, iterations: int, output: Path) -> dict[str, Any]:
+def _score(
+    season: int,
+    kind: str,
+    iterations: int,
+    output: Path,
+    *,
+    height_scaled: bool = False,
+) -> dict[str, Any]:
     with conn() as connection:
         historical = load_run_observations(connection, 2018, season - 1, kind)
-        scoring = load_called_pitches(connection, season, kind)
+        scoring = load_called_pitches(
+            connection,
+            season,
+            kind,
+            require_batter_height=height_scaled,
+        )
+        height_coverage = (
+            audit_height_coverage(connection, season, kind)
+            if height_scaled
+            else None
+        )
         completed_rows = connection.execute(
             "SELECT venue, count(DISTINCT game_sno) FROM cpbl.games "
             "WHERE year=%s AND kind_code=%s AND home_score + away_score > 0 "
             "GROUP BY venue",
             (season, kind),
         ).fetchall()
+    if height_coverage is not None and not height_coverage.passes:
+        raise RuntimeError("height coverage gate failed; refusing v2 directional scoring")
+
+    zone_definition = (
+        "height_scaled_proxy_v2" if height_scaled else "fixed_zone_proxy_v1"
+    )
     model = RunValueModel.fit(historical.observations, alpha=250.0)
-    scores = [score_called_pitch(pitch, model) for pitch in scoring.pitches]
+
+    def zone_for_pitch(
+        pitch: CalledPitch,
+        margin_cm: float = 0.0,
+    ) -> ProxyZone:
+        if height_scaled:
+            return height_scaled_proxy_zone(
+                pitch.batter_height_cm,
+                margin_cm=margin_cm,
+            )
+        return DEFAULT_PROXY_ZONE.shifted(margin_cm)
+
+    def score_pitch(
+        pitch: CalledPitch,
+        margin_cm: float = 0.0,
+        ball_radius_m: float = 0.0,
+    ) -> PitchScore:
+        return score_called_pitch(
+            pitch,
+            model,
+            zone_for_pitch(pitch, margin_cm),
+            zone_definition=zone_definition,
+            ball_radius_m=ball_radius_m,
+        )
+
+    scores = [score_pitch(pitch) for pitch in scoring.pitches]
     umpire_rows = aggregate_umpires(scores)
     team_rows = aggregate_teams(scores)
     product_baselines = aggregate_product_baselines(scores)
@@ -152,7 +218,7 @@ def _score(season: int, kind: str, iterations: int, output: Path) -> dict[str, A
     zone_by_team: dict[str, dict[str, dict[str, float]]] = {}
     for margin in ZONE_MARGINS_CM:
         scenario = [
-            score_called_pitch(pitch, model, DEFAULT_PROXY_ZONE.shifted(margin))
+            score_pitch(pitch, margin)
             for pitch in scoring.pitches
         ]
         for row in aggregate_umpires(scenario):
@@ -183,6 +249,7 @@ def _score(season: int, kind: str, iterations: int, output: Path) -> dict[str, A
         alpha=250.0,
         iterations=iterations,
         seed=20260715,
+        zone_for_pitch=zone_for_pitch,
     )
     uncertainty_by_umpire = {row.umpire: row for row in uncertainty.umpires}
     uncertainty_by_team = {row.team: row for row in uncertainty.teams}
@@ -215,7 +282,7 @@ def _score(season: int, kind: str, iterations: int, output: Path) -> dict[str, A
         }
         for umpire in reference_by_umpire
     }
-    team_sensitivity = {
+    team_sensitivity: dict[str, dict[str, Any]] = {
         row.team: {
             "for_zone_sensitive": _sign_flipped(
                 row.state_value_for, list(zone_by_team[row.team]["for"].values())
@@ -234,9 +301,18 @@ def _score(season: int, kind: str, iterations: int, output: Path) -> dict[str, A
         }
         for row in team_rows
     }
+    for values in team_sensitivity.values():
+        values["zone_sensitive"] = (
+            values["for_zone_sensitive"] or values["against_zone_sensitive"]
+        )
 
     legacy_scores = [
-        score for score in scores if retain_legacy_asymmetric_50cm(score.pitch)
+        score
+        for score in scores
+        if retain_legacy_asymmetric_50cm(
+            score.pitch,
+            zone_for_pitch(score.pitch),
+        )
     ]
     legacy_umpires = {
         row.umpire: row for row in aggregate_umpires(legacy_scores)
@@ -290,6 +366,103 @@ def _score(season: int, kind: str, iterations: int, output: Path) -> dict[str, A
         },
     }
 
+    fixed_v1_comparison: dict[str, Any] | None = None
+    ball_edge_sensitivity: dict[str, Any] | None = None
+    directional_gate: dict[str, Any] | None = None
+    if height_scaled:
+        fixed_scores = [
+            score_called_pitch(pitch, model) for pitch in scoring.pitches
+        ]
+        fixed_umpires = {row.umpire: row for row in aggregate_umpires(fixed_scores)}
+        fixed_teams = {row.team: row for row in aggregate_teams(fixed_scores)}
+        fixed_v1_comparison = {
+            "umpires": {
+                row.umpire: {
+                    "fixed_v1": fixed_umpires[row.umpire].sum_delta_runs_offense,
+                    "height_v2": row.sum_delta_runs_offense,
+                    "direction_changed": row.sum_delta_runs_offense
+                    * fixed_umpires[row.umpire].sum_delta_runs_offense
+                    < 0,
+                }
+                for row in umpire_rows
+            },
+            "teams": {
+                row.team: {
+                    "fixed_v1_for": fixed_teams[row.team].state_value_for,
+                    "height_v2_for": row.state_value_for,
+                    "for_direction_changed": row.state_value_for
+                    * fixed_teams[row.team].state_value_for
+                    < 0,
+                    "fixed_v1_against": fixed_teams[row.team].state_value_against,
+                    "height_v2_against": row.state_value_against,
+                    "against_direction_changed": row.state_value_against
+                    * fixed_teams[row.team].state_value_against
+                    < 0,
+                }
+                for row in team_rows
+            },
+        }
+
+        edge_scores = [
+            score_pitch(pitch, ball_radius_m=BALL_RADIUS_M)
+            for pitch in scoring.pitches
+        ]
+        edge_umpires = {row.umpire: row for row in aggregate_umpires(edge_scores)}
+        edge_teams = {row.team: row for row in aggregate_teams(edge_scores)}
+        ball_edge_sensitivity = {
+            "role": "secondary_sensitivity_only",
+            "ball_radius_m": BALL_RADIUS_M,
+            "proxy_disagreements": sum(
+                score.proxy_disagreement for score in edge_scores
+            ),
+            "umpires": {
+                row.umpire: {
+                    "sum_delta_runs_offense": edge_umpires[
+                        row.umpire
+                    ].sum_delta_runs_offense,
+                    "direction_changed": row.sum_delta_runs_offense
+                    * edge_umpires[row.umpire].sum_delta_runs_offense
+                    < 0,
+                }
+                for row in umpire_rows
+            },
+            "teams": {
+                row.team: {
+                    "state_value_for": edge_teams[row.team].state_value_for,
+                    "state_value_against": edge_teams[row.team].state_value_against,
+                    "for_direction_changed": row.state_value_for
+                    * edge_teams[row.team].state_value_for
+                    < 0,
+                    "against_direction_changed": row.state_value_against
+                    * edge_teams[row.team].state_value_against
+                    < 0,
+                }
+                for row in team_rows
+            },
+        }
+
+        umpire_flip_count = sum(
+            values["zone_sensitive"] for values in sensitivity.values()
+        )
+        team_flip_count = sum(
+            values["zone_sensitive"] for values in team_sensitivity.values()
+        )
+        directional_gate = {
+            "contract": "zero sign flips across +/-1/2/3/5cm for all 18 umpires and 6 teams",
+            "umpires_evaluated": len(umpire_rows),
+            "teams_evaluated": len(team_rows),
+            "umpire_zone_flip_count": umpire_flip_count,
+            "team_zone_flip_count": team_flip_count,
+            "height_coverage_passed": height_coverage.passes,
+            "directional_basis_supported": (
+                len(umpire_rows) == 18
+                and len(team_rows) == 6
+                and umpire_flip_count == 0
+                and team_flip_count == 0
+                and height_coverage.passes
+            ),
+        }
+
     output.mkdir(parents=True, exist_ok=True)
     audit_path = output / "pitch_audit.jsonl"
     with audit_path.open("w", encoding="utf-8") as stream:
@@ -300,6 +473,8 @@ def _score(season: int, kind: str, iterations: int, output: Path) -> dict[str, A
                 "kind_code": pitch.kind_code,
                 "game_sno": pitch.game_sno,
                 "pitcher_acnt": pitch.pitcher_acnt,
+                "hitter_acnt": pitch.hitter_acnt,
+                "batter_height_cm": pitch.batter_height_cm,
                 "pitch_cnt": pitch.pitch_cnt,
                 "umpire": pitch.umpire,
                 "batting_team": pitch.batting_team,
@@ -315,6 +490,7 @@ def _score(season: int, kind: str, iterations: int, output: Path) -> dict[str, A
                 "proxy_call": score.proxy_call,
                 "proxy_disagreement": score.proxy_disagreement,
                 "zone_definition": score.zone_definition,
+                "zone": asdict(zone_for_pitch(pitch)),
                 "run_value_ball": score.run_value_ball,
                 "run_value_strike": score.run_value_strike,
                 "delta_runs_offense": score.delta_runs_offense,
@@ -332,6 +508,7 @@ def _score(season: int, kind: str, iterations: int, output: Path) -> dict[str, A
         "model_version": MODEL_VERSION,
         "season": season,
         "kind": kind,
+        "zone_definition": zone_definition,
         "scored_pitches": len(scores),
         "post_link_exclusions": scoring.exclusions,
         "proxy_disagreements": sum(score.proxy_disagreement for score in scores),
@@ -344,6 +521,10 @@ def _score(season: int, kind: str, iterations: int, output: Path) -> dict[str, A
         },
         "legacy_asymmetric_50cm_filter": legacy_filter,
         "coverage": coverage,
+        "height_coverage": height_coverage.to_dict() if height_coverage else None,
+        "fixed_v1_comparison": fixed_v1_comparison,
+        "ball_edge_sensitivity": ball_edge_sensitivity,
+        "directional_gate": directional_gate,
         "umpires": [
             {
                 **asdict(row),
@@ -414,6 +595,15 @@ def _parser() -> argparse.ArgumentParser:
     score.add_argument("--kind", default="A")
     score.add_argument("--bootstrap", type=int, default=2_000)
     score.add_argument("--output", type=Path, default=Path("artifacts/umpire-impact"))
+    score_v2 = subparsers.add_parser("score-height-v2")
+    score_v2.add_argument("--season", type=int, default=2026)
+    score_v2.add_argument("--kind", default="A")
+    score_v2.add_argument("--bootstrap", type=int, default=2_000)
+    score_v2.add_argument(
+        "--output",
+        type=Path,
+        default=Path("artifacts/umpire-impact-v2"),
+    )
     return parser
 
 
@@ -423,8 +613,17 @@ def main() -> None:
         _print_json(_audit(args.season, args.kind))
     elif args.command == "validate":
         _print_json(_validate(args.kind, args.bootstrap))
-    else:
+    elif args.command == "score":
         summary = _score(args.season, args.kind, args.bootstrap, args.output)
+        _print_json({key: value for key, value in summary.items() if key != "umpires"})
+    else:
+        summary = _score(
+            args.season,
+            args.kind,
+            args.bootstrap,
+            args.output,
+            height_scaled=True,
+        )
         _print_json({key: value for key, value in summary.items() if key != "umpires"})
 
 
