@@ -16,7 +16,7 @@
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | ruan6047（Design Gate） | — | 0 | 💡需求 | —不適用 | 2026-07-16T22:15:03+08:00 |
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
-| [ML-UMP2](tasks/ML-UMP2.md) | — | T4 | 身高比例逐打者代理帶敏感度重跑 | ruan6047（merge 決策） | `ai/gpt-5-codex/ML-UMP2 @ /private/tmp/cpbl-analytics-UMP2` | 1 | ✅通過／待合併 | —不適用 | 2026-07-17T02:20:54+08:00 |
+| [ML-UMP2](tasks/ML-UMP2.md) | — | T4 | 身高比例逐打者代理帶敏感度重跑 | ruan6047（push／release） | `ai/gpt-5-codex/ML-UMP2 @ /private/tmp/cpbl-analytics-UMP2` | 1 | 📦已合併 | —不適用 | 2026-07-17T02:25:06+08:00 |
 | [TEAM-STYLE1](tasks/TEAM-STYLE1.md) | — | T4 | 球隊球風研究 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
 | [UX-GAME-HOME1](tasks/UX-GAME-HOME1.md) | INIT-GAME-RECAP | T3 | 昨日回顧與賽事復盤首頁入口 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:12+08:00 |
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:11+08:00 |
