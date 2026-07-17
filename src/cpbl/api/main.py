@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from cpbl import __version__
 from cpbl.api.routers import (
     ability,
+    daily,
     games,
     info,
     leaders,
@@ -37,6 +38,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for _mod in (info, projections, leaders, outcome, standings, players, games,
+for _mod in (info, projections, leaders, outcome, standings, players, games, daily,
              ability, tracking, trend, teams, umpires, people, venues):
     app.include_router(_mod.router)
