@@ -71,7 +71,6 @@
 
 :root {
   color-scheme: light;
-  --header-height: 57px;
   --dur-fast: 0.15s;
   --dur-base: 0.3s;
   --dur-slow: 0.8s;
