@@ -37,7 +37,7 @@ _GAME_COLUMNS = """
     g.year AS season, g.kind_code, g.game_sno, g.game_date, g.venue,
     g.away_team_code, g.away_team_name, g.away_score,
     g.home_team_code, g.home_team_name, g.home_score,
-    g.home_score + g.away_score > 0 AS completed,
+    g.home_score + g.away_score > 0 AS has_score,
     g.delay_kind, g.orig_date
 """
 
@@ -60,10 +60,18 @@ def _iso(value: date | datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
 
 
-def _serialize(row: dict) -> dict:
-    """未完成場次的比分一律 null：DB 的 0–0 是「還沒有結果」的佔位，
-    照原樣送出去等於邀請前端把它讀成一場 0 比 0 的比賽（§5.1 語意紅線）。"""
+def _serialize(row: dict, as_of: date) -> dict:
+    """一場比賽算「已完成」＝有比分**且**日期不在未來。
+
+    比分不是充分條件：二軍保留賽（`delay_kind='保留'`，全史 4 筆）在 cpbl.games 裡
+    帶著比分但 game_date 指向未來的補賽時段，只看比分會讓「最近比賽日」跳到未來。
+    日期不在未來是可證明的判準，官方保留賽語意留給 GAME-RECAP-STATUS1 定案。
+
+    未完成場次的比分一律 null：DB 的 0–0 是「還沒有結果」的佔位，照原樣送出去等於
+    邀請前端把它讀成一場 0 比 0 的比賽（§5.1 語意紅線）。
+    """
     row = dict(row)
+    row["completed"] = bool(row.pop("has_score")) and row["game_date"] <= as_of
     row["game_date"] = _iso(row["game_date"])
     row["orig_date"] = _iso(row["orig_date"])
     if not row["completed"]:
@@ -154,7 +162,8 @@ def daily_summary(
         cur.execute(
             """
             WITH scoped AS (
-                SELECT game_date, home_score + away_score > 0 AS completed
+                SELECT game_date,
+                       home_score + away_score > 0 AND game_date <= %(as_of)s AS completed
                 FROM cpbl.games
                 WHERE kind_code = ANY(%(kinds)s)
                   AND (%(season)s::int IS NULL OR year = %(season)s)
@@ -198,8 +207,8 @@ def daily_summary(
         unresolved = _dicts(cur)
         last_refresh = _last_refresh(cur)
 
-    latest_games = [_serialize(row) for row in by_day.get(latest_day, [])]
-    next_games = [_serialize(row) for row in by_day.get(next_day, [])]
+    latest_games = [_serialize(row, as_of) for row in by_day.get(latest_day, [])]
+    next_games = [_serialize(row, as_of) for row in by_day.get(next_day, [])]
 
     artifact, pregame_meta = _pregame_source()
     pregame = _pregame_by_game(artifact, by_day.get(next_day, [])) if artifact else {}
@@ -241,7 +250,8 @@ def daily_summary(
             # 過去日期卻仍無比分：可能是刷新落後，也可能是延賽未更新新日期。兩者在
             # cpbl.games 無法區分，故 status 一律 unknown（fail closed），由
             # GAME-RECAP-STATUS1 的官方狀態接手定案；此處只做維運 fail-fast 訊號。
-            "unresolved_games": [{**_serialize(row), "status": "unknown"} for row in unresolved],
+            "unresolved_games": [{**_serialize(row, as_of), "status": "unknown"}
+                                 for row in unresolved],
         },
         "availability": {
             "schedule": schedule_status,

@@ -18,15 +18,15 @@ from cpbl.api.routers.daily import refresh_status
 _GAME_COLS = ["season", "kind_code", "game_sno", "game_date", "venue",
               "away_team_code", "away_team_name", "away_score",
               "home_team_code", "home_team_name", "home_score",
-              "completed", "delay_kind", "orig_date"]
+              "has_score", "delay_kind", "orig_date"]
 _TODAY = date.today()
 
 
 def _game(sno: int, day: date, *, home: int | None = None, away: int | None = None,
           kind: str = "A", delay: str | None = None, orig: date | None = None) -> tuple:
-    completed = home is not None
+    """一列 cpbl.games。home 給值＝DB 裡有比分（未必等於已完成，見保留賽測試）。"""
     return (2026, kind, sno, day, "洲際", "ADD011", "統一7-ELEVEn獅", away or 0,
-            "ACN011", "中信兄弟", home or 0, completed, delay, orig)
+            "ACN011", "中信兄弟", home or 0, home is not None, delay, orig)
 
 
 class _Cursor:
@@ -161,6 +161,25 @@ def test_postponed_game_moved_forward_is_a_scheduled_game_not_a_result(monkeypat
     assert game["delay_kind"] == "延賽"
     assert game["orig_date"] == (_TODAY - timedelta(days=30)).isoformat()
     assert game["home_score"] is None
+
+
+def test_future_dated_game_with_a_score_is_never_the_latest_game_day(monkeypatch):
+    """**紅線**：二軍保留賽在 cpbl.games 帶著比分卻排在未來的補賽時段（全史 4 筆，
+    如 D#117 game_date=2026-08-30／orig_date=2026-06-14）。只看「比分 > 0」會讓
+    最近比賽日跳到未來；日期不在未來才是可證明的判準。"""
+    suspended = _TODAY + timedelta(days=44)
+    body, _ = _run(monkeypatch, _script(
+        latest=_TODAY - timedelta(days=1), next_day=suspended, scoped=2,
+        games=[_game(1, _TODAY - timedelta(days=1), home=2, away=1),
+               _game(2, suspended, home=1, away=4, kind="D", delay="保留",
+                     orig=_TODAY - timedelta(days=33))],
+    ))
+
+    assert body["latest_game_day"]["game_date"] < body["scope"]["as_of"]
+    held = body["next_slate"]["games"][0]
+    assert held["completed"] is False
+    assert held["home_score"] is None and held["away_score"] is None
+    assert held["delay_kind"] == "保留"
 
 
 def test_unresolved_past_game_is_flagged_unknown_not_silently_dropped(monkeypatch):
@@ -380,14 +399,26 @@ def test_scope_echoes_year_and_kind_range(monkeypatch):
 
 # --- 整合：本機真實 DB --------------------------------------------------------
 
-def _live() -> dict:
+def _live(query: str = "") -> dict:
     try:
-        response = TestClient(app).get("/api/v1/daily/summary")
+        response = TestClient(app).get(f"/api/v1/daily/summary{query}")
     except Exception as exc:  # noqa: BLE001 — 無 DB 時跳過（CI 無 Postgres）
         pytest.skip(f"需本機 DB：{exc}")
     if response.status_code != 200:
         pytest.skip(f"需本機 DB（{response.status_code}）")
     return response.json()
+
+
+@pytest.mark.parametrize("kind_code", ["A", "D"])
+def test_live_latest_game_day_is_never_in_the_future(kind_code):
+    """**紅線**（真實資料）：二軍保留賽帶比分卻排在未來，最近比賽日不得跳過去。"""
+    body = _live(f"?kind_code={kind_code}")
+    if body["latest_game_day"] is None:
+        pytest.skip(f"本機 DB 的 {kind_code} 無已完成場次")
+
+    assert body["latest_game_day"]["game_date"] <= body["scope"]["as_of"]
+    if body["next_slate"] is not None:
+        assert body["latest_game_day"]["game_date"] <= body["next_slate"]["game_date"]
 
 
 def test_live_summary_matches_contract_shape():

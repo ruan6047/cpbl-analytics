@@ -33,6 +33,7 @@ available／season_complete／source_missing；`results` ∈ available／not_sta
 語意決定（皆有測試守門）：
 
 - **未完成場次比分一律 `null`＋`completed: false`**。DB 的 0–0 是佔位不是賽果，原樣送出等於邀請前端把它讀成 0 比 0。
+- **`completed` ＝有比分 _且_ 日期不在未來**。比分不是充分條件：二軍**保留賽**（`delay_kind='保留'`，全史 4 筆，皆 D）在 `cpbl.games` 帶著比分卻排在未來的補賽時段（如 D#117：`game_date=2026-08-30`／`orig_date=2026-06-14`／1-4，且有 9 局 scoreboard 與 154 筆 livelog、無勝投）。只看「比分 > 0」會讓最近比賽日跳到未來——實測 `kind_code=D` 一度回 2026-08-30，比 next slate 還晚。日期不在未來是可證明的判準；官方保留賽語意（是否已完成、勝敗如何計）留給 GAME-RECAP-STATUS1／DATA1 定案，本卡不猜。
 - **無「昨天／今天」概念**：日期由資料推導；休兵日呈現為 `days_from_as_of` 距離而非空白。
 - **延賽**：官網把場次改到新日期並保留 `orig_date`，故它屬於下一批賽事；過去日期仍 0–0 者進 `unresolved_games` 並標 `unknown`（fail closed）——`cpbl.games` 無法區分「刷新落後」與「延賽未更新」，正式定案留給 GAME-RECAP-STATUS1 的官方狀態。
 - **DB 失效讓錯誤上浮（500）**，不回空陣列假裝沒有比賽。
