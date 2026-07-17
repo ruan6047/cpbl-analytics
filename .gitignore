@@ -18,6 +18,3 @@ artifacts/
 
 # OS
 .DS_Store
-
-# 由 workflow_ledger.py --live 產生的即時視圖，不入版控
-docs/TASKS_LIVE.md

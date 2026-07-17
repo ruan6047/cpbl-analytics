@@ -10,7 +10,6 @@ from pathlib import Path
 ROOT = Path(__file__).parents[1]
 EVENTS_PATH = ROOT / "docs/control-plane/events.jsonl"
 LEDGER_PATH = ROOT / "docs/TASKS.md"
-LIVE_PATH = ROOT / "docs/TASKS_LIVE.md"
 REQUIRED_FIELDS = {
     "event_id", "card_id", "type", "actor", "occurred_at", "state_version", "iteration",
     "source_sha", "evidence", "initiative", "tier", "feature", "owner", "branch_worktree",
@@ -70,7 +69,7 @@ def render_ledger(events: Iterable[dict[str, object]]) -> str:
         "# 任務看板（cpbl-analytics）", "",
         "> 規則見 canonical [`../.ai-workflow/AI_WORKFLOW.md`](../.ai-workflow/AI_WORKFLOW.md) 與本專案 [`AI_WORKFLOW.md`](AI_WORKFLOW.md)。git 是程式碼／文件事實來源；[`control-plane event log`](control-plane/events.jsonl) 是作業狀態事實來源；本檔是它的 current-state projection。",
         "> **不可手動修改表格**：以 `uv run python scripts/workflow_ledger.py --write` 重建；`--check` 驗證投影未漂移。每張卡的範圍與歷史 Log 位於 [`tasks/`](tasks/)；結案後移至 [`archive/tasks/`](archive/tasks/)，索引列移至 [`archive/TASKS_ARCHIVE.md`](archive/TASKS_ARCHIVE.md)。",
-        "> **在途進度不在本檔**：執行中事件跟分支走、merge 後才回 main。跑 `uv run python scripts/workflow_ledger.py --live` 產生並查看 [TASKS_LIVE.md](TASKS_LIVE.md)（不入版控）。",
+        "> **本表即當前狀態**：lifecycle 事件一律直接 commit 至 main 並同 commit 重建本檔（[`CONTROL_PLANE_CONTRACT.md`](CONTROL_PLANE_CONTRACT.md)）；執行分支不得改動 control-plane 與本檔。`--live` 可稽核是否有事件違規漏留在分支。",
         "", "## Ledger 總表（活卡）", "",
         "| 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |",
         "|---|---|---|---|---|---|---|---|---|---|", *rows, "", "## 依賴與資源註記", "",
@@ -88,8 +87,9 @@ def _load_events(path: Path) -> list[dict[str, object]]:
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
-# --live：in-flight 事件跟執行分支走、merge 前不在 main，所以 union 工作樹與
-# 所有 ai/* 分支（含 origin/ai/*）頂端的 event log 才能看到即時狀態。
+# --live：稽核用。lifecycle 事件依契約直接落 main，分支不得攜帶事件；
+# union 工作樹與所有 ai/*（含 origin/ai/*）分支頂端的 event log 後，
+# 若結果與 TASKS.md 不一致，代表有事件違規漏留在分支。
 _IDLE_STATUSES = {"📥Backlog", "💡需求"}
 
 
@@ -145,10 +145,9 @@ def render_live(events: Iterable[dict[str, object]], generated_at: str) -> str:
         rows.append("| —（無在途卡） | | | | | |")
     idle_count = len(live) - len(in_flight)
     return "\n".join([
-        "# 在途卡即時視圖（TASKS_LIVE）", "",
+        "# 在途卡跨分支稽核視圖（--live）", "",
         f"> 產生時間：{generated_at}；來源：main ∪ `ai/*`（含 `origin/ai/*`）分支頂端 event log。",
-        "> 本檔由 `uv run python scripts/workflow_ledger.py --live` 重新產生，**不入版控、可能過期**；"
-        "未 commit 的事件不可見。merge 後的最終狀態見 [TASKS.md](TASKS.md)。",
+        "> 事件依契約直接落 main；本視圖與 TASKS.md 不一致＝有事件違規漏留在分支（未 commit 的事件仍不可見）。",
         "", "| 卡ID | 交付狀態 | iteration | owner | 分支／worktree | 最後事件 |",
         "|---|---|---|---|---|---|", *rows, "",
         f"另有 {idle_count} 張 {'／'.join(sorted(_IDLE_STATUSES))} 卡，見 [TASKS.md](TASKS.md)。", "",
@@ -161,13 +160,11 @@ def main() -> None:
     group.add_argument("--write", action="store_true")
     group.add_argument("--check", action="store_true")
     group.add_argument("--live", action="store_true",
-                       help="彙整所有 ai/* 分支的 event log，印出在途卡即時狀態（唯讀）")
+                       help="稽核：彙整 main 與所有 ai/* 分支的 event log，與 TASKS.md 不一致＝有事件漏留在分支")
     args = parser.parse_args()
     if args.live:
         generated_at = datetime.now().astimezone().isoformat(timespec="seconds")
-        rendered = render_live(_collect_live_events(), generated_at)
-        LIVE_PATH.write_text(rendered)
-        print(rendered)
+        print(render_live(_collect_live_events(), generated_at))
         return
     rendered = render_ledger(_load_events(EVENTS_PATH))
     if args.write:

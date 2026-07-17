@@ -2,13 +2,13 @@
 
 > 規則見 canonical [`../.ai-workflow/AI_WORKFLOW.md`](../.ai-workflow/AI_WORKFLOW.md) 與本專案 [`AI_WORKFLOW.md`](AI_WORKFLOW.md)。git 是程式碼／文件事實來源；[`control-plane event log`](control-plane/events.jsonl) 是作業狀態事實來源；本檔是它的 current-state projection。
 > **不可手動修改表格**：以 `uv run python scripts/workflow_ledger.py --write` 重建；`--check` 驗證投影未漂移。每張卡的範圍與歷史 Log 位於 [`tasks/`](tasks/)；結案後移至 [`archive/tasks/`](archive/tasks/)，索引列移至 [`archive/TASKS_ARCHIVE.md`](archive/TASKS_ARCHIVE.md)。
-> **在途進度不在本檔**：執行中事件跟分支走、merge 後才回 main。跑 `uv run python scripts/workflow_ledger.py --live` 產生並查看 [TASKS_LIVE.md](TASKS_LIVE.md)（不入版控）。
+> **本表即當前狀態**：lifecycle 事件一律直接 commit 至 main 並同 commit 重建本檔（[`CONTROL_PLANE_CONTRACT.md`](CONTROL_PLANE_CONTRACT.md)）；執行分支不得改動 control-plane 與本檔。`--live` 可稽核是否有事件違規漏留在分支。
 
 ## Ledger 總表（活卡）
 
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
-| [API-DAILY-SUMMARY1](tasks/API-DAILY-SUMMARY1.md) | INIT-PRODUCT-UX | T3 | 最近比賽日與下一批賽事聚合契約 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:26+08:00 |
+| [API-DAILY-SUMMARY1](tasks/API-DAILY-SUMMARY1.md) | INIT-PRODUCT-UX | T3 | 最近比賽日與下一批賽事聚合契約 | 待指派（獨立查核） | `ai/opus-4-8/API-DAILY-SUMMARY1 @ .claude/worktrees/api-daily-summary1-execution` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-17T14:35:00+08:00 |
 | [DATA-EDITORIAL1](tasks/DATA-EDITORIAL1.md) | INIT-PRODUCT-UX | T4 | Google Sheet 編輯資料管道 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:37+08:00 |
 | [DEP-PREDICT-LEGACY1](tasks/DEP-PREDICT-LEGACY1.md) | INIT-PRODUCT-UX | T3 | 舊預測體驗退場 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:29+08:00 |
 | [DOC-GAME-RECAP1](tasks/DOC-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 賽事復盤產品規格獨立查核 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T22:15:04+08:00 |
@@ -21,7 +21,7 @@
 | [INIT-PRODUCT-UX](tasks/INIT-PRODUCT-UX.md) | INIT-PRODUCT-UX | T3 | 全站產品與 UI/UX 收斂 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-17T04:44:24+08:00 |
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
-| [OPS-REFRESH1](tasks/OPS-REFRESH1.md) | INIT-PRODUCT-UX | T4 | 白天自動刷新與失敗快篩 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:27+08:00 |
+| [OPS-REFRESH1](tasks/OPS-REFRESH1.md) | INIT-PRODUCT-UX | T4 | 白天自動刷新與失敗快篩 | GPT-5@Codex（修正） | `ai/gpt-5-codex/OPS-REFRESH1 @ /private/tmp/cpbl-analytics-OPS-REFRESH1` | 2 | ↩退回 | ⏸未部署 | 2026-07-17T12:57:38+08:00 |
 | [TEAM-STYLE1](tasks/TEAM-STYLE1.md) | — | T4 | 球隊球風研究 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
 | [UX-GAME-HOME1](tasks/UX-GAME-HOME1.md) | INIT-GAME-RECAP | T3 | 最近比賽日與下一批賽事首頁 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:39+08:00 |
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:11+08:00 |
@@ -29,7 +29,7 @@
 | [UX-MATCHUP1](tasks/UX-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | /matchups 查詢式頁面重製 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:42+08:00 |
 | [UX-MATCHUP2](tasks/UX-MATCHUP2.md) | INIT-PRODUCT-UX | T4 | 投打對決整合球員個人頁 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:43+08:00 |
 | [UX-MODEL-METHOD1](tasks/UX-MODEL-METHOD1.md) | INIT-PRODUCT-UX | T3 | 模型方法與限制頁 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:28+08:00 |
-| [UX-OUTCOME-HOME](tasks/UX-OUTCOME-HOME.md) | INIT-PRODUCT-UX | T4 | 可嵌入賽前勝率卡 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:41+08:00 |
+| [UX-OUTCOME-HOME](tasks/UX-OUTCOME-HOME.md) | INIT-PRODUCT-UX | T4 | 可嵌入賽前勝率卡 | 待指派（查核） | `ai/fable-5/UX-OUTCOME-HOME @ .claude/worktrees/cpbl-analytics-blueprint-a734ec` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-17T16:28:19+08:00 |
 | [UX-PA-SIM-MATCHUP1](tasks/UX-PA-SIM-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | Matchups 單一打席結果分布 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:33+08:00 |
 | [UX-PLAYER-IA1](tasks/UX-PLAYER-IA1.md) | INIT-PRODUCT-UX | T3 | 球員頁 IA 骨架與 prototype 決策 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-17T04:44:31+08:00 |
 | [UX-PLAYER-SECTIONS1](tasks/UX-PLAYER-SECTIONS1.md) | INIT-PRODUCT-UX | T3 | 球員頁分區內容遷移 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:32+08:00 |
