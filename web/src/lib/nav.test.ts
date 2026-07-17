@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { METHODOLOGY_PATH } from "./methodology-anchors.ts";
 import { MORE_NAV, PRIMARY_NAV, isMoreActive, isNavActive } from "./nav.ts";
 
 test("主導覽為方案 B 的今日／賽程／戰績／球員／對戰", () => {
@@ -19,16 +20,21 @@ test("「球員」直達打者排行，不建立 /players landing", () => {
   );
 });
 
-test("「更多」收納紀錄室、球場與待退場的賽事預測", () => {
+test("「更多」收納紀錄室、球場、方法與待退場的賽事預測", () => {
   assert.deepEqual(
     MORE_NAV.map((n) => n.label),
-    ["紀錄室", "球場", "賽事預測"]
+    ["紀錄室", "球場", "方法", "賽事預測"]
   );
 });
 
-test("「方法」在 /methodology 建立前不進導覽，避免 404", () => {
+test("「方法」路徑與 anchor map 的 METHODOLOGY_PATH 一致，兩處不得各寫字串", () => {
+  const method = MORE_NAV.find((n) => n.label === "方法");
+  assert.equal(method?.href, METHODOLOGY_PATH);
+});
+
+test("「方法」不佔主要導覽（§4.1）", () => {
   assert.equal(
-    [...PRIMARY_NAV, ...MORE_NAV].some((n) => n.href === "/methodology"),
+    PRIMARY_NAV.some((n) => n.href === METHODOLOGY_PATH),
     false
   );
 });
