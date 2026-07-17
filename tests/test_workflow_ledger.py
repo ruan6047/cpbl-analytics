@@ -142,7 +142,7 @@ def test_render_live_takes_max_state_version_across_branch_unions() -> None:
         _live_event("CARD-A", 2, "🔍待查核", "2026-07-17T14:35:00+08:00"),
         _live_event("CARD-B", 1, "📥Backlog", "2026-07-17T04:44:00+08:00"),
         _live_event("CARD-C", 1, "🏁完成", "2026-07-17T17:20:00+08:00"),
-    ])
+    ], generated_at="2026-07-17T18:00:00+08:00")
 
     assert "CARD-A" in rendered
     assert "🔍待查核" in rendered
@@ -155,6 +155,6 @@ def test_render_live_orders_in_flight_by_recency() -> None:
     rendered = workflow_ledger.render_live([
         _live_event("CARD-OLD", 2, "🔍待查核", "2026-07-17T12:45:00+08:00"),
         _live_event("CARD-NEW", 2, "🔍待查核", "2026-07-17T16:28:00+08:00"),
-    ])
+    ], generated_at="2026-07-17T18:00:00+08:00")
 
     assert rendered.index("CARD-NEW") < rendered.index("CARD-OLD")

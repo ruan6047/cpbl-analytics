@@ -2,6 +2,7 @@
 
 > 規則見 canonical [`../.ai-workflow/AI_WORKFLOW.md`](../.ai-workflow/AI_WORKFLOW.md) 與本專案 [`AI_WORKFLOW.md`](AI_WORKFLOW.md)。git 是程式碼／文件事實來源；[`control-plane event log`](control-plane/events.jsonl) 是作業狀態事實來源；本檔是它的 current-state projection。
 > **不可手動修改表格**：以 `uv run python scripts/workflow_ledger.py --write` 重建；`--check` 驗證投影未漂移。每張卡的範圍與歷史 Log 位於 [`tasks/`](tasks/)；結案後移至 [`archive/tasks/`](archive/tasks/)，索引列移至 [`archive/TASKS_ARCHIVE.md`](archive/TASKS_ARCHIVE.md)。
+> **在途進度不在本檔**：執行中事件跟分支走、merge 後才回 main。跑 `uv run python scripts/workflow_ledger.py --live` 產生並查看 [TASKS_LIVE.md](TASKS_LIVE.md)（不入版控）。
 
 ## Ledger 總表（活卡）
 
