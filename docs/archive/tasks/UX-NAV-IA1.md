@@ -55,6 +55,13 @@
 
 **iteration 2 自測**：`npm test` 24 passed（nav 新增「方法路徑與 METHODOLOGY_PATH 一致」「方法不佔主要導覽」，移除已失效的「方法不進導覽」）、`tsc --noEmit`、`build:check`（`/methodology` 靜態產生 1.73 kB）、`ruff`、`pytest` 255 passed 全通過。瀏覽器實測：`/methodology#matchup-credibility` deep-link 命中且未被 sticky header 遮蔽；頁面 5 個 `h2[id]` 與 `METHODOLOGY_SECTIONS` 完全一致；桌機「更多」下拉含方法且在該頁標 `aria-current="page"`、「更多」按鈕同步作用中；375px 面板 9 個連結全部可點。
 
+### 結案（2026-07-17）
+
+- reviewed SHA `f6c8aa2` 以 non-fast-forward merge 合併為 `d22f5da`（trailer 含 Reviewed-by: GPT-5@Codex），cpbl CI run `29556096801` 全綠。
+- 主站 submodule 部署提交 `ddd642b`：主站 CI run `29556135963` 全綠、Deploy run `29556263509`（Deploy to VPS）成功，13:05:50+08:00 完成。
+- production smoke test（17:10+08:00）：`/` 200、`/api/info` status=running；`/methodology` 200 且五段 `h2[id]`（pregame／winprob／pa-sim／matchup-credibility／pitch-type）與 `METHODOLOGY_SECTIONS` 一致；導覽含「更多」與全域球員搜尋；`/records`、`/venues` 200。
+- 本地／遠端分支 `ai/opus-4-8/UX-NAV-IA1`、execution worktree 與 lease 均已清除；卡片封存。結案留痕因 Codex session 額度用盡由 Claude Fable 5 接續補記。
+
 ## 查核重點
 
 - 確認導覽與 §4.1 表格一致，且未建立 `/players`／`/explore`；「更多」暫留「賽事預測」的理由（§7.1 順序）已於 iteration 1 查核接受。
