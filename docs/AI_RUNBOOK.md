@@ -172,7 +172,10 @@ host 缺 `libomp.dylib`。**勿 `brew install libomp` 污染 host**；需 LightG
 # Coordinator：先確認 event projection、依賴、WIP 與無有效 owner，追加 claim event 後才建立 local lease。
 mkdir -p /private/tmp/cpbl-analytics-control-plane
 mkdir /private/tmp/cpbl-analytics-control-plane/<CARD_ID>  # 已存在即 claim 失敗，停止
-# 建立 lease.json（不得含 secret），再建 ../cpbl-analytics-<CARD_FAMILY> worktree。
+# 建立 lease.json（不得含 secret），再建 worktree。
+# worktree 位置統一（2026-07-17 起）：.claude/worktrees/<card_id小寫>-execution；
+# 查核進駐副本用 <card_id小寫>-review[-rN]。鎖根目錄仍在 /private/tmp（鎖≠worktree）。
+git -C ~/Dev/cpbl-analytics worktree add .claude/worktrees/<card_id小寫>-execution -b ai/<model>/<CARD_ID>
 
 # claim／handoff／review／merge／release 前後：對帳所有活卡與 worktree。
 git worktree list
