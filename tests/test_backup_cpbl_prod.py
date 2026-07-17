@@ -65,3 +65,55 @@ def test_refresh_progress_uses_consistent_four_step_labels() -> None:
     assert script.count('echo "==> 3/4') == 1
     assert script.count('echo "==> 4/4') == 1
     assert "/3" not in "\n".join(line for line in script.splitlines() if 'echo "==>' in line)
+
+
+def test_default_backup_directory_is_persistent_user_storage(tmp_path: Path) -> None:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    _executable(fake_bin / "ssh", "#!/bin/sh\necho 'CREATE SCHEMA cpbl;'\n")
+    env = os.environ.copy()
+    env.pop("BACKUP_DIR", None)
+    env.update({"PATH": f"{fake_bin}:/usr/bin:/bin", "HOME": str(tmp_path / "home")})
+
+    result = subprocess.run(
+        ["/bin/bash", str(ROOT / "scripts" / "backup-cpbl-prod.sh")],
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert Path(result.stdout.strip()).parent == (
+        tmp_path / "home" / "Library" / "Application Support" / "cpbl-analytics" / "backups"
+    )
+
+
+def test_successful_backup_retains_only_configured_newest_archives(tmp_path: Path) -> None:
+    fake_bin = tmp_path / "bin"
+    backup_dir = tmp_path / "backups"
+    fake_bin.mkdir()
+    backup_dir.mkdir()
+    _executable(fake_bin / "ssh", "#!/bin/sh\necho 'CREATE SCHEMA cpbl;'\n")
+    for index in range(5):
+        with gzip.open(backup_dir / f"cpbl-prod-2026010{index + 1}-010101.sql.gz", "wt") as handle:
+            handle.write("old backup")
+    env = os.environ.copy()
+    env.update(
+        {
+            "PATH": f"{fake_bin}:/usr/bin:/bin",
+            "BACKUP_DIR": str(backup_dir),
+            "BACKUP_KEEP": "3",
+        }
+    )
+
+    result = subprocess.run(
+        ["/bin/bash", str(ROOT / "scripts" / "backup-cpbl-prod.sh")],
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert len(list(backup_dir.glob("cpbl-prod-*.sql.gz"))) == 3

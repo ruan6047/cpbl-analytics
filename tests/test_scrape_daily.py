@@ -22,6 +22,7 @@ def _run_daily(
     sync_exit: int = 0,
     docker_running: bool = True,
     trigger: str = "manual",
+    active_lock_pid: int | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
     repo = tmp_path / "repo"
     scripts = repo / "scripts"
@@ -38,11 +39,17 @@ def _run_daily(
     _executable(fake_bin / "uv", f"#!/bin/sh\nexit {uv_exit}\n")
     _executable(scripts / "refresh-cpbl-prod.sh", f"#!/bin/sh\nexit {sync_exit}\n")
 
+    lock_dir = tmp_path / "refresh.lock"
+    if active_lock_pid is not None:
+        lock_dir.mkdir()
+        (lock_dir / "pid").write_text(str(active_lock_pid), encoding="utf-8")
+
     env = os.environ.copy()
     env.update(
         {
             "PATH": f"{fake_bin}:/usr/bin:/bin",
             "REFRESH_TRIGGER": trigger,
+            "REFRESH_LOCK_DIR": str(lock_dir),
             "SYNC_PROD": "1",
         }
     )
@@ -54,7 +61,8 @@ def _run_daily(
         capture_output=True,
         check=False,
     )
-    status = json.loads((repo / "logs" / "last-status.json").read_text(encoding="utf-8"))
+    status_path = repo / "logs" / "last-status.json"
+    status = json.loads(status_path.read_text(encoding="utf-8")) if status_path.exists() else {}
     return result, status
 
 
@@ -194,6 +202,20 @@ def test_scheduled_checker_reports_running_state(tmp_path: Path) -> None:
     assert check.stdout.startswith("RUNNING")
 
 
+def test_scheduled_checker_reports_stale_running_after_timeout(tmp_path: Path) -> None:
+    _, status = _run_daily(tmp_path, trigger="launchd")
+    repo = tmp_path / "repo"
+    scheduled_path = repo / "logs" / "last-launchd-status.json"
+    status.update({"state": "running", "ok": None, "finished_at": None})
+    scheduled_path.write_text(json.dumps(status), encoding="utf-8")
+    started_at = _status_started_at(status)
+
+    check = _check_scheduled(repo, now=started_at + timedelta(hours=13))
+
+    assert check.returncode == 7
+    assert check.stdout.startswith("STALE_RUNNING")
+
+
 def test_scheduled_checker_reports_scrape_failure(tmp_path: Path) -> None:
     _, status = _run_daily(tmp_path, trigger="launchd", uv_exit=9)
     started_at = _status_started_at(status)
@@ -244,3 +266,96 @@ def test_scheduled_checker_honors_custom_deadline(tmp_path: Path) -> None:
     )
 
     assert check.returncode == 0
+
+
+def test_active_refresh_lock_blocks_second_crawler_without_overwriting_status(tmp_path: Path) -> None:
+    result, status = _run_daily(tmp_path, active_lock_pid=os.getpid())
+
+    assert result.returncode == 75
+    assert status == {}
+    assert "already running" in result.stderr
+
+
+def test_stale_refresh_lock_is_reclaimed(tmp_path: Path) -> None:
+    result, status = _run_daily(tmp_path, active_lock_pid=999_999)
+
+    assert result.returncode == 0
+    assert status["state"] == "succeeded"
+
+
+def test_sync_sql_error_propagates_to_daily_failed_phase(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    scripts = repo / "scripts"
+    fake_bin = tmp_path / "bin"
+    scripts.mkdir(parents=True)
+    fake_bin.mkdir()
+    for script_name in (
+        "scrape-daily.sh",
+        "refresh_status.py",
+        "refresh-cpbl-prod.sh",
+        "backup-cpbl-prod.sh",
+        "verify_refresh_info.py",
+    ):
+        shutil.copy2(ROOT / "scripts" / script_name, scripts / script_name)
+
+    _executable(
+        fake_bin / "docker",
+        """#!/bin/bash
+if [ "$1" = "ps" ]; then
+  echo cpbl-analytics-db-1
+elif [[ "$*" == *" psql "* ]]; then
+  echo '2026-07-16|3'
+elif [[ "$*" == *" pg_dump "* ]]; then
+  printf '%s\n' 'COPY cpbl.games (id) FROM stdin;' '1' '\\.'
+fi
+""",
+    )
+    _executable(fake_bin / "uv", "#!/bin/sh\nexit 0\n")
+    _executable(
+        fake_bin / "ssh",
+        """#!/bin/bash
+if [[ "$*" == *"pg_dump"* ]]; then
+  echo 'CREATE SCHEMA cpbl;'
+  exit 0
+fi
+if [[ "$*" == *"--single-transaction"* ]]; then
+  cat >/dev/null
+  echo 'ERROR: injected sync SQL failure' >&2
+  if [[ "$*" == *"ON_ERROR_STOP"* ]]; then
+    exit 42
+  fi
+fi
+exit 0
+""",
+    )
+    now = datetime.now().astimezone().isoformat()
+    _executable(
+        fake_bin / "curl",
+        "#!/bin/sh\n"
+        f"echo '{json.dumps({'status': 'running', 'metrics': {'last_refresh': now, 'last_game_date': '2026-07-16', 'season_games_completed': 3}})}'\n",
+    )
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "PATH": f"{fake_bin}:/usr/bin:/bin",
+            "REFRESH_LOCK_DIR": str(tmp_path / "refresh.lock"),
+            "REFRESH_TRIGGER": "manual",
+            "BACKUP_DIR": str(tmp_path / "backups"),
+            "SYNC_PROD": "1",
+        }
+    )
+    result = subprocess.run(
+        ["/bin/bash", str(scripts / "scrape-daily.sh")],
+        cwd=repo,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    status = json.loads((repo / "logs" / "last-status.json").read_text(encoding="utf-8"))
+
+    assert result.returncode == 42
+    assert status["state"] == "failed"
+    assert status["failed_phase"] == "sync"
+    assert status["sync_exit_code"] == 42
