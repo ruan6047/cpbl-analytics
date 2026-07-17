@@ -1,7 +1,7 @@
 # INIT-GAME-RECAP 隔日賽事脈絡與逐打席復盤
 
 - 需求方：ruan6047　owner：ruan6047（Design Gate）
-- Discovery：需求方於 2026-07-16 對話確認問題與能力邊界　Design：[`GAME_RECAP_DESIGN_BRIEF.md`](../design/GAME_RECAP_DESIGN_BRIEF.md)（待核可）　spec 基線：v1.2
+- Discovery：需求方於 2026-07-16 對話確認問題與能力邊界　Design：[`GAME_RECAP_DESIGN_BRIEF.md`](../design/GAME_RECAP_DESIGN_BRIEF.md)（既有 Gate 仍依 DOC-GAME-RECAP1）＋[`PRODUCT_UX_BLUEPRINT.md`](../PRODUCT_UX_BLUEPRINT.md) v0.2 呈現基線　spec 基線：v1.2
 - 目標：讓每日追賽球迷能從隔日結果快速理解比賽轉折，並讓進階數據迷沿 WP 曲線進入可靠的逐打席與逐球分析
 - 非目標：即時轉播、即時通知、ML-SIM2 全場模擬、把 WPA 當球員能力評分
 - 里程碑：資料稽核核可 → WP/PA canonical 契約通過紅線查核 → 賽事頁 Design Gate → 首頁入口整併決策 → 生產驗證
@@ -20,8 +20,8 @@ flowchart LR
   P --> U2["UX-GAME-PA1\n打席探索器"]
   A --> U2
   U1 --> U2
-  U1 --> H["UX-GAME-HOME1\n昨日回顧入口"]
-  S --> H
+  U1 -. "WPA 漸進增強" .-> H["UX-GAME-HOME1\n最近比賽日入口"]
+  S -. "availability 對齊" .-> H
   O["UX-OUTCOME-HOME\n賽前預測模組"] -. "首頁資源序列化" .-> H
 ```
 
@@ -32,8 +32,8 @@ flowchart LR
 - `GAME-RECAP-STATUS1`：實作賽事狀態、資料可用性與來源 freshness API。
 - `UX-GAME-RECAP1`：重整現有賽事頁為結論先行的賽後復盤。
 - `UX-GAME-PA1`：用 canonical `pa_id` 串接曲線、轉折、事件與逐球詳情。
-- `UX-GAME-HOME1`：負責昨日回顧、復盤入口與資料 freshness。
-- `UX-OUTCOME-HOME`：既有卡，只負責賽前預測模組；與 `UX-GAME-HOME1` 共用首頁資源，須序列化。
+- `UX-GAME-HOME1`：負責最近比賽日、下一批賽事、復盤入口與 freshness；首頁 v1 不依賴 WP/WPA。
+- `UX-OUTCOME-HOME`：只交付 PregameCard、fixture 與文案紅線；與 `UX-GAME-HOME1` 共用首頁資源，須序列化。
 
 ## Checkpoints
 
@@ -53,7 +53,7 @@ flowchart LR
 
 - 需求方核可賽事頁 prototype／實作走查。
 - 375 px、鍵盤、資料缺漏與進階數據晚到情境全部通過。
-- `UX-GAME-HOME1` 與既有 `UX-OUTCOME-HOME` 的首頁區塊契約及合併順序已凍結。
+- `UX-GAME-HOME1` 與 `UX-OUTCOME-HOME` 的 owner／元件契約及合併順序已依產品藍圖 v0.2 凍結。
 
 ## 基線變更紀錄
 
@@ -61,6 +61,7 @@ flowchart LR
 - 2026-07-16 v1.1 by GPT-5@Codex → 作者端 preflight 重整 owner、依賴與缺漏子卡；非正式查核紀錄。
 - 2026-07-16 v1.2 by GPT-5@Codex → 作者端 preflight 分散 STATUS／PA／WP availability owner；待需求方正式交付 DOC-GAME-RECAP1。
 - 2026-07-16 Coordinator register → Initiative 與 9 張子卡已寫入 lifecycle event／Ledger；Design Gate 仍待核可，未派工。
+- 2026-07-17 v1.2＋PRODUCT_UX v0.2 by ruan6047 → 核可全站呈現與首頁責任；GAME_RECAP 自身 DOC／資料紅線 Gate 仍按原卡執行。
 
 ## 決策與風險
 

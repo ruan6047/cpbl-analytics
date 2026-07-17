@@ -70,11 +70,12 @@ def render_ledger(events: Iterable[dict[str, object]]) -> str:
         "", "## Ledger 總表（活卡）", "",
         "| 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |",
         "|---|---|---|---|---|---|---|---|---|---|", *rows, "", "## 依賴與資源註記", "",
-        "- `MATCHUP-DATA1 → ML-MATCHUP1 → UX-MATCHUP1 → UX-MATCHUP2`；前兩卡已結案（ML-MATCHUP1 三輪跨家族審核後 merge `336ee01`，封存於 archive），UI 卡可啟動。",
+        "- `MATCHUP-DATA1 → ML-MATCHUP1 → UX-MATCHUP1` 前置已解除；之後分流至 `UX-PA-SIM-MATCHUP1`，或待 `UX-PLAYER-SECTIONS1` 後進 `UX-MATCHUP2`。",
         "- `RECORD-DATA1 → RECORD-API1 → UX-RECORD1` 已全數結案；UX-RECORD1 已部署並封存。",
-        "- `ML-UMP1 → ML-UMP2`：前者已結案封存；身高比例帶重跑可複用其引擎與敏感度框架，方向性呈現仍以 ML-UMP2 翻轉測試為前置閘門。",
-        "- `ML-SIM1` 已完成跨家族複查、合併與 production 驗證並封存；`UX-OUTCOME-HOME` 的模型依賴已解除，但仍待 Design／派工。",
-        "- `INIT-GAME-RECAP` 仍在 Design Gate；依賴主鏈為 `GAME-RECAP-DATA1 → GAME-RECAP-PA1 → GAME-RECAP-WP-VAL1 → GAME-RECAP-WP-API1 → UX-GAME-RECAP1 → UX-GAME-PA1`，`GAME-RECAP-STATUS1` 與 `UX-GAME-HOME1` 走平行狀態／入口切片。未核可前不得 claim 實作卡。",
+        "- `ML-UMP1 → ML-UMP2` 已結案封存，方向性裁判／球隊產品維持 NO-GO；`UX-UMPIRE-SCOPE1` 只負責移除排行與收斂中性介面。",
+        "- `ML-SIM1` 已完成跨家族複查、合併與 production 驗證；`UX-OUTCOME-HOME` 只交付 PregameCard，首頁唯一 owner 為 `UX-GAME-HOME1`。",
+        "- `INIT-GAME-RECAP` 的資料紅線主鏈維持 `GAME-RECAP-DATA1 → GAME-RECAP-PA1 → GAME-RECAP-WP-VAL1 → GAME-RECAP-WP-API1 → UX-GAME-RECAP1 → UX-GAME-PA1`；首頁 v1 另走 `API-DAILY-SUMMARY1 + UX-OUTCOME-HOME → UX-GAME-HOME1`，不依賴 WPA。",
+        "- `INIT-PRODUCT-UX` 建議波次：刷新／IA／daily API／PregameCard → 首頁／方法頁 → 舊 predict 退場；球員 IA 與 Matchups 可在不同資源上平行。",
         "- 升級前歷史仍封存於 [`archive/TASKS_PRE_WF12.md`](archive/TASKS_PRE_WF12.md)，不得為新格式回寫。", "",
     ])
 

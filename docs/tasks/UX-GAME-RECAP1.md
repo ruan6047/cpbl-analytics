@@ -2,7 +2,7 @@
 
 - 需求：ruan6047　規劃：GPT-5@Codex　分支：`ai/<執行者>/UX-GAME-RECAP1`
 - 執行：待指派　查核：待指派（須 ≠ 執行）
-- Initiative：INIT-GAME-RECAP　spec 基線：v1.2
+- Initiative：INIT-GAME-RECAP　spec 基線：GAME_RECAP v1.2＋PRODUCT_UX_BLUEPRINT v0.2
 - DB：`db_scope: read`
 - 部署：是　環境：production　PR：—　Merge SHA：—
 - 範圍：見 [`GAME_RECAP_PRODUCT_SPEC.md`](../GAME_RECAP_PRODUCT_SPEC.md) §4–§7、§9
@@ -21,6 +21,7 @@
 - [ ] 依 STATUS1 正交契約呈現 scheduled/final/延賽／取消、逐打席／逐球／WP availability、unknown 與 source_error；不得由前端自行推導 composite status。
 - [ ] 行動版提供不需精準點圖的轉折／打席替代清單；不產生整頁水平捲動。
 - [ ] 文字清楚區分「賽後復盤 WP」與「賽前隊伍實力預測」，且 WPA 不被描述為球員能力或責任。
+- [ ] 焦點 chips 可使用已標注的球迷網路用語；正式摘要句、模型解釋與可及性文字不得使用。
 
 ## 驗證
 
@@ -40,3 +41,4 @@
 
 - 2026-07-16 proposed by GPT-5@Codex → 待 Coordinator 註冊 lifecycle event。
 - 2026-07-16 Coordinator register → 已寫入 lifecycle event／Ledger；可做 prototype，不得提前串接未凍結契約。
+- 2026-07-17 baseline v0.2 → 補入焦點 chips 與正式摘要的文案邊界；其餘依賴不變。
