@@ -15,6 +15,7 @@ set -euo pipefail
 LOCAL_DB="${LOCAL_DB:-cpbl-analytics-db-1}"
 VPS="${VPS:-root@45.76.100.29}"
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/personal-website}"
+API_INFO_URL="${API_INFO_URL:-https://cpbl.ruan-ruan.com/api/info}"
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 YEAR="$(date +%Y)"
 PREV="$((YEAR - 1))"
@@ -60,7 +61,11 @@ fi
 echo "    + 重建 game_features（賽事預測特徵，全史 kind A）"
 uv run cpbl-build-features 2>&1 | tail -1
 
-echo "==> 2/3 套用 prod migration + 非破壞性 upsert 同步"
+echo "==> 2/4 備份 production cpbl schema"
+BACKUP_PATH="$(VPS="$VPS" DEPLOY_PATH="$DEPLOY_PATH" "$REPO_DIR/scripts/backup-cpbl-prod.sh")"
+echo "    ✓ 已驗證備份：${BACKUP_PATH}"
+
+echo "==> 3/4 套用 prod migration + 非破壞性 upsert 同步"
 # 同步前先讓 prod 套用任何新 migration（否則新欄位不存在、COPY 對不上）
 ssh -o BatchMode=yes "$VPS" 'docker exec prod_cpbl_api python -c "from cpbl.db import migrate; print(\"migrated:\", migrate())"'
 
@@ -174,9 +179,21 @@ if [ -n "${WITH_DETAIL:-}" ]; then
     team_name g gs gr cg sho nbb w l sv hld ip bf np h hr bb ibb hbp so wp bk r er go fo
 fi
 
-echo "==> 3/3 VPS 跑賽事預測回測（LightGBM 需 libgomp；prod_cpbl_api 容器內有）"
+echo "==> 4/4 VPS 跑賽事預測回測（LightGBM 需 libgomp；prod_cpbl_api 容器內有）"
 # game_features 已由本機鏡像（全史），VPS 不需再 build-features；直接以鏡像資料跑
 # 走查回測並把 model_versions(task='outcome') 持久化，供 /api/info 與 /predict 面板展示。
 ssh -o BatchMode=yes "$VPS" 'docker exec prod_cpbl_api cpbl-train-outcome 2>&1 | grep -v httpx | tail -4'
 
-echo "==> 完成。線上資料已更新。"
+echo "    + 寫入 production refresh 成功標記"
+ssh -o BatchMode=yes "$VPS" \
+  "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec prod_pg psql -v ON_ERROR_STOP=1 -q \
+    -U \"\$DB_USER\" -d \"\$DB_NAME\" -c \"INSERT INTO cpbl.refresh_log \
+    (scope, from_date, to_date, detail, ok, note) VALUES \
+    ('prod-sync', CURRENT_DATE, CURRENT_DATE, jsonb_build_object('source', 'local-refresh'), true, \
+    'local-to-production sync completed')\""
+
+echo "    + 驗證 production API freshness"
+curl -fsS --max-time 10 "$API_INFO_URL" \
+  | python3 "$REPO_DIR/scripts/verify_refresh_info.py" --max-age-minutes 15
+
+echo "==> 完成。線上資料已更新且 freshness 驗證通過。"
