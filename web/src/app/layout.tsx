@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { NavLinks } from "@/components/nav-links";
+import PlayerSearch from "@/components/player-search";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Outfit } from "next/font/google";
 import "./globals.css";
@@ -24,18 +25,6 @@ export const viewport: Viewport = {
 // 不跟隨系統偏好（避免深色系統使用者被迫進深色）。掛在 <head> 確保早於 <body> 繪製、無 FOUC。
 const NO_FLASH = `(function(){try{var t=localStorage.getItem('theme');document.documentElement.setAttribute('data-theme',t==='dark'?'dark':'light');}catch(e){}})();`;
 
-// group 變化處插入視覺分隔：賽事｜數據｜預測
-const NAV = [
-  { href: "/standings", label: "戰績", group: "賽事" },
-  { href: "/games", label: "賽況", group: "賽事" },
-  { href: "/matchups", label: "投打對決", group: "賽事" },
-  { href: "/batters", label: "打者", group: "數據" },
-  { href: "/pitchers", label: "投手", group: "數據" },
-  { href: "/records", label: "紀錄室", group: "數據" },
-  { href: "/venues", label: "球場", group: "數據" },
-  { href: "/predict", label: "賽事預測", group: "預測" },
-];
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-Hant" className={outfit.variable} suppressHydrationWarning>
@@ -49,9 +38,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/" className="text-lg font-extrabold tracking-tight">
               <span className="text-cpbl">CPBL</span> <span className="text-accent">分析</span>
             </Link>
+            {/* 全域球員搜尋（§5.5）：桌機常駐頂欄；行動端置於選單面板內 */}
+            <div className="hidden md:block flex-1 max-w-xs">
+              <PlayerSearch variant="header" />
+            </div>
             <div className="flex items-center gap-2">
               <ThemeToggle />
-              <NavLinks items={NAV} />
+              <NavLinks />
             </div>
           </div>
         </header>
