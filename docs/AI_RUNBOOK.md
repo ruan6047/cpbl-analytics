@@ -177,7 +177,7 @@ mkdir /private/tmp/cpbl-analytics-control-plane/<CARD_ID>  # 已存在即 claim 
 git worktree list
 find /private/tmp/cpbl-analytics-control-plane -mindepth 1 -maxdepth 1 -type d
 uv run python scripts/workflow_ledger.py --check
-uv run python scripts/workflow_ledger.py --live   # 在途卡即時視圖：union main 與所有 ai/* 分支頂端 event log（唯讀；未 commit 的事件不可見）
+uv run python scripts/workflow_ledger.py --live   # 在途卡即時視圖：union main 與所有 ai/* 分支頂端 event log，並寫 docs/TASKS_LIVE.md（不入版控；未 commit 的事件不可見）
 ```
 
 - 遠端 event 的 `state_version` 由 1 單調遞增；handoff、review、merge、release 必填 source SHA 與 evidence。逾期前可由 owner 續約；回收前 Coordinator 必須檢查 worktree 的未提交變更，禁止靜默刪除工作內容。
