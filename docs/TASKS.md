@@ -28,7 +28,7 @@
 | [UX-MATCHUP1](tasks/UX-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | /matchups 查詢式頁面重製 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:42+08:00 |
 | [UX-MATCHUP2](tasks/UX-MATCHUP2.md) | INIT-PRODUCT-UX | T4 | 投打對決整合球員個人頁 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:43+08:00 |
 | [UX-MODEL-METHOD1](tasks/UX-MODEL-METHOD1.md) | INIT-PRODUCT-UX | T3 | 模型方法與限制頁 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:28+08:00 |
-| [UX-NAV-IA1](tasks/UX-NAV-IA1.md) | INIT-PRODUCT-UX | T3 | 方案 B 導覽與全域球員搜尋 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:25+08:00 |
+| [UX-NAV-IA1](tasks/UX-NAV-IA1.md) | INIT-PRODUCT-UX | T3 | 方案 B 導覽與全域球員搜尋 | Opus-4.8@Claude Code（執行） | `ai/opus-4-8/UX-NAV-IA1 @ .claude/worktrees/ux-nav-ia1-execution-08c218` | 1 | 🔨執行中 | ⏸未部署 | 2026-07-17T12:05:00+08:00 |
 | [UX-OUTCOME-HOME](tasks/UX-OUTCOME-HOME.md) | INIT-PRODUCT-UX | T4 | 可嵌入賽前勝率卡 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:41+08:00 |
 | [UX-PA-SIM-MATCHUP1](tasks/UX-PA-SIM-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | Matchups 單一打席結果分布 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:33+08:00 |
 | [UX-PLAYER-IA1](tasks/UX-PLAYER-IA1.md) | INIT-PRODUCT-UX | T3 | 球員頁 IA 骨架與 prototype 決策 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-17T04:44:31+08:00 |
