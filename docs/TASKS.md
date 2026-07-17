@@ -29,7 +29,7 @@
 | [UX-MATCHUP1](tasks/UX-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | /matchups 查詢式頁面重製 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:42+08:00 |
 | [UX-MATCHUP2](tasks/UX-MATCHUP2.md) | INIT-PRODUCT-UX | T4 | 投打對決整合球員個人頁 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:43+08:00 |
 | [UX-MODEL-METHOD1](tasks/UX-MODEL-METHOD1.md) | INIT-PRODUCT-UX | T3 | 模型方法與限制頁 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:28+08:00 |
-| [UX-OUTCOME-HOME](tasks/UX-OUTCOME-HOME.md) | INIT-PRODUCT-UX | T4 | 可嵌入賽前勝率卡 | 待指派（查核） | `ai/fable-5/UX-OUTCOME-HOME @ .claude/worktrees/cpbl-analytics-blueprint-a734ec` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-17T16:28:19+08:00 |
+| [UX-OUTCOME-HOME](tasks/UX-OUTCOME-HOME.md) | INIT-PRODUCT-UX | T4 | 可嵌入賽前勝率卡 | ruan6047（merge 決策） | `ai/fable-5/UX-OUTCOME-HOME @ .claude/worktrees/cpbl-analytics-blueprint-a734ec` | 1 | ✅通過 | ⏸未部署 | 2026-07-17T23:35:00+08:00 |
 | [UX-PA-SIM-MATCHUP1](tasks/UX-PA-SIM-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | Matchups 單一打席結果分布 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:33+08:00 |
 | [UX-PLAYER-IA1](tasks/UX-PLAYER-IA1.md) | INIT-PRODUCT-UX | T3 | 球員頁 IA 骨架與 prototype 決策 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-17T04:44:31+08:00 |
 | [UX-PLAYER-SECTIONS1](tasks/UX-PLAYER-SECTIONS1.md) | INIT-PRODUCT-UX | T3 | 球員頁分區內容遷移 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:32+08:00 |
