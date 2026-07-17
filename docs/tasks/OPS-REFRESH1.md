@@ -18,3 +18,7 @@
 - 驗證：launchctl 狀態、成功與故障注入各一次、local／production freshness 對帳；T4 獨立實測查核。
 - 依賴：無；操作時獨占 crawler、local DB 與 production `cpbl` 資源。
 - 預估範圍：M；任何 production 寫入仍需 Coordinator 明確授權與備份。
+
+## 結案待辦（2026-07-17 記）
+
+- 結案清理時一併回收 worktree `.claude/worktrees/ux-nav-ia1-review-43d6af`：它目前掛著本卡的 T4 稽核分支 `claude/ops-refresh1-t4-audit-31c612`，UX-NAV-IA1 於 07-17 release 時因此暫留（見 UX-NAV-IA1-RELEASE-008 evidence）。回收前照例確認無未提交變更。
