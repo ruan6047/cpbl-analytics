@@ -2,6 +2,8 @@
 
 import argparse
 import json
+import subprocess
+import unicodedata
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -84,12 +86,81 @@ def _load_events(path: Path) -> list[dict[str, object]]:
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
+# --live：in-flight 事件跟執行分支走、merge 前不在 main，所以 union 工作樹與
+# 所有 ai/* 分支（含 origin/ai/*）頂端的 event log 才能看到即時狀態。
+_IDLE_STATUSES = {"📥Backlog", "💡需求"}
+
+
+def _collect_live_events() -> list[dict[str, object]]:
+    rel_path = EVENTS_PATH.relative_to(ROOT)
+    refs = subprocess.run(
+        ["git", "-C", str(ROOT), "for-each-ref", "--format=%(refname:short)",
+         "refs/heads/ai/", "refs/remotes/origin/ai/"],
+        capture_output=True, text=True, check=True,
+    ).stdout.split()
+    texts = [EVENTS_PATH.read_text()]
+    for ref in refs:
+        shown = subprocess.run(
+            ["git", "-C", str(ROOT), "show", f"{ref}:{rel_path}"],
+            capture_output=True, text=True,
+        )
+        if shown.returncode == 0:
+            texts.append(shown.stdout)
+    merged: dict[tuple[str, int], dict[str, object]] = {}
+    for text in texts:
+        for line in text.splitlines():
+            if not line.strip():
+                continue
+            event = json.loads(line)
+            merged.setdefault((str(event["card_id"]), int(event["state_version"])), event)
+    return list(merged.values())
+
+
+def _pad(text: str, width: int) -> str:
+    display = sum(2 if unicodedata.east_asian_width(ch) in "WF" else 1 for ch in text)
+    return text + " " * max(width - display, 0)
+
+
+def render_live(events: Iterable[dict[str, object]]) -> str:
+    """渲染在途卡即時視圖（跨分支 union，不做單一 log 的連續性驗證，不寫檔）。"""
+    latest: dict[str, dict[str, object]] = {}
+    for event in events:
+        card_id = str(event["card_id"])
+        current = latest.get(card_id)
+        rank = (int(event["state_version"]), str(event["occurred_at"]))
+        if current is None or rank > (int(current["state_version"]), str(current["occurred_at"])):
+            latest[card_id] = event
+    live = [e for e in latest.values() if str(e["delivery_status"]) not in _CLOSED_STATUSES]
+    in_flight = sorted(
+        (e for e in live if str(e["delivery_status"]) not in _IDLE_STATUSES),
+        key=lambda e: str(e["occurred_at"]), reverse=True,
+    )
+    lines = ["在途卡（main ∪ ai/* 分支頂端；未 commit 的事件不可見）：", ""]
+    if in_flight:
+        for e in in_flight:
+            lines.append(
+                f"{_pad(str(e['card_id']), 22)} {_pad(str(e['delivery_status']), 10)} "
+                f"iter{e['iteration']}  {str(e['occurred_at'])[:16]}  "
+                f"{_pad(str(e['owner']), 24)} {e['branch_worktree']}"
+            )
+    else:
+        lines.append("（無在途卡）")
+    idle_count = len(live) - len(in_flight)
+    lines += ["", f"另有 {idle_count} 張 {'／'.join(sorted(_IDLE_STATUSES))} 卡，見 docs/TASKS.md。"]
+    return "\n".join(lines)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--write", action="store_true")
     group.add_argument("--check", action="store_true")
+    group.add_argument("--live", action="store_true",
+                       help="彙整所有 ai/* 分支的 event log，印出在途卡即時狀態（唯讀）")
     args = parser.parse_args()
+    if args.live:
+        print(render_live(_collect_live_events()))
+        return
     rendered = render_ledger(_load_events(EVENTS_PATH))
     if args.write:
         LEDGER_PATH.write_text(rendered)

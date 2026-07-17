@@ -110,3 +110,51 @@ def test_render_ledger_excludes_released_cards() -> None:
     # 活卡 Ledger 只留未結案卡；🏁完成 卡由 archive 索引承接。
     assert "CARD-OPEN" in rendered
     assert "CARD-DONE" not in rendered
+
+
+def _live_event(
+    card_id: str, state_version: int, delivery_status: str, occurred_at: str, owner: str = "待指派"
+) -> dict:
+    return {
+        "event_id": f"{card_id}-{state_version}",
+        "card_id": card_id,
+        "type": "handoff",
+        "actor": "test",
+        "occurred_at": occurred_at,
+        "state_version": state_version,
+        "iteration": 1,
+        "source_sha": "abc1234",
+        "evidence": "test",
+        "initiative": "—",
+        "tier": "T4",
+        "feature": "測試卡",
+        "owner": owner,
+        "branch_worktree": "ai/test/CARD @ wt",
+        "delivery_status": delivery_status,
+        "deployment_status": "⏸未部署",
+    }
+
+
+def test_render_live_takes_max_state_version_across_branch_unions() -> None:
+    # main 只有 v1 Backlog；分支頂端另有 v2 交接——即時視圖必須顯示 v2。
+    rendered = workflow_ledger.render_live([
+        _live_event("CARD-A", 1, "📥Backlog", "2026-07-17T04:44:00+08:00"),
+        _live_event("CARD-A", 2, "🔍待查核", "2026-07-17T14:35:00+08:00"),
+        _live_event("CARD-B", 1, "📥Backlog", "2026-07-17T04:44:00+08:00"),
+        _live_event("CARD-C", 1, "🏁完成", "2026-07-17T17:20:00+08:00"),
+    ])
+
+    assert "CARD-A" in rendered
+    assert "🔍待查核" in rendered
+    assert "CARD-B" not in rendered  # idle 卡只計數不列行
+    assert "CARD-C" not in rendered  # 已結案卡排除
+    assert "另有 1 張" in rendered
+
+
+def test_render_live_orders_in_flight_by_recency() -> None:
+    rendered = workflow_ledger.render_live([
+        _live_event("CARD-OLD", 2, "🔍待查核", "2026-07-17T12:45:00+08:00"),
+        _live_event("CARD-NEW", 2, "🔍待查核", "2026-07-17T16:28:00+08:00"),
+    ])
+
+    assert rendered.index("CARD-NEW") < rendered.index("CARD-OLD")
