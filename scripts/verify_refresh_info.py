@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 def main() -> int:
@@ -18,7 +18,7 @@ def main() -> int:
     try:
         payload = json.load(sys.stdin)
         last_refresh = datetime.fromisoformat(payload["metrics"]["last_refresh"])
-        now = datetime.fromisoformat(args.now) if args.now else datetime.now(UTC)
+        now = datetime.fromisoformat(args.now) if args.now else datetime.now(timezone.utc)  # noqa: UP017
         if last_refresh.tzinfo is None or now.tzinfo is None:
             raise ValueError("last_refresh and now must include timezone")
     except (json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
