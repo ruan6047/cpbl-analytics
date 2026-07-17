@@ -165,6 +165,7 @@ host 缺 `libomp.dylib`。**勿 `brew install libomp` 污染 host**；需 LightG
 完整契約見 [`CONTROL_PLANE_CONTRACT.md`](CONTROL_PLANE_CONTRACT.md)。本機 Coordinator 為 **ruan6047**；未經使用者明確指派，AI 不得自行派工、認領或釋放其他卡。
 
 - **Remote coordination**：GitHub protected `main` 與 Coordinator 是唯一 lifecycle writer。[`control-plane/events.jsonl`](control-plane/events.jsonl) 為 append-only event log；[`TASKS.md`](TASKS.md) 僅是由 `uv run python scripts/workflow_ledger.py --write` 產生的 current-state projection，禁止手改。
+- **lifecycle 事件直接落 main（2026-07-17 起）**：claim／handoff／review／merge／release 事件不跟執行分支走，一律直接 commit 至 main 並在同 commit `--write` 重建 TASKS.md；執行分支不得改動 `docs/control-plane/**` 與 `docs/TASKS.md`，merge 時該路徑衝突以 main 為準。push 前 `git pull --rebase`。
 - **Local resource lock**：鎖根目錄固定為 `/private/tmp/cpbl-analytics-control-plane`（不進 git）；`mkdir` 的原子成功／失敗只保護暫時資源，**不得改 card state**。每個 claim 目錄保存 `card_id`、owner、worktree、`claimed_at`、`lease_expires_at`、`resources`；預設 lease 4 小時，可續約。共享可寫資源須逐一宣告，例如 `file:<path>`、`port:<n>`、`container:<name>`、`db:local:cpbl`、`db:production:cpbl`。
 
 ```bash
@@ -177,7 +178,7 @@ mkdir /private/tmp/cpbl-analytics-control-plane/<CARD_ID>  # 已存在即 claim 
 git worktree list
 find /private/tmp/cpbl-analytics-control-plane -mindepth 1 -maxdepth 1 -type d
 uv run python scripts/workflow_ledger.py --check
-uv run python scripts/workflow_ledger.py --live   # 在途卡即時視圖：union main 與所有 ai/* 分支頂端 event log，並寫 docs/TASKS_LIVE.md（不入版控；未 commit 的事件不可見）
+uv run python scripts/workflow_ledger.py --live   # 稽核：union main 與所有 ai/* 分支頂端 event log；與 TASKS.md 不一致＝有事件違規漏留在分支
 ```
 
 - 遠端 event 的 `state_version` 由 1 單調遞增；handoff、review、merge、release 必填 source SHA 與 evidence。逾期前可由 owner 續約；回收前 Coordinator 必須檢查 worktree 的未提交變更，禁止靜默刪除工作內容。
