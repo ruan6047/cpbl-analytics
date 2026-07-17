@@ -120,6 +120,13 @@ def _expected_schedule_date(now: datetime, deadline: time) -> object:
     return (now - timedelta(days=1)).date()
 
 
+def _parse_timestamp(value: str) -> datetime:
+    """Parse ISO timestamps on Python 3.9, including basic UTC offsets such as +0800."""
+    if len(value) >= 5 and value[-5] in "+-" and value[-3] != ":":
+        value = f"{value[:-2]}:{value[-2:]}"
+    return datetime.fromisoformat(value)
+
+
 def command_check(args: argparse.Namespace) -> int:
     path = args.scheduled_status if args.scheduled else args.status
     try:
@@ -133,8 +140,8 @@ def command_check(args: argparse.Namespace) -> int:
 
     if args.scheduled:
         try:
-            now = datetime.fromisoformat(args.now) if args.now else datetime.now().astimezone()
-            started_at = datetime.fromisoformat(payload["started_at"])
+            now = _parse_timestamp(args.now) if args.now else datetime.now().astimezone()
+            started_at = _parse_timestamp(payload["started_at"])
             deadline = time.fromisoformat(args.deadline)
         except (KeyError, TypeError, ValueError) as error:
             print(f"INVALID_STATUS path={path} error={error}")

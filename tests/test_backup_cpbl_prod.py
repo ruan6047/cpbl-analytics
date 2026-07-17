@@ -55,3 +55,13 @@ def test_backup_failure_does_not_report_a_valid_archive(tmp_path: Path) -> None:
 
     assert result.returncode != 0
     assert not list(backup_dir.glob("*.sql.gz"))
+
+
+def test_refresh_progress_uses_consistent_four_step_labels() -> None:
+    script = (ROOT / "scripts" / "refresh-cpbl-prod.sh").read_text(encoding="utf-8")
+
+    assert script.count('echo "==> 1/4') == 2
+    assert script.count('echo "==> 2/4') == 1
+    assert script.count('echo "==> 3/4') == 1
+    assert script.count('echo "==> 4/4') == 1
+    assert "/3" not in "\n".join(line for line in script.splitlines() if 'echo "==>' in line)

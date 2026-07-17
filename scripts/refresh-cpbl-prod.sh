@@ -40,9 +40,9 @@ sync_table() {
 cd "$REPO_DIR"
 # SKIP_SCRAPE=1：本機 DB 已是最新時，跳過重爬、直接把現有資料同步到 prod。
 if [ -n "${SKIP_SCRAPE:-}" ]; then
-  echo "==> 1/3 略過爬取（SKIP_SCRAPE），直接同步本機現有資料"
+  echo "==> 1/4 略過爬取（SKIP_SCRAPE），直接同步本機現有資料"
 else
-  echo "==> 1/3 本機（台灣 IP）爬最新資料"
+  echo "==> 1/4 本機（台灣 IP）爬最新資料"
   # --group scrape：官網爬蟲需 playwright（見 scrape-daily.sh 說明）。
   uv run --group scrape cpbl-scrape-games "$YEAR" "$YEAR"
   uv run --group scrape cpbl-scrape-stats "$PREV" "$YEAR"

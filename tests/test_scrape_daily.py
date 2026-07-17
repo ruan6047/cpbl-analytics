@@ -2,9 +2,12 @@ import json
 import os
 import shutil
 import subprocess
+import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
+SYSTEM_PYTHON = "/usr/bin/python3" if Path("/usr/bin/python3").exists() else sys.executable
 
 
 def _executable(path: Path, content: str) -> None:
@@ -131,3 +134,113 @@ def test_checker_returns_distinct_exit_code_for_sync_failure(tmp_path: Path) -> 
     assert result.returncode == 17
     assert check.returncode == 4
     assert check.stdout.startswith("SYNC_FAILED")
+
+
+def _check_scheduled(
+    repo: Path,
+    *,
+    now: datetime,
+    deadline: str = "11:00",
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            SYSTEM_PYTHON,
+            str(repo / "scripts" / "refresh_status.py"),
+            "check",
+            "--scheduled",
+            "--now",
+            now.isoformat(),
+            "--deadline",
+            deadline,
+        ],
+        cwd=repo,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
+def _status_started_at(status: dict[str, object]) -> datetime:
+    value = str(status["started_at"])
+    if len(value) >= 5 and value[-5] in "+-" and value[-3] != ":":
+        value = f"{value[:-2]}:{value[-2:]}"
+    return datetime.fromisoformat(value)
+
+
+def test_scheduled_checker_accepts_success_written_by_launchd_flow(tmp_path: Path) -> None:
+    _, status = _run_daily(tmp_path, trigger="launchd")
+    started_at = _status_started_at(status)
+
+    check = _check_scheduled(
+        tmp_path / "repo",
+        now=started_at.replace(hour=12, minute=0, second=0),
+    )
+
+    assert check.returncode == 0, check.stderr or check.stdout
+    assert check.stdout.startswith("OK")
+
+
+def test_scheduled_checker_reports_running_state(tmp_path: Path) -> None:
+    _, status = _run_daily(tmp_path, trigger="launchd")
+    repo = tmp_path / "repo"
+    scheduled_path = repo / "logs" / "last-launchd-status.json"
+    status.update({"state": "running", "ok": None, "finished_at": None})
+    scheduled_path.write_text(json.dumps(status), encoding="utf-8")
+    started_at = _status_started_at(status)
+
+    check = _check_scheduled(repo, now=started_at.replace(hour=12, minute=0, second=0))
+
+    assert check.returncode == 6
+    assert check.stdout.startswith("RUNNING")
+
+
+def test_scheduled_checker_reports_scrape_failure(tmp_path: Path) -> None:
+    _, status = _run_daily(tmp_path, trigger="launchd", uv_exit=9)
+    started_at = _status_started_at(status)
+
+    check = _check_scheduled(
+        tmp_path / "repo",
+        now=started_at.replace(hour=12, minute=0, second=0),
+    )
+
+    assert check.returncode == 3
+    assert check.stdout.startswith("SCRAPE_FAILED")
+
+
+def test_scheduled_checker_reports_sync_failure(tmp_path: Path) -> None:
+    _, status = _run_daily(tmp_path, trigger="launchd", sync_exit=17)
+    started_at = _status_started_at(status)
+
+    check = _check_scheduled(
+        tmp_path / "repo",
+        now=started_at.replace(hour=12, minute=0, second=0),
+    )
+
+    assert check.returncode == 4
+    assert check.stdout.startswith("SYNC_FAILED")
+
+
+def test_scheduled_checker_detects_expired_run_after_deadline(tmp_path: Path) -> None:
+    _, status = _run_daily(tmp_path, trigger="launchd")
+    started_at = _status_started_at(status)
+
+    check = _check_scheduled(
+        tmp_path / "repo",
+        now=started_at + timedelta(days=1, hours=12 - started_at.hour),
+    )
+
+    assert check.returncode == 2
+    assert check.stdout.startswith("NOT_TRIGGERED")
+
+
+def test_scheduled_checker_honors_custom_deadline(tmp_path: Path) -> None:
+    _, status = _run_daily(tmp_path, trigger="launchd")
+    started_at = _status_started_at(status)
+
+    check = _check_scheduled(
+        tmp_path / "repo",
+        now=started_at.replace(hour=12, minute=0, second=0),
+        deadline="13:00",
+    )
+
+    assert check.returncode == 0

@@ -30,8 +30,17 @@
 - production sync 改為每次 migration/upsert 前先 dump `cpbl` schema 至原子 `.partial`
   檔、`gzip -t` 通過才晉升為備份；同步完成後寫 `prod-sync` marker，並以 `/api/info`
   的 15 分鐘 freshness gate 作為成功條件。
-- 自測：聚焦 10 passed；全套 `255 passed, 10 skipped`；ruff、`bash -n`、plist lint、
-  Ledger check 全通過。另以 `/usr/bin/python3` 發現並修正 launchd Python 3.9 相容性。
+- 初次自測：聚焦 10 passed；全套 `255 passed, 10 skipped`；ruff、`bash -n`、plist
+  lint、Ledger check 全通過。初次只驗證 helper 可由 `/usr/bin/python3` 載入，未覆蓋
+  `check --scheduled` 的時間解析，因此不足以證明完整 Python 3.9 相容性。
 - 待獨立 T4 查核與 main merge 後執行：正式 bootstrap 10:10 launchd、一次 launchctl
   測跑、production 備份／同步與 local／production freshness 對帳。未在 source branch
   提前部署。
+- 2026-07-17 Claude Opus 4.8 T4 查核退回（iteration 1）：P1 指出 Python 3.9 無法解析
+  `date +%z` 產生的 `+0800`，合法 scheduled status 被誤報 `INVALID_STATUS`；另有 scheduled
+  狀態／deadline 零覆蓋及同步步驟 `1/3` 文案兩項 P2。原執行者於原分支修正中。
+- iteration 1 修正：checker 新增 basic offset（`+0800`）正規化後再交給 Python 3.9
+  `fromisoformat()`，同時保留 `+08:00` 支援；新增 scheduled OK／RUNNING／scrape failure／
+  sync failure／expired／custom deadline 六條決定性測試，且 subprocess 明確使用 macOS
+  `/usr/bin/python3`。同步進度統一為 `1/4`–`4/4`。聚焦 `17 passed`、全套
+  `262 passed, 10 skipped`；ruff、shell syntax、plist lint、Ledger check 均通過。
