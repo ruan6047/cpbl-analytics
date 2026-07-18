@@ -12,6 +12,7 @@ import {
   type Fixture, type LayerId, type Role, type Variant,
   defaultLayer, defaultRole, isRetired, rolesOf,
 } from "./lib";
+import { anchorHashForRoleSwitch, anchorLayerFromHash } from "./anchor";
 import { LAYER_RENDERERS } from "./sections";
 
 // ---- Hero（恆在導覽之上，不屬於任一層）----
@@ -100,25 +101,23 @@ function TabsNav({ fx, role, layer, setLayer, simError }: {
 
 // ---- B・錨點長頁：全層渲染＋scrollspy ----
 
-function AnchorsNav({ fx, role, simError, activeRef, lockedRef }: {
-  fx: Fixture; role: Role; simError: boolean;
-  activeRef: React.MutableRefObject<LayerId | null>;
-  lockedRef: React.MutableRefObject<LayerId | null>;
-}) {
+function AnchorsNav({ fx, role, simError }: { fx: Fixture; role: Role; simError: boolean }) {
   const [active, setActive] = useState<LayerId>(defaultLayer(fx));
-  // active 鏡射到 ref，供父層 role 按鈕 click handler 於「重排前」同步讀取當前層並鎖定。
-  const setActiveSynced = (l: LayerId) => { activeRef.current = l; setActive(l); };
+  const setActiveSynced = (l: LayerId) => setActive(l);
   // deep-link 補強：client 渲染完成前瀏覽器已處理過 #hash（找不到節點），mount 後補捲一次。
   // 這是錨點方案的固有成本——hash 目標必須等內容渲染完才存在，決策文件已記錄。
   useEffect(() => {
-    const id = window.location.hash.slice(1);
-    if (id && LAYERS.some((l) => l.id === id)) {
-      document.getElementById(id)?.scrollIntoView();
-      // 同步 active：programmatic scrollIntoView 在部分環境不觸發 scroll listener，
-      // 若不補設，deep-link 後 active 停在 overview，會讓下方 role 切換 re-anchor 捲錯層。
-      setActiveSynced(id as LayerId);
-    }
-  }, []);
+    const target = anchorLayerFromHash(window.location.hash);
+    if (!target) return;
+    const align = () => {
+      document.getElementById(target)?.scrollIntoView();
+      setActiveSynced(target);
+    };
+    // role query 變更可能 remount client component；每次 mount/role 變更都從 URL hash 重錨。
+    requestAnimationFrame(() => requestAnimationFrame(align));
+    const timer = setTimeout(align, 250);
+    return () => clearTimeout(timer);
+  }, [role]);
   // scrollspy：取最後一個頂端已越過 sticky nav 下緣的段落（瞬跳與慢捲皆可靠）。
   useEffect(() => {
     const onScroll = () => {
@@ -133,29 +132,6 @@ function AnchorsNav({ fx, role, simError, activeRef, lockedRef }: {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
-  // role 切換保留當前層：投打內容高度不同→各層重排，router.replace({scroll:false})
-  // 不會因保留 hash 而自動重錨。關鍵是重排會觸發 scroll listener 把 active 洗成 overview，
-  // 早於本 effect 執行；故不可讀 active（會捲錯層），改讀「點擊當下由父層鎖定的層」lockedRef
-  // （在重排前捕捉，不受 scroll 事件影響），rAF 待重排落定後捲回並回正 active。
-  const roleRef = useRef(role);
-  useEffect(() => {
-    if (roleRef.current === role) return;
-    roleRef.current = role;
-    const target = lockedRef.current;
-    if (!target) return;
-    // 用顯式 scrollBy 把當前層 section 頂端對到 sticky nav 下方（scroll-mt-14=56px），
-    // 比 scrollIntoView 更確定（後者在本環境穩定偏上約 128px，標題被 nav 遮住）。
-    const align = () => {
-      const el = document.getElementById(target);
-      if (el) window.scrollBy({ top: el.getBoundingClientRect().top - 56, behavior: "instant" as ScrollBehavior });
-      setActiveSynced(target);
-    };
-    // 雙 rAF：等 role 重排 layout 落定後對齊；再一次延遲補正，抓投球側球路圖表等 async 內容
-    // 於首次對齊後才改變上方 section 高度、把落點推偏的情況。
-    requestAnimationFrame(() => requestAnimationFrame(align));
-    const t = setTimeout(align, 250);
-    return () => clearTimeout(t);
-  }, [role]);
   // deep-link：#hash 由瀏覽器原生捲動；scroll-mt 避開 sticky nav
   return (
     <>
@@ -226,13 +202,19 @@ export function VariantView({ variant, scenario }: { variant: Variant; scenario:
   const roleParam = params.get("role") as Role | null;
   const role: Role = roleParam && rolesOf(fx).some((r) => r.v === roleParam) ? roleParam : defaultRole(fx);
 
-  // 錨點變體：active 由 AnchorsNav 鏡射至此 ref；role 切換時於 click handler「重排前」
-  // 把當下層鎖進 lockedLayerRef，供 AnchorsNav re-anchor 讀取（避開重排 scroll 事件洗掉 active 的 race）。
-  const anchorActiveRef = useRef<LayerId | null>(null);
-  const lockedLayerRef = useRef<LayerId | null>(null);
+  const currentAnchorLayer = (): LayerId => {
+    let current: LayerId = LAYERS[0].id;
+    for (const layer of LAYERS) {
+      const top = document.getElementById(layer.id)?.getBoundingClientRect().top;
+      if (top !== undefined && top <= 64) current = layer.id;
+    }
+    return current;
+  };
   const onRoleChange = (r: Role) => {
-    if (variant === "anchors") lockedLayerRef.current = anchorActiveRef.current;
-    setQuery("role", r);
+    const hash = variant === "anchors"
+      ? anchorHashForRoleSwitch(window.location.hash, currentAnchorLayer())
+      : undefined;
+    setQuery("role", r, hash);
   };
 
   // deep-link：tabs/hybrid 用 query（?layer=/?sec=）；anchors 用 #hash（原生）
@@ -244,12 +226,11 @@ export function VariantView({ variant, scenario }: { variant: Variant; scenario:
     return defaultLayer(fx);
   }, [variant, layerParam, fx]);
 
-  const setQuery = (key: string, value: string) => {
+  const setQuery = (key: string, value: string, hash = window.location.hash) => {
     const next = new URLSearchParams(params.toString());
     next.set(key, value);
     // anchors 變體的當前層以 #hash 表達（tabs/hybrid 用 query），切 role 時必須保留，
     // 否則 hash 被洗掉→scrollspy 失錨、捲回頁首，違反「切換保留當前層」。
-    const hash = typeof window !== "undefined" ? window.location.hash : "";
     router.replace(`${pathname}?${next.toString()}${hash}`, { scroll: false });
   };
 
@@ -260,9 +241,7 @@ export function VariantView({ variant, scenario }: { variant: Variant; scenario:
       {variant === "tabs" && (
         <TabsNav fx={fx} role={role} layer={layer} setLayer={(l) => setQuery("layer", l)} simError={simError} />
       )}
-      {variant === "anchors" && (
-        <AnchorsNav fx={fx} role={role} simError={simError} activeRef={anchorActiveRef} lockedRef={lockedLayerRef} />
-      )}
+      {variant === "anchors" && <AnchorsNav fx={fx} role={role} simError={simError} />}
       {variant === "hybrid" && (
         <HybridNav fx={fx} role={role} sec={layer} setSec={(l) => setQuery("sec", l)} simError={simError} />
       )}
