@@ -21,6 +21,7 @@
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
 | [OPS-REFRESH1](tasks/OPS-REFRESH1.md) | INIT-PRODUCT-UX | T4 | 白天自動刷新與失敗快篩 | ruan6047（merge 決策） | `ai/gpt-5-codex/OPS-REFRESH1 @ .claude/worktrees/ops-refresh1-execution` | 2 | ✅通過 | ⏸未部署 | 2026-07-18T14:20:00+08:00 |
+| [OPS-REMOTE-CRAWL1](tasks/OPS-REMOTE-CRAWL1.md) | INIT-PRODUCT-UX | T3 | 遠端無人值守 crawler 可行性探測 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T18:10:23+08:00 |
 | [TEAM-STYLE1](tasks/TEAM-STYLE1.md) | — | T4 | 球隊球風研究 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
