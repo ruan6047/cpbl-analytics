@@ -206,7 +206,10 @@ export function VariantView({ variant, scenario }: { variant: Variant; scenario:
   const setQuery = (key: string, value: string) => {
     const next = new URLSearchParams(params.toString());
     next.set(key, value);
-    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+    // anchors 變體的當前層以 #hash 表達（tabs/hybrid 用 query），切 role 時必須保留，
+    // 否則 hash 被洗掉→scrollspy 失錨、捲回頁首，違反「切換保留當前層」。
+    const hash = typeof window !== "undefined" ? window.location.hash : "";
+    router.replace(`${pathname}?${next.toString()}${hash}`, { scroll: false });
   };
 
   return (
