@@ -320,6 +320,41 @@ export type VenuePlayersResponse<T> = {
   note: string;
 };
 
+// —— /methodology 用：模型回測紀錄（model_versions 快照）。available=false＝artifact／
+// 回測紀錄缺席，頁面須退回報告快照文字並明示，不得空白或拋錯。
+export type BacktestModelRow = {
+  name: string;
+  accuracy: number;
+  brier: number;
+  log_loss: number;
+  ece?: number;
+};
+export type PregameBacktestResponse = {
+  available: boolean;
+  version?: string;
+  trained_at?: string | null;
+  gate?: { checks: Record<string, boolean>; deployable: boolean };
+  models?: BacktestModelRow[];
+  n_test?: number;
+  test_years?: number[];
+  seasons_beating_baseline?: number;
+  paired_bootstrap?: {
+    method: string;
+    iterations: number;
+    brier_delta_ci95: [number, number];
+    log_loss_delta_ci95: [number, number];
+  };
+};
+export type OutcomeBenchmarkResponse = {
+  available: boolean;
+  version?: string;
+  trained_at?: string | null;
+  best?: string;
+  models?: { name: string; brier: number; accuracy: number; log_loss: number }[];
+  n_test?: number;
+  test_seasons?: number[];
+};
+
 export const api = {
   officialStandings: (seg = 0, year?: number, kind = "A") =>
     get<OfficialStandingsResponse>(`/api/v1/standings?season_code=${seg}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 120),
@@ -459,6 +494,10 @@ export const api = {
   // 三軸 availability，取代舊首頁十餘組請求（blueprint §8.4）。revalidate=120 對齊賽事類。
   dailySummary: (kind = "A", season?: number) =>
     get<DailySummary>(`/api/v1/daily/summary?kind_code=${kind}${season ? `&season=${season}` : ""}`, 120),
+  // /methodology 賽前勝率段：正式回測紀錄與舊全特徵 benchmark 對照。
+  pregameBacktest: () =>
+    get<PregameBacktestResponse>("/api/v1/outcome/pregame/backtest", 600),
+  outcomeBenchmark: () => get<OutcomeBenchmarkResponse>("/api/v1/outcome/backtest", 600),
   playersRoster: (season?: number) =>
     get<{
       season: number;
