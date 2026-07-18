@@ -1,4 +1,5 @@
 from scripts.audit_game_recap_data import (
+    audit_game_events,
     classify_tracking_availability,
     legacy_pa_starts,
     pitch_linkage_risks,
@@ -81,3 +82,25 @@ def test_tracking_gap_distinguishes_unobserved_equipment_from_expected_missing()
     assert classify_tracking_availability(
         game_started=True, game_pitch_count=120, venue_tracked_games=3
     ) == "available"
+
+
+def test_game_audit_keeps_denominators_and_risk_flags_separate() -> None:
+    events = [_event(i, f"H{i}", order=i) for i in range(1, 10)]
+    events.extend(
+        [
+            _event(10, "H1", order=1),
+            {**_event(11, None, change=True), "content": "更換投手"},
+            {**_event(12, "H2", order=2), "action_name": ""},
+        ]
+    )
+
+    result = audit_game_events(events, box_pa=11)
+
+    assert result.box_pa == 11
+    assert result.run_dist_pa == 9
+    assert result.winprob_pa == 9
+    assert result.frontend_pa == 11
+    assert result.blank_action_rows == 11
+    assert result.change_rows == 1
+    assert result.pitching_change_rows == 1
+    assert result.repeated_matchup_keys == 2

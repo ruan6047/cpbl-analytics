@@ -16,6 +16,19 @@ class PitchLinkageRisks:
     ambiguous_plate_appearances: int
 
 
+@dataclass(frozen=True)
+class GameEventAudit:
+    box_pa: int
+    run_dist_pa: int
+    winprob_pa: int
+    frontend_pa: int
+    blank_action_rows: int
+    change_rows: int
+    pitching_change_rows: int
+    repeated_matchup_keys: int
+    repeated_matchup_pas: int
+
+
 def _usable(event: Event) -> bool:
     return not event.get("is_change_player") and bool(event.get("hitter_acnt"))
 
@@ -92,3 +105,24 @@ def classify_tracking_availability(
     if venue_tracked_games > 0:
         return "expected_missing"
     return "equipment_unobserved"
+
+
+def audit_game_events(events: list[Event], *, box_pa: int) -> GameEventAudit:
+    """彙整單場三套近似 PA 分母與資料風險，不宣稱任何一套是 canonical。"""
+    starts = legacy_pa_starts(events)
+    by_event_no = {str(event["main_event_no"]): event for event in events}
+    frontend_starts = [by_event_no[event_no] for event_no in starts["frontend"]]
+    linkage = pitch_linkage_risks(frontend_starts)
+    usable = [event for event in events if _usable(event)]
+    change_rows = [event for event in events if event.get("is_change_player")]
+    return GameEventAudit(
+        box_pa=box_pa,
+        run_dist_pa=len(starts["run_dist"]),
+        winprob_pa=len(starts["winprob"]),
+        frontend_pa=len(starts["frontend"]),
+        blank_action_rows=sum(not str(event.get("action_name") or "").strip() for event in usable),
+        change_rows=len(change_rows),
+        pitching_change_rows=sum("投手" in str(event.get("content") or "") for event in change_rows),
+        repeated_matchup_keys=linkage.ambiguous_keys,
+        repeated_matchup_pas=linkage.ambiguous_plate_appearances,
+    )
