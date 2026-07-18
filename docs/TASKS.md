@@ -22,7 +22,7 @@
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
 | [OPS-REFRESH1](tasks/OPS-REFRESH1.md) | INIT-PRODUCT-UX | T4 | 白天自動刷新與失敗快篩 | GPT-5@Codex（修正） | `ai/gpt-5-codex/OPS-REFRESH1 @ .claude/worktrees/ops-refresh1-execution` | 2 | ↩退回 | ⏸未部署 | 2026-07-17T19:05:00+08:00 |
 | [TEAM-STYLE1](tasks/TEAM-STYLE1.md) | — | T4 | 球隊球風研究 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
-| [UX-GAME-HOME1](tasks/UX-GAME-HOME1.md) | INIT-GAME-RECAP | T3 | 最近比賽日與下一批賽事首頁 | Opus-4.8@Claude Code | `ai/opus-4-8/UX-GAME-HOME1 @ .claude/worktrees/ux-game-home1-execution` | 1 | 🔨執行中 | ⏸未部署 | 2026-07-18T08:41:18+08:00 |
+| [UX-GAME-HOME1](tasks/UX-GAME-HOME1.md) | INIT-GAME-RECAP | T3 | 最近比賽日與下一批賽事首頁 | 待指派（獨立查核） | `ai/opus-4-8/UX-GAME-HOME1 @ .claude/worktrees/ux-game-home1-execution` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-18T09:05:00+08:00 |
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
 | [UX-MATCHUP1](tasks/UX-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | /matchups 查詢式頁面重製 | Fable-5@Claude Code | `ai/fable-5/UX-MATCHUP1 @ .claude/worktrees/ux-matchup1-execution` | 1 | 🔨執行中 | ⏸未部署 | 2026-07-18T08:45:00+08:00 |
