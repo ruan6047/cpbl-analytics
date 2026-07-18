@@ -10,12 +10,12 @@
 
 ## 目標與邊界
 
-- 目標結果：以低風險、可重現證據決定遠端無人值守 crawler 應採 VPS 直連、合規台灣出口，
-  或住宅網路 worker；產出可交給後續 implementation 卡的網路與安全契約。
+- 目標結果：先核可低風險 DEBUG probe contract，再以可重現證據決定遠端無人值守 crawler
+  應採 VPS 直連、合規台灣出口或住宅網路 worker；產出可交給 shadow／cutover 卡的網路與安全契約。
 - 成功條件：兩種出口使用同一 probe schema；能區分可達、challenge、redirect loop、封鎖與
   transient failure；完成路線比較及明確 GO／NO-GO／補研究結論。
-- 非目標：不寫 DB、不跑完整 Playwright crawler、不解 challenge、不偽造身份、不連續重試、
-  不採購代理、不部署 production 排程，也不宣稱單次成功代表長期可靠。
+- 非目標：本 Discovery 不寫 probe code、不寫 DB、不跑完整 Playwright crawler、不解 challenge、
+  不偽造身份、不連續重試、不採購代理、不部署 production 排程，也不宣稱單次成功代表長期可靠。
 
 ## 證據與假設
 
@@ -31,4 +31,5 @@
 ## 決策
 
 - 需求方確認：ruan6047／2026-07-18／本 task 對話。
-- 結論：進入 Discovery；尚未核准任何遠端 crawler 實作或 production 部署。
+- 結論：進入分階段 Discovery；只可先核可 `OPS-REMOTE-PROBE1` 的安全 DEBUG contract，
+  路線、shadow worker 與 production cutover 逐 Gate 解鎖，尚未核准遠端 crawler 或 production 部署。

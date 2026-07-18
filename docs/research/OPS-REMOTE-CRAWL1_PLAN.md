@@ -32,3 +32,12 @@
 - 發現：待執行。
 - 對 Discovery／Design 的影響：待證據矩陣完成後決定 GO／NO-GO 或補研究。
 - 需求方確認：ruan6047／2026-07-18；implementation 仍須另開 T4 卡。
+
+## 分階段交付
+
+1. `OPS-REMOTE-PROBE1`：安全 DEBUG CLI 與 fake transport 契約，不寫 DB。
+2. `OPS-REMOTE-ROUTE1`：三路線跨時窗 evidence matrix 與 Discovery GO／NO-GO。
+3. `OPS-REMOTE-WORKER1`：只對 GO 路線做隔離 shadow crawler，禁止 production 寫入。
+4. `OPS-REMOTE-CUTOVER1`：production canary、跨主機互斥、備份、回滾與多日驗證。
+
+完整依賴與完成條件見 [`../../ops-remote-crawler-rollout.md`](../../ops-remote-crawler-rollout.md)。
