@@ -6,6 +6,7 @@ import csv
 import hashlib
 import json
 import re
+import uuid
 from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -13,6 +14,7 @@ from typing import Any
 from urllib.parse import quote, urlsplit
 
 import httpx
+import psycopg
 from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 
@@ -80,6 +82,23 @@ class ValidatedSheet:
     total_rows: int
 
 
+@dataclass(frozen=True)
+class IngestReport:
+    run_id: uuid.UUID
+    status: str
+    total_rows: int
+    accepted_rows: int
+    unchanged_rows: int
+    rejected_rows: int
+    errors: tuple[RowError, ...]
+    source_digest: str
+
+    def as_dict(self) -> dict[str, Any]:
+        output = asdict(self)
+        output["run_id"] = str(self.run_id)
+        return output
+
+
 def read_csv_values(path: Path) -> list[list[str]]:
     with path.open(encoding="utf-8-sig", newline="") as handle:
         return [list(row) for row in csv.reader(handle)]
@@ -125,6 +144,8 @@ def fetch_google_sheet_values(
         payload = response.json()
     except ValueError as exc:
         raise EditorialSourceError("Google Sheets 回應格式無效") from exc
+    if not isinstance(payload, dict):
+        raise EditorialSourceError("Google Sheets 回應格式無效")
     values = payload.get("values", [])
     if not isinstance(values, list) or any(not isinstance(row, list) for row in values):
         raise EditorialSourceError("Google Sheets 回應格式無效")
@@ -174,6 +195,176 @@ def validate_sheet(values: list[list[str]]) -> ValidatedSheet:
     return ValidatedSheet(tuple(rows), tuple(errors), digest, total_rows)
 
 
+def ingest_sheet(
+    connection: psycopg.Connection,
+    values: list[list[str]],
+    *,
+    source_kind: str,
+    source_ref: str,
+    source_range: str | None = None,
+    now: datetime | None = None,
+    run_id: uuid.UUID | None = None,
+) -> IngestReport:
+    if source_kind not in {"google_sheets", "csv_fixture"}:
+        raise ValueError("unsupported source_kind")
+    validated = validate_sheet(values)
+    timestamp = (now or datetime.now(UTC)).astimezone(UTC)
+    current_run_id = run_id or uuid.uuid4()
+    if validated.errors:
+        report = _rejected_report(current_run_id, validated, validated.errors)
+        _insert_run(connection, report, source_kind, source_ref, source_range, timestamp)
+        return report
+
+    # Serializes all editorial writers even when the external scheduler lock fails.
+    connection.execute("SELECT pg_advisory_xact_lock(%s)", (60_202_607_19,))
+    latest = _latest_revisions(connection, validated.rows)
+    conflicts: list[RowError] = []
+    unchanged: set[str] = set()
+    for row in validated.rows:
+        existing = latest.get(row.content_id)
+        if existing is None:
+            continue
+        existing_at, existing_hash = existing
+        if existing_at > row.source_updated_at:
+            conflicts.append(
+                RowError(row.row_number, "source_updated_at", "stale_version", "資料庫已有較新版本")
+            )
+        elif existing_at == row.source_updated_at and existing_hash != row.content_hash:
+            conflicts.append(
+                RowError(
+                    row.row_number,
+                    "source_updated_at",
+                    "version_conflict",
+                    "同一版本時間的內容不一致",
+                )
+            )
+        elif existing_at == row.source_updated_at:
+            unchanged.add(row.content_id)
+
+    if conflicts:
+        report = _rejected_report(current_run_id, validated, tuple(conflicts))
+        _insert_run(connection, report, source_kind, source_ref, source_range, timestamp)
+        return report
+
+    changed_rows = tuple(row for row in validated.rows if row.content_id not in unchanged)
+    report = IngestReport(
+        run_id=current_run_id,
+        status="accepted",
+        total_rows=validated.total_rows,
+        accepted_rows=len(changed_rows),
+        unchanged_rows=len(unchanged),
+        rejected_rows=0,
+        errors=(),
+        source_digest=validated.source_digest,
+    )
+    _insert_run(connection, report, source_kind, source_ref, source_range, timestamp)
+    if changed_rows:
+        with connection.cursor() as cursor:
+            cursor.executemany(
+                """
+                INSERT INTO cpbl.editorial_content_revisions (
+                    content_id, source_updated_at, ingest_run_id, source_row_number,
+                    content_type, status, team_code, title, summary, body_markdown,
+                    source_url, source_label, valid_from, valid_until, updated_by,
+                    withdrawal_reason, content_hash
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                )
+                """,
+                [
+                    (
+                        row.content_id,
+                        row.source_updated_at,
+                        current_run_id,
+                        row.row_number,
+                        row.content_type,
+                        row.status,
+                        row.team_code,
+                        row.title,
+                        row.summary,
+                        row.body_markdown,
+                        row.source_url,
+                        row.source_label,
+                        row.valid_from,
+                        row.valid_until,
+                        row.updated_by,
+                        row.withdrawal_reason,
+                        row.content_hash,
+                    )
+                    for row in changed_rows
+                ],
+            )
+    return report
+
+
+def _latest_revisions(
+    connection: psycopg.Connection, rows: tuple[EditorialRow, ...]
+) -> dict[str, tuple[datetime, str]]:
+    if not rows:
+        return {}
+    result = connection.execute(
+        """
+        SELECT DISTINCT ON (content_id) content_id, source_updated_at, content_hash
+        FROM cpbl.editorial_content_revisions
+        WHERE content_id = ANY(%s)
+        ORDER BY content_id, source_updated_at DESC
+        """,
+        ([row.content_id for row in rows],),
+    ).fetchall()
+    return {str(content_id): (source_updated_at, str(content_hash)) for content_id, source_updated_at, content_hash in result}
+
+
+def _rejected_report(
+    run_id: uuid.UUID,
+    validated: ValidatedSheet,
+    errors: tuple[RowError, ...],
+) -> IngestReport:
+    return IngestReport(
+        run_id=run_id,
+        status="rejected",
+        total_rows=validated.total_rows,
+        accepted_rows=0,
+        unchanged_rows=0,
+        rejected_rows=len({error.row for error in errors}),
+        errors=errors,
+        source_digest=validated.source_digest,
+    )
+
+
+def _insert_run(
+    connection: psycopg.Connection,
+    report: IngestReport,
+    source_kind: str,
+    source_ref: str,
+    source_range: str | None,
+    timestamp: datetime,
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO cpbl.editorial_ingest_runs (
+            run_id, source_kind, source_ref, source_range, source_digest, status,
+            total_rows, accepted_rows, unchanged_rows, rejected_rows, error_report,
+            started_at, completed_at
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+        """,
+        (
+            report.run_id,
+            source_kind,
+            source_ref,
+            source_range,
+            report.source_digest,
+            report.status,
+            report.total_rows,
+            report.accepted_rows,
+            report.unchanged_rows,
+            report.rejected_rows,
+            json.dumps(errors_as_dicts(report.errors), ensure_ascii=False),
+            timestamp,
+            timestamp,
+        ),
+    )
+
+
 def _parse_row(row_number: int, data: dict[str, str]) -> tuple[EditorialRow | None, list[RowError]]:
     errors: list[RowError] = []
 
@@ -190,6 +381,8 @@ def _parse_row(row_number: int, data: dict[str, str]) -> tuple[EditorialRow | No
         errors.append(RowError(row_number, "body_markdown", "length", "不得超過 20000 字元"))
     if len(data["team_code"]) > 20:
         errors.append(RowError(row_number, "team_code", "length", "不得超過 20 字元"))
+    if data["content_type"] == "cheering_culture" and not data["team_code"]:
+        errors.append(RowError(row_number, "team_code", "required", "應援文化必須指定球隊"))
     if not CONTENT_ID_RE.fullmatch(data["content_id"]):
         errors.append(RowError(row_number, "content_id", "format", "格式必須為小寫 slug"))
     if data["content_type"] not in CONTENT_TYPES:

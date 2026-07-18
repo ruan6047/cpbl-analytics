@@ -1,12 +1,21 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
+import psycopg
 import pytest
 
-from cpbl.ingest.editorial import HEADERS, EditorialSourceError, validate_sheet
+from cpbl.ingest.editorial import (
+    HEADERS,
+    EditorialSourceError,
+    ingest_sheet,
+    validate_sheet,
+)
+from cpbl.ingest.run_ingest_editorial import run
 
 MIGRATION = Path(__file__).parents[1] / "migrations" / "060_editorial_content.sql"
+FIXTURE = Path(__file__).parent / "fixtures" / "editorial_content.csv"
 
 
 def test_editorial_migration_is_additive_and_rerunnable() -> None:
@@ -89,6 +98,7 @@ def test_validate_sheet_accepts_explicit_withdrawal() -> None:
         ({"source_updated_at": "2026-07-19T01:00:00"}, "source_updated_at"),
         ({"status": "withdrawn"}, "withdrawal_reason"),
         ({"withdrawal_reason": "不該出現"}, "withdrawal_reason"),
+        ({"content_type": "cheering_culture", "team_code": ""}, "team_code"),
     ],
 )
 def test_validate_sheet_rejects_bad_rows(overrides: dict[str, str], error_field: str) -> None:
@@ -133,3 +143,110 @@ def test_source_error_does_not_include_remote_response_body(monkeypatch: pytest.
     assert "HTTP 403" in str(raised.value)
     assert "remote-secret-body" not in str(raised.value)
     assert "secret-token" not in str(raised.value)
+
+
+def test_fixture_validate_only_is_credential_free(capsys: pytest.CaptureFixture[str]) -> None:
+    assert run(["--csv", str(FIXTURE), "--validate-only"]) == 0
+
+    output = capsys.readouterr().out
+    assert '"status": "valid"' in output
+    assert "fixture@example.com" not in output
+    assert "測試內容" not in output
+
+
+@pytest.mark.skipif(
+    not os.getenv("EDITORIAL_TEST_DATABASE_URL"),
+    reason="requires CARD_ID-isolated PostgreSQL",
+)
+def test_ingest_is_idempotent_fail_closed_and_withdrawable() -> None:
+    database_url = os.environ["EDITORIAL_TEST_DATABASE_URL"]
+    assert database_url.rsplit("/", 1)[-1] == "cpbl_data_editorial1"
+    content_id = "integration-theme-day-2026"
+    run_ids = []
+    base = [list(HEADERS), _row(content_id=content_id)]
+
+    with psycopg.connect(database_url) as connection:
+        try:
+            first = ingest_sheet(
+                connection, base, source_kind="csv_fixture", source_ref="integration"
+            )
+            run_ids.append(first.run_id)
+            assert (first.status, first.accepted_rows, first.unchanged_rows) == ("accepted", 1, 0)
+
+            rerun = ingest_sheet(
+                connection, base, source_kind="csv_fixture", source_ref="integration"
+            )
+            run_ids.append(rerun.run_id)
+            assert (rerun.status, rerun.accepted_rows, rerun.unchanged_rows) == (
+                "accepted",
+                0,
+                1,
+            )
+
+            collision = ingest_sheet(
+                connection,
+                [list(HEADERS), _row(content_id=content_id, title="同時間不同內容")],
+                source_kind="csv_fixture",
+                source_ref="integration",
+            )
+            run_ids.append(collision.run_id)
+            assert collision.status == "rejected"
+            assert collision.errors[0].code == "version_conflict"
+
+            withdrawal = ingest_sheet(
+                connection,
+                [
+                    list(HEADERS),
+                    _row(
+                        content_id=content_id,
+                        status="withdrawn",
+                        withdrawal_reason="活動取消",
+                        source_updated_at="2026-07-19T03:00:00+08:00",
+                    ),
+                ],
+                source_kind="csv_fixture",
+                source_ref="integration",
+            )
+            run_ids.append(withdrawal.run_id)
+            assert withdrawal.status == "accepted"
+            current = connection.execute(
+                "SELECT status, withdrawal_reason FROM cpbl.editorial_content_current "
+                "WHERE content_id = %s",
+                (content_id,),
+            ).fetchone()
+            assert current == ("withdrawn", "活動取消")
+
+            stale = ingest_sheet(
+                connection, base, source_kind="csv_fixture", source_ref="integration"
+            )
+            run_ids.append(stale.run_id)
+            assert stale.status == "rejected"
+            assert stale.errors[0].code == "stale_version"
+
+            invalid = ingest_sheet(
+                connection,
+                [list(HEADERS), _row(content_id=content_id, source_url="http://example.com")],
+                source_kind="csv_fixture",
+                source_ref="integration",
+            )
+            run_ids.append(invalid.run_id)
+            assert invalid.status == "rejected"
+            saved_errors = connection.execute(
+                "SELECT error_report FROM cpbl.editorial_ingest_runs WHERE run_id = %s",
+                (invalid.run_id,),
+            ).fetchone()
+            assert saved_errors is not None
+            assert saved_errors[0][0]["code"] == "url"
+
+            revisions = connection.execute(
+                "SELECT count(*) FROM cpbl.editorial_content_revisions WHERE content_id = %s",
+                (content_id,),
+            ).fetchone()
+            assert revisions == (2,)
+        finally:
+            connection.execute(
+                "DELETE FROM cpbl.editorial_content_revisions WHERE content_id = %s", (content_id,)
+            )
+            connection.execute(
+                "DELETE FROM cpbl.editorial_ingest_runs WHERE run_id = ANY(%s)", (run_ids,)
+            )
