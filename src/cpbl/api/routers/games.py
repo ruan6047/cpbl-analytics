@@ -6,15 +6,11 @@ from functools import lru_cache
 
 from fastapi import APIRouter, Query
 
-from cpbl.api.helpers import DEFAULT_SEASON, _batted_result, _dicts
+from cpbl.api.helpers import DEFAULT_SEASON, _batted_result, _dicts, kinds_of
 from cpbl.db import conn
 from cpbl.models import matchup, pitcher_decisions
 
 router = APIRouter()
-
-# 月曆層級 → 該層級包含的所有 kind_code（含季後賽）：
-# 一軍 A ＋ 季後挑戰賽 E ＋ 台灣大賽 C；二軍 D ＋ 二軍季後 F。季後賽併入同層月曆顯示。
-_CALENDAR_KINDS = {"A": ("A", "E", "C"), "D": ("D", "F")}
 
 
 @router.get("/api/v1/games/calendar")
@@ -24,7 +20,7 @@ def games_calendar(
 ) -> dict:
     """整季所有場次（已完成 + 未開打，含季後賽）供月曆呈現。每筆帶比分/狀態/勝敗投/先發/
     球場/觀眾/時長/延賽備註。completed 由 home_score+away_score>0 判定。"""
-    kinds = list(_CALENDAR_KINDS.get(kind_code, (kind_code,)))
+    kinds = kinds_of(kind_code)
     with conn() as c:
         cur = c.cursor()
         cur.execute(

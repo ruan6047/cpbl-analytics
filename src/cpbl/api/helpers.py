@@ -1,4 +1,4 @@
-"""API 共用工具：預設球季、cursor→dict、四捨五入、特徵字串解析、局數記法換算。"""
+"""API 共用工具：預設球季、層級 kind 群組、cursor→dict、四捨五入、特徵字串解析、局數記法換算。"""
 
 from __future__ import annotations
 
@@ -6,6 +6,15 @@ from datetime import date as _date
 from typing import Any
 
 DEFAULT_SEASON = _date.today().year
+
+# 層級 → 該層級包含的所有 kind_code（含季後賽）：
+# 一軍 A ＋ 季後挑戰賽 E ＋ 台灣大賽 C；二軍 D ＋ 二軍季後 F。季後賽併入同層顯示。
+KIND_GROUPS = {"A": ("A", "E", "C"), "D": ("D", "F")}
+
+
+def kinds_of(kind_code: str) -> list[str]:
+    """層級代碼 → 要查的 kind_code 清單；未知代碼原樣查（不猜測）。"""
+    return list(KIND_GROUPS.get(kind_code, (kind_code,)))
 
 
 def _batted_result(content: str | None) -> str:
