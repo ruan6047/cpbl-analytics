@@ -71,7 +71,7 @@ launchctl bootout gui/$(id -u)/com.cpbl.scrape-daily                            
 1. `logs/last-status.json` — 最近一次手動或排程執行；含 `state`、`trigger`、
    `failed_phase=scrape|sync`、兩階段 exit code 與 log tail。`logs/last-launchd-status.json`
    只由 launchd 更新，不會被手動 fallback 覆蓋。
-2. `logs/refresh-YYYYMMDD-HHMM.log` — 該次完整輸出（last-status.json 的 `log` 指向它）。
+2. `logs/refresh-YYYYMMDD-HHMMSS.log` — 該次完整輸出（last-status.json 的 `log` 指向它）。
 3. `SELECT * FROM cpbl.refresh_log WHERE ok=false ORDER BY refreshed_at DESC LIMIT 1` — app 層失敗（含 `note`、`detail.error`）。
 
 Fail-fast：
@@ -84,26 +84,32 @@ docker compose exec -T db psql -U cpbl -d cpbl -c \
 ```
 
 檢查器 exit code：`0` 成功、`2` 排程未觸發／過期、`3` 爬取失敗、`4` 同步失敗、
-`5` 狀態檔無效、`6` 尚在執行。`exit=127` = 本機 DB 容器沒開；token 抽不到 = 官網
-挑戰／改版（見 `cpbl_site._new_session`）。手動 fallback 直接跑 `scripts/scrape-daily.sh`
+`5` 狀態檔無效、`6` 尚在執行、`7` 執行超過 180 分鐘而視為死亡／停滯。手動與 launchd
+共用 `/private/tmp/cpbl-analytics-refresh.lock` 互斥；已有執行時第二次啟動回 `75`，且不覆寫狀態檔。
+`exit=127` = 本機 DB 容器沒開；token 抽不到 = 官網挑戰／改版（見
+`cpbl_site._new_session`）。手動 fallback 直接跑 `scripts/scrape-daily.sh`
 （預設 `trigger=manual`）；若爬取已成功、只有 sync 失敗，修正 production 原因後應以
 `SKIP_SCRAPE=1 WITH_DETAIL=1 scripts/refresh-cpbl-prod.sh` 重試，**不可再次冷啟動 crawler**。
 
 ### 同步流程（本機 → 生產）
 
 每日同步採逐表冪等 upsert，且只動 `cpbl` schema；禁止在 VPS 爬官網。標準入口已內建
-production 備份、gzip 完整性檢查、migration、upsert、模型重建、`prod-sync` refresh marker
-與 `/api/info.metrics.last_refresh` 15 分鐘 freshness gate：
+production 備份、gzip 完整性檢查、migration、upsert、模型重建，以及真實賽事指標與本機
+對帳。只有 `/api/info.metrics.last_game_date` 與 `season_games_completed` 都吻合後才寫入
+`prod-sync` refresh marker，最後再檢查 `/api/info.metrics.last_refresh` 的 15 分鐘 freshness gate：
 
 ```bash
 SKIP_SCRAPE=1 WITH_DETAIL=1 scripts/refresh-cpbl-prod.sh
 ```
 
-每次執行都會先產生 `/tmp/cpbl-prod-YYYYMMDD-HHMMSS.sql.gz`；看見「已驗證備份」前不得
-進 production migration。回復時只還原該 `cpbl` schema 備份，不碰主站其他 schema：
+每次執行都會先在
+`~/Library/Application Support/cpbl-analytics/backups/cpbl-prod-YYYYMMDD-HHMMSS-<pid>.sql.gz`
+產生完整備份，驗證後才晉升，預設保留最近 7 份（可用 `BACKUP_DIR`／`BACKUP_KEEP` 覆蓋）；
+看見「已驗證備份」前不得進 production migration。回復時只還原該 `cpbl` schema 備份，
+不碰主站其他 schema：
 
 ```bash
-gunzip -c /tmp/cpbl-prod-<timestamp>.sql.gz | \
+gunzip -c "$HOME/Library/Application Support/cpbl-analytics/backups/cpbl-prod-<timestamp>-<pid>.sql.gz" | \
   ssh root@45.76.100.29 \
   'cd /opt/personal-website && set -a && . ./.env && docker exec -i prod_pg psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME"'
 ```

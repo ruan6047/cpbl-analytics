@@ -20,7 +20,7 @@
 | [INIT-PRODUCT-UX](tasks/INIT-PRODUCT-UX.md) | INIT-PRODUCT-UX | T3 | 全站產品與 UI/UX 收斂 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-17T04:44:24+08:00 |
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
-| [OPS-REFRESH1](tasks/OPS-REFRESH1.md) | INIT-PRODUCT-UX | T4 | 白天自動刷新與失敗快篩 | 待指派（Claude Opus 4.8 復審） | `ai/gpt-5-codex/OPS-REFRESH1 @ /private/tmp/cpbl-analytics-OPS-REFRESH1` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-17T12:45:00+08:00 |
+| [OPS-REFRESH1](tasks/OPS-REFRESH1.md) | INIT-PRODUCT-UX | T4 | 白天自動刷新與失敗快篩 | GPT-5@Codex（修正） | `ai/gpt-5-codex/OPS-REFRESH1 @ .claude/worktrees/ops-refresh1-execution` | 2 | ↩退回 | ⏸未部署 | 2026-07-18T13:40:44+08:00 |
 | [TEAM-STYLE1](tasks/TEAM-STYLE1.md) | — | T4 | 球隊球風研究 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
 | [UX-GAME-HOME1](tasks/UX-GAME-HOME1.md) | INIT-GAME-RECAP | T3 | 最近比賽日與下一批賽事首頁 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:39+08:00 |
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:11+08:00 |

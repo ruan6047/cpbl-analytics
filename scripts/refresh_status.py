@@ -17,6 +17,7 @@ EXIT_SCRAPE_FAILED = 3
 EXIT_SYNC_FAILED = 4
 EXIT_INVALID_STATUS = 5
 EXIT_RUNNING = 6
+EXIT_STALE_RUNNING = 7
 
 
 def _bool(value: str) -> bool:
@@ -138,12 +139,30 @@ def command_check(args: argparse.Namespace) -> int:
         print(f"INVALID_STATUS path={path} error={error}")
         return EXIT_INVALID_STATUS
 
-    if args.scheduled:
+    state = payload.get("state")
+    now = None
+    started_at = None
+    if args.scheduled or state == "running":
         try:
             now = _parse_timestamp(args.now) if args.now else datetime.now().astimezone()
             started_at = _parse_timestamp(payload["started_at"])
-            deadline = time.fromisoformat(args.deadline)
         except (KeyError, TypeError, ValueError) as error:
+            print(f"INVALID_STATUS path={path} error={error}")
+            return EXIT_INVALID_STATUS
+
+    if state == "running" and now is not None and started_at is not None:
+        age = now - started_at
+        if age > timedelta(minutes=args.running_timeout_minutes):
+            print(
+                "STALE_RUNNING "
+                f"trigger={payload.get('trigger')} started_at={payload.get('started_at')} age={age}"
+            )
+            return EXIT_STALE_RUNNING
+
+    if args.scheduled and now is not None and started_at is not None:
+        try:
+            deadline = time.fromisoformat(args.deadline)
+        except ValueError as error:
             print(f"INVALID_STATUS path={path} error={error}")
             return EXIT_INVALID_STATUS
         expected_date = _expected_schedule_date(now, deadline)
@@ -154,7 +173,6 @@ def command_check(args: argparse.Namespace) -> int:
             )
             return EXIT_NOT_TRIGGERED
 
-    state = payload.get("state")
     if state == "running":
         print(f"RUNNING trigger={payload.get('trigger')} started_at={payload.get('started_at')}")
         return EXIT_RUNNING
@@ -206,6 +224,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     check.add_argument("--scheduled", action="store_true")
     check.add_argument("--deadline", default="11:00")
+    check.add_argument("--running-timeout-minutes", type=int, default=180)
     check.add_argument("--now", help="ISO timestamp override for deterministic checks")
     check.set_defaults(handler=command_check)
     return parser

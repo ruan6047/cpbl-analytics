@@ -19,16 +19,11 @@ set -uo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_DIR"
-mkdir -p logs
-
-TS="$(date +%Y%m%d-%H%M)"
-LOG="logs/refresh-${TS}.log"
-STATUS="logs/last-status.json"
-SCHEDULED_STATUS="logs/last-launchd-status.json"
 UV="$(command -v uv || echo "$HOME/.local/bin/uv")"
 ARGS="${1:-}"   # "fast" → 只更新 games+累計
 TRIGGER="${REFRESH_TRIGGER:-manual}"
 STARTED_AT="$(date '+%Y-%m-%dT%H:%M:%S%z')"
+LOCK_DIR="${REFRESH_LOCK_DIR:-/private/tmp/cpbl-analytics-refresh.lock}"
 SYNC_ENABLED=1
 [ "${SYNC_PROD:-1}" = "0" ] && SYNC_ENABLED=0
 
@@ -40,6 +35,41 @@ if [ -n "$ARGS" ] && [ "$ARGS" != "fast" ]; then
   echo "參數只接受 fast" >&2
   exit 64
 fi
+
+release_lock() {
+  if [ -f "$LOCK_DIR/pid" ] && [ "$(cat "$LOCK_DIR/pid" 2>/dev/null)" = "$$" ]; then
+    rm -f "$LOCK_DIR/pid"
+    rmdir "$LOCK_DIR" 2>/dev/null || true
+  fi
+}
+
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  LOCK_PID="$(cat "$LOCK_DIR/pid" 2>/dev/null || true)"
+  if [ -z "$LOCK_PID" ]; then
+    # 可能是另一個程序剛 mkdir、尚未寫入 pid；不可把它誤判成 stale 後刪除。
+    echo "refresh lock unavailable: ${LOCK_DIR}" >&2
+    exit 75
+  fi
+  if [ -n "$LOCK_PID" ] && kill -0 "$LOCK_PID" 2>/dev/null; then
+    echo "refresh already running: pid=${LOCK_PID}" >&2
+    exit 75
+  fi
+  rm -f "$LOCK_DIR/pid" 2>/dev/null
+  if ! rmdir "$LOCK_DIR" 2>/dev/null || ! mkdir "$LOCK_DIR" 2>/dev/null; then
+    echo "refresh lock unavailable: ${LOCK_DIR}" >&2
+    exit 75
+  fi
+fi
+printf '%s\n' "$$" > "$LOCK_DIR/pid"
+trap release_lock EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM HUP
+
+mkdir -p logs
+TS="$(date +%Y%m%d-%H%M%S)"
+LOG="logs/refresh-${TS}.log"
+STATUS="logs/last-status.json"
+SCHEDULED_STATUS="logs/last-launchd-status.json"
 
 echo "[$(date '+%F %T')] start: cpbl-refresh-recent ${ARGS}" | tee "$LOG"
 if ! python3 "$REPO_DIR/scripts/refresh_status.py" start \

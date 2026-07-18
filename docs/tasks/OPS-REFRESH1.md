@@ -44,3 +44,13 @@
   sync failure／expired／custom deadline 六條決定性測試，且 subprocess 明確使用 macOS
   `/usr/bin/python3`。同步進度統一為 `1/4`–`4/4`。聚焦 `17 passed`、全套
   `262 passed, 10 skipped`；ruff、shell syntax、plist lint、Ledger check 均通過。
+- 2026-07-18 Claude Opus 4.8 T4 查核退回（iteration 2）：P0 指出 stdin 餵入 production
+  `psql` 未啟用 `ON_ERROR_STOP`，SQL 錯誤可能 rollback 卻以 exit 0 寫入成功 marker；另有
+  running 無時效上限、手動與 launchd 無互斥、備份位於 `/tmp` 且不輪替三項 P2。
+- iteration 2 修正：所有逐表 sync 的 `psql` 加 `-v ON_ERROR_STOP=1`，新增 SQL error
+  全鏈路回歸測試，確認整體保留非零碼且 `failed_phase=sync`；marker 前先對帳真實
+  `last_game_date`／`season_games_completed`，不吻合不得宣告成功。running 超過 180 分鐘
+  回 `STALE_RUNNING`／exit 7；每日腳本以原子 mkdir lock 阻止 crawler 併發（exit 75）；
+  備份移至使用者持久目錄並預設保留最近 7 份。聚焦 `26 passed`；完整 suite 以本
+  worktree `src` 隔離共用 editable venv 後為 `271 passed, 10 skipped`；ruff、shell syntax、
+  plist lint、macOS `/usr/bin/python3` helper、Ledger 與 diff check 均通過。
