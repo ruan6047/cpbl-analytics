@@ -20,13 +20,12 @@
 | [INIT-PRODUCT-UX](tasks/INIT-PRODUCT-UX.md) | INIT-PRODUCT-UX | T3 | 全站產品與 UI/UX 收斂 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-17T04:44:24+08:00 |
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
-| [OPS-REFRESH1](tasks/OPS-REFRESH1.md) | INIT-PRODUCT-UX | T4 | 白天自動刷新與失敗快篩 | ruan6047（push／部署／release） | `ai/gpt-5-codex/OPS-REFRESH1 @ .claude/worktrees/ops-refresh1-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-18T18:24:04+08:00 |
 | [OPS-REMOTE-CRAWL1](tasks/OPS-REMOTE-CRAWL1.md) | INIT-PRODUCT-UX | T3 | 遠端無人值守 crawler 可行性探測 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T18:10:23+08:00 |
 | [TEAM-STYLE1](tasks/TEAM-STYLE1.md) | — | T4 | 球隊球風研究 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
 | [UX-MATCHUP2](tasks/UX-MATCHUP2.md) | INIT-PRODUCT-UX | T4 | 投打對決整合球員個人頁 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:43+08:00 |
-| [UX-MODEL-METHOD1](tasks/UX-MODEL-METHOD1.md) | INIT-PRODUCT-UX | T3 | 模型方法與限制頁 | 待指派（查核者 GPT-5@Codex，≠ 執行者） | `ai/fable-5/UX-MODEL-METHOD1 @ .claude/worktrees/ux-model-method1-execution` | 3 | 🔍待查核 | ⏸未部署 | 2026-07-18T18:21:36+08:00 |
+| [UX-MODEL-METHOD1](tasks/UX-MODEL-METHOD1.md) | INIT-PRODUCT-UX | T3 | 模型方法與限制頁 | Fable-5@Claude Code（部署與 release 進行中） | `ai/fable-5/UX-MODEL-METHOD1 @ .claude/worktrees/ux-model-method1-execution` | 3 | 📦已合併 | ⏸未部署 | 2026-07-18T18:26:00+08:00 |
 | [UX-PA-SIM-MATCHUP1](tasks/UX-PA-SIM-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | Matchups 單一打席結果分布 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:33+08:00 |
 | [UX-PLAYER-IA1](tasks/UX-PLAYER-IA1.md) | INIT-PRODUCT-UX | T3 | 球員頁 IA 骨架與 prototype 決策 | Fable-5@Claude Code | `ai/fable-5/UX-PLAYER-IA1 @ .claude/worktrees/ux-player-ia1-execution` | 1 | 🔨執行中 | —不適用 | 2026-07-18T08:45:00+08:00 |
 | [UX-PLAYER-SECTIONS1](tasks/UX-PLAYER-SECTIONS1.md) | INIT-PRODUCT-UX | T3 | 球員頁分區內容遷移 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:32+08:00 |
