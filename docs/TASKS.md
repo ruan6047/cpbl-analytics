@@ -12,7 +12,7 @@
 | [DATA-EDITORIAL1](tasks/DATA-EDITORIAL1.md) | INIT-PRODUCT-UX | T4 | Google Sheet 編輯資料管道 | GPT-5@Codex | `ai/gpt-5-codex/DATA-EDITORIAL1 @ .claude/worktrees/data-editorial1-execution` | 1 | 🔨執行中 | ⏸未部署 | 2026-07-19T01:53:18+08:00 |
 | [DEP-PREDICT-LEGACY1](tasks/DEP-PREDICT-LEGACY1.md) | INIT-PRODUCT-UX | T3 | 舊預測體驗退場 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:29+08:00 |
 | [DOC-GAME-RECAP1](tasks/DOC-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 賽事復盤產品規格獨立查核 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T22:15:04+08:00 |
-| [GAME-RECAP-DATA1](tasks/GAME-RECAP-DATA1.md) | INIT-GAME-RECAP | T4 | 賽事復盤資料覆蓋與 canonical 契約稽核 | GPT-5@Codex | `ai/gpt-5-codex/GAME-RECAP-DATA1 @ .claude/worktrees/game-recap-data1-execution` | 1 | 🔨執行中 | —不適用 | 2026-07-19T01:39:00+08:00 |
+| [GAME-RECAP-DATA1](tasks/GAME-RECAP-DATA1.md) | INIT-GAME-RECAP | T4 | 賽事復盤資料覆蓋與 canonical 契約稽核 | 待指派（跨模型家族或人工查核者 ≠ GPT-5@Codex） | `ai/gpt-5-codex/GAME-RECAP-DATA1 @ .claude/worktrees/game-recap-data1-execution` | 1 | 🔍待查核 | —不適用 | 2026-07-19T01:59:27+08:00 |
 | [GAME-RECAP-PA1](tasks/GAME-RECAP-PA1.md) | INIT-GAME-RECAP | T4 | canonical 打席與逐球可靠對應 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:06+08:00 |
 | [GAME-RECAP-STATUS1](tasks/GAME-RECAP-STATUS1.md) | INIT-GAME-RECAP | T4 | 賽事狀態、資料可用性與 freshness API | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:07+08:00 |
 | [GAME-RECAP-WP-API1](tasks/GAME-RECAP-WP-API1.md) | INIT-GAME-RECAP | T4 | canonical WP／WPA public contract | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:09+08:00 |
