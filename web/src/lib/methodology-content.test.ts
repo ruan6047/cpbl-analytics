@@ -38,3 +38,10 @@ test("no-go 邊界：未上線模型不得出現能力暗示字眼", () => {
     assert.equal(corpus.includes(banned), false, `不得出現「${banned}」`);
   }
 });
+
+test("天敵禁詞：與 /matchups 紅線一致，methodology 全文（含 no-go 段）不得出現「天敵」斷言", () => {
+  // /matchups insight-state.test.ts 已禁「天敵」；對戰 credibility 一律用
+  // 「對戰劣勢／優勢候選」的描述性語氣，方法頁不得例外。
+  const corpus = JSON.stringify(METHODOLOGY_CONTENT) + JSON.stringify(NOT_ON_SITE);
+  assert.equal(corpus.includes("天敵"), false);
+});
