@@ -31,7 +31,7 @@
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
 | [UX-MATCHUP2](tasks/UX-MATCHUP2.md) | INIT-PRODUCT-UX | T4 | 投打對決整合球員個人頁 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:43+08:00 |
 | [UX-PA-SIM-MATCHUP1](tasks/UX-PA-SIM-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | Matchups 單一打席結果分布 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:33+08:00 |
-| [UX-PLAYER-IA1](tasks/UX-PLAYER-IA1.md) | INIT-PRODUCT-UX | T3 | 球員頁 IA 骨架與 prototype 決策 | GPT-5@Codex | `ai/gpt-5-codex/UX-PLAYER-IA1 @ .claude/worktrees/ux-player-ia1-execution` | 4 | 🔨執行中 | —不適用 | 2026-07-19T00:30:20+08:00 |
+| [UX-PLAYER-IA1](tasks/UX-PLAYER-IA1.md) | INIT-PRODUCT-UX | T3 | 球員頁 IA 骨架與 prototype 決策 | 待指派（獨立查核者 ≠ GPT-5@Codex） | `ai/gpt-5-codex/UX-PLAYER-IA1 @ .claude/worktrees/ux-player-ia1-execution` | 5 | 🔍待查核 | —不適用 | 2026-07-19T00:49:49+08:00 |
 | [UX-PLAYER-SECTIONS1](tasks/UX-PLAYER-SECTIONS1.md) | INIT-PRODUCT-UX | T3 | 球員頁分區內容遷移 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:32+08:00 |
 | [UX-RANKINGS1](tasks/UX-RANKINGS1.md) | INIT-PRODUCT-UX | T3 | 打者與投手排行減法 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:30+08:00 |
 | [UX-STANDINGS-FOCUS1](tasks/UX-STANDINGS-FOCUS1.md) | INIT-PRODUCT-UX | T3 | 戰績頁競爭脈絡收斂 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:34+08:00 |
