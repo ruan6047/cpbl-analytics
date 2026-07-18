@@ -1,17 +1,17 @@
 # OPS-REFRESH1 白天自動刷新與失敗快篩〔T4；🔴維運／資料正確性〕
 
 - 需求：ruan6047　規劃：GPT-5@Codex＋Fable-5　分支：`ai/<執行者>/OPS-REFRESH1`
-- 執行：待指派　查核：待指派（跨模型家族或人工，且 ≠ 執行）
+- 執行：GPT-5@Codex　查核：Claude Sonnet 5@Claude Code（跨模型家族）
 - Initiative：INIT-PRODUCT-UX　spec 基線：PRODUCT_UX_BLUEPRINT v0.2
-- DB：`db_scope: write`；local `cpbl`，production 同步另取 lock／備份　部署：是　環境：local＋production　PR：—　Merge SHA：—
+- DB：`db_scope: write`；local `cpbl`，production 同步另取 lock／備份　部署：是　環境：local＋production　PR：—　Merge SHA：`1e4572aa88a0f77ebddd40dd8c6b0459b9bb2375`
 - 範圍：[`PRODUCT_UX_BLUEPRINT.md`](../PRODUCT_UX_BLUEPRINT.md) §8.1、§9 Phase 0；[`AI_RUNBOOK.md`](../AI_RUNBOOK.md) §3
 - Discovery：launchd 已停用且 production cron 不可靠　Design：Design Gate N/A；屬維運可靠性，不改使用者流程
 
 ## 目標與驗收
 
-- [ ] 恢復 10:10 白天 launchd 排程並完成一次可重現測跑；手動 `scrape-daily.sh` 保持安全 fallback，禁止改成 VPS 爬蟲。
-- [ ] `last-status.json`、refresh log 與 DB `refresh_log` 能區分排程未觸發、爬取失敗與同步失敗，並提供 fail-fast 檢查方式。
-- [ ] 生產同步遵守備份、cpbl schema scope 與 API freshness 驗證；失敗不連續冷啟動重跑，Runbook 與實際操作一致。
+- [x] 恢復 10:10 白天 launchd 排程並完成一次可重現測跑；手動 `scrape-daily.sh` 保持安全 fallback，禁止改成 VPS 爬蟲。
+- [x] `last-status.json`、refresh log 與 DB `refresh_log` 能區分排程未觸發、爬取失敗與同步失敗，並提供 fail-fast 檢查方式。
+- [x] 生產同步遵守備份、cpbl schema scope 與 API freshness 驗證；失敗不連續冷啟動重跑，Runbook 與實際操作一致。
 
 ## 驗證與依賴
 
@@ -58,3 +58,11 @@
   備份移至使用者持久目錄並預設保留最近 7 份。聚焦 `26 passed`；完整 suite 以本
   worktree `src` 隔離共用 editable venv 後為 `271 passed, 10 skipped`；ruff、shell syntax、
   plist lint、macOS `/usr/bin/python3` helper、Ledger 與 diff check 均通過。
+- 2026-07-18 release：Claude Sonnet 5 固定 source SHA `38040bb` 跨家族 T4 複審
+  APPROVE（P0–P2=0）；non-fast-forward merge `1e4572a` 進 main，並以 `2e3053c` 對齊
+  並行 lifecycle 更新。cpbl-analytics CI `29640869680`、主站 CI `29641149799`、Deploy
+  `29641212903` 全綠。真實 Docker／SSH manual sync 先產生並驗證持久備份，再完成全部
+  migration／逐表 upsert／outcome 回測／資料對帳與 freshness gate。launchd 正式 bootstrap
+  每日 10:10，單次 kickstart `runs=1`、exit 0；`trigger=launchd`、scrape／sync 皆成功，
+  production 最終 `last_game_date=2026-09-15`、`season_games_completed=353`、freshness 小於
+  15 分鐘。任務卡完成並移入 archive。
