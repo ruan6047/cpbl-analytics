@@ -30,7 +30,6 @@
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
 | [UX-MATCHUP2](tasks/UX-MATCHUP2.md) | INIT-PRODUCT-UX | T4 | 投打對決整合球員個人頁 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:43+08:00 |
-| [UX-MODEL-METHOD1](tasks/UX-MODEL-METHOD1.md) | INIT-PRODUCT-UX | T3 | 模型方法與限制頁 | Fable-5@Claude Code（部署與 release 進行中） | `ai/fable-5/UX-MODEL-METHOD1 @ .claude/worktrees/ux-model-method1-execution` | 3 | 📦已合併 | ⏸未部署 | 2026-07-18T18:26:00+08:00 |
 | [UX-PA-SIM-MATCHUP1](tasks/UX-PA-SIM-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | Matchups 單一打席結果分布 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:33+08:00 |
 | [UX-PLAYER-IA1](tasks/UX-PLAYER-IA1.md) | INIT-PRODUCT-UX | T3 | 球員頁 IA 骨架與 prototype 決策 | Fable-5@Claude Code（修正後重新交查核） | `ai/fable-5/UX-PLAYER-IA1 @ .claude/worktrees/ux-player-ia1-execution` | 1 | ↩退回 | —不適用 | 2026-07-18T19:08:48+08:00 |
 | [UX-PLAYER-SECTIONS1](tasks/UX-PLAYER-SECTIONS1.md) | INIT-PRODUCT-UX | T3 | 球員頁分區內容遷移 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:32+08:00 |
