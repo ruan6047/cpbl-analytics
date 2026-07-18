@@ -108,6 +108,9 @@ function AnchorsNav({ fx, role, simError }: { fx: Fixture; role: Role; simError:
     const id = window.location.hash.slice(1);
     if (id && LAYERS.some((l) => l.id === id)) {
       document.getElementById(id)?.scrollIntoView();
+      // 同步 active：programmatic scrollIntoView 在部分環境不觸發 scroll listener，
+      // 若不補設，deep-link 後 active 停在 overview，會讓下方 role 切換 re-anchor 捲錯層。
+      setActive(id as LayerId);
     }
   }, []);
   // scrollspy：取最後一個頂端已越過 sticky nav 下緣的段落（瞬跳與慢捲皆可靠）。
@@ -124,6 +127,16 @@ function AnchorsNav({ fx, role, simError }: { fx: Fixture; role: Role; simError:
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+  // role 切換保留當前層：投打內容高度不同→各層重排，router.replace({scroll:false})
+  // 不會因保留 hash 而自動重錨；故 role 變動時明確把當前層（active）捲回定位。
+  // 閉包捕捉本次 render 的 active（此刻尚未被重排後的 scroll 事件改寫），rAF 待重排落定再捲。
+  const roleRef = useRef(role);
+  useEffect(() => {
+    if (roleRef.current === role) return;
+    roleRef.current = role;
+    const target = active;
+    requestAnimationFrame(() => document.getElementById(target)?.scrollIntoView());
+  }, [role, active]);
   // deep-link：#hash 由瀏覽器原生捲動；scroll-mt 避開 sticky nav
   return (
     <>
