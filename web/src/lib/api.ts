@@ -1,5 +1,6 @@
 // FastAPI 資料層 client（Server Component 用）。prod 走 Docker 內網，dev 走 localhost。
 import { ApiError } from "./http-error";
+import type { DailySummary } from "./daily-summary";
 
 const API_URL = process.env.API_URL ?? "http://localhost:4001";
 
@@ -454,6 +455,10 @@ export const api = {
   // 特徵組對齊 predict 頁預設（client.ts）；此處 server 端渲染避免載入閃爍。
   outcomeMatchups: (limit = 3) =>
     get<HubMatchupsResponse>(`/api/v1/outcome/matchups?features=${OUTCOME_DEFAULT_FEATURES}&limit=${limit}`, 120),
+  // 首頁每日入口單一聚合契約（API-DAILY-SUMMARY1）：最近比賽日／下一批賽事／freshness／
+  // 三軸 availability，取代舊首頁十餘組請求（blueprint §8.4）。revalidate=120 對齊賽事類。
+  dailySummary: (kind = "A", season?: number) =>
+    get<DailySummary>(`/api/v1/daily/summary?kind_code=${kind}${season ? `&season=${season}` : ""}`, 120),
   playersRoster: (season?: number) =>
     get<{
       season: number;
