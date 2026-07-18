@@ -154,6 +154,18 @@ def test_fixture_validate_only_is_credential_free(capsys: pytest.CaptureFixture[
     assert "測試內容" not in output
 
 
+def test_invalid_csv_encoding_returns_sanitized_source_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    invalid = tmp_path / "invalid.csv"
+    invalid.write_bytes(b"\xffprivate-cell")
+
+    assert run(["--csv", str(invalid), "--validate-only"]) == 2
+    output = capsys.readouterr().out
+    assert '"code": "source_error"' in output
+    assert "private-cell" not in output
+
+
 @pytest.mark.skipif(
     not os.getenv("EDITORIAL_TEST_DATABASE_URL"),
     reason="requires CARD_ID-isolated PostgreSQL",

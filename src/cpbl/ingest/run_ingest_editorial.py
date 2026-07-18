@@ -54,7 +54,7 @@ def run(argv: list[str] | None = None) -> int:
             source_kind = "google_sheets"
             source_ref = f"google_sheets:{args.spreadsheet_id}"
             source_range = args.range_name
-    except (EditorialSourceError, OSError, csv.Error):
+    except (EditorialSourceError, OSError, UnicodeError, csv.Error):
         output = {"status": "source_error", "errors": [{"code": "source_error"}]}
         _emit(output, args.report)
         return 2

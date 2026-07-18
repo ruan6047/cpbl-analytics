@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS cpbl.editorial_ingest_runs (
     source_kind TEXT NOT NULL CHECK (source_kind IN ('google_sheets', 'csv_fixture')),
     source_ref TEXT NOT NULL,
     source_range TEXT,
-    source_digest CHAR(64) NOT NULL,
+    source_digest CHAR(64) NOT NULL CHECK (source_digest ~ '^[0-9a-f]{64}$'),
     status TEXT NOT NULL CHECK (status IN ('accepted', 'rejected')),
     total_rows INTEGER NOT NULL CHECK (total_rows >= 0),
     accepted_rows INTEGER NOT NULL DEFAULT 0 CHECK (accepted_rows >= 0),
@@ -19,9 +19,11 @@ CREATE TABLE IF NOT EXISTS cpbl.editorial_ingest_runs (
     CHECK (jsonb_typeof(error_report) = 'array'),
     CHECK (completed_at >= started_at),
     CHECK (
-        (status = 'accepted' AND rejected_rows = 0 AND error_report = '[]'::jsonb)
+        (status = 'accepted' AND rejected_rows = 0 AND error_report = '[]'::jsonb
+            AND total_rows = accepted_rows + unchanged_rows)
         OR
-        (status = 'rejected' AND rejected_rows > 0 AND jsonb_array_length(error_report) > 0)
+        (status = 'rejected' AND accepted_rows = 0 AND unchanged_rows = 0
+            AND rejected_rows > 0 AND jsonb_array_length(error_report) > 0)
     )
 );
 
@@ -33,17 +35,17 @@ CREATE TABLE IF NOT EXISTS cpbl.editorial_content_revisions (
     content_type TEXT NOT NULL
         CHECK (content_type IN ('cheering_culture', 'theme_day', 'seasonal_banner')),
     status TEXT NOT NULL CHECK (status IN ('active', 'withdrawn')),
-    team_code TEXT,
+    team_code TEXT CHECK (team_code IS NULL OR length(team_code) <= 20),
     title TEXT NOT NULL CHECK (length(btrim(title)) BETWEEN 1 AND 120),
     summary TEXT NOT NULL CHECK (length(btrim(summary)) BETWEEN 1 AND 300),
-    body_markdown TEXT NOT NULL DEFAULT '',
+    body_markdown TEXT NOT NULL DEFAULT '' CHECK (length(body_markdown) <= 20000),
     source_url TEXT NOT NULL CHECK (source_url ~ '^https://'),
     source_label TEXT NOT NULL CHECK (length(btrim(source_label)) BETWEEN 1 AND 120),
     valid_from DATE NOT NULL,
     valid_until DATE NOT NULL,
     updated_by TEXT NOT NULL CHECK (length(btrim(updated_by)) BETWEEN 1 AND 120),
     withdrawal_reason TEXT,
-    content_hash CHAR(64) NOT NULL,
+    content_hash CHAR(64) NOT NULL CHECK (content_hash ~ '^[0-9a-f]{64}$'),
     ingested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (content_id, source_updated_at),
     CHECK (valid_until >= valid_from),
