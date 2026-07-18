@@ -9,7 +9,7 @@
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
 | [BUG-HELD-GAME-FRESHNESS1](tasks/BUG-HELD-GAME-FRESHNESS1.md) | INIT-PRODUCT-UX | T4 | 保留比賽 completed 與 freshness 正確化 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:36+08:00 |
-| [DATA-EDITORIAL1](tasks/DATA-EDITORIAL1.md) | INIT-PRODUCT-UX | T4 | Google Sheet 編輯資料管道 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:37+08:00 |
+| [DATA-EDITORIAL1](tasks/DATA-EDITORIAL1.md) | INIT-PRODUCT-UX | T4 | Google Sheet 編輯資料管道 | GPT-5@Codex | `ai/gpt-5-codex/DATA-EDITORIAL1 @ .claude/worktrees/data-editorial1-execution` | 1 | 🔨執行中 | ⏸未部署 | 2026-07-19T01:53:18+08:00 |
 | [DEP-PREDICT-LEGACY1](tasks/DEP-PREDICT-LEGACY1.md) | INIT-PRODUCT-UX | T3 | 舊預測體驗退場 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:29+08:00 |
 | [DOC-GAME-RECAP1](tasks/DOC-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 賽事復盤產品規格獨立查核 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T22:15:04+08:00 |
 | [GAME-RECAP-DATA1](tasks/GAME-RECAP-DATA1.md) | INIT-GAME-RECAP | T4 | 賽事復盤資料覆蓋與 canonical 契約稽核 | GPT-5@Codex | `ai/gpt-5-codex/GAME-RECAP-DATA1 @ .claude/worktrees/game-recap-data1-execution` | 1 | 🔨執行中 | —不適用 | 2026-07-19T01:39:00+08:00 |
@@ -21,7 +21,7 @@
 | [INIT-PRODUCT-UX](tasks/INIT-PRODUCT-UX.md) | INIT-PRODUCT-UX | T3 | 全站產品與 UI/UX 收斂 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-17T04:44:24+08:00 |
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
-| [OPS-REMOTE-CRAWL1](tasks/OPS-REMOTE-CRAWL1.md) | INIT-PRODUCT-UX | T3 | 遠端無人值守 crawler Discovery umbrella | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:35+08:00 |
+| [OPS-REMOTE-CRAWL1](tasks/OPS-REMOTE-CRAWL1.md) | INIT-PRODUCT-UX | T3 | 遠端無人值守 crawler Discovery umbrella | Claude Opus 4.8@Claude Code | `ai/claude-opus-4.8/OPS-REMOTE-CRAWL1 @ .claude/worktrees/ai-workflow-conflict-check-e13962` | 1 | 🔨執行中 | —不適用 | 2026-07-19T01:54:40+08:00 |
 | [OPS-REMOTE-CUTOVER1](tasks/OPS-REMOTE-CUTOVER1.md) | INIT-PRODUCT-UX | T4 | 遠端 crawler production canary 與切換 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:40+08:00 |
 | [OPS-REMOTE-PROBE1](tasks/OPS-REMOTE-PROBE1.md) | INIT-PRODUCT-UX | T3 | Opt-in DEBUG 網路探測介面 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:37+08:00 |
 | [OPS-REMOTE-ROUTE1](tasks/OPS-REMOTE-ROUTE1.md) | INIT-PRODUCT-UX | T3 | 遠端出口路線資格驗證 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:38+08:00 |
