@@ -13,6 +13,7 @@
 | UX-RECORD1 | `/records` 歷史重要性導向重製 | 🏁完成 | ✅已驗證 | [`tasks/UX-RECORD1.md`](tasks/UX-RECORD1.md)（事後獨立查核 PASS；merge 3b548dc） |
 | UX-NAV-IA1 | 方案 B 導覽與全域球員搜尋 | 🏁完成 | ✅已驗證 | [`tasks/UX-NAV-IA1.md`](tasks/UX-NAV-IA1.md)（GPT-5 iteration 2 通過；merge d22f5da；07-17 部署驗證） |
 | UX-OUTCOME-HOME | 可嵌入賽前勝率卡 | 🏁完成 | ✅已驗證 | [`tasks/UX-OUTCOME-HOME.md`](tasks/UX-OUTCOME-HOME.md)（Gemini 跨家族 T4 APPROVE；merge fdee7297；07-18 部署驗證） |
+| API-DAILY-SUMMARY1 | 最近比賽日與下一批賽事聚合契約 | 🏁完成 | ✅已驗證 | [`tasks/API-DAILY-SUMMARY1.md`](tasks/API-DAILY-SUMMARY1.md)（Gemini 跨家族 T3 APPROVE；merge 8aeb541；07-18 部署驗證） |
 | Legacy pre-WF-12 | 2026-07-15 前的 Ledger 與所有卡片明細 | 已封存 | 依原始紀錄 | [`TASKS_PRE_WF12.md`](TASKS_PRE_WF12.md) |
 
 > 已完成（🏁）與封存（📥）的卡片移到此處，讓 [`../TASKS.md`](../TASKS.md) 只留活卡（省 AI 讀取算力）。
