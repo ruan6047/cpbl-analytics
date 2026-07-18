@@ -8,7 +8,7 @@
 
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
-| [API-DAILY-SUMMARY1](tasks/API-DAILY-SUMMARY1.md) | INIT-PRODUCT-UX | T3 | 最近比賽日與下一批賽事聚合契約 | 待指派（獨立查核） | `ai/opus-4-8/API-DAILY-SUMMARY1 @ .claude/worktrees/api-daily-summary1-execution` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-17T14:35:00+08:00 |
+| [API-DAILY-SUMMARY1](tasks/API-DAILY-SUMMARY1.md) | INIT-PRODUCT-UX | T3 | 最近比賽日與下一批賽事聚合契約 | ruan6047（merge 決策） | `ai/opus-4-8/API-DAILY-SUMMARY1 @ .claude/worktrees/api-daily-summary1-execution` | 1 | ✅通過 | ⏸未部署 | 2026-07-18T08:13:18+08:00 |
 | [DATA-EDITORIAL1](tasks/DATA-EDITORIAL1.md) | INIT-PRODUCT-UX | T4 | Google Sheet 編輯資料管道 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:37+08:00 |
 | [DEP-PREDICT-LEGACY1](tasks/DEP-PREDICT-LEGACY1.md) | INIT-PRODUCT-UX | T3 | 舊預測體驗退場 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:29+08:00 |
 | [DOC-GAME-RECAP1](tasks/DOC-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 賽事復盤產品規格獨立查核 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T22:15:04+08:00 |
