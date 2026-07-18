@@ -15,6 +15,7 @@ set -euo pipefail
 LOCAL_DB="${LOCAL_DB:-cpbl-analytics-db-1}"
 VPS="${VPS:-root@45.76.100.29}"
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/personal-website}"
+API_INFO_URL="${API_INFO_URL:-https://cpbl.ruan-ruan.com/api/info}"
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 YEAR="$(date +%Y)"
 PREV="$((YEAR - 1))"
@@ -32,16 +33,17 @@ sync_table() {
       | sed -e "s/^COPY cpbl\.${t} /COPY _stg /" -e '/^\\restrict /d' -e '/^\\unrestrict /d'
     echo "INSERT INTO cpbl.${t} SELECT * FROM _stg ON CONFLICT (${pk}) DO UPDATE SET ${set_clause};"
   } | ssh -o BatchMode=yes "$VPS" \
-        "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql -q --single-transaction -U \"\$DB_USER\" -d \"\$DB_NAME\""
+        "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql \
+          -v ON_ERROR_STOP=1 -q --single-transaction -U \"\$DB_USER\" -d \"\$DB_NAME\""
   echo "    ✓ ${t}"
 }
 
 cd "$REPO_DIR"
 # SKIP_SCRAPE=1：本機 DB 已是最新時，跳過重爬、直接把現有資料同步到 prod。
 if [ -n "${SKIP_SCRAPE:-}" ]; then
-  echo "==> 1/3 略過爬取（SKIP_SCRAPE），直接同步本機現有資料"
+  echo "==> 1/4 略過爬取（SKIP_SCRAPE），直接同步本機現有資料"
 else
-  echo "==> 1/3 本機（台灣 IP）爬最新資料"
+  echo "==> 1/4 本機（台灣 IP）爬最新資料"
   # --group scrape：官網爬蟲需 playwright（見 scrape-daily.sh 說明）。
   uv run --group scrape cpbl-scrape-games "$YEAR" "$YEAR"
   uv run --group scrape cpbl-scrape-stats "$PREV" "$YEAR"
@@ -60,7 +62,22 @@ fi
 echo "    + 重建 game_features（賽事預測特徵，全史 kind A）"
 uv run cpbl-build-features 2>&1 | tail -1
 
-echo "==> 2/3 套用 prod migration + 非破壞性 upsert 同步"
+# 記住本機真實賽事 freshness；同步後 API 必須回報相同值，不能只靠腳本自寫 marker。
+LOCAL_FRESHNESS="$(docker exec "$LOCAL_DB" psql -U cpbl -d cpbl -At -F '|' -c \
+  "SELECT COALESCE(max(game_date) FILTER (WHERE home_score + away_score > 0)::text, ''), \
+          count(*) FILTER (WHERE year = ${YEAR} AND home_score + away_score > 0) \
+   FROM cpbl.games")"
+IFS='|' read -r EXPECTED_LAST_GAME_DATE EXPECTED_COMPLETED <<< "$LOCAL_FRESHNESS"
+if [ -z "$EXPECTED_LAST_GAME_DATE" ] || ! [[ "$EXPECTED_COMPLETED" =~ ^[0-9]+$ ]]; then
+  echo "FATAL: 無法取得本機 freshness 基準：${LOCAL_FRESHNESS}" >&2
+  exit 65
+fi
+
+echo "==> 2/4 備份 production cpbl schema"
+BACKUP_PATH="$(VPS="$VPS" DEPLOY_PATH="$DEPLOY_PATH" "$REPO_DIR/scripts/backup-cpbl-prod.sh")"
+echo "    ✓ 已驗證備份：${BACKUP_PATH}"
+
+echo "==> 3/4 套用 prod migration + 非破壞性 upsert 同步"
 # 同步前先讓 prod 套用任何新 migration（否則新欄位不存在、COPY 對不上）
 ssh -o BatchMode=yes "$VPS" 'docker exec prod_cpbl_api python -c "from cpbl.db import migrate; print(\"migrated:\", migrate())"'
 
@@ -174,9 +191,29 @@ if [ -n "${WITH_DETAIL:-}" ]; then
     team_name g gs gr cg sho nbb w l sv hld ip bf np h hr bb ibb hbp so wp bk r er go fo
 fi
 
-echo "==> 3/3 VPS 跑賽事預測回測（LightGBM 需 libgomp；prod_cpbl_api 容器內有）"
+echo "==> 4/4 VPS 跑賽事預測回測（LightGBM 需 libgomp；prod_cpbl_api 容器內有）"
 # game_features 已由本機鏡像（全史），VPS 不需再 build-features；直接以鏡像資料跑
 # 走查回測並把 model_versions(task='outcome') 持久化，供 /api/info 與 /predict 面板展示。
 ssh -o BatchMode=yes "$VPS" 'docker exec prod_cpbl_api cpbl-train-outcome 2>&1 | grep -v httpx | tail -4'
 
-echo "==> 完成。線上資料已更新。"
+echo "    + 對帳 production 真實資料 freshness"
+curl -fsS --max-time 10 "$API_INFO_URL" \
+  | python3 "$REPO_DIR/scripts/verify_refresh_info.py" --data-only \
+      --expected-last-game-date "$EXPECTED_LAST_GAME_DATE" \
+      --expected-season-games-completed "$EXPECTED_COMPLETED"
+
+echo "    + 寫入 production refresh 成功標記"
+ssh -o BatchMode=yes "$VPS" \
+  "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec prod_pg psql -v ON_ERROR_STOP=1 -q \
+    -U \"\$DB_USER\" -d \"\$DB_NAME\" -c \"INSERT INTO cpbl.refresh_log \
+    (scope, from_date, to_date, detail, ok, note) VALUES \
+    ('prod-sync', CURRENT_DATE, CURRENT_DATE, jsonb_build_object('source', 'local-refresh'), true, \
+    'local-to-production sync completed')\""
+
+echo "    + 驗證 production API freshness"
+curl -fsS --max-time 10 "$API_INFO_URL" \
+  | python3 "$REPO_DIR/scripts/verify_refresh_info.py" --max-age-minutes 15 \
+      --expected-last-game-date "$EXPECTED_LAST_GAME_DATE" \
+      --expected-season-games-completed "$EXPECTED_COMPLETED"
+
+echo "==> 完成。線上資料已更新且 freshness 驗證通過。"

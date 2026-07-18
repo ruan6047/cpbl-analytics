@@ -51,13 +51,14 @@ graph LR
 
 **⚠️ 生產每日 cron 實際沒在跑**：`cpbl.refresh_log` 為空、生產資料曾停在某日。生產新鮮度目前靠人工「本機爬 + 同步」。
 
-### 本機每日爬取（**手動觸發**；launchd 排程已停用）
+### 本機每日爬取（launchd 每日 10:10；手動為 fallback）
 
-**2026-07-04 起改手動**：筆電非常開機，launchd 排程已 bootout + 移除 LaunchAgents 連結。
-更新流程 = 使用者下令時跑 `scripts/scrape-daily.sh`（或直接 `uv run cpbl-refresh-recent`；
-腳本版多了 log/last-status.json 產物與成功後自動同步生產）。
-**時段紅線**：勿在深夜/凌晨跑——官網挑戰深夜加嚴會硬封鎖新訪客（SITE_MAP §2）。
-要恢復自動排程（plist 已改 10:10 白天）：
+launchd 在使用者登入態每日 **10:10** 觸發 `scripts/scrape-daily.sh`；腳本先寫
+`state=running`，本機爬成功後才備份並同步 production。**時段紅線**：勿改到深夜／凌晨，
+官網挑戰深夜加嚴會硬封鎖新訪客（SITE_MAP §2）。OrbStack 與本機 DB 必須已啟動；否則
+狀態會是 `failed_phase=scrape`、`exit=127`，不會嘗試 production sync。
+
+安裝／重建排程：
 
 ```bash
 ln -sf "$PWD/scripts/com.cpbl.scrape-daily.plist" ~/Library/LaunchAgents/com.cpbl.scrape-daily.plist
@@ -67,28 +68,54 @@ launchctl bootout gui/$(id -u)/com.cpbl.scrape-daily                            
 ```
 
 **AI 接手失敗的契約**（三個訊號源，由輕到重）：
-1. `logs/last-status.json` — 最近一次 `{ok, exit_code, log, tail}`；`ok=false` 即需處理。
-2. `logs/refresh-YYYYMMDD-HHMM.log` — 該次完整輸出（last-status.json 的 `log` 指向它）。
+1. `logs/last-status.json` — 最近一次手動或排程執行；含 `state`、`trigger`、
+   `failed_phase=scrape|sync`、兩階段 exit code 與 log tail。`logs/last-launchd-status.json`
+   只由 launchd 更新，不會被手動 fallback 覆蓋。
+2. `logs/refresh-YYYYMMDD-HHMMSS.log` — 該次完整輸出（last-status.json 的 `log` 指向它）。
 3. `SELECT * FROM cpbl.refresh_log WHERE ok=false ORDER BY refreshed_at DESC LIMIT 1` — app 層失敗（含 `note`、`detail.error`）。
 
-`exit=127` = 本機 DB 容器沒開（OrbStack 未啟動）；token 抽不到 = 官網改版（見 `cpbl_site._new_session`）。
+Fail-fast：
+
+```bash
+python3 scripts/refresh_status.py check                 # 最近一次完整流程
+python3 scripts/refresh_status.py check --scheduled     # 今日 11:00 後仍無 launchd 觸發即失敗
+docker compose exec -T db psql -U cpbl -d cpbl -c \
+  "SELECT refreshed_at, ok, note, detail->>'error' AS error FROM cpbl.refresh_log ORDER BY refreshed_at DESC LIMIT 3"
+```
+
+檢查器 exit code：`0` 成功、`2` 排程未觸發／過期、`3` 爬取失敗、`4` 同步失敗、
+`5` 狀態檔無效、`6` 尚在執行、`7` 執行超過 180 分鐘而視為死亡／停滯。手動與 launchd
+共用 `/private/tmp/cpbl-analytics-refresh.lock` 互斥；已有執行時第二次啟動回 `75`，且不覆寫狀態檔。
+`exit=127` = 本機 DB 容器沒開；token 抽不到 = 官網挑戰／改版（見
+`cpbl_site._new_session`）。手動 fallback 直接跑 `scripts/scrape-daily.sh`
+（預設 `trigger=manual`）；若爬取已成功、只有 sync 失敗，修正 production 原因後應以
+`SKIP_SCRAPE=1 WITH_DETAIL=1 scripts/refresh-cpbl-prod.sh` 重試，**不可再次冷啟動 crawler**。
 
 ### 同步流程（本機 → 生產）
 
-cpbl schema 各表皆冪等、資料同源，本機是 superset，故可整 schema 覆蓋（**只動 `cpbl` schema，不碰主站其他 schema**）：
+每日同步採逐表冪等 upsert，且只動 `cpbl` schema；禁止在 VPS 爬官網。標準入口已內建
+production 備份、gzip 完整性檢查、migration、upsert、模型重建，以及真實賽事指標與本機
+對帳。只有 `/api/info.metrics.last_game_date` 與 `season_games_completed` 都吻合後才寫入
+`prod-sync` refresh marker，最後再檢查 `/api/info.metrics.last_refresh` 的 15 分鐘 freshness gate：
 
 ```bash
-# 1) 本機先爬到最新（見 §4 場景）
-# 2) dump 本機 cpbl schema（含結構+資料）
-PGPASSWORD=cpbl pg_dump -h localhost -p 5433 -U cpbl -d cpbl \
-  --schema=cpbl --clean --if-exists --no-owner | gzip > /tmp/cpbl_sync.sql.gz
-# 3) 灌入生產（生產 DB 帳密讀主站 .env 的 DB_USER/DB_NAME）
-gunzip -c /tmp/cpbl_sync.sql.gz | \
-  ssh root@45.76.100.29 'docker exec -i prod_pg psql -U <DB_USER> -d <DB_NAME>'
-# 4) 驗證：API 新鮮度
-curl -s https://cpbl.ruan-ruan.com/api/info | python3 -m json.tool
+SKIP_SCRAPE=1 WITH_DETAIL=1 scripts/refresh-cpbl-prod.sh
 ```
-> 首次執行務必先 `pg_dump` 備份生產 cpbl schema。`--clean --if-exists` 會 drop 重建 cpbl 物件。
+
+每次執行都會先在
+`~/Library/Application Support/cpbl-analytics/backups/cpbl-prod-YYYYMMDD-HHMMSS-<pid>.sql.gz`
+產生完整備份，驗證後才晉升，預設保留最近 7 份（可用 `BACKUP_DIR`／`BACKUP_KEEP` 覆蓋）；
+看見「已驗證備份」前不得進 production migration。回復時只還原該 `cpbl` schema 備份，
+不碰主站其他 schema：
+
+```bash
+gunzip -c "$HOME/Library/Application Support/cpbl-analytics/backups/cpbl-prod-<timestamp>-<pid>.sql.gz" | \
+  ssh root@45.76.100.29 \
+  'cd /opt/personal-website && set -a && . ./.env && docker exec -i prod_pg psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME"'
+```
+
+production migration 由已部署的 `prod_cpbl_api` 映像執行；若 local main 已有 migration 修正、
+production 映像尚未部署，先停止同步並完成正常 main deploy，不得跳過 migration 或臨時改 DB。
 
 ---
 
