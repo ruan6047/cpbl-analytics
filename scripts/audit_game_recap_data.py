@@ -53,6 +53,12 @@ def legacy_pa_starts(events: list[Event]) -> dict[str, list[str]]:
     frontend: list[str] = []
     run_seen: dict[tuple[Any, str], set[tuple[Any, Any]]] = {}
     wp_seen: set[tuple[Any, str, Any, Any]] = set()
+    half_order = list(
+        dict.fromkeys(
+            (event.get("inning_seq"), str(event.get("visiting_home_type"))) for event in events
+        )
+    )
+    last_half = half_order[-1] if half_order else None
 
     for event in events:
         half = (event.get("inning_seq"), str(event.get("visiting_home_type")))
@@ -62,10 +68,11 @@ def legacy_pa_starts(events: list[Event]) -> dict[str, list[str]]:
         event_no = str(event["main_event_no"])
         hitter = event.get("hitter_acnt")
         compact_key = (event.get("batting_order"), hitter)
-        half_seen = run_seen.setdefault(half, set())
-        if compact_key not in half_seen:
-            half_seen.add(compact_key)
-            run_dist.append(event_no)
+        if half != last_half:
+            half_seen = run_seen.setdefault(half, set())
+            if compact_key not in half_seen:
+                half_seen.add(compact_key)
+                run_dist.append(event_no)
 
         wp_key = (*half, *compact_key)
         if wp_key not in wp_seen:
@@ -758,7 +765,7 @@ def render_report(report: Event) -> str:
         "",
         "現行語意：",
         "",
-        "1. `build_run_dist()`：每半局 `(batting_order, hitter)` 去重，打線在單一半局輪轉會吞掉第二次打席。",
+        "1. `build_run_dist()`：排除每場最後半局，再於各半局以 `(batting_order, hitter)` 去重；分母本來就不能與全場 box PA 直接等量，單一半局打線輪轉仍會吞掉第二次打席。",
         "2. WP API：`(inning, half, batting_order, hitter)` 去重，具有同一輪轉缺陷。",
         "3. 前端 `buildMoments()`：起點直接沿用 WP points，再略過換人列向後掃同打者作終點；因此無法補回 WP 已吞掉的打席，代打／缺事件也會改變終點。",
         "4. PlayByPlay 另用連續打者島，而逐球 UI 以 `(inning, pitcher, hitter)` 取球；同局重複對戰會把多個 PA 的球合併。",

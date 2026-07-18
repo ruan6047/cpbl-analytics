@@ -32,12 +32,13 @@ def _event(
 def test_legacy_run_dist_and_wp_collapse_a_lineup_turnover_in_one_half_inning() -> None:
     events = [_event(i, f"H{i}", order=i) for i in range(1, 10)]
     events.append(_event(10, "H1", order=1))
+    events.append(_event(11, "HOME1", inning=1, half="2", order=1))
 
     starts = legacy_pa_starts(events)
 
     assert len(starts["run_dist"]) == 9
-    assert len(starts["winprob"]) == 9
-    assert len(starts["frontend"]) == 9
+    assert len(starts["winprob"]) == 10
+    assert len(starts["frontend"]) == 10
     assert "10" not in starts["frontend"]
 
 
@@ -51,7 +52,7 @@ def test_legacy_groupers_split_a_mid_plate_appearance_pinch_hitter() -> None:
     starts = legacy_pa_starts(events)
 
     assert starts == {
-        "run_dist": ["1", "3"],
+        "run_dist": [],
         "winprob": ["1", "3"],
         "frontend": ["1", "3"],
     }
@@ -114,7 +115,7 @@ def test_game_audit_keeps_denominators_and_risk_flags_separate() -> None:
     result = audit_game_events(events, box_pa=11)
 
     assert result.box_pa == 11
-    assert result.run_dist_pa == 9
+    assert result.run_dist_pa == 0
     assert result.winprob_pa == 9
     assert result.frontend_pa == 9
     assert result.blank_action_rows == 11
