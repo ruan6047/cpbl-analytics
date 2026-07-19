@@ -63,9 +63,11 @@ echo "    + 重建 game_features（賽事預測特徵，全史 kind A）"
 uv run cpbl-build-features 2>&1 | tail -1
 
 # 記住本機真實賽事 freshness；同步後 API 必須回報相同值，不能只靠腳本自寫 marker。
+# 由 Python contract 產生 SQL，避免同步 gate 與 API 各自複製 completed 語意。
+COMPLETED_GAMES_SQL="$(uv run python -m cpbl.completion)"
 LOCAL_FRESHNESS="$(docker exec "$LOCAL_DB" psql -U cpbl -d cpbl -At -F '|' -c \
-  "SELECT COALESCE(max(game_date) FILTER (WHERE home_score + away_score > 0)::text, ''), \
-          count(*) FILTER (WHERE year = ${YEAR} AND home_score + away_score > 0) \
+  "SELECT COALESCE(max(game_date) FILTER (WHERE ${COMPLETED_GAMES_SQL})::text, ''), \
+          count(*) FILTER (WHERE year = ${YEAR} AND ${COMPLETED_GAMES_SQL}) \
    FROM cpbl.games")"
 IFS='|' read -r EXPECTED_LAST_GAME_DATE EXPECTED_COMPLETED <<< "$LOCAL_FRESHNESS"
 if [ -z "$EXPECTED_LAST_GAME_DATE" ] || ! [[ "$EXPECTED_COMPLETED" =~ ^[0-9]+$ ]]; then
