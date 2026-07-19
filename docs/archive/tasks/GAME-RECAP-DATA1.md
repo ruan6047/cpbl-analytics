@@ -41,3 +41,6 @@
 - 2026-07-16 proposed by GPT-5@Codex → 待 Coordinator 註冊 lifecycle event。
 - 2026-07-16 Coordinator register → 已寫入 lifecycle event／Ledger；維持待指派。
 - 2026-07-19 review by Claude（Opus 4.8，≠執行）→ **APPROVE**；重跑抽樣分母全數命中、三套分組重現忠於程式碼、ruff／pytest 通過。verdict：[`GAME-RECAP-DATA1_REVIEW.md`](../research/GAME-RECAP-DATA1_REVIEW.md)。非阻擋：N1 白名單已補正、N2 merge 前 rebase。
+- 2026-07-19 ruan6047 核可 Checkpoint 1 → 解除 GAME-RECAP-PA1／GAME-RECAP-STATUS1 阻擋；授權整合。
+- 2026-07-19 merge → 稽核交付整合至 main（reviewed cf5b547；本機 --no-ff 經 pull --rebase 線性化，有效尾端 95eb5e3）；ruff／pytest／ledger --check PASS。
+- 2026-07-19 release → 🏁完成、封存；回收 execution／review worktree 與短命分支、釋放 local lease。部署不適用。

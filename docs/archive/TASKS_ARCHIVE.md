@@ -18,6 +18,7 @@
 | OPS-REFRESH1 | 白天自動刷新與失敗快篩 | 🏁完成 | ✅已驗證 | [`tasks/OPS-REFRESH1.md`](tasks/OPS-REFRESH1.md)（Claude Sonnet 5 跨家族 T4 APPROVE；merge 1e4572a；07-18 launchd／production 驗證） |
 | DOC-GAME-RECAP1 | 賽事復盤產品規格獨立查核 | 🏁完成 | —不適用 | [`tasks/DOC-GAME-RECAP1.md`](tasks/DOC-GAME-RECAP1.md)（Claude Opus 跨家族獨立查核 request-changes→需求方核可；spec 升 v1.3；merge c022083） |
 | OPS-REMOTE-CRAWL1 | 遠端無人值守 crawler Discovery umbrella | 🏁完成 | —不適用 | [`tasks/OPS-REMOTE-CRAWL1.md`](tasks/OPS-REMOTE-CRAWL1.md)（GPT-5@Codex 跨家族獨立查核 iteration 2 APPROVE；merge 20172d3；Discovery Gate：PROBE1／ROUTE1 GO、WORKER1／CUTOVER1 HOLD 待需求方 sign-off） |
+| GAME-RECAP-DATA1 | 賽事復盤資料覆蓋與 canonical 契約稽核 | 🏁完成 | —不適用 | [`tasks/GAME-RECAP-DATA1.md`](tasks/GAME-RECAP-DATA1.md)（Claude Opus 跨家族獨立查核 APPROVE→需求方核可 Checkpoint 1；canonical PA NO-GO；merge 95eb5e3） |
 | Legacy pre-WF-12 | 2026-07-15 前的 Ledger 與所有卡片明細 | 已封存 | 依原始紀錄 | [`TASKS_PRE_WF12.md`](TASKS_PRE_WF12.md) |
 
 > 已完成（🏁）與封存（📥）的卡片移到此處，讓 [`../TASKS.md`](../TASKS.md) 只留活卡（省 AI 讀取算力）。
