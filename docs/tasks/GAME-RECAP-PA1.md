@@ -3,7 +3,7 @@
 - 需求：ruan6047　規劃：GPT-5@Codex　分支：`ai/<執行者>/GAME-RECAP-PA1`
 - 執行：待指派　查核：待指派（須跨模型家族或人工，且 ≠ 執行）
 - Initiative：INIT-GAME-RECAP　spec 基線：v1.3
-- DB：依 `GAME-RECAP-DATA1` 決策；可能為 `read` 或獨立 schema expand 卡，不得直接改既有 migration
+- DB：`db_scope: none`（本卡僅 canonical contract／切卡）；依 `GAME-RECAP-DATA1` 決策，schema 與 data-migration 必須拆為獨立卡，不得直接改既有 migration
 - 部署：是　環境：production　PR：—　Merge SHA：—
 - 範圍：見 [`GAME_RECAP_PRODUCT_SPEC.md`](../GAME_RECAP_PRODUCT_SPEC.md) §3.3、§6.3、§7
 - Discovery：`GAME-RECAP-DATA1` 已核可（Checkpoint 1）；採每日批次物化 canonical PA，不得沿用現有近似鍵直接公開。
@@ -31,11 +31,17 @@
 - [ ] API route snapshot／contract test 更新；查詢具明確索引策略與 query plan 證據。
 - [ ] `uv run ruff check`、`uv run pytest` 通過；獨立 reviewer 以原始事件人工對帳抽樣。
 
+## 設計與切片（2026-07-19 draft）
+
+- 契約草案：[`GAME-RECAP-PA1_CONTRACT.md`](../design/GAME-RECAP-PA1_CONTRACT.md)。
+- 必要子卡（皆 T4）：`GAME-RECAP-PA1-TAXONOMY1`（只讀 transition taxonomy）、`GAME-RECAP-PA1-EXPAND1`（schema expand＋來源 revision 留痕）、`GAME-RECAP-PA1-BUILD1`（batch materialization／reconciliation／historical backfill）。
+- 在需求方與跨模型家族或人工查核者核可草案前，禁止註冊／認領上述子卡，且禁止 PA1 直接寫 migration、ingest、API 或前端。
+
 ## 依賴與交付
 
 - 依賴：`GAME-RECAP-DATA1` ✅（Checkpoint 1 已於 2026-07-19 核可）。
 - 後續：解除 `UX-GAME-PA1` 的資料正確性阻塞。
-- 預估範圍：M；需要 schema 時先拆 migration expand 卡與 backfill 卡。
+- 預估範圍：L；需要 schema 時先拆 migration expand 卡、taxonomy 稽核卡與 data-migration/backfill 卡。
 
 ## Log
 
