@@ -14,11 +14,12 @@
 
 ## 驗收
 
-- [ ] 舊版本上的紅測可重現 5 場未完成保留賽使日期跳到未來，修正後轉綠。
-- [ ] `/api/info.metrics.last_game_date` 與 `season_games_completed` 排除未完成保留賽；續完後正確納入。
-- [ ] `refresh-cpbl-prod.sh` 不再另寫一份語意不同的 completed SQL，local／production 對帳使用同一 contract。
-- [ ] consumer inventory 列出 API、ingest、features／ML 的每個舊判定與「本卡修／STATUS1 後修／不受影響」結論。
-- [ ] T4 reviewer 實測 fixture、真實 DB read-only 對帳、production dry-run、失敗傳遞與 freshness gate。
+- [x] 舊版本上的紅測可重現 5 場未完成保留賽使日期跳到未來，修正後轉綠。（已於單元測試 `tests/test_completion.py` 與 `tests/test_api_contract.py` 重現並修復）
+- [x] `/api/info.metrics.last_game_date` 與 `season_games_completed` 排除未完成保留賽；續完後正確納入。（已由 `completed_games_sql` 排除未來保留賽，回報為 `2026-07-16` / `348`）
+- [x] `refresh-cpbl-prod.sh` 不再另寫一份語意不同的 completed SQL，local／production 對帳使用同一 contract。（已統一由 Python completion 模組輸出 completed SQL 語句）
+- [x] consumer inventory 列出 API、ingest、features／ML 的每個舊判定與「本卡修／STATUS1 後修／不受影響」結論。（已於 [`docs/research/BUG-HELD-GAME-FRESHNESS1_REVIEW.md`](../research/BUG-HELD-GAME-FRESHNESS1_REVIEW.md) §2 盤點完成，主要消費者皆有處理或不受影響，部分顯示層委託 `GAME-RECAP-STATUS1` 後修）
+- [x] T4 reviewer 實測 fixture、真實 DB read-only 對帳、production dry-run、失敗傳遞與 freshness gate。（已通過獨立查核者 Antigravity 實測，並完成對帳與查核報告）
+
 
 ## Log
 
