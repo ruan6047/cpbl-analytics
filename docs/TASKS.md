@@ -11,7 +11,7 @@
 | [BUG-HELD-GAME-FRESHNESS1](tasks/BUG-HELD-GAME-FRESHNESS1.md) | INIT-PRODUCT-UX | T4 | 保留比賽 completed 與 freshness 正確化 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:36+08:00 |
 | [DATA-EDITORIAL1](tasks/DATA-EDITORIAL1.md) | INIT-PRODUCT-UX | T4 | Google Sheet 編輯資料管道 | GPT-5@Codex（release 清理） | `ai/gpt-5-codex/DATA-EDITORIAL1 @ .claude/worktrees/data-editorial1-execution` | 1 | 📦已合併 | ⏸未部署 | 2026-07-19T09:03:58+08:00 |
 | [DEP-PREDICT-LEGACY1](tasks/DEP-PREDICT-LEGACY1.md) | INIT-PRODUCT-UX | T3 | 舊預測體驗退場 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:29+08:00 |
-| [GAME-RECAP-DATA1](tasks/GAME-RECAP-DATA1.md) | INIT-GAME-RECAP | T4 | 賽事復盤資料覆蓋與 canonical 契約稽核 | ruan6047（核可 Checkpoint 1，待整合） | `ai/gpt-5-codex/GAME-RECAP-DATA1 @ .claude/worktrees/game-recap-data1-execution` | 1 | ✅通過 | —不適用 | 2026-07-19T14:02:41+08:00 |
+| [GAME-RECAP-DATA1](tasks/GAME-RECAP-DATA1.md) | INIT-GAME-RECAP | T4 | 賽事復盤資料覆蓋與 canonical 契約稽核 | Claude Opus 4.8@Claude Code（依 ruan6047 指示整合） | `ai/gpt-5-codex/GAME-RECAP-DATA1 @ .claude/worktrees/game-recap-data1-execution` | 1 | 📦已合併 | —不適用 | 2026-07-19T14:04:51+08:00 |
 | [GAME-RECAP-PA1](tasks/GAME-RECAP-PA1.md) | INIT-GAME-RECAP | T4 | canonical 打席與逐球可靠對應 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:06+08:00 |
 | [GAME-RECAP-STATUS1](tasks/GAME-RECAP-STATUS1.md) | INIT-GAME-RECAP | T4 | 賽事狀態、資料可用性與 freshness API | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:07+08:00 |
 | [GAME-RECAP-WP-API1](tasks/GAME-RECAP-WP-API1.md) | INIT-GAME-RECAP | T4 | canonical WP／WPA public contract | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:09+08:00 |
