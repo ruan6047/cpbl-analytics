@@ -22,6 +22,7 @@ from datetime import date, datetime
 import httpx
 
 from cpbl.db import conn
+from cpbl.ingest.game_source_revisions import record_schedule_revisions
 
 log = logging.getLogger("cpbl.scrape")
 
@@ -160,6 +161,7 @@ def upsert_games(games: list[dict]) -> int:
             """,
             records,
         )
+    record_schedule_revisions(games)
     return len(records)
 
 

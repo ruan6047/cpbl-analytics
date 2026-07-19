@@ -12,6 +12,7 @@ import json
 import logging
 import re
 import time
+from dataclasses import dataclass
 
 import httpx
 
@@ -142,6 +143,13 @@ _LEADERBOARDS = ("pr-table", "exit-velocity", "batted-ball", "pitch-tracking")
 _KEY_FIX = {"Ev50th": "ev50Th", "Ev90th": "ev90Th", "DistanceAvgHR": "distanceAvgHr", "BrlsBBEp": "brlsBbEp"}
 
 
+@dataclass(frozen=True)
+class AdvancedScrapeResult:
+    rows: int
+    outcome: str
+    error_codes: tuple[str, ...]
+
+
 def _norm_key(k: str) -> str:
     if k in _KEY_FIX:
         return _KEY_FIX[k]
@@ -155,7 +163,8 @@ def _fetch_leaderboards(client: httpx.Client, search_type: str, game_kind: str, 
     for lb in _LEADERBOARDS:
         r = client.get(f"{BASE}/api/proxy/v1/leaderboards/{lb}",
                        params={"searchType": search_type, "gameKind": game_kind, "year": str(year)})
-        rows = ((r.json().get("Data") or {}).get("Leaderboard") or []) if r.status_code == 200 else []
+        r.raise_for_status()
+        rows = ((r.json().get("Data") or {}).get("Leaderboard") or [])
         for row in rows:
             acnt = (row.get("Player") or {}).get("Acnt")
             if not acnt:
@@ -168,13 +177,13 @@ def _fetch_leaderboards(client: httpx.Client, search_type: str, game_kind: str, 
     return out
 
 
-def scrape_advanced(year: int, players: list[tuple[str, str]], delay: float = 1.0,
-                    kind_code: str = "A") -> int:
-    """官方進階（stats.cpbl leaderboard JSON API）。打者/投手皆 rich；kind_code=A 一軍 / D 二軍。
-    一次抓全 leaderboard 再濾 `players` 指定的 acnt。UPSERT 回傳筆數。"""
+def scrape_advanced_result(year: int, players: list[tuple[str, str]], delay: float = 1.0,
+                           kind_code: str = "A") -> AdvancedScrapeResult:
+    """抓官方進階並保留可觀測 outcome；不宣稱 game-level completion。"""
     client = httpx.Client(timeout=40.0, headers={"User-Agent": UA, "Accept": "application/json",
                                                  "Referer": f"{BASE}/rankings"}, follow_redirects=True)
     records: list[tuple] = []
+    errors: list[str] = []
     want_b = {a for a, r in players if r == "batting"}
     want_p = {a for a, r in players if r == "pitching"}
     try:
@@ -185,13 +194,22 @@ def scrape_advanced(year: int, players: list[tuple[str, str]], delay: float = 1.
                 lb = _fetch_leaderboards(client, search_type, kind_code, year, delay=min(delay, 0.5))
             except httpx.HTTPError as e:
                 log.warning("leaderboard %s/%s 抓取失敗：%s", search_type, kind_code, e)
+                errors.append(f"{role}_http_error")
                 continue
             hit = [_record(m, year, a, role, kind_code) for a, m in lb.items() if a in want and m]
             records += hit
             log.info("進階 %s kind=%s：leaderboard %d 人，命中 %d", role, kind_code, len(lb), len(hit))
     finally:
         client.close()
-    return _upsert(records)
+    rows = _upsert(records)
+    outcome = "error" if errors else ("available" if rows > 0 else "missing")
+    return AdvancedScrapeResult(rows=rows, outcome=outcome, error_codes=tuple(errors))
+
+
+def scrape_advanced(year: int, players: list[tuple[str, str]], delay: float = 1.0,
+                    kind_code: str = "A") -> int:
+    """相容既有 CLI 的整數介面；refresh instrumentation 使用 result 版本。"""
+    return scrape_advanced_result(year, players, delay=delay, kind_code=kind_code).rows
 
 
 def current_players() -> list[tuple[str, str]]:

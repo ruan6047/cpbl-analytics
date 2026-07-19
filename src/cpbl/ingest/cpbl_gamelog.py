@@ -12,6 +12,7 @@ import time
 
 from cpbl.db import conn
 from cpbl.ingest.cpbl_site import BASE, KIND_REGULAR
+from cpbl.ingest.game_source_revisions import record_source_revision
 
 log = logging.getLogger("cpbl.gamelog")
 
@@ -233,24 +234,68 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
                 headers={"RequestVerificationToken": token},
             )
             if status != 200:
+                for source in ("scoreboard", "livelog"):
+                    record_source_revision(
+                        year=year, kind_code=kind_code, game_sno=sno, source=source,
+                        outcome="error", row_count=0, error_code=f"http_{status}",
+                        detail={"phase": "getlive", "http_status": status},
+                    )
                 token = _token()
                 continue
             try:
                 payload = json.loads(text)
             except (json.JSONDecodeError, ValueError):
+                for source in ("scoreboard", "livelog"):
+                    record_source_revision(
+                        year=year, kind_code=kind_code, game_sno=sno, source=source,
+                        outcome="error", row_count=0, error_code="invalid_response_json",
+                        detail={"phase": "getlive"},
+                    )
                 token = _token()
                 continue
         except Exception as e:  # noqa: BLE001 — 單場失敗略過續抓
             log.warning("getlive 失敗 sno=%s: %s", sno, e)
+            for source in ("scoreboard", "livelog"):
+                record_source_revision(
+                    year=year, kind_code=kind_code, game_sno=sno, source=source,
+                    outcome="error", row_count=0, error_code="request_error",
+                    detail={"phase": "getlive", "exception_type": type(e).__name__},
+                )
             continue
-        sb = json.loads(payload.get("ScoreboardJson") or "[]")
-        ll = json.loads(payload.get("LiveLogJson") or "[]")
+        def _source_rows(source: str, key: str) -> tuple[list[dict], bool]:
+            try:
+                rows = json.loads(payload.get(key) or "[]")
+                if not isinstance(rows, list):
+                    raise ValueError("source payload is not an array")
+                return rows, False
+            except (json.JSONDecodeError, TypeError, ValueError):
+                record_source_revision(
+                    year=year, kind_code=kind_code, game_sno=sno, source=source,
+                    outcome="error", row_count=0, error_code="invalid_source_json",
+                    detail={"phase": "getlive", "payload_key": key},
+                )
+                return [], True
+
+        sb, sb_error = _source_rows("scoreboard", "ScoreboardJson")
+        ll, ll_error = _source_rows("livelog", "LiveLogJson")
         bb = json.loads(payload.get("BattingJson") or "[]")
         pp = json.loads(payload.get("PitchingJson") or "[]")
         out["scoreboard"] += _upsert("game_scoreboard", _SB_COLS, 5,
                                      _scoreboard_rows(year, kind_code, sno, sb))
         out["livelog"] += _upsert("game_livelog", _LL_COLS, 4,
                                   _livelog_rows(year, kind_code, sno, ll))
+        if not sb_error:
+            record_source_revision(
+                year=year, kind_code=kind_code, game_sno=sno, source="scoreboard",
+                outcome="available" if sb else "missing", row_count=len(sb), payload=sb,
+                detail={"phase": "getlive"},
+            )
+        if not ll_error:
+            record_source_revision(
+                year=year, kind_code=kind_code, game_sno=sno, source="livelog",
+                outcome="available" if ll else "missing", row_count=len(ll), payload=ll,
+                detail={"phase": "getlive"},
+            )
         out["batting_box"] += _upsert("batting_gamelog", _BBOX_COLS, 4,
                                       _bbox_rows(year, kind_code, sno, bb))
         out["pitching_box"] += _upsert("pitching_gamelog", _PBOX_COLS, 4,

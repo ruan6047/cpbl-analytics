@@ -23,7 +23,7 @@ from datetime import date, timedelta
 
 from cpbl.db import conn, migrate
 from cpbl.ingest.championships import build_championships
-from cpbl.ingest.cpbl_advanced import scrape_advanced
+from cpbl.ingest.cpbl_advanced import AdvancedScrapeResult, scrape_advanced_result
 from cpbl.ingest.cpbl_fighting import YEAR_CAREER, scrape_matchups
 from cpbl.ingest.cpbl_gamelog import scrape_game_details, scrape_gamelogs
 from cpbl.ingest.cpbl_pitch_tracking import scrape_pitches
@@ -31,9 +31,41 @@ from cpbl.ingest.cpbl_site import lineup_acnts, scrape_games
 from cpbl.ingest.cpbl_standings import scrape_standings
 from cpbl.ingest.cpbl_stats import scrape_all
 from cpbl.ingest.cpbl_transactions import scrape_transactions
+from cpbl.ingest.game_source_revisions import record_source_revision
 from cpbl.ingest.splits_calc import build_career, build_splits
 
 log = logging.getLogger("cpbl.refresh")
+
+
+def _record_advanced_revisions(
+    year: int,
+    kind_code: str,
+    snos: list[int],
+    result: AdvancedScrapeResult,
+) -> None:
+    """把 season-player aggregate 的取得證據掛到相關場次，但明示非 game-level 完成訊號。"""
+    payload = {
+        "scope": "season_player_aggregate",
+        "rows": result.rows,
+        "outcome": result.outcome,
+        "error_codes": result.error_codes,
+    }
+    for sno in snos:
+        record_source_revision(
+            year=year,
+            kind_code=kind_code,
+            game_sno=sno,
+            source="advanced",
+            outcome=result.outcome,
+            row_count=result.rows,
+            payload=payload,
+            error_code=",".join(result.error_codes) or None,
+            detail={
+                "scope": "season_player_aggregate",
+                "game_level_complete": False,
+                "error_codes": list(result.error_codes),
+            },
+        )
 
 
 def _completed_snos(year: int, days: list[date], kind_code: str = "A") -> list[int]:
@@ -175,13 +207,21 @@ def _farm_detail(year: int, days: list[date], delay: float = 1.2) -> dict:
     m = scrape_matchups([YEAR_CAREER], delay=delay, batter_ids=rb, day_targets=targets) if rb else 0
     # 二軍分項（本季+生涯）已全改重算（build_splits + build_career），apart 停爬
     # 二軍官方進階（leaderboard JSON API，gameKind=D；bulk 一次全抓再濾當日出賽者）
-    adv = (scrape_advanced(year, [(a, "batting") for a in rb] + [(a, "pitching") for a in rp], kind_code="D")
-           if (rb or rp) else 0)
+    adv_result = (
+        scrape_advanced_result(
+            year,
+            [(a, "batting") for a in rb] + [(a, "pitching") for a in rp],
+            kind_code="D",
+        )
+        if (rb or rp)
+        else AdvancedScrapeResult(rows=0, outcome="missing", error_codes=())
+    )
+    _record_advanced_revisions(year, "D", d_snos, adv_result)
     rp_pitch = sorted(set(rp) | _lagging_pitch_pitchers(year, "D"))  # 補 TrackMan 發布延遲（同一軍）
     pitches = scrape_pitches(rp_pitch, year, kind_code="D", delay=delay) if rp_pitch else {"pitchers": 0, "pitches": 0}
     return {"completed_games": len(d_snos), "gamelog": gamelog,
             "lineup_batters": len(rb), "lineup_pitchers": len(rp),
-            "matchup_rows": m, "advanced": adv, "pitches": pitches}
+            "matchup_rows": m, "advanced": adv_result.rows, "pitches": pitches}
 
 
 def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict:
@@ -198,6 +238,9 @@ def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict
     batters_played, pitchers_played = lineup_acnts(year, snos)
     rb, rp = sorted(batters_played), sorted(pitchers_played)
     if not rb and not rp:
+        _record_advanced_revisions(
+            year, "A", snos, AdvancedScrapeResult(rows=0, outcome="missing", error_codes=()),
+        )
         return {"completed_games": len(snos), "gamelog": gamelog,
                 "lineup_batters": 0, "lineup_pitchers": 0, "farm": farm}
     # 對戰：只重抓「當日打者 × 當日對手隊」的生涯對戰即涵蓋所有變動的 (打者,投手) 組合
@@ -209,13 +252,18 @@ def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict
     # （build_career，錨定見 anchor_career）。apart 爬蟲全停；季後賽 C/E 開打時
     # 把 C/E 加進 build_splits kinds 即自動累加（gamelog/livelog 照爬）。
     # 官方進階：當日上場選手（打者進攻 / 投手被打）
-    adv = scrape_advanced(year, [(a, "batting") for a in rb] + [(a, "pitching") for a in rp], delay=delay)
+    adv_result = scrape_advanced_result(
+        year,
+        [(a, "batting") for a in rb] + [(a, "pitching") for a in rp],
+        delay=delay,
+    )
+    _record_advanced_revisions(year, "A", snos, adv_result)
     # 逐球 TrackMan：當日上場投手 ∪ 近幾日「逐球覆蓋不足」場次投手（補 TrackMan 發布延遲，自癒）
     rp_pitch = sorted(set(rp) | _lagging_pitch_pitchers(year, "A"))
     pitches = scrape_pitches(rp_pitch, year, delay=delay) if rp_pitch else {"pitchers": 0, "pitches": 0}
     return {"completed_games": len(snos), "gamelog": gamelog,
             "lineup_batters": len(rb), "lineup_pitchers": len(rp),
-            "matchup_rows": m, "advanced": adv, "pitches": pitches, "farm": farm}
+            "matchup_rows": m, "advanced": adv_result.rows, "pitches": pitches, "farm": farm}
 
 
 def _recent_counts(year: int, days: list[date]) -> list[tuple[date, int, int]]:
