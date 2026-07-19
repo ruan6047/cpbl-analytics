@@ -10,7 +10,7 @@
 |---|---|---|---|---|---|---|---|---|---|
 | [BUG-HELD-GAME-FRESHNESS1](tasks/BUG-HELD-GAME-FRESHNESS1.md) | INIT-PRODUCT-UX | T4 | 保留比賽 completed 與 freshness 正確化 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:36+08:00 |
 | [DEP-PREDICT-LEGACY1](tasks/DEP-PREDICT-LEGACY1.md) | INIT-PRODUCT-UX | T3 | 舊預測體驗退場 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:29+08:00 |
-| [GAME-RECAP-PA1](tasks/GAME-RECAP-PA1.md) | INIT-GAME-RECAP | T4 | canonical 打席與逐球可靠對應 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:06+08:00 |
+| [GAME-RECAP-PA1](tasks/GAME-RECAP-PA1.md) | INIT-GAME-RECAP | T4 | canonical 打席與逐球可靠對應 | GPT-5@Codex | `ai/gpt-5-codex/GAME-RECAP-PA1 @ .claude/worktrees/game-recap-pa1-execution` | 1 | 🔨執行中 | ⏸未部署 | 2026-07-19T20:35:00+08:00 |
 | [GAME-RECAP-STATUS1](tasks/GAME-RECAP-STATUS1.md) | INIT-GAME-RECAP | T4 | 賽事狀態、資料可用性與 freshness API | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:07+08:00 |
 | [GAME-RECAP-WP-API1](tasks/GAME-RECAP-WP-API1.md) | INIT-GAME-RECAP | T4 | canonical WP／WPA public contract | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:09+08:00 |
 | [GAME-RECAP-WP-VAL1](tasks/GAME-RECAP-WP-VAL1.md) | INIT-GAME-RECAP | T4 | 場中 WP 時間外驗證與支援邊界 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T22:15:08+08:00 |
