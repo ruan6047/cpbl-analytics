@@ -12,13 +12,13 @@
 
 ## 目標與驗收
 
-- [ ] 核可安全 probe contract：opt-in、allowlist、單次請求、零 retry、零 DB、sanitized JSON；
-  實作切到 `OPS-REMOTE-PROBE1`，本卡不直接寫 probe code。
-- [ ] 核可候選路線、跨時窗取樣、冷卻／停止條件與證據強度；比較執行切到
-  `OPS-REMOTE-ROUTE1`，任何 live probe 仍需 Coordinator 明確授權。
-- [ ] 以 Discovery Gate 決定是否允許隔離 shadow worker；未取得明確 GO＋需求方 sign-off，
-  `OPS-REMOTE-WORKER1` 與 `OPS-REMOTE-CUTOVER1` 均不得 claim。
-- [ ] 不部署遠端排程、不繞過 challenge、不採購代理、不修改 production 資料管線。
+- [x] 核可安全 probe contract：opt-in、allowlist、單次請求、零 retry、零 DB、sanitized JSON；
+  實作切到 `OPS-REMOTE-PROBE1`，本卡不直接寫 probe code。→ [`../discovery/OPS-REMOTE-CRAWL1_CONTRACTS.md`](../discovery/OPS-REMOTE-CRAWL1_CONTRACTS.md) §1
+- [x] 核可候選路線、跨時窗取樣、冷卻／停止條件與證據強度；比較執行切到
+  `OPS-REMOTE-ROUTE1`，任何 live probe 仍需 Coordinator 明確授權。→ §2
+- [x] 以 Discovery Gate 決定是否允許隔離 shadow worker；未取得明確 GO＋需求方 sign-off，
+  `OPS-REMOTE-WORKER1` 與 `OPS-REMOTE-CUTOVER1` 均不得 claim。→ §3：建議 HOLD，待需求方 sign-off。
+- [x] 不部署遠端排程、不繞過 challenge、不採購代理、不修改 production 資料管線。→ §0、§4 紅線。
 
 ## 驗證與依賴
 
@@ -36,3 +36,18 @@
   依需求方指示另開 Discovery，不回頭修改已核准 source。
 - 2026-07-18 規劃更新：需求方要求分階段推進並先留安全 DEBUG 介面；本卡改為 Discovery
   umbrella，新增四張依賴式子卡，禁止從 probe 直接跳到 production。
+- 2026-07-19 執行（Claude Opus 4.8@Claude Code）：依需求方指示「可以依據規範執行」claim
+  （`OPS-REMOTE-CRAWL1-CLAIM-003`, sv=3）。交付 [`../discovery/OPS-REMOTE-CRAWL1_CONTRACTS.md`](../discovery/OPS-REMOTE-CRAWL1_CONTRACTS.md)：
+  probe 安全契約（§1）、路線／取樣／停止條件／證據強度（§2）、Discovery Gate 決策（§3，PROBE1 GO／
+  ROUTE1 條件 GO／WORKER1・CUTOVER1 HOLD 待需求方 sign-off）。待 ≠ 執行者之獨立 T3 查核。
+- 2026-07-19 併發註記：claim 當下與另一 agent（GPT-5@Codex）同秒寫 `events.jsonl`，我 append 的
+  `CLAIM-003` 被對方 `git add docs/control-plane/events.jsonl` 夾帶進其提交 `8775a8a`（editorial claim）。
+  事件內容、TASKS.md 投影與 `--check` 均正確且已上 origin；provenance 由事件 actor／evidence 欄與本 Log
+  補記。屬 [[shared-main-checkout-discipline]] 所警示的逐檔 add 掃檔失誤，非資料錯誤。
+- 2026-07-19 查核退回（iteration 1→2, `REVIEW-005` REQUEST_CHANGES）：獨立查核提出 P0／P1。
+  P0＝`redirect_loop` 判定需跟隨多跳，與「單一 GET／零重試」矛盾、且單一 307 無法判 loop；P1＝`notes`
+  自由文字與白名單 redaction 不相容，易夾帶 token／query／path。已於原分支修正契約（schema v2）：
+  §1.3 明定 `allow_redirects=False`（恰一請求一回應）、§1.6 以首跳訊號分類並移除 `redirect_loop`（改
+  `redirect`＋澄清單次 GET 觀測不到 loop）、§1.4 移除 `notes`／`redirect_count`／`content_type` 原值，
+  改 `reason_code` 固定 enum（§1.4a）＋`redirect_target_class`／`content_kind` 推導 enum，並補「無上游
+  原字串直通」總原則。再送 ≠ 執行者之獨立查核。
