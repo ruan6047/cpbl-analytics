@@ -8,7 +8,7 @@
 
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
-| [BUG-HELD-GAME-FRESHNESS1](tasks/BUG-HELD-GAME-FRESHNESS1.md) | INIT-PRODUCT-UX | T4 | 保留比賽 completed 與 freshness 正確化 | GPT-5@Codex | `ai/gpt-5-codex/BUG-HELD-GAME-FRESHNESS1 @ .claude/worktrees/bug-held-game-freshness1-execution` | 1 | 🔨執行中 | ⏸未部署 | 2026-07-19T20:42:13+08:00 |
+| [BUG-HELD-GAME-FRESHNESS1](tasks/BUG-HELD-GAME-FRESHNESS1.md) | INIT-PRODUCT-UX | T4 | 保留比賽 completed 與 freshness 正確化 | 待指派（跨模型家族或人工查核者 ≠ GPT-5@Codex） | `ai/gpt-5-codex/BUG-HELD-GAME-FRESHNESS1 @ .claude/worktrees/bug-held-game-freshness1-execution` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-19T20:48:30+08:00 |
 | [DEP-PREDICT-LEGACY1](tasks/DEP-PREDICT-LEGACY1.md) | INIT-PRODUCT-UX | T3 | 舊預測體驗退場 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:29+08:00 |
 | [GAME-RECAP-PA1](tasks/GAME-RECAP-PA1.md) | INIT-GAME-RECAP | T4 | canonical 打席與逐球可靠對應 | 待指派（跨模型家族或人工查核者 ≠ GPT-5@Codex） | `ai/gpt-5-codex/GAME-RECAP-PA1 @ .claude/worktrees/game-recap-pa1-execution` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-19T20:38:00+08:00 |
 | [GAME-RECAP-STATUS1](tasks/GAME-RECAP-STATUS1.md) | INIT-GAME-RECAP | T4 | 賽事狀態、資料可用性與 freshness API | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:07+08:00 |
