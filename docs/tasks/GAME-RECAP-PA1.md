@@ -2,13 +2,13 @@
 
 - 需求：ruan6047　規劃：GPT-5@Codex　分支：`ai/<執行者>/GAME-RECAP-PA1`
 - 執行：待指派　查核：待指派（須跨模型家族或人工，且 ≠ 執行）
-- Initiative：INIT-GAME-RECAP　spec 基線：v1.2
+- Initiative：INIT-GAME-RECAP　spec 基線：v1.3
 - DB：依 `GAME-RECAP-DATA1` 決策；可能為 `read` 或獨立 schema expand 卡，不得直接改既有 migration
 - 部署：是　環境：production　PR：—　Merge SHA：—
 - 範圍：見 [`GAME_RECAP_PRODUCT_SPEC.md`](../GAME_RECAP_PRODUCT_SPEC.md) §3.3、§6.3、§7
-- Discovery：依賴 `GAME-RECAP-DATA1` 核可報告
+- Discovery：`GAME-RECAP-DATA1` 已核可（Checkpoint 1）；採每日批次物化 canonical PA，不得沿用現有近似鍵直接公開。
 - Design：Design Gate N/A；本卡建立資料契約，UI 由 `UX-GAME-PA1` 核可
-- current-state：📥Backlog；已由 Coordinator 註冊，等待 `GAME-RECAP-DATA1`
+- current-state：📥Backlog；已由 Coordinator 註冊，Checkpoint 1 已解除，可進 Design／expand 拆卡與實作。
 
 ## 目標
 
@@ -33,7 +33,7 @@
 
 ## 依賴與交付
 
-- 依賴：`GAME-RECAP-DATA1`。
+- 依賴：`GAME-RECAP-DATA1` ✅（Checkpoint 1 已於 2026-07-19 核可）。
 - 後續：解除 `UX-GAME-PA1` 的資料正確性阻塞。
 - 預估範圍：M；需要 schema 時先拆 migration expand 卡與 backfill 卡。
 
@@ -41,3 +41,4 @@
 
 - 2026-07-16 proposed by GPT-5@Codex → 待 Coordinator 註冊 lifecycle event。
 - 2026-07-16 Coordinator register → 已寫入 lifecycle event／Ledger；依賴未解除前不得 claim。
+- 2026-07-19 `GAME-RECAP-DATA1` 跨家族查核與需求方 Checkpoint 1 核可完成 → 可進 Design／expand 拆卡；禁止以既有近似鍵直接實作 public canonical PA。

@@ -26,7 +26,7 @@ flowchart LR
 - 第一波：`OPS-REFRESH1`、`UX-NAV-IA1`、`API-DAILY-SUMMARY1`、`UX-OUTCOME-HOME` 可在資源不衝突時平行。
 - 第二波：`UX-GAME-HOME1`、`UX-MODEL-METHOD1`；替代入口穩定後才做 `DEP-PREDICT-LEGACY1`。
 - 第三波：`UX-MATCHUP1` 與 `UX-PLAYER-IA1`／`UX-RANKINGS1` 平行；其後分流至 PA 模擬與球員頁整合。
-- 第四波：戰績、球隊與裁判邊界；`DATA-EDITORIAL1` 不阻塞核心流程，可獨立排入 backlog。
+- 第四波：戰績、球隊與裁判邊界；`DATA-EDITORIAL1` 已於 2026-07-19 暫停封存，不阻塞核心流程，待其他項目完成後重新規劃。
 - `INIT-GAME-RECAP` 維持獨立紅線 Initiative；本 Initiative 只共享首頁、導航與呈現基線，不吸收其 PA／WP 資料契約。
 
 ## Checkpoints

@@ -49,7 +49,7 @@ graph LR
   2026-07-03 實測）。先冷卻 **15–20 分鐘**再單次重試。
 - 端點/token/解析錨點/改版排查 → **[`CPBL_SITE_MAP.md`](CPBL_SITE_MAP.md)**（爬蟲事實單一來源）。
 
-**⚠️ 生產每日 cron 實際沒在跑**：`cpbl.refresh_log` 為空、生產資料曾停在某日。生產新鮮度目前靠人工「本機爬 + 同步」。
+**每日刷新現況（最後驗證 2026-07-19）**：本機 launchd 10:10 已成功完成爬取與 production 同步（`sync_ok=true`）。仍必須每天以 `refresh_status.py check --scheduled` 檢查；成功同步不等於資料語意正確——目前 `BUG-HELD-GAME-FRESHNESS1` 已證實未完成保留賽會污染 `last_game_date`，修復前不得僅以 freshness gate 判定資料正確。
 
 ### 本機每日爬取（launchd 每日 10:10；手動為 fallback）
 
@@ -135,7 +135,7 @@ production 映像尚未部署，先停止同步並完成正常 main deploy，不
 | `cpbl-refresh-recent [fast]` | 抓昨天/今天：games+累計+(增量)對戰/逐球 + **重算分項寫回**，寫 `refresh_log` | 每日增量（本機跑） |
 | `cpbl-build-splits [year] [kinds]` | **重算**本季 splits+vs各隊四表並寫回 + 生涯(base+本季)（純 DB 不爬，**生產可自跑**） | 已含於 refresh；手動重建分項 |
 | `cpbl-anchor-career <season> <csv_dir>` | 錨定生涯基底（官方生涯−官方本季同刻相減，一次性/重錨） | 跨年 roll 或重錨（見其 docstring） |
-| `cpbl-ingest-editorial` | 私有 Google Sheet → 嚴格驗證 → append-only 編輯內容 revisions（公開 API 仍唯讀） | 先 `--validate-only`；契約、rehearsal 與 rollback 見 [`EDITORIAL_DATA_PIPELINE.md`](EDITORIAL_DATA_PIPELINE.md) |
+| `cpbl-ingest-editorial` | 私有 Google Sheet → 嚴格驗證 → append-only 編輯內容 revisions（公開 API 仍唯讀） | **暫停（2026-07-19）**：不得執行 ingest 或 production migration；待其他項目完成後重新規劃。歷史契約見 [`EDITORIAL_DATA_PIPELINE.md`](EDITORIAL_DATA_PIPELINE.md)。 |
 | `cpbl-verify-splits [year] [kind]` | 分項重算 vs 官方爬值逐格對照 harness | 只對「新爬的官方值」有意義（寫回後即自比） |
 | `cpbl-build-championships` | 由逐年可追溯的 `championships` canonical dataset 決定冠軍→標該年一軍球員+總教練（物化 `championship_members`，純 DB 不爬） | 改冠軍資料／成員邏輯後（已含於 refresh-recent） |
 | `cpbl-build-features` | 賽果預測特徵表(leakage-safe) | 改賽果特徵後 |

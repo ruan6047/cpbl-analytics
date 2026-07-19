@@ -2,13 +2,13 @@
 
 - 需求：ruan6047　規劃：GPT-5@Codex　分支：`ai/<執行者>/GAME-RECAP-WP-VAL1`
 - 執行：待指派　查核：待指派（須跨模型家族或人工，且 ≠ 執行）
-- Initiative：INIT-GAME-RECAP　spec 基線：v1.2
+- Initiative：INIT-GAME-RECAP　spec 基線：v1.3
 - DB：`db_scope: read`；唯讀 canonical PA、games 與既有 run distribution／win expectancy
 - 部署：否　環境：—　PR：—　Merge SHA：—
 - 範圍：見 [`GAME_RECAP_PRODUCT_SPEC.md`](../GAME_RECAP_PRODUCT_SPEC.md) §8
-- Discovery：依賴 `GAME-RECAP-DATA1` 與 `GAME-RECAP-PA1` 核可成果
+- Discovery：`GAME-RECAP-DATA1` 已核可；仍依賴 `GAME-RECAP-PA1` canonical contract。
 - Design：Design Gate N/A；本卡只做統計 Go/No-Go，不改 public API 或 UI
-- current-state：📥Backlog；已由 Coordinator 註冊，等待 `GAME-RECAP-DATA1`／`GAME-RECAP-PA1`
+- current-state：📥Backlog；已由 Coordinator 註冊，等待 `GAME-RECAP-PA1`。
 
 ## 目標
 
@@ -29,7 +29,7 @@
 
 ## 依賴與交付
 
-- 依賴：`GAME-RECAP-DATA1 → GAME-RECAP-PA1`。
+- 依賴：`GAME-RECAP-DATA1` ✅ → `GAME-RECAP-PA1`。
 - 後續：只有通過的 scope 可解除 `GAME-RECAP-WP-API1` 阻塞。
 - 預估範圍：M；不得順手修改 public API／前端。
 
@@ -37,3 +37,4 @@
 
 - 2026-07-16 proposed in author preflight v1.1 → 為分離統計 Go/No-Go 與 API 實作而拆出；待 Coordinator 註冊。
 - 2026-07-16 Coordinator register → 已寫入 lifecycle event／Ledger；依賴未解除前不得 claim。
+- 2026-07-19 `GAME-RECAP-DATA1` Checkpoint 1 已核可 → 僅保留 PA1 為阻塞依賴。

@@ -2,13 +2,13 @@
 
 - 需求：ruan6047　規劃：GPT-5@Codex　分支：`ai/<執行者>/GAME-RECAP-STATUS1`
 - 執行：待指派　查核：待指派（須跨模型家族或人工，且 ≠ 執行）
-- Initiative：INIT-GAME-RECAP　spec 基線：v1.2
+- Initiative：INIT-GAME-RECAP　spec 基線：v1.3
 - DB：依 DATA1 結論；預設 `read`，需要逐來源紀錄時另開 schema expand／backfill 卡
 - 部署：是　環境：production　PR：—　Merge SHA：—
 - 範圍：見 [`GAME_RECAP_PRODUCT_SPEC.md`](../GAME_RECAP_PRODUCT_SPEC.md) §7
-- Discovery：依賴 `GAME-RECAP-DATA1` 的官方狀態值域與來源 freshness 證據
+- Discovery：`GAME-RECAP-DATA1` 已核可（Checkpoint 1）；仍須以官方狀態值域與 row-level freshness 證據定義 contract，證據不足時 fail closed。
 - Design：Design Gate N/A；本卡提供狀態 public contract，文案與頁面由 UX 卡核可
-- current-state：📥Backlog；已由 Coordinator 註冊，等待 `GAME-RECAP-DATA1`
+- current-state：📥Backlog；已由 Coordinator 註冊，Checkpoint 1 已解除，可進實作前的狀態值域與 freshness 設計。
 
 ## 目標
 
@@ -30,7 +30,7 @@
 
 ## 依賴與交付
 
-- 依賴：`GAME-RECAP-DATA1`。
+- 依賴：`GAME-RECAP-DATA1` ✅（Checkpoint 1 已於 2026-07-19 核可）。
 - 後續：解除 `UX-GAME-RECAP1`、`UX-GAME-HOME1` 的狀態契約阻塞。
 - 預估範圍：M；schema／ingest instrumentation 另拆卡。
 
@@ -38,3 +38,4 @@
 
 - 2026-07-16 proposed in author preflight v1.1 → 補齊狀態與 freshness API owner；待 Coordinator 註冊。
 - 2026-07-16 Coordinator register → 已寫入 lifecycle event／Ledger；依賴未解除前不得 claim。
+- 2026-07-19 `GAME-RECAP-DATA1` 跨家族查核與需求方 Checkpoint 1 核可完成 → 可進官方狀態值域與 row-level freshness 設計；不得以 `present_status=1` 或比分猜測 completed。

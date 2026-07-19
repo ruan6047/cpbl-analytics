@@ -2,6 +2,10 @@
 
 > 適用卡片：`DATA-EDITORIAL1`。本管道只負責 Google Sheet → 驗證 → PostgreSQL；
 > 公開 API 仍為唯讀，本卡不建立應援文化、主題日或季節性橫幅 UI。
+>
+> **狀態：暫停／封存（2026-07-19）**。實作與 migration 已合併至 `main`，但未部署、未建立
+> production 資料、也不得執行 ingest。待其他產品項目完成後，必須重新開卡並重做 production
+> sign-off、備份與 migration lane 檢查，才可依本文件恢復。
 
 ## 1. 資料流與安全邊界
 

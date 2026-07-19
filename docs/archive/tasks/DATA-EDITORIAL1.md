@@ -1,10 +1,14 @@
 # DATA-EDITORIAL1 Google Sheet 編輯資料管道〔T4；🔴資料寫入／正確性〕
 
+> **⏸ 擱置／封存（2026-07-19）**：T4 實作已跨家族查核並合併至 `main`（`1bdf5c6`），但
+> production migration、Google Sheet ingest 與部署均未執行。待其他項目完成後，須重新開卡、重新
+> 取得 production sign-off，才可恢復；不得直接執行本卡的操作步驟。
+
 - 需求：ruan6047　規劃：GPT-5@Codex＋Fable-5　分支：`ai/<執行者>/DATA-EDITORIAL1`
 - 執行：待指派　查核：待指派（跨模型家族或人工，且 ≠ 執行）
 - Initiative：INIT-PRODUCT-UX　spec 基線：PRODUCT_UX_BLUEPRINT v0.2
 - DB：`db_scope: schema`；CARD_ID 隔離 namespace；`migration_phase: expand`　部署：是　環境：production　PR：—　Merge SHA：—
-- 範圍：[`PRODUCT_UX_BLUEPRINT.md`](../PRODUCT_UX_BLUEPRINT.md) §8.5、§9 Phase 7
+- 範圍：[`PRODUCT_UX_BLUEPRINT.md`](../../PRODUCT_UX_BLUEPRINT.md) §8.5、§9 Phase 7
 - Discovery：應援文化、主題日與季節內容需要可維護來源　Design：Design Gate N/A；先建單向資料契約，不開 UI
 
 ## 目標與驗收

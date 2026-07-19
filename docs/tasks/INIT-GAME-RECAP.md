@@ -1,7 +1,7 @@
 # INIT-GAME-RECAP 隔日賽事脈絡與逐打席復盤
 
 - 需求方：ruan6047　owner：ruan6047（Design Gate）
-- Discovery：需求方於 2026-07-16 對話確認問題與能力邊界　Design：[`GAME_RECAP_DESIGN_BRIEF.md`](../design/GAME_RECAP_DESIGN_BRIEF.md)（既有 Gate 仍依 DOC-GAME-RECAP1）＋[`PRODUCT_UX_BLUEPRINT.md`](../PRODUCT_UX_BLUEPRINT.md) v0.2 呈現基線　spec 基線：v1.2
+- Discovery：需求方於 2026-07-16 對話確認問題與能力邊界　Design：[`GAME_RECAP_DESIGN_BRIEF.md`](../design/GAME_RECAP_DESIGN_BRIEF.md)（既有 Gate 仍依 DOC-GAME-RECAP1）＋[`PRODUCT_UX_BLUEPRINT.md`](../PRODUCT_UX_BLUEPRINT.md) v0.2 呈現基線　spec 基線：v1.3
 - 目標：讓每日追賽球迷能從隔日結果快速理解比賽轉折，並讓進階數據迷沿 WP 曲線進入可靠的逐打席與逐球分析
 - 非目標：即時轉播、即時通知、ML-SIM2 全場模擬、把 WPA 當球員能力評分
 - 里程碑：資料稽核核可 → WP/PA canonical 契約通過紅線查核 → 賽事頁 Design Gate → 首頁入口整併決策 → 生產驗證

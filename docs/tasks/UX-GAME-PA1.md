@@ -2,7 +2,7 @@
 
 - 需求：ruan6047　規劃：GPT-5@Codex　分支：`ai/<執行者>/UX-GAME-PA1`
 - 執行：待指派　查核：待指派（須 ≠ 執行）
-- Initiative：INIT-GAME-RECAP　spec 基線：v1.2
+- Initiative：INIT-GAME-RECAP　spec 基線：v1.3
 - DB：`db_scope: read`
 - 部署：是　環境：production　PR：—　Merge SHA：—
 - 範圍：見 [`GAME_RECAP_PRODUCT_SPEC.md`](../GAME_RECAP_PRODUCT_SPEC.md) §5、§6.3、§7、§9
