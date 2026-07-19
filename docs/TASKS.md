@@ -20,7 +20,6 @@
 | [INIT-PRODUCT-UX](tasks/INIT-PRODUCT-UX.md) | INIT-PRODUCT-UX | T3 | 全站產品與 UI/UX 收斂 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-17T04:44:24+08:00 |
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
-| [OPS-REMOTE-CRAWL1](tasks/OPS-REMOTE-CRAWL1.md) | INIT-PRODUCT-UX | T3 | 遠端無人值守 crawler Discovery umbrella | Claude Opus 4.8@Claude Code（查核通過，待整合） | `ai/claude-opus-4.8/OPS-REMOTE-CRAWL1 @ .claude/worktrees/ai-workflow-conflict-check-e13962` | 2 | ✅通過 | —不適用 | 2026-07-19T09:18:30+08:00 |
 | [OPS-REMOTE-CUTOVER1](tasks/OPS-REMOTE-CUTOVER1.md) | INIT-PRODUCT-UX | T4 | 遠端 crawler production canary 與切換 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:40+08:00 |
 | [OPS-REMOTE-PROBE1](tasks/OPS-REMOTE-PROBE1.md) | INIT-PRODUCT-UX | T3 | Opt-in DEBUG 網路探測介面 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:37+08:00 |
 | [OPS-REMOTE-ROUTE1](tasks/OPS-REMOTE-ROUTE1.md) | INIT-PRODUCT-UX | T3 | 遠端出口路線資格驗證 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:38+08:00 |
