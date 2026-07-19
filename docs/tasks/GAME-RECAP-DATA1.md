@@ -3,7 +3,7 @@
 - 需求：ruan6047　規劃：GPT-5@Codex　分支：`ai/<執行者>/GAME-RECAP-DATA1`
 - 執行：待指派　查核：待指派（須跨模型家族或人工，且 ≠ 執行）
 - Initiative：INIT-GAME-RECAP　spec 基線：v1.2
-- DB：`db_scope: read`；只讀 `games`、`game_livelog`、`game_scoreboard`、`pitch_tracking`、`refresh_log`；若結論要求 schema，另開 expand 卡
+- DB：`db_scope: read`；只讀 `games`、`game_livelog`、`game_scoreboard`、`batting_gamelog`（box PA 對帳分母）、`pitch_tracking`、`refresh_log` 及 `pg_catalog` 表體積 introspection；若結論要求 schema，另開 expand 卡
 - 部署：否　環境：—　PR：—　Merge SHA：—
 - 範圍：見 [`GAME_RECAP_PRODUCT_SPEC.md`](../GAME_RECAP_PRODUCT_SPEC.md) §3、§7、§10
 - Discovery：需求方 2026-07-16 確認資料節奏與使用目標；本卡補量化證據
@@ -40,3 +40,4 @@
 
 - 2026-07-16 proposed by GPT-5@Codex → 待 Coordinator 註冊 lifecycle event。
 - 2026-07-16 Coordinator register → 已寫入 lifecycle event／Ledger；維持待指派。
+- 2026-07-19 review by Claude（Opus 4.8，≠執行）→ **APPROVE**；重跑抽樣分母全數命中、三套分組重現忠於程式碼、ruff／pytest 通過。verdict：[`GAME-RECAP-DATA1_REVIEW.md`](../research/GAME-RECAP-DATA1_REVIEW.md)。非阻擋：N1 白名單已補正、N2 merge 前 rebase。
