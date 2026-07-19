@@ -20,10 +20,10 @@ test("「球員」直達打者排行，不建立 /players landing", () => {
   );
 });
 
-test("「更多」收納紀錄室、球場、方法與待退場的賽事預測", () => {
+test("「更多」只收納紀錄室、球場與方法", () => {
   assert.deepEqual(
     MORE_NAV.map((n) => n.label),
-    ["紀錄室", "球場", "方法", "賽事預測"]
+    ["紀錄室", "球場", "方法"]
   );
 });
 
@@ -62,6 +62,6 @@ test("作用中判定比對路徑邊界，不把 /venues-x 當成 /venues", () =
 
 test("「更多」在收納項作用時一併標示", () => {
   assert.equal(isMoreActive("/records"), true);
-  assert.equal(isMoreActive("/predict"), true);
+  assert.equal(isMoreActive("/predict"), false);
   assert.equal(isMoreActive("/standings"), false);
 });

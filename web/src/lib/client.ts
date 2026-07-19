@@ -1,3 +1,5 @@
+import type { PregameResponse } from "./pregame-card";
+
 // 瀏覽器端 API base。prod 同源(經 nginx)→ 可留空走相對路徑；dev 指向 FastAPI。
 export const CLIENT_API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4001";
 
@@ -199,9 +201,8 @@ export const detail = {
     }>(`/api/v1/players/${id}/traits?role=${role}`),
   advanced: (id: string, kind: "A" | "D" = "A") =>
     clientGet<{ batting: StatRow | null; pitching: StatRow | null }>(`/api/v1/players/${id}/advanced?kind_code=${kind}`),
-  outcomeToday: () =>
-    clientGet<{ items: import("@/app/games/[sno]/overview").PregameMatchup[] }>(
-      "/api/v1/outcome/matchups?features=winrate_diff,prior_winpct_diff,runs_scored_diff,runs_allowed_diff,recent_form_diff,h2h_home,starter_era_diff,home_field&limit=12"),
+  pregame: () =>
+    clientGet<PregameResponse>("/api/v1/outcome/pregame"),
   milestones: (sno: number, kind = "A", year?: number) =>
     clientGet<{ items: { player: string; text: string }[] }>(
       `/api/v1/games/${sno}/milestones?kind_code=${kind}${year ? `&season=${year}` : ""}`),

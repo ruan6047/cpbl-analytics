@@ -21,14 +21,11 @@ export const PRIMARY_NAV: NavItem[] = [
 ];
 
 // 需求方 2026-07-17 決策（§12-2）：紀錄室桌機維持在「更多」，與球場同層。
-// 「賽事預測」暫收於此：§4.1 要求 /predict 不競爭主要導覽位置，§7.1 要求
-// 首頁替代品（UX-GAME-HOME1）上線後才由 DEP-PREDICT-LEGACY1 移除入口。
 export const MORE_NAV: NavItem[] = [
   { href: "/records", label: "紀錄室", group: "更多" },
   { href: "/venues", label: "球場", group: "更多" },
   // 路徑與 methodology-anchors.ts 的 METHODOLOGY_PATH 一致（由 nav.test.ts 守住）。
   { href: "/methodology", label: "方法", group: "更多" },
-  { href: "/predict", label: "賽事預測", group: "更多" },
 ];
 
 /**
