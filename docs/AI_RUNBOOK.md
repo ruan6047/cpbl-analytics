@@ -135,6 +135,7 @@ production 映像尚未部署，先停止同步並完成正常 main deploy，不
 | `cpbl-refresh-recent [fast]` | 抓昨天/今天：games+累計+(增量)對戰/逐球 + **重算分項寫回**，寫 `refresh_log` | 每日增量（本機跑） |
 | `cpbl-build-splits [year] [kinds]` | **重算**本季 splits+vs各隊四表並寫回 + 生涯(base+本季)（純 DB 不爬，**生產可自跑**） | 已含於 refresh；手動重建分項 |
 | `cpbl-anchor-career <season> <csv_dir>` | 錨定生涯基底（官方生涯−官方本季同刻相減，一次性/重錨） | 跨年 roll 或重錨（見其 docstring） |
+| `cpbl-ingest-editorial` | 私有 Google Sheet → 嚴格驗證 → append-only 編輯內容 revisions（公開 API 仍唯讀） | 先 `--validate-only`；契約、rehearsal 與 rollback 見 [`EDITORIAL_DATA_PIPELINE.md`](EDITORIAL_DATA_PIPELINE.md) |
 | `cpbl-verify-splits [year] [kind]` | 分項重算 vs 官方爬值逐格對照 harness | 只對「新爬的官方值」有意義（寫回後即自比） |
 | `cpbl-build-championships` | 由逐年可追溯的 `championships` canonical dataset 決定冠軍→標該年一軍球員+總教練（物化 `championship_members`，純 DB 不爬） | 改冠軍資料／成員邏輯後（已含於 refresh-recent） |
 | `cpbl-build-features` | 賽果預測特徵表(leakage-safe) | 改賽果特徵後 |

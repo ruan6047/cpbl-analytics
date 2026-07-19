@@ -14,6 +14,7 @@ dependencies = [
     "lightgbm>=4.5",
     "scikit-learn>=1.6",
     "numpy>=2.1",
+    "google-auth[requests]>=2.40",
 ]
 
 [project.scripts]
@@ -46,6 +47,7 @@ cpbl-verify-splits = "cpbl.ingest.run_verify_splits:main"
 cpbl-check-coverage = "cpbl.ingest.run_check_coverage:main"
 cpbl-build-splits = "cpbl.ingest.run_build_splits:main"
 cpbl-anchor-career = "cpbl.ingest.run_anchor_career:main"
+cpbl-ingest-editorial = "cpbl.ingest.run_ingest_editorial:main"
 cpbl-build-sabr = "cpbl.models.run_build_sabr:main"
 cpbl-build-features = "cpbl.features.run_build_features:main"
 cpbl-train = "cpbl.models.train:main"
