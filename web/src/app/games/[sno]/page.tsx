@@ -9,8 +9,10 @@ import GameBoard, { type Live } from "@/components/game-board";
 import { Card, Eyebrow, Notice, Skeleton, ErrorState, EmptyState, PlayerLink } from "@/components/ui";
 import BoxTabs from "./box-tabs";
 import { WinProbChart, type WpPoint } from "@/components/win-prob-chart";
+import { PregameCard } from "@/components/pregame-card";
 import { fanNick, teamColor, teamShort } from "@/lib/teams";
-import { GameOverview, Pregame, type PregameMatchup, type DecItem } from "./overview";
+import { resolvePregameCard, type PregameCardModel } from "@/lib/pregame-card";
+import { GameOverview, type DecItem } from "./overview";
 
 const n = (v: number | string | null) => (v === null || v === undefined ? "" : Number(v));
 
@@ -27,7 +29,7 @@ export default function GameLivePage() {
   // 頁面預設「比賽總覽」；逐打席為進階操作視圖
   const [view, setView] = useState<"overview" | "pbp">("overview");
   const [wp, setWp] = useState<WpPoint[] | null>(null);
-  const [pregame, setPregame] = useState<PregameMatchup | null>(null);
+  const [pregame, setPregame] = useState<PregameCardModel | null>(null);
   const [milestones, setMilestones] = useState<{ player: string; text: string }[]>([]);
 
   useEffect(() => {
@@ -36,14 +38,27 @@ export default function GameLivePage() {
         const dd = d as Live;
         setData(dd);
         setIdx(Math.max(0, dd.livelog.length - 1)); // 逐打席視圖預設停在終局
-        // 未開賽（無逐打席）→ 抓賽前展望（賽果模型近期對戰卡，比 date+主隊碼）
+        // 未開賽（無逐打席）→ 固定語意的賽前勝率，不再使用可選特徵對戰 API。
         if (!dd.livelog.length && dd.game) {
-          const gd = String(dd.game.game_date ?? "");
-          const hc = String(dd.game.home_team_code ?? "");
-          detail.outcomeToday()
-            .then((o) => setPregame(o.items.find((it) =>
-              it.game_date === gd && it.home.code === hc) ?? null))
-            .catch(() => setPregame(null));
+          const game = dd.game;
+          detail.pregame()
+            .then((response) => setPregame(resolvePregameCard({
+              response,
+              game: {
+                season: Number(game.year),
+                game_sno: Number(game.game_sno),
+                kind_code: String(game.kind_code),
+              },
+            })))
+            .catch(() => setPregame(resolvePregameCard({
+              response: null,
+              fetchFailed: true,
+              game: {
+                season: Number(game.year),
+                game_sno: Number(game.game_sno),
+                kind_code: String(game.kind_code),
+              },
+            })));
         }
       })
       .catch(() => setErr(true));
@@ -544,7 +559,7 @@ export default function GameLivePage() {
           <p className="mt-1.5 text-sm text-muted">{String(g.game_date ?? "")}　賽事編號 {sno}　{String(g.venue ?? "")}</p>
         </header>
       ) : (
-        /* 未開賽：賽前展望（賽果模型對戰卡） */
+        /* 未開賽：固定語意的賽前勝率 */
         <div className="mb-8 mt-2 space-y-4">
           <header className="mb-6">
             <h1 className="text-2xl font-extrabold tracking-tight text-ink">
@@ -553,7 +568,7 @@ export default function GameLivePage() {
             </h1>
             <p className="mt-1.5 text-sm text-muted">{String(g.game_date ?? "")}　賽事編號 {sno}　{String(g.venue ?? "")}　尚未開賽</p>
           </header>
-          {pregame && <Pregame m={pregame} />}
+          {pregame && <PregameCard model={pregame} homeName={String(g.home_team_name)} />}
         </div>
       )}
 

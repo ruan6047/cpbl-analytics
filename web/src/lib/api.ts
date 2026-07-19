@@ -250,17 +250,6 @@ export type PostseasonSummaryResponse = {
   }[];
 };
 
-// 賽果預測 hub 卡：只取渲染所需子集（TeamSide 全欄見 client.ts Matchup）。
-const OUTCOME_DEFAULT_FEATURES =
-  "winrate_diff,prior_winpct_diff,runs_scored_diff,runs_allowed_diff,recent_form_diff,h2h_home,starter_era_diff,home_field";
-export type HubMatchup = {
-  game_date: string | null;
-  home: { code: string; name: string };
-  away: { code: string; name: string };
-  home_win_prob: number;
-};
-export type HubMatchupsResponse = { items: HubMatchup[] };
-
 // —— 球場數據特色（VENUE-PARK1 契約；方法論見 docs/VENUE_PARK1_CONTRACT.md）——
 // PF>1＝該球場放大該事件。games＝實際完成場次；估計基礎是 eligible_team_games（隊-場），
 // low_sample 依估計基礎判定 —— UI 有義務同時揭露樣本與 low_sample，不得只列數字。
@@ -486,10 +475,6 @@ export const api = {
     get<BattingLeadersResponse>(`/api/v1/season/batting-leaders?sort=${sort}&limit=${limit}&min_pa=${minPa}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 60),
   pitchingLeaders: (sort = "era", { limit = 400, minIp = 0, year, kind = "A" }: { limit?: number; minIp?: number; year?: number; kind?: string } = {}) =>
     get<PitchingLeadersResponse>(`/api/v1/season/pitching-leaders?sort=${sort}&limit=${limit}&min_ip=${minIp}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 60),
-  // 首頁 hub 用：以定向預設特徵子集即時 fit，取即將開打賽事的主隊勝率預測。
-  // 特徵組對齊 predict 頁預設（client.ts）；此處 server 端渲染避免載入閃爍。
-  outcomeMatchups: (limit = 3) =>
-    get<HubMatchupsResponse>(`/api/v1/outcome/matchups?features=${OUTCOME_DEFAULT_FEATURES}&limit=${limit}`, 120),
   // 首頁每日入口單一聚合契約（API-DAILY-SUMMARY1）：最近比賽日／下一批賽事／freshness／
   // 三軸 availability，取代舊首頁十餘組請求（blueprint §8.4）。revalidate=120 對齊賽事類。
   dailySummary: (kind = "A", season?: number) =>
