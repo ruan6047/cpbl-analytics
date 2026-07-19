@@ -1,6 +1,6 @@
 # 賽事脈絡與逐打席復盤產品規格
 
-> 狀態：提案基線 v1.2，待 Design Gate 核可  
+> 狀態：提案基線 v1.3，待 Design Gate 核可  
 > 日期：2026-07-16  
 > 對應 Initiative：[`INIT-GAME-RECAP`](tasks/INIT-GAME-RECAP.md)  
 > Design Brief：[`GAME_RECAP_DESIGN_BRIEF.md`](design/GAME_RECAP_DESIGN_BRIEF.md)
@@ -41,7 +41,7 @@
 | WP 模型 | `models/winprob.py` 已有 run distribution＋動態規劃 [dynamic programming] | 不重寫；先做時間外驗證、適用賽制與契約稽核 |
 | WP API | `/api/v1/games/{game_sno}/winprob` 已存在 | 補 canonical 打席前後狀態、WPA、來源與模型資訊 |
 | 賽事頁 | 已有勝率曲線、關鍵時刻、逐打席與好球帶 | 重整產品語意、互動、完賽狀態與資料新鮮度，不從零製作 |
-| 賽前預測 | ML-SIM1 已有固定模型能力，但 Ledger 待對帳 | 與既有 `UX-OUTCOME-HOME` 協調，不在本 Initiative 重訓模型 |
+| 賽前預測 | ML-SIM1 已完成跨模型家族複查、合併與 production 驗證，Ledger 已對帳（merge `a28170b`）；PregameCard 由已交付並部署的 `UX-OUTCOME-HOME`／`UX-GAME-HOME1`（2026-07-18）呈現 | 沿用既有模型，不在本 Initiative 重訓 |
 
 ### 3.3 已知資料風險
 
@@ -85,7 +85,7 @@ flowchart LR
 3. 今日賽程與賽前資訊。
 4. 各來源資料更新狀態。
 
-`UX-GAME-HOME1` 負責上述每日入口；既有 `UX-OUTCOME-HOME` 只負責賽前預測模組。兩卡會修改相同首頁資源，必須由 Coordinator 序列化：先凍結首頁區塊契約，再依合併順序實作，不得平行修改 `web/src/app/page.tsx`。
+每日入口由已交付並部署的 `UX-GAME-HOME1`（最近比賽日入口）與 `UX-OUTCOME-HOME`（PregameCard）提供，兩卡的首頁資源序列化已於 2026-07-18 完成合併與 production 驗證。本 Initiative 後續若再改動首頁區塊，仍須由 Coordinator 序列化、不得平行修改 `web/src/app/page.tsx`。
 
 ### 6.2 單場賽後復盤
 
@@ -228,3 +228,4 @@ model_span, model_kind, model_built_at
 - 2026-07-16 v1：初版規格與五張子卡。
 - 2026-07-16 v1.1：作者端 preflight 重整 PA owner、拆 WP 驗證／API、正交化狀態契約、新增狀態 API 與首頁卡、補 Design Brief；非正式查核紀錄。
 - 2026-07-16 v1.2：作者端 preflight 分散 availability owner，拆開 PA base contract 與 WP enrichment，清除基本資料完成即保證 WP 的殘留語意；非正式查核紀錄。
+- 2026-07-19 v1.3：依 DOC-GAME-RECAP1 獨立查核（Claude Opus，request-changes）修正現況盤點時效性——ML-SIM1 已對帳、`UX-GAME-HOME1`／`UX-OUTCOME-HOME` 已交付部署、首頁序列化前置已消除（§3.2、§6.1）；核心資料／PA/WP/STATUS 與可及性設計不變。查核證據見 [`research/DOC-GAME-RECAP1_REVIEW.md`](research/DOC-GAME-RECAP1_REVIEW.md)。

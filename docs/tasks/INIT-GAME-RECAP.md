@@ -10,19 +10,20 @@
 
 ```mermaid
 flowchart LR
-  D["GAME-RECAP-DATA1\n資料覆蓋與契約稽核"] --> P["GAME-RECAP-PA1\ncanonical 打席與逐球"]
-  D --> S["GAME-RECAP-STATUS1\n狀態與 freshness API"]
-  P --> V["GAME-RECAP-WP-VAL1\n時間外驗證"]
-  V --> A["GAME-RECAP-WP-API1\nWP/WPA API 契約"]
-  A --> U1["UX-GAME-RECAP1\n賽事總覽重構"]
+  D["GAME-RECAP-DATA1<br>資料覆蓋與契約稽核"] --> P["GAME-RECAP-PA1<br>canonical 打席與逐球"]
+  D --> S["GAME-RECAP-STATUS1<br>狀態與 freshness API"]
+  P --> V["GAME-RECAP-WP-VAL1<br>時間外驗證"]
+  V --> A["GAME-RECAP-WP-API1<br>WP/WPA API 契約"]
+  A --> U1["UX-GAME-RECAP1<br>賽事總覽重構"]
   S --> U1
   P --> U1
-  P --> U2["UX-GAME-PA1\n打席探索器"]
+  P --> U2["UX-GAME-PA1<br>打席探索器"]
   A --> U2
   U1 --> U2
-  U1 -. "WPA 漸進增強" .-> H["UX-GAME-HOME1\n最近比賽日入口"]
+  U1 -. "WPA 漸進增強" .-> H["UX-GAME-HOME1<br>最近比賽日入口（已交付 07-18）"]
   S -. "availability 對齊" .-> H
-  O["UX-OUTCOME-HOME\n賽前預測模組"] -. "首頁資源序列化" .-> H
+  DS["API-DAILY-SUMMARY1<br>昨日戰果 API（已交付）"] --> H
+  O["UX-OUTCOME-HOME<br>賽前預測模組（已交付 07-18）"] -. "首頁資源序列化" .-> H
 ```
 
 - `GAME-RECAP-DATA1`：核實逐打席、逐球、刷新時間與各賽制覆蓋，決定物化或 request-time 契約。
@@ -32,8 +33,9 @@ flowchart LR
 - `GAME-RECAP-STATUS1`：實作賽事狀態、資料可用性與來源 freshness API。
 - `UX-GAME-RECAP1`：重整現有賽事頁為結論先行的賽後復盤。
 - `UX-GAME-PA1`：用 canonical `pa_id` 串接曲線、轉折、事件與逐球詳情。
-- `UX-GAME-HOME1`：負責最近比賽日、下一批賽事、復盤入口與 freshness；首頁 v1 不依賴 WP/WPA。
-- `UX-OUTCOME-HOME`：只交付 PregameCard、fixture 與文案紅線；與 `UX-GAME-HOME1` 共用首頁資源，須序列化。
+- `UX-GAME-HOME1`：負責最近比賽日、下一批賽事、復盤入口與 freshness；首頁 v1 不依賴 WP/WPA。**已交付並部署（merge `99b38a6`，07-18）。**
+- `UX-OUTCOME-HOME`：只交付 PregameCard、fixture 與文案紅線；與 `UX-GAME-HOME1` 共用首頁資源，序列化已完成。**已交付並部署（merge `fdee7297`，07-18）。**
+- `API-DAILY-SUMMARY1`：昨日戰果／今日賽程 API，供 `UX-GAME-HOME1` 首頁入口消費（不依賴 WPA）。**已交付（archive）。**
 
 ## Checkpoints
 
@@ -62,10 +64,11 @@ flowchart LR
 - 2026-07-16 v1.2 by GPT-5@Codex → 作者端 preflight 分散 STATUS／PA／WP availability owner；待需求方正式交付 DOC-GAME-RECAP1。
 - 2026-07-16 Coordinator register → Initiative 與 9 張子卡已寫入 lifecycle event／Ledger；Design Gate 仍待核可，未派工。
 - 2026-07-17 v1.2＋PRODUCT_UX v0.2 by ruan6047 → 核可全站呈現與首頁責任；GAME_RECAP 自身 DOC／資料紅線 Gate 仍按原卡執行。
+- 2026-07-19 v1.3 by Claude（DOC-GAME-RECAP1 查核修正，ruan6047 核可）→ 同步現況：ML-SIM1 已對帳、首頁入口鏈（UX-GAME-HOME1／UX-OUTCOME-HOME／API-DAILY-SUMMARY1）已交付；依賴圖以 `<br>` 修正 mermaid 換行並補 API-DAILY-SUMMARY1 節點。資料紅線主鏈與子卡範圍不變。
 
 ## 決策與風險
 
 - 2026-07-16：採隔日復盤定位，不新增即時基礎設施。
 - 2026-07-16：現有 WP、關鍵轉折與逐打席能力視為 baseline，任務只補可靠性與產品整合。
 - 風險：現行逐球近似鍵可能誤配；在 `GAME-RECAP-PA1` 通過前，UI 不得宣稱逐球屬於精確打席。
-- 風險：ML-SIM1 與 Ledger 狀態仍待對帳；不以其部署狀態阻塞賽後復盤，但首頁賽前區必須等待對帳。
+- 2026-07-19 解除：ML-SIM1 已完成跨模型家族複查、合併與 production 驗證且 Ledger 已對帳；`UX-GAME-HOME1`、`UX-OUTCOME-HOME` 與 `API-DAILY-SUMMARY1` 已交付部署（07-18）。首頁賽前區的對帳前置已消除，首頁 v1 入口鏈已完成。
