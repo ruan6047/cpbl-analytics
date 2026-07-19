@@ -1,6 +1,6 @@
 # DOC-GAME-RECAP1 獨立查核報告
 
-- 查核卡：[`DOC-GAME-RECAP1`](../tasks/DOC-GAME-RECAP1.md)〔T3；⚪B2 權威文件〕
+- 查核卡：[`DOC-GAME-RECAP1`](../archive/tasks/DOC-GAME-RECAP1.md)〔T3；⚪B2 權威文件；結案後封存〕
 - 查核範圍：[`GAME_RECAP_PRODUCT_SPEC.md`](../GAME_RECAP_PRODUCT_SPEC.md) v1.2、[`GAME_RECAP_DESIGN_BRIEF.md`](../design/GAME_RECAP_DESIGN_BRIEF.md) v1.2、[`INIT-GAME-RECAP`](../tasks/INIT-GAME-RECAP.md) 與全部 `GAME-RECAP-*`／`UX-GAME-*` 子卡
 - 查核者：Claude（Opus 4.8）　撰寫者：GPT-5@Codex（跨模型家族，符合紅線獨立性）
 - 日期：2026-07-19　方法：唯讀核對 spec 宣稱 vs 實際 migration／model／API／前端；未修改任何原文件、未改動 control-plane／TASKS.md
@@ -52,7 +52,7 @@
 
 ### F2 — DOC 卡角色欄位自相矛盾　`severity: Low`
 
-- **證據**：[`DOC-GAME-RECAP1.md`](../tasks/DOC-GAME-RECAP1.md) L4「執行：GPT-5@Codex」，但同卡查核目標要求「由非原撰寫者獨立確認」、current-state「待指派獨立 reviewer」。獨立查核卡的「執行＝產出查核」不可由原撰寫者擔任。
+- **證據**：[`DOC-GAME-RECAP1.md`](../archive/tasks/DOC-GAME-RECAP1.md) L4「執行：GPT-5@Codex」（查核時原值），但同卡查核目標要求「由非原撰寫者獨立確認」、current-state「待指派獨立 reviewer」。獨立查核卡的「執行＝產出查核」不可由原撰寫者擔任。
 - **處置**：將「執行」改為「待指派其他 AI（≠GPT-5@Codex）」，與 GAME-RECAP-DATA1 等子卡的「執行：待指派」一致。
 
 ### F3 — INIT 依賴圖與 TASKS.md 首頁路徑不一致　`severity: Low`

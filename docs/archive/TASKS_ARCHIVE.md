@@ -16,6 +16,7 @@
 | API-DAILY-SUMMARY1 | 最近比賽日與下一批賽事聚合契約 | 🏁完成 | ✅已驗證 | [`tasks/API-DAILY-SUMMARY1.md`](tasks/API-DAILY-SUMMARY1.md)（Gemini 跨家族 T3 APPROVE；merge 8aeb541；07-18 部署驗證） |
 | UX-GAME-HOME1 | 最近比賽日與下一批賽事首頁 | 🏁完成 | ✅已驗證 | [`tasks/UX-GAME-HOME1.md`](tasks/UX-GAME-HOME1.md)（Gemini 跨家族 T3 APPROVE；merge 99b38a6；07-18 部署驗證） |
 | OPS-REFRESH1 | 白天自動刷新與失敗快篩 | 🏁完成 | ✅已驗證 | [`tasks/OPS-REFRESH1.md`](tasks/OPS-REFRESH1.md)（Claude Sonnet 5 跨家族 T4 APPROVE；merge 1e4572a；07-18 launchd／production 驗證） |
+| DOC-GAME-RECAP1 | 賽事復盤產品規格獨立查核 | 🏁完成 | —不適用 | [`tasks/DOC-GAME-RECAP1.md`](tasks/DOC-GAME-RECAP1.md)（Claude Opus 跨家族獨立查核 request-changes→需求方核可；spec 升 v1.3；merge c022083） |
 | Legacy pre-WF-12 | 2026-07-15 前的 Ledger 與所有卡片明細 | 已封存 | 依原始紀錄 | [`TASKS_PRE_WF12.md`](TASKS_PRE_WF12.md) |
 
 > 已完成（🏁）與封存（📥）的卡片移到此處，讓 [`../TASKS.md`](../TASKS.md) 只留活卡（省 AI 讀取算力）。
