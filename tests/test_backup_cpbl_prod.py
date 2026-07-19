@@ -67,6 +67,13 @@ def test_refresh_progress_uses_consistent_four_step_labels() -> None:
     assert "/3" not in "\n".join(line for line in script.splitlines() if 'echo "==>' in line)
 
 
+def test_refresh_uses_shared_completed_game_contract() -> None:
+    script = (ROOT / "scripts" / "refresh-cpbl-prod.sh").read_text(encoding="utf-8")
+
+    assert 'COMPLETED_GAMES_SQL="$(uv run python -m cpbl.completion)"' in script
+    assert "FILTER (WHERE ${COMPLETED_GAMES_SQL})" in script
+
+
 def test_default_backup_directory_is_persistent_user_storage(tmp_path: Path) -> None:
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()

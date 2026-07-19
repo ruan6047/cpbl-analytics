@@ -12,6 +12,7 @@ from psycopg_pool import ConnectionPool
 
 from cpbl import db
 from cpbl.api.main import app
+from cpbl.api.routers import info
 
 
 @pytest.fixture
@@ -48,6 +49,32 @@ def test_info_status_vocabulary(client, broken_db):
     """status 只允許契約詞彙。"""
     res = client.get("/api/info")
     assert res.json()["status"] in ("running", "maintenance", "stopped")
+
+
+def test_info_freshness_metrics_use_completed_game_contract(monkeypatch):
+    """未完成保留賽的中止比分不得推高 completed 或最後比賽日。"""
+    queries: list[str] = []
+
+    def scalar(sql, params=()):
+        queries.append(sql)
+        if "max(game_date)" in sql:
+            return None
+        return 0
+
+    monkeypatch.setattr(info, "_scalar", scalar)
+
+    body = info.info()
+
+    assert body["metrics"]["season_games_completed"] == 0
+    assert any(
+        "WHERE year = %s AND home_score + away_score > 0 AND game_date <= CURRENT_DATE" in sql
+        for sql in queries
+    )
+    assert any(
+        "SELECT max(game_date) FROM cpbl.games "
+        "WHERE home_score + away_score > 0 AND game_date <= CURRENT_DATE" in sql
+        for sql in queries
+    )
 
 
 def test_matchup_query_parameters_are_exposed_in_openapi():

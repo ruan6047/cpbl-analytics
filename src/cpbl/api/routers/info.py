@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter
 
 from cpbl.api.helpers import DEFAULT_SEASON
+from cpbl.completion import completed_games_sql
 from cpbl.config import settings
 from cpbl.db import conn
 
@@ -28,12 +29,13 @@ def info() -> dict:
     status = "running"
     try:
         season = DEFAULT_SEASON
+        completed_sql = completed_games_sql()
         games = _scalar("SELECT count(*) FROM cpbl.games") or 0
         metrics["games_indexed"] = games
         metrics["seasons_covered"] = _scalar("SELECT count(DISTINCT year) FROM cpbl.games") or 0
         metrics["current_season"] = season
         metrics["season_games_completed"] = _scalar(
-            "SELECT count(*) FROM cpbl.games WHERE year = %s AND home_score + away_score > 0", (season,)
+            f"SELECT count(*) FROM cpbl.games WHERE year = %s AND {completed_sql}", (season,)
         ) or 0
         metrics["teams_tracked"] = _scalar(
             "SELECT count(*) FROM cpbl.team_current WHERE year = %s", (season,)
@@ -56,7 +58,7 @@ def info() -> dict:
             "WHERE year = %s AND home_score + away_score = 0 AND game_date = CURRENT_DATE", (season,)
         ) or 0
         last_game = _scalar(
-            "SELECT max(game_date) FROM cpbl.games WHERE home_score + away_score > 0"
+            f"SELECT max(game_date) FROM cpbl.games WHERE {completed_sql}"
         )
         metrics["last_game_date"] = last_game.isoformat() if last_game else None
         try:  # refresh_log 可能尚未 migrate，獨立保護避免拖垮整個 info
