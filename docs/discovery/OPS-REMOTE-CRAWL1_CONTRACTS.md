@@ -52,6 +52,9 @@
 ### 1.3 單次／零重試／零 DB
 
 - **單次**：每 (route × target) 每次 run 只發一個請求；無分頁、無跟進、無 retry loop、無 backoff 重打。
+- **不跟隨 redirect**：HTTP client 強制 `allow_redirects=False`（httpx）或等價設定。一個 target
+  ＝**恰一個請求＝恰一個回應**；3xx 只看**首跳**，不追 `Location`、不因 redirect 發第二請求
+  （否則自動跟隨＝多請求，違反單次原則，亦是 P0 退回主因）。
 - **失敗即止**：任何非成功狀態一律**記錄後結束**該 target，不重試、不升級請求頻率。
 - **零 DB**：不連線 local／production DB，不寫 `refresh_log` 或任何表（`db_scope=none`）。
 - **冷卻遵循**：跨 run 冷卻是操作紀律，不是 CLI 自癒；CLI 不得內建跨 run 自動重跑。
@@ -62,29 +65,44 @@
 
 ```jsonc
 {
-  "schema_version": "1",
-  "probe_id": "uuid4",              // 本次 run 隨機
+  "schema_version": "2",
+  "probe_id": "uuid4",               // 本次 run 隨機
   "route": "vps_direct | tw_egress | residential",   // 出口標籤，不含 IP
-  "target_host": "www.cpbl.com.tw", // allowlist 內固定值
-  "target_path": "/schedule",       // allowlist 內固定值
-  "requested_at": "ISO8601",        // 到分鐘即可，避免精細指紋
-  "outcome": "reachable | challenge | redirect_loop | ip_blocked | transient | error",
-  "http_status": 200,               // 整數或 null
-  "redirect_count": 0,
+  "target_host": "www.cpbl.com.tw",  // allowlist 內固定值
+  "target_path": "/schedule",        // allowlist 內固定值
+  "requested_at": "ISO8601 到分鐘",   // 避免精細指紋
+  "outcome": "reachable | challenge | redirect | ip_blocked | transient | error",
+  "http_status": 200,                // 首跳（唯一）回應狀態；整數或 null
+  "is_redirect": false,              // http_status ∈ 3xx（bool）
+  "redirect_target_class": "none",   // none|same_site|challenge_host|other_host
+                                     //   由固定 host 清單推導；永不輸出 Location 原字串
   "latency_ms": 0,
   "tls_ok": true,
-  "body_signature": {               // 僅結構訊號，不含正文
+  "body_signature": {                // 僅結構訊號，不含正文
     "bytes": 0,
-    "looks_like_challenge": false,  // 由固定啟發式判定（見 §1.6）
-    "content_type": "text/html"
+    "looks_like_challenge": false,   // 固定啟發式（見 §1.6），bool
+    "content_kind": "html"           // html|json|other，由 Content-Type 推導的 enum，非原 header 值
   },
-  "notes": "free text，禁止含敏感值"
+  "reason_code": null                // null 或 §1.4a 固定 enum；永不放自由文字／例外訊息／header／path
 }
 ```
 
-**強制 redaction（絕不輸出）**：`Cookie` / `Set-Cookie`、`Authorization`、任何 token
-（`RequestVerificationToken` 等）、完整 client IP、完整 URL query secret、回應正文本身、
-使用者 profile 路徑。輸出前以 allowlist 過濾，非黑名單過濾（預設拒絕）。
+**無上游原字串直通原則（P1 退回主因）**：輸出任一欄位**不得**攜帶上游原字串。所有訊號一律由
+**固定邏輯**推導為 enum／bool／int —— 不放回應正文、`Location`、任何 request／response header 原值、
+例外訊息、URL query、完整 IP、profile 路徑。`redirect_target_class`、`content_kind`、`reason_code`
+皆為封閉值域；`notes` 自由文字欄**已移除**。
+
+**強制 redaction（絕不輸出，預設拒絕的白名單過濾）**：`Cookie`／`Set-Cookie`、`Authorization`、
+任何 token（`RequestVerificationToken` 等）、完整 client IP、URL query secret、回應正文、`Location`
+原值、例外訊息文字、使用者 profile 路徑。
+
+### 1.4a `reason_code` 固定值域
+
+`null`（正常，無附註）或下列封閉 enum 之一；CLI 將觀測條件**映射**為代碼，**絕不**輸出原始
+例外訊息或 header：
+
+`conn_refused` ・ `conn_timeout` ・ `dns_error` ・ `tls_error` ・ `http_5xx` ・
+`unexpected_status` ・ `parse_error`
 
 ### 1.5 Fake-transport 契約（fixture-first，先於任何 live）
 
@@ -96,20 +114,25 @@
 
 ### 1.6 失敗分類 taxonomy（grounded in CPBL_SITE_MAP §5）
 
-| outcome | 觀測訊號（實測依據） | 意義 |
-|---|---|---|
-| `reachable` | HTTP 200 且非挑戰頁指紋 | 該出口對該 target 當下可達 |
-| `challenge` | 428，或 200 但正文含 HiNet 挑戰指紋 | 反爬挑戰生效（純 httpx 主站典型） |
-| `redirect_loop` | `ERR_TOO_MANY_REDIRECTS` / redirect_count 超閾 | 深度封鎖／壞 cookie（§2 深度封鎖狀態） |
-| `ip_blocked` | 404（機房 IP 特徵） / 連線層拒絕 | VPS 機房 IP 被擋（§5「VPS 上全部 404」） |
-| `transient` | timeout / 5xx / TLS 暫時失敗 | 暫時性，不等於封鎖，不得據此重打 |
-| `error` | 前述以外 | 待人工判讀 |
+分類**只依首跳（唯一）回應**判定（`allow_redirects=False`）：
 
-> 分類為**唯讀啟發式**：偵測到 `challenge`/`redirect_loop` 只記錄，**不得**視為可繞過目標。
+| outcome | 首跳觀測訊號 | 意義 |
+|---|---|---|
+| `reachable` | 200 且 `looks_like_challenge=false` | 該出口對該 target 當下可達 |
+| `challenge` | 428；或首跳 3xx 且 `redirect_target_class=challenge_host`；或 200 但 `looks_like_challenge=true` | 反爬挑戰生效（純 httpx 主站典型；307→挑戰 host 亦屬此類） |
+| `redirect` | 首跳 3xx 且 `redirect_target_class ∈ {same_site, other_host}`（非挑戰 host） | 觀測到**單跳**轉址；不追隨、不聲稱 loop |
+| `ip_blocked` | 404（機房 IP 特徵）／連線層拒絕 | VPS 機房 IP 被擋（§5「VPS 上全部 404」） |
+| `transient` | timeout／5xx／TLS 暫時失敗 | 暫時性，不等於封鎖，不得據此重打 |
+| `error` | 前述以外 | 待人工判讀（`reason_code` 映射） |
+
+> **關於 redirect loop（P0 澄清）**：`ERR_TOO_MANY_REDIRECTS`（CPBL_SITE_MAP §2 深度封鎖）是
+> **瀏覽器跟隨多跳**才出現的狀態。本 probe 為**單一非跟隨 GET**，結構上**觀測不到亦不聲稱** loop；
+> 深度封鎖的 loop 特徵屬 browser-route（`residential`／ROUTE1）的觀測範疇，另立契約，不混入單次 probe。
+> 分類為**唯讀啟發式**：偵測到 `challenge`／`redirect` 只記錄，**不得**視為可繞過目標。
 
 ### 1.7 威脅邊界（probe 本身的風險）
 
-- probe 也算打站：`challenge`/`redirect_loop` 出現後，該出口該時窗最多再探 1 次即停（§2 紅線）。
+- probe 也算打站：`challenge`／`redirect`(至 challenge_host) 出現後，該出口該時窗最多再探 1 次即停（§2 紅線）。
 - 不得以 probe 頻率逼近爬蟲；跨 run 冷卻由 `OPS-REMOTE-ROUTE1` 的取樣設計約束（§2.2）。
 
 ---
@@ -138,7 +161,7 @@
 
 立即停止該時窗、進入冷卻、不重試的條件：
 
-1. 任一 target 回 `challenge` 或 `redirect_loop`（該出口該時窗**最多再探 1 次**後停）。
+1. 任一 target 回 `challenge` 或 `redirect`(至 challenge_host)（該出口該時窗**最多再探 1 次**後停）。
 2. 連續兩個時窗同一 route 皆非 `reachable` → 該 route 標記待人工判讀，暫停該 route 取樣。
 3. 觀測到深度封鎖徵兆（瞬間 redirect、2h 冷卻無效）→ 全面停手，改白天單次重試。
 4. 任何疑似節流升級（token 時好時壞）→ 停止，紀錄，冷卻，不加頻。
@@ -154,7 +177,7 @@
 ### 2.5 每路線 GO／NO-GO 判準
 
 - **GO（可進 WORKER1 候選）**：該 route 在「強」證據下多時窗 `reachable`，且合規／維護風險可接受。
-- **NO-GO**：多時窗 `ip_blocked`/`challenge`/`redirect_loop`，或合規無法釐清（如 `tw_egress` 條款不明）。
+- **NO-GO**：多時窗 `ip_blocked`/`challenge`/`redirect`(至 challenge_host)，或合規無法釐清（如 `tw_egress` 條款不明）。
 - **補研究**：證據僅「弱／中」或時窗覆蓋不足 → 回 Discovery 補樣本，不得跳 WORKER1。
 
 ---

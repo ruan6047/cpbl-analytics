@@ -44,3 +44,10 @@
   `CLAIM-003` 被對方 `git add docs/control-plane/events.jsonl` 夾帶進其提交 `8775a8a`（editorial claim）。
   事件內容、TASKS.md 投影與 `--check` 均正確且已上 origin；provenance 由事件 actor／evidence 欄與本 Log
   補記。屬 [[shared-main-checkout-discipline]] 所警示的逐檔 add 掃檔失誤，非資料錯誤。
+- 2026-07-19 查核退回（iteration 1→2, `REVIEW-005` REQUEST_CHANGES）：獨立查核提出 P0／P1。
+  P0＝`redirect_loop` 判定需跟隨多跳，與「單一 GET／零重試」矛盾、且單一 307 無法判 loop；P1＝`notes`
+  自由文字與白名單 redaction 不相容，易夾帶 token／query／path。已於原分支修正契約（schema v2）：
+  §1.3 明定 `allow_redirects=False`（恰一請求一回應）、§1.6 以首跳訊號分類並移除 `redirect_loop`（改
+  `redirect`＋澄清單次 GET 觀測不到 loop）、§1.4 移除 `notes`／`redirect_count`／`content_type` 原值，
+  改 `reason_code` 固定 enum（§1.4a）＋`redirect_target_class`／`content_kind` 推導 enum，並補「無上游
+  原字串直通」總原則。再送 ≠ 執行者之獨立查核。
