@@ -10,7 +10,7 @@
 |---|---|---|---|---|---|---|---|---|---|
 | [GAME-RECAP-PA1](tasks/GAME-RECAP-PA1.md) | INIT-GAME-RECAP | T4 | canonical 打席與逐球可靠對應 | ruan6047（push／部署／release） | `ai/gpt-5-codex/GAME-RECAP-PA1 @ .claude/worktrees/game-recap-pa1-execution` | 1 | 📦已合併 | ⏸未部署 | 2026-07-19T23:24:00+08:00 |
 | [GAME-RECAP-STATUS-EXPAND1](tasks/GAME-RECAP-STATUS-EXPAND1.md) | INIT-GAME-RECAP | T4 | 賽事來源 revision 與狀態 instrumentation | ruan6047（push／部署／release） | `` | 1 | 📦已合併 | ⏸未部署 | 2026-07-20T01:38:15+08:00 |
-| [GAME-RECAP-STATUS1](tasks/GAME-RECAP-STATUS1.md) | INIT-GAME-RECAP | T4 | 賽事狀態、資料可用性與 freshness API | GPT-5@Codex | `ai/gpt-5-codex/GAME-RECAP-STATUS1 @ .claude/worktrees/game-recap-status1-execution` | 2 | 🔨執行中 | ⏸未部署 | 2026-07-20T09:25:13+08:00 |
+| [GAME-RECAP-STATUS1](tasks/GAME-RECAP-STATUS1.md) | INIT-GAME-RECAP | T4 | 賽事狀態、資料可用性與 freshness API | 待指派（跨模型家族或人工查核者 ≠ GPT-5@Codex） | `ai/gpt-5-codex/GAME-RECAP-STATUS1 @ .claude/worktrees/game-recap-status1-execution` | 2 | 🔍待查核 | ⏸未部署 | 2026-07-20T09:30:53+08:00 |
 | [GAME-RECAP-WP-API1](tasks/GAME-RECAP-WP-API1.md) | INIT-GAME-RECAP | T4 | canonical WP／WPA public contract | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:09+08:00 |
 | [GAME-RECAP-WP-VAL1](tasks/GAME-RECAP-WP-VAL1.md) | INIT-GAME-RECAP | T4 | 場中 WP 時間外驗證與支援邊界 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T22:15:08+08:00 |
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | ruan6047（Design Gate） | — | 0 | 💡需求 | —不適用 | 2026-07-17T04:44:38+08:00 |
