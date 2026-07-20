@@ -12,7 +12,7 @@ import { codeFromName, teamColor } from "@/lib/teams";
 import { type Ability, type CareerStats, type Disc, type Role } from "./lib";
 import { SUB_LAYERS, type SubLayer, needsData, roleFromParam, subLayerFromParam, subLayerLabel } from "./layers";
 import { CareerYearlySection, SplitsSection } from "./detail";
-import { FieldingSection } from "./fielding";
+import { type FieldLeague, FieldingSection } from "./fielding";
 import { PlayerHero } from "./hero";
 import { Tabs } from "./parts";
 import { SabrSection } from "./sabr";
@@ -38,6 +38,8 @@ export default function PlayerPage() {
   const [fielding, setFielding] = useState<StatRow[] | null>(null);
   const [fieldingCareer, setFieldingCareer] = useState<StatRow[] | null>(null);
   const [fieldFromYear, setFieldFromYear] = useState<number | null>(null);
+  const [fieldLeague, setFieldLeague] = useState<FieldLeague | undefined>();
+  const [qualifyOuts, setQualifyOuts] = useState<number | undefined>();
   const [vsTeam, setVsTeam] = useState<StatRow[] | null>(null);
   const [career, setCareer] = useState<StatRow[] | null>(null);
   const [careerMonthly, setCareerMonthly] = useState<StatRow[] | null>(null);
@@ -153,7 +155,11 @@ export default function PlayerPage() {
     });
     once("fielding", `${id}-${seasonKind}`, () => {
       setFielding(null);
-      detail.fielding(id, "season", seasonKind).then((d) => setFielding(d.items)).catch(() => setFielding([]));
+      detail.fielding(id, "season", seasonKind).then((d) => {
+        setFielding(d.items);
+        setFieldLeague(d.league);
+        setQualifyOuts(d.qualify_outs);
+      }).catch(() => setFielding([]));
     });
   }, [id, role, seasonKind, sec]);
 
@@ -232,7 +238,8 @@ export default function PlayerPage() {
             <CareerSummary careerStats={careerStats} role={role} />
             <CareerYearlySection career={career} role={role} />
             <SabrSection id={id} role={role} />
-            <FieldingSection fielding={fielding} fieldingCareer={fieldingCareer} fieldFromYear={fieldFromYear} />
+            <FieldingSection fielding={fielding} fieldingCareer={fieldingCareer} fieldFromYear={fieldFromYear}
+              league={fieldLeague} qualifyOuts={qualifyOuts} />
           </>
         )}
       </div>

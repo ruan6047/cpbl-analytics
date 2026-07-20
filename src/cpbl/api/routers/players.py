@@ -1256,6 +1256,54 @@ def player_season(player_id: str, season: int = Query(DEFAULT_SEASON),
 _POS_ZH = {"1B": "一壘手", "2B": "二壘手", "3B": "三壘手", "SS": "游擊手", "C": "捕手",
            "P": "投手", "LF": "左外野手", "CF": "中外野手", "RF": "右外野手"}
 
+# 進入同守位聯盟對照的最低守備局數（outs；300 outs = 100 局）。
+# 依實測設定：2025 各守位達 100 局者 12–21 人（每隊 2–3.5 人），足以談中位數；
+# 200 局只剩 8–12 人過薄。未達門檻者仍顯示數值，但不給對照並標示樣本不足。
+_QUALIFY_OUTS = 300
+
+
+def _fielding_league(cur: Any, season: int, kind_code: str) -> dict[str, dict[str, float | int]]:
+    """同守位、同年的聯盟中位數（每 9 局率；每 9 局 = 每 27 個出局）。
+
+    僅納入該守位局數達 _QUALIFY_OUTS 的球員，回傳 n 供前端揭露樣本數。
+    投手不納入（2026 全聯盟守備事件僅約 300 筆，樣本不足以對照）。
+    """
+    cur.execute(
+        """
+        WITH q AS (
+            SELECT fi.pos, fi.outs, fc.a, fc.dp, fc.tc, fc.po, fc.e
+            FROM cpbl.fielding_innings fi
+            JOIN cpbl.fielding_current fc
+              ON fc.player_id = fi.player_id AND fc.year = fi.year
+             AND fc.kind_code = fi.kind_code
+             AND fc.pos = CASE fi.pos
+                   WHEN '1B' THEN '一壘手' WHEN '2B' THEN '二壘手' WHEN '3B' THEN '三壘手'
+                   WHEN 'SS' THEN '游擊手' WHEN 'C' THEN '捕手' WHEN 'P' THEN '投手'
+                   WHEN 'LF' THEN '左外野手' WHEN 'CF' THEN '中外野手' WHEN 'RF' THEN '右外野手'
+                   ELSE fi.pos END
+            WHERE fi.year = %s AND fi.kind_code = %s AND fi.pos <> 'P' AND fi.outs >= %s
+        )
+        SELECT pos, count(*),
+               percentile_cont(0.5) WITHIN GROUP (ORDER BY (a::numeric * 27) / outs),
+               percentile_cont(0.5) WITHIN GROUP (ORDER BY (dp::numeric * 27) / outs),
+               percentile_cont(0.5) WITHIN GROUP (ORDER BY (tc::numeric * 27) / outs),
+               percentile_cont(0.5) WITHIN GROUP (
+                   ORDER BY (po + a)::numeric / NULLIF(po + a + e, 0))
+        FROM q GROUP BY pos
+        """,
+        (season, kind_code, _QUALIFY_OUTS),
+    )
+    out: dict[str, dict[str, float | int]] = {}
+    for pos, n, a9, dp9, tc9, fpct in cur.fetchall():
+        out[_POS_ZH.get(pos, pos)] = {
+            "n": n,
+            "a9": round(float(a9), 2) if a9 is not None else None,
+            "dp9": round(float(dp9), 2) if dp9 is not None else None,
+            "tc9": round(float(tc9), 2) if tc9 is not None else None,
+            "fpct": round(float(fpct), 3) if fpct is not None else None,
+        }
+    return out
+
 
 @router.get("/api/v1/players/{player_id}/fielding")
 def player_fielding(player_id: str, season: int = Query(DEFAULT_SEASON),
@@ -1311,7 +1359,20 @@ def player_fielding(player_id: str, season: int = Query(DEFAULT_SEASON),
              "fpct": float(fpct) if fpct is not None else None}
             for pos, g, tc, po, a, e, dp, tp, pb, cs, sba, fpct in cur.fetchall()
         ]
-    return {"player_id": player_id, "season": season, "scope": "season", "items": items}
+        # 守備局數（fielding_innings 自建，2018+；更早年度無局數欄位 → outs 為 None）。
+        # 率值一律以局數為分母：出賽數當分母會讓代守型球員灌水逾兩倍（同守位每場守備局數
+        # 實測離散 3.8–8.7），見 docs/research/UX-PLAYER-FIELDVIZ1_RESEARCH.md §8。
+        cur.execute(
+            "SELECT pos, outs FROM cpbl.fielding_innings "
+            "WHERE player_id = %s AND year = %s AND kind_code = %s",
+            (player_id, season, kind_code),
+        )
+        outs_by_pos = {_POS_ZH.get(p, p): o for p, o in cur.fetchall()}
+        for it in items:
+            it["outs"] = outs_by_pos.get(it["pos"])
+        league = _fielding_league(cur, season, kind_code)
+    return {"player_id": player_id, "season": season, "scope": "season", "items": items,
+            "league": league, "qualify_outs": _QUALIFY_OUTS}
 
 
 # ---------- 每場賽況 ----------
