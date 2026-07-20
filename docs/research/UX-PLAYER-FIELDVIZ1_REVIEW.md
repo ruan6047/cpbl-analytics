@@ -1,46 +1,48 @@
-# UX-PLAYER-FIELDVIZ1 球員守備呈現獨立查核報告
+# UX-PLAYER-FIELDVIZ1 球員守備呈現獨立查核報告 (Iteration 1)
 
-- **被審 SHA**：`4e671cf7bd55d47cc40104c3ae89231979340e37`
+- **被審 SHA**：`43e674e1d51840e5046683d1e6db06e8b187289d`
 - **交付分支**：`ai/opus-4-8/UX-PLAYER-FIELDVIZ1`
-- **審查結論**：✅ 審核通過（`APPROVE`）
-- **Findings**：`P0=0`；`P1=0`；`P2=0`
+- **審查結論**：↩ 退回（`REQUEST_CHANGES`）
+- **Findings**：`P0=1`；`P1=0`；`P2=0`
 
 ---
 
-## 🔍 核心稽核結果與證據（Findings & Evidence）
+## 🔍 核心缺陷與證據（Findings & Evidence）
 
-前次 iteration 1 提出的二軍資料滲透 P0 問題，已在 iteration 2 中完美解決，findings 全部歸零：
+### P0 缺陷：二軍守備數據（`kind_code='D'`）錯誤滲入身分圖與價值卡元件
 
-### 1. 成功排除二軍（`kind_code='D'`）守備數據滲入
-
-- **修正機制**：
-  引入 [fielding-metrics.ts:vizRows](file:///Users/ruanruan/Dev/cpbl-analytics/.claude/worktrees/ux-player-fieldviz1-execution/web/src/app/players/[id]/fielding-metrics.ts#L77-L82) 集中過濾資料。
-  在二軍視角下（`isFarmView === true`），本季二軍數據將不被身分圖與價值卡使用，改以一軍生涯列（`careerRows`，本身只包含一軍資料）進行身分描述，且不渲染價值卡（因為一軍生涯列無 outs，二軍列不得評價）。
-- **實測證據**：
-  - 對純二軍投手 **李家明 (0000006954)** 進行實測：
-    - 「本季」表格正常顯示二軍的投手守備 9 場。
-    - 身分圖正確顯示一軍生涯的「投手 8 場」（outs 為 null 退回場數，未混入二軍數據）。
-    - 價值卡被正確隱藏（`primaryRow` 為 null），完全排除了二軍。
-    - 降級文案已修正為：「此範圍無守備局數資料（局數自 2018 年起重建）...」，更為準確貼切。
-    
-    ![李家明純二軍身分圖正常](file:///Users/ruanruan/.gemini/antigravity-cli/brain/06f27187-b089-44fd-8301-76ac1141e62e/screenshot_0000006954_李家明_二軍.png)
-
-  - 對一二軍均有出賽的 **黃劼希 (0000006931)** 進行實測：
-    - 在一軍視角下，本季一軍 6 場（32 outs，二壘 11 局）與 1 場（24 outs，三壘 8 局）的守備局數正確出現在身分圖上。
-    - 價值卡正確針對一軍二壘手進行指標評價，顯示其 outs 及本人數值（雙殺參與 2.53, 守備機會 19.41, 守備率 0.957），且因為未達 100 局 (300 outs)，標示為「樣本不足以與聯盟對照」，無任何二軍數據干擾。
-    
-    ![黃劼希一軍守備正常](file:///Users/ruanruan/.gemini/antigravity-cli/brain/06f27187-b089-44fd-8301-76ac1141e62e/screenshot_0000006931_黃劼希_二軍.png)
-
-### 2. 回歸測試保障
-
-- 在 [fielding-metrics.test.ts](file:///Users/ruanruan/Dev/cpbl-analytics/.claude/worktrees/ux-player-fieldviz1-execution/web/src/app/players/[id]/fielding-metrics.test.ts) 中加入了 4 個 vizRows 單元測試。經實測若還原回缺陷版代碼，單元測試會直接報錯，保證了程式碼安全性。
-
-### 3. 可及性與排版驗證
-
-- SVG 結構包含正確的 `role="img"` 及 `aria-label`。
-- 在 375px 視區下實測，`scrollWidth` 均為 375，無任何水平溢出。
-- 本地編譯測試 `npm test`（91 passed，新增 4 個）、`tsc --noEmit`、`build:check`、`ruff check` 及 `pytest` 均全數通過。
+*   **Severity**: P0 (阻礙上線的嚴重資料正確性缺陷)
+*   **檔案 / 行號**: 
+    *   [`web/src/app/players/[id]/fielding.tsx` L198-202](file:///Users/ruanruan/Dev/cpbl-analytics/.claude/worktrees/ux-player-fieldviz1-execution/web/src/app/players/%5Bid%5D/fielding.tsx#L198-L202)
+    *   [`web/src/app/players/[id]/fielding-metrics.ts`](file:///Users/ruanruan/Dev/cpbl-analytics/.claude/worktrees/ux-player-fieldviz1-execution/web/src/app/players/%5Bid%5D/fielding-metrics.ts)
+*   **可重現步驟**:
+    1.  啟動本地 API 服務於 port 4015、前端 Next.js 於 port 3015。
+    2.  以瀏覽器（或 Playwright）訪問二軍球員 **高捷 (0000007091)** 的個人守備頁面：`http://localhost:3015/players/0000007091?sec=career`。
+    3.  檢查守備位置身分圖（`FieldPositionMap`）渲染的文字標籤與守位分布。
+*   **證據**:
+    *   在該頁面加載後，API 返回了高捷 2026 年的二軍守備數據（`kind_code='D'`）。
+    *   `FieldPositionMap` 正確渲染，且包含多個高捷在二軍守備的位置，標記的文字為：`['一壘', '10 場', '二壘', '10 場', '三壘', '8 場', '中外野', '5 場', '右外野', '1 場', '左外野', '1 場']`。
+    *   其中「中外野 5 場」和二軍場次直接顯露在 SVG 示意圖中。
+    *   這直接違反了驗收標準中 **「二軍（`kind_code='D'`）不得進入任一元件」** 的紅線。
+*   **預期行為**:
+    *   二軍守備列不得以任何形式進入身分圖或價值卡。
+    *   在二軍登錄頁面下，身分圖應退回顯示其**一軍生涯歷史**累計守位分布（`careerRows`），價值卡應直接隱藏（因生涯列無局數且二軍不作評價）。
+*   **修正方向**:
+    *   在 `fielding-metrics.ts` 中新增一個純過濾邏輯函式（例如 `vizRows()`），傳入 `seasonRows`、`careerRows` 以及 `isFarmView`（或由 `seasonKind === 'D'` 判定），若為二軍視角則直接過濾排除所有二軍本季數據，並使其退回一軍生涯數據。
+    *   在 `fielding-metrics.test.ts` 中補上對應的過濾回歸測試，保障二軍排除機制的正確性。
 
 ---
 
-獨立查核通過，核准進入受保護分支合併與生產部署流程。
+## ⚙️ 測試與編譯查核狀態
+
+*   **單元測試**: `npm test` 87 Passed（缺二軍過濾相關測試）。
+*   **Python 測試**: `uv run pytest` 357 Passed。
+*   **類型檢查與建置**: `npx tsc --noEmit` 與 `npm run build:check` 均編譯通過。
+*   **代碼風格**: `uv run ruff check` 通過。
+
+---
+
+## 🚫 處置裁決
+
+本卡判定為 **REQUEST_CHANGES**。請原執行者依據上述修正方向處理 P0 資料滲透缺陷，修復完成後重新提交 Iteration 2 查核。
+本次查核**不進行代碼修改、不合併分支、不部署生產環境，保留 Worktree 與本地租約**。
