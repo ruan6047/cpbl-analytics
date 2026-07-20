@@ -1,0 +1,35 @@
+# BUG-ABILITY-DH-LABEL 能力卡守備軸誤標「指打」並填入力量 PR〔T3；⚪一般〕
+
+- 需求：ruan6047　規劃：Claude（Opus 4.8）　分支：`ai/<執行者>/BUG-ABILITY-DH-LABEL`
+- 執行：待指派　查核：待指派（須 ≠ 執行）
+- Initiative：INIT-PRODUCT-UX　DB：`db_scope: read`　部署：是　環境：production
+
+## 缺陷
+
+能力值卡的守備軸在球員無合格守備資料時，會被改標為「指打」並**填入該球員的力量 PR**
+（[`ability.py`](../../src/cpbl/api/routers/ability.py) 的
+`a["label"], a["pr"], a["grade"] = "指打", power_pr, _grade(power_pr)`）。
+
+後果：
+
+1. 真有守備、只是該守位出賽未達門檻（現行 `sum(g) >= 8`）的球員，會在能力卡上被**標示為指定打擊**——身分標示錯誤。
+2. 該格顯示的數值其實是**打擊力量百分位**，與「守備」語意無關，讀者無從得知。
+
+**現行 production 已有 4 名 2026 打者被如此標記**（UX-ABILITY-FIELD1 Phase 1 量測時實查）。
+該卡提高門檻的試算另顯示：門檻若拉到 100 局，被誤標人數會增至 13 人——
+這也是該卡建議放棄「提高門檻」方案的主因之一。
+
+## 目標與驗收
+
+- [ ] 釐清原始設計意圖：「指打」標籤是為了純 DH 球員而設，或是無資料時的 fallback？（`git log`／既有卡追溯）
+- [ ] 真 DH 與「有守備但樣本不足」兩種情況必須可區分，不得共用同一種呈現。
+- [ ] 樣本不足者不應顯示與守備無關的數值；若無可信守備值，應明確呈現為「資料不足」而非填入力量 PR。
+- [ ] 純 DH 球員的呈現方式需保留（其守備軸本就不適用），但標籤語意須正確。
+- [ ] 沿用 `scripts/ability_snapshot.py` 與 `tests/test_ability_card.py` 做回歸；測試須先對缺陷版跑紅。
+
+## 驗證與依賴
+
+- 驗證：`uv run pytest`（含 ability 回歸）、snapshot 對照確認無非預期漂移、瀏覽器走查真 DH 與樣本不足兩情境。
+- 依賴：無（與 ML-FIELD-TZ1 不衝突——本卡只改標示與 fallback，不動守備值算法）。
+- 預估範圍：S–M。
+- 非目標：不改守備軸的計算公式（屬 ML-FIELD-TZ1 的範圍）。

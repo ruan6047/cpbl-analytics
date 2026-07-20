@@ -8,11 +8,13 @@
 
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
+| [BUG-ABILITY-DH-LABEL](tasks/BUG-ABILITY-DH-LABEL.md) | INIT-PRODUCT-UX | T3 | 能力卡守備軸誤標指打並填入力量 PR | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-21T23:50:00+08:00 |
 | [GAME-RECAP-PA1](tasks/GAME-RECAP-PA1.md) | INIT-GAME-RECAP | T4 | canonical 打席與逐球可靠對應 | ruan6047（push／部署／release） | `ai/gpt-5-codex/GAME-RECAP-PA1 @ .claude/worktrees/game-recap-pa1-execution` | 1 | 📦已合併 | ⏸未部署 | 2026-07-19T23:24:00+08:00 |
 | [GAME-RECAP-WP-API1](tasks/GAME-RECAP-WP-API1.md) | INIT-GAME-RECAP | T4 | canonical WP／WPA public contract | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:09+08:00 |
 | [GAME-RECAP-WP-VAL1](tasks/GAME-RECAP-WP-VAL1.md) | INIT-GAME-RECAP | T4 | 場中 WP 時間外驗證與支援邊界 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T22:15:08+08:00 |
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | ruan6047（Design Gate） | — | 0 | 💡需求 | —不適用 | 2026-07-17T04:44:38+08:00 |
 | [INIT-PRODUCT-UX](tasks/INIT-PRODUCT-UX.md) | INIT-PRODUCT-UX | T3 | 全站產品與 UI/UX 收斂 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-17T04:44:24+08:00 |
+| [ML-FIELD-TZ1](tasks/ML-FIELD-TZ1.md) | — | T4 | Total Zone 型守備指標可行性研究 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-21T23:50:00+08:00 |
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
 | [OPS-REMOTE-CUTOVER1](tasks/OPS-REMOTE-CUTOVER1.md) | INIT-PRODUCT-UX | T4 | 遠端 crawler production canary 與切換 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:40+08:00 |
@@ -20,7 +22,7 @@
 | [OPS-REMOTE-ROUTE1](tasks/OPS-REMOTE-ROUTE1.md) | INIT-PRODUCT-UX | T3 | 遠端出口路線資格驗證 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:38+08:00 |
 | [OPS-REMOTE-WORKER1](tasks/OPS-REMOTE-WORKER1.md) | INIT-PRODUCT-UX | T4 | 隔離式遠端 crawler shadow worker | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:39+08:00 |
 | [TEAM-STYLE1](tasks/TEAM-STYLE1.md) | — | T4 | 球隊球風研究 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
-| [UI-FIELD-DIAGRAM1](tasks/UI-FIELD-DIAGRAM1.md) | INIT-PRODUCT-UX | T3 | 守備位置圖共用元件（轉播風排版） | 待指派（查核；須 ≠ 執行者 Claude Opus 4.8） | `ai/opus-4-8/UI-FIELD-DIAGRAM1 @ .claude/worktrees/ui-field-diagram1-51d191` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-20T23:40:00+08:00 |
+| [UI-FIELD-DIAGRAM1](tasks/UI-FIELD-DIAGRAM1.md) | INIT-PRODUCT-UX | T3 | 守備位置圖共用元件（轉播風排版） | 待指派（查核；須 ≠ 執行者 Claude Opus 4.8） | `ai/opus-4-8/UI-FIELD-DIAGRAM1 @ .claude/worktrees/ui-field-diagram1-51d191` | 1 | ✅通過 | ⏸未部署 | 2026-07-20T21:25:00+08:00 |
 | [UX-ABILITY-FIELD1](tasks/UX-ABILITY-FIELD1.md) | INIT-PRODUCT-UX | T4 | 能力值卡守備軸分母改為守備局數 | Claude（Opus 4.8） | `ai/opus-4-8/UX-ABILITY-FIELD1 @ .claude/worktrees/ux-ability-field1-execution` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-21T23:10:00+08:00 |
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
