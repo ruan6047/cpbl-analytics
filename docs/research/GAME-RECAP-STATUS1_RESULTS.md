@@ -1,7 +1,7 @@
 ---
 title: "GAME-RECAP-STATUS1 官方狀態與 row-level freshness 證據稽核"
 card_id: GAME-RECAP-STATUS1
-status: blocked-by-instrumentation
+status: implemented-after-instrumentation
 date: 2026-07-20
 tags:
   - cpbl
@@ -18,11 +18,28 @@ links:
 
 ## 結論
 
-本卡不得直接新增公開 API。既有資料不足以把 `official_game_status`、
+第一次稽核時，本卡不得直接新增公開 API。既有資料不足以把 `official_game_status`、
 `play_by_play_availability` 與 `advanced_freshness` 映射為規格要求的互斥狀態；唯一正確
 行動是先開一張 **schema expand／ingest instrumentation** 子卡，保存官方原始狀態和每場、
 每來源的取得結果。未完成前，任何 STATUS1 API 都必須 fail closed 為 `unknown`，不應佯裝
 具備 `final`、`pending_refresh` 或 `source_error` 的判定能力。
+
+`GAME-RECAP-STATUS-EXPAND1` 通過跨模型家族 T4 查核並整合後，2026-07-20 以本機官網
+唯讀取樣重新驗證 2026 一軍 385 筆 raw schedule entry，足以凍結下列保守 mapping；未觀測
+的取消狀態與保留賽仍維持 `unknown`。
+
+## Instrumentation 後 raw 值域證據
+
+| `PresentStatus` | `GameResult` | 筆數 | 日期／比分證據 | Public status |
+|---:|---:|---:|---|---|
+| 1 | 空值 | 155 | 全部為未來賽程、0–0 | `scheduled` |
+| 1 | 0 | 204 | 全部為已賽日期且比分總和大於 0 | `final`；0–0 contract 仍只依 raw status，不依比分 |
+| 0 | 1 | 23 | 全部為已過日期、0–0，與官網延賽歷程一致 | `postponed` |
+| 0 | 2 | 2 | 已開賽後中止且帶比分，既有官網語意為保留賽 | `unknown`；public enum 無 `suspended` |
+| 1 | 1 | 1 | 已過日期、0–0，無足夠證據區分目前生命週期 | `unknown` |
+
+未觀測到可證明 `cancelled` 的 raw 值；因此實作不猜測取消代碼。若未來觀測到新值，須先
+補研究證據與 contract test，再擴充 mapping。
 
 ## 可證明的事實
 
@@ -36,7 +53,7 @@ links:
 
 補充：`delay_kind='延賽'|'保留'` 是已知的歷程摘要，不能推出已取消或最終完賽；帶比分的未來保留賽也已被 [[BUG-HELD-GAME-FRESHNESS1]] 證實存在，比分不能作狀態替代品。
 
-## 必要子卡：GAME-RECAP-STATUS-EXPAND1（提案，待需求方／Coordinator 註冊）
+## 必要子卡：GAME-RECAP-STATUS-EXPAND1（已查核並整合）
 
 | 項目 | 定義 |
 |---|---|
@@ -53,4 +70,3 @@ links:
 - 本卡只擁有 `official_game_status`、raw `play_by_play_availability`、`advanced_freshness`。
 - `tracking_availability` 僅由 [[GAME-RECAP-PA1]] 的後續 data-migration 契約提供；不在此重算。
 - `wp_availability` 僅由 [[GAME-RECAP-WP-API1]] 提供；不以完賽／livelog 狀態替代。
-

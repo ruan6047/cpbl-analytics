@@ -17,6 +17,7 @@ EXPECTED = {
     "/api/v1/games/calendar",
     "/api/v1/games/recent",
     "/api/v1/games/{game_sno}/live",
+    "/api/v1/games/{game_sno}/status",
     "/api/v1/games/{game_sno}/milestones",
     "/api/v1/games/{game_sno}/umpire",
     "/api/v1/games/{game_sno}/winprob",
