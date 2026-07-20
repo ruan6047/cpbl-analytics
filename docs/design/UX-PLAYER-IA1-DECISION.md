@@ -122,3 +122,21 @@
 - fixture：`scripts/capture_player_ia_fixtures.py` 自本機 API 擷取真實回應（逐球截 400 筆）；五情境特徵已抽驗（二軍僅 14 逐球點、退役本季全空、雙棲雙 role）。
 - 走查：三變體 × 五情境；375px 無水平溢出；tabs/hybrid 鍵盤 ←/→ 實測；deep-link `?layer=`／`?sec=`／`#hash` reload 實測。
 - `uv run ruff check`＋`uv run pytest`（283 passed）＋`npm run build:check` 全數通過；prototype 路由 production `notFound()`。
+
+---
+
+## 7. 修訂紀錄（append-only，不改寫原內容）
+
+### 2026-07-20：§1 凍結項經需求方核可修訂 → 見 UX-PLAYER-IA2
+
+本文件 §1 凍結的四層骨架與 role 切換鈕機制，經需求方走查上線版後裁決修訂，
+由 [`UX-PLAYER-IA2-BRIEF.md`](UX-PLAYER-IA2-BRIEF.md) 取代下列三項：
+
+1. **role 不再是切換鈕**，改攤為標籤頁——雙棲球員出現「打擊」與「投球」兩個內容頁；
+   §1 表格中「role 切換範圍＝全域、切換保留當前層」與 §1.1「role tab 出現」規則隨之失效。
+2. **L2 標籤更名**：「打法」→「打擊」、「球路」→「投球」；§1「L2 標籤跟隨 active role」改為
+   兩者並存為獨立標籤（雙棲時）。
+3. **守備移出生涯層，成為獨立同級標籤**；§2 遷移 map #16「守備歸 L4 生涯」失效。
+
+其餘凍結項（總覽常駐、狀態契約 §1.2、退役預設落生涯、二軍 badge）**維持有效**。
+原文保留不刪，以利追溯當時的判斷依據與取捨。
