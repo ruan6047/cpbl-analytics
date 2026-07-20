@@ -30,7 +30,7 @@
 | [UX-MATCHUP2](tasks/UX-MATCHUP2.md) | INIT-PRODUCT-UX | T4 | 投打對決整合球員個人頁 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:43+08:00 |
 | [UX-PA-SIM-MATCHUP1](tasks/UX-PA-SIM-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | Matchups 單一打席結果分布 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:33+08:00 |
 | [UX-RANKINGS1](tasks/UX-RANKINGS1.md) | INIT-PRODUCT-UX | T3 | 打者與投手排行減法 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:30+08:00 |
-| [UX-STANDINGS-FOCUS1](tasks/UX-STANDINGS-FOCUS1.md) | INIT-PRODUCT-UX | T3 | 戰績頁競爭脈絡收斂 | Claude（Opus 4.8）（執行） | `ai/opus-4-8/UX-STANDINGS-FOCUS1 @ .claude/worktrees/ux-standings-focus1-execution` | 1 | 🔨執行中 | ⏸未部署 | 2026-07-21T02:10:52+08:00 |
+| [UX-STANDINGS-FOCUS1](tasks/UX-STANDINGS-FOCUS1.md) | INIT-PRODUCT-UX | T3 | 戰績頁競爭脈絡收斂 | Claude（Opus 4.8）（執行） | `ai/opus-4-8/UX-STANDINGS-FOCUS1 @ .claude/worktrees/ux-standings-focus1-execution` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-21T02:55:00+08:00 |
 | [UX-TEAM-FOCUS1](tasks/UX-TEAM-FOCUS1.md) | INIT-PRODUCT-UX | T3 | 球隊頁本季現況優先 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:35+08:00 |
 | [UX-UMPIRE-SCOPE1](tasks/UX-UMPIRE-SCOPE1.md) | INIT-PRODUCT-UX | T4 | 裁判公開介面 NO-GO 收斂 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:36+08:00 |
 
