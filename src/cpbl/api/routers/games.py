@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import date
 from functools import lru_cache
+from typing import Any
 
 from fastapi import APIRouter, Query
 
@@ -11,6 +13,156 @@ from cpbl.db import conn
 from cpbl.models import matchup, pitcher_decisions
 
 router = APIRouter()
+
+
+def _official_status(schedule_rows: list[dict[str, Any]]) -> tuple[str, dict[str, Any] | None]:
+    """以官網已觀測 raw vocabulary 判定；未證實的值一律 unknown。"""
+    if not schedule_rows:
+        return "unknown", None
+    active = [row for row in schedule_rows if row.get("raw_present_status") == 1]
+    pool = active or schedule_rows
+    selected = max(
+        pool,
+        key=lambda row: (
+            row.get("raw_game_date") or date.min,
+            row.get("last_seen_at") or row.get("fetched_at"),
+        ),
+    )
+    present = selected.get("raw_present_status")
+    result = str(selected.get("raw_game_result") or "")
+    if present == 1 and result == "0":
+        return "final", selected
+    if present == 1 and result == "":
+        return "scheduled", selected
+    if present == 0 and result == "1":
+        return "postponed", selected
+    return "unknown", selected
+
+
+def _source_view(row: dict[str, Any] | None) -> dict[str, Any]:
+    if row is None:
+        return {
+            "outcome": "unknown", "row_count": 0, "error_code": None,
+            "fetched_at": None, "last_seen_at": None,
+        }
+    return {
+        "outcome": row.get("outcome"),
+        "row_count": row.get("row_count", 0),
+        "error_code": row.get("error_code"),
+        "fetched_at": row.get("fetched_at"),
+        "last_seen_at": row.get("last_seen_at"),
+    }
+
+
+def _build_game_status(
+    schedule_rows: list[dict[str, Any]],
+    source_rows: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    official, selected = _official_status(schedule_rows)
+    scoreboard = source_rows.get("scoreboard")
+    livelog = source_rows.get("livelog")
+    advanced = source_rows.get("advanced")
+
+    if official in {"scheduled", "postponed", "cancelled"}:
+        play_by_play = "not_applicable"
+    elif livelog and livelog.get("outcome") == "available":
+        play_by_play = "available"
+    elif livelog and livelog.get("outcome") == "error":
+        play_by_play = "source_error"
+    elif official == "final" and (
+        livelog is None or (scoreboard and scoreboard.get("outcome") == "available")
+    ):
+        play_by_play = "pending_refresh"
+    else:
+        play_by_play = "source_missing"
+
+    advanced_detail = (advanced or {}).get("detail") or {}
+    if advanced and advanced.get("outcome") == "error":
+        advanced_status = "source_error"
+    elif advanced and advanced.get("outcome") == "available" and advanced_detail.get(
+        "game_level_complete"
+    ) is True:
+        advanced_status = "available"
+    elif official == "final" and advanced and advanced.get("outcome") == "missing":
+        advanced_status = "pending"
+    else:
+        advanced_status = "unknown"
+
+    source_times = {
+        source: _source_view(source_rows.get(source))
+        for source in ("schedule", "scoreboard", "livelog", "advanced")
+    }
+    observed = [
+        row.get("last_seen_at") or row.get("fetched_at")
+        for row in [*schedule_rows, *source_rows.values()]
+        if row.get("last_seen_at") or row.get("fetched_at")
+    ]
+    raw = None if selected is None else {
+        "present_status": selected.get("raw_present_status"),
+        "game_result": selected.get("raw_game_result"),
+        "game_date": selected.get("raw_game_date"),
+        "pre_exe_date": selected.get("raw_pre_exe_date"),
+    }
+    return {
+        "official_game_status": {
+            "status": official,
+            "observed_at": None if selected is None else selected.get("last_seen_at"),
+            "raw": raw,
+        },
+        "play_by_play_availability": {
+            "status": play_by_play,
+            "observed_at": None if livelog is None else livelog.get("last_seen_at"),
+        },
+        "advanced_freshness": {
+            "status": advanced_status,
+            "as_of": None if advanced is None else advanced.get("last_seen_at"),
+        },
+        "source_times": source_times,
+        "refreshed_at": max(observed) if observed else None,
+        "external_owners": {
+            "tracking_availability": "GAME-RECAP-PA1",
+            "wp_availability": "GAME-RECAP-WP-API1",
+        },
+    }
+
+
+@router.get("/api/v1/games/{game_sno}/status")
+def game_status(
+    game_sno: int,
+    season: int = Query(DEFAULT_SEASON),
+    kind_code: str = Query("A", pattern="^(A|C|E|D)$"),
+) -> dict:
+    """單場官方 raw 狀態與各來源 freshness；證據不足時 fail closed。"""
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            """
+            SELECT raw_present_status, raw_game_result, raw_game_date, raw_pre_exe_date,
+                   fetched_at, last_seen_at
+            FROM cpbl.game_schedule_status_revisions
+            WHERE year=%s AND kind_code=%s AND game_sno=%s
+            ORDER BY last_seen_at DESC, fetched_at DESC, id DESC
+            """,
+            (season, kind_code, game_sno),
+        )
+        schedule_rows = _dicts(cur)
+        cur.execute(
+            """
+            SELECT DISTINCT ON (source)
+                   source, outcome, row_count, error_code, detail, fetched_at, last_seen_at
+            FROM cpbl.game_source_revisions
+            WHERE year=%s AND kind_code=%s AND game_sno=%s
+            ORDER BY source, last_seen_at DESC, fetched_at DESC, id DESC
+            """,
+            (season, kind_code, game_sno),
+        )
+        source_rows = {row["source"]: row for row in _dicts(cur)}
+    return {
+        "season": season,
+        "kind_code": kind_code,
+        "game_sno": game_sno,
+        **_build_game_status(schedule_rows, source_rows),
+    }
 
 
 @router.get("/api/v1/games/calendar")
