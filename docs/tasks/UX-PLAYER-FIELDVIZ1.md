@@ -1,5 +1,12 @@
 # UX-PLAYER-FIELDVIZ1 球員守備守位分布圖〔T3；⚪一般〕
 
+> ## ⚠️ 開工閘門：claim 前必須先與需求方討論
+>
+> **本卡不得逕自 claim 或實作。** 開工前須先與需求方 ruan6047 討論並取得明確同意；
+> 要討論的決策項**屆時再定**（Design Brief §6 的三項只是目前已知的起點，不是全部）。
+> 這道閘門優先於下方所有內容與 Design Brief 的核可狀態——即使 Brief 已核可、
+> 即使 UX-PLAYER-SECTIONS1 已合併解除資源互斥，**未經該次討論仍不可開工**。
+
 - 需求：ruan6047　規劃：Claude（Opus 4.8）　分支：`ai/<執行者>/UX-PLAYER-FIELDVIZ1`
 - 執行：待指派　查核：待指派（須 ≠ 執行）
 - Initiative：INIT-PRODUCT-UX　spec 基線：PRODUCT_UX_BLUEPRINT v0.2＋UX-PLAYER-IA1
@@ -17,6 +24,8 @@
 ## 驗證與依賴
 
 - 驗證：元件測試（守位→座標映射、面積比例、空態）、真實瀏覽器四情境走查、`tsc`、`build:check`。
-- 依賴：**UX-PLAYER-SECTIONS1 合併後才可 claim**——同持 `file:web/src/app/players/[id]/**`，資源互斥須序列化。
+- 依賴（**兩項皆須滿足才可 claim**）：
+  1. **需求方開工前討論**（見檔首閘門）——這是最後一道，且不因其他條件滿足而免除。
+  2. UX-PLAYER-SECTIONS1 合併——同持 `file:web/src/app/players/[id]/**`，資源互斥須序列化。
 - 預估範圍：S（單一元件＋映射表，無 API 變更）。
 - 非目標：逐年守位變遷堆疊圖（需 API 加 `scope=yearly`，另卡）；分項明細圖表化（樣本量誤導風險，需獨立 Design）。
