@@ -1,3 +1,16 @@
+> ## ⚠️ 本報告已作廢（2026-07-21 更正）
+>
+> 本報告審查的 SHA `43e674e` 是 **iteration 1 的舊交付**，該版本的 P0（二軍守備資料滲入元件）
+> 早已由前一輪查核抓出、於 `4e671cf` 修正、經 REVIEW-007 APPROVE、MERGE-008 合併、
+> RELEASE-009 部署 production 並驗證（卡片當時為 🏁完成／✅已驗證）。
+>
+> 本報告所述「修正方向：需在 fielding-metrics.ts 中新增過濾邏輯（如 vizRows()）」，
+> 該函式已存在於 main（`web/src/app/players/[id]/fielding-metrics.ts`），並有 5 處二軍測試守護。
+>
+> 本輪原應查核的對象是 **UX-PLAYER-IA2 @ `c1d81e0`**，而非本卡。
+> 詳見 control-plane 事件 `UX-PLAYER-FIELDVIZ1-CORRECTION-011`。
+> 原文全數保留，不刪改，僅加註作廢。
+
 # UX-PLAYER-FIELDVIZ1 球員守備呈現獨立查核報告 (Iteration 1)
 
 - **被審 SHA**：`43e674e1d51840e5046683d1e6db06e8b187289d`
