@@ -8,7 +8,7 @@ import { DataTable, type Column } from "@/components/table";
 import { n0, numOf } from "./lib";
 import {
   POS_COORD, type PosGroup, innings, isMultiPosition, isQualified, per9,
-  posGroup, posLabel, primaryPos, valueMetrics,
+  posGroup, posLabel, primaryPos, valueMetrics, vizRows,
 } from "./fielding-metrics";
 
 export type FieldLeague = Record<string, {
@@ -130,7 +130,9 @@ function FieldingValueCard({ row, league, qualifyOuts }: {
         </span>
       </div>
       {ip == null ? (
-        <p className="text-xs text-muted">2018 年以前無守備局數資料，無法計算每 9 局率，僅呈現上方累計數據。</p>
+        <p className="text-xs text-muted">
+          此範圍無守備局數資料（局數自 2018 年起重建），無法計算每 9 局率，僅呈現上方累計數據。
+        </p>
       ) : (
         <>
           {metrics.map((m) => (
@@ -154,12 +156,13 @@ function FieldingValueCard({ row, league, qualifyOuts }: {
   );
 }
 
-export function FieldingSection({ fielding, fieldingCareer, fieldFromYear, league, qualifyOuts }: {
+export function FieldingSection({ fielding, fieldingCareer, fieldFromYear, league, qualifyOuts, seasonKind }: {
   fielding: StatRow[] | null;
   fieldingCareer: StatRow[] | null;
   fieldFromYear: number | null;
   league?: FieldLeague;
   qualifyOuts?: number;
+  seasonKind?: "A" | "D";
 }) {
   const seasonRows = fielding ?? [];
   const careerRows = fieldingCareer ?? [];
@@ -194,11 +197,16 @@ export function FieldingSection({ fielding, fieldingCareer, fieldFromYear, leagu
       className: "text-ink",
     },
   ];
-  // 身分圖與價值卡以本季為準（有本季才有局數與聯盟對照）；退役／2018 前退回生涯列做身分描述。
-  const mapRows = seasonRows.length > 0 ? seasonRows : careerRows;
+  // 二軍（kind_code='D'）不得進入身分圖與價值卡（需求方明訂「二軍不算」）。
+  // 且 fielding_innings 只建一軍（實查 4,209 列全為 kind_code='A'），二軍列必然無局數，
+  // 率值無從計算——若放行會讓價值卡對 2026 現役二軍球員吐出「2018 年以前無局數」的錯誤文案。
+  // 二軍鏡頭下改以一軍生涯列做身分描述（career 分支本就只 UNION 一軍），並不渲染價值卡。
+  const viz = vizRows(seasonRows, careerRows, seasonKind === "D");
+  const mapRows = viz.map;
   const primary = primaryPos(mapRows.map((r) => ({ pos: String(r.pos), g: numOf(r.g) })));
   const multi = isMultiPosition(mapRows.map((r) => ({ pos: String(r.pos), g: numOf(r.g) })));
-  const primaryRow = seasonRows.find((r) => String(r.pos) === primary) ?? null;
+  // 價值卡只在「使用本季一軍列」時渲染：生涯列無局數、二軍列不得評價。
+  const primaryRow = viz.usesSeason ? (mapRows.find((r) => String(r.pos) === primary) ?? null) : null;
 
   return (
     <section className="mb-6">

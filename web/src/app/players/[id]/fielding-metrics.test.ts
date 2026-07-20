@@ -1,8 +1,38 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  POS_COORD, innings, isMultiPosition, isQualified, per9, posGroup, posLabel, primaryPos, valueMetrics,
+  POS_COORD, innings, isMultiPosition, isQualified, per9, posGroup, posLabel, primaryPos,
+  valueMetrics, vizRows,
 } from "./fielding-metrics.ts";
+
+// REVIEW-005 P0 回歸：二軍守備資料不得進入身分圖與價值卡
+const farmSeason = [{ pos: "游擊手", g: 12 }, { pos: "二壘手", g: 5 }];
+const firstTeamCareer = [{ pos: "中外野手", g: 200 }];
+
+test("二軍鏡頭：不得使用本季（二軍）守備列，改用一軍生涯列", () => {
+  const r = vizRows(farmSeason, firstTeamCareer, true);
+  assert.deepEqual(r.map, firstTeamCareer);
+  assert.equal(r.usesSeason, false, "二軍鏡頭下不得標記為使用本季列（價值卡據此不渲染）");
+  assert.ok(!r.map.some((x) => x.pos === "游擊手"), "二軍守位不得出現在身分圖");
+});
+
+test("一軍鏡頭：正常使用本季守備列", () => {
+  const r = vizRows([{ pos: "游擊手", g: 60 }], firstTeamCareer, false);
+  assert.equal(r.usesSeason, true);
+  assert.equal(r.map[0].pos, "游擊手");
+});
+
+test("二軍球員若無一軍生涯列 → 兩個元件都沒有資料可畫", () => {
+  const r = vizRows(farmSeason, [], true);
+  assert.deepEqual(r.map, []);
+  assert.equal(r.usesSeason, false);
+});
+
+test("一軍但本季無守備（退役）→ 退回生涯列做身分描述", () => {
+  const r = vizRows([], firstTeamCareer, false);
+  assert.deepEqual(r.map, firstTeamCareer);
+  assert.equal(r.usesSeason, false);
+});
 
 test("每 9 局率以局數為分母，不接受出賽數代替", () => {
   // 27 個出局＝9 局；10 次助殺 / 9 局 → 10.0

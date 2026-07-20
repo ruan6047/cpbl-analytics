@@ -67,6 +67,20 @@ export const POS_COORD: Record<string, { deg: number; dist: number }> = {
   右外野手: { deg: 30, dist: 78 },
 };
 
+/**
+ * 身分圖與價值卡要用哪些列（REVIEW-005 P0 的修正點）。
+ *
+ * 二軍鏡頭（kind_code='D'）一律不得使用本季守備列——需求方明訂「二軍不算」，
+ * 且 `fielding_innings` 只建一軍（實查全表 kind_code='A'），二軍列必然無局數，
+ * 率值無從計算。二軍鏡頭下改以一軍生涯列做身分描述，且不給價值卡（`value` 為 null）。
+ */
+export function vizRows<T>(
+  seasonRows: T[], careerRows: T[], isFarmView: boolean,
+): { map: T[]; usesSeason: boolean } {
+  const usable = isFarmView ? [] : seasonRows;
+  return usable.length > 0 ? { map: usable, usesSeason: true } : { map: careerRows, usesSeason: false };
+}
+
 /** 身分圖上該守位要顯示的量：有局數用局數，否則退回出賽數（2018 前）。 */
 export function posLabel(outs: number | null | undefined, g: number | null | undefined): string {
   const ip = innings(outs);

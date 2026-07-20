@@ -239,7 +239,7 @@ export default function PlayerPage() {
             <CareerYearlySection career={career} role={role} />
             <SabrSection id={id} role={role} />
             <FieldingSection fielding={fielding} fieldingCareer={fieldingCareer} fieldFromYear={fieldFromYear}
-              league={fieldLeague} qualifyOuts={qualifyOuts} />
+              league={fieldLeague} qualifyOuts={qualifyOuts} seasonKind={seasonKind} />
           </>
         )}
       </div>
