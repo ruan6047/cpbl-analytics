@@ -10,7 +10,8 @@ import { MEDAL_COLORS, STATUS_COLORS } from "@/lib/chart-theme";
 import { type Ability, type CareerStats, type Role, IMPORT_BADGE, f3, numOf } from "./lib";
 import { Tabs, TenureChips } from "./parts";
 
-// 能力值卡選取：尺度跟隨下方資料分頁 dataTab（本季/生涯），role 卡缺則退回另一 role
+// 能力值卡選取：尺度由能力卡自己的 dataTab（本季/生涯）決定——IA 分層後它只作用於能力卡，
+// 不再連動下方區塊顯隱；role 卡缺則退回另一 role
 export function selectAbility(ability: Ability | null, role: Role, dataTab: "season" | "career") {
   const sa = (sc: "season" | "career") => !!(ability?.batting?.[sc]?.available || ability?.pitching?.[sc]?.available);
   if (!sa("season") && !sa("career")) return null;

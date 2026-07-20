@@ -1,7 +1,8 @@
 "use client";
 
-// 守備表：本季 fielding_current / 生涯 1990– 彙總；退役無本季 → 自動切生涯。fieldScope 內化。
-import { useState } from "react";
+// 守備表：本季 fielding_current / 生涯 1990– 彙總。
+// 本區整段屬「生涯」層，故不再提供本季/生涯切換（IA 遷移 map #16：本季守備併同表首列）；
+// 有本季資料就直接疊在生涯表之上，兩段一眼全見，退役者自然只剩生涯段。
 import { type StatRow } from "@/lib/client";
 import { DataTable, type Column } from "@/components/table";
 import { n0, numOf } from "./lib";
@@ -11,13 +12,11 @@ export function FieldingSection({ fielding, fieldingCareer, fieldFromYear }: {
   fieldingCareer: StatRow[] | null;
   fieldFromYear: number | null;
 }) {
-  const [fieldScope, setFieldScope] = useState<"season" | "career">("season");
-  if ((fielding?.length ?? 0) === 0 && (fieldingCareer?.length ?? 0) === 0) return null;
-  const effField: "season" | "career" =
-    fieldScope === "season" && (fielding?.length ?? 0) === 0 && (fieldingCareer?.length ?? 0) > 0
-      ? "career" : fieldScope;
-  const fld = (effField === "career" ? fieldingCareer : fielding) ?? [];
-  if (fld.length === 0) return null;
+  const seasonRows = fielding ?? [];
+  const careerRows = fieldingCareer ?? [];
+  if (seasonRows.length === 0 && careerRows.length === 0) return null;
+  // 捕手欄位只要任一段用得到就整區顯示，避免兩張表欄數不一致而難以對照。
+  const fld = [...seasonRows, ...careerRows];
   const hasC = fld.some((r) => String(r.pos).includes("捕") || numOf(r.cs) || numOf(r.pb) || numOf(r.sba));
   const cols: { key: string; label: string; tip: string; tone?: string; catcher?: boolean }[] = [
     { key: "g", label: "出賽", tip: "該守位出賽場數 G", tone: "text-muted" },
@@ -48,23 +47,22 @@ export function FieldingSection({ fielding, fieldingCareer, fieldFromYear }: {
   ];
   return (
     <section className="mb-6">
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <h2 className="text-lg font-semibold text-ink">守備</h2>
-        {(fielding?.length ?? 0) > 0 && (fieldingCareer?.length ?? 0) > 0 && (
-          <div className="inline-flex overflow-hidden rounded-full border border-line text-[11px]">
-            {(["season", "career"] as const).map((s) => (
-              <button key={s} onClick={() => setFieldScope(s)}
-                className={`px-2.5 py-0.5 transition ${effField === s ? "bg-ink text-paper" : "bg-surface text-muted hover:text-ink"}`}>
-                {s === "season" ? "本季" : "生涯"}
-              </button>
-            ))}
-          </div>
-        )}
-        {effField === "career" && fieldFromYear && (
-          <span className="text-[11px] text-faint">生涯累計（{fieldFromYear} 起）</span>
-        )}
-      </div>
-      <DataTable columns={columns} rows={fld} rowKey={(r) => String(r.pos)} dense />
+      <h2 className="mb-3 text-lg font-semibold text-ink">守備</h2>
+      {seasonRows.length > 0 && (
+        <div className="mb-4">
+          <h3 className="mb-2 text-sm font-medium text-muted">本季</h3>
+          <DataTable columns={columns} rows={seasonRows} rowKey={(r) => `s-${r.pos}`} dense />
+        </div>
+      )}
+      {careerRows.length > 0 && (
+        <div>
+          <h3 className="mb-2 flex flex-wrap items-baseline gap-2 text-sm font-medium text-muted">
+            生涯累計
+            {fieldFromYear && <span className="text-[11px] font-normal text-faint">{fieldFromYear} 起</span>}
+          </h3>
+          <DataTable columns={columns} rows={careerRows} rowKey={(r) => `c-${r.pos}`} dense />
+        </div>
+      )}
     </section>
   );
 }
