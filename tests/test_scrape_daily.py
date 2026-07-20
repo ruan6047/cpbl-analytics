@@ -196,7 +196,7 @@ def test_scheduled_checker_reports_running_state(tmp_path: Path) -> None:
     scheduled_path.write_text(json.dumps(status), encoding="utf-8")
     started_at = _status_started_at(status)
 
-    check = _check_scheduled(repo, now=started_at.replace(hour=12, minute=0, second=0))
+    check = _check_scheduled(repo, now=started_at + timedelta(minutes=1))
 
     assert check.returncode == 6
     assert check.stdout.startswith("RUNNING")
