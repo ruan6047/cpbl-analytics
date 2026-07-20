@@ -4,6 +4,7 @@
 
 | 卡ID | 功能 | 交付狀態 | 部署狀態 | 封存位置 |
 |---|---|---|---|---|
+| UX-ABILITY-FIELD1 | 能力值卡守備軸分母改為守備局數 | 🏁完成 | —不適用 | [`tasks/UX-ABILITY-FIELD1.md`](tasks/UX-ABILITY-FIELD1.md)（T4；Phase 1 交付後需求方裁決不改，Phase 2 未執行；零程式碼變更） |
 | GAME-RECAP-STATUS1 | 賽事狀態、資料可用性與 freshness API | 🏁完成 | ✅已驗證 | [`tasks/GAME-RECAP-STATUS1.md`](tasks/GAME-RECAP-STATUS1.md)（T4；隨 2026-07-20 部署上線） |
 | GAME-RECAP-STATUS-EXPAND1 | 賽事來源 revision 與狀態 instrumentation | 🏁完成 | ✅已驗證 | [`tasks/GAME-RECAP-STATUS-EXPAND1.md`](tasks/GAME-RECAP-STATUS-EXPAND1.md)（T4；含 migration 061 additive expand） |
 | UX-PLAYER-IA2 | 球員頁 IA 修訂（role 拆標籤＋守備獨立層） | 🏁完成 | ✅已驗證 | [`tasks/UX-PLAYER-IA2.md`](tasks/UX-PLAYER-IA2.md)（iteration 2；REVIEW-007 APPROVE by Antigravity；merge 5a8d025） |
