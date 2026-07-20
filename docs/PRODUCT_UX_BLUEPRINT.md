@@ -240,17 +240,26 @@ ML 使用：
 
 資訊架構骨架：
 
-1. `總覽`：身份、當季核心數據、相對聯盟位置、近期趨勢。
-2. `打法／球路`：打者擊球與紀律；投手配球、位移、放球點。
+1. `總覽`（常駐）：身份、當季核心數據、相對聯盟位置、近期趨勢。
+2. `打擊`／`投球`：打者擊球與紀律；投手配球、位移、放球點。
+   **雙棲球員兩者並列為獨立標籤頁**（不是 role 切換鈕）。
 3. `分項與對戰`：vs team、splits、ML-MATCHUP1 洞察。
-4. `生涯`：逐年表、守備、獎項與歷史。
+4. `守備`：守位身分圖（僅多守位時）、依守位群分流的守備指標與本季／生涯表。
+5. `生涯`：逐年表、獎項與歷史。
+
+> **IA 修訂沿革**：原為四層且 role 以切換鈕控制全頁、守備歸在「生涯」層
+> （[`UX-PLAYER-IA1-DECISION.md`](design/UX-PLAYER-IA1-DECISION.md)）。
+> 2026-07-20 經需求方裁決改為上列結構（[`UX-PLAYER-IA2-BRIEF.md`](design/UX-PLAYER-IA2-BRIEF.md)）：
+> role 攤為標籤頁、「打法／球路」更名「打擊／投球」、守備獨立成層。
+> 總覽／分項與對戰／生涯在雙棲時將兩種身分**上下堆疊**，全頁不再有 role 切換鈕。
+> 實作狀態：UX-PLAYER-IA2 🔍待查核（未合併、未部署）。
 
 ML 使用：
 
 - `matchup_insights`：放在「分項與對戰」，顯示候選、PA、baseline、credibility 與 coverage；明示描述性、非未來預測。
 - `pitch_type_v2`：可用於投手球路標籤，但必須顯示「推定球種」；複合名與低信心不能被 UI 強制單一化。
 - `pa_sim`：首版不在球員頁提供常駐入口；使用者需進 `/matchups` 選定具體投手×打者後，才可切到第二 tab。
-- `Stuff+`：未來若過 gate，只放投手「打法／球路」而非 hero 大分數。
+- `Stuff+`：未來若過 gate，只放投手「投球」層而非 hero 大分數。
 - 成績投影：不列入首版；若未來採用，只放「下季展望」進階區，不能混入當季實績。
 
 應移除／收合：目前所有 season、tracking、quality、movement、batted mix、trend、SABR、fielding、detail 連續鋪滿的長頁；預設只展開與角色相關的前三層結論。
@@ -465,7 +474,7 @@ Checkpoint：5 秒理解結果與最大轉折；2 次互動進指定打席；無
 | 候選／既有卡 | 內容 |
 |---|---|
 | `UX-RANKINGS1` | 打者／投手排行核心欄位、mobile、column chooser |
-| `UX-PLAYER-IA1` | 只建立球員頁總覽／打法／對戰／生涯 IA 骨架與 prototype 決策 |
+| `UX-PLAYER-IA1` | 只建立球員頁總覽／打法／對戰／生涯 IA 骨架與 prototype 決策（骨架已由 `UX-PLAYER-IA2` 修訂，見 §5.7） |
 | `UX-PLAYER-SECTIONS1` | 依核可骨架逐區遷移現有內容，移除全量長頁；依賴 UX-PLAYER-IA1 |
 | `UX-MATCHUP1` | 查詢式對戰頁；fail-closed 四狀態是常態版面，洞察卡不是 hero |
 | `UX-MATCHUP2` | 對戰元件整合球員頁；依賴 MATCHUP1 |
