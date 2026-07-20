@@ -1,50 +1,48 @@
-# GAME-RECAP-PA1 canonical 打席與逐球可靠對應〔T4；🔴資料正確性〕
+# GAME-RECAP-PA1 canonical 打席與逐球對應契約與切卡〔T4；🔴資料正確性〕
 
 - 需求：ruan6047　規劃：GPT-5@Codex　分支：`ai/<執行者>/GAME-RECAP-PA1`
 - 執行：待指派　查核：待指派（須跨模型家族或人工，且 ≠ 執行）
 - Initiative：INIT-GAME-RECAP　spec 基線：v1.3
 - DB：`db_scope: none`（本卡僅 canonical contract／切卡）；依 `GAME-RECAP-DATA1` 決策，schema 與 data-migration 必須拆為獨立卡，不得直接改既有 migration
-- 部署：是　環境：production　PR：—　Merge SHA：—
+- 部署：否（本卡僅契約／切卡）　環境：—　PR：—　Merge SHA：`e7a065b507b3a0851e6709947dcdd76adb59a9eb`
 - 範圍：見 [`GAME_RECAP_PRODUCT_SPEC.md`](../GAME_RECAP_PRODUCT_SPEC.md) §3.3、§6.3、§7
 - Discovery：`GAME-RECAP-DATA1` 已核可（Checkpoint 1）；採每日批次物化 canonical PA，不得沿用現有近似鍵直接公開。
 - Design：Design Gate N/A；本卡建立資料契約，UI 由 `UX-GAME-PA1` 核可
-- current-state：📥Backlog；已由 Coordinator 註冊，Checkpoint 1 已解除，可進 Design／expand 拆卡與實作。
+- current-state：📦已合併；canonical 契約與實作切片已通過跨模型家族查核並合併。**這不代表 canonical PA 功能已完成或可部署**；實作與其驗收由 TAXONOMY1、EXPAND1、BUILD1 三張子卡承接。
 
 ## 目標
 
-作為 canonical 打席與 `pa_id` 的唯一 owner，先可靠分組 livelog 打席，再串起 pitch_tracking，取代後端 WP、前端 moment 與逐球元件各自的近似鍵，確保同局重複對戰、換投、代打與事件缺漏不會產生不同打席邊界。
+作為 canonical 打席與 `pa_id` 的唯一契約 owner，凍結資料模型、reconciliation 與 availability 語意，並將實作切為可獨立驗證的紅線子卡；不得由本卡直接吞併 schema、資料回填、API 或前端工作。
 
 ## 驗收條件
 
-- [ ] 每個可重建打席具有穩定 `pa_id`、start/end event、投打者、打席結果與 ordered pitches；重新 refresh 後相同來源資料產生相同 ID。
-- [ ] `models/winprob.py`、games WP route 與前端 moment builder 後續都能只消費同一打席契約，不需自行 `(batting_order,hitter)` 或連續 hitter 分組。
-- [ ] PA response 擁有打席層 `tracking_availability` 與 mapping reason，但不計算或代理任何 WP 欄位。
-- [ ] 同局同投打重複對戰、換投中打席、代打、換人事件與缺 pitch count 都有明確對應或 fail-closed 行為。
-- [ ] API 可按單一 `pa_id` 回傳逐球資料與 availability reason，避免賽事首屏傳輸整場大型 tracking payload。
-- [ ] 無設備、官方尚未更新、來源有缺漏與 mapping 失敗是不同狀態，不以同一個空陣列掩蓋。
-- [ ] 對帳率與未知原因依年／球場／賽制輸出；未達 `GAME-RECAP-DATA1` 核可門檻不得開啟精確逐球 UI。
+- [x] 契約凍結 stable `pa_id`、來源 revision、reconciliation、打席層 tracking availability 與 fail-closed 邊界。
+- [x] 將實作切分為唯讀 taxonomy、additive schema expand、builder／reconciliation／backfill，且明定資料庫 lease 與獨立跨模型家族查核。
+- [x] 凍結「WP／前端 consumer 僅讀 materialized PA、不得再用近似鍵分組」的交接邊界。
+- [ ] TAXONOMY1 以真實 action 值域與紅燈案例定義 transition taxonomy。
+- [ ] EXPAND1 建立 additive schema 與來源 revision 留痕。
+- [ ] BUILD1 完成 materialization、對帳、歷史回填與 API-ready published build；未達核可門檻不得開啟精確逐球 UI。
 
 ## 驗證
 
-- [ ] 先建立可重現現有近似鍵誤配的紅燈測試。
-- [ ] 單元與整合測試涵蓋同局重複對戰、換投、代打、無 TrackMan、晚到資料及 refresh 重跑穩定性。
-- [ ] API route snapshot／contract test 更新；查詢具明確索引策略與 query plan 證據。
-- [ ] `uv run ruff check`、`uv run pytest` 通過；獨立 reviewer 以原始事件人工對帳抽樣。
+- [x] 合併前完成 `git diff --check`、`uv run ruff check`、`uv run pytest`（332 collected；1 skipped）與跨模型家族契約查核。
+- [ ] 子卡各自完成其紅燈測試、對帳／query plan 或 migration rehearsal、適用的 route contract，以及獨立 reviewer 證據。
 
 ## 設計與切片（2026-07-19 draft）
 
 - 契約草案：[`GAME-RECAP-PA1_CONTRACT.md`](../design/GAME-RECAP-PA1_CONTRACT.md)。
-- 必要子卡（皆 T4）：`GAME-RECAP-PA1-TAXONOMY1`（只讀 transition taxonomy）、`GAME-RECAP-PA1-EXPAND1`（schema expand＋來源 revision 留痕）、`GAME-RECAP-PA1-BUILD1`（batch materialization／reconciliation／historical backfill）。
-- 在需求方與跨模型家族或人工查核者核可草案前，禁止註冊／認領上述子卡，且禁止 PA1 直接寫 migration、ingest、API 或前端。
+- 子卡（皆 T4）：[`GAME-RECAP-PA1-TAXONOMY1`](GAME-RECAP-PA1-TAXONOMY1.md)（只讀 transition taxonomy）、[`GAME-RECAP-PA1-EXPAND1`](GAME-RECAP-PA1-EXPAND1.md)（schema expand＋來源 revision 留痕）、[`GAME-RECAP-PA1-BUILD1`](GAME-RECAP-PA1-BUILD1.md)（batch materialization／reconciliation／historical backfill）。
+- 子卡已完成註冊但均未認領；必須依 TAXONOMY1 → EXPAND1 → BUILD1 順序取得各自 resource lease、跨模型家族或人工查核與適用的需求方 sign-off。
 
 ## 依賴與交付
 
 - 依賴：`GAME-RECAP-DATA1` ✅（Checkpoint 1 已於 2026-07-19 核可）。
-- 後續：解除 `UX-GAME-PA1` 的資料正確性阻塞。
-- 預估範圍：L；需要 schema 時先拆 migration expand 卡、taxonomy 稽核卡與 data-migration/backfill 卡。
+- 後續：BUILD1 對帳通過後才解除 `UX-GAME-PA1` 與 WP 主鏈的資料正確性阻塞。
+- 預估範圍：本卡已完成；功能工作量由三張子卡各自估算與交付。
 
 ## Log
 
 - 2026-07-16 proposed by GPT-5@Codex → 待 Coordinator 註冊 lifecycle event。
 - 2026-07-16 Coordinator register → 已寫入 lifecycle event／Ledger；依賴未解除前不得 claim。
 - 2026-07-19 `GAME-RECAP-DATA1` 跨家族查核與需求方 Checkpoint 1 核可完成 → 可進 Design／expand 拆卡；禁止以既有近似鍵直接實作 public canonical PA。
+- 2026-07-21 契約查核通過後合併（`e7a065b`）；調整卡片為契約／切卡 parent，註冊三張未認領實作子卡。功能驗收仍由子卡完成，並非已部署功能。

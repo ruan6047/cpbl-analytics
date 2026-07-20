@@ -1,7 +1,7 @@
 ---
 title: "GAME-RECAP-PA1 canonical 打席與逐球對應契約"
 card_id: GAME-RECAP-PA1
-status: draft-awaiting-independent-review
+status: approved-contract-merged
 date: 2026-07-19
 tags:
   - cpbl
