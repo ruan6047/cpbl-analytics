@@ -16,6 +16,7 @@ import {
 import { DataTable, type Column } from "@/components/table";
 import { chartTooltip, pitchColor, useChartTheme } from "@/lib/chart-theme";
 import { type Disc, type PitchType, type Role, QUALITY_GROUPS, ptSort, ptTypesFrom } from "./lib";
+import { sparsePitchNote } from "./layers";
 import { CompositionPie, PitchTypeToggle } from "./parts";
 
 export function TrackingSection({ disc, role, seasonKind }: { disc: Disc | null; role: Role; seasonKind: "A" | "D" }) {
@@ -39,6 +40,13 @@ export function TrackingSection({ disc, role, seasonKind }: { disc: Disc | null;
             <span className="ml-2 align-middle text-xs font-normal text-faint">本季 · TrackMan 2026 起</span></h2>
           {ptTypes.length > 1 && <PitchTypeToggle value={pitchType} onChange={setPitchType} types={ptTypes} />}
         </div>
+        {/* 稀疏警示（IA 狀態契約）：有樣本但過少時照常顯示數字，但明確標示僅供參考。
+            成因多為球場未配置設備或出賽場次少，與「無資料」是不同狀態。 */}
+        {sparsePitchNote(disc?.points.length) && (
+          <p className="mb-3 rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs text-muted">
+            {sparsePitchNote(disc?.points.length)}
+          </p>
+        )}
         <div className="grid items-stretch gap-6 lg:grid-cols-3">
           <Card className="flex flex-col lg:col-span-2">
             <div className="grid gap-x-4 sm:grid-cols-2">
