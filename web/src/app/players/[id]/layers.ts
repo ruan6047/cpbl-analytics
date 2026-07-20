@@ -118,3 +118,26 @@ export function needsData(group: DataGroup, layer: SubLayer): boolean {
   if (group === "tracking") return layer === "batting" || layer === "pitching";
   return owner === layer;
 }
+
+/**
+ * 依層載入的快取分組名。
+ *
+ * **同一資料群組若會依身分抓不同資料，role 必須進「組名」而不只是 key。**
+ * 每個組名只記得住一個 key，若組名固定、key 隨 role 變動，雙棲球員在打擊↔投球
+ * 之間來回時會互相覆蓋，切回已看過的頁必定被判為 miss 而重抓（REVIEW-005 P1）。
+ */
+export const loadGroup = (group: DataGroup, role?: Role | null): string =>
+  role ? `${group}:${role}` : group;
+
+/**
+ * 載入快取（純邏輯，便於回歸測試）：回傳 true 代表這次要真的去抓。
+ * 同組同 key 只會回 true 一次；key 變動（換球員／換一二軍鏡頭）才重抓。
+ */
+export function createLoadTracker(): (group: string, key: string) => boolean {
+  const seen = new Map<string, string>();
+  return (group, key) => {
+    if (seen.get(group) === key) return false;
+    seen.set(group, key);
+    return true;
+  };
+}

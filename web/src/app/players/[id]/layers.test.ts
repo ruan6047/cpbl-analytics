@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  SPARSE_PITCHES, type DataGroup, layerRole, layersFor, needsData, needsRoleHeading, primaryRole,
-  sparsePitchNote, stackedRoles, subLayerFromParams, subLayerLabel,
+  SPARSE_PITCHES, createLoadTracker, type DataGroup, layerRole, layersFor, loadGroup, needsData,
+  needsRoleHeading, primaryRole, sparsePitchNote, stackedRoles, subLayerFromParams, subLayerLabel,
 } from "./layers.ts";
 
 const BOTH: ("batting" | "pitching")[] = ["batting", "pitching"];
@@ -123,4 +123,39 @@ test("稀疏警示：樣本充足、全無樣本或未載入都不顯示", () =>
   assert.equal(sparsePitchNote(SPARSE_PITCHES), null);
   assert.equal(sparsePitchNote(0), null);
   assert.equal(sparsePitchNote(null), null);
+});
+
+// REVIEW-005 P1 回歸：雙棲切回已看過的身分頁不得重抓
+test("依身分抓不同資料的群組，role 必須進組名而非只進 key", () => {
+  assert.notEqual(loadGroup("tracking", "batting"), loadGroup("tracking", "pitching"));
+  // 與 role 無關的群組不加後綴，避免無謂的快取分裂
+  assert.equal(loadGroup("season"), loadGroup("season", null));
+});
+
+test("雙棲在打擊↔投球之間來回，切回已看過的頁不得重抓", () => {
+  const should = createLoadTracker();
+  const visit = (role: "batting" | "pitching") =>
+    should(loadGroup("tracking", role), `p1-${role}-A`);
+
+  assert.equal(visit("batting"), true, "首次進打擊頁應抓");
+  assert.equal(visit("pitching"), true, "首次進投球頁應抓");
+  assert.equal(visit("batting"), false, "切回打擊頁不得重抓");
+  assert.equal(visit("pitching"), false, "再切回投球頁不得重抓");
+});
+
+test("換球員或換一／二軍鏡頭仍必須重抓（快取不可過度黏著）", () => {
+  const should = createLoadTracker();
+  assert.equal(should(loadGroup("tracking", "batting"), "p1-batting-A"), true);
+  assert.equal(should(loadGroup("tracking", "batting"), "p2-batting-A"), true, "換球員要重抓");
+  assert.equal(should(loadGroup("tracking", "batting"), "p2-batting-D"), true, "換二軍鏡頭要重抓");
+  assert.equal(should(loadGroup("tracking", "batting"), "p2-batting-D"), false);
+});
+
+test("堆疊層的兩身分各自獨立快取，互不覆蓋", () => {
+  const should = createLoadTracker();
+  for (const g of ["trend", "splits", "career"] as const) {
+    assert.equal(should(loadGroup(g, "batting"), "p1-batting"), true);
+    assert.equal(should(loadGroup(g, "pitching"), "p1-pitching"), true);
+    assert.equal(should(loadGroup(g, "batting"), "p1-batting"), false, `${g} 切回不得重抓`);
+  }
 });
