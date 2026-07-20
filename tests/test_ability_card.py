@@ -138,7 +138,7 @@ class _Cur:
         return self._cur[1]
 
 
-_BAT_COLS = ["contact", "power", "eye", "speed", "defense", "wsb", "fld_g",
+_BAT_COLS = ["contact", "power", "eye", "speed", "defense", "wsb", "fld_g", "bat_g",
              "contact_pr", "power_pr", "eye_pr", "speed_pr", "defense_pr", "wsb_pr",
              "is_catcher", "ov_pr"]
 _PIT_COLS = ["weapon", "control", "hr_suppress", "command", "stamina", "fip",
@@ -148,7 +148,7 @@ _PIT_COLS = ["weapon", "control", "hr_suppress", "command", "stamina", "fip",
 
 def _bat_row(**over):
     r = {"contact": 0.82, "power": 0.15, "eye": 0.08, "speed": 0.1, "defense": 2.5, "wsb": 0.002,
-         "fld_g": 50,
+         "fld_g": 50, "bat_g": 60,
          "contact_pr": 0.70, "power_pr": 0.60, "eye_pr": 0.50, "speed_pr": 0.40,
          "defense_pr": 0.55, "wsb_pr": 0.80, "is_catcher": False, "ov_pr": 0.55}
     r.update(over)
@@ -188,18 +188,28 @@ def test_speed_axis_falls_back_to_raw_rate_when_wsb_missing():
 def test_pure_dh_defense_axis_shows_zhida_with_power_stand_in():
     # 純 DH（fld_g=0，完全未上守備）：守備軸以打擊火力代替並標「指打」，保留既有設計。
     card = _ability_card(
-        _Cur([(_BAT_COLS, _bat_row(defense=None, defense_pr=None, fld_g=0, power_pr=0.60))]),
+        _Cur([(_BAT_COLS, _bat_row(defense=None, defense_pr=None, fld_g=0, bat_g=52, power_pr=0.60))]),
         "P1", "batting", "career", 2026)
     d = _axis(card, "defense")
     assert d["label"] == "指打" and d["pr"] == 60
     assert d["components"] == [{"label": "打擊火力（代守備）", "weight": 100, "pr": 60}]
 
 
-def test_insufficient_fielding_sample_shows_shortage_not_zhida():
-    # 回歸缺陷：有守備但主守位未達門檻（fld_g>0、defense_pr NULL）者，舊碼會被誤標「指打」
-    # 並填入力量 PR。修正後須標「守備樣本不足」、pr 保持 None、不得代填力量值。
+def test_mainly_dh_with_minor_fielding_still_zhida():
+    # 需求方定案：主要打 DH 者即使有少量守備仍視為 DH。守備 5 場／打擊 58 場（佔比 <½），
+    # 主守位未達門檻故 defense_pr NULL——須標「指打」，不得降級為「資料不足」。
     card = _ability_card(
-        _Cur([(_BAT_COLS, _bat_row(defense=None, defense_pr=None, fld_g=12, power_pr=0.60))]),
+        _Cur([(_BAT_COLS, _bat_row(defense=None, defense_pr=None, fld_g=5, bat_g=58, power_pr=0.60))]),
+        "P1", "batting", "career", 2026)
+    d = _axis(card, "defense")
+    assert d["label"] == "指打" and d["pr"] == 60 and d.get("note") is None
+
+
+def test_utility_fielder_without_qualifying_pos_shows_shortage_not_zhida():
+    # 守備佔多數卻分散到每守位皆未達門檻的工具人（守備 12 場／打擊 15 場，佔比 >½）：
+    # 確實常守備、不宜當 DH 代填力量 PR，須誠實標「守備樣本不足」、pr 保持 None。
+    card = _ability_card(
+        _Cur([(_BAT_COLS, _bat_row(defense=None, defense_pr=None, fld_g=12, bat_g=15, power_pr=0.60))]),
         "P1", "batting", "career", 2026)
     d = _axis(card, "defense")
     assert d["label"] == "守備" and d["pr"] is None and d["grade"] is None

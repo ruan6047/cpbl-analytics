@@ -108,7 +108,8 @@ def _bat_ability_sql(scope: str) -> str:
                 sum(y.bb/NULLIF(l.eye,0))/NULLIF(sum(y.pa),0)::float eye,
                 sum((y.sb + y.b3)/NULLIF(l.speed,0))/NULLIF(sum(y.g),0)::float speed,
                 sum((y.h + y.bb + y.hbp)/NULLIF(l.obp,0))/NULLIF(sum(y.ab + y.bb + y.hbp + y.sf),0)::float
-                  + sum((y.h + y.b2 + 2*y.b3 + 3*y.hr)/NULLIF(l.slg,0))/NULLIF(sum(y.ab),0)::float ops
+                  + sum((y.h + y.b2 + 2*y.b3 + 3*y.hr)/NULLIF(l.slg,0))/NULLIF(sum(y.ab),0)::float ops,
+                sum(y.g) g   -- 生涯打擊出賽數：DH 佔比判定用
             FROM yr y JOIN lg l USING (year)
             GROUP BY y.player_id HAVING sum(y.ab) >= %(min)s
         )"""
@@ -172,7 +173,7 @@ def _bat_ability_sql(scope: str) -> str:
         # 本季總守備出賽數（不設 8 場門檻，過濾二軍）：純 DH vs 樣本不足的分流訊號。
         fld_all = ("SELECT player_id, sum(g) g FROM cpbl.fielding_current "
                    "WHERE year=%(yr)s AND kind_code='A' GROUP BY player_id")
-    rate_cols = "b.player_id, b.contact, b.power, b.eye, b.speed, b.ops"
+    rate_cols = "b.player_id, b.contact, b.power, b.eye, b.speed, b.ops, b.g AS bat_g"
     cra9_join ="LEFT JOIN cra9 c9 USING (player_id)" if scope == "season" else ""
     cra9_pass = ", cra9_pr" if scope == "season" else ""
     return f"""
@@ -195,7 +196,7 @@ def _bat_ability_sql(scope: str) -> str:
                  LEFT JOIN fld_all fa USING (player_id) {cra9_join}
         ), pr AS (
             SELECT player_id, contact, power, eye, speed, defense, defense_pr,
-                   is_catcher, wsb, fld_g{cra9_pass},
+                   is_catcher, wsb, fld_g, bat_g{cra9_pass},
                 percent_rank() OVER (ORDER BY contact) contact_pr,
                 percent_rank() OVER (ORDER BY power) power_pr,
                 percent_rank() OVER (ORDER BY eye) eye_pr,
@@ -210,7 +211,7 @@ def _bat_ability_sql(scope: str) -> str:
                 3*ops_pr + 0.6*COALESCE(wsb_pr, speed_pr) + 0.4*speed_pr
                 + COALESCE(defense_pr, 0.5)) ov_pr
             FROM pr
-        ) SELECT contact, power, eye, speed, defense, wsb, fld_g,
+        ) SELECT contact, power, eye, speed, defense, wsb, fld_g, bat_g,
                  contact_pr, power_pr, eye_pr, speed_pr, defense_pr, wsb_pr{cra9_pass},
                  is_catcher, ov_pr
           FROM ov WHERE player_id = %(pid)s
@@ -378,19 +379,23 @@ def _ability_card(cur, player_id: str, role: str, scope: str, year: int) -> dict
         # 只『拉抬』不『懲罰』：取 max，速度/守備型不會被低力量拖累。
         if ov_pr is not None and power_pr is not None:
             overall = max(overall, round(0.6 * overall + 0.4 * power_pr))
-        # 守備軸缺值分流：純 DH 與「有守備但主守位樣本不足」的 defense_pr 皆為 NULL，
-        # 須以總守備出賽數 fld_g 區分，不可一律當 DH 填力量 PR（否則真有守備者被誤標指打）。
+        # 守備軸缺值分流：「主要 DH」與「常守備但主守位樣本不足」的 defense_pr 皆為 NULL。
+        # 需求方定案：主要打 DH 者即使有少量守備仍視為 DH——以守備出賽是否為少數判定
+        # （守備場次 ≤ 打擊出賽之半＝以 DH 為主）。「資料不足」只留給守備佔多數卻分散到
+        # 每守位皆未達門檻的工具人（雖無合格樣本，但確實常守備、不宜當 DH 代填力量）。
         fld_g = r.get("fld_g") or 0
+        bat_g = r.get("bat_g") or 0
+        mainly_dh = fld_g * 2 <= bat_g
         for a in axes:
             if a["key"] != "defense" or a["pr"] is not None:
                 continue
-            if fld_g == 0 and power_pr is not None:
-                # 純 DH（本季/生涯完全未上守備）：以打擊火力代守備並標「指打」，
-                # 免雷達 0 凹陷誤看成守備弱點；組成標籤已揭露此為代用值。
+            if mainly_dh and power_pr is not None:
+                # 主要 DH（含少量守備）：以打擊火力代守備並標「指打」，免雷達 0 凹陷
+                # 誤看成守備弱點；組成標籤已揭露此為代用值。
                 a["label"], a["pr"], a["grade"] = "指打", power_pr, _grade(power_pr)
                 a["components"] = [{"label": "打擊火力（代守備）", "weight": 100, "pr": power_pr}]
             else:
-                # 有守備但主守位未達門檻（或無力量值可代）：誠實標「資料不足」，
+                # 守備佔多數卻無合格守位（或無力量值可代）：誠實標「資料不足」，
                 # 不得填入與守備語意無關的力量 PR；雷達仍畫 0 但 tooltip 揭露原因。
                 a["note"] = "守備樣本不足"
     # 特色標籤（彰顯球員類型，不合軸）。
