@@ -7,59 +7,13 @@ import { type StatRow } from "@/lib/client";
 import { DataTable, type Column } from "@/components/table";
 import { n0, numOf } from "./lib";
 import {
-  POS_COORD, type PosGroup, innings, isMultiPosition, isQualified, per9,
-  posGroup, posLabel, primaryPos, valueMetrics, vizRows,
+  type PosGroup, innings, isMultiPosition, isQualified, per9,
+  posGroup, primaryPos, valueMetrics, vizRows,
 } from "./fielding-metrics";
 
 export type FieldLeague = Record<string, {
   n: number; a9: number | null; dp9: number | null; tc9: number | null; fpct: number | null;
 }>;
-
-// ---- 元件 C：守位身分圖（回答「他是什麼樣的守備者」，不宣稱守備好壞）----
-
-/** 球場示意圖：沿用 spray-chart 的扇形幾何與極座標慣例（0°＝中外野、負角＝左半場）。 */
-function FieldPositionMap({ rows, primary }: { rows: StatRow[]; primary: string | null }) {
-  const W = 300, H = 232, cx = W / 2, baseY = H - 6;
-  const maxDist = 142, scale = (baseY - 8) / maxDist;
-  const centerR = 122, cornerR = 100;
-  const pt = (deg: number, dist: number) => {
-    const r = (deg * Math.PI) / 180;
-    return [cx + dist * scale * Math.sin(r), baseY - dist * scale * Math.cos(r)] as const;
-  };
-  const fenceR = (deg: number) => cornerR + (centerR - cornerR) * Math.cos((Math.abs(deg) / 45) * (Math.PI / 2));
-  let field = `M ${cx} ${baseY} `;
-  for (let d = -45; d <= 45; d += 3) {
-    const [x, y] = pt(d, fenceR(d));
-    field += `L ${x.toFixed(1)} ${y.toFixed(1)} `;
-  }
-  field += "Z";
-  const played = rows.filter((r) => (numOf(r.g) ?? 0) > 0 && POS_COORD[String(r.pos)]);
-  const label = played.map((r) => {
-    const pos = String(r.pos);
-    const c = POS_COORD[pos];
-    const [x, y] = pt(c.deg, c.dist);
-    return { pos, x, y, text: posLabel(numOf(r.outs), numOf(r.g)), isPrimary: pos === primary };
-  });
-  const aria = label.length
-    ? `守位分布：${label.map((l) => `${l.pos} ${l.text}`).join("、")}${label.length > 1 ? "，多守位" : ""}`
-    : "無守備紀錄";
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full max-w-[320px]" role="img" aria-label={aria}>
-      <path d={field} className="fill-surface-2 stroke-line" strokeWidth={1} />
-      {label.map((l) => (
-        <g key={l.pos}>
-          {/* 圓點大小固定：這是身分圖，尺寸與顏色都不編碼守備好壞 */}
-          <circle cx={l.x} cy={l.y} r={l.isPrimary ? 6 : 5}
-            className={l.isPrimary ? "fill-accent" : "fill-muted"} opacity={l.isPrimary ? 1 : 0.65} />
-          <text x={l.x} y={l.y - 9} textAnchor="middle" className="fill-ink text-[9px] font-medium">
-            {l.pos.replace("手", "")}
-          </text>
-          <text x={l.x} y={l.y + 15} textAnchor="middle" className="fill-faint text-[8px]">{l.text}</text>
-        </g>
-      ))}
-    </svg>
-  );
-}
 
 // ---- 元件 A：守備價值卡（依守位群分流，內容各不相同）----
 
@@ -216,14 +170,15 @@ export function FieldingSection({ fielding, fieldingCareer, fieldFromYear, leagu
           <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-muted">多守位</span>
         )}
       </div>
-      {/* 身分圖只在多守位時渲染：單一守位時它等於重畫下方表格的一列，沒有增值。
-          圖真正的價值是「守備範圍的組合」，而那只有多守位球員才存在（需求方 2026-07-20 裁決）。 */}
-      <div className={`mb-4 grid items-start gap-4 ${multi ? "sm:grid-cols-[auto_1fr]" : ""}`}>
-        {multi && <FieldPositionMap rows={mapRows} primary={primary} />}
-        {primaryRow && (
+      {/* 守位身分圖已於 UX-PLAYER-IA2 移除：原以真實球場座標擺位，內野守位在小尺寸下
+          標籤與局數文字必然重疊（實測多守位每個案例皆有相交），而該圖本就不宣稱空間
+          精確度。改由 UI-FIELD-DIAGRAM1 以轉播風制式排版重做成共用元件後再放回。
+          「多守位」標記與下方表格已承載相同資訊，故此處不留空位。 */}
+      {primaryRow && (
+        <div className="mb-4">
           <FieldingValueCard row={primaryRow} league={league} qualifyOuts={qualifyOuts ?? 300} />
-        )}
-      </div>
+        </div>
+      )}
       {seasonRows.length > 0 && (
         <div className="mb-4">
           <h3 className="mb-2 text-sm font-medium text-muted">本季</h3>
