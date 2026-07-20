@@ -15,7 +15,7 @@ import { Tooltip } from "./tooltip";
 // 能力值卡：以全史生涯 rate 的全聯盟百分位 [PR] 畫遊戲風雷達 + 等級條。
 // 資料皆我們自算的客觀指標，等級 S–G 純由 PR 換算（非抄遊戲數值）。
 export type AxisComp = { label: string; weight: number; pr: number };
-export type Axis = { key: string; label: string; pr: number | null; grade: string | null; components: AxisComp[] };
+export type Axis = { key: string; label: string; pr: number | null; grade: string | null; components: AxisComp[]; note?: string | null };
 export type Card = { available: boolean; role: string; scope?: string; has_advanced?: boolean; signature?: string | null; axes?: Axis[]; overall?: { pr: number; grade: string } };
 
 // 方法論說明（自製指標誠實揭露；雷達右上角 ? 觸發，hover/點擊皆可）。
@@ -34,7 +34,7 @@ function methodNote(card: Card) {
       {card.role === "batting" && (
         <>
           <p>速度軸＝盜壘得分價值 wSB 60%＋每場盜壘/三壘打 40%；無 wSB 資料的球員自動改以後者 100% 計，故少數球員此軸組成與他人不同（實際權重見軸名提示）。</p>
-          <p>純 DH（無守備數據）的守備軸以打擊火力替代並標示「指打」，避免誤讀為守備弱點。</p>
+          <p>主要打 DH（含少量守備）的守備軸以打擊火力替代並標示「指打」，避免誤讀為守備弱點；以守備為主但無合格守位者則標示「守備樣本不足」，不以打擊值代填。</p>
         </>
       )}
       <p>等級由 PR 換算：S≥90 · A≥80 · B≥65 · C≥50 · D≥35 · E≥20 · F≥10 · G。</p>
@@ -45,7 +45,7 @@ function methodNote(card: Card) {
 
 // 軸名提示內容：該軸由哪些指標、各佔多少權重綜合而成。
 function axisTipContent(a: Axis) {
-  if (!a.components.length) return <p>{a.label}：無資料</p>;
+  if (!a.components.length) return <p>{a.label}：{a.note ?? "無資料"}</p>;
   return (
     <div className="space-y-0.5">
       <p className="font-semibold">{a.label}　PR {a.pr}{a.grade ? `（${a.grade}）` : ""}</p>
