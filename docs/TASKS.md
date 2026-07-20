@@ -8,7 +8,7 @@
 
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
-| [BUG-ABILITY-DH-LABEL](tasks/BUG-ABILITY-DH-LABEL.md) | INIT-PRODUCT-UX | T3 | 能力卡守備軸誤標指打並填入力量 PR | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-21T23:50:00+08:00 |
+| [BUG-ABILITY-DH-LABEL](tasks/BUG-ABILITY-DH-LABEL.md) | INIT-PRODUCT-UX | T3 | 能力卡守備軸誤標指打並填入力量 PR | Claude（Opus 4.8）（執行） | `ai/opus-4-8/BUG-ABILITY-DH-LABEL @ .claude/worktrees/bug-ability-dh-label-execution` | 1 | 🔨執行中 | ⏸未部署 | 2026-07-21T01:37:23+08:00 |
 | [GAME-RECAP-PA1](tasks/GAME-RECAP-PA1.md) | INIT-GAME-RECAP | T4 | canonical PA 契約與實作切卡 | ruan6047（子卡優先序／後續 Gate） | — | 1 | 📦已合併 | —不適用 | 2026-07-21T01:09:45+08:00 |
 | [GAME-RECAP-PA1-BUILD1](tasks/GAME-RECAP-PA1-BUILD1.md) | INIT-GAME-RECAP | T4 | canonical PA builder、對帳與歷史回填 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-21T01:09:45+08:00 |
 | [GAME-RECAP-PA1-EXPAND1](tasks/GAME-RECAP-PA1-EXPAND1.md) | INIT-GAME-RECAP | T4 | canonical PA additive schema expand | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-21T01:09:45+08:00 |
