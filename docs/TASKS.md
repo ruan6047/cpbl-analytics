@@ -9,8 +9,8 @@
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
 | [GAME-RECAP-PA1](tasks/GAME-RECAP-PA1.md) | INIT-GAME-RECAP | T4 | canonical 打席與逐球可靠對應 | ruan6047（push／部署／release） | `ai/gpt-5-codex/GAME-RECAP-PA1 @ .claude/worktrees/game-recap-pa1-execution` | 1 | 📦已合併 | ⏸未部署 | 2026-07-19T23:24:00+08:00 |
-| [GAME-RECAP-STATUS-EXPAND1](tasks/GAME-RECAP-STATUS-EXPAND1.md) | INIT-GAME-RECAP | T4 | 賽事來源 revision 與狀態 instrumentation | ruan6047（push／部署／release） | `` | 1 | 📦已合併 | ⏸未部署 | 2026-07-20T01:38:15+08:00 |
-| [GAME-RECAP-STATUS1](tasks/GAME-RECAP-STATUS1.md) | INIT-GAME-RECAP | T4 | 賽事狀態、資料可用性與 freshness API | ruan6047 | `ai/gpt-5-codex/GAME-RECAP-STATUS1 @ .claude/worktrees/game-recap-status1-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-20T09:49:00+08:00 |
+| [GAME-RECAP-STATUS-EXPAND1](tasks/GAME-RECAP-STATUS-EXPAND1.md) | INIT-GAME-RECAP | T4 | 賽事來源 revision 與狀態 instrumentation | ruan6047（push／部署／release） | `` | 1 | 📦已合併 | ✅已驗證 | 2026-07-20T16:30:00+08:00 |
+| [GAME-RECAP-STATUS1](tasks/GAME-RECAP-STATUS1.md) | INIT-GAME-RECAP | T4 | 賽事狀態、資料可用性與 freshness API | ruan6047（release 待其裁決） | `ai/gpt-5-codex/GAME-RECAP-STATUS1 @ .claude/worktrees/game-recap-status1-execution` | 2 | 📦已合併 | ✅已驗證 | 2026-07-20T16:30:00+08:00 |
 | [GAME-RECAP-WP-API1](tasks/GAME-RECAP-WP-API1.md) | INIT-GAME-RECAP | T4 | canonical WP／WPA public contract | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:09+08:00 |
 | [GAME-RECAP-WP-VAL1](tasks/GAME-RECAP-WP-VAL1.md) | INIT-GAME-RECAP | T4 | 場中 WP 時間外驗證與支援邊界 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T22:15:08+08:00 |
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | ruan6047（Design Gate） | — | 0 | 💡需求 | —不適用 | 2026-07-17T04:44:38+08:00 |
@@ -27,7 +27,6 @@
 | [UX-MATCHUP2](tasks/UX-MATCHUP2.md) | INIT-PRODUCT-UX | T4 | 投打對決整合球員個人頁 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:43+08:00 |
 | [UX-PA-SIM-MATCHUP1](tasks/UX-PA-SIM-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | Matchups 單一打席結果分布 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:33+08:00 |
 | [UX-PLAYER-FIELDVIZ1](tasks/UX-PLAYER-FIELDVIZ1.md) | INIT-PRODUCT-UX | T3 | 球員守備守位分布圖 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-20T13:10:00+08:00 |
-| [UX-PLAYER-SECTIONS1](tasks/UX-PLAYER-SECTIONS1.md) | INIT-PRODUCT-UX | T3 | 球員頁分區內容遷移 | ruan6047 | `ai/opus-4-8/UX-PLAYER-SECTIONS1 @ .claude/worktrees/ux-player-sections1-execution` | 2 | 📦已合併 | 🚀待部署 | 2026-07-20T18:05:00+08:00 |
 | [UX-RANKINGS1](tasks/UX-RANKINGS1.md) | INIT-PRODUCT-UX | T3 | 打者與投手排行減法 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:30+08:00 |
 | [UX-STANDINGS-FOCUS1](tasks/UX-STANDINGS-FOCUS1.md) | INIT-PRODUCT-UX | T3 | 戰績頁競爭脈絡收斂 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:34+08:00 |
 | [UX-TEAM-FOCUS1](tasks/UX-TEAM-FOCUS1.md) | INIT-PRODUCT-UX | T3 | 球隊頁本季現況優先 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:35+08:00 |
