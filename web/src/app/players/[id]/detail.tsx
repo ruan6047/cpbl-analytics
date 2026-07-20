@@ -2,7 +2,7 @@
 
 // 明細區。IA 分層（UX-PLAYER-IA1）後拆為兩塊：
 // SplitsSection→L3 分項與對戰（分項資料自抓，scope/kinds 只影響本區）、CareerYearlySection→L4 生涯。
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { type StatRow, detail } from "@/lib/client";
 import { EmptyState, TableSkeleton } from "@/components/ui";
 import { type Role, SPLIT_CATS, splitCat } from "./lib";
@@ -18,6 +18,13 @@ export function SplitsSection({ id, role, seasonKind, isRetired }: {
   const [scope, setScope] = useState<"season" | "career">(isRetired ? "career" : "season");
   const [kinds, setKinds] = useState<string[]>(["A"]);
   const [splits, setSplits] = useState<StatRow[] | null>(null);
+  // 重抓（切 role／scope／鏡頭）時本區會退回骨架，高度大幅縮水會改變文件高度、
+  // 讓瀏覽器把捲動位置往回夾（REVIEW-005 P1）。記住上次實際高度，載入中沿用為下限。
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const lastHeight = useRef(0);
+  useEffect(() => {
+    if (splits && bodyRef.current) lastHeight.current = bodyRef.current.offsetHeight;
+  }, [splits]);
 
   useEffect(() => {
     const year = scope === "season" ? 2026 : 9999;
@@ -53,6 +60,7 @@ export function SplitsSection({ id, role, seasonKind, isRetired }: {
           </div>
         )}
       </div>
+      <div ref={bodyRef} style={!splits && lastHeight.current ? { minHeight: lastHeight.current } : undefined}>
       {!splits ? <TableSkeleton rows={4} cols={role === "batting" ? 10 : 9} />
         : splits.length === 0 ? (
           <EmptyState>
@@ -75,6 +83,7 @@ export function SplitsSection({ id, role, seasonKind, isRetired }: {
             </div>
           );
         })()}
+      </div>
     </section>
   );
 }

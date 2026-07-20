@@ -30,6 +30,19 @@ function MetricSelect({ metrics, value, onChange }: {
   );
 }
 
+// 圖表高度（ResponsiveContainer 固定值）。載入／空態必須佔用同樣高度，
+// 否則切 role 時內容瞬間縮水會改變文件高度，讓瀏覽器把捲動位置往回夾（REVIEW-005 P1）。
+const CHART_H = 220;
+
+/** 與圖表等高的佔位容器：載入中與空態都用它，確保高度不隨資料狀態變動。 */
+function ChartSlot({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-center" style={{ minHeight: CHART_H }}>
+      {children}
+    </div>
+  );
+}
+
 function TrendChart({ data, metric, categorical }: {
   data: { name: string; v: number | null }[]; metric: Metric; categorical: boolean;
 }) {
@@ -95,11 +108,13 @@ export function SeasonTrendCard({ trend, role, isRetired }: {
         </h3>
         <MetricSelect metrics={metrics} value={key} onChange={setKey} />
       </div>
-      {trend === null ? <EmptyState>載入中…</EmptyState>
+      {trend === null ? <ChartSlot><EmptyState>載入中…</EmptyState></ChartSlot>
         : data.length === 0 ? (
-          <EmptyState>
-            {isRetired ? "本季無出賽紀錄（已退役／轉任教練），逐年表現請見「生涯」。" : "本季尚無足夠出賽場次可繪製走勢。"}
-          </EmptyState>
+          <ChartSlot>
+            <EmptyState>
+              {isRetired ? "本季無出賽紀錄（已退役／轉任教練），逐年表現請見「生涯」。" : "本季尚無足夠出賽場次可繪製走勢。"}
+            </EmptyState>
+          </ChartSlot>
         ) : <TrendChart data={data} metric={metric} categorical={false} />}
     </Card>
   );
@@ -123,8 +138,8 @@ export function CareerTrendCard({ careerMonthly, role }: {
         <h3 className="text-sm font-medium text-muted">生涯各週（跨年合併）</h3>
         <MetricSelect metrics={metrics} value={key} onChange={setKey} />
       </div>
-      {careerMonthly === null ? <EmptyState>載入中…</EmptyState>
-        : data.length === 0 ? <EmptyState>此指標無足夠生涯逐週樣本。</EmptyState>
+      {careerMonthly === null ? <ChartSlot><EmptyState>載入中…</EmptyState></ChartSlot>
+        : data.length === 0 ? <ChartSlot><EmptyState>此指標無足夠生涯逐週樣本。</EmptyState></ChartSlot>
         : <TrendChart data={data} metric={metric} categorical />}
     </Card>
   );
@@ -134,8 +149,8 @@ export function VsTeamCard({ vsTeam, role }: { vsTeam: StatRow[] | null; role: R
   return (
     <Card className="h-full">
       <h3 className="mb-3 text-sm font-medium text-muted">對戰各隊（本季）</h3>
-      {vsTeam === null ? <EmptyState>載入中…</EmptyState>
-        : vsTeam.length === 0 ? <EmptyState>本季無對戰分項（未出賽或資料未產出）。</EmptyState>
+      {vsTeam === null ? <ChartSlot><EmptyState>載入中…</EmptyState></ChartSlot>
+        : vsTeam.length === 0 ? <ChartSlot><EmptyState>本季無對戰分項（未出賽或資料未產出）。</EmptyState></ChartSlot>
         : <VsTeamTable items={vsTeam} role={role} />}
     </Card>
   );
