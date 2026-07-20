@@ -1,79 +1,126 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  SPARSE_PITCHES, SUB_LAYERS, type DataGroup, needsData, roleFromParam, sparsePitchNote,
-  subLayerFromParam, subLayerLabel,
+  SPARSE_PITCHES, type DataGroup, layerRole, layersFor, needsData, needsRoleHeading, primaryRole,
+  sparsePitchNote, stackedRoles, subLayerFromParams, subLayerLabel,
 } from "./layers.ts";
 
-test("稀疏警示：有樣本但過少才出現，且帶球數與原因", () => {
-  const note = sparsePitchNote(14);
-  assert.ok(note && note.includes("14"), "應標出實際球數");
-  assert.ok(note!.includes("僅供參考"), "應標示僅供參考");
-  assert.ok(note!.includes("設備"), "應說明成因（球場設備覆蓋）");
-  assert.equal(sparsePitchNote(SPARSE_PITCHES - 1) === null, false);
+const BOTH: ("batting" | "pitching")[] = ["batting", "pitching"];
+const BAT: ("batting" | "pitching")[] = ["batting"];
+const PIT: ("batting" | "pitching")[] = ["pitching"];
+
+test("標籤列：雙棲出現打擊與投球兩個內容頁", () => {
+  assert.deepEqual(layersFor(BOTH), ["batting", "pitching", "splits", "fielding", "career"]);
 });
 
-test("稀疏警示：樣本充足、全無樣本或未載入都不顯示", () => {
-  assert.equal(sparsePitchNote(SPARSE_PITCHES), null);
-  assert.equal(sparsePitchNote(848), null);
-  assert.equal(sparsePitchNote(0), null);   // 無資料是空態的職責，不是稀疏
-  assert.equal(sparsePitchNote(null), null); // 載入中不預告警示
-  assert.equal(sparsePitchNote(undefined), null);
+test("標籤列：純打者無投球頁、純投手無打擊頁", () => {
+  assert.deepEqual(layersFor(BAT), ["batting", "splits", "fielding", "career"]);
+  assert.deepEqual(layersFor(PIT), ["pitching", "splits", "fielding", "career"]);
 });
 
-test("L2 標籤跟隨 role：打者=打法、投手=球路", () => {
-  assert.equal(subLayerLabel("approach", "batting"), "打法");
-  assert.equal(subLayerLabel("approach", "pitching"), "球路");
-  // L3/L4 不隨 role 改字
-  assert.equal(subLayerLabel("splits", "batting"), subLayerLabel("splits", "pitching"));
-  assert.equal(subLayerLabel("career", "batting"), "生涯");
+test("分項與對戰／守備／生涯恆在，標籤數不隨球員身分跳動", () => {
+  for (const roles of [BOTH, BAT, PIT, []]) {
+    const ls = layersFor(roles);
+    for (const fixed of ["splits", "fielding", "career"] as const) {
+      assert.ok(ls.includes(fixed), `${fixed} 應恆在`);
+    }
+  }
 });
 
-test("?sec= 合法值原樣採用", () => {
-  for (const s of SUB_LAYERS) assert.equal(subLayerFromParam(s, false), s);
+test("守備是獨立層，不再屬於生涯（IA1 遷移 map #16 已失效）", () => {
+  assert.ok(layersFor(BAT).includes("fielding"));
+  assert.equal(subLayerLabel("fielding"), "守備");
+  assert.notEqual(subLayerLabel("fielding"), subLayerLabel("career"));
 });
 
-test("?sec= 非法或缺漏時：現役落打法／球路、退役落生涯", () => {
-  assert.equal(subLayerFromParam(null, false), "approach");
-  assert.equal(subLayerFromParam("overview", false), "approach"); // 總覽常駐，不是可切子層
-  assert.equal(subLayerFromParam("../evil", false), "approach");
-  assert.equal(subLayerFromParam(null, true), "career");
-  // 退役者仍可主動進其他層（四層皆可及，只是預設不同）
-  assert.equal(subLayerFromParam("approach", true), "approach");
+test("標籤文案：打法→打擊、球路→投球", () => {
+  assert.equal(subLayerLabel("batting"), "打擊");
+  assert.equal(subLayerLabel("pitching"), "投球");
 });
 
-test("?role= 只接受該球員實際具備的 role", () => {
-  assert.equal(roleFromParam("pitching", ["batting", "pitching"], "batting"), "pitching");
-  assert.equal(roleFromParam("pitching", ["batting"], "batting"), "batting"); // 純打者不得被 URL 切成投手
-  assert.equal(roleFromParam(null, ["pitching"], "pitching"), "pitching");
-  assert.equal(roleFromParam("coach", ["batting"], "batting"), "batting");
+test("身分內容頁對應 role；其餘層無 role", () => {
+  assert.equal(layerRole("batting"), "batting");
+  assert.equal(layerRole("pitching"), "pitching");
+  for (const l of ["splits", "fielding", "career"] as const) assert.equal(layerRole(l), null);
+});
+
+test("主身分：有打擊先打擊，否則投球", () => {
+  assert.equal(primaryRole(BOTH), "batting");
+  assert.equal(primaryRole(PIT), "pitching");
+  assert.equal(primaryRole([]), "batting");
+});
+
+test("?sec= 合法值原樣採用，且必須是該球員有的層", () => {
+  assert.equal(subLayerFromParams("fielding", null, BAT, false), "fielding");
+  // 純打者不得被 URL 切到投球頁
+  assert.equal(subLayerFromParams("pitching", null, BAT, false), "batting");
+});
+
+test("舊連結相容：?sec=approach 導向主身分內容頁", () => {
+  assert.equal(subLayerFromParams("approach", null, BOTH, false), "batting");
+  assert.equal(subLayerFromParams("approach", null, PIT, false), "pitching");
+});
+
+test("舊連結相容：?role=pitching 且未給 sec → 投球頁；已給 sec 時不得覆蓋", () => {
+  assert.equal(subLayerFromParams(null, "pitching", BOTH, false), "pitching");
+  assert.equal(subLayerFromParams("career", "pitching", BOTH, false), "career");
+  assert.equal(subLayerFromParams(null, "pitching", BAT, false), "batting");
+});
+
+test("退役／教練預設落生涯層（IA1 §1.1 該項仍有效）", () => {
+  assert.equal(subLayerFromParams(null, null, BAT, true), "career");
+  assert.equal(subLayerFromParams("batting", null, BAT, true), "batting");
+});
+
+test("非法值回退，不 404 不空白", () => {
+  assert.equal(subLayerFromParams("../evil", null, BAT, false), "batting");
+  assert.equal(subLayerFromParams("approach2", null, PIT, false), "pitching");
+});
+
+test("堆疊層：雙棲兩身分（主身分在前）、單一身分只一個", () => {
+  assert.deepEqual(stackedRoles(BOTH), ["batting", "pitching"]);
+  assert.deepEqual(stackedRoles(PIT), ["pitching"]);
+  assert.deepEqual(stackedRoles([]), ["batting"]);
+});
+
+test("身分小標只在雙棲時出現（單一身分加標題是雜訊）", () => {
+  assert.equal(needsRoleHeading(BOTH), true);
+  assert.equal(needsRoleHeading(BAT), false);
 });
 
 test("常駐資料群組在任一層都要載入", () => {
   const always: DataGroup[] = ["profile", "season", "advanced", "trend"];
   for (const g of always) {
-    for (const layer of SUB_LAYERS) assert.equal(needsData(g, layer), true, `${g}@${layer}`);
+    for (const l of ["batting", "pitching", "splits", "fielding", "career"] as const) {
+      assert.equal(needsData(g, l), true, `${g}@${l}`);
+    }
   }
 });
 
-test("層專屬資料群組只在該層載入（避免首屏打完全部端點）", () => {
-  assert.equal(needsData("tracking", "approach"), true);
-  assert.equal(needsData("tracking", "splits"), false);
-  assert.equal(needsData("movement", "career"), false);
-  assert.equal(needsData("splits", "splits"), true);
-  assert.equal(needsData("splits", "approach"), false);
+test("守備資料只在守備層抓（已自生涯層移出）", () => {
+  assert.equal(needsData("fielding", "fielding"), true);
+  assert.equal(needsData("fielding", "career"), false);
   assert.equal(needsData("career", "career"), true);
-  assert.equal(needsData("fielding", "career"), true);
-  assert.equal(needsData("fielding", "approach"), false);
+  assert.equal(needsData("career", "fielding"), false);
 });
 
-test("每個資料群組至多屬於一層，避免同一請求被兩層各抓一次", () => {
-  const groups: DataGroup[] = [
-    "profile", "season", "advanced", "trend", "tracking", "movement", "splits", "career", "fielding",
-  ];
-  for (const g of groups) {
-    const owners = SUB_LAYERS.filter((l) => needsData(g, l));
-    assert.ok(owners.length === 1 || owners.length === SUB_LAYERS.length,
-      `${g} 應為單層專屬或常駐，實際 owners=${owners.join(",")}`);
-  }
+test("逐球追蹤在打擊與投球兩頁都要；球種位移僅投球頁", () => {
+  assert.equal(needsData("tracking", "batting"), true);
+  assert.equal(needsData("tracking", "pitching"), true);
+  assert.equal(needsData("tracking", "splits"), false);
+  assert.equal(needsData("movement", "pitching"), true);
+  assert.equal(needsData("movement", "batting"), false);
+});
+
+test("稀疏警示：有樣本但過少才出現，且帶球數與原因", () => {
+  const note = sparsePitchNote(14);
+  assert.ok(note && note.includes("14"));
+  assert.ok(note!.includes("僅供參考"));
+  assert.ok(note!.includes("設備"));
+});
+
+test("稀疏警示：樣本充足、全無樣本或未載入都不顯示", () => {
+  assert.equal(sparsePitchNote(SPARSE_PITCHES), null);
+  assert.equal(sparsePitchNote(0), null);
+  assert.equal(sparsePitchNote(null), null);
 });

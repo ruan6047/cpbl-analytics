@@ -1,41 +1,82 @@
-// 球員頁 IA 分層（UX-PLAYER-IA1 決策：C・Hybrid）。
-// 總覽常駐於層外，其餘三層以 ?sec= 切換；純邏輯集中於此以便測試，元件不重複判斷。
+// 球員頁 IA 分層（UX-PLAYER-IA2 修訂 UX-PLAYER-IA1 的凍結骨架）。
+// role 不再是切換鈕，而是攤成標籤頁：雙棲球員同時出現「打擊」與「投球」兩個內容頁。
+// 總覽常駐；分項與對戰／生涯／總覽在雙棲時把兩種身分上下堆疊，全頁不存在隱性 role 狀態。
 // 只引型別（node --experimental-strip-types 會整句抹除，測試不必解析同目錄 .tsx 依賴）
 import type { Role } from "./lib";
 
-export const SUB_LAYERS = ["approach", "splits", "career"] as const;
-export type SubLayer = (typeof SUB_LAYERS)[number];
+/** 可切換的分層。batting／pitching 是「身分內容頁」，其餘三層與 role 無關或內部堆疊。 */
+export const ALL_LAYERS = ["batting", "pitching", "splits", "fielding", "career"] as const;
+export type SubLayer = (typeof ALL_LAYERS)[number];
 
-/** L2 標籤跟隨 active role：打者＝打法、投手＝球路（IA 決策 §1）。 */
-export const subLayerLabel = (layer: SubLayer, role: Role): string =>
-  layer === "approach" ? (role === "batting" ? "打法" : "球路")
-  : layer === "splits" ? "分項與對戰"
-  : "生涯";
+const LABEL: Record<SubLayer, string> = {
+  batting: "打擊",
+  pitching: "投球",
+  splits: "分項與對戰",
+  fielding: "守備",
+  career: "生涯",
+};
 
-/**
- * ?sec= 解析。無效或未給時的預設：退役／教練（roster_level=null）直落生涯，
- * 其餘落打法／球路——IA 決策 §1.1「退役者預設層＝生涯」。
- */
-export function subLayerFromParam(param: string | null, isRetired: boolean): SubLayer {
-  if (param && (SUB_LAYERS as readonly string[]).includes(param)) return param as SubLayer;
-  return isRetired ? "career" : "approach";
-}
-
-/** ?role= 解析：只接受該球員實際具備的 role，否則回退預設。 */
-export function roleFromParam(param: string | null, available: Role[], fallback: Role): Role {
-  return param && available.includes(param as Role) ? (param as Role) : fallback;
-}
+export const subLayerLabel = (layer: SubLayer): string => LABEL[layer];
 
 /**
- * 資料群組 → 需要它的層。常駐群組（hero／總覽）恆為 true；
- * 其餘只有進入對應層才抓，避免首屏一次打完全部端點（現況 20+ 請求）。
- * 同一群組被多層共用時仍只抓一次（由呼叫端以 key 快取），不重複請求。
+ * 該球員實際會出現的標籤列。
+ * 身分內容頁只在球員具備該身分時出現（純打者沒有「投球」頁）；
+ * 其餘三層恆在——標籤數不隨資料多寡跳動，避免導覽在不同球員間變形。
  */
-export function needsData(group: DataGroup, layer: SubLayer): boolean {
-  return DATA_GROUP_LAYERS[group] === null || DATA_GROUP_LAYERS[group] === layer;
+export function layersFor(roles: Role[]): SubLayer[] {
+  const out: SubLayer[] = [];
+  if (roles.includes("batting")) out.push("batting");
+  if (roles.includes("pitching")) out.push("pitching");
+  return [...out, "splits", "fielding", "career"];
 }
 
-/** 逐球樣本低於此值仍顯示數字，但必須標示僅供參考（IA 狀態契約 §1.2 稀疏警示）。 */
+/** 主身分：有打擊先打擊，否則投球（沿用 IA1 的預設 role 邏輯，該項仍有效）。 */
+export const primaryRole = (roles: Role[]): Role =>
+  roles.includes("batting") || roles.length === 0 ? "batting" : "pitching";
+
+/** 身分內容頁對應的 role；非身分頁回 null。 */
+export const layerRole = (layer: SubLayer): Role | null =>
+  layer === "batting" ? "batting" : layer === "pitching" ? "pitching" : null;
+
+const roleLayer = (r: Role, available: SubLayer[]): SubLayer => {
+  const wanted: SubLayer = r === "pitching" ? "pitching" : "batting";
+  return available.includes(wanted) ? wanted : available[0];
+};
+
+/**
+ * `?sec=` 解析，含舊連結相容（IA2 前的值已上線於 production，不可直接失效）：
+ * - `approach`（舊 L2）→ 該球員的主身分內容頁
+ * - 舊 `?role=pitching` 且未給 `?sec=` → 投球頁
+ * - 退役／教練（無本季登錄）→ 生涯層（沿用 IA1 §1.1，該項仍有效）
+ * 非法值一律回退，不 404、不空白。
+ */
+export function subLayerFromParams(
+  sec: string | null, role: string | null, roles: Role[], isRetired: boolean,
+): SubLayer {
+  const available = layersFor(roles);
+  if (sec && (available as readonly string[]).includes(sec)) return sec as SubLayer;
+  if (sec === "approach") return roleLayer(primaryRole(roles), available);
+  if (!sec && role === "pitching" && available.includes("pitching")) return "pitching";
+  if (isRetired) return "career";
+  return roleLayer(primaryRole(roles), available);
+}
+
+/**
+ * 堆疊層（總覽／分項與對戰／生涯）要渲染哪些身分。
+ * 雙棲回兩個（主身分在前）；單一身分回一個；完全無身分回主身分以免整頁空白。
+ */
+export function stackedRoles(roles: Role[]): Role[] {
+  const primary = primaryRole(roles);
+  const other: Role = primary === "batting" ? "pitching" : "batting";
+  return roles.includes(other) ? [primary, other] : [primary];
+}
+
+/** 堆疊層是否需要身分小標——只有兩個身分並存時才需要，單一身分加標題是雜訊。 */
+export const needsRoleHeading = (roles: Role[]): boolean => stackedRoles(roles).length > 1;
+
+export const roleLabel = (r: Role): string => (r === "batting" ? "打擊" : "投球");
+
+/** 逐球樣本低於此值仍顯示數字，但必須標示僅供參考（IA1 狀態契約 §1.2，該項仍有效）。 */
 export const SPARSE_PITCHES = 50;
 
 /**
@@ -47,21 +88,33 @@ export function sparsePitchNote(pitches: number | null | undefined): string | nu
   return `本季僅 ${pitches} 顆逐球樣本（部分球場未配置追蹤設備），以下分布與比率僅供參考。`;
 }
 
+/**
+ * 資料群組 → 需要它的層。null＝常駐（Hero 或總覽需要）。
+ * 守備自生涯層移出後獨立成 fielding 群組。
+ */
 export type DataGroup =
-  | "profile" | "season" | "advanced" | "trend"      // 常駐／總覽
-  | "tracking" | "movement"                            // L2 打法／球路
-  | "splits"                                           // L3 分項與對戰
-  | "career" | "fielding";                             // L4 生涯
+  | "profile" | "season" | "advanced" | "trend"
+  | "tracking" | "movement"
+  | "splits"
+  | "fielding"
+  | "career";
 
-/** null＝常駐（hero 或總覽需要），否則為唯一需要它的子層。 */
 const DATA_GROUP_LAYERS: Record<DataGroup, SubLayer | null> = {
   profile: null,
   season: null,
-  advanced: null, // 總覽的官方進階 PR 摘要與 L2 細項共用同一份回應
+  advanced: null,
   trend: null,
-  tracking: "approach",
-  movement: "approach",
+  tracking: "batting",   // 見 needsData：打擊／投球兩頁都要
+  movement: "pitching",
   splits: "splits",
+  fielding: "fielding",
   career: "career",
-  fielding: "career",
 };
+
+export function needsData(group: DataGroup, layer: SubLayer): boolean {
+  const owner = DATA_GROUP_LAYERS[group];
+  if (owner === null) return true;
+  // 逐球追蹤在打擊與投球兩個身分內容頁都需要（各自取該 role 的視角）
+  if (group === "tracking") return layer === "batting" || layer === "pitching";
+  return owner === layer;
+}

@@ -216,8 +216,10 @@ export function FieldingSection({ fielding, fieldingCareer, fieldFromYear, leagu
           <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-muted">多守位</span>
         )}
       </div>
-      <div className="mb-4 grid items-start gap-4 sm:grid-cols-[auto_1fr]">
-        <FieldPositionMap rows={mapRows} primary={primary} />
+      {/* 身分圖只在多守位時渲染：單一守位時它等於重畫下方表格的一列，沒有增值。
+          圖真正的價值是「守備範圍的組合」，而那只有多守位球員才存在（需求方 2026-07-20 裁決）。 */}
+      <div className={`mb-4 grid items-start gap-4 ${multi ? "sm:grid-cols-[auto_1fr]" : ""}`}>
+        {multi && <FieldPositionMap rows={mapRows} primary={primary} />}
         {primaryRow && (
           <FieldingValueCard row={primaryRow} league={league} qualifyOuts={qualifyOuts ?? 300} />
         )}
