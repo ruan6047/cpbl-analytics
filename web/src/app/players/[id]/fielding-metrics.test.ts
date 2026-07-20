@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  innings, isMultiPosition, isQualified, per9, posGroup, primaryPos, valueMetrics, vizRows,
+  fieldingCells, fieldingSub, innings, isMultiPosition, isQualified, per9, posCode,
+  posGroup, primaryPos, valueMetrics, vizRows,
 } from "./fielding-metrics.ts";
 
 type Row = { pos: string; g: number | null };
@@ -88,4 +89,46 @@ test("主守位取出賽最多者；並列或全空回 null 不硬選", () => {
   assert.equal(primaryPos([{ pos: "游擊手", g: 5 }, { pos: "三壘手", g: 5 }]), null);
   assert.equal(primaryPos([{ pos: "游擊手", g: 0 }]), null);
   assert.equal(primaryPos([]), null);
+});
+
+// ---- UI-FIELD-DIAGRAM1：球員頁資料 → 共用守位圖 props ----
+
+test("posCode：中文長名對到守位碼；非守備位置回 null", () => {
+  assert.equal(posCode("游擊手"), "SS");
+  assert.equal(posCode("左外野手"), "LF");
+  assert.equal(posCode("指定打擊"), null, "DH 不是守備位置，不得進守位圖");
+});
+
+test("fieldingSub：有局數用局數，無局數退回場數", () => {
+  assert.equal(fieldingSub(135, 20), "45 局");
+  assert.equal(fieldingSub(null, 12), "12 場", "2018 前無局數資料，退回出賽數");
+});
+
+test("fieldingSub：局數 0 不顯示「0 局」，退回場數；兩者皆無回 null", () => {
+  assert.equal(fieldingSub(0, 3), "3 場");
+  assert.equal(fieldingSub(null, 0), null);
+  assert.equal(fieldingSub(null, null), null);
+});
+
+test("fieldingCells：只收真正上場過的守位，未上場與未知守位不進圖", () => {
+  const cells = fieldingCells([
+    { pos: "游擊手", g: 60, outs: 1500 },
+    { pos: "三壘手", g: 0, outs: null },
+    { pos: "指定打擊", g: 30, outs: null },
+    { pos: "投手", g: 2, outs: null },
+  ]);
+  assert.deepEqual(Object.keys(cells).sort(), ["P", "SS"]);
+  assert.equal(cells.SS!.sub, "500 局");
+  assert.equal(cells.P!.sub, "2 場");
+});
+
+test("fieldingCells：同守位多列相加不覆蓋（季中轉隊者在 fielding_current 可有多列）", () => {
+  const cells = fieldingCells([
+    { pos: "二壘手", g: 10, outs: 240 },
+    { pos: "二壘手", g: 2, outs: 20 },
+    { pos: "左外野手", g: 2, outs: null },
+    { pos: "左外野手", g: 1, outs: null },
+  ]);
+  assert.equal(cells["2B"]!.sub, "87 局", "局數應相加（260/3≈86.7）而非只留最後一列");
+  assert.equal(cells.LF!.sub, "3 場", "無局數時場數相加");
 });

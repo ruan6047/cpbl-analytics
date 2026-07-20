@@ -5,9 +5,10 @@
 // 有本季資料就直接疊在生涯表之上，兩段一眼全見，退役者自然只剩生涯段。
 import { type StatRow } from "@/lib/client";
 import { DataTable, type Column } from "@/components/table";
+import { FieldDiagram } from "@/components/field-diagram";
 import { n0, numOf } from "./lib";
 import {
-  type PosGroup, innings, isMultiPosition, isQualified, per9,
+  type PosGroup, fieldingCells, innings, isMultiPosition, isQualified, per9,
   posGroup, primaryPos, valueMetrics, vizRows,
 } from "./fielding-metrics";
 
@@ -170,10 +171,16 @@ export function FieldingSection({ fielding, fieldingCareer, fieldFromYear, leagu
           <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-muted">多守位</span>
         )}
       </div>
-      {/* 守位身分圖已於 UX-PLAYER-IA2 移除：原以真實球場座標擺位，內野守位在小尺寸下
-          標籤與局數文字必然重疊（實測多守位每個案例皆有相交），而該圖本就不宣稱空間
-          精確度。改由 UI-FIELD-DIAGRAM1 以轉播風制式排版重做成共用元件後再放回。
-          「多守位」標記與下方表格已承載相同資訊，故此處不留空位。 */}
+      {/* 守位身分圖（UI-FIELD-DIAGRAM1 重做）：轉播風制式格位，非真實球場座標。
+          仍只在多守位時渲染——單一守位時它等於重畫下方表格的一列（UX-PLAYER-IA2 決議）。
+          不以顏色編碼好壞：這是身分圖不是價值圖。 */}
+      {multi && (
+        <div className="mb-4 flex justify-center rounded-xl border border-line bg-surface p-3">
+          <FieldDiagram cells={fieldingCells(mapRows.map((r) => ({
+            pos: String(r.pos), g: numOf(r.g), outs: numOf(r.outs),
+          })))} caption="守位分布" />
+        </div>
+      )}
       {primaryRow && (
         <div className="mb-4">
           <FieldingValueCard row={primaryRow} league={league} qualifyOuts={qualifyOuts ?? 300} />
