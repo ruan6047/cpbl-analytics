@@ -168,7 +168,14 @@ export const detail = {
   trendCareer: (id: string, role: "batting" | "pitching", bucket = "half") =>
     clientGet<{ items: StatRow[] }>(`/api/v1/players/${id}/trend-career?role=${role}&bucket=${bucket}`),
   fielding: (id: string, scope: "season" | "career" = "season", kind: "A" | "D" = "A") =>
-    clientGet<{ items: StatRow[]; from_year?: number }>(`/api/v1/players/${id}/fielding?scope=${scope}&kind_code=${kind}`),
+    clientGet<{
+      items: StatRow[];
+      from_year?: number;
+      // 同守位聯盟中位數（每 9 局率）與合格人數；scope=season 才有。
+      league?: Record<string, { n: number; a9: number | null; dp9: number | null;
+        tc9: number | null; fpct: number | null }>;
+      qualify_outs?: number;
+    }>(`/api/v1/players/${id}/fielding?scope=${scope}&kind_code=${kind}`),
   career: (id: string, role: "batting" | "pitching") =>
     clientGet<{ seasons: StatRow[] }>(`/api/v1/players/${id}/${role}`),
   careerStats: (id: string) =>
