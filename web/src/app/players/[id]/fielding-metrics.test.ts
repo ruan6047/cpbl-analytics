@@ -1,19 +1,20 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  POS_COORD, innings, isMultiPosition, isQualified, per9, posGroup, posLabel, primaryPos,
-  valueMetrics, vizRows,
+  innings, isMultiPosition, isQualified, per9, posGroup, primaryPos, valueMetrics, vizRows,
 } from "./fielding-metrics.ts";
 
+type Row = { pos: string; g: number | null };
+
 // REVIEW-005 P0 回歸：二軍守備資料不得進入身分圖與價值卡
-const farmSeason = [{ pos: "游擊手", g: 12 }, { pos: "二壘手", g: 5 }];
-const firstTeamCareer = [{ pos: "中外野手", g: 200 }];
+const farmSeason: Row[] = [{ pos: "游擊手", g: 12 }, { pos: "二壘手", g: 5 }];
+const firstTeamCareer: Row[] = [{ pos: "中外野手", g: 200 }];
 
 test("二軍鏡頭：不得使用本季（二軍）守備列，改用一軍生涯列", () => {
   const r = vizRows(farmSeason, firstTeamCareer, true);
   assert.deepEqual(r.map, firstTeamCareer);
   assert.equal(r.usesSeason, false, "二軍鏡頭下不得標記為使用本季列（價值卡據此不渲染）");
-  assert.ok(!r.map.some((x) => x.pos === "游擊手"), "二軍守位不得出現在身分圖");
+  assert.ok(!r.map.some((x: Row) => x.pos === "游擊手"), "二軍守位不得出現在身分圖");
 });
 
 test("一軍鏡頭：正常使用本季守備列", () => {
@@ -87,19 +88,4 @@ test("主守位取出賽最多者；並列或全空回 null 不硬選", () => {
   assert.equal(primaryPos([{ pos: "游擊手", g: 5 }, { pos: "三壘手", g: 5 }]), null);
   assert.equal(primaryPos([{ pos: "游擊手", g: 0 }]), null);
   assert.equal(primaryPos([]), null);
-});
-
-test("身分圖標籤：有局數用局數，2018 前退回場數", () => {
-  assert.equal(posLabel(1489, 68), "496 局");
-  assert.equal(posLabel(null, 68), "68 場");
-  assert.equal(posLabel(null, null), "—");
-});
-
-test("九個守位都有座標，且左右半場方向正確", () => {
-  for (const p of ["投手", "捕手", "一壘手", "二壘手", "三壘手", "游擊手", "左外野手", "中外野手", "右外野手"]) {
-    assert.ok(POS_COORD[p], `${p} 缺座標`);
-  }
-  assert.ok(POS_COORD["左外野手"].deg < 0, "左外野應在負角度側");
-  assert.ok(POS_COORD["右外野手"].deg > 0, "右外野應在正角度側");
-  assert.ok(POS_COORD["中外野手"].dist > POS_COORD["游擊手"].dist, "外野應比內野遠");
 });

@@ -1,4 +1,5 @@
-// 守備呈現的純邏輯（UX-PLAYER-FIELDVIZ1）：守位分群、每 9 局率、合格判定、球場座標。
+// 守備呈現的純邏輯（UX-PLAYER-FIELDVIZ1）：守位分群、每 9 局率、合格判定、資料列選取。
+// 球場座標與標籤格式化隨守位身分圖一併移除（UX-PLAYER-IA2），由 UI-FIELD-DIAGRAM1 重做。
 // 設計依據 docs/design/UX-PLAYER-FIELDVIZ1-BRIEF.md v2；率值與門檻的理由見
 // docs/research/UX-PLAYER-FIELDVIZ1_RESEARCH.md §8。元件不重複這些判斷。
 
@@ -54,36 +55,16 @@ export function valueMetrics(group: PosGroup): ("a9" | "dp9" | "tc9" | "fpct")[]
   }
 }
 
-/** 球場示意圖座標（沿用 spray-chart 的極座標慣例：deg 0=中外野、負=左半場；dist 公尺）。 */
-export const POS_COORD: Record<string, { deg: number; dist: number }> = {
-  捕手: { deg: 0, dist: 3 },
-  投手: { deg: 0, dist: 18 },
-  一壘手: { deg: 38, dist: 27 },
-  二壘手: { deg: 20, dist: 38 },
-  游擊手: { deg: -20, dist: 38 },
-  三壘手: { deg: -38, dist: 27 },
-  左外野手: { deg: -30, dist: 78 },
-  中外野手: { deg: 0, dist: 88 },
-  右外野手: { deg: 30, dist: 78 },
-};
-
 /**
- * 身分圖與價值卡要用哪些列（REVIEW-005 P0 的修正點）。
+ * 守備區要用哪些列（REVIEW-005 P0 的修正點）。
  *
  * 二軍鏡頭（kind_code='D'）一律不得使用本季守備列——需求方明訂「二軍不算」，
  * 且 `fielding_innings` 只建一軍（實查全表 kind_code='A'），二軍列必然無局數，
- * 率值無從計算。二軍鏡頭下改以一軍生涯列做身分描述，且不給價值卡（`value` 為 null）。
+ * 率值無從計算。二軍鏡頭下改以一軍生涯列，且不給價值卡（`usesSeason` 為 false）。
  */
 export function vizRows<T>(
   seasonRows: T[], careerRows: T[], isFarmView: boolean,
 ): { map: T[]; usesSeason: boolean } {
   const usable = isFarmView ? [] : seasonRows;
   return usable.length > 0 ? { map: usable, usesSeason: true } : { map: careerRows, usesSeason: false };
-}
-
-/** 身分圖上該守位要顯示的量：有局數用局數，否則退回出賽數（2018 前）。 */
-export function posLabel(outs: number | null | undefined, g: number | null | undefined): string {
-  const ip = innings(outs);
-  if (ip != null) return `${ip.toFixed(0)} 局`;
-  return g != null ? `${g} 場` : "—";
 }
