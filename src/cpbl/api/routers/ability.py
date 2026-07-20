@@ -134,6 +134,9 @@ def _bat_ability_sql(scope: str) -> str:
         catcher = "'C'"
         wsb = "SELECT player_id, sum(wsb)::float/NULLIF(sum(opp),0) wsb FROM cpbl.batter_wsb GROUP BY player_id"
         cra9_col, cra9_cte = "", ""
+        # 總守備出賽數（不設門檻）：用來區分「純 DH（生涯完全未上守備）」與
+        # 「有守備但主守位未達 30 場門檻」——兩者 defense_pr 皆 NULL，僅此值可分流。
+        fld_all = "SELECT player_id, sum(g) g FROM cpbl.fielding_seasons GROUP BY player_id"
     else:
         base = """
         base AS (
@@ -166,6 +169,9 @@ def _bat_ability_sql(scope: str) -> str:
                  AND fi.player_id=cr.player_id AND fi.pos='C'
             WHERE cr.kind_code='A' AND cr.year=%(yr)s AND fi.outs >= 150
         )"""
+        # 本季總守備出賽數（不設 8 場門檻，過濾二軍）：純 DH vs 樣本不足的分流訊號。
+        fld_all = ("SELECT player_id, sum(g) g FROM cpbl.fielding_current "
+                   "WHERE year=%(yr)s AND kind_code='A' GROUP BY player_id")
     rate_cols = "b.player_id, b.contact, b.power, b.eye, b.speed, b.ops"
     cra9_join ="LEFT JOIN cra9 c9 USING (player_id)" if scope == "season" else ""
     cra9_pass = ", cra9_pr" if scope == "season" else ""
@@ -180,13 +186,16 @@ def _bat_ability_sql(scope: str) -> str:
                    (pos = {catcher}) AS is_catcher
             FROM pos_pr ORDER BY player_id, g DESC
         ), wsb AS ({wsb}){cra9_cte},
+        fld_all AS ({fld_all}),
         rate AS (
-            SELECT {rate_cols}, f.defense, f.defense_pr, f.is_catcher, w.wsb{cra9_col}
+            SELECT {rate_cols}, f.defense, f.defense_pr, f.is_catcher, w.wsb{cra9_col},
+                   COALESCE(fa.g, 0) fld_g
             FROM base b LEFT JOIN fld f USING (player_id)
-                 LEFT JOIN wsb w USING (player_id) {cra9_join}
+                 LEFT JOIN wsb w USING (player_id)
+                 LEFT JOIN fld_all fa USING (player_id) {cra9_join}
         ), pr AS (
             SELECT player_id, contact, power, eye, speed, defense, defense_pr,
-                   is_catcher, wsb{cra9_pass},
+                   is_catcher, wsb, fld_g{cra9_pass},
                 percent_rank() OVER (ORDER BY contact) contact_pr,
                 percent_rank() OVER (ORDER BY power) power_pr,
                 percent_rank() OVER (ORDER BY eye) eye_pr,
@@ -201,7 +210,7 @@ def _bat_ability_sql(scope: str) -> str:
                 3*ops_pr + 0.6*COALESCE(wsb_pr, speed_pr) + 0.4*speed_pr
                 + COALESCE(defense_pr, 0.5)) ov_pr
             FROM pr
-        ) SELECT contact, power, eye, speed, defense, wsb,
+        ) SELECT contact, power, eye, speed, defense, wsb, fld_g,
                  contact_pr, power_pr, eye_pr, speed_pr, defense_pr, wsb_pr{cra9_pass},
                  is_catcher, ov_pr
           FROM ov WHERE player_id = %(pid)s
@@ -369,12 +378,21 @@ def _ability_card(cur, player_id: str, role: str, scope: str, year: int) -> dict
         # 只『拉抬』不『懲罰』：取 max，速度/守備型不會被低力量拖累。
         if ov_pr is not None and power_pr is not None:
             overall = max(overall, round(0.6 * overall + 0.4 * power_pr))
-        # DH（無守備數據）守備軸改以打擊火力呈現——「DH 用強棒守備」，免雷達 0 凹陷誤看成弱點。
-        if power_pr is not None:
-            for a in axes:
-                if a["key"] == "defense" and a["pr"] is None:
-                    a["label"], a["pr"], a["grade"] = "指打", power_pr, _grade(power_pr)
-                    a["components"] = [{"label": "打擊火力（代守備）", "weight": 100, "pr": power_pr}]
+        # 守備軸缺值分流：純 DH 與「有守備但主守位樣本不足」的 defense_pr 皆為 NULL，
+        # 須以總守備出賽數 fld_g 區分，不可一律當 DH 填力量 PR（否則真有守備者被誤標指打）。
+        fld_g = r.get("fld_g") or 0
+        for a in axes:
+            if a["key"] != "defense" or a["pr"] is not None:
+                continue
+            if fld_g == 0 and power_pr is not None:
+                # 純 DH（本季/生涯完全未上守備）：以打擊火力代守備並標「指打」，
+                # 免雷達 0 凹陷誤看成守備弱點；組成標籤已揭露此為代用值。
+                a["label"], a["pr"], a["grade"] = "指打", power_pr, _grade(power_pr)
+                a["components"] = [{"label": "打擊火力（代守備）", "weight": 100, "pr": power_pr}]
+            else:
+                # 有守備但主守位未達門檻（或無力量值可代）：誠實標「資料不足」，
+                # 不得填入與守備語意無關的力量 PR；雷達仍畫 0 但 tooltip 揭露原因。
+                a["note"] = "守備樣本不足"
     # 特色標籤（彰顯球員類型，不合軸）。
     # 打者：取進攻工具中最突出者；多項 ≥80 → 全能。
     # 投手：取最突出的出局方式（weapon_type＝三振/滾地/飛球，後端 SQL 已算）。
