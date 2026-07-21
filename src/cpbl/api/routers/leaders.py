@@ -424,10 +424,21 @@ def batting_leaders(
     limit: int = Query(50, ge=1, le=500),
     kind_code: str = Query("A"),
 ) -> dict:
-    """打者排行：當季一軍/歷史/二軍。rate(avg/obp/slg/ops/k%/bb%)統一由原始計數計算。"""
+    """打者排行：當季一軍/歷史/二軍。rate(avg/obp/slg/ops/k%/bb%)統一由原始計數計算。
+    OPS+（僅一軍）＝100×(obp/聯盟obp＋slg/聯盟slg−1)，league-only（沿 trend.py 口徑，非 park）。"""
     pos_map = _primary_positions(season, kind_code)
+    rows = list(_batting_rows(season, kind_code))
+    # OPS+ 聯盟基準：全體累計（不設門檻），僅一軍；二軍/歷史無基準故 OPS+ 留空。
+    lg_obp = lg_slg = None
+    if kind_code == "A":
+        lab = sum(r.get("ab") or 0 for r in rows)
+        lden = sum((r.get("ab") or 0) + (r.get("bb") or 0) + (r.get("hbp") or 0) + (r.get("sf") or 0) for r in rows)
+        lnum = sum((r.get("h") or 0) + (r.get("bb") or 0) + (r.get("hbp") or 0) for r in rows)
+        ltb = sum(r.get("tb") or 0 for r in rows)
+        lg_obp = lnum / lden if lden else None
+        lg_slg = ltb / lab if lab else None
     items = []
-    for r in _batting_rows(season, kind_code):
+    for r in rows:
         r["pos"] = pos_map.get(r["player_id"])
         ab, h, bb, hbp, sf, tb, pa = (r.get(k) or 0 for k in ("ab", "h", "bb", "hbp", "sf", "tb", "pa"))
         if pa < min_pa:
@@ -437,6 +448,8 @@ def batting_leaders(
         r["obp"] = round((h + bb + hbp) / obp_den, 3) if obp_den else None
         r["slg"] = round(tb / ab, 3) if ab else None
         r["ops"] = round((r["obp"] or 0) + (r["slg"] or 0), 3) if ab else None
+        r["ops_plus"] = (round(100 * (r["obp"] / lg_obp + r["slg"] / lg_slg - 1))
+                         if lg_obp and lg_slg and r["obp"] is not None and r["slg"] is not None else None)
         r["k_pct"] = round((r.get("so") or 0) / pa * 100, 1) if pa else None
         r["bb_pct"] = round(bb / pa * 100, 1) if pa else None
         items.append(r)
@@ -450,9 +463,17 @@ def pitching_leaders(
     limit: int = Query(50, ge=1, le=500),
     kind_code: str = Query("A"),
 ) -> dict:
-    """投手排行：當季一軍/歷史/二軍。ERA/WHIP/K9 由原始計數+真實局數計算（越低越前的 era/whip 反向排）。"""
+    """投手排行：當季一軍/歷史/二軍。ERA/WHIP/K9 由原始計數+真實局數計算（越低越前的 era/whip 反向排）。
+    ERA+（僅一軍）＝100×聯盟ERA/個人ERA，league-only（沿 trend.py 口徑）；越高越好。"""
+    rows = list(_pitching_rows(season, kind_code))
+    # ERA+ 聯盟基準：全體累計真實局數，僅一軍；二軍/歷史留空。
+    lg_era = None
+    if kind_code == "A":
+        lg_ip = sum(float(r["ip"]) for r in rows if r.get("ip") is not None)
+        lg_er = sum(r.get("er") or 0 for r in rows if r.get("ip") is not None)
+        lg_era = lg_er * 9 / lg_ip if lg_ip else None
     items = []
-    for r in _pitching_rows(season, kind_code):
+    for r in rows:
         ip = r.get("ip")
         if ip is None:
             continue
@@ -464,6 +485,7 @@ def pitching_leaders(
         r["era"] = round(er * 9 / ip, 2) if ip else None
         r["whip"] = round((h + bb) / ip, 2) if ip else None
         r["k9"] = round(so * 9 / ip, 2) if ip else None
+        r["era_plus"] = round(100 * lg_era / r["era"]) if lg_era and r["era"] and r["era"] > 0 else None
         items.append(r)
     asc = sort in ("era", "whip")  # era/whip 越低越前
     present = sorted((x for x in items if x.get(sort) is not None), key=lambda x: x[sort], reverse=not asc)

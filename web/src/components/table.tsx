@@ -35,6 +35,7 @@ export function DataTable<T>({
   columns,
   rows,
   rowKey,
+  rowClassName,
   dense = false,
   className = "",
   bodyClassName = "font-mono tabular-nums",
@@ -46,6 +47,8 @@ export function DataTable<T>({
   columns: Column<T>[];
   rows: T[];
   rowKey: (row: T, index: number) => string | number;
+  /** 每列額外 class（如未達規定打席者灰階）。 */
+  rowClassName?: (row: T, index: number) => string;
   dense?: boolean;
   className?: string;
   /** tbody 額外 class；預設等寬數字。純文字表可傳 "" 覆寫。 */
@@ -85,7 +88,7 @@ export function DataTable<T>({
         )}
         <tbody className={bodyClassName}>
           {rows.map((row, ri) => (
-            <tr key={rowKey(row, ri)} className="border-t border-line hover:bg-surface-2">
+            <tr key={rowKey(row, ri)} className={`border-t border-line hover:bg-surface-2 ${rowClassName?.(row, ri) ?? ""}`}>
               {columns.map((c, ci) => (
                 <td
                   key={ci}

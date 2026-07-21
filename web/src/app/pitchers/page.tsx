@@ -1,6 +1,7 @@
 import { AwardRaces, type Cat } from "@/components/award-races";
 import Leaderboard, { type Col } from "@/components/leaderboard";
 import { LevelYearNav } from "@/components/level-year-nav";
+import { RankRoleTabs } from "@/components/rank-role-tabs";
 import { Eyebrow } from "@/components/ui";
 import { api } from "@/lib/api";
 
@@ -25,11 +26,10 @@ function pitcherRole(r: Record<string, number | string | null>): string | null {
   return "中繼";
 }
 
-// 精簡檢視（primary，§5.6）＝球員(前綴隊徽)·角色(chip)·勝·局數·防禦率·WHIP·K9（7 欄）；
-// 其餘欄由「完整欄位」切換顯示。手機（mobileHide）再收勝/局數/K9，留主指標 ERA＋WHIP＋角色。
+// 精簡檢視（primary，§5.6）＝球員(隊徽＋角色標籤併入名字欄)·勝·局數·防禦率·WHIP·K9·ERA+（7 欄）；
+// 其餘欄由「完整欄位」切換顯示。手機（mobileHide）再收勝/局數/K9/WHIP/ERA+，留主指標 ERA＋角色標籤。
 const COLS: Col[] = [
-  { key: "name", label: "球員", tip: "球員姓名（點擊看個人頁）", link: { base: "/players/", idKey: "player_id" }, teamKey: "team", primary: true },
-  { key: "role", label: "角色", chip: true, sortable: false, primary: true, tip: "先發＝先發場數佔半數以上；後援＝救援>中繼（終結者傾向）；中繼＝其餘後援投手" },
+  { key: "name", label: "球員", tip: "球員姓名（點擊看個人頁）", link: { base: "/players/", idKey: "player_id" }, teamKey: "team", subChipKey: "role", primary: true },
   { key: "g", label: "出賽", fmt: "i", tone: "dim", tip: "出賽場數（G）" },
   { key: "gs", label: "先發", fmt: "i", tone: "dim", tip: "先發場數" },
   { key: "cg", label: "完投", fmt: "i", tone: "dim", tip: "完投：先發且投完全場" },
@@ -39,9 +39,10 @@ const COLS: Col[] = [
   { key: "sv", label: "救援", fmt: "i", bar: true, tip: "救援成功 SV" },
   { key: "hld", label: "中繼", fmt: "i", tip: "中繼成功 HLD" },
   { key: "ip", label: "局數", fmt: "ip", primary: true, mobileHide: true, tip: "投球局數 IP（分數顯示，⅓=1出局、⅔=2出局）" },
-  { key: "era", label: "防禦率", fmt: "f2", bar: true, lowerBetter: true, primary: true, tone: "accent", tip: "防禦率 ERA = 自責分 ×9 ÷ 投球局數" },
-  { key: "whip", label: "WHIP", fmt: "f2", bar: true, lowerBetter: true, primary: true, mobileHide: true, tip: "每局被上壘率 = (被安打＋四壞) ÷ 投球局數" },
-  { key: "k9", label: "K9", fmt: "f2", bar: true, primary: true, mobileHide: true, tip: "每九局奪三振 = 三振 ×9 ÷ 投球局數" },
+  { key: "era", label: "防禦率", fmt: "f2", bar: true, lowerBetter: true, primary: true, rate: true, tone: "accent", tip: "防禦率 ERA = 自責分 ×9 ÷ 投球局數" },
+  { key: "whip", label: "WHIP", fmt: "f2", bar: true, lowerBetter: true, primary: true, rate: true, mobileHide: true, tip: "每局被上壘率 = (被安打＋四壞) ÷ 投球局數" },
+  { key: "k9", label: "K9", fmt: "f2", bar: true, primary: true, rate: true, mobileHide: true, tip: "每九局奪三振 = 三振 ×9 ÷ 投球局數" },
+  { key: "era_plus", label: "ERA+", fmt: "i", bar: true, primary: true, rate: true, mobileHide: true, tip: "ERA+（僅一軍）：100 = 聯盟平均，>100 優於聯盟（季聯盟基準，非球場校正）" },
   { key: "h", label: "被安", fmt: "i", tone: "dim", tip: "被安打" },
   { key: "hr", label: "被轟", fmt: "i", tone: "dim", tip: "被全壘打" },
   { key: "bb", label: "四壞", fmt: "i", tone: "dim", tip: "投出的四壞球（保送）" },
@@ -64,6 +65,9 @@ export default async function PitchersPage({ searchParams }: { searchParams: Pro
   const isCurrent = selectedYear === currentYear && kind === "A";
   const { season, items } = await api.pitchingLeaders("era", { kind, year: isCurrent ? undefined : selectedYear });
   const rows = items.map((r) => ({ ...r, role: pitcherRole(r) }));
+  // 規定投球局數≈球隊出賽×1.0（率值榜門檻，AwardRaces 與排行表共用）。
+  const teamG = Math.max(0, ...items.map((r) => Number(r.g ?? 0)));
+  const qual = Math.round(teamG);
 
   return (
     <div>
@@ -76,14 +80,11 @@ export default async function PitchersPage({ searchParams }: { searchParams: Pro
         </p>
       </header>
 
+      <RankRoleTabs role="pitching" kind={kind} year={selectedYear} />
       <LevelYearNav kind={kind} years={years} selectedYear={selectedYear} base="/pitchers" />
 
-      {(() => {
-        const teamG = Math.max(0, ...items.map((r) => Number(r.g ?? 0)));
-        const qual = Math.round(teamG); // 規定投球局數 ≈ 球隊出賽數 ×1.0
-        return <AwardRaces rows={items} cats={AWARD_CATS} qualKey="ip" qualMin={qual}
-          note={`規定投球局數約 ${qual}（防禦率/WHIP/K9 套用）。`} />;
-      })()}
+      <AwardRaces rows={items} cats={AWARD_CATS} qualKey="ip" qualMin={qual}
+        note={`規定投球局數約 ${qual}（防禦率/WHIP/K9 套用）。`} />
 
       <section aria-labelledby="pitching-leaderboard">
         <Eyebrow className="mb-2">完整排名・共 {rows.length} 人</Eyebrow>
@@ -94,6 +95,8 @@ export default async function PitchersPage({ searchParams }: { searchParams: Pro
           defaultSort="era"
           defaultDir={1}
           filters={[{ key: "team", label: "球隊" }, { key: "role", label: "角色" }]}
+          qualKey="ip"
+          qualMin={qual}
         />
       </section>
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DataTable, type Column } from "@/components/table";
 import { Tooltip } from "@/components/tooltip";
 import { NameTag, Pill, TeamLogo, prColor } from "@/components/ui";
@@ -27,8 +27,10 @@ export type Col = {
   // 任一欄標 primary 才啟用精簡/完整切換；全無 primary 時維持顯示全部（向後相容）。
   primary?: boolean;
   mobileHide?: boolean; // 窄螢幕（<sm）隱藏：手機只留排名/球員/主指標+1~2 支持
-  chip?: boolean; // 類別值（守位/角色）渲染成標籤 pill
+  chip?: boolean; // 類別值（守位/角色）渲染成標籤 pill（獨立欄；併入名字欄改用 subChipKey）
   teamKey?: string; // 提供時，link 名稱欄前加該欄（隊名）的隊徽 icon（隊欄併入名字）
+  subChipKey?: string; // link 名稱欄下方疊一枚該欄（守位/角色）標籤 pill（守位/角色併入名字欄）
+  rate?: boolean; // 率值欄（AVG/OPS/ERA…）：以此欄排序時套規定打席/局數門檻，未達者置底不計名次
 };
 
 export type Filter = { key: string; label: string };
@@ -63,21 +65,37 @@ export default function Leaderboard({
   defaultSort,
   defaultDir = -1,
   filters = [],
+  qualKey,
+  qualMin,
 }: {
   rows: Row[];
   cols: Col[];
   defaultSort: string;
   defaultDir?: 1 | -1;
   filters?: Filter[];
+  qualKey?: string; // 規定門檻的計量欄（打者 pa／投手 ip）
+  qualMin?: number; // 規定打席/局數；以率值欄排序時，未達者置底不計名次
 }) {
   const [sortKey, setSortKey] = useState(defaultSort);
   const [dir, setDir] = useState<1 | -1>(defaultDir);
   const [sel, setSel] = useState<Record<string, string>>({});
   const [expanded, setExpanded] = useState(false);
+  // 窄螢幕真正把 mobileHide 欄「移出 DOM」（非 CSS display:none）：table 佈局下 display:none
+  // 欄會殘留幽靈寬度造成假性水平捲動，故於 client 依 matchMedia 過濾欄位。SSR/首次 render
+  // 皆為桌機欄（isNarrow=false），與伺服器一致無 hydration 落差，掛載後再依實際寬度調整。
+  const [isNarrow, setIsNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const sync = () => setIsNarrow(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   // §5.6 減法：有標 primary 的欄集才啟用「精簡/完整」切換；否則顯示全部（向後相容）。
   const hasPrimary = cols.some((c) => c.primary);
-  const visibleCols = hasPrimary && !expanded ? cols.filter((c) => c.primary) : cols;
+  const visibleCols = (hasPrimary && !expanded ? cols.filter((c) => c.primary) : cols)
+    .filter((c) => !(isNarrow && c.mobileHide));
 
   const options = useMemo(() => {
     const m: Record<string, string[]> = {};
@@ -89,13 +107,23 @@ export default function Leaderboard({
     return m;
   }, [rows, filters]);
 
-  const view = useMemo(() => {
+  // 以率值欄（rate）排序時套規定門檻：達標者依指標排序在前並計名次，未達者（小樣本）
+  // 置底、灰階、不佔名次——避免 1 打席 OPS 2.000 灌爆榜首；計數型欄（HR/勝…）不套門檻。
+  const qualifying = !!(cols.find((c) => c.key === sortKey)?.rate && qualKey && qualMin);
+  const { view, qualCount } = useMemo(() => {
     let r = rows;
     for (const f of filters) {
       if (sel[f.key]) r = r.filter((x) => x[f.key] === sel[f.key]);
     }
-    return [...r].sort((x, y) => cmp(x[sortKey], y[sortKey], dir));
-  }, [rows, filters, sel, sortKey, dir]);
+    const byKey = (a: Row, b: Row) => cmp(a[sortKey], b[sortKey], dir);
+    if (qualifying) {
+      const ok = (x: Row) => (Number(x[qualKey!]) || 0) >= qualMin!;
+      const q = r.filter(ok).sort(byKey);
+      const nq = r.filter((x) => !ok(x)).sort(byKey);
+      return { view: [...q, ...nq], qualCount: q.length };
+    }
+    return { view: [...r].sort(byKey), qualCount: -1 }; // -1＝全員計名次
+  }, [rows, filters, sel, sortKey, dir, qualifying, qualKey, qualMin]);
 
   const onSort = (key: string) => {
     if (key === sortKey) setDir((d) => (d === 1 ? -1 : 1));
@@ -107,23 +135,28 @@ export default function Leaderboard({
 
   // inline bar 的 per-欄值域（隨篩選後檢視變動；min=max 時退化為中性半長）
   const barRange = useMemo(() => {
+    // 套門檻時，bar 值域取「達標者」，免小樣本極端值（OPS 2.000）壓縮眾人條長。
+    const barRows = qualifying && qualCount > 0 ? view.slice(0, qualCount) : view;
     const m: Record<string, { min: number; max: number }> = {};
     for (const c of cols) {
       if (!c.bar) continue;
-      const vals = view
+      const vals = barRows
         .map((r) => r[c.key])
         .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
       if (vals.length) m[c.key] = { min: Math.min(...vals), max: Math.max(...vals) };
     }
     return m;
-  }, [view, cols]);
+  }, [view, qualCount, qualifying, cols]);
 
   const barCell = (c: Col, v: number | string | null) => {
     const rng = barRange[c.key];
     const num = typeof v === "number" && Number.isFinite(v) ? v : null;
     if (!rng || num === null) return fmtVal(v, c.fmt);
     const p = rng.max > rng.min ? (num - rng.min) / (rng.max - rng.min) : 0.5;
-    const g = c.lowerBetter ? 1 - p : p; // goodness：條長與顏色一律「越好越長越紅」
+    const gRaw = c.lowerBetter ? 1 - p : p; // goodness：條長與顏色一律「越好越長越紅」
+    // clamp 至 [0,1]：值域取達標者後，置底小樣本（如 OPS 2.000 超出達標最高值）會使
+    // g>1、bar 寬 >100% 而水平溢出撐爆 table scrollWidth（造成捲到空白的假性捲動）。
+    const g = Math.min(Math.max(gRaw, 0), 1);
     return (
       <span className="relative inline-block min-w-[2.75rem] text-right align-middle">
         <span
@@ -161,7 +194,7 @@ export default function Leaderboard({
   const columns: Column<Row>[] = [
     {
       header: "#",
-      cell: (_row, i) => i + 1,
+      cell: (_row, i) => (qualCount >= 0 && i >= qualCount ? "–" : i + 1),
       align: "right",
       nowrap: true,
       className: "text-faint",
@@ -169,23 +202,25 @@ export default function Leaderboard({
     },
     ...visibleCols.map((c): Column<Row> => {
       const active = c.key === sortKey;
-      const hideCls = c.mobileHide ? "hidden sm:table-cell" : "";
       return {
         header: header(c),
         ariaSort: active ? (dir === -1 ? "descending" : "ascending") : c.sortable === false ? undefined : "none",
         align: c.fmt ? "right" : "left",
         nowrap: true,
         sticky: c === visibleCols[0],
-        headClassName: `${active ? "text-accent" : ""} ${hideCls}`,
-        className: `${c.fmt ? "" : "font-sans"} ${active ? "font-medium text-ink" : toneCls(c.tone)} ${hideCls}`,
+        headClassName: active ? "text-accent" : "",
+        className: `${c.fmt ? "" : "font-sans"} ${active ? "font-medium text-ink" : toneCls(c.tone)}`,
         cell: (r) => c.team ? (
           <NameTag name={String(r[c.key] ?? "")} />
         ) : c.link ? (
           <span className="inline-flex items-center gap-1.5">
             {c.teamKey && <TeamLogo name={String(r[c.teamKey] ?? "")} size={16} decorative />}
-            <Link href={`${c.link.base}${r[c.link.idKey]}`} className="text-accent hover:underline">
-              {fmtVal(r[c.key], c.fmt)}
-            </Link>
+            <span className="inline-flex flex-col items-start leading-tight">
+              <Link href={`${c.link.base}${r[c.link.idKey]}`} className="text-accent hover:underline">
+                {fmtVal(r[c.key], c.fmt)}
+              </Link>
+              {c.subChipKey && r[c.subChipKey] && <Pill className="mt-0.5">{String(r[c.subChipKey])}</Pill>}
+            </span>
           </span>
         ) : c.chip ? (
           r[c.key] ? <Pill>{String(r[c.key])}</Pill> : <span className="text-faint">—</span>
@@ -233,10 +268,18 @@ export default function Leaderboard({
         </div>
       )}
 
+      {qualifying && qualCount >= 0 && (
+        <p className="mb-2 text-[11px] text-faint">
+          依{cols.find((c) => c.key === sortKey)?.label} 排序：灰階 {view.length - qualCount} 人未達
+          {qualMin ? `規定門檻（${qualKey === "ip" ? "投球局數" : "打席"} ≥ ${qualMin}）` : "規定門檻"}，
+          置底且不列入名次，避免小樣本失真。
+        </p>
+      )}
       <DataTable
         columns={columns}
         rows={view}
         rowKey={(r, i) => String(r.player_id ?? r.opp_id ?? `${r.name ?? r.opp_name ?? "row"}-${r.team ?? r.opp_team ?? ""}-${i}`)}
+        rowClassName={(_r, i) => (qualCount >= 0 && i >= qualCount ? "opacity-55" : "")}
         dense
       />
     </div>
