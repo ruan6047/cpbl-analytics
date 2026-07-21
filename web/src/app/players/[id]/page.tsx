@@ -17,6 +17,7 @@ import {
 } from "./layers";
 import { CareerYearlySection, SplitsSection } from "./detail";
 import { type FieldLeague, FieldingSection } from "./fielding";
+import { PlayerMatchupsSection } from "./matchups-section";
 import { PlayerHero } from "./hero";
 import { SabrSection } from "./sabr";
 import { CareerSummary, SeasonSection, TraitsChips } from "./season";
@@ -264,6 +265,7 @@ export default function PlayerPage() {
               </div>
             </section>
             <SplitsSection id={id} role={r} seasonKind={seasonKind} isRetired={isRetired} />
+            <PlayerMatchupsSection id={id} role={r} name={profile.name} isRetired={isRetired} />
           </RoleBlock>
         ))}
 
