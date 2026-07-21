@@ -25,3 +25,4 @@
 - 2026-07-17 baseline v0.2 → 延後至球員 IA 遷移完成，首版不含 PA 模擬。
 - 07-22 claim（CLAIM-003）：需求方指派 Fable-5@Claude Code 執行；依賴 UX-MATCHUP1、UX-PLAYER-SECTIONS1 均已結案。worktree 自 main@f9c5ac2（`.claude/worktrees/ux-matchup2-workspace-setup-d6660d`）。
 - 07-22 handoff（HANDOFF-004）：執行完成交跨家族查核，被審 SHA 3c52ad9。範圍：抽離共用 MatchupExplorer→球員頁分項與對戰整合＋deep-link；需求方人工走查三項回饋（對手下拉只列交手隊／移除頁尾導覽／洞察 compact 收合）均已修並實測。本機 tsc／132 web tests／build:check 綠。連帶另開 MATCHUP-DATA2 修對手歷史隊別歸屬。
+- 07-22 review RETURN（REVIEW-005，Codex GPT-5 跨家族，iteration 2）：P1＝compact 摘要泛化『樣本不足』破壞四態契約。修正 handoff（HANDOFF-006，被審 f310af8）：摘要改取 INSIGHT_COPY[state.kind].title 各態專屬標題、加回歸測試；tsc／133 web tests／build:check 綠，三態瀏覽器重驗一致。
