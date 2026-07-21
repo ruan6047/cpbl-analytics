@@ -25,22 +25,23 @@ function pitcherRole(r: Record<string, number | string | null>): string | null {
   return "中繼";
 }
 
+// 精簡檢視（primary，§5.6）＝球員(前綴隊徽)·角色(chip)·勝·局數·防禦率·WHIP·K9（7 欄）；
+// 其餘欄由「完整欄位」切換顯示。手機（mobileHide）再收勝/局數/K9，留主指標 ERA＋WHIP＋角色。
 const COLS: Col[] = [
-  { key: "name", label: "球員", tip: "球員姓名（點擊看個人頁）", link: { base: "/players/", idKey: "player_id" } },
-  { key: "team", label: "隊", team: true, tip: "所屬球隊" },
-  { key: "role", label: "角色", sortable: false, tip: "先發＝先發場數佔半數以上；後援＝救援>中繼（終結者傾向）；中繼＝其餘後援投手" },
+  { key: "name", label: "球員", tip: "球員姓名（點擊看個人頁）", link: { base: "/players/", idKey: "player_id" }, teamKey: "team", primary: true },
+  { key: "role", label: "角色", chip: true, sortable: false, primary: true, tip: "先發＝先發場數佔半數以上；後援＝救援>中繼（終結者傾向）；中繼＝其餘後援投手" },
   { key: "g", label: "出賽", fmt: "i", tone: "dim", tip: "出賽場數（G）" },
   { key: "gs", label: "先發", fmt: "i", tone: "dim", tip: "先發場數" },
   { key: "cg", label: "完投", fmt: "i", tone: "dim", tip: "完投：先發且投完全場" },
   { key: "sho", label: "完封", fmt: "i", tone: "dim", tip: "完封：完投且未失分" },
-  { key: "w", label: "勝", fmt: "i", bar: true, tip: "勝場" },
+  { key: "w", label: "勝", fmt: "i", bar: true, primary: true, mobileHide: true, tip: "勝場" },
   { key: "l", label: "敗", fmt: "i", tip: "敗場" },
   { key: "sv", label: "救援", fmt: "i", bar: true, tip: "救援成功 SV" },
   { key: "hld", label: "中繼", fmt: "i", tip: "中繼成功 HLD" },
-  { key: "ip", label: "局數", fmt: "ip", tip: "投球局數 IP（分數顯示，⅓=1出局、⅔=2出局）" },
-  { key: "era", label: "防禦率", fmt: "f2", bar: true, lowerBetter: true, tone: "accent", tip: "防禦率 ERA = 自責分 ×9 ÷ 投球局數" },
-  { key: "whip", label: "WHIP", fmt: "f2", bar: true, lowerBetter: true, tip: "每局被上壘率 = (被安打＋四壞) ÷ 投球局數" },
-  { key: "k9", label: "K9", fmt: "f2", bar: true, tip: "每九局奪三振 = 三振 ×9 ÷ 投球局數" },
+  { key: "ip", label: "局數", fmt: "ip", primary: true, mobileHide: true, tip: "投球局數 IP（分數顯示，⅓=1出局、⅔=2出局）" },
+  { key: "era", label: "防禦率", fmt: "f2", bar: true, lowerBetter: true, primary: true, tone: "accent", tip: "防禦率 ERA = 自責分 ×9 ÷ 投球局數" },
+  { key: "whip", label: "WHIP", fmt: "f2", bar: true, lowerBetter: true, primary: true, mobileHide: true, tip: "每局被上壘率 = (被安打＋四壞) ÷ 投球局數" },
+  { key: "k9", label: "K9", fmt: "f2", bar: true, primary: true, mobileHide: true, tip: "每九局奪三振 = 三振 ×9 ÷ 投球局數" },
   { key: "h", label: "被安", fmt: "i", tone: "dim", tip: "被安打" },
   { key: "hr", label: "被轟", fmt: "i", tone: "dim", tip: "被全壘打" },
   { key: "bb", label: "四壞", fmt: "i", tone: "dim", tip: "投出的四壞球（保送）" },
@@ -71,7 +72,7 @@ export default async function PitchersPage({ searchParams }: { searchParams: Pro
         <h1 className="text-2xl font-extrabold tracking-tight text-ink">{season} 球季 · {kind === "D" ? "二軍" : ""}投手排行</h1>
         <p className="mt-1.5 text-sm text-muted">
           {kind === "D" || !isCurrent ? "由逐場/逐年成績彙整（二軍逐打席自 2018 起；救援/中繼僅當季與歷年彙總有）。" : "全名單本季投手。"}
-          點欄位標題排序，可依球隊篩選。
+          預設顯示主要欄位，點「完整欄位」看全部；點欄位標題排序，可依球隊篩選。
         </p>
       </header>
 

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { DataTable, type Column } from "@/components/table";
 import { Tooltip } from "@/components/tooltip";
-import { NameTag, prColor } from "@/components/ui";
+import { NameTag, Pill, TeamLogo, prColor } from "@/components/ui";
 import { fmtIP } from "@/lib/format";
 
 export type Fmt = "i" | "f1" | "f2" | "f3" | "ip";
@@ -23,6 +23,12 @@ export type Col = {
   team?: boolean; // 該欄值為隊名時，渲染隊徽 + 名稱
   bar?: boolean; // Savant 式 inline bar：依當前檢視 min-max 畫底色條 + 藍↔紅發散上色
   lowerBetter?: boolean; // 低為佳（ERA/WHIP…）：bar 長度與顏色反向
+  // 排行減法（§5.6）：primary=預設精簡檢視顯示的欄（未標 primary 者收進「完整欄位」）。
+  // 任一欄標 primary 才啟用精簡/完整切換；全無 primary 時維持顯示全部（向後相容）。
+  primary?: boolean;
+  mobileHide?: boolean; // 窄螢幕（<sm）隱藏：手機只留排名/球員/主指標+1~2 支持
+  chip?: boolean; // 類別值（守位/角色）渲染成標籤 pill
+  teamKey?: string; // 提供時，link 名稱欄前加該欄（隊名）的隊徽 icon（隊欄併入名字）
 };
 
 export type Filter = { key: string; label: string };
@@ -67,6 +73,11 @@ export default function Leaderboard({
   const [sortKey, setSortKey] = useState(defaultSort);
   const [dir, setDir] = useState<1 | -1>(defaultDir);
   const [sel, setSel] = useState<Record<string, string>>({});
+  const [expanded, setExpanded] = useState(false);
+
+  // §5.6 減法：有標 primary 的欄集才啟用「精簡/完整」切換；否則顯示全部（向後相容）。
+  const hasPrimary = cols.some((c) => c.primary);
+  const visibleCols = hasPrimary && !expanded ? cols.filter((c) => c.primary) : cols;
 
   const options = useMemo(() => {
     const m: Record<string, string[]> = {};
@@ -114,7 +125,7 @@ export default function Leaderboard({
     const p = rng.max > rng.min ? (num - rng.min) / (rng.max - rng.min) : 0.5;
     const g = c.lowerBetter ? 1 - p : p; // goodness：條長與顏色一律「越好越長越紅」
     return (
-      <span className="relative inline-block min-w-[3.5rem] text-right align-middle">
+      <span className="relative inline-block min-w-[2.75rem] text-right align-middle">
         <span
           className="absolute inset-y-0.5 left-0 rounded-sm opacity-30"
           style={{ width: `${Math.max(g * 100, 4)}%`, background: prColor(g * 100) }}
@@ -156,22 +167,28 @@ export default function Leaderboard({
       className: "text-faint",
       width: "3rem",
     },
-    ...cols.map((c): Column<Row> => {
+    ...visibleCols.map((c): Column<Row> => {
       const active = c.key === sortKey;
+      const hideCls = c.mobileHide ? "hidden sm:table-cell" : "";
       return {
         header: header(c),
         ariaSort: active ? (dir === -1 ? "descending" : "ascending") : c.sortable === false ? undefined : "none",
         align: c.fmt ? "right" : "left",
         nowrap: true,
-        sticky: c === cols[0],
-        headClassName: active ? "text-accent" : "",
-        className: `${c.fmt ? "" : "font-sans"} ${active ? "font-medium text-ink" : toneCls(c.tone)}`,
+        sticky: c === visibleCols[0],
+        headClassName: `${active ? "text-accent" : ""} ${hideCls}`,
+        className: `${c.fmt ? "" : "font-sans"} ${active ? "font-medium text-ink" : toneCls(c.tone)} ${hideCls}`,
         cell: (r) => c.team ? (
           <NameTag name={String(r[c.key] ?? "")} />
         ) : c.link ? (
-          <Link href={`${c.link.base}${r[c.link.idKey]}`} className="text-accent hover:underline">
-            {fmtVal(r[c.key], c.fmt)}
-          </Link>
+          <span className="inline-flex items-center gap-1.5">
+            {c.teamKey && <TeamLogo name={String(r[c.teamKey] ?? "")} size={16} decorative />}
+            <Link href={`${c.link.base}${r[c.link.idKey]}`} className="text-accent hover:underline">
+              {fmtVal(r[c.key], c.fmt)}
+            </Link>
+          </span>
+        ) : c.chip ? (
+          r[c.key] ? <Pill>{String(r[c.key])}</Pill> : <span className="text-faint">—</span>
         ) : c.bar ? (
           barCell(c, r[c.key])
         ) : (
@@ -183,8 +200,8 @@ export default function Leaderboard({
 
   return (
     <div>
-      {filters.length > 0 && (
-        <div className="mb-4 flex flex-wrap gap-3">
+      {(filters.length > 0 || hasPrimary) && (
+        <div className="mb-4 flex flex-wrap items-center gap-3">
           {filters.map((f) => (
             <label key={f.key} className="flex items-center gap-2 text-sm">
               <span className="text-muted">{f.label}</span>
@@ -202,7 +219,17 @@ export default function Leaderboard({
               </select>
             </label>
           ))}
-          <span className="self-center text-xs text-faint">{view.length} 筆</span>
+          {filters.length > 0 && <span className="self-center text-xs text-faint">{view.length} 筆</span>}
+          {hasPrimary && (
+            <button
+              type="button"
+              onClick={() => setExpanded((e) => !e)}
+              aria-pressed={expanded}
+              className="ml-auto rounded-lg border border-line bg-surface-2 px-2.5 py-1.5 text-sm text-muted transition hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              {expanded ? "精簡欄位" : "完整欄位"}
+            </button>
+          )}
         </div>
       )}
 
