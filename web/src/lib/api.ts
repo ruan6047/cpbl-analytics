@@ -49,6 +49,7 @@ export type BattingLeader = {
   obp: number | null;
   slg: number | null;
   ops: number | null;
+  ops_plus?: number | null;
 };
 
 export type BattingLeadersResponse = { season: number; sort: string; items: BattingLeader[] };
@@ -84,6 +85,7 @@ export type PitchingLeader = {
   go: number | null;
   ao: number | null;
   goao: number | null;
+  era_plus?: number | null;
 };
 export type PitchingLeadersResponse = { season: number; sort: string; items: PitchingLeader[] };
 
