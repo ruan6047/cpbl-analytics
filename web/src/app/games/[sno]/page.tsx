@@ -13,6 +13,7 @@ import { PregameCard } from "@/components/pregame-card";
 import { fanNick, teamColor, teamShort } from "@/lib/teams";
 import { resolvePregameCard, type PregameCardModel } from "@/lib/pregame-card";
 import { GameOverview, type DecItem } from "./overview";
+import { StartingLineups } from "@/components/starting-lineups";
 
 const n = (v: number | string | null) => (v === null || v === undefined ? "" : Number(v));
 
@@ -542,6 +543,7 @@ export default function GameLivePage() {
                 awayColor={teamColor(String(g.away_team_code ?? ""))}
                 onJump={jumpToPa} highlights={highlights} milestones={milestoneItems} info={info}
                 mvp={mvp} decisions={decisionItems} />
+              <StartingLineups game={g} log={data.livelog} pitching={data.pitching} />
               <WinProbChart items={wp ?? []}
                 homeName={String(g.home_team_name)} awayName={String(g.away_team_name)}
                 homeColor={teamColor(String(g.home_team_code ?? ""))} onSelect={jumpToPa} />

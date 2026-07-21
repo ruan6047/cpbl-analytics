@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  CELL_H, FIELD_POSITIONS, MAIN_FONT, PAD_X, POSITION_LABEL, SUB_FONT,
-  type FieldCells, describeCells, fitText, layoutCells, textWidth,
+  BADGE_W, CELL_H, FIELD_POSITIONS, MAIN_FONT, PAD_X, POSITION_LABEL, SUB_FONT,
+  type FieldCells, describeCells, fitText, layoutCells, layoutDesignatedHitter, textWidth,
 } from "./field-diagram-layout.ts";
 
 // ---- 格位映射 ----
@@ -28,6 +28,21 @@ test("主標預設為守位中文名，可由呼叫端覆寫", () => {
   const laid = layoutCells({ P: {}, C: { main: "捕" } });
   assert.equal(laid.find((c) => c.code === "P")!.main, "投手");
   assert.equal(laid.find((c) => c.code === "C")!.main, "捕");
+});
+
+test("棒次 meta 保留在右側短標，並壓縮主標可用寬度", () => {
+  const cell = layoutCells({ CF: { main: "超過四個字的名字", meta: "1" } }).find((c) => c.code === "CF")!;
+  assert.equal(cell.meta, "1");
+  assert.ok(cell.main.endsWith("…"));
+});
+
+test("DH 只在呼叫端提供時追加於捕手旁，不混入九個守備位置", () => {
+  assert.equal(layoutCells({}).length, 9);
+  const dh = layoutDesignatedHitter({ main: "蘇智傑", meta: "4" });
+  assert.equal(dh.code, "DH");
+  assert.equal(dh.main, "蘇智傑");
+  assert.equal(dh.meta, "4");
+  assert.ok(dh.x > layoutCells({}).find((c) => c.code === "C")!.x);
 });
 
 // ---- 副標缺值 ----
@@ -66,7 +81,7 @@ test("主標與副標估寬後皆不超出格內可用寬度（含滿守位）",
     FIELD_POSITIONS.map((p) => [p, { sub: "999 局" }]),
   ) as FieldCells;
   for (const c of layoutCells(cells)) {
-    const maxW = c.w - PAD_X * 2;
+    const maxW = c.w - BADGE_W - PAD_X * 2;
     assert.ok(textWidth(c.main, MAIN_FONT) <= maxW, `${c.code} 主標超寬`);
     assert.ok(textWidth(c.sub ?? "", SUB_FONT) <= maxW, `${c.code} 副標超寬`);
   }
@@ -76,7 +91,7 @@ test("過長副標被截斷並以 … 結尾，仍不超寬", () => {
   const laid = layoutCells({ "3B": { sub: "王柏融、林立、陳子豪" } });
   const c = laid.find((x) => x.code === "3B")!;
   assert.ok(c.sub!.endsWith("…"), "應截斷");
-  assert.ok(textWidth(c.sub!, SUB_FONT) <= c.w - PAD_X * 2);
+  assert.ok(textWidth(c.sub!, SUB_FONT) <= c.w - BADGE_W - PAD_X * 2);
 });
 
 test("fitText：容得下就原樣返回；容不下任何字元回空字串", () => {
