@@ -31,7 +31,7 @@
 | [TEAM-STYLE1](tasks/TEAM-STYLE1.md) | — | T4 | 球隊球風研究 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
-| [UX-MATCHUP2](tasks/UX-MATCHUP2.md) | INIT-PRODUCT-UX | T4 | 投打對決整合球員個人頁 | 待指派（查核；須跨模型家族或人工，且 ≠ 執行者 Claude Fable 5） | `ai/fable-5/UX-MATCHUP2 @ .claude/worktrees/ux-matchup2-workspace-setup-d6660d` | 2 | 🔍待查核 | ⏸未部署 | 2026-07-22T03:32:01+08:00 |
+| [UX-MATCHUP2](tasks/UX-MATCHUP2.md) | INIT-PRODUCT-UX | T4 | 投打對決整合球員個人頁 | ruan6047（merge） | `ai/fable-5/UX-MATCHUP2 @ .claude/worktrees/ux-matchup2-workspace-setup-d6660d` | 2 | ✅通過／待合併 | ⏸未部署 | 2026-07-22T03:38:48+08:00 |
 | [UX-PA-SIM-MATCHUP1](tasks/UX-PA-SIM-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | Matchups 單一打席結果分布 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:33+08:00 |
 | [UX-TEAM-FOCUS1](tasks/UX-TEAM-FOCUS1.md) | INIT-PRODUCT-UX | T3 | 球隊頁本季現況優先 | ruan6047（release 延後至批次） | `ai/opus-4-8/UX-TEAM-FOCUS1 @ .claude/worktrees/ux-team-focus1-execution` | 1 | 📦已合併 | ✅已驗證 | 2026-07-22T01:49:56+08:00 |
 | [UX-TEAM-SPLIT-SCOPE1](tasks/UX-TEAM-SPLIT-SCOPE1.md) | INIT-PRODUCT-UX | T4 | 球隊頁全年／上下半季數據切換 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T00:40:22+08:00 |
