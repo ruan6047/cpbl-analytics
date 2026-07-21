@@ -1,10 +1,10 @@
 # UX-MATCHUP2 投打對決整合球員個人頁〔T4；🔴統計／ML〕
 
 - 需求：ruan6047　規劃：GPT-5@Codex（`matchups-redesign.md`）　分支：`ai/fable-5/UX-MATCHUP2`
-- 執行：Fable-5@Claude Code（07-22）　查核：待指派（跨模型家族或人工，且 ≠ 執行；HANDOFF-004）
+- 執行：Fable-5@Claude Code（07-22）　查核：Codex GPT-5（跨模型家族，REVIEW-007 APPROVE）
 - Initiative：INIT-PRODUCT-UX　spec 基線：PRODUCT_UX_BLUEPRINT v0.2＋UX-MATCHUP1
 - DB：`db_scope: read`
-- 部署：是　環境：production　PR：—　Merge SHA：—
+- 部署：是　環境：production　PR：—　Merge SHA：`bc15ba1`（reviewed `f310af8`）
 - 範圍：共用 UX-MATCHUP1 的基礎實績、洞察與 fail-closed 元件，整合至球員頁「分項與對戰」。
 
 ## 驗收條件
@@ -26,3 +26,4 @@
 - 07-22 claim（CLAIM-003）：需求方指派 Fable-5@Claude Code 執行；依賴 UX-MATCHUP1、UX-PLAYER-SECTIONS1 均已結案。worktree 自 main@f9c5ac2（`.claude/worktrees/ux-matchup2-workspace-setup-d6660d`）。
 - 07-22 handoff（HANDOFF-004）：執行完成交跨家族查核，被審 SHA 3c52ad9。範圍：抽離共用 MatchupExplorer→球員頁分項與對戰整合＋deep-link；需求方人工走查三項回饋（對手下拉只列交手隊／移除頁尾導覽／洞察 compact 收合）均已修並實測。本機 tsc／132 web tests／build:check 綠。連帶另開 MATCHUP-DATA2 修對手歷史隊別歸屬。
 - 07-22 review RETURN（REVIEW-005，Codex GPT-5 跨家族，iteration 2）：P1＝compact 摘要泛化『樣本不足』破壞四態契約。修正 handoff（HANDOFF-006，被審 f310af8）：摘要改取 INSIGHT_COPY[state.kind].title 各態專屬標題、加回歸測試；tsc／133 web tests／build:check 綠，三態瀏覽器重驗一致。
+- 07-22 review APPROVE（REVIEW-007，Codex GPT-5，iteration 2）＋merge（MERGE-008）：--no-ff 合併 f310af8→main，merge_sha bc15ba1，diff 僅 14 web 檔。依批次部署約定不單獨 release、保留 worktree/分支待批次上線。
