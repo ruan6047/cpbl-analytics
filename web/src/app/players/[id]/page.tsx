@@ -4,7 +4,6 @@
 // （雙棲球員同時有「打擊」與「投球」兩個內容頁）。守備自生涯層移出成獨立層。
 // 總覽／分項與對戰／生涯在雙棲時把兩種身分上下堆疊，全頁不存在隱性 role 狀態。
 // state 與資料抓取集中於此；層與資料需求的判斷集中在 layers.ts。
-import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { type PlayerProfile, type StatRow, detail } from "@/lib/client";
@@ -17,6 +16,7 @@ import {
 } from "./layers";
 import { CareerYearlySection, SplitsSection } from "./detail";
 import { type FieldLeague, FieldingSection } from "./fielding";
+import { PlayerMatchupsSection } from "./matchups-section";
 import { PlayerHero } from "./hero";
 import { SabrSection } from "./sabr";
 import { CareerSummary, SeasonSection, TraitsChips } from "./season";
@@ -264,6 +264,7 @@ export default function PlayerPage() {
               </div>
             </section>
             <SplitsSection id={id} role={r} seasonKind={seasonKind} isRetired={isRetired} />
+            <PlayerMatchupsSection id={id} role={r} name={profile.name} isRetired={isRetired} />
           </RoleBlock>
         ))}
 
@@ -296,11 +297,6 @@ export default function PlayerPage() {
           <p>· <span className="text-muted">進階指標（推算）</span>：RE24／wSB／捕手 RA9 以自建 CPBL 得分期望矩陣（逐打席 2018–25，經外部資料交叉驗證）與官方計數推算，非官方數據。RE24 名次為該年 PA≥200／BF≥200 合格者；捕手 RA/9 含非自責分（非 cERA）；跨年代比較受得分環境影響。</p>
         </div>
       </details>
-
-      <div className="flex gap-4 text-sm">
-        <Link href="/matchups" className="text-accent hover:underline">投打對決 →</Link>
-        <Link href="/batters" className="text-muted hover:text-ink">← 返回排行</Link>
-      </div>
     </div>
   );
 }

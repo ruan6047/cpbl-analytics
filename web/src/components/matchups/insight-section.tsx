@@ -3,6 +3,7 @@
 // 隊伍對戰洞察區（UX-MATCHUP1）：ML-MATCHUP1 輸出的呈現層。
 // fail-closed 四狀態是常態版面（藍圖 §5.9），各有獨立結構與文案；
 // 統計判定全由 API 完成，此處只讀 API 明示欄位（T4 紅線）。
+import { useId } from "react";
 import { Card, Eyebrow, TeamLogo } from "@/components/ui";
 import type { InsightItem, InsightsResponse, Role } from "./api";
 import {
@@ -130,19 +131,20 @@ export default function InsightSection({
   role,
   teamFilterName,
   onPickOpponent,
+  compact = false,
 }: {
   data: InsightsResponse;
   role: Role;
   teamFilterName: string | null;
   onPickOpponent: (id: string, name: string | null) => void;
+  /** 球員頁用：非 ok 態收合為一行可展開提示（洞察在球員頁是次要加值層）。 */
+  compact?: boolean;
 }) {
   const state = deriveInsightState(data);
-  return (
-    <section aria-labelledby="insight-heading" className="mt-8">
-      <Eyebrow className="mb-1">加值層・描述性統計</Eyebrow>
-      <h2 id="insight-heading" className="mb-1 text-lg font-bold text-ink">
-        對戰洞察
-      </h2>
+  // 球員頁雙棲時本區會同時掛兩份（打擊／投球），標題 id 需唯一
+  const headingId = useId();
+  const body = (
+    <>
       <p className="mb-3 text-xs leading-5 text-faint">{data.disclaimer}</p>
 
       {state.kind === "no_baseline" && (
@@ -308,6 +310,37 @@ export default function InsightSection({
           </details>
         </>
       )}
+    </>
+  );
+
+  // 球員頁（compact）：非 ok 態收合為一行可展開提示——洞察在此是次要加值層，
+  // 多數球員此區為 fail-closed；ok 態（真有天敵／優勢，罕見但有價值）照常展開。
+  // 摘要文案取各態專屬標題（INSIGHT_COPY[state.kind]），與展開內容同一份——
+  // compact 只是收合外殼，不得把 no_data／no_baseline 等不同原因泛化為「樣本不足」，
+  // 否則收合層會破壞 §5.9 四態契約（狀態判定仍唯一來自 deriveInsightState）。
+  if (compact && state.kind !== "ok") {
+    return (
+      <section aria-label="對戰洞察" className="mt-8">
+        <details className="overflow-hidden rounded-xl border border-line bg-surface">
+          <summary className="cursor-pointer select-none px-4 py-2.5 text-sm text-muted hover:text-ink">
+            <span className="font-semibold text-ink">對戰洞察</span>
+            <span className="ml-2 text-xs text-faint">
+              {INSIGHT_COPY[state.kind].title}——點開看原因
+            </span>
+          </summary>
+          <div className="border-t border-line p-4">{body}</div>
+        </details>
+      </section>
+    );
+  }
+
+  return (
+    <section aria-labelledby={headingId} className="mt-8">
+      <Eyebrow className="mb-1">加值層・描述性統計</Eyebrow>
+      <h2 id={headingId} className="mb-1 text-lg font-bold text-ink">
+        對戰洞察
+      </h2>
+      {body}
     </section>
   );
 }
