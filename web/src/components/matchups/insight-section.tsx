@@ -3,6 +3,7 @@
 // 隊伍對戰洞察區（UX-MATCHUP1）：ML-MATCHUP1 輸出的呈現層。
 // fail-closed 四狀態是常態版面（藍圖 §5.9），各有獨立結構與文案；
 // 統計判定全由 API 完成，此處只讀 API 明示欄位（T4 紅線）。
+import { useId } from "react";
 import { Card, Eyebrow, TeamLogo } from "@/components/ui";
 import type { InsightItem, InsightsResponse, Role } from "./api";
 import {
@@ -137,10 +138,12 @@ export default function InsightSection({
   onPickOpponent: (id: string, name: string | null) => void;
 }) {
   const state = deriveInsightState(data);
+  // 球員頁雙棲時本區會同時掛兩份（打擊／投球），標題 id 需唯一
+  const headingId = useId();
   return (
-    <section aria-labelledby="insight-heading" className="mt-8">
+    <section aria-labelledby={headingId} className="mt-8">
       <Eyebrow className="mb-1">加值層・描述性統計</Eyebrow>
-      <h2 id="insight-heading" className="mb-1 text-lg font-bold text-ink">
+      <h2 id={headingId} className="mb-1 text-lg font-bold text-ink">
         對戰洞察
       </h2>
       <p className="mb-3 text-xs leading-5 text-faint">{data.disclaimer}</p>

@@ -1,6 +1,6 @@
-// /matchups 查詢頁專用 API 取用層（UX-MATCHUP1）。
+// 對戰查詢 API 取用層（UX-MATCHUP1；UX-MATCHUP2 抽離為共用模組）。
 // 只消費 MATCHUP-DATA1／ML-MATCHUP1 已核可端點；統計判定一律由 API 計算，
-// 前端不得重做（紅線）。共用元件抽離屬 UX-MATCHUP2，先收在本資料夾。
+// 前端不得重做（紅線）。/matchups 與球員頁「分項與對戰」共用。
 import { clientGet } from "@/lib/client";
 
 export type Role = "batting" | "pitching";
