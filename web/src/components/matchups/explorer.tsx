@@ -87,6 +87,11 @@ export default function MatchupExplorer({
   const [list, setList] = useState<MatchupList | null>(null);
   const [listErr, setListErr] = useState(false);
   const [listLoading, setListLoading] = useState(false);
+  // 該主角在目前 role／範圍下實際交手過的球隊（franchise code）。
+  // 只在「全部球隊」（未篩隊）時由完整對手清單推導，因為篩隊後只剩單一隊。
+  // 用來把對手下拉收斂成「有對戰過的隊」，濾掉從未交手的解散隊與自家隊。
+  const scopeKey = `${pid}|${role}|${kind}|${scope}|${query.fromYear}|${query.toYear}`;
+  const [faced, setFaced] = useState<{ key: string; codes: string[] } | null>(null);
   useEffect(() => {
     if (!pid) {
       setList(null);
@@ -98,7 +103,13 @@ export default function MatchupExplorer({
     matchupApi
       .list(pid, query, { team, sort, order })
       .then((d) => {
-        if (!stale) setList(d);
+        if (stale) return;
+        setList(d);
+        if (!team) {
+          const codes = new Set<string>();
+          for (const r of d.items) if (r.opp_franchise) codes.add(r.opp_franchise);
+          setFaced({ key: scopeKey, codes: [...codes] });
+        }
       })
       .catch(() => {
         if (!stale) {
@@ -112,6 +123,7 @@ export default function MatchupExplorer({
     return () => {
       stale = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- scopeKey 由 query 諸欄位決定，query 已在依賴內
   }, [pid, query, team, sort, order]);
 
   const [insights, setInsights] = useState<InsightsResponse | null>(null);
@@ -204,6 +216,13 @@ export default function MatchupExplorer({
   // 對手模式：選定 opp 或 pick（搜尋中）＝對某人；team＝對某隊；否則全部
   const oppMode: "all" | "team" | "person" = opp || pick ? "person" : team ? "team" : "all";
 
+  // 對手隊下拉：已知交手隊時只列有對戰過的（含目前選定隊，避免 deep-link 選中卻被隱藏）；
+  // 尚未載入完整清單時退回全部，避免空白。faced 需與目前範圍相符才採用。
+  const facedCodes = faced && faced.key === scopeKey ? new Set(faced.codes) : null;
+  const visibleFranchises = facedCodes
+    ? franchises.filter((f) => facedCodes.has(f.code) || f.code === team)
+    : franchises;
+
   return (
     <div>
       {/* 查詢列 */}
@@ -284,7 +303,7 @@ export default function MatchupExplorer({
               }}
             >
               <option value="all">全部球隊</option>
-              {franchises.map((f) => (
+              {visibleFranchises.map((f) => (
                 <option key={f.code} value={f.code}>
                   {f.name}
                   {f.active ? "" : `（${f.from}–${f.to}）`}
