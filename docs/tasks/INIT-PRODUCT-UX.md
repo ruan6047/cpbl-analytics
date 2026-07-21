@@ -20,6 +20,7 @@ flowchart LR
   PLAYER["UX-PLAYER-IA1"] --> SECTIONS["UX-PLAYER-SECTIONS1"]
   MATCH --> M2["UX-MATCHUP2"]
   SECTIONS --> M2
+  M2 --> PSCOPE["UX-PLAYER-SCOPE1"]
   ST["UX-STANDINGS-FOCUS1"] --> TEAM["UX-TEAM-FOCUS1"]
 ```
 
@@ -38,6 +39,7 @@ flowchart LR
 ## 基線變更紀錄
 
 - 2026-07-17 v0.2 by GPT-5@Codex＋Fable-5 → 需求方 ruan6047 查核定案並授權開卡；條件式 UI 維持未註冊。
+- 2026-07-22 球員頁 scope 修訂 by GPT-5@Codex → 需求方 ruan6047 核可：Hero 雷達保留並由唯一全域「本季／生涯」驅動；既有圖表全保留，僅移除仰角 × 初速散點圖。註冊 `UX-PLAYER-SCOPE1`，須在 `UX-MATCHUP2` release 後序列化執行。
 
 ## 決策與風險
 
