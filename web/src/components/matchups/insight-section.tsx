@@ -131,21 +131,20 @@ export default function InsightSection({
   role,
   teamFilterName,
   onPickOpponent,
+  compact = false,
 }: {
   data: InsightsResponse;
   role: Role;
   teamFilterName: string | null;
   onPickOpponent: (id: string, name: string | null) => void;
+  /** 球員頁用：非 ok 態收合為一行可展開提示（洞察在球員頁是次要加值層）。 */
+  compact?: boolean;
 }) {
   const state = deriveInsightState(data);
   // 球員頁雙棲時本區會同時掛兩份（打擊／投球），標題 id 需唯一
   const headingId = useId();
-  return (
-    <section aria-labelledby={headingId} className="mt-8">
-      <Eyebrow className="mb-1">加值層・描述性統計</Eyebrow>
-      <h2 id={headingId} className="mb-1 text-lg font-bold text-ink">
-        對戰洞察
-      </h2>
+  const body = (
+    <>
       <p className="mb-3 text-xs leading-5 text-faint">{data.disclaimer}</p>
 
       {state.kind === "no_baseline" && (
@@ -311,6 +310,35 @@ export default function InsightSection({
           </details>
         </>
       )}
+    </>
+  );
+
+  // 球員頁（compact）：非 ok 態收合為一行可展開提示——洞察在此是次要加值層，
+  // 且六隊制下同對手對戰量結構性偏低，多數球員此區恆空；ok 態（真有天敵／優勢，
+  // 罕見但有價值）照常展開。狀態判定與四態內容仍是同一份（不複製、不另造空態）。
+  if (compact && state.kind !== "ok") {
+    return (
+      <section aria-label="對戰洞察" className="mt-8">
+        <details className="overflow-hidden rounded-xl border border-line bg-surface">
+          <summary className="cursor-pointer select-none px-4 py-2.5 text-sm text-muted hover:text-ink">
+            <span className="font-semibold text-ink">對戰洞察</span>
+            <span className="ml-2 text-xs text-faint">
+              此範圍樣本不足以產生天敵／優勢排行——點開看原因
+            </span>
+          </summary>
+          <div className="border-t border-line p-4">{body}</div>
+        </details>
+      </section>
+    );
+  }
+
+  return (
+    <section aria-labelledby={headingId} className="mt-8">
+      <Eyebrow className="mb-1">加值層・描述性統計</Eyebrow>
+      <h2 id={headingId} className="mb-1 text-lg font-bold text-ink">
+        對戰洞察
+      </h2>
+      {body}
     </section>
   );
 }

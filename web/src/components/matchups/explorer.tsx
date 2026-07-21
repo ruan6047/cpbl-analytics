@@ -48,6 +48,7 @@ export default function MatchupExplorer({
   controls,
   onPatch,
   header,
+  compactInsight = false,
 }: {
   /** 主角球員；空字串＝尚未選定（/matchups 首開），只顯示控制列與提示。 */
   pid: string;
@@ -58,6 +59,8 @@ export default function MatchupExplorer({
   onPatch: (patch: ControlsPatch, mode?: "replace" | "push") => void;
   /** 查詢卡頂部的 host 專屬列（/matchups 的視角切換＋主角搜尋）。 */
   header?: React.ReactNode;
+  /** 球員頁用：洞察非 ok 態收合（fail-closed 在球員頁是次要加值層）。 */
+  compactInsight?: boolean;
 }) {
   const { kind, scope, fromYear, toYear, team, opp, pick, sort, order } = controls;
   const headingId = useId();
@@ -446,6 +449,7 @@ export default function MatchupExplorer({
               data={insights}
               role={role}
               teamFilterName={teamName}
+              compact={compactInsight}
               onPickOpponent={(id, name) => {
                 rememberName(id, name);
                 onPatch({ opp: id }, "push");

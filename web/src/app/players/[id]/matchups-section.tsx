@@ -43,7 +43,14 @@ export function PlayerMatchupsSection({ id, role, name, isRetired }: {
           在投打對決頁開啟 →
         </Link>
       </div>
-      <MatchupExplorer pid={id} role={role} subjectName={name} controls={controls} onPatch={patch} />
+      <MatchupExplorer
+        pid={id}
+        role={role}
+        subjectName={name}
+        controls={controls}
+        onPatch={patch}
+        compactInsight
+      />
     </section>
   );
 }
