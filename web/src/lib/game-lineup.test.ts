@@ -18,7 +18,7 @@ test("依首次正式打席順序重建九人先發，DH 不塞進守備圖", ()
 
   assert.equal(lineup.available, true);
   assert.deepEqual(lineup.order.map((p) => p.name), ["一棒", "二棒", "三棒", "四棒", "五棒", "六棒", "七棒", "八棒", "九棒"]);
-  assert.equal(lineup.cells.CF?.sub, "1 棒・CF");
+  assert.equal(lineup.cells.CF?.meta, "1");
   assert.equal(lineup.cells.P?.main, "先發投手");
   assert.equal(lineup.designatedHitter?.name, "四棒");
 });

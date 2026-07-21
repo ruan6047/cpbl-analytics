@@ -1,21 +1,23 @@
 // 守備位置圖（共用元件，UI-FIELD-DIAGRAM1）。
 //
-// 轉播記分板式的制式格位，**不是**真實球場座標——這是身分圖，不宣稱空間精確度，
+// 轉播式近似守位座標——保留棒球站位語意，但不宣稱實際守備範圍或公尺級精確度，
 // 也不以顏色編碼好壞。呼叫端只給「守位 → 顯示內容」，元件不假設資料來源：
 // 球員頁餵守備局數／出賽數，賽況頁未來可餵先發球員名與守備異動。
 //
 // 佈局與截斷邏輯在 field-diagram-layout.ts（可單測）；本檔只負責畫。
 import {
-  type FieldCells, MAIN_BASELINE, MAIN_BASELINE_ALONE, MAIN_FONT, SUB_BASELINE, SUB_FONT,
-  VIEW_H, VIEW_W, describeCells, layoutCells,
+  BADGE_W, META_W, type FieldCellContent, type FieldCells, MAIN_BASELINE, MAIN_BASELINE_ALONE, MAIN_FONT,
+  SUB_BASELINE, SUB_FONT, VIEW_H, VIEW_W, describeCells, layoutCells, layoutDesignatedHitter,
 } from "./field-diagram-layout";
 
 export type { FieldCellContent, FieldCells, FieldPosition } from "./field-diagram-layout";
 export { POSITION_LABEL } from "./field-diagram-layout";
 
-export function FieldDiagram({ cells, caption = "守備位置", ariaLabel, className }: {
+export function FieldDiagram({ cells, designatedHitter, caption = "守備位置", ariaLabel, className }: {
   /** 守位 → 顯示內容。未列出的守位以「無資料」樣式呈現，不會消失。 */
   cells: FieldCells;
+  /** 指定打擊不屬於守備位置；提供時另列於捕手旁。 */
+  designatedHitter?: FieldCellContent | null;
   /** 用於 aria-label 開頭的情境描述（例：「守位分布」「先發守備位置」）。 */
   caption?: string;
   /** 覆寫整段 aria-label；預設由 cells 自動敘述。 */
@@ -23,7 +25,11 @@ export function FieldDiagram({ cells, caption = "守備位置", ariaLabel, class
   className?: string;
 }) {
   const laid = layoutCells(cells);
-  const label = ariaLabel ?? describeCells(cells, caption);
+  const allCells = designatedHitter ? [...laid, layoutDesignatedHitter(designatedHitter)] : laid;
+  const dhLabel = designatedHitter
+    ? `；指定打擊：${designatedHitter.main ?? "指定打擊"}${designatedHitter.meta ? ` 第${designatedHitter.meta}棒` : ""}`
+    : "";
+  const label = ariaLabel ?? `${describeCells(cells, caption)}${dhLabel}`;
 
   return (
     <svg
@@ -33,14 +39,22 @@ export function FieldDiagram({ cells, caption = "守備位置", ariaLabel, class
       aria-label={label}
     >
       <title>{label}</title>
-      <desc>守位以制式格位排列（外野一列、內野一列、投手、捕手），非真實球場座標。</desc>
-      {/* 淡化球場輪廓只提供轉播脈絡；格位仍採制式網格，避免回到真實座標造成的文字重疊。 */}
-      <g aria-hidden="true" className="fill-surface-2/60 stroke-line">
-        <path d="M160 36 278 154 160 206 42 154Z" strokeWidth={1.25} />
-        <path d="M160 104 211 155 160 189 109 155Z" className="fill-surface stroke-line-strong" strokeWidth={1} />
-        <path d="M160 155V104M109 155H211" fill="none" strokeWidth={1} />
+      <desc>守位依轉播常見的棒球場空間排列；位置為近似示意，不代表守備範圍。</desc>
+      <g aria-hidden="true">
+        {/* 扇形外野＋界外線 */}
+        <path d="M180 286 14 130 Q43 28 180 8 Q317 28 346 130Z"
+          className="fill-surface-2 stroke-line" strokeWidth={1.25} />
+        <path d="M180 286 14 130M180 286 346 130" className="stroke-line-strong" fill="none" strokeWidth={1} />
+        {/* 內野土區與草區；捕手視角的一壘在右、三壘在左。 */}
+        <path d="M180 104 280 184 180 284 80 184Z" className="fill-line/35 stroke-line" strokeWidth={1} />
+        <path d="M180 128 250 184 180 252 110 184Z" className="fill-surface stroke-line" strokeWidth={1} />
+        <circle cx="180" cy="199" r="11" className="fill-line/50" />
+        {[{ x: 180, y: 128 }, { x: 250, y: 184 }, { x: 110, y: 184 }, { x: 180, y: 252 }].map((base) => (
+          <rect key={`${base.x}-${base.y}`} x={base.x - 4} y={base.y - 4} width={8} height={8}
+            transform={`rotate(45 ${base.x} ${base.y})`} className="fill-surface stroke-line-strong" strokeWidth={1} />
+        ))}
       </g>
-      {laid.map((c) => (
+      {allCells.map((c) => (
         <g key={c.code}>
           <rect
             x={c.x} y={c.y} width={c.w} height={c.h} rx={6}
@@ -48,8 +62,20 @@ export function FieldDiagram({ cells, caption = "守備位置", ariaLabel, class
             strokeWidth={1}
             strokeDasharray={c.used ? undefined : "3 3"}
           />
+          <path d={`M${c.x + BADGE_W} ${c.y}V${c.y + c.h}`} className="stroke-line" strokeWidth={1} />
+          <text x={c.x + BADGE_W / 2} y={c.y + 23} textAnchor="middle" fontSize={9}
+            className={c.used ? "fill-muted font-mono font-semibold" : "fill-faint font-mono"}>
+            {c.code}
+          </text>
+          {c.meta && (
+            <>
+              <path d={`M${c.x + c.w - META_W} ${c.y}V${c.y + c.h}`} className="stroke-line" strokeWidth={1} />
+              <text x={c.x + c.w - META_W / 2} y={c.y + 22.5} textAnchor="middle" fontSize={9}
+                className="fill-ink font-mono font-semibold">{c.meta}</text>
+            </>
+          )}
           <text
-            x={c.cx} y={c.y + (c.sub ? MAIN_BASELINE : MAIN_BASELINE_ALONE)}
+            x={c.contentCx} y={c.y + (c.sub ? MAIN_BASELINE : MAIN_BASELINE_ALONE)}
             textAnchor="middle" fontSize={MAIN_FONT}
             className={c.used ? "fill-ink" : "fill-faint"}
           >
@@ -57,7 +83,7 @@ export function FieldDiagram({ cells, caption = "守備位置", ariaLabel, class
           </text>
           {c.sub && (
             <text
-              x={c.cx} y={c.y + SUB_BASELINE}
+              x={c.contentCx} y={c.y + SUB_BASELINE}
               textAnchor="middle" fontSize={SUB_FONT}
               className="fill-muted font-mono"
             >

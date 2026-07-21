@@ -64,7 +64,7 @@ export function startingLineup(side: Side, log: StatRow[], game: StatRow, pitchi
     if (FIELD_POSITIONS.has(player.position as FieldPosition)) {
       const code = player.position as FieldPosition;
       // 同一守位意外重複時保留首位，避免把首輪資料靜默覆蓋成後來的球員。
-      if (!cells[code]) cells[code] = { main: player.name, sub: `${player.order} 棒・${code}` };
+      if (!cells[code]) cells[code] = { main: player.name, meta: String(player.order) };
     }
   }
 
@@ -73,7 +73,7 @@ export function startingLineup(side: Side, log: StatRow[], game: StatRow, pitchi
   const pitcher = firstNine.find((player) => player.position === "P")
     ?? (starter ? { id: starterId, name: String(starter.pitcher_name ?? "").trim(), position: "P", order: 0 } : null);
   if (pitcher?.name) {
-    cells.P = { main: pitcher.name, sub: pitcher.order ? `${pitcher.order} 棒・P` : "先發投手" };
+    cells.P = { main: pitcher.name, sub: pitcher.order ? null : "先發投手", meta: pitcher.order ? String(pitcher.order) : null };
   }
 
   return { cells, designatedHitter, order: firstNine, available: true };

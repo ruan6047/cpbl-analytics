@@ -1,5 +1,4 @@
 import { FieldDiagram } from "@/components/field-diagram";
-import { PlayerLink } from "@/components/ui";
 import { startingLineup } from "@/lib/game-lineup";
 import type { StatRow } from "@/lib/client";
 import { teamColor } from "@/lib/teams";
@@ -26,22 +25,10 @@ export function StartingLineups({ game, log, pitching }: { game: StatRow; log: S
           ) : (
             <div className="p-3">
               <FieldDiagram cells={lineup.cells} caption={`${name}先發守備位置`}
+                designatedHitter={lineup.designatedHitter
+                  ? { main: lineup.designatedHitter.name, meta: String(lineup.designatedHitter.order) }
+                  : null}
                 className="mx-auto w-full max-w-[360px]" />
-              {lineup.designatedHitter && (
-                <p className="mx-auto mt-1 flex max-w-[360px] items-center justify-between rounded-md bg-surface-2 px-3 py-2 text-xs">
-                  <span className="font-mono font-semibold text-muted">DH・第 {lineup.designatedHitter.order} 棒</span>
-                  <PlayerLink pid={lineup.designatedHitter.id} name={lineup.designatedHitter.name}
-                    className="font-semibold text-ink hover:text-accent hover:underline" />
-                </p>
-              )}
-              <ol className="mt-3 grid grid-cols-3 gap-x-2 gap-y-1 border-t border-line pt-3 text-xs">
-                {lineup.order.map((player) => (
-                  <li key={player.id} className="flex min-w-0 items-center gap-1.5">
-                    <span className="font-mono text-faint">{player.order}</span>
-                    <PlayerLink pid={player.id} name={player.name} className="truncate text-ink hover:text-accent hover:underline" />
-                  </li>
-                ))}
-              </ol>
             </div>
           )}
         </article>
