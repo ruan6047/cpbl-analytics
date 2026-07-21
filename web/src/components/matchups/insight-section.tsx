@@ -314,8 +314,10 @@ export default function InsightSection({
   );
 
   // 球員頁（compact）：非 ok 態收合為一行可展開提示——洞察在此是次要加值層，
-  // 且六隊制下同對手對戰量結構性偏低，多數球員此區恆空；ok 態（真有天敵／優勢，
-  // 罕見但有價值）照常展開。狀態判定與四態內容仍是同一份（不複製、不另造空態）。
+  // 多數球員此區為 fail-closed；ok 態（真有天敵／優勢，罕見但有價值）照常展開。
+  // 摘要文案取各態專屬標題（INSIGHT_COPY[state.kind]），與展開內容同一份——
+  // compact 只是收合外殼，不得把 no_data／no_baseline 等不同原因泛化為「樣本不足」，
+  // 否則收合層會破壞 §5.9 四態契約（狀態判定仍唯一來自 deriveInsightState）。
   if (compact && state.kind !== "ok") {
     return (
       <section aria-label="對戰洞察" className="mt-8">
@@ -323,7 +325,7 @@ export default function InsightSection({
           <summary className="cursor-pointer select-none px-4 py-2.5 text-sm text-muted hover:text-ink">
             <span className="font-semibold text-ink">對戰洞察</span>
             <span className="ml-2 text-xs text-faint">
-              此範圍樣本不足以產生天敵／優勢排行——點開看原因
+              {INSIGHT_COPY[state.kind].title}——點開看原因
             </span>
           </summary>
           <div className="border-t border-line p-4">{body}</div>

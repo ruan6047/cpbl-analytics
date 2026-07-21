@@ -37,6 +37,18 @@ test("四種 fail-closed 文案標題彼此相異，且說明不共用", () => {
   assert.equal(new Set(entries.map((e) => e.body)).size, 4);
 });
 
+test("compact 摘要來源：五種非 ok 態各有專屬標題，收合層不得泛化原因", () => {
+  // 球員頁 compact 摘要取 INSIGHT_COPY[state.kind].title；五態齊備且互異，
+  // 才不會把不同原因（如無對戰紀錄／C–E 無基準）收合成單一「樣本不足」。
+  const kinds = ["no_baseline", "no_data", "low_coverage", "no_prior", "gated"] as const;
+  const titles = kinds.map((k) => INSIGHT_COPY[k].title);
+  assert.equal(titles.filter(Boolean).length, 5);
+  assert.equal(new Set(titles).size, 5);
+  // no_data（無對戰紀錄）與 no_baseline（C–E 無基準）非樣本量問題，標題不得稱「樣本」
+  assert.ok(!INSIGHT_COPY.no_data.title.includes("樣本"));
+  assert.ok(!INSIGHT_COPY.no_baseline.title.includes("樣本"));
+});
+
 test("低覆蓋狀態帶回 API 的覆蓋率與閘門值（不自創閾值）", () => {
   const s = deriveInsightState(FIXTURE_LOW_COVERAGE);
   assert.equal(s.kind, "low_coverage");
