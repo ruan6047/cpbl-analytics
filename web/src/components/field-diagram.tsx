@@ -34,6 +34,12 @@ export function FieldDiagram({ cells, caption = "守備位置", ariaLabel, class
     >
       <title>{label}</title>
       <desc>守位以制式格位排列（外野一列、內野一列、投手、捕手），非真實球場座標。</desc>
+      {/* 淡化球場輪廓只提供轉播脈絡；格位仍採制式網格，避免回到真實座標造成的文字重疊。 */}
+      <g aria-hidden="true" className="fill-surface-2/60 stroke-line">
+        <path d="M160 36 278 154 160 206 42 154Z" strokeWidth={1.25} />
+        <path d="M160 104 211 155 160 189 109 155Z" className="fill-surface stroke-line-strong" strokeWidth={1} />
+        <path d="M160 155V104M109 155H211" fill="none" strokeWidth={1} />
+      </g>
       {laid.map((c) => (
         <g key={c.code}>
           <rect
