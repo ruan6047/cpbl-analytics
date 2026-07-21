@@ -428,7 +428,8 @@ def batting_leaders(
     OPS+（僅一軍）＝100×(obp/聯盟obp＋slg/聯盟slg−1)，league-only（沿 trend.py 口徑，非 park）。"""
     pos_map = _primary_positions(season, kind_code)
     rows = list(_batting_rows(season, kind_code))
-    # OPS+ 聯盟基準：全體累計（不設門檻），僅一軍；二軍/歷史無基準故 OPS+ 留空。
+    # OPS+ 聯盟基準：該 season 全體累計（不設門檻）。僅一軍（二軍無單一可比聯盟基準故留空）；
+    # 一軍當季與歷史年皆用「各該年」聯盟基準計算（年代相對、跨年代可比＝OPS+ 的目的）。
     lg_obp = lg_slg = None
     if kind_code == "A":
         lab = sum(r.get("ab") or 0 for r in rows)
@@ -466,7 +467,8 @@ def pitching_leaders(
     """投手排行：當季一軍/歷史/二軍。ERA/WHIP/K9 由原始計數+真實局數計算（越低越前的 era/whip 反向排）。
     ERA+（僅一軍）＝100×聯盟ERA/個人ERA，league-only（沿 trend.py 口徑）；越高越好。"""
     rows = list(_pitching_rows(season, kind_code))
-    # ERA+ 聯盟基準：全體累計真實局數，僅一軍；二軍/歷史留空。
+    # ERA+ 聯盟基準：該 season 全體累計真實局數。僅一軍（二軍留空）；一軍當季與歷史年
+    # 皆用「各該年」聯盟基準計算（年代相對）。
     lg_era = None
     if kind_code == "A":
         lg_ip = sum(float(r["ip"]) for r in rows if r.get("ip") is not None)
