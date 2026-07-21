@@ -43,6 +43,42 @@ function WLCell({ p }: { p?: WL }) {
   return <span className={cls}>{w}-{l}</span>;
 }
 
+// 正-負 數對（如 再見勝-被再見、橫掃-被橫掃、最大連勝-連敗）：好值綠、壞值紅，中性灰。
+function NumPairCell({ good, bad }: { good: number; bad: number }) {
+  if (!good && !bad) return <span className="text-faint">0-0</span>;
+  return (
+    <span className="tabular-nums">
+      <span className={good > bad ? "text-up" : "text-muted"}>{good}</span>
+      <span className="text-faint">-</span>
+      <span className={bad > good ? "text-down" : "text-muted"}>{bad}</span>
+    </span>
+  );
+}
+
+// 特殊戰績跨隊對照（UX-SPECIAL-COMPARE1）：把高訊號隊級特殊戰績收成單一精簡表，
+// 補回 UX-STANDINGS-FOCUS1 移出後的跨隊比較（不重現舊 8 張密表；細項留球隊頁）。
+// 沿用 WLCell/NumPairCell 色階 → 「哪隊最會逆轉／再見」5 秒可讀。
+function SpecialCompareTable({ rows, sp }: { rows: OfficialStanding[]; sp: Map<string, SpecialRecord> }) {
+  const columns: Column<OfficialStanding>[] = [
+    { header: "球隊", cell: (t) => <LinkedTeam code={t.team_code} name={t.team_name} />, nowrap: true, className: "font-sans", sticky: true },
+    { header: <span title="曾落後仍逆轉獲勝 - 曾領先卻被逆轉">逆轉 勝-被</span>, cell: (t) => <WLCell p={sp.get(t.team_code)?.comeback} />, nowrap: true },
+    { header: <span title="最終局下半超前致勝 - 客場吞再見敗">再見 勝-被</span>, cell: (t) => { const s = sp.get(t.team_code); return <NumPairCell good={s?.walkoff ?? 0} bad={s?.walked_off ?? 0} />; }, nowrap: true },
+    { header: <span title="最終分差 1 分的勝 - 敗">一分差</span>, cell: (t) => <WLCell p={sp.get(t.team_code)?.one_run} />, nowrap: true },
+    { header: <span title="完封對手 - 被完封">完封 勝-被</span>, cell: (t) => <WLCell p={sp.get(t.team_code)?.shutout} />, nowrap: true },
+    { header: <span title="本季最長連勝 - 最長連敗場數">最長 連勝-連敗</span>, cell: (t) => { const s = sp.get(t.team_code); return <NumPairCell good={s?.max_win_streak ?? 0} bad={s?.max_lose_streak ?? 0} />; }, nowrap: true },
+    { header: <span title="三連戰橫掃(3-0) - 被橫掃(0-3)">橫掃 勝-被</span>, cell: (t) => { const s = sp.get(t.team_code); return <NumPairCell good={s?.sweeps ?? 0} bad={s?.swept ?? 0} />; }, nowrap: true },
+  ];
+  return (
+    <section className="mb-6">
+      <h3 className="mb-2 text-sm font-semibold text-ink">
+        特殊戰績對照
+        <span className="ml-2 text-[11px] font-normal text-faint">高訊號隊級戰績跨隊比較；更多細項見各隊球隊頁</span>
+      </h3>
+      <DataTable columns={columns} rows={rows} rowKey={(t) => t.team_code} dense />
+    </section>
+  );
+}
+
 function MonthsTable({ rows, sp }: { rows: OfficialStanding[]; sp: Map<string, SpecialRecord> }) {
   const monthSet = new Set<number>();
   sp.forEach((s) => Object.keys(s.months).forEach((m) => monthSet.add(Number(m))));
@@ -695,19 +731,20 @@ export default async function Standings({ searchParams }: { searchParams: Promis
               原生 <details> 免 client island、SSR 友善、鍵盤可及。 */}
           <details className="mt-8 rounded-xl border border-line bg-surface">
             <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-ink marker:text-faint">
-              進階展開：對戰各隊 · 主客場{sp.size > 0 ? " · 月份趨勢" : ""}
+              進階展開：對戰各隊 · 主客場{sp.size > 0 ? " · 特殊戰績對照 · 月份趨勢" : ""}
             </summary>
             <div className="border-t border-line px-4 pt-4">
               <H2HTable rows={items} />
               <TeamStatsTable rows={items} />
+              {sp.size > 0 && <SpecialCompareTable rows={items} sp={sp} />}
               {sp.size > 0 && <MonthsTable rows={items} sp={sp} />}
             </div>
           </details>
 
           {!isMinor && (
             <p className="mt-6 text-[11px] leading-relaxed text-faint">
-              各隊場地／比分型／逆轉／再見／連勝連敗／系列賽等特殊戰績，已改於各隊球隊頁呈現——
-              點上方球隊名進入該隊頁面查看。
+              進階展開的「特殊戰績對照」列出高訊號隊級戰績跨隊比較；場地／賽況軌跡／對手先發／
+              系列賽等更多細項，見各隊球隊頁（點上方球隊名進入）。
             </p>
           )}
         </>
