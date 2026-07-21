@@ -5,6 +5,7 @@
 // 球員頁餵守備局數／出賽數，賽況頁未來可餵先發球員名與守備異動。
 //
 // 佈局與截斷邏輯在 field-diagram-layout.ts（可單測）；本檔只負責畫。
+import Link from "next/link";
 import {
   BADGE_W, META_W, type FieldCellContent, type FieldCells, MAIN_BASELINE, MAIN_BASELINE_ALONE, MAIN_FONT,
   SUB_BASELINE, SUB_FONT, VIEW_H, VIEW_W, describeCells, layoutCells, layoutDesignatedHitter,
@@ -30,11 +31,13 @@ export function FieldDiagram({ cells, designatedHitter, caption = "守備位置"
     ? `；指定打擊：${designatedHitter.main ?? "指定打擊"}${designatedHitter.meta ? ` 第${designatedHitter.meta}棒` : ""}`
     : "";
   const label = ariaLabel ?? `${describeCells(cells, caption)}${dhLabel}`;
+  const links = allCells.filter((c) => c.href);
 
   return (
+    <div className={`relative ${className ?? "w-full max-w-[340px]"}`}>
     <svg
       viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-      className={className ?? "w-full max-w-[340px]"}
+      className="block w-full"
       role="img"
       aria-label={label}
     >
@@ -54,44 +57,58 @@ export function FieldDiagram({ cells, designatedHitter, caption = "守備位置"
             transform={`rotate(45 ${base.x} ${base.y})`} className="fill-surface stroke-line-strong" strokeWidth={1} />
         ))}
       </g>
-      {allCells.map((c) => (
-        <g key={c.code}>
-          <rect
-            x={c.x} y={c.y} width={c.w} height={c.h} rx={6}
-            className={c.used ? "fill-surface stroke-line-strong" : "fill-surface-2 stroke-line"}
-            strokeWidth={1}
-            strokeDasharray={c.used ? undefined : "3 3"}
-          />
-          <path d={`M${c.x + BADGE_W} ${c.y}V${c.y + c.h}`} className="stroke-line" strokeWidth={1} />
-          <text x={c.x + BADGE_W / 2} y={c.y + 23} textAnchor="middle" fontSize={9}
-            className={c.used ? "fill-muted font-mono font-semibold" : "fill-faint font-mono"}>
-            {c.code}
-          </text>
-          {c.meta && (
-            <>
-              <path d={`M${c.x + c.w - META_W} ${c.y}V${c.y + c.h}`} className="stroke-line" strokeWidth={1} />
-              <text x={c.x + c.w - META_W / 2} y={c.y + 22.5} textAnchor="middle" fontSize={9}
-                className="fill-ink font-mono font-semibold">{c.meta}</text>
-            </>
-          )}
-          <text
-            x={c.contentCx} y={c.y + (c.sub ? MAIN_BASELINE : MAIN_BASELINE_ALONE)}
-            textAnchor="middle" fontSize={MAIN_FONT}
-            className={c.used ? "fill-ink" : "fill-faint"}
-          >
-            {c.main}
-          </text>
-          {c.sub && (
-            <text
-              x={c.contentCx} y={c.y + SUB_BASELINE}
-              textAnchor="middle" fontSize={SUB_FONT}
-              className="fill-muted font-mono"
-            >
-              {c.sub}
+      {allCells.map((c) => {
+        const body = (
+          <>
+            <rect
+              x={c.x} y={c.y} width={c.w} height={c.h} rx={6}
+              className={c.used ? "fill-surface stroke-line-strong" : "fill-surface-2 stroke-line"}
+              strokeWidth={1}
+              strokeDasharray={c.used ? undefined : "3 3"}
+            />
+            <path d={`M${c.x + BADGE_W} ${c.y}V${c.y + c.h}`} className="stroke-line" strokeWidth={1} />
+            <text x={c.x + BADGE_W / 2} y={c.y + 23} textAnchor="middle" fontSize={9}
+              className={c.used ? "fill-muted font-mono font-semibold" : "fill-faint font-mono"}>
+              {c.code}
             </text>
-          )}
-        </g>
-      ))}
+            {c.meta && (
+              <>
+                <path d={`M${c.x + c.w - META_W} ${c.y}V${c.y + c.h}`} className="stroke-line" strokeWidth={1} />
+                <text x={c.x + c.w - META_W / 2} y={c.y + 22.5} textAnchor="middle" fontSize={9}
+                  className="fill-ink font-mono font-semibold">{c.meta}</text>
+              </>
+            )}
+            <text
+              x={c.contentCx} y={c.y + (c.sub ? MAIN_BASELINE : MAIN_BASELINE_ALONE)}
+              textAnchor="middle" fontSize={MAIN_FONT}
+              className={c.used ? "fill-ink" : "fill-faint"}
+            >
+              {c.main}
+            </text>
+            {c.sub && (
+              <text
+                x={c.contentCx} y={c.y + SUB_BASELINE}
+                textAnchor="middle" fontSize={SUB_FONT}
+                className="fill-muted font-mono"
+              >
+                {c.sub}
+              </text>
+            )}
+          </>
+        );
+        return <g key={c.code}>{body}</g>;
+      })}
     </svg>
+    {/* 可點格位：以 HTML 連結覆蓋於 SVG 之上（SVG <a> 不穩、且不進無障礙樹），
+        座標由 viewBox 換算百分比，與 svg 同框對齊。 */}
+    {links.map((c) => (
+      <Link key={c.code} href={c.href!} aria-label={c.main}
+        className="absolute rounded-md transition hover:bg-accent/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+        style={{
+          left: `${(c.x / VIEW_W) * 100}%`, top: `${(c.y / VIEW_H) * 100}%`,
+          width: `${(c.w / VIEW_W) * 100}%`, height: `${(c.h / VIEW_H) * 100}%`,
+        }} />
+    ))}
+    </div>
   );
 }

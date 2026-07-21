@@ -78,11 +78,23 @@ export function Card({ className = "", padding = "p-4", teamColor, hoverable = f
   );
 }
 
-export function StatTile({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+// 橫向排版：標籤在左、數值＋名次在右，一磚一列以節省縱向空間。
+export function StatTile({ label, value, accent, rank, rankTotal }: {
+  label: string; value: string; accent?: boolean;
+  /** 聯盟名次（有值才顯示）。前段班綠、後段班紅、其餘淡色。 */
+  rank?: number | null;
+  /** 隊伍總數，用於判定「後段班」。 */
+  rankTotal?: number;
+}) {
+  const tone = rank == null ? "" : rank <= 2 ? "text-up"
+    : rankTotal && rank >= rankTotal - 1 ? "text-down" : "text-faint";
   return (
-    <div className="card px-3 py-2.5 text-center">
-      <div className="text-[11px] text-muted">{label}</div>
-      <div className={`mt-0.5 font-mono text-lg tabular-nums ${accent ? "text-accent" : "text-ink"}`}>{value}</div>
+    <div className="card flex items-baseline justify-between gap-1.5 overflow-hidden px-3 py-2">
+      <span className="min-w-0 truncate text-[11px] text-muted">{label}</span>
+      <span className="flex shrink-0 items-baseline gap-1 whitespace-nowrap">
+        <span className={`font-mono text-base tabular-nums ${accent ? "text-accent" : "text-ink"}`}>{value}</span>
+        {rank != null && <span className={`text-[10px] font-medium tabular-nums ${tone}`}>第{rank}</span>}
+      </span>
     </div>
   );
 }

@@ -188,7 +188,7 @@ export function RosterChips({ label, players, color, dim }: {
   if (players.length === 0) return null;
   return (
     <div>
-      <div className="mb-1.5 text-xs font-medium text-muted">{label}</div>
+      {label && <div className="mb-1.5 text-xs font-medium text-muted">{label}</div>}
       <div className="flex flex-wrap gap-1.5">
         {players.map((p) => (
           <Link key={p.player_id} href={`/players/${p.player_id}`}
