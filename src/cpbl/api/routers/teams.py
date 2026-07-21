@@ -70,6 +70,12 @@ def team_eras(code: str, kind_code: str = Query("A")) -> dict:
             (kind_code, members, members),
         ).fetchall()
         names = dict(c.execute("SELECT team_id, name FROM cpbl.teams").fetchall())  # 3 碼 → 全名
+        # franchise 歷年總冠軍（canonical championships，含改名/轉賣前身；只取 verified）
+        champ_years = [r[0] for r in c.execute(
+            "SELECT year FROM cpbl.championships "
+            "WHERE franchise_code=%s AND verification_status='verified' ORDER BY year",
+            (fc,),
+        ).fetchall()]
     rec: dict = defaultdict(lambda: {"w": 0, "l": 0, "t": 0})
     seq: list[str] = []  # franchise 逐場結果（時序）算最長連勝/連敗
     for y, hc, ac, hs, as_ in games:
@@ -133,7 +139,8 @@ def team_eras(code: str, kind_code: str = Query("A")) -> dict:
     worst = min(seasons, key=lambda s: s["win_pct"], default=None)
     return {"franchise": fc, "origins": _ORIGINS.get(fc), "eras": eras, "total": total,
             "longest_win_streak": mw, "longest_lose_streak": ml,
-            "best_season": best, "worst_season": worst}
+            "best_season": best, "worst_season": worst,
+            "championships": champ_years, "championship_count": len(champ_years)}
 
 
 @router.get("/api/v1/franchises")
@@ -210,7 +217,7 @@ def team_players(code: str) -> dict:
             "min(bs.year), max(bs.year) FROM cpbl.batting_seasons bs "
             "LEFT JOIN cpbl.players p ON p.id = bs.player_id "
             "WHERE substring(bs.team_id, 1, 3) = ANY(%s) "
-            "GROUP BY bs.player_id, p.name ORDER BY sum(bs.g) DESC NULLS LAST LIMIT 50",
+            "GROUP BY bs.player_id, p.name ORDER BY sum(bs.g) DESC NULLS LAST LIMIT 500",
             (members3,))
         batters = [
             {"player_id": pid, "name": nm or pid, "g": g, "h": h, "hr": hr, "rbi": rbi,
@@ -222,7 +229,7 @@ def team_players(code: str) -> dict:
             "min(ps.year), max(ps.year) FROM cpbl.pitching_seasons ps "
             "LEFT JOIN cpbl.players p ON p.id = ps.player_id "
             "WHERE substring(ps.team_id, 1, 3) = ANY(%s) "
-            "GROUP BY ps.player_id, p.name ORDER BY sum(ps.g) DESC NULLS LAST LIMIT 50",
+            "GROUP BY ps.player_id, p.name ORDER BY sum(ps.g) DESC NULLS LAST LIMIT 500",
             (members3,))
         pitchers = [
             {"player_id": pid, "name": nm or pid, "g": g, "w": w, "sv": sv, "so": so,
