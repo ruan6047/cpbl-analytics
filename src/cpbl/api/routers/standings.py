@@ -12,6 +12,43 @@ from cpbl.models import matchup
 router = APIRouter()
 
 
+def _team_advanced_current_computed(season: int) -> dict[str, dict]:
+    """當季團隊 OPS/ERA/WHIP：由 batting_current／pitching_current 的**全年**個人數據即時彙總。
+
+    團隊表 team_current 取自官網 teamscore，其預設為**當前半季（下半季）**小樣本，會與頁面其餘
+    全年口徑（排行、主力選手 OPS+／ERA+）不一致並失真（例：味全龍下半季 WHIP 1.30 排第 5，
+    全年 1.18 其實第 1）。故當季一律改由 *_current 個人全年數據彙總，口徑一致。"""
+    out: dict[str, dict] = {}
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            "SELECT team_code, sum(ab), sum(h), sum(tb), sum(bb), sum(hbp), sum(sf) "
+            "FROM cpbl.batting_current WHERE year=%s GROUP BY team_code",
+            (season,),
+        )
+        for tc, ab, h, tb, bb, hbp, sf in cur.fetchall():
+            ab = int(ab or 0)
+            if ab <= 0:
+                continue
+            den = ab + int(bb or 0) + int(hbp or 0) + int(sf or 0)
+            obp = ((int(h or 0) + int(bb or 0) + int(hbp or 0)) / den) if den else None
+            slg = int(tb or 0) / ab
+            out.setdefault(tc, {})["ops"] = round(obp + slg, 3) if obp is not None else None
+        cur.execute(
+            "SELECT team_code, sum(floor(ip)+(ip-floor(ip))*10/3.0), sum(er), sum(h), sum(bb) "
+            "FROM cpbl.pitching_current WHERE year=%s GROUP BY team_code",
+            (season,),
+        )
+        for tc, ip, er, h, bb in cur.fetchall():
+            rip = float(ip or 0)
+            if rip <= 0:
+                continue
+            d = out.setdefault(tc, {})
+            d["era"] = round(float(er or 0) * 9 / rip, 2)
+            d["whip"] = round((float(h or 0) + float(bb or 0)) / rip, 2)
+    return out
+
+
 def _team_advanced_from_seasons(season: int) -> dict[str, dict]:
     """歷史年度 team_current 缺值時，從季彙總回推團隊 OPS/ERA/WHIP。"""
     bat: dict[str, dict] = {}
@@ -61,7 +98,10 @@ def _team_advanced_from_seasons(season: int) -> dict[str, dict]:
 def season_standings(season: int = Query(DEFAULT_SEASON)) -> dict:
     """本季戰績榜（games 即時彙整 + team_current 團隊進階：OPS/ERA/WHIP）。"""
     stats = matchup.team_stats(season)
-    adv = _team_advanced(season)
+    # 當季一律用 *_current 全年彙總（team_current 為下半季小樣本、口徑不一致）；缺值才退回。
+    adv = _team_advanced_current_computed(season)
+    if not adv:
+        adv = _team_advanced(season)
     if not adv:
         adv = _team_advanced_from_seasons(season)
     rows = [

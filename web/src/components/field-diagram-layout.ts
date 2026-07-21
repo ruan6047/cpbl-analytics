@@ -15,6 +15,8 @@ export type FieldCellContent = {
   sub?: string | null;
   /** 右側短標（例：棒次 1–9）；不適合放長文字。 */
   meta?: string | null;
+  /** 提供時整格可點（例：連向球員頁）；省略即不可點。 */
+  href?: string | null;
 };
 
 export type FieldCells = Partial<Record<FieldPosition, FieldCellContent>>;
@@ -74,6 +76,8 @@ export type LaidOutCell = {
   main: string;
   sub: string | null;
   meta: string | null;
+  /** 整格連結（有則可點）。 */
+  href: string | null;
   /** 是否有資料。無資料者低調呈現，讓讀者看得出哪些守位沒有資料。 */
   used: boolean;
 };
@@ -130,6 +134,7 @@ export function layoutCells(cells: FieldCells): LaidOutCell[] {
       main,
       sub: used && rawSub ? fitText(rawSub, maxW, SUB_FONT) : null,
       meta: used ? rawMeta : null,
+      href: (used && content?.href) || null,
       used,
     };
   });
@@ -149,6 +154,7 @@ export function layoutDesignatedHitter(content: FieldCellContent): LaidOutCell {
     main: fitText(content.main?.trim() || "指定打擊", maxW, MAIN_FONT),
     sub: rawSub ? fitText(rawSub, maxW, SUB_FONT) : null,
     meta: rawMeta,
+    href: content.href || null,
     used: true,
   };
 }

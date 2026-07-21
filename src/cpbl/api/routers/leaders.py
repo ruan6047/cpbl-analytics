@@ -501,14 +501,21 @@ def fielding(
     pos: str | None = Query(None, description="守備位置；省略則全部"),
     sort: str = Query("tc", pattern="^(tc|po|a|e|dp|fpct|g)$"),
     limit: int = Query(60, ge=1, le=1000),
+    kind_code: str = Query("A", pattern="^(A|D)$"),
 ) -> dict:
-    """本季守備數據（fielding_current）。可依守備位置篩選。"""
+    """本季守備數據（fielding_current）。可依守備位置與軍別（預設一軍 A）篩選。
+
+    fielding_current PK 含 kind_code（一軍 A／二軍 D），同一球員同守位在兩軍各有一列；
+    未篩軍別會把二軍出賽混入，導致「主力守位」誤取到只在二軍出賽的球員，故預設 A。"""
     direction = "ASC" if sort == "e" else "DESC"
-    where = "f.year = %s" + ("" if pos is None else " AND f.pos = %s")
-    params: tuple = (season,) if pos is None else (season, pos)
+    where = "f.year = %s AND f.kind_code = %s" + ("" if pos is None else " AND f.pos = %s")
+    params: tuple = (season, kind_code) if pos is None else (season, kind_code, pos)
     with conn() as c:
         cur = c.cursor()
-        cur.execute("SELECT DISTINCT pos FROM cpbl.fielding_current WHERE year = %s ORDER BY pos", (season,))
+        cur.execute(
+            "SELECT DISTINCT pos FROM cpbl.fielding_current WHERE year = %s AND kind_code = %s ORDER BY pos",
+            (season, kind_code),
+        )
         positions = [r[0] for r in cur.fetchall()]
         cur.execute(
             f"""
