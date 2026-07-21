@@ -4,6 +4,7 @@
 
 | 卡ID | 功能 | 交付狀態 | 部署狀態 | 封存位置 |
 |---|---|---|---|---|
+| UX-MATCHUP2 | 投打對決整合球員個人頁 | 🏁完成 | ✅已驗證 | [`tasks/UX-MATCHUP2.md`](tasks/UX-MATCHUP2.md)（T4🔴統計/ML；iteration 2，REVIEW-005 RETURN→REVIEW-007 APPROVE by Codex GPT-5 跨家族；抽離共用 MatchupExplorer→球員頁分項與對戰整合＋deep-link、對手下拉只列交手隊、洞察 compact 各態專屬摘要；merge bc15ba1、線上 af336963/主站 1527a8d、Deploy run 29864575493） |
 | UX-SPECIAL-COMPARE1 | 球隊特殊戰績跨隊對照 | 🏁完成 | ✅已驗證 | [`tasks/UX-SPECIAL-COMPARE1.md`](tasks/UX-SPECIAL-COMPARE1.md)（T3；REVIEW-004 APPROVE by Antigravity；將高訊號戰績指標如逆轉、再見、最大連勝/連敗、一分差、完封、橫掃收攏至進階展開中，二軍隱藏，歷史年零退化） |
 | UX-RANKINGS1 | 打者與投手排行減法 | 🏁完成 | ✅已驗證 | [`tasks/UX-RANKINGS1.md`](tasks/UX-RANKINGS1.md)（T3；REVIEW-007 APPROVE by Antigravity；收斂預設欄位、隊徽與守位角色併名、小樣本灰階置底、一軍當季與歷史年皆計算 OPS+/ERA+ 年代相對值） |
 | UX-STANDINGS-FOCUS1 | 戰績頁競爭脈絡收斂 | 🏁完成 | ✅已驗證 | [`tasks/UX-STANDINGS-FOCUS1.md`](tasks/UX-STANDINGS-FOCUS1.md)（T3；REVIEW-004 APPROVE by Antigravity；首層收斂、細項移出，進階展開，375px 無水平溢出，2019/2026 季後賽 bracket 正常） |
