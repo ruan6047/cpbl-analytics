@@ -53,6 +53,61 @@ CREATE TABLE IF NOT EXISTS cpbl.advanced_snapshot_state (
     PRIMARY KEY (year, kind_code, dataset, role)
 );
 
+-- snapshot pointer 的 scope 與 identity 是 immutable invariant，必須由 DB 擋錯。
+-- status 是 run lifecycle state；RECONCILE1 必須在同一 transaction 將 run 設為
+-- promoted 後才更新 pointer，並以 audit query 驗證不存在非 promoted pointer。
+-- 下列 ALTER/DO 同時支援 fresh DB 與已套過 pre-review 062 的 upgrade path。
+ALTER TABLE cpbl.advanced_snapshot_state
+    ADD COLUMN IF NOT EXISTS current_run_scope text
+    GENERATED ALWAYS AS ('full'::text) STORED;
+
+DO $migration$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'cpbl.advanced_ingest_runs'::regclass
+          AND conname = 'advanced_ingest_runs_id_scope_key'
+    ) THEN
+        ALTER TABLE cpbl.advanced_ingest_runs
+            ADD CONSTRAINT advanced_ingest_runs_id_scope_key
+            UNIQUE (id, snapshot_scope);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'cpbl.advanced_ingest_runs'::regclass
+          AND conname = 'advanced_ingest_runs_id_identity_key'
+    ) THEN
+        ALTER TABLE cpbl.advanced_ingest_runs
+            ADD CONSTRAINT advanced_ingest_runs_id_identity_key
+            UNIQUE (id, year, kind_code, dataset, role);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'cpbl.advanced_snapshot_state'::regclass
+          AND conname = 'advanced_snapshot_state_full_run_fkey'
+    ) THEN
+        ALTER TABLE cpbl.advanced_snapshot_state
+            ADD CONSTRAINT advanced_snapshot_state_full_run_fkey
+            FOREIGN KEY (current_run_id, current_run_scope)
+            REFERENCES cpbl.advanced_ingest_runs (id, snapshot_scope);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'cpbl.advanced_snapshot_state'::regclass
+          AND conname = 'advanced_snapshot_state_run_identity_fkey'
+    ) THEN
+        ALTER TABLE cpbl.advanced_snapshot_state
+            ADD CONSTRAINT advanced_snapshot_state_run_identity_fkey
+            FOREIGN KEY (current_run_id, year, kind_code, dataset, role)
+            REFERENCES cpbl.advanced_ingest_runs
+                       (id, year, kind_code, dataset, role);
+    END IF;
+END
+$migration$;
+
 CREATE TABLE IF NOT EXISTS cpbl.advanced_pitch_type_stats (
     year                smallint NOT NULL,
     kind_code           text NOT NULL,

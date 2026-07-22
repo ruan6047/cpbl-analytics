@@ -5,9 +5,18 @@ from pathlib import Path
 
 import psycopg
 import pytest
+from psycopg import sql
 
 ROOT = Path(__file__).parents[1]
 MIGRATION = ROOT / "migrations" / "062_advanced_snapshot_schema.sql"
+
+
+def _assert_integrity_error(
+    connection: psycopg.Connection, statement: sql.SQL | str, parameters: tuple = ()
+) -> None:
+    with pytest.raises(psycopg.IntegrityError):
+        with connection.transaction():
+            connection.execute(statement, parameters)
 
 
 def test_advanced_snapshot_migration_is_additive_and_rerunnable() -> None:
@@ -24,6 +33,8 @@ def test_advanced_snapshot_migration_is_additive_and_rerunnable() -> None:
 
     assert "ADD COLUMN IF NOT EXISTS source_run_id" in sql
     assert "ADD COLUMN IF NOT EXISTS last_seen_at" in sql
+    assert "advanced_snapshot_state_full_run_fkey" in sql
+    assert "advanced_snapshot_state_run_identity_fkey" in sql
     assert "DROP TABLE" not in upper
     assert "DROP COLUMN" not in upper
     assert "TRUNCATE" not in upper
@@ -155,3 +166,195 @@ def test_advanced_snapshot_schema_contract_and_rerun_preserve_existing_rows() ->
             """
         ).fetchall()
         assert rows == [("breakingball", 758), ("fastball", 428)]
+
+        invalid_run_values = [
+            ("observed_rows", -1),
+            ("accepted_rows", -1),
+            ("empty_id_rows", -1),
+            ("duplicate_key_rows", -1),
+        ]
+        for column, value in invalid_run_values:
+            _assert_integrity_error(
+                connection,
+                sql.SQL(
+                    """
+                    INSERT INTO cpbl.advanced_ingest_runs (
+                        year, kind_code, dataset, role, snapshot_scope, status,
+                        source_endpoint, source_fetched_at, {column}
+                    ) VALUES (
+                        2026, 'A', 'player_stats', 'batting', 'full', 'running',
+                        '/leaderboards/pr-table', now(), %s
+                    )
+                    """
+                ).format(column=sql.Identifier(column)),
+                (value,),
+            )
+
+        _assert_integrity_error(
+            connection,
+            """
+            INSERT INTO cpbl.advanced_ingest_runs (
+                year, kind_code, dataset, role, snapshot_scope, status,
+                source_endpoint, source_fetched_at
+            ) VALUES (
+                2026, 'A', 'player_stats', 'batting', 'full', 'unknown',
+                '/leaderboards/pr-table', now()
+            )
+            """,
+        )
+        _assert_integrity_error(
+            connection,
+            """
+            INSERT INTO cpbl.advanced_ingest_runs (
+                year, kind_code, dataset, role, snapshot_scope, status,
+                source_endpoint, source_fetched_at, observed_rows, accepted_rows
+            ) VALUES (
+                2026, 'A', 'player_stats', 'batting', 'full', 'validated',
+                '/leaderboards/pr-table', now(), 1, 2
+            )
+            """,
+        )
+        _assert_integrity_error(
+            connection,
+            """
+            INSERT INTO cpbl.advanced_ingest_runs (
+                year, kind_code, dataset, role, snapshot_scope, status,
+                source_endpoint, source_fetched_at, started_at, completed_at
+            ) VALUES (
+                2026, 'A', 'player_stats', 'batting', 'full', 'validated',
+                '/leaderboards/pr-table', now(),
+                '2026-07-22T10:00:00Z', '2026-07-22T09:00:00Z'
+            )
+            """,
+        )
+        _assert_integrity_error(
+            connection,
+            """
+            INSERT INTO cpbl.advanced_pitch_type_stats (
+                year, kind_code, role, acnt, pitch_type, source_run_id,
+                source_fetched_at, last_seen_at
+            ) VALUES (
+                2026, 'A', 'pitching', '0000007791', 'fastball', %s,
+                '2026-07-22T10:00:00Z', '2026-07-22T09:00:00Z'
+            )
+            """,
+            (run_id,),
+        )
+
+        partial_run_id = connection.execute(
+            """
+            INSERT INTO cpbl.advanced_ingest_runs (
+                year, kind_code, dataset, role, snapshot_scope, status,
+                source_endpoint, source_fetched_at
+            ) VALUES (
+                2026, 'A', 'league_summary', '', 'partial', 'validated',
+                '/leaderboards/summary', now()
+            ) RETURNING id
+            """
+        ).fetchone()[0]
+        _assert_integrity_error(
+            connection,
+            """
+            INSERT INTO cpbl.advanced_snapshot_state (
+                year, kind_code, dataset, role, current_run_id,
+                row_count, source_fetched_at
+            ) VALUES (2026, 'A', 'league_summary', '', %s, 1, now())
+            """,
+            (partial_run_id,),
+        )
+
+        mismatched_run_id = connection.execute(
+            """
+            INSERT INTO cpbl.advanced_ingest_runs (
+                year, kind_code, dataset, role, snapshot_scope, status,
+                source_endpoint, source_fetched_at
+            ) VALUES (
+                2026, 'A', 'pitch_type_stats', 'pitching', 'full', 'promoted',
+                '/leaderboards/pitch-tracking', now()
+            ) RETURNING id
+            """
+        ).fetchone()[0]
+        _assert_integrity_error(
+            connection,
+            """
+            INSERT INTO cpbl.advanced_snapshot_state (
+                year, kind_code, dataset, role, current_run_id,
+                row_count, source_fetched_at
+            ) VALUES (1999, 'D', 'league_summary', 'batting', %s, 1, now())
+            """,
+            (mismatched_run_id,),
+        )
+
+
+@pytest.mark.skipif(
+    not os.getenv("ADV_SCHEMA_TEST_DATABASE_URL"),
+    reason="requires CARD_ID-isolated PostgreSQL",
+)
+def test_migration_upgrades_pre_review_snapshot_pointer_contract() -> None:
+    database_url = os.environ["ADV_SCHEMA_TEST_DATABASE_URL"]
+    assert database_url.rsplit("/", 1)[-1] == "cpbl_ingest_adv_expand1"
+    migrations = sorted((ROOT / "migrations").glob("*.sql"))
+
+    with psycopg.connect(database_url) as connection:
+        connection.execute("DROP SCHEMA IF EXISTS cpbl CASCADE")
+        for migration in migrations:
+            connection.execute(migration.read_text(encoding="utf-8"))
+
+        connection.execute(
+            """
+            ALTER TABLE cpbl.advanced_snapshot_state
+                DROP CONSTRAINT advanced_snapshot_state_full_run_fkey,
+                DROP CONSTRAINT advanced_snapshot_state_run_identity_fkey,
+                DROP COLUMN current_run_scope;
+            ALTER TABLE cpbl.advanced_ingest_runs
+                DROP CONSTRAINT advanced_ingest_runs_id_scope_key,
+                DROP CONSTRAINT advanced_ingest_runs_id_identity_key;
+            """
+        )
+        for _ in range(2):
+            connection.execute(MIGRATION.read_text(encoding="utf-8"))
+
+        constraints = {
+            row[0]
+            for row in connection.execute(
+                """
+                SELECT conname
+                FROM pg_constraint
+                WHERE connamespace = 'cpbl'::regnamespace
+                  AND conname IN (
+                    'advanced_ingest_runs_id_scope_key',
+                    'advanced_ingest_runs_id_identity_key',
+                    'advanced_snapshot_state_full_run_fkey',
+                    'advanced_snapshot_state_run_identity_fkey'
+                  )
+                """
+            )
+        }
+        assert constraints == {
+            "advanced_ingest_runs_id_scope_key",
+            "advanced_ingest_runs_id_identity_key",
+            "advanced_snapshot_state_full_run_fkey",
+            "advanced_snapshot_state_run_identity_fkey",
+        }
+
+        partial_run_id = connection.execute(
+            """
+            INSERT INTO cpbl.advanced_ingest_runs (
+                year, kind_code, dataset, role, snapshot_scope, status,
+                source_endpoint, source_fetched_at
+            ) VALUES (
+                2026, 'A', 'league_summary', '', 'partial', 'validated',
+                '/leaderboards/summary', now()
+            ) RETURNING id
+            """
+        ).fetchone()[0]
+        _assert_integrity_error(
+            connection,
+            """
+            INSERT INTO cpbl.advanced_snapshot_state (
+                year, kind_code, dataset, role, current_run_id,
+                row_count, source_fetched_at
+            ) VALUES (2026, 'A', 'league_summary', '', %s, 1, now())
+            """,
+            (partial_run_id,),
+        )
