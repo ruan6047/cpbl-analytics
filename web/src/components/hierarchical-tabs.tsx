@@ -148,14 +148,14 @@ function TabItems<ItemValue extends string>({ label, items, value, onChange }: {
   }, [index]);
 
   return (
-    <div role="tablist" aria-label={label} onKeyDown={onKeyDown} className="flex shrink-0 gap-1">
+    <div role="tablist" aria-label={label} onKeyDown={onKeyDown} className="flex shrink-0">
       {items.map((item, itemIndex) => (
         <button key={item.value} type="button" role="tab" aria-selected={value === item.value}
           tabIndex={value === item.value ? 0 : -1}
           ref={(element) => { refs.current[itemIndex] = element; }} onClick={() => onChange(item.value)}
-          className={`min-h-10 touch-manipulation whitespace-nowrap rounded-md px-2.5 text-sm transition ${value === item.value
-            ? "bg-surface font-semibold text-ink shadow-sm"
-            : "text-muted hover:bg-surface hover:text-ink"}`}>
+          className={`min-h-9 touch-manipulation whitespace-nowrap border-b-2 px-2 text-[13px] transition ${value === item.value
+            ? "border-ink font-semibold text-ink"
+            : "border-transparent text-muted hover:border-line-strong hover:text-ink"}`}>
           {item.label}
         </button>
       ))}
