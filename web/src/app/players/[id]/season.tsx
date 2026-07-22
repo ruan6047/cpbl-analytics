@@ -12,22 +12,23 @@ import { BestSeasonGrid } from "./parts";
 
 type AdvPair = { batting: StatRow | null; pitching: StatRow | null } | null;
 
-// 主指標 tile 融入官方 PR（UX-7A）：值下方加 prColor 迷你條＋PR 數字。
-// PR 一律用官方 `_pr` 欄（F1 紅線：官方沒有的指標不自算、不顯示條）。
+// 主指標 tile 融入官方 PR（UX-7A）：標題列右側顯示低干擾 PR badge。
+// PR 一律用官方 `_pr` 欄（F1 紅線：官方沒有的指標不自算、不顯示 badge）。
 // label 為英文縮寫時走 StatAbbr 名詞解釋（換裝語彙）。
 function PrTile({ label, value, accent, pr }: { label: string; value: string; accent?: boolean; pr?: number | null }) {
   return (
-    <div className="rounded-lg bg-surface-2 px-2 py-3 text-center">
-      <div className="text-[11px] text-muted"><StatAbbr abbr={label} /></div>
+    <div className="rounded-lg bg-surface-2 px-2 py-2.5 text-center">
+      <div className="flex min-h-4 items-center justify-between gap-1 text-[11px] text-muted">
+        <span className="min-w-0 truncate"><StatAbbr abbr={label} /></span>
+        {pr != null && (
+          <span className="shrink-0 rounded px-1.5 py-0.5 font-mono text-[9px] font-semibold leading-none tabular-nums text-ink"
+            style={{ background: prColor(pr).replace("rgb", "rgba").replace(")", ",0.18)") }}
+            title={`官方百分位 PR ${pr}（0–100，越高越好）`}>
+            PR {pr}
+          </span>
+        )}
+      </div>
       <div className={`mt-1 font-mono text-2xl leading-none tabular-nums ${accent ? "text-accent" : "text-ink"}`}>{value}</div>
-      {pr != null && (
-        <div className="mx-auto mt-1.5 flex max-w-24 items-center gap-1" title={`官方百分位 PR ${pr}（0–100，越高越好）`}>
-          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-line/60">
-            <div className="h-full rounded-full" style={{ width: `${pr}%`, background: prColor(pr) }} />
-          </div>
-          <span className="font-mono text-[10px] leading-none tabular-nums text-faint">{pr}</span>
-        </div>
-      )}
     </div>
   );
 }
@@ -109,10 +110,7 @@ export function SeasonSection({ profile, s, role, seasonKind, advanced }: {
           })() : <Card className="flex-1"><EmptyState>本季無{role === "batting" ? "打擊" : "投球"}成績</EmptyState></Card>}
         </div>
         <div className="flex flex-col">
-          <h2 className="mb-3 text-lg font-semibold text-ink">官方進階 · 百分位 PR
-            {role === "batting" && prRows.length > 0 &&
-              <span className="ml-2 align-middle text-xs font-normal text-faint">三圍 PR 已融入左側主指標</span>}
-          </h2>
+          <h2 className="mb-3 text-lg font-semibold text-ink">官方進階 · 百分位 PR</h2>
           <Card hoverable className="flex-1">
             {advanced === null ? (
               <div className="space-y-2.5 py-1" aria-hidden>
