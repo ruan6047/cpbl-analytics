@@ -54,18 +54,25 @@ export function HierarchicalTabs<GroupValue extends string, ItemValue extends st
           return (
             <div key={group.value} className="contents">
               {index > 0 && <span aria-hidden className="mx-1 h-6 w-px shrink-0 bg-line" />}
-              <button type="button" aria-pressed={active}
-                ref={(element) => { groupRefs.current[index] = element; }}
-                onClick={() => onGroupChange(group.value)} onKeyDown={(event) => moveGroup(event, index)}
-                className={`min-h-11 shrink-0 whitespace-nowrap rounded-lg px-3 text-sm font-semibold transition ${active
-                  ? "bg-ink text-paper shadow-sm"
-                  : "text-muted hover:bg-surface-2 hover:text-ink"}`}>
-                {group.label}
-              </button>
-              {active && (
-                <TabItems label={`${group.label}內容`} items={group.items} value={activeItem}
-                  onChange={onItemChange} />
-              )}
+              <div className={`flex shrink-0 items-center gap-1 rounded-xl p-1 ${active
+                ? "border border-line-strong bg-surface-2"
+                : ""}`}>
+                <button type="button" aria-pressed={active}
+                  ref={(element) => { groupRefs.current[index] = element; }}
+                  onClick={() => onGroupChange(group.value)} onKeyDown={(event) => moveGroup(event, index)}
+                  className={`min-h-11 shrink-0 whitespace-nowrap rounded-lg px-3 text-sm font-bold transition ${active
+                    ? "bg-ink text-paper shadow-sm"
+                    : "border-2 border-line-strong bg-surface text-ink shadow-sm hover:bg-surface-2"}`}>
+                  {group.label}
+                </button>
+                {active && (
+                  <>
+                    <span aria-hidden className="mx-0.5 h-6 w-px shrink-0 bg-line" />
+                    <TabItems label={`${group.label}內容`} items={group.items} value={activeItem}
+                      onChange={onItemChange} />
+                  </>
+                )}
+              </div>
             </div>
           );
         })}
@@ -150,7 +157,7 @@ function TabItems<ItemValue extends string>({ label, items, value, onChange }: {
         <button key={item.value} type="button" role="tab" aria-selected={value === item.value}
           tabIndex={value === item.value ? 0 : -1}
           ref={(element) => { refs.current[itemIndex] = element; }} onClick={() => onChange(item.value)}
-          className={`min-h-11 whitespace-nowrap rounded-lg px-3 text-sm transition ${value === item.value
+          className={`min-h-11 whitespace-nowrap rounded-full px-3 text-sm transition ${value === item.value
             ? "bg-accent font-semibold text-white"
             : "text-muted hover:bg-surface-2 hover:text-ink"}`}>
           {item.label}
