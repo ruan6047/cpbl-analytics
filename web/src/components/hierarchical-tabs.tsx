@@ -59,7 +59,7 @@ export function HierarchicalTabs<GroupValue extends string, ItemValue extends st
                 <button type="button" aria-pressed={active}
                   ref={(element) => { groupRefs.current[index] = element; }}
                   onClick={() => onGroupChange(group.value)} onKeyDown={(event) => moveGroup(event, index)}
-                  className={`min-h-10 shrink-0 touch-manipulation whitespace-nowrap rounded-md px-2.5 text-sm font-semibold transition ${active
+                  className={`min-h-11 shrink-0 touch-manipulation whitespace-nowrap rounded-md px-2.5 text-sm font-semibold transition ${active
                     ? "bg-ink text-paper"
                     : "bg-surface-2 text-ink hover:bg-line"}`}>
                   {group.label}
@@ -116,7 +116,7 @@ export function ContextSwitcher<Value extends string>({
         {values.map((item, itemIndex) => (
           <button key={item} type="button" aria-pressed={value === item}
             ref={(element) => { refs.current[itemIndex] = element; }} onClick={() => onChange(item)}
-            className={`min-h-8 touch-manipulation whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition ${value === item
+            className={`min-h-11 touch-manipulation whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition ${value === item
               ? "bg-surface text-ink shadow-sm"
               : "text-muted hover:text-ink"}`}>
             {render(item)}
@@ -153,7 +153,7 @@ function TabItems<ItemValue extends string>({ label, items, value, onChange }: {
         <button key={item.value} type="button" role="tab" aria-selected={value === item.value}
           tabIndex={value === item.value ? 0 : -1}
           ref={(element) => { refs.current[itemIndex] = element; }} onClick={() => onChange(item.value)}
-          className={`min-h-9 touch-manipulation whitespace-nowrap border-b-2 px-2 text-[13px] transition ${value === item.value
+          className={`min-h-11 touch-manipulation whitespace-nowrap border-b-2 px-2 text-[13px] transition ${value === item.value
             ? "border-ink font-semibold text-ink"
             : "border-transparent text-muted hover:border-line-strong hover:text-ink"}`}>
           {item.label}
