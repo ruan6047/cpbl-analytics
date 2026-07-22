@@ -82,12 +82,14 @@ export function AbilityCard({
   title,
   color,
   compact = false,
+  chartSize = "default",
   hideNote = false,
 }: {
   card: Card;
   title?: string;
   color?: string;
   compact?: boolean;
+  chartSize?: "default" | "hero";
   hideNote?: boolean;
 }) {
   const ct = useChartTheme();
@@ -131,7 +133,7 @@ export function AbilityCard({
           )}
         </div>
       )}
-      <div className={`relative ${compact ? "h-36" : "h-64"}`} role="img"
+      <div className={`relative ${compact ? "h-36" : chartSize === "hero" ? "h-56" : "h-64"}`} role="img"
         aria-label={`${title ?? "能力值"}雷達圖，各項為全聯盟百分位（越外圈越強）`}>
         {!compact && (
           <Tooltip content={methodNote(card)} suppressUnderline interactive>

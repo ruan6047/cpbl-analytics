@@ -51,10 +51,10 @@ export function PlayerHero({ profile, careerStats, ability, role, s, scope }: {
     careerStats?.coach_tenures?.some((t) => t.role?.includes("總教練") || t.role?.includes("監督"));
 
   return (
-      <div className="card mb-6 overflow-hidden">
+      <div className="card mb-5 overflow-hidden">
         <div className="h-1.5" style={{ background: teamColor(tc) }} />
-        <div className="p-5">
-        <div className="grid items-stretch gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="px-5 py-4">
+        <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
           {/* 左欄：身分資訊（置頂）＋得獎（置底） */}
           <div className="flex min-w-0 flex-col">
           <div className="min-w-0">
@@ -273,7 +273,7 @@ export function PlayerHero({ profile, careerStats, ability, role, s, scope }: {
                 <div className="mb-1 text-center text-xs font-semibold text-muted">
                   {abSel.eff === "season" ? "2026 本季能力" : "生涯能力"}
                 </div>
-                <AbilityCard card={abSel.card} color={teamColor(tc)} hideNote />
+                <AbilityCard card={abSel.card} color={teamColor(tc)} chartSize="hero" hideNote />
               </div>
               {/* 雷達右側保留總評，不再放第二組 scope 控制 */}
               <div className="flex w-16 shrink-0 flex-col items-center justify-center gap-3">
