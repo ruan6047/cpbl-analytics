@@ -325,7 +325,7 @@ function PlayerNavigation({ nav, roles, hasLevelChoice, onScope, onRole, onLevel
 
   return (
     <nav aria-label="球員資料導覽" style={{ top: stickyTop }}
-      className="sticky z-20 -mx-1 mb-6 border-y border-line bg-paper/95 px-1 py-2 backdrop-blur">
+      className="sticky z-20 -mx-1 mb-6 border-b border-line bg-paper/95 px-1 py-1.5 backdrop-blur">
       <HierarchicalTabs label="資料範圍" groups={PLAYER_TAB_GROUPS}
         activeGroup={nav.scope} activeItem={nav.view} onGroupChange={onScope} onItemChange={onView}
         controls={(roles.length > 1 || (nav.scope === "season" && hasLevelChoice)) ? <>
