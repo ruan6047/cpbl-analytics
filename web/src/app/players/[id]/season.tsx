@@ -32,12 +32,11 @@ function PrTile({ label, value, accent, pr }: { label: string; value: string; ac
   );
 }
 
-export function SeasonSection({ profile, s, role, seasonKind, setSeasonKind, advanced }: {
+export function SeasonSection({ profile, s, role, seasonKind, advanced }: {
   profile: PlayerProfile;
   s: StatRow | null;
   role: Role;
   seasonKind: "A" | "D";
-  setSeasonKind: (k: "A" | "D") => void;
   advanced: AdvPair;
 }) {
   const advRow = advanced ? (role === "batting" ? advanced.batting : advanced.pitching) : null;
@@ -62,17 +61,6 @@ export function SeasonSection({ profile, s, role, seasonKind, setSeasonKind, adv
         <div className="flex flex-col">
           <div className="mb-3 flex flex-wrap items-center gap-3">
             <h2 className="text-lg font-semibold text-ink">本季成績</h2>
-            {/* 二軍選手：預設採計二軍(D)，提供切換看一軍(A) */}
-            {profile.roster_level === "二軍" && (
-              <div className="inline-flex overflow-hidden rounded-full border border-line text-xs">
-                {(["D", "A"] as const).map((k) => (
-                  <button key={k} onClick={() => setSeasonKind(k)}
-                    className={`px-3 py-1 transition ${seasonKind === k ? "bg-accent text-white" : "bg-surface-2 text-muted hover:text-ink"}`}>
-                    {k === "D" ? "二軍" : "一軍"}
-                  </button>
-                ))}
-              </div>
-            )}
             {profile.roster_level === "二軍" && (
               <span className="text-[11px] text-faint">
                 {seasonKind === "D" ? "二軍選手 · 採計二軍數據" : "一軍數據（本季一軍出賽）"}

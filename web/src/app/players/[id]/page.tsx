@@ -1,9 +1,6 @@
 "use client";
 
-// 球員旗艦頁：IA2 修訂版——Hero 與總覽常駐；role 不再是切換鈕，而是攤成標籤頁
-// （雙棲球員同時有「打擊」與「投球」兩個內容頁）。守備自生涯層移出成獨立層。
-// 總覽／分項與對戰／生涯在雙棲時把兩種身分上下堆疊，全頁不存在隱性 role 狀態。
-// state 與資料抓取集中於此；層與資料需求的判斷集中在 layers.ts。
+// 球員旗艦頁：scope、role、view、level 四軸分離，URL 為單一事實來源。
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { type PlayerProfile, type StatRow, detail } from "@/lib/client";
@@ -11,8 +8,8 @@ import { EmptyState } from "@/components/ui";
 import { codeFromName, teamColor } from "@/lib/teams";
 import { type Ability, type CareerStats, type Disc, type Role } from "./lib";
 import {
-  type SubLayer, createLoadTracker, layerRole, layersFor, loadGroup, needsData, needsRoleHeading,
-  primaryRole, roleLabel, stackedRoles, subLayerFromParams, subLayerLabel,
+  type PlayerLevel, type PlayerScope, type PlayerView, createLoadTracker, loadGroup,
+  playerNavFromParams, roleLabel, viewsFor,
 } from "./layers";
 import { CareerYearlySection, SplitsSection } from "./detail";
 import { type FieldLeague, FieldingSection } from "./fielding";
@@ -23,8 +20,14 @@ import { CareerSummary, SeasonSection, TraitsChips } from "./season";
 import { BattedMixSection, MovementSection, type Movement, QualitySection, TrackingSection } from "./tracking";
 import { CareerTrendCard, SeasonTrendCard, VsTeamCard } from "./trend";
 
-/** 堆疊層的 per-role 狀態：雙棲時兩種身分同時呈現，故不能只存一份。 */
-type ByRole<T> = Partial<Record<Role, T | null>>;
+const VIEW_LABEL: Record<PlayerView, string> = {
+  overview: "總覽",
+  tracking: "逐球追蹤",
+  yearly: "逐年成績",
+  splits: "分項對戰",
+  fielding: "守備",
+  value: "進階價值",
+};
 
 export default function PlayerPage() {
   const { id } = useParams<{ id: string }>();
@@ -46,161 +49,157 @@ export default function PlayerPage() {
   const [fieldFromYear, setFieldFromYear] = useState<number | null>(null);
   const [fieldLeague, setFieldLeague] = useState<FieldLeague | undefined>();
   const [qualifyOuts, setQualifyOuts] = useState<number | undefined>();
-  // 以下四項在堆疊層需要同時持有兩種身分
-  const [vsTeam, setVsTeam] = useState<ByRole<StatRow[]>>({});
-  const [career, setCareer] = useState<ByRole<StatRow[]>>({});
-  const [careerMonthly, setCareerMonthly] = useState<ByRole<StatRow[]>>({});
-  const [trend, setTrend] = useState<ByRole<StatRow[]>>({});
+  const [vsTeam, setVsTeam] = useState<StatRow[] | null>(null);
+  const [career, setCareer] = useState<StatRow[] | null>(null);
+  const [careerMonthly, setCareerMonthly] = useState<StatRow[] | null>(null);
+  const [trend, setTrend] = useState<StatRow[] | null>(null);
   const [careerStats, setCareerStats] = useState<CareerStats | null>(null);
   const [ability, setAbility] = useState<Ability | null>(null);
-  // 本季成績層級：二軍選手預設採計二軍(D)、可切換看一軍(A)。
-  const [seasonKind, setSeasonKind] = useState<"A" | "D">("A");
-  // 能力值卡尺度（本季/生涯）；只影響 Hero 的能力卡。
-  const [dataTab, setDataTab] = useState<"season" | "career">("season");
 
   useEffect(() => {
-    detail.profile(id).then((d) => {
-      if (!d.player) return setNotFound(true);
-      setProfile(d.player);
-      const p = d.player;
-      if (!p.roster_level) setDataTab("career");
-      if (p.roster_level === "二軍") setSeasonKind("D");
-    }).catch(() => setNotFound(true));
+    setNotFound(false);
+    setProfile(null);
+    detail.profile(id).then((d) => d.player ? setProfile(d.player) : setNotFound(true))
+      .catch(() => setNotFound(true));
     detail.careerStats(id).then(setCareerStats).catch(() => setCareerStats(null));
     detail.abilityCard(id).then(setAbility).catch(() => setAbility(null));
   }, [id]);
 
-  // ---- 導覽狀態（URL 為單一事實來源，無隱性 role state）----
-  // 身分判定：含本季一軍(is_*)、生涯曾任(was_*)、本季二軍(farm_*) 任一即列。
   const roles: Role[] = [];
   if (profile?.is_batter || profile?.was_batter || profile?.farm_batter) roles.push("batting");
   if (profile?.is_pitcher || profile?.was_pitcher || profile?.farm_pitcher) roles.push("pitching");
-  // 退役/教練：本季完全無登錄層級 → 本季模組必空，預設層落生涯。
   const isRetired = !!profile && !profile.roster_level;
-  const sec = subLayerFromParams(params.get("sec"), params.get("role"), roles, isRetired);
-  const layers = layersFor(roles);
-  const stacked = stackedRoles(roles);
-  const showRoleHeading = needsRoleHeading(roles);
-  // 身分內容頁用該頁的 role；其餘層（Hero 能力卡）用主身分。
-  const heroRole = layerRole(sec) ?? primaryRole(roles);
+  const nav = playerNavFromParams({
+    scope: params.get("scope"),
+    view: params.get("view"),
+    role: params.get("role"),
+    level: params.get("level"),
+    sec: params.get("sec"),
+  }, roles, isRetired, profile?.roster_level);
 
-  const setSec = (value: SubLayer) => {
+  const replaceNav = (patch: Partial<{ scope: PlayerScope; view: PlayerView; role: Role; level: PlayerLevel }>) => {
     const next = new URLSearchParams(params.toString());
-    next.set("sec", value);
-    // 舊 ?role= 已由 sec 取代其導覽職責，切層時清掉以免兩者不一致。
-    next.delete("role");
+    const scope = patch.scope ?? nav.scope;
+    const requestedView = patch.view ?? nav.view;
+    const view = viewsFor(scope).includes(requestedView) ? requestedView : "overview";
+    next.set("scope", scope);
+    next.set("view", view);
+    next.set("role", patch.role ?? nav.role);
+    if (scope === "season") next.set("level", patch.level ?? nav.level);
+    else next.delete("level");
+    next.delete("sec");
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   };
 
-  // ---- 依層載入：常駐群組恆抓，層專屬群組只在進入該層時抓一次（key 變才重抓）----
   const tracker = useRef(createLoadTracker());
   const once = (group: string, key: string, run: () => void) => {
     if (tracker.current(group, key)) run();
   };
-  // 四個堆疊層狀態都是 StatRow[]，特化掉泛型以免傳 null 時 T 被推成 never。
-  const setByRole = (
-    set: React.Dispatch<React.SetStateAction<ByRole<StatRow[]>>>, r: Role, v: StatRow[] | null,
-  ) => set((prev) => ({ ...prev, [r]: v }));
 
-  const stackedKey = stacked.join(",");
-
-  // 常駐（Hero＋總覽）：本季成績、官方進階、賽季走勢。走勢在雙棲時兩身分都要。
+  // 本季資料只在本季 scope 載入；生涯畫面不再背景載入或渲染本季總覽。
   useEffect(() => {
-    once(loadGroup("season"), `${id}-${seasonKind}`, () => {
+    if (!profile || nav.scope !== "season") return;
+    once(loadGroup("season"), `${id}-${nav.level}`, () => {
       setSeason(null);
-      detail.season(id, seasonKind).then(setSeason).catch(() => setSeason(null));
+      detail.season(id, nav.level).then(setSeason).catch(() => setSeason(null));
     });
-    once(loadGroup("advanced"), `${id}-${seasonKind}`, () => {
-      setAdvanced(null);
-      detail.advanced(id, seasonKind).then(setAdvanced).catch(() => setAdvanced(null));
-    });
-    // profile 未載入時 roles 為空，stacked 會誤判為主身分預設值 → 等 profile 就緒再抓
-    if (!profile) return;
-    for (const r of stacked) {
-      once(loadGroup("trend", r), `${id}-${r}`, () => {
-        setByRole(setTrend, r, null);
-        detail.trend(id, r).then((d) => setByRole(setTrend, r, d.items))
-          .catch(() => setByRole(setTrend, r, []));
+    if (nav.view === "overview" || nav.view === "tracking") {
+      once(loadGroup("advanced"), `${id}-${nav.level}`, () => {
+        setAdvanced(null);
+        detail.advanced(id, nav.level).then(setAdvanced).catch(() => setAdvanced(null));
       });
     }
-  }, [id, seasonKind, stackedKey, profile]);
+  }, [id, nav.scope, nav.view, nav.level, profile]);
 
-  // 身分內容頁（打擊／投球）：逐球追蹤、配球傾向、球種卡、球種位移（僅投球頁）
   useEffect(() => {
-    if (!profile) return;
-    const pageRole = layerRole(sec);
-    if (!pageRole || !needsData("tracking", sec)) return;
-    once(loadGroup("tracking", pageRole), `${id}-${pageRole}-${seasonKind}`, () => {
+    if (!profile || nav.scope !== "season" || nav.view !== "overview") return;
+    once(loadGroup("trend", nav.role), `${id}-${nav.role}`, () => {
+      setTrend(null);
+      detail.trend(id, nav.role).then((d) => setTrend(d.items)).catch(() => setTrend([]));
+    });
+  }, [id, nav.scope, nav.view, nav.role, profile]);
+
+  useEffect(() => {
+    if (!profile || nav.scope !== "season" || nav.view !== "tracking") return;
+    once(loadGroup("tracking", nav.role), `${id}-${nav.role}-${nav.level}`, () => {
       setDisc(null);
       setPitchMix(null);
       setArsenal(null);
-      detail.discipline(id, pageRole, seasonKind).then((d) => setDisc(d as Disc)).catch(() => setDisc(null));
-      detail.pitchMix(id, pageRole, seasonKind).then((d) => setPitchMix(d.items)).catch(() => setPitchMix([]));
-      // 球種卡（arsenal 端點僅一軍樣本）
-      if (seasonKind === "A") detail.arsenal(id, pageRole).then((d) => setArsenal(d.items)).catch(() => setArsenal([]));
+      detail.discipline(id, nav.role, nav.level).then((d) => setDisc(d as Disc)).catch(() => setDisc(null));
+      detail.pitchMix(id, nav.role, nav.level).then((d) => setPitchMix(d.items)).catch(() => setPitchMix([]));
+      if (nav.level === "A") detail.arsenal(id, nav.role).then((d) => setArsenal(d.items)).catch(() => setArsenal([]));
       else setArsenal([]);
     });
-    if (pageRole !== "pitching") return;
-    once(loadGroup("movement"), `${id}-${seasonKind}`, () => {
-      setMov(null);
-      detail.movement(id, seasonKind).then(setMov).catch(() => setMov(null));
-    });
-  }, [id, seasonKind, sec, profile]);
-
-  // 分項與對戰：對戰各隊、生涯時段分項（分項明細由 SplitsSection 自抓）；雙棲時兩身分都要
-  useEffect(() => {
-    // profile 未載入時 sec 會因 roles 為空而回退到別層，先抓等於抓錯層的資料
-    if (!profile || !needsData("splits", sec)) return;
-    for (const r of stacked) {
-      once(loadGroup("splits", r), `${id}-${r}`, () => {
-        setByRole(setVsTeam, r, null);
-        detail.vsTeam(id, r).then((d) => setByRole(setVsTeam, r, d.items))
-          .catch(() => setByRole(setVsTeam, r, []));
-      });
-      once(loadGroup("splits", r) + ":monthly", `${id}-${r}`, () => {
-        setByRole(setCareerMonthly, r, null);
-        detail.trendCareer(id, r, "week").then((d) => setByRole(setCareerMonthly, r, d.items))
-          .catch(() => setByRole(setCareerMonthly, r, []));
+    if (nav.role === "pitching") {
+      once(loadGroup("movement"), `${id}-${nav.level}`, () => {
+        setMov(null);
+        detail.movement(id, nav.level).then(setMov).catch(() => setMov(null));
       });
     }
-  }, [id, sec, stackedKey, profile]);
+  }, [id, nav.scope, nav.view, nav.role, nav.level, profile]);
 
-  // 守備（獨立層）：與 role 無關，只隨一/二軍鏡頭
   useEffect(() => {
-    if (!profile || !needsData("fielding", sec)) return;
-    once(loadGroup("fielding") + ":career", id, () => {
-      detail.fielding(id, "career").then((d) => { setFieldingCareer(d.items); setFieldFromYear(d.from_year ?? null); })
-        .catch(() => setFieldingCareer([]));
+    if (!profile || nav.view !== "splits") return;
+    if (nav.scope === "season") {
+      once(loadGroup("splits", nav.role), `${id}-${nav.role}`, () => {
+        setVsTeam(null);
+        detail.vsTeam(id, nav.role).then((d) => setVsTeam(d.items)).catch(() => setVsTeam([]));
+      });
+    }
+  }, [id, nav.scope, nav.view, nav.role, profile]);
+
+  useEffect(() => {
+    if (!profile || nav.scope !== "career" || nav.view !== "overview") return;
+    once(loadGroup("trend", nav.role) + ":career", `${id}-${nav.role}`, () => {
+      setCareerMonthly(null);
+      detail.trendCareer(id, nav.role, "week").then((d) => setCareerMonthly(d.items))
+        .catch(() => setCareerMonthly([]));
     });
-    once(loadGroup("fielding"), `${id}-${seasonKind}`, () => {
+  }, [id, nav.scope, nav.view, nav.role, profile]);
+
+  useEffect(() => {
+    if (!profile || nav.view !== "fielding") return;
+    if (nav.scope === "career") {
+      once(loadGroup("fielding") + ":career", id, () => {
+        setFieldingCareer(null);
+        detail.fielding(id, "career").then((d) => {
+          setFieldingCareer(d.items);
+          setFieldFromYear(d.from_year ?? null);
+        }).catch(() => setFieldingCareer([]));
+      });
+      return;
+    }
+    once(loadGroup("fielding"), `${id}-${nav.level}`, () => {
       setFielding(null);
-      detail.fielding(id, "season", seasonKind).then((d) => {
+      detail.fielding(id, "season", nav.level).then((d) => {
         setFielding(d.items);
         setFieldLeague(d.league);
         setQualifyOuts(d.qualify_outs);
       }).catch(() => setFielding([]));
     });
-  }, [id, seasonKind, sec, profile]);
-
-  // 生涯：逐年（雙棲時兩身分都要）
-  useEffect(() => {
-    if (!profile || !needsData("career", sec)) return;
-    for (const r of stacked) {
-      once(loadGroup("career", r), `${id}-${r}`, () => {
-        setByRole(setCareer, r, null);
-        detail.career(id, r).then((d) => setByRole(setCareer, r, d.seasons))
-          .catch(() => setByRole(setCareer, r, []));
+    if (nav.level === "D") {
+      once(loadGroup("fielding") + ":career", id, () => {
+        setFieldingCareer(null);
+        detail.fielding(id, "career").then((d) => {
+          setFieldingCareer(d.items);
+          setFieldFromYear(d.from_year ?? null);
+        }).catch(() => setFieldingCareer([]));
       });
     }
-  }, [id, sec, stackedKey, profile]);
+  }, [id, nav.scope, nav.view, nav.level, profile]);
+
+  useEffect(() => {
+    if (!profile || nav.scope !== "career" || nav.view !== "yearly") return;
+    once(loadGroup("career", nav.role), `${id}-${nav.role}`, () => {
+      setCareer(null);
+      detail.career(id, nav.role).then((d) => setCareer(d.seasons)).catch(() => setCareer([]));
+    });
+  }, [id, nav.scope, nav.view, nav.role, profile]);
 
   if (notFound) return <p className="text-sm text-muted">查無此球員。</p>;
   if (!profile) return <EmptyState>載入中…</EmptyState>;
 
-  const seasonRow = (r: Role) => (season ? (r === "batting" ? season.batting : season.pitching) : null);
-  const hasCareer = !!(careerStats?.batting || careerStats?.pitching);
-
-  // 計算球員隊色作為 hover 光暈顏色
+  const seasonRow = nav.role === "batting" ? season?.batting ?? null : season?.pitching ?? null;
   const ongoingCoach = careerStats?.coach_tenures?.find((t) => t.to == null) ?? null;
   const primaryTeam = (careerStats?.teams ?? []).length
     ? [...(careerStats?.teams ?? [])].sort((a, b) => (b.to - b.from) - (a.to - a.from))[0]
@@ -209,80 +208,75 @@ export default function PlayerPage() {
     : ongoingCoach ? codeFromName(ongoingCoach.team)
     : (primaryTeam?.code ?? null);
   const color = teamColor(tc);
+  const hasLevelChoice = !!(profile.farm_batter || profile.farm_pitcher || profile.roster_level === "二軍" || profile.roster_days?.farm);
 
   return (
     <div style={{ "--hover-color": color } as React.CSSProperties}>
-      <PlayerHero profile={profile} careerStats={careerStats} ability={ability} role={heroRole}
-        s={seasonRow(heroRole)} isRetired={isRetired} hasCareer={hasCareer}
-        dataTab={dataTab} setDataTab={setDataTab} />
+      <PlayerHero profile={profile} careerStats={careerStats} ability={ability} role={nav.role}
+        s={seasonRow} scope={nav.scope} />
 
-      {/* ---- 總覽（常駐）：現在如何。雙棲時兩身分上下堆疊 ---- */}
-      <section aria-label="總覽" className="mb-6">
-        {isRetired ? (
-          <div className="mb-5 rounded-xl border border-line bg-surface p-4 text-sm text-muted">
-            本季無登錄紀錄（已退役／轉任教練），本季成績與逐球追蹤皆無資料；生涯表現請見「生涯」。
-          </div>
-        ) : (
-          stacked.map((r) => (
-            <RoleBlock key={r} role={r} heading={showRoleHeading}>
-              <SeasonSection profile={profile} s={seasonRow(r)} role={r}
-                seasonKind={seasonKind} setSeasonKind={setSeasonKind} advanced={advanced} />
-              <TraitsChips id={id} role={r} />
-            </RoleBlock>
-          ))
-        )}
-        {stacked.map((r) => (
-          <div key={r} className="mb-2">
-            <SeasonTrendCard trend={trend[r] ?? null} role={r} isRetired={isRetired} />
-          </div>
-        ))}
-      </section>
+      <PlayerNavigation nav={nav} roles={roles} hasLevelChoice={hasLevelChoice}
+        onScope={(scope) => replaceNav({ scope })}
+        onRole={(role) => replaceNav({ role })}
+        onLevel={(level) => replaceNav({ level })}
+        onView={(view) => replaceNav({ view })} />
 
-      {/* ---- 分層導覽（?sec=）---- */}
-      <SubNav sec={sec} layers={layers} setSec={setSec} />
-
-      <div role="tabpanel" aria-label={subLayerLabel(sec)}>
-        {layerRole(sec) && (() => {
-          const r = layerRole(sec)!;
-          return (
-            <>
-              {/* key 重掛：id/role/seasonKind 變更時重置球種鏡頭（沿用原重置語義） */}
-              <TrackingSection key={`${id}-${r}-${seasonKind}`} disc={disc} role={r} seasonKind={seasonKind} />
-              <QualitySection advanced={advanced} role={r} />
-              {r === "pitching" && <MovementSection mov={mov} />}
-              <BattedMixSection disc={disc} pitchMix={pitchMix} arsenal={arsenal} role={r} />
-            </>
-          );
-        })()}
-
-        {sec === "splits" && stacked.map((r) => (
-          <RoleBlock key={r} role={r} heading={showRoleHeading}>
-            <section className="mb-6">
-              <div className="grid items-stretch gap-6 lg:grid-cols-2">
-                <CareerTrendCard careerMonthly={careerMonthly[r] ?? null} role={r} />
-                <VsTeamCard vsTeam={vsTeam[r] ?? null} role={r} />
+      <div role="tabpanel" aria-label={`${nav.scope === "season" ? "本季" : "生涯"}・${VIEW_LABEL[nav.view]}`}>
+        {nav.scope === "season" && nav.view === "overview" && (
+          isRetired ? (
+            <EmptyState>本季無登錄紀錄（已退役／轉任教練）；可切換「生涯」查看完整表現。</EmptyState>
+          ) : (
+            <section aria-label="本季總覽" className="mb-6">
+              <SeasonSection profile={profile} s={seasonRow} role={nav.role}
+                seasonKind={nav.level} advanced={advanced} />
+              <TraitsChips id={id} role={nav.role} />
+              <div className="mt-5">
+                <SeasonTrendCard trend={trend} role={nav.role} isRetired={isRetired} />
               </div>
             </section>
-            <SplitsSection id={id} role={r} seasonKind={seasonKind} isRetired={isRetired} />
-            <PlayerMatchupsSection id={id} role={r} name={profile.name} isRetired={isRetired} />
-          </RoleBlock>
-        ))}
-
-        {sec === "fielding" && (
-          <FieldingSection fielding={fielding} fieldingCareer={fieldingCareer} fieldFromYear={fieldFromYear}
-            league={fieldLeague} qualifyOuts={qualifyOuts} seasonKind={seasonKind} />
+          )
         )}
 
-        {sec === "career" && stacked.map((r) => (
-          <RoleBlock key={r} role={r} heading={showRoleHeading}>
-            <CareerSummary careerStats={careerStats} role={r} />
-            <CareerYearlySection career={career[r] ?? null} role={r} />
-            <SabrSection id={id} role={r} />
-          </RoleBlock>
-        ))}
+        {nav.scope === "season" && nav.view === "tracking" && (
+          isRetired ? <EmptyState>本季無逐球追蹤資料（未登錄球員名單）。</EmptyState> : (
+            <>
+              <TrackingSection key={`${id}-${nav.role}-${nav.level}`} disc={disc} role={nav.role} seasonKind={nav.level} />
+              <QualitySection advanced={advanced} role={nav.role} />
+              {nav.role === "pitching" && <MovementSection mov={mov} />}
+              <BattedMixSection pitchMix={pitchMix} arsenal={arsenal} role={nav.role} />
+            </>
+          )
+        )}
+
+        {nav.view === "splits" && (
+          <>
+            {nav.scope === "season" && (
+              <section className="mb-6"><VsTeamCard vsTeam={vsTeam} role={nav.role} /></section>
+            )}
+            <SplitsSection key={`splits-${id}-${nav.scope}-${nav.role}`} id={id} role={nav.role}
+              seasonKind={nav.level} scope={nav.scope} />
+            <PlayerMatchupsSection key={`matchups-${id}-${nav.scope}-${nav.role}`} id={id}
+              role={nav.role} name={profile.name} scope={nav.scope} />
+          </>
+        )}
+
+        {nav.view === "fielding" && (
+          <FieldingSection fielding={fielding} fieldingCareer={fieldingCareer} fieldFromYear={fieldFromYear}
+            league={fieldLeague} qualifyOuts={qualifyOuts} seasonKind={nav.level} scope={nav.scope} />
+        )}
+
+        {nav.scope === "career" && nav.view === "overview" && (
+          <>
+            <CareerSummary careerStats={careerStats} role={nav.role} />
+            <section className="mb-6"><CareerTrendCard careerMonthly={careerMonthly} role={nav.role} /></section>
+          </>
+        )}
+        {nav.scope === "career" && nav.view === "yearly" && (
+          <CareerYearlySection career={career} role={nav.role} />
+        )}
+        {nav.scope === "career" && nav.view === "value" && <SabrSection id={id} role={nav.role} />}
       </div>
 
-      {/* 資料說明（統一彙整於頁尾，各區不再重複） */}
       <details className="mb-6 rounded-xl border border-line bg-surface">
         <summary className="cursor-pointer select-none px-4 py-2.5 text-sm font-medium text-muted hover:text-ink">
           資料說明與名詞解釋
@@ -291,7 +285,7 @@ export default function PlayerPage() {
           <p>· <span className="text-muted">能力值卡</span>：各軸為多項指標綜合的全聯盟百分位 [PR]（本季 打 AB≥50／投 IP≥20；生涯 AB≥300／IP≥100）。本季納官方進階（初速／強擊球%／Barrel%／揮空率／wOBA，覆蓋稀疏，無則退回傳統指標）；等級 S–G 由 PR 換算，皆客觀自算。滑鼠移到軸名看組成與權重。</p>
           <p>· <span className="text-muted">官方進階 · PR</span>：stats.cpbl 官方 TrackMan 全季值；色條＝PR（藍低→紅高）。打者為進攻、投手為被打數值。</p>
           <p>· <span className="text-muted">生涯／史上排名</span>：一軍例行賽各季合計（近兩季由逐場補）；史上排名以官方歷年累計、近兩季另計。生涯逐年源 cpbl-opendata（不含當季）。</p>
-          <p>· <span className="text-muted">逐球追蹤</span>：部分球場未配置設備、涵蓋場次少於全季，與官方進階全季值會有差異；擊球品質分布紅框＝強勁擊球理想仰角帶（近似 barrel 甜蜜區）。</p>
+          <p>· <span className="text-muted">逐球追蹤</span>：部分球場未配置設備、涵蓋場次少於全季，與官方進階全季值會有差異。</p>
           <p>· <span className="text-muted">一／二軍</span>：本季主要登錄層級由官網升降事件重建登錄天數判定。主守位＝本季出賽最多的守位或指定打擊（DH 由打擊出賽扣守備推算）。</p>
           <p>· <span className="text-muted">守備指標</span>：每 9 局率以守備局數為分母（局數自 2018 年起重建，更早年度僅顯示累計）；聯盟對照僅納入該守位達 100 局者。外野助殺少不等於臂力差——跑者可能因忌憚傳球而不敢進壘。</p>
           <p>· <span className="text-muted">進階指標（推算）</span>：RE24／wSB／捕手 RA9 以自建 CPBL 得分期望矩陣（逐打席 2018–25，經外部資料交叉驗證）與官方計數推算，非官方數據。RE24 名次為該年 PA≥200／BF≥200 合格者；捕手 RA/9 含非自責分（非 cERA）；跨年代比較受得分環境影響。</p>
@@ -301,30 +295,15 @@ export default function PlayerPage() {
   );
 }
 
-/** 堆疊層的身分區塊：只有雙棲時才加身分小標，單一身分加標題是雜訊。 */
-function RoleBlock({ role, heading, children }: {
-  role: Role; heading: boolean; children: React.ReactNode;
+function PlayerNavigation({ nav, roles, hasLevelChoice, onScope, onRole, onLevel, onView }: {
+  nav: { scope: PlayerScope; view: PlayerView; role: Role; level: PlayerLevel };
+  roles: Role[];
+  hasLevelChoice: boolean;
+  onScope: (scope: PlayerScope) => void;
+  onRole: (role: Role) => void;
+  onLevel: (level: PlayerLevel) => void;
+  onView: (view: PlayerView) => void;
 }) {
-  return (
-    <div className="mb-4">
-      {heading && (
-        <h3 className="mb-2 border-l-4 border-accent pl-2 text-base font-semibold text-ink">
-          {roleLabel(role)}
-        </h3>
-      )}
-      {children}
-    </div>
-  );
-}
-
-/** 分層 sticky 導覽（WAI-ARIA tabs：←/→ 移動並切換）。 */
-function SubNav({ sec, layers, setSec }: {
-  sec: SubLayer; layers: SubLayer[]; setSec: (l: SubLayer) => void;
-}) {
-  const idx = Math.max(0, layers.indexOf(sec));
-  // 站台 header 也是 sticky top-0 且 z-40，本列若同樣 top-0 會被整個蓋住、捲動後點不到
-  // （IA1 prototype 沒有 header，`top-0` 在那裡是對的，搬進正式頁後沒重新檢查）。
-  // header 高度隨斷點與內容變動（實測 375px 為 73、1280px 為 63），故執行期量測而非寫死。
   const [stickyTop, setStickyTop] = useState(0);
   useEffect(() => {
     const header = document.querySelector("header");
@@ -335,30 +314,66 @@ function SubNav({ sec, layers, setSec }: {
     ro.observe(header);
     return () => ro.disconnect();
   }, []);
+
+  return (
+    <nav aria-label="球員資料導覽" style={{ top: stickyTop }}
+      className="sticky z-20 -mx-1 mb-6 border-y border-line bg-paper/95 px-1 py-2 backdrop-blur">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <TabRow label="資料範圍" values={["season", "career"] as const} value={nav.scope}
+          render={(v) => v === "season" ? "本季" : "生涯"} onChange={onScope} strong />
+        {roles.length > 1 && (
+          <div className="flex items-center gap-1.5 border-l border-line pl-3">
+            <span className="text-[11px] text-muted">身分</span>
+            <TabRow label="球員身分" values={roles} value={nav.role} render={roleLabel} onChange={onRole} />
+          </div>
+        )}
+        {nav.scope === "season" && hasLevelChoice && (
+          <div className="flex items-center gap-1.5 border-l border-line pl-3">
+            <span className="text-[11px] text-muted">層級</span>
+            <TabRow label="賽事層級" values={["A", "D"] as const} value={nav.level}
+              render={(v) => v === "A" ? "一軍" : "二軍"} onChange={onLevel} />
+          </div>
+        )}
+      </div>
+      <div className="mt-2 border-t border-line/70 pt-2">
+        <TabRow label="內容視圖" values={viewsFor(nav.scope)} value={nav.view}
+          render={(v) => VIEW_LABEL[v]} onChange={onView} />
+      </div>
+    </nav>
+  );
+}
+
+function TabRow<T extends string>({ label, values, value, render, onChange, strong = false }: {
+  label: string;
+  values: readonly T[];
+  value: T;
+  render: (value: T) => string;
+  onChange: (value: T) => void;
+  strong?: boolean;
+}) {
+  const idx = Math.max(0, values.indexOf(value));
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
-  // 只有使用者用鍵盤操作過 tablist 才把焦點跟著移動；deep-link 直開不搶焦點。
   const keyboardMoved = useRef(false);
   const onKey = (e: React.KeyboardEvent) => {
     const delta = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
     if (!delta) return;
     e.preventDefault();
     keyboardMoved.current = true;
-    setSec(layers[(idx + delta + layers.length) % layers.length]);
+    onChange(values[(idx + delta + values.length) % values.length]);
   };
   useEffect(() => {
-    if (!keyboardMoved.current) return;
-    refs.current[idx]?.focus({ preventScroll: true });
+    if (keyboardMoved.current) refs.current[idx]?.focus({ preventScroll: true });
   }, [idx]);
   return (
-    <div role="tablist" aria-label="球員資料分層" onKeyDown={onKey} style={{ top: stickyTop }}
-      className="sticky z-20 -mx-1 mb-4 flex gap-1 overflow-x-auto border-b border-line bg-paper px-1 py-2">
-      {layers.map((l, i) => (
-        <button key={l} role="tab" aria-selected={sec === l} tabIndex={sec === l ? 0 : -1}
-          ref={(el) => { refs.current[i] = el; }}
-          onClick={() => setSec(l)}
-          className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm transition ${
-            sec === l ? "bg-ink font-medium text-paper" : "text-muted hover:bg-surface-2 hover:text-ink"}`}>
-          {subLayerLabel(l)}
+    <div role="tablist" aria-label={label} onKeyDown={onKey}
+      className={`flex min-w-0 gap-1 overflow-x-auto ${strong ? "rounded-xl bg-surface-2 p-1" : ""}`}>
+      {values.map((item, i) => (
+        <button key={item} role="tab" aria-selected={value === item} tabIndex={value === item ? 0 : -1}
+          ref={(el) => { refs.current[i] = el; }} onClick={() => onChange(item)}
+          className={`min-h-11 whitespace-nowrap rounded-lg px-3 text-sm transition ${value === item
+            ? strong ? "bg-ink font-semibold text-paper shadow-sm" : "bg-accent font-semibold text-white"
+            : "text-muted hover:bg-surface-2 hover:text-ink"}`}>
+          {render(item)}
         </button>
       ))}
     </div>

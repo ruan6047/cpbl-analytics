@@ -49,6 +49,7 @@ export default function MatchupExplorer({
   onPatch,
   header,
   compactInsight = false,
+  hideScopeControl = false,
 }: {
   /** 主角球員；空字串＝尚未選定（/matchups 首開），只顯示控制列與提示。 */
   pid: string;
@@ -61,6 +62,8 @@ export default function MatchupExplorer({
   header?: React.ReactNode;
   /** 球員頁用：洞察非 ok 態收合（fail-closed 在球員頁是次要加值層）。 */
   compactInsight?: boolean;
+  /** host 已有全域範圍控制時隱藏重複的 scope 選單；查詢仍使用 controls.scope。 */
+  hideScopeControl?: boolean;
 }) {
   const { kind, scope, fromYear, toYear, team, opp, pick, sort, order } = controls;
   const headingId = useId();
@@ -237,21 +240,23 @@ export default function MatchupExplorer({
             header ? "mt-3 border-t border-line pt-3" : ""
           }`}
         >
-          <Field label="資料範圍">
-            <select
-              className={selectCls}
-              value={scope}
-              onChange={(e) => {
-                const v = e.target.value as MatchupControls["scope"];
-                onPatch(v === "range" ? { scope: v, fromYear, toYear } : { scope: v });
-              }}
-            >
-              <option value="season">本季</option>
-              <option value="career">生涯</option>
-              <option value="range">指定年度範圍</option>
-            </select>
-          </Field>
-          {scope === "range" && (
+          {!hideScopeControl && (
+            <Field label="資料範圍">
+              <select
+                className={selectCls}
+                value={scope}
+                onChange={(e) => {
+                  const v = e.target.value as MatchupControls["scope"];
+                  onPatch(v === "range" ? { scope: v, fromYear, toYear } : { scope: v });
+                }}
+              >
+                <option value="season">本季</option>
+                <option value="career">生涯</option>
+                <option value="range">指定年度範圍</option>
+              </select>
+            </Field>
+          )}
+          {!hideScopeControl && scope === "range" && (
             <div className="flex items-center gap-1.5">
               <Field label="從">
                 <select

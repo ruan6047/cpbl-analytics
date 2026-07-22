@@ -1,8 +1,6 @@
 "use client";
 
-// 守備表：本季 fielding_current / 生涯 1990– 彙總。
-// 本區整段屬「生涯」層，故不再提供本季/生涯切換（IA 遷移 map #16：本季守備併同表首列）；
-// 有本季資料就直接疊在生涯表之上，兩段一眼全見，退役者自然只剩生涯段。
+// 守備表：本季 fielding_current / 生涯 1990– 彙總。顯示範圍由全域 scope 決定。
 import { type StatRow } from "@/lib/client";
 import { DataTable, type Column } from "@/components/table";
 import { FieldDiagram } from "@/components/field-diagram";
@@ -11,6 +9,7 @@ import {
   type PosGroup, fieldingCells, innings, isMultiPosition, isQualified, per9,
   posGroup, primaryPos, valueMetrics, vizRows,
 } from "./fielding-metrics";
+import type { PlayerScope } from "./layers";
 
 export type FieldLeague = Record<string, {
   n: number; a9: number | null; dp9: number | null; tc9: number | null; fpct: number | null;
@@ -111,16 +110,19 @@ function FieldingValueCard({ row, league, qualifyOuts }: {
   );
 }
 
-export function FieldingSection({ fielding, fieldingCareer, fieldFromYear, league, qualifyOuts, seasonKind }: {
+export function FieldingSection({ fielding, fieldingCareer, fieldFromYear, league, qualifyOuts, seasonKind, scope }: {
   fielding: StatRow[] | null;
   fieldingCareer: StatRow[] | null;
   fieldFromYear: number | null;
   league?: FieldLeague;
   qualifyOuts?: number;
   seasonKind?: "A" | "D";
+  scope: PlayerScope;
 }) {
-  const seasonRows = fielding ?? [];
-  const careerRows = fieldingCareer ?? [];
+  const rawSeasonRows = fielding ?? [];
+  const rawCareerRows = fieldingCareer ?? [];
+  const seasonRows = scope === "season" ? rawSeasonRows : [];
+  const careerRows = scope === "career" ? rawCareerRows : [];
   if (seasonRows.length === 0 && careerRows.length === 0) return null;
   // 捕手欄位只要任一段用得到就整區顯示，避免兩張表欄數不一致而難以對照。
   const fld = [...seasonRows, ...careerRows];
@@ -156,7 +158,8 @@ export function FieldingSection({ fielding, fieldingCareer, fieldFromYear, leagu
   // 且 fielding_innings 只建一軍（實查 4,209 列全為 kind_code='A'），二軍列必然無局數，
   // 率值無從計算——若放行會讓價值卡對 2026 現役二軍球員吐出「2018 年以前無局數」的錯誤文案。
   // 二軍鏡頭下改以一軍生涯列做身分描述（career 分支本就只 UNION 一軍），並不渲染價值卡。
-  const viz = vizRows(seasonRows, careerRows, seasonKind === "D");
+  // 二軍鏡頭延續既有語意：表格只顯示本季二軍，守位身分圖可用一軍生涯列補足。
+  const viz = vizRows(rawSeasonRows, rawCareerRows, scope === "season" && seasonKind === "D");
   const mapRows = viz.map;
   const primary = primaryPos(mapRows.map((r) => ({ pos: String(r.pos), g: numOf(r.g) })));
   const multi = isMultiPosition(mapRows.map((r) => ({ pos: String(r.pos), g: numOf(r.g) })));

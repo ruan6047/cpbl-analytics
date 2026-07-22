@@ -55,6 +55,16 @@ test("playerNavFromParams 一次產出整頁唯一 navigation state", () => {
     playerNavFromParams({ scope: "season", view: "tracking", role: "pitching", level: "D", sec: null }, BOTH, false, "二軍"),
     { scope: "season", view: "tracking", role: "pitching", level: "D" },
   );
+  assert.deepEqual(
+    playerNavFromParams({ scope: null, view: null, role: "pitching", level: null, sec: null }, BOTH, false, "一軍"),
+    { scope: "season", view: "tracking", role: "pitching", level: "A" },
+    "IA2 舊 ?role= 連結應繼續開啟身分內容頁",
+  );
+  assert.deepEqual(
+    playerNavFromParams({ scope: "season", view: null, role: "pitching", level: null, sec: null }, BOTH, false, "一軍"),
+    { scope: "season", view: "overview", role: "pitching", level: "A" },
+    "新 scope URL 未給 view 時仍預設總覽",
+  );
 });
 
 test("標籤列：雙棲出現打擊與投球兩個內容頁", () => {

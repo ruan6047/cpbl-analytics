@@ -1,21 +1,20 @@
 "use client";
 
 // 明細區。IA 分層（UX-PLAYER-IA1）後拆為兩塊：
-// SplitsSection→L3 分項與對戰（分項資料自抓，scope/kinds 只影響本區）、CareerYearlySection→L4 生涯。
+// SplitsSection 的 scope 由球員頁全域導覽控制；本區只保留生涯賽事類型篩選。
 import { useEffect, useRef, useState } from "react";
 import { type StatRow, detail } from "@/lib/client";
 import { EmptyState, TableSkeleton } from "@/components/ui";
 import { type Role, SPLIT_CATS, splitCat } from "./lib";
-import { CareerTable, SplitsTable, Tabs } from "./parts";
+import { CareerTable, SplitsTable } from "./parts";
+import type { PlayerScope } from "./layers";
 
-export function SplitsSection({ id, role, seasonKind, isRetired }: {
+export function SplitsSection({ id, role, seasonKind, scope }: {
   id: string;
   role: Role;
   seasonKind: "A" | "D";
-  isRetired: boolean;
+  scope: PlayerScope;
 }) {
-  // 退役/教練（本季無登錄層級）分項預設生涯
-  const [scope, setScope] = useState<"season" | "career">(isRetired ? "career" : "season");
   const [kinds, setKinds] = useState<string[]>(["A"]);
   const [splits, setSplits] = useState<StatRow[] | null>(null);
   // 重抓（切 role／scope／鏡頭）時本區會退回骨架，高度大幅縮水會改變文件高度、
@@ -42,10 +41,6 @@ export function SplitsSection({ id, role, seasonKind, isRetired }: {
     <section className="mb-6">
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <h2 className="text-lg font-semibold text-ink">分項明細</h2>
-        {/* 退役/教練本季無分項 → 只留生涯切換 */}
-        <Tabs opts={isRetired
-          ? [{ v: "career", label: "生涯" }]
-          : [{ v: "season", label: "本季" }, { v: "career", label: "生涯" }]} v={scope} set={setScope} />
         {scope === "career" && (
           <div className="inline-flex flex-wrap gap-2">
             {([["A", "例行賽"], ["C", "總冠軍"], ["E", "季後賽"]] as const).map(([k, label]) => {

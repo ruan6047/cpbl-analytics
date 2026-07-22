@@ -1,6 +1,6 @@
 "use client";
 
-// Hero 區：身分徽章 + 生涯效力/教練/旅外 + 得獎 + 能力雷達側欄（本季/生涯切換）。
+// Hero 區：身分徽章 + 生涯效力/教練/旅外 + 得獎 + 能力雷達。
 import { AbilityCard, GradeChip } from "@/components/ability-card";
 import { LetterBadge, TeamLogo } from "@/components/ui";
 import { type PlayerProfile, type StatRow } from "@/lib/client";
@@ -8,11 +8,11 @@ import { fmtIP } from "@/lib/format";
 import { codeFromName, contrastText, eraBadge, teamColor } from "@/lib/teams";
 import { MEDAL_COLORS, STATUS_COLORS } from "@/lib/chart-theme";
 import { type Ability, type CareerStats, type Role, IMPORT_BADGE, f3, numOf } from "./lib";
-import { Tabs, TenureChips } from "./parts";
+import type { PlayerScope } from "./layers";
+import { TenureChips } from "./parts";
 
-// 能力值卡選取：尺度由能力卡自己的 dataTab（本季/生涯）決定——IA 分層後它只作用於能力卡，
-// 不再連動下方區塊顯隱；role 卡缺則退回另一 role
-export function selectAbility(ability: Ability | null, role: Role, dataTab: "season" | "career") {
+// 能力值卡跟隨全域 scope；該 scope 缺卡時退回可用尺度，role 缺卡再退回另一 role。
+export function selectAbility(ability: Ability | null, role: Role, dataTab: PlayerScope) {
   const sa = (sc: "season" | "career") => !!(ability?.batting?.[sc]?.available || ability?.pitching?.[sc]?.available);
   if (!sa("season") && !sa("career")) return null;
   const eff = sa(dataTab) ? dataTab : sa("season") ? "season" : "career";
@@ -22,16 +22,13 @@ export function selectAbility(ability: Ability | null, role: Role, dataTab: "sea
   return { eff, card };
 }
 
-export function PlayerHero({ profile, careerStats, ability, role, s, isRetired, hasCareer, dataTab, setDataTab }: {
+export function PlayerHero({ profile, careerStats, ability, role, s, scope }: {
   profile: PlayerProfile;
   careerStats: CareerStats | null;
   ability: Ability | null;
   role: Role;
   s: StatRow | null;
-  isRetired: boolean;
-  hasCareer: boolean;
-  dataTab: "season" | "career";
-  setDataTab: (v: "season" | "career") => void;
+  scope: PlayerScope;
 }) {
   // hero 隊伍：本季球員登錄隊 > 進行中執教隊（教練 tenure 未結束）> 生涯主隊（年資最長）
   const ongoingCoach = careerStats?.coach_tenures?.find((t) => t.to == null) ?? null;
@@ -42,7 +39,10 @@ export function PlayerHero({ profile, careerStats, ability, role, s, isRetired, 
   const tc = profile.team ? codeFromName(profile.team)
     : ongoingCoach ? codeFromName(ongoingCoach.team)
     : (primaryTeam?.code ?? null);
-  const abSel = selectAbility(ability, role, dataTab);
+  const abSel = selectAbility(ability, role, scope);
+  const headline = (scope === "season" ? s
+    : role === "batting" ? careerStats?.batting : careerStats?.pitching) as StatRow | null | undefined;
+  const hasCareer = !!(careerStats?.batting || careerStats?.pitching);
 
   const hasPlayerRole = hasCareer || !!profile.roster_level;
   const hasCoachRole = (careerStats?.official_coach_tenures && careerStats.official_coach_tenures.length > 0) || (careerStats?.coach_tenures && careerStats.coach_tenures.length > 0);
@@ -150,17 +150,19 @@ export function PlayerHero({ profile, careerStats, ability, role, s, isRetired, 
                     ) : null;
                   })()}
                 </div>
-                {/* 本季數值：區塊右上角 */}
-                {s && role === "batting" && (
+                {/* headline 與全域 scope 同步 */}
+                {headline && role === "batting" && (
                   <div className="shrink-0 font-mono leading-tight text-ink sm:text-right">
-                    <div className="text-2xl font-semibold tabular-nums">{f3(s.avg)}/{f3(s.obp)}/{f3(s.slg)}</div>
-                    <div className="text-base font-semibold tabular-nums text-accent">OPS {f3(s.ops)}</div>
+                    <div className="mb-0.5 text-[10px] font-sans text-muted">{scope === "season" ? "2026 本季" : "生涯"}</div>
+                    <div className="text-2xl font-semibold tabular-nums">{f3(headline.avg)}/{f3(headline.obp)}/{f3(headline.slg)}</div>
+                    <div className="text-base font-semibold tabular-nums text-accent">OPS {f3(headline.ops)}</div>
                   </div>
                 )}
-                {s && role === "pitching" && (
+                {headline && role === "pitching" && (
                   <div className="shrink-0 font-mono leading-tight text-ink sm:text-right">
-                    <div className="text-2xl font-semibold tabular-nums">{numOf(s.era)?.toFixed(2) ?? "—"} ERA</div>
-                    <div className="text-base tabular-nums text-muted">{s.w ?? 0}-{s.l ?? 0} · {fmtIP(s.ip as number | string | null)} 局</div>
+                    <div className="mb-0.5 text-[10px] font-sans text-muted">{scope === "season" ? "2026 本季" : "生涯"}</div>
+                    <div className="text-2xl font-semibold tabular-nums">{numOf(headline.era)?.toFixed(2) ?? "—"} ERA</div>
+                    <div className="text-base tabular-nums text-muted">{headline.w ?? 0}-{headline.l ?? 0} · {fmtIP(headline.ip as number | string | null)} 局</div>
                   </div>
                 )}
               </div>
@@ -264,25 +266,22 @@ export function PlayerHero({ profile, careerStats, ability, role, s, isRetired, 
             </div>
           )}
           </div>
-          {/* 右欄：能力值雷達 ＋ 本季/生涯（雷達正下方右側、往上收） */}
+          {/* 右欄：能力值雷達，scope 由 Hero 下方的全域控制驅動 */}
           {abSel && (
             <div className="flex items-center gap-2 lg:border-l lg:border-line lg:pl-5">
               <div className="min-w-0 flex-1">
+                <div className="mb-1 text-center text-xs font-semibold text-muted">
+                  {abSel.eff === "season" ? "2026 本季能力" : "生涯能力"}
+                </div>
                 <AbilityCard card={abSel.card} color={teamColor(tc)} hideNote />
               </div>
-              {/* 雷達右側：總評＋本季/生涯（直排），用側欄消化雷達下方空白 */}
+              {/* 雷達右側保留總評，不再放第二組 scope 控制 */}
               <div className="flex w-16 shrink-0 flex-col items-center justify-center gap-3">
                 {abSel.card.overall && (
                   <div className="flex flex-col items-center gap-1">
                     <span className="text-[10px] text-muted">總評</span>
                     <GradeChip grade={abSel.card.overall.grade} size="lg" />
                   </div>
-                )}
-                {(!isRetired || hasCareer) && (
-                  <Tabs vertical opts={[
-                    ...(!isRetired ? [{ v: "season" as const, label: "本季" }] : []),
-                    ...(hasCareer ? [{ v: "career" as const, label: "生涯" }] : []),
-                  ]} v={dataTab} set={setDataTab} />
                 )}
               </div>
             </div>

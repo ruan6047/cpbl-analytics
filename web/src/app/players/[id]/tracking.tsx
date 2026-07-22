@@ -3,7 +3,6 @@
 // 逐球追蹤（落點/進壘點/揮棒紀律/熱區，共用單一球種鏡頭）+ 擊球品質彈道 + 打者散點/投手配球。
 // pitchType 內化於 TrackingSection；page 以 key={id-role-seasonKind} 重掛以保留原重置語義。
 import { useState } from "react";
-import { LaEvScatter } from "@/components/la-ev-scatter";
 import { type HeatMetric, Grid3x3, PlateDisciplineBars } from "@/components/perf-heatmap";
 import { SprayChart } from "@/components/spray-chart";
 import { Card, EmptyState, PR_GRADIENT, Skeleton, StatTile } from "@/components/ui";
@@ -206,25 +205,14 @@ function ArsenalTable({ items }: { items: ArsenalItem[] }) {
   return <DataTable columns={cols} rows={rows} rowKey={(r) => r.pitch_type} dense bare className="self-start" />;
 }
 
-// 打者：擊球品質散點（仰角×初速） / 投手：球種卡 + 配球傾向（依球數）
-export function BattedMixSection({ disc, pitchMix, arsenal, role }: {
-  disc: Disc | null;
+// 打者無額外配球區；投手顯示球種卡 + 配球傾向（依球數）。
+export function BattedMixSection({ pitchMix, arsenal, role }: {
   pitchMix: { bucket: string; n: number; mix: { pitch_type: string; pct: number }[] }[] | null;
   arsenal: ArsenalItem[] | null;
   role: Role;
 }) {
   const ct = useChartTheme();
-  if (role === "batting") {
-    if ((disc?.batted.length ?? 0) === 0) return null;
-    return (
-      <section className="mb-6">
-        <h2 className="mb-3 text-lg font-semibold text-ink">擊球品質分布（仰角 × 初速）</h2>
-        <Card>
-          <LaEvScatter balls={disc!.batted} />
-        </Card>
-      </section>
-    );
-  }
+  if (role === "batting") return null;
   if ((pitchMix?.length ?? 0) === 0 && (arsenal?.length ?? 0) === 0) return null;
   return (
     <section className="mb-6">

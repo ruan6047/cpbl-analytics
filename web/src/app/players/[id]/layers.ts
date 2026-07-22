@@ -66,9 +66,13 @@ export function playerNavFromParams(
   rosterLevel: string | null | undefined,
 ): { scope: PlayerScope; view: PlayerView; role: Role; level: PlayerLevel } {
   const scope = scopeFromParams(params.scope, params.sec, isRetired);
+  // IA2 時期 `?role=` 本身會打開對應身分的逐球內容頁；只有在新 scope/view
+  // 皆未出現時才視為舊連結，避免影響新 URL 省略 view 時的 overview 預設。
+  const legacyView = !params.scope && !params.view && !params.sec &&
+    (params.role === "batting" || params.role === "pitching") ? params.role : params.sec;
   return {
     scope,
-    view: viewFromParams(params.view, params.sec, scope),
+    view: viewFromParams(params.view, legacyView, scope),
     role: roleFromParams(params.role, params.sec, roles),
     level: levelFromParams(params.level, rosterLevel),
   };

@@ -2,11 +2,11 @@
 
 // 球員頁「分項與對戰」的投打對決區（UX-MATCHUP2）。
 // 只整合共用 MatchupExplorer：主角固定為當前球員（無主角選擇器），查詢狀態
-// 收在本區 local state（球員頁 URL 只留 ?sec= 導覽，雙棲兩份面板互不干擾）；
+// 收在本區 local state，但資料範圍由球員頁全域 scope 同步；
 // 「在投打對決頁開啟」以 matchupsHref 帶當前查詢回 /matchups 跨球員入口。
 // EB 判斷、fail-closed 與空／錯誤狀態全在共用面板內，本檔不得另造。
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   DEFAULT_CONTROLS,
   matchupsHref,
@@ -15,18 +15,19 @@ import {
 } from "@/components/matchups/controls";
 import MatchupExplorer from "@/components/matchups/explorer";
 import type { Role } from "@/components/matchups/api";
+import type { PlayerScope } from "./layers";
 
-export function PlayerMatchupsSection({ id, role, name, isRetired }: {
+export function PlayerMatchupsSection({ id, role, name, scope }: {
   id: string;
   role: Role;
   name: string | null;
-  /** 退役／教練本季必無對戰列，預設改查生涯（與分項明細一致）。 */
-  isRetired: boolean;
+  scope: PlayerScope;
 }) {
   const [controls, setControls] = useState<MatchupControls>({
     ...DEFAULT_CONTROLS,
-    scope: isRetired ? "career" : "season",
+    scope,
   });
+  useEffect(() => setControls((c) => ({ ...c, scope })), [scope]);
   const patch = (p: ControlsPatch) => setControls((c) => ({ ...c, ...p }));
 
   return (
@@ -50,6 +51,7 @@ export function PlayerMatchupsSection({ id, role, name, isRetired }: {
         controls={controls}
         onPatch={patch}
         compactInsight
+        hideScopeControl
       />
     </section>
   );
