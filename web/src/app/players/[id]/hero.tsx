@@ -1,7 +1,7 @@
 "use client";
 
 // Hero 區：身分徽章 + 生涯效力/教練/旅外 + 得獎 + 能力雷達。
-import { AbilityCard, GradeChip } from "@/components/ability-card";
+import { AbilityCard } from "@/components/ability-card";
 import { LetterBadge, TeamLogo } from "@/components/ui";
 import { type PlayerProfile, type StatRow } from "@/lib/client";
 import { fmtIP } from "@/lib/format";
@@ -268,22 +268,12 @@ export function PlayerHero({ profile, careerStats, ability, role, s, scope }: {
           </div>
           {/* 右欄：能力值雷達，scope 由 Hero 下方的全域控制驅動 */}
           {abSel && (
-            <div className="flex items-center gap-2 lg:border-l lg:border-line lg:pl-5">
-              <div className="min-w-0 flex-1">
-                <div className="mb-1 text-center text-xs font-semibold text-muted">
-                  {abSel.eff === "season" ? "2026 本季能力" : "生涯能力"}
-                </div>
-                <AbilityCard card={abSel.card} color={teamColor(tc)} chartSize="hero" hideNote />
+            <div className="min-w-0 lg:border-l lg:border-line lg:pl-5">
+              <div className="mb-1 text-center text-xs font-semibold text-muted">
+                {abSel.eff === "season" ? "2026 本季能力" : "生涯能力"}
               </div>
-              {/* 雷達右側保留總評，不再放第二組 scope 控制 */}
-              <div className="flex w-16 shrink-0 flex-col items-center justify-center gap-3">
-                {abSel.card.overall && (
-                  <div className="flex flex-col items-center gap-1">
-                    <span className="text-[10px] text-muted">總評</span>
-                    <GradeChip grade={abSel.card.overall.grade} size="lg" />
-                  </div>
-                )}
-              </div>
+              <AbilityCard card={abSel.card} color={teamColor(tc)} chartSize="hero"
+                showChartOverall hideNote />
             </div>
           )}
         </div>

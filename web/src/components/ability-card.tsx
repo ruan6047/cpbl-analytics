@@ -83,6 +83,7 @@ export function AbilityCard({
   color,
   compact = false,
   chartSize = "default",
+  showChartOverall = false,
   hideNote = false,
 }: {
   card: Card;
@@ -90,6 +91,7 @@ export function AbilityCard({
   color?: string;
   compact?: boolean;
   chartSize?: "default" | "hero";
+  showChartOverall?: boolean;
   hideNote?: boolean;
 }) {
   const ct = useChartTheme();
@@ -135,6 +137,12 @@ export function AbilityCard({
       )}
       <div className={`relative ${compact ? "h-36" : chartSize === "hero" ? "h-56" : "h-64"}`} role="img"
         aria-label={`${title ?? "能力值"}雷達圖，各項為全聯盟百分位（越外圈越強）`}>
+        {!compact && showChartOverall && card.overall && (
+          <div className="absolute right-6 top-0 z-10 flex h-5 items-center gap-1 text-[10px] text-muted">
+            <span>總評</span>
+            <GradeChip grade={card.overall.grade} />
+          </div>
+        )}
         {!compact && (
           <Tooltip content={methodNote(card)} suppressUnderline interactive>
             <button type="button" aria-label="能力值計算方式說明"
