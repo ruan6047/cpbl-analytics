@@ -1,7 +1,7 @@
 # UX-PLAYER-SCOPE1 球員頁本季／生涯全域範圍重整〔T3；⚪一般〕
 
 - 需求：ruan6047　規劃：GPT-5@Codex　分支：`ai/<執行者>/UX-PLAYER-SCOPE1`
-- 執行：待指派　查核：待指派（須 ≠ 執行）
+- 執行：GPT-5@Codex　查核：待指派（須 ≠ 執行）
 - Initiative：INIT-PRODUCT-UX　spec 基線：UX-PLAYER-IA2＋UX-MATCHUP2＋[`UX-PLAYER-SCOPE1-BRIEF.md`](../design/UX-PLAYER-SCOPE1-BRIEF.md)
 - DB：`db_scope: none`（純前端；不動 API／SQL）
 - 部署：是　環境：production　PR：—　Merge SHA：—
@@ -32,3 +32,4 @@
 
 - 2026-07-22 register：需求方核可設計硬限制並要求開卡；衝突稽核確認 UX-MATCHUP2 為唯一硬資源阻塞，故註冊為 Backlog、不 claim。
 - 2026-07-22 blocked assignment：需求方指派 GPT-5@Codex 執行；UX-MATCHUP2 尚未 release 且仍持有 `file:web/src/app/players/[id]/` lease，故只承接 stage ownership、不建立分支／worktree。等待對象：ruan6047 的批次部署／release；解除條件：UX-MATCHUP2 release event、local lease 移除，並從最新 main 重跑 Ledger／資源對帳後 claim。
+- 2026-07-22 claim：UX-MATCHUP2 已 release 且 lease／執行 worktree／ai 分支均釋放；需求方再次要求確認並延續既有指派。GPT-5@Codex 自 main `5304c99` 建立隔離分支與 worktree，resources 限球員頁目錄、LaEvScatter 與 dev port 3018。
