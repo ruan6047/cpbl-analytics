@@ -5,6 +5,7 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { useEffect, useRef, useState } from "react";
 import { type PlayerProfile, type StatRow, detail } from "@/lib/client";
 import { EmptyState } from "@/components/ui";
+import { ContextSwitcher, HierarchicalTabs, type HierarchicalTabGroup } from "@/components/hierarchical-tabs";
 import { codeFromName, teamColor } from "@/lib/teams";
 import { type Ability, type CareerStats, type Disc, type Role } from "./lib";
 import {
@@ -28,6 +29,13 @@ const VIEW_LABEL: Record<PlayerView, string> = {
   fielding: "守備",
   value: "進階價值",
 };
+
+const PLAYER_TAB_GROUPS: readonly HierarchicalTabGroup<PlayerScope, PlayerView>[] = (["season", "career"] as const)
+  .map((scope) => ({
+    value: scope,
+    label: scope === "season" ? "本季" : "生涯",
+    items: viewsFor(scope).map((view) => ({ value: view, label: VIEW_LABEL[view] })),
+  }));
 
 export default function PlayerPage() {
   const { id } = useParams<{ id: string }>();
@@ -216,7 +224,7 @@ export default function PlayerPage() {
         s={seasonRow} scope={nav.scope} />
 
       <PlayerNavigation nav={nav} roles={roles} hasLevelChoice={hasLevelChoice}
-        onScope={(scope) => replaceNav({ scope })}
+        onScope={(scope) => replaceNav({ scope, view: "overview" })}
         onRole={(role) => replaceNav({ role })}
         onLevel={(level) => replaceNav({ level })}
         onView={(view) => replaceNav({ view })} />
@@ -318,64 +326,18 @@ function PlayerNavigation({ nav, roles, hasLevelChoice, onScope, onRole, onLevel
   return (
     <nav aria-label="球員資料導覽" style={{ top: stickyTop }}
       className="sticky z-20 -mx-1 mb-6 border-y border-line bg-paper/95 px-1 py-2 backdrop-blur">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <TabRow label="資料範圍" values={["season", "career"] as const} value={nav.scope}
-          render={(v) => v === "season" ? "本季" : "生涯"} onChange={onScope} strong />
-        {roles.length > 1 && (
-          <div className="flex items-center gap-1.5 border-l border-line pl-3">
-            <span className="text-[11px] text-muted">身分</span>
-            <TabRow label="球員身分" values={roles} value={nav.role} render={roleLabel} onChange={onRole} />
-          </div>
-        )}
-        {nav.scope === "season" && hasLevelChoice && (
-          <div className="flex items-center gap-1.5 border-l border-line pl-3">
-            <span className="text-[11px] text-muted">層級</span>
-            <TabRow label="賽事層級" values={["A", "D"] as const} value={nav.level}
+      <HierarchicalTabs label="資料範圍" groups={PLAYER_TAB_GROUPS}
+        activeGroup={nav.scope} activeItem={nav.view} onGroupChange={onScope} onItemChange={onView}
+        controls={(roles.length > 1 || (nav.scope === "season" && hasLevelChoice)) ? <>
+          {roles.length > 1 && (
+            <ContextSwitcher label="身分" values={roles} value={nav.role}
+              render={roleLabel} onChange={onRole} />
+          )}
+          {nav.scope === "season" && hasLevelChoice && (
+            <ContextSwitcher label="層級" values={["A", "D"] as const} value={nav.level}
               render={(v) => v === "A" ? "一軍" : "二軍"} onChange={onLevel} />
-          </div>
-        )}
-      </div>
-      <div className="mt-2 border-t border-line/70 pt-2">
-        <TabRow label="內容視圖" values={viewsFor(nav.scope)} value={nav.view}
-          render={(v) => VIEW_LABEL[v]} onChange={onView} />
-      </div>
+          )}
+        </> : undefined} />
     </nav>
-  );
-}
-
-function TabRow<T extends string>({ label, values, value, render, onChange, strong = false }: {
-  label: string;
-  values: readonly T[];
-  value: T;
-  render: (value: T) => string;
-  onChange: (value: T) => void;
-  strong?: boolean;
-}) {
-  const idx = Math.max(0, values.indexOf(value));
-  const refs = useRef<(HTMLButtonElement | null)[]>([]);
-  const keyboardMoved = useRef(false);
-  const onKey = (e: React.KeyboardEvent) => {
-    const delta = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
-    if (!delta) return;
-    e.preventDefault();
-    keyboardMoved.current = true;
-    onChange(values[(idx + delta + values.length) % values.length]);
-  };
-  useEffect(() => {
-    if (keyboardMoved.current) refs.current[idx]?.focus({ preventScroll: true });
-  }, [idx]);
-  return (
-    <div role="tablist" aria-label={label} onKeyDown={onKey}
-      className={`flex min-w-0 gap-1 overflow-x-auto ${strong ? "rounded-xl bg-surface-2 p-1" : ""}`}>
-      {values.map((item, i) => (
-        <button key={item} role="tab" aria-selected={value === item} tabIndex={value === item ? 0 : -1}
-          ref={(el) => { refs.current[i] = el; }} onClick={() => onChange(item)}
-          className={`min-h-11 whitespace-nowrap rounded-lg px-3 text-sm transition ${value === item
-            ? strong ? "bg-ink font-semibold text-paper shadow-sm" : "bg-accent font-semibold text-white"
-            : "text-muted hover:bg-surface-2 hover:text-ink"}`}>
-          {render(item)}
-        </button>
-      ))}
-    </div>
   );
 }
