@@ -1,13 +1,61 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  SPARSE_PITCHES, createLoadTracker, type DataGroup, layerRole, layersFor, loadGroup, needsData,
-  needsRoleHeading, primaryRole, sparsePitchNote, stackedRoles, subLayerFromParams, subLayerLabel,
+  SPARSE_PITCHES, createLoadTracker, type DataGroup, layerRole, layersFor, levelFromParams, loadGroup,
+  needsData, needsRoleHeading, playerNavFromParams, primaryRole, roleFromParams, scopeFromParams,
+  sparsePitchNote, stackedRoles, subLayerFromParams, subLayerLabel, viewFromParams, viewsFor,
 } from "./layers.ts";
 
 const BOTH: ("batting" | "pitching")[] = ["batting", "pitching"];
 const BAT: ("batting" | "pitching")[] = ["batting"];
 const PIT: ("batting" | "pitching")[] = ["pitching"];
+
+test("新 IA：本季與生涯各自只列該 scope 可用的內容 view", () => {
+  assert.deepEqual(viewsFor("season"), ["overview", "tracking", "splits", "fielding"]);
+  assert.deepEqual(viewsFor("career"), ["overview", "yearly", "splits", "fielding", "value"]);
+});
+
+test("scope：明示參數優先；舊 sec=career 與退役預設能遷移", () => {
+  assert.equal(scopeFromParams("season", "career", true), "season");
+  assert.equal(scopeFromParams("career", "batting", false), "career");
+  assert.equal(scopeFromParams(null, "career", false), "career");
+  assert.equal(scopeFromParams(null, null, true), "career");
+  assert.equal(scopeFromParams("invalid", null, false), "season");
+});
+
+test("role：明示參數優先但不得切到不存在的身分；舊 sec 仍可遷移", () => {
+  assert.equal(roleFromParams("pitching", null, BOTH), "pitching");
+  assert.equal(roleFromParams("pitching", null, BAT), "batting");
+  assert.equal(roleFromParams(null, "pitching", BOTH), "pitching");
+  assert.equal(roleFromParams(null, "batting", PIT), "pitching");
+});
+
+test("view：新參數須屬於當前 scope；舊 sec deterministic 映射", () => {
+  assert.equal(viewFromParams("tracking", null, "season"), "tracking");
+  assert.equal(viewFromParams("tracking", null, "career"), "overview");
+  assert.equal(viewFromParams(null, "batting", "season"), "tracking");
+  assert.equal(viewFromParams(null, "splits", "career"), "splits");
+  assert.equal(viewFromParams(null, "career", "career"), "overview");
+  assert.equal(viewFromParams("../evil", null, "season"), "overview");
+});
+
+test("level：合法 URL 優先；否則二軍球員預設 D、其他預設 A", () => {
+  assert.equal(levelFromParams("A", "二軍"), "A");
+  assert.equal(levelFromParams("D", "一軍"), "D");
+  assert.equal(levelFromParams(null, "二軍"), "D");
+  assert.equal(levelFromParams("invalid", "一軍"), "A");
+});
+
+test("playerNavFromParams 一次產出整頁唯一 navigation state", () => {
+  assert.deepEqual(
+    playerNavFromParams({ scope: null, view: null, role: null, level: null, sec: "career" }, BOTH, false, "一軍"),
+    { scope: "career", view: "overview", role: "batting", level: "A" },
+  );
+  assert.deepEqual(
+    playerNavFromParams({ scope: "season", view: "tracking", role: "pitching", level: "D", sec: null }, BOTH, false, "二軍"),
+    { scope: "season", view: "tracking", role: "pitching", level: "D" },
+  );
+});
 
 test("標籤列：雙棲出現打擊與投球兩個內容頁", () => {
   assert.deepEqual(layersFor(BOTH), ["batting", "pitching", "splits", "fielding", "career"]);

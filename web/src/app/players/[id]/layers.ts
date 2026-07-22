@@ -4,6 +4,76 @@
 // 只引型別（node --experimental-strip-types 會整句抹除，測試不必解析同目錄 .tsx 依賴）
 import type { Role } from "./lib";
 
+// UX-PLAYER-SCOPE1：scope、role、view、level 是四條獨立軸，URL 為單一事實來源。
+export const PLAYER_SCOPES = ["season", "career"] as const;
+export type PlayerScope = (typeof PLAYER_SCOPES)[number];
+
+export const PLAYER_VIEWS = ["overview", "tracking", "yearly", "splits", "fielding", "value"] as const;
+export type PlayerView = (typeof PLAYER_VIEWS)[number];
+export type PlayerLevel = "A" | "D";
+
+const SCOPE_VIEWS: Record<PlayerScope, PlayerView[]> = {
+  season: ["overview", "tracking", "splits", "fielding"],
+  career: ["overview", "yearly", "splits", "fielding", "value"],
+};
+
+export const viewsFor = (scope: PlayerScope): PlayerView[] => SCOPE_VIEWS[scope];
+
+export function scopeFromParams(
+  scope: string | null, legacySec: string | null, isRetired: boolean,
+): PlayerScope {
+  if ((PLAYER_SCOPES as readonly string[]).includes(scope ?? "")) return scope as PlayerScope;
+  if (legacySec === "career" || isRetired) return "career";
+  return "season";
+}
+
+export function roleFromParams(
+  role: string | null, legacySec: string | null, roles: Role[],
+): Role {
+  if ((role === "batting" || role === "pitching") && roles.includes(role)) return role;
+  if (legacySec === "pitching" && roles.includes("pitching")) return "pitching";
+  if (legacySec === "batting" && roles.includes("batting")) return "batting";
+  return primaryRole(roles);
+}
+
+const LEGACY_VIEW: Partial<Record<string, PlayerView>> = {
+  batting: "tracking",
+  pitching: "tracking",
+  approach: "tracking",
+  splits: "splits",
+  fielding: "fielding",
+  career: "overview",
+};
+
+export function viewFromParams(
+  view: string | null, legacySec: string | null, scope: PlayerScope,
+): PlayerView {
+  const available = viewsFor(scope);
+  if (view && (available as readonly string[]).includes(view)) return view as PlayerView;
+  const legacy = legacySec ? LEGACY_VIEW[legacySec] : null;
+  return legacy && available.includes(legacy) ? legacy : "overview";
+}
+
+export function levelFromParams(level: string | null, rosterLevel: string | null | undefined): PlayerLevel {
+  if (level === "A" || level === "D") return level;
+  return rosterLevel === "二軍" ? "D" : "A";
+}
+
+export function playerNavFromParams(
+  params: { scope: string | null; view: string | null; role: string | null; level: string | null; sec: string | null },
+  roles: Role[],
+  isRetired: boolean,
+  rosterLevel: string | null | undefined,
+): { scope: PlayerScope; view: PlayerView; role: Role; level: PlayerLevel } {
+  const scope = scopeFromParams(params.scope, params.sec, isRetired);
+  return {
+    scope,
+    view: viewFromParams(params.view, params.sec, scope),
+    role: roleFromParams(params.role, params.sec, roles),
+    level: levelFromParams(params.level, rosterLevel),
+  };
+}
+
 /** 可切換的分層。batting／pitching 是「身分內容頁」，其餘三層與 role 無關或內部堆疊。 */
 export const ALL_LAYERS = ["batting", "pitching", "splits", "fielding", "career"] as const;
 export type SubLayer = (typeof ALL_LAYERS)[number];
