@@ -6,7 +6,7 @@ import { BATTED_OUTCOME } from "@/lib/chart-theme";
 
 export type SprayPoint = { dir: number; dist: number; ev: number | null; la?: number | null; result: string };
 
-// 出色擊球（近似 Barrel）：仰角 8–40° 且初速≥145km/h（同 la-ev-scatter 甜蜜區紅框）
+// 出色擊球（近似 Barrel）：仰角 8–40° 且初速≥145km/h。
 const isBarrel = (ev: number | null | undefined, la: number | null | undefined) =>
   ev != null && la != null && ev >= 145 && la >= 8 && la <= 40;
 // 星星用該類型同色系的較淺色（向白色混合，維持辨識又同調）

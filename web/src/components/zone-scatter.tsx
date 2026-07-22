@@ -5,7 +5,7 @@ import { ZONE_OUTCOME } from "@/lib/chart-theme";
 
 export type ZonePoint = { x: number; y: number; sw: boolean; wh: boolean; result: string; ev?: number | null; la?: number | null };
 
-// 出色擊球（近似 Barrel）：場內球且 仰角 8–40°、初速≥145km/h（同 la-ev-scatter 甜蜜區紅框）
+// 出色擊球（近似 Barrel）：場內球且仰角 8–40°、初速≥145km/h。
 const isBarrel = (p: ZonePoint) =>
   (p.result === "hit" || p.result === "out") &&
   p.ev != null && p.la != null && p.ev >= 145 && p.la >= 8 && p.la <= 40;

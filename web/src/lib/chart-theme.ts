@@ -120,7 +120,7 @@ export function chartTooltip(ct: ChartTheme) {
 
 // —— 圖表語意調色盤（單一事實來源；飽和色、深淺皆可讀，故用固定常數而非隨主題重讀）——
 // tsx/元件內禁止再硬編這些 hex，一律 import 本模組。
-// 打擊結果（la-ev-scatter / spray-chart 共用）
+// 打擊結果（spray-chart / zone-scatter 共用）
 export const BATTED_OUTCOME: Record<string, string> = {
   hr: "#d62839", "3b": "#f59e0b", "2b": "#16a34a", "1b": "#1d6fb8", out: "#94a3b8",
 };
