@@ -19,6 +19,7 @@
 - [ ] 選定打席固定顯示局數、上下半局、比分、出局、壘況、投手、打者、結果、事件描述、WP 前後值、WPA 與受益隊。
 - [ ] 逐球依 canonical `pa_id` 延遲載入，球序、球數、判定、球種、球速與進壘位置順序正確；不再以投手×打者×局數於前端近似匹配。
 - [ ] `available`、`advanced_pending`、`no_equipment`、`source_missing`、`mapping_failed` 各有不同提示；任何狀態都不把未知說成零或沒有發生。
+- [ ] 進階站 `SkipTrackman=true` 可作官方 skip 的正證據；`false` 僅代表未標示 skip，禁止直接映射成 `available`／`no_equipment=false`。
 - [ ] 可在「全部打席／得分打席／高影響打席」間切換；高影響依 `abs(WPA)`，並明示不等同球員能力。
 - [ ] 從打席可延伸到球員頁與投打對決；ML-SIM1 結果對照若未納入首版，不顯示空入口。
 

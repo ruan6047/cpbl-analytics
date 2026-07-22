@@ -10,3 +10,4 @@
 ## Log
 
 - 07-15 WF-12 遷移：維持 Backlog。
+- 07-22 新資料影響：官方 `leaderboards/summary` 可作年度聯盟 normalization／QA baseline，降低跨季 raw 值不可比；它不是球隊 split，仍須由球員或逐場資料按隊聚合，且候選特徵仍須增量回測勝出才可進 outcome。

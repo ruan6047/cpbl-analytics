@@ -9,27 +9,32 @@
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
 | [BUG-ABILITY-DH-LABEL](tasks/BUG-ABILITY-DH-LABEL.md) | INIT-PRODUCT-UX | T3 | 能力卡守備軸誤標指打並填入力量 PR | Claude（Opus 4.8） | `ai/opus-4-8/BUG-ABILITY-DH-LABEL @ .claude/worktrees/bug-ability-dh-label-execution` | 1 | 📦已合併 | 🚀待部署 | 2026-07-21T02:35:00+08:00 |
+| [DISCOVERY-CPBL-RECORDS1](tasks/DISCOVERY-CPBL-RECORDS1.md) | INIT-OFFICIAL-DATA1 | T3 | 主站紀錄資料價值與穩定鍵 Discovery | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:04+08:00 |
 | [GAME-RECAP-PA1](tasks/GAME-RECAP-PA1.md) | INIT-GAME-RECAP | T4 | canonical PA 契約與實作切卡 | ruan6047（子卡優先序／後續 Gate） | — | 1 | 📦已合併 | —不適用 | 2026-07-21T01:09:45+08:00 |
-| [GAME-RECAP-PA1-BUILD1](tasks/GAME-RECAP-PA1-BUILD1.md) | INIT-GAME-RECAP | T4 | canonical PA builder、對帳與歷史回填 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-21T01:09:45+08:00 |
+| [GAME-RECAP-PA1-BUILD1](tasks/GAME-RECAP-PA1-BUILD1.md) | INIT-GAME-RECAP | T4 | canonical PA builder、對帳與歷史回填 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:12+08:00 |
 | [GAME-RECAP-PA1-EXPAND1](tasks/GAME-RECAP-PA1-EXPAND1.md) | INIT-GAME-RECAP | T4 | canonical PA additive schema expand | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-21T01:09:45+08:00 |
 | [GAME-RECAP-PA1-TAXONOMY1](tasks/GAME-RECAP-PA1-TAXONOMY1.md) | INIT-GAME-RECAP | T4 | canonical PA transition taxonomy 稽核 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-21T01:09:45+08:00 |
 | [GAME-RECAP-WP-API1](tasks/GAME-RECAP-WP-API1.md) | INIT-GAME-RECAP | T4 | canonical WP／WPA public contract | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:09+08:00 |
 | [GAME-RECAP-WP-VAL1](tasks/GAME-RECAP-WP-VAL1.md) | INIT-GAME-RECAP | T4 | 場中 WP 時間外驗證與支援邊界 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T22:15:08+08:00 |
-| [INGEST-DEEP-TRACKMAN1](tasks/INGEST-DEEP-TRACKMAN1.md) | — | T3 | 入庫深層 TrackMan 物理特徵 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-21T17:41:42+08:00 |
-| [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | — | T3 | 重構逐球爬蟲改以單場 API 為單位 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-21T17:41:42+08:00 |
+| [INGEST-ADV-EXPAND1](tasks/INGEST-ADV-EXPAND1.md) | INIT-OFFICIAL-DATA1 | T4 | 進階排行榜維度與快照 additive schema | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:01+08:00 |
+| [INGEST-ADV-RECONCILE1](tasks/INGEST-ADV-RECONCILE1.md) | INIT-OFFICIAL-DATA1 | T4 | 進階排行榜快照晉升與污染資料修復 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:02+08:00 |
+| [INGEST-DEEP-TRACKMAN1](tasks/INGEST-DEEP-TRACKMAN1.md) | INIT-OFFICIAL-DATA1 | T4 | 入庫深層 TrackMan 物理特徵 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:57:00+08:00 |
+| [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:57:01+08:00 |
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | ruan6047（Design Gate） | — | 0 | 💡需求 | —不適用 | 2026-07-17T04:44:38+08:00 |
+| [INIT-OFFICIAL-DATA1](tasks/INIT-OFFICIAL-DATA1.md) | INIT-OFFICIAL-DATA1 | T4 | 官方資料契約完整性與低維護 ingest | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:00+08:00 |
 | [INIT-PRODUCT-UX](tasks/INIT-PRODUCT-UX.md) | INIT-PRODUCT-UX | T3 | 全站產品與 UI/UX 收斂 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-17T04:44:24+08:00 |
 | [MATCHUP-DATA2](tasks/MATCHUP-DATA2.md) | — | T4 | 對戰對手歷史隊別歸屬修正 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T03:16:09+08:00 |
-| [ML-FIELD-OAA-VAL1](tasks/ML-FIELD-OAA-VAL1.md) | — | T4 | 利用極座標落點還原 Spray Chart 與外野 OAA | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-21T17:41:42+08:00 |
-| [ML-FIELD-OF1](tasks/ML-FIELD-OF1.md) | — | T4 | 外野空中球守備範圍指標 | ruan6047（Design Gate） | — | 0 | 💡需求 | ⏸未部署 | 2026-07-21T01:35:00+08:00 |
-| [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
-| [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
+| [ML-FIELD-LINEUP1](tasks/ML-FIELD-LINEUP1.md) | INIT-OFFICIAL-DATA1 | T4 | 逐局守備陣容重建可行性與 canonical contract | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:03+08:00 |
+| [ML-FIELD-OAA-VAL1](tasks/ML-FIELD-OAA-VAL1.md) | INIT-OFFICIAL-DATA1 | T4 | 利用極座標落點還原 Spray Chart 與外野 OAA | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:07+08:00 |
+| [ML-FIELD-OF1](tasks/ML-FIELD-OF1.md) | — | T4 | 外野空中球守備範圍指標 | ruan6047（Design Gate） | — | 0 | 💡需求 | ⏸未部署 | 2026-07-22T16:51:08+08:00 |
+| [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:09+08:00 |
+| [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:10+08:00 |
 | [OPS-REMOTE-CUTOVER1](tasks/OPS-REMOTE-CUTOVER1.md) | INIT-PRODUCT-UX | T4 | 遠端 crawler production canary 與切換 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:40+08:00 |
 | [OPS-REMOTE-PROBE1](tasks/OPS-REMOTE-PROBE1.md) | INIT-PRODUCT-UX | T3 | Opt-in DEBUG 網路探測介面 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:37+08:00 |
 | [OPS-REMOTE-ROUTE1](tasks/OPS-REMOTE-ROUTE1.md) | INIT-PRODUCT-UX | T3 | 遠端出口路線資格驗證 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:38+08:00 |
 | [OPS-REMOTE-WORKER1](tasks/OPS-REMOTE-WORKER1.md) | INIT-PRODUCT-UX | T4 | 隔離式遠端 crawler shadow worker | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:39+08:00 |
-| [TEAM-STYLE1](tasks/TEAM-STYLE1.md) | — | T4 | 球隊球風研究 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T12:30:00+08:00 |
-| [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:11+08:00 |
+| [TEAM-STYLE1](tasks/TEAM-STYLE1.md) | — | T4 | 球隊球風研究 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:56:00+08:00 |
+| [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
 | [UX-PA-SIM-MATCHUP1](tasks/UX-PA-SIM-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | Matchups 單一打席結果分布 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:33+08:00 |
 | [UX-PLAYER-SCOPE1](tasks/UX-PLAYER-SCOPE1.md) | INIT-PRODUCT-UX | T3 | 球員頁本季／生涯全域範圍重整 | ruanruan（merge／部署閘門） | `ai/gpt-5-codex/UX-PLAYER-SCOPE1 @ .claude/worktrees/ux-player-scope1-execution` | 9 | ✅通過／待合併 | ⏸未部署 | 2026-07-22T16:53:03+08:00 |

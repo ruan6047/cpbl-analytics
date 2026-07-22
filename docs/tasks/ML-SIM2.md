@@ -10,3 +10,4 @@
 ## Log
 
 - 07-15 WF-12 遷移：維持 Backlog。
+- 07-22 新資料影響：官方 per-player／league `fastball|breakingball` summary 可改善 pitch-mix prior 與冷啟動 fallback；但只有兩個 coarse 類別，不能冒充細分球種，亦不解除全場陣容／牛棚與校準紅線，維持遠期 Backlog。

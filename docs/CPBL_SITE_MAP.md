@@ -2,7 +2,7 @@
 
 > 涵蓋兩個站台：**www.cpbl.com.tw**（主站）與 **stats.cpbl.com.tw**（官方進階數據站）。
 > 目的：官網改版 / 反爬升級時，照「§5 改版排查 SOP」快速定位要修哪裡，不必重新逆向。
-> 所有事實皆實測確認；更新本檔時同步更新對應模組 docstring。最後核實：2026-07-04。
+> 所有事實皆實測確認；更新本檔時同步更新對應模組 docstring。最後核實：2026-07-22。
 
 ---
 
@@ -101,10 +101,10 @@
 
 | 模組 | endpoint | 解析 | 改版訊號 |
 |---|---|---|---|
-| `cpbl_advanced` | GET `/players/{acnt}`（HTML） | RSC 串流：串接所有 `self.__next_f.push([1,"…"])` → unicode unescape → 括號配對抽含 `"wobaPr"` 的物件 | `_summary_object` 抓不到 |
-| `cpbl_pitch_tracking` | GET `/api/proxy/v1/players/logs`（**公開 JSON API**） | `Data.Logs[].Trackman.{Play,Pitch,Hit}`；`Trackman=null`＝無設備球場，不收 | HTTP 非 200 / schema 變 |
+| `cpbl_advanced` | GET `/api/proxy/v1/leaderboards/{pr-table,exit-velocity,batted-ball,pitch-tracking}` | 官方 JSON；以 `searchType=batter|pitcher`、`gameKind`、`year` 查詢。⚠️ `pitch-tracking` 一人多個 `PitchType`，不得只按 acnt 壓平 | HTTP 非 200／natural key 重複或 schema 變 |
+| `cpbl_pitch_tracking` | GET `/api/proxy/v1/players/logs`（**公開 JSON API**） | `Data.Logs[].Trackman.{Play,Pitch,Hit}`；`Trackman=null`＝該筆沒有 TrackMan，不收；單筆 null 不足以證明整場／球場無設備 | HTTP 非 200 / schema 變 |
 
-> 進階站解析**脆弱點在 RSC**（advanced）；logs API 是正式 JSON 較穩。
+> `cpbl_advanced` 與逐球主流程目前皆走 JSON API；player page RSC helpers 只留 legacy／診斷用途。
 > 逐球含二軍（kindCode D）——查詢一軍**必須**過濾 `kind_code='A'`。
 
 ## 4b. 未爬資源盤點（擴充時查這裡，不用重新逆向）
@@ -116,25 +116,26 @@
 站台路由（首頁 nav 實測）：`/players`、`/players/{acnt}`、`/rankings`、`/schedule`、
 `/schedule/{year}-{kind}-{sno}`（單場頁）、`/news/{google-docs-id}`。
 
-**完整 API 面**（從 `_next` JS chunks 逆向，fetch wrapper 統一打 `/api/proxy` + 路徑）：
+**已觀測 API 面**（2026-07-22 重新掃描 30 個 `_next` JS chunks；fetch wrapper 統一打
+`/api/proxy` + 路徑）。這是站台當刻 client 使用介面，不宣稱官方永久 public contract：
 
 | 端點 | 狀態 | 內容 / 已驗證事實 |
 |---|---|---|
 | `/api/proxy/v1/players/logs` | ✅ 已爬（`cpbl_pitch_tracking`） | 逐球 TrackMan；支援 kindCode A/C/D/E |
-| `/api/proxy/v1/players/{acnt}` | ⬜ | **只回 bio**（Basic：身高體重/異動 Rmk/守位；2026-07-04 實測，帶 year/gameKind 參數也一樣）。**進階彙總（wobaPr 物件）是伺服器端渲染進 RSC、無公開 JSON API**（已窮舉 24 個 JS chunks 確認 API 面僅 8 支）→ `cpbl_advanced` 的 RSC 解析**無可替代**，改版時只能重找錨點 |
-| `/api/proxy/v1/games/{year}-{kind}-{sno}` | 🧪 實驗（`cpbl_live_game` + `cpbl-live-game` CLI，**不掛常態爬蟲**） | 單場物件 `Data.Game`：隊伍/狀態/投手線/`LiveLog[]`（**每事件內嵌 `Trackman` 欄**，已完賽為 null）。即時逐球假說待比賽進行中實測（跑 `cpbl-live-game 2026 A <sno>` 2-3 次比對） |
-| `/api/proxy/v1/games/schedule/{…}` | ⬜ | 賽程（chunk 中確認存在，參數未探） |
-| `/api/proxy/v1/leaderboards/pr-table` | ⬜ | 官方 PR 排行榜（各進階指標全聯盟百分位表） |
-| `/api/proxy/v1/leaderboards/exit-velocity` | ⬜ | 擊球初速排行 |
-| `/api/proxy/v1/leaderboards/batted-ball` | ⬜ | 擊球型態排行 |
-| `/api/proxy/v1/leaderboards/pitch-tracking` | ⬜ | 逐球指標排行 |
+| `/api/proxy/v1/players/{acnt}` | ⬜ | 只回 bio（Basic：身高體重／異動 Rmk／守位）；個人進階彙總改由 leaderboard JSON API 取得，不再依賴 player page RSC |
+| `/api/proxy/v1/games/{year}-{kind}-{sno}` | 🧪 已確認完賽 payload；常態化待 `INGEST-GAME-TM-REFACTOR1` | 單場物件 `Data.Game`：隊伍／狀態／投手線／`LiveLog[]`；2026-A-99 完賽仍有逐事件 TrackMan。比賽進行中的即時完整性仍待驗證 |
+| `/api/proxy/v1/games/schedule` | ⬜ 已確認參數 | `kindCode`＋`year`＋`month`；回 `GameStatus`、`SkipTrackman`、球場、裁判、勝敗投等。`SkipTrackman=true` 只可作單向 skip 證據，false 不保證資料完整 |
+| `/api/proxy/v1/leaderboards/pr-table` | ✅ `cpbl_advanced` | 官方 PR 排行榜（各進階指標全聯盟百分位表） |
+| `/api/proxy/v1/leaderboards/exit-velocity` | ✅ `cpbl_advanced` | 擊球初速排行 |
+| `/api/proxy/v1/leaderboards/batted-ball` | ✅ `cpbl_advanced` | 擊球型態排行 |
+| `/api/proxy/v1/leaderboards/pitch-tracking` | △ 已抓但資料契約待修 | 一位球員多列 `PitchType=fastball|breakingball`；現行 acnt merge 會覆寫，見 `OFFICIAL_DATA_GAP1_RESULTS.md` |
+| `/api/proxy/v1/leaderboards/summary` | ⬜ | 官方聯盟 BattedBall／ExitVelocity／PrTable／分球種 PitchTracking 基準；參數 `gameKind`＋`year` |
+| `/api/proxy/v1/home?TeamRecordsYear=` | ⬜（低價值聚合） | 首頁賽程、戰績與排行榜整包；多與既有來源重複，不建議另存一份 |
 | `/api/proxy/v1/players/autocomplete` | ⬜ | 選手搜尋（低價值） |
 
-- leaderboards 需查詢參數；chunk 中出現的鍵：`year`、`gameKind`、`playerType`、
-  `defendStationCode`、`position`（組合未完全確認，猜錯回 `UNKNOWN_HTTP_ERROR`）。
-  **要用時開 DevTools 在 `/rankings` 頁換篩選條件看實際 query string**，勿盲猜。
-- `/rankings` 頁本身把**整包排行榜資料內嵌 RSC**（~1MB，含 woba/wobaPr/hardHit/
-  barrels 等）→ 不想解參數時可直接 RSC 解析（同 `cpbl_advanced` 手法）。
+- leaderboards 現行 ingest 的基本查詢參數已確認為 `searchType=batter|pitcher`、`gameKind`、
+  `year`；頁面其他守位篩選仍須以 DevTools 實測，不得由 chunk 字串腦補。
+- `/rankings` 頁仍可能內嵌 RSC 資料，但正式 ingest 應走已確認的 JSON API；RSC 僅作改版診斷／交叉驗證，避免維護兩份 parser。
 
 ### 主站 www.cpbl.com.tw 全站導覽盤點（2026-07-04 實抽 nav）
 

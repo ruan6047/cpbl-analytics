@@ -22,3 +22,8 @@
 - 依賴：`GAME-RECAP-PA1-TAXONOMY1`、`GAME-RECAP-PA1-EXPAND1` 均完成並通過獨立查核。
 - 後續：僅在 published build 的對帳門檻通過後，解除 `GAME-RECAP-WP-VAL1`、`GAME-RECAP-WP-API1` 與精確逐球 UI 的資料前置。
 - 非目標：不以 builder 成功取代 public API contract、WP 校準或 UX 驗收。
+
+## 新來源影響（2026-07-22）
+
+- `stats.cpbl` 單場 `LiveLog[].Trackman` 可作 mapping revision 的第二來源與逐球等價對帳。
+- 除非另有 immutable ID 證據，不得用官方 event number 靜默取代既有 canonical `pa_id` contract。

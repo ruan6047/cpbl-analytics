@@ -1,12 +1,12 @@
-# INGEST-GAME-TM-REFACTOR1 爬蟲管線重構：重構逐球爬蟲改以單場 API 為單位〔T3；🟢工程實作〕
+# INGEST-GAME-TM-REFACTOR1 爬蟲管線重構：重構逐球爬蟲改以單場 API 為單位〔T4；🔴資料正確性紅線〕
 
 > **狀態 📥Backlog**：已由 CPBL 深層 API 結構研究正式註冊。待指派認領並進入 Plan。
 
 - 需求：ruan6047　規劃：待指派　分支：—（認領後建立）
 - 執行：待指派　查核：待指派
 - worktree：—（認領後建立）
-- Initiative：—　spec 基線：[`deep_payload_gap_report.md`](../deep_payload_gap_report.md)
-- DB：`db_scope: write`（實作階段：寫入 `cpbl.pitch_tracking`）　部署：否（實作後 ⏸未部署）　環境：—
+- Initiative：`INIT-OFFICIAL-DATA1`　spec 基線：[`../research/OFFICIAL_DATA_GAP1_RESULTS.md`](../research/OFFICIAL_DATA_GAP1_RESULTS.md) §3.4
+- DB：`db_scope: write`（實作階段：寫入 `cpbl.pitch_tracking`）　部署：是　環境：production
 
 ## 背景
 
@@ -19,6 +19,10 @@
 
 - **爬蟲管線重構**：
   重寫或擴充 `cpbl_pitch_tracking.py`，新增以比賽（`year, kind_code, game_sno`）為單位的爬取方法。直接打單場 API `/api/proxy/v1/games/{year}-{kind}-{sno}`，解析其中 `LiveLog` 內的所有 `Trackman` 逐球數據並進行 UPSERT。
+- **共用 parser 契約**：
+  個人 logs 與單場 API 必須共用同一個 pure parser；先合併 `INGEST-DEEP-TRACKMAN1` 的完整欄位契約，避免兩條 fetch path 各自維護欄位映射。
+- **賽程來源影子對帳**：
+  使用 `/api/proxy/v1/games/schedule?kindCode=&year=&month=` 保存原始 `GameStatus` 與 `SkipTrackman`，但 `SkipTrackman=false` 不得映射成 tracking available／complete。
 - **刷新管線重構**：
   修改 `run_refresh_recent.py`，將近期逐球數據的刷新邏輯改為「以單場 ID 為單位」進行請求，替代原先的「以當日出賽投手為單位」之邏輯。
 - **效能優化**：
@@ -30,6 +34,8 @@
     重構後的單場 API 寫入，其入庫欄位與 schema 必須與既有的 `cpbl.pitch_tracking` 完美對接（包含 PK `year, kind_code, game_sno, pitcher_acnt, pitch_cnt`），不可產生資料庫衝突或欄位損毀。
 2.  **不破壞無設備球場語意**：
     若單場 API 回傳之球場無 Trackman 設備（`Trackman=null`），維持既有語意，直接不收或略過。
+3.  **不直接切換 canonical schedule**：
+    至少 30 場逐列等價對帳＋14 天 shadow run；延期、保留賽、0–0 與場次 ID 未全過前，主站仍是比分／事件語意 canonical。
 
 ## 非目標
 
@@ -47,3 +53,5 @@
 ## Log
 
 - 2026-07-21 由 `ruan6047` 指示正式註冊為 📥Backlog。
+- 2026-07-22 官網缺口稽核修訂：加入共用 parser、schedule shadow 與 `SkipTrackman` 單向語意；納入 `INIT-OFFICIAL-DATA1`。
+- 2026-07-22 流程勘誤：本卡切換官方逐球寫入來源，屬資料正確性紅線，依 canonical 由 T3 升為 T4。

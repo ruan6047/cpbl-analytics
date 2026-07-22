@@ -120,3 +120,14 @@
 | **B 出手點** | ✅ 併入 UX-7 | 位移半案（HB×IVB）07-12 已上線，僅剩出手點；欄名為 `rel_side`/`rel_height`（單位 m，非 `*_cm`）；信心橢圓改「出手一致性」數值（質心分散度）更省更可讀 |
 | **C Stuff+** | 📥 ML-PT3，排 2026 季末 | **資料前提錯誤**：pitch_tracking 僅 2026 起（非 2020–2026），單季 ~69k 球樣本風險高一級 → 等全季收完再訓練；MLB 預訓練需逐球資料（非 leaderboard 聚合）；補紅線：**須贏過「whiff% 排名」baseline** 才採用；可重用 ML-PT2 特徵對齊管線與 sabr RE 矩陣 |
 | **D 模擬器 v2** | 📥 ML-SIM1 簡易勝負＋單一打席；ML-SIM2 全場遠期 | ML-SIM1 取代 UX-10O，分兩模式：①固定、按語意群去重複訊號的簡易賽前勝負預測，取消自由勾選與手調權重；②單一打席互斥結果機率→情境狀態轉移→復用既有 `wp_state()` 加權整場勝率。完整陣容／牛棚／後續全打席個人化列 ML-SIM2，**遠期目標、暫時不做**。輸出須附基準、校準與不確定性，禁止用多個同義代理或蒙特卡羅包裝不可靠輸入 |
+
+### 2026-07-22 官方資料源複查增補
+
+- **B 出手點／軌跡**：`pitch_tracking` 並非 100% 場次覆蓋；只有設備／來源實際回傳 TrackMan
+  的球可用。新確認的完整 X/Y/Z 九係數可支援 3D trajectory 與 tunneling 候選研究，但須先由
+  `INGEST-DEEP-TRACKMAN1` 保存原始值，不能從 round 後的 acceleration 反推。
+- **C Stuff+**：官方 `leaderboards/summary` 可提供聯盟年度球速／轉速與擊球品質 baseline，完整
+  trajectory 可擴充候選特徵；這不改變「只有 2026」「無 active spin」「須勝過 whiff% baseline」三條紅線。
+- **D 模擬器**：官方 player／league `fastball|breakingball` 可改善 coarse pitch-mix prior 與冷啟動，
+  但只有兩類，不能冒充 `pitch_type_pred_v2` 細分球種，也不解除校準／全場陣容與牛棚限制。
+- 完整證據與依賴矩陣見 [`research/OFFICIAL_DATA_GAP1_RESULTS.md`](research/OFFICIAL_DATA_GAP1_RESULTS.md)。

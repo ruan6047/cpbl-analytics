@@ -5,7 +5,7 @@
 - 需求：ruan6047　規劃：待指派　分支：—（認領後建立）
 - 執行：待指派　查核：待指派（T4 紅線：須跨模型家族或人工複審）
 - worktree：—（認領後建立）
-- Initiative：—　spec 基線：[`deep_payload_gap_report.md`](../deep_payload_gap_report.md)
+- Initiative：`INIT-OFFICIAL-DATA1`　spec 基線：[`../research/OFFICIAL_DATA_GAP1_RESULTS.md`](../research/OFFICIAL_DATA_GAP1_RESULTS.md) §4
 - DB：`db_scope: write`（實作階段：建立 OAA 計算與期望出局數表）　部署：否（實作後 ⏸未部署）　環境：—
 
 ## 背景
@@ -28,7 +28,7 @@
 ## 實作前提
 
 1.  **資料前置**：
-    本卡高度依賴 `INGEST-DEEP-TRACKMAN1` 補齊歷史落地距離與方位角資料，並依賴 `ML-FIELD-OF1` / `ML-FIELD-LINEUP1` 所進行的逐局守備陣容重建。
+    本卡高度依賴 `INGEST-DEEP-TRACKMAN1` 補齊落地距離、方位角與官方落地信心，並依賴 `ML-FIELD-LINEUP1` 所進行的逐局守備陣容重建；`ML-FIELD-OF1` 是物理落點模型失敗時的結果分類 baseline，不是 lineup 前置。
 2.  **不包含內野**：
     內野由於沒有雷達落地座標（內野球通常以擊中手套或地面為準，物理運動不同），仍維持既有 NO-GO 判定。
 
@@ -42,9 +42,11 @@
   本卡為後台統計與 ML 特徵卡，主要進行 OAA 回測穩定度驗證。需向需求方說明模型架構、滯空時間與移動距離的交互作用、以及與傳統守備率 (RF) 的相關性。
 - **驗證方案（T4 紅線）**：
   *   **出局守恆**：各守位預期出局數與實際接殺數之差在全聯盟層級應 $\le \pm3\%$。
-  *   **信度檢定**：外野手 OAA 在跨年度（如 2025 vs 2026）的相關係數 $R$ 需顯著為正，以證明其衡量的是真實球員能力而非隨機雜訊。
+  *   **2026 feasibility**：先按球場、`LandingFlat.Confidence`、賽制與 availability 報 coverage，只驗證落點物理合理性、守恆與模型可識別性，不產出公開 OAA 排名。
+  *   **跨年信度檢定延後**：現有 `pitch_tracking` 只有 2026，未證實 2025 可回填；沒有 2027 holdout 前不得宣稱跨年穩定或通過 OAA Go gate。
   *   **對帳測試**：隨機抽檢 10 個外野空中球案例，人工比對電視轉播畫面中的實際落點與公式還原的 $(X, Y)$ 座標是否物理合理。
 
 ## Log
 
 - 2026-07-21 由 `ruan6047` 指示正式註冊為 📥Backlog。
+- 2026-07-22 新資料影響修訂：Bearing 提升可行性，但單季限制仍在；跨年信度 gate 延至 2027，先做 2026 feasibility。
