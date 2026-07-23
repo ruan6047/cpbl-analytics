@@ -16,7 +16,7 @@
 | [GAME-RECAP-PA1-TAXONOMY1](tasks/GAME-RECAP-PA1-TAXONOMY1.md) | INIT-GAME-RECAP | T4 | canonical PA transition taxonomy 稽核 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-21T01:09:45+08:00 |
 | [GAME-RECAP-WP-API1](tasks/GAME-RECAP-WP-API1.md) | INIT-GAME-RECAP | T4 | canonical WP／WPA public contract | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:09+08:00 |
 | [GAME-RECAP-WP-VAL1](tasks/GAME-RECAP-WP-VAL1.md) | INIT-GAME-RECAP | T4 | 場中 WP 時間外驗證與支援邊界 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T22:15:08+08:00 |
-| [INGEST-ADV-RECONCILE1](tasks/INGEST-ADV-RECONCILE1.md) | INIT-OFFICIAL-DATA1 | T4 | 進階排行榜快照晉升與污染資料修復 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:02+08:00 |
+| [INGEST-ADV-RECONCILE1](tasks/INGEST-ADV-RECONCILE1.md) | INIT-OFFICIAL-DATA1 | T4 | 進階排行榜快照晉升與污染資料修復 | Claude Opus 4.8（P2 修正） | `ai/claude-opus-4-8/INGEST-ADV-RECONCILE1 @ .claude/worktrees/ux-player-scope1-audit-e977b6` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-23T08:48:00+08:00 |
 | [INGEST-DEEP-TRACKMAN1](tasks/INGEST-DEEP-TRACKMAN1.md) | INIT-OFFICIAL-DATA1 | T4 | 入庫深層 TrackMan 物理特徵 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:57:00+08:00 |
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:57:01+08:00 |
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | ruan6047（Design Gate） | — | 0 | 💡需求 | —不適用 | 2026-07-17T04:44:38+08:00 |
