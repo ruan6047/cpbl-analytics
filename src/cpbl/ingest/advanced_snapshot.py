@@ -40,16 +40,19 @@ MIN_RETAIN_RATIO = 0.5
 def gating_predicate(alias: str, dataset: str = "player_stats") -> str:
     """回傳一段 SQL 片段：`alias` 那列是否屬於現行 promoted 快照（或 legacy 未管理列）。
 
-    含 role 維度的 dataset 以 alias.role 對齊 pointer.role。供 API 讀路徑內嵌（無參數）。
+    含 role 維度的 dataset（player_stats / pitch_type_stats）以 alias.role 對齊 pointer.role；
+    無 role 維度的 league_summary（表無 role 欄，pointer role 恆 ''）改比對 pointer role=''。
+    供 API 讀路徑內嵌（無參數）。
     """
+    role_pred = "s.role = ''" if dataset == "league_summary" else f"s.role = {alias}.role"
     return (
         f"((NOT EXISTS (SELECT 1 FROM cpbl.advanced_snapshot_state s "
         f"  WHERE s.year = {alias}.year AND s.kind_code = {alias}.kind_code "
-        f"    AND s.dataset = '{dataset}' AND s.role = {alias}.role) "
+        f"    AND s.dataset = '{dataset}' AND {role_pred}) "
         f"  AND {alias}.source_run_id IS NULL) "
         f" OR EXISTS (SELECT 1 FROM cpbl.advanced_snapshot_state s "
         f"  WHERE s.year = {alias}.year AND s.kind_code = {alias}.kind_code "
-        f"    AND s.dataset = '{dataset}' AND s.role = {alias}.role "
+        f"    AND s.dataset = '{dataset}' AND {role_pred} "
         f"    AND s.current_run_id = {alias}.source_run_id))"
     )
 
@@ -230,7 +233,7 @@ def rollback_to(spec: RunSpec, run_id: int) -> int:
         cur.execute(
             """UPDATE cpbl.advanced_snapshot_state
                   SET current_run_id=%s, promoted_at=now(),
-                      row_count=(SELECT count(*) FROM cpbl.advanced_ingest_runs WHERE id=%s)
+                      row_count=(SELECT accepted_rows FROM cpbl.advanced_ingest_runs WHERE id=%s)
                 WHERE year=%s AND kind_code=%s AND dataset=%s AND role=%s""",
             (run_id, run_id, spec.year, spec.kind_code, spec.dataset, spec.role),
         )

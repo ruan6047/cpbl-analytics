@@ -27,6 +27,14 @@ def test_gating_predicate_binds_scope_and_source_run() -> None:
     assert "a.role" in g and "current_run_id" in g
 
 
+def test_gating_predicate_league_summary_has_no_alias_role() -> None:
+    # league_summary 表無 role 欄；helper 須改比對 pointer role='' 而非 alias.role（避免無效 SQL）。
+    g = snap.gating_predicate("l", "league_summary")
+    assert "l.role" not in g
+    assert "s.role = ''" in g
+    assert "s.dataset = 'league_summary'" in g
+
+
 def test_stat_upsert_sql_carries_provenance_columns() -> None:
     sql = ca._stat_upsert_sql()
     for col in ("source_run_id", "source_fetched_at", "last_seen_at", "metrics"):
@@ -178,3 +186,24 @@ def test_partial_refresh_keeps_pointer_and_visibility(db) -> None:
             "WHERE year=%s AND acnt='0000000001' AND role='batting'", (SENTINEL_YEAR,)).fetchone()
         assert row[0] == 0.4 and row[1] == run_id  # 值刷新、仍掛現行 pointer → 可見
         assert snap.pointer_audit() == []
+
+
+def test_rollback_row_count_uses_accepted_rows(db) -> None:
+    conn = db
+    spec = RunSpec(SENTINEL_YEAR, "A", "player_stats", "batting")
+    now = datetime.now(UTC)
+    report = ValidationReport(observed_rows=2, accepted_rows=2)
+    run_id = snap.open_run(spec, "full", "test", now, observed_rows=2)
+
+    def stage(cur, rid):
+        for acnt in ("0000000001", "0000000002"):
+            cur.execute(ca._stat_upsert_sql(),
+                        ca._record({"woba": 0.3}, SENTINEL_YEAR, acnt, "batting", "A") + (rid, now, now))
+
+    snap.promote_full(spec, run_id, stage, report)
+    snap.rollback_to(spec, run_id)
+    with conn() as c:
+        rc = c.execute(
+            "SELECT row_count FROM cpbl.advanced_snapshot_state "
+            "WHERE year=%s AND dataset='player_stats' AND role='batting'", (SENTINEL_YEAR,)).fetchone()[0]
+    assert rc == 2  # Finding 1：修正前 SELECT count(*) FROM runs WHERE id 恆為 1
