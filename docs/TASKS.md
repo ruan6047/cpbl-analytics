@@ -16,7 +16,7 @@
 | [GAME-RECAP-PA1-TAXONOMY1](tasks/GAME-RECAP-PA1-TAXONOMY1.md) | INIT-GAME-RECAP | T4 | canonical PA transition taxonomy 稽核 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-21T01:09:45+08:00 |
 | [GAME-RECAP-WP-API1](tasks/GAME-RECAP-WP-API1.md) | INIT-GAME-RECAP | T4 | canonical WP／WPA public contract | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:09+08:00 |
 | [GAME-RECAP-WP-VAL1](tasks/GAME-RECAP-WP-VAL1.md) | INIT-GAME-RECAP | T4 | 場中 WP 時間外驗證與支援邊界 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T22:15:08+08:00 |
-| [INGEST-DEEP-TM-BACKFILL1](tasks/INGEST-DEEP-TM-BACKFILL1.md) | INIT-OFFICIAL-DATA1 | T4 | production 深層 TrackMan 欄位補值 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-24T00:35:00+08:00 |
+| [INGEST-DEEP-TM-BACKFILL1](tasks/INGEST-DEEP-TM-BACKFILL1.md) | INIT-OFFICIAL-DATA1 | T4 | production 深層 TrackMan 欄位補值 | 待指派（跨家族／人工查核） | `ai/gemini-3.6-flash/INGEST-DEEP-TM-BACKFILL1 @ .claude/worktrees/ingest-deep-tm-backfill1-execution` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-24T07:41:18+08:00 |
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:57:01+08:00 |
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | ruan6047（Design Gate） | — | 0 | 💡需求 | —不適用 | 2026-07-17T04:44:38+08:00 |
 | [INIT-OFFICIAL-DATA1](tasks/INIT-OFFICIAL-DATA1.md) | INIT-OFFICIAL-DATA1 | T4 | 官方資料契約完整性與低維護 ingest | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:00+08:00 |
