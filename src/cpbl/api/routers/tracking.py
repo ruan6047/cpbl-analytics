@@ -8,6 +8,10 @@ from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON, _batted_result, _dicts
 from cpbl.db import conn
+from cpbl.ingest.advanced_snapshot import gating_predicate
+
+# 只讀最後成功晉升的完整快照（INGEST-ADV-RECONCILE1）；晉升前的 scope 保留 legacy 行為。
+_ADV_GATE = gating_predicate("a", "player_stats")
 
 router = APIRouter()
 
@@ -37,7 +41,8 @@ def player_advanced(player_id: str, season: int = Query(DEFAULT_SEASON),
                            "batting": None, "pitching": None}
     with conn() as c:
         cur = c.cursor()
-        cur.execute("SELECT * FROM cpbl.advanced_stats WHERE acnt = %s AND year = %s AND kind_code = %s",
+        cur.execute(f"SELECT a.* FROM cpbl.advanced_stats a "
+                    f"WHERE a.acnt = %s AND a.year = %s AND a.kind_code = %s AND {_ADV_GATE}",
                     (player_id, season, kind_code))
         for row in _dicts(cur):
             out[row["role"]] = row

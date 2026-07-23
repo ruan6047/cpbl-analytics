@@ -14,6 +14,10 @@ from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON
 from cpbl.db import conn
+from cpbl.ingest.advanced_snapshot import gating_predicate
+
+# 只讀最後成功晉升的完整快照（INGEST-ADV-RECONCILE1）；晉升前的 scope 保留 legacy 行為。
+_ADV_GATE = gating_predicate("a", "player_stats")
 
 router = APIRouter()
 
@@ -335,8 +339,10 @@ def _ability_card(cur, player_id: str, role: str, scope: str, year: int) -> dict
     adv: dict[str, int] = {}
     if scope == "season":
         cur.execute(
-            "SELECT pa, woba_pr, iso_pr, ev_pr, hardhitp_pr, brlp_pr, kp_pr, bbp_pr, whiffp_pr, chasep_pr "
-            "FROM cpbl.advanced_stats WHERE acnt=%s AND year=%s AND role=%s AND kind_code='A'",
+            "SELECT a.pa, a.woba_pr, a.iso_pr, a.ev_pr, a.hardhitp_pr, a.brlp_pr, a.kp_pr, "
+            "a.bbp_pr, a.whiffp_pr, a.chasep_pr "
+            f"FROM cpbl.advanced_stats a WHERE a.acnt=%s AND a.year=%s AND a.role=%s "
+            f"AND a.kind_code='A' AND {_ADV_GATE}",
             (player_id, year, role))
         ar = cur.fetchone()
         if ar and (ar[0] or 0) >= 30:
