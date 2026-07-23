@@ -34,3 +34,11 @@
 ## Log
 
 - 2026-07-22 register by GPT-5@Codex（依 ruan6047 指示）；iteration 0；證據見研究基線。
+- 2026-07-23 iteration 1 by Claude Opus 4.8：拆 scalar/球種/聯盟三 dataset、run-manifest 原子晉升、
+  partial/full 分離、讀路徑 gating、reconcile CLI；本機修復 2026 A/D（863→682，備份後 targeted delete）。
+- 2026-07-23 Gemini 跨家族 review APPROVE（P0/P1=0；P2×2 依建議於 ec8e2fb 修正）；merge 進 main
+  （linear tail 1f59d5f）。
+- 2026-07-23 production rollout（需求方 chat 授權）：部署 migration 063（Deploy 29971022124）、
+  prod_cpbl_api 手動 migrate；資料修復先以 prod 備份（sha256 f4056ca9…）本機 rehearsal 演練通過後套 prod
+  （--single-transaction 鏡像 5 表 + targeted delete，863→682、pointer_audit=0、魔爾曼雙列、live API 200）。
+  卡片 🏁完成 / 部署 ✅已驗證。
