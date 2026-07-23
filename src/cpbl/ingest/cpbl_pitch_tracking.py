@@ -5,8 +5,13 @@
 可完整補二軍與季後逐球。API 依 kindCode server-side 過濾，故不會跨 kind 重複。
 
 回應結構：{"Data":{"Logs":[{...,"Trackman":{"Play":{"PitchTag":{…}},
-"Pitch":{"Release":{…},"Location":{…}},"Hit":{"Launch":{…},"LandingFlat":{…}}}}]}}。
+"Pitch":{"Release":{…},"Location":{…},"Flight":{"PolyFit":{"PitchTrajectory":{…}}}},
+"Hit":{"Launch":{…},"LandingFlat":{…}}}}]}}。
 無 TrackMan 設備球場的球 Trackman=null → 不收（與舊版語意一致）。冪等 UPSERT。
+
+深層物理欄位（INGEST-DEEP-TRACKMAN1）：落地方位角/信心（LandingFlat.Bearing/Confidence）、
+擊球自轉率（Launch.HitSpinRate）、投球軌跡九個原始多項式係數（PitchTrajectory.X/Y/Z[0..2]）。
+九係數以 float8 原值保存，不 round（衍生 traj_accel_y/z 為 round(4) 不能反推）。
 """
 
 from __future__ import annotations
@@ -63,6 +68,21 @@ def _traj(pit: dict) -> tuple[float | None, float | None, float | None, float | 
     return (round(ay, 4), round(az, 4), zt, round(ivb, 2), round(hb, 2))
 
 
+def _polyfit(pit: dict) -> tuple[float | None, ...]:
+    """官方 PitchTrajectory 九個原始多項式係數 (X0,X1,X2,Y0,Y1,Y2,Z0,Z1,Z2)。
+
+    紅線：原值保存不 round（衍生 traj_accel_y/z 為 round(4) 不能反推）。缺軸／缺項回 None。
+    與 _traj 的衍生 IVB/HB 各自獨立：這裡只搬原始係數，不受 ZoneTime 或 y2/z2 缺值影響。
+    """
+    traj = ((pit.get("Flight") or {}).get("PolyFit") or {}).get("PitchTrajectory") or {}
+    out: list[float | None] = []
+    for axis in ("X", "Y", "Z"):
+        arr = traj.get(axis)
+        for i in range(3):
+            out.append(_f(arr[i]) if isinstance(arr, list) and len(arr) > i else None)
+    return tuple(out)
+
+
 def _fetch_logs(client: httpx.Client, acnt: str, year: int, kind_code: str) -> list[dict]:
     r = client.get(LOGS_EP, params={
         "playerType": "pitcher", "acnt": acnt, "year": str(year), "kindCode": kind_code})
@@ -85,6 +105,7 @@ def _record(p: dict, kind_default: str) -> tuple | None:
     if sno is None or pcnt is None or not pacnt:
         return None
     accel_y, accel_z, zone_time, ivb, hb = _traj(pit)
+    x0, x1, x2, y0, y1, y2, z0, z1, z2 = _polyfit(pit)
     return (
         _i(p.get("Year")), p.get("KindCode") or kind_default, sno, pacnt, pcnt,
         p.get("PitcherName"), p.get("HitterAcnt"), p.get("HitterName"),
@@ -97,6 +118,8 @@ def _record(p: dict, kind_default: str) -> tuple | None:
         _f(launch.get("ExitSpeed")), _f(launch.get("Angle")), _f(launch.get("Direction")),
         _f(land.get("Distance")), _f(land.get("HangTime")),
         accel_y, accel_z, zone_time, ivb, hb,
+        _f(land.get("Bearing")), land.get("Confidence"), _f(launch.get("HitSpinRate")),
+        x0, x1, x2, y0, y1, y2, z0, z1, z2,
     )
 
 
@@ -104,7 +127,9 @@ _COLS = ("year,kind_code,game_sno,pitcher_acnt,pitch_cnt,pitcher_name,hitter_acn
          "inning_seq,ball_cnt,strike_cnt,out_cnt,batting_order,content,pitch_call,auto_pitch_type,"
          "tagged_pitch_type,rel_speed,spin_rate,rel_side,rel_height,extension,zone_speed,"
          "plate_loc_side,plate_loc_height,hit_exit_speed,hit_launch_angle,hit_direction,"
-         "hit_distance,hit_hang_time,traj_accel_y,traj_accel_z,zone_time,ivb_cm,hb_cm")
+         "hit_distance,hit_hang_time,traj_accel_y,traj_accel_z,zone_time,ivb_cm,hb_cm,"
+         "hit_landing_bearing,hit_landing_confidence,hit_spin_rate,"
+         "traj_x0,traj_x1,traj_x2,traj_y0,traj_y1,traj_y2,traj_z0,traj_z1,traj_z2")
 
 
 def _upsert(records: list[tuple]) -> int:
