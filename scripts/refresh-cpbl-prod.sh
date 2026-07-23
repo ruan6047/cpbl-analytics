@@ -38,6 +38,43 @@ sync_table() {
   echo "    ✓ ${t}"
 }
 
+# 進階快照 5 表原子同步（INGEST-ADV-RECONCILE1 後的父子表 + read gating）。
+# 為何不能用通用 sync_table：
+#   1) advanced_ingest_runs.id 是 GENERATED ALWAYS → INSERT 明確 id 需 OVERRIDING SYSTEM VALUE。
+#   2) advanced_stats/pitch_type/league_summary 有 source_run_id → advanced_ingest_runs FK，
+#      父表沒先灌就 upsert 子表會 FK 失敗（EXIT 3）。
+#   3) 可見性由 gating（source_run_id = snapshot_state.current_run_id）決定；舊 sync_table
+#      的 DO UPDATE 未更新 metrics/source_run_id，既有列會被 gating 濾掉。
+# 故五表在同一 --single-transaction：先灌 runs、再更新資料列的 source_run_id、最後翻 pointer；
+# 全有全無、無可見空窗。本機↔prod 的 run id 語意已對齊（id 6–20 逐列相同），無 serial-PK 碰撞。
+_stage() {  # $1=來源表  $2=暫存表名
+  echo "CREATE TEMP TABLE $2 (LIKE cpbl.$1 INCLUDING DEFAULTS) ON COMMIT DROP;"
+  docker exec "$LOCAL_DB" pg_dump -U cpbl -d cpbl --data-only -t "cpbl.$1" \
+    | sed -e "s/^COPY cpbl\.$1 /COPY $2 /" -e '/^\\restrict /d' -e '/^\\unrestrict /d'
+}
+_excl() { local s="" c; for c in "$@"; do s="${s}${c}=EXCLUDED.${c},"; done; printf '%s' "${s%,}"; }
+
+sync_advanced_snapshot() {
+  {
+    _stage advanced_ingest_runs _adv_run
+    # run log 不可變（append-only）：既有 run 略過、只補新 run；identity 欄需 OVERRIDING SYSTEM VALUE。
+    echo "INSERT INTO cpbl.advanced_ingest_runs OVERRIDING SYSTEM VALUE SELECT * FROM _adv_run ON CONFLICT (id) DO NOTHING;"
+    _stage advanced_stats _adv_stat
+    echo "INSERT INTO cpbl.advanced_stats SELECT * FROM _adv_stat ON CONFLICT (year,kind_code,acnt,role) DO UPDATE SET $(_excl pa woba woba_pr ba ba_pr slg slg_pr iso iso_pr obp obp_pr brl brl_pr brlp brlp_pr ev ev_pr max_ev max_ev_pr hardhitp hardhitp_pr kp kp_pr bbp bbp_pr whiffp whiffp_pr chasep chasep_pr updated_at metrics source_run_id source_fetched_at last_seen_at);"
+    _stage advanced_pitch_type_stats _adv_pt
+    echo "INSERT INTO cpbl.advanced_pitch_type_stats SELECT * FROM _adv_pt ON CONFLICT (year,kind_code,role,acnt,pitch_type) DO UPDATE SET $(_excl pitches kph kph_max spin_rate spin_rate_max throws source_run_id source_fetched_at last_seen_at source_payload updated_at);"
+    _stage advanced_league_summary _adv_ls
+    echo "INSERT INTO cpbl.advanced_league_summary SELECT * FROM _adv_ls ON CONFLICT (year,kind_code,category,pitch_type) DO UPDATE SET $(_excl metrics source_run_id source_fetched_at last_seen_at source_payload updated_at);"
+    # pointer 最後翻：此時資料列已帶新 source_run_id，gating 立即命中，無可見空窗。
+    # current_run_scope 是 GENERATED ALWAYS（'full'）→ 明確列出欄位、排除它（不可 INSERT / SET）。
+    _stage advanced_snapshot_state _adv_snap
+    echo "INSERT INTO cpbl.advanced_snapshot_state (year,kind_code,dataset,role,current_run_id,row_count,source_fetched_at,promoted_at) SELECT year,kind_code,dataset,role,current_run_id,row_count,source_fetched_at,promoted_at FROM _adv_snap ON CONFLICT (year,kind_code,dataset,role) DO UPDATE SET $(_excl current_run_id row_count source_fetched_at promoted_at);"
+  } | ssh -o BatchMode=yes "$VPS" \
+        "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql \
+          -v ON_ERROR_STOP=1 -q --single-transaction -U \"\$DB_USER\" -d \"\$DB_NAME\""
+  echo "    ✓ advanced snapshot（runs/stats/pitch_type/league_summary/pointer 原子晉升）"
+}
+
 cd "$REPO_DIR"
 # SKIP_SCRAPE=1：本機 DB 已是最新時，跳過重爬、直接把現有資料同步到 prod。
 if [ -n "${SKIP_SCRAPE:-}" ]; then
@@ -171,9 +208,9 @@ if [ -n "${WITH_DETAIL:-}" ]; then
     action_name batting_action_name defend_station_code hitter_acnt hitter_name pitcher_acnt \
     pitcher_name catcher_acnt catcher_name first_base second_base third_base is_strike is_ball \
     is_score is_change_player is_special_event visiting_score home_score
-  sync_table advanced_stats "year,kind_code,acnt,role" \
-    pa woba woba_pr ba ba_pr slg slg_pr iso iso_pr obp obp_pr brl brl_pr brlp brlp_pr ev ev_pr \
-    max_ev max_ev_pr hardhitp hardhitp_pr kp kp_pr bbp bbp_pr whiffp whiffp_pr chasep chasep_pr
+  # 進階快照：父子表 + gating pointer 原子同步（見檔首 sync_advanced_snapshot）。
+  # 取代舊 sync_table advanced_stats（RECONCILE1 後 FK 失敗 + gating 濾除既有列）。
+  sync_advanced_snapshot
   sync_table pitch_tracking "year,kind_code,game_sno,pitcher_acnt,pitch_cnt" \
     pitcher_name hitter_acnt hitter_name inning_seq ball_cnt strike_cnt out_cnt batting_order content \
     pitch_call auto_pitch_type tagged_pitch_type rel_speed spin_rate rel_side rel_height extension \
