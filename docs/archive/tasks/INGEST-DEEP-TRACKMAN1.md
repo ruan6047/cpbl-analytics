@@ -60,3 +60,6 @@
 - 2026-07-21 由 `ruan6047` 指示正式註冊為 📥Backlog。
 - 2026-07-22 官網缺口稽核修訂：補 `LandingFlat.Confidence` 與完整九係數；納入 `INIT-OFFICIAL-DATA1`。
 - 2026-07-22 流程勘誤：本卡包含 migration 且影響資料正確性，依 canonical 由 T3 升為 T4；production 回填另開 data-migration 卡或由明確 migrate phase 承接，不可混入 expand。
+- 2026-07-23 執行（Claude Opus 4.8）：migration 064（12 新欄，係數採 double precision 保原值）+ `_polyfit` parser + 測試；ruff/pytest 379、migrate 冪等、DB↔官方 JSON 一致；本機 2026 回填 A 係數 100.0%/D 99.9%。source 20705d1，push 分支保留 worktree。
+- 2026-07-23 查核（GPT-5，跨家族）APPROVE：無 P0–P3，獨立抽驗獅帝芬 0000007597 九係數 12/12 精確相等。merge 6beea35 進 main（events sv 4→7）。
+- 2026-07-24 部署（依 ruan6047 授權）：PersonalWebsite bump submodule 784297f→b582f39（CI 30023513220 + Deploy 30023723884 全綠）；prod_cpbl_api 手動 migrate() → 64 migrations、pitch_tracking 新增 12 欄，rows 73247 不變（additive、零資料影響）、二次冪等；備份 cpbl-prod-20260724-000329（sha256 6c86508a…）；live API 全 200。🏁完成/✅已驗證。**新 12 欄於 prod 現全 NULL，逐球回填另開 data-migration 卡。**

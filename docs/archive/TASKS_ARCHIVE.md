@@ -4,6 +4,7 @@
 
 | 卡ID | 功能 | 交付狀態 | 部署狀態 | 封存位置 |
 |---|---|---|---|---|
+| INGEST-DEEP-TRACKMAN1 | 入庫深層 TrackMan 物理特徵 | 🏁完成 | ✅已驗證 | [`tasks/INGEST-DEEP-TRACKMAN1.md`](tasks/INGEST-DEEP-TRACKMAN1.md)（T4🔴資料正確性/schema；GPT-5 跨家族 APPROVE 無 P0–P3、抽驗獅帝芬九係數 12/12 相等；merge `6beea35`；migration 064 additive 12 欄（係數 double precision 保原值）、prod migrate 後 rows 73247 不變、Deploy 30023723884 驗證；新欄 prod 現全 NULL，逐球回填另開 data-migration 卡） |
 | INGEST-ADV-RECONCILE1 | 進階排行榜快照晉升與污染資料修復 | 🏁完成 | ✅已驗證 | [`tasks/INGEST-ADV-RECONCILE1.md`](tasks/INGEST-ADV-RECONCILE1.md)（T4🔴資料正確性；Gemini 跨家族 APPROVE，P2×2 修正 ec8e2fb；merge linear tail `1f59d5f`；migration 063 + 本機 rehearsal 後 prod 資料修復 863→682、pointer_audit=0、魔爾曼雙列、Deploy 29971022124 驗證） |
 | INGEST-ADV-EXPAND1 | 進階排行榜維度與快照 additive schema | 🏁完成 | ✅已驗證 | [`tasks/INGEST-ADV-EXPAND1.md`](tasks/INGEST-ADV-EXPAND1.md)（T4；Claude Opus 4.8 iteration 2 APPROVE；PR #38 merge `9e547358`；migration 062 production 驗證完成，RECONCILE1 未執行） |
 | UX-MATCHUP2 | 投打對決整合球員個人頁 | 🏁完成 | ✅已驗證 | [`tasks/UX-MATCHUP2.md`](tasks/UX-MATCHUP2.md)（T4🔴統計/ML；iteration 2，REVIEW-005 RETURN→REVIEW-007 APPROVE by Codex GPT-5 跨家族；抽離共用 MatchupExplorer→球員頁分項與對戰整合＋deep-link、對手下拉只列交手隊、洞察 compact 各態專屬摘要；merge bc15ba1、線上 af336963/主站 1527a8d、Deploy run 29864575493） |
