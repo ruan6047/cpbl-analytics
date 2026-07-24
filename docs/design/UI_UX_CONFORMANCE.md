@@ -25,10 +25,10 @@
 | `/standings` | §5.4 | —+`DataTable` | ⚠️ 未 import 三態 | 🔴/🟡 **Tailwind 數字色階** `bg-amber-100/500/700`、`text-amber-700`（`page.tsx:186/645/654/659`）取代語意 `--color-amber`；`bg-amber-500 text-white` 徽章 | 季後保送/淘汰標籤未走 `StatusBadge`/`amber` token；3 處手刻卡殼；**三軸控制（層級 `kind`/階段 `seg`/年度 `year`）散置＋孤立年度下拉，未走 §4.3 一體式導引欄**（→ [`../tasks/UX-NAV-INTEGRATE1.md`](../tasks/UX-NAV-INTEGRATE1.md) Phase 1） | 🟡（token + 多軸導引） |
 | `/batters` | §5.6 | `RankRoleTabs`+`level-year-nav`（bespoke，active `bg-ink text-paper` ✅）+ `Leaderboard` | ✅（Leaderboard/DataTable 內建） | ✅ | **四軸（role/view/kind/year）兩 nav 分列，且 `AwardRaces`(獎項排行榜) 垂直堆疊在 `Leaderboard`(完整清單) 上→難讀**；未走 §4.3 一體式導引欄、view 未做分頁（→ [`../tasks/UX-NAV-INTEGRATE1.md`](../tasks/UX-NAV-INTEGRATE1.md) Phase 2） | 🟡（多軸導引 + 視圖堆疊） |
 | `/pitchers` | §5.6 | 同 `/batters` | ✅ | ✅ | 同 `/batters` | 🟢 |
-| `/teams/[code]` | §5.8 | `Tabs`（pill）+ `DataTable` | ✅（`parts` import 三態） | ✅ | 無明顯偏離 | 🟢 |
-| `/matchups` | §5.9 | —+`EmptyState` | ✅ | 🟡 **`text-amber-600`**（`matchup-card.tsx:89/91`）取代 `--color-amber`（先發投手文字） | 先發投手 amber 未走 token | 🟡 |
+| `/teams/[code]` | §5.8 | `Tabs`（pill）+ `DataTable` | ✅（`parts` import 三態） | ✅ | 多軸整合 **N/A**：`searchParams` 僅 `code`、無 kind/year 散置、已用 canonical `Tabs`（→ [`../tasks/UX-NAV-INTEGRATE1.md`](../tasks/UX-NAV-INTEGRATE1.md) Phase 4 稽核確認、預期無改動） | 🟢 |
+| `/matchups` | §5.9 | —+`EmptyState`；explorer 整合控制列 | ✅ | 🟡 **`text-amber-600`**（`matchup-card.tsx:89/91`）取代 `--color-amber`（先發投手文字） | 先發投手 amber 未走 token；多軸 explorer（role/kind/scope/年範圍/對手）**已有整合控制列**→align 共享軸（→ [`../tasks/UX-NAV-INTEGRATE1.md`](../tasks/UX-NAV-INTEGRATE1.md) Phase 4） | 🟡 |
 | `/records` | §5.10 | `DataTable` | ✅（`emptyText`） | ✅ | 無明顯偏離 | 🟢 |
-| `/venues`,`/venues/[venue]` | §5.11 | `DataTable` | ✅（`emptyText`） | ✅ | 無明顯偏離 | 🟢 |
+| `/venues`,`/venues/[venue]` | §5.11 | `DataTable` | ✅（`emptyText`） | ✅ | 多軸整合 **N/A**：無軸選擇器、清單/詳情（→ [`../tasks/UX-NAV-INTEGRATE1.md`](../tasks/UX-NAV-INTEGRATE1.md) Phase 4 稽核確認、預期無改動） | 🟢 |
 | `/umpires` | §5.12 | bespoke toggle + `DataTable` | ⚠️ **ad-hoc「載入中…」**（`page.tsx:273`）；未 import 三態 | ✅ | active toggle `bg-cpbl text-white`（應 `text-paper`）；2 處手刻卡殼 | 🟡 |
 | `/people/[kind]/[name]` | §5.13 | —+`EmptyState` | ✅ | ✅ | 無明顯偏離 | 🟢 |
 | `/methodology` | §5.14 | —（prose） | —（靜態） | ✅ | 無明顯偏離 | 🟢 |

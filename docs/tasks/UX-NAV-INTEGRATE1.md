@@ -41,6 +41,11 @@
 - [ ] `kind`＋`year`→`LevelYearNav`（controls）；**隊伍篩選**→隊徽 chip 群（§9.3；窄螢幕可改 Select）整進導引欄；月份 prev/next stepper 保留（月曆專屬）。
 - [ ] URL `kind`/`year`/`team`/`month` 無回歸。
 
+### Phase 4 — matchups 對齊 ＋ teams/venues 稽核確認（範圍較小，誠實標注）
+- [ ] `/matchups`：explorer **已有整合控制列**；align 共享軸（role/kind 走一致元件）＋套 `StickyNavBar`；explorer 專屬控制（scope／年範圍／對手／主角 combobox）保留不動。
+- [ ] `/teams/[code]`：**稽核確認**——已用 canonical `Tabs`、`searchParams` 僅 `code`、**無 kind/year 散置**；除確認 section `Tabs` 一致（＋可選 sticky）外**預期無改動**。
+- [ ] `/venues`・`/venues/[venue]`：**稽核確認**——無軸選擇器、清單/詳情；**預期無改動**（未來若加年份選擇器再納整合）。
+
 **共通驗收**：各階 `cd web && npm run build:check` 通過；深/淺 × 桌機/375px 截圖；鍵盤 ↑↓/方向鍵＋`aria-*`；44px 觸控；`uv run ruff/pytest` 不受影響。**部署**：前端 build→上線（Runbook §3）。
 
 ## 依賴、序列與非目標

@@ -293,6 +293,11 @@
 | `/standings` | seg（單層 tablist） | kind＋year |
 | `/batters`・`/pitchers` | role×view（`HierarchicalTabs`；view=排行榜/完整清單） | kind＋year |
 | `/games` | 月曆（月份 stepper） | kind＋year＋隊伍篩選 |
+| `/matchups` | 對決 explorer（主角 combobox） | role＋kind＋scope/年範圍＋對手（**已有整合控制列**，align 共享軸） |
+| `/teams/[code]` | 內容分頁（本季/陣容/歷屆，**已用 canonical `Tabs`**） | team(route)；**無 kind/year 散置→本軸已合規** |
+| `/venues`・`/venues/[venue]` | 清單/詳情（無軸選擇器） | **N/A——無多軸散置** |
+
+> **誠實範圍**：`/teams`、`/venues` 經查**無 `kind/year` 多軸散置**（teams 已用 canonical `Tabs`、venues 是清單/詳情）→ 本樣式對它們是**稽核確認、非重構**；`/matchups` 已有 explorer 整合控制列 → 屬對齊共享軸。真正的散置重構是 **standings/batters/pitchers/games**。
 
 **共用積木（多已存在，非發明）**：`StickyNavBar` 殼（抽，全用）＋ `LevelYearNav`（kind＋year，**已是 batters/pitchers 共用件，須推廣到 standings/games 消滅手刻不一致**）＋ `HierarchicalTabs`/`ContextSwitcher`/`YearSelect`/隊徽 chip。`AxisNav` 大抽象仍不需（現有件足以組合）。
 
