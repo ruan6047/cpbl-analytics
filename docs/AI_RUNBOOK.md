@@ -131,6 +131,7 @@ production 映像尚未部署，先停止同步並完成正常 main deploy，不
 | `cpbl-scrape-standings <year>` | 官方戰績(含上下半季/勝差/H2H/近十場) | 戰績刷新 |
 | `cpbl-scrape-pitches [delay]` | 逐球 TrackMan（**投手中心** logs API，全投手→自動涵蓋所有場次）；**現行每日 refresh 的唯一正式 writer** | 逐球刷新 |
 | `cpbl-scrape-game-pitches [year] [kind] [snos…\|近N天]` | 逐球 TrackMan（**比賽中心**，單場 API `/games/{y}-{k}-{sno}` 的 LiveLog；與 logs 路徑共用 pure parser、冪等對接同表）；一場一請求、免名冊、實測 ~88% 少請求 | INGEST-GAME-TM-REFACTOR1 Gate 1-2 落地；**尚未切為 refresh 正式路徑**（Gate 3 shadow／Gate 4 cutover 待做） |
+| `cpbl-shadow-game-tm [year] [kind] [window_days]` / `--report` | Gate 3 shadow harness：抓賽程 shadow（`games/schedule`，GameStatus 分桶）+ 只對 FINISHED 場打單場 API，寫隔離 `cpbl.game_tm_shadow_*` 表並唯讀對帳正式 `pitch_tracking`；`--report` 只印最近一次 run 摘要 | 14 天觀測窗期間每日手動跑；**不寫** `cpbl.pitch_tracking`、不影響正式 refresh |
 | `cpbl-scrape-advanced` | 官方進階 + 官方 PR(stats.cpbl) | 進階數據刷新 |
 | `cpbl-scrape-detail` / `cpbl-scrape-fighting` | 選手對戰各隊/分項 / 投打對決 | **分項/vs各隊已改重算停爬**（見 build-splits）；detail 僅剩季後 C/E 生涯補抓、fighting 供投打對決 |
 | `cpbl-refresh-recent [fast]` | 抓昨天/今天：games+累計+(增量)對戰/逐球 + **重算分項寫回**，寫 `refresh_log` | 每日增量（本機跑） |
