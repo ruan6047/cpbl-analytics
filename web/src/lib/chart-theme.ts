@@ -140,7 +140,8 @@ export const GRADE_COLORS: Record<string, string> = {
 export const gradeColor = (grade?: string | null) => (grade && GRADE_COLORS[grade]) || GRADE_COLORS.G;
 // 獎牌（hero 生涯獎項：金/銀/銅）
 export const MEDAL_COLORS: Record<string, string> = { 金: "#e6b422", 銀: "#9aa3af", 銅: "#b0703c" };
-// 洋將身分徽章（原 lib.ts IMPORT_BADGE 的色；hint 文案仍留 lib.ts）
+// 洋將身分徽章（原 lib.ts IMPORT_BADGE 的色；hint 文案仍留 lib.ts）。
+// ＝globals.css @theme `--status-*` 的淺色鏡像（canonical＝@theme；chart-theme.test.ts 守齊一致，勿單改此處）。
 export const STATUS_COLORS: Record<string, string> = {
   import: "#2563eb", loree: "#0f766e", nagata: "#7c3aed",
 };

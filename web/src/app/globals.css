@@ -53,8 +53,6 @@
   --chart-4: #8b5cf6;
   --chart-5: #16a34a;
   --chart-6: #94a3b8;
-  --chart-7: #f472b6;
-  --chart-8: #d4a373;
   --chart-7: #db2777;
   --chart-8: #a16207;
   /* — 好球帶分區 — */
@@ -99,6 +97,8 @@
   --chart-4: #a78bfa;
   --chart-5: #34d399;
   --chart-6: #94a3b8;
+  --chart-7: #db2777;            /* 沿用淺色飽和洋紅：提亮版在 deutan 下會與灰 chart-6 撞（ΔE<6），故不提亮；CVD 已驗 ΔE≥9.5、navy 對比 3.6:1 */
+  --chart-8: #e08a2a;            /* 由淺色 #a16207 提亮暖橘：原值在 navy 偏暗且較其餘 dark 色階暗，提亮以齊；CVD 通過、navy 對比 6.2:1 */
   --zone-heart: #ef4444;
   --zone-shadow: #fb923c;
   --zone-chase: #facc15;

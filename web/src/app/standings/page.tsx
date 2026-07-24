@@ -183,7 +183,7 @@ function ElimTag({ elim }: { elim: string | null }) {
   }
   return (
     <span
-      className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-amber-700"
+      className="ml-1.5 rounded bg-amber/15 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-amber"
       title="魔術數字（M）：再拿下幾場即確保晉級"
     >
       M{elim}
@@ -642,7 +642,7 @@ export default async function Standings({ searchParams }: { searchParams: Promis
                         {isChampion && (
                           <span
                             title="年度總冠軍（台灣大賽勝隊）"
-                            className="rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white"
+                            className="rounded bg-amber px-1.5 py-0.5 text-[10px] font-bold text-paper"
                           >
                             🏆 總冠軍
                           </span>
@@ -651,12 +651,12 @@ export default async function Standings({ searchParams }: { searchParams: Promis
                         <GbTag gb={t.gb} />
                         <ElimTag elim={t.elim} />
                         {playoffTags.map((tag) => (
-                          <span key={tag} className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">{tag}</span>
+                          <span key={tag} className="rounded bg-amber/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber">{tag}</span>
                         ))}
                         {t.is_champion && (
                           <span
                             title={`${SEGS.find((s) => s.v === segCode)?.label}冠軍${half?.finalized ? "" : "（提前封王）"}`}
-                            className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700"
+                            className="ml-1.5 rounded-full bg-amber/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber"
                           >
                             👑
                           </span>

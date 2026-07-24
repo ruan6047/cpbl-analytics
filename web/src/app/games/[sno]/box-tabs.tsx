@@ -16,7 +16,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { clientGet, type StatRow } from "@/lib/client";
 import { fmtIPParts } from "@/lib/format";
-import { Card, PlayerLink, TeamLogo } from "@/components/ui";
+import { Card, PlayerLink, TeamLogo, Skeleton, ErrorState } from "@/components/ui";
 import { DataTable, type Column } from "@/components/table";
 import { chartAxis, chartTooltip, useChartTheme } from "@/lib/chart-theme";
 import { teamColor, teamShort } from "@/lib/teams";
@@ -567,16 +567,8 @@ export default function BoxTabs({ data }: { data: Live }) {
 
       {tab === "umpire" && (
         <div className="space-y-4">
-          {umpLoading && (
-            <div className="py-8 text-center text-sm text-muted">
-              載入主審判決報告中…
-            </div>
-          )}
-          {umpError && (
-            <div className="rounded-xl border border-line bg-surface p-6 text-center text-sm text-muted">
-              載入主審報告失敗。
-            </div>
-          )}
+          {umpLoading && <Skeleton className="h-40 rounded-xl" />}
+          {umpError && <ErrorState>載入主審報告失敗。</ErrorState>}
           {!umpLoading && !umpError && umpCard && (
             <>
               {umpCard.pitches.length > 0 && stats ? (

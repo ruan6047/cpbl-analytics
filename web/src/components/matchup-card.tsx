@@ -86,9 +86,9 @@ export function MatchupCard({
         <div className="border-t border-line px-4 py-3">
           {/* 先發投手 */}
           <div className="mb-3 grid grid-cols-[1fr_auto_1fr] items-center gap-x-4 text-xs">
-            <div className="text-right text-amber-600">{starterText(m.away.starter ?? null)}</div>
+            <div className="text-right text-amber">{starterText(m.away.starter ?? null)}</div>
             <div className="text-faint">先發</div>
-            <div className="text-amber-600">{starterText(m.home.starter ?? null)}</div>
+            <div className="text-amber">{starterText(m.home.starter ?? null)}</div>
           </div>
 
           {/* 先發投手能力值卡疊圖（生涯 PR）：直覺看出兩位先發強弱輪廓 */}
