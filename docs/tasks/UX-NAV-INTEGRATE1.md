@@ -73,3 +73,4 @@
   4. **一/二軍樣式統一參照選手頁**：`LevelYearNav` 層級改 ContextSwitcher 視覺（「層級」label＋segmented 膠囊、active `bg-surface shadow-sm` 凸起），保留 Link＋`aria-current` 路由語意；移除舊分隔線。
   5. **主/子頁籤視覺分層重設計**：`HierarchicalTabs` 未選取主頁籤由 `bg-surface-2` 實底（易與 active 群的灰底容器/子頁籤混淆）改**描邊 pill**（`border-line bg-surface text-muted`，hover 加深）；active 主頁籤維持實心 ink pill＋子頁籤同住灰底容器示從屬。
   - 修訂驗證：`tsc` ✓、`npm test` 126 ✓、瀏覽器深/淺 × 1280/375 重驗（matchups 桌機 sticky/行動 static 實測）。
+- 2026-07-24 **人工審 round 2**：games 隊伍 chips `rounded-full` 太圓不像按鈕 → 改 control canonical `rounded-lg`（§2.5），與月份 stepper/層級膠囊同語彙；瀏覽器重驗 ✓。

@@ -104,14 +104,15 @@ export default async function GamesPage({
           main={
             <div role="group" aria-label="球隊篩選"
               className="flex min-w-0 items-center gap-1.5 overflow-x-auto overscroll-x-contain">
+              {/* 圓角走 control canonical rounded-lg（§2.5；rounded-full 不像可按，UI 審 r2） */}
               <Link href={qs({ team: "" })} aria-current={!team ? "true" : undefined}
-                className={`inline-flex min-h-11 shrink-0 touch-manipulation items-center rounded-full px-2.5 text-xs font-medium transition ${
+                className={`inline-flex min-h-11 shrink-0 touch-manipulation items-center rounded-lg px-2.5 text-xs font-medium transition ${
                   !team ? "bg-ink text-paper" : "bg-surface-2 text-muted hover:text-ink"}`}>全部</Link>
               {teamCodes.map((code) => {
                 const on = team === code;
                 return (
                   <Link key={code} href={qs({ team: on ? "" : code })} aria-current={on ? "true" : undefined}
-                    className={`inline-flex min-h-11 shrink-0 touch-manipulation items-center gap-1 rounded-full px-2 text-xs font-medium transition ${on ? "" : "bg-surface-2"}`}
+                    className={`inline-flex min-h-11 shrink-0 touch-manipulation items-center gap-1 rounded-lg px-2 text-xs font-medium transition ${on ? "" : "bg-surface-2"}`}
                     style={on ? { background: teamColor(code), color: contrastText(teamColor(code)) } : undefined}>
                     <TeamLogo code={code} name={names.get(code)} size={15} />
                     <span className={on ? "" : "text-muted"}>{teamFullName(names.get(code) ?? "")}</span>
