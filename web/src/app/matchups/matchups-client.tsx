@@ -21,38 +21,14 @@ import {
 } from "@/components/matchups/controls";
 import MatchupExplorer from "@/components/matchups/explorer";
 import SearchCombobox, { type ComboHit } from "@/components/matchups/search-combobox";
+import { ContextSwitcher } from "@/components/hierarchical-tabs";
+import { NavBarRow, StickyNavBar } from "@/components/sticky-nav-bar";
 
 const SORT_KEYS: SortKey[] = ["plate_appearances", "avg", "ops", "home_runs", "so"];
 
-function Toggle<T extends string>({
-  options,
-  value,
-  onChange,
-  label,
-}: {
-  options: { v: T; label: string }[];
-  value: T;
-  onChange: (v: T) => void;
-  label: string;
-}) {
-  return (
-    <div className="inline-flex gap-1 rounded-lg bg-surface-2 p-1" role="group" aria-label={label}>
-      {options.map((o) => (
-        <button
-          key={o.v}
-          type="button"
-          onClick={() => onChange(o.v)}
-          aria-pressed={value === o.v}
-          className={`rounded-md px-3 py-1 text-sm transition ${
-            value === o.v ? "bg-ink font-medium text-paper" : "text-muted hover:text-ink"
-          }`}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
+// 視角標籤（§4.3 Phase 4 對齊：共享 role 軸改用 canonical ContextSwitcher，
+// 取代先前手刻 Toggle；explorer 專屬控制不動）。
+const ROLE_LABEL: Record<Role, string> = { batting: "打者對投手", pitching: "投手對打者" };
 
 export default function MatchupsClient() {
   const router = useRouter();
@@ -154,21 +130,14 @@ export default function MatchupsClient() {
         </p>
       </header>
 
-      <MatchupExplorer
-        pid={pid}
-        role={role}
-        subjectName={subjectName}
-        controls={controls}
-        onPatch={onPatch}
-        header={
-          <>
-            <Toggle<Role>
+      <StickyNavBar label="對決導覽">
+        <NavBarRow
+          main={
+            <ContextSwitcher
               label="視角"
-              options={[
-                { v: "batting", label: "打者對投手" },
-                { v: "pitching", label: "投手對打者" },
-              ]}
+              values={["batting", "pitching"] as const}
               value={role}
+              render={(v) => ROLE_LABEL[v]}
               onChange={(v) =>
                 // 換視角＝換母體：清空主角與對手
                 setParams({
@@ -181,6 +150,18 @@ export default function MatchupsClient() {
                 })
               }
             />
+          }
+        />
+      </StickyNavBar>
+
+      <MatchupExplorer
+        pid={pid}
+        role={role}
+        subjectName={subjectName}
+        controls={controls}
+        onPatch={onPatch}
+        header={
+          <>
             <SearchCombobox
               label={`搜尋${role === "batting" ? "打者" : "投手"}`}
               placeholder={`輸入${role === "batting" ? "打者" : "投手"}姓名或隊伍…`}

@@ -228,7 +228,7 @@
 | **階層雙層** | `HierarchicalTabs` + `ContextSwitcher` | 頁內雙層資料範圍（scope + view，如球員頁本季/生涯 × 總覽/逐球/…） | group `bg-ink text-paper`；item `border-b-2 border-ink` | group（`aria-pressed`）+ tablist（`role=tab`）分離語意 |
 | **情境切換** | `ContextSwitcher` | 情境軸（身分打/投、層級一/二軍），segmented 膠囊 | `bg-surface text-ink shadow-sm`（凸起感） | `role=group` + `aria-pressed` |
 | **單層分頁** | `Tabs` | 單層 server-rendered 內容分頁（資料已在 props，切換不打 API） | pill `bg-ink text-paper` | `role=tablist/tab` |
-| **路由切換 nav** | `RankRoleTabs` / `level-year-nav` | 跨路由導覽（`/batters ↔ /pitchers`、年度/層級），保留 query 脈絡 | pill `bg-ink text-paper` | `aria-current="page"`（連結非 tab） |
+| **路由切換 nav** | `level-year-nav`（`RankRoleTabs` 已由 `RankNav` 的 group 取代，UX-NAV-INTEGRATE1） | 跨路由導覽（年度/層級；`/batters ↔ /pitchers` 走 `RankNav` group），保留 query 脈絡 | pill `bg-ink text-paper` | `aria-current="page"`（連結非 tab） |
 
 > 選項多寡準則：**切換族適用 ~2–5 個選項**且需常駐可見；超過或值域大 → 改用選擇族（§4.2）。
 > **⚠️ open item（待查核裁定）**：`ContextSwitcher` active 用 `bg-surface text-ink shadow-sm`（而非通則 `bg-ink text-paper`）——segmented 凸起慣例，**現況如此**，誠實描述而非強制統一。

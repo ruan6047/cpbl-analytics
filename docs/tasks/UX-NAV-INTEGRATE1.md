@@ -57,3 +57,12 @@
 ## Log
 
 - 2026-07-24 propose by UX-DESIGN-SYSTEM1 執行者（Opus 4.8），依 ruan6047 §4.3 定案；收斂 standings/rankings/games 為單一傘型卡；iteration 0，**待 Coordinator 註冊**。
+- 2026-07-24 Coordinator 註冊（REGISTER-001）；19:31 依 ruan6047 指示由 Opus 4.8 認領執行（CLAIM-002；worktree `.claude/worktrees/ux-player-scope1-audit-15cb43`，branch `claude/ux-nav-integrate1-af0daf`）。
+- 2026-07-24 Phase 0–4 實作完成（Opus 4.8）：
+  - **Phase 0**：新增 `web/src/components/sticky-nav-bar.tsx`（`StickyNavBar` sticky 殼＋`NavBarRow` 版面，自球員頁 `PlayerNavigation` 抽出）；`HierarchicalTabs` 內部改用 `NavBarRow`（同 class、零視覺變更）並 export `TabItems`；`LevelYearNav` 改裸 controls＋`params` 保留頁面主軸參數；`YearSelect` 加 `params`＋**H8 圓角統一 `rounded-lg`（conformance 明文「圓角交 NAV」）**＋`min-h-11`；球員頁改用 `StickyNavBar`（行為不變）。
+  - **Phase 1**：`standings/nav.tsx`（seg 單層 tablist＋`LevelYearNav` controls 一列）；`segsFor(kind)` 動態（二軍僅 全年/總冠軍）＋失效 seg fallback 全年（實測 `?kind=D&seg=1` → 全年 active）；移除 header 散置 level pills/YearSelect 與獨立 seg pill 列。
+  - **Phase 2**：`rank-nav.tsx`（`HierarchicalTabs` role group×view item＋controls）；**`?view=` 值 `awards`／缺省＝完整清單（向後相容）**；tab 順序採「完整清單、獎項排行榜」（預設項在前；spec 例示順序相反，供 UI 審裁定）；刪 `rank-role-tabs.tsx`；實測 role 切換保留 view（/batters?view=awards → 點投手 → /pitchers?view=awards）。
+  - **Phase 3**：games 手刻 kind/year 列改 `LevelYearNav`；隊伍 chips 整進 `StickyNavBar`（44px 觸控、窄螢幕橫向捲動；**inactive chips 補 `bg-surface-2` 底與「全部」chip 一致，係小幅視覺變更**）；月份 stepper 保留；實測 chip 篩選與 sticky 正常。
+  - **Phase 4**：matchups 手刻 `Toggle` → canonical `ContextSwitcher` 置 `StickyNavBar`（視角＝頁級共享軸；主角 combobox 與 scope/年範圍/對手留 explorer 查詢卡不動——**未將整張查詢卡設 sticky**，因卡片含 combobox 高度過高、行動端會吃掉半個視口，供 UI 審裁定）；`/teams/[code]` 稽核✅（canonical `Tabs`、無 kind/year 散置、無改動）；`/venues` 稽核✅（無軸選擇器、無改動）。
+  - **spec 順手修**：`UI_UX_SYSTEM §4.1` 路由切換 nav 語彙列去除已刪除的 `RankRoleTabs`。
+  - **驗證**：`tsc` ✓、`npm run build:check` 全路由 ✓、`npm test` 126 ✓、`uv run ruff/pytest`（455 passed）✓；瀏覽器實測（真實點擊）standings 動態 seg/fallback、rankings view 分頁/role 保留、games chip 篩選/sticky、球員頁 sticky 無回歸；深/淺 × 桌機/375px 檢視。**待需求方本地人工審（dev :3000）**。
