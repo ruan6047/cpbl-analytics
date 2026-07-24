@@ -3,6 +3,7 @@
 - 需求：ruan6047　規劃：待指派　分支：`ai/<執行者>/UX-TEAM-SPLIT-SCOPE1`
 - 執行：待指派　查核：待指派（跨模型家族或人工，且 ≠ 執行）
 - Initiative：INIT-PRODUCT-UX　spec 基線：UX-TEAM-FOCUS1（本季現況頁）
+- **依賴：`UX-DESIGN-SYSTEM1`**（全站 UI/UX 統一規則地基）通過 + Design Gate sign-off 後才認領；本卡未動即釋回重排，改照 canonical 規格實作以免返工（2026-07-24 排程調整）。
 - DB：`db_scope: read`（若採官網分半季爬蟲則升為 ingest，另切子卡）
 - 部署：是　環境：production　PR：—　Merge SHA：—
 - 範圍：球隊頁攻守概覽等當季團隊指標，讓使用者在「全年／上半季／下半季」間切換範圍。

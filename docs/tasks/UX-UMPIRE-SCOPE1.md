@@ -3,6 +3,7 @@
 - 需求：ruan6047　規劃：GPT-5@Codex＋Fable-5　分支：`ai/<執行者>/UX-UMPIRE-SCOPE1`
 - 執行：待指派　查核：待指派（跨模型家族或人工，且 ≠ 執行）
 - Initiative：INIT-PRODUCT-UX　spec 基線：PRODUCT_UX_BLUEPRINT v0.2＋ML-UMP1／2 NO-GO
+- **依賴：`UX-DESIGN-SYSTEM1`**（全站 UI/UX 統一規則地基）通過 + Design Gate sign-off 後才認領；本卡未動即釋回重排，改照 canonical 規格實作以免返工（2026-07-24 排程調整）。
 - DB：`db_scope: read`　部署：是　環境：production　PR：—　Merge SHA：—
 - 範圍：[`PRODUCT_UX_BLUEPRINT.md`](../PRODUCT_UX_BLUEPRINT.md) §5.12–§5.13；[`ML-UMP2_RESULTS.md`](../research/ML-UMP2_RESULTS.md)
 - Discovery：兩輪代理帶敏感度翻轉，方向性產品不成立　Design：完全移除聯盟排行，`/umpires` 只作中性索引
