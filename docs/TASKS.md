@@ -8,7 +8,7 @@
 
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
-| [DISCOVERY-CPBL-RECORDS1](tasks/DISCOVERY-CPBL-RECORDS1.md) | INIT-OFFICIAL-DATA1 | T3 | 主站紀錄資料價值與穩定鍵 Discovery | 待指派（查核，須 ≠ 執行者 Claude Sonnet 5） | `claude/discovery-cpbl-records1-b1ce2d @ .claude/worktrees/discovery-cpbl-records1-b1ce2d` | 1 | 🔍待查核 | —不適用 | 2026-07-24T12:15:00+08:00 |
+| [DISCOVERY-CPBL-RECORDS1](tasks/DISCOVERY-CPBL-RECORDS1.md) | INIT-OFFICIAL-DATA1 | T3 | 主站紀錄資料價值與穩定鍵 Discovery | ruan6047（merge 決策） | `claude/discovery-cpbl-records1-b1ce2d @ .claude/worktrees/discovery-cpbl-records1-b1ce2d` | 1 | ✅通過 | —不適用 | 2026-07-24T11:55:00+08:00 |
 | [GAME-RECAP-PA1](tasks/GAME-RECAP-PA1.md) | INIT-GAME-RECAP | T4 | canonical PA 契約與實作切卡 | ruan6047（子卡優先序／後續 Gate） | — | 1 | 📦已合併 | —不適用 | 2026-07-21T01:09:45+08:00 |
 | [GAME-RECAP-PA1-BUILD1](tasks/GAME-RECAP-PA1-BUILD1.md) | INIT-GAME-RECAP | T4 | canonical PA builder、對帳與歷史回填 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:12+08:00 |
 | [GAME-RECAP-PA1-EXPAND1](tasks/GAME-RECAP-PA1-EXPAND1.md) | INIT-GAME-RECAP | T4 | canonical PA additive schema expand | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-21T01:09:45+08:00 |
