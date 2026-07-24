@@ -1,6 +1,7 @@
 "use client";
 
 import { type KeyboardEvent, type ReactNode, useEffect, useRef } from "react";
+import { NavBarRow } from "@/components/sticky-nav-bar";
 
 export type HierarchicalTabGroup<GroupValue extends string, ItemValue extends string> = {
   value: GroupValue;
@@ -46,8 +47,8 @@ export function HierarchicalTabs<GroupValue extends string, ItemValue extends st
   }, [groupIndex]);
 
   return (
-    <div className="flex min-w-0 flex-col gap-1.5 md:flex-row md:items-center md:justify-between">
-      <div role="group" aria-label={label}
+    <NavBarRow
+      main={<div role="group" aria-label={label}
         className="flex min-w-0 items-center gap-1.5 overflow-x-auto overscroll-x-contain">
         {groups.map((group, index) => {
           const active = group.value === activeGroup;
@@ -72,13 +73,9 @@ export function HierarchicalTabs<GroupValue extends string, ItemValue extends st
             </div>
           );
         })}
-      </div>
-      {controls && (
-        <div className="flex shrink-0 flex-wrap items-center gap-2 pt-0.5 md:border-l md:border-line md:pl-3 md:pt-0">
-          {controls}
-        </div>
-      )}
-    </div>
+      </div>}
+      controls={controls}
+    />
   );
 }
 
@@ -127,7 +124,8 @@ export function ContextSwitcher<Value extends string>({
   );
 }
 
-function TabItems<ItemValue extends string>({ label, items, value, onChange }: {
+/** 單層 tablist（underline 語彙）：階層導覽的子層，亦供單層主分頁頁（standings seg）重用（§4.3 D2）。 */
+export function TabItems<ItemValue extends string>({ label, items, value, onChange }: {
   label: string;
   items: readonly { value: ItemValue; label: string }[];
   value: ItemValue;
