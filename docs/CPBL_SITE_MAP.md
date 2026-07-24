@@ -2,7 +2,7 @@
 
 > 涵蓋兩個站台：**www.cpbl.com.tw**（主站）與 **stats.cpbl.com.tw**（官方進階數據站）。
 > 目的：官網改版 / 反爬升級時，照「§5 改版排查 SOP」快速定位要修哪裡，不必重新逆向。
-> 所有事實皆實測確認；更新本檔時同步更新對應模組 docstring。最後核實：2026-07-22。
+> 所有事實皆實測確認；更新本檔時同步更新對應模組 docstring。最後核實：2026-07-24。
 
 ---
 
@@ -102,7 +102,8 @@
 | 模組 | endpoint | 解析 | 改版訊號 |
 |---|---|---|---|
 | `cpbl_advanced` | GET `/api/proxy/v1/leaderboards/{pr-table,exit-velocity,batted-ball,pitch-tracking}` | 官方 JSON；以 `searchType=batter|pitcher`、`gameKind`、`year` 查詢。⚠️ `pitch-tracking` 一人多個 `PitchType`，不得只按 acnt 壓平 | HTTP 非 200／natural key 重複或 schema 變 |
-| `cpbl_pitch_tracking` | GET `/api/proxy/v1/players/logs`（**公開 JSON API**） | `Data.Logs[].Trackman.{Play,Pitch,Hit}`；`Trackman=null`＝該筆沒有 TrackMan，不收；單筆 null 不足以證明整場／球場無設備 | HTTP 非 200 / schema 變 |
+| `cpbl_pitch_tracking`（logs 路徑） | GET `/api/proxy/v1/players/logs`（**公開 JSON API**） | `Data.Logs[].Trackman.{Play,Pitch,Hit}`；`Trackman=null`＝該筆沒有 TrackMan，不收；單筆 null 不足以證明整場／球場無設備 | HTTP 非 200 / schema 變 |
+| `cpbl_pitch_tracking`（單場路徑，`scrape_game_pitches`） | GET `/api/proxy/v1/games/{year}-{kind}-{sno}` | `Data.Game.LiveLog[]`；每筆與 logs 逐球**同 schema**（同欄位名＋同 `Trackman.{Play,Pitch,Hit}` 巢狀），故共用同一 pure parser。牽制／換投／暫停等非投球事件 `Trackman=null`，同樣不收 | HTTP 非 200 / schema 變 |
 
 > `cpbl_advanced` 與逐球主流程目前皆走 JSON API；player page RSC helpers 只留 legacy／診斷用途。
 > 逐球含二軍（kindCode D）——查詢一軍**必須**過濾 `kind_code='A'`。
@@ -123,7 +124,7 @@
 |---|---|---|
 | `/api/proxy/v1/players/logs` | ✅ 已爬（`cpbl_pitch_tracking`） | 逐球 TrackMan；支援 kindCode A/C/D/E |
 | `/api/proxy/v1/players/{acnt}` | ⬜ | 只回 bio（Basic：身高體重／異動 Rmk／守位）；個人進階彙總改由 leaderboard JSON API 取得，不再依賴 player page RSC |
-| `/api/proxy/v1/games/{year}-{kind}-{sno}` | 🧪 已確認完賽 payload；常態化待 `INGEST-GAME-TM-REFACTOR1` | 單場物件 `Data.Game`：隊伍／狀態／投手線／`LiveLog[]`；2026-A-99 完賽仍有逐事件 TrackMan。比賽進行中的即時完整性仍待驗證 |
+| `/api/proxy/v1/games/{year}-{kind}-{sno}` | ✅ 完賽逐球已落地（`cpbl_pitch_tracking.scrape_game_pitches`，Gate 1-2）；**尚未切為 refresh 正式路徑**（Gate 3 shadow／Gate 4 cutover 待做） | 單場物件 `Data.Game`：隊伍／狀態／投手線／`LiveLog[]`；`LiveLog[]` 每筆與 logs 逐球同 schema。2026-A-99 完賽逐球實測與逐投手 logs **逐列等價**（32 場 8992 列 0 差異）。比賽進行中的即時完整性仍待驗證（`cpbl-live-game` 實驗） |
 | `/api/proxy/v1/games/schedule` | ⬜ 已確認參數 | `kindCode`＋`year`＋`month`；回 `GameStatus`、`SkipTrackman`、球場、裁判、勝敗投等。`SkipTrackman=true` 只可作單向 skip 證據，false 不保證資料完整 |
 | `/api/proxy/v1/leaderboards/pr-table` | ✅ `cpbl_advanced` | 官方 PR 排行榜（各進階指標全聯盟百分位表） |
 | `/api/proxy/v1/leaderboards/exit-velocity` | ✅ `cpbl_advanced` | 擊球初速排行 |
