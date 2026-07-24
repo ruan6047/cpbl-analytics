@@ -1,6 +1,13 @@
 import Link from "next/link";
-import { contrastText, eraBadge, nameMeta, teamColor, teamLetter } from "@/lib/teams";
+import { codeFromName, contrastText, eraBadge, isCurrentTeam, nameMeta, teamColor, teamLetter, teamPageCode } from "@/lib/teams";
 import { Tooltip } from "./tooltip";
+
+// 實體連結 pattern（UI_UX_SYSTEM §3；UX-ENTITY-LINKS1）：球員/球隊等「實體名」連結
+// 走沉穩色 text-ink ＋ 常駐細底線（非色彩單獨可辨識，a11y），hover 才轉 accent。
+// 刻意不用 accent 紅——accent 同時是行動色＋數據差(down)色，紅字實體名觀感突兀。
+// 「行動連結」（看單場→／導覽／CTA）另保留 accent 紅，不套此 pattern。
+export const ENTITY_LINK =
+  "text-ink underline decoration-line decoration-1 underline-offset-2 transition-colors hover:text-accent hover:decoration-accent";
 
 // 字母方塊徽章（單一事實來源）：給定 {color, letter} 渲染隊色底＋對比字。
 // 各處（排行榜/紀錄室/球員頁/球隊頁沿革）原本各自手寫此 span，統一由此出。
@@ -21,17 +28,22 @@ export function EraBadge({ name, code, size = 16 }: { name: string; code: string
 }
 
 // 依隊名渲染徽章 + 名稱（走 nameMeta 統一解析，含歷史/二軍隊）。
-export function NameTag({ name, size = 16 }: { name?: string | null; size?: number }) {
+// 隊名徽章＋名稱。link=true 時隊名文字連 /teams（§9.3；opt-in，避免既有呼叫點
+// 若已在 <Link> 內產生 nested <a>）。歷史/已解散隊（無現役 franchise）自動不連。
+// 只有名稱文字帶連結＋底線，logo 不套（底線橫跨徽章觀感差）。
+export function NameTag({ name, size = 16, link = false }: { name?: string | null; size?: number; link?: boolean }) {
+  const code = link ? codeFromName(name) : null;
+  const href = code && isCurrentTeam(code) ? `/teams/${teamPageCode(code)}` : null;
   return (
     <span className="inline-flex items-center gap-1.5">
       <TeamLogo name={name} size={size} decorative />
-      <span>{name || "—"}</span>
+      {href ? <Link href={href} className={ENTITY_LINK}>{name}</Link> : <span>{name || "—"}</span>}
     </span>
   );
 }
 
-// 球員連結（無 player_id 時退化為純文字）。
-export function PlayerLink({ pid, name, className = "text-accent hover:underline" }: { pid?: string | null; name: string; className?: string }) {
+// 球員連結（無 player_id 時退化為純文字）。預設走實體連結 pattern（§3；不再紅字）。
+export function PlayerLink({ pid, name, className = ENTITY_LINK }: { pid?: string | null; name: string; className?: string }) {
   return pid ? <Link href={`/players/${pid}`} className={className}>{name}</Link> : <>{name}</>;
 }
 
@@ -99,11 +111,13 @@ export function StatTile({ label, value, accent, rank, rankTotal }: {
   );
 }
 
-export function TeamBadge({ code, name, size = 20 }: { code?: string | null; name?: string | null; size?: number }) {
+// link=true 時隊名文字連 /teams（§9.3；歷史/已解散隊自動不連）。
+export function TeamBadge({ code, name, size = 20, link = false }: { code?: string | null; name?: string | null; size?: number; link?: boolean }) {
+  const href = link && isCurrentTeam(code) ? `/teams/${teamPageCode(code)}` : null;
   return (
     <span className="inline-flex items-center gap-1.5">
       <TeamLogo code={code} name={name} size={size} decorative={!!name} />
-      {name && <span>{name}</span>}
+      {name && (href ? <Link href={href} className={ENTITY_LINK}>{name}</Link> : <span>{name}</span>)}
     </span>
   );
 }

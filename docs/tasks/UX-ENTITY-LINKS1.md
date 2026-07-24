@@ -31,3 +31,11 @@
 ## Log
 
 - 2026-07-24 register by Claude Opus 4.8（Coordinator，依 ruan6047 指示）；iteration 0。源自 UX-DESIGN-SYSTEM1 grilling 定案。
+- 2026-07-24 register→claim（Opus 4.8，依 ruan6047 指派）；worktree `.claude/worktrees/ux-entity-links1-execution`、branch `ai/opus-4-8/UX-ENTITY-LINKS1`。
+- 2026-07-24 實作完成（Opus 4.8）：
+  - **實體連結 pattern（spec §3.5）**：`ui.tsx` 匯出 `ENTITY_LINK`（`text-ink`＋常駐細底線 `decoration-line`＋hover `accent`，零硬編色）。`PlayerLink` 預設改用；`Leaderboard` 名字連結、`teams/[code]/parts.tsx` 前球員/總教練名去紅字。行動連結（「球員時期資料 →」等帶箭頭 CTA）**保留 accent**。
+  - **隊名連結（spec §9.3）**：`NameTag`/`TeamBadge` 加 opt-in `link`（隊名文字連 `/teams/[teamPageCode]`，`codeFromName`→`isCurrentTeam` gating、歷史/已解散隊自動不連；只有文字帶底線、logo 不套）。`Leaderboard` 隊名欄啟用。基礎設施（`isCurrentTeam`/`teamPageCode`/`codeFromName`）teams.ts 早已就緒。
+  - **spec**：`UI_UX_SYSTEM` 新增 §3.5 實體連結 pattern、§9.3 補隊名連結規則。
+  - **範圍取捨**：standings/球員頁/王朝圖/pair-card 的「整塊 logo+文字 `hover:underline`」隊名/球員連結**本次未動**（已非紅字；改常駐底線需個別重構成「僅文字連結」）——本地審已認可現狀，普及化留後續視需要。
+  - **驗證**：`tsc` ✓、`npm test` 126 ✓、`build:check` 全 11 路由 ✓。淺色實測球員名 `color rgb(10,37,64)`＋底線 `rgb(226,232,240)`、`href` 正確；深色 token（`ink→#e8eef6`/`line→#24374f`）靜態確認可讀。
+  - **需求方本地人工審通過**（[[ux-manual-review-before-ai]]，2026-07-24）→ 待交跨家族查核。
