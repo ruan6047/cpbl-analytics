@@ -32,7 +32,7 @@
 | [OPS-REMOTE-ROUTE1](tasks/OPS-REMOTE-ROUTE1.md) | INIT-PRODUCT-UX | T3 | 遠端出口路線資格驗證 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:38+08:00 |
 | [OPS-REMOTE-WORKER1](tasks/OPS-REMOTE-WORKER1.md) | INIT-PRODUCT-UX | T4 | 隔離式遠端 crawler shadow worker | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:39+08:00 |
 | [TEAM-STYLE1](tasks/TEAM-STYLE1.md) | — | T4 | 球隊球風研究 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:56:00+08:00 |
-| [UX-DESIGN-CONFORM1](tasks/UX-DESIGN-CONFORM1.md) | INIT-PRODUCT-UX | T3 | 既有已完成 UI/UX 頁面 conformance 稽核與對齊 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-24T14:50:00+08:00 |
+| [UX-DESIGN-CONFORM1](tasks/UX-DESIGN-CONFORM1.md) | INIT-PRODUCT-UX | T3 | 既有已完成 UI/UX 頁面 conformance 稽核與對齊 | Opus 4.8（執行） | `claude/ux-design-conformance-audit-1faa48 @ .claude/worktrees/ux-design-system-phase-1-f092c0` | 1 | 🔨執行中 | ⏸未部署 | 2026-07-25T00:40:00+08:00 |
 | [UX-DESIGN-SYSTEM1](tasks/UX-DESIGN-SYSTEM1.md) | INIT-PRODUCT-UX | T3 | 全站 UI/UX 統一規則 codify（球員頁為基準） | — | — | 1 | 📦已合併 | —不適用 | 2026-07-24T16:55:00+08:00 |
 | [UX-ENTITY-LINKS1](tasks/UX-ENTITY-LINKS1.md) | INIT-PRODUCT-UX | T2 | 實體連結：球員名改沉穩色 + 隊名超連結 | — | — | 1 | 📦已合併 | ⏸未部署 | 2026-07-24T23:05:00+08:00 |
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:11+08:00 |
