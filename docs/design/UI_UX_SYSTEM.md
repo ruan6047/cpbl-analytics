@@ -214,6 +214,20 @@
 | `StatAbbr` / `METRIC_DESCRIPTIONS` | 進階指標名詞解釋 tooltip（首次出現白話解釋，blueprint §8.2） |
 | `Tooltip` | 共用提示（原生 title 有延遲且觸控無效） |
 
+### 3.5 實體連結 pattern（UX-ENTITY-LINKS1）
+
+> 「實體名」（球員／球隊等指向實體頁的連結）與「行動連結」（觸發動作／導覽的 CTA）走**不同視覺**，避免 accent 紅氾濫、避免紅字實體名觀感突兀。
+
+| 類型 | 視覺 | 來源 | 例 |
+|---|---|---|---|
+| **實體連結** | `text-ink` ＋ **常駐細底線**（`decoration-line`）＋ hover 轉 `accent` | `ui.tsx` 匯出 `ENTITY_LINK` 常數 | 球員名（`PlayerLink`）、隊名（§9.3）、排行榜名字欄、教練球員名 |
+| **行動連結** | `accent` 紅（可加 `hover:underline`／箭頭） | 保留現況 | 「看單場 →」、導覽 tab、CTA |
+
+- **為何實體名不用 accent 紅**：`accent`（#d62839）同時是行動色＋數據差(down)色，紅字實體名潛意識讀成負面／行動；改沉穩 `text-ink` ＋ 常駐底線——**連結性以底線（非色彩單獨）可辨識**（WCAG 1.4.1）。
+- **SSoT**：`PlayerLink` 預設即 `ENTITY_LINK`；手寫實體連結一律引用 `ENTITY_LINK` 常數，**禁**再對實體名寫 `text-accent hover:underline`。
+- **只有文字帶底線**：徽章＋名稱組合（`NameTag`/`TeamBadge`）僅名稱文字套連結底線，logo 不套（底線橫跨徽章觀感差）。
+- **零硬編色**：`ENTITY_LINK` 全走語意 token（`ink`/`line`/`accent`），深色由 §2.2 token 自動適配。
+
 ---
 
 ## 4. 導覽・切換・選擇語彙（決策樹）
@@ -442,6 +456,14 @@
 | `NameTag` / `TeamBadge` | 徽章 + 隊名（`NameTag` 走隊名解析、含歷史/二軍隊） |
 | `EraBadge` | 沿革/歷史隊（iconic 色） |
 | `Leaderboard` `teamKey` | 隊徽併入名字欄（減欄手段，§5.2） |
+
+**隊名連結規則（§3.5 實體連結之球隊特化；UX-ENTITY-LINKS1）**：
+
+- `NameTag`/`TeamBadge` 的 `link` prop（**opt-in**）啟用時，隊名文字連 `/teams/[teamPageCode(code)]`，走 `ENTITY_LINK` 視覺。
+- **gating**：僅 `isCurrentTeam(code)`（有現役 franchise）才連；歷史／已解散隊自動退化純文字（無頁可去）。
+- **`teamPageCode` = `franchiseOf(code)`**：歷史隊碼映射到現役 franchise 頁（如興農→富邦）。
+- **圖表內不連**：recharts/SVG 自訂 tick 走純文字，不套 `NameTag`／連結（§6 圖表可及性）。
+- **opt-in 理由**：既有 `NameTag`/`TeamBadge` 可能已置於外層 `<Link>` 內，預設連會產生 nested `<a>`（HTML 錯誤）；由呼叫點明確傳 `link`。現況啟用：`Leaderboard` 隊名欄。
 
 ### 9.4 隊色 hover 與狀態
 
