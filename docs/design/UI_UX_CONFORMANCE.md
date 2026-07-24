@@ -22,7 +22,7 @@
 | `/`（今日） | §5.1 | —（DailyHub） | ✅ `Card`+`ErrorState` | ✅ | 無明顯偏離 | 🟢 |
 | `/games` | §5.2 | —（月曆） | ✅ `EmptyState` | ✅ | `text-white` 於 `bg-accent` 未讀數徽章/MVP（飽和底，合法對比） | 🟢 |
 | `/games/[sno]` | §5.3 | box-tabs（bespoke）+ `DataTable` | ⚠️ 部分：逐球分頁 `umpLoading` **ad-hoc「載入中…」** | ✅（`game-board` 為授權例外） | ad-hoc 載入態（`box-tabs.tsx:570`）；active toggle `bg-cpbl text-white`（應 `text-paper`）；4 處手刻 `rounded-xl border`（部分為內部面板，須複核） | 🟡 |
-| `/standings` | §5.4 | —+`DataTable` | ⚠️ 未 import 三態 | 🔴/🟡 **Tailwind 數字色階** `bg-amber-100/500/700`、`text-amber-700`（`page.tsx:186/645/654/659`）取代語意 `--color-amber`；`bg-amber-500 text-white` 徽章 | 季後保送/淘汰標籤未走 `StatusBadge`/`amber` token；3 處手刻卡殼；**三軸控制（層級 `kind`/階段 `seg`/年度 `year`）散置＋孤立年度下拉，未走 §4.3 一體式導引欄**（需 refactor 卡） | 🟡（token + 多軸導引） |
+| `/standings` | §5.4 | —+`DataTable` | ⚠️ 未 import 三態 | 🔴/🟡 **Tailwind 數字色階** `bg-amber-100/500/700`、`text-amber-700`（`page.tsx:186/645/654/659`）取代語意 `--color-amber`；`bg-amber-500 text-white` 徽章 | 季後保送/淘汰標籤未走 `StatusBadge`/`amber` token；3 處手刻卡殼；**三軸控制（層級 `kind`/階段 `seg`/年度 `year`）散置＋孤立年度下拉，未走 §4.3 一體式導引欄**（→ 重構卡 [`../tasks/UX-STANDINGS-NAV1.md`](../tasks/UX-STANDINGS-NAV1.md)） | 🟡（token + 多軸導引） |
 | `/batters` | §5.6 | `RankRoleTabs`+`level-year-nav`（bespoke，active `bg-ink text-paper` ✅）+ `Leaderboard` | ✅（Leaderboard/DataTable 內建） | ✅ | idiom 增生：非 `HierarchicalTabs`（但 active 態合規，a11y `aria-current` 恰當） | 🟢 |
 | `/pitchers` | §5.6 | 同 `/batters` | ✅ | ✅ | 同 `/batters` | 🟢 |
 | `/teams/[code]` | §5.8 | `Tabs`（pill）+ `DataTable` | ✅（`parts` import 三態） | ✅ | 無明顯偏離 | 🟢 |

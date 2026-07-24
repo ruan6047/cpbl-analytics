@@ -251,21 +251,25 @@
 
 **canonical 範本已存在**：球員頁 `PlayerNavigation` = `HierarchicalTabs`（group×item 雙層）＋ **`controls` 插槽**（右側、`md:border-l md:pl-3` 分隔，現放 `ContextSwitcher`）。此即「一體式導引欄」；`controls` 型別為 `ReactNode`，**可放 `ContextSwitcher`，也可放 `<select>`**——故「tab ＋ 下拉共處一列」本就支援。
 
-**standings 映射（幾乎直接沿用，非新元件）**：
+**standings 映射（A2 定案：賽季階段=主分頁，層級/年度=右側情境）**：
 
-| 軸 | 值 | 對應球員頁角色 | 承載 |
+| 軸 | 值 | 角色 | 承載 |
 |---|---|---|---|
-| 層級 `kind` | 一軍/二軍 | group（父，如 本季/生涯） | `HierarchicalTabs` group |
-| 賽季階段 `seg` | 全年/上半季/下半季/季後賽 | item（子，如各 view） | `HierarchicalTabs` item |
-| 年度 `year` | 多離散值（30+） | controls 插槽 | `YearSelect`（§4.2；年份多本就該用 select 非 tab） |
+| 賽季階段 `seg` | 全年/上半季/下半季/季後賽 | **主分頁（內容視圖）**——真的換一張不同表 | 單層 tablist（比照 `TabItems`） |
+| 層級 `kind` | 一軍/二軍 | 情境過濾（換資料集、表結構同） | `ContextSwitcher`（右側 controls） |
+| 年度 `year` | 多離散值（30+） | 情境過濾（值多） | `YearSelect`（右側 controls，§4.2） |
 
-→ 一條 sticky bar：`〔一軍│二軍〕全年 上半季 下半季 季後賽 ┃ 年度▾`。**這正是「混合下拉」＝tab（層級×階段）＋下拉（年度）共處一列**，URL 三參數 `kind`/`seg`/`year` 已存在。
+→ 一條 sticky bar：`全年 上半季 下半季 季後賽 ┃ 〔一軍│二軍〕 年度▾`。**這正是「混合下拉」＝主分頁 tab ＋ 情境切換器 ＋ 年度下拉共處一列**；URL 三參數 `kind`/`seg`/`year` 已存在。
 
-**狀態（誠實）**：**積木全在、可組合**——`HierarchicalTabs.controls` 收 `YearSelect` 即成，**非發明新元件**。實作僅需 (a) 確認 `controls` 插槽承載 `<select>` 的對齊/44px/窄螢幕換行；(b) 讓 `/standings`（及其他多軸頁）**改用**此範本。**(b) 是頁面重構，屬 `UX-DESIGN-CONFORM1` 或專屬重構卡，不在本 doc-only 卡**。
+**Design Gate 定案（2026-07-24，A2/B1/C/D2）**：
+- **A2 版面**：`seg` 為主分頁（它才是換內容的主軸）；`kind`/`year` 為右側情境控制。**不**用雙層 group——一軍/二軍不產生不同 view，比較像球員頁層級 `ContextSwitcher`，非 scope group。
+- **B1 窄螢幕**：手機 `flex-col` 堆疊、年度 native `<select>` 落控制列（叫出 OS 原生 picker）；**不**縮 icon（避免藏控制、放棄原生 picker）。
+- **C 動態 seg**：`seg` 項目**隨 `kind` 動態**——二軍**無上下半季**（[[postseason-format-rules]]），僅顯示「全年 / 季後賽（二軍總冠軍賽）」。照抄球員頁 `viewsFor(scope)` → `segsFor(kind)` ＋ 當前 seg 失效時 fallback 回「全年」。
+- **D2 抽象度**：standings 直接組 tablist + controls；依 §10.3「3+ 次才抽共用」，**先不抽 `AxisNav` 全套**。惟 `PlayerNavigation` 的 **sticky 定位邏輯**（`ResizeObserver` 量 header 高 ＋ `sticky`/`backdrop-blur`）非平凡且會重複 → **抽小殼 `StickyNavBar`**（2 處共用）。第 3 個多軸頁出現再升級 `AxisNav`。
+
+**實作歸屬**：以上為 doc 定案；**實作＝頁面重構，見實作卡 [`../tasks/UX-STANDINGS-NAV1.md`](../tasks/UX-STANDINGS-NAV1.md)**（提案草稿），不在本 doc-only 卡。
 
 **仍 proposed 的較小子題（單軸 tab 過多）**：若某**單一軸**選項 >~7 且非年份型（不宜 select），才需「常駐 tab ＋ 更多▾ 溢出」（§4.1 `TabItems` ＋ §4.2「更多 Menu」組合）。此子題待有真實頁面需求再定 API，不預先建置。
-
-**open questions（待 sign-off）**：① standings 用雙層 `HierarchicalTabs`（group=層級）還是單層 tablist + controls 全右置？② 年度 select 窄螢幕換行到第二列或縮 icon 觸發？③ **二軍季後賽語意不同（無半季）**——`seg` 項目是否隨 `kind` 動態增減（一軍四項、二軍略上下半季）？④ 一體式導引欄是否抽為通用件（如 `AxisNav`）供多頁共用，或每頁各自組 `HierarchicalTabs`。
 
 ### 4.4 決策樹（新頁面選控制項）
 
@@ -273,8 +277,9 @@
 2. **從單一軸的多個離散值（~5–20）選一**？→ 原生 **Select**（`rounded-lg`）。
 3. **從大集合搜尋挑選**？→ **Combobox**（`SearchCombobox` 模式）。
 4. **主入口/工具列需收納次要項**？→ 「更多」**Menu**（blueprint §4.1 5+1）。
-5. **內容 tab 過多/窄螢幕放不下**？→ 暫用 §4.1 水平捲動或 §4.2 Select；**混合下拉（§4.3）待 sign-off 後**。
-6. **禁**再手刻第六種語彙——先查 §10.4 registry。
+5. **一頁多個正交軸（如 standings 的 層級×賽季階段×年度）**？→ **一體式多軸導引欄**（§4.3）：主內容軸→單層 tablist、正交少選項軸→`ContextSwitcher`、多值軸（年度）→`YearSelect`，全置 `controls` 插槽一列；sticky 殼走 `StickyNavBar`。
+6. **單一軸 tab 過多（>~7、非年份）/窄螢幕放不下**？→ §4.1 水平捲動，或溢出「更多」Menu（§4.3 較小子題，待需求再建）。
+7. **禁**再手刻新語彙——先查 §10.4 registry。
 
 ---
 
