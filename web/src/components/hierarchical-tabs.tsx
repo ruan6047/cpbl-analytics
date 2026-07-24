@@ -64,7 +64,7 @@ export function HierarchicalTabs<GroupValue extends string, ItemValue extends st
                 <button type="button" aria-pressed={active}
                   ref={(element) => { groupRefs.current[index] = element; }}
                   onClick={() => onGroupChange(group.value)} onKeyDown={(event) => moveGroup(event, index)}
-                  className={`min-h-11 shrink-0 touch-manipulation whitespace-nowrap rounded-t-md px-4 text-sm font-semibold transition ${active
+                  className={`min-h-11 min-w-[6.5rem] shrink-0 touch-manipulation whitespace-nowrap rounded-t-md px-4 text-sm font-semibold transition ${active
                     ? "bg-ink text-paper"
                     : "border border-line bg-surface text-muted hover:border-line-strong hover:text-ink"}`}>
                   {group.label}
@@ -162,7 +162,7 @@ export function MainTabs<ItemValue extends string>({ label, items, value, onChan
         <button key={item.value} type="button" role="tab" aria-selected={value === item.value}
           tabIndex={value === item.value ? 0 : -1}
           ref={(element) => { refs.current[itemIndex] = element; }} onClick={() => onChange(item.value)}
-          className={`min-h-11 shrink-0 touch-manipulation whitespace-nowrap rounded-t-md px-4 text-sm font-semibold transition ${value === item.value
+          className={`min-h-11 min-w-[6.5rem] shrink-0 touch-manipulation whitespace-nowrap rounded-t-md px-4 text-sm font-semibold transition ${value === item.value
             ? "bg-ink text-paper"
             : "border border-line bg-surface text-muted hover:border-line-strong hover:text-ink"}`}>
           {item.label}
@@ -201,7 +201,7 @@ export function TabItems<ItemValue extends string>({ label, items, value, onChan
         <button key={item.value} type="button" role="tab" aria-selected={value === item.value}
           tabIndex={value === item.value ? 0 : -1}
           ref={(element) => { refs.current[itemIndex] = element; }} onClick={() => onChange(item.value)}
-          className={`min-h-11 flex touch-manipulation items-end whitespace-nowrap border-b-2 px-2 pb-1 text-xs transition ${value === item.value
+          className={`min-h-11 flex touch-manipulation items-end whitespace-nowrap border-b-2 px-2 pb-1 text-[13px] transition ${value === item.value
             ? "border-ink font-semibold text-ink"
             : "border-transparent text-muted hover:border-line-strong hover:text-ink"}`}>
           {item.label}
