@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { TeamLogo, StatusBadge, EmptyState, type StatusTone } from "@/components/ui";
 import { LevelYearNav } from "@/components/level-year-nav";
-import { RadioPillFace } from "@/components/radio-pills";
 import { NavBarRow, StickyNavBar } from "@/components/sticky-nav-bar";
 import { api, type CalendarGame } from "@/lib/api";
 import { contrastText, teamColor, teamFullName } from "@/lib/teams";
@@ -105,22 +104,18 @@ export default async function GamesPage({
           main={
             <div role="group" aria-label="球隊篩選"
               className="flex min-w-0 items-center gap-1.5 overflow-x-auto overscroll-x-contain">
-              {/* radio-pill 語彙（UI 審 r6 指定 uiverse old-lion-54 風格）：未選＝圓圈＋隊名、
-                  選中＝圓圈收合、實色膠囊（全部=ink、球隊=隊色 §9.3）。 */}
+              {/* 圓角走 control canonical rounded-lg（§2.5；rounded-full 不像可按，UI 審 r2） */}
               <Link href={qs({ team: "" })} aria-current={!team ? "true" : undefined}
-                className="group inline-flex min-h-11 shrink-0 touch-manipulation items-center transition">
-                <RadioPillFace active={!team}>全部</RadioPillFace>
-              </Link>
+                className={`inline-flex min-h-11 shrink-0 touch-manipulation items-center rounded-lg px-2.5 text-xs font-medium transition ${
+                  !team ? "bg-ink text-paper" : "bg-surface-2 text-muted hover:text-ink"}`}>全部</Link>
               {teamCodes.map((code) => {
                 const on = team === code;
                 return (
                   <Link key={code} href={qs({ team: on ? "" : code })} aria-current={on ? "true" : undefined}
-                    className="group inline-flex min-h-11 shrink-0 touch-manipulation items-center transition">
-                    <RadioPillFace active={on} activeClass=""
-                      activeStyle={{ background: teamColor(code), color: contrastText(teamColor(code)) }}>
-                      <TeamLogo code={code} name={names.get(code)} size={15} />
-                      <span>{teamFullName(names.get(code) ?? "")}</span>
-                    </RadioPillFace>
+                    className={`inline-flex min-h-11 shrink-0 touch-manipulation items-center gap-1 rounded-lg px-2 text-xs font-medium transition ${on ? "" : "bg-surface-2"}`}
+                    style={on ? { background: teamColor(code), color: contrastText(teamColor(code)) } : undefined}>
+                    <TeamLogo code={code} name={names.get(code)} size={15} />
+                    <span className={on ? "" : "text-muted"}>{teamFullName(names.get(code) ?? "")}</span>
                   </Link>
                 );
               })}
