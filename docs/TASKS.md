@@ -40,7 +40,7 @@
 | [UX-NAV-INTEGRATE1](tasks/UX-NAV-INTEGRATE1.md) | INIT-PRODUCT-UX | T2 | 全站多軸導覽欄整合重構（傘型：standings/batters/games…） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-24T17:32:00+08:00 |
 | [UX-PA-SIM-MATCHUP1](tasks/UX-PA-SIM-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | Matchups 單一打席結果分布 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:33+08:00 |
 | [UX-TEAM-SPLIT-SCOPE1](tasks/UX-TEAM-SPLIT-SCOPE1.md) | INIT-PRODUCT-UX | T4 | 球隊頁全年／上下半季數據切換 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-24T15:05:00+08:00 |
-| [UX-TOKEN-HYGIENE1](tasks/UX-TOKEN-HYGIENE1.md) | INIT-PRODUCT-UX | T2 | 設計系統 token/元件 hygiene 修復（H1–H9） | — | `ai/opus-4-8/UX-TOKEN-HYGIENE1 @ .claude/worktrees/ux-token-hygiene1-execution` | 0 | 📦已合併 | ⏸未部署 | 2026-07-24T18:05:00+08:00 |
+| [UX-TOKEN-HYGIENE1](tasks/UX-TOKEN-HYGIENE1.md) | INIT-PRODUCT-UX | T2 | 設計系統 token/元件 hygiene 修復（H1–H9） | — | — | 0 | 📦已合併 | ⏸未部署 | 2026-07-24T18:15:00+08:00 |
 | [UX-UMPIRE-SCOPE1](tasks/UX-UMPIRE-SCOPE1.md) | INIT-PRODUCT-UX | T4 | 裁判公開介面 NO-GO 收斂 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-24T15:05:00+08:00 |
 
 ## 依賴與資源註記
