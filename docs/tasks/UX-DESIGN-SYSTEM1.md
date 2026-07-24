@@ -28,6 +28,17 @@
 - [ ] 規格為**描述現況 + 明確化**，不得推翻球員頁已定案語言；與 PRODUCT_UX_BLUEPRINT 產品層不衝突。
 - [ ] 需求方 ruan6047 Design Gate sign-off。
 
+## 執行前對齊 Checkpoint（實作前多討論，避免落差）
+
+> 需求方要求：本規格是全站 canonical，**實作前先對齊方向**，不要整份做完才發現落差。
+
+1. **先交「設計決策 brief」，不要直接產完整規格**。執行者先盤點球員頁 + `globals.css`/`chart-theme.ts`，產出：
+   - 範圍與方法 outline：打算 codify 哪些 token 類別、元件、狀態。
+   - **可被 grill 的決策清單**：逐項列「**決策／理由／考慮過的替代方案／open questions／邊界風險**」。至少涵蓋爭議點：token 尺標粒度、色彩語意命名、深色模式在圖表的處理、Leaderboard 精簡欄 vs 完整欄的取捨標準、mobileHide 準則、與 blueprint 產品層的邊界。
+2. **brief 先 handoff 為 checkpoint**（不一次做到底）；交需求方 ruan6047 以 **`/grilling`** 壓測討論、對齊方向。
+3. **方向 sign-off 後**才展開完整 `docs/design/UI_UX_SYSTEM.md`。
+4. grilling 由**需求方在自己的 session** 觸發質問這份 brief——**執行者不自跑 grilling**（無人可質問；自我批判用 `design:design-critique`）。
+
 ## 建議使用 skills（執行者以 `Skill` 工具 invoke）
 
 - **`design:design-system`**：主工作流——audit 現況 → document canonical 規格 → 定義擴充規則。
