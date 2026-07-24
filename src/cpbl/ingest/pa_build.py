@@ -52,9 +52,24 @@ EVENT_ORDER_VERSION = "evord-1.0"  # main_event_no::bigint 嚴格全序
 # 固定 UUIDv5 namespace（勿更動：更動會使全部 pa_id 漂移）。
 PA_ID_NAMESPACE = uuid.UUID("5f3b9d2a-1c47-5e60-9a8b-6d2f0c1e7a44")
 
-_TAXONOMY_PATH = (
-    Path(__file__).resolve().parents[3] / "docs" / "design" / "pa_transition_taxonomy.v1.json"
-)
+_TAXONOMY_FILENAME = "pa_transition_taxonomy.v1.json"
+
+
+def _default_taxonomy_path() -> Path:
+    """解析 taxonomy JSON 路徑。
+
+    優先用**隨 wheel 打包**的 package data（``src/cpbl/resources/``→ 安裝後
+    ``site-packages/cpbl/resources/``），使生產容器（Dockerfile 只 COPY src，不含 repo
+    ``docs/``）也能載入；本機 editable／repo 佈局則退回 canonical ``docs/design/``。
+    （不用 ``data/`` 目錄名：專案 .gitignore 忽略 ``data/``，會使檔案未被 commit／打包。）
+    """
+    packaged = Path(__file__).resolve().parent.parent / "resources" / _TAXONOMY_FILENAME
+    if packaged.exists():
+        return packaged
+    return Path(__file__).resolve().parents[3] / "docs" / "design" / _TAXONOMY_FILENAME
+
+
+_TAXONOMY_PATH = _default_taxonomy_path()
 
 # PA state（對齊 migration 066 CHECK 值域）
 STATE_READY = "ready"

@@ -79,6 +79,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
+# packages 下所有非 .gitignore 檔（含 resources/*.json taxonomy）預設納入 wheel；
+# 生產容器 Dockerfile COPY src → wheel 內即有 cpbl/resources/pa_transition_taxonomy.v1.json。
+# 注意：勿改用 data/ 目錄名（.gitignore 忽略 data/ → 會被排除且不 commit）。
 packages = ["src/cpbl"]
 
 [tool.pytest.ini_options]

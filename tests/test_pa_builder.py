@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from cpbl.ingest.pa_build import (
     STATE_NON_PA,
     STATE_READY,
@@ -415,3 +417,37 @@ def test_naive_three_key_double_binds_but_canonical_does_not() -> None:
     plan = plan_pitch_mappings(pas, pitches)
     h1_pa_indices = {m.pa_index for m in plan.mappings if pas[m.pa_index].hitter_acnt == "H1"}
     assert len(h1_pa_indices) == 2  # 修正：兩個相異 PA
+
+
+# ===========================================================================
+# taxonomy 打包：生產容器（無 repo docs/）也須能載入
+# ===========================================================================
+def test_taxonomy_loads_from_packaged_data() -> None:
+    # load_taxonomy 解析到的路徑必須存在且可載入（含 v1.0.0 全 action）
+    tax = load_taxonomy()
+    assert tax.version == "1.0.0"
+    assert len(tax.actions) >= 55  # v1.0.0 收錄 58 個 action
+
+
+def test_packaged_taxonomy_is_byte_identical_to_canonical_docs() -> None:
+    # src/cpbl/data 的打包副本必須與 docs/design canonical 逐位元組相同（drift 守衛）
+    from cpbl.ingest import pa_build
+
+    pkg = Path(pa_build.__file__).resolve().parent.parent / "resources" / pa_build._TAXONOMY_FILENAME
+    docs = (
+        Path(pa_build.__file__).resolve().parents[3]
+        / "docs" / "design" / pa_build._TAXONOMY_FILENAME
+    )
+    assert pkg.exists(), "打包副本 src/cpbl/data 必須存在（生產容器不含 docs/）"
+    if docs.exists():  # 本機 repo 佈局；生產 wheel 內無 docs/
+        assert pkg.read_bytes() == docs.read_bytes()
+
+
+def test_default_taxonomy_path_prefers_packaged_copy() -> None:
+    from cpbl.ingest import pa_build
+
+    resolved = pa_build._default_taxonomy_path()
+    assert resolved.name == pa_build._TAXONOMY_FILENAME
+    assert resolved.exists()
+    # 打包副本存在時必須優先選它（不依賴 repo docs/）
+    assert resolved.parent.name == "resources"
