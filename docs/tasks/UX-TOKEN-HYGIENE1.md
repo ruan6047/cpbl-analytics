@@ -25,6 +25,7 @@
 - [ ] **H5**：`app/standings/page.tsx`、`components/matchup-card.tsx` 的 Tailwind 數字色階 `amber-100/500/600/700` → 改語意 `--color-amber` token（或 `StatusBadge`/`Pill`/`Notice`）。驗收：兩檔無 `amber-[0-9]`。
 - [ ] **H6**：`app/umpires/page.tsx`、`app/games/[sno]/box-tabs.tsx` 的 ad-hoc「載入中…」→ 改 `Skeleton`/`EmptyState`/`ErrorState` 三態。驗收：兩檔無 ad-hoc 載入字串。
 - [ ] **H7**：sub-legible `text-[8px]/[9px]`（~12 處）上調 ≥ `text-[10px]` 或改 icon。驗收：全站無 `text-[8px]`/`text-[9px]`。
+- [ ] **H8**：統一 `<select>` 圓角為 control `rounded-lg`（`YearSelect` 現用 `rounded-full`），或於規格明訂「pill-select 限工具列 chip 語境」並讓現況合規。驗收：`<select>` 圓角一致或有明文分類依據。
 
 **驗證**：`cd web && npm run build:check` 通過；深淺主題各截圖抽驗圖表/標籤；`uv run ruff check`/`pytest` 不受影響（純前端）。**部署**：前端 build → 上線（依 Runbook §3）。
 

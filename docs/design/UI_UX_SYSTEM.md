@@ -216,9 +216,12 @@
 
 ---
 
-## 4. 導覽與 Tab / Segment 語彙（決策樹）
+## 4. 導覽・切換・選擇語彙（決策樹）
 
-**現況＝四種語彙並存，依語意角色分工**（刻意不合併：a11y 語意不同）。統一鐵則：**active＝`bg-ink text-paper`（pill/group）或 `border-ink font-semibold`（underline），禁 `text-white`；觸控 `min-h-11`(44px)**。
+> 分兩族：**切換族**（在少量已知選項間切換＝Tab/Segment，§4.1）與**選擇族**（從較多離散值/大集合中挑選＝Select/Menu/Combobox，§4.2）。球員頁的 tab 已是精修基準；本節把**其他頁會用到的選擇型控制**一併 codify，並把尚未建置的**混合下拉**列為 proposed（§4.3）。
+> 統一鐵則：**active＝`bg-ink text-paper`（pill/group）或 `border-ink font-semibold`（underline），禁 `text-white`；觸控 `min-h-11`(44px)；overlay 一律 Esc + 點外部關閉、關閉後焦點歸還觸發鈕**。
+
+### 4.1 切換族：Tab / Segment 四語彙（現況，依 a11y 語意分工）
 
 | 語彙 | 元件 | 何時用 | active 態 | a11y |
 |---|---|---|---|---|
@@ -227,8 +230,46 @@
 | **單層分頁** | `Tabs` | 單層 server-rendered 內容分頁（資料已在 props，切換不打 API） | pill `bg-ink text-paper` | `role=tablist/tab` |
 | **路由切換 nav** | `RankRoleTabs` / `level-year-nav` | 跨路由導覽（`/batters ↔ /pitchers`、年度/層級），保留 query 脈絡 | pill `bg-ink text-paper` | `aria-current="page"`（連結非 tab） |
 
-> **⚠️ open item（待查核裁定）**：`ContextSwitcher` active 用 `bg-surface text-ink shadow-sm`（而非通則的 `bg-ink text-paper`）——這是 segmented 控制的凸起慣例，**現況如此**，規格誠實描述而非強制統一。若查核方要求收斂，另開卡處理。
-> **決策樹**：新頁面 → 頁內內容切換？→ 雙層用 `HierarchicalTabs`、單層用 `Tabs`；情境軸用 `ContextSwitcher`；跨路由用 `aria-current` 連結 nav（比照 `RankRoleTabs`）。**禁**再手刻第五種。
+> 選項多寡準則：**切換族適用 ~2–5 個選項**且需常駐可見；超過或值域大 → 改用選擇族（§4.2）。
+> **⚠️ open item（待查核裁定）**：`ContextSwitcher` active 用 `bg-surface text-ink shadow-sm`（而非通則 `bg-ink text-paper`）——segmented 凸起慣例，**現況如此**，誠實描述而非強制統一。
+
+### 4.2 選擇族：Select / Menu / Combobox（現況，可跨頁重用）
+
+| 語彙 | 元件 | 何時用 | 樣式/行為 | a11y |
+|---|---|---|---|---|
+| **原生 Select** | `YearSelect`、`Leaderboard` 篩選 | 從**單一軸的多個離散值**選一（年份、隊別、分類篩選），選項 ~5–20 | `bg-surface-2` + `focus:border-ink`；**canonical 圓角＝`rounded-lg`（control）** | 原生 `<select>` + `aria-label` |
+| **溢出「更多」Menu** | `nav-links` `MORE_NAV` | 主入口收納次要項（blueprint §4.1 的 **5+1**），或工具列 overflow | 觸發鈕 chevron `rotate-180`；面板 `rounded-xl border-line bg-surface p-1 shadow-lg` | `aria-haspopup="menu"` + `aria-expanded` + `aria-controls`；`role=menu`/`menuitem`；Esc/點外部關、焦點歸還 |
+| **Modal 導覽** | `nav-links` 行動端 | 窄螢幕主導覽（375px 無頂欄空間） | `portal` 到 body、`backdrop-blur`、`animate-fade-in`、body scroll-lock | `role=dialog` + `aria-modal` + **focus trap** + Esc 關 |
+| **Combobox（搜尋選擇）** | `SearchCombobox`、`PlayerSearch` | 從**大集合**（球員/對手）搜尋挑選 | debounce 250ms + **競態守衛**（採最後一次）；選定→chip 可清除；inline loading/error/empty | `role=combobox` + `aria-expanded/controls/activedescendant/autocomplete`；listbox/option；↑↓ Enter Esc |
+
+> **⚠️ 現況不一致（→ hygiene）**：`YearSelect` 用 `rounded-full`、`Leaderboard` 篩選用 `rounded-lg`。**canonical 定為 `rounded-lg`（control 圓角，§2.5）**；`rounded-full` pill-select 僅工具列 chip 語境可留。收斂列入 [`UI_UX_CONFORMANCE.md`](UI_UX_CONFORMANCE.md) H8。
+> **共通 overlay 契約**（Menu/Modal/Combobox 共用，新增時照抄）：Esc 關 + 點外部關 + 關後焦點歸還觸發鈕；面板 `shadow-lg`；`z` 高於 sticky nav；`backdrop-blur` 面板走 `bg-*/95`。
+
+### 4.3 混合下拉（Hybrid：tabs + overflow dropdown）— **proposed，尚未建置**
+
+> **問題**：頁內內容 tab 超過 ~5 項、或窄螢幕放不下時，現況 `HierarchicalTabs` 靠**水平捲動**（`overflow-x-auto`）容納——可用但可發現性差。你提到的「混合下拉選單」即此缺口：**前段常駐 tab + 尾段收進「更多▾」下拉**，或**窄螢幕整組 tab 塌陷為 `<select>`**。
+> **狀態**：**現況無此可重用元件**（頂層 nav 的「主入口 + 更多」是同構但綁在 `nav-links`，未抽為 in-content 通用件）。故列 **proposed**，不謊稱現況。
+
+**組合現有積木（不發明新互動）**：以 §4.1 `TabItems`（常駐段）＋ §4.2「更多 Menu」（溢出段）組合；或窄螢幕以 §4.2 原生 Select 承載整組。建議 API 草案（供實作卡）：
+
+| prop | 型別 | 說明 |
+|---|---|---|
+| `items` | `{value,label}[]` | 全部分頁 |
+| `value`/`onChange` | — | 受控選取 |
+| `maxVisible` | `number` | 常駐 tab 數上限，其餘進「更多」 |
+| `collapseTo` | `"menu" \| "select"` | 溢出/窄螢幕收納形式 |
+
+**open questions（待需求方/實作卡定）**：① `maxVisible` 固定值或量測容器（container query）？② 溢出段的 active 項是否上移常駐？③ 窄螢幕塌陷門檻＝ §7 的 640px 或依 tab 數動態？④ 是否直接擴 `HierarchicalTabs` 而非新元件（避免第五種語彙）。
+> **紀律**：本段為 `design-system` 的 **extend**（新模式提案），**須經需求方 sign-off 才實作**；未 sign-off 前，其他頁沿用 §4.1 水平捲動或 §4.2 Select。
+
+### 4.4 決策樹（新頁面選控制項）
+
+1. **在 2–5 個已知選項間切換內容**？→ 切換族：雙層 `HierarchicalTabs`／單層 `Tabs`／情境軸 `ContextSwitcher`／跨路由 `aria-current` 連結 nav。
+2. **從單一軸的多個離散值（~5–20）選一**？→ 原生 **Select**（`rounded-lg`）。
+3. **從大集合搜尋挑選**？→ **Combobox**（`SearchCombobox` 模式）。
+4. **主入口/工具列需收納次要項**？→ 「更多」**Menu**（blueprint §4.1 5+1）。
+5. **內容 tab 過多/窄螢幕放不下**？→ 暫用 §4.1 水平捲動或 §4.2 Select；**混合下拉（§4.3）待 sign-off 後**。
+6. **禁**再手刻第六種語彙——先查 §10.4 registry。
 
 ---
 

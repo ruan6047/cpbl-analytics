@@ -61,6 +61,7 @@
 | H5 | Tailwind 數字色階 `amber-N` 應改語意 `amber` token | `standings`、`matchup-card` | 🟡 |
 | H6 | ad-hoc「載入中…」應改三態元件 | `umpires`、`box-tabs` | 🟡 |
 | H7 | sub-legible `text-[8px]/[9px]` 上調 | 散見 | 🟡 |
+| H8 | `<select>` 圓角不一致（`YearSelect` `rounded-full` vs `Leaderboard` 篩選 `rounded-lg`）→ 統一 control `rounded-lg`（或明訂 pill-select 限工具列 chip） | `year-select.tsx`、`leaderboard.tsx` | 🟢 |
 
 ---
 
