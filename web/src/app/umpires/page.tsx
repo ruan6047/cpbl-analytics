@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { clientGet } from "@/lib/client";
 import { DataTable, type Column } from "@/components/table";
+import { Skeleton, EmptyState } from "@/components/ui";
 
 type Board = {
   season: number;
@@ -268,10 +269,10 @@ export default function UmpiresPage() {
                 </div>
               </div>
             </div>
+          ) : card === null ? (
+            <Skeleton className="h-40 rounded-xl" />
           ) : (
-            <p className="rounded-xl border border-line bg-surface p-4 text-sm text-faint">
-              {card === null ? "載入中…" : "此場無逐球資料（球場無 TrackMan 設備）。"}
-            </p>
+            <EmptyState>此場無逐球資料（球場無 TrackMan 設備）。</EmptyState>
           )}
           <p className="mt-2 text-[11px] text-faint">
             本報告為非官方自動化分析，好球帶採固定規則帶（未依打者身高調整），僅供參考。
