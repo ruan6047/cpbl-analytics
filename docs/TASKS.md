@@ -8,7 +8,6 @@
 
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
-| [BUG-ABILITY-DH-LABEL](tasks/BUG-ABILITY-DH-LABEL.md) | INIT-PRODUCT-UX | T3 | 能力卡守備軸誤標指打並填入力量 PR | Claude（Opus 4.8） | `ai/opus-4-8/BUG-ABILITY-DH-LABEL @ .claude/worktrees/bug-ability-dh-label-execution` | 1 | 📦已合併 | 🚀待部署 | 2026-07-21T02:35:00+08:00 |
 | [DISCOVERY-CPBL-RECORDS1](tasks/DISCOVERY-CPBL-RECORDS1.md) | INIT-OFFICIAL-DATA1 | T3 | 主站紀錄資料價值與穩定鍵 Discovery | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:04+08:00 |
 | [GAME-RECAP-PA1](tasks/GAME-RECAP-PA1.md) | INIT-GAME-RECAP | T4 | canonical PA 契約與實作切卡 | ruan6047（子卡優先序／後續 Gate） | — | 1 | 📦已合併 | —不適用 | 2026-07-21T01:09:45+08:00 |
 | [GAME-RECAP-PA1-BUILD1](tasks/GAME-RECAP-PA1-BUILD1.md) | INIT-GAME-RECAP | T4 | canonical PA builder、對帳與歷史回填 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:12+08:00 |
@@ -35,8 +34,6 @@
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
 | [UX-PA-SIM-MATCHUP1](tasks/UX-PA-SIM-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | Matchups 單一打席結果分布 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:33+08:00 |
-| [UX-PLAYER-SCOPE1](tasks/UX-PLAYER-SCOPE1.md) | INIT-PRODUCT-UX | T3 | 球員頁本季／生涯全域範圍重整 | ruanruan（release／工作區清理待裁決） | `ai/gpt-5-codex/UX-PLAYER-SCOPE1 @ .claude/worktrees/ux-player-scope1-execution` | 9 | 📦已合併 | ✅已驗證 | 2026-07-22T17:25:35+08:00 |
-| [UX-TEAM-FOCUS1](tasks/UX-TEAM-FOCUS1.md) | INIT-PRODUCT-UX | T3 | 球隊頁本季現況優先 | — | `ai/opus-4-8/UX-TEAM-FOCUS1 @ .claude/worktrees/ux-team-focus1-execution` | 1 | 📦已合併 | 🚀待部署 | 2026-07-24T09:49:43+08:00 |
 | [UX-TEAM-SPLIT-SCOPE1](tasks/UX-TEAM-SPLIT-SCOPE1.md) | INIT-PRODUCT-UX | T4 | 球隊頁全年／上下半季數據切換 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T00:40:22+08:00 |
 | [UX-UMPIRE-SCOPE1](tasks/UX-UMPIRE-SCOPE1.md) | INIT-PRODUCT-UX | T4 | 裁判公開介面 NO-GO 收斂 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:36+08:00 |
 

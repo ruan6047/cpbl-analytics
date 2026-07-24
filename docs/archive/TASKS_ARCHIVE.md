@@ -4,6 +4,9 @@
 
 | 卡ID | 功能 | 交付狀態 | 部署狀態 | 封存位置 |
 |---|---|---|---|---|
+| UX-TEAM-FOCUS1 | 球隊頁本季現況優先 | 🏁完成 | ✅已驗證 | [`tasks/UX-TEAM-FOCUS1.md`](tasks/UX-TEAM-FOCUS1.md)（T3；主體 Gemini 跨家族 APPROVE、DEPLOY-006 先前上線；Wave 0 併批 held streak 措辭修正 b87671e（需求方裁定 trivial 免二審）→ cherry-pick 4a8256c、MERGE-009；deployed_sha 8e715a2、主站 905b706、Deploy 30060635571；線上驗證單場 streak 顯示 1勝/1敗 非「一連X」、多場維持 N連勝/敗） |
+| UX-PLAYER-SCOPE1 | 球員頁本季／生涯全域範圍重整 | 🏁完成 | ✅已驗證 | [`tasks/UX-PLAYER-SCOPE1.md`](tasks/UX-PLAYER-SCOPE1.md)（T3；iteration 9；獨立 AI REVIEW-022 APPROVE；產品碼 DEPLOY-025 先前上線（源 ffd389c），8e715a2 涵蓋；執行 worktree 無未合併產品工作（僅過時 Dockerfile 一行）→ Wave 0 回收 worktree/分支/lease；/players season+career 200） |
+| BUG-ABILITY-DH-LABEL | 能力卡守備軸誤標指打並填入力量 PR | 🏁完成 | ✅已驗證 | [`tasks/BUG-ABILITY-DH-LABEL.md`](tasks/BUG-ABILITY-DH-LABEL.md)（T3；Antigravity 跨家族 ✅通過 REVIEW-005；修正碼 e226ab2 稽核發現早已隨 b582f39（INGEST-DEEP-TRACKMAN1 部署）上線、Ledger「待部署」為過時；Wave 0 正式結案；deployed_sha 8e715a2；ability-card defense 軸顯示真實「守備」pr 非「指打」+力量 PR） |
 | INGEST-DEEP-TRACKMAN1 | 入庫深層 TrackMan 物理特徵 | 🏁完成 | ✅已驗證 | [`tasks/INGEST-DEEP-TRACKMAN1.md`](tasks/INGEST-DEEP-TRACKMAN1.md)（T4🔴資料正確性/schema；GPT-5 跨家族 APPROVE 無 P0–P3、抽驗獅帝芬九係數 12/12 相等；merge `6beea35`；migration 064 additive 12 欄（係數 double precision 保原值）、prod migrate 後 rows 73247 不變、Deploy 30023723884 驗證；新欄 prod 現全 NULL，逐球回填另開 data-migration 卡） |
 | INGEST-ADV-RECONCILE1 | 進階排行榜快照晉升與污染資料修復 | 🏁完成 | ✅已驗證 | [`tasks/INGEST-ADV-RECONCILE1.md`](tasks/INGEST-ADV-RECONCILE1.md)（T4🔴資料正確性；Gemini 跨家族 APPROVE，P2×2 修正 ec8e2fb；merge linear tail `1f59d5f`；migration 063 + 本機 rehearsal 後 prod 資料修復 863→682、pointer_audit=0、魔爾曼雙列、Deploy 29971022124 驗證） |
 | INGEST-ADV-EXPAND1 | 進階排行榜維度與快照 additive schema | 🏁完成 | ✅已驗證 | [`tasks/INGEST-ADV-EXPAND1.md`](tasks/INGEST-ADV-EXPAND1.md)（T4；Claude Opus 4.8 iteration 2 APPROVE；PR #38 merge `9e547358`；migration 062 production 驗證完成，RECONCILE1 未執行） |
