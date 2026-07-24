@@ -1,14 +1,14 @@
 # GAME-RECAP-WP-VAL1 場中 WP 時間外驗證與支援邊界〔T4；🔴統計〕
 
-- 需求：ruan6047　規劃：GPT-5@Codex　分支：`ai/<執行者>/GAME-RECAP-WP-VAL1`
-- 執行：待指派　查核：待指派（須跨模型家族或人工，且 ≠ 執行）
+- 需求：ruan6047　規劃：GPT-5@Codex　分支：`claude/fable-5-suitable-tasks-8aa8d9`（harness 既建，claim 事件誠實記錄）
+- 執行：Fable 5　查核：待指派（須跨模型家族或人工，且 ≠ 執行）
 - Initiative：INIT-GAME-RECAP　spec 基線：v1.3
 - DB：`db_scope: read`；唯讀 canonical PA、games 與既有 run distribution／win expectancy
 - 部署：否　環境：—　PR：—　Merge SHA：—
 - 範圍：見 [`GAME_RECAP_PRODUCT_SPEC.md`](../GAME_RECAP_PRODUCT_SPEC.md) §8
 - Discovery：`GAME-RECAP-DATA1` 已核可；仍依賴 `GAME-RECAP-PA1` canonical contract。
 - Design：Design Gate N/A；本卡只做統計 Go/No-Go，不改 public API 或 UI
-- current-state：📥Backlog；已由 Coordinator 註冊，等待 `GAME-RECAP-PA1`。
+- current-state：🔍待查核；交付於分支 c2ebb02（worktree `.claude/worktrees/fable-5-suitable-tasks-8aa8d9` 保留供查核者進駐）。結論：**A/C/D/E 全 scope unsupported，WP-API1 維持阻塞**；報告 [`GAME-RECAP-WP-VAL1_RESULTS.md`](../research/GAME-RECAP-WP-VAL1_RESULTS.md)。
 
 ## 目標
 
@@ -38,3 +38,5 @@
 - 2026-07-16 proposed in author preflight v1.1 → 為分離統計 Go/No-Go 與 API 實作而拆出；待 Coordinator 註冊。
 - 2026-07-16 Coordinator register → 已寫入 lifecycle event／Ledger；依賴未解除前不得 claim。
 - 2026-07-19 `GAME-RECAP-DATA1` Checkpoint 1 已核可 → 僅保留 PA1 為阻塞依賴。
+- 2026-07-25 Fable 5 claim（CLAIM-002）→ 依賴 PA1 已解除（BUILD1 prod 330K PA 已驗證）；WIP 3/4→4/4。
+- 2026-07-25 Fable 5 執行完成 → handoff 🔍待查核（HANDOFF-003，分支 c2ebb02）。交付：`models/winprob_val.py` 唯讀驗證 harness（訓練分布記憶體重建；與生產 run_dist 2018-2025/A 逐列對帳 match、解算器 legacy 規則逐值相等）＋ `tests/test_winprob_val.py`（13 項離線）＋ Go/No-Go 報告與 JSON artifact。結論：池化 walk-forward（A 1,826 場）十分位 1–3 偏差 +4.2~+6.0pt、十分位 8 −4.3pt（99% game-cluster CI 排除 0）→ **A/C/D/E 全 unsupported、WP-API1 維持阻塞**；同框架 in-sample 僅 ECE 0.0147 且低分箱不顯著，證明同母體 calibration 非時間外證據（驗收①）。規則邊界 (kind,year) 參數化（2024+ 突破僵局／C·E 無和局／D 分年 9·10 局）；再見/宵禁/保留賽/狀態不可重建 fail closed＋敏感度。門檻 v1→v2 修訂（叢集相關）完整留痕於報告 §5。驗證：ruff ✓、pytest 468 passed、`uv run python -m cpbl.models.winprob_val` 可重跑（seed 固定）。
