@@ -23,8 +23,9 @@ export function StandingsNav({ kind, years, selectedYear, seg, segs }: {
     router.push(qs ? `/standings?${qs}` : "/standings");
   };
   return (
-    <StickyNavBar label="戰績導覽">
+    <StickyNavBar label="戰績導覽" flush>
       <NavBarRow
+        align="end"
         main={
           <div className="flex min-w-0 items-center overflow-x-auto overscroll-x-contain">
             <TabItems label="賽季階段" value={String(seg)} onChange={pushSeg}

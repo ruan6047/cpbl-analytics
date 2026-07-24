@@ -48,6 +48,7 @@ export function HierarchicalTabs<GroupValue extends string, ItemValue extends st
 
   return (
     <NavBarRow
+      align="end"
       main={<div role="group" aria-label={label}
         className="flex min-w-0 items-center gap-1.5 overflow-x-auto overscroll-x-contain">
         {groups.map((group, index) => {
@@ -58,7 +59,7 @@ export function HierarchicalTabs<GroupValue extends string, ItemValue extends st
                   頁籤造型＝上圓角、下方角（貼齊導覽欄下緣的經典分頁感）；
                   active 主頁籤＝實心 ink 頁籤＋其子頁籤同住灰底容器（從屬關係）；
                   未選取主頁籤＝描邊頁籤（與灰底容器、與純文字 underline 子頁籤都明確不同）。 */}
-              <div className={`flex shrink-0 items-center gap-0.5 rounded-t-lg p-0.5 ${active
+              <div className={`flex shrink-0 items-center gap-0.5 rounded-t-lg px-0.5 pt-0.5 ${active
                 ? "bg-surface-2"
                 : ""}`}>
                 <button type="button" aria-pressed={active}
@@ -112,15 +113,19 @@ export function ContextSwitcher<Value extends string>({
   return (
     <div className="flex items-center gap-1.5">
       <span className="whitespace-nowrap text-[11px] text-muted">{label}</span>
+      {/* switch 瘦身：軌道視覺高 32px（h-8）、滑塊為內層 span；按鈕本體維持 min-h-11
+          的 44px 觸控熱區（垂直外溢、不可見），不犧牲 a11y。 */}
       <div role="group" aria-label={label} onKeyDown={onKeyDown}
-        className="flex rounded-full bg-surface-2 p-0.5">
+        className="flex h-8 items-center rounded-full bg-surface-2 px-0.5">
         {values.map((item, itemIndex) => (
           <button key={item} type="button" aria-pressed={value === item}
             ref={(element) => { refs.current[itemIndex] = element; }} onClick={() => onChange(item)}
-            className={`min-h-11 touch-manipulation whitespace-nowrap rounded-full px-3 text-xs font-medium transition ${value === item
+            className={`min-h-11 touch-manipulation whitespace-nowrap px-0.5 text-xs font-medium transition`}>
+            <span className={`inline-flex items-center rounded-full px-2.5 py-1 transition ${value === item
               ? "bg-surface text-ink shadow-sm"
               : "text-muted hover:text-ink"}`}>
-            {render(item)}
+              {render(item)}
+            </span>
           </button>
         ))}
       </div>
@@ -151,11 +156,13 @@ export function TabItems<ItemValue extends string>({ label, items, value, onChan
 
   return (
     <div role="tablist" aria-label={label} onKeyDown={onKeyDown} className="flex shrink-0">
+      {/* 子頁籤比主頁籤「矮」：文字下沉錨定（items-end＋pb-1）＋字級略小，
+          底線貼齊導覽欄分隔線；觸控熱區仍為 min-h-11（44px）。 */}
       {items.map((item, itemIndex) => (
         <button key={item.value} type="button" role="tab" aria-selected={value === item.value}
           tabIndex={value === item.value ? 0 : -1}
           ref={(element) => { refs.current[itemIndex] = element; }} onClick={() => onChange(item.value)}
-          className={`min-h-11 touch-manipulation whitespace-nowrap border-b-2 px-2 text-[13px] transition ${value === item.value
+          className={`min-h-11 flex touch-manipulation items-end whitespace-nowrap border-b-2 px-2 pb-1 text-xs transition ${value === item.value
             ? "border-ink font-semibold text-ink"
             : "border-transparent text-muted hover:border-line-strong hover:text-ink"}`}>
           {item.label}

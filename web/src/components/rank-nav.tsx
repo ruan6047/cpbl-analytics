@@ -42,7 +42,7 @@ export function RankNav({ role, view, kind, years, selectedYear }: {
   const push = (nextRole: string, nextView: RankView) =>
     router.push(hrefFor(nextRole, nextView, kind, selectedYear, years[0]));
   return (
-    <StickyNavBar label="排行導覽">
+    <StickyNavBar label="排行導覽" flush>
       <HierarchicalTabs label="排行範圍" groups={GROUPS}
         activeGroup={role} activeItem={view}
         onGroupChange={(nextRole) => push(nextRole, view)}

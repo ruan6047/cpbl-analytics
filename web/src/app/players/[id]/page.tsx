@@ -314,7 +314,7 @@ function PlayerNavigation({ nav, roles, hasLevelChoice, onScope, onRole, onLevel
   onView: (view: PlayerView) => void;
 }) {
   return (
-    <StickyNavBar label="球員資料導覽">
+    <StickyNavBar label="球員資料導覽" flush>
       <HierarchicalTabs label="資料範圍" groups={PLAYER_TAB_GROUPS}
         activeGroup={nav.scope} activeItem={nav.view} onGroupChange={onScope} onItemChange={onView}
         controls={(roles.length > 1 || (nav.scope === "season" && hasLevelChoice)) ? <>

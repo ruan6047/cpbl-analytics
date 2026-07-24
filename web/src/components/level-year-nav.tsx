@@ -23,14 +23,17 @@ export function LevelYearNav({ kind, years, selectedYear, base, params }: {
     <>
       <span className="flex items-center gap-1.5">
         <span className="whitespace-nowrap text-[11px] text-muted">層級</span>
-        <span role="group" aria-label="層級" className="flex rounded-full bg-surface-2 p-0.5">
+        {/* switch 瘦身：軌道 h-8、滑塊內層 span；Link 維持 min-h-11 觸控熱區（同 ContextSwitcher）。 */}
+        <span role="group" aria-label="層級" className="flex h-8 items-center rounded-full bg-surface-2 px-0.5">
           {LEVELS.map((lv) => {
             const active = (lv.v === "D") === (kind === "D");
             return (
               <Link key={lv.v} href={hrefFor(lv.v)} aria-current={active ? "page" : undefined}
-                className={`inline-flex min-h-11 touch-manipulation items-center whitespace-nowrap rounded-full px-3 text-xs font-medium transition ${
+                className="inline-flex min-h-11 touch-manipulation items-center whitespace-nowrap px-0.5 text-xs font-medium transition">
+                <span className={`inline-flex items-center rounded-full px-2.5 py-1 transition ${
                   active ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"}`}>
-                {lv.label}
+                  {lv.label}
+                </span>
               </Link>
             );
           })}
