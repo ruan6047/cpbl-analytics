@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { detail, type StatRow } from "@/lib/client";
 import { fmtIPParts } from "@/lib/format";
 import GameBoard, { type Live } from "@/components/game-board";
-import { Card, Eyebrow, Notice, Skeleton, ErrorState, EmptyState, PlayerLink } from "@/components/ui";
+import { Card, Eyebrow, Notice, Skeleton, ErrorState, EmptyState, PlayerLink, ENTITY_LINK } from "@/components/ui";
 import BoxTabs from "./box-tabs";
 import { WinProbChart, type WpPoint } from "@/components/win-prob-chart";
 import { PregameCard } from "@/components/pregame-card";
@@ -490,7 +490,7 @@ export default function GameLivePage() {
             <span key={l}>
               {idx > 0 && "、"}
               <span className="text-muted">{l}</span>{" "}
-              <Link href={`/people/umpire/${encodeURIComponent(v)}`} className="text-accent hover:underline">
+              <Link href={`/people/umpire/${encodeURIComponent(v)}`} className={ENTITY_LINK}>
                 {v}
               </Link>
             </span>
