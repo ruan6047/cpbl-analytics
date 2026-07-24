@@ -1,4 +1,4 @@
-import { Card, PlayerLink } from "@/components/ui";
+import { Card, ENTITY_LINK, PlayerLink } from "@/components/ui";
 
 // 本季「年度獎項」競逐：各類別當季前五名（用現有排行資料即算，非歷史得獎次數）。
 // rate 類（打擊率/防禦率…）套規定門檻（qualKey ≥ qualMin），避免少打席洗榜。
@@ -53,7 +53,7 @@ export function AwardRaces({
                   <li key={`${p.id}-${i}`} className="flex items-center justify-between gap-2">
                     <span className="min-w-0 truncate">
                       <span className={`mr-1.5 inline-block w-3 text-right font-mono text-[11px] ${i === 0 ? "text-accent" : "text-faint"}`}>{i + 1}</span>
-                      <PlayerLink pid={p.id} name={p.name} className={i === 0 ? "font-medium text-accent hover:underline" : "hover:underline"} />
+                      <PlayerLink pid={p.id} name={p.name} className={i === 0 ? `${ENTITY_LINK} font-medium` : ENTITY_LINK} />
                     </span>
                     <span className={`shrink-0 font-mono tabular-nums ${i === 0 ? "font-semibold text-ink" : "text-muted"}`}>{fmtVal(p.val, cat.fmt)}</span>
                   </li>

@@ -4,7 +4,7 @@
 // 素材全來自既有資料：winprob 逐打席序列 × livelog 事件文，零新請求。
 import type { StatRow } from "@/lib/client";
 import type { WpPoint } from "@/components/win-prob-chart";
-import { Card, Eyebrow, PlayerLink } from "@/components/ui";
+import { Card, ENTITY_LINK, Eyebrow, PlayerLink } from "@/components/ui";
 import { contrastText, teamColor } from "@/lib/teams";
 
 const num = (v: StatRow[string]) => Number(v) || 0;
@@ -138,7 +138,7 @@ export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor
             <div className="flex items-center gap-3 rounded-lg bg-accent/5 px-3 py-2.5">
               <span className="shrink-0 rounded-md bg-accent px-2 py-0.5 text-xs font-bold text-white">MVP</span>
               <div className="min-w-0">
-                <PlayerLink pid={mvp.pid} name={mvp.name} className="text-base font-bold text-ink hover:text-accent hover:underline" />
+                <PlayerLink pid={mvp.pid} name={mvp.name} className={`${ENTITY_LINK} text-base font-bold`} />
                 {mvp.count ? <span className="ml-1.5 text-xs font-normal text-muted">本季第 {mvp.count} 次</span> : null}
                 <span className="ml-2 font-mono text-xs tabular-nums text-muted">{mvp.line}</span>
               </div>
@@ -166,7 +166,7 @@ export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor
                 <div key={d.label} className="min-w-0">
                   <dt className="text-[11px] leading-tight text-muted">{d.label}</dt>
                   <dd className="truncate text-sm font-semibold text-ink">
-                    {d.pid ? <PlayerLink pid={d.pid} name={d.value} className="hover:text-accent hover:underline" /> : d.value}
+                    {d.pid ? <PlayerLink pid={d.pid} name={d.value} /> : d.value}
                     {d.note ? <span className="ml-1 text-[11px] font-normal text-muted">{d.note}</span> : null}
                   </dd>
                 </div>

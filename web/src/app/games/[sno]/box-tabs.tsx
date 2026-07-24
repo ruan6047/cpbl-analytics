@@ -134,7 +134,7 @@ function BattingTable({ rows, avgMap, posBy }: {
       cell: (r) => {
         const mark = batterMark(r);
         return (
-          <><PlayerLink pid={String(r.hitter_acnt ?? "")} name={String(r.hitter_name ?? "")} className="hover:text-accent hover:underline" />
+          <><PlayerLink pid={String(r.hitter_acnt ?? "")} name={String(r.hitter_name ?? "")} />
             <span className="ml-1 text-[10px] text-faint">{String(r.role_type ?? "")}</span>
             {mark && <span className="ml-1 text-[10px] font-semibold text-cpbl">{mark}</span>}</>
         );
@@ -173,7 +173,7 @@ function PitchingTable({ rows, decisions, ballsBy, paBy }: {
     {
       header: "投手",
       cell: (r) => (
-        <><PlayerLink pid={String(r.pitcher_acnt ?? "")} name={String(r.pitcher_name ?? "")} className="hover:text-accent hover:underline" />
+        <><PlayerLink pid={String(r.pitcher_acnt ?? "")} name={String(r.pitcher_name ?? "")} />
           {pitcherMarks(r, decisions).map((m, j) => (
             <span key={j} className={`ml-1 text-[10px] font-semibold ${m.tone === "neg" ? "text-down" : "text-accent"}`}>{m.text}</span>
           ))}</>

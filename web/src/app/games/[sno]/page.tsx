@@ -584,12 +584,12 @@ export default function GameLivePage() {
         <Card padding="px-4 py-3" className="mb-6 flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
           {decisionItems.map((d) => (
             <span key={d.label}><span className="text-muted">{d.label}</span>{" "}
-              <span className="font-medium text-ink">{d.pid ? <PlayerLink pid={d.pid} name={d.value} className="hover:text-accent hover:underline" /> : d.value}</span>
+              <span className="font-medium text-ink">{d.pid ? <PlayerLink pid={d.pid} name={d.value} /> : d.value}</span>
               {d.note ? <span className="ml-1 text-xs text-muted">{d.note}</span> : null}</span>
           ))}
           {ppl[String(g.mvp_id)] && (
             <span><span className="text-muted">MVP</span>{" "}
-              <span className="font-medium text-ink"><PlayerLink pid={String(g.mvp_id ?? "")} name={String(ppl[String(g.mvp_id)])} className="hover:text-accent hover:underline" /></span>
+              <span className="font-medium text-ink"><PlayerLink pid={String(g.mvp_id ?? "")} name={String(ppl[String(g.mvp_id)])} /></span>
               {dc?.mvp ? <span className="ml-1 text-xs text-muted">本季第 {dc.mvp} 次</span> : null}</span>
           )}
         </Card>
