@@ -66,6 +66,7 @@ EXPECTED = {
     "/api/v1/season/fielding",
     "/api/v1/season/pitching-leaders",
     "/api/v1/season/standings",
+    "/api/v1/season/team-split",
     "/api/v1/seasons",
     "/api/v1/special-records",
     "/api/v1/standings",
