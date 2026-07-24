@@ -184,9 +184,18 @@ source_missing，未推論 no_equipment）。
 
 ## 8. 部署與 sign-off 閘門
 
+> **更正（post-review，2026-07-24；不動任何程式碼）**：原文誤述「066 尚未部署 production」。
+> 事實查證：deploy commit `83ad0ad`（deploy EXPAND1 066 to production）**已在 `origin/main`**
+> （`git merge-base --is-ancestor 83ad0ad origin/main` 為真）→ **migration 066（PA schema）
+> 早已上線 production**。以下為更正後的部署範圍。
+
 - 需**需求方 data-migration sign-off** 才部署 production（DATABASE_CONTRACT §4）。
-- production migrate 由已部署 `prod_cpbl_api` 映像執行；066 尚未部署 production，須先完成正常
-  main deploy（含 066）再回填。本機爬→同步生產紀律見 Runbook §3。
+- **066 schema 端已在 production**，本卡剩餘部署範圍為 **BUILD1 builder 程式碼 + production 回填**：
+  1. merge 本分支 → main → 部署 `prod_cpbl_api` 映像（含 `pa_build.py` / `cpbl-build-pa`）。
+  2. 對 production 執行回填：在 prod 容器跑 `cpbl-build-pa`（冪等、可續跑、逐場 commit），
+     或 local→prod 同步 derived `game_recap_*` 表（比照 outcome-prediction-refactor 鏡像模式）。
+  3. production migration 若有後續 migration 由已部署映像執行；本卡不新增 migration。
+- production 動作前先依 §6.2 產生並驗證 `cpbl` schema 備份；本機爬→同步生產紀律見 Runbook §3。
 
 ## 9. 查核指引（reviewer checklist）
 
