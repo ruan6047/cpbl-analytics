@@ -40,7 +40,7 @@
 
 ## 依賴、序列與非目標
 
-- **與進行中前端卡的關係**：`UX-UMPIRE-SCOPE1`、`UX-TEAM-SPLIT-SCOPE1` 已在執行；在本卡規格產出前，兩者一律**以球員頁 + globals.css/chart-theme 為 pattern 來源**對齊（同一事實來源），並於各自人工審核關檢查一致性。本卡產出後，未來 INIT-PRODUCT-UX 各頁卡須引用本規格；既有頁面對齊由後續 conformance 卡處理。
+- **與進行中前端卡的關係**：`UX-UMPIRE-SCOPE1`、`UX-TEAM-SPLIT-SCOPE1` 已在執行；在本卡規格產出前，兩者一律**以球員頁 + globals.css/chart-theme 為 pattern 來源**對齊（同一事實來源），並於各自人工審核關檢查一致性。本卡產出後，未來 INIT-PRODUCT-UX 各頁卡須引用本規格；既有頁面對齊由後續卡 `UX-DESIGN-CONFORM1`（重新稽核已完成 UI/UX 頁面是否需修改）處理。
 - **非目標**：不重構任何頁面、不改 globals.css/元件程式碼（那是後續對齊卡）；不新增 API/DB；不涉及產品/IA 決策（那是 blueprint 的範疇）。
 
 ## Log
