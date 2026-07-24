@@ -136,6 +136,7 @@ export default function MatchupsClient() {
         controls={controls}
         onPatch={onPatch}
         chrome="bar"
+        enablePaSim
         header={
           <>
             <ContextSwitcher

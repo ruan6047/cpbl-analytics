@@ -180,6 +180,64 @@ export type FranchiseInfo = {
   to: number;
 };
 
+// ---- ML-SIM1 模式 B（pa_sim）單一打席結果分布契約 ----
+// 端點：GET /api/v1/outcome/plate-appearance（唯讀，request 時以既有 artifact 推論）。
+// 七種互斥結果由 models/pa_sim.py 的 OUTCOMES 定義；機率為經驗貝氏收縮後的
+// 打者×投手估計，win_probability／delta_wp 由經驗 next-state 轉移核加權而得。
+export type PaOutcomeKey =
+  | "K"
+  | "BB_HBP"
+  | "1B"
+  | "XBH"
+  | "HR"
+  | "BIP_OUT"
+  | "OTHER_REACH";
+
+export type PaOutcome = {
+  probability: number;
+  win_probability: number;
+  /** 該結果發生後的主隊勝率變化（主隊視角；呈現層才翻成打者方視角）。 */
+  delta_wp: number;
+  transition_level: string;
+  transition_samples: number;
+  /** 常態近似的模型敏感度範圍——非統計信賴區間（ml-sim1-review 殘餘風險 3）。 */
+  probability_interval_90: [number, number];
+};
+
+/** 打席情境（API 的 GameState；half="1" 上半＝客隊進攻、"2" 下半＝主隊進攻）。 */
+export type PaState = {
+  inning: number;
+  half: "1" | "2";
+  bases: string;
+  outs: number;
+  away_score: number;
+  home_score: number;
+};
+
+export type PaSimOk = {
+  available: true;
+  trained_through: number;
+  wp_span: string;
+  uncertainty_method: string;
+  sample: {
+    hitter_pa: number;
+    pitcher_pa: number;
+    direct_pa: number;
+    low_sample: boolean;
+    shrinkage_weight: { hitter: number; pitcher: number; direct: number };
+  };
+  state: PaState;
+  current_win_probability: number;
+  /** 各結果勝率的機率加權值；與 current 實質等效，不得當成整場預測（P2-2）。 */
+  weighted_win_probability: number;
+  outcomes: Record<PaOutcomeKey, PaOutcome>;
+};
+
+/** artifact 未建置／損毀／無法定位打席時的 fail-closed 回應（API 一律 200）。 */
+export type PaSimUnavailable = { available: false; reason: string };
+
+export type PaSimResponse = PaSimOk | PaSimUnavailable;
+
 // ---- 查詢參數（唯一事實來源：deep-link 與 fetch 共用） ----
 
 export type MatchupQuery = {
@@ -227,6 +285,13 @@ export const matchupApi = {
     ),
   franchises: () =>
     clientGet<{ items: FranchiseInfo[] }>("/api/v1/franchises"),
+  /** 單一打席結果分布；情境為使用者輸入的假設狀態，非真實比賽中的打席。 */
+  plateAppearance: (hitter: string, pitcher: string, state: PaState) =>
+    clientGet<PaSimResponse>(
+      `/api/v1/outcome/plate-appearance?hitter=${hitter}&pitcher=${pitcher}` +
+        `&inning=${state.inning}&half=${state.half}&bases=${state.bases}` +
+        `&outs=${state.outs}&away_score=${state.away_score}&home_score=${state.home_score}`,
+    ),
   playerName: async (pid: string): Promise<string | null> => {
     const d = await clientGet<{ player: { name: string | null } | null }>(
       `/api/v1/players/${pid}/profile`,
