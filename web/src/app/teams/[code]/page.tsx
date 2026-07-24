@@ -8,7 +8,7 @@ import { RosterBoard, type RosterGroup } from "@/components/roster-board";
 import { api } from "@/lib/api";
 import { contrastText, nameMeta, teamColor } from "@/lib/teams";
 import { CoachGrid, GROUPS, ManagersTable, RetiredNumbers, RosterChips, RosterTable, f2, f3 } from "./parts";
-import { TeamTabs, type TeamGroup } from "./team-tabs";
+import { SEASON_GROUP, TeamTabs, type TeamGroup } from "./team-tabs";
 
 export const dynamic = "force-dynamic";
 
@@ -194,15 +194,16 @@ export default async function TeamPage({ params, searchParams }: {
 
   // ── 賽季 tab 的支撐區塊（攻守概覽以下；隨年度、不隨半季）：主力選手 / 對戰各隊 / 戰績分項 ──
   const seasonSupporting = team ? (
-    <>
-      <section>
+    // key：跨 RSC→client 邊界傳入 TeamTabs 的節點會被視為 list child，需 key 以免 React 警告。
+    <div key="season-supporting" className="space-y-5">
+      <section key="lineup">
         <h2 className="mb-3 text-lg font-semibold">主力選手</h2>
         <RosterBoard fieldCells={lineupCells} designatedHitter={dhCell} groups={rosterGroups}
           caption={`${displayName}${yearLabel}各守位主力`}
           emptyField={year >= 2025 ? "尚無守備資料。" : `${year} 年守備位置圖尚未提供（歷史守備待補）。`} />
       </section>
 
-      <section>
+      <section key="h2h">
         <h2 className="mb-3 text-lg font-semibold">對戰各隊</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {opponents.map((o) => (
@@ -215,7 +216,7 @@ export default async function TeamPage({ params, searchParams }: {
         </div>
       </section>
 
-      <section>
+      <section key="splits">
         <h2 className="mb-3 text-lg font-semibold">戰績分項</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Card teamColor={color} className="p-4">
@@ -246,15 +247,15 @@ export default async function TeamPage({ params, searchParams }: {
           ))}
         </div>
       </section>
-    </>
+    </div>
   ) : null;
 
-  // ── 賽季外的頂層群組：近日焦點 / 現役陣容 / 歷屆成員 / 隊史 ──
+  // ── 頂層群組（順序即頁籤順序，第一個為落地預設）：近日焦點 → 賽季 → 現役陣容 → 歷屆成員 → 隊史 ──
   const groups: TeamGroup[] = [];
 
   if (team && teamGames.length > 0) {
     groups.push({ value: "focus", label: "近日焦點", content: (
-      <section>
+      <section key="focus">
         <h2 className="mb-1 text-lg font-semibold">近期賽事</h2>
         <p className="mb-3 text-[11px] text-faint">當季最近完賽與下一場（點入看賽況）。其餘焦點內容後續擴充。</p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
@@ -283,11 +284,14 @@ export default async function TeamPage({ params, searchParams }: {
     ) });
   }
 
+  // 賽季佔位：內容（攻守概覽＋半季子頁籤＋支撐區塊）由 TeamTabs 接手渲染。
+  if (team) groups.push({ value: SEASON_GROUP, label: "賽季", content: null });
+
   if (team && (rst.first_batters.length > 0 || rst.first_pitchers.length > 0 || rst.farm.length > 0 || coaches.length > 0)) {
     groups.push({ value: "roster", label: "現役陣容", content: (
-      <div className="space-y-8">
+      <div key="roster" className="space-y-8">
         {(rst.first_batters.length > 0 || rst.first_pitchers.length > 0 || rst.farm.length > 0) && (
-          <section>
+          <section key="players">
             <h2 className="mb-1 text-lg font-semibold">現役球員</h2>
             <p className="mb-3 text-[11px] text-faint">本季登錄名單；一軍取自當季成績、二軍取自二軍逐場。點擊看個人頁。</p>
             <div className="space-y-4">
@@ -297,14 +301,14 @@ export default async function TeamPage({ params, searchParams }: {
             </div>
           </section>
         )}
-        <CoachGrid coaches={coaches} color={color} />
+        <CoachGrid key="coaches" coaches={coaches} color={color} />
       </div>
     ) });
   }
 
   if (roster.batters.length > 0 || roster.pitchers.length > 0 || managers.length > 0) {
     groups.push({ value: "legends", label: "歷屆成員", content: (
-      <section>
+      <section key="legends">
         <h2 className="mb-1 text-lg font-semibold">歷代成員</h2>
         <p className="mb-3 text-[11px] text-faint">曾效力此球團（含前身）之球員與教練，依生涯出賽數／任期排序。</p>
         {(() => {
@@ -330,8 +334,8 @@ export default async function TeamPage({ params, searchParams }: {
 
   if (eras.eras.length >= 1) {
     groups.push({ value: "eras", label: "隊史", content: (
-      <div className="space-y-8">
-        <section>
+      <div key="eras" className="space-y-8">
+        <section key="records">
           <h2 className="mb-1 text-lg font-semibold">隊史紀錄</h2>
           <p className="mb-3 text-[11px] text-faint">含改名/轉賣前身的 franchise 全史（一軍例行賽）。</p>
           {eras.championship_count > 0 && (
@@ -363,10 +367,10 @@ export default async function TeamPage({ params, searchParams }: {
           )}
         </section>
 
-        <RetiredNumbers retired={retired} color={color} />
+        <RetiredNumbers key="retired" retired={retired} color={color} />
 
         {eras.eras.length > 1 && (
-          <section>
+          <section key="timeline">
             <h2 className="mb-1 text-lg font-semibold">球隊沿革</h2>
             <p className="mb-3 text-[11px] text-faint">改名/轉賣視為同一支球隊，依隊名/年代分時期（一軍例行賽）。</p>
             <DataTable
@@ -458,10 +462,11 @@ export default async function TeamPage({ params, searchParams }: {
           groups={groups}
           year={year}
           years={availableYears}
+          landOnSeason={!!rawYear}
         />
       ) : (
-        // 已解散球隊：無賽季 tab，只呈現隊史等群組（用簡單 Tabs）。
-        <Tabs items={groups.map((g) => ({ label: g.label, content: g.content }))} />
+        // 已解散球隊：無賽季 tab（未 push 佔位），只呈現隊史等有內容的群組。
+        <Tabs items={groups.filter((g) => g.content).map((g) => ({ label: g.label, content: g.content }))} />
       )}
     </div>
   );
