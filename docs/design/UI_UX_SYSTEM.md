@@ -245,22 +245,27 @@
 > **⚠️ 現況不一致（→ hygiene）**：`YearSelect` 用 `rounded-full`、`Leaderboard` 篩選用 `rounded-lg`。**canonical 定為 `rounded-lg`（control 圓角，§2.5）**；`rounded-full` pill-select 僅工具列 chip 語境可留。收斂列入 [`UI_UX_CONFORMANCE.md`](UI_UX_CONFORMANCE.md) H8。
 > **共通 overlay 契約**（Menu/Modal/Combobox 共用，新增時照抄）：Esc 關 + 點外部關 + 關後焦點歸還觸發鈕；面板 `shadow-lg`；`z` 高於 sticky nav；`backdrop-blur` 面板走 `bg-*/95`。
 
-### 4.3 混合下拉（Hybrid：tabs + overflow dropdown）— **proposed，尚未建置**
+### 4.3 一體式多軸導引欄（integrated multi-axis nav bar）
 
-> **問題**：頁內內容 tab 超過 ~5 項、或窄螢幕放不下時，現況 `HierarchicalTabs` 靠**水平捲動**（`overflow-x-auto`）容納——可用但可發現性差。你提到的「混合下拉選單」即此缺口：**前段常駐 tab + 尾段收進「更多▾」下拉**，或**窄螢幕整組 tab 塌陷為 `<select>`**。
-> **狀態**：**現況無此可重用元件**（頂層 nav 的「主入口 + 更多」是同構但綁在 `nav-links`，未抽為 in-content 通用件）。故列 **proposed**，不謊稱現況。
+> **需求方指定範例（`/standings`）**：同頁有三軸——**層級 `kind`**（一軍/二軍）、**賽季階段 `seg`**（全年/上半季/下半季/季後賽）、**年度 `year`**（下拉）——現況為**散置的獨立控制 + 一顆孤立年度下拉**。目標：比照球員頁，收斂成**一條一體式頁籤導引欄**。
 
-**組合現有積木（不發明新互動）**：以 §4.1 `TabItems`（常駐段）＋ §4.2「更多 Menu」（溢出段）組合；或窄螢幕以 §4.2 原生 Select 承載整組。建議 API 草案（供實作卡）：
+**canonical 範本已存在**：球員頁 `PlayerNavigation` = `HierarchicalTabs`（group×item 雙層）＋ **`controls` 插槽**（右側、`md:border-l md:pl-3` 分隔，現放 `ContextSwitcher`）。此即「一體式導引欄」；`controls` 型別為 `ReactNode`，**可放 `ContextSwitcher`，也可放 `<select>`**——故「tab ＋ 下拉共處一列」本就支援。
 
-| prop | 型別 | 說明 |
-|---|---|---|
-| `items` | `{value,label}[]` | 全部分頁 |
-| `value`/`onChange` | — | 受控選取 |
-| `maxVisible` | `number` | 常駐 tab 數上限，其餘進「更多」 |
-| `collapseTo` | `"menu" \| "select"` | 溢出/窄螢幕收納形式 |
+**standings 映射（幾乎直接沿用，非新元件）**：
 
-**open questions（待需求方/實作卡定）**：① `maxVisible` 固定值或量測容器（container query）？② 溢出段的 active 項是否上移常駐？③ 窄螢幕塌陷門檻＝ §7 的 640px 或依 tab 數動態？④ 是否直接擴 `HierarchicalTabs` 而非新元件（避免第五種語彙）。
-> **紀律**：本段為 `design-system` 的 **extend**（新模式提案），**須經需求方 sign-off 才實作**；未 sign-off 前，其他頁沿用 §4.1 水平捲動或 §4.2 Select。
+| 軸 | 值 | 對應球員頁角色 | 承載 |
+|---|---|---|---|
+| 層級 `kind` | 一軍/二軍 | group（父，如 本季/生涯） | `HierarchicalTabs` group |
+| 賽季階段 `seg` | 全年/上半季/下半季/季後賽 | item（子，如各 view） | `HierarchicalTabs` item |
+| 年度 `year` | 多離散值（30+） | controls 插槽 | `YearSelect`（§4.2；年份多本就該用 select 非 tab） |
+
+→ 一條 sticky bar：`〔一軍│二軍〕全年 上半季 下半季 季後賽 ┃ 年度▾`。**這正是「混合下拉」＝tab（層級×階段）＋下拉（年度）共處一列**，URL 三參數 `kind`/`seg`/`year` 已存在。
+
+**狀態（誠實）**：**積木全在、可組合**——`HierarchicalTabs.controls` 收 `YearSelect` 即成，**非發明新元件**。實作僅需 (a) 確認 `controls` 插槽承載 `<select>` 的對齊/44px/窄螢幕換行；(b) 讓 `/standings`（及其他多軸頁）**改用**此範本。**(b) 是頁面重構，屬 `UX-DESIGN-CONFORM1` 或專屬重構卡，不在本 doc-only 卡**。
+
+**仍 proposed 的較小子題（單軸 tab 過多）**：若某**單一軸**選項 >~7 且非年份型（不宜 select），才需「常駐 tab ＋ 更多▾ 溢出」（§4.1 `TabItems` ＋ §4.2「更多 Menu」組合）。此子題待有真實頁面需求再定 API，不預先建置。
+
+**open questions（待 sign-off）**：① standings 用雙層 `HierarchicalTabs`（group=層級）還是單層 tablist + controls 全右置？② 年度 select 窄螢幕換行到第二列或縮 icon 觸發？③ **二軍季後賽語意不同（無半季）**——`seg` 項目是否隨 `kind` 動態增減（一軍四項、二軍略上下半季）？④ 一體式導引欄是否抽為通用件（如 `AxisNav`）供多頁共用，或每頁各自組 `HierarchicalTabs`。
 
 ### 4.4 決策樹（新頁面選控制項）
 
