@@ -28,6 +28,16 @@
 - [ ] 規格為**描述現況 + 明確化**，不得推翻球員頁已定案語言；與 PRODUCT_UX_BLUEPRINT 產品層不衝突。
 - [ ] 需求方 ruan6047 Design Gate sign-off。
 
+## 建議使用 skills（執行者以 `Skill` 工具 invoke）
+
+- **`design:design-system`**：主工作流——audit 現況 → document canonical 規格 → 定義擴充規則。
+- **`tailwind-patterns`**：Tailwind v4 CSS-first 設計 token 架構，對齊並整理 `globals.css` 變數。
+- **`frontend-design`**：色票／字級／間距／圓角的設計原則判準（原則非硬值）。
+- **`web-design-guidelines`** + **`design:accessibility-review`**：元件狀態與深色模式對比稽核（WCAG，呼應「禁 text-white 白底白字」）。
+- **`dataviz`**：圖表規範段（色盤／座標軸／tooltip），對齊 `chart-theme.ts` 的 `useChartTheme`。
+- 次要：`react-patterns`／`nextjs-best-practices`（元件模式文件化）。
+- **不使用** `shadcn`：專案未採 shadcn/ui（Tailwind + recharts 手刻），避免引入不相干元件庫慣例。
+
 ## 依賴、序列與非目標
 
 - **與進行中前端卡的關係**：`UX-UMPIRE-SCOPE1`、`UX-TEAM-SPLIT-SCOPE1` 已在執行；在本卡規格產出前，兩者一律**以球員頁 + globals.css/chart-theme 為 pattern 來源**對齊（同一事實來源），並於各自人工審核關檢查一致性。本卡產出後，未來 INIT-PRODUCT-UX 各頁卡須引用本規格；既有頁面對齊由後續 conformance 卡處理。
