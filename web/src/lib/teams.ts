@@ -1,16 +1,17 @@
 // 六隊品牌色、簡稱、字母徽章（避免官方 logo 版權，以隊色＋字母代表）。
 // 字母取隊伍英文代表字：W=味全(Wei Chuan)、B=兄弟(Brothers)、L=獅(Lions)、
 // G=悍將(Guardians)、M=猿(Monkeys)、H=鷹(Hawks)。key = team_code（ClubNo+011）。
-export type TeamMeta = { short: string; color: string; letter: string };
+// 隊名顯示階梯（UI_UX_SYSTEM §9.6）：short=二字隊慣稱；name3=三～四字「隊+吉祥物」；char1=中文一字。
+export type TeamMeta = { short: string; name3: string; char1: string; color: string; letter: string };
 
 // 字母與配色對齊官方字母標：W味全 B兄弟 L統一(LL) G富邦 R樂天(Rakuten) T台鋼(TSG)
 export const TEAMS: Record<string, TeamMeta> = {
-  AAA011: { short: "味全", color: "#C8102E", letter: "W" }, // 味全龍 紅
-  ACN011: { short: "兄弟", color: "#C8A24A", letter: "B" }, // 中信兄弟 金
-  ADD011: { short: "統一", color: "#E35A13", letter: "L" }, // 統一7-ELEVEn獅 橘
-  AEO011: { short: "富邦", color: "#2A4B9B", letter: "G" }, // 富邦悍將 藍
-  AJL011: { short: "樂天", color: "#8E1537", letter: "R" }, // 樂天桃猿 暗紅
-  AKP011: { short: "台鋼", color: "#15543C", letter: "T" }, // 台鋼雄鷹 深綠
+  AAA011: { short: "味全", name3: "味全龍", char1: "龍", color: "#C8102E", letter: "W" }, // 味全龍 紅
+  ACN011: { short: "兄弟", name3: "中信兄弟", char1: "象", color: "#C8A24A", letter: "B" }, // 中信兄弟 金
+  ADD011: { short: "統一", name3: "統一獅", char1: "獅", color: "#E35A13", letter: "L" }, // 統一7-ELEVEn獅 橘
+  AEO011: { short: "富邦", name3: "富邦悍將", char1: "邦", color: "#2A4B9B", letter: "G" }, // 富邦悍將 藍
+  AJL011: { short: "樂天", name3: "樂天桃猿", char1: "猿", color: "#8E1537", letter: "R" }, // 樂天桃猿 暗紅
+  AKP011: { short: "台鋼", name3: "台鋼雄鷹", char1: "鷹", color: "#15543C", letter: "T" }, // 台鋼雄鷹 深綠
 };
 
 // CPBL 品牌色（CPBL TV：藍 + 紅）
@@ -72,6 +73,10 @@ export const eraBadge = (name: string, code: string): { color: string; letter: s
 
 export const teamColor = (code?: string | null) => _meta(code)?.color || "#94a3b8";
 export const teamShort = (code?: string | null) => _meta(code)?.short || "";
+// 隊名顯示階梯（UI_UX_SYSTEM §9.6）：name3＝三～四字「隊+吉祥物」（統一獅…）；char1＝中文一字（龍/象/獅/邦/猿/鷹）。
+// 目前無 consumer——資料就緒，實際渲染留給有窄空間需求的卡（對戰矩陣表頭/mobile 標籤等）。
+export const teamName3 = (code?: string | null) => _meta(code)?.name3 || "";
+export const teamChar1 = (code?: string | null) => _meta(code)?.char1 || "";
 export const teamLetter = (code?: string | null) => _meta(code)?.letter || "?";
 // 有對應現役 franchise 才連球隊頁（含歷史隊→現役頁）；已解散隊不連
 export const isCurrentTeam = (code?: string | null) => !!franchiseOf(code);
