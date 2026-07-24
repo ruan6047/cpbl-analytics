@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useState } from "react";
-import { TabItems } from "@/components/hierarchical-tabs";
+import { MainTabs } from "@/components/hierarchical-tabs";
 import { NavBarRow, StickyNavBar } from "@/components/sticky-nav-bar";
 
 // 紀錄室分區頁籤（UI 審 r7）：長頁直落改單層 tablist（比照 standings seg 的
@@ -21,7 +21,7 @@ export function SectionTabs({ label, items }: {
           align="end"
           main={
             <div className="flex min-w-0 items-center overflow-x-auto overscroll-x-contain">
-              <TabItems label={label} value={cur.label} onChange={setActive}
+              <MainTabs label={label} value={cur.label} onChange={setActive}
                 items={items.map((item) => ({ value: item.label, label: item.label }))} />
             </div>
           }

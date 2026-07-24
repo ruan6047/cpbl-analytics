@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { TabItems } from "@/components/hierarchical-tabs";
+import { MainTabs } from "@/components/hierarchical-tabs";
 import { LevelYearNav } from "@/components/level-year-nav";
 import { NavBarRow, StickyNavBar } from "@/components/sticky-nav-bar";
 
@@ -28,7 +28,7 @@ export function StandingsNav({ kind, years, selectedYear, seg, segs }: {
         align="end"
         main={
           <div className="flex min-w-0 items-center overflow-x-auto overscroll-x-contain">
-            <TabItems label="賽季階段" value={String(seg)} onChange={pushSeg}
+            <MainTabs label="賽季階段" value={String(seg)} onChange={pushSeg}
               items={segs.map((s) => ({ value: String(s.v), label: s.label }))} />
           </div>
         }

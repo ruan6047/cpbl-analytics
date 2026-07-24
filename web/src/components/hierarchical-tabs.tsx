@@ -134,7 +134,45 @@ export function ContextSwitcher<Value extends string>({
   );
 }
 
-/** 單層 tablist（underline 語彙）：階層導覽的子層，亦供單層主分頁頁（standings seg）重用（§4.3 D2）。 */
+/** 單層主頁籤 tablist（UI 審 r8）：無主/次階層的頁（standings seg、records 分區）
+    一律採主頁籤造型呈現——active＝實心 ink 頁籤、未選＝描邊頁籤（上圓下方、貼線）。 */
+export function MainTabs<ItemValue extends string>({ label, items, value, onChange }: {
+  label: string;
+  items: readonly { value: ItemValue; label: string }[];
+  value: ItemValue;
+  onChange: (value: ItemValue) => void;
+}) {
+  const index = Math.max(0, items.findIndex((item) => item.value === value));
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const keyboardMoved = useRef(false);
+  const onKeyDown = (event: KeyboardEvent) => {
+    const delta = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+    if (!delta) return;
+    event.preventDefault();
+    keyboardMoved.current = true;
+    onChange(items[(index + delta + items.length) % items.length].value);
+  };
+  useEffect(() => {
+    if (keyboardMoved.current) refs.current[index]?.focus({ preventScroll: true });
+  }, [index]);
+
+  return (
+    <div role="tablist" aria-label={label} onKeyDown={onKeyDown} className="flex shrink-0 items-end gap-1.5">
+      {items.map((item, itemIndex) => (
+        <button key={item.value} type="button" role="tab" aria-selected={value === item.value}
+          tabIndex={value === item.value ? 0 : -1}
+          ref={(element) => { refs.current[itemIndex] = element; }} onClick={() => onChange(item.value)}
+          className={`min-h-11 shrink-0 touch-manipulation whitespace-nowrap rounded-t-md px-4 text-sm font-semibold transition ${value === item.value
+            ? "bg-ink text-paper"
+            : "border border-line bg-surface text-muted hover:border-line-strong hover:text-ink"}`}>
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** 單層 tablist（underline 語彙）：階層導覽的子層專用（單層主分頁頁改用 MainTabs）。 */
 export function TabItems<ItemValue extends string>({ label, items, value, onChange }: {
   label: string;
   items: readonly { value: ItemValue; label: string }[];
