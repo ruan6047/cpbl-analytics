@@ -33,3 +33,10 @@
 ## Log
 
 - 2026-07-24 register by Claude Opus 4.8（Coordinator，依 ruan6047 指示）；iteration 0。作為 UX-DESIGN-SYSTEM1 的既有頁對齊後續卡。
+- 2026-07-25 claim by Claude Opus 4.8（依 ruan6047 指派）；iteration 1、🔨執行中。分支 `claude/ux-design-conformance-audit-1faa48` @ `.claude/worktrees/ux-design-system-phase-1-f092c0`。
+- 2026-07-25 執行完成（Opus 4.8）：以球員頁為 100% 基準，聚焦稽核**新規則**（§3.5 ENTITY_LINK／§9.3 隊名連結／§4.3 導覽）在尚未被觸及頁的落實。逐頁 Go/Modify 完成。
+  - **低風險對齊已套（commit `94e53e4`，5 檔）**：(1) `award-races`（/batters・/pitchers）#1 名字去 `text-accent` 紅字（唯一 red-at-rest 實體名）→ ENTITY_LINK＋`font-medium`；(2) games/賽況（`box-tabs` 打者/投手、`overview` MVP＋決勝、`page` 決勝/MVP）6 處 `PlayerLink` 覆寫 hover-only→ENTITY_LINK 預設（補常駐底線）；(3) `teams/[code]/parts` 純教練連結對齊 ENTITY_LINK。純視覺 idiom，零 IA/產品改動。
+  - **Go（已符合，無改）**：/games 月曆（隊名純文字正確不連，整列已包 Link 避 nested <a>）、home、matchup-card、standings/records/venues/people（隊名/球員已連非紅字）。
+  - **刻意外切**：裁判名連結 → `UX-UMPIRE-SCOPE1`（T4 territory）；bare `hover:underline` 整塊實體連結普及化 → 新開 `UX-ENTITY-LINKS2`（ruan6047 定案開卡、實作延後）。
+  - **驗證**：`build:check` 全 11 路由 ✓、`npm test` 126 ✓；實測 live DOM 淺色（/batters award #1、/games/167 18 球員連結全 text-ink＋常駐底線、red-at-rest=0、MVP 16px bold）＋深色（球員名 #e8eef6 on #0a1626 高對比、底線 #24374f、零紅字、無對比回歸）。
+  - **需求方本地人工審通過**（[[ux-manual-review-before-ai]]，2026-07-25：「密集底線可接受」）→ handoff 待跨家族查核。
