@@ -12,10 +12,10 @@
 | [GAME-RECAP-PA1](tasks/GAME-RECAP-PA1.md) | INIT-GAME-RECAP | T4 | canonical PA 契約與實作切卡 | ruan6047（子卡優先序／後續 Gate） | — | 1 | 📦已合併 | —不適用 | 2026-07-21T01:09:45+08:00 |
 | [GAME-RECAP-PA1-BUILD1](tasks/GAME-RECAP-PA1-BUILD1.md) | INIT-GAME-RECAP | T4 | canonical PA builder、對帳與歷史回填 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:12+08:00 |
 | [GAME-RECAP-PA1-EXPAND1](tasks/GAME-RECAP-PA1-EXPAND1.md) | INIT-GAME-RECAP | T4 | canonical PA additive schema expand | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-21T01:09:45+08:00 |
-| [GAME-RECAP-PA1-TAXONOMY1](tasks/GAME-RECAP-PA1-TAXONOMY1.md) | INIT-GAME-RECAP | T4 | canonical PA transition taxonomy 稽核 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-21T01:09:45+08:00 |
+| [GAME-RECAP-PA1-TAXONOMY1](tasks/GAME-RECAP-PA1-TAXONOMY1.md) | INIT-GAME-RECAP | T4 | canonical PA transition taxonomy 稽核 | Opus 4.8（執行） | `ai/opus-4-8/GAME-RECAP-PA1-TAXONOMY1 @ .claude/worktrees/game-recap-pa1-taxonomy1-execution` | 1 | 🔨執行中 | —不適用 | 2026-07-24T10:29:30+08:00 |
 | [GAME-RECAP-WP-API1](tasks/GAME-RECAP-WP-API1.md) | INIT-GAME-RECAP | T4 | canonical WP／WPA public contract | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:09+08:00 |
 | [GAME-RECAP-WP-VAL1](tasks/GAME-RECAP-WP-VAL1.md) | INIT-GAME-RECAP | T4 | 場中 WP 時間外驗證與支援邊界 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-16T22:15:08+08:00 |
-| [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:57:01+08:00 |
+| [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | GPT-5 Codex（執行） | `ai/gpt-5-codex/INGEST-GAME-TM-REFACTOR1 @ .claude/worktrees/ingest-game-tm-refactor1-execution` | 1 | 🔨執行中 | ⏸未部署 | 2026-07-24T10:29:30+08:00 |
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | ruan6047（Design Gate） | — | 0 | 💡需求 | —不適用 | 2026-07-17T04:44:38+08:00 |
 | [INIT-OFFICIAL-DATA1](tasks/INIT-OFFICIAL-DATA1.md) | INIT-OFFICIAL-DATA1 | T4 | 官方資料契約完整性與低維護 ingest | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:00+08:00 |
 | [INIT-PRODUCT-UX](tasks/INIT-PRODUCT-UX.md) | INIT-PRODUCT-UX | T3 | 全站產品與 UI/UX 收斂 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-17T04:44:24+08:00 |
