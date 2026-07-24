@@ -76,3 +76,4 @@
 - 2026-07-24 **人工審 round 2**：games 隊伍 chips `rounded-full` 太圓不像按鈕 → 改 control canonical `rounded-lg`（§2.5），與月份 stepper/層級膠囊同語彙；瀏覽器重驗 ✓。
 - 2026-07-24 **人工審 round 3**：①所有主頁籤改「上圓角、下方角」經典頁籤造型（`rounded-t-md`/容器 `rounded-t-lg`，貼齊導覽欄下緣的分頁感）；②一/二軍與 `ContextSwitcher` 語彙改 **switch 造型**（`rounded-full` 軌道＋滑塊；球員頁 身分/層級、matchups 視角同步，維持全站一致）；`tsc`/`npm test` ✓、瀏覽器重驗 ✓。
 - 2026-07-24 **人工審 round 4**：①頁籤下緣貼齊分隔線——`StickyNavBar` 加 `flush`（殼去下內距）＋`NavBarRow` 加 `align="end"`（controls 保留小間距），standings/rank/球員頁三處接上；②switch 瘦身——軌道視覺高 `h-8`、滑塊改內層 span，按鈕/Link 保持 `min-h-11` 44px 觸控熱區（垂直外溢不可見，a11y 守門測試不動）；③子頁籤較主頁籤「矮」：文字下沉錨定（`items-end`＋`pb-1`）＋字級 `text-xs`，底線壓在分隔線上，主次分明；`tsc`/`npm test` ✓、瀏覽器桌機/窄版重驗 ✓。
+- 2026-07-24 **人工審 round 5**：子頁籤「框」仍與主頁籤同高 → 改**階梯式**：active 主頁籤全高（44px）、子頁籤住較矮灰色托盤（`h-8`＝32px、`rounded-tr-lg`、底對齊貼線），觸控熱區維持 44px 向上外溢；DOM 量測 main 44 / tray 32 / 底邊皆貼分隔線；`tsc`/`npm test` ✓。

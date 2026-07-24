@@ -56,12 +56,11 @@ export function HierarchicalTabs<GroupValue extends string, ItemValue extends st
           return (
             <div key={group.value} className="contents">
               {/* 主頁籤 vs 子頁籤的視覺分層（需求方 2026-07-24 UI 審）：
-                  頁籤造型＝上圓角、下方角（貼齊導覽欄下緣的經典分頁感）；
-                  active 主頁籤＝實心 ink 頁籤＋其子頁籤同住灰底容器（從屬關係）；
-                  未選取主頁籤＝描邊頁籤（與灰底容器、與純文字 underline 子頁籤都明確不同）。 */}
-              <div className={`flex shrink-0 items-center gap-0.5 rounded-t-lg px-0.5 pt-0.5 ${active
-                ? "bg-surface-2"
-                : ""}`}>
+                  頁籤造型＝上圓角、下方角、下緣貼分隔線（經典分頁感）；
+                  active 主頁籤＝實心 ink 全高頁籤，其子頁籤住在**較矮（h-8）的灰色托盤**
+                  （階梯式從屬，子頁籤框不與主頁籤同高）；未選取主頁籤＝描邊頁籤。
+                  子頁籤按鈕仍為 min-h-11 觸控熱區，向上外溢於托盤外（不可見）。 */}
+              <div className="flex shrink-0 items-end">
                 <button type="button" aria-pressed={active}
                   ref={(element) => { groupRefs.current[index] = element; }}
                   onClick={() => onGroupChange(group.value)} onKeyDown={(event) => moveGroup(event, index)}
@@ -71,8 +70,10 @@ export function HierarchicalTabs<GroupValue extends string, ItemValue extends st
                   {group.label}
                 </button>
                 {active && (
-                  <TabItems label={`${group.label}內容`} items={group.items} value={activeItem}
-                    onChange={onItemChange} />
+                  <div className="flex h-8 items-end rounded-tr-lg bg-surface-2 px-1">
+                    <TabItems label={`${group.label}內容`} items={group.items} value={activeItem}
+                      onChange={onItemChange} />
+                  </div>
                 )}
               </div>
             </div>
