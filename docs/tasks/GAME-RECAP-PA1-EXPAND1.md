@@ -7,7 +7,7 @@
 - 部署：是　環境：production　PR：—　Merge SHA：—
 - Discovery：`GAME-RECAP-DATA1` Checkpoint 1 已核可
 - Design：Design Gate N/A；純持久化基礎設施，無 public UI
-- current-state：📥Backlog；等待 TAXONOMY1 查核通過與 schema lane 可用。
+- current-state：📥Backlog；**TAXONOMY1 已跨家族查核通過並 merge（2026-07-24，REVIEW-003/MERGE-004）**，transition schema 前置解除；仍待認領與 schema lane（`db_scope=schema`）可用。
 
 ## 目標與驗收
 
