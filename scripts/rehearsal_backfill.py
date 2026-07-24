@@ -1,6 +1,7 @@
 """Rehearsal script for INGEST-DEEP-TM-BACKFILL1."""
 
 import logging
+
 from cpbl.db import conn
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s | %(message)s")
@@ -31,7 +32,7 @@ def run_rehearsal() -> None:
         cur.execute(f"UPDATE cpbl.pitch_tracking_rehearsal SET {null_set_clause} WHERE year = 2026;")
         
         # Verify nullified counts
-        cur.execute(f"SELECT count(*), count(traj_x0), count(hit_landing_bearing) FROM cpbl.pitch_tracking_rehearsal WHERE year = 2026;")
+        cur.execute("SELECT count(*), count(traj_x0), count(hit_landing_bearing) FROM cpbl.pitch_tracking_rehearsal WHERE year = 2026;")
         tot, traj_cnt, hit_cnt = cur.fetchone()
         logger.info("Simulated prod null state: 2026 total=%d, traj_x0 non-null=%d, hit_landing_bearing non-null=%d", tot, traj_cnt, hit_cnt)
         assert traj_cnt == 0 and hit_cnt == 0, "Nullification failed!"

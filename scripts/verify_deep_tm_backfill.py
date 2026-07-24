@@ -4,6 +4,7 @@ import json
 import logging
 import subprocess
 import urllib.request
+
 from cpbl.db import conn
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s | %(message)s")
