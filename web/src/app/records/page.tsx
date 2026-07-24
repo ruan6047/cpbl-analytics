@@ -6,6 +6,7 @@ import { teamFullName } from "@/lib/teams";
 import { CareerLeaders } from "./career-leaders";
 import { ChampionsPlayerTable, type ChampRow } from "./champions-player-table";
 import { DynastyChart } from "./dynasty-chart";
+import { SectionTabs } from "./section-tabs";
 
 export const dynamic = "force-dynamic";
 
@@ -158,61 +159,93 @@ export default async function RecordsPage() {
   const frName = new Map(fr.items.map((t) => [t.code, t.name]));
   const dynastyRows = dynasties.map((r) => ({ ...r, team: frName.get(r.team_code) ?? r.team }));
 
-  return (
-    <div className="space-y-10">
-      <h1 className="text-2xl font-extrabold tracking-tight text-ink">歷史紀錄室</h1>
-
-      <section aria-labelledby="dynasty">
-        <h2 id="dynasty" className="mb-3 text-lg font-semibold text-ink">歷代總冠軍</h2>
-        {covComplete && dynasties.length ? (
-          <DynastyChart rows={dynastyRows} regular={regular} />
-        ) : (
-          <Notice>{ch.note ?? "冠軍資料尚未補齊，暫不呈現累計王朝排行。"}</Notice>
-        )}
-      </section>
-
-      <section aria-labelledby="career-records">
-        <h2 id="career-records" className="mb-3 text-lg font-semibold text-ink">生涯排行</h2>
-        <CareerLeaders batting={battingCareer} pitching={pitchingCareer} />
-      </section>
-
-      <section aria-labelledby="postseason">
-        <h2 id="postseason" className="mb-3 text-lg font-semibold text-ink">季後賽紀錄</h2>
-        <DataTable columns={postseasonColumns} rows={ps.teams} rowKey={(r) => r.team_code} dense />
-        <p className="mt-2 text-[11px] text-faint">一軍季後賽（台灣大賽＋挑戰賽）全史；亞軍＝台灣大賽敗者，依勝率排序。</p>
-      </section>
-
-      {covComplete && champPlayers.length > 0 && (
+  // 頁籤形式（UI 審 r7）：七大區改單層 tablist 一次看一區；區塊標題由頁籤承擔，
+  // h2 轉 sr-only 保留語意。內容 server 一次備妥、切換不重打 API。
+  const tabs = [
+    {
+      label: "歷代總冠軍",
+      content: (
+        <section aria-labelledby="dynasty">
+          <h2 id="dynasty" className="sr-only">歷代總冠軍</h2>
+          {covComplete && dynasties.length ? (
+            <DynastyChart rows={dynastyRows} regular={regular} />
+          ) : (
+            <Notice>{ch.note ?? "冠軍資料尚未補齊，暫不呈現累計王朝排行。"}</Notice>
+          )}
+        </section>
+      ),
+    },
+    {
+      label: "生涯排行",
+      content: (
+        <section aria-labelledby="career-records">
+          <h2 id="career-records" className="sr-only">生涯排行</h2>
+          <CareerLeaders batting={battingCareer} pitching={pitchingCareer} />
+        </section>
+      ),
+    },
+    {
+      label: "季後賽紀錄",
+      content: (
+        <section aria-labelledby="postseason">
+          <h2 id="postseason" className="sr-only">季後賽紀錄</h2>
+          <DataTable columns={postseasonColumns} rows={ps.teams} rowKey={(r) => r.team_code} dense />
+          <p className="mt-2 text-[11px] text-faint">一軍季後賽（台灣大賽＋挑戰賽）全史；亞軍＝台灣大賽敗者，依勝率排序。</p>
+        </section>
+      ),
+    },
+    ...(covComplete && champPlayers.length > 0 ? [{
+      label: "個人冠軍榜",
+      content: (
         <section aria-labelledby="champ-players">
-          <h2 id="champ-players" className="mb-3 text-lg font-semibold text-ink">個人冠軍次數榜</h2>
+          <h2 id="champ-players" className="sr-only">個人冠軍次數榜</h2>
           <ChampionsPlayerTable rows={champRows} />
         </section>
-      )}
-
-      <section aria-labelledby="season-records">
-        <h2 id="season-records" className="mb-3 text-lg font-semibold text-ink">單季之最</h2>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div>
-            <h3 className="mb-2 text-sm font-semibold text-ink">打者紀錄</h3>
-            <DataTable columns={seasonColumns} rows={seasons.filter((r) => r.group === "打者")} rowKey={(r) => r.key} dense />
+      ),
+    }] : []),
+    {
+      label: "單季之最",
+      content: (
+        <section aria-labelledby="season-records">
+          <h2 id="season-records" className="sr-only">單季之最</h2>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-ink">打者紀錄</h3>
+              <DataTable columns={seasonColumns} rows={seasons.filter((r) => r.group === "打者")} rowKey={(r) => r.key} dense />
+            </div>
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-ink">投手紀錄</h3>
+              <DataTable columns={seasonColumns} rows={seasons.filter((r) => r.group === "投手")} rowKey={(r) => r.key} dense />
+            </div>
           </div>
-          <div>
-            <h3 className="mb-2 text-sm font-semibold text-ink">投手紀錄</h3>
-            <DataTable columns={seasonColumns} rows={seasons.filter((r) => r.group === "投手")} rowKey={(r) => r.key} dense />
-          </div>
-        </div>
-      </section>
+        </section>
+      ),
+    },
+    {
+      label: "紀錄集錦",
+      content: (
+        <section aria-labelledby="team-records">
+          <h2 id="team-records" className="sr-only">例行賽紀錄集錦</h2>
+          <DataTable columns={teamRecordColumns} rows={tr.records} rowKey={(r) => r.label} dense />
+          <p className="mt-2 text-[11px] text-faint">全史；連勝／連敗／連續完封為單季內、和局中斷。以當年隊名歸屬。</p>
+        </section>
+      ),
+    },
+    {
+      label: "歷代球隊",
+      content: (
+        <section aria-labelledby="franchise-history">
+          <h2 id="franchise-history" className="sr-only">歷代球隊</h2>
+          <FranchiseTable rows={fr.items} />
+        </section>
+      ),
+    },
+  ];
 
-      <section aria-labelledby="team-records">
-        <h2 id="team-records" className="mb-3 text-lg font-semibold text-ink">例行賽紀錄集錦</h2>
-        <DataTable columns={teamRecordColumns} rows={tr.records} rowKey={(r) => r.label} dense />
-        <p className="mt-2 text-[11px] text-faint">全史；連勝／連敗／連續完封為單季內、和局中斷。以當年隊名歸屬。</p>
-      </section>
-
-      <section aria-labelledby="franchise-history">
-        <h2 id="franchise-history" className="mb-3 text-lg font-semibold text-ink">歷代球隊</h2>
-        <FranchiseTable rows={fr.items} />
-      </section>
+  return (
+    <div>
+      <h1 className="mb-4 text-2xl font-extrabold tracking-tight text-ink">歷史紀錄室</h1>
+      <SectionTabs label="紀錄分區" items={tabs} />
     </div>
   );
 }

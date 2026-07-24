@@ -64,7 +64,7 @@ export function HierarchicalTabs<GroupValue extends string, ItemValue extends st
                 <button type="button" aria-pressed={active}
                   ref={(element) => { groupRefs.current[index] = element; }}
                   onClick={() => onGroupChange(group.value)} onKeyDown={(event) => moveGroup(event, index)}
-                  className={`min-h-11 shrink-0 touch-manipulation whitespace-nowrap rounded-t-md px-2.5 text-sm font-semibold transition ${active
+                  className={`min-h-11 shrink-0 touch-manipulation whitespace-nowrap rounded-t-md px-4 text-sm font-semibold transition ${active
                     ? "bg-ink text-paper"
                     : "border border-line bg-surface text-muted hover:border-line-strong hover:text-ink"}`}>
                   {group.label}
