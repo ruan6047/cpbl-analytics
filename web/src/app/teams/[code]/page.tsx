@@ -8,14 +8,15 @@ import { RosterBoard, type RosterGroup } from "@/components/roster-board";
 import { api } from "@/lib/api";
 import { contrastText, nameMeta, teamColor } from "@/lib/teams";
 import { CoachGrid, GROUPS, ManagersTable, RetiredNumbers, RosterChips, RosterTable, f2, f3 } from "./parts";
+import { TeamScopeOverview } from "./scope-overview";
 
 export const dynamic = "force-dynamic";
 
 export default async function TeamPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
-  const [{ season, items }, derived, special, games, cal, bat, pit, field, eras, roster, der] = await Promise.all([
+  const [{ season, items }, split, special, games, cal, bat, pit, field, eras, roster, der] = await Promise.all([
     api.officialStandings(0),
-    api.standings(),
+    api.teamSplit(),
     api.specialRecords(),
     api.gamesRecent(200),
     api.gamesCalendar(),
@@ -37,18 +38,9 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
   const retired = roster.retired ?? [];
   const lastEra = eras.eras[eras.eras.length - 1];
   const displayName = team?.team_name ?? lastEra?.name ?? code;
-  const adv = team ? derived.standings.find((d) => d.code === code) : undefined;
-  // 攻守概覽各項聯盟名次（六隊 adv 資料已載入，client 端排序，零額外請求）
-  const teamN = derived.standings.length;
-  const rankOf = (key: "ops" | "era" | "whip" | "rs_pg" | "ra_pg" | "run_diff", lowerBetter: boolean): number | null => {
-    if (!adv) return null;
-    const mine = adv[key];
-    if (mine == null) return null;
-    const vals = derived.standings.map((d) => d[key]).filter((v): v is number => v != null);
-    const sorted = [...vals].sort((a, b) => (lowerBetter ? a - b : b - a));
-    const r = sorted.indexOf(mine);
-    return r >= 0 ? r + 1 : null;
-  };
+  // 攻守概覽全年／上下半季範圍切換（UX-TEAM-SPLIT-SCOPE1）：三範圍走同一 gamelog+games 聚合路徑
+  // （/api/v1/season/team-split），client 端切換與同範圍名次由 TeamScopeOverview 處理，零額外請求。
+  const teamN = split.scopes[0]?.teams.length ?? 0;
   const sp = team ? special.items.find((s) => s.team_code === code) : undefined;
   // 歷史/已解散隊：以隊名取 era-correct 隊色(如 三商虎 水藍)；現役 fallback 到 franchise 色。
   const _bd = nameMeta(displayName);
@@ -252,28 +244,14 @@ export default async function TeamPage({ params }: { params: Promise<{ code: str
         // ── 本季戰況（僅現役）──
         if (team) pageTabs.push({ label: "本季", content: (
           <div className="space-y-5">
-            {/* 攻守概覽：進攻 / 守備投球 兩組並排（桌機）＋橫向格位，最省縱向空間；進攻/守備 子標即分組，省區塊標題 */}
-            <section>
-              <div className="grid gap-x-6 gap-y-3 lg:grid-cols-2">
-                <div>
-                  <h3 className="mb-2 text-xs font-semibold tracking-wide text-muted">進攻</h3>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    <StatTile label="OPS" value={f3(adv?.ops)} accent rank={rankOf("ops", false)} rankTotal={teamN} />
-                    <StatTile label="得分/場" value={f2(adv?.rs_pg)} rank={rankOf("rs_pg", false)} rankTotal={teamN} />
-                    <StatTile label="得失分差" value={adv ? (adv.run_diff > 0 ? `+${adv.run_diff}` : `${adv.run_diff}`) : "—"} accent rank={rankOf("run_diff", false)} rankTotal={teamN} />
-                  </div>
-                </div>
-                <div>
-                  <h3 className="mb-2 text-xs font-semibold tracking-wide text-muted">守備投球</h3>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <StatTile label="ERA" value={f2(adv?.era)} rank={rankOf("era", true)} rankTotal={teamN} />
-                    <StatTile label="WHIP" value={f2(adv?.whip)} rank={rankOf("whip", true)} rankTotal={teamN} />
-                    <StatTile label="失分/場" value={f2(adv?.ra_pg)} rank={rankOf("ra_pg", true)} rankTotal={teamN} />
-                    <StatTile label="DER" value={derNow ? Number(derNow.der).toFixed(3) : "—"} rank={derNow?.rnk ?? null} rankTotal={teamN} />
-                  </div>
-                </div>
-              </div>
-            </section>
+            {/* 攻守概覽：全年／上半季／下半季範圍切換（僅影響本區塊；三範圍同一 gamelog+games 聚合口徑，
+                名次同範圍內比）。進攻 / 守備投球 兩組並排（桌機）＋橫向格位，最省縱向空間。 */}
+            <TeamScopeOverview
+              teamCode={code}
+              scopes={split.scopes}
+              teamN={teamN}
+              der={derNow ? { value: Number(derNow.der).toFixed(3), rank: derNow.rnk ?? null } : null}
+            />
 
             {/* 本季主力選手圖：野手守備圖（含 DH）+ 投手（先發/中繼/後援）+ 替補野手，統一為一張格位語言的圖。
                 置於攻守概覽之後、近期賽事之前，讓主力選手圖能在電腦畫面內完整顯示。 */}

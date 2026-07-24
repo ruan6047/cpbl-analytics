@@ -22,6 +22,20 @@ export type Standing = {
 
 export type StandingsResponse = { season: number; standings: Standing[] };
 
+// 球隊當季團隊指標的全年／上半季／下半季範圍切換（單一 gamelog+games 聚合路徑）。
+export type TeamSplitTeam = {
+  code: string;
+  ops?: number | null;
+  era?: number | null;
+  whip?: number | null;
+  rs_pg?: number | null;
+  ra_pg?: number | null;
+  run_diff?: number | null;
+  g?: number | null;
+};
+export type TeamSplitScope = { key: "full" | "first" | "second"; label: string; available: boolean; teams: TeamSplitTeam[] };
+export type TeamSplitResponse = { season: number; scopes: TeamSplitScope[] };
+
 async function get<T>(path: string, revalidate = 600): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, { next: { revalidate } });
   if (!res.ok) throw new ApiError(path, res.status);
@@ -406,6 +420,8 @@ export const api = {
     get<GamesCalendarResponse>(`/api/v1/games/calendar?kind_code=${kind}${year ? `&season=${year}` : ""}`, 120),
   standings: (season?: number) =>
     get<StandingsResponse>(`/api/v1/season/standings${season ? `?season=${season}` : ""}`),
+  teamSplit: (season?: number) =>
+    get<TeamSplitResponse>(`/api/v1/season/team-split${season ? `?season=${season}` : ""}`, 120),
   records: () =>
     get<{
       games: Record<"max_margin" | "max_team_runs" | "max_combined", { year: number; date: string; home: string; away: string; hs: number; as: number } | null>;
