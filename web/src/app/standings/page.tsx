@@ -2,7 +2,7 @@ import Link from "next/link";
 import { StatAbbr, TeamBadge, TeamLogo, divBg, prColor } from "@/components/ui";
 import { DataTable, type Column } from "@/components/table";
 import { StandingsTrend } from "@/components/standings-trend";
-import { YearSelect } from "@/components/year-select";
+import { StandingsNav } from "./nav";
 import { api } from "@/lib/api";
 import type { OfficialStanding, OfficialStandingsResponse, SpecialRecord, WL } from "@/lib/api";
 import { teamPageCode, teamShort } from "@/lib/teams";
@@ -15,6 +15,11 @@ const SEGS = [
   { v: 2, label: "下半季" },
   { v: 3, label: "季後賽" },
 ];
+
+// §4.3 C 定案：seg 項目隨 kind 動態——二軍無上下半季（賽制見 postseason-format-rules），
+// 僅「全年／總冠軍（二軍總冠軍賽）」；當前 seg 失效時由頁面 fallback 回全年。
+const segsFor = (kind: string) =>
+  kind === "D" ? [{ v: 0, label: "全年" }, { v: 3, label: "總冠軍" }] : SEGS;
 
 function displayTeamName(name: string) {
   return name === "統一7-ELEVEn獅" ? "統一獅" : name;
@@ -99,12 +104,6 @@ function MonthsTable({ rows, sp }: { rows: OfficialStanding[]; sp: Map<string, S
     </section>
   );
 }
-
-const LEVELS = [
-  { v: "A", label: "一軍" },
-  { v: "D", label: "二軍" },
-];
-
 
 // H2H 「勝-和-敗」字串 → 勝率底色（無對戰不上色）
 function h2hBg(rec: string | null | undefined): React.CSSProperties | undefined {
@@ -509,9 +508,13 @@ function FarmChampion({ isCurrent, series, standings }: {
 
 export default async function Standings({ searchParams }: { searchParams: Promise<{ seg?: string; year?: string; kind?: string }> }) {
   const { seg = "0", year: yearParam, kind: kindParam } = await searchParams;
-  const segCode = Number(seg) || 0;
   const kind = kindParam === "D" ? "D" : "A";
   const isMinor = kind === "D";
+  // 分頁列：一軍＝全年/上半季/下半季/季後賽；二軍無半季/挑戰賽，只有全年＋總冠軍。
+  // URL 上的 seg 若不在當前 kind 的有效項目（如二軍 seg=1），fallback 回全年（§4.3 C）。
+  const segTabs = segsFor(kind);
+  const rawSeg = Number(seg) || 0;
+  const segCode = segTabs.some((s) => s.v === rawSeg) ? rawSeg : 0;
   const { years } = await api.seasons(kind);
   const currentYear = years[0] ?? new Date().getFullYear();
   const selectedYear = yearParam ? Number(yearParam) : currentYear;
@@ -556,52 +559,18 @@ export default async function Standings({ searchParams }: { searchParams: Promis
   const eraVals = items.map((r) => adv.get(r.team_code)?.era);
   const whipVals = items.map((r) => adv.get(r.team_code)?.whip);
 
-  // 分頁列：一軍＝全年/上半季/下半季/季後賽（＋戰績細項）；二軍無半季/挑戰賽，只有全年＋總冠軍。
-  const segTabs = isMinor ? [{ v: 0, label: "全年" }, { v: 3, label: "總冠軍" }] : SEGS;
   const levelLabel = isMinor ? "二軍" : "";
   const subtitle = isMinor ? `${levelLabel}戰績` : useOfficial ? "本季戰績" : "歷年戰績";
 
   return (
     <div>
-      <header className="mb-6">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <h1 className="text-2xl font-extrabold tracking-tight text-ink">{season} 球季 · {subtitle}</h1>
-          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-            <div className="inline-flex items-center rounded-full border border-line bg-surface p-1">
-              {LEVELS.map((lv) => (
-                <Link
-                  key={lv.v}
-                  href={lv.v === "A" ? "/standings" : "/standings?kind=D"}
-                  className={`rounded-full px-3 py-1 text-sm font-medium transition ${
-                    (lv.v === "D") === isMinor ? "bg-ink text-paper" : "text-muted hover:bg-surface-2"
-                  }`}
-                >
-                  {lv.label}
-                </Link>
-              ))}
-            </div>
-            <YearSelect years={years} value={selectedYear} kind={kind} basePath="/standings" />
-          </div>
-        </div>
+      <header className="mb-4">
+        <h1 className="text-2xl font-extrabold tracking-tight text-ink">{season} 球季 · {subtitle}</h1>
       </header>
 
-      {/* 單一分頁列——時間切分收成一列。一軍：全年/上半季/下半季/季後賽；二軍：全年/總冠軍。
+      {/* 一體式多軸導覽欄（§4.3 A2）：seg 主分頁＋kind/year 右側情境 controls 一列呈現。
           特殊戰績（場地/比分型/逆轉/再見…）已移出：per-team 版見各隊球隊頁。 */}
-      <div className="mb-4">
-        <div className="inline-flex flex-wrap items-center rounded-full border border-line bg-surface p-1">
-          {segTabs.map((s) => (
-            <Link
-              key={s.v}
-              href={`/standings?kind=${kind}&year=${selectedYear}&seg=${s.v}`}
-              className={`rounded-full px-3 py-1 text-sm transition ${
-                segCode === s.v ? "bg-ink text-paper" : "text-muted hover:bg-surface-2"
-              }`}
-            >
-              {s.label}
-            </Link>
-          ))}
-        </div>
-      </div>
+      <StandingsNav kind={kind} years={years} selectedYear={selectedYear} seg={segCode} segs={segTabs} />
 
       {isPostseason ? (
         isMinor ? (

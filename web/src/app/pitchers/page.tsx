@@ -1,7 +1,6 @@
 import { AwardRaces, type Cat } from "@/components/award-races";
 import Leaderboard, { type Col } from "@/components/leaderboard";
-import { LevelYearNav } from "@/components/level-year-nav";
-import { RankRoleTabs } from "@/components/rank-role-tabs";
+import { RankNav, type RankView } from "@/components/rank-nav";
 import { Eyebrow } from "@/components/ui";
 import { api } from "@/lib/api";
 
@@ -56,9 +55,11 @@ const COLS: Col[] = [
   { key: "goao", label: "滾飛比", fmt: "f2", tone: "dim", tip: "滾飛出局比 = 滾地出局 ÷ 高飛出局" },
 ];
 
-export default async function PitchersPage({ searchParams }: { searchParams: Promise<{ year?: string; kind?: string }> }) {
-  const { year: yp, kind: kp } = await searchParams;
+export default async function PitchersPage({ searchParams }: { searchParams: Promise<{ year?: string; kind?: string; view?: string }> }) {
+  const { year: yp, kind: kp, view: vp } = await searchParams;
   const kind = kp === "D" ? "D" : "A";
+  // 主內容視圖（§4.3 第二例）：完整清單（預設；無 view 參數向後相容）↔ 獎項排行榜分頁。
+  const view: RankView = vp === "awards" ? "awards" : "list";
   const { years } = await api.seasons(kind);
   const currentYear = years[0] ?? new Date().getFullYear();
   const selectedYear = yp ? Number(yp) : currentYear;
@@ -80,25 +81,26 @@ export default async function PitchersPage({ searchParams }: { searchParams: Pro
         </p>
       </header>
 
-      <RankRoleTabs role="pitching" kind={kind} year={selectedYear} />
-      <LevelYearNav kind={kind} years={years} selectedYear={selectedYear} base="/pitchers" />
+      <RankNav role="pitching" view={view} kind={kind} years={years} selectedYear={selectedYear} />
 
-      <AwardRaces rows={items} cats={AWARD_CATS} qualKey="ip" qualMin={qual}
-        note={`規定投球局數約 ${qual}（防禦率/WHIP/K9 套用）。`} />
-
-      <section aria-labelledby="pitching-leaderboard">
-        <Eyebrow className="mb-2">完整排名・共 {rows.length} 人</Eyebrow>
-        <h2 id="pitching-leaderboard" className="sr-only">投手完整排名</h2>
-        <Leaderboard
-          rows={rows}
-          cols={COLS}
-          defaultSort="era"
-          defaultDir={1}
-          filters={[{ key: "team", label: "球隊" }, { key: "role", label: "角色" }]}
-          qualKey="ip"
-          qualMin={qual}
-        />
-      </section>
+      {view === "awards" ? (
+        <AwardRaces rows={items} cats={AWARD_CATS} qualKey="ip" qualMin={qual}
+          note={`規定投球局數約 ${qual}（防禦率/WHIP/K9 套用）。`} />
+      ) : (
+        <section aria-labelledby="pitching-leaderboard">
+          <Eyebrow className="mb-2">完整排名・共 {rows.length} 人</Eyebrow>
+          <h2 id="pitching-leaderboard" className="sr-only">投手完整排名</h2>
+          <Leaderboard
+            rows={rows}
+            cols={COLS}
+            defaultSort="era"
+            defaultDir={1}
+            filters={[{ key: "team", label: "球隊" }, { key: "role", label: "角色" }]}
+            qualKey="ip"
+            qualMin={qual}
+          />
+        </section>
+      )}
     </div>
   );
 }

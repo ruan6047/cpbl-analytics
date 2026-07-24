@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { type PlayerProfile, type StatRow, detail } from "@/lib/client";
 import { EmptyState } from "@/components/ui";
 import { ContextSwitcher, HierarchicalTabs, type HierarchicalTabGroup } from "@/components/hierarchical-tabs";
+import { StickyNavBar } from "@/components/sticky-nav-bar";
 import { codeFromName, teamColor } from "@/lib/teams";
 import { type Ability, type CareerStats, type Disc, type Role } from "./lib";
 import {
@@ -312,20 +313,8 @@ function PlayerNavigation({ nav, roles, hasLevelChoice, onScope, onRole, onLevel
   onLevel: (level: PlayerLevel) => void;
   onView: (view: PlayerView) => void;
 }) {
-  const [stickyTop, setStickyTop] = useState(0);
-  useEffect(() => {
-    const header = document.querySelector("header");
-    if (!header) return;
-    const update = () => setStickyTop(header.getBoundingClientRect().height);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(header);
-    return () => ro.disconnect();
-  }, []);
-
   return (
-    <nav aria-label="球員資料導覽" style={{ top: stickyTop }}
-      className="sticky z-20 -mx-1 mb-6 border-b border-line bg-paper/95 px-1 py-1.5 backdrop-blur">
+    <StickyNavBar label="球員資料導覽" flush>
       <HierarchicalTabs label="資料範圍" groups={PLAYER_TAB_GROUPS}
         activeGroup={nav.scope} activeItem={nav.view} onGroupChange={onScope} onItemChange={onView}
         controls={(roles.length > 1 || (nav.scope === "season" && hasLevelChoice)) ? <>
@@ -338,6 +327,6 @@ function PlayerNavigation({ nav, roles, hasLevelChoice, onScope, onRole, onLevel
               render={(v) => v === "A" ? "一軍" : "二軍"} onChange={onLevel} />
           )}
         </> : undefined} />
-    </nav>
+    </StickyNavBar>
   );
 }

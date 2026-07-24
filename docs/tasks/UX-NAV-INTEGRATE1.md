@@ -57,3 +57,28 @@
 ## Log
 
 - 2026-07-24 propose by UX-DESIGN-SYSTEM1 執行者（Opus 4.8），依 ruan6047 §4.3 定案；收斂 standings/rankings/games 為單一傘型卡；iteration 0，**待 Coordinator 註冊**。
+- 2026-07-24 Coordinator 註冊（REGISTER-001）；19:31 依 ruan6047 指示由 Opus 4.8 認領執行（CLAIM-002；worktree `.claude/worktrees/ux-player-scope1-audit-15cb43`，branch `claude/ux-nav-integrate1-af0daf`）。
+- 2026-07-24 Phase 0–4 實作完成（Opus 4.8）：
+  - **Phase 0**：新增 `web/src/components/sticky-nav-bar.tsx`（`StickyNavBar` sticky 殼＋`NavBarRow` 版面，自球員頁 `PlayerNavigation` 抽出）；`HierarchicalTabs` 內部改用 `NavBarRow`（同 class、零視覺變更）並 export `TabItems`；`LevelYearNav` 改裸 controls＋`params` 保留頁面主軸參數；`YearSelect` 加 `params`＋**H8 圓角統一 `rounded-lg`（conformance 明文「圓角交 NAV」）**＋`min-h-11`；球員頁改用 `StickyNavBar`（行為不變）。
+  - **Phase 1**：`standings/nav.tsx`（seg 單層 tablist＋`LevelYearNav` controls 一列）；`segsFor(kind)` 動態（二軍僅 全年/總冠軍）＋失效 seg fallback 全年（實測 `?kind=D&seg=1` → 全年 active）；移除 header 散置 level pills/YearSelect 與獨立 seg pill 列。
+  - **Phase 2**：`rank-nav.tsx`（`HierarchicalTabs` role group×view item＋controls）；**`?view=` 值 `awards`／缺省＝完整清單（向後相容）**；tab 順序採「完整清單、獎項排行榜」（預設項在前；spec 例示順序相反，供 UI 審裁定）；刪 `rank-role-tabs.tsx`；實測 role 切換保留 view（/batters?view=awards → 點投手 → /pitchers?view=awards）。
+  - **Phase 3**：games 手刻 kind/year 列改 `LevelYearNav`；隊伍 chips 整進 `StickyNavBar`（44px 觸控、窄螢幕橫向捲動；**inactive chips 補 `bg-surface-2` 底與「全部」chip 一致，係小幅視覺變更**）；月份 stepper 保留；實測 chip 篩選與 sticky 正常。
+  - **Phase 4**：matchups 手刻 `Toggle` → canonical `ContextSwitcher` 置 `StickyNavBar`（視角＝頁級共享軸；主角 combobox 與 scope/年範圍/對手留 explorer 查詢卡不動——**未將整張查詢卡設 sticky**，因卡片含 combobox 高度過高、行動端會吃掉半個視口，供 UI 審裁定）；`/teams/[code]` 稽核✅（canonical `Tabs`、無 kind/year 散置、無改動）；`/venues` 稽核✅（無軸選擇器、無改動）。
+  - **spec 順手修**：`UI_UX_SYSTEM §4.1` 路由切換 nav 語彙列去除已刪除的 `RankRoleTabs`。
+  - **驗證**：`tsc` ✓、`npm run build:check` 全路由 ✓、`npm test` 126 ✓、`uv run ruff/pytest`（455 passed）✓；瀏覽器實測（真實點擊）standings 動態 seg/fallback、rankings view 分頁/role 保留、games chip 篩選/sticky、球員頁 sticky 無回歸；深/淺 × 桌機/375px 檢視。**待需求方本地人工審（dev :3000）**。
+- 2026-07-24 **需求方人工審 round 1 裁定與修訂**（Opus 4.8）：
+  1. 排行 view tab 順序改「獎項排行榜、完整清單」（依 spec 例示；預設仍完整清單）。
+  2. games inactive chips `bg-surface-2` 底：維持（採執行者建議）。
+  3. matchups 查詢列**融入導覽欄**：explorer 加 `chrome="card"|"bar"`（球員頁維持卡片；/matchups 用 bar）＋`StickyNavBar` 加 `mobileStatic`（桌機 sticky 便於捲動中調篩選、**行動端 static** 避免高卡吃視口）；視角 ContextSwitcher 回到查詢列 header 槽。
+  4. **一/二軍樣式統一參照選手頁**：`LevelYearNav` 層級改 ContextSwitcher 視覺（「層級」label＋segmented 膠囊、active `bg-surface shadow-sm` 凸起），保留 Link＋`aria-current` 路由語意；移除舊分隔線。
+  5. **主/子頁籤視覺分層重設計**：`HierarchicalTabs` 未選取主頁籤由 `bg-surface-2` 實底（易與 active 群的灰底容器/子頁籤混淆）改**描邊 pill**（`border-line bg-surface text-muted`，hover 加深）；active 主頁籤維持實心 ink pill＋子頁籤同住灰底容器示從屬。
+  - 修訂驗證：`tsc` ✓、`npm test` 126 ✓、瀏覽器深/淺 × 1280/375 重驗（matchups 桌機 sticky/行動 static 實測）。
+- 2026-07-24 **人工審 round 2**：games 隊伍 chips `rounded-full` 太圓不像按鈕 → 改 control canonical `rounded-lg`（§2.5），與月份 stepper/層級膠囊同語彙；瀏覽器重驗 ✓。
+- 2026-07-24 **人工審 round 3**：①所有主頁籤改「上圓角、下方角」經典頁籤造型（`rounded-t-md`/容器 `rounded-t-lg`，貼齊導覽欄下緣的分頁感）；②一/二軍與 `ContextSwitcher` 語彙改 **switch 造型**（`rounded-full` 軌道＋滑塊；球員頁 身分/層級、matchups 視角同步，維持全站一致）；`tsc`/`npm test` ✓、瀏覽器重驗 ✓。
+- 2026-07-24 **人工審 round 4**：①頁籤下緣貼齊分隔線——`StickyNavBar` 加 `flush`（殼去下內距）＋`NavBarRow` 加 `align="end"`（controls 保留小間距），standings/rank/球員頁三處接上；②switch 瘦身——軌道視覺高 `h-8`、滑塊改內層 span，按鈕/Link 保持 `min-h-11` 44px 觸控熱區（垂直外溢不可見，a11y 守門測試不動）；③子頁籤較主頁籤「矮」：文字下沉錨定（`items-end`＋`pb-1`）＋字級 `text-xs`，底線壓在分隔線上，主次分明；`tsc`/`npm test` ✓、瀏覽器桌機/窄版重驗 ✓。
+- 2026-07-24 **人工審 round 5**：子頁籤「框」仍與主頁籤同高 → 改**階梯式**：active 主頁籤全高（44px）、子頁籤住較矮灰色托盤（`h-8`＝32px、`rounded-tr-lg`、底對齊貼線），觸控熱區維持 44px 向上外溢；DOM 量測 main 44 / tray 32 / 底邊皆貼分隔線；`tsc`/`npm test` ✓。
+- 2026-07-24 **人工審 round 6（已回退）**：games/matchups 選項群嘗試 radio-pill 語彙（uiverse old-lion-54 改作），需求方檢視後認為效果不如預期 → **整組 revert 回 r5 狀態**（games chips=rounded-lg、matchups 視角=ContextSwitcher）；不留 radio-pills.tsx。
+- 2026-07-24 **人工審 round 7**（範圍延伸，需求方指示）：①`/records` 七大區（歷代總冠軍/生涯排行/季後賽紀錄/個人冠軍榜/單季之最/紀錄集錦/歷代球隊）由直落長頁改**單層頁籤**——新增 `records/section-tabs.tsx`（`TabItems`＋`StickyNavBar flush` 同 standings 視覺；內容 server 一次備妥、client 切換不重打 API＝teams 頁模式；區塊 h2 轉 sr-only）；②主頁籤加寬 `px-2.5`→`px-4` 增份量。驗證：`tsc`/`npm test` 126/`build:check` ✓；切換經 React 狀態鏈驗證（面板實體點擊失敗為座標縮放假象，`elementFromPoint` 證無攔截層）。
+- 2026-07-24 **人工審 round 8**：定案規則「**無主/次階層的頁面，單層頁籤一律採主頁籤造型**」——新增 `MainTabs`（單層 tablist、主頁籤視覺：active 實心 ink／未選描邊、上圓下方貼線、`px-4`、鍵盤 ←→）；standings seg 與 records 分區由 TabItems（underline）改 MainTabs；TabItems 回歸子層專用；守門測試更新為 4 個 min-h-11 控制；`tsc`/`npm test` ✓、瀏覽器重驗 ✓。
+- 2026-07-24 **人工審 round 9**：①主頁籤等寬——`min-w-[6.5rem]`（五個中文字＋內距，實測全籤 104px），避免長短不一；②子頁籤字級回調 `text-xs`→`text-[13px]`（r4 縮太小；仍小於主頁籤 14px、保留下沉錨定）；`tsc`/`npm test` ✓、瀏覽器重驗（records 7 籤/rank 2 籤皆 104px）✓。
+- 2026-07-24 **人工審 round 10**：子頁籤托盤高度 `h-8`→`h-9`（32→36px），與主頁籤 44px 仍保留階梯差（DOM 實測 main 44／tray 36）；`tsc`/`npm test` ✓。
