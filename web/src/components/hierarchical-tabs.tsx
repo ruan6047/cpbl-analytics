@@ -55,15 +55,16 @@ export function HierarchicalTabs<GroupValue extends string, ItemValue extends st
           return (
             <div key={group.value} className="contents">
               {/* 主頁籤 vs 子頁籤的視覺分層（需求方 2026-07-24 UI 審）：
-                  active 主頁籤＝實心 ink pill＋其子頁籤同住灰底容器（從屬關係）；
-                  未選取主頁籤＝描邊 pill（與灰底容器、與純文字 underline 子頁籤都明確不同）。 */}
-              <div className={`flex shrink-0 items-center gap-0.5 rounded-lg p-0.5 ${active
+                  頁籤造型＝上圓角、下方角（貼齊導覽欄下緣的經典分頁感）；
+                  active 主頁籤＝實心 ink 頁籤＋其子頁籤同住灰底容器（從屬關係）；
+                  未選取主頁籤＝描邊頁籤（與灰底容器、與純文字 underline 子頁籤都明確不同）。 */}
+              <div className={`flex shrink-0 items-center gap-0.5 rounded-t-lg p-0.5 ${active
                 ? "bg-surface-2"
                 : ""}`}>
                 <button type="button" aria-pressed={active}
                   ref={(element) => { groupRefs.current[index] = element; }}
                   onClick={() => onGroupChange(group.value)} onKeyDown={(event) => moveGroup(event, index)}
-                  className={`min-h-11 shrink-0 touch-manipulation whitespace-nowrap rounded-md px-2.5 text-sm font-semibold transition ${active
+                  className={`min-h-11 shrink-0 touch-manipulation whitespace-nowrap rounded-t-md px-2.5 text-sm font-semibold transition ${active
                     ? "bg-ink text-paper"
                     : "border border-line bg-surface text-muted hover:border-line-strong hover:text-ink"}`}>
                   {group.label}
@@ -90,7 +91,7 @@ type ContextSwitcherProps<Value extends string> = {
   onChange: (value: Value) => void;
 };
 
-/** 緊湊型情境切換器，適合放在階層導覽右側，不與內容 tab 混用語意。 */
+/** 緊湊型情境切換器（switch 造型：圓形軌道＋滑塊），適合放在階層導覽右側，不與內容 tab 混用語意。 */
 export function ContextSwitcher<Value extends string>({
   label, values, value, render, onChange,
 }: ContextSwitcherProps<Value>) {
@@ -112,11 +113,11 @@ export function ContextSwitcher<Value extends string>({
     <div className="flex items-center gap-1.5">
       <span className="whitespace-nowrap text-[11px] text-muted">{label}</span>
       <div role="group" aria-label={label} onKeyDown={onKeyDown}
-        className="flex rounded-lg bg-surface-2 p-0.5">
+        className="flex rounded-full bg-surface-2 p-0.5">
         {values.map((item, itemIndex) => (
           <button key={item} type="button" aria-pressed={value === item}
             ref={(element) => { refs.current[itemIndex] = element; }} onClick={() => onChange(item)}
-            className={`min-h-11 touch-manipulation whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition ${value === item
+            className={`min-h-11 touch-manipulation whitespace-nowrap rounded-full px-3 text-xs font-medium transition ${value === item
               ? "bg-surface text-ink shadow-sm"
               : "text-muted hover:text-ink"}`}>
             {render(item)}

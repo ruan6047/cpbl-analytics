@@ -74,3 +74,4 @@
   5. **主/子頁籤視覺分層重設計**：`HierarchicalTabs` 未選取主頁籤由 `bg-surface-2` 實底（易與 active 群的灰底容器/子頁籤混淆）改**描邊 pill**（`border-line bg-surface text-muted`，hover 加深）；active 主頁籤維持實心 ink pill＋子頁籤同住灰底容器示從屬。
   - 修訂驗證：`tsc` ✓、`npm test` 126 ✓、瀏覽器深/淺 × 1280/375 重驗（matchups 桌機 sticky/行動 static 實測）。
 - 2026-07-24 **人工審 round 2**：games 隊伍 chips `rounded-full` 太圓不像按鈕 → 改 control canonical `rounded-lg`（§2.5），與月份 stepper/層級膠囊同語彙；瀏覽器重驗 ✓。
+- 2026-07-24 **人工審 round 3**：①所有主頁籤改「上圓角、下方角」經典頁籤造型（`rounded-t-md`/容器 `rounded-t-lg`，貼齊導覽欄下緣的分頁感）；②一/二軍與 `ContextSwitcher` 語彙改 **switch 造型**（`rounded-full` 軌道＋滑塊；球員頁 身分/層級、matchups 視角同步，維持全站一致）；`tsc`/`npm test` ✓、瀏覽器重驗 ✓。

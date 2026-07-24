@@ -17,18 +17,18 @@ export function LevelYearNav({ kind, years, selectedYear, base, params }: {
     const qs = p.toString();
     return qs ? `${base}?${qs}` : base;
   };
-  // 視覺對齊球員頁 ContextSwitcher（情境切換語彙：segmented 膠囊、active 凸起）；
+  // 視覺對齊球員頁 ContextSwitcher（switch 造型：圓形軌道＋滑塊、active 凸起）；
   // 因跨路由仍用 Link + aria-current（§4.1 路由切換 nav 的 a11y 語意）。
   return (
     <>
       <span className="flex items-center gap-1.5">
         <span className="whitespace-nowrap text-[11px] text-muted">層級</span>
-        <span role="group" aria-label="層級" className="flex rounded-lg bg-surface-2 p-0.5">
+        <span role="group" aria-label="層級" className="flex rounded-full bg-surface-2 p-0.5">
           {LEVELS.map((lv) => {
             const active = (lv.v === "D") === (kind === "D");
             return (
               <Link key={lv.v} href={hrefFor(lv.v)} aria-current={active ? "page" : undefined}
-                className={`inline-flex min-h-11 touch-manipulation items-center whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition ${
+                className={`inline-flex min-h-11 touch-manipulation items-center whitespace-nowrap rounded-full px-3 text-xs font-medium transition ${
                   active ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"}`}>
                 {lv.label}
               </Link>
