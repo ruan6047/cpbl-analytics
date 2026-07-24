@@ -313,6 +313,207 @@
 
 ---
 
+## 9. 球隊身分 UI 規範
+
+> 唯一事實來源＝`web/src/lib/teams.ts`（§2.8 授權 hex owner）。**隊色＝身分語意**（原則 3），非裝飾、非 `--chart-*`、非結構 token。
+> **邊界**：本節只擁「球隊**身分視覺語言**」；「球隊頁**顯示什麼資料/版面**」屬 blueprint §5.8，不在此。
+
+### 9.1 隊色 = 身分（不進 @theme 的理由）
+
+隊色**不放 `@theme` token**，因為它隨「歷史隊／改名／轉賣」變動，且一年可多隊——是**資料驅動的身分色**，不是全站語意色。故 `lib/teams.ts` 為其唯一 owner，tsx 一律 import，**禁**在元件硬編隊色 hex。
+
+| 現役隊（`TEAMS`，key=team_code） | 色 | 字母 |
+|---|---|---|
+| 味全龍 `AAA011` | `#C8102E` | W |
+| 中信兄弟 `ACN011` | `#C8A24A` | B |
+| 統一7-ELEVEn獅 `ADD011` | `#E35A13` | L |
+| 富邦悍將 `AEO011` | `#2A4B9B` | G |
+| 樂天桃猿 `AJL011` | `#8E1537` | R |
+| 台鋼雄鷹 `AKP011` | `#15543C` | T |
+
+- `CPBL_BLUE #1B4DA1`＝聯盟品牌藍（**與 `--color-cpbl` 同值**；聯盟層級用途，非隊色）。
+- 未知/已解散隊 fallback＝`#94a3b8`（＝`faint` 灰）＋字母 `?`。
+
+### 9.2 解析三路徑（依資料手上有什麼）
+
+| 手上資料 | 用 | 產出 |
+|---|---|---|
+| 隊名（中文，常見於排行/H2H） | `nameMeta(name)` / `colorFromName` | `{color, letter}`（含現役全名+簡稱+歷史隊+二軍後綴） |
+| team_code | `teamColor` / `teamLetter` / `teamShort` | 經 `franchiseOf()` 解析（二軍 022→現役、歷史碼→現役 franchise） |
+| 沿革各時期（隊名+碼） | `eraBadge(name, code)` | 歷史期用 `HISTORICAL` iconic 色、現役期用 franchise 色 |
+
+- **二軍沿用母隊色**（`nameMeta` 去 `二軍` 後綴解析）。
+- **改名/轉賣視為同隊**：`FRANCHISE` 映射（兄弟象→中信兄弟、俊國/興農/義大→富邦、第一金剛/La New/Lamigo→樂天）。
+- **連結規則**：`isCurrentTeam()`／`teamPageCode()`——有現役 franchise（含歷史隊）才連球隊頁，已解散隊不連（配 `GonePill`）。
+
+### 9.3 徽章元件（何時用哪個；見 §3.2）
+
+避官方 logo 版權，一律**隊色方塊 + 對比字母**。文字色**一律走 `contrastText(hex)`**（YIQ 亮度啟發式，閾值 0.6→黃/金系回深墨 `#0A2540`、其餘白）——**禁**在元件硬編白/黑字。
+
+| 元件 | 場景 |
+|---|---|
+| `LetterBadge` | 已有 `{color, letter}`（單一事實來源，各處禁再手寫此 span） |
+| `TeamLogo` | 由隊名/碼解析徽章；`decorative` 旁已有隊名時 `aria-hidden` |
+| `NameTag` / `TeamBadge` | 徽章 + 隊名（`NameTag` 走隊名解析、含歷史/二軍隊） |
+| `EraBadge` | 沿革/歷史隊（iconic 色） |
+| `Leaderboard` `teamKey` | 隊徽併入名字欄（減欄手段，§5.2） |
+
+### 9.4 隊色 hover 與狀態
+
+- **隊色 hover 光暈**：`--hover-color` CSS var + `.card-hover-team`（`Card` 的 `teamColor` prop 啟用）→ 邊框變隊色 + 20% `color-mix` 光暈。跨主題安全（color-mix 動態）。
+- **現役/已解散**：`ActivePill`（綠）/`GonePill`（灰）。
+
+### 9.5 球迷暱稱（`FAN_NICK`）— 趣味層，嚴格隔離
+
+`FAN_NICK`（龍龍/爪爪/喵喵/邦邦/吱吱/啾啾，**非官方**，源自社群含自嘲）**僅供賽況焦點等趣味標籤**；**正式文案、排行、統計、標題一律禁用**（見記憶 `cpbl-fan-lingo`）。走 `fanNick(code)`，經 `franchiseOf` 解析母隊。
+
+### 9.6 隊名顯示階梯（全名 / 簡稱 / 隊徽-only）
+
+> 動因：**統一7-ELEVEn獅**（9 字，中英混排）在表格欄/chip/窄列會換行或溢出，違反 375px 無橫向溢出鐵則（§7）。故隊名依**可用空間**降階，不硬塞全名。
+
+| 情境 | 顯示 | 來源 / 元件 | 例（統一） |
+|---|---|---|---|
+| hero、頁面/球隊頁主標、正式敘述首次出現、官方語境 | **全名** | `teamFullName()`（歷史簡稱補全名） | 統一7-ELEVEn獅 |
+| 表格欄、chip、緊湊列表、對戰卡、標籤、`mobileHide` 後 | **簡稱** | `teamShort()`（`TEAMS.short`） | 統一 |
+| 一般列表列、排行名字欄（隊徽併名） | **隊徽 + 簡稱/全名**（視空間） | `NameTag`/`TeamBadge`、`Leaderboard teamKey` | 〔L〕統一 |
+| 極窄格（月曆、對戰矩陣表頭）、圖表圖例、已與隊名並列處 | **隊徽 only** | `LetterBadge`/`TeamLogo`（`decorative` 時 `aria-hidden`） | 〔L〕 |
+
+- **判準**：欄寬/容器會導致換行或溢出 → 降一階（全名→簡稱→隊徽）。**禁**在固定寬表格欄硬塞全名。
+- **a11y**：隊徽 only 時，若周邊無文字隊名，`TeamLogo` 保留 `aria-label`（非 decorative）供螢幕閱讀器；旁已有隊名則 `decorative` 避免重複念。
+
+### 9.7 輔色（現況：無 per-team 輔色，一律由主色演算衍生）
+
+**誠實現況**：`TeamMeta = {short, color, letter}`——**每隊僅定義一個主色（identity），全庫無 per-team 輔色/次色**。這是刻意的低維護選擇（Solopreneur-first：免蒐集/維護 6–12 組次色 hex）。
+
+「輔色」需求一律**由主色演算衍生**（不新增 hex、維持 `lib/teams.ts` 單一 owner、跨主題安全）：
+
+| 衍生用途 | 機制 | 現況出處 |
+|---|---|---|
+| on-color 文字（徽章字） | `contrastText(hex)`（YIQ 亮度→深墨/白） | `LetterBadge`/`TeamLogo` |
+| hover 光暈 / 邊框 | `color-mix(in srgb, <隊色> 20%, transparent)` | `.card-hover-team`（`--hover-color`） |
+| 淡底填色 | 主色 + opacity 修飾（比照 `amber/15`） | 狀態/標籤淡底慣例 |
+
+> **禁**在元件硬編「第二隊色」。若未來確需**真實官方輔色**，屬**資料蒐集任務**（須查證各隊官方 VI 次色，非設計系統腦補），另開卡並一律寫入 `lib/teams.ts`（擴 `TeamMeta` 加 `color2`），本規格再據以補「主/輔色分工」段。
+
+---
+
+## 10. 公用元件模組化與模組邊界
+
+> 落實原則 5「一致元件語彙／禁平行發明」的**結構性規則**：先定義「東西住哪裡」，再定義「何時抽共用」。
+
+### 10.1 分層與模組邊界
+
+| 層 | 路徑 | 內容 | 規則 |
+|---|---|---|---|
+| **純邏輯/資料** | `lib/*.ts` | 型別、fetch、格式化、身分色、圖表色、共用 Col、nav/methodology 內容、domain 計算 | **無 JSX**（型別除外）；可被 server/client 共用；**測試 co-located**（`*.test.ts`） |
+| **UI primitives** | `components/ui.tsx` | Card/StatTile/StatGrid/Eyebrow/徽章/Pill/StatusBadge/Notice/三態/PercentileBar/StatAbbr | 全站原子；presentational、server-safe 優先 |
+| **共用領域元件** | `components/*.tsx` | Leaderboard/DataTable/game-board/matchup-card/mini-standings/… | 跨頁重用；一律走 primitives 與 token |
+| **功能子模組** | `components/<feature>/` | 如 `components/matchups/`（api/controls/explorer/insight/opponents-table/pair-card/…） | 複雜功能**成組收進子資料夾**（邏輯 + 元件 + 測試 + fixtures） |
+| **頁面局部** | `app/**/*.tsx` | 如 `players/[id]/hero.tsx`、`season.tsx` | **僅該頁用**、不跨頁；一旦第二頁要用即上抽（§10.3） |
+
+### 10.2 Server / Client 島式邊界（island architecture）
+
+| 類型 | 例 | 規則 |
+|---|---|---|
+| **Presentational（server-safe）** | `DataTable`、`Card`、`table.tsx` | **無 hook、勿翻 `"use client"`**；可直接用於 server component |
+| **Client island** | `Leaderboard`、`Tabs`、`HierarchicalTabs`、`useChartTheme` 消費端 | 互動/hook 隔離成**小島**；server 端把 server-rendered `ReactNode` 或**可序列化 props** 傳入 |
+
+> **可序列化 props 鐵則**：跨 server→client 的設定用**可序列化物件而非函式**（如 `Col` 的 `link:{base,idKey}`、`chip`/`bar` 為布林旗標）——否則 server component 無法把它傳給 client 島。新增共用元件的 props 一律遵守。
+
+### 10.3 抽取準則（頁面局部 → 共用）
+
+出現以下訊號即上抽至 `components/`（或 `components/ui.tsx`），並在原碼註明「統一由此出」：
+
+1. **同一 class 組合/區塊出現 3+ 次**（tailwind-patterns）。
+2. **跨頁重用**（第二頁要用同概念）。
+3. **屬設計系統元素**（徽章/狀態/卡片/三態等 §3 概念）。
+
+> `ui.tsx` 既有註解即此準則的落地紀錄（例：LetterBadge「各處原本各自手寫此 span，統一由此出」）。**新頁面禁平行發明**：先查下方 registry。
+
+### 10.4 單一事實來源 registry（新元件前先查此表）
+
+| 概念 | canonical owner | 禁 |
+|---|---|---|
+| 卡殼 | `Card`（`.card`） | 手寫 `rounded-xl border border-line` |
+| 隊徽/隊色 | `LetterBadge`/`TeamLogo` + `lib/teams.ts` | 手寫隊色 span、硬編隊色 hex |
+| 場次狀態 | `StatusBadge`（done/warn/live/scheduled） | ad-hoc 狀態 pill、`amber-數字` |
+| 載入/空/錯 | `Skeleton`/`EmptyState`/`ErrorState` | ad-hoc「載入中…」字串 |
+| 靜態表 / 排行表 | `DataTable` / `Leaderboard` | 手刻 `<table>`/排序表 |
+| 共用欄定義 | `lib/cols.ts`（`matchupCols`/`vsTeamCols`） | 各頁重寫相同 `Col[]` |
+| tab/segment | §4 決策樹四語彙 | 第五種手刻 tab |
+| 圖表色 | `lib/chart-theme.ts`（`useChartTheme`） | tsx 硬編圖表 hex |
+| 格式化 | `lib/format.ts`（`fmtIP` 等） | 各頁重寫格式化 |
+| 名詞解釋 | `StatAbbr`/`METRIC_DESCRIPTIONS` | 散寫 tooltip 定義 |
+
+---
+
+## 11. 動效與互動規範
+
+> Token 見 §2.7。本節 codify **現況已存在的行為**（原則 7「動效節制」的落地），**不發明新動效/互動**。
+> **實測現況**：全站 `animate-*` 僅 5 處、`disabled` 0 處——動效刻意稀少、控制項刻意不 disable。規格把此**克制**固化為規範。
+
+### 11.1 動效 inventory（canonical closed set，禁發明新 keyframes）
+
+| 類 | 機制 | token | 用途 |
+|---|---|---|---|
+| 入場 | `animate-fade-in`（`fadeIn`） | `--dur-base` | 內容/圖表進場 |
+| 離場 | `animate-fade-out`（`fadeOut`） | `--dur-fast` | 提示/暫態離場 |
+| 強調 | `animate-bar-grow`（`barGrow`） | `--dur-slow` | 勝率條伸展（狀態揭示） |
+| 載入 | `animate-pulse`（Skeleton） | — | 三態 skeleton |
+| Hover | `.card-hover-team`（border + `color-mix` 光暈 transition） | `--dur-base`/`--ease-standard` | 隊色卡 hover |
+| 焦點/導覽 | `.skip-link` top transition、sticky nav `backdrop-blur` | `--dur-fast` | 跳轉/黏頂 |
+
+> **新動效一律用既有 keyframe 或 `--dur-*`/`--ease-standard` token 組合**；禁新增裝飾性 keyframe、禁無限循環動畫（Skeleton `pulse` 例外）。
+
+### 11.2 動效 taxonomy（何時動）
+
+| 時機 | 允許 | 現況對應 |
+|---|---|---|
+| **入場** | ✅ ease-out（減速落定） | `fade-in` |
+| **狀態變化** | ✅ 主題換色、hover 光暈、排序箭頭、expand | `useChartTheme` 重繪、`card-hover-team`、tab transition |
+| **強調/揭示** | ✅ 克制用 | `bar-grow` 勝率條 |
+| **載入** | ✅ skeleton pulse | `TableSkeleton` |
+| **裝飾/閒置** | ❌ 禁無限裝飾動畫 | —（現況無） |
+
+### 11.3 互動狀態矩陣（跨元件語彙）
+
+| 狀態 | 視覺 | 備註 |
+|---|---|---|
+| default | 基底 token | — |
+| **hover** | 提色/底色（`hover:text-ink`、`hover:bg-surface-2`、隊色光暈） | 主要互動 affordance（現況 hover 用最重） |
+| **focus-visible** | 全域 2px `accent` outline（滑鼠點擊不顯示、Tab 才顯示） | 一律走 `:focus-visible`，禁個別覆寫掉 |
+| **active/pressed** | `bg-ink text-paper`（toggle/tab，見 §4）；`aria-pressed`/`aria-selected`/`aria-current` | 語意態必配對應 ARIA |
+| **expanded** | `aria-expanded`（`<details>`/完整欄切換） | disclosure 模式 |
+| **loading** | 三態 `Skeleton`（§3.3） | 不塌陷（CLS） |
+| **disabled** | **現況不使用**（0 處）——以隱藏/略過取代 disable（呼應誠實 UX/漸進揭露） | 若確需：`aria-disabled` + `opacity`/`muted`，非純色 |
+
+### 11.4 鍵盤與焦點（a11y 互動）
+
+- **Roving tabindex + 方向鍵**：`HierarchicalTabs`/`ContextSwitcher`/`TabItems` 以 `ArrowLeft/Right` 切換，`focus({ preventScroll: true })` 移焦不捲頁；`tabIndex` 僅 active 為 0。
+- **ARIA 對應**：內容 tab→`role=tab`+`aria-selected`；情境/toggle→`role=group`+`aria-pressed`；跨路由→`aria-current="page"`；折疊→`aria-expanded`。
+- **全域焦點環**：`:focus-visible`（§8）；`.skip-link` 跳主內容。
+- **觸控**：互動元件 `min-h-11`（44px，§7）。
+
+### 11.5 主題切換反應性（無閃爍 + 即時重繪）
+
+- **無閃爍**：layout inline script 於**首繪前**寫 `<html data-theme>`；`ThemeToggle` 掛載前保留等寬佔位避免 CLS。
+- **即時重繪**：`useChartTheme` 以 `MutationObserver` 監看 `data-theme`，一變即重讀 token 重繪 recharts（§6.1）。工具類/`var()` 元件則自動換色、無需 JS。
+- **持久化**：`localStorage` 存偏好；無痕/封鎖時退化為本 session 生效。
+
+### 11.6 圖表互動（對齊 dataviz）
+
+- **hover 層預設有**：line/area 給 crosshair+tooltip；bar/dot/cell 給 per-mark hover tooltip；hit target 大於標記；filters 置於圖上方一列。
+- **tooltip 走 `Tooltip` 元件**（原生 `title` 有延遲且**觸控無效** → 自繪）；容器樣式走 `chartTooltip(ct)` 隨主題換色。
+- 唯一不需 hover 層者：無 plot 的純 stat tile。
+
+### 11.7 克制預算（原則 7 明確化）
+
+- 只在**入場 / 狀態變化 / 載入**動；**禁**閒置裝飾與無限動畫。
+- **一律受 `prefers-reduced-motion` 約束**（globals.css 已全域近乎關閉動畫/轉場/scroll-behavior）。
+- 只動 `transform`/`opacity`/`color`/`box-shadow`；切換**不塌陷**（CLS，§3.3 三態等高佔位）。
+
+---
+
 ## 附錄：配套產物
 
 - **逐頁 conformance 差距清單** → [`UI_UX_CONFORMANCE.md`](UI_UX_CONFORMANCE.md)（players=100% 基準；15 路由偏離項 + 嚴重度；供 `UX-DESIGN-CONFORM1` 消費）。
