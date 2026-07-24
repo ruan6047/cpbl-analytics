@@ -21,7 +21,7 @@ import {
 } from "@/components/matchups/controls";
 import MatchupExplorer from "@/components/matchups/explorer";
 import SearchCombobox, { type ComboHit } from "@/components/matchups/search-combobox";
-import { ContextSwitcher } from "@/components/hierarchical-tabs";
+import { RadioPills } from "@/components/radio-pills";
 
 const SORT_KEYS: SortKey[] = ["plate_appearances", "avg", "ops", "home_runs", "so"];
 
@@ -138,7 +138,7 @@ export default function MatchupsClient() {
         chrome="bar"
         header={
           <>
-            <ContextSwitcher
+            <RadioPills
               label="視角"
               values={["batting", "pitching"] as const}
               value={role}
