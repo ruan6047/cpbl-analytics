@@ -11,9 +11,10 @@ import { StickyNavBar } from "@/components/sticky-nav-bar";
 // kind＋year＝右側情境 controls（共用 LevelYearNav）。
 export type RankView = "list" | "awards";
 
+// 順序依 spec §4.3 例示（需求方 2026-07-24 裁定）：獎項排行榜在前；預設仍為完整清單。
 const VIEW_ITEMS = [
-  { value: "list", label: "完整清單" },
   { value: "awards", label: "獎項排行榜" },
+  { value: "list", label: "完整清單" },
 ] as const;
 
 const GROUPS = [

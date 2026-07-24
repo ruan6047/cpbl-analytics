@@ -8,6 +8,7 @@
 // 狀態由 host 持有（URL 或 local state），透過 controls／onPatch 受控。
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/ui";
+import { StickyNavBar } from "@/components/sticky-nav-bar";
 import { KIND_LABEL } from "@/lib/client";
 import {
   matchupApi,
@@ -41,6 +42,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const selectCls =
   "rounded-lg border border-line bg-surface px-2 py-1.5 text-sm text-ink outline-none focus:border-ink";
 
+// 查詢列外殼：/matchups 融入導覽欄（sticky，行動端 static）；球員頁維持卡片。
+function QueryShell({ chrome, children }: { chrome: "card" | "bar"; children: React.ReactNode }) {
+  return chrome === "bar" ? (
+    <StickyNavBar label="對決查詢" mobileStatic>{children}</StickyNavBar>
+  ) : (
+    <div className="card mb-6 p-4">{children}</div>
+  );
+}
+
 export default function MatchupExplorer({
   pid,
   role,
@@ -50,6 +60,7 @@ export default function MatchupExplorer({
   header,
   compactInsight = false,
   hideScopeControl = false,
+  chrome = "card",
 }: {
   /** 主角球員；空字串＝尚未選定（/matchups 首開），只顯示控制列與提示。 */
   pid: string;
@@ -64,6 +75,9 @@ export default function MatchupExplorer({
   compactInsight?: boolean;
   /** host 已有全域範圍控制時隱藏重複的 scope 選單；查詢仍使用 controls.scope。 */
   hideScopeControl?: boolean;
+  /** 查詢列外殼：card（預設；球員頁）或 bar（/matchups：融入 StickyNavBar 導覽欄，
+      §4.3 Phase 4；行動端不 sticky 避免高卡吃視口）。 */
+  chrome?: "card" | "bar";
 }) {
   const { kind, scope, fromYear, toYear, team, opp, pick, sort, order } = controls;
   const headingId = useId();
@@ -232,7 +246,7 @@ export default function MatchupExplorer({
   return (
     <div>
       {/* 查詢列 */}
-      <div className="card mb-6 p-4">
+      <QueryShell chrome={chrome}>
         {header && <div className="flex flex-wrap items-center gap-3">{header}</div>}
 
         <div
@@ -340,7 +354,7 @@ export default function MatchupExplorer({
             />
           </div>
         )}
-      </div>
+      </QueryShell>
 
       {/* 結果區 */}
       {!pid && (

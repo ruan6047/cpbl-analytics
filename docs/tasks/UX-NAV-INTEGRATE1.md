@@ -66,3 +66,10 @@
   - **Phase 4**：matchups 手刻 `Toggle` → canonical `ContextSwitcher` 置 `StickyNavBar`（視角＝頁級共享軸；主角 combobox 與 scope/年範圍/對手留 explorer 查詢卡不動——**未將整張查詢卡設 sticky**，因卡片含 combobox 高度過高、行動端會吃掉半個視口，供 UI 審裁定）；`/teams/[code]` 稽核✅（canonical `Tabs`、無 kind/year 散置、無改動）；`/venues` 稽核✅（無軸選擇器、無改動）。
   - **spec 順手修**：`UI_UX_SYSTEM §4.1` 路由切換 nav 語彙列去除已刪除的 `RankRoleTabs`。
   - **驗證**：`tsc` ✓、`npm run build:check` 全路由 ✓、`npm test` 126 ✓、`uv run ruff/pytest`（455 passed）✓；瀏覽器實測（真實點擊）standings 動態 seg/fallback、rankings view 分頁/role 保留、games chip 篩選/sticky、球員頁 sticky 無回歸；深/淺 × 桌機/375px 檢視。**待需求方本地人工審（dev :3000）**。
+- 2026-07-24 **需求方人工審 round 1 裁定與修訂**（Opus 4.8）：
+  1. 排行 view tab 順序改「獎項排行榜、完整清單」（依 spec 例示；預設仍完整清單）。
+  2. games inactive chips `bg-surface-2` 底：維持（採執行者建議）。
+  3. matchups 查詢列**融入導覽欄**：explorer 加 `chrome="card"|"bar"`（球員頁維持卡片；/matchups 用 bar）＋`StickyNavBar` 加 `mobileStatic`（桌機 sticky 便於捲動中調篩選、**行動端 static** 避免高卡吃視口）；視角 ContextSwitcher 回到查詢列 header 槽。
+  4. **一/二軍樣式統一參照選手頁**：`LevelYearNav` 層級改 ContextSwitcher 視覺（「層級」label＋segmented 膠囊、active `bg-surface shadow-sm` 凸起），保留 Link＋`aria-current` 路由語意；移除舊分隔線。
+  5. **主/子頁籤視覺分層重設計**：`HierarchicalTabs` 未選取主頁籤由 `bg-surface-2` 實底（易與 active 群的灰底容器/子頁籤混淆）改**描邊 pill**（`border-line bg-surface text-muted`，hover 加深）；active 主頁籤維持實心 ink pill＋子頁籤同住灰底容器示從屬。
+  - 修訂驗證：`tsc` ✓、`npm test` 126 ✓、瀏覽器深/淺 × 1280/375 重驗（matchups 桌機 sticky/行動 static 實測）。

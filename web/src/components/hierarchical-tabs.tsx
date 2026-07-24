@@ -54,6 +54,9 @@ export function HierarchicalTabs<GroupValue extends string, ItemValue extends st
           const active = group.value === activeGroup;
           return (
             <div key={group.value} className="contents">
+              {/* 主頁籤 vs 子頁籤的視覺分層（需求方 2026-07-24 UI 審）：
+                  active 主頁籤＝實心 ink pill＋其子頁籤同住灰底容器（從屬關係）；
+                  未選取主頁籤＝描邊 pill（與灰底容器、與純文字 underline 子頁籤都明確不同）。 */}
               <div className={`flex shrink-0 items-center gap-0.5 rounded-lg p-0.5 ${active
                 ? "bg-surface-2"
                 : ""}`}>
@@ -62,7 +65,7 @@ export function HierarchicalTabs<GroupValue extends string, ItemValue extends st
                   onClick={() => onGroupChange(group.value)} onKeyDown={(event) => moveGroup(event, index)}
                   className={`min-h-11 shrink-0 touch-manipulation whitespace-nowrap rounded-md px-2.5 text-sm font-semibold transition ${active
                     ? "bg-ink text-paper"
-                    : "bg-surface-2 text-ink hover:bg-line"}`}>
+                    : "border border-line bg-surface text-muted hover:border-line-strong hover:text-ink"}`}>
                   {group.label}
                 </button>
                 {active && (

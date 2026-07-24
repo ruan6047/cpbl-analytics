@@ -22,7 +22,6 @@ import {
 import MatchupExplorer from "@/components/matchups/explorer";
 import SearchCombobox, { type ComboHit } from "@/components/matchups/search-combobox";
 import { ContextSwitcher } from "@/components/hierarchical-tabs";
-import { NavBarRow, StickyNavBar } from "@/components/sticky-nav-bar";
 
 const SORT_KEYS: SortKey[] = ["plate_appearances", "avg", "ops", "home_runs", "so"];
 
@@ -130,9 +129,15 @@ export default function MatchupsClient() {
         </p>
       </header>
 
-      <StickyNavBar label="對決導覽">
-        <NavBarRow
-          main={
+      <MatchupExplorer
+        pid={pid}
+        role={role}
+        subjectName={subjectName}
+        controls={controls}
+        onPatch={onPatch}
+        chrome="bar"
+        header={
+          <>
             <ContextSwitcher
               label="視角"
               values={["batting", "pitching"] as const}
@@ -150,18 +155,6 @@ export default function MatchupsClient() {
                 })
               }
             />
-          }
-        />
-      </StickyNavBar>
-
-      <MatchupExplorer
-        pid={pid}
-        role={role}
-        subjectName={subjectName}
-        controls={controls}
-        onPatch={onPatch}
-        header={
-          <>
             <SearchCombobox
               label={`搜尋${role === "batting" ? "打者" : "投手"}`}
               placeholder={`輸入${role === "batting" ? "打者" : "投手"}姓名或隊伍…`}

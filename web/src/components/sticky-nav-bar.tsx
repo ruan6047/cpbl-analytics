@@ -7,7 +7,11 @@ import { type ReactNode, useEffect, useState } from "react";
  * 抽出。量測全站 header 高度作為 sticky top（header 高度會隨視窗寬度變化），
  * 使導覽欄捲動時貼齊站頂欄下緣；各頁把主軸 tab 與右側 controls 放進 children。
  */
-export function StickyNavBar({ label, children }: { label: string; children: ReactNode }) {
+export function StickyNavBar({ label, children, mobileStatic = false }: {
+  label: string; children: ReactNode;
+  /** 內容較高的導覽欄（如 matchups 查詢列）在行動端不 sticky，避免吃掉大半視口。 */
+  mobileStatic?: boolean;
+}) {
   const [stickyTop, setStickyTop] = useState(0);
   useEffect(() => {
     const header = document.querySelector("header");
@@ -21,7 +25,7 @@ export function StickyNavBar({ label, children }: { label: string; children: Rea
 
   return (
     <nav aria-label={label} style={{ top: stickyTop }}
-      className="sticky z-20 -mx-1 mb-6 border-b border-line bg-paper/95 px-1 py-1.5 backdrop-blur">
+      className={`${mobileStatic ? "md:sticky" : "sticky"} z-20 -mx-1 mb-6 border-b border-line bg-paper/95 px-1 py-1.5 backdrop-blur`}>
       {children}
     </nav>
   );
