@@ -1,7 +1,6 @@
 import { AwardRaces, type Cat } from "@/components/award-races";
 import Leaderboard, { type Col } from "@/components/leaderboard";
-import { LevelYearNav } from "@/components/level-year-nav";
-import { RankRoleTabs } from "@/components/rank-role-tabs";
+import { RankNav, type RankView } from "@/components/rank-nav";
 import { Eyebrow } from "@/components/ui";
 import { api } from "@/lib/api";
 
@@ -41,9 +40,11 @@ const COLS: Col[] = [
   { key: "ops_plus", label: "OPS+", fmt: "i", bar: true, primary: true, rate: true, mobileHide: true, tip: "OPS+（僅一軍）：100 = 聯盟平均，>100 優於聯盟（季聯盟基準，非球場校正）" },
 ];
 
-export default async function BattersPage({ searchParams }: { searchParams: Promise<{ year?: string; kind?: string }> }) {
-  const { year: yp, kind: kp } = await searchParams;
+export default async function BattersPage({ searchParams }: { searchParams: Promise<{ year?: string; kind?: string; view?: string }> }) {
+  const { year: yp, kind: kp, view: vp } = await searchParams;
   const kind = kp === "D" ? "D" : "A";
+  // 主內容視圖（§4.3 第二例）：完整清單（預設；無 view 參數向後相容）↔ 獎項排行榜分頁。
+  const view: RankView = vp === "awards" ? "awards" : "list";
   const { years } = await api.seasons(kind);
   const currentYear = years[0] ?? new Date().getFullYear();
   const selectedYear = yp ? Number(yp) : currentYear;
@@ -64,24 +65,25 @@ export default async function BattersPage({ searchParams }: { searchParams: Prom
         </p>
       </header>
 
-      <RankRoleTabs role="batting" kind={kind} year={selectedYear} />
-      <LevelYearNav kind={kind} years={years} selectedYear={selectedYear} base="/batters" />
+      <RankNav role="batting" view={view} kind={kind} years={years} selectedYear={selectedYear} />
 
-      <AwardRaces rows={items} cats={AWARD_CATS} qualKey="pa" qualMin={qual}
-        note={`規定打席約 ${qual}（打擊率/OPS 套用）。`} />
-
-      <section aria-labelledby="batting-leaderboard">
-        <Eyebrow className="mb-2">完整排名・共 {items.length} 人</Eyebrow>
-        <h2 id="batting-leaderboard" className="sr-only">打者完整排名</h2>
-        <Leaderboard
-          rows={items}
-          cols={COLS}
-          defaultSort="ops"
-          filters={[{ key: "team", label: "球隊" }, { key: "pos", label: "守位" }]}
-          qualKey="pa"
-          qualMin={qual}
-        />
-      </section>
+      {view === "awards" ? (
+        <AwardRaces rows={items} cats={AWARD_CATS} qualKey="pa" qualMin={qual}
+          note={`規定打席約 ${qual}（打擊率/OPS 套用）。`} />
+      ) : (
+        <section aria-labelledby="batting-leaderboard">
+          <Eyebrow className="mb-2">完整排名・共 {items.length} 人</Eyebrow>
+          <h2 id="batting-leaderboard" className="sr-only">打者完整排名</h2>
+          <Leaderboard
+            rows={items}
+            cols={COLS}
+            defaultSort="ops"
+            filters={[{ key: "team", label: "球隊" }, { key: "pos", label: "守位" }]}
+            qualKey="pa"
+            qualMin={qual}
+          />
+        </section>
+      )}
     </div>
   );
 }
