@@ -265,9 +265,38 @@
 - **A2 版面**：`seg` 為主分頁（它才是換內容的主軸）；`kind`/`year` 為右側情境控制。**不**用雙層 group——一軍/二軍不產生不同 view，比較像球員頁層級 `ContextSwitcher`，非 scope group。
 - **B1 窄螢幕**：手機 `flex-col` 堆疊、年度 native `<select>` 落控制列（叫出 OS 原生 picker）；**不**縮 icon（避免藏控制、放棄原生 picker）。
 - **C 動態 seg**：`seg` 項目**隨 `kind` 動態**——二軍**無上下半季**（[[postseason-format-rules]]），僅顯示「全年 / 季後賽（二軍總冠軍賽）」。照抄球員頁 `viewsFor(scope)` → `segsFor(kind)` ＋ 當前 seg 失效時 fallback 回「全年」。
-- **D2 抽象度**：standings 直接組 tablist + controls；依 §10.3「3+ 次才抽共用」，**先不抽 `AxisNav` 全套**。惟 `PlayerNavigation` 的 **sticky 定位邏輯**（`ResizeObserver` 量 header 高 ＋ `sticky`/`backdrop-blur`）非平凡且會重複 → **抽小殼 `StickyNavBar`**（2 處共用）。第 3 個多軸頁出現再升級 `AxisNav`。
+- **D2 抽象度**：見下方「D 修正」。
 
-**實作歸屬**：以上為 doc 定案；**實作＝頁面重構，見實作卡 [`../tasks/UX-STANDINGS-NAV1.md`](../tasks/UX-STANDINGS-NAV1.md)**（提案草稿），不在本 doc-only 卡。
+**第二例（更嚴重）：`/batters`・`/pitchers`（4 軸 ＋ 視圖堆疊→分頁）**
+現況：`RankRoleTabs`（打者/投手）＋ `LevelYearNav`（一軍/二軍＋年度）**兩條 nav 分列**，內容再把 `AwardRaces`（獎項排行榜）**垂直堆疊在** `Leaderboard`（完整清單）**之上**——散置且上下排導致**閱讀不易**。四軸映射（直接沿用球員頁 group×item）：
+
+| 軸 | 值 | 角色 | 承載 |
+|---|---|---|---|
+| 身分 `role` | 打者/投手 | **group（父）**——不同 route/資料/欄位，最強軸 | `HierarchicalTabs` group（onChange 導路由 /batters↔/pitchers） |
+| 視圖 `view` | 獎項排行榜/完整清單 | **item（子·主內容視圖）**——**改分頁取代垂直堆疊**（修「閱讀不易」） | `HierarchicalTabs` item（新增 `?view=` 參數） |
+| 層級 `kind` | 一軍/二軍 | 情境過濾 | `ContextSwitcher`（controls） |
+| 年度 `year` | 30+ | 情境過濾 | `YearSelect`（controls） |
+
+→ `〔打者│投手〕獎項排行榜 完整清單 ┃ 〔一軍│二軍〕 年度▾`。**這是球員頁 `HierarchicalTabs`（group×item＋controls）的直接沿用**；「排行榜/完整清單」由垂直堆疊改為 item 分頁，一次看一個、閱讀清楚。
+（權衡：獎項排行榜原為「一眼掃」摘要、與完整表互補；改分頁後一次一個——採需求方「上下排難讀」取捨。）
+
+- **D 修正（因 batters/pitchers 加入，多軸頁達 4）**：球員/standings/batters/pitchers 已過 §10.3「3+ 次才抽」門檻。惟其中 **3 頁（球員/batters/pitchers）本就直接沿用 `HierarchicalTabs`（group×item＋controls）**，standings 為單層——故**確定可抽的共用點是 `StickyNavBar` 殼（4 頁全用）**；`HierarchicalTabs` 已覆蓋 group×item 案，**`AxisNav` 大抽象暫不需**（standings 單層可用 `HierarchicalTabs` 單一 group 或小變體）。
+
+**第三例：`/games`（賽況月曆；kind＋year＋隊伍篩選＋月份）**
+現況：一軍/二軍 pill＋`YearSelect`（**未用 `LevelYearNav`、與 batters 各自手刻**）一列、隊伍篩選 chips（全部＋6 隊徽 chip、選中套隊色）一列、月份 prev/next 一列——**三 nav 分列**。映射：`kind`/`year`→controls（`LevelYearNav`）；**隊伍篩選**→隊徽 chip 群（§9.3 色彩掃描辨隊，7 值）置 controls 或次列（窄螢幕可改 Select）；**月份**→月曆專屬 prev/next stepper（保留）。
+
+**這是全站樣式（非個別頁 quirk）**——多數清單/排行/賽況頁共用 `kind＋year` 基底 ＋ 各自主軸：
+
+| 頁 | 主內容軸 | 情境軸（controls） |
+|---|---|---|
+| `/players/[id]` | scope×view（`HierarchicalTabs`） | role＋level（`ContextSwitcher`） |
+| `/standings` | seg（單層 tablist） | kind＋year |
+| `/batters`・`/pitchers` | role×view（`HierarchicalTabs`；view=排行榜/完整清單） | kind＋year |
+| `/games` | 月曆（月份 stepper） | kind＋year＋隊伍篩選 |
+
+**共用積木（多已存在，非發明）**：`StickyNavBar` 殼（抽，全用）＋ `LevelYearNav`（kind＋year，**已是 batters/pitchers 共用件，須推廣到 standings/games 消滅手刻不一致**）＋ `HierarchicalTabs`/`ContextSwitcher`/`YearSelect`/隊徽 chip。`AxisNav` 大抽象仍不需（現有件足以組合）。
+
+**實作歸屬**：以上為 doc 定案；**實作＝頁面重構**，收斂為單一傘型卡 [`../tasks/UX-NAV-INTEGRATE1.md`](../tasks/UX-NAV-INTEGRATE1.md)（提案草稿；基底抽 `StickyNavBar`＋推廣 `LevelYearNav`，分階套 standings/batters/pitchers/games），不在本 doc-only 卡。
 
 **仍 proposed 的較小子題（單軸 tab 過多）**：若某**單一軸**選項 >~7 且非年份型（不宜 select），才需「常駐 tab ＋ 更多▾ 溢出」（§4.1 `TabItems` ＋ §4.2「更多 Menu」組合）。此子題待有真實頁面需求再定 API，不預先建置。
 
