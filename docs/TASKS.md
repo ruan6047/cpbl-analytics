@@ -34,10 +34,13 @@
 | [TEAM-STYLE1](tasks/TEAM-STYLE1.md) | — | T4 | 球隊球風研究 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:56:00+08:00 |
 | [UX-DESIGN-CONFORM1](tasks/UX-DESIGN-CONFORM1.md) | INIT-PRODUCT-UX | T3 | 既有已完成 UI/UX 頁面 conformance 稽核與對齊 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-24T14:50:00+08:00 |
 | [UX-DESIGN-SYSTEM1](tasks/UX-DESIGN-SYSTEM1.md) | INIT-PRODUCT-UX | T3 | 全站 UI/UX 統一規則 codify（球員頁為基準） | — | — | 1 | 📦已合併 | —不適用 | 2026-07-24T16:55:00+08:00 |
+| [UX-ENTITY-LINKS1](tasks/UX-ENTITY-LINKS1.md) | INIT-PRODUCT-UX | T2 | 實體連結：球員名改沉穩色 + 隊名超連結 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-24T17:33:00+08:00 |
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
+| [UX-NAV-INTEGRATE1](tasks/UX-NAV-INTEGRATE1.md) | INIT-PRODUCT-UX | T2 | 全站多軸導覽欄整合重構（傘型：standings/batters/games…） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-24T17:32:00+08:00 |
 | [UX-PA-SIM-MATCHUP1](tasks/UX-PA-SIM-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | Matchups 單一打席結果分布 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:33+08:00 |
 | [UX-TEAM-SPLIT-SCOPE1](tasks/UX-TEAM-SPLIT-SCOPE1.md) | INIT-PRODUCT-UX | T4 | 球隊頁全年／上下半季數據切換 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-24T15:05:00+08:00 |
+| [UX-TOKEN-HYGIENE1](tasks/UX-TOKEN-HYGIENE1.md) | INIT-PRODUCT-UX | T2 | 設計系統 token/元件 hygiene 修復（H1–H9） | Opus 4.8（執行） | `ai/opus-4-8/UX-TOKEN-HYGIENE1 @ .claude/worktrees/ux-token-hygiene1-execution` | 0 | 🔨執行中 | ⏸未部署 | 2026-07-24T17:31:00+08:00 |
 | [UX-UMPIRE-SCOPE1](tasks/UX-UMPIRE-SCOPE1.md) | INIT-PRODUCT-UX | T4 | 裁判公開介面 NO-GO 收斂 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-24T15:05:00+08:00 |
 
 ## 依賴與資源註記
