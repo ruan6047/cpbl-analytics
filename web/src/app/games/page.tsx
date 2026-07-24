@@ -1,15 +1,12 @@
 import Link from "next/link";
 import { TeamLogo, StatusBadge, EmptyState, type StatusTone } from "@/components/ui";
-import { YearSelect } from "@/components/year-select";
+import { LevelYearNav } from "@/components/level-year-nav";
+import { NavBarRow, StickyNavBar } from "@/components/sticky-nav-bar";
 import { api, type CalendarGame } from "@/lib/api";
 import { contrastText, teamColor, teamFullName } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
-const LEVELS = [
-  { v: "A", label: "一軍" },
-  { v: "D", label: "二軍" },
-];
 const WD = ["日", "一", "二", "三", "四", "五", "六"];
 // 場次狀態 → 標籤＋語意 tone（完賽=中性／延賽·保留=warn／未開打=scheduled）
 const statusOf = (done: boolean, delay: string | null | undefined): { label: string; tone: StatusTone } =>
@@ -100,34 +97,32 @@ export default async function GamesPage({
         </p>
       </header>
 
-      <nav className="mb-3 flex flex-wrap items-center gap-2">
-        {LEVELS.map((lv) => (
-          <Link key={lv.v} href={lv.v === "A" ? "/games" : "/games?kind=D"}
-            className={`rounded-full px-3 py-1 text-sm font-medium transition ${
-              (lv.v === "D") === (kind === "D") ? "bg-ink text-paper" : "bg-surface-2 text-muted hover:bg-surface-2"}`}>
-            {lv.label}
-          </Link>
-        ))}
-        <span className="mx-1 h-4 w-px bg-line" />
-        <YearSelect years={years} value={selectedYear} kind={kind} basePath="/games" />
-      </nav>
-
-      {/* 球隊篩選 */}
-      <nav className="mb-4 flex flex-wrap items-center gap-1.5">
-        <Link href={qs({ team: "" })} className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
-          !team ? "bg-ink text-paper" : "bg-surface-2 text-muted hover:text-ink"}`}>全部</Link>
-        {teamCodes.map((code) => {
-          const on = team === code;
-          return (
-            <Link key={code} href={qs({ team: on ? "" : code })}
-              className="flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium transition"
-              style={on ? { background: teamColor(code), color: contrastText(teamColor(code)) } : undefined}>
-              <TeamLogo code={code} name={names.get(code)} size={15} />
-              <span className={on ? "" : "text-muted"}>{teamFullName(names.get(code) ?? "")}</span>
-            </Link>
-          );
-        })}
-      </nav>
+      {/* 一體式多軸導覽欄（§4.3 第三例）：隊伍篩選（隊徽 chip 群，§9.3）＋kind/year controls
+          收成一列；月份 stepper 屬月曆專屬、保留於下方。窄螢幕 chip 群改橫向捲動。 */}
+      <StickyNavBar label="賽況導覽">
+        <NavBarRow
+          main={
+            <div role="group" aria-label="球隊篩選"
+              className="flex min-w-0 items-center gap-1.5 overflow-x-auto overscroll-x-contain">
+              <Link href={qs({ team: "" })} aria-current={!team ? "true" : undefined}
+                className={`inline-flex min-h-11 shrink-0 touch-manipulation items-center rounded-full px-2.5 text-xs font-medium transition ${
+                  !team ? "bg-ink text-paper" : "bg-surface-2 text-muted hover:text-ink"}`}>全部</Link>
+              {teamCodes.map((code) => {
+                const on = team === code;
+                return (
+                  <Link key={code} href={qs({ team: on ? "" : code })} aria-current={on ? "true" : undefined}
+                    className={`inline-flex min-h-11 shrink-0 touch-manipulation items-center gap-1 rounded-full px-2 text-xs font-medium transition ${on ? "" : "bg-surface-2"}`}
+                    style={on ? { background: teamColor(code), color: contrastText(teamColor(code)) } : undefined}>
+                    <TeamLogo code={code} name={names.get(code)} size={15} />
+                    <span className={on ? "" : "text-muted"}>{teamFullName(names.get(code) ?? "")}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          }
+          controls={<LevelYearNav kind={kind} years={years} selectedYear={selectedYear} base="/games" />}
+        />
+      </StickyNavBar>
 
       {/* 月份導覽 */}
       <div className="mb-3 flex items-center justify-center gap-4">
