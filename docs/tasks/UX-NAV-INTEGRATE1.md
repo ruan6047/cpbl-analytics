@@ -81,3 +81,4 @@
 - 2026-07-24 **人工審 round 7**（範圍延伸，需求方指示）：①`/records` 七大區（歷代總冠軍/生涯排行/季後賽紀錄/個人冠軍榜/單季之最/紀錄集錦/歷代球隊）由直落長頁改**單層頁籤**——新增 `records/section-tabs.tsx`（`TabItems`＋`StickyNavBar flush` 同 standings 視覺；內容 server 一次備妥、client 切換不重打 API＝teams 頁模式；區塊 h2 轉 sr-only）；②主頁籤加寬 `px-2.5`→`px-4` 增份量。驗證：`tsc`/`npm test` 126/`build:check` ✓；切換經 React 狀態鏈驗證（面板實體點擊失敗為座標縮放假象，`elementFromPoint` 證無攔截層）。
 - 2026-07-24 **人工審 round 8**：定案規則「**無主/次階層的頁面，單層頁籤一律採主頁籤造型**」——新增 `MainTabs`（單層 tablist、主頁籤視覺：active 實心 ink／未選描邊、上圓下方貼線、`px-4`、鍵盤 ←→）；standings seg 與 records 分區由 TabItems（underline）改 MainTabs；TabItems 回歸子層專用；守門測試更新為 4 個 min-h-11 控制；`tsc`/`npm test` ✓、瀏覽器重驗 ✓。
 - 2026-07-24 **人工審 round 9**：①主頁籤等寬——`min-w-[6.5rem]`（五個中文字＋內距，實測全籤 104px），避免長短不一；②子頁籤字級回調 `text-xs`→`text-[13px]`（r4 縮太小；仍小於主頁籤 14px、保留下沉錨定）；`tsc`/`npm test` ✓、瀏覽器重驗（records 7 籤/rank 2 籤皆 104px）✓。
+- 2026-07-24 **人工審 round 10**：子頁籤托盤高度 `h-8`→`h-9`（32→36px），與主頁籤 44px 仍保留階梯差（DOM 實測 main 44／tray 36）；`tsc`/`npm test` ✓。

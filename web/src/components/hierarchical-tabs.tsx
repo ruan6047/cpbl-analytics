@@ -70,7 +70,7 @@ export function HierarchicalTabs<GroupValue extends string, ItemValue extends st
                   {group.label}
                 </button>
                 {active && (
-                  <div className="flex h-8 items-end rounded-tr-lg bg-surface-2 px-1">
+                  <div className="flex h-9 items-end rounded-tr-lg bg-surface-2 px-1">
                     <TabItems label={`${group.label}內容`} items={group.items} value={activeItem}
                       onChange={onItemChange} />
                   </div>
