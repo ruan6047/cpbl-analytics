@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { DataTable, type Column } from "@/components/table";
 import { Tooltip } from "@/components/tooltip";
-import { NameTag, Pill, TeamLogo, prColor } from "@/components/ui";
+import { ENTITY_LINK, NameTag, Pill, TeamLogo, prColor } from "@/components/ui";
 import { fmtIP } from "@/lib/format";
 
 export type Fmt = "i" | "f1" | "f2" | "f3" | "ip";
@@ -211,12 +211,12 @@ export default function Leaderboard({
         headClassName: active ? "text-accent" : "",
         className: `${c.fmt ? "" : "font-sans"} ${active ? "font-medium text-ink" : toneCls(c.tone)}`,
         cell: (r) => c.team ? (
-          <NameTag name={String(r[c.key] ?? "")} />
+          <NameTag name={String(r[c.key] ?? "")} link />
         ) : c.link ? (
           <span className="inline-flex items-center gap-1.5">
             {c.teamKey && <TeamLogo name={String(r[c.teamKey] ?? "")} size={16} decorative />}
             <span className="inline-flex flex-col items-start leading-tight">
-              <Link href={`${c.link.base}${r[c.link.idKey]}`} className="text-accent hover:underline">
+              <Link href={`${c.link.base}${r[c.link.idKey]}`} className={ENTITY_LINK}>
                 {fmtVal(r[c.key], c.fmt)}
               </Link>
               {c.subChipKey && r[c.subChipKey] && <Pill className="mt-0.5">{String(r[c.subChipKey])}</Pill>}
