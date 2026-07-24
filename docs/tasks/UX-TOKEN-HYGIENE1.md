@@ -26,7 +26,7 @@
 - [ ] **H6**：`app/umpires/page.tsx`、`app/games/[sno]/box-tabs.tsx` 的 ad-hoc「載入中…」→ 改 `Skeleton`/`EmptyState`/`ErrorState` 三態。驗收：兩檔無 ad-hoc 載入字串。
 - [ ] **H7**：sub-legible `text-[8px]/[9px]`（~12 處）上調 ≥ `text-[10px]` 或改 icon。驗收：全站無 `text-[8px]`/`text-[9px]`。
 - [ ] **H8**：統一 `<select>` 圓角為 control `rounded-lg`（`YearSelect` 現用 `rounded-full`），或於規格明訂「pill-select 限工具列 chip 語境」並讓現況合規。驗收：`<select>` 圓角一致或有明文分類依據。
-- [ ] **H9**（資料擴充，非缺陷；需先 Design Gate sign-off §9.6）：擴 `TeamMeta` 加 `name3`（3–4 字名，如 統一獅）、`char1`（中文 1 字，龍/獅/象/邦/猿/鷹）以支援隊名階梯 §9.6 ②③；若 Design Gate 選 §9.6(a)，`LetterBadge` 隊徽字改用 `char1`（英文 `letter`→中文）。驗收：六隊 `name3`/`char1` 齊備、階梯 ②③ 可渲染。
+- [ ] **H9**（資料擴充，非缺陷；需先 Design Gate sign-off §9.6 五階）：擴 `TeamMeta` 加 `name3`（3–4 字名，如 統一獅）、`char1`（中文 1 字，龍/獅/象/邦/猿/鷹）以支援隊名階梯 §9.6 ②④；③二字階：確認用現有 `short` 或將中信兄弟 `short` 由「兄弟」改「中信」（母企業）；若 Design Gate 選 §9.6(a)，`LetterBadge` 隊徽字改用 `char1`（英文 `letter`→中文）。驗收：六隊 `name3`/`char1` 齊備、③二字一致、五階皆可渲染。
 
 **驗證**：`cd web && npm run build:check` 通過；深淺主題各截圖抽驗圖表/標籤；`uv run ruff check`/`pytest` 不受影響（純前端）。**部署**：前端 build → 上線（依 Runbook §3）。
 

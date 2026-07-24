@@ -62,7 +62,7 @@
 | H6 | ad-hoc「載入中…」應改三態元件 | `umpires`、`box-tabs` | 🟡 |
 | H7 | sub-legible `text-[8px]/[9px]` 上調 | 散見 | 🟡 |
 | H8 | `<select>` 圓角不一致（`YearSelect` `rounded-full` vs `Leaderboard` 篩選 `rounded-lg`）→ 統一 control `rounded-lg`（或明訂 pill-select 限工具列 chip） | `year-select.tsx`、`leaderboard.tsx` | 🟢 |
-| H9 | 隊名階梯（`UI_UX_SYSTEM §9.6`）②三～四字名、③中文 1 字**無資料欄** → 擴 `TeamMeta` 加 `name3`/`char1`（待 Design Gate 定 §9.6 ICON a/b）。**資料擴充，非缺陷** | `lib/teams.ts` | 🟢 |
+| H9 | 隊名階梯（`UI_UX_SYSTEM §9.6`，5 階）②三～四字名、④中文 1 字**無欄位** → 擴 `TeamMeta` 加 `name3`/`char1`；③二字 `short` 於中信兄弟現為「兄弟」需改「中信」（母企業）；⑤ICON 英/中字 a/b 待 Design Gate。**資料擴充，非缺陷** | `lib/teams.ts` | 🟢 |
 
 ---
 
