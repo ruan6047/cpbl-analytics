@@ -24,6 +24,8 @@
 | [ML-FIELD-LINEUP1](tasks/ML-FIELD-LINEUP1.md) | INIT-OFFICIAL-DATA1 | T4 | 逐局守備陣容重建可行性與 canonical contract | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:03+08:00 |
 | [ML-FIELD-OAA-VAL1](tasks/ML-FIELD-OAA-VAL1.md) | INIT-OFFICIAL-DATA1 | T4 | 利用極座標落點還原 Spray Chart 與外野 OAA | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:07+08:00 |
 | [ML-FIELD-OF1](tasks/ML-FIELD-OF1.md) | — | T4 | 外野空中球守備範圍指標 | ruan6047（Design Gate） | — | 0 | 💡需求 | ⏸未部署 | 2026-07-22T16:51:08+08:00 |
+| [ML-PA-SIM-CONTEXT1](tasks/ML-PA-SIM-CONTEXT1.md) | — | T4 | 打席結果分布的情境條件化 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-25T19:06:00+08:00 |
+| [ML-PA-SIM-TEAM1](tasks/ML-PA-SIM-TEAM1.md) | — | T4 | 打席模擬對某一隊 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-25T19:07:00+08:00 |
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:09+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:10+08:00 |
 | [OPS-CPBL-WEB-HEALTH1](tasks/OPS-CPBL-WEB-HEALTH1.md) | INIT-PRODUCT-UX | T3 | CPBL Web container healthcheck 與可寫快取修復 | Haiku 4.5（執行） | `ai/haiku-4-5/OPS-CPBL-WEB-HEALTH1 @ .claude/worktrees/ops-cpbl-web-health1-execution` | 1 | 🔨執行中 | ⏸未部署 | 2026-07-24T14:20:00+08:00 |
@@ -39,7 +41,7 @@
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
 | [UX-NAV-INTEGRATE1](tasks/UX-NAV-INTEGRATE1.md) | INIT-PRODUCT-UX | T2 | 全站多軸導覽欄整合重構（傘型：standings/batters/games…） | — | — | 1 | 📦已合併 | ⏸未部署 | 2026-07-24T21:40:00+08:00 |
-| [UX-PA-SIM-MATCHUP1](tasks/UX-PA-SIM-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | Matchups 單一打席結果分布 | Opus 5（執行） | `claude/ux-pa-sim-matchup1-b6941f @ .claude/worktrees/ux-pa-sim-matchup1-b6941f` | 1 | 🔨執行中 | ⏸未部署 | 2026-07-25T06:40:00+08:00 |
+| [UX-PA-SIM-MATCHUP1](tasks/UX-PA-SIM-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | Matchups 單一打席結果分布 | Opus 5（執行） | `claude/ux-pa-sim-matchup1-b6941f @ .claude/worktrees/ux-pa-sim-matchup1-b6941f` | 1 | 🔨執行中 | ⏸未部署 | 2026-07-25T19:05:00+08:00 |
 | [UX-TEAM-SPLIT-SCOPE1](tasks/UX-TEAM-SPLIT-SCOPE1.md) | INIT-PRODUCT-UX | T4 | 球隊頁全年／上下半季數據切換 | Opus 4.8（執行） | `claude/team-split-season-scope-3efd22 @ .claude/worktrees/team-split-season-scope-3efd22` | 1 | 🔨執行中 | ⏸未部署 | 2026-07-25T00:53:00+08:00 |
 | [UX-TOKEN-HYGIENE1](tasks/UX-TOKEN-HYGIENE1.md) | INIT-PRODUCT-UX | T2 | 設計系統 token/元件 hygiene 修復（H1–H9） | — | — | 0 | 📦已合併 | ⏸未部署 | 2026-07-24T18:15:00+08:00 |
 | [UX-UMPIRE-SCOPE1](tasks/UX-UMPIRE-SCOPE1.md) | INIT-PRODUCT-UX | T4 | 裁判公開介面 NO-GO 收斂 | Opus 4.8（執行，查核通過待 merge） | `claude/umpire-interface-neutralization-912cb1 @ .claude/worktrees/umpire-interface-neutralization-912cb1` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-25T01:45:00+08:00 |
