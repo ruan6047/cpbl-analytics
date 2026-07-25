@@ -33,3 +33,9 @@
 - 07-25 瀏覽器走查（3021 → production API，1440px／375px／深色）：ok 態數值與生產 API／fixture 三方一致（9 局下 2 出局滿壘：起點 29.7%、三振 −28.6pt、一安 +63.7pt，且機率分布不隨情境改變）；真實觸發 unsupported（kind=E）、artifact_missing（本機 API 無 artifact）、api_error（停 API）、league_fallback（梁如豪無 2018+ 打席，面板零百分比）；375px 無橫向溢出、情境控制 44px、真實鍵盤 ←→ 切 tab 焦點與 aria-selected 正確。
 - 07-25 走查中修正的三個缺陷（截圖看不出、由真實瀏覽器 console／DOM 抓出）：EmptyState 是 `<p>` 而內容放了 `<div>`／`<p>` 造成 hydration error；面板掛載瞬間閃現「無法模擬」（pending 與 unavailable 未分離）；紅線揭露文字用 `text-faint`（對比 2.6:1，設計系統 §2.1 禁承載必要文字）已全數升為 `muted`。三者皆補上守衛測試。
 - 07-25 既有 conformance 缺口（**非本卡引入、未修**）：explorer 既有三個查詢 select 高 33px（<44px 觸控門檻）；頁面最外層與 QueryShell 有 4px `scrollWidth` 差（document 無橫向捲動）。留給 `UX-TOKEN-HYGIENE`／conformance 卡處理，本卡不擴張範圍。
+- 07-25 需求方人工審核（第一輪，5 項回饋）與範圍裁決：
+  1. **改名球員顯示舊名**（象魔力→魔力藍）→ 需求方核可**本卡擴張範圍**修後端（見下一則 note event）。根因：`batter_pitcher_matchups` 姓名欄是爬取當時快照，`/profile` 走當季 `*_current` 故正確，兩者不一致。修法：新增 `display_name()`／`overlay_display_names()` 純函式＋`_display_name_map()`（當季登錄名 → `players` 主檔 → 快照名），套用 `/api/v1/matchups`、`/players/{id}/matchups`、`.../insights` 三處。本機實測 opp_name 與 pair 皆回「魔力藍」，200 位對手零空名，退役者（羅力／潘威倫／伍鐸…）正常退回主檔。突變驗證：停用覆寫 → 2 測試轉紅。
+  2. **選定球隊後對手下拉退回全部 11 隊（含 4 支已解散）** → 需求方核可本卡修。根因：交手隊清單綁在顯示用 list 查詢且只在未篩隊時更新（UX-MATCHUP1 既有）。修法：faced 改為獨立 effect、固定以不帶隊別的查詢推導；可選集合抽成 `visibleOpponentFranchises()` 純函式。真實瀏覽器複驗：`team=AEO011` 下拉由 11 → 8 項（解散隊消失）。突變驗證：篩隊退回全部 → 純函式測試紅；faced 綁回 team → 新增 explorer 原始碼守衛測試紅。
+  3. 「只看某個狀況」與 4.「改情境 % 不變」→ 需求方裁決**機率本身要隨情境變**。執行者指出這是模型層工作（現行 `pa_sim` 是 context-neutral）且分格計數會使樣本碎化，故註冊 **`ML-PA-SIM-CONTEXT1`**，驗收紅線＝須在同一走查切分勝過現行 context-neutral 版本，預期可能 NO-GO。本卡文案「情境不改變結果機率」在該卡通過前維持正確。
+  5. **模擬對某一隊** → 歷史實績已可對隊；模擬對隊需投手群出場比重模型（直接平均會造出不存在的「平均投手」），註冊 **`ML-PA-SIM-TEAM1`**（Backlog，不排優先序）。
+- 07-25 第二輪驗證：`npm test` 165 pass（新增 explorer.test.ts 3 例＋controls.test.ts 4 例）、`tsc`、`ruff`、`pytest` **460 passed**（新增 test_matchup_insights_api.py 2 例＋test_matchup_queries.py 3 例；`_FakeCursor` 擴充支援姓名解析查詢 shape）。
