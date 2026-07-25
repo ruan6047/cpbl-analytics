@@ -177,6 +177,39 @@ def sort_matchup_items(
     return present + missing
 
 
+def display_name(current: str | None, registry: str | None, snapshot: str | None) -> str | None:
+    """
+    顯示名優先序：本季登錄名 → `players` 主檔 → 對戰表的爬蟲快照名。
+
+    `batter_pitcher_matchups` 的姓名欄是**爬取當時**的名字，改名球員會永遠停在舊名
+    （例：象魔力→魔力藍）。權威來源是官方登錄名單（見記憶 `player-name-authority`），
+    在 API 表現為當季 `*_current`；退役球員不在 current，才退回主檔；主檔也缺才用
+    快照名（保底不讓姓名變空）。
+    """
+    return current or registry or snapshot
+
+
+def overlay_display_names(
+    items: Iterable[dict[str, Any]],
+    name_map: dict[str, str],
+    fields: Iterable[tuple[str, str]],
+) -> None:
+    """
+    以 `name_map`（player_id → 現用名）就地覆寫聚合列的姓名欄。
+
+    `fields` 為 (id 欄, 姓名欄) 配對，例如 `[("opp_id", "opp_name")]`；
+    name_map 沒有的 id 保留原值（不清空）。
+    """
+    for item in items:
+        for id_field, name_field in fields:
+            player_id = item.get(id_field)
+            if not player_id:
+                continue
+            item[name_field] = display_name(
+                name_map.get(player_id), None, item.get(name_field),
+            )
+
+
 # ───────────────────── ML-MATCHUP1：洞察用官方 baseline universe ─────────────────────
 # 審核紅線：baseline 與 league_mean 不得取自對戰爬蟲子集（只含本季登錄打者，母體
 # 隨名單漂移）。改由**官方完整季彙總**（batting_seasons/pitching_seasons + current）
