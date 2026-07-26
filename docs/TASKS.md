@@ -16,7 +16,6 @@
 | [GAME-RECAP-WP-API1](tasks/GAME-RECAP-WP-API1.md) | INIT-GAME-RECAP | T4 | canonical WP／WPA public contract | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:09+08:00 |
 | [GAME-RECAP-WP-VAL1](tasks/GAME-RECAP-WP-VAL1.md) | INIT-GAME-RECAP | T4 | 場中 WP 時間外驗證與支援邊界 | — | `claude/fable-5-suitable-tasks-8aa8d9 @ .claude/worktrees/fable-5-suitable-tasks-8aa8d9（已合併；保留待 harness 回收）` | 1 | 📦已合併 | —不適用 | 2026-07-25T07:22:00+08:00 |
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | — | `ai/sonnet-5/INGEST-GAME-TM-REFACTOR1-g3 @ .claude/worktrees/ingest-game-tm-refactor1-g3-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-24T12:53:42+08:00 |
-| [INGEST-RECORDS-HR1](tasks/INGEST-RECORDS-HR1.md) | INIT-OFFICIAL-DATA1 | T4 | 官網 /stats/hr 逐轟里程碑入庫 | ruanruan（production sign-off） | `ai/opus-4-8/INGEST-RECORDS-HR1 @ .claude/worktrees/ingest-records-hr1-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-26T14:35:00+08:00 |
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | ruan6047（Design Gate） | — | 0 | 💡需求 | —不適用 | 2026-07-17T04:44:38+08:00 |
 | [INIT-OFFICIAL-DATA1](tasks/INIT-OFFICIAL-DATA1.md) | INIT-OFFICIAL-DATA1 | T4 | 官方資料契約完整性與低維護 ingest | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:00+08:00 |
 | [INIT-PRODUCT-UX](tasks/INIT-PRODUCT-UX.md) | INIT-PRODUCT-UX | T3 | 全站產品與 UI/UX 收斂 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-17T04:44:24+08:00 |
@@ -28,7 +27,7 @@
 | [ML-PA-SIM-TEAM1](tasks/ML-PA-SIM-TEAM1.md) | — | T4 | 打席模擬對某一隊 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-25T19:07:00+08:00 |
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:09+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:10+08:00 |
-| [OPS-CPBL-WEB-HEALTH1](tasks/OPS-CPBL-WEB-HEALTH1.md) | INIT-PRODUCT-UX | T3 | CPBL Web container healthcheck 與可寫快取修復 | ruanruan（deployment sign-off） | `ai/haiku-4-5/OPS-CPBL-WEB-HEALTH1 @ .claude/worktrees/ops-cpbl-web-health1-execution` | 2 | ✅通過 | ⏸未部署 | 2026-07-26T14:40:00+08:00 |
+| [OPS-CPBL-WEB-HEALTH1](tasks/OPS-CPBL-WEB-HEALTH1.md) | INIT-PRODUCT-UX | T3 | CPBL Web container healthcheck 與可寫快取修復 | 待指派（remediation） | `ai/haiku-4-5/OPS-CPBL-WEB-HEALTH1 @ .claude/worktrees/ops-cpbl-web-health1-execution（保留待 harness 回收）` | 3 | 🔨執行中 | ⚠驗證失敗 | 2026-07-26T14:57:00+08:00 |
 | [OPS-REMOTE-CUTOVER1](tasks/OPS-REMOTE-CUTOVER1.md) | INIT-PRODUCT-UX | T4 | 遠端 crawler production canary 與切換 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:40+08:00 |
 | [OPS-REMOTE-PROBE1](tasks/OPS-REMOTE-PROBE1.md) | INIT-PRODUCT-UX | T3 | Opt-in DEBUG 網路探測介面 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:37+08:00 |
 | [OPS-REMOTE-ROUTE1](tasks/OPS-REMOTE-ROUTE1.md) | INIT-PRODUCT-UX | T3 | 遠端出口路線資格驗證 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:38+08:00 |

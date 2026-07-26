@@ -1,6 +1,6 @@
 # INGEST-RECORDS-HR1 官網 /stats/hr 逐轟里程碑入庫〔T4；🔴資料正確性／schema〕
 
-> **狀態 📥Backlog**：由 DISCOVERY-CPBL-RECORDS1（已 merge `dfec0a1`）判定 /stats/hr = Go 後註冊。待 GAME-RECAP-PA1-EXPAND1 部署釋出 migration lane 後認領。
+> **狀態 🏁完成**：2026-07-26 完成跨家族查核、production migration 067、1,192 筆 audit 資料同步與 smoke；完整留痕見 control-plane `RELEASE-009`。
 
 - 需求：ruan6047　規劃：待指派　分支：`ai/<執行者>/INGEST-RECORDS-HR1`
 - 執行：待指派　查核：待指派（跨模型家族或人工，且 ≠ 執行）

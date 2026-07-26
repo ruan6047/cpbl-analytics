@@ -4,6 +4,7 @@
 
 | 卡ID | 功能 | 交付狀態 | 部署狀態 | 封存位置 |
 |---|---|---|---|---|
+| INGEST-RECORDS-HR1 | 官網 /stats/hr 逐轟里程碑入庫 | 🏁完成 | ✅已驗證 | [`tasks/INGEST-RECORDS-HR1.md`](tasks/INGEST-RECORDS-HR1.md)（T4；Gemini 3.6 Flash 跨家族 APPROVE；main `78713dc`；主站 `95089cf`／Deploy `30191714436`；production migration 067、備份與 1,192 筆逐轟 audit 資料唯一鍵對帳完成） |
 | UX-PA-SIM-MATCHUP1 | Matchups 單一打席結果分布 | 🏁完成 | ✅已驗證 | [`tasks/UX-PA-SIM-MATCHUP1.md`](tasks/UX-PA-SIM-MATCHUP1.md)（T4🔴統計／ML；Antigravity(Gemini) 跨家族 APPROVE（P0–P2=0、1 則 P3 移交）；merge `530dd5e`（**需求方本人 merge**，執行者 Opus 5 依 §2.1 不得自 merge）；submodule 76e4035／主站 e3283a2／Deploy 30188802355；production 驗證：改名象魔力→魔力藍且 200 對手零空名、PA 七結果總和 1.0、**league_fallback 紅線實測 UI 零百分比**、對手下拉解散隊 4→0；情境條件化與對隊模擬移交 ML-PA-SIM-CONTEXT1／ML-PA-SIM-TEAM1（均設「執行前須先討論」閘門），a11y 缺口移交 CONFORMANCE H10／H11） |
 | UX-UMPIRE-SCOPE1 | 裁判公開介面 NO-GO 收斂 | 🏁完成 | ✅已驗證 | [`tasks/UX-UMPIRE-SCOPE1.md`](tasks/UX-UMPIRE-SCOPE1.md)（T4🔴；Antigravity(Gemini) 跨家族 APPROVE 8/8；merge `a6cedf2`；隨 76e4035 批次上線；production 實測 /api/v1/umpires 僅 {umpire,games,tracked_games} 無準確率欄位） |
 | UX-NAV-INTEGRATE1 | 全站多軸導覽欄整合重構 | 🏁完成 | ✅已驗證 | [`tasks/UX-NAV-INTEGRATE1.md`](tasks/UX-NAV-INTEGRATE1.md)（T2；merge `091a596`；隨 76e4035 批次上線；/、/standings、/batters、/games 皆 200） |
