@@ -1,7 +1,10 @@
 "use client";
 
 // 逐打席勝率曲線（WP；推算）：自建 run_dist × WE 邊界 DP，中性隊伍+主場優勢。
-// 每點=打席開始時的主隊勝率；完賽補終點。開局 ≈ 聯盟主場基準 52.8%。
+// 每點=打席開始時的主隊勝率；完賽補終點。開局值 ≈ 該模型 span 的聯盟主場基準，
+// 會隨 span 重建而變動——勿在 UI 或註解寫死百分比（要對數字請打 winprob 端點看首點）。
+// 模型的適用邊界與已知偏差揭露統一由賽況頁曲線下方的 caption 承擔（UX-WP-DISCLOSURE1），
+// 本元件不再自帶弱化版說明，避免兩處文案各自漂移。
 // 點擊任一點 → onSelect(evt) 跳到該打席（由父層切到逐打席視圖）。
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { chartTooltip, useChartTheme } from "@/lib/chart-theme";
@@ -27,11 +30,8 @@ export function WinProbChart({ items, homeName, awayName, homeColor, onSelect }:
 
   return (
     <Card>
-      <div className="mb-1 flex items-baseline justify-between">
-        <div className="text-sm font-semibold">
-          勝率變化 <span className="text-xs font-normal text-faint">（逐打席推算・{homeName} 視角{onSelect ? "・點擊跳至該打席" : ""}）</span>
-        </div>
-        <div className="text-[10px] text-faint">中性隊伍+主場基準 52.8%，不含先發/戰力差</div>
+      <div className="mb-1 text-sm font-semibold">
+        勝率變化 <span className="text-xs font-normal text-faint">（逐打席推算・{homeName} 視角{onSelect ? "・點擊跳至該打席" : ""}）</span>
       </div>
       <ResponsiveContainer width="100%" height={190}>
         <LineChart data={data} margin={{ top: 6, right: 12, bottom: 2, left: -22 }}
