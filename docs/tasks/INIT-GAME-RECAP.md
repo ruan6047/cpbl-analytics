@@ -72,3 +72,4 @@ flowchart LR
 - 2026-07-16：現有 WP、關鍵轉折與逐打席能力視為 baseline，任務只補可靠性與產品整合。
 - 風險：現行逐球近似鍵可能誤配；在 `GAME-RECAP-PA1` 通過前，UI 不得宣稱逐球屬於精確打席。
 - 2026-07-19 解除：ML-SIM1 已完成跨模型家族複查、合併與 production 驗證且 Ledger 已對帳；`UX-GAME-HOME1`、`UX-OUTCOME-HOME` 與 `API-DAILY-SUMMARY1` 已交付部署（07-18）。首頁賽前區的對帳前置已消除，首頁 v1 入口鏈已完成。
+- 2026-07-27 需求方定位裁定：WP 統計驗證鏈完結（VAL1 unsupported、CAL1 No-Go、STRENGTH1 交付 No-Go 待查核）→ `GAME-RECAP-WP-API1` 由 canonical 契約〔T4〕改寫為參考資訊＋揭露〔T3〕並解除阻塞；WPA 一併提供但標參考。原 canonical 規劃保留為升級路徑（versioned reliability metadata，未來模型通過 v2 門檻即翻升）。下游 `UX-GAME-RECAP1`／`UX-GAME-PA1` 改依 WP-API1 交付解凍。
