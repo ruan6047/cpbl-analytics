@@ -109,7 +109,10 @@ def _pregame_source() -> tuple[dict | None, dict]:
     except Exception as exc:  # noqa: BLE001 — artifact 損毀時回傳賽程，不回 50% 假數字
         return None, {"status": "error", "reason": type(exc).__name__,
                       "trained_through": None, "signals": None}
+    # version＝產出這份 artifact 的那一次回測；與 model_versions 最新列不一致即代表
+    # 最新回測未過閘門、serving 沿用上一版（ML-OUTCOME-SIMPLE-LEAK2 的降級可偵測性）。
     return artifact, {"status": "available", "reason": None,
+                      "version": artifact.get("version"),
                       "trained_through": artifact["trained_through"],
                       "signals": artifact["signals"]}
 

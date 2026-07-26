@@ -11,6 +11,7 @@ from cpbl.config import settings
 from cpbl.db import conn
 from cpbl.models.outcome_simple import (
     deployment_gate,
+    load_artifact,
     load_outcome_rows,
     save_artifact,
     train_final_model,
@@ -47,13 +48,30 @@ def main() -> None:
         log.info("%-16s Accuracy=%.4f Brier=%.4f LogLoss=%.4f ECE=%.4f", model["name"],
                  model["accuracy"], model["brier"], model["log_loss"], model["ece"])
     log.info("gate=%s checks=%s", "PASS" if gate["deployable"] else "FAIL", gate["checks"])
+    path = settings.artifact_dir / "outcome_simple.joblib"
     if not gate["deployable"]:
-        log.warning("未通過上線閘門，不更新 serving artifact")
+        # 沿用舊 artifact，但不得靜默：把「serving 的是哪一版、對不上哪一版回測」寫進
+        # log 與 model_versions，讓 /methodology#pregame 的閘門面板與運維紀錄都對得上。
+        served = _artifact_version(path)
+        log.warning(
+            "未通過上線閘門，不更新 serving artifact："
+            "serving 仍為 %s，最新回測 %s 已記錄 deployable=false（兩者版本不一致）",
+            served or "（無 artifact，賽前機率將顯示未建置）", version,
+        )
         return
-    artifact = train_final_model(rows, trained_through)
-    save_artifact(artifact, settings.artifact_dir / "outcome_simple.joblib")
-    log.info("artifact=%s signals=%s", settings.artifact_dir / "outcome_simple.joblib",
-             artifact["signals"])
+    artifact = {**train_final_model(rows, trained_through), "version": version, "gate": gate}
+    save_artifact(artifact, path)
+    log.info("artifact=%s version=%s signals=%s", path, version, artifact["signals"])
+
+
+def _artifact_version(path) -> str | None:
+    """既有 serving artifact 自陳的版本；缺席或舊格式（無 version 欄）皆回 None。"""
+    if not path.exists():
+        return None
+    try:
+        return load_artifact(path).get("version")
+    except Exception:  # noqa: BLE001 — 讀不到就當未知，不讓訓練流程因此中斷
+        return None
 
 
 if __name__ == "__main__":

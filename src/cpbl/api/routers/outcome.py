@@ -103,10 +103,14 @@ def outcome_pregame(limit: int = Query(20, ge=1, le=60)) -> dict:
     if not path.exists():
         return {"available": False, "reason": "outcome_simple artifact 未建置"}
     artifact = load_artifact(path)
+    # version＝產出這份 serving artifact 的那一次回測。與 /pregame/backtest 的 version
+    # 不一致 ⇒ 最新回測沒過閘門、serving 沿用的是上一版（ML-OUTCOME-SIMPLE-LEAK2）。
+    version = artifact.get("version")
     rows = [row for row in load_outcome_rows(completed_only=False)
             if row.game_date and row.game_date >= date.today()][:limit]
     if not rows:
-        return {"available": True, "trained_through": artifact["trained_through"],
+        return {"available": True, "version": version,
+                "trained_through": artifact["trained_through"],
                 "signals": artifact["signals"], "items": []}
     point = artifact["model"].predict(rows)
     ensemble = np.array([model.predict(rows) for model in artifact.get("ensemble", [])])
@@ -124,7 +128,8 @@ def outcome_pregame(limit: int = Query(20, ge=1, le=60)) -> dict:
                                                 else "higher_favors_home")}
                         for group, signal in artifact["signals"].items()},
         })
-    return {"available": True, "trained_through": artifact["trained_through"],
+    return {"available": True, "version": version,
+            "trained_through": artifact["trained_through"],
             "signals": artifact["signals"], "interval": artifact.get("interval"),
             "items": items}
 

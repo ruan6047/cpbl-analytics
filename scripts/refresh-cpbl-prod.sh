@@ -235,6 +235,14 @@ echo "==> 4/4 VPS 跑賽事預測回測（LightGBM 需 libgomp；prod_cpbl_api �
 # 走查回測並把 model_versions(task='outcome') 持久化，供 /api/info 與 /predict 面板展示。
 ssh -o BatchMode=yes "$VPS" 'docker exec prod_cpbl_api cpbl-train-outcome 2>&1 | grep -v httpx | tail -4'
 
+# 上線 serving 模型（首頁 pregame 點機率／/methodology#pregame）也吃 game_features。
+# 少了這一步，鏡像進來的新特徵分布會被餵給用舊分布 fit 的 outcome_simple.joblib，
+# 屬 serving 端分布錯配（ML-OUTCOME-SIMPLE-LEAK2）。閘門未過時它不更新 artifact 而是
+# 沿用上一版並在 model_versions 記下 deployable=false，方法頁面板據此如實揭露。
+echo "    + 重訓 outcome_simple（賽前勝率 serving 模型；閘門未過則保留舊 artifact）"
+ssh -o BatchMode=yes "$VPS" \
+  'docker exec prod_cpbl_api cpbl-train-outcome-simple 2>&1 | grep -v httpx | tail -7'
+
 echo "    + 對帳 production 真實資料 freshness"
 curl -fsS --max-time 10 "$API_INFO_URL" \
   | python3 "$REPO_DIR/scripts/verify_refresh_info.py" --data-only \
