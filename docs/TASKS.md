@@ -21,6 +21,7 @@
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | ruan6047（Design Gate） | — | 0 | 💡需求 | —不適用 | 2026-07-17T04:44:38+08:00 |
 | [INIT-OFFICIAL-DATA1](tasks/INIT-OFFICIAL-DATA1.md) | INIT-OFFICIAL-DATA1 | T4 | 官方資料契約完整性與低維護 ingest | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:00+08:00 |
 | [INIT-PRODUCT-UX](tasks/INIT-PRODUCT-UX.md) | INIT-PRODUCT-UX | T3 | 全站產品與 UI/UX 收斂 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-17T04:44:24+08:00 |
+| [LIVE-GAME-BACKEND1](tasks/LIVE-GAME-BACKEND1.md) | INIT-OFFICIAL-DATA1 | T4 | 賽前情報與比賽中 live backend | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-26T17:29:30+08:00 |
 | [MATCHUP-DATA2](tasks/MATCHUP-DATA2.md) | — | T4 | 對戰對手歷史隊別歸屬修正 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T03:16:09+08:00 |
 | [ML-FIELD-LINEUP1](tasks/ML-FIELD-LINEUP1.md) | INIT-OFFICIAL-DATA1 | T4 | 逐局守備陣容重建可行性與 canonical contract | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:03+08:00 |
 | [ML-FIELD-OAA-VAL1](tasks/ML-FIELD-OAA-VAL1.md) | INIT-OFFICIAL-DATA1 | T4 | 利用極座標落點還原 Spray Chart 與外野 OAA | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:07+08:00 |
@@ -40,6 +41,7 @@
 | [UX-ENTITY-LINKS2](tasks/UX-ENTITY-LINKS2.md) | INIT-PRODUCT-UX | T2 | 實體連結 pattern 普及化（整塊 hover:underline → ENTITY_LINK） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T00:59:21+08:00 |
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
+| [UX-LIVE-GAME1](tasks/UX-LIVE-GAME1.md) | INIT-PRODUCT-UX | T3 | 賽前情報到比賽中狀態板 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-26T17:29:31+08:00 |
 | [UX-TEAM-FIELD-HIST1](tasks/UX-TEAM-FIELD-HIST1.md) | INIT-PRODUCT-UX | T3 | 球隊頁歷史年守備位置圖（union fielding_seasons） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:36:00+08:00 |
 | [UX-TEAM-FOCUS2](tasks/UX-TEAM-FOCUS2.md) | INIT-PRODUCT-UX | T3 | 球隊頁「近日焦點」頁籤內容擴充 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:37:00+08:00 |
 
