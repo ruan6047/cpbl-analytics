@@ -16,10 +16,69 @@ findings）後 Coordinator 直接 merge，結果回傳執行者，部署另由�
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# 卡面欄位錨點（tasks-card 範本）：「- Initiative：<父卡 ID／—>　spec 基線：<版本／—>」
+_INITIATIVE_RE = re.compile(r"Initiative：\s*([A-Z][A-Z0-9\-]+)")
+_BASELINE_RE = re.compile(r"spec 基線：\s*([^\s　]+)")
+
+
+def _card_path(card_id: str) -> Path | None:
+    """卡片檔路徑：活卡在 tasks/，父卡可能已封存在 archive/tasks/。"""
+    for rel in (f"docs/tasks/{card_id}.md", f"docs/archive/tasks/{card_id}.md"):
+        p = ROOT / rel
+        if p.exists():
+            return p
+    return None
+
+
+def baseline_check(card_id: str) -> str:
+    """有 Initiative 父卡時產出 spec 基線一致性查核段（baseline-cascade §5）。
+
+    無父卡（Initiative 欄為「—」或缺）回空字串——輸出不多任何段落。
+    版本欄缺席時不靜默省略：明確標示「人工核對」。
+    """
+    path = _card_path(card_id)
+    if path is None:
+        return ""
+    text = path.read_text(encoding="utf-8")
+    m_init = _INITIATIVE_RE.search(text)
+    if not m_init:
+        return ""
+    parent_id = m_init.group(1)
+    m_child = _BASELINE_RE.search(text)
+    child_ver = m_child.group(1) if m_child else None
+
+    parent_path = _card_path(parent_id)
+    parent_ver = None
+    if parent_path is not None:
+        m_parent = _BASELINE_RE.search(parent_path.read_text(encoding="utf-8"))
+        parent_ver = m_parent.group(1) if m_parent else None
+
+    lines = [
+        "### spec 基線一致性（canonical baseline-cascade §5）",
+        "",
+        f"- Initiative 父卡：{parent_id}"
+        + (f"（`{parent_path.relative_to(ROOT)}`）" if parent_path else "（**卡片檔不存在**）"),
+    ]
+    if parent_ver and child_ver:
+        verdict = "一致" if parent_ver == child_ver else "**不一致——舊基線交付，直接退回**"
+        lines.append(f"- 父卡當前 spec 基線：`{parent_ver}`；本卡卡面 spec 基線：`{child_ver}` → {verdict}")
+    else:
+        missing = "父卡" if not parent_ver else "本卡"
+        lines.append(
+            f"- {missing}的 spec 基線欄缺席，無法自動核對——**人工核對**：對照父卡「基線變更紀錄」"
+            "與本卡範圍是否仍在當前基線內。"
+        )
+    lines.append(
+        "- 本段為產生提示詞當下的快照；查核時以父卡**當前**檔案再核對一次，"
+        "不一致即退回（不進 finding 協商）。"
+    )
+    return "\n".join(lines)
 
 
 def latest_handoff(card_id: str) -> dict:
@@ -64,6 +123,10 @@ def build_prompt(card_id: str) -> str:
     worktree = ev.get("worktree", "")
     wt_abs = ROOT / worktree if worktree else ROOT
     sections = card_sections(card_id, ("驗收", "驗證", "Gate"))
+    checklist = sections if sections else "（卡片無明列章節，依卡片全文與 spec 驗收）"
+    baseline = baseline_check(card_id)
+    if baseline:
+        checklist += "\n\n" + baseline
     indep = ("跨模型家族（非執行者所屬家族）或人工" if redline
              else "新 context／session 即可（不得為執行者本人）")
     db_note = {
@@ -92,7 +155,7 @@ def build_prompt(card_id: str) -> str:
 
 ### 卡面驗收條件（逐項核對）
 
-{sections if sections else '（卡片無明列章節，依卡片全文與 spec 驗收）'}
+{checklist}
 
 ### 基本重現指令
 
