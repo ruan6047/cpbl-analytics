@@ -76,6 +76,29 @@ kill switch 是 evidence volume 的 `/evidence/STOP`。deadline／STOP／budget�
 exit 0 結束，配合 `restart: on-failure:3` 防止截止後復活；volume 必須保留到 raw gzip、
 manifest 與 checksum 完成 T4 對帳，刪除前另取需求方明示。
 
+### Live game shadow worker（LIVE-GAME-BACKEND1；尚未 production cutover）
+
+live worker 只打 VPS 可直連的 `stats.cpbl.com.tw`，不走 VPS 回 404 的 www 主站。它是獨立
+process：寫 Redis JSON cache，API 只讀 cache 並在 Redis 失效時退回既有 PostgreSQL；不違反
+API 唯讀契約。預設 `LIVE_GAME_WORKER_ENABLED=false`，未完成 T4 查核前不得 production 啟用。
+
+```bash
+docker compose up -d --build redis live-worker      # 本機持續 shadow
+LIVE_GAME_WORKER_ENABLED=true REDIS_URL=redis://localhost:6379/0 \
+  uv run cpbl-live-worker --once                    # 單 cycle canary
+docker compose logs -f live-worker
+
+# 即時 kill switch（1=停止抓取；DEL=恢復）
+docker compose exec redis redis-cli SET cpbl:live:kill 1
+docker compose exec redis redis-cli DEL cpbl:live:kill
+```
+
+- polling base：live 12 秒、T-90m 內 60 秒、T-30h 內 10 分鐘、其餘 30 分鐘；正常值另加
+  0.9–1.1 jitter，錯誤指數退避最多 5 分鐘，每 cycle 最多 8 場。
+- `START` 依官方 raw status，不看比分；兩隊 probable pitcher／lineup 可各自 partial。
+- final 後 TrackMan 可能延遲（2026-07-26 A-224／225 完賽當下仍 0），0 筆只標 pending。
+- 觀測矩陣與 canary evidence：[`research/LIVE_GAME_BACKEND1_OBSERVATION.md`](research/LIVE_GAME_BACKEND1_OBSERVATION.md)。
+
 **每日刷新現況（最後驗證 2026-07-19）**：本機 launchd 10:10 已成功完成爬取與 production 同步（`sync_ok=true`）。仍必須每天以 `refresh_status.py check --scheduled` 檢查；成功同步不等於資料語意正確——目前 `BUG-HELD-GAME-FRESHNESS1` 已證實未完成保留賽會污染 `last_game_date`，修復前不得僅以 freshness gate 判定資料正確。
 
 ### 本機每日爬取（launchd 每日 10:10；手動為 fallback）
@@ -159,6 +182,7 @@ production 映像尚未部署，先停止同步並完成正常 main deploy，不
 | `cpbl-scrape-pitches [delay]` | 逐球 TrackMan（**投手中心** logs API，全投手→自動涵蓋所有場次）；**現行每日 refresh 的唯一正式 writer** | 逐球刷新 |
 | `cpbl-scrape-game-pitches [year] [kind] [snos…\|近N天]` | 逐球 TrackMan（**比賽中心**，單場 API `/games/{y}-{k}-{sno}` 的 LiveLog；與 logs 路徑共用 pure parser、冪等對接同表）；一場一請求、免名冊、實測 ~88% 少請求 | INGEST-GAME-TM-REFACTOR1 Gate 1-2 落地；**尚未切為 refresh 正式路徑**（Gate 3 shadow／Gate 4 cutover 待做） |
 | `cpbl-shadow-game-tm [year] [kind] [window_days]` / `--report` | Gate 3 shadow harness：抓賽程 shadow（`games/schedule`，GameStatus 分桶）+ 只對 FINISHED 場打單場 API，寫隔離 `cpbl.game_tm_shadow_*` 表並唯讀對帳正式 `pitch_tracking`；`--report` 只印最近一次 run 摘要 | 14 天觀測窗期間每日手動跑；**不寫** `cpbl.pitch_tracking`、不影響正式 refresh |
+| `cpbl-live-worker [--once]` | stats 單場 API → Redis canonical snapshot；集中式 lock／kill switch／adaptive polling | LIVE-GAME-BACKEND1 shadow；T4 查核前不得 production cutover |
 | `cpbl-scrape-advanced` | 官方進階 + 官方 PR(stats.cpbl) | 進階數據刷新 |
 | `cpbl-scrape-detail` / `cpbl-scrape-fighting` | 選手對戰各隊/分項 / 投打對決 | **分項/vs各隊已改重算停爬**（見 build-splits）；detail 僅剩季後 C/E 生涯補抓、fighting 供投打對決 |
 | `cpbl-refresh-recent [fast]` | 抓昨天/今天：games+累計+(增量)對戰/逐球 + **重算分項寫回**，寫 `refresh_log` | 每日增量（本機跑） |
