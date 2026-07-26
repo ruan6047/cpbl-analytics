@@ -39,3 +39,5 @@
   3. 「只看某個狀況」與 4.「改情境 % 不變」→ 需求方裁決**機率本身要隨情境變**。執行者指出這是模型層工作（現行 `pa_sim` 是 context-neutral）且分格計數會使樣本碎化，故註冊 **`ML-PA-SIM-CONTEXT1`**，驗收紅線＝須在同一走查切分勝過現行 context-neutral 版本，預期可能 NO-GO。本卡文案「情境不改變結果機率」在該卡通過前維持正確。
   5. **模擬對某一隊** → 歷史實績已可對隊；模擬對隊需投手群出場比重模型（直接平均會造出不存在的「平均投手」），註冊 **`ML-PA-SIM-TEAM1`**（Backlog，不排優先序）。
 - 07-25 第二輪驗證：`npm test` 165 pass（新增 explorer.test.ts 3 例＋controls.test.ts 4 例）、`tsc`、`ruff`、`pytest` **460 passed**（新增 test_matchup_insights_api.py 2 例＋test_matchup_queries.py 3 例；`_FakeCursor` 擴充支援姓名解析查詢 shape）。
+- 07-26 跨家族查核 **APPROVE**（Antigravity／Gemini，非 Claude；REVIEW-005 @ `c8bf6ec`）：P0–P2 findings = 0。查核者獨立重跑全套測試（ruff／pytest 460／tsc／npm test 165／build:check）並**自行重做 4 次突變驗證**（移除 league_fallback gate、`SUM_TOLERANCE` 放寬至 0.5、文案植入「信賴區間」、移除現用名覆寫）皆如預期轉紅；核心紅線 league_fallback 實測「全頁零百分比」；七結果總和 1.0000000000000002（< 1e-6）。**執行者交付時自陳未驗證的「球員頁不得出現模擬 tab」已由查核者以本機 Next dev（port 3025）實測補足。**
+- 07-26 查核 P3 建議（不阻擋 merge，**留待未來 API 網路優化卡處理，執行前須先討論**）：`explorer.tsx` 冷啟動且已選定隊別時會連續發兩次 `list` 請求（一次帶隊別供顯示、一次不帶隊別供推導交手清單）。正確性與穩定度無虞（有 stale 守衛與 `scopeKey` 判定），建議未來改由 `list` 回應附帶 `faced_franchises` metadata，省一次 RTT。本卡不處理——那會把單純的顯示層修正擴張成 API 契約變更。
