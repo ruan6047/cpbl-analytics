@@ -222,14 +222,46 @@ uv run python scripts/review_prompt.py <CARD_ID> | pbcopy
 - 同一卡族（原卡及 `<CARD_ID>-FIX<n>`）共用一個 worktree。merge 者在卡族全數結案後依序移除 worktree、刪本地分支、刪遠端分支。
 - 對 DB 的 claim 另依 [`DATABASE_CONTRACT.md`](DATABASE_CONTRACT.md) 取得資源 lease；schema 與 data migration 不可並行。
 
+### 7.2 測試與驗證
+
+**push 前必過**（`CLAUDE.md` 驗證清單的事實層；實測基線 2026-07-26：pytest 479+ tests ~9s、web 165 tests ~0.3s）：
+
 ```bash
-# 改完一定要過：
-uv run ruff check                 # 後端
-cd web && npx tsc --noEmit        # 前端
+uv run ruff check                 # 後端 lint
+uv run pytest                     # 後端（44 檔中 39 檔零 DB 依賴，整套 <10s）
+cd web && npx tsc --noEmit        # 前端型別
+cd web && npm test                # 前端契約測試（node:test + strip-types，零框架依賴）
 # 改成績模型還要：容器內 cpbl-train 看回測對照表未退化
 ```
 
-**部署 = push-to-deploy（在主站操作）**：
+- **路由快照**：新增 API 端點須同步更新 `tests/test_route_snapshot.py` 的 EXPECTED。
+- **bug 卡（T2 快線）**：修復測試必須先對缺陷版本**跑紅**再轉綠，紅證據記入交付（canonical §2 第 6 點；`bug-workflow.md`）。統計／ML 卡「先跑紅」不適用，改依卡面「紅線（違反即退回）」區塊驗證（canonical `statistical-redline.md`）。
+- **新 worktree**：先 `cd web && npm install`，否則 tsc／npm test 全紅是缺 node_modules 假象非缺陷；後端 `uv run` 會自動建 venv。
+- **CI**（`.github/workflows/ci.yml`）：api job 跑 ruff＋pytest，web job 跑 tsc＋npm test；CI 不部署（部署見 §7.3）。
+
+**DB 契約測試（預設 skip，改對應 ingest 前必須手動實跑一次）**：
+
+三個整合測試以 `skipif` 綁環境變數，未設即 skip——**CI 與日常 pytest 都不會執行**。動 `ingest/editorial.py`、`ingest/cpbl_advanced.py` 快照晉升／回收路徑或其 migration 時，照下列程序在 CARD_ID 隔離 database 實跑（依 [`DATABASE_CONTRACT.md`](DATABASE_CONTRACT.md)；隔離名寫死在測試內，不可自訂）：
+
+| 測試 | 環境變數 | 隔離 database 名（測試強制驗證） |
+|---|---|---|
+| `tests/test_editorial_ingest.py`（1 個整合） | `EDITORIAL_TEST_DATABASE_URL` | `cpbl_data_editorial1` |
+| `tests/test_advanced_snapshot_schema.py`（2 個整合） | `ADV_SCHEMA_TEST_DATABASE_URL` | `cpbl_ingest_adv_expand1` |
+
+```bash
+docker compose up -d db   # 本機 PG（host port 5433）；在 worktree 內 compose 抓不到服務，改用容器名
+docker exec cpbl-analytics-db-1 psql -U cpbl -d postgres -c "CREATE DATABASE cpbl_data_editorial1"
+DATABASE_URL=postgresql://cpbl:cpbl@localhost:5433/cpbl_data_editorial1 \
+  uv run python -c "from cpbl.db import migrate; print(len(migrate()),'migrations')"   # 先套 schema
+EDITORIAL_TEST_DATABASE_URL=postgresql://cpbl:cpbl@localhost:5433/cpbl_data_editorial1 \
+  uv run pytest tests/test_editorial_ingest.py -q
+```
+
+（advanced 同法：database 名換 `cpbl_ingest_adv_expand1`、env 換 `ADV_SCHEMA_TEST_DATABASE_URL`。實測 2026-07-26：editorial 16 passed、advanced 3 passed，皆含原 skip 的整合測試。用完可 `DROP DATABASE` 回收。）
+
+**術語**：kind_code、island、幽靈島、GO/FO、保留賽等跨檔語意見 [`reference/GLOSSARY.md`](reference/GLOSSARY.md)，勿依單檔註解腦補。
+
+### 7.3 部署 = push-to-deploy（在主站操作）
 1. 本 repo：commit + push（CI 只跑 lint + tsc，**不部署**）。
 2. 主站 `~/Dev/PersonalWebsite`：`apps/subprojects/cpbl-analytics` checkout 到新 commit → `git add` 該 submodule → commit（**只動 submodule 一行**，勿夾帶主站其他未提交變更，VPS 是 `git reset --hard origin/main`）→ push。
 3. 主站 CI 成功 → `deploy.yml` 自動 SSH 到 VPS：`submodule update` + `docker compose -f docker-compose.prod.yml build/up` + 健康檢查 + nginx 重啟。約 12 分鐘（build 兩個映像）。
