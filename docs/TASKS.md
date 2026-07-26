@@ -9,7 +9,7 @@
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
 | [DISCOVERY-CPBL-RECORDS1](tasks/DISCOVERY-CPBL-RECORDS1.md) | INIT-OFFICIAL-DATA1 | T3 | 主站紀錄資料價值與穩定鍵 Discovery | — | `claude/discovery-cpbl-records1-b1ce2d @ .claude/worktrees/discovery-cpbl-records1-b1ce2d` | 1 | 📦已合併 | —不適用 | 2026-07-24T12:40:00+08:00 |
-| [DOC-TESTING-GLOSSARY1](tasks/DOC-TESTING-GLOSSARY1.md) | — | T2 | Runbook 測試章節＋術語表 | Claude Fable 5@Claude Code | `ai/fable-5/DOC-TESTING-GLOSSARY1 @ .claude/worktrees/doc-testing-glossary1-execution` | 0 | 🔨執行中 | —不適用 | 2026-07-26T17:10:00+08:00 |
+| [DOC-TESTING-GLOSSARY1](tasks/DOC-TESTING-GLOSSARY1.md) | — | T2 | Runbook 測試章節＋術語表 | 待指派（B2 獨立事實查核，須 ≠ 執行） | `ai/fable-5/DOC-TESTING-GLOSSARY1 @ .claude/worktrees/doc-testing-glossary1-execution` | 0 | 🔍待查核 | —不適用 | 2026-07-26T17:35:00+08:00 |
 | [GAME-RECAP-PA1](tasks/GAME-RECAP-PA1.md) | INIT-GAME-RECAP | T4 | canonical PA 契約與實作切卡 | ruan6047（子卡優先序／後續 Gate） | — | 1 | 📦已合併 | —不適用 | 2026-07-21T01:09:45+08:00 |
 | [GAME-RECAP-PA1-BUILD1](tasks/GAME-RECAP-PA1-BUILD1.md) | INIT-GAME-RECAP | T4 | canonical PA builder、對帳與歷史回填 | — | `ai/opus-4-8/GAME-RECAP-PA1-BUILD1 @ .claude/worktrees/game-recap-pa1-build1-execution` | 1 | 📦已合併 | ✅已驗證 | 2026-07-24T16:23:00+08:00 |
 | [GAME-RECAP-PA1-EXPAND1](tasks/GAME-RECAP-PA1-EXPAND1.md) | INIT-GAME-RECAP | T4 | canonical PA additive schema expand | — | `ai/opus-4-8/GAME-RECAP-PA1-EXPAND1 @ .claude/worktrees/game-recap-pa1-expand1-execution` | 1 | 📦已合併 | ✅已驗證 | 2026-07-24T13:46:00+08:00 |
