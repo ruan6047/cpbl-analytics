@@ -164,23 +164,30 @@ tracking_availability, ordered_pitches_or_link
 
 PA1 不計算 WP，也不依賴模型驗證。
 
-### 8.2 WP-API1 enrichment
+### 8.2 WP-API1 enrichment（參考資訊＋揭露語意；2026-07-27 定位改寫，本段修訂待需求方核可）
 
-WP-API1 只引用 PA1 的 `pa_id` 與 base state，增加：
+WP-API1 只引用 PA1 的 `pa_id` 與 base state，增加（打席層）：
 
 ```text
 pa_id, home_wp_before, home_wp_after, wpa
-beneficiary_team, wp_availability
-model_span, model_kind, model_built_at
+beneficiary_team, wp_status, wp_unavailable_reason
+```
+
+與 response 層的模型與可靠性揭露：
+
+```text
+model_span, model_kind, model_built_at, ruleset, distribution_source
+wp_reliability（版本化 metadata；原 wp_availability 演進於此）
 ```
 
 規則：
 
 - `wpa = home_wp_after - home_wp_before`，主隊視角；API 同時回傳受益隊，避免前端自行判斷。
-- 終場、再見、換局與和局狀態必須由伺服器 canonical 狀態機處理。
-- 無法可靠重建的打席必須 fail closed：保留事件，但不回傳誤導性的 WP／WPA。
-- 模型必須以走查／留出季 [walk-forward/holdout season] 驗證校準、Brier score 與邊界狀態；不得只用建模母體自我驗證。
-- 非一軍、季後賽或規則不同的賽事，在沒有獨立驗證前須明確標示不支援或使用代理模型，不得靜默套用。
+- 終場、再見、換局與和局狀態必須由伺服器 canonical 狀態機處理：`home_wp_after` 一律取「下一個真實打席（非 non_pa 佈局列）的打席前狀態」，換局自然銜接；最後一個真實打席收斂到終場結果（勝 1／負 0／和 0.5，含再見）；延長規則依 (kind, year) 參數化（2024+ 一軍第 10 局起突破僵局）。
+- 無法可靠重建的打席必須 fail closed：保留事件列，但 WP／WPA 欄不可用並附機器可讀原因（`wp_unavailable_reason`：`pa_state_*`／`pre_state_incomplete`／`next_pa_state_incomplete`／`final_unknown`／`non_pa_context`／`model_not_built`）。
+- §7 的 `wp_availability` 欄位演進為版本化 `wp_reliability` metadata（WP-API1 仍是唯一 owner）：逐 scope 聲明驗證結論（現況：全 scope unsupported，見 WP-VAL1／WP-CAL1 報告）、分布來源（own／borrowed 自一軍例行）、已知偏差量級（極端分箱 ±4–6pt）與 `/methodology#winprob` 錨點；metadata 必須與 research 報告事實一致，不得美化。未來任一 scope 通過原 WP-VAL1 v2 門檻重新驗證，僅翻升該 scope 的 reliability 狀態，consumer 無 breaking change（原 canonical 規劃後置，不作廢）。
+- 所有 WP／WPA 一律以「參考資訊」語意提供：不宣稱 canonical、不暗示個人歸因具權威性；前端顯示處標「參考」並連 `/methodology`（UX 卡職責）。
+- 模型驗證紀律不變：不得只用建模母體自我驗證；非一軍、季後賽或規則不同的賽事在沒有獨立驗證前，reliability 必須如實標示 unsupported 或分布借用，無對應分布 artifact 時 fail closed（`model_not_built`），不得靜默套用。
 
 ## 9. 互動與可及性
 
