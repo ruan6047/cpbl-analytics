@@ -2,7 +2,7 @@
 
 - 需求：ruan6047　規劃：Claude Fable 5@Claude Code　分支：`ai/fable-5/OPS-CPBL-WEB-HEALTH1-FIX1`（卡族共用 worktree `ops-cpbl-web-health1-execution`）
 - 執行：Claude Fable 5@Claude Code（建議 L2；根因已定位的 Dockerfile 權限修正＋正式 image 重現）　查核：待指派（獨立查核；須 ≠ 執行）
-- Initiative：INIT-PRODUCT-UX　spec 基線：—
+- Initiative：INIT-PRODUCT-UX　spec 基線：v0.2
 - DB：`none`；不得讀寫 production DB
 - 部署：是　環境：production（push-to-deploy，查核 APPROVE＋需求方授權後）　PR：—　Merge SHA：—
 - 範圍：原卡 9a6c84f 已修 healthcheck bind／loopback（有效，prod healthy），但**僅授權 `.next/cache` 不足**：production 實證（NOTE-007，2026-07-26T06:55:11Z）首次 `/methodology` 請求觸發 `EACCES open /app/.next/server/app/methodology.html`——Next.js 對 build 時靜態化、runtime lazy 寫回的路由會重寫 `.next/server/app/**`（該頁 fetch API 失敗退快照設計使其被靜態化）。本卡：
@@ -29,3 +29,5 @@
 
 - 2026-07-26T17:56:00+08:00 register＋claim by Claude Fable 5@Claude Code（需求方派工；卡族共用 worktree 切新分支）。
 - 2026-07-26T18:20:00+08:00 handoff → 🔍待查核；SHA eaa5ccf；先紅（production 同款 EACCES 重現）→ 後綠（零 EACCES＋再生成寫入成功）；證據見 handoff event。
+- 2026-07-26 review（獨立查核，需求方轉錄）→ REJECT；finding〔Blocking〕spec 基線 — ≠ 父卡 v0.2（baseline-cascade §5，防線首次實戰命中）；技術走查全 PASS；source SHA eaa5ccf。
+- 2026-07-26 handoff（iteration 1）→ 🔍待查核；卡面 spec 基線補齊 v0.2（baseline_check 實測「→ 一致」）；碼零改動，SHA 仍 eaa5ccf。
