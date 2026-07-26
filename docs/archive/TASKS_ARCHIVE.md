@@ -4,6 +4,13 @@
 
 | 卡ID | 功能 | 交付狀態 | 部署狀態 | 封存位置 |
 |---|---|---|---|---|
+| UX-PA-SIM-MATCHUP1 | Matchups 單一打席結果分布 | 🏁完成 | ✅已驗證 | [`tasks/UX-PA-SIM-MATCHUP1.md`](tasks/UX-PA-SIM-MATCHUP1.md)（T4🔴統計／ML；Antigravity(Gemini) 跨家族 APPROVE（P0–P2=0、1 則 P3 移交）；merge `530dd5e`（**需求方本人 merge**，執行者 Opus 5 依 §2.1 不得自 merge）；submodule 76e4035／主站 e3283a2／Deploy 30188802355；production 驗證：改名象魔力→魔力藍且 200 對手零空名、PA 七結果總和 1.0、**league_fallback 紅線實測 UI 零百分比**、對手下拉解散隊 4→0；情境條件化與對隊模擬移交 ML-PA-SIM-CONTEXT1／ML-PA-SIM-TEAM1（均設「執行前須先討論」閘門），a11y 缺口移交 CONFORMANCE H10／H11） |
+| UX-UMPIRE-SCOPE1 | 裁判公開介面 NO-GO 收斂 | 🏁完成 | ✅已驗證 | [`tasks/UX-UMPIRE-SCOPE1.md`](tasks/UX-UMPIRE-SCOPE1.md)（T4🔴；Antigravity(Gemini) 跨家族 APPROVE 8/8；merge `a6cedf2`；隨 76e4035 批次上線；production 實測 /api/v1/umpires 僅 {umpire,games,tracked_games} 無準確率欄位） |
+| UX-NAV-INTEGRATE1 | 全站多軸導覽欄整合重構 | 🏁完成 | ✅已驗證 | [`tasks/UX-NAV-INTEGRATE1.md`](tasks/UX-NAV-INTEGRATE1.md)（T2；merge `091a596`；隨 76e4035 批次上線；/、/standings、/batters、/games 皆 200） |
+| UX-TOKEN-HYGIENE1 | 設計系統 token/元件 hygiene 修復（H1–H9） | 🏁完成 | ✅已驗證 | [`tasks/UX-TOKEN-HYGIENE1.md`](tasks/UX-TOKEN-HYGIENE1.md)（T2；merge `88871e0`；隨 76e4035 批次上線（深色 chart-7/8、amber 語意色）；H7 移交 CONFORM/NAV） |
+| UX-ENTITY-LINKS1 | 實體連結：球員名改沉穩色 + 隊名超連結 | 🏁完成 | ✅已驗證 | [`tasks/UX-ENTITY-LINKS1.md`](tasks/UX-ENTITY-LINKS1.md)（T2；merge `99de50c`；隨 76e4035 批次上線；普及化另見 UX-ENTITY-LINKS2（Backlog）） |
+| UX-DESIGN-CONFORM1 | 既有已完成 UI/UX 頁面 conformance 稽核與對齊 | 🏁完成 | ✅已驗證 | [`tasks/UX-DESIGN-CONFORM1.md`](tasks/UX-DESIGN-CONFORM1.md)（T3；merge 事件記 `14536d0` 但該節點已被 pull --rebase 壓平為孤兒，實際內容以 `e5a6d2c` 線性化於 main（[[merge-linearized-by-rebase]]，內容未遺失）；隨 76e4035 批次上線） |
+| UX-TEAM-SPLIT-SCOPE1 | 球隊頁全年／上下半季數據切換 | 🏁完成 | ✅已驗證 | [`tasks/UX-TEAM-SPLIT-SCOPE1.md`](tasks/UX-TEAM-SPLIT-SCOPE1.md)（T4；Gemini 3.6 跨家族 APPROVE；merge `168c454`；隨 76e4035 批次上線；/teams/ACN011 200） |
 | UX-TEAM-FOCUS1 | 球隊頁本季現況優先 | 🏁完成 | ✅已驗證 | [`tasks/UX-TEAM-FOCUS1.md`](tasks/UX-TEAM-FOCUS1.md)（T3；主體 Gemini 跨家族 APPROVE、DEPLOY-006 先前上線；Wave 0 併批 held streak 措辭修正 b87671e（需求方裁定 trivial 免二審）→ cherry-pick 4a8256c、MERGE-009；deployed_sha 8e715a2、主站 905b706、Deploy 30060635571；線上驗證單場 streak 顯示 1勝/1敗 非「一連X」、多場維持 N連勝/敗） |
 | UX-PLAYER-SCOPE1 | 球員頁本季／生涯全域範圍重整 | 🏁完成 | ✅已驗證 | [`tasks/UX-PLAYER-SCOPE1.md`](tasks/UX-PLAYER-SCOPE1.md)（T3；iteration 9；獨立 AI REVIEW-022 APPROVE；產品碼 DEPLOY-025 先前上線（源 ffd389c），8e715a2 涵蓋；執行 worktree 無未合併產品工作（僅過時 Dockerfile 一行）→ Wave 0 回收 worktree/分支/lease；/players season+career 200） |
 | BUG-ABILITY-DH-LABEL | 能力卡守備軸誤標指打並填入力量 PR | 🏁完成 | ✅已驗證 | [`tasks/BUG-ABILITY-DH-LABEL.md`](tasks/BUG-ABILITY-DH-LABEL.md)（T3；Antigravity 跨家族 ✅通過 REVIEW-005；修正碼 e226ab2 稽核發現早已隨 b582f39（INGEST-DEEP-TRACKMAN1 部署）上線、Ledger「待部署」為過時；Wave 0 正式結案；deployed_sha 8e715a2；ability-card defense 軸顯示真實「守備」pr 非「指打」+力量 PR） |
