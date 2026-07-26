@@ -23,8 +23,12 @@ RUN addgroup -S app && adduser -S app -G app
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 # standalone 不含 .next/cache；runtime 由 app 寫入 ISR／fetch prerender cache。
-# .next 其餘檔案維持 root:root 唯讀，只把 cache 目錄交給 app（最小 ownership 變更）。
-RUN mkdir -p .next/cache && chown -R app:app .next/cache
+# 另外：ISR 路由（prerender-manifest 中 initialRevalidateSeconds≠false，目前僅
+# /methodology=600s）到期後的請求會觸發背景再生成並**重寫 .next/server/app/**
+# 的 html/rsc/meta——production 與本機正式 image 皆實證 root-owned 時 EACCES
+# 「Failed to update prerender cache」（OPS-CPBL-WEB-HEALTH1-FIX1）。
+# .next 其餘檔案維持 root:root 唯讀，只開放 cache 與 server/app（最小 ownership）。
+RUN mkdir -p .next/cache && chown -R app:app .next/cache .next/server/app
 USER app
 EXPOSE 3000
 # 以 127.0.0.1 明確探測 loopback，避免 busybox wget 對 localhost 先試 ::1（server 只聽 IPv4）。
