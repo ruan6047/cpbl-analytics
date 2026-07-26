@@ -28,7 +28,7 @@
 | [ML-PA-SIM-TEAM1](tasks/ML-PA-SIM-TEAM1.md) | — | T4 | 打席模擬對某一隊 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-25T19:07:00+08:00 |
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:09+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:10+08:00 |
-| [OPS-CPBL-WEB-HEALTH1](tasks/OPS-CPBL-WEB-HEALTH1.md) | INIT-PRODUCT-UX | T3 | CPBL Web container healthcheck 與可寫快取修復 | GPT-5.6@Codex（執行） | `ai/haiku-4-5/OPS-CPBL-WEB-HEALTH1 @ .claude/worktrees/ops-cpbl-web-health1-execution` | 2 | 🔨執行中 | ⏸未部署 | 2026-07-26T12:40:00+08:00 |
+| [OPS-CPBL-WEB-HEALTH1](tasks/OPS-CPBL-WEB-HEALTH1.md) | INIT-PRODUCT-UX | T3 | CPBL Web container healthcheck 與可寫快取修復 | 待指派（獨立查核） | `ai/haiku-4-5/OPS-CPBL-WEB-HEALTH1 @ .claude/worktrees/ops-cpbl-web-health1-execution` | 2 | 🔍待查核 | ⏸未部署 | 2026-07-26T12:55:00+08:00 |
 | [OPS-REMOTE-CUTOVER1](tasks/OPS-REMOTE-CUTOVER1.md) | INIT-PRODUCT-UX | T4 | 遠端 crawler production canary 與切換 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:40+08:00 |
 | [OPS-REMOTE-PROBE1](tasks/OPS-REMOTE-PROBE1.md) | INIT-PRODUCT-UX | T3 | Opt-in DEBUG 網路探測介面 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:37+08:00 |
 | [OPS-REMOTE-ROUTE1](tasks/OPS-REMOTE-ROUTE1.md) | INIT-PRODUCT-UX | T3 | 遠端出口路線資格驗證 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:38+08:00 |
@@ -41,7 +41,7 @@
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
 | [UX-NAV-INTEGRATE1](tasks/UX-NAV-INTEGRATE1.md) | INIT-PRODUCT-UX | T2 | 全站多軸導覽欄整合重構（傘型：standings/batters/games…） | — | — | 1 | 📦已合併 | ⏸未部署 | 2026-07-24T21:40:00+08:00 |
-| [UX-PA-SIM-MATCHUP1](tasks/UX-PA-SIM-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | Matchups 單一打席結果分布 | Opus 5（執行，查核通過待 merge） | `claude/ux-pa-sim-matchup1-b6941f @ .claude/worktrees/ux-pa-sim-matchup1-b6941f（保留至 merge 後清理）` | 1 | ✅通過 | ⏸未部署 | 2026-07-26T10:30:00+08:00 |
+| [UX-PA-SIM-MATCHUP1](tasks/UX-PA-SIM-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | Matchups 單一打席結果分布 | — | `claude/ux-pa-sim-matchup1-b6941f @ .claude/worktrees/ux-pa-sim-matchup1-b6941f` | 1 | 📦已合併 | 🚀待部署 | 2026-07-26T11:10:00+08:00 |
 | [UX-TEAM-FIELD-HIST1](tasks/UX-TEAM-FIELD-HIST1.md) | INIT-PRODUCT-UX | T3 | 球隊頁歷史年守備位置圖（union fielding_seasons） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:36:00+08:00 |
 | [UX-TEAM-FOCUS2](tasks/UX-TEAM-FOCUS2.md) | INIT-PRODUCT-UX | T3 | 球隊頁「近日焦點」頁籤內容擴充 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:37:00+08:00 |
 | [UX-TEAM-SPLIT-SCOPE1](tasks/UX-TEAM-SPLIT-SCOPE1.md) | INIT-PRODUCT-UX | T4 | 球隊頁全年／上下半季數據切換 | — | — | 1 | 📦已合併 | ⏸未部署 | 2026-07-25T02:45:00+08:00 |
