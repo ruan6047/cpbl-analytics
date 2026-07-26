@@ -8,7 +8,7 @@
 
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
-| [GAME-RECAP-WP-API1](tasks/GAME-RECAP-WP-API1.md) | INIT-GAME-RECAP | T3 | WP／WPA 參考資訊 API（揭露語意） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-27T01:36:15+08:00 |
+| [GAME-RECAP-WP-API1](tasks/GAME-RECAP-WP-API1.md) | INIT-GAME-RECAP | T3 | WP／WPA 參考資訊 API（揭露語意） | Claude Fable 5 subagent@Claude Code（執行） | `ai/fable-5/GAME-RECAP-WP-API1 @ .claude/worktrees/game-recap-wp-api1-execution` | 0 | 🔨執行中 | ⏸未部署 | 2026-07-27T01:48:14+08:00 |
 | [GAME-RECAP-WP-STRENGTH1](tasks/GAME-RECAP-WP-STRENGTH1.md) | INIT-GAME-RECAP | T4 | 場中 WP 戰力感知先驗（VAL1 §7 路徑 2） | 待指派查核者（須 L4 且跨模型家族或人工，且 ≠ 執行） | `ai/opus-5/GAME-RECAP-WP-STRENGTH1 @ .claude/worktrees/game-recap-wp-strength1-execution` | 1 | 🔍待查核 | —不適用 | 2026-07-26T23:55:11+08:00 |
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | — | `ai/sonnet-5/INGEST-GAME-TM-REFACTOR1-g3 @ .claude/worktrees/ingest-game-tm-refactor1-g3-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-24T12:53:42+08:00 |
 | [INGEST-PA-DAILY1](tasks/INGEST-PA-DAILY1.md) | — | T3 | canonical PA build 接進每日 refresh 鏈 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-26T20:55:46+08:00 |
@@ -38,7 +38,7 @@
 | [UX-LIVE-GAME1](tasks/UX-LIVE-GAME1.md) | INIT-PRODUCT-UX | T3 | 賽前情報到比賽中狀態板 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-26T17:29:31+08:00 |
 | [UX-TEAM-FIELD-HIST1](tasks/UX-TEAM-FIELD-HIST1.md) | INIT-PRODUCT-UX | T3 | 球隊頁歷史年守備位置圖（union fielding_seasons） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:36:00+08:00 |
 | [UX-TEAM-FOCUS2](tasks/UX-TEAM-FOCUS2.md) | INIT-PRODUCT-UX | T3 | 球隊頁「近日焦點」頁籤內容擴充 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:37:00+08:00 |
-| [UX-WP-DISCLOSURE1](tasks/UX-WP-DISCLOSURE1.md) | — | T3 | 賽況頁 WP 曲線誠實註記 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-26T21:02:03+08:00 |
+| [UX-WP-DISCLOSURE1](tasks/UX-WP-DISCLOSURE1.md) | — | T3 | 賽況頁 WP 曲線誠實註記 | Claude Fable 5 subagent@Claude Code（執行） | `ai/fable-5/UX-WP-DISCLOSURE1 @ .claude/worktrees/ux-wp-disclosure1-execution` | 0 | 🔨執行中 | ⏸未部署 | 2026-07-27T01:48:14+08:00 |
 
 ## 依賴與資源註記
 
