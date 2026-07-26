@@ -17,6 +17,8 @@ import logging
 import os
 import random
 import shutil
+import signal
+import threading
 import time
 import uuid
 from collections.abc import Callable, Iterator
@@ -564,6 +566,7 @@ class Observer:
         client: HttpClient | None = None,
         sleep: Callable[[float], None] = time.sleep,
         jitter: Callable[[float, float], float] = random.uniform,
+        shutdown_requested: Callable[[], bool] = lambda: False,
     ):
         self.config = config
         self.client = client or httpx.Client(
@@ -573,6 +576,7 @@ class Observer:
         )
         self.sleep = sleep
         self.jitter = jitter
+        self.shutdown_requested = shutdown_requested
         self.store = EvidenceStore(config)
         self.budget = PersistentBudget(config)
         self.run_id = uuid.uuid4().hex
@@ -588,6 +592,8 @@ class Observer:
         return self._next_interval
 
     def _stop_reason(self, observed_at: datetime) -> str | None:
+        if self.shutdown_requested():
+            return "signal"
         if observed_at.astimezone(UTC) >= self.config.stop_at.astimezone(UTC):
             return "deadline"
         if self.config.stop_path.exists():
@@ -739,7 +745,18 @@ def main() -> None:
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     config = ObserverConfig(evidence_dir=args.evidence_dir)
-    observer = Observer(config)
+    shutdown = threading.Event()
+
+    def request_shutdown(_signum: int, _frame: Any) -> None:
+        shutdown.set()
+
+    signal.signal(signal.SIGTERM, request_shutdown)
+    signal.signal(signal.SIGINT, request_shutdown)
+    observer = Observer(
+        config,
+        sleep=shutdown.wait,
+        shutdown_requested=shutdown.is_set,
+    )
     if args.export:
         print(json.dumps(observer.store.build_export_manifest(), indent=2, sort_keys=True))
         return

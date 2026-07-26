@@ -136,6 +136,22 @@ def test_idle_sleep_is_capped_at_hard_deadline(tmp_path: Path):
     assert bounded_sleep_seconds(almost_deadline, 1800, cfg.stop_at) == 7
     assert bounded_sleep_seconds(cfg.stop_at.astimezone(UTC), 1800, cfg.stop_at) == 0
 
+
+def test_shutdown_signal_prevents_network_and_cleanly_terminates_cycle(tmp_path: Path):
+    cfg = config(tmp_path)
+    client = FakeClient([FakeResponse(200, b"{}")])
+    observer = Observer(
+        cfg,
+        client=client,
+        sleep=lambda _: None,
+        shutdown_requested=lambda: True,
+    )
+
+    assert observer.run_cycle(now=lambda: NOW) == "signal"
+    assert client.urls == []
+    marker = json.loads((tmp_path / "termination-signal.json").read_text())
+    assert marker["reason"] == "signal"
+
 def test_evidence_is_atomic_gzip_and_manifest_can_rebuild_raw_body(tmp_path: Path):
     cfg = config(tmp_path)
     store = EvidenceStore(cfg)
