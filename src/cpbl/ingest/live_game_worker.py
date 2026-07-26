@@ -56,7 +56,7 @@ class RedisLiveGameCache:
     """Redis JSON cache；鎖以 SET NX EX 取得、Lua token compare 後釋放。"""
 
     def __init__(self, client: Any, *, prefix: str = "cpbl:live",
-                 snapshot_ttl_seconds: int = 172_800, lock_ttl_seconds: int = 45,
+                 snapshot_ttl_seconds: int = 172_800, lock_ttl_seconds: int = 300,
                  token_factory: Callable[[], str] | None = None) -> None:
         self.client = client
         self.prefix = prefix.rstrip(":")

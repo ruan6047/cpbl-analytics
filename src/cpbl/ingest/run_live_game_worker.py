@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import argparse
+import json
 import logging
 import random
 import signal
@@ -21,7 +23,10 @@ from cpbl.ingest.live_game_worker import (
 log = logging.getLogger("cpbl.liveworker")
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="CPBL centralized live game worker")
+    parser.add_argument("--once", action="store_true", help="執行一個 cycle 後輸出 JSON 並結束")
+    args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
     if not settings.live_game_worker_enabled:
         log.info("live worker disabled（LIVE_GAME_WORKER_ENABLED=false）")
@@ -63,6 +68,9 @@ def main() -> None:
             else:
                 failures = 0 if result.get("state") == "ok" else failures
                 log.info("live cycle %s", result)
+            if args.once:
+                print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+                return
             delay = next_delay_seconds(
                 result,
                 failures=failures,

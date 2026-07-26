@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     live_game_worker_enabled: bool = False
     live_game_cache_prefix: str = "cpbl:live"
     live_game_snapshot_ttl_seconds: int = 172_800
-    live_game_lock_ttl_seconds: int = 45
+    live_game_lock_ttl_seconds: int = 300
     live_game_max_games_per_cycle: int = 8
     live_game_stale_after_seconds: int = 45
 
