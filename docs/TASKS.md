@@ -8,7 +8,7 @@
 
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
-| [GAME-RECAP-WP-API1](tasks/GAME-RECAP-WP-API1.md) | INIT-GAME-RECAP | T3 | WP／WPA 參考資訊 API（揭露語意） | Claude Fable 5 subagent@Claude Code（執行） | `ai/fable-5/GAME-RECAP-WP-API1 @ .claude/worktrees/game-recap-wp-api1-execution` | 0 | 🔨執行中 | ⏸未部署 | 2026-07-27T01:48:14+08:00 |
+| [GAME-RECAP-WP-API1](tasks/GAME-RECAP-WP-API1.md) | INIT-GAME-RECAP | T3 | WP／WPA 參考資訊 API（揭露語意） | 待指派查核者（≠ 執行；T3 不需跨家族） | `ai/fable-5/GAME-RECAP-WP-API1 @ .claude/worktrees/game-recap-wp-api1-execution` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-27T02:10:28+08:00 |
 | [GAME-RECAP-WP-STRENGTH1](tasks/GAME-RECAP-WP-STRENGTH1.md) | INIT-GAME-RECAP | T4 | 場中 WP 戰力感知先驗（VAL1 §7 路徑 2） | 待指派查核者（須 L4 且跨模型家族或人工，且 ≠ 執行） | `ai/opus-5/GAME-RECAP-WP-STRENGTH1 @ .claude/worktrees/game-recap-wp-strength1-execution` | 1 | 🔍待查核 | —不適用 | 2026-07-26T23:55:11+08:00 |
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | — | `ai/sonnet-5/INGEST-GAME-TM-REFACTOR1-g3 @ .claude/worktrees/ingest-game-tm-refactor1-g3-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-24T12:53:42+08:00 |
 | [INGEST-PA-DAILY1](tasks/INGEST-PA-DAILY1.md) | — | T3 | canonical PA build 接進每日 refresh 鏈 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-26T20:55:46+08:00 |
