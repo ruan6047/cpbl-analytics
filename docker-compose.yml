@@ -2,6 +2,14 @@
 # 生產時不用這個檔，而是把 service 併入主站 docker-compose.prod.yml，
 # DATABASE_URL 指向主站 postgres（schema 仍為 cpbl）。
 services:
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   db:
     image: postgres:17-alpine
     environment:
@@ -23,13 +31,26 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       DATABASE_URL: postgresql://cpbl:cpbl@db:5432/cpbl
+      REDIS_URL: redis://redis:6379/0
       PORT: "4001"
     ports:
       - "4001:4001"
     volumes:
       - cpbl_artifacts:/app/artifacts
+
+  live-worker:
+    build: .
+    command: ["cpbl-live-worker"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      LIVE_GAME_WORKER_ENABLED: "true"
 
   web:
     build: ./web

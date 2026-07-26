@@ -32,6 +32,12 @@ if redis.call('get', KEYS[1]) == ARGV[1] then
 end
 return 0
 """
+_LIVELOG_FIELDS = {
+    "MainEventNo", "InningSeq", "VisitingHomeType", "BattingOrder", "OutCnt",
+    "BallCnt", "StrikeCnt", "PitchCnt", "Content", "ActionName", "BattingActionName",
+    "HitterAcnt", "HitterName", "PitcherAcnt", "PitcherName", "FirstBase", "SecondBase",
+    "ThirdBase", "VisitingScore", "HomeScore", "IsChangePlayer", "IsSpecialEvent",
+}
 
 
 class SnapshotCache(Protocol):
@@ -241,8 +247,12 @@ def build_snapshot(raw_game: dict[str, Any], *, fetched_at: datetime,
         fetched_at,
         (previous or {}).get("home"),
     )
-    livelog = raw_game.get("LiveLog") if isinstance(raw_game.get("LiveLog"), list) else []
-    tracked = sum(1 for event in livelog if event.get("Trackman"))
+    raw_livelog = raw_game.get("LiveLog") if isinstance(raw_game.get("LiveLog"), list) else []
+    tracked = sum(1 for event in raw_livelog if event.get("Trackman"))
+    livelog = [
+        {key: value for key, value in event.items() if key in _LIVELOG_FIELDS}
+        for event in raw_livelog
+    ]
     phase = _phase(raw_status, away, home)
     if tracked:
         tracking = "available"

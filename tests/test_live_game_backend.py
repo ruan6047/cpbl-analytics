@@ -118,6 +118,7 @@ def test_finished_trackman_is_available_and_unknown_status_fails_closed() -> Non
 
     assert finished["phase"] == "final"
     assert finished["tracking_availability"] == "available"
+    assert "Trackman" not in finished["livelog"][0]
     assert unknown["phase"] == "unknown"
     assert unknown["raw_status"] == "SUSPENDED"
 
