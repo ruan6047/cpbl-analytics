@@ -14,7 +14,7 @@
 | [GAME-RECAP-PA1-EXPAND1](tasks/GAME-RECAP-PA1-EXPAND1.md) | INIT-GAME-RECAP | T4 | canonical PA additive schema expand | — | `ai/opus-4-8/GAME-RECAP-PA1-EXPAND1 @ .claude/worktrees/game-recap-pa1-expand1-execution` | 1 | 📦已合併 | ✅已驗證 | 2026-07-24T13:46:00+08:00 |
 | [GAME-RECAP-PA1-TAXONOMY1](tasks/GAME-RECAP-PA1-TAXONOMY1.md) | INIT-GAME-RECAP | T4 | canonical PA transition taxonomy 稽核 | — | `ai/opus-4-8/GAME-RECAP-PA1-TAXONOMY1 @ .claude/worktrees/game-recap-pa1-taxonomy1-execution` | 1 | 📦已合併 | —不適用 | 2026-07-24T11:25:22+08:00 |
 | [GAME-RECAP-WP-API1](tasks/GAME-RECAP-WP-API1.md) | INIT-GAME-RECAP | T4 | canonical WP／WPA public contract | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:09+08:00 |
-| [GAME-RECAP-WP-VAL1](tasks/GAME-RECAP-WP-VAL1.md) | INIT-GAME-RECAP | T4 | 場中 WP 時間外驗證與支援邊界 | Fable 5（執行，交付待查核） | `claude/fable-5-suitable-tasks-8aa8d9 @ .claude/worktrees/fable-5-suitable-tasks-8aa8d9（保留供查核者進駐）` | 1 | 🔍待查核 | —不適用 | 2026-07-25T06:39:30+08:00 |
+| [GAME-RECAP-WP-VAL1](tasks/GAME-RECAP-WP-VAL1.md) | INIT-GAME-RECAP | T4 | 場中 WP 時間外驗證與支援邊界 | Fable 5（執行，交付待查核） | `claude/fable-5-suitable-tasks-8aa8d9 @ .claude/worktrees/fable-5-suitable-tasks-8aa8d9（保留供查核者進駐）` | 1 | 🔍待查核 | —不適用 | 2026-07-25T06:45:00+08:00 |
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | — | `ai/sonnet-5/INGEST-GAME-TM-REFACTOR1-g3 @ .claude/worktrees/ingest-game-tm-refactor1-g3-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-24T12:53:42+08:00 |
 | [INGEST-RECORDS-HR1](tasks/INGEST-RECORDS-HR1.md) | INIT-OFFICIAL-DATA1 | T4 | 官網 /stats/hr 逐轟里程碑入庫 | Opus 4.8（執行） | `ai/opus-4-8/INGEST-RECORDS-HR1 @ .claude/worktrees/ingest-records-hr1-execution` | 1 | 🔨執行中 | ⏸未部署 | 2026-07-24T16:40:00+08:00 |
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | ruan6047（Design Gate） | — | 0 | 💡需求 | —不適用 | 2026-07-17T04:44:38+08:00 |
@@ -42,7 +42,7 @@
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
 | [UX-NAV-INTEGRATE1](tasks/UX-NAV-INTEGRATE1.md) | INIT-PRODUCT-UX | T2 | 全站多軸導覽欄整合重構（傘型：standings/batters/games…） | — | — | 1 | 📦已合併 | ⏸未部署 | 2026-07-24T21:40:00+08:00 |
 | [UX-PA-SIM-MATCHUP1](tasks/UX-PA-SIM-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | Matchups 單一打席結果分布 | Opus 5（執行） | `claude/ux-pa-sim-matchup1-b6941f @ .claude/worktrees/ux-pa-sim-matchup1-b6941f` | 1 | 🔨執行中 | ⏸未部署 | 2026-07-25T19:05:00+08:00 |
-| [UX-TEAM-SPLIT-SCOPE1](tasks/UX-TEAM-SPLIT-SCOPE1.md) | INIT-PRODUCT-UX | T4 | 球隊頁全年／上下半季數據切換 | Opus 4.8（執行） | `claude/team-split-season-scope-3efd22 @ .claude/worktrees/team-split-season-scope-3efd22` | 1 | 🔨執行中 | ⏸未部署 | 2026-07-25T00:53:00+08:00 |
+| [UX-TEAM-SPLIT-SCOPE1](tasks/UX-TEAM-SPLIT-SCOPE1.md) | INIT-PRODUCT-UX | T4 | 球隊頁全年／上下半季數據切換 | Opus 4.8（執行） | `claude/team-split-season-scope-3efd22 @ .claude/worktrees/team-split-season-scope-3efd22` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-25T02:10:00+08:00 |
 | [UX-TOKEN-HYGIENE1](tasks/UX-TOKEN-HYGIENE1.md) | INIT-PRODUCT-UX | T2 | 設計系統 token/元件 hygiene 修復（H1–H9） | — | — | 0 | 📦已合併 | ⏸未部署 | 2026-07-24T18:15:00+08:00 |
 | [UX-UMPIRE-SCOPE1](tasks/UX-UMPIRE-SCOPE1.md) | INIT-PRODUCT-UX | T4 | 裁判公開介面 NO-GO 收斂 | Opus 4.8（執行，查核通過待 merge） | `claude/umpire-interface-neutralization-912cb1 @ .claude/worktrees/umpire-interface-neutralization-912cb1` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-25T01:45:00+08:00 |
 
