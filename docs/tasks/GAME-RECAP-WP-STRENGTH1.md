@@ -1,6 +1,6 @@
 # GAME-RECAP-WP-STRENGTH1 場中 WP 戰力感知先驗〔T4；🔴統計〕
 
-- 需求：ruan6047（2026-07-26 會話確認走 VAL1 §7 路徑 2）　規劃：**待指派（MODEL_ROUTING L4；本卡面為 Fable 5 依已核可研究基線擬定之草稿，規劃者須定案模型形式與預註冊驗證設計後方可開放認領）**　分支：依認領時 worktree 慣例
+- 需求：ruan6047（2026-07-26 會話確認走 VAL1 §7 路徑 2）　規劃：**GPT-5.6@Codex（L4；2026-07-26 需求方指派；本卡面為 Fable 5 依已核可研究基線擬定之草稿，規劃者須定案模型形式與預註冊驗證設計後方可開放認領）**　分支：依認領時 worktree 慣例
 - 執行：待指派（L4；統計正確性）　查核：待指派（須跨模型家族或人工，且 ≠ 執行）
 - Initiative：INIT-GAME-RECAP　spec 基線：v1.3
 - DB：`db_scope: read`（研究階段唯讀；先驗參數 artifact 落檔案，物化與 `model_versions` 寫入屬 WP-API1 或其子卡——同 CAL1 慣例）
@@ -8,7 +8,7 @@
 - 範圍：**僅 A 一軍例行**。C 需種子/讓一勝感知另卡（VAL1 §7.3）；D/E 維持 unsupported
 - Discovery：`GAME-RECAP-WP-VAL1` ✅（偏差結構已量化）＋ `GAME-RECAP-WP-CAL1` 🏁（事後校準 No-Go，機制見其報告 §5）
 - Design：Design Gate N/A；純統計模型層，不改 public API 或 UI
-- current-state：💡需求；**規劃 gate 未過，不可 claim**——規劃者定案「候選設計擇一＋驗證預註冊」並更新本卡後，由 Coordinator 轉 📥Backlog。
+- current-state：💡需求（規劃中）；**規劃 gate 未過，不可 claim**——規劃者 GPT-5.6@Codex 定案「候選設計擇一＋驗證預註冊」並更新本卡、經需求方核可後，由 Coordinator 轉 📥Backlog。
 
 ## 背景（為什麼是這條路、為什麼只剩這條路）
 
