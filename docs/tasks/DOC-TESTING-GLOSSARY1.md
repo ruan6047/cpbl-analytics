@@ -22,7 +22,6 @@
 
 ## Log
 
+- 2026-07-26T16:15:00+08:00 register by Claude Fable 5@Claude Code（依 ruan6047 指示開卡；源自流程審視會話實測證據）。
 - 2026-07-26T17:10:00+08:00 claim by Claude Fable 5@Claude Code（需求方派工）；worktree doc-testing-glossary1-execution。
 - 2026-07-26T17:35:00+08:00 handoff → 🔍待查核；SHA b214418；DB 契約測試首次真實執行（editorial 16／advanced 3 passed）；kind_code DB 實證定案並發現 winprob_val E scope 誤標（另卡建議）；證據見 handoff event。
-
-- 2026-07-26T16:15:00+08:00 register by Claude Fable 5@Claude Code（依 ruan6047 指示開卡；源自流程審視會話實測證據）。
