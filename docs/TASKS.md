@@ -46,7 +46,7 @@
 | [UX-TEAM-FOCUS2](tasks/UX-TEAM-FOCUS2.md) | INIT-PRODUCT-UX | T3 | 球隊頁「近日焦點」頁籤內容擴充 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:37:00+08:00 |
 | [UX-TEAM-SPLIT-SCOPE1](tasks/UX-TEAM-SPLIT-SCOPE1.md) | INIT-PRODUCT-UX | T4 | 球隊頁全年／上下半季數據切換 | — | — | 1 | 📦已合併 | ⏸未部署 | 2026-07-25T02:45:00+08:00 |
 | [UX-TOKEN-HYGIENE1](tasks/UX-TOKEN-HYGIENE1.md) | INIT-PRODUCT-UX | T2 | 設計系統 token/元件 hygiene 修復（H1–H9） | — | — | 0 | 📦已合併 | ⏸未部署 | 2026-07-24T18:15:00+08:00 |
-| [UX-UMPIRE-SCOPE1](tasks/UX-UMPIRE-SCOPE1.md) | INIT-PRODUCT-UX | T4 | 裁判公開介面 NO-GO 收斂 | Opus 4.8（執行，查核通過待 merge） | `claude/umpire-interface-neutralization-912cb1 @ .claude/worktrees/umpire-interface-neutralization-912cb1` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-25T01:45:00+08:00 |
+| [UX-UMPIRE-SCOPE1](tasks/UX-UMPIRE-SCOPE1.md) | INIT-PRODUCT-UX | T4 | 裁判公開介面 NO-GO 收斂 | — | — | 1 | 📦已合併 | ⏸未部署 | 2026-07-25T03:10:00+08:00 |
 
 ## 依賴與資源註記
 
