@@ -36,7 +36,12 @@ graph LR
   PDB --> PAPI[prod_cpbl_api] --> NGINX --> 訪客
 ```
 
-**鐵則：官網爬蟲只能在本機跑，不能在 VPS 跑。** VPS 機房 IP 打 `www.cpbl.com.tw` 回 **404**（Cloudflare 擋資料中心 IP；2026-06-22 實測 `prod_cpbl_api` 內 `cpbl-scrape-games` 全 kind 404）。住宅 IP 正常。詳見記憶 `data-sync-local-to-prod`。
+**鐵則：`www.cpbl.com.tw` 爬蟲只能在本機跑，不能在 VPS 跑。** VPS 機房 IP 打 www
+回 **404**（Cloudflare 擋資料中心 IP；2026-06-22 實測 `prod_cpbl_api` 內
+`cpbl-scrape-games` 全 kind 404），住宅 IP 正常。`stats.cpbl.com.tw` 雖已實測可由 VPS
+直連，但仍只能由通過 T4 查核、具 allowlist／request budget／kill switch 的隔離
+observer／production worker 使用；不得把「stats 可連」擴張成任意 VPS crawler 權限。
+詳見記憶 `data-sync-local-to-prod`。
 
 ### 官網反爬（Playwright；2026-06 起）
 
@@ -48,6 +53,28 @@ graph LR
 - **失敗勿立刻重跑**：連續冷啟動會讓 HiNet 節流升級（token 時好時壞→fetch 全掛→重定向迴圈，
   2026-07-03 實測）。先冷卻 **15–20 分鐘**再單次重試。
 - 端點/token/解析錨點/改版排查 → **[`CPBL_SITE_MAP.md`](CPBL_SITE_MAP.md)**（爬蟲事實單一來源）。
+
+### VPS 隔離 live observer（OPS-LIVE-SHADOW1）
+
+暫時 observer 只保存 `2026-A-226`～`228` 的 stats raw evidence，不讀 DB／Redis、不接
+API／前端。入口固定為 `python -m cpbl.ingest.live_shadow_observer`；host、path、kind、月份、
+game IDs、request hard limits 與 2026-07-30 00:00（Asia/Taipei）截止皆釘在 versioned code，
+不得用 runtime 參數放寬。production 只能經 PersonalWebsite protected main 的 companion
+compose service 啟動，禁止 SSH 手動 `docker run` 或部署 feature branch。
+
+```bash
+# 本機單 cycle rehearsal；輸出路徑必須是隔離 scratch
+uv run python -m cpbl.ingest.live_shadow_observer --once \
+  --evidence-dir /private/tmp/ops-live-shadow1-evidence
+
+# 唯讀匯出 manifest／checksums
+uv run python -m cpbl.ingest.live_shadow_observer --export \
+  --evidence-dir /private/tmp/ops-live-shadow1-evidence
+```
+
+kill switch 是 evidence volume 的 `/evidence/STOP`。deadline／STOP／budget／disk gate 都以
+exit 0 結束，配合 `restart: on-failure:3` 防止截止後復活；volume 必須保留到 raw gzip、
+manifest 與 checksum 完成 T4 對帳，刪除前另取需求方明示。
 
 **每日刷新現況（最後驗證 2026-07-19）**：本機 launchd 10:10 已成功完成爬取與 production 同步（`sync_ok=true`）。仍必須每天以 `refresh_status.py check --scheduled` 檢查；成功同步不等於資料語意正確——目前 `BUG-HELD-GAME-FRESHNESS1` 已證實未完成保留賽會污染 `last_game_date`，修復前不得僅以 freshness gate 判定資料正確。
 
@@ -276,7 +303,7 @@ EDITORIAL_TEST_DATABASE_URL=postgresql://cpbl:cpbl@localhost:5433/cpbl_data_edit
 
 | 陷阱 | 事實 / 對策 |
 |---|---|
-| **VPS 不能爬官網** | 機房 IP 被擋 → 本機爬 + 同步（§3）。記憶 `data-sync-local-to-prod` |
+| **VPS 來源邊界** | `www.cpbl.com.tw` 機房 IP 被擋，仍維持本機爬＋同步；stats 只有經 T4 核可且 exact allowlist 的隔離 observer／worker 可在 VPS 執行（§3），不可泛化為任意官網爬蟲。 |
 | **爬蟲失敗連續重跑** | HiNet 節流會升級，症狀惡化。冷卻 15–20 分再單次重試；排查照 `CPBL_SITE_MAP.md` §5 |
 | **「找不到 token」偶發** | 多半是挑戰未過（機率性），非官網改版；`page_html(require=)` 會自癒。冷卻後仍 100% 失敗才是改版 |
 | **pitch_tracking 覆蓋不全** | 球場端設備，無設備球場(大巨蛋/亞太主/嘉義/花蓮/新莊)整場 0；官方有的指標一律用官方全季值，勿用逐球重算。記憶 `pitch-tracking-venue-coverage` |

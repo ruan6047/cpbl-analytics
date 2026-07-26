@@ -16,7 +16,7 @@ COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/src /app/src
 COPY --from=builder /app/migrations /app/migrations
 ENV PATH="/app/.venv/bin:$PATH" PORT=4001 ARTIFACT_DIR=/app/artifacts
-RUN mkdir -p /app/artifacts && chown app:app /app/artifacts
+RUN mkdir -p /app/artifacts /evidence && chown app:app /app/artifacts /evidence
 USER app
 EXPOSE 4001
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
