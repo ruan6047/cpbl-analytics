@@ -18,6 +18,7 @@ from cpbl.ingest.live_shadow_observer import (
     Observer,
     ObserverConfig,
     PersistentBudget,
+    bounded_sleep_seconds,
     build_game_url,
     build_schedule_url,
     validate_target_url,
@@ -127,6 +128,13 @@ def test_deadline_and_stop_file_prevent_any_network_request(tmp_path: Path):
     assert observer.run_cycle(now=lambda: NOW) == "kill-switch"
     assert client.urls == []
 
+
+def test_idle_sleep_is_capped_at_hard_deadline(tmp_path: Path):
+    cfg = config(tmp_path)
+    almost_deadline = cfg.stop_at.astimezone(UTC) - timedelta(seconds=7)
+
+    assert bounded_sleep_seconds(almost_deadline, 1800, cfg.stop_at) == 7
+    assert bounded_sleep_seconds(cfg.stop_at.astimezone(UTC), 1800, cfg.stop_at) == 0
 
 def test_evidence_is_atomic_gzip_and_manifest_can_rebuild_raw_body(tmp_path: Path):
     cfg = config(tmp_path)

@@ -550,6 +550,12 @@ def _choose_interval(
     return config.observation_interval_seconds
 
 
+def bounded_sleep_seconds(observed_at: datetime, desired: float, stop_at: datetime) -> float:
+    """睡眠不得跨過硬截止時間，避免 idle interval 延後 clean exit。"""
+    remaining = (stop_at.astimezone(UTC) - observed_at.astimezone(UTC)).total_seconds()
+    return max(0.0, min(desired, remaining))
+
+
 class Observer:
     def __init__(
         self,
@@ -717,7 +723,9 @@ class Observer:
                     now_epoch = datetime.now(UTC).timestamp()
                     retry_wait = max(0, self._retry_not_before_epoch - now_epoch)
                     interval = max(self._next_interval, retry_wait)
-                    self.sleep(interval + self.jitter(0, min(5, interval * 0.05)))
+                    interval += self.jitter(0, min(5, interval * 0.05))
+                    interval = bounded_sleep_seconds(datetime.now(UTC), interval, self.config.stop_at)
+                    self.sleep(interval)
         except BlockingIOError:
             log.error("另一個 observer instance 已持有 process lock")
             return "lock-held"
