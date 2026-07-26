@@ -1,7 +1,7 @@
 # GAME-RECAP-WP-STRENGTH1 場中 WP 戰力感知先驗〔T4；🔴統計〕
 
 - 需求：ruan6047（2026-07-26 會話確認走 VAL1 §7 路徑 2）　規劃：**GPT-5.6@Codex（L4；2026-07-26 完成規劃並凍結本卡，需求方已核可 sign-off）**　分支：依認領時 worktree 慣例
-- 執行：待指派（**建議 L4；統計／ML 正確性、新先驗與嵌套選型**）　查核：待指派（**建議 L4；須跨家族或人工，且 ≠ 執行；重跑留出季與統計紅線**）
+- 執行：**Claude Opus 5@Claude Code**（分支 `ai/opus-5/GAME-RECAP-WP-STRENGTH1` @ `.claude/worktrees/game-recap-wp-strength1-execution`；source `13e5f23`）　查核：待指派（**建議 L4；須跨家族或人工，且 ≠ 執行；重跑留出季與統計紅線**）
 - Initiative：INIT-GAME-RECAP　spec 基線：v1.3
 - DB：`db_scope: read`（研究階段唯讀；先驗參數 artifact 落檔案，物化與 `model_versions` 寫入屬 WP-API1 或其子卡——同 CAL1 慣例）
 - 部署：否　環境：—　PR：—　Merge SHA：—
@@ -9,7 +9,7 @@
 - Discovery：`GAME-RECAP-WP-VAL1` ✅（偏差結構已量化）＋`GAME-RECAP-WP-CAL1` 🏁（事後校準 No-Go，機制見其報告 §5）＋[`GAME-RECAP-WP-STRENGTH1_RESEARCH`](../research/GAME-RECAP-WP-STRENGTH1_RESEARCH.md) ✅（國內外研究與 CPBL 可移植性）
 - Plan review：Google Gemini 3.6 Flash（跨家族）[`APPROVE`](../research/GAME-RECAP-WP-STRENGTH1_PLAN_REVIEW.md)（C1–C20 PASS；P0–P2=0、P3=1）。此輪只查規劃矛盾，不取代未來 implementation review
 - Design：Design Gate N/A；純統計模型層，不改 public API 或 UI
-- current-state：📥Backlog；規劃基線凍結（本卡面＋研究附錄＋跨家族 Plan Review），可認領（STATUS-003 已轉態）。claim 時依凍結紅線與執行順序，設計變更即停卡回需求方。
+- current-state：🔍待查核（iteration 1）；交付 [`GAME-RECAP-WP-STRENGTH1_RESULTS`](../research/GAME-RECAP-WP-STRENGTH1_RESULTS.md) → **A scope unsupported（No-Go）**：硬門檻「融合後不得劣於同代 base」在 2023／2025 兩季失敗，根因為八項凍結賽前特徵在時間外幾乎不含增量資訊。`GAME-RECAP-WP-API1` A 範圍維持阻塞。分支與 worktree 保留供查核者進駐。
 
 ## 背景與目標
 
@@ -171,3 +171,4 @@ WP_adj      = sigmoid(logit_clip(WP_situ) + w_gamma(t) *
 - 2026-07-26 Plan Gate review by Google Gemini 3.6 Flash（Google Gemini family，≠ GPT/Codex 規劃者；需求方轉錄）→ [`APPROVE`](../research/GAME-RECAP-WP-STRENGTH1_PLAN_REVIEW.md)：spec v1.3 PASS、C1–C20 全 PASS、P0–P2=0。唯一 F-01 P3 指出 scikit-learn 類分類器不接受 `y=0.5` continuous target；卡面已加入等價加權拆樣本／自訂凸 loss 與 game-weighting 合約測試，不改統計設計、窗口或門檻。另由規劃者唯讀核對 `migrations/001_init.sql`，確認 C7 所述 `pitching_seasons` 具 `ip/bf/np/hr/bb/ibb/hbp/so`。本 APPROVE 僅完成規劃矛盾查核，不取代 implementation T4 review；lifecycle 仍為 💡需求，待 ruan6047 sign-off 後由 Coordinator 轉 📥Backlog。
 - 2026-07-26 ruan6047 需求方於會話明確回覆「核可」→ 最終規劃 sign-off 完成。卡面、研究附錄與跨家族 Plan Review 共同構成凍結基線；本規劃者不寫 lifecycle event，current-state 仍為 💡需求且不可 claim，待 Coordinator 依 canonical 流程落 event 後轉 📥Backlog。
 - 2026-07-26 STATUS-003 落帳（GPT-5.6@Codex 依 ruan6047 明確授權代 Coordinator 寫 lifecycle）→ 📥Backlog 開放認領；卡面 current-state 由 Fable 5 同步對齊（本筆僅文字對齊，無狀態變更）。
+- 2026-07-26 Claude Opus 5 依需求方派工 claim（CLAIM-004）並交付（HANDOFF-005，source `13e5f23`）→ **A scope unsupported（No-Go）**。硬門檻 4c「融合後 Brier 不得劣於同代未融合 base」在 2023（+0.000444）、2025（+0.001479）失敗；其餘門檻全通過（四季 coverage 1.0000、皆勝主場常數基準、池化十分位與逐局帶無顯著超界、局帶最大惡化 +0.72pt）。根因非融合式或實作，而是八項凍結賽前特徵在時間外幾乎不含增量資訊：p0 相對 leakage-safe 主場常數平均僅 −0.0009、四季兩季為負，池化融合前後 Brier 差 +0.000095（99% game-cluster CI 含 0）。新增 `--diagnostics` 四路對照證明管線可用（同窗 in-sample 一致優於常數 0.006–0.008），並實測佐證紅線 2：改用被禁用的同季彙總先發欄後四季一致出現 0.010–0.017 假性改善＝前視洩漏指紋。opening anchor 達成設計目的（逐局帶未惡化，未重蹈 CAL1 覆轍），但報告 §6.3 明文標註「池化顯著分箱 [7,8]→[] 是 CI 寬度擦邊、S 型偏差量級幾乎未變」以防誤讀。凍結紅線與門檻全程未放寬；分支與 worktree 保留供查核者進駐，執行者不自查不自 merge。
