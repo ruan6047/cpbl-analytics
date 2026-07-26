@@ -4,6 +4,13 @@
 
 | 卡ID | 功能 | 交付狀態 | 部署狀態 | 封存位置 |
 |---|---|---|---|---|
+| GAME-RECAP-WP-VAL1 | 場中 WP 時間外驗證與支援邊界 | 🏁完成 | —不適用 | [`tasks/GAME-RECAP-WP-VAL1.md`](tasks/GAME-RECAP-WP-VAL1.md)（T4🔴統計；Gemini 跨家族 APPROVE；merge `c6ed954`；全 scope unsupported、解鎖 WP-CAL1；E scope 由 FIX1 修正；WF-18 看板收斂） |
+| GAME-RECAP-PA1 | canonical PA 契約與實作切卡 | 🏁完成 | —不適用 | [`tasks/GAME-RECAP-PA1.md`](tasks/GAME-RECAP-PA1.md)（T4；子卡族全數 🏁、330K canonical PA 上線；WF-18 看板收斂） |
+| GAME-RECAP-PA1-BUILD1 | canonical PA builder、對帳與歷史回填 | 🏁完成 | ✅已驗證 | [`tasks/GAME-RECAP-PA1-BUILD1.md`](tasks/GAME-RECAP-PA1-BUILD1.md)（T4🔴；merge `324b46e`；production 330K PA 驗證；WF-18 看板收斂） |
+| GAME-RECAP-PA1-EXPAND1 | canonical PA additive schema expand | 🏁完成 | ✅已驗證 | [`tasks/GAME-RECAP-PA1-EXPAND1.md`](tasks/GAME-RECAP-PA1-EXPAND1.md)（T4🔴；merge `921de18`；WF-18 看板收斂） |
+| GAME-RECAP-PA1-TAXONOMY1 | canonical PA transition taxonomy 稽核 | 🏁完成 | —不適用 | [`tasks/GAME-RECAP-PA1-TAXONOMY1.md`](tasks/GAME-RECAP-PA1-TAXONOMY1.md)（T4🔴；merge `c58dd75`；taxonomy JSON 為 pa_build 生產依賴；WF-18 看板收斂） |
+| UX-DESIGN-SYSTEM1 | 全站 UI/UX 統一規則 codify（球員頁為基準） | 🏁完成 | —不適用 | [`tasks/UX-DESIGN-SYSTEM1.md`](tasks/UX-DESIGN-SYSTEM1.md)（T3；merge `3bbb3b6`；UI_UX_SYSTEM.md 為全站視覺 SSoT；WF-18 看板收斂） |
+| DISCOVERY-CPBL-RECORDS1 | 主站紀錄資料價值與穩定鍵 Discovery | 🏁完成 | —不適用 | [`tasks/DISCOVERY-CPBL-RECORDS1.md`](tasks/DISCOVERY-CPBL-RECORDS1.md)（T3；merge `dfec0a1`；後續由 INIT-OFFICIAL-DATA1 子卡承接；WF-18 看板收斂） |
 | DOC-WORKFLOW-ADOPT2 | 採用 WF-18 canonical 流程強化＋F-01 歷史補帳 | 🏁完成 | —不適用 | [`tasks/DOC-WORKFLOW-ADOPT2.md`](tasks/DOC-WORKFLOW-ADOPT2.md)（T1 B2；Fable 5 執行、Gemini 3.6 Flash B2 校讀 APPROVE；commit `9fbe64d`；submodule bump `5b23262`、CONTROL_PLANE_CONTRACT §2.1 merge 例外條款/release 終態與結案五步/occurred_at 系統時鐘增補、AI_RUNBOOK §7.1 引用同步、F-01 全庫掃描零缺口） |
 | OPS-CPBL-WEB-HEALTH1-FIX1 | Next.js prerender 寫入權限 remediation | 🏁完成 | ✅已驗證 | [`tasks/OPS-CPBL-WEB-HEALTH1-FIX1.md`](tasks/OPS-CPBL-WEB-HEALTH1-FIX1.md)（T3；Gemini APPROVE（iter 1，REJECT→基線欄修正——WF-17 基線防線首戰命中）；merge `8d13e76`；Deploy `30198419156`；production ISR 到期重測：再生成寫入成功（mtime/size 更新、owner app）、EACCES=0、healthy） |
 | OPS-CPBL-WEB-HEALTH1 | CPBL Web container healthcheck 與可寫快取修復 | 🏁完成 | ✅已驗證 | [`tasks/OPS-CPBL-WEB-HEALTH1.md`](tasks/OPS-CPBL-WEB-HEALTH1.md)(T3；healthcheck bind/loopback 9a6c84f＋寫入權限由 FIX1 補完帶動結案；prod_cpbl_web healthy、non-root、零 EACCES) |
