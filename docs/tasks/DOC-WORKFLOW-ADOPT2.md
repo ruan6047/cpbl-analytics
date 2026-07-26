@@ -15,10 +15,10 @@
 
 ## 驗收條件
 
-- [ ] submodule 指標含 WF-18 merge SHA `b9af568`；stub 只引用不複製 canonical 全文。
-- [ ] CONTROL_PLANE_CONTRACT 例外條款引用與 canonical §2.1 語意一致（不得弱化三前提與雙留痕）。
-- [ ] 補帳後全庫掃描：所有已封存卡的最後事件皆為終態；補帳事件 evidence 註明「F-01 歷史補帳」與原終局依據（archive 索引列）。
-- [ ] `workflow_ledger.py --check` 通過；Ledger 活卡表不因補帳出現殭屍卡。
+- [x] submodule 指標含 WF-18 merge SHA `b9af568`。→ bump 至 `5b23262`；三處增補皆引用連結
+- [x] CONTROL_PLANE_CONTRACT 例外條款引用與 canonical §2.1 語意一致（三前提＋雙留痕＋「授權只豁免誰按下 merge」原句保留）。
+- [x] 全庫掃描：所有已封存卡最後事件**已皆為終態**——F-01 名單的卡片均有後續終態事件或仍為合法活卡，實際補帳需求＝零（零追加，符合不改歷史原則；掃描指令留 handoff evidence 供重跑）。
+- [x] `workflow_ledger.py --check` 通過；Ledger 無殭屍卡；pytest 三套 guard 18 passed。
 
 ## 驗證
 
@@ -27,3 +27,4 @@
 ## Log
 
 - 2026-07-26T19:16:00+08:00 register by Claude Fable 5@Claude Code（依 WF-18 依賴註記開卡；WF-18 已 merge b9af568，開卡即可認領）。
+- 2026-07-26 claim＋執行（需求方派工）；handoff → 🔍待查核；SHA 9fbe64d；F-01 實測零缺口，詳 handoff event。
