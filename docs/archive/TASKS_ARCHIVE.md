@@ -4,6 +4,7 @@
 
 | 卡ID | 功能 | 交付狀態 | 部署狀態 | 封存位置 |
 |---|---|---|---|---|
+| DOC-TESTING-GLOSSARY1 | Runbook 測試章節＋術語表 | 🏁完成 | —不適用 | [`tasks/DOC-TESTING-GLOSSARY1.md`](tasks/DOC-TESTING-GLOSSARY1.md)（T2 B2；Fable 5 執行、Gemini 3.6 Flash B2 獨立查核 APPROVE；merge `0b52ab2`；AI_RUNBOOK §7.2 測試章節＋DB 契約測試、docs/reference/GLOSSARY.md 8 詞條 SSoT、CLAUDE.md 清向） |
 | OPS-PROCESS-GUARD1 | 流程守門機械化（review_prompt＋CI 前端測試） | 🏁完成 | —不適用 | [`tasks/OPS-PROCESS-GUARD1.md`](tasks/OPS-PROCESS-GUARD1.md)（T2；GPT-5@Codex 執行、Gemini 獨立查核 APPROVE；PR #39 merge `263a88a`；matcher 放寬＋stderr 告警、章節 lint（哨兵＝本卡 register event）、CI web `npm test`、CLAUDE.md 清單同步） |
 | DOC-WORKFLOW-ADOPT1 | 採用 WF-17 canonical 流程強化 | 🏁完成 | —不適用 | [`tasks/DOC-WORKFLOW-ADOPT1.md`](tasks/DOC-WORKFLOW-ADOPT1.md)（T1 B2；Fable 5 執行、Gemini 3.6 Flash B2 校讀 APPROVE；merge `3a1ce1c`；submodule bump `fcf4102`、TEMPLATES／MODEL_ROUTING／CONTROL_PLANE_CONTRACT 採用增補；review_prompt 基線帶入遞延 → OPS-REVIEW-BASELINE1） |
 | INGEST-RECORDS-HR1 | 官網 /stats/hr 逐轟里程碑入庫 | 🏁完成 | ✅已驗證 | [`tasks/INGEST-RECORDS-HR1.md`](tasks/INGEST-RECORDS-HR1.md)（T4；Gemini 3.6 Flash 跨家族 APPROVE；main `78713dc`；主站 `95089cf`／Deploy `30191714436`；production migration 067、備份與 1,192 筆逐轟 audit 資料唯一鍵對帳完成） |
