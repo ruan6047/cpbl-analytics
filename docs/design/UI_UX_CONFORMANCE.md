@@ -63,8 +63,14 @@
 | H7 | sub-legible `text-[8px]/[9px]` 上調 | 散見 | 🟡 |
 | H8 | `<select>` 圓角不一致（`YearSelect` `rounded-full` vs `Leaderboard` 篩選 `rounded-lg`）→ 統一 control `rounded-lg`（或明訂 pill-select 限工具列 chip） | `year-select.tsx`、`leaderboard.tsx` | 🟢 |
 | H9 | 隊名階梯（`UI_UX_SYSTEM §9.6`，5 階）②三～四字名、④中文 1 字**無欄位** → 擴 `TeamMeta` 加 `name3`/`char1`（`char1` 僅供文字階；**⑤ICON 維持英文 `letter`，Design Gate 定案不改**）。**資料擴充，非缺陷** | `lib/teams.ts` | 🟢 |
+| H10 | `/matchups` 查詢列三個 `<select>`（資料範圍／賽事類型／對手）實測高 **33px**，未達 §7 觸控 44px（`min-h-11`）門檻。同頁新增的情境控制已符合，形成同頁雙標準 | `components/matchups/explorer.tsx`（`selectCls`） | 🟡 |
+| H11 | `/matchups` 頁面最外層與 `QueryShell` 的 `scrollWidth` 較 `clientWidth` 多 4px（375px 實測 331>327）。`document` 本身無橫向捲動、視覺無溢出，屬容器內距計算殘留 | `app/matchups`＋`sticky-nav-bar` | 🟢 |
 
 > **`UX-TOKEN-HYGIENE1` 處置（2026-07-24 執行）**：H1 ✅ 移 dead dup／H2 ✅ 補深色 7/8（`#db2777`·`#e08a2a`）／H3 ✅ 驗證（淺 ΔE 10.1·深 9.5，見 §6.3、未重配）／H4 ✅ @theme canonical＋鏡像註解＋`chart-theme.test.ts` 對齊測試／H5 ✅ amber→token（接受黃→棕橘 `#b45400`，順帶修一處 `text-white`→`text-paper`）／H6 ✅ `Skeleton`/`EmptyState`／H8 ＝ §4.2 認可之工具列 pill-select 變體、無需改碼（圓角交 NAV）／H9 ✅ 加 `name3`/`char1`＋`teamName3()`/`teamChar1()` accessor（**③二字經 grilling 定案沿用現有 `short`＝「兄弟」隊慣稱，不改母企業「中信」**——避免「兄弟 煮粥」等球迷向文案變生硬）。**H7 移出交 CONFORM/NAV**（版面風險、非機械修）。
+
+> **H10／H11 來源（2026-07-25）**：由 `UX-PA-SIM-MATCHUP1` 的 375px 走查發現，屬
+> `UX-MATCHUP1` 既有偏離、非該卡引入。該卡執行者依資源紀律**刻意不擴張範圍修復**，
+> 僅記錄移交。修復歸屬待需求方排入 hygiene／conformance 波次，**執行前須先討論**。
 
 ---
 
