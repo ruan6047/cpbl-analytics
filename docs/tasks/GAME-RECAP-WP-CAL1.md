@@ -44,3 +44,4 @@
 ## Log
 
 - 2026-07-25 依 ruan6047 指示開卡（WP-VAL1 結案後續）→ 規劃基線取自已跨家族 APPROVE 的 WP-VAL1 報告 §7 路徑 1；Coordinator register 併同 commit。
+- 2026-07-25 harness 注意事項（WP-VAL1 查核期實測）：`winprob_val` 預設輸出固定路徑，查核者以 `--kinds A` 重跑會覆寫完整 artifact（只剩 A scope）。本卡復用該 harness 時，部分 scope 重跑一律加 `--out` 導向 scratch 路徑；交付 artifact 以已提交版本為準。已同步寫入 [`CONTROL_PLANE_CONTRACT.md`](../CONTROL_PLANE_CONTRACT.md)「交付→查核→合併慣例」。
