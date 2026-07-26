@@ -30,7 +30,7 @@
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:09+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:10+08:00 |
 | [OPS-CPBL-WEB-HEALTH1](tasks/OPS-CPBL-WEB-HEALTH1.md) | INIT-PRODUCT-UX | T3 | CPBL Web container healthcheck 與可寫快取修復 | 待指派（remediation） | `ai/haiku-4-5/OPS-CPBL-WEB-HEALTH1 @ .claude/worktrees/ops-cpbl-web-health1-execution（保留待 harness 回收）` | 3 | 🔨執行中 | ⚠驗證失敗 | 2026-07-26T14:57:00+08:00 |
-| [OPS-CPBL-WEB-HEALTH1-FIX1](tasks/OPS-CPBL-WEB-HEALTH1-FIX1.md) | INIT-PRODUCT-UX | T3 | Next.js prerender 寫入權限 remediation | Coordinator（merge） | `ai/fable-5/OPS-CPBL-WEB-HEALTH1-FIX1 @ .claude/worktrees/ops-cpbl-web-health1-execution（卡族共用）` | 1 | ✅通過 | ⏸未部署 | 2026-07-26T18:18:40+08:00 |
+| [OPS-CPBL-WEB-HEALTH1-FIX1](tasks/OPS-CPBL-WEB-HEALTH1-FIX1.md) | INIT-PRODUCT-UX | T3 | Next.js prerender 寫入權限 remediation | Claude Fable 5@Claude Code（部署） | `ai/fable-5/OPS-CPBL-WEB-HEALTH1-FIX1 @ .claude/worktrees/ops-cpbl-web-health1-execution（卡族共用）` | 1 | 📦已合併 | 🚀待部署 | 2026-07-26T18:19:15+08:00 |
 | [OPS-REMOTE-CUTOVER1](tasks/OPS-REMOTE-CUTOVER1.md) | INIT-PRODUCT-UX | T4 | 遠端 crawler production canary 與切換 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:40+08:00 |
 | [OPS-REMOTE-PROBE1](tasks/OPS-REMOTE-PROBE1.md) | INIT-PRODUCT-UX | T3 | Opt-in DEBUG 網路探測介面 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:37+08:00 |
 | [OPS-REMOTE-ROUTE1](tasks/OPS-REMOTE-ROUTE1.md) | INIT-PRODUCT-UX | T3 | 遠端出口路線資格驗證 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:38+08:00 |
