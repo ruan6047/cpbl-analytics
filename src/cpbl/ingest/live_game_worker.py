@@ -384,6 +384,7 @@ class LiveGameWorker:
             ]
             selected = _select_candidates(schedule_rows, now)[: self.max_games_per_cycle]
             phases: Counter[str] = Counter()
+            game_summaries: list[dict[str, Any]] = []
             cached = errors = 0
             starts: list[datetime] = []
             for row in selected:
@@ -408,6 +409,17 @@ class LiveGameWorker:
                     continue
                 cached += 1
                 phases[snapshot["phase"]] += 1
+                game_summaries.append({
+                    "game_id": snapshot["game_id"],
+                    "phase": snapshot["phase"],
+                    "raw_status": snapshot["raw_status"],
+                    "away_probable": snapshot["away"]["probable_pitcher"]["availability"],
+                    "home_probable": snapshot["home"]["probable_pitcher"]["availability"],
+                    "away_lineup": snapshot["away"]["lineup"]["availability"],
+                    "home_lineup": snapshot["home"]["lineup"]["availability"],
+                    "event_count": snapshot["event_count"],
+                    "tracking_count": snapshot["tracking_count"],
+                })
             next_start = min((start for start in starts if start >= now), default=None)
             return {
                 "state": "ok",
@@ -415,6 +427,7 @@ class LiveGameWorker:
                 "cached": cached,
                 "errors": errors,
                 "phases": dict(phases),
+                "games": game_summaries,
                 "next_poll_seconds": poll_interval_seconds(
                     now=now, phases=set(phases), next_start=next_start,
                 ),

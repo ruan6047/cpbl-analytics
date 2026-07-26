@@ -255,6 +255,17 @@ def test_worker_updates_snapshot_and_preserves_first_observed() -> None:
 
     assert result["cached"] == 1
     assert result["phases"] == {"live": 1}
+    assert result["games"] == [{
+        "game_id": "2026-A-226",
+        "phase": "live",
+        "raw_status": "START",
+        "away_probable": "announced",
+        "home_probable": "not_announced",
+        "away_lineup": "not_announced",
+        "home_lineup": "not_announced",
+        "event_count": 0,
+        "tracking_count": 0,
+    }]
     assert current["phase"] == "live"
     assert current["away"]["probable_pitcher"]["first_observed_at"] == T0.isoformat()
     assert cache.released == 1
