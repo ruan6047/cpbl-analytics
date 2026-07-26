@@ -13,7 +13,9 @@ from cpbl.api.matchups import (
     CAREER_YEAR,
     MatchupScope,
     aggregate_matchup_rows,
+    display_name,
     load_insight_universe,
+    overlay_display_names,
     resolve_matchup_scope,
     sort_matchup_items,
 )
@@ -545,6 +547,34 @@ _MATCHUP_COUNT_SELECT = """
 """
 
 
+def _display_name_map(cur: Any, player_ids: set[str], season: int) -> dict[str, str]:
+    """
+    取這批 player_id 的現用名（本季登錄名優先，退回 `players` 主檔）。
+
+    對戰表的姓名欄是爬取當時的快照，改名球員會停在舊名；`/profile` 的名字取自當季
+    `*_current`，兩者不一致會讓同一人在對戰清單與球員頁顯示不同名字。此處與 profile
+    採同一優先序，一次查詢覆蓋整批對手。同年多隊會有多列，取第一個非空即可（同名）。
+    """
+    ids = sorted(pid for pid in player_ids if pid)
+    if not ids:
+        return {}
+    cur.execute(
+        "SELECT player_id, name FROM cpbl.batting_current WHERE year=%s AND player_id=ANY(%s) "
+        "UNION ALL "
+        "SELECT player_id, name FROM cpbl.pitching_current WHERE year=%s AND player_id=ANY(%s)",
+        (season, ids, season, ids),
+    )
+    names: dict[str, str] = {}
+    for player_id, name in cur.fetchall():
+        if name and player_id not in names:
+            names[player_id] = name
+    cur.execute("SELECT id, name FROM cpbl.players WHERE id=ANY(%s)", (ids,))
+    for player_id, name in cur.fetchall():
+        if name and player_id not in names:
+            names[player_id] = name
+    return names
+
+
 @router.get("/api/v1/matchups")
 def matchups(
     hitter: str = Query(..., description="打者 player_id"),
@@ -574,6 +604,13 @@ def matchups(
             params.append(kind_code)
         cur.execute(sql, params)
         items = aggregate_matchup_rows(_dicts(cur), group_keys=("kind_code",))
+        # 對戰表姓名是爬蟲快照，改名球員需以現用名覆寫（與 /profile 同來源）。
+        names = _display_name_map(cur, {hitter, pitcher}, season)
+        for item in items:
+            item["hitter_name"] = display_name(
+                names.get(hitter), None, item.get("hitter_name"))
+            item["pitcher_name"] = display_name(
+                names.get(pitcher), None, item.get("pitcher_name"))
         cur.execute(
             "SELECT DISTINCT year FROM cpbl.batter_pitcher_matchups "
             "WHERE hitter_acnt=%s AND pitcher_acnt=%s ORDER BY year",
@@ -874,6 +911,12 @@ def player_matchups(
             params.append(sorted(franchise_prefixes(opponent_team)))
         cur.execute(sql, params)
         items = aggregate_matchup_rows(_dicts(cur))
+        # 改名對手以現用名顯示（對戰表存的是爬取當時的名字）。
+        overlay_display_names(
+            items,
+            _display_name_map(cur, {item["opp_id"] for item in items}, season),
+            [("opp_id", "opp_name")],
+        )
         cur.execute(  # noqa: S608 — self_col 由 role 白名單決定
             f"SELECT DISTINCT year FROM cpbl.batter_pitcher_matchups "
             f"WHERE {self_col}=%s AND kind_code=%s ORDER BY year",
@@ -966,7 +1009,10 @@ def player_matchup_insights(
         params: list[Any] = [player_id, kind_code, selected.from_year, selected.to_year]
         cur.execute(sql, params)
         rows = _dicts(cur)
+        # 洞察卡的對手名同樣走現用名（候選卡與對手清單不得顯示不同名字）。
+        name_map = _display_name_map(cur, {row["opp_id"] for row in rows}, season)
 
+    overlay_display_names(rows, name_map, [("opp_id", "opp_name")])
     items = aggregate_matchup_rows(rows)
     if not items:
         return _empty_insights(player_id, role, kind_code, selected,

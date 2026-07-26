@@ -44,12 +44,19 @@ class _FakeCursor:
     opponent_team 過濾放進 SQL 的 `=ANY(%s)`），如實在資料層套用該過濾，
     讓「SQL 端先過濾再算覆蓋率」的缺陷行為能被端點測試重現。"""
 
-    def __init__(self, rows):
+    def __init__(self, rows, current_names=None):
         self._rows = rows
         self._result = rows
+        self._current_names = current_names or {}
         self.description = [(c,) for c in _COLUMNS]
 
     def execute(self, sql, params=None):
+        # 顯示名解析查詢（batting/pitching_current、players）與對戰列查詢不同 shape：
+        # 回 (player_id, name) 兩欄；未提供 current_names 即視為查無現用名，
+        # 端點應退回對戰表的快照名。
+        if "_current WHERE year" in sql or "FROM cpbl.players WHERE id" in sql:
+            self._result = sorted(self._current_names.items())
+            return self
         self._result = self._rows
         for param in params or ():
             if (
@@ -68,11 +75,12 @@ class _FakeCursor:
 
 
 class _FakeConn:
-    def __init__(self, rows):
+    def __init__(self, rows, current_names=None):
         self._rows = rows
+        self._current_names = current_names or {}
 
     def cursor(self):
-        return _FakeCursor(self._rows)
+        return _FakeCursor(self._rows, self._current_names)
 
 
 def _fake_universe():
@@ -382,3 +390,59 @@ def test_prior_unavailable_fails_closed(no_prior_client):
     assert body["method"]["pairs_used"] == 0
     assert body["method"]["tau2"] is None
     assert "先驗" in body["sample_note"]
+
+
+# ── 改名對手以現用名顯示（UX-PA-SIM-MATCHUP1 擴張範圍）────────────────────────
+# batter_pitcher_matchups 的姓名欄是爬取當時的快照，改名球員（象魔力→魔力藍）會
+# 永遠停在舊名，與 /profile 及球員頁不一致。修正後：當季登錄名優先、退役者退回
+# players 主檔、兩者皆無才保留快照名。
+
+
+@pytest.fixture
+def renamed_client(monkeypatch):
+    rows = [
+        _row(2024, "ACE", "象魔力", ab=150, singles=15, so=45),
+        _row(2025, "ACE", "象魔力", ab=150, singles=15, so=45),
+        _row(2025, "NOBODY", "路人", ab=1, hr=1),
+    ]
+
+    @contextmanager
+    def fake_conn():
+        # ACE 有當季登錄名（已改名）；NOBODY 查無現用名（例：退役且主檔缺值）。
+        yield _FakeConn(rows, {"ACE": "魔力藍"})
+
+    monkeypatch.setattr(players_module, "conn", fake_conn)
+    monkeypatch.setattr(
+        players_module, "load_insight_universe", lambda *a, **k: _fake_universe()
+    )
+    return TestClient(app)
+
+
+def test_insight_candidates_show_current_name_not_scraped_snapshot(renamed_client):
+    res = renamed_client.get(
+        "/api/v1/players/BAT/matchups/insights",
+        params={"role": "batting", "scope": "range", "from_year": 2024, "to_year": 2025},
+    )
+    assert res.status_code == 200
+    body = res.json()
+
+    named = {
+        item["opp_id"]: item["opp_name"]
+        for item in body["advantages"] + body["disadvantages"]
+    }
+    assert named, "此 fixture 應有候選；否則本測試無法驗證姓名"
+    # 缺陷版（未 join 現用名）此處會是「象魔力」。
+    assert named.get("ACE") == "魔力藍"
+    assert "象魔力" not in named.values()
+
+
+def test_unknown_current_name_keeps_snapshot_instead_of_blanking(renamed_client):
+    """查無現用名時保留快照名——寧可顯示舊名，也不讓姓名變空。"""
+    res = renamed_client.get(
+        "/api/v1/players/BAT/matchups",
+        params={"role": "batting", "scope": "range", "from_year": 2024, "to_year": 2025},
+    )
+    assert res.status_code == 200
+    names = {item["opp_id"]: item["opp_name"] for item in res.json()["items"]}
+    assert names["ACE"] == "魔力藍"
+    assert names["NOBODY"] == "路人"

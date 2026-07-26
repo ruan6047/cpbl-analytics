@@ -21,14 +21,29 @@ import {
   type Role,
   type SortKey,
 } from "./api";
-import { CURRENT_YEAR, MIN_YEAR, type ControlsPatch, type MatchupControls } from "./controls";
+import {
+  CURRENT_YEAR,
+  MIN_YEAR,
+  visibleOpponentFranchises,
+  type ControlsPatch,
+  type MatchupControls,
+} from "./controls";
 import InsightSection from "./insight-section";
 import OpponentsTable from "./opponents-table";
 import PairCard from "./pair-card";
+import PaSimPanel from "./pa-sim-panel";
 import SearchCombobox, { type ComboHit } from "./search-combobox";
+import { MainTabs } from "@/components/hierarchical-tabs";
 
 const YEARS = Array.from({ length: CURRENT_YEAR - MIN_YEAR + 1 }, (_, i) => CURRENT_YEAR - i);
 const PREVIEW_ROWS = 30;
+
+/** 單組對決的兩個檢視：歷史實績（官網彙總）與 pa_sim 模擬（UX-PA-SIM-MATCHUP1）。 */
+type PairView = "history" | "simulation";
+const PAIR_VIEWS: readonly { value: PairView; label: string }[] = [
+  { value: "history", label: "歷史實績" },
+  { value: "simulation", label: "如果現在對決" },
+];
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -60,6 +75,7 @@ export default function MatchupExplorer({
   header,
   compactInsight = false,
   hideScopeControl = false,
+  enablePaSim = false,
   chrome = "card",
 }: {
   /** 主角球員；空字串＝尚未選定（/matchups 首開），只顯示控制列與提示。 */
@@ -75,6 +91,9 @@ export default function MatchupExplorer({
   compactInsight?: boolean;
   /** host 已有全域範圍控制時隱藏重複的 scope 選單；查詢仍使用 controls.scope。 */
   hideScopeControl?: boolean;
+  /** 啟用單組對決的第二 tab「如果現在對決」（pa_sim）。首版只有 /matchups 開啟：
+      PRODUCT_UX_BLUEPRINT §6 定 pa_sim 為條件採用，真實打席入口另卡（UX-GAME-PA1）。 */
+  enablePaSim?: boolean;
   /** 查詢列外殼：card（預設；球員頁）或 bar（/matchups：融入 StickyNavBar 導覽欄，
       §4.3 Phase 4；行動端不 sticky 避免高卡吃視口）。 */
   chrome?: "card" | "bar";
@@ -108,10 +127,37 @@ export default function MatchupExplorer({
   const [listErr, setListErr] = useState(false);
   const [listLoading, setListLoading] = useState(false);
   // 該主角在目前 role／範圍下實際交手過的球隊（franchise code）。
-  // 只在「全部球隊」（未篩隊）時由完整對手清單推導，因為篩隊後只剩單一隊。
   // 用來把對手下拉收斂成「有對戰過的隊」，濾掉從未交手的解散隊與自家隊。
+  //
+  // 這份清單**必須用不帶隊別篩選的查詢**推導：先前綁在顯示用的 list 上並且只在
+  // 未篩隊時更新，導致一旦選了隊就沒有母體可推導，下拉會退回全部球隊（含三商虎等
+  // 已解散隊）。未篩隊時兩個請求 URL 相同、可由 HTTP 快取吸收；多這一個唯讀請求
+  // 換取「可選集合與是否篩隊無關」的單一來源。
   const scopeKey = `${pid}|${role}|${kind}|${scope}|${query.fromYear}|${query.toYear}`;
   const [faced, setFaced] = useState<{ key: string; codes: string[] } | null>(null);
+  useEffect(() => {
+    if (!pid) {
+      setFaced(null);
+      return;
+    }
+    let stale = false;
+    matchupApi
+      .list(pid, query)
+      .then((d) => {
+        if (stale) return;
+        const codes = new Set<string>();
+        for (const r of d.items) if (r.opp_franchise) codes.add(r.opp_franchise);
+        setFaced({ key: scopeKey, codes: [...codes] });
+      })
+      .catch(() => {
+        if (!stale) setFaced(null);
+      });
+    return () => {
+      stale = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- scopeKey 由 pid 與 query 決定
+  }, [pid, query]);
+
   useEffect(() => {
     if (!pid) {
       setList(null);
@@ -125,11 +171,6 @@ export default function MatchupExplorer({
       .then((d) => {
         if (stale) return;
         setList(d);
-        if (!team) {
-          const codes = new Set<string>();
-          for (const r of d.items) if (r.opp_franchise) codes.add(r.opp_franchise);
-          setFaced({ key: scopeKey, codes: [...codes] });
-        }
       })
       .catch(() => {
         if (!stale) {
@@ -143,7 +184,6 @@ export default function MatchupExplorer({
     return () => {
       stale = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- scopeKey 由 query 諸欄位決定，query 已在依賴內
   }, [pid, query, team, sort, order]);
 
   const [insights, setInsights] = useState<InsightsResponse | null>(null);
@@ -233,15 +273,17 @@ export default function MatchupExplorer({
   const [showAll, setShowAll] = useState(false);
   useEffect(() => setShowAll(false), [pid, role, kind, scope, team]);
 
+  // 單組對決檢視：換對手或換主角一律回到歷史實績（模擬不得跨對決沿用選擇）。
+  const [pairView, setPairView] = useState<PairView>("history");
+  useEffect(() => setPairView("history"), [pid, opp, role]);
+
   // 對手模式：選定 opp 或 pick（搜尋中）＝對某人；team＝對某隊；否則全部
   const oppMode: "all" | "team" | "person" = opp || pick ? "person" : team ? "team" : "all";
 
-  // 對手隊下拉：已知交手隊時只列有對戰過的（含目前選定隊，避免 deep-link 選中卻被隱藏）；
-  // 尚未載入完整清單時退回全部，避免空白。faced 需與目前範圍相符才採用。
+  // 對手隊下拉的可選集合（規則與理由見 controls.visibleOpponentFranchises）。
+  // faced 需與目前範圍相符才採用，避免切換範圍瞬間套到上一個範圍的清單。
   const facedCodes = faced && faced.key === scopeKey ? new Set(faced.codes) : null;
-  const visibleFranchises = facedCodes
-    ? franchises.filter((f) => facedCodes.has(f.code) || f.code === team)
-    : franchises;
+  const visibleFranchises = visibleOpponentFranchises(franchises, facedCodes, team);
 
   return (
     <div>
@@ -365,17 +407,48 @@ export default function MatchupExplorer({
 
       {pid && opp && (
         <div>
-          <button
-            type="button"
-            onClick={() => onPatch({ opp: null })}
-            className="mb-3 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-muted transition hover:text-ink"
-          >
-            ← 返回對手清單
-          </button>
-          {pairErr && <ErrorState>對決資料載入失敗，請重試。</ErrorState>}
-          {!pair && !pairErr && <TableSkeleton rows={4} cols={4} />}
-          {/* 對決卡自身分 A/C/E 段呈現，範圍標籤只帶資料範圍不帶賽事類型 */}
-          {pair && <PairCard data={pair} role={role} scopeLabel={scopeLabel} />}
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+            <button
+              type="button"
+              onClick={() => onPatch({ opp: null })}
+              className="min-h-11 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-muted transition hover:text-ink"
+            >
+              ← 返回對手清單
+            </button>
+            {/* 第二 tab 只在已選定具體打者×投手時存在（驗收條件 1）；歷史實績永遠是
+                預設檢視，模擬不得成為進入頁面的第一眼結論。 */}
+            {enablePaSim && (
+              <div className="flex min-w-0 items-end overflow-x-auto overscroll-x-contain border-b border-line">
+                <MainTabs
+                  label="單組對決檢視"
+                  items={PAIR_VIEWS}
+                  value={pairView}
+                  onChange={setPairView}
+                />
+              </div>
+            )}
+          </div>
+
+          {pairView === "history" && (
+            <div role={enablePaSim ? "tabpanel" : undefined} aria-label="歷史實績">
+              {pairErr && <ErrorState>對決資料載入失敗，請重試。</ErrorState>}
+              {!pair && !pairErr && <TableSkeleton rows={4} cols={4} />}
+              {/* 對決卡自身分 A/C/E 段呈現，範圍標籤只帶資料範圍不帶賽事類型 */}
+              {pair && <PairCard data={pair} role={role} scopeLabel={scopeLabel} />}
+            </div>
+          )}
+
+          {enablePaSim && pairView === "simulation" && (
+            <div role="tabpanel" aria-label="如果現在對決">
+              <PaSimPanel
+                hitterId={role === "batting" ? pid : opp}
+                pitcherId={role === "batting" ? opp : pid}
+                hitterName={role === "batting" ? subjectName : names[opp] ?? null}
+                pitcherName={role === "batting" ? names[opp] ?? null : subjectName}
+                kind={kind}
+              />
+            </div>
+          )}
         </div>
       )}
 

@@ -5,6 +5,8 @@ import pytest
 from cpbl.api.matchups import (
     MatchupScope,
     aggregate_matchup_rows,
+    display_name,
+    overlay_display_names,
     resolve_matchup_scope,
     sort_matchup_items,
 )
@@ -140,3 +142,33 @@ def test_roster_sql_does_not_include_python_lint_comment():
     assert not cur.sql.lstrip().startswith("#")
     assert "# noqa" not in cur.sql
     assert cur.params == [2026, "%陳%", "%陳%", 3]
+
+
+# ── 顯示名優先序（改名球員；UX-PA-SIM-MATCHUP1 擴張範圍）────────────────────
+# batter_pitcher_matchups 的姓名欄是爬取當時的快照。權威來源是官方登錄名單
+# （記憶 player-name-authority），在 API 表現為當季 *_current；退役者退回主檔。
+
+
+def test_display_name_prefers_current_registration_over_snapshot():
+    assert display_name("魔力藍", "象魔力", "象魔力") == "魔力藍"
+
+
+def test_display_name_falls_back_to_registry_then_snapshot():
+    # 退役球員不在當季 current，但主檔仍有名字
+    assert display_name(None, "林英傑", "林英傑") == "林英傑"
+    # 兩者皆無 → 保留快照名，不讓姓名變空
+    assert display_name(None, None, "象魔力") == "象魔力"
+    assert display_name(None, None, None) is None
+
+
+def test_overlay_display_names_only_rewrites_known_ids():
+    items = [
+        {"opp_id": "A", "opp_name": "象魔力"},
+        {"opp_id": "B", "opp_name": "路人"},
+        {"opp_id": None, "opp_name": "無 id"},
+    ]
+    overlay_display_names(items, {"A": "魔力藍"}, [("opp_id", "opp_name")])
+
+    assert items[0]["opp_name"] == "魔力藍"
+    assert items[1]["opp_name"] == "路人", "name_map 沒有的 id 必須保留原值"
+    assert items[2]["opp_name"] == "無 id", "缺 id 的列不得被改動"

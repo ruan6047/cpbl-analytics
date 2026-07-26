@@ -4,7 +4,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CURRENT_YEAR, DEFAULT_CONTROLS, matchupsHref } from "./controls.ts";
+import {
+  CURRENT_YEAR,
+  DEFAULT_CONTROLS,
+  matchupsHref,
+  visibleOpponentFranchises,
+} from "./controls.ts";
 
 test("預設控制只帶 pid（打者視角、本季、例行賽都是預設值）", () => {
   assert.equal(matchupsHref("0000000001", "batting", DEFAULT_CONTROLS), "/matchups?pid=0000000001");
@@ -59,4 +64,40 @@ test("非預設排序寫進 URL；賽事類型非例行賽寫進 URL", () => {
 test("預設年度範圍界線合理（防止 CURRENT_YEAR 計算被改壞）", () => {
   assert.ok(DEFAULT_CONTROLS.fromYear === CURRENT_YEAR - 1);
   assert.ok(DEFAULT_CONTROLS.toYear === CURRENT_YEAR);
+});
+
+// ── 對手球隊下拉的可選集合（UX-PA-SIM-MATCHUP1 修既有 bug）────────────────────
+// 缺陷版把「交手過的隊」綁在顯示用的 list 查詢上、且只在未篩隊時更新，於是選了隊
+// 之後 facedCodes 變 null，下拉退回全部球隊（含三商虎等已解散隊）。
+
+const FRANCHISES = [
+  { code: "ACN011", name: "中信兄弟" },
+  { code: "ADD011", name: "統一7-ELEVEn獅" },
+  { code: "AEO011", name: "富邦悍將" },
+  { code: "AKP011", name: "台鋼雄鷹" },
+  { code: "ABB011", name: "三商虎" },
+];
+
+test("已知交手清單時只列交手過的隊，濾掉從未交手的隊與解散隊", () => {
+  const visible = visibleOpponentFranchises(FRANCHISES, new Set(["ACN011", "ADD011"]), null);
+  assert.deepEqual(visible.map((f) => f.code), ["ACN011", "ADD011"]);
+});
+
+test("已篩隊時可選集合不變窄：篩隊不得讓清單退回全部球隊", () => {
+  // 同一組 facedCodes，team 有值與無值的結果只差「保留選定隊」，
+  // 不得因為篩了隊就把解散隊放回來。
+  const faced = new Set(["ACN011", "ADD011"]);
+  const filtered = visibleOpponentFranchises(FRANCHISES, faced, "ACN011");
+  assert.deepEqual(filtered.map((f) => f.code), ["ACN011", "ADD011"]);
+  assert.ok(!filtered.some((f) => f.code === "ABB011"), "三商虎不得出現");
+});
+
+test("選定隊不在交手清單時仍保留，deep-link 值與下拉顯示才一致", () => {
+  const visible = visibleOpponentFranchises(FRANCHISES, new Set(["ACN011"]), "AKP011");
+  assert.deepEqual(visible.map((f) => f.code), ["ACN011", "AKP011"]);
+});
+
+test("尚未取得交手清單時退回全部球隊，不讓下拉空白", () => {
+  const visible = visibleOpponentFranchises(FRANCHISES, null, null);
+  assert.equal(visible.length, FRANCHISES.length);
 });
