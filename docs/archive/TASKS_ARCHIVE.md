@@ -4,6 +4,7 @@
 
 | 卡ID | 功能 | 交付狀態 | 部署狀態 | 封存位置 |
 |---|---|---|---|---|
+| DOC-WORKFLOW-ADOPT2 | 採用 WF-18 canonical 流程強化＋F-01 歷史補帳 | 🏁完成 | —不適用 | [`tasks/DOC-WORKFLOW-ADOPT2.md`](tasks/DOC-WORKFLOW-ADOPT2.md)（T1 B2；Fable 5 執行、Gemini 3.6 Flash B2 校讀 APPROVE；commit `9fbe64d`；submodule bump `5b23262`、CONTROL_PLANE_CONTRACT §2.1 merge 例外條款/release 終態與結案五步/occurred_at 系統時鐘增補、AI_RUNBOOK §7.1 引用同步、F-01 全庫掃描零缺口） |
 | OPS-CPBL-WEB-HEALTH1-FIX1 | Next.js prerender 寫入權限 remediation | 🏁完成 | ✅已驗證 | [`tasks/OPS-CPBL-WEB-HEALTH1-FIX1.md`](tasks/OPS-CPBL-WEB-HEALTH1-FIX1.md)（T3；Gemini APPROVE（iter 1，REJECT→基線欄修正——WF-17 基線防線首戰命中）；merge `8d13e76`；Deploy `30198419156`；production ISR 到期重測：再生成寫入成功（mtime/size 更新、owner app）、EACCES=0、healthy） |
 | OPS-CPBL-WEB-HEALTH1 | CPBL Web container healthcheck 與可寫快取修復 | 🏁完成 | ✅已驗證 | [`tasks/OPS-CPBL-WEB-HEALTH1.md`](tasks/OPS-CPBL-WEB-HEALTH1.md)(T3；healthcheck bind/loopback 9a6c84f＋寫入權限由 FIX1 補完帶動結案；prod_cpbl_web healthy、non-root、零 EACCES) |
 | OPS-REVIEW-BASELINE1 | 查核提示詞帶入父卡 spec 基線版本 | 🏁完成 | —不適用 | [`tasks/OPS-REVIEW-BASELINE1.md`](tasks/OPS-REVIEW-BASELINE1.md)（T2；Fable 5 執行、Gemini 3.6 Flash (High)@Antigravity APPROVE；merge `6089a65`（線性化 `38e625a`）；baseline_check() 五情境測試＋實測 CAL1→INIT-GAME-RECAP v1.3 一致；cascade §5 查核防線機械化） |
