@@ -4,13 +4,21 @@
 每場特徵在「套用該場結果之前」計算 → 嚴格只用過去資訊，無資料洩漏。
 
 completed 判定：home_score + away_score > 0（未開打的場次比分為 0-0）。
-先發投手 ERA 用「前一季」pitching_seasons 的 ERA（無前季資料 → 聯盟均值）。
+
+先發投手 ERA/WHIP/K9（ML-OUTCOME-LEAK1）：**賽前 as-of**。
+舊版以 `(starter_id, year)` 讀同季彙總（`pitching_seasons`／`pitching_current`），
+等於讓歷史回測的模型在賽前看見該投手該季之後的表現 → 前視洩漏
+（實證見 `docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md` §6.2）。現改為
+`pitching_gamelog` 逐場 running state（快照賽前 state 後才套用本場計數）＋
+前一季總量 prior 的部分池化收縮；fallback 順序＝前一季同口徑 → 前一季聯盟率。
 """
 
 from __future__ import annotations
 
 import logging
+import math
 from collections import defaultdict, deque
+from dataclasses import dataclass, replace
 
 from cpbl.db import conn
 
@@ -53,9 +61,12 @@ FEATURE_DESC = {
     "recent_form_diff": "最近 10 場勝率，反映近期手感。屬弱訊號，預設權重低。",
     "rest_days_diff": "距上一場的休息天數對比。較多休息＝先發輪值充裕、體能較佳（季內首戰視為持平）。",
     "h2h_home": "本季兩隊交手中主隊的勝率（雙方主客場都計入）。未交手則視為五五波。",
-    "starter_era_diff": "本場先發投手的本季防禦率對比，越低越強。未達合格投手則以聯盟平均墊檔。",
-    "starter_whip_diff": "先發投手每局被上壘率（WHIP），越低越強。衡量壓制力。",
-    "starter_k9_diff": "先發投手每 9 局奪三振數（K9），越高越強。衡量三振能力。",
+    "starter_era_diff": "本場先發投手「開打前」的本季至今防禦率對比，越低越強。"
+                        "季初樣本少時以上季成績（再無則上季聯盟平均）按比例收縮墊檔。",
+    "starter_whip_diff": "先發投手開打前的本季至今每局被上壘率（WHIP），越低越強。"
+                         "衡量壓制力；收縮方式同 ERA。",
+    "starter_k9_diff": "先發投手開打前的本季至今每 9 局奪三振數（K9），越高越強。"
+                       "衡量三振能力；收縮方式同 ERA。",
     "home_field": "主場球隊的基準勝率優勢（約 +5%）。以模型 intercept 表示。",
     "prior_team_ops_diff": "上季團隊整體攻擊 OPS 對比（全史可算）。衡量打線基底實力。",
     "prior_team_slg_diff": "上季團隊長打率 SLG 對比。衡量長打火力基底。",
@@ -89,46 +100,128 @@ FEATURE_CORR = {
 }
 
 
-def _prior_era() -> tuple[dict[tuple[str, int], float], float]:
-    """{(player_id, year): 該季 ERA}；以及聯盟平均 ERA。
-    2023-2024 由 opendata pitching_seasons 計算（全投手）；2025+ 由本季爬蟲
-    pitching_current 覆蓋（含進階數據，但僅合格投手）。"""
-    era: dict[tuple[str, int], float] = {}
-    with conn() as c:
-        cur = c.cursor()
-        cur.execute("SELECT player_id, year, er, ip FROM cpbl.pitching_seasons WHERE ip > 0 AND er IS NOT NULL")
-        for pid, year, er, ip in cur.fetchall():
-            ipf = float(ip)
-            if ipf > 0:
-                era[(pid, year)] = er * 9.0 / ipf
-        cur.execute("SELECT player_id, year, era FROM cpbl.pitching_current WHERE era IS NOT NULL")
-        for pid, year, e in cur.fetchall():
-            era[(pid, year)] = float(e)
-    vals = list(era.values())
-    return era, (sum(vals) / len(vals) if vals else 4.0)
+# ── 先發投手賽前指標（as-of running state + 前一季 prior 收縮）─────────────
+# 收縮強度（IP 當量），約 5 場先發的投球局數。**開跑前釘死的常數**：不因回測
+# 數字調整（統計紅線——不得為了數字好看而調參）。當季分母增加 → prior 自然退位。
+STARTER_KAPPA_IP = 30.0
+# 全史最早一季（無前一季可退）時的最終墊檔；量級取 CPBL 長期水準。
+_LG_DEFAULT_ER_IP, _LG_DEFAULT_WHIP, _LG_DEFAULT_SO_IP = 4.2 / 9.0, 1.40, 6.5 / 9.0
 
 
-def _pitcher_adv() -> tuple[dict, dict, float, float]:
-    """{(pid,year): WHIP}、{(pid,year): K9} 與兩者聯盟平均。
-    2023-24 由 opendata 計算（WHIP=(BB+H)/IP, K9=SO*9/IP），2025+ 由 pitching_current。"""
-    whip: dict[tuple[str, int], float] = {}
-    k9: dict[tuple[str, int], float] = {}
+@dataclass
+class _PitchCounts:
+    """逐場可加總的投球原始計數；rate 一律由此推導，不存半成品比率。"""
+
+    er: float = 0.0
+    h: float = 0.0
+    bb: float = 0.0
+    so: float = 0.0
+    ip: float = 0.0
+
+    def add(self, o: _PitchCounts) -> None:
+        self.er += o.er; self.h += o.h; self.bb += o.bb; self.so += o.so; self.ip += o.ip
+
+    def frozen(self) -> _PitchCounts:
+        return replace(self)
+
+
+_ZERO_COUNTS = _PitchCounts()
+
+
+def _ip_decimal(ip) -> float:
+    """`pitching_seasons.ip` 是棒球記法（.1 = 1/3 局、.2 = 2/3 局）→ 轉真實局數。
+    舊版 `_prior_era` 直接把 .1 當 0.1 相除，是一併修掉的既有誤差。"""
+    if ip is None:
+        return 0.0
+    v = float(ip)
+    whole = math.floor(v)
+    return whole + (v - whole) * 10.0 / 3.0
+
+
+def _starter_game_counts() -> dict[tuple[int, int], dict[str, _PitchCounts]]:
+    """{(year, game_sno): {pitcher_id: 該場計數}}（一軍例行賽；僅 2018+ 有逐場 box）。
+    供逐場 running state 累積。"""
+    out: dict[tuple[int, int], dict[str, _PitchCounts]] = {}
     with conn() as c:
         cur = c.cursor()
-        cur.execute("SELECT player_id, year, bb, h, so, ip FROM cpbl.pitching_seasons WHERE ip > 0")
-        for pid, year, bb, h, so, ip in cur.fetchall():
-            ipf = float(ip)
-            if ipf > 0:
-                whip[(pid, year)] = ((bb or 0) + (h or 0)) / ipf
-                k9[(pid, year)] = (so or 0) * 9.0 / ipf
-        cur.execute("SELECT player_id, year, whip, k9 FROM cpbl.pitching_current WHERE whip IS NOT NULL")
-        for pid, year, w, k in cur.fetchall():
-            whip[(pid, year)] = float(w)
-            if k is not None:
-                k9[(pid, year)] = float(k)
-    lw = sum(whip.values()) / len(whip) if whip else 1.3
-    lk = sum(k9.values()) / len(k9) if k9 else 7.0
-    return whip, k9, lw, lk
+        cur.execute(
+            "SELECT year, game_sno, pitcher_acnt, earned_runs, hits, bb, so, "
+            "       inning_pitched_cnt, inning_pitched_div3 "
+            "FROM cpbl.pitching_gamelog WHERE kind_code = 'A'")
+        for y, sno, pid, er, h, bb, so, ipc, ipd in cur.fetchall():
+            out.setdefault((y, sno), {})[pid] = _PitchCounts(
+                er=float(er or 0), h=float(h or 0), bb=float(bb or 0), so=float(so or 0),
+                ip=float(ipc or 0) + float(ipd or 0) / 3.0)
+    return out
+
+
+def _pitcher_season_totals(
+    game_counts: dict[tuple[int, int], dict[str, _PitchCounts]],
+) -> dict[tuple[int, str], _PitchCounts]:
+    """{(year, pid): 該季總量}，供「下一季」當 prior。
+
+    2018+ 直接由逐場 gamelog 彙總（與 running state 同口徑）；更早年份退
+    `pitching_seasons`（1990+，逐年彙總）。**只會被以 `year - 1` 查詢**，故對
+    目標場次而言恆為已完結的過去資訊。"""
+    totals: dict[tuple[int, str], _PitchCounts] = defaultdict(_PitchCounts)
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute("SELECT player_id, year, er, h, bb, so, ip FROM cpbl.pitching_seasons WHERE ip > 0")
+        for pid, year, er, h, bb, so, ip in cur.fetchall():
+            # 同年多隊會有多列（PK 含 team_id）→ 累加。
+            totals[(year, pid)].add(_PitchCounts(
+                er=float(er or 0), h=float(h or 0), bb=float(bb or 0), so=float(so or 0),
+                ip=_ip_decimal(ip)))
+    gamelog_years: set[int] = set()
+    from_gamelog: dict[tuple[int, str], _PitchCounts] = defaultdict(_PitchCounts)
+    for (year, _sno), per_pitcher in game_counts.items():
+        gamelog_years.add(year)
+        for pid, c_ in per_pitcher.items():
+            from_gamelog[(year, pid)].add(c_)
+    for key in list(totals):
+        if key[0] in gamelog_years:
+            del totals[key]
+    totals.update(from_gamelog)
+    return dict(totals)
+
+
+def _league_pitch_rates(
+    totals: dict[tuple[int, str], _PitchCounts],
+) -> dict[int, tuple[float, float, float]]:
+    """{year: (ER/IP, WHIP, SO/IP)} 全聯盟。呼叫端一律取 `year - 1` 當 fallback，
+    因此不含目標季任何資訊。"""
+    agg: dict[int, _PitchCounts] = defaultdict(_PitchCounts)
+    for (year, _pid), c_ in totals.items():
+        agg[year].add(c_)
+    return {y: (t.er / t.ip, (t.h + t.bb) / t.ip, t.so / t.ip)
+            for y, t in agg.items() if t.ip > 0}
+
+
+def _shrink(num: float, den: float, prior_rate: float, kappa: float) -> float:
+    """部分池化：(當季累計分子 + kappa × prior 率) / (當季累計分母 + kappa)。
+    當季分母為 0（季初／無逐場資料的年份）時恰好退回 prior 率。"""
+    return (num + kappa * prior_rate) / (den + kappa)
+
+
+def _starter_rates(own: _PitchCounts, prior: _PitchCounts | None,
+                   lg: tuple[float, float, float]) -> tuple[float, float, float]:
+    """(ERA, WHIP, K9)：賽前 as-of 累計以「前一季同口徑」收縮；無前一季 → 前一季聯盟率。
+
+    兩層部分池化：前一季率本身先向前一季聯盟率收縮，再當本季 running state 的 prior。
+    少了這層，只投 1-2 局的前一季紀錄會產生 ±50 的 ERA 離群值主導標準化
+    （這是分布穩定性的結構決策，與回測數字無關；kappa 仍是釘死的常數）。
+    """
+    lg_er_ip, lg_whip, lg_so_ip = lg
+    k = STARTER_KAPPA_IP
+    p_ip = prior.ip if prior is not None else 0.0
+    p_er = _shrink(prior.er if prior else 0.0, p_ip, lg_er_ip, k)
+    p_whip = _shrink((prior.h + prior.bb) if prior else 0.0, p_ip, lg_whip, k)
+    p_so = _shrink(prior.so if prior else 0.0, p_ip, lg_so_ip, k)
+    return (
+        9.0 * _shrink(own.er, own.ip, p_er, k),
+        _shrink(own.h + own.bb, own.ip, p_whip, k),
+        9.0 * _shrink(own.so, own.ip, p_so, k),
+    )
 
 
 def _prior_winpct() -> dict[tuple[int, str], float]:
@@ -211,8 +304,9 @@ def _team_batting_box() -> dict[tuple[int, str, int], dict]:
 
 
 def build_game_features() -> list[dict]:
-    era, lg_era = _prior_era()
-    whip, k9, lg_whip, lg_k9 = _pitcher_adv()
+    pitch_game = _starter_game_counts()
+    pitch_season = _pitcher_season_totals(pitch_game)
+    lg_pitch = _league_pitch_rates(pitch_season)
     prior_wp = _prior_winpct()
     prior_team = _prior_team_stats()
     box = _team_batting_box()
@@ -243,6 +337,8 @@ def build_game_features() -> list[dict]:
     # 本季雙向交手：frozenset({A,B}) -> {team: 勝場}。每季歸零、不分主客。
     h2h: dict[frozenset, dict[str, int]] = defaultdict(dict)
     last_game: dict[str, object] = {}  # team -> 上一場日期（季內；算休息天數）
+    # 投手季內累計（pitcher_id -> 計數）；每季歸零，於「快照特徵之後」才套用本場。
+    run_pitch: dict[str, _PitchCounts] = defaultdict(_PitchCounts)
     cur_season: int | None = None
 
     def rest_days(t: str, d) -> float:
@@ -274,7 +370,8 @@ def build_game_features() -> list[dict]:
 
         if cur_season != year:  # 新球季：所有季內統計（含交手史/休息天數）歸零
             cur_season = year
-            wl.clear(); rfra.clear(); last10.clear(); h2h.clear(); last_game.clear(); team_bat.clear()
+            wl.clear(); rfra.clear(); last10.clear(); h2h.clear(); last_game.clear()
+            team_bat.clear(); run_pitch.clear()
 
         rec = h2h[frozenset((home, away))]
         hw, aw = rec.get(home, 0), rec.get(away, 0)
@@ -312,6 +409,17 @@ def build_game_features() -> list[dict]:
             team_err_now = _d(_pg(home, lambda s: s["err"]), _pg(away, lambda s: s["err"]))
         else:
             team_avg_now = team_ops_now = team_sb_now = team_wp_now = team_err_now = None
+
+        # 先發投手賽前指標：本季至該場前累計（快照）＋ 前一季 prior 收縮。
+        # 前一季聯盟率作最終 fallback；全史首季無前一季 → 固定墊檔常數。
+        lg_prev = lg_pitch.get(year - 1, (_LG_DEFAULT_ER_IP, _LG_DEFAULT_WHIP, _LG_DEFAULT_SO_IP))
+        h_era, h_whip, h_k9 = _starter_rates(
+            run_pitch.get(hsp, _ZERO_COUNTS) if hsp else _ZERO_COUNTS,
+            pitch_season.get((year - 1, hsp)) if hsp else None, lg_prev)
+        a_era, a_whip, a_k9 = _starter_rates(
+            run_pitch.get(asp, _ZERO_COUNTS) if asp else _ZERO_COUNTS,
+            pitch_season.get((year - 1, asp)) if asp else None, lg_prev)
+
         feats = {
             "winrate_diff": winrate(home) - winrate(away),
             "prior_winpct_diff": prior_diff,
@@ -321,10 +429,10 @@ def build_game_features() -> list[dict]:
             "rest_days_diff": rest_diff,
             "h2h_home": (hw / (hw + aw)) if (hw + aw) > 0 else 0.5,
             "home_field": 1.0,
-            # 本季先發投手（主-客）；ERA/WHIP 越低越好（定向取負），K9 越高越好。
-            "starter_era_diff": era.get((hsp, year), lg_era) - era.get((asp, year), lg_era),
-            "starter_whip_diff": whip.get((hsp, year), lg_whip) - whip.get((asp, year), lg_whip),
-            "starter_k9_diff": k9.get((hsp, year), lg_k9) - k9.get((asp, year), lg_k9),
+            # 先發投手賽前 as-of（主-客）；ERA/WHIP 越低越好（定向取負），K9 越高越好。
+            "starter_era_diff": h_era - a_era,
+            "starter_whip_diff": h_whip - a_whip,
+            "starter_k9_diff": h_k9 - a_k9,
             "prior_team_ops_diff": _ptd("prior_ops"),
             "prior_team_slg_diff": _ptd("prior_slg"),
             "prior_team_era_diff": _ptd("prior_era"),
@@ -359,6 +467,9 @@ def build_game_features() -> list[dict]:
                 if s:
                     for key in ("ab", "h", "bb", "hbp", "tb", "sf", "sb", "cs", "err", "wp", "g"):
                         team_bat[tcode][key] += s.get(key, 0)
+        # 累計本場投手 box 到 running state（同樣在算完特徵之後 → leakage-safe）。
+        for pid, pc in pitch_game.get((year, sno), {}).items():
+            run_pitch[pid].add(pc)
 
         if completed:  # 套用結果更新 state（在計算特徵「之後」）
             rfra[home][0] += hs; rfra[home][1] += as_; rfra[home][2] += 1
