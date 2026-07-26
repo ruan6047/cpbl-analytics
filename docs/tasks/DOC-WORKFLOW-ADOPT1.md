@@ -5,7 +5,7 @@
 - Initiative：—　spec 基線：ai-workflow WF-17（[PR #3](https://github.com/ruan6047/ai-workflow/pull/3)）
 - DB：`none`
 - 部署：否　環境：—　PR：—　Merge SHA：—
-- 依賴：**WF-17 merge 後才可執行**（canonical 規則本體屬紅線，須跨家族或需求方 sign-off，執行者不得自 merge）。
+- 依賴：**已解除**——WF-17 已 merge（ruan6047 sign-off，canonical merge SHA `e0b1c1e`，PR #3 MERGED、卡已封存）。
 - 範圍：WF-17 merge 後——
   1. bump `.ai-workflow` submodule 至含 WF-17 的 main。
   2. `docs/TEMPLATES.md` 補 `baseline-cascade.md`／`statistical-redline.md` 索引。
@@ -27,3 +27,4 @@
 ## Log
 
 - 2026-07-26T16:15:00+08:00 register by Claude Fable 5@Claude Code（依 ruan6047 指示開卡；阻塞於 WF-17 merge）。
+- 2026-07-26T16:26:00+08:00 note by Claude Fable 5@Claude Code → 依賴解除：ruan6047 sign-off 後 WF-17 merge（e0b1c1e）並封存；本卡可認領。submodule bump 目標＝canonical main `3219858`。
