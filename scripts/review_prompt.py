@@ -7,7 +7,7 @@
 資料來源（零 AI 成本、永遠反映最新交接狀態）：
 - docs/control-plane/events.jsonl：該卡最新 handoff event（分支、worktree、source_sha、
   tier、db_scope、執行者交付摘要）
-- docs/tasks/<CARD_ID>.md：「驗收條件」「驗證」章節原文
+- docs/tasks/<CARD_ID>.md：標題含「驗收」「驗證」「Gate」的章節原文
 
 慣例（CONTROL_PLANE_CONTRACT.md「Review→merge 慣例」）：查核 APPROVE（零阻塞
 findings）後 Coordinator 直接 merge，結果回傳執行者，部署另由需求方確認。
@@ -42,10 +42,18 @@ def card_sections(card_id: str, wanted: tuple[str, ...]) -> str:
     keep = False
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.startswith("## "):
-            keep = any(line[3:].strip().startswith(w) for w in wanted)
+            heading = line[3:].strip()
+            keep = any(token in heading for token in wanted)
         if keep:
             out.append(line)
-    return "\n".join(out).strip()
+    sections = "\n".join(out).strip()
+    if not sections:
+        print(
+            f"警告：{card_id} 找不到可錨定的驗收章節"
+            f"（標題須含：{', '.join(wanted)}）；review prompt 將退化為全文驗收。",
+            file=sys.stderr,
+        )
+    return sections
 
 
 def build_prompt(card_id: str) -> str:
@@ -55,7 +63,7 @@ def build_prompt(card_id: str) -> str:
     db_scope = ev.get("db_scope", "none")
     worktree = ev.get("worktree", "")
     wt_abs = ROOT / worktree if worktree else ROOT
-    sections = card_sections(card_id, ("驗收條件", "驗證"))
+    sections = card_sections(card_id, ("驗收", "驗證", "Gate"))
     indep = ("跨模型家族（非執行者所屬家族）或人工" if redline
              else "新 context／session 即可（不得為執行者本人）")
     db_note = {
