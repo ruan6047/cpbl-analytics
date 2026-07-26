@@ -34,6 +34,7 @@
 | [OPS-REMOTE-PROBE1](tasks/OPS-REMOTE-PROBE1.md) | INIT-PRODUCT-UX | T3 | Opt-in DEBUG 網路探測介面 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:37+08:00 |
 | [OPS-REMOTE-ROUTE1](tasks/OPS-REMOTE-ROUTE1.md) | INIT-PRODUCT-UX | T3 | 遠端出口路線資格驗證 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:38+08:00 |
 | [OPS-REMOTE-WORKER1](tasks/OPS-REMOTE-WORKER1.md) | INIT-PRODUCT-UX | T4 | 隔離式遠端 crawler shadow worker | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:39+08:00 |
+| [OPS-REVIEW-BASELINE1](tasks/OPS-REVIEW-BASELINE1.md) | — | T2 | 查核提示詞帶入父卡 spec 基線版本 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-26T17:05:00+08:00 |
 | [TEAM-STYLE1](tasks/TEAM-STYLE1.md) | — | T4 | 球隊球風研究 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:56:00+08:00 |
 | [UX-DESIGN-SYSTEM1](tasks/UX-DESIGN-SYSTEM1.md) | INIT-PRODUCT-UX | T3 | 全站 UI/UX 統一規則 codify（球員頁為基準） | — | — | 1 | 📦已合併 | —不適用 | 2026-07-24T16:55:00+08:00 |
 | [UX-ENTITY-LINKS2](tasks/UX-ENTITY-LINKS2.md) | INIT-PRODUCT-UX | T2 | 實體連結 pattern 普及化（整塊 hover:underline → ENTITY_LINK） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T00:59:21+08:00 |
