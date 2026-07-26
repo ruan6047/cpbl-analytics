@@ -20,10 +20,12 @@
 | [ML-FIELD-LINEUP1](tasks/ML-FIELD-LINEUP1.md) | INIT-OFFICIAL-DATA1 | T4 | 逐局守備陣容重建可行性與 canonical contract | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:03+08:00 |
 | [ML-FIELD-OAA-VAL1](tasks/ML-FIELD-OAA-VAL1.md) | INIT-OFFICIAL-DATA1 | T4 | 利用極座標落點還原 Spray Chart 與外野 OAA | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:07+08:00 |
 | [ML-FIELD-OF1](tasks/ML-FIELD-OF1.md) | — | T4 | 外野空中球守備範圍指標 | ruan6047（Design Gate） | — | 0 | 💡需求 | ⏸未部署 | 2026-07-22T16:51:08+08:00 |
+| [ML-OUTCOME-LEAK1](tasks/ML-OUTCOME-LEAK1.md) | — | T3 | 賽果預測先發特徵前視洩漏修正 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-27T01:29:31+08:00 |
 | [ML-PA-SIM-CONTEXT1](tasks/ML-PA-SIM-CONTEXT1.md) | — | T4 | 打席結果分布的情境條件化 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-25T19:06:00+08:00 |
 | [ML-PA-SIM-TEAM1](tasks/ML-PA-SIM-TEAM1.md) | — | T4 | 打席模擬對某一隊 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-25T19:07:00+08:00 |
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:09+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:10+08:00 |
+| [ML-WP-BIO-PRIOR1](tasks/ML-WP-BIO-PRIOR1.md) | INIT-GAME-RECAP | T3 | WP 賽前先驗 bio 方向研究 spike | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-27T01:29:31+08:00 |
 | [OPS-LIVE-SHADOW1](tasks/OPS-LIVE-SHADOW1.md) | — | T4 | VPS 隔離 live source observer | ruan6047（7/30 evidence 對帳／撤除待辦） | `ai/codex/OPS-LIVE-SHADOW1 @ .claude/worktrees/ops-live-shadow1-execution（保留至 evidence 對帳／撤除後結案）` | 1 | 📦已合併 | ✅已驗證 | 2026-07-26T23:11:01+08:00 |
 | [OPS-REMOTE-CUTOVER1](tasks/OPS-REMOTE-CUTOVER1.md) | INIT-PRODUCT-UX | T4 | 遠端 crawler production canary 與切換 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:40+08:00 |
 | [OPS-REMOTE-PROBE1](tasks/OPS-REMOTE-PROBE1.md) | INIT-PRODUCT-UX | T3 | Opt-in DEBUG 網路探測介面 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:37+08:00 |
