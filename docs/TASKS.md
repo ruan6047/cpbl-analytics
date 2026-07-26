@@ -8,7 +8,7 @@
 
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
-| [GAME-RECAP-WP-STRENGTH1](tasks/GAME-RECAP-WP-STRENGTH1.md) | INIT-GAME-RECAP | T4 | 場中 WP 戰力感知先驗（VAL1 §7 路徑 2） | 待指派查核者（須 L4 且跨模型家族或人工，且 ≠ 執行） | `ai/opus-5/GAME-RECAP-WP-STRENGTH1 @ .claude/worktrees/game-recap-wp-strength1-execution` | 1 | 🔍待查核 | —不適用 | 2026-07-26T23:55:11+08:00 |
+| [GAME-RECAP-WP-STRENGTH1](tasks/GAME-RECAP-WP-STRENGTH1.md) | INIT-GAME-RECAP | T4 | 場中 WP 戰力感知先驗（VAL1 §7 路徑 2） | 待 merge（merge 者不得為執行者；執行者＝Coordinator 本人，須需求方授權代行） | `ai/opus-5/GAME-RECAP-WP-STRENGTH1 @ .claude/worktrees/game-recap-wp-strength1-execution` | 1 | 🔍待查核 | —不適用 | 2026-07-27T03:26:18+08:00 |
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | — | `ai/sonnet-5/INGEST-GAME-TM-REFACTOR1-g3 @ .claude/worktrees/ingest-game-tm-refactor1-g3-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-24T12:53:42+08:00 |
 | [INGEST-PA-DAILY1](tasks/INGEST-PA-DAILY1.md) | — | T3 | canonical PA build 接進每日 refresh 鏈 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-26T20:55:46+08:00 |
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | ruan6047（Design Gate） | — | 0 | 💡需求 | —不適用 | 2026-07-17T04:44:38+08:00 |
@@ -19,7 +19,7 @@
 | [ML-FIELD-LINEUP1](tasks/ML-FIELD-LINEUP1.md) | INIT-OFFICIAL-DATA1 | T4 | 逐局守備陣容重建可行性與 canonical contract | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:03+08:00 |
 | [ML-FIELD-OAA-VAL1](tasks/ML-FIELD-OAA-VAL1.md) | INIT-OFFICIAL-DATA1 | T4 | 利用極座標落點還原 Spray Chart 與外野 OAA | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:07+08:00 |
 | [ML-FIELD-OF1](tasks/ML-FIELD-OF1.md) | — | T4 | 外野空中球守備範圍指標 | ruan6047（Design Gate） | — | 0 | 💡需求 | ⏸未部署 | 2026-07-22T16:51:08+08:00 |
-| [ML-OUTCOME-LEAK1](tasks/ML-OUTCOME-LEAK1.md) | — | T3 | 賽果預測先發特徵前視洩漏修正 | 待 merge | `ai/opus-5/ML-OUTCOME-LEAK1 @ .claude/worktrees/ml-outcome-leak1-execution` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-27T03:24:27+08:00 |
+| [ML-OUTCOME-LEAK1](tasks/ML-OUTCOME-LEAK1.md) | — | T3 | 賽果預測先發特徵前視洩漏修正 | ⛔ 部署凍結中（待 ML-OUTCOME-SIMPLE-LEAK2 完成後同批上線） | `ai/opus-5/ML-OUTCOME-LEAK1 @ .claude/worktrees/ml-outcome-leak1-execution（保留：LEAK2 分支以此為基底）` | 1 | 📦已合併 | ⏸未部署 | 2026-07-27T03:26:18+08:00 |
 | [ML-OUTCOME-SIMPLE-LEAK2](tasks/ML-OUTCOME-SIMPLE-LEAK2.md) | — | T3 | 上線 serving 模型 outcome_simple 去洩漏與閘門重校 | Claude Opus 5 subagent@Claude Code（執行） | `ai/opus-5/ML-OUTCOME-SIMPLE-LEAK2 @ .claude/worktrees/ml-outcome-simple-leak2-execution` | 0 | 🔨執行中 | ⏸未部署 | 2026-07-27T03:17:20+08:00 |
 | [ML-PA-SIM-CONTEXT1](tasks/ML-PA-SIM-CONTEXT1.md) | — | T4 | 打席結果分布的情境條件化 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-25T19:06:00+08:00 |
 | [ML-PA-SIM-TEAM1](tasks/ML-PA-SIM-TEAM1.md) | — | T4 | 打席模擬對某一隊 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-25T19:07:00+08:00 |
