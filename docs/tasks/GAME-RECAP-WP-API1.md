@@ -8,7 +8,7 @@
 - 範圍：見 [`GAME_RECAP_PRODUCT_SPEC.md`](../GAME_RECAP_PRODUCT_SPEC.md) §8、§10
 - Discovery：依賴 `GAME-RECAP-WP-VAL1` Go 與 PA1 canonical contract
 - Design：Design Gate N/A；本卡實作已核可的 public data contract
-- current-state：📥Backlog（**阻塞**）；`GAME-RECAP-WP-VAL1` 結論全 scope unsupported，等待 `GAME-RECAP-WP-CAL1`（A 事後校準層）通過後解除 A 範圍阻塞
+- current-state：📥Backlog（**阻塞**）；`GAME-RECAP-WP-VAL1` 全 scope unsupported、`GAME-RECAP-WP-CAL1` 事後校準已試 **No-Go**（修正不具時間平穩性）→ A 範圍解鎖改依 [`GAME-RECAP-WP-STRENGTH1`](GAME-RECAP-WP-STRENGTH1.md)（戰力感知先驗，VAL1 §7 路徑 2）通過後解除
 
 ## 目標
 
