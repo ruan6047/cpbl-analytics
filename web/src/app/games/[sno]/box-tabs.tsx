@@ -16,21 +16,19 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { clientGet, type StatRow } from "@/lib/client";
 import { fmtIPParts } from "@/lib/format";
-import { Card, PlayerLink, TeamLogo, Skeleton, ErrorState } from "@/components/ui";
+import { Card, PlayerLink, TeamLogo, Skeleton, ErrorState, EmptyState, ENTITY_LINK } from "@/components/ui";
 import { DataTable, type Column } from "@/components/table";
 import { chartAxis, chartTooltip, useChartTheme } from "@/lib/chart-theme";
 import { teamColor, teamShort } from "@/lib/teams";
 import { DEFEND_ZH, type Live } from "@/components/game-board";
 import { SprayChart } from "@/components/spray-chart";
 
+// 主審判決分布（描述性）：逐球位置＋判決（好球/壞球）。刻意無對錯/準確率/誤判欄位
+// （§5.12 NO-GO）。固定規則帶僅作散點的空間參考。
 type UmpirePitch = {
   side: number;
   height: number;
   called_strike: boolean;
-  in_zone: boolean;
-  correct: boolean;
-  edge_cm: number;
-  miss_cm: number;
   inning_seq: number | null;
   pitcher_name: string | null;
   hitter_name: string | null;
@@ -45,9 +43,8 @@ type UmpireCardData = {
   summary: {
     umpire: string | null;
     called: number;
-    acc: number | null;
-    missed: number;
-    avg_miss_cm: number;
+    called_strikes: number;
+    called_balls: number;
   };
   game: {
     game_date: string;
@@ -64,30 +61,6 @@ type UmpireCardData = {
   };
   pitches: UmpirePitch[];
 };
-
-function Donut({ pct, label, sub }: { pct: number | null; label: string; sub?: string }) {
-  const r = 26, c = 2 * Math.PI * r, v = pct ?? 0;
-  return (
-    <div className="flex flex-col items-center px-2">
-      <svg viewBox="0 0 64 64" className="h-16 w-16">
-        <circle cx="32" cy="32" r={r} fill="none" strokeWidth="6" className="stroke-line" />
-        <circle cx="32" cy="32" r={r} fill="none" strokeWidth="6"
-          className={v >= 92 ? "stroke-cpbl" : v >= 88 ? "stroke-[var(--chart-5)]" : "stroke-accent"}
-          strokeDasharray={`${(v / 100) * c} ${c}`} strokeLinecap="round"
-          transform="rotate(-90 32 32)" />
-        <text x="32" y="36" textAnchor="middle" className="fill-current font-mono text-[13px] font-bold text-ink">
-          {pct != null ? `${pct}%` : "—"}
-        </text>
-      </svg>
-      <div className="mt-1 text-[11px] font-medium text-muted">{label}</div>
-      {sub && <div className="text-[10px] text-faint">{sub}</div>}
-    </div>
-  );
-}
-
-function judge(p: UmpirePitch, tolCm: number): boolean {
-  return p.correct || p.edge_cm <= tolCm;
-}
 
 const n = (v: StatRow[string] | undefined) => Number(v) || 0;
 const i0 = (v: StatRow[string]) => (v === null || v === undefined ? "—" : String(v));
@@ -262,13 +235,11 @@ export default function BoxTabs({ data }: { data: Live }) {
   const [umpCard, setUmpCard] = useState<UmpireCardData | null>(null);
   const [umpLoading, setUmpLoading] = useState(false);
   const [umpError, setUmpError] = useState(false);
-  const [tol, setTol] = useState(0);
-  const [missOnly, setMissOnly] = useState(true);
 
   const gameSno = data.game ? Number(data.game.game_sno) : null;
 
   // 賽事切換（同頁面元件重用，App Router 不會因 params 變動而重掛載）時，
-  // 前一場的主審報告不得沿用——依 gameSno 重置後再讓下方 effect 重新抓該場資料。
+  // 前一場的主審判決分布不得沿用——依 gameSno 重置後再讓下方 effect 重新抓該場資料。
   useEffect(() => {
     setUmpCard(null);
     setUmpError(false);
@@ -297,38 +268,6 @@ export default function BoxTabs({ data }: { data: Live }) {
       return () => { cancelled = true; };
     }
   }, [tab, umpCard, umpError, data.game, gameSno]);
-
-  const stats = useMemo(() => {
-    if (!umpCard || !umpCard.pitches.length) return null;
-    const ps = umpCard.pitches;
-    const ok = ps.filter((p) => judge(p, tol));
-    const inz = ps.filter((p) => p.in_zone);
-    const outz = ps.filter((p) => !p.in_zone);
-    const misses = ps.filter((p) => !judge(p, tol));
-    const cs = ps.filter((p) => p.called_strike);
-    const q = (arr: number[], f: number) => {
-      const s = [...arr].sort((a, b) => a - b);
-      return s[Math.min(s.length - 1, Math.floor(f * s.length))];
-    };
-    const est = cs.length >= 20 ? {
-      left: q(cs.map((p) => p.side), 0.05), right: q(cs.map((p) => p.side), 0.95),
-      bot: q(cs.map((p) => p.height), 0.05), top: q(cs.map((p) => p.height), 0.95),
-    } : null;
-    const consistent = est ? ps.filter((p) => {
-      const inEst = p.side >= est.left && p.side <= est.right && p.height >= est.bot && p.height <= est.top;
-      return inEst === p.called_strike;
-    }).length : null;
-    return {
-      acc: Math.round(1000 * ok.length / ps.length) / 10,
-      strikeAcc: inz.length ? Math.round(1000 * inz.filter((p) => judge(p, tol)).length / inz.length) / 10 : null,
-      ballAcc: outz.length ? Math.round(1000 * outz.filter((p) => judge(p, tol)).length / outz.length) / 10 : null,
-      consistency: consistent != null ? Math.round(1000 * consistent / ps.length) / 10 : null,
-      avgMiss: misses.length
-        ? Math.round(10 * misses.reduce((s, p) => s + p.edge_cm, 0) / misses.length) / 10 : 0,
-      missCount: misses.length, total: ps.length, est,
-      keyCalls: [...misses].sort((a, b) => b.edge_cm - a.edge_cm).slice(0, 5),
-    };
-  }, [umpCard, tol]);
 
   const W = 340, H = 400, sc = 178;
   const px = (s: number) => W / 2 + s * sc;
@@ -490,7 +429,7 @@ export default function BoxTabs({ data }: { data: Live }) {
         {tabBtn("away", <><TeamLogo code={ac} name={awayName} size={16} decorative />{teamShort(ac)}</>)}
         {tabBtn("home", <><TeamLogo code={hc} name={homeName} size={16} decorative />{teamShort(hc)}</>)}
         {tabBtn("ana", "分析")}
-        {hasUmpire && tabBtn("umpire", "主審報告")}
+        {hasUmpire && tabBtn("umpire", "主審判決")}
       </div>
 
       {(tab === "away" || tab === "home") && (
@@ -568,21 +507,23 @@ export default function BoxTabs({ data }: { data: Live }) {
       {tab === "umpire" && (
         <div className="space-y-4">
           {umpLoading && <Skeleton className="h-40 rounded-xl" />}
-          {umpError && <ErrorState>載入主審報告失敗。</ErrorState>}
+          {/* 退化語意分類（blueprint §8.1）：載入失敗、無設備、尚未發布各給不同文案，
+              一律不把缺資料呈現為零誤判／零影響。 */}
+          {umpError && <ErrorState>載入主審判決分布失敗，請稍後再試。</ErrorState>}
           {!umpLoading && !umpError && umpCard && (
             <>
-              {umpCard.pitches.length > 0 && stats ? (
-                <div className="rounded-xl border border-line bg-surface overflow-hidden">
+              {umpCard.pitches.length > 0 ? (
+                <Card padding="" className="overflow-hidden">
                   <div className="border-b border-line px-4 py-3 bg-surface-2/40 flex flex-wrap items-center justify-between gap-3 text-sm">
                     <div>
                       <span className="font-bold text-ink">主審{" "}
                         <Link
                           href={`/people/umpire/${encodeURIComponent(data.detail?.head_umpire ?? "")}`}
-                          className="text-accent hover:underline"
+                          className={ENTITY_LINK}
                         >
                           {data.detail?.head_umpire}
                         </Link>{" "}
-                        判決報告
+                        判決分布
                       </span>
                       <span className="ml-3 text-[11px] text-faint">
                         中華職棒 {umpCard.season} 球季　編號 {data.game?.game_sno}
@@ -593,109 +534,60 @@ export default function BoxTabs({ data }: { data: Live }) {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-start justify-around gap-4 px-4 py-6 border-b border-line">
-                    <Donut pct={stats.acc} label="整體準確率" sub={`${stats.total - stats.missCount}/${stats.total}`} />
-                    <Donut pct={stats.strikeAcc} label="好球準確率" sub="帶內" />
-                    <Donut pct={stats.ballAcc} label="壞球準確率" sub="帶外" />
-                    <Donut pct={stats.consistency} label="判決一致性" sub="vs 估計帶" />
-                    <div className="flex flex-col items-center px-2 pt-2">
-                      <div className="font-mono text-2xl font-black tabular-nums text-ink">{stats.avgMiss}</div>
-                      <div className="text-[11px] font-medium text-muted">平均誤差 cm</div>
-                      <div className="text-[10px] text-faint">誤判 {stats.missCount} 球</div>
-                    </div>
+                  {/* 中性計數（非準確率、非評判）：好壞球判決球數分布 */}
+                  <div className="flex flex-wrap items-center gap-x-6 gap-y-1 px-4 py-3 border-b border-line text-sm">
+                    <span className="text-muted">好壞球判決{" "}
+                      <b className="font-mono text-base tabular-nums text-ink">{umpCard.summary.called}</b> 球
+                    </span>
+                    <span className="flex items-center gap-1.5 text-muted">
+                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: "var(--color-cpbl)" }} />
+                      判好球 <b className="font-mono tabular-nums text-ink">{umpCard.summary.called_strikes}</b>
+                    </span>
+                    <span className="flex items-center gap-1.5 text-muted">
+                      <span className="inline-block h-2.5 w-2.5 rounded-full border border-muted" />
+                      判壞球 <b className="font-mono tabular-nums text-ink">{umpCard.summary.called_balls}</b>
+                    </span>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-4 bg-surface-2/20 px-4 py-2.5 text-xs border-b border-line">
-                    <div className="flex overflow-hidden rounded-md border border-line bg-surface">
-                      <button onClick={() => setMissOnly(true)}
-                        className={`px-3 py-1 font-medium transition ${missOnly ? "bg-cpbl text-white" : "text-muted hover:text-ink"}`}>
-                        僅顯示誤判
-                      </button>
-                      <button onClick={() => setMissOnly(false)}
-                        className={`px-3 py-1 font-medium transition ${!missOnly ? "bg-cpbl text-white" : "text-muted hover:text-ink"}`}>
-                        顯示所有判決
-                      </button>
+                  <div className="p-4">
+                    <div className="mb-2 text-xs font-semibold text-muted flex flex-col gap-0.5">
+                      <span>判決位置分布</span>
+                      <span className="font-normal text-faint text-[10px]">
+                        每點為一次好壞球判決（捕手視角）；方框＝規則好球帶，僅作空間參考、未依打者身高調整。
+                      </span>
                     </div>
-                    <label className="flex items-center gap-2 text-muted">
-                      容錯範圍
-                      <input type="range" min={0} max={5} step={0.5} value={tol}
-                        onChange={(e) => setTol(Number(e.target.value))} className="w-28 accent-cpbl cursor-pointer" />
-                      <span className="font-mono tabular-nums bg-surface border border-line rounded px-1.5 py-0.5 text-ink">{tol.toFixed(1)} cm</span>
-                    </label>
-                  </div>
-
-                  <div className="grid gap-6 p-4 md:grid-cols-[minmax(0,340px)_1fr]">
-                    <div>
-                      <div className="mb-2 text-xs font-semibold text-muted flex flex-col gap-0.5">
-                        <span>{missOnly ? "誤判球點" : "所有判決"}</span>
-                        <span className="font-normal text-faint text-[10px]">實線=規則好球帶　虛線=主審估計帶（捕手視角）</span>
-                      </div>
-                      <div className="flex justify-center">
-                        <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[340px] rounded-lg border border-line/60 bg-paper">
-                          <rect x={px(-umpCard.zone.half_width)} y={py(umpCard.zone.top)}
-                            width={px(umpCard.zone.half_width) - px(-umpCard.zone.half_width)}
-                            height={py(umpCard.zone.bot) - py(umpCard.zone.top)}
-                            fill="none" strokeWidth="1.5" className="stroke-ink/70" />
-                          {stats.est && (
-                            <rect x={px(stats.est.left)} y={py(stats.est.top)}
-                              width={px(stats.est.right) - px(stats.est.left)}
-                              height={py(stats.est.bot) - py(stats.est.top)}
-                              fill="none" strokeWidth="1.2" strokeDasharray="5 4" className="stroke-accent" />
-                          )}
-                          {umpCard.pitches.filter((p) => !missOnly || !judge(p, tol)).map((p, i) => (
-                            <circle key={i} cx={px(p.side)} cy={py(p.height)}
-                              r={judge(p, tol) ? 2.5 : 4.5}
-                              fill={judge(p, tol) ? (p.called_strike ? "var(--color-cpbl)" : "var(--color-faint)") : "var(--color-accent)"}
-                              opacity={judge(p, tol) ? 0.35 : 0.95}>
-                              <title>{`${p.inning_seq ?? "?"}局 ${p.hitter_name ?? ""} vs ${p.pitcher_name ?? ""}　${p.ball_cnt}-${p.strike_cnt}　判${p.called_strike ? "好球" : "壞球"}${judge(p, tol) ? "" : `（差 ${p.edge_cm}cm）`}`}</title>
+                    <div className="flex justify-center">
+                      <svg viewBox={`0 0 ${W} ${H}`} role="img"
+                        aria-label={`主審單場好壞球判決位置分布：判好球 ${umpCard.summary.called_strikes} 球、判壞球 ${umpCard.summary.called_balls} 球`}
+                        className="w-full max-w-[340px] rounded-lg border border-line/60 bg-paper">
+                        <rect x={px(-umpCard.zone.half_width)} y={py(umpCard.zone.top)}
+                          width={px(umpCard.zone.half_width) - px(-umpCard.zone.half_width)}
+                          height={py(umpCard.zone.bot) - py(umpCard.zone.top)}
+                          fill="none" strokeWidth="1.5" className="stroke-ink/50" />
+                        {umpCard.pitches.map((p, i) => (
+                          p.called_strike ? (
+                            <circle key={i} cx={px(p.side)} cy={py(p.height)} r={3}
+                              fill="var(--color-cpbl)" opacity={0.7}>
+                              <title>{`${p.inning_seq ?? "?"}局 ${p.hitter_name ?? ""} vs ${p.pitcher_name ?? ""}　${p.ball_cnt}-${p.strike_cnt}　判好球`}</title>
                             </circle>
-                          ))}
-                        </svg>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="mb-2 text-xs font-semibold text-muted">
-                        關鍵判決 <span className="font-normal text-faint">（誤差最大的誤判，最多 5 球）</span>
-                      </div>
-                      <ul className="grid gap-2 sm:grid-cols-2 md:grid-cols-1">
-                        {stats.keyCalls.map((p, i) => (
-                          <li key={i} className="rounded-lg border border-line bg-surface-2/40 px-3 py-2 text-xs flex flex-col justify-between">
-                            <div>
-                              <div className="text-faint text-[10px]">
-                                第 {p.inning_seq ?? "?"} 局・{p.out_cnt ?? 0} 出局・球數 {p.ball_cnt}-{p.strike_cnt}
-                              </div>
-                              <div className="mt-0.5 font-medium text-ink">
-                                {p.pitcher_name ?? "?"} 對 {p.hitter_name ?? "?"}
-                              </div>
-                            </div>
-                            <div className="mt-2 flex items-center gap-2 font-semibold">
-                              <span className={p.called_strike ? "text-cpbl" : "text-muted"}>
-                                判{p.called_strike ? "好球" : "壞球"}
-                              </span>
-                              <span className="text-faint font-normal">（應為{p.in_zone ? "好球" : "壞球"}）</span>
-                              <span className="ml-auto rounded bg-accent/10 px-1.5 py-0.5 font-mono text-accent">
-                                差 {p.edge_cm} cm
-                              </span>
-                            </div>
-                          </li>
+                          ) : (
+                            <circle key={i} cx={px(p.side)} cy={py(p.height)} r={3}
+                              fill="none" strokeWidth={1.2} className="stroke-muted" opacity={0.85}>
+                              <title>{`${p.inning_seq ?? "?"}局 ${p.hitter_name ?? ""} vs ${p.pitcher_name ?? ""}　${p.ball_cnt}-${p.strike_cnt}　判壞球`}</title>
+                            </circle>
+                          )
                         ))}
-                        {!stats.keyCalls.length && (
-                          <li className="text-xs text-faint py-4 text-center border border-dashed border-line rounded-lg">
-                            本場無誤判 🎯
-                          </li>
-                        )}
-                      </ul>
+                      </svg>
                     </div>
                   </div>
-                </div>
+                </Card>
+              ) : data.has_tracking ? (
+                <EmptyState>本場逐球追蹤尚未包含好壞球判決資料（可能延遲發布）。</EmptyState>
               ) : (
-                <div className="rounded-xl border border-dashed border-line bg-surface-2/50 px-6 py-8 text-center text-xs text-muted">
-                  無法評估（本場無 TrackMan 逐球追蹤資料，無法評估主審好壞球判決）。
-                </div>
+                <EmptyState>本場無逐球追蹤資料，無主審判決分布（常見於未設置 TrackMan 的球場）。</EmptyState>
               )}
               <div className="text-[10px] text-faint leading-normal mt-2">
-                * 註：主審判決報告為非官方自動化推算，好球帶採固定規則寬度（約外邊 22.0 cm），高度採 TrackMan 固定邊界，並未依每位打者實際蹲姿/身高進行個體化動態調整。指標僅供參考，不代表官方評判。
+                * 註：主審好壞球判決分布為非官方自動化推算，為<b className="font-semibold">描述性</b>呈現，非評判、非排行。好球帶採固定規則寬度（約外邊 22.0 cm）、高度採 TrackMan 固定邊界，未依每位打者實際蹲姿／身高個體化調整，僅作散點的空間參考。
               </div>
             </>
           )}

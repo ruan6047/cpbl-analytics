@@ -56,8 +56,10 @@ def coach_profile(name: str) -> dict:
 @router.get("/api/v1/people/umpire/{name}")
 def umpire_profile(name: str, season: int = Query(DEFAULT_SEASON),
                    kind_code: str = Query("A")) -> dict:
-    """裁判個人頁：各崗位執法場次＋主審記分卡（僅 TrackMan 場，推算）＋近期主審場列表。
-    樣本誠實：追蹤場數（tracked_games）隨摘要回傳，前端須帶樣本數呈現。"""
+    """裁判個人頁：各崗位執法場次＋主審好壞球判決**分布**（僅 TrackMan 場，描述性）＋近期主審場列表。
+
+    ⚠️ NO-GO 邊界（§5.12）：**只回中性分布**（tracked_games 覆蓋、called、好/壞球計數），
+    **不回**準確率、誤判計數或方向性評判。樣本誠實：tracked_games 隨分布回傳供前端揭露。"""
     with conn() as c:
         cur = c.cursor()
         # 各崗位執法場次（全季、不限 TrackMan）
@@ -76,12 +78,13 @@ def umpire_profile(name: str, season: int = Query(DEFAULT_SEASON),
             {"n": name, "season": season, "kind": kind_code},
         )
         positions = _dicts(cur)[0]
-        # 主審記分卡摘要（沿 umpires router 母體/剔除規則）
+        # 主審好壞球判決分布（描述性，沿 umpires router 母體/追蹤異常剔除規則）：
+        # 只算中性計數（覆蓋、called、好/壞球），不算對錯／準確率（§5.12 NO-GO）。
         cur.execute(
             f"""
             WITH called AS ({_CALLED}),
             judged AS (
-              SELECT c2.*, (c2.called_strike = c2.in_zone) AS correct
+              SELECT c2.*
               FROM called c2
               JOIN cpbl.game_detail d ON d.year = %(season)s AND d.kind_code = %(kind)s
                                      AND d.game_sno = c2.game_sno
@@ -91,17 +94,14 @@ def umpire_profile(name: str, season: int = Query(DEFAULT_SEASON),
                               OR c2.height < %(zb)s - 0.5 OR c2.height > %(zt)s + 0.5)))
             SELECT count(DISTINCT game_sno) AS tracked_games,
                    count(*) AS called,
-                   round(100.0 * count(*) FILTER (WHERE correct) / nullif(count(*), 0), 1) AS acc,
-                   round(100.0 * count(*) FILTER (WHERE correct AND in_zone)
-                         / nullif(count(*) FILTER (WHERE in_zone), 0), 1) AS strike_acc,
-                   round(100.0 * count(*) FILTER (WHERE correct AND NOT in_zone)
-                         / nullif(count(*) FILTER (WHERE NOT in_zone), 0), 1) AS ball_acc
+                   count(*) FILTER (WHERE called_strike) AS called_strikes,
+                   count(*) FILTER (WHERE NOT called_strike) AS called_balls
             FROM judged
             """,
             {"n": name, "season": season, "kind": kind_code,
              "hw": HALF_W, "zb": Z_BOT, "zt": Z_TOP},
         )
-        scorecard = _dicts(cur)[0]
+        distribution = _dicts(cur)[0]
         # 近期主審場（含比分；有無 TrackMan 由前端以 called>0 判斷 → 這裡直接附 called 數）
         cur.execute(
             """
@@ -123,4 +123,4 @@ def umpire_profile(name: str, season: int = Query(DEFAULT_SEASON),
         )
         recent = _dicts(cur)
     return {"name": name, "season": season, "positions": positions,
-            "scorecard": scorecard, "recent_games": recent}
+            "distribution": distribution, "recent_games": recent}

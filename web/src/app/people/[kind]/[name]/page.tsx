@@ -2,7 +2,8 @@
 
 // 個人頁（UX-7C，Person Hub 甲案雙軌）：無 acnt 身分（純教練/裁判）。
 // 有 acnt 的人走 /players/[id]（canonical）；教練若名字唯一對應球員，附「球員時期 →」連結。
-// 裁判記分卡為推算（TrackMan 固定規則帶），樣本誠實：一律帶追蹤場數。
+// 裁判判決分布為描述性推算（TrackMan 逐球）：只呈現出賽/覆蓋/中性好壞球計數，
+// 不呈現準確率、誤判或方向性評判（§5.12 NO-GO）。樣本誠實：一律帶追蹤場數。
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -23,7 +24,7 @@ type CoachData = {
 type UmpData = {
   name: string; season: number;
   positions: { head: number; first: number; second: number; third: number; lines: number };
-  scorecard: { tracked_games: number; called: number; acc: number | null; strike_acc: number | null; ball_acc: number | null };
+  distribution: { tracked_games: number; called: number; called_strikes: number; called_balls: number };
   recent_games: { game_sno: number; game_date: string; venue: string | null;
     away_team_name: string; away_team_code: string; away_score: number;
     home_team_name: string; home_team_code: string; home_score: number; called: number }[];
@@ -132,8 +133,8 @@ function CoachView({ d }: { d: CoachData }) {
 }
 
 function UmpireView({ d }: { d: UmpData }) {
-  const sc = d.scorecard;
-  const tracked = Number(sc.tracked_games) || 0;
+  const dist = d.distribution;
+  const tracked = Number(dist.tracked_games) || 0;
   const pos: [string, number][] = [
     ["主審", d.positions.head], ["一壘", d.positions.first], ["二壘", d.positions.second],
     ["三壘", d.positions.third], ["外線", d.positions.lines],
@@ -152,7 +153,7 @@ function UmpireView({ d }: { d: UmpData }) {
       ),
     },
     {
-      header: "記分卡", align: "right",
+      header: "判決分布", align: "right",
       cell: (r) => (r.called > 0
         ? <Link href={`/games/${r.game_sno}?tab=umpire&year=${d.season}`} className="text-accent hover:underline">看單場 →</Link>
         : <span className="text-faint">無追蹤</span>),
@@ -165,7 +166,7 @@ function UmpireView({ d }: { d: UmpData }) {
           <h1 className="text-2xl font-extrabold tracking-tight text-ink">{d.name}</h1>
           <span className="rounded-full bg-surface-2 px-2.5 py-1 text-xs font-semibold text-muted">裁判 · {d.season} 球季</span>
         </div>
-        <p className="mt-1.5 text-sm text-muted">好壞球判決為推算（TrackMan 固定規則帶），僅涵蓋有設備場次。</p>
+        <p className="mt-1.5 text-sm text-muted">好壞球判決分布為描述性推算（TrackMan 逐球），僅涵蓋有設備場次；非評判、非官方。</p>
       </header>
       <section className="mb-8 grid gap-4 lg:grid-cols-2">
         <Card>
@@ -175,18 +176,21 @@ function UmpireView({ d }: { d: UmpData }) {
           </div>
         </Card>
         <Card>
-          <Eyebrow className="mb-3">主審記分卡 <span className="font-normal normal-case text-faint">（{tracked} 場追蹤 · {sc.called} 球）</span></Eyebrow>
+          <Eyebrow className="mb-3">主審判決分布 <span className="font-normal normal-case text-faint">（{tracked} 場追蹤 · {dist.called} 球）</span></Eyebrow>
           {tracked > 0 ? (
             <>
               <div className="grid grid-cols-3 gap-2">
-                <StatTile label="判決準確率" value={sc.acc != null ? `${sc.acc}%` : "—"} accent />
-                <StatTile label="帶內判好球" value={sc.strike_acc != null ? `${sc.strike_acc}%` : "—"} />
-                <StatTile label="帶外判壞球" value={sc.ball_acc != null ? `${sc.ball_acc}%` : "—"} />
+                <StatTile label="判決球數" value={String(dist.called)} />
+                <StatTile label="判好球" value={String(dist.called_strikes)} />
+                <StatTile label="判壞球" value={String(dist.called_balls)} />
               </div>
-              {tracked < 5 && <p className="mt-2 text-[11px] text-faint">樣本僅 {tracked} 場，指標僅供參考。</p>}
+              <p className="mt-2 text-[11px] text-faint">
+                中性計數（僅有 TrackMan 設備的場次），非準確率、非評判。
+                {tracked < 5 && ` 追蹤樣本僅 ${tracked} 場，涵蓋有限。`}
+              </p>
             </>
           ) : (
-            <EmptyState>本季無 TrackMan 追蹤場次，無記分卡。</EmptyState>
+            <EmptyState>本季無 TrackMan 追蹤場次，無判決分布資料。</EmptyState>
           )}
         </Card>
       </section>
