@@ -16,6 +16,7 @@
 | [GAME-RECAP-WP-API1](tasks/GAME-RECAP-WP-API1.md) | INIT-GAME-RECAP | T4 | canonical WP／WPA public contract | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:09+08:00 |
 | [GAME-RECAP-WP-CAL1](tasks/GAME-RECAP-WP-CAL1.md) | INIT-GAME-RECAP | T4 | 場中 WP 事後校準層 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-25T07:45:00+08:00 |
 | [GAME-RECAP-WP-VAL1](tasks/GAME-RECAP-WP-VAL1.md) | INIT-GAME-RECAP | T4 | 場中 WP 時間外驗證與支援邊界 | — | `claude/fable-5-suitable-tasks-8aa8d9 @ .claude/worktrees/fable-5-suitable-tasks-8aa8d9（已合併；保留待 harness 回收）` | 1 | 📦已合併 | —不適用 | 2026-07-25T07:22:00+08:00 |
+| [GAME-RECAP-WP-VAL1-FIX1](tasks/GAME-RECAP-WP-VAL1-FIX1.md) | INIT-GAME-RECAP | T4 | 修正 WP-VAL1 E scope 誤標與訓練 proxy | Claude Fable 5@Claude Code | `ai/fable-5/GAME-RECAP-WP-VAL1-FIX1 @ .claude/worktrees/fable-5-suitable-tasks-8aa8d9（卡族共用 WP-VAL1 原 worktree）` | 0 | 🔨執行中 | —不適用 | 2026-07-26T18:07:00+08:00 |
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | — | `ai/sonnet-5/INGEST-GAME-TM-REFACTOR1-g3 @ .claude/worktrees/ingest-game-tm-refactor1-g3-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-24T12:53:42+08:00 |
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | ruan6047（Design Gate） | — | 0 | 💡需求 | —不適用 | 2026-07-17T04:44:38+08:00 |
 | [INIT-OFFICIAL-DATA1](tasks/INIT-OFFICIAL-DATA1.md) | INIT-OFFICIAL-DATA1 | T4 | 官方資料契約完整性與低維護 ingest | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:00+08:00 |
@@ -33,7 +34,7 @@
 | [OPS-REMOTE-PROBE1](tasks/OPS-REMOTE-PROBE1.md) | INIT-PRODUCT-UX | T3 | Opt-in DEBUG 網路探測介面 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:37+08:00 |
 | [OPS-REMOTE-ROUTE1](tasks/OPS-REMOTE-ROUTE1.md) | INIT-PRODUCT-UX | T3 | 遠端出口路線資格驗證 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:38+08:00 |
 | [OPS-REMOTE-WORKER1](tasks/OPS-REMOTE-WORKER1.md) | INIT-PRODUCT-UX | T4 | 隔離式遠端 crawler shadow worker | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:39+08:00 |
-| [OPS-REVIEW-BASELINE1](tasks/OPS-REVIEW-BASELINE1.md) | — | T2 | 查核提示詞帶入父卡 spec 基線版本 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-26T17:05:00+08:00 |
+| [OPS-REVIEW-BASELINE1](tasks/OPS-REVIEW-BASELINE1.md) | — | T2 | 查核提示詞帶入父卡 spec 基線版本 | Claude Fable 5@Claude Code | `ai/fable-5/OPS-REVIEW-BASELINE1 @ .claude/worktrees/ops-review-baseline1-execution` | 0 | 🔨執行中 | —不適用 | 2026-07-26T18:06:00+08:00 |
 | [TEAM-STYLE1](tasks/TEAM-STYLE1.md) | — | T4 | 球隊球風研究 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:56:00+08:00 |
 | [UX-DESIGN-SYSTEM1](tasks/UX-DESIGN-SYSTEM1.md) | INIT-PRODUCT-UX | T3 | 全站 UI/UX 統一規則 codify（球員頁為基準） | — | — | 1 | 📦已合併 | —不適用 | 2026-07-24T16:55:00+08:00 |
 | [UX-ENTITY-LINKS2](tasks/UX-ENTITY-LINKS2.md) | INIT-PRODUCT-UX | T2 | 實體連結 pattern 普及化（整塊 hover:underline → ENTITY_LINK） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T00:59:21+08:00 |
