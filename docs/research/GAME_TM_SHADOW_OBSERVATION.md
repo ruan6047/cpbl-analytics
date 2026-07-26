@@ -87,6 +87,40 @@ uv run cpbl-shadow-game-tm --report # 不重跑，只看最近一次摘要 + 未
 - 查詢觀測窗已進行天數：`SELECT now() - min(started_at) FROM cpbl.game_tm_shadow_runs;`
   （CLI 每次執行也會印出）。
 
+## 3.1 每日觀測記錄（append-only，人工/AI 每次跑完後補一列）
+
+| run_id | 日期 | window_days | schedule_seen | finished/fetched | skipped (postponed/reserved/scheduled/unknown) | diffs_found | 備註 |
+|---|---|---|---|---|---|---|---|
+| 3 | 2026-07-24 | 5 | 9 | 6/6 | 0/0/3/0 | 0 | Day 1 bootstrap（見 §3） |
+| 4 | 2026-07-24 | 3 | 9 | 6/6 | 0/0/3/0 | 0 | 同日重跑確認一致 |
+| 5 | 2026-07-24 (16:24) | 3 | 10 | 7/7 | 0/0/3/0 | **590** | 見下方分析——非 Gate 3 缺陷 |
+| 6 | 2026-07-26 | 3 | 10 | 7/7 | 0/0/3/0 | 0 | 217/218/219 的 lag 已自然消失（見下方） |
+
+### run_id=5 差異分析（2026-07-24 執行，非本卡凍結範圍內的缺陷）
+
+590 筆差異拆解：
+
+- **586 筆 `only_shadow_pk`**：全部集中在 game_sno 217/218/219——3 場剛完賽（`GameStatus=FINISHED`）
+  但正式 `cpbl.pitch_tracking`（現行 logs 路徑 writer）當下還沒抓到。
+- **3 筆 `local_lag`**：同 3 場，本機 `cpbl.games` 也尚未同步為完成。
+- **1 筆 `cell_mismatch`**（真正需要看的）：`(2026, A, 215, pitcher 0000007597, pitch 92)` 的
+  `content` 欄位——prod 存的是「一壘跑者張育成-中外野手 傳**二壘手**封殺出局」，shadow 抓到的是
+  「傳**游擊手**封殺出局」。
+
+**追查結果**：2026-07-26 即時重打單場 API（`/games/2026-A-215`）與逐投手 logs API
+（`/players/logs?acnt=0000007597`），**兩邊官方端點目前都回「游擊手」**，與 shadow 一致；只有
+production DB 裡存的還是舊文字。結論：**這不是 Gate 3 shadow 或兩個官方端點之間的資料分歧**，
+而是官網事後修正了這球的文字描述（可能是記錄員校正接殺球員），而現行
+`run_refresh_recent.py` 的 `_lagging_pitch_pitchers()` 只在近 3 天覆蓋率不足時才會回頭補抓；
+game 215 已超出該窗口，production 的舊文字不會被自然刷新覆蓋——**除非重新對該投手整季
+`scrape_pitches` 一次**。這是現行 logs 路徑本身既有的「事後修正不會被動更新」限制，Gate 3
+只是碰巧觀測到了，不屬於本卡凍結範圍內需要修的邏輯，也不影響 Gate 4 晉升判斷（PK 集合與
+物理欄位仍逐格一致，只有一個敘述性文字欄位因官網事後修正而暫時不同步）。
+
+**只是時間差、會自我消失的部分**：`run_id=6`（2026-07-26）同一批次 217/218/219 的
+`only_shadow_pk`／`local_lag` 已全部消失（production 的每日 refresh 已追上），印證
+`local_lag`／新完賽場的 `only_shadow_pk` 確實只是時間差，不需人工介入。
+
 ## 5. Gate 4 晉升條件（本卡不做，另開卡）
 
 滿足以下條件後才可另開 `INGEST-GAME-TM-REFACTOR1-G4` cutover 卡：
