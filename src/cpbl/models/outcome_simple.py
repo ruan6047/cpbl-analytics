@@ -26,6 +26,13 @@ GROUP_CANDIDATES = {
 ORIENT = {"runs_allowed_diff": -1.0, "starter_era_diff": -1.0}
 FULL_SIGNALS = tuple(signal for signal in FEATURE_KEYS if signal != "home_field")
 
+# 校準斜率零假設模擬（ML-OUTCOME-SIMPLE-LEAK2）。
+CALIBRATION_NULL_ITERATIONS = 2000
+CALIBRATION_NULL_SEED = 17
+# 舊的固定門檻。已退場為「診斷指標」而非閘門判準，保留是為了在 metrics 裡並排揭露
+# 它在當前模型辨別力下的偽失敗率（見 _calibration_slope_null 的 docstring）。
+LEGACY_CALIBRATION_BAND = (0.8, 1.2)
+
 
 @dataclass(frozen=True)
 class OutcomeRow:
@@ -154,6 +161,77 @@ def _metrics(actual: np.ndarray, probability: np.ndarray) -> dict:
     }
 
 
+def _logit(probability: np.ndarray) -> np.ndarray:
+    clipped = np.clip(probability, 1e-6, 1 - 1e-6)
+    return np.log(clipped / (1 - clipped))
+
+
+def _calibration_mle(x: np.ndarray, y: np.ndarray, steps: int = 40) -> np.ndarray:
+    """再校準回歸 `y ~ sigmoid(a + b·x)` 的斜率 b，對每一列 y 各解一次。
+
+    與 `_metrics` 用的 `LogisticRegression(C=np.inf)` 是同一個無懲罰 MLE，改用向量化
+    Newton–Raphson 只是為了讓 2,000 次零假設模擬能一次算完（同一組 x、只換 y）。
+    `tests/test_outcome_simple.py` 釘住兩者的數值一致性。
+    """
+    y = np.atleast_2d(y).astype(float)
+    coefficients = np.zeros((y.shape[0], 2))
+    for _ in range(steps):
+        eta = np.clip(coefficients[:, :1] + coefficients[:, 1:] * x, -30.0, 30.0)
+        probability = 1.0 / (1.0 + np.exp(-eta))
+        weight = probability * (1.0 - probability)
+        residual = y - probability
+        gradient = np.stack([residual.sum(1), (residual * x).sum(1)], axis=1)
+        h00, h01 = weight.sum(1), (weight * x).sum(1)
+        h11 = (weight * x * x).sum(1)
+        determinant = h00 * h11 - h01**2
+        safe = np.where(np.abs(determinant) < 1e-12, np.nan, determinant)
+        step = np.stack([
+            (h11 * gradient[:, 0] - h01 * gradient[:, 1]) / safe,
+            (-h01 * gradient[:, 0] + h00 * gradient[:, 1]) / safe,
+        ], axis=1)
+        step = np.nan_to_num(step, nan=0.0)
+        coefficients = coefficients + step
+        if np.nanmax(np.abs(step)) < 1e-10:
+            break
+    return coefficients[:, 1]
+
+
+def _calibration_slope_null(
+    probability: np.ndarray,
+    observed_slope: float,
+    iterations: int = CALIBRATION_NULL_ITERATIONS,
+) -> dict:
+    """校準斜率在「模型完美校準」零假設下的抽樣分布。
+
+    為什麼需要它：斜率是以 `logit(p̂)` 為唯一解釋變數的再校準回歸係數，其抽樣變異約與
+    `Var(logit p̂)` 成反比。辨別力愈弱、預測愈往基準率壓縮，同一個「完美校準」的模型
+    量到的斜率就愈飄。**固定寬度的門檻因此不是校準檢定，而是變相的辨別力檢定**——
+    模型愈誠實（訊號愈弱）愈容易被判失敗，這正是 ML-OUTCOME-LEAK1 去洩漏後發生的事。
+
+    模擬方式：固定 p̂，重抽 `y ~ Bernoulli(p̂)`（即假設 p̂ 完全正確），重解斜率。
+    賽果在同一週內的殘餘相關性未建模，會讓真實零分布比模擬的更寬，故本檢定偏保守
+    （偽失敗率被低估），方向對安全有利。
+    """
+    x = _logit(probability)
+    rng = np.random.default_rng(CALIBRATION_NULL_SEED)
+    draws = (rng.random((iterations, len(x))) < np.clip(probability, 1e-6, 1 - 1e-6))
+    slopes = _calibration_mle(x, draws.astype(float))
+    slopes = slopes[np.isfinite(slopes)]
+    low, high = np.quantile(slopes, [0.025, 0.975]).tolist()
+    band_low, band_high = LEGACY_CALIBRATION_BAND
+    return {
+        "method": "parametric bootstrap under H0: predicted probabilities are calibrated",
+        "iterations": int(slopes.size),
+        "predicted_logit_sd": float(np.std(x)),
+        "slope_ci95": [float(low), float(high)],
+        "p_two_sided": float(np.mean(np.abs(slopes - 1.0) >= abs(observed_slope - 1.0))),
+        "legacy_band": list(LEGACY_CALIBRATION_BAND),
+        "legacy_band_false_failure_rate": float(
+            np.mean((slopes < band_low) | (slopes > band_high))
+        ),
+    }
+
+
 def _select_signals(rows: list[OutcomeRow]) -> dict[str, str]:
     seasons = sorted({row.season for row in rows})
     if len(seasons) < 2:
@@ -227,6 +305,9 @@ def walk_forward_backtest(
         "models": models,
         "folds": folds,
         "paired_bootstrap": paired_bootstrap,
+        "calibration_null": _calibration_slope_null(
+            np.array(pooled["fixed_semantic"]), fixed["calibration_slope"],
+        ),
         "seasons_beating_baseline": int(fixed_wins),
         "beats_baseline": (
             fixed["brier"] < baseline["brier"]
@@ -307,14 +388,24 @@ def load_artifact(path: Path) -> dict:
 
 
 def deployment_gate(result: dict, required_season_wins: int = 3) -> dict:
+    """七項部署閘門。`calibration_slope` 以零假設抽樣分布定界（見下）。
+
+    ML-OUTCOME-SIMPLE-LEAK2：舊版用固定區間 `[0.8, 1.2]`，那是對著含前視洩漏的模型
+    校準出來的——洩漏模型的 logit 離散度大（sd 0.56），該區間恰好等於它的零假設 95%
+    區間；去洩漏後離散度掉到 0.21，同一個區間會誤判 42% 的**完美校準**模型為失敗。
+    改以每次回測當場算出的零假設 95% 區間為界：型一誤差固定在 5%，模型愈強區間愈窄
+    （對洩漏模型反而比舊門檻更嚴），不隨結果調鬆。`calibration_intercept` 的絕對門檻
+    不動——截距衡量的是機率水準本身，沒有同樣的辨別力相依問題。
+    """
     baseline = next(model for model in result["models"] if model["name"] == "home_baseline")
     fixed = next(model for model in result["models"] if model["name"] == "fixed_semantic")
+    slope_low, slope_high = result["calibration_null"]["slope_ci95"]
     checks = {
         "brier": fixed["brier"] < baseline["brier"],
         "log_loss": fixed["log_loss"] < baseline["log_loss"],
         "season_stability": result["seasons_beating_baseline"] >= required_season_wins,
         "calibration_intercept": abs(fixed["calibration_intercept"]) <= 0.1,
-        "calibration_slope": 0.8 <= fixed["calibration_slope"] <= 1.2,
+        "calibration_slope": slope_low <= fixed["calibration_slope"] <= slope_high,
         "brier_ci": result["paired_bootstrap"]["brier_delta_ci95"][1] <= 0,
         "log_loss_ci": result["paired_bootstrap"]["log_loss_delta_ci95"][1] <= 0,
     }
