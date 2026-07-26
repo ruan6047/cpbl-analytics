@@ -140,8 +140,9 @@ function BenchmarkPanel({ benchmark }: { benchmark: OutcomeBenchmarkResponse | n
         </div>
       ) : (
         <p className="mt-2 rounded-lg bg-surface-2 px-3 py-2 text-xs text-muted">
-          目前無法取得 benchmark 回測紀錄；報告快照（測試 2022–2026 季、1,496 場）：全特徵邏輯回歸準確率
-          62.8%、全特徵 LightGBM 61.3%，對全押主場 52.9%。
+          目前無法取得 benchmark 回測紀錄；報告快照（測試 2022–2026 季、1,508 場）：全特徵邏輯回歸準確率
+          55.2%、全特徵 LightGBM 55.5%，對全押主場 52.9%。舊快照的 62.8%／61.3% 含先發投手同季彙總的
+          前視洩漏，已於 2026-07-27 修正為賽前 as-of 特徵後重測。
         </p>
       )}
     </div>
