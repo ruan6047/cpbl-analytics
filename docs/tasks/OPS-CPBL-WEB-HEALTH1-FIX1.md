@@ -14,10 +14,10 @@
 
 ## 驗收條件
 
-- [ ] 缺陷版正式 image 重現 EACCES（先紅證據：logs 原文）。
-- [ ] 修復版：`/methodology` 與首頁載入後 container logs 無任何 permission error；`docker inspect` health=healthy；容器內 `id` 證明 non-root。
-- [ ] ownership 變更最小化：`ls -l` 證明 `.next` 除實測必要目錄外仍 root:root。
-- [ ] `npm run build:check` 綠（不影響 dev 快取）；不動 API／UI 行為。
+- [x] 缺陷版正式 image 重現 EACCES（先紅證據：logs 原文，與 production 一字不差；重現程序＝mtime 撥舊＋restart 清 in-memory cache＋請求）。
+- [x] 修復版：同程序零 EACCES 且 methodology.html 成功重寫（owner app、mtime 更新）；health=healthy；id=uid 100(app) non-root。
+- [x] ownership 最小化：`.next` 根與 manifest 仍 root:root，僅 cache 與 server/app 開放。
+- [x] `npm run build:check` 綠；未動 API／UI／healthcheck／user。
 - [ ] 部署後（需求方授權）：VPS `prod_cpbl_web` healthy、外部 `/`、`/methodology`、`/batters` 200、logs 無 EACCES——此項屬部署驗證，merge 前以本機證據交付。
 
 ## 驗證
@@ -27,4 +27,5 @@
 
 ## Log
 
-- 2026-07-26T17:56:00+08:00 register by Claude Fable 5@Claude Code（依 ruan6047 指示開卡並派工；原卡 NOTE-007 ⚠驗證失敗的 remediation，原卡由本修復卡帶動結案）。
+- 2026-07-26T17:56:00+08:00 register＋claim by Claude Fable 5@Claude Code（需求方派工；卡族共用 worktree 切新分支）。
+- 2026-07-26T18:20:00+08:00 handoff → 🔍待查核；SHA eaa5ccf；先紅（production 同款 EACCES 重現）→ 後綠（零 EACCES＋再生成寫入成功）；證據見 handoff event。
