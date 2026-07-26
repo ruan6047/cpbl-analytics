@@ -14,7 +14,7 @@
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | ruan6047（Design Gate） | — | 0 | 💡需求 | —不適用 | 2026-07-17T04:44:38+08:00 |
 | [INIT-OFFICIAL-DATA1](tasks/INIT-OFFICIAL-DATA1.md) | INIT-OFFICIAL-DATA1 | T4 | 官方資料契約完整性與低維護 ingest | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:00+08:00 |
 | [INIT-PRODUCT-UX](tasks/INIT-PRODUCT-UX.md) | INIT-PRODUCT-UX | T3 | 全站產品與 UI/UX 收斂 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-17T04:44:24+08:00 |
-| [LIVE-GAME-BACKEND1](tasks/LIVE-GAME-BACKEND1.md) | INIT-OFFICIAL-DATA1 | T4 | 賽前情報與比賽中 live backend | GPT-5.6@Codex（執行） | `ai/codex/LIVE-GAME-BACKEND1 @ .claude/worktrees/live-game-backend1-execution` | 1 | 🔨執行中 | ⏸未部署 | 2026-07-26T19:51:30+08:00 |
+| [LIVE-GAME-BACKEND1](tasks/LIVE-GAME-BACKEND1.md) | INIT-OFFICIAL-DATA1 | T4 | 賽前情報與比賽中 live backend | GPT-5.6@Codex（執行；等待官方時序觀測） | `ai/codex/LIVE-GAME-BACKEND1 @ .claude/worktrees/live-game-backend1-execution` | 1 | 🔨執行中 | ⏸未部署 | 2026-07-26T20:14:00+08:00 |
 | [MATCHUP-DATA2](tasks/MATCHUP-DATA2.md) | — | T4 | 對戰對手歷史隊別歸屬修正 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T03:16:09+08:00 |
 | [ML-FIELD-LINEUP1](tasks/ML-FIELD-LINEUP1.md) | INIT-OFFICIAL-DATA1 | T4 | 逐局守備陣容重建可行性與 canonical contract | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:03+08:00 |
 | [ML-FIELD-OAA-VAL1](tasks/ML-FIELD-OAA-VAL1.md) | INIT-OFFICIAL-DATA1 | T4 | 利用極座標落點還原 Spray Chart 與外野 OAA | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:07+08:00 |
