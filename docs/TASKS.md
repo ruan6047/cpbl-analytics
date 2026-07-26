@@ -38,7 +38,7 @@
 | [UX-LIVE-GAME1](tasks/UX-LIVE-GAME1.md) | INIT-PRODUCT-UX | T3 | 賽前情報到比賽中狀態板 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-26T17:29:31+08:00 |
 | [UX-TEAM-FIELD-HIST1](tasks/UX-TEAM-FIELD-HIST1.md) | INIT-PRODUCT-UX | T3 | 球隊頁歷史年守備位置圖（union fielding_seasons） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:36:00+08:00 |
 | [UX-TEAM-FOCUS2](tasks/UX-TEAM-FOCUS2.md) | INIT-PRODUCT-UX | T3 | 球隊頁「近日焦點」頁籤內容擴充 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:37:00+08:00 |
-| [UX-WP-DISCLOSURE1](tasks/UX-WP-DISCLOSURE1.md) | — | T3 | 賽況頁 WP 曲線誠實註記 | 待指派查核者（≠ 執行；T3 不需跨家族） | `ai/fable-5/UX-WP-DISCLOSURE1 @ .claude/worktrees/ux-wp-disclosure1-execution` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-27T02:16:32+08:00 |
+| [UX-WP-DISCLOSURE1](tasks/UX-WP-DISCLOSURE1.md) | — | T3 | 賽況頁 WP 曲線誠實註記 | 待 merge（APPROVE 零阻塞；merge 者身分待需求方裁示） | `ai/fable-5/UX-WP-DISCLOSURE1 @ .claude/worktrees/ux-wp-disclosure1-execution` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-27T02:22:13+08:00 |
 
 ## 依賴與資源註記
 
