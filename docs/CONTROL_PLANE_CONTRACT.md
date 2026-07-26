@@ -40,6 +40,11 @@ canonical §2.1「實作與審核分離」不變：執行者不得查核或 merg
 - **查核者重跑不得污染交付 artifact**：交付物含可重生成檔案（報告 JSON、快照）時，
   查核者重跑須以 `--out` 導向 scratch 路徑；若已覆寫，以 `git checkout -- <path>`
   還原受查版本後再繼續（受查 artifact 是已提交版本，不是重跑產物）。
+- **基線版本查核防線**（WF-17，canonical [`baseline-cascade.md`](../.ai-workflow/templates/baseline-cascade.md)）：
+  查核 Initiative 子卡時，核對卡面 `spec 基線` 版本＝父卡當前版本，不一致即退回
+  （防舊基線交付）。`review_prompt.py` 自動帶入父卡當前基線版本屬工具層強化，
+  因 `file:scripts/review_prompt.py` 由 OPS-PROCESS-GUARD1 認領互斥，
+  待該卡結案後以 follow-up 落地；落地前由查核者手動核對。
 
 ## 權限與事故處理
 
