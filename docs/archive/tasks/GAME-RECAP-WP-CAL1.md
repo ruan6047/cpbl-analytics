@@ -1,14 +1,14 @@
 # GAME-RECAP-WP-CAL1 場中 WP 事後校準層〔T4；🔴統計〕
 
 - 需求：ruan6047　規劃：基線＝[`GAME-RECAP-WP-VAL1_RESULTS.md`](../research/GAME-RECAP-WP-VAL1_RESULTS.md) §7 路徑 1（Gemini 跨家族 APPROVE @ c2ebb02）　分支：依認領時 worktree 慣例
-- 執行：待指派（MODEL_ROUTING L4；統計正確性）　查核：待指派（須跨模型家族或人工，且 ≠ 執行）
+- 執行：Claude Fable 5@Claude Code　查核：Gemini 3.6 Flash@Antigravity（跨模型家族 APPROVE @ 46bdd9e，零阻塞）
 - Initiative：INIT-GAME-RECAP　spec 基線：v1.3
 - DB：`db_scope: read`；校準器 artifact 落檔案（`ARTIFACT_DIR`／`docs/research/`），`model_versions` 寫入與物化屬 WP-API1 或其子卡
-- 部署：否　環境：—　PR：—　Merge SHA：—
+- 部署：否　環境：—　PR：—　Merge SHA：`1b7188c`
 - 範圍：**僅 A 一軍例行**。C（種子/主場混淆）、D（主場結構逐年不穩）、E（樣本不足）不在本卡，維持 unsupported
 - Discovery：`GAME-RECAP-WP-VAL1` 已完成（全 scope unsupported；A 的 S 型偏差各季方向穩定 → 單調事後校準可行性有據）
 - Design：Design Gate N/A；純統計模型層，不改 public API 或 UI
-- current-state：📥Backlog；已註冊，可認領（依賴已全數解除）。
+- current-state：🏁完成（No-Go）；A scope＋校準層 unsupported，`GAME-RECAP-WP-API1` A 範圍維持阻塞。結論報告：[`GAME-RECAP-WP-CAL1_RESULTS.md`](../../research/GAME-RECAP-WP-CAL1_RESULTS.md)。
 
 ## 目標
 
@@ -45,3 +45,7 @@
 
 - 2026-07-25 依 ruan6047 指示開卡（WP-VAL1 結案後續）→ 規劃基線取自已跨家族 APPROVE 的 WP-VAL1 報告 §7 路徑 1；Coordinator register 併同 commit。
 - 2026-07-25 harness 注意事項（WP-VAL1 查核期實測）：`winprob_val` 預設輸出固定路徑，查核者以 `--kinds A` 重跑會覆寫完整 artifact（只剩 A scope）。本卡復用該 harness 時，部分 scope 重跑一律加 `--out` 導向 scratch 路徑；交付 artifact 以已提交版本為準。已同步寫入 [`CONTROL_PLANE_CONTRACT.md`](../CONTROL_PLANE_CONTRACT.md)「交付→查核→合併慣例」。
+- 2026-07-26 Fable 5 claim（CLAIM-002）→ 依賴 WP-VAL1 已合併、spec 基線 v1.3 核對一致；WIP 1/4→2/4。
+- 2026-07-26 Fable 5 執行完成 → handoff 🔍待查核（HANDOFF-003，分支 46bdd9e）。交付：`models/winprob_cal.py`（isotonic 等量分箱≥500PA/≤50 段＋加權 PAV＋端點釘；beta 3 參數 a,b>0 對照；復用 winprob_val wf 管線全程唯讀）＋ `tests/test_winprob_cal.py`（29 項離線合約）＋ 報告與 JSON artifact。嵌套分離：校準器只用 s<Y 的 wf 對、選型固定內部窗 fit2021→eval2022（beta 0.14466 勝 isotonic 0.14504）先於全部驗證季；v2 門檻未放寬＋新增門檻預註冊。結論：**A scope unsupported（No-Go）**——池化十分位 S 偏差可壓平（0 顯著分箱），但校準修正不具時間平穩性（1-3 局帶 0.1→2.6pt 惡化、2026 Brier 劣於 base +0.00075、2023 +0.00002、2026 coverage 0.9722 屬 PA build 時效缺口）；兩族同向排除實作因素。artifact `--out` scratch 重跑逐位一致。
+- 2026-07-26 Gemini 3.6 Flash 跨家族查核 APPROVE（REVIEW-004，source_sha 46bdd9e）→ 零阻塞；查核者實測 ruff/pytest 522 passed、artifact diff -u 0 差異逐位重現、驗收六項全過、認同 No-Go 判定。findings 2 筆 INFO：2026 coverage 缺口屬資料工程時效（補齊亦不改結論）、變動零侵入生產路徑。
+- 2026-07-26 merge + release（MERGE-005／RELEASE-006，依 ruan6047 於執行會話明確授權「授權 merge＋結案五步」）→ --no-ff 併入 main（merge_sha `1b7188c`，conflict-free 4 檔全新增，Reviewed-by Gemini 3.6 Flash）；main 上 ruff ✓、29 tests passed。免部署卡 release 即 🏁完成；WIP 2/4→1/4。後續：WP-API1 A 範圍維持阻塞；季末重跑不足以翻案（報告 §7）；校準窗變體（recency/衰減加權）須另卡預註冊；補跑 `cpbl-build-pa`（2026 sno 217–222）已建獨立 chip 非本卡阻塞。

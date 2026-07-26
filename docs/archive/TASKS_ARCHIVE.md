@@ -4,6 +4,7 @@
 
 | 卡ID | 功能 | 交付狀態 | 部署狀態 | 封存位置 |
 |---|---|---|---|---|
+| GAME-RECAP-WP-CAL1 | 場中 WP 事後校準層 | 🏁完成 | —不適用 | [`tasks/GAME-RECAP-WP-CAL1.md`](tasks/GAME-RECAP-WP-CAL1.md)（T4🔴統計；Gemini 3.6 Flash 跨家族 APPROVE；merge `1b7188c`；A scope 校準層 unsupported（No-Go）——校準修正不具時間平穩性、WP-API1 A 範圍維持阻塞；isotonic/beta 兩族同向；後續路徑見 research 報告 §7） |
 | GAME-RECAP-WP-VAL1 | 場中 WP 時間外驗證與支援邊界 | 🏁完成 | —不適用 | [`tasks/GAME-RECAP-WP-VAL1.md`](tasks/GAME-RECAP-WP-VAL1.md)（T4🔴統計；Gemini 跨家族 APPROVE；merge `c6ed954`；全 scope unsupported、解鎖 WP-CAL1；E scope 由 FIX1 修正；WF-18 看板收斂） |
 | GAME-RECAP-PA1 | canonical PA 契約與實作切卡 | 🏁完成 | —不適用 | [`tasks/GAME-RECAP-PA1.md`](tasks/GAME-RECAP-PA1.md)（T4；子卡族全數 🏁、330K canonical PA 上線；WF-18 看板收斂） |
 | GAME-RECAP-PA1-BUILD1 | canonical PA builder、對帳與歷史回填 | 🏁完成 | ✅已驗證 | [`tasks/GAME-RECAP-PA1-BUILD1.md`](tasks/GAME-RECAP-PA1-BUILD1.md)（T4🔴；merge `324b46e`；production 330K PA 驗證；WF-18 看板收斂） |
