@@ -34,19 +34,12 @@
 | [OPS-REMOTE-ROUTE1](tasks/OPS-REMOTE-ROUTE1.md) | INIT-PRODUCT-UX | T3 | 遠端出口路線資格驗證 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:38+08:00 |
 | [OPS-REMOTE-WORKER1](tasks/OPS-REMOTE-WORKER1.md) | INIT-PRODUCT-UX | T4 | 隔離式遠端 crawler shadow worker | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:39+08:00 |
 | [TEAM-STYLE1](tasks/TEAM-STYLE1.md) | — | T4 | 球隊球風研究 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:56:00+08:00 |
-| [UX-DESIGN-CONFORM1](tasks/UX-DESIGN-CONFORM1.md) | INIT-PRODUCT-UX | T3 | 既有已完成 UI/UX 頁面 conformance 稽核與對齊 | — | `claude/ux-design-conformance-audit-1faa48 @ .claude/worktrees/ux-design-system-phase-1-f092c0（保留待 harness 回收）` | 1 | 📦已合併 | ⏸未部署 | 2026-07-25T01:10:45+08:00 |
 | [UX-DESIGN-SYSTEM1](tasks/UX-DESIGN-SYSTEM1.md) | INIT-PRODUCT-UX | T3 | 全站 UI/UX 統一規則 codify（球員頁為基準） | — | — | 1 | 📦已合併 | —不適用 | 2026-07-24T16:55:00+08:00 |
-| [UX-ENTITY-LINKS1](tasks/UX-ENTITY-LINKS1.md) | INIT-PRODUCT-UX | T2 | 實體連結：球員名改沉穩色 + 隊名超連結 | — | — | 1 | 📦已合併 | ⏸未部署 | 2026-07-24T23:05:00+08:00 |
 | [UX-ENTITY-LINKS2](tasks/UX-ENTITY-LINKS2.md) | INIT-PRODUCT-UX | T2 | 實體連結 pattern 普及化（整塊 hover:underline → ENTITY_LINK） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T00:59:21+08:00 |
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
-| [UX-NAV-INTEGRATE1](tasks/UX-NAV-INTEGRATE1.md) | INIT-PRODUCT-UX | T2 | 全站多軸導覽欄整合重構（傘型：standings/batters/games…） | — | — | 1 | 📦已合併 | ⏸未部署 | 2026-07-24T21:40:00+08:00 |
-| [UX-PA-SIM-MATCHUP1](tasks/UX-PA-SIM-MATCHUP1.md) | INIT-PRODUCT-UX | T4 | Matchups 單一打席結果分布 | — | `claude/ux-pa-sim-matchup1-b6941f @ .claude/worktrees/ux-pa-sim-matchup1-b6941f` | 1 | 📦已合併 | 🚀待部署 | 2026-07-26T11:10:00+08:00 |
 | [UX-TEAM-FIELD-HIST1](tasks/UX-TEAM-FIELD-HIST1.md) | INIT-PRODUCT-UX | T3 | 球隊頁歷史年守備位置圖（union fielding_seasons） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:36:00+08:00 |
 | [UX-TEAM-FOCUS2](tasks/UX-TEAM-FOCUS2.md) | INIT-PRODUCT-UX | T3 | 球隊頁「近日焦點」頁籤內容擴充 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:37:00+08:00 |
-| [UX-TEAM-SPLIT-SCOPE1](tasks/UX-TEAM-SPLIT-SCOPE1.md) | INIT-PRODUCT-UX | T4 | 球隊頁全年／上下半季數據切換 | — | — | 1 | 📦已合併 | ⏸未部署 | 2026-07-25T02:45:00+08:00 |
-| [UX-TOKEN-HYGIENE1](tasks/UX-TOKEN-HYGIENE1.md) | INIT-PRODUCT-UX | T2 | 設計系統 token/元件 hygiene 修復（H1–H9） | — | — | 0 | 📦已合併 | ⏸未部署 | 2026-07-24T18:15:00+08:00 |
-| [UX-UMPIRE-SCOPE1](tasks/UX-UMPIRE-SCOPE1.md) | INIT-PRODUCT-UX | T4 | 裁判公開介面 NO-GO 收斂 | — | — | 1 | 📦已合併 | ⏸未部署 | 2026-07-25T03:10:00+08:00 |
 
 ## 依賴與資源註記
 
