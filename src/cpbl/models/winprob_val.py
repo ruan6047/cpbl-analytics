@@ -3,8 +3,10 @@
 沿用 models/winprob.py 的 run_dist + WE 動態規劃方法，但驗證打席改消費
 GAME-RECAP-PA1 canonical 打席（cpbl.game_plate_appearances，published build、
 state='ready'），以 walk-forward（訓練 2018..Y-1 → 驗證季 Y）檢驗 WP 校準與
-規則邊界，產出各 scope（A 一軍例行／C 一軍季後／D 二軍例行／E 二軍季後）的
-supported / proxy_with_warning / unsupported 結論。
+規則邊界，產出各 scope（A 一軍例行／C 一軍總冠軍賽／D 二軍例行／E 一軍季後
+挑戰賽）的 supported / proxy_with_warning / unsupported 結論。F（二軍總冠軍賽）
+**未納入驗證範圍**。scope 語意以 DB 實證為準（見 docs/reference/GLOSSARY.md
+「kind_code」條目；FIX1 修正原「E 二軍季後」誤標與 {"E": "D"} proxy）。
 
 不變量（紅線）：
 1. 全程唯讀：訓練分布在記憶體重建，不寫 cpbl.run_dist / cpbl.win_expectancy。
@@ -17,7 +19,8 @@ supported / proxy_with_warning / unsupported 結論。
    - C：無和局、無突破僵局（全期 non_pa_tiebreak=0、最深 14 局實證）。
    - D：2018 與 2021–2024 9 局和局；2019–2020 10 局和局；
      2025+ 第 10 局突破僵局、10 局和局（實證：2025 起 9 局和局歸零）。
-   - E：無和局；樣本極小（每季 3–5 場），僅 pooled 描述。
+   - E（一軍季後挑戰賽）：無和局、無突破僵局（全史僅 2025 #4 達 10 局，
+     該局空壘開局實證）；樣本極小（每季 3–5 場），僅 pooled 描述。
 4. fail closed：state != 'ready' 的打席不評分且逐季回報排除數；完成場無
    published build 列入 coverage 缺口；縮短賽／宵禁和局／保留賽另做敏感度。
 
@@ -90,9 +93,19 @@ def ruleset_for(kind: str, year: int) -> RuleSet:
         if year in (2019, 2020):
             return RuleSet(10, None, True)
         return RuleSet(9, None, True)
-    if kind == "E":                       # 二軍季後：無和局實證；深度取 15 足矣
-        return RuleSet(15, 10 if year >= 2025 else None, False)
+    if kind == "E":
+        # 一軍季後挑戰賽（FIX1 修正：原誤標二軍季後並借二軍 2025 突破僵局規則）。
+        # 實證：全史 E 僅 2025 #4 超過 9 局（10 局），該局上半**空壘開局**（livelog
+        # first/second_base 皆空）→ 無突破僵局；無和局（同 C，一軍季後語意）。
+        return RuleSet(20, None, False)
     raise ValueError(f"未知 kind_code: {kind}")
+
+
+# 各 scope 的訓練 proxy：季後（C/E）樣本過小不足以自建分布，借同軍例行賽。
+# FIX1：E＝一軍季後挑戰賽（DB 實證：1998 起 40 場、僅半季冠軍歧異年份、主隊碼
+# *011）→ proxy 修正為 A；原 {"E": "D"} 係 E 誤標二軍季後所致。F（二軍總冠軍賽）
+# 未納入驗證範圍。
+TRAIN_PROXY = {"A": "A", "C": "A", "D": "D", "E": "A"}
 
 
 # ───────────────────────── 訓練：半局剩餘得分紀錄（記憶體版快照機器） ─────────────────────────
@@ -527,17 +540,18 @@ def run_validation(kinds: list[str], out_path: Path) -> dict:
     result: dict = {"thresholds": THRESHOLDS, "scopes": {}}
     with conn() as c:
         cur = c.cursor()
-        # 訓練計數（A、D 各一次；C/E 為 proxy，各借 A/D 分布）
+        # 訓練計數（A、D 各一次；C/E 皆一軍季後 → proxy 均借 A 分布，FIX1 修正）
         per_year: dict[str, dict[int, Counter]] = {}
         for kind in ("A", "D"):
-            if kind in kinds or ("C" in kinds and kind == "A") or ("E" in kinds and kind == "D"):
+            needed = {TRAIN_PROXY[k] for k in kinds}
+            if kind in needed:
                 per_year[kind] = collect_training_counts(cur, kind, FIRST_YEAR, 2026)
         if "A" in per_year:
             result["counting_machine_check"] = verify_counting_machine(cur, per_year["A"])
         prod_dist_a = load_production_dist(cur, "2018-2025", "A")
 
         for kind in kinds:
-            train_kind = {"A": "A", "C": "A", "D": "D", "E": "D"}[kind]
+            train_kind = TRAIN_PROXY[kind]
             eval_years = {"A": range(2021, 2027), "C": range(2021, 2026),
                           "D": range(2021, 2027), "E": range(2022, 2026)}[kind]
             # in-sample 對照：全期 2018..2026（含驗證季）——只用於量化樂觀偏差

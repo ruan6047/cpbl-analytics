@@ -99,6 +99,17 @@ def test_ruleset_eras():
     assert ruleset_for("D", 2024) == RuleSet(9, None, True)
     assert ruleset_for("D", 2025) == RuleSet(10, 10, True)
     assert not ruleset_for("E", 2024).tie_allowed
+    # FIX1：E=一軍季後挑戰賽——無突破僵局（2025 唯一 10 局場空壘開局實證），
+    # 任何年份不得借二軍 2025 突破僵局規則
+    assert ruleset_for("E", 2025) == RuleSet(20, None, False)
+    assert ruleset_for("E", 2024) == RuleSet(20, None, False)
+
+
+def test_train_proxy_pairs_postseason_with_same_level_regular():
+    """FIX1：季後 scope 的訓練 proxy 必須借同軍例行賽（E 誤配 D 是已修缺陷）。"""
+    from cpbl.models.winprob_val import TRAIN_PROXY
+
+    assert TRAIN_PROXY == {"A": "A", "C": "A", "D": "D", "E": "A"}
 
 
 def _ev(no, inning, vht, order, out_cnt, hitter, vs, hs, *, first=None, change=False):

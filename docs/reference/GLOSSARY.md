@@ -18,7 +18,7 @@ DB 實證（2026-07-26，本機 `cpbl.games` 全史 GROUP BY；場次數／起�
 | `F` | **二軍總冠軍賽** | 2005 起年年出現、103 場、主隊碼以 `*022`（二軍實體）為主 |
 
 - SSoT：`cpbl.games` DB 實證＋`src/cpbl/ingest/run_scrape.py` `KINDS` 註解（A/C/E 與實證一致）。
-- ⚠️ **已知不一致**：`src/cpbl/models/winprob_val.py` docstring 將 scope 標為「C 一軍季後／E 二軍季後」並以 D 作 E 的訓練 proxy（`train_kind {"E": "D"}`）——與 DB 實證不符（E 是一軍挑戰賽、二軍季後是 F）。E scope 結論為 unsupported（樣本極小、僅揭露性質），不受 proxy 影響而仍然成立；標籤與 proxy 的修正屬 T4 統計紅線範圍，**另卡處理**（本檔以 DB 實證為準）。
+- `winprob_val.py` 原「E＝二軍季後」誤標與 `{"E": "D"}` proxy **已由 GAME-RECAP-WP-VAL1-FIX1 修正**（proxy 改 A、E 規則實證重推為無和局＋無突破僵局；`TRAIN_PROXY` 常數＋測試釘住）。E scope 結論（unsupported，樣本極小）修正前後皆成立。
 - `ingest/cpbl_home_runs.py` `KIND_CODES` 另列官網完整枚舉（含 B、D9、G、H、X），**語意未驗證，勿腦補**；季後賽制規則（挑戰賽 5 戰 3 勝／讓一勝、台灣大賽 7 戰 4 勝）見 [`reference/`](./) 聯盟規章第 60–63 條。
 - 隊碼字尾 `011`/`022` 為一／二軍實體（`team_dim`）；判軍別以 `kind_code` 為準（F 場次偶見 `*011` 混雜，屬來源資料雜訊）。
 
