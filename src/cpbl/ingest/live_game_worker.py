@@ -8,8 +8,14 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime
-from typing import Any
+from collections import Counter
+from collections.abc import Callable
+from datetime import datetime, timedelta
+from typing import Any, Protocol
+from uuid import uuid4
+from zoneinfo import ZoneInfo
+
+import httpx
 
 _STATUS_PHASE = {
     "START": "live",
@@ -17,6 +23,123 @@ _STATUS_PHASE = {
     "POSTPONED": "postponed",
     "RESERVED": "reserved",
 }
+_TAIPEI = ZoneInfo("Asia/Taipei")
+_BASE = "https://stats.cpbl.com.tw"
+_UA = "cpbl-analytics/0.1 (https://cpbl.ruan-ruan.com)"
+_RELEASE_LOCK = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+  return redis.call('del', KEYS[1])
+end
+return 0
+"""
+
+
+class SnapshotCache(Protocol):
+    def is_killed(self) -> bool: ...
+
+    def acquire_lock(self) -> bool: ...
+
+    def release_lock(self) -> None: ...
+
+    def get_snapshot(self, year: int, kind: str, sno: int) -> dict | None: ...
+
+    def set_snapshot(self, snapshot: dict) -> None: ...
+
+
+class RedisLiveGameCache:
+    """Redis JSON cache；鎖以 SET NX EX 取得、Lua token compare 後釋放。"""
+
+    def __init__(self, client: Any, *, prefix: str = "cpbl:live",
+                 snapshot_ttl_seconds: int = 172_800, lock_ttl_seconds: int = 45,
+                 token_factory: Callable[[], str] | None = None) -> None:
+        self.client = client
+        self.prefix = prefix.rstrip(":")
+        self.snapshot_ttl_seconds = snapshot_ttl_seconds
+        self.lock_ttl_seconds = lock_ttl_seconds
+        self.token_factory = token_factory or (lambda: uuid4().hex)
+        self._lock_token: str | None = None
+
+    @property
+    def lock_key(self) -> str:
+        return f"{self.prefix}:lock"
+
+    def _key(self, year: int, kind: str, sno: int) -> str:
+        return f"{self.prefix}:{year}:{kind}:{sno}"
+
+    def acquire_lock(self) -> bool:
+        token = self.token_factory()
+        acquired = bool(self.client.set(
+            self.lock_key, token, nx=True, ex=self.lock_ttl_seconds,
+        ))
+        if acquired:
+            self._lock_token = token
+        return acquired
+
+    def is_killed(self) -> bool:
+        raw = self.client.get(f"{self.prefix}:kill")
+        if isinstance(raw, bytes):
+            raw = raw.decode()
+        return str(raw or "").lower() in {"1", "true", "on"}
+
+    def release_lock(self) -> None:
+        if self._lock_token is None:
+            return
+        self.client.eval(_RELEASE_LOCK, 1, self.lock_key, self._lock_token)
+        self._lock_token = None
+
+    def get_snapshot(self, year: int, kind: str, sno: int) -> dict | None:
+        raw = self.client.get(self._key(year, kind, sno))
+        if raw is None:
+            return None
+        if isinstance(raw, bytes):
+            raw = raw.decode()
+        value = json.loads(raw)
+        return value if isinstance(value, dict) else None
+
+    def set_snapshot(self, snapshot: dict) -> None:
+        identity = _identity({"GameId": snapshot.get("game_id")})
+        if identity is None:
+            raise ValueError("snapshot game_id 格式錯誤")
+        year, kind, sno = identity
+        self.client.set(
+            self._key(year, kind, sno),
+            json.dumps(snapshot, ensure_ascii=False, separators=(",", ":")),
+            ex=self.snapshot_ttl_seconds,
+        )
+
+
+class StatsLiveSource:
+    """已驗證的 stats schedule + single-game JSON endpoints。"""
+
+    def __init__(self, client: httpx.Client | None = None) -> None:
+        self.client = client or httpx.Client(
+            base_url=_BASE,
+            timeout=20.0,
+            follow_redirects=True,
+            headers={"User-Agent": _UA},
+        )
+
+    def close(self) -> None:
+        self.client.close()
+
+    def fetch_schedule(self, year: int, month: int) -> list[dict]:
+        response = self.client.get(
+            f"{_BASE}/api/proxy/v1/games/schedule",
+            params={"kindCode": "A", "year": str(year), "month": str(month)},
+        )
+        response.raise_for_status()
+        games = (response.json().get("Data") or {}).get("Games") or []
+        if not isinstance(games, list):
+            raise ValueError("stats schedule schema drift: Games 不是 list")
+        return games
+
+    def fetch_game(self, game_id: str) -> dict:
+        response = self.client.get(f"{_BASE}/api/proxy/v1/games/{game_id}")
+        response.raise_for_status()
+        game = (response.json().get("Data") or {}).get("Game") or {}
+        if not isinstance(game, dict) or not game.get("GameId"):
+            raise ValueError("stats single-game schema drift: Game 無識別欄位")
+        return game
 
 
 def _iso(value: datetime) -> str:
@@ -151,3 +274,140 @@ def build_snapshot(raw_game: dict[str, Any], *, fetched_at: datetime,
             "version": hashlib.sha256(canonical.encode()).hexdigest(),
         },
     }
+
+
+def _starts_at(row: dict) -> datetime | None:
+    raw = row.get("PreExeDate")
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(raw))
+    except ValueError:
+        return None
+    return parsed.replace(tzinfo=_TAIPEI) if parsed.tzinfo is None else parsed
+
+
+def _identity(row: dict) -> tuple[int, str, int] | None:
+    game_id = str(row.get("GameId") or "")
+    parts = game_id.split("-")
+    if len(parts) != 3:
+        return None
+    try:
+        return int(parts[0]), parts[1], int(parts[2])
+    except ValueError:
+        return None
+
+
+def _select_candidates(rows: list[dict], now: datetime) -> list[dict]:
+    local_now = now.astimezone(_TAIPEI)
+    lower, upper = local_now - timedelta(hours=8), local_now + timedelta(hours=30)
+    latest: dict[tuple[int, str, int], dict] = {}
+    for row in sorted(rows, key=lambda item: str(item.get("PreExeDate") or "")):
+        identity, starts = _identity(row), _starts_at(row)
+        if identity is None or starts is None or not lower <= starts <= upper:
+            continue
+        latest[identity] = row
+    return list(latest.values())
+
+
+def poll_interval_seconds(*, now: datetime, phases: set[str],
+                          next_start: datetime | None) -> int:
+    """回傳無 jitter 的 base interval；CLI loop 再加 bounded jitter。"""
+    if "live" in phases:
+        return 12
+    if next_start is not None:
+        delta = next_start - now
+        if delta <= timedelta(minutes=90):
+            return 60
+        if delta <= timedelta(hours=30):
+            return 600
+    return 1800
+
+
+def next_delay_seconds(result: dict, *, failures: int,
+                       jitter: Callable[[], float]) -> int:
+    """將 cycle result 轉成 sleep；正常 bounded jitter，錯誤指數退避至 5 分鐘。"""
+    state = result.get("state")
+    if state == "ok":
+        base = int(result.get("next_poll_seconds") or 1800)
+        return max(1, round(base * min(1.1, max(0.9, jitter()))))
+    if state == "locked":
+        return 5
+    return min(300, 5 * (2 ** max(0, failures - 1)))
+
+
+class LiveGameWorker:
+    """單 cycle worker；loop／sleep 與 Redis 實作保持在 I/O adapter。"""
+
+    def __init__(
+        self,
+        *,
+        cache: SnapshotCache,
+        fetch_schedule: Callable[[int, int], list[dict]],
+        fetch_game: Callable[[str], dict],
+        enabled: bool = True,
+        max_games_per_cycle: int = 8,
+    ) -> None:
+        self.cache = cache
+        self.fetch_schedule = fetch_schedule
+        self.fetch_game = fetch_game
+        self.enabled = enabled
+        self.max_games_per_cycle = max_games_per_cycle
+
+    def run_cycle(self, now: datetime) -> dict[str, Any]:
+        if not self.enabled:
+            return {"state": "disabled"}
+        if self.cache.is_killed():
+            return {"state": "killed"}
+        if not self.cache.acquire_lock():
+            return {"state": "locked"}
+
+        try:
+            local = now.astimezone(_TAIPEI)
+            month_keys = {(local.year, local.month)}
+            edge = local + timedelta(hours=30)
+            month_keys.add((edge.year, edge.month))
+            schedule_rows = [
+                row
+                for year, month in sorted(month_keys)
+                for row in self.fetch_schedule(year, month)
+            ]
+            selected = _select_candidates(schedule_rows, now)[: self.max_games_per_cycle]
+            phases: Counter[str] = Counter()
+            cached = errors = 0
+            starts: list[datetime] = []
+            for row in selected:
+                identity = _identity(row)
+                starts_at = _starts_at(row)
+                if identity is None:
+                    continue
+                if starts_at is not None:
+                    starts.append(starts_at.astimezone(now.tzinfo))
+                year, kind, sno = identity
+                game_id = f"{year}-{kind}-{sno}"
+                try:
+                    raw_game = self.fetch_game(game_id)
+                    snapshot = build_snapshot(
+                        raw_game,
+                        fetched_at=now,
+                        previous=self.cache.get_snapshot(year, kind, sno),
+                    )
+                    self.cache.set_snapshot(snapshot)
+                except (OSError, TimeoutError, ValueError):
+                    errors += 1
+                    continue
+                cached += 1
+                phases[snapshot["phase"]] += 1
+            next_start = min((start for start in starts if start >= now), default=None)
+            return {
+                "state": "ok",
+                "selected": len(selected),
+                "cached": cached,
+                "errors": errors,
+                "phases": dict(phases),
+                "next_poll_seconds": poll_interval_seconds(
+                    now=now, phases=set(phases), next_start=next_start,
+                ),
+            }
+        finally:
+            self.cache.release_lock()

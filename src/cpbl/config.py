@@ -18,6 +18,14 @@ class Settings(BaseSettings):
 
     artifact_dir: Path = Path("./artifacts")
 
+    redis_url: str | None = None
+    live_game_worker_enabled: bool = False
+    live_game_cache_prefix: str = "cpbl:live"
+    live_game_snapshot_ttl_seconds: int = 172_800
+    live_game_lock_ttl_seconds: int = 45
+    live_game_max_games_per_cycle: int = 8
+    live_game_stale_after_seconds: int = 45
+
     port: int = 4001
     app_version: str = "0.1.0"
 
