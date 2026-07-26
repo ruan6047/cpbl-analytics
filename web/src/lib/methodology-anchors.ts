@@ -4,10 +4,13 @@
 
 export const METHODOLOGY_PATH = "/methodology";
 
-/** §5.14 依「產品使用中的模型」分類的段落。key 即 anchor id。 */
+/** §5.14 依「產品使用中的模型」分類的段落。key 即 anchor id。
+ * winprob-validation（UX-WP-DISCLOSURE1）：場中 WP 的時間外驗證結論獨立成節，
+ * 賽況頁 WP 曲線旁的誠實註記 deep-link 至此。 */
 export const METHODOLOGY_SECTIONS = {
   pregame: "賽前勝率",
   winprob: "場中勝率 WP",
+  "winprob-validation": "場中 WP 時間外驗證",
   "pa-sim": "打席結果分布",
   "matchup-credibility": "對戰 credibility",
   "pitch-type": "推定球種",
