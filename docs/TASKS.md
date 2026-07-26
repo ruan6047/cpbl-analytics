@@ -9,6 +9,8 @@
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
 | [DISCOVERY-CPBL-RECORDS1](tasks/DISCOVERY-CPBL-RECORDS1.md) | INIT-OFFICIAL-DATA1 | T3 | 主站紀錄資料價值與穩定鍵 Discovery | — | `claude/discovery-cpbl-records1-b1ce2d @ .claude/worktrees/discovery-cpbl-records1-b1ce2d` | 1 | 📦已合併 | —不適用 | 2026-07-24T12:40:00+08:00 |
+| [DOC-TESTING-GLOSSARY1](tasks/DOC-TESTING-GLOSSARY1.md) | — | T2 | Runbook 測試章節＋術語表 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-26T16:15:30+08:00 |
+| [DOC-WORKFLOW-ADOPT1](tasks/DOC-WORKFLOW-ADOPT1.md) | — | T1 | 採用 WF-17 canonical 流程強化 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-26T16:16:00+08:00 |
 | [GAME-RECAP-PA1](tasks/GAME-RECAP-PA1.md) | INIT-GAME-RECAP | T4 | canonical PA 契約與實作切卡 | ruan6047（子卡優先序／後續 Gate） | — | 1 | 📦已合併 | —不適用 | 2026-07-21T01:09:45+08:00 |
 | [GAME-RECAP-PA1-BUILD1](tasks/GAME-RECAP-PA1-BUILD1.md) | INIT-GAME-RECAP | T4 | canonical PA builder、對帳與歷史回填 | — | `ai/opus-4-8/GAME-RECAP-PA1-BUILD1 @ .claude/worktrees/game-recap-pa1-build1-execution` | 1 | 📦已合併 | ✅已驗證 | 2026-07-24T16:23:00+08:00 |
 | [GAME-RECAP-PA1-EXPAND1](tasks/GAME-RECAP-PA1-EXPAND1.md) | INIT-GAME-RECAP | T4 | canonical PA additive schema expand | — | `ai/opus-4-8/GAME-RECAP-PA1-EXPAND1 @ .claude/worktrees/game-recap-pa1-expand1-execution` | 1 | 📦已合併 | ✅已驗證 | 2026-07-24T13:46:00+08:00 |
@@ -29,6 +31,7 @@
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:09+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:10+08:00 |
 | [OPS-CPBL-WEB-HEALTH1](tasks/OPS-CPBL-WEB-HEALTH1.md) | INIT-PRODUCT-UX | T3 | CPBL Web container healthcheck 與可寫快取修復 | 待指派（remediation） | `ai/haiku-4-5/OPS-CPBL-WEB-HEALTH1 @ .claude/worktrees/ops-cpbl-web-health1-execution（保留待 harness 回收）` | 3 | 🔨執行中 | ⚠驗證失敗 | 2026-07-26T14:57:00+08:00 |
+| [OPS-PROCESS-GUARD1](tasks/OPS-PROCESS-GUARD1.md) | — | T2 | 流程守門機械化（review_prompt＋CI 前端測試） | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-26T16:15:00+08:00 |
 | [OPS-REMOTE-CUTOVER1](tasks/OPS-REMOTE-CUTOVER1.md) | INIT-PRODUCT-UX | T4 | 遠端 crawler production canary 與切換 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:40+08:00 |
 | [OPS-REMOTE-PROBE1](tasks/OPS-REMOTE-PROBE1.md) | INIT-PRODUCT-UX | T3 | Opt-in DEBUG 網路探測介面 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:37+08:00 |
 | [OPS-REMOTE-ROUTE1](tasks/OPS-REMOTE-ROUTE1.md) | INIT-PRODUCT-UX | T3 | 遠端出口路線資格驗證 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:38+08:00 |
