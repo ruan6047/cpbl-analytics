@@ -16,7 +16,7 @@
 | [GAME-RECAP-WP-API1](tasks/GAME-RECAP-WP-API1.md) | INIT-GAME-RECAP | T4 | canonical WP／WPA public contract | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-16T22:15:09+08:00 |
 | [GAME-RECAP-WP-CAL1](tasks/GAME-RECAP-WP-CAL1.md) | INIT-GAME-RECAP | T4 | 場中 WP 事後校準層 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-25T07:45:00+08:00 |
 | [GAME-RECAP-WP-VAL1](tasks/GAME-RECAP-WP-VAL1.md) | INIT-GAME-RECAP | T4 | 場中 WP 時間外驗證與支援邊界 | — | `claude/fable-5-suitable-tasks-8aa8d9 @ .claude/worktrees/fable-5-suitable-tasks-8aa8d9（已合併；保留待 harness 回收）` | 1 | 📦已合併 | —不適用 | 2026-07-25T07:22:00+08:00 |
-| [GAME-RECAP-WP-VAL1-FIX1](tasks/GAME-RECAP-WP-VAL1-FIX1.md) | INIT-GAME-RECAP | T4 | 修正 WP-VAL1 E scope 誤標與訓練 proxy | 待指派（跨模型家族或人工，須 ≠ 執行） | `ai/fable-5/GAME-RECAP-WP-VAL1-FIX1 @ .claude/worktrees/fable-5-suitable-tasks-8aa8d9（卡族共用 WP-VAL1 原 worktree）` | 0 | 🔍待查核 | —不適用 | 2026-07-26T18:55:00+08:00 |
+| [GAME-RECAP-WP-VAL1-FIX1](tasks/GAME-RECAP-WP-VAL1-FIX1.md) | INIT-GAME-RECAP | T4 | 修正 WP-VAL1 E scope 誤標與訓練 proxy | — | — | 0 | 📦已合併 | —不適用 | 2026-07-26T19:49:00+08:00 |
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | — | `ai/sonnet-5/INGEST-GAME-TM-REFACTOR1-g3 @ .claude/worktrees/ingest-game-tm-refactor1-g3-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-24T12:53:42+08:00 |
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | ruan6047（Design Gate） | — | 0 | 💡需求 | —不適用 | 2026-07-17T04:44:38+08:00 |
 | [INIT-OFFICIAL-DATA1](tasks/INIT-OFFICIAL-DATA1.md) | INIT-OFFICIAL-DATA1 | T4 | 官方資料契約完整性與低維護 ingest | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:00+08:00 |

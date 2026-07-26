@@ -1,10 +1,10 @@
 # GAME-RECAP-WP-VAL1-FIX1 修正 E scope 誤標與訓練 proxy 〔T4；🔴統計〕
 
 - 需求：ruan6047　規劃：Claude Fable 5@Claude Code　分支：`ai/fable-5/GAME-RECAP-WP-VAL1-FIX1`（卡族共用 WP-VAL1 原 worktree）
-- 執行：Claude Fable 5@Claude Code（建議 L4；統計正確性）　查核：待指派（跨模型家族或人工；須 ≠ 執行）
+- 執行：Claude Fable 5@Claude Code（建議 L4；統計正確性）　查核：Gemini 3.6 Flash (High)@Antigravity
 - Initiative：INIT-GAME-RECAP　spec 基線：v1.3
 - DB：`read`（全程唯讀；重跑 artifact 落新路徑）
-- 部署：否　環境：—　PR：—　Merge SHA：—
+- 部署：否　環境：—速　PR：—　Merge SHA：`802c767cc47785878df97ae36cb4df351acb2d14`
 - 範圍：碼已進 main 的事後修復（canonical §3 `<原卡>-FIX<n>`）。DOC-TESTING-GLOSSARY1 以 DB 全史實證發現：`models/winprob_val.py` docstring 將 scope 標為「C 一軍季後／E 二軍季後」且 `train_kind {"E": "D"}` 用二軍例行當 E 的訓練 proxy——實證 E＝**一軍季後挑戰賽**（1998 起 40 場、僅半季冠軍歧異年份、主隊碼 `*011`）、二軍季後＝F（未納入驗證）。修正：
   1. docstring scope 標籤改為實證語意（C＝一軍總冠軍賽、E＝一軍季後挑戰賽）；F 未驗證明文揭露。
   2. `train_kind` E 的 proxy 改 `A`（一軍例行）；資料載入條件同步。
@@ -23,17 +23,22 @@
 
 ## 驗收條件
 
-- [ ] docstring／`train_kind`／載入條件三處一致修正；F 未驗證揭露入 docstring。
-- [ ] E ruleset 實證重推留痕（E 場次 tiebreak 證據計數）。
-- [ ] E scope 修正後 walk-forward artifact（新路徑）＋ errata（新舊並列、結論判定）。
-- [ ] GLOSSARY ⚠️ 註記更新指向本卡。
-- [ ] `tests/test_winprob_val.py` 不退化；如有 pin 舊映射的測試同步修正並說明。
+- [x] docstring／`train_kind`／載入條件三處一致修正；F 未驗證揭露入 docstring。
+- [x] E ruleset 實證重推留痕（E 場次 tiebreak 證據計數）。
+- [x] E scope 修正後 walk-forward artifact（新路徑）＋ errata（新舊並列、結論判定）。
+- [x] GLOSSARY ⚠️ 註記更新指向本卡。
+- [x] `tests/test_winprob_val.py` 不退化；如有 pin 舊映射的測試同步修正並說明。
 
 ## 驗證
 
-- [ ] `uv run ruff check`＋`uv run pytest` 全綠；`uv run python -m cpbl.models.winprob_val --kinds E --out <scratch>` 可重跑（host 即可）。
-- [ ] 跨家族 reviewer 重跑 E scope 並核對嵌套窗口與規則實證。
+- [x] `uv run ruff check`＋`uv run pytest` 全綠；`uv run python -m cpbl.models.winprob_val --kinds E --out <scratch>` 可重跑（host 即可）。
+- [x] 跨家族 reviewer 重跑 E scope 並核對嵌套窗口與規則實證。
 
 ## Log
 
 - 2026-07-26T18:05:00+08:00 register by Claude Fable 5@Claude Code（依 ruan6047 指示開卡並派工；源自 DOC-TESTING-GLOSSARY1 的 GLOSSARY 實證發現）。
+- 2026-07-26T18:07:00+08:00 claim by Claude Fable 5@Claude Code.
+- 2026-07-26T18:55:00+08:00 handoff by Claude Fable 5@Claude Code (ef408af).
+- 2026-07-26T19:46:00+08:00 review by Gemini 3.6 Flash (High)@Antigravity: APPROVE.
+- 2026-07-26T19:48:00+08:00 merge by Gemini 3.6 Flash (High)@Antigravity (802c767).
+
