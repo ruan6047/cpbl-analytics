@@ -217,7 +217,8 @@ uv run python scripts/workflow_ledger.py --live   # 稽核：union main 與所�
 uv run python scripts/review_prompt.py <CARD_ID> | pbcopy
 ```
 
-- 遠端 event 的 `state_version` 由 1 單調遞增；handoff、review、merge、release 必填 source SHA 與 evidence。逾期前可由 owner 續約；回收前 Coordinator 必須檢查 worktree 的未提交變更，禁止靜默刪除工作內容。
+- 遠端 event 的 `state_version` 由 1 單調遞增；handoff、review、merge、release 必填 source SHA 與 evidence。`occurred_at` 取寫入當下系統時鐘（先 `date`，禁估算／沿用——WF-18）。逾期前可由 owner 續約；回收前 Coordinator 必須檢查 worktree 的未提交變更，禁止靜默刪除工作內容。
+- **release 必以終態落地**（WF-18）：免部署卡 release 即 `🏁完成`、需部署卡 `✅已驗證` 後才 release；結案五步（終態事件→封存→Ledger→lease／分支清理→對帳）見 canonical [`worktree-lifecycle.md`](../.ai-workflow/templates/worktree-lifecycle.md)，代 Coordinator 結案的查核者同樣適用。
 - **查核通過即 merge**（2026-07-25 起）：APPROVE 且零阻塞 finding 時 Coordinator 直接 merge，不再逐卡請示；merge 後把 merge_sha 與後續待辦回傳原執行者，由執行者向需求方確認部署。例外（blocking finding、需 rebase 重驗、`db_scope` 為 schema／data-migration、卡面要求 sign-off）仍須停下請示。全文見 [`CONTROL_PLANE_CONTRACT.md`](CONTROL_PLANE_CONTRACT.md)「交付→查核→合併慣例」。
 - 同一卡族（原卡及 `<CARD_ID>-FIX<n>`）共用一個 worktree。merge 者在卡族全數結案後依序移除 worktree、刪本地分支、刪遠端分支。
 - 對 DB 的 claim 另依 [`DATABASE_CONTRACT.md`](DATABASE_CONTRACT.md) 取得資源 lease；schema 與 data migration 不可並行。

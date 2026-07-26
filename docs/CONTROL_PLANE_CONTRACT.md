@@ -30,7 +30,16 @@ canonical §2.1「實作與審核分離」不變：執行者不得查核或 merg
   交付摘要寫進 handoff `evidence`（本來就是必填），不必另外產出提示詞。
 - **APPROVE 即 merge，不再逐次請示**：查核回 APPROVE 且**零阻塞 finding**（INFO／
   非阻塞不算）時，Coordinator 直接以 `--no-ff` merge 並寫 merge＋release 事件，
-  無須再向需求方請求合併授權。merge 者仍不得是該卡執行者。
+  無須再向需求方請求合併授權。merge 者仍不得是該卡執行者；**例外依 canonical
+  §2.1（WF-18）**：APPROVE／必要 sign-off 完成後、需求方明確授權時，執行者可代行
+  merge 機械操作，merge commit 必帶 `Reviewed-by`、merge 事件必記授權來源——授權
+  只豁免「誰按下 merge」，不豁免查核。
+- **release 必以終態落地＋結案清單**（WF-18，canonical §0＋[`worktree-lifecycle.md`](../.ai-workflow/templates/worktree-lifecycle.md)）：
+  免部署卡 release 即 `🏁完成`，需部署卡在部署 `✅已驗證` 前不得 release；結案
+  五步（終態事件→卡檔封存→Ledger 重建→lease／分支清理→對帳三件套）缺一不可，
+  **代 Coordinator 結案的查核者同樣適用**，無法完成即明確交回、不得停在中間態。
+- **`occurred_at` 取寫入當下系統時鐘**（WF-18，canonical §4.1）：寫 event 前先
+  `date "+%Y-%m-%dT%H:%M:%S+08:00"`，禁估算、遞增推定或沿用前值。
 - **例外必須停下請示**（下列任一成立時，APPROVE 也不自動 merge）：查核含
   blocking／major finding；merge 有衝突或需 rebase 重驗；卡片 `db_scope` 為
   `schema`／`data-migration`；或卡面標記需求方 sign-off。
