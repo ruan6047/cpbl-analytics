@@ -403,7 +403,7 @@ class LiveGameWorker:
                         previous=self.cache.get_snapshot(year, kind, sno),
                     )
                     self.cache.set_snapshot(snapshot)
-                except (OSError, TimeoutError, ValueError):
+                except (OSError, ValueError, httpx.HTTPError):
                     errors += 1
                     continue
                 cached += 1

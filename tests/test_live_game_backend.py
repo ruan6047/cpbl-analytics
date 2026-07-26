@@ -211,7 +211,7 @@ def test_worker_caches_only_observation_window_and_never_overwrites_on_error() -
 
     def fetch_game(game_id: str) -> dict:
         if game_id == "2026-A-226":
-            raise TimeoutError("source timeout")
+            raise httpx.ReadTimeout("source timeout")
         if game_id == "2026-A-228":
             game = _game("POSTPONED")
             game["GameId"] = game_id
