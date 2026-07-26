@@ -13,6 +13,7 @@ import { PregameCard } from "@/components/pregame-card";
 import { fanNick, teamColor, teamShort } from "@/lib/teams";
 import { resolvePregameCard, type PregameCardModel } from "@/lib/pregame-card";
 import { GameOverview, type DecItem } from "./overview";
+import { methodologyHref } from "@/lib/methodology-anchors";
 import { StartingLineups } from "@/components/starting-lineups";
 
 const n = (v: number | string | null) => (v === null || v === undefined ? "" : Number(v));
@@ -547,6 +548,18 @@ export default function GameLivePage() {
               <WinProbChart items={wp ?? []}
                 homeName={String(g.home_team_name)} awayName={String(g.away_team_name)}
                 homeColor={teamColor(String(g.home_team_code ?? ""))} onSelect={jumpToPa} />
+              {/* WP 曲線誠實註記（UX-WP-DISCLOSURE1）：文案事實基準凍結於卡面，
+                  數字出自 GAME-RECAP-WP-VAL1/CAL1 時間外驗證；連結至方法頁對應節。 */}
+              {(wp?.length ?? 0) >= 4 && (
+                <p className="-mt-2 px-1 text-xs leading-relaxed text-muted">
+                  局面勝率：僅依比分・壘位・出局數與歷史主場優勢推算，未含兩隊戰力與先發投手；
+                  領先／落後方極端區間有已知 ±4–6 個百分點偏差。
+                  <Link href={methodologyHref("winprob-validation")}
+                    className="ml-1 whitespace-nowrap underline decoration-line underline-offset-2 hover:text-accent">
+                    驗證與已知限制 →
+                  </Link>
+                </p>
+              )}
             </>
           )}
         </section>
