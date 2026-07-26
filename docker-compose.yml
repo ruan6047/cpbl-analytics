@@ -45,6 +45,9 @@ services:
   live-worker:
     build: .
     command: ["cpbl-live-worker"]
+    restart: unless-stopped
+    healthcheck:
+      disable: true
     depends_on:
       redis:
         condition: service_healthy
