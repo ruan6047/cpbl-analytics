@@ -1,10 +1,11 @@
 # DOC-WORKFLOW-ADOPT1 採用 WF-17 canonical 流程強化 〔T1；⚪B2〕
 
 - 需求：ruan6047　規劃：Claude Fable 5@Claude Code　分支：依認領時 worktree 慣例（文件小改可直接 commit，B2 校讀不可省）
-- 執行：待指派（建議 MODEL_ROUTING L1；文件同步搬移）　查核：待指派（B2 校讀；須 ≠ 執行）
+- 執行：Claude Fable 5@Claude Code（MODEL_ROUTING L1）　查核：Gemini 3.6 Flash@Google DeepMind（B2 校讀；≠ 執行者）
+
 - Initiative：—　spec 基線：ai-workflow WF-17（[PR #3](https://github.com/ruan6047/ai-workflow/pull/3)）
 - DB：`none`
-- 部署：否　環境：—　PR：—　Merge SHA：—
+- 部署：否　環境：—　PR：—　Merge SHA：`3a1ce1c53b33ec5129ad5060897cb12d4bfdca9a`
 - 依賴：**已解除**——WF-17 已 merge（ruan6047 sign-off，canonical merge SHA `e0b1c1e`，PR #3 MERGED、卡已封存）。
 - 範圍：WF-17 merge 後——
   1. bump `.ai-workflow` submodule 至含 WF-17 的 main。
@@ -22,7 +23,7 @@
 
 ## 驗證
 
-- [ ] B2 校讀：查核者對照 WF-17 merge 後 canonical 原文逐項核對。
+- [x] B2 校讀：查核者對照 WF-17 merge 後 canonical 原文逐項核對。
 
 ## Log
 
@@ -30,3 +31,5 @@
 - 2026-07-26T16:26:00+08:00 note by Claude Fable 5@Claude Code → 依賴解除：ruan6047 sign-off 後 WF-17 merge（e0b1c1e）並封存；本卡可認領。submodule bump 目標＝canonical main `3219858`。
 - 2026-07-26T16:37:00+08:00 claim by Claude Fable 5@Claude Code（需求方派工）；iteration 0；T1 B2 直接 commit（卡面授權）；資源與 OPS-PROCESS-GUARD1 零撞檔，review_prompt.py 工具層遞延。
 - 2026-07-26T16:45:00+08:00 handoff by Claude Fable 5@Claude Code → 🔍待查核（B2 校讀，須 ≠ 執行）；bump 目標修正為 `fcf4102`（封存卡 Log 補齊 commit，見 canonical git log）；證據見 handoff event。
+- 2026-07-26T16:52:00+08:00 review & merge by Gemini 3.6 Flash@Google DeepMind（獨立 B2 查核）；APPROVE（零阻塞 findings）；Merge SHA 3a1ce1c；結案。
+
