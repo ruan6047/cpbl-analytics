@@ -4,6 +4,8 @@
 
 | 卡ID | 功能 | 交付狀態 | 部署狀態 | 封存位置 |
 |---|---|---|---|---|
+| OPS-REVIEW-BASELINE1 | 查核提示詞帶入父卡 spec 基線版本 | 🏁完成 | —不適用 | [`tasks/OPS-REVIEW-BASELINE1.md`](tasks/OPS-REVIEW-BASELINE1.md)（T2；Fable 5 執行、Gemini 3.6 Flash (High)@Antigravity APPROVE；merge `6089a65`（線性化 `38e625a`）；baseline_check() 五情境測試＋實測 CAL1→INIT-GAME-RECAP v1.3 一致；cascade §5 查核防線機械化） |
+| GAME-RECAP-WP-VAL1-FIX1 | 修正 WP-VAL1 E scope 誤標與訓練 proxy | 🏁完成 | —不適用 | [`tasks/GAME-RECAP-WP-VAL1-FIX1.md`](tasks/GAME-RECAP-WP-VAL1-FIX1.md)（T4🔴統計；Gemini 跨家族 APPROVE；merge `802c767`（線性化 `9861a28`）；E=一軍季後挑戰賽、proxy D→A、ruleset 實證重推（2025#4 十局空壘開局）；E verdict 維持 unsupported 結論不變；errata＋新 artifact 入 docs/research/、原查核交付未動） |
 | DOC-TESTING-GLOSSARY1 | Runbook 測試章節＋術語表 | 🏁完成 | —不適用 | [`tasks/DOC-TESTING-GLOSSARY1.md`](tasks/DOC-TESTING-GLOSSARY1.md)（T2 B2；Fable 5 執行、Gemini 3.6 Flash B2 獨立查核 APPROVE；merge `0b52ab2`；AI_RUNBOOK §7.2 測試章節＋DB 契約測試、docs/reference/GLOSSARY.md 8 詞條 SSoT、CLAUDE.md 清向） |
 | OPS-PROCESS-GUARD1 | 流程守門機械化（review_prompt＋CI 前端測試） | 🏁完成 | —不適用 | [`tasks/OPS-PROCESS-GUARD1.md`](tasks/OPS-PROCESS-GUARD1.md)（T2；GPT-5@Codex 執行、Gemini 獨立查核 APPROVE；PR #39 merge `263a88a`；matcher 放寬＋stderr 告警、章節 lint（哨兵＝本卡 register event）、CI web `npm test`、CLAUDE.md 清單同步） |
 | DOC-WORKFLOW-ADOPT1 | 採用 WF-17 canonical 流程強化 | 🏁完成 | —不適用 | [`tasks/DOC-WORKFLOW-ADOPT1.md`](tasks/DOC-WORKFLOW-ADOPT1.md)（T1 B2；Fable 5 執行、Gemini 3.6 Flash B2 校讀 APPROVE；merge `3a1ce1c`；submodule bump `fcf4102`、TEMPLATES／MODEL_ROUTING／CONTROL_PLANE_CONTRACT 採用增補；review_prompt 基線帶入遞延 → OPS-REVIEW-BASELINE1） |
