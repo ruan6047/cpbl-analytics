@@ -1,0 +1,5591 @@
+{
+ "thresholds": {
+  "ece_weighted_max": 0.025,
+  "decile_max_dev": 0.06,
+  "min_season_pa": 5000,
+  "min_coverage": 0.98,
+  "pooled_bin_dev_max": 0.03,
+  "proxy_pooled_ece_max": 0.05,
+  "boot_reps": 500,
+  "boot_ci": 0.99
+ },
+ "scopes": {
+  "A": {
+   "seasons": [
+    {
+     "year": 2021,
+     "model_span": "2018-2020/A",
+     "ruleset": "cap12,tie",
+     "coverage": 1.0,
+     "n_completed_games": 299,
+     "n_irregular_games": 3,
+     "pa_state_counts": {
+      "ready": 23000,
+      "truncated": 106
+     },
+     "tiebreak_state_in_train": true,
+     "walk_forward": {
+      "n_pa": 23000,
+      "n_games": 299,
+      "brier": 0.15323,
+      "ece_weighted": 0.0311,
+      "decile_max_dev": 0.0923,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0434,
+        "actual": 0.0352,
+        "n": 2058,
+        "dev_se": 0.0158,
+        "dev_ci": [
+         -0.0401,
+         0.0375
+        ]
+       },
+       {
+        "bin": 1,
+        "pred": 0.1447,
+        "actual": 0.0962,
+        "n": 1517,
+        "dev_se": 0.0253,
+        "dev_ci": [
+         -0.0167,
+         0.1078
+        ]
+       },
+       {
+        "bin": 2,
+        "pred": 0.2495,
+        "actual": 0.1708,
+        "n": 1595,
+        "dev_se": 0.0322,
+        "dev_ci": [
+         -0.0086,
+         0.1514
+        ]
+       },
+       {
+        "bin": 3,
+        "pred": 0.3511,
+        "actual": 0.2588,
+        "n": 1696,
+        "dev_se": 0.0375,
+        "dev_ci": [
+         -0.0051,
+         0.1842
+        ]
+       },
+       {
+        "bin": 4,
+        "pred": 0.4522,
+        "actual": 0.4162,
+        "n": 2286,
+        "dev_se": 0.04,
+        "dev_ci": [
+         -0.0715,
+         0.1304
+        ]
+       },
+       {
+        "bin": 5,
+        "pred": 0.5581,
+        "actual": 0.5467,
+        "n": 5312,
+        "dev_se": 0.0326,
+        "dev_ci": [
+         -0.0697,
+         0.0879
+        ]
+       },
+       {
+        "bin": 6,
+        "pred": 0.649,
+        "actual": 0.6402,
+        "n": 2507,
+        "dev_se": 0.0383,
+        "dev_ci": [
+         -0.085,
+         0.0988
+        ]
+       },
+       {
+        "bin": 7,
+        "pred": 0.7508,
+        "actual": 0.7359,
+        "n": 1719,
+        "dev_se": 0.0416,
+        "dev_ci": [
+         -0.085,
+         0.11
+        ]
+       },
+       {
+        "bin": 8,
+        "pred": 0.8505,
+        "actual": 0.9024,
+        "n": 1686,
+        "dev_se": 0.0232,
+        "dev_ci": [
+         -0.1018,
+         0.0228
+        ]
+       },
+       {
+        "bin": 9,
+        "pred": 0.9622,
+        "actual": 0.9869,
+        "n": 2624,
+        "dev_se": 0.007,
+        "dev_ci": [
+         -0.0396,
+         -0.0051
+        ]
+       }
+      ],
+      "significant_bins": [
+       9
+      ]
+     },
+     "walk_forward_regular_only": {
+      "n_pa": 22822,
+      "n_games": 296,
+      "brier": 0.15349,
+      "ece_weighted": 0.02989,
+      "decile_max_dev": 0.0931,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0434,
+        "actual": 0.0353,
+        "n": 2053
+       },
+       {
+        "bin": 1,
+        "pred": 0.1448,
+        "actual": 0.0961,
+        "n": 1494
+       },
+       {
+        "bin": 2,
+        "pred": 0.2492,
+        "actual": 0.1699,
+        "n": 1566
+       },
+       {
+        "bin": 3,
+        "pred": 0.3512,
+        "actual": 0.2581,
+        "n": 1666
+       },
+       {
+        "bin": 4,
+        "pred": 0.4522,
+        "actual": 0.4171,
+        "n": 2257
+       },
+       {
+        "bin": 5,
+        "pred": 0.5581,
+        "actual": 0.55,
+        "n": 5266
+       },
+       {
+        "bin": 6,
+        "pred": 0.6491,
+        "actual": 0.6433,
+        "n": 2492
+       },
+       {
+        "bin": 7,
+        "pred": 0.7508,
+        "actual": 0.7363,
+        "n": 1718
+       },
+       {
+        "bin": 8,
+        "pred": 0.8505,
+        "actual": 0.9024,
+        "n": 1686
+       },
+       {
+        "bin": 9,
+        "pred": 0.9622,
+        "actual": 0.9869,
+        "n": 2624
+       }
+      ]
+     },
+     "in_sample_full_span": {
+      "n_pa": 23000,
+      "brier": 0.15179,
+      "ece_weighted": 0.0157,
+      "decile_max_dev": 0.0452
+     },
+     "baseline_home_const": {
+      "p": 0.5619,
+      "brier": 0.24295
+     },
+     "baseline_half": {
+      "p": 0.5,
+      "brier": 0.24055
+     },
+     "inning_slices": {
+      "1-3": {
+       "n": 7608,
+       "pred": 0.5583,
+       "actual": 0.5209,
+       "brier": 0.21564
+      },
+      "10+": {
+       "n": 486,
+       "pred": 0.5278,
+       "actual": 0.6327,
+       "brier": 0.1368
+      },
+      "4-6": {
+       "n": 7824,
+       "pred": 0.5401,
+       "actual": 0.5215,
+       "brier": 0.15464
+      },
+      "7-9": {
+       "n": 7082,
+       "pred": 0.4868,
+       "actual": 0.4823,
+       "brier": 0.08575
+      }
+     },
+     "optimism_brier": 0.08972,
+     "insample_optimism": 0.00144,
+     "production_artifact_2018_2025": {
+      "brier": 0.15185,
+      "ece_weighted": 0.01699,
+      "in_sample_for_this_season": true
+     }
+    },
+    {
+     "year": 2022,
+     "model_span": "2018-2021/A",
+     "ruleset": "cap12,tie",
+     "coverage": 1.0,
+     "n_completed_games": 300,
+     "n_irregular_games": 4,
+     "pa_state_counts": {
+      "ready": 22847,
+      "truncated": 107
+     },
+     "tiebreak_state_in_train": true,
+     "walk_forward": {
+      "n_pa": 22847,
+      "n_games": 300,
+      "brier": 0.1474,
+      "ece_weighted": 0.04628,
+      "decile_max_dev": 0.1087,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0366,
+        "actual": 0.0177,
+        "n": 2293,
+        "dev_se": 0.0086,
+        "dev_ci": [
+         -0.0076,
+         0.0358
+        ]
+       },
+       {
+        "bin": 1,
+        "pred": 0.1486,
+        "actual": 0.084,
+        "n": 1340,
+        "dev_se": 0.0262,
+        "dev_ci": [
+         -0.0078,
+         0.1171
+        ]
+       },
+       {
+        "bin": 2,
+        "pred": 0.2504,
+        "actual": 0.1693,
+        "n": 1512,
+        "dev_se": 0.036,
+        "dev_ci": [
+         -0.0157,
+         0.1604
+        ]
+       },
+       {
+        "bin": 3,
+        "pred": 0.3519,
+        "actual": 0.2513,
+        "n": 1679,
+        "dev_se": 0.0416,
+        "dev_ci": [
+         -0.0064,
+         0.1887
+        ]
+       },
+       {
+        "bin": 4,
+        "pred": 0.4502,
+        "actual": 0.3415,
+        "n": 2290,
+        "dev_se": 0.0409,
+        "dev_ci": [
+         0.0074,
+         0.2003
+        ]
+       },
+       {
+        "bin": 5,
+        "pred": 0.556,
+        "actual": 0.5208,
+        "n": 5152,
+        "dev_se": 0.0344,
+        "dev_ci": [
+         -0.0411,
+         0.1308
+        ]
+       },
+       {
+        "bin": 6,
+        "pred": 0.6522,
+        "actual": 0.6304,
+        "n": 2258,
+        "dev_se": 0.0375,
+        "dev_ci": [
+         -0.0682,
+         0.1071
+        ]
+       },
+       {
+        "bin": 7,
+        "pred": 0.7502,
+        "actual": 0.7767,
+        "n": 1890,
+        "dev_se": 0.0367,
+        "dev_ci": [
+         -0.1068,
+         0.0765
+        ]
+       },
+       {
+        "bin": 8,
+        "pred": 0.85,
+        "actual": 0.8903,
+        "n": 1768,
+        "dev_se": 0.025,
+        "dev_ci": [
+         -0.0954,
+         0.0201
+        ]
+       },
+       {
+        "bin": 9,
+        "pred": 0.9641,
+        "actual": 0.9773,
+        "n": 2665,
+        "dev_se": 0.0105,
+        "dev_ci": [
+         -0.0317,
+         0.0192
+        ]
+       }
+      ],
+      "significant_bins": [
+       4
+      ]
+     },
+     "walk_forward_regular_only": {
+      "n_pa": 22597,
+      "n_games": 296,
+      "brier": 0.14836,
+      "ece_weighted": 0.04758,
+      "decile_max_dev": 0.1099,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0366,
+        "actual": 0.0177,
+        "n": 2293
+       },
+       {
+        "bin": 1,
+        "pred": 0.1486,
+        "actual": 0.084,
+        "n": 1340
+       },
+       {
+        "bin": 2,
+        "pred": 0.2504,
+        "actual": 0.1691,
+        "n": 1511
+       },
+       {
+        "bin": 3,
+        "pred": 0.3517,
+        "actual": 0.2488,
+        "n": 1662
+       },
+       {
+        "bin": 4,
+        "pred": 0.4503,
+        "actual": 0.3404,
+        "n": 2274
+       },
+       {
+        "bin": 5,
+        "pred": 0.556,
+        "actual": 0.5181,
+        "n": 5074
+       },
+       {
+        "bin": 6,
+        "pred": 0.652,
+        "actual": 0.6281,
+        "n": 2202
+       },
+       {
+        "bin": 7,
+        "pred": 0.7504,
+        "actual": 0.7742,
+        "n": 1856
+       },
+       {
+        "bin": 8,
+        "pred": 0.8499,
+        "actual": 0.8928,
+        "n": 1754
+       },
+       {
+        "bin": 9,
+        "pred": 0.9642,
+        "actual": 0.9783,
+        "n": 2631
+       }
+      ]
+     },
+     "in_sample_full_span": {
+      "n_pa": 22847,
+      "brier": 0.14569,
+      "ece_weighted": 0.03252,
+      "decile_max_dev": 0.0739
+     },
+     "baseline_home_const": {
+      "p": 0.5496,
+      "brier": 0.24221
+     },
+     "baseline_half": {
+      "p": 0.5,
+      "brier": 0.2395
+     },
+     "inning_slices": {
+      "1-3": {
+       "n": 7680,
+       "pred": 0.5453,
+       "actual": 0.5139,
+       "brier": 0.21099
+      },
+      "10+": {
+       "n": 460,
+       "pred": 0.5093,
+       "actual": 0.4022,
+       "brier": 0.12532
+      },
+      "4-6": {
+       "n": 7617,
+       "pred": 0.5458,
+       "actual": 0.5111,
+       "brier": 0.14611
+      },
+      "7-9": {
+       "n": 7090,
+       "pred": 0.498,
+       "actual": 0.4713,
+       "brier": 0.08134
+      }
+     },
+     "optimism_brier": 0.09481,
+     "insample_optimism": 0.00171,
+     "production_artifact_2018_2025": {
+      "brier": 0.14583,
+      "ece_weighted": 0.03401,
+      "in_sample_for_this_season": true
+     }
+    },
+    {
+     "year": 2023,
+     "model_span": "2018-2022/A",
+     "ruleset": "cap12,tie",
+     "coverage": 1.0,
+     "n_completed_games": 298,
+     "n_irregular_games": 4,
+     "pa_state_counts": {
+      "ready": 22912,
+      "truncated": 77
+     },
+     "tiebreak_state_in_train": true,
+     "walk_forward": {
+      "n_pa": 22912,
+      "n_games": 298,
+      "brier": 0.14745,
+      "ece_weighted": 0.02894,
+      "decile_max_dev": 0.0568,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0368,
+        "actual": 0.022,
+        "n": 2541,
+        "dev_se": 0.0114,
+        "dev_ci": [
+         -0.0202,
+         0.0362
+        ]
+       },
+       {
+        "bin": 1,
+        "pred": 0.1506,
+        "actual": 0.1036,
+        "n": 1545,
+        "dev_se": 0.028,
+        "dev_ci": [
+         -0.0433,
+         0.1083
+        ]
+       },
+       {
+        "bin": 2,
+        "pred": 0.2495,
+        "actual": 0.2291,
+        "n": 1576,
+        "dev_se": 0.0406,
+        "dev_ci": [
+         -0.1273,
+         0.1065
+        ]
+       },
+       {
+        "bin": 3,
+        "pred": 0.3509,
+        "actual": 0.3322,
+        "n": 1740,
+        "dev_se": 0.0437,
+        "dev_ci": [
+         -0.0928,
+         0.1388
+        ]
+       },
+       {
+        "bin": 4,
+        "pred": 0.4494,
+        "actual": 0.423,
+        "n": 2220,
+        "dev_se": 0.0453,
+        "dev_ci": [
+         -0.0883,
+         0.1333
+        ]
+       },
+       {
+        "bin": 5,
+        "pred": 0.5546,
+        "actual": 0.528,
+        "n": 4800,
+        "dev_se": 0.036,
+        "dev_ci": [
+         -0.0616,
+         0.1198
+        ]
+       },
+       {
+        "bin": 6,
+        "pred": 0.649,
+        "actual": 0.6919,
+        "n": 2137,
+        "dev_se": 0.0336,
+        "dev_ci": [
+         -0.1198,
+         0.0322
+        ]
+       },
+       {
+        "bin": 7,
+        "pred": 0.7501,
+        "actual": 0.8069,
+        "n": 1893,
+        "dev_se": 0.0333,
+        "dev_ci": [
+         -0.1365,
+         0.0315
+        ]
+       },
+       {
+        "bin": 8,
+        "pred": 0.8502,
+        "actual": 0.8918,
+        "n": 1604,
+        "dev_se": 0.0308,
+        "dev_ci": [
+         -0.1141,
+         0.0522
+        ]
+       },
+       {
+        "bin": 9,
+        "pred": 0.9652,
+        "actual": 0.9778,
+        "n": 2856,
+        "dev_se": 0.0109,
+        "dev_ci": [
+         -0.0326,
+         0.0186
+        ]
+       }
+      ],
+      "significant_bins": []
+     },
+     "walk_forward_regular_only": {
+      "n_pa": 22589,
+      "n_games": 294,
+      "brier": 0.14891,
+      "ece_weighted": 0.03156,
+      "decile_max_dev": 0.064,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0368,
+        "actual": 0.022,
+        "n": 2541
+       },
+       {
+        "bin": 1,
+        "pred": 0.1506,
+        "actual": 0.0997,
+        "n": 1530
+       },
+       {
+        "bin": 2,
+        "pred": 0.2496,
+        "actual": 0.2245,
+        "n": 1550
+       },
+       {
+        "bin": 3,
+        "pred": 0.3509,
+        "actual": 0.3289,
+        "n": 1707
+       },
+       {
+        "bin": 4,
+        "pred": 0.4492,
+        "actual": 0.4212,
+        "n": 2170
+       },
+       {
+        "bin": 5,
+        "pred": 0.5546,
+        "actual": 0.5284,
+        "n": 4731
+       },
+       {
+        "bin": 6,
+        "pred": 0.6491,
+        "actual": 0.6958,
+        "n": 2094
+       },
+       {
+        "bin": 7,
+        "pred": 0.7497,
+        "actual": 0.8137,
+        "n": 1852
+       },
+       {
+        "bin": 8,
+        "pred": 0.8502,
+        "actual": 0.9001,
+        "n": 1571
+       },
+       {
+        "bin": 9,
+        "pred": 0.9654,
+        "actual": 0.98,
+        "n": 2843
+       }
+      ]
+     },
+     "in_sample_full_span": {
+      "n_pa": 22912,
+      "brier": 0.14711,
+      "ece_weighted": 0.02024,
+      "decile_max_dev": 0.0543
+     },
+     "baseline_home_const": {
+      "p": 0.5414,
+      "brier": 0.2415
+     },
+     "baseline_half": {
+      "p": 0.5,
+      "brier": 0.24124
+     },
+     "inning_slices": {
+      "1-3": {
+       "n": 7633,
+       "pred": 0.5369,
+       "actual": 0.5319,
+       "brier": 0.21171
+      },
+      "10+": {
+       "n": 381,
+       "pred": 0.4903,
+       "actual": 0.4528,
+       "brier": 0.13235
+      },
+      "4-6": {
+       "n": 7766,
+       "pred": 0.5333,
+       "actual": 0.5387,
+       "brier": 0.15447
+      },
+      "7-9": {
+       "n": 7132,
+       "pred": 0.4894,
+       "actual": 0.4825,
+       "brier": 0.07184
+      }
+     },
+     "optimism_brier": 0.09405,
+     "insample_optimism": 0.00034,
+     "production_artifact_2018_2025": {
+      "brier": 0.14715,
+      "ece_weighted": 0.02089,
+      "in_sample_for_this_season": true
+     }
+    },
+    {
+     "year": 2024,
+     "model_span": "2018-2023/A",
+     "ruleset": "cap12,tb10,tie",
+     "coverage": 1.0,
+     "n_completed_games": 360,
+     "n_irregular_games": 3,
+     "pa_state_counts": {
+      "truncated": 97,
+      "ready": 27453,
+      "non_pa": 67
+     },
+     "tiebreak_state_in_train": true,
+     "walk_forward": {
+      "n_pa": 27453,
+      "n_games": 360,
+      "brier": 0.15388,
+      "ece_weighted": 0.03765,
+      "decile_max_dev": 0.0733,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.035,
+        "actual": 0.056,
+        "n": 3337,
+        "dev_se": 0.0208,
+        "dev_ci": [
+         -0.0834,
+         0.0214
+        ]
+       },
+       {
+        "bin": 1,
+        "pred": 0.1517,
+        "actual": 0.1166,
+        "n": 1869,
+        "dev_se": 0.027,
+        "dev_ci": [
+         -0.0381,
+         0.093
+        ]
+       },
+       {
+        "bin": 2,
+        "pred": 0.2498,
+        "actual": 0.189,
+        "n": 1868,
+        "dev_se": 0.0334,
+        "dev_ci": [
+         -0.0162,
+         0.1499
+        ]
+       },
+       {
+        "bin": 3,
+        "pred": 0.35,
+        "actual": 0.2767,
+        "n": 1997,
+        "dev_se": 0.0365,
+        "dev_ci": [
+         -0.0208,
+         0.166
+        ]
+       },
+       {
+        "bin": 4,
+        "pred": 0.448,
+        "actual": 0.4258,
+        "n": 2520,
+        "dev_se": 0.0385,
+        "dev_ci": [
+         -0.0767,
+         0.1167
+        ]
+       },
+       {
+        "bin": 5,
+        "pred": 0.5506,
+        "actual": 0.576,
+        "n": 6454,
+        "dev_se": 0.0307,
+        "dev_ci": [
+         -0.1157,
+         0.0492
+        ]
+       },
+       {
+        "bin": 6,
+        "pred": 0.6495,
+        "actual": 0.6987,
+        "n": 2466,
+        "dev_se": 0.0338,
+        "dev_ci": [
+         -0.1292,
+         0.0278
+        ]
+       },
+       {
+        "bin": 7,
+        "pred": 0.7473,
+        "actual": 0.8188,
+        "n": 1810,
+        "dev_se": 0.0321,
+        "dev_ci": [
+         -0.1412,
+         0.0132
+        ]
+       },
+       {
+        "bin": 8,
+        "pred": 0.851,
+        "actual": 0.9069,
+        "n": 1843,
+        "dev_se": 0.0251,
+        "dev_ci": [
+         -0.1173,
+         0.0173
+        ]
+       },
+       {
+        "bin": 9,
+        "pred": 0.9652,
+        "actual": 0.9848,
+        "n": 3289,
+        "dev_se": 0.0064,
+        "dev_ci": [
+         -0.0338,
+         -0.0027
+        ]
+       }
+      ],
+      "significant_bins": [
+       9
+      ]
+     },
+     "walk_forward_regular_only": {
+      "n_pa": 27251,
+      "n_games": 357,
+      "brier": 0.15485,
+      "ece_weighted": 0.03811,
+      "decile_max_dev": 0.0733,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.035,
+        "actual": 0.056,
+        "n": 3337
+       },
+       {
+        "bin": 1,
+        "pred": 0.1516,
+        "actual": 0.1185,
+        "n": 1839
+       },
+       {
+        "bin": 2,
+        "pred": 0.25,
+        "actual": 0.1906,
+        "n": 1852
+       },
+       {
+        "bin": 3,
+        "pred": 0.35,
+        "actual": 0.2767,
+        "n": 1991
+       },
+       {
+        "bin": 4,
+        "pred": 0.4479,
+        "actual": 0.4253,
+        "n": 2502
+       },
+       {
+        "bin": 5,
+        "pred": 0.5506,
+        "actual": 0.5772,
+        "n": 6363
+       },
+       {
+        "bin": 6,
+        "pred": 0.6495,
+        "actual": 0.701,
+        "n": 2438
+       },
+       {
+        "bin": 7,
+        "pred": 0.7473,
+        "actual": 0.8206,
+        "n": 1800
+       },
+       {
+        "bin": 8,
+        "pred": 0.8511,
+        "actual": 0.9076,
+        "n": 1840
+       },
+       {
+        "bin": 9,
+        "pred": 0.9652,
+        "actual": 0.9848,
+        "n": 3289
+       }
+      ]
+     },
+     "in_sample_full_span": {
+      "n_pa": 27453,
+      "brier": 0.15356,
+      "ece_weighted": 0.03659,
+      "decile_max_dev": 0.0706
+     },
+     "baseline_home_const": {
+      "p": 0.539,
+      "brier": 0.24875
+     },
+     "baseline_half": {
+      "p": 0.5,
+      "brier": 0.24862
+     },
+     "inning_slices": {
+      "1-3": {
+       "n": 9141,
+       "pred": 0.5252,
+       "actual": 0.5273,
+       "brier": 0.22032
+      },
+      "10+": {
+       "n": 262,
+       "pred": 0.5103,
+       "actual": 0.6718,
+       "brier": 0.18928
+      },
+      "4-6": {
+       "n": 9328,
+       "pred": 0.5212,
+       "actual": 0.5276,
+       "brier": 0.15146
+      },
+      "7-9": {
+       "n": 8722,
+       "pred": 0.4758,
+       "actual": 0.4929,
+       "brier": 0.08576
+      }
+     },
+     "optimism_brier": 0.09487,
+     "insample_optimism": 0.00032,
+     "production_artifact_2018_2025": {
+      "brier": 0.15361,
+      "ece_weighted": 0.03709,
+      "in_sample_for_this_season": true
+     }
+    },
+    {
+     "year": 2025,
+     "model_span": "2018-2024/A",
+     "ruleset": "cap12,tb10,tie",
+     "coverage": 1.0,
+     "n_completed_games": 359,
+     "n_irregular_games": 3,
+     "pa_state_counts": {
+      "ready": 27078,
+      "truncated": 126,
+      "non_pa": 86
+     },
+     "tiebreak_state_in_train": true,
+     "walk_forward": {
+      "n_pa": 27078,
+      "n_games": 359,
+      "brier": 0.15448,
+      "ece_weighted": 0.02608,
+      "decile_max_dev": 0.0618,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0376,
+        "actual": 0.0196,
+        "n": 2901,
+        "dev_se": 0.0101,
+        "dev_ci": [
+         -0.0168,
+         0.0366
+        ]
+       },
+       {
+        "bin": 1,
+        "pred": 0.1508,
+        "actual": 0.1069,
+        "n": 1440,
+        "dev_se": 0.028,
+        "dev_ci": [
+         -0.0361,
+         0.1094
+        ]
+       },
+       {
+        "bin": 2,
+        "pred": 0.2529,
+        "actual": 0.2003,
+        "n": 1757,
+        "dev_se": 0.0364,
+        "dev_ci": [
+         -0.0354,
+         0.1389
+        ]
+       },
+       {
+        "bin": 3,
+        "pred": 0.3503,
+        "actual": 0.2885,
+        "n": 2035,
+        "dev_se": 0.0382,
+        "dev_ci": [
+         -0.0366,
+         0.1539
+        ]
+       },
+       {
+        "bin": 4,
+        "pred": 0.4472,
+        "actual": 0.4173,
+        "n": 2684,
+        "dev_se": 0.0382,
+        "dev_ci": [
+         -0.0505,
+         0.1189
+        ]
+       },
+       {
+        "bin": 5,
+        "pred": 0.5482,
+        "actual": 0.5474,
+        "n": 6125,
+        "dev_se": 0.0321,
+        "dev_ci": [
+         -0.0876,
+         0.0836
+        ]
+       },
+       {
+        "bin": 6,
+        "pred": 0.6524,
+        "actual": 0.6848,
+        "n": 2489,
+        "dev_se": 0.0354,
+        "dev_ci": [
+         -0.1154,
+         0.0514
+        ]
+       },
+       {
+        "bin": 7,
+        "pred": 0.7502,
+        "actual": 0.791,
+        "n": 1931,
+        "dev_se": 0.0339,
+        "dev_ci": [
+         -0.12,
+         0.0436
+        ]
+       },
+       {
+        "bin": 8,
+        "pred": 0.851,
+        "actual": 0.8845,
+        "n": 2000,
+        "dev_se": 0.0278,
+        "dev_ci": [
+         -0.0879,
+         0.0444
+        ]
+       },
+       {
+        "bin": 9,
+        "pred": 0.9644,
+        "actual": 0.9808,
+        "n": 3716,
+        "dev_se": 0.0088,
+        "dev_ci": [
+         -0.0334,
+         0.0079
+        ]
+       }
+      ],
+      "significant_bins": []
+     },
+     "walk_forward_regular_only": {
+      "n_pa": 26904,
+      "n_games": 356,
+      "brier": 0.15504,
+      "ece_weighted": 0.02668,
+      "decile_max_dev": 0.0623,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0376,
+        "actual": 0.0196,
+        "n": 2901
+       },
+       {
+        "bin": 1,
+        "pred": 0.1508,
+        "actual": 0.1069,
+        "n": 1440
+       },
+       {
+        "bin": 2,
+        "pred": 0.2528,
+        "actual": 0.1993,
+        "n": 1751
+       },
+       {
+        "bin": 3,
+        "pred": 0.3503,
+        "actual": 0.288,
+        "n": 2031
+       },
+       {
+        "bin": 4,
+        "pred": 0.4471,
+        "actual": 0.4169,
+        "n": 2672
+       },
+       {
+        "bin": 5,
+        "pred": 0.5481,
+        "actual": 0.5452,
+        "n": 6053
+       },
+       {
+        "bin": 6,
+        "pred": 0.6524,
+        "actual": 0.6843,
+        "n": 2464
+       },
+       {
+        "bin": 7,
+        "pred": 0.7502,
+        "actual": 0.791,
+        "n": 1919
+       },
+       {
+        "bin": 8,
+        "pred": 0.8509,
+        "actual": 0.8844,
+        "n": 1963
+       },
+       {
+        "bin": 9,
+        "pred": 0.9644,
+        "actual": 0.9809,
+        "n": 3710
+       }
+      ]
+     },
+     "in_sample_full_span": {
+      "n_pa": 27078,
+      "brier": 0.15422,
+      "ece_weighted": 0.02373,
+      "decile_max_dev": 0.0556
+     },
+     "baseline_home_const": {
+      "p": 0.5369,
+      "brier": 0.24857
+     },
+     "baseline_half": {
+      "p": 0.5,
+      "brier": 0.2492
+     },
+     "inning_slices": {
+      "1-3": {
+       "n": 9080,
+       "pred": 0.5362,
+       "actual": 0.5499,
+       "brier": 0.21614
+      },
+      "10+": {
+       "n": 379,
+       "pred": 0.3871,
+       "actual": 0.2691,
+       "brier": 0.16762
+      },
+      "4-6": {
+       "n": 9221,
+       "pred": 0.5527,
+       "actual": 0.5409,
+       "brier": 0.15188
+      },
+      "7-9": {
+       "n": 8398,
+       "pred": 0.5106,
+       "actual": 0.4984,
+       "brier": 0.09006
+      }
+     },
+     "optimism_brier": 0.09409,
+     "insample_optimism": 0.00026,
+     "production_artifact_2018_2025": {
+      "brier": 0.15433,
+      "ece_weighted": 0.02438,
+      "in_sample_for_this_season": true
+     }
+    },
+    {
+     "year": 2026,
+     "model_span": "2018-2025/A",
+     "ruleset": "cap12,tb10,tie",
+     "coverage": 1.0,
+     "n_completed_games": 210,
+     "n_irregular_games": 19,
+     "pa_state_counts": {
+      "ready": 15659,
+      "truncated": 59,
+      "non_pa": 35
+     },
+     "tiebreak_state_in_train": true,
+     "walk_forward": {
+      "n_pa": 15659,
+      "n_games": 210,
+      "brier": 0.16612,
+      "ece_weighted": 0.01981,
+      "decile_max_dev": 0.0343,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0352,
+        "actual": 0.0307,
+        "n": 1729,
+        "dev_se": 0.0169,
+        "dev_ci": [
+         -0.0442,
+         0.0341
+        ]
+       },
+       {
+        "bin": 1,
+        "pred": 0.149,
+        "actual": 0.1454,
+        "n": 973,
+        "dev_se": 0.0421,
+        "dev_ci": [
+         -0.1129,
+         0.0934
+        ]
+       },
+       {
+        "bin": 2,
+        "pred": 0.2491,
+        "actual": 0.2404,
+        "n": 959,
+        "dev_se": 0.0519,
+        "dev_ci": [
+         -0.1228,
+         0.1209
+        ]
+       },
+       {
+        "bin": 3,
+        "pred": 0.3525,
+        "actual": 0.3639,
+        "n": 1102,
+        "dev_se": 0.0524,
+        "dev_ci": [
+         -0.1342,
+         0.1221
+        ]
+       },
+       {
+        "bin": 4,
+        "pred": 0.4479,
+        "actual": 0.4786,
+        "n": 1469,
+        "dev_se": 0.0506,
+        "dev_ci": [
+         -0.1544,
+         0.096
+        ]
+       },
+       {
+        "bin": 5,
+        "pred": 0.5478,
+        "actual": 0.5152,
+        "n": 3854,
+        "dev_se": 0.041,
+        "dev_ci": [
+         -0.0786,
+         0.1373
+        ]
+       },
+       {
+        "bin": 6,
+        "pred": 0.6499,
+        "actual": 0.6323,
+        "n": 1300,
+        "dev_se": 0.0472,
+        "dev_ci": [
+         -0.1149,
+         0.1408
+        ]
+       },
+       {
+        "bin": 7,
+        "pred": 0.7497,
+        "actual": 0.7663,
+        "n": 1209,
+        "dev_se": 0.0485,
+        "dev_ci": [
+         -0.1528,
+         0.1071
+        ]
+       },
+       {
+        "bin": 8,
+        "pred": 0.8483,
+        "actual": 0.8826,
+        "n": 1192,
+        "dev_se": 0.0364,
+        "dev_ci": [
+         -0.1191,
+         0.0483
+        ]
+       },
+       {
+        "bin": 9,
+        "pred": 0.9639,
+        "actual": 0.9514,
+        "n": 1872,
+        "dev_se": 0.0313,
+        "dev_ci": [
+         -0.0368,
+         0.1017
+        ]
+       }
+      ],
+      "significant_bins": []
+     },
+     "walk_forward_regular_only": {
+      "n_pa": 14306,
+      "n_games": 191,
+      "brier": 0.16603,
+      "ece_weighted": 0.01815,
+      "decile_max_dev": 0.0392,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0346,
+        "actual": 0.0259,
+        "n": 1699
+       },
+       {
+        "bin": 1,
+        "pred": 0.1487,
+        "actual": 0.1417,
+        "n": 907
+       },
+       {
+        "bin": 2,
+        "pred": 0.2494,
+        "actual": 0.2365,
+        "n": 869
+       },
+       {
+        "bin": 3,
+        "pred": 0.3525,
+        "actual": 0.3498,
+        "n": 1022
+       },
+       {
+        "bin": 4,
+        "pred": 0.4478,
+        "actual": 0.4564,
+        "n": 1319
+       },
+       {
+        "bin": 5,
+        "pred": 0.5478,
+        "actual": 0.5086,
+        "n": 3430
+       },
+       {
+        "bin": 6,
+        "pred": 0.6501,
+        "actual": 0.6352,
+        "n": 1165
+       },
+       {
+        "bin": 7,
+        "pred": 0.7493,
+        "actual": 0.7576,
+        "n": 1079
+       },
+       {
+        "bin": 8,
+        "pred": 0.8493,
+        "actual": 0.8716,
+        "n": 1090
+       },
+       {
+        "bin": 9,
+        "pred": 0.9636,
+        "actual": 0.9473,
+        "n": 1726
+       }
+      ]
+     },
+     "in_sample_full_span": {
+      "n_pa": 15659,
+      "brier": 0.1661,
+      "ece_weighted": 0.02072,
+      "decile_max_dev": 0.0349
+     },
+     "baseline_home_const": {
+      "p": 0.5381,
+      "brier": 0.24658
+     },
+     "baseline_half": {
+      "p": 0.5,
+      "brier": 0.24642
+     },
+     "inning_slices": {
+      "1-3": {
+       "n": 5242,
+       "pred": 0.5388,
+       "actual": 0.5244,
+       "brier": 0.22217
+      },
+      "10+": {
+       "n": 135,
+       "pred": 0.4608,
+       "actual": 0.7037,
+       "brier": 0.18462
+      },
+      "4-6": {
+       "n": 5300,
+       "pred": 0.5406,
+       "actual": 0.5288,
+       "brier": 0.17723
+      },
+      "7-9": {
+       "n": 4982,
+       "pred": 0.4852,
+       "actual": 0.4917,
+       "brier": 0.09483
+      }
+     },
+     "optimism_brier": 0.08046,
+     "insample_optimism": 2e-05,
+     "production_artifact_2018_2025": {
+      "brier": 0.16612,
+      "ece_weighted": 0.01981,
+      "in_sample_for_this_season": false
+     }
+    }
+   ],
+   "pooled_walk_forward": {
+    "n_pa": 138949,
+    "n_games": 1826,
+    "brier": 0.15314,
+    "ece_weighted": 0.02604,
+    "decile_max_dev": 0.0603,
+    "deciles": [
+     {
+      "bin": 0,
+      "pred": 0.0373,
+      "actual": 0.0314,
+      "n": 14859,
+      "dev_se": 0.0067,
+      "dev_ci": [
+       -0.0141,
+       0.0197
+      ]
+     },
+     {
+      "bin": 1,
+      "pred": 0.1494,
+      "actual": 0.1073,
+      "n": 8684,
+      "dev_se": 0.012,
+      "dev_ci": [
+       0.0111,
+       0.0697
+      ]
+     },
+     {
+      "bin": 2,
+      "pred": 0.2503,
+      "actual": 0.1969,
+      "n": 9267,
+      "dev_se": 0.0154,
+      "dev_ci": [
+       0.0162,
+       0.0873
+      ]
+     },
+     {
+      "bin": 3,
+      "pred": 0.351,
+      "actual": 0.2907,
+      "n": 10249,
+      "dev_se": 0.017,
+      "dev_ci": [
+       0.014,
+       0.1032
+      ]
+     },
+     {
+      "bin": 4,
+      "pred": 0.4492,
+      "actual": 0.4134,
+      "n": 13469,
+      "dev_se": 0.0166,
+      "dev_ci": [
+       -0.0059,
+       0.0794
+      ]
+     },
+     {
+      "bin": 5,
+      "pred": 0.5525,
+      "actual": 0.5419,
+      "n": 31697,
+      "dev_se": 0.0133,
+      "dev_ci": [
+       -0.0221,
+       0.0412
+      ]
+     },
+     {
+      "bin": 6,
+      "pred": 0.6504,
+      "actual": 0.6655,
+      "n": 13157,
+      "dev_se": 0.0145,
+      "dev_ci": [
+       -0.0507,
+       0.0206
+      ]
+     },
+     {
+      "bin": 7,
+      "pred": 0.7497,
+      "actual": 0.7842,
+      "n": 10452,
+      "dev_se": 0.0151,
+      "dev_ci": [
+       -0.0731,
+       0.0049
+      ]
+     },
+     {
+      "bin": 8,
+      "pred": 0.8503,
+      "actual": 0.8935,
+      "n": 10093,
+      "dev_se": 0.0118,
+      "dev_ci": [
+       -0.0746,
+       -0.0148
+      ]
+     },
+     {
+      "bin": 9,
+      "pred": 0.9642,
+      "actual": 0.9782,
+      "n": 17022,
+      "dev_se": 0.0049,
+      "dev_ci": [
+       -0.0267,
+       -0.0019
+      ]
+     }
+    ],
+    "significant_bins": [
+     1,
+     2,
+     3,
+     8,
+     9
+    ],
+    "baseline_home_const_brier": 0.24524
+   },
+   "verdict": {
+    "status": "unsupported",
+    "reasons": [
+     "池化十分位 1 偏差 +0.0421 顯著且超過 ±0.03（n=8684）",
+     "池化十分位 2 偏差 +0.0534 顯著且超過 ±0.03（n=9267）",
+     "池化十分位 3 偏差 +0.0603 顯著且超過 ±0.03（n=10249）",
+     "池化十分位 8 偏差 -0.0432 顯著且超過 ±0.03（n=10093）"
+    ],
+    "disclosure": [
+     "A2021 逐季顯著偏差分箱 [9]（99% 叢集 CI 排除 0）",
+     "A2022 逐季顯著偏差分箱 [4]（99% 叢集 CI 排除 0）",
+     "A2024 逐季顯著偏差分箱 [9]（99% 叢集 CI 排除 0）",
+     "池化十分位 9 偏差 -0.0140 顯著但幅度受控（n=17022）"
+    ],
+    "v1_flags": [
+     "A2021 ECE 0.0311（v1 點估計參考）",
+     "A2021 maxdev 0.0923（v1 點估計參考）",
+     "A2022 ECE 0.04628（v1 點估計參考）",
+     "A2022 maxdev 0.1087（v1 點估計參考）",
+     "A2023 ECE 0.02894（v1 點估計參考）",
+     "A2024 ECE 0.03765（v1 點估計參考）",
+     "A2024 maxdev 0.0733（v1 點估計參考）",
+     "A2025 ECE 0.02608（v1 點估計參考）",
+     "A2025 maxdev 0.0618（v1 點估計參考）"
+    ]
+   }
+  },
+  "C": {
+   "seasons": [
+    {
+     "year": 2021,
+     "model_span": "2018-2021/A",
+     "ruleset": "cap20,no-tie",
+     "coverage": 1.0,
+     "n_completed_games": 4,
+     "n_irregular_games": 0,
+     "pa_state_counts": {
+      "ready": 291
+     },
+     "tiebreak_state_in_train": true,
+     "walk_forward": {
+      "n_pa": 291,
+      "n_games": 4,
+      "brier": 0.11378,
+      "ece_weighted": 0.13406,
+      "decile_max_dev": null,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0433,
+        "actual": 0.0,
+        "n": 40,
+        "dev_se": 0.0068,
+        "dev_ci": [
+         0.0352,
+         0.0533
+        ]
+       },
+       {
+        "bin": 1,
+        "pred": 0.1655,
+        "actual": 0.0,
+        "n": 12,
+        "dev_se": 0.0032,
+        "dev_ci": [
+         0.1599,
+         0.1683
+        ]
+       },
+       {
+        "bin": 2,
+        "pred": 0.2256,
+        "actual": 0.0,
+        "n": 15,
+        "dev_se": 0.0,
+        "dev_ci": [
+         0.2256,
+         0.2256
+        ]
+       },
+       {
+        "bin": 3,
+        "pred": 0.3656,
+        "actual": 0.0,
+        "n": 10,
+        "dev_se": 0.0045,
+        "dev_ci": [
+         0.3596,
+         0.3716
+        ]
+       },
+       {
+        "bin": 4,
+        "pred": 0.4577,
+        "actual": 0.0513,
+        "n": 39,
+        "dev_se": 0.2345,
+        "dev_ci": [
+         -0.5126,
+         0.4585
+        ]
+       },
+       {
+        "bin": 5,
+        "pred": 0.5551,
+        "actual": 0.6092,
+        "n": 87,
+        "dev_se": 0.2987,
+        "dev_ci": [
+         -0.4397,
+         0.5506
+        ]
+       },
+       {
+        "bin": 6,
+        "pred": 0.6149,
+        "actual": 0.8571,
+        "n": 7,
+        "dev_se": 0.4121,
+        "dev_ci": [
+         -0.3837,
+         0.606
+        ]
+       },
+       {
+        "bin": 7,
+        "pred": 0.7825,
+        "actual": 1.0,
+        "n": 7,
+        "dev_se": 0.0052,
+        "dev_ci": [
+         -0.2214,
+         -0.2078
+        ]
+       },
+       {
+        "bin": 8,
+        "pred": 0.8488,
+        "actual": 1.0,
+        "n": 13,
+        "dev_se": 0.0149,
+        "dev_ci": [
+         -0.1665,
+         -0.1267
+        ]
+       },
+       {
+        "bin": 9,
+        "pred": 0.9588,
+        "actual": 1.0,
+        "n": 61,
+        "dev_se": 0.0119,
+        "dev_ci": [
+         -0.0671,
+         -0.0373
+        ]
+       }
+      ],
+      "significant_bins": []
+     },
+     "walk_forward_regular_only": {
+      "n_pa": 291,
+      "n_games": 4,
+      "brier": 0.11378,
+      "ece_weighted": 0.13406,
+      "decile_max_dev": null,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0433,
+        "actual": 0.0,
+        "n": 40
+       },
+       {
+        "bin": 1,
+        "pred": 0.1655,
+        "actual": 0.0,
+        "n": 12
+       },
+       {
+        "bin": 2,
+        "pred": 0.2256,
+        "actual": 0.0,
+        "n": 15
+       },
+       {
+        "bin": 3,
+        "pred": 0.3656,
+        "actual": 0.0,
+        "n": 10
+       },
+       {
+        "bin": 4,
+        "pred": 0.4577,
+        "actual": 0.0513,
+        "n": 39
+       },
+       {
+        "bin": 5,
+        "pred": 0.5551,
+        "actual": 0.6092,
+        "n": 87
+       },
+       {
+        "bin": 6,
+        "pred": 0.6149,
+        "actual": 0.8571,
+        "n": 7
+       },
+       {
+        "bin": 7,
+        "pred": 0.7825,
+        "actual": 1.0,
+        "n": 7
+       },
+       {
+        "bin": 8,
+        "pred": 0.8488,
+        "actual": 1.0,
+        "n": 13
+       },
+       {
+        "bin": 9,
+        "pred": 0.9588,
+        "actual": 1.0,
+        "n": 61
+       }
+      ]
+     },
+     "in_sample_full_span": {
+      "n_pa": 291,
+      "brier": 0.10954,
+      "ece_weighted": 0.14906,
+      "decile_max_dev": null
+     },
+     "baseline_home_const": {
+      "p": 0.5496,
+      "brier": 0.25365
+     },
+     "baseline_half": {
+      "p": 0.5,
+      "brier": 0.25
+     },
+     "inning_slices": {
+      "1-3": {
+       "n": 102,
+       "pred": 0.5801,
+       "actual": 0.5196,
+       "brier": 0.17547
+      },
+      "4-6": {
+       "n": 96,
+       "pred": 0.5654,
+       "actual": 0.4896,
+       "brier": 0.13212
+      },
+      "7-9": {
+       "n": 93,
+       "pred": 0.4597,
+       "actual": 0.4516,
+       "brier": 0.02718
+      }
+     },
+     "optimism_brier": 0.13987,
+     "insample_optimism": 0.00424
+    },
+    {
+     "year": 2022,
+     "model_span": "2018-2022/A",
+     "ruleset": "cap20,no-tie",
+     "coverage": 1.0,
+     "n_completed_games": 4,
+     "n_irregular_games": 0,
+     "pa_state_counts": {
+      "ready": 300
+     },
+     "tiebreak_state_in_train": true,
+     "walk_forward": {
+      "n_pa": 300,
+      "n_games": 4,
+      "brier": 0.10126,
+      "ece_weighted": 0.16069,
+      "decile_max_dev": null,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0556,
+        "actual": 0.0,
+        "n": 18,
+        "dev_se": 0.0041,
+        "dev_ci": [
+         0.0479,
+         0.0586
+        ]
+       },
+       {
+        "bin": 1,
+        "pred": 0.1391,
+        "actual": 0.0,
+        "n": 11,
+        "dev_se": 0.0145,
+        "dev_ci": [
+         0.1288,
+         0.1667
+        ]
+       },
+       {
+        "bin": 2,
+        "pred": 0.2534,
+        "actual": 0.0,
+        "n": 60,
+        "dev_se": 0.003,
+        "dev_ci": [
+         0.2513,
+         0.259
+        ]
+       },
+       {
+        "bin": 3,
+        "pred": 0.3333,
+        "actual": 0.0,
+        "n": 33,
+        "dev_se": 0.004,
+        "dev_ci": [
+         0.3278,
+         0.3385
+        ]
+       },
+       {
+        "bin": 4,
+        "pred": 0.4489,
+        "actual": 0.375,
+        "n": 8,
+        "dev_se": 0.3748,
+        "dev_ci": [
+         -0.5283,
+         0.4352
+        ]
+       },
+       {
+        "bin": 5,
+        "pred": 0.5546,
+        "actual": 0.5897,
+        "n": 39,
+        "dev_se": 0.2713,
+        "dev_ci": [
+         -0.4477,
+         0.5589
+        ]
+       },
+       {
+        "bin": 6,
+        "pred": 0.652,
+        "actual": 0.8269,
+        "n": 52,
+        "dev_se": 0.2512,
+        "dev_ci": [
+         -0.3474,
+         0.6319
+        ]
+       },
+       {
+        "bin": 7,
+        "pred": 0.7371,
+        "actual": 0.9545,
+        "n": 22,
+        "dev_se": 0.2495,
+        "dev_ci": [
+         -0.2691,
+         0.7527
+        ]
+       },
+       {
+        "bin": 8,
+        "pred": 0.8541,
+        "actual": 1.0,
+        "n": 19,
+        "dev_se": 0.0189,
+        "dev_ci": [
+         -0.1854,
+         -0.1385
+        ]
+       },
+       {
+        "bin": 9,
+        "pred": 0.9773,
+        "actual": 1.0,
+        "n": 38,
+        "dev_se": 0.0194,
+        "dev_ci": [
+         -0.066,
+         -0.0203
+        ]
+       }
+      ],
+      "significant_bins": []
+     },
+     "walk_forward_regular_only": {
+      "n_pa": 300,
+      "n_games": 4,
+      "brier": 0.10126,
+      "ece_weighted": 0.16069,
+      "decile_max_dev": null,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0556,
+        "actual": 0.0,
+        "n": 18
+       },
+       {
+        "bin": 1,
+        "pred": 0.1391,
+        "actual": 0.0,
+        "n": 11
+       },
+       {
+        "bin": 2,
+        "pred": 0.2534,
+        "actual": 0.0,
+        "n": 60
+       },
+       {
+        "bin": 3,
+        "pred": 0.3333,
+        "actual": 0.0,
+        "n": 33
+       },
+       {
+        "bin": 4,
+        "pred": 0.4489,
+        "actual": 0.375,
+        "n": 8
+       },
+       {
+        "bin": 5,
+        "pred": 0.5546,
+        "actual": 0.5897,
+        "n": 39
+       },
+       {
+        "bin": 6,
+        "pred": 0.652,
+        "actual": 0.8269,
+        "n": 52
+       },
+       {
+        "bin": 7,
+        "pred": 0.7371,
+        "actual": 0.9545,
+        "n": 22
+       },
+       {
+        "bin": 8,
+        "pred": 0.8541,
+        "actual": 1.0,
+        "n": 19
+       },
+       {
+        "bin": 9,
+        "pred": 0.9773,
+        "actual": 1.0,
+        "n": 38
+       }
+      ]
+     },
+     "in_sample_full_span": {
+      "n_pa": 300,
+      "brier": 0.09743,
+      "ece_weighted": 0.15637,
+      "decile_max_dev": null
+     },
+     "baseline_home_const": {
+      "p": 0.5414,
+      "brier": 0.25254
+     },
+     "baseline_half": {
+      "p": 0.5,
+      "brier": 0.25
+     },
+     "inning_slices": {
+      "1-3": {
+       "n": 107,
+       "pred": 0.5241,
+       "actual": 0.4953,
+       "brier": 0.18983
+      },
+      "4-6": {
+       "n": 100,
+       "pred": 0.5398,
+       "actual": 0.51,
+       "brier": 0.07396
+      },
+      "7-9": {
+       "n": 93,
+       "pred": 0.5095,
+       "actual": 0.4624,
+       "brier": 0.02873
+      }
+     },
+     "optimism_brier": 0.15128,
+     "insample_optimism": 0.00383
+    },
+    {
+     "year": 2023,
+     "model_span": "2018-2023/A",
+     "ruleset": "cap20,no-tie",
+     "coverage": 1.0,
+     "n_completed_games": 7,
+     "n_irregular_games": 0,
+     "pa_state_counts": {
+      "ready": 564,
+      "truncated": 1
+     },
+     "tiebreak_state_in_train": true,
+     "walk_forward": {
+      "n_pa": 564,
+      "n_games": 7,
+      "brier": 0.14333,
+      "ece_weighted": 0.15262,
+      "decile_max_dev": null,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0232,
+        "actual": 0.0,
+        "n": 66,
+        "dev_se": 0.0095,
+        "dev_ci": [
+         0.0175,
+         0.0446
+        ]
+       },
+       {
+        "bin": 1,
+        "pred": 0.1562,
+        "actual": 0.0,
+        "n": 13,
+        "dev_se": 0.0126,
+        "dev_ci": [
+         0.1278,
+         0.1696
+        ]
+       },
+       {
+        "bin": 2,
+        "pred": 0.2426,
+        "actual": 0.0952,
+        "n": 21,
+        "dev_se": 0.2613,
+        "dev_ci": [
+         -0.7176,
+         0.2431
+        ]
+       },
+       {
+        "bin": 3,
+        "pred": 0.3601,
+        "actual": 0.6667,
+        "n": 18,
+        "dev_se": 0.3902,
+        "dev_ci": [
+         -0.6476,
+         0.3844
+        ]
+       },
+       {
+        "bin": 4,
+        "pred": 0.4477,
+        "actual": 0.4091,
+        "n": 66,
+        "dev_se": 0.24,
+        "dev_ci": [
+         -0.5498,
+         0.4469
+        ]
+       },
+       {
+        "bin": 5,
+        "pred": 0.5552,
+        "actual": 0.3813,
+        "n": 139,
+        "dev_se": 0.2397,
+        "dev_ci": [
+         -0.4465,
+         0.5386
+        ]
+       },
+       {
+        "bin": 6,
+        "pred": 0.6525,
+        "actual": 0.8721,
+        "n": 86,
+        "dev_se": 0.1604,
+        "dev_ci": [
+         -0.3512,
+         0.5042
+        ]
+       },
+       {
+        "bin": 7,
+        "pred": 0.7489,
+        "actual": 1.0,
+        "n": 79,
+        "dev_se": 0.0073,
+        "dev_ci": [
+         -0.2752,
+         -0.2369
+        ]
+       },
+       {
+        "bin": 8,
+        "pred": 0.8487,
+        "actual": 1.0,
+        "n": 46,
+        "dev_se": 0.0052,
+        "dev_ci": [
+         -0.1665,
+         -0.1338
+        ]
+       },
+       {
+        "bin": 9,
+        "pred": 0.95,
+        "actual": 1.0,
+        "n": 30,
+        "dev_se": 0.0013,
+        "dev_ci": [
+         -0.0526,
+         -0.0478
+        ]
+       }
+      ],
+      "significant_bins": []
+     },
+     "walk_forward_regular_only": {
+      "n_pa": 564,
+      "n_games": 7,
+      "brier": 0.14333,
+      "ece_weighted": 0.15262,
+      "decile_max_dev": null,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0232,
+        "actual": 0.0,
+        "n": 66
+       },
+       {
+        "bin": 1,
+        "pred": 0.1562,
+        "actual": 0.0,
+        "n": 13
+       },
+       {
+        "bin": 2,
+        "pred": 0.2426,
+        "actual": 0.0952,
+        "n": 21
+       },
+       {
+        "bin": 3,
+        "pred": 0.3601,
+        "actual": 0.6667,
+        "n": 18
+       },
+       {
+        "bin": 4,
+        "pred": 0.4477,
+        "actual": 0.4091,
+        "n": 66
+       },
+       {
+        "bin": 5,
+        "pred": 0.5552,
+        "actual": 0.3813,
+        "n": 139
+       },
+       {
+        "bin": 6,
+        "pred": 0.6525,
+        "actual": 0.8721,
+        "n": 86
+       },
+       {
+        "bin": 7,
+        "pred": 0.7489,
+        "actual": 1.0,
+        "n": 79
+       },
+       {
+        "bin": 8,
+        "pred": 0.8487,
+        "actual": 1.0,
+        "n": 46
+       },
+       {
+        "bin": 9,
+        "pred": 0.95,
+        "actual": 1.0,
+        "n": 30
+       }
+      ]
+     },
+     "in_sample_full_span": {
+      "n_pa": 564,
+      "brier": 0.14253,
+      "ece_weighted": 0.14504,
+      "decile_max_dev": null
+     },
+     "baseline_home_const": {
+      "p": 0.539,
+      "brier": 0.24571
+     },
+     "baseline_half": {
+      "p": 0.5,
+      "brier": 0.25
+     },
+     "inning_slices": {
+      "1-3": {
+       "n": 179,
+       "pred": 0.5613,
+       "actual": 0.5754,
+       "brier": 0.2112
+      },
+      "10+": {
+       "n": 62,
+       "pred": 0.4993,
+       "actual": 0.6452,
+       "brier": 0.16707
+      },
+      "4-6": {
+       "n": 165,
+       "pred": 0.5534,
+       "actual": 0.5636,
+       "brier": 0.10913
+      },
+      "7-9": {
+       "n": 158,
+       "pred": 0.5185,
+       "actual": 0.557,
+       "brier": 0.09285
+      }
+     },
+     "optimism_brier": 0.10238,
+     "insample_optimism": 0.0008
+    },
+    {
+     "year": 2024,
+     "model_span": "2018-2024/A",
+     "ruleset": "cap20,no-tie",
+     "coverage": 1.0,
+     "n_completed_games": 5,
+     "n_irregular_games": 0,
+     "pa_state_counts": {
+      "ready": 393
+     },
+     "tiebreak_state_in_train": true,
+     "walk_forward": {
+      "n_pa": 393,
+      "n_games": 5,
+      "brier": 0.16306,
+      "ece_weighted": 0.12444,
+      "decile_max_dev": null,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0177,
+        "actual": 0.0,
+        "n": 53,
+        "dev_se": 0.0144,
+        "dev_ci": [
+         0.0078,
+         0.0704
+        ]
+       },
+       {
+        "bin": 1,
+        "pred": 0.1581,
+        "actual": 0.0417,
+        "n": 48,
+        "dev_se": 0.0971,
+        "dev_ci": [
+         -0.8176,
+         0.1622
+        ]
+       },
+       {
+        "bin": 2,
+        "pred": 0.2463,
+        "actual": 0.4127,
+        "n": 63,
+        "dev_se": 0.2699,
+        "dev_ci": [
+         -0.7448,
+         0.2424
+        ]
+       },
+       {
+        "bin": 3,
+        "pred": 0.3473,
+        "actual": 0.4375,
+        "n": 32,
+        "dev_se": 0.2946,
+        "dev_ci": [
+         -0.6613,
+         0.3617
+        ]
+       },
+       {
+        "bin": 4,
+        "pred": 0.4447,
+        "actual": 0.3333,
+        "n": 45,
+        "dev_se": 0.2277,
+        "dev_ci": [
+         -0.5483,
+         0.4425
+        ]
+       },
+       {
+        "bin": 5,
+        "pred": 0.5515,
+        "actual": 0.15,
+        "n": 40,
+        "dev_se": 0.1604,
+        "dev_ci": [
+         -0.4579,
+         0.5541
+        ]
+       },
+       {
+        "bin": 6,
+        "pred": 0.6527,
+        "actual": 0.5652,
+        "n": 46,
+        "dev_se": 0.3359,
+        "dev_ci": [
+         -0.3453,
+         0.6538
+        ]
+       },
+       {
+        "bin": 7,
+        "pred": 0.7263,
+        "actual": 0.8,
+        "n": 15,
+        "dev_se": 0.415,
+        "dev_ci": [
+         -0.2726,
+         0.7218
+        ]
+       },
+       {
+        "bin": 8,
+        "pred": 0.861,
+        "actual": 1.0,
+        "n": 15,
+        "dev_se": 0.0111,
+        "dev_ci": [
+         -0.159,
+         -0.1318
+        ]
+       },
+       {
+        "bin": 9,
+        "pred": 0.98,
+        "actual": 1.0,
+        "n": 36,
+        "dev_se": 0.0083,
+        "dev_ci": [
+         -0.0358,
+         -0.0147
+        ]
+       }
+      ],
+      "significant_bins": []
+     },
+     "walk_forward_regular_only": {
+      "n_pa": 393,
+      "n_games": 5,
+      "brier": 0.16306,
+      "ece_weighted": 0.12444,
+      "decile_max_dev": null,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0177,
+        "actual": 0.0,
+        "n": 53
+       },
+       {
+        "bin": 1,
+        "pred": 0.1581,
+        "actual": 0.0417,
+        "n": 48
+       },
+       {
+        "bin": 2,
+        "pred": 0.2463,
+        "actual": 0.4127,
+        "n": 63
+       },
+       {
+        "bin": 3,
+        "pred": 0.3473,
+        "actual": 0.4375,
+        "n": 32
+       },
+       {
+        "bin": 4,
+        "pred": 0.4447,
+        "actual": 0.3333,
+        "n": 45
+       },
+       {
+        "bin": 5,
+        "pred": 0.5515,
+        "actual": 0.15,
+        "n": 40
+       },
+       {
+        "bin": 6,
+        "pred": 0.6527,
+        "actual": 0.5652,
+        "n": 46
+       },
+       {
+        "bin": 7,
+        "pred": 0.7263,
+        "actual": 0.8,
+        "n": 15
+       },
+       {
+        "bin": 8,
+        "pred": 0.861,
+        "actual": 1.0,
+        "n": 15
+       },
+       {
+        "bin": 9,
+        "pred": 0.98,
+        "actual": 1.0,
+        "n": 36
+       }
+      ]
+     },
+     "in_sample_full_span": {
+      "n_pa": 393,
+      "brier": 0.16307,
+      "ece_weighted": 0.12237,
+      "decile_max_dev": null
+     },
+     "baseline_home_const": {
+      "p": 0.5369,
+      "brier": 0.25972
+     },
+     "baseline_half": {
+      "p": 0.5,
+      "brier": 0.25
+     },
+     "inning_slices": {
+      "1-3": {
+       "n": 139,
+       "pred": 0.4729,
+       "actual": 0.4029,
+       "brier": 0.29565
+      },
+      "4-6": {
+       "n": 136,
+       "pred": 0.4182,
+       "actual": 0.4118,
+       "brier": 0.16031
+      },
+      "7-9": {
+       "n": 118,
+       "pred": 0.3705,
+       "actual": 0.339,
+       "brier": 0.01006
+      }
+     },
+     "optimism_brier": 0.09666,
+     "insample_optimism": -1e-05
+    },
+    {
+     "year": 2025,
+     "model_span": "2018-2025/A",
+     "ruleset": "cap20,no-tie",
+     "coverage": 1.0,
+     "n_completed_games": 5,
+     "n_irregular_games": 0,
+     "pa_state_counts": {
+      "ready": 382
+     },
+     "tiebreak_state_in_train": true,
+     "walk_forward": {
+      "n_pa": 382,
+      "n_games": 5,
+      "brier": 0.21274,
+      "ece_weighted": 0.26877,
+      "decile_max_dev": null,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0625,
+        "actual": 0.0,
+        "n": 24,
+        "dev_se": 0.0035,
+        "dev_ci": [
+         0.0594,
+         0.0692
+        ]
+       },
+       {
+        "bin": 1,
+        "pred": 0.1603,
+        "actual": 0.0,
+        "n": 43,
+        "dev_se": 0.0031,
+        "dev_ci": [
+         0.1436,
+         0.168
+        ]
+       },
+       {
+        "bin": 2,
+        "pred": 0.2508,
+        "actual": 0.0,
+        "n": 47,
+        "dev_se": 0.0077,
+        "dev_ci": [
+         0.2318,
+         0.2604
+        ]
+       },
+       {
+        "bin": 3,
+        "pred": 0.3497,
+        "actual": 0.037,
+        "n": 27,
+        "dev_se": 0.1418,
+        "dev_ci": [
+         -0.6475,
+         0.3619
+        ]
+       },
+       {
+        "bin": 4,
+        "pred": 0.4439,
+        "actual": 0.0694,
+        "n": 72,
+        "dev_se": 0.0901,
+        "dev_ci": [
+         -0.0443,
+         0.4533
+        ]
+       },
+       {
+        "bin": 5,
+        "pred": 0.5482,
+        "actual": 0.4348,
+        "n": 92,
+        "dev_se": 0.3186,
+        "dev_ci": [
+         -0.406,
+         0.5506
+        ]
+       },
+       {
+        "bin": 6,
+        "pred": 0.6496,
+        "actual": 0.3333,
+        "n": 33,
+        "dev_se": 0.4056,
+        "dev_ci": [
+         -0.3619,
+         0.6554
+        ]
+       },
+       {
+        "bin": 7,
+        "pred": 0.7411,
+        "actual": 0.2,
+        "n": 15,
+        "dev_se": 0.3353,
+        "dev_ci": [
+         -0.2465,
+         0.7384
+        ]
+       },
+       {
+        "bin": 8,
+        "pred": 0.8656,
+        "actual": 0.0,
+        "n": 4,
+        "dev_se": 0.0,
+        "dev_ci": [
+         0.8656,
+         0.8656
+        ]
+       },
+       {
+        "bin": 9,
+        "pred": 0.9453,
+        "actual": 0.36,
+        "n": 25,
+        "dev_se": 0.3964,
+        "dev_ci": [
+         -0.0551,
+         0.9456
+        ]
+       }
+      ],
+      "significant_bins": []
+     },
+     "walk_forward_regular_only": {
+      "n_pa": 382,
+      "n_games": 5,
+      "brier": 0.21274,
+      "ece_weighted": 0.26877,
+      "decile_max_dev": null,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0625,
+        "actual": 0.0,
+        "n": 24
+       },
+       {
+        "bin": 1,
+        "pred": 0.1603,
+        "actual": 0.0,
+        "n": 43
+       },
+       {
+        "bin": 2,
+        "pred": 0.2508,
+        "actual": 0.0,
+        "n": 47
+       },
+       {
+        "bin": 3,
+        "pred": 0.3497,
+        "actual": 0.037,
+        "n": 27
+       },
+       {
+        "bin": 4,
+        "pred": 0.4439,
+        "actual": 0.0694,
+        "n": 72
+       },
+       {
+        "bin": 5,
+        "pred": 0.5482,
+        "actual": 0.4348,
+        "n": 92
+       },
+       {
+        "bin": 6,
+        "pred": 0.6496,
+        "actual": 0.3333,
+        "n": 33
+       },
+       {
+        "bin": 7,
+        "pred": 0.7411,
+        "actual": 0.2,
+        "n": 15
+       },
+       {
+        "bin": 8,
+        "pred": 0.8656,
+        "actual": 0.0,
+        "n": 4
+       },
+       {
+        "bin": 9,
+        "pred": 0.9453,
+        "actual": 0.36,
+        "n": 25
+       }
+      ]
+     },
+     "in_sample_full_span": {
+      "n_pa": 382,
+      "brier": 0.21196,
+      "ece_weighted": 0.2671,
+      "decile_max_dev": null
+     },
+     "baseline_home_const": {
+      "p": 0.5381,
+      "brier": 0.27579
+     },
+     "baseline_half": {
+      "p": 0.5,
+      "brier": 0.25
+     },
+     "inning_slices": {
+      "1-3": {
+       "n": 130,
+       "pred": 0.4906,
+       "actual": 0.1769,
+       "brier": 0.22963
+      },
+      "10+": {
+       "n": 15,
+       "pred": 0.3985,
+       "actual": 0.0,
+       "brier": 0.20768
+      },
+      "4-6": {
+       "n": 117,
+       "pred": 0.4342,
+       "actual": 0.2051,
+       "brier": 0.21256
+      },
+      "7-9": {
+       "n": 120,
+       "pred": 0.426,
+       "actual": 0.1833,
+       "brier": 0.19526
+      }
+     },
+     "optimism_brier": 0.06305,
+     "insample_optimism": 0.00078
+    }
+   ],
+   "pooled_walk_forward": {
+    "n_pa": 1930,
+    "n_games": 25,
+    "brier": 0.15009,
+    "ece_weighted": 0.1097,
+    "decile_max_dev": 0.1123,
+    "deciles": [
+     {
+      "bin": 0,
+      "pred": 0.0334,
+      "actual": 0.0,
+      "n": 201,
+      "dev_se": 0.0072,
+      "dev_ci": [
+       0.0188,
+       0.0546
+      ]
+     },
+     {
+      "bin": 1,
+      "pred": 0.1577,
+      "actual": 0.0157,
+      "n": 127,
+      "dev_se": 0.019,
+      "dev_ci": [
+       0.0685,
+       0.1626
+      ]
+     },
+     {
+      "bin": 2,
+      "pred": 0.2475,
+      "actual": 0.1359,
+      "n": 206,
+      "dev_se": 0.1187,
+      "dev_ci": [
+       -0.2889,
+       0.2509
+      ]
+     },
+     {
+      "bin": 3,
+      "pred": 0.3474,
+      "actual": 0.225,
+      "n": 120,
+      "dev_se": 0.1367,
+      "dev_ci": [
+       -0.2879,
+       0.3556
+      ]
+     },
+     {
+      "bin": 4,
+      "pred": 0.4477,
+      "actual": 0.2261,
+      "n": 230,
+      "dev_se": 0.0909,
+      "dev_ci": [
+       -0.0422,
+       0.3843
+      ]
+     },
+     {
+      "bin": 5,
+      "pred": 0.5531,
+      "actual": 0.4408,
+      "n": 397,
+      "dev_se": 0.1313,
+      "dev_ci": [
+       -0.1743,
+       0.4155
+      ]
+     },
+     {
+      "bin": 6,
+      "pred": 0.6508,
+      "actual": 0.7188,
+      "n": 224,
+      "dev_se": 0.1325,
+      "dev_ci": [
+       -0.3067,
+       0.3339
+      ]
+     },
+     {
+      "bin": 7,
+      "pred": 0.7454,
+      "actual": 0.8841,
+      "n": 138,
+      "dev_se": 0.1022,
+      "dev_ci": [
+       -0.2555,
+       0.2804
+      ]
+     },
+     {
+      "bin": 8,
+      "pred": 0.8524,
+      "actual": 0.9588,
+      "n": 97,
+      "dev_se": 0.0503,
+      "dev_ci": [
+       -0.1601,
+       0.08
+      ]
+     },
+     {
+      "bin": 9,
+      "pred": 0.9634,
+      "actual": 0.9158,
+      "n": 190,
+      "dev_se": 0.0875,
+      "dev_ci": [
+       -0.0527,
+       0.2964
+      ]
+     }
+    ],
+    "significant_bins": [],
+    "baseline_home_const_brier": 0.25678
+   },
+   "verdict": {
+    "status": "unsupported",
+    "reasons": [
+     "proxy 池化 ECE 0.1097 > 0.05，代理證據不足以掛警示上線"
+    ],
+    "disclosure": [],
+    "v1_flags": [
+     "C2021 ECE 0.13406（v1 點估計參考）",
+     "C2022 ECE 0.16069（v1 點估計參考）",
+     "C2023 ECE 0.15262（v1 點估計參考）",
+     "C2024 ECE 0.12444（v1 點估計參考）",
+     "C2025 ECE 0.26877（v1 點估計參考）"
+    ]
+   }
+  },
+  "D": {
+   "seasons": [
+    {
+     "year": 2021,
+     "model_span": "2018-2020/D",
+     "ruleset": "cap9,tie",
+     "coverage": 1.0,
+     "n_completed_games": 169,
+     "n_irregular_games": 5,
+     "pa_state_counts": {
+      "ready": 12929,
+      "truncated": 92
+     },
+     "tiebreak_state_in_train": true,
+     "walk_forward": {
+      "n_pa": 12929,
+      "n_games": 169,
+      "brier": 0.1403,
+      "ece_weighted": 0.02342,
+      "decile_max_dev": 0.0884,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0398,
+        "actual": 0.0118,
+        "n": 1063,
+        "dev_se": 0.0076,
+        "dev_ci": [
+         0.0014,
+         0.0436
+        ]
+       },
+       {
+        "bin": 1,
+        "pred": 0.1486,
+        "actual": 0.1474,
+        "n": 841,
+        "dev_se": 0.05,
+        "dev_ci": [
+         -0.1693,
+         0.0993
+        ]
+       },
+       {
+        "bin": 2,
+        "pred": 0.2516,
+        "actual": 0.1739,
+        "n": 969,
+        "dev_se": 0.0411,
+        "dev_ci": [
+         -0.0357,
+         0.1607
+        ]
+       },
+       {
+        "bin": 3,
+        "pred": 0.351,
+        "actual": 0.2626,
+        "n": 1034,
+        "dev_se": 0.0451,
+        "dev_ci": [
+         -0.0329,
+         0.182
+        ]
+       },
+       {
+        "bin": 4,
+        "pred": 0.4485,
+        "actual": 0.4538,
+        "n": 1202,
+        "dev_se": 0.0502,
+        "dev_ci": [
+         -0.1338,
+         0.1135
+        ]
+       },
+       {
+        "bin": 5,
+        "pred": 0.5405,
+        "actual": 0.5268,
+        "n": 2853,
+        "dev_se": 0.0436,
+        "dev_ci": [
+         -0.1094,
+         0.1251
+        ]
+       },
+       {
+        "bin": 6,
+        "pred": 0.6484,
+        "actual": 0.6482,
+        "n": 1360,
+        "dev_se": 0.0474,
+        "dev_ci": [
+         -0.1088,
+         0.1208
+        ]
+       },
+       {
+        "bin": 7,
+        "pred": 0.7461,
+        "actual": 0.7269,
+        "n": 1181,
+        "dev_se": 0.0528,
+        "dev_ci": [
+         -0.1198,
+         0.1653
+        ]
+       },
+       {
+        "bin": 8,
+        "pred": 0.8479,
+        "actual": 0.8321,
+        "n": 926,
+        "dev_se": 0.0495,
+        "dev_ci": [
+         -0.1004,
+         0.1493
+        ]
+       },
+       {
+        "bin": 9,
+        "pred": 0.9614,
+        "actual": 0.9763,
+        "n": 1500,
+        "dev_se": 0.0097,
+        "dev_ci": [
+         -0.0373,
+         0.0129
+        ]
+       }
+      ],
+      "significant_bins": [
+       0
+      ]
+     },
+     "walk_forward_regular_only": {
+      "n_pa": 12681,
+      "n_games": 164,
+      "brier": 0.1412,
+      "ece_weighted": 0.02505,
+      "decile_max_dev": 0.0865,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0398,
+        "actual": 0.012,
+        "n": 1042
+       },
+       {
+        "bin": 1,
+        "pred": 0.1486,
+        "actual": 0.148,
+        "n": 838
+       },
+       {
+        "bin": 2,
+        "pred": 0.2515,
+        "actual": 0.1764,
+        "n": 955
+       },
+       {
+        "bin": 3,
+        "pred": 0.3509,
+        "actual": 0.2644,
+        "n": 1023
+       },
+       {
+        "bin": 4,
+        "pred": 0.4482,
+        "actual": 0.4486,
+        "n": 1176
+       },
+       {
+        "bin": 5,
+        "pred": 0.5405,
+        "actual": 0.5189,
+        "n": 2752
+       },
+       {
+        "bin": 6,
+        "pred": 0.6483,
+        "actual": 0.6433,
+        "n": 1315
+       },
+       {
+        "bin": 7,
+        "pred": 0.7463,
+        "actual": 0.7261,
+        "n": 1161
+       },
+       {
+        "bin": 8,
+        "pred": 0.8479,
+        "actual": 0.8308,
+        "n": 919
+       },
+       {
+        "bin": 9,
+        "pred": 0.9614,
+        "actual": 0.9763,
+        "n": 1500
+       }
+      ]
+     },
+     "in_sample_full_span": {
+      "n_pa": 12929,
+      "brier": 0.1397,
+      "ece_weighted": 0.01888,
+      "decile_max_dev": 0.0662
+     },
+     "baseline_home_const": {
+      "p": 0.5298,
+      "brier": 0.22157
+     },
+     "baseline_half": {
+      "p": 0.5,
+      "brier": 0.2213
+     },
+     "inning_slices": {
+      "1-3": {
+       "n": 4458,
+       "pred": 0.5256,
+       "actual": 0.5253,
+       "brier": 0.19471
+      },
+      "4-6": {
+       "n": 4430,
+       "pred": 0.5453,
+       "actual": 0.5261,
+       "brier": 0.14099
+      },
+      "7-9": {
+       "n": 4041,
+       "pred": 0.5164,
+       "actual": 0.477,
+       "brier": 0.07953
+      }
+     },
+     "optimism_brier": 0.08127,
+     "insample_optimism": 0.0006
+    },
+    {
+     "year": 2022,
+     "model_span": "2018-2021/D",
+     "ruleset": "cap9,tie",
+     "coverage": 1.0,
+     "n_completed_games": 172,
+     "n_irregular_games": 8,
+     "pa_state_counts": {
+      "ready": 13003,
+      "truncated": 86
+     },
+     "tiebreak_state_in_train": true,
+     "walk_forward": {
+      "n_pa": 13003,
+      "n_games": 172,
+      "brier": 0.14269,
+      "ece_weighted": 0.02704,
+      "decile_max_dev": 0.0576,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0342,
+        "actual": 0.0411,
+        "n": 1460,
+        "dev_se": 0.0276,
+        "dev_ci": [
+         -0.1106,
+         0.0337
+        ]
+       },
+       {
+        "bin": 1,
+        "pred": 0.1499,
+        "actual": 0.1591,
+        "n": 943,
+        "dev_se": 0.0474,
+        "dev_ci": [
+         -0.1526,
+         0.0919
+        ]
+       },
+       {
+        "bin": 2,
+        "pred": 0.2515,
+        "actual": 0.2102,
+        "n": 885,
+        "dev_se": 0.046,
+        "dev_ci": [
+         -0.1061,
+         0.1536
+        ]
+       },
+       {
+        "bin": 3,
+        "pred": 0.352,
+        "actual": 0.3283,
+        "n": 1066,
+        "dev_se": 0.0524,
+        "dev_ci": [
+         -0.1031,
+         0.1483
+        ]
+       },
+       {
+        "bin": 4,
+        "pred": 0.4491,
+        "actual": 0.4119,
+        "n": 1515,
+        "dev_se": 0.0487,
+        "dev_ci": [
+         -0.0804,
+         0.1496
+        ]
+       },
+       {
+        "bin": 5,
+        "pred": 0.5435,
+        "actual": 0.5184,
+        "n": 2983,
+        "dev_se": 0.0404,
+        "dev_ci": [
+         -0.0821,
+         0.1302
+        ]
+       },
+       {
+        "bin": 6,
+        "pred": 0.6453,
+        "actual": 0.6541,
+        "n": 1178,
+        "dev_se": 0.0481,
+        "dev_ci": [
+         -0.1385,
+         0.113
+        ]
+       },
+       {
+        "bin": 7,
+        "pred": 0.7481,
+        "actual": 0.7895,
+        "n": 760,
+        "dev_se": 0.0495,
+        "dev_ci": [
+         -0.1537,
+         0.1017
+        ]
+       },
+       {
+        "bin": 8,
+        "pred": 0.8488,
+        "actual": 0.9064,
+        "n": 903,
+        "dev_se": 0.0409,
+        "dev_ci": [
+         -0.1299,
+         0.064
+        ]
+       },
+       {
+        "bin": 9,
+        "pred": 0.958,
+        "actual": 0.9931,
+        "n": 1310,
+        "dev_se": 0.0044,
+        "dev_ci": [
+         -0.0459,
+         -0.0231
+        ]
+       }
+      ],
+      "significant_bins": [
+       9
+      ]
+     },
+     "walk_forward_regular_only": {
+      "n_pa": 12550,
+      "n_games": 164,
+      "brier": 0.14164,
+      "ece_weighted": 0.02488,
+      "decile_max_dev": 0.0561,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0337,
+        "actual": 0.0423,
+        "n": 1420
+       },
+       {
+        "bin": 1,
+        "pred": 0.1502,
+        "actual": 0.1654,
+        "n": 907
+       },
+       {
+        "bin": 2,
+        "pred": 0.251,
+        "actual": 0.2169,
+        "n": 853
+       },
+       {
+        "bin": 3,
+        "pred": 0.3518,
+        "actual": 0.3211,
+        "n": 978
+       },
+       {
+        "bin": 4,
+        "pred": 0.4491,
+        "actual": 0.4123,
+        "n": 1436
+       },
+       {
+        "bin": 5,
+        "pred": 0.5437,
+        "actual": 0.5253,
+        "n": 2881
+       },
+       {
+        "bin": 6,
+        "pred": 0.6451,
+        "actual": 0.6462,
+        "n": 1146
+       },
+       {
+        "bin": 7,
+        "pred": 0.748,
+        "actual": 0.7811,
+        "n": 731
+       },
+       {
+        "bin": 8,
+        "pred": 0.8491,
+        "actual": 0.9052,
+        "n": 891
+       },
+       {
+        "bin": 9,
+        "pred": 0.958,
+        "actual": 0.9931,
+        "n": 1307
+       }
+      ]
+     },
+     "in_sample_full_span": {
+      "n_pa": 13003,
+      "brier": 0.1423,
+      "ece_weighted": 0.01658,
+      "decile_max_dev": 0.0536
+     },
+     "baseline_home_const": {
+      "p": 0.5275,
+      "brier": 0.22791
+     },
+     "baseline_half": {
+      "p": 0.5,
+      "brier": 0.22676
+     },
+     "inning_slices": {
+      "1-3": {
+       "n": 4505,
+       "pred": 0.5226,
+       "actual": 0.5125,
+       "brier": 0.19946
+      },
+      "4-6": {
+       "n": 4522,
+       "pred": 0.5055,
+       "actual": 0.498,
+       "brier": 0.14071
+      },
+      "7-9": {
+       "n": 3976,
+       "pred": 0.4529,
+       "actual": 0.4642,
+       "brier": 0.08061
+      }
+     },
+     "optimism_brier": 0.08522,
+     "insample_optimism": 0.00039
+    },
+    {
+     "year": 2023,
+     "model_span": "2018-2022/D",
+     "ruleset": "cap9,tie",
+     "coverage": 1.0,
+     "n_completed_games": 236,
+     "n_irregular_games": 17,
+     "pa_state_counts": {
+      "ready": 17899,
+      "truncated": 122
+     },
+     "tiebreak_state_in_train": true,
+     "walk_forward": {
+      "n_pa": 17899,
+      "n_games": 236,
+      "brier": 0.14316,
+      "ece_weighted": 0.02732,
+      "decile_max_dev": 0.0645,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0358,
+        "actual": 0.0328,
+        "n": 2290,
+        "dev_se": 0.0148,
+        "dev_ci": [
+         -0.0393,
+         0.0303
+        ]
+       },
+       {
+        "bin": 1,
+        "pred": 0.1485,
+        "actual": 0.084,
+        "n": 1346,
+        "dev_se": 0.0258,
+        "dev_ci": [
+         -0.028,
+         0.1152
+        ]
+       },
+       {
+        "bin": 2,
+        "pred": 0.2475,
+        "actual": 0.1998,
+        "n": 1254,
+        "dev_se": 0.04,
+        "dev_ci": [
+         -0.0632,
+         0.1357
+        ]
+       },
+       {
+        "bin": 3,
+        "pred": 0.3526,
+        "actual": 0.3297,
+        "n": 1494,
+        "dev_se": 0.0466,
+        "dev_ci": [
+         -0.0967,
+         0.1377
+        ]
+       },
+       {
+        "bin": 4,
+        "pred": 0.4466,
+        "actual": 0.3996,
+        "n": 1902,
+        "dev_se": 0.0422,
+        "dev_ci": [
+         -0.0695,
+         0.142
+        ]
+       },
+       {
+        "bin": 5,
+        "pred": 0.5376,
+        "actual": 0.5152,
+        "n": 3783,
+        "dev_se": 0.0367,
+        "dev_ci": [
+         -0.0689,
+         0.1055
+        ]
+       },
+       {
+        "bin": 6,
+        "pred": 0.6472,
+        "actual": 0.6988,
+        "n": 1534,
+        "dev_se": 0.0416,
+        "dev_ci": [
+         -0.1545,
+         0.0597
+        ]
+       },
+       {
+        "bin": 7,
+        "pred": 0.7497,
+        "actual": 0.7582,
+        "n": 1160,
+        "dev_se": 0.0462,
+        "dev_ci": [
+         -0.1236,
+         0.1065
+        ]
+       },
+       {
+        "bin": 8,
+        "pred": 0.848,
+        "actual": 0.8748,
+        "n": 1262,
+        "dev_se": 0.0378,
+        "dev_ci": [
+         -0.1043,
+         0.0744
+        ]
+       },
+       {
+        "bin": 9,
+        "pred": 0.9591,
+        "actual": 0.9568,
+        "n": 1874,
+        "dev_se": 0.0222,
+        "dev_ci": [
+         -0.0369,
+         0.0642
+        ]
+       }
+      ],
+      "significant_bins": []
+     },
+     "walk_forward_regular_only": {
+      "n_pa": 16868,
+      "n_games": 219,
+      "brier": 0.14315,
+      "ece_weighted": 0.02201,
+      "decile_max_dev": 0.0718,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0355,
+        "actual": 0.0329,
+        "n": 2173
+       },
+       {
+        "bin": 1,
+        "pred": 0.1487,
+        "actual": 0.0769,
+        "n": 1249
+       },
+       {
+        "bin": 2,
+        "pred": 0.2471,
+        "actual": 0.1882,
+        "n": 1132
+       },
+       {
+        "bin": 3,
+        "pred": 0.3529,
+        "actual": 0.335,
+        "n": 1361
+       },
+       {
+        "bin": 4,
+        "pred": 0.4466,
+        "actual": 0.4142,
+        "n": 1759
+       },
+       {
+        "bin": 5,
+        "pred": 0.5377,
+        "actual": 0.5332,
+        "n": 3509
+       },
+       {
+        "bin": 6,
+        "pred": 0.6475,
+        "actual": 0.6973,
+        "n": 1457
+       },
+       {
+        "bin": 7,
+        "pred": 0.7499,
+        "actual": 0.7544,
+        "n": 1134
+       },
+       {
+        "bin": 8,
+        "pred": 0.8482,
+        "actual": 0.8719,
+        "n": 1233
+       },
+       {
+        "bin": 9,
+        "pred": 0.9593,
+        "actual": 0.9565,
+        "n": 1861
+       }
+      ]
+     },
+     "in_sample_full_span": {
+      "n_pa": 17899,
+      "brier": 0.1427,
+      "ece_weighted": 0.01927,
+      "decile_max_dev": 0.0615
+     },
+     "baseline_home_const": {
+      "p": 0.5219,
+      "brier": 0.23475
+     },
+     "baseline_half": {
+      "p": 0.5,
+      "brier": 0.23314
+     },
+     "inning_slices": {
+      "1-3": {
+       "n": 6205,
+       "pred": 0.5077,
+       "actual": 0.4786,
+       "brier": 0.20259
+      },
+      "4-6": {
+       "n": 6233,
+       "pred": 0.4877,
+       "actual": 0.4811,
+       "brier": 0.14055
+      },
+      "7-9": {
+       "n": 5461,
+       "pred": 0.4656,
+       "actual": 0.4614,
+       "brier": 0.0786
+      }
+     },
+     "optimism_brier": 0.09159,
+     "insample_optimism": 0.00046
+    },
+    {
+     "year": 2024,
+     "model_span": "2018-2023/D",
+     "ruleset": "cap9,tie",
+     "coverage": 1.0,
+     "n_completed_games": 220,
+     "n_irregular_games": 15,
+     "pa_state_counts": {
+      "ready": 16696,
+      "truncated": 110
+     },
+     "tiebreak_state_in_train": true,
+     "walk_forward": {
+      "n_pa": 16696,
+      "n_games": 220,
+      "brier": 0.1342,
+      "ece_weighted": 0.04473,
+      "decile_max_dev": 0.0861,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0343,
+        "actual": 0.0145,
+        "n": 2310,
+        "dev_se": 0.0059,
+        "dev_ci": [
+         -0.0008,
+         0.0319
+        ]
+       },
+       {
+        "bin": 1,
+        "pred": 0.1495,
+        "actual": 0.0819,
+        "n": 1239,
+        "dev_se": 0.023,
+        "dev_ci": [
+         0.0102,
+         0.1194
+        ]
+       },
+       {
+        "bin": 2,
+        "pred": 0.2508,
+        "actual": 0.1647,
+        "n": 1296,
+        "dev_se": 0.0345,
+        "dev_ci": [
+         -0.0011,
+         0.1619
+        ]
+       },
+       {
+        "bin": 3,
+        "pred": 0.3501,
+        "actual": 0.2835,
+        "n": 1402,
+        "dev_se": 0.0414,
+        "dev_ci": [
+         -0.042,
+         0.1542
+        ]
+       },
+       {
+        "bin": 4,
+        "pred": 0.4622,
+        "actual": 0.3838,
+        "n": 2328,
+        "dev_se": 0.036,
+        "dev_ci": [
+         -0.0266,
+         0.1574
+        ]
+       },
+       {
+        "bin": 5,
+        "pred": 0.545,
+        "actual": 0.5127,
+        "n": 3026,
+        "dev_se": 0.036,
+        "dev_ci": [
+         -0.0771,
+         0.1213
+        ]
+       },
+       {
+        "bin": 6,
+        "pred": 0.6473,
+        "actual": 0.6093,
+        "n": 1541,
+        "dev_se": 0.0447,
+        "dev_ci": [
+         -0.0849,
+         0.1465
+        ]
+       },
+       {
+        "bin": 7,
+        "pred": 0.7485,
+        "actual": 0.782,
+        "n": 1273,
+        "dev_se": 0.0422,
+        "dev_ci": [
+         -0.1486,
+         0.068
+        ]
+       },
+       {
+        "bin": 8,
+        "pred": 0.8488,
+        "actual": 0.8367,
+        "n": 1050,
+        "dev_se": 0.0452,
+        "dev_ci": [
+         -0.0866,
+         0.1398
+        ]
+       },
+       {
+        "bin": 9,
+        "pred": 0.9583,
+        "actual": 0.9435,
+        "n": 1231,
+        "dev_se": 0.0226,
+        "dev_ci": [
+         -0.0298,
+         0.0902
+        ]
+       }
+      ],
+      "significant_bins": [
+       1
+      ]
+     },
+     "walk_forward_regular_only": {
+      "n_pa": 15872,
+      "n_games": 205,
+      "brier": 0.13432,
+      "ece_weighted": 0.04566,
+      "decile_max_dev": 0.083,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0337,
+        "actual": 0.015,
+        "n": 2239
+       },
+       {
+        "bin": 1,
+        "pred": 0.1493,
+        "actual": 0.0862,
+        "n": 1177
+       },
+       {
+        "bin": 2,
+        "pred": 0.2508,
+        "actual": 0.1721,
+        "n": 1235
+       },
+       {
+        "bin": 3,
+        "pred": 0.3505,
+        "actual": 0.2852,
+        "n": 1343
+       },
+       {
+        "bin": 4,
+        "pred": 0.4619,
+        "actual": 0.3789,
+        "n": 2163
+       },
+       {
+        "bin": 5,
+        "pred": 0.5452,
+        "actual": 0.5081,
+        "n": 2846
+       },
+       {
+        "bin": 6,
+        "pred": 0.6474,
+        "actual": 0.5995,
+        "n": 1472
+       },
+       {
+        "bin": 7,
+        "pred": 0.7486,
+        "actual": 0.7732,
+        "n": 1219
+       },
+       {
+        "bin": 8,
+        "pred": 0.8487,
+        "actual": 0.8312,
+        "n": 1016
+       },
+       {
+        "bin": 9,
+        "pred": 0.9577,
+        "actual": 0.9402,
+        "n": 1162
+       }
+      ]
+     },
+     "in_sample_full_span": {
+      "n_pa": 16696,
+      "brier": 0.13369,
+      "ece_weighted": 0.04082,
+      "decile_max_dev": 0.0753
+     },
+     "baseline_home_const": {
+      "p": 0.5134,
+      "brier": 0.2237
+     },
+     "baseline_half": {
+      "p": 0.5,
+      "brier": 0.22162
+     },
+     "inning_slices": {
+      "1-3": {
+       "n": 5746,
+       "pred": 0.4992,
+       "actual": 0.4414,
+       "brier": 0.19483
+      },
+      "4-6": {
+       "n": 5717,
+       "pred": 0.4814,
+       "actual": 0.443,
+       "brier": 0.13345
+      },
+      "7-9": {
+       "n": 5233,
+       "pred": 0.4215,
+       "actual": 0.4007,
+       "brier": 0.06843
+      }
+     },
+     "optimism_brier": 0.0895,
+     "insample_optimism": 0.00051
+    },
+    {
+     "year": 2025,
+     "model_span": "2018-2024/D",
+     "ruleset": "cap10,tb10,tie",
+     "coverage": 1.0,
+     "n_completed_games": 204,
+     "n_irregular_games": 8,
+     "pa_state_counts": {
+      "ready": 15779,
+      "truncated": 112,
+      "non_pa": 26
+     },
+     "tiebreak_state_in_train": true,
+     "walk_forward": {
+      "n_pa": 15779,
+      "n_games": 204,
+      "brier": 0.15943,
+      "ece_weighted": 0.03732,
+      "decile_max_dev": 0.083,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0355,
+        "actual": 0.0304,
+        "n": 1643,
+        "dev_se": 0.0202,
+        "dev_ci": [
+         -0.0602,
+         0.0337
+        ]
+       },
+       {
+        "bin": 1,
+        "pred": 0.1491,
+        "actual": 0.134,
+        "n": 1037,
+        "dev_se": 0.0487,
+        "dev_ci": [
+         -0.117,
+         0.1112
+        ]
+       },
+       {
+        "bin": 2,
+        "pred": 0.2499,
+        "actual": 0.2359,
+        "n": 1009,
+        "dev_se": 0.0467,
+        "dev_ci": [
+         -0.1212,
+         0.1339
+        ]
+       },
+       {
+        "bin": 3,
+        "pred": 0.3535,
+        "actual": 0.3599,
+        "n": 1242,
+        "dev_se": 0.0525,
+        "dev_ci": [
+         -0.1417,
+         0.1125
+        ]
+       },
+       {
+        "bin": 4,
+        "pred": 0.4621,
+        "actual": 0.535,
+        "n": 2240,
+        "dev_se": 0.0423,
+        "dev_ci": [
+         -0.1797,
+         0.0269
+        ]
+       },
+       {
+        "bin": 5,
+        "pred": 0.5396,
+        "actual": 0.6226,
+        "n": 2762,
+        "dev_se": 0.0397,
+        "dev_ci": [
+         -0.1716,
+         0.0287
+        ]
+       },
+       {
+        "bin": 6,
+        "pred": 0.647,
+        "actual": 0.6428,
+        "n": 1467,
+        "dev_se": 0.0504,
+        "dev_ci": [
+         -0.1328,
+         0.1299
+        ]
+       },
+       {
+        "bin": 7,
+        "pred": 0.7478,
+        "actual": 0.7689,
+        "n": 1218,
+        "dev_se": 0.045,
+        "dev_ci": [
+         -0.1215,
+         0.0889
+        ]
+       },
+       {
+        "bin": 8,
+        "pred": 0.8483,
+        "actual": 0.9234,
+        "n": 1123,
+        "dev_se": 0.0275,
+        "dev_ci": [
+         -0.1268,
+         0.0153
+        ]
+       },
+       {
+        "bin": 9,
+        "pred": 0.9654,
+        "actual": 0.9821,
+        "n": 2038,
+        "dev_se": 0.0086,
+        "dev_ci": [
+         -0.0344,
+         0.0045
+        ]
+       }
+      ],
+      "significant_bins": []
+     },
+     "walk_forward_regular_only": {
+      "n_pa": 15335,
+      "n_games": 196,
+      "brier": 0.15961,
+      "ece_weighted": 0.03754,
+      "decile_max_dev": 0.0868,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0354,
+        "actual": 0.0309,
+        "n": 1620
+       },
+       {
+        "bin": 1,
+        "pred": 0.1487,
+        "actual": 0.1391,
+        "n": 999
+       },
+       {
+        "bin": 2,
+        "pred": 0.2495,
+        "actual": 0.2519,
+        "n": 945
+       },
+       {
+        "bin": 3,
+        "pred": 0.3539,
+        "actual": 0.3739,
+        "n": 1190
+       },
+       {
+        "bin": 4,
+        "pred": 0.4621,
+        "actual": 0.5397,
+        "n": 2167
+       },
+       {
+        "bin": 5,
+        "pred": 0.5397,
+        "actual": 0.6265,
+        "n": 2657
+       },
+       {
+        "bin": 6,
+        "pred": 0.6467,
+        "actual": 0.6455,
+        "n": 1436
+       },
+       {
+        "bin": 7,
+        "pred": 0.7478,
+        "actual": 0.7611,
+        "n": 1170
+       },
+       {
+        "bin": 8,
+        "pred": 0.8484,
+        "actual": 0.9227,
+        "n": 1113
+       },
+       {
+        "bin": 9,
+        "pred": 0.9654,
+        "actual": 0.9821,
+        "n": 2038
+       }
+      ]
+     },
+     "in_sample_full_span": {
+      "n_pa": 15779,
+      "brier": 0.15907,
+      "ece_weighted": 0.03507,
+      "decile_max_dev": 0.0798
+     },
+     "baseline_home_const": {
+      "p": 0.5015,
+      "brier": 0.24845
+     },
+     "baseline_half": {
+      "p": 0.5,
+      "brier": 0.24861
+     },
+     "inning_slices": {
+      "1-3": {
+       "n": 5330,
+       "pred": 0.5007,
+       "actual": 0.5508,
+       "brier": 0.21547
+      },
+      "10+": {
+       "n": 101,
+       "pred": 0.5536,
+       "actual": 0.7426,
+       "brier": 0.1353
+      },
+      "4-6": {
+       "n": 5414,
+       "pred": 0.5342,
+       "actual": 0.5678,
+       "brier": 0.16429
+      },
+      "7-9": {
+       "n": 4934,
+       "pred": 0.5256,
+       "actual": 0.5321,
+       "brier": 0.09405
+      }
+     },
+     "optimism_brier": 0.08902,
+     "insample_optimism": 0.00036
+    },
+    {
+     "year": 2026,
+     "model_span": "2018-2025/D",
+     "ruleset": "cap10,tb10,tie",
+     "coverage": 1.0,
+     "n_completed_games": 150,
+     "n_irregular_games": 15,
+     "pa_state_counts": {
+      "ready": 11790,
+      "truncated": 82,
+      "non_pa": 20
+     },
+     "tiebreak_state_in_train": true,
+     "walk_forward": {
+      "n_pa": 11642,
+      "n_games": 150,
+      "brier": 0.16366,
+      "ece_weighted": 0.0464,
+      "decile_max_dev": 0.1033,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0323,
+        "actual": 0.0435,
+        "n": 1539,
+        "dev_se": 0.0288,
+        "dev_ci": [
+         -0.1091,
+         0.0306
+        ]
+       },
+       {
+        "bin": 1,
+        "pred": 0.1491,
+        "actual": 0.206,
+        "n": 847,
+        "dev_se": 0.059,
+        "dev_ci": [
+         -0.2101,
+         0.0803
+        ]
+       },
+       {
+        "bin": 2,
+        "pred": 0.2488,
+        "actual": 0.2468,
+        "n": 938,
+        "dev_se": 0.0551,
+        "dev_ci": [
+         -0.1628,
+         0.1317
+        ]
+       },
+       {
+        "bin": 3,
+        "pred": 0.3515,
+        "actual": 0.3144,
+        "n": 1094,
+        "dev_se": 0.0604,
+        "dev_ci": [
+         -0.1225,
+         0.1817
+        ]
+       },
+       {
+        "bin": 4,
+        "pred": 0.4587,
+        "actual": 0.3684,
+        "n": 1675,
+        "dev_se": 0.0443,
+        "dev_ci": [
+         -0.0565,
+         0.2009
+        ]
+       },
+       {
+        "bin": 5,
+        "pred": 0.5421,
+        "actual": 0.4388,
+        "n": 1839,
+        "dev_se": 0.0463,
+        "dev_ci": [
+         -0.0102,
+         0.2189
+        ]
+       },
+       {
+        "bin": 6,
+        "pred": 0.6483,
+        "actual": 0.5685,
+        "n": 868,
+        "dev_se": 0.0568,
+        "dev_ci": [
+         -0.0548,
+         0.2211
+        ]
+       },
+       {
+        "bin": 7,
+        "pred": 0.7473,
+        "actual": 0.7486,
+        "n": 702,
+        "dev_se": 0.052,
+        "dev_ci": [
+         -0.1367,
+         0.1268
+        ]
+       },
+       {
+        "bin": 8,
+        "pred": 0.8512,
+        "actual": 0.8406,
+        "n": 778,
+        "dev_se": 0.0517,
+        "dev_ci": [
+         -0.0978,
+         0.1499
+        ]
+       },
+       {
+        "bin": 9,
+        "pred": 0.9627,
+        "actual": 0.9534,
+        "n": 1362,
+        "dev_se": 0.0217,
+        "dev_ci": [
+         -0.032,
+         0.0789
+        ]
+       }
+      ],
+      "significant_bins": []
+     },
+     "walk_forward_regular_only": {
+      "n_pa": 10633,
+      "n_games": 135,
+      "brier": 0.16159,
+      "ece_weighted": 0.05163,
+      "decile_max_dev": 0.1159,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0326,
+        "actual": 0.0465,
+        "n": 1442
+       },
+       {
+        "bin": 1,
+        "pred": 0.1487,
+        "actual": 0.204,
+        "n": 816
+       },
+       {
+        "bin": 2,
+        "pred": 0.2486,
+        "actual": 0.2365,
+        "n": 812
+       },
+       {
+        "bin": 3,
+        "pred": 0.3515,
+        "actual": 0.2988,
+        "n": 947
+       },
+       {
+        "bin": 4,
+        "pred": 0.4591,
+        "actual": 0.36,
+        "n": 1464
+       },
+       {
+        "bin": 5,
+        "pred": 0.5426,
+        "actual": 0.4267,
+        "n": 1658
+       },
+       {
+        "bin": 6,
+        "pred": 0.6481,
+        "actual": 0.5606,
+        "n": 800
+       },
+       {
+        "bin": 7,
+        "pred": 0.7468,
+        "actual": 0.7459,
+        "n": 671
+       },
+       {
+        "bin": 8,
+        "pred": 0.8513,
+        "actual": 0.8409,
+        "n": 723
+       },
+       {
+        "bin": 9,
+        "pred": 0.9632,
+        "actual": 0.9565,
+        "n": 1300
+       }
+      ]
+     },
+     "in_sample_full_span": {
+      "n_pa": 11642,
+      "brier": 0.16356,
+      "ece_weighted": 0.04601,
+      "decile_max_dev": 0.1021
+     },
+     "baseline_home_const": {
+      "p": 0.5096,
+      "brier": 0.24296
+     },
+     "baseline_half": {
+      "p": 0.5,
+      "brier": 0.24186
+     },
+     "inning_slices": {
+      "1-3": {
+       "n": 3996,
+       "pred": 0.4948,
+       "actual": 0.4692,
+       "brier": 0.21955
+      },
+      "10+": {
+       "n": 90,
+       "pred": 0.3554,
+       "actual": 0.2889,
+       "brier": 0.12983
+      },
+      "4-6": {
+       "n": 3919,
+       "pred": 0.4983,
+       "actual": 0.4624,
+       "brier": 0.16567
+      },
+      "7-9": {
+       "n": 3637,
+       "pred": 0.4558,
+       "actual": 0.4123,
+       "brier": 0.10091
+      }
+     },
+     "optimism_brier": 0.0793,
+     "insample_optimism": 0.0001
+    }
+   ],
+   "pooled_walk_forward": {
+    "n_pa": 87948,
+    "n_games": 1151,
+    "brier": 0.1466,
+    "ece_weighted": 0.019,
+    "decile_max_dev": 0.0471,
+    "deciles": [
+     {
+      "bin": 0,
+      "pred": 0.0351,
+      "actual": 0.0289,
+      "n": 10305,
+      "dev_se": 0.0076,
+      "dev_ci": [
+       -0.0145,
+       0.022
+      ]
+     },
+     {
+      "bin": 1,
+      "pred": 0.1491,
+      "actual": 0.1283,
+      "n": 6253,
+      "dev_se": 0.0166,
+      "dev_ci": [
+       -0.0248,
+       0.0566
+      ]
+     },
+     {
+      "bin": 2,
+      "pred": 0.2499,
+      "actual": 0.2028,
+      "n": 6351,
+      "dev_se": 0.0173,
+      "dev_ci": [
+       0.0059,
+       0.0935
+      ]
+     },
+     {
+      "bin": 3,
+      "pred": 0.3518,
+      "actual": 0.314,
+      "n": 7332,
+      "dev_se": 0.0199,
+      "dev_ci": [
+       -0.0117,
+       0.0834
+      ]
+     },
+     {
+      "bin": 4,
+      "pred": 0.4555,
+      "actual": 0.427,
+      "n": 10862,
+      "dev_se": 0.018,
+      "dev_ci": [
+       -0.0184,
+       0.0751
+      ]
+     },
+     {
+      "bin": 5,
+      "pred": 0.5412,
+      "actual": 0.5263,
+      "n": 17246,
+      "dev_se": 0.0175,
+      "dev_ci": [
+       -0.0303,
+       0.0625
+      ]
+     },
+     {
+      "bin": 6,
+      "pred": 0.6472,
+      "actual": 0.6416,
+      "n": 7948,
+      "dev_se": 0.0199,
+      "dev_ci": [
+       -0.0451,
+       0.0563
+      ]
+     },
+     {
+      "bin": 7,
+      "pred": 0.7479,
+      "actual": 0.7619,
+      "n": 6294,
+      "dev_se": 0.02,
+      "dev_ci": [
+       -0.0685,
+       0.0379
+      ]
+     },
+     {
+      "bin": 8,
+      "pred": 0.8487,
+      "actual": 0.871,
+      "n": 6042,
+      "dev_se": 0.017,
+      "dev_ci": [
+       -0.0618,
+       0.0173
+      ]
+     },
+     {
+      "bin": 9,
+      "pred": 0.9611,
+      "actual": 0.9683,
+      "n": 9315,
+      "dev_se": 0.0062,
+      "dev_ci": [
+       -0.0206,
+       0.0098
+      ]
+     }
+    ],
+    "significant_bins": [
+     2
+    ],
+    "baseline_home_const_brier": 0.23325
+   },
+   "verdict": {
+    "status": "unsupported",
+    "reasons": [
+     "池化十分位 2 偏差 +0.0471 顯著且超過 ±0.03（n=6351）"
+    ],
+    "disclosure": [
+     "D2021 逐季顯著偏差分箱 [0]（99% 叢集 CI 排除 0）",
+     "D2022 逐季顯著偏差分箱 [9]（99% 叢集 CI 排除 0）",
+     "D2024 逐季顯著偏差分箱 [1]（99% 叢集 CI 排除 0）"
+    ],
+    "v1_flags": [
+     "D2021 maxdev 0.0884（v1 點估計參考）",
+     "D2022 ECE 0.02704（v1 點估計參考）",
+     "D2023 ECE 0.02732（v1 點估計參考）",
+     "D2023 maxdev 0.0645（v1 點估計參考）",
+     "D2024 ECE 0.04473（v1 點估計參考）",
+     "D2024 maxdev 0.0861（v1 點估計參考）",
+     "D2025 ECE 0.03732（v1 點估計參考）",
+     "D2025 maxdev 0.083（v1 點估計參考）",
+     "D2026 ECE 0.0464（v1 點估計參考）",
+     "D2026 maxdev 0.1033（v1 點估計參考）"
+    ]
+   }
+  },
+  "E": {
+   "seasons": [
+    {
+     "year": 2022,
+     "model_span": "2018-2022/D",
+     "ruleset": "cap15,no-tie",
+     "coverage": 1.0,
+     "n_completed_games": 3,
+     "n_irregular_games": 0,
+     "pa_state_counts": {
+      "ready": 217,
+      "truncated": 1
+     },
+     "tiebreak_state_in_train": true,
+     "walk_forward": {
+      "n_pa": 217,
+      "n_games": 3,
+      "brier": 0.06461,
+      "ece_weighted": 0.20563,
+      "decile_max_dev": null,
+      "deciles": [
+       {
+        "bin": 4,
+        "pred": 0.4673,
+        "actual": 1.0,
+        "n": 1,
+        "dev_se": 0.0,
+        "dev_ci": [
+         -0.5327,
+         -0.5327
+        ]
+       },
+       {
+        "bin": 5,
+        "pred": 0.5389,
+        "actual": 1.0,
+        "n": 35,
+        "dev_se": 0.0018,
+        "dev_ci": [
+         -0.4657,
+         -0.4582
+        ]
+       },
+       {
+        "bin": 6,
+        "pred": 0.6616,
+        "actual": 1.0,
+        "n": 18,
+        "dev_se": 0.0023,
+        "dev_ci": [
+         -0.3459,
+         -0.3379
+        ]
+       },
+       {
+        "bin": 7,
+        "pred": 0.748,
+        "actual": 1.0,
+        "n": 47,
+        "dev_se": 0.0076,
+        "dev_ci": [
+         -0.2589,
+         -0.2295
+        ]
+       },
+       {
+        "bin": 8,
+        "pred": 0.8591,
+        "actual": 1.0,
+        "n": 43,
+        "dev_se": 0.0083,
+        "dev_ci": [
+         -0.1629,
+         -0.1243
+        ]
+       },
+       {
+        "bin": 9,
+        "pred": 0.9458,
+        "actual": 1.0,
+        "n": 73,
+        "dev_se": 0.0096,
+        "dev_ci": [
+         -0.0695,
+         -0.0442
+        ]
+       }
+      ],
+      "significant_bins": []
+     },
+     "walk_forward_regular_only": {
+      "n_pa": 217,
+      "n_games": 3,
+      "brier": 0.06461,
+      "ece_weighted": 0.20563,
+      "decile_max_dev": null,
+      "deciles": [
+       {
+        "bin": 4,
+        "pred": 0.4673,
+        "actual": 1.0,
+        "n": 1
+       },
+       {
+        "bin": 5,
+        "pred": 0.5389,
+        "actual": 1.0,
+        "n": 35
+       },
+       {
+        "bin": 6,
+        "pred": 0.6616,
+        "actual": 1.0,
+        "n": 18
+       },
+       {
+        "bin": 7,
+        "pred": 0.748,
+        "actual": 1.0,
+        "n": 47
+       },
+       {
+        "bin": 8,
+        "pred": 0.8591,
+        "actual": 1.0,
+        "n": 43
+       },
+       {
+        "bin": 9,
+        "pred": 0.9458,
+        "actual": 1.0,
+        "n": 73
+       }
+      ]
+     },
+     "in_sample_full_span": {
+      "n_pa": 217,
+      "brier": 0.06621,
+      "ece_weighted": 0.20614,
+      "decile_max_dev": null
+     },
+     "baseline_home_const": {
+      "p": 0.5219,
+      "brier": 0.22858
+     },
+     "baseline_half": {
+      "p": 0.5,
+      "brier": 0.25
+     },
+     "inning_slices": {
+      "1-3": {
+       "n": 82,
+       "pred": 0.6872,
+       "actual": 1.0,
+       "brier": 0.11509
+      },
+      "4-6": {
+       "n": 70,
+       "pred": 0.8648,
+       "actual": 1.0,
+       "brier": 0.02597
+      },
+      "7-9": {
+       "n": 65,
+       "pred": 0.8537,
+       "actual": 1.0,
+       "brier": 0.04255
+      }
+     },
+     "optimism_brier": 0.16397,
+     "insample_optimism": -0.0016
+    },
+    {
+     "year": 2023,
+     "model_span": "2018-2023/D",
+     "ruleset": "cap15,no-tie",
+     "coverage": 1.0,
+     "n_completed_games": 3,
+     "n_irregular_games": 0,
+     "pa_state_counts": {
+      "ready": 221
+     },
+     "tiebreak_state_in_train": true,
+     "walk_forward": {
+      "n_pa": 221,
+      "n_games": 3,
+      "brier": 0.11371,
+      "ece_weighted": 0.19739,
+      "decile_max_dev": null,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0361,
+        "actual": 0.0,
+        "n": 48,
+        "dev_se": 0.0,
+        "dev_ci": [
+         0.0361,
+         0.0361
+        ]
+       },
+       {
+        "bin": 1,
+        "pred": 0.1688,
+        "actual": 0.0,
+        "n": 17,
+        "dev_se": 0.0043,
+        "dev_ci": [
+         0.1649,
+         0.176
+        ]
+       },
+       {
+        "bin": 2,
+        "pred": 0.2398,
+        "actual": 0.0,
+        "n": 24,
+        "dev_se": 0.0109,
+        "dev_ci": [
+         0.2267,
+         0.2553
+        ]
+       },
+       {
+        "bin": 3,
+        "pred": 0.3529,
+        "actual": 0.0,
+        "n": 15,
+        "dev_se": 0.0065,
+        "dev_ci": [
+         0.3485,
+         0.3651
+        ]
+       },
+       {
+        "bin": 4,
+        "pred": 0.4702,
+        "actual": 0.2632,
+        "n": 19,
+        "dev_se": 0.2497,
+        "dev_ci": [
+         -0.5174,
+         0.4838
+        ]
+       },
+       {
+        "bin": 5,
+        "pred": 0.5397,
+        "actual": 0.2703,
+        "n": 37,
+        "dev_se": 0.3519,
+        "dev_ci": [
+         -0.4528,
+         0.5382
+        ]
+       },
+       {
+        "bin": 6,
+        "pred": 0.6601,
+        "actual": 0.375,
+        "n": 16,
+        "dev_se": 0.3722,
+        "dev_ci": [
+         -0.3258,
+         0.6516
+        ]
+       },
+       {
+        "bin": 7,
+        "pred": 0.7523,
+        "actual": 1.0,
+        "n": 26,
+        "dev_se": 0.0,
+        "dev_ci": [
+         -0.2477,
+         -0.2477
+        ]
+       },
+       {
+        "bin": 8,
+        "pred": 0.8317,
+        "actual": 1.0,
+        "n": 18,
+        "dev_se": 0.0,
+        "dev_ci": [
+         -0.1683,
+         -0.1683
+        ]
+       },
+       {
+        "bin": 9,
+        "pred": 0.9605,
+        "actual": 1.0,
+        "n": 1,
+        "dev_se": 0.0,
+        "dev_ci": [
+         -0.0395,
+         -0.0395
+        ]
+       }
+      ],
+      "significant_bins": []
+     },
+     "walk_forward_regular_only": {
+      "n_pa": 221,
+      "n_games": 3,
+      "brier": 0.11371,
+      "ece_weighted": 0.19739,
+      "decile_max_dev": null,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0361,
+        "actual": 0.0,
+        "n": 48
+       },
+       {
+        "bin": 1,
+        "pred": 0.1688,
+        "actual": 0.0,
+        "n": 17
+       },
+       {
+        "bin": 2,
+        "pred": 0.2398,
+        "actual": 0.0,
+        "n": 24
+       },
+       {
+        "bin": 3,
+        "pred": 0.3529,
+        "actual": 0.0,
+        "n": 15
+       },
+       {
+        "bin": 4,
+        "pred": 0.4702,
+        "actual": 0.2632,
+        "n": 19
+       },
+       {
+        "bin": 5,
+        "pred": 0.5397,
+        "actual": 0.2703,
+        "n": 37
+       },
+       {
+        "bin": 6,
+        "pred": 0.6601,
+        "actual": 0.375,
+        "n": 16
+       },
+       {
+        "bin": 7,
+        "pred": 0.7523,
+        "actual": 1.0,
+        "n": 26
+       },
+       {
+        "bin": 8,
+        "pred": 0.8317,
+        "actual": 1.0,
+        "n": 18
+       },
+       {
+        "bin": 9,
+        "pred": 0.9605,
+        "actual": 1.0,
+        "n": 1
+       }
+      ]
+     },
+     "in_sample_full_span": {
+      "n_pa": 221,
+      "brier": 0.1118,
+      "ece_weighted": 0.19302,
+      "decile_max_dev": null
+     },
+     "baseline_home_const": {
+      "p": 0.5134,
+      "brier": 0.25558
+     },
+     "baseline_half": {
+      "p": 0.5,
+      "brier": 0.25
+     },
+     "inning_slices": {
+      "1-3": {
+       "n": 75,
+       "pred": 0.4824,
+       "actual": 0.3333,
+       "brier": 0.16685
+      },
+      "4-6": {
+       "n": 79,
+       "pred": 0.4324,
+       "actual": 0.3165,
+       "brier": 0.12398
+      },
+      "7-9": {
+       "n": 67,
+       "pred": 0.3025,
+       "actual": 0.2388,
+       "brier": 0.04211
+      }
+     },
+     "optimism_brier": 0.14187,
+     "insample_optimism": 0.00191
+    },
+    {
+     "year": 2024,
+     "model_span": "2018-2024/D",
+     "ruleset": "cap15,no-tie",
+     "coverage": 1.0,
+     "n_completed_games": 3,
+     "n_irregular_games": 0,
+     "pa_state_counts": {
+      "ready": 232
+     },
+     "tiebreak_state_in_train": true,
+     "walk_forward": {
+      "n_pa": 232,
+      "n_games": 3,
+      "brier": 0.09279,
+      "ece_weighted": 0.21604,
+      "decile_max_dev": null,
+      "deciles": [
+       {
+        "bin": 3,
+        "pred": 0.3824,
+        "actual": 1.0,
+        "n": 5,
+        "dev_se": 0.0,
+        "dev_ci": [
+         -0.6176,
+         -0.6176
+        ]
+       },
+       {
+        "bin": 4,
+        "pred": 0.4694,
+        "actual": 1.0,
+        "n": 27,
+        "dev_se": 0.0087,
+        "dev_ci": [
+         -0.5393,
+         -0.5132
+        ]
+       },
+       {
+        "bin": 5,
+        "pred": 0.5361,
+        "actual": 1.0,
+        "n": 46,
+        "dev_se": 0.0027,
+        "dev_ci": [
+         -0.4698,
+         -0.4549
+        ]
+       },
+       {
+        "bin": 6,
+        "pred": 0.6472,
+        "actual": 1.0,
+        "n": 4,
+        "dev_se": 0.0086,
+        "dev_ci": [
+         -0.3745,
+         -0.3403
+        ]
+       },
+       {
+        "bin": 7,
+        "pred": 0.7595,
+        "actual": 1.0,
+        "n": 14,
+        "dev_se": 0.0071,
+        "dev_ci": [
+         -0.2524,
+         -0.2339
+        ]
+       },
+       {
+        "bin": 8,
+        "pred": 0.8561,
+        "actual": 1.0,
+        "n": 28,
+        "dev_se": 0.0054,
+        "dev_ci": [
+         -0.1486,
+         -0.1224
+        ]
+       },
+       {
+        "bin": 9,
+        "pred": 0.9763,
+        "actual": 1.0,
+        "n": 108,
+        "dev_se": 0.0109,
+        "dev_ci": [
+         -0.0402,
+         -0.0104
+        ]
+       }
+      ],
+      "significant_bins": []
+     },
+     "walk_forward_regular_only": {
+      "n_pa": 232,
+      "n_games": 3,
+      "brier": 0.09279,
+      "ece_weighted": 0.21604,
+      "decile_max_dev": null,
+      "deciles": [
+       {
+        "bin": 3,
+        "pred": 0.3824,
+        "actual": 1.0,
+        "n": 5
+       },
+       {
+        "bin": 4,
+        "pred": 0.4694,
+        "actual": 1.0,
+        "n": 27
+       },
+       {
+        "bin": 5,
+        "pred": 0.5361,
+        "actual": 1.0,
+        "n": 46
+       },
+       {
+        "bin": 6,
+        "pred": 0.6472,
+        "actual": 1.0,
+        "n": 4
+       },
+       {
+        "bin": 7,
+        "pred": 0.7595,
+        "actual": 1.0,
+        "n": 14
+       },
+       {
+        "bin": 8,
+        "pred": 0.8561,
+        "actual": 1.0,
+        "n": 28
+       },
+       {
+        "bin": 9,
+        "pred": 0.9763,
+        "actual": 1.0,
+        "n": 108
+       }
+      ]
+     },
+     "in_sample_full_span": {
+      "n_pa": 232,
+      "brier": 0.0905,
+      "ece_weighted": 0.21278,
+      "decile_max_dev": null
+     },
+     "baseline_home_const": {
+      "p": 0.5015,
+      "brier": 0.2485
+     },
+     "baseline_half": {
+      "p": 0.5,
+      "brier": 0.25
+     },
+     "inning_slices": {
+      "1-3": {
+       "n": 76,
+       "pred": 0.59,
+       "actual": 1.0,
+       "brier": 0.19061
+      },
+      "4-6": {
+       "n": 77,
+       "pred": 0.8484,
+       "actual": 1.0,
+       "brier": 0.06397
+      },
+      "7-9": {
+       "n": 79,
+       "pred": 0.9078,
+       "actual": 1.0,
+       "brier": 0.02678
+      }
+     },
+     "optimism_brier": 0.15571,
+     "insample_optimism": 0.00229
+    },
+    {
+     "year": 2025,
+     "model_span": "2018-2025/D",
+     "ruleset": "cap15,tb10,no-tie",
+     "coverage": 1.0,
+     "n_completed_games": 4,
+     "n_irregular_games": 0,
+     "pa_state_counts": {
+      "ready": 318,
+      "truncated": 1
+     },
+     "tiebreak_state_in_train": true,
+     "walk_forward": {
+      "n_pa": 318,
+      "n_games": 4,
+      "brier": 0.28928,
+      "ece_weighted": 0.21712,
+      "decile_max_dev": null,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0411,
+        "actual": 0.0577,
+        "n": 52,
+        "dev_se": 0.3315,
+        "dev_ci": [
+         -0.9059,
+         0.0443
+        ]
+       },
+       {
+        "bin": 1,
+        "pred": 0.1332,
+        "actual": 0.6316,
+        "n": 19,
+        "dev_se": 0.3679,
+        "dev_ci": [
+         -0.8699,
+         0.1501
+        ]
+       },
+       {
+        "bin": 2,
+        "pred": 0.2471,
+        "actual": 0.5,
+        "n": 20,
+        "dev_se": 0.3424,
+        "dev_ci": [
+         -0.7457,
+         0.2428
+        ]
+       },
+       {
+        "bin": 3,
+        "pred": 0.3541,
+        "actual": 0.7692,
+        "n": 26,
+        "dev_se": 0.33,
+        "dev_ci": [
+         -0.6435,
+         0.3475
+        ]
+       },
+       {
+        "bin": 4,
+        "pred": 0.4617,
+        "actual": 0.7288,
+        "n": 59,
+        "dev_se": 0.253,
+        "dev_ci": [
+         -0.5481,
+         0.4766
+        ]
+       },
+       {
+        "bin": 5,
+        "pred": 0.5392,
+        "actual": 0.525,
+        "n": 80,
+        "dev_se": 0.2749,
+        "dev_ci": [
+         -0.4586,
+         0.5385
+        ]
+       },
+       {
+        "bin": 6,
+        "pred": 0.6413,
+        "actual": 0.625,
+        "n": 16,
+        "dev_se": 0.2911,
+        "dev_ci": [
+         -0.3569,
+         0.6367
+        ]
+       },
+       {
+        "bin": 7,
+        "pred": 0.7604,
+        "actual": 0.4375,
+        "n": 16,
+        "dev_se": 0.3716,
+        "dev_ci": [
+         -0.2559,
+         0.7714
+        ]
+       },
+       {
+        "bin": 8,
+        "pred": 0.8458,
+        "actual": 0.3529,
+        "n": 17,
+        "dev_se": 0.3925,
+        "dev_ci": [
+         -0.1618,
+         0.8499
+        ]
+       },
+       {
+        "bin": 9,
+        "pred": 0.9353,
+        "actual": 0.0,
+        "n": 13,
+        "dev_se": 0.0,
+        "dev_ci": [
+         0.9353,
+         0.9353
+        ]
+       }
+      ],
+      "significant_bins": []
+     },
+     "walk_forward_regular_only": {
+      "n_pa": 318,
+      "n_games": 4,
+      "brier": 0.28928,
+      "ece_weighted": 0.21712,
+      "decile_max_dev": null,
+      "deciles": [
+       {
+        "bin": 0,
+        "pred": 0.0411,
+        "actual": 0.0577,
+        "n": 52
+       },
+       {
+        "bin": 1,
+        "pred": 0.1332,
+        "actual": 0.6316,
+        "n": 19
+       },
+       {
+        "bin": 2,
+        "pred": 0.2471,
+        "actual": 0.5,
+        "n": 20
+       },
+       {
+        "bin": 3,
+        "pred": 0.3541,
+        "actual": 0.7692,
+        "n": 26
+       },
+       {
+        "bin": 4,
+        "pred": 0.4617,
+        "actual": 0.7288,
+        "n": 59
+       },
+       {
+        "bin": 5,
+        "pred": 0.5392,
+        "actual": 0.525,
+        "n": 80
+       },
+       {
+        "bin": 6,
+        "pred": 0.6413,
+        "actual": 0.625,
+        "n": 16
+       },
+       {
+        "bin": 7,
+        "pred": 0.7604,
+        "actual": 0.4375,
+        "n": 16
+       },
+       {
+        "bin": 8,
+        "pred": 0.8458,
+        "actual": 0.3529,
+        "n": 17
+       },
+       {
+        "bin": 9,
+        "pred": 0.9353,
+        "actual": 0.0,
+        "n": 13
+       }
+      ]
+     },
+     "in_sample_full_span": {
+      "n_pa": 318,
+      "brier": 0.28953,
+      "ece_weighted": 0.21733,
+      "decile_max_dev": null
+     },
+     "baseline_home_const": {
+      "p": 0.5096,
+      "brier": 0.25045
+     },
+     "baseline_half": {
+      "p": 0.5,
+      "brier": 0.25
+     },
+     "inning_slices": {
+      "1-3": {
+       "n": 98,
+       "pred": 0.4598,
+       "actual": 0.5,
+       "brier": 0.26405
+      },
+      "10+": {
+       "n": 11,
+       "pred": 0.3664,
+       "actual": 0.0,
+       "brier": 0.19238
+      },
+      "4-6": {
+       "n": 110,
+       "pred": 0.354,
+       "actual": 0.5091,
+       "brier": 0.31426
+      },
+      "7-9": {
+       "n": 99,
+       "pred": 0.5063,
+       "actual": 0.4848,
+       "brier": 0.29728
+      }
+     },
+     "optimism_brier": -0.03883,
+     "insample_optimism": -0.00025
+    }
+   ],
+   "pooled_walk_forward": {
+    "n_pa": 988,
+    "n_games": 13,
+    "brier": 0.15452,
+    "ece_weighted": 0.10054,
+    "decile_max_dev": null,
+    "deciles": [
+     {
+      "bin": 0,
+      "pred": 0.0387,
+      "actual": 0.03,
+      "n": 100,
+      "dev_se": 0.2418,
+      "dev_ci": [
+       -0.9059,
+       0.0443
+      ]
+     },
+     {
+      "bin": 1,
+      "pred": 0.15,
+      "actual": 0.3333,
+      "n": 36,
+      "dev_se": 0.2725,
+      "dev_ci": [
+       -0.8699,
+       0.1709
+      ]
+     },
+     {
+      "bin": 2,
+      "pred": 0.2431,
+      "actual": 0.2273,
+      "n": 44,
+      "dev_se": 0.2187,
+      "dev_ci": [
+       -0.7457,
+       0.2531
+      ]
+     },
+     {
+      "bin": 3,
+      "pred": 0.3568,
+      "actual": 0.5435,
+      "n": 46,
+      "dev_se": 0.2583,
+      "dev_ci": [
+       -0.6405,
+       0.3531
+      ]
+     },
+     {
+      "bin": 4,
+      "pred": 0.4652,
+      "actual": 0.717,
+      "n": 106,
+      "dev_se": 0.1611,
+      "dev_ci": [
+       -0.5358,
+       0.2216
+      ]
+     },
+     {
+      "bin": 5,
+      "pred": 0.5385,
+      "actual": 0.6717,
+      "n": 198,
+      "dev_se": 0.1574,
+      "dev_ci": [
+       -0.4614,
+       0.2551
+      ]
+     },
+     {
+      "bin": 6,
+      "pred": 0.6541,
+      "actual": 0.7037,
+      "n": 54,
+      "dev_se": 0.1807,
+      "dev_ci": [
+       -0.3539,
+       0.4031
+      ]
+     },
+     {
+      "bin": 7,
+      "pred": 0.7526,
+      "actual": 0.9126,
+      "n": 103,
+      "dev_se": 0.098,
+      "dev_ci": [
+       -0.2554,
+       0.262
+      ]
+     },
+     {
+      "bin": 8,
+      "pred": 0.8515,
+      "actual": 0.8962,
+      "n": 106,
+      "dev_se": 0.1021,
+      "dev_ci": [
+       -0.1595,
+       0.29
+      ]
+     },
+     {
+      "bin": 9,
+      "pred": 0.9621,
+      "actual": 0.9333,
+      "n": 195,
+      "dev_se": 0.1036,
+      "dev_ci": [
+       -0.0658,
+       0.4035
+      ]
+     }
+    ],
+    "significant_bins": [],
+    "baseline_home_const_brier": 0.24634
+   },
+   "verdict": {
+    "status": "unsupported",
+    "reasons": [
+     "E2025 Brier 0.28928 未勝過主場常數基準 0.25045",
+     "proxy 池化 ECE 0.10054 > 0.05，代理證據不足以掛警示上線"
+    ],
+    "disclosure": [],
+    "v1_flags": [
+     "E2022 ECE 0.20563（v1 點估計參考）",
+     "E2023 ECE 0.19739（v1 點估計參考）",
+     "E2024 ECE 0.21604（v1 點估計參考）",
+     "E2025 ECE 0.21712（v1 點估計參考）"
+    ]
+   }
+  }
+ },
+ "counting_machine_check": {
+  "status": "match",
+  "states_mine": 48,
+  "states_prod": 48,
+  "mismatches": []
+ }
+}
