@@ -8,7 +8,7 @@
 - 範圍：見 [`GAME_RECAP_PRODUCT_SPEC.md`](../GAME_RECAP_PRODUCT_SPEC.md) §8、§10
 - Discovery：依賴 `GAME-RECAP-WP-VAL1` Go 與 PA1 canonical contract
 - Design：Design Gate N/A；本卡實作已核可的 public data contract
-- current-state：📥Backlog；已由 Coordinator 註冊，等待 `GAME-RECAP-PA1`／`GAME-RECAP-WP-VAL1`
+- current-state：📥Backlog（**阻塞**）；`GAME-RECAP-WP-VAL1` 結論全 scope unsupported，等待 `GAME-RECAP-WP-CAL1`（A 事後校準層）通過後解除 A 範圍阻塞
 
 ## 目標
 
@@ -30,7 +30,7 @@
 
 ## 依賴與交付
 
-- 依賴：`GAME-RECAP-PA1 → GAME-RECAP-WP-VAL1`。
+- 依賴：`GAME-RECAP-PA1 ✅ → GAME-RECAP-WP-VAL1 ✅（全 scope unsupported）→ GAME-RECAP-WP-CAL1`。
 - 後續：解除 `UX-GAME-RECAP1`、`UX-GAME-PA1` 的 WP 契約阻塞。
 - 預估範圍：M；migration／大量 backfill 必須拆卡。
 
@@ -38,3 +38,4 @@
 
 - 2026-07-16 proposed in author preflight v1.1 → 為分離統計 Go/No-Go 與 API 實作而拆出；待 Coordinator 註冊。
 - 2026-07-16 Coordinator register → 已寫入 lifecycle event／Ledger；依賴未解除前不得 claim。
+- 2026-07-25 WP-VAL1 結案：全 scope unsupported（merge c6ed954），本卡維持阻塞；解鎖路徑改經 `GAME-RECAP-WP-CAL1`（A 事後校準層），通過的 scope 才提供 WP，未通過 scope 依驗收條件回 `wp_availability` 不計算代理值。
