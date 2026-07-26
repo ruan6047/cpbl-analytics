@@ -94,6 +94,99 @@ def _team_advanced_from_seasons(season: int) -> dict[str, dict]:
     return {t: {**bat.get(t, {}), **pit.get(t, {})} for t in teams}
 
 
+def _team_scoped_metrics(cur, season: int, half: str | None) -> dict[str, dict]:
+    """球隊當季團隊指標的**單一聚合路徑**（gamelog+games），支援全年／上下半季範圍。
+
+    half=None 全年、'1' 上半季、'2' 下半季；半季邊界＝官方內建 `games.game_season_code`。
+    OPS/ERA/WHIP 由 batting_gamelog／pitching_gamelog 逐場個人資料 join games 聚合
+    （隊別＝visiting_home_type '2'主/'1'客 對映 games 主客隊碼；投手 IP=cnt+div3/3），
+    全年加總與 batting_current／pitching_current 全年彙總逐位吻合（卡片 UX-TEAM-SPLIT-SCOPE1
+    Discovery 對帳）；三範圍共用此路徑，禁混用 team_current。得失分（rs_pg/ra_pg/run_diff）
+    複製 `matchup.team_stats` 口徑（kind='A'、score>0、和局計入分母、無 date 過濾）以與戰績榜一致。
+    回傳 {team_code: {ops, era, whip, rs_pg, ra_pg, run_diff, g}}；g＝該範圍完成場數（樣本量）。"""
+    seg = " AND g.game_season_code = %s" if half in ("1", "2") else ""
+    seg_p: tuple = (half,) if half in ("1", "2") else ()
+    out: dict[str, dict] = {}
+
+    tc_bat = "CASE bl.visiting_home_type WHEN '2' THEN g.home_team_code WHEN '1' THEN g.away_team_code END"
+    cur.execute(
+        f"SELECT {tc_bat} AS tc, sum(bl.at_bats), sum(bl.hits), sum(bl.total_bases), "
+        "sum(bl.bb), sum(bl.hbp), sum(bl.sac_fly) "
+        "FROM cpbl.batting_gamelog bl "
+        "JOIN cpbl.games g ON g.year=bl.year AND g.kind_code=bl.kind_code AND g.game_sno=bl.game_sno "
+        f"WHERE bl.year=%s AND bl.kind_code='A'{seg} GROUP BY 1",
+        (season, *seg_p),
+    )
+    for tc, ab, h, tb, bb, hbp, sf in cur.fetchall():
+        ab = int(ab or 0)
+        if not tc or ab <= 0:
+            continue
+        den = ab + int(bb or 0) + int(hbp or 0) + int(sf or 0)
+        obp = ((int(h or 0) + int(bb or 0) + int(hbp or 0)) / den) if den else None
+        slg = int(tb or 0) / ab
+        out.setdefault(tc, {})["ops"] = round(obp + slg, 3) if obp is not None else None
+
+    tc_pit = "CASE pl.visiting_home_type WHEN '2' THEN g.home_team_code WHEN '1' THEN g.away_team_code END"
+    cur.execute(
+        f"SELECT {tc_pit} AS tc, sum(pl.inning_pitched_cnt) + sum(pl.inning_pitched_div3)/3.0 AS rip, "
+        "sum(pl.earned_runs), sum(pl.hits), sum(pl.bb) "
+        "FROM cpbl.pitching_gamelog pl "
+        "JOIN cpbl.games g ON g.year=pl.year AND g.kind_code=pl.kind_code AND g.game_sno=pl.game_sno "
+        f"WHERE pl.year=%s AND pl.kind_code='A'{seg} GROUP BY 1",
+        (season, *seg_p),
+    )
+    for tc, rip, er, h, bb in cur.fetchall():
+        rip = float(rip or 0)
+        if not tc or rip <= 0:
+            continue
+        d = out.setdefault(tc, {})
+        d["era"] = round(float(er or 0) * 9 / rip, 2)
+        d["whip"] = round((float(h or 0) + float(bb or 0)) / rip, 2)
+
+    seg2 = " AND game_season_code = %s" if half in ("1", "2") else ""
+    cur.execute(
+        "SELECT tc, sum(rs), sum(ra), count(*) FROM ("
+        f" SELECT home_team_code tc, home_score rs, away_score ra FROM cpbl.games "
+        f"  WHERE year=%s AND kind_code='A' AND home_score+away_score>0{seg2}"
+        " UNION ALL "
+        f" SELECT away_team_code, away_score, home_score FROM cpbl.games "
+        f"  WHERE year=%s AND kind_code='A' AND home_score+away_score>0{seg2}"
+        ") x GROUP BY tc",
+        (season, *seg_p, season, *seg_p),
+    )
+    for tc, rs, ra, g in cur.fetchall():
+        g = int(g or 0)
+        if not tc or g <= 0:
+            continue
+        d = out.setdefault(tc, {})
+        rs_pg = float(rs or 0) / g
+        ra_pg = float(ra or 0) / g
+        d["rs_pg"] = round(rs_pg, 2)
+        d["ra_pg"] = round(ra_pg, 2)
+        d["run_diff"] = round(rs_pg - ra_pg, 2)
+        d["g"] = g
+    return out
+
+
+@router.get("/api/v1/season/team-split")
+def season_team_split(season: int = Query(DEFAULT_SEASON)) -> dict:
+    """球隊頁攻守概覽的全年／上半季／下半季範圍切換資料（單一 gamelog+games 聚合路徑）。
+
+    三範圍團隊 OPS/ERA/WHIP＋得失分同一口徑（見 `_team_scoped_metrics`），前端 client 端切換、
+    在**同範圍** 6 隊內比名次；某半季無完成場（如季初下半季未開打）→ available=false 供前端退化，
+    不顯示誤導的空/零值。"""
+    scope_defs = [("full", "全年", None), ("first", "上半季", "1"), ("second", "下半季", "2")]
+    scopes = []
+    with conn() as c:
+        cur = c.cursor()
+        for key, label, half in scope_defs:
+            metrics = _team_scoped_metrics(cur, season, half)
+            teams = [{"code": tc, **m} for tc, m in sorted(metrics.items())]
+            available = any((t.get("g") or 0) > 0 for t in teams)
+            scopes.append({"key": key, "label": label, "available": available, "teams": teams})
+    return {"season": season, "scopes": scopes}
+
+
 @router.get("/api/v1/season/standings")
 def season_standings(season: int = Query(DEFAULT_SEASON)) -> dict:
     """本季戰績榜（games 即時彙整 + team_current 團隊進階：OPS/ERA/WHIP）。"""
