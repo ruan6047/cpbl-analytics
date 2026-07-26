@@ -216,6 +216,7 @@ URL（`http://cpbl-analytics:4001/api/info`）。
 ## 給 AI 的工作備忘
 
 - 條件不足強制反問，**嚴禁腦補**資料欄位 / 官網結構（先用 gh/WebFetch 查證）。
+- 執行 Initiative 級或不可逆 T4 的 Discovery／規劃時，**先 invoke `grilling` skill** 對需求做對抗式質詢；存活的反駁寫回 discovery brief 的「待驗證假設」與「非目標」、被推翻的前提修正問題陳述（canonical `discovery-brief.md` 對抗式質詢欄，WF-19）。小卡不適用。
 - 跨檔術語（kind_code、island、幽靈島、GO/FO、保留賽、完成場判定…）先查 [`docs/reference/GLOSSARY.md`](docs/reference/GLOSSARY.md)，勿依單檔註解各自解讀。
 - 觀點或前提有誤直接指出（例：有人要求用 opendata 做賽果預測 → 必須指出資料粒度不符）。
 - 改完跑驗證：`uv run ruff check` + `uv run pytest` + `cd web && npm test` + 容器內 `cpbl-train` 看回測對照表；DB 契約測試與完整程序見 `docs/AI_RUNBOOK.md` §7.2。
