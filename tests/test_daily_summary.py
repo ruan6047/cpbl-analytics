@@ -74,8 +74,12 @@ def _run(monkeypatch, script, *, artifact=None, query="") -> tuple[dict, _Cursor
     cursor = _Cursor(script)
     monkeypatch.setattr(daily, "conn", lambda: _Conn(cursor))
     monkeypatch.setattr(daily, "_pregame_source",
-                        lambda: artifact or (None, {"status": "artifact_missing",
+                        lambda: artifact or (None, {"status": "unavailable",
                                                     "reason": "測試未載入 artifact",
+                                                    "fault": "artifact_missing",
+                                                    "serving_version": None,
+                                                    "backtest_version": None,
+                                                    "backtest_deployable": None,
                                                     "trained_through": None, "signals": None}))
     response = TestClient(app).get(f"/api/v1/daily/summary{query}")
     assert response.status_code == 200
@@ -237,7 +241,10 @@ def test_availability_axes_are_independent(monkeypatch):
     availability = body["availability"]
     assert set(availability) == {"schedule", "results", "pregame_model"}
     assert availability["schedule"]["status"] == "available"
-    assert availability["pregame_model"]["status"] == "artifact_missing"
+    # 模型層級狀態用 serving 字彙（serving_current／serving_previous／unavailable）；
+    # 逐場欄位另有自己的字彙，兩者刻意不共用（ML-OUTCOME-SIMPLE-LEAK2 紅線 5）。
+    assert availability["pregame_model"]["status"] == "unavailable"
+    assert availability["pregame_model"]["fault"] == "artifact_missing"
     assert availability["pregame_model"]["reason"]
 
 
@@ -452,3 +459,5 @@ def test_live_next_slate_is_not_in_the_past():
         assert game["completed"] is False
         assert game["pregame"]["status"] in {"available", "artifact_missing", "unsupported",
                                              "no_features", "error"}
+        # serving 狀態語彙屬模型層級，不得外洩到逐場欄位。
+        assert not game["pregame"]["status"].startswith("serving_")

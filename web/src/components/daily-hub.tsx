@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { Card, Eyebrow, TeamLogo, EmptyState, StatusBadge } from "@/components/ui";
 import { PregameCard } from "@/components/pregame-card";
+import { methodologyHref } from "@/lib/methodology-anchors";
 import {
   resolvePregameFromDaily,
+  pregameServingNotice,
   refreshCopy,
   refreshAgeText,
   shortDate,
@@ -89,6 +91,9 @@ function NextGame({ g, trainedThrough }: { g: DailyGame; trainedThrough: number 
 export default function DailyHub({ summary }: { summary: DailySummary }) {
   const { latest_game_day, next_slate, freshness, availability } = summary;
   const trainedThrough = availability.pregame_model.trained_through;
+  // 最新回測未過閘門時，卡片上的機率其實來自上一版模型——必須在賽事卡上方明講，
+  // 不能只寫進後端 log 或只在方法頁揭露（ML-OUTCOME-SIMPLE-LEAK2 紅線 5）。
+  const servingNotice = pregameServingNotice(availability.pregame_model);
   const refresh = refreshCopy(freshness.last_refresh.status);
   const ageText = refreshAgeText(freshness.last_refresh.hours_ago);
 
@@ -142,6 +147,17 @@ export default function DailyHub({ summary }: { summary: DailySummary }) {
             <span className="text-xs text-muted">{slateDistanceText(next_slate.days_from_as_of)}</span>
           )}
         </div>
+        {servingNotice && (
+          <p
+            data-testid="pregame-serving-notice"
+            className="mb-3 rounded-lg bg-surface-2 px-3 py-2 text-xs text-muted"
+          >
+            {servingNotice}{" "}
+            <Link href={methodologyHref("pregame")} className="text-accent hover:underline">
+              模型方法
+            </Link>
+          </p>
+        )}
         {next_slate && next_slate.games.length > 0 ? (
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             {next_slate.games.map((g) => (

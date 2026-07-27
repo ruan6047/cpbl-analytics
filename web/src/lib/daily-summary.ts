@@ -71,9 +71,35 @@ export type DailySummary = {
   availability: {
     schedule: AxisStatus;
     results: AxisStatus;
-    pregame_model: AxisStatus & { trained_through: number | null; signals: Record<string, string> | null };
+    pregame_model: PregameModelAxis;
   };
 };
+
+/** 賽前模型的 serving 狀態（ML-OUTCOME-SIMPLE-LEAK2 紅線 5）。
+ *
+ * serving_previous＝最新一次回測沒通過部署閘門，點機率仍來自**上一版**模型。這時機率
+ * 照樣算得出來，所以卡片不會退成不可用——但首頁必須明講「現正沿用版本 X」，
+ * 不能無聲照顯。unavailable 才是整段沒有模型。
+ */
+export type PregameModelAxis = AxisStatus & {
+  trained_through: number | null;
+  signals: Record<string, string> | null;
+  serving_version?: string | null;
+  backtest_version?: string | null;
+  backtest_deployable?: boolean | null;
+};
+
+/** 降級告示；serving 正常或整段不可用時回 null（後者由卡片各自的不可用文案負責）。 */
+export function pregameServingNotice(
+  axis: Pick<PregameModelAxis, "status" | "serving_version" | "backtest_version">,
+): string | null {
+  if (axis.status !== "serving_previous") return null;
+  const serving = axis.serving_version
+    ? `現正沿用版本 ${axis.serving_version}`
+    : "現正沿用去洩漏前的舊版模型";
+  const backtest = axis.backtest_version ? `（最新回測 ${axis.backtest_version}）` : "";
+  return `最新回測未通過部署閘門，${serving}${backtest}；以下機率並非最新模型的輸出。`;
+}
 
 // —— 賽前卡 adapter ——
 // daily summary 每場內嵌的 pregame（status + 點機率 + signals）→ PregameCardModel，

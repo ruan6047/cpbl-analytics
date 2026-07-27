@@ -334,9 +334,18 @@ export type BacktestModelRow = {
   log_loss: number;
   ece?: number;
 };
+/** serving 狀態：這份回測紀錄有沒有真的成為線上模型（ML-OUTCOME-SIMPLE-LEAK2）。 */
+export type PregameServing = {
+  status: "serving_current" | "serving_previous" | "unavailable";
+  reason: string | null;
+  serving_version: string | null;
+  backtest_version: string | null;
+  backtest_deployable: boolean | null;
+};
 export type PregameBacktestResponse = {
   available: boolean;
   version?: string;
+  serving?: PregameServing;
   trained_at?: string | null;
   gate?: { checks: Record<string, boolean>; deployable: boolean };
   models?: BacktestModelRow[];

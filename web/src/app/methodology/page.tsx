@@ -1,4 +1,5 @@
 import { api, type OutcomeBenchmarkResponse, type PregameBacktestResponse } from "@/lib/api";
+import { pregameServingNotice } from "@/lib/daily-summary";
 import { METHODOLOGY_SECTIONS } from "@/lib/methodology-anchors";
 import {
   BENCHMARK_NOTE,
@@ -98,8 +99,19 @@ function PregameLivePanel({ backtest }: { backtest: PregameBacktestResponse | nu
   const gate = backtest.gate;
   const gatePassed = gate ? Object.values(gate.checks).filter(Boolean).length : 0;
   const gateTotal = gate ? Object.keys(gate.checks).length : 0;
+  // 閘門未過時 serving 沿用上一版：這裡與首頁必須同時揭露，否則使用者看到的機率
+  // 其實不是這張表描述的模型（ML-OUTCOME-SIMPLE-LEAK2 紅線 5）。
+  const servingNotice = pregameServingNotice(backtest.serving ?? { status: "serving_current" });
   return (
     <div className="mt-2">
+      {servingNotice && (
+        <p
+          data-testid="pregame-serving-notice"
+          className="mb-2 rounded-lg bg-surface-2 px-3 py-2 text-xs text-ink"
+        >
+          {servingNotice}
+        </p>
+      )}
       <p className="mb-1.5 text-xs text-faint">
         線上回測紀錄（版本 {backtest.version}
         {backtest.test_years?.length

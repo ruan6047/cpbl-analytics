@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   resolvePregameFromDaily,
+  pregameServingNotice,
   refreshCopy,
   refreshAgeText,
   shortDate,
@@ -94,5 +95,54 @@ test("gameHref 對齊 /games 既有查詢字串", () => {
   assert.equal(
     gameHref({ game_sno: 117, kind_code: "A", season: 2026 }),
     "/games/117?kind=A&year=2026",
+  );
+});
+
+// —— serving 降級揭露（ML-OUTCOME-SIMPLE-LEAK2 紅線 5）——
+
+test("serving_current 不出告示：正常狀態不得製造噪音", () => {
+  assert.equal(
+    pregameServingNotice({
+      status: "serving_current",
+      serving_version: "v2",
+      backtest_version: "v2",
+    }),
+    null,
+  );
+});
+
+test("serving_previous 必須明講沿用哪一版、且點出機率不是最新模型輸出", () => {
+  const notice = pregameServingNotice({
+    status: "serving_previous",
+    serving_version: "outcome-simple-1",
+    backtest_version: "outcome-simple-2",
+  });
+
+  assert.ok(notice);
+  assert.ok(notice.includes("未通過部署閘門"));
+  assert.ok(notice.includes("outcome-simple-1"), "必須指名 serving 中的版本");
+  assert.ok(notice.includes("outcome-simple-2"), "必須指名最新回測版本");
+  assert.ok(notice.includes("並非最新模型的輸出"));
+});
+
+test("舊 artifact 無版本欄時仍要揭露，不得因為缺 id 就靜默", () => {
+  const notice = pregameServingNotice({
+    status: "serving_previous",
+    serving_version: null,
+    backtest_version: null,
+  });
+
+  assert.ok(notice);
+  assert.ok(notice.includes("去洩漏前的舊版模型"));
+});
+
+test("unavailable 不走告示：整段不可用由卡片自己的不可用文案負責", () => {
+  assert.equal(
+    pregameServingNotice({
+      status: "unavailable",
+      serving_version: null,
+      backtest_version: null,
+    }),
+    null,
   );
 });

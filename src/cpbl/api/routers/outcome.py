@@ -9,11 +9,12 @@ import numpy as np
 from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON, _parse_features
+from cpbl.api.pregame_serving import serving_state
 from cpbl.config import settings
 from cpbl.db import conn
 from cpbl.features.outcome import CANDIDATE_FEATURES, FEATURE_DESC
 from cpbl.models import matchup, outcome
-from cpbl.models.outcome_simple import ORIENT, load_artifact, load_outcome_rows
+from cpbl.models.outcome_simple import ORIENT, load_outcome_rows
 from cpbl.models.pa_sim import (
     GameState,
     load_game_pa_snapshot,
@@ -99,17 +100,16 @@ def outcome_simulate(
 @router.get("/api/v1/outcome/pregame")
 def outcome_pregame(limit: int = Query(20, ge=1, le=60)) -> dict:
     """固定語意群賽前勝率；不接受特徵勾選或權重。"""
-    path = settings.artifact_dir / "outcome_simple.joblib"
-    if not path.exists():
-        return {"available": False, "reason": "outcome_simple artifact 未建置"}
-    artifact = load_artifact(path)
-    # version＝產出這份 serving artifact 的那一次回測。與 /pregame/backtest 的 version
-    # 不一致 ⇒ 最新回測沒過閘門、serving 沿用的是上一版（ML-OUTCOME-SIMPLE-LEAK2）。
-    version = artifact.get("version")
+    # serving＝這份 artifact 是不是最新那一次回測產出的（ML-OUTCOME-SIMPLE-LEAK2）。
+    # serving_previous 代表最新回測未過閘門、機率仍來自上一版模型，前端必須據此揭露。
+    artifact, serving = serving_state()
+    if artifact is None:
+        return {"available": False, "reason": serving["reason"], "serving": serving}
     rows = [row for row in load_outcome_rows(completed_only=False)
             if row.game_date and row.game_date >= date.today()][:limit]
     if not rows:
-        return {"available": True, "version": version,
+        return {"available": True, "serving": serving,
+                "version": serving["serving_version"],
                 "trained_through": artifact["trained_through"],
                 "signals": artifact["signals"], "items": []}
     point = artifact["model"].predict(rows)
@@ -128,7 +128,8 @@ def outcome_pregame(limit: int = Query(20, ge=1, le=60)) -> dict:
                                                 else "higher_favors_home")}
                         for group, signal in artifact["signals"].items()},
         })
-    return {"available": True, "version": version,
+    return {"available": True, "serving": serving,
+            "version": serving["serving_version"],
             "trained_through": artifact["trained_through"],
             "signals": artifact["signals"], "interval": artifact.get("interval"),
             "items": items}
@@ -136,14 +137,20 @@ def outcome_pregame(limit: int = Query(20, ge=1, le=60)) -> dict:
 
 @router.get("/api/v1/outcome/pregame/backtest")
 def outcome_pregame_backtest() -> dict:
+    """最新一次走查回測紀錄，外加 serving 狀態。
+
+    方法頁的閘門面板靠這支端點；只回傳回測結果會漏掉「這一版有沒有真的上線」——閘門未過時
+    DB 這一列是 `deployable=false`，而 serving 仍在跑上一版。兩件事必須一起講。
+    """
+    _, serving = serving_state()
     with conn() as connection:
         row = connection.execute(
             "SELECT id,trained_at,cv_metrics FROM cpbl.model_versions "
             "WHERE task='outcome_simple' ORDER BY trained_at DESC LIMIT 1"
         ).fetchone()
     if not row:
-        return {"available": False}
-    return {"available": True, "version": row[0],
+        return {"available": False, "serving": serving}
+    return {"available": True, "version": row[0], "serving": serving,
             "trained_at": row[1].isoformat() if row[1] else None, **row[2]}
 
 
