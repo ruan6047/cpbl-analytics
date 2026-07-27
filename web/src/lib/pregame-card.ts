@@ -40,7 +40,51 @@ export type PregameResponse = {
   trained_through?: number;
   signals?: Record<string, string>;
   items?: PregameItem[];
+  /** 產生 items 這些機率的模型是不是最新回測那一版。與 items 同在這一份 response 內，
+   *  卡片因此天生滿足「機率與其 serving 狀態同源」——不得改成另外抓一次。 */
+  serving?: PregameServingMeta;
 };
+
+// —— serving 降級狀態（ML-OUTCOME-SIMPLE-LEAK2 紅線 5）——
+// 放在本模組而非 daily-summary，是因為三個渲染賽前勝率的介面（首頁、方法頁、賽況頁）
+// 都要用同一套說法，而 daily-summary 依賴本模組——反向 import 會成環。
+
+/** 賽前模型的 serving 狀態（ML-OUTCOME-SIMPLE-LEAK2 紅線 5）。
+ *
+ * serving_previous＝最新一次回測沒通過部署閘門，點機率仍來自**上一版**模型。這時機率
+ * 照樣算得出來，所以卡片不會退成不可用——但首頁必須明講「現正沿用版本 X」，
+ * 不能無聲照顯。unavailable 才是整段沒有模型。
+ */
+export type PregameDegradation = "gate_failed" | "version_unknown" | "version_mismatch";
+
+export type PregameServingMeta = {
+  status: "serving_current" | "serving_previous" | "unavailable";
+  serving_version?: string | null;
+  backtest_version?: string | null;
+  backtest_deployable?: boolean | null;
+  degradation?: PregameDegradation | null;
+};
+
+/** 降級告示；serving 正常或整段不可用時回 null（後者由卡片各自的不可用文案負責）。
+ *
+ * 成因由後端的 `degradation` 判別碼決定，前端只做映射。**只有 gate_failed 能宣稱閘門
+ * 失敗**——另外兩種是版本紀錄對不上，與閘門結果無關，講成閘門失敗就是說錯話。
+ * 這一點在 deploy→refresh 窗口特別要緊：那時 prod artifact 還沒有 version 欄
+ * （version_unknown），而最新回測其實是 7/7 通過的。
+ */
+export function pregameServingNotice(axis: PregameServingMeta): string | null {
+  if (axis.status !== "serving_previous") return null;
+  const backtest = axis.backtest_version ? `最新回測 ${axis.backtest_version}` : "最新回測紀錄";
+  switch (axis.degradation) {
+    case "gate_failed":
+      return `${backtest}未通過部署閘門，現正沿用版本 ${axis.serving_version ?? "（未記錄）"}；以下機率並非最新回測所對應的模型輸出。`;
+    case "version_mismatch":
+      return `serving 版本 ${axis.serving_version ?? "（未記錄）"} 與${backtest}不一致（該次回測本身已通過閘門）；以下機率並非最新回測所對應的模型輸出。`;
+    case "version_unknown":
+    default:
+      return `serving 模型未記錄版本，無法確認是否為${backtest}的產出；以下機率可能來自舊版模型。`;
+  }
+}
 
 /** 消費端指定要渲染哪一場；kind_code 用來判定模型支援範圍（僅一軍例行賽 A）。 */
 export type PregameGameRef = { season: number; game_sno: number; kind_code: string };
@@ -119,6 +163,9 @@ export type PregameCardModel =
       probabilityText: string;
       primarySignal: PregamePrimarySignal | null;
       trainedThroughText: string | null;
+      /** 降級告示：這個機率不是最新回測那一版模型算的。由**同一份 response** 推導，
+       *  正常時為 null。首頁把它擺在賽事列表上方（一次），故該路徑刻意留 null。 */
+      servingNotice: string | null;
       methodologyHref: string;
     }
   | {
@@ -204,6 +251,8 @@ export function resolvePregameCard(input: ResolvePregameInput): PregameCardModel
       response.trained_through != null
         ? `${PREGAME_COPY.trainedThroughPrefix} ${response.trained_through} ${PREGAME_COPY.trainedThroughSuffix}`
         : null,
+    // 機率與 serving 狀態出自同一份 response——這就是不變式，不得改成另外抓一次。
+    servingNotice: response.serving ? pregameServingNotice(response.serving) : null,
     methodologyHref: HREF,
   };
 }

@@ -12,9 +12,11 @@
 import {
   formatProbability,
   pickPrimarySignal,
+  pregameServingNotice,
   PREGAME_COPY,
   type PregameCardModel,
   type PregameItemSignal,
+  type PregameServingMeta,
 } from "./pregame-card.ts";
 import { methodologyHref } from "./methodology-anchors.ts";
 
@@ -75,47 +77,17 @@ export type DailySummary = {
   };
 };
 
-/** 賽前模型的 serving 狀態（ML-OUTCOME-SIMPLE-LEAK2 紅線 5）。
- *
- * serving_previous＝最新一次回測沒通過部署閘門，點機率仍來自**上一版**模型。這時機率
- * 照樣算得出來，所以卡片不會退成不可用——但首頁必須明講「現正沿用版本 X」，
- * 不能無聲照顯。unavailable 才是整段沒有模型。
- */
-export type PregameDegradation = "gate_failed" | "version_unknown" | "version_mismatch";
+export {
+  pregameServingNotice,
+  type PregameDegradation,
+  type PregameServingMeta,
+} from "./pregame-card.ts";
 
-export type PregameServingMeta = {
-  status: "serving_current" | "serving_previous" | "unavailable";
-  serving_version?: string | null;
-  backtest_version?: string | null;
-  backtest_deployable?: boolean | null;
-  degradation?: PregameDegradation | null;
-};
-
+/** daily summary 的賽前模型軸：serving 契約 ＋ 本聚合特有的欄位。 */
 export type PregameModelAxis = AxisStatus & PregameServingMeta & {
   trained_through: number | null;
   signals: Record<string, string> | null;
 };
-
-/** 降級告示；serving 正常或整段不可用時回 null（後者由卡片各自的不可用文案負責）。
- *
- * 成因由後端的 `degradation` 判別碼決定，前端只做映射。**只有 gate_failed 能宣稱閘門
- * 失敗**——另外兩種是版本紀錄對不上，與閘門結果無關，講成閘門失敗就是說錯話。
- * 這一點在 deploy→refresh 窗口特別要緊：那時 prod artifact 還沒有 version 欄
- * （version_unknown），而最新回測其實是 7/7 通過的。
- */
-export function pregameServingNotice(axis: PregameServingMeta): string | null {
-  if (axis.status !== "serving_previous") return null;
-  const backtest = axis.backtest_version ? `最新回測 ${axis.backtest_version}` : "最新回測紀錄";
-  switch (axis.degradation) {
-    case "gate_failed":
-      return `${backtest}未通過部署閘門，現正沿用版本 ${axis.serving_version ?? "（未記錄）"}；以下機率並非最新回測所對應的模型輸出。`;
-    case "version_mismatch":
-      return `serving 版本 ${axis.serving_version ?? "（未記錄）"} 與${backtest}不一致（該次回測本身已通過閘門）；以下機率並非最新回測所對應的模型輸出。`;
-    case "version_unknown":
-    default:
-      return `serving 模型未記錄版本，無法確認是否為${backtest}的產出；以下機率可能來自舊版模型。`;
-  }
-}
 
 /** 首頁的降級告示。**只收 DailySummary**——簽章本身就是那條不變式：
  *  告示描述的是本頁正在顯示的那些點機率，因此只能由產生那些機率的同一份 response 推導。
@@ -162,6 +134,9 @@ export function resolvePregameFromDaily(
         probabilityText: formatProbability(p),
         primarySignal: pickPrimarySignal(pregame.signals ?? {}),
         trainedThroughText: trainedThroughText(trainedThrough),
+        // 首頁一次列多場，告示由 DailyHub 在列表上方顯示一次（homePregameNotice，
+        // 同樣出自這份 summary），不在每張卡重複同一句話。
+        servingNotice: null,
         methodologyHref: PREGAME_HREF,
       };
     }

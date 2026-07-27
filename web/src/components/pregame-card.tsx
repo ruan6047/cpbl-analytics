@@ -74,6 +74,19 @@ export function PregameCard({ model, homeName }: { model: PregameCardModel; home
       {model.trainedThroughText && (
         <p className="mt-1 text-[10px] text-faint">{model.trainedThroughText}</p>
       )}
+
+      {/* 降級揭露（ML-OUTCOME-SIMPLE-LEAK2 紅線 5）：這個機率不是最新回測那一版模型算的。
+          用 text-muted 而非 faint——它是必須被讀到的限制，不是次要註腳；但仍不放大成
+          警示框，避免搶走賽況頁焦點。文字由 resolvePregameCard 從同一份 response 推導。 */}
+      {model.servingNotice && (
+        <p
+          data-testid="pregame-serving-notice"
+          role="note"
+          className="mt-1.5 border-t border-line pt-1.5 text-[11px] leading-relaxed text-muted"
+        >
+          {model.servingNotice}
+        </p>
+      )}
     </div>
   );
 }

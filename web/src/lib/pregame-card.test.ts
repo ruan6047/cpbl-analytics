@@ -123,3 +123,74 @@ test("模型 freshness 附註存在且語意為「模型資料至 N 季」", () 
   assert.ok(model.status === "available");
   assert.equal(model.trainedThroughText, "模型資料至 2025 季");
 });
+
+// —— serving 降級揭露（ML-OUTCOME-SIMPLE-LEAK2 紅線 5：所有渲染賽前勝率的介面）——
+
+function availableWithServing(serving: Record<string, unknown> | undefined) {
+  const base = PREGAME_FIXTURES.available;
+  return resolvePregameCard({
+    ...base,
+    response: { ...base.response!, serving } as typeof base.response,
+  });
+}
+
+test("賽況頁卡片：三種 degradation 各自沿用與首頁／方法頁相同的說法", () => {
+  const gateFailed = availableWithServing({
+    status: "serving_previous",
+    degradation: "gate_failed",
+    serving_version: "outcome-simple-1",
+    backtest_version: "outcome-simple-2",
+    backtest_deployable: false,
+  });
+  const unknown = availableWithServing({
+    status: "serving_previous",
+    degradation: "version_unknown",
+    serving_version: null,
+    backtest_version: "outcome-simple-2",
+    backtest_deployable: true,
+  });
+  const mismatch = availableWithServing({
+    status: "serving_previous",
+    degradation: "version_mismatch",
+    serving_version: "outcome-simple-3",
+    backtest_version: "outcome-simple-2",
+    backtest_deployable: true,
+  });
+
+  assert.ok(gateFailed.status === "available" && gateFailed.servingNotice);
+  assert.ok(gateFailed.servingNotice.includes("未通過部署閘門"));
+  // 另外兩種的最新回測其實已通過閘門，不得誣賴它。
+  assert.ok(unknown.status === "available" && unknown.servingNotice);
+  assert.equal(unknown.servingNotice.includes("未通過部署閘門"), false);
+  assert.ok(unknown.servingNotice.includes("無法確認"));
+  assert.ok(mismatch.status === "available" && mismatch.servingNotice);
+  assert.equal(mismatch.servingNotice.includes("未通過部署閘門"), false);
+  assert.ok(mismatch.servingNotice.includes("不一致"));
+});
+
+test("serving 正常或缺欄位時卡片不加註（不得製造噪音，也不得因缺欄位就報降級）", () => {
+  const current = availableWithServing({
+    status: "serving_current",
+    degradation: null,
+    serving_version: "outcome-simple-2",
+    backtest_version: "outcome-simple-2",
+    backtest_deployable: true,
+  });
+  const absent = availableWithServing(undefined);
+
+  assert.ok(current.status === "available" && current.servingNotice === null);
+  assert.ok(absent.status === "available" && absent.servingNotice === null);
+});
+
+test("降級時仍照常給點機率——降級是揭露，不是把卡片降成不可用", () => {
+  const model = availableWithServing({
+    status: "serving_previous",
+    degradation: "version_unknown",
+    serving_version: null,
+    backtest_version: "outcome-simple-2",
+    backtest_deployable: true,
+  });
+
+  assert.equal(model.status, "available");
+  assert.ok(model.status === "available" && Number.isFinite(model.homeWinProbability));
+});
