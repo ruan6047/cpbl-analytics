@@ -530,10 +530,11 @@ export const api = {
   // 會讓同一個面板出現兩個不同版本。/methodology 已因 no-store 轉為動態渲染，
   // 這支再走快取也省不到什麼（單列 DB 讀取）。
   pregameBacktest: () => getLive<PregameBacktestResponse>("/api/v1/outcome/pregame/backtest"),
-  // **ops 探針專用，不供任何頁面渲染**：頁面一律從自己那一份 response 取 serving 狀態
-  // （首頁走 dailySummary、方法頁走 pregameBacktest），避免同一畫面出現兩個來源。
-  // 上線程序第 3 步以 curl 這支端點對帳，不必解析 HTML。
-  pregameServing: () => getLive<PregameServing>("/api/v1/outcome/pregame/serving"),
+  // 這裡**刻意沒有** serving 狀態的 client method：頁面一律從自己那一份 response 取
+  // （首頁走 dailySummary、方法頁走 pregameBacktest），同一畫面才不會出現兩個來源。
+  // 後端的 /api/v1/outcome/pregame/serving 端點仍在，但只留給上線程序第 3 步的 curl
+  // 對帳；要在 web 端取用得先明著加回來、經過 review（pregame-single-source.test.ts
+  // 的「第二來源不可達」規則會擋，見 UX-PREGAME-SOURCE-GUARD1）。
   outcomeBenchmark: () => get<OutcomeBenchmarkResponse>("/api/v1/outcome/backtest", 600),
   playersRoster: (season?: number) =>
     get<{
