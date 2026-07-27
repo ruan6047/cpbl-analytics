@@ -1,11 +1,11 @@
-# UX-PREGAME-SOURCE-GUARD1 賽前勝率單一來源守衛改為自動反查〔T2〕
+# UX-PREGAME-SOURCE-GUARD1 賽前勝率單一來源守衛改為全域不變式〔T2〕
 
 - 需求：ruan6047（2026-07-27 LEAK2 iteration 6 裁定：不在 LEAK2 內擴 scope，獨立開卡）　規劃：本卡 spec　分支：依認領時 worktree 慣例
 - 執行：待指派　查核：待指派（≠ 執行；T2 不跨家族）
 - Initiative：—　spec 基線：—
 - DB：`db_scope: none`（不碰 DB）
 - 部署：否（測試層變更；隨下次例行部署帶上即可）　環境：—　PR：—　Merge SHA：—
-- current-state：📥Backlog；**須待 ML-OUTCOME-SIMPLE-LEAK2 merge 後才可認領**（本卡要改的檔案是該卡新增的）。
+- current-state：🚧執行中（2026-07-27 派工）；前置條件已解除（ML-OUTCOME-SIMPLE-LEAK2 已 merge 2aa27a3 並上線驗證）。
 
 ## 背景（為什麼）
 
