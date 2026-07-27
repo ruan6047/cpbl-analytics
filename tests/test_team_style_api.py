@@ -15,6 +15,7 @@ from cpbl.api.team_style import (
     SEMANTICS_VALUES,
     axis_counts,
     build_team_style,
+    fill_current_managers,
     managers_of,
     season_managers,
 )
@@ -75,6 +76,20 @@ def test_managers_of_excludes_undetermined_and_out_of_coverage():
     assert managers_of("ACN011")[2023] == "彭政閔"  # 季中換帥：場數最多者
     assert 2026 not in managers_of("AAA011")  # 覆蓋外年份不標
     assert managers_of("AJL011")[2018] == "洪一中"  # Lamigo 年併入樂天 franchise
+
+
+def test_fill_current_managers_two_source_split():
+    """當季標記＝coaches、歷史＝STYLE2；不覆蓋、不延伸前任、查無不標。"""
+    style2 = {2024: "古久保健二", 2025: "古久保健二"}  # 樂天實例
+    lookup = {2026: "曾豪駒"}.get
+    merged = fill_current_managers(style2, {2026}, lookup)
+    # 樂天活證據：2026 由 coaches 補「曾豪駒」，不是延伸 2025 古久保健二
+    assert merged == {2024: "古久保健二", 2025: "古久保健二", 2026: "曾豪駒"}
+    # STYLE2 已判定的季不被 coaches 覆蓋
+    assert fill_current_managers({2026: "甲"}, {2026}, lookup) == {2026: "甲"}
+    # 查無（防禦性）→ 維持不標；歷史不可判定季不在 in_progress 也不會被填
+    assert fill_current_managers(style2, {2026}, lambda _y: None) == style2
+    assert fill_current_managers({}, set(), lookup) == {}
 
 
 # ---------------------------------------------------------------------------

@@ -63,6 +63,32 @@ def managers_of(franchise: str) -> dict[int, str]:
     }
 
 
+def fill_current_managers(
+    managers: dict[int, str],
+    in_progress_years: set[int],
+    lookup,
+) -> dict[int, str]:
+    """教練標記的兩個來源分工（需求方 2026-07-27 第四批裁定）：
+
+    - **歷史季**＝TEAM-STYLE2 逐季判定 resource（研究凍結，不動）。
+    - **當季（進行中賽季）**＝官網 ``cpbl.coaches``（/team/index 爬蟲、
+      current 系列語意每季重爬覆蓋）——STYLE2 覆蓋不到的進行中賽季由此補標。
+
+    只補「STYLE2 無判定且進行中」的年；歷史不可判定季（如統一 2019）不在
+    in_progress 故維持不標。``lookup(year)`` 查無（防禦性）→ 該年維持不標。
+    嚴禁以「延伸前任」推當季（活證據：富邦 2025 陳金鋒 → 2026 後藤光尊、
+    樂天 2025 古久保健二 → 2026 曾豪駒）。
+    """
+    out = dict(managers)
+    for year in in_progress_years:
+        if year in out:
+            continue  # STYLE2 已判定的季不覆蓋
+        name = lookup(year)
+        if name:
+            out[year] = name
+    return out
+
+
 def axis_counts(axis: str, agg: dict[str, int]) -> dict[str, int]:
     """各軸明細用的原始計數（給一般球迷看「次數」；rate 仍是凍結軸值）。
 
@@ -174,9 +200,20 @@ def _in_progress_years(c) -> set[int]:
 
 def team_style_payload(code: str) -> dict:
     """IO 入口：載入 gamelog 聚合（request-time，唯讀）＋塑形。"""
+    fc = franchise_of(code)
     with conn() as c:
         by_team = ts.load_team_games(c)
         names = ts.load_team_names(c)
         in_progress = _in_progress_years(c)
-    fc = franchise_of(code)
-    return build_team_style(code, by_team, names, in_progress, managers_of(fc))
+
+        def _coach_lookup(year: int) -> str | None:
+            """當季一軍總教練（官網 coaches；pos 精確比對）。查無 → None。"""
+            row = c.execute(
+                "SELECT name FROM cpbl.coaches "
+                "WHERE year = %s AND pos = '一軍總教練' AND team_code = %s",
+                (year, fc),
+            ).fetchone()
+            return row[0].strip() if row and row[0] else None
+
+        managers = fill_current_managers(managers_of(fc), in_progress, _coach_lookup)
+    return build_team_style(code, by_team, names, in_progress, managers)
