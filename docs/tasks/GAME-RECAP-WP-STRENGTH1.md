@@ -141,7 +141,8 @@ WP_adj      = sigmoid(logit_clip(WP_situ) + w_gamma(t) *
 - [ ] 離線合約測試覆蓋：三期 routing、八項特徵、逐場分子／分母只含該場前事件、`kappa` 收縮與缺值 fallback、和局 `y=0.5` 的加權拆分／自訂 loss 等價且 game weighting 不變、嵌套窗口、選型只讀 inner season、決定性 tie-break、`w(t)` 單調／端點、開場 anchor、[0,1] 與固定狀態單調性。
 - [ ] 嵌套 walk-forward 報告逐季 2023–2026＋池化：**先列 2026 當季鎖箱結果**，再列歷史穩定性；包含樣本／coverage／窗口、先驗參數與標準化統計、`kappa/lambda/gamma` 選型證據、p0 診斷、Brier／ECE／十分位 99% game-cluster CI、逐局帶 99% CI 與排除帳；base／CAL1／主場常數三方並排，並附預註冊 `team-only`／`team+starter`／`full` 消融（僅診斷，full 才判定）。另附 2026 advanced shadow coverage／相關性，明標不進判定。
 - [ ] A scope 逐條執行上述硬門檻；**全數通過才可解除 WP-API1 A 阻塞，任一失敗即 No-Go**，不得以「接近門檻」、平均改善或事後改候選放行。2026 為進行中賽季時須標示資料截止日與完成場數，且季末重跑仍為上線前必要證據。
-- [ ] `uv run ruff check`＋`uv run pytest` 全綠；完整命令與 `--out` scratch 部分重跑可逐位重現。跨家族／人工查核者重跑至少一個留出季。
+- [ ] `uv run ruff check`＋`uv run pytest` 全綠；相同 `--as-of` ＋相同 DB 狀態下部分重跑逐位相同，母體／輸入漂移須可偵測並 fail loudly（紅線 8，2026-07-27 需求方 sign-off 之放寬）。跨家族／人工查核者重跑至少一個留出季。
+- [ ] **報告數字表格由 canonical artifact 自動產生**（2026-07-27 需求方核可）：結果報告不得人工謄寫數字後宣稱已對帳，改以腳本讀 artifact JSON 產生表格，使「過期數字」在結構上不可能發生。報告中任何完整性宣稱（全部／全數／皆已）須附**窮舉證據**（如判定路徑的逐項來源清單），不得只是聲明。
 
 ## 執行順序與查核 checkpoint
 
