@@ -59,7 +59,7 @@ import random
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from cpbl.db import conn
@@ -70,7 +70,6 @@ from cpbl.models.winprob_val import (
     brier_constant,
     collect_training_counts,
     dist_from_counts,
-    home_rate_from_games,
     load_eval_season,
     metrics,
     ruleset_for,
@@ -256,7 +255,8 @@ def load_cold_start_prior(cur) -> dict[str, Counts]:
 
 
 def load_game_rows(cur, first_year: int = CORE_FIRST,
-                   last_year: int = LAST_YEAR) -> list[GameRow]:
+                   last_year: int = LAST_YEAR,
+                   as_of: date | None = None) -> list[GameRow]:
     """建立 2018..last_year 的逐場賽前原料（全程唯讀）。
 
     前四項隊伍特徵直接取 `game_features` 中已於賽前更新的 running／prior 欄
@@ -272,8 +272,9 @@ def load_game_rows(cur, first_year: int = CORE_FIRST,
         "JOIN cpbl.game_features f ON f.year=g.year AND f.kind_code=g.kind_code "
         "  AND f.game_season_code=g.game_season_code AND f.game_sno=g.game_sno "
         "WHERE g.kind_code=%s AND g.year BETWEEN %s AND %s "
-        "  AND g.home_score + g.away_score > 0 AND g.game_date <= CURRENT_DATE "
-        "ORDER BY g.game_date, g.game_sno", (KIND, first_year, last_year))
+        "  AND g.home_score + g.away_score > 0 AND g.game_date <= %s "
+        "ORDER BY g.game_date, g.game_sno",
+        (KIND, first_year, last_year, as_of or date.today()))
     games = cur.fetchall()
 
     cur.execute(
@@ -737,6 +738,34 @@ def _ci_from_draws(devs: dict, ci: float) -> dict:
     return out
 
 
+def home_rate_exact(cur, kind: str, y0: int, y1: int, as_of: date) -> float:
+    """訓練窗聯盟主隊勝率的**未捨入**值（和=0.5）；leakage-safe 主場常數基準。
+
+    與 `winprob_val.home_rate_from_games()` 同一個 SQL，但該函式回傳前捨入 4 位
+    （iteration 2 查核 F1a：硬門檻的 `baseline_home_const.brier_raw` 因而只是
+    「對已捨入 p 的未捨入計算」）。此處不捨入，並吃 `as_of` 而非 `CURRENT_DATE`。
+    """
+    cur.execute(
+        "SELECT avg(CASE WHEN home_score>away_score THEN 1.0 "
+        "WHEN home_score<away_score THEN 0.0 ELSE 0.5 END) FROM cpbl.games "
+        "WHERE year BETWEEN %s AND %s AND kind_code=%s "
+        "AND home_score+away_score>0 AND game_date<=%s", (y0, y1, kind, as_of))
+    v = cur.fetchone()[0]
+    return float(v) if v is not None else 0.5
+
+
+def raw_ece(scored: Sequence[tuple]) -> float:
+    """樣本加權 ECE 的**未捨入**值；gamma 選型 tie-break 用（iteration 2 查核 F1b）。
+
+    `winprob_val.metrics()["ece_weighted"]` 由捨入 4 位的 decile 均值算出、最後再
+    捨入 5 位；當 gamma 的 Brier 差 < 1e-5 而落到 ECE tie-break 時可能選錯 gamma。
+    本函式直接由未捨入的 `decile_stats()` 重算。
+    """
+    st = decile_stats(scored)
+    n = sum(d["n"] for d in st.values())
+    return sum(abs(d["dev"]) * d["n"] for d in st.values()) / n if n else 0.0
+
+
 def decile_stats(scored: Sequence[tuple]) -> dict[int, dict]:
     """池化十分位的**未捨入** (n, pred, actual, dev)；紅線 4 的判定輸入。
 
@@ -856,8 +885,32 @@ class SeasonPack:
     excluded_no_prior: int
 
 
+def population_fingerprint(cur, as_of: date) -> dict:
+    """完成場母體的內容指紋——`as_of` 只鎖日期界限，鎖不住入庫狀態。
+
+    iteration 2 查核 F2 的實測教訓：同一個 `--as-of 2026-07-26`，在不同時點重跑會得到
+    216 vs 219 場——那 3 場的 `game_date` 早在界限內，只是**比分後來才入庫**。因此
+    「日期截止」不等於「輸入可重現」。本指紋讓重跑者能立刻偵測母體是否已漂移，
+    而不是靜默得到不同數字。
+    """
+    cur.execute(
+        "SELECT year, count(*), md5(string_agg(game_sno::text, ',' ORDER BY game_sno)) "
+        "FROM cpbl.games WHERE kind_code=%s AND year BETWEEN %s AND %s "
+        "AND home_score + away_score > 0 AND game_date <= %s GROUP BY year ORDER BY year",
+        (KIND, CORE_FIRST, LAST_YEAR, as_of))
+    per_year = {int(y): {"n_completed": int(n), "sno_md5": h} for y, n, h in cur.fetchall()}
+    return {"note": "as_of 只鎖 game_date 界限；晚到入庫仍會改變母體，故另存內容指紋供漂移偵測",
+            "by_year": per_year,
+            "n_completed_total": sum(v["n_completed"] for v in per_year.values())}
+
+
+def _built_snos(season: dict) -> set[int]:
+    """該季有 published build 的完成場 sno 集合（由 pa_state_counts 無法還原，改由 pas 推導）。"""
+    return {p["game_sno"] for p in season["pas"]}
+
+
 def build_season_pack(cur, per_year, year: int, span_end: int,
-                      known_snos: set[int]) -> SeasonPack | None:
+                      known_snos: set[int], as_of: date) -> SeasonPack | None:
     """以 span [2018, span_end] 的 base run_dist 評 `year` 的 canonical PA。
 
     fail closed：無賽前特徵的場次（例：缺 game_features 列）整場排除並計數，
@@ -873,12 +926,21 @@ def build_season_pack(cur, per_year, year: int, span_end: int,
     season = load_eval_season(cur, KIND, year)
     if not season["pas"]:
         return None
+    # `load_eval_season()` 內部以 CURRENT_DATE 為界（winprob_val，本卡不得修改），
+    # 故在此依 as_of 重新界定完成場母體——否則進行中賽季每次重跑母體都會漂移，
+    # 部分重跑無法逐位重現（iteration 2 查核 F2）。
+    cur.execute(
+        "SELECT game_sno FROM cpbl.games WHERE year=%s AND kind_code=%s "
+        "AND home_score + away_score > 0 AND game_date <= %s", (year, KIND, as_of))
+    as_of_snos = {r[0] for r in cur.fetchall()}
     dist = dist_from_counts(per_year, CORE_FIRST, span_end)
     scored_all = score_pas(dist, season["rules"], season["pas"])
-    keep = [i for i, p in enumerate(season["pas"]) if p["game_sno"] in known_snos]
-    excluded = len(season["pas"]) - len(keep)
+    keep = [i for i, p in enumerate(season["pas"])
+            if p["game_sno"] in known_snos and p["game_sno"] in as_of_snos]
+    excluded = sum(1 for p in season["pas"]
+                   if p["game_sno"] in as_of_snos and p["game_sno"] not in known_snos)
     pas = [season["pas"][i] for i in keep]
-    n_completed = season["n_completed_games"]
+    n_completed = len(as_of_snos)
     n_scored = len({p["game_sno"] for p in pas})
     return SeasonPack(
         year=year, span_end=span_end,
@@ -888,13 +950,13 @@ def build_season_pack(cur, per_year, year: int, span_end: int,
         snos=[p["game_sno"] for p in pas],
         p_base0=opening_wp(dist, year),
         coverage=season["coverage"],
-        coverage_raw=(season["n_built_games"] / n_completed) if n_completed else 0.0,
+        coverage_raw=(len(as_of_snos & _built_snos(season)) / n_completed) if n_completed else 0.0,
         effective_coverage=(n_scored / n_completed) if n_completed else 0.0,
         n_completed_games=n_completed,
         n_scored_games=n_scored,
         n_irregular_games=season["n_irregular_games"],
         pa_state_counts=season["pa_state_counts"],
-        home_p=home_rate_from_games(cur, KIND, CORE_FIRST, span_end),
+        home_p=home_rate_exact(cur, KIND, CORE_FIRST, span_end, as_of),
         excluded_no_prior=excluded,
     )
 
@@ -918,7 +980,8 @@ def predict_prior(model: PriorModel, rows: Sequence[GameRow],
     return {r.game_sno: model.predict(game_features(r, lg, kappa)) for r in rows}
 
 
-def run_strength(out_path: Path, val_seasons: Sequence[int]) -> dict:
+def run_strength(out_path: Path, val_seasons: Sequence[int],
+                 as_of: date | None = None) -> dict:
     result: dict = {
         "card": "GAME-RECAP-WP-STRENGTH1",
         "kind": KIND,
@@ -929,11 +992,13 @@ def run_strength(out_path: Path, val_seasons: Sequence[int]) -> dict:
                   "gamma": list(GAMMA_GRID)},
         "thresholds": {**THRESHOLDS, **STRENGTH_THRESHOLDS},
         "seed": SEED,
+        "data_as_of": (as_of or date.today()).isoformat(),
+        "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "seasons": [],
     }
     with conn() as c:
         cur = c.cursor()
-        rows = load_game_rows(cur)
+        rows = load_game_rows(cur, as_of=as_of)
         by_year: dict[int, list[GameRow]] = defaultdict(list)
         for r in rows:
             by_year[r.year].append(r)
@@ -952,7 +1017,7 @@ def run_strength(out_path: Path, val_seasons: Sequence[int]) -> dict:
         packs: dict[int, SeasonPack] = {}
         for s in need:
             known = {r.game_sno for r in by_year.get(s, ())}
-            pack = build_season_pack(cur, per_year, s, s - 1, known)
+            pack = build_season_pack(cur, per_year, s, s - 1, known, as_of or date.today())
             if pack:
                 packs[s] = pack
                 assert pack.span_end <= s - 1, f"wf {s} base span 洩漏"
@@ -975,6 +1040,8 @@ def run_strength(out_path: Path, val_seasons: Sequence[int]) -> dict:
                                     * len(srow["base_scored"]))
 
         result["advanced_shadow_2026"] = advanced_shadow(cur, rows)
+        result["advanced_shadow_2026"]["data_as_of"] = result["data_as_of"]
+        result["population_fingerprint"] = population_fingerprint(cur, as_of or date.today())
 
     if pooled["base"]:
         # `metrics()` 的 brier／deciles／CI 皆為捨入顯示值；判定另存 *_raw／raw_deciles／
@@ -1082,8 +1149,7 @@ def _run_one_season(cur, Y: int, by_year: dict[int, list[GameRow]],
     gamma_rows = []
     for gamma in GAMMA_GRID:
         fused = fuse_season(sel_pack, p0_sel, gamma)
-        m = metrics(fused)
-        cand = GammaCandidate(gamma, raw_brier(fused), m["ece_weighted"])
+        cand = GammaCandidate(gamma, raw_brier(fused), raw_ece(fused))
         gamma_rows.append({"gamma": gamma, "sel_brier": round(cand.brier, 6),
                            "sel_ece": round(cand.ece, 6)})
         if better_gamma(cand, best_g):
@@ -1321,10 +1387,10 @@ def prior_signal_diagnostics(cur, rows: Sequence[GameRow]) -> list[dict]:
     return out
 
 
-def run_diagnostics() -> list[dict]:
+def run_diagnostics(as_of: date | None = None) -> list[dict]:
     with conn() as c:
         cur = c.cursor()
-        return prior_signal_diagnostics(cur, load_game_rows(cur))
+        return prior_signal_diagnostics(cur, load_game_rows(cur, as_of=as_of))
 
 
 def _pearson(xs: Sequence[tuple[float, float]]) -> float:
@@ -1432,14 +1498,18 @@ def main() -> None:
                     help="artifact 路徑；部分重跑務必導向 scratch（紅線 8）")
     ap.add_argument("--seasons", default="",
                     help="逗號分隔的驗證季（預設 2023-2026 全跑）")
+    ap.add_argument("--as-of", default="",
+                    help="資料截止日 YYYY-MM-DD（預設今日）。進行中賽季的部分重跑務必指定，"
+                         "否則完成場母體會隨時間漂移而無法逐位重現（artifact 的 data_as_of）")
     ap.add_argument("--diagnostics", action="store_true",
                     help="只印先驗訊號四路對照（診斷；不寫 artifact、不進判定）")
     args = ap.parse_args()
+    as_of = date.fromisoformat(args.as_of) if args.as_of else None
     if args.diagnostics:
         print("先驗訊號診斷（固定 kappa=100 lambda=100；不進 Go/No-Go）")
         print(f"{'Y':>5} {'in-sample':>10} {'out-of-time':>12} {'主場常數':>9} "
               f"{'洩漏對照':>9} {'後半季':>8} {'後半季常數':>11}")
-        for d in run_diagnostics():
+        for d in run_diagnostics(as_of):
             late = f"{d['late_season']:.6f}" if d["late_season"] is not None else "—"
             late_c = f"{d['late_season_const']:.6f}" if d["late_season_const"] else "—"
             print(f"{d['year']:>5} {d['in_sample']:>10.6f} {d['out_of_time']:>12.6f} "
@@ -1451,7 +1521,7 @@ def main() -> None:
         return
     seasons = ([int(s) for s in args.seasons.split(",") if s.strip()]
                or list(range(VAL_FIRST, VAL_LAST + 1)))
-    result = run_strength(Path(args.out), sorted(seasons))
+    result = run_strength(Path(args.out), sorted(seasons), as_of)
     v = result["verdict"]
     print(f"\n=== GAME-RECAP-WP-STRENGTH1 A scope：{v['status']} ===")
     for label, items in (("硬性", v["reasons"]), ("揭露", v.get("disclosure", []))):

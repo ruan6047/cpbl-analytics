@@ -54,6 +54,8 @@
   "band_worsen_hard_pt": 0.02
  },
  "seed": 20260725,
+ "data_as_of": "2026-07-27",
+ "generated_at": "2026-07-27T10:42:00+08:00",
  "seasons": [
   {
    "year": 2023,
@@ -167,17 +169,17 @@
      {
       "gamma": 0.5,
       "sel_brier": 0.146483,
-      "sel_ece": 0.04589
+      "sel_ece": 0.04586
      },
      {
       "gamma": 1.0,
       "sel_brier": 0.146455,
-      "sel_ece": 0.04626
+      "sel_ece": 0.046247
      },
      {
       "gamma": 2.0,
       "sel_brier": 0.146548,
-      "sel_ece": 0.04638
+      "sel_ece": 0.046388
      }
     ],
     "inner_league_rates": {
@@ -315,15 +317,15 @@
     "n_games": 298,
     "game_brier": 0.242734,
     "game_logloss": 0.693691,
-    "baseline_home_const_game_brier": 0.241802,
+    "baseline_home_const_game_brier": 0.241801,
     "mean_p0": 0.54154,
     "min_p0": 0.4104,
     "max_p0": 0.65289
    },
    "baseline_home_const": {
-    "p": 0.5414,
+    "p": 0.541350531107739,
     "brier": 0.2415,
-    "brier_raw": 0.24150122431564244
+    "brier_raw": 0.2414988644815725
    },
    "base": {
     "n_pa": 22912,
@@ -843,17 +845,17 @@
      {
       "gamma": 0.5,
       "sel_brier": 0.147991,
-      "sel_ece": 0.02314
+      "sel_ece": 0.023147
      },
      {
       "gamma": 1.0,
       "sel_brier": 0.147806,
-      "sel_ece": 0.02496
+      "sel_ece": 0.02495
      },
      {
       "gamma": 2.0,
       "sel_brier": 0.147634,
-      "sel_ece": 0.02561
+      "sel_ece": 0.025618
      }
     ],
     "inner_league_rates": {
@@ -1001,9 +1003,9 @@
     "max_p0": 0.67279
    },
    "baseline_home_const": {
-    "p": 0.539,
+    "p": 0.5389851485148515,
     "brier": 0.24875,
-    "brier_raw": 0.2487537250209449
+    "brier_raw": 0.24875309698468517
    },
    "base": {
     "n_pa": 27453,
@@ -1527,17 +1529,17 @@
      {
       "gamma": 0.5,
       "sel_brier": 0.151582,
-      "sel_ece": 0.03835
+      "sel_ece": 0.038346
      },
      {
       "gamma": 1.0,
       "sel_brier": 0.151692,
-      "sel_ece": 0.03852
+      "sel_ece": 0.038548
      },
      {
       "gamma": 2.0,
       "sel_brier": 0.152037,
-      "sel_ece": 0.03832
+      "sel_ece": 0.03834
      }
     ],
     "inner_league_rates": {
@@ -1683,15 +1685,15 @@
     "n_games": 359,
     "game_brier": 0.248801,
     "game_logloss": 0.692366,
-    "baseline_home_const_game_brier": 0.247376,
+    "baseline_home_const_game_brier": 0.247375,
     "mean_p0": 0.53605,
     "min_p0": 0.38319,
     "max_p0": 0.71698
    },
    "baseline_home_const": {
-    "p": 0.5369,
+    "p": 0.5369433198380567,
     "brier": 0.24857,
-    "brier_raw": 0.24857015198980723
+    "brier_raw": 0.24857101673782053
    },
    "base": {
     "n_pa": 27078,
@@ -2114,13 +2116,13 @@
     "base_model_span": "2018-2025/A",
     "validation": 2026
    },
-   "coverage": 1.0,
-   "coverage_raw": 1.0,
-   "effective_coverage": 1.0,
+   "coverage": 0.9863,
+   "coverage_raw": 0.9863013698630136,
+   "effective_coverage": 0.9863013698630136,
    "n_scored_games": 216,
-   "n_completed_games": 216,
+   "n_completed_games": 219,
    "n_irregular_games": 19,
-   "n_val_games": 216,
+   "n_val_games": 219,
    "pa_state_counts": {
     "ready": 16131,
     "truncated": 61,
@@ -2211,17 +2213,17 @@
      {
       "gamma": 0.5,
       "sel_brier": 0.155004,
-      "sel_ece": 0.02217
+      "sel_ece": 0.022179
      },
      {
       "gamma": 1.0,
       "sel_brier": 0.154687,
-      "sel_ece": 0.02201
+      "sel_ece": 0.021995
      },
      {
       "gamma": 2.0,
       "sel_brier": 0.15442,
-      "sel_ece": 0.02335
+      "sel_ece": 0.023336
      }
     ],
     "inner_league_rates": {
@@ -2368,18 +2370,18 @@
    },
    "p_base0": 0.52528,
    "p0_diagnostics": {
-    "n_games": 216,
-    "game_brier": 0.246156,
-    "game_logloss": 0.692428,
-    "baseline_home_const_game_brier": 0.246392,
-    "mean_p0": 0.54227,
+    "n_games": 219,
+    "game_brier": 0.245492,
+    "game_logloss": 0.690999,
+    "baseline_home_const_game_brier": 0.24594,
+    "mean_p0": 0.54245,
     "min_p0": 0.41416,
     "max_p0": 0.6561
    },
    "baseline_home_const": {
-    "p": 0.5381,
+    "p": 0.5381156316916488,
     "brier": 0.24714,
-    "brier_raw": 0.2471368310030376
+    "brier_raw": 0.24713767643263393
    },
    "base": {
     "n_pa": 16131,
@@ -2746,7 +2748,7 @@
    "ablation": {
     "team_only": {
      "n_features": 4,
-     "p0_game_brier": 0.246735,
+     "p0_game_brier": 0.24622,
      "fused_pa_brier": 0.166765,
      "coef_standardized": {
       "prior_winpct_diff": 0.08038,
@@ -2757,7 +2759,7 @@
     },
     "team_starter": {
      "n_features": 7,
-     "p0_game_brier": 0.245962,
+     "p0_game_brier": 0.245278,
      "fused_pa_brier": 0.166354,
      "coef_standardized": {
       "prior_winpct_diff": 0.079262,
@@ -2771,7 +2773,7 @@
     },
     "full": {
      "n_features": 8,
-     "p0_game_brier": 0.246156,
+     "p0_game_brier": 0.245492,
      "fused_pa_brier": 0.166368,
      "coef_standardized": {
       "prior_winpct_diff": 0.083634,
@@ -2788,7 +2790,7 @@
   }
  ],
  "population": {
-  "n_games": 2551,
+  "n_games": 2554,
   "by_year": {
    "2018": 239,
    "2019": 240,
@@ -2798,18 +2800,18 @@
    "2023": 298,
    "2024": 360,
    "2025": 359,
-   "2026": 216
+   "2026": 219
   },
   "tie_games": 40,
   "source_tiers": {
    "starter": {
     "league": 154,
-    "own": 4696,
+    "own": 4702,
     "prior": 252
    },
    "bullpen": {
     "league": 7,
-    "own": 5056,
+    "own": 5062,
     "prior": 39
    }
   }
@@ -2817,31 +2819,74 @@
  "advanced_shadow_2026": {
   "note": "僅診斷／前瞻蒐集；不進候選集合、超參選型或 Go/No-Go（卡面紅線 3）",
   "advanced_stats_2026": {
-   "pitching_rows": 330,
+   "pitching_rows": 331,
    "batting_rows": 360,
    "as_of_snapshot": false,
    "reason_unusable": "只有全季累計、無時間版本 → 歷史賽前狀態不可重建"
   },
   "pitch_tracking_2026_A": {
-   "games_with_tracking": 175,
-   "completed_games": 216,
-   "coverage": 0.8102,
-   "pitches": 48616,
+   "games_with_tracking": 177,
+   "completed_games": 219,
+   "coverage": 0.8082,
+   "pitches": 49128,
    "reason_unusable": "球場端設備缺場；缺場機制尚未查核"
   },
   "season_end_correlation": {
    "n_starters_joined": 37,
    "pearson": {
-    "kbb~whiffp": 0.2604,
-    "kbb~chasep": -0.013,
-    "kbb~kp": 0.42,
-    "kbb~bbp": -0.1099,
-    "strike_share~whiffp": -0.1776,
-    "strike_share~chasep": 0.05,
-    "strike_share~kp": 0.0202,
-    "strike_share~bbp": -0.2545
+    "kbb~whiffp": 0.2586,
+    "kbb~chasep": -0.0114,
+    "kbb~kp": 0.4156,
+    "kbb~bbp": -0.1177,
+    "strike_share~whiffp": -0.1795,
+    "strike_share~chasep": 0.0518,
+    "strike_share~kp": 0.019,
+    "strike_share~bbp": -0.2633
    }
-  }
+  },
+  "data_as_of": "2026-07-27"
+ },
+ "population_fingerprint": {
+  "note": "as_of 只鎖 game_date 界限；晚到入庫仍會改變母體，故另存內容指紋供漂移偵測",
+  "by_year": {
+   "2018": {
+    "n_completed": 239,
+    "sno_md5": "9cbdd0540494a22b381aa26e7e7edba1"
+   },
+   "2019": {
+    "n_completed": 240,
+    "sno_md5": "ead22c6f6912c78a944857a415bfee4f"
+   },
+   "2020": {
+    "n_completed": 240,
+    "sno_md5": "ead22c6f6912c78a944857a415bfee4f"
+   },
+   "2021": {
+    "n_completed": 299,
+    "sno_md5": "fba9fe10119c91560645bf6a36675c16"
+   },
+   "2022": {
+    "n_completed": 300,
+    "sno_md5": "5378d5c3ff8060d71262f6513d2b7f15"
+   },
+   "2023": {
+    "n_completed": 298,
+    "sno_md5": "6b4c326af1e396df694d4abf8541369b"
+   },
+   "2024": {
+    "n_completed": 360,
+    "sno_md5": "6e0ad55c9f536b819e0aacec9e5c9fc2"
+   },
+   "2025": {
+    "n_completed": 359,
+    "sno_md5": "c5d33d4e266a3ce459bebfbcbbec0538"
+   },
+   "2026": {
+    "n_completed": 219,
+    "sno_md5": "992a324eb00ca9d65c98c0aa2f649bed"
+   }
+  },
+  "n_completed_total": 2554
  },
  "pooled": {
   "base": {
