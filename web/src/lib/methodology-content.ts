@@ -51,8 +51,11 @@ export const METHODOLOGY_CONTENT: Record<MethodologySection, MethodologyEntry> =
       "先發投手未公布時該訊號缺值（以訓練期中位數補），卡片上的主要訊號會自動退位到下一群。",
       "不提供特徵勾選與權重調整：模型沒學過「缺特徵的世界」，讓使用者關特徵再讀機率在統計上是錯的。",
     ],
+    // 這裡**不得**寫死 training instance id：trainer 每次重訓都以 epoch 秒鑄新編號，
+    // 而上線程序要求部署後立即 refresh，寫死的編號當場就會與 model_versions／artifact
+    // 不一致。實際編號由下方「線上回測對照」面板即時呈現（ML-OUTCOME-SIMPLE-LEAK2）。
     version:
-      "outcome-simple-1785117621（logistic-semantic-v1；2026-07-27 以去洩漏特徵重訓，訓練至 2025 季）。",
+      "logistic-semantic-v1（固定語意群邏輯回歸；以去洩漏後的 game_features 訓練至 2025 季）。每次重訓都會鑄新的版本編號，實際上線的編號與該版回測結果見下方「線上回測對照」面板。",
   },
   winprob: {
     kindBadge: "模型機率",

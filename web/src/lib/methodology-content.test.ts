@@ -45,3 +45,14 @@ test("天敵禁詞：與 /matchups 紅線一致，methodology 全文（含 no-go
   const corpus = JSON.stringify(METHODOLOGY_CONTENT) + JSON.stringify(NOT_ON_SITE);
   assert.equal(corpus.includes("天敵"), false);
 });
+
+test("靜態內容不得寫死 training instance id：每次重訓都會換號，寫死必定失真", () => {
+  // trainer 以 int(time.time()) 鑄版本號，且上線程序要求部署後立即 refresh。
+  // 實際版本一律由 /api/v1/outcome/pregame/serving 與回測面板即時呈現。
+  const corpus = JSON.stringify(METHODOLOGY_CONTENT) + JSON.stringify(NOT_ON_SITE);
+  assert.equal(
+    /outcome-simple-\d+/.test(corpus),
+    false,
+    "methodology 靜態文案不得出現 outcome-simple-<epoch> 這種訓練實例編號",
+  );
+});
