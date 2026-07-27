@@ -65,9 +65,28 @@
 
 ## 依賴與部署順序
 
-- **依賴 `ML-OUTCOME-LEAK1`**（已 merge 待部署）。兩張**必須同批上線**：
-  先合併本卡 → 一次部署 → 部署後才可恢復 `refresh-cpbl-prod.sh` 常規執行。
-- **在本卡完成前**：不得部署 LEAK1、不得跑 `refresh-cpbl-prod.sh`（會觸發 game_features 鏡像）。
+- **依賴 `ML-OUTCOME-LEAK1`**（已 merge 待部署）。兩張**必須同批上線**。
+- **在本卡合併前**：不得部署 LEAK1、不得跑 `refresh-cpbl-prod.sh`（會觸發 game_features 鏡像）。
+
+### 上線程序（2026-07-27 需求方裁定：部署後立刻手動觸發 refresh）
+
+prod 現行 `outcome_simple.joblib` 是洩漏訓練且**無 `version` 欄**，依本卡的 fail-closed
+規則會被判為 `serving_previous` → **部署完成到首次 refresh 之間，首頁與方法頁都會顯示降級提示**。
+該提示內容誠實（prod 當下確實在服務被取代的模型），但屬對外可見的狀態變化。
+需求方裁定**接受該窗口並以立即手動 refresh 壓到最短**，不採「先同步再部署」（順序上不可行）。
+
+執行順序（缺一不可，且**不得中途離開**）：
+
+1. 本卡合併 → 主站 submodule bump → 等 Deploy workflow success。
+2. **立刻**在本機執行 `SKIP_SCRAPE=1 WITH_DETAIL=1 scripts/refresh-cpbl-prod.sh`
+   （不重爬，只鏡像 `game_features` 並重訓兩個 outcome 模型）。
+3. 驗證降級提示已消失：`/methodology#pregame` 閘門面板顯示 7/7・可部署，首頁 pregame 卡無提示；
+   API 的 `serving_state` 為 `serving_current`、artifact 與 `model_versions` 版本一致。
+4. 若步驟 2 的 trainer 失敗（本卡新增的 `remote_train` 會如實傳遞失敗碼），
+   **降級提示會持續顯示**——此時不得以「畫面不好看」為由回退或隱藏提示，
+   應排除 trainer 失敗原因後重跑 refresh。
+
+上述窗口期間若有訪客看到降級提示，屬預期行為，非缺陷。
 
 ## 邊界
 
