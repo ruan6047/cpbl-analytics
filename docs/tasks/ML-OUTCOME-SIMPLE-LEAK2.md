@@ -92,6 +92,13 @@ prod 現行 `outcome_simple.joblib` 是洩漏訓練且**無 `version` 欄**，�
    **降級提示會持續顯示**——此時不得以「畫面不好看」為由回退或隱藏提示，
    應排除 trainer 失敗原因後重跑 refresh。
 
+**首頁快取行為變更（iteration 4）**：`dailySummary()` 由 120 秒快取改為 `no-store`。
+原因是它同時攜帶首頁點機率**與**產生這些機率的 serving 版本——只要快取就必然與任何 live
+來源分歧（iteration 3 即因此產生競態：refresh 後顯示舊機率卻無降級提示）。`/` 本來就是
+dynamic render（await `searchParams`）且 `dailySummary` 僅一個 consumer，故此改動只影響
+跨請求資料快取、不改渲染模式。**代價**：站上流量最高的頁面改為每次請求各自查詢，
+不再共用 120 秒快取——屬查詢量變化，需求方知悉即可。
+
 **窗口期間的預期畫面（iteration 3 修正後）**：prod artifact 無 `version` 欄 → `degradation: version_unknown`
 → 兩頁顯示「serving 模型**未記錄版本，無法確認**是否為最新回測 X 的產出；以下機率可能來自舊版模型。」
 **不會**（也不得）出現「最新回測未通過部署閘門」——該回測實際是 7/7 PASS，iteration 2 曾在此誤報，
