@@ -160,6 +160,87 @@ test("version_unknown：deploy→refresh 窗口的實際狀態，只能說無法
   assert.ok(notice.includes("outcome-simple-2"));
 });
 
+test("version_mismatch 但 backtest_deployable 非 true：不得附註「已通過閘門」", () => {
+  // 後端保證這條分支必為 true，但前端不靠那個保證說出 PASS——判別碼可能出錯，
+  // backtest_deployable 才是這句話唯一的直接證據（iteration 5 查核 F1）。
+  for (const deployable of [null, false, undefined] as const) {
+    const notice = pregameServingNotice({
+      status: "serving_previous",
+      degradation: "version_mismatch",
+      serving_version: "outcome-simple-3",
+      backtest_version: "outcome-simple-2",
+      backtest_deployable: deployable,
+    });
+
+    assert.ok(notice);
+    assert.equal(notice.includes("已通過閘門"), false, `deployable=${deployable} 不得宣稱通過`);
+    assert.equal(notice.includes("未通過部署閘門"), false, "也不得反過來宣稱失敗");
+    assert.ok(notice.includes("不一致"));
+  }
+});
+
+test("backtest_unknown：讀不到回測閘門結果時，文案不得出現任何閘門通過／失敗宣稱", () => {
+  // 首頁與方法頁共用這支函式（方法頁自 @/lib/daily-summary 匯入同一個 symbol）。
+  const notice = pregameServingNotice({
+    status: "serving_previous",
+    degradation: "backtest_unknown",
+    serving_version: "outcome-simple-3",
+    backtest_version: "outcome-simple-2",
+    backtest_deployable: null,
+  });
+
+  assert.ok(notice);
+  assert.equal(notice.includes("通過"), false, "未知就是未知，不得宣稱通過或未通過");
+  assert.ok(notice.includes("無法確認"));
+  assert.ok(notice.includes("outcome-simple-3"), "仍須指名正在 serving 的版本");
+});
+
+test("未知判別碼走中性文案：新增成因時最壞是講得籠統，不是被誤述成別的成因", () => {
+  const notice = pregameServingNotice({
+    status: "serving_previous",
+    // 模擬後端新增了一個前端還不認識的判別碼。
+    degradation: "some_future_code" as never,
+    serving_version: "outcome-simple-3",
+    backtest_version: "outcome-simple-2",
+    backtest_deployable: true,
+  });
+
+  assert.ok(notice);
+  assert.equal(notice.includes("通過"), false);
+  assert.equal(notice.includes("未記錄版本"), false, "不得再沿用 version_unknown 的文案");
+  assert.ok(notice.includes("無法確認"));
+});
+
+test("degradation 缺席時同樣走中性文案，不得冒充 version_unknown", () => {
+  const notice = pregameServingNotice({
+    status: "serving_previous",
+    serving_version: "outcome-simple-3",
+    backtest_version: "outcome-simple-2",
+  });
+
+  assert.ok(notice);
+  assert.equal(notice.includes("未記錄版本"), false);
+  assert.equal(notice.includes("通過"), false);
+});
+
+test("首頁：backtest_unknown 一樣要揭露，且不得宣稱閘門結果", () => {
+  const notice = homePregameNotice(
+    summaryWith({
+      status: "serving_previous",
+      reason: "無法確認最新回測的閘門結果（紀錄讀不到或未記載）",
+      degradation: "backtest_unknown",
+      serving_version: "outcome-simple-3",
+      backtest_version: "outcome-simple-2",
+      backtest_deployable: null,
+      trained_through: 2025,
+      signals: null,
+    }),
+  );
+
+  assert.ok(notice, "讀不到回測時仍在顯示機率，必須揭露");
+  assert.equal(notice.includes("通過"), false);
+});
+
 test("unavailable 不走告示：整段不可用由卡片自己的不可用文案負責", () => {
   assert.equal(
     pregameServingNotice({

@@ -51,11 +51,19 @@ export type PregameResponse = {
 
 /** 賽前模型的 serving 狀態（ML-OUTCOME-SIMPLE-LEAK2 紅線 5）。
  *
- * serving_previous＝最新一次回測沒通過部署閘門，點機率仍來自**上一版**模型。這時機率
- * 照樣算得出來，所以卡片不會退成不可用——但首頁必須明講「現正沿用版本 X」，
- * 不能無聲照顯。unavailable 才是整段沒有模型。
+ * serving_previous＝無法證明「serving 就是最新回測的產出」，點機率仍可能來自**上一版**
+ * 模型。這時機率照樣算得出來，所以卡片不會退成不可用——但介面必須明講現正沿用哪一版、
+ * 以及是哪一種成因（`degradation`），不能無聲照顯。unavailable 才是整段沒有模型。
+ *
+ * `backtest_unknown`＝連最新回測的閘門結果都讀不到（DB 例外／無紀錄／gate 欄缺席）。
+ * 它與 `version_mismatch` 分開，是因為後者才有「該次回測通過了閘門」這個正面事實；
+ * 把未知併進去就會變成憑空宣稱閘門已通過（iteration 5 查核 F1）。
  */
-export type PregameDegradation = "gate_failed" | "version_unknown" | "version_mismatch";
+export type PregameDegradation =
+  | "gate_failed"
+  | "version_unknown"
+  | "backtest_unknown"
+  | "version_mismatch";
 
 export type PregameServingMeta = {
   status: "serving_current" | "serving_previous" | "unavailable";
@@ -67,22 +75,37 @@ export type PregameServingMeta = {
 
 /** 降級告示；serving 正常或整段不可用時回 null（後者由卡片各自的不可用文案負責）。
  *
- * 成因由後端的 `degradation` 判別碼決定，前端只做映射。**只有 gate_failed 能宣稱閘門
- * 失敗**——另外兩種是版本紀錄對不上，與閘門結果無關，講成閘門失敗就是說錯話。
- * 這一點在 deploy→refresh 窗口特別要緊：那時 prod artifact 還沒有 version 欄
- * （version_unknown），而最新回測其實是 7/7 通過的。
+ * 成因由後端的 `degradation` 判別碼決定，前端只做映射。**能講出「閘門」結果的只有兩處**，
+ * 而且各自都要有這份 response 裡的正面證據：
+ *
+ * - `gate_failed` 才可以說「未通過部署閘門」——另外幾種是版本紀錄對不上或根本讀不到
+ *   回測，與閘門結果無關，講成閘門失敗就是說錯話（deploy→refresh 窗口即 version_unknown，
+ *   那次回測其實是 7/7 通過的）。
+ * - `version_mismatch` 的「該次回測本身已通過閘門」只在 `backtest_deployable === true`
+ *   時才附註。後端已保證這條分支必為 true，但**前端不靠那個保證說出 PASS 這種話**：
+ *   iteration 5 的缺陷就是後端把「未知」壓成同一個判別碼，前端照著保證講，於是憑空
+ *   宣稱閘門已通過。判別碼可能出錯，`backtest_deployable` 是這句話唯一的直接證據。
+ *
+ * default 分支刻意只給不含任何閘門宣稱的中性說法：後端未來新增判別碼時，最壞情況是
+ * 講得比較籠統，而不是被誤述成別的成因（`version_unknown` 因此保留自己的 case）。
  */
 export function pregameServingNotice(axis: PregameServingMeta): string | null {
   if (axis.status !== "serving_previous") return null;
   const backtest = axis.backtest_version ? `最新回測 ${axis.backtest_version}` : "最新回測紀錄";
+  const serving = axis.serving_version ?? "（未記錄）";
   switch (axis.degradation) {
     case "gate_failed":
-      return `${backtest}未通過部署閘門，現正沿用版本 ${axis.serving_version ?? "（未記錄）"}；以下機率並非最新回測所對應的模型輸出。`;
-    case "version_mismatch":
-      return `serving 版本 ${axis.serving_version ?? "（未記錄）"} 與${backtest}不一致（該次回測本身已通過閘門）；以下機率並非最新回測所對應的模型輸出。`;
+      return `${backtest}未通過部署閘門，現正沿用版本 ${serving}；以下機率並非最新回測所對應的模型輸出。`;
+    case "version_mismatch": {
+      const gateNote = axis.backtest_deployable === true ? "（該次回測本身已通過閘門）" : "";
+      return `serving 版本 ${serving} 與${backtest}不一致${gateNote}；以下機率並非最新回測所對應的模型輸出。`;
+    }
     case "version_unknown":
-    default:
       return `serving 模型未記錄版本，無法確認是否為${backtest}的產出；以下機率可能來自舊版模型。`;
+    case "backtest_unknown":
+      return `無法確認${backtest}的部署判定結果，因此也無從確認 serving 版本 ${serving} 是否為它的產出；以下機率可能來自舊版模型。`;
+    default:
+      return "無法確認 serving 是否為最新回測的產出；以下機率可能來自舊版模型。";
   }
 }
 

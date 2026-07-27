@@ -101,6 +101,27 @@ test("賽況頁把整份 response 交給 resolver，不自行挑欄位", () => {
   );
 });
 
+test("方法頁的告示出自 backtest 那一份 response，且走共用的 pregameServingNotice", () => {
+  // 方法頁是第二個介面。它顯示的是那張回測表，故 serving 狀態必須取自同一份 backtest
+  // response；文案則與首頁／賽況頁共用同一支函式，三處才不會各講各的
+  //（三個介面的文案行為由 daily-summary.test.ts 與 pregame-card.test.ts 覆蓋）。
+  const page = read("app/methodology/page.tsx");
+
+  assert.ok(
+    page.includes("backtest.serving ??"),
+    "serving 狀態必須來自 backtest 這一份 response（不得另外請求）",
+  );
+  assert.ok(
+    page.includes("pregameServingNotice(servingMeta)"),
+    "文案必須走共用函式，不得在頁面內另寫一套 degradation 分流",
+  );
+  assert.equal(
+    /degradation\s*===/.test(page),
+    false,
+    "頁面不得自行判讀 degradation：判別在後端做一次、文案在 pregameServingNotice 做一次",
+  );
+});
+
 test("resolvePregameCard 由 response.serving 推導告示，不引入第二來源", () => {
   const lib = read("lib/pregame-card.ts");
 

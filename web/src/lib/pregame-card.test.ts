@@ -168,6 +168,50 @@ test("賽況頁卡片：三種 degradation 各自沿用與首頁／方法頁相�
   assert.ok(mismatch.servingNotice.includes("不一致"));
 });
 
+test("賽況頁卡片：backtest_unknown 要揭露，但不得宣稱閘門通過或失敗", () => {
+  const model = availableWithServing({
+    status: "serving_previous",
+    degradation: "backtest_unknown",
+    serving_version: "outcome-simple-3",
+    backtest_version: "outcome-simple-2",
+    backtest_deployable: null,
+  });
+
+  assert.ok(model.status === "available" && model.servingNotice);
+  assert.equal(model.servingNotice.includes("通過"), false, "未知不得被講成 PASS 或 FAIL");
+  assert.ok(model.servingNotice.includes("無法確認"));
+  assert.equal(model.status === "available" && Number.isFinite(model.homeWinProbability), true);
+});
+
+test("賽況頁卡片：version_mismatch 只有在 backtest_deployable 為 true 時才敢說回測通過", () => {
+  for (const deployable of [null, false] as const) {
+    const model = availableWithServing({
+      status: "serving_previous",
+      degradation: "version_mismatch",
+      serving_version: "outcome-simple-3",
+      backtest_version: "outcome-simple-2",
+      backtest_deployable: deployable,
+    });
+
+    assert.ok(model.status === "available" && model.servingNotice);
+    assert.equal(model.servingNotice.includes("已通過閘門"), false, `deployable=${deployable}`);
+  }
+});
+
+test("賽況頁卡片：未知判別碼走中性文案，不得沿用 version_unknown 的說法", () => {
+  const model = availableWithServing({
+    status: "serving_previous",
+    degradation: "some_future_code",
+    serving_version: "outcome-simple-3",
+    backtest_version: "outcome-simple-2",
+    backtest_deployable: true,
+  });
+
+  assert.ok(model.status === "available" && model.servingNotice);
+  assert.equal(model.servingNotice.includes("未記錄版本"), false);
+  assert.equal(model.servingNotice.includes("通過"), false);
+});
+
 test("serving 正常或缺欄位時卡片不加註（不得製造噪音，也不得因缺欄位就報降級）", () => {
   const current = availableWithServing({
     status: "serving_current",
