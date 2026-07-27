@@ -94,8 +94,9 @@ def _calibration_slope_se(actual, predicted, blocks):
 
     **這是診斷，不是零假設區間的驗證。** 兩者是不同物件：H0 bootstrap 問的是「若模型
     完美校準，斜率會怎麼飄」（重抽 y ~ Bernoulli(p̂)）；這裡問的是「就這一批觀測資料而言，
-    把同一行事曆週的殘差視為可相關，斜率估計量的變異會不會變大」。cluster SE 不窄於
-    IID SE 並不能證明 H0 區間正確，只能說**沒有證據顯示週內群聚在此資料上放大了變異**。
+    把同一行事曆週的殘差視為可相關，斜率估計量的變異會不會變大」。**兩個 SE 的大小關係
+    無論往哪一邊，都不能拿來證明 H0 區間正確**；能說的只有一句：cluster SE 未大於 IID SE
+    ⇒ 沒有證據顯示週內群聚在此資料上放大了估計量的變異（本次實測 cluster 略**窄**於 IID）。
 
     定義：再校準回歸 `y ~ sigmoid(a + b·logit p̂)` 的 sandwich 變異
     `H⁻¹ (Σ_g u_g u_gᵀ) H⁻¹`，`H = XᵀWX`、`u_g = Σ_{i∈g} (y_i − p_i) x_i`。
