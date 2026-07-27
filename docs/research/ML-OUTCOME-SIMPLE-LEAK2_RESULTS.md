@@ -85,9 +85,34 @@ LogLoss 差 **[−0.01368, −0.00388]**，兩者全負；勝過基準的測試�
 非參數行事曆週區塊 bootstrap 的斜率 95% 區間 **[0.885, 1.875]** 同樣涵蓋 1.0。
 **沒有證據說這個模型失準。**
 
-> **條件零假設**：模擬假設「給定 p̂，各場賽果彼此獨立」。同週賽果的殘餘相關性未建模，
-> 真實零分布會更寬，因此用這裡較窄的 IID 區間，實際偽拒絕率**高於**名目 5%——就檢定
-> 本身而言偏嚴、就「不讓失準模型上線」而言偏安全。下文所有「5%」皆指此條件下的名目值。
+> **條件零假設**：模擬假設「給定 p̂，各場賽果彼此獨立」。同週賽果若有殘餘相依，效果的
+> **方向取決於相依的正負**：**正向**群聚會讓真實零分布變寬，這裡較窄的 IID 區間會使實際
+> 型一誤差**高於**名目 5%；**負向**相依則相反，零分布較窄、IID 區間偏寬、型一誤差低於
+> 名目值。**本卡未估計該相依的方向與大小**，因此不主張這個檢定往哪一邊偏保守。
+> 下文所有「5%」皆指此條件下的名目值。
+
+**診斷（不是上述區間的驗證）**：同一批 1,585 筆 OOS 預測，把再校準回歸
+`y ~ sigmoid(a + b·logit p̂)` 的斜率估計量算 sandwich SE，cluster 取 `(season, ISO week)`
+共 149 個行事曆週，未套小樣本修正：
+
+| 斜率估計量的 SE | 值 |
+|---|---:|
+| IID（`H⁻¹` 對角） | 0.250849 |
+| 行事曆週 cluster-robust | 0.249491 |
+| 比值（cluster ÷ IID） | **0.9946** |
+
+取得方式（唯讀，不寫 DB／artifact）：
+
+```bash
+uv run python scripts/outcome_simple_calibration_audit.py out.json   # 讀 out.json 的 slope_se_week_cluster_vs_iid
+```
+
+這是**觀測資料上的診斷**，與上表的 H0 參數 bootstrap 是不同物件：後者問「若模型完美校準，
+斜率會怎麼飄」（重抽 `y ~ Bernoulli(p̂)`），前者問「就這批資料而言，允許同週殘差相關後
+估計量的變異會不會變大」。因此它只支持一句話——**無證據顯示週內群聚在此資料上放大了
+變異**（cluster SE 略小於 IID）。它**不能**反過來當成 H0 區間正確的證明，也不排除其他
+相依結構。iteration 5 查核者以同一批預測獨立量到 IID `0.250856`／週 cluster `0.250431`
+（比值 0.9983），與此處結論一致；數值小差來自 cluster 界定與小樣本修正的取捨不同。
 
 ### 3.3 用能反映校準的指標看，誠實模型反而更準
 
@@ -177,9 +202,24 @@ LEAK1 查核者的 Informational finding：2018 前無 `pitching_gamelog`，三�
 | serving artifact `outcome_simple.joblib` | 同一次執行寫出，內含 `version = outcome-simple-1785117621` 與 `gate` |
 | 兩者關係 | **一致**（同一次 `cpbl-train-outcome-simple` 產出），無半套狀態 |
 
-閘門失敗路徑（本次未觸發）也不再靜默：artifact 自陳產出它的 `version`，兩個 pregame
-端點回傳該值；與 `/api/v1/outcome/pregame/backtest` 的 `version` 不一致，即代表最新回測
-未過閘門、serving 沿用上一版。訓練 log 亦明講「serving 仍為哪一版、對不上哪一版回測」。
+閘門失敗路徑（本次未觸發）也不再靜默，且**成因判別在後端做一次**：`pregame_serving.py`
+比對 artifact 自陳的 `version` 與 `model_versions` 最新列，回傳 `status` 加一個
+`degradation` 判別碼——
+
+| `degradation` | 成立條件 | 介面可以說什麼 |
+|---|---|---|
+| `gate_failed` | DB 記下 `deployable=false` | **唯一**能講「最新回測未通過部署閘門」 |
+| `version_unknown` | serving artifact 無 `version` 欄（去洩漏前的舊格式） | 只能說無法確認是否為最新產出 |
+| `backtest_unknown` | 回測那一側讀不到（DB 例外／無紀錄／`gate` 欄缺席） | 只能說閘門結果無從確認，不得猜通過與否 |
+| `version_mismatch` | 兩側都讀到、回測 `deployable=true` 但版本不一致 | 可附註該次回測本身已通過閘門 |
+
+判別順序（`gate_failed` → `version_unknown` → `backtest_unknown` → `version_mismatch`）與
+理由寫在 `serving_state()` 的 docstring。三個渲染賽前勝率的介面——首頁 `DailyHub`、
+`/methodology#pregame`、賽況頁 `games/[sno]` 的 `PregameCard`——共用同一支
+`pregameServingNotice()` 映射文案，且各自從**產生該畫面機率的那一份 response** 取狀態
+（單一來源不變式）。前端對「該次回測已通過閘門」這句話另要求 `backtest_deployable === true`，
+不靠後端保證；未知判別碼一律落到不含閘門宣稱的中性文案。訓練 log 亦明講「serving 仍為
+哪一版、對不上哪一版回測」。
 
 ---
 
@@ -201,18 +241,37 @@ docker run --rm --add-host=host.docker.internal:host-gateway \
   -v "$PWD/artifacts":/app/artifacts cpbl-leak2 cpbl-train-outcome-simple
 ```
 
-零假設分布、洩漏模型對照、溫度縮放與 2018 世代診斷的一次性腳本見
+零假設分布、洩漏模型對照、溫度縮放、2018 世代對照與 §3.2 的週 cluster SE 診斷全部出自
 `scripts/outcome_simple_calibration_audit.py`（只讀，不寫 `model_versions`／artifact）。
+它不需要 LightGBM，可直接在 host 跑：
+
+```bash
+uv run python scripts/outcome_simple_calibration_audit.py out.json
+```
+
+數字出處逐項對得上，沒有手抄推估的估計值：
+
+| 報告位置 | 出處 |
+|---|---|
+| §3.1／§3.2／§3.4 的誠實模型欄、§3.2 的週 cluster SE、§4(b) 溫度縮放、§5 全表 | 腳本輸出欄位（`honest`／`slope_se_week_cluster_vs_iid`／`temperature`／`cohort_2018`／`block_bootstrap_slope_ci95`） |
+| §3.1／§3.2／§3.4 的洩漏模型欄（logit sd、H0 區間、偽失敗率） | 腳本輸出欄位 `leaked`（由固化在腳本內的 reliability decile 還原） |
+| §2／§3.3 的洩漏模型 ECE 與截距 | 重訓前的 `model_versions` 列（已被 trainer 的 DELETE + INSERT 覆寫；腳本只固化了斜率與 reliability，這兩個值無法再由腳本重算） |
+| §1／§2 的多模型比較與配對 bootstrap 區間 | 本次 `cpbl-train-outcome-simple` 寫進 `model_versions` 的 `cv_metrics`（腳本不跑 LightGBM） |
 
 ---
 
 ## §9 未盡事項
 
-1. **UI 降級狀態語彙未新增**：閘門失敗時前端 `PregameCardModel` 的狀態集合
-   （`available`／`missing_artifact`／`pending`／`unsupported`／`error`）沒有「serving 沿用
-   上一版」這一態，會落到 `error`。目前 API 已可判定（version 比對），但 UI 尚無對應文案。
-   本卡未觸發該路徑，如未來閘門真的失敗需補一張卡。
-2. **`models/matchup.py` 尺度不一致**（LEAK1 §6.2 已列）：對戰卡仍用 `pitching_current`
+1. **`backtest_unknown` 無真實觸發樣本**：iteration 6 新增的這條路徑（回測那一側讀不到）
+   只有測試覆蓋，未在真實環境發生過。本機與 prod 都沒有「DB 讀得到但 `gate` 欄缺席」的
+   歷史列，該分支的實際畫面尚未被人眼看過。
+2. **`RENDERING_SOURCES` 是手動維護清單**：`web/src/lib/pregame-single-source.test.ts` 的
+   結構守衛靠一份手寫檔案清單覆蓋三個介面；新增渲染賽前勝率的頁面時必須同步加入，
+   否則守衛會靜默漏掉它（賽況頁就是開卡時 scope 沒寫全、iteration 5 才補上的那一個）。
+   要根治須改成掃描全 `app/`／`components/` 找引用再反查清單，本卡未做。
+3. **`/dev/pregame-card` 在生產可達**：該走查頁只吃 `pregame-card-fixtures.ts` 的假資料
+   （不打 API、不顯示真數字），但它未被任何路由守衛擋在生產之外。屬既有狀況，非本卡引入。
+4. **`models/matchup.py` 尺度不一致**（LEAK1 §6.2 已列）：對戰卡仍用 `pitching_current`
    當季彙總，與訓練分布（收縮後 sd 0.96）不同尺度，`z` 會被高估。需求方裁定不動。
 3. **2018 前後世代語意分裂**（§5）：已證明不是斜率成因，但語意不同質本身仍在。
 4. 未同步 production DB、未部署（依卡面紅線；本卡與 LEAK1 須同批上線）。
