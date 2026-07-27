@@ -10,23 +10,22 @@
 
 ## §0 裁決
 
+<!-- generated:verdict start -->
 > **A scope（局面 WP ＋ 戰力感知先驗融合）＝ unsupported（No-Go）。**
 > `GAME-RECAP-WP-API1` 的 A 範圍**維持阻塞**。
 
 | 硬門檻 | 結果 |
 |---|---|
-| 各驗證季 coverage ≥ 0.98（**含 effective coverage**） | ✅ 2023–2025 皆 **1.000000**；2026 **0.986301**（3 場新入庫尚無 published PA build） |
-| 融合後 Brier 勝主場常數基準 | ✅ 四季皆勝（幅度 0.081–0.094） |
-| **融合後 Brier 不得劣於同代未融合 base** | ❌ **2023（+0.000444）、2025（+0.001479）劣於 base** |
+| 各驗證季 coverage ≥ 0.98（**含 effective coverage**） | ✅ 2023–2025 皆 **1.000000**；2026 **0.986301**（3 場尚無 published PA build） |
+| 融合後 Brier 勝主場常數基準 | ✅ 四季皆勝（幅度 0.081–0.096） |
+| **融合後 Brier 不得劣於同代未融合 base** | ❌ **2023（+0.000444）**；**2025（+0.001479）** 劣於 base |
 | 池化十分位 n≥1000：\|dev\|≤0.03 或 99% CI 含 0 | ✅ 通過（**但見 §6 的重要但書**） |
 | 池化局帶 n≥1000：\|dev\|≤0.03 或 99% CI 含 0 | ✅ 三帶 \|dev\| 皆 ≤0.73pt |
-| 局帶相對 base 不得系統性惡化 | ✅ 最大惡化 +0.73pt（<1pt，未達揭露門檻） |
+| 局帶相對 base 不得系統性惡化 | ✅ 最大惡化 +0.72pt（<1pt，未達揭露門檻） |
 | 全部預註冊驗證季 2023–2026 皆執行 | ✅ |
 
-**一句話結論**：融合層在**校準**上有微幅正向效果（池化 ECE 0.02257 → 0.02063，顯著偏差分箱 [7,8] → []），
-但在**準確度**上與零無異——池化 Brier 差 **+0.000095（99% game-cluster CI [−0.001367, +0.001646]）**，
-四季中兩季變差。根因不是融合式或實作，而是**八項凍結賽前特徵在時間外幾乎不含增量資訊**：
-先驗 p0 的逐場 Brier 相對 leakage-safe 主場常數基準只有 −0.0009 的平均優勢，四季中兩季為負（§6）。
+**一句話結論**：融合層在**校準**上有微幅正向效果（池化 ECE 0.02257 → 0.02063，顯著偏差分箱 [7, 8] → []），但在**準確度**上與零無異——池化 Brier 差 **+0.000095（99% game-cluster CI [−0.001367, +0.001646]）**，四季中 2 季變差。根因不是融合式或實作，而是**八項凍結賽前特徵在時間外幾乎不含增量資訊**（§6）。
+<!-- generated:verdict end -->
 
 ---
 
@@ -41,35 +40,52 @@
 | 5 | 逐局帶是硬性判定 | `strength_verdict` 同時檢「絕對偏差＋99% CI」與「相對同代 base 惡化」兩組門檻，數值沿用 CAL1 預註冊值 | `test_verdict_hard_fails_on_significant_band_deviation`、`..._single_band_worsening_over_2pt`、`..._two_bands_worsening_over_1pt`、`test_verdict_small_band_not_a_gate` |
 | 6 | 語意與數值合約 | `fuse()`：`WP_situ ∈ {0,1}` 直接短路不經 clip；`w(t)=(1−t)^γ` 由 regulation outs 決定、10 局起恆 0；固定 `(p0,t)` 時嚴格單調 | `test_fuse_opening_anchor_equals_p0`、`..._strictly_monotone_in_wp_situ`、`..._range_and_canonical_endpoints`、`..._zero_weight_is_identity`、`test_weight_decreasing_with_fixed_endpoints` |
 | 7 | 基準、時期與小樣本 | 逐季／池化並排 base、CAL1、主場常數（§4）；2026 首列；p0、≤2017 prior、advanced shadow 只列診斷；10+ 帶與 n<1000 分箱只揭露 | §4／§7；`test_verdict_small_band_not_a_gate` |
-| 8 | 可重現 | DB 全程唯讀（只有 `SELECT`）；seed 固定 `20260725`；`--out`／`--seasons` 支援部分重跑，且部分重跑**強制**寫入 `不得作 Go 證據` 的硬性理由 | `test_partial_rerun_cannot_be_go_evidence`；§9 |
+| 8 | 可重現（**經需求方 2026-07-27 sign-off 放寬為漂移偵測**） | DB 全程唯讀（只有 `SELECT`）；seed 固定 `20260725`；`--as-of` 界定完成場母體並貫穿 season metadata；`population_fingerprint` 涵蓋完成場內容／實際模型輸入／published build identity，`--expect-fingerprint` 不符即中止；部分重跑**強制**寫入 `不得作 Go 證據` 的硬性理由 | `test_partial_rerun_cannot_be_go_evidence`、`test_season_metadata_ignores_games_after_as_of`、`test_fingerprint_covers_scores_builds_and_model_inputs`、`test_fingerprint_tracks_actual_model_inputs`、`test_fingerprint_diff_names_the_drifted_key`；§9 |
 
 ---
 
 ## §2 母體、資料來源與降級帳
 
-**賽前母體**：A 一軍例行 **2,554 場**（完成場且 `game_date ≤ data_as_of`；本次 `data_as_of = 2026-07-27`），含 **40 場和局**（標籤 `y=0.5`）。
+> 本節起，凡帶數字的表格與句子皆由 `scripts/strength1_report_tables.py` 自 canonical artifact
+> 產生（標記為 `<!-- generated:… -->` 的區塊），`tests/test_strength1_report_sync.py` 釘住同步。
+> **人工謄寫數字後宣稱已對帳，在本卡連續三輪失敗**（iteration 1／2／3），故改為結構保證。
 
-> ⚠️ **進行中賽季的母體會隨入庫漂移**：`--as-of` 只鎖 `game_date` 界限，鎖不住入庫狀態。iteration 2 查核實測——同一個 `--as-of 2026-07-26` 在不同時點重跑得到 216 vs 219 場（那 3 場日期早在界限內，只是比分後來才入庫）。artifact 因此另存 `population_fingerprint`（逐年完成場數＋sno 集合 md5），重跑者可立即偵測母體是否已漂移，而不是靜默得到不同數字。本次 2026 指紋：`n_completed=219`、`sno_md5=992a324eb00ca9d65c98c0aa2f649bed`。
+<!-- generated:population start -->
+**賽前母體**：A 一軍例行 **2,554 場**（完成場且 `game_date ≤ data_as_of`；本次 `data_as_of = 2026-07-27`），含 **40 場和局**（標籤 `y=0.5`）。
 
 | 年 | 2018 | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 | 2026 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | 場數 | 239 | 240 | 240 | 299 | 300 | 298 | 360 | 359 | 219 |
 
-**先發／牛棚 rate 的資訊來源層級**（逐場逐側計數，合計 5,102 側）：
+本次 2026 輸入指紋：`n_completed=219`、`sno_md5=992a324eb00ca9d65c98c0aa2f649bed`、`games_md5=6a46603396e7035484d5d3c2a5c1b04b`、`model_inputs_md5=ef34553f7675cb7c6d56d24e5b250a59`；全域 `model_inputs_md5=32c3931b2f28529cf456904b5c5db144`。
+<!-- generated:population end -->
+
+> ⚠️ **進行中賽季的母體會隨入庫漂移**：`--as-of` 只鎖 `game_date` 界限，鎖不住入庫狀態。iteration 2 查核實測——同一個 `--as-of 2026-07-26` 在不同時點重跑得到 216 vs 219 場（那 3 場日期早在界限內，只是比分後來才入庫）。artifact 因此另存三層 `population_fingerprint`（完成場 sno／比分內容／**實際進入模型的 GameRow**／驗證季 published build identity），重跑時以 `--expect-fingerprint` 比對，不符即中止（紅線 8 的漂移偵測，經需求方 2026-07-27 sign-off 放寬自「逐位重現」）。
+
+<!-- generated:source_tiers start -->
+**先發／牛棚 rate 的資訊來源層級**：逐場逐側計數，兩項各 5,108 側＝2,554 場 × 2 側。
 
 | 指標 | 當季自身（own） | 前一季（prior） | fit 窗聯盟率（league） |
 |---|---:|---:|---:|
-| 先發 | 4,696（92.0%） | 252（4.9%） | 154（3.0%） |
-| 牛棚 | 5,056（99.1%） | 39（0.8%） | 7（0.1%） |
+| 先發 | 4,702（92.1%） | 252（4.9%） | 154（3.0%） |
+| 牛棚 | 5,062（99.1%） | 39（0.8%） | 7（0.1%） |
+<!-- generated:source_tiers end -->
 
 降級全部落在「季初首戰」與「無前一季紀錄的新投手」，是 fail-closed 的預期行為而非缺陷。
 **已知降級**：2018 的先發 prior 來自 `pitching_seasons(2017)`，該表無好球數 → 好球率 prior 只能退聯盟率
 （`test_cold_start_prior_without_strike_falls_back_to_league` 鎖定此語意）；2018 的牛棚 prior 因 2017 無逐場
 gamelog 而一律退聯盟率。兩者皆只影響 2018 的訓練列，不影響任何驗證季的評分。
 
-**排除帳**：四個驗證季的 `excluded_pa_no_pregame_features` **皆為 0**；`coverage_raw` 與 `effective_coverage` 2023–2025 皆 **1.000000**、2026 為 **0.986301**（219 完成場中 216 場有 published PA build）
+<!-- generated:coverage_ledger start -->
+**排除帳**：四個驗證季的 `excluded_pa_no_pregame_features` **皆為 0**；`coverage_raw` 與 `effective_coverage` 2023–2025 皆 **1.000000**、2026 為 **0.986301**（219 完成場中 216 場有 published PA build）。
+<!-- generated:coverage_ledger end -->
+
 （WP-CAL1 當時 2026 為 0.9722 而硬性失敗的 canonical PA build 缺口已由需求方補跑修復，
-治本卡為 [`INGEST-PA-DAILY1`](../tasks/INGEST-PA-DAILY1.md)）。
+治本卡為 [`INGEST-PA-DAILY1`](../tasks/INGEST-PA-DAILY1.md)。上述三個欄位與 `coverage`、
+`n_irregular_games`、`pa_state_counts` 自 iteration 4 起一律由 `--as-of` 母體重算——原本取自
+`load_eval_season()`，該函式以 `CURRENT_DATE` 為界，會讓標著舊 `data_as_of` 的 artifact 混進當下
+全表的內容（iteration 3 查核 F1）。實測：`--as-of 2026-06-30` 得 177 完成場、coverage 1.000000、
+`n_irregular_games=17`；修正前這三格會回報 7/27 的 219／0.986301／19。）
 
 **kappa 的分母換算**：卡面固定 `kappa` 為 PA-equivalent 且「不得各指標另調」。好球率的分母是投球數、
 FIP proxy 的分母是局數，故以 fit 窗聯盟的 `分母/PA` 比換算等效 kappa（`pitch_per_pa ≈ 3.78`、
@@ -86,12 +102,14 @@ FIP proxy 的分母是局數，故以 fit 窗聯盟的 `分母/PA` 比換算等�
 `gamma` 再以同代 base 融合後的 `Y−1` 逐 PA Brier 選定。掃描順序固定為 kappa 升冪 → lambda 升冪，
 故 epsilon 比較完全決定性。
 
+<!-- generated:selection start -->
 | 驗證季 Y | inner fit | 選型季 Y−1 | 選定 κ | 選定 λ | 選定 γ | 選型季逐場 Brier | 選型季融合 vs 未融合 |
 |---|---|---|---:|---:|---:|---:|---|
-| 2023 | 2018–2021 | 2022 | 50 | 100 | 1.0 | 0.239064 | 0.146455 < 0.147401（改善） |
-| 2024 | 2018–2022 | 2023 | 200 | 100 | 2.0 | 0.242378 | 0.147634 > 0.147453（**惡化**） |
+| 2023 | 2018–2021 | 2022 | 50 | 100 | 1 | 0.239064 | 0.146455 < 0.147401（改善） |
+| 2024 | 2018–2022 | 2023 | 200 | 100 | 2 | 0.242378 | 0.147634 > 0.147453（**惡化**） |
 | 2025 | 2018–2023 | 2024 | 100 | 0.1 | 0.5 | 0.241558 | 0.151582 < 0.153876（改善） |
-| 2026 | 2018–2024 | 2025 | 200 | 100 | 2.0 | 0.246487 | 0.154420 < 0.154478（改善） |
+| 2026 | 2018–2024 | 2025 | 200 | 100 | 2 | 0.246487 | 0.154420 < 0.154478（改善） |
+<!-- generated:selection end -->
 
 兩點值得記錄：
 
@@ -106,20 +124,25 @@ FIP proxy 的分母是局數，故以 fit 窗聯盟的 `分母/PA` 比換算等�
 
 ### 4.1 逐季（判定用未捨入值）
 
+<!-- generated:seasons start -->
 | 季 | base 模型窗 | n_PA | cov | **主場常數** | **CAL1（歷史）** | **base（未融合）** | **本卡 WP_adj** | Δ vs base | Δ 的 99% CI |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---|
 | **2026（鎖箱；資料截止 2026-07-27、完成場 219）** | 2018-2025 | 16,131 | 0.9863 | 0.247138 | 0.16725¹ | 0.166597 | **0.166368** | **−0.000230** | [−0.002341, +0.001766] |
 | 2025 | 2018-2024 | 27,078 | 1.0000 | 0.248571 | 0.15357 | 0.154478 | **0.155958** | **+0.001479** ❌ | [−0.001809, +0.005377] |
 | 2024 | 2018-2023 | 27,453 | 1.0000 | 0.248753 | 0.15335 | 0.153876 | **0.152505** | **−0.001372** | [−0.003265, +0.000130] |
 | 2023 | 2018-2022 | 22,912 | 1.0000 | 0.241499 | 0.14792 | 0.147453 | **0.147897** | **+0.000444** ❌ | [−0.001560, +0.002625] |
+<!-- generated:seasons end -->
 
-¹ CAL1 的 2026 是在 coverage 0.9722（缺 6 場）下計算，與本卡的 216/219 母體不完全可比；其餘年度可比。
+¹ CAL1 欄是 WP-CAL1 的歷史值，**不在本卡 artifact 內**（腳本以常數帶入，見 `CAL1_BRIER`）；其 2026 是在 coverage 0.9722（缺 6 場）下計算，與本卡的 216/219 母體不完全可比，其餘年度可比。
 
 **主場常數基準已改用未捨入值**：iteration 2 查核 F1a 指出 `winprob_val.home_rate_from_games()` 會先把 p 捨入 4 位，硬門檻 Brier 因而只是「對已捨入 p 的未捨入計算」；本卡改用自帶的 `home_rate_exact()`，故上表基準較 iteration 1 有第 6 位差異。
 
 **四個 Δ 的 99% game-cluster CI 全部包含 0。** 兩個 ❌ 是硬門檻以點估計判定的結果，而點估計本身在雜訊尺度內。
 
-### 4.2 池化 2023–2026（n_PA = 93,574；n_games = 1,233）
+### 4.2 池化 2023–2026
+
+<!-- generated:pooled start -->
+池化 2023–2026：n_PA = 93,574；n_games = 1,233。
 
 | 模型 | Brier | ECE | 顯著偏差分箱（99% 叢集 CI 排除 0） |
 |---|---:|---:|---|
@@ -128,36 +151,41 @@ FIP proxy 的分母是局數，故以 fit 窗聯盟的 `分母/PA` 比換算等�
 | **WP_adj（本卡）** | **0.154766** | **0.02063** | **[]** |
 
 池化 Brier 差 **+0.000095**，99% game-cluster CI **[−0.001367, +0.001646]**（`brier_delta_diagnostic`；診斷用，不進判定）。
+<!-- generated:pooled end -->
 
 ### 4.3 池化逐局帶（硬性判定；未捨入）
 
+<!-- generated:bands start -->
 | 帶 | n | base dev | WP_adj dev | Δ\|dev\| | WP_adj 的 99% CI |
 |---|---:|---:|---:|---:|---|
 | 1-3 | 31,244 | −0.00003 | +0.00726 | **+0.72pt** | [−0.03025, +0.03376] |
-| 4-6 | 31,771 | +0.00303 | +0.00588 | +0.29pt | [−0.02337, +0.02842] |
+| 4-6 | 31,771 | +0.00303 | +0.00588 | +0.28pt | [−0.02337, +0.02842] |
 | 7-9 | 29,366 | −0.00059 | +0.00011 | −0.05pt | [−0.02284, +0.01687] |
-| 10+（僅揭露） | 1,193 | −0.00028 | −0.00028 | 0.00pt | [−0.10834, +0.09311] |
+| 10+（僅揭露） | 1,193 | −0.00028 | −0.00028 | +0.00pt | [−0.10834, +0.09311] |
+<!-- generated:bands end -->
 
-三個例行帶皆遠低於 0.03 上限、CI 皆含 0，且最大惡化 +0.72pt < 1pt 的揭露門檻。
-**對照 CAL1**：事後校準當時把 1-3 帶從 −0.10pt 惡化到 −2.41pt（超過 2pt 硬性上限）。
+<!-- generated:cal1_contrast start -->
+三個例行帶皆遠低於 0.03 上限、CI 皆含 0。**對照 CAL1**：事後校準（定案的 isotonic）當時把 1-3 帶從 −0.10pt 惡化到 −2.41pt，超過 2pt 硬性上限。
+<!-- generated:cal1_contrast end -->
 **opening anchor 設計確實達成了它的目的**——本卡沒有重蹈 CAL1 「全域中心下修破壞早局帶」的覆轍。
 
 ---
 
 ## §5 逐條硬門檻對照
 
+<!-- generated:hard_gates start -->
 | 條 | 門檻 | 判定 | 證據 |
 |---|---|---|---|
-| 4a | 任一季 coverage 或 effective coverage < 0.98 | ✅ 通過 | 2023–2025 皆 1.000000；2026 0.986301 |
-| 4b | 任一季 Brier 未勝主場常數基準 | ✅ 通過 | 最小優勢 0.0805（2026）、最大 0.0962（2024） |
-| 4c | **任一季 Brier 劣於同代未融合 base** | ❌ **失敗 ×2** | 2023 +0.000444；2025 +0.001479 |
-| 4d | 池化十分位 n≥1000 且 \|dev\|>0.03 且 CI 排除 0 | ✅ 通過 | 見 §6 但書 |
+| 4a | 任一季 coverage 或 effective coverage < 0.98 | ✅ 通過 | 2023 1.000000；2024 1.000000；2025 1.000000；2026 0.986301 |
+| 4b | 任一季 Brier 未勝主場常數基準 | ✅ 通過 | 最小優勢 0.0808（2026）、最大 0.0962（2024） |
+| 4c | **任一季 Brier 劣於同代未融合 base** | ❌ **失敗** ×2 | 2023 +0.000444；2025 +0.001479 |
+| 4d | 池化十分位 n≥1000 且 \|dev\|>0.03 且 CI 排除 0 | ✅ 通過 | 見 §6.3 但書 |
 | 5a | 池化局帶 n≥1000 且 \|dev\|>0.03 且 CI 排除 0 | ✅ 通過 | 三帶 \|dev\| ≤ 0.73pt |
 | 5b | 單帶 \|dev\| 惡化 >2pt，或 ≥2 帶各惡化 >1pt | ✅ 通過 | 最大 +0.72pt |
 | 8 | 全部預註冊驗證季皆執行 | ✅ 通過 | 2023–2026 |
 
-**任一硬門檻失敗即 No-Go**（卡面驗收條件明文，不得以「接近門檻」、平均改善或事後改候選放行）。
-4c 失敗兩季 → **No-Go**。
+**任一硬門檻失敗即 No-Go**。本次失敗 2 項（4c）→ **No-Go**。
+<!-- generated:hard_gates end -->
 
 ---
 
@@ -165,27 +193,29 @@ FIP proxy 的分母是局數，故以 fit 窗聯盟的 `分母/PA` 比換算等�
 
 ### 6.1 先驗 p0 在時間外幾乎不含增量資訊
 
+<!-- generated:p0_diagnostics start -->
 | 驗證季 | p0 逐場 Brier | leakage-safe 主場常數 | Δ | p0 值域 |
 |---|---:|---:|---:|---|
-| 2026 | 0.246156 | 0.246392 | −0.000236 | [0.414, 0.656] |
-| 2025 | 0.248801 | 0.247376 | **+0.001425** | [0.383, 0.717] |
+| 2026 | 0.245492 | 0.245940 | −0.000448 | [0.414, 0.656] |
+| 2025 | 0.248801 | 0.247375 | **+0.001426** | [0.383, 0.717] |
 | 2024 | 0.242802 | 0.247965 | −0.005163 | [0.271, 0.673] |
-| 2023 | 0.242734 | 0.241802 | **+0.000932** | [0.410, 0.653] |
+| 2023 | 0.242734 | 0.241801 | **+0.000933** | [0.410, 0.653] |
 
-四季平均 Δ ≈ −0.0009，兩季為正。以每季約 300 場計，逐場 Brier 差的抽樣雜訊底線在 ±0.003–0.005，
-**這個訊號量與 0 不可區分**。融合層只是把這個「近乎零」的先驗按 `w(t)` 注入 WP，
-所以逐季 Brier 變化也就停在 ±0.0015 的雜訊尺度、正負各半。
+四季平均 Δ ≈ −0.0008，2 季為正。
+<!-- generated:p0_diagnostics end -->
 
 ### 6.2 這不是實作不足——管線在有訊號時抓得到
 
 `--diagnostics` 的四路對照（固定 κ=100、λ=100，不參與任何選型）：
 
+<!-- generated:prior_signal_diagnostics start -->
 | Y | ① 同窗 in-sample | ② 時間外（本卡用法） | ③ 主場常數 | ④ `game_features` starter 欄 | ⑤ 後半季時間外 | ⑥ 後半季常數 |
 |---|---:|---:|---:|---:|---:|---:|
 | 2023 | 0.239013 | 0.242537 | 0.241801 | 0.241970 | 0.241442 | 0.240327 |
 | 2024 | 0.239561 | 0.242650 | 0.247965 | 0.240356 | 0.240874 | 0.246285 |
 | 2025 | 0.239856 | 0.246693 | 0.247375 | 0.244834 | 0.247856 | 0.249358 |
-| 2026 | 0.240880 | 0.245898 | 0.246392 | 0.247353 | 0.250799 | 0.252863 |
+| 2026 | 0.240880 | 0.245267 | 0.245940 | 0.246447 | 0.249206 | 0.251628 |
+<!-- generated:prior_signal_diagnostics end -->
 
 兩項讀法：
 
@@ -225,12 +255,20 @@ artifact 未快照輸入即無法自證。後續若要保留此類對照，須�
 卡面的治本假說是「高分箱（領先方）低估是結構性的：現實中領先方不成比例地是較強隊」。
 池化十分位顯示這個假說**方向正確但幅度遠遠不足**：
 
+<!-- generated:deciles start -->
 | 分箱 | n | base dev | WP_adj dev | 改善 |
 |---|---:|---:|---:|---:|
-| 2 | ~6.1k | +0.0403 | +0.0415 | −0.12pt（略惡化） |
-| 3 | ~7.0k | +0.0440 | +0.0468 | −0.28pt（略惡化） |
-| 7 | ~7.2k | −0.0491 | −0.0438 | +0.53pt |
-| 8 | ~6.8k | −0.0415 | −0.0319 | +0.96pt |
+| 0 | 10,554 | +0.00289 | +0.00192 | +0.10pt |
+| 1 | 5,867 | +0.03591 | +0.03348 | +0.24pt |
+| 2 | 6,168 | +0.04029 | +0.04150 | −0.12pt（惡化） |
+| 3 | 6,906 | +0.04404 | +0.04682 | −0.28pt（惡化） |
+| 4 | 8,953 | +0.01884 | +0.01045 | +0.84pt |
+| 5 | 21,364 | +0.00617 | +0.01510 | −0.89pt（惡化） |
+| 6 | 8,468 | −0.03106 | −0.00738 | +2.37pt |
+| 7 | 6,891 | −0.04909 | −0.04376 | +0.53pt |
+| 8 | 6,664 | −0.04154 | −0.03186 | +0.97pt |
+| 9 | 11,739 | −0.01179 | −0.01225 | −0.05pt（惡化） |
+<!-- generated:deciles end -->
 
 高分箱確實往正確方向移動，但只走了 0.5–1.0pt，原始偏差是 4–5pt；低分箱反而略微惡化。
 
@@ -243,7 +281,7 @@ artifact 未快照輸入即無法自證。後續若要保留此類對照，須�
 
 | | WP-CAL1（事後校準） | WP-STRENGTH1（戰力先驗） |
 |---|---|---|
-| 失敗形態 | 修正**有力但方向錯**：池化分箱修平了，卻把 1-3 局帶從 0.1pt 破壞到 2.6pt | 修正**方向對但沒有力**：局帶完好無損，但幅度只有需求的 1/5 |
+| 失敗形態 | 修正**有力但方向錯**：池化分箱修平了，卻把 1-3 局帶從 −0.10pt 破壞到 −2.41pt（定案的 isotonic） | 修正**方向對但沒有力**：局帶完好無損，但幅度只有需求的 1/5 |
 | 根因 | 校準窗與驗證季分屬不同世代 base，學到的中心修正已過時（不具時間平穩性） | 賽前可得資訊在時間外幾乎不含增量預測力 |
 | 共同教訓 | 內部窗指標會為有害／無效的層背書；**唯一防線是嵌套時間外驗證＋逐局帶硬門檻** | 同左 |
 
@@ -258,12 +296,14 @@ CAL1 的教訓在本卡被制度化並生效：opening anchor 讓局帶完全沒
 
 融合後逐 PA Brier（低者佳）：
 
+<!-- generated:ablation start -->
 | 季 | team_only（4 項） | team+starter（7 項） | **full（8 項）** |
 |---|---:|---:|---:|
 | 2026 | 0.166765 | **0.166354** | 0.166368 |
 | 2025 | **0.154671** | 0.155544 | 0.155958 |
 | 2024 | 0.153332 | 0.152514 | **0.152505** |
 | 2023 | **0.147645** | 0.147813 | 0.147897 |
+<!-- generated:ablation end -->
 
 三層排序在季間完全不穩定（各層在四季中各拿過最佳），再次符合「差異在雜訊尺度」的判讀。
 依卡面紅線 3，**不得因某層在驗證季較佳而切換上線模型或重做選型**——full 仍是唯一驗收候選，
@@ -278,14 +318,16 @@ CAL1 的教訓在本卡被制度化並生效：opening anchor 讓局帶完全沒
 
 **明確不進候選集合、超參選型或 Go/No-Go。**
 
+<!-- generated:advanced_shadow start -->
+> 本節不吃 `--as-of`，數字為 `observed_at = 2026-07-27T16:07:41+08:00` 的當下全表狀態；比對重跑輸出時須與 `generated_at` 一併排除。
+
 | 項目 | 現況 | 不可用原因 |
 |---|---|---|
-| `advanced_stats` 2026 | 投手 330 列、打者 360 列 | **只有全季累計、無 as-of 時間版本** → 歷史賽前狀態不可重建 |
-| `pitch_tracking` 2026 A | 175/216 場（coverage 0.8102）、48,616 球 | 球場端設備缺場；缺場機制尚未查核 |
+| `advanced_stats` 2026 | 投手 331 列、打者 360 列 | **只有全季累計、無時間版本 → 歷史賽前狀態不可重建** |
+| `pitch_tracking` 2026 A | 177/219 場（coverage 0.8082）、49,128 球 | 球場端設備缺場；缺場機制尚未查核 |
 
-季末彙總相關性（37 位 PA≥100 的先發，只回答「概念是否對齊」）：
-`kbb ~ kp` **+0.420**、`kbb ~ whiffp` +0.260、`kbb ~ bbp` −0.110、`kbb ~ chasep` −0.013；
-`strike_share ~ bbp` −0.255、`strike_share ~ whiffp` −0.178、其餘 |r| < 0.06。
+季末彙總相關性（37 位 PA≥100 的先發，只回答「概念是否對齊」）：`kbb~kp` **+0.416**、`strike_share~bbp` **-0.263**、`kbb~whiffp` **+0.259**、`strike_share~whiffp` **-0.179**。
+<!-- generated:advanced_shadow end -->
 
 `kbb ~ kp` 的中度正相關符合預期（同為三振傾向的兩種量度），但這是**季末對季末**的關係，
 不構成任何賽前預測力證據。若要讓這些欄位可上線，後續卡至少須保存 as-of snapshot 或由逐球資料
@@ -319,21 +361,37 @@ CAL1 的教訓在本卡被制度化並生效：opening anchor 讓局帶完全沒
 ## §9 重現
 
 ```bash
-uv run ruff check && uv run pytest tests/test_winprob_strength.py -q   # 66 passed
-uv run python -m cpbl.models.winprob_strength                          # 全跑 ~50s，寫 canonical artifact
+uv run ruff check && uv run pytest tests/test_winprob_strength.py tests/test_strength1_report_sync.py -q
+uv run python -m cpbl.models.winprob_strength --as-of 2026-07-27   # 全跑 ~50s，寫 canonical artifact
+uv run python scripts/strength1_report_tables.py                   # 由 artifact 重新產生本報告的數字區塊
 ```
+
+**`--as-of` 不是選用的**：不給就取今日，完成場母體會隨入庫漂移，artifact 標的 `data_as_of`
+與內容便對不上（iteration 3 查核 F1）。要與本報告的數字對照，一律帶 `--as-of 2026-07-27`。
 
 部分重跑與診斷（**務必 `--out` 導向 scratch，不得覆寫已提交 artifact**）：
 
 ```bash
-uv run python -m cpbl.models.winprob_strength --seasons 2026 --out /private/tmp/scratch.json
+uv run python -m cpbl.models.winprob_strength --seasons 2026 --as-of 2026-07-27 --out /private/tmp/scratch.json
+```
+
+要確認輸入是否已漂移，帶 `--expect-fingerprint` 指向已提交 artifact；不符即中止並逐項列出差異
+（紅線 8 的漂移偵測；經需求方 2026-07-27 sign-off 由「逐位重現」放寬而來）：
+
+```bash
+uv run python -m cpbl.models.winprob_strength --as-of 2026-07-27 \
+  --expect-fingerprint docs/research/game_recap_wp_strength1_metrics.json \
+  --out /private/tmp/scratch.json
 ```
 
 ```bash
-uv run python -m cpbl.models.winprob_strength --diagnostics
+uv run python -m cpbl.models.winprob_strength --diagnostics --as-of 2026-07-27
 ```
 
-- 全程唯讀（模組內只有 `SELECT`）；bootstrap seed 固定 `20260725`，重跑逐位一致。
+- 全程唯讀（模組內只有 `SELECT`）；bootstrap seed 固定 `20260725`。**相同 `--as-of` ＋相同輸入指紋
+  下逐位一致**；輸入若已漂移，`--expect-fingerprint` 會擋下而不是靜默給出不同數字。
 - `--seasons` 的部分重跑會在 `verdict.reasons` 強制寫入「不得作 Go 證據」，避免被誤引為結論。
+- `advanced_shadow_2026` 不吃 `--as-of`（標 `observed_at`），**逐位比對時須與 `generated_at` 一併排除**。
 - 查核建議：至少重跑一個留出季，核對 `windows`（inner/selection/final）、`population.source_tiers`、
-  `final_league_rates`、`selection.prior_grid` 與 `coverage`／`excluded_pa_no_pregame_features`。
+  `final_league_rates`、`selection.prior_grid` 與 `coverage`／`excluded_pa_no_pregame_features`；
+  並跑一次 `scripts/strength1_report_tables.py --check` 確認報告數字確實出自 artifact。

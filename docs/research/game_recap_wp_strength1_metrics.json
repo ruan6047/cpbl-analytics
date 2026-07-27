@@ -55,7 +55,7 @@
  },
  "seed": 20260725,
  "data_as_of": "2026-07-27",
- "generated_at": "2026-07-27T10:42:00+08:00",
+ "generated_at": "2026-07-27T16:07:41+08:00",
  "seasons": [
   {
    "year": 2023,
@@ -756,8 +756,8 @@
    "n_irregular_games": 3,
    "n_val_games": 360,
    "pa_state_counts": {
-    "truncated": 97,
     "ready": 27453,
+    "truncated": 97,
     "non_pa": 67
    },
    "excluded_pa_no_pregame_features": 0,
@@ -2844,48 +2844,166 @@
     "strike_share~bbp": -0.2633
    }
   },
-  "data_as_of": "2026-07-27"
+  "observed_at": "2026-07-27T16:07:41+08:00",
+  "as_of_bounded": false,
+  "excluded_from_bitwise_compare": "本節不吃 as_of，隨當下全表變動；比對重跑輸出時須與 generated_at 一併排除"
  },
+ "prior_signal_diagnostics": [
+  {
+   "year": 2023,
+   "fit_window": [
+    2018,
+    2022
+   ],
+   "n_fit_games": 1318,
+   "n_val_games": 298,
+   "in_sample": 0.239013,
+   "out_of_time": 0.242537,
+   "home_const": 0.241801,
+   "leaky_same_season": 0.24197,
+   "late_season": 0.241442,
+   "late_season_const": 0.240327,
+   "n_late_games": 197
+  },
+  {
+   "year": 2024,
+   "fit_window": [
+    2018,
+    2023
+   ],
+   "n_fit_games": 1616,
+   "n_val_games": 360,
+   "in_sample": 0.239561,
+   "out_of_time": 0.24265,
+   "home_const": 0.247965,
+   "leaky_same_season": 0.240356,
+   "late_season": 0.240874,
+   "late_season_const": 0.246285,
+   "n_late_games": 237
+  },
+  {
+   "year": 2025,
+   "fit_window": [
+    2018,
+    2024
+   ],
+   "n_fit_games": 1976,
+   "n_val_games": 359,
+   "in_sample": 0.239856,
+   "out_of_time": 0.246693,
+   "home_const": 0.247375,
+   "leaky_same_season": 0.244834,
+   "late_season": 0.247856,
+   "late_season_const": 0.249358,
+   "n_late_games": 235
+  },
+  {
+   "year": 2026,
+   "fit_window": [
+    2018,
+    2025
+   ],
+   "n_fit_games": 2335,
+   "n_val_games": 219,
+   "in_sample": 0.24088,
+   "out_of_time": 0.245267,
+   "home_const": 0.24594,
+   "leaky_same_season": 0.246447,
+   "late_season": 0.249206,
+   "late_season_const": 0.251628,
+   "n_late_games": 96
+  }
+ ],
  "population_fingerprint": {
-  "note": "as_of 只鎖 game_date 界限；晚到入庫仍會改變母體，故另存內容指紋供漂移偵測",
+  "note": "as_of 只鎖 game_date 界限；晚到入庫／比分修訂／PA 重新發布仍會改變輸入，故三層內容摘要（games／model inputs／published builds）供漂移偵測",
   "by_year": {
    "2018": {
     "n_completed": 239,
-    "sno_md5": "9cbdd0540494a22b381aa26e7e7edba1"
+    "sno_md5": "9cbdd0540494a22b381aa26e7e7edba1",
+    "games_md5": "983e8cf0f12f522ef0277ef34a75e976",
+    "model_inputs_md5": "c8fd7c6cafc8f41731a432849ae2d9bb",
+    "n_model_rows": 239
    },
    "2019": {
     "n_completed": 240,
-    "sno_md5": "ead22c6f6912c78a944857a415bfee4f"
+    "sno_md5": "ead22c6f6912c78a944857a415bfee4f",
+    "games_md5": "0638a59377d159e8d940ddd26f3d8c70",
+    "model_inputs_md5": "9c09679ce2b72b7a3bd8e4134798fa71",
+    "n_model_rows": 240
    },
    "2020": {
     "n_completed": 240,
-    "sno_md5": "ead22c6f6912c78a944857a415bfee4f"
+    "sno_md5": "ead22c6f6912c78a944857a415bfee4f",
+    "games_md5": "a2c7996ac6862575195d89b90198dd12",
+    "model_inputs_md5": "c51cc26627acd1a4cbba9233adee9ba1",
+    "n_model_rows": 240
    },
    "2021": {
     "n_completed": 299,
-    "sno_md5": "fba9fe10119c91560645bf6a36675c16"
+    "sno_md5": "fba9fe10119c91560645bf6a36675c16",
+    "games_md5": "928043c8f5d77e3d4ce6b8bdd2670cec",
+    "model_inputs_md5": "c958da3e5d50907ea739c67a0550de54",
+    "n_model_rows": 299
    },
    "2022": {
     "n_completed": 300,
-    "sno_md5": "5378d5c3ff8060d71262f6513d2b7f15"
+    "sno_md5": "5378d5c3ff8060d71262f6513d2b7f15",
+    "games_md5": "e625fed70a7d22f7b4d38453cf48a717",
+    "model_inputs_md5": "dd62ae54189252b6b80d91c4e39d1ae6",
+    "n_model_rows": 300
    },
    "2023": {
     "n_completed": 298,
-    "sno_md5": "6b4c326af1e396df694d4abf8541369b"
+    "sno_md5": "6b4c326af1e396df694d4abf8541369b",
+    "games_md5": "cc83a1023ee2069fdb208f27a290a4e1",
+    "model_inputs_md5": "1fdfd7fb7fb75ebb4072ab14d7243133",
+    "n_model_rows": 298
    },
    "2024": {
     "n_completed": 360,
-    "sno_md5": "6e0ad55c9f536b819e0aacec9e5c9fc2"
+    "sno_md5": "6e0ad55c9f536b819e0aacec9e5c9fc2",
+    "games_md5": "32c7c0d0dd7c9737459eb99fa7b9f7f8",
+    "model_inputs_md5": "b4f99a95d8d02cc6269bd8edb854eec9",
+    "n_model_rows": 360
    },
    "2025": {
     "n_completed": 359,
-    "sno_md5": "c5d33d4e266a3ce459bebfbcbbec0538"
+    "sno_md5": "c5d33d4e266a3ce459bebfbcbbec0538",
+    "games_md5": "837bcce4608e015426b78d70236ff83b",
+    "model_inputs_md5": "07056ece1667c57d95f761f109e2a419",
+    "n_model_rows": 359
    },
    "2026": {
     "n_completed": 219,
-    "sno_md5": "992a324eb00ca9d65c98c0aa2f649bed"
+    "sno_md5": "992a324eb00ca9d65c98c0aa2f649bed",
+    "games_md5": "6a46603396e7035484d5d3c2a5c1b04b",
+    "model_inputs_md5": "ef34553f7675cb7c6d56d24e5b250a59",
+    "n_model_rows": 219
    }
   },
+  "published_builds_by_eval_year": {
+   "2023": {
+    "n_published": 298,
+    "n_scored_games": 298,
+    "build_md5": "1bd12c787bffed4dcae4cf7570bd489a"
+   },
+   "2024": {
+    "n_published": 360,
+    "n_scored_games": 360,
+    "build_md5": "f87a6a6ecf8e445ffc044eed2964a8f8"
+   },
+   "2025": {
+    "n_published": 359,
+    "n_scored_games": 359,
+    "build_md5": "effe370930a421eeafc66cf69c9d1412"
+   },
+   "2026": {
+    "n_published": 216,
+    "n_scored_games": 216,
+    "build_md5": "f6e0057b7540b4e8373ca9dae1136916"
+   }
+  },
+  "model_inputs_md5": "32c3931b2f28529cf456904b5c5db144",
   "n_completed_total": 2554
  },
  "pooled": {
