@@ -717,17 +717,69 @@ def band_cluster_bootstrap(innings: Sequence[int], scored: Sequence[tuple], *,
         for b in BANDS:
             if agg[b][2]:
                 devs[b].append((agg[b][0] - agg[b][1]) / agg[b][2])
+    return _ci_from_draws(devs, ci)
+
+
+def _ci_from_draws(devs: dict, ci: float) -> dict:
+    """bootstrap 抽樣 → 未捨入的 (se, ci)。
+
+    **不得捨入**：紅線 4／5 的硬門檻直接讀這些值（iteration 1 查核 F1：捨入後
+    貼近邊界的 CI 會被錯誤判為含 0 或排除 0）。顯示用捨入由報告層自行處理。
+    """
     lo_q, hi_q = (1 - ci) / 2, 1 - (1 - ci) / 2
-    out: dict[str, dict] = {}
-    for b, ds in devs.items():
+    out: dict = {}
+    for key, ds in devs.items():
         ds.sort()
         n = len(ds)
         mean = sum(ds) / n
         se = (sum((d - mean) ** 2 for d in ds) / max(n - 1, 1)) ** 0.5
-        out[b] = {"se": round(se, 5),
-                  "ci": [round(ds[int(lo_q * (n - 1))], 5),
-                         round(ds[int(hi_q * (n - 1))], 5)]}
+        out[key] = {"se": se, "ci": [ds[int(lo_q * (n - 1))], ds[int(hi_q * (n - 1))]]}
     return out
+
+
+def decile_stats(scored: Sequence[tuple]) -> dict[int, dict]:
+    """池化十分位的**未捨入** (n, pred, actual, dev)；紅線 4 的判定輸入。
+
+    winprob_val.metrics() 的 deciles 會捨入 4 位（顯示用），iteration 1 查核 F1
+    指出以其比較 0.03 門檻違反「全部判定使用未捨入值」，故在此獨立重算。
+    """
+    acc: dict[int, list[float]] = {i: [0.0, 0.0, 0.0] for i in range(10)}
+    for p, y, _irr, _gk in scored:
+        a = acc[min(int(p * 10), 9)]
+        a[0] += p
+        a[1] += y
+        a[2] += 1
+    return {i: {"n": int(a[2]), "pred": a[0] / a[2], "actual": a[1] / a[2],
+                "dev": (a[0] - a[1]) / a[2]}
+            for i, a in acc.items() if a[2]}
+
+
+def decile_cluster_bootstrap(scored: Sequence[tuple], *,
+                             reps: int = THRESHOLDS["boot_reps"],
+                             ci: float = THRESHOLDS["boot_ci"],
+                             seed: int = SEED) -> dict[int, dict]:
+    """十分位 game-cluster bootstrap，回傳**未捨入** CI（同語意於 band 版）。"""
+    by_game: dict[object, dict[int, list[float]]] = {}
+    for p, y, _irr, gk in scored:
+        g = by_game.setdefault(gk, {i: [0.0, 0.0, 0.0] for i in range(10)})
+        a = g[min(int(p * 10), 9)]
+        a[0] += p
+        a[1] += y
+        a[2] += 1
+    games = list(by_game.values())
+    rng = random.Random(seed)
+    devs: dict[int, list[float]] = defaultdict(list)
+    for _ in range(reps):
+        agg = {i: [0.0, 0.0, 0.0] for i in range(10)}
+        for g in rng.choices(games, k=len(games)):
+            for i in range(10):
+                agg[i][0] += g[i][0]
+                agg[i][1] += g[i][1]
+                agg[i][2] += g[i][2]
+        for i in range(10):
+            if agg[i][2]:
+                devs[i].append((agg[i][0] - agg[i][1]) / agg[i][2])
+    return _ci_from_draws(devs, ci)
 
 
 # ───────────────────────── 選型（決定性 tie-break；紅線 3） ─────────────────────────
@@ -793,8 +845,11 @@ class SeasonPack:
     ts: list[float]
     snos: list[int]
     p_base0: float
-    coverage: float
+    coverage: float                  # 顯示用（winprob_val 已捨入 4 位）
+    coverage_raw: float              # 未捨入 build coverage（判定用；紅線 4）
+    effective_coverage: float        # 未捨入「有 published build **且**有賽前特徵」佔完成場比例
     n_completed_games: int
+    n_scored_games: int              # 實際進入評分的完成場數（＝ effective coverage 分子）
     n_irregular_games: int
     pa_state_counts: dict
     home_p: float
@@ -807,6 +862,13 @@ def build_season_pack(cur, per_year, year: int, span_end: int,
 
     fail closed：無賽前特徵的場次（例：缺 game_features 列）整場排除並計數，
     不以同季快照或代理值補（紅線 2）。
+
+    **coverage 三值**（iteration 1 查核 F1／F3）：
+    - `coverage`：winprob_val 的顯示值（已捨入 4 位），只供報告呈現。
+    - `coverage_raw`：未捨入的 published build coverage，判定用。
+    - `effective_coverage`：**實際進入評分的完成場 ÷ 完成場**——同時要求 published build
+      與賽前特徵。原實作把缺賽前特徵的場次靜默排除卻仍沿用 build coverage，理論上可在
+      縮小後的母體上維持 1.0 並通過 gate；改以交集計算後該漏洞關閉。
     """
     season = load_eval_season(cur, KIND, year)
     if not season["pas"]:
@@ -816,6 +878,8 @@ def build_season_pack(cur, per_year, year: int, span_end: int,
     keep = [i for i, p in enumerate(season["pas"]) if p["game_sno"] in known_snos]
     excluded = len(season["pas"]) - len(keep)
     pas = [season["pas"][i] for i in keep]
+    n_completed = season["n_completed_games"]
+    n_scored = len({p["game_sno"] for p in pas})
     return SeasonPack(
         year=year, span_end=span_end,
         scored=[scored_all[i] for i in keep],
@@ -824,7 +888,10 @@ def build_season_pack(cur, per_year, year: int, span_end: int,
         snos=[p["game_sno"] for p in pas],
         p_base0=opening_wp(dist, year),
         coverage=season["coverage"],
-        n_completed_games=season["n_completed_games"],
+        coverage_raw=(season["n_built_games"] / n_completed) if n_completed else 0.0,
+        effective_coverage=(n_scored / n_completed) if n_completed else 0.0,
+        n_completed_games=n_completed,
+        n_scored_games=n_scored,
         n_irregular_games=season["n_irregular_games"],
         pa_state_counts=season["pa_state_counts"],
         home_p=home_rate_from_games(cur, KIND, CORE_FIRST, span_end),
@@ -910,9 +977,13 @@ def run_strength(out_path: Path, val_seasons: Sequence[int]) -> dict:
         result["advanced_shadow_2026"] = advanced_shadow(cur, rows)
 
     if pooled["base"]:
+        # `metrics()` 的 brier／deciles／CI 皆為捨入顯示值；判定另存 *_raw／raw_deciles／
+        # decile_boot 三組未捨入值（紅線 4；iteration 1 查核 F1）。
         pooled_out: dict = {
             fam: {**metrics(pooled[fam], bootstrap=True),
-                  "brier_raw": raw_brier(pooled[fam])}
+                  "brier_raw": raw_brier(pooled[fam]),
+                  "raw_deciles": decile_stats(pooled[fam]),
+                  "decile_boot": decile_cluster_bootstrap(pooled[fam])}
             for fam in ("base", "adj")
         }
         pooled_out["baseline_home_const_brier"] = round(
@@ -1060,7 +1131,10 @@ def _run_one_season(cur, Y: int, by_year: dict[int, list[GameRow]],
             "base_model_span": f"{CORE_FIRST}-{pack.span_end}/{KIND}",
             "validation": Y,
         },
-        "coverage": pack.coverage,
+        "coverage": pack.coverage,                        # 顯示用（已捨入）
+        "coverage_raw": pack.coverage_raw,                # 判定用（未捨入；紅線 4）
+        "effective_coverage": pack.effective_coverage,    # 判定用（build ∩ 賽前特徵；F3）
+        "n_scored_games": pack.n_scored_games,
         "n_completed_games": pack.n_completed_games,
         "n_irregular_games": pack.n_irregular_games,
         "n_val_games": len(val_rows),
@@ -1176,10 +1250,17 @@ def prior_signal_diagnostics(cur, rows: Sequence[GameRow]) -> list[dict]:
     - `in_sample`：同窗擬合同窗評分 → 管線確實能找到訊號時應明顯優於常數。
     - `out_of_time`：本卡正式用法（fit 2018..Y−1 → 評 Y）。
     - `home_const`：leakage-safe 主場常數基準。
-    - `leaky_same_season`：**刻意違規**加入 `game_features` 的同季彙總先發欄
-      （`starter_era_diff`／`whip`／`k9`，以 `(starter_id, year)` 讀全季值）。
-      這組欄位在卡面紅線 2 被明文禁用；此處只用來量化「若違規會看到多大的
-      假性改善」，其數值**不得**作為任何模型能力證據。
+    - `leaky_same_season`：加入 `game_features` 的 `starter_era_diff`／`whip`／`k9`。
+
+      ⚠️ **此欄的語意取決於 `cpbl.game_features` 當下的內容，非本模組可自證**。
+      2026-07-27 之前該三欄由 `features/outcome.py` 以 `(starter_id, year)` 讀**同季
+      彙總**（＝卡面紅線 2 禁用的洩漏欄），此對照因而能量化「若違規會看到多大的
+      假性改善」；**`ML-OUTCOME-LEAK1`（merge 5a683d1）已將該三欄改為 leakage-safe
+      的賽前 as-of 值**，故本對照在該 merge 之後不再產生假性改善——這是預期行為，
+      不是缺陷。iteration 1 查核 F2 即由此不一致觸發。
+      **教訓（已納入報告 §6.2）**：依賴可變 DB 狀態的診斷不構成可重現證據；
+      artifact 未快照輸入即無法自證。洩漏本身的存在改由不依賴本 harness 的證據
+      確立（見 `ML-OUTCOME-LEAK1` 的變異測試與 DB 層反證）。
     - `late_season`：雙方皆已打 ≥40 場後的子集 → 檢驗弱訊號是否只是季初
       running state 噪音。
 
@@ -1262,19 +1343,31 @@ def strength_verdict(season_rows: Sequence[dict], pooled_adj: dict,
                      *, complete: bool = True) -> dict:
     """A scope（含戰力先驗融合）Go/No-Go。硬性失敗任一 → unsupported（No-Go）。
 
-    - 任一驗證季 coverage < 0.98；
+    - 任一驗證季 **coverage 或 effective coverage** < 0.98；
     - 任一驗證季融合後 Brier 未勝主場常數基準，或劣於同代未融合 base；
     - 池化十分位 n≥1000 且 |dev| > 0.03 且 99% game-cluster CI 排除 0；
     - 池化局帶 n≥1000 且 |dev| > 0.03 且 99% CI 排除 0；
     - 例行局帶相對同代 base 系統性惡化（單帶 >2pt，或 ≥2 帶各 >1pt）。
+
+    **全部輸入皆為未捨入值**（紅線 4）。iteration 1 查核 F1 指出三條捨入路徑
+    （coverage 4 位、metrics() deciles 4 位、bootstrap CI 4/5 位）會讓貼近邊界的
+    值被錯誤判定，已改為讀 `coverage_raw`／`effective_coverage`／`raw_deciles`／
+    `decile_boot`；`metrics()` 的捨入值僅供報告顯示。
+    F3：`effective_coverage` 要求「published build **且**有賽前特徵」，關閉「靜默
+    排除缺特徵場次後在縮小母體上維持 1.0」的漏洞。
     """
     hard: list[str] = []
     disclosure: list[str] = []
     for s in season_rows:
         tag = f"A{s['year']}"
         adj, base, hc = s["adjusted"], s["base"], s["baseline_home_const"]
-        if s["coverage"] < THRESHOLDS["min_coverage"]:
-            hard.append(f"{tag} coverage {s['coverage']} < {THRESHOLDS['min_coverage']}")
+        # 紅線 4：coverage 一律讀**未捨入**值（iteration 1 查核 F1：真實 0.97996 會被
+        # 捨入為 0.9800 而錯誤通過）。並同時把 effective coverage（要求 published build
+        # **且**有賽前特徵）納入硬門檻（F3：否則可在縮小後母體上維持 1.0 過關）。
+        for label, value in (("coverage", s["coverage_raw"]),
+                             ("effective coverage", s["effective_coverage"])):
+            if value < THRESHOLDS["min_coverage"]:
+                hard.append(f"{tag} {label} {value:.6f} < {THRESHOLDS['min_coverage']}")
         if adj["brier_raw"] >= hc["brier_raw"]:
             hard.append(f"{tag} 融合後 Brier {adj['brier_raw']:.6f} 未勝主場常數基準 "
                         f"{hc['brier_raw']:.6f}")
@@ -1284,17 +1377,20 @@ def strength_verdict(season_rows: Sequence[dict], pooled_adj: dict,
         if adj.get("significant_bins"):
             disclosure.append(f"{tag} 逐季顯著偏差分箱 {adj['significant_bins']}"
                               "（99% 叢集 CI 排除 0）")
-    for d in pooled_adj.get("deciles", []):
-        ci = d.get("dev_ci")
+    # 紅線 4：十分位判定改讀 decile_stats／decile_cluster_bootstrap 的**未捨入**值，
+    # 不再使用 winprob_val.metrics() 捨入 4 位的顯示 deciles（iteration 1 查核 F1）。
+    raw_dec, boot_dec = pooled_adj["raw_deciles"], pooled_adj["decile_boot"]
+    for b in sorted(raw_dec):
+        d = raw_dec[b]
+        ci = boot_dec.get(b, {}).get("ci")
         if ci is None or d["n"] < 1000:
             continue
-        dev = d["pred"] - d["actual"]
         if ci[0] > 0 or ci[1] < 0:
-            if abs(dev) > THRESHOLDS["pooled_bin_dev_max"]:
-                hard.append(f"池化十分位 {d['bin']} 偏差 {dev:+.4f} 顯著且超過 "
+            if abs(d["dev"]) > THRESHOLDS["pooled_bin_dev_max"]:
+                hard.append(f"池化十分位 {b} 偏差 {d['dev']:+.6f} 顯著且超過 "
                             f"±{THRESHOLDS['pooled_bin_dev_max']}（n={d['n']}）")
             else:
-                disclosure.append(f"池化十分位 {d['bin']} 偏差 {dev:+.4f} 顯著但幅度受控"
+                disclosure.append(f"池化十分位 {b} 偏差 {d['dev']:+.6f} 顯著但幅度受控"
                                   f"（n={d['n']}）")
     worsened: list[str] = []
     raw_base, raw_adj = pooled_bands_base["raw"], pooled_bands_adj["raw"]
@@ -1349,7 +1445,9 @@ def main() -> None:
             print(f"{d['year']:>5} {d['in_sample']:>10.6f} {d['out_of_time']:>12.6f} "
                   f"{d['home_const']:>9.6f} {d['leaky_same_season']:>9.6f} "
                   f"{late:>8} {late_c:>11}  (n_late={d['n_late_games']})")
-        print("『洩漏對照』刻意違反紅線 2（同季彙總先發欄），只量化違規會看到的假性改善。")
+        print("『洩漏對照』欄讀 game_features 的 starter_era/whip/k9；其語意取決於該表當下內容，")
+        print("ML-OUTCOME-LEAK1（merge 5a683d1）已將該三欄改為 leakage-safe，故該欄不再顯示假性")
+        print("改善——此為預期行為。詳見報告 §6.2 的可重現性更正。")
         return
     seasons = ([int(s) for s in args.seasons.split(",") if s.strip()]
                or list(range(VAL_FIRST, VAL_LAST + 1)))

@@ -600,11 +600,19 @@ def test_band_stats_unrounded():
     assert set(stats) == {"1-3", "4-6", "7-9", "10+"}
 
 
-def _season(year, *, cov=1.0, adj=0.15, base=0.16, const=0.24):
-    return {"year": year, "coverage": cov,
+def _season(year, *, cov=1.0, eff=None, adj=0.15, base=0.16, const=0.24):
+    return {"year": year, "coverage": round(cov, 4), "coverage_raw": cov,
+            "effective_coverage": cov if eff is None else eff,
             "adjusted": {"brier_raw": adj, "ece_weighted": 0.02},
             "base": {"brier_raw": base},
             "baseline_home_const": {"brier_raw": const}}
+
+
+def _pooled(deciles=()):
+    """deciles: [(bin, n, dev, ci)]；未捨入，直接餵判定路徑。"""
+    return {"raw_deciles": {b: {"n": n, "pred": 0.5 + d, "actual": 0.5, "dev": d}
+                            for b, n, d, _ in deciles},
+            "decile_boot": {b: {"ci": ci} for b, _, _, ci in deciles}}
 
 
 def _bands(dev_by_band, n=5000):
@@ -618,41 +626,39 @@ CLEAN_BANDS = {"1-3": 0.001, "4-6": 0.001, "7-9": 0.001}
 
 
 def test_verdict_passes_when_all_gates_clean():
-    v = strength_verdict([_season(2023), _season(2026)], {"deciles": []},
+    v = strength_verdict([_season(2023), _season(2026)], _pooled(),
                          _bands(CLEAN_BANDS), _bands(CLEAN_BANDS))
     assert v["status"] == "supported" and v["reasons"] == []
 
 
 def test_verdict_hard_fails_on_coverage():
-    v = strength_verdict([_season(2026, cov=0.9722)], {"deciles": []},
+    v = strength_verdict([_season(2026, cov=0.9722)], _pooled(),
                          _bands(CLEAN_BANDS), _bands(CLEAN_BANDS))
     assert v["status"] == "unsupported"
     assert any("coverage" in r for r in v["reasons"])
 
 
 def test_verdict_hard_fails_when_worse_than_base():
-    v = strength_verdict([_season(2025, adj=0.1601, base=0.1600)], {"deciles": []},
+    v = strength_verdict([_season(2025, adj=0.1601, base=0.1600)], _pooled(),
                          _bands(CLEAN_BANDS), _bands(CLEAN_BANDS))
     assert any("劣於同代未融合 base" in r for r in v["reasons"])
 
 
 def test_verdict_hard_fails_when_not_beating_home_constant():
     v = strength_verdict([_season(2025, adj=0.245, base=0.246, const=0.244)],
-                         {"deciles": []}, _bands(CLEAN_BANDS), _bands(CLEAN_BANDS))
+                         _pooled(), _bands(CLEAN_BANDS), _bands(CLEAN_BANDS))
     assert any("未勝主場常數基準" in r for r in v["reasons"])
 
 
 def test_verdict_hard_fails_on_significant_pooled_decile():
-    pooled = {"deciles": [{"bin": 7, "n": 6000, "pred": 0.75, "actual": 0.80,
-                           "dev_ci": [-0.09, -0.01]}]}
+    pooled = _pooled([(7, 6000, -0.05, [-0.09, -0.01])])
     v = strength_verdict([_season(2026)], pooled, _bands(CLEAN_BANDS),
                          _bands(CLEAN_BANDS))
     assert any("池化十分位 7" in r for r in v["reasons"])
 
 
 def test_verdict_pooled_decile_within_ci_is_disclosure_only():
-    pooled = {"deciles": [{"bin": 7, "n": 6000, "pred": 0.75, "actual": 0.80,
-                           "dev_ci": [-0.09, 0.02]}]}
+    pooled = _pooled([(7, 6000, -0.05, [-0.09, 0.02])])
     v = strength_verdict([_season(2026)], pooled, _bands(CLEAN_BANDS),
                          _bands(CLEAN_BANDS))
     assert v["status"] == "supported"
@@ -660,20 +666,20 @@ def test_verdict_pooled_decile_within_ci_is_disclosure_only():
 
 def test_verdict_hard_fails_on_significant_band_deviation():
     bad = {"1-3": 0.045, "4-6": 0.001, "7-9": 0.001}
-    v = strength_verdict([_season(2026)], {"deciles": []},
+    v = strength_verdict([_season(2026)], _pooled(),
                          _bands({"1-3": 0.044, "4-6": 0.001, "7-9": 0.001}), _bands(bad))
     assert any("池化局帶 1-3" in r for r in v["reasons"])
 
 
 def test_verdict_hard_fails_on_single_band_worsening_over_2pt():
-    v = strength_verdict([_season(2026)], {"deciles": []},
+    v = strength_verdict([_season(2026)], _pooled(),
                          _bands({"1-3": 0.001, "4-6": 0.001, "7-9": 0.001}),
                          _bands({"1-3": 0.026, "4-6": 0.001, "7-9": 0.001}))
     assert any("惡化" in r and "> 2pt" in r for r in v["reasons"])
 
 
 def test_verdict_hard_fails_on_two_bands_worsening_over_1pt():
-    v = strength_verdict([_season(2026)], {"deciles": []},
+    v = strength_verdict([_season(2026)], _pooled(),
                          _bands({"1-3": 0.001, "4-6": 0.001, "7-9": 0.001}),
                          _bands({"1-3": 0.015, "4-6": 0.016, "7-9": 0.001}))
     assert any("系統性惡化" in r for r in v["reasons"])
@@ -681,14 +687,68 @@ def test_verdict_hard_fails_on_two_bands_worsening_over_1pt():
 
 def test_verdict_small_band_not_a_gate():
     """n < 1000 的帶只揭露、不作否決證據（紅線 7）。"""
-    v = strength_verdict([_season(2026)], {"deciles": []},
+    v = strength_verdict([_season(2026)], _pooled(),
                          _bands({"1-3": 0.001, "4-6": 0.001, "7-9": 0.001}),
                          _bands({"1-3": 0.045, "4-6": 0.001, "7-9": 0.001}, n=400))
     assert not any("池化局帶" in r for r in v["reasons"])
 
 
 def test_partial_rerun_cannot_be_go_evidence():
-    v = strength_verdict([_season(2026)], {"deciles": []}, _bands(CLEAN_BANDS),
+    v = strength_verdict([_season(2026)], _pooled(), _bands(CLEAN_BANDS),
                          _bands(CLEAN_BANDS), complete=False)
     assert v["status"] == "unsupported"
     assert any("部分重跑" in r for r in v["reasons"])
+
+
+# ── iteration 2：紅線 4「全部判定使用未捨入值」的邊界回歸（查核 F1／F3）──
+def test_coverage_just_below_threshold_is_not_rounded_up():
+    """0.97996 捨入 4 位為 0.9800 會錯誤通過；判定須讀 coverage_raw。"""
+    v = strength_verdict([_season(2026, cov=0.97996)], _pooled(),
+                         _bands(CLEAN_BANDS), _bands(CLEAN_BANDS))
+    assert v["status"] == "unsupported"
+    assert any("coverage 0.979960" in r for r in v["reasons"])
+
+
+def test_effective_coverage_gates_missing_pregame_features():
+    """build coverage 1.0 但大量場次缺賽前特徵 ⇒ effective coverage 必須擋下。"""
+    v = strength_verdict([_season(2026, cov=1.0, eff=0.90)], _pooled(),
+                         _bands(CLEAN_BANDS), _bands(CLEAN_BANDS))
+    assert v["status"] == "unsupported"
+    assert any("effective coverage" in r for r in v["reasons"])
+    # 兩者皆足時不得誤擋
+    assert strength_verdict([_season(2026, cov=1.0, eff=1.0)], _pooled(),
+                            _bands(CLEAN_BANDS), _bands(CLEAN_BANDS))["status"] == "supported"
+
+
+def test_decile_dev_just_over_threshold_is_not_rounded_down():
+    """dev 0.030004 捨入 4 位為 0.0300（不超界）；未捨入才會正確硬性失敗。"""
+    v = strength_verdict([_season(2026)],
+                         _pooled([(3, 6000, 0.030004, [0.01, 0.05])]),
+                         _bands(CLEAN_BANDS), _bands(CLEAN_BANDS))
+    assert any("池化十分位 3" in r for r in v["reasons"])
+
+
+def test_decile_ci_just_excluding_zero_is_not_rounded_to_include_it():
+    """CI 下界 0.000004 捨入 5 位為 0.0 會被誤判為含 0；未捨入才會判顯著。"""
+    v = strength_verdict([_season(2026)],
+                         _pooled([(3, 6000, 0.05, [0.000004, 0.09])]),
+                         _bands(CLEAN_BANDS), _bands(CLEAN_BANDS))
+    assert any("池化十分位 3" in r for r in v["reasons"])
+
+
+def test_bootstrap_ci_helper_returns_unrounded():
+    """_ci_from_draws 不得捨入（band 與 decile 兩條 bootstrap 共用）。"""
+    from cpbl.models.winprob_strength import _ci_from_draws
+    draws = {"x": [0.0000012345 + i * 1e-9 for i in range(1000)]}
+    out = _ci_from_draws(draws, 0.99)["x"]
+    assert out["ci"][0] != round(out["ci"][0], 5)     # 保留 5 位以下精度
+    assert out["se"] != round(out["se"], 5)
+
+
+def test_decile_stats_unrounded_and_complete():
+    rows = [(0.6, 1.0, False, 1), (0.62, 0.0, False, 1), (0.31, 1.0, False, 2)]
+    from cpbl.models.winprob_strength import decile_stats
+    st = decile_stats(rows)
+    assert set(st) == {3, 6}
+    assert st[6]["dev"] == pytest.approx((0.6 + 0.62 - 1.0) / 2)
+    assert st[6]["dev"] != round(st[6]["dev"], 4)
