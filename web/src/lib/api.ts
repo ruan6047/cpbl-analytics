@@ -343,7 +343,9 @@ export type BacktestModelRow = {
   ece?: number;
 };
 /** serving 狀態：這份回測紀錄有沒有真的成為線上模型（ML-OUTCOME-SIMPLE-LEAK2）。
- *  `degradation` 由後端判別成因，前端據以選文案；只有 gate_failed 能講「閘門失敗」。 */
+ *  `degradation` 由後端判別成因，前端據以選文案，**非 null 就要揭露**（不是看 status：
+ *  serving_gate_failed 的 status 是 serving_current）。只有 gate_failed／
+ *  serving_gate_failed 能講「閘門失敗」，且兩者「沿用上一版」與否的說法不可互換。 */
 export type PregameServing = PregameServingMeta & {
   reason: string | null;
   trained_through?: number | null;

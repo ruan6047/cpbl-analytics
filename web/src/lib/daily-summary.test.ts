@@ -160,6 +160,78 @@ test("version_unknown：deploy→refresh 窗口的實際狀態，只能說無法
   assert.ok(notice.includes("outcome-simple-2"));
 });
 
+test("serving_gate_failed：status 是 serving_current 也一定要揭露（開關是 degradation）", () => {
+  // iteration 6 查核 F1：版本相同時 deployable=false 被整個蓋掉，畫面毫無提示照顯機率。
+  const notice = pregameServingNotice({
+    status: "serving_current",
+    degradation: "serving_gate_failed",
+    serving_version: "outcome-simple-2",
+    backtest_version: "outcome-simple-2",
+    backtest_deployable: false,
+  });
+
+  assert.ok(notice, "status 正常不代表可以靜默");
+  assert.ok(notice.includes("未通過部署閘門"));
+  assert.ok(notice.includes("outcome-simple-2"));
+  // 這一版就是正在服務的模型，講「沿用上一版」或「並非最新回測的輸出」都是假話。
+  assert.equal(notice.includes("沿用"), false);
+  assert.equal(notice.includes("並非最新回測"), false);
+});
+
+test("serving_current 且無 degradation 時仍然不出告示", () => {
+  assert.equal(
+    pregameServingNotice({
+      status: "serving_current",
+      degradation: null,
+      serving_version: "v2",
+      backtest_version: "v2",
+      backtest_deployable: true,
+    }),
+    null,
+  );
+});
+
+test("首頁：serving_gate_failed 同樣要揭露", () => {
+  const notice = homePregameNotice(
+    summaryWith({
+      status: "serving_current",
+      reason: "最新回測未通過部署閘門，而 serving 就是該次回測產出的模型",
+      degradation: "serving_gate_failed",
+      serving_version: "outcome-simple-2",
+      backtest_version: "outcome-simple-2",
+      backtest_deployable: false,
+      trained_through: 2025,
+      signals: null,
+    }),
+  );
+
+  assert.ok(notice, "首頁不得因為 status=serving_current 就靜默");
+  assert.ok(notice.includes("未通過部署閘門"));
+  assert.equal(notice.includes("沿用"), false);
+});
+
+test("gate_failed 與 serving_gate_failed 的說法不可互換", () => {
+  const base = {
+    status: "serving_previous" as const,
+    serving_version: "outcome-simple-1",
+    backtest_version: "outcome-simple-2",
+    backtest_deployable: false,
+  };
+  const previous = pregameServingNotice({ ...base, degradation: "gate_failed" });
+  const current = pregameServingNotice({
+    ...base,
+    status: "serving_current",
+    serving_version: "outcome-simple-2",
+    degradation: "serving_gate_failed",
+  });
+
+  assert.ok(previous && current);
+  assert.notEqual(previous, current);
+  // 沿用上一版 vs 正在服務那一版——兩件不同的事，各自只講自己那件。
+  assert.ok(previous.includes("沿用"));
+  assert.equal(current.includes("沿用"), false);
+});
+
 test("version_mismatch 但 backtest_deployable 非 true：不得附註「已通過閘門」", () => {
   // 後端保證這條分支必為 true，但前端不靠那個保證說出 PASS——判別碼可能出錯，
   // backtest_deployable 才是這句話唯一的直接證據（iteration 5 查核 F1）。

@@ -168,6 +168,21 @@ test("賽況頁卡片：三種 degradation 各自沿用與首頁／方法頁相�
   assert.ok(mismatch.servingNotice.includes("不一致"));
 });
 
+test("賽況頁卡片：serving_gate_failed 的 status 是 serving_current，照樣要出告示", () => {
+  const model = availableWithServing({
+    status: "serving_current",
+    degradation: "serving_gate_failed",
+    serving_version: "outcome-simple-2",
+    backtest_version: "outcome-simple-2",
+    backtest_deployable: false,
+  });
+
+  assert.ok(model.status === "available" && model.servingNotice, "不得因 status 正常就靜默");
+  assert.ok(model.servingNotice.includes("未通過部署閘門"));
+  assert.equal(model.servingNotice.includes("沿用"), false, "正在服務的就是這一版");
+  assert.ok(Number.isFinite(model.homeWinProbability), "降級是揭露，不是把卡片降成不可用");
+});
+
 test("賽況頁卡片：backtest_unknown 要揭露，但不得宣稱閘門通過或失敗", () => {
   const model = availableWithServing({
     status: "serving_previous",
