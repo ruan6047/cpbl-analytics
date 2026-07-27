@@ -9,6 +9,7 @@ weighting 不變、嵌套窗口、選型只讀 inner season、決定性 tie-brea
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from datetime import date
 
 import pytest
@@ -752,3 +753,283 @@ def test_decile_stats_unrounded_and_complete():
     assert set(st) == {3, 6}
     assert st[6]["dev"] == pytest.approx((0.6 + 0.62 - 1.0) / 2)
     assert st[6]["dev"] != round(st[6]["dev"], 4)
+
+
+@dataclass(frozen=True)
+class _GameRowStub:
+    """`_rows_md5` 只做 `dataclasses.asdict`，故摘要測試用最小 dataclass 即可。"""
+
+    year: int
+    game_sno: int
+    team_feats: dict
+
+
+# ─────────────── iteration 3 查核 F3：iteration 3／4 的修正須有回歸測試 ───────────────
+# 前三輪的修正（未捨入判定路徑、as-of、指紋）全部零測試，於是每輪都要靠查核者手動重現才
+# 抓得到殘留缺陷。以下把那些修正的**行為**釘住，而不只是測目前的實作長相。
+
+
+class _AsOfCursor:
+    """只回答 as-of 相關查詢的最小 cursor：讓 as-of 語意可離線驗證。"""
+
+    def __init__(self, games):
+        # games: [(game_date, home_score, away_score), ...]
+        self._games = games
+        self._rows: list = []
+
+    def execute(self, sql, params=None):
+        if "avg(CASE WHEN home_score>away_score" in sql:
+            as_of = params[3]
+            vals = [1.0 if h > a else (0.0 if h < a else 0.5)
+                    for d, h, a in self._games if d <= as_of]
+            self._rows = [(sum(vals) / len(vals) if vals else None,)]
+        else:
+            raise AssertionError(f"未預期的查詢：{sql[:60]}")
+
+    def fetchone(self):
+        return self._rows[0]
+
+
+def test_home_rate_exact_is_unrounded_and_honors_as_of():
+    """iteration 2 查核 F1a：主場常數基準須未捨入，且吃傳入的 as_of 而非 CURRENT_DATE。"""
+    from cpbl.models.winprob_strength import home_rate_exact
+    # 3 勝 4 敗 → 3/7 = 0.428571…，捨入 4 位會變 0.4286
+    games = [(date(2026, 4, d), 1, 0) for d in range(1, 4)] + \
+            [(date(2026, 4, d), 0, 1) for d in range(4, 8)]
+    early = [(date(2026, 4, d), 1, 0) for d in range(1, 4)]      # as_of 前只有 3 勝
+    cur = _AsOfCursor(games)
+    full = home_rate_exact(cur, "A", 2026, 2026, date(2026, 4, 30))
+    assert full == pytest.approx(3 / 7)
+    assert full != round(full, 4)                                 # 未捨入
+    cut = home_rate_exact(_AsOfCursor(games), "A", 2026, 2026, date(2026, 4, 3))
+    assert cut == 1.0 and len(early) == 3                         # as_of 之後的敗場不計入
+
+
+def test_raw_ece_matches_unrounded_decile_closed_form():
+    """iteration 2 查核 F1b：raw_ece 必須由未捨入 decile 重算，不得沿用捨入顯示值。"""
+    from cpbl.models.winprob_strength import decile_stats, raw_ece
+    rows = [(0.6123456, 1.0, False, 1), (0.6234567, 0.0, False, 1),
+            (0.3111111, 1.0, False, 2), (0.3222222, 0.0, False, 2)]
+    st = decile_stats(rows)
+    n = sum(d["n"] for d in st.values())
+    expected = sum(abs(d["dev"]) * d["n"] for d in st.values()) / n
+    assert raw_ece(rows) == pytest.approx(expected, abs=0.0)
+    assert raw_ece(rows) != round(raw_ece(rows), 4)
+
+
+class _FingerprintCursor:
+    """games／published build 兩段查詢的最小替身；rows 由呼叫端直接給。"""
+
+    def __init__(self, per_year, builds):
+        self._per_year, self._builds = per_year, builds
+        self._rows: list = []
+
+    def execute(self, sql, params=None):
+        if "FROM cpbl.games" in sql:
+            self._rows = list(self._per_year)
+        elif "FROM cpbl.game_recap_builds" in sql:
+            self._rows = [self._builds[params[0]]]
+        else:
+            raise AssertionError(f"未預期的查詢：{sql[:60]}")
+
+    def fetchall(self):
+        return self._rows
+
+    def fetchone(self):
+        return self._rows[0]
+
+
+def _fp(per_year=None, builds=None, rows=None):
+    from cpbl.models.winprob_strength import population_fingerprint
+    per_year = per_year or [(2026, 2, "sno-md5", "games-md5")]
+    builds = builds or {2026: (2, "build-md5")}
+    return population_fingerprint(_FingerprintCursor(per_year, builds),
+                                  date(2026, 7, 27), rows or [], {2026: {1, 2}})
+
+
+def test_fingerprint_covers_scores_builds_and_model_inputs():
+    """iteration 3 查核 F1：只 hash sno 集合，比分修訂／PA 重新發布／特徵重算全看不見。"""
+    base = _fp()
+    # ① 比分被修訂：sno 集合一模一樣，games_md5 必須變
+    revised = _fp(per_year=[(2026, 2, "sno-md5", "games-md5-REVISED")])
+    assert revised["by_year"][2026]["sno_md5"] == base["by_year"][2026]["sno_md5"]
+    assert revised["by_year"][2026]["games_md5"] != base["by_year"][2026]["games_md5"]
+    # ② PA 重新發布：games 完全沒動，published build identity 必須變
+    republished = _fp(builds={2026: (2, "build-md5-REPUBLISHED")})
+    assert republished["by_year"] == base["by_year"]
+    assert (republished["published_builds_by_eval_year"][2026]["build_md5"]
+            != base["published_builds_by_eval_year"][2026]["build_md5"])
+
+
+def test_fingerprint_tracks_actual_model_inputs():
+    """特徵值變動（gamelog 補值等）必須改變 model_inputs_md5——場數與 sno 都不會動。"""
+    def row(kbb):
+        return _GameRowStub(2026, 1, {"winrate_diff": kbb})
+    a = _fp(rows=[row(0.10)])
+    b = _fp(rows=[row(0.11)])
+    assert a["by_year"][2026]["n_completed"] == b["by_year"][2026]["n_completed"]
+    assert a["model_inputs_md5"] != b["model_inputs_md5"]
+
+
+def test_fingerprint_diff_names_the_drifted_key():
+    """漂移時要說得出「哪一年的哪一項變了」，不能只回一句不一致。"""
+    from cpbl.models.winprob_strength import fingerprint_diff
+    base = _fp()
+    drifted = _fp(per_year=[(2026, 3, "sno-md5-NEW", "games-md5-NEW")])
+    diffs = fingerprint_diff(base, drifted)
+    assert diffs, "指紋不同卻回報無差異"
+    assert any("2026" in d and "n_completed" in d for d in diffs)
+    assert fingerprint_diff(base, _fp()) == []
+
+
+class _SeasonPackCursor:
+    """`build_season_pack` 用到的三段查詢：as-of 完成場、as-of PA state、主場勝率。"""
+
+    def __init__(self, as_of_games, pas):
+        self._as_of_games, self._pas = as_of_games, pas
+        self._rows: list = []
+
+    def execute(self, sql, params=None):
+        if "SELECT game_sno FROM cpbl.games" in sql:
+            as_of = params[2]
+            self._rows = [(sno,) for sno, d in self._as_of_games if d <= as_of]
+        elif "FROM cpbl.game_plate_appearances" in sql:
+            as_of = params[2]
+            self._rows = [(sno, state, pre) for sno, d, state, pre in self._pas if d <= as_of]
+        elif "avg(CASE WHEN home_score>away_score" in sql:
+            self._rows = [(0.5,)]
+        else:
+            raise AssertionError(f"未預期的查詢：{sql[:60]}")
+
+    def fetchall(self):
+        return self._rows
+
+    def fetchone(self):
+        return self._rows[0]
+
+
+def test_season_metadata_ignores_games_after_as_of(monkeypatch):
+    """iteration 3 查核 F1：coverage／n_irregular_games／pa_state_counts 原本取自
+    `load_eval_season()`（以 CURRENT_DATE 為界），as_of 之後入庫的比賽會混進來。"""
+    from cpbl.models import winprob_strength as ws
+
+    early, late = date(2026, 6, 1), date(2026, 7, 20)
+    pas = [{"game_sno": 1, "inning": 1, "vht": "T", "outs": 0, "outcome": 1.0,
+            "irregular": False, "game_key": (2026, "A", 1), "diff": 0, "bases": "___"},
+           {"game_sno": 2, "inning": 1, "vht": "T", "outs": 0, "outcome": 0.0,
+            "irregular": False, "game_key": (2026, "A", 2), "diff": 0, "bases": "___"}]
+    monkeypatch.setattr(ws, "load_eval_season", lambda cur, kind, year: {
+        "pas": pas, "rules": None,
+        # 上游一律看到兩場（含 as_of 之後那場），且其中一場 irregular
+        "games": {1: {"outcome": 1.0, "irregular": False},
+                  2: {"outcome": 0.0, "irregular": True}},
+        "coverage": 1.0, "n_irregular_games": 1,
+        "pa_state_counts": {"ready": 2},
+    })
+    monkeypatch.setattr(ws, "score_pas", lambda dist, rules, ps: [(0.5, p["outcome"], False,
+                                                                   p["game_key"]) for p in ps])
+    monkeypatch.setattr(ws, "dist_from_counts", lambda *a, **k: {})
+    monkeypatch.setattr(ws, "opening_wp", lambda dist, year: 0.5)
+
+    cur = _SeasonPackCursor(
+        as_of_games=[(1, early), (2, late)],
+        pas=[(1, early, "ready", {"inning": 1, "half": "T", "outs": 0,
+                                  "home_score": 0, "away_score": 0}),
+             (2, late, "ready", {"inning": 1, "half": "T", "outs": 0,
+                                 "home_score": 0, "away_score": 0})])
+    pack = ws.build_season_pack(cur, {}, 2026, 2025, {1, 2}, date(2026, 6, 30))
+
+    assert pack.n_completed_games == 1              # 只算 as_of 界限內的完成場
+    assert pack.n_irregular_games == 0              # 那場 irregular 在 as_of 之後
+    assert pack.pa_state_counts == {"ready": 1}     # 上游會回 {"ready": 2}
+    assert pack.coverage == round(pack.coverage_raw, 4)
+
+
+class _StateCountCursor:
+    """同一份 fixture 同時餵給 `load_eval_season()` 與 `_pa_state_counts_as_of()`。
+
+    三段查詢以 SQL 特徵分派：games＋livelog（上游）、無 games join 的 PA 查詢（上游）、
+    有 games join＋日期界限的 PA 查詢（本卡）。
+    """
+
+    def __init__(self, games, pas):
+        # games: [(sno, home_score, away_score, delay_kind, max_inn, game_date), ...]
+        # pas:   [(sno, state, pre_state), ...]（sno 對應 games，日期由 games 決定）
+        self._games, self._pas = games, pas
+        self._date = {g[0]: g[5] for g in games}
+        self._rows: list = []
+
+    def execute(self, sql, params=None):
+        if "FROM cpbl.games g " in sql and "game_livelog" in sql:
+            self._rows = [(sno, hs, aw, delay, mx)
+                          for sno, hs, aw, delay, mx, _d in self._games if hs + aw > 0]
+        elif "FROM cpbl.game_plate_appearances" in sql and "JOIN cpbl.games g" in sql:
+            as_of = params[2]
+            self._rows = [(sno, state, pre) for sno, state, pre in self._pas
+                          if self._date[sno] <= as_of]
+        elif "FROM cpbl.game_plate_appearances" in sql:
+            self._rows = list(self._pas)          # 上游：無日期界限
+        else:
+            raise AssertionError(f"未預期的查詢：{sql[:70]}")
+
+    def fetchall(self):
+        return self._rows
+
+
+def _state_fixture():
+    """涵蓋所有 state 與缺欄位組合：
+
+    - sno 1：完成場、`ready` 且 pre_state 完整 → 只進 `ready`
+    - sno 2：完成場、`ready` 但缺 `outs` → `ready` ＋ `ready_incomplete_state`
+    - sno 3：**未完成場**（0-0）、`ready` 且完整 → 只進 `ready`，不得計 incomplete
+      （上游 `sno not in games` 就 continue，本卡以 as_of 完成場集合對應）
+    - sno 4：完成場、非 ready 的兩種 state → 各自計數，且**不得**碰 incomplete 判斷
+    """
+    full = {"inning": 3, "half": "T", "outs": 1, "home_score": 2, "away_score": 1}
+    missing_outs = {**full, "outs": None}
+    games = [(1, 3, 1, None, 9, date(2026, 4, 1)),
+             (2, 5, 2, None, 9, date(2026, 4, 2)),
+             (3, 0, 0, None, None, date(2026, 4, 3)),
+             (4, 1, 0, "雨", 7, date(2026, 4, 4))]
+    pas = [(1, "ready", full), (1, "ready", full),
+           (2, "ready", missing_outs),
+           (3, "ready", full),
+           (4, "truncated", full), (4, "non_pa", full), (4, "ready", missing_outs)]
+    return games, pas
+
+
+def test_as_of_pa_state_counts_match_upstream_when_as_of_is_future():
+    """iteration 4 查核 F2：`_pa_state_counts_as_of()` 複製了上游的判準（winprob_val 是禁改區），
+    兩處分岔是最大的風險。as_of 取未來日時，本卡重算必須與 `load_eval_season()` 逐鍵相同。
+
+    這支測試是那份 docstring 宣稱的實體——iteration 4 只寫了宣稱、沒寫測試。
+    """
+    from cpbl.models.winprob_strength import KIND, _pa_state_counts_as_of
+    from cpbl.models.winprob_val import load_eval_season
+
+    games, pas = _state_fixture()
+    upstream = load_eval_season(_StateCountCursor(games, pas), KIND, 2026)
+    far_future = date(2099, 12, 31)
+    as_of_snos = {sno for sno, hs, aw, _d, _m, _dt in games if hs + aw > 0}
+    mine = _pa_state_counts_as_of(_StateCountCursor(games, pas), 2026, far_future, as_of_snos)
+
+    assert mine == upstream["pa_state_counts"], (
+        f"與上游判準分岔：本卡 {mine} vs 上游 {upstream['pa_state_counts']}")
+    # 光是相等不夠——fixture 必須真的走過每一條分支，否則這個等式是空的
+    assert set(mine) == {"ready", "ready_incomplete_state", "truncated", "non_pa"}
+    assert mine["ready"] == 5 and mine["ready_incomplete_state"] == 2
+    assert mine["truncated"] == 1 and mine["non_pa"] == 1
+
+
+def test_as_of_pa_state_counts_drop_games_after_the_cutoff():
+    """同一份 fixture，as_of 往前挪 → 只留界限內的場次；上游則永遠是全部。"""
+    from cpbl.models.winprob_strength import KIND, _pa_state_counts_as_of
+    from cpbl.models.winprob_val import load_eval_season
+
+    games, pas = _state_fixture()
+    upstream = load_eval_season(_StateCountCursor(games, pas), KIND, 2026)
+    cut = date(2026, 4, 2)
+    mine = _pa_state_counts_as_of(_StateCountCursor(games, pas), 2026, cut, {1, 2})
+
+    assert mine == {"ready": 3, "ready_incomplete_state": 1}
+    assert upstream["pa_state_counts"]["ready"] == 5      # 上游看得到界限後的場次

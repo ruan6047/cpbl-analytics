@@ -52,13 +52,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import math
 import random
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from datetime import date, datetime
 from pathlib import Path
 
@@ -885,28 +886,139 @@ class SeasonPack:
     excluded_no_prior: int
 
 
-def population_fingerprint(cur, as_of: date) -> dict:
-    """完成場母體的內容指紋——`as_of` 只鎖日期界限，鎖不住入庫狀態。
+def _rows_md5(rows: Sequence[GameRow]) -> str:
+    """實際餵給模型的 GameRow 的內容摘要（含 team_feats 與四組 Counts／來源層級）。
+
+    比「完成場 sno 集合」嚴格得多：比分修訂、gamelog 補值、`game_features` 重算都會改變
+    這裡的值，而 sno 集合完全看不出來（iteration 3 查核 F1）。float 走 `json.dumps` 的
+    repr（最短往返表示），同一份輸入必得同一個摘要。
+    """
+    payload = json.dumps([asdict(r) for r in sorted(rows, key=lambda r: (r.year, r.game_sno))],
+                         sort_keys=True, default=str, ensure_ascii=False)
+    return hashlib.md5(payload.encode("utf-8")).hexdigest()
+
+
+def population_fingerprint(cur, as_of: date, rows: Sequence[GameRow],
+                           scored_snos: dict[int, set[int]]) -> dict:
+    """輸入指紋——`as_of` 只鎖日期界限，鎖不住入庫狀態，故另存內容摘要供漂移偵測。
 
     iteration 2 查核 F2 的實測教訓：同一個 `--as-of 2026-07-26`，在不同時點重跑會得到
     216 vs 219 場——那 3 場的 `game_date` 早在界限內，只是**比分後來才入庫**。因此
-    「日期截止」不等於「輸入可重現」。本指紋讓重跑者能立刻偵測母體是否已漂移，
-    而不是靜默得到不同數字。
+    「日期截止」不等於「輸入可重現」。
+
+    iteration 3 查核 F1：只 hash 完成場 sno 集合，偵測不到比分／先發投手／`game_features`
+    被修訂、同場 PA 重新發布、gamelog 補值——場數與 sno 全都沒變，數字卻會變。故本版
+    涵蓋三層，任一層變動都看得見：
+
+    1. `games_md5`   完成場的 sno＋比分＋延賽別（抓比分修訂與完成場判定翻轉）。
+    2. `model_inputs_md5` **實際進入模型的 GameRow**（抓上游任何影響特徵的變動）。
+    3. `published_builds_md5` **實際被評分的那些場**的 published build identity（build_id＋
+       builder／taxonomy 版本；抓 PA 重新發布——它會改變評分母體卻不動 games）。範圍限定在
+       評分母體而非整季：iteration 4 查核 F4 實測，`--as-of 2026-06-30` 的模型母體只有 177 場，
+       整季查詢卻記下 216 個 build，多出的 39 場在截止日之後，會造成保守型假陽性漂移。
+
+    紅線 8（經需求方 2026-07-27 sign-off 放寬為漂移偵測）：本指紋只保證「漂移可被偵測且
+    fail loudly」，不保證能重建舊結果——真正逐位重建需要輸入快照，成本超出本卡。
     """
     cur.execute(
-        "SELECT year, count(*), md5(string_agg(game_sno::text, ',' ORDER BY game_sno)) "
+        "SELECT year, count(*), "
+        "       md5(string_agg(game_sno::text, ',' ORDER BY game_sno)), "
+        "       md5(string_agg(game_sno || ':' || home_score || '-' || away_score "
+        "                      || ':' || coalesce(delay_kind, ''), ',' ORDER BY game_sno)) "
         "FROM cpbl.games WHERE kind_code=%s AND year BETWEEN %s AND %s "
         "AND home_score + away_score > 0 AND game_date <= %s GROUP BY year ORDER BY year",
         (KIND, CORE_FIRST, LAST_YEAR, as_of))
-    per_year = {int(y): {"n_completed": int(n), "sno_md5": h} for y, n, h in cur.fetchall()}
-    return {"note": "as_of 只鎖 game_date 界限；晚到入庫仍會改變母體，故另存內容指紋供漂移偵測",
+    per_year = {int(y): {"n_completed": int(n), "sno_md5": h, "games_md5": g}
+                for y, n, h, g in cur.fetchall()}
+    rows_by_year: dict[int, list[GameRow]] = defaultdict(list)
+    for r in rows:
+        rows_by_year[r.year].append(r)
+    for y, entry in per_year.items():
+        entry["model_inputs_md5"] = _rows_md5(rows_by_year.get(y, []))
+        entry["n_model_rows"] = len(rows_by_year.get(y, []))
+    builds: dict[int, dict] = {}
+    for y in sorted(scored_snos):
+        snos = sorted(scored_snos[y])
+        cur.execute(
+            "SELECT count(*), md5(string_agg(game_sno || ':' || build_id::text || ':' "
+            "                     || builder_version || ':' || taxonomy_version, "
+            "                     ',' ORDER BY game_sno)) "
+            "FROM cpbl.game_recap_builds "
+            "WHERE year=%s AND kind_code=%s AND state='published' AND game_sno = ANY(%s)",
+            (y, KIND, snos))
+        n, digest = cur.fetchone()
+        builds[y] = {"n_published": int(n or 0), "n_scored_games": len(snos),
+                     "build_md5": digest}
+    return {"note": "as_of 只鎖 game_date 界限；晚到入庫／比分修訂／PA 重新發布仍會改變輸入，"
+                    "故三層內容摘要（games／model inputs／published builds）供漂移偵測",
             "by_year": per_year,
+            "published_builds_by_eval_year": builds,
+            "model_inputs_md5": _rows_md5(rows),
             "n_completed_total": sum(v["n_completed"] for v in per_year.values())}
+
+
+def fingerprint_diff(expected: dict, actual: dict) -> list[str]:
+    """兩份指紋的逐項差異（空 list ＝ 輸入未漂移）。
+
+    比對刻意逐鍵展開而非整體 hash：漂移時要能直接說出「2026 的 model inputs 變了」，
+    而不是只丟一句「不一致」讓重跑者自己找。
+    """
+    diffs: list[str] = []
+    if expected.get("model_inputs_md5") != actual.get("model_inputs_md5"):
+        diffs.append("全域 model_inputs_md5 不一致")
+    for label, key in (("完成場", "by_year"), ("published build", "published_builds_by_eval_year")):
+        exp, act = expected.get(key) or {}, actual.get(key) or {}
+        for y in sorted({*map(str, exp), *map(str, act)}):
+            e, a = exp.get(y) or exp.get(int(y)) or {}, act.get(y) or act.get(int(y)) or {}
+            for field_name in sorted({*e, *a}):
+                if e.get(field_name) != a.get(field_name):
+                    diffs.append(f"{label} {y} 的 {field_name}："
+                                 f"{e.get(field_name)} → {a.get(field_name)}")
+    return diffs
 
 
 def _built_snos(season: dict) -> set[int]:
     """該季有 published build 的完成場 sno 集合（由 pa_state_counts 無法還原，改由 pas 推導）。"""
     return {p["game_sno"] for p in season["pas"]}
+
+
+# `load_eval_season()` 判定 pre_state 是否可用的欄位；此處必須與上游完全一致。
+_PRE_STATE_REQUIRED = ("inning", "half", "outs", "home_score", "away_score")
+
+
+def _pa_state_counts_as_of(cur, year: int, as_of: date, as_of_snos: set[int]) -> dict:
+    """`pa_state_counts` 的 as-of 版本。
+
+    上游 `load_eval_season()` 的 PA 查詢**完全沒有日期界限**，`games` 那一半才以
+    `CURRENT_DATE` 為界；直接沿用會讓這個欄位隨當下全表漂移（iteration 3 查核 F1）。
+    winprob_val 是本卡禁改區（紅線 1），故在此以相同判準重算：
+
+    - state 計數：涵蓋 `game_date <= as_of` 的所有 published PA（對應上游的「無日期界限」，
+      把界限換成 as_of）。
+    - `ready_incomplete_state`：僅在**完成場**（as_of 母體）且 `pre_state` 關鍵欄位缺值時計入，
+      與上游 `sno not in games → continue` 的順序一致。
+
+    兩處判準日後分岔是這個重算最大的風險，故以
+    `test_as_of_pa_state_counts_match_upstream_when_as_of_is_future` 釘住：as_of 取未來日時，
+    本函式輸出必須與 `load_eval_season()` 的 `pa_state_counts` 逐鍵相同。
+    """
+    cur.execute(
+        "SELECT pa.game_sno, pa.state, pa.pre_state "
+        "FROM cpbl.game_plate_appearances pa "
+        "JOIN cpbl.game_recap_builds b ON b.build_id = pa.build_id "
+        "  AND b.state = 'published' "
+        "JOIN cpbl.games g ON g.year = pa.year AND g.kind_code = pa.kind_code "
+        "  AND g.game_sno = pa.game_sno "
+        "WHERE pa.year=%s AND pa.kind_code=%s AND g.game_date <= %s",
+        (year, KIND, as_of))
+    counts: Counter = Counter()
+    for sno, state, pre in cur.fetchall():
+        counts[state] += 1
+        if state != "ready" or sno not in as_of_snos:
+            continue
+        if any((pre or {}).get(f) is None for f in _PRE_STATE_REQUIRED):
+            counts["ready_incomplete_state"] += 1
+    return dict(counts)
 
 
 def build_season_pack(cur, per_year, year: int, span_end: int,
@@ -942,6 +1054,10 @@ def build_season_pack(cur, per_year, year: int, span_end: int,
     pas = [season["pas"][i] for i in keep]
     n_completed = len(as_of_snos)
     n_scored = len({p["game_sno"] for p in pas})
+    coverage_raw = (len(as_of_snos & _built_snos(season)) / n_completed) if n_completed else 0.0
+    # 以下三個欄位原本直接取自 `season`（＝`load_eval_season()`，以 CURRENT_DATE 為界），
+    # 故 `as_of` 之後才入庫的比賽仍會改變它們——artifact 標著 data_as_of 卻不是該日的內容
+    # （iteration 3 查核 F1）。改為一律由 as_of 母體重算。
     return SeasonPack(
         year=year, span_end=span_end,
         scored=[scored_all[i] for i in keep],
@@ -949,13 +1065,14 @@ def build_season_pack(cur, per_year, year: int, span_end: int,
         ts=[progress_t(p["inning"], p["vht"], p["outs"]) for p in pas],
         snos=[p["game_sno"] for p in pas],
         p_base0=opening_wp(dist, year),
-        coverage=season["coverage"],
-        coverage_raw=(len(as_of_snos & _built_snos(season)) / n_completed) if n_completed else 0.0,
+        coverage=round(coverage_raw, 4),   # 顯示值＝未捨入值的 4 位（判定一律讀 raw）
+        coverage_raw=coverage_raw,
         effective_coverage=(n_scored / n_completed) if n_completed else 0.0,
         n_completed_games=n_completed,
         n_scored_games=n_scored,
-        n_irregular_games=season["n_irregular_games"],
-        pa_state_counts=season["pa_state_counts"],
+        n_irregular_games=sum(1 for sno in as_of_snos
+                              if season["games"].get(sno, {}).get("irregular")),
+        pa_state_counts=_pa_state_counts_as_of(cur, year, as_of, as_of_snos),
         home_p=home_rate_exact(cur, KIND, CORE_FIRST, span_end, as_of),
         excluded_no_prior=excluded,
     )
@@ -981,7 +1098,8 @@ def predict_prior(model: PriorModel, rows: Sequence[GameRow],
 
 
 def run_strength(out_path: Path, val_seasons: Sequence[int],
-                 as_of: date | None = None) -> dict:
+                 as_of: date | None = None,
+                 expect_fingerprint: dict | None = None) -> dict:
     result: dict = {
         "card": "GAME-RECAP-WP-STRENGTH1",
         "kind": KIND,
@@ -1040,8 +1158,27 @@ def run_strength(out_path: Path, val_seasons: Sequence[int],
                                     * len(srow["base_scored"]))
 
         result["advanced_shadow_2026"] = advanced_shadow(cur, rows)
-        result["advanced_shadow_2026"]["data_as_of"] = result["data_as_of"]
-        result["population_fingerprint"] = population_fingerprint(cur, as_of or date.today())
+        # `advanced_shadow()` 讀 advanced_stats／pitch_tracking／gamelog 的**當下全季累計**，
+        # 完全不吃 as_of；標成 `data_as_of` 會讓讀者以為它是那一天的內容（iteration 3 查核 F1）。
+        # 改標 observed_at＝觀測時刻，並明示它不在逐位比對範圍內。
+        result["advanced_shadow_2026"]["observed_at"] = result["generated_at"]
+        result["advanced_shadow_2026"]["as_of_bounded"] = False
+        result["advanced_shadow_2026"]["excluded_from_bitwise_compare"] = (
+            "本節不吃 as_of，隨當下全表變動；比對重跑輸出時須與 generated_at 一併排除")
+        # 先驗訊號四路對照原本只有 `--diagnostics` 印在終端、報告 §6.2 靠人工謄寫，
+        # 於是它成了 iteration 3 查核 F2 的 8 處過期數字之二。寫進 artifact 後，
+        # 報告該表改由 `scripts/strength1_report_tables.py` 產生，過期在結構上不可能。
+        result["prior_signal_diagnostics"] = prior_signal_diagnostics(cur, rows)
+        result["population_fingerprint"] = population_fingerprint(
+            cur, as_of or date.today(), rows,
+            {Y: set(packs[Y].snos) for Y in val_seasons if Y in packs})
+        if expect_fingerprint is not None:
+            diffs = fingerprint_diff(expect_fingerprint, result["population_fingerprint"])
+            if diffs:
+                # fail loudly（紅線 8）：輸入已漂移就不得靜默產出「看起來像重現」的數字。
+                raise RuntimeError(
+                    "輸入指紋與期望不符，重跑無法對照既有 artifact；差異：\n  "
+                    + "\n  ".join(diffs))
 
     if pooled["base"]:
         # `metrics()` 的 brier／deciles／CI 皆為捨入顯示值；判定另存 *_raw／raw_deciles／
@@ -1501,10 +1638,15 @@ def main() -> None:
     ap.add_argument("--as-of", default="",
                     help="資料截止日 YYYY-MM-DD（預設今日）。進行中賽季的部分重跑務必指定，"
                          "否則完成場母體會隨時間漂移而無法逐位重現（artifact 的 data_as_of）")
+    ap.add_argument("--expect-fingerprint", default="",
+                    help="既有 artifact 路徑；跑之前比對輸入指紋，不符即中止（紅線 8 漂移偵測）。"
+                         "重跑要與既有數字對照時務必指定，否則輸入已變也看不出來")
     ap.add_argument("--diagnostics", action="store_true",
                     help="只印先驗訊號四路對照（診斷；不寫 artifact、不進判定）")
     args = ap.parse_args()
     as_of = date.fromisoformat(args.as_of) if args.as_of else None
+    expect = (json.loads(Path(args.expect_fingerprint).read_text(encoding="utf-8"))
+              .get("population_fingerprint") if args.expect_fingerprint else None)
     if args.diagnostics:
         print("先驗訊號診斷（固定 kappa=100 lambda=100；不進 Go/No-Go）")
         print(f"{'Y':>5} {'in-sample':>10} {'out-of-time':>12} {'主場常數':>9} "
@@ -1521,7 +1663,7 @@ def main() -> None:
         return
     seasons = ([int(s) for s in args.seasons.split(",") if s.strip()]
                or list(range(VAL_FIRST, VAL_LAST + 1)))
-    result = run_strength(Path(args.out), sorted(seasons), as_of)
+    result = run_strength(Path(args.out), sorted(seasons), as_of, expect)
     v = result["verdict"]
     print(f"\n=== GAME-RECAP-WP-STRENGTH1 A scope：{v['status']} ===")
     for label, items in (("硬性", v["reasons"]), ("揭露", v.get("disclosure", []))):
