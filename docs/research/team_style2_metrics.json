@@ -1,0 +1,2026 @@
+{
+ "card": "TEAM-STYLE2",
+ "generated_at": "2026-07-27T11:50:13.267218+00:00",
+ "spec": {
+  "preregistered_in": "docs/research/TEAM-STYLE2_RESULTS.md §0（先行 commit）",
+  "upstream": "docs/research/team_style1_metrics.json（TEAM-STYLE1 凍結 spec 50c23be；軸/z/配對沿用不重算）",
+  "manager_rule": "維基逐年列場數唯一最大者；平手/缺列＝不可判定；to_year 與 managers.g 不用於判定",
+  "binary_rule": "t 與 t+1 主教練同名＝同教練組；任一季不可判定＝配對排除",
+  "decision_rule": "Go ⇔ ≥4/7 軸 Δr>0 且七軸平均 Δ̄ 之 95% bootstrap CI 下界 > 0",
+  "bootstrap": {
+   "b": 10000,
+   "seed": 20260727,
+   "resample": "配對層 cluster、兩組分層、percentile 95% CI"
+  }
+ },
+ "wiki_snapshot": {
+  "path": "docs/research/team_style2_wiki_snapshot.json",
+  "fetched_at": "2026-07-27T11:49:26.037931+00:00",
+  "revids": {
+   "AAA011": 93594839,
+   "ACN011": 93411095,
+   "ADD011": 93274477,
+   "AEO011": 93445095,
+   "AJL011": 93145536,
+   "AKP011": 93474381
+  }
+ },
+ "season_managers": [
+  {
+   "franchise": "AAA011",
+   "year": 2021,
+   "main_manager": "葉君璋",
+   "detail": "葉君璋 120場",
+   "games_by_manager": {
+    "葉君璋": 120
+   },
+   "source_rows": [
+    [
+     "2021",
+     "職棒32年",
+     "葉君璋",
+     "5",
+     "120",
+     "50",
+     "67",
+     "3",
+     ".427",
+     ""
+    ]
+   ],
+   "wiki_title": "味全龍",
+   "wiki_revid": 93594839
+  },
+  {
+   "franchise": "AAA011",
+   "year": 2022,
+   "main_manager": "葉君璋",
+   "detail": "葉君璋 120場",
+   "games_by_manager": {
+    "葉君璋": 120
+   },
+   "source_rows": [
+    [
+     "2022",
+     "職棒33年",
+     "葉君璋",
+     "3",
+     "120",
+     "57",
+     "58",
+     "5",
+     ".496",
+     "季後賽外卡"
+    ]
+   ],
+   "wiki_title": "味全龍",
+   "wiki_revid": 93594839
+  },
+  {
+   "franchise": "AAA011",
+   "year": 2023,
+   "main_manager": "葉君璋",
+   "detail": "葉君璋 120場",
+   "games_by_manager": {
+    "葉君璋": 120
+   },
+   "source_rows": [
+    [
+     "2023",
+     "職棒34年",
+     "葉君璋",
+     "1",
+     "120",
+     "62",
+     "53",
+     "5",
+     ".539",
+     "下半季冠軍／年度總冠軍"
+    ]
+   ],
+   "wiki_title": "味全龍",
+   "wiki_revid": 93594839
+  },
+  {
+   "franchise": "AAA011",
+   "year": 2024,
+   "main_manager": "葉君璋",
+   "detail": "葉君璋 120場",
+   "games_by_manager": {
+    "葉君璋": 120
+   },
+   "source_rows": [
+    [
+     "2024",
+     "職棒35年",
+     "葉君璋",
+     "4",
+     "120",
+     "58",
+     "62",
+     "0",
+     ".483",
+     ""
+    ]
+   ],
+   "wiki_title": "味全龍",
+   "wiki_revid": 93594839
+  },
+  {
+   "franchise": "AAA011",
+   "year": 2025,
+   "main_manager": "葉君璋",
+   "detail": "葉君璋 120場",
+   "games_by_manager": {
+    "葉君璋": 120
+   },
+   "source_rows": [
+    [
+     "2025",
+     "職棒36年",
+     "葉君璋",
+     "5",
+     "120",
+     "55",
+     "64",
+     "1",
+     ".462",
+     ""
+    ]
+   ],
+   "wiki_title": "味全龍",
+   "wiki_revid": 93594839
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2018,
+   "main_manager": "史耐德",
+   "detail": "史耐德 102場；伯納 17場；丘昌榮 1場",
+   "games_by_manager": {
+    "史耐德": 102,
+    "伯納": 17,
+    "丘昌榮": 1
+   },
+   "source_rows": [
+    [
+     "中信兄弟",
+     "3",
+     "史耐德",
+     "2018",
+     "102",
+     "42",
+     "59",
+     "1",
+     ".416",
+     "0",
+     "0"
+    ],
+    [
+     "中信兄弟",
+     "代",
+     "丘昌榮",
+     "2018",
+     "1",
+     "0",
+     "1",
+     "0",
+     ".000",
+     "0",
+     "0"
+    ],
+    [
+     "中信兄弟",
+     "代",
+     "伯納",
+     "2018",
+     "17",
+     "6",
+     "11",
+     "0",
+     ".353",
+     "0",
+     "0"
+    ]
+   ],
+   "wiki_title": "中信兄弟",
+   "wiki_revid": 93411095
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2019,
+   "main_manager": "伯納",
+   "detail": "伯納 120場",
+   "games_by_manager": {
+    "伯納": 120
+   },
+   "source_rows": [
+    [
+     "中信兄弟",
+     "4",
+     "伯納",
+     "2019",
+     "120",
+     "62",
+     "56",
+     "2",
+     ".525",
+     "1",
+     "0"
+    ]
+   ],
+   "wiki_title": "中信兄弟",
+   "wiki_revid": 93411095
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2020,
+   "main_manager": "丘昌榮",
+   "detail": "丘昌榮 120場",
+   "games_by_manager": {
+    "丘昌榮": 120
+   },
+   "source_rows": [
+    [
+     "中信兄弟",
+     "5",
+     "丘昌榮",
+     "2020",
+     "120",
+     "67",
+     "51",
+     "2",
+     ".568",
+     "1",
+     "0"
+    ]
+   ],
+   "wiki_title": "中信兄弟",
+   "wiki_revid": 93411095
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2021,
+   "main_manager": "林威助",
+   "detail": "林威助 120場",
+   "games_by_manager": {
+    "林威助": 120
+   },
+   "source_rows": [
+    [
+     "中信兄弟",
+     "6",
+     "林威助",
+     "2021",
+     "120",
+     "66",
+     "49",
+     "5",
+     ".574",
+     "1",
+     "1"
+    ]
+   ],
+   "wiki_title": "中信兄弟",
+   "wiki_revid": 93411095
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2022,
+   "main_manager": "林威助",
+   "detail": "林威助 120場",
+   "games_by_manager": {
+    "林威助": 120
+   },
+   "source_rows": [
+    [
+     "中信兄弟",
+     "6",
+     "林威助",
+     "2022",
+     "120",
+     "69",
+     "47",
+     "4",
+     ".595",
+     "1",
+     "1"
+    ]
+   ],
+   "wiki_title": "中信兄弟",
+   "wiki_revid": 93411095
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2023,
+   "main_manager": "彭政閔",
+   "detail": "彭政閔 94場；林威助 25場；陳江和 1場",
+   "games_by_manager": {
+    "彭政閔": 94,
+    "林威助": 25,
+    "陳江和": 1
+   },
+   "source_rows": [
+    [
+     "中信兄弟",
+     "6",
+     "林威助",
+     "2023",
+     "25",
+     "9",
+     "15",
+     "1",
+     ".375",
+     "0",
+     "0"
+    ],
+    [
+     "中信兄弟",
+     "代",
+     "陳江和",
+     "2023",
+     "1",
+     "1",
+     "0",
+     "0",
+     "1.000",
+     "0",
+     "0"
+    ],
+    [
+     "中信兄弟",
+     "7",
+     "彭政閔",
+     "2023",
+     "94",
+     "47",
+     "43",
+     "4",
+     ".522",
+     "0",
+     "0"
+    ]
+   ],
+   "wiki_title": "中信兄弟",
+   "wiki_revid": 93411095
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2024,
+   "main_manager": "平野惠一",
+   "detail": "平野惠一 120場",
+   "games_by_manager": {
+    "平野惠一": 120
+   },
+   "source_rows": [
+    [
+     "中信兄弟",
+     "8",
+     "平野惠一",
+     "2024",
+     "120",
+     "70",
+     "50",
+     "0",
+     ".583",
+     "1",
+     "1"
+    ]
+   ],
+   "wiki_title": "中信兄弟",
+   "wiki_revid": 93411095
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2025,
+   "main_manager": "平野惠一",
+   "detail": "平野惠一 120場",
+   "games_by_manager": {
+    "平野惠一": 120
+   },
+   "source_rows": [
+    [
+     "中信兄弟",
+     "8",
+     "平野惠一",
+     "2025",
+     "120",
+     "70",
+     "50",
+     "0",
+     ".583",
+     "1",
+     "0"
+    ]
+   ],
+   "wiki_title": "中信兄弟",
+   "wiki_revid": 93411095
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2018,
+   "main_manager": "黃甘霖",
+   "detail": "黃甘霖 120場",
+   "games_by_manager": {
+    "黃甘霖": 120
+   },
+   "source_rows": [
+    [
+     "11",
+     "黃甘霖",
+     "高國慶",
+     "2018",
+     "120",
+     "64",
+     "55",
+     "1",
+     ".538",
+     "1",
+     "0"
+    ]
+   ],
+   "wiki_title": "統一7-ELEVEn獅",
+   "wiki_revid": 93274477
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2019,
+   "main_manager": null,
+   "detail": "場數平手（黃甘霖 60場；劉育辰 60場）（不可判定）",
+   "games_by_manager": {
+    "黃甘霖": 60,
+    "劉育辰": 60
+   },
+   "source_rows": [
+    [
+     "11",
+     "黃甘霖",
+     "陳傑憲",
+     "2019上半季",
+     "60",
+     "25",
+     "34",
+     "1",
+     ".424",
+     "0",
+     "0"
+    ],
+    [
+     "(代理)",
+     "劉育辰",
+     "陳傑憲",
+     "2019下半季",
+     "60",
+     "23",
+     "36",
+     "1",
+     ".390",
+     "0",
+     "0"
+    ]
+   ],
+   "wiki_title": "統一7-ELEVEn獅",
+   "wiki_revid": 93274477
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2020,
+   "main_manager": "林岳平",
+   "detail": "林岳平 120場",
+   "games_by_manager": {
+    "林岳平": 120
+   },
+   "source_rows": [
+    [
+     "12",
+     "林岳平",
+     "吳桀睿",
+     "2020",
+     "120",
+     "58",
+     "61",
+     "1",
+     ".487",
+     "1",
+     "1"
+    ]
+   ],
+   "wiki_title": "統一7-ELEVEn獅",
+   "wiki_revid": 93274477
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2021,
+   "main_manager": "林岳平",
+   "detail": "林岳平 120場",
+   "games_by_manager": {
+    "林岳平": 120
+   },
+   "source_rows": [
+    [
+     "12",
+     "林岳平",
+     "吳桀睿",
+     "2021",
+     "120",
+     "64",
+     "51",
+     "5",
+     ".557",
+     "1",
+     "0"
+    ]
+   ],
+   "wiki_title": "統一7-ELEVEn獅",
+   "wiki_revid": 93274477
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2022,
+   "main_manager": "林岳平",
+   "detail": "林岳平 114場；高志綱 6場",
+   "games_by_manager": {
+    "林岳平": 114,
+    "高志綱": 6
+   },
+   "source_rows": [
+    [
+     "12",
+     "林岳平",
+     "林岱安",
+     "2022",
+     "114",
+     "44",
+     "67",
+     "3",
+     ".396",
+     "0",
+     "0"
+    ],
+    [
+     "(代理)",
+     "高志綱",
+     "",
+     "2022/05/17-5/24",
+     "6",
+     "4",
+     "2",
+     "0",
+     ".667",
+     "0",
+     "0"
+    ]
+   ],
+   "wiki_title": "統一7-ELEVEn獅",
+   "wiki_revid": 93274477
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2023,
+   "main_manager": "林岳平",
+   "detail": "林岳平 120場",
+   "games_by_manager": {
+    "林岳平": 120
+   },
+   "source_rows": [
+    [
+     "12",
+     "林岳平",
+     "陳傑憲",
+     "2023",
+     "120",
+     "62",
+     "55",
+     "3",
+     ".530",
+     "1",
+     "0"
+    ]
+   ],
+   "wiki_title": "統一7-ELEVEn獅",
+   "wiki_revid": 93274477
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2024,
+   "main_manager": "林岳平",
+   "detail": "林岳平 120場",
+   "games_by_manager": {
+    "林岳平": 120
+   },
+   "source_rows": [
+    [
+     "12",
+     "林岳平",
+     "陳傑憲",
+     "2024",
+     "120",
+     "66",
+     "53",
+     "1",
+     ".555",
+     "1",
+     "0"
+    ]
+   ],
+   "wiki_title": "統一7-ELEVEn獅",
+   "wiki_revid": 93274477
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2025,
+   "main_manager": "林岳平",
+   "detail": "林岳平 120場",
+   "games_by_manager": {
+    "林岳平": 120
+   },
+   "source_rows": [
+    [
+     "12",
+     "林岳平",
+     "陳傑憲",
+     "2025",
+     "120",
+     "66",
+     "54",
+     "0",
+     ".550",
+     "1",
+     "0"
+    ]
+   ],
+   "wiki_title": "統一7-ELEVEn獅",
+   "wiki_revid": 93274477
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2018,
+   "main_manager": "葉君璋",
+   "detail": "葉君璋 73場；陳連宏 44場；劉榮華 3場",
+   "games_by_manager": {
+    "葉君璋": 73,
+    "陳連宏": 44,
+    "劉榮華": 3
+   },
+   "source_rows": [
+    [
+     "2018",
+     "職棒29年",
+     "葉君璋",
+     "3",
+     "73",
+     "31",
+     "42",
+     "0",
+     ".425",
+     "季中請辭"
+    ],
+    [
+     "2018",
+     "職棒29年",
+     "陳連宏",
+     "3",
+     "44",
+     "22",
+     "22",
+     "0",
+     ".500",
+     "季後賽外卡"
+    ],
+    [
+     "2018",
+     "職棒29年",
+     "劉榮華",
+     "3",
+     "3",
+     "1",
+     "2",
+     "0",
+     ".333",
+     "因陳連宏總教練遭禁賽，代理三場"
+    ]
+   ],
+   "wiki_title": "富邦悍將",
+   "wiki_revid": 93445095
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2019,
+   "main_manager": "陳連宏",
+   "detail": "陳連宏 119場；郭建霖 1場",
+   "games_by_manager": {
+    "陳連宏": 119,
+    "郭建霖": 1
+   },
+   "source_rows": [
+    [
+     "2019",
+     "職棒30年",
+     "陳連宏",
+     "1",
+     "119",
+     "63",
+     "54",
+     "2",
+     ".538",
+     "勝率第一而未取得半季冠軍"
+    ],
+    [
+     "2019",
+     "職棒30年",
+     "郭建霖",
+     "1",
+     "1",
+     "0",
+     "1",
+     "0",
+     ".000",
+     ""
+    ]
+   ],
+   "wiki_title": "富邦悍將",
+   "wiki_revid": 93445095
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2020,
+   "main_manager": "洪一中",
+   "detail": "洪一中 120場",
+   "games_by_manager": {
+    "洪一中": 120
+   },
+   "source_rows": [
+    [
+     "2020",
+     "職棒31年",
+     "洪一中",
+     "4",
+     "120",
+     "54",
+     "65",
+     "1",
+     ".454",
+     ""
+    ]
+   ],
+   "wiki_title": "富邦悍將",
+   "wiki_revid": 93445095
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2021,
+   "main_manager": "洪一中",
+   "detail": "洪一中 120場",
+   "games_by_manager": {
+    "洪一中": 120
+   },
+   "source_rows": [
+    [
+     "2021",
+     "職棒32年",
+     "洪一中",
+     "4",
+     "120",
+     "54",
+     "62",
+     "4",
+     ".466",
+     "季後請辭轉任顧問"
+    ]
+   ],
+   "wiki_title": "富邦悍將",
+   "wiki_revid": 93445095
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2022,
+   "main_manager": "丘昌榮",
+   "detail": "丘昌榮 118場；黃泰龍 2場",
+   "games_by_manager": {
+    "丘昌榮": 118,
+    "黃泰龍": 2
+   },
+   "source_rows": [
+    [
+     "2022",
+     "職棒33年",
+     "丘昌榮",
+     "5",
+     "118",
+     "46",
+     "68",
+     "4",
+     ".404",
+     ""
+    ],
+    [
+     "2022",
+     "職棒33年",
+     "黃泰龍",
+     "5",
+     "2",
+     "0",
+     "2",
+     "0",
+     ".000",
+     "因丘昌榮總教練感染covid-19，代理二場"
+    ]
+   ],
+   "wiki_title": "富邦悍將",
+   "wiki_revid": 93445095
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2023,
+   "main_manager": "丘昌榮",
+   "detail": "丘昌榮 120場",
+   "games_by_manager": {
+    "丘昌榮": 120
+   },
+   "source_rows": [
+    [
+     "2023",
+     "職棒34年",
+     "丘昌榮",
+     "5",
+     "120",
+     "48",
+     "67",
+     "5",
+     ".417",
+     ""
+    ]
+   ],
+   "wiki_title": "富邦悍將",
+   "wiki_revid": 93445095
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2024,
+   "main_manager": "陳金鋒",
+   "detail": "陳金鋒 120場",
+   "games_by_manager": {
+    "陳金鋒": 120
+   },
+   "source_rows": [
+    [
+     "2024",
+     "職棒35年",
+     "陳金鋒",
+     "5",
+     "120",
+     "53",
+     "66",
+     "1",
+     ".445",
+     ""
+    ]
+   ],
+   "wiki_title": "富邦悍將",
+   "wiki_revid": 93445095
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2025,
+   "main_manager": "陳金鋒",
+   "detail": "陳金鋒 120場",
+   "games_by_manager": {
+    "陳金鋒": 120
+   },
+   "source_rows": [
+    [
+     "2025",
+     "職棒36年",
+     "陳金鋒",
+     "6",
+     "120",
+     "46",
+     "74",
+     "0",
+     ".383",
+     ""
+    ]
+   ],
+   "wiki_title": "富邦悍將",
+   "wiki_revid": 93445095
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2018,
+   "main_manager": "洪一中",
+   "detail": "洪一中 120場",
+   "games_by_manager": {
+    "洪一中": 120
+   },
+   "source_rows": [
+    [
+     "2018年",
+     "洪一中",
+     "1/4",
+     "120",
+     "73",
+     "47",
+     "0",
+     "0.608",
+     "－",
+     "上、下半季冠軍／台灣大賽冠軍"
+    ]
+   ],
+   "wiki_title": "樂天桃猿",
+   "wiki_revid": 93145536
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2019,
+   "main_manager": "洪一中",
+   "detail": "洪一中 120場",
+   "games_by_manager": {
+    "洪一中": 120
+   },
+   "source_rows": [
+    [
+     "2019年",
+     "洪一中",
+     "1/4",
+     "120",
+     "63",
+     "55",
+     "2",
+     "0.534",
+     "－",
+     "上半季冠軍／台灣大賽冠軍"
+    ]
+   ],
+   "wiki_title": "樂天桃猿",
+   "wiki_revid": 93145536
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2020,
+   "main_manager": "曾豪駒",
+   "detail": "曾豪駒 120場",
+   "games_by_manager": {
+    "曾豪駒": 120
+   },
+   "source_rows": [
+    [
+     "2020年",
+     "曾豪駒",
+     "2/4",
+     "120",
+     "59",
+     "61",
+     "0",
+     "0.492",
+     "9.5",
+     ""
+    ]
+   ],
+   "wiki_title": "樂天桃猿",
+   "wiki_revid": 93145536
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2021,
+   "main_manager": "曾豪駒",
+   "detail": "曾豪駒 120場",
+   "games_by_manager": {
+    "曾豪駒": 120
+   },
+   "source_rows": [
+    [
+     "2021年",
+     "曾豪駒",
+     "3/5",
+     "120",
+     "56",
+     "61",
+     "3",
+     "0.479",
+     "11.0",
+     ""
+    ]
+   ],
+   "wiki_title": "樂天桃猿",
+   "wiki_revid": 93145536
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2022,
+   "main_manager": "曾豪駒",
+   "detail": "曾豪駒 120場",
+   "games_by_manager": {
+    "曾豪駒": 120
+   },
+   "source_rows": [
+    [
+     "2022年",
+     "曾豪駒",
+     "1/5",
+     "120",
+     "70",
+     "46",
+     "4",
+     "0.603",
+     "–",
+     "台灣大賽敗給中信兄弟"
+    ]
+   ],
+   "wiki_title": "樂天桃猿",
+   "wiki_revid": 93145536
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2023,
+   "main_manager": "曾豪駒",
+   "detail": "曾豪駒 120場",
+   "games_by_manager": {
+    "曾豪駒": 120
+   },
+   "source_rows": [
+    [
+     "2023年",
+     "曾豪駒",
+     "3/5",
+     "120",
+     "60",
+     "56",
+     "4",
+     "0.517",
+     "2.5",
+     "台灣大賽敗給味全龍"
+    ]
+   ],
+   "wiki_title": "樂天桃猿",
+   "wiki_revid": 93145536
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2024,
+   "main_manager": "古久保健二",
+   "detail": "古久保健二 120場",
+   "games_by_manager": {
+    "古久保健二": 120
+   },
+   "source_rows": [
+    [
+     "2024年",
+     "古久保健二",
+     "3/6",
+     "120",
+     "62",
+     "57",
+     "1",
+     "0.521",
+     "7.5",
+     "挑戰賽敗給統一7-ELEVEn獅"
+    ]
+   ],
+   "wiki_title": "樂天桃猿",
+   "wiki_revid": 93145536
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2025,
+   "main_manager": "古久保健二",
+   "detail": "古久保健二 120場",
+   "games_by_manager": {
+    "古久保健二": 120
+   },
+   "source_rows": [
+    [
+     "2025年",
+     "古久保健二",
+     "3/6",
+     "120",
+     "62",
+     "57",
+     "1",
+     "0.521",
+     "7.5",
+     "台灣大賽冠軍"
+    ]
+   ],
+   "wiki_title": "樂天桃猿",
+   "wiki_revid": 93145536
+  },
+  {
+   "franchise": "AKP011",
+   "year": 2024,
+   "main_manager": "洪一中",
+   "detail": "洪一中 120場",
+   "games_by_manager": {
+    "洪一中": 120
+   },
+   "source_rows": [
+    [
+     "2024",
+     "職棒35年",
+     "洪一中",
+     "6",
+     "120",
+     "49",
+     "70",
+     "1",
+     ".412",
+     ""
+    ]
+   ],
+   "wiki_title": "台鋼雄鷹",
+   "wiki_revid": 93474381
+  },
+  {
+   "franchise": "AKP011",
+   "year": 2025,
+   "main_manager": "洪一中",
+   "detail": "洪一中 120場",
+   "games_by_manager": {
+    "洪一中": 120
+   },
+   "source_rows": [
+    [
+     "2025",
+     "職棒36年",
+     "洪一中",
+     "4",
+     "120",
+     "59",
+     "59",
+     "2",
+     ".500",
+     ""
+    ]
+   ],
+   "wiki_title": "台鋼雄鷹",
+   "wiki_revid": 93474381
+  }
+ ],
+ "pairs": [
+  {
+   "franchise": "ACN011",
+   "t": 2018,
+   "t1": 2019,
+   "manager_t": "史耐德",
+   "manager_t1": "伯納",
+   "basis_t": "史耐德 102場；伯納 17場；丘昌榮 1場",
+   "basis_t1": "伯納 120場",
+   "group": "changed"
+  },
+  {
+   "franchise": "ADD011",
+   "t": 2018,
+   "t1": 2019,
+   "manager_t": "黃甘霖",
+   "manager_t1": null,
+   "basis_t": "黃甘霖 120場",
+   "basis_t1": "場數平手（黃甘霖 60場；劉育辰 60場）（不可判定）",
+   "group": "excluded"
+  },
+  {
+   "franchise": "AEO011",
+   "t": 2018,
+   "t1": 2019,
+   "manager_t": "葉君璋",
+   "manager_t1": "陳連宏",
+   "basis_t": "葉君璋 73場；陳連宏 44場；劉榮華 3場",
+   "basis_t1": "陳連宏 119場；郭建霖 1場",
+   "group": "changed"
+  },
+  {
+   "franchise": "AJL011",
+   "t": 2018,
+   "t1": 2019,
+   "manager_t": "洪一中",
+   "manager_t1": "洪一中",
+   "basis_t": "洪一中 120場",
+   "basis_t1": "洪一中 120場",
+   "group": "same"
+  },
+  {
+   "franchise": "ACN011",
+   "t": 2019,
+   "t1": 2020,
+   "manager_t": "伯納",
+   "manager_t1": "丘昌榮",
+   "basis_t": "伯納 120場",
+   "basis_t1": "丘昌榮 120場",
+   "group": "changed"
+  },
+  {
+   "franchise": "ADD011",
+   "t": 2019,
+   "t1": 2020,
+   "manager_t": null,
+   "manager_t1": "林岳平",
+   "basis_t": "場數平手（黃甘霖 60場；劉育辰 60場）（不可判定）",
+   "basis_t1": "林岳平 120場",
+   "group": "excluded"
+  },
+  {
+   "franchise": "AEO011",
+   "t": 2019,
+   "t1": 2020,
+   "manager_t": "陳連宏",
+   "manager_t1": "洪一中",
+   "basis_t": "陳連宏 119場；郭建霖 1場",
+   "basis_t1": "洪一中 120場",
+   "group": "changed"
+  },
+  {
+   "franchise": "AJL011",
+   "t": 2019,
+   "t1": 2020,
+   "manager_t": "洪一中",
+   "manager_t1": "曾豪駒",
+   "basis_t": "洪一中 120場",
+   "basis_t1": "曾豪駒 120場",
+   "group": "changed"
+  },
+  {
+   "franchise": "ACN011",
+   "t": 2020,
+   "t1": 2021,
+   "manager_t": "丘昌榮",
+   "manager_t1": "林威助",
+   "basis_t": "丘昌榮 120場",
+   "basis_t1": "林威助 120場",
+   "group": "changed"
+  },
+  {
+   "franchise": "ADD011",
+   "t": 2020,
+   "t1": 2021,
+   "manager_t": "林岳平",
+   "manager_t1": "林岳平",
+   "basis_t": "林岳平 120場",
+   "basis_t1": "林岳平 120場",
+   "group": "same"
+  },
+  {
+   "franchise": "AEO011",
+   "t": 2020,
+   "t1": 2021,
+   "manager_t": "洪一中",
+   "manager_t1": "洪一中",
+   "basis_t": "洪一中 120場",
+   "basis_t1": "洪一中 120場",
+   "group": "same"
+  },
+  {
+   "franchise": "AJL011",
+   "t": 2020,
+   "t1": 2021,
+   "manager_t": "曾豪駒",
+   "manager_t1": "曾豪駒",
+   "basis_t": "曾豪駒 120場",
+   "basis_t1": "曾豪駒 120場",
+   "group": "same"
+  },
+  {
+   "franchise": "AAA011",
+   "t": 2021,
+   "t1": 2022,
+   "manager_t": "葉君璋",
+   "manager_t1": "葉君璋",
+   "basis_t": "葉君璋 120場",
+   "basis_t1": "葉君璋 120場",
+   "group": "same"
+  },
+  {
+   "franchise": "ACN011",
+   "t": 2021,
+   "t1": 2022,
+   "manager_t": "林威助",
+   "manager_t1": "林威助",
+   "basis_t": "林威助 120場",
+   "basis_t1": "林威助 120場",
+   "group": "same"
+  },
+  {
+   "franchise": "ADD011",
+   "t": 2021,
+   "t1": 2022,
+   "manager_t": "林岳平",
+   "manager_t1": "林岳平",
+   "basis_t": "林岳平 120場",
+   "basis_t1": "林岳平 114場；高志綱 6場",
+   "group": "same"
+  },
+  {
+   "franchise": "AEO011",
+   "t": 2021,
+   "t1": 2022,
+   "manager_t": "洪一中",
+   "manager_t1": "丘昌榮",
+   "basis_t": "洪一中 120場",
+   "basis_t1": "丘昌榮 118場；黃泰龍 2場",
+   "group": "changed"
+  },
+  {
+   "franchise": "AJL011",
+   "t": 2021,
+   "t1": 2022,
+   "manager_t": "曾豪駒",
+   "manager_t1": "曾豪駒",
+   "basis_t": "曾豪駒 120場",
+   "basis_t1": "曾豪駒 120場",
+   "group": "same"
+  },
+  {
+   "franchise": "AAA011",
+   "t": 2022,
+   "t1": 2023,
+   "manager_t": "葉君璋",
+   "manager_t1": "葉君璋",
+   "basis_t": "葉君璋 120場",
+   "basis_t1": "葉君璋 120場",
+   "group": "same"
+  },
+  {
+   "franchise": "ACN011",
+   "t": 2022,
+   "t1": 2023,
+   "manager_t": "林威助",
+   "manager_t1": "彭政閔",
+   "basis_t": "林威助 120場",
+   "basis_t1": "彭政閔 94場；林威助 25場；陳江和 1場",
+   "group": "changed"
+  },
+  {
+   "franchise": "ADD011",
+   "t": 2022,
+   "t1": 2023,
+   "manager_t": "林岳平",
+   "manager_t1": "林岳平",
+   "basis_t": "林岳平 114場；高志綱 6場",
+   "basis_t1": "林岳平 120場",
+   "group": "same"
+  },
+  {
+   "franchise": "AEO011",
+   "t": 2022,
+   "t1": 2023,
+   "manager_t": "丘昌榮",
+   "manager_t1": "丘昌榮",
+   "basis_t": "丘昌榮 118場；黃泰龍 2場",
+   "basis_t1": "丘昌榮 120場",
+   "group": "same"
+  },
+  {
+   "franchise": "AJL011",
+   "t": 2022,
+   "t1": 2023,
+   "manager_t": "曾豪駒",
+   "manager_t1": "曾豪駒",
+   "basis_t": "曾豪駒 120場",
+   "basis_t1": "曾豪駒 120場",
+   "group": "same"
+  },
+  {
+   "franchise": "AAA011",
+   "t": 2023,
+   "t1": 2024,
+   "manager_t": "葉君璋",
+   "manager_t1": "葉君璋",
+   "basis_t": "葉君璋 120場",
+   "basis_t1": "葉君璋 120場",
+   "group": "same"
+  },
+  {
+   "franchise": "ACN011",
+   "t": 2023,
+   "t1": 2024,
+   "manager_t": "彭政閔",
+   "manager_t1": "平野惠一",
+   "basis_t": "彭政閔 94場；林威助 25場；陳江和 1場",
+   "basis_t1": "平野惠一 120場",
+   "group": "changed"
+  },
+  {
+   "franchise": "ADD011",
+   "t": 2023,
+   "t1": 2024,
+   "manager_t": "林岳平",
+   "manager_t1": "林岳平",
+   "basis_t": "林岳平 120場",
+   "basis_t1": "林岳平 120場",
+   "group": "same"
+  },
+  {
+   "franchise": "AEO011",
+   "t": 2023,
+   "t1": 2024,
+   "manager_t": "丘昌榮",
+   "manager_t1": "陳金鋒",
+   "basis_t": "丘昌榮 120場",
+   "basis_t1": "陳金鋒 120場",
+   "group": "changed"
+  },
+  {
+   "franchise": "AJL011",
+   "t": 2023,
+   "t1": 2024,
+   "manager_t": "曾豪駒",
+   "manager_t1": "古久保健二",
+   "basis_t": "曾豪駒 120場",
+   "basis_t1": "古久保健二 120場",
+   "group": "changed"
+  },
+  {
+   "franchise": "AAA011",
+   "t": 2024,
+   "t1": 2025,
+   "manager_t": "葉君璋",
+   "manager_t1": "葉君璋",
+   "basis_t": "葉君璋 120場",
+   "basis_t1": "葉君璋 120場",
+   "group": "same"
+  },
+  {
+   "franchise": "ACN011",
+   "t": 2024,
+   "t1": 2025,
+   "manager_t": "平野惠一",
+   "manager_t1": "平野惠一",
+   "basis_t": "平野惠一 120場",
+   "basis_t1": "平野惠一 120場",
+   "group": "same"
+  },
+  {
+   "franchise": "ADD011",
+   "t": 2024,
+   "t1": 2025,
+   "manager_t": "林岳平",
+   "manager_t1": "林岳平",
+   "basis_t": "林岳平 120場",
+   "basis_t1": "林岳平 120場",
+   "group": "same"
+  },
+  {
+   "franchise": "AEO011",
+   "t": 2024,
+   "t1": 2025,
+   "manager_t": "陳金鋒",
+   "manager_t1": "陳金鋒",
+   "basis_t": "陳金鋒 120場",
+   "basis_t1": "陳金鋒 120場",
+   "group": "same"
+  },
+  {
+   "franchise": "AJL011",
+   "t": 2024,
+   "t1": 2025,
+   "manager_t": "古久保健二",
+   "manager_t1": "古久保健二",
+   "basis_t": "古久保健二 120場",
+   "basis_t1": "古久保健二 120場",
+   "group": "same"
+  },
+  {
+   "franchise": "AKP011",
+   "t": 2024,
+   "t1": 2025,
+   "manager_t": "洪一中",
+   "manager_t1": "洪一中",
+   "basis_t": "洪一中 120場",
+   "basis_t1": "洪一中 120場",
+   "group": "same"
+  }
+ ],
+ "group_sizes": {
+  "same": 20,
+  "changed": 11,
+  "excluded": 2
+ },
+ "excluded_pairs": [
+  {
+   "franchise": "ADD011",
+   "t": 2018,
+   "t1": 2019,
+   "reason_t": null,
+   "reason_t1": "場數平手（黃甘霖 60場；劉育辰 60場）（不可判定）"
+  },
+  {
+   "franchise": "ADD011",
+   "t": 2019,
+   "t1": 2020,
+   "reason_t": "場數平手（黃甘霖 60場；劉育辰 60場）（不可判定）",
+   "reason_t1": null
+  }
+ ],
+ "per_axis": {
+  "speed": {
+   "r_same": 0.422432,
+   "n_same": 20,
+   "r_changed": -0.200217,
+   "n_changed": 11,
+   "delta_r": 0.62265,
+   "delta_ci95": [
+    -0.211427,
+    1.280336
+   ]
+  },
+  "smallball": {
+   "r_same": 0.309093,
+   "n_same": 20,
+   "r_changed": 0.17765,
+   "n_changed": 11,
+   "delta_r": 0.131442,
+   "delta_ci95": [
+    -0.585571,
+    0.888081
+   ]
+  },
+  "power": {
+   "r_same": 0.507161,
+   "n_same": 20,
+   "r_changed": 0.368006,
+   "n_changed": 11,
+   "delta_r": 0.139154,
+   "delta_ci95": [
+    -0.453748,
+    0.777372
+   ]
+  },
+  "discipline": {
+   "r_same": 0.491543,
+   "n_same": 20,
+   "r_changed": 0.204594,
+   "n_changed": 11,
+   "delta_r": 0.286948,
+   "delta_ci95": [
+    -0.494589,
+    1.045826
+   ]
+  },
+  "starter_ip": {
+   "r_same": -0.127075,
+   "n_same": 20,
+   "r_changed": 0.263855,
+   "n_changed": 11,
+   "delta_r": -0.39093,
+   "delta_ci95": [
+    -0.968024,
+    0.316033
+   ]
+  },
+  "pitch_k": {
+   "r_same": -0.230343,
+   "n_same": 20,
+   "r_changed": 0.213199,
+   "n_changed": 11,
+   "delta_r": -0.443543,
+   "delta_ci95": [
+    -1.179914,
+    0.419043
+   ]
+  },
+  "defense": {
+   "r_same": 0.107643,
+   "n_same": 20,
+   "r_changed": -0.138848,
+   "n_changed": 11,
+   "delta_r": 0.246492,
+   "delta_ci95": [
+    -0.586082,
+    0.928803
+   ]
+  }
+ },
+ "pooled": {
+  "mean_delta_r": 0.084602,
+  "ci95": [
+   -0.222843,
+   0.380586
+  ],
+  "axes_delta_positive": 5,
+  "axes_total": 7
+ },
+ "bootstrap_diagnostics": {
+  "replicates_used": 10000,
+  "replicates_dropped_degenerate": 0
+ },
+ "conclusion": {
+  "go": false,
+  "label": "No-Go：維持逐季呈現；教練分段僅作呈現選項（事實分組）"
+ },
+ "db_qa_managers_crosscheck": [
+  {
+   "franchise": "AAA011",
+   "year": 2021,
+   "main_manager": "葉君璋",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2019,
+    "to_year": 2026
+   }
+  },
+  {
+   "franchise": "AAA011",
+   "year": 2022,
+   "main_manager": "葉君璋",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2019,
+    "to_year": 2026
+   }
+  },
+  {
+   "franchise": "AAA011",
+   "year": 2023,
+   "main_manager": "葉君璋",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2019,
+    "to_year": 2026
+   }
+  },
+  {
+   "franchise": "AAA011",
+   "year": 2024,
+   "main_manager": "葉君璋",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2019,
+    "to_year": 2026
+   }
+  },
+  {
+   "franchise": "AAA011",
+   "year": 2025,
+   "main_manager": "葉君璋",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2019,
+    "to_year": 2026
+   }
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2018,
+   "main_manager": "史耐德",
+   "db_match": true,
+   "db_row": {
+    "era_name": "中信兄弟",
+    "from_year": 2017,
+    "to_year": 2018
+   }
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2019,
+   "main_manager": "伯納",
+   "db_match": true,
+   "db_row": {
+    "era_name": "中信兄弟",
+    "from_year": 2019,
+    "to_year": 2019
+   }
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2020,
+   "main_manager": "丘昌榮",
+   "db_match": true,
+   "db_row": {
+    "era_name": "中信兄弟",
+    "from_year": 2020,
+    "to_year": 2020
+   }
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2021,
+   "main_manager": "林威助",
+   "db_match": true,
+   "db_row": {
+    "era_name": "中信兄弟",
+    "from_year": 2021,
+    "to_year": 2023
+   }
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2022,
+   "main_manager": "林威助",
+   "db_match": true,
+   "db_row": {
+    "era_name": "中信兄弟",
+    "from_year": 2021,
+    "to_year": 2023
+   }
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2023,
+   "main_manager": "彭政閔",
+   "db_match": true,
+   "db_row": {
+    "era_name": "中信兄弟",
+    "from_year": 2023,
+    "to_year": 2023
+   }
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2024,
+   "main_manager": "平野惠一",
+   "db_match": true,
+   "db_row": {
+    "era_name": "中信兄弟",
+    "from_year": 2024,
+    "to_year": 2025
+   }
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2025,
+   "main_manager": "平野惠一",
+   "db_match": true,
+   "db_row": {
+    "era_name": "中信兄弟",
+    "from_year": 2024,
+    "to_year": 2025
+   }
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2018,
+   "main_manager": "黃甘霖",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2017,
+    "to_year": 2019
+   }
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2020,
+   "main_manager": "林岳平",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2020,
+    "to_year": 2025
+   }
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2021,
+   "main_manager": "林岳平",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2020,
+    "to_year": 2025
+   }
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2022,
+   "main_manager": "林岳平",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2020,
+    "to_year": 2025
+   }
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2023,
+   "main_manager": "林岳平",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2020,
+    "to_year": 2025
+   }
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2024,
+   "main_manager": "林岳平",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2020,
+    "to_year": 2025
+   }
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2025,
+   "main_manager": "林岳平",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2020,
+    "to_year": 2025
+   }
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2018,
+   "main_manager": "葉君璋",
+   "db_match": true,
+   "db_row": {
+    "era_name": "富邦悍將",
+    "from_year": 2017,
+    "to_year": 2018
+   }
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2019,
+   "main_manager": "陳連宏",
+   "db_match": true,
+   "db_row": {
+    "era_name": "富邦悍將",
+    "from_year": 2018,
+    "to_year": 2019
+   }
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2020,
+   "main_manager": "洪一中",
+   "db_match": true,
+   "db_row": {
+    "era_name": "富邦悍將",
+    "from_year": 2020,
+    "to_year": 2021
+   }
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2021,
+   "main_manager": "洪一中",
+   "db_match": true,
+   "db_row": {
+    "era_name": "富邦悍將",
+    "from_year": 2020,
+    "to_year": 2021
+   }
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2022,
+   "main_manager": "丘昌榮",
+   "db_match": true,
+   "db_row": {
+    "era_name": "富邦悍將",
+    "from_year": 2022,
+    "to_year": 2023
+   }
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2023,
+   "main_manager": "丘昌榮",
+   "db_match": true,
+   "db_row": {
+    "era_name": "富邦悍將",
+    "from_year": 2022,
+    "to_year": 2023
+   }
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2024,
+   "main_manager": "陳金鋒",
+   "db_match": true,
+   "db_row": {
+    "era_name": "富邦悍將",
+    "from_year": 2024,
+    "to_year": 2025
+   }
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2025,
+   "main_manager": "陳金鋒",
+   "db_match": true,
+   "db_row": {
+    "era_name": "富邦悍將",
+    "from_year": 2024,
+    "to_year": 2025
+   }
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2018,
+   "main_manager": "洪一中",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2004,
+    "to_year": 2019
+   }
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2019,
+   "main_manager": "洪一中",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2004,
+    "to_year": 2019
+   }
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2020,
+   "main_manager": "曾豪駒",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2020,
+    "to_year": 2023
+   }
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2021,
+   "main_manager": "曾豪駒",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2020,
+    "to_year": 2023
+   }
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2022,
+   "main_manager": "曾豪駒",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2020,
+    "to_year": 2023
+   }
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2023,
+   "main_manager": "曾豪駒",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2020,
+    "to_year": 2023
+   }
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2024,
+   "main_manager": "古久保健二",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2024,
+    "to_year": 2025
+   }
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2025,
+   "main_manager": "古久保健二",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2024,
+    "to_year": 2025
+   }
+  },
+  {
+   "franchise": "AKP011",
+   "year": 2024,
+   "main_manager": "洪一中",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2022,
+    "to_year": 2025
+   }
+  },
+  {
+   "franchise": "AKP011",
+   "year": 2025,
+   "main_manager": "洪一中",
+   "db_match": true,
+   "db_row": {
+    "era_name": "",
+    "from_year": 2022,
+    "to_year": 2025
+   }
+  }
+ ]
+}
