@@ -135,3 +135,11 @@ def test_build_ranks_and_franchise_folding():
     # discipline 是複合軸，無單一 raw；其餘軸 raw 皆給
     assert s24["axes"]["discipline"]["raw"] is None
     assert s24["axes"]["power"]["raw"] is not None
+    # 聯盟平均 raw＝z 計算裡的同一個均值（同季全隊算術平均）；discipline 無
+    assert s24["axes"]["discipline"]["league_raw_mean"] is None
+    sba = [(9 + 3), (4 + 2), (0 + 0)]  # 2024 三隊盜壘企圖
+    den = 6 + 4 + 1  # singles+bb+hbp（_game 預設）
+    expected_mean = sum(a / den for a in sba) / 3
+    assert abs(s24["axes"]["speed"]["league_raw_mean"] - expected_mean) < 1e-6
+    # z=0（聯盟平均）的隊，其 raw 不必等於平均，但平均必落在該季各隊 raw 區間內
+    assert min(a / den for a in sba) <= s24["axes"]["speed"]["league_raw_mean"] <= max(a / den for a in sba)

@@ -118,10 +118,15 @@ def build_team_style(
         axes = {}
         for axis in ts.AXES:
             z_by_team = {t: z[t][axis] for t in z}
+            rk = _RAW_KEY.get(axis)
+            # 聯盟平均 raw＝z-score 計算裡的同一個均值（同季全部球隊、算術平均），
+            # 供歷史圖的「聯盟環境」參考線；不另算一套口徑。discipline 複合軸無單一 raw。
+            league_mean = (round(sum(raw[t][rk] for t in z) / len(z), 6)
+                           if rk else None)
             axes[axis] = {
                 "z": round(z[mine][axis], 4),
-                "raw": (round(raw[mine][_RAW_KEY[axis]], 6)
-                        if axis in _RAW_KEY else None),
+                "raw": round(raw[mine][rk], 6) if rk else None,
+                "league_raw_mean": league_mean,
                 "rank": ts.rank_desc(z_by_team, mine),
                 "counts": axis_counts(axis, aggs[mine]),
             }
