@@ -273,5 +273,5 @@ uv run python scripts/outcome_simple_calibration_audit.py out.json
    （不打 API、不顯示真數字），但它未被任何路由守衛擋在生產之外。屬既有狀況，非本卡引入。
 4. **`models/matchup.py` 尺度不一致**（LEAK1 §6.2 已列）：對戰卡仍用 `pitching_current`
    當季彙總，與訓練分布（收縮後 sd 0.96）不同尺度，`z` 會被高估。需求方裁定不動。
-3. **2018 前後世代語意分裂**（§5）：已證明不是斜率成因，但語意不同質本身仍在。
-4. 未同步 production DB、未部署（依卡面紅線；本卡與 LEAK1 須同批上線）。
+5. **2018 前後世代語意分裂**（§5）：已證明不是斜率成因，但語意不同質本身仍在。
+6. 未同步 production DB、未部署（依卡面紅線；本卡與 LEAK1 須同批上線）。
