@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -90,7 +91,34 @@ def latest_handoff(card_id: str) -> dict:
                 ev = e  # append-only → 最後一筆即最新
     if ev is None:
         sys.exit(f"錯誤：{card_id} 沒有 handoff event（尚未交付查核）。")
+    _assert_handoff_matches_branch_head(ev)
     return ev
+
+
+def _assert_handoff_matches_branch_head(ev: dict) -> None:
+    """handoff 的 source_sha 必須等於該分支當前 HEAD，否則拒絕產生提示詞。
+
+    ML-OUTCOME-SIMPLE-LEAK2 iteration 4 的教訓：Coordinator 派了新 iteration 產生新 commit
+    卻沒補 handoff，本腳本照讀最新 handoff 帶出過期 SHA，查核者被迫程序性 REJECT——
+    整輪跨家族查核燒在一件機器兩秒可查的事上。此後「送審前 SHA 一致」由這裡強制，
+    不靠 Coordinator 記得。分支不存在（已 merge 清理）或無法解析時同樣拒絕，
+    請改以 merge 後流程處理而非對舊 handoff 產生提示詞。
+    """
+    branch, sha = ev.get("branch", ""), ev.get("source_sha", "")
+    if not branch or not sha:
+        sys.exit("錯誤：handoff 缺 branch 或 source_sha 欄位，無法核對，拒絕產生提示詞。")
+    r = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--verify", "--quiet",
+                        f"refs/heads/{branch}"], capture_output=True, text=True)
+    if r.returncode != 0:
+        sys.exit(f"錯誤：分支 {branch} 不存在（已 merge 清理？）。"
+                 "已結案的卡不該再產生查核提示詞；未結案請先恢復分支。")
+    head = r.stdout.strip()
+    if head != sha:
+        sys.exit(
+            f"錯誤：handoff 的 source_sha 與分支 HEAD 不一致，拒絕產生提示詞。\n"
+            f"  handoff source_sha：{sha}\n"
+            f"  {branch} HEAD：{head}\n"
+            "  成因通常是 push 了新 commit 卻沒補 handoff event——先補 handoff 再重跑本指令。")
 
 
 def card_sections(card_id: str, wanted: tuple[str, ...]) -> str:
