@@ -2,7 +2,7 @@
 
 - 需求：ruan6047（2026-07-27 原文「球隊頁球風 UX 卡開卡」）　規劃：本卡 spec（設計約束承 TEAM-STYLE1／STYLE2 研究定案）　分支：依認領時慣例
 - 執行：待指派　查核：待指派（≠ 執行；T3 一般查核）
-- Initiative：INIT-PRODUCT-UX　spec 基線：—
+- Initiative：INIT-PRODUCT-UX　spec 基線：v0.2
 - DB：`db_scope: read`（API 唯讀查詢）
 - 部署：是（面向訪客；隨 submodule bump 上線）　環境：—　PR：—　Merge SHA：—
 - **消費的研究**：[`TEAM-STYLE1_RESULTS.md`](../research/TEAM-STYLE1_RESULTS.md)（七軸＋穩定性）＋[`TEAM-STYLE2_RESULTS.md`](../research/TEAM-STYLE2_RESULTS.md)（教練分段 No-Go）
@@ -72,3 +72,4 @@ TEAM-STYLE2 檢定「教練任期分段」假說為 No-Go。球隊頁據此新�
 ## Log
 
 - 2026-07-27 依 ruan6047 指示開卡；設計約束承兩張研究卡定案與需求方呈現裁定。
+- 2026-07-27 iteration 1 查核退回（spec 基線欄未填父卡版本，baseline-cascade §5）；補為 v0.2（父卡 INIT-PRODUCT-UX 現行基線，本卡範圍在 v0.2 藍圖之內——球隊頁屬 §4–§8 呈現基線的球隊區塊延伸，未涉基線變更紀錄中的球員頁 scope 修訂）。
