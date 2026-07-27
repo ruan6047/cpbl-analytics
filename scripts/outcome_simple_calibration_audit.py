@@ -10,6 +10,9 @@
 3. `temperature`  — 時間外溫度縮放（選項 b）的實際收益。
 4. `cohort_2018`  — 限制訓練池為 2018+（starter 欄語意同質）的對照。
 
+另有 `slope_se_week_cluster_vs_iid`：斜率估計量的行事曆週 cluster-robust SE 與 IID SE
+對照，屬**診斷**（見該函式 docstring），不是 H0 區間的驗證。
+
     docker run --rm --add-host=host.docker.internal:host-gateway \
       -e DATABASE_URL=... -v "$PWD":/w cpbl-leak2 \
       python /w/scripts/outcome_simple_calibration_audit.py [out.json]
@@ -22,6 +25,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import brier_score_loss, log_loss
 
 from cpbl.models.outcome_simple import (
@@ -85,6 +89,42 @@ def _block_bootstrap_slope(actual, predicted, blocks, iterations=2000, seed=42):
     return np.quantile(slopes, [0.025, 0.975]).tolist()
 
 
+def _calibration_slope_se(actual, predicted, blocks):
+    """校準斜率的 IID SE vs 行事曆週 cluster-robust（sandwich）SE。
+
+    **這是診斷，不是零假設區間的驗證。** 兩者是不同物件：H0 bootstrap 問的是「若模型
+    完美校準，斜率會怎麼飄」（重抽 y ~ Bernoulli(p̂)）；這裡問的是「就這一批觀測資料而言，
+    把同一行事曆週的殘差視為可相關，斜率估計量的變異會不會變大」。cluster SE 不窄於
+    IID SE 並不能證明 H0 區間正確，只能說**沒有證據顯示週內群聚在此資料上放大了變異**。
+
+    定義：再校準回歸 `y ~ sigmoid(a + b·logit p̂)` 的 sandwich 變異
+    `H⁻¹ (Σ_g u_g u_gᵀ) H⁻¹`，`H = XᵀWX`、`u_g = Σ_{i∈g} (y_i − p_i) x_i`。
+    cluster 沿用本檔既有的區塊定義 `(season, ISO week)`——跨季的同一週號是不同 cluster。
+    **未套小樣本修正**（無 `G/(G−1)`、無 `(n−1)/(n−k)`），故兩個 SE 直接可比。
+    """
+    x = _logit(predicted)
+    design = np.column_stack([np.ones_like(x), x])
+    calibration = LogisticRegression(C=np.inf, max_iter=1000).fit(x.reshape(-1, 1), actual)
+    intercept = float(calibration.intercept_[0])
+    slope = float(calibration.coef_[0][0])
+    fitted = 1.0 / (1.0 + np.exp(-(intercept + slope * x)))
+    hessian = design.T @ (design * (fitted * (1.0 - fitted))[:, None])
+    bread = np.linalg.inv(hessian)
+    residual = actual - fitted
+    grouped: dict = {}
+    for index, block in enumerate(blocks):
+        grouped.setdefault(block, []).append(index)
+    meat = np.zeros((2, 2))
+    for indices in grouped.values():
+        score = (residual[indices, None] * design[indices]).sum(axis=0)
+        meat += np.outer(score, score)
+    se_iid = float(np.sqrt(bread[1, 1]))
+    se_cluster = float(np.sqrt((bread @ meat @ bread)[1, 1]))
+    return {"slope": slope, "n": int(actual.size), "n_week_clusters": len(grouped),
+            "se_iid": se_iid, "se_week_cluster": se_cluster,
+            "ratio_cluster_over_iid": se_cluster / se_iid}
+
+
 def _leaked_reference():
     """洩漏模型的 reliability decile → 近似 p̂ → 同一組零假設數字。
 
@@ -145,6 +185,7 @@ def main() -> None:
         "legacy_band": list(LEGACY_CALIBRATION_BAND),
         "honest": _summary(actual, predicted, "全史訓練池（現行）"),
         "block_bootstrap_slope_ci95": _block_bootstrap_slope(actual, predicted, blocks),
+        "slope_se_week_cluster_vs_iid": _calibration_slope_se(actual, predicted, blocks),
         "leaked": _leaked_reference(),
         "temperature": _temperature_scaling(actual, predicted, years, test_years),
         "cohort_2018": _summary(cohort_actual, cohort_predicted, "僅 2018+ 訓練池", 2018),
