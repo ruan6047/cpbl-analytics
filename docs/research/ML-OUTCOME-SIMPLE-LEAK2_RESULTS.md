@@ -278,10 +278,20 @@ uv run python scripts/outcome_simple_calibration_audit.py out.json
 2. **五種 `degradation` 共用同一個告示樣式**：三個介面都把文案放進同一個 notice 區塊，
    未依嚴重度分級（`serving_gate_failed`＝正在服務未過閘門的模型，客觀上比
    `version_unknown` 嚴重）。要分級屬視覺設計決策，需求方未裁定，本卡未做。
-3. **`RENDERING_SOURCES` 是手動維護清單**：`web/src/lib/pregame-single-source.test.ts` 的
-   結構守衛靠一份手寫檔案清單覆蓋三個介面；新增渲染賽前勝率的頁面時必須同步加入，
-   否則守衛會靜默漏掉它（賽況頁就是開卡時 scope 沒寫全、iteration 5 才補上的那一個）。
-   要根治須改成掃描全 `app/`／`components/` 找引用再反查清單，本卡未做。
+3. ~~**`RENDERING_SOURCES` 是手動維護清單**~~ → **已解決（UX-PREGAME-SOURCE-GUARD1）**：
+   原問題是守衛靠一份手寫檔案清單覆蓋三個介面，漏列即靜默失效（賽況頁就是開卡時 scope
+   沒寫全、iteration 5 才補上的那一個）。解法**不是**當初設想的「掃描 `app/`／`components/`
+   找引用再反查」——真正危險的新頁面正好不 import 任何共用 symbol，對引用掃描隱形。
+   改為反轉量詞：清單移除，`web/src/lib/pregame-single-source.test.ts` 改成兩條**全域**規則，
+   掃描整個 `web/src`（含 `lib/`，非只 `app/`／`components/`），以 allowlist 表達例外：
+   - 規則 1｜第二來源不可達：`/api/v1/outcome/pregame/serving` 不得出現在 `web/src` 任何
+     位置（無例外）。`api.pregameServing` 已自 web client 刪除（零呼叫者，ops 對帳走 `curl`），
+     端點本身保留；不論走 api、`clientGet` 或裸 `fetch`，要取第二份 response 都得寫出這段路徑。
+   - 規則 2｜機率只有一條推導路徑：`home_win_probability` 只准在 `lib/pregame-card.ts`、
+     `lib/daily-summary.ts`、`lib/pregame-card-fixtures.ts` 被讀。
+   新檔案一存在就自動被涵蓋（規則列舉的是例外，不是主體），故不再有「漏列＝靜默失效」。
+   比對前以字元掃描剝除註解（保留字串內容，避免 `"https://…"` 被誤判成行註解），
+   測試檔則整類排除（不進 bundle、需自行構造 payload）。
 4. **`/dev/pregame-card` 在生產可達**：該走查頁只吃 `pregame-card-fixtures.ts` 的假資料
    （不打 API、不顯示真數字），但它未被任何路由守衛擋在生產之外。屬既有狀況，非本卡引入。
 5. **`models/matchup.py` 尺度不一致**（LEAK1 §6.2 已列）：對戰卡仍用 `pitching_current`
