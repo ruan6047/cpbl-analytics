@@ -26,9 +26,12 @@ export default async function Home({
 
   // 首頁每日入口：單一 daily summary 契約 + 戰績摘要（blueprint §8.4：12 請求 → ≤3）。
   // 兩者各自 settle：任一失敗都優雅降級，不讓首頁 500。
-  const [dailyR, standR] = await Promise.allSettled([
+  // serving 狀態另外即時取（no-store）：daily summary 快取 120 秒，降級提示不能被快取住，
+  // 否則 refresh 恢復後提示會續顯示，上線程序的驗證步驟就不可靠（ML-OUTCOME-SIMPLE-LEAK2）。
+  const [dailyR, standR, servingR] = await Promise.allSettled([
     api.dailySummary(),
     api.officialStandings(0),
+    api.pregameServing(),
   ]);
 
   const standings = standR.status === "fulfilled" ? standR.value.items : [];
@@ -67,7 +70,10 @@ export default async function Home({
       {/* 每日入口 hub：最近比賽日 → freshness → 下一批賽事。API 失敗顯示可重試錯誤，
           不把錯誤當成「今天沒比賽」（GAME_RECAP §7.1）。 */}
       {dailyR.status === "fulfilled" ? (
-        <DailyHub summary={dailyR.value} />
+        <DailyHub
+          summary={dailyR.value}
+          serving={servingR.status === "fulfilled" ? servingR.value : null}
+        />
       ) : (
         <Card padding="p-6">
           <ErrorState>賽事資料暫時無法載入，請稍後重新整理</ErrorState>

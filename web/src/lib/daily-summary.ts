@@ -81,24 +81,40 @@ export type DailySummary = {
  * 照樣算得出來，所以卡片不會退成不可用——但首頁必須明講「現正沿用版本 X」，
  * 不能無聲照顯。unavailable 才是整段沒有模型。
  */
-export type PregameModelAxis = AxisStatus & {
-  trained_through: number | null;
-  signals: Record<string, string> | null;
+export type PregameDegradation = "gate_failed" | "version_unknown" | "version_mismatch";
+
+export type PregameServingMeta = {
+  status: "serving_current" | "serving_previous" | "unavailable";
   serving_version?: string | null;
   backtest_version?: string | null;
   backtest_deployable?: boolean | null;
+  degradation?: PregameDegradation | null;
 };
 
-/** 降級告示；serving 正常或整段不可用時回 null（後者由卡片各自的不可用文案負責）。 */
-export function pregameServingNotice(
-  axis: Pick<PregameModelAxis, "status" | "serving_version" | "backtest_version">,
-): string | null {
+export type PregameModelAxis = AxisStatus & PregameServingMeta & {
+  trained_through: number | null;
+  signals: Record<string, string> | null;
+};
+
+/** 降級告示；serving 正常或整段不可用時回 null（後者由卡片各自的不可用文案負責）。
+ *
+ * 成因由後端的 `degradation` 判別碼決定，前端只做映射。**只有 gate_failed 能宣稱閘門
+ * 失敗**——另外兩種是版本紀錄對不上，與閘門結果無關，講成閘門失敗就是說錯話。
+ * 這一點在 deploy→refresh 窗口特別要緊：那時 prod artifact 還沒有 version 欄
+ * （version_unknown），而最新回測其實是 7/7 通過的。
+ */
+export function pregameServingNotice(axis: PregameServingMeta): string | null {
   if (axis.status !== "serving_previous") return null;
-  const serving = axis.serving_version
-    ? `現正沿用版本 ${axis.serving_version}`
-    : "現正沿用去洩漏前的舊版模型";
-  const backtest = axis.backtest_version ? `（最新回測 ${axis.backtest_version}）` : "";
-  return `最新回測未通過部署閘門，${serving}${backtest}；以下機率並非最新模型的輸出。`;
+  const backtest = axis.backtest_version ? `最新回測 ${axis.backtest_version}` : "最新回測紀錄";
+  switch (axis.degradation) {
+    case "gate_failed":
+      return `${backtest}未通過部署閘門，現正沿用版本 ${axis.serving_version ?? "（未記錄）"}；以下機率並非最新回測所對應的模型輸出。`;
+    case "version_mismatch":
+      return `serving 版本 ${axis.serving_version ?? "（未記錄）"} 與${backtest}不一致（該次回測本身已通過閘門）；以下機率並非最新回測所對應的模型輸出。`;
+    case "version_unknown":
+    default:
+      return `serving 模型未記錄版本，無法確認是否為${backtest}的產出；以下機率可能來自舊版模型。`;
+  }
 }
 
 // —— 賽前卡 adapter ——

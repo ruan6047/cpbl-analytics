@@ -71,6 +71,7 @@ def test_gate_failure_reports_serving_previous_with_both_versions(monkeypatch):
     assert meta["serving_version"] == "v1"
     assert meta["backtest_version"] == "v2"
     assert meta["backtest_deployable"] is False
+    assert meta["degradation"] == "gate_failed"
     assert "未通過部署閘門" in meta["reason"]
 
 
@@ -82,6 +83,9 @@ def test_legacy_artifact_without_version_is_not_assumed_current(monkeypatch):
 
     assert meta["status"] == "serving_previous"
     assert meta["serving_version"] is None
+    # 不是閘門失敗——最新回測其實 deployable=true，文案不得誣賴它。
+    assert meta["degradation"] == "version_unknown"
+    assert meta["backtest_deployable"] is True
 
 
 def test_version_mismatch_while_backtest_claims_deployable_is_still_disclosed(monkeypatch):
@@ -91,6 +95,8 @@ def test_version_mismatch_while_backtest_claims_deployable_is_still_disclosed(mo
     _, meta = pregame_serving.serving_state()
 
     assert meta["status"] == "serving_previous"
+    assert meta["degradation"] == "version_mismatch"
+    assert meta["backtest_deployable"] is True
     assert meta["reason"] == "serving 版本與最新回測紀錄不一致"
 
 
@@ -158,3 +164,23 @@ def test_db_is_written_after_the_artifact_is_in_place(monkeypatch, tmp_path: Pat
 
     assert order == ["artifact", "db"], "artifact 必須先就位，DB 最後才宣稱狀態"
     assert path.exists() is False  # promote 被替身攔下，確認測的是順序而非副作用
+
+
+def test_only_a_failed_gate_is_labelled_gate_failed(monkeypatch):
+    """三種 serving_previous 只有一種能標 gate_failed；前端據此選文案。
+
+    iteration 2 的缺陷是前端只看 status，三種一律講「最新回測未通過部署閘門」——
+    而 deploy→refresh 窗口恰好是 version_unknown，那個回測其實是 7/7 通過的。
+    """
+    cases = {
+        ("v1", "v2", False): "gate_failed",
+        (None, "v2", True): "version_unknown",
+        ("v3", "v2", True): "version_mismatch",
+    }
+    for (serving_version, backtest_version, deployable), expected in cases.items():
+        _patch(monkeypatch, _artifact(serving_version), (backtest_version, deployable))
+
+        _, meta = pregame_serving.serving_state()
+
+        assert meta["degradation"] == expected
+        assert (meta["degradation"] == "gate_failed") == (deployable is False)

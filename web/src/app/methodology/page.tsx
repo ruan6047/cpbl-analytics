@@ -1,5 +1,10 @@
-import { api, type OutcomeBenchmarkResponse, type PregameBacktestResponse } from "@/lib/api";
-import { pregameServingNotice } from "@/lib/daily-summary";
+import {
+  api,
+  type OutcomeBenchmarkResponse,
+  type PregameBacktestResponse,
+  type PregameServing,
+} from "@/lib/api";
+import { pregameServingNotice, type PregameServingMeta } from "@/lib/daily-summary";
 import { METHODOLOGY_SECTIONS } from "@/lib/methodology-anchors";
 import {
   BENCHMARK_NOTE,
@@ -87,7 +92,13 @@ function MetricsTable({
 }
 
 /** 賽前勝率段的即時回測面板；紀錄缺席時明示退回報告快照，不空白、不拋錯。 */
-function PregameLivePanel({ backtest }: { backtest: PregameBacktestResponse | null }) {
+function PregameLivePanel({
+  backtest,
+  serving,
+}: {
+  backtest: PregameBacktestResponse | null;
+  serving: PregameServing | null;
+}) {
   if (!backtest?.available || !backtest.models?.length) {
     return (
       <p className="mt-2 rounded-lg bg-surface-2 px-3 py-2 text-xs text-muted">
@@ -101,7 +112,9 @@ function PregameLivePanel({ backtest }: { backtest: PregameBacktestResponse | nu
   const gateTotal = gate ? Object.keys(gate.checks).length : 0;
   // 閘門未過時 serving 沿用上一版：這裡與首頁必須同時揭露，否則使用者看到的機率
   // 其實不是這張表描述的模型（ML-OUTCOME-SIMPLE-LEAK2 紅線 5）。
-  const servingNotice = pregameServingNotice(backtest.serving ?? { status: "serving_current" });
+  const servingMeta: PregameServingMeta =
+    serving ?? backtest.serving ?? { status: "serving_current" };
+  const servingNotice = pregameServingNotice(servingMeta);
   return (
     <div className="mt-2">
       {servingNotice && (
@@ -120,6 +133,12 @@ function PregameLivePanel({ backtest }: { backtest: PregameBacktestResponse | nu
         {backtest.n_test ? `・${backtest.n_test.toLocaleString()} 場` : ""}）
       </p>
       <MetricsTable rows={backtest.models} highlight="fixed_semantic" />
+      {servingMeta.serving_version && (
+        <p className="mt-1.5 text-xs text-faint">
+          目前 serving 的模型版本：{servingMeta.serving_version}
+          {servingMeta.status === "serving_current" ? "（即上表這一次回測的產出）" : ""}
+        </p>
+      )}
       {gate && (
         <p className="mt-1.5 text-xs text-muted">
           部署閘門：{gatePassed}/{gateTotal} 項通過・
@@ -246,9 +265,12 @@ async function safeFetch<T>(promise: Promise<T>): Promise<T | null> {
 }
 
 export default async function MethodologyPage() {
-  const [pregameBacktest, benchmark] = await Promise.all([
+  // serving 狀態走 no-store（見 api.pregameServing）：回測指標表可以長快取，但
+  // 「現在 serving 的是哪一版」不能——快取住的降級提示會在恢復後續顯示約 10 分鐘。
+  const [pregameBacktest, benchmark, serving] = await Promise.all([
     safeFetch(api.pregameBacktest()),
     safeFetch(api.outcomeBenchmark()),
+    safeFetch(api.pregameServing()),
   ]);
 
   return (
@@ -304,7 +326,7 @@ export default async function MethodologyPage() {
             {id === "pregame" && (
               <div className="mt-4 border-t border-line pt-3">
                 <h3 className="text-sm font-semibold text-ink">線上回測對照</h3>
-                <PregameLivePanel backtest={pregameBacktest} />
+                <PregameLivePanel backtest={pregameBacktest} serving={serving} />
                 <BenchmarkPanel benchmark={benchmark} />
               </div>
             )}

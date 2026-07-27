@@ -65,14 +65,19 @@ def serving_state() -> tuple[dict | None, dict]:
     if serving_version is not None and serving_version == backtest_version:
         meta = _meta("serving_current", None, serving_version, backtest_version, deployable)
     elif deployable is False:
+        # **唯一**能宣稱「閘門失敗」的分支。其餘版本不一致與閘門結果無關，
+        # 前端若一律講成閘門失敗就是說錯話（ML-OUTCOME-SIMPLE-LEAK2 iteration 2 缺陷）。
         meta = _meta("serving_previous", "最新回測未通過部署閘門，serving 沿用上一版模型",
-                     serving_version, backtest_version, deployable)
+                     serving_version, backtest_version, deployable,
+                     degradation="gate_failed")
     elif serving_version is None:
         meta = _meta("serving_previous", "serving artifact 未記錄版本（去洩漏前的舊格式）",
-                     serving_version, backtest_version, deployable)
+                     serving_version, backtest_version, deployable,
+                     degradation="version_unknown")
     else:
         meta = _meta("serving_previous", "serving 版本與最新回測紀錄不一致",
-                     serving_version, backtest_version, deployable)
+                     serving_version, backtest_version, deployable,
+                     degradation="version_mismatch")
     meta["trained_through"] = artifact.get("trained_through")
     meta["signals"] = artifact.get("signals")
     return artifact, meta
@@ -80,9 +85,15 @@ def serving_state() -> tuple[dict | None, dict]:
 
 def _meta(status: str, reason: str | None, serving_version: str | None,
           backtest_version: str | None, deployable: bool | None,
-          fault: str | None = None) -> dict:
+          fault: str | None = None, degradation: str | None = None) -> dict:
     """`fault` 只在 `unavailable` 時有值，用既有的**逐場**欄位字彙（`artifact_missing`／
-    `error`）表達成因。serving 狀態語彙屬模型層級，不外洩到逐場 pregame 欄位。"""
+    `error`）表達成因。serving 狀態語彙屬模型層級，不外洩到逐場 pregame 欄位。
+
+    `degradation` 是 `serving_previous` 的成因判別碼（`gate_failed`／`version_unknown`／
+    `version_mismatch`），供前端選文案。**判別在後端做一次**，前端只做映射——iteration 2
+    讓前端自己看 status 猜成因，結果三種情形全被講成閘門失敗。
+    """
     return {"status": status, "reason": reason, "serving_version": serving_version,
             "backtest_version": backtest_version, "backtest_deployable": deployable,
-            "fault": fault, "trained_through": None, "signals": None}
+            "fault": fault, "degradation": degradation,
+            "trained_through": None, "signals": None}

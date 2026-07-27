@@ -111,29 +111,51 @@ test("serving_current 不出告示：正常狀態不得製造噪音", () => {
   );
 });
 
-test("serving_previous 必須明講沿用哪一版、且點出機率不是最新模型輸出", () => {
+test("gate_failed：唯一能宣稱閘門失敗的成因", () => {
   const notice = pregameServingNotice({
     status: "serving_previous",
+    degradation: "gate_failed",
     serving_version: "outcome-simple-1",
     backtest_version: "outcome-simple-2",
+    backtest_deployable: false,
   });
 
   assert.ok(notice);
   assert.ok(notice.includes("未通過部署閘門"));
   assert.ok(notice.includes("outcome-simple-1"), "必須指名 serving 中的版本");
   assert.ok(notice.includes("outcome-simple-2"), "必須指名最新回測版本");
-  assert.ok(notice.includes("並非最新模型的輸出"));
 });
 
-test("舊 artifact 無版本欄時仍要揭露，不得因為缺 id 就靜默", () => {
+test("version_mismatch：回測其實通過了閘門，不得講成閘門失敗", () => {
   const notice = pregameServingNotice({
     status: "serving_previous",
-    serving_version: null,
-    backtest_version: null,
+    degradation: "version_mismatch",
+    serving_version: "outcome-simple-3",
+    backtest_version: "outcome-simple-2",
+    backtest_deployable: true,
   });
 
   assert.ok(notice);
-  assert.ok(notice.includes("去洩漏前的舊版模型"));
+  assert.equal(notice.includes("未通過部署閘門"), false, "回測已通過，不得宣稱閘門失敗");
+  assert.ok(notice.includes("不一致"));
+  assert.ok(notice.includes("已通過閘門"));
+});
+
+test("version_unknown：deploy→refresh 窗口的實際狀態，只能說無法確認", () => {
+  // prod 現行 artifact 沒有 version 欄，而最新回測是 7/7 通過的——iteration 2 會在這裡
+  // 宣稱「最新回測未通過部署閘門」，正好在唯一會被看到的窗口說錯話。
+  const notice = pregameServingNotice({
+    status: "serving_previous",
+    degradation: "version_unknown",
+    serving_version: null,
+    backtest_version: "outcome-simple-2",
+    backtest_deployable: true,
+  });
+
+  assert.ok(notice);
+  assert.equal(notice.includes("未通過部署閘門"), false, "不得誣賴一個通過的回測");
+  assert.ok(notice.includes("無法確認"));
+  assert.ok(notice.includes("outcome-simple-2"));
 });
 
 test("unavailable 不走告示：整段不可用由卡片自己的不可用文案負責", () => {

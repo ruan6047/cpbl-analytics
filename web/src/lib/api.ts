@@ -1,6 +1,6 @@
 // FastAPI 資料層 client（Server Component 用）。prod 走 Docker 內網，dev 走 localhost。
 import { ApiError } from "./http-error";
-import type { DailySummary } from "./daily-summary";
+import type { DailySummary, PregameServingMeta } from "./daily-summary";
 
 const API_URL = process.env.API_URL ?? "http://localhost:4001";
 
@@ -38,6 +38,14 @@ export type TeamSplitResponse = { season: number; scopes: TeamSplitScope[] };
 
 async function get<T>(path: string, revalidate = 600): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, { next: { revalidate } });
+  if (!res.ok) throw new ApiError(path, res.status);
+  return res.json() as Promise<T>;
+}
+
+/** 不進快取的取用。只給「必須即時」的狀態用（目前只有賽前模型的 serving 降級揭露）：
+ *  快取住的降級提示會在 refresh 恢復後續顯示，讓上線程序的驗證步驟失去意義。 */
+async function getLive<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, { cache: "no-store" });
   if (!res.ok) throw new ApiError(path, res.status);
   return res.json() as Promise<T>;
 }
@@ -334,13 +342,12 @@ export type BacktestModelRow = {
   log_loss: number;
   ece?: number;
 };
-/** serving 狀態：這份回測紀錄有沒有真的成為線上模型（ML-OUTCOME-SIMPLE-LEAK2）。 */
-export type PregameServing = {
-  status: "serving_current" | "serving_previous" | "unavailable";
+/** serving 狀態：這份回測紀錄有沒有真的成為線上模型（ML-OUTCOME-SIMPLE-LEAK2）。
+ *  `degradation` 由後端判別成因，前端據以選文案；只有 gate_failed 能講「閘門失敗」。 */
+export type PregameServing = PregameServingMeta & {
   reason: string | null;
-  serving_version: string | null;
-  backtest_version: string | null;
-  backtest_deployable: boolean | null;
+  trained_through?: number | null;
+  signals?: Record<string, string> | null;
 };
 export type PregameBacktestResponse = {
   available: boolean;
@@ -510,8 +517,12 @@ export const api = {
   dailySummary: (kind = "A", season?: number) =>
     get<DailySummary>(`/api/v1/daily/summary?kind_code=${kind}${season ? `&season=${season}` : ""}`, 120),
   // /methodology 賽前勝率段：正式回測紀錄與舊全特徵 benchmark 對照。
-  pregameBacktest: () =>
-    get<PregameBacktestResponse>("/api/v1/outcome/pregame/backtest", 600),
+  // 賽前段兩支都走 no-store：serving 狀態必須即時（否則降級提示會在 refresh 恢復後
+  // 續顯示，上線驗證步驟失去意義），而回測面板與它並排顯示版本號——一支快取一支即時
+  // 會讓同一個面板出現兩個不同版本。/methodology 已因 no-store 轉為動態渲染，
+  // 這支再走快取也省不到什麼（單列 DB 讀取）。
+  pregameBacktest: () => getLive<PregameBacktestResponse>("/api/v1/outcome/pregame/backtest"),
+  pregameServing: () => getLive<PregameServing>("/api/v1/outcome/pregame/serving"),
   outcomeBenchmark: () => get<OutcomeBenchmarkResponse>("/api/v1/outcome/backtest", 600),
   playersRoster: (season?: number) =>
     get<{

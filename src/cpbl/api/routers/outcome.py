@@ -135,6 +135,18 @@ def outcome_pregame(limit: int = Query(20, ge=1, le=60)) -> dict:
             "items": items}
 
 
+@router.get("/api/v1/outcome/pregame/serving")
+def outcome_pregame_serving() -> dict:
+    """賽前模型的 serving 狀態（只讀 artifact meta 與 model_versions 最新列）。
+
+    刻意獨立於 `/pregame/backtest`：降級揭露必須**即時**，回測指標表則可以長快取。
+    前端兩個頁面都以 no-store 取這一支，因此 refresh 一跑完狀態就會反映在畫面上；
+    上線程序的「驗證提示消失」也可以直接 curl 這支端點對帳，不必解析 HTML。
+    """
+    _, serving = serving_state()
+    return serving
+
+
 @router.get("/api/v1/outcome/pregame/backtest")
 def outcome_pregame_backtest() -> dict:
     """最新一次走查回測紀錄，外加 serving 狀態。

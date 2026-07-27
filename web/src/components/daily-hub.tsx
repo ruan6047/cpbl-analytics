@@ -12,6 +12,7 @@ import {
   gameHref,
   type DailySummary,
   type DailyGame,
+  type PregameServingMeta,
 } from "@/lib/daily-summary";
 
 // 首頁每日入口 hub（UX-GAME-HOME1）。純展示 server component：依序渲染最近比賽日、
@@ -88,12 +89,19 @@ function NextGame({ g, trainedThrough }: { g: DailyGame; trainedThrough: number 
   );
 }
 
-export default function DailyHub({ summary }: { summary: DailySummary }) {
+export default function DailyHub({
+  summary,
+  serving = null,
+}: {
+  summary: DailySummary;
+  /** 即時 serving 狀態；省略或取用失敗時退回 daily summary 內嵌的（可能被快取）版本。 */
+  serving?: PregameServingMeta | null;
+}) {
   const { latest_game_day, next_slate, freshness, availability } = summary;
   const trainedThrough = availability.pregame_model.trained_through;
-  // 最新回測未過閘門時，卡片上的機率其實來自上一版模型——必須在賽事卡上方明講，
-  // 不能只寫進後端 log 或只在方法頁揭露（ML-OUTCOME-SIMPLE-LEAK2 紅線 5）。
-  const servingNotice = pregameServingNotice(availability.pregame_model);
+  // serving 沿用上一版時，卡片上的機率其實不是最新回測那個模型算的——必須在賽事卡上方
+  // 明講，不能只寫進後端 log 或只在方法頁揭露（ML-OUTCOME-SIMPLE-LEAK2 紅線 5）。
+  const servingNotice = pregameServingNotice(serving ?? availability.pregame_model);
   const refresh = refreshCopy(freshness.last_refresh.status);
   const ageText = refreshAgeText(freshness.last_refresh.hours_ago);
 
