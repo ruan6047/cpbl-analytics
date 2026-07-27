@@ -1,6 +1,7 @@
 // FastAPI 資料層 client（Server Component 用）。prod 走 Docker 內網，dev 走 localhost。
 import { ApiError } from "./http-error";
 import type { DailySummary, PregameServingMeta } from "./daily-summary";
+import type { TeamStyleResponse } from "./team-style";
 
 const API_URL = process.env.API_URL ?? "http://localhost:4001";
 
@@ -440,6 +441,9 @@ export const api = {
     get<StandingsResponse>(`/api/v1/season/standings${season ? `?season=${season}` : ""}`),
   teamSplit: (season?: number) =>
     get<TeamSplitResponse>(`/api/v1/season/team-split${season ? `?season=${season}` : ""}`, 120),
+  // 球風七軸（UX-TEAM-STYLE1）：逐季 z/raw/排名＋軸級語意標注＋教練時間標記。全年口徑。
+  teamStyle: (code: string) =>
+    get<TeamStyleResponse>(`/api/v1/teams/${code}/style`, 600),
   records: () =>
     get<{
       games: Record<"max_margin" | "max_team_runs" | "max_combined", { year: number; date: string; home: string; away: string; hs: number; as: number } | null>;

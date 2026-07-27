@@ -1,0 +1,212 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  SEMANTICS_BADGE,
+  TEAM_STYLE_COPY,
+  TEAM_STYLE_SECTION,
+  clampZ,
+  formatZ,
+  managerMarkers,
+  outsToIp,
+  type TeamStyleAxisKey,
+  type TeamStyleAxisValue,
+} from "./team-style.ts";
+
+// —— 掃描素材：把文案表 + 區塊文案的所有使用者可見字串攤平 ——
+
+const sampleValue: TeamStyleAxisValue = {
+  z: 1.23,
+  raw: 0.106,
+  rank: 1,
+  counts: { sb: 9, cs: 3, sh: 41, pa: 2654, extra_bases: 120, ab: 2300,
+    bb: 250, so: 500, starter_outs: 1620, outs: 2916, so_a: 480, pa_against: 3200 },
+};
+
+const AXIS_KEYS = Object.keys(TEAM_STYLE_COPY) as TeamStyleAxisKey[];
+
+function allCopyStrings(): { source: string; text: string }[] {
+  const out: { source: string; text: string }[] = [];
+  for (const key of AXIS_KEYS) {
+    const c = TEAM_STYLE_COPY[key];
+    out.push({ source: `${key}.desc`, text: c.desc });
+    out.push({ source: `${key}.note`, text: c.note });
+    out.push({ source: `${key}.detail`, text: c.detail(sampleValue) });
+  }
+  for (const badge of Object.values(SEMANTICS_BADGE)) {
+    if (badge) out.push({ source: "badge", text: badge });
+  }
+  for (const [k, v] of Object.entries(TEAM_STYLE_SECTION)) {
+    if (typeof v === "string") out.push({ source: `section.${k}`, text: v });
+  }
+  out.push({ source: "section.rankLabel", text: TEAM_STYLE_SECTION.rankLabel(3, 6) });
+  out.push({ source: "section.managerMarkerLabel", text: TEAM_STYLE_SECTION.managerMarkerLabel("葉君璋", 2021) });
+  out.push({ source: "section.inProgressNote", text: TEAM_STYLE_SECTION.inProgressNote([2026]) });
+  return out;
+}
+
+// —— 約束 5：零預測性語言（全域禁用清單）——
+
+const PREDICTIVE_BANNED = [
+  "勝率", "勝場", "戰績", "賽果", "預測", "預期", "看好", "將會",
+  "因此", "有利", "贏球", "勝出", "領先聯盟",
+];
+
+test("約束5：全部文案零預測性語言", () => {
+  for (const { source, text } of allCopyStrings()) {
+    for (const banned of PREDICTIVE_BANNED) {
+      assert.ok(!text.includes(banned), `${source} 含預測性詞彙「${banned}」：${text}`);
+    }
+  }
+});
+
+// —— 文案紅線：不用隊伍非官方暱稱 ——
+
+const FAN_NICKNAMES = ["龍龍", "爪爪", "喵喵", "邦邦", "吱吱", "啾啾"];
+
+test("文案紅線：不用隊伍非官方暱稱", () => {
+  for (const { source, text } of allCopyStrings()) {
+    for (const nick of FAN_NICKNAMES) {
+      assert.ok(!text.includes(nick), `${source} 含非官方暱稱「${nick}」`);
+    }
+  }
+});
+
+// —— 約束 3：守備效率列零形容詞（只有數字與排名）——
+
+const STYLE_ADJECTIVES = [
+  "型", "風格", "傾向", "擅長", "穩定", "優異", "紮實", "出色",
+  "強", "弱", "佳", "差", "好", "壞", "鐵壁", "銅牆",
+];
+
+test("約束3：守備效率 desc/note 為空、detail 僅數字", () => {
+  const d = TEAM_STYLE_COPY.defense;
+  assert.equal(d.desc, "");
+  assert.equal(d.note, "");
+  const detail = d.detail(sampleValue);
+  for (const adj of STYLE_ADJECTIVES) {
+    assert.ok(!detail.includes(adj), `defense.detail 含形容詞「${adj}」：${detail}`);
+  }
+  assert.match(detail, /^DER [.\d—]+$/, `defense.detail 應只有 DER 數字：${detail}`);
+});
+
+test("約束3：守備效率 semantics=numbers_only 不掛任何徽章", () => {
+  assert.equal(SEMANTICS_BADGE.numbers_only, null);
+});
+
+// —— 約束 3：先發吃局／三振型投手標「本季」；選球紀律可標跨季延續 ——
+
+test("約束3：current_season_only 徽章文案＝「本季」", () => {
+  assert.equal(SEMANTICS_BADGE.current_season_only, "本季");
+  assert.ok(TEAM_STYLE_COPY.starter_ip.note.includes("跨季不延續"));
+  assert.ok(TEAM_STYLE_COPY.pitch_k.note.includes("跨季不延續"));
+});
+
+test("約束3：唯一可標「具跨季延續性」的是 cross_season_stable（選球紀律）", () => {
+  assert.equal(SEMANTICS_BADGE.cross_season_stable, "具跨季延續性");
+  // 「跨季延續性」正面宣稱不得出現在其他軸的文案（speed 的「跨季延續偏弱」是弱化語意，允許）
+  for (const key of AXIS_KEYS.filter((k) => k !== "discipline")) {
+    const c = TEAM_STYLE_COPY[key];
+    for (const text of [c.desc, c.note]) {
+      assert.ok(!text.includes("具跨季延續"), `${key} 不得宣稱跨季延續性：${text}`);
+    }
+  }
+});
+
+// —— 約束 7：全季口徑明示「全年」；約束 8：進行中賽季標注 ——
+
+test("約束7：區塊明示全年口徑", () => {
+  assert.equal(TEAM_STYLE_SECTION.scopeBadge, "全年");
+});
+
+test("約束8：賽季進行中標注文案", () => {
+  assert.equal(TEAM_STYLE_SECTION.inProgressBadge, "賽季進行中");
+  assert.ok(TEAM_STYLE_SECTION.inProgressNote([2026]).includes("2026"));
+});
+
+// —— 約束 2：教練名僅時間標記，不得暗示「時期風格」——
+
+const ERA_STYLE_BANNED = ["時期風格", "時代", "體系", "作風", "帶隊風格"];
+
+test("約束2：教練相關文案不暗示時期風格", () => {
+  for (const { source, text } of allCopyStrings()) {
+    for (const banned of ERA_STYLE_BANNED) {
+      assert.ok(!text.includes(banned), `${source} 含時期風格暗示「${banned}」：${text}`);
+    }
+  }
+  assert.ok(TEAM_STYLE_SECTION.managerFootnote.includes("僅作時間標記"));
+});
+
+test("教練標記格式＝「名 年–」（卡面例：陳金鋒 2024–）", () => {
+  assert.equal(TEAM_STYLE_SECTION.managerMarkerLabel("陳金鋒", 2024), "陳金鋒 2024–");
+});
+
+// —— managerMarkers：換帥年導出 ——
+
+test("managerMarkers：首年立標、換帥立標、同名不重複", () => {
+  const ms = managerMarkers([
+    { year: 2020, manager: "洪一中" },
+    { year: 2021, manager: "洪一中" },
+    { year: 2022, manager: "丘昌榮" },
+    { year: 2023, manager: "丘昌榮" },
+    { year: 2024, manager: "陳金鋒" },
+  ]);
+  assert.deepEqual(ms, [
+    { year: 2020, name: "洪一中" },
+    { year: 2022, name: "丘昌榮" },
+    { year: 2024, name: "陳金鋒" },
+  ]);
+});
+
+test("managerMarkers：不可判定季跳過不斷開；未知季後換人才立標", () => {
+  // ADD011 實例：2018 黃甘霖 → 2019 不可判定 → 2020 林岳平
+  const ms = managerMarkers([
+    { year: 2018, manager: "黃甘霖" },
+    { year: 2019, manager: null },
+    { year: 2020, manager: "林岳平" },
+  ]);
+  assert.deepEqual(ms, [
+    { year: 2018, name: "黃甘霖" },
+    { year: 2020, name: "林岳平" },
+  ]);
+  // 同名跨過未知季不重複立標（未知季無從宣稱換帥）
+  const same = managerMarkers([
+    { year: 2021, manager: "葉君璋" },
+    { year: 2022, manager: null },
+    { year: 2023, manager: "葉君璋" },
+  ]);
+  assert.deepEqual(same, [{ year: 2021, name: "葉君璋" }]);
+});
+
+test("managerMarkers：亂序輸入照年份排序", () => {
+  const ms = managerMarkers([
+    { year: 2024, manager: "平野惠一" },
+    { year: 2021, manager: "林威助" },
+  ]);
+  assert.deepEqual(ms, [
+    { year: 2021, name: "林威助" },
+    { year: 2024, name: "平野惠一" },
+  ]);
+});
+
+// —— 純格式化 ——
+
+test("formatZ／clampZ／outsToIp", () => {
+  assert.equal(formatZ(1.234), "+1.23");
+  assert.equal(formatZ(-0.5), "-0.50");
+  assert.equal(formatZ(0), "+0.00");
+  assert.equal(clampZ(2.4), 2);
+  assert.equal(clampZ(-3), -2);
+  assert.equal(clampZ(0.7), 0.7);
+  assert.equal(outsToIp(540), "180");
+  assert.equal(outsToIp(542), "180.2");
+  assert.equal(outsToIp(0), "0");
+});
+
+// —— 明細文案抽樣（次數＋排名導向，對齊約束 1 範例「短打 38 次，聯盟第 1」）——
+
+test("約束1：明細給原始次數；排名文案格式", () => {
+  assert.ok(TEAM_STYLE_COPY.smallball.detail(sampleValue).includes("犧短 41 次"));
+  assert.ok(TEAM_STYLE_COPY.speed.detail(sampleValue).includes("盜壘企圖 12 次"));
+  assert.equal(TEAM_STYLE_SECTION.rankLabel(1, 6), "聯盟第 1（/6 隊）");
+});
