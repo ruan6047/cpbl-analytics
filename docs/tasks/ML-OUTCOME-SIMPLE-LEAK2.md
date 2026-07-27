@@ -51,7 +51,16 @@
    任一步失敗時 DB 不得宣稱 `deployable=true` 而 serving 仍為舊版。
 5. **失敗路徑不得靜默**：production refresh 中的 trainer 失敗碼必須傳遞（pipeline 不得吞
    exit code），且「最新回測未過閘門、serving 沿用版本 X」的狀態必須由後端明確回傳並在
-   **首頁與方法頁同時**呈現，不得只寫進 log。
+   **所有渲染賽前勝率的對外介面**呈現，不得只寫進 log。
+
+   > **2026-07-27 需求方裁定擴大範圍**（Coordinator 預檢發現）：原文寫「首頁與方法頁同時」，
+   > 但站上實際有**三個**介面渲染賽前勝率——首頁 `DailyHub`、`/methodology#pregame`，
+   > 以及**賽況頁 `games/[sno]` 的 `PregameCard`**（走 client-side `/api/v1/outcome/pregame`，
+   > 與首頁完全不同的資料路徑）。該端點後端**已回** `serving` 狀態，但 `pregame-card.tsx` 與
+   > `games/[sno]/page.tsx` 對降級提示的引用數皆為 **0**＝後端給了、前端沒用。
+   > 降級期間賽況頁會照常顯示賽前勝率而無任何揭露，正好會發生在已裁定的部署窗口。
+   > 此為 Coordinator 開卡時 scope 未寫全，非執行者違反卡面；紅線改為涵蓋所有此類介面。
+   > **同一介面內仍須遵守 iteration 4 的單一來源不變式**：機率與 serving 狀態須來自同一 response。
 6. **統計敘述須精確**：型一誤差宣稱須標明其條件零假設；不得以數值接近推論歷史制定原因；
    區間寬窄的方向性描述須正確。
 
