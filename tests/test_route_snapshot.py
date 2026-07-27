@@ -31,6 +31,7 @@ EXPECTED = {
     "/api/v1/outcome/plate-appearance/from-game",
     "/api/v1/outcome/pregame",
     "/api/v1/outcome/pregame/backtest",
+    "/api/v1/outcome/pregame/serving",
     "/api/v1/outcome/simulate",
     "/api/v1/outcome/teams",
     "/api/v1/people/coach/{name}",

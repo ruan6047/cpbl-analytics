@@ -2,9 +2,15 @@ from __future__ import annotations
 
 from datetime import date
 
+import numpy as np
+import pytest
+
 from cpbl.models.outcome_simple import (
     GROUP_CANDIDATES,
     OutcomeRow,
+    _calibration_mle,
+    _calibration_slope_null,
+    _logit,
     candidate_signal_sets,
     deployment_gate,
     load_artifact,
@@ -77,18 +83,78 @@ def test_final_artifact_round_trip_preserves_probability(tmp_path):
     ])[0]
 
 
-def test_deployment_gate_requires_probability_metrics_season_stability_and_calibration():
-    result = {
+def _gate_result(slope: float, slope_ci95: list[float]) -> dict:
+    return {
         "seasons_beating_baseline": 3,
         "paired_bootstrap": {"brier_delta_ci95": [-0.02, -0.001],
                              "log_loss_delta_ci95": [-0.04, -0.002]},
+        "calibration_null": {"slope_ci95": slope_ci95},
         "models": [
             {"name": "home_baseline", "brier": 0.25, "log_loss": 0.69},
             {"name": "fixed_semantic", "brier": 0.24, "log_loss": 0.67,
-             "calibration_intercept": 0.05, "calibration_slope": 1.05},
+             "calibration_intercept": 0.05, "calibration_slope": slope},
         ],
     }
+
+
+def test_deployment_gate_requires_probability_metrics_season_stability_and_calibration():
+    result = _gate_result(1.05, [0.79, 1.24])
 
     assert deployment_gate(result, required_season_wins=3)["deployable"] is True
     result["models"][1]["calibration_slope"] = 1.3
     assert deployment_gate(result, required_season_wins=3)["deployable"] is False
+
+
+def test_calibration_slope_gate_scales_with_the_null_not_a_fixed_band():
+    """同一個斜率 1.37：辨別力弱時屬抽樣雜訊（過），辨別力強時屬真實失準（不過）。
+
+    這是 ML-OUTCOME-SIMPLE-LEAK2 的核心主張——固定區間 [0.8, 1.2] 會把「模型變誠實」
+    誤判成「模型失準」。門檻改由零假設區間決定後，判定隨可偵測性走，不隨結果走。
+    """
+    weak = deployment_gate(_gate_result(1.37, [0.51, 1.50]), required_season_wins=3)
+    strong = deployment_gate(_gate_result(1.37, [0.87, 1.15]), required_season_wins=3)
+
+    assert weak["checks"]["calibration_slope"] is True
+    assert strong["checks"]["calibration_slope"] is False
+    # 舊固定門檻對兩者一律判失敗，無從分辨雜訊與失準。
+    assert not 0.8 <= 1.37 <= 1.2
+
+
+def test_calibration_mle_matches_sklearn_unpenalised_logistic():
+    """向量化 Newton 解與 `_metrics` 用的 sklearn 無懲罰解必須是同一個 MLE。
+
+    容差 1e-3 是 sklearn lbfgs 的收斂容差（Newton 收得更緊），不是本函式的誤差；
+    相對於零假設區間寬度（約 1.0）差三個數量級，不影響閘門判定。
+    """
+    sklearn_linear_model = pytest.importorskip("sklearn.linear_model")
+    rng = np.random.default_rng(3)
+    probability = 1 / (1 + np.exp(-rng.normal(0.1, 0.5, 800)))
+    actual = (rng.random(800) < probability).astype(int)
+
+    reference = sklearn_linear_model.LogisticRegression(C=np.inf, max_iter=1000).fit(
+        _logit(probability).reshape(-1, 1), actual,
+    )
+
+    assert _calibration_mle(_logit(probability), actual)[0] == pytest.approx(
+        float(reference.coef_[0][0]), abs=1e-3,
+    )
+
+
+def test_calibration_null_widens_as_discrimination_falls():
+    """零假設區間寬度由預測離散度決定：壓縮的機率 → 更寬的區間、更高的舊門檻偽失敗率。"""
+    rng = np.random.default_rng(5)
+    logits = rng.normal(0.0, 1.0, 1500)
+    strong = 1 / (1 + np.exp(-logits))
+    weak = 1 / (1 + np.exp(-0.3 * logits))
+
+    strong_null = _calibration_slope_null(strong, 1.0, iterations=400)
+    weak_null = _calibration_slope_null(weak, 1.0, iterations=400)
+
+    strong_width = strong_null["slope_ci95"][1] - strong_null["slope_ci95"][0]
+    weak_width = weak_null["slope_ci95"][1] - weak_null["slope_ci95"][0]
+    assert weak_width > strong_width
+    assert (weak_null["legacy_band_false_failure_rate"]
+            > strong_null["legacy_band_false_failure_rate"])
+    # 零假設下斜率的中心必為 1（模擬本身無偏），否則整個檢定失去意義。
+    for null in (strong_null, weak_null):
+        assert null["slope_ci95"][0] < 1.0 < null["slope_ci95"][1]

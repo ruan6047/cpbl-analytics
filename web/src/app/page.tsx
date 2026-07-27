@@ -26,6 +26,9 @@ export default async function Home({
 
   // 首頁每日入口：單一 daily summary 契約 + 戰績摘要（blueprint §8.4：12 請求 → ≤3）。
   // 兩者各自 settle：任一失敗都優雅降級，不讓首頁 500。
+  // 賽前降級提示**不**另外取：點機率與 serving 狀態必須同源，否則會出現「快取的舊機率
+  // ＋ 即時的正常狀態」＝沒有提示的舊模型機率。dailySummary 已改 no-store 且兩者同在
+  // 一份 response 內（ML-OUTCOME-SIMPLE-LEAK2）。
   const [dailyR, standR] = await Promise.allSettled([
     api.dailySummary(),
     api.officialStandings(0),

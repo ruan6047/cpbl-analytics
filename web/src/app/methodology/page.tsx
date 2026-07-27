@@ -1,4 +1,9 @@
-import { api, type OutcomeBenchmarkResponse, type PregameBacktestResponse } from "@/lib/api";
+import {
+  api,
+  type OutcomeBenchmarkResponse,
+  type PregameBacktestResponse,
+} from "@/lib/api";
+import { pregameServingNotice, type PregameServingMeta } from "@/lib/daily-summary";
 import { METHODOLOGY_SECTIONS } from "@/lib/methodology-anchors";
 import {
   BENCHMARK_NOTE,
@@ -86,6 +91,7 @@ function MetricsTable({
 }
 
 /** 賽前勝率段的即時回測面板；紀錄缺席時明示退回報告快照，不空白、不拋錯。 */
+/** 只吃 backtest 一份 response：版本、閘門與 serving 狀態都出自同一次查詢。 */
 function PregameLivePanel({ backtest }: { backtest: PregameBacktestResponse | null }) {
   if (!backtest?.available || !backtest.models?.length) {
     return (
@@ -98,8 +104,20 @@ function PregameLivePanel({ backtest }: { backtest: PregameBacktestResponse | nu
   const gate = backtest.gate;
   const gatePassed = gate ? Object.values(gate.checks).filter(Boolean).length : 0;
   const gateTotal = gate ? Object.keys(gate.checks).length : 0;
+  // 閘門未過時 serving 沿用上一版：這裡與首頁必須同時揭露，否則使用者看到的機率
+  // 其實不是這張表描述的模型（ML-OUTCOME-SIMPLE-LEAK2 紅線 5）。
+  const servingMeta: PregameServingMeta = backtest.serving ?? { status: "serving_current" };
+  const servingNotice = pregameServingNotice(servingMeta);
   return (
     <div className="mt-2">
+      {servingNotice && (
+        <p
+          data-testid="pregame-serving-notice"
+          className="mb-2 rounded-lg bg-surface-2 px-3 py-2 text-xs text-ink"
+        >
+          {servingNotice}
+        </p>
+      )}
       <p className="mb-1.5 text-xs text-faint">
         線上回測紀錄（版本 {backtest.version}
         {backtest.test_years?.length
@@ -108,6 +126,12 @@ function PregameLivePanel({ backtest }: { backtest: PregameBacktestResponse | nu
         {backtest.n_test ? `・${backtest.n_test.toLocaleString()} 場` : ""}）
       </p>
       <MetricsTable rows={backtest.models} highlight="fixed_semantic" />
+      {servingMeta.serving_version && (
+        <p className="mt-1.5 text-xs text-faint">
+          目前 serving 的模型版本：{servingMeta.serving_version}
+          {servingMeta.status === "serving_current" ? "（即上表這一次回測的產出）" : ""}
+        </p>
+      )}
       {gate && (
         <p className="mt-1.5 text-xs text-muted">
           部署閘門：{gatePassed}/{gateTotal} 項通過・
@@ -234,6 +258,8 @@ async function safeFetch<T>(promise: Promise<T>): Promise<T | null> {
 }
 
 export default async function MethodologyPage() {
+  // 賽前段的回測數字與 serving 狀態同在 pregameBacktest 這一份 response 內，**不另外取**：
+  // 兩個必須一致的事實分兩次請求，就會有 refresh 落在兩次之間的競態（同 iteration 3 首頁）。
   const [pregameBacktest, benchmark] = await Promise.all([
     safeFetch(api.pregameBacktest()),
     safeFetch(api.outcomeBenchmark()),

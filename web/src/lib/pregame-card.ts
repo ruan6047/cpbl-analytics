@@ -40,7 +40,89 @@ export type PregameResponse = {
   trained_through?: number;
   signals?: Record<string, string>;
   items?: PregameItem[];
+  /** 產生 items 這些機率的模型是不是最新回測那一版。與 items 同在這一份 response 內，
+   *  卡片因此天生滿足「機率與其 serving 狀態同源」——不得改成另外抓一次。 */
+  serving?: PregameServingMeta;
 };
+
+// —— serving 降級狀態（ML-OUTCOME-SIMPLE-LEAK2 紅線 5）——
+// 放在本模組而非 daily-summary，是因為三個渲染賽前勝率的介面（首頁、方法頁、賽況頁）
+// 都要用同一套說法，而 daily-summary 依賴本模組——反向 import 會成環。
+
+/** 賽前模型的 serving 狀態（ML-OUTCOME-SIMPLE-LEAK2 紅線 5）。
+ *
+ * **`status` 與 `degradation` 正交**：status 只回答「serving 是不是最新回測的產出」，
+ * degradation 才是要不要揭露的開關。
+ *
+ * - serving_previous＝無法證明「serving 就是最新回測的產出」，點機率仍可能來自**上一版**
+ *   模型。機率照樣算得出來，所以卡片不會退成不可用——但介面必須明講現正沿用哪一版、
+ *   以及是哪一種成因。unavailable 才是整段沒有模型（其 degradation 恆為 null）。
+ * - serving_current 也可能要揭露：`serving_gate_failed`＝serving 確實就是最新回測那一版，
+ *   而那一次回測**沒過閘門**。此時講「沿用上一版」是假話（機率正是該次回測那一版的
+ *   輸出），但它比沿用上一版更嚴重，不得因為 status 正常就靜默（iteration 6 查核 F1）。
+ *
+ * `backtest_unknown`＝連最新回測的閘門結果都讀不到（DB 例外／無紀錄／gate 欄缺席）。
+ * 它與 `version_mismatch` 分開，是因為後者才有「該次回測通過了閘門」這個正面事實；
+ * 把未知併進去就會變成憑空宣稱閘門已通過（iteration 5 查核 F1）。
+ */
+export type PregameDegradation =
+  | "serving_gate_failed"
+  | "gate_failed"
+  | "version_unknown"
+  | "backtest_unknown"
+  | "version_mismatch";
+
+export type PregameServingMeta = {
+  status: "serving_current" | "serving_previous" | "unavailable";
+  serving_version?: string | null;
+  backtest_version?: string | null;
+  backtest_deployable?: boolean | null;
+  degradation?: PregameDegradation | null;
+};
+
+/** 降級告示；serving 正常或整段不可用時回 null（後者由卡片各自的不可用文案負責）。
+ *
+ * **開關是 `degradation` 而不是 status**：`serving_gate_failed` 的 status 是
+ * `serving_current`，照 status 判會整個漏掉（iteration 6 查核 F1）。status 為
+ * `serving_previous` 但沒帶判別碼時仍照樣揭露——這種 payload 本不該出現，出現了就是
+ * 後端契約壞掉，此時寧可講一句籠統的話也不要靜默。
+ *
+ * 成因由後端的 `degradation` 判別碼決定，前端只做映射。**能講出「閘門」結果的只有三處**，
+ * 而且各自都要有這份 response 裡的正面證據：
+ *
+ * - `gate_failed` 才可以說「未通過部署閘門**且已沿用上一版**」；`serving_gate_failed`
+ *   說的是同一次閘門失敗，但**正在服務的就是那一版**，兩句話不可互換。其餘幾種是版本
+ *   紀錄對不上或根本讀不到回測，與閘門結果無關，講成閘門失敗就是說錯話
+ *   （deploy→refresh 窗口即 version_unknown，那次回測其實是 7/7 通過的）。
+ * - `version_mismatch` 的「該次回測本身已通過閘門」只在 `backtest_deployable === true`
+ *   時才附註。後端已保證這條分支必為 true，但**前端不靠那個保證說出 PASS 這種話**：
+ *   iteration 5 的缺陷就是後端把「未知」壓成同一個判別碼，前端照著保證講，於是憑空
+ *   宣稱閘門已通過。判別碼可能出錯，`backtest_deployable` 是這句話唯一的直接證據。
+ *
+ * default 分支刻意只給不含任何閘門宣稱的中性說法：後端未來新增判別碼時，最壞情況是
+ * 講得比較籠統，而不是被誤述成別的成因（`version_unknown` 因此保留自己的 case）。
+ */
+export function pregameServingNotice(axis: PregameServingMeta): string | null {
+  if (axis.degradation == null && axis.status !== "serving_previous") return null;
+  const backtest = axis.backtest_version ? `最新回測 ${axis.backtest_version}` : "最新回測紀錄";
+  const serving = axis.serving_version ?? "（未記錄）";
+  switch (axis.degradation) {
+    case "serving_gate_failed":
+      return `現正提供機率的版本 ${serving} 就是${backtest}，而該次回測未通過部署閘門；以下機率來自一個未通過閘門的模型。`;
+    case "gate_failed":
+      return `${backtest}未通過部署閘門，現正沿用版本 ${serving}；以下機率並非最新回測所對應的模型輸出。`;
+    case "version_mismatch": {
+      const gateNote = axis.backtest_deployable === true ? "（該次回測本身已通過閘門）" : "";
+      return `serving 版本 ${serving} 與${backtest}不一致${gateNote}；以下機率並非最新回測所對應的模型輸出。`;
+    }
+    case "version_unknown":
+      return `serving 模型未記錄版本，無法確認是否為${backtest}的產出；以下機率可能來自舊版模型。`;
+    case "backtest_unknown":
+      return `無法確認${backtest}的部署判定結果，因此也無從確認 serving 版本 ${serving} 是否為它的產出；以下機率可能來自舊版模型。`;
+    default:
+      return "無法確認 serving 是否為最新回測的產出；以下機率可能來自舊版模型。";
+  }
+}
 
 /** 消費端指定要渲染哪一場；kind_code 用來判定模型支援範圍（僅一軍例行賽 A）。 */
 export type PregameGameRef = { season: number; game_sno: number; kind_code: string };
@@ -119,6 +201,9 @@ export type PregameCardModel =
       probabilityText: string;
       primarySignal: PregamePrimarySignal | null;
       trainedThroughText: string | null;
+      /** 降級告示：這個機率不是最新回測那一版模型算的。由**同一份 response** 推導，
+       *  正常時為 null。首頁把它擺在賽事列表上方（一次），故該路徑刻意留 null。 */
+      servingNotice: string | null;
       methodologyHref: string;
     }
   | {
@@ -204,6 +289,8 @@ export function resolvePregameCard(input: ResolvePregameInput): PregameCardModel
       response.trained_through != null
         ? `${PREGAME_COPY.trainedThroughPrefix} ${response.trained_through} ${PREGAME_COPY.trainedThroughSuffix}`
         : null,
+    // 機率與 serving 狀態出自同一份 response——這就是不變式，不得改成另外抓一次。
+    servingNotice: response.serving ? pregameServingNotice(response.serving) : null,
     methodologyHref: HREF,
   };
 }

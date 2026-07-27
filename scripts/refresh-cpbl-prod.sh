@@ -230,10 +230,30 @@ if [ -n "${WITH_DETAIL:-}" ]; then
     team_name g gs gr cg sho nbb w l sv hld ip bf np h hr bb ibb hbp so wp bk r er go fo
 fi
 
+# 遠端跑訓練並**保留 trainer 的 exit code**。ssh 回傳的是遠端命令串最後一個指令的碼，
+# 遠端 shell（登入 shell 可能是 sh／dash）沒有 pipefail，所以
+# `docker exec ... | grep -v httpx | tail -N` 一律回 tail 的 0——trainer crash 也會被
+# 當成功，流程照樣往下寫 refresh 成功標記，正是本腳本要避免的
+# 「舊 artifact 配新特徵分布」（ML-OUTCOME-SIMPLE-LEAK2 紅線 5）。
+# 不用 `set -o pipefail` 是因為 `grep -v` 在「全部行都被濾掉」時回 1，會製造假失敗；
+# 改成先把輸出收進變數取回 rc，過濾只作用在顯示上。
+remote_train() {
+  local command="$1" lines="$2"
+  ssh -o BatchMode=yes "$VPS" \
+    "output=\$(${command} 2>&1); rc=\$?; printf '%s\n' \"\$output\" | grep -v httpx | tail -${lines}; exit \$rc"
+}
+
 echo "==> 4/4 VPS 跑賽事預測回測（LightGBM 需 libgomp；prod_cpbl_api 容器內有）"
 # game_features 已由本機鏡像（全史），VPS 不需再 build-features；直接以鏡像資料跑
 # 走查回測並把 model_versions(task='outcome') 持久化，供 /api/info 與 /predict 面板展示。
-ssh -o BatchMode=yes "$VPS" 'docker exec prod_cpbl_api cpbl-train-outcome 2>&1 | grep -v httpx | tail -4'
+remote_train "docker exec prod_cpbl_api cpbl-train-outcome" 4
+
+# 上線 serving 模型（首頁 pregame 點機率／/methodology#pregame）也吃 game_features。
+# 少了這一步，鏡像進來的新特徵分布會被餵給用舊分布 fit 的 outcome_simple.joblib，
+# 屬 serving 端分布錯配（ML-OUTCOME-SIMPLE-LEAK2）。閘門未過時它不更新 artifact 而是
+# 沿用上一版，API 會回報 serving_previous，首頁與方法頁據此如實揭露降級。
+echo "    + 重訓 outcome_simple（賽前勝率 serving 模型；閘門未過則保留舊 artifact）"
+remote_train "docker exec prod_cpbl_api cpbl-train-outcome-simple" 7
 
 echo "    + 對帳 production 真實資料 freshness"
 curl -fsS --max-time 10 "$API_INFO_URL" \

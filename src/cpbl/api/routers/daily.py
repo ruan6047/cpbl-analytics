@@ -20,9 +20,9 @@ from datetime import UTC, date, datetime
 from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import _dicts, kinds_of
-from cpbl.config import settings
+from cpbl.api.pregame_serving import serving_state
 from cpbl.db import conn
-from cpbl.models.outcome_simple import ORIENT, load_artifact, load_outcome_rows
+from cpbl.models.outcome_simple import ORIENT, load_outcome_rows
 
 router = APIRouter()
 
@@ -99,19 +99,16 @@ def _last_refresh(cursor) -> dict:
 
 
 def _pregame_source() -> tuple[dict | None, dict]:
-    """載入 outcome_simple artifact → (artifact, availability meta)。缺席不阻塞賽程。"""
-    path = settings.artifact_dir / "outcome_simple.joblib"
-    if not path.exists():
-        return None, {"status": "artifact_missing", "reason": "outcome_simple artifact 未建置",
-                      "trained_through": None, "signals": None}
-    try:
-        artifact = load_artifact(path)
-    except Exception as exc:  # noqa: BLE001 — artifact 損毀時回傳賽程，不回 50% 假數字
-        return None, {"status": "error", "reason": type(exc).__name__,
-                      "trained_through": None, "signals": None}
-    return artifact, {"status": "available", "reason": None,
-                      "trained_through": artifact["trained_through"],
-                      "signals": artifact["signals"]}
+    """載入 outcome_simple artifact → (artifact, availability meta)。缺席不阻塞賽程。
+
+    status 由 `pregame_serving.serving_state()` 決定，與 `/api/v1/outcome/pregame` 共用
+    同一份判定：`serving_current`／`serving_previous`／`unavailable`。**要不要揭露看的是
+    `degradation` 而非 status**：`serving_previous` 代表點機率來自上一版模型（或無法證明
+    不是），而 `serving_current` 也可能帶 `serving_gate_failed`——serving 就是最新回測那
+    一版、但那次回測沒過閘門。兩者首頁都必須據此揭露，不得無聲照顯
+    （ML-OUTCOME-SIMPLE-LEAK2 紅線 5）。
+    """
+    return serving_state()
 
 
 def _pregame_by_game(artifact: dict, games: list[dict]) -> dict[tuple[int, int], dict]:
@@ -216,9 +213,12 @@ def daily_summary(
         if row["kind_code"] != PREGAME_KIND:
             row["pregame"] = {"status": "unsupported", "home_win_probability": None,
                               "signals": None}
-        elif pregame_meta["status"] != "available":
-            row["pregame"] = {"status": pregame_meta["status"], "home_win_probability": None,
-                              "signals": None}
+        elif artifact is None:
+            # 逐場欄位沿用既有字彙（artifact_missing／error）。任何帶 degradation 的狀態
+            # 都不走這條：那時機率仍算得出來（來自上一版或未過閘門的模型），降級揭露在
+            # availability.pregame_model，不是把每一場都變成無機率。
+            row["pregame"] = {"status": pregame_meta.get("fault") or "error",
+                              "home_win_probability": None, "signals": None}
         else:
             row["pregame"] = pregame.get((row["season"], row["game_sno"]), {
                 "status": "no_features", "home_win_probability": None, "signals": None})

@@ -12,9 +12,11 @@
 import {
   formatProbability,
   pickPrimarySignal,
+  pregameServingNotice,
   PREGAME_COPY,
   type PregameCardModel,
   type PregameItemSignal,
+  type PregameServingMeta,
 } from "./pregame-card.ts";
 import { methodologyHref } from "./methodology-anchors.ts";
 
@@ -71,9 +73,33 @@ export type DailySummary = {
   availability: {
     schedule: AxisStatus;
     results: AxisStatus;
-    pregame_model: AxisStatus & { trained_through: number | null; signals: Record<string, string> | null };
+    pregame_model: PregameModelAxis;
   };
 };
+
+export {
+  pregameServingNotice,
+  type PregameDegradation,
+  type PregameServingMeta,
+} from "./pregame-card.ts";
+
+/** daily summary 的賽前模型軸：serving 契約 ＋ 本聚合特有的欄位。 */
+export type PregameModelAxis = AxisStatus & PregameServingMeta & {
+  trained_through: number | null;
+  signals: Record<string, string> | null;
+};
+
+/** 首頁的降級告示。**只收 DailySummary**——簽章本身就是那條不變式：
+ *  告示描述的是本頁正在顯示的那些點機率，因此只能由產生那些機率的同一份 response 推導。
+ *
+ *  iteration 3 的競態就是繞過這一點：首頁顯示 dailySummary（當時快取 120 秒）的舊機率，
+ *  卻用另外即時取得的 serving 狀態決定要不要顯示告示。refresh 完成後那一刻，
+ *  舊機率配上「一切正常」＝完全沒有提示的舊模型機率。
+ *  現在 dailySummary 走 no-store，且此函式無從接收第二個來源。
+ */
+export function homePregameNotice(summary: DailySummary): string | null {
+  return pregameServingNotice(summary.availability.pregame_model);
+}
 
 // —— 賽前卡 adapter ——
 // daily summary 每場內嵌的 pregame（status + 點機率 + signals）→ PregameCardModel，
@@ -108,6 +134,9 @@ export function resolvePregameFromDaily(
         probabilityText: formatProbability(p),
         primarySignal: pickPrimarySignal(pregame.signals ?? {}),
         trainedThroughText: trainedThroughText(trainedThrough),
+        // 首頁一次列多場，告示由 DailyHub 在列表上方顯示一次（homePregameNotice，
+        // 同樣出自這份 summary），不在每張卡重複同一句話。
+        servingNotice: null,
         methodologyHref: PREGAME_HREF,
       };
     }
