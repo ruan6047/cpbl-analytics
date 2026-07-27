@@ -85,11 +85,15 @@ LogLoss 差 **[−0.01368, −0.00388]**，兩者全負；勝過基準的測試�
 非參數行事曆週區塊 bootstrap 的斜率 95% 區間 **[0.885, 1.875]** 同樣涵蓋 1.0。
 **沒有證據說這個模型失準。**
 
-> **條件零假設**：模擬假設「給定 p̂，各場賽果彼此獨立」。同週賽果若有殘餘相依，效果的
-> **方向取決於相依的正負**：**正向**群聚會讓真實零分布變寬，這裡較窄的 IID 區間會使實際
-> 型一誤差**高於**名目 5%；**負向**相依則相反，零分布較窄、IID 區間偏寬、型一誤差低於
-> 名目值。**本卡未估計該相依的方向與大小**，因此不主張這個檢定往哪一邊偏保守。
-> 下文所有「5%」皆指此條件下的名目值。
+> **條件零假設**：模擬假設「給定 p̂，各場賽果彼此獨立」。同週賽果若有殘餘相依，忽略它
+> **可能讓真實 H0 分布變寬，也可能變窄**——方向取決於相依結構**與 `logit p̂` 的分布之
+> 交互作用**，不由 `Cov(e_i, e_j)` 的正負一對一決定。反例：斜率的 score 是 `Σ x_i e_i`，
+> 變異含 `x_i x_j Cov(e_i, e_j)` 而 `x_i x_j` 可異號，取 `x = (−1, +1)`、殘差正相關時
+> `−e₁ + e₂` 的變異反而**下降**。**本卡未估計實際的 H0 影響**，因此不主張這個檢定往哪一
+> 邊偏保守。下文所有「5%」皆指此條件下的名目值。
+>
+> （iteration 5 的「相依必然更寬」與 iteration 6 的「正向必然更寬、負向必然更窄」都被
+> 跨家族查核退回。這裡只寫證明得了的：方向未知、有上述反例、實測診斷是下面那個數字。）
 
 **診斷（不是上述區間的驗證）**：同一批 1,585 筆 OOS 預測，把再校準回歸
 `y ~ sigmoid(a + b·logit p̂)` 的斜率估計量算 sandwich SE，cluster 取 `(season, ISO week)`
@@ -110,8 +114,8 @@ uv run python scripts/outcome_simple_calibration_audit.py out.json   # 讀 out.j
 這是**觀測資料上的診斷**，與上表的 H0 參數 bootstrap 是不同物件：後者問「若模型完美校準，
 斜率會怎麼飄」（重抽 `y ~ Bernoulli(p̂)`），前者問「就這批資料而言，允許同週殘差相關後
 估計量的變異會不會變大」。因此它只支持一句話——**無證據顯示週內群聚在此資料上放大了
-變異**（cluster SE 略小於 IID）。它**不能**反過來當成 H0 區間正確的證明，也不排除其他
-相依結構。iteration 5 查核者以同一批預測獨立量到 IID `0.250856`／週 cluster `0.250431`
+變異**（cluster SE 略小於 IID）。**兩個 SE 的大小關係無論往哪一邊，都不能拿來當成 H0
+區間正確的證明**，也不排除其他相依結構。iteration 5 查核者以同一批預測獨立量到 IID `0.250856`／週 cluster `0.250431`
 （比值 0.9983），與此處結論一致；數值小差來自 cluster 界定與小樣本修正的取捨不同。
 
 ### 3.3 用能反映校準的指標看，誠實模型反而更準
@@ -204,22 +208,28 @@ LEAK1 查核者的 Informational finding：2018 前無 `pitching_gamelog`，三�
 
 閘門失敗路徑（本次未觸發）也不再靜默，且**成因判別在後端做一次**：`pregame_serving.py`
 比對 artifact 自陳的 `version` 與 `model_versions` 最新列，回傳 `status` 加一個
-`degradation` 判別碼——
+`degradation` 判別碼。**兩者正交**——`status` 只回答「serving 是不是最新回測的產出」，
+`degradation` 才是揭露開關（非 null 就要在介面上講）：
 
-| `degradation` | 成立條件 | 介面可以說什麼 |
-|---|---|---|
-| `gate_failed` | DB 記下 `deployable=false` | **唯一**能講「最新回測未通過部署閘門」 |
-| `version_unknown` | serving artifact 無 `version` 欄（去洩漏前的舊格式） | 只能說無法確認是否為最新產出 |
-| `backtest_unknown` | 回測那一側讀不到（DB 例外／無紀錄／`gate` 欄缺席） | 只能說閘門結果無從確認，不得猜通過與否 |
-| `version_mismatch` | 兩側都讀到、回測 `deployable=true` 但版本不一致 | 可附註該次回測本身已通過閘門 |
+| `degradation` | `status` | 成立條件 | 介面可以說什麼 |
+|---|---|---|---|
+| `serving_gate_failed` | `serving_current` | 版本相同、DB 記下 `deployable=false` | 正在服務的**就是**那個沒過閘門的模型；**不得**說「沿用上一版」 |
+| `gate_failed` | `serving_previous` | 版本不同、DB 記下 `deployable=false` | 最新回測未通過閘門**且已沿用上一版** |
+| `version_unknown` | `serving_previous` | serving artifact 無 `version` 欄（去洩漏前的舊格式） | 只能說無法確認是否為最新產出 |
+| `backtest_unknown` | `serving_previous` | 回測那一側讀不到（DB 例外／無紀錄／`gate` 欄缺席） | 只能說閘門結果無從確認，不得猜通過與否 |
+| `version_mismatch` | `serving_previous` | 兩側都讀到、回測 `deployable=true` 但版本不一致 | 可附註該次回測本身已通過閘門 |
 
-判別順序（`gate_failed` → `version_unknown` → `backtest_unknown` → `version_mismatch`）與
-理由寫在 `serving_state()` 的 docstring。三個渲染賽前勝率的介面——首頁 `DailyHub`、
-`/methodology#pregame`、賽況頁 `games/[sno]` 的 `PregameCard`——共用同一支
-`pregameServingNotice()` 映射文案，且各自從**產生該畫面機率的那一份 response** 取狀態
-（單一來源不變式）。前端對「該次回測已通過閘門」這句話另要求 `backtest_deployable === true`，
-不靠後端保證；未知判別碼一律落到不含閘門宣稱的中性文案。訓練 log 亦明講「serving 仍為
-哪一版、對不上哪一版回測」。
+判別結構是**先分版本是否相等，再各自依 `deployable` 分流**（不是排成一條優先序——
+iteration 6 排成一條序，於是版本相同時吃掉了明確的閘門失敗）；版本相等且 `deployable`
+為 `True`／`None` 時不揭露，版本不等的四條順序（`gate_failed` → `version_unknown` →
+`backtest_unknown` → `version_mismatch`）與理由寫在 `serving_state()` 的 docstring。
+`unavailable` 的 `degradation` 恆為 null。
+
+三個渲染賽前勝率的介面——首頁 `DailyHub`、`/methodology#pregame`、賽況頁 `games/[sno]`
+的 `PregameCard`——共用同一支 `pregameServingNotice()` 映射文案，且各自從**產生該畫面
+機率的那一份 response** 取狀態（單一來源不變式）。前端對「該次回測已通過閘門」這句話
+另要求 `backtest_deployable === true`，不靠後端保證；未知判別碼一律落到不含閘門宣稱的
+中性文案。訓練 log 亦明講「serving 仍為哪一版、對不上哪一版回測」。
 
 ---
 
@@ -262,16 +272,19 @@ uv run python scripts/outcome_simple_calibration_audit.py out.json
 
 ## §9 未盡事項
 
-1. **`backtest_unknown` 無真實觸發樣本**：iteration 6 新增的這條路徑（回測那一側讀不到）
-   只有測試覆蓋，未在真實環境發生過。本機與 prod 都沒有「DB 讀得到但 `gate` 欄缺席」的
-   歷史列，該分支的實際畫面尚未被人眼看過。
-2. **`RENDERING_SOURCES` 是手動維護清單**：`web/src/lib/pregame-single-source.test.ts` 的
+1. **`backtest_unknown` 與 `serving_gate_failed` 無真實觸發樣本**：這兩條路徑（回測那一側
+   讀不到／版本相同但閘門失敗）只有測試覆蓋，未在真實環境發生過。本機與 prod 都沒有
+   「DB 讀得到但 `gate` 欄缺席」或「版本碰撞」的歷史列，兩個分支的實際畫面尚未被人眼看過。
+2. **五種 `degradation` 共用同一個告示樣式**：三個介面都把文案放進同一個 notice 區塊，
+   未依嚴重度分級（`serving_gate_failed`＝正在服務未過閘門的模型，客觀上比
+   `version_unknown` 嚴重）。要分級屬視覺設計決策，需求方未裁定，本卡未做。
+3. **`RENDERING_SOURCES` 是手動維護清單**：`web/src/lib/pregame-single-source.test.ts` 的
    結構守衛靠一份手寫檔案清單覆蓋三個介面；新增渲染賽前勝率的頁面時必須同步加入，
    否則守衛會靜默漏掉它（賽況頁就是開卡時 scope 沒寫全、iteration 5 才補上的那一個）。
    要根治須改成掃描全 `app/`／`components/` 找引用再反查清單，本卡未做。
-3. **`/dev/pregame-card` 在生產可達**：該走查頁只吃 `pregame-card-fixtures.ts` 的假資料
+4. **`/dev/pregame-card` 在生產可達**：該走查頁只吃 `pregame-card-fixtures.ts` 的假資料
    （不打 API、不顯示真數字），但它未被任何路由守衛擋在生產之外。屬既有狀況，非本卡引入。
-4. **`models/matchup.py` 尺度不一致**（LEAK1 §6.2 已列）：對戰卡仍用 `pitching_current`
+5. **`models/matchup.py` 尺度不一致**（LEAK1 §6.2 已列）：對戰卡仍用 `pitching_current`
    當季彙總，與訓練分布（收縮後 sd 0.96）不同尺度，`z` 會被高估。需求方裁定不動。
-5. **2018 前後世代語意分裂**（§5）：已證明不是斜率成因，但語意不同質本身仍在。
-6. 未同步 production DB、未部署（依卡面紅線；本卡與 LEAK1 須同批上線）。
+6. **2018 前後世代語意分裂**（§5）：已證明不是斜率成因，但語意不同質本身仍在。
+7. 未同步 production DB、未部署（依卡面紅線；本卡與 LEAK1 須同批上線）。
