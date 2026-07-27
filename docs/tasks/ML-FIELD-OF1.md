@@ -8,6 +8,7 @@
 - worktree：—（認領後建立）
 - Initiative：—　spec 基線：[`ML_FIELD_TZ1_FEASIBILITY.md`](../research/ML_FIELD_TZ1_FEASIBILITY.md) §3、§5、§6
 - DB：`db_scope: write`（實作階段：新指標表；另讀取逐局陣容重建結果）　部署：否（實作後 ⏸未部署）　環境：—
+- **消費表面（2026-07-27 需求方確認）**：球員頁守備區塊（外野空中球範圍；與 ML-FIELD-OAA-VAL1 同表面）。**方法重評同 OAA-VAL1 注記**：先落點資料盤點、再選方法；Total Zone NO-GO 維持。
 
 ## 背景
 

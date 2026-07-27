@@ -6,6 +6,7 @@
 - DB：`db_scope: read`
 - 部署：否　環境：—　PR：—　Merge SHA：—
 - 範圍：2026 季末再評估 CPBL Stuff+；執行前重查 `PROPOSAL_EVALUATION.md` 與 [`../research/OFFICIAL_DATA_GAP1_RESULTS.md`](../research/OFFICIAL_DATA_GAP1_RESULTS.md) §4 的假設、資料覆蓋與驗收。
+- **消費表面（2026-07-27 需求方確認）**：球員頁投手球種區塊——每球種品質分，接既有 pitch_type_pred。
 
 ## Log
 

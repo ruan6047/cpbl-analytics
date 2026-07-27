@@ -7,6 +7,7 @@
 - worktree：—（認領後建立）
 - Initiative：`INIT-OFFICIAL-DATA1`　spec 基線：[`../research/OFFICIAL_DATA_GAP1_RESULTS.md`](../research/OFFICIAL_DATA_GAP1_RESULTS.md) §4
 - DB：`db_scope: write`（實作階段：建立 OAA 計算與期望出局數表）　部署：否（實作後 ⏸未部署）　環境：—
+- **消費表面（2026-07-27 需求方確認）**：球員頁守備區塊（spray chart＋外野 OAA；與 ML-FIELD-OF1 同表面的兩步）。**第一步＝2026 落點資料盤點 spike**（`pitch_tracking.Hit.LandingFlat` 覆蓋~80%、精度、缺場機制），方法選擇以盤點結果為準——立卡時進階資料尚少，現已有真實落點，方法須重評。livelog 方向欄的 Total Zone NO-GO 維持，勿回頭。
 
 ## 背景
 
