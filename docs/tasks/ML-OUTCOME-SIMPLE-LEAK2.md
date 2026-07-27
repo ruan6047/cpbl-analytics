@@ -80,13 +80,22 @@ prod 現行 `outcome_simple.joblib` 是洩漏訓練且**無 `version` 欄**，�
 1. 本卡合併 → 主站 submodule bump → 等 Deploy workflow success。
 2. **立刻**在本機執行 `SKIP_SCRAPE=1 WITH_DETAIL=1 scripts/refresh-cpbl-prod.sh`
    （不重爬，只鏡像 `game_features` 並重訓兩個 outcome 模型）。
-3. 驗證降級提示已消失：`/methodology#pregame` 閘門面板顯示 7/7・可部署，首頁 pregame 卡無提示；
-   API 的 `serving_state` 為 `serving_current`、artifact 與 `model_versions` 版本一致。
+3. 驗證降級提示已消失。**iteration 3 起改用 API 直驗，不必刮 HTML、不必等 TTL**：
+
+   ```bash
+   curl -s https://cpbl.ruan-ruan.com/api/v1/outcome/pregame/serving
+   ```
+
+   期望 `"status":"serving_current"`、`"degradation":null`、且 `serving_version == backtest_version`。
+   兩個頁面對此端點皆 `no-store`，恢復後立即反映（iteration 2 需清 `.next/cache` 並重啟的問題已修）。
 4. 若步驟 2 的 trainer 失敗（本卡新增的 `remote_train` 會如實傳遞失敗碼），
    **降級提示會持續顯示**——此時不得以「畫面不好看」為由回退或隱藏提示，
    應排除 trainer 失敗原因後重跑 refresh。
 
-上述窗口期間若有訪客看到降級提示，屬預期行為，非缺陷。
+**窗口期間的預期畫面（iteration 3 修正後）**：prod artifact 無 `version` 欄 → `degradation: version_unknown`
+→ 兩頁顯示「serving 模型**未記錄版本，無法確認**是否為最新回測 X 的產出；以下機率可能來自舊版模型。」
+**不會**（也不得）出現「最新回測未通過部署閘門」——該回測實際是 7/7 PASS，iteration 2 曾在此誤報，
+已由後端 `degradation` 判別碼修正並有測試斷言。此畫面屬預期行為非缺陷，refresh 晉升帶版本的 artifact 後即消失。
 
 ## 邊界
 
