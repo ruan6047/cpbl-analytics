@@ -513,15 +513,24 @@ export const api = {
   fielding: (sort = "g", { season, pos, limit = 1000 }: { season?: number; pos?: string; limit?: number } = {}) =>
     get<FieldingResponse>(`/api/v1/season/fielding?sort=${sort}&limit=${limit}${season ? `&season=${season}` : ""}${pos ? `&pos=${encodeURIComponent(pos)}` : ""}`, 300),
   // 首頁每日入口單一聚合契約（API-DAILY-SUMMARY1）：最近比賽日／下一批賽事／freshness／
-  // 三軸 availability，取代舊首頁十餘組請求（blueprint §8.4）。revalidate=120 對齊賽事類。
+  // 三軸 availability，取代舊首頁十餘組請求（blueprint §8.4）。
+  //
+  // no-store 是正確性需求不是效能取捨：這一份 response **同時**帶著首頁的賽前點機率與
+  // 產生那些機率的 serving 版本。若它被快取而降級狀態另外即時取，就會出現「快取的舊機率
+  // ＋ 即時的正常狀態」＝顯示舊模型機率卻沒有任何提示（ML-OUTCOME-SIMPLE-LEAK2 iteration 3
+  // 的競態）。兩個必須一致的事實只能來自同一個 response。
+  // 首頁本來就是動態渲染（await searchParams），故代價僅是少了跨請求共用的資料快取。
   dailySummary: (kind = "A", season?: number) =>
-    get<DailySummary>(`/api/v1/daily/summary?kind_code=${kind}${season ? `&season=${season}` : ""}`, 120),
+    getLive<DailySummary>(`/api/v1/daily/summary?kind_code=${kind}${season ? `&season=${season}` : ""}`),
   // /methodology 賽前勝率段：正式回測紀錄與舊全特徵 benchmark 對照。
   // 賽前段兩支都走 no-store：serving 狀態必須即時（否則降級提示會在 refresh 恢復後
   // 續顯示，上線驗證步驟失去意義），而回測面板與它並排顯示版本號——一支快取一支即時
   // 會讓同一個面板出現兩個不同版本。/methodology 已因 no-store 轉為動態渲染，
   // 這支再走快取也省不到什麼（單列 DB 讀取）。
   pregameBacktest: () => getLive<PregameBacktestResponse>("/api/v1/outcome/pregame/backtest"),
+  // **ops 探針專用，不供任何頁面渲染**：頁面一律從自己那一份 response 取 serving 狀態
+  // （首頁走 dailySummary、方法頁走 pregameBacktest），避免同一畫面出現兩個來源。
+  // 上線程序第 3 步以 curl 這支端點對帳，不必解析 HTML。
   pregameServing: () => getLive<PregameServing>("/api/v1/outcome/pregame/serving"),
   outcomeBenchmark: () => get<OutcomeBenchmarkResponse>("/api/v1/outcome/backtest", 600),
   playersRoster: (season?: number) =>

@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   resolvePregameFromDaily,
   pregameServingNotice,
+  homePregameNotice,
   refreshCopy,
   refreshAgeText,
   shortDate,
@@ -11,6 +12,7 @@ import {
   gameHref,
   REFRESH_COPY,
   type DailyGamePregame,
+  type DailySummary,
   type RefreshStatus,
 } from "./daily-summary.ts";
 
@@ -167,4 +169,79 @@ test("unavailable 不走告示：整段不可用由卡片自己的不可用文�
     }),
     null,
   );
+});
+
+// —— 跨 response 競態：機率與 serving 狀態必須同源（ML-OUTCOME-SIMPLE-LEAK2 it.3 缺陷）——
+
+/** 只帶本測試在意的欄位；其餘欄位對告示判定無影響。 */
+function summaryWith(pregameModel: Record<string, unknown>): DailySummary {
+  return {
+    scope: { season: null, kind_code: "A", kinds: ["A"], as_of: "2026-07-27" },
+    latest_game_day: null,
+    next_slate: {
+      game_date: "2026-07-28",
+      days_from_as_of: 1,
+      games: [{ pregame: { status: "available", home_win_probability: 0.61, signals: null } }],
+    },
+    freshness: {
+      as_of: "2026-07-27",
+      last_completed_game_date: null,
+      last_refresh: { at: null, ok: null, scope: null, hours_ago: null, status: "unknown", reason: null },
+      unresolved_games: [],
+    },
+    availability: {
+      schedule: { status: "available", reason: null },
+      results: { status: "available", reason: null },
+      pregame_model: pregameModel,
+    },
+  } as unknown as DailySummary;
+}
+
+test("競態重現：快取的舊機率 ＋ 即時 serving_current，不得靜默顯示舊機率", () => {
+  // 時序：1) 首頁快取了舊模型的機率，內嵌狀態 version_unknown
+  //       2) refresh 完成，artifact/DB 晉升 v2
+  //       3) 重新請求——舊寫法會拿到 cached 機率配 live 的「一切正常」
+  const cachedSummary = summaryWith({
+    status: "serving_previous",
+    reason: "serving artifact 未記錄版本（去洩漏前的舊格式）",
+    degradation: "version_unknown",
+    serving_version: null,
+    backtest_version: "outcome-simple-1",
+    backtest_deployable: true,
+    trained_through: 2025,
+    signals: null,
+  });
+  const liveServingAfterRefresh = {
+    status: "serving_current" as const,
+    serving_version: "outcome-simple-2",
+    backtest_version: "outcome-simple-2",
+    backtest_deployable: true,
+    degradation: null,
+  };
+
+  // 舊寫法（無條件優先 live）會讓告示消失——缺陷本體：
+  assert.equal(pregameServingNotice(liveServingAfterRefresh), null);
+
+  // 新寫法只認產生這些機率的那一份 response，因此告示仍在：
+  const notice = homePregameNotice(cachedSummary);
+  assert.ok(notice, "顯示某一份 response 的機率時，必須顯示同一份 response 的降級狀態");
+  assert.ok(notice.includes("無法確認"));
+
+  // 且 homePregameNotice 的簽章只收 summary——結構上無從再接第二個來源。
+  assert.equal(homePregameNotice.length, 1);
+});
+
+test("同一份 response 顯示 serving_current 時才可以沒有告示", () => {
+  const fresh = summaryWith({
+    status: "serving_current",
+    reason: null,
+    degradation: null,
+    serving_version: "outcome-simple-2",
+    backtest_version: "outcome-simple-2",
+    backtest_deployable: true,
+    trained_through: 2025,
+    signals: null,
+  });
+
+  assert.equal(homePregameNotice(fresh), null);
 });
