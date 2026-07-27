@@ -20,7 +20,7 @@
 | [ML-FIELD-OAA-VAL1](tasks/ML-FIELD-OAA-VAL1.md) | INIT-OFFICIAL-DATA1 | T4 | 利用極座標落點還原 Spray Chart 與外野 OAA | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:07+08:00 |
 | [ML-FIELD-OF1](tasks/ML-FIELD-OF1.md) | — | T4 | 外野空中球守備範圍指標 | ruan6047（Design Gate） | — | 0 | 💡需求 | ⏸未部署 | 2026-07-22T16:51:08+08:00 |
 | [ML-OUTCOME-LEAK1](tasks/ML-OUTCOME-LEAK1.md) | — | T3 | 賽果預測先發特徵前視洩漏修正 | ⛔ 部署凍結中（待 ML-OUTCOME-SIMPLE-LEAK2 完成後同批上線） | `ai/opus-5/ML-OUTCOME-LEAK1 @ .claude/worktrees/ml-outcome-leak1-execution（保留：LEAK2 分支以此為基底）` | 1 | 📦已合併 | ⏸未部署 | 2026-07-27T03:30:41+08:00 |
-| [ML-OUTCOME-SIMPLE-LEAK2](tasks/ML-OUTCOME-SIMPLE-LEAK2.md) | — | T4 | 上線 serving 模型 outcome_simple 去洩漏與閘門重校 | 退回原執行者於原分支修正（iteration 7） | `ai/opus-5/ML-OUTCOME-SIMPLE-LEAK2 @ .claude/worktrees/ml-outcome-simple-leak2-execution` | 6 | 🔧修正中 | ⏸未部署 | 2026-07-27T14:21:45+08:00 |
+| [ML-OUTCOME-SIMPLE-LEAK2](tasks/ML-OUTCOME-SIMPLE-LEAK2.md) | — | T4 | 上線 serving 模型 outcome_simple 去洩漏與閘門重校 | 跨家族獨立查核者 | `ai/opus-5/ML-OUTCOME-SIMPLE-LEAK2 @ .claude/worktrees/ml-outcome-simple-leak2-execution` | 7 | 🔍待查核 | ⏸未部署 | 2026-07-27T14:35:01+08:00 |
 | [ML-PA-SIM-CONTEXT1](tasks/ML-PA-SIM-CONTEXT1.md) | — | T4 | 打席結果分布的情境條件化 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-25T19:06:00+08:00 |
 | [ML-PA-SIM-TEAM1](tasks/ML-PA-SIM-TEAM1.md) | — | T4 | 打席模擬對某一隊 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-25T19:07:00+08:00 |
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:09+08:00 |
