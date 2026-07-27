@@ -8,7 +8,7 @@
 
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
-| [GAME-RECAP-WP-STRENGTH1](tasks/GAME-RECAP-WP-STRENGTH1.md) | INIT-GAME-RECAP | T4 | 場中 WP 戰力感知先驗（VAL1 §7 路徑 2） | 跨家族獨立查核者 | `ai/opus-5/GAME-RECAP-WP-STRENGTH1 @ .claude/worktrees/game-recap-wp-strength1-execution` | 5 | 🔍待查核 | —不適用 | 2026-07-27T16:10:01+08:00 |
+| [GAME-RECAP-WP-STRENGTH1](tasks/GAME-RECAP-WP-STRENGTH1.md) | INIT-GAME-RECAP | T4 | 場中 WP 戰力感知先驗（VAL1 §7 路徑 2） | 退回原執行者於原分支修正（iteration 6） | `ai/opus-5/GAME-RECAP-WP-STRENGTH1 @ .claude/worktrees/game-recap-wp-strength1-execution` | 5 | 🔧修正中 | —不適用 | 2026-07-27T16:26:22+08:00 |
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | — | `ai/sonnet-5/INGEST-GAME-TM-REFACTOR1-g3 @ .claude/worktrees/ingest-game-tm-refactor1-g3-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-24T12:53:42+08:00 |
 | [INGEST-PA-DAILY1](tasks/INGEST-PA-DAILY1.md) | — | T3 | canonical PA build 接進每日 refresh 鏈 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-26T20:55:46+08:00 |
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | ruan6047（Design Gate） | — | 0 | 💡需求 | —不適用 | 2026-07-17T04:44:38+08:00 |
@@ -34,7 +34,7 @@
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
 | [UX-LIVE-GAME1](tasks/UX-LIVE-GAME1.md) | INIT-PRODUCT-UX | T3 | 賽前情報到比賽中狀態板 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-26T17:29:31+08:00 |
-| [UX-PREGAME-SOURCE-GUARD1](tasks/UX-PREGAME-SOURCE-GUARD1.md) | — | T2 | 賽前勝率單一來源守衛改為全域不變式 | Claude Opus 5@Claude Code | `ai/opus-5/UX-PREGAME-SOURCE-GUARD1 @ .claude/worktrees/ux-pregame-source-guard1-execution` | 1 | 🚧執行中 | ⏸未部署 | 2026-07-27T16:14:36+08:00 |
+| [UX-PREGAME-SOURCE-GUARD1](tasks/UX-PREGAME-SOURCE-GUARD1.md) | — | T2 | 賽前勝率單一來源守衛改為全域不變式 | 獨立查核者（≠ 執行；T2 不跨家族） | `ai/opus-5/UX-PREGAME-SOURCE-GUARD1 @ .claude/worktrees/ux-pregame-source-guard1-execution` | 1 | 🔍待查核 | ⏸未部署 | 2026-07-27T16:26:22+08:00 |
 | [UX-TEAM-FIELD-HIST1](tasks/UX-TEAM-FIELD-HIST1.md) | INIT-PRODUCT-UX | T3 | 球隊頁歷史年守備位置圖（union fielding_seasons） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:36:00+08:00 |
 | [UX-TEAM-FOCUS2](tasks/UX-TEAM-FOCUS2.md) | INIT-PRODUCT-UX | T3 | 球隊頁「近日焦點」頁籤內容擴充 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:37:00+08:00 |
 
