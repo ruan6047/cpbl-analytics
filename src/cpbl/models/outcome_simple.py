@@ -209,8 +209,11 @@ def _calibration_slope_null(
     模型愈誠實（訊號愈弱）愈容易被判失敗，這正是 ML-OUTCOME-LEAK1 去洩漏後發生的事。
 
     模擬方式：固定 p̂，重抽 `y ~ Bernoulli(p̂)`（即假設 p̂ 完全正確），重解斜率。
-    賽果在同一週內的殘餘相關性未建模，會讓真實零分布比模擬的更寬，故本檢定偏保守
-    （偽失敗率被低估），方向對安全有利。
+
+    **條件零假設**：「給定 p̂，各場賽果彼此獨立」。5% 的型一誤差只在這個條件下成立。
+    若同週賽果存在殘餘相關，真實零分布會比模擬的更寬，用較窄的 IID 區間**會提高**實際
+    偽拒絕率（高於名目 5%）——就檢定本身而言是偏嚴、就「不讓失準模型上線」而言是偏安全，
+    但不能宣稱它是普遍意義下的固定 5% 檢定。
     """
     x = _logit(probability)
     rng = np.random.default_rng(CALIBRATION_NULL_SEED)
@@ -390,12 +393,17 @@ def load_artifact(path: Path) -> dict:
 def deployment_gate(result: dict, required_season_wins: int = 3) -> dict:
     """七項部署閘門。`calibration_slope` 以零假設抽樣分布定界（見下）。
 
-    ML-OUTCOME-SIMPLE-LEAK2：舊版用固定區間 `[0.8, 1.2]`，那是對著含前視洩漏的模型
-    校準出來的——洩漏模型的 logit 離散度大（sd 0.56），該區間恰好等於它的零假設 95%
-    區間；去洩漏後離散度掉到 0.21，同一個區間會誤判 42% 的**完美校準**模型為失敗。
-    改以每次回測當場算出的零假設 95% 區間為界：型一誤差固定在 5%，模型愈強區間愈窄
-    （對洩漏模型反而比舊門檻更嚴），不隨結果調鬆。`calibration_intercept` 的絕對門檻
-    不動——截距衡量的是機率水準本身，沒有同樣的辨別力相依問題。
+    ML-OUTCOME-SIMPLE-LEAK2：舊版用固定區間 `[0.8, 1.2]`。該區間與**洩漏模型**的零假設
+    95% 區間 `[0.787, 1.229]` 高度吻合（洩漏模型 logit 離散度 sd 0.56）；歷史上是不是
+    照著它訂的無從查證，但可驗證的是：去洩漏後離散度掉到 0.21，同一個固定區間會誤判
+    42% 的**完美校準**模型為失敗。
+
+    改以每次回測當場算出的零假設 95% 區間為界。條件零假設下型一誤差為 5%（見
+    `_calibration_slope_null`），且區間寬度隨辨別力自動調整——模型愈強區間愈窄。
+    在洩漏模型那個辨別力水準上，新界線 `[0.787, 1.229]` 比舊門檻**略寬**（兩端各鬆
+    約 0.02）而非更嚴；實質放寬只發生在誠實模型那一端，且放寬幅度就是抽樣雜訊本身。
+    `calibration_intercept` 的絕對門檻不動——截距衡量的是機率水準本身，沒有同樣的
+    辨別力相依問題。
     """
     baseline = next(model for model in result["models"] if model["name"] == "home_baseline")
     fixed = next(model for model in result["models"] if model["name"] == "fixed_semantic")
