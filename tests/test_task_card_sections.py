@@ -81,3 +81,38 @@ def test_ci_web_job_runs_contract_tests() -> None:
     assert "working-directory: web" in web_job
     assert "run: npx tsc --noEmit" in web_job
     assert "run: npm test" in web_job
+
+
+def test_initiative_children_carry_the_parent_baseline_field() -> None:
+    """Initiative 子卡的 spec 基線欄不得為「—」（canonical baseline-cascade §5）。
+
+    UX-TEAM-STYLE1 iteration 1 整輪查核退在這一欄上——而 process-wf17-conventions
+    的教訓原文就是「首戰命中規則作者自己」，同一位 Coordinator 當日二度命中。
+    開卡層的 canonical 對照不能靠記得；範圍同前兩支（守門生效後有 lifecycle event
+    的活卡），凡卡面 Initiative 欄指向具體父卡者，spec 基線欄必須非「—」。
+    版本是否與父卡一致仍由 review_prompt.baseline_check 在查核時比對（父卡版本
+    會演進，這裡只擋「根本沒填」）。
+    """
+    events = _events()
+    start = next(
+        index for index, event in enumerate(events) if event["event_id"] == ENFORCEMENT_EVENT_ID
+    )
+    affected = {str(event["card_id"]) for event in events[start:]}
+    latest = {str(event["card_id"]): event for event in events}
+    missing = []
+    for card_id in sorted(affected):
+        if latest[card_id]["delivery_status"] == "🏁完成":
+            continue
+        path = ROOT / "docs" / "tasks" / f"{card_id}.md"
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        m = review_prompt._INITIATIVE_RE.search(text)
+        if not m or card_id.startswith("INIT-"):
+            continue  # 無父卡或本身是 initiative
+        if not review_prompt._BASELINE_RE.search(text):
+            missing.append(f"{card_id}（Initiative={m.group(1)}，spec 基線欄缺或為「—」）")
+    assert not missing, (
+        "Initiative 子卡的 spec 基線欄必填父卡版本（baseline-cascade §5）：\n  "
+        + "\n  ".join(missing)
+    )

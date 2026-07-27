@@ -2,7 +2,7 @@
 
 - 需求：ruan6047（2026-07-27 顆粒度調整會話裁定：繼續 WP 先驗方向、但降顆粒度）　規劃：本卡 spec　分支：依認領時 worktree 慣例
 - 執行：待指派　查核：待指派（≠ 執行；輕量——核對協定遵守與判準即可，不跨家族）
-- Initiative：INIT-GAME-RECAP（研究支線；不影響 WP-API1 阻塞狀態）
+- Initiative：INIT-GAME-RECAP（研究支線；不影響 WP-API1 阻塞狀態）　spec 基線：v1.3
 - DB：`db_scope: read`（全程唯讀）
 - 部署：否　環境：—　PR：—　Merge SHA：—
 - current-state：📥Backlog；已註冊，可認領。**輕量研究層第一張試跑卡**（口頭慣例，未入流程文件）。
