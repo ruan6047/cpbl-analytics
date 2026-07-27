@@ -6,6 +6,7 @@
 - DB：`db_scope: write`（本機 `cpbl` derived 表：`game_plate_appearances`／`game_recap_builds` 等 build 家族；`migration_phase: none`）
 - 部署：否（`cpbl-refresh-recent` 只在本機跑；生產僅經既有每日同步接收資料）　環境：—　PR：—　Merge SHA：—
 - current-state：📥Backlog；已註冊，可認領。
+- **排程（2026-07-27 需求方裁定）**：升為 UX-GAME-RECAP1 的**硬前置**（recap 脊柱＝ΔRE24 需每日 PA；7/26 三場完成場 0 筆 published PA 為活證據），但**須等 TM Gate3 觀測窗（~8/7）收窗後才派**——本卡改的正是 scrape-daily 鏈，窗內動它會污染 shadow 比較基線。
 
 ## 背景（為什麼）
 
