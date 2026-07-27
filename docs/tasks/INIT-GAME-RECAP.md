@@ -74,3 +74,4 @@ flowchart LR
 - 2026-07-19 解除：ML-SIM1 已完成跨模型家族複查、合併與 production 驗證且 Ledger 已對帳；`UX-GAME-HOME1`、`UX-OUTCOME-HOME` 與 `API-DAILY-SUMMARY1` 已交付部署（07-18）。首頁賽前區的對帳前置已消除，首頁 v1 入口鏈已完成。
 - 2026-07-27 需求方定位裁定：WP 統計驗證鏈完結（VAL1 unsupported、CAL1 No-Go、STRENGTH1 交付 No-Go 待查核）→ `GAME-RECAP-WP-API1` 由 canonical 契約〔T4〕改寫為參考資訊＋揭露〔T3〕並解除阻塞；WPA 一併提供但標參考。原 canonical 規劃保留為升級路徑（versioned reliability metadata，未來模型通過 v2 門檻即翻升）。下游 `UX-GAME-RECAP1`／`UX-GAME-PA1` 改依 WP-API1 交付解凍。
 - 2026-07-27 需求方逐題裁定（grilling Q1–Q7）：脊柱改 ΔRE24 事實優先、五段骨架、球迷用語沿用、INGEST-PA-DAILY1 升為硬前置（TM Gate3 ~8/7 收窗後派）、TEAM-STYLE1 等 brief 過 Gate 後派。Design Brief v1.3 待 Gate。
+- 2026-07-27 需求方核可 Design Brief v1.3（賽事頁 Design Gate 里程碑通過）。接續：TEAM-STYLE1 即派；~8/7 TM 收窗後 INGEST-PA-DAILY1 → UX-GAME-RECAP1 → UX-GAME-PA1。

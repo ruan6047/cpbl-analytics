@@ -6,7 +6,7 @@
 - **v1.3 脊柱改寫（2026-07-27，需求方逐題裁定）**：WP 研究鏈三次 No-Go（VAL1 全 scope unsupported → CAL1 事後校準 No-Go → STRENGTH1 戰力先驗 No-Go，merge `198ad87`）後，WP 已定位**參考資訊**、不得作單打席歸因。復盤的敘事脊柱由「沿 WP 曲線」改為**事實優先**：canonical PA（已上線生產）＋ ΔRE24（經 REBAS 外部驗證）。WP 曲線降為收合參考區塊。
 - 主要使用者與任務：每日追賽球迷隔日快速理解昨日結果與**哪幾個打席決定比賽**；進階數據迷由關鍵打席進入逐打席與逐球分析。
 - 設計者：GPT-5@Codex（v1.2）／Claude Opus 5（v1.3 脊柱改寫）　需求方：ruan6047
-- Design Gate：待核可；需完成 wireframe、正式交付查核與需求方簽核。
+- Design Gate：**v1.3 已核可（2026-07-27）**；wireframe 與 prototype 於 UX-GAME-RECAP1 實作前補齊（核可範圍＝脊柱、骨架、排序契約、語氣、資料前置）。
 
 ## 頁面骨架（v1.3 定案，五段式）
 
@@ -80,7 +80,7 @@ flowchart LR
 
 ## 核可與變更
 
-- 需求方核可：待 ruan6047 確認（v1.3）。
+- 需求方核可：**ruan6047 於 2026-07-27 核可 v1.3**（原文「Design Gate 核可 v1.3」）。
 - 2026-07-16 v1.1：作者端 preflight 新增獨立 Design Brief；待 prototype 與正式查核。
 - 2026-07-16 v1.2：明確要求 WP 依獨立 availability 顯示，不由基本資料狀態保證。
 - 2026-07-27 v1.3：**脊柱由 WP 曲線改為 ΔRE24 事實優先**（WP 鏈三次 No-Go 的證據後果）；定案五段骨架、排序契約（ΔRE24＋情境標示＋降飽和、禁 WPA 排序）、語氣（量化球迷用語）、資料前置（INGEST-PA-DAILY1）。需求方 2026-07-27 逐題裁定（Q1–Q4）。
