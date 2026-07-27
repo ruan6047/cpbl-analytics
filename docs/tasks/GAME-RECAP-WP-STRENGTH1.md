@@ -121,6 +121,20 @@ WP_adj      = sigmoid(logit_clip(WP_situ) + w_gamma(t) *
 7. **基準、時期與小樣本**：逐季及池化須並排未融合 base、CAL1 歷史判定與主場常數；報告先列 2026 鎖箱結果，再列 2023–2025 與池化。先驗 p0、≤2017 prior 與 2026 advanced shadow 的指標只作診斷。分箱 `n<1000`、10+ 局帶與其他未預註冊子群只能揭露，不可作 Go 證據。〔canonical #6 #7〕
 8. **可重現**：DB 全程唯讀，bootstrap seed 固定 `20260725`；全跑與單季／部分重跑均須支援 `--out` 指向 scratch，禁止覆寫 canonical artifact。查核者至少重跑一個留出季並核對 window、分母、feature-year audit 與 artifact。〔canonical #8〕
 
+   > **2026-07-27 需求方明確 sign-off 的紅線放寬**（原文：「降為『漂移偵測』並 sign-off」）：
+   > 本條原要求「部分重跑**可逐位重現**」。經 iteration 1–3 查核實證，對持續入庫的 DB 達成真正
+   > 逐位重現需要凍結 `games`／`game_features`／PA build／gamelog 的**輸入快照**——成本明顯超出
+   > 本卡（研究性 No-Go 判定）的價值。**本卡的可重現性要求降為：相同 `--as-of` ＋ 相同 DB 狀態下
+   > 輸出逐位相同，且母體／輸入若已漂移必須可被偵測並 fail loudly，不得靜默產出不同數字。**
+   > 放寬僅限本卡；未來若 WP 相關產出要上線（非研究結論），須回到完整快照要求或另訂。
+   > 此放寬由需求方裁定，非執行者自行改義（iteration 3 查核 F1 明確要求此 sign-off）。
+   >
+   > **仍須修正的具體缺陷（不因放寬而免除）**：`build_season_pack()` 仍呼叫使用 `CURRENT_DATE` 的
+   > `load_eval_season()`，使 `coverage`／`n_irregular_games`／`pa_state_counts` 來自當下全表；
+   > `advanced_shadow()` 不吃 as-of 卻被標 `data_as_of`（應改標 `observed_at` 並排除逐位比對）；
+   > fingerprint 應涵蓋實際模型輸入與 published build identity，且不符時 fail loudly；
+   > 報告 §9 的重現指令須帶 `--as-of`。
+
 ## 驗收條件
 
 - [ ] 新增獨立 `models/winprob_strength.py`（或同責任名稱）消費 `winprob_val`／`winprob_cal` 公開 helper；不得修改兩個既有 harness、`winprob.py` 或任何 production path。全程唯讀 DB，artifact 與報告落 `docs/research/`。
