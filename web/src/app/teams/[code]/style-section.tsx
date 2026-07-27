@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Line,
   LineChart,
@@ -9,6 +9,7 @@ import {
   PolarRadiusAxis,
   Radar,
   RadarChart,
+  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -22,7 +23,7 @@ import {
   TEAM_STYLE_SECTION as S,
   clampZ,
   formatZ,
-  managerMarkers,
+  managerRuns,
   type TeamStyleAxisKey,
   type TeamStyleResponse,
 } from "@/lib/team-style";
@@ -47,7 +48,8 @@ export function TeamStyleSection({ data, defaultYear }: {
   const years = data.seasons.map((s) => s.year);
   const [year, setYear] = useState<number>(
     years.includes(defaultYear) ? defaultYear : (years[years.length - 1] ?? defaultYear));
-  const [historyAxis, setHistoryAxis] = useState<TeamStyleAxisKey>("discipline");
+  // 預設第一軸（速度戰）：raw＋聯盟平均模式；discipline 選中時才退回 z 呈現。
+  const [historyAxis, setHistoryAxis] = useState<TeamStyleAxisKey>("speed");
 
   const season = data.seasons.find((s) => s.year === year);
   const color = ct.series[0];
@@ -56,14 +58,55 @@ export function TeamStyleSection({ data, defaultYear }: {
     ? data.axes.map((a) => ({ axis: a.label, z: clampZ(season.axes[a.key].z) }))
     : [];
 
-  const markers = managerMarkers(data.seasons);
+  const runs = managerRuns(data.seasons);
   const inProgressYears = data.seasons.filter((s) => s.in_progress).map((s) => s.year);
-  const historyData = data.seasons.map((s) => ({
-    year: s.year,
-    z: s.axes[historyAxis].z,
-    in_progress: s.in_progress,
-  }));
-  const historyMeta = data.axes.find((a) => a.key === historyAxis);
+
+  // 任期標色（需求方第三批裁定）：--chart-2 起輪替（--chart-1 留給資料折線），
+  // 顏色僅作**身分區辨**（非 up/down、非好壞）；圖內背景帶低 alpha 不壓折線。
+  // 同一教練的顏色在圖內標注／chips／tooltip 三處一致（keyed by 任期段 index）。
+  const tenurePalette = ct.series.slice(1);
+  const runColor = (i: number) => tenurePalette[i % tenurePalette.length];
+  // 年 → 任期（判定季才有歸屬；統一 2019／2026 等未判定年無色，維持不標語意）
+  const tenureOfYear = new Map<number, { name: string; color: string }>();
+  data.seasons.forEach((s) => {
+    if (s.manager == null) return;
+    const i = runs.findIndex((r) => r.name === s.manager && r.from <= s.year && s.year <= r.to);
+    if (i >= 0) tenureOfYear.set(s.year, { name: runs[i].name, color: runColor(i) });
+  });
+  // 背景帶右界：與下一任期相接（無未判定間隔）→ 畫到換帥線；否則止於最後判定季
+  // （尾端未判定年不上色）。單季任期後接未判定年 → x1=x2 零寬帶（僅虛線＋chips，誠實退化）。
+  const bandEnd = (i: number) => {
+    const next = runs[i + 1];
+    return next && next.from === runs[i].to + 1 ? next.from : runs[i].to;
+  };
+
+  // 圖內教練姓名：375px 下 5+ 任期標籤會疊，窄螢幕（<640px，沿 mobileHide 界線）
+  // 只留換帥虛線＋圖下 chips；寬螢幕才在圖內標姓名（僅時間標記，無任何風格文案）。
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const update = () => setNarrow(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  // 歷史逐季（需求方 2026-07-27 續審裁定）：畫「原始值」＋同圖疊當季聯盟平均參考線
+  // （讓聯盟環境逐年變化看得見，避免把年代效應誤讀成球隊變化）；z 與排名退 tooltip。
+  // discipline 複合軸無單一 raw（凍結 spec），該軸退回 z 呈現並以 caption 說明。
+  const historyCopy = TEAM_STYLE_COPY[historyAxis];
+  const rawMode = historyCopy.formatRaw != null;
+  const historyData = data.seasons.map((s) => {
+    const v = s.axes[historyAxis];
+    return {
+      year: s.year,
+      value: rawMode ? v.raw : v.z,
+      league: rawMode ? v.league_raw_mean : null,
+      in_progress: s.in_progress,
+      n_teams: s.n_teams,
+      v,
+    };
+  });
 
   const chip = (active: boolean) =>
     `rounded-full px-2.5 py-1 text-xs transition ${
@@ -150,11 +193,11 @@ export function TeamStyleSection({ data, defaultYear }: {
             </div>
           </div>
 
-          {/* 歷史逐季：單軸 z 折線＋教練時間標記（約束 2：分段維持逐季） */}
+          {/* 歷史逐季：單軸原始值折線＋聯盟平均參考線＋教練時間標記（約束 2：分段維持逐季） */}
           <div className="rounded-lg border border-line bg-surface p-4">
             <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
               <h3 className="text-sm font-semibold text-ink">{S.historyHeading}</h3>
-              <span className="text-[10px] text-faint">{S.historyCaption}</span>
+              <span className="text-[10px] text-faint">{rawMode ? S.historyCaption : S.historyCaptionZ}</span>
             </div>
             <div className="mb-2 flex flex-wrap gap-1.5" role="group" aria-label={S.axisSelectorLabel}>
               {data.axes.map((a) => (
@@ -164,25 +207,79 @@ export function TeamStyleSection({ data, defaultYear }: {
                 </button>
               ))}
             </div>
+            {/* 兩系列必有 legend（設計系統 §6.3）；z 退回模式為單系列，不需 */}
+            {rawMode && (
+              <div className="mb-1 flex items-center gap-3 text-[10px] text-muted">
+                <span className="flex items-center gap-1">
+                  <span className="inline-block h-0.5 w-4 rounded" style={{ background: color }} />
+                  {S.legendTeam}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-4 border-t border-dashed" style={{ borderColor: ct.faint }} />
+                  {S.legendLeague}
+                </span>
+              </div>
+            )}
             <div className="h-64 sm:h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={historyData} margin={{ top: 8, right: 12, bottom: 0, left: -18 }}>
+                <LineChart data={historyData} margin={{ top: 8, right: 12, bottom: 0, left: rawMode ? -6 : -18 }}>
                   <XAxis dataKey="year" {...chartAxis(ct)} />
-                  <YAxis domain={[-2.5, 2.5]} ticks={[-2, -1, 0, 1, 2]} {...chartAxis(ct)} />
-                  <ReferenceLine y={0} stroke={ct.faint} strokeDasharray="4 4" />
-                  {/* 教練換帥年：僅時間標記（虛線；姓名列在圖下清單，不進圖面文案） */}
-                  {markers.map((m) => (
-                    <ReferenceLine key={m.year} x={m.year} stroke={ct.lineStrong} strokeDasharray="3 3" />
+                  {rawMode ? (
+                    <YAxis domain={["auto", "auto"]} tickFormatter={historyCopy.formatRaw} {...chartAxis(ct)} />
+                  ) : (
+                    <YAxis domain={[-2.5, 2.5]} ticks={[-2, -1, 0, 1, 2]} {...chartAxis(ct)} />
+                  )}
+                  {!rawMode && <ReferenceLine y={0} stroke={ct.faint} strokeDasharray="4 4" />}
+                  {/* 教練任期：低 alpha 同色背景帶（未判定年不上色）＋換帥年虛線＋
+                      （寬螢幕）圖內同色姓名——僅時間標記，無風格文案 */}
+                  {runs.map((m, i) => (
+                    bandEnd(i) > m.from && (
+                      <ReferenceArea key={`band-${m.from}`} x1={m.from} x2={bandEnd(i)}
+                        fill={runColor(i)} fillOpacity={0.08} stroke="none" />
+                    )
+                  ))}
+                  {runs.map((m, i) => (
+                    <ReferenceLine key={m.from} x={m.from} stroke={ct.lineStrong} strokeDasharray="3 3"
+                      label={narrow ? undefined : (props) => {
+                        const vb = (props as { viewBox?: { x?: number; y?: number } }).viewBox;
+                        return (
+                          <text x={(vb?.x ?? 0) + 4} y={(vb?.y ?? 0) + 12}
+                            fill={runColor(i)} fontSize={10}>
+                            {m.name}
+                          </text>
+                        );
+                      }} />
                   ))}
                   <Tooltip
-                    contentStyle={chartTooltip(ct)}
-                    formatter={(val) => [formatZ(Number(val)), historyMeta?.label ?? ""]}
-                    labelFormatter={(label) => {
-                      const s = historyData.find((d) => d.year === label);
-                      return `${label}${s?.in_progress ? `（${S.inProgressBadge}）` : ""}`;
+                    content={({ active, payload }) => {
+                      const p = payload?.[0]?.payload as (typeof historyData)[number] | undefined;
+                      if (!active || !p) return null;
+                      const tenure = tenureOfYear.get(p.year);
+                      return (
+                        <div style={chartTooltip(ct)} className="px-2.5 py-1.5">
+                          <div className="font-medium">
+                            {p.year}
+                            {p.in_progress ? `（${S.inProgressBadge}）` : ""}
+                            {/* 教練名＝時間標記；同任期同色（未判定年無歸屬不顯示） */}
+                            {tenure && (
+                              <span className="ml-1.5" style={{ color: tenure.color }}>{tenure.name}</span>
+                            )}
+                          </div>
+                          <div>{historyCopy.detail(p.v)}</div>
+                          {rawMode && p.v.league_raw_mean != null && (
+                            <div>{S.tooltipLeagueLabel} {historyCopy.formatRaw?.(p.v.league_raw_mean)}</div>
+                          )}
+                          <div>{S.rankLabel(p.v.rank, p.n_teams)}・z {formatZ(p.v.z)}</div>
+                        </div>
+                      );
                     }}
                   />
-                  <Line dataKey="z" stroke={color} strokeWidth={2} isAnimationActive={false}
+                  {/* 聯盟平均：降飽和虛線參考系列（跨年可比的誠實性；年代效應可視） */}
+                  {rawMode && (
+                    <Line dataKey="league" stroke={ct.faint} strokeWidth={1.5} strokeDasharray="5 4"
+                      dot={false} isAnimationActive={false} />
+                  )}
+                  <Line dataKey="value" stroke={color} strokeWidth={2} isAnimationActive={false}
                     dot={(props) => {
                       const { key, cx, cy, payload } = props as {
                         key?: string; cx?: number; cy?: number;
@@ -197,11 +294,12 @@ export function TeamStyleSection({ data, defaultYear }: {
               </ResponsiveContainer>
             </div>
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-faint">
-              {markers.length > 0 && (
+              {runs.length > 0 && (
                 <span className="flex flex-wrap items-center gap-1.5">
-                  {markers.map((m) => (
-                    <span key={m.year} className="rounded bg-surface-2 px-1.5 py-0.5 tabular-nums text-muted">
-                      {S.managerMarkerLabel(m.name, m.year)}
+                  {runs.map((m, i) => (
+                    <span key={m.from} className="rounded px-1.5 py-0.5 tabular-nums"
+                      style={{ color: runColor(i), background: `${runColor(i)}1f` }}>
+                      {S.managerMarkerLabel(m.name, m.from, m.to)}
                     </span>
                   ))}
                 </span>

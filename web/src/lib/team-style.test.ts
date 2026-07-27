@@ -7,7 +7,7 @@ import {
   TEAM_STYLE_SECTION,
   clampZ,
   formatZ,
-  managerMarkers,
+  managerRuns,
   outsToIp,
   type TeamStyleAxisKey,
   type TeamStyleAxisValue,
@@ -18,6 +18,7 @@ import {
 const sampleValue: TeamStyleAxisValue = {
   z: 1.23,
   raw: 0.106,
+  league_raw_mean: 0.089,
   rank: 1,
   counts: { sb: 9, cs: 3, sh: 41, pa: 2654, extra_bases: 120, ab: 2300,
     bb: 250, so: 500, starter_outs: 1620, outs: 2916, so_a: 480, pa_against: 3200 },
@@ -40,7 +41,7 @@ function allCopyStrings(): { source: string; text: string }[] {
     if (typeof v === "string") out.push({ source: `section.${k}`, text: v });
   }
   out.push({ source: "section.rankLabel", text: TEAM_STYLE_SECTION.rankLabel(3, 6) });
-  out.push({ source: "section.managerMarkerLabel", text: TEAM_STYLE_SECTION.managerMarkerLabel("葉君璋", 2021) });
+  out.push({ source: "section.managerMarkerLabel", text: TEAM_STYLE_SECTION.managerMarkerLabel("葉君璋", 2021, 2025) });
   out.push({ source: "section.inProgressNote", text: TEAM_STYLE_SECTION.inProgressNote([2026]) });
   return out;
 }
@@ -137,56 +138,81 @@ test("約束2：教練相關文案不暗示時期風格", () => {
   assert.ok(TEAM_STYLE_SECTION.managerFootnote.includes("僅作時間標記"));
 });
 
-test("教練標記格式＝「名 年–」（卡面例：陳金鋒 2024–）", () => {
-  assert.equal(TEAM_STYLE_SECTION.managerMarkerLabel("陳金鋒", 2024), "陳金鋒 2024–");
+test("教練標記格式＝閉區間「名 起–迄」；單季不重複年份", () => {
+  assert.equal(TEAM_STYLE_SECTION.managerMarkerLabel("陳金鋒", 2024, 2025), "陳金鋒 2024–2025");
+  assert.equal(TEAM_STYLE_SECTION.managerMarkerLabel("洪一中", 2020, 2020), "洪一中 2020");
 });
 
-// —— managerMarkers：換帥年導出 ——
+// —— managerRuns：任期段（閉區間）導出 ——
 
-test("managerMarkers：首年立標、換帥立標、同名不重複", () => {
-  const ms = managerMarkers([
+test("managerRuns：換帥開新段；迄年＝該段最後判定季，不延伸到未判定季", () => {
+  // AEO011 實例尾段：資料只判定到 2025，2026 未判定 → 陳金鋒段止於 2025
+  const ms = managerRuns([
     { year: 2020, manager: "洪一中" },
     { year: 2021, manager: "洪一中" },
     { year: 2022, manager: "丘昌榮" },
     { year: 2023, manager: "丘昌榮" },
     { year: 2024, manager: "陳金鋒" },
+    { year: 2025, manager: "陳金鋒" },
+    { year: 2026, manager: null },
   ]);
   assert.deepEqual(ms, [
-    { year: 2020, name: "洪一中" },
-    { year: 2022, name: "丘昌榮" },
-    { year: 2024, name: "陳金鋒" },
+    { name: "洪一中", from: 2020, to: 2021 },
+    { name: "丘昌榮", from: 2022, to: 2023 },
+    { name: "陳金鋒", from: 2024, to: 2025 },
   ]);
 });
 
-test("managerMarkers：不可判定季跳過不斷開；未知季後換人才立標", () => {
+test("managerRuns：不可判定季跳過不斷開；同名跨未知季視為同段", () => {
   // ADD011 實例：2018 黃甘霖 → 2019 不可判定 → 2020 林岳平
-  const ms = managerMarkers([
+  const ms = managerRuns([
     { year: 2018, manager: "黃甘霖" },
     { year: 2019, manager: null },
     { year: 2020, manager: "林岳平" },
   ]);
   assert.deepEqual(ms, [
-    { year: 2018, name: "黃甘霖" },
-    { year: 2020, name: "林岳平" },
+    { name: "黃甘霖", from: 2018, to: 2018 },
+    { name: "林岳平", from: 2020, to: 2020 },
   ]);
-  // 同名跨過未知季不重複立標（未知季無從宣稱換帥）
-  const same = managerMarkers([
+  // 同名跨過未知季不斷開（未知季無從宣稱換帥），段延伸到最後判定季
+  const same = managerRuns([
     { year: 2021, manager: "葉君璋" },
     { year: 2022, manager: null },
     { year: 2023, manager: "葉君璋" },
   ]);
-  assert.deepEqual(same, [{ year: 2021, name: "葉君璋" }]);
+  assert.deepEqual(same, [{ name: "葉君璋", from: 2021, to: 2023 }]);
 });
 
-test("managerMarkers：亂序輸入照年份排序", () => {
-  const ms = managerMarkers([
+test("managerRuns：亂序輸入照年份排序", () => {
+  const ms = managerRuns([
     { year: 2024, manager: "平野惠一" },
     { year: 2021, manager: "林威助" },
+    { year: 2025, manager: "平野惠一" },
   ]);
   assert.deepEqual(ms, [
-    { year: 2021, name: "林威助" },
-    { year: 2024, name: "平野惠一" },
+    { name: "林威助", from: 2021, to: 2021 },
+    { name: "平野惠一", from: 2024, to: 2025 },
   ]);
+});
+
+// —— 歷史逐季：raw 模式與 discipline 退回 z（需求方 2026-07-27 續審裁定）——
+
+test("歷史圖：六個單成分軸有 formatRaw；discipline 複合軸無（退回 z）", () => {
+  for (const key of AXIS_KEYS.filter((k) => k !== "discipline")) {
+    assert.equal(typeof TEAM_STYLE_COPY[key].formatRaw, "function",
+      `${key} 應有 formatRaw（歷史圖畫原始值）`);
+  }
+  assert.equal(TEAM_STYLE_COPY.discipline.formatRaw, undefined);
+  // 率值格式抽樣：% 軸一位小數、比值軸三位小數去前導零
+  assert.equal(TEAM_STYLE_COPY.smallball.formatRaw?.(0.0154), "1.5%");
+  assert.equal(TEAM_STYLE_COPY.defense.formatRaw?.(0.7003), ".700");
+  assert.equal(TEAM_STYLE_COPY.power.formatRaw?.(0.086), ".086");
+});
+
+test("歷史圖文案：raw 模式標明聯盟平均參照；z 退回模式說明複合軸", () => {
+  assert.ok(TEAM_STYLE_SECTION.historyCaption.includes("聯盟平均"));
+  assert.ok(TEAM_STYLE_SECTION.historyCaptionZ.includes("複合軸"));
+  assert.equal(TEAM_STYLE_SECTION.legendLeague, "聯盟平均");
 });
 
 // —— 純格式化 ——

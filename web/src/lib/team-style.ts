@@ -32,6 +32,8 @@ export type TeamStyleAxisValue = {
   z: number;
   /** 凍結軸原始值（rate）；discipline 為複合軸無單一 raw。 */
   raw: number | null;
+  /** 同季全隊 raw 算術平均（z 計算裡的同一個均值；歷史圖聯盟參考線用）。 */
+  league_raw_mean: number | null;
   /** 該季該軸聯盟名次（z 由高至低，1 = 最高）。 */
   rank: number;
   counts: Record<string, number>;
@@ -77,6 +79,9 @@ export type TeamStyleAxisCopy = {
   note: string;
   /** 明細（原始次數＋rate；只有數字，形容詞不進這裡）。 */
   detail: (v: TeamStyleAxisValue) => string;
+  /** 歷史圖 raw 值的軸刻度／tooltip 格式（凍結 spec 的率值）；
+   *  discipline 複合軸無單一 raw 故無此格式（歷史圖退回 z 呈現）。 */
+  formatRaw?: (v: number) => string;
 };
 
 export const TEAM_STYLE_COPY: Record<TeamStyleAxisKey, TeamStyleAxisCopy> = {
@@ -85,18 +90,21 @@ export const TEAM_STYLE_COPY: Record<TeamStyleAxisKey, TeamStyleAxisCopy> = {
     note: "跨季延續偏弱",
     detail: (v) => `盜壘企圖 ${(v.counts.sb ?? 0) + (v.counts.cs ?? 0)} 次`
       + (v.raw != null ? `（企圖率 ${pct1(v.raw)}）` : ""),
+    formatRaw: pct1,
   },
   smallball: {
     desc: "犧牲短打換推進的使用頻率",
     note: "季內樣本偏噪",
     detail: (v) => `犧短 ${v.counts.sh ?? 0} 次`
       + (v.raw != null ? `（佔打席 ${pct1(v.raw)}）` : ""),
+    formatRaw: pct1,
   },
   power: {
     desc: "進攻依賴長打額外壘打的程度",
     note: "季內樣本偏噪",
     detail: (v) => (v.raw != null ? `ISO ${f3(v.raw)}` : "ISO —")
       + `（額外壘打 ${v.counts.extra_bases ?? 0}）`,
+    formatRaw: f3,
   },
   discipline: {
     desc: "多選保送、少吃三振",
@@ -107,18 +115,21 @@ export const TEAM_STYLE_COPY: Record<TeamStyleAxisKey, TeamStyleAxisCopy> = {
     desc: "先發投手吃局的比重",
     note: "季內成立、跨季不延續",
     detail: (v) => `先發 ${outsToIp(v.counts.starter_outs ?? 0)} 局／全隊 ${outsToIp(v.counts.outs ?? 0)} 局`,
+    formatRaw: pct1,
   },
   pitch_k: {
     desc: "投手群以三振解決打者的比例",
     note: "季內成立、跨季不延續",
     detail: (v) => `三振 ${v.counts.so_a ?? 0} 次`
       + (v.raw != null ? `（K% ${pct1(v.raw)}）` : ""),
+    formatRaw: pct1,
   },
   // 守備效率：約束 3——只放數字與排名，零形容詞、零傾向描述。
   defense: {
     desc: "",
     note: "",
     detail: (v) => (v.raw != null ? `DER ${f3(v.raw)}` : "DER —"),
+    formatRaw: f3,
   },
 };
 
@@ -141,33 +152,41 @@ export const TEAM_STYLE_SECTION = {
   detailHeading: "軸明細",
   detailCaption: "原始數值與聯盟排名（同季內比較）。",
   historyHeading: "歷史逐季",
-  historyCaption: "逐季 z 值（各季與當季聯盟相比，跨季 raw 值不可直接比）。",
+  historyCaption: "逐季原始值；虛線＝當季聯盟平均（聯盟環境逐年變化的參照）。z 與排名見資料點 tooltip。",
+  historyCaptionZ: "選球紀律為複合軸（無單一原始值），以逐季季內 z 呈現；排名見資料點 tooltip。",
+  legendTeam: "球隊",
+  legendLeague: "聯盟平均",
+  tooltipLeagueLabel: "聯盟平均",
   yearSelectorLabel: "選擇球季",
   axisSelectorLabel: "選擇風格軸",
-  managerFootnote: "總教練名僅作時間標記（換帥年）；不可判定年份不標示。",
+  managerFootnote: "總教練名僅作時間標記（起迄＝可判定的任期季）；不可判定年份不標示。",
   emptyState: "該年度尚無球風資料（逐場資料自 2018 年起）。",
   rankLabel: (rank: number, n: number) => `聯盟第 ${rank}（/${n} 隊）`,
-  managerMarkerLabel: (name: string, year: number) => `${name} ${year}–`,
+  managerMarkerLabel: (name: string, from: number, to: number) =>
+    from === to ? `${name} ${from}` : `${name} ${from}–${to}`,
   inProgressNote: (years: number[]) => `${years.join("、")} 賽季進行中（空心點）。`,
 } as const;
 
 // —— 教練時間標記（約束 2：逐季分段；教練名只標時間）——
 
-export type ManagerMarker = { year: number; name: string };
+export type ManagerRun = { name: string; from: number; to: number };
 
 /**
- * 從逐季 manager 序列導出「換帥年」標記：與**最近一個已知**主教練不同名才立標。
- * 不可判定季（null）跳過、不斷開——同名跨過未知季不重複立標（未知季無從宣稱換帥）。
+ * 從逐季 manager 序列導出任期段（閉區間）：與**最近一個已知**主教練不同名即開新段；
+ * 同名延伸段的迄年。迄年＝該教練**最後一個被判定為主教練的季**——資料邊界外
+ * （2026 各隊、統一 2019 等不可判定季）不延伸、不用 managers.to_year 補
+ * （to_year＝維基最後戰績列年份非卸任年，語意陷阱）。
+ * 不可判定季（null）跳過、不斷開——同名跨過未知季視為同一段（未知季無從宣稱換帥）。
  */
-export function managerMarkers(
+export function managerRuns(
   seasons: Pick<TeamStyleSeason, "year" | "manager">[],
-): ManagerMarker[] {
-  const markers: ManagerMarker[] = [];
-  let lastKnown: string | null = null;
+): ManagerRun[] {
+  const runs: ManagerRun[] = [];
   for (const s of [...seasons].sort((a, b) => a.year - b.year)) {
     if (s.manager == null) continue;
-    if (s.manager !== lastKnown) markers.push({ year: s.year, name: s.manager });
-    lastKnown = s.manager;
+    const last = runs[runs.length - 1];
+    if (last && last.name === s.manager) last.to = s.year;
+    else runs.push({ name: s.manager, from: s.year, to: s.year });
   }
-  return markers;
+  return runs;
 }
