@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from scripts.team_style_vectors import (
+from cpbl.models.team_style import (
     batting_axes_raw,
     pearson,
     pitching_axes_raw,
