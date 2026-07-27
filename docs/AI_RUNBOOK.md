@@ -310,6 +310,7 @@ EDITORIAL_TEST_DATABASE_URL=postgresql://cpbl:cpbl@localhost:5433/cpbl_data_edit
 | **pitch_tracking 含二軍** | 有 `kind_code='D'`；逐球查詢**必須加 `kind_code='A'`** |
 | **pitch_tracking `pitcher_name` 亂碼** | 編碼問題；比對一律用 `*_acnt`，勿用 name |
 | **衍生欄恆 NULL** | `ops_plus/era_plus/fip` DB 永遠 NULL，由 API 即時算。記憶 `derived-stats-computed-live` |
+| **`team_current` 是當前半季口徑** | 存官網 `/standings/season` 頁預設範圍＝**當前半季**，勿當全年資料（TEAM-STYLE1 §4 實證：全季聚合對帳全 FAIL、`game_season_code='2'` 聚合 5/6 隊逐位吻合）。`batting_current`／`pitching_current` 已實證為**全年**；`fielding_current` 已排除半季（全年未逐值對帳）。四表口徑對照與證據見 [`reference/GLOSSARY.md`](reference/GLOSSARY.md)；全年團隊數據由 gamelog 聚合（先例 `/api/v1/season/team-split`） |
 | **分項主鍵** | `*_splits` 主鍵含 `item_name`（mig 022）；前端分類用 item_name 內容非 group_code |
 | **官網 token** | `/schedule` inline JS 抽 `RequestVerificationToken`，放 **header**；不是 hidden input 的 `__RequestVerificationToken`（會 500） |
 | **前端 env** | 用 `NEXT_PUBLIC_API_URL`，舊 README 的 `API_URL` 會連不到 |
@@ -323,7 +324,7 @@ EDITORIAL_TEST_DATABASE_URL=postgresql://cpbl:cpbl@localhost:5433/cpbl_data_edit
 - season/ML：`*_seasons`、`projections`、`model_versions`。
 - 歷史冠軍：`championships`（1990–2025 逐年官方來源＋franchise）→ `championship_members`（離線重建成員）。
 - 逐場：`games`、`game_scoreboard`、`game_livelog`、`batting_gamelog`、`pitching_gamelog`、`game_features`。
-- 當季累計：`batting_current`、`pitching_current`、`team_current`、`fielding_current`。
+- 當季累計：`batting_current`、`pitching_current`、`team_current`、`fielding_current`。**口徑不一致**：`team_current`＝當前半季，batting/pitching＝全年（fielding 已排除半季）——見 §8 陷阱與 [`reference/GLOSSARY.md`](reference/GLOSSARY.md)。
 - 對戰/分項：`matchups`、`vs_team_splits`、`batting_splits`、`pitching_splits`。
 - 進階：`advanced_stats`、`pitch_tracking`、`team_standings`、`refresh_log`。
 - 慣例：無 ORM、psycopg3 參數化(`%s`)、走 `cpbl.db.conn()`；新 migration `00X_*.sql` 須 `IF NOT EXISTS`（migrate() 每次全跑）；player_id 10 碼字串對齊 opendata。

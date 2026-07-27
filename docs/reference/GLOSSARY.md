@@ -67,3 +67,20 @@ livelog 逐事件切候選 PA 的分組單位：**連續同 `(game, inning, half
 「滾地型／飛球型非安打擊球」＝出局＋失誤上壘＋犧打：**犧短／內野失誤計 GO、犧飛／外野失誤計 FO**；趁傳／雙殺／野選／界飛照滾飛歸類（與官方值對帳係數≈0 證實）；「違規」與型態不明**不歸滾飛**。
 
 - SSoT：`src/cpbl/ingest/splits_calc.py`（`_GO`/`_FO` 對照表與其上方註解）。
+
+## 當季累計快照
+
+### `*_current` 口徑（team／batting／pitching／fielding_current）
+
+官網「當季累計」四表**口徑不一致，勿一概當全年資料**。DB 實證（2026-07-27，本機 2026 kind A；球員表以 gamelog 分別聚合全季與 `game_season_code='2'` 對帳計數欄）：
+
+| 表 | 口徑 | 佐證 |
+|---|---|---|
+| `team_current` | **當前半季**（官網 `/standings/season` 頁預設範圍） | 2026 全季聚合對帳**全數 FAIL**（max\|Δ\| 0.083）；改以 `game_season_code='2'` 聚合後 5/6 隊三圍逐位吻合（樂天殘差 0.0024 研判快照時點差）——[`TEAM-STYLE1_RESULTS.md`](../research/TEAM-STYLE1_RESULTS.md) §4 |
+| `batting_current` | **全年** | 167 人中 166 人 G/PA/AB/H 四欄與全季聚合完全相等（唯一殘差為 1 安打差）；「吻合半季」的 7 人全是下半季才出賽者（兩口徑退化重合，非反證） |
+| `pitching_current` | **全年** | 146 人中 145 人 G/SO/PA/BB/H 五欄與全季聚合完全相等（唯一殘差為 1 被安打差）；「吻合半季」的 10 人全是下半季才出賽者 |
+| `fielding_current` | **非當前半季**（已證）；全年為合理推定，**未逐值對帳** | 出賽數上界：max g=73、107 人 g>20，遠超下半季單隊完成場上界 14；同 `/team/teamscoreaction` 端點同 Year 參數（僅 Position 異於 pitching），但無逐場守備 gamelog 可逐值對帳 |
+
+- **`team_current` 勿當全年資料用**；全年團隊數據一律由 gamelog 聚合（單一路徑對帳先例：`/api/v1/season/team-split`，UX-TEAM-SPLIT-SCOPE1）。
+- 口徑分家的機制：`fetch_team` 爬 `/standings/season`（GET、頁面預設＝當前半季）；球員三表走 `/team/teamscore(action)`（全季）——同在 `src/cpbl/ingest/cpbl_stats.py`。
+- SSoT：本條目；證據出處 [`../research/TEAM-STYLE1_RESULTS.md`](../research/TEAM-STYLE1_RESULTS.md) §4（team）＋ DOC-TEAM-CURRENT-SCOPE1 查證紀錄（batting／pitching／fielding，2026-07-27 本機 DB）。
