@@ -167,7 +167,7 @@ def test_db_is_written_after_the_artifact_is_in_place(monkeypatch, tmp_path: Pat
 
 
 def test_only_a_failed_gate_is_labelled_gate_failed(monkeypatch):
-    """三種 serving_previous 只有一種能標 gate_failed；前端據此選文案。
+    """四種 serving_previous 只有一種能標 gate_failed；前端據此選文案。
 
     iteration 2 的缺陷是前端只看 status，三種一律講「最新回測未通過部署閘門」——
     而 deploy→refresh 窗口恰好是 version_unknown，那個回測其實是 7/7 通過的。
@@ -176,6 +176,7 @@ def test_only_a_failed_gate_is_labelled_gate_failed(monkeypatch):
         ("v1", "v2", False): "gate_failed",
         (None, "v2", True): "version_unknown",
         ("v3", "v2", True): "version_mismatch",
+        ("v3", "v2", None): "backtest_unknown",
     }
     for (serving_version, backtest_version, deployable), expected in cases.items():
         _patch(monkeypatch, _artifact(serving_version), (backtest_version, deployable))
@@ -184,3 +185,97 @@ def test_only_a_failed_gate_is_labelled_gate_failed(monkeypatch):
 
         assert meta["degradation"] == expected
         assert (meta["degradation"] == "gate_failed") == (deployable is False)
+
+
+# --- 閘門結果未知的三條路徑（iteration 5 查核 F1）--------------------------------
+
+class _FakeCursor:
+    def __init__(self, row) -> None:
+        self._row = row
+
+    def fetchone(self):  # noqa: ANN201 - 測試替身
+        return self._row
+
+
+class _FakeConnection:
+    def __init__(self, row=None, raises: bool = False) -> None:
+        self._row = row
+        self._raises = raises
+
+    def execute(self, *_args, **_kwargs):  # noqa: ANN002, ANN003, ANN201 - 測試替身
+        if self._raises:
+            raise RuntimeError("connection refused")
+        return _FakeCursor(self._row)
+
+    def __enter__(self):  # noqa: ANN204 - 測試替身
+        return self
+
+    def __exit__(self, *_exc):  # noqa: ANN002, ANN204 - 測試替身
+        return False
+
+
+@pytest.mark.parametrize(
+    ("label", "connection"),
+    [
+        ("DB 讀取例外", _FakeConnection(raises=True)),
+        ("model_versions 無 row", _FakeConnection(row=None)),
+        ("gate 欄缺失", _FakeConnection(row=("v2", {"cv": 1}))),
+        ("gate.deployable 為 null", _FakeConnection(row=("v2", {"gate": {"deployable": None}}))),
+    ],
+)
+def test_unknown_gate_paths_never_report_deployable(monkeypatch, label, connection):
+    """三條未知路徑都必須回 deployable=None——不得因為「沒說失敗」就被當成通過。"""
+    monkeypatch.setattr(pregame_serving, "conn", lambda: connection)
+
+    latest = pregame_serving._latest_backtest()
+
+    assert latest.deployable is None, label
+
+
+@pytest.mark.parametrize(
+    ("label", "connection"),
+    [
+        ("DB 讀取例外", _FakeConnection(raises=True)),
+        ("model_versions 無 row", _FakeConnection(row=None)),
+        ("gate 欄缺失", _FakeConnection(row=("v2", {"cv": 1}))),
+        ("gate.deployable 為 null", _FakeConnection(row=("v2", {"gate": {"deployable": None}}))),
+    ],
+)
+def test_unknown_gate_is_its_own_degradation_not_a_version_mismatch(
+    monkeypatch, label, connection,
+):
+    """讀不到閘門結果 ⇒ backtest_unknown。
+
+    iteration 5 查核 F1：這三條路徑原本全落到 version_mismatch，而前端對該判別碼固定
+    附註「該次回測本身已通過閘門」——對一個根本沒讀到的回測宣稱 PASS。
+    """
+    monkeypatch.setattr(pregame_serving, "artifact_path", lambda: Path("/fake/a.joblib"))
+    monkeypatch.setattr(Path, "exists", lambda self: True)
+    monkeypatch.setattr(pregame_serving, "load_artifact", lambda _p: _artifact("v1"))
+    monkeypatch.setattr(pregame_serving, "conn", lambda: connection)
+
+    _, meta = pregame_serving.serving_state()
+
+    assert meta["status"] == "serving_previous", label
+    assert meta["degradation"] == "backtest_unknown", label
+    assert meta["backtest_deployable"] is None, label
+    assert "閘門" in meta["reason"] and "未通過" not in meta["reason"], label
+
+
+def test_matching_versions_stay_current_even_when_the_gate_is_unreadable(monkeypatch):
+    """版本相同＝serving 確實是最新回測的產出；閘門結果未知不改變這個事實。"""
+    _patch(monkeypatch, _artifact("v2"), ("v2", None))
+
+    _, meta = pregame_serving.serving_state()
+
+    assert meta["status"] == "serving_current"
+    assert meta["degradation"] is None
+
+
+def test_legacy_artifact_wins_over_unknown_gate(monkeypatch):
+    """兩側皆未知時取 version_unknown——它的文案不碰閘門，講得比較精確（分支序第 2 條）。"""
+    _patch(monkeypatch, _artifact(None), (None, None))
+
+    _, meta = pregame_serving.serving_state()
+
+    assert meta["degradation"] == "version_unknown"
