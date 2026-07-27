@@ -1,4 +1,4 @@
-"""路由快照：57 個端點一個都不能少（拆分 main.py 為 routers 時的守門測試）。
+"""路由快照：73 個端點一個都不能少（拆分 main.py 為 routers 時的守門測試）。
 
 新增端點時把路徑加進 EXPECTED；若這條測試因「少了路徑」而 fail，代表重構
 弄丟了端點，不是快照過期。
@@ -75,6 +75,7 @@ EXPECTED = {
     "/api/v1/standings-trend",
     "/api/v1/teams",
     "/api/v1/teams/{code}/der",
+    "/api/v1/teams/{code}/style",
     "/api/v1/teams/{code}/eras",
     "/api/v1/teams/{code}/players",
     "/api/v1/umpires",

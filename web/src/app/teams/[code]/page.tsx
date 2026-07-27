@@ -8,6 +8,7 @@ import { RosterBoard, type RosterGroup } from "@/components/roster-board";
 import { api } from "@/lib/api";
 import { contrastText, nameMeta, teamColor } from "@/lib/teams";
 import { CoachGrid, GROUPS, ManagersTable, RetiredNumbers, RosterChips, RosterTable, f2, f3 } from "./parts";
+import { TeamStyleSection } from "./style-section";
 import { SEASON_GROUP, TeamTabs, type TeamGroup } from "./team-tabs";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export default async function TeamPage({ params, searchParams }: {
   const season = currentStd.season;
   const year = rawYear && rawYear >= MIN_SPLIT_YEAR && rawYear <= season ? rawYear : season;
 
-  const [split, special, games, cal, bat, pit, field, eras, roster, der, yearStd] = await Promise.all([
+  const [split, special, games, cal, bat, pit, field, eras, roster, der, yearStd, style] = await Promise.all([
     api.teamSplit(year),
     api.specialRecords(year),
     api.gamesRecent(200),         // 近日焦點：當季近期賽事
@@ -39,6 +40,7 @@ export default async function TeamPage({ params, searchParams }: {
     api.teamPlayers(code),
     api.teamDer(code).catch(() => ({ team: code, franchise: code, items: [] })),
     year === season ? Promise.resolve(currentStd) : api.officialStandings(0, year),
+    api.teamStyle(code).catch(() => null),  // 球風（UX-TEAM-STYLE1）；失敗不擋整頁
   ]);
 
   const team = currentStd.items.find((t) => t.team_code === code);
@@ -286,6 +288,15 @@ export default async function TeamPage({ params, searchParams }: {
 
   // 賽季佔位：內容（攻守概覽＋半季子頁籤＋支撐區塊）由 TeamTabs 接手渲染。
   if (team) groups.push({ value: SEASON_GROUP, label: "賽季", content: null });
+
+  // 球風：獨立頁籤（UX-TEAM-STYLE1，需求方 2026-07-27 裁定改獨立頁籤）。
+  // 全年口徑：本群組無子頁籤，結構上不受賽季 group 的半季切換影響；季切換在頁籤內
+  // client 端做（API 一次回全部季，不經 ?year= 重抓）。無 2018+ 資料（如已解散隊）不出頁籤。
+  if (style && style.seasons.length > 0) {
+    groups.push({ value: "style", label: "球風", content: (
+      <TeamStyleSection key="style" data={style} defaultYear={year} />
+    ) });
+  }
 
   if (team && (rst.first_batters.length > 0 || rst.first_pitchers.length > 0 || rst.farm.length > 0 || coaches.length > 0)) {
     groups.push({ value: "roster", label: "現役陣容", content: (

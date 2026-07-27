@@ -1,0 +1,241 @@
+{
+ "source": "docs/research/team_style2_metrics.json（TEAM-STYLE2 artifact）",
+ "note": "逐季主教練判定結果的機械抽取（欄位 season_managers 原樣搬運，不重判）；main_manager=null 為 TEAM-STYLE2 判定規則下的不可判定季（照 spec 不標）。覆蓋僅該研究樣本年（2018–2025 各 franchise 有維基逐年列者）；覆蓋外年份（含 2026）一律不標。打包進 src/cpbl/resources 是因生產容器不含 docs/（同 pa_transition_taxonomy 慣例）。",
+ "generated_from_generated_at": "2026-07-27T11:50:13.267218+00:00",
+ "season_managers": [
+  {
+   "franchise": "AAA011",
+   "year": 2021,
+   "main_manager": "葉君璋",
+   "detail": "葉君璋 120場"
+  },
+  {
+   "franchise": "AAA011",
+   "year": 2022,
+   "main_manager": "葉君璋",
+   "detail": "葉君璋 120場"
+  },
+  {
+   "franchise": "AAA011",
+   "year": 2023,
+   "main_manager": "葉君璋",
+   "detail": "葉君璋 120場"
+  },
+  {
+   "franchise": "AAA011",
+   "year": 2024,
+   "main_manager": "葉君璋",
+   "detail": "葉君璋 120場"
+  },
+  {
+   "franchise": "AAA011",
+   "year": 2025,
+   "main_manager": "葉君璋",
+   "detail": "葉君璋 120場"
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2018,
+   "main_manager": "史耐德",
+   "detail": "史耐德 102場；伯納 17場；丘昌榮 1場"
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2019,
+   "main_manager": "伯納",
+   "detail": "伯納 120場"
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2020,
+   "main_manager": "丘昌榮",
+   "detail": "丘昌榮 120場"
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2021,
+   "main_manager": "林威助",
+   "detail": "林威助 120場"
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2022,
+   "main_manager": "林威助",
+   "detail": "林威助 120場"
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2023,
+   "main_manager": "彭政閔",
+   "detail": "彭政閔 94場；林威助 25場；陳江和 1場"
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2024,
+   "main_manager": "平野惠一",
+   "detail": "平野惠一 120場"
+  },
+  {
+   "franchise": "ACN011",
+   "year": 2025,
+   "main_manager": "平野惠一",
+   "detail": "平野惠一 120場"
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2018,
+   "main_manager": "黃甘霖",
+   "detail": "黃甘霖 120場"
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2019,
+   "main_manager": null,
+   "detail": "場數平手（黃甘霖 60場；劉育辰 60場）（不可判定）"
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2020,
+   "main_manager": "林岳平",
+   "detail": "林岳平 120場"
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2021,
+   "main_manager": "林岳平",
+   "detail": "林岳平 120場"
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2022,
+   "main_manager": "林岳平",
+   "detail": "林岳平 114場；高志綱 6場"
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2023,
+   "main_manager": "林岳平",
+   "detail": "林岳平 120場"
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2024,
+   "main_manager": "林岳平",
+   "detail": "林岳平 120場"
+  },
+  {
+   "franchise": "ADD011",
+   "year": 2025,
+   "main_manager": "林岳平",
+   "detail": "林岳平 120場"
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2018,
+   "main_manager": "葉君璋",
+   "detail": "葉君璋 73場；陳連宏 44場；劉榮華 3場"
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2019,
+   "main_manager": "陳連宏",
+   "detail": "陳連宏 119場；郭建霖 1場"
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2020,
+   "main_manager": "洪一中",
+   "detail": "洪一中 120場"
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2021,
+   "main_manager": "洪一中",
+   "detail": "洪一中 120場"
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2022,
+   "main_manager": "丘昌榮",
+   "detail": "丘昌榮 118場；黃泰龍 2場"
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2023,
+   "main_manager": "丘昌榮",
+   "detail": "丘昌榮 120場"
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2024,
+   "main_manager": "陳金鋒",
+   "detail": "陳金鋒 120場"
+  },
+  {
+   "franchise": "AEO011",
+   "year": 2025,
+   "main_manager": "陳金鋒",
+   "detail": "陳金鋒 120場"
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2018,
+   "main_manager": "洪一中",
+   "detail": "洪一中 120場"
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2019,
+   "main_manager": "洪一中",
+   "detail": "洪一中 120場"
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2020,
+   "main_manager": "曾豪駒",
+   "detail": "曾豪駒 120場"
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2021,
+   "main_manager": "曾豪駒",
+   "detail": "曾豪駒 120場"
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2022,
+   "main_manager": "曾豪駒",
+   "detail": "曾豪駒 120場"
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2023,
+   "main_manager": "曾豪駒",
+   "detail": "曾豪駒 120場"
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2024,
+   "main_manager": "古久保健二",
+   "detail": "古久保健二 120場"
+  },
+  {
+   "franchise": "AJL011",
+   "year": 2025,
+   "main_manager": "古久保健二",
+   "detail": "古久保健二 120場"
+  },
+  {
+   "franchise": "AKP011",
+   "year": 2024,
+   "main_manager": "洪一中",
+   "detail": "洪一中 120場"
+  },
+  {
+   "franchise": "AKP011",
+   "year": 2025,
+   "main_manager": "洪一中",
+   "detail": "洪一中 120場"
+  }
+ ]
+}
