@@ -1,9 +1,11 @@
 """賽前模型 serving 狀態與 artifact 晉升順序（ML-OUTCOME-SIMPLE-LEAK2 紅線 4／5）。
 
-兩件事必須成立：
+三件事必須成立：
 1. serving artifact 與 `model_versions` 對不上時，後端**明確回報** `serving_previous`，
    而不是只寫 log 讓前端照顯上一版模型的機率。
-2. artifact 晉升是「先驗證暫存檔、再原子換名、最後才寫 DB」；中途失敗時 serving 不得
+2. 兩者版本相同、但那次回測沒過閘門時，後端仍必須給出 `degradation`
+   （`serving_gate_failed`）——版本對得上不等於沒事，閘門結果是另一個維度。
+3. artifact 晉升是「先驗證暫存檔、再原子換名、最後才寫 DB」；中途失敗時 serving 不得
    被換成半成品，DB 也不得已經宣稱這一版可部署。
 """
 
@@ -166,25 +168,34 @@ def test_db_is_written_after_the_artifact_is_in_place(monkeypatch, tmp_path: Pat
     assert path.exists() is False  # promote 被替身攔下，確認測的是順序而非副作用
 
 
-def test_only_a_failed_gate_is_labelled_gate_failed(monkeypatch):
-    """四種 serving_previous 只有一種能標 gate_failed；前端據此選文案。
+def test_degradation_matrix_covers_both_dimensions(monkeypatch):
+    """版本比對 × 閘門結果的完整矩陣：兩個維度正交，不是同一條優先序。
 
     iteration 2 的缺陷是前端只看 status，三種一律講「最新回測未通過部署閘門」——
     而 deploy→refresh 窗口恰好是 version_unknown，那個回測其實是 7/7 通過的。
+    iteration 6 的缺陷是把兩個維度排成一條序，版本相同吃掉了閘門失敗。
     """
     cases = {
-        ("v1", "v2", False): "gate_failed",
-        (None, "v2", True): "version_unknown",
-        ("v3", "v2", True): "version_mismatch",
-        ("v3", "v2", None): "backtest_unknown",
+        # 版本相同：閘門結果決定要不要揭露，status 一律 serving_current。
+        ("v2", "v2", False): ("serving_current", "serving_gate_failed"),
+        ("v2", "v2", True): ("serving_current", None),
+        ("v2", "v2", None): ("serving_current", None),
+        # 版本不同：四條既有分支，順序不變。
+        ("v1", "v2", False): ("serving_previous", "gate_failed"),
+        (None, "v2", True): ("serving_previous", "version_unknown"),
+        ("v3", "v2", True): ("serving_previous", "version_mismatch"),
+        ("v3", "v2", None): ("serving_previous", "backtest_unknown"),
     }
     for (serving_version, backtest_version, deployable), expected in cases.items():
         _patch(monkeypatch, _artifact(serving_version), (backtest_version, deployable))
 
         _, meta = pregame_serving.serving_state()
 
-        assert meta["degradation"] == expected
-        assert (meta["degradation"] == "gate_failed") == (deployable is False)
+        assert (meta["status"], meta["degradation"]) == expected, (
+            serving_version, backtest_version, deployable)
+        # 閘門失敗一定要有揭露，不論版本比對結果如何。
+        assert (meta["degradation"] in {"gate_failed", "serving_gate_failed"}) == (
+            deployable is False)
 
 
 # --- 閘門結果未知的三條路徑（iteration 5 查核 F1）--------------------------------
@@ -263,13 +274,46 @@ def test_unknown_gate_is_its_own_degradation_not_a_version_mismatch(
 
 
 def test_matching_versions_stay_current_even_when_the_gate_is_unreadable(monkeypatch):
-    """版本相同＝serving 確實是最新回測的產出；閘門結果未知不改變這個事實。"""
+    """版本相同＝serving 確實是最新回測的產出；閘門結果未知不改變這個事實。
+
+    刻意不揭露：serving 與最新回測是同一版已證明，沒有「使用者看到的不是這一版」的風險。
+    """
     _patch(monkeypatch, _artifact("v2"), ("v2", None))
 
     _, meta = pregame_serving.serving_state()
 
     assert meta["status"] == "serving_current"
     assert meta["degradation"] is None
+
+
+def test_matching_versions_do_not_bury_an_explicit_gate_failure(monkeypatch):
+    """iteration 6 查核 F1：版本相同曾整個蓋過 deployable=false，畫面因此毫無提示。
+
+    正解不是把 gate_failed 移到版本比對之前——那條分支說「以下機率並非最新回測所對應的
+    模型輸出」，版本相同時是假話。真實狀態是第五種：**正在服務的就是那個沒過閘門的模型**。
+    """
+    _patch(monkeypatch, _artifact("v2"), ("v2", False))
+
+    _, meta = pregame_serving.serving_state()
+
+    # status 不得謊報成 previous——機率確實出自最新回測那一版。
+    assert meta["status"] == "serving_current"
+    # 但一定要有揭露開關。
+    assert meta["degradation"] == "serving_gate_failed"
+    assert meta["backtest_deployable"] is False
+    assert "未通過部署閘門" in meta["reason"]
+    assert "沿用" not in meta["reason"], "版本相同時沒有『沿用上一版』這回事"
+
+
+def test_unavailable_never_carries_a_degradation(monkeypatch):
+    """degradation 是揭露開關；整段不可用時由各介面的不可用文案負責，不得再疊一句告示。"""
+    for exists, load_raises in ((False, False), (True, True)):
+        _patch(monkeypatch, None, ("v2", False), exists=exists, load_raises=load_raises)
+
+        _, meta = pregame_serving.serving_state()
+
+        assert meta["status"] == "unavailable"
+        assert meta["degradation"] is None
 
 
 def test_legacy_artifact_wins_over_unknown_gate(monkeypatch):

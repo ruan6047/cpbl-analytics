@@ -102,9 +102,11 @@ def _pregame_source() -> tuple[dict | None, dict]:
     """載入 outcome_simple artifact → (artifact, availability meta)。缺席不阻塞賽程。
 
     status 由 `pregame_serving.serving_state()` 決定，與 `/api/v1/outcome/pregame` 共用
-    同一份判定：`serving_current`／`serving_previous`／`unavailable`。
-    `serving_previous` 代表最新回測未過閘門、點機率仍來自上一版模型——首頁必須據此揭露，
-    不得無聲照顯（ML-OUTCOME-SIMPLE-LEAK2 紅線 5）。
+    同一份判定：`serving_current`／`serving_previous`／`unavailable`。**要不要揭露看的是
+    `degradation` 而非 status**：`serving_previous` 代表點機率來自上一版模型（或無法證明
+    不是），而 `serving_current` 也可能帶 `serving_gate_failed`——serving 就是最新回測那
+    一版、但那次回測沒過閘門。兩者首頁都必須據此揭露，不得無聲照顯
+    （ML-OUTCOME-SIMPLE-LEAK2 紅線 5）。
     """
     return serving_state()
 
@@ -212,9 +214,9 @@ def daily_summary(
             row["pregame"] = {"status": "unsupported", "home_win_probability": None,
                               "signals": None}
         elif artifact is None:
-            # 逐場欄位沿用既有字彙（artifact_missing／error）。serving_previous 不走這條：
-            # 那時機率仍算得出來（來自上一版模型），降級揭露在 availability.pregame_model，
-            # 不是把每一場都變成無機率。
+            # 逐場欄位沿用既有字彙（artifact_missing／error）。任何帶 degradation 的狀態
+            # 都不走這條：那時機率仍算得出來（來自上一版或未過閘門的模型），降級揭露在
+            # availability.pregame_model，不是把每一場都變成無機率。
             row["pregame"] = {"status": pregame_meta.get("fault") or "error",
                               "home_win_probability": None, "signals": None}
         else:

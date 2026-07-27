@@ -101,7 +101,9 @@ def outcome_simulate(
 def outcome_pregame(limit: int = Query(20, ge=1, le=60)) -> dict:
     """固定語意群賽前勝率；不接受特徵勾選或權重。"""
     # serving＝這份 artifact 是不是最新那一次回測產出的（ML-OUTCOME-SIMPLE-LEAK2）。
-    # serving_previous 代表最新回測未過閘門、機率仍來自上一版模型，前端必須據此揭露。
+    # 前端要不要揭露看 serving["degradation"]（非 null 就要講），不是看 status：
+    # serving_previous 是機率來自上一版模型，serving_current 也可能帶 serving_gate_failed
+    # ——serving 就是最新回測那一版，而那一次回測沒過閘門。
     artifact, serving = serving_state()
     if artifact is None:
         return {"available": False, "reason": serving["reason"], "serving": serving}

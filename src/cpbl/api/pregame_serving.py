@@ -5,13 +5,21 @@ ML-OUTCOME-SIMPLE-LEAK2 紅線 5：閘門未過時 `cpbl-train-outcome-simple` �
 後端明確回傳**、並在首頁與方法頁同時呈現，不得只寫進 log——否則使用者看到的仍是上一版
 模型給的機率，卻沒有任何提示。
 
-三個狀態：
-- `serving_current`  serving artifact 就是最新回測產出的那一版（正常）。
-- `serving_previous` serving 沿用上一版。`degradation` 分辨四種成因，見 `serving_state()`。
+**`status` 與 `degradation` 是兩個正交的維度**，別把它們當成同一件事：
+
+`status` 只回答「serving 是不是最新那一次回測的產出」：
+- `serving_current`  是。
+- `serving_previous` 不是，或無法證明是。
 - `unavailable`      沒有 artifact 或讀不起來，賽前機率整段不提供。
 
-fail-closed：任何無法證明「serving＝最新」的情況一律報 `serving_previous`，
-包含舊格式（無 `version` 欄）的 artifact——它正是去洩漏前訓練出來的那一種。
+`degradation` 才是**揭露與否的唯一開關**（非 null 就要在介面上講）。兩者正交，因為
+`serving_current` 也可能要揭露：`serving_gate_failed`＝serving 確實就是最新回測那一版，
+而那一次回測**沒過閘門**——此時機率正是該次回測那一版模型的輸出，講「沿用上一版」
+反而是假話，但它比沿用上一版更嚴重，絕不能因為 status 正常就靜默（iteration 6 查核 F1）。
+
+fail-closed：任何無法證明「serving＝最新」的情況一律報 `serving_previous`，包含舊格式
+（無 `version` 欄）的 artifact——它正是去洩漏前訓練出來的那一種。反過來說，
+**證明得了「serving＝最新」不等於沒事**，閘門結果是另一個維度。
 """
 
 from __future__ import annotations
@@ -70,11 +78,23 @@ def _latest_backtest() -> LatestBacktest:
 def serving_state() -> tuple[dict | None, dict]:
     """→ (artifact 或 None, serving meta)。meta 一律可序列化，供兩個 router 共用。
 
-    `serving_previous` 的四種成因由下面這個**固定順序**判定，順序本身是「從能證明的
+    先分「serving 是不是最新回測的產出」（版本是否相等），再在各自底下依 `deployable`
+    分流——**版本比對與閘門結果是兩個維度，不是同一條優先序上的兩格**。iteration 6 把
+    它們排成一條序，於是版本相同時吃掉了明確的閘門失敗（查核 F1）。
+
+    版本相等（serving 就是最新回測那一版，`status="serving_current"`）：
+
+    - `deployable is False` → `serving_gate_failed`。**正在提供機率的就是那個沒過閘門的
+      模型**，比沿用上一版更嚴重。status 仍為 `serving_current`（謊報成 previous 就是
+      說假話：機率確實出自最新回測那一版），揭露靠 `degradation`。
+    - `True`／`None` → 無 `degradation`。`None`（閘門結果未知）在此刻意不揭露：serving
+      與最新回測是同一版這件事本身已證明，沒有「使用者看到的不是這一版」的風險。
+
+    版本不等（`status="serving_previous"`）依下列**固定順序**判定，順序是「從能證明的
     事實排到不能證明的」，因為每個判別碼決定前端能說出口的話：
 
     1. `deployable is False` → `gate_failed`。DB 明確記下這次回測沒過閘門，是四者中
-       唯一有正面證據的宣稱，**也是唯一能講「未通過部署閘門」的分支**，故排最前面。
+       唯一有正面證據的宣稱，**也是唯一能講「未通過部署閘門且已沿用上一版」的分支**。
     2. `serving_version is None` → `version_unknown`。這是手上這個 artifact 自身的性質
        （去洩漏前的舊格式），與回測那一側讀不讀得到無關；即使回測側同時未知，
        「serving 沒有版本可比對」仍是更貼近使用者所見那個機率的事實，且其文案本來就
@@ -97,9 +117,19 @@ def serving_state() -> tuple[dict | None, dict]:
     serving_version = artifact.get("version")
     backtest_version, deployable = _latest_backtest()
     if serving_version is not None and serving_version == backtest_version:
-        meta = _meta("serving_current", None, serving_version, backtest_version, deployable)
+        # serving＝最新回測那一版。這仍不足以說「沒事」：那一次回測可能沒過閘門，
+        # 而正在服務的就是它（iteration 6 查核 F1；trainer 正常流程不該產生此狀態，
+        # 但 version 由 int(time.time()) 鑄造會碰撞、並行訓練與資料修復都可能到達，
+        # fail-closed 契約不得建立在「正常流程不會這樣」之上）。
+        meta = _meta(
+            "serving_current",
+            "最新回測未通過部署閘門，而 serving 就是該次回測產出的模型"
+            if deployable is False else None,
+            serving_version, backtest_version, deployable,
+            degradation="serving_gate_failed" if deployable is False else None,
+        )
     elif deployable is False:
-        # **唯一**能宣稱「閘門失敗」的分支。其餘版本不一致與閘門結果無關，
+        # **唯一**能宣稱「閘門失敗且已沿用上一版」的分支。其餘版本不一致與閘門結果無關，
         # 前端若一律講成閘門失敗就是說錯話（ML-OUTCOME-SIMPLE-LEAK2 iteration 2 缺陷）。
         meta = _meta("serving_previous", "最新回測未通過部署閘門，serving 沿用上一版模型",
                      serving_version, backtest_version, deployable,
@@ -130,10 +160,16 @@ def _meta(status: str, reason: str | None, serving_version: str | None,
     """`fault` 只在 `unavailable` 時有值，用既有的**逐場**欄位字彙（`artifact_missing`／
     `error`）表達成因。serving 狀態語彙屬模型層級，不外洩到逐場 pregame 欄位。
 
-    `degradation` 是 `serving_previous` 的成因判別碼（`gate_failed`／`version_unknown`／
-    `backtest_unknown`／`version_mismatch`），供前端選文案。**判別在後端做一次**，前端只做
-    映射——iteration 2 讓前端自己看 status 猜成因，結果三種情形全被講成閘門失敗。
-    新增判別碼時前端必須同步新增 case：其 default 分支刻意只給不含閘門宣稱的中性文案。
+    `degradation` 是降級成因判別碼，也是**介面揭露與否的唯一開關**（非 None 就要講）。
+    它**不限於 `serving_previous`**：`serving_gate_failed` 掛在 `serving_current` 上
+    （serving 就是最新回測那一版，但那一次沒過閘門）。其餘四碼（`gate_failed`／
+    `version_unknown`／`backtest_unknown`／`version_mismatch`）屬 `serving_previous`。
+    `unavailable` 的 degradation 恆為 None——整段不可用由各介面自己的不可用文案負責，
+    不再多疊一句告示。
+
+    **判別在後端做一次**，前端只做映射——iteration 2 讓前端自己看 status 猜成因，結果
+    三種情形全被講成閘門失敗。新增判別碼時前端必須同步新增 case：其 default 分支刻意
+    只給不含閘門宣稱的中性文案。
     """
     return {"status": status, "reason": reason, "serving_version": serving_version,
             "backtest_version": backtest_version, "backtest_deployable": deployable,
