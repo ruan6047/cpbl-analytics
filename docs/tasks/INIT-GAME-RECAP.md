@@ -2,7 +2,7 @@
 
 - 需求方：ruan6047　owner：ruan6047（Design Gate）
 - Discovery：需求方於 2026-07-16 對話確認問題與能力邊界　Design：[`GAME_RECAP_DESIGN_BRIEF.md`](../design/GAME_RECAP_DESIGN_BRIEF.md)（既有 Gate 仍依 DOC-GAME-RECAP1）＋[`PRODUCT_UX_BLUEPRINT.md`](../PRODUCT_UX_BLUEPRINT.md) v0.2 呈現基線　spec 基線：v1.3
-- 目標：讓每日追賽球迷能從隔日結果快速理解比賽轉折，並讓進階數據迷沿 WP 曲線進入可靠的逐打席與逐球分析
+- 目標：讓每日追賽球迷能從隔日結果快速理解**哪幾個打席決定比賽**（ΔRE24 事實優先），並讓進階數據迷由關鍵打席進入逐打席與逐球分析（2026-07-27 v1.3 脊柱改寫：WP 鏈三次 No-Go 後WP 降為收合參考，見 Design Brief v1.3）
 - 非目標：即時轉播、即時通知、ML-SIM2 全場模擬、把 WPA 當球員能力評分
 - 里程碑：資料稽核核可 → WP/PA canonical 契約通過紅線查核 → 賽事頁 Design Gate → 首頁入口整併決策 → 生產驗證
 
@@ -73,3 +73,4 @@ flowchart LR
 - 風險：現行逐球近似鍵可能誤配；在 `GAME-RECAP-PA1` 通過前，UI 不得宣稱逐球屬於精確打席。
 - 2026-07-19 解除：ML-SIM1 已完成跨模型家族複查、合併與 production 驗證且 Ledger 已對帳；`UX-GAME-HOME1`、`UX-OUTCOME-HOME` 與 `API-DAILY-SUMMARY1` 已交付部署（07-18）。首頁賽前區的對帳前置已消除，首頁 v1 入口鏈已完成。
 - 2026-07-27 需求方定位裁定：WP 統計驗證鏈完結（VAL1 unsupported、CAL1 No-Go、STRENGTH1 交付 No-Go 待查核）→ `GAME-RECAP-WP-API1` 由 canonical 契約〔T4〕改寫為參考資訊＋揭露〔T3〕並解除阻塞；WPA 一併提供但標參考。原 canonical 規劃保留為升級路徑（versioned reliability metadata，未來模型通過 v2 門檻即翻升）。下游 `UX-GAME-RECAP1`／`UX-GAME-PA1` 改依 WP-API1 交付解凍。
+- 2026-07-27 需求方逐題裁定（grilling Q1–Q7）：脊柱改 ΔRE24 事實優先、五段骨架、球迷用語沿用、INGEST-PA-DAILY1 升為硬前置（TM Gate3 ~8/7 收窗後派）、TEAM-STYLE1 等 brief 過 Gate 後派。Design Brief v1.3 待 Gate。
