@@ -7,6 +7,7 @@ from fastapi import APIRouter, Query
 from cpbl.api.helpers import DEFAULT_SEASON, _dicts
 from cpbl.api.routers.venues import _NORM_VENUE
 from cpbl.api.rows import _ERA_SPLIT
+from cpbl.api.team_style import team_style_payload
 from cpbl.db import conn
 from cpbl.franchises import FRANCHISE_MAP as _FRANCHISE
 from cpbl.franchises import franchise_of as _franchise_of
@@ -413,6 +414,18 @@ def special_records_endpoint(
     ]
     items.sort(key=lambda x: -(x["natural"][0] + x["artificial"][0]))
     return {"season": season, "items": items}
+
+
+@router.get("/api/v1/teams/{code}/style")
+def team_style(code: str) -> dict:
+    """球隊「球風」七軸（TEAM-STYLE1 凍結口徑）：逐季 z／raw／聯盟排名＋軸級語意
+    標注＋教練時間標記（UX-TEAM-STYLE1）。
+
+    request-time 由 gamelog/games 聚合（唯讀，不建表）；軸計算與研究腳本共用
+    `cpbl.models.team_style`（單一來源）。語意標注與教練標記的界線見
+    `cpbl.api.team_style` docstring。
+    """
+    return team_style_payload(code)
 
 
 @router.get("/api/v1/teams/{code}/der")
