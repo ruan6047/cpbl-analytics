@@ -43,8 +43,9 @@ TEAM-STYLE2 檢定「教練任期分段」假說為 No-Go。球隊頁據此新�
 - **API**：新端點（`/api/v1/season/team-style` 一類，路由快照同步加 EXPECTED）回傳
   指定隊季的七軸 z＋raw＋聯盟排名＋軸級語意標注；唯讀、request-time 由 gamelog/games
   聚合（沿站內 derived-stats-computed-live 慣例），聯盟彙總僅 4–6 隊成本可忽略。
-- **前端**：球隊頁新增「球風」區塊——雷達（走 useChartTheme）＋軸明細（raw＋排名＋
-  語意標注）＋歷史逐季檢視（含教練時間標記）。設計系統遵循 `docs/design/UI_UX_SYSTEM.md`。
+- **前端**：球隊頁新增「球風」**獨立頁籤**（需求方 2026-07-27 執行中裁定，非既有頁籤內區塊）
+  ——雷達（走 useChartTheme）＋軸明細（raw＋排名＋語意標注）＋歷史逐季檢視（含教練時間
+  標記）。沿用現有頁籤機制與 active 樣式紅線；設計系統遵循 `docs/design/UI_UX_SYSTEM.md`。
 - **共用模組抽取**：`scripts/team_style_vectors.py` 的軸計算抽至 `src/cpbl/`，
   腳本與 API 共用。
 
@@ -72,3 +73,4 @@ TEAM-STYLE2 檢定「教練任期分段」假說為 No-Go。球隊頁據此新�
 ## Log
 
 - 2026-07-27 依 ruan6047 指示開卡；設計約束承兩張研究卡定案與需求方呈現裁定。
+- 2026-07-27 需求方執行中裁定：球風改為球隊頁**獨立頁籤**（非區塊）；已轉知執行者，其餘約束不變。
