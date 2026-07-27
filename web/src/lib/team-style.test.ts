@@ -5,10 +5,12 @@ import {
   SEMANTICS_BADGE,
   TEAM_STYLE_COPY,
   TEAM_STYLE_SECTION,
+  buildHistoryVM,
   clampZ,
   formatZ,
   managerRuns,
   outsToIp,
+  tenurePaletteFrom,
   type TeamStyleAxisKey,
   type TeamStyleAxisValue,
 } from "./team-style.ts";
@@ -213,6 +215,71 @@ test("歷史圖文案：raw 模式標明聯盟平均參照；z 退回模式說�
   assert.ok(TEAM_STYLE_SECTION.historyCaption.includes("聯盟平均"));
   assert.ok(TEAM_STYLE_SECTION.historyCaptionZ.includes("複合軸"));
   assert.equal(TEAM_STYLE_SECTION.legendLeague, "聯盟平均");
+});
+
+// —— 歷史圖聯盟基準契約（第四批回歸修復：均線不得靜默消失）——
+
+const makeSeason = (year: number, overrides: Partial<TeamStyleAxisValue> = {}) => {
+  const axes = Object.fromEntries(AXIS_KEYS.map((k) => [k, {
+    ...sampleValue,
+    raw: k === "discipline" ? null : sampleValue.raw,
+    league_raw_mean: k === "discipline" ? null : sampleValue.league_raw_mean,
+    ...overrides,
+  }])) as Record<TeamStyleAxisKey, TeamStyleAxisValue>;
+  return { year, team_code: "AJL011", team_name: "樂天桃猿", n_teams: 6,
+    in_progress: false, manager: null, axes };
+};
+
+test("歷史VM：每一軸恰有一種聯盟基準（raw=均線序列／z=標示 y=0 基準線）", () => {
+  const seasons = [makeSeason(2024), makeSeason(2025)];
+  for (const key of AXIS_KEYS) {
+    const vm = buildHistoryVM(key, seasons);
+    assert.equal(vm.leagueSeries !== vm.zeroBaseline, true,
+      `${key} 必須恰有一種聯盟基準呈現`);
+    assert.equal(vm.baselineLabel, "聯盟平均");
+    if (key === "discipline") {
+      assert.equal(vm.mode, "z");
+      assert.ok(vm.zeroBaseline, "discipline 退回 z 須有標示的 y=0 基準線");
+    } else {
+      assert.equal(vm.mode, "raw");
+      assert.ok(vm.leagueSeries, `${key} raw 模式須渲染聯盟平均序列`);
+      // 均線序列的值＝API 的 league_raw_mean（不得另算）
+      for (const p of vm.points) assert.equal(p.league, p.v.league_raw_mean);
+    }
+  }
+});
+
+test("歷史VM：z 退回模式不帶 league 序列值；點含 tooltip 所需欄位", () => {
+  const vm = buildHistoryVM("discipline", [makeSeason(2024)]);
+  assert.equal(vm.points[0].league, null);
+  assert.equal(vm.points[0].value, vm.points[0].v.z);
+  assert.equal(vm.points[0].n_teams, 6);
+});
+
+// —— 任期色盤：跳過 chart-1（資料線）與 chart-6（中性灰＝參考元素保留）——
+
+test("任期色盤：扣 chart-1 與 chart-6 後輪替；相鄰任期不同色", () => {
+  const series = ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"];
+  const pal = tenurePaletteFrom(series);
+  assert.deepEqual(pal, ["c2", "c3", "c4", "c5", "c7", "c8"]);
+  assert.ok(!pal.includes("c1"), "chart-1 保留給資料折線");
+  assert.ok(!pal.includes("c6"), "chart-6 中性灰保留給聯盟均線等參考元素");
+  // 樂天活證據：2025 古久保健二 → 2026 曾豪駒為兩段（不得延伸前任），色帶不同
+  const runs = managerRuns([
+    { year: 2024, manager: "古久保健二" },
+    { year: 2025, manager: "古久保健二" },
+    { year: 2026, manager: "曾豪駒" },
+  ]);
+  assert.deepEqual(runs, [
+    { name: "古久保健二", from: 2024, to: 2025 },
+    { name: "曾豪駒", from: 2026, to: 2026 },
+  ]);
+  assert.notEqual(pal[0 % pal.length], pal[1 % pal.length]);
+});
+
+test("現任開區間 chip：任期止於進行中賽季 →「名 起–」", () => {
+  assert.equal(TEAM_STYLE_SECTION.managerMarkerLabelOpen("曾豪駒", 2026), "曾豪駒 2026–");
+  assert.equal(TEAM_STYLE_SECTION.managerMarkerLabelOpen("葉君璋", 2021), "葉君璋 2021–");
 });
 
 // —— 純格式化 ——

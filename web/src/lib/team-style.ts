@@ -159,11 +159,13 @@ export const TEAM_STYLE_SECTION = {
   tooltipLeagueLabel: "聯盟平均",
   yearSelectorLabel: "選擇球季",
   axisSelectorLabel: "選擇風格軸",
-  managerFootnote: "總教練名僅作時間標記（起迄＝可判定的任期季）；不可判定年份不標示。",
+  managerFootnote: "總教練名僅作時間標記（起迄＝可判定的任期季；現任開區間）；不可判定年份不標示。",
   emptyState: "該年度尚無球風資料（逐場資料自 2018 年起）。",
   rankLabel: (rank: number, n: number) => `聯盟第 ${rank}（/${n} 隊）`,
   managerMarkerLabel: (name: string, from: number, to: number) =>
     from === to ? `${name} ${from}` : `${name} ${from}–${to}`,
+  /** 現任（任期止於進行中賽季）＝開區間「名 起–」。 */
+  managerMarkerLabelOpen: (name: string, from: number) => `${name} ${from}–`,
   inProgressNote: (years: number[]) => `${years.join("、")} 賽季進行中（空心點）。`,
 } as const;
 
@@ -189,4 +191,64 @@ export function managerRuns(
     else runs.push({ name: s.manager, from: s.year, to: s.year });
   }
   return runs;
+}
+
+/**
+ * 任期身分色輪替色盤：自 `--chart-2` 起，**扣掉 chart-1（資料折線專用）與
+ * chart-6（中性灰槽）**——中性灰在圖表語彙裡保留給參考元素（聯盟均線／基準線
+ * 正是降飽和灰），任期身分色不得與參考元素同色系（需求方裁定）。超出循環。
+ */
+export function tenurePaletteFrom(series: string[]): string[] {
+  return series.filter((_, i) => i !== 0 && i !== 5);
+}
+
+// —— 歷史逐季 view-model（display 層只認此契約；聯盟基準不得靜默消失）——
+
+export type TeamStyleHistoryPoint = {
+  year: number;
+  value: number | null;
+  league: number | null;
+  in_progress: boolean;
+  n_teams: number;
+  v: TeamStyleAxisValue;
+};
+
+export type TeamStyleHistoryVM = {
+  mode: "raw" | "z";
+  points: TeamStyleHistoryPoint[];
+  /** raw 模式：聯盟平均「序列」必須渲染（降飽和點虛線）。 */
+  leagueSeries: boolean;
+  /** z 模式：y=0 基準線必須渲染並標示（z=0 即聯盟平均，語意一致）。 */
+  zeroBaseline: boolean;
+  /** 基準／均線的標示文案（兩模式共用「聯盟平均」）。 */
+  baselineLabel: string;
+};
+
+/**
+ * 歷史逐季圖的 view-model：每一軸**恰有一種**聯盟基準呈現——
+ * raw 模式畫聯盟平均序列、z 退回模式畫標示「聯盟平均」的 y=0 基準線。
+ * 元件必須依此渲染（team-style.test.ts 釘住，防止均線再次靜默消失）。
+ */
+export function buildHistoryVM(
+  axisKey: TeamStyleAxisKey,
+  seasons: TeamStyleSeason[],
+): TeamStyleHistoryVM {
+  const rawMode = TEAM_STYLE_COPY[axisKey].formatRaw != null;
+  return {
+    mode: rawMode ? "raw" : "z",
+    points: seasons.map((s) => {
+      const v = s.axes[axisKey];
+      return {
+        year: s.year,
+        value: rawMode ? v.raw : v.z,
+        league: rawMode ? v.league_raw_mean : null,
+        in_progress: s.in_progress,
+        n_teams: s.n_teams,
+        v,
+      };
+    }),
+    leagueSeries: rawMode,
+    zeroBaseline: !rawMode,
+    baselineLabel: TEAM_STYLE_SECTION.legendLeague,
+  };
 }

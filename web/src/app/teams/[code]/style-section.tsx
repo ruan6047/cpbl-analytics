@@ -21,9 +21,11 @@ import {
   SEMANTICS_BADGE,
   TEAM_STYLE_COPY,
   TEAM_STYLE_SECTION as S,
+  buildHistoryVM,
   clampZ,
   formatZ,
   managerRuns,
+  tenurePaletteFrom,
   type TeamStyleAxisKey,
   type TeamStyleResponse,
 } from "@/lib/team-style";
@@ -61,24 +63,19 @@ export function TeamStyleSection({ data, defaultYear }: {
   const runs = managerRuns(data.seasons);
   const inProgressYears = data.seasons.filter((s) => s.in_progress).map((s) => s.year);
 
-  // 任期標色（需求方第三批裁定）：--chart-2 起輪替（--chart-1 留給資料折線），
-  // 顏色僅作**身分區辨**（非 up/down、非好壞）；圖內背景帶低 alpha 不壓折線。
+  // 任期標色（需求方第三批＋補充裁定）：--chart-2 起輪替，**跳過 chart-1（資料
+  // 折線專用）與 chart-6（中性灰＝參考元素保留：聯盟均線）**；顏色僅作**身分
+  // 區辨**（非 up/down、非好壞）；圖內背景帶低 alpha 不壓折線。
   // 同一教練的顏色在圖內標注／chips／tooltip 三處一致（keyed by 任期段 index）。
-  const tenurePalette = ct.series.slice(1);
+  const tenurePalette = tenurePaletteFrom(ct.series);
   const runColor = (i: number) => tenurePalette[i % tenurePalette.length];
-  // 年 → 任期（判定季才有歸屬；統一 2019／2026 等未判定年無色，維持不標語意）
+  // 年 → 任期（有標記的季才有歸屬；未標年（如統一 2019）無色，維持不標語意）
   const tenureOfYear = new Map<number, { name: string; color: string }>();
   data.seasons.forEach((s) => {
     if (s.manager == null) return;
     const i = runs.findIndex((r) => r.name === s.manager && r.from <= s.year && s.year <= r.to);
     if (i >= 0) tenureOfYear.set(s.year, { name: runs[i].name, color: runColor(i) });
   });
-  // 背景帶右界：與下一任期相接（無未判定間隔）→ 畫到換帥線；否則止於最後判定季
-  // （尾端未判定年不上色）。單季任期後接未判定年 → x1=x2 零寬帶（僅虛線＋chips，誠實退化）。
-  const bandEnd = (i: number) => {
-    const next = runs[i + 1];
-    return next && next.from === runs[i].to + 1 ? next.from : runs[i].to;
-  };
 
   // 圖內教練姓名：375px 下 5+ 任期標籤會疊，窄螢幕（<640px，沿 mobileHide 界線）
   // 只留換帥虛線＋圖下 chips；寬螢幕才在圖內標姓名（僅時間標記，無任何風格文案）。
@@ -94,19 +91,16 @@ export function TeamStyleSection({ data, defaultYear }: {
   // 歷史逐季（需求方 2026-07-27 續審裁定）：畫「原始值」＋同圖疊當季聯盟平均參考線
   // （讓聯盟環境逐年變化看得見，避免把年代效應誤讀成球隊變化）；z 與排名退 tooltip。
   // discipline 複合軸無單一 raw（凍結 spec），該軸退回 z 呈現並以 caption 說明。
+  // 聯盟基準的呈現契約（raw＝均線序列／z＝標示 y=0）由 buildHistoryVM 給定並經
+  // 測試釘住——元件只認 vm，不得自行決定畫不畫（第四批回歸的防再犯）。
   const historyCopy = TEAM_STYLE_COPY[historyAxis];
-  const rawMode = historyCopy.formatRaw != null;
-  const historyData = data.seasons.map((s) => {
-    const v = s.axes[historyAxis];
-    return {
-      year: s.year,
-      value: rawMode ? v.raw : v.z,
-      league: rawMode ? v.league_raw_mean : null,
-      in_progress: s.in_progress,
-      n_teams: s.n_teams,
-      v,
-    };
-  });
+  const vm = buildHistoryVM(historyAxis, data.seasons);
+  const rawMode = vm.mode === "raw";
+  const historyData = vm.points;
+  // 數值 x 軸（year ± 0.5 半格）：任期背景帶才能完整覆蓋起迄年（含單季任期與
+  // 位於時間軸尾端的當季任期——類別軸上零寬畫不出來）；刻度仍逐年。
+  const xMin = Math.min(...years) - 0.5;
+  const xMax = Math.max(...years) + 0.5;
 
   const chip = (active: boolean) =>
     `rounded-full px-2.5 py-1 text-xs transition ${
@@ -207,7 +201,7 @@ export function TeamStyleSection({ data, defaultYear }: {
                 </button>
               ))}
             </div>
-            {/* 兩系列必有 legend（設計系統 §6.3）；z 退回模式為單系列，不需 */}
+            {/* 兩系列必有 legend（設計系統 §6.3）；z 退回模式的基準線在圖內直接標示 */}
             {rawMode && (
               <div className="mb-1 flex items-center gap-3 text-[10px] text-muted">
                 <span className="flex items-center gap-1">
@@ -215,7 +209,7 @@ export function TeamStyleSection({ data, defaultYear }: {
                   {S.legendTeam}
                 </span>
                 <span className="flex items-center gap-1">
-                  <span className="inline-block w-4 border-t border-dashed" style={{ borderColor: ct.faint }} />
+                  <span className="inline-block w-4 border-t-2 border-dotted" style={{ borderColor: ct.muted }} />
                   {S.legendLeague}
                 </span>
               </div>
@@ -223,23 +217,24 @@ export function TeamStyleSection({ data, defaultYear }: {
             <div className="h-64 sm:h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={historyData} margin={{ top: 8, right: 12, bottom: 0, left: rawMode ? -6 : -18 }}>
-                  <XAxis dataKey="year" {...chartAxis(ct)} />
+                  {/* 數值軸＋半格 domain：任期帶覆蓋 from−0.5～to+0.5（單季／尾端當季皆有寬度） */}
+                  <XAxis dataKey="year" type="number" domain={[xMin, xMax]} ticks={years} {...chartAxis(ct)} />
                   {rawMode ? (
                     <YAxis domain={["auto", "auto"]} tickFormatter={historyCopy.formatRaw} {...chartAxis(ct)} />
                   ) : (
                     <YAxis domain={[-2.5, 2.5]} ticks={[-2, -1, 0, 1, 2]} {...chartAxis(ct)} />
                   )}
-                  {!rawMode && <ReferenceLine y={0} stroke={ct.faint} strokeDasharray="4 4" />}
-                  {/* 教練任期：低 alpha 同色背景帶（未判定年不上色）＋換帥年虛線＋
+                  {/* z 退回模式的聯盟基準：z=0 即聯盟平均，標示同一文案（vm 契約，測試釘住）。
+                      樣式與換帥垂直線區辨：基準/均線＝點虛線＋muted；換帥＝短劃線＋lineStrong */}
+                  {vm.zeroBaseline && (
+                    <ReferenceLine y={0} stroke={ct.muted} strokeDasharray="2 4"
+                      label={{ value: vm.baselineLabel, position: "insideTopRight", fill: ct.muted, fontSize: 10 }} />
+                  )}
+                  {/* 教練任期：低 alpha 同色背景帶（未標年不上色）＋換帥短劃線＋
                       （寬螢幕）圖內同色姓名——僅時間標記，無風格文案 */}
                   {runs.map((m, i) => (
-                    bandEnd(i) > m.from && (
-                      <ReferenceArea key={`band-${m.from}`} x1={m.from} x2={bandEnd(i)}
-                        fill={runColor(i)} fillOpacity={0.08} stroke="none" />
-                    )
-                  ))}
-                  {runs.map((m, i) => (
-                    <ReferenceLine key={m.from} x={m.from} stroke={ct.lineStrong} strokeDasharray="3 3"
+                    <ReferenceArea key={`band-${m.from}`} x1={m.from - 0.5} x2={m.to + 0.5}
+                      fill={runColor(i)} fillOpacity={0.08} stroke="none"
                       label={narrow ? undefined : (props) => {
                         const vb = (props as { viewBox?: { x?: number; y?: number } }).viewBox;
                         return (
@@ -249,6 +244,12 @@ export function TeamStyleSection({ data, defaultYear }: {
                           </text>
                         );
                       }} />
+                  ))}
+                  {runs.map((m) => (
+                    m.from - 0.5 > xMin && (
+                      <ReferenceLine key={`chg-${m.from}`} x={m.from - 0.5}
+                        stroke={ct.lineStrong} strokeDasharray="3 3" />
+                    )
                   ))}
                   <Tooltip
                     content={({ active, payload }) => {
@@ -274,10 +275,11 @@ export function TeamStyleSection({ data, defaultYear }: {
                       );
                     }}
                   />
-                  {/* 聯盟平均：降飽和虛線參考系列（跨年可比的誠實性；年代效應可視） */}
-                  {rawMode && (
-                    <Line dataKey="league" stroke={ct.faint} strokeWidth={1.5} strokeDasharray="5 4"
-                      dot={false} isAnimationActive={false} />
+                  {/* 聯盟平均：降飽和**點虛線**參考系列（vm 契約，測試釘住；與換帥
+                      短劃線樣式區辨——跨年可比的誠實性；年代效應可視） */}
+                  {vm.leagueSeries && (
+                    <Line dataKey="league" stroke={ct.muted} strokeWidth={1.5} strokeDasharray="2 4"
+                      strokeLinecap="round" dot={false} isAnimationActive={false} />
                   )}
                   <Line dataKey="value" stroke={color} strokeWidth={2} isAnimationActive={false}
                     dot={(props) => {
@@ -299,7 +301,10 @@ export function TeamStyleSection({ data, defaultYear }: {
                   {runs.map((m, i) => (
                     <span key={m.from} className="rounded px-1.5 py-0.5 tabular-nums"
                       style={{ color: runColor(i), background: `${runColor(i)}1f` }}>
-                      {S.managerMarkerLabel(m.name, m.from, m.to)}
+                      {/* 任期止於進行中賽季＝現任 → 開區間「名 起–」（其餘閉區間） */}
+                      {inProgressYears.includes(m.to)
+                        ? S.managerMarkerLabelOpen(m.name, m.from)
+                        : S.managerMarkerLabel(m.name, m.from, m.to)}
                     </span>
                   ))}
                 </span>
