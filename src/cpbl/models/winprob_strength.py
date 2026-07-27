@@ -1541,6 +1541,16 @@ def _pearson(xs: Sequence[tuple[float, float]]) -> float:
 
 
 # ───────────────────────── Go/No-Go（紅線 4/5；一律未捨入值） ─────────────────────────
+# 條號與規則敘述的**唯一定義處**；報告 §5 由 `verdict.gate_results` 格式化，不得自行複述。
+GATE_RULES: tuple[tuple[str, str], ...] = (
+    ("4a", "任一季 coverage 或 effective coverage < 0.98"),
+    ("4b", "任一季 Brier 未勝主場常數基準"),
+    ("4c", "**任一季 Brier 劣於同代未融合 base**"),
+    ("4d", "池化十分位 n≥1000 且 |dev|>0.03 且 99% CI 排除 0"),
+    ("5a", "池化局帶 n≥1000 且 |dev|>0.03 且 99% CI 排除 0"),
+    ("5b", "單帶 |dev| 惡化 >2pt，或 ≥2 帶各惡化 >1pt"),
+    ("8", "全部預註冊驗證季皆執行"),
+)
 def strength_verdict(season_rows: Sequence[dict], pooled_adj: dict,
                      pooled_bands_base: dict, pooled_bands_adj: dict,
                      *, complete: bool = True) -> dict:
@@ -1561,6 +1571,18 @@ def strength_verdict(season_rows: Sequence[dict], pooled_adj: dict,
     """
     hard: list[str] = []
     disclosure: list[str] = []
+    # 逐條門檻的歸因。`hard` 的內容與順序完全不變（附加而非改寫），另外記下每個
+    # 失敗屬於哪一條，供報告 §5 直接格式化——iteration 5 查核 F1：報告腳本原本
+    # 為了印那張表**重寫了一次門檻邏輯**，四條各有落差（4a 漏 effective coverage、
+    # 4d 漏 |dev| 上限、5a 漏 CI 條件、5b 規則寫反），報告因此可能顯示與真實判定
+    # 相反的結果。判定只能有一條路徑，報告只負責格式化。
+    by_gate: dict[str, list[str]] = defaultdict(list)
+    evidence: dict[str, str] = {}
+
+    def fail(gate: str, message: str) -> None:
+        hard.append(message)
+        by_gate[gate].append(message)
+
     for s in season_rows:
         tag = f"A{s['year']}"
         adj, base, hc = s["adjusted"], s["base"], s["baseline_home_const"]
@@ -1570,13 +1592,13 @@ def strength_verdict(season_rows: Sequence[dict], pooled_adj: dict,
         for label, value in (("coverage", s["coverage_raw"]),
                              ("effective coverage", s["effective_coverage"])):
             if value < THRESHOLDS["min_coverage"]:
-                hard.append(f"{tag} {label} {value:.6f} < {THRESHOLDS['min_coverage']}")
+                fail("4a", f"{tag} {label} {value:.6f} < {THRESHOLDS['min_coverage']}")
         if adj["brier_raw"] >= hc["brier_raw"]:
-            hard.append(f"{tag} 融合後 Brier {adj['brier_raw']:.6f} 未勝主場常數基準 "
-                        f"{hc['brier_raw']:.6f}")
+            fail("4b", f"{tag} 融合後 Brier {adj['brier_raw']:.6f} 未勝主場常數基準 "
+                       f"{hc['brier_raw']:.6f}")
         if adj["brier_raw"] > base["brier_raw"]:
-            hard.append(f"{tag} 融合後 Brier {adj['brier_raw']:.6f} 劣於同代未融合 base "
-                        f"{base['brier_raw']:.6f}")
+            fail("4c", f"{tag} 融合後 Brier {adj['brier_raw']:.6f} 劣於同代未融合 base "
+                       f"{base['brier_raw']:.6f}")
         if adj.get("significant_bins"):
             disclosure.append(f"{tag} 逐季顯著偏差分箱 {adj['significant_bins']}"
                               "（99% 叢集 CI 排除 0）")
@@ -1590,8 +1612,8 @@ def strength_verdict(season_rows: Sequence[dict], pooled_adj: dict,
             continue
         if ci[0] > 0 or ci[1] < 0:
             if abs(d["dev"]) > THRESHOLDS["pooled_bin_dev_max"]:
-                hard.append(f"池化十分位 {b} 偏差 {d['dev']:+.6f} 顯著且超過 "
-                            f"±{THRESHOLDS['pooled_bin_dev_max']}（n={d['n']}）")
+                fail("4d", f"池化十分位 {b} 偏差 {d['dev']:+.6f} 顯著且超過 "
+                           f"±{THRESHOLDS['pooled_bin_dev_max']}（n={d['n']}）")
             else:
                 disclosure.append(f"池化十分位 {b} 偏差 {d['dev']:+.6f} 顯著但幅度受控"
                                   f"（n={d['n']}）")
@@ -1606,25 +1628,55 @@ def strength_verdict(season_rows: Sequence[dict], pooled_adj: dict,
         if (cb["n"] >= STRENGTH_THRESHOLDS["band_min_n"]
                 and abs(cb["dev"]) > STRENGTH_THRESHOLDS["band_dev_max"]
                 and ci is not None and (ci[0] > 0 or ci[1] < 0)):
-            hard.append(f"池化局帶 {b} 偏差 {cb['dev']:+.4f} 顯著且超過 "
-                        f"±{STRENGTH_THRESHOLDS['band_dev_max']}（n={cb['n']}）")
+            fail("5a", f"池化局帶 {b} 偏差 {cb['dev']:+.4f} 顯著且超過 "
+                       f"±{STRENGTH_THRESHOLDS['band_dev_max']}（n={cb['n']}）")
         delta = abs(cb["dev"]) - abs(pb["dev"])
         if delta > STRENGTH_THRESHOLDS["band_worsen_hard_pt"]:
-            hard.append(f"局帶 {b} |dev| 相對同代 base 惡化 {delta * 100:+.1f}pt > 2pt")
+            fail("5b", f"局帶 {b} |dev| 相對同代 base 惡化 {delta * 100:+.1f}pt > 2pt")
         elif delta > STRENGTH_THRESHOLDS["band_worsen_pt"]:
             worsened.append(b)
             disclosure.append(f"局帶 {b} |dev| 相對同代 base 惡化 {delta * 100:+.1f}pt")
     if len(worsened) >= 2:
-        hard.append(f"例行局帶系統性惡化：{worsened} 皆 |dev| 增 >1pt")
+        fail("5b", f"例行局帶系統性惡化：{worsened} 皆 |dev| 增 >1pt")
     if "10+" in raw_adj and "10+" in raw_base:
         disclosure.append(
             f"10+ 帶（含 2024+ 突破僵局，n={raw_adj['10+']['n']}，僅揭露不作判定證據）："
             f"base |dev| {abs(raw_base['10+']['dev']) * 100:.1f}pt → "
             f"融合後 {abs(raw_adj['10+']['dev']) * 100:.1f}pt")
     if not complete:
-        hard.append("部分重跑：未涵蓋全部預註冊驗證季 2023–2026，不得作 Go 證據")
+        fail("8", "部分重跑：未涵蓋全部預註冊驗證季 2023–2026，不得作 Go 證據")
+
+    years = [s["year"] for s in season_rows]
+    evidence["4a"] = "；".join(
+        f"{s['year']} {s['coverage_raw']:.6f}／{s['effective_coverage']:.6f}"
+        for s in season_rows) + "（coverage／effective）"
+    margins = {s["year"]: s["baseline_home_const"]["brier_raw"] - s["adjusted"]["brier_raw"]
+               for s in season_rows}
+    if margins:
+        lo, hi = min(margins, key=margins.get), max(margins, key=margins.get)
+        evidence["4b"] = f"最小優勢 {margins[lo]:.4f}（{lo}）、最大 {margins[hi]:.4f}（{hi}）"
+    evidence["4c"] = "；".join(
+        f"{s['year']} {s['adjusted']['brier_raw'] - s['base']['brier_raw']:+.6f}"
+        for s in season_rows)
+    evidence["4d"] = (f"顯著且超限分箱 {len(by_gate['4d'])} 個"
+                      if by_gate["4d"] else "無分箱同時顯著且 |dev| 超限")
+    band_devs = {b: raw_adj[b]["dev"] for b in REGULATION_BANDS if b in raw_adj}
+    evidence["5a"] = ("；".join(f"{b} {d:+.5f}" for b, d in band_devs.items())
+                      if band_devs else "—")
+    gaps = {b: (abs(raw_adj[b]["dev"]) - abs(raw_base[b]["dev"])) * 100
+            for b in REGULATION_BANDS if b in raw_adj and b in raw_base}
+    evidence["5b"] = ("；".join(f"{b} {g:+.2f}pt" for b, g in gaps.items())
+                      if gaps else "—")
+    evidence["8"] = (f"{min(years)}–{max(years)}（{len(years)} 季）" if years else "無驗證季")
+
     return {"status": "unsupported" if hard else "supported",
-            "reasons": hard, "disclosure": disclosure}
+            "reasons": hard, "disclosure": disclosure,
+            # 報告 §5 直接讀這裡格式化；**不得**在報告端重新判定（iteration 5 查核 F1）。
+            "gate_results": [
+                {"gate": gate, "rule": rule, "passed": not by_gate[gate],
+                 "failures": by_gate[gate], "evidence": evidence.get(gate, "—")}
+                for gate, rule in GATE_RULES
+            ]}
 
 
 # ───────────────────────── CLI ─────────────────────────

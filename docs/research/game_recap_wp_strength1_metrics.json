@@ -55,7 +55,7 @@
  },
  "seed": 20260725,
  "data_as_of": "2026-07-27",
- "generated_at": "2026-07-27T16:07:41+08:00",
+ "generated_at": "2026-07-27T16:32:13+08:00",
  "seasons": [
   {
    "year": 2023,
@@ -2844,7 +2844,7 @@
     "strike_share~bbp": -0.2633
    }
   },
-  "observed_at": "2026-07-27T16:07:41+08:00",
+  "observed_at": "2026-07-27T16:32:13+08:00",
   "as_of_bounded": false,
   "excluded_from_bitwise_compare": "本節不吃 as_of，隨當下全表變動；比對重跑輸出時須與 generated_at 一併排除"
  },
@@ -3711,6 +3711,60 @@
   "disclosure": [
    "A2024 逐季顯著偏差分箱 [9]（99% 叢集 CI 排除 0）",
    "10+ 帶（含 2024+ 突破僵局，n=1193，僅揭露不作判定證據）：base |dev| 0.0pt → 融合後 0.0pt"
+  ],
+  "gate_results": [
+   {
+    "gate": "4a",
+    "rule": "任一季 coverage 或 effective coverage < 0.98",
+    "passed": true,
+    "failures": [],
+    "evidence": "2023 1.000000／1.000000；2024 1.000000／1.000000；2025 1.000000／1.000000；2026 0.986301／0.986301（coverage／effective）"
+   },
+   {
+    "gate": "4b",
+    "rule": "任一季 Brier 未勝主場常數基準",
+    "passed": true,
+    "failures": [],
+    "evidence": "最小優勢 0.0808（2026）、最大 0.0962（2024）"
+   },
+   {
+    "gate": "4c",
+    "rule": "**任一季 Brier 劣於同代未融合 base**",
+    "passed": false,
+    "failures": [
+     "A2023 融合後 Brier 0.147897 劣於同代未融合 base 0.147453",
+     "A2025 融合後 Brier 0.155958 劣於同代未融合 base 0.154478"
+    ],
+    "evidence": "2023 +0.000444；2024 -0.001372；2025 +0.001479；2026 -0.000230"
+   },
+   {
+    "gate": "4d",
+    "rule": "池化十分位 n≥1000 且 |dev|>0.03 且 99% CI 排除 0",
+    "passed": true,
+    "failures": [],
+    "evidence": "無分箱同時顯著且 |dev| 超限"
+   },
+   {
+    "gate": "5a",
+    "rule": "池化局帶 n≥1000 且 |dev|>0.03 且 99% CI 排除 0",
+    "passed": true,
+    "failures": [],
+    "evidence": "1-3 +0.00726；4-6 +0.00588；7-9 +0.00011"
+   },
+   {
+    "gate": "5b",
+    "rule": "單帶 |dev| 惡化 >2pt，或 ≥2 帶各惡化 >1pt",
+    "passed": true,
+    "failures": [],
+    "evidence": "1-3 +0.72pt；4-6 +0.28pt；7-9 -0.05pt"
+   },
+   {
+    "gate": "8",
+    "rule": "全部預註冊驗證季皆執行",
+    "passed": true,
+    "failures": [],
+    "evidence": "2023–2026（4 季）"
+   }
   ]
  }
 }

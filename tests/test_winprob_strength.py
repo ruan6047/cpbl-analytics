@@ -1033,3 +1033,69 @@ def test_as_of_pa_state_counts_drop_games_after_the_cutoff():
 
     assert mine == {"ready": 3, "ready_incomplete_state": 1}
     assert upstream["pa_state_counts"]["ready"] == 5      # 上游看得到界限後的場次
+
+
+# ───────── iteration 5 查核 F1：報告 §5 只能格式化 canonical 判定，不得自行重判 ─────────
+# 報告腳本原本重寫了一次門檻，四條各有落差。判定改為只出自 strength_verdict()，
+# 並輸出結構化 gate_results；以下四支測試釘住那四條落差各自的邊界。
+
+
+def _gate(verdict: dict, gate: str) -> dict:
+    return next(g for g in verdict["gate_results"] if g["gate"] == gate)
+
+
+def test_gate_4a_reads_effective_coverage_not_only_raw():
+    """查核者的原始重現：effective_coverage 0.5、coverage_raw 1.0——報告曾印 ✅ 通過。"""
+    v = strength_verdict([_season(2023, cov=1.0, eff=0.5)], _pooled(),
+                         _bands(CLEAN_BANDS), _bands(CLEAN_BANDS))
+    g = _gate(v, "4a")
+    assert g["passed"] is False
+    assert any("effective coverage" in f for f in g["failures"])
+
+
+def test_gate_4d_needs_both_significance_and_magnitude():
+    """顯著但 |dev| 未超 0.03 只是揭露；兩者同時成立才算 4d 失敗。"""
+    sig_small = strength_verdict([_season(2026)], _pooled([(3, 6000, 0.02, [0.01, 0.03])]),
+                                 _bands(CLEAN_BANDS), _bands(CLEAN_BANDS))
+    assert _gate(sig_small, "4d")["passed"] is True
+    sig_big = strength_verdict([_season(2026)], _pooled([(3, 6000, 0.05, [0.01, 0.09])]),
+                               _bands(CLEAN_BANDS), _bands(CLEAN_BANDS))
+    assert _gate(sig_big, "4d")["passed"] is False
+
+
+def test_gate_5a_needs_the_ci_condition_too():
+    """局帶 |dev| 超 0.03 但 99% CI 含 0 → 不算 5a 失敗（報告版曾漏掉 CI 條件）。"""
+    bands = {"raw": {"1-3": {"n": 5000, "pred": 0.55, "actual": 0.5, "dev": 0.05},
+                     "4-6": {"n": 5000, "pred": 0.5, "actual": 0.5, "dev": 0.0},
+                     "7-9": {"n": 5000, "pred": 0.5, "actual": 0.5, "dev": 0.0}},
+             "boot": {"1-3": {"ci": [-0.02, 0.12]},          # 含 0
+                      "4-6": {"ci": [-0.001, 0.001]}, "7-9": {"ci": [-0.001, 0.001]}}}
+    v = strength_verdict([_season(2026)], _pooled(), _bands(CLEAN_BANDS), bands)
+    assert _gate(v, "5a")["passed"] is True
+    bands["boot"]["1-3"]["ci"] = [0.02, 0.08]                # 排除 0 → 才失敗
+    assert _gate(strength_verdict([_season(2026)], _pooled(), _bands(CLEAN_BANDS), bands),
+                 "5a")["passed"] is False
+
+
+def test_gate_5b_rule_is_one_band_over_2pt_or_two_bands_over_1pt():
+    """報告版把「最大惡化 ≤1pt」當通過條件，等於把單帶 1–2pt 誤判成失敗。"""
+    base = _bands({"1-3": 0.0, "4-6": 0.0, "7-9": 0.0})
+    one_mid = _bands({"1-3": 0.015, "4-6": 0.0, "7-9": 0.0})    # 單帶 +1.5pt → 只揭露
+    assert _gate(strength_verdict([_season(2026)], _pooled(), base, one_mid),
+                 "5b")["passed"] is True
+    one_big = _bands({"1-3": 0.025, "4-6": 0.0, "7-9": 0.0})    # 單帶 +2.5pt → 失敗
+    assert _gate(strength_verdict([_season(2026)], _pooled(), base, one_big),
+                 "5b")["passed"] is False
+    two_mid = _bands({"1-3": 0.015, "4-6": 0.015, "7-9": 0.0})  # 兩帶各 +1.5pt → 失敗
+    assert _gate(strength_verdict([_season(2026)], _pooled(), base, two_mid),
+                 "5b")["passed"] is False
+
+
+def test_gate_results_cover_every_rule_and_agree_with_reasons():
+    """gate_results 必須涵蓋全部條號，且其 failures 的聯集恰等於 reasons（不多不少）。"""
+    from cpbl.models.winprob_strength import GATE_RULES
+    v = strength_verdict([_season(2023, adj=0.17, base=0.16), _season(2026, cov=0.90)],
+                         _pooled(), _bands(CLEAN_BANDS), _bands(CLEAN_BANDS), complete=False)
+    assert [g["gate"] for g in v["gate_results"]] == [gid for gid, _ in GATE_RULES]
+    flattened = [f for g in v["gate_results"] for f in g["failures"]]
+    assert sorted(flattened) == sorted(v["reasons"])

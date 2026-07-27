@@ -82,19 +82,36 @@ def test_every_numeric_table_is_accounted_for():
         + "\n".join(unclassified))
 
 
-def test_cal1_band_figures_are_consistent():
-    """§6.4 的質性對照表引用了 CAL1 局帶數字；它必須與 generated:cal1_contrast 同源。
+def test_report_does_not_re_judge_the_hard_gates():
+    """§5 只能格式化 `verdict.gate_results`，不得自行重新判定（iteration 5 查核 F1）。
 
-    iteration 5 發現 §4.3 引 isotonic（−2.41pt）而 §6.4 引 beta（≈2.6pt），兩處各引一個
-    校準器且都沒說明——本測試把「表格未產生」的例外收斂成「數字仍須一致」。
+    做法：把 artifact 的 gate_results 竄改成「4a 失敗」而不動任何底層數字。報告若仍照
+    coverage 自己算一次，就會印成通過——那正是 iteration 5 的缺陷。
     """
     gen = _generator()
-    _, iso_pt = gen.cal1_band_contrast()
-    figure = f"{iso_pt:+.2f}".replace("-", "−") + "pt"
-    report = REPORT.read_text(encoding="utf-8")
-    section = report[report.index("## §6.4") if "## §6.4" in report
-                     else report.index("### 6.4"):]
-    assert figure in section, f"§6.4 未引用與 artifact 一致的 CAL1 局帶偏差 {figure}"
+    artifact = json.loads(ARTIFACT.read_text(encoding="utf-8"))
+    for gate in artifact["verdict"]["gate_results"]:
+        if gate["gate"] == "4a":
+            gate["passed"] = False
+            gate["failures"] = ["（測試注入）A2023 effective coverage 0.500000 < 0.98"]
+    row = next(r for r in gen.hard_gate_block(artifact) if r.startswith("| 4a"))
+    assert "❌" in row and "測試注入" in row, f"報告未反映 gate_results，實得：{row}"
+
+
+def test_ungenerated_allowlist_reasons_are_structural():
+    """allowlist 的理由必須是可檢查的結構性性質，不得是「已由某測試釘住」這類宣稱。
+
+    iteration 5 用一句未經驗證的宣稱豁免了 §6.4（聲稱唯二數字皆已釘住，實際只釘了一個，
+    查核者把另一個改成 +9.99pt 三道檢查全放行）。理由字串本身就是宣稱，會被相信而不被驗證。
+    """
+    gen = _generator()
+    # 豁免理由只能說「這張表結構上不含 artifact 數值」，不能說「另有東西保證它正確」。
+    claim_words = ("釘住", "保證", "已驗證", "已對帳")
+    for header, reason in gen.UNGENERATED_TABLES.items():
+        offending = [w for w in claim_words if w in reason]
+        assert not offending, (
+            f"{header} 的豁免理由訴諸另一道保證（{offending}），"
+            f"那是未經驗證的宣稱而非結構性性質：{reason}")
 
 
 def test_generator_detects_a_stale_number():

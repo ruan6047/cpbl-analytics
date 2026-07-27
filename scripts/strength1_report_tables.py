@@ -40,9 +40,6 @@ CAL1_ARTIFACT = ROOT / "docs/research/game_recap_wp_cal1_metrics.json"
 UNGENERATED_TABLES = {
     "| # | 紅線 | 落地位置 | 驗證 |":
         "§1 紅線對照：內容是設計敘述與測試名稱，無 artifact 數值",
-    "| | WP-CAL1（事後校準） | WP-STRENGTH1（戰力先驗） |":
-        "§6.4 質性機制對照；其唯一兩個數字與 generated:cal1_contrast 同源，"
-        "由 test_cal1_band_figures_are_consistent 釘住一致",
 }
 
 
@@ -334,44 +331,30 @@ def selection_block(a: dict) -> list[str]:
 
 
 def hard_gate_block(a: dict) -> list[str]:
-    """§5 逐條硬門檻。判定與證據全部由 artifact 推導，不得人工敘述。"""
-    seasons = sorted(a["seasons"], key=lambda s: s["year"])
-    v, p = a["verdict"], a["pooled"]
-    worse = [s for s in seasons if s["adjusted"]["brier_raw"] > s["base"]["brier_raw"]]
-    margins = {s["year"]: s["baseline_home_const"]["brier_raw"] - s["adjusted"]["brier_raw"]
-               for s in seasons}
-    lo = min(margins, key=lambda y: margins[y])
-    hi = max(margins, key=lambda y: margins[y])
-    cov = "；".join(f"{s['year']} {_num(s['coverage_raw'])}" for s in seasons)
-    bands = a["pooled_inning_bands"]
-    worst_pt = max(abs(bands["adj"]["raw"][b]["dev"]) * 100
-                   for b in bands["adj"]["raw"] if b != "10+")
-    worst_gap = max((abs(bands["adj"]["raw"][b]["dev"]) - abs(bands["base"]["raw"][b]["dev"])) * 100
-                    for b in bands["adj"]["raw"] if b != "10+")
-    fail = "；".join(
-        f"{s['year']} {_num(s['adjusted']['brier_raw'] - s['base']['brier_raw'], signed=True)}"
-        for s in worse)
-    ok = lambda cond: "✅ 通過" if cond else "❌ **失敗**"  # noqa: E731
+    """§5 逐條硬門檻——**純格式化** `verdict.gate_results`，不在此處做任何判定。
+
+    iteration 5 版為了印這張表把門檻邏輯重寫了一次，四條各與 `strength_verdict()` 不等價
+    （4a 漏 effective coverage、4d 漏 |dev| 上限、5a 漏 CI 條件、5b 規則寫反），報告因此
+    可能顯示與真實判定相反的結果（查核 F1 實測：effective_coverage 改 0.5 仍印 ✅）。
+    判定只能有一條路徑；本函式現在只會把已判好的結果排版。
+    """
+    gates = a["verdict"]["gate_results"]
+    rows = []
+    for g in gates:
+        n_fail = len(g["failures"])
+        mark = "✅ 通過" if g["passed"] else "❌ **失敗**" + (f" ×{n_fail}" if n_fail > 1 else "")
+        detail = "；".join(g["failures"]) if g["failures"] else g["evidence"]
+        rule = g["rule"].replace("|dev|", "\\|dev\\|")
+        rows.append(f"| {g['gate']} | {rule} | {mark} | {detail} |")
+    failed = [g for g in gates if not g["passed"]]
     return [
         "| 條 | 門檻 | 判定 | 證據 |",
         "|---|---|---|---|",
-        f"| 4a | 任一季 coverage 或 effective coverage < 0.98 | "
-        f"{ok(all(s['coverage_raw'] >= 0.98 for s in seasons))} | {cov} |",
-        f"| 4b | 任一季 Brier 未勝主場常數基準 | {ok(all(m > 0 for m in margins.values()))} | "
-        f"最小優勢 {margins[lo]:.4f}（{lo}）、最大 {margins[hi]:.4f}（{hi}） |",
-        f"| 4c | **任一季 Brier 劣於同代未融合 base** | "
-        f"{ok(not worse)}{f' ×{len(worse)}' if worse else ''} | {fail or '—'} |",
-        f"| 4d | 池化十分位 n≥1000 且 \\|dev\\|>0.03 且 CI 排除 0 | "
-        f"{ok(not p['adj'].get('significant_bins'))} | 見 §6.3 但書 |",
-        f"| 5a | 池化局帶 n≥1000 且 \\|dev\\|>0.03 且 CI 排除 0 | {ok(worst_pt <= 3.0)} | "
-        f"三帶 \\|dev\\| ≤ {worst_pt:.2f}pt |",
-        f"| 5b | 單帶 \\|dev\\| 惡化 >2pt，或 ≥2 帶各惡化 >1pt | {ok(worst_gap <= 1.0)} | "
-        f"最大 {worst_gap:+.2f}pt |",
-        f"| 8 | 全部預註冊驗證季皆執行 | {ok(len(seasons) == 4)} | "
-        f"{seasons[0]['year']}–{seasons[-1]['year']} |",
+        *rows,
         "",
-        f"**任一硬門檻失敗即 No-Go**。本次失敗 {len(worse)} 項（4c）→ "
-        f"**{'No-Go' if v['status'] == 'unsupported' else v['status']}**。",
+        f"**任一硬門檻失敗即 No-Go**。本次失敗 {len(failed)} 條"
+        + (f"（{'、'.join(g['gate'] for g in failed)}）" if failed else "")
+        + f" → **{'No-Go' if a['verdict']['status'] == 'unsupported' else a['verdict']['status']}**。",
     ]
 
 
@@ -382,6 +365,35 @@ def cal1_contrast_block(a: dict) -> list[str]:
         f"**對照 CAL1**：事後校準（定案的 isotonic）當時把 1-3 帶從 "
         f"{_num(base_pt, digits=2, signed=True)}pt 惡化到 "
         f"{_num(iso_pt, digits=2, signed=True)}pt，超過 2pt 硬性上限。",
+    ]
+
+
+def cal1_mechanism_block(a: dict) -> list[str]:
+    """§6.4 CAL1 vs STRENGTH1 的機制對照表。
+
+    iteration 5 把整張表列為 `UNGENERATED_TABLES` 例外，理由字串聲稱「唯二數字已由測試釘住」
+    ——但那支測試只驗了 isotonic 的 −2.41pt，沒驗 base 的 −0.10pt，查核者把 base 改成 +9.99pt
+    三道檢查全部放行（查核 F2）。**用一句未經驗證的宣稱去豁免一張表**，正是本卡反覆犯的錯。
+    整張表改為產生，兩個數字都出自 CAL1 artifact。
+    """
+    base_pt, iso_pt = cal1_band_contrast()
+    seasons = a["seasons"]
+    worst_gap = max(
+        (abs(a["pooled_inning_bands"]["adj"]["raw"][b]["dev"])
+         - abs(a["pooled_inning_bands"]["base"]["raw"][b]["dev"])) * 100
+        for b in a["pooled_inning_bands"]["adj"]["raw"] if b != "10+")
+    worse = sum(1 for s in seasons if s["adjusted"]["brier_raw"] > s["base"]["brier_raw"])
+    return [
+        "| | WP-CAL1（事後校準） | WP-STRENGTH1（戰力先驗） |",
+        "|---|---|---|",
+        f"| 失敗形態 | 修正**有力但方向錯**：池化分箱修平了，卻把 1-3 局帶從 "
+        f"{_num(base_pt, digits=2, signed=True)}pt 破壞到 {_num(iso_pt, digits=2, signed=True)}pt"
+        f"（定案的 isotonic，超過 2pt 硬性上限） | 修正**方向對但沒有力**：局帶完好無損"
+        f"（最大惡化僅 {_num(worst_gap, digits=2, signed=True)}pt），"
+        f"但四季中 {worse} 季 Brier 反而變差 |",
+        "| 根因 | 校準窗與驗證季分屬不同世代 base，學到的中心修正已過時（不具時間平穩性） | "
+        "賽前可得資訊在時間外幾乎不含增量預測力 |",
+        "| 共同教訓 | 內部窗指標會為有害／無效的層背書；**唯一防線是嵌套時間外驗證＋逐局帶硬門檻** | 同左 |",
     ]
 
 
@@ -429,6 +441,7 @@ BLOCKS = {
     "hard_gates": hard_gate_block,
     "cal1_contrast": cal1_contrast_block,
     "deciles": decile_block,
+    "cal1_mechanism": cal1_mechanism_block,
     "ablation": ablation_block,
     "p0_diagnostics": p0_block,
     "prior_signal_diagnostics": prior_diag_block,
