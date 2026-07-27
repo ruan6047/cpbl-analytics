@@ -6,6 +6,16 @@
 - 非目標：即時轉播、即時通知、ML-SIM2 全場模擬、把 WPA 當球員能力評分
 - 里程碑：資料稽核核可 → WP/PA canonical 契約通過紅線查核 → 賽事頁 Design Gate → 首頁入口整併決策 → 生產驗證
 
+## Gate 里程碑與驗收
+
+- [x] 資料稽核核可（GAME-RECAP-DATA1）
+- [x] WP/PA canonical 契約通過紅線查核（GAME-RECAP-PA1／WP-VAL1）
+- [x] 賽事頁 Design Gate（**v1.3 於 2026-07-27 核可**：ΔRE24 事實優先脊柱）
+- [ ] 首頁入口整併決策
+- [ ] 生產驗證（UX-GAME-RECAP1／UX-GAME-PA1 上線後）
+
+Initiative 本身不直接驗收交付物；各子卡依自身卡面驗收，本節只追蹤 Gate 狀態。
+
 ## 依賴與子卡
 
 ```mermaid

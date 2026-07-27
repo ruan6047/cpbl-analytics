@@ -40,6 +40,40 @@ def test_active_cards_with_new_lifecycle_events_have_review_sections() -> None:
     )
 
 
+def test_statistical_t4_cards_have_a_redline_section() -> None:
+    """🔴統計卡必須在**卡面**列「紅線（違反即退回）」章節（canonical §5）。
+
+    TEAM-STYLE1 iteration 1 的教訓：預註冊 spec 齊全、研究內容零缺陷，仍因卡面
+    缺紅線章節被整輪跨家族查核退回——開卡時的 canonical 對照原本沒有守衛，
+    靠 Coordinator 記得，而已經忘過兩次（LEAK2 的 T3→T4 誤分級是同型）。
+    範圍同上一支測試（守門生效後有 lifecycle event 的活卡），加一個條件：
+    卡面標題帶 🔴統計 標記者，必須另有標題含「紅線」的章節。
+    """
+    events = _events()
+    start = next(
+        index for index, event in enumerate(events) if event["event_id"] == ENFORCEMENT_EVENT_ID
+    )
+    affected = {str(event["card_id"]) for event in events[start:]}
+    latest = {str(event["card_id"]): event for event in events}
+    missing = []
+    for card_id in sorted(affected):
+        if latest[card_id]["delivery_status"] == "🏁完成":
+            continue
+        path = ROOT / "docs" / "tasks" / f"{card_id}.md"
+        if not path.exists():
+            continue  # 已封存（archive 由結案流程對帳）
+        text = path.read_text(encoding="utf-8")
+        title = text.splitlines()[0] if text else ""
+        if "🔴統計" not in title:
+            continue
+        if not review_prompt.card_sections(card_id, ("紅線",)):
+            missing.append(card_id)
+    assert not missing, (
+        "🔴統計卡必須在卡面列「紅線（違反即退回）」章節（canonical §5），"
+        f"缺少：{', '.join(missing)}"
+    )
+
+
 def test_ci_web_job_runs_contract_tests() -> None:
     workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     web_job = workflow.split("  web:\n", maxsplit=1)[1]
