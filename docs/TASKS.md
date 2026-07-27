@@ -35,7 +35,7 @@
 | [UX-LIVE-GAME1](tasks/UX-LIVE-GAME1.md) | INIT-PRODUCT-UX | T3 | 賽前情報到比賽中狀態板 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-26T17:29:31+08:00 |
 | [UX-TEAM-FIELD-HIST1](tasks/UX-TEAM-FIELD-HIST1.md) | INIT-PRODUCT-UX | T3 | 球隊頁歷史年守備位置圖（union fielding_seasons） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:36:00+08:00 |
 | [UX-TEAM-FOCUS2](tasks/UX-TEAM-FOCUS2.md) | INIT-PRODUCT-UX | T3 | 球隊頁「近日焦點」頁籤內容擴充 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:37:00+08:00 |
-| [UX-TEAM-STYLE1](tasks/UX-TEAM-STYLE1.md) | INIT-PRODUCT-UX | T3 | 球隊頁「球風」區塊 | 獨立查核者 | `ai/opus-5/UX-TEAM-STYLE1 @ .claude/worktrees/ux-team-style1-execution` | 2 | 🔍待查核 | ⏸未部署 | 2026-07-27T21:39:33+08:00 |
+| [UX-TEAM-STYLE1](tasks/UX-TEAM-STYLE1.md) | INIT-PRODUCT-UX | T3 | 球隊頁「球風」區塊 | Coordinator（部署中） | `ai/opus-5/UX-TEAM-STYLE1 @ .claude/worktrees/ux-team-style1-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-27T21:45:39+08:00 |
 
 ## 依賴與資源註記
 
