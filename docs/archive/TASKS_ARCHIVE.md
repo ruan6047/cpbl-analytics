@@ -4,6 +4,7 @@
 
 | 卡ID | 功能 | 交付狀態 | 部署狀態 | 封存位置 |
 |---|---|---|---|---|
+| ML-WP-BIO-PRIOR1 | WP 賽前先驗 bio 方向研究 spike | 🏁完成 | —不適用 | [`tasks/ML-WP-BIO-PRIOR1.md`](tasks/ML-WP-BIO-PRIOR1.md)（T3 輕量研究層第一張試跑卡；Gemini 3.6 Flash 獨立查核 APPROVE 零阻塞；merge `ac06535`；**Go**——bio 三項（先發年紀差／身分差／年資差）＋隊伍四項的賽前先驗 p0 三判準同時成立：池化 Brier 0.240666 < 主場常數 0.245949、Δ=−0.005283 的 99% CI [−0.009116, −0.001548] 排除 0、2026 非顯著反向（+0.006116，CI 含 0，帶方向警訊）；查核者覆核 `ablation.team_only` 確認增量歸因於 bio；**不融合不上線**，升級卡前置＝F-01 對照臂改用 team_only、F-02 先補 14 位缺 country/birthday 洋將再重估 2026） |
 | GAME-RECAP-WP-API1 | WP／WPA 參考資訊 API（揭露語意） | 🏁完成 | ✅已驗證 | [`tasks/GAME-RECAP-WP-API1.md`](tasks/GAME-RECAP-WP-API1.md)（T3；原 canonical 契約〔T4〕經 2026-07-27 需求方定位改寫為參考資訊＋揭露而解除統計阻塞；Gemini 3.6 Flash (High) APPROVE 零阻塞；merge `5e4de5a`（--no-ff 被 rebase 線性化，記線性尾端）；主站 `302ca9e` 部署驗證：/recap-wp 77 打席、開局 0.5253→終場 1.0、wp_reliability 與報告事實一致；解鎖 UX-GAME-RECAP1／UX-GAME-PA1；spec §8.2 修訂與 model_built_at=null 經需求方核可） |
 | UX-WP-DISCLOSURE1 | 賽況頁 WP 曲線誠實註記 | 🏁完成 | ✅已驗證 | [`tasks/UX-WP-DISCLOSURE1.md`](tasks/UX-WP-DISCLOSURE1.md)（T3；需求方人工審核通過＋獨立查核 APPROVE 零阻塞；merge `c7a4db5`；主站 `302ca9e` 部署驗證：/methodology 新節生效、賽況頁 caption 經瀏覽器 DOM 確認；ISR Low finding 實測未成問題——容器重建重置快取；STRENGTH1 結案後文案可升級為「兩度嘗試皆未修復」） |
 | GAME-RECAP-WP-CAL1 | 場中 WP 事後校準層 | 🏁完成 | —不適用 | [`tasks/GAME-RECAP-WP-CAL1.md`](tasks/GAME-RECAP-WP-CAL1.md)（T4🔴統計；Gemini 3.6 Flash 跨家族 APPROVE；merge `1b7188c`；A scope 校準層 unsupported（No-Go）——校準修正不具時間平穩性、WP-API1 A 範圍維持阻塞；isotonic/beta 兩族同向；後續路徑見 research 報告 §7） |

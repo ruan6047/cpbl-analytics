@@ -55,3 +55,5 @@ deliverable ＝ `docs/research/` 短 memo（1–2 頁）＋可重跑腳本。
 ## Log
 
 - 2026-07-27 依 ruan6047 指示開卡（顆粒度調整：輕量研究層試跑第一張；繼續 WP 先驗方向的最低成本驗證）。Coordinator register 併同 commit。
+- 2026-07-28 查核 APPROVE 零阻塞（Google Gemini 3.6 Flash 獨立 session；ruff clean／pytest 728 passed／artifact 重跑 bitwise 相同／C1–C3 逐條 PASS／預註冊時序 git 可證）。需求方授權後 `--no-ff` merge `ac06535`，免部署卡 release 即 🏁完成。兩項 Low finding（F-01 對照臂改用 STRENGTH1 `ablation.team_only`；F-02 2025→2026 fit 窗的錯誤身分旗標傳播鏈）依查核者建議轉為融合／升級卡前置紀錄項，不在本卡再開一輪。
+
