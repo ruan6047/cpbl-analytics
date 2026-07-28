@@ -13,6 +13,7 @@ import pytest
 from cpbl.models.scoreless_streak import (
     BREAK_EARNED_RUN,
     BREAK_MISSING_LINE,
+    BREAK_POSTSEASON_EARNED_RUN,
     BREAK_SUSPENDED,
     SUSPENDED,
     Appearance,
@@ -26,8 +27,8 @@ PID = "P1"
 OTHER = "P2"
 
 
-def app(day: int, er: int | None, outs: int | None = 3, **kw) -> Appearance:
-    return Appearance(year=2026, kind_code="A", game_sno=day, game_date=date(2026, 5, day),
+def app(day: int, er: int | None, outs: int | None = 3, kind: str = "A", **kw) -> Appearance:
+    return Appearance(year=2026, kind_code=kind, game_sno=day, game_date=date(2026, 5, day),
                       earned_runs=er, outs=outs, **kw)
 
 
@@ -114,6 +115,63 @@ def test_empty_appearances():
     res = compute_streak([])
 
     assert (res.outs, res.strict_outs, res.boundary_limited) == (0, 0, False)
+
+
+# --------------------------------------------------------------------------
+# 賽別範圍：只算例行賽；季後賽乾淨跳過、掉分中斷
+# --------------------------------------------------------------------------
+
+def test_postseason_innings_are_never_counted():
+    """季後賽局數不計入例行賽紀錄（需求方裁定：只算例行賽）。"""
+    res = compute_streak([app(1, 0), app(2, 0, kind="C"), app(3, 0)], counted_kinds=("A",))
+
+    assert res.strict_outs == 6                      # 只有兩場 A，C 那場不算
+    assert [a.kind_code for a in res.skipped] == ["C"]
+
+
+def test_clean_postseason_appearance_does_not_break():
+    """季後賽 ER=0 → 跳過：不計局數，但也沒有中斷這條紀錄的理由。"""
+    res = compute_streak([app(1, 0), app(2, 0, kind="E"), app(3, 0)], counted_kinds=("A",))
+
+    assert res.break_reason is None
+    assert res.boundary_limited is True
+    assert res.strict_outs == 6
+    # 跳過的場次必須留存，供 API 揭露——不做沉默跳過。
+    assert [a.key for a in res.skipped] == [(2026, "E", 2)]
+
+
+def test_postseason_earned_run_breaks_the_streak():
+    """季後賽掉自責分 → 中斷。
+
+    一律跳過會產生「紀錄橫跨一場他被打爆的台灣大賽」的輸出；中斷才讓本值同時是
+    「只算例行賽」與「一軍所有比賽都算」**兩種讀法的下界**（紅線 2）。
+    """
+    res = compute_streak([app(1, 0), app(2, 3, kind="C"), app(3, 0), app(4, 0)],
+                         counted_kinds=("A",))
+
+    assert res.strict_outs == 6                      # 只剩 C 之後的兩場
+    assert res.break_reason == BREAK_POSTSEASON_EARNED_RUN
+    assert res.break_key == (2026, "C", 2)
+
+
+def test_postseason_break_takes_no_tail():
+    """季後賽中斷不取尾段——那場的局數本來就不計入例行賽紀錄。"""
+    called = []
+
+    def spy(a):
+        called.append(a.key)
+        return None
+
+    compute_streak([app(1, 2, kind="C"), app(2, 0)], tail_lookup=spy, counted_kinds=("A",))
+
+    assert called == []
+
+
+def test_counted_kinds_none_counts_everything():
+    """未指定 counted_kinds 時退回「全賽別都計入」，供純演算法測試使用。"""
+    res = compute_streak([app(1, 0), app(2, 0, kind="C")])
+
+    assert res.strict_outs == 6 and res.skipped == []
 
 
 # --------------------------------------------------------------------------

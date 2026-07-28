@@ -59,11 +59,25 @@ def test_every_counted_appearance_is_officially_er_zero():
     by_player, _ = load_appearances(["A", "E", "C"])
     if not by_player:
         pytest.skip("無出賽資料")
-    results = compute_all(by_player)
+    results = compute_all(by_player, ("A",))
 
     for pid, res in results.items():
         for a in res.counted:
             assert a.earned_runs == 0, f"{pid} {a.key} 官方 ER={a.earned_runs} 卻被採計"
+            assert a.kind_code == "A", f"{pid} {a.key} 非例行賽卻被計入局數"
+        for a in res.skipped:
+            assert a.earned_runs == 0 and a.kind_code != "A"
+
+
+def test_scope_is_regular_season_only():
+    """需求方裁定：只計例行賽局數；季後賽仍在載入範圍內（乾淨跳過、掉分中斷）。"""
+    d = _get(f"{PATH}?limit=5")
+
+    assert d["kinds_counted"] == ["A"]
+    assert set(d["kinds_in_scope"]) >= {"A", "E", "C"}
+    assert "例行賽" in d["scope_note"] and "季後賽" in d["scope_note"]
+    for i in d["items"]:
+        assert i["skipped_postseason_appearances"] == len(i["skipped_postseason_games"])
 
 
 def test_boundary_note_present_exactly_when_limited():

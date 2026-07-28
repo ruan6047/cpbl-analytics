@@ -34,14 +34,42 @@
 | 半局是全場最後一個半局（可能因再見／保護傘提前結束，無法證明有三出局） | 只採計最後一列的 `out_cnt`（打席前出局數）作下界 |
 | 走完所有可得出賽仍未中斷 | `boundary_limited=True`（紅線 4：`game_livelog`／`pitching_gamelog` 皆僅 2018+，不得沉默截斷） |
 
+## 賽別範圍：只算例行賽，季後賽「乾淨跳過、掉分中斷」
+
+需求方裁定（2026-07-28）：本紀錄**只計例行賽局數**（一軍 A／二軍 D），不沿用
+`KIND_GROUPS` 把季後賽併入同層。理由是 MLB／NPB 慣例即連續紀錄只算例行賽，使用者
+手邊的媒體數字也是這個口徑，混入季後賽會被當成算錯。
+
+跨季時中間的季後賽出賽（一軍 E／C、二軍 F）依 `counted_kinds` 之外的規則處理：
+
+| 季後賽出賽 | 處理 | 為什麼 |
+|---|---|---|
+| 官方 `earned_runs = 0` | **跳過**：局數不計入，也不中斷 | 它不屬於本紀錄的母體，沒有中斷它的理由 |
+| 官方 `earned_runs > 0` | **中斷**（`BREAK_POSTSEASON_EARNED_RUN`） | 見下 |
+
+**為什麼掉分要中斷、而不是一律跳過**（此為執行者裁定，理由留痕）：
+
+1. **紅線 2 的方向**。這條規則下的值同時是「只算例行賽（季後賽全跳過）」與「一軍所有
+   比賽都算」**兩種讀法的下界**——任一讀法下都不會高估。一律跳過則只在前一種讀法下
+   成立，遇到第二種讀法就是高估。
+2. **可理解性**。一律跳過會產生「這條連續紀錄橫跨一場他被打爆的台灣大賽」的輸出，
+   讀者無法接受，而本專案的產品價值在透明與教育。
+3. **不變式好講也好驗**。此規則下「起算場之後、該投手在**任何**一軍賽別的出賽都沒有
+   自責分」恆為真，是可窮舉驗證的強陳述（對帳 R7）。
+
+被跳過的出賽以 `StreakResult.skipped` 留存，並經 API 對外揭露（`skipped_postseason_*`），
+讓讀者知道紀錄中間發生過什麼——不做沉默跳過。
+
 ## 兩個值（兩種對帳基礎，皆為下界）
 
 - `strict_outs`：只由**官方 ER=0 的整場出賽**組成。宣稱的每一局，其所屬出賽的官方
-  `earned_runs` 必為 0 ——即卡面紅線 3 的字面對帳基礎。
-- `outs`：`strict_outs` ＋ 中斷那場的尾段半局。尾段每一個半局都另以「整個半局零得分」
-  獨立證明（比 ER=0 更強的證據：連非自責分都沒有）。
+  `earned_runs` 必為 0 ——即卡面紅線 3 的**字面**對帳基礎（出賽層級的粒度）。
+- `outs`：`strict_outs` ＋ 中斷那場的尾段半局。尾段的每一個半局另以**半局層級**的
+  更強證明滿足紅線 3 的**意圖**：「整個半局、不分投手、零得分」⇒ 沒有任何分數存在
+  可被判給任何人 ⇒ 對本投手零自責分。這比「該場 ER=0」更緊（連非自責分都沒有），
+  並同時繞開自責／非自責分野與 9.16(g) 繼承跑者歸屬。
 
-兩者各有窮舉對帳（`scripts/reconcile_scoreless_streak.py` 的 R1／R2），皆零例外。
+兩者各有獨立的窮舉對帳（`scripts/reconcile_scoreless_streak.py` 的 R1／R2），皆零例外。
 """
 
 from __future__ import annotations
@@ -68,6 +96,7 @@ SUSPENDED = "保留"
 
 # 回走中斷原因（對外原樣輸出，前端可直接對照）
 BREAK_EARNED_RUN = "earned_run_allowed"
+BREAK_POSTSEASON_EARNED_RUN = "postseason_earned_run_allowed"
 BREAK_SUSPENDED = "suspended_game_uncertain"
 BREAK_MISSING_LINE = "missing_official_line"
 BREAK_NONE = None
@@ -149,6 +178,7 @@ class StreakResult:
     outs: int = 0
     strict_outs: int = 0
     counted: list[Appearance] = field(default_factory=list)   # ER=0 整場出賽（新→舊）
+    skipped: list[Appearance] = field(default_factory=list)   # 跳過的季後賽出賽（新→舊）
     tail: TailCredit | None = None
     boundary_limited: bool = False
     break_reason: str | None = BREAK_NONE
@@ -245,15 +275,20 @@ def tail_credit(
 def compute_streak(
     appearances: Sequence[Appearance],
     tail_lookup=None,
+    counted_kinds: Sequence[str] | None = None,
 ) -> StreakResult:
     """出賽（**舊→新**排序）→ 目前連續無自責分局數（下界）。
 
     `tail_lookup(appearance) -> TailCredit | None`：ER>0 那一場的尾段採計；
     給 None 或回 None 代表不採計尾段（等同「整場 ER=0 才計入」的更保守版本）。
+
+    `counted_kinds`：計入局數的賽別（例行賽）。之外的賽別（季後賽）ER=0 跳過、
+    ER>0 中斷——理由見模組 docstring「賽別範圍」。給 None 代表全部賽別都計入。
     """
     res = StreakResult()
     if not appearances:
         return res
+    counted_set = set(counted_kinds) if counted_kinds is not None else None
 
     for a in reversed(appearances):
         if a.delay_kind == SUSPENDED:
@@ -262,6 +297,13 @@ def compute_streak(
             break
         if a.earned_runs is None or a.outs is None:
             res.break_reason, res.break_key = BREAK_MISSING_LINE, a.key
+            break
+        if counted_set is not None and a.kind_code not in counted_set:
+            # 季後賽不屬於本紀錄母體：乾淨就跳過（不計局數也不中斷），掉自責分則中斷。
+            if a.earned_runs == 0:
+                res.skipped.append(a)
+                continue
+            res.break_reason, res.break_key = BREAK_POSTSEASON_EARNED_RUN, a.key
             break
         if a.earned_runs == 0:
             res.strict_outs += a.outs

@@ -31,6 +31,11 @@ from cpbl.models.scoreless_streak import (
 
 BASIS_STRICT = "官方 earned_runs=0 的整場出賽"
 BASIS_EXTENDED = f"{BASIS_STRICT} ＋ 中斷場的「整個半局零得分」尾段半局"
+SCOPE_NOTE = (
+    "只計例行賽局數（與媒體／MLB／NPB 慣例一致，季後賽另計）。"
+    "跨季時中間的季後賽出賽：官方自責分為 0 則跳過（不計局數也不中斷），"
+    "掉自責分則中斷——被跳過的場次列在 skipped_postseason_games，不做沉默跳過。"
+)
 
 # 出賽（官方 box）＋ 場次脈絡。ER 與局數原樣取官方欄位，不加工。
 _APPEARANCES_SQL = """
@@ -135,17 +140,22 @@ def load_livelog(
     return out
 
 
-def compute_all(by_player: dict[str, list[Appearance]]) -> dict[str, StreakResult]:
+def compute_all(
+    by_player: dict[str, list[Appearance]],
+    counted_kinds: Sequence[str] | None = None,
+) -> dict[str, StreakResult]:
     """兩趟：先不採計尾段找出中斷場，批次抓那些場的 livelog，再重算含尾段的值。
 
     livelog 只在「官方 ER>0 的那一場」用到——這是本卡「定位而非重建」的全部 livelog 用途。
+    季後賽造成的中斷（`BREAK_POSTSEASON_EARNED_RUN`）不取尾段：那場的局數本來就不計入。
     """
-    first = {pid: compute_streak(apps) for pid, apps in by_player.items()}
+    first = {pid: compute_streak(apps, counted_kinds=counted_kinds)
+             for pid, apps in by_player.items()}
     keys = [r.break_key for r in first.values()
             if r.break_reason == BREAK_EARNED_RUN and r.break_key]
     livelog = load_livelog(keys)
     return {
-        pid: compute_streak(apps, tail_lookup_factory(pid, livelog))
+        pid: compute_streak(apps, tail_lookup_factory(pid, livelog), counted_kinds)
         for pid, apps in by_player.items()
     }
 
@@ -159,6 +169,7 @@ def build_item(player_id: str, name: str | None, apps: Sequence[Appearance],
     if tail_key:
         start = next(a for a in apps if a.key == tail_key)
         through = through or start
+    break_app = next((a for a in apps if a.key == res.break_key), None) if res.break_key else None
     return {
         "player_id": player_id,
         "player_name": name,
@@ -178,6 +189,11 @@ def build_item(player_id: str, name: str | None, apps: Sequence[Appearance],
         "boundary_limited": res.boundary_limited,
         "boundary_note": BOUNDARY_NOTE if res.boundary_limited else None,
         "break_reason": res.break_reason,
+        "break_game": _game_ref(break_app) if break_app else None,
+        # 紀錄期間內被跳過的季後賽出賽（官方 ER=0，故不計局數也不中斷）。
+        # 明列而非沉默跳過——讀者要能看見紀錄中間發生過什麼。
+        "skipped_postseason_appearances": len(res.skipped),
+        "skipped_postseason_games": [_game_ref(a) for a in reversed(res.skipped)],
     }
 
 
@@ -192,8 +208,12 @@ def streak_payload(
 
     `season`／`team` 只篩**母體**（誰進榜、算哪一隊），不裁切連續紀錄本身——紀錄可回溯到
     更早球季，資料邊界見 `DATA_FROM_YEAR`。
+
+    `kind_code` 是**計入局數**的例行賽賽別；同層的季後賽仍需載入（乾淨跳過、掉分中斷，
+    見 `scoreless_streak` 模組 docstring），故查詢範圍為 `kinds_of(kind_code)`。
     """
     kinds = kinds_of(kind_code)
+    counted_kinds = (kind_code,)
     by_player, names = load_appearances(kinds, player_id)
 
     if player_id is None:
@@ -205,7 +225,7 @@ def streak_payload(
                 if next((a.team_code for a in reversed(apps) if a.year == season), None) == team
             }
 
-    results = compute_all(by_player)
+    results = compute_all(by_player, counted_kinds)
     items = [build_item(pid, names.get(pid), by_player[pid], res)
              for pid, res in results.items()]
     if player_id is None:
@@ -222,7 +242,9 @@ def streak_payload(
         "note": METRIC_NOTE,
         "season": season,
         "kind_code": kind_code,
-        "kinds": kinds,
+        "kinds_counted": list(counted_kinds),   # 計入局數的賽別（例行賽）
+        "kinds_in_scope": kinds,                # 一併載入、可中斷紀錄的賽別（含季後賽）
+        "scope_note": SCOPE_NOTE,
         "team": team,
         "data_from_year": DATA_FROM_YEAR,
         "as_of": str(as_of) if as_of else None,

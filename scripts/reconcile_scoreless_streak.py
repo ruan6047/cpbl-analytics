@@ -15,6 +15,7 @@ exit 1。查核者可原樣重跑。
 | R4 | 連續性：被採計的出賽必須恰好是該投手出賽序列的**結尾連續段**（由原始行獨立重建） | 紅線 2 |
 | R5 | 保留賽（`delay_kind='保留'`）不得被採計 | 紅線 2 |
 | R6 | `boundary_limited` 為真 ⇔ 走完全部可得出賽未中斷（起算場＝資料中最早一場） | 紅線 4 |
+| R7 | 凡被**跳過**的季後賽出賽，賽別必在計入範圍之外**且**官方 ER 必為 0；且「起算場之後該投手在任何賽別的出賽都無自責分」 | 紅線 2（賽別範圍裁定） |
 
 用法：
 
@@ -34,7 +35,7 @@ from cpbl.api.scoreless import compute_all, load_appearances
 from cpbl.db import conn
 from cpbl.models.scoreless_streak import BREAK_EARNED_RUN, SUSPENDED
 
-TIERS = {"一軍（A/E/C）": "A", "二軍（D/F）": "D"}
+TIERS = {"一軍例行賽 A": "A", "二軍例行賽 D": "D"}
 
 # R1：官方 ER 重查。以 (year,kind,sno,pitcher) 為鍵，不信任計算時的物件。
 _ER_SQL = """
@@ -96,8 +97,9 @@ def _fetch(sql: str, params: dict) -> list[dict]:
 
 def reconcile(tier_label: str, kind_code: str) -> dict:
     kinds = kinds_of(kind_code)
+    counted_kinds = (kind_code,)
     by_player, _names = load_appearances(kinds)
-    results = compute_all(by_player)
+    results = compute_all(by_player, counted_kinds)
 
     fails: list[dict] = []
 
@@ -105,6 +107,7 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
         fails.append({"check": check, "player_id": pid, "detail": detail})
 
     counted_keys: list[list] = []          # R1 母體
+    skipped_keys: list[list] = []          # R7 母體
     tail_halves: list[tuple] = []          # R2 母體
     tail_games: set[tuple[int, str, int]] = set()
     stats = defaultdict(int)
@@ -121,23 +124,37 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
         if res.outs < res.strict_outs:
             fail("R3", pid, f"extended {res.outs} < strict {res.strict_outs}")
 
-        # ---- R4 連續性：被採計的出賽必須是序列結尾的連續段 ----
-        counted = list(reversed(res.counted))          # 舊→新
-        suffix = apps[len(apps) - len(counted):] if counted else []
-        if [a.key for a in counted] != [a.key for a in suffix]:
-            fail("R4", pid, "採計出賽不是出賽序列的結尾連續段")
+        # ---- R4 連續性：採計 ∪ 跳過 必須恰好是出賽序列的結尾連續段 ----
+        window_keys = {a.key for a in res.counted} | {a.key for a in res.skipped}
+        window_n = len(window_keys)
+        suffix = apps[len(apps) - window_n:] if window_n else []
+        if window_keys != {a.key for a in suffix} or len(suffix) != window_n:
+            fail("R4", pid, "採計 ∪ 跳過的出賽不是出賽序列的結尾連續段")
 
         # ---- R5 保留賽 ----
-        for a in res.counted:
+        for a in [*res.counted, *res.skipped]:
             if a.delay_kind == SUSPENDED:
-                fail("R5", pid, f"採計了保留賽 {a.key}")
+                fail("R5", pid, f"採計/跳過了保留賽 {a.key}")
 
         # ---- R6 資料邊界 ----
-        consumed_all = len(res.counted) == len(apps) and res.break_reason is None
+        consumed_all = window_n == len(apps) and res.break_reason is None
         if res.boundary_limited != consumed_all:
             fail("R6", pid, f"boundary_limited={res.boundary_limited} 但 consumed_all={consumed_all}")
-        if res.boundary_limited and counted and counted[0].key != apps[0].key:
+        if res.boundary_limited and suffix and suffix[0].key != apps[0].key:
             fail("R6", pid, "宣告受資料邊界限制，但起算場不是資料中最早一場")
+
+        # ---- R7 賽別範圍：採計必在例行賽、跳過必在例行賽之外；窗內全部 ER=0 ----
+        for a in res.counted:
+            if a.kind_code not in counted_kinds:
+                fail("R7", pid, f"採計了非例行賽 {a.key}")
+        for a in res.skipped:
+            if a.kind_code in counted_kinds:
+                fail("R7", pid, f"跳過了例行賽 {a.key}")
+            skipped_keys.append([a.year, a.kind_code, a.game_sno, pid])
+            stats["skipped_postseason"] += 1
+        for a in suffix:
+            if a.earned_runs != 0:
+                fail("R7", pid, f"起算場之後仍有自責分出賽 {a.key} ER={a.earned_runs}")
 
         for a in res.counted:
             counted_keys.append([a.year, a.kind_code, a.game_sno, pid])
@@ -173,6 +190,20 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
     if er_ok != len(counted_keys):
         fails.append({"check": "R1", "player_id": "-",
                       "detail": f"重查回 {er_ok} 列，應為 {len(counted_keys)} 列（有出賽查不到）"})
+
+    # ---- R7：被跳過的季後賽出賽，官方 ER 必為 0（重查 DB） ----
+    skip_ok = 0
+    for chunk in _chunks(skipped_keys, 5000):
+        for r in _fetch(_ER_SQL, {"keys": json.dumps(chunk)}):
+            if r["earned_runs"] != 0 or r["kind_code"] in counted_kinds:
+                fails.append({"check": "R7", "player_id": r["pitcher_acnt"],
+                              "detail": f"{r['year']}/{r['kind_code']}/{r['game_sno']} "
+                                        f"被跳過但 ER={r['earned_runs']}／賽別不符"})
+            else:
+                skip_ok += 1
+    if skip_ok != len(skipped_keys):
+        fails.append({"check": "R7", "player_id": "-",
+                      "detail": f"重查回 {skip_ok} 列，應為 {len(skipped_keys)} 列"})
 
     # ---- R2：尾段半局，兩個獨立來源都必須零得分 ----
     half_facts: dict[tuple, dict] = {}
@@ -213,7 +244,8 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
 
     return {
         "tier": tier_label,
-        "kinds": kinds,
+        "kinds_counted": list(counted_kinds),
+        "kinds_in_scope": kinds,
         "pitchers": stats["pitchers"],
         "appearances_total": stats["appearances_total"],
         "appearances_counted": stats["appearances_counted"],
@@ -223,6 +255,8 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
         "tail_half_innings_passed_zero_credit": stats["tail_half_innings_passed"],
         "tail_half_innings_passed_verified_runfree": r2_passed_ok,
         "tail_games": len(tail_games),
+        "skipped_postseason": stats["skipped_postseason"],
+        "skipped_postseason_verified_er0": skip_ok,
         "exceptions": fails,
     }
 
@@ -243,7 +277,8 @@ def main() -> int:
 
     print("窮舉對帳：連續無自責分局數（ML-PITCHER-SCORELESS1）\n")
     hdr = ("層級", "投手數", "出賽總數", "採計出賽", "R1 驗得 ER=0",
-           "尾段採計半局", "R2 驗得零得分", "尾段 0 採計半局", "R2 驗得零得分", "例外")
+           "尾段採計半局", "R2 驗得零得分", "尾段 0 採計半局", "R2 驗得零得分",
+           "跳過季後賽", "R7 驗得 ER=0", "例外")
     print(" | ".join(hdr))
     print(" | ".join("---" for _ in hdr))
     for r in reports:
@@ -252,7 +287,9 @@ def main() -> int:
             r["appearances_counted_verified_er0"], r["tail_half_innings"],
             r["tail_half_innings_verified_runfree"],
             r["tail_half_innings_passed_zero_credit"],
-            r["tail_half_innings_passed_verified_runfree"], len(r["exceptions"]))))
+            r["tail_half_innings_passed_verified_runfree"],
+            r["skipped_postseason"], r["skipped_postseason_verified_er0"],
+            len(r["exceptions"]))))
     print()
     for r in reports:
         for e in r["exceptions"][:50]:

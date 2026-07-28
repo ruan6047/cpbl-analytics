@@ -74,6 +74,8 @@ livelog 逐事件切候選 PA 的分組單位：**連續同 `(game, inning, half
 
 自責分一律讀官方 `pitching_gamelog.earned_runs`，**本專案不重建自責分**（規則 9.16 要求反事實重播、內含「有疑慮時對投手有利」的裁量條款、繼承跑者按人數歸屬）。`game_livelog` 只用於**定位**中斷場的半局；所有不確定一律往「中斷」解讀，故輸出為**下界**。
 
+賽別範圍：**只計例行賽局數**（一軍 A／二軍 D，不用 `KIND_GROUPS` 併入季後賽）。跨季時中間的季後賽出賽 ER=0 **跳過**（不計局數也不中斷）、ER>0 **中斷**——此規則使該值同時是「只算例行賽」與「一軍所有比賽都算」兩種讀法的下界。被跳過的場次必須對外揭露，不得沉默跳過。
+
 - SSoT：`src/cpbl/models/scoreless_streak.py` 模組 docstring；窮舉對帳 `scripts/reconcile_scoreless_streak.py`。
 
 ## 當季累計快照

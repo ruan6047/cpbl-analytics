@@ -198,6 +198,9 @@ host 缺 `libomp.dylib`。**勿 `brew install libomp` 污染 host**；需 LightG
   回應的 `note` 是該說明的單一來源。實例：呂彥青 2026-07-26 時點無自責分 28.1 局、無失分僅 9.0 局。
 - 自責分一律讀官方 `pitching_gamelog.earned_runs`，**專案不重建自責分**（規則 9.16 不可行，
   理由見 `docs/tasks/ML-PITCHER-SCORELESS1.md` 背景節）。`game_livelog` 只用來定位中斷場的半局。
+- **只計例行賽局數**（`kinds_counted=['A']`，不用 `KIND_GROUPS`）；跨季時中間的季後賽出賽
+  ER=0 跳過、ER>0 中斷，被跳過者列在 `skipped_postseason_games`。需求方裁定 2026-07-28，
+  理由與實例見 `docs/research/ML-PITCHER-SCORELESS1_RESULTS.md` §1.6。
 - 所有不確定一律往「中斷」解讀 → 回傳值是**下界**。口徑與保守性規則的單一來源是
   `src/cpbl/models/scoreless_streak.py` 的模組 docstring。
 - 窮舉對帳：`uv run python scripts/reconcile_scoreless_streak.py`（全母體、零例外才 exit 0；
