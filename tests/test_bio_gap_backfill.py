@@ -148,23 +148,68 @@ def test_consecutive_challenge_pages_trip_the_circuit(monkeypatch, tmp_path):
                   [("A", "甲"), ("B", "乙"), ("C", "丙")])
 
 
-# ───────────────────── 3. 範圍閘門（F3） ─────────────────────
+# ───────────────────── 3. 範圍閘門（F3；非對稱） ─────────────────────
+#
+# 兩個方向的差集意義相反，閘門必須非對稱：
+#   found - expected（DB 有、卡面無）＝ 未授權的新缺值球員 → 硬中止
+#   expected - found（卡面有、DB 無）＝ 已補滿 → 進度，跳過
+# iteration 2 曾對稱地要求「集合完全相同」，直接打死兩個合法情境：斷路器中止後
+# 冷卻續跑（剩下的必然少於 14），以及補完後重跑（卡面要求可重跑的冪等 no-op）。
 
-def test_scope_matching_the_card_passes():
-    backfill.check_scope(set(backfill.EXPECTED_GAP_IDS))
+class _FakeCursor:
+    """無寫入的假 cursor：只餵 target_ids 的 SELECT 結果。"""
+
+    def __init__(self, rows):
+        self._rows = rows
+
+    def execute(self, sql, params=None):
+        assert sql.strip().upper().startswith("SELECT"), "target_ids 只該讀"
+        return self
+
+    def fetchall(self):
+        return self._rows
 
 
-def test_scope_gate_aborts_on_a_newly_registered_gap_player():
-    """延後執行期間新增缺值球員 → 不得自動放行（會超出核准的站台請求範圍）。"""
-    with pytest.raises(SystemExit, match="不符"):
-        backfill.check_scope(set(backfill.EXPECTED_GAP_IDS) | {"0000009999"})
+def _rows_for(ids):
+    return [(pid, backfill.EXPECTED_GAP_IDS[pid]) for pid in sorted(ids)]
 
 
-def test_scope_gate_aborts_when_someone_was_already_filled():
-    partial = set(backfill.EXPECTED_GAP_IDS)
-    partial.pop()
-    with pytest.raises(SystemExit, match="不符"):
-        backfill.check_scope(partial)
+def test_resume_after_circuit_breaker_runs_the_remaining_players():
+    """①部分完成後可續跑——斷路器的意義就是冷卻後續跑，閘門不得擋死。"""
+    remaining = sorted(backfill.EXPECTED_GAP_IDS)[1:]      # 已補 1 人，剩 13
+    targets = backfill.target_ids(_FakeCursor(_rows_for(remaining)))
+    assert len(targets) == 13
+    assert [pid for pid, _ in targets] == remaining
+
+
+def test_rerun_after_full_completion_is_a_successful_noop():
+    """②全部補完後重跑＝成功的 no-op，不是失敗（卡面：寫入冪等、可重跑）。"""
+    targets = backfill.target_ids(_FakeCursor([]))
+    assert targets == []
+
+
+def test_unauthorized_extra_id_still_hard_aborts():
+    """③新登錄球員缺 bio ＝ 未授權的範圍擴張 → 硬中止，維持現狀。"""
+    with pytest.raises(SystemExit, match="未授權"):
+        backfill.target_ids(_FakeCursor(
+            _rows_for(backfill.EXPECTED_GAP_IDS) + [("0000009999", "新人")]))
+
+
+def test_extra_id_aborts_even_when_others_are_already_done():
+    """未授權 ID 的中止不因「其他人已補滿」而被稀釋。"""
+    remaining = sorted(backfill.EXPECTED_GAP_IDS)[5:]
+    with pytest.raises(SystemExit, match="未授權"):
+        backfill.target_ids(_FakeCursor(_rows_for(remaining) + [("0000009999", "新人")]))
+
+
+def test_check_scope_reports_which_players_are_already_done():
+    remaining = sorted(backfill.EXPECTED_GAP_IDS)[3:]
+    done = backfill.check_scope(set(remaining))
+    assert done == set(sorted(backfill.EXPECTED_GAP_IDS)[:3])
+
+
+def test_scope_matching_the_card_exactly_reports_nothing_done():
+    assert backfill.check_scope(set(backfill.EXPECTED_GAP_IDS)) == set()
 
 
 def test_expected_ids_are_exactly_the_fourteen_from_the_card():

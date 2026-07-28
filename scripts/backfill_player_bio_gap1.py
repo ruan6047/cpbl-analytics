@@ -72,28 +72,43 @@ FILL_SQL = (
 )
 
 
-def check_scope(found: set[str]) -> None:
-    """DB 推導集合必須與卡面核准的 14 人完全相同，否則中止要求重新確認範圍。"""
-    expected = set(EXPECTED_GAP_IDS)
-    if found == expected:
-        return
-    extra = sorted(found - expected)
-    missing = sorted(expected - found)
-    raise SystemExit(
-        "缺值名單與卡面核准範圍不符，中止。請人工重新確認範圍後更新 EXPECTED_GAP_IDS。\n"
-        f"  多出（DB 有、卡面無）：{extra}\n"
-        f"  少了（卡面有、DB 無）：{missing}\n"
-        "  註：少了通常代表已被補值；多出代表有新登錄球員缺 bio，"
-        "屬另一張卡的範圍，不得順手在本卡處理。")
+def check_scope(found: set[str]) -> set[str]:
+    """範圍閘門。回「已補滿」的 id 集合；發現未授權的缺值球員即中止。
+
+    **兩個方向的差集意義相反，故閘門是非對稱的**：
+
+    - `found - expected`（DB 有、卡面無）＝ 有新登錄球員缺 bio → **未授權的範圍擴張**，
+      硬中止並維持現狀。多打的頁數正是本卡被押後的原因，不得順手在本卡處理。
+    - `expected - found`（卡面有、DB 無）＝ 那個人**已經被補滿了** → 那是**進度**不是
+      異常，視為 completed 並跳過。
+
+    對稱地要求「集合必須完全相同」會直接打死兩個合法情境：斷路器中止後冷卻續跑
+    （剩下的人數必然少於 14），以及補完後重跑（應為成功的 no-op，而非失敗）。
+    後者正是卡面驗收條件「寫入冪等、可重跑」的要求。
+    """
+    extra = sorted(found - set(EXPECTED_GAP_IDS))
+    if extra:
+        raise SystemExit(
+            "發現卡面未授權的缺值球員，中止（維持現狀，不動任何資料）。\n"
+            f"  多出（DB 有、卡面無）：{extra}\n"
+            "  這代表有新登錄球員缺 bio，屬另一張卡的範圍；本卡的站台請求量已核准為\n"
+            "  固定 14 頁，不得擴張。確認範圍後由人工更新 EXPECTED_GAP_IDS。")
+    return set(EXPECTED_GAP_IDS) - found
 
 
 def target_ids(cur) -> list[tuple[str, str]]:
-    """缺 country 或 birthday 的球員；與 EXPECTED_GAP_IDS 不符即 abort（見常數註解）。"""
+    """執行目標＝「仍缺值 ∩ 已授權」。已補滿者跳過；空集合為成功的 no-op。"""
     cur.execute("SELECT id, name FROM cpbl.players "
                 "WHERE country IS NULL OR birthday IS NULL ORDER BY id")
     rows = [(r[0], r[1]) for r in cur.fetchall()]
-    check_scope({pid for pid, _ in rows})
-    return rows
+    done = check_scope({pid for pid, _ in rows})
+    if done:
+        log.info("已補滿 %d/%d 人，跳過：%s", len(done), len(EXPECTED_GAP_IDS),
+                 "、".join(f"{pid}({EXPECTED_GAP_IDS[pid]})" for pid in sorted(done)))
+    targets = [(pid, name) for pid, name in rows if pid in EXPECTED_GAP_IDS]
+    if not targets:
+        log.info("14 人皆已補滿，無事可做（no-op）。")
+    return targets
 
 
 def fetch(acnt: str) -> tuple[str, str]:
