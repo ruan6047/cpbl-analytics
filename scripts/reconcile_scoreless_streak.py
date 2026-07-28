@@ -16,7 +16,7 @@ exit 1。查核者可原樣重跑。
 | R5 | 保留賽（`delay_kind='保留'`）不得被採計 | 紅線 2 |
 | R6 | `boundary_limited` 為真 ⇔ 走完全部可得出賽未中斷（起算場＝資料中最早一場） | 紅線 4 |
 | R7 | 凡被**跳過**的季後賽出賽，賽別必在計入範圍之外**且**官方 ER 必為 0；且「起算場之後該投手在任何賽別的出賽都無自責分」 | 紅線 2（賽別範圍裁定） |
-| R10 | **鴿籠下界獨立重算**：以 SQL 取官方逐局比分與官方局數，獨立算出 `官方出局數 − 3 × 前綴局數`，驗 `採計值 ≤ 獨立重算下界`；並驗**隊別配置**（同隊總出局數為 3 的倍數、且 ≥ 本投手出局數，對手側取相反 `visiting_home_type`）。純算術、與 runtime 不共享任何推論前提 | 紅線 2 |
+| R10 | **鴿籠下界獨立重算**：以 SQL 取官方逐局比分與官方局數，獨立算出 `官方出局數 − 3 × 前綴局數`，驗 `採計值 ≤ 獨立重算下界`；並驗**逐局比分完整**（逐局總和 ＝ `games` 官方終場對手得分，官方對官方）與**隊別配置**（同隊總出局數 ≤ 守備半局數 × 3、且 ≥ 本投手出局數，對手側取相反 `visiting_home_type`）。純算術、與 runtime 不共享任何推論前提 | 紅線 2 |
 
 用法：
 
@@ -72,8 +72,11 @@ _TAIL_SQL = """
 _PITCHER_SIDE_SQL = """
     SELECT p.year, p.kind_code, p.game_sno, p.pitcher_acnt,
            p.visiting_home_type AS vht,
-           p.inning_pitched_cnt * 3 + p.inning_pitched_div3 AS outs
+           p.inning_pitched_cnt * 3 + p.inning_pitched_div3 AS outs,
+           CASE WHEN p.visiting_home_type = '2' THEN g.away_score
+                ELSE g.home_score END AS opponent_score
       FROM cpbl.pitching_gamelog p
+      JOIN cpbl.games g USING (year, kind_code, game_sno)
       JOIN (SELECT (v->>0)::int AS year, v->>1 AS kind_code, (v->>2)::int AS game_sno
               FROM jsonb_array_elements(%(games)s::jsonb) v) k
         ON k.year = p.year AND k.kind_code = p.kind_code AND k.game_sno = p.game_sno
@@ -200,6 +203,7 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
     board: dict[tuple, dict[str, dict[int, int]]] = defaultdict(lambda: defaultdict(dict))
     side: dict[tuple, str] = {}
     official: dict[tuple, int] = {}
+    opp_final: dict[tuple, int | None] = {}
     for chunk in _chunks(sorted(tail_games), 400):
         payload = json.dumps([list(g) for g in chunk])
         for r in _fetch(_TAIL_SQL, {"games": payload}):
@@ -209,6 +213,8 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
             side[(r["year"], r["kind_code"], r["game_sno"], r["pitcher_acnt"])] = r["vht"]
             official[(r["year"], r["kind_code"], r["game_sno"], r["pitcher_acnt"])] = int(
                 r["outs"] or 0)
+            opp_final[(r["year"], r["kind_code"], r["game_sno"], r["pitcher_acnt"])] = (
+                r["opponent_score"])
 
     # 同隊出局數彙總——用來擋「隊別配置錯誤」這一類（開卡示範時真的發生過：
     # 把對手投手當同隊，數字碰巧相同而沒露餡）。
@@ -235,9 +241,16 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
             fails.append({"check": "R10", "player_id": pid,
                           "detail": f"{y}/{k}/{sno}：同隊({my_side})總出局數 {same_team_total} "
                                     f"超過守備 {fielded} 局上限或小於本投手 {off}"})
+        # 逐局比分完整性（官方對官方）：總和必須等於官方終場對手得分，否則缺列 → 下界 0。
+        final = opp_final.get((*game, pid))
+        complete = final is not None and sum(opp.values()) == final
+        if not complete:
+            fails.append({"check": "R10", "player_id": pid,
+                          "detail": f"{y}/{k}/{sno}：逐局比分總和 {sum(opp.values())} "
+                                    f"≠ 官方終場對手得分 {final}，卻採計了 {claimed}"})
         scored = [i for i, r in opp.items() if r]
         n_prefix = max(scored) if scored else 0
-        recomputed = max(0, (off or 0) - 3 * n_prefix)
+        recomputed = max(0, (off or 0) - 3 * n_prefix) if complete else 0
         if claimed > recomputed:
             fails.append({"check": "R10", "player_id": pid,
                           "detail": f"{y}/{k}/{sno}：採計 {claimed} > 獨立重算下界 {recomputed}"})

@@ -140,6 +140,7 @@ class Appearance:
     opponent: str | None = None
     team_code: str | None = None
     vht: str | None = None        # 該投手該場的主客別（'1'=客隊、'2'=主隊）
+    opponent_score: int | None = None   # 官方終場對手得分（games），用來驗逐局比分完整
 
     @property
     def key(self) -> tuple[int, str, int]:
@@ -185,6 +186,7 @@ def outs_to_innings(outs: int) -> float:
 def pigeonhole_tail_outs(
     opponent_runs_by_inning: Mapping[int, int],
     official_outs: int | None,
+    opponent_final_score: int | None,
 ) -> tuple[int, int | None]:
     """ER>0 那場出賽的尾段下界——**鴿籠原理，零假設**。回 `(outs, 後綴起始局)`。
 
@@ -222,15 +224,29 @@ def pigeonhole_tail_outs(
     相同而沒露餡）。本函式改用「官方總出局數 − 3 × 前綴局數」正是為了**完全不需要那一項**，
     從源頭消除隊別配置錯誤的空間；隊別只剩「取哪一側的逐局得分」這一個決策點。
 
+    ## 輸入前提必須驗證：逐局比分要完整
+
+    公式的正確性建立在「`opponent_runs_by_inning` 是完整的逐局比分」之上。**缺一個有
+    得分的局就會高估**——例如 `{1:0, 3:0}` 與 21 outs 會算出後綴自第 1 局；若缺掉的第 2 局
+    其實有分，真正的下界是更小的值。`game_scoreboard` 是逐列 UPSERT、沒有完整性
+    constraint，所以這不是純理論。
+
+    因此本函式要求 `opponent_final_score`（`games` 的官方終場對手得分），並驗
+    **逐局得分總和 ＝ 官方終場得分**；不等、或任一為 NULL，一律回 `(0, None)`。
+    這是**官方對官方**的交叉檢查，不引入任何新假設。
+
     ## 刻意保守之處
 
     - 用**得分 R** 而非自責分 ER 界定後綴：零得分必然零自責分，反之不然，故只會低估。
     - 前綴一律以每半局 3 個出局估上界（實際可能更少），故只會低估。
     - 投手橫跨有得分的局、或後綴太短時，下界 ≤ 0 → 採計 0（fail-closed）。
     """
-    if official_outs is None:
+    if official_outs is None or opponent_final_score is None:
         return 0, None
     if not opponent_runs_by_inning:
+        return 0, None
+    # 逐局比分完整性：官方對官方。總和對不上代表 scoreboard 缺列，缺的若是得分局就會高估。
+    if sum(opponent_runs_by_inning.values()) != opponent_final_score:
         return 0, None
     scored = [i for i, r in opponent_runs_by_inning.items() if r]
     n_prefix = max(scored) if scored else 0
@@ -244,12 +260,17 @@ def tail_credit(
     key: tuple[int, str, int],
     opponent_runs_by_inning: Mapping[int, int],
     official_outs: int | None,
+    opponent_final_score: int | None,
 ) -> TailCredit:
     """把 `pigeonhole_tail_outs` 的結果包成 `TailCredit`；證明不到就是 0。"""
-    outs, suffix_from = pigeonhole_tail_outs(opponent_runs_by_inning, official_outs)
+    outs, suffix_from = pigeonhole_tail_outs(
+        opponent_runs_by_inning, official_outs, opponent_final_score)
     reason = None if outs else (
         "no_scoreboard" if not opponent_runs_by_inning
         else "no_official_outs" if official_outs is None
+        else "no_official_final_score" if opponent_final_score is None
+        else "scoreboard_incomplete"
+        if sum(opponent_runs_by_inning.values()) != opponent_final_score
         else "no_provable_scoreless_suffix")
     return TailCredit(key=key, outs=outs, suffix_from_inning=suffix_from, reason=reason)
 

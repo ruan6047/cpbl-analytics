@@ -219,7 +219,7 @@ def test_pigeonhole_matches_the_worked_example():
     """
     opp = dict(enumerate([0, 2, 0, 1, 0, 0, 0, 0, 0], start=1))
 
-    outs, suffix_from = pigeonhole_tail_outs(opp, 21)
+    outs, suffix_from = pigeonhole_tail_outs(opp, 21, 3)
 
     assert outs == 9 and suffix_from == 5
 
@@ -244,7 +244,7 @@ def test_sno55_regression_from_team_filtered_facts():
     kanan_outs = 21
     opp_runs = dict(enumerate([0, 2, 0, 1, 0, 0, 0, 0, 0], start=1))   # 味全（客隊）
 
-    outs, suffix_from = pigeonhole_tail_outs(opp_runs, kanan_outs)
+    outs, suffix_from = pigeonhole_tail_outs(opp_runs, kanan_outs, 3)
 
     assert (outs, suffix_from) == (9, 5)
     assert outs_to_innings(outs) == 3.0
@@ -260,6 +260,23 @@ def test_opponent_side_must_be_the_batting_side_of_the_other_team():
     assert away_batting_side == "1"
 
 
+def test_missing_scoring_inning_row_must_fail_closed():
+    """**回歸（iteration 8）**：`game_scoreboard` 缺掉一個**有得分**的局。
+
+    `{1:0, 3:0}` 看起來全場零得分 ⇒ 後綴自第 1 局 ⇒ 宣稱 6 outs；但官方終場對手得 1 分，
+    代表第 2 局那列不見了，真正可證的下界是 0。`game_scoreboard` 是逐列 UPSERT、沒有
+    完整性 constraint，所以這不是純理論。
+
+    以**官方終場比分**（`games`）驗逐局總和是官方對官方的交叉檢查，不引入新假設。
+    """
+    incomplete = {1: 0, 3: 0}
+
+    assert pigeonhole_tail_outs(incomplete, 6, 1) == (0, None)
+    assert tail_credit((2026, "A", 1), incomplete, 6, 1).reason == "scoreboard_incomplete"
+    # 同一組逐局比分，若官方終場確實是 0 分，則完整、可採計
+    assert pigeonhole_tail_outs(incomplete, 6, 0) == (6, 1)
+
+
 def test_pigeonhole_is_zero_when_opponent_scores_late():
     """對手在後段得分 → 後綴太短、下界 ≤ 0 → 採計 0（fail-closed）。
 
@@ -268,20 +285,21 @@ def test_pigeonhole_is_zero_when_opponent_scores_late():
     """
     opp = dict(enumerate([1, 0, 0, 0, 0, 0, 2, 0, 0], start=1))
 
-    assert pigeonhole_tail_outs(opp, 18) == (0, None)
+    assert pigeonhole_tail_outs(opp, 18, 3) == (0, None)
 
 
 def test_pigeonhole_never_exceeds_official_outs():
     opp = dict(enumerate([0, 0, 0], start=1))
 
-    outs, _ = pigeonhole_tail_outs(opp, 6)
+    outs, _ = pigeonhole_tail_outs(opp, 6, 0)
 
     assert outs == 6
 
 
 def test_pigeonhole_needs_both_official_facts():
-    assert pigeonhole_tail_outs({}, 21) == (0, None)
-    assert pigeonhole_tail_outs({1: 0}, None) == (0, None)
+    assert pigeonhole_tail_outs({}, 21, 0) == (0, None)
+    assert pigeonhole_tail_outs({1: 0}, None, 0) == (0, None)
+    assert pigeonhole_tail_outs({1: 0}, 21, None) == (0, None)
 
 
 def test_pigeonhole_uses_runs_not_earned_runs():
@@ -291,7 +309,7 @@ def test_pigeonhole_uses_runs_not_earned_runs():
     """
     opp = dict(enumerate([0, 0, 1, 0, 0], start=1))
 
-    outs, suffix_from = pigeonhole_tail_outs(opp, 15)
+    outs, suffix_from = pigeonhole_tail_outs(opp, 15, 1)
 
     assert suffix_from == 4 and outs == 15 - 9
 
@@ -299,21 +317,22 @@ def test_pigeonhole_uses_runs_not_earned_runs():
 def test_pigeonhole_handles_extra_innings():
     opp = dict(enumerate([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0], start=1))
 
-    outs, suffix_from = pigeonhole_tail_outs(opp, 30)
+    outs, suffix_from = pigeonhole_tail_outs(opp, 30, 1)
 
     assert suffix_from == 3 and outs == 30 - 6
 
 
 def test_tail_credit_reports_why_it_credited_nothing():
-    assert tail_credit((2026, "A", 1), {}, 21).reason == "no_scoreboard"
-    assert tail_credit((2026, "A", 1), {1: 5}, 3).reason == "no_provable_scoreless_suffix"
+    assert tail_credit((2026, "A", 1), {}, 21, 0).reason == "no_scoreboard"
+    assert tail_credit((2026, "A", 1), {1: 5}, 3, 5).reason == "no_provable_scoreless_suffix"
+    assert tail_credit((2026, "A", 1), {1: 0}, 21, None).reason == "no_official_final_score"
 
 
 def test_tail_feeds_into_the_streak():
     opp = dict(enumerate([0, 2, 0, 1, 0, 0, 0, 0, 0], start=1))
     apps = [app(1, 3, outs=21), app(2, 0), app(3, 0)]
 
-    res = compute_streak(apps, tail_lookup=lambda a: tail_credit(a.key, opp, a.outs))
+    res = compute_streak(apps, tail_lookup=lambda a: tail_credit(a.key, opp, a.outs, 3))
 
     assert res.strict_outs == 6 and res.outs == 15
 

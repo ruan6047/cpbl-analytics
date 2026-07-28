@@ -54,6 +54,8 @@ _APPEARANCES_SQL = """
            p.inning_pitched_cnt * 3 + p.inning_pitched_div3 AS outs,
            g.delay_kind,
            p.visiting_home_type                             AS vht,
+           CASE WHEN p.visiting_home_type = '2' THEN g.away_score
+                ELSE g.home_score END                       AS opponent_score,
            CASE WHEN p.visiting_home_type = '2' THEN g.home_team_code
                 ELSE g.away_team_code END                   AS team_code,
            CASE WHEN p.visiting_home_type = '2' THEN g.away_team_name
@@ -85,7 +87,7 @@ def _appearance(row: dict) -> Appearance:
         year=row["year"], kind_code=row["kind_code"], game_sno=row["game_sno"],
         game_date=row["game_date"], earned_runs=row["earned_runs"], outs=row["outs"],
         delay_kind=row["delay_kind"], opponent=row["opponent"], team_code=row["team_code"],
-        vht=row["vht"],
+        vht=row["vht"], opponent_score=row["opponent_score"],
     )
 
 
@@ -128,7 +130,7 @@ def tail_lookup_factory(
         if not board or a.vht not in ("1", "2"):
             return TailCredit(key=a.key, outs=0, reason="no_scoreboard")
         opp = board.get("1" if a.vht == "2" else "2") or {}
-        return tail_credit(a.key, opp, a.outs)
+        return tail_credit(a.key, opp, a.outs, a.opponent_score)
 
     return lookup
 

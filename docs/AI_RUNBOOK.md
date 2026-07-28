@@ -197,15 +197,21 @@ host 缺 `libomp.dylib`。**勿 `brew install libomp` 污染 host**；需 LightG
 - **不是「連續無失分」**：失誤造成的非自責失分不中斷本指標。前端文案必須帶「自責」二字，
   回應的 `note` 是該說明的單一來源。實例：呂彥青 2026-07-26 時點無自責分 28.1 局、無失分僅 9.0 局。
 - 自責分一律讀官方 `pitching_gamelog.earned_runs`，**專案不重建自責分**（規則 9.16 不可行，
-  理由見 `docs/tasks/ML-PITCHER-SCORELESS1.md` 背景節）。`game_livelog` 只用來定位中斷場的半局。
+  理由見 `docs/tasks/ML-PITCHER-SCORELESS1.md` 背景節）。本指標**完全不讀 `game_livelog`**。
 - **只計例行賽局數**（`kinds_counted=['A']`，不用 `KIND_GROUPS`）；跨季時中間的季後賽出賽
   ER=0 跳過、ER>0 中斷，被跳過者列在 `skipped_postseason_games`。需求方裁定 2026-07-28，
   理由與實例見 `docs/research/ML-PITCHER-SCORELESS1_RESULTS.md` §1.6。
 - 所有不確定一律往「中斷」解讀 → 回傳值是**下界**。口徑與保守性規則的單一來源是
   `src/cpbl/models/scoreless_streak.py` 的模組 docstring。
-- **尾段走 `pigeonhole_tail_outs()`**：以官方逐局比分界定「零得分後綴」，取鴿籠下界
-  `官方出局數 − 3 × 前綴局數`。**完全不讀 livelog**，故與投手更替、規則 5.10(d) 再入賽、
-  牽制出局皆無關。`DATA_FROM_YEAR`（SQL ＋ 核心函式兩層）仍 enforce；`kind_code` 鎖 `^(A|D)$`。
+- **尾段走 `pigeonhole_tail_outs()`**：以官方逐局比分（`game_scoreboard`，取**對手打擊側**）
+  界定「零得分後綴」，取鴿籠下界 `官方出局數 − 3 × 前綴局數`。故與投手更替、規則 5.10(d)
+  再入賽、牽制出局皆無關。**採計前必驗逐局比分完整**：逐局總和須等於 `games` 的官方終場
+  對手得分（官方對官方），不等即尾段 0——`game_scoreboard` 是逐列 UPSERT、無完整性
+  constraint，缺一個得分局就會高估。`DATA_FROM_YEAR`（SQL ＋ 核心函式兩層）仍 enforce；
+  `kind_code` 鎖 `^(A|D)$`。
+- **尾段採計率低是方法邊界不是缺陷**：一軍 343 個尾段查詢只有 24 個（7%）採得到，因為
+  官方逐局比分只知道某局有沒有得分、不知道那分是誰掉的（先發退場後後援掉分會吃掉整個
+  後綴）。細節與實例見模組 docstring「方法邊界」節。
 - **不要再用逐打席資料推導出局數歸屬**（七輪查核的結論）：`pitch_cnt` 與 `main_event_no`
   主序號**都不是列的唯一鍵**（68,372 組重複投球序號；2,457 個事件序號槽含多列，其中 204 個
   同時含換人列與比賽列），且不消耗投球的出局事件只以「列」存在——**列的缺席偵測不到**。
