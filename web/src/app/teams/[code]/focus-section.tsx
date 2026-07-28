@@ -93,14 +93,26 @@ const f1 = (v: number | null | undefined) => (v == null ? "—" : v.toFixed(1));
 //      行動裝置沒有 hover：<768px 直接把 extra 文字常駐顯示（單欄有空間），
 //      ≥768px 才換成 tooltip 觸發鈕，兩者互斥用 `md:hidden`／`hidden md:*`
 //      切換，純 CSS 斷點、無 JS 偵測視窗寬度（避免 hydration 不一致）。
-function CardDetail({ sample, extra }: { sample: string; extra: ReactNode }) {
+function CardDetail({ name, sample, extra }: { name: string; sample: string; extra: ReactNode }) {
   return (
-    <div className="mt-0.5 flex items-center gap-1 text-[11px] text-faint">
+    <div className="mt-0.5 flex items-center gap-1 text-xs text-faint">
       <span>{sample}</span>
       <span className="md:hidden">・{extra}</span>
       <Tooltip content={extra} suppressUnderline interactive>
-        <button type="button" aria-label="更多數據"
-          className="hidden h-3.5 w-3.5 shrink-0 place-items-center rounded-full border border-line text-[9px] font-semibold leading-none text-muted hover:text-ink md:grid">
+        {/* 觸控熱區目標同 ContextSwitcher 的原則（視覺圖示不放大、熱區另外撐開），
+            但**技術手法不同**：ContextSwitcher 是獨立工具列，用 min-h-11 撐按鈕
+            本體沒有副作用；這裡的圖示是每列密排的卡片明細行內聯元素，按鈕本體若
+            真的撐到 44px 會把 flex 列高一起拉到 44px（六張卡等於白白多出
+            ~180px，剛壓下去的 1440×1080 版面又會爆）。改用 `relative` +
+            `::before` 負 inset 疊一塊不佔版位（`position:absolute` 脫離文件流，
+            不影響父層列高）但可點擊的透明熱區，補到 WCAG 2.5.8 的 24px 下限
+            （14px 圖示每邊補 5px）。aria-label 帶球員名（非泛用「更多數據」）——
+            每張卡代表不同球員，敘述需帶對象才有意義（需求方 2026-07-28 明訂）。
+            圖示字級 text-[10px]（非 text-[9px]）：UI_UX_SYSTEM §2.3 明訂
+            sub-9px 低於可讀下限，10px 對應既有 `micro` 角色（尚未 token 化但
+            允許沿用，見同節）。 */}
+        <button type="button" aria-label={`${name} 詳細數據`}
+          className="relative hidden h-3.5 w-3.5 shrink-0 touch-manipulation place-items-center rounded-full border border-line text-[10px] font-semibold leading-none text-muted before:absolute before:-inset-[5px] before:content-[''] hover:text-ink md:grid">
           i
         </button>
       </Tooltip>
@@ -118,7 +130,7 @@ function HotBattersList({ data }: { data: TeamHotZoneResponse }) {
           <RecordCard
             key={b.player_id}
             headline={<PlayerLink pid={b.player_id} name={b.name} />}
-            detail={<CardDetail sample={`擊球事件 ${b.bip} 次`} extra={`最高初速 ${f1(b.max_ev)} km/h`} />}
+            detail={<CardDetail name={b.name} sample={`擊球事件 ${b.bip} 次`} extra={`最高初速 ${f1(b.max_ev)} km/h`} />}
             anchor={`${f1(b.avg_ev)} km/h`}
           />
         ))}
@@ -139,6 +151,7 @@ function HotPitchersList({ data }: { data: TeamHotZoneResponse }) {
             headline={<PlayerLink pid={p.player_id} name={p.name} />}
             detail={
               <CardDetail
+                name={p.name}
                 sample={`用球 ${p.pitches} 球`}
                 extra={p.avg_ev_against == null
                   ? "被擊球事件 0 次"
@@ -189,8 +202,13 @@ function HotZoneCard({ data }: { data: TeamHotZoneResponse }) {
           <span className="text-sm font-bold text-ink">近期球員熱區</span>
           {data.available && (
             <Tooltip content={<HotZoneInfo data={data} />} suppressUnderline interactive>
+              {/* 18px 圖示（h-4.5 w-4.5）低於 WCAG 2.5.8 的 24px 觸控目標下限（需求方
+                  2026-07-28 375px 實測發現）。同 CardDetail 的「i」按鈕：視覺不放大，
+                  用 `relative` + `::before` 負 inset 補到 24px（每邊 +3px），
+                  不用 ContextSwitcher 的 min-h-11 真實撐大——這裡也在 mb-3 的標題列
+                  裡跟其他文字同列，真的撐到 44px 一樣會拉高整條標題列。 */}
               <button type="button" aria-label="近期球員熱區判準與資料來源說明"
-                className="grid h-4.5 w-4.5 place-items-center rounded-full border border-line bg-surface text-[10px] font-semibold leading-none text-muted hover:text-ink">
+                className="relative grid h-4.5 w-4.5 place-items-center rounded-full border border-line bg-surface text-[10px] font-semibold leading-none text-muted before:absolute before:-inset-[3px] before:content-[''] hover:text-ink">
                 ?
               </button>
             </Tooltip>

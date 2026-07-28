@@ -148,7 +148,25 @@ export function StatGrid({ items, cols = 2, className = "" }: {
 }
 
 // 「近日焦點」頁籤資料卡語彙（UX-TEAM-RECORDS1 定案，UX-TEAM-HOTZONE1 沿用）：
-// 每筆一張次級卡（headline 描述句 + 選填 detail 明細行 + 右側單一數值錨點）。
+// 每筆一張次級卡。兩種版型共用同一個元件（`layout` 判別聯集 prop，而非複製一份
+// 新元件——2026-07-28 需求方明訂「不要用 copy-paste 分岔」）：
+//
+// - `layout="row"`（預設，近期球員熱區沿用）：headline 描述句＋右側單一數值錨點
+//   同一行。熱區的文字短（球員名 2-4 字＋「km/h」「%」），3 欄綽綽有餘，換版型
+//   對它只有壞處沒有好處，故不動。
+// - `layout="stack"`（即將挑戰的紀錄專用）：項目名／球員名／錨點／明細**垂直
+//   四層**，不靠字級微差區分（全部落在 xs/sm/base 三級）。改版型不是為了省
+//   空間（stack 版每卡反而更高，見下方 grep 得到的卡面 log）——是因為
+//   row 版在窄欄位下即使兩行也裝不下全聯盟最壞字寬組合（見下）。
+//
+// **為什麼要垂直堆疊、不是靠加寬欄位或縮字**：需求方 2026-07-28 用 canvas 實測
+// 全聯盟最壞值——最長球員名 112px（`伊斯坦大．比力安`／`田中怜利ハモンド`）、
+// 最長項目名 88px（`生涯投球局數`）、最長錨點 66px（`連續 5 場`）。半寬左欄
+// 3 欄實得寬度僅 ~165px（含內距）：row 版單行需 298px、兩行版需 186px，兩者
+// 在 165px 都會斷字；stack 版（每層獨占一行，欄寬只需容納單一元素+內距）僅需
+// 136px，165px 尚有 29px 餘裕。這同時修掉一個現存的潛在斷字（見卡面 log：
+// 現行 2 欄每格 252px 但單行最壞需 298px，今天沒炸只是運氣，剛好没配到最長
+// 名字＋最長項目的組合）。
 //
 // 為什麼是 bg-surface-2 + rounded-lg（無 border）而不是再套一層 <Card>：這組卡片
 // 永遠巢狀在頁籤的外層 <Card> 裡，若每筆也用 Card 會變成卡中卡（.card 的
@@ -158,14 +176,28 @@ export function StatGrid({ items, cols = 2, className = "" }: {
 // 改沿用 `StatGrid` 已驗證過的「bg-surface-2 + rounded-lg」次級 surface token
 // （同一份視覺語彙，但 StatGrid 本身版面置中 dl 放不下這裡需要的四段式內容，
 // 故不直接套用元件，只借它驗證過的容器語彙）。
-export function RecordCard({ headline, detail, anchor }: { headline: ReactNode; detail?: ReactNode; anchor: ReactNode }) {
+type RecordCardRowProps = { layout?: "row"; headline: ReactNode; detail?: ReactNode; anchor: ReactNode };
+type RecordCardStackProps = { layout: "stack"; label: ReactNode; name: ReactNode; detail?: ReactNode; anchor: ReactNode };
+
+export function RecordCard(props: RecordCardRowProps | RecordCardStackProps) {
+  if (props.layout === "stack") {
+    return (
+      <li className="rounded-lg bg-surface-2 px-3 py-2.5">
+        <div className="text-xs text-muted">{props.label}</div>
+        <div className="mt-0.5 text-sm text-ink">{props.name}</div>
+        <div className="mt-1 text-base font-bold tabular-nums text-accent">{props.anchor}</div>
+        {props.detail && <div className="mt-0.5 text-xs text-faint">{props.detail}</div>}
+      </li>
+    );
+  }
+  const { headline, detail, anchor } = props;
   return (
     <li className="rounded-lg bg-surface-2 px-3 py-2.5">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1 text-sm text-ink">{headline}</div>
         <div className="shrink-0 whitespace-nowrap text-base font-bold tabular-nums text-accent">{anchor}</div>
       </div>
-      {detail && <div className="mt-0.5 text-[11px] text-faint">{detail}</div>}
+      {detail && <div className="mt-0.5 text-xs text-faint">{detail}</div>}
     </li>
   );
 }
@@ -177,24 +209,24 @@ export function RecordCard({ headline, detail, anchor }: { headline: ReactNode; 
 // （px-3 py-2.5，非 Card 的 p-4），沿用 gap-3 視覺上會顯得鬆散不成套。
 //
 // `lg:grid-cols-3` 是**viewport 斷點，不是容器斷點**——只在「這份清單佔滿頁面
-// 全寬」的前提下 3 欄才有實得寬度。UX-TEAM-HOTZONE1 桌機不用捲軸改版把
-// 「即將挑戰的紀錄」（原本用 RECORD_GRID）搬進半寬左欄後，viewport 仍 ≥lg，
-// 3 欄照樣觸發，每卡實得寬度砍半（1440 實測 546px 卡寬 ÷3≈165px），
-// 「林泓育 安打」「隊史新高」逐字斷行——與 RecordCard 錨點 shrink-0 nowrap 擠壓
-// headline 的舊 bug（2026-07-28 第一輪退回）同一種成因，只是這次是欄寬不足而非
-// 文字過長。故另立 `RECORD_GRID_2COL`（上限 2 欄，不放到 3）給「確定會被塞進
-// 半寬欄位」的呼叫點；`RECORD_GRID`（可到 3 欄）留給仍佔頁面全寬或已知足夠寬的
-// 呼叫點（近期球員熱區的打者/投手榜同樣半寬但文字短，已實測 3 欄不斷行）。
-// 兩者並存是刻意的：欄數上限本質是「這份清單的文字在多寬的欄位下不會斷字」，
-// 不是單一頁面版面決定的，兩個呼叫點的文字長度不同、答案自然不同。
+// 全寬」的前提下 3 欄才有實得寬度。半寬欄位（如「即將挑戰的紀錄」現在永遠
+// 位於 focus-section.tsx 的半寬左欄）viewport lg 仍會觸發、每卡實得寬度只剩
+// 一半（1440 實測 546px 卡寬 ÷3≈165px）——這曾是兩輪真實 bug 的成因：
+//   1. 第一輪退回：row 版錨點 shrink-0 nowrap 擠壓 headline，逐字斷行。
+//   2. 第二輪一度改用 2 欄暫時避開，但那只是「降欄數換寬度」的權宜——本質
+//      問題（欄寬 vs. 文字最壞寬度）沒解，只是把門檻從「單行 298px」降到
+//      「兩行 186px」，仍未低於 165px 的真實欄寬（差 21px，見上方 RecordCard
+//      docstring 的 canvas 實測）。
+// 現在 `layout="stack"` 把單卡最壞需求壓到 136px（< 165px），3 欄本身重新
+// 安全，故「即將挑戰的紀錄」與「近期球員熱區」統一用回這一個 `RECORD_GRID`
+// （不再需要曾經存在的 `RECORD_GRID_2COL` 過渡版本，已移除）。
 export const RECORD_GRID = "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3";
-export const RECORD_GRID_2COL = "grid grid-cols-1 gap-2 sm:grid-cols-2";
 
 export function SectionHeading({ children, caption }: { children: ReactNode; caption?: ReactNode }) {
   return (
     <div className="mb-1">
       <div className="text-xs font-semibold text-muted">{children}</div>
-      {caption && <p className="mt-0.5 text-[11px] text-faint">{caption}</p>}
+      {caption && <p className="mt-0.5 text-xs text-faint">{caption}</p>}
     </div>
   );
 }

@@ -274,10 +274,16 @@ export function Tooltip({
     child.props["aria-labelledby"] ||
     (typeof child.props.children === "string" && child.props.children.trim().length > 0);
 
-  const triggerProps = {
+  // 只在子元素真的沒有可及名稱時才放進這個 key（曾是真實 bug，2026-07-28
+  // UX-TEAM-HOTZONE1 需求方實測發現）：`React.cloneElement` 的 config 只要
+  // **存在** 某個 key（即使值是 `undefined`）就會覆蓋子元素原本的該 prop，
+  // 不是「省略未提供的 key、falls back 保留原值」。舊寫法 `"aria-label":
+  // decorative || hasAccessibleName ? undefined : "顯示說明"` 永遠帶著這個
+  // key，於是子元素明明自己設了 `aria-label`（因而讓 hasAccessibleName 為
+  // true）時，反而被這個 `undefined` 蓋掉——呼叫端等於白寫了 aria-label。
+  const triggerProps: Record<string, unknown> = {
     ref: triggerRef,
     "aria-describedby": isVisible && !decorative ? id : undefined,
-    "aria-label": decorative || hasAccessibleName ? undefined : "顯示說明",
     "aria-hidden": decorative ? true : undefined,
     // Decorative triggers must not enter the tab order nor re-announce content.
     tabIndex: decorative ? child.props.tabIndex : (child.props.tabIndex ?? 0),
@@ -289,6 +295,9 @@ export function Tooltip({
     onClick: composeEventHandlers(child.props.onClick, handleToggle),
     onKeyDown: composeEventHandlers(child.props.onKeyDown, handleKeyDown),
   };
+  if (!decorative && !hasAccessibleName) {
+    triggerProps["aria-label"] = "顯示說明";
+  }
 
   const trigger = React.cloneElement(child, triggerProps);
 

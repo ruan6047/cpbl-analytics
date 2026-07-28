@@ -276,7 +276,7 @@ export default async function TeamPage({ params, searchParams }: {
   const recentGamesSection = teamGames.length > 0 ? (
     <section key="recent-games">
       <h2 className="mb-1 text-lg font-semibold">近期賽事</h2>
-      <p className="mb-3 text-[11px] text-faint">當季最近完賽（點入看賽況）。下一場見上方對戰卡。</p>
+      <p className="mb-3 text-xs text-faint">當季最近完賽（點入看賽況）。下一場見上方對戰卡。</p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {teamGames.map((g) => {
           const [gy, gm, gd] = g.game_date.split("-").map(Number);

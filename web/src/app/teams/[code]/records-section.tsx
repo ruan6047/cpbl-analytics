@@ -1,4 +1,6 @@
-import { Card, EmptyState, PlayerLink, RECORD_GRID_2COL, RecordCard, SectionHeading } from "@/components/ui";
+import type { ReactNode } from "react";
+import { Card, EmptyState, PlayerLink, RECORD_GRID, RecordCard } from "@/components/ui";
+import { SubTabs } from "@/components/sub-tabs";
 import type {
   TeamRecordsFranchise,
   TeamRecordsFranchiseApproaching,
@@ -59,52 +61,63 @@ import type {
 // 一併抽到 `@/components/ui`（該卡新增的「近期球員熱區」也要用同一套語彙，
 // 抽成單一事實來源避免兩檔各自維護一份視覺 token）；本檔案只留呼叫端。
 //
-// 2026-07-28 桌機不用捲軸改版：本區塊改用 `RECORD_GRID_2COL`（上限 2 欄）而非
-// `RECORD_GRID`（可到 3 欄）——本區塊現在永遠位於 focus-section.tsx 的半寬左欄
-// （見該檔 TeamFocusSection），viewport lg 斷點仍會觸發但欄位實得寬度只剩一半，
-// 3 欄會讓「林泓育 安打」「隊史新高」逐字斷行（見 ui.tsx 該常數上方的完整說明）。
+// 2026-07-28 需求方追加：三分類（生涯里程碑／進行中連續安打／隊史紀錄）改小
+// 頁籤切換（`SubTabs`，見該元件 docstring），一次只顯示一個分類——內容多的
+// 球隊（如台鋼同週 6+ 筆隊史新高）原本三段疊加會撐爆 1440×1080 版面。
+// 「空分類不出現頁籤」延續 RECORDS1 原定案的「空分類整段隱藏」，只是從
+// 「整段不渲染」變成「不出現在頁籤列」，讀者仍能從頁籤列看到有哪幾類、
+// 自己切換，不是靜默省略（與紅線「不得為了塞進畫面刪減資訊」不衝突）。
+//
+// 每個分類清單不再各自帶 `SectionHeading`——分類名稱已經是頁籤文字，清單內
+// 再標一次是重複資訊（同一種理由已用於熱區卡：headline 不重複區段標題）。
+//
+// 2026-07-28 需求方追加：改用 `RecordCard` 的 `layout="stack"` 版型＋
+// `RECORD_GRID`（3 欄，取代先前的 `RECORD_GRID_2COL` 過渡版本）——原因與寬度
+// 實證見 `ui.tsx` `RecordCard` docstring（全聯盟最壞字寬組合在 2 欄/row 版下
+// 仍會斷字，3 欄/stack 版才安全）。`ApproachingCard` 的 label 從「{項目}逼近
+// 隊史紀錄」簡化為單純「{項目}」（與 RefreshedCard 一致）——「逼近」與「已
+// 刷新」兩種狀態已經由 anchor（「還差 N」vs.「隊史新高」）唯一區分，label 重複
+// 講一次是冗字，stack 版每字都在跟 165px 欄寬搶空間，能省則省。
 
 function MilestonesList({ items }: { items: TeamRecordsMilestone[] }) {
-  if (items.length === 0) return null;
   return (
-    <div>
-      <SectionHeading>生涯里程碑</SectionHeading>
-      <ul className={RECORD_GRID_2COL}>
-        {items.map((m, i) => (
-          <RecordCard
-            key={`${m.player_id}-${m.stat}-${i}`}
-            headline={<><PlayerLink pid={m.player_id} name={m.name} /><span className="text-muted"> 生涯{m.label}</span></>}
-            detail={`目前 ${m.current} → ${m.milestone}`}
-            anchor={`還差 ${m.remaining}`}
-          />
-        ))}
-      </ul>
-    </div>
+    <ul className={RECORD_GRID}>
+      {items.map((m, i) => (
+        <RecordCard
+          layout="stack"
+          key={`${m.player_id}-${m.stat}-${i}`}
+          label={`生涯${m.label}`}
+          name={<PlayerLink pid={m.player_id} name={m.name} />}
+          detail={`目前 ${m.current} → ${m.milestone}`}
+          anchor={`還差 ${m.remaining}`}
+        />
+      ))}
+    </ul>
   );
 }
 
 function StreaksList({ items }: { items: TeamRecordsStreak[] }) {
-  if (items.length === 0) return null;
   return (
-    <div>
-      <SectionHeading>進行中連續安打</SectionHeading>
-      <ul className={RECORD_GRID_2COL}>
-        {items.map((s) => (
-          <RecordCard
-            key={s.player_id}
-            headline={<><PlayerLink pid={s.player_id} name={s.name} /><span className="text-muted"> 現行連續安打</span></>}
-            anchor={`連續 ${s.streak} 場`}
-          />
-        ))}
-      </ul>
-    </div>
+    <ul className={RECORD_GRID}>
+      {items.map((s) => (
+        <RecordCard
+          layout="stack"
+          key={s.player_id}
+          label="現行連續安打"
+          name={<PlayerLink pid={s.player_id} name={s.name} />}
+          anchor={`連續 ${s.streak} 場`}
+        />
+      ))}
+    </ul>
   );
 }
 
 function RefreshedCard({ r }: { r: TeamRecordsFranchiseRefreshed }) {
   return (
     <RecordCard
-      headline={<><PlayerLink pid={r.player_id} name={r.name} /><span className="text-muted"> {r.label}</span></>}
+      layout="stack"
+      label={r.label}
+      name={<PlayerLink pid={r.player_id} name={r.name} />}
       detail={`目前 ${r.current}，原紀錄 ${r.prior_record}（${r.prior_holder}）`}
       anchor="隊史新高"
     />
@@ -115,7 +128,9 @@ function ApproachingCard({ r }: { r: TeamRecordsFranchiseApproaching }) {
   const holder = r.holder_active ? `${r.holder}・現役中` : r.holder;
   return (
     <RecordCard
-      headline={<><PlayerLink pid={r.player_id} name={r.name} /><span className="text-muted"> {r.label}逼近隊史紀錄</span></>}
+      layout="stack"
+      label={r.label}
+      name={<PlayerLink pid={r.player_id} name={r.name} />}
       detail={`目前 ${r.current}，隊史紀錄 ${r.record}（${holder}）`}
       anchor={`還差 ${r.remaining}`}
     />
@@ -123,24 +138,36 @@ function ApproachingCard({ r }: { r: TeamRecordsFranchiseApproaching }) {
 }
 
 function FranchiseList({ items }: { items: TeamRecordsFranchise[] }) {
-  if (items.length === 0) return null;
   return (
-    <div>
-      <SectionHeading>隊史紀錄</SectionHeading>
-      <ul className={RECORD_GRID_2COL}>
-        {items.map((r, i) => (
-          r.state === "refreshed"
-            ? <RefreshedCard key={`${r.player_id}-${r.stat}-${i}`} r={r} />
-            : <ApproachingCard key={`${r.player_id}-${r.stat}-${i}`} r={r} />
-        ))}
-      </ul>
-    </div>
+    <ul className={RECORD_GRID}>
+      {items.map((r, i) => (
+        r.state === "refreshed"
+          ? <RefreshedCard key={`${r.player_id}-${r.stat}-${i}`} r={r} />
+          : <ApproachingCard key={`${r.player_id}-${r.stat}-${i}`} r={r} />
+      ))}
+    </ul>
   );
 }
+
+type RecordsCategory = "milestones" | "streaks" | "franchise";
 
 export function TeamRecordsSection({ data }: { data: TeamUpcomingRecordsResponse | null }) {
   if (!data) return null;
   const isEmpty = data.milestones.length === 0 && data.streaks.length === 0 && data.franchise_records.length === 0;
+
+  // 固定順序（生涯里程碑→進行中連續安打→隊史紀錄）、只收非空分類；預設分類＝
+  // 固定順序第一個非空——不是「筆數最多」，切換球隊時頁籤預設落點才不會跳
+  // （需求方明訂，見卡面 UX-TEAM-HOTZONE1）。
+  const categories: { value: RecordsCategory; label: string; content: ReactNode }[] = [];
+  if (data.milestones.length > 0) {
+    categories.push({ value: "milestones", label: "生涯里程碑", content: <MilestonesList items={data.milestones} /> });
+  }
+  if (data.streaks.length > 0) {
+    categories.push({ value: "streaks", label: "進行中連續安打", content: <StreaksList items={data.streaks} /> });
+  }
+  if (data.franchise_records.length > 0) {
+    categories.push({ value: "franchise", label: "隊史紀錄", content: <FranchiseList items={data.franchise_records} /> });
+  }
 
   return (
     <Card padding="p-4">
@@ -150,11 +177,7 @@ export function TeamRecordsSection({ data }: { data: TeamUpcomingRecordsResponse
       {isEmpty ? (
         <EmptyState className="py-3">目前無接近中的紀錄。</EmptyState>
       ) : (
-        <div className="space-y-4">
-          <MilestonesList items={data.milestones} />
-          <StreaksList items={data.streaks} />
-          <FranchiseList items={data.franchise_records} />
-        </div>
+        <SubTabs label="即將挑戰的紀錄分類" items={categories} defaultValue={categories[0].value} />
       )}
     </Card>
   );
