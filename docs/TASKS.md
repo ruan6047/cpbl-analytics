@@ -22,7 +22,6 @@
 | [ML-FIELD-OF1](tasks/ML-FIELD-OF1.md) | — | T4 | 外野空中球守備範圍指標 | ruan6047（Design Gate） | — | 0 | 💡需求 | ⏸未部署 | 2026-07-22T16:51:08+08:00 |
 | [ML-PA-SIM-CONTEXT1](tasks/ML-PA-SIM-CONTEXT1.md) | — | T4 | 打席結果分布的情境條件化 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-25T19:06:00+08:00 |
 | [ML-PA-SIM-TEAM1](tasks/ML-PA-SIM-TEAM1.md) | — | T4 | 打席模擬對某一隊 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-25T19:07:00+08:00 |
-| [ML-PITCHER-SCORELESS1](tasks/ML-PITCHER-SCORELESS1.md) | INIT-OFFICIAL-DATA1 | T3 | 投手連續無自責分局數（保守下界） | Claude Opus 5@Claude Code | `ai/opus-5/ML-PITCHER-SCORELESS1 @ .claude/worktrees/ml-pitcher-scoreless1-execution` | 11 | 📦已合併 | ⏸未部署 | 2026-07-28T19:11:00+08:00 |
 | [ML-PITCHER-SCORELESS2](tasks/ML-PITCHER-SCORELESS2.md) | INIT-OFFICIAL-DATA1 | T3 | 提高連續無自責分尾段的採計率 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-28T17:52:57+08:00 |
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:09+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:10+08:00 |
@@ -36,9 +35,7 @@
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
 | [UX-LIVE-GAME1](tasks/UX-LIVE-GAME1.md) | INIT-PRODUCT-UX | T3 | 賽前情報到比賽中狀態板 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-26T17:29:31+08:00 |
 | [UX-TEAM-FIELD-HIST1](tasks/UX-TEAM-FIELD-HIST1.md) | INIT-PRODUCT-UX | T3 | 球隊頁歷史年守備位置圖（union fielding_seasons） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:36:00+08:00 |
-| [UX-TEAM-FOCUS2](tasks/UX-TEAM-FOCUS2.md) | INIT-PRODUCT-UX | T3 | 球隊頁「近日焦點」頁籤內容擴充 | Claude Sonnet 5@Claude Code | `ai/sonnet-5/UX-TEAM-FOCUS2 @ .claude/worktrees/ux-team-focus2-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-28T11:53:08+08:00 |
 | [UX-TEAM-HOTZONE1](tasks/UX-TEAM-HOTZONE1.md) | INIT-PRODUCT-UX | T3 | 近期表現熱區改用擊球品質口徑 | Claude Sonnet 5@Claude Code | `ai/sonnet-5/UX-TEAM-HOTZONE1 @ .claude/worktrees/ux-team-hotzone1-execution` | 1 | 🚧執行中 | ⏸未部署 | 2026-07-28T19:16:00+08:00 |
-| [UX-TEAM-RECORDS1](tasks/UX-TEAM-RECORDS1.md) | INIT-PRODUCT-UX | T3 | 球隊頁「即將挑戰的紀錄」 | Claude Sonnet 5@Claude Code | `ai/sonnet-5/UX-TEAM-RECORDS1 @ .claude/worktrees/ux-team-records1-execution` | 1 | 📦已合併 | ⏸未部署 | 2026-07-28T18:37:02+08:00 |
 
 ## 依賴與資源註記
 
