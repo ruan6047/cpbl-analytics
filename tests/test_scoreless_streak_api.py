@@ -122,3 +122,43 @@ def test_single_player_lookup():
     assert len(one["items"]) == 1
     assert one["items"][0]["player_id"] == pid
     assert one["items"][0]["outs"] == d["items"][0]["outs"]
+
+
+def test_loader_preserves_null_inning_scores():
+    """**F-NULL 迴歸（iteration 9）**：載入層不得把 `score_cnt` 的 NULL 折成 0。
+
+    `game_scoreboard.score_cnt` 允許 NULL，ingest 遇來源缺值就寫 NULL。NULL 的意思是
+    「這一局得幾分**不知道**」，不是「這一局 0 分」。折成 0 之後，當官方終場得分恰為 0
+    時總和對帳會以 `0 == 0` 通過，缺值的局被當成零得分而採計＝**把未知當成已知**。
+
+    **這一條必須測在載入層**：只測 `pigeonhole_tail_outs()` 抓不到轉換錯誤——純函式是
+    對的，bug 在餵它的那個邊界。
+    """
+    import inspect
+
+    from cpbl.api import scoreless
+
+    src = inspect.getsource(scoreless.load_opponent_runs)
+    assert 'r["runs"] or 0' not in src and "runs or 0" not in src, (
+        "載入層不得把 NULL 正規化為 0")
+    assert "None if runs is None" in src
+
+
+def test_tail_lookup_fails_closed_on_null_inning_score():
+    """factory 層：逐局比分含 NULL 時，尾段必須歸零而不是採計。
+
+    情境刻意設成「官方終場對手得 0 分」——正是總和對帳 `0 == 0` 會放行的那一格。
+    """
+    from cpbl.api.scoreless import tail_lookup_factory
+    from cpbl.models.scoreless_streak import Appearance
+
+    key = (2026, "A", 1)
+    app = Appearance(year=2026, kind_code="A", game_sno=1, game_date=None,
+                     earned_runs=1, outs=9, vht="2", opponent_score=0)
+
+    clean = tail_lookup_factory({key: {"1": {1: 0, 2: 0, 3: 0}}})(app)
+    with_null = tail_lookup_factory({key: {"1": {1: None, 2: 0, 3: 0}}})(app)
+
+    assert clean.outs == 9                       # 全部已知且零得分 → 可採計
+    assert with_null.outs == 0                   # 有一局未知 → fail-closed
+    assert with_null.reason == "scoreboard_has_null_inning"

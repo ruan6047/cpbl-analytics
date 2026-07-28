@@ -101,8 +101,15 @@ def _game_ref(a: Appearance) -> dict:
 
 def load_opponent_runs(
     keys: Sequence[tuple[int, str, int]],
-) -> dict[tuple[int, str, int], dict[str, dict[int, int]]]:
-    """{game: {打擊側 vht: {局: 得分}}}——鴿籠下界的官方事實來源。"""
+) -> dict[tuple[int, str, int], dict[str, dict[int, int | None]]]:
+    """{game: {打擊側 vht: {局: 得分}}}——鴿籠下界的官方事實來源。
+
+    **`score_cnt` 的 NULL 一律原樣保留，不得正規化成 0。** schema 允許 NULL
+    （`migrations/016_game_log.sql`），ingest 遇來源缺值就寫 NULL；NULL 的意思是
+    「這一局得幾分**不知道**」，不是「這一局 0 分」。若在這裡折成 0，當官方終場得分
+    恰為 0 時總和對帳會以 `0 == 0` 通過，缺值的局被當成零得分而採計——**把未知當成
+    已知**。下游 `pigeonhole_tail_outs` 會因為看見 None 而 fail-closed。
+    """
     if not keys:
         return {}
     payload = json.dumps([[k[0], k[1], k[2]] for k in sorted(set(keys))])
@@ -113,12 +120,14 @@ def load_opponent_runs(
     out: dict[tuple[int, str, int], dict[str, dict[int, int]]] = {}
     for r in rows:
         game = (r["year"], r["kind_code"], r["game_sno"])
-        out.setdefault(game, {}).setdefault(r["vht"], {})[r["inning_seq"]] = int(r["runs"] or 0)
+        runs = r["runs"]
+        out.setdefault(game, {}).setdefault(r["vht"], {})[r["inning_seq"]] = (
+            None if runs is None else int(runs))
     return out
 
 
 def tail_lookup_factory(
-    opponent_runs: dict[tuple[int, str, int], dict[str, dict[int, int]]],
+    opponent_runs: dict[tuple[int, str, int], dict[str, dict[int, int | None]]],
 ):
     """尾段解析器：鴿籠下界（見 `pigeonhole_tail_outs`）。**不讀 livelog**。
 
@@ -129,6 +138,8 @@ def tail_lookup_factory(
         board = opponent_runs.get(a.key)
         if not board or a.vht not in ("1", "2"):
             return TailCredit(key=a.key, outs=0, reason="no_scoreboard")
+        # `or {}` 在此無害：空 dict 會走 `pigeonhole_tail_outs` 的
+        # 「無逐局比分 → (0, None)」fail-closed 路徑，不會被當成「全場零得分」。
         opp = board.get("1" if a.vht == "2" else "2") or {}
         return tail_credit(a.key, opp, a.outs, a.opponent_score)
 

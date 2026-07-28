@@ -182,9 +182,34 @@ pigeonhole_tail_outs({1: 0, 3: 0}, 6)  →  (6, 1)   # 修正前
 
 **修正**：尾段採計前，以 `games` 的官方終場對手得分驗
 `sum(game_scoreboard.score_cnt)` **完全相等**；不等、任一為 NULL、或主客別缺失，
-一律尾段 0（`reason='scoreboard_incomplete'` 等）。這是**官方對官方**的交叉檢查，
-不引入新假設。R10 獨立加上相同對帳，並補回歸測試
+一律尾段 0（`scoreboard_incomplete` / `scoreboard_has_null_inning` 等）。這是
+**官方對官方**的交叉檢查，不引入新假設。R10 獨立加上相同對帳，並補回歸測試
 `test_missing_scoring_inning_row_must_fail_closed`。
+
+### iteration 9 補洞：`or 0` 把「未知」折成「已知的 0」
+
+上述閘門首版**可被 `score_cnt=NULL` 繞過**。`score_cnt` schema 允許 NULL
+（`migrations/016_game_log.sql`），ingest 遇來源缺值就寫 NULL，而載入層寫
+`int(r["runs"] or 0)` → **NULL 變 0**。當官方終場對手得分恰為 0 時，總和對帳以
+`0 == 0` 通過，缺值的局被當成零得分而採計。最小反例：`{1: None, 2: 0, 3: 0}` ＋
+官方終場 0 分 → 修正前回 `(3, 1)`，應為 `(0, None)`。
+
+**R10 首版寫了同一行正規化，所以攔不住——共享正規化就等於共享盲點。** 而且交付文件
+當時已宣稱「任一為 NULL 一律尾段 0」，**文件描述的是打算做的事，程式做的是另一件**。
+
+這與本 session 稍早 `ML-OUTCOME-SIMPLE-LEAK2` 是同一型：把「**未知**」歸類成某個已知
+狀態，於是輸出自信但錯誤的宣稱。修法一樣——**讓「未知」在型別層有自己的名字**：
+
+- 載入層保留 `None`（`dict[int, int | None]`），不做任何正規化
+- `pigeonhole_tail_outs` 見到任一 `None` 即 fail-closed，理由碼 `scoreboard_has_null_inning`
+- **R10 改以 raw SQL 判定完整性**：`COUNT(*) = COUNT(score_cnt)`（無未知局）且
+  `SUM(score_cnt) = games` 官方終場對手得分，**不沿用 runtime 的 NULL 處理**
+- 官方出局數（`inning_pitched_cnt*3+div3`）的 NULL 同樣不折，改以 `None` 判定
+- 回歸測試補在**載入層與 factory 層**——只測純函式抓不到轉換錯誤，bug 在餵它的邊界
+
+**數字未變**（一軍 24 場 126 outs、二軍 19 場 152 outs，坎南 30.0、黃子鵬 33.2、前 12 名
+皆不變）：目前快照 77,141 筆 `game_scoreboard` **NULL 0 筆**。但保守性從此由 runtime
+保證，不是靠資料剛好乾淨。
 
 **數字未變**：一軍仍 24 場 126 outs、二軍 19 場 152 outs，坎南 30.0 與黃子鵬 33.2 皆
 成立——代表目前快照確實完整，但**保守性從此由 runtime 保證，而不是靠資料剛好乾淨**。

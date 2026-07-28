@@ -16,7 +16,7 @@ exit 1。查核者可原樣重跑。
 | R5 | 保留賽（`delay_kind='保留'`）不得被採計 | 紅線 2 |
 | R6 | `boundary_limited` 為真 ⇔ 走完全部可得出賽未中斷（起算場＝資料中最早一場） | 紅線 4 |
 | R7 | 凡被**跳過**的季後賽出賽，賽別必在計入範圍之外**且**官方 ER 必為 0；且「起算場之後該投手在任何賽別的出賽都無自責分」 | 紅線 2（賽別範圍裁定） |
-| R10 | **鴿籠下界獨立重算**：以 SQL 取官方逐局比分與官方局數，獨立算出 `官方出局數 − 3 × 前綴局數`，驗 `採計值 ≤ 獨立重算下界`；並驗**逐局比分完整**（逐局總和 ＝ `games` 官方終場對手得分，官方對官方）與**隊別配置**（同隊總出局數 ≤ 守備半局數 × 3、且 ≥ 本投手出局數，對手側取相反 `visiting_home_type`）。純算術、與 runtime 不共享任何推論前提 | 紅線 2 |
+| R10 | **鴿籠下界獨立重算**：以 SQL 取官方逐局比分與官方局數，獨立算出 `官方出局數 − 3 × 前綴局數`，驗 `採計值 ≤ 獨立重算下界`；**逐局比分完整性以 raw SQL 判定**（`COUNT(*) = COUNT(score_cnt)` 無未知局、且 `SUM(score_cnt) = games` 官方終場對手得分），不沿用 runtime 的 NULL 處理；並驗**隊別配置**（同隊總出局數 ≤ 守備半局數 × 3、且 ≥ 本投手出局數，對手側取相反 `visiting_home_type`）。純算術、與 runtime 不共享任何推論前提 | 紅線 2 |
 
 用法：
 
@@ -67,6 +67,21 @@ _TAIL_SQL = """
         ON k.year = s.year AND k.kind_code = s.kind_code AND k.game_sno = s.game_sno
      WHERE s.visiting_home_type IS NOT NULL
      GROUP BY 1, 2, 3, 4, 5
+"""
+
+_SCOREBOARD_INTEGRITY_SQL = """
+    -- R10 的完整性一半：**在 SQL 端**直接數 NULL，不經過任何 Python 正規化。
+    -- COUNT(*) 數列數、COUNT(score_cnt) 只數非 NULL；兩者不等即代表有「未知得分」的局。
+    SELECT s.year, s.kind_code, s.game_sno, s.visiting_home_type AS vht,
+           count(*) AS rows_total,
+           count(s.score_cnt) AS rows_known,
+           sum(s.score_cnt) AS runs_sum
+      FROM cpbl.game_scoreboard s
+      JOIN (SELECT (v->>0)::int AS year, v->>1 AS kind_code, (v->>2)::int AS game_sno
+              FROM jsonb_array_elements(%(games)s::jsonb) v) k
+        ON k.year = s.year AND k.kind_code = s.kind_code AND k.game_sno = s.game_sno
+     WHERE s.visiting_home_type IS NOT NULL
+     GROUP BY 1, 2, 3, 4
 """
 
 _PITCHER_SIDE_SQL = """
@@ -202,17 +217,24 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
     # ---- R2 ＋ R10：鴿籠下界的獨立重算（純算術，不共享 runtime 任何推論前提） ----
     board: dict[tuple, dict[str, dict[int, int]]] = defaultdict(lambda: defaultdict(dict))
     side: dict[tuple, str] = {}
-    official: dict[tuple, int] = {}
+    official: dict[tuple, int | None] = {}
     opp_final: dict[tuple, int | None] = {}
+    integrity: dict[tuple, tuple[int, int, int | None]] = {}
     for chunk in _chunks(sorted(tail_games), 400):
         payload = json.dumps([list(g) for g in chunk])
         for r in _fetch(_TAIL_SQL, {"games": payload}):
+            # 對帳側同樣不得把 NULL 折成 0——共享正規化就等於共享盲點。
             board[(r["year"], r["kind_code"], r["game_sno"])][r["vht"]][
-                r["inning_seq"]] = int(r["runs"] or 0)
+                r["inning_seq"]] = (None if r["runs"] is None else int(r["runs"]))
+        for r in _fetch(_SCOREBOARD_INTEGRITY_SQL, {"games": payload}):
+            integrity[(r["year"], r["kind_code"], r["game_sno"], r["vht"])] = (
+                int(r["rows_total"]), int(r["rows_known"]),
+                None if r["runs_sum"] is None else int(r["runs_sum"]))
         for r in _fetch(_PITCHER_SIDE_SQL, {"games": payload}):
             side[(r["year"], r["kind_code"], r["game_sno"], r["pitcher_acnt"])] = r["vht"]
-            official[(r["year"], r["kind_code"], r["game_sno"], r["pitcher_acnt"])] = int(
-                r["outs"] or 0)
+            # 官方出局數同樣不折 NULL：未知就是未知，下面以 None 判定 fail-closed。
+            official[(r["year"], r["kind_code"], r["game_sno"], r["pitcher_acnt"])] = (
+                None if r["outs"] is None else int(r["outs"]))
             opp_final[(r["year"], r["kind_code"], r["game_sno"], r["pitcher_acnt"])] = (
                 r["opponent_score"])
 
@@ -220,7 +242,7 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
     # 把對手投手當同隊，數字碰巧相同而沒露餡）。
     team_outs: dict[tuple, int] = defaultdict(int)
     for (gy, gk, gs, gp), v in side.items():
-        team_outs[(gy, gk, gs, v)] += official.get((gy, gk, gs, gp), 0)
+        team_outs[(gy, gk, gs, v)] += official.get((gy, gk, gs, gp)) or 0
 
     lb_ok = suffix_ok = 0
     for y, k, sno, pid, claimed, suffix_from in tail_claims:
@@ -237,20 +259,29 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
         if my_side not in ("1", "2"):
             fails.append({"check": "R10", "player_id": pid,
                           "detail": f"{y}/{k}/{sno}：投手主客別缺值 {my_side!r}"})
-        elif same_team_total > 3 * fielded or (off or 0) > same_team_total:
+        elif off is None:
+            fails.append({"check": "R10", "player_id": pid,
+                          "detail": f"{y}/{k}/{sno}：官方出局數缺值，卻採計了 {claimed}"})
+        elif same_team_total > 3 * fielded or off > same_team_total:
             fails.append({"check": "R10", "player_id": pid,
                           "detail": f"{y}/{k}/{sno}：同隊({my_side})總出局數 {same_team_total} "
                                     f"超過守備 {fielded} 局上限或小於本投手 {off}"})
-        # 逐局比分完整性（官方對官方）：總和必須等於官方終場對手得分，否則缺列 → 下界 0。
+        # 逐局比分完整性（官方對官方）——**以 raw SQL 的計數獨立判定**，
+        # 不沿用 runtime 的 NULL 處理：COUNT(*) 必須等於 COUNT(score_cnt)（無未知局），
+        # 且 SUM(score_cnt) 必須等於官方終場對手得分。
         final = opp_final.get((*game, pid))
-        complete = final is not None and sum(opp.values()) == final
+        opp_side = "1" if my_side == "2" else "2"
+        rows_total, rows_known, runs_sum = integrity.get((*game, opp_side), (0, 0, None))
+        complete = (rows_total > 0 and rows_total == rows_known
+                    and final is not None and runs_sum == final)
         if not complete:
             fails.append({"check": "R10", "player_id": pid,
-                          "detail": f"{y}/{k}/{sno}：逐局比分總和 {sum(opp.values())} "
-                                    f"≠ 官方終場對手得分 {final}，卻採計了 {claimed}"})
+                          "detail": f"{y}/{k}/{sno}：逐局比分不完整（列數 {rows_total}／"
+                                    f"非 NULL {rows_known}／總和 {runs_sum} vs 官方終場 "
+                                    f"{final}），卻採計了 {claimed}"})
         scored = [i for i, r in opp.items() if r]
         n_prefix = max(scored) if scored else 0
-        recomputed = max(0, (off or 0) - 3 * n_prefix) if complete else 0
+        recomputed = max(0, off - 3 * n_prefix) if complete and off is not None else 0
         if claimed > recomputed:
             fails.append({"check": "R10", "player_id": pid,
                           "detail": f"{y}/{k}/{sno}：採計 {claimed} > 獨立重算下界 {recomputed}"})

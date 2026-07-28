@@ -207,7 +207,9 @@ host 缺 `libomp.dylib`。**勿 `brew install libomp` 污染 host**；需 LightG
   界定「零得分後綴」，取鴿籠下界 `官方出局數 − 3 × 前綴局數`。故與投手更替、規則 5.10(d)
   再入賽、牽制出局皆無關。**採計前必驗逐局比分完整**：逐局總和須等於 `games` 的官方終場
   對手得分（官方對官方），不等即尾段 0——`game_scoreboard` 是逐列 UPSERT、無完整性
-  constraint，缺一個得分局就會高估。`DATA_FROM_YEAR`（SQL ＋ 核心函式兩層）仍 enforce；
+  constraint，缺一個得分局就會高估。**`score_cnt` 的 NULL 不得正規化為 0**（NULL＝這一局
+  得幾分不知道，非 0 分；折成 0 會讓官方終場 0 分的比賽以 `0 == 0` 通過對帳），載入層保留
+  `None`、見到即 fail-closed。`DATA_FROM_YEAR`（SQL ＋ 核心函式兩層）仍 enforce；
   `kind_code` 鎖 `^(A|D)$`。
 - **尾段採計率低是方法邊界不是缺陷**：一軍 343 個尾段查詢只有 24 個（7%）採得到，因為
   官方逐局比分只知道某局有沒有得分、不知道那分是誰掉的（先發退場後後援掉分會吃掉整個

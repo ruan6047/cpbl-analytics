@@ -184,7 +184,7 @@ def outs_to_innings(outs: int) -> float:
 
 
 def pigeonhole_tail_outs(
-    opponent_runs_by_inning: Mapping[int, int],
+    opponent_runs_by_inning: Mapping[int, int | None],
     official_outs: int | None,
     opponent_final_score: int | None,
 ) -> tuple[int, int | None]:
@@ -235,6 +235,11 @@ def pigeonhole_tail_outs(
     **逐局得分總和 ＝ 官方終場得分**；不等、或任一為 NULL，一律回 `(0, None)`。
     這是**官方對官方**的交叉檢查，不引入任何新假設。
 
+    **任一局的得分為 `None`（DB 的 NULL）即 fail-closed。** `None` 的意思是「這一局得
+    幾分不知道」，不是「這一局 0 分」——把未知折成 0 會讓官方終場得分為 0 的比賽以
+    `0 == 0` 通過總和對帳，缺值的局被當成零得分而採計。**未知必須有自己的名字，不能被
+    靜默折疊進某個已知值。**
+
     ## 刻意保守之處
 
     - 用**得分 R** 而非自責分 ER 界定後綴：零得分必然零自責分，反之不然，故只會低估。
@@ -245,8 +250,11 @@ def pigeonhole_tail_outs(
         return 0, None
     if not opponent_runs_by_inning:
         return 0, None
+    # 缺值（DB NULL）＝這一局得幾分不知道，不是 0 分 → fail-closed。
+    if any(r is None for r in opponent_runs_by_inning.values()):
+        return 0, None
     # 逐局比分完整性：官方對官方。總和對不上代表 scoreboard 缺列，缺的若是得分局就會高估。
-    if sum(opponent_runs_by_inning.values()) != opponent_final_score:
+    if sum(opponent_runs_by_inning.values()) != opponent_final_score:  # type: ignore[arg-type]
         return 0, None
     scored = [i for i, r in opponent_runs_by_inning.items() if r]
     n_prefix = max(scored) if scored else 0
@@ -258,7 +266,7 @@ def pigeonhole_tail_outs(
 
 def tail_credit(
     key: tuple[int, str, int],
-    opponent_runs_by_inning: Mapping[int, int],
+    opponent_runs_by_inning: Mapping[int, int | None],
     official_outs: int | None,
     opponent_final_score: int | None,
 ) -> TailCredit:
@@ -269,8 +277,10 @@ def tail_credit(
         "no_scoreboard" if not opponent_runs_by_inning
         else "no_official_outs" if official_outs is None
         else "no_official_final_score" if opponent_final_score is None
+        else "scoreboard_has_null_inning"
+        if any(r is None for r in opponent_runs_by_inning.values())
         else "scoreboard_incomplete"
-        if sum(opponent_runs_by_inning.values()) != opponent_final_score
+        if sum(opponent_runs_by_inning.values()) != opponent_final_score  # type: ignore[arg-type]
         else "no_provable_scoreless_suffix")
     return TailCredit(key=key, outs=outs, suffix_from_inning=suffix_from, reason=reason)
 
