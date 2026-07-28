@@ -8,7 +8,8 @@
   季中休兵日不應清空區塊）；完賽判定沿用 completed-game-judgment 慣例
   （score>0 且 game_date<=CURRENT_DATE，排除因雨延賽保留但尚未真正開打的列）。
 - 門檻＝窗口內 PA >= 10；不足門檻者不進榜，不得為湊數放寬。
-- 排序＝窗口內 OPS 由高至低取前 5；OPS 公式與 `_team_scoped_metrics`
+- 排序＝窗口內 OPS 由高至低取前 3（2026-07-28 需求方看畫面後回饋，由原提案 5 收斂為 3；
+  `TOP_N` 為唯一數量來源）；OPS 公式與 `_team_scoped_metrics`
   （standings.py）同一口徑：OBP=(H+BB+HBP)/(AB+BB+HBP+SF)、SLG=TB/AB。
 - 每列同時標示「現行中的」連續安打場次（不是歷史最長）：由該球員本季（不限
   7 日窗口）最近一場往前數，H>0 記一場、AB>0 且 H=0 中止，AB=0（如保送/觸身
@@ -28,7 +29,7 @@ from cpbl.db import conn
 
 MIN_PA = 10
 WINDOW_DAYS = 7
-TOP_N = 5
+TOP_N = 3
 
 _TEAM_CODE_EXPR = "CASE bg.visiting_home_type WHEN '2' THEN g.home_team_code ELSE g.away_team_code END"
 
@@ -67,7 +68,7 @@ def _current_hit_streak(cur, code: str, season: int, hitter_acnt: str) -> int:
 
 
 def hot_batters(code: str, season: int) -> dict:
-    """球隊頁「近期球員熱區」（打者）：近 7 日窗口 OPS 前 5（PA>=10），附現行連續安打。"""
+    """球隊頁「近期球員熱區」（打者）：近 7 日窗口 OPS 前 TOP_N（PA>=10），附現行連續安打。"""
     with conn() as c:
         cur = c.cursor()
         last_date = _last_completed_game_date(cur, code, season)
