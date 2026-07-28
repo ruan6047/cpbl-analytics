@@ -53,6 +53,10 @@
      措辭不能讓讀者誤以為是固定目標（台鋼雄鷹是典型案例：2024 年才進一軍，
      隊史紀錄保持人全部仍在隊上出賽，逼近隊史紀錄實質是「追一個今天也在跑
      的人」，跟富邦這種紀錄多半在退役球員手上的老牌隊不是同一回事）。
+   - **同一 `stat` 已有 refreshed 時，該 `stat` 的 approaching 全部抑制不輸出**
+     （2026-07-28 需求方追加；判別鍵＝`stat`，見 `_franchise_records` docstring
+     完整理由——同隊兩人爭同一項紀錄時，只留「已刷新」的那張，不留「還在追
+     剛刷新那個人」的第二張同名卡）。
 
    **連續型隊史紀錄（最長連續安打/無失分等）不做**——需求方 2026-07-28 裁定，
    逐場資料僅 2018+ 會讓口徑半殘，任何「近年最佳」變體措辭也不得出現，本模組
@@ -359,8 +363,27 @@ def _franchise_records(
       推進而動，不是靜止的碑（台鋼雄鷹是典型案例：2024 年才進一軍，隊史紀錄保持
       人全部仍在隊上出賽）。
 
+    2026-07-28 需求方追加規則：**同一 `stat` 若已產出 `refreshed`，該 `stat` 的
+    全部 `approaching` 一律抑制，不輸出**（判別鍵＝`stat`，本函式一次呼叫只服務
+    單一 role，故天然也是「同一 role 內」）。成因：`approaching` 的 leader 永遠
+    是「目前」該項最高——當某人已刷新該項紀錄，其他人差距再小也只是在追那個
+    剛刷新的人，而非在追一個獨立的「隊史紀錄」。線上實例（台鋼雄鷹三振）：
+    後勁 216（刷新，舊紀錄 163）與艾速特 208（差後勁 8）會同時產出「三振」的
+    refreshed 與 approaching 兩張卡，標題同名、外觀相同，讀者看不出在講同一件
+    事——這是 UX-TEAM-HOTZONE1 label 精簡（拿掉「逼近隊史紀錄」字面後綴）才
+    暴露的副作用，字面區別沒了但語意衝突本來就在。**不反過來丟 refreshed**——
+    刷新是既成事實，逼近是進行式，保留前者。
+
     `prior`／`current` 皆已是「已含正確 name」的 dict（`_merge_current_season`
     輸出或等價結構），無需另外查名字。
+
+    2026-07-28 需求方追加：`refreshed` 列一併回傳 `prior_holder_id`（`prior`
+    中與 `prior_record` 同值的球員 id；並列多人時為 `None`，前端保守視為
+    「不同人」）——**判別「原紀錄保持人是否為本人」一律走 player_id，不比
+    姓名字串**（同名不同人、改名等情境比名字會出錯，專案既有紅線：跨表一律
+    `player_id` join）。全六隊實測 21 筆 refreshed 中 19 筆是自己刷新自己
+    （上季結束時的累計被自己本季新增量推過去，`prior_record` 只是他自己的
+    舊基準，不是「超越了某個對象」），前端據此決定是否顯示原紀錄段落。
     """
     out = []
     for m in stat_defs:
@@ -372,6 +395,7 @@ def _franchise_records(
         leader_pids = [pid for pid, v in current.items() if v.get(stat, 0) == leader_value]
         leader_names = sorted({current[pid]["name"] for pid in leader_pids})
         leader_active = any(pid in active_ids for pid in leader_pids)
+        prior_holder_pids = sorted({p for p, v2 in prior.items() if v2.get(stat, 0) == prior_record})
         for pl in roster:
             pid = pl["player_id"]
             v = current.get(pid)
@@ -386,6 +410,7 @@ def _franchise_records(
                     "stat": stat, "label": m["label"], "state": "refreshed",
                     "current": cur_val, "prior_record": prior_record,
                     "prior_holder": "、".join(sorted({v2["name"] for v2 in prior.values() if v2.get(stat, 0) == prior_record})),
+                    "prior_holder_id": prior_holder_pids[0] if len(prior_holder_pids) == 1 else None,
                     "ratio": 0.0,
                 })
             elif cur_val < leader_value:
@@ -401,7 +426,9 @@ def _franchise_records(
                         "holder": "、".join(leader_names), "holder_active": leader_active,
                         "ratio": round(gap / m["ladder"], 4),
                     })
-    return out
+
+    refreshed_stats = {r["stat"] for r in out if r["state"] == "refreshed"}
+    return [r for r in out if not (r["state"] == "approaching" and r["stat"] in refreshed_stats)]
 
 
 def upcoming_records(code: str, season: int = DEFAULT_SEASON) -> dict:

@@ -30,7 +30,7 @@ export default async function TeamPage({ params, searchParams }: {
   const season = currentStd.season;
   const year = rawYear && rawYear >= MIN_SPLIT_YEAR && rawYear <= season ? rawYear : season;
 
-  const [split, special, games, cal, bat, pit, field, eras, roster, der, yearStd, style, hotBatters, pregame, upcomingRecords] = await Promise.all([
+  const [split, special, games, cal, bat, pit, field, eras, roster, der, yearStd, style, hotZone, pregame, upcomingRecords] = await Promise.all([
     api.teamSplit(year),
     api.specialRecords(year),
     api.gamesRecent(200),         // 近日焦點：當季近期賽事
@@ -43,8 +43,11 @@ export default async function TeamPage({ params, searchParams }: {
     api.teamDer(code).catch(() => ({ team: code, franchise: code, items: [] })),
     year === season ? Promise.resolve(currentStd) : api.officialStandings(0, year),
     api.teamStyle(code).catch(() => null),  // 球風（UX-TEAM-STYLE1）；失敗不擋整頁
-    // 近日焦點擴充（UX-TEAM-FOCUS2）：一律當季（不帶 year），與「近日焦點＝當季近況」語意一致。
-    api.teamHotBatters(code).catch(() => ({ season, available: false, window: null, items: [] })),
+    // 近日焦點・近期球員熱區（UX-TEAM-HOTZONE1）：一律當季（不帶 year），與「近日焦點＝當季近況」語意一致。
+    api.teamHotZone(code).catch(() => ({
+      season, window_days: 14, available: false, window: null, coverage: null,
+      batters: { min_bip: 0, items: [] }, pitchers: { min_pitches: 0, items: [] },
+    })),
     api.outcomePregame(60).catch(() => null),  // 失敗不擋整頁：NextGameCard 走 resolvePregameCard 的 fetchFailed 分支
     // 近日焦點・即將挑戰的紀錄（UX-TEAM-RECORDS1）：一律當季；失敗不擋整頁（區塊直接不渲染）。
     api.teamUpcomingRecords(code).catch(() => null),
@@ -260,39 +263,50 @@ export default async function TeamPage({ params, searchParams }: {
   // ── 頂層群組（順序即頁籤順序，第一個為落地預設）：近日焦點 → 賽季 → 現役陣容 → 歷屆成員 → 隊史 ──
   const groups: TeamGroup[] = [];
 
+  // 近期賽事（UX-TEAM-HOTZONE1 桌機不用捲軸改版）：不再另起整幅一列，改塞進
+  // TeamFocusSection 右欄、疊在熱區卡下方——右欄裝了 INFO/hover 收斂後的熱區卡
+  // 還有大量餘裕（實測右欄 252px vs 左欄「下一場＋即將挑戰的紀錄」562px），
+  // 移進來完全落在既有餘裕內，不必再擠壓任何內容。
+  //
+  // 網格斷點原本 `sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6` 是為「這份清單
+  // 佔頁面全寬」設計（viewport 斷點，同 RECORD_GRID 的陷阱）——搬進右欄後 lg
+  // 仍會觸發卻只剩約半寬，6 欄會把每張比分卡片擠到不到 100px。改
+  // `sm:grid-cols-2 lg:grid-cols-3`（上限 3 欄）：右欄實測寬度約 540px，
+  // 3 欄每卡約 175px，logo+比分+日期還撐得開；手機 <640px 仍是原本的單欄。
+  const recentGamesSection = teamGames.length > 0 ? (
+    <section key="recent-games">
+      <h2 className="mb-1 text-lg font-semibold">近期賽事</h2>
+      <p className="mb-3 text-xs text-faint">當季最近完賽（點入看賽況）。下一場見上方對戰卡。</p>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {teamGames.map((g) => {
+          const [gy, gm, gd] = g.game_date.split("-").map(Number);
+          const wd = "日一二三四五六"[new Date(gy, gm - 1, gd).getDay()];
+          const winner = g.home_score !== g.away_score ? (g.home_score > g.away_score ? "home" : "away") : null;
+          const scoreCls = (side: "away" | "home") =>
+            `w-6 shrink-0 text-center font-mono text-lg tabular-nums ${winner === side ? "font-bold text-ink" : "text-muted"}`;
+          return (
+            <Link key={`${g.kind_code}-${g.game_sno}`} href={`/games/${g.game_sno}?kind=${g.kind_code}&year=${g.year}`}
+              className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2 py-2 transition hover:bg-surface-2">
+              <TeamLogo code={g.away_team_code} name={g.away_team_name} size={26} />
+              <span className={scoreCls("away")}>{g.away_score}</span>
+              <div className="flex-1 text-center leading-tight">
+                <div className="whitespace-nowrap font-mono text-xs text-faint tabular-nums">{g.game_date.slice(5)}</div>
+                <div className="text-[10px] text-faint">（{wd}）</div>
+              </div>
+              <span className={scoreCls("home")}>{g.home_score}</span>
+              <TeamLogo code={g.home_team_code} name={g.home_team_name} size={26} />
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  ) : null;
+
   if (team) {
     groups.push({ value: "focus", label: "近日焦點", content: (
-      <div key="focus" className="space-y-5">
-        <TeamFocusSection upcoming={upcoming} pregame={pregame} hotBatters={hotBatters} />
-        <TeamRecordsSection data={upcomingRecords} />
-        {teamGames.length > 0 && (
-          <section key="recent-games">
-            <h2 className="mb-1 text-lg font-semibold">近期賽事</h2>
-            <p className="mb-3 text-[11px] text-faint">當季最近完賽（點入看賽況）。下一場見上方對戰卡。</p>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
-              {teamGames.map((g) => {
-                const [gy, gm, gd] = g.game_date.split("-").map(Number);
-                const wd = "日一二三四五六"[new Date(gy, gm - 1, gd).getDay()];
-                const winner = g.home_score !== g.away_score ? (g.home_score > g.away_score ? "home" : "away") : null;
-                const scoreCls = (side: "away" | "home") =>
-                  `w-6 shrink-0 text-center font-mono text-lg tabular-nums ${winner === side ? "font-bold text-ink" : "text-muted"}`;
-                return (
-                  <Link key={`${g.kind_code}-${g.game_sno}`} href={`/games/${g.game_sno}?kind=${g.kind_code}&year=${g.year}`}
-                    className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2 py-2 transition hover:bg-surface-2">
-                    <TeamLogo code={g.away_team_code} name={g.away_team_name} size={26} />
-                    <span className={scoreCls("away")}>{g.away_score}</span>
-                    <div className="flex-1 text-center leading-tight">
-                      <div className="whitespace-nowrap font-mono text-xs text-faint tabular-nums">{g.game_date.slice(5)}</div>
-                      <div className="text-[10px] text-faint">（{wd}）</div>
-                    </div>
-                    <span className={scoreCls("home")}>{g.home_score}</span>
-                    <TeamLogo code={g.home_team_code} name={g.home_team_name} size={26} />
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        )}
+      <div key="focus">
+        <TeamFocusSection upcoming={upcoming} pregame={pregame} hotZone={hotZone}
+          records={<TeamRecordsSection data={upcomingRecords} />} recentGames={recentGamesSection} />
       </div>
     ) });
   }
@@ -413,9 +427,12 @@ export default async function TeamPage({ params, searchParams }: {
   }
 
   return (
-    <div className="space-y-8">
-      {/* Hero：當季身分橫幅（永遠當季戰績與近況；賽季 tab 才隨年度切換）*/}
-      <div className="rounded-2xl p-6" style={{ background: color, color: ink }}>
+    // space-y-8→5（UX-TEAM-HOTZONE1 桌機不用捲軸需求）：Hero 與頁籤列間距單純是留白，
+    // 不是資訊，收緊不影響任何 tab 的內容完整性。
+    <div className="space-y-5">
+      {/* Hero：當季身分橫幅（永遠當季戰績與近況；賽季 tab 才隨年度切換）。
+          p-6→4／mt-4→3／pt-3.5→3（同上，純壓縮留白，字級/內容不動）。*/}
+      <div className="rounded-2xl p-4" style={{ background: color, color: ink }}>
         <div className="flex flex-wrap items-center gap-4">
           <TeamLogo code={code} name={displayName} size={56} />
           <div className="min-w-0">
@@ -443,7 +460,7 @@ export default async function TeamPage({ params, searchParams }: {
         </div>
 
         {team && (
-          <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3 border-t pt-3.5" style={{ borderColor: `${ink}2b` }}>
+          <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3 border-t pt-3" style={{ borderColor: `${ink}2b` }}>
             {[
               { label: "勝差", value: team.gb && team.gb > 0 ? String(team.gb) : "—" },
               { label: "", value: streakZh(team.streak) },

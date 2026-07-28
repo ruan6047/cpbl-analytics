@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { codeFromName, contrastText, eraBadge, isCurrentTeam, nameMeta, teamColor, teamLetter, teamPageCode } from "@/lib/teams";
 import { Tooltip } from "./tooltip";
 
@@ -143,6 +144,148 @@ export function StatGrid({ items, cols = 2, className = "" }: {
         </div>
       ))}
     </dl>
+  );
+}
+
+// 「近日焦點」頁籤資料卡語彙（UX-TEAM-RECORDS1 定案，UX-TEAM-HOTZONE1 沿用）：
+// 每筆一張次級卡。兩種版型共用同一個元件（`layout` 判別聯集 prop，而非複製一份
+// 新元件——2026-07-28 需求方明訂「不要用 copy-paste 分岔」）：
+//
+// - `layout="row"`（預設，近期球員熱區沿用）：headline 描述句＋右側單一數值錨點
+//   同一行。熱區的文字短（球員名 2-4 字＋「km/h」「%」），3 欄綽綽有餘，換版型
+//   對它只有壞處沒有好處，故不動。
+// - `layout="stack"`（即將挑戰的紀錄專用）：**三行**——第一行項目名（靠左）
+//   ＋錨點（靠右，同行）、第二行球員名、第三行（選填）明細。改版型不是為了
+//   省空間（stack 版每卡仍比熱區的 row 版高，見下方 grep 得到的卡面 log）——
+//   是因為 row 版在窄欄位下即使兩行也裝不下全聯盟最壞字寬組合（見下）。
+//
+// 2026-07-28 需求方原本要求四行（項目名／球員名／錨點／明細各自一行，原話
+// 見下方 canvas 實測），人工審看過後追加一輪要求「錨點移到項目名右側同一
+// 行」（省一行高度、視覺更緊湊），**但字級不縮到 12px**——錨點維持
+// `text-sm font-bold text-accent`：粗體＋accent 色是唯一的重量來源，不靠
+// 字級（若跟球員名同為 14px 且都不加粗，兩者會打架；加粗＋變色讓錨點讀起來
+// 像狀態徽章，不是第二個標題）。仍只用 `text-xs`/`text-sm` 兩級，零新增
+// arbitrary 字級。
+//
+// **為什麼要垂直堆疊、不是靠加寬欄位或縮字**：需求方 2026-07-28 用 canvas 實測
+// 全聯盟最壞值——最長球員名 112px（`伊斯坦大．比力安`／`田中怜利ハモンド`）、
+// 精簡後最長項目名 60px（`救援／中繼`，text-xs/12px）、最長錨點在
+// text-sm/14px 粗體下約 58px（`連續 5 場`）。項目名的最壞值**取決於 label
+// 是否還帶著跟 SubTabs 頁籤重複的前綴**（見 records-section.tsx 的三處
+// label 簡化）：
+//
+// | 版型 | 現況標籤（帶前綴，已淘汰） | 精簡標籤後（已淘汰的四行 stack） | 精簡標籤＋錨點同行（現況三行 stack） |
+// |---|---|---|---|
+// | row 單行 | 369px | 285px | — |
+// | row 兩行 | 252px | 168px | — |
+// | stack 第一行（項目+錨點同行）／整卡 | 178px（四行版） | 136px（四行版） | 60+8+58=126px |
+// | stack 第二行（球員名） | — | — | 112px |
+//
+// 半寬左欄 3 欄實得寬度僅 ~165px（含內距）。**帶前綴時連四行 stack 版都裝
+// 不下（178 > 165）**——第一輪算寬度時漏算了 franchise 的 approaching 變體
+// （`{項目}逼近隊史紀錄`，最長組合「救援／中繼逼近隊史紀錄」154px）。**拿掉
+// 前綴（label 精簡）因此不是可有可無的美觀調整，是 3 欄／stack 版能成立的
+// 前提**。現況三行版單卡需求寬＝max(126, 112)+24（內距）＝150px，165px 尚
+// 有 15px 餘裕——比四行版的 29px 餘裕更緊，故本輪務必用最壞組合（`伊斯坦大．
+// 比力安`＋`救援／中繼`＋`連續 5 場`）實測，不能只看今天在榜的名字。
+//
+// 為什麼是 bg-surface-2 + rounded-lg（無 border）而不是再套一層 <Card>：這組卡片
+// 永遠巢狀在頁籤的外層 <Card> 裡，若每筆也用 Card 會變成卡中卡（.card 的
+// border-line + shadow 疊兩層）。設計系統只對 DataTable 定義了等價的 `bare`
+// （同問題的既有解法：已在 Card 內免雙層邊框），Card 本身沒有等價 prop——
+// 評估過幫 Card 加 `bare`/`nested` prop，但這個場景的呼叫點不夠多，屬過度設計。
+// 改沿用 `StatGrid` 已驗證過的「bg-surface-2 + rounded-lg」次級 surface token
+// （同一份視覺語彙，但 StatGrid 本身版面置中 dl 放不下這裡需要的四段式內容，
+// 故不直接套用元件，只借它驗證過的容器語彙）。
+type RecordCardRowProps = { layout?: "row"; headline: ReactNode; detail?: ReactNode; anchor: ReactNode };
+type RecordCardStackProps = { layout: "stack"; label: ReactNode; name: ReactNode; detail?: ReactNode; anchor: ReactNode };
+
+export function RecordCard(props: RecordCardRowProps | RecordCardStackProps) {
+  if (props.layout === "stack") {
+    return (
+      <li className="rounded-lg bg-surface-2 px-3 py-2.5">
+        <div className="flex items-baseline justify-between gap-2">
+          <div className="min-w-0 truncate text-xs text-muted">{props.label}</div>
+          <div className="shrink-0 whitespace-nowrap text-sm font-bold tabular-nums text-accent">{props.anchor}</div>
+        </div>
+        <div className="mt-0.5 text-sm text-ink">{props.name}</div>
+        {props.detail && <div className="mt-0.5 text-xs text-faint">{props.detail}</div>}
+      </li>
+    );
+  }
+  const { headline, detail, anchor } = props;
+  return (
+    <li className="rounded-lg bg-surface-2 px-3 py-2.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1 text-sm text-ink">{headline}</div>
+        <div className="shrink-0 whitespace-nowrap text-base font-bold tabular-nums text-accent">{anchor}</div>
+      </div>
+      {detail && <div className="mt-0.5 text-xs text-faint">{detail}</div>}
+    </li>
+  );
+}
+
+// 密排行內用的資訊小圓點觸發鈕（"i"）：包一層 `Tooltip`，用於卡片明細行內聯
+// 「還有更多但不想佔常駐版位」的場景（原始案例：focus-section.tsx 熱區卡的
+// 次要數據；UX-TEAM-HOTZONE1 追加案例：records-section.tsx 隊史刷新卡的原
+// 紀錄段落）。第二個呼叫點出現後從各自檔案內的區域函式抽成這裡的共用元件，
+// 避免同一段「觸控熱區補到 24px 但不放大視覺圖示」的 CSS 手法各自維護一份、
+// 日後不同步走鐘。
+//
+// 視覺 14px 圖示（`h-3.5 w-3.5`）、字級 `text-[10px]`（UI_UX_SYSTEM §2.3：
+// sub-9px 低於可讀下限，10px 對應既有 `micro` 角色）；`relative`＋`::before`
+// 負 inset（-5px，14+5+5=24）撐出 WCAG 2.5.8 的 24×24 熱區——**不用**
+// `ContextSwitcher` 的 `min-h-11` 真實撐大（那招適合獨立工具列，這裡是密排
+// 行內元素，真的撐到 44px 會把整條明細行/標題列一起拉高）。`aria-label`
+// 必須由呼叫端帶對象具體敘述（如「三振 原紀錄保持人」），不得省略——省略會
+// 退回 `Tooltip` 對「非空文字內容」的預設判定，把字面「i」讀成可及名稱
+// （UX-TEAM-HOTZONE1 修過的真實 bug，見 `tooltip.tsx` cloneElement 註解）。
+export function InfoDot({ label, content, hiddenBelowMd }: {
+  label: string; content: ReactNode;
+  /** 熱區卡的原始用法：<768px 次要數據常駐顯示（單欄有空間），≥768px 才換成
+   * 這顆觸發鈕，兩者互斥（見 focus-section.tsx CardDetail）。預設一律顯示。 */
+  hiddenBelowMd?: boolean;
+}) {
+  const display = hiddenBelowMd ? "hidden md:grid" : "inline-grid";
+  return (
+    <Tooltip content={content} suppressUnderline interactive>
+      <button type="button" aria-label={label}
+        className={`relative ${display} h-3.5 w-3.5 shrink-0 touch-manipulation place-items-center rounded-full border border-line text-[10px] font-semibold leading-none text-muted before:absolute before:-inset-[5px] before:content-[''] hover:text-ink`}>
+        i
+      </button>
+    </Tooltip>
+  );
+}
+
+// RecordCard 清單的共用網格斷點：橫向排列縮短整頁捲動（需求方 2026-07-28 明訂
+// 「卡片是希望橫向排列 讓這頁資訊能不用卷軸」）。與 page.tsx「戰績分項」網格
+// 同一組斷點，同一頁同樣「把多張小卡片橫向塞進去縮短捲動」的目的不另訂一套。
+// gap-2（非其他網格常用的 gap-3）是唯一刻意偏離：RecordCard 內距已較緊湊
+// （px-3 py-2.5，非 Card 的 p-4），沿用 gap-3 視覺上會顯得鬆散不成套。
+//
+// `lg:grid-cols-3` 是**viewport 斷點，不是容器斷點**——只在「這份清單佔滿頁面
+// 全寬」的前提下 3 欄才有實得寬度。半寬欄位（如「即將挑戰的紀錄」現在永遠
+// 位於 focus-section.tsx 的半寬左欄）viewport lg 仍會觸發、每卡實得寬度只剩
+// 一半（1440 實測 546px 卡寬 ÷3≈165px）——這曾是三輪真實 bug 的成因：
+//   1. 第一輪退回：row 版錨點 shrink-0 nowrap 擠壓 headline，逐字斷行。
+//   2. 第二輪一度改用 2 欄暫時避開，但那只是「降欄數換寬度」的權宜——本質
+//      問題（欄寬 vs. 文字最壞寬度）沒解。
+//   3. 第三輪重算最壞字寬時發現第二輪的估計本身也低估了（漏算 franchise
+//      approaching 變體的 label 後綴），帶前綴的標籤下即使 stack 版也要
+//      178px，仍超過 165px——真正解法不是欄數/版型，是先把跟頁籤名重複的
+//      label 前綴拿掉（見 records-section.tsx），把 stack 版壓到 136px
+//      才低於 165px 的真實欄寬（見上方 RecordCard docstring 的完整實測表）。
+// 現在 `layout="stack"` + 精簡後的 label 把單卡最壞需求壓到 136px（< 165px），
+// 3 欄本身重新安全，故「即將挑戰的紀錄」與「近期球員熱區」統一用回這一個
+// `RECORD_GRID`（不再需要曾經存在的 `RECORD_GRID_2COL` 過渡版本，已移除）。
+export const RECORD_GRID = "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3";
+
+export function SectionHeading({ children, caption }: { children: ReactNode; caption?: ReactNode }) {
+  return (
+    <div className="mb-1">
+      <div className="text-xs font-semibold text-muted">{children}</div>
+      {caption && <p className="mt-0.5 text-xs text-faint">{caption}</p>}
+    </div>
   );
 }
 
