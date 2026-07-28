@@ -117,7 +117,19 @@ def load_opponent_runs(
         cur = c.cursor()
         cur.execute(_OPP_RUNS_SQL, {"keys": payload})
         rows = _dicts(cur)
-    out: dict[tuple[int, str, int], dict[str, dict[int, int]]] = {}
+    return map_opponent_runs(rows)
+
+
+def map_opponent_runs(
+    rows: Sequence[dict],
+) -> dict[tuple[int, str, int], dict[str, dict[int, int | None]]]:
+    """DB 行 → `{game: {打擊側 vht: {局: 得分 | None}}}`。
+
+    抽成獨立函式是為了讓**邊界轉換本身**可以被直接測行為（餵一列 `runs=None` 進來、
+    斷言出來仍是 `None`），而不是去搜原始碼長什麼樣——後者改個寫法就能一邊通過測試
+    一邊把 bug 種回去。
+    """
+    out: dict[tuple[int, str, int], dict[str, dict[int, int | None]]] = {}
     for r in rows:
         game = (r["year"], r["kind_code"], r["game_sno"])
         runs = r["runs"]

@@ -298,6 +298,7 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
                                     f"非 NULL {rows_known}／總和 {runs_sum} vs 官方終場 "
                                     f"{final}），卻採計了 {claimed}"})
         scored = [i for i, r in opp.items() if r]
+        # 同 runtime：僅在完整性通過後才有意義，`else 0` 是已證實的「整場零得分」。
         n_prefix = max(scored) if scored else 0
         recomputed = max(0, off - 3 * n_prefix) if complete and off is not None else 0
         if claimed > recomputed:

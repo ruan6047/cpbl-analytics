@@ -124,41 +124,92 @@ def test_single_player_lookup():
     assert one["items"][0]["outs"] == d["items"][0]["outs"]
 
 
-def test_loader_preserves_null_inning_scores():
-    """**F-NULL 迴歸（iteration 9）**：載入層不得把 `score_cnt` 的 NULL 折成 0。
+class _FakeCursor:
+    """最小的 DB cursor 替身：`_dicts()` 只用到 `description` 與 `fetchall()`。"""
 
-    `game_scoreboard.score_cnt` 允許 NULL，ingest 遇來源缺值就寫 NULL。NULL 的意思是
-    「這一局得幾分**不知道**」，不是「這一局 0 分」。折成 0 之後，當官方終場得分恰為 0
-    時總和對帳會以 `0 == 0` 通過，缺值的局被當成零得分而採計＝**把未知當成已知**。
+    def __init__(self, cols, rows):
+        self.description = [(c,) for c in cols]
+        self._rows = rows
 
-    **這一條必須測在載入層**：只測 `pigeonhole_tail_outs()` 抓不到轉換錯誤——純函式是
-    對的，bug 在餵它的那個邊界。
-    """
-    import inspect
+    def execute(self, *_args, **_kwargs):
+        return None
+
+    def fetchall(self):
+        return self._rows
+
+
+class _FakeConn:
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    def cursor(self):
+        return self._cursor
+
+
+def _patch_conn(monkeypatch, cols, rows):
+    from contextlib import contextmanager
 
     from cpbl.api import scoreless
 
-    src = inspect.getsource(scoreless.load_opponent_runs)
-    assert 'r["runs"] or 0' not in src and "runs or 0" not in src, (
-        "載入層不得把 NULL 正規化為 0")
-    assert "None if runs is None" in src
+    @contextmanager
+    def fake_conn():
+        yield _FakeConn(_FakeCursor(cols, rows))
+
+    monkeypatch.setattr(scoreless, "conn", fake_conn)
 
 
-def test_tail_lookup_fails_closed_on_null_inning_score():
-    """factory 層：逐局比分含 NULL 時，尾段必須歸零而不是採計。
+def test_loader_preserves_null_inning_scores(monkeypatch):
+    """**F-NULL 迴歸（iteration 9／11）**：載入層不得把 `score_cnt` 的 NULL 折成 0。
 
-    情境刻意設成「官方終場對手得 0 分」——正是總和對帳 `0 == 0` 會放行的那一格。
+    NULL 的意思是「這一局得幾分**不知道**」，不是「這一局 0 分」。折成 0 之後，當官方
+    終場得分恰為 0 時總和對帳會以 `0 == 0` 通過，缺值的局被當成零得分而採計。
+
+    **測行為，不測原始碼長什麼樣**：以假 cursor 實際跑 `load_opponent_runs()`。
+    iteration 10 的版本用 `inspect.getsource()` 搜字串，那種寫法既擋不住
+    `value if value is not None else 0`（照樣通過），又會被純重構打掛（抽出 mapper 後
+    字串就不在該函式裡了）——**它驗的是標記，不是性質**。
     """
-    from cpbl.api.scoreless import tail_lookup_factory
+    from cpbl.api.scoreless import load_opponent_runs
+
+    cols = ["year", "kind_code", "game_sno", "vht", "inning_seq", "runs"]
+    rows = [(2026, "A", 1, "1", 1, None), (2026, "A", 1, "1", 2, 0),
+            (2026, "A", 1, "1", 3, 0)]
+    _patch_conn(monkeypatch, cols, rows)
+
+    got = load_opponent_runs([(2026, "A", 1)])
+
+    assert got[(2026, "A", 1)]["1"] == {1: None, 2: 0, 3: 0}
+
+
+def test_loader_to_tail_null_inning_fails_closed(monkeypatch):
+    """載入層 → factory 全串接：官方終場對手 0 分（`0 == 0` 會放行的那一格）時仍須歸零。"""
+    from cpbl.api.scoreless import load_opponent_runs, tail_lookup_factory
     from cpbl.models.scoreless_streak import Appearance
 
-    key = (2026, "A", 1)
+    cols = ["year", "kind_code", "game_sno", "vht", "inning_seq", "runs"]
     app = Appearance(year=2026, kind_code="A", game_sno=1, game_date=None,
                      earned_runs=1, outs=9, vht="2", opponent_score=0)
 
-    clean = tail_lookup_factory({key: {"1": {1: 0, 2: 0, 3: 0}}})(app)
-    with_null = tail_lookup_factory({key: {"1": {1: None, 2: 0, 3: 0}}})(app)
+    _patch_conn(monkeypatch, cols, [(2026, "A", 1, "1", i, 0) for i in (1, 2, 3)])
+    clean = tail_lookup_factory(load_opponent_runs([(2026, "A", 1)]))(app)
+
+    _patch_conn(monkeypatch, cols,
+                [(2026, "A", 1, "1", 1, None), (2026, "A", 1, "1", 2, 0),
+                 (2026, "A", 1, "1", 3, 0)])
+    with_null = tail_lookup_factory(load_opponent_runs([(2026, "A", 1)]))(app)
 
     assert clean.outs == 9                       # 全部已知且零得分 → 可採計
     assert with_null.outs == 0                   # 有一局未知 → fail-closed
     assert with_null.reason == "scoreboard_has_null_inning"
+
+
+def test_row_mapper_keeps_none_for_every_null_row():
+    """邊界轉換本身：任何一列 `runs=None` 都必須原樣保留。"""
+    from cpbl.api.scoreless import map_opponent_runs
+
+    rows = [{"year": 2026, "kind_code": "A", "game_sno": 1, "vht": "2",
+             "inning_seq": i, "runs": None if i == 2 else i} for i in (1, 2, 3)]
+
+    got = map_opponent_runs(rows)
+
+    assert got[(2026, "A", 1)]["2"] == {1: 1, 2: None, 3: 3}

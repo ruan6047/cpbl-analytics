@@ -257,6 +257,9 @@ def pigeonhole_tail_outs(
     if sum(opponent_runs_by_inning.values()) != opponent_final_score:  # type: ignore[arg-type]
         return 0, None
     scored = [i for i, r in opponent_runs_by_inning.items() if r]
+    # `else 0` 在此**不是**把未知折成已知：能走到這行代表完整性已通過（無 None、
+    # 逐局總和 ＝ 官方終場得分），所以「沒有任何得分局」是**已證實的事實**，
+    # 前綴長度確實是 0（整場零得分 → 後綴涵蓋全場）。
     n_prefix = max(scored) if scored else 0
     outs = official_outs - 3 * n_prefix
     if outs <= 0:

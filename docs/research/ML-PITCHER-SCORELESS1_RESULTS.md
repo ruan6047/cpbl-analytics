@@ -211,40 +211,70 @@ pigeonhole_tail_outs({1: 0, 3: 0}, 6)  →  (6, 1)   # 修正前
 皆不變）：目前快照 77,141 筆 `game_scoreboard` **NULL 0 筆**。但保守性從此由 runtime
 保證，不是靠資料剛好乾淨。
 
-### iteration 10：漏掉的第三處，以及我的掃描方法本身有缺陷
+### iteration 10–11：掃描與回歸測試本身也犯了同一個病
 
-查核者指出我還漏了一處 `or 0`——`reconcile_scoreless_streak.py` 的 `team_outs` 加總。
-那道檢查是「同隊總出局數**不得超過**守備半局數 × 3」的**上界式**，NULL 折成 0 會**低估
-隊伍總和**，讓上界更容易通過＝**守衛被靜默弱化**。已改為：任一同隊投手的官方出局數未知
-時，整隊總和即為未知，該側的採計一律判 fail，而不是拿一個偏低的數字去比。
+**iteration 10** 查核者指出我還漏了一處 `or 0`——`reconcile` 的 `team_outs` 加總。那道
+檢查是「同隊總出局數**不得超過**守備半局數 × 3」的**上界式**，NULL 折成 0 會低估總和、
+讓上界更容易通過＝**守衛被靜默弱化**。已改為：任一同隊投手的官方出局數未知時整隊總和
+即未知，該側採計一律判 fail。
 
-**但更該記的是第 2 點：我的窮舉宣稱與事實不符。** 上一輪我說「全檔掃過 `or 0`，其餘只剩
-兩處 `or {}`」——那次 grep 是在**我自己後續的編輯之前**跑的，而那些編輯正好引入了這個新的
-`or 0`（我把 `official.get(k, 0)` 改成 `official.get(k) or 0` 時）。**我報告的是一份過期
-掃描的結果。** 這正是本卡九輪的老毛病長到「對自己工作的完整性宣稱」上。
+而那處 `or 0` **是我自己在同一次編輯裡種下的**（把 `official.get(k, 0)` 改成
+`official.get(k) or 0` 時），我卻報告了一份**編輯之前**跑的 grep 結果。
 
-處置是把宣稱變成可覆核的產物，而不是更用力地保證：
+**iteration 11** 同一個病又出現兩次，都在「守衛」本身：
 
-```bash
-scripts/check_scoreless_null_folding.sh      # 窮舉「把缺值折成有效值」的寫法
+| 東西 | 我以為在驗什麼 | 實際在驗什麼 |
+|---|---|---|
+| 回歸測試 | 載入層不折 NULL 的**行為** | `inspect.getsource()` 裡有沒有某兩個**字串** |
+| 掃描腳本 | 窮舉所有折疊寫法 | 正則字面能配到的那幾種 |
+
+回歸測試那條特別諷刺——**它的 docstring 是我自己寫的**：「這一條必須測在載入層，只測
+純函式抓不到轉換錯誤」。診斷對了，實作去搜字串。改寫成
+`value if value is not None else 0` 就能一邊通過測試一邊把 bug 種回去；而抽出 mapper
+的純重構就讓它整條掛掉（字串不在該函式裡了）——**它驗的是標記，不是性質**。
+
+#### 處置
+
+**回歸測試改成測行為**：抽出 `map_opponent_runs()` 邊界轉換，並以假 cursor 實際跑
+`load_opponent_runs()` → `tail_lookup_factory()` 全串接，情境設在「官方終場對手 0 分」
+（`0 == 0` 會放行的那一格）。變異檢驗證明它真的抓得到：
+
+| 注入的變異 | 結果 |
+|---|---|
+| `int(runs or 0)` | **FAIL**（2 條測試） |
+| `int(runs) if runs is not None else 0` | **FAIL**（2 條測試） |
+
+第二種正是舊字串測試會放行的形式。
+
+**掃描腳本改成 AST**（`scripts/check_scoreless_null_folding.py`，取代原 shell 版）。
+查核者的四種合成反例原本全漏，現在全抓：
+
+```
+value if value is not None else 0    → conditional-fallback
+mapping.setdefault(key, 0)           → .setdefault(…, 預設)
+defaultdict(int)                     → defaultdict(工廠)
+CASE WHEN value IS NULL THEN 0       → SQL 折疊
+COALESCE(value, 0)                   → SQL 折疊
 ```
 
-第一版腳本的樣式 `\.get\([^)]*, *…` 還會在**巢狀括號**處斷掉，漏掉
-`.get((*game, side), 0)`——修成貪婪比對後命中數由 4 升為 6，補上兩處 `.get(…, 預設)`。
-**寧可誤報**：這是人工覆核清單，多列不會有害，少列才會。
+正則只看得到**字面**，AST 看得到**語意結構**——這剛好就是上面那個教訓的同一件事。
+AST 另外順帶解掉 grep 版的兩個副作用：註解行被當成命中、巢狀括號讓樣式提早斷掉。
 
-目前 6 處命中全部屬於「(b) 就地註明為何無害」，且每處的理由都可獨立驗證（空 dict／
-查不到鍵都會落入既有的 fail-closed 判定，不會被當成「乾淨」）：
+命中數 6 → **17**（**刻意過度回報**：累加器、建巢狀 dict 的 `setdefault`、顯示用的
+`x if x else 0` 都會列出）。逐一分類後，載入／對帳路徑上**沒有任何未處理的折疊**：
 
-| 位置 | 樣態 | 為何無害 |
+| 類別 | 數量 | 處置 |
 |---|---|---|
-| `scoreless.py:143` | `or {}` | 空 dict → `pigeonhole_tail_outs` 回 `(0, None)` |
-| `reconcile:260` | `or {}` | 空 dict → 完整性檢查 `rows_total > 0` 失敗 |
-| `reconcile:269` | `.get(…, 0)` | 已被 `off is None`／`team_outs_unknown` 攔下；即使漏網 0 也會讓 `off > total` 成立而 fail |
-| `reconcile:292` | `.get(…, (0,0,None))` | `rows_total == 0` → `complete` 為 False → fail |
+| 已改為保留 `None` 並 fail-closed | — | `map_opponent_runs`、`official`、`team_outs_unknown` |
+| 結構性預設（建 dict／累加器／exit code／顯示） | 13 | 無害，不影響任何判定 |
+| 載入／對帳路徑上的預設 | 4 | 已就地註明理由，且理由可獨立驗證（空 dict／查不到鍵都落入既有 fail-closed 判定） |
 
-**數字未變**：一軍仍 24 場 126 outs、二軍 19 場 152 outs，坎南 30.0 與黃子鵬 33.2 皆
-成立——代表目前快照確實完整，但**保守性從此由 runtime 保證，而不是靠資料剛好乾淨**。
+另補：`n_prefix = max(scored) if scored else 0` 兩處已加註——能走到那行代表完整性已通過，
+「沒有任何得分局」是**已證實的事實**而非未知折疊。
+
+**型別標註**：`load_opponent_runs` 內層型別已由 `dict[int, int]` 改為 `dict[int, int | None]`。
+查核者指出**如果那個標註一開始就是對的，這輪的 Critical 可能會早一步被發現**——型別是
+免費的行為斷言，這點記下來。
 
 ## 1.8 端點值域（iteration 2 修正 F2）
 
