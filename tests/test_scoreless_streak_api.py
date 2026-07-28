@@ -213,3 +213,63 @@ def test_row_mapper_keeps_none_for_every_null_row():
     got = map_opponent_runs(rows)
 
     assert got[(2026, "A", 1)]["2"] == {1: 1, 2: None, 3: 3}
+
+
+# ---------------------------------------------------------------------------
+# ML-PITCHER-SCORELESS2：退場局認證的**邊界轉換**
+# 純函式測試抓不到轉換錯誤，bug 在餵它的那一層——這是 iteration 9/11 的教訓。
+# ---------------------------------------------------------------------------
+
+
+def test_pitch_observation_mapper_keeps_none():
+    """`max_pitch=None` 必須原樣保留：折成 0 會讓「這一局投了幾球不知道」變成「投 0 球」。"""
+    from cpbl.api.scoreless import map_pitch_observations
+
+    rows = [{"year": 2026, "kind_code": "A", "game_sno": 1, "pitcher_acnt": "P1",
+             "batting_side": "1", "inning_seq": i, "max_pitch": None if i == 2 else i * 10}
+            for i in (1, 2, 3)]
+
+    got = map_pitch_observations(rows)
+
+    assert got[((2026, "A", 1), "P1", "1")] == {1: 10, 2: None, 3: 30}
+
+
+def test_loader_to_last_pitch_map_end_to_end(monkeypatch):
+    """載入層 → `build_last_pitch_map` 全串接：認證得到 / 認證不到 兩邊都驗行為。"""
+    from cpbl.api.scoreless import build_last_pitch_map, load_pitch_observations
+    from cpbl.models.scoreless_streak import Appearance
+
+    app = Appearance(year=2026, kind_code="A", game_sno=1, game_date=None,
+                     earned_runs=1, outs=18, vht="2", opponent_score=2,
+                     player_id="P1", official_pitches=91)
+    runs = {(2026, "A", 1): {"1": {i: (1 if i in (1, 7) else 0) for i in range(1, 10)}}}
+    cols = ["year", "kind_code", "game_sno", "pitcher_acnt", "batting_side",
+            "inning_seq", "max_pitch"]
+
+    # 觀測到累計 91（＝官方總數）落在第 6 局 → 認證第 6 局
+    _patch_conn(monkeypatch, cols,
+                [(2026, "A", 1, "P1", "1", i, v)
+                 for i, v in ((1, 24), (2, 43), (3, 56), (4, 69), (5, 79), (6, 91))])
+    got = build_last_pitch_map([app], runs, load_pitch_observations([(2026, "A", 1)]))
+    assert got == {((2026, "A", 1), "P1"): 6}
+
+    # 第 6 局整段缺列（模擬 livelog 隱藏列）→ 達不到官方總數 → 不認證
+    _patch_conn(monkeypatch, cols,
+                [(2026, "A", 1, "P1", "1", i, v)
+                 for i, v in ((1, 24), (2, 43), (3, 56), (4, 69), (5, 79))])
+    assert build_last_pitch_map([app], runs, load_pitch_observations([(2026, "A", 1)])) == {}
+
+
+def test_tail_falls_back_to_full_game_bound_without_certificate():
+    """沒有認證時，尾段必須與**擴充前**完全一致（不得因為新欄位而改變既有輸出）。"""
+    from cpbl.api.scoreless import tail_lookup_factory
+    from cpbl.models.scoreless_streak import Appearance
+
+    app = Appearance(year=2026, kind_code="A", game_sno=1, game_date=None,
+                     earned_runs=1, outs=18, vht="2", opponent_score=2,
+                     player_id="P1", official_pitches=91)
+    runs = {(2026, "A", 1): {"1": {i: (1 if i in (1, 7) else 0) for i in range(1, 10)}}}
+
+    assert tail_lookup_factory(runs)(app).outs == 0
+    assert tail_lookup_factory(runs, {})(app).outs == 0
+    assert tail_lookup_factory(runs, {((2026, "A", 1), "P1"): 6})(app).outs == 6
