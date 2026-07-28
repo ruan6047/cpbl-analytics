@@ -240,20 +240,32 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
 
     # 同隊出局數彙總——用來擋「隊別配置錯誤」這一類（開卡示範時真的發生過：
     # 把對手投手當同隊，數字碰巧相同而沒露餡）。
+    # **NULL 不折成 0**：這道檢查是「同隊總出局數**不得超過**守備半局數 × 3」的上界式，
+    # 低估總和會讓它更容易通過＝守衛被靜默弱化。任一同隊投手的官方出局數未知，整隊
+    # 總和就是未知，該側的採計一律判 fail（而不是拿一個偏低的數字去比）。
     team_outs: dict[tuple, int] = defaultdict(int)
+    team_outs_unknown: set[tuple] = set()
     for (gy, gk, gs, gp), v in side.items():
-        team_outs[(gy, gk, gs, v)] += official.get((gy, gk, gs, gp)) or 0
+        n = official.get((gy, gk, gs, gp))
+        if n is None:
+            team_outs_unknown.add((gy, gk, gs, v))
+        else:
+            team_outs[(gy, gk, gs, v)] += n
 
     lb_ok = suffix_ok = 0
     for y, k, sno, pid, claimed, suffix_from in tail_claims:
         game = (y, k, sno)
         my_side = side.get((*game, pid))
+        # `or {}` 在此無害：空 dict 會讓下面的完整性檢查 `rows_total > 0` 失敗而判 fail。
         opp = (board.get(game) or {}).get("1" if my_side == "2" else "2") or {}
         off = official.get((*game, pid))
         # 隊別一致性：同隊投手總出局數不得超過「他們守備的半局數 × 3」。
         # 這正是擋「把對手投手算成同隊」那一類錯誤的地方（開卡示範時真的發生過）。
         # 注意**不能**要求是 3 的倍數——保留／和局／再見會讓最後半局未達三出局
         # （實例 2024/A/346 十局和局，客隊投手 28 outs）。
+        # `, 0)` 在此無害：查不到鍵代表該側沒有任何「已知出局數」的同隊投手，
+        # 而那種情況必已被上面的 `off is None` 或 `team_outs_unknown` 攔下；
+        # 即使漏網，0 也會讓下面的 `off > same_team_total` 成立而判 fail（fail-closed）。
         same_team_total = team_outs.get((*game, my_side), 0)
         fielded = len(opp)
         if my_side not in ("1", "2"):
@@ -262,6 +274,10 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
         elif off is None:
             fails.append({"check": "R10", "player_id": pid,
                           "detail": f"{y}/{k}/{sno}：官方出局數缺值，卻採計了 {claimed}"})
+        elif (*game, my_side) in team_outs_unknown:
+            fails.append({"check": "R10", "player_id": pid,
+                          "detail": f"{y}/{k}/{sno}：同隊({my_side})有投手官方出局數缺值，"
+                                    f"隊伍總和未知，無法驗上界，卻採計了 {claimed}"})
         elif same_team_total > 3 * fielded or off > same_team_total:
             fails.append({"check": "R10", "player_id": pid,
                           "detail": f"{y}/{k}/{sno}：同隊({my_side})總出局數 {same_team_total} "
@@ -271,6 +287,8 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
         # 且 SUM(score_cnt) 必須等於官方終場對手得分。
         final = opp_final.get((*game, pid))
         opp_side = "1" if my_side == "2" else "2"
+        # 預設 (0, 0, None) 在此無害：`rows_total == 0` 會讓下面的 `complete` 為 False
+        # 而判 fail——查不到完整性資料即視為不完整（fail-closed），不是視為乾淨。
         rows_total, rows_known, runs_sum = integrity.get((*game, opp_side), (0, 0, None))
         complete = (rows_total > 0 and rows_total == rows_known
                     and final is not None and runs_sum == final)
