@@ -10,14 +10,13 @@ exit 1。查核者可原樣重跑。
 | 代號 | 內容 | 對應紅線 |
 |---|---|---|
 | R1 | 凡被採計為「整場無自責分」的出賽，官方 `pitching_gamelog.earned_runs` 必為 0 | 紅線 3（字面） |
-| R2 | 凡被採計的尾段，其**零得分視窗 [起始局, 結束局]** 涵蓋的每一局，官方 `game_scoreboard` 對手得分必為 0 | 紅線 2／3 |
+| R2 | 凡被採計的尾段，其「零得分後綴」涵蓋的每一局，官方 `game_scoreboard` 對手得分必為 0 | 紅線 2／3 |
 | R3 | 算術：`outs == strict_outs + tail_outs`；`tail_outs ≤ 該場官方出局數`；每個尾段半局 ≤ 3 出局 | 紅線 2 |
 | R4 | 連續性：被採計的出賽必須恰好是該投手出賽序列的**結尾連續段**（由原始行獨立重建） | 紅線 2 |
 | R5 | 保留賽（`delay_kind='保留'`）不得被採計 | 紅線 2 |
 | R6 | `boundary_limited` 為真 ⇔ 走完全部可得出賽未中斷（起算場＝資料中最早一場） | 紅線 4 |
 | R7 | 凡被**跳過**的季後賽出賽，賽別必在計入範圍之外**且**官方 ER 必為 0；且「起算場之後該投手在任何賽別的出賽都無自責分」 | 紅線 2（賽別範圍裁定） |
-| R11 | **退場局認證的獨立重算**：另取 livelog 每局 `max(pitch_cnt)` 與 NULL 計數、官方 `pitching_gamelog.pitch_cnt`，以獨立重寫的 `_audit_last_pitch()` 重算「官方投球數耗盡的局」，驗其與 runtime 宣稱值**完全相等**；該函式對 NULL 的處理刻意比 runtime 更嚴（有未知列即不認證），共享正規化就等於共享盲點 | 紅線 2 |
-| R10 | **鴿籠下界獨立重算**：以 SQL 取官方逐局比分與官方局數，獨立算出**兩條下界**（全場式 `官方出局數 − 3 × 前綴局數`、退場局式 `官方出局數 − 3m − 3(S − 退場局)`）並取大者，驗 `採計值 ≤ 獨立重算下界`；**逐局比分完整性以 raw SQL 判定**（`COUNT(*) = COUNT(score_cnt)` 無未知局、且 `SUM(score_cnt) = games` 官方終場對手得分），不沿用 runtime 的 NULL 處理；並驗**隊別配置**（同隊總出局數 ≤ 守備半局數 × 3、且 ≥ 本投手出局數，對手側取相反 `visiting_home_type`）。純算術、與 runtime 不共享任何推論前提 | 紅線 2 |
+| R10 | **鴿籠下界獨立重算**：以 SQL 取官方逐局比分與官方局數，獨立算出 `官方出局數 − 3 × 前綴局數`，驗 `採計值 ≤ 獨立重算下界`；**逐局比分完整性以 raw SQL 判定**（`COUNT(*) = COUNT(score_cnt)` 無未知局、且 `SUM(score_cnt) = games` 官方終場對手得分），不沿用 runtime 的 NULL 處理；並驗**隊別配置**（同隊總出局數 ≤ 守備半局數 × 3、且 ≥ 本投手出局數，對手側取相反 `visiting_home_type`）。純算術、與 runtime 不共享任何推論前提 | 紅線 2 |
 
 用法：
 
@@ -99,62 +98,6 @@ _PITCHER_SIDE_SQL = """
 """
 
 
-# R11：退場局認證的獨立重算。**刻意重取原始列**（含 NULL 計數），不 import runtime 的
-# `last_pitch_inning`／`map_pitch_observations`——前幾輪的教訓是「共享正規化就等於共享盲點」。
-_LAST_PITCH_AUDIT_SQL = """
-    SELECT l.year, l.kind_code, l.game_sno, l.pitcher_acnt,
-           l.visiting_home_type AS batting_side, l.inning_seq,
-           max(l.pitch_cnt) AS max_pitch,
-           count(*)          AS rows_total,
-           count(l.pitch_cnt) AS rows_known
-      FROM cpbl.game_livelog l
-      JOIN (SELECT (v->>0)::int AS year, v->>1 AS kind_code, (v->>2)::int AS game_sno
-              FROM jsonb_array_elements(%(games)s::jsonb) v) k
-        ON k.year = l.year AND k.kind_code = l.kind_code AND k.game_sno = l.game_sno
-     WHERE l.pitcher_acnt IS NOT NULL
-       AND l.visiting_home_type IS NOT NULL
-       AND l.inning_seq IS NOT NULL
-     GROUP BY 1, 2, 3, 4, 5, 6
-"""
-
-_OFFICIAL_PITCHES_SQL = """
-    SELECT p.year, p.kind_code, p.game_sno, p.pitcher_acnt, p.pitch_cnt AS official_pitches
-      FROM cpbl.pitching_gamelog p
-      JOIN (SELECT (v->>0)::int AS year, v->>1 AS kind_code, (v->>2)::int AS game_sno
-              FROM jsonb_array_elements(%(games)s::jsonb) v) k
-        ON k.year = p.year AND k.kind_code = p.kind_code AND k.game_sno = p.game_sno
-"""
-
-
-def _audit_last_pitch(
-    observed: dict[int, tuple[int | None, int, int]],
-    official_pitches: int | None,
-    innings: int,
-) -> int | None:
-    """獨立重寫的退場局判定（不 import runtime 的實作）。
-
-    `observed` ＝ `{局: (該局 max(pitch_cnt), 總列數, 非 NULL 列數)}`。
-    比 runtime 更嚴：**該投手任一局出現 `pitch_cnt` 為 NULL 的列即不認證**——runtime
-    是在 SQL 端就把 NULL 濾掉（少一個觀測只會讓認證變晚，是保守方向），這裡則直接把
-    「有未知列」視為不可認證。兩邊刻意不同，才驗得出 runtime 有沒有把未知折成已知。
-    """
-    if official_pitches is None or official_pitches <= 0 or not observed:
-        return None
-    for inning, (mx, total, known) in observed.items():
-        if inning < 1 or inning > innings:
-            return None
-        if total != known or mx is None:
-            return None
-        if mx > official_pitches:
-            return None
-    running = 0
-    for inning in sorted(observed):
-        running = max(running, observed[inning][0])  # type: ignore[type-var]
-        if running == official_pitches:
-            return inning
-    return None
-
-
 def _fetch(sql: str, params: dict) -> list[dict]:
     with conn() as c:
         cur = c.cursor()
@@ -176,8 +119,7 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
 
     counted_keys: list[list] = []          # R1 母體
     skipped_keys: list[list] = []          # R7 母體
-    # (year, kind, sno, pid, 採計出局數, 視窗起始局, 視窗結束局, 宣稱的退場局)
-    tail_claims: list[tuple] = []
+    tail_claims: list[tuple] = []          # (year, kind, sno, pid, 採計出局數, 後綴起始局)
     tail_games: set[tuple[int, str, int]] = set()
     stats = defaultdict(int)
 
@@ -237,8 +179,7 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
         if res.tail and res.tail.outs:
             y, k, sno = res.tail.key
             tail_games.add((y, k, sno))
-            tail_claims.append((y, k, sno, pid, res.tail.outs, res.tail.suffix_from_inning,
-                                res.tail.suffix_to_inning, res.tail.last_pitch_inning))
+            tail_claims.append((y, k, sno, pid, res.tail.outs, res.tail.suffix_from_inning))
             stats["tail_credited"] += 1
             stats["tail_outs"] += res.tail.outs
             brk = next(a for a in apps if a.key == res.tail.key)
@@ -279,8 +220,6 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
     official: dict[tuple, int | None] = {}
     opp_final: dict[tuple, int | None] = {}
     integrity: dict[tuple, tuple[int, int, int | None]] = {}
-    observed: dict[tuple, dict[int, tuple[int | None, int, int]]] = defaultdict(dict)
-    official_pitches: dict[tuple, int | None] = {}
     for chunk in _chunks(sorted(tail_games), 400):
         payload = json.dumps([list(g) for g in chunk])
         for r in _fetch(_TAIL_SQL, {"games": payload}):
@@ -291,14 +230,6 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
             integrity[(r["year"], r["kind_code"], r["game_sno"], r["vht"])] = (
                 int(r["rows_total"]), int(r["rows_known"]),
                 None if r["runs_sum"] is None else int(r["runs_sum"]))
-        for r in _fetch(_LAST_PITCH_AUDIT_SQL, {"games": payload}):
-            observed[((r["year"], r["kind_code"], r["game_sno"]), r["pitcher_acnt"],
-                      r["batting_side"])][r["inning_seq"]] = (
-                None if r["max_pitch"] is None else int(r["max_pitch"]),
-                int(r["rows_total"]), int(r["rows_known"]))
-        for r in _fetch(_OFFICIAL_PITCHES_SQL, {"games": payload}):
-            official_pitches[(r["year"], r["kind_code"], r["game_sno"],
-                              r["pitcher_acnt"])] = r["official_pitches"]
         for r in _fetch(_PITCHER_SIDE_SQL, {"games": payload}):
             side[(r["year"], r["kind_code"], r["game_sno"], r["pitcher_acnt"])] = r["vht"]
             # 官方出局數同樣不折 NULL：未知就是未知，下面以 None 判定 fail-closed。
@@ -321,8 +252,8 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
         else:
             team_outs[(gy, gk, gs, v)] += n
 
-    lb_ok = suffix_ok = lp_ok = 0
-    for y, k, sno, pid, claimed, suffix_from, suffix_to, claimed_lp in tail_claims:
+    lb_ok = suffix_ok = 0
+    for y, k, sno, pid, claimed, suffix_from in tail_claims:
         game = (y, k, sno)
         my_side = side.get((*game, pid))
         # `or {}` 在此無害：空 dict 會讓下面的完整性檢查 `rows_total > 0` 失敗而判 fail。
@@ -369,45 +300,17 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
         scored = [i for i, r in opp.items() if r]
         # 同 runtime：僅在完整性通過後才有意義，`else 0` 是已證實的「整場零得分」。
         n_prefix = max(scored) if scored else 0
-        innings = max(opp) if opp else 0
-
-        # ---- R11：退場局認證的獨立重算（與 runtime 不共用實作，也不共用 NULL 處理）----
-        opp_side_for_pitcher = "1" if my_side == "2" else "2"
-        lp_recomputed = _audit_last_pitch(
-            observed.get((game, pid, opp_side_for_pitcher), {}),
-            official_pitches.get((*game, pid)), innings) if complete else None
-        if claimed_lp is not None and lp_recomputed != claimed_lp:
-            fails.append({"check": "R11", "player_id": pid,
-                          "detail": f"{y}/{k}/{sno}：runtime 宣稱退場局 {claimed_lp}，"
-                                    f"獨立重算得 {lp_recomputed}"})
-        else:
-            lp_ok += 1
-
-        # ---- R10：下界獨立重算。**兩條下界都重算，取大的那條**（與 runtime 同義但獨立實作）
-        recomputed = 0
-        if complete and off is not None:
-            recomputed = off - 3 * n_prefix
-            if lp_recomputed is not None and 1 <= lp_recomputed <= innings:
-                before = [i for i in scored if i <= lp_recomputed]
-                m = max(before) if before else 0
-                recomputed = max(recomputed, off - 3 * m - 3 * (innings - lp_recomputed))
-            recomputed = max(0, min(recomputed, off))
+        recomputed = max(0, off - 3 * n_prefix) if complete and off is not None else 0
         if claimed > recomputed:
             fails.append({"check": "R10", "player_id": pid,
                           "detail": f"{y}/{k}/{sno}：採計 {claimed} > 獨立重算下界 {recomputed}"})
         else:
             lb_ok += 1
-
-        # R2：**採計視窗 [起始局, 結束局] 內**的每一局，官方逐局比分必須是 0。
-        # 視窗不一定開到比賽末端（採用退場局下界時會提早收掉），所以這裡驗的是閉區間，
-        # 不是「起始局之後全部」——後者在新下界下會誤報。
-        bad = [i for i in opp
-               if suffix_from is not None and suffix_to is not None
-               and suffix_from <= i <= suffix_to and opp[i]]
-        if suffix_from is None or suffix_to is None or suffix_to > innings or bad:
+        # R2：後綴涵蓋的每一局，官方逐局比分必須是 0
+        bad = [i for i in opp if suffix_from is not None and i >= suffix_from and opp[i]]
+        if suffix_from is None or bad:
             fails.append({"check": "R2", "player_id": pid,
-                          "detail": f"{y}/{k}/{sno}：採計視窗 {suffix_from}..{suffix_to}"
-                                    f"（全場 {innings} 局），但第 {bad} 局有得分"})
+                          "detail": f"{y}/{k}/{sno}：後綴自第 {suffix_from} 局，但第 {bad} 局有得分"})
         else:
             suffix_ok += 1
 
@@ -422,7 +325,6 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
         "tail_credited": stats["tail_credited"],
         "tail_outs": stats["tail_outs"],
         "tail_lower_bound_verified": lb_ok,
-        "tail_last_pitch_verified": lp_ok,
         "tail_suffix_zero_runs_verified": suffix_ok,
         "skipped_postseason": stats["skipped_postseason"],
         "skipped_postseason_verified_er0": skip_ok,
@@ -446,8 +348,7 @@ def main() -> int:
 
     print("窮舉對帳：連續無自責分局數（ML-PITCHER-SCORELESS1）\n")
     hdr = ("層級", "投手數", "出賽總數", "採計出賽", "R1 驗得 ER=0",
-           "尾段採計場次", "尾段出局數", "R10 驗得下界", "R2 驗得視窗零得分",
-           "R11 驗得退場局",
+           "尾段採計場次", "尾段出局數", "R10 驗得下界", "R2 驗得後綴零得分",
            "跳過季後賽", "R7 驗得 ER=0", "例外")
     print(" | ".join(hdr))
     print(" | ".join("---" for _ in hdr))
@@ -456,7 +357,6 @@ def main() -> int:
             r["tier"], r["pitchers"], r["appearances_total"], r["appearances_counted"],
             r["appearances_counted_verified_er0"], r["tail_credited"], r["tail_outs"],
             r["tail_lower_bound_verified"], r["tail_suffix_zero_runs_verified"],
-            r["tail_last_pitch_verified"],
             r["skipped_postseason"], r["skipped_postseason_verified_er0"],
             len(r["exceptions"]))))
     print()

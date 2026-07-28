@@ -24,22 +24,19 @@ from cpbl.models.scoreless_streak import (
     StreakResult,
     TailCredit,
     compute_streak,
-    last_pitch_inning,
     outs_to_innings,
     tail_credit,
 )
 
 BASIS_STRICT = "官方 earned_runs=0 的整場出賽"
 BASIS_EXTENDED = (
-    f"{BASIS_STRICT} ＋ 中斷場的零得分視窗（鴿籠下界：官方逐局比分 ＋ 官方局數 ＋ "
-    "官方投球數耗盡的局，不假設任何事件完整性）"
+    f"{BASIS_STRICT} ＋ 中斷場的零得分後綴（鴿籠下界：官方逐局比分 ＋ 官方局數，"
+    "不讀逐打席資料、不假設任何事件完整性）"
 )
 TAIL_BASIS_NOTE = (
-    "尾段以官方逐局比分界定「零得分視窗」，再用鴿籠原理取下界："
-    "他在視窗內的出局數 ≥ 官方總出局數 − 3 × 視窗外的局數。零得分的局不管誰投都是零失分，"
+    "尾段以官方逐局比分界定「零得分後綴」，再用鴿籠原理取下界："
+    "他在後綴的出局數 ≥ 官方總出局數 − 3 × 前綴局數。零得分的局不管誰投都是零失分，"
     "故此下界與投手更替、再入賽、牽制出局皆無關，也不需要逐打席資料完整。"
-    "視窗的右端取「官方投球數耗盡的局」（該局起他不可能再投球，也就不可能再讓跑者上壘、"
-    "不可能再被記自責分）與比賽末端兩種，取下界較大者。"
 )
 SCOPE_NOTE = (
     "只計例行賽局數（與媒體／MLB／NPB 慣例一致，季後賽另計）。"
@@ -55,7 +52,6 @@ _APPEARANCES_SQL = """
            g.game_date,
            p.earned_runs,
            p.inning_pitched_cnt * 3 + p.inning_pitched_div3 AS outs,
-           p.pitch_cnt                                      AS official_pitches,
            g.delay_kind,
            p.visiting_home_type                             AS vht,
            CASE WHEN p.visiting_home_type = '2' THEN g.away_score
@@ -86,34 +82,12 @@ _OPP_RUNS_SQL = """
 """
 
 
-# 尾段第二條下界唯一需要的 livelog 事實：**每局的累計投球數最大值**（見 `last_pitch_inning`）。
-# 刻意只取 max，不數列、不看序號連續性——`pitch_cnt` 不是列的唯一鍵（全庫 68,372 組重複），
-# 任何「數列」或「序號閉合」的用法都已被 iteration 4／5 的反例推翻。
-# `pitch_cnt IS NOT NULL` 讓聚合只吃**已知值**：未知的列直接不參與，觀測到的最大值因此
-# 只會偏小；而偏小只會讓認證的局往後移或整個不認證，是保守方向。
-_LAST_PITCH_SQL = """
-    SELECT l.year, l.kind_code, l.game_sno, l.pitcher_acnt,
-           l.visiting_home_type AS batting_side,
-           l.inning_seq, max(l.pitch_cnt) AS max_pitch
-      FROM cpbl.game_livelog l
-      JOIN (SELECT (v->>0)::int AS year, v->>1 AS kind_code, (v->>2)::int AS game_sno
-              FROM jsonb_array_elements(%(keys)s::jsonb) v) k
-        ON k.year = l.year AND k.kind_code = l.kind_code AND k.game_sno = l.game_sno
-     WHERE l.pitcher_acnt IS NOT NULL
-       AND l.pitch_cnt IS NOT NULL
-       AND l.visiting_home_type IS NOT NULL
-       AND l.inning_seq IS NOT NULL
-     GROUP BY 1, 2, 3, 4, 5, 6
-"""
-
-
 def _appearance(row: dict) -> Appearance:
     return Appearance(
         year=row["year"], kind_code=row["kind_code"], game_sno=row["game_sno"],
         game_date=row["game_date"], earned_runs=row["earned_runs"], outs=row["outs"],
         delay_kind=row["delay_kind"], opponent=row["opponent"], team_code=row["team_code"],
-        vht=row["vht"], opponent_score=row["opponent_score"], player_id=row["player_id"],
-        official_pitches=row["official_pitches"],
+        vht=row["vht"], opponent_score=row["opponent_score"],
     )
 
 
@@ -164,74 +138,12 @@ def map_opponent_runs(
     return out
 
 
-def load_pitch_observations(
-    keys: Sequence[tuple[int, str, int]],
-) -> dict[tuple[tuple[int, str, int], str, str], dict[int, int | None]]:
-    """→ `{(場次, 投手, 打擊側): {局: 該局觀測到的累計投球數最大值}}`。"""
-    if not keys:
-        return {}
-    payload = json.dumps([[k[0], k[1], k[2]] for k in sorted(set(keys))])
-    with conn() as c:
-        cur = c.cursor()
-        cur.execute(_LAST_PITCH_SQL, {"keys": payload})
-        rows = _dicts(cur)
-    return map_pitch_observations(rows)
-
-
-def map_pitch_observations(
-    rows: Sequence[dict],
-) -> dict[tuple[tuple[int, str, int], str, str], dict[int, int | None]]:
-    """DB 行 → `{(場次, 投手, 打擊側): {局: 累計投球數最大值 | None}}`。
-
-    **`max_pitch` 的 NULL 一律原樣保留，不得折成 0。** 抽成獨立函式的理由與
-    `map_opponent_runs` 相同：邊界轉換本身要能被直接測行為。折成 0 會讓
-    `last_pitch_inning` 把「這一局不知道投了幾球」當成「投到第 0 球」，在官方投球數
-    也是 0 的邊角情形下以 `0 == 0` 通過認證。
-    """
-    out: dict[tuple[tuple[int, str, int], str, str], dict[int, int | None]] = {}
-    for r in rows:
-        game = (r["year"], r["kind_code"], r["game_sno"])
-        key = (game, r["pitcher_acnt"], r["batting_side"])
-        mx = r["max_pitch"]
-        out.setdefault(key, {})[r["inning_seq"]] = (None if mx is None else int(mx))
-    return out
-
-
-def build_last_pitch_map(
-    appearances: Sequence[Appearance],
-    opponent_runs: dict[tuple[int, str, int], dict[str, dict[int, int | None]]],
-    observations: dict[tuple[tuple[int, str, int], str, str], dict[int, int | None]],
-) -> dict[tuple[tuple[int, str, int], str], int | None]:
-    """→ `{(場次, 投手): 官方投球數耗盡的局}`。證明不到就不放進去（等同不認證）。
-
-    對手打擊側取投手主客別的相反——**取錯邊會拿到他在自己隊進攻時的列**，那是資料錯誤，
-    正確側觀測不足就達不到官方總數，自然 fail-closed。
-    """
-    out: dict[tuple[tuple[int, str, int], str], int | None] = {}
-    for a in appearances:
-        if a.player_id is None or a.vht not in ("1", "2"):
-            continue
-        opp_side = "1" if a.vht == "2" else "2"
-        board = (opponent_runs.get(a.key) or {}).get(opp_side) or {}
-        if not board:
-            continue
-        obs = observations.get((a.key, a.player_id, opp_side)) or {}
-        got = last_pitch_inning(obs, a.official_pitches, max(board))
-        if got is not None:
-            out[(a.key, a.player_id)] = got
-    return out
-
-
 def tail_lookup_factory(
     opponent_runs: dict[tuple[int, str, int], dict[str, dict[int, int | None]]],
-    last_pitch: dict[tuple[tuple[int, str, int], str], int | None] | None = None,
 ):
-    """尾段解析器：鴿籠下界（見 `pigeonhole_tail_outs`）。
+    """尾段解析器：鴿籠下界（見 `pigeonhole_tail_outs`）。**不讀 livelog**。
 
     對手打擊側取投手主客別的相反：投手在主隊(2) → 對手在客隊打擊側(1)。
-
-    `last_pitch` 是 `{(場次, 投手): 官方投球數耗盡的局}`；給 None 或查不到即不認證，
-    退回原本的全場鴿籠下界（fail-closed，見 `last_pitch_inning`）。
     """
 
     def lookup(a: Appearance) -> TailCredit | None:
@@ -239,12 +151,9 @@ def tail_lookup_factory(
         if not board or a.vht not in ("1", "2"):
             return TailCredit(key=a.key, outs=0, reason="no_scoreboard")
         # `or {}` 在此無害：空 dict 會走 `pigeonhole_tail_outs` 的
-        # 「無逐局比分 → (0, None, None)」fail-closed 路徑，不會被當成「全場零得分」。
+        # 「無逐局比分 → (0, None)」fail-closed 路徑，不會被當成「全場零得分」。
         opp = board.get("1" if a.vht == "2" else "2") or {}
-        # `.get(...)` 缺鍵回 None＝**不認證**，不是「第 0 局」也不是「整場」——
-        # None 會讓 `pigeonhole_tail_outs` 只走原本的全場式，是嚴格更保守的那一邊。
-        lp = (last_pitch or {}).get((a.key, a.player_id)) if a.player_id else None
-        return tail_credit(a.key, opp, a.outs, a.opponent_score, lp)
+        return tail_credit(a.key, opp, a.outs, a.opponent_score)
 
     return lookup
 
@@ -274,23 +183,16 @@ def compute_all(
     by_player: dict[str, list[Appearance]],
     counted_kinds: Sequence[str] | None = None,
 ) -> dict[str, StreakResult]:
-    """兩趟：先不採計尾段找出中斷場，批次抓那些場的官方事實，再重算含尾段的值。
+    """兩趟：先不採計尾段找出中斷場，批次抓那些場的**對手逐局得分**，再重算含尾段的值。
 
-    尾段需要官方逐局比分與官方局數，另加**該投手每局的累計投球數最大值**一項 livelog
-    正向觀測（見 `last_pitch_inning`）；抓不到就退回全場鴿籠下界。
+    尾段只需要官方逐局比分與官方局數，**完全不讀 livelog**（見 `pigeonhole_tail_outs`）。
     """
     first = {pid: compute_streak(apps, counted_kinds=counted_kinds)
              for pid, apps in by_player.items()}
-    break_apps = [
-        a
-        for pid, r in first.items()
-        if r.break_reason == BREAK_EARNED_RUN and r.break_key
-        for a in by_player[pid] if a.key == r.break_key and a.player_id == pid
-    ]
-    keys = [a.key for a in break_apps]
+    keys = [r.break_key for r in first.values()
+            if r.break_reason == BREAK_EARNED_RUN and r.break_key]
     runs = load_opponent_runs(keys)
-    last_pitch = build_last_pitch_map(break_apps, runs, load_pitch_observations(keys))
-    lookup = tail_lookup_factory(runs, last_pitch)
+    lookup = tail_lookup_factory(runs)
     return {
         pid: compute_streak(apps, lookup, counted_kinds)
         for pid, apps in by_player.items()
@@ -318,11 +220,6 @@ def build_item(player_id: str, name: str | None, apps: Sequence[Appearance],
         "strict_basis": BASIS_STRICT,
         "appearances_counted": len(counted),
         "tail_suffix_from_inning": res.tail.suffix_from_inning if res.tail else None,
-        # 零得分視窗的結束局。**視窗不一定開到比賽末端**——採用退場局下界時它會停在
-        # 「他投最後一球的那一局」，其後的局可能有得分（那些分不是他的責任，見
-        # `pigeonhole_tail_outs`）。對帳 R2 驗的就是 [from, to] 這個閉區間。
-        "tail_suffix_to_inning": res.tail.suffix_to_inning if res.tail else None,
-        "tail_last_pitch_inning": res.tail.last_pitch_inning if res.tail else None,
         "tail_reason": res.tail.reason if res.tail else None,
         "tail_outs": res.tail.outs if res.tail else 0,
         "start": _game_ref(start) if start else None,
