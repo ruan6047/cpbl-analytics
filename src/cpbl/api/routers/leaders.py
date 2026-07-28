@@ -6,6 +6,7 @@ from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON, _ip_disp
 from cpbl.api.rows import _batting_rows, _pitching_rows, _primary_positions
+from cpbl.api.scoreless import streak_payload
 from cpbl.db import conn
 from cpbl.franchises import franchise_of
 from cpbl.ingest.championships import championship_coverage
@@ -340,6 +341,28 @@ def _resolve_names(cur, codes: set[str]) -> dict[str, str]:
           ) g GROUP BY code, name) r WHERE rn=1
     """, (codes, codes))
     return dict(cur.fetchall())
+
+
+@router.get("/api/v1/records/earned-run-free-streak")
+def earned_run_free_streak(
+    season: int = Query(DEFAULT_SEASON),
+    kind_code: str = Query("A"),
+    player_id: str | None = Query(None),
+    team: str | None = Query(None),
+    limit: int = Query(10, ge=1, le=100),
+) -> dict:
+    """投手**連續無自責分局數**（保守下界）——注意：不是「連續無失分」。
+
+    失誤造成的非自責失分不中斷本指標（與 ERA 語意一致）；自責分一律採官方
+    `pitching_gamelog.earned_runs`，本專案**不重建自責分**（規則 9.16 讓自動重建不可行）。
+    所有不確定情境一律往「中斷」解讀，故回傳值為下界，永不高估。口徑與保守性規則的
+    單一來源是 `cpbl.models.scoreless_streak` 的 docstring；回應本身帶 `note` 與
+    `boundary_note` 供前端原樣呈現。
+
+    `season`／`team` 只篩母體（誰進榜、算哪一隊），連續紀錄本身可回溯到更早球季。
+    """
+    return streak_payload(season=season, kind_code=kind_code, player_id=player_id,
+                          team=team, limit=limit)
 
 
 @router.get("/api/v1/records/team")

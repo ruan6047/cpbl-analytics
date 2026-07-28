@@ -1,0 +1,230 @@
+"""「連續無**自責**分局數」的取數層：把 DB 行餵給純函式 `cpbl.models.scoreless_streak`。
+
+分工：本檔只負責 SQL 與 payload 組裝；**演算法、保守性判斷、名詞紅線全在
+`cpbl.models.scoreless_streak`**（該檔 docstring 是語意單一來源，勿在此另立口徑）。
+
+自責分一律讀官方 `cpbl.pitching_gamelog.earned_runs`，本層不做任何自責分判定。
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Sequence
+
+from cpbl.api.helpers import _dicts, kinds_of
+from cpbl.db import conn
+from cpbl.models.scoreless_streak import (
+    BOUNDARY_NOTE,
+    BREAK_EARNED_RUN,
+    DATA_FROM_YEAR,
+    METRIC,
+    METRIC_LABEL,
+    METRIC_NOTE,
+    Appearance,
+    StreakResult,
+    TailCredit,
+    compute_streak,
+    half_innings_of,
+    outs_to_innings,
+    tail_credit,
+)
+
+BASIS_STRICT = "官方 earned_runs=0 的整場出賽"
+BASIS_EXTENDED = f"{BASIS_STRICT} ＋ 中斷場的「整個半局零得分」尾段半局"
+
+# 出賽（官方 box）＋ 場次脈絡。ER 與局數原樣取官方欄位，不加工。
+_APPEARANCES_SQL = """
+    SELECT p.pitcher_acnt                                   AS player_id,
+           p.pitcher_name                                   AS player_name,
+           p.year, p.kind_code, p.game_sno,
+           g.game_date,
+           p.earned_runs,
+           p.inning_pitched_cnt * 3 + p.inning_pitched_div3 AS outs,
+           g.delay_kind,
+           CASE WHEN p.visiting_home_type = '2' THEN g.home_team_code
+                ELSE g.away_team_code END                   AS team_code,
+           CASE WHEN p.visiting_home_type = '2' THEN g.away_team_name
+                ELSE g.home_team_name END                   AS opponent
+      FROM cpbl.pitching_gamelog p
+      JOIN cpbl.games g USING (year, kind_code, game_sno)
+     WHERE p.kind_code = ANY(%(kinds)s)
+       AND (%(player_id)s::text IS NULL OR p.pitcher_acnt = %(player_id)s)
+     ORDER BY p.pitcher_acnt, g.game_date, p.kind_code, p.game_sno
+"""
+
+# 中斷場的逐打席事件；換人列一併取回（純函式內再濾，語意見 half_innings_of）。
+_LIVELOG_SQL = """
+    SELECT l.year, l.kind_code, l.game_sno, l.main_event_no, l.inning_seq,
+           l.visiting_home_type, l.out_cnt, l.is_score, l.is_change_player,
+           l.pitcher_acnt, l.visiting_score, l.home_score
+      FROM cpbl.game_livelog l
+      JOIN (SELECT (v->>0)::int AS year, v->>1 AS kind_code, (v->>2)::int AS game_sno
+              FROM jsonb_array_elements(%(keys)s::jsonb) v) k
+        ON k.year = l.year AND k.kind_code = l.kind_code AND k.game_sno = l.game_sno
+     ORDER BY l.year, l.kind_code, l.game_sno, l.main_event_no
+"""
+
+
+def _appearance(row: dict) -> Appearance:
+    return Appearance(
+        year=row["year"], kind_code=row["kind_code"], game_sno=row["game_sno"],
+        game_date=row["game_date"], earned_runs=row["earned_runs"], outs=row["outs"],
+        delay_kind=row["delay_kind"], opponent=row["opponent"], team_code=row["team_code"],
+    )
+
+
+def _game_ref(a: Appearance) -> dict:
+    return {
+        "year": a.year, "kind_code": a.kind_code, "game_sno": a.game_sno,
+        "game_date": str(a.game_date) if a.game_date else None,
+        "opponent": a.opponent,
+    }
+
+
+def tail_lookup_factory(player_id: str, livelog: dict[tuple[int, str, int], list[dict]]):
+    """給 `compute_streak` 用的尾段解析器；缺該場 livelog 一律回 None（不採計，保守）。"""
+
+    def lookup(a: Appearance) -> TailCredit | None:
+        rows = livelog.get(a.key)
+        if not rows:
+            return None
+        halves = half_innings_of(rows, player_id)
+        mine = {
+            (int(r["inning_seq"]), str(r["visiting_home_type"]))
+            for r in rows
+            if not r["is_change_player"] and r["pitcher_acnt"] == player_id
+        }
+        return tail_credit(a.key, halves, mine, a.outs)
+
+    return lookup
+
+
+def load_appearances(
+    kinds: Sequence[str], player_id: str | None = None,
+) -> tuple[dict[str, list[Appearance]], dict[str, str]]:
+    """→ (player_id → 出賽清單【舊→新】, player_id → 姓名)。
+
+    含全部年份（2018+），**不以球季裁切連續紀錄**；球季只用來篩母體（見 streak_payload）。
+    """
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(_APPEARANCES_SQL, {"kinds": list(kinds), "player_id": player_id})
+        rows = _dicts(cur)
+    by_player: dict[str, list[Appearance]] = {}
+    names: dict[str, str] = {}
+    for r in rows:
+        by_player.setdefault(r["player_id"], []).append(_appearance(r))
+        if r["player_name"]:
+            names[r["player_id"]] = r["player_name"]
+    return by_player, names
+
+
+def load_livelog(
+    keys: Sequence[tuple[int, str, int]],
+) -> dict[tuple[int, str, int], list[dict]]:
+    if not keys:
+        return {}
+    payload = json.dumps([[k[0], k[1], k[2]] for k in sorted(set(keys))])
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(_LIVELOG_SQL, {"keys": payload})
+        rows = _dicts(cur)
+    out: dict[tuple[int, str, int], list[dict]] = {}
+    for r in rows:
+        out.setdefault((r["year"], r["kind_code"], r["game_sno"]), []).append(r)
+    return out
+
+
+def compute_all(by_player: dict[str, list[Appearance]]) -> dict[str, StreakResult]:
+    """兩趟：先不採計尾段找出中斷場，批次抓那些場的 livelog，再重算含尾段的值。
+
+    livelog 只在「官方 ER>0 的那一場」用到——這是本卡「定位而非重建」的全部 livelog 用途。
+    """
+    first = {pid: compute_streak(apps) for pid, apps in by_player.items()}
+    keys = [r.break_key for r in first.values()
+            if r.break_reason == BREAK_EARNED_RUN and r.break_key]
+    livelog = load_livelog(keys)
+    return {
+        pid: compute_streak(apps, tail_lookup_factory(pid, livelog))
+        for pid, apps in by_player.items()
+    }
+
+
+def build_item(player_id: str, name: str | None, apps: Sequence[Appearance],
+               res: StreakResult) -> dict:
+    counted = res.counted  # 新→舊
+    start: Appearance | None = counted[-1] if counted else None
+    through: Appearance | None = counted[0] if counted else None
+    tail_key = res.tail.key if res.tail and res.tail.outs > 0 else None
+    if tail_key:
+        start = next(a for a in apps if a.key == tail_key)
+        through = through or start
+    return {
+        "player_id": player_id,
+        "player_name": name,
+        "team_code": apps[-1].team_code if apps else None,
+        "outs": res.outs,
+        "innings": outs_to_innings(res.outs),
+        "strict_outs": res.strict_outs,
+        "strict_innings": outs_to_innings(res.strict_outs),
+        "basis": BASIS_EXTENDED,
+        "strict_basis": BASIS_STRICT,
+        "appearances_counted": len(counted),
+        "tail_half_innings": len(res.tail.credited) if res.tail else 0,
+        "tail_outs": res.tail.outs if res.tail else 0,
+        "start": _game_ref(start) if start else None,
+        "through": _game_ref(through) if through else None,
+        "last_appearance": _game_ref(apps[-1]) if apps else None,
+        "boundary_limited": res.boundary_limited,
+        "boundary_note": BOUNDARY_NOTE if res.boundary_limited else None,
+        "break_reason": res.break_reason,
+    }
+
+
+def streak_payload(
+    season: int,
+    kind_code: str = "A",
+    player_id: str | None = None,
+    team: str | None = None,
+    limit: int = 10,
+) -> dict:
+    """連續無自責分局數（下界）。`player_id` 指定時回單人，否則回該季母體排行。
+
+    `season`／`team` 只篩**母體**（誰進榜、算哪一隊），不裁切連續紀錄本身——紀錄可回溯到
+    更早球季，資料邊界見 `DATA_FROM_YEAR`。
+    """
+    kinds = kinds_of(kind_code)
+    by_player, names = load_appearances(kinds, player_id)
+
+    if player_id is None:
+        by_player = {pid: apps for pid, apps in by_player.items()
+                     if any(a.year == season for a in apps)}
+        if team:
+            by_player = {
+                pid: apps for pid, apps in by_player.items()
+                if next((a.team_code for a in reversed(apps) if a.year == season), None) == team
+            }
+
+    results = compute_all(by_player)
+    items = [build_item(pid, names.get(pid), by_player[pid], res)
+             for pid, res in results.items()]
+    if player_id is None:
+        items = [i for i in items if i["outs"] > 0]
+    items.sort(key=lambda i: (-i["outs"], -i["strict_outs"], i["player_id"]))
+    if player_id is None:
+        items = items[:limit]
+
+    as_of = max((a.game_date for apps in by_player.values() for a in apps if a.game_date),
+                default=None)
+    return {
+        "metric": METRIC,
+        "metric_label": METRIC_LABEL,
+        "note": METRIC_NOTE,
+        "season": season,
+        "kind_code": kind_code,
+        "kinds": kinds,
+        "team": team,
+        "data_from_year": DATA_FROM_YEAR,
+        "as_of": str(as_of) if as_of else None,
+        "items": items,
+    }
