@@ -63,16 +63,26 @@ function NextGameCard({ upcoming, pregame }: {
 
 const f1 = (v: number | null | undefined) => (v == null ? "—" : v.toFixed(1));
 
+// 2026-07-28 需求方人工審核第一輪退回（桌機 lg:grid-cols-3 每卡實得寬度窄，中文
+// 逐字斷行）：headline 不再附加「近期擊球品質／投球宰制力」——每卡都在同一個
+// SectionHeading 底下、整段文字對本行不帶資訊，卻在最窄的欄位裡跟數字搶空間；
+// anchor 不再附加指標名（「揮空率」）——整個區段排序鍵只有一種，指標名改上移到
+// SectionHeading 的 caption 統一講一次。headline 只留球員名＋detail 帶樣本數，
+// anchor 只留「數值＋單位」，是本輪唯一改動：不動口徑/門檻/數字本身，純粹是
+// RecordCard（UX-TEAM-RECORDS1 共用元件，其 anchor 是為「還差 1」「隊史新高」
+// 這種四字內短錨點設計）在長錨點下的寬度預算問題，解法是縮短文字而非改元件版面
+// ——動 RecordCard 的版面會牽動已定案上線的 RECORDS1，改文字不會。
+
 function HotBattersList({ data }: { data: TeamHotZoneResponse }) {
   if (data.batters.items.length === 0) return null;
   return (
     <div>
-      <SectionHeading caption={`擊球事件（BIP）≥ ${data.batters.min_bip}`}>擊球品質</SectionHeading>
+      <SectionHeading caption={`擊球事件（BIP）≥ ${data.batters.min_bip}・排序＝平均擊球初速`}>擊球品質</SectionHeading>
       <ul className={RECORD_GRID}>
         {data.batters.items.map((b) => (
           <RecordCard
             key={b.player_id}
-            headline={<><PlayerLink pid={b.player_id} name={b.name} /><span className="text-muted"> 近期擊球品質</span></>}
+            headline={<PlayerLink pid={b.player_id} name={b.name} />}
             detail={`擊球事件 ${b.bip} 次・最高初速 ${f1(b.max_ev)} km/h`}
             anchor={`${f1(b.avg_ev)} km/h`}
           />
@@ -86,18 +96,18 @@ function HotPitchersList({ data }: { data: TeamHotZoneResponse }) {
   if (data.pitchers.items.length === 0) return null;
   return (
     <div>
-      <SectionHeading caption={`投球數 ≥ ${data.pitchers.min_pitches}`}>投球宰制力</SectionHeading>
+      <SectionHeading caption={`投球數 ≥ ${data.pitchers.min_pitches}・排序＝揮空率`}>投球宰制力</SectionHeading>
       <ul className={RECORD_GRID}>
         {data.pitchers.items.map((p) => (
           <RecordCard
             key={p.player_id}
-            headline={<><PlayerLink pid={p.player_id} name={p.name} /><span className="text-muted"> 近期投球宰制力</span></>}
+            headline={<PlayerLink pid={p.player_id} name={p.name} />}
             detail={
               p.avg_ev_against == null
                 ? `用球 ${p.pitches} 球・被擊球事件 0 次`
                 : `用球 ${p.pitches} 球・被擊球初速 Avg ${f1(p.avg_ev_against)} km/h（${p.bip_against} 次事件）`
             }
-            anchor={`揮空率 ${f1(p.whiff_pct)}%`}
+            anchor={`${f1(p.whiff_pct)}%`}
           />
         ))}
       </ul>
@@ -153,8 +163,12 @@ export function TeamFocusSection({ upcoming, pregame, hotZone }: {
   pregame: PregameResponse | null;
   hotZone: TeamHotZoneResponse;
 }) {
+  // items-start（附帶回報項）：兩段式熱區（打者＋投手）比 FOCUS2 單段熱區高很多，
+  // 預設 grid 拉伸會把「下一場」卡撐到同高、底下留大片空白。改各欄依自身內容
+  // 收高，兩張卡不再被迫等高——低風險（只影響這組 grid 的高度分配，不影響
+  // Card 外觀本身），故一併處理，非另開卡。
   return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+    <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
       <NextGameCard upcoming={upcoming} pregame={pregame} />
       <HotZoneCard data={hotZone} />
     </div>
