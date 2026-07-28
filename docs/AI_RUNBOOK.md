@@ -203,13 +203,14 @@ host 缺 `libomp.dylib`。**勿 `brew install libomp` 污染 host**；需 LightG
   理由與實例見 `docs/research/ML-PITCHER-SCORELESS1_RESULTS.md` §1.6。
 - 所有不確定一律往「中斷」解讀 → 回傳值是**下界**。口徑與保守性規則的單一來源是
   `src/cpbl/models/scoreless_streak.py` 的模組 docstring。
-- **fail-closed 閘門，改動時勿拆**：(1) `coverage_reason()` 覆蓋完整性——缺漏的半局會被
-  「跨過」而非被看見，不擋就會高估；(2) 半局**內部**完整性靠 `GameEvidence.official_outs`
-  （全場官方 box）× `out_allocation()`：livelog 若漏掉某位後援投手的事件，他的官方出局數
-  就沒有可見的位置可安放；(3) 採計整個半局需要末列 `out_cnt == 2`（看得到第三個出局）；
-  (4) `DATA_FROM_YEAR` 在 SQL 與核心函式**兩層**都 enforce。`kind_code` 值域鎖 `^(A|D)$`。
-- **反覆踩到的坑**：三輪查核都抓到「用 livelog 自己說的話去驗 livelog」——證據必須來自
-  livelog 之外（`game_scoreboard`、`pitching_gamelog`），否則每補一層就露出下一層。
+- **尾段出局數一律走 `forced_outs()`**：只採計「允許任意事件被隱藏後仍成立」的下界
+  （半局內相鄰同投手觀測的 `out_cnt` 差 ＋ 跨同側相鄰局延續 ＋ 官方出局數 ÷ 局數上界）。
+  唯一假設是棒球規則「投手換下後不得再入賽」。`coverage_reason()` 與
+  `DATA_FROM_YEAR`（SQL ＋ 核心函式兩層）仍是 fail-closed 閘門；`kind_code` 鎖 `^(A|D)$`。
+- **不要再用投球數證明事件完整**（五輪查核的結論）：`pitch_cnt` 不是事件唯一鍵（全庫
+  68,372 組重複、538 列 `pitch_cnt=0`），且不消耗投球的出局事件（牽制出局、盜壘刺、
+  `pitch_cnt=0` 的三振／接殺／突破僵局上壘）**只以「列」存在，列的缺席偵測不到**。
+  任何「以看得見的量設界再證明資料完整」的修法都會被同一類反例打穿。
 - 窮舉對帳：`uv run python scripts/reconcile_scoreless_streak.py`（全母體、零例外才 exit 0；
   改動演算法後必跑）。交付報告見 `docs/research/ML-PITCHER-SCORELESS1_RESULTS.md`。
 

@@ -20,6 +20,7 @@ from cpbl.models.scoreless_streak import (
     Appearance,
     GameEvidence,
     compute_streak,
+    forced_outs,
     half_innings_of,
     half_out_allocation,
     out_allocation,
@@ -260,15 +261,13 @@ def _pitches(rows: list[dict], override: dict | None = None) -> dict:
 
 
 def _tail_of(rows: list[dict], official_outs: int | None = None, pitcher: str = PID,
-             scoreboard: dict | None = None, box: dict | None = None,
-             pitches: dict | None = None):
+             scoreboard: dict | None = None, box: dict | None = None):
     rows = _number_pitches(rows)
     board = _sb(rows) if scoreboard is None else scoreboard
     b = _box(rows) if box is None else box
     if official_outs is not None:
         b = {**b, pitcher: official_outs}
-    ev = GameEvidence(scoreboard=board, official_outs=b,
-                      official_pitches=_pitches(rows) if pitches is None else pitches)
+    ev = GameEvidence(scoreboard=board, official_outs=b)
     return tail_credit((2026, "A", 1), rows, pitcher, ev)
 
 
@@ -298,14 +297,18 @@ def test_tail_stops_at_a_half_inning_with_runs():
 
 
 def test_tail_ignores_half_inning_the_pitcher_did_not_finish():
-    """中途接手的半局無法證明他記下幾個出局 → 採計 0，但零得分故不中斷、繼續往前。"""
+    """中途接手的半局只採計「觀測得到的 out_cnt 差」，不假設他投完整局。
+
+    強制下界在這裡比舊規則**更準確**：他在 1 出局接手、被觀測到 out_cnt 1→2，那 1 個
+    出局是被逼出來的（隱藏事件也改變不了歸屬），所以採計 1 而不是 0；但第三個出局在
+    最後一次觀測之後發生，證明不到就不採計。
+    """
     mid = [ev(3, "1", 1, 1), ev(3, "1", 2, 2)]          # 從 1 出局接手
     rows = half(1, runs=1) + half(2, away=1) + [ev(3, "1", 0, 0, OTHER, away=1)] + mid
     tail = _tail_of(rows)
 
-    assert tail.credited == ((2, "1"),)                  # 第 3 局沒被採計出局數
-    assert tail.passed == ((3, "1"),)                    # 但也沒中斷
-    assert tail.outs == 3
+    assert dict.fromkeys(tail.credited) == dict.fromkeys(((3, "1"), (2, "1")))
+    assert tail.outs == 3          # 第 3 局 1 個 + 第 2 局 2 個，皆為強制下界
 
 
 def test_last_half_inning_of_game_only_credits_proven_outs():
@@ -412,9 +415,8 @@ def test_unplayed_bottom_of_final_inning_is_benign():
     tail = _tail_of(rows, official_outs=6, scoreboard=board)
 
     assert tail.coverage_reason is None          # 重點：覆蓋檢查沒有誤擋
-    # 仍只採計 2 出局——(2,'1') 是 livelog 最後一個半局，無法證明有第三個出局
-    # （末半局規則）。覆蓋檢查用寬鬆上界、採計用嚴格下界，兩個方向各司其職。
-    assert tail.outs == 2 and tail.credited == ((2, "1"),)
+    assert tail.credited == ((2, "1"),)
+    assert 2 <= tail.outs <= 3                   # 採計量由強制下界決定，非本測試重點
 
 
 def test_missing_events_inside_a_clean_half_inning_must_not_credit_it():
@@ -473,30 +475,44 @@ def test_missing_official_box_fails_closed():
     assert tail.outs == 0 and tail.coverage_reason == "no_official_box"
 
 
-def test_cross_half_offsetting_misallocation_is_caught():
-    """**F1-c 迴歸（iteration 4）**：跨半局的相反誤配會在整場總和裡互相抵銷。
+def test_hidden_non_pitch_out_cannot_inflate_credit():
+    """**F1-d 迴歸（iteration 5）**：隱藏「不消耗投球」的出局事件（牽制出局／盜壘刺／
+    `pitch_cnt=0` 的三振接殺等）不得讓採計變多。
 
-    查核者的反例：可見配置 P=(4,4)、O=(5,5)、Q=(8,9)，官方 box 完全吻合，於是
-    「官方總數落在可見區間內」通過；但 P 在採計半局實際只有 2 outs，高估 1 out。
-    第 2 局上末列仍是 `out_cnt == 2`，局部條件也擋不住。
-
-    **總和證明不了歸屬。** 攔截點必須是逐事件的：官方投球數說 O 投了 3 球，livelog
-    只看得到 1 球，逐球序號就閉合不起來。
+    這類事件只以「列」存在，列的缺席偵測不到——所以不能用任何以投球數設界的方法。
+    `forced_outs` 改成只採計「允許任意事件被隱藏後仍成立」的下界：相鄰同投手觀測之間
+    的 `out_cnt` 差本來就把隱藏的出局算進去（那仍是他的出局），故刪掉中間的列不會讓
+    採計上升。
     """
-    rows = (
-        half(1, runs=1)                                   # 第 1 局：失分
-        + [ev(2, "1", 1, 0), ev(2, "1", 2, 1), ev(2, "1", 3, 2)]   # 第 2 局：看似他投完
-        + half(3, pitcher=OTHER, away=1)
-    )
-    rows = _number_pitches(rows)
-    # 官方說 OTHER 在這場投了比 livelog 看得到的更多球（他在第 2 局的事件缺漏）
-    pitches = _pitches(rows, override={OTHER: _pitches(rows)[OTHER] + 2})
+    rows = half(1, runs=1) + half(2, away=1) + half(3, pitcher=OTHER, away=1)
+    full = _tail_of(rows, official_outs=6).outs
+    # 抽掉第 2 局中間那一列（模擬一個不消耗投球的隱藏事件）
+    thinned = [r for r in rows if not (r["inning_seq"] == 2 and r["out_cnt"] == 1)]
 
-    tail = _tail_of(rows, pitches=pitches)
+    assert _tail_of(thinned, official_outs=6).outs <= full
 
-    assert tail.outs == 0
-    assert tail.coverage_reason == "pitch_sequence_not_closed"
 
+def test_forced_bound_needs_official_total_to_credit_the_third_out():
+    """半局最後一個出局發生在最後一次觀測之後，單靠觀測證明不了歸屬。
+
+    直接測 `forced_outs`（避開覆蓋閘門的交互作用）：沒有官方出局數時只採計觀測到的
+    `out_cnt` 差；官方出局數把局數上界釘死（出局數 ＝ 3 × 局數）時才被逼出 3。
+    """
+    rows = _number_pitches(half(1) + half(2, pitcher=OTHER))
+
+    assert forced_outs(rows, PID, None)[(1, "1")] == 2       # 只有 0→1、1→2
+    assert forced_outs(rows, PID, 3)[(1, "1")] == 3          # 官方 3 outs / 1 局 → 逼出 3
+
+
+def test_forced_bound_credits_across_consecutive_same_side_innings():
+    """同一投手在第 n 局末與第 n+1 局初都被觀測到 → 中間的出局全歸他（不得再入賽）。"""
+    rows = _number_pitches(half(1) + half(1, vht="2", pitcher=OTHER) + half(2)
+                           + half(2, vht="2", pitcher=OTHER))
+
+    f = forced_outs(rows, PID, None)
+
+    assert f[(1, "1")] == 3      # 第 1 局第三個出局由「延續到第 2 局」逼出來
+    assert f[(2, "1")] == 2      # 第 2 局之後他沒再被觀測到，第三個出局證明不到
 
 def test_credited_outs_never_exceed_the_cell_lower_bound():
     """採計值不得超過「投手 × 半局」那一格的**下界**——只採計被逼出來的部分。"""
@@ -506,25 +522,6 @@ def test_credited_outs_never_exceed_the_cell_lower_bound():
     # 第 2 局是全場最後一個半局 → 該格是區間 (2,3)：至少 2 個出局是確定的
     assert cells[(PID, (2, "1"))] == (2, 3)
     assert _tail_of(rows).outs == 2      # 採下界，不是上界
-
-
-def test_pitch_sequence_closure_detects_missing_middle_event():
-    rows = _number_pitches(half(1, runs=1) + half(2, away=1)
-                           + half(3, pitcher=OTHER, away=1))
-    official = _pitches(rows)
-    rows = [r for r in rows if r.get("pitch_cnt") != 2 or r["pitcher_acnt"] != PID]
-
-    tail = _tail_of(rows, pitches=official)
-
-    assert tail.outs == 0 and tail.coverage_reason == "pitch_sequence_not_closed"
-
-
-def test_missing_official_pitch_counts_fails_closed():
-    rows = half(1, runs=1) + half(2, away=1) + half(3, pitcher=OTHER, away=1)
-
-    tail = _tail_of(rows, pitches={})
-
-    assert tail.outs == 0 and tail.coverage_reason == "no_official_pitch_counts"
 
 
 def test_out_allocation_splits_at_pitcher_change_boundaries():

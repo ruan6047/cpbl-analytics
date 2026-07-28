@@ -130,7 +130,6 @@ def tail_lookup_factory(
         evidence = GameEvidence(
             scoreboard=scoreboard.get(a.key),
             official_outs={p: v["outs"] for p, v in game_box.items()} or None,
-            official_pitches={p: v["pitches"] for p, v in game_box.items()} or None,
         )
         return tail_credit(a.key, rows, player_id, evidence)
 

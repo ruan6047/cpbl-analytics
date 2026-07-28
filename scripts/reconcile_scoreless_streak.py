@@ -10,7 +10,7 @@ exit 1。查核者可原樣重跑。
 | 代號 | 內容 | 對應紅線 |
 |---|---|---|
 | R1 | 凡被採計為「整場無自責分」的出賽，官方 `pitching_gamelog.earned_runs` 必為 0 | 紅線 3（字面） |
-| R2 | 凡被採計的尾段半局，**獨立來源** `game_scoreboard` 該半局得分必為 0；且 livelog 側獨立重算（視窗函數 lag，非計算時的前綴最大值路徑）亦為 0、該半局只有目標投手一人、首列 `out_cnt=0` | 紅線 2／3（尾段的更強證據） |
+| R2 | 凡被採計的尾段半局，**獨立來源** `game_scoreboard` 該半局得分必為 0；且 livelog 側獨立重算（視窗函數 lag，非計算時的前綴最大值路徑）亦為 0 | 紅線 2／3（尾段的更強證據）。出局數**歸屬**由 R10 負責 |
 | R3 | 算術：`outs == strict_outs + tail_outs`；`tail_outs ≤ 該場官方出局數`；每個尾段半局 ≤ 3 出局 | 紅線 2 |
 | R4 | 連續性：被採計的出賽必須恰好是該投手出賽序列的**結尾連續段**（由原始行獨立重建） | 紅線 2 |
 | R5 | 保留賽（`delay_kind='保留'`）不得被採計 | 紅線 2 |
@@ -18,7 +18,7 @@ exit 1。查核者可原樣重跑。
 | R7 | 凡被**跳過**的季後賽出賽，賽別必在計入範圍之外**且**官方 ER 必為 0；且「起算場之後該投手在任何賽別的出賽都無自責分」 | 紅線 2（賽別範圍裁定） |
 | R8 | **覆蓋完整性（半局層級）**：尾段那場的 livelog 與 `game_scoreboard` 半局集合必須一致（除未進行的最終局下半等良性樣態）、該投手的半局是同一側連號一段、半局數 × 3 ≥ 官方出局數 | 紅線 2（F1 修正） |
 | R9 | **覆蓋完整性（事件／投手邊界層級）**：以 SQL 視窗函數在**半局內的投手更迭邊界**重算每位投手的出局數區間，全場每位官方 box 上的投手都必須落在自己的可見區間內 | 紅線 2（F1-b 修正）。R8 只比半局集合，與 runtime 共享「半局存在即內部完整」的盲點 |
-| R10 | **逐球序號閉合**：每位投手的 livelog `pitch_cnt` 集合必須恰為 `{1..官方投球數}`；且**採計半局那一格**的出局數下界不得小於採計值 | 紅線 2（F1-c 修正）。R9 仍是「場次 × 投手」的加總，跨半局的相反誤配會互相抵銷；逐球序號是逐事件的、沒有抵銷空間，格級下界則直接證明歸屬 |
+| R10 | **格級強制下界**：對每個 credited 半局，用**獨立 SQL 路徑**重算「相鄰同投手觀測之間的 `out_cnt` 差」這個安全下界，驗 `credited_outs ≤ 獨立重算的下界` | 紅線 2（F1-d 修正）。以投球數為基礎的完整性證明已被證偽（不消耗投球的出局事件只以列存在、列的缺席偵測不到），故 R10 改成直接重算採計值本身的下界，逐格比對 |
 
 用法：
 
@@ -192,6 +192,16 @@ _PITCH_SEQ_SQL = """
      GROUP BY 1, 2, 3, 4
 """
 
+_RAW_EVENTS_SQL = """
+    SELECT l.year, l.kind_code, l.game_sno, l.inning_seq,
+           l.visiting_home_type, l.out_cnt, l.is_change_player, l.pitcher_acnt
+      FROM cpbl.game_livelog l
+      JOIN (SELECT (v->>0)::int AS year, v->>1 AS kind_code, (v->>2)::int AS game_sno
+              FROM jsonb_array_elements(%(games)s::jsonb) v) k
+        ON k.year = l.year AND k.kind_code = l.kind_code AND k.game_sno = l.game_sno
+     ORDER BY l.year, l.kind_code, l.game_sno, l.main_event_no
+"""
+
 _GAME_BOX_SQL = """
     SELECT p.year, p.kind_code, p.game_sno, p.pitcher_acnt,
            p.inning_pitched_cnt * 3 + p.inning_pitched_div3 AS outs,
@@ -210,6 +220,72 @@ def _fetch(sql: str, params: dict) -> list[dict]:
         return _dicts(cur)
 
 
+
+def _independent_forced_lb(rows, pitcher, official_outs):
+    """**獨立重寫**的強制下界（R10 用）——刻意不 import runtime 的 `forced_outs`。
+
+    三個來源與 runtime 相同，但這是另一份程式碼：(1) 半局內相鄰同投手觀測的 `out_cnt`
+    差；(2) 跨同側相鄰局延續；(3) 官方出局數 ÷ 局數上界。任一實作寫錯，逐格比對就對不上。
+    """
+    groups, prev = [], None
+    for r in rows:
+        if r.get("is_change_player"):
+            continue
+        k = (int(r["inning_seq"]), str(r["visiting_home_type"]))
+        if k != prev:
+            groups.append((k, []))
+            prev = k
+        groups[-1][1].append(r)
+    gmap = dict(groups)
+    lb = defaultdict(int)
+    for k, evs in groups:
+        pp = po = None
+        for r in evs:
+            q, oc = r.get("pitcher_acnt"), r.get("out_cnt")
+            if oc is None:
+                if q != pp:
+                    pp, po = q, None
+                continue
+            oc = int(oc)
+            if q == pitcher and pp == pitcher and po is not None and oc > po:
+                lb[k] += oc - po
+            pp, po = q, oc
+    side = defaultdict(list)
+    for (inn, vht), _e in groups:
+        side[vht].append(inn)
+    for vht, inns in side.items():
+        seq = sorted(inns)
+        for a, b in zip(seq, seq[1:], strict=False):
+            if b != a + 1:
+                continue
+            ea, eb = gmap[(a, vht)], gmap[(b, vht)]
+            oa = [r for r in ea if r.get("out_cnt") is not None]
+            ob = [r for r in eb if r.get("out_cnt") is not None]
+            if oa and ob and ea[-1].get("pitcher_acnt") == pitcher \
+                    and eb[0].get("pitcher_acnt") == pitcher:
+                lb[(a, vht)] += max(0, 3 - int(oa[-1]["out_cnt"]))
+                lb[(b, vht)] += max(0, int(ob[0]["out_cnt"]))
+    mine = [k for k, evs in groups
+            if any(r.get("pitcher_acnt") == pitcher for r in evs)]
+    floor = 0
+    if mine and official_outs is not None:
+        vhts = {k[1] for k in mine}
+        inns = sorted(k[0] for k in mine)
+        if len(vhts) == 1 and inns == list(range(inns[0], inns[-1] + 1)):
+            v = next(iter(vhts))
+            same = sorted(side[v])
+            lo_p = inns[0] == same[0]
+            nxt = inns[-1] + 1
+            hi_p = nxt not in same
+            if not hi_p:
+                aft = [r for r in gmap[(nxt, v)] if r.get("out_cnt") is not None]
+                hi_p = bool(aft) and int(aft[0]["out_cnt"]) == 0 \
+                    and aft[0].get("pitcher_acnt") != pitcher
+            kmax = len(inns) + (0 if lo_p else 1) + (0 if hi_p else 1)
+            floor = official_outs - 3 * (kmax - 1)
+    return {k: max(lb.get(k, 0), floor, 0) for k in set(list(lb) + mine)}
+
+
 def reconcile(tier_label: str, kind_code: str) -> dict:
     kinds = kinds_of(kind_code)
     counted_kinds = (kind_code,)
@@ -225,6 +301,7 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
     skipped_keys: list[list] = []          # R7 母體
     tail_halves: list[tuple] = []          # R2 母體
     tail_appearances: list[tuple] = []     # R8 母體：(year, kind, sno, pid, 官方出局數)
+    credited_outs: dict[tuple, int] = {}   # R10 母體：逐 credited 半局的採計量
     tail_games: set[tuple[int, str, int]] = set()
     stats = defaultdict(int)
 
@@ -289,6 +366,8 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
             for inning_seq, vht in res.tail.credited:
                 tail_halves.append((y, k, sno, inning_seq, vht, pid, True))
                 stats["tail_half_innings"] += 1
+            for (inning_seq, vht), n in res.tail.credited_outs:
+                credited_outs[(y, k, sno, pid, inning_seq, vht)] = n
             for inning_seq, vht in res.tail.passed:
                 tail_halves.append((y, k, sno, inning_seq, vht, pid, False))
                 stats["tail_half_innings_passed"] += 1
@@ -350,13 +429,8 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
             bad.append(f"livelog(lag) 得分={f['livelog_runs']}")
         if f["scored_flag"]:
             bad.append("該半局有 is_score 事件")
-        # 只有「有貢獻出局數」的半局才需要證明出局數歸屬；passed 半局採計 0 出局數，
-        # 對它下獨力投完的條件沒有意義（它正是因為做不到才被歸為 passed）。
-        if is_credited:
-            if f["pitcher_cnt"] != 1 or f["only_pitcher"] != pid:
-                bad.append(f"非該投手獨力投完（{f['pitcher_cnt']} 人）")
-            if f["first_out"] != 0:
-                bad.append(f"首列 out_cnt={f['first_out']}（非自半局開頭）")
+        # 出局數**歸屬**改由 R10 逐格驗強制下界——採計不再要求「獨力投完整個半局」
+        # （中途接手也可能有被逼出來的出局數）。R2 只負責「該半局零得分」這件事。
         if bad:
             fails.append({"check": "R2", "player_id": pid, "detail": f"{where}：" + "；".join(bad)})
         elif is_credited:
@@ -429,6 +503,16 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
             seen_pitches[(r["year"], r["kind_code"], r["game_sno"])][
                 r["pitcher_acnt"]] = (int(r["n_distinct"]), int(r["mn"]), int(r["mx"]))
 
+    raw_rows: dict[tuple, list[dict]] = defaultdict(list)
+    for chunk in _chunks(sorted(tail_games), 400):
+        for r in _fetch(_RAW_EVENTS_SQL, {"games": json.dumps([list(g) for g in chunk])}):
+            raw_rows[(r["year"], r["kind_code"], r["game_sno"])].append(r)
+    safe_lb: dict[tuple, int] = {}
+    for y, k, sno, pid, official in tail_appearances:
+        for half_key, n in _independent_forced_lb(
+                raw_rows.get((y, k, sno), []), pid, official).items():
+            safe_lb[(y, k, sno, pid, half_key[0], half_key[1])] = n
+
     alloc_ok = seq_ok = 0
     for y, k, sno, pid, _official in tail_appearances:
         game = (y, k, sno)
@@ -453,23 +537,18 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
         else:
             alloc_ok += 1
 
-        # ---- R10：逐球序號閉合（逐事件，沒有跨半局抵銷空間） ----
-        seq_bad = []
-        off_p, got_p = official_pitches.get(game, {}), seen_pitches.get(game, {})
-        if not off_p:
-            seq_bad.append("無官方投球數")
-        for p, off in off_p.items():
-            if off is None:
-                seq_bad.append(f"{p} 官方投球數缺值")
+        # ---- R10：格級強制下界（獨立重寫的實作重算，逐個 credited 半局比對） ----
+        for (hy, hk, hs, inn, vht, hpid, is_cred) in tail_halves:
+            if not is_cred or (hy, hk, hs) != game or hpid != pid:
                 continue
-            got = got_p.get(p)
-            if got is None or got != (int(off), 1, int(off)):
-                seq_bad.append(f"{p} 逐球序號 {got} 與官方 {off} 不閉合")
-        if seq_bad:
-            fails.append({"check": "R10", "player_id": pid,
-                          "detail": f"{y}/{k}/{sno}：" + "；".join(seq_bad[:3])})
-        else:
-            seq_ok += 1
+            lbv = safe_lb.get((hy, hk, hs, hpid, inn, vht), 0)
+            got = credited_outs.get((hy, hk, hs, hpid, inn, vht), 0)
+            if got > lbv:
+                fails.append({"check": "R10", "player_id": pid,
+                              "detail": f"{hy}/{hk}/{hs} {inn}局{'上' if vht=='1' else '下'}："
+                                        f"採計 {got} > 獨立重算下界 {lbv}"})
+            else:
+                seq_ok += 1
 
     return {
         "tier": tier_label,
@@ -489,7 +568,7 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
         "tail_appearances": len(tail_appearances),
         "tail_appearances_coverage_complete": cov_ok,
         "tail_appearances_allocation_reconciled": alloc_ok,
-        "tail_appearances_pitch_sequence_closed": seq_ok,
+        "credited_halves_lower_bound_verified": seq_ok,
         "exceptions": fails,
     }
 
@@ -511,7 +590,7 @@ def main() -> int:
     print("窮舉對帳：連續無自責分局數（ML-PITCHER-SCORELESS1）\n")
     hdr = ("層級", "投手數", "出賽總數", "採計出賽", "R1 驗得 ER=0",
            "尾段採計半局", "R2 驗得零得分", "尾段 0 採計半局", "R2 驗得零得分",
-           "跳過季後賽", "R7 驗得 ER=0", "尾段出賽", "R8 半局覆蓋", "R9 出局數配置", "R10 逐球閉合", "例外")
+           "跳過季後賽", "R7 驗得 ER=0", "尾段出賽", "R8 半局覆蓋", "R9 出局數配置", "R10 格級下界", "例外")
     print(" | ".join(hdr))
     print(" | ".join("---" for _ in hdr))
     for r in reports:
@@ -524,7 +603,7 @@ def main() -> int:
             r["skipped_postseason"], r["skipped_postseason_verified_er0"],
             r["tail_appearances"], r["tail_appearances_coverage_complete"],
             r["tail_appearances_allocation_reconciled"],
-            r["tail_appearances_pitch_sequence_closed"], len(r["exceptions"]))))
+            r["credited_halves_lower_bound_verified"], len(r["exceptions"]))))
     print()
     for r in reports:
         for e in r["exceptions"][:50]:
