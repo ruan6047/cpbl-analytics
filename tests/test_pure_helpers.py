@@ -12,7 +12,12 @@ from cpbl.api.helpers import _ip_disp, _ip_real, _parse_features, _real_ip, _rou
 from cpbl.api.routers.ability import _grade
 from cpbl.api.routers.players import _merge_splits
 from cpbl.api.routers.tracking import _batted_result, _count_bucket, _zone_result
-from cpbl.api.team_records import BATTER_MILESTONES, _franchise_approach, _next_milestone
+from cpbl.api.team_records import (
+    BATTER_MILESTONES,
+    PITCHER_MILESTONES,
+    _franchise_approach,
+    _next_milestone,
+)
 
 # ---- 局數記法換算（.1=⅓、.2=⅔） ----
 
@@ -207,16 +212,27 @@ def test_franchise_approach_excludes_sole_holder_and_far_gaps():
     ]
     totals = {
         "leader": {"name": "領先者", "h": 1000},
-        "close": {"name": "逼近者", "h": 991},   # 差 9 <= near(10)
-        "far": {"name": "遙遠者", "h": 500},      # 差 500 > near(10)
+        "close": {"name": "逼近者", "h": 997},   # 差 3 <= near(3)：單場 3 安可能達成
+        "far": {"name": "遙遠者", "h": 500},      # 差 500 > near(3)
     }
     out = _franchise_approach(roster, totals, stat_defs, role="batting")
     assert [r["player_id"] for r in out] == ["close"]
     assert out[0]["record"] == 1000
-    assert out[0]["remaining"] == 9
+    assert out[0]["remaining"] == 3
     assert out[0]["holder"] == "領先者"
 
 
 def test_franchise_approach_empty_totals_is_empty():
     stat_defs = [d for d in BATTER_MILESTONES if d["stat"] == "h"]
     assert _franchise_approach([{"player_id": "x", "name": "x"}], {}, stat_defs, "batting") == []
+
+
+def test_milestone_near_thresholds_match_2026_07_28_card_revision():
+    # 卡面 2026-07-28 改判準為「單場可累積上限」：勝投/救援/中繼單場上限=1，
+    # 其餘（含全壘打排除四響砲）單場上限=3。鎖住數值，避免日後不小心改回舊的
+    # 「階梯 1/10~1/8」密度門檻。
+    near_by_stat = {d["stat"]: d["near"] for d in [*BATTER_MILESTONES, *PITCHER_MILESTONES]}
+    assert near_by_stat == {
+        "h": 3, "rbi": 3, "r": 3, "hr": 3, "sb": 3,
+        "so": 3, "ip": 3, "w": 1, "sv_hld": 1,
+    }

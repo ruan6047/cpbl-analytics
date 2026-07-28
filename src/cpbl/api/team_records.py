@@ -8,8 +8,13 @@
    `/api/v1/players/{id}/career` 同一份邏輯（該端點本身也改走這兩個 helper）。
    **嚴禁另行拼裝 `batting_seasons` ∪ gamelog**——那是卡面紅線：自行拼裝會與
    球員頁生涯數字對不起來。階梯／門檻表見 `BATTER_MILESTONES`/`PITCHER_MILESTONES`
-   （卡面表格，Coordinator 依實測密度定案，執行者不得逕自改動數值）。
-   排序＝「差距／階梯」比值由小到大（越接近越前面）。
+   （卡面表格，需求方裁定，執行者不得逕自改動數值）。判準＝「下一場真的有機會
+   達成」（2026-07-28 需求方調整）：門檻由該項目**單場可累積上限**決定，不是
+   階梯比例——安打／打點／得分／全壘打／盜壘／三振／局數差 ≤3（單場 3 是常態；
+   全壘打排除的是罕見的「四響砲」，三響砲一季會發生數次故仍算快到了），
+   勝投／救援／中繼差 ≤1（單場上限就是 1）。舊版「門檻＝階梯的 1/10~1/8」
+   （為了讓各項目上榜密度相近）已作廢。排序仍＝「差距／階梯」比值由小到大
+   （越接近越前面）——比值排序本身沒變，變的只是門檻數值。
 
 2. **進行中連續安打**——直接呼叫 `cpbl.api.team_focus._current_hit_streak`
    （UX-TEAM-FOCUS2 已上線，kind_code='A' 一軍口徑），不重寫。`STREAK_MIN`/
@@ -17,7 +22,7 @@
    執行者提案 5 場起算、至多列 5 位，理由：避免每隊塞滿 0~2 場的雜訊，5 場
    在中職語境已算「連續安打」值得關注的長度。
 
-3. **隊史紀錄逼近（僅計數型）**——франchise 範圍**限定 `*_seasons`（1990+），
+3. **隊史紀錄逼近（僅計數型）**——franchise 範圍**限定 `*_seasons`（1990+），
    刻意不併入本季 gamelog**。這與素材 1「生涯」數字不同義：素材 1 問的是
    「這位球員全生涯（含本季）累積多少」，素材 3 問的是「這位球員在**這支球隊
    歷史上**排名如何、離隊史紀錄還差多少」——卡面背景表格明載這裡的資料源只到
@@ -26,8 +31,8 @@
    避免誤導（不宣稱「即時」）。**連續型隊史紀錄（最長連續安打/無失分等）不做**
    ——需求方 2026-07-28 裁定，逐場資料僅 2018+ 會讓口徑半殘，任何「近年最佳」
    變體措辭也不得出現，本模組完全不產生這類欄位。
-   門檻沿用素材 1 同一組 `near`/`ladder`（執行者提案的延伸，卡面本身未定義
-   隊史逼近的門檻，理由是維持同一組數字讓使用者好理解、避免另立一套語意）。
+   門檻與判準沿用素材 1 同一組 `near`/`ladder`（卡面 2026-07-28 明定「隊史逼近
+   沿用同一組門檻與同一個判準，不要留兩套門檻」）。
 
 範圍限定**一軍現役名單**（`batting_current`/`pitching_current`，`year=season`）：
 `_current_hit_streak` 本身即 kind_code='A'（一軍）口徑，混入二軍名單會造成
@@ -53,19 +58,21 @@ from cpbl.api.team_focus import _current_hit_streak
 from cpbl.db import conn
 from cpbl.franchises import franchise_prefixes
 
-# 里程碑階梯與門檻（卡面表格，勿逕自改動數值；label/stat 對齊 canonical 生涯欄位）。
+# 里程碑階梯與門檻（卡面表格 2026-07-28 版，勿逕自改動數值；label/stat 對齊 canonical
+# 生涯欄位）。near＝「單場可累積上限」判準：安打/打點/得分/全壘打/盜壘/三振/局數單場
+# 3 是常態（全壘打排除的是罕見的四響砲）→ near=3；勝投/救援/中繼單場上限就是 1 → near=1。
 BATTER_MILESTONES = [
-    {"stat": "h", "label": "安打", "ladder": 100, "start": 200, "near": 10},
-    {"stat": "rbi", "label": "打點", "ladder": 100, "start": 200, "near": 10},
-    {"stat": "r", "label": "得分", "ladder": 100, "start": 200, "near": 10},
+    {"stat": "h", "label": "安打", "ladder": 100, "start": 200, "near": 3},
+    {"stat": "rbi", "label": "打點", "ladder": 100, "start": 200, "near": 3},
+    {"stat": "r", "label": "得分", "ladder": 100, "start": 200, "near": 3},
     {"stat": "hr", "label": "全壘打", "ladder": 25, "start": 25, "near": 3},
     {"stat": "sb", "label": "盜壘", "ladder": 25, "start": 25, "near": 3},
 ]
 PITCHER_MILESTONES = [
-    {"stat": "so", "label": "三振", "ladder": 100, "start": 200, "near": 10},
-    {"stat": "ip", "label": "投球局數", "ladder": 100, "start": 200, "near": 10},
-    {"stat": "w", "label": "勝投", "ladder": 10, "start": 20, "near": 2},
-    {"stat": "sv_hld", "label": "救援／中繼", "ladder": 25, "start": 25, "near": 3},
+    {"stat": "so", "label": "三振", "ladder": 100, "start": 200, "near": 3},
+    {"stat": "ip", "label": "投球局數", "ladder": 100, "start": 200, "near": 3},
+    {"stat": "w", "label": "勝投", "ladder": 10, "start": 20, "near": 1},
+    {"stat": "sv_hld", "label": "救援／中繼", "ladder": 25, "start": 25, "near": 1},
 ]
 
 STREAK_MIN = 5
