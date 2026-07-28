@@ -15,6 +15,8 @@ from cpbl.api.routers.tracking import _batted_result, _count_bucket, _zone_resul
 from cpbl.api.team_records import (
     BATTER_MILESTONES,
     PITCHER_MILESTONES,
+    PITCHER_ROLE_NEAR,
+    _classify_pitcher_role,
     _franchise_approach,
     _next_milestone,
 )
@@ -227,12 +229,39 @@ def test_franchise_approach_empty_totals_is_empty():
     assert _franchise_approach([{"player_id": "x", "name": "x"}], {}, stat_defs, "batting") == []
 
 
-def test_milestone_near_thresholds_match_2026_07_28_card_revision():
-    # 卡面 2026-07-28 改判準為「單場可累積上限」：勝投/救援/中繼單場上限=1，
-    # 其餘（含全壘打排除四響砲）單場上限=3。鎖住數值，避免日後不小心改回舊的
-    # 「階梯 1/10~1/8」密度門檻。
+def test_milestone_near_thresholds_match_2026_07_28_measured_revision():
+    # 卡面 2026-07-28 定版：near＝「單場達成 ≥N 發生率仍 ≥5% 的最大 N」，2018+ 一軍
+    # 逐場資料實測值，逐項不同（不是階梯比例、也不是粗略的「單場上限」估計——
+    # 勝投/救援中繼恰好兩者相符，其餘不相符）。三振／局數的實際 near 隨投手角色
+    # 分流（見 test_pitcher_role_near_split_values），這裡鎖住的是 PITCHER_MILESTONES
+    # 表內的固定值（w/sv_hld）與 so/ip 的 fallback（＝後援門檻，保守方向）。
+    # 鎖住數值，避免日後不小心改回舊的「一律 ≤3」或「階梯 1/10~1/8」設計。
     near_by_stat = {d["stat"]: d["near"] for d in [*BATTER_MILESTONES, *PITCHER_MILESTONES]}
     assert near_by_stat == {
-        "h": 3, "rbi": 3, "r": 3, "hr": 3, "sb": 3,
-        "so": 3, "ip": 3, "w": 1, "sv_hld": 1,
+        "h": 3, "rbi": 2, "r": 2, "hr": 1, "sb": 1,
+        "so": 2, "ip": 2, "w": 1, "sv_hld": 1,
     }
+
+
+def test_pitcher_role_near_split_values():
+    # 只有三振／局數需要角色分流（單場分布隨角色差一個數量級）；勝投/救援中繼
+    # 結構上單場上限即 1，與角色無關，不在分流表內。
+    assert PITCHER_ROLE_NEAR == {
+        "so": {"starter": 8, "reliever": 2},
+        "ip": {"starter": 7, "reliever": 2},
+    }
+
+
+def test_classify_pitcher_role_ratio_and_min_sample():
+    # 佔比 >=0.5 才算先發；邊界值 0.5 本身算先發（>= 不是 >）。
+    assert _classify_pitcher_role(starts=3, total=5) == "starter"     # 0.6
+    assert _classify_pitcher_role(starts=5, total=10) == "starter"    # 0.5 邊界
+    assert _classify_pitcher_role(starts=2, total=5) == "reliever"    # 0.4
+    assert _classify_pitcher_role(starts=0, total=20) == "reliever"   # 純後援
+
+
+def test_classify_pitcher_role_low_sample_is_always_reliever():
+    # 本季出賽 <5 場者一律歸後援，即使全部都是先發（保守方向：樣本不足時不敢
+    # 對後援門檻以外的宣稱背書，避免「差 8 個三振」掛在只投兩場的球員身上）。
+    assert _classify_pitcher_role(starts=4, total=4) == "reliever"    # 全先發但只 4 場
+    assert _classify_pitcher_role(starts=0, total=0) == "reliever"    # 本季無出賽（不除以零）

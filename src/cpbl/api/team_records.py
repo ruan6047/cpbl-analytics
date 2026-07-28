@@ -7,14 +7,21 @@
    `_sum_batting_career`/`_sum_pitching_career`），與球員頁
    `/api/v1/players/{id}/career` 同一份邏輯（該端點本身也改走這兩個 helper）。
    **嚴禁另行拼裝 `batting_seasons` ∪ gamelog**——那是卡面紅線：自行拼裝會與
-   球員頁生涯數字對不起來。階梯／門檻表見 `BATTER_MILESTONES`/`PITCHER_MILESTONES`
-   （卡面表格，需求方裁定，執行者不得逕自改動數值）。判準＝「下一場真的有機會
-   達成」（2026-07-28 需求方調整）：門檻由該項目**單場可累積上限**決定，不是
-   階梯比例——安打／打點／得分／全壘打／盜壘／三振／局數差 ≤3（單場 3 是常態；
-   全壘打排除的是罕見的「四響砲」，三響砲一季會發生數次故仍算快到了），
-   勝投／救援／中繼差 ≤1（單場上限就是 1）。舊版「門檻＝階梯的 1/10~1/8」
-   （為了讓各項目上榜密度相近）已作廢。排序仍＝「差距／階梯」比值由小到大
-   （越接近越前面）——比值排序本身沒變，變的只是門檻數值。
+   球員頁生涯數字對不起來。
+
+   判準＝「下一場真的有機會達成」，可操作化為單一規則：**取「單場達成 ≥N」
+   發生率仍 ≥5% 的最大 N**（Coordinator 2026-07-28 以 2018+ 一軍逐場資料實測，
+   5% 這條線每項都切得乾淨，見卡面數字，不可為了湊整數偏離）。門檻**逐項不同**
+   （`BATTER_MILESTONES`/`PITCHER_MILESTONES`，卡面表格，執行者不得逕自改動）：
+   安打 3、打點 2、得分 2、全壘打 1、盜壘 1、勝投／救援中繼 1（結構上單場上限）；
+   三振／局數見下方角色分流。排序＝「差距／階梯」比值由小到大（越接近越前面）。
+
+   **三振／局數投手角色分流**（2026-07-28 需求方追加）：只有這兩項的單場分布
+   隨角色差一個數量級（先發 vs 後援），其餘計數型與角色無關。判定用本季一軍
+   `pitching_gamelog.role_type='先發'` 場次佔比：≥0.5 → 先發門檻（三振 8／局數 7）；
+   其餘（含混合型與本季出賽 <5 場者）→ 後援門檻（三振 2／局數 2）——樣本不足
+   一律歸後援是刻意的保守方向：後援門檻低 ⇒ 上榜少 ⇒ 不會對「今晚可能達成」
+   做出兌現不了的宣稱（見 `_pitcher_role`）。
 
 2. **進行中連續安打**——直接呼叫 `cpbl.api.team_focus._current_hit_streak`
    （UX-TEAM-FOCUS2 已上線，kind_code='A' 一軍口徑），不重寫。`STREAK_MIN`/
@@ -32,7 +39,8 @@
    ——需求方 2026-07-28 裁定，逐場資料僅 2018+ 會讓口徑半殘，任何「近年最佳」
    變體措辭也不得出現，本模組完全不產生這類欄位。
    門檻與判準沿用素材 1 同一組 `near`/`ladder`（卡面 2026-07-28 明定「隊史逼近
-   沿用同一組門檻與同一個判準，不要留兩套門檻」）。
+   沿用同一組門檻與同一個判準，不要留兩套門檻」）——三振／局數的隊史逼近也要
+   套用同一位球員本季的角色分流門檻，不是另用固定值。
 
 範圍限定**一軍現役名單**（`batting_current`/`pitching_current`，`year=season`）：
 `_current_hit_streak` 本身即 kind_code='A'（一軍）口徑，混入二軍名單會造成
@@ -58,22 +66,36 @@ from cpbl.api.team_focus import _current_hit_streak
 from cpbl.db import conn
 from cpbl.franchises import franchise_prefixes
 
-# 里程碑階梯與門檻（卡面表格 2026-07-28 版，勿逕自改動數值；label/stat 對齊 canonical
-# 生涯欄位）。near＝「單場可累積上限」判準：安打/打點/得分/全壘打/盜壘/三振/局數單場
-# 3 是常態（全壘打排除的是罕見的四響砲）→ near=3；勝投/救援/中繼單場上限就是 1 → near=1。
+# 里程碑階梯與門檻（卡面表格 2026-07-28 定版，勿逕自改動數值；label/stat 對齊
+# canonical 生涯欄位）。near＝「取單場達成 ≥N 發生率仍 ≥5% 的最大 N」的實測結果
+# （2018+ 一軍逐場資料），不是階梯比例、也不是「單場上限」的粗略估計——勝投／
+# 救援中繼剛好兩者相符（結構上單場上限即 1），其餘各項不相符（如三振單場遠
+# 不只 3 次，但「達到差 8」這件事仍要看發生率，不是看上限）。
 BATTER_MILESTONES = [
     {"stat": "h", "label": "安打", "ladder": 100, "start": 200, "near": 3},
-    {"stat": "rbi", "label": "打點", "ladder": 100, "start": 200, "near": 3},
-    {"stat": "r", "label": "得分", "ladder": 100, "start": 200, "near": 3},
-    {"stat": "hr", "label": "全壘打", "ladder": 25, "start": 25, "near": 3},
-    {"stat": "sb", "label": "盜壘", "ladder": 25, "start": 25, "near": 3},
+    {"stat": "rbi", "label": "打點", "ladder": 100, "start": 200, "near": 2},
+    {"stat": "r", "label": "得分", "ladder": 100, "start": 200, "near": 2},
+    {"stat": "hr", "label": "全壘打", "ladder": 25, "start": 25, "near": 1},
+    {"stat": "sb", "label": "盜壘", "ladder": 25, "start": 25, "near": 1},
 ]
+
+# 三振／局數的 near 隨投手本季角色（先發／後援）而異，見 PITCHER_ROLE_NEAR +
+# _pitcher_role。這裡的 near 只是「後援」（保守方向）的預設值，供角色查詢失敗
+# 或呼叫端未解析角色時的 fallback；實際判斷一律走 near_by_player 覆寫。
 PITCHER_MILESTONES = [
-    {"stat": "so", "label": "三振", "ladder": 100, "start": 200, "near": 3},
-    {"stat": "ip", "label": "投球局數", "ladder": 100, "start": 200, "near": 3},
+    {"stat": "so", "label": "三振", "ladder": 100, "start": 200, "near": 2},
+    {"stat": "ip", "label": "投球局數", "ladder": 100, "start": 200, "near": 2},
     {"stat": "w", "label": "勝投", "ladder": 10, "start": 20, "near": 1},
     {"stat": "sv_hld", "label": "救援／中繼", "ladder": 25, "start": 25, "near": 1},
 ]
+PITCHER_ROLE_NEAR = {
+    "so": {"starter": 8, "reliever": 2},
+    "ip": {"starter": 7, "reliever": 2},
+}
+ROLE_SPLIT_STATS = frozenset(PITCHER_ROLE_NEAR)
+# 角色判定：本季出賽 <5 場者樣本不足，一律歸後援（保守方向，見 `_pitcher_role`）。
+ROLE_MIN_GAMES = 5
+ROLE_STARTER_RATIO = 0.5
 
 STREAK_MIN = 5
 STREAK_TOP_N = 5
@@ -85,6 +107,24 @@ def _next_milestone(current: int, ladder: int, start: int) -> tuple[int, int]:
     if candidate < start:
         candidate = start
     return candidate, candidate - current
+
+
+def _classify_pitcher_role(starts: int, total: int) -> str:
+    """本季一軍先發場次佔比 ≥0.5 → 'starter'；其餘（含混合型與出賽 <5 場者，
+    樣本不足時保守歸類）→ 'reliever'。純函式（不含 DB 查詢），只影響三振／局數
+    兩項門檻；`total>=ROLE_MIN_GAMES` 在 `and` 左側短路，`total=0` 不會除以零。"""
+    if total >= ROLE_MIN_GAMES and starts / total >= ROLE_STARTER_RATIO:
+        return "starter"
+    return "reliever"
+
+
+def _pitcher_role(cur, pitcher_id: str, season: int) -> str:
+    cur.execute(
+        "SELECT count(*) FILTER (WHERE role_type='先發'), count(*) "
+        "FROM cpbl.pitching_gamelog WHERE pitcher_acnt=%s AND year=%s AND kind_code='A'",
+        (pitcher_id, season))
+    starts, total = cur.fetchone()
+    return _classify_pitcher_role(starts or 0, total or 0)
 
 
 def _roster(cur, code: str, season: int) -> tuple[list[dict], list[dict]]:
@@ -120,7 +160,18 @@ def _batter_milestones(cur, roster: list[dict]) -> list[dict]:
     return out
 
 
-def _pitcher_milestones(cur, roster: list[dict]) -> list[dict]:
+def _pitcher_near_by_player(cur, roster: list[dict], season: int) -> dict[str, dict[str, int]]:
+    """每位投手本季角色（先發／後援）解析後的三振／局數 near 覆寫表。"""
+    out: dict[str, dict[str, int]] = {}
+    for pl in roster:
+        role = _pitcher_role(cur, pl["player_id"], season)
+        out[pl["player_id"]] = {stat: PITCHER_ROLE_NEAR[stat][role] for stat in ROLE_SPLIT_STATS}
+    return out
+
+
+def _pitcher_milestones(
+    cur, roster: list[dict], near_by_player: dict[str, dict[str, int]],
+) -> list[dict]:
     out = []
     for pl in roster:
         pper = _career_pitching_per_year(cur, pl["player_id"])
@@ -134,10 +185,12 @@ def _pitcher_milestones(cur, roster: list[dict]) -> list[dict]:
             "w": int(pt.get("w", 0) or 0),
             "sv_hld": int(pt.get("sv", 0) or 0) + int(pt.get("hld", 0) or 0),
         }
+        near_override = near_by_player.get(pl["player_id"], {})
         for m in PITCHER_MILESTONES:
             current = values[m["stat"]]
+            near = near_override.get(m["stat"], m["near"])
             milestone, gap = _next_milestone(current, m["ladder"], m["start"])
-            if 0 < gap <= m["near"]:
+            if 0 < gap <= near:
                 out.append({
                     "player_id": pl["player_id"], "name": pl["name"], "role": "pitching",
                     "stat": m["stat"], "label": m["label"], "current": current,
@@ -176,8 +229,14 @@ def _franchise_pitching_totals(cur, prefixes: list[str]) -> dict[str, dict]:
 
 def _franchise_approach(
     roster: list[dict], totals: dict[str, dict], stat_defs: list[dict], role: str,
+    near_by_player: dict[str, dict[str, int]] | None = None,
 ) -> list[dict]:
-    """roster 中franchise-scoped 總和逼近隊史紀錄（最大值）者。已是唯一持有人不算逼近。"""
+    """roster 中 franchise-scoped 總和逼近隊史紀錄（最大值）者。已是唯一持有人不算逼近。
+
+    `near_by_player`：投手三振／局數的 near 隨球員本季角色而異（見模組 docstring），
+    有提供時該球員該項目優先用它覆寫 `stat_defs` 裡的固定 near；打者與其餘投手
+    項目不傳（沿用 `stat_defs` 的固定值），維持單一判準、不留第二套。
+    """
     out = []
     for m in stat_defs:
         stat = m["stat"]
@@ -191,7 +250,10 @@ def _franchise_approach(
                 continue
             current = v[stat]
             gap = best_val - current
-            if 0 < gap <= m["near"]:
+            near = m["near"]
+            if near_by_player is not None:
+                near = near_by_player.get(pl["player_id"], {}).get(stat, near)
+            if 0 < gap <= near:
                 out.append({
                     "player_id": pl["player_id"], "name": pl["name"], "role": role,
                     "stat": stat, "label": m["label"], "current": current,
@@ -206,8 +268,12 @@ def upcoming_records(code: str, season: int = DEFAULT_SEASON) -> dict:
     with conn() as c:
         cur = c.cursor()
         batters_roster, pitchers_roster = _roster(cur, code, season)
+        pitcher_near = _pitcher_near_by_player(cur, pitchers_roster, season)
 
-        milestones = _batter_milestones(cur, batters_roster) + _pitcher_milestones(cur, pitchers_roster)
+        milestones = (
+            _batter_milestones(cur, batters_roster)
+            + _pitcher_milestones(cur, pitchers_roster, pitcher_near)
+        )
         milestones.sort(key=lambda x: x["ratio"])
 
         streaks = []
@@ -223,7 +289,8 @@ def upcoming_records(code: str, season: int = DEFAULT_SEASON) -> dict:
         franchise_pitchers = _franchise_pitching_totals(cur, prefixes)
         franchise_records = (
             _franchise_approach(batters_roster, franchise_batters, BATTER_MILESTONES, "batting")
-            + _franchise_approach(pitchers_roster, franchise_pitchers, PITCHER_MILESTONES, "pitching")
+            + _franchise_approach(pitchers_roster, franchise_pitchers, PITCHER_MILESTONES, "pitching",
+                                  near_by_player=pitcher_near)
         )
         franchise_records.sort(key=lambda x: x["ratio"])
 
