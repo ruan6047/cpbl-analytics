@@ -18,8 +18,10 @@ from cpbl.models.scoreless_streak import (
     BREAK_SUSPENDED,
     SUSPENDED,
     Appearance,
+    GameEvidence,
     compute_streak,
     half_innings_of,
+    out_allocation,
     outs_to_innings,
     tail_credit,
 )
@@ -224,13 +226,22 @@ def _sb(rows: list[dict], extra: dict | None = None) -> dict:
     return board
 
 
+def _box(rows: list[dict], override: dict | None = None) -> dict:
+    """由事件列推出「與 livelog 相符的」官方 box；`override` 疊上官方才知道的事實。"""
+    b = {p: lo for p, (lo, _hi) in out_allocation(rows).items()}
+    if override:
+        b.update(override)
+    return b
+
+
 def _tail_of(rows: list[dict], official_outs: int | None = None, pitcher: str = PID,
-             scoreboard: dict | None = None):
-    halves = half_innings_of(rows, pitcher)
-    mine = {(r["inning_seq"], r["visiting_home_type"]) for r in rows
-            if not r["is_change_player"] and r["pitcher_acnt"] == pitcher}
+             scoreboard: dict | None = None, box: dict | None = None):
     board = _sb(rows) if scoreboard is None else scoreboard
-    return tail_credit((2026, "A", 1), halves, mine, official_outs, board)
+    b = _box(rows) if box is None else box
+    if official_outs is not None:
+        b = {**b, pitcher: official_outs}
+    ev = GameEvidence(scoreboard=board, official_outs=b)
+    return tail_credit((2026, "A", 1), rows, pitcher, ev)
 
 
 def test_missing_livelog_gives_no_tail():
@@ -277,12 +288,18 @@ def test_last_half_inning_of_game_only_credits_proven_outs():
     assert tail.outs == 1            # 不是 3
 
 
-def test_tail_clamped_by_official_outs():
-    """livelog 若異常給出比官方更多的出局數，以官方為上限夾擠。"""
+def test_official_outs_disagreeing_with_livelog_fails_closed():
+    """官方出局數與 livelog 可見區間不符 → 覆蓋閘門攔下（比夾擠更強）。
+
+    `TailCredit.clamped` 的夾擠仍留在程式裡當第二層防線，但覆蓋閘門會先攔截，
+    所以實務上不會走到夾擠——這裡釘的是「先攔截」這個更強的行為。
+    """
     rows = half(1, runs=1) + half(2, away=1) + half(3, away=1) + half(4, pitcher=OTHER, away=1)
+
     tail = _tail_of(rows, official_outs=4)
 
-    assert tail.outs == 4 and tail.clamped is True
+    assert tail.outs == 0
+    assert tail.coverage_reason == "official_outs_outside_visible_range"
 
 
 def test_tail_feeds_into_the_streak():
@@ -370,6 +387,75 @@ def test_unplayed_bottom_of_final_inning_is_benign():
     # 仍只採計 2 出局——(2,'1') 是 livelog 最後一個半局，無法證明有第三個出局
     # （末半局規則）。覆蓋檢查用寬鬆上界、採計用嚴格下界，兩個方向各司其職。
     assert tail.outs == 2 and tail.credited == ((2, "1"),)
+
+
+def test_missing_events_inside_a_clean_half_inning_must_not_credit_it():
+    """**F1-b 迴歸（iteration 3）**：半局**內部**事件缺漏。
+
+    官方 4 outs：第 1 局失分半局 3 outs、第 2 局零得分半局他只記 1 out 就換投，而
+    **換投後的所有事件都不在 livelog**。現存列仍全屬他、首列 out_cnt=0，於是
+    `pitched_whole` 為真、半局集合比對通過、投手半局連號——**前面每一道閘門都放行**。
+
+    這是「檢查看得見的量」循環的第三層：`pitched_whole` 由現存列一致推導，而現存列
+    一致證明不了列是齊全的。要跳出循環，證據必須來自 livelog 之外——官方 box 知道
+    後任投手記了幾個出局，那些出局在 livelog 裡沒有位置可以安放，對帳就不平。
+    """
+    rows = (
+        half(1, runs=1)                                    # 第 1 局：失分，3 outs
+        + [ev(2, "1", 1, 0)]                               # 第 2 局：他只留下 1 個打席
+        + half(3, pitcher=OTHER, away=1)                   # 之後由別人投
+    )
+    # 官方 box：他 4 outs；後任投手 OTHER 記了第 2 局剩下的 2 outs ＋ 第 3 局 3 outs。
+    box = {PID: 4, OTHER: 5}
+
+    tail = _tail_of(rows, box=box)
+
+    assert tail.outs == 0, "半局內事件缺漏時不得採計"
+    assert tail.credited == ()
+    assert tail.coverage_reason == "official_outs_outside_visible_range"
+
+
+def test_third_out_must_be_observable_to_credit_a_full_half():
+    """採計整個半局需要看到「他投到第三個出局的那個打席」（末列 `out_cnt == 2`）。
+
+    只靠「現存列都是他」會把「1 出局後換投、後續事件缺漏」誤判成投完整局。
+    """
+    partial = [ev(2, "1", 1, 0), ev(2, "1", 2, 1)]          # 只到 1 出局
+    rows = half(1, runs=1) + partial + half(3, pitcher=OTHER, away=1)
+
+    tail = _tail_of(rows, box={PID: 5, OTHER: 5})
+
+    assert tail.outs == 0
+
+
+def test_box_pitcher_absent_from_livelog_fails_closed():
+    """官方 box 有這位投手、livelog 完全看不到他 → 缺漏，尾段歸零。"""
+    rows = half(1, runs=1) + half(2, away=1) + half(3, pitcher=OTHER, away=1)
+
+    tail = _tail_of(rows, box={PID: 6, OTHER: 3, "GHOST": 3})
+
+    assert tail.outs == 0 and tail.coverage_reason == "box_pitcher_missing_from_livelog"
+
+
+def test_missing_official_box_fails_closed():
+    rows = half(1, runs=1) + half(2, away=1) + half(3, pitcher=OTHER, away=1)
+
+    tail = _tail_of(rows, box={})
+
+    assert tail.outs == 0 and tail.coverage_reason == "no_official_box"
+
+
+def test_out_allocation_splits_at_pitcher_change_boundaries():
+    """`out_allocation` 以半局內的投手更迭邊界切段——這是對帳的粒度基礎。"""
+    rows = [ev(1, "1", 1, 0), ev(1, "1", 2, 1, OTHER), ev(1, "1", 3, 2, OTHER)]
+    rows += half(2, pitcher=OTHER)
+
+    alloc = out_allocation(rows)
+
+    assert alloc[PID] == (1, 1)        # 0 → 1
+    # OTHER：第 1 局 1→3 共 2 個出局，＋ 第 2 局。第 2 局是全場最後一個半局、可能未達
+    # 三出局，故下界取觀測值 2、上界取 3 → (4, 5)。這個上下界差就是末半局的不確定性。
+    assert alloc[OTHER] == (4, 5)
 
 
 def test_duplicate_half_innings_fail_closed():

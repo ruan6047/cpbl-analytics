@@ -76,7 +76,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -161,8 +161,11 @@ class HalfInning:
             # 全場最後一個半局可能因再見安打／保護傘／天候而未達三出局，
             # 只能採計最後一列的「打席前出局數」。
             return self.last_out_cnt if self.last_out_cnt in (0, 1, 2) else 0
-        # 後面還有半局 ⇒ 本半局必以三出局結束。
-        return 3 if self.last_out_cnt in (0, 1, 2) else 0
+        # 後面還有半局 ⇒ 本半局必以三出局結束，但**必須看得到他投到第三個出局的那個
+        # 打席**（最後一列 out_cnt == 2）。少了這個條件，「現存列只有他一位投手」會把
+        # 「他 1 出局後換投、而換投後的事件整段缺漏」誤判成他投完整局——現存列一致
+        # 證明不了列是齊全的。
+        return 3 if self.last_out_cnt == 2 else 0
 
 
 @dataclass(frozen=True)
@@ -278,10 +281,77 @@ def _observed_outs(evs: Sequence[dict], pitcher_acnt: str) -> int:
     return max(0, min(3, end - start))
 
 
+@dataclass(frozen=True)
+class GameEvidence:
+    """尾段採計所需的**場級外部證據**，全部來自 livelog 以外的來源。
+
+    這個型別存在的理由：前兩輪查核連續抓到「再檢查一個看得見的量」的修法——
+    R2 驗選中的半局乾淨、覆蓋閘門驗半局存在、`pitched_whole` 驗現存列一致，
+    每一層都只用 livelog 自己說的話，於是下一層的缺漏又露出來。要跳出這個循環，
+    證據必須來自 livelog **之外**：
+
+    - `scoreboard`：逐局記分板（官網 box 的另一段 payload）
+    - `official_outs`：**全場每位投手**的官方出局數（`pitching_gamelog`）
+
+    官方 box 是關鍵——它知道有哪些投手、各記了幾個出局。livelog 若漏掉某位後援投手的
+    事件，他的出局數就會沒有可見的位置可以安放，對帳立刻不平。
+    """
+
+    scoreboard: Mapping[tuple[int, str], int] | None = None
+    official_outs: Mapping[str, int] | None = None
+
+
+def out_allocation(rows: Sequence[dict]) -> dict[str, tuple[int, int]]:
+    """livelog 事件 → 每位投手「記在他名下的出局數」區間 `{pitcher: (下界, 上界)}`。
+
+    以半局內的**投手更迭邊界**切段：某段的出局數＝下一段起始 `out_cnt` − 本段起始
+    `out_cnt`；該半局最後一段則以 3 作結束（非全場最後半局必以三出局結束）。全場最後
+    一個半局可能未達三出局，故該處下界取觀測值、上界取 3。
+
+    這是 `coverage_reason` 拿來和官方 box 對帳的量：**缺漏的事件會讓某位投手的官方
+    出局數落在他可見區間之外**。
+    """
+    plays = [r for r in rows if not r.get("is_change_player")]
+    groups: list[list[dict]] = []
+    prev_key = None
+    for r in plays:
+        key = (int(r["inning_seq"]), str(r["visiting_home_type"]))
+        if key != prev_key:
+            groups.append([])
+            prev_key = key
+        groups[-1].append(r)
+
+    lo: dict[str, int] = {}
+    hi: dict[str, int] = {}
+    for idx, evs in enumerate(groups):
+        is_last = idx == len(groups) - 1
+        seq = [e for e in evs if e.get("out_cnt") is not None]
+        segments: list[tuple[str, list[dict]]] = []
+        for e in seq:
+            pid = e.get("pitcher_acnt")
+            if not segments or segments[-1][0] != pid:
+                segments.append((pid, [e]))
+            else:
+                segments[-1][1].append(e)
+        for i, (pid, seg) in enumerate(segments):
+            start = int(seg[0]["out_cnt"])
+            if i + 1 < len(segments):
+                end_lo = end_hi = int(segments[i + 1][1][0]["out_cnt"])
+            elif not is_last:
+                end_lo = end_hi = 3
+            else:
+                end_lo, end_hi = int(seg[-1]["out_cnt"]), 3
+            lo[pid] = lo.get(pid, 0) + max(0, end_lo - start)
+            hi[pid] = hi.get(pid, 0) + max(0, end_hi - start)
+    return {pid: (lo.get(pid, 0), hi.get(pid, 0)) for pid in set(lo) | set(hi)}
+
+
 def coverage_reason(
     halves: Sequence[HalfInning],
     scoreboard: Mapping[tuple[int, str], int] | None,
     official_outs: int | None,
+    allocation: Mapping[str, tuple[int, int]] | None = None,
+    box: Mapping[str, int] | None = None,
 ) -> str | None:
     """尾段採計前的**覆蓋完整性**閘門；回傳缺陷代號，None 代表覆蓋完整。
 
@@ -302,6 +372,13 @@ def coverage_reason(
     | `scoreboard_half_missing_from_livelog` | 獨立來源有、livelog 沒有，且非「未進行的最終局下半／超出 livelog 範圍且零得分」這類良性樣態 |
     | `pitcher_half_innings_not_contiguous` | 該投手的半局不是同一側、連號的一段 |
     | `pitcher_outs_below_official` | 觀測到的出局數少於官方局數 → livelog 缺了他投的內容 |
+    | `no_official_box` | 拿不到全場官方投球紀錄，無從對帳 |
+    | `box_pitcher_missing_from_livelog` | 官方 box 有這位投手，livelog 完全看不到他 |
+    | `livelog_pitcher_missing_from_box` | livelog 有這位投手，官方 box 沒有 |
+    | `official_outs_outside_visible_range` | **半局內事件缺漏的偵測點**：某位投手的官方出局數落在 livelog 可見區間之外，代表他的出局數沒有可見的位置可以安放 |
+
+    最後一項是唯一能抓到「**半局內**事件缺漏」的檢查——前面幾項都只到半局層級，
+    共享「半局存在即視為內部完整」的盲點。
     """
     keys = [h.key for h in halves]
     if len(keys) != len(set(keys)):
@@ -334,32 +411,50 @@ def coverage_reason(
         return "pitcher_half_innings_not_contiguous"
     if official_outs is not None and sum(h.pitcher_outs for h in mine) < official_outs:
         return "pitcher_outs_below_official"
+
+    # ---- 半局**內部**完整性：唯一不共享「半局存在即完整」盲點的檢查 ----
+    if not box:
+        return "no_official_box"
+    alloc = allocation or {}
+    for pid, outs in box.items():
+        if pid not in alloc:
+            if outs:
+                return "box_pitcher_missing_from_livelog"
+            continue
+        lo, hi = alloc[pid]
+        if not lo <= outs <= hi:
+            return "official_outs_outside_visible_range"
+    for pid in alloc:
+        if pid not in box:
+            return "livelog_pitcher_missing_from_box"
     return None
 
 
 def tail_credit(
     key: tuple[int, str, int],
-    halves: Sequence[HalfInning],
-    pitcher_halves: Iterable[tuple[int, str]],
-    official_outs: int | None,
-    scoreboard: Mapping[tuple[int, str], int] | None,
+    rows: Sequence[dict],
+    pitcher_acnt: str,
+    evidence: GameEvidence,
 ) -> TailCredit:
     """ER>0 那場出賽的尾段：從該投手最後一個半局往回，採計連續的「零得分半局」。
 
     半局一有得分跡象即停止（該半局與更早的都不採計）——因為官方已判定本場有自責分，
     我們不去猜是哪一分，只認「整個半局零得分」這個無可爭議的事實。
 
-    **先過 `coverage_reason` 的覆蓋完整性閘門**（fail-closed，缺陷即回 0 出局數）；
-    `scoreboard` 為必要參數而非選配，就是為了讓呼叫端無法略過這道檢查。
-
-    `official_outs` 為該場官方出局數，作為上限夾擠（防止 livelog 異常灌水）。
+    **先過 `coverage_reason` 的覆蓋完整性閘門**（fail-closed，缺陷即回 0 出局數）。
+    介面刻意收成「原始事件列 ＋ `GameEvidence`」：解析與閘門都在函式內做，呼叫端
+    無法只餵半局清單而繞過證據檢查。
     """
-    reason = coverage_reason(halves, scoreboard, official_outs)
+    scoreboard = evidence.scoreboard
+    box = evidence.official_outs or {}
+    official_outs = box.get(pitcher_acnt)
+    halves = half_innings_of(rows, pitcher_acnt)
+    reason = coverage_reason(halves, scoreboard, official_outs,
+                             out_allocation(rows), box)
     if reason:
         return TailCredit(key=key, outs=0, coverage_reason=reason)
 
-    want = set(pitcher_halves)
-    mine = [h for h in halves if h.key in want]
+    mine = [h for h in halves if h.has_pitcher]
     outs = 0
     credited: list[tuple[int, str]] = []
     passed: list[tuple[int, str]] = []

@@ -21,10 +21,10 @@ from cpbl.models.scoreless_streak import (
     METRIC_LABEL,
     METRIC_NOTE,
     Appearance,
+    GameEvidence,
     StreakResult,
     TailCredit,
     compute_streak,
-    half_innings_of,
     outs_to_innings,
     tail_credit,
 )
@@ -82,6 +82,16 @@ _SCOREBOARD_SQL = """
      GROUP BY 1, 2, 3, 4, 5
 """
 
+# 全場投球 box：覆蓋完整性用的**外部**證據（誰投過、各記幾個出局）。
+_GAME_BOX_SQL = """
+    SELECT p.year, p.kind_code, p.game_sno, p.pitcher_acnt,
+           p.inning_pitched_cnt * 3 + p.inning_pitched_div3 AS outs
+      FROM cpbl.pitching_gamelog p
+      JOIN (SELECT (v->>0)::int AS year, v->>1 AS kind_code, (v->>2)::int AS game_sno
+              FROM jsonb_array_elements(%(keys)s::jsonb) v) k
+        ON k.year = p.year AND k.kind_code = p.kind_code AND k.game_sno = p.game_sno
+"""
+
 
 def _appearance(row: dict) -> Appearance:
     return Appearance(
@@ -103,24 +113,21 @@ def tail_lookup_factory(
     player_id: str,
     livelog: dict[tuple[int, str, int], list[dict]],
     scoreboard: dict[tuple[int, str, int], dict[tuple[int, str], int]],
+    box: dict[tuple[int, str, int], dict[str, int]],
 ):
     """給 `compute_streak` 用的尾段解析器；缺該場 livelog 一律回 None（不採計，保守）。
 
-    `scoreboard` 是**必要**參數：`tail_credit` 用它做覆蓋完整性與零得分的 runtime 交叉
-    驗證。缺該場 scoreboard 時 `coverage_reason` 會回 `no_scoreboard`、尾段歸零。
+    `scoreboard` 與 `box`（全場每位投手的官方出局數）都是**必要**參數：`tail_credit`
+    用它們做覆蓋完整性的 runtime 交叉驗證，缺任一項 `coverage_reason` 都會讓尾段歸零。
     """
 
     def lookup(a: Appearance) -> TailCredit | None:
         rows = livelog.get(a.key)
         if not rows:
             return None
-        halves = half_innings_of(rows, player_id)
-        mine = {
-            (int(r["inning_seq"]), str(r["visiting_home_type"]))
-            for r in rows
-            if not r["is_change_player"] and r["pitcher_acnt"] == player_id
-        }
-        return tail_credit(a.key, halves, mine, a.outs, scoreboard.get(a.key))
+        evidence = GameEvidence(scoreboard=scoreboard.get(a.key),
+                                official_outs=box.get(a.key))
+        return tail_credit(a.key, rows, player_id, evidence)
 
     return lookup
 
@@ -184,6 +191,29 @@ def load_scoreboard(
     return out
 
 
+def load_game_box(
+    keys: Sequence[tuple[int, str, int]],
+) -> dict[tuple[int, str, int], dict[str, int]]:
+    """該場**全部投手**的官方出局數 → {game: {pitcher_acnt: outs}}。
+
+    覆蓋完整性最關鍵的一份證據：官方 box 知道有哪些投手、各記了幾個出局。livelog 若
+    漏掉某位後援投手的事件，他的出局數就沒有可見的位置可以安放，對帳立刻不平——這是
+    唯一能抓到「**半局內**事件缺漏」的訊號（其餘檢查都只到半局層級）。
+    """
+    if not keys:
+        return {}
+    payload = json.dumps([[k[0], k[1], k[2]] for k in sorted(set(keys))])
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(_GAME_BOX_SQL, {"keys": payload})
+        rows = _dicts(cur)
+    out: dict[tuple[int, str, int], dict[str, int]] = {}
+    for r in rows:
+        game = (r["year"], r["kind_code"], r["game_sno"])
+        out.setdefault(game, {})[r["pitcher_acnt"]] = int(r["outs"] or 0)
+    return out
+
+
 def compute_all(
     by_player: dict[str, list[Appearance]],
     counted_kinds: Sequence[str] | None = None,
@@ -199,8 +229,10 @@ def compute_all(
             if r.break_reason == BREAK_EARNED_RUN and r.break_key]
     livelog = load_livelog(keys)
     scoreboard = load_scoreboard(keys)
+    box = load_game_box(keys)
     return {
-        pid: compute_streak(apps, tail_lookup_factory(pid, livelog, scoreboard), counted_kinds)
+        pid: compute_streak(apps, tail_lookup_factory(pid, livelog, scoreboard, box),
+                            counted_kinds)
         for pid, apps in by_player.items()
     }
 
