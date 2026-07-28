@@ -27,3 +27,22 @@ export type FranchiseRefreshedHolderFields = {
 export function isSelfRefresh(row: FranchiseRefreshedHolderFields): boolean {
   return row.prior_holder_id !== null && row.prior_holder_id === row.player_id;
 }
+
+// 「隊史紀錄」拆野手／投手兩個小頁籤（UX-TEAM-HOTZONE1 追加）。
+//
+// 抑制規則（同一 `stat` 已有 `refreshed` 時該 `stat` 的全部 `approaching`
+// 不輸出）已在後端 `_franchise_records`（`team_records.py`）算完才送到前端，
+// 判別鍵是 `stat`，跟「拆不拆頁籤」無關——打者/投手的 stat 命名空間本來就
+// 不重疊（h/rbi/r/hr/sb vs so/ip/w/sv_hld），所以現況下這條規則永遠只在
+// 「同一 role 內」生效，但那是資料事實，不是這個函式的職責。這裡刻意只做
+// **依 `role` 切分**、不重新實作任何過濾/抑制邏輯——避免兩套判準分裂
+// （若未來有人在這裡加「同頁籤內才抑制」的邏輯，會製造第二套跟後端不一致
+// 的判準，見下方測試的變異防呆）。
+export function splitFranchiseByRole<T extends { role: "batting" | "pitching" }>(
+  items: readonly T[],
+): { batting: T[]; pitching: T[] } {
+  return {
+    batting: items.filter((r) => r.role === "batting"),
+    pitching: items.filter((r) => r.role === "pitching"),
+  };
+}

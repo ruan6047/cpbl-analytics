@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Card, EmptyState, InfoDot, PlayerLink, RECORD_GRID, RecordCard } from "@/components/ui";
 import { SubTabs } from "@/components/sub-tabs";
-import { isSelfRefresh } from "@/lib/team-records-format";
+import { isSelfRefresh, splitFranchiseByRole } from "@/lib/team-records-format";
 import type {
   TeamRecordsFranchise,
   TeamRecordsFranchiseApproaching,
@@ -93,6 +93,18 @@ import type {
 // 頁籤代表生涯累計、在隊史紀錄頁籤代表隊史範圍，字面相同只靠頁籤區分——
 // 頁籤就在正上方，比照熱區的處理方式。若發現某個具體 label 確實會讓人誤讀
 // （不是理論上可能，是真的看了會誤會），回報再議，不要自行加回前綴。
+//
+// 2026-07-28 需求方追加：「隊史紀錄」再拆成野手／投手兩個小頁籤（同一批人審
+// 核 approaching/refreshed 呈現時發現台鋼一次 9 筆隊史紀錄混打者投手，切換
+// 意圖不同）。分流鍵直接用 payload 既有的 `role`（`splitFranchiseByRole`，
+// 見 `lib/team-records-format.ts`），不另建對照表。**抑制規則（同一 `stat`
+// 已有 refreshed 就抑制該 stat 的全部 approaching）判別鍵不變**——那是後端
+// `_franchise_records` 在送出 `franchise_records` 陣列之前就做完的事，這裡
+// 純粹是把已經算好的最終清單依 `role` 分組顯示，`splitFranchiseByRole` 本身
+// 不看 `stat`/`state`，不會讓抑制退化成「同頁籤內才抑制」（見該函式與其
+// 測試的 docstring）。頁籤順序＝生涯里程碑→進行中連續安打→野手隊史紀錄→
+// 投手隊史紀錄；空分類不出現頁籤的規則延續不變（哪一類空就不出現，兩類都
+// 空則整個「隊史紀錄」四個字都不會出現在頁籤列）。
 
 function MilestonesList({ items }: { items: TeamRecordsMilestone[] }) {
   return (
@@ -179,15 +191,16 @@ function FranchiseList({ items }: { items: TeamRecordsFranchise[] }) {
   );
 }
 
-type RecordsCategory = "milestones" | "streaks" | "franchise";
+type RecordsCategory = "milestones" | "streaks" | "franchise_batting" | "franchise_pitching";
 
 export function TeamRecordsSection({ data }: { data: TeamUpcomingRecordsResponse | null }) {
   if (!data) return null;
   const isEmpty = data.milestones.length === 0 && data.streaks.length === 0 && data.franchise_records.length === 0;
 
-  // 固定順序（生涯里程碑→進行中連續安打→隊史紀錄）、只收非空分類；預設分類＝
-  // 固定順序第一個非空——不是「筆數最多」，切換球隊時頁籤預設落點才不會跳
-  // （需求方明訂，見卡面 UX-TEAM-HOTZONE1）。
+  // 固定順序（生涯里程碑→進行中連續安打→野手隊史紀錄→投手隊史紀錄）、只收
+  // 非空分類；預設分類＝固定順序第一個非空——不是「筆數最多」，切換球隊時
+  // 頁籤預設落點才不會跳（需求方明訂，見卡面 UX-TEAM-HOTZONE1）。
+  const { batting: franchiseBatting, pitching: franchisePitching } = splitFranchiseByRole(data.franchise_records);
   const categories: { value: RecordsCategory; label: string; content: ReactNode }[] = [];
   if (data.milestones.length > 0) {
     categories.push({ value: "milestones", label: "生涯里程碑", content: <MilestonesList items={data.milestones} /> });
@@ -195,8 +208,11 @@ export function TeamRecordsSection({ data }: { data: TeamUpcomingRecordsResponse
   if (data.streaks.length > 0) {
     categories.push({ value: "streaks", label: "進行中連續安打", content: <StreaksList items={data.streaks} /> });
   }
-  if (data.franchise_records.length > 0) {
-    categories.push({ value: "franchise", label: "隊史紀錄", content: <FranchiseList items={data.franchise_records} /> });
+  if (franchiseBatting.length > 0) {
+    categories.push({ value: "franchise_batting", label: "野手隊史紀錄", content: <FranchiseList items={franchiseBatting} /> });
+  }
+  if (franchisePitching.length > 0) {
+    categories.push({ value: "franchise_pitching", label: "投手隊史紀錄", content: <FranchiseList items={franchisePitching} /> });
   }
 
   return (

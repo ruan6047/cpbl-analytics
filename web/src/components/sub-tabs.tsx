@@ -52,8 +52,19 @@ export function SubTabs<Value extends string>({ label, items, defaultValue }: {
 
   return (
     <div>
+      {/* UX-TEAM-HOTZONE1「隊史紀錄」拆兩個小頁籤後，卡面預估的「4 個約 384px
+          裝得進 512px 容器」只在桌機成立——375px 手機版卡片內距後可用寬度僅
+          ~293px，實測 384px＋間距會讓整條 tablist 溢出頁面（`w-fit` 不受父層
+          寬度限制，`scrollWidth` 撐到 429px）。卡面明訂「不要自行縮短需求方
+          指定的頁籤名稱」，故不是靠改字，而是沿用本專案既有的同類解法——
+          `hierarchical-tabs.tsx` 的父層導覽列面對同一種「多個 pill 頁籤在窄
+          寬度放不下」問題，已用 `overflow-x-auto overscroll-x-contain` +
+          子項 `shrink-0`（不擠壓、改橫向捲動）解決，此處原樣沿用同一組
+          class，不另創新樣式。`max-w-full` 讓 `w-fit` 的「隨內容寬度」行為
+          在裝得下時不受影響（3 個分類、桌機 4 個分類皆維持原本的貼合寬度），
+          只在裝不下時封頂於父層寬度並改為可橫向捲動。 */}
       <div role="tablist" aria-label={label} onKeyDown={onKeyDown}
-        className="mb-2 flex h-8 w-fit items-center rounded-full bg-surface-2 px-0.5">
+        className="mb-2 flex h-8 w-fit max-w-full items-center overflow-x-auto overscroll-x-contain rounded-full bg-surface-2 px-0.5">
         {items.map((item, i) => {
           const active = item.value === value;
           return (
@@ -62,7 +73,7 @@ export function SubTabs<Value extends string>({ label, items, defaultValue }: {
               tabIndex={active ? 0 : -1}
               ref={(element) => { refs.current[i] = element; }}
               onClick={() => setValue(item.value)}
-              className="min-h-11 touch-manipulation whitespace-nowrap px-0.5 text-xs font-medium transition">
+              className="min-h-11 shrink-0 touch-manipulation whitespace-nowrap px-0.5 text-xs font-medium transition">
               <span className={`inline-flex items-center rounded-full px-2.5 py-1 transition ${active
                 ? "bg-surface text-ink shadow-sm"
                 : "text-muted hover:text-ink"}`}>
