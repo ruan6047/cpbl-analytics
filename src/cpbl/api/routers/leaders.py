@@ -346,7 +346,11 @@ def _resolve_names(cur, codes: set[str]) -> dict[str, str]:
 @router.get("/api/v1/records/earned-run-free-streak")
 def earned_run_free_streak(
     season: int = Query(DEFAULT_SEASON),
-    kind_code: str = Query("A"),
+    # 值域鎖死在**例行賽**賽別。放行任意 kind_code 會讓 payload 自打嘴巴：帶 `C` 時
+    # kinds_counted 變成 ['C'] 而 scope_note 仍宣稱「只計例行賽」，回傳資料與自身宣稱矛盾；
+    # 不存在的代碼（如 `Z`）更會靜默回空榜。保留 D 是因為二軍紀錄同樣有效且已完整對帳
+    # （對帳腳本本來就跑兩個層級），只是預設與前端消費面為 A。
+    kind_code: str = Query("A", pattern="^(A|D)$"),
     player_id: str | None = Query(None),
     team: str | None = Query(None),
     limit: int = Query(10, ge=1, le=100),

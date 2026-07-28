@@ -203,6 +203,9 @@ host 缺 `libomp.dylib`。**勿 `brew install libomp` 污染 host**；需 LightG
   理由與實例見 `docs/research/ML-PITCHER-SCORELESS1_RESULTS.md` §1.6。
 - 所有不確定一律往「中斷」解讀 → 回傳值是**下界**。口徑與保守性規則的單一來源是
   `src/cpbl/models/scoreless_streak.py` 的模組 docstring。
+- **兩道 fail-closed 閘門，改動時勿拆**：(1) `coverage_reason()` 覆蓋完整性——缺漏的
+  半局會被「跨過」而非被看見，不擋就會高估；(2) `DATA_FROM_YEAR` 邊界在 SQL 與核心
+  函式**兩層**都 enforce，不是只在 payload 顯示年份。`kind_code` 值域鎖 `^(A|D)$`。
 - 窮舉對帳：`uv run python scripts/reconcile_scoreless_streak.py`（全母體、零例外才 exit 0；
   改動演算法後必跑）。交付報告見 `docs/research/ML-PITCHER-SCORELESS1_RESULTS.md`。
 

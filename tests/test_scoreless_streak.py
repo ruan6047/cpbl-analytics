@@ -11,6 +11,7 @@ from datetime import date
 import pytest
 
 from cpbl.models.scoreless_streak import (
+    BREAK_DATA_BOUNDARY,
     BREAK_EARNED_RUN,
     BREAK_MISSING_LINE,
     BREAK_POSTSEASON_EARNED_RUN,
@@ -98,11 +99,44 @@ def test_missing_official_line_breaks():
 
 
 def test_boundary_limited_when_all_appearances_consumed():
-    """走完所有可得出賽仍未中斷 → 必須標示受資料邊界限制（紅線 4，不得沉默截斷）。"""
+    """走完所有可得出賽仍未中斷 → 必須標示受資料邊界限制（紅線 4，不得沉默截斷）。
+
+    注意：這**不是**「跨 2018 必截斷」的測試（那條是
+    `test_pre_2018_appearances_are_truncated`）。只驗旗標會通過一個根本沒 enforce
+    邊界的實作——iteration 2 的 F3 正是這樣漏掉的。
+    """
     res = compute_streak([app(1, 0), app(2, 0)])
 
     assert res.boundary_limited is True
     assert res.break_reason is None
+
+
+def test_pre_2018_appearances_are_truncated():
+    """**F3 迴歸**：早於 `DATA_FROM_YEAR` 的出賽一律截斷，不得計入（紅線 4）。
+
+    2018 前無逐場資料，那些列即使被餵進來也不可信。`DATA_FROM_YEAR` 必須是**執行點**，
+    不是 payload 上的一個顯示欄位——「DB 目前最早就是 2018」是運氣不是保證。
+    """
+    old = Appearance(year=2017, kind_code="A", game_sno=9, game_date=date(2017, 9, 1),
+                     earned_runs=0, outs=3)
+    new = Appearance(year=2018, kind_code="A", game_sno=1, game_date=date(2018, 4, 1),
+                     earned_runs=0, outs=3)
+
+    res = compute_streak([old, new])
+
+    assert res.outs == 3                                  # 只有 2018 那場，不是 6
+    assert [a.year for a in res.counted] == [2018]
+    assert res.break_reason == BREAK_DATA_BOUNDARY
+    assert res.boundary_limited is True                   # 且必須明示，不得沉默截斷
+
+
+def test_data_boundary_year_is_configurable_and_enforced():
+    """邊界年可調，但一定會 enforce（防止未來改年份時又退回只顯示不執行）。"""
+    apps = [app(1, 0), app(2, 0)]
+
+    res = compute_streak(apps, data_from_year=2027)
+
+    assert res.outs == 0 and res.break_reason == BREAK_DATA_BOUNDARY
 
 
 def test_not_boundary_limited_when_broken():
@@ -178,11 +212,25 @@ def test_counted_kinds_none_counts_everything():
 # 尾段：livelog 定位
 # --------------------------------------------------------------------------
 
-def _tail_of(rows: list[dict], official_outs: int = 99, pitcher: str = PID):
+def _sb(rows: list[dict], extra: dict | None = None) -> dict:
+    """由事件列推出「與 livelog 相符的」記分板。
+
+    覆蓋缺陷的測試用 `extra` 疊上獨立來源才知道的事實（例：livelog 缺了某個半局，
+    但記分板證明它存在且有得分）。
+    """
+    board = {h.key: h.runs for h in half_innings_of(rows, PID)}
+    if extra:
+        board.update(extra)
+    return board
+
+
+def _tail_of(rows: list[dict], official_outs: int | None = None, pitcher: str = PID,
+             scoreboard: dict | None = None):
     halves = half_innings_of(rows, pitcher)
     mine = {(r["inning_seq"], r["visiting_home_type"]) for r in rows
             if not r["is_change_player"] and r["pitcher_acnt"] == pitcher}
-    return tail_credit((2026, "A", 1), halves, mine, official_outs)
+    board = _sb(rows) if scoreboard is None else scoreboard
+    return tail_credit((2026, "A", 1), halves, mine, official_outs, board)
 
 
 def test_missing_livelog_gives_no_tail():
@@ -243,6 +291,92 @@ def test_tail_feeds_into_the_streak():
                          tail_lookup=lambda a: _tail_of(rows, 6))
 
     assert res.strict_outs == 6 and res.outs == 9
+
+
+# --------------------------------------------------------------------------
+# 覆蓋完整性（F1）：漏掉的半局會被「跨過」而非被看見 → 必須 fail-closed
+# --------------------------------------------------------------------------
+
+def test_missing_scoring_half_inning_must_not_credit_earlier_halves():
+    """**F1 迴歸**：整場有 livelog，但失自責分的那個半局整段缺失。
+
+    投手第 1 局乾淨、第 2 局失分，而 2 局上整段不在 livelog 裡。反向走「看得見的」
+    半局會直接跨過第 2 局而採計第 1 局＝**高估**。安全尾段必須是 0。
+
+    只驗「已選入的半局零得分」抓不到這條路徑——那證明的是選中的都乾淨，不是沒有
+    漏掉的。量詞方向不同，所以要有獨立的覆蓋完整性證明。
+    """
+    rows = half(1) + half(1, vht="2", pitcher=OTHER) + half(2, vht="2", pitcher=OTHER)
+    board = _sb(rows, extra={(2, "1"): 1})       # 獨立來源證明 2 局上存在且有得分
+
+    tail = _tail_of(rows, official_outs=6, scoreboard=board)
+
+    assert tail.outs == 0
+    assert tail.credited == ()
+    assert tail.coverage_reason == "scoreboard_half_missing_from_livelog"
+
+
+def test_pitcher_outs_below_official_fails_closed():
+    """觀測到的出局數少於官方局數 ⇒ livelog 缺了他投的內容 → 尾段歸零。"""
+    rows = half(1, runs=1) + half(2, away=1) + half(3, pitcher=OTHER, away=1)
+
+    assert _tail_of(rows, official_outs=6).outs == 3          # 觀測 6 ≥ 官方 6，正常採計
+    tail = _tail_of(rows, official_outs=12)                   # 官方說他投更多 → 有缺漏
+    assert tail.outs == 0 and tail.coverage_reason == "pitcher_outs_below_official"
+
+
+def test_pitcher_half_innings_must_be_contiguous():
+    """投手局序不連續（中間整局消失）→ 尾段歸零。"""
+    rows = half(1, runs=1) + half(3, away=1) + half(4, pitcher=OTHER, away=1)
+    board = _sb(rows, extra={(2, "1"): 0})
+
+    tail = _tail_of(rows, official_outs=6, scoreboard=board)
+
+    assert tail.outs == 0
+    assert tail.coverage_reason in {
+        "scoreboard_half_missing_from_livelog", "pitcher_half_innings_not_contiguous"}
+
+
+def test_missing_scoreboard_fails_closed():
+    """沒有獨立來源可交叉驗證 → 不採計（不賭 livelog 自己說的話）。"""
+    rows = half(1, runs=1) + half(2, away=1) + half(3, pitcher=OTHER, away=1)
+
+    tail = _tail_of(rows, official_outs=6, scoreboard={})
+
+    assert tail.outs == 0 and tail.coverage_reason == "no_scoreboard"
+
+
+def test_scoreboard_disagreeing_on_a_credited_half_stops_crediting():
+    """livelog 說乾淨、記分板說有得分 → 以中斷方向解讀（兩來源取聯集）。"""
+    rows = half(1, runs=1) + half(2, away=1) + half(3, away=1) + half(4, pitcher=OTHER, away=1)
+    board = _sb(rows, extra={(3, "1"): 1})       # 記分板說第 3 局上有分
+
+    tail = _tail_of(rows, official_outs=9, scoreboard=board)
+
+    assert tail.outs == 0 and tail.credited == ()
+
+
+def test_unplayed_bottom_of_final_inning_is_benign():
+    """主隊未進行的最終局下半：記分板有列、livelog 沒有——良性，不該擋掉尾段。
+
+    實測 2018+ 有 1,814 個半局屬於此樣態，若一律視為缺漏會把尾段全數歸零。
+    """
+    rows = half(1, runs=1) + half(1, vht="2", pitcher=OTHER) + half(2, away=1)
+    board = _sb(rows, extra={(2, "2"): 0})       # 最終局下半未進行
+
+    tail = _tail_of(rows, official_outs=6, scoreboard=board)
+
+    assert tail.coverage_reason is None          # 重點：覆蓋檢查沒有誤擋
+    # 仍只採計 2 出局——(2,'1') 是 livelog 最後一個半局，無法證明有第三個出局
+    # （末半局規則）。覆蓋檢查用寬鬆上界、採計用嚴格下界，兩個方向各司其職。
+    assert tail.outs == 2 and tail.credited == ((2, "1"),)
+
+
+def test_duplicate_half_innings_fail_closed():
+    rows = half(1) + half(2, pitcher=OTHER) + half(1)
+    tail = _tail_of(rows, official_outs=3)
+
+    assert tail.outs == 0 and tail.coverage_reason == "duplicate_half_innings"
 
 
 # --------------------------------------------------------------------------

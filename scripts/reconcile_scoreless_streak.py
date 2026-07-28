@@ -16,6 +16,7 @@ exit 1。查核者可原樣重跑。
 | R5 | 保留賽（`delay_kind='保留'`）不得被採計 | 紅線 2 |
 | R6 | `boundary_limited` 為真 ⇔ 走完全部可得出賽未中斷（起算場＝資料中最早一場） | 紅線 4 |
 | R7 | 凡被**跳過**的季後賽出賽，賽別必在計入範圍之外**且**官方 ER 必為 0；且「起算場之後該投手在任何賽別的出賽都無自責分」 | 紅線 2（賽別範圍裁定） |
+| R8 | **覆蓋完整性**：尾段那場的 livelog 與 `game_scoreboard` 半局集合必須一致（除未進行的最終局下半等良性樣態）、該投手的半局是同一側連號一段、半局數 × 3 ≥ 官方出局數 | 紅線 2（F1 修正） |
 
 用法：
 
@@ -33,7 +34,12 @@ from collections import defaultdict
 from cpbl.api.helpers import _dicts, kinds_of
 from cpbl.api.scoreless import compute_all, load_appearances
 from cpbl.db import conn
-from cpbl.models.scoreless_streak import BREAK_EARNED_RUN, SUSPENDED
+from cpbl.models.scoreless_streak import (
+    BREAK_DATA_BOUNDARY,
+    BREAK_EARNED_RUN,
+    DATA_FROM_YEAR,
+    SUSPENDED,
+)
 
 TIERS = {"一軍例行賽 A": "A", "二軍例行賽 D": "D"}
 
@@ -88,6 +94,32 @@ _HALF_SQL = """
 """
 
 
+# R8：**覆蓋完整性**。R2 驗的是「已被選入的半局零得分」——那證明的是選中的都乾淨，
+# 不是沒有漏掉的。量詞方向不同，故另取三份原始集合，在腳本內以與 `coverage_reason`
+# 不同的程式路徑重做判定：全場 livelog 半局、全場 scoreboard 半局、該投手的 livelog 半局。
+_COVERAGE_SQL = """
+    WITH g AS (SELECT (v->>0)::int AS year, v->>1 AS kind_code, (v->>2)::int AS game_sno
+                 FROM jsonb_array_elements(%(games)s::jsonb) v)
+    SELECT 'livelog' AS src, l.year, l.kind_code, l.game_sno, l.inning_seq,
+           l.visiting_home_type AS vht, 0 AS runs, ''::text AS pitcher
+      FROM cpbl.game_livelog l JOIN g USING (year, kind_code, game_sno)
+     WHERE NOT l.is_change_player
+     GROUP BY 2, 3, 4, 5, 6
+    UNION ALL
+    SELECT 'scoreboard', s.year, s.kind_code, s.game_sno, s.inning_seq,
+           s.visiting_home_type, max(s.score_cnt), ''
+      FROM cpbl.game_scoreboard s JOIN g USING (year, kind_code, game_sno)
+     WHERE s.visiting_home_type IS NOT NULL
+     GROUP BY 2, 3, 4, 5, 6
+    UNION ALL
+    SELECT 'pitcher', l.year, l.kind_code, l.game_sno, l.inning_seq,
+           l.visiting_home_type, 0, l.pitcher_acnt
+      FROM cpbl.game_livelog l JOIN g USING (year, kind_code, game_sno)
+     WHERE NOT l.is_change_player AND l.pitcher_acnt IS NOT NULL
+     GROUP BY 2, 3, 4, 5, 6, 8
+"""
+
+
 def _fetch(sql: str, params: dict) -> list[dict]:
     with conn() as c:
         cur = c.cursor()
@@ -109,6 +141,7 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
     counted_keys: list[list] = []          # R1 母體
     skipped_keys: list[list] = []          # R7 母體
     tail_halves: list[tuple] = []          # R2 母體
+    tail_appearances: list[tuple] = []     # R8 母體：(year, kind, sno, pid, 官方出局數)
     tail_games: set[tuple[int, str, int]] = set()
     stats = defaultdict(int)
 
@@ -138,10 +171,15 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
 
         # ---- R6 資料邊界 ----
         consumed_all = window_n == len(apps) and res.break_reason is None
-        if res.boundary_limited != consumed_all:
-            fail("R6", pid, f"boundary_limited={res.boundary_limited} 但 consumed_all={consumed_all}")
-        if res.boundary_limited and suffix and suffix[0].key != apps[0].key:
+        at_boundary = res.break_reason == BREAK_DATA_BOUNDARY
+        if res.boundary_limited != (consumed_all or at_boundary):
+            fail("R6", pid, f"boundary_limited={res.boundary_limited} 但 consumed_all="
+                            f"{consumed_all}／at_boundary={at_boundary}")
+        if consumed_all and suffix and suffix[0].key != apps[0].key:
             fail("R6", pid, "宣告受資料邊界限制，但起算場不是資料中最早一場")
+        for a in [*res.counted, *res.skipped]:
+            if a.year < DATA_FROM_YEAR:
+                fail("R6", pid, f"採計/跳過了 {DATA_FROM_YEAR} 年前的出賽 {a.key}")
 
         # ---- R7 賽別範圍：採計必在例行賽、跳過必在例行賽之外；窗內全部 ER=0 ----
         for a in res.counted:
@@ -172,6 +210,7 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
                 tail_halves.append((y, k, sno, inning_seq, vht, pid, False))
                 stats["tail_half_innings_passed"] += 1
             brk = next(a for a in apps if a.key == res.tail.key)
+            tail_appearances.append((y, k, sno, pid, brk.outs))
             if brk.outs is not None and res.tail.outs > brk.outs:
                 fail("R3", pid, f"尾段 {res.tail.outs} 出局數超過該場官方 {brk.outs}")
             if not res.tail.clamped and res.tail.outs > 3 * len(res.tail.credited):
@@ -242,6 +281,52 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
         else:
             r2_passed_ok += 1
 
+    # ---- R8：覆蓋完整性——證明「該有的半局都在」，而不只是「選中的都乾淨」 ----
+    ll_sets: dict[tuple, set] = defaultdict(set)
+    sb_runs: dict[tuple, dict] = defaultdict(dict)
+    pit_sets: dict[tuple, set] = defaultdict(set)
+    for chunk in _chunks(sorted(tail_games), 400):
+        for r in _fetch(_COVERAGE_SQL, {"games": json.dumps([list(g) for g in chunk])}):
+            game = (r["year"], r["kind_code"], r["game_sno"])
+            half = (r["inning_seq"], r["vht"])
+            if r["src"] == "livelog":
+                ll_sets[game].add(half)
+            elif r["src"] == "scoreboard":
+                sb_runs[game][half] = int(r["runs"] or 0)
+            else:
+                pit_sets[(*game, r["pitcher"])].add(half)
+
+    cov_ok = 0
+    for y, k, sno, pid, official in tail_appearances:
+        game = (y, k, sno)
+        ll, sb = ll_sets.get(game, set()), sb_runs.get(game, {})
+        mine = sorted(pit_sets.get((y, k, sno, pid), set()))
+        bad = []
+        if not ll or not sb:
+            bad.append("livelog 或 scoreboard 缺整場")
+        mx = max((i for i, _ in ll), default=0)
+        for (inn, vht), runs in sb.items():
+            if (inn, vht) in ll:
+                continue
+            benign = (vht == "2" and inn == mx) or inn > mx
+            if not benign or runs:
+                bad.append(f"scoreboard 有 {inn}/{vht}（{runs} 分）但 livelog 沒有")
+        for half in ll:
+            if half not in sb:
+                bad.append(f"livelog 有 {half} 但 scoreboard 沒有")
+        sides = {v for _, v in mine}
+        innings = [i for i, _ in mine]
+        if not mine or len(sides) != 1 or innings != list(range(min(innings), max(innings) + 1)):
+            bad.append("該投手的半局不是同一側連號的一段")
+        # 獨立於 _observed_outs 的上界：每個半局最多 3 個出局。
+        if official is not None and len(mine) * 3 < official:
+            bad.append(f"投手半局數 {len(mine)} × 3 < 官方出局數 {official}")
+        if bad:
+            fails.append({"check": "R8", "player_id": pid,
+                          "detail": f"{y}/{k}/{sno}：" + "；".join(bad)})
+        else:
+            cov_ok += 1
+
     return {
         "tier": tier_label,
         "kinds_counted": list(counted_kinds),
@@ -257,6 +342,8 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
         "tail_games": len(tail_games),
         "skipped_postseason": stats["skipped_postseason"],
         "skipped_postseason_verified_er0": skip_ok,
+        "tail_appearances": len(tail_appearances),
+        "tail_appearances_coverage_complete": cov_ok,
         "exceptions": fails,
     }
 
@@ -278,7 +365,7 @@ def main() -> int:
     print("窮舉對帳：連續無自責分局數（ML-PITCHER-SCORELESS1）\n")
     hdr = ("層級", "投手數", "出賽總數", "採計出賽", "R1 驗得 ER=0",
            "尾段採計半局", "R2 驗得零得分", "尾段 0 採計半局", "R2 驗得零得分",
-           "跳過季後賽", "R7 驗得 ER=0", "例外")
+           "跳過季後賽", "R7 驗得 ER=0", "尾段出賽", "R8 覆蓋完整", "例外")
     print(" | ".join(hdr))
     print(" | ".join("---" for _ in hdr))
     for r in reports:
@@ -289,6 +376,7 @@ def main() -> int:
             r["tail_half_innings_passed_zero_credit"],
             r["tail_half_innings_passed_verified_runfree"],
             r["skipped_postseason"], r["skipped_postseason_verified_er0"],
+            r["tail_appearances"], r["tail_appearances_coverage_complete"],
             len(r["exceptions"]))))
     print()
     for r in reports:

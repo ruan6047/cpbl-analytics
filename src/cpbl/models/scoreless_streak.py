@@ -29,10 +29,12 @@
 | 官方 ER 或局數缺值 | 中斷 |
 | 保留賽（`delay_kind='保留'`） | 中斷。該場橫跨 orig_date→game_date，任一種排序都可能把 ER 場排錯位置而高估；場次極少（2018+ 僅 8 場），直接中斷最乾淨 |
 | ER>0 的那場沒有 livelog | 尾段 0 出局數 |
-| 半局有任何得分跡象 | 停止採計（該半局及更早都不算） |
+| **該場 livelog 覆蓋不完整**（半局缺漏／重複、與 `game_scoreboard` 不一致、投手局序不連續、觀測出局數少於官方局數） | 尾段 0 出局數。**這是紅線 2 最關鍵的一道閘門**——缺漏的半局會被「跨過」而非被看見，導致更早的乾淨半局被誤採計。見 `coverage_reason` |
+| 半局有任何得分跡象（livelog **或** `game_scoreboard`） | 停止採計（該半局及更早都不算） |
 | 半局零得分但該投手沒獨力投完 | 該半局採計 0 出局數，但**繼續**往前（零得分已足以證明零自責分） |
 | 半局是全場最後一個半局（可能因再見／保護傘提前結束，無法證明有三出局） | 只採計最後一列的 `out_cnt`（打席前出局數）作下界 |
-| 走完所有可得出賽仍未中斷 | `boundary_limited=True`（紅線 4：`game_livelog`／`pitching_gamelog` 皆僅 2018+，不得沉默截斷） |
+| 出賽早於 `DATA_FROM_YEAR`（2018） | **截斷**並 `boundary_limited=True`（紅線 4）。取數層 SQL 也擋一次，兩層都 enforce——只在 payload 顯示年份不算執行 |
+| 走完所有可得出賽仍未中斷 | `boundary_limited=True`（`game_livelog`／`pitching_gamelog` 皆僅 2018+，不得沉默截斷） |
 
 ## 賽別範圍：只算例行賽，季後賽「乾淨跳過、掉分中斷」
 
@@ -74,7 +76,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -99,6 +101,7 @@ BREAK_EARNED_RUN = "earned_run_allowed"
 BREAK_POSTSEASON_EARNED_RUN = "postseason_earned_run_allowed"
 BREAK_SUSPENDED = "suspended_game_uncertain"
 BREAK_MISSING_LINE = "missing_official_line"
+BREAK_DATA_BOUNDARY = "data_boundary"
 BREAK_NONE = None
 
 
@@ -136,6 +139,13 @@ class HalfInning:
     pitched_whole: bool       # 目標投手獨力投完整個半局（首列 out_cnt=0 且全列同一投手）
     is_last_of_game: bool
     last_out_cnt: int | None  # 該半局最後一列的「打席前出局數」
+    has_pitcher: bool = False  # 目標投手在本半局有出現
+    pitcher_outs: int = 0      # 觀測到的出局數，取**寬鬆上界**；只供覆蓋完整性比對。
+                               # 與 provable_outs 方向相反：後者是可採計的**下界**。
+
+    @property
+    def key(self) -> tuple[int, str]:
+        return (self.inning_seq, self.vht)
 
     @property
     def run_free(self) -> bool:
@@ -171,6 +181,7 @@ class TailCredit:
     credited: tuple[tuple[int, str], ...] = ()
     passed: tuple[tuple[int, str], ...] = ()
     clamped: bool = False   # 被該場官方出局數夾擠過（livelog 異常的防線）
+    coverage_reason: str | None = None   # 非 None 代表覆蓋不完整、尾段一律 0（見 coverage_reason()）
 
 
 @dataclass
@@ -229,16 +240,101 @@ def half_innings_of(rows: Sequence[dict], pitcher_acnt: str) -> list[HalfInning]
             and int(firsts[0]["out_cnt"]) == 0
         )
         last_out = int(firsts[-1]["out_cnt"]) if firsts else None
+        is_last = idx == len(groups) - 1
         out.append(HalfInning(
             inning_seq=inning_seq,
             vht=vht,
             runs=runs,
             scored_flag=any(bool(e.get("is_score")) for e in evs),
             pitched_whole=pitched_whole,
-            is_last_of_game=(idx == len(groups) - 1),
+            is_last_of_game=is_last,
             last_out_cnt=last_out,
+            has_pitcher=any(e.get("pitcher_acnt") == pitcher_acnt for e in evs),
+            pitcher_outs=_observed_outs(evs, pitcher_acnt),
         ))
     return out
+
+
+def _observed_outs(evs: Sequence[dict], pitcher_acnt: str) -> int:
+    """該投手在這個半局**觀測到**記下的出局數（`out_cnt` 差值），取**寬鬆上界**。
+
+    用途只有一個：與官方局數比對，證明 livelog 沒有漏掉他投的內容（`coverage_reason`
+    的 `pitcher_outs_below_official`）。**不是**採計值——採計走的是更嚴格的
+    `HalfInning.provable_outs`。
+
+    **方向必須是寬鬆的**：這個估計值偏低會讓覆蓋檢查誤報（例如再見安打結束的半局，
+    保守估計只給 2 而官方記 3，就會把正常的場次判成缺漏）。他若是該半局最後一位投手，
+    一律以 3 作結束基準；估高不會多採計任何一局，估低卻會殺掉正常尾段。
+    """
+    idxs = [i for i, e in enumerate(evs) if e.get("pitcher_acnt") == pitcher_acnt]
+    if not idxs:
+        return 0
+    mine = [evs[i] for i in idxs if evs[i].get("out_cnt") is not None]
+    if not mine:
+        return 0
+    start = int(mine[0]["out_cnt"])
+    after = [e for e in evs[idxs[-1] + 1:] if e.get("out_cnt") is not None]
+    end = int(after[0]["out_cnt"]) if after else 3
+    return max(0, min(3, end - start))
+
+
+def coverage_reason(
+    halves: Sequence[HalfInning],
+    scoreboard: Mapping[tuple[int, str], int] | None,
+    official_outs: int | None,
+) -> str | None:
+    """尾段採計前的**覆蓋完整性**閘門；回傳缺陷代號，None 代表覆蓋完整。
+
+    **這道閘門是紅線 2 的關鍵**，理由值得寫下來：`tail_credit` 是反向走「**看得見的**」
+    投手半局，若某個半局整段不存在於 livelog，它會被**跨過**而不是被看見——於是更早的
+    乾淨半局仍被採計，而官方的自責分可能正落在那個消失的半局裡，形成**高估**。
+
+    只驗「已選入的半局乾不乾淨」無法排除這條路徑：那證明的是選中的都乾淨，不是沒有
+    漏掉的。量詞方向不同，必須另外證明**該有的半局都在**。
+
+    缺陷一律 fail-closed（尾段回 0），不嘗試補救：
+
+    | 代號 | 條件 |
+    |---|---|
+    | `duplicate_half_innings` | livelog 出現重複的半局鍵（事件序異常） |
+    | `no_scoreboard` | 該場無 `game_scoreboard`，無從交叉驗證 |
+    | `livelog_half_missing_from_scoreboard` | livelog 有、獨立來源沒有 → 兩來源不一致 |
+    | `scoreboard_half_missing_from_livelog` | 獨立來源有、livelog 沒有，且非「未進行的最終局下半／超出 livelog 範圍且零得分」這類良性樣態 |
+    | `pitcher_half_innings_not_contiguous` | 該投手的半局不是同一側、連號的一段 |
+    | `pitcher_outs_below_official` | 觀測到的出局數少於官方局數 → livelog 缺了他投的內容 |
+    """
+    keys = [h.key for h in halves]
+    if len(keys) != len(set(keys)):
+        return "duplicate_half_innings"
+    if not halves:
+        return "no_livelog"
+    if not scoreboard:
+        return "no_scoreboard"
+
+    ll = set(keys)
+    max_inning = max(h.inning_seq for h in halves)
+    for k in ll:
+        if k not in scoreboard:
+            return "livelog_half_missing_from_scoreboard"
+    for k, runs in scoreboard.items():
+        if k in ll:
+            continue
+        inning, vht = k
+        # 良性缺席：主隊未進行的最終局下半，或 scoreboard 超出 livelog 範圍的空白列。
+        benign = (vht == "2" and inning == max_inning) or inning > max_inning
+        if not benign or runs:
+            return "scoreboard_half_missing_from_livelog"
+
+    mine = [h for h in halves if h.has_pitcher]
+    if not mine:
+        return "pitcher_absent_from_livelog"
+    sides = {h.vht for h in mine}
+    innings = [h.inning_seq for h in mine]
+    if len(sides) != 1 or innings != list(range(min(innings), max(innings) + 1)):
+        return "pitcher_half_innings_not_contiguous"
+    if official_outs is not None and sum(h.pitcher_outs for h in mine) < official_outs:
+        return "pitcher_outs_below_official"
+    return None
 
 
 def tail_credit(
@@ -246,25 +342,34 @@ def tail_credit(
     halves: Sequence[HalfInning],
     pitcher_halves: Iterable[tuple[int, str]],
     official_outs: int | None,
+    scoreboard: Mapping[tuple[int, str], int] | None,
 ) -> TailCredit:
     """ER>0 那場出賽的尾段：從該投手最後一個半局往回，採計連續的「零得分半局」。
 
     半局一有得分跡象即停止（該半局與更早的都不採計）——因為官方已判定本場有自責分，
     我們不去猜是哪一分，只認「整個半局零得分」這個無可爭議的事實。
 
+    **先過 `coverage_reason` 的覆蓋完整性閘門**（fail-closed，缺陷即回 0 出局數）；
+    `scoreboard` 為必要參數而非選配，就是為了讓呼叫端無法略過這道檢查。
+
     `official_outs` 為該場官方出局數，作為上限夾擠（防止 livelog 異常灌水）。
     """
+    reason = coverage_reason(halves, scoreboard, official_outs)
+    if reason:
+        return TailCredit(key=key, outs=0, coverage_reason=reason)
+
     want = set(pitcher_halves)
-    mine = [h for h in halves if (h.inning_seq, h.vht) in want]
+    mine = [h for h in halves if h.key in want]
     outs = 0
     credited: list[tuple[int, str]] = []
     passed: list[tuple[int, str]] = []
     for h in reversed(mine):
-        if not h.run_free:
+        # 採計半局必須在獨立來源也是零得分——runtime 交叉驗證，不只在對帳腳本裡驗。
+        if not h.run_free or scoreboard.get(h.key):  # type: ignore[union-attr]
             break
         got = h.provable_outs
         outs += got
-        (credited if got else passed).append((h.inning_seq, h.vht))
+        (credited if got else passed).append(h.key)
     clamped = official_outs is not None and outs > official_outs
     if clamped:
         outs = official_outs  # type: ignore[assignment]
@@ -276,6 +381,7 @@ def compute_streak(
     appearances: Sequence[Appearance],
     tail_lookup=None,
     counted_kinds: Sequence[str] | None = None,
+    data_from_year: int = DATA_FROM_YEAR,
 ) -> StreakResult:
     """出賽（**舊→新**排序）→ 目前連續無自責分局數（下界）。
 
@@ -284,6 +390,11 @@ def compute_streak(
 
     `counted_kinds`：計入局數的賽別（例行賽）。之外的賽別（季後賽）ER=0 跳過、
     ER>0 中斷——理由見模組 docstring「賽別範圍」。給 None 代表全部賽別都計入。
+
+    `data_from_year`：**紅線 4 的實際執行點**。早於此年的出賽一律截斷並標示
+    `boundary_limited`——`pitching_gamelog`／`game_livelog` 皆自 2018 年起才有資料，
+    2017 以前的出賽即使被餵進來也不可信。這裡 enforce 而不是只在 payload 顯示年份，
+    是因為「DB 目前最早就是 2018」是運氣不是保證；取數層另有 SQL 條件，兩層都擋。
     """
     res = StreakResult()
     if not appearances:
@@ -291,6 +402,10 @@ def compute_streak(
     counted_set = set(counted_kinds) if counted_kinds is not None else None
 
     for a in reversed(appearances):
+        if a.year < data_from_year:
+            res.break_reason, res.break_key = BREAK_DATA_BOUNDARY, a.key
+            res.boundary_limited = True
+            break
         if a.delay_kind == SUSPENDED:
             # 保留賽橫跨兩個日期，任一種排序都可能把它排在錯誤位置而導致高估 → 直接中斷。
             res.break_reason, res.break_key = BREAK_SUSPENDED, a.key

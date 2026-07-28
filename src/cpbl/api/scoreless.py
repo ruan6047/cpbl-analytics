@@ -53,6 +53,7 @@ _APPEARANCES_SQL = """
       FROM cpbl.pitching_gamelog p
       JOIN cpbl.games g USING (year, kind_code, game_sno)
      WHERE p.kind_code = ANY(%(kinds)s)
+       AND p.year >= %(from_year)s      -- 紅線 4：2018 前無逐場資料，不可混入
        AND (%(player_id)s::text IS NULL OR p.pitcher_acnt = %(player_id)s)
      ORDER BY p.pitcher_acnt, g.game_date, p.kind_code, p.game_sno
 """
@@ -67,6 +68,18 @@ _LIVELOG_SQL = """
               FROM jsonb_array_elements(%(keys)s::jsonb) v) k
         ON k.year = l.year AND k.kind_code = l.kind_code AND k.game_sno = l.game_sno
      ORDER BY l.year, l.kind_code, l.game_sno, l.main_event_no
+"""
+
+# 逐局記分板：覆蓋完整性與零得分的獨立交叉驗證來源（與 livelog 不同 payload）。
+_SCOREBOARD_SQL = """
+    SELECT s.year, s.kind_code, s.game_sno, s.inning_seq,
+           s.visiting_home_type AS vht, max(s.score_cnt) AS runs
+      FROM cpbl.game_scoreboard s
+      JOIN (SELECT (v->>0)::int AS year, v->>1 AS kind_code, (v->>2)::int AS game_sno
+              FROM jsonb_array_elements(%(keys)s::jsonb) v) k
+        ON k.year = s.year AND k.kind_code = s.kind_code AND k.game_sno = s.game_sno
+     WHERE s.visiting_home_type IS NOT NULL
+     GROUP BY 1, 2, 3, 4, 5
 """
 
 
@@ -86,8 +99,16 @@ def _game_ref(a: Appearance) -> dict:
     }
 
 
-def tail_lookup_factory(player_id: str, livelog: dict[tuple[int, str, int], list[dict]]):
-    """給 `compute_streak` 用的尾段解析器；缺該場 livelog 一律回 None（不採計，保守）。"""
+def tail_lookup_factory(
+    player_id: str,
+    livelog: dict[tuple[int, str, int], list[dict]],
+    scoreboard: dict[tuple[int, str, int], dict[tuple[int, str], int]],
+):
+    """給 `compute_streak` 用的尾段解析器；缺該場 livelog 一律回 None（不採計，保守）。
+
+    `scoreboard` 是**必要**參數：`tail_credit` 用它做覆蓋完整性與零得分的 runtime 交叉
+    驗證。缺該場 scoreboard 時 `coverage_reason` 會回 `no_scoreboard`、尾段歸零。
+    """
 
     def lookup(a: Appearance) -> TailCredit | None:
         rows = livelog.get(a.key)
@@ -99,7 +120,7 @@ def tail_lookup_factory(player_id: str, livelog: dict[tuple[int, str, int], list
             for r in rows
             if not r["is_change_player"] and r["pitcher_acnt"] == player_id
         }
-        return tail_credit(a.key, halves, mine, a.outs)
+        return tail_credit(a.key, halves, mine, a.outs, scoreboard.get(a.key))
 
     return lookup
 
@@ -113,7 +134,8 @@ def load_appearances(
     """
     with conn() as c:
         cur = c.cursor()
-        cur.execute(_APPEARANCES_SQL, {"kinds": list(kinds), "player_id": player_id})
+        cur.execute(_APPEARANCES_SQL, {"kinds": list(kinds), "player_id": player_id,
+                                       "from_year": DATA_FROM_YEAR})
         rows = _dicts(cur)
     by_player: dict[str, list[Appearance]] = {}
     names: dict[str, str] = {}
@@ -140,6 +162,28 @@ def load_livelog(
     return out
 
 
+def load_scoreboard(
+    keys: Sequence[tuple[int, str, int]],
+) -> dict[tuple[int, str, int], dict[tuple[int, str], int]]:
+    """逐局記分板 → {game: {(inning_seq, vht): 得分}}。
+
+    來源與 livelog 不同（官網 box 的另一段 payload），故可作覆蓋完整性與零得分的
+    **獨立**交叉驗證來源。
+    """
+    if not keys:
+        return {}
+    payload = json.dumps([[k[0], k[1], k[2]] for k in sorted(set(keys))])
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(_SCOREBOARD_SQL, {"keys": payload})
+        rows = _dicts(cur)
+    out: dict[tuple[int, str, int], dict[tuple[int, str], int]] = {}
+    for r in rows:
+        game = (r["year"], r["kind_code"], r["game_sno"])
+        out.setdefault(game, {})[(r["inning_seq"], r["vht"])] = int(r["runs"] or 0)
+    return out
+
+
 def compute_all(
     by_player: dict[str, list[Appearance]],
     counted_kinds: Sequence[str] | None = None,
@@ -154,8 +198,9 @@ def compute_all(
     keys = [r.break_key for r in first.values()
             if r.break_reason == BREAK_EARNED_RUN and r.break_key]
     livelog = load_livelog(keys)
+    scoreboard = load_scoreboard(keys)
     return {
-        pid: compute_streak(apps, tail_lookup_factory(pid, livelog), counted_kinds)
+        pid: compute_streak(apps, tail_lookup_factory(pid, livelog, scoreboard), counted_kinds)
         for pid, apps in by_player.items()
     }
 

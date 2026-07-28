@@ -69,6 +69,29 @@ def test_every_counted_appearance_is_officially_er_zero():
             assert a.earned_runs == 0 and a.kind_code != "A"
 
 
+def test_kind_code_domain_rejects_non_regular_season():
+    """**F2 迴歸**：`kind_code` 值域必須鎖在例行賽。
+
+    放行任意值時 payload 會自打嘴巴——帶 `C` 會產生 `kinds_counted=['C']` 而
+    `scope_note` 仍宣稱「只計例行賽」，回傳資料與自身宣稱矛盾；不存在的代碼（`Z`）
+    更會靜默回空榜。契約層擋掉，而不是靠呼叫端自律。
+    """
+    try:
+        from fastapi.testclient import TestClient
+
+        from cpbl.api.main import app
+
+        client = TestClient(app)
+        for bad in ("C", "E", "F", "Z", "", "a"):
+            assert client.get(f"{PATH}?kind_code={bad}").status_code == 422, bad
+        for good in ("A", "D"):
+            assert client.get(f"{PATH}?kind_code={good}&limit=1").status_code in (200, 500), good
+    except AssertionError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — 無 DB 時跳過
+        pytest.skip(f"需本機 DB：{exc}")
+
+
 def test_scope_is_regular_season_only():
     """需求方裁定：只計例行賽局數；季後賽仍在載入範圍內（乾淨跳過、掉分中斷）。"""
     d = _get(f"{PATH}?limit=5")
