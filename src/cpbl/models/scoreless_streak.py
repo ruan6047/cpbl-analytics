@@ -123,70 +123,22 @@ class Appearance:
     delay_kind: str | None = None
     opponent: str | None = None
     team_code: str | None = None
+    vht: str | None = None        # 該投手該場的主客別（'1'=客隊、'2'=主隊）
 
     @property
     def key(self) -> tuple[int, str, int]:
         return (self.year, self.kind_code, self.game_sno)
 
 
-@dataclass(frozen=True)
-class HalfInning:
-    """livelog 切出的一個半局（`vht` 1=上半／客隊進攻、2=下半／主隊進攻）。"""
-
-    inning_seq: int
-    vht: str
-    runs: int                 # 該半局全隊得分（不分投手）
-    scored_flag: bool         # 該半局有任何 is_score 事件
-    pitched_whole: bool       # 目標投手獨力投完整個半局（首列 out_cnt=0 且全列同一投手）
-    is_last_of_game: bool
-    last_out_cnt: int | None  # 該半局最後一列的「打席前出局數」
-    has_pitcher: bool = False  # 目標投手在本半局有出現
-    pitcher_outs: int = 0      # 觀測到的出局數，取**寬鬆上界**；只供覆蓋完整性比對。
-                               # 與 provable_outs 方向相反：後者是可採計的**下界**。
-
-    @property
-    def key(self) -> tuple[int, str]:
-        return (self.inning_seq, self.vht)
-
-    @property
-    def run_free(self) -> bool:
-        """整個半局零得分——沒有任何分數可被判給任何投手，故對本投手零自責分。"""
-        return self.runs == 0 and not self.scored_flag
-
-    @property
-    def provable_outs(self) -> int:
-        """可證明由該投手記下的出局數（下界）。無法證明時回 0。"""
-        if not self.pitched_whole:
-            return 0
-        if self.is_last_of_game:
-            # 全場最後一個半局可能因再見安打／保護傘／天候而未達三出局，
-            # 只能採計最後一列的「打席前出局數」。
-            return self.last_out_cnt if self.last_out_cnt in (0, 1, 2) else 0
-        # 後面還有半局 ⇒ 本半局必以三出局結束，但**必須看得到他投到第三個出局的那個
-        # 打席**（最後一列 out_cnt == 2）。少了這個條件，「現存列只有他一位投手」會把
-        # 「他 1 出局後換投、而換投後的事件整段缺漏」誤判成他投完整局——現存列一致
-        # 證明不了列是齊全的。
-        return 3 if self.last_out_cnt == 2 else 0
-
 
 @dataclass(frozen=True)
 class TailCredit:
-    """ER>0 那場出賽的尾段採計（半局皆為新→舊）。
-
-    - `credited`：**有貢獻出局數**的半局（該投手獨力投完且整個半局零得分）。對帳時要用
-      最嚴格的條件驗這一組。
-    - `passed`：整個半局零得分、但無法證明該投手記下幾個出局（例如他中途接手）。
-      這種半局採計 **0** 出局數卻**不中斷**連續紀錄——零得分已足以證明零自責分。
-      分成兩組是為了讓對帳只對「真的被宣稱的局」下嚴格條件，不混為一談。
-    """
+    """ER>0 那場出賽的尾段採計（鴿籠下界）。"""
 
     key: tuple[int, str, int]
     outs: int
-    credited: tuple[tuple[int, str], ...] = ()
-    credited_outs: tuple[tuple[tuple[int, str], int], ...] = ()   # 逐半局採計量（對帳用）
-    passed: tuple[tuple[int, str], ...] = ()
-    clamped: bool = False   # 被該場官方出局數夾擠過（livelog 異常的防線）
-    coverage_reason: str | None = None   # 非 None 代表覆蓋不完整、尾段一律 0（見 coverage_reason()）
+    suffix_from_inning: int | None = None   # 零得分後綴的起始局（該場對手打擊側）
+    reason: str | None = None               # 採計為 0 時的原因
 
 
 @dataclass
@@ -214,402 +166,76 @@ def outs_to_innings(outs: int) -> float:
     return round(outs // 3 + (outs % 3) / 10, 1)
 
 
-def half_innings_of(rows: Sequence[dict], pitcher_acnt: str) -> list[HalfInning]:
-    """逐球 livelog 事件 → 半局清單（時序）。`rows` 需已按 `main_event_no` 排序。
-
-    只看事實欄位：得分（跑分欄的遞增與 `is_score`）、投手代號、`out_cnt`。
-    `is_change_player` 換人公告列一律排除——實測其 `out_cnt` 為上一個半局的殘值
-    （例：第 7 局上開頭的換投列帶 `out_cnt=2`），且其 `pitcher_acnt` 是**換下**的投手。
-    """
-    plays = [r for r in rows if not r.get("is_change_player")]
-    groups: list[tuple[tuple[int, str], list[dict]]] = []
-    for r in plays:
-        key = (int(r["inning_seq"]), str(r["visiting_home_type"]))
-        if not groups or groups[-1][0] != key:
-            groups.append((key, []))
-        groups[-1][1].append(r)
-
-    out: list[HalfInning] = []
-    prev_away = prev_home = 0
-    for idx, ((inning_seq, vht), evs) in enumerate(groups):
-        # 跑分欄以「前綴最大值」讀，換人列殘值或個別缺值都不會造成漏偵測得分。
-        cur_away = max([prev_away, *[int(e["visiting_score"] or 0) for e in evs]])
-        cur_home = max([prev_home, *[int(e["home_score"] or 0) for e in evs]])
-        runs = (cur_away - prev_away) if vht == "1" else (cur_home - prev_home)
-        prev_away, prev_home = cur_away, cur_home
-
-        firsts = [e for e in evs if e.get("out_cnt") is not None]
-        pitched_whole = (
-            bool(firsts)
-            and all(e.get("pitcher_acnt") == pitcher_acnt for e in evs)
-            and int(firsts[0]["out_cnt"]) == 0
-        )
-        last_out = int(firsts[-1]["out_cnt"]) if firsts else None
-        is_last = idx == len(groups) - 1
-        out.append(HalfInning(
-            inning_seq=inning_seq,
-            vht=vht,
-            runs=runs,
-            scored_flag=any(bool(e.get("is_score")) for e in evs),
-            pitched_whole=pitched_whole,
-            is_last_of_game=is_last,
-            last_out_cnt=last_out,
-            has_pitcher=any(e.get("pitcher_acnt") == pitcher_acnt for e in evs),
-            pitcher_outs=_observed_outs(evs, pitcher_acnt),
-        ))
-    return out
-
-
-def _observed_outs(evs: Sequence[dict], pitcher_acnt: str) -> int:
-    """該投手在這個半局**觀測到**記下的出局數（`out_cnt` 差值），取**寬鬆上界**。
-
-    用途只有一個：與官方局數比對，證明 livelog 沒有漏掉他投的內容（`coverage_reason`
-    的 `pitcher_outs_below_official`）。**不是**採計值——採計走的是更嚴格的
-    `HalfInning.provable_outs`。
-
-    **方向必須是寬鬆的**：這個估計值偏低會讓覆蓋檢查誤報（例如再見安打結束的半局，
-    保守估計只給 2 而官方記 3，就會把正常的場次判成缺漏）。他若是該半局最後一位投手，
-    一律以 3 作結束基準；估高不會多採計任何一局，估低卻會殺掉正常尾段。
-    """
-    idxs = [i for i, e in enumerate(evs) if e.get("pitcher_acnt") == pitcher_acnt]
-    if not idxs:
-        return 0
-    mine = [evs[i] for i in idxs if evs[i].get("out_cnt") is not None]
-    if not mine:
-        return 0
-    start = int(mine[0]["out_cnt"])
-    after = [e for e in evs[idxs[-1] + 1:] if e.get("out_cnt") is not None]
-    end = int(after[0]["out_cnt"]) if after else 3
-    return max(0, min(3, end - start))
-
-
-@dataclass(frozen=True)
-class GameEvidence:
-    """尾段採計所需的**場級外部證據**，全部來自 livelog 以外的來源。
-
-    這個型別存在的理由：前兩輪查核連續抓到「再檢查一個看得見的量」的修法——
-    R2 驗選中的半局乾淨、覆蓋閘門驗半局存在、`pitched_whole` 驗現存列一致，
-    每一層都只用 livelog 自己說的話，於是下一層的缺漏又露出來。要跳出這個循環，
-    證據必須來自 livelog **之外**：
-
-    - `scoreboard`：逐局記分板（官網 box 的另一段 payload）
-    - `official_outs`：**全場每位投手**的官方出局數（`pitching_gamelog`）
-
-    官方 box 是關鍵——它知道有哪些投手、各記了幾個出局。livelog 若漏掉某位後援投手的
-    事件，他的出局數就會沒有可見的位置可以安放，對帳立刻不平。
-    """
-
-    scoreboard: Mapping[tuple[int, str], int] | None = None
-    official_outs: Mapping[str, int] | None = None
-
-
-def forced_outs(
-    rows: Sequence[dict],
-    pitcher_acnt: str,
+def pigeonhole_tail_outs(
+    opponent_runs_by_inning: Mapping[int, int],
     official_outs: int | None,
-) -> dict[tuple[int, str], int]:
-    """**允許任意隱藏事件**下，仍在數學上被強制歸屬給該投手的出局數（逐半局下界）。
+) -> tuple[int, int | None]:
+    """ER>0 那場出賽的尾段下界——**鴿籠原理，零假設**。回 `(outs, 後綴起始局)`。
 
-    前四輪的檢查全部是「以某個看得見的量設界，再證明資料完整」——半局集合、出局數
-    總和、逐球序號。這條路走不通，因為**不消耗投球的出局事件**（牽制出局、盜壘刺，
-    以及 `pitch_cnt=0` 的三振／接殺／突破僵局上壘等）只以「列」存在，而**列的缺席是
-    偵測不到的**。任何以投球數設界的方法都會被同一類反例打穿。
+    ## 為什麼換成問這個問題
 
-    所以這裡不再證明完整性，改成**只採計即使任意事件被隱藏也依然成立的下界**。
-    三個來源，全部是直接觀察或規則，沒有一項假設 livelog 完整：
+    前七輪都在問「**他在這個半局拿了幾個出局**」，那需要證明 livelog 沒有隱藏列，
+    而那做不到（`pitch_cnt`、`main_event_no` 主序號都不是列的唯一鍵）。
 
-    1. **半局內相鄰同投手觀測的 `out_cnt` 差**。若在該半局先後觀測到同一位投手，中間
-       發生的出局都是他的——隱藏事件不影響歸屬（隱藏的牽制出局仍然是他記下的）。
-    2. **跨同側相鄰局的延續**。若他在第 n 局末與第 n+1 局初都被觀測到，中間的出局
-       （第 n 局剩下的 ＋ 第 n+1 局開頭的）全歸他。
-    3. **官方出局數 ÷ 局數上界**。他的出賽是連續的一段，故 `x[h] ≥ 官方總數 − 3×(k−1)`，
-       其中 k 是他可能投過的半局數上界。k 由觀測到的連續局數推得，並要求兩端都被
-       釘住（起點是該側第一個半局，終點的下一個同側半局有**別人**在 `out_cnt=0` 就位
-       ——他不能在別人之後再入賽）。
+    這裡改問「**這些局有沒有人得分**」——那是 `game_scoreboard` 官方逐局比分直接給的
+    事實，**與誰在投球無關**。零得分的局，不管誰投，對投球的人就是零失分。於是隱藏
+    換投、規則 5.10(d) 的再入賽、牽制出局**全部不影響**：我們不需要知道他投了哪幾局。
 
-    **唯一假設是棒球規則：投手被換下後不得再回來投球**（`_NO_REENTRY`）。這不是資料
-    完整性假設；(1)(2) 正是靠它排除「中間夾著一位事件全被隱藏的投手」。
+    ## 推導
 
-    取三者的最大值。證明不到就是 0，不做任何補插。
+    令「零得分後綴」＝從比賽末端往回、對手連續零得分的局，`n_prefix` ＝ 最後一個
+    有得分的局序（無得分則 0）。前綴只有 `n_prefix` 個半局、每個至多 3 個出局，故
+
+        他在前綴的出局數 ≤ 3 × n_prefix
+        ⇒ 他在後綴的出局數 ≥ 官方總出局數 − 3 × n_prefix
+
+    後綴全是零得分的局 ⇒ 那些出局零失分 ⇒ 零自責分；後綴又在比賽末端 ⇒ 那些必定是他
+    該場**最後**記下的出局，正好是連續紀錄需要的位置。
+
+    此式只用兩個官方事實：`game_scoreboard` 的逐局得分、`pitching_gamelog` 的局數。
+    不需要順序、不需要排除再入賽、不需要證明 livelog 完整。
+
+    ## 隊別是式子的必要組成，不是實作細節
+
+    `opponent_runs_by_inning` 必須是**對手打擊側**的逐局得分：目標投手在主隊（`vht='2'`）
+    時看**客隊**的逐局得分（他守備時對手拿了幾分），反之亦然。取錯邊等於拿他自己隊的
+    進攻得分當失分，結論全錯。
+
+    另一種等價寫法是「後綴總出局數 − **同隊**其他投手出局數合計」——那個 `同隊` 是必要的：
+    漏掉一位同隊投手會**高估**（開卡過程中需求方示範時就誤把對手投手當同隊，數字碰巧
+    相同而沒露餡）。本函式改用「官方總出局數 − 3 × 前綴局數」正是為了**完全不需要那一項**，
+    從源頭消除隊別配置錯誤的空間；隊別只剩「取哪一側的逐局得分」這一個決策點。
+
+    ## 刻意保守之處
+
+    - 用**得分 R** 而非自責分 ER 界定後綴：零得分必然零自責分，反之不然，故只會低估。
+    - 前綴一律以每半局 3 個出局估上界（實際可能更少），故只會低估。
+    - 投手橫跨有得分的局、或後綴太短時，下界 ≤ 0 → 採計 0（fail-closed）。
     """
-    halves = _half_groups(rows)
-    hmap = {k: evs for k, evs in halves}
-    lb: dict[tuple[int, str], int] = {}
-
-    def bump(key: tuple[int, str], n: int) -> None:
-        if n > 0:
-            lb[key] = lb.get(key, 0) + n
-
-    # (1) 半局內：相鄰同投手觀測之間的 out_cnt 差
-    for key, evs in halves:
-        last_p: str | None = None
-        last_out: int | None = None
-        for r in evs:
-            pid, oc = r.get("pitcher_acnt"), r.get("out_cnt")
-            if oc is None:                      # 無 out_cnt 的列（如牽制）仍證明誰在場上
-                if pid != last_p:
-                    last_p, last_out = pid, None
-                continue
-            oc = int(oc)
-            if pid == pitcher_acnt and last_p == pitcher_acnt and last_out is not None:
-                bump(key, oc - last_out)
-            last_p, last_out = pid, oc
-
-    # (2) 跨同側相鄰局延續
-    sides: dict[str, list[int]] = {}
-    for (inning, vht), _evs in halves:
-        sides.setdefault(vht, []).append(inning)
-    for vht, innings in sides.items():
-        ordered = sorted(innings)
-        for a, b in zip(ordered, ordered[1:], strict=False):
-            if b != a + 1:
-                continue
-            ea, eb = hmap[(a, vht)], hmap[(b, vht)]
-            oa = [r for r in ea if r.get("out_cnt") is not None]
-            ob = [r for r in eb if r.get("out_cnt") is not None]
-            if not oa or not ob:
-                continue
-            if (ea[-1].get("pitcher_acnt") == pitcher_acnt
-                    and eb[0].get("pitcher_acnt") == pitcher_acnt):
-                bump((a, vht), 3 - int(oa[-1]["out_cnt"]))
-                bump((b, vht), int(ob[0]["out_cnt"]))
-
-    # (3) 官方出局數 ÷ 局數上界
-    mine = [k for k, evs in halves
-            if any(r.get("pitcher_acnt") == pitcher_acnt for r in evs)]
-    floor = 0
-    if mine and official_outs is not None:
-        vhts = {k[1] for k in mine}
-        inns = sorted(k[0] for k in mine)
-        if len(vhts) == 1 and inns == list(range(inns[0], inns[-1] + 1)):
-            vht = next(iter(vhts))
-            same = sorted(sides[vht])
-            lo_pinned = inns[0] == same[0]
-            nxt = inns[-1] + 1
-            hi_pinned = nxt not in same
-            if not hi_pinned:
-                after = [r for r in hmap[(nxt, vht)] if r.get("out_cnt") is not None]
-                hi_pinned = (bool(after) and int(after[0]["out_cnt"]) == 0
-                             and after[0].get("pitcher_acnt") != pitcher_acnt)
-            k_max = len(inns) + (0 if lo_pinned else 1) + (0 if hi_pinned else 1)
-            floor = official_outs - 3 * (k_max - 1)
-
-    return {k: max(lb.get(k, 0), floor, 0) for k in {*lb, *mine}}
-
-
-def _half_groups(rows: Sequence[dict]) -> list[tuple[tuple[int, str], list[dict]]]:
-    """事件列 → [(半局鍵, 該半局事件)]，維持時序。"""
-    groups: list[tuple[tuple[int, str], list[dict]]] = []
-    prev = None
-    for r in rows:
-        if r.get("is_change_player"):
-            continue
-        key = (int(r["inning_seq"]), str(r["visiting_home_type"]))
-        if key != prev:
-            groups.append((key, []))
-            prev = key
-        groups[-1][1].append(r)
-    return groups
-
-
-def out_allocation(rows: Sequence[dict]) -> dict[str, tuple[int, int]]:
-    """livelog 事件 → 每位投手「記在他名下的出局數」區間 `{pitcher: (下界, 上界)}`。
-
-    **注意這是整場加總**，只用來和官方整場出局數對帳。判斷某個半局能不能採計必須用
-    `half_out_allocation()`——加總會讓跨半局的相反誤配互相抵銷（同一個聚合粒度的盲點）。
-
-    以半局內的**投手更迭邊界**切段：某段的出局數＝下一段起始 `out_cnt` − 本段起始
-    `out_cnt`；該半局最後一段則以 3 作結束（非全場最後半局必以三出局結束）。全場最後
-    一個半局可能未達三出局，故該處下界取觀測值、上界取 3。
-
-    這是 `coverage_reason` 拿來和官方 box 對帳的量：**缺漏的事件會讓某位投手的官方
-    出局數落在他可見區間之外**。
-    """
-    cells = half_out_allocation(rows)
-    lo: dict[str, int] = {}
-    hi: dict[str, int] = {}
-    for (pid, _half), (clo, chi) in cells.items():
-        lo[pid] = lo.get(pid, 0) + clo
-        hi[pid] = hi.get(pid, 0) + chi
-    return {pid: (lo.get(pid, 0), hi.get(pid, 0)) for pid in set(lo) | set(hi)}
-
-
-def half_out_allocation(
-    rows: Sequence[dict],
-) -> dict[tuple[str, tuple[int, str]], tuple[int, int]]:
-    """livelog 事件 → `{(pitcher, 半局): (出局數下界, 上界)}`——**不加總**。
-
-    **注意：這不是採計判準**（採計走 `forced_outs`）。這一格的區間只用於整場對帳與
-    診斷；它假設「半局內事件齊全」，而不消耗投球的出局事件（牽制出局、盜壘刺、
-    `pitch_cnt=0` 的三振／接殺等）只以列存在、列的缺席偵測不到，所以不能拿來設採計上限。
-    """
-    plays = [r for r in rows if not r.get("is_change_player")]
-    groups: list[tuple[tuple[int, str], list[dict]]] = []
-    prev_key = None
-    for r in plays:
-        key = (int(r["inning_seq"]), str(r["visiting_home_type"]))
-        if key != prev_key:
-            groups.append((key, []))
-            prev_key = key
-        groups[-1][1].append(r)
-
-    out: dict[tuple[str, tuple[int, str]], tuple[int, int]] = {}
-    for idx, (half_key, evs) in enumerate(groups):
-        is_last = idx == len(groups) - 1
-        seq = [e for e in evs if e.get("out_cnt") is not None]
-        segments: list[tuple[str, list[dict]]] = []
-        for e in seq:
-            pid = e.get("pitcher_acnt")
-            if not segments or segments[-1][0] != pid:
-                segments.append((pid, [e]))
-            else:
-                segments[-1][1].append(e)
-        for i, (pid, seg) in enumerate(segments):
-            start = int(seg[0]["out_cnt"])
-            if i + 1 < len(segments):
-                end_lo = end_hi = int(segments[i + 1][1][0]["out_cnt"])
-            elif not is_last:
-                end_lo = end_hi = 3
-            else:
-                end_lo, end_hi = int(seg[-1]["out_cnt"]), 3
-            cell = (pid, half_key)
-            prev = out.get(cell, (0, 0))
-            out[cell] = (prev[0] + max(0, end_lo - start),
-                         prev[1] + max(0, end_hi - start))
-    return out
-
-
-def coverage_reason(
-    halves: Sequence[HalfInning],
-    scoreboard: Mapping[tuple[int, str], int] | None,
-    official_outs: int | None,
-    allocation: Mapping[str, tuple[int, int]] | None = None,
-    box: Mapping[str, int] | None = None,
-) -> str | None:
-    """尾段採計前的**覆蓋完整性**閘門；回傳缺陷代號，None 代表覆蓋完整。
-
-    **這道閘門是紅線 2 的關鍵**，理由值得寫下來：`tail_credit` 是反向走「**看得見的**」
-    投手半局，若某個半局整段不存在於 livelog，它會被**跨過**而不是被看見——於是更早的
-    乾淨半局仍被採計，而官方的自責分可能正落在那個消失的半局裡，形成**高估**。
-
-    只驗「已選入的半局乾不乾淨」無法排除這條路徑：那證明的是選中的都乾淨，不是沒有
-    漏掉的。量詞方向不同，必須另外證明**該有的半局都在**。
-
-    缺陷一律 fail-closed（尾段回 0），不嘗試補救：
-
-    | 代號 | 條件 |
-    |---|---|
-    | `duplicate_half_innings` | livelog 出現重複的半局鍵（事件序異常） |
-    | `no_scoreboard` | 該場無 `game_scoreboard`，無從交叉驗證 |
-    | `livelog_half_missing_from_scoreboard` | livelog 有、獨立來源沒有 → 兩來源不一致 |
-    | `scoreboard_half_missing_from_livelog` | 獨立來源有、livelog 沒有，且非「未進行的最終局下半／超出 livelog 範圍且零得分」這類良性樣態 |
-    | `pitcher_half_innings_not_contiguous` | 該投手的半局不是同一側、連號的一段 |
-    | `pitcher_outs_below_official` | 觀測到的出局數少於官方局數 → livelog 缺了他投的內容 |
-    | `no_official_box` | 拿不到全場官方投球紀錄，無從對帳 |
-    | `box_pitcher_missing_from_livelog` | 官方 box 有這位投手，livelog 完全看不到他 |
-    | `livelog_pitcher_missing_from_box` | livelog 有這位投手，官方 box 沒有 |
-    | `official_outs_outside_visible_range` | **半局內事件缺漏的偵測點**：某位投手的官方出局數落在 livelog 可見區間之外，代表他的出局數沒有可見的位置可以安放 |
-
-    最後一項是唯一能抓到「**半局內**事件缺漏」的檢查——前面幾項都只到半局層級，
-    共享「半局存在即視為內部完整」的盲點。
-    """
-    keys = [h.key for h in halves]
-    if len(keys) != len(set(keys)):
-        return "duplicate_half_innings"
-    if not halves:
-        return "no_livelog"
-    if not scoreboard:
-        return "no_scoreboard"
-
-    ll = set(keys)
-    max_inning = max(h.inning_seq for h in halves)
-    for k in ll:
-        if k not in scoreboard:
-            return "livelog_half_missing_from_scoreboard"
-    for k, runs in scoreboard.items():
-        if k in ll:
-            continue
-        inning, vht = k
-        # 良性缺席：主隊未進行的最終局下半，或 scoreboard 超出 livelog 範圍的空白列。
-        benign = (vht == "2" and inning == max_inning) or inning > max_inning
-        if not benign or runs:
-            return "scoreboard_half_missing_from_livelog"
-
-    mine = [h for h in halves if h.has_pitcher]
-    if not mine:
-        return "pitcher_absent_from_livelog"
-    sides = {h.vht for h in mine}
-    innings = [h.inning_seq for h in mine]
-    if len(sides) != 1 or innings != list(range(min(innings), max(innings) + 1)):
-        return "pitcher_half_innings_not_contiguous"
-    if official_outs is not None and sum(h.pitcher_outs for h in mine) < official_outs:
-        return "pitcher_outs_below_official"
-
-    # ---- 半局**內部**完整性：唯一不共享「半局存在即完整」盲點的檢查 ----
-    if not box:
-        return "no_official_box"
-    alloc = allocation or {}
-    for pid, outs in box.items():
-        if pid not in alloc:
-            if outs:
-                return "box_pitcher_missing_from_livelog"
-            continue
-        lo, hi = alloc[pid]
-        if not lo <= outs <= hi:
-            return "official_outs_outside_visible_range"
-    for pid in alloc:
-        if pid not in box:
-            return "livelog_pitcher_missing_from_box"
-    return None
+    if official_outs is None:
+        return 0, None
+    if not opponent_runs_by_inning:
+        return 0, None
+    scored = [i for i, r in opponent_runs_by_inning.items() if r]
+    n_prefix = max(scored) if scored else 0
+    outs = official_outs - 3 * n_prefix
+    if outs <= 0:
+        return 0, None
+    return min(outs, official_outs), n_prefix + 1
 
 
 def tail_credit(
     key: tuple[int, str, int],
-    rows: Sequence[dict],
-    pitcher_acnt: str,
-    evidence: GameEvidence,
+    opponent_runs_by_inning: Mapping[int, int],
+    official_outs: int | None,
 ) -> TailCredit:
-    """ER>0 那場出賽的尾段：從該投手最後一個半局往回，採計連續的「零得分半局」。
-
-    半局一有得分跡象即停止（該半局與更早的都不採計）——因為官方已判定本場有自責分，
-    我們不去猜是哪一分，只認「整個半局零得分」這個無可爭議的事實。
-
-    **先過 `coverage_reason` 的覆蓋完整性閘門**（fail-closed，缺陷即回 0 出局數）。
-    介面刻意收成「原始事件列 ＋ `GameEvidence`」：解析與閘門都在函式內做，呼叫端
-    無法只餵半局清單而繞過證據檢查。
-    """
-    scoreboard = evidence.scoreboard
-    box = evidence.official_outs or {}
-    official_outs = box.get(pitcher_acnt)
-    halves = half_innings_of(rows, pitcher_acnt)
-    reason = coverage_reason(halves, scoreboard, official_outs,
-                             out_allocation(rows), box)
-    if reason:
-        return TailCredit(key=key, outs=0, coverage_reason=reason)
-
-    forced = forced_outs(rows, pitcher_acnt, official_outs)
-    mine = [h for h in halves if h.has_pitcher]
-    outs = 0
-    credited: list[tuple[int, str]] = []
-    detail: list[tuple[tuple[int, str], int]] = []
-    passed: list[tuple[int, str]] = []
-    for h in reversed(mine):
-        # 採計半局必須在獨立來源也是零得分——runtime 交叉驗證，不只在對帳腳本裡驗。
-        if not h.run_free or scoreboard.get(h.key):  # type: ignore[union-attr]
-            break
-        # 只採計「允許任意隱藏事件後仍被強制成立」的出局數（見 forced_outs）。
-        # 不再用「他投完整個半局所以是 3 outs」這種推論——那需要證明事件齊全，
-        # 而不消耗投球的出局事件只以列存在，列的缺席偵測不到。
-        got = min(forced.get(h.key, 0), 3)
-        outs += got
-        if got:
-            detail.append((h.key, got))
-        (credited if got else passed).append(h.key)
-    clamped = official_outs is not None and outs > official_outs
-    if clamped:
-        outs = official_outs  # type: ignore[assignment]
-    return TailCredit(key=key, outs=max(outs, 0), credited=tuple(credited),
-                      credited_outs=tuple(detail), passed=tuple(passed), clamped=clamped)
+    """把 `pigeonhole_tail_outs` 的結果包成 `TailCredit`；證明不到就是 0。"""
+    outs, suffix_from = pigeonhole_tail_outs(opponent_runs_by_inning, official_outs)
+    reason = None if outs else (
+        "no_scoreboard" if not opponent_runs_by_inning
+        else "no_official_outs" if official_outs is None
+        else "no_provable_scoreless_suffix")
+    return TailCredit(key=key, outs=outs, suffix_from_inning=suffix_from, reason=reason)
 
 
 def compute_streak(

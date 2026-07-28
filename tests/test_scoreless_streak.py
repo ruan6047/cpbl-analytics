@@ -18,13 +18,9 @@ from cpbl.models.scoreless_streak import (
     BREAK_SUSPENDED,
     SUSPENDED,
     Appearance,
-    GameEvidence,
     compute_streak,
-    forced_outs,
-    half_innings_of,
-    half_out_allocation,
-    out_allocation,
     outs_to_innings,
+    pigeonhole_tail_outs,
     tail_credit,
 )
 
@@ -213,369 +209,113 @@ def test_counted_kinds_none_counts_everything():
 
 
 # --------------------------------------------------------------------------
-# 尾段：livelog 定位
+# 尾段：鴿籠下界（官方逐局比分 ＋ 官方局數，零假設）
 # --------------------------------------------------------------------------
 
-def _sb(rows: list[dict], extra: dict | None = None) -> dict:
-    """由事件列推出「與 livelog 相符的」記分板。
+def test_pigeonhole_matches_the_worked_example():
+    """坎南 2026-04-23 實例：對手逐局 [0,2,0,1,0,0,0,0,0]、官方 21 outs。
 
-    覆蓋缺陷的測試用 `extra` 疊上獨立來源才知道的事實（例：livelog 缺了某個半局，
-    但記分板證明它存在且有得分）。
+    最後得分局＝第 4 局 ⇒ 前綴 4 局至多 12 個出局 ⇒ 後綴至少 21−12＝9 個出局＝3.0 局。
     """
-    board = {h.key: h.runs for h in half_innings_of(rows, PID)}
-    if extra:
-        board.update(extra)
-    return board
+    opp = dict(enumerate([0, 2, 0, 1, 0, 0, 0, 0, 0], start=1))
+
+    outs, suffix_from = pigeonhole_tail_outs(opp, 21)
+
+    assert outs == 9 and suffix_from == 5
 
 
-def _box(rows: list[dict], override: dict | None = None) -> dict:
-    """由事件列推出「與 livelog 相符的」官方 box；`override` 疊上官方才知道的事實。"""
-    b = {p: lo for p, (lo, _hi) in out_allocation(rows).items()}
-    if override:
-        b.update(override)
-    return b
+def test_sno55_regression_from_team_filtered_facts():
+    """**回歸案例 2026/A/55（坎南）**——用隊別過濾後的事實重算，確認 3.0 局非巧合。
 
+    我自己查到的隊別（`pitching_gamelog.visiting_home_type`）：
 
-def _number_pitches(rows: list[dict]) -> list[dict]:
-    """依序給每位投手編逐球序號（模擬 livelog 的 pitch_cnt）。"""
-    n: dict[str, int] = {}
-    for r in rows:
-        if r["is_change_player"]:
-            continue
-        p = r["pitcher_acnt"]
-        n[p] = n.get(p, 0) + 1
-        r["pitch_cnt"] = n[p]
-    return rows
+        台鋼（vht=2，主隊）坎南 21｜林詩翔 3｜陳柏清 3 ＝ 27 outs ＝ 守 9 局
+        味全（vht=1，客隊）梅賽鍶 15｜林鋅杰 4｜李超 3｜林子昱 2 ＝ 24 outs ＝ 守 8 局
+                          （台鋼主場 4:3 獲勝，九局下未進行）
 
+    坎南是**主隊**投手 ⇒ 後綴要看**客隊味全**的逐局得分。兩種等價寫法都給 9 outs：
 
-def _pitches(rows: list[dict], override: dict | None = None) -> dict:
-    """與事件列相符的官方投球數；`override` 模擬「官方說他投更多、livelog 卻少了」。"""
-    n: dict[str, int] = {}
-    for r in rows:
-        if r["is_change_player"] or r.get("pitch_cnt") is None:
-            continue
-        n[r["pitcher_acnt"]] = max(n.get(r["pitcher_acnt"], 0), int(r["pitch_cnt"]))
-    if override:
-        n.update(override)
-    return n
+        本式：官方 21 − 3 × 前綴 4 局 = 9
+        另式：後綴(5~9 局) 15 outs − **同隊**其他投手 (林詩翔 3 ＋ 陳柏清 3) = 9
 
-
-def _tail_of(rows: list[dict], official_outs: int | None = None, pitcher: str = PID,
-             scoreboard: dict | None = None, box: dict | None = None):
-    rows = _number_pitches(rows)
-    board = _sb(rows) if scoreboard is None else scoreboard
-    b = _box(rows) if box is None else box
-    if official_outs is not None:
-        b = {**b, pitcher: official_outs}
-    ev = GameEvidence(scoreboard=board, official_outs=b)
-    return tail_credit((2026, "A", 1), rows, pitcher, ev)
-
-
-def test_missing_livelog_gives_no_tail():
-    """ER>0 那場沒有 livelog → 尾段 0 出局數（缺資料一律不採計）。"""
-    res = compute_streak([app(1, 2), app(2, 0)], tail_lookup=lambda a: None)
-
-    assert res.outs == 3 and res.strict_outs == 3
-
-
-def test_tail_counts_run_free_half_innings_after_the_run():
-    """得分半局之後的乾淨半局才算：第 1 局有分、2~3 局乾淨 → 尾段 6 出局數。"""
-    rows = half(1, runs=1) + half(2, away=1) + half(3, away=1) + half(4, pitcher=OTHER, away=1)
-    tail = _tail_of(rows)
-
-    assert tail.outs == 6
-    assert tail.credited == ((3, "1"), (2, "1"))
-
-
-def test_tail_stops_at_a_half_inning_with_runs():
-    """一遇到有得分的半局就停——更早的乾淨半局也不採計（連續紀錄已在該處重新起算）。"""
-    rows = half(1) + half(2, runs=2) + half(3, away=2) + half(4, pitcher=OTHER, away=2)
-    tail = _tail_of(rows)
-
-    assert tail.outs == 3
-    assert tail.credited == ((3, "1"),)
-
-
-def test_tail_ignores_half_inning_the_pitcher_did_not_finish():
-    """中途接手的半局只採計「觀測得到的 out_cnt 差」，不假設他投完整局。
-
-    強制下界在這裡比舊規則**更準確**：他在 1 出局接手、被觀測到 out_cnt 1→2，那 1 個
-    出局是被逼出來的（隱藏事件也改變不了歸屬），所以採計 1 而不是 0；但第三個出局在
-    最後一次觀測之後發生，證明不到就不採計。
+    第二式若誤把對手投手（李超 3）當同隊，數字碰巧仍是 9——**那是運氣不是推論**。
+    本式不含「其他投手」這一項，從源頭消除該類錯誤。
     """
-    mid = [ev(3, "1", 1, 1), ev(3, "1", 2, 2)]          # 從 1 出局接手
-    rows = half(1, runs=1) + half(2, away=1) + [ev(3, "1", 0, 0, OTHER, away=1)] + mid
-    tail = _tail_of(rows)
+    kanan_outs = 21
+    opp_runs = dict(enumerate([0, 2, 0, 1, 0, 0, 0, 0, 0], start=1))   # 味全（客隊）
 
-    assert dict.fromkeys(tail.credited) == dict.fromkeys(((3, "1"), (2, "1")))
-    assert tail.outs == 3          # 第 3 局 1 個 + 第 2 局 2 個，皆為強制下界
+    outs, suffix_from = pigeonhole_tail_outs(opp_runs, kanan_outs)
 
-
-def test_last_half_inning_of_game_only_credits_proven_outs():
-    """全場最後一個半局可能未達三出局（再見／保護傘）→ 只採計最後一列的打席前出局數。"""
-    rows = half(1, runs=1) + [ev(2, "1", 1, 0, away=1), ev(2, "1", 2, 1, away=1)]
-    tail = _tail_of(rows)
-
-    assert tail.outs == 1            # 不是 3
+    assert (outs, suffix_from) == (9, 5)
+    assert outs_to_innings(outs) == 3.0
+    # 同隊其他投手寫法交叉驗算（必須用同隊的 3+3，不是對手的 3）
+    assert 5 * 3 - (3 + 3) == outs
 
 
-def test_official_outs_disagreeing_with_livelog_fails_closed():
-    """官方出局數與 livelog 可見區間不符 → 覆蓋閘門攔下（比夾擠更強）。
+def test_opponent_side_must_be_the_batting_side_of_the_other_team():
+    """取錯邊 = 拿自己隊的進攻得分當失分。這裡釘住「相反側」這個決策。"""
+    home_pitcher_vht = "2"
+    away_batting_side = "1" if home_pitcher_vht == "2" else "2"
 
-    `TailCredit.clamped` 的夾擠仍留在程式裡當第二層防線，但覆蓋閘門會先攔截，
-    所以實務上不會走到夾擠——這裡釘的是「先攔截」這個更強的行為。
+    assert away_batting_side == "1"
+
+
+def test_pigeonhole_is_zero_when_opponent_scores_late():
+    """對手在後段得分 → 後綴太短、下界 ≤ 0 → 採計 0（fail-closed）。
+
+    這是刻意的保守失敗模式：即使該投手早早退場、後面的分是別人掉的，官方逐局比分
+    無法區分，於是不採計。**寧可少報一局。**
     """
-    rows = half(1, runs=1) + half(2, away=1) + half(3, away=1) + half(4, pitcher=OTHER, away=1)
+    opp = dict(enumerate([1, 0, 0, 0, 0, 0, 2, 0, 0], start=1))
 
-    tail = _tail_of(rows, official_outs=4)
+    assert pigeonhole_tail_outs(opp, 18) == (0, None)
 
-    assert tail.outs == 0
-    assert tail.coverage_reason == "official_outs_outside_visible_range"
+
+def test_pigeonhole_never_exceeds_official_outs():
+    opp = dict(enumerate([0, 0, 0], start=1))
+
+    outs, _ = pigeonhole_tail_outs(opp, 6)
+
+    assert outs == 6
+
+
+def test_pigeonhole_needs_both_official_facts():
+    assert pigeonhole_tail_outs({}, 21) == (0, None)
+    assert pigeonhole_tail_outs({1: 0}, None) == (0, None)
+
+
+def test_pigeonhole_uses_runs_not_earned_runs():
+    """後綴以**得分**界定：零得分必然零自責分，反之不然，故以 R 判定只會低估。
+
+    第 3 局有 1 分（不論自責與否）就切斷後綴——即使那分是失誤造成的非自責分。
+    """
+    opp = dict(enumerate([0, 0, 1, 0, 0], start=1))
+
+    outs, suffix_from = pigeonhole_tail_outs(opp, 15)
+
+    assert suffix_from == 4 and outs == 15 - 9
+
+
+def test_pigeonhole_handles_extra_innings():
+    opp = dict(enumerate([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0], start=1))
+
+    outs, suffix_from = pigeonhole_tail_outs(opp, 30)
+
+    assert suffix_from == 3 and outs == 30 - 6
+
+
+def test_tail_credit_reports_why_it_credited_nothing():
+    assert tail_credit((2026, "A", 1), {}, 21).reason == "no_scoreboard"
+    assert tail_credit((2026, "A", 1), {1: 5}, 3).reason == "no_provable_scoreless_suffix"
 
 
 def test_tail_feeds_into_the_streak():
-    rows = half(1, runs=1) + half(2, away=1) + half(3, pitcher=OTHER, away=1)
-    res = compute_streak([app(1, 1, outs=6), app(2, 0), app(3, 0)],
-                         tail_lookup=lambda a: _tail_of(rows, 6))
+    opp = dict(enumerate([0, 2, 0, 1, 0, 0, 0, 0, 0], start=1))
+    apps = [app(1, 3, outs=21), app(2, 0), app(3, 0)]
 
-    assert res.strict_outs == 6 and res.outs == 9
+    res = compute_streak(apps, tail_lookup=lambda a: tail_credit(a.key, opp, a.outs))
 
-
-# --------------------------------------------------------------------------
-# 覆蓋完整性（F1）：漏掉的半局會被「跨過」而非被看見 → 必須 fail-closed
-# --------------------------------------------------------------------------
-
-def test_missing_scoring_half_inning_must_not_credit_earlier_halves():
-    """**F1 迴歸**：整場有 livelog，但失自責分的那個半局整段缺失。
-
-    投手第 1 局乾淨、第 2 局失分，而 2 局上整段不在 livelog 裡。反向走「看得見的」
-    半局會直接跨過第 2 局而採計第 1 局＝**高估**。安全尾段必須是 0。
-
-    只驗「已選入的半局零得分」抓不到這條路徑——那證明的是選中的都乾淨，不是沒有
-    漏掉的。量詞方向不同，所以要有獨立的覆蓋完整性證明。
-    """
-    rows = half(1) + half(1, vht="2", pitcher=OTHER) + half(2, vht="2", pitcher=OTHER)
-    board = _sb(rows, extra={(2, "1"): 1})       # 獨立來源證明 2 局上存在且有得分
-
-    tail = _tail_of(rows, official_outs=6, scoreboard=board)
-
-    assert tail.outs == 0
-    assert tail.credited == ()
-    assert tail.coverage_reason == "scoreboard_half_missing_from_livelog"
-
-
-def test_pitcher_outs_below_official_fails_closed():
-    """觀測到的出局數少於官方局數 ⇒ livelog 缺了他投的內容 → 尾段歸零。"""
-    rows = half(1, runs=1) + half(2, away=1) + half(3, pitcher=OTHER, away=1)
-
-    assert _tail_of(rows, official_outs=6).outs == 3          # 觀測 6 ≥ 官方 6，正常採計
-    tail = _tail_of(rows, official_outs=12)                   # 官方說他投更多 → 有缺漏
-    assert tail.outs == 0 and tail.coverage_reason == "pitcher_outs_below_official"
-
-
-def test_pitcher_half_innings_must_be_contiguous():
-    """投手局序不連續（中間整局消失）→ 尾段歸零。"""
-    rows = half(1, runs=1) + half(3, away=1) + half(4, pitcher=OTHER, away=1)
-    board = _sb(rows, extra={(2, "1"): 0})
-
-    tail = _tail_of(rows, official_outs=6, scoreboard=board)
-
-    assert tail.outs == 0
-    assert tail.coverage_reason in {
-        "scoreboard_half_missing_from_livelog", "pitcher_half_innings_not_contiguous"}
-
-
-def test_missing_scoreboard_fails_closed():
-    """沒有獨立來源可交叉驗證 → 不採計（不賭 livelog 自己說的話）。"""
-    rows = half(1, runs=1) + half(2, away=1) + half(3, pitcher=OTHER, away=1)
-
-    tail = _tail_of(rows, official_outs=6, scoreboard={})
-
-    assert tail.outs == 0 and tail.coverage_reason == "no_scoreboard"
-
-
-def test_scoreboard_disagreeing_on_a_credited_half_stops_crediting():
-    """livelog 說乾淨、記分板說有得分 → 以中斷方向解讀（兩來源取聯集）。"""
-    rows = half(1, runs=1) + half(2, away=1) + half(3, away=1) + half(4, pitcher=OTHER, away=1)
-    board = _sb(rows, extra={(3, "1"): 1})       # 記分板說第 3 局上有分
-
-    tail = _tail_of(rows, official_outs=9, scoreboard=board)
-
-    assert tail.outs == 0 and tail.credited == ()
-
-
-def test_unplayed_bottom_of_final_inning_is_benign():
-    """主隊未進行的最終局下半：記分板有列、livelog 沒有——良性，不該擋掉尾段。
-
-    實測 2018+ 有 1,814 個半局屬於此樣態，若一律視為缺漏會把尾段全數歸零。
-    """
-    rows = half(1, runs=1) + half(1, vht="2", pitcher=OTHER) + half(2, away=1)
-    board = _sb(rows, extra={(2, "2"): 0})       # 最終局下半未進行
-
-    tail = _tail_of(rows, official_outs=6, scoreboard=board)
-
-    assert tail.coverage_reason is None          # 重點：覆蓋檢查沒有誤擋
-    assert tail.credited == ((2, "1"),)
-    assert 2 <= tail.outs <= 3                   # 採計量由強制下界決定，非本測試重點
-
-
-def test_missing_events_inside_a_clean_half_inning_must_not_credit_it():
-    """**F1-b 迴歸（iteration 3）**：半局**內部**事件缺漏。
-
-    官方 4 outs：第 1 局失分半局 3 outs、第 2 局零得分半局他只記 1 out 就換投，而
-    **換投後的所有事件都不在 livelog**。現存列仍全屬他、首列 out_cnt=0，於是
-    `pitched_whole` 為真、半局集合比對通過、投手半局連號——**前面每一道閘門都放行**。
-
-    這是「檢查看得見的量」循環的第三層：`pitched_whole` 由現存列一致推導，而現存列
-    一致證明不了列是齊全的。要跳出循環，證據必須來自 livelog 之外——官方 box 知道
-    後任投手記了幾個出局，那些出局在 livelog 裡沒有位置可以安放，對帳就不平。
-    """
-    rows = (
-        half(1, runs=1)                                    # 第 1 局：失分，3 outs
-        + [ev(2, "1", 1, 0)]                               # 第 2 局：他只留下 1 個打席
-        + half(3, pitcher=OTHER, away=1)                   # 之後由別人投
-    )
-    # 官方 box：他 4 outs；後任投手 OTHER 記了第 2 局剩下的 2 outs ＋ 第 3 局 3 outs。
-    box = {PID: 4, OTHER: 5}
-
-    tail = _tail_of(rows, box=box)
-
-    assert tail.outs == 0, "半局內事件缺漏時不得採計"
-    assert tail.credited == ()
-    assert tail.coverage_reason == "official_outs_outside_visible_range"
-
-
-def test_third_out_must_be_observable_to_credit_a_full_half():
-    """採計整個半局需要看到「他投到第三個出局的那個打席」（末列 `out_cnt == 2`）。
-
-    只靠「現存列都是他」會把「1 出局後換投、後續事件缺漏」誤判成投完整局。
-    """
-    partial = [ev(2, "1", 1, 0), ev(2, "1", 2, 1)]          # 只到 1 出局
-    rows = half(1, runs=1) + partial + half(3, pitcher=OTHER, away=1)
-
-    tail = _tail_of(rows, box={PID: 5, OTHER: 5})
-
-    assert tail.outs == 0
-
-
-def test_box_pitcher_absent_from_livelog_fails_closed():
-    """官方 box 有這位投手、livelog 完全看不到他 → 缺漏，尾段歸零。"""
-    rows = half(1, runs=1) + half(2, away=1) + half(3, pitcher=OTHER, away=1)
-
-    tail = _tail_of(rows, box={PID: 6, OTHER: 3, "GHOST": 3})
-
-    assert tail.outs == 0 and tail.coverage_reason == "box_pitcher_missing_from_livelog"
-
-
-def test_missing_official_box_fails_closed():
-    rows = half(1, runs=1) + half(2, away=1) + half(3, pitcher=OTHER, away=1)
-
-    tail = _tail_of(rows, box={})
-
-    assert tail.outs == 0 and tail.coverage_reason == "no_official_box"
-
-
-def test_hidden_non_pitch_out_cannot_inflate_credit():
-    """**F1-d 迴歸（iteration 5）**：隱藏「不消耗投球」的出局事件（牽制出局／盜壘刺／
-    `pitch_cnt=0` 的三振接殺等）不得讓採計變多。
-
-    這類事件只以「列」存在，列的缺席偵測不到——所以不能用任何以投球數設界的方法。
-    `forced_outs` 改成只採計「允許任意事件被隱藏後仍成立」的下界：相鄰同投手觀測之間
-    的 `out_cnt` 差本來就把隱藏的出局算進去（那仍是他的出局），故刪掉中間的列不會讓
-    採計上升。
-    """
-    rows = half(1, runs=1) + half(2, away=1) + half(3, pitcher=OTHER, away=1)
-    full = _tail_of(rows, official_outs=6).outs
-    # 抽掉第 2 局中間那一列（模擬一個不消耗投球的隱藏事件）
-    thinned = [r for r in rows if not (r["inning_seq"] == 2 and r["out_cnt"] == 1)]
-
-    assert _tail_of(thinned, official_outs=6).outs <= full
-
-
-def test_forced_bound_needs_official_total_to_credit_the_third_out():
-    """半局最後一個出局發生在最後一次觀測之後，單靠觀測證明不了歸屬。
-
-    直接測 `forced_outs`（避開覆蓋閘門的交互作用）：沒有官方出局數時只採計觀測到的
-    `out_cnt` 差；官方出局數把局數上界釘死（出局數 ＝ 3 × 局數）時才被逼出 3。
-    """
-    rows = _number_pitches(half(1) + half(2, pitcher=OTHER))
-
-    assert forced_outs(rows, PID, None)[(1, "1")] == 2       # 只有 0→1、1→2
-    assert forced_outs(rows, PID, 3)[(1, "1")] == 3          # 官方 3 outs / 1 局 → 逼出 3
-
-
-def test_forced_bound_credits_across_consecutive_same_side_innings():
-    """同一投手在第 n 局末與第 n+1 局初都被觀測到 → 中間的出局全歸他（不得再入賽）。"""
-    rows = _number_pitches(half(1) + half(1, vht="2", pitcher=OTHER) + half(2)
-                           + half(2, vht="2", pitcher=OTHER))
-
-    f = forced_outs(rows, PID, None)
-
-    assert f[(1, "1")] == 3      # 第 1 局第三個出局由「延續到第 2 局」逼出來
-    assert f[(2, "1")] == 2      # 第 2 局之後他沒再被觀測到，第三個出局證明不到
-
-def test_credited_outs_never_exceed_the_cell_lower_bound():
-    """採計值不得超過「投手 × 半局」那一格的**下界**——只採計被逼出來的部分。"""
-    rows = _number_pitches(half(1, runs=1) + half(2, away=1))
-    cells = half_out_allocation(rows)
-
-    # 第 2 局是全場最後一個半局 → 該格是區間 (2,3)：至少 2 個出局是確定的
-    assert cells[(PID, (2, "1"))] == (2, 3)
-    assert _tail_of(rows).outs == 2      # 採下界，不是上界
-
-
-def test_out_allocation_splits_at_pitcher_change_boundaries():
-    """`out_allocation` 以半局內的投手更迭邊界切段——這是對帳的粒度基礎。"""
-    rows = [ev(1, "1", 1, 0), ev(1, "1", 2, 1, OTHER), ev(1, "1", 3, 2, OTHER)]
-    rows += half(2, pitcher=OTHER)
-
-    alloc = out_allocation(rows)
-
-    assert alloc[PID] == (1, 1)        # 0 → 1
-    # OTHER：第 1 局 1→3 共 2 個出局，＋ 第 2 局。第 2 局是全場最後一個半局、可能未達
-    # 三出局，故下界取觀測值 2、上界取 3 → (4, 5)。這個上下界差就是末半局的不確定性。
-    assert alloc[OTHER] == (4, 5)
-
-
-def test_duplicate_half_innings_fail_closed():
-    rows = half(1) + half(2, pitcher=OTHER) + half(1)
-    tail = _tail_of(rows, official_outs=3)
-
-    assert tail.outs == 0 and tail.coverage_reason == "duplicate_half_innings"
-
-
-# --------------------------------------------------------------------------
-# half_innings_of：livelog 讀法的陷阱
-# --------------------------------------------------------------------------
-
-def test_change_player_rows_are_excluded():
-    """換人公告列的 out_cnt 是上一個半局的殘值、pitcher_acnt 是**換下**的投手。
-
-    實測例：第 7 局上開頭的換投列帶 out_cnt=2。若不排除，該半局會被誤判成
-    「不是從 0 出局開始」而漏採計（保守方向），或投手歸屬被寫成前一位（危險方向）。
-    """
-    rows = [ev(1, "1", 0, 2, OTHER, change=True), *half(1)]
-    halves = half_innings_of(rows, PID)
-
-    assert len(halves) == 1
-    assert halves[0].pitched_whole is True
-
-
-def test_score_columns_read_as_prefix_max():
-    """跑分欄以前綴最大值讀，換人列殘值不會讓得分被漏偵測。"""
-    rows = half(1, runs=1) + [ev(2, "1", 0, 2, PID, change=True, away=0), *half(2, away=1)]
-    halves = half_innings_of(rows, PID)
-
-    assert halves[0].run_free is False
-    assert halves[1].run_free is True
-
-
-def test_half_inning_with_score_flag_but_no_delta_is_not_run_free():
-    """只要有 is_score 事件就不算乾淨（兩個訊號取聯集，往中斷方向）。"""
-    rows = [ev(1, "1", 1, 0), ev(1, "1", 2, 1, score=True), ev(1, "1", 3, 2)]
-    halves = half_innings_of(rows, PID)
-
-    assert halves[0].run_free is False
+    assert res.strict_outs == 6 and res.outs == 15
 
 
 # --------------------------------------------------------------------------

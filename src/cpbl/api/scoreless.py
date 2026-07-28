@@ -25,10 +25,19 @@ from cpbl.models.scoreless_streak import (
     TailCredit,
     compute_streak,
     outs_to_innings,
+    tail_credit,
 )
 
 BASIS_STRICT = "官方 earned_runs=0 的整場出賽"
-BASIS_EXTENDED = f"{BASIS_STRICT} ＋ 中斷場的「整個半局零得分」尾段半局"
+BASIS_EXTENDED = (
+    f"{BASIS_STRICT} ＋ 中斷場的零得分後綴（鴿籠下界：官方逐局比分 ＋ 官方局數，"
+    "不讀逐打席資料、不假設任何事件完整性）"
+)
+TAIL_BASIS_NOTE = (
+    "尾段以官方逐局比分界定「零得分後綴」，再用鴿籠原理取下界："
+    "他在後綴的出局數 ≥ 官方總出局數 − 3 × 前綴局數。零得分的局不管誰投都是零失分，"
+    "故此下界與投手更替、再入賽、牽制出局皆無關，也不需要逐打席資料完整。"
+)
 SCOPE_NOTE = (
     "只計例行賽局數（與媒體／MLB／NPB 慣例一致，季後賽另計）。"
     "跨季時中間的季後賽出賽：官方自責分為 0 則跳過（不計局數也不中斷），"
@@ -44,6 +53,7 @@ _APPEARANCES_SQL = """
            p.earned_runs,
            p.inning_pitched_cnt * 3 + p.inning_pitched_div3 AS outs,
            g.delay_kind,
+           p.visiting_home_type                             AS vht,
            CASE WHEN p.visiting_home_type = '2' THEN g.home_team_code
                 ELSE g.away_team_code END                   AS team_code,
            CASE WHEN p.visiting_home_type = '2' THEN g.away_team_name
@@ -56,22 +66,11 @@ _APPEARANCES_SQL = """
      ORDER BY p.pitcher_acnt, g.game_date, p.kind_code, p.game_sno
 """
 
-# 中斷場的逐打席事件；換人列一併取回（純函式內再濾，語意見 half_innings_of）。
-_LIVELOG_SQL = """
-    SELECT l.year, l.kind_code, l.game_sno, l.main_event_no, l.inning_seq,
-           l.visiting_home_type, l.out_cnt, l.is_score, l.is_change_player,
-           l.pitcher_acnt, l.pitch_cnt, l.visiting_score, l.home_score
-      FROM cpbl.game_livelog l
-      JOIN (SELECT (v->>0)::int AS year, v->>1 AS kind_code, (v->>2)::int AS game_sno
-              FROM jsonb_array_elements(%(keys)s::jsonb) v) k
-        ON k.year = l.year AND k.kind_code = l.kind_code AND k.game_sno = l.game_sno
-     ORDER BY l.year, l.kind_code, l.game_sno, l.main_event_no
-"""
-
-# 逐局記分板：覆蓋完整性與零得分的獨立交叉驗證來源（與 livelog 不同 payload）。
-_SCOREBOARD_SQL = """
-    SELECT s.year, s.kind_code, s.game_sno, s.inning_seq,
-           s.visiting_home_type AS vht, max(s.score_cnt) AS runs
+# 中斷場的**對手逐局得分**——鴿籠下界唯一需要的 livelog 以外事實。
+# `visiting_home_type` 取投手的相反側：投手在主隊(2) → 對手在客隊打擊側(1)，反之亦然。
+_OPP_RUNS_SQL = """
+    SELECT s.year, s.kind_code, s.game_sno, s.visiting_home_type AS vht,
+           s.inning_seq, max(s.score_cnt) AS runs
       FROM cpbl.game_scoreboard s
       JOIN (SELECT (v->>0)::int AS year, v->>1 AS kind_code, (v->>2)::int AS game_sno
               FROM jsonb_array_elements(%(keys)s::jsonb) v) k
@@ -80,23 +79,13 @@ _SCOREBOARD_SQL = """
      GROUP BY 1, 2, 3, 4, 5
 """
 
-# 全場投球 box：覆蓋完整性用的**外部**證據（誰投過、各記幾個出局）。
-_GAME_BOX_SQL = """
-    SELECT p.year, p.kind_code, p.game_sno, p.pitcher_acnt,
-           p.inning_pitched_cnt * 3 + p.inning_pitched_div3 AS outs,
-           p.pitch_cnt AS pitches
-      FROM cpbl.pitching_gamelog p
-      JOIN (SELECT (v->>0)::int AS year, v->>1 AS kind_code, (v->>2)::int AS game_sno
-              FROM jsonb_array_elements(%(keys)s::jsonb) v) k
-        ON k.year = p.year AND k.kind_code = p.kind_code AND k.game_sno = p.game_sno
-"""
-
 
 def _appearance(row: dict) -> Appearance:
     return Appearance(
         year=row["year"], kind_code=row["kind_code"], game_sno=row["game_sno"],
         game_date=row["game_date"], earned_runs=row["earned_runs"], outs=row["outs"],
         delay_kind=row["delay_kind"], opponent=row["opponent"], team_code=row["team_code"],
+        vht=row["vht"],
     )
 
 
@@ -108,32 +97,41 @@ def _game_ref(a: Appearance) -> dict:
     }
 
 
-TAIL_DISABLED_REASON = (
-    "尾段（中斷場的部分局數）自 2026-07-28 起停用：所有由 livelog 推導出局數歸屬的方法"
-    "都需要「該半局沒有隱藏列」這個前提，而該前提已證偽——`main_event_no` 主序號不是列的"
-    "唯一鍵（全庫 2,457 個序號槽含多列，其中 204 個同時含換人列與比賽列），刪掉一列可以"
-    "不留任何洞。故本指標目前只採計官方 earned_runs=0 的**整場出賽**（strict），"
-    "零 livelog 推論。"
-)
+def load_opponent_runs(
+    keys: Sequence[tuple[int, str, int]],
+) -> dict[tuple[int, str, int], dict[str, dict[int, int]]]:
+    """{game: {打擊側 vht: {局: 得分}}}——鴿籠下界的官方事實來源。"""
+    if not keys:
+        return {}
+    payload = json.dumps([[k[0], k[1], k[2]] for k in sorted(set(keys))])
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(_OPP_RUNS_SQL, {"keys": payload})
+        rows = _dicts(cur)
+    out: dict[tuple[int, str, int], dict[str, dict[int, int]]] = {}
+    for r in rows:
+        game = (r["year"], r["kind_code"], r["game_sno"])
+        out.setdefault(game, {}).setdefault(r["vht"], {})[r["inning_seq"]] = int(r["runs"] or 0)
+    return out
 
 
 def tail_lookup_factory(
-    player_id: str,
-    livelog: dict[tuple[int, str, int], list[dict]],
-    scoreboard: dict[tuple[int, str, int], dict[tuple[int, str], int]],
-    box: dict[tuple[int, str, int], dict[str, dict[str, int]]],
+    opponent_runs: dict[tuple[int, str, int], dict[str, dict[int, int]]],
 ):
-    """尾段解析器——**目前一律回 None（fail-closed）**，理由見 `TAIL_DISABLED_REASON`。
+    """尾段解析器：鴿籠下界（見 `pigeonhole_tail_outs`）。**不讀 livelog**。
 
-    `cpbl.models.scoreless_streak.forced_outs()` 與 `tail_credit()` 及其測試保留在原處，
-    待需求方裁定產品口徑後可直接接回；但**接回前必須先解決「無法證明半局內無隱藏列」
-    這個根本問題**，不要只是把這個函式改回去。
+    對手打擊側取投手主客別的相反：投手在主隊(2) → 對手在客隊打擊側(1)。
     """
 
-    def lookup(_a: Appearance) -> TailCredit | None:
-        return None
+    def lookup(a: Appearance) -> TailCredit | None:
+        board = opponent_runs.get(a.key)
+        if not board or a.vht not in ("1", "2"):
+            return TailCredit(key=a.key, outs=0, reason="no_scoreboard")
+        opp = board.get("1" if a.vht == "2" else "2") or {}
+        return tail_credit(a.key, opp, a.outs)
 
     return lookup
+
 
 def load_appearances(
     kinds: Sequence[str], player_id: str | None = None,
@@ -156,92 +154,24 @@ def load_appearances(
     return by_player, names
 
 
-def load_livelog(
-    keys: Sequence[tuple[int, str, int]],
-) -> dict[tuple[int, str, int], list[dict]]:
-    if not keys:
-        return {}
-    payload = json.dumps([[k[0], k[1], k[2]] for k in sorted(set(keys))])
-    with conn() as c:
-        cur = c.cursor()
-        cur.execute(_LIVELOG_SQL, {"keys": payload})
-        rows = _dicts(cur)
-    out: dict[tuple[int, str, int], list[dict]] = {}
-    for r in rows:
-        out.setdefault((r["year"], r["kind_code"], r["game_sno"]), []).append(r)
-    return out
-
-
-def load_scoreboard(
-    keys: Sequence[tuple[int, str, int]],
-) -> dict[tuple[int, str, int], dict[tuple[int, str], int]]:
-    """逐局記分板 → {game: {(inning_seq, vht): 得分}}。
-
-    來源與 livelog 不同（官網 box 的另一段 payload），故可作覆蓋完整性與零得分的
-    **獨立**交叉驗證來源。
-    """
-    if not keys:
-        return {}
-    payload = json.dumps([[k[0], k[1], k[2]] for k in sorted(set(keys))])
-    with conn() as c:
-        cur = c.cursor()
-        cur.execute(_SCOREBOARD_SQL, {"keys": payload})
-        rows = _dicts(cur)
-    out: dict[tuple[int, str, int], dict[tuple[int, str], int]] = {}
-    for r in rows:
-        game = (r["year"], r["kind_code"], r["game_sno"])
-        out.setdefault(game, {})[(r["inning_seq"], r["vht"])] = int(r["runs"] or 0)
-    return out
-
-
-def load_game_box(
-    keys: Sequence[tuple[int, str, int]],
-) -> dict[tuple[int, str, int], dict[str, dict[str, int]]]:
-    """該場**全部投手**的官方出局數與投球數 → {game: {pitcher: {"outs":…, "pitches":…}}}。
-
-    覆蓋完整性最關鍵的一份證據：官方 box 知道有哪些投手、各記了幾個出局。livelog 若
-    漏掉某位後援投手的事件，他的出局數就沒有可見的位置可以安放，對帳立刻不平——這是
-    唯一能抓到「**半局內**事件缺漏」的訊號（其餘檢查都只到半局層級）。
-    """
-    if not keys:
-        return {}
-    payload = json.dumps([[k[0], k[1], k[2]] for k in sorted(set(keys))])
-    with conn() as c:
-        cur = c.cursor()
-        cur.execute(_GAME_BOX_SQL, {"keys": payload})
-        rows = _dicts(cur)
-    out: dict[tuple[int, str, int], dict[str, dict[str, int]]] = {}
-    for r in rows:
-        game = (r["year"], r["kind_code"], r["game_sno"])
-        out.setdefault(game, {})[r["pitcher_acnt"]] = {
-            "outs": int(r["outs"] or 0),
-            "pitches": r["pitches"],
-        }
-    return out
-
-
 def compute_all(
     by_player: dict[str, list[Appearance]],
     counted_kinds: Sequence[str] | None = None,
 ) -> dict[str, StreakResult]:
-    """兩趟：先不採計尾段找出中斷場，批次抓那些場的 livelog，再重算含尾段的值。
+    """兩趟：先不採計尾段找出中斷場，批次抓那些場的**對手逐局得分**，再重算含尾段的值。
 
-    livelog 只在「官方 ER>0 的那一場」用到——這是本卡「定位而非重建」的全部 livelog 用途。
-    季後賽造成的中斷（`BREAK_POSTSEASON_EARNED_RUN`）不取尾段：那場的局數本來就不計入。
+    尾段只需要官方逐局比分與官方局數，**完全不讀 livelog**（見 `pigeonhole_tail_outs`）。
     """
     first = {pid: compute_streak(apps, counted_kinds=counted_kinds)
              for pid, apps in by_player.items()}
     keys = [r.break_key for r in first.values()
             if r.break_reason == BREAK_EARNED_RUN and r.break_key]
-    livelog = load_livelog(keys)
-    scoreboard = load_scoreboard(keys)
-    box = load_game_box(keys)
+    runs = load_opponent_runs(keys)
+    lookup = tail_lookup_factory(runs)
     return {
-        pid: compute_streak(apps, tail_lookup_factory(pid, livelog, scoreboard, box),
-                            counted_kinds)
+        pid: compute_streak(apps, lookup, counted_kinds)
         for pid, apps in by_player.items()
     }
-
 
 def build_item(player_id: str, name: str | None, apps: Sequence[Appearance],
                res: StreakResult) -> dict:
@@ -261,10 +191,11 @@ def build_item(player_id: str, name: str | None, apps: Sequence[Appearance],
         "innings": outs_to_innings(res.outs),
         "strict_outs": res.strict_outs,
         "strict_innings": outs_to_innings(res.strict_outs),
-        "basis": BASIS_STRICT,
+        "basis": BASIS_EXTENDED,
         "strict_basis": BASIS_STRICT,
         "appearances_counted": len(counted),
-        "tail_half_innings": len(res.tail.credited) if res.tail else 0,
+        "tail_suffix_from_inning": res.tail.suffix_from_inning if res.tail else None,
+        "tail_reason": res.tail.reason if res.tail else None,
         "tail_outs": res.tail.outs if res.tail else 0,
         "start": _game_ref(start) if start else None,
         "through": _game_ref(through) if through else None,
@@ -328,7 +259,7 @@ def streak_payload(
         "kinds_counted": list(counted_kinds),   # 計入局數的賽別（例行賽）
         "kinds_in_scope": kinds,                # 一併載入、可中斷紀錄的賽別（含季後賽）
         "scope_note": SCOPE_NOTE,
-        "tail_disabled_note": TAIL_DISABLED_REASON,
+        "tail_basis_note": TAIL_BASIS_NOTE,
         "team": team,
         "data_from_year": DATA_FROM_YEAR,
         "as_of": str(as_of) if as_of else None,

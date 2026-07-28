@@ -203,14 +203,15 @@ host 缺 `libomp.dylib`。**勿 `brew install libomp` 污染 host**；需 LightG
   理由與實例見 `docs/research/ML-PITCHER-SCORELESS1_RESULTS.md` §1.6。
 - 所有不確定一律往「中斷」解讀 → 回傳值是**下界**。口徑與保守性規則的單一來源是
   `src/cpbl/models/scoreless_streak.py` 的模組 docstring。
-- **尾段出局數一律走 `forced_outs()`**：只採計「允許任意事件被隱藏後仍成立」的下界
-  （半局內相鄰同投手觀測的 `out_cnt` 差 ＋ 跨同側相鄰局延續 ＋ 官方出局數 ÷ 局數上界）。
-  唯一假設是棒球規則「投手換下後不得再入賽」。`coverage_reason()` 與
-  `DATA_FROM_YEAR`（SQL ＋ 核心函式兩層）仍是 fail-closed 閘門；`kind_code` 鎖 `^(A|D)$`。
-- **不要再用投球數證明事件完整**（五輪查核的結論）：`pitch_cnt` 不是事件唯一鍵（全庫
-  68,372 組重複、538 列 `pitch_cnt=0`），且不消耗投球的出局事件（牽制出局、盜壘刺、
-  `pitch_cnt=0` 的三振／接殺／突破僵局上壘）**只以「列」存在，列的缺席偵測不到**。
+- **尾段走 `pigeonhole_tail_outs()`**：以官方逐局比分界定「零得分後綴」，取鴿籠下界
+  `官方出局數 − 3 × 前綴局數`。**完全不讀 livelog**，故與投手更替、規則 5.10(d) 再入賽、
+  牽制出局皆無關。`DATA_FROM_YEAR`（SQL ＋ 核心函式兩層）仍 enforce；`kind_code` 鎖 `^(A|D)$`。
+- **不要再用逐打席資料推導出局數歸屬**（七輪查核的結論）：`pitch_cnt` 與 `main_event_no`
+  主序號**都不是列的唯一鍵**（68,372 組重複投球序號；2,457 個事件序號槽含多列，其中 204 個
+  同時含換人列與比賽列），且不消耗投球的出局事件只以「列」存在——**列的缺席偵測不到**。
   任何「以看得見的量設界再證明資料完整」的修法都會被同一類反例打穿。
+- **以棒球規則為前提前，先查 `docs/reference/棒球規則.txt`**：我曾自稱「投手換下後不得
+  再入賽」，而 5.10(d) 原註明文允許 P→守備位置→P，整個設計因此作廢。
 - 窮舉對帳：`uv run python scripts/reconcile_scoreless_streak.py`（全母體、零例外才 exit 0；
   改動演算法後必跑）。交付報告見 `docs/research/ML-PITCHER-SCORELESS1_RESULTS.md`。
 
