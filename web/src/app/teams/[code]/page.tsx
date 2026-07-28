@@ -30,7 +30,7 @@ export default async function TeamPage({ params, searchParams }: {
   const season = currentStd.season;
   const year = rawYear && rawYear >= MIN_SPLIT_YEAR && rawYear <= season ? rawYear : season;
 
-  const [split, special, games, cal, bat, pit, field, eras, roster, der, yearStd, style, hotBatters, pregame, upcomingRecords] = await Promise.all([
+  const [split, special, games, cal, bat, pit, field, eras, roster, der, yearStd, style, hotZone, pregame, upcomingRecords] = await Promise.all([
     api.teamSplit(year),
     api.specialRecords(year),
     api.gamesRecent(200),         // 近日焦點：當季近期賽事
@@ -43,8 +43,11 @@ export default async function TeamPage({ params, searchParams }: {
     api.teamDer(code).catch(() => ({ team: code, franchise: code, items: [] })),
     year === season ? Promise.resolve(currentStd) : api.officialStandings(0, year),
     api.teamStyle(code).catch(() => null),  // 球風（UX-TEAM-STYLE1）；失敗不擋整頁
-    // 近日焦點擴充（UX-TEAM-FOCUS2）：一律當季（不帶 year），與「近日焦點＝當季近況」語意一致。
-    api.teamHotBatters(code).catch(() => ({ season, available: false, window: null, items: [] })),
+    // 近日焦點・近期球員熱區（UX-TEAM-HOTZONE1）：一律當季（不帶 year），與「近日焦點＝當季近況」語意一致。
+    api.teamHotZone(code).catch(() => ({
+      season, window_days: 14, available: false, window: null, coverage: null,
+      batters: { min_bip: 0, items: [] }, pitchers: { min_pitches: 0, items: [] },
+    })),
     api.outcomePregame(60).catch(() => null),  // 失敗不擋整頁：NextGameCard 走 resolvePregameCard 的 fetchFailed 分支
     // 近日焦點・即將挑戰的紀錄（UX-TEAM-RECORDS1）：一律當季；失敗不擋整頁（區塊直接不渲染）。
     api.teamUpcomingRecords(code).catch(() => null),
@@ -263,7 +266,7 @@ export default async function TeamPage({ params, searchParams }: {
   if (team) {
     groups.push({ value: "focus", label: "近日焦點", content: (
       <div key="focus" className="space-y-5">
-        <TeamFocusSection upcoming={upcoming} pregame={pregame} hotBatters={hotBatters} />
+        <TeamFocusSection upcoming={upcoming} pregame={pregame} hotZone={hotZone} />
         <TeamRecordsSection data={upcomingRecords} />
         {teamGames.length > 0 && (
           <section key="recent-games">

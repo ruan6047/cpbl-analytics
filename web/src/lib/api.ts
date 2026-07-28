@@ -38,15 +38,25 @@ export type TeamSplitTeam = {
 export type TeamSplitScope = { key: "full" | "first" | "second"; label: string; available: boolean; teams: TeamSplitTeam[] };
 export type TeamSplitResponse = { season: number; scopes: TeamSplitScope[] };
 
-// 近日焦點・近期球員熱區（UX-TEAM-FOCUS2；v1 只做打者）：近 7 日窗口 OPS 前 5（PA>=10）
-// + 現行連續安打。available=false＝本季尚無完賽；available=true 但 items=[]＝視窗內無人達門檻
-// ——兩種退化前端須用不同文案，不共用同一句話。
-export type TeamHotBatter = { player_id: string; name: string; pa: number; ops: number; streak: number };
-export type TeamHotBattersResponse = {
+// 近日焦點・近期球員熱區（UX-TEAM-HOTZONE1；取代 UX-TEAM-FOCUS2 的 OPS 版本）：
+// 過程型口徑（擊球初速／揮空率），近 14 日窗口，僅 2026 年起有 pitch_tracking 資料。
+// available=false＝本季尚無完賽；available=true 時必有 window/coverage，items 是否為空
+// 要搭配 coverage 判斷退化原因（見後端 cpbl.api.team_hotzone docstring，不得自行更動）：
+//   coverage.untracked_games === coverage.games_in_window（窗口內比賽全無逐球追蹤資料）
+//     → 前端顯示「窗口內無追蹤資料」，不得與「有資料但無人達門檻」共用同一句話。
+export type TeamHotBatterItem = { player_id: string; name: string; bip: number; avg_ev: number; max_ev: number };
+export type TeamHotPitcherItem = {
+  player_id: string; name: string; pitches: number; swings: number; whiffs: number;
+  whiff_pct: number; bip_against: number; avg_ev_against: number | null;
+};
+export type TeamHotZoneResponse = {
   season: number;
+  window_days: number;
   available: boolean;
   window: { start: string; end: string } | null;
-  items: TeamHotBatter[];
+  coverage: { games_in_window: number; untracked_games: number } | null;
+  batters: { min_bip: number; items: TeamHotBatterItem[] };
+  pitchers: { min_pitches: number; items: TeamHotPitcherItem[] };
 };
 
 // 近日焦點・即將挑戰的紀錄（UX-TEAM-RECORDS1）：生涯里程碑 + 進行中連續安打 + 隊史紀錄
@@ -486,9 +496,9 @@ export const api = {
   // 球風七軸（UX-TEAM-STYLE1）：逐季 z/raw/排名＋軸級語意標注＋教練時間標記。全年口徑。
   teamStyle: (code: string) =>
     get<TeamStyleResponse>(`/api/v1/teams/${code}/style`, 600),
-  // 近日焦點・近期球員熱區（UX-TEAM-FOCUS2）：口徑見後端 cpbl.api.team_focus docstring。
-  teamHotBatters: (code: string, season?: number) =>
-    get<TeamHotBattersResponse>(`/api/v1/teams/${code}/hot-batters${season ? `?season=${season}` : ""}`, 120),
+  // 近日焦點・近期球員熱區（UX-TEAM-HOTZONE1）：口徑見後端 cpbl.api.team_hotzone docstring。
+  teamHotZone: (code: string, season?: number) =>
+    get<TeamHotZoneResponse>(`/api/v1/teams/${code}/hot-zone${season ? `?season=${season}` : ""}`, 120),
   // 近日焦點・即將挑戰的紀錄（UX-TEAM-RECORDS1）：口徑見後端 cpbl.api.team_records docstring。
   teamUpcomingRecords: (code: string, season?: number) =>
     get<TeamUpcomingRecordsResponse>(`/api/v1/teams/${code}/upcoming-records${season ? `?season=${season}` : ""}`, 120),

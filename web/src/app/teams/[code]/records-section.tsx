@@ -1,5 +1,4 @@
-import type { ReactNode } from "react";
-import { Card, EmptyState, PlayerLink } from "@/components/ui";
+import { Card, EmptyState, PlayerLink, RECORD_GRID, RecordCard, SectionHeading } from "@/components/ui";
 import type {
   TeamRecordsFranchise,
   TeamRecordsFranchiseApproaching,
@@ -55,31 +54,10 @@ import type {
 // `holder_active` 為真，附註「・現役中」——紀錄保持人還在打球時這個數字本身
 // 會隨賽季推進而動，不是靜止的碑（台鋼雄鷹是典型案例）。
 
-function RecordCard({ headline, detail, anchor }: { headline: ReactNode; detail?: ReactNode; anchor: ReactNode }) {
-  return (
-    <li className="rounded-lg bg-surface-2 px-3 py-2.5">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1 text-sm text-ink">{headline}</div>
-        <div className="shrink-0 whitespace-nowrap text-base font-bold tabular-nums text-accent">{anchor}</div>
-      </div>
-      {detail && <div className="mt-0.5 text-[11px] text-faint">{detail}</div>}
-    </li>
-  );
-}
-
-// 三類共用的網格容器：沿用 page.tsx「戰績分項」的斷點（見上方說明），
-// gap-2（非既有的 gap-3）是唯一的刻意偏離——本卡片內距已經比較緊湊
-// （px-3 py-2.5，非 Card 的 p-4），沿用 gap-3 視覺上會顯得鬆散不成套。
-const RECORD_GRID = "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3";
-
-function SectionHeading({ children, caption }: { children: ReactNode; caption?: ReactNode }) {
-  return (
-    <div className="mb-1">
-      <div className="text-xs font-semibold text-muted">{children}</div>
-      {caption && <p className="mt-0.5 text-[11px] text-faint">{caption}</p>}
-    </div>
-  );
-}
+// `RecordCard`/`SectionHeading`/`RECORD_GRID` 的設計理由（bg-surface-2 無 border
+// 避免卡中卡、橫向網格斷點沿用 page.tsx「戰績分項」）已隨 UX-TEAM-HOTZONE1
+// 一併抽到 `@/components/ui`（該卡新增的「近期球員熱區」也要用同一套語彙，
+// 抽成單一事實來源避免兩檔各自維護一份視覺 token）；本檔案只留呼叫端。
 
 function MilestonesList({ items }: { items: TeamRecordsMilestone[] }) {
   if (items.length === 0) return null;

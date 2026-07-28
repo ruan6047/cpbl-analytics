@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { codeFromName, contrastText, eraBadge, isCurrentTeam, nameMeta, teamColor, teamLetter, teamPageCode } from "@/lib/teams";
 import { Tooltip } from "./tooltip";
 
@@ -143,6 +144,45 @@ export function StatGrid({ items, cols = 2, className = "" }: {
         </div>
       ))}
     </dl>
+  );
+}
+
+// 「近日焦點」頁籤資料卡語彙（UX-TEAM-RECORDS1 定案，UX-TEAM-HOTZONE1 沿用）：
+// 每筆一張次級卡（headline 描述句 + 選填 detail 明細行 + 右側單一數值錨點）。
+//
+// 為什麼是 bg-surface-2 + rounded-lg（無 border）而不是再套一層 <Card>：這組卡片
+// 永遠巢狀在頁籤的外層 <Card> 裡，若每筆也用 Card 會變成卡中卡（.card 的
+// border-line + shadow 疊兩層）。設計系統只對 DataTable 定義了等價的 `bare`
+// （同問題的既有解法：已在 Card 內免雙層邊框），Card 本身沒有等價 prop——
+// 評估過幫 Card 加 `bare`/`nested` prop，但這個場景的呼叫點不夠多，屬過度設計。
+// 改沿用 `StatGrid` 已驗證過的「bg-surface-2 + rounded-lg」次級 surface token
+// （同一份視覺語彙，但 StatGrid 本身版面置中 dl 放不下這裡需要的四段式內容，
+// 故不直接套用元件，只借它驗證過的容器語彙）。
+export function RecordCard({ headline, detail, anchor }: { headline: ReactNode; detail?: ReactNode; anchor: ReactNode }) {
+  return (
+    <li className="rounded-lg bg-surface-2 px-3 py-2.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1 text-sm text-ink">{headline}</div>
+        <div className="shrink-0 whitespace-nowrap text-base font-bold tabular-nums text-accent">{anchor}</div>
+      </div>
+      {detail && <div className="mt-0.5 text-[11px] text-faint">{detail}</div>}
+    </li>
+  );
+}
+
+// RecordCard 清單的共用網格斷點：橫向排列縮短整頁捲動（需求方 2026-07-28 明訂
+// 「卡片是希望橫向排列 讓這頁資訊能不用卷軸」）。與 page.tsx「戰績分項」網格
+// 同一組斷點，同一頁同樣「把多張小卡片橫向塞進去縮短捲動」的目的不另訂一套。
+// gap-2（非其他網格常用的 gap-3）是唯一刻意偏離：RecordCard 內距已較緊湊
+// （px-3 py-2.5，非 Card 的 p-4），沿用 gap-3 視覺上會顯得鬆散不成套。
+export const RECORD_GRID = "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3";
+
+export function SectionHeading({ children, caption }: { children: ReactNode; caption?: ReactNode }) {
+  return (
+    <div className="mb-1">
+      <div className="text-xs font-semibold text-muted">{children}</div>
+      {caption && <p className="mt-0.5 text-[11px] text-faint">{caption}</p>}
+    </div>
   );
 }
 
