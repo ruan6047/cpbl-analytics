@@ -70,7 +70,7 @@ export default async function TeamPage({ params, searchParams }: {
   const color = _bd.letter !== "?" ? _bd.color : teamColor(code);
   const ink = contrastText(color);
 
-  // 近期賽事（近日焦點）：下一場未開打（若有）+ 最近完賽，湊滿一排 6 張賽況卡。當季。
+  // 下一場（近日焦點用；由 <TeamFocusSection> 的對戰卡呈現，見下方 upcoming）。當季。
   const pad2 = (n: number) => String(n).padStart(2, "0");
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
@@ -81,11 +81,9 @@ export default async function TeamPage({ params, searchParams }: {
   const teamCompleted = team ? games.items
     .filter(isTeamGame)
     .sort((a, b) => b.game_date.localeCompare(a.game_date)) : [];
-  const recentCompleted = teamCompleted.slice(0, upcoming ? 5 : 6);
-  const teamGames = [
-    ...(upcoming ? [{ ...upcoming, done: false }] : []),
-    ...recentCompleted.map((g) => ({ ...g, done: true })),
-  ];
+  // 近期賽事（近日焦點）：只放已完賽場次，固定 6 場。下一場已由對戰卡呈現，此處不再重複
+  // 放一格「未開打」（原本 upcoming ? 5 : 6 是為了讓一格給它，UX-TEAM-FOCUS2 需求方回饋後移除）。
+  const teamGames = teamCompleted.slice(0, 6);
   // Hero 近況：近 8 場勝負（舊→新，最新在右）。當季。
   const form = teamCompleted.slice(0, 8).map((g) => {
     const home = g.home_team_code === code;
@@ -266,24 +264,24 @@ export default async function TeamPage({ params, searchParams }: {
         {teamGames.length > 0 && (
           <section key="recent-games">
             <h2 className="mb-1 text-lg font-semibold">近期賽事</h2>
-            <p className="mb-3 text-[11px] text-faint">當季最近完賽與下一場（點入看賽況）。</p>
+            <p className="mb-3 text-[11px] text-faint">當季最近完賽（點入看賽況）。下一場見上方對戰卡。</p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
               {teamGames.map((g) => {
                 const [gy, gm, gd] = g.game_date.split("-").map(Number);
                 const wd = "日一二三四五六"[new Date(gy, gm - 1, gd).getDay()];
-                const winner = g.done && g.home_score !== g.away_score ? (g.home_score > g.away_score ? "home" : "away") : null;
+                const winner = g.home_score !== g.away_score ? (g.home_score > g.away_score ? "home" : "away") : null;
                 const scoreCls = (side: "away" | "home") =>
                   `w-6 shrink-0 text-center font-mono text-lg tabular-nums ${winner === side ? "font-bold text-ink" : "text-muted"}`;
                 return (
                   <Link key={`${g.kind_code}-${g.game_sno}`} href={`/games/${g.game_sno}?kind=${g.kind_code}&year=${g.year}`}
-                    className={`flex items-center gap-1.5 rounded-lg border bg-surface px-2 py-2 transition hover:bg-surface-2 ${g.done ? "border-line" : "border-dashed border-line"}`}>
+                    className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2 py-2 transition hover:bg-surface-2">
                     <TeamLogo code={g.away_team_code} name={g.away_team_name} size={26} />
-                    <span className={scoreCls("away")}>{g.done ? g.away_score : ""}</span>
+                    <span className={scoreCls("away")}>{g.away_score}</span>
                     <div className="flex-1 text-center leading-tight">
                       <div className="whitespace-nowrap font-mono text-xs text-faint tabular-nums">{g.game_date.slice(5)}</div>
-                      <div className="text-[10px] text-faint">{g.done ? `（${wd}）` : "未開打"}</div>
+                      <div className="text-[10px] text-faint">（{wd}）</div>
                     </div>
-                    <span className={scoreCls("home")}>{g.done ? g.home_score : ""}</span>
+                    <span className={scoreCls("home")}>{g.home_score}</span>
                     <TeamLogo code={g.home_team_code} name={g.home_team_name} size={26} />
                   </Link>
                 );
