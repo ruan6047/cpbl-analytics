@@ -8,6 +8,7 @@ import { RosterBoard, type RosterGroup } from "@/components/roster-board";
 import { api } from "@/lib/api";
 import { contrastText, nameMeta, teamColor } from "@/lib/teams";
 import { CoachGrid, GROUPS, ManagersTable, RetiredNumbers, RosterChips, RosterTable, f2, f3 } from "./parts";
+import { TeamFocusSection } from "./focus-section";
 import { TeamStyleSection } from "./style-section";
 import { SEASON_GROUP, TeamTabs, type TeamGroup } from "./team-tabs";
 
@@ -28,7 +29,7 @@ export default async function TeamPage({ params, searchParams }: {
   const season = currentStd.season;
   const year = rawYear && rawYear >= MIN_SPLIT_YEAR && rawYear <= season ? rawYear : season;
 
-  const [split, special, games, cal, bat, pit, field, eras, roster, der, yearStd, style] = await Promise.all([
+  const [split, special, games, cal, bat, pit, field, eras, roster, der, yearStd, style, hotBatters, pregame] = await Promise.all([
     api.teamSplit(year),
     api.specialRecords(year),
     api.gamesRecent(200),         // 近日焦點：當季近期賽事
@@ -41,6 +42,9 @@ export default async function TeamPage({ params, searchParams }: {
     api.teamDer(code).catch(() => ({ team: code, franchise: code, items: [] })),
     year === season ? Promise.resolve(currentStd) : api.officialStandings(0, year),
     api.teamStyle(code).catch(() => null),  // 球風（UX-TEAM-STYLE1）；失敗不擋整頁
+    // 近日焦點擴充（UX-TEAM-FOCUS2）：一律當季（不帶 year），與「近日焦點＝當季近況」語意一致。
+    api.teamHotBatters(code).catch(() => ({ season, available: false, window: null, items: [] })),
+    api.outcomePregame(60).catch(() => null),  // 失敗不擋整頁：NextGameCard 走 resolvePregameCard 的 fetchFailed 分支
   ]);
 
   const team = currentStd.items.find((t) => t.team_code === code);
@@ -255,34 +259,39 @@ export default async function TeamPage({ params, searchParams }: {
   // ── 頂層群組（順序即頁籤順序，第一個為落地預設）：近日焦點 → 賽季 → 現役陣容 → 歷屆成員 → 隊史 ──
   const groups: TeamGroup[] = [];
 
-  if (team && teamGames.length > 0) {
+  if (team) {
     groups.push({ value: "focus", label: "近日焦點", content: (
-      <section key="focus">
-        <h2 className="mb-1 text-lg font-semibold">近期賽事</h2>
-        <p className="mb-3 text-[11px] text-faint">當季最近完賽與下一場（點入看賽況）。其餘焦點內容後續擴充。</p>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
-          {teamGames.map((g) => {
-            const [gy, gm, gd] = g.game_date.split("-").map(Number);
-            const wd = "日一二三四五六"[new Date(gy, gm - 1, gd).getDay()];
-            const winner = g.done && g.home_score !== g.away_score ? (g.home_score > g.away_score ? "home" : "away") : null;
-            const scoreCls = (side: "away" | "home") =>
-              `w-6 shrink-0 text-center font-mono text-lg tabular-nums ${winner === side ? "font-bold text-ink" : "text-muted"}`;
-            return (
-              <Link key={`${g.kind_code}-${g.game_sno}`} href={`/games/${g.game_sno}?kind=${g.kind_code}&year=${g.year}`}
-                className={`flex items-center gap-1.5 rounded-lg border bg-surface px-2 py-2 transition hover:bg-surface-2 ${g.done ? "border-line" : "border-dashed border-line"}`}>
-                <TeamLogo code={g.away_team_code} name={g.away_team_name} size={26} />
-                <span className={scoreCls("away")}>{g.done ? g.away_score : ""}</span>
-                <div className="flex-1 text-center leading-tight">
-                  <div className="whitespace-nowrap font-mono text-xs text-faint tabular-nums">{g.game_date.slice(5)}</div>
-                  <div className="text-[10px] text-faint">{g.done ? `（${wd}）` : "未開打"}</div>
-                </div>
-                <span className={scoreCls("home")}>{g.done ? g.home_score : ""}</span>
-                <TeamLogo code={g.home_team_code} name={g.home_team_name} size={26} />
-              </Link>
-            );
-          })}
-        </div>
-      </section>
+      <div key="focus" className="space-y-5">
+        <TeamFocusSection upcoming={upcoming} pregame={pregame} hotBatters={hotBatters} />
+        {teamGames.length > 0 && (
+          <section key="recent-games">
+            <h2 className="mb-1 text-lg font-semibold">近期賽事</h2>
+            <p className="mb-3 text-[11px] text-faint">當季最近完賽與下一場（點入看賽況）。</p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+              {teamGames.map((g) => {
+                const [gy, gm, gd] = g.game_date.split("-").map(Number);
+                const wd = "日一二三四五六"[new Date(gy, gm - 1, gd).getDay()];
+                const winner = g.done && g.home_score !== g.away_score ? (g.home_score > g.away_score ? "home" : "away") : null;
+                const scoreCls = (side: "away" | "home") =>
+                  `w-6 shrink-0 text-center font-mono text-lg tabular-nums ${winner === side ? "font-bold text-ink" : "text-muted"}`;
+                return (
+                  <Link key={`${g.kind_code}-${g.game_sno}`} href={`/games/${g.game_sno}?kind=${g.kind_code}&year=${g.year}`}
+                    className={`flex items-center gap-1.5 rounded-lg border bg-surface px-2 py-2 transition hover:bg-surface-2 ${g.done ? "border-line" : "border-dashed border-line"}`}>
+                    <TeamLogo code={g.away_team_code} name={g.away_team_name} size={26} />
+                    <span className={scoreCls("away")}>{g.done ? g.away_score : ""}</span>
+                    <div className="flex-1 text-center leading-tight">
+                      <div className="whitespace-nowrap font-mono text-xs text-faint tabular-nums">{g.game_date.slice(5)}</div>
+                      <div className="text-[10px] text-faint">{g.done ? `（${wd}）` : "未開打"}</div>
+                    </div>
+                    <span className={scoreCls("home")}>{g.done ? g.home_score : ""}</span>
+                    <TeamLogo code={g.home_team_code} name={g.home_team_name} size={26} />
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        )}
+      </div>
     ) });
   }
 

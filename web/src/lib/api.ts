@@ -1,6 +1,7 @@
 // FastAPI 資料層 client（Server Component 用）。prod 走 Docker 內網，dev 走 localhost。
 import { ApiError } from "./http-error";
 import type { DailySummary, PregameServingMeta } from "./daily-summary";
+import type { PregameResponse } from "./pregame-card";
 import type { TeamStyleResponse } from "./team-style";
 
 const API_URL = process.env.API_URL ?? "http://localhost:4001";
@@ -36,6 +37,17 @@ export type TeamSplitTeam = {
 };
 export type TeamSplitScope = { key: "full" | "first" | "second"; label: string; available: boolean; teams: TeamSplitTeam[] };
 export type TeamSplitResponse = { season: number; scopes: TeamSplitScope[] };
+
+// 近日焦點・近期球員熱區（UX-TEAM-FOCUS2；v1 只做打者）：近 7 日窗口 OPS 前 5（PA>=10）
+// + 現行連續安打。available=false＝本季尚無完賽；available=true 但 items=[]＝視窗內無人達門檻
+// ——兩種退化前端須用不同文案，不共用同一句話。
+export type TeamHotBatter = { player_id: string; name: string; pa: number; ops: number; streak: number };
+export type TeamHotBattersResponse = {
+  season: number;
+  available: boolean;
+  window: { start: string; end: string } | null;
+  items: TeamHotBatter[];
+};
 
 async function get<T>(path: string, revalidate = 600): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, { next: { revalidate } });
@@ -444,6 +456,14 @@ export const api = {
   // 球風七軸（UX-TEAM-STYLE1）：逐季 z/raw/排名＋軸級語意標注＋教練時間標記。全年口徑。
   teamStyle: (code: string) =>
     get<TeamStyleResponse>(`/api/v1/teams/${code}/style`, 600),
+  // 近日焦點・近期球員熱區（UX-TEAM-FOCUS2）：口徑見後端 cpbl.api.team_focus docstring。
+  teamHotBatters: (code: string, season?: number) =>
+    get<TeamHotBattersResponse>(`/api/v1/teams/${code}/hot-batters${season ? `?season=${season}` : ""}`, 120),
+  // 固定語意群賽前勝率（UX-TEAM-FOCUS2 複用；不接受特徵勾選）。與 outcome/pregame 探索器
+  // 同一端點，但消費端各自把整份 response 交給 resolvePregameCard（單一來源守衛
+  // pregame-single-source.test.ts 規則 2）。
+  outcomePregame: (limit = 60) =>
+    get<PregameResponse>(`/api/v1/outcome/pregame?limit=${limit}`, 120),
   records: () =>
     get<{
       games: Record<"max_margin" | "max_team_runs" | "max_combined", { year: number; date: string; home: string; away: string; hs: number; as: number } | null>;

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Query
 from cpbl.api.helpers import DEFAULT_SEASON, _dicts
 from cpbl.api.routers.venues import _NORM_VENUE
 from cpbl.api.rows import _ERA_SPLIT
+from cpbl.api.team_focus import hot_batters
 from cpbl.api.team_style import team_style_payload
 from cpbl.db import conn
 from cpbl.franchises import FRANCHISE_MAP as _FRANCHISE
@@ -426,6 +427,16 @@ def team_style(code: str) -> dict:
     `cpbl.api.team_style` docstring。
     """
     return team_style_payload(code)
+
+
+@router.get("/api/v1/teams/{code}/hot-batters")
+def team_hot_batters(code: str, season: int = Query(DEFAULT_SEASON)) -> dict:
+    """球隊頁「近日焦點」素材 2：近期打者熱區（近 7 日窗口 OPS 前 5，PA>=10，附現行連續安打）。
+
+    v1 只做打者（投手先發/後援不可比，另列 v1.1）。口徑與退化語意見
+    `cpbl.api.team_focus` docstring（UX-TEAM-FOCUS2 需求方定案，不得自行更動）。
+    """
+    return hot_batters(code, season)
 
 
 @router.get("/api/v1/teams/{code}/der")
