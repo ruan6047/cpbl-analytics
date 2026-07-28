@@ -1,74 +1,101 @@
+import type { ReactNode } from "react";
 import { Card, EmptyState, PlayerLink } from "@/components/ui";
-import { DataTable, type Column } from "@/components/table";
 import type { TeamRecordsFranchise, TeamRecordsMilestone, TeamRecordsStreak, TeamUpcomingRecordsResponse } from "@/lib/api";
 
-// 近日焦點・即將挑戰的紀錄（UX-TEAM-RECORDS1）：
-//   1. 生涯里程碑——生涯口徑走後端 canonical 生涯路徑（與球員頁一致，見
-//      cpbl.api.team_records docstring），依「差距／階梯」比值排序（API 已排好）。
-//   2. 進行中連續安打——複用 UX-TEAM-FOCUS2 的 streak 計算。
-//   3. 隊史紀錄逼近——僅計數型；連續型隊史紀錄（含「近年最佳」等變體）不得出現，
-//      這是需求方 2026-07-28 裁定的紅線，本元件不接受、也不應該收到這類欄位。
+// 近日焦點・即將挑戰的紀錄（UX-TEAM-RECORDS1）。
 //
-// 三個陣列各自可能為空；三者皆空時顯示統一退化文案，不留白區塊（驗收條件明定）。
+// 2026-07-28 需求方人工審核後改版呈現形式，取代初版的三張 DataTable：「用表格反而
+// 沒辦法了解各種近況」。三個具體失敗（見卡面「呈現形式」節）：(1) 目前/里程碑/還差
+// 三格數字講同一件事，讀者要自己做算術；(2) 三張表三套欄位，掃過去要切三次心智
+// 模型；(3) 空的子清單仍渲染標題與退化文案，形成誤導性留白。
+//
+// 改版原則：
+//   - 每一筆讀起來是一句話，不是一列數字——三類共用同一個 <RecordRow>（同一套
+//     排版節奏），差異只在文字內容，不做成三種元件。
+//   - 「還差 N」（或連續安打的「連續 N 場」）是唯一的視覺錨點：字級最大、唯一上
+//     accent 色；目前值／目標值退到左側描述行的次級文字（text-faint、字級最小）。
+//   - 沒有內容的子分類**整段不渲染**（不留標題、不留退化文案）——需求方原話
+//     「沒有數值的項目也可以隱藏起來避免資訊誤導」。三類全空時才顯示整區塊的
+//     統一退化文案（既有行為，保留）。
+//   - 生涯口徑／里程碑門檻／隊史逼近門檻與判準全部不變（本次純呈現層改版，
+//     後端 `cpbl.api.team_records` 未改動）；隊史「本季貢獻非即時」的但書
+//     移到該分類標題下方，分類隱藏時但書也一併不顯示（跟著它所屬的資料走）。
 
-const ROLE_LABEL: Record<"batting" | "pitching", string> = { batting: "打", pitching: "投" };
-
-function MilestonesTable({ items }: { items: TeamRecordsMilestone[] }) {
-  const columns: Column<TeamRecordsMilestone>[] = [
-    { header: "球員", cell: (m) => <PlayerLink pid={m.player_id} name={m.name} />, className: "font-sans", nowrap: true },
-    { header: "項目", cell: (m) => `${ROLE_LABEL[m.role]}／${m.label}`, className: "font-sans text-muted", nowrap: true },
-    { header: "目前", cell: (m) => m.current, align: "right" },
-    { header: "里程碑", cell: (m) => m.milestone, align: "right", className: "text-ink" },
-    { header: "還差", cell: (m) => m.remaining, align: "right", className: "text-accent" },
-  ];
+function RecordRow({ headline, detail, anchor }: { headline: ReactNode; detail?: ReactNode; anchor: ReactNode }) {
   return (
-    <div>
-      <div className="mb-1.5 text-xs font-semibold text-muted">生涯里程碑</div>
-      {items.length === 0 ? (
-        <EmptyState className="py-2 text-left">目前無接近生涯里程碑的一軍球員。</EmptyState>
-      ) : (
-        <DataTable columns={columns} rows={items} rowKey={(m, i) => `${m.player_id}-${m.stat}-${i}`} dense bare />
-      )}
+    <li className="flex items-center gap-3 py-2">
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm text-ink">{headline}</div>
+        {detail && <div className="truncate text-[11px] text-faint">{detail}</div>}
+      </div>
+      <div className="shrink-0 whitespace-nowrap text-base font-bold tabular-nums text-accent">{anchor}</div>
+    </li>
+  );
+}
+
+function SectionHeading({ children, caption }: { children: ReactNode; caption?: ReactNode }) {
+  return (
+    <div className="mb-1">
+      <div className="text-xs font-semibold text-muted">{children}</div>
+      {caption && <p className="mt-0.5 text-[11px] text-faint">{caption}</p>}
     </div>
   );
 }
 
-function StreaksTable({ items }: { items: TeamRecordsStreak[] }) {
-  const columns: Column<TeamRecordsStreak>[] = [
-    { header: "球員", cell: (s) => <PlayerLink pid={s.player_id} name={s.name} />, className: "font-sans", nowrap: true },
-    { header: "現行連續安打", cell: (s) => `${s.streak} 場`, align: "right", className: "text-accent" },
-  ];
+function MilestonesList({ items }: { items: TeamRecordsMilestone[] }) {
+  if (items.length === 0) return null;
   return (
     <div>
-      <div className="mb-1.5 text-xs font-semibold text-muted">進行中連續安打</div>
-      {items.length === 0 ? (
-        <EmptyState className="py-2 text-left">目前無連續安打達 5 場以上的一軍球員。</EmptyState>
-      ) : (
-        <DataTable columns={columns} rows={items} rowKey={(s) => s.player_id} dense bare />
-      )}
+      <SectionHeading>生涯里程碑</SectionHeading>
+      <ul className="divide-y divide-line">
+        {items.map((m, i) => (
+          <RecordRow
+            key={`${m.player_id}-${m.stat}-${i}`}
+            headline={<><PlayerLink pid={m.player_id} name={m.name} /><span className="text-muted"> 生涯{m.label}</span></>}
+            detail={`目前 ${m.current} → ${m.milestone}`}
+            anchor={`還差 ${m.remaining}`}
+          />
+        ))}
+      </ul>
     </div>
   );
 }
 
-function FranchiseTable({ items }: { items: TeamRecordsFranchise[] }) {
-  const columns: Column<TeamRecordsFranchise>[] = [
-    { header: "球員", cell: (r) => <PlayerLink pid={r.player_id} name={r.name} />, className: "font-sans", nowrap: true },
-    { header: "項目", cell: (r) => `${ROLE_LABEL[r.role]}／${r.label}`, className: "font-sans text-muted", nowrap: true },
-    { header: "目前", cell: (r) => r.current, align: "right" },
-    { header: "隊史紀錄", cell: (r) => `${r.record}（${r.holder}）`, align: "right", className: "font-sans text-ink", nowrap: true },
-    { header: "還差", cell: (r) => r.remaining, align: "right", className: "text-accent" },
-  ];
+function StreaksList({ items }: { items: TeamRecordsStreak[] }) {
+  if (items.length === 0) return null;
   return (
     <div>
-      <div className="mb-1.5 text-xs font-semibold text-muted">隊史紀錄逼近</div>
-      <p className="mb-1.5 text-[11px] text-faint">
-        僅計數型；資料以年度成績表計，本季貢獻須待球季結束入庫後才會反映，非即時。
-      </p>
-      {items.length === 0 ? (
-        <EmptyState className="py-2 text-left">目前無逼近隊史紀錄的一軍球員。</EmptyState>
-      ) : (
-        <DataTable columns={columns} rows={items} rowKey={(r, i) => `${r.player_id}-${r.stat}-${i}`} dense bare />
-      )}
+      <SectionHeading>進行中連續安打</SectionHeading>
+      <ul className="divide-y divide-line">
+        {items.map((s) => (
+          <RecordRow
+            key={s.player_id}
+            headline={<><PlayerLink pid={s.player_id} name={s.name} /><span className="text-muted"> 現行連續安打</span></>}
+            anchor={`連續 ${s.streak} 場`}
+          />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function FranchiseList({ items }: { items: TeamRecordsFranchise[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div>
+      <SectionHeading caption="僅計數型；資料以年度成績表計，本季貢獻須待球季結束入庫後才會反映，非即時。">
+        隊史紀錄逼近
+      </SectionHeading>
+      <ul className="divide-y divide-line">
+        {items.map((r, i) => (
+          <RecordRow
+            key={`${r.player_id}-${r.stat}-${i}`}
+            headline={<><PlayerLink pid={r.player_id} name={r.name} /><span className="text-muted"> {r.label}逼近隊史紀錄</span></>}
+            detail={`目前 ${r.current}，隊史紀錄 ${r.record}（${r.holder}）`}
+            anchor={`還差 ${r.remaining}`}
+          />
+        ))}
+      </ul>
     </div>
   );
 }
@@ -86,9 +113,9 @@ export function TeamRecordsSection({ data }: { data: TeamUpcomingRecordsResponse
         <EmptyState className="py-3">目前無接近中的紀錄。</EmptyState>
       ) : (
         <div className="space-y-4">
-          <MilestonesTable items={data.milestones} />
-          <StreaksTable items={data.streaks} />
-          <FranchiseTable items={data.franchise_records} />
+          <MilestonesList items={data.milestones} />
+          <StreaksList items={data.streaks} />
+          <FranchiseList items={data.franchise_records} />
         </div>
       )}
     </Card>
