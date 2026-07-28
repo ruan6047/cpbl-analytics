@@ -5,13 +5,22 @@
 - 狀態：**診斷完成、工具就緒、補值阻塞於 Gate3 shadow 觀測窗（~2026-08-07）**
 - 本輪**未對 `www.cpbl.com.tw` 發出任何請求**（需求方裁定：觀測窗期間完全不碰站台，
   含 dry-run）。DB 僅 SELECT，未寫入任何一列。
+- **iteration 2**（查核 REJECT 後）：寫入路徑由 canonical `_upsert` 改為專用窄
+  UPDATE（F1，見 §4 取捨節）；目標名單由動態撈改為釘死 14 人（F3，見 §4 範圍閘門）；
+  §1.3 的機制敘述與一句話結論的涵蓋範圍已依實測更正（F2，見該節勘誤）。
 
 ## 一句話結論
 
-14 人的缺值**不是覆蓋缺口、也不是爬取當下撞反爬**（卡面原假設），而是
-**parser-version gap**：這批列最後一次被 bio 爬蟲走訪的時間，早於「`parse_bio`
-第一次會讀國籍／生日」的那個 commit；而 bio 爬蟲不在每日鏈上、後續執行的 scope
-又涵蓋不到只在 2025 年登錄過的球員，於是永遠不會被回訪。
+**`country`／`birthday` 缺口已證實為 parser-version gap；batch 2 全欄 NULL 的
+並行成因仍未定。**
+
+這批列最後一次被 bio 爬蟲走訪的時間，早於「`parse_bio` 第一次會讀國籍／生日」
+的那個 commit（`cf9d8b8`），而 bio 爬蟲不在排程鏈上、此後沒有再被跑過，於是那
+兩欄至今仍空。
+
+**這個結論的涵蓋範圍僅止於那兩欄**：parser-version gap 足以解釋 14 人為何缺
+`country`／`birthday`，但**不能排除** batch 2（8 人）當初另外撞上退化頁——那 8 人
+連舊解析器讀得到的 height/weight/debut 都是空的，屬另一個需實地查證的問題（§1.4）。
 
 ---
 
@@ -47,14 +56,19 @@ dict 根本沒有 `country`／`birthday` 這兩個 key。
 
 晚於切點的 133 人零缺口，是同一機制的反證：新解析器一走訪就有值。
 
-### 1.3 為什麼「永遠不會自己好」
+### 1.3 為什麼至今沒被修好
 
-- `cpbl-scrape-bio` **不在每日刷新鏈上**（`run_refresh_recent.py` 與
-  `scrape-daily.sh` 皆無 bio 步驟），不會被排程回訪。
-- 手動執行的兩種 scope 都涵蓋不到這 14 人：`scope=current` 取
-  `batting_current ∪ pitching_current`（本季登錄），他們只在 2025 出賽；
-  `--skip-done` 依 `bio_updated_at IS NOT NULL` 跳過，而他們的時間戳是有值的
-  （只是來自舊解析器）。
+- `cpbl-scrape-bio` **不在排程鏈上**（`run_refresh_recent.py` 與 `scrape-daily.sh`
+  皆無 bio 步驟）→ `cf9d8b8` 之後**根本沒有再跑過**，新解析器的能力從未施加到這批列。
+- 就算再跑，`--skip-done` 也會跳過他們：該旗標依 `bio_updated_at IS NOT NULL` 判斷，
+  而他們的時間戳是有值的（只是來自舊解析器）——這正是 §1.2 那條判準的實務後果。
+
+> **勘誤（iteration 1 → 2）**：本節原先宣稱「`scope=current` 涵蓋不到這 14 人」，
+> **不成立**。canonical `_target_ids('current')` 取 `batting_current ∪
+> pitching_current` 且**沒有年度條件**，而 `pitching_current` 保留 2025 列
+> （實測 2025 有 168 列），故缺值 14 人與 current 名單的交集是 **14/14**。
+> 換言之 `scope=current` 涵蓋得到他們，卡住的是「沒再跑」與「`--skip-done`」。
+> 原句是未經查證的推測，已於 iteration 2 以 SQL 實測更正。
 
 **這推翻了卡面背景節的一句話**：`bio_updated_at` 非 NULL 只證明「被走訪過」，
 不證明「被有能力讀國籍／生日的版本走訪過」。判斷 bio 欄位是否可信，時間戳
@@ -136,11 +150,13 @@ sync_table players "id" \
 
 | 層 | 對 `country`／`birthday` 的語意 |
 |---|---|
-| 本機 `cpbl_player_bio._upsert` | `COALESCE(既有, EXCLUDED)`——**只補缺，不覆蓋** |
+| 本機 `cpbl_player_bio._upsert`（canonical，本卡**不使用**） | `COALESCE(既有, EXCLUDED)`——只補缺，不覆蓋 |
+| 本機 本卡 `FILL_SQL` 窄 UPDATE | `COALESCE(既有, 新值)`——只補缺，且只碰兩欄 |
 | 生產 `sync_table`（`refresh-cpbl-prod.sh:24-39`） | `ON CONFLICT (id) DO UPDATE SET country=EXCLUDED.country, …`——**無條件覆蓋** |
 
 **本機寫錯什麼，生產下一輪就照抄什麼，沒有第二道防線。**
-所以 §4 的 fail-closed 閘門是本機到生產之間的**唯一守門**，不是可選的保險。
+生產端不區分「本機是刻意寫入還是被退化頁洗掉」，一律照抄——所以 §4 的窄 UPDATE
+邊界是本機到生產之間的**唯一守門**，不是可選的保險。
 
 ---
 
@@ -188,25 +204,64 @@ sync_table players "id" \
 8. **部署驗證**：補值後的下一次 10:10 之後，確認生產 `players` 那 14 列的
    `country`／`birthday` 已有值（部署動作＝每日鏈自動帶上，無獨立 deploy 步驟）。
 
-### 已就緒的工具（commit `98ce3e2`）
+### 已就緒的工具
 
-- `scripts/backfill_player_bio_gap1.py`——目標名單由 DB 缺值條件推導（補滿後重跑
-  即空集合，冪等）；原始 HTML 逐頁落地存證（卡面要求實地查證，不得從解析器行為
-  反推）；**fail-closed 寫入閘門**：只有徵狀 `person_page_parsed` 才呼叫 `_upsert`。
-- `tests/test_bio_gap_backfill.py`——把該閘門釘成可執行契約。
+- `scripts/backfill_player_bio_gap1.py`——目標名單釘死在卡面核准的 14 人
+  （`EXPECTED_GAP_IDS`）；原始 HTML 逐頁落地存證（卡面要求實地查證，不得從解析器
+  行為反推）；寫入走**專用窄 UPDATE**。
+- `tests/test_bio_gap_backfill.py`——對寫入邊界與範圍閘門斷言（14 項）。
 
-**為什麼必須 fail-closed**（本輪查核抓到的阻塞缺陷）：canonical `_upsert` 只對
-`country`／`birthday`／`bats`／`throws` 走 COALESCE，
+#### 取捨：不走 canonical `_upsert`，改用專用窄 UPDATE
+
+canonical `cpbl_player_bio._upsert` 的語意是「**用 person 頁的全量內容更新一列**」：
+`country`／`birthday`／`bats`／`throws` 走 COALESCE，但
 `height_cm`／`weight_kg`／`debut`／`education`／`birthplace`／`draft` 是**無條件
-`EXCLUDED` 覆蓋**。若頁面回的是挑戰頁或查無此人空頁，`parse_bio` 全 None，
-直接寫入會把 batch 1 那 6 人**既有的** ht/wt/debut/birthplace 洗成 NULL——
-補值卡反而弄丟資料。配合 §3 的生產無條件覆蓋，這個閘門是唯一守門。
+`EXCLUDED` 覆蓋**，並且會用頁面姓名改寫 `name`。
 
-同一輪另修：**挑戰頁原本不計入斷路器**。被節流時官網回的是「成功的挑戰頁」而非
-例外，而 `consec_fail` 原本只有例外會累加，14 頁會被一路打完——正是把節流打成
-深度封鎖的模式。現在 `non_cpbl_page` 會累加 `consec_fail`；`check_circuit` 移出
-`try`（免得自己拋的 RuntimeError 被同層 `except` 吞掉誤記成 `fetch_failed`）；
-報告改寫在 `finally`（斷路器跳掉的當下正是徵狀資料最有價值的時候）。
+本卡要做的事只有「補兩個 NULL 欄」。硬套全量更新語意，任何退化頁／部分解析頁／
+抓錯人的頁都會造成資料損失——**這是問題根源**。
+
+iteration 1 曾試圖以「列舉哪些徵狀不可寫」來擋，**實證會漏**：擋掉了挑戰頁與
+查無此人頁，仍漏掉兩種——
+
+1. **部分解析頁**：頁面有姓名、`country` 有值但其餘欄缺 → 判定可寫 → `_upsert`
+   仍以 `None` 覆蓋 batch 1 那 6 人既有的 height/weight/debut/birthplace。
+2. **姓名不符頁**：抓到別人的頁仍寫入，且 `_upsert` 會用該頁姓名改寫 `name`，
+   **把目標列改成別人**。
+
+iteration 2 改為**限制寫入語句能觸及的範圍**：
+
+```sql
+UPDATE cpbl.players
+   SET country  = COALESCE(country, %s),
+       birthday = COALESCE(birthday, %s),
+       bio_updated_at = now()
+ WHERE id = %s
+```
+
+其餘六欄與 `name` **結構上不可能被碰到**——不是靠守衛判斷，是語句裡根本沒有它們；
+`COALESCE` 保證只補缺不覆蓋。代價是不再走 canonical 寫入路徑，換得的是「寫入邊界
+不依賴徵狀列舉的完整性」。考慮 §3 的生產端無條件覆蓋（本機寫錯就照抄到生產、
+無第二道防線），這個代價值得。
+
+姓名檢查仍保留，但**定位改變**：從資料保護降為**健全性閘門**——頁面姓名與 DB 不符
+代表該頁的 country／birthday 本來就是別人的值，故拒寫並記錄，交人工判斷
+（可能抓錯人，也可能官網改名而 DB 未同步；兩者都不該由腳本自行決定）。
+
+#### 範圍閘門（延後執行的副作用）
+
+`target_ids()` 原本動態撈「執行當下所有缺值球員」。正式執行既然延到 ~8/7，期間若有
+新球員登錄且 bio 缺值，動態名單會多抓多寫、**超出卡面核准的 14 人與站台請求量**
+——而請求量正是這張卡被押後的原因。現在 DB 推導集合必須與 `EXPECTED_GAP_IDS`
+完全相同，否則 abort 並要求人工重新確認範圍（不自動放行、不自動取交集）。
+
+#### 斷路器涵蓋挑戰頁
+
+被節流時官網回的是「成功的挑戰頁」而非例外，而 `consec_fail` 原本只有例外會累加，
+14 頁會被一路打完——正是把節流打成深度封鎖的模式。現在 `non_cpbl_page` 會累加
+`consec_fail`；`check_circuit` 移出 `try`（免得自己拋的 RuntimeError 被同層
+`except` 吞掉誤記成 `fetch_failed`）；報告改寫在 `finally`（斷路器跳掉的當下正是
+徵狀資料最有價值的時候）。
 
 ---
 
@@ -242,10 +297,12 @@ scratchpad，凍結 artifact 未動），輸出與
 
 ## 6. 後續待辦（本卡範圍外，Coordinator 另開卡）
 
-**`cpbl.batting_splits` 2025「VS. 本土/外籍投手」污染**：該表 2025 的 683 列
-`本土/外籍` 分項是 **2026-07-14 由 `build_splits` 以 `classify()` 計算**寫入的
-（`updated_at` 可證），當時這 14 人 `country` 為 NULL → 一律計入「VS. 本土投手」。
-補值後這些列即為 stale，需重跑 `cpbl-build-splits 2025` 才會一致。
+### `cpbl.batting_splits` 2025「VS. 本土/外籍投手」污染
+
+該表 2025 的 683 列 `本土/外籍` 分項是 **2026-07-14 由 `build_splits` 以
+`classify()` 計算**寫入的（`updated_at` 可證），當時這 14 人 `country` 為 NULL →
+一律計入「VS. 本土投手」。補值後這些列即為 stale，需重跑 `cpbl-build-splits 2025`
+才會一致。
 
 - 影響面：2025 有對戰過這 14 位洋投的打者，其本土／外籍分項數據偏移。
 - 本卡 `db_scope` 限定只 UPDATE `cpbl.players` 的 bio 欄，故**不在本卡處理**。
@@ -253,6 +310,19 @@ scratchpad，凍結 artifact 未動），輸出與
   同步清單內，該段包在 `WITH_DETAIL` 條件中，而每日鏈以
   `SKIP_SCRAPE=1 WITH_DETAIL=1` 呼叫（`scrape-daily.sh:106`）→ 每日同步。
   **這代表污染也會每日照抄到生產**，且與 §3 同樣是 `DO UPDATE SET` 無條件覆蓋。
+
+### 上游 memo 的回指連結（待 Coordinator 裁定，本輪未動）
+
+`ML-WP-BIO-PRIOR1_MEMO.md` §6(b) 把「14 位缺值補齊後敏感度重估」列為升級卡前置，
+但沒有指回本診斷。該 memo 是 **🏁 已結案卡的凍結交付物**，故本輪**未動它**。
+
+建議做法（擇一，由 Coordinator 裁定）：
+- (A) 待 8/7 完整交付時，於該 memo §6(b) 補一行純指標連結，不改任何數字、
+  不改 verdict、不改協定描述；或
+- (B) 完全不動凍結交付物，改由本檔與卡片單向指回上游（現況即是）。
+
+我的傾向是 (B)：凍結交付物的價值來自「不會再變」，而單向指回已足夠讓查核者
+從卡片走到兩份文件。若採 (A)，變更範圍應嚴格限制在一行連結。
 
 ---
 
