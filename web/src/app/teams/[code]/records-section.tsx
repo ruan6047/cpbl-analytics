@@ -25,22 +25,38 @@ import type { TeamRecordsFranchise, TeamRecordsMilestone, TeamRecordsStreak, Tea
 // 右側大字錨點」四段式內容，所以不直接套用元件本身，但沿用它驗證過的
 // 「bg-surface-2 + rounded-lg（無 border）」視覺語彙組出符合本區塊內容形狀的卡片。
 //
-// 其餘不變：三類共用同一個 <RecordCard>（同一套排版節奏，不做成三種元件）；
-// 「還差 N」／「連續 N 場」是唯一視覺錨點；沒有內容的子分類整段不渲染；三類
-// 全空時顯示整區塊統一退化文案；隊史「本季貢獻非即時」的但書跟著該分類走；
-// 生涯口徑／里程碑門檻／隊史逼近門檻與判準全部不變（後端一行未改動）。
+// 2026-07-28 需求方人工審核第三輪：資料卡讀起來滿意，但要求橫向排列以縮短整頁
+// 捲動（原話：「卡片是希望橫向排列 讓這頁資訊能不用卷軸」）。成功條件是量出來的
+// 「這頁不用捲軸」，不是「用了 grid」。改成響應式網格，套用本檔案所屬 page.tsx
+// 已有的「戰績分項」網格斷點（`grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`，見
+// page.tsx `seasonSupporting` 區塊）——同一頁、同樣「把多張小卡片橫向塞進去縮短
+// 捲動」的目的，直接沿用同一組斷點而非另訂一套。評估了另外兩個既有積木：
+//   - focus-section.tsx 的 `grid-cols-1 md:grid-cols-2` 是固定兩欄（下一場卡＋
+//     熱區卡各一），不是「N 筆可變數量」的重複清單網格，形狀不合。
+//   - `StatGrid`（ui.tsx）的 `cols` prop 是**無響應式斷點**的固定欄數（cols=3 在
+//     375px 也是 3 欄），直接套用會在窄寬度擠爆——違反「375px 無橫向溢出」鐵則，
+//     其版面（置中 dl，label 在上 value 在下）也放不下本區塊的四段式內容，故不用。
+// 卡片內部版面也一併調整：headline 與 anchor 同列但改頂對齊（`items-start`，
+// 因網格變窄後文字更常換行）；headline 移除 `truncate`——需求方明訂「不要
+// truncate 掉球員名」，寧可讓描述句換行也不截斷；anchor 仍維持 `shrink-0` 讓它
+// 保有固定視覺重量，不被擠壓。
 
 function RecordCard({ headline, detail, anchor }: { headline: ReactNode; detail?: ReactNode; anchor: ReactNode }) {
   return (
-    <li className="flex items-center gap-3 rounded-lg bg-surface-2 px-3 py-2.5">
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm text-ink">{headline}</div>
-        {detail && <div className="truncate text-[11px] text-faint">{detail}</div>}
+    <li className="rounded-lg bg-surface-2 px-3 py-2.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1 text-sm text-ink">{headline}</div>
+        <div className="shrink-0 whitespace-nowrap text-base font-bold tabular-nums text-accent">{anchor}</div>
       </div>
-      <div className="shrink-0 whitespace-nowrap text-base font-bold tabular-nums text-accent">{anchor}</div>
+      {detail && <div className="mt-0.5 text-[11px] text-faint">{detail}</div>}
     </li>
   );
 }
+
+// 三類共用的網格容器：沿用 page.tsx「戰績分項」的斷點（見上方說明），
+// gap-2（非既有的 gap-3）是唯一的刻意偏離——本卡片內距已經比較緊湊
+// （px-3 py-2.5，非 Card 的 p-4），沿用 gap-3 視覺上會顯得鬆散不成套。
+const RECORD_GRID = "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3";
 
 function SectionHeading({ children, caption }: { children: ReactNode; caption?: ReactNode }) {
   return (
@@ -56,7 +72,7 @@ function MilestonesList({ items }: { items: TeamRecordsMilestone[] }) {
   return (
     <div>
       <SectionHeading>生涯里程碑</SectionHeading>
-      <ul className="space-y-1.5">
+      <ul className={RECORD_GRID}>
         {items.map((m, i) => (
           <RecordCard
             key={`${m.player_id}-${m.stat}-${i}`}
@@ -75,7 +91,7 @@ function StreaksList({ items }: { items: TeamRecordsStreak[] }) {
   return (
     <div>
       <SectionHeading>進行中連續安打</SectionHeading>
-      <ul className="space-y-1.5">
+      <ul className={RECORD_GRID}>
         {items.map((s) => (
           <RecordCard
             key={s.player_id}
@@ -95,7 +111,7 @@ function FranchiseList({ items }: { items: TeamRecordsFranchise[] }) {
       <SectionHeading caption="僅計數型；資料以年度成績表計，本季貢獻須待球季結束入庫後才會反映，非即時。">
         隊史紀錄逼近
       </SectionHeading>
-      <ul className="space-y-1.5">
+      <ul className={RECORD_GRID}>
         {items.map((r, i) => (
           <RecordCard
             key={`${r.player_id}-${r.stat}-${i}`}
