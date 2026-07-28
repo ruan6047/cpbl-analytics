@@ -12,6 +12,7 @@ from cpbl.api.helpers import _ip_disp, _ip_real, _parse_features, _real_ip, _rou
 from cpbl.api.routers.ability import _grade
 from cpbl.api.routers.players import _merge_splits
 from cpbl.api.routers.tracking import _batted_result, _count_bucket, _zone_result
+from cpbl.api.team_records import BATTER_MILESTONES, _franchise_approach, _next_milestone
 
 # ---- 局數記法換算（.1=⅓、.2=⅔） ----
 
@@ -167,3 +168,55 @@ def test_merge_splits_pitching_outs_normalized():
     out = _merge_splits([prow(5, 2), prow(3, 2)], "pitching")
     assert out[0]["inning_pitched_cnt"] == 9
     assert out[0]["inning_pitched_div3"] == 1
+
+
+# ---- UX-TEAM-RECORDS1：里程碑階梯計算（純函式） ----
+
+
+def test_next_milestone_matches_card_examples():
+    # 卡面 Coordinator 實測範例：陳晨威生涯 891 安差 9 到 900；潘傑楷 490 差 10 到 500。
+    assert _next_milestone(891, ladder=100, start=200) == (900, 9)
+    assert _next_milestone(490, ladder=100, start=200) == (500, 10)
+
+
+def test_next_milestone_below_start_threshold_is_far():
+    # 90 安未達起始門檻(200)，下一個有效里程碑仍是 200，差距刻意很大（後續由呼叫端的
+    # near 門檻過濾掉，不會誤標「快到了」）。
+    milestone, gap = _next_milestone(90, ladder=100, start=200)
+    assert milestone == 200
+    assert gap == 110
+
+
+def test_next_milestone_exact_multiple_rolls_to_next():
+    # 現值剛好是階梯倍數（如剛達成 300 安）：下一個里程碑是 400，不是 300 本身。
+    assert _next_milestone(300, ladder=100, start=200) == (400, 100)
+
+
+def test_next_milestone_small_ladder():
+    assert _next_milestone(22, ladder=25, start=25) == (25, 3)
+    assert _next_milestone(78, ladder=10, start=20) == (80, 2)
+
+
+def test_franchise_approach_excludes_sole_holder_and_far_gaps():
+    stat_defs = [d for d in BATTER_MILESTONES if d["stat"] == "h"]
+    roster = [
+        {"player_id": "leader", "name": "領先者"},
+        {"player_id": "close", "name": "逼近者"},
+        {"player_id": "far", "name": "遙遠者"},
+        {"player_id": "unknown", "name": "無隊史資料"},
+    ]
+    totals = {
+        "leader": {"name": "領先者", "h": 1000},
+        "close": {"name": "逼近者", "h": 991},   # 差 9 <= near(10)
+        "far": {"name": "遙遠者", "h": 500},      # 差 500 > near(10)
+    }
+    out = _franchise_approach(roster, totals, stat_defs, role="batting")
+    assert [r["player_id"] for r in out] == ["close"]
+    assert out[0]["record"] == 1000
+    assert out[0]["remaining"] == 9
+    assert out[0]["holder"] == "領先者"
+
+
+def test_franchise_approach_empty_totals_is_empty():
+    stat_defs = [d for d in BATTER_MILESTONES if d["stat"] == "h"]
+    assert _franchise_approach([{"player_id": "x", "name": "x"}], {}, stat_defs, "batting") == []
