@@ -265,12 +265,43 @@ def _sum_batting_career(per: dict[int, list]) -> dict[str, int]:
 
 
 def _career_pitching_per_year(cur, player_id: str) -> dict[int, list]:
-    """逐年投球彙總（canonical：pitching_seasons；ip 以 .1/.2 換算真實局數）。"""
+    """逐年投球彙總（canonical：pitching_seasons ≤2024 + pitching_gamelog 2025+ 取代；
+    ip 以 .1/.2 換算真實局數）。
+
+    2026-07-28 UX-TEAM-RECORDS1 修正：原本只讀 `pitching_seasons`（止於 2025），
+    完全沒有本季 gamelog 補值機制——跟打擊 helper 不對稱，導致投手「生涯」永遠
+    缺當季（實測案例：江國豪三振畫面顯示 194／差 6 到 200，實際本季已投出 204，
+    早已達標；賴鴻誠同理）。現在比照打擊 helper 補上 2025+ gamelog 取代，兩套
+    helper 同一套邏輯。
+
+    `pitching_gamelog` 沒有直接的 w/l/sv/hld 欄位（跟 `pitching_seasons` 不同），
+    需從其他官方欄位換算：w/l 用 `game_result`（'勝'/'敗'，官方逐場欄位，非推算）；
+    sv 用 `games.closer_id`（官網逐場直接寫入，UX-TEAM-RECORDS1 隊史彙總已驗證
+    這個來源正確，不用 `cpbl.models.pitcher_decisions` 的規則 9.19 推算——那套是
+    給沒有 closer_id 這個欄位的資料路徑用的）；hld 用官方 `relief_point`；
+    gs 用 `role_type='先發'`；so/局數/被安打/保送/自責分直接加總欄位。
+    """
     cur.execute(
         "SELECT year, sum(g),sum(gs),sum(w),sum(l),sum(sv),sum(hld),"
         "sum(trunc(ip)+(ip-trunc(ip))*10/3.0) AS rip,sum(so),sum(h),sum(bb),sum(er) "
         "FROM cpbl.pitching_seasons WHERE player_id=%s GROUP BY year", (player_id,))
-    return {r[0]: [float(x) if x is not None else 0.0 for x in r[1:]] for r in cur.fetchall()}
+    per: dict = {r[0]: [float(x) if x is not None else 0.0 for x in r[1:]] for r in cur.fetchall()}
+    cur.execute(
+        "SELECT pg.year, count(DISTINCT pg.game_sno), "
+        "count(*) FILTER (WHERE pg.role_type='先發'), "
+        "count(*) FILTER (WHERE pg.game_result='勝'), "
+        "count(*) FILTER (WHERE pg.game_result='敗'), "
+        "count(*) FILTER (WHERE g.closer_id=pg.pitcher_acnt), "
+        "count(*) FILTER (WHERE pg.relief_point>0), "
+        "sum(pg.inning_pitched_cnt)+sum(pg.inning_pitched_div3)/3.0 AS rip, "
+        "sum(pg.so), sum(pg.hits), sum(pg.bb), sum(pg.earned_runs) "
+        "FROM cpbl.pitching_gamelog pg JOIN cpbl.games g "
+        "ON g.year=pg.year AND g.kind_code=pg.kind_code AND g.game_sno=pg.game_sno "
+        "WHERE pg.pitcher_acnt=%s AND pg.kind_code='A' AND pg.year>=2025 GROUP BY pg.year",
+        (player_id,))
+    for r in cur.fetchall():
+        per[r[0]] = [float(x) if x is not None else 0.0 for x in r[1:]]  # 2025+ 以 gamelog 為準
+    return per
 
 
 def _sum_pitching_career(per: dict[int, list]) -> dict[str, float]:
