@@ -2,7 +2,7 @@
 
 - 需求：ruan6047　規劃：待指派　分支：`ai/<執行者>/UX-TEAM-FOCUS2`
 - 執行：待指派　查核：待指派（跨模型家族或人工，且 ≠ 執行）
-- Initiative：INIT-PRODUCT-UX　spec 基線：UX-TEAM-SPLIT-SCOPE1（近日焦點頁籤骨架）
+- Initiative：INIT-PRODUCT-UX　spec 基線：v0.2
 - DB：`db_scope: read`
 - 部署：是　環境：production　PR：—　Merge SHA：—
 - 範圍：充實球隊頁第一頁籤「近日焦點」的內容（目前僅含近期賽事）。

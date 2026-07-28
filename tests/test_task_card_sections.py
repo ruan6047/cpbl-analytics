@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
@@ -83,15 +84,35 @@ def test_ci_web_job_runs_contract_tests() -> None:
     assert "run: npm test" in web_job
 
 
-def test_initiative_children_carry_the_parent_baseline_field() -> None:
-    """Initiative 子卡的 spec 基線欄不得為「—」（canonical baseline-cascade §5）。
+_BASELINE_FIELD_RE = re.compile(r"spec 基線：\s*([^　\n]+)")
+_VERSION_TOKEN_RE = re.compile(r"v\d+(?:\.\d+)*")
 
-    UX-TEAM-STYLE1 iteration 1 整輪查核退在這一欄上——而 process-wf17-conventions
-    的教訓原文就是「首戰命中規則作者自己」，同一位 Coordinator 當日二度命中。
-    開卡層的 canonical 對照不能靠記得；範圍同前兩支（守門生效後有 lifecycle event
-    的活卡），凡卡面 Initiative 欄指向具體父卡者，spec 基線欄必須非「—」。
-    版本是否與父卡一致仍由 review_prompt.baseline_check 在查核時比對（父卡版本
-    會演進，這裡只擋「根本沒填」）。
+
+def _baseline_versions(text: str) -> tuple[str | None, set[str]]:
+    """卡面 spec 基線欄的原文與其中的版本 token 集合。
+
+    欄位以全形空格分隔（同一行還有 Initiative 等欄），故切到 `　` 或行尾為止；
+    版本 token 取整段比對而非子字串包含——否則 `v1.0` 會被誤判為滿足父卡的 `v1`。
+    """
+    m = _BASELINE_FIELD_RE.search(text)
+    if not m:
+        return None, set()
+    raw = m.group(1).strip()
+    return raw, set(_VERSION_TOKEN_RE.findall(raw))
+
+
+def test_initiative_children_baseline_matches_parent_version() -> None:
+    """Initiative 子卡的 spec 基線欄必須含父卡當前版本（canonical baseline-cascade §5）。
+
+    本測試原本只擋「欄位為『—』」，於是 `spec 基線：UX-TEAM-SPLIT-SCOPE1（近日焦點
+    頁籤骨架）`——填的是**卡名不是版本**——一路通過，最後由 UX-TEAM-FOCUS2 的跨家族
+    查核整輪退回才發現，且同型錯誤同時存在於四張卡。教訓與 INGEST-PLAYER-BIO-GAP1
+    的閘門缺陷同型：**檢查哨兵值的缺席，不等於檢查該成立的性質**。
+
+    改為實質比對：抽出子卡基線欄中的版本 token（`v1`／`v0.2`／`v1.3`…），要求父卡
+    當前版本在其中。允許複合基線（如 `GAME_RECAP v1.3＋PRODUCT_UX_BLUEPRINT v0.2`）
+    ——只要父卡版本是其中之一即可，因為那類卡確實同時受兩份 spec 約束。
+    token 取整段相等而非子字串，否則 `v1.0` 會被 `v1` 誤放行。
     """
     events = _events()
     start = next(
@@ -99,7 +120,7 @@ def test_initiative_children_carry_the_parent_baseline_field() -> None:
     )
     affected = {str(event["card_id"]) for event in events[start:]}
     latest = {str(event["card_id"]): event for event in events}
-    missing = []
+    bad = []
     for card_id in sorted(affected):
         if latest[card_id]["delivery_status"] == "🏁完成":
             continue
@@ -110,9 +131,21 @@ def test_initiative_children_carry_the_parent_baseline_field() -> None:
         m = review_prompt._INITIATIVE_RE.search(text)
         if not m or card_id.startswith("INIT-"):
             continue  # 無父卡或本身是 initiative
-        if not review_prompt._BASELINE_RE.search(text):
-            missing.append(f"{card_id}（Initiative={m.group(1)}，spec 基線欄缺或為「—」）")
-    assert not missing, (
-        "Initiative 子卡的 spec 基線欄必填父卡版本（baseline-cascade §5）：\n  "
-        + "\n  ".join(missing)
+        parent_id = m.group(1)
+        parent_path = ROOT / "docs" / "tasks" / f"{parent_id}.md"
+        if not parent_path.exists():
+            continue  # 父卡已封存；版本由查核時人工核對
+        parent_raw, parent_vers = _baseline_versions(parent_path.read_text(encoding="utf-8"))
+        if not parent_vers:
+            continue  # 父卡自己沒有版本可比，非子卡之過
+        child_raw, child_vers = _baseline_versions(text)
+        if child_vers & parent_vers:
+            continue
+        bad.append(
+            f"{card_id}（Initiative={parent_id}；卡面「{child_raw or '缺欄'}」"
+            f"未含父卡當前版本 {sorted(parent_vers)}，父卡欄為「{parent_raw}」）"
+        )
+    assert not bad, (
+        "Initiative 子卡的 spec 基線欄必須含父卡當前版本（baseline-cascade §5）；"
+        "填卡名或舊版本皆會在查核時整輪退回：\n  " + "\n  ".join(bad)
     )

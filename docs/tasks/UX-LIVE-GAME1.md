@@ -2,7 +2,7 @@
 
 - 需求：ruan6047　規劃：GPT-5.6@Codex　分支：`ai/<執行者>/UX-LIVE-GAME1`
 - 執行：待指派（建議 L2；既有 game board 上的狀態式 React UI 與 polling）　查核：待指派（L2 獨立 UX／browser review；須 ≠ 執行）
-- Initiative：INIT-PRODUCT-UX　spec 基線：v1.0
+- Initiative：INIT-PRODUCT-UX　spec 基線：v0.2
 - DB：`db_scope: none`
 - 部署：是　環境：production　PR：—　Merge SHA：—
 - 範圍：見 [`../LIVE_GAME_PRODUCT_SPEC.md`](../LIVE_GAME_PRODUCT_SPEC.md) §3、§5–§7

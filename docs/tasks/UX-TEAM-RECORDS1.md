@@ -2,7 +2,7 @@
 
 - 需求：ruan6047（2026-07-28 看過 UX-TEAM-FOCUS2 畫面後提出）　規劃：本卡 spec　分支：`ai/<執行者>/UX-TEAM-RECORDS1`
 - 執行：待指派　查核：待指派（跨模型家族或人工，且 ≠ 執行）
-- Initiative：INIT-PRODUCT-UX　spec 基線：UX-TEAM-SPLIT-SCOPE1（近日焦點頁籤骨架）
+- Initiative：INIT-PRODUCT-UX　spec 基線：v0.2
 - DB：`db_scope: read`
 - 部署：是　環境：production　PR：—　Merge SHA：—
 - 範圍：球隊頁「近日焦點」頁籤新增「即將挑戰的紀錄」區塊——把快要達成的生涯里程碑、

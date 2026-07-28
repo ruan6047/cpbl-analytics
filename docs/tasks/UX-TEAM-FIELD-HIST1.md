@@ -2,7 +2,7 @@
 
 - 需求：ruan6047　規劃：待指派　分支：`ai/<執行者>/UX-TEAM-FIELD-HIST1`
 - 執行：待指派　查核：待指派（跨模型家族或人工，且 ≠ 執行）
-- Initiative：INIT-PRODUCT-UX　spec 基線：UX-TEAM-SPLIT-SCOPE1（球隊頁年度軸）
+- Initiative：INIT-PRODUCT-UX　spec 基線：v0.2
 - DB：`db_scope: read`
 - 部署：是　環境：production　PR：—　Merge SHA：—
 - 範圍：讓球隊頁「賽季」頁籤在**歷史年度**也能顯示主力選手的守備位置圖。
