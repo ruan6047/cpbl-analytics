@@ -8,6 +8,7 @@
 
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
+| [DEV-TRAILER-GUARD-SCOPE1](tasks/DEV-TRAILER-GUARD-SCOPE1.md) | — | T2 | trailer 守衛取樣範圍 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-28T19:14:00+08:00 |
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | — | `ai/sonnet-5/INGEST-GAME-TM-REFACTOR1-g3 @ .claude/worktrees/ingest-game-tm-refactor1-g3-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-24T12:53:42+08:00 |
 | [INGEST-PA-DAILY1](tasks/INGEST-PA-DAILY1.md) | — | T3 | canonical PA build 接進每日 refresh 鏈 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-26T20:55:46+08:00 |
 | [INGEST-PLAYER-BIO-GAP1](tasks/INGEST-PLAYER-BIO-GAP1.md) | INIT-OFFICIAL-DATA1 | T3 | 補齊 14 位球員的 country／birthday | Claude Opus 5@Claude Code | `ai/opus-5/INGEST-PLAYER-BIO-GAP1 @ .claude/worktrees/ingest-player-bio-gap1-execution` | 3 | ⏸阻塞 | ⏸未部署 | 2026-07-28T11:50:08+08:00 |
@@ -21,7 +22,7 @@
 | [ML-FIELD-OF1](tasks/ML-FIELD-OF1.md) | — | T4 | 外野空中球守備範圍指標 | ruan6047（Design Gate） | — | 0 | 💡需求 | ⏸未部署 | 2026-07-22T16:51:08+08:00 |
 | [ML-PA-SIM-CONTEXT1](tasks/ML-PA-SIM-CONTEXT1.md) | — | T4 | 打席結果分布的情境條件化 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-25T19:06:00+08:00 |
 | [ML-PA-SIM-TEAM1](tasks/ML-PA-SIM-TEAM1.md) | — | T4 | 打席模擬對某一隊 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-25T19:07:00+08:00 |
-| [ML-PITCHER-SCORELESS1](tasks/ML-PITCHER-SCORELESS1.md) | INIT-OFFICIAL-DATA1 | T3 | 投手連續無自責分局數（保守下界） | Claude Opus 5@Claude Code | `ai/opus-5/ML-PITCHER-SCORELESS1 @ .claude/worktrees/ml-pitcher-scoreless1-execution` | 11 | ✅可合併 | ⏸未部署 | 2026-07-28T18:58:00+08:00 |
+| [ML-PITCHER-SCORELESS1](tasks/ML-PITCHER-SCORELESS1.md) | INIT-OFFICIAL-DATA1 | T3 | 投手連續無自責分局數（保守下界） | Claude Opus 5@Claude Code | `ai/opus-5/ML-PITCHER-SCORELESS1 @ .claude/worktrees/ml-pitcher-scoreless1-execution` | 11 | 📦已合併 | ⏸未部署 | 2026-07-28T19:11:00+08:00 |
 | [ML-PITCHER-SCORELESS2](tasks/ML-PITCHER-SCORELESS2.md) | INIT-OFFICIAL-DATA1 | T3 | 提高連續無自責分尾段的採計率 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-28T17:52:57+08:00 |
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:09+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:10+08:00 |
