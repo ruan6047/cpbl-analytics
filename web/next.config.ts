@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
   // 「worktree clean」宣稱不成立）。該行在本專案**無作用**——tsconfig 的 include 已同時列了
   // `.next/types/**/*.ts` 與 `.next-check/types/**/*.ts`，且兩者皆 gitignore、乾淨 checkout 上都不存在。
   // 故由 build:check 於結束時還原該檔（保留原 exit code），不改 gitignore——
+  // 且 **git 基準必須是 `.next` 版本**：build:check 還原成的是 git 裡的內容，
+  // 若基準存成 `.next-check`，`npm run dev` 寫回 `.next` 後就沒有任何東西會還原它
+  // （2026-07-28 首次修正只做了一半，UX worktree 仍每次變髒）。dev 跑得比 build:check 頻繁，
+  // 故以 dev 的輸出為基準。
   // CI 是 `npm ci` 後直接 `npx tsc --noEmit`（未先 build），少了 next-env.d.ts 會失去
   // `/// <reference types="next" />` 帶進來的 Next 全域型別。
   distDir: process.env.NEXT_DIST_DIR || ".next",
