@@ -21,12 +21,10 @@ from cpbl.models.scoreless_streak import (
     METRIC_LABEL,
     METRIC_NOTE,
     Appearance,
-    GameEvidence,
     StreakResult,
     TailCredit,
     compute_streak,
     outs_to_innings,
-    tail_credit,
 )
 
 BASIS_STRICT = "官方 earned_runs=0 的整場出賽"
@@ -110,31 +108,32 @@ def _game_ref(a: Appearance) -> dict:
     }
 
 
+TAIL_DISABLED_REASON = (
+    "尾段（中斷場的部分局數）自 2026-07-28 起停用：所有由 livelog 推導出局數歸屬的方法"
+    "都需要「該半局沒有隱藏列」這個前提，而該前提已證偽——`main_event_no` 主序號不是列的"
+    "唯一鍵（全庫 2,457 個序號槽含多列，其中 204 個同時含換人列與比賽列），刪掉一列可以"
+    "不留任何洞。故本指標目前只採計官方 earned_runs=0 的**整場出賽**（strict），"
+    "零 livelog 推論。"
+)
+
+
 def tail_lookup_factory(
     player_id: str,
     livelog: dict[tuple[int, str, int], list[dict]],
     scoreboard: dict[tuple[int, str, int], dict[tuple[int, str], int]],
-    box: dict[tuple[int, str, int], dict[str, int]],
+    box: dict[tuple[int, str, int], dict[str, dict[str, int]]],
 ):
-    """給 `compute_streak` 用的尾段解析器；缺該場 livelog 一律回 None（不採計，保守）。
+    """尾段解析器——**目前一律回 None（fail-closed）**，理由見 `TAIL_DISABLED_REASON`。
 
-    `scoreboard` 與 `box`（全場每位投手的官方出局數）都是**必要**參數：`tail_credit`
-    用它們做覆蓋完整性的 runtime 交叉驗證，缺任一項 `coverage_reason` 都會讓尾段歸零。
+    `cpbl.models.scoreless_streak.forced_outs()` 與 `tail_credit()` 及其測試保留在原處，
+    待需求方裁定產品口徑後可直接接回；但**接回前必須先解決「無法證明半局內無隱藏列」
+    這個根本問題**，不要只是把這個函式改回去。
     """
 
-    def lookup(a: Appearance) -> TailCredit | None:
-        rows = livelog.get(a.key)
-        if not rows:
-            return None
-        game_box = box.get(a.key) or {}
-        evidence = GameEvidence(
-            scoreboard=scoreboard.get(a.key),
-            official_outs={p: v["outs"] for p, v in game_box.items()} or None,
-        )
-        return tail_credit(a.key, rows, player_id, evidence)
+    def lookup(_a: Appearance) -> TailCredit | None:
+        return None
 
     return lookup
-
 
 def load_appearances(
     kinds: Sequence[str], player_id: str | None = None,
@@ -262,7 +261,7 @@ def build_item(player_id: str, name: str | None, apps: Sequence[Appearance],
         "innings": outs_to_innings(res.outs),
         "strict_outs": res.strict_outs,
         "strict_innings": outs_to_innings(res.strict_outs),
-        "basis": BASIS_EXTENDED,
+        "basis": BASIS_STRICT,
         "strict_basis": BASIS_STRICT,
         "appearances_counted": len(counted),
         "tail_half_innings": len(res.tail.credited) if res.tail else 0,
@@ -329,6 +328,7 @@ def streak_payload(
         "kinds_counted": list(counted_kinds),   # 計入局數的賽別（例行賽）
         "kinds_in_scope": kinds,                # 一併載入、可中斷紀錄的賽別（含季後賽）
         "scope_note": SCOPE_NOTE,
+        "tail_disabled_note": TAIL_DISABLED_REASON,
         "team": team,
         "data_from_year": DATA_FROM_YEAR,
         "as_of": str(as_of) if as_of else None,
