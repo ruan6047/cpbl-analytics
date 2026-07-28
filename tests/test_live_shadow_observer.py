@@ -309,6 +309,122 @@ def test_start_raw_status_selects_twelve_second_interval_without_time_inference(
     assert observer.next_interval_seconds == 12
 
 
+def test_finished_games_are_persisted_and_skipped_from_next_cycle(tmp_path: Path):
+    cfg = config(tmp_path)
+    schedule = b'{"Data":{"Games":[{"GameStatus":"SCHEDULED","PreExeDate":"2026-07-29T18:35:00+08:00"}]}}'
+    finished = b'{"Data":{"Game":{"GameStatus":"FINISHED"}}}'
+    scheduled = b'{"Data":{"Game":{"GameStatus":"SCHEDULED","PreExeDate":"2026-07-29T18:35:00+08:00"}}}'
+    client = FakeClient([
+        FakeResponse(200, schedule),
+        FakeResponse(200, finished),
+        FakeResponse(200, finished),
+        FakeResponse(200, scheduled),
+        FakeResponse(200, schedule),
+        FakeResponse(200, scheduled),
+        FakeResponse(200, finished),
+        FakeResponse(200, finished),
+    ])
+    observer = Observer(cfg, client=client, sleep=lambda _: None)
+
+    assert observer.run_cycle(now=lambda: NOW) == "ok"
+    state = json.loads(cfg.state_path.read_text())
+    assert state["terminal_game_ids"] == ["2026-A-226", "2026-A-227"]
+
+    assert observer.run_cycle(now=lambda: NOW + timedelta(seconds=61)) == "ok"
+    assert client.urls[4:] == [build_game_url("2026-A-228", cfg)]
+
+
+def test_terminal_games_remain_skipped_after_observer_restart(tmp_path: Path):
+    cfg = config(tmp_path)
+    cfg.state_path.write_text(json.dumps({
+        "attempts_total": 0,
+        "recent_attempts": [],
+        "terminal_game_ids": ["2026-A-226", "2026-A-227"],
+    }))
+    schedule = b'{"Data":{"Games":[{"GameStatus":"SCHEDULED","PreExeDate":"2026-07-29T18:35:00+08:00"}]}}'
+    scheduled = b'{"Data":{"Game":{"GameStatus":"SCHEDULED","PreExeDate":"2026-07-29T18:35:00+08:00"}}}'
+    client = FakeClient([
+        FakeResponse(200, schedule),
+        FakeResponse(200, scheduled),
+        FakeResponse(200, scheduled),
+        FakeResponse(200, scheduled),
+    ])
+
+    observer = Observer(cfg, client=client, sleep=lambda _: None)
+    assert observer.run_cycle(now=lambda: NOW) == "ok"
+
+    assert client.urls == [build_schedule_url(cfg), build_game_url("2026-A-228", cfg)]
+    assert json.loads(cfg.state_path.read_text())["terminal_game_ids"] == [
+        "2026-A-226", "2026-A-227",
+    ]
+
+
+def test_only_exact_successful_single_game_finished_status_is_terminal(tmp_path: Path):
+    cfg = config(tmp_path)
+    schedule_finished = b'{"Data":{"Games":[{"GameStatus":"FINISHED"}]}}'
+    finished = b'{"Data":{"Game":{"GameStatus":"FINISHED"}}}'
+    start = b'{"Data":{"Game":{"GameStatus":"START"}}}'
+    scheduled = b'{"Data":{"Game":{"GameStatus":"SCHEDULED"}}}'
+    client = FakeClient([
+        FakeResponse(200, schedule_finished),
+        FakeResponse(302, finished),
+        FakeResponse(200, start),
+        FakeResponse(200, scheduled),
+    ])
+    observer = Observer(cfg, client=client, sleep=lambda _: None)
+
+    assert observer.run_cycle(now=lambda: NOW) == "ok"
+
+    assert json.loads(cfg.state_path.read_text())["terminal_game_ids"] == []
+
+
+@pytest.mark.parametrize(
+    "terminal_game_ids",
+    [
+        "2026-A-226",
+        ["2026-A-226", 227],
+        ["2026-A-999"],
+        ["2026-A-226", "2026-A-226"],
+        ["2026-A-227", "2026-A-226"],
+    ],
+)
+def test_invalid_persisted_terminal_game_ids_fail_closed(
+    tmp_path: Path,
+    terminal_game_ids: object,
+):
+    cfg = config(tmp_path)
+    cfg.state_path.write_text(json.dumps({
+        "attempts_total": 0,
+        "recent_attempts": [],
+        "terminal_game_ids": terminal_game_ids,
+    }))
+    observer = Observer(cfg, client=FakeClient([]), sleep=lambda _: None)
+
+    with pytest.raises(ValueError, match="terminal_game_ids"):
+        observer.run_cycle(now=lambda: NOW)
+
+
+def test_marking_terminal_game_preserves_existing_persistent_state(tmp_path: Path):
+    cfg = config(tmp_path)
+    original_state = {
+        "attempts_total": 17,
+        "recent_attempts": [{"epoch": NOW.timestamp(), "template_id": "schedule"}],
+        "next_sequence": 42,
+        "terminal_game_ids": ["2026-A-226"],
+        "future_compatible_field": {"keep": True},
+    }
+    cfg.state_path.write_text(json.dumps(original_state))
+    observer = Observer(cfg, client=FakeClient([]), sleep=lambda _: None)
+
+    observer.terminal_games.mark("2026-A-227")
+
+    state = json.loads(cfg.state_path.read_text())
+    assert state == {
+        **original_state,
+        "terminal_game_ids": ["2026-A-226", "2026-A-227"],
+    }
+
+
 def test_5xx_retries_only_once_and_persists_both_attempts(tmp_path: Path):
     cfg = config(tmp_path)
     sleeps: list[float] = []

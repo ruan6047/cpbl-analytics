@@ -232,6 +232,46 @@ class PersistentBudget:
             return total
 
 
+class PersistentTerminalGames:
+    """只依 single-game exact FINISHED 保存不再輪詢的 allowlisted game IDs。"""
+
+    def __init__(self, config: ObserverConfig):
+        self.config = config
+
+    @staticmethod
+    def _validated_ids(value: Any) -> frozenset[str]:
+        if value is None:
+            return frozenset()
+        if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+            raise ValueError("terminal_game_ids must be a list of strings")
+        ids = frozenset(value)
+        if any(game_id not in ALLOWED_GAME_IDS for game_id in ids):
+            raise ValueError("terminal_game_ids contains a non-allowlisted game")
+        if value != sorted(ids):
+            raise ValueError("terminal_game_ids must be sorted and unique")
+        return ids
+
+    @property
+    def ids(self) -> frozenset[str]:
+        with _file_lock(self.config.writer_lock_path):
+            state = _load_json(self.config.state_path, {})
+            ids = self._validated_ids(state.get("terminal_game_ids"))
+            if "terminal_game_ids" not in state:
+                state["terminal_game_ids"] = []
+                _save_state(self.config, state)
+            return ids
+
+    def mark(self, game_id: str) -> None:
+        if game_id not in ALLOWED_GAME_IDS:
+            raise ValueError("terminal game is not allowlisted")
+        with _file_lock(self.config.writer_lock_path):
+            state = _load_json(self.config.state_path, {})
+            ids = set(self._validated_ids(state.get("terminal_game_ids")))
+            ids.add(game_id)
+            state["terminal_game_ids"] = sorted(ids)
+            _save_state(self.config, state)
+
+
 def _gzip(payload: bytes) -> bytes:
     buffer = io.BytesIO()
     with gzip.GzipFile(fileobj=buffer, mode="wb", mtime=0) as archive:
@@ -579,6 +619,7 @@ class Observer:
         self.shutdown_requested = shutdown_requested
         self.store = EvidenceStore(config)
         self.budget = PersistentBudget(config)
+        self.terminal_games = PersistentTerminalGames(config)
         self.run_id = uuid.uuid4().hex
         self.started_monotonic = time.monotonic()
         self._cycle_attempts = 0
@@ -688,7 +729,12 @@ class Observer:
         self._cycle_attempts = 0
         if observed_at.timestamp() < self._retry_not_before_epoch:
             return "ok"
-        urls = [build_game_url(game_id, self.config) for game_id in ALLOWED_GAME_IDS]
+        terminal_game_ids = self.terminal_games.ids
+        urls = [
+            build_game_url(game_id, self.config)
+            for game_id in ALLOWED_GAME_IDS
+            if game_id not in terminal_game_ids
+        ]
         if observed_at.timestamp() - self._last_schedule_epoch >= self.config.schedule_interval_seconds:
             urls.insert(0, build_schedule_url(self.config))
             self._last_schedule_epoch = observed_at.timestamp()
@@ -699,6 +745,14 @@ class Observer:
                 result = self.observe(url, now=now)
                 results.append(result)
                 status = result.get("status_code")
+                template_id = result.get("template_id")
+                if (
+                    status == 200
+                    and result.get("raw_status") == "FINISHED"
+                    and isinstance(template_id, str)
+                    and template_id.startswith("game:")
+                ):
+                    self.terminal_games.mark(template_id.removeprefix("game:"))
                 cycle_failed = cycle_failed or status is None or status == 429 or status >= 500
             except (BudgetExceeded, CycleAttemptExceeded, DiskGateClosed) as exc:
                 reason = str(exc)
