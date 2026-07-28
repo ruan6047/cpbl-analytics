@@ -84,15 +84,53 @@ def baseline_check(card_id: str) -> str:
 
 def latest_handoff(card_id: str) -> dict:
     ev = None
+    events: list[dict] = []
     with open(ROOT / "docs/control-plane/events.jsonl", encoding="utf-8") as f:
         for line in f:
             e = json.loads(line)
-            if e.get("card_id") == card_id and e.get("type") == "handoff":
+            if e.get("card_id") != card_id:
+                continue
+            events.append(e)
+            if e.get("type") == "handoff":
                 ev = e  # append-only → 最後一筆即最新
     if ev is None:
         sys.exit(f"錯誤：{card_id} 沒有 handoff event（尚未交付查核）。")
+    _assert_no_review_supersedes_handoff(card_id, events)
     _assert_handoff_matches_branch_head(ev)
     return ev
+
+
+def _assert_no_review_supersedes_handoff(card_id: str, events: list[dict]) -> None:
+    """最新 handoff 之後若已有 review，代表這一輪查核已結束，拒絕再發提示詞。
+
+    ML-PITCHER-SCORELESS1 的教訓：卡片已 `↩退回`、執行者尚未推修正，但本腳本
+    只檢查「handoff SHA 是否等於分支 HEAD」——兩者當然還相等，於是照發提示詞。
+    重跑指令就再派一位查核者去查同一份未修改的程式，得到逐字相同的 REJECT；
+    實際發生三次，燒掉兩輪查核頻寬。
+
+    這與該卡自己的缺陷同型：檢查了一個容易檢查的相關量（SHA 是否對得上），
+    而不是真正該成立的性質（**現在到底還有沒有待查核的交付**）。
+    退回後要再查核，必須先有新的 handoff event；那正是 iteration+1 的定義。
+    """
+    after = []
+    seen_handoff = False
+    for e in events:
+        if e.get("type") == "handoff":
+            after = []            # 新一輪開始，之前的 review 不再相關
+            seen_handoff = True
+        elif seen_handoff and e.get("type") == "review":
+            after.append(e)
+    if not after:
+        return
+    last = after[-1]
+    sys.exit(
+        f"錯誤：{card_id} 最新 handoff 之後已有 {len(after)} 筆 review，這一輪查核已結束，"
+        "拒絕產生提示詞。\n"
+        f"  最後一筆：{last.get('review_result', '?')}"
+        f"（state_version {last.get('state_version')}，{last.get('occurred_at')}）\n"
+        f"  目前交付狀態：{last.get('delivery_status')}\n"
+        "  若為 REJECT：等執行者推修正並補新的 handoff event（iteration+1）再重跑本指令。\n"
+        "  若為 APPROVE：接續 merge／結案流程，不需要再查核一次。")
 
 
 def _assert_handoff_matches_branch_head(ev: dict) -> None:
