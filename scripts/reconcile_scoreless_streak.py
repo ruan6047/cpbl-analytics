@@ -17,7 +17,8 @@ exit 1。查核者可原樣重跑。
 | R6 | `boundary_limited` 為真 ⇔ 走完全部可得出賽未中斷（起算場＝資料中最早一場） | 紅線 4 |
 | R7 | 凡被**跳過**的季後賽出賽，賽別必在計入範圍之外**且**官方 ER 必為 0；且「起算場之後該投手在任何賽別的出賽都無自責分」 | 紅線 2（賽別範圍裁定） |
 | R8 | **覆蓋完整性（半局層級）**：尾段那場的 livelog 與 `game_scoreboard` 半局集合必須一致（除未進行的最終局下半等良性樣態）、該投手的半局是同一側連號一段、半局數 × 3 ≥ 官方出局數 | 紅線 2（F1 修正） |
-| R9 | **覆蓋完整性（事件／投手邊界層級）**：以 SQL 視窗函數在**半局內的投手更迭邊界**重算每位投手的出局數區間，全場每位官方 box 上的投手都必須落在自己的可見區間內 | 紅線 2（F1-b 修正）。R8 只比半局集合，與 runtime 共享「半局存在即內部完整」的盲點；R9 是唯一能抓到半局**內部**缺漏的檢查 |
+| R9 | **覆蓋完整性（事件／投手邊界層級）**：以 SQL 視窗函數在**半局內的投手更迭邊界**重算每位投手的出局數區間，全場每位官方 box 上的投手都必須落在自己的可見區間內 | 紅線 2（F1-b 修正）。R8 只比半局集合，與 runtime 共享「半局存在即內部完整」的盲點 |
+| R10 | **逐球序號閉合**：每位投手的 livelog `pitch_cnt` 集合必須恰為 `{1..官方投球數}`；且**採計半局那一格**的出局數下界不得小於採計值 | 紅線 2（F1-c 修正）。R9 仍是「場次 × 投手」的加總，跨半局的相反誤配會互相抵銷；逐球序號是逐事件的、沒有抵銷空間，格級下界則直接證明歸屬 |
 
 用法：
 
@@ -177,9 +178,24 @@ _ALLOC_SQL = """
 
 
 # R9 的另一半：全場官方投球 box（誰投過、各記幾個出局）。
+# R10：逐球序號閉合。取每位投手在該場 livelog 的 pitch_cnt 相異值數與最小/最大值——
+# 恰為 {1..官方投球數} 等價於「相異值數 == 官方數 且 min==1 且 max==官方數」。
+_PITCH_SEQ_SQL = """
+    SELECT l.year, l.kind_code, l.game_sno, l.pitcher_acnt,
+           count(DISTINCT l.pitch_cnt) AS n_distinct,
+           min(l.pitch_cnt) AS mn, max(l.pitch_cnt) AS mx
+      FROM cpbl.game_livelog l
+      JOIN (SELECT (v->>0)::int AS year, v->>1 AS kind_code, (v->>2)::int AS game_sno
+              FROM jsonb_array_elements(%(games)s::jsonb) v) k
+        ON k.year = l.year AND k.kind_code = l.kind_code AND k.game_sno = l.game_sno
+     WHERE NOT l.is_change_player AND l.pitch_cnt IS NOT NULL AND l.pitcher_acnt IS NOT NULL
+     GROUP BY 1, 2, 3, 4
+"""
+
 _GAME_BOX_SQL = """
     SELECT p.year, p.kind_code, p.game_sno, p.pitcher_acnt,
-           p.inning_pitched_cnt * 3 + p.inning_pitched_div3 AS outs
+           p.inning_pitched_cnt * 3 + p.inning_pitched_div3 AS outs,
+           p.pitch_cnt AS pitches
       FROM cpbl.pitching_gamelog p
       JOIN (SELECT (v->>0)::int AS year, v->>1 AS kind_code, (v->>2)::int AS game_sno
               FROM jsonb_array_elements(%(games)s::jsonb) v) k
@@ -397,6 +413,8 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
     # ---- R9：事件／投手邊界粒度——唯一能抓到半局**內部**缺漏的檢查 ----
     alloc: dict[tuple, dict[str, tuple[int, int]]] = defaultdict(dict)
     full_box: dict[tuple, dict[str, int]] = defaultdict(dict)
+    official_pitches: dict[tuple, dict[str, int]] = defaultdict(dict)
+    seen_pitches: dict[tuple, dict[str, tuple[int, int, int]]] = defaultdict(dict)
     for chunk in _chunks(sorted(tail_games), 400):
         payload = json.dumps([list(g) for g in chunk])
         for r in _fetch(_ALLOC_SQL, {"games": payload}):
@@ -405,8 +423,13 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
         for r in _fetch(_GAME_BOX_SQL, {"games": payload}):
             full_box[(r["year"], r["kind_code"], r["game_sno"])][r["pitcher_acnt"]] = (
                 int(r["outs"] or 0))
+            official_pitches[(r["year"], r["kind_code"], r["game_sno"])][
+                r["pitcher_acnt"]] = r["pitches"]
+        for r in _fetch(_PITCH_SEQ_SQL, {"games": payload}):
+            seen_pitches[(r["year"], r["kind_code"], r["game_sno"])][
+                r["pitcher_acnt"]] = (int(r["n_distinct"]), int(r["mn"]), int(r["mx"]))
 
-    alloc_ok = 0
+    alloc_ok = seq_ok = 0
     for y, k, sno, pid, _official in tail_appearances:
         game = (y, k, sno)
         a, b = alloc.get(game, {}), full_box.get(game, {})
@@ -430,6 +453,24 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
         else:
             alloc_ok += 1
 
+        # ---- R10：逐球序號閉合（逐事件，沒有跨半局抵銷空間） ----
+        seq_bad = []
+        off_p, got_p = official_pitches.get(game, {}), seen_pitches.get(game, {})
+        if not off_p:
+            seq_bad.append("無官方投球數")
+        for p, off in off_p.items():
+            if off is None:
+                seq_bad.append(f"{p} 官方投球數缺值")
+                continue
+            got = got_p.get(p)
+            if got is None or got != (int(off), 1, int(off)):
+                seq_bad.append(f"{p} 逐球序號 {got} 與官方 {off} 不閉合")
+        if seq_bad:
+            fails.append({"check": "R10", "player_id": pid,
+                          "detail": f"{y}/{k}/{sno}：" + "；".join(seq_bad[:3])})
+        else:
+            seq_ok += 1
+
     return {
         "tier": tier_label,
         "kinds_counted": list(counted_kinds),
@@ -448,6 +489,7 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
         "tail_appearances": len(tail_appearances),
         "tail_appearances_coverage_complete": cov_ok,
         "tail_appearances_allocation_reconciled": alloc_ok,
+        "tail_appearances_pitch_sequence_closed": seq_ok,
         "exceptions": fails,
     }
 
@@ -469,7 +511,7 @@ def main() -> int:
     print("窮舉對帳：連續無自責分局數（ML-PITCHER-SCORELESS1）\n")
     hdr = ("層級", "投手數", "出賽總數", "採計出賽", "R1 驗得 ER=0",
            "尾段採計半局", "R2 驗得零得分", "尾段 0 採計半局", "R2 驗得零得分",
-           "跳過季後賽", "R7 驗得 ER=0", "尾段出賽", "R8 半局覆蓋", "R9 出局數配置", "例外")
+           "跳過季後賽", "R7 驗得 ER=0", "尾段出賽", "R8 半局覆蓋", "R9 出局數配置", "R10 逐球閉合", "例外")
     print(" | ".join(hdr))
     print(" | ".join("---" for _ in hdr))
     for r in reports:
@@ -481,7 +523,8 @@ def main() -> int:
             r["tail_half_innings_passed_verified_runfree"],
             r["skipped_postseason"], r["skipped_postseason_verified_er0"],
             r["tail_appearances"], r["tail_appearances_coverage_complete"],
-            r["tail_appearances_allocation_reconciled"], len(r["exceptions"]))))
+            r["tail_appearances_allocation_reconciled"],
+            r["tail_appearances_pitch_sequence_closed"], len(r["exceptions"]))))
     print()
     for r in reports:
         for e in r["exceptions"][:50]:

@@ -299,10 +299,48 @@ class GameEvidence:
 
     scoreboard: Mapping[tuple[int, str], int] | None = None
     official_outs: Mapping[str, int] | None = None
+    official_pitches: Mapping[str, int] | None = None
+
+
+def pitch_sequence_gaps(
+    rows: Sequence[dict], official_pitches: Mapping[str, int] | None,
+) -> str | None:
+    """逐球序號閉合檢查：**唯一一個 event 粒度的完整性證明**。
+
+    `game_livelog.pitch_cnt` 是該投手在該場的累計投球數，`pitching_gamelog.pitch_cnt`
+    是官方的同一個量。若某位投手的 livelog 逐球序號集合**恰好**等於 `{1..官方投球數}`，
+    就證明他的事件一顆都沒少（缺頭會少 1、缺中間會有洞、缺尾會少 max、多出來會超界）。
+
+    **全場每位投手都閉合 ⇒ 整場 livelog 沒有任何事件缺漏**，於是半局內的出局數歸屬是
+    「直接觀察到的」而非推導的。前三輪的檢查全部停在聚合量（半局集合、整場出局數總和），
+    跨半局的相反誤配可以互相抵銷；逐球序號是**逐事件**的，沒有抵銷空間。
+    """
+    if not official_pitches:
+        return "no_official_pitch_counts"
+    seen: dict[str, set[int]] = {}
+    for r in rows:
+        if r.get("is_change_player") or r.get("pitch_cnt") is None:
+            continue
+        pid = r.get("pitcher_acnt")
+        if pid is None:
+            continue
+        seen.setdefault(pid, set()).add(int(r["pitch_cnt"]))
+    for pid, official in official_pitches.items():
+        if official is None:
+            return "official_pitch_count_missing"
+        if seen.get(pid, set()) != set(range(1, int(official) + 1)):
+            return "pitch_sequence_not_closed"
+    for pid in seen:
+        if pid not in official_pitches:
+            return "livelog_pitcher_missing_from_box"
+    return None
 
 
 def out_allocation(rows: Sequence[dict]) -> dict[str, tuple[int, int]]:
     """livelog 事件 → 每位投手「記在他名下的出局數」區間 `{pitcher: (下界, 上界)}`。
+
+    **注意這是整場加總**，只用來和官方整場出局數對帳。判斷某個半局能不能採計必須用
+    `half_out_allocation()`——加總會讓跨半局的相反誤配互相抵銷（同一個聚合粒度的盲點）。
 
     以半局內的**投手更迭邊界**切段：某段的出局數＝下一段起始 `out_cnt` − 本段起始
     `out_cnt`；該半局最後一段則以 3 作結束（非全場最後半局必以三出局結束）。全場最後
@@ -311,19 +349,35 @@ def out_allocation(rows: Sequence[dict]) -> dict[str, tuple[int, int]]:
     這是 `coverage_reason` 拿來和官方 box 對帳的量：**缺漏的事件會讓某位投手的官方
     出局數落在他可見區間之外**。
     """
+    cells = half_out_allocation(rows)
+    lo: dict[str, int] = {}
+    hi: dict[str, int] = {}
+    for (pid, _half), (clo, chi) in cells.items():
+        lo[pid] = lo.get(pid, 0) + clo
+        hi[pid] = hi.get(pid, 0) + chi
+    return {pid: (lo.get(pid, 0), hi.get(pid, 0)) for pid in set(lo) | set(hi)}
+
+
+def half_out_allocation(
+    rows: Sequence[dict],
+) -> dict[tuple[str, tuple[int, str]], tuple[int, int]]:
+    """livelog 事件 → `{(pitcher, 半局): (出局數下界, 上界)}`——**不加總**。
+
+    採計某個半局的判準必須看這一格：只有當該格是一個**點**（下界＝上界＝3）時，
+    「這個半局是他 3 個出局」才是被逼出來的；區間代表還有別的可行配置，證明不了就不採計。
+    """
     plays = [r for r in rows if not r.get("is_change_player")]
-    groups: list[list[dict]] = []
+    groups: list[tuple[tuple[int, str], list[dict]]] = []
     prev_key = None
     for r in plays:
         key = (int(r["inning_seq"]), str(r["visiting_home_type"]))
         if key != prev_key:
-            groups.append([])
+            groups.append((key, []))
             prev_key = key
-        groups[-1].append(r)
+        groups[-1][1].append(r)
 
-    lo: dict[str, int] = {}
-    hi: dict[str, int] = {}
-    for idx, evs in enumerate(groups):
+    out: dict[tuple[str, tuple[int, str]], tuple[int, int]] = {}
+    for idx, (half_key, evs) in enumerate(groups):
         is_last = idx == len(groups) - 1
         seq = [e for e in evs if e.get("out_cnt") is not None]
         segments: list[tuple[str, list[dict]]] = []
@@ -341,9 +395,11 @@ def out_allocation(rows: Sequence[dict]) -> dict[str, tuple[int, int]]:
                 end_lo = end_hi = 3
             else:
                 end_lo, end_hi = int(seg[-1]["out_cnt"]), 3
-            lo[pid] = lo.get(pid, 0) + max(0, end_lo - start)
-            hi[pid] = hi.get(pid, 0) + max(0, end_hi - start)
-    return {pid: (lo.get(pid, 0), hi.get(pid, 0)) for pid in set(lo) | set(hi)}
+            cell = (pid, half_key)
+            prev = out.get(cell, (0, 0))
+            out[cell] = (prev[0] + max(0, end_lo - start),
+                         prev[1] + max(0, end_hi - start))
+    return out
 
 
 def coverage_reason(
@@ -449,11 +505,13 @@ def tail_credit(
     box = evidence.official_outs or {}
     official_outs = box.get(pitcher_acnt)
     halves = half_innings_of(rows, pitcher_acnt)
-    reason = coverage_reason(halves, scoreboard, official_outs,
-                             out_allocation(rows), box)
+    reason = (pitch_sequence_gaps(rows, evidence.official_pitches)
+              or coverage_reason(halves, scoreboard, official_outs,
+                                 out_allocation(rows), box))
     if reason:
         return TailCredit(key=key, outs=0, coverage_reason=reason)
 
+    cells = half_out_allocation(rows)
     mine = [h for h in halves if h.has_pitcher]
     outs = 0
     credited: list[tuple[int, str]] = []
@@ -463,6 +521,10 @@ def tail_credit(
         if not h.run_free or scoreboard.get(h.key):  # type: ignore[union-attr]
             break
         got = h.provable_outs
+        # **歸屬只能採計被逼出來的部分**：看「該投手 × 該半局」這一格的**下界**——
+        # 在所有可行配置中他至少記下這麼多出局。加總過的整場區間會讓跨半局的相反誤配
+        # 互相抵銷，必須看這一格（不加總）才擋得住。
+        got = min(got, cells.get((pitcher_acnt, h.key), (0, 0))[0])
         outs += got
         (credited if got else passed).append(h.key)
     clamped = official_outs is not None and outs > official_outs

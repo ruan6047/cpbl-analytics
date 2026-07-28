@@ -62,7 +62,7 @@ _APPEARANCES_SQL = """
 _LIVELOG_SQL = """
     SELECT l.year, l.kind_code, l.game_sno, l.main_event_no, l.inning_seq,
            l.visiting_home_type, l.out_cnt, l.is_score, l.is_change_player,
-           l.pitcher_acnt, l.visiting_score, l.home_score
+           l.pitcher_acnt, l.pitch_cnt, l.visiting_score, l.home_score
       FROM cpbl.game_livelog l
       JOIN (SELECT (v->>0)::int AS year, v->>1 AS kind_code, (v->>2)::int AS game_sno
               FROM jsonb_array_elements(%(keys)s::jsonb) v) k
@@ -85,7 +85,8 @@ _SCOREBOARD_SQL = """
 # 全場投球 box：覆蓋完整性用的**外部**證據（誰投過、各記幾個出局）。
 _GAME_BOX_SQL = """
     SELECT p.year, p.kind_code, p.game_sno, p.pitcher_acnt,
-           p.inning_pitched_cnt * 3 + p.inning_pitched_div3 AS outs
+           p.inning_pitched_cnt * 3 + p.inning_pitched_div3 AS outs,
+           p.pitch_cnt AS pitches
       FROM cpbl.pitching_gamelog p
       JOIN (SELECT (v->>0)::int AS year, v->>1 AS kind_code, (v->>2)::int AS game_sno
               FROM jsonb_array_elements(%(keys)s::jsonb) v) k
@@ -125,8 +126,12 @@ def tail_lookup_factory(
         rows = livelog.get(a.key)
         if not rows:
             return None
-        evidence = GameEvidence(scoreboard=scoreboard.get(a.key),
-                                official_outs=box.get(a.key))
+        game_box = box.get(a.key) or {}
+        evidence = GameEvidence(
+            scoreboard=scoreboard.get(a.key),
+            official_outs={p: v["outs"] for p, v in game_box.items()} or None,
+            official_pitches={p: v["pitches"] for p, v in game_box.items()} or None,
+        )
         return tail_credit(a.key, rows, player_id, evidence)
 
     return lookup
@@ -193,8 +198,8 @@ def load_scoreboard(
 
 def load_game_box(
     keys: Sequence[tuple[int, str, int]],
-) -> dict[tuple[int, str, int], dict[str, int]]:
-    """該場**全部投手**的官方出局數 → {game: {pitcher_acnt: outs}}。
+) -> dict[tuple[int, str, int], dict[str, dict[str, int]]]:
+    """該場**全部投手**的官方出局數與投球數 → {game: {pitcher: {"outs":…, "pitches":…}}}。
 
     覆蓋完整性最關鍵的一份證據：官方 box 知道有哪些投手、各記了幾個出局。livelog 若
     漏掉某位後援投手的事件，他的出局數就沒有可見的位置可以安放，對帳立刻不平——這是
@@ -207,10 +212,13 @@ def load_game_box(
         cur = c.cursor()
         cur.execute(_GAME_BOX_SQL, {"keys": payload})
         rows = _dicts(cur)
-    out: dict[tuple[int, str, int], dict[str, int]] = {}
+    out: dict[tuple[int, str, int], dict[str, dict[str, int]]] = {}
     for r in rows:
         game = (r["year"], r["kind_code"], r["game_sno"])
-        out.setdefault(game, {})[r["pitcher_acnt"]] = int(r["outs"] or 0)
+        out.setdefault(game, {})[r["pitcher_acnt"]] = {
+            "outs": int(r["outs"] or 0),
+            "pitches": r["pitches"],
+        }
     return out
 
 
