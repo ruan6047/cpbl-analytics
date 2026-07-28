@@ -443,7 +443,7 @@ def team_hot_batters(code: str, season: int = Query(DEFAULT_SEASON)) -> dict:
 @router.get("/api/v1/teams/{code}/upcoming-records")
 def team_upcoming_records(code: str, season: int = Query(DEFAULT_SEASON)) -> dict:
     """球隊頁「近日焦點」素材 3：即將挑戰的紀錄——生涯里程碑＋進行中連續安打＋
-    隊史紀錄逼近（僅計數型；連續型不做）。範圍限定一軍現役名單。口徑與退化語意見
+    隊史紀錄（僅計數型、含本季；連續型不做）。範圍限定一軍現役名單。口徑與退化語意見
     `cpbl.api.team_records` docstring（UX-TEAM-RECORDS1 需求方定案，不得自行更動）。
     """
     return upcoming_records(code, season)

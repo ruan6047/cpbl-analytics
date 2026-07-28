@@ -223,7 +223,16 @@ def _coach_linkage_ambiguous(name_match_count: int, has_coach_records: bool) -> 
 # 生涯口徑單一來源（batting_seasons ≤2024 + gamelog 2025+ 補；同年多隊已加總）。
 # UX-TEAM-RECORDS1：抽出供球隊頁「即將挑戰的紀錄」複用，嚴禁另行拼裝 union 邏輯——
 # 任何需要「球員生涯計數型總和」的呼叫端一律走這兩個 helper，勿重寫 SQL。
-BATTING_CAREER_KEYS = ["g", "pa", "ab", "h", "b2", "b3", "hr", "rbi", "sb", "bb", "hbp", "sf", "tb", "so"]
+#
+# 2026-07-28 UX-TEAM-RECORDS1 修正：補上「r」（得分）——batting_seasons/batting_gamelog
+# 都有這欄，但原本兩條 SQL 都沒選，導致 tot["r"] 恆為 0（`_sum_batting_career` 用
+# zip(BATTING_CAREER_KEYS, vals) 配對，key 不在清單裡就永遠拿不到值）。卡面里程碑
+# 表格明列「生涯得分」為五個打者計數型項目之一，此前這項因此從未真正上榜過。
+# 刻意放在**清單最後**（不插入中段）：player_career 內 `best()`/`best_rate()` 用
+# 位置索引（如 `best(6)`＝hr、`v[2],v[3],v[9]...`＝ab/h/bb…）讀 `per` 的逐年 list，
+# 插隊會讓那些索引全部錯位；附加在尾端則新舊呼叫端都不受影響（純新增，
+# player_career 回傳也一併多出 r 欄位，向後相容）。
+BATTING_CAREER_KEYS = ["g", "pa", "ab", "h", "b2", "b3", "hr", "rbi", "sb", "bb", "hbp", "sf", "tb", "so", "r"]
 PITCHING_CAREER_KEYS = ["g", "gs", "w", "l", "sv", "hld", "rip", "so", "h", "bb", "er"]
 
 
@@ -231,13 +240,14 @@ def _career_batting_per_year(cur, player_id: str) -> dict[int, list]:
     """逐年打擊彙總（canonical：batting_seasons ≤2024 + batting_gamelog 2025+ 取代）。"""
     cur.execute(
         "SELECT year, sum(g),sum(pa),sum(ab),sum(h),sum(b2),sum(b3),sum(hr),sum(rbi),sum(sb),"
-        "sum(bb),sum(hbp),sum(sf),sum(tb),sum(so) FROM cpbl.batting_seasons WHERE player_id=%s GROUP BY year",
+        "sum(bb),sum(hbp),sum(sf),sum(tb),sum(so),sum(r) "
+        "FROM cpbl.batting_seasons WHERE player_id=%s GROUP BY year",
         (player_id,))
     per: dict = {r[0]: list(r[1:]) for r in cur.fetchall()}
     cur.execute(
         "SELECT year, count(DISTINCT game_sno),sum(plate_appearances),sum(at_bats),sum(hits),"
         "sum(doubles),sum(triples),sum(home_runs),sum(rbi),sum(sb),sum(bb),sum(hbp),sum(sac_fly),"
-        "sum(total_bases),sum(so) FROM cpbl.batting_gamelog WHERE hitter_acnt=%s AND kind_code='A' "
+        "sum(total_bases),sum(so),sum(runs) FROM cpbl.batting_gamelog WHERE hitter_acnt=%s AND kind_code='A' "
         "AND year>=2025 GROUP BY year", (player_id,))
     for r in cur.fetchall():
         per[r[0]] = list(r[1:])  # 2025+ 以 gamelog 為準

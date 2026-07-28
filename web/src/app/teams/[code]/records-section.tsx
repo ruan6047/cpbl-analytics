@@ -1,6 +1,13 @@
 import type { ReactNode } from "react";
 import { Card, EmptyState, PlayerLink } from "@/components/ui";
-import type { TeamRecordsFranchise, TeamRecordsMilestone, TeamRecordsStreak, TeamUpcomingRecordsResponse } from "@/lib/api";
+import type {
+  TeamRecordsFranchise,
+  TeamRecordsFranchiseApproaching,
+  TeamRecordsFranchiseRefreshed,
+  TeamRecordsMilestone,
+  TeamRecordsStreak,
+  TeamUpcomingRecordsResponse,
+} from "@/lib/api";
 
 // 近日焦點・即將挑戰的紀錄（UX-TEAM-RECORDS1）。
 //
@@ -40,6 +47,13 @@ import type { TeamRecordsFranchise, TeamRecordsMilestone, TeamRecordsStreak, Tea
 // 因網格變窄後文字更常換行）；headline 移除 `truncate`——需求方明訂「不要
 // truncate 掉球員名」，寧可讓描述句換行也不截斷；anchor 仍維持 `shrink-0` 讓它
 // 保有固定視覺重量，不被擠壓。
+//
+// 2026-07-28 需求方裁定「隊史紀錄的資料延遲與『已刷新』狀態」：後端隊史彙總
+// 從「僅 *_seasons、非即時但書」修正為「含本季」，`franchise_records` 從單一
+// 形狀改成 `state: "refreshed" | "approaching"` 判別聯集（見 lib/api.ts）。
+// 「本季貢獻非即時」但書已隨之移除（修好之後它是假的）。approaching 列若
+// `holder_active` 為真，附註「・現役中」——紀錄保持人還在打球時這個數字本身
+// 會隨賽季推進而動，不是靜止的碑（台鋼雄鷹是典型案例）。
 
 function RecordCard({ headline, detail, anchor }: { headline: ReactNode; detail?: ReactNode; anchor: ReactNode }) {
   return (
@@ -104,21 +118,37 @@ function StreaksList({ items }: { items: TeamRecordsStreak[] }) {
   );
 }
 
+function RefreshedCard({ r }: { r: TeamRecordsFranchiseRefreshed }) {
+  return (
+    <RecordCard
+      headline={<><PlayerLink pid={r.player_id} name={r.name} /><span className="text-muted"> {r.label}</span></>}
+      detail={`目前 ${r.current}，原紀錄 ${r.prior_record}（${r.prior_holder}）`}
+      anchor="隊史新高"
+    />
+  );
+}
+
+function ApproachingCard({ r }: { r: TeamRecordsFranchiseApproaching }) {
+  const holder = r.holder_active ? `${r.holder}・現役中` : r.holder;
+  return (
+    <RecordCard
+      headline={<><PlayerLink pid={r.player_id} name={r.name} /><span className="text-muted"> {r.label}逼近隊史紀錄</span></>}
+      detail={`目前 ${r.current}，隊史紀錄 ${r.record}（${holder}）`}
+      anchor={`還差 ${r.remaining}`}
+    />
+  );
+}
+
 function FranchiseList({ items }: { items: TeamRecordsFranchise[] }) {
   if (items.length === 0) return null;
   return (
     <div>
-      <SectionHeading caption="僅計數型；資料以年度成績表計，本季貢獻須待球季結束入庫後才會反映，非即時。">
-        隊史紀錄逼近
-      </SectionHeading>
+      <SectionHeading>隊史紀錄</SectionHeading>
       <ul className={RECORD_GRID}>
         {items.map((r, i) => (
-          <RecordCard
-            key={`${r.player_id}-${r.stat}-${i}`}
-            headline={<><PlayerLink pid={r.player_id} name={r.name} /><span className="text-muted"> {r.label}逼近隊史紀錄</span></>}
-            detail={`目前 ${r.current}，隊史紀錄 ${r.record}（${r.holder}）`}
-            anchor={`還差 ${r.remaining}`}
-          />
+          r.state === "refreshed"
+            ? <RefreshedCard key={`${r.player_id}-${r.stat}-${i}`} r={r} />
+            : <ApproachingCard key={`${r.player_id}-${r.stat}-${i}`} r={r} />
         ))}
       </ul>
     </div>
