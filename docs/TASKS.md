@@ -21,7 +21,7 @@
 | [ML-FIELD-OF1](tasks/ML-FIELD-OF1.md) | — | T4 | 外野空中球守備範圍指標 | ruan6047（Design Gate） | — | 0 | 💡需求 | ⏸未部署 | 2026-07-22T16:51:08+08:00 |
 | [ML-PA-SIM-CONTEXT1](tasks/ML-PA-SIM-CONTEXT1.md) | — | T4 | 打席結果分布的情境條件化 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-25T19:06:00+08:00 |
 | [ML-PA-SIM-TEAM1](tasks/ML-PA-SIM-TEAM1.md) | — | T4 | 打席模擬對某一隊 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-25T19:07:00+08:00 |
-| [ML-PITCHER-SCORELESS1](tasks/ML-PITCHER-SCORELESS1.md) | INIT-OFFICIAL-DATA1 | T3 | 投手連續無自責分局數（保守下界） | Claude Opus 5@Claude Code | `ai/opus-5/ML-PITCHER-SCORELESS1 @ .claude/worktrees/ml-pitcher-scoreless1-execution` | 1 | ↩退回 | ⏸未部署 | 2026-07-28T12:11:45+08:00 |
+| [ML-PITCHER-SCORELESS1](tasks/ML-PITCHER-SCORELESS1.md) | INIT-OFFICIAL-DATA1 | T3 | 投手連續無自責分局數（保守下界） | Claude Opus 5@Claude Code | `ai/opus-5/ML-PITCHER-SCORELESS1 @ .claude/worktrees/ml-pitcher-scoreless1-execution` | 2 | 🔍待查核 | ⏸未部署 | 2026-07-28T12:12:55+08:00 |
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:09+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:10+08:00 |
 | [OPS-LIVE-SHADOW1](tasks/OPS-LIVE-SHADOW1.md) | — | T4 | VPS 隔離 live source observer | ruan6047（7/30 evidence 對帳／撤除待辦） | `ai/codex/OPS-LIVE-SHADOW1 @ .claude/worktrees/ops-live-shadow1-execution（保留至 evidence 對帳／撤除後結案）` | 1 | 📦已合併 | ✅已驗證 | 2026-07-26T23:11:01+08:00 |
