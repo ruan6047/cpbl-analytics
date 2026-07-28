@@ -220,10 +220,62 @@ def _coach_linkage_ambiguous(name_match_count: int, has_coach_records: bool) -> 
     return has_coach_records and name_match_count > 1
 
 
+# 生涯口徑單一來源（batting_seasons ≤2024 + gamelog 2025+ 補；同年多隊已加總）。
+# UX-TEAM-RECORDS1：抽出供球隊頁「即將挑戰的紀錄」複用，嚴禁另行拼裝 union 邏輯——
+# 任何需要「球員生涯計數型總和」的呼叫端一律走這兩個 helper，勿重寫 SQL。
+BATTING_CAREER_KEYS = ["g", "pa", "ab", "h", "b2", "b3", "hr", "rbi", "sb", "bb", "hbp", "sf", "tb", "so"]
+PITCHING_CAREER_KEYS = ["g", "gs", "w", "l", "sv", "hld", "rip", "so", "h", "bb", "er"]
+
+
+def _career_batting_per_year(cur, player_id: str) -> dict[int, list]:
+    """逐年打擊彙總（canonical：batting_seasons ≤2024 + batting_gamelog 2025+ 取代）。"""
+    cur.execute(
+        "SELECT year, sum(g),sum(pa),sum(ab),sum(h),sum(b2),sum(b3),sum(hr),sum(rbi),sum(sb),"
+        "sum(bb),sum(hbp),sum(sf),sum(tb),sum(so) FROM cpbl.batting_seasons WHERE player_id=%s GROUP BY year",
+        (player_id,))
+    per: dict = {r[0]: list(r[1:]) for r in cur.fetchall()}
+    cur.execute(
+        "SELECT year, count(DISTINCT game_sno),sum(plate_appearances),sum(at_bats),sum(hits),"
+        "sum(doubles),sum(triples),sum(home_runs),sum(rbi),sum(sb),sum(bb),sum(hbp),sum(sac_fly),"
+        "sum(total_bases),sum(so) FROM cpbl.batting_gamelog WHERE hitter_acnt=%s AND kind_code='A' "
+        "AND year>=2025 GROUP BY year", (player_id,))
+    for r in cur.fetchall():
+        per[r[0]] = list(r[1:])  # 2025+ 以 gamelog 為準
+    return per
+
+
+def _sum_batting_career(per: dict[int, list]) -> dict[str, int]:
+    """由 `_career_batting_per_year` 的逐年字典加總成生涯計數型總和。"""
+    from collections import defaultdict
+    tot: dict[str, int] = defaultdict(int)
+    for vals in per.values():
+        for k, v in zip(BATTING_CAREER_KEYS, vals, strict=False):
+            tot[k] += v or 0
+    return dict(tot)
+
+
+def _career_pitching_per_year(cur, player_id: str) -> dict[int, list]:
+    """逐年投球彙總（canonical：pitching_seasons；ip 以 .1/.2 換算真實局數）。"""
+    cur.execute(
+        "SELECT year, sum(g),sum(gs),sum(w),sum(l),sum(sv),sum(hld),"
+        "sum(trunc(ip)+(ip-trunc(ip))*10/3.0) AS rip,sum(so),sum(h),sum(bb),sum(er) "
+        "FROM cpbl.pitching_seasons WHERE player_id=%s GROUP BY year", (player_id,))
+    return {r[0]: [float(x) if x is not None else 0.0 for x in r[1:]] for r in cur.fetchall()}
+
+
+def _sum_pitching_career(per: dict[int, list]) -> dict[str, float]:
+    """由 `_career_pitching_per_year` 的逐年字典加總成生涯計數型總和（含 rip 原始局數）。"""
+    from collections import defaultdict
+    tot: dict[str, float] = defaultdict(float)
+    for vals in per.values():
+        for k, v in zip(PITCHING_CAREER_KEYS, vals, strict=False):
+            tot[k] += v
+    return dict(tot)
+
+
 @router.get("/api/v1/players/{player_id}/career")
 def player_career(player_id: str) -> dict:
     """球員生涯：累計成績、最佳單季、里程碑日期、史上排名脈絡（打者）+ 效力球隊。"""
-    from collections import defaultdict
     with conn() as c:
         cur = c.cursor()
         teams = _career_teams(cur, player_id)
@@ -315,25 +367,10 @@ def player_career(player_id: str) -> dict:
             "coach_history": coach_history,
             "coach_ambiguous": coach_ambiguous,
         }
-        # 逐年（opendata ≤2024 + 2025/2026 由 gamelog 補；同年多隊加總）
-        cur.execute(
-            "SELECT year, sum(g),sum(pa),sum(ab),sum(h),sum(b2),sum(b3),sum(hr),sum(rbi),sum(sb),"
-            "sum(bb),sum(hbp),sum(sf),sum(tb),sum(so) FROM cpbl.batting_seasons WHERE player_id=%s GROUP BY year",
-            (player_id,))
-        per: dict = {r[0]: list(r[1:]) for r in cur.fetchall()}
-        cur.execute(
-            "SELECT year, count(DISTINCT game_sno),sum(plate_appearances),sum(at_bats),sum(hits),"
-            "sum(doubles),sum(triples),sum(home_runs),sum(rbi),sum(sb),sum(bb),sum(hbp),sum(sac_fly),"
-            "sum(total_bases),sum(so) FROM cpbl.batting_gamelog WHERE hitter_acnt=%s AND kind_code='A' "
-            "AND year>=2025 GROUP BY year", (player_id,))
-        for r in cur.fetchall():
-            per[r[0]] = list(r[1:])  # 2025+ 以 gamelog 為準
-        # 投手生涯（pitching_seasons；與逐年投球史同源，ip .1/.2 換算成真實局數）
-        cur.execute(
-            "SELECT year, sum(g),sum(gs),sum(w),sum(l),sum(sv),sum(hld),"
-            "sum(trunc(ip)+(ip-trunc(ip))*10/3.0) AS rip,sum(so),sum(h),sum(bb),sum(er) "
-            "FROM cpbl.pitching_seasons WHERE player_id=%s GROUP BY year", (player_id,))
-        pper: dict = {r[0]: [float(x) if x is not None else 0.0 for x in r[1:]] for r in cur.fetchall()}
+        # 逐年（canonical：opendata ≤2024 + 2025/2026 由 gamelog 補；同年多隊加總）
+        per = _career_batting_per_year(cur, player_id)
+        # 投手生涯（canonical：pitching_seasons；ip .1/.2 換算成真實局數）
+        pper = _career_pitching_per_year(cur, player_id)
         pcareer = pbests = prk = None
         if pper:
             cur.execute(
@@ -341,10 +378,7 @@ def player_career(player_id: str) -> dict:
                 "SELECT (SELECT count(*)+1 FROM cr b WHERE b.w>a.w),(SELECT count(*)+1 FROM cr b WHERE b.sv>a.sv),"
                 "(SELECT count(*)+1 FROM cr b WHERE b.so>a.so) FROM cr a WHERE a.player_id=%s", (player_id,))
             prk = cur.fetchone()
-            pt: dict = defaultdict(float)
-            for vals in pper.values():
-                for k, v in zip(["g", "gs", "w", "l", "sv", "hld", "rip", "so", "h", "bb", "er"], vals, strict=False):
-                    pt[k] += v
+            pt = _sum_pitching_career(pper)
             rip = pt["rip"]
             outs = round(rip * 3)
             _wl = pt["w"] + pt["l"]
@@ -394,11 +428,8 @@ def player_career(player_id: str) -> dict:
             "SELECT (SELECT count(*)+1 FROM cr b WHERE b.hr>a.hr), (SELECT count(*)+1 FROM cr b WHERE b.h>a.h), "
             "(SELECT count(*)+1 FROM cr b WHERE b.sb>a.sb) FROM cr a WHERE a.player_id=%s", (player_id,))
         rk = cur.fetchone()
-    keys = ["g", "pa", "ab", "h", "b2", "b3", "hr", "rbi", "sb", "bb", "hbp", "sf", "tb", "so"]
-    tot = defaultdict(int)
-    for vals in per.values():
-        for k, v in zip(keys, vals, strict=False):
-            tot[k] += v or 0
+    keys = BATTING_CAREER_KEYS
+    tot = _sum_batting_career(per)
     ab, h, bb, hbp, sf, tb = (tot[k] for k in ("ab", "h", "bb", "hbp", "sf", "tb"))
     od = ab + bb + hbp + sf
     career = {**{k: tot[k] for k in keys},
