@@ -251,8 +251,47 @@ def test_franchise_records_refreshed_state_when_current_exceeds_prior():
     assert out[0] == {
         "player_id": "zeng", "name": "曾子祐", "role": "batting",
         "stat": "r", "label": "得分", "state": "refreshed",
-        "current": 177, "prior_record": 130, "prior_holder": "魔鷹", "ratio": 0.0,
+        "current": 177, "prior_record": 130, "prior_holder": "魔鷹",
+        "prior_holder_id": "mo_ying", "ratio": 0.0,
     }
+
+
+def test_franchise_records_prior_holder_id_self_refresh_uses_player_id_not_name():
+    # 卡面實例（六隊實測 21 筆 refreshed 中 19 筆是自己刷新自己）：本季總計超過
+    # 「自己上季結束時」的舊基準，`prior_holder_id` 必須等於自己的 player_id，
+    # 前端才能靠 id 比對判斷「原紀錄保持人＝本人」進而省略原紀錄段落。
+    #
+    # 刻意讓 prior/current 的姓名字串不同（模擬改名或舊資料殘留名稱）：若實作
+    # 誤退回姓名比對（例如用 `v["name"] == pl["name"]` 找 prior 持有人），會因
+    # 字串不相等而找不到任何人，`prior_holder_id` 會變成 None——本斷言必須
+    # 依 player_id（dict key）正確歸屬，不受姓名字串差異影響。
+    stat_defs = [d for d in BATTER_MILESTONES if d["stat"] == "hr"]
+    roster = [{"player_id": "p1", "name": "新名字"}]
+    prior = {"p1": {"name": "舊名字（改名前）", "hr": 20}}
+    current = {"p1": {"name": "新名字", "hr": 26}}
+
+    out = _franchise_records(roster, prior, current, stat_defs, role="batting")
+
+    assert len(out) == 1
+    assert out[0]["state"] == "refreshed"
+    assert out[0]["player_id"] == "p1"
+    assert out[0]["prior_holder_id"] == "p1", (
+        "prior_holder_id 必須依 player_id 歸屬本人，不能被姓名字串差異誤導為 None"
+    )
+
+
+def test_franchise_records_prior_holder_id_none_when_prior_tied_across_multiple_players():
+    # 並列多人時（罕見邊界）：prior_holder_id 回傳 None，前端保守視為「不同人」
+    # （寧可多顯示一個氣泡，也不要在並列情境下誤判成本人而漏掉資訊）。
+    stat_defs = [d for d in BATTER_MILESTONES if d["stat"] == "hr"]
+    roster = [{"player_id": "a", "name": "甲"}]
+    prior = {"a": {"name": "甲", "hr": 20}, "b": {"name": "乙", "hr": 20}}  # 並列
+    current = {"a": {"name": "甲", "hr": 26}}
+
+    out = _franchise_records(roster, prior, current, stat_defs, role="batting")
+
+    assert len(out) == 1
+    assert out[0]["prior_holder_id"] is None
 
 
 def test_franchise_records_no_refresh_without_prior_baseline():
@@ -265,17 +304,58 @@ def test_franchise_records_no_refresh_without_prior_baseline():
 
 
 def test_franchise_records_only_current_leader_gets_refreshed_not_runner_up():
-    # 兩位現役隊友都超過舊紀錄，只有目前真正最高者算刷新；落後者若差距在 near
-    # 內則算逼近「目前」最高（不是逼近舊紀錄），避免同隊多人自稱刷新。
+    # 兩位現役隊友都超過舊紀錄，只有目前真正最高者算刷新——避免同隊多人自稱刷新。
+    #
+    # 2026-07-28 需求方追加規則後更新：落後者原本會產生「approaching」（逼近
+    # 「目前」最高，不是逼近舊紀錄），但現在**同一 stat 已有 refreshed 時該
+    # approaching 會被抑制**（見下方
+    # test_franchise_records_approaching_suppressed_when_refreshed_exists_for_same_stat
+    # 的專屬覆蓋）——這裡改為只斷言「refreshed 歸屬正確（只有真正最高者，不是
+    # 隨便誰超過舊紀錄就算）」，不再斷言 runner-up 的 approaching 列存在（那一半
+    # 斷言現在由新規則的專屬測試覆蓋，且新行為下 runner-up 本來就不該出現）。
     stat_defs = [d for d in BATTER_MILESTONES if d["stat"] == "hr"]  # near=1
     roster = [{"player_id": "a", "name": "甲"}, {"player_id": "b", "name": "乙"}]
     prior = {"a": {"name": "甲", "hr": 55}, "b": {"name": "乙", "hr": 55}}
     current = {"a": {"name": "甲", "hr": 67}, "b": {"name": "乙", "hr": 66}}
     out = _franchise_records(roster, prior, current, stat_defs, "batting")
     states = {r["player_id"]: r["state"] for r in out}
-    assert states == {"a": "refreshed", "b": "approaching"}
-    b_row = next(r for r in out if r["player_id"] == "b")
-    assert b_row["record"] == 67 and b_row["remaining"] == 1 and b_row["holder"] == "甲"
+    assert states == {"a": "refreshed"}
+
+
+def test_franchise_records_approaching_suppressed_when_refreshed_exists_for_same_stat():
+    # 卡面實例（台鋼雄鷹三振）的最小重現：後勁本季刷新隊史三振紀錄（163→216），
+    # 艾速特差 8（在 near=10 門檻內）本會產出「approaching」——但兩張卡標題都是
+    # 「三振」、外觀相同，讀者看不出在講同一件事。需求方裁定：同一 stat 已有
+    # refreshed 時，該 stat 的 approaching 全部抑制（不反過來丟 refreshed——
+    # 刷新是既成事實，逼近是進行式，留前者）。
+    stat_defs = [{"stat": "so", "label": "三振", "ladder": 100, "start": 200, "near": 10}]
+    roster = [{"player_id": "houjin", "name": "後勁"}, {"player_id": "aisute", "name": "艾速特"}]
+    prior = {"houjin": {"name": "後勁", "so": 163}}
+    current = {"houjin": {"name": "後勁", "so": 216}, "aisute": {"name": "艾速特", "so": 208}}
+
+    out = _franchise_records(roster, prior, current, stat_defs, "pitching")
+
+    states = {r["player_id"]: r["state"] for r in out}
+    assert states == {"houjin": "refreshed"}, (
+        "同一 stat 已有 refreshed 時，該 stat 的 approaching 必須被抑制——"
+        f"實得 {states}"
+    )
+
+
+def test_franchise_records_approaching_kept_when_no_refreshed_for_stat():
+    # 對照組：同一 stat 若沒有任何 refreshed（沒人刷新這項紀錄），approaching
+    # 照常輸出——新規則不能誤傷「現行行為不變」的一般情境。
+    stat_defs = [{"stat": "so", "label": "三振", "ladder": 100, "start": 200, "near": 10}]
+    roster = [{"player_id": "a", "name": "甲"}, {"player_id": "b", "name": "乙"}]
+    # prior_record（300）高於現在的 leader（250）→ 甲不算刷新（沒有真的超過舊紀錄）。
+    prior = {"a": {"name": "甲", "so": 300}}
+    current = {"a": {"name": "甲", "so": 250}, "b": {"name": "乙", "so": 245}}
+
+    out = _franchise_records(roster, prior, current, stat_defs, "pitching")
+
+    states = {r["player_id"]: r["state"] for r in out}
+    assert states == {"b": "approaching"}
+    assert not any(r["state"] == "refreshed" for r in out)
 
 
 def test_franchise_records_holder_active_marker():

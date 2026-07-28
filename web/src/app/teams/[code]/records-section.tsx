@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
-import { Card, EmptyState, PlayerLink, RECORD_GRID, RecordCard } from "@/components/ui";
+import { Card, EmptyState, InfoDot, PlayerLink, RECORD_GRID, RecordCard } from "@/components/ui";
 import { SubTabs } from "@/components/sub-tabs";
+import { isSelfRefresh } from "@/lib/team-records-format";
 import type {
   TeamRecordsFranchise,
   TeamRecordsFranchiseApproaching,
@@ -73,11 +74,25 @@ import type {
 //
 // 2026-07-28 需求方追加：改用 `RecordCard` 的 `layout="stack"` 版型＋
 // `RECORD_GRID`（3 欄，取代先前的 `RECORD_GRID_2COL` 過渡版本）——原因與寬度
-// 實證見 `ui.tsx` `RecordCard` docstring（全聯盟最壞字寬組合在 2 欄/row 版下
-// 仍會斷字，3 欄/stack 版才安全）。`ApproachingCard` 的 label 從「{項目}逼近
-// 隊史紀錄」簡化為單純「{項目}」（與 RefreshedCard 一致）——「逼近」與「已
-// 刷新」兩種狀態已經由 anchor（「還差 N」vs.「隊史新高」）唯一區分，label 重複
-// 講一次是冗字，stack 版每字都在跟 165px 欄寬搶空間，能省則省。
+// 實證見 `ui.tsx` `RecordCard` docstring。
+//
+// 三處 label 都拿掉跟頁籤名重複的前綴，且**這不是選配的美觀調整，是 3 欄能
+// 成立的前提**：需求方用 canvas 重算全聯盟最壞字寬時發現漏算了
+// `ApproachingCard`（「{項目}逼近隊史紀錄」，最長組合「救援／中繼逼近隊史
+// 紀錄」154px）——現況標籤下即使 stack 版也要 178px，超過半寬 3 欄實得的
+// 165px，3 欄裝不下。拿掉前綴後 stack 版壓到 136px 才在 165px 裡有餘裕：
+//   - `MilestonesList`：`生涯${label}` → `${label}`（頁籤已寫「生涯里程碑」）
+//   - `StreaksList`：「現行連續安打」→「連續安打」（頁籤已寫「進行中連續
+//     安打」）
+//   - `ApproachingCard`：「{項目}逼近隊史紀錄」→「{項目}」（頁籤已寫「隊史
+//     紀錄」，且「逼近」本來就由 anchor「還差 N」表達——同時重複頁籤名與
+//     anchor，是最大的冗餘；`RefreshedCard` 的 anchor 是「隊史新高」）
+// 判斷基準與熱區卡拿掉「近期擊球品質／近期投球宰制力」headline 後綴一致。
+//
+// 已知副作用（需求方已知並接受）：拿掉前綴後，例如「投球局數」在生涯里程碑
+// 頁籤代表生涯累計、在隊史紀錄頁籤代表隊史範圍，字面相同只靠頁籤區分——
+// 頁籤就在正上方，比照熱區的處理方式。若發現某個具體 label 確實會讓人誤讀
+// （不是理論上可能，是真的看了會誤會），回報再議，不要自行加回前綴。
 
 function MilestonesList({ items }: { items: TeamRecordsMilestone[] }) {
   return (
@@ -86,7 +101,7 @@ function MilestonesList({ items }: { items: TeamRecordsMilestone[] }) {
         <RecordCard
           layout="stack"
           key={`${m.player_id}-${m.stat}-${i}`}
-          label={`生涯${m.label}`}
+          label={m.label}
           name={<PlayerLink pid={m.player_id} name={m.name} />}
           detail={`目前 ${m.current} → ${m.milestone}`}
           anchor={`還差 ${m.remaining}`}
@@ -103,7 +118,7 @@ function StreaksList({ items }: { items: TeamRecordsStreak[] }) {
         <RecordCard
           layout="stack"
           key={s.player_id}
-          label="現行連續安打"
+          label="連續安打"
           name={<PlayerLink pid={s.player_id} name={s.name} />}
           anchor={`連續 ${s.streak} 場`}
         />
@@ -112,13 +127,28 @@ function StreaksList({ items }: { items: TeamRecordsStreak[] }) {
   );
 }
 
+// 2026-07-28 需求方追加：refreshed 卡明細行的「原紀錄」段落——全六隊實測
+// 21 筆 refreshed 中 19 筆是「自己刷新自己」（`prior_record` 只是自己上季
+// 結束時的舊基準，不是超越了某個對象），恆常顯示「原紀錄 N（保持人）」在這
+// 九成情境下是誤導性措辭。判斷「是否本人」抽成 `isSelfRefresh`（純函式，見
+// lib/team-records-format.ts docstring）——一律比對 player_id，不比 name
+// 字串。是本人：明細只留「目前 N」。不是本人：原紀錄段落移進 `InfoDot`
+// 氣泡（沿用剛修好 cloneElement 的 `Tooltip`），不佔明細行常駐版位；觸發鈕
+// aria-label 帶項目名（「{label} 原紀錄保持人」），不是泛用「i」。
 function RefreshedCard({ r }: { r: TeamRecordsFranchiseRefreshed }) {
+  const detail = isSelfRefresh(r)
+    ? `目前 ${r.current}`
+    : <>
+        {`目前 ${r.current}`}
+        {" "}
+        <InfoDot label={`${r.label} 原紀錄保持人`} content={`原紀錄 ${r.prior_record}（${r.prior_holder}）`} />
+      </>;
   return (
     <RecordCard
       layout="stack"
       label={r.label}
       name={<PlayerLink pid={r.player_id} name={r.name} />}
-      detail={`目前 ${r.current}，原紀錄 ${r.prior_record}（${r.prior_holder}）`}
+      detail={detail}
       anchor="隊史新高"
     />
   );

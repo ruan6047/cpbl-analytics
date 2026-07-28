@@ -75,6 +75,10 @@ export type TeamRecordsStreak = { player_id: string; name: string; streak: numbe
 export type TeamRecordsFranchiseRefreshed = {
   player_id: string; name: string; role: "batting" | "pitching"; state: "refreshed";
   stat: string; label: string; current: number; prior_record: number; prior_holder: string;
+  // 原紀錄保持人的 player_id；並列多人時為 null（前端保守視為「不同人」）。
+  // 判斷「原紀錄保持人＝本人」一律比對這個欄位，不比 name 字串（同名不同人／
+  // 改名等情境比名字會出錯，見 UX-TEAM-HOTZONE1）。
+  prior_holder_id: string | null;
 };
 export type TeamRecordsFranchiseApproaching = {
   player_id: string; name: string; role: "batting" | "pitching"; state: "approaching";

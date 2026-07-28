@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Card, EmptyState, PlayerLink, RECORD_GRID, RecordCard, SectionHeading, StatusBadge, TeamLogo } from "@/components/ui";
+import { Card, EmptyState, InfoDot, PlayerLink, RECORD_GRID, RecordCard, SectionHeading, StatusBadge, TeamLogo } from "@/components/ui";
 import { PregameCard } from "@/components/pregame-card";
 import { Tooltip } from "@/components/tooltip";
 import { resolvePregameCard, type PregameResponse } from "@/lib/pregame-card";
@@ -98,24 +98,12 @@ function CardDetail({ name, sample, extra }: { name: string; sample: string; ext
     <div className="mt-0.5 flex items-center gap-1 text-xs text-faint">
       <span>{sample}</span>
       <span className="md:hidden">・{extra}</span>
-      <Tooltip content={extra} suppressUnderline interactive>
-        {/* 觸控熱區目標同 ContextSwitcher 的原則（視覺圖示不放大、熱區另外撐開），
-            但**技術手法不同**：ContextSwitcher 是獨立工具列，用 min-h-11 撐按鈕
-            本體沒有副作用；這裡的圖示是每列密排的卡片明細行內聯元素，按鈕本體若
-            真的撐到 44px 會把 flex 列高一起拉到 44px（六張卡等於白白多出
-            ~180px，剛壓下去的 1440×1080 版面又會爆）。改用 `relative` +
-            `::before` 負 inset 疊一塊不佔版位（`position:absolute` 脫離文件流，
-            不影響父層列高）但可點擊的透明熱區，補到 WCAG 2.5.8 的 24px 下限
-            （14px 圖示每邊補 5px）。aria-label 帶球員名（非泛用「更多數據」）——
-            每張卡代表不同球員，敘述需帶對象才有意義（需求方 2026-07-28 明訂）。
-            圖示字級 text-[10px]（非 text-[9px]）：UI_UX_SYSTEM §2.3 明訂
-            sub-9px 低於可讀下限，10px 對應既有 `micro` 角色（尚未 token 化但
-            允許沿用，見同節）。 */}
-        <button type="button" aria-label={`${name} 詳細數據`}
-          className="relative hidden h-3.5 w-3.5 shrink-0 touch-manipulation place-items-center rounded-full border border-line text-[10px] font-semibold leading-none text-muted before:absolute before:-inset-[5px] before:content-[''] hover:text-ink md:grid">
-          i
-        </button>
-      </Tooltip>
+      {/* 觸發鈕抽成共用 `InfoDot`（ui.tsx）：熱區卡與 records-section.tsx
+          隊史刷新卡都需要這顆「密排行內、視覺不放大、熱區補到 24px」的按鈕，
+          第二個呼叫點出現後不再各自維護一份 CSS 手法（見 InfoDot docstring）。
+          aria-label 帶球員名（非泛用「更多數據」）——每張卡代表不同球員，
+          敘述需帶對象才有意義（需求方 2026-07-28 明訂）。 */}
+      <InfoDot label={`${name} 詳細數據`} content={extra} hiddenBelowMd />
     </div>
   );
 }
