@@ -175,7 +175,20 @@ export function RecordCard({ headline, detail, anchor }: { headline: ReactNode; 
 // 同一組斷點，同一頁同樣「把多張小卡片橫向塞進去縮短捲動」的目的不另訂一套。
 // gap-2（非其他網格常用的 gap-3）是唯一刻意偏離：RecordCard 內距已較緊湊
 // （px-3 py-2.5，非 Card 的 p-4），沿用 gap-3 視覺上會顯得鬆散不成套。
+//
+// `lg:grid-cols-3` 是**viewport 斷點，不是容器斷點**——只在「這份清單佔滿頁面
+// 全寬」的前提下 3 欄才有實得寬度。UX-TEAM-HOTZONE1 桌機不用捲軸改版把
+// 「即將挑戰的紀錄」（原本用 RECORD_GRID）搬進半寬左欄後，viewport 仍 ≥lg，
+// 3 欄照樣觸發，每卡實得寬度砍半（1440 實測 546px 卡寬 ÷3≈165px），
+// 「林泓育 安打」「隊史新高」逐字斷行——與 RecordCard 錨點 shrink-0 nowrap 擠壓
+// headline 的舊 bug（2026-07-28 第一輪退回）同一種成因，只是這次是欄寬不足而非
+// 文字過長。故另立 `RECORD_GRID_2COL`（上限 2 欄，不放到 3）給「確定會被塞進
+// 半寬欄位」的呼叫點；`RECORD_GRID`（可到 3 欄）留給仍佔頁面全寬或已知足夠寬的
+// 呼叫點（近期球員熱區的打者/投手榜同樣半寬但文字短，已實測 3 欄不斷行）。
+// 兩者並存是刻意的：欄數上限本質是「這份清單的文字在多寬的欄位下不會斷字」，
+// 不是單一頁面版面決定的，兩個呼叫點的文字長度不同、答案自然不同。
 export const RECORD_GRID = "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3";
+export const RECORD_GRID_2COL = "grid grid-cols-1 gap-2 sm:grid-cols-2";
 
 export function SectionHeading({ children, caption }: { children: ReactNode; caption?: ReactNode }) {
   return (

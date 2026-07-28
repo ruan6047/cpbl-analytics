@@ -1,4 +1,4 @@
-import { Card, EmptyState, PlayerLink, RECORD_GRID, RecordCard, SectionHeading } from "@/components/ui";
+import { Card, EmptyState, PlayerLink, RECORD_GRID_2COL, RecordCard, SectionHeading } from "@/components/ui";
 import type {
   TeamRecordsFranchise,
   TeamRecordsFranchiseApproaching,
@@ -58,13 +58,18 @@ import type {
 // 避免卡中卡、橫向網格斷點沿用 page.tsx「戰績分項」）已隨 UX-TEAM-HOTZONE1
 // 一併抽到 `@/components/ui`（該卡新增的「近期球員熱區」也要用同一套語彙，
 // 抽成單一事實來源避免兩檔各自維護一份視覺 token）；本檔案只留呼叫端。
+//
+// 2026-07-28 桌機不用捲軸改版：本區塊改用 `RECORD_GRID_2COL`（上限 2 欄）而非
+// `RECORD_GRID`（可到 3 欄）——本區塊現在永遠位於 focus-section.tsx 的半寬左欄
+// （見該檔 TeamFocusSection），viewport lg 斷點仍會觸發但欄位實得寬度只剩一半，
+// 3 欄會讓「林泓育 安打」「隊史新高」逐字斷行（見 ui.tsx 該常數上方的完整說明）。
 
 function MilestonesList({ items }: { items: TeamRecordsMilestone[] }) {
   if (items.length === 0) return null;
   return (
     <div>
       <SectionHeading>生涯里程碑</SectionHeading>
-      <ul className={RECORD_GRID}>
+      <ul className={RECORD_GRID_2COL}>
         {items.map((m, i) => (
           <RecordCard
             key={`${m.player_id}-${m.stat}-${i}`}
@@ -83,7 +88,7 @@ function StreaksList({ items }: { items: TeamRecordsStreak[] }) {
   return (
     <div>
       <SectionHeading>進行中連續安打</SectionHeading>
-      <ul className={RECORD_GRID}>
+      <ul className={RECORD_GRID_2COL}>
         {items.map((s) => (
           <RecordCard
             key={s.player_id}
@@ -122,7 +127,7 @@ function FranchiseList({ items }: { items: TeamRecordsFranchise[] }) {
   return (
     <div>
       <SectionHeading>隊史紀錄</SectionHeading>
-      <ul className={RECORD_GRID}>
+      <ul className={RECORD_GRID_2COL}>
         {items.map((r, i) => (
           r.state === "refreshed"
             ? <RefreshedCard key={`${r.player_id}-${r.stat}-${i}`} r={r} />
