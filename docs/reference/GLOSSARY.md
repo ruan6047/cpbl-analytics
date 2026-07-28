@@ -68,6 +68,14 @@ livelog 逐事件切候選 PA 的分組單位：**連續同 `(game, inning, half
 
 - SSoT：`src/cpbl/ingest/splits_calc.py`（`_GO`/`_FO` 對照表與其上方註解）。
 
+### 連續無自責分局數（**≠ 連續無失分**）
+
+「連續無**自責**分局數」是本專案的口徑：失誤造成的非自責失分**不中斷**（與 ERA 語意一致）。媒體常用的「連續無失分」要求該場 `runs=0`，是**更嚴格**的另一個指標，數值通常較小（實例：呂彥青 2026-07-26 時點 28.1 局 vs 9.0 局）。**兩者混用即為錯誤陳述**，欄位名與文案一律帶「自責」。
+
+自責分一律讀官方 `pitching_gamelog.earned_runs`，**本專案不重建自責分**（規則 9.16 要求反事實重播、內含「有疑慮時對投手有利」的裁量條款、繼承跑者按人數歸屬）。`game_livelog` 只用於**定位**中斷場的半局；所有不確定一律往「中斷」解讀，故輸出為**下界**。
+
+- SSoT：`src/cpbl/models/scoreless_streak.py` 模組 docstring；窮舉對帳 `scripts/reconcile_scoreless_streak.py`。
+
 ## 當季累計快照
 
 ### `*_current` 口徑（team／batting／pitching／fielding_current）

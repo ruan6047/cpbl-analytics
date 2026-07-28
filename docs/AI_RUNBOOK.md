@@ -190,6 +190,18 @@ host 缺 `libomp.dylib`。**勿 `brew install libomp` 污染 host**；需 LightG
 | 戰績 | `/season/standings`、`/standings` |
 | 球員頁 | `/players/{id}/batting|pitching|season|profile|fielding|vs-team|splits|matchups|advanced|discipline|arsenal|pitch-mix|trend`、`/players/roster`、`/matchups` |
 | 賽況 | `/games/recent`、`/games/{sno}/live`（含 records/batter_avg/has_tracking/tracking） |
+| 紀錄室 | `/records`、`/records/championships`、`/records/postseason`、`/records/team`、`/records/earned-run-free-streak`（投手連續無**自責**分局數，見下） |
+
+### 連續無自責分局數 contract（`/records/earned-run-free-streak`）
+
+- **不是「連續無失分」**：失誤造成的非自責失分不中斷本指標。前端文案必須帶「自責」二字，
+  回應的 `note` 是該說明的單一來源。實例：呂彥青 2026-07-26 時點無自責分 28.1 局、無失分僅 9.0 局。
+- 自責分一律讀官方 `pitching_gamelog.earned_runs`，**專案不重建自責分**（規則 9.16 不可行，
+  理由見 `docs/tasks/ML-PITCHER-SCORELESS1.md` 背景節）。`game_livelog` 只用來定位中斷場的半局。
+- 所有不確定一律往「中斷」解讀 → 回傳值是**下界**。口徑與保守性規則的單一來源是
+  `src/cpbl/models/scoreless_streak.py` 的模組 docstring。
+- 窮舉對帳：`uv run python scripts/reconcile_scoreless_streak.py`（全母體、零例外才 exit 0；
+  改動演算法後必跑）。交付報告見 `docs/research/ML-PITCHER-SCORELESS1_RESULTS.md`。
 
 ### 投打對決查詢 contract
 
