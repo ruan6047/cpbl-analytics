@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { contrastText, nameMeta, teamColor } from "@/lib/teams";
 import { CoachGrid, GROUPS, ManagersTable, RetiredNumbers, RosterChips, RosterTable, f2, f3 } from "./parts";
 import { TeamFocusSection } from "./focus-section";
+import { TeamRecordsSection } from "./records-section";
 import { TeamStyleSection } from "./style-section";
 import { SEASON_GROUP, TeamTabs, type TeamGroup } from "./team-tabs";
 
@@ -29,7 +30,7 @@ export default async function TeamPage({ params, searchParams }: {
   const season = currentStd.season;
   const year = rawYear && rawYear >= MIN_SPLIT_YEAR && rawYear <= season ? rawYear : season;
 
-  const [split, special, games, cal, bat, pit, field, eras, roster, der, yearStd, style, hotBatters, pregame] = await Promise.all([
+  const [split, special, games, cal, bat, pit, field, eras, roster, der, yearStd, style, hotBatters, pregame, upcomingRecords] = await Promise.all([
     api.teamSplit(year),
     api.specialRecords(year),
     api.gamesRecent(200),         // 近日焦點：當季近期賽事
@@ -45,6 +46,8 @@ export default async function TeamPage({ params, searchParams }: {
     // 近日焦點擴充（UX-TEAM-FOCUS2）：一律當季（不帶 year），與「近日焦點＝當季近況」語意一致。
     api.teamHotBatters(code).catch(() => ({ season, available: false, window: null, items: [] })),
     api.outcomePregame(60).catch(() => null),  // 失敗不擋整頁：NextGameCard 走 resolvePregameCard 的 fetchFailed 分支
+    // 近日焦點・即將挑戰的紀錄（UX-TEAM-RECORDS1）：一律當季；失敗不擋整頁（區塊直接不渲染）。
+    api.teamUpcomingRecords(code).catch(() => null),
   ]);
 
   const team = currentStd.items.find((t) => t.team_code === code);
@@ -261,6 +264,7 @@ export default async function TeamPage({ params, searchParams }: {
     groups.push({ value: "focus", label: "近日焦點", content: (
       <div key="focus" className="space-y-5">
         <TeamFocusSection upcoming={upcoming} pregame={pregame} hotBatters={hotBatters} />
+        <TeamRecordsSection data={upcomingRecords} />
         {teamGames.length > 0 && (
           <section key="recent-games">
             <h2 className="mb-1 text-lg font-semibold">近期賽事</h2>

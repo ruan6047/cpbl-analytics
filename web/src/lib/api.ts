@@ -49,6 +49,36 @@ export type TeamHotBattersResponse = {
   items: TeamHotBatter[];
 };
 
+// 近日焦點・即將挑戰的紀錄（UX-TEAM-RECORDS1）：生涯里程碑 + 進行中連續安打 + 隊史紀錄
+// （僅計數型；隊史層級連續紀錄不做，見後端 cpbl.api.team_records docstring）。
+// 三個陣列各自可能為空；三者皆空時前端顯示統一退化文案，不留白區塊。
+export type TeamRecordsMilestone = {
+  player_id: string; name: string; role: "batting" | "pitching";
+  stat: string; label: string; current: number; milestone: number; remaining: number; ladder: number;
+};
+export type TeamRecordsStreak = { player_id: string; name: string; streak: number };
+// 隊史紀錄兩種狀態（2026-07-28 需求方裁定：隊史彙總含本季，不能再用「非即時」但書
+// 掩蓋去年底的快照——見後端 cpbl.api.team_records docstring）：
+//   refreshed＝本季已刷新（目前總計 > 上季結束時的隊史該項最高，呈現為成就）。
+//   approaching＝逼近中（低於目前隊史最高、差距 ≤ 該項門檻）；holder_active＝目前
+//     持有人是否仍在本隊現役名單——是的話這個數字本身還會隨賽季推進而動，不是靜止的碑。
+export type TeamRecordsFranchiseRefreshed = {
+  player_id: string; name: string; role: "batting" | "pitching"; state: "refreshed";
+  stat: string; label: string; current: number; prior_record: number; prior_holder: string;
+};
+export type TeamRecordsFranchiseApproaching = {
+  player_id: string; name: string; role: "batting" | "pitching"; state: "approaching";
+  stat: string; label: string; current: number; record: number; remaining: number;
+  holder: string; holder_active: boolean;
+};
+export type TeamRecordsFranchise = TeamRecordsFranchiseRefreshed | TeamRecordsFranchiseApproaching;
+export type TeamUpcomingRecordsResponse = {
+  season: number;
+  milestones: TeamRecordsMilestone[];
+  streaks: TeamRecordsStreak[];
+  franchise_records: TeamRecordsFranchise[];
+};
+
 async function get<T>(path: string, revalidate = 600): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, { next: { revalidate } });
   if (!res.ok) throw new ApiError(path, res.status);
@@ -459,6 +489,9 @@ export const api = {
   // 近日焦點・近期球員熱區（UX-TEAM-FOCUS2）：口徑見後端 cpbl.api.team_focus docstring。
   teamHotBatters: (code: string, season?: number) =>
     get<TeamHotBattersResponse>(`/api/v1/teams/${code}/hot-batters${season ? `?season=${season}` : ""}`, 120),
+  // 近日焦點・即將挑戰的紀錄（UX-TEAM-RECORDS1）：口徑見後端 cpbl.api.team_records docstring。
+  teamUpcomingRecords: (code: string, season?: number) =>
+    get<TeamUpcomingRecordsResponse>(`/api/v1/teams/${code}/upcoming-records${season ? `?season=${season}` : ""}`, 120),
   // 固定語意群賽前勝率（UX-TEAM-FOCUS2 複用；不接受特徵勾選）。與 outcome/pregame 探索器
   // 同一端點，但消費端各自把整份 response 交給 resolvePregameCard（單一來源守衛
   // pregame-single-source.test.ts 規則 2）。

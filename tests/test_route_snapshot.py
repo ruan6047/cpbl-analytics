@@ -76,6 +76,7 @@ EXPECTED = {
     "/api/v1/teams",
     "/api/v1/teams/{code}/der",
     "/api/v1/teams/{code}/hot-batters",
+    "/api/v1/teams/{code}/upcoming-records",
     "/api/v1/teams/{code}/style",
     "/api/v1/teams/{code}/eras",
     "/api/v1/teams/{code}/players",

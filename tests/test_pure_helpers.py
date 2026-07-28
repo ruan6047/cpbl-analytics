@@ -12,6 +12,15 @@ from cpbl.api.helpers import _ip_disp, _ip_real, _parse_features, _real_ip, _rou
 from cpbl.api.routers.ability import _grade
 from cpbl.api.routers.players import _merge_splits
 from cpbl.api.routers.tracking import _batted_result, _count_bucket, _zone_result
+from cpbl.api.team_records import (
+    BATTER_MILESTONES,
+    PITCHER_MILESTONES,
+    PITCHER_ROLE_NEAR,
+    _classify_pitcher_role,
+    _franchise_records,
+    _merge_current_season,
+    _next_milestone,
+)
 
 # ---- 局數記法換算（.1=⅓、.2=⅔） ----
 
@@ -167,3 +176,176 @@ def test_merge_splits_pitching_outs_normalized():
     out = _merge_splits([prow(5, 2), prow(3, 2)], "pitching")
     assert out[0]["inning_pitched_cnt"] == 9
     assert out[0]["inning_pitched_div3"] == 1
+
+
+# ---- UX-TEAM-RECORDS1：里程碑階梯計算（純函式） ----
+
+
+def test_next_milestone_matches_card_examples():
+    # 卡面 Coordinator 實測範例：陳晨威生涯 891 安差 9 到 900；潘傑楷 490 差 10 到 500。
+    assert _next_milestone(891, ladder=100, start=200) == (900, 9)
+    assert _next_milestone(490, ladder=100, start=200) == (500, 10)
+
+
+def test_next_milestone_below_start_threshold_is_far():
+    # 90 安未達起始門檻(200)，下一個有效里程碑仍是 200，差距刻意很大（後續由呼叫端的
+    # near 門檻過濾掉，不會誤標「快到了」）。
+    milestone, gap = _next_milestone(90, ladder=100, start=200)
+    assert milestone == 200
+    assert gap == 110
+
+
+def test_next_milestone_exact_multiple_rolls_to_next():
+    # 現值剛好是階梯倍數（如剛達成 300 安）：下一個里程碑是 400，不是 300 本身。
+    assert _next_milestone(300, ladder=100, start=200) == (400, 100)
+
+
+def test_next_milestone_small_ladder():
+    assert _next_milestone(22, ladder=25, start=25) == (25, 3)
+    assert _next_milestone(78, ladder=10, start=20) == (80, 2)
+
+
+def test_franchise_records_approaching_excludes_sole_holder_and_far_gaps():
+    # prior == current here (no one refreshed anything this season) → pure「逼近中」情境。
+    stat_defs = [d for d in BATTER_MILESTONES if d["stat"] == "h"]
+    roster = [
+        {"player_id": "leader", "name": "領先者"},
+        {"player_id": "close", "name": "逼近者"},
+        {"player_id": "far", "name": "遙遠者"},
+        {"player_id": "unknown", "name": "無隊史資料"},
+    ]
+    totals = {
+        "leader": {"name": "領先者", "h": 1000},
+        "close": {"name": "逼近者", "h": 997},   # 差 3 <= near(3)：單場 3 安可能達成
+        "far": {"name": "遙遠者", "h": 500},      # 差 500 > near(3)
+    }
+    out = _franchise_records(roster, totals, totals, stat_defs, role="batting")
+    assert [r["player_id"] for r in out] == ["close"]
+    assert out[0]["state"] == "approaching"
+    assert out[0]["record"] == 1000
+    assert out[0]["remaining"] == 3
+    assert out[0]["holder"] == "領先者"
+    assert out[0]["holder_active"] is False  # active_ids 預設空集合
+
+
+def test_franchise_records_empty_totals_is_empty():
+    stat_defs = [d for d in BATTER_MILESTONES if d["stat"] == "h"]
+    assert _franchise_records([{"player_id": "x", "name": "x"}], {}, {}, stat_defs, "batting") == []
+
+
+def test_franchise_records_refreshed_state_when_current_exceeds_prior():
+    # 卡面實例（曾子祐得分）的最小重現：現役球員本季總計超過「上季結束時」基準，
+    # 且是目前唯一/並列最高者 → 呈現為成就，不是「還差 N」。
+    stat_defs = [d for d in BATTER_MILESTONES if d["stat"] == "r"]
+    roster = [{"player_id": "zeng", "name": "曾子祐"}]
+    prior = {
+        "zeng": {"name": "曾子祐", "r": 128},
+        "mo_ying": {"name": "魔鷹", "r": 130},   # 上季結束時的隊史最高
+    }
+    current = {
+        "zeng": {"name": "曾子祐", "r": 177},    # 128+49（本季franchise-scoped增量）
+        "mo_ying": {"name": "魔鷹", "r": 162},   # 130+32，仍在，但已非最高
+    }
+    out = _franchise_records(roster, prior, current, stat_defs, role="batting")
+    assert len(out) == 1
+    assert out[0] == {
+        "player_id": "zeng", "name": "曾子祐", "role": "batting",
+        "stat": "r", "label": "得分", "state": "refreshed",
+        "current": 177, "prior_record": 130, "prior_holder": "魔鷹", "ratio": 0.0,
+    }
+
+
+def test_franchise_records_no_refresh_without_prior_baseline():
+    # franchise 在 *_seasons 完全沒有基準（理論上只會發生在一支隊伍的第一個
+    # 有紀錄球季）：不判刷新——沒有基準就沒有「被刷新的對象」。
+    stat_defs = [d for d in BATTER_MILESTONES if d["stat"] == "h"]
+    roster = [{"player_id": "rookie", "name": "新秀"}]
+    out = _franchise_records(roster, {}, {"rookie": {"name": "新秀", "h": 50}}, stat_defs, "batting")
+    assert out == []
+
+
+def test_franchise_records_only_current_leader_gets_refreshed_not_runner_up():
+    # 兩位現役隊友都超過舊紀錄，只有目前真正最高者算刷新；落後者若差距在 near
+    # 內則算逼近「目前」最高（不是逼近舊紀錄），避免同隊多人自稱刷新。
+    stat_defs = [d for d in BATTER_MILESTONES if d["stat"] == "hr"]  # near=1
+    roster = [{"player_id": "a", "name": "甲"}, {"player_id": "b", "name": "乙"}]
+    prior = {"a": {"name": "甲", "hr": 55}, "b": {"name": "乙", "hr": 55}}
+    current = {"a": {"name": "甲", "hr": 67}, "b": {"name": "乙", "hr": 66}}
+    out = _franchise_records(roster, prior, current, stat_defs, "batting")
+    states = {r["player_id"]: r["state"] for r in out}
+    assert states == {"a": "refreshed", "b": "approaching"}
+    b_row = next(r for r in out if r["player_id"] == "b")
+    assert b_row["record"] == 67 and b_row["remaining"] == 1 and b_row["holder"] == "甲"
+
+
+def test_franchise_records_holder_active_marker():
+    # 目前持有人若仍在本隊現役名單，approaching 列須標注 holder_active=True——
+    # 這是台鋼雄鷹「隊史紀錄是活的不是碑」場景的核心判準。
+    stat_defs = [d for d in BATTER_MILESTONES if d["stat"] == "hr"]
+    roster = [{"player_id": "chaser", "name": "追趕者"}]
+    prior = {"holder": {"name": "持有人", "hr": 10}}
+    current = {"holder": {"name": "持有人", "hr": 10}, "chaser": {"name": "追趕者", "hr": 9}}
+    out_active = _franchise_records(roster, prior, current, stat_defs, "batting",
+                                     active_ids=frozenset({"holder"}))
+    assert out_active[0]["holder_active"] is True
+    out_inactive = _franchise_records(roster, prior, current, stat_defs, "batting")
+    assert out_inactive[0]["holder_active"] is False
+
+
+def test_merge_current_season_adds_delta_only_for_roster():
+    prior = {
+        "active": {"name": "現役員", "h": 100},
+        "retired": {"name": "退役員", "h": 200},
+    }
+    roster = [{"player_id": "active", "name": "現役員"}]
+    delta = {"active": {"h": 15}}
+    merged = _merge_current_season(prior, roster, delta, ["h"])
+    assert merged["active"]["h"] == 115          # 100 + 15
+    assert merged["retired"]["h"] == 200         # 非現役維持原值不動
+    assert prior["active"]["h"] == 100           # 不得就地修改 prior（回傳新 dict）
+
+
+def test_merge_current_season_roster_player_with_no_prior_row_starts_from_zero():
+    # 現役新秀在 *_seasons 完全沒有基準列（史上首次代表這支 franchise 出賽）：
+    # 從 0 起算再加本季增量，不是拋錯或跳過。
+    merged = _merge_current_season(
+        {}, [{"player_id": "new", "name": "新人"}], {"new": {"h": 5}}, ["h"])
+    assert merged["new"]["h"] == 5
+
+
+def test_milestone_near_thresholds_match_2026_07_28_measured_revision():
+    # 卡面 2026-07-28 定版：near＝「單場達成 ≥N 發生率仍 ≥5% 的最大 N」，2018+ 一軍
+    # 逐場資料實測值，逐項不同（不是階梯比例、也不是粗略的「單場上限」估計——
+    # 勝投/救援中繼恰好兩者相符，其餘不相符）。三振／局數的實際 near 隨投手角色
+    # 分流（見 test_pitcher_role_near_split_values），這裡鎖住的是 PITCHER_MILESTONES
+    # 表內的固定值（w/sv_hld）與 so/ip 的 fallback（＝後援門檻，保守方向）。
+    # 鎖住數值，避免日後不小心改回舊的「一律 ≤3」或「階梯 1/10~1/8」設計。
+    near_by_stat = {d["stat"]: d["near"] for d in [*BATTER_MILESTONES, *PITCHER_MILESTONES]}
+    assert near_by_stat == {
+        "h": 3, "rbi": 2, "r": 2, "hr": 1, "sb": 1,
+        "so": 2, "ip": 2, "w": 1, "sv_hld": 1,
+    }
+
+
+def test_pitcher_role_near_split_values():
+    # 只有三振／局數需要角色分流（單場分布隨角色差一個數量級）；勝投/救援中繼
+    # 結構上單場上限即 1，與角色無關，不在分流表內。
+    assert PITCHER_ROLE_NEAR == {
+        "so": {"starter": 8, "reliever": 2},
+        "ip": {"starter": 7, "reliever": 2},
+    }
+
+
+def test_classify_pitcher_role_ratio_and_min_sample():
+    # 佔比 >=0.5 才算先發；邊界值 0.5 本身算先發（>= 不是 >）。
+    assert _classify_pitcher_role(starts=3, total=5) == "starter"     # 0.6
+    assert _classify_pitcher_role(starts=5, total=10) == "starter"    # 0.5 邊界
+    assert _classify_pitcher_role(starts=2, total=5) == "reliever"    # 0.4
+    assert _classify_pitcher_role(starts=0, total=20) == "reliever"   # 純後援
+
+
+def test_classify_pitcher_role_low_sample_is_always_reliever():
+    # 本季出賽 <5 場者一律歸後援，即使全部都是先發（保守方向：樣本不足時不敢
+    # 對後援門檻以外的宣稱背書，避免「差 8 個三振」掛在只投兩場的球員身上）。
+    assert _classify_pitcher_role(starts=4, total=4) == "reliever"    # 全先發但只 4 場
+    assert _classify_pitcher_role(starts=0, total=0) == "reliever"    # 本季無出賽（不除以零）
