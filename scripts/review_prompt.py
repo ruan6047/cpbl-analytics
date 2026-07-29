@@ -268,6 +268,13 @@ git rev-parse HEAD      # 必須等於 {sha}
 # 「Python 側」不只 .py：migration 與依賴變更同樣由 pytest／ruff 這一側驗證。
 _PY_EXTRA = {"pyproject.toml", "uv.lock"}
 
+# 「讀完就是驗證完」的檔案。這份清單是**白名單**而非殘餘集合：
+# iteration 0 把「非 Python 且非 web/」的一切都當成文件，於是 `scripts/scrape-daily.sh`
+# 這種可執行變更被靜默判成「純文件卡／沒有標準重現指令」（REVIEW-005 F1，blocking）。
+# 可執行的東西被說成不用驗，比不給指令更糟——所以只有明確認得的文件副檔名才算文件，
+# 其餘一律進 unknown 並在輸出裡吵。
+_DOC_SUFFIXES = (".md", ".rst", ".txt")
+
 
 def changed_paths(sha: str) -> tuple[list[str], str | None]:
     """回傳 (main...sha 的改動路徑, 無法取得時的原因)。取不到時**不猜**。"""
@@ -284,12 +291,15 @@ def changed_paths(sha: str) -> tuple[list[str], str | None]:
     return paths, None
 
 
-def _split_paths(paths: list[str]) -> tuple[list[str], list[str], list[str]]:
+def _split_paths(paths: list[str]) -> tuple[list[str], list[str], list[str], list[str]]:
+    """(Python 側, 前端, 文件, **未知**)。未知不是殘餘垃圾桶，是要被講出來的那一類。"""
     web = [p for p in paths if p.startswith("web/")]
     py = [p for p in paths if not p.startswith("web/")
           and (p.endswith((".py", ".sql")) or p in _PY_EXTRA)]
     rest = [p for p in paths if p not in web and p not in py]
-    return py, web, rest
+    docs = [p for p in rest if p.endswith(_DOC_SUFFIXES)]
+    unknown = [p for p in rest if p not in docs]
+    return py, web, docs, unknown
 
 
 _PY_BLOCK = """```bash
@@ -320,8 +330,14 @@ def repro_commands(ev: dict) -> str:
     的前端卡，那兩行掃不到任何被審改動，跑完全綠**證明不了任何事**——工具給的是
     寫死的預設值，而該成立的性質是「跑得到這次改動的驗證指令」。
 
-    判不出來時（取不到 diff、或改動全落在既非 Python 也非前端的路徑）**明講判不出來**，
+    判不出來時（取不到 diff、或改動落在腳本認不得的路徑）**明講判不出來**，
     不退回任何預設指令組：錯的綠燈比沒有燈更糟。
+
+    REVIEW-005 F1（blocking）：iteration 0 只分 Python／前端／其他三類，且「只有其他」
+    一律判成純文件卡。`scripts/scrape-daily.sh` 因此得到「沒有標準重現指令」——
+    **可執行的東西被說成不用驗**。修法是把文件改成白名單（`_DOC_SUFFIXES`），
+    認不得的路徑一律進 unknown，且 unknown 只要非空就一定在輸出裡出現，
+    不論旁邊有沒有 Python／前端改動。
     """
     sha = ev.get("source_sha", "")
     paths, err = changed_paths(sha)
@@ -329,35 +345,53 @@ def repro_commands(ev: dict) -> str:
         return ("⚠️ **無法判定卡片型態**（" + err + "）——請自行以 "
                 f"`git diff --name-only main...{sha}` 看實際改動選擇驗證指令，"
                 "**不要**套用任何預設指令組。")
-    py, web, rest = _split_paths(paths)
+    py, web, docs, unknown = _split_paths(paths)
     tally = (f"型態判定依據：`main...{sha[:7]}` 共 {len(paths)} 個檔案"
-             f"（Python 側 {len(py)}、`web/` {len(web)}、其他 {len(rest)}）。")
+             f"（Python 側 {len(py)}、`web/` {len(web)}、文件 {len(docs)}、"
+             f"**未知 {len(unknown)}**）。")
     if py and web:
         body = f"**混合卡**，兩組都要跑。\n\nPython 側：\n\n{_PY_BLOCK}\n\n前端側：\n\n{_WEB_BLOCK}"
     elif py:
         body = f"**Python 卡**：\n\n{_PY_BLOCK}"
     elif web:
         body = f"**前端卡**：\n\n{_WEB_BLOCK}"
+    elif docs and not unknown:
+        body = ("**純文件卡**（改動全為 "
+                + "、".join(f"`{s}`" for s in _DOC_SUFFIXES)
+                + " 檔）：**沒有標準重現指令**——依卡面〈驗證〉章節與交付摘要核對，"
+                "勿套用 Python 或前端的預設指令組。")
     else:
-        listed = "、".join(f"`{p}`" for p in rest[:8]) + ("…" if len(rest) > 8 else "")
-        body = ("**純文件／設定卡**（無 `.py`、無 `web/`）：**沒有標準重現指令**——"
-                f"依卡面〈驗證〉章節與交付摘要重跑，勿套用 Python 或前端的預設指令組。\n\n"
-                f"改動路徑：{listed}")
+        body = ("⚠️ **無法判定卡片型態**：改動沒有落在任何腳本認得的類別。"
+                "**不要**套用任何預設指令組，請依下列路徑自行決定驗證方式。")
+    if unknown:
+        listed = "\n".join(f"  - `{p}`" for p in unknown[:12])
+        more = f"\n  - …另有 {len(unknown) - 12} 項" if len(unknown) > 12 else ""
+        body += (
+            "\n\n⚠️ **下列改動不在自動判定範圍**（非 Python 側、非 `web/`、非文件副檔名）——"
+            "腳本**不猜**它們該怎麼驗（可能是 shell 腳本、Dockerfile、CI 設定、資料檔…），"
+            f"請自行判斷並在 findings 說明你怎麼驗的：\n\n{listed}{more}")
+    if docs and (py or web or unknown):
+        body += f"\n\n（另有 {len(docs)} 個文件檔以閱讀核對，不需指令。）"
     return f"{tally}\n\n{body}"
 
 
 # --- 獨立性：tier 推導值與卡面〈查核〉欄取較嚴者 ---
+# 嚴格度全序：1 < 2 < 3 < 4。3 比 2 嚴是因為它拿掉了「AI 也行」這個選項；
+# 4 比 3 嚴是因為它多要一項，不是二擇一。
 _INDEP_DESC = {
     1: "新 context／session 即可（不得為執行者本人）",
     2: "跨模型家族（非執行者所屬家族）或人工",
     3: "人工（需求方本人）",
+    4: "跨模型家族查核**且**人工核可（兩者皆須，非二擇一）",
 }
-# 卡面〈查核〉欄的辨識字樣。只升不降：辨識到就取該級，辨識不到不代表沒要求，
-# 故原文一律附上由人覆核。
-_INDEP_TOKENS: tuple[tuple[int, tuple[str, ...]], ...] = (
-    (2, ("跨家族", "跨模型家族", "跨模型", "換家族", "換模型家族")),
-    (3, ("人工",)),
-)
+_CROSS_TOKENS = ("跨家族", "跨模型家族", "跨模型", "換家族", "換模型家族")
+_HUMAN_TOKENS = ("人工",)
+# 「跨家族**或**人工」是二擇一（canonical 紅線卡的既有寫法）；
+# 「先跨家族查核，**並**由需求方人工核可」是兩者皆須。兩者字面上都同時含兩個字樣，
+# 只認得其中一個就會把 AND 讀成 OR——REVIEW-005 F2（blocking）正是如此。
+_INDEP_OR_RE = re.compile(
+    r"跨(?:模型)?家族[^。；\n]{0,10}或[^。；\n]{0,8}人工"
+    r"|人工[^。；\n]{0,10}或[^。；\n]{0,8}跨(?:模型)?家族")
 
 
 def card_review_field(card_id: str) -> str | None:
@@ -377,11 +411,30 @@ def card_review_field(card_id: str) -> str | None:
     return None
 
 
-def _card_indep_level(field: str) -> int | None:
-    for level, tokens in _INDEP_TOKENS:
-        if any(t in field for t in tokens):
-            return level
-    return None
+def _card_indep_level(field: str) -> tuple[int | None, str | None]:
+    """卡面〈查核〉欄 →（嚴格度, 需要人看一眼的註記）。
+
+    REVIEW-005 F2（blocking）：iteration 0 用「命中第一個 token 就回傳」表達這件事，
+    於是「先跨家族查核，**並**由需求方人工核可」在命中「跨家族」時就結束，
+    輸出成「跨模型家族或人工」——**把 AND 讀成 OR，把兩道關卡降成一道**。
+
+    複合語句的 AND／OR 不做自然語言推斷：只認得明確寫成「或」的二擇一（`_INDEP_OR_RE`）；
+    兩個字樣都在、卻沒寫成「或」時，取**較嚴的 AND 讀法**並明講腳本無法判定、
+    以卡面原文為準。往嚴的方向猜錯只是多一道關卡，往寬的方向猜錯是漏掉一道。
+    """
+    has_cross = any(t in field for t in _CROSS_TOKENS)
+    has_human = any(t in field for t in _HUMAN_TOKENS)
+    if has_cross and has_human:
+        if _INDEP_OR_RE.search(field):
+            return 2, None
+        return 4, ("卡面同時出現「跨家族」與「人工」但未寫成「或」——"
+                   "**腳本無法判定是二擇一還是兩者皆須，取較嚴的 AND 讀法**；"
+                   "實際要求以卡面原文為準，必要時請需求方裁定。")
+    if has_cross:
+        return 2, None
+    if has_human:
+        return 3, None
+    return None, None
 
 
 def card_body_cross_family_hint(card_id: str) -> str | None:
@@ -404,9 +457,18 @@ def card_body_cross_family_hint(card_id: str) -> str | None:
         if line.startswith("## "):
             body_started = True
             continue
-        if body_started and any(t in line for t in _INDEP_TOKENS[0][1]):
-            return line.strip()
+        if body_started and any(t in line for t in _CROSS_TOKENS):
+            return _clip(line.strip())
     return None
+
+
+# 提示行是「要不要看一眼卡面」的指路標，不是引文轉載。整行照登會把三百字的段落
+# 塞進獨立性區塊，稀釋掉旁邊真正該讀的那幾行（REVIEW-005 F3）。
+_HINT_MAX = 60
+
+
+def _clip(text: str, limit: int = _HINT_MAX) -> str:
+    return text if len(text) <= limit else text[:limit] + "…"
 
 
 def independence(card_id: str, tier: str) -> tuple[str, str]:
@@ -428,10 +490,12 @@ def independence(card_id: str, tier: str) -> tuple[str, str]:
                      "卡片若確實有此欄請確認格式，**別讓工具替你放寬要求**。")
         card_level = None
     else:
-        card_level = _card_indep_level(field)
+        card_level, ambiguity = _card_indep_level(field)
         verdict = (f"→ {_INDEP_DESC[card_level]}" if card_level
                    else "→ 腳本未在本欄辨識到強化要求（**你若讀出額外要求，以卡面為準**）")
         card_line = f"- 卡面〈查核〉欄原文：`{field}` {verdict}"
+        if ambiguity:
+            card_line += f"\n  - ⚠️ {ambiguity}"
     level = max(tier_level, card_level or 0)
     detail_lines = [
         f"- tier 推導（{tier}）：{_INDEP_DESC[tier_level]}",

@@ -311,6 +311,95 @@ def test_independence_flags_cross_family_written_only_in_body(
     assert "先本地人工審再交跨家族查核" in detail
 
 
+# --- REVIEW-005 的三項退回（iteration 1） ---
+def test_repro_shell_script_is_not_treated_as_docs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """F1 blocking：可執行變更被說成「純文件／沒有標準重現指令」比不給指令更糟。"""
+    out = _repro(monkeypatch, ["scripts/scrape-daily.sh"])
+
+    assert "純文件" not in out
+    assert "無法判定" in out
+    assert "uv run pytest" not in out and "npm ci" not in out
+
+
+@pytest.mark.parametrize(
+    "path", ["scripts/scrape-daily.sh", "Dockerfile", ".github/workflows/ci.yml",
+             "docker-compose.yml", "data/fixtures.csv"],
+)
+def test_repro_unknown_kinds_never_get_a_default_command(
+    monkeypatch: pytest.MonkeyPatch, path: str
+) -> None:
+    out = _repro(monkeypatch, [path])
+
+    assert "無法判定" in out and path in out
+    assert "uv run pytest" not in out and "npm ci" not in out
+
+
+def test_repro_unknown_paths_surface_next_to_recognised_ones(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """未知路徑旁邊有 Python 改動時同樣要被講出來，不得被指令區塊蓋過去。"""
+    out = _repro(monkeypatch, ["src/cpbl/api/main.py", "Dockerfile", ".github/workflows/ci.yml"])
+
+    assert "uv run pytest -q" in out                    # 認得的那部分照常給指令
+    assert "不在自動判定範圍" in out                     # 認不得的那部分照樣吵
+    assert "Dockerfile" in out and ".github/workflows/ci.yml" in out
+
+
+def test_repro_docs_only_uses_extension_allowlist(monkeypatch: pytest.MonkeyPatch) -> None:
+    out = _repro(monkeypatch, ["docs/AI_RUNBOOK.md", "README.md"])
+
+    assert "純文件卡" in out and "沒有標準重現指令" in out
+    assert "無法判定" not in out
+
+
+def test_independence_composite_and_is_not_downgraded_to_either_or(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """F2 blocking：「先跨家族查核，並由需求方人工核可」曾被讀成「跨家族或人工」。"""
+    _write_indep_card(tmp_path, "先跨家族查核，並由需求方人工核可")
+    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+
+    summary, detail = review_prompt.independence("CARD-I", "T2")
+
+    assert "且" in summary and "兩者皆須" in summary
+    assert summary != "跨模型家族（非執行者所屬家族）或人工"
+    assert "無法判定是二擇一還是兩者皆須" in detail   # 明講腳本沒在推斷
+    assert "以卡面原文為準" in detail
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["待指派（≠ 執行；跨家族或人工）",
+     "待指派（≠ 執行；**跨模型家族或人工**——本卡有統計紅線）",
+     "待指派（人工或跨家族皆可）"],
+)
+def test_independence_explicit_or_stays_either_or(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str
+) -> None:
+    """明寫「或」的既有寫法不得被誤升為 AND——只可升不可降不是「一律往上猜」。"""
+    _write_indep_card(tmp_path, field)
+    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+
+    summary, _ = review_prompt.independence("CARD-I", "T2")
+
+    assert summary == "跨模型家族（非執行者所屬家族）或人工"
+
+
+def test_independence_body_hint_is_clipped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """F3 minor：提示是指路標不是引文轉載，整行照登會稀釋旁邊真正該讀的字。"""
+    long_line = "- [ ] " + "描述另一張卡的問題時提到先本地人工審再交跨家族查核" * 6
+    _write_indep_card(tmp_path, "待指派（≠ 執行）", body=f"\n{long_line}\n")
+    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+
+    _, detail = review_prompt.independence("CARD-I", "T2")
+
+    hint = next(line for line in detail.splitlines() if "卡片正文另提到跨家族" in line)
+    assert "…" in hint
+    assert len(hint) < len(long_line)
+
+
 def test_independence_body_hint_absent_when_already_strict(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
