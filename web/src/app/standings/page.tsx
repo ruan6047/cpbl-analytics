@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { StatAbbr, TeamBadge, TeamLogo, divBg, prColor } from "@/components/ui";
+import { ENTITY_LINK, StatAbbr, TeamBadge, TeamLogo, divBg, prColor } from "@/components/ui";
 import { DataTable, type Column } from "@/components/table";
 import { StandingsTrend } from "@/components/standings-trend";
 import { StandingsNav } from "./nav";
@@ -27,14 +27,10 @@ function displayTeamName(name: string) {
 
 // 球隊徽章連到各隊獨立頁；改名/轉賣的歷史隊連到現役 franchise 頁；已解散隊不連
 function LinkedTeam({ code, name }: { code: string; name: string }) {
-  const tc = teamPageCode(code);
-  const shown = displayTeamName(name);
-  if (!tc) return <TeamBadge code={code} name={shown} />;
-  return (
-    <Link href={`/teams/${tc}`} className="hover:underline">
-      <TeamBadge code={code} name={shown} />
-    </Link>
-  );
+  // §3.5：只有隊名文字帶連結底線，logo 不套（底線橫跨徽章觀感差）。
+  // TeamBadge 的 link prop 內建 §9.3 gating（isCurrentTeam）與 teamPageCode 導向，
+  // 與原本的 `teamPageCode(code)` 判斷＋`/teams/${tc}` 目的地等價。
+  return <TeamBadge code={code} name={displayTeamName(name)} link />;
 }
 
 // W-L 配對：依勝率上色（>.5 藍、<.5 紅），方便跨隊一覽
@@ -143,14 +139,20 @@ function L10({ s }: { s: string | null }) {
 function TeamNameCell({ code, name }: { code: string; name: string }) {
   const tc = teamPageCode(code);
   const shown = displayTeamName(name);
-  const inner = (
-    <span className="inline-flex items-center gap-1.5">
-      <TeamLogo code={code} name={name} size={20} decorative />
+  // §3.5：只有名稱文字進連結並帶常駐底線，logo 留在連結外（底線不橫跨徽章）。
+  // aria-label 保留全名，避免手機縮寫成為無障礙名稱。
+  const label = (
+    <>
       <span className="hidden font-medium lg:inline">{shown}</span>
       <span className="font-medium lg:hidden">{teamShort(code) || shown}</span>
+    </>
+  );
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <TeamLogo code={code} name={name} size={20} decorative />
+      {tc ? <Link href={`/teams/${tc}`} className={ENTITY_LINK} aria-label={shown}>{label}</Link> : label}
     </span>
   );
-  return tc ? <Link href={`/teams/${tc}`} className="hover:underline" aria-label={shown}>{inner}</Link> : inner;
 }
 
 // 勝差標籤（取代獨立欄）：領先隊不顯示；落後隊以中性 chip 呈現

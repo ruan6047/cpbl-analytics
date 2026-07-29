@@ -210,7 +210,17 @@ export function RosterTable({ rows, cols }: {
   return (
     <DataTable
       columns={[
-        { header: cols[0], cell: (r) => <Link href={`/players/${r.id}`} className="inline-flex items-center gap-1.5 hover:underline">{r.name}{r.active && <ActivePill />}</Link>, className: "font-sans" },
+        // §3.5：底線只跟著球員名，現役 pill 移出連結（原本底線會橫跨 pill）。
+        {
+          header: cols[0],
+          cell: (r) => (
+            <span className="inline-flex items-center gap-1.5">
+              <Link href={`/players/${r.id}`} className={ENTITY_LINK}>{r.name}</Link>
+              {r.active && <ActivePill />}
+            </span>
+          ),
+          className: "font-sans",
+        },
         { header: cols[1], cell: (r) => r.span, className: "font-mono text-[11px] text-muted" },
         { header: cols[2], cell: (r) => r.a, className: "font-mono" },
         { header: cols[3], cell: (r) => r.b, className: "font-mono text-muted" },
@@ -228,7 +238,7 @@ export function PlayerTable({ rows, cols }: { rows: { id: string; name: string |
   return (
     <DataTable
       columns={[
-        { header: cols[0], cell: (r) => <Link href={`/players/${r.id}`} className="hover:underline">{r.name ?? "—"}</Link>, className: "font-sans" },
+        { header: cols[0], cell: (r) => <Link href={`/players/${r.id}`} className={ENTITY_LINK}>{r.name ?? "—"}</Link>, className: "font-sans" },
         { header: cols[1], cell: (r) => r.a, className: "font-mono" },
         { header: cols[2], cell: (r) => r.b, className: "font-mono text-muted" },
       ] satisfies Column<(typeof rows)[number]>[]}

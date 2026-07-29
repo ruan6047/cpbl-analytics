@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/table";
-import { ActivePill, GonePill, Notice, PlayerLink, TeamBadge, TeamLogo } from "@/components/ui";
+import { ActivePill, ENTITY_LINK, GonePill, Notice, PlayerLink, TeamBadge, TeamLogo } from "@/components/ui";
 import { api } from "@/lib/api";
 import { teamFullName } from "@/lib/teams";
 import { CareerLeaders } from "./career-leaders";
@@ -75,7 +75,16 @@ function FranchiseTable({ rows }: { rows: Franchises }) {
   const columns: Column<Franchises[number]>[] = [
     {
       header: "球團",
-      cell: (r) => <Link href={`/teams/${r.code}`} className="font-medium hover:underline"><TeamBadge code={r.code} name={r.name} /></Link>,
+      // §3.5：只有球團名文字帶連結底線，logo 不套。
+      // 刻意**不**改用 `TeamBadge link`（會套 §9.3 的 isCurrentTeam gating）——本表含已解散
+      // 球團（見「現況」欄 GonePill），而 teams/[code] 在有沿革資料時仍會渲染頁面
+      // （`!team && eras.length === 0` 才 notFound），套 gating 會移除可用連結。
+      cell: (r) => (
+        <span className="inline-flex items-center gap-1.5">
+          <TeamLogo code={r.code} name={r.name} size={20} decorative />
+          <Link href={`/teams/${r.code}`} className={`font-medium ${ENTITY_LINK}`}>{r.name}</Link>
+        </span>
+      ),
       sticky: true,
       nowrap: true,
       className: "font-sans",

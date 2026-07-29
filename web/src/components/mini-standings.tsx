@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { TeamLogo, Card } from "@/components/ui";
+import { ENTITY_LINK, TeamLogo, Card } from "@/components/ui";
 import { teamPageCode } from "@/lib/teams";
 import type { OfficialStanding } from "@/lib/api";
 
@@ -44,15 +44,16 @@ export default function MiniStandings({
                     {rank}
                   </td>
                   <td className="py-2.5 px-2 font-medium text-ink min-w-0">
-                    <Link
-                      href={`/teams/${teamPageCode(team.team_code)}`}
-                      className="inline-flex items-center gap-1.5 group hover:text-accent transition w-full"
-                    >
+                    {/* §3.5：只有隊名文字進連結並帶常駐底線，logo 留在連結外。 */}
+                    <span className="inline-flex w-full items-center gap-1.5">
                       <TeamLogo code={team.team_code} name={team.team_name} size={16} decorative />
-                      <span className="truncate max-w-[65px] xs:max-w-[80px] sm:max-w-none">
+                      <Link
+                        href={`/teams/${teamPageCode(team.team_code)}`}
+                        className={`truncate max-w-[65px] xs:max-w-[80px] sm:max-w-none ${ENTITY_LINK}`}
+                      >
                         {team.team_name}
-                      </span>
-                    </Link>
+                      </Link>
+                    </span>
                   </td>
                   <td className="py-2.5 px-1.5 text-center font-mono text-muted">
                     {team.g}
