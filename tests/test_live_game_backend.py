@@ -322,6 +322,29 @@ def test_worker_keeps_last_known_good_when_livelog_temporarily_regresses() -> No
     assert cache.get_snapshot(2026, "A", 226) == previous
 
 
+def test_worker_does_not_refetch_game_after_final_snapshot_is_cached() -> None:
+    now = datetime(2026, 7, 28, 14, 0, tzinfo=UTC)
+    cache = _Cache()
+    final = build_snapshot(_game("FINISHED"), fetched_at=T0)
+    cache.set_snapshot(final)
+    fetched: list[str] = []
+
+    worker = LiveGameWorker(
+        cache=cache,
+        fetch_schedule=lambda *_: [
+            _schedule("2026-A-226", "FINISHED", "2026-07-28T18:35:00"),
+        ],
+        fetch_game=lambda game_id: fetched.append(game_id) or _game("FINISHED"),
+    )
+
+    result = worker.run_cycle(now)
+
+    assert fetched == []
+    assert result["cached"] == 0
+    assert result["skipped_final"] == 1
+    assert cache.get_snapshot(2026, "A", 226) == final
+
+
 def test_poll_interval_is_adaptive_but_bounded() -> None:
     now = datetime(2026, 7, 28, 8, 0, tzinfo=UTC)
 

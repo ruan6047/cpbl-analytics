@@ -372,7 +372,7 @@ class LiveGameWorker:
             selected = _select_candidates(schedule_rows, now)[: self.max_games_per_cycle]
             phases: Counter[str] = Counter()
             game_summaries: list[dict[str, Any]] = []
-            cached = errors = 0
+            cached = errors = skipped_final = 0
             starts: list[datetime] = []
             for row in selected:
                 identity = _identity(row)
@@ -384,11 +384,16 @@ class LiveGameWorker:
                 year, kind, sno = identity
                 game_id = f"{year}-{kind}-{sno}"
                 try:
+                    previous = self.cache.get_snapshot(year, kind, sno)
+                    if (previous or {}).get("phase") == "final":
+                        skipped_final += 1
+                        phases["final"] += 1
+                        continue
                     raw_game = self.fetch_game(game_id)
                     snapshot = build_snapshot(
                         raw_game,
                         fetched_at=now,
-                        previous=self.cache.get_snapshot(year, kind, sno),
+                        previous=previous,
                     )
                     self.cache.set_snapshot(snapshot)
                 except (OSError, ValueError, httpx.HTTPError):
@@ -413,6 +418,7 @@ class LiveGameWorker:
                 "selected": len(selected),
                 "cached": cached,
                 "errors": errors,
+                "skipped_final": skipped_final,
                 "phases": dict(phases),
                 "games": game_summaries,
                 "next_poll_seconds": poll_interval_seconds(
