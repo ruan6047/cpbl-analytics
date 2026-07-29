@@ -141,3 +141,14 @@ pg_dump: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.543
   `docker exec prod_pg pg_dump -U app_writer -d alpha_db --no-owner | gzip > "$F.part"`
   → `mv` → `gunzip -t`。該指令已內建 3a 的修法（先 `.part`、驗證通過才改名），
   可直接當作腳本修復的範本。**注意磁碟只剩 5.0G（83% 已用）**，整庫 dump 前先確認餘量。
+- 2026-07-29T15:05+08:00 **止血完成**（需求方執行，Claude Opus 5@Claude Code 驗證）。
+  `/opt/backups/full-alpha_db-20260729-065150.sql.gz`，**239,914,212 bytes**，`gunzip -t` 通過。
+  機器驗證內容：`CREATE TABLE` 計數 **99** ＝ `cpbl` **81** 張（與 FIX1 那份一致，交叉佐證）
+  ＋ `public` **18** 張（`users`／`blog_posts`／`media`／`projects`／`work_experiences` 等）。
+  **這 18 張是主站的帳號與內容資料，先前從未被任何備份涵蓋——本份是主站 schema 有史以來第一份可用備份**
+  （壓縮量估算約 100 MB 先前零備份的資料）。該檔**請勿刪除**。
+  ⚠️ **止血 ≠ 修好**：根因 3a／3b／3c 全未動，明日 03:00 的 cron 仍會產出空檔，
+  在修復前每過一天就多一天增量資料無備份保護。
+- 2026-07-29 **cron 時區更正（供修復卡採用）**：止血檔名時戳 `065150` 為 UTC（＝台北 14:51:50），
+  故既有 `backup_alpha_db_*_030001` 的「每日 03:00」實為 **03:00 UTC ＝ 台北 11:00**，
+  非〈問題陳述〉字面暗示的凌晨 3 點。修 cron 與設計告警值班判斷時需以此為準。
