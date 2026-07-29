@@ -24,6 +24,7 @@ from cpbl.ingest.pa_build import (
     BATTER_OUT_FAMILIES,
     MAX_OUT_PA_PER_HALF_INNING,
     STATE_READY,
+    STRIKEOUT_ACTIONS,
     Event,
     _clean,
     _is_real_pitch,
@@ -33,6 +34,7 @@ from cpbl.ingest.pa_build import (
     derive_half_inning_outs,
     event_sort_key,
     load_taxonomy,
+    plate_appearances,
 )
 
 COLS = (
@@ -93,6 +95,45 @@ def _out_pa_slots(islands: list[list[Event]], taxonomy: Any,
     return per_half, per_slot
 
 
+def _attribution_rows(year: int, kind: str, sno: int, events: list[Event],
+                      taxonomy: Any) -> list[dict[str, Any]]:
+    """跨打者打席的 9.15(b) 歸屬明細（走**正式**程式路徑，不另寫簡化判定）。
+
+    iteration 2 的交付統計用簡化的 `action == "三振"` 自行判定，與正式的
+    `STRIKEOUT_ACTIONS` 不一致而少算一筆（查核 Major）。此處直接消費
+    `plate_appearances()` 的結果，杜絕統計與程式分家。
+    """
+    rows: list[dict[str, Any]] = []
+    for pa in plate_appearances(year, kind, sno, events, taxonomy):
+        member_hitters = [h for h in (m_h for m_h in _member_hitters(events, pa)) if h]
+        if len(set(member_hitters)) < 2:
+            continue
+        rows.append({
+            "game": f"{year}/{kind}/{sno}",
+            "start_event_no": pa.start_event_no, "end_event_no": pa.end_event_no,
+            "result_action": pa.result_action, "outcome_family": pa.outcome_family,
+            "state": pa.state,
+            "hitters_in_order": member_hitters,
+            "charged_hitter_acnt": pa.hitter_acnt,
+            "end_hitter_acnt": pa.end_hitter_acnt,
+            "is_strikeout_action": pa.result_action in STRIKEOUT_ACTIONS,
+            "verdict": ("charged_to_original" if pa.hitter_acnt != pa.end_hitter_acnt
+                        else "charged_to_completing"),
+        })
+    return rows
+
+
+def _member_hitters(events: list[Event], pa: Any) -> list[str | None]:
+    """PA 成員事件的打者序（非換人列）。"""
+    by_no = {str(e.get("main_event_no")): e for e in events}
+    out: list[str | None] = []
+    for m in pa.members:
+        ev = by_no.get(m.event_no)
+        if ev is not None and not ev.get("is_change_player"):
+            out.append(_clean(ev.get("hitter_acnt")))
+    return out
+
+
 def collect(from_year: int, to_year: int, kinds: list[str]) -> dict[str, Any]:
     taxonomy = load_taxonomy()
     with conn() as c:
@@ -118,6 +159,7 @@ def collect(from_year: int, to_year: int, kinds: list[str]) -> dict[str, Any]:
     outs_changed: list[dict[str, Any]] = []
     baseline_islands = [0, 0]          # [有真實投球的 legacy island 數, 其中不一致數]
     baseline_hist: collections.Counter = collections.Counter()
+    attribution: list[dict[str, Any]] = []
 
     for (year, kind, sno), events in sorted(games.items()):
         outs_of = derive_half_inning_outs(events)
@@ -144,6 +186,8 @@ def collect(from_year: int, to_year: int, kinds: list[str]) -> dict[str, Any]:
                 "to_hitter": _clean(cm[0].get("hitter_acnt")),
                 "result_action": _clean(cm[0].get("action_name")),
             })
+
+        attribution += _attribution_rows(year, kind, sno, events, taxonomy)
 
         b_half, b_slot = _out_pa_slots(legacy, taxonomy, None)
         a_half, a_slot = _out_pa_slots(build_islands(events), taxonomy, outs_of)
@@ -216,6 +260,15 @@ def collect(from_year: int, to_year: int, kinds: list[str]) -> dict[str, Any]:
             "mismatched": baseline_islands[1],
             "diff_histogram": dict(sorted(baseline_hist.items())),
         },
+        "hitter_attribution": {
+            "rule": "記錄規則 9.15(b)：9.15(a) 定義的三振（含 (a)(3) 不死三振）由代打者完成"
+                    "→ 記被判第 2 好球者；其他結果（含四壞球）→ 記代打者。",
+            "cross_batter_pas": len(attribution),
+            "by_verdict": dict(collections.Counter(r["verdict"] for r in attribution)),
+            "by_result_action": dict(collections.Counter(
+                str(r["result_action"]) for r in attribution).most_common()),
+            "rows": attribution,          # 逐筆全列，不截斷
+        },
         "ready_state_note": (
             f"out-PA 判定以 taxonomy outcome_family in {sorted(BATTER_OUT_FAMILIES)} "
             f"且 island 可分類為 pa_terminal 為準（對應 state={STATE_READY}）。"
@@ -247,6 +300,8 @@ def main() -> None:
     print(f"(半局, pre_outs) 重複：{dup['before']} → {dup['after']}")
     bl = report["pre_outs_baseline_diagnostic"]
     print(f"pre_outs 實際變動（修正後 PA 起點）：{oc['changed']} 差值分布={oc['diff_histogram']}")
+    at = report["hitter_attribution"]
+    print(f"跨打者打席（9.15(b) 歸屬）：{at['cross_batter_pas']} 筆　{at['by_verdict']}")
     print(f"　　診斷基線（修正前、有真實投球的 island）："
           f"{bl['mismatched']}/{bl['islands_with_real_pitch']} 差值分布={bl['diff_histogram']}")
     if args.out:

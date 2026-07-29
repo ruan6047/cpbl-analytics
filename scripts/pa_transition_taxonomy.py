@@ -54,7 +54,7 @@ except ModuleNotFoundError:  # pragma: no cover - script 直跑路徑
 
 Event = dict[str, Any]
 
-TAXONOMY_VERSION = "1.0.0"
+TAXONOMY_VERSION = "1.1.0"  # FIX1：island 切界加代打續打席條款 + 9.15(b) 歸屬 + 出局不變式
 
 # ---------------------------------------------------------------------------
 # 版本化 transition taxonomy
@@ -605,7 +605,29 @@ def build_taxonomy_json(report: Event) -> Event:
         "island_rule": {
             "boundary_key": ["year", "kind_code", "game_sno", "inning_seq",
                              "visiting_home_type", "hitter_acnt"],
-            "exclude_from_boundary": "is_change_player rows (attached as members, never seed/split)",
+            "exclude_from_boundary": (
+                "is_change_player rows (attached as members, never seed/split); "
+                "mid-PA pinch-hit substitutions do not split either — a hitter change inside a "
+                "half-inning continues the same PA when BOTH sides share the same batting_order "
+                "slot AND either the count does not reset (count_continues) or a 更換代打 "
+                "announcement is present (pinch_hit_slot). "
+                "SSoT: cpbl.ingest.pa_build.continues_same_plate_appearance (GAME-RECAP-PA1-FIX1)."
+            ),
+            "boundary_note": (
+                "hitter_acnt changes are necessary but not sufficient for a PA boundary: livelog "
+                "action_name is the PA-level result copied onto every row of the PA, so splitting "
+                "a PA at a pinch-hit substitution double-counts the outcome (296 island pairs "
+                "corpus-wide, 2018-2026). Conversely the count alone is NOT sufficient evidence "
+                "of continuation: 7 real PA boundaries in the corpus carry a non-resetting count "
+                "(e.g. 2021/D/64 6th bottom, 2018/A/4), so batting_order equality is required."
+            ),
+            "attribution": (
+                "A merged PA can span two batters. hitter_acnt = the batter officially charged "
+                "per scoring rule 9.15(b) — a strikeout as defined by 9.15(a) (INCLUDING the "
+                "uncaught third strike, 9.15(a)(3)) completed by a substitute is charged to the "
+                "batter who took the 2nd strike; any other result goes to the substitute. "
+                "end_hitter_acnt = the batter who completed the PA."
+            ),
             "ordering": "main_event_no::bigint (strict total order)",
         },
         "island_classes": {
@@ -619,6 +641,12 @@ def build_taxonomy_json(report: Event) -> Event:
             "unknown_action": "unreliable：pa 保留成員事件，WP/WPA 與逐球映射回 null + reason",
             "truncated_fragment": "not_a_pa：不產出 credited outcome；逐球歸屬 mapping_failed",
             "ambiguous_pitch_key": "(inning,pitcher,hitter) 候選>1 → mapping_state=failed",
+            "half_inning_out_overflow": (
+                "any half-inning with >3 batter-out PAs (outcome_family in out/sacrifice) fails "
+                "the build closed: the whole game is not published and the prior published build "
+                "is kept for audit. No allowlist — a violation means source corruption or a "
+                "classification bug."
+            ),
         },
         "actions": actions,
     }

@@ -782,24 +782,84 @@ def test_strikeout_charged_to_substitute_when_original_never_reached_two_strikes
     assert pas[0].hitter_acnt == "H2" and pas[0].end_hitter_acnt == "H2"
 
 
-def test_uncaught_third_strike_is_not_treated_as_a_9_15_b_strikeout() -> None:
-    """不死三振未列入 STRIKEOUT_ACTIONS（規則未明文＋全母體零實例）→ 歸完成者。
+def test_uncaught_third_strike_is_a_9_15_b_strikeout() -> None:
+    """不死三振仍是三振（9.15(a)(3)）→ 適用 9.15(b) 第一句，記原打者。
 
-    此測試釘住**現行的保守讀法**：若日後規則層裁定不死三振適用 9.15(b) 第一句，
-    這裡會紅，屆時是刻意變更而非漂移。
+    iteration 2 曾把它當「其他結果」歸完成者，是只讀 9.15(b) 未套 9.15(a) 定義所致
+    （查核 Major）。全庫不死三振 1,118 筆、每年皆有，只是尚無跨打者實例。
     """
-    events = [
-        ev(1, "H1", action="不死三振 捕逸", is_strike=True, pitch_cnt=1, strikes=2, order=3),
-        {**ev(2, "H2", action="不死三振 捕逸", change=True, pitch_cnt=1, strikes=2, order=3),
-         "content": "更換代打：H1=>H2。"},
-        ev(3, "H2", action="不死三振 捕逸", is_strike=True, pitch_cnt=2, strikes=3, order=3,
-           content="不死三振上壘。"),
-    ]
-    pas = _pas(events)
-    assert len(pas) == 1 and pas[0].hitter_acnt == "H2"
+    for action in ("不死三振 捕逸", "不死三振 暴投", "不死三振 趁傳",
+                   "不死三振 捕手傳一壘傳球失誤", "不死三振 捕手傳一壘接球失誤"):
+        events = [
+            ev(1, "H1", action=action, is_strike=True, pitch_cnt=1, strikes=2, order=3),
+            {**ev(2, "H2", action=action, change=True, pitch_cnt=1, strikes=2, order=3),
+             "content": "更換代打：H1=>H2。"},
+            ev(3, "H2", action=action, is_strike=True, pitch_cnt=2, strikes=3, order=3,
+               content="不死三振上壘。"),
+        ]
+        pas = _pas(events)
+        assert len(pas) == 1, action
+        assert pas[0].hitter_acnt == "H1", action        # 被判第 2 好球者
+        assert pas[0].end_hitter_acnt == "H2", action    # 實際完成者
+
+
+def test_strikeout_action_set_matches_taxonomy() -> None:
+    """含「三振」字樣的 taxonomy action 必須恰好等於 9.15(b) 的三振集合。
+
+    新增三振變體（或 taxonomy 改名）時本測試會紅，杜絕靜默漏列——
+    iteration 2 正是漏了不死三振五種，且交付統計也因此少算一筆。
+    """
+    from cpbl.ingest.pa_build import STRIKEOUT_ACTIONS
+
+    assert {a for a in TAX.actions if "三振" in a} == set(STRIKEOUT_ACTIONS)
 
 
 def test_single_batter_pa_has_identical_charged_and_completing_hitter() -> None:
     events = [ev(1, "H1", action="三振", is_strike=True, pitch_cnt=1, strikes=3)]
     pa = _pas(events)[0]
     assert pa.hitter_acnt == pa.end_hitter_acnt == "H1"
+
+
+# ===========================================================================
+# FIX1 iteration 3：taxonomy JSON 必須是「產生器產得出來」的（可重現性）
+# ===========================================================================
+def test_generator_static_blocks_match_committed_taxonomy_json() -> None:
+    """產生器的靜態區塊必須與 committed JSON 一致，否則按文件重跑會覆寫回舊語意。
+
+    iteration 2 手改了 JSON 卻沒改 `scripts/pa_transition_taxonomy.py`，任何人跑
+    docstring 裡的一鍵重生成命令都會把 v1.1 打回 v1.0（查核 Critical）。
+    本測試不需 DB：只用一個最小 report 呼叫 `build_taxonomy_json`，比對靜態區塊。
+    """
+    import json as _json
+
+    from cpbl.ingest import pa_build
+    from scripts.pa_transition_taxonomy import TAXONOMY_VERSION, build_taxonomy_json
+
+    committed = _json.loads(
+        (Path(pa_build.__file__).resolve().parent.parent / "resources"
+         / pa_build._TAXONOMY_FILENAME).read_text(encoding="utf-8")
+    )
+    generated = build_taxonomy_json(
+        {"profiles": [], "generated_at": "x", "parameters": committed["parameters"]}
+    )
+    assert generated["taxonomy_version"] == committed["taxonomy_version"] == TAXONOMY_VERSION
+    for block in ("island_rule", "island_classes", "fail_closed"):
+        assert generated[block] == committed[block], f"{block} 與產生器不一致"
+
+
+def test_committed_taxonomy_declares_the_fix1_semantics() -> None:
+    """committed JSON 必須實際帶有 FIX1 的語意欄位（防再度退回 v1.0 形狀）。"""
+    tax_doc = load_taxonomy()
+    assert tax_doc.version == "1.1.0"
+    import json as _json
+
+    from cpbl.ingest import pa_build
+
+    doc = _json.loads(
+        (Path(pa_build.__file__).resolve().parent.parent / "resources"
+         / pa_build._TAXONOMY_FILENAME).read_text(encoding="utf-8")
+    )
+    assert "batting_order" in doc["island_rule"]["exclude_from_boundary"]
+    assert "boundary_note" in doc["island_rule"] and "attribution" in doc["island_rule"]
+    assert "9.15(b)" in doc["island_rule"]["attribution"]
+    assert "half_inning_out_overflow" in doc["fail_closed"]

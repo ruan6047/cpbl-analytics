@@ -16735,5 +16735,5695 @@
       "2": 2
     }
   },
+  "hitter_attribution": {
+    "rule": "記錄規則 9.15(b)：9.15(a) 定義的三振（含 (a)(3) 不死三振）由代打者完成→ 記被判第 2 好球者；其他結果（含四壞球）→ 記代打者。",
+    "cross_batter_pas": 296,
+    "by_verdict": {
+      "charged_to_completing": 274,
+      "charged_to_original": 22
+    },
+    "by_result_action": {
+      "三振": 68,
+      "一壘安打": 38,
+      "四壞球": 37,
+      "飛球接殺": 35,
+      "刺殺": 32,
+      "趁傳": 14,
+      "犧牲飛球": 11,
+      "雙殺打 刺殺": 10,
+      "觸身死球": 8,
+      "界外飛球接殺": 7,
+      "二壘安打": 7,
+      "一壘安打 內野安打": 5,
+      "犧牲短打 傳球": 5,
+      "野手接球自踩壘包 一壘": 4,
+      "None": 3,
+      "故意四壞球": 3,
+      "接球失誤": 2,
+      "內野高飛球": 2,
+      "三振/第三好球觸擊失敗": 1,
+      "傳球失誤": 1,
+      "裁定四壞球": 1,
+      "三振/遭捕手傳一壘刺殺": 1,
+      "全壘打": 1
+    },
+    "rows": [
+      {
+        "game": "2018/A/7",
+        "start_event_no": "0510015000",
+        "end_event_no": "0510021000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003551",
+          "0000002298",
+          "0000002298",
+          "0000002298",
+          "0000002298",
+          "0000002298"
+        ],
+        "charged_hitter_acnt": "0000002298",
+        "end_hitter_acnt": "0000002298",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2018/A/116",
+        "start_event_no": "0720010000",
+        "end_event_no": "0720014000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003551",
+          "0000003551",
+          "0000003551",
+          "0000001240"
+        ],
+        "charged_hitter_acnt": "0000003551",
+        "end_hitter_acnt": "0000001240",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2018/A/118",
+        "start_event_no": "0310008000",
+        "end_event_no": "0310014000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003395",
+          "0000003395",
+          "0000003225",
+          "0000003225",
+          "0000003225",
+          "0000003225"
+        ],
+        "charged_hitter_acnt": "0000003225",
+        "end_hitter_acnt": "0000003225",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2018/A/150",
+        "start_event_no": "0610010000",
+        "end_event_no": "0610013000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002289",
+          "0000002661",
+          "0000002661"
+        ],
+        "charged_hitter_acnt": "0000002661",
+        "end_hitter_acnt": "0000002661",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2018/A/194",
+        "start_event_no": "0910012000",
+        "end_event_no": "0910016000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001217",
+          "0000003144",
+          "0000003144",
+          "0000003144",
+          "0000003144"
+        ],
+        "charged_hitter_acnt": "0000003144",
+        "end_hitter_acnt": "0000003144",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2018/D/59",
+        "start_event_no": "0520001000",
+        "end_event_no": "0520003000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003275",
+          "0000003628"
+        ],
+        "charged_hitter_acnt": "0000003628",
+        "end_hitter_acnt": "0000003628",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2018/D/72",
+        "start_event_no": "0810004000",
+        "end_event_no": "0810008000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003048",
+          "0000000140",
+          "0000000140",
+          "0000000140"
+        ],
+        "charged_hitter_acnt": "0000000140",
+        "end_hitter_acnt": "0000000140",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2019/A/36",
+        "start_event_no": "0710021000",
+        "end_event_no": "0710026000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000132",
+          "0000002286",
+          "0000002286",
+          "0000002286",
+          "0000002286"
+        ],
+        "charged_hitter_acnt": "0000002286",
+        "end_hitter_acnt": "0000002286",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2019/A/61",
+        "start_event_no": "0310008000",
+        "end_event_no": "0310014000",
+        "result_action": "雙殺打 刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003338",
+          "0000003338",
+          "0000001118",
+          "0000001118",
+          "0000001118",
+          "0000001118"
+        ],
+        "charged_hitter_acnt": "0000001118",
+        "end_hitter_acnt": "0000001118",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2019/A/68",
+        "start_event_no": "0620018000",
+        "end_event_no": "0620025000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003345",
+          "0000003660",
+          "0000003660",
+          "0000003660",
+          "0000003660",
+          "0000003660",
+          "0000003660"
+        ],
+        "charged_hitter_acnt": "0000003660",
+        "end_hitter_acnt": "0000003660",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2019/A/92",
+        "start_event_no": "0910012000",
+        "end_event_no": null,
+        "result_action": null,
+        "outcome_family": null,
+        "state": "truncated",
+        "hitters_in_order": [
+          "0000001409",
+          "0000003602",
+          "0000003602",
+          "0000003602",
+          "0000003602",
+          "0000003602",
+          "0000003602"
+        ],
+        "charged_hitter_acnt": "0000003602",
+        "end_hitter_acnt": "0000003602",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2019/A/124",
+        "start_event_no": "0110019000",
+        "end_event_no": "0110022000",
+        "result_action": "界外飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002298",
+          "0000002298",
+          "0000001606"
+        ],
+        "charged_hitter_acnt": "0000001606",
+        "end_hitter_acnt": "0000001606",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2019/A/155",
+        "start_event_no": "0910030000",
+        "end_event_no": "0910033000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002286",
+          "0000002286",
+          "0000003345"
+        ],
+        "charged_hitter_acnt": "0000002286",
+        "end_hitter_acnt": "0000003345",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2019/A/170",
+        "start_event_no": "0520033000",
+        "end_event_no": "0520040000",
+        "result_action": "觸身死球",
+        "outcome_family": "hbp",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002696",
+          "0000002696",
+          "0000002696",
+          "0000002696",
+          "0000003551",
+          "0000003551",
+          "0000003551"
+        ],
+        "charged_hitter_acnt": "0000003551",
+        "end_hitter_acnt": "0000003551",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2019/A/175",
+        "start_event_no": "0120028000",
+        "end_event_no": "0120033000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003563",
+          "0000003563",
+          "0000003563",
+          "0000003563",
+          "0000000153"
+        ],
+        "charged_hitter_acnt": "0000003563",
+        "end_hitter_acnt": "0000000153",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2019/A/212",
+        "start_event_no": "0210009000",
+        "end_event_no": "0210016000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002305",
+          "0000002305",
+          "0000002305",
+          "0000002305",
+          "0000002305",
+          "0000000366",
+          "0000000366"
+        ],
+        "charged_hitter_acnt": "0000002305",
+        "end_hitter_acnt": "0000000366",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2019/D/142",
+        "start_event_no": "0520007000",
+        "end_event_no": "0520012000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002350",
+          "0000002350",
+          "0000002350",
+          "0000002350",
+          "0000003278"
+        ],
+        "charged_hitter_acnt": "0000002350",
+        "end_hitter_acnt": "0000003278",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2020/A/22",
+        "start_event_no": "0710002000",
+        "end_event_no": "0710008000",
+        "result_action": "一壘安打 內野安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000743",
+          "0000000743",
+          "0000000743",
+          "0000000743",
+          "0000001754",
+          "0000001754"
+        ],
+        "charged_hitter_acnt": "0000001754",
+        "end_hitter_acnt": "0000001754",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2020/A/22",
+        "start_event_no": "0710020000",
+        "end_event_no": "0710023000",
+        "result_action": "二壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000004636",
+          "0000000853",
+          "0000000853"
+        ],
+        "charged_hitter_acnt": "0000000853",
+        "end_hitter_acnt": "0000000853",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2020/A/79",
+        "start_event_no": "0510001000",
+        "end_event_no": "0510006000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003615",
+          "0000003615",
+          "0000003144",
+          "0000003144",
+          "0000003144"
+        ],
+        "charged_hitter_acnt": "0000003615",
+        "end_hitter_acnt": "0000003144",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2020/A/135",
+        "start_event_no": "0520017000",
+        "end_event_no": "0520023000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003609",
+          "0000003609",
+          "0000001318",
+          "0000001318",
+          "0000001318",
+          "0000001318"
+        ],
+        "charged_hitter_acnt": "0000001318",
+        "end_hitter_acnt": "0000001318",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2020/A/172",
+        "start_event_no": "0810007000",
+        "end_event_no": "0810011000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003211",
+          "0000003211",
+          "0000001409",
+          "0000001409"
+        ],
+        "charged_hitter_acnt": "0000001409",
+        "end_hitter_acnt": "0000001409",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2020/A/182",
+        "start_event_no": "0910008000",
+        "end_event_no": "0910012000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003339",
+          "0000003337",
+          "0000003337",
+          "0000003337",
+          "0000003337"
+        ],
+        "charged_hitter_acnt": "0000003337",
+        "end_hitter_acnt": "0000003337",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2020/A/239",
+        "start_event_no": "0310001000",
+        "end_event_no": "0310005000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003183",
+          "0000003183",
+          "0000003183",
+          "0000005571"
+        ],
+        "charged_hitter_acnt": "0000003183",
+        "end_hitter_acnt": "0000005571",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2020/D/80",
+        "start_event_no": "0810003000",
+        "end_event_no": "0810007000",
+        "result_action": "觸身死球",
+        "outcome_family": "hbp",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003211",
+          "0000003211",
+          "0000000774",
+          "0000000774"
+        ],
+        "charged_hitter_acnt": "0000000774",
+        "end_hitter_acnt": "0000000774",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2020/D/81",
+        "start_event_no": "0620003000",
+        "end_event_no": "0620010000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005563",
+          "0000005563",
+          "0000005563",
+          "0000005563",
+          "0000005563",
+          "0000004622"
+        ],
+        "charged_hitter_acnt": "0000005563",
+        "end_hitter_acnt": "0000004622",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2020/D/106",
+        "start_event_no": "0310006000",
+        "end_event_no": "0310013000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001406",
+          "0000001406",
+          "0000001406",
+          "0000001406",
+          "0000001406",
+          "0000005531",
+          "0000005531"
+        ],
+        "charged_hitter_acnt": "0000005531",
+        "end_hitter_acnt": "0000005531",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2020/D/153",
+        "start_event_no": "0610030000",
+        "end_event_no": "0610035000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005532",
+          "0000005532",
+          "0000005536",
+          "0000005536",
+          "0000005536"
+        ],
+        "charged_hitter_acnt": "0000005536",
+        "end_hitter_acnt": "0000005536",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2020/D/206",
+        "start_event_no": "0610011000",
+        "end_event_no": "0610017000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005656",
+          "0000001129",
+          "0000001129",
+          "0000001129",
+          "0000001129",
+          "0000001129"
+        ],
+        "charged_hitter_acnt": "0000001129",
+        "end_hitter_acnt": "0000001129",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2020/D/210",
+        "start_event_no": "0620016000",
+        "end_event_no": "0620024000",
+        "result_action": "犧牲飛球",
+        "outcome_family": "sacrifice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005538",
+          "0000005538",
+          "0000005538",
+          "0000005538",
+          "0000001713",
+          "0000001713",
+          "0000001713"
+        ],
+        "charged_hitter_acnt": "0000001713",
+        "end_hitter_acnt": "0000001713",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2020/D/225",
+        "start_event_no": "0910013000",
+        "end_event_no": "0910015000",
+        "result_action": "野手接球自踩壘包 一壘",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005538",
+          "0000005538",
+          "0000005546"
+        ],
+        "charged_hitter_acnt": "0000005546",
+        "end_hitter_acnt": "0000005546",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2021/A/78",
+        "start_event_no": "0620013000",
+        "end_event_no": "0620017000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002285",
+          "0000003255",
+          "0000003255",
+          "0000003255"
+        ],
+        "charged_hitter_acnt": "0000003255",
+        "end_hitter_acnt": "0000003255",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2021/A/117",
+        "start_event_no": "0610012000",
+        "end_event_no": "0610018000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001114",
+          "0000001114",
+          "0000001114",
+          "0000001114",
+          "0000000350",
+          "0000000350"
+        ],
+        "charged_hitter_acnt": "0000000350",
+        "end_hitter_acnt": "0000000350",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2021/A/119",
+        "start_event_no": "0810002000",
+        "end_event_no": "0810008000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001284",
+          "0000001284",
+          "0000001284",
+          "0000001284",
+          "0000001284",
+          "0000002293"
+        ],
+        "charged_hitter_acnt": "0000002293",
+        "end_hitter_acnt": "0000002293",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2021/A/153",
+        "start_event_no": "0710007000",
+        "end_event_no": "0710012000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000853",
+          "0000005569",
+          "0000005569",
+          "0000005569",
+          "0000005569"
+        ],
+        "charged_hitter_acnt": "0000005569",
+        "end_hitter_acnt": "0000005569",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2021/D/21",
+        "start_event_no": "0920018000",
+        "end_event_no": "0920024000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002707",
+          "0000003551",
+          "0000003551",
+          "0000003551",
+          "0000003551",
+          "0000003551"
+        ],
+        "charged_hitter_acnt": "0000003551",
+        "end_hitter_acnt": "0000003551",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2021/D/74",
+        "start_event_no": "0710008000",
+        "end_event_no": "0710014000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006235",
+          "0000006235",
+          "0000006235",
+          "0000006235",
+          "0000006235",
+          "0000006242"
+        ],
+        "charged_hitter_acnt": "0000006235",
+        "end_hitter_acnt": "0000006242",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2021/D/161",
+        "start_event_no": "0720008000",
+        "end_event_no": "0720017000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000772",
+          "0000000772",
+          "0000002307",
+          "0000002307",
+          "0000002307",
+          "0000002307",
+          "0000002307",
+          "0000002307",
+          "0000002307"
+        ],
+        "charged_hitter_acnt": "0000002307",
+        "end_hitter_acnt": "0000002307",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2021/D/189",
+        "start_event_no": "0610002000",
+        "end_event_no": "0610006000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006241",
+          "0000006241",
+          "0000006241",
+          "0000006226"
+        ],
+        "charged_hitter_acnt": "0000006241",
+        "end_hitter_acnt": "0000006226",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2022/A/10",
+        "start_event_no": "0720007000",
+        "end_event_no": "0720013000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001474",
+          "0000001474",
+          "0000002350",
+          "0000002350",
+          "0000002350",
+          "0000002350"
+        ],
+        "charged_hitter_acnt": "0000002350",
+        "end_hitter_acnt": "0000002350",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/17",
+        "start_event_no": "0810015000",
+        "end_event_no": "0810019000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002282",
+          "0000003533",
+          "0000003533",
+          "0000003533"
+        ],
+        "charged_hitter_acnt": "0000003533",
+        "end_hitter_acnt": "0000003533",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/19",
+        "start_event_no": "0710010000",
+        "end_event_no": "0710015000",
+        "result_action": "二壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002305",
+          "0000006760",
+          "0000006760",
+          "0000006760",
+          "0000006760"
+        ],
+        "charged_hitter_acnt": "0000006760",
+        "end_hitter_acnt": "0000006760",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/44",
+        "start_event_no": "0510021000",
+        "end_event_no": "0510024000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005656",
+          "0000000743",
+          "0000000743"
+        ],
+        "charged_hitter_acnt": "0000000743",
+        "end_hitter_acnt": "0000000743",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/47",
+        "start_event_no": "0620007000",
+        "end_event_no": "0620012000",
+        "result_action": "犧牲短打 傳球",
+        "outcome_family": "sacrifice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002601",
+          "0000001756",
+          "0000001756",
+          "0000001756",
+          "0000001756"
+        ],
+        "charged_hitter_acnt": "0000001756",
+        "end_hitter_acnt": "0000001756",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/55",
+        "start_event_no": "0620016000",
+        "end_event_no": "0620024000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003336",
+          "0000003338",
+          "0000003338",
+          "0000003338",
+          "0000003338",
+          "0000003338",
+          "0000003338",
+          "0000003338"
+        ],
+        "charged_hitter_acnt": "0000003338",
+        "end_hitter_acnt": "0000003338",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/75",
+        "start_event_no": "0620031000",
+        "end_event_no": "0620034000",
+        "result_action": "犧牲飛球",
+        "outcome_family": "sacrifice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002696",
+          "0000003615",
+          "0000003615"
+        ],
+        "charged_hitter_acnt": "0000003615",
+        "end_hitter_acnt": "0000003615",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/75",
+        "start_event_no": "0910016000",
+        "end_event_no": "0910021000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003174",
+          "0000003609",
+          "0000003609",
+          "0000003609",
+          "0000003609"
+        ],
+        "charged_hitter_acnt": "0000003609",
+        "end_hitter_acnt": "0000003609",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/83",
+        "start_event_no": "0920021000",
+        "end_event_no": "0920025000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002282",
+          "0000003343",
+          "0000003343",
+          "0000003343"
+        ],
+        "charged_hitter_acnt": "0000003343",
+        "end_hitter_acnt": "0000003343",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/88",
+        "start_event_no": "0710005000",
+        "end_event_no": "0710012000",
+        "result_action": "觸身死球",
+        "outcome_family": "hbp",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003339",
+          "0000000362",
+          "0000000362",
+          "0000000362",
+          "0000000362",
+          "0000000362",
+          "0000000362"
+        ],
+        "charged_hitter_acnt": "0000000362",
+        "end_hitter_acnt": "0000000362",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/120",
+        "start_event_no": "0920015000",
+        "end_event_no": "0920018000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000772",
+          "0000002297",
+          "0000002297"
+        ],
+        "charged_hitter_acnt": "0000002297",
+        "end_hitter_acnt": "0000002297",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/124",
+        "start_event_no": "0910005000",
+        "end_event_no": "0910008000",
+        "result_action": "趁傳",
+        "outcome_family": "fielders_choice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000361",
+          "0000002349",
+          "0000002349"
+        ],
+        "charged_hitter_acnt": "0000002349",
+        "end_hitter_acnt": "0000002349",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/127",
+        "start_event_no": "0610021000",
+        "end_event_no": "0610028000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001240",
+          "0000004641",
+          "0000004641",
+          "0000004641",
+          "0000004641",
+          "0000004641",
+          "0000004641"
+        ],
+        "charged_hitter_acnt": "0000004641",
+        "end_hitter_acnt": "0000004641",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/138",
+        "start_event_no": "1210007000",
+        "end_event_no": "1210009000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005544",
+          "0000000045"
+        ],
+        "charged_hitter_acnt": "0000000045",
+        "end_hitter_acnt": "0000000045",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/148",
+        "start_event_no": "0520002000",
+        "end_event_no": "0520007000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002275",
+          "0000002275",
+          "0000002275",
+          "0000004641",
+          "0000004641"
+        ],
+        "charged_hitter_acnt": "0000004641",
+        "end_hitter_acnt": "0000004641",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/156",
+        "start_event_no": "0810031000",
+        "end_event_no": "0810035000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002350",
+          "0000002350",
+          "0000002350",
+          "0000003615"
+        ],
+        "charged_hitter_acnt": "0000002350",
+        "end_hitter_acnt": "0000003615",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2022/A/160",
+        "start_event_no": "0820014000",
+        "end_event_no": "0820020000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001606",
+          "0000003284",
+          "0000003284",
+          "0000003284",
+          "0000003284",
+          "0000003284"
+        ],
+        "charged_hitter_acnt": "0000003284",
+        "end_hitter_acnt": "0000003284",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/162",
+        "start_event_no": "0910015000",
+        "end_event_no": "0910018000",
+        "result_action": "一壘安打 內野安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000132",
+          "0000003467",
+          "0000003467"
+        ],
+        "charged_hitter_acnt": "0000003467",
+        "end_hitter_acnt": "0000003467",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/181",
+        "start_event_no": "0910015000",
+        "end_event_no": "0910021000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002291",
+          "0000001119",
+          "0000001119",
+          "0000001119",
+          "0000001119",
+          "0000001119"
+        ],
+        "charged_hitter_acnt": "0000001119",
+        "end_hitter_acnt": "0000001119",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/185",
+        "start_event_no": "0910015000",
+        "end_event_no": "0910023000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001217",
+          "0000002349",
+          "0000002349",
+          "0000002349",
+          "0000002349",
+          "0000002349",
+          "0000002349",
+          "0000002349"
+        ],
+        "charged_hitter_acnt": "0000002349",
+        "end_hitter_acnt": "0000002349",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/188",
+        "start_event_no": "0920003000",
+        "end_event_no": "0920009000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003048",
+          "0000002349",
+          "0000002349",
+          "0000002349",
+          "0000002349"
+        ],
+        "charged_hitter_acnt": "0000002349",
+        "end_hitter_acnt": "0000002349",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/206",
+        "start_event_no": "0710001000",
+        "end_event_no": "0710007000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005656",
+          "0000002285",
+          "0000002285",
+          "0000002285",
+          "0000002285",
+          "0000002285"
+        ],
+        "charged_hitter_acnt": "0000002285",
+        "end_hitter_acnt": "0000002285",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/226",
+        "start_event_no": "0710015000",
+        "end_event_no": "0710022000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005306",
+          "0000002626",
+          "0000002626",
+          "0000002626",
+          "0000002626",
+          "0000002626",
+          "0000002626"
+        ],
+        "charged_hitter_acnt": "0000002626",
+        "end_hitter_acnt": "0000002626",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/239",
+        "start_event_no": "0910008000",
+        "end_event_no": "0910012000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003174",
+          "0000003343",
+          "0000003343",
+          "0000003343"
+        ],
+        "charged_hitter_acnt": "0000003343",
+        "end_hitter_acnt": "0000003343",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/239",
+        "start_event_no": "0920013000",
+        "end_event_no": "0920025000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005548",
+          "0000000045",
+          "0000000045",
+          "0000000045",
+          "0000000045",
+          "0000000045",
+          "0000000045",
+          "0000000045",
+          "0000000045",
+          "0000000045",
+          "0000000045",
+          "0000000045"
+        ],
+        "charged_hitter_acnt": "0000000045",
+        "end_hitter_acnt": "0000000045",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/266",
+        "start_event_no": "0910018000",
+        "end_event_no": "0910022000",
+        "result_action": "接球失誤",
+        "outcome_family": "reach_on_error",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005553",
+          "0000003625",
+          "0000003625",
+          "0000003625"
+        ],
+        "charged_hitter_acnt": "0000003625",
+        "end_hitter_acnt": "0000003625",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/285",
+        "start_event_no": "0320025000",
+        "end_event_no": "0320030000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002707",
+          "0000001291",
+          "0000001291",
+          "0000001291",
+          "0000001291"
+        ],
+        "charged_hitter_acnt": "0000001291",
+        "end_hitter_acnt": "0000001291",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/289",
+        "start_event_no": "0810012000",
+        "end_event_no": "0810019000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002282",
+          "0000002282",
+          "0000003343",
+          "0000003343",
+          "0000003343",
+          "0000003343"
+        ],
+        "charged_hitter_acnt": "0000003343",
+        "end_hitter_acnt": "0000003343",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/290",
+        "start_event_no": "1210018000",
+        "end_event_no": "1210026000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002291",
+          "0000003183",
+          "0000003183",
+          "0000003183",
+          "0000003183",
+          "0000003183",
+          "0000003183",
+          "0000003183"
+        ],
+        "charged_hitter_acnt": "0000003183",
+        "end_hitter_acnt": "0000003183",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/A/293",
+        "start_event_no": "0120010000",
+        "end_event_no": "0120015000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000362",
+          "0000000362",
+          "0000000362",
+          "0000000343",
+          "0000000343"
+        ],
+        "charged_hitter_acnt": "0000000362",
+        "end_hitter_acnt": "0000000343",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2022/C/2",
+        "start_event_no": "0420001000",
+        "end_event_no": "0420008000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003609",
+          "0000003609",
+          "0000003609",
+          "0000003609",
+          "0000003609",
+          "0000001318",
+          "0000001318"
+        ],
+        "charged_hitter_acnt": "0000001318",
+        "end_hitter_acnt": "0000001318",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/15",
+        "start_event_no": "0710013000",
+        "end_event_no": "0710018000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005563",
+          "0000000361",
+          "0000000361",
+          "0000000361",
+          "0000000361"
+        ],
+        "charged_hitter_acnt": "0000000361",
+        "end_hitter_acnt": "0000000361",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/19",
+        "start_event_no": "0110014000",
+        "end_event_no": "0110018000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001240",
+          "0000001240",
+          "0000001240",
+          "0000006709"
+        ],
+        "charged_hitter_acnt": "0000001240",
+        "end_hitter_acnt": "0000006709",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2022/D/24",
+        "start_event_no": "0620013000",
+        "end_event_no": "0620018000",
+        "result_action": "故意四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006738",
+          "0000005927",
+          "0000005927",
+          "0000005927",
+          "0000005927"
+        ],
+        "charged_hitter_acnt": "0000005927",
+        "end_hitter_acnt": "0000005927",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/60",
+        "start_event_no": "0620018000",
+        "end_event_no": "0620021000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006233",
+          "0000006736",
+          "0000006736"
+        ],
+        "charged_hitter_acnt": "0000006736",
+        "end_hitter_acnt": "0000006736",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/70",
+        "start_event_no": "0920021000",
+        "end_event_no": "0920027000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002294",
+          "0000000360",
+          "0000000360",
+          "0000000360",
+          "0000000360",
+          "0000000360"
+        ],
+        "charged_hitter_acnt": "0000000360",
+        "end_hitter_acnt": "0000000360",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/85",
+        "start_event_no": "0910021000",
+        "end_event_no": "0910026000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006721",
+          "0000006242",
+          "0000006242",
+          "0000006242",
+          "0000006242"
+        ],
+        "charged_hitter_acnt": "0000006242",
+        "end_hitter_acnt": "0000006242",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/92",
+        "start_event_no": "0810013000",
+        "end_event_no": "0810015000",
+        "result_action": "犧牲飛球",
+        "outcome_family": "sacrifice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006721",
+          "0000003345"
+        ],
+        "charged_hitter_acnt": "0000003345",
+        "end_hitter_acnt": "0000003345",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/105",
+        "start_event_no": "0810013000",
+        "end_event_no": "0810015000",
+        "result_action": "內野高飛球",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002661",
+          "0000006709"
+        ],
+        "charged_hitter_acnt": "0000006709",
+        "end_hitter_acnt": "0000006709",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/106",
+        "start_event_no": "0620005000",
+        "end_event_no": "0620010000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003631",
+          "0000004634",
+          "0000004634",
+          "0000004634",
+          "0000004634"
+        ],
+        "charged_hitter_acnt": "0000004634",
+        "end_hitter_acnt": "0000004634",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/107",
+        "start_event_no": "0610006000",
+        "end_event_no": "0610011000",
+        "result_action": "三振/第三好球觸擊失敗",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000361",
+          "0000000343",
+          "0000000343",
+          "0000000343",
+          "0000000343"
+        ],
+        "charged_hitter_acnt": "0000000343",
+        "end_hitter_acnt": "0000000343",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/112",
+        "start_event_no": "0320021000",
+        "end_event_no": null,
+        "result_action": null,
+        "outcome_family": null,
+        "state": "truncated",
+        "hitters_in_order": [
+          "0000006144",
+          "0000006144",
+          "0000006709",
+          "0000006709",
+          "0000006709"
+        ],
+        "charged_hitter_acnt": "0000006709",
+        "end_hitter_acnt": "0000006709",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/120",
+        "start_event_no": "0810019000",
+        "end_event_no": "0810026000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006714",
+          "0000006234",
+          "0000006234",
+          "0000006234",
+          "0000006234",
+          "0000006234",
+          "0000006234"
+        ],
+        "charged_hitter_acnt": "0000006234",
+        "end_hitter_acnt": "0000006234",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/128",
+        "start_event_no": "0320006000",
+        "end_event_no": "0320009000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000004640",
+          "0000001240",
+          "0000001240"
+        ],
+        "charged_hitter_acnt": "0000001240",
+        "end_hitter_acnt": "0000001240",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/131",
+        "start_event_no": "0620017000",
+        "end_event_no": "0620025000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006714",
+          "0000003345",
+          "0000003345",
+          "0000003345",
+          "0000003345",
+          "0000003345",
+          "0000003345",
+          "0000003345"
+        ],
+        "charged_hitter_acnt": "0000003345",
+        "end_hitter_acnt": "0000003345",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/140",
+        "start_event_no": "0510002000",
+        "end_event_no": "0510011000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005342",
+          "0000005342",
+          "0000005342",
+          "0000005342",
+          "0000006221",
+          "0000006221",
+          "0000006221",
+          "0000006221"
+        ],
+        "charged_hitter_acnt": "0000006221",
+        "end_hitter_acnt": "0000006221",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/143",
+        "start_event_no": "0920003000",
+        "end_event_no": "0920008000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006732",
+          "0000002304",
+          "0000002304",
+          "0000002304",
+          "0000002304"
+        ],
+        "charged_hitter_acnt": "0000002304",
+        "end_hitter_acnt": "0000002304",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/149",
+        "start_event_no": "0920021000",
+        "end_event_no": "0920023000",
+        "result_action": "故意四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003336",
+          "0000003660"
+        ],
+        "charged_hitter_acnt": "0000003660",
+        "end_hitter_acnt": "0000003660",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/150",
+        "start_event_no": "0420003000",
+        "end_event_no": "0420009000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000004641",
+          "0000004641",
+          "0000004641",
+          "0000004641",
+          "0000002295",
+          "0000002295"
+        ],
+        "charged_hitter_acnt": "0000004641",
+        "end_hitter_acnt": "0000002295",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2022/D/150",
+        "start_event_no": "0610018000",
+        "end_event_no": "0610023000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003255",
+          "0000000976",
+          "0000000976",
+          "0000000976",
+          "0000000976"
+        ],
+        "charged_hitter_acnt": "0000000976",
+        "end_hitter_acnt": "0000000976",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/158",
+        "start_event_no": "0720008000",
+        "end_event_no": "0720013000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006734",
+          "0000006224",
+          "0000006224",
+          "0000006224",
+          "0000006224"
+        ],
+        "charged_hitter_acnt": "0000006224",
+        "end_hitter_acnt": "0000006224",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/168",
+        "start_event_no": "0810008000",
+        "end_event_no": "0810012000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005334",
+          "0000002349",
+          "0000002349",
+          "0000002349"
+        ],
+        "charged_hitter_acnt": "0000002349",
+        "end_hitter_acnt": "0000002349",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/180",
+        "start_event_no": "0610008000",
+        "end_event_no": "0610014000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002295",
+          "0000002350",
+          "0000002350",
+          "0000002350",
+          "0000002350",
+          "0000002350"
+        ],
+        "charged_hitter_acnt": "0000002350",
+        "end_hitter_acnt": "0000002350",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/195",
+        "start_event_no": "0410006000",
+        "end_event_no": "0410013000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006731",
+          "0000006731",
+          "0000006731",
+          "0000006731",
+          "0000006731",
+          "0000006731",
+          "0000006730"
+        ],
+        "charged_hitter_acnt": "0000006730",
+        "end_hitter_acnt": "0000006730",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/223",
+        "start_event_no": "0810024000",
+        "end_event_no": "0810028000",
+        "result_action": "趁傳",
+        "outcome_family": "fielders_choice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006789",
+          "0000000774",
+          "0000000774",
+          "0000000774"
+        ],
+        "charged_hitter_acnt": "0000000774",
+        "end_hitter_acnt": "0000000774",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/226",
+        "start_event_no": "0910013000",
+        "end_event_no": "0910018000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000161",
+          "0000000158",
+          "0000000158",
+          "0000000158",
+          "0000000158"
+        ],
+        "charged_hitter_acnt": "0000000158",
+        "end_hitter_acnt": "0000000158",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2022/D/226",
+        "start_event_no": "0920007000",
+        "end_event_no": "0920010000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005565",
+          "0000006732",
+          "0000006732",
+          "0000006732"
+        ],
+        "charged_hitter_acnt": "0000006732",
+        "end_hitter_acnt": "0000006732",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/2",
+        "start_event_no": "0620010000",
+        "end_event_no": "0620014000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000929",
+          "0000005569",
+          "0000005569",
+          "0000005569"
+        ],
+        "charged_hitter_acnt": "0000005569",
+        "end_hitter_acnt": "0000005569",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/2",
+        "start_event_no": "0910005000",
+        "end_event_no": "0910008000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000343",
+          "0000005536",
+          "0000005536"
+        ],
+        "charged_hitter_acnt": "0000005536",
+        "end_hitter_acnt": "0000005536",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/7",
+        "start_event_no": "0520011000",
+        "end_event_no": "0520019000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002352",
+          "0000003337",
+          "0000003337",
+          "0000003337",
+          "0000003337",
+          "0000003337",
+          "0000003337",
+          "0000003337"
+        ],
+        "charged_hitter_acnt": "0000003337",
+        "end_hitter_acnt": "0000003337",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/9",
+        "start_event_no": "0720024000",
+        "end_event_no": "0720026000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001473",
+          "0000005496"
+        ],
+        "charged_hitter_acnt": "0000005496",
+        "end_hitter_acnt": "0000005496",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/13",
+        "start_event_no": "0710020000",
+        "end_event_no": "0710028000",
+        "result_action": "犧牲飛球",
+        "outcome_family": "sacrifice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001318",
+          "0000004633",
+          "0000004633",
+          "0000004633",
+          "0000004633",
+          "0000004633",
+          "0000004633",
+          "0000004633"
+        ],
+        "charged_hitter_acnt": "0000004633",
+        "end_hitter_acnt": "0000004633",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/16",
+        "start_event_no": "0720014000",
+        "end_event_no": "0720020000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000910",
+          "0000005563",
+          "0000005563",
+          "0000005563",
+          "0000005563",
+          "0000005563"
+        ],
+        "charged_hitter_acnt": "0000005563",
+        "end_hitter_acnt": "0000005563",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/31",
+        "start_event_no": "0620016000",
+        "end_event_no": "0620021000",
+        "result_action": "觸身死球",
+        "outcome_family": "hbp",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005544",
+          "0000005540",
+          "0000005540",
+          "0000005540",
+          "0000005540"
+        ],
+        "charged_hitter_acnt": "0000005540",
+        "end_hitter_acnt": "0000005540",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/53",
+        "start_event_no": "0720010000",
+        "end_event_no": "0720013000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002282",
+          "0000003467"
+        ],
+        "charged_hitter_acnt": "0000003467",
+        "end_hitter_acnt": "0000003467",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/54",
+        "start_event_no": "0920013000",
+        "end_event_no": "0920020000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002298",
+          "0000002661",
+          "0000002661",
+          "0000002661",
+          "0000002661",
+          "0000002661",
+          "0000002661"
+        ],
+        "charged_hitter_acnt": "0000002661",
+        "end_hitter_acnt": "0000002661",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/68",
+        "start_event_no": "0220010000",
+        "end_event_no": "0220016000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000910",
+          "0000000910",
+          "0000000910",
+          "0000005563",
+          "0000005563",
+          "0000005563"
+        ],
+        "charged_hitter_acnt": "0000005563",
+        "end_hitter_acnt": "0000005563",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/73",
+        "start_event_no": "0820003000",
+        "end_event_no": "0820005000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003337",
+          "0000001118",
+          "0000001118"
+        ],
+        "charged_hitter_acnt": "0000001118",
+        "end_hitter_acnt": "0000001118",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/78",
+        "start_event_no": "0720020000",
+        "end_event_no": "0720022000",
+        "result_action": "趁傳",
+        "outcome_family": "fielders_choice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006743",
+          "0000001118"
+        ],
+        "charged_hitter_acnt": "0000001118",
+        "end_hitter_acnt": "0000001118",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/86",
+        "start_event_no": "0720014000",
+        "end_event_no": "0720022000",
+        "result_action": "雙殺打 刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006240",
+          "0000003609",
+          "0000003609",
+          "0000003609",
+          "0000003609",
+          "0000003609",
+          "0000003609",
+          "0000003609"
+        ],
+        "charged_hitter_acnt": "0000003609",
+        "end_hitter_acnt": "0000003609",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/98",
+        "start_event_no": "0810027000",
+        "end_event_no": "0810034000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006743",
+          "0000001118",
+          "0000001118",
+          "0000001118",
+          "0000001118",
+          "0000001118",
+          "0000001118"
+        ],
+        "charged_hitter_acnt": "0000001118",
+        "end_hitter_acnt": "0000001118",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/104",
+        "start_event_no": "0510028000",
+        "end_event_no": "0510035000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006861",
+          "0000001118",
+          "0000001118",
+          "0000001118",
+          "0000001118",
+          "0000001118",
+          "0000001118"
+        ],
+        "charged_hitter_acnt": "0000001118",
+        "end_hitter_acnt": "0000001118",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/104",
+        "start_event_no": "0710038000",
+        "end_event_no": "0710044000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006229",
+          "0000006229",
+          "0000006229",
+          "0000006738",
+          "0000006738",
+          "0000006738"
+        ],
+        "charged_hitter_acnt": "0000006738",
+        "end_hitter_acnt": "0000006738",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/105",
+        "start_event_no": "0820011000",
+        "end_event_no": "0820014000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002285",
+          "0000003183",
+          "0000003183"
+        ],
+        "charged_hitter_acnt": "0000003183",
+        "end_hitter_acnt": "0000003183",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/106",
+        "start_event_no": "0820004000",
+        "end_event_no": "0820009000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003533",
+          "0000003533",
+          "0000003563",
+          "0000003563",
+          "0000003563"
+        ],
+        "charged_hitter_acnt": "0000003563",
+        "end_hitter_acnt": "0000003563",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/112",
+        "start_event_no": "0710019000",
+        "end_event_no": "0710023000",
+        "result_action": "趁傳",
+        "outcome_family": "fielders_choice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006240",
+          "0000003563",
+          "0000003563"
+        ],
+        "charged_hitter_acnt": "0000003563",
+        "end_hitter_acnt": "0000003563",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/133",
+        "start_event_no": "1020025000",
+        "end_event_no": "1020029000",
+        "result_action": "一壘安打 內野安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000004642",
+          "0000003615",
+          "0000003615",
+          "0000003615"
+        ],
+        "charged_hitter_acnt": "0000003615",
+        "end_hitter_acnt": "0000003615",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/133",
+        "start_event_no": "1110016000",
+        "end_event_no": "1110018000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001318",
+          "0000003174"
+        ],
+        "charged_hitter_acnt": "0000003174",
+        "end_hitter_acnt": "0000003174",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/138",
+        "start_event_no": "0910030000",
+        "end_event_no": "0910032000",
+        "result_action": "雙殺打 刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000366",
+          "0000001318"
+        ],
+        "charged_hitter_acnt": "0000001318",
+        "end_hitter_acnt": "0000001318",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/152",
+        "start_event_no": "0810016000",
+        "end_event_no": "0810019000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003211",
+          "0000005496",
+          "0000005496"
+        ],
+        "charged_hitter_acnt": "0000005496",
+        "end_hitter_acnt": "0000005496",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/155",
+        "start_event_no": "0810012000",
+        "end_event_no": "0810015000",
+        "result_action": "雙殺打 刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002291",
+          "0000000908",
+          "0000000908"
+        ],
+        "charged_hitter_acnt": "0000000908",
+        "end_hitter_acnt": "0000000908",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/191",
+        "start_event_no": "0720015000",
+        "end_event_no": "0720020000",
+        "result_action": "雙殺打 刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002661",
+          "0000003144",
+          "0000003144",
+          "0000003144"
+        ],
+        "charged_hitter_acnt": "0000003144",
+        "end_hitter_acnt": "0000003144",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/197",
+        "start_event_no": "0910018000",
+        "end_event_no": "0910023000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005553",
+          "0000000045",
+          "0000000045",
+          "0000000045",
+          "0000000045"
+        ],
+        "charged_hitter_acnt": "0000000045",
+        "end_hitter_acnt": "0000000045",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/211",
+        "start_event_no": "0620018000",
+        "end_event_no": "0620024000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002285",
+          "0000005298",
+          "0000005298",
+          "0000005298",
+          "0000005298",
+          "0000005298"
+        ],
+        "charged_hitter_acnt": "0000005298",
+        "end_hitter_acnt": "0000005298",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/211",
+        "start_event_no": "0910039000",
+        "end_event_no": "0910041000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006868",
+          "0000006737"
+        ],
+        "charged_hitter_acnt": "0000006737",
+        "end_hitter_acnt": "0000006737",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/229",
+        "start_event_no": "1020013000",
+        "end_event_no": "1020020000",
+        "result_action": "傳球失誤",
+        "outcome_family": "reach_on_error",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002707",
+          "0000002298",
+          "0000002298",
+          "0000002298",
+          "0000002298",
+          "0000002298",
+          "0000002298"
+        ],
+        "charged_hitter_acnt": "0000002298",
+        "end_hitter_acnt": "0000002298",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/231",
+        "start_event_no": "0710017000",
+        "end_event_no": "0710024000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005544",
+          "0000005540",
+          "0000005540",
+          "0000005540",
+          "0000005540",
+          "0000005540"
+        ],
+        "charged_hitter_acnt": "0000005540",
+        "end_hitter_acnt": "0000005540",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/239",
+        "start_event_no": "0910008000",
+        "end_event_no": "0910012000",
+        "result_action": "趁傳",
+        "outcome_family": "fielders_choice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000004636",
+          "0000004636",
+          "0000004636",
+          "0000006730"
+        ],
+        "charged_hitter_acnt": "0000006730",
+        "end_hitter_acnt": "0000006730",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/269",
+        "start_event_no": "0710018000",
+        "end_event_no": "0710021000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005296",
+          "0000000045",
+          "0000000045"
+        ],
+        "charged_hitter_acnt": "0000000045",
+        "end_hitter_acnt": "0000000045",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/284",
+        "start_event_no": "0720017000",
+        "end_event_no": "0720024000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006879",
+          "0000000045",
+          "0000000045",
+          "0000000045",
+          "0000000045",
+          "0000000045",
+          "0000000045"
+        ],
+        "charged_hitter_acnt": "0000000045",
+        "end_hitter_acnt": "0000000045",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/A/295",
+        "start_event_no": "0920010000",
+        "end_event_no": "0920013000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003339",
+          "0000003339",
+          "0000005563"
+        ],
+        "charged_hitter_acnt": "0000005563",
+        "end_hitter_acnt": "0000005563",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/C/1",
+        "start_event_no": "1020010000",
+        "end_event_no": "1020017000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005548",
+          "0000000045",
+          "0000000045",
+          "0000000045",
+          "0000000045",
+          "0000000045"
+        ],
+        "charged_hitter_acnt": "0000000045",
+        "end_hitter_acnt": "0000000045",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/7",
+        "start_event_no": "0910016000",
+        "end_event_no": "0910022000",
+        "result_action": "犧牲飛球",
+        "outcome_family": "sacrifice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006872",
+          "0000003048",
+          "0000003048",
+          "0000003048",
+          "0000003048",
+          "0000003048"
+        ],
+        "charged_hitter_acnt": "0000003048",
+        "end_hitter_acnt": "0000003048",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/19",
+        "start_event_no": "0820013000",
+        "end_event_no": "0820020000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002293",
+          "0000006931",
+          "0000006931",
+          "0000006931",
+          "0000006931",
+          "0000006931",
+          "0000006931"
+        ],
+        "charged_hitter_acnt": "0000006931",
+        "end_hitter_acnt": "0000006931",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/20",
+        "start_event_no": "0820016000",
+        "end_event_no": "0820018000",
+        "result_action": "界外飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005323",
+          "0000001217"
+        ],
+        "charged_hitter_acnt": "0000001217",
+        "end_hitter_acnt": "0000001217",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/21",
+        "start_event_no": "0120015000",
+        "end_event_no": "0120022000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006851",
+          "0000006851",
+          "0000001240",
+          "0000001240",
+          "0000001240",
+          "0000001240",
+          "0000001240"
+        ],
+        "charged_hitter_acnt": "0000006851",
+        "end_hitter_acnt": "0000001240",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2023/D/21",
+        "start_event_no": "0920011000",
+        "end_event_no": "0920016100",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001291",
+          "0000004640",
+          "0000004640",
+          "0000004640",
+          "0000004640",
+          "0000004640"
+        ],
+        "charged_hitter_acnt": "0000004640",
+        "end_hitter_acnt": "0000004640",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/65",
+        "start_event_no": "0610001000",
+        "end_event_no": "0610007000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006931",
+          "0000006931",
+          "0000006931",
+          "0000006931",
+          "0000006931",
+          "0000006932"
+        ],
+        "charged_hitter_acnt": "0000006932",
+        "end_hitter_acnt": "0000006932",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/76",
+        "start_event_no": "0910024000",
+        "end_event_no": "0910026000",
+        "result_action": "接球失誤",
+        "outcome_family": "reach_on_error",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006235",
+          "0000006714"
+        ],
+        "charged_hitter_acnt": "0000006714",
+        "end_hitter_acnt": "0000006714",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/77",
+        "start_event_no": "0620021000",
+        "end_event_no": "0620028000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002707",
+          "0000002601",
+          "0000002601",
+          "0000002601",
+          "0000002601",
+          "0000002601",
+          "0000002601"
+        ],
+        "charged_hitter_acnt": "0000002601",
+        "end_hitter_acnt": "0000002601",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/77",
+        "start_event_no": "0820022000",
+        "end_event_no": "0820029000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006847",
+          "0000002696",
+          "0000002696",
+          "0000002696",
+          "0000002696",
+          "0000002696",
+          "0000002696"
+        ],
+        "charged_hitter_acnt": "0000002696",
+        "end_hitter_acnt": "0000002696",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/86",
+        "start_event_no": "0810011000",
+        "end_event_no": "0810018000",
+        "result_action": "雙殺打 刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006737",
+          "0000003048",
+          "0000003048",
+          "0000003048",
+          "0000003048",
+          "0000003048",
+          "0000003048"
+        ],
+        "charged_hitter_acnt": "0000003048",
+        "end_hitter_acnt": "0000003048",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/99",
+        "start_event_no": "0910013000",
+        "end_event_no": "0910019000",
+        "result_action": "界外飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006216",
+          "0000003379",
+          "0000003379",
+          "0000003379",
+          "0000003379",
+          "0000003379"
+        ],
+        "charged_hitter_acnt": "0000003379",
+        "end_hitter_acnt": "0000003379",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/123",
+        "start_event_no": "0920028000",
+        "end_event_no": "0920038000",
+        "result_action": "觸身死球",
+        "outcome_family": "hbp",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006217",
+          "0000005533",
+          "0000005533",
+          "0000005533",
+          "0000005533",
+          "0000005533",
+          "0000005533",
+          "0000005533",
+          "0000005533"
+        ],
+        "charged_hitter_acnt": "0000005533",
+        "end_hitter_acnt": "0000005533",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/130",
+        "start_event_no": "0810025000",
+        "end_event_no": "0810030000",
+        "result_action": "趁傳",
+        "outcome_family": "fielders_choice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006933",
+          "0000002293",
+          "0000002293",
+          "0000002293",
+          "0000002293"
+        ],
+        "charged_hitter_acnt": "0000002293",
+        "end_hitter_acnt": "0000002293",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/150",
+        "start_event_no": "0820035000",
+        "end_event_no": "0820042000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001284",
+          "0000005533",
+          "0000005533",
+          "0000005533",
+          "0000005533",
+          "0000005533"
+        ],
+        "charged_hitter_acnt": "0000005533",
+        "end_hitter_acnt": "0000005533",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/151",
+        "start_event_no": "0910013000",
+        "end_event_no": "0910014000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006835",
+          "0000004643"
+        ],
+        "charged_hitter_acnt": "0000004643",
+        "end_hitter_acnt": "0000004643",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/154",
+        "start_event_no": "0710005000",
+        "end_event_no": "0710013000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006835",
+          "0000006835",
+          "0000006835",
+          "0000006835",
+          "0000006835",
+          "0000006934",
+          "0000006934",
+          "0000006934"
+        ],
+        "charged_hitter_acnt": "0000006934",
+        "end_hitter_acnt": "0000006934",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/157",
+        "start_event_no": "0910011000",
+        "end_event_no": "0910016000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000004640",
+          "0000006713",
+          "0000006713",
+          "0000006713",
+          "0000006713"
+        ],
+        "charged_hitter_acnt": "0000006713",
+        "end_hitter_acnt": "0000006713",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/165",
+        "start_event_no": "0820020000",
+        "end_event_no": "0820023000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006928",
+          "0000006928",
+          "0000006931"
+        ],
+        "charged_hitter_acnt": "0000006931",
+        "end_hitter_acnt": "0000006931",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/166",
+        "start_event_no": "0510002000",
+        "end_event_no": "0510008000",
+        "result_action": "觸身死球",
+        "outcome_family": "hbp",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006220",
+          "0000006220",
+          "0000006220",
+          "0000006792",
+          "0000006792",
+          "0000006792"
+        ],
+        "charged_hitter_acnt": "0000006792",
+        "end_hitter_acnt": "0000006792",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/169",
+        "start_event_no": "0810025000",
+        "end_event_no": "0810029000",
+        "result_action": "犧牲飛球",
+        "outcome_family": "sacrifice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005538",
+          "0000001114",
+          "0000001114",
+          "0000001114"
+        ],
+        "charged_hitter_acnt": "0000001114",
+        "end_hitter_acnt": "0000001114",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/172",
+        "start_event_no": "0820018000",
+        "end_event_no": "0820024000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003533",
+          "0000006938",
+          "0000006938",
+          "0000006938",
+          "0000006938",
+          "0000006938"
+        ],
+        "charged_hitter_acnt": "0000006938",
+        "end_hitter_acnt": "0000006938",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/178",
+        "start_event_no": "0710008000",
+        "end_event_no": "0710014000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005342",
+          "0000005342",
+          "0000005342",
+          "0000005342",
+          "0000006140",
+          "0000006140"
+        ],
+        "charged_hitter_acnt": "0000005342",
+        "end_hitter_acnt": "0000006140",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2023/D/189",
+        "start_event_no": "0620028000",
+        "end_event_no": "0620030000",
+        "result_action": "界外飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001339",
+          "0000004641"
+        ],
+        "charged_hitter_acnt": "0000004641",
+        "end_hitter_acnt": "0000004641",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/217",
+        "start_event_no": "0720008000",
+        "end_event_no": "0720012000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006726",
+          "0000001114",
+          "0000001114",
+          "0000001114",
+          "0000001114"
+        ],
+        "charged_hitter_acnt": "0000001114",
+        "end_hitter_acnt": "0000001114",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/D/232",
+        "start_event_no": "0910032000",
+        "end_event_no": "0910034000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005306",
+          "0000006843"
+        ],
+        "charged_hitter_acnt": "0000006843",
+        "end_hitter_acnt": "0000006843",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2023/E/1",
+        "start_event_no": "0420010000",
+        "end_event_no": "0420013000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002275",
+          "0000002275",
+          "0000003144"
+        ],
+        "charged_hitter_acnt": "0000002275",
+        "end_hitter_acnt": "0000003144",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2023/E/3",
+        "start_event_no": "0620021000",
+        "end_event_no": "0620025000",
+        "result_action": "二壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002298",
+          "0000002275",
+          "0000002275"
+        ],
+        "charged_hitter_acnt": "0000002275",
+        "end_hitter_acnt": "0000002275",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/14",
+        "start_event_no": "0610019000",
+        "end_event_no": "0610023000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000908",
+          "0000000743",
+          "0000000743",
+          "0000000743"
+        ],
+        "charged_hitter_acnt": "0000000743",
+        "end_hitter_acnt": "0000000743",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/14",
+        "start_event_no": "0810019000",
+        "end_event_no": "0810027000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001754",
+          "0000000853",
+          "0000000853",
+          "0000000853",
+          "0000000853",
+          "0000000853",
+          "0000000853",
+          "0000000853"
+        ],
+        "charged_hitter_acnt": "0000000853",
+        "end_hitter_acnt": "0000000853",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/29",
+        "start_event_no": "0910020000",
+        "end_event_no": "0910024000",
+        "result_action": "趁傳",
+        "outcome_family": "fielders_choice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006211",
+          "0000006940",
+          "0000006940",
+          "0000006940"
+        ],
+        "charged_hitter_acnt": "0000006940",
+        "end_hitter_acnt": "0000006940",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/45",
+        "start_event_no": "1010012000",
+        "end_event_no": "1010024000",
+        "result_action": "趁傳",
+        "outcome_family": "fielders_choice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003563",
+          "0000000158",
+          "0000000158",
+          "0000000158",
+          "0000000158",
+          "0000000158",
+          "0000000158",
+          "0000000158",
+          "0000000158",
+          "0000000158",
+          "0000000158",
+          "0000000158"
+        ],
+        "charged_hitter_acnt": "0000000158",
+        "end_hitter_acnt": "0000000158",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/69",
+        "start_event_no": "0810009000",
+        "end_event_no": "0810017000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006806",
+          "0000003337",
+          "0000003337",
+          "0000003337",
+          "0000003337",
+          "0000003337",
+          "0000003337"
+        ],
+        "charged_hitter_acnt": "0000003337",
+        "end_hitter_acnt": "0000003337",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/98",
+        "start_event_no": "0610020000",
+        "end_event_no": "0610025000",
+        "result_action": "界外飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006240",
+          "0000000158",
+          "0000000158",
+          "0000000158"
+        ],
+        "charged_hitter_acnt": "0000000158",
+        "end_hitter_acnt": "0000000158",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/99",
+        "start_event_no": "0720014000",
+        "end_event_no": "0720017000",
+        "result_action": "一壘安打 內野安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003343",
+          "0000001284",
+          "0000001284"
+        ],
+        "charged_hitter_acnt": "0000001284",
+        "end_hitter_acnt": "0000001284",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/113",
+        "start_event_no": "0820022000",
+        "end_event_no": "0820024000",
+        "result_action": "野手接球自踩壘包 一壘",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006229",
+          "0000000910"
+        ],
+        "charged_hitter_acnt": "0000000910",
+        "end_hitter_acnt": "0000000910",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/131",
+        "start_event_no": "0820016000",
+        "end_event_no": "0820019000",
+        "result_action": "犧牲飛球",
+        "outcome_family": "sacrifice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001284",
+          "0000005538",
+          "0000005538"
+        ],
+        "charged_hitter_acnt": "0000005538",
+        "end_hitter_acnt": "0000005538",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/133",
+        "start_event_no": "0920023000",
+        "end_event_no": "0920029000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003211",
+          "0000005563",
+          "0000005563",
+          "0000005563",
+          "0000005563",
+          "0000005563"
+        ],
+        "charged_hitter_acnt": "0000005563",
+        "end_hitter_acnt": "0000005563",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/142",
+        "start_event_no": "0720009000",
+        "end_event_no": "0720011000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005310",
+          "0000006868"
+        ],
+        "charged_hitter_acnt": "0000006868",
+        "end_hitter_acnt": "0000006868",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/145",
+        "start_event_no": "0810023000",
+        "end_event_no": "0810029000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003625",
+          "0000005538",
+          "0000005538",
+          "0000005538",
+          "0000005538",
+          "0000005538"
+        ],
+        "charged_hitter_acnt": "0000005538",
+        "end_hitter_acnt": "0000005538",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/147",
+        "start_event_no": "0810006000",
+        "end_event_no": "0810012000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006928",
+          "0000003174",
+          "0000003174",
+          "0000003174",
+          "0000003174",
+          "0000003174"
+        ],
+        "charged_hitter_acnt": "0000003174",
+        "end_hitter_acnt": "0000003174",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/151",
+        "start_event_no": "0820017000",
+        "end_event_no": "0820027000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002298",
+          "0000002275",
+          "0000002275",
+          "0000002275",
+          "0000002275",
+          "0000002275",
+          "0000002275",
+          "0000002275"
+        ],
+        "charged_hitter_acnt": "0000002275",
+        "end_hitter_acnt": "0000002275",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/154",
+        "start_event_no": "0620012000",
+        "end_event_no": "0620020000",
+        "result_action": "裁定四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000004645",
+          "0000000362",
+          "0000000362",
+          "0000000362",
+          "0000000362",
+          "0000000362",
+          "0000000362",
+          "0000000362"
+        ],
+        "charged_hitter_acnt": "0000000362",
+        "end_hitter_acnt": "0000000362",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/155",
+        "start_event_no": "0510010000",
+        "end_event_no": "0510016000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007070",
+          "0000007070",
+          "0000007070",
+          "0000005531",
+          "0000005531",
+          "0000005531"
+        ],
+        "charged_hitter_acnt": "0000005531",
+        "end_hitter_acnt": "0000005531",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/156",
+        "start_event_no": "0710016000",
+        "end_event_no": "0710021000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006202",
+          "0000001756",
+          "0000001756",
+          "0000001756",
+          "0000001756"
+        ],
+        "charged_hitter_acnt": "0000001756",
+        "end_hitter_acnt": "0000001756",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/190",
+        "start_event_no": "0920013000",
+        "end_event_no": "0920018000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002285",
+          "0000001119",
+          "0000001119",
+          "0000001119",
+          "0000001119"
+        ],
+        "charged_hitter_acnt": "0000001119",
+        "end_hitter_acnt": "0000001119",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/204",
+        "start_event_no": "0720009000",
+        "end_event_no": "0720016000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005340",
+          "0000000753",
+          "0000000753",
+          "0000000753",
+          "0000000753",
+          "0000000753"
+        ],
+        "charged_hitter_acnt": "0000000753",
+        "end_hitter_acnt": "0000000753",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/211",
+        "start_event_no": "0920012000",
+        "end_event_no": "0920014000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006854",
+          "0000003345"
+        ],
+        "charged_hitter_acnt": "0000003345",
+        "end_hitter_acnt": "0000003345",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/214",
+        "start_event_no": "0910014000",
+        "end_event_no": "0910022000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000362",
+          "0000005310",
+          "0000005310",
+          "0000005310",
+          "0000005310",
+          "0000005310",
+          "0000005310"
+        ],
+        "charged_hitter_acnt": "0000005310",
+        "end_hitter_acnt": "0000005310",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/218",
+        "start_event_no": "0720011000",
+        "end_event_no": "0720015000",
+        "result_action": "雙殺打 刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001804",
+          "0000003615",
+          "0000003615",
+          "0000003615"
+        ],
+        "charged_hitter_acnt": "0000003615",
+        "end_hitter_acnt": "0000003615",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/221",
+        "start_event_no": "0720018000",
+        "end_event_no": "0720023000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005306",
+          "0000001474",
+          "0000001474",
+          "0000001474",
+          "0000001474"
+        ],
+        "charged_hitter_acnt": "0000001474",
+        "end_hitter_acnt": "0000001474",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/222",
+        "start_event_no": "0820008000",
+        "end_event_no": "0820011000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001118",
+          "0000000910",
+          "0000000910",
+          "0000000910"
+        ],
+        "charged_hitter_acnt": "0000000910",
+        "end_hitter_acnt": "0000000910",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/227",
+        "start_event_no": "0610018000",
+        "end_event_no": "0610021000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002289",
+          "0000002661",
+          "0000002661"
+        ],
+        "charged_hitter_acnt": "0000002661",
+        "end_hitter_acnt": "0000002661",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/243",
+        "start_event_no": "0710022000",
+        "end_event_no": "0710028000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006738",
+          "0000000910",
+          "0000000910",
+          "0000000910",
+          "0000000910",
+          "0000000910"
+        ],
+        "charged_hitter_acnt": "0000000910",
+        "end_hitter_acnt": "0000000910",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/272",
+        "start_event_no": "0720014000",
+        "end_event_no": "0720020000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001118",
+          "0000002305",
+          "0000002305",
+          "0000002305",
+          "0000002305",
+          "0000002305"
+        ],
+        "charged_hitter_acnt": "0000002305",
+        "end_hitter_acnt": "0000002305",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/283",
+        "start_event_no": "0410005000",
+        "end_event_no": "0410012000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006888",
+          "0000006888",
+          "0000006888",
+          "0000006229",
+          "0000006229",
+          "0000006229",
+          "0000006229"
+        ],
+        "charged_hitter_acnt": "0000006229",
+        "end_hitter_acnt": "0000006229",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/299",
+        "start_event_no": "0910020000",
+        "end_event_no": "0910027000",
+        "result_action": "趁傳",
+        "outcome_family": "fielders_choice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002291",
+          "0000000929",
+          "0000000929",
+          "0000000929",
+          "0000000929",
+          "0000000929",
+          "0000000929",
+          "0000000929"
+        ],
+        "charged_hitter_acnt": "0000000929",
+        "end_hitter_acnt": "0000000929",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/307",
+        "start_event_no": "0810002000",
+        "end_event_no": "0810009000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005563",
+          "0000005563",
+          "0000005563",
+          "0000005563",
+          "0000005563",
+          "0000004645",
+          "0000004645"
+        ],
+        "charged_hitter_acnt": "0000005563",
+        "end_hitter_acnt": "0000004645",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2024/A/307",
+        "start_event_no": "0920011000",
+        "end_event_no": "0920017000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007013",
+          "0000006928",
+          "0000006928",
+          "0000006928",
+          "0000006928",
+          "0000006928"
+        ],
+        "charged_hitter_acnt": "0000006928",
+        "end_hitter_acnt": "0000006928",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/A/311",
+        "start_event_no": "0810021000",
+        "end_event_no": "0810025000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001474",
+          "0000003615",
+          "0000003615",
+          "0000003615"
+        ],
+        "charged_hitter_acnt": "0000003615",
+        "end_hitter_acnt": "0000003615",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/C/2",
+        "start_event_no": "0810020000",
+        "end_event_no": "0810025000",
+        "result_action": "界外飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005531",
+          "0000002275",
+          "0000002275",
+          "0000002275",
+          "0000002275"
+        ],
+        "charged_hitter_acnt": "0000002275",
+        "end_hitter_acnt": "0000002275",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/D/12",
+        "start_event_no": "0820011000",
+        "end_event_no": "0820013000",
+        "result_action": "觸身死球",
+        "outcome_family": "hbp",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006216",
+          "0000005296"
+        ],
+        "charged_hitter_acnt": "0000005296",
+        "end_hitter_acnt": "0000005296",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/D/20",
+        "start_event_no": "0810024000",
+        "end_event_no": "0810030000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007056",
+          "0000006731",
+          "0000006731",
+          "0000006731",
+          "0000006731",
+          "0000006731"
+        ],
+        "charged_hitter_acnt": "0000006731",
+        "end_hitter_acnt": "0000006731",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/D/27",
+        "start_event_no": "0710022000",
+        "end_event_no": "0710027000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007075",
+          "0000006856",
+          "0000006856",
+          "0000006856",
+          "0000006856"
+        ],
+        "charged_hitter_acnt": "0000006856",
+        "end_hitter_acnt": "0000006856",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/D/28",
+        "start_event_no": "0920016000",
+        "end_event_no": "0920020000",
+        "result_action": "犧牲飛球",
+        "outcome_family": "sacrifice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007023",
+          "0000005323",
+          "0000005323",
+          "0000005323"
+        ],
+        "charged_hitter_acnt": "0000005323",
+        "end_hitter_acnt": "0000005323",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/D/57",
+        "start_event_no": "0620014000",
+        "end_event_no": "0620017000",
+        "result_action": "二壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007023",
+          "0000007091",
+          "0000007091"
+        ],
+        "charged_hitter_acnt": "0000007091",
+        "end_hitter_acnt": "0000007091",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/D/93",
+        "start_event_no": "0720027000",
+        "end_event_no": "0720032000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006743",
+          "0000007094",
+          "0000007094",
+          "0000007094",
+          "0000007094"
+        ],
+        "charged_hitter_acnt": "0000007094",
+        "end_hitter_acnt": "0000007094",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/D/94",
+        "start_event_no": "0820007000",
+        "end_event_no": "0820011000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000004627",
+          "0000004627",
+          "0000005565",
+          "0000005565"
+        ],
+        "charged_hitter_acnt": "0000005565",
+        "end_hitter_acnt": "0000005565",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/D/117",
+        "start_event_no": "0820015000",
+        "end_event_no": "0820022000",
+        "result_action": "野手接球自踩壘包 一壘",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005323",
+          "0000007091",
+          "0000007091",
+          "0000007091",
+          "0000007091",
+          "0000007091",
+          "0000007091"
+        ],
+        "charged_hitter_acnt": "0000007091",
+        "end_hitter_acnt": "0000007091",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/D/119",
+        "start_event_no": "0710019000",
+        "end_event_no": "0710023000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003174",
+          "0000003174",
+          "0000006932",
+          "0000006932"
+        ],
+        "charged_hitter_acnt": "0000006932",
+        "end_hitter_acnt": "0000006932",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/D/135",
+        "start_event_no": "0820015000",
+        "end_event_no": "0820018000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006835",
+          "0000006770",
+          "0000006770"
+        ],
+        "charged_hitter_acnt": "0000006770",
+        "end_hitter_acnt": "0000006770",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/D/141",
+        "start_event_no": "0820011000",
+        "end_event_no": "0820016000",
+        "result_action": "犧牲短打 傳球",
+        "outcome_family": "sacrifice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006880",
+          "0000005544",
+          "0000005544",
+          "0000005544",
+          "0000005544"
+        ],
+        "charged_hitter_acnt": "0000005544",
+        "end_hitter_acnt": "0000005544",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/D/154",
+        "start_event_no": "0410005000",
+        "end_event_no": "0410010000",
+        "result_action": "一壘安打 內野安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007013",
+          "0000007013",
+          "0000007013",
+          "0000003174"
+        ],
+        "charged_hitter_acnt": "0000003174",
+        "end_hitter_acnt": "0000003174",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/D/159",
+        "start_event_no": "0910019000",
+        "end_event_no": "0910026000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006770",
+          "0000006940",
+          "0000006940",
+          "0000006940",
+          "0000006940",
+          "0000006940",
+          "0000006940"
+        ],
+        "charged_hitter_acnt": "0000006940",
+        "end_hitter_acnt": "0000006940",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/D/167",
+        "start_event_no": "0720006000",
+        "end_event_no": "0720009000",
+        "result_action": "二壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006718",
+          "0000006718",
+          "0000006234"
+        ],
+        "charged_hitter_acnt": "0000006234",
+        "end_hitter_acnt": "0000006234",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/D/176",
+        "start_event_no": "0820022000",
+        "end_event_no": "0820029000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006233",
+          "0000007031",
+          "0000007031",
+          "0000007031",
+          "0000007031",
+          "0000007031",
+          "0000007031"
+        ],
+        "charged_hitter_acnt": "0000007031",
+        "end_hitter_acnt": "0000007031",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/D/184",
+        "start_event_no": "0910023000",
+        "end_event_no": "0910028000",
+        "result_action": "趁傳",
+        "outcome_family": "fielders_choice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006935",
+          "0000006770",
+          "0000006770",
+          "0000006770"
+        ],
+        "charged_hitter_acnt": "0000006770",
+        "end_hitter_acnt": "0000006770",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/D/237",
+        "start_event_no": "0920015000",
+        "end_event_no": "0920020000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001129",
+          "0000000908",
+          "0000000908",
+          "0000000908",
+          "0000000908"
+        ],
+        "charged_hitter_acnt": "0000000908",
+        "end_hitter_acnt": "0000000908",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2024/D/240",
+        "start_event_no": "0920011000",
+        "end_event_no": "0920016000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006741",
+          "0000007031",
+          "0000007031",
+          "0000007031",
+          "0000007031"
+        ],
+        "charged_hitter_acnt": "0000007031",
+        "end_hitter_acnt": "0000007031",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/3",
+        "start_event_no": "0910016000",
+        "end_event_no": "0910022000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006868",
+          "0000006861",
+          "0000006861",
+          "0000006861",
+          "0000006861",
+          "0000006861"
+        ],
+        "charged_hitter_acnt": "0000006861",
+        "end_hitter_acnt": "0000006861",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/32",
+        "start_event_no": "0620016000",
+        "end_event_no": "0620024000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000159",
+          "0000000158",
+          "0000000158",
+          "0000000158",
+          "0000000158",
+          "0000000158",
+          "0000000158",
+          "0000000158"
+        ],
+        "charged_hitter_acnt": "0000000158",
+        "end_hitter_acnt": "0000000158",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/32",
+        "start_event_no": "0710022000",
+        "end_event_no": "0710026000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003183",
+          "0000006730",
+          "0000006730",
+          "0000006730"
+        ],
+        "charged_hitter_acnt": "0000006730",
+        "end_hitter_acnt": "0000006730",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/39",
+        "start_event_no": "0910022000",
+        "end_event_no": "0910029000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006806",
+          "0000001473",
+          "0000001473",
+          "0000001473",
+          "0000001473",
+          "0000001473",
+          "0000001473"
+        ],
+        "charged_hitter_acnt": "0000001473",
+        "end_hitter_acnt": "0000001473",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/48",
+        "start_event_no": "0710009000",
+        "end_event_no": "0710014000",
+        "result_action": "內野高飛球",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005510",
+          "0000001473",
+          "0000001473",
+          "0000001473",
+          "0000001473"
+        ],
+        "charged_hitter_acnt": "0000001473",
+        "end_hitter_acnt": "0000001473",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/60",
+        "start_event_no": "0920015000",
+        "end_event_no": "0920017000",
+        "result_action": "觸身死球",
+        "outcome_family": "hbp",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000361",
+          "0000006738"
+        ],
+        "charged_hitter_acnt": "0000006738",
+        "end_hitter_acnt": "0000006738",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/65",
+        "start_event_no": "0810012000",
+        "end_event_no": "0810014000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006806",
+          "0000002352"
+        ],
+        "charged_hitter_acnt": "0000002352",
+        "end_hitter_acnt": "0000002352",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/68",
+        "start_event_no": "0920005000",
+        "end_event_no": "0920011000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001754",
+          "0000001754",
+          "0000003609",
+          "0000003609",
+          "0000003609",
+          "0000003609"
+        ],
+        "charged_hitter_acnt": "0000003609",
+        "end_hitter_acnt": "0000003609",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/84",
+        "start_event_no": "0710016000",
+        "end_event_no": "0710022000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001286",
+          "0000004633",
+          "0000004633",
+          "0000004633",
+          "0000004633",
+          "0000004633"
+        ],
+        "charged_hitter_acnt": "0000004633",
+        "end_hitter_acnt": "0000004633",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/84",
+        "start_event_no": "0720005000",
+        "end_event_no": "0720010000",
+        "result_action": "三振/遭捕手傳一壘刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006738",
+          "0000006738",
+          "0000006738",
+          "0000007091",
+          "0000007091"
+        ],
+        "charged_hitter_acnt": "0000006738",
+        "end_hitter_acnt": "0000007091",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2025/A/102",
+        "start_event_no": "0920018000",
+        "end_event_no": "0920022000",
+        "result_action": "二壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002285",
+          "0000005298",
+          "0000005298",
+          "0000005298"
+        ],
+        "charged_hitter_acnt": "0000005298",
+        "end_hitter_acnt": "0000005298",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/113",
+        "start_event_no": "0610013000",
+        "end_event_no": "0610016000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001118",
+          "0000006737",
+          "0000006737"
+        ],
+        "charged_hitter_acnt": "0000006737",
+        "end_hitter_acnt": "0000006737",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/114",
+        "start_event_no": "0820007000",
+        "end_event_no": "0820011000",
+        "result_action": "趁傳",
+        "outcome_family": "fielders_choice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005306",
+          "0000007268",
+          "0000007268",
+          "0000007268"
+        ],
+        "charged_hitter_acnt": "0000007268",
+        "end_hitter_acnt": "0000007268",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/116",
+        "start_event_no": "0720018000",
+        "end_event_no": "0720024000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006240",
+          "0000006858",
+          "0000006858",
+          "0000006858",
+          "0000006858",
+          "0000006858"
+        ],
+        "charged_hitter_acnt": "0000006858",
+        "end_hitter_acnt": "0000006858",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/117",
+        "start_event_no": "0610024000",
+        "end_event_no": "0610027000",
+        "result_action": "犧牲飛球",
+        "outcome_family": "sacrifice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002285",
+          "0000002307",
+          "0000002307"
+        ],
+        "charged_hitter_acnt": "0000002307",
+        "end_hitter_acnt": "0000002307",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/133",
+        "start_event_no": "0910011000",
+        "end_event_no": "0910016000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006216",
+          "0000003343",
+          "0000003343",
+          "0000003343",
+          "0000003343"
+        ],
+        "charged_hitter_acnt": "0000003343",
+        "end_hitter_acnt": "0000003343",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/138",
+        "start_event_no": "0720007000",
+        "end_event_no": "0720014000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007076",
+          "0000004633",
+          "0000004633",
+          "0000004633",
+          "0000004633",
+          "0000004633",
+          "0000004633"
+        ],
+        "charged_hitter_acnt": "0000004633",
+        "end_hitter_acnt": "0000004633",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/166",
+        "start_event_no": "1010016000",
+        "end_event_no": "1010020000",
+        "result_action": "犧牲飛球",
+        "outcome_family": "sacrifice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005571",
+          "0000005569",
+          "0000005569",
+          "0000005569"
+        ],
+        "charged_hitter_acnt": "0000005569",
+        "end_hitter_acnt": "0000005569",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/176",
+        "start_event_no": "0820026000",
+        "end_event_no": "0820031000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006235",
+          "0000002286",
+          "0000002286",
+          "0000002286",
+          "0000002286"
+        ],
+        "charged_hitter_acnt": "0000002286",
+        "end_hitter_acnt": "0000002286",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/181",
+        "start_event_no": "0710017000",
+        "end_event_no": "0710022000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006872",
+          "0000007091",
+          "0000007091",
+          "0000007091",
+          "0000007091"
+        ],
+        "charged_hitter_acnt": "0000007091",
+        "end_hitter_acnt": "0000007091",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/189",
+        "start_event_no": "0510010000",
+        "end_event_no": "0510016000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005306",
+          "0000003615",
+          "0000003615",
+          "0000003615",
+          "0000003615",
+          "0000003615"
+        ],
+        "charged_hitter_acnt": "0000003615",
+        "end_hitter_acnt": "0000003615",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/208",
+        "start_event_no": "0610015000",
+        "end_event_no": "0610019000",
+        "result_action": "犧牲短打 傳球",
+        "outcome_family": "sacrifice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000929",
+          "0000005342",
+          "0000005342",
+          "0000005342"
+        ],
+        "charged_hitter_acnt": "0000005342",
+        "end_hitter_acnt": "0000005342",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/220",
+        "start_event_no": "0820015000",
+        "end_event_no": "0820028000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001804",
+          "0000003615",
+          "0000003615",
+          "0000003615",
+          "0000003615",
+          "0000003615",
+          "0000003615",
+          "0000003615",
+          "0000003615",
+          "0000003615",
+          "0000003615",
+          "0000003615",
+          "0000003615"
+        ],
+        "charged_hitter_acnt": "0000003615",
+        "end_hitter_acnt": "0000003615",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/221",
+        "start_event_no": "0710009000",
+        "end_event_no": "0710013000",
+        "result_action": "犧牲短打 傳球",
+        "outcome_family": "sacrifice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005310",
+          "0000006868",
+          "0000006868",
+          "0000006868"
+        ],
+        "charged_hitter_acnt": "0000006868",
+        "end_hitter_acnt": "0000006868",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/232",
+        "start_event_no": "0910014000",
+        "end_event_no": "0910016000",
+        "result_action": "犧牲飛球",
+        "outcome_family": "sacrifice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003563",
+          "0000006854"
+        ],
+        "charged_hitter_acnt": "0000006854",
+        "end_hitter_acnt": "0000006854",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/240",
+        "start_event_no": "0910012000",
+        "end_event_no": "0910014000",
+        "result_action": "故意四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001606",
+          "0000003615"
+        ],
+        "charged_hitter_acnt": "0000003615",
+        "end_hitter_acnt": "0000003615",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/243",
+        "start_event_no": "0910031000",
+        "end_event_no": "0910038000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006861",
+          "0000007091",
+          "0000007091",
+          "0000007091",
+          "0000007091",
+          "0000007091",
+          "0000007091"
+        ],
+        "charged_hitter_acnt": "0000007091",
+        "end_hitter_acnt": "0000007091",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/250",
+        "start_event_no": "0620008000",
+        "end_event_no": "0620012000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007070",
+          "0000006847",
+          "0000006847",
+          "0000006847"
+        ],
+        "charged_hitter_acnt": "0000006847",
+        "end_hitter_acnt": "0000006847",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/251",
+        "start_event_no": "0710007000",
+        "end_event_no": "0710013000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005291",
+          "0000000045",
+          "0000000045",
+          "0000000045",
+          "0000000045",
+          "0000000045"
+        ],
+        "charged_hitter_acnt": "0000000045",
+        "end_hitter_acnt": "0000000045",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/251",
+        "start_event_no": "0720014000",
+        "end_event_no": "0720018000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000132",
+          "0000003345",
+          "0000003345",
+          "0000003345"
+        ],
+        "charged_hitter_acnt": "0000003345",
+        "end_hitter_acnt": "0000003345",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/258",
+        "start_event_no": "0620018000",
+        "end_event_no": "0620025000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006861",
+          "0000001473",
+          "0000001473",
+          "0000001473",
+          "0000001473",
+          "0000001473",
+          "0000001473"
+        ],
+        "charged_hitter_acnt": "0000001473",
+        "end_hitter_acnt": "0000001473",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/258",
+        "start_event_no": "0910022000",
+        "end_event_no": "0910025000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001339",
+          "0000007071",
+          "0000007071"
+        ],
+        "charged_hitter_acnt": "0000007071",
+        "end_hitter_acnt": "0000007071",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/267",
+        "start_event_no": "0410003000",
+        "end_event_no": "0410012000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000004633",
+          "0000004633",
+          "0000004633",
+          "0000004633",
+          "0000004633",
+          "0000004633",
+          "0000004633",
+          "0000000132",
+          "0000000132"
+        ],
+        "charged_hitter_acnt": "0000000132",
+        "end_hitter_acnt": "0000000132",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/269",
+        "start_event_no": "0910009000",
+        "end_event_no": "0910013000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002307",
+          "0000001119",
+          "0000001119"
+        ],
+        "charged_hitter_acnt": "0000001119",
+        "end_hitter_acnt": "0000001119",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/270",
+        "start_event_no": "0620016000",
+        "end_event_no": "0620018000",
+        "result_action": "二壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003343",
+          "0000003625"
+        ],
+        "charged_hitter_acnt": "0000003625",
+        "end_hitter_acnt": "0000003625",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/278",
+        "start_event_no": "0720011000",
+        "end_event_no": "0720015000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005310",
+          "0000000361",
+          "0000000361",
+          "0000000361"
+        ],
+        "charged_hitter_acnt": "0000000361",
+        "end_hitter_acnt": "0000000361",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/282",
+        "start_event_no": "0810012000",
+        "end_event_no": "0810017000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006926",
+          "0000005296",
+          "0000005296",
+          "0000005296",
+          "0000005296"
+        ],
+        "charged_hitter_acnt": "0000005296",
+        "end_hitter_acnt": "0000005296",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/295",
+        "start_event_no": "0720012000",
+        "end_event_no": "0720019000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006929",
+          "0000006936",
+          "0000006936",
+          "0000006936",
+          "0000006936",
+          "0000006936",
+          "0000006936"
+        ],
+        "charged_hitter_acnt": "0000006936",
+        "end_hitter_acnt": "0000006936",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/307",
+        "start_event_no": "1020006000",
+        "end_event_no": "1020010000",
+        "result_action": "野手接球自踩壘包 一壘",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000002285",
+          "0000002307",
+          "0000002307",
+          "0000002307"
+        ],
+        "charged_hitter_acnt": "0000002307",
+        "end_hitter_acnt": "0000002307",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/314",
+        "start_event_no": "0710014000",
+        "end_event_no": "0710019000",
+        "result_action": "趁傳",
+        "outcome_family": "fielders_choice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005306",
+          "0000007268",
+          "0000007268",
+          "0000007268",
+          "0000007268"
+        ],
+        "charged_hitter_acnt": "0000007268",
+        "end_hitter_acnt": "0000007268",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/318",
+        "start_event_no": "1020015000",
+        "end_event_no": "1020025000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000753",
+          "0000001291",
+          "0000001291",
+          "0000001291",
+          "0000001291",
+          "0000001291",
+          "0000001291",
+          "0000001291",
+          "0000001291"
+        ],
+        "charged_hitter_acnt": "0000001291",
+        "end_hitter_acnt": "0000001291",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/A/341",
+        "start_event_no": "0710010000",
+        "end_event_no": "0710016000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006928",
+          "0000003174",
+          "0000003174",
+          "0000003174",
+          "0000003174",
+          "0000003174"
+        ],
+        "charged_hitter_acnt": "0000003174",
+        "end_hitter_acnt": "0000003174",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/D/7",
+        "start_event_no": "0810007000",
+        "end_event_no": "0810013000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007315",
+          "0000006856",
+          "0000006856",
+          "0000006856",
+          "0000006856",
+          "0000006856"
+        ],
+        "charged_hitter_acnt": "0000006856",
+        "end_hitter_acnt": "0000006856",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/D/8",
+        "start_event_no": "0920007000",
+        "end_event_no": "0920012000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005496",
+          "0000005496",
+          "0000005496",
+          "0000005496",
+          "0000007094"
+        ],
+        "charged_hitter_acnt": "0000005496",
+        "end_hitter_acnt": "0000007094",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2025/D/41",
+        "start_event_no": "0920024000",
+        "end_event_no": "0920029000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006879",
+          "0000005548",
+          "0000005548",
+          "0000005548",
+          "0000005548"
+        ],
+        "charged_hitter_acnt": "0000005548",
+        "end_hitter_acnt": "0000005548",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/D/49",
+        "start_event_no": "1010019000",
+        "end_event_no": "1010026000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005496",
+          "0000006736",
+          "0000006736",
+          "0000006736",
+          "0000006736",
+          "0000006736",
+          "0000006736"
+        ],
+        "charged_hitter_acnt": "0000006736",
+        "end_hitter_acnt": "0000006736",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/D/59",
+        "start_event_no": "0520010000",
+        "end_event_no": "0520014000",
+        "result_action": "雙殺打 刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006879",
+          "0000001240",
+          "0000001240"
+        ],
+        "charged_hitter_acnt": "0000001240",
+        "end_hitter_acnt": "0000001240",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/D/72",
+        "start_event_no": "0910019000",
+        "end_event_no": "0910026000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006221",
+          "0000007087",
+          "0000007087",
+          "0000007087",
+          "0000007087",
+          "0000007087",
+          "0000007087"
+        ],
+        "charged_hitter_acnt": "0000007087",
+        "end_hitter_acnt": "0000007087",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/D/84",
+        "start_event_no": "0810014000",
+        "end_event_no": "0810019000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000003548",
+          "0000005656",
+          "0000005656",
+          "0000005656",
+          "0000005656"
+        ],
+        "charged_hitter_acnt": "0000005656",
+        "end_hitter_acnt": "0000005656",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/D/88",
+        "start_event_no": "0720003000",
+        "end_event_no": "0720008000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007037",
+          "0000007037",
+          "0000003645",
+          "0000003645",
+          "0000003645"
+        ],
+        "charged_hitter_acnt": "0000003645",
+        "end_hitter_acnt": "0000003645",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/D/101",
+        "start_event_no": "0920017000",
+        "end_event_no": "0920024000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005342",
+          "0000007284",
+          "0000007284",
+          "0000007284",
+          "0000007284",
+          "0000007284",
+          "0000007284"
+        ],
+        "charged_hitter_acnt": "0000007284",
+        "end_hitter_acnt": "0000007284",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/D/102",
+        "start_event_no": "0110005000",
+        "end_event_no": "0110013000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005553",
+          "0000005553",
+          "0000005553",
+          "0000005553",
+          "0000001240",
+          "0000001240",
+          "0000001240",
+          "0000001240"
+        ],
+        "charged_hitter_acnt": "0000005553",
+        "end_hitter_acnt": "0000001240",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2025/D/106",
+        "start_event_no": "0810009000",
+        "end_event_no": "0810016000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006939",
+          "0000006931",
+          "0000006931",
+          "0000006931",
+          "0000006931",
+          "0000006931",
+          "0000006931"
+        ],
+        "charged_hitter_acnt": "0000006931",
+        "end_hitter_acnt": "0000006931",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/D/114",
+        "start_event_no": "0810019000",
+        "end_event_no": null,
+        "result_action": null,
+        "outcome_family": null,
+        "state": "truncated",
+        "hitters_in_order": [
+          "0000001286",
+          "0000007078",
+          "0000007078",
+          "0000007078",
+          "0000007078"
+        ],
+        "charged_hitter_acnt": "0000007078",
+        "end_hitter_acnt": "0000007078",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/D/117",
+        "start_event_no": "0720007000",
+        "end_event_no": "0720011000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007572",
+          "0000007013",
+          "0000007013",
+          "0000007013"
+        ],
+        "charged_hitter_acnt": "0000007013",
+        "end_hitter_acnt": "0000007013",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/D/120",
+        "start_event_no": "0820003000",
+        "end_event_no": "0820010000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001409",
+          "0000001409",
+          "0000001409",
+          "0000001409",
+          "0000007310",
+          "0000007310",
+          "0000007310"
+        ],
+        "charged_hitter_acnt": "0000007310",
+        "end_hitter_acnt": "0000007310",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/D/157",
+        "start_event_no": "0620024000",
+        "end_event_no": "0620029000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006924",
+          "0000006926",
+          "0000006926",
+          "0000006926",
+          "0000006926"
+        ],
+        "charged_hitter_acnt": "0000006926",
+        "end_hitter_acnt": "0000006926",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/D/174",
+        "start_event_no": "0910013000",
+        "end_event_no": "0910016000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000910",
+          "0000003339",
+          "0000003339"
+        ],
+        "charged_hitter_acnt": "0000003339",
+        "end_hitter_acnt": "0000003339",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/D/184",
+        "start_event_no": "0910018000",
+        "end_event_no": "0910022000",
+        "result_action": "趁傳",
+        "outcome_family": "fielders_choice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006940",
+          "0000006930",
+          "0000006930",
+          "0000006930"
+        ],
+        "charged_hitter_acnt": "0000006930",
+        "end_hitter_acnt": "0000006930",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/D/198",
+        "start_event_no": "0810031000",
+        "end_event_no": "0810037000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006731",
+          "0000007310",
+          "0000007310",
+          "0000007310",
+          "0000007310",
+          "0000007310"
+        ],
+        "charged_hitter_acnt": "0000007310",
+        "end_hitter_acnt": "0000007310",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/D/215",
+        "start_event_no": "0720011000",
+        "end_event_no": "0720019000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005656",
+          "0000006734",
+          "0000006734",
+          "0000006734",
+          "0000006734",
+          "0000006734",
+          "0000006734",
+          "0000006734"
+        ],
+        "charged_hitter_acnt": "0000006734",
+        "end_hitter_acnt": "0000006734",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/D/218",
+        "start_event_no": "0710017000",
+        "end_event_no": "0710021000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006713",
+          "0000007037",
+          "0000007037",
+          "0000007037"
+        ],
+        "charged_hitter_acnt": "0000007037",
+        "end_hitter_acnt": "0000007037",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/D/224",
+        "start_event_no": "0820028000",
+        "end_event_no": "0820034000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006743",
+          "0000003211",
+          "0000003211",
+          "0000003211",
+          "0000003211",
+          "0000003211"
+        ],
+        "charged_hitter_acnt": "0000003211",
+        "end_hitter_acnt": "0000003211",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/D/237",
+        "start_event_no": "0920015000",
+        "end_event_no": "0920017000",
+        "result_action": "界外飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007308",
+          "0000005538"
+        ],
+        "charged_hitter_acnt": "0000005538",
+        "end_hitter_acnt": "0000005538",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2025/E/2",
+        "start_event_no": "0620013000",
+        "end_event_no": "0620019000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000153",
+          "0000003345",
+          "0000003345",
+          "0000003345",
+          "0000003345",
+          "0000003345"
+        ],
+        "charged_hitter_acnt": "0000003345",
+        "end_hitter_acnt": "0000003345",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2026/A/12",
+        "start_event_no": "0910006000",
+        "end_event_no": "0910008000",
+        "result_action": "犧牲短打 傳球",
+        "outcome_family": "sacrifice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005536",
+          "0000003563"
+        ],
+        "charged_hitter_acnt": "0000003563",
+        "end_hitter_acnt": "0000003563",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2026/A/58",
+        "start_event_no": "0710010000",
+        "end_event_no": "0710013000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006725",
+          "0000006725",
+          "0000006216"
+        ],
+        "charged_hitter_acnt": "0000006725",
+        "end_hitter_acnt": "0000006216",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_original"
+      },
+      {
+        "game": "2026/A/99",
+        "start_event_no": "0920007000",
+        "end_event_no": "0920013000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006851",
+          "0000006223",
+          "0000006223",
+          "0000006223",
+          "0000006223",
+          "0000006223"
+        ],
+        "charged_hitter_acnt": "0000006223",
+        "end_hitter_acnt": "0000006223",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2026/A/143",
+        "start_event_no": "0710018000",
+        "end_event_no": "0710027000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000001754",
+          "0000003211",
+          "0000003211",
+          "0000003211",
+          "0000003211",
+          "0000003211",
+          "0000003211",
+          "0000003211",
+          "0000003211"
+        ],
+        "charged_hitter_acnt": "0000003211",
+        "end_hitter_acnt": "0000003211",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2026/A/173",
+        "start_event_no": "0910029000",
+        "end_event_no": "0910035000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007079",
+          "0000005546",
+          "0000005546",
+          "0000005546",
+          "0000005546",
+          "0000005546"
+        ],
+        "charged_hitter_acnt": "0000005546",
+        "end_hitter_acnt": "0000005546",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2026/A/179",
+        "start_event_no": "0910020000",
+        "end_event_no": "0910024000",
+        "result_action": "全壘打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005546",
+          "0000005540",
+          "0000005540",
+          "0000005540"
+        ],
+        "charged_hitter_acnt": "0000005540",
+        "end_hitter_acnt": "0000005540",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2026/A/183",
+        "start_event_no": "0920014000",
+        "end_event_no": "0920021000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006225",
+          "0000002297",
+          "0000002297",
+          "0000002297",
+          "0000002297",
+          "0000002297",
+          "0000002297"
+        ],
+        "charged_hitter_acnt": "0000002297",
+        "end_hitter_acnt": "0000002297",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2026/D/7",
+        "start_event_no": "0820026000",
+        "end_event_no": "0820033000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005310",
+          "0000005336",
+          "0000005336",
+          "0000005336",
+          "0000005336",
+          "0000005336",
+          "0000005336"
+        ],
+        "charged_hitter_acnt": "0000005336",
+        "end_hitter_acnt": "0000005336",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2026/D/14",
+        "start_event_no": "0910008000",
+        "end_event_no": "0910012000",
+        "result_action": "趁傳",
+        "outcome_family": "fielders_choice",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007078",
+          "0000005536",
+          "0000005536"
+        ],
+        "charged_hitter_acnt": "0000005536",
+        "end_hitter_acnt": "0000005536",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2026/D/26",
+        "start_event_no": "0620019000",
+        "end_event_no": "0620023000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007282",
+          "0000000908",
+          "0000000908",
+          "0000000908"
+        ],
+        "charged_hitter_acnt": "0000000908",
+        "end_hitter_acnt": "0000000908",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2026/D/31",
+        "start_event_no": "0410015000",
+        "end_event_no": "0410020000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007306",
+          "0000007309",
+          "0000007309",
+          "0000007309",
+          "0000007309"
+        ],
+        "charged_hitter_acnt": "0000007309",
+        "end_hitter_acnt": "0000007309",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2026/D/38",
+        "start_event_no": "0920016000",
+        "end_event_no": "0920022000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000000753",
+          "0000007302",
+          "0000007302",
+          "0000007302",
+          "0000007302",
+          "0000007302"
+        ],
+        "charged_hitter_acnt": "0000007302",
+        "end_hitter_acnt": "0000007302",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2026/D/46",
+        "start_event_no": "0620028000",
+        "end_event_no": "0620032000",
+        "result_action": "三振",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005310",
+          "0000001118",
+          "0000001118",
+          "0000001118"
+        ],
+        "charged_hitter_acnt": "0000001118",
+        "end_hitter_acnt": "0000001118",
+        "is_strikeout_action": true,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2026/D/60",
+        "start_event_no": "0810011000",
+        "end_event_no": "0810017000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000005496",
+          "0000007578",
+          "0000007578",
+          "0000007578",
+          "0000007578",
+          "0000007578"
+        ],
+        "charged_hitter_acnt": "0000007578",
+        "end_hitter_acnt": "0000007578",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2026/D/66",
+        "start_event_no": "0720018000",
+        "end_event_no": "0720022000",
+        "result_action": "雙殺打 刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006856",
+          "0000007315",
+          "0000007315",
+          "0000007315"
+        ],
+        "charged_hitter_acnt": "0000007315",
+        "end_hitter_acnt": "0000007315",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2026/D/71",
+        "start_event_no": "0810016000",
+        "end_event_no": "0810022000",
+        "result_action": "四壞球",
+        "outcome_family": "walk",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006938",
+          "0000005296",
+          "0000005296",
+          "0000005296",
+          "0000005296"
+        ],
+        "charged_hitter_acnt": "0000005296",
+        "end_hitter_acnt": "0000005296",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2026/D/76",
+        "start_event_no": "0720017000",
+        "end_event_no": "0720025000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007595",
+          "0000005310",
+          "0000005310",
+          "0000005310",
+          "0000005310",
+          "0000005310",
+          "0000005310",
+          "0000005310"
+        ],
+        "charged_hitter_acnt": "0000005310",
+        "end_hitter_acnt": "0000005310",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2026/D/82",
+        "start_event_no": "0720018000",
+        "end_event_no": "0720024000",
+        "result_action": "刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007284",
+          "0000001119",
+          "0000001119",
+          "0000001119",
+          "0000001119",
+          "0000001119"
+        ],
+        "charged_hitter_acnt": "0000001119",
+        "end_hitter_acnt": "0000001119",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2026/D/107",
+        "start_event_no": "1010017000",
+        "end_event_no": "1010026000",
+        "result_action": "雙殺打 刺殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000006872",
+          "0000007267",
+          "0000007267",
+          "0000007267",
+          "0000007267",
+          "0000007267",
+          "0000007267",
+          "0000007267",
+          "0000007267"
+        ],
+        "charged_hitter_acnt": "0000007267",
+        "end_hitter_acnt": "0000007267",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2026/D/131",
+        "start_event_no": "0610025000",
+        "end_event_no": "0610029000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007070",
+          "0000007070",
+          "0000007070",
+          "0000007036"
+        ],
+        "charged_hitter_acnt": "0000007036",
+        "end_hitter_acnt": "0000007036",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2026/D/170",
+        "start_event_no": "0610024000",
+        "end_event_no": "0610027000",
+        "result_action": "飛球接殺",
+        "outcome_family": "out",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007086",
+          "0000005342",
+          "0000005342"
+        ],
+        "charged_hitter_acnt": "0000005342",
+        "end_hitter_acnt": "0000005342",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      },
+      {
+        "game": "2026/D/172",
+        "start_event_no": "0910016000",
+        "end_event_no": "0910022000",
+        "result_action": "一壘安打",
+        "outcome_family": "hit",
+        "state": "ready",
+        "hitters_in_order": [
+          "0000007282",
+          "0000005656",
+          "0000005656",
+          "0000005656",
+          "0000005656",
+          "0000005656"
+        ],
+        "charged_hitter_acnt": "0000005656",
+        "end_hitter_acnt": "0000005656",
+        "is_strikeout_action": false,
+        "verdict": "charged_to_completing"
+      }
+    ]
+  },
   "ready_state_note": "out-PA 判定以 taxonomy outcome_family in ['out', 'sacrifice'] 且 island 可分類為 pa_terminal 為準（對應 state=ready）。"
 }
