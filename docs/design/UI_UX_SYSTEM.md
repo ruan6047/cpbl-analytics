@@ -169,7 +169,7 @@
 | `components/ui.tsx` | `prColor` 端點 + `PR_CELL_TEXT`（3） | 發散色階/色格文字，刻意不翻（§2.2 例外 1/2） |
 | `app/layout.tsx` | 無閃爍 theme script（2） | 首繪前 inline，讀不到 CSS var |
 
-> **強制規格**：以上 4 檔外，tsx/元件**禁**出現 `#RRGGBB`。新增顏色一律走 `@theme` token。（現況違規：`app/standings/page.tsx`、`components/matchup-card.tsx` 用 Tailwind 數字色階 `amber-100/500/700`、`amber-600`——見 `UI_UX_CONFORMANCE.md`。）
+> **強制規格**：以上 4 檔外，tsx/元件**禁**出現 `#RRGGBB`。新增顏色一律走 `@theme` token。（先前記載的兩處違規已清除：`app/standings/page.tsx` 的 `amber-100/500/700` 與 `components/matchup-card.tsx` 的 `amber-600` 由 `b023385`〔HYGIENE1 H5〕改為語意 token，`matchup-card.tsx` 另因無 runtime consumer 由 `UX-ORPHAN-SWEEP1` 移除；2026-07-29 實測全站 `amber-[0-9]` 零命中。）
 
 ---
 
@@ -517,7 +517,7 @@
 |---|---|---|---|
 | **純邏輯/資料** | `lib/*.ts` | 型別、fetch、格式化、身分色、圖表色、共用 Col、nav/methodology 內容、domain 計算 | **無 JSX**（型別除外）；可被 server/client 共用；**測試 co-located**（`*.test.ts`） |
 | **UI primitives** | `components/ui.tsx` | Card/StatTile/StatGrid/Eyebrow/徽章/Pill/StatusBadge/Notice/三態/PercentileBar/StatAbbr | 全站原子；presentational、server-safe 優先 |
-| **共用領域元件** | `components/*.tsx` | Leaderboard/DataTable/game-board/matchup-card/mini-standings/… | 跨頁重用；一律走 primitives 與 token |
+| **共用領域元件** | `components/*.tsx` | Leaderboard/DataTable/game-board/mini-standings/… | 跨頁重用；一律走 primitives 與 token |
 | **功能子模組** | `components/<feature>/` | 如 `components/matchups/`（api/controls/explorer/insight/opponents-table/pair-card/…） | 複雜功能**成組收進子資料夾**（邏輯 + 元件 + 測試 + fixtures） |
 | **頁面局部** | `app/**/*.tsx` | 如 `players/[id]/hero.tsx`、`season.tsx` | **僅該頁用**、不跨頁；一旦第二頁要用即上抽（§10.3） |
 
@@ -549,7 +549,7 @@
 | 場次狀態 | `StatusBadge`（done/warn/live/scheduled） | ad-hoc 狀態 pill、`amber-數字` |
 | 載入/空/錯 | `Skeleton`/`EmptyState`/`ErrorState` | ad-hoc「載入中…」字串 |
 | 靜態表 / 排行表 | `DataTable` / `Leaderboard` | 手刻 `<table>`/排序表 |
-| 共用欄定義 | `lib/cols.ts`（`matchupCols`/`vsTeamCols`） | 各頁重寫相同 `Col[]` |
+| 排行欄型別 | `components/leaderboard.tsx` 的 `type Col`（各頁自備欄陣列） | 各頁自訂表格型別 |
 | tab/segment | §4 決策樹四語彙 | 第五種手刻 tab |
 | 圖表色 | `lib/chart-theme.ts`（`useChartTheme`） | tsx 硬編圖表 hex |
 | 格式化 | `lib/format.ts`（`fmtIP` 等） | 各頁重寫格式化 |
