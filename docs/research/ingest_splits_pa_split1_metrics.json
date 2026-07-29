@@ -1,0 +1,1162 @@
+{
+  "generated_at": "2026-07-29T13:10:40.493845+08:00",
+  "scope": {
+    "from_year": 2018,
+    "to_year": 2026,
+    "kinds": [
+      "A",
+      "C",
+      "D",
+      "E"
+    ],
+    "games": 4279,
+    "events": 1334970
+  },
+  "judgement_source": "cpbl.ingest.pa_build.continues_same_plate_appearance（GAME-RECAP-PA1-FIX1 canonical，builder 1.3.0／taxonomy 1.1.0）",
+  "disposition_of_fix1_merges": {
+    "counted": 61,
+    "skipped_no_outcome": 1
+  },
+  "exposure": {
+    "double_counted_pas": 61,
+    "affected_games": 61,
+    "by_year": {
+      "2018": 2,
+      "2019": 7,
+      "2020": 10,
+      "2021": 4,
+      "2022": 10,
+      "2023": 13,
+      "2024": 7,
+      "2025": 6,
+      "2026": 2
+    },
+    "by_outcome": {
+      "三振": 25,
+      "四壞": 9,
+      "一安": 4,
+      "投滾": 3,
+      "游滾": 3,
+      "死球": 2,
+      "內安": 2,
+      "中飛": 2,
+      "游飛": 2,
+      "雙殺": 1,
+      "界飛": 1,
+      "犧飛": 1,
+      "一滾": 1,
+      "二飛": 1,
+      "三滾": 1,
+      "二滾": 1,
+      "二安": 1,
+      "右飛": 1
+    },
+    "rows": [
+      {
+        "game": "2018/A/116",
+        "inning": 7,
+        "half": "2",
+        "batting_order": 3,
+        "spurious_event_no": "0720010000",
+        "spurious_hitter": "0000003551",
+        "completing_hitter": "0000001240",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2018/A/118",
+        "inning": 3,
+        "half": "1",
+        "batting_order": 3,
+        "spurious_event_no": "0310008000",
+        "spurious_hitter": "0000003395",
+        "completing_hitter": "0000003225",
+        "double_counted_outcome": "一安",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2019/A/61",
+        "inning": 3,
+        "half": "1",
+        "batting_order": 3,
+        "spurious_event_no": "0310008000",
+        "spurious_hitter": "0000003338",
+        "completing_hitter": "0000001118",
+        "double_counted_outcome": "雙殺",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2019/A/124",
+        "inning": 1,
+        "half": "1",
+        "batting_order": 6,
+        "spurious_event_no": "0110019000",
+        "spurious_hitter": "0000002298",
+        "completing_hitter": "0000001606",
+        "double_counted_outcome": "界飛",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2019/A/155",
+        "inning": 9,
+        "half": "1",
+        "batting_order": 8,
+        "spurious_event_no": "0910030000",
+        "spurious_hitter": "0000002286",
+        "completing_hitter": "0000003345",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2019/A/170",
+        "inning": 5,
+        "half": "2",
+        "batting_order": 8,
+        "spurious_event_no": "0520033000",
+        "spurious_hitter": "0000002696",
+        "completing_hitter": "0000003551",
+        "double_counted_outcome": "死球",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2019/A/175",
+        "inning": 1,
+        "half": "2",
+        "batting_order": 8,
+        "spurious_event_no": "0120028000",
+        "spurious_hitter": "0000003563",
+        "completing_hitter": "0000000153",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2019/A/212",
+        "inning": 2,
+        "half": "1",
+        "batting_order": 3,
+        "spurious_event_no": "0210009000",
+        "spurious_hitter": "0000002305",
+        "completing_hitter": "0000000366",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2019/D/142",
+        "inning": 5,
+        "half": "2",
+        "batting_order": 2,
+        "spurious_event_no": "0520007000",
+        "spurious_hitter": "0000002350",
+        "completing_hitter": "0000003278",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/A/22",
+        "inning": 7,
+        "half": "1",
+        "batting_order": 1,
+        "spurious_event_no": "0710001000",
+        "spurious_hitter": "0000000743",
+        "completing_hitter": "0000001754",
+        "double_counted_outcome": "內安",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/A/79",
+        "inning": 5,
+        "half": "1",
+        "batting_order": 1,
+        "spurious_event_no": "0510001000",
+        "spurious_hitter": "0000003615",
+        "completing_hitter": "0000003144",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/A/135",
+        "inning": 5,
+        "half": "2",
+        "batting_order": 5,
+        "spurious_event_no": "0520017000",
+        "spurious_hitter": "0000003609",
+        "completing_hitter": "0000001318",
+        "double_counted_outcome": "四壞",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/A/172",
+        "inning": 8,
+        "half": "1",
+        "batting_order": 3,
+        "spurious_event_no": "0810007000",
+        "spurious_hitter": "0000003211",
+        "completing_hitter": "0000001409",
+        "double_counted_outcome": "中飛",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/A/239",
+        "inning": 3,
+        "half": "1",
+        "batting_order": 0,
+        "spurious_event_no": "0310001000",
+        "spurious_hitter": "0000003183",
+        "completing_hitter": "0000005571",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/D/81",
+        "inning": 6,
+        "half": "2",
+        "batting_order": 2,
+        "spurious_event_no": "0620003000",
+        "spurious_hitter": "0000005563",
+        "completing_hitter": "0000004622",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/D/106",
+        "inning": 3,
+        "half": "1",
+        "batting_order": 2,
+        "spurious_event_no": "0310006000",
+        "spurious_hitter": "0000001406",
+        "completing_hitter": "0000005531",
+        "double_counted_outcome": "四壞",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/D/153",
+        "inning": 6,
+        "half": "1",
+        "batting_order": 9,
+        "spurious_event_no": "0610030000",
+        "spurious_hitter": "0000005532",
+        "completing_hitter": "0000005536",
+        "double_counted_outcome": "游飛",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/D/210",
+        "inning": 6,
+        "half": "2",
+        "batting_order": 4,
+        "spurious_event_no": "0620016000",
+        "spurious_hitter": "0000005538",
+        "completing_hitter": "0000001713",
+        "double_counted_outcome": "犧飛",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/D/225",
+        "inning": 9,
+        "half": "1",
+        "batting_order": 4,
+        "spurious_event_no": "0910013000",
+        "spurious_hitter": "0000005538",
+        "completing_hitter": "0000005546",
+        "double_counted_outcome": "一滾",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2021/A/117",
+        "inning": 6,
+        "half": "1",
+        "batting_order": 4,
+        "spurious_event_no": "0610011000",
+        "spurious_hitter": "0000001114",
+        "completing_hitter": "0000000350",
+        "double_counted_outcome": "四壞",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2021/A/119",
+        "inning": 8,
+        "half": "1",
+        "batting_order": 1,
+        "spurious_event_no": "0810001000",
+        "spurious_hitter": "0000001284",
+        "completing_hitter": "0000002293",
+        "double_counted_outcome": "投滾",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2021/D/74",
+        "inning": 7,
+        "half": "1",
+        "batting_order": 4,
+        "spurious_event_no": "0710007000",
+        "spurious_hitter": "0000006235",
+        "completing_hitter": "0000006242",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2021/D/189",
+        "inning": 6,
+        "half": "1",
+        "batting_order": 1,
+        "spurious_event_no": "0610001000",
+        "spurious_hitter": "0000006241",
+        "completing_hitter": "0000006226",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/A/10",
+        "inning": 7,
+        "half": "2",
+        "batting_order": 3,
+        "spurious_event_no": "0720007000",
+        "spurious_hitter": "0000001474",
+        "completing_hitter": "0000002350",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/A/148",
+        "inning": 5,
+        "half": "2",
+        "batting_order": 1,
+        "spurious_event_no": "0520001000",
+        "spurious_hitter": "0000002275",
+        "completing_hitter": "0000004641",
+        "double_counted_outcome": "游滾",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/A/156",
+        "inning": 8,
+        "half": "1",
+        "batting_order": 6,
+        "spurious_event_no": "0810030000",
+        "spurious_hitter": "0000002350",
+        "completing_hitter": "0000003615",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/A/289",
+        "inning": 8,
+        "half": "1",
+        "batting_order": 3,
+        "spurious_event_no": "0810012000",
+        "spurious_hitter": "0000002282",
+        "completing_hitter": "0000003343",
+        "double_counted_outcome": "一安",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/A/293",
+        "inning": 1,
+        "half": "2",
+        "batting_order": 3,
+        "spurious_event_no": "0120010000",
+        "spurious_hitter": "0000000362",
+        "completing_hitter": "0000000343",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/C/2",
+        "inning": 4,
+        "half": "2",
+        "batting_order": 1,
+        "spurious_event_no": "0420001000",
+        "spurious_hitter": "0000003609",
+        "completing_hitter": "0000001318",
+        "double_counted_outcome": "投滾",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/D/19",
+        "inning": 1,
+        "half": "1",
+        "batting_order": 5,
+        "spurious_event_no": "0110014000",
+        "spurious_hitter": "0000001240",
+        "completing_hitter": "0000006709",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/D/140",
+        "inning": 5,
+        "half": "1",
+        "batting_order": 1,
+        "spurious_event_no": "0510001000",
+        "spurious_hitter": "0000005342",
+        "completing_hitter": "0000006221",
+        "double_counted_outcome": "二飛",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/D/150",
+        "inning": 4,
+        "half": "2",
+        "batting_order": 3,
+        "spurious_event_no": "0420003000",
+        "spurious_hitter": "0000004641",
+        "completing_hitter": "0000002295",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/D/195",
+        "inning": 4,
+        "half": "1",
+        "batting_order": 2,
+        "spurious_event_no": "0410006000",
+        "spurious_hitter": "0000006731",
+        "completing_hitter": "0000006730",
+        "double_counted_outcome": "四壞",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/A/68",
+        "inning": 2,
+        "half": "2",
+        "batting_order": 2,
+        "spurious_event_no": "0220010000",
+        "spurious_hitter": "0000000910",
+        "completing_hitter": "0000005563",
+        "double_counted_outcome": "四壞",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/A/73",
+        "inning": 8,
+        "half": "2",
+        "batting_order": 2,
+        "spurious_event_no": "0820003000",
+        "spurious_hitter": "0000003337",
+        "completing_hitter": "0000001118",
+        "double_counted_outcome": "三滾",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/A/104",
+        "inning": 7,
+        "half": "1",
+        "batting_order": 8,
+        "spurious_event_no": "0710038000",
+        "spurious_hitter": "0000006229",
+        "completing_hitter": "0000006738",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/A/106",
+        "inning": 8,
+        "half": "2",
+        "batting_order": 2,
+        "spurious_event_no": "0820004000",
+        "spurious_hitter": "0000003533",
+        "completing_hitter": "0000003563",
+        "double_counted_outcome": "投滾",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/A/239",
+        "inning": 9,
+        "half": "1",
+        "batting_order": 2,
+        "spurious_event_no": "0910008000",
+        "spurious_hitter": "0000004636",
+        "completing_hitter": "0000006730",
+        "double_counted_outcome": "游滾",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/A/295",
+        "inning": 9,
+        "half": "2",
+        "batting_order": 3,
+        "spurious_event_no": "0920010000",
+        "spurious_hitter": "0000003339",
+        "completing_hitter": "0000005563",
+        "double_counted_outcome": "一安",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/D/21",
+        "inning": 1,
+        "half": "2",
+        "batting_order": 4,
+        "spurious_event_no": "0120015000",
+        "spurious_hitter": "0000006851",
+        "completing_hitter": "0000001240",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/D/65",
+        "inning": 6,
+        "half": "1",
+        "batting_order": 1,
+        "spurious_event_no": "0610001000",
+        "spurious_hitter": "0000006931",
+        "completing_hitter": "0000006932",
+        "double_counted_outcome": "四壞",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/D/154",
+        "inning": 7,
+        "half": "1",
+        "batting_order": 2,
+        "spurious_event_no": "0710005000",
+        "spurious_hitter": "0000006835",
+        "completing_hitter": "0000006934",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/D/165",
+        "inning": 8,
+        "half": "2",
+        "batting_order": 4,
+        "spurious_event_no": "0820020000",
+        "spurious_hitter": "0000006928",
+        "completing_hitter": "0000006931",
+        "double_counted_outcome": "一安",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/D/166",
+        "inning": 5,
+        "half": "1",
+        "batting_order": 2,
+        "spurious_event_no": "0510002000",
+        "spurious_hitter": "0000006220",
+        "completing_hitter": "0000006792",
+        "double_counted_outcome": "死球",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/D/178",
+        "inning": 7,
+        "half": "1",
+        "batting_order": 2,
+        "spurious_event_no": "0710008000",
+        "spurious_hitter": "0000005342",
+        "completing_hitter": "0000006140",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/E/1",
+        "inning": 4,
+        "half": "2",
+        "batting_order": 4,
+        "spurious_event_no": "0420010000",
+        "spurious_hitter": "0000002275",
+        "completing_hitter": "0000003144",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2024/A/155",
+        "inning": 5,
+        "half": "1",
+        "batting_order": 3,
+        "spurious_event_no": "0510010000",
+        "spurious_hitter": "0000007070",
+        "completing_hitter": "0000005531",
+        "double_counted_outcome": "四壞",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2024/A/283",
+        "inning": 4,
+        "half": "1",
+        "batting_order": 2,
+        "spurious_event_no": "0410005000",
+        "spurious_hitter": "0000006888",
+        "completing_hitter": "0000006229",
+        "double_counted_outcome": "四壞",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2024/A/307",
+        "inning": 8,
+        "half": "1",
+        "batting_order": 1,
+        "spurious_event_no": "0810001000",
+        "spurious_hitter": "0000005563",
+        "completing_hitter": "0000004645",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2024/D/94",
+        "inning": 8,
+        "half": "2",
+        "batting_order": 2,
+        "spurious_event_no": "0820007000",
+        "spurious_hitter": "0000004627",
+        "completing_hitter": "0000005565",
+        "double_counted_outcome": "游飛",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2024/D/119",
+        "inning": 7,
+        "half": "1",
+        "batting_order": 5,
+        "spurious_event_no": "0710018000",
+        "spurious_hitter": "0000003174",
+        "completing_hitter": "0000006932",
+        "double_counted_outcome": "二滾",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2024/D/154",
+        "inning": 4,
+        "half": "1",
+        "batting_order": 3,
+        "spurious_event_no": "0410005000",
+        "spurious_hitter": "0000007013",
+        "completing_hitter": "0000003174",
+        "double_counted_outcome": "內安",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2024/D/167",
+        "inning": 7,
+        "half": "2",
+        "batting_order": 3,
+        "spurious_event_no": "0720006000",
+        "spurious_hitter": "0000006718",
+        "completing_hitter": "0000006234",
+        "double_counted_outcome": "二安",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2025/A/84",
+        "inning": 7,
+        "half": "2",
+        "batting_order": 2,
+        "spurious_event_no": "0720005000",
+        "spurious_hitter": "0000006738",
+        "completing_hitter": "0000007091",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2025/A/267",
+        "inning": 4,
+        "half": "1",
+        "batting_order": 2,
+        "spurious_event_no": "0410003000",
+        "spurious_hitter": "0000004633",
+        "completing_hitter": "0000000132",
+        "double_counted_outcome": "四壞",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2025/D/8",
+        "inning": 9,
+        "half": "2",
+        "batting_order": 2,
+        "spurious_event_no": "0920007000",
+        "spurious_hitter": "0000005496",
+        "completing_hitter": "0000007094",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2025/D/88",
+        "inning": 7,
+        "half": "2",
+        "batting_order": 1,
+        "spurious_event_no": "0720001000",
+        "spurious_hitter": "0000007037",
+        "completing_hitter": "0000003645",
+        "double_counted_outcome": "游滾",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2025/D/102",
+        "inning": 1,
+        "half": "1",
+        "batting_order": 3,
+        "spurious_event_no": "0110005000",
+        "spurious_hitter": "0000005553",
+        "completing_hitter": "0000001240",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2025/D/120",
+        "inning": 8,
+        "half": "2",
+        "batting_order": 2,
+        "spurious_event_no": "0820003000",
+        "spurious_hitter": "0000001409",
+        "completing_hitter": "0000007310",
+        "double_counted_outcome": "右飛",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2026/A/58",
+        "inning": 7,
+        "half": "1",
+        "batting_order": 2,
+        "spurious_event_no": "0710010000",
+        "spurious_hitter": "0000006725",
+        "completing_hitter": "0000006216",
+        "double_counted_outcome": "三振",
+        "has_real_pitch": true
+      },
+      {
+        "game": "2026/D/131",
+        "inning": 6,
+        "half": "1",
+        "batting_order": 6,
+        "spurious_event_no": "0610025000",
+        "spurious_hitter": "0000007070",
+        "completing_hitter": "0000007036",
+        "double_counted_outcome": "中飛",
+        "has_real_pitch": true
+      }
+    ]
+  },
+  "h1_batting_order_shift": {
+    "hypothesis": "多出的 PA 使 pa_seq 進位，該場該隊其後所有 PA 的打序歸屬整體位移 1（splits_calc: order = seq %% 9 + 1，家族 10 ORDER_NAMES）",
+    "affected_team_games": 61,
+    "total_pas_misattributed": 1081,
+    "rows": [
+      {
+        "game": "2018/A/116",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 8,
+        "team_pa_total": 35
+      },
+      {
+        "game": "2018/A/118",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 41,
+        "team_pa_total": 51
+      },
+      {
+        "game": "2019/A/61",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 26,
+        "team_pa_total": 40
+      },
+      {
+        "game": "2019/A/124",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 33,
+        "team_pa_total": 39
+      },
+      {
+        "game": "2019/A/155",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 1,
+        "team_pa_total": 48
+      },
+      {
+        "game": "2019/A/170",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 21,
+        "team_pa_total": 54
+      },
+      {
+        "game": "2019/A/175",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 33,
+        "team_pa_total": 41
+      },
+      {
+        "game": "2019/A/212",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 40,
+        "team_pa_total": 46
+      },
+      {
+        "game": "2019/D/142",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 23,
+        "team_pa_total": 46
+      },
+      {
+        "game": "2020/A/22",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 16,
+        "team_pa_total": 40
+      },
+      {
+        "game": "2020/A/79",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 23,
+        "team_pa_total": 42
+      },
+      {
+        "game": "2020/A/135",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 20,
+        "team_pa_total": 43
+      },
+      {
+        "game": "2020/A/172",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 5,
+        "team_pa_total": 41
+      },
+      {
+        "game": "2020/A/239",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 43,
+        "team_pa_total": 54
+      },
+      {
+        "game": "2020/D/81",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 13,
+        "team_pa_total": 39
+      },
+      {
+        "game": "2020/D/106",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 36,
+        "team_pa_total": 46
+      },
+      {
+        "game": "2020/D/153",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 19,
+        "team_pa_total": 55
+      },
+      {
+        "game": "2020/D/210",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 9,
+        "team_pa_total": 41
+      },
+      {
+        "game": "2020/D/225",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 2,
+        "team_pa_total": 43
+      },
+      {
+        "game": "2021/A/117",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 15,
+        "team_pa_total": 38
+      },
+      {
+        "game": "2021/A/119",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 7,
+        "team_pa_total": 35
+      },
+      {
+        "game": "2021/D/74",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 10,
+        "team_pa_total": 39
+      },
+      {
+        "game": "2021/D/189",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 16,
+        "team_pa_total": 43
+      },
+      {
+        "game": "2022/A/10",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 16,
+        "team_pa_total": 46
+      },
+      {
+        "game": "2022/A/148",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 22,
+        "team_pa_total": 44
+      },
+      {
+        "game": "2022/A/156",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 4,
+        "team_pa_total": 38
+      },
+      {
+        "game": "2022/A/289",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 9,
+        "team_pa_total": 44
+      },
+      {
+        "game": "2022/A/293",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 31,
+        "team_pa_total": 34
+      },
+      {
+        "game": "2022/C/2",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 21,
+        "team_pa_total": 35
+      },
+      {
+        "game": "2022/D/19",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 29,
+        "team_pa_total": 34
+      },
+      {
+        "game": "2022/D/140",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 24,
+        "team_pa_total": 52
+      },
+      {
+        "game": "2022/D/150",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 23,
+        "team_pa_total": 37
+      },
+      {
+        "game": "2022/D/195",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 30,
+        "team_pa_total": 46
+      },
+      {
+        "game": "2023/A/68",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 28,
+        "team_pa_total": 33
+      },
+      {
+        "game": "2023/A/73",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 4,
+        "team_pa_total": 44
+      },
+      {
+        "game": "2023/A/104",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 11,
+        "team_pa_total": 49
+      },
+      {
+        "game": "2023/A/106",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 5,
+        "team_pa_total": 42
+      },
+      {
+        "game": "2023/A/239",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 4,
+        "team_pa_total": 39
+      },
+      {
+        "game": "2023/A/295",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 4,
+        "team_pa_total": 38
+      },
+      {
+        "game": "2023/D/21",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 34,
+        "team_pa_total": 38
+      },
+      {
+        "game": "2023/D/65",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 20,
+        "team_pa_total": 38
+      },
+      {
+        "game": "2023/D/154",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 14,
+        "team_pa_total": 42
+      },
+      {
+        "game": "2023/D/165",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 2,
+        "team_pa_total": 48
+      },
+      {
+        "game": "2023/D/166",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 20,
+        "team_pa_total": 37
+      },
+      {
+        "game": "2023/D/178",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 12,
+        "team_pa_total": 37
+      },
+      {
+        "game": "2023/E/1",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 21,
+        "team_pa_total": 35
+      },
+      {
+        "game": "2024/A/155",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 19,
+        "team_pa_total": 38
+      },
+      {
+        "game": "2024/A/283",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 23,
+        "team_pa_total": 35
+      },
+      {
+        "game": "2024/A/307",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 12,
+        "team_pa_total": 46
+      },
+      {
+        "game": "2024/D/94",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 8,
+        "team_pa_total": 42
+      },
+      {
+        "game": "2024/D/119",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 9,
+        "team_pa_total": 37
+      },
+      {
+        "game": "2024/D/154",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 21,
+        "team_pa_total": 37
+      },
+      {
+        "game": "2024/D/167",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 11,
+        "team_pa_total": 37
+      },
+      {
+        "game": "2025/A/84",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 18,
+        "team_pa_total": 42
+      },
+      {
+        "game": "2025/A/267",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 26,
+        "team_pa_total": 37
+      },
+      {
+        "game": "2025/D/8",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 2,
+        "team_pa_total": 33
+      },
+      {
+        "game": "2025/D/88",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 18,
+        "team_pa_total": 46
+      },
+      {
+        "game": "2025/D/102",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 36,
+        "team_pa_total": 39
+      },
+      {
+        "game": "2025/D/120",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 6,
+        "team_pa_total": 35
+      },
+      {
+        "game": "2026/A/58",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 10,
+        "team_pa_total": 36
+      },
+      {
+        "game": "2026/D/131",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 14,
+        "team_pa_total": 42
+      }
+    ]
+  }
+}
