@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 
 import pytest
@@ -222,7 +223,7 @@ def test_repro_undecidable_fails_loud_without_defaults(
     assert "uv run pytest" not in out and "npm ci" not in out
 
 
-# --- 獨立性取較嚴者（DEV-REVIEW-PROMPT-GUARD1 缺陷 3） ---
+# --- 獨立性：只給下限、不給結論（DEV-REVIEW-PROMPT-GUARD1 缺陷 3，iteration 3 定案） ---
 def _write_indep_card(root: Path, review_field: str | None, body: str = "") -> None:
     path = root / "docs" / "tasks" / "CARD-I.md"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -315,3 +316,132 @@ def test_no_prose_inference_helpers_remain() -> None:
         assert not hasattr(review_prompt, name), f"{name} 不該存在"
 
 
+# --- 中繼查核關卡（DEV-REVIEW-PROMPT-GATE1） ---
+def _write_events(root: Path, *events: dict) -> None:
+    path = root / "docs" / "control-plane" / "events.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(json.dumps(e, ensure_ascii=False) + "\n" for e in events),
+                    encoding="utf-8")
+
+
+def _handoff(**over: object) -> dict:
+    return {"card_id": "CARD-G", "type": "handoff", "event_id": "CARD-G-HANDOFF-001",
+            "state_version": 1, "source_sha": SHA, "branch": "ai/x/CARD-G", **over}
+
+
+def _review(sv: int, **over: object) -> dict:
+    return {"card_id": "CARD-G", "type": "review", "event_id": f"CARD-G-REVIEW-{sv:03d}",
+            "state_version": sv, "review_result": "APPROVE", "actor": "查核者",
+            "occurred_at": "2026-07-29T18:00:00+08:00", "evidence": "裁定內容", **over}
+
+
+def _prepare(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *events: dict) -> None:
+    _write_events(tmp_path, *events)
+    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+    # 分支 HEAD 比對是另一道守衛，本組測試不涉及
+    monkeypatch.setattr(review_prompt, "_assert_handoff_matches_branch_head", lambda _ev: None)
+
+
+def test_review_without_field_still_closes_the_round(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """欄位缺席＝終結本輪：146 筆歷史事件的判定不得因本次改動而改變。"""
+    _prepare(tmp_path, monkeypatch, _handoff(), _review(2))
+
+    with pytest.raises(SystemExit) as exc:
+        review_prompt.latest_handoff("CARD-G")
+
+    assert "拒絕產生提示詞" in str(exc.value)
+
+
+def test_interim_gate_does_not_close_the_round(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """UX-ENTITY-LINKS2 的實況：人工審 APPROVE 是第一關，本輪尚未結束。"""
+    _prepare(tmp_path, monkeypatch,
+             _handoff(), _review(2, closes_review_round=False, actor="ruan6047（人工審）"))
+
+    ev, gates = review_prompt.latest_handoff("CARD-G")
+
+    assert ev["event_id"] == "CARD-G-HANDOFF-001"
+    assert [g["event_id"] for g in gates] == ["CARD-G-REVIEW-002"]
+
+
+def test_interim_gate_then_final_reject_still_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """中繼關卡不得成為繞過退回的手段。"""
+    _prepare(tmp_path, monkeypatch, _handoff(),
+             _review(2, closes_review_round=False),
+             _review(3, review_result="REJECT"))
+
+    with pytest.raises(SystemExit) as exc:
+        review_prompt.latest_handoff("CARD-G")
+
+    assert "REJECT" in str(exc.value)
+
+
+def test_appended_correction_can_reopen_a_wrongly_closed_round(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """event log 是 append-only：寫錯只能追加更正，判定因此以最新一筆為準。"""
+    _prepare(tmp_path, monkeypatch, _handoff(), _review(2),
+             _review(3, closes_review_round=False, evidence="更正 REVIEW-002：那是中繼關卡"))
+
+    _, gates = review_prompt.latest_handoff("CARD-G")
+
+    assert len(gates) == 2
+
+
+def test_new_handoff_resets_the_round(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _prepare(tmp_path, monkeypatch, _handoff(), _review(2),
+             _handoff(event_id="CARD-G-HANDOFF-003", state_version=3))
+
+    ev, gates = review_prompt.latest_handoff("CARD-G")
+
+    assert ev["event_id"] == "CARD-G-HANDOFF-003"
+    assert gates == []
+
+
+def test_non_boolean_field_fails_loud(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """猜錯的兩個方向都有代價——型別不對就吵，不當成缺席帶過。"""
+    _prepare(tmp_path, monkeypatch, _handoff(), _review(2, closes_review_round="false"))
+
+    with pytest.raises(SystemExit) as exc:
+        review_prompt.latest_handoff("CARD-G")
+
+    assert "只接受布林值" in str(exc.value)
+
+
+def test_refusal_message_no_longer_asserts_review_is_unnecessary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """舊訊息斷言「APPROVE → 不需要再查核一次」，對多關卡的卡是叫人 merge 未查核的交付。"""
+    _prepare(tmp_path, monkeypatch, _handoff(), _review(2))
+
+    with pytest.raises(SystemExit) as exc:
+        review_prompt.latest_handoff("CARD-G")
+
+    message = str(exc.value)
+    assert "不需要再查核一次" not in message
+    assert "closes_review_round" in message      # 指出中繼關卡的正確表達方式
+    assert "本守衛分不出來" in message            # 不替人斷言
+
+
+def test_gates_block_carries_rulings_and_warns_round_is_open() -> None:
+    block = review_prompt.review_gates_block(
+        [_review(2, closes_review_round=False, actor="ruan6047（本地人工審）",
+                 evidence="RosterChips 隊色文字裁定接受")])
+
+    assert "不代表本輪查核已結束" in block
+    assert "不要重開已定案的爭點" in block
+    assert "RosterChips 隊色文字裁定接受" in block   # 裁定原文帶給下一位查核者
+    assert "ruan6047（本地人工審）" in block
+
+
+def test_gates_block_is_empty_without_gates() -> None:
+    assert review_prompt.review_gates_block([]) == ""

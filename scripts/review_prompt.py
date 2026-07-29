@@ -16,7 +16,7 @@ findings）後 Coordinator 直接 merge，結果回傳執行者，部署另由�
 **產出物是查核者實際照著做的那一份**（DEV-REVIEW-PROMPT-GUARD1）：契約寫了什麼、
 卡面要求什麼，若沒出現在這裡就等於沒有。因此三件事一律由輸出本身承載，不靠
 「查核者自己會知道」——查核環境（HANDOFF_CONTRACT §3 的 detached worktree）、
-重現指令（依實際改動路徑而非寫死）、獨立性（tier 與卡面取較嚴者）。
+重現指令（依實際改動路徑而非寫死）、獨立性（只給 tier 下限，卡面原文照登由人判讀）。
 三者任一判不出來時**明講判不出來**，不得靜默退回預設值。
 """
 
@@ -112,7 +112,13 @@ def baseline_check(card_id: str) -> str:
     return "\n".join(lines)
 
 
-def latest_handoff(card_id: str) -> dict:
+def latest_handoff(card_id: str) -> tuple[dict, list[dict]]:
+    """回傳 (最新 handoff event, 該 handoff 之後已發生的 review 事件)。
+
+    第二個回傳值只在「這些 review 都沒有終結本輪」時才非空——那是多關卡的卡
+    （Design Gate、本地人工審先於跨家族查核）；它們的裁定是下一位查核者的前提，
+    必須帶進提示詞，不能只留在 event log 裡。
+    """
     ev = None
     events: list[dict] = []
     with open(ROOT / "docs/control-plane/events.jsonl", encoding="utf-8") as f:
@@ -125,22 +131,56 @@ def latest_handoff(card_id: str) -> dict:
                 ev = e  # append-only → 最後一筆即最新
     if ev is None:
         sys.exit(f"錯誤：{card_id} 沒有 handoff event（尚未交付查核）。")
-    _assert_no_review_supersedes_handoff(card_id, events)
+    gates = _assert_no_review_supersedes_handoff(card_id, events)
     _assert_handoff_matches_branch_head(ev)
-    return ev
+    return ev, gates
 
 
-def _assert_no_review_supersedes_handoff(card_id: str, events: list[dict]) -> None:
-    """最新 handoff 之後若已有 review，代表這一輪查核已結束，拒絕再發提示詞。
+# review 事件的選填欄位：`false` ＝ 這一筆是中繼關卡，不終結本輪查核。
+# 欄位缺席一律視為終結本輪——既有事件（升級前 146 筆）因此判定完全不變。
+# 語意與寫入時機見 docs/CONTROL_PLANE_CONTRACT.md。
+CLOSES_ROUND_FIELD = "closes_review_round"
+
+
+def _closes_review_round(e: dict) -> bool:
+    """這筆 review 是否終結本輪。欄位缺席＝是；型別不對就吵，不當成缺席帶過。"""
+    value = e.get(CLOSES_ROUND_FIELD)
+    if value is None:
+        return True
+    if isinstance(value, bool):
+        return value
+    sys.exit(
+        f"錯誤：{e.get('event_id', '?')} 的 `{CLOSES_ROUND_FIELD}` 是 {value!r}"
+        f"（{type(value).__name__}），只接受布林值。\n"
+        "  這個欄位決定「本輪查核結束了沒」，猜錯的兩個方向都有代價——"
+        "拒絕臆測，請先修正事件再重跑本指令。")
+
+
+def _assert_no_review_supersedes_handoff(card_id: str, events: list[dict]) -> list[dict]:
+    """最新 handoff 之後若已有**終結本輪**的 review，拒絕再發提示詞。
 
     ML-PITCHER-SCORELESS1 的教訓：卡片已 `↩退回`、執行者尚未推修正，但本腳本
     只檢查「handoff SHA 是否等於分支 HEAD」——兩者當然還相等，於是照發提示詞。
     重跑指令就再派一位查核者去查同一份未修改的程式，得到逐字相同的 REJECT；
-    實際發生三次，燒掉兩輪查核頻寬。
+    實際發生三次，燒掉兩輪查核頻寬。該成立的性質是**現在到底還有沒有待查核的交付**。
 
-    這與該卡自己的缺陷同型：檢查了一個容易檢查的相關量（SHA 是否對得上），
-    而不是真正該成立的性質（**現在到底還有沒有待查核的交付**）。
-    退回後要再查核，必須先有新的 handoff event；那正是 iteration+1 的定義。
+    DEV-REVIEW-PROMPT-GATE1（2026-07-29）：舊版拿「有沒有 review 事件」當那個性質的
+    標記，在**多關卡**的卡上不成立。`UX-ENTITY-LINKS2` 卡面要求「先本地人工審再交
+    跨家族查核」，人工審 APPROVE（`REVIEW-007`）是第一關通過、不是本輪結束，守衛卻
+    據此拒絕，該卡因而無法派跨家族查核；更糟的是拒絕訊息斷言「APPROVE → 接續
+    merge／結案，不需要再查核一次」——照做就是把必要查核從未發生的交付直接 merge。
+
+    為什麼是新增欄位而不是從既有欄位推斷（實測 146 筆 review 事件）：
+    `delivery_status` 分不出來——17 筆停在 `🔍待查核`，其中 9 筆是最終 APPROVE 且
+    下一個事件就是 merge；`owner` 更危險——最終 APPROVE 寫的是「Opus 4.8（執行，
+    交付待查核）」，**本身就含「查核」二字**，子字串比對會把終局判成中繼。
+    這個性質沒有既有欄位承載得住，所以讓它變成顯式欄位（`CLOSES_ROUND_FIELD`）。
+
+    **以最新一筆 review 為準**，不是「存在任一終結本輪者」：event log 是 append-only，
+    寫錯的事件只能靠追加更正，若採「存在即終結」就永遠無法更正。
+    [中繼, 終局 REJECT] → 最新為終局 → 照樣拒絕；[終局, 更正為中繼] → 最新為中繼 → 放行。
+
+    回傳值：本輪已發生但未終結本輪的 review（供提示詞帶出關卡裁定）。
     """
     after = []
     seen_handoff = False
@@ -151,16 +191,25 @@ def _assert_no_review_supersedes_handoff(card_id: str, events: list[dict]) -> No
         elif seen_handoff and e.get("type") == "review":
             after.append(e)
     if not after:
-        return
+        return []
+    if not _closes_review_round(after[-1]):
+        return after
     last = after[-1]
     sys.exit(
-        f"錯誤：{card_id} 最新 handoff 之後已有 {len(after)} 筆 review，這一輪查核已結束，"
-        "拒絕產生提示詞。\n"
-        f"  最後一筆：{last.get('review_result', '?')}"
+        f"錯誤：{card_id} 最新 handoff 之後已有 {len(after)} 筆 review，最新一筆宣告終結本輪"
+        "（未帶 `closes_review_round: false`），拒絕產生提示詞。\n"
+        f"  最新一筆：{last.get('event_id', '?')}"
         f"（state_version {last.get('state_version')}，{last.get('occurred_at')}）\n"
-        f"  目前交付狀態：{last.get('delivery_status')}\n"
-        "  若為 REJECT：等執行者推修正並補新的 handoff event（iteration+1）再重跑本指令。\n"
-        "  若為 APPROVE：接續 merge／結案流程，不需要再查核一次。")
+        f"  actor：{last.get('actor', '?')}\n"
+        f"  review_result：{last.get('review_result', '（未填）')}\n"
+        f"  該事件記錄的交付狀態：{last.get('delivery_status')}\n"
+        "  ——以下兩種可能，本守衛分不出來，由你判斷：\n"
+        "  (a) 這確實是終局查核：REJECT → 等執行者推修正並補新的 handoff event"
+        "（iteration+1）再重跑本指令；APPROVE → 接續 merge／結案流程。\n"
+        "  (b) 這其實是**中繼關卡**（Design Gate、需求方本地人工審…），本輪尚未結束：\n"
+        "      該事件應帶 `closes_review_round: false`。event log 是 append-only 不得改寫，\n"
+        "      請追加一筆更正用的 review 事件（帶該欄位並在 evidence 說明更正對象）後重跑。\n"
+        "      欄位語意見 docs/CONTROL_PLANE_CONTRACT.md。")
 
 
 def _rev(rev: str) -> str | None:
@@ -445,8 +494,35 @@ def independence(card_id: str, tier: str) -> tuple[str, str]:
     return f"下限 {floor}；實際要求以卡面〈查核〉欄為準", "\n".join(lines)
 
 
+def review_gates_block(gates: list[dict]) -> str:
+    """已通過但未終結本輪的關卡（Design Gate、本地人工審…）。
+
+    這些裁定是下一位查核者的**前提**：需求方已經在某些爭點上定案，重開那些爭點是
+    浪費一輪查核。同時必須講清楚它們不代表本輪結束，否則就複製了守衛原本的誤判。
+    """
+    if not gates:
+        return ""
+    blocks = [
+        "### 本輪已通過的中繼關卡（**不代表本輪查核已結束**）",
+        "",
+        "下列關卡已由卡面流程要求先行完成，其裁定為你的前提——**不要重開已定案的爭點**；"
+        "你的查核是本輪尚未完成的那一關。",
+    ]
+    for g in gates:
+        blocks += [
+            "",
+            f"#### {g.get('actor', '?')}　{g.get('occurred_at', '?')}",
+            "",
+            f"- 結論：{g.get('review_result', '（未填）')}",
+            f"- 事件：`{g.get('event_id', '?')}`（state_version {g.get('state_version')}）",
+            "",
+            str(g.get("evidence", "（無）")),
+        ]
+    return "\n".join(blocks)
+
+
 def build_prompt(card_id: str) -> str:
-    ev = latest_handoff(card_id)
+    ev, gates = latest_handoff(card_id)
     tier = ev.get("tier", "T3")
     redline = tier == "T4"
     db_scope = ev.get("db_scope", "none")
@@ -456,6 +532,8 @@ def build_prompt(card_id: str) -> str:
     if baseline:
         checklist += "\n\n" + baseline
     indep, indep_detail = independence(card_id, tier)
+    gates_block = review_gates_block(gates)
+    gates_section = f"\n{gates_block}\n" if gates_block else ""
     db_note = {
         "none": "本卡不涉 DB。",
         "read": "本卡 db_scope=read——你的所有查詢**必須唯讀**，嚴禁任何寫入。",
@@ -486,7 +564,7 @@ def build_prompt(card_id: str) -> str:
 ### 執行者交付摘要（handoff evidence 原文）
 
 {ev.get('evidence', '（無）')}
-
+{gates_section}
 ### 卡面驗收條件（逐項核對）
 
 {checklist}
