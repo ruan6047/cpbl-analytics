@@ -56,7 +56,10 @@ Pitch = dict[str, Any]
 # ---------------------------------------------------------------------------
 # 版本 pin（改動任一者都會改變 build 身分；pa_id seed 只含 event_order_version）
 # ---------------------------------------------------------------------------
-BUILDER_VERSION = "pa-build-1.2.0"  # FIX1：代打續打席合併 + outs 推導 + 出局不變式 + 9.15(b) 歸屬
+# 版本紀律（iteration 5 查核 Critical 的教訓）：**任何 build 行為變更必須進位**——
+# 等價 noop 檢查以 builder_version 判定「同邏輯」，版本不動就會把不同邏輯產的 build
+# 當等價而跳過必要的 side effect（如同源降級）。1.2.0 期間曾違反此紀律。
+BUILDER_VERSION = "pa-build-1.3.0"  # FIX1：合併/outs/不變式/9.15(b) + per-build 映射鍵 + 同源降級
 EVENT_ORDER_VERSION = "evord-1.0"  # main_event_no::bigint 嚴格全序
 # 固定 UUIDv5 namespace（勿更動：更動會使全部 pa_id 漂移）。
 PA_ID_NAMESPACE = uuid.UUID("5f3b9d2a-1c47-5e60-9a8b-6d2f0c1e7a44")
@@ -375,9 +378,10 @@ def derive_half_inning_outs(events: list[Event]) -> dict[str, tuple[int, int]]:
     """逐事件推導 ``(該事件前, 該事件後)`` 的半局累計出局數。
 
     權威來源是 livelog ``content`` 的「N人出局」敘述（＝該事件**後**的半局累計出局數），
-    **不是** ``out_cnt`` 欄位——後者會落後：全庫 328,508 個有真實投球的 island 中
-    2,157 個（0.657%）與本推導值不一致，差值 ``-1`` 佔 2,148 例
-    （見 GAME-RECAP-PA1-FIX1）。推導值自身可對帳：71,023 個半局收在恰好 3 出局。
+    **不是** ``out_cnt`` 欄位——後者會落後：診斷時（2026-07-29，母體 4,276 場、
+    330,386 個有真實投球 island）2,157 個（0.653%）與本推導值不一致，差值 ``-1``
+    佔 2,148 例（見 GAME-RECAP-PA1-FIX1；**數字隨資料增長**，現值以
+    ``docs/research/game_recap_pa1_fix1_metrics.json`` 為準）。推導值自身可對帳。
 
     半局界線以 ``(inning_seq, visiting_home_type)`` 變化判定。累計值取 ``max`` 保持
     單調（出局數不可能減少），使單一敘述異常不會讓後續事件整段偏移。
@@ -1028,7 +1032,7 @@ def _existing_equivalent_build(
     """同 (game, livelog_rev, tracking_rev, builder, taxonomy) 的既有 build（冪等重跑用）。"""
     cur.execute(
         """
-        SELECT build_id, state FROM cpbl.game_recap_builds
+        SELECT build_id, state, validation_summary FROM cpbl.game_recap_builds
         WHERE year=%s AND kind_code=%s AND game_sno=%s
           AND livelog_revision_id=%s
           AND tracking_revision_id IS NOT DISTINCT FROM %s
@@ -1039,6 +1043,39 @@ def _existing_equivalent_build(
     )
     row = cur.fetchone()
     return dict(row) if row else None
+
+
+def _repair_same_source_demotion(
+    cur: Any, *, year: int, kind: str, game: int,
+    existing: dict[str, Any], livelog_rev: int,
+) -> bool:
+    """noop 路徑的一致性修復（冪等）。
+
+    「等價 reconciliation_required build 帶不變式違反」＋「同 livelog revision 的舊
+    published 仍 consumable」是**不一致狀態**：依同源降級語意，該 published 應已在
+    build 產生時降級。此狀態只會由「同版本下改邏輯」的紀律違反產生（iteration 5 查核
+    Critical 實證：等價 noop 會跳過降級 side effect，使已知損壞的資料持續可消費）。
+    純 noop 不修復＝把錯誤狀態當冪等；此處補救並留 log，**不刪任何 build**。
+    """
+    if existing.get("state") != STATE_RECONCILIATION:
+        return False
+    summary = existing.get("validation_summary") or {}
+    if not summary.get("invariant_violations"):
+        return False
+    cur.execute(
+        "UPDATE cpbl.game_recap_builds SET state='superseded' "
+        "WHERE year=%s AND kind_code=%s AND game_sno=%s AND state='published' "
+        "  AND livelog_revision_id=%s",
+        (year, kind, game, livelog_rev),
+    )
+    if cur.rowcount:
+        log.warning(
+            "repaired same-source demotion on noop path for %s/%s/%s "
+            "(published with livelog_rev=%s demoted; invariant build=%s)",
+            year, kind, game, livelog_rev, existing["build_id"],
+        )
+        return True
+    return False
 
 
 @dataclass
@@ -1107,9 +1144,13 @@ def build_game(cur: Any, year: int, kind: str, game: int, *, taxonomy: Taxonomy 
     existing = _existing_equivalent_build(
         cur, year=year, kind=kind, game=game, livelog_rev=livelog_rev, tracking_rev=tracking_rev
     )
-    if existing:  # 同一來源重跑 → 完全相同，冪等 no-op
-        return GameBuildResult(year, kind, game, str(existing["build_id"]), "noop",
-                               existing["state"])
+    if existing:  # 同一來源重跑 → 完全相同，冪等 no-op（含不一致狀態的自癒修復）
+        repaired = _repair_same_source_demotion(cur, year=year, kind=kind, game=game,
+                                                existing=existing, livelog_rev=livelog_rev)
+        return GameBuildResult(
+            year, kind, game, str(existing["build_id"]), "noop", existing["state"],
+            summary={"repaired_demotion": True} if repaired else {},
+        )
 
     pas = plate_appearances(year, kind, game, events, taxonomy)
     plan = plan_pitch_mappings(pas, pitches)

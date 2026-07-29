@@ -197,11 +197,44 @@ def run() -> None:
         log.info("v5 invariant fail closed: %s → 不 publish、舊 published 保留 ✓",
                  r5.summary["invariant_violations"])
 
+        # 6) FIX1 iteration 6：同版本 reconciliation build 的 noop 路徑必須自癒降級
+        #    （iteration 5 查核 Critical 情境：等價 noop 跳過同源降級 side effect，
+        #     已知損壞的 published 持續可消費；且不得以刪 build 解決）
+        cur.execute("SELECT count(*) AS n FROM cpbl.game_recap_builds "
+                    "WHERE year=%s AND kind_code=%s AND game_sno=%s", (Y, K, G))
+        builds_before = int(cur.fetchone()["n"])
+        # v5 的 reconciliation build 與 pub4 的 livelog revision 不同（v5 加了列）。
+        # 偽造成同源：把 pub4 的 revision 改成當前來源的 revision（模擬紀律違反殘留態）。
+        cur.execute(
+            "SELECT livelog_revision_id FROM cpbl.game_recap_builds "
+            "WHERE year=%s AND kind_code=%s AND game_sno=%s "
+            "  AND state='reconciliation_required' ORDER BY built_at DESC LIMIT 1", (Y, K, G))
+        rec_rev = int(cur.fetchone()["livelog_revision_id"])
+        cur.execute("UPDATE cpbl.game_recap_builds SET livelog_revision_id=%s "
+                    "WHERE build_id=%s", (rec_rev, pub4["build_id"]))
+        c.commit()
+        r6 = build_game(cur, Y, K, G)
+        c.commit()
+        assert r6.action == "noop", r6
+        assert r6.summary.get("repaired_demotion") is True, r6.summary
+        assert _count_published(cur) == 0, "同源損壞的 published 必須被自癒降級"
+        cur.execute("SELECT count(*) AS n FROM cpbl.game_recap_builds "
+                    "WHERE year=%s AND kind_code=%s AND game_sno=%s", (Y, K, G))
+        assert int(cur.fetchone()["n"]) == builds_before, "自癒不得刪除任何 build"
+        cur.execute("SELECT state FROM cpbl.game_recap_builds WHERE build_id=%s",
+                    (pub4["build_id"],))
+        assert cur.fetchone()["state"] == "superseded", "舊 published 應轉 superseded（列保留）"
+        # 冪等：再跑一次仍 noop、無事可修
+        r6b = build_game(cur, Y, K, G)
+        c.commit()
+        assert r6b.action == "noop" and not r6b.summary.get("repaired_demotion"), r6b
+        log.info("v6 noop self-heal: 同源殘留態補降級、零刪除、冪等 ✓")
+
         # 清理
         _cleanup(cur)
         c.commit()
         log.info("REHEARSAL PASSED：publish → idempotent noop → reconciliation → "
-                 "builder upgrade republish → 半局出局不變式 fail closed")
+                 "builder upgrade republish → 半局出局不變式 fail closed → noop 自癒降級")
 
 
 if __name__ == "__main__":
