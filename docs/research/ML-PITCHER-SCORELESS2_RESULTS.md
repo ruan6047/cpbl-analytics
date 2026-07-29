@@ -60,15 +60,34 @@ official_outs − 3m − 3(S − last_pitch)  >  official_outs − 3·n_prefix
 「`last_pitch` 之後存在得分局」——而那正是零投球自責分可以發生的情形。**
 
 窮舉驗證（`S` 1~9 局 × 全部逐局得分組態 × 全部官方出局數 × 全部 `last_pitch`，
-共 202,734 組）：嚴格增益 53,988 組，**其中 53,988 組皆滿足「`last_pitch` 之後有得分局」，
-零例外**。這條已固化為測試
+共 202,734 組）：
+
+| 統計量 | 組數 |
+|---|---|
+| 嚴格增益（撤回式 > 全場式） | 53,988 |
+| `last_pitch` 之後有得分局 | 153,840 |
+| 正向反例（有增益卻無後續得分） | 0 |
+| 反向反例（有後續得分卻無增益） | 99,852 |
+
+正向反例 0 組，證實「有嚴格增益 ⇒ `last_pitch` 之後有得分局」這個**單向蘊含**成立、
+增益區**包含於**反例適用區；但反向反例高達 99,852 組，**兩區並不相等**，「當且僅當」
+不成立，措辭已改為「包含於／只有當」（見 `src/cpbl/models/scoreless_streak.py` 與
+`tests/test_scoreless_streak.py` 對應 docstring）。
+
+具體反向反例：`runs=(0,1,0)`、`last_pitch=1`、`official_outs=9`——第 2 局（`last_pitch`
+之後）有得分，故落在「反例適用區」；但 `n_prefix=2`（全場最後得分局）、`m=0`（不晚於
+`last_pitch` 的最後得分局），`baseline = 9 − 3×2 = 3`、`widened = 9 − 3×0 − 3×(3−1) = 3`，
+兩者相等，**無嚴格增益**——不在「增益區」裡。這正是兩區不相等的直接證據。
+
+這條單向蘊含已固化為測試
 `test_a_last_pitch_narrowing_gains_only_where_the_counterexample_applies`，
 且經變異檢驗確認**條件是緊的**（把條件改成「`last_pitch + 1` 之後有得分局」即 FAIL，
 代表不是鬆散的充分條件）。
 
-**結論**：把不安全的情形用守衛排除掉之後，剩下的增益恰好是 0。要求
-「`last_pitch` 之後全零得分」＝要求 `n_prefix ≤ last_pitch`，此時第二式**恆不大於**全場式，
-新下界被舊下界完全支配。**沒有部分可救。**
+**結論不變**：單向蘊含已足夠支撐撤回——把不安全的情形（`last_pitch` 之後有得分局）用
+守衛排除掉之後，剩下的增益恰好是 0（因為全部 53,988 組嚴格增益都落在被排除的那個子集
+裡，零例外）。要求「`last_pitch` 之後全零得分」＝要求 `n_prefix ≤ last_pitch`，此時
+第二式**恆不大於**全場式，新下界被舊下界完全支配。**沒有部分可救。**
 
 ## 3. 其他救法逐條評估（全部 No-Go）
 
@@ -90,8 +109,11 @@ official_outs − 3m − 3(S − last_pitch)  >  official_outs − 3·n_prefix
 
 ## 4. 本輪實際交付
 
-1. **撤回 iteration 1 的兩個 commit**（`3517f54`、`f687daf`）。程式碼、對帳腳本、API 層
-   已與合併基線 `b974b10` **逐位元相同**（`git diff b974b10 -- src scripts` 為空）。
+1. **撤回 iteration 1 的兩個 commit**（`3517f54`、`f687daf`）。**可執行邏輯與 API
+   payload 已回到合併基線 `b974b10`**；`git diff b974b10 -- src scripts` **並非為空**
+   （`scripts/reconcile_scoreless_streak.py` +6/−1、`src/cpbl/models/scoreless_streak.py`
+   +18/−0，共 +25/−1）——那些差異全部是本輪刻意新增的**模組 docstring、R2 對帳腳本
+   註解**（見下方第 2、3、4 項），不含任何邏輯變更；執行期行為與基線相同。
 2. **新增三個回歸測試**（`tests/test_scoreless_streak.py`），即使下界已撤回也留著，
    防止未來重新引入同型假設：
    - `test_zero_pitch_earned_run_forbids_ending_the_window_early`：反例本身，

@@ -402,10 +402,12 @@ def _withdrawn_last_pitch_bound(runs, official_outs, last_pitch):
 
 
 def test_a_last_pitch_narrowing_gains_only_where_the_counterexample_applies():
-    """為什麼這條下界**救不回來**：它的增益區恰好等於反例適用區。
+    """為什麼這條下界**救不回來**：它的增益區**包含於**反例適用區。
 
-    窮舉小型組態證明：撤回的第二式嚴格大於全場式，**當且僅當** `last_pitch` 之後
-    存在得分局。而「`last_pitch` 之後有得分局」正是零投球自責分可能發生的情形
+    窮舉小型組態證明：撤回的第二式嚴格大於全場式，**只有當** `last_pitch` 之後
+    存在得分局時才會發生（反之不成立——`last_pitch` 之後有得分局不保證有增益，
+    見 `docs/research/ML-PITCHER-SCORELESS2_RESULTS.md` §2 的反向反例統計）。
+    而「`last_pitch` 之後有得分局」正是零投球自責分可能發生的情形
     （見 `test_zero_pitch_earned_run_forbids_ending_the_window_early`）。
 
     推論：**沒有任何一塊增益落在安全區**。若加守衛把不安全的情形排除掉，剩下的增益
