@@ -233,209 +233,85 @@ def _write_indep_card(root: Path, review_field: str | None, body: str = "") -> N
                     encoding="utf-8")
 
 
-def test_independence_card_face_beats_looser_tier(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+# --- 獨立性：只給下限、不給結論（iteration 3，升級裁定路線 A） ---
+# 舊測試斷言的是「腳本推導出哪一級」。那個能力已被移除：三輪查核證實從卡面自由文字
+# 推斷流程門檻不可靠（REVIEW-005／007／009）。現在要斷言的性質換成一句話——
+# **工具不得宣稱上限**，因此不可能把卡面要求說低。
+_REVIEW_009_COUNTEREXAMPLES = [
+    # REVIEW-005：AND 被讀成 OR
+    "先跨家族查核，並由需求方人工核可",
+    # REVIEW-007：條件句被讀成二擇一
+    "跨家族查核，若失敗或有疑問再人工核可",
+    # REVIEW-009：否定句與引文覆蓋真正要求；第二例的命中是把「人工智慧」從中切斷
+    "需求方人工核可；不得沿用舊文案「跨家族或人工」",
+    "需求方人工核可（不可由跨家族或人工智慧代理取代）",
+]
+
+
+@pytest.mark.parametrize("field", _REVIEW_009_COUNTEREXAMPLES)
+def test_independence_never_claims_a_conclusion_for_prose(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str
 ) -> None:
-    """UX-ENTITY-LINKS2 的實況：T2 但卡面寫「跨家族或人工」，須取卡面。"""
-    _write_indep_card(tmp_path, "待指派（≠ 執行；跨家族或人工）")
+    """三輪反例全部失去適用對象——不是被更聰明的規則擋掉，是工具不再下結論。"""
+    _write_indep_card(tmp_path, field)
     monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
 
     summary, detail = review_prompt.independence("CARD-I", "T2")
 
-    assert "跨模型家族" in summary
-    assert "新 context" not in summary
-    assert "`待指派（≠ 執行；跨家族或人工）`" in detail   # 卡面原文原樣附上
-    assert "tier 推導（T2）" in detail                    # 推導過程可覆核
+    assert "以卡面〈查核〉欄為準" in summary        # 摘要講的是「去看卡面」
+    assert field in detail                          # 原文照登
+    assert "腳本不解讀卡面語意" in detail
+    assert "不得自行放寬" in detail
 
 
-def test_independence_tier_beats_looser_card_face(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("tier", "floor"),
+    [("T2", "新 context／session 即可（不得為執行者本人）"),
+     ("T3", "新 context／session 即可（不得為執行者本人）"),
+     ("T4", "跨模型家族（非執行者所屬家族）或人工")],
+)
+def test_independence_floor_comes_from_tier_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, tier: str, floor: str
 ) -> None:
-    """反向：卡面沒寫強化要求時，T4 的跨家族要求不得被卡面稀釋。"""
+    """下限來自 tier 這個結構化欄位，不來自任何文字推斷。"""
     _write_indep_card(tmp_path, "待指派（≠ 執行）")
     monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
 
-    summary, _ = review_prompt.independence("CARD-I", "T4")
+    summary, detail = review_prompt.independence("CARD-I", tier)
 
-    assert "跨模型家族" in summary
+    assert floor in summary and floor in detail
 
 
-def test_independence_card_face_human_only_is_strictest(
+def test_independence_keeps_card_face_verbatim(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _write_indep_card(tmp_path, "ruan6047（需求方人工審）")
+    field = "待指派（≠ 執行；跨家族或人工）"
+    _write_indep_card(tmp_path, field)
     monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
 
-    summary, _ = review_prompt.independence("CARD-I", "T2")
+    _, detail = review_prompt.independence("CARD-I", "T2")
 
-    assert summary == "人工（需求方本人）"
+    assert f"`{field}`" in detail
 
 
-def test_independence_missing_field_warns_instead_of_silently_relaxing(
+def test_independence_missing_field_says_so_without_relaxing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """缺欄位不得被讀成「所以沒有額外要求」。"""
     _write_indep_card(tmp_path, None)
     monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
 
     _, detail = review_prompt.independence("CARD-I", "T2")
 
-    assert "未找到" in detail
-    assert "別讓工具替你放寬要求" in detail
+    assert "**未找到**" in detail
+    assert "這不代表沒有額外要求" in detail
     assert "找不到〈查核〉欄" in capsys.readouterr().err
 
 
-def test_independence_unrecognised_field_keeps_verbatim_text(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """辨識不到的寫法不得被靜默吃掉——原文照登，交給人判斷。"""
-    _write_indep_card(tmp_path, "待指派（須由熟悉 TrackMan 的人接）")
-    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+def test_no_prose_inference_helpers_remain() -> None:
+    """路線已放棄：推斷用的常數與函式不得復活（復活即代表同一個病回來了）。"""
+    for name in ("_CROSS_TOKENS", "_INDEP_OR_RE", "_INDEP_JOIN",
+                 "_card_indep_level", "card_body_cross_family_hint"):
+        assert not hasattr(review_prompt, name), f"{name} 不該存在"
 
-    _, detail = review_prompt.independence("CARD-I", "T2")
-
-    assert "熟悉 TrackMan 的人接" in detail
-    assert "以卡面為準" in detail
-
-
-def test_independence_flags_cross_family_written_only_in_body(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """欄位沒寫、正文寫了（UX-ENTITY-LINKS2 L40 的實況）→ 附提示要人確認。"""
-    _write_indep_card(tmp_path, "待指派（≠ 執行）",
-                      body="\n- [ ] **先本地人工審再交跨家族查核**。\n")
-    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
-
-    _, detail = review_prompt.independence("CARD-I", "T2")
-
-    assert "卡片正文另提到跨家族" in detail
-    assert "先本地人工審再交跨家族查核" in detail
-
-
-# --- REVIEW-005 的三項退回（iteration 1） ---
-def test_repro_shell_script_is_not_treated_as_docs(monkeypatch: pytest.MonkeyPatch) -> None:
-    """F1 blocking：可執行變更被說成「純文件／沒有標準重現指令」比不給指令更糟。"""
-    out = _repro(monkeypatch, ["scripts/scrape-daily.sh"])
-
-    assert "純文件" not in out
-    assert "無法判定" in out
-    assert "uv run pytest" not in out and "npm ci" not in out
-
-
-@pytest.mark.parametrize(
-    "path", ["scripts/scrape-daily.sh", "Dockerfile", ".github/workflows/ci.yml",
-             "docker-compose.yml", "data/fixtures.csv"],
-)
-def test_repro_unknown_kinds_never_get_a_default_command(
-    monkeypatch: pytest.MonkeyPatch, path: str
-) -> None:
-    out = _repro(monkeypatch, [path])
-
-    assert "無法判定" in out and path in out
-    assert "uv run pytest" not in out and "npm ci" not in out
-
-
-def test_repro_unknown_paths_surface_next_to_recognised_ones(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """未知路徑旁邊有 Python 改動時同樣要被講出來，不得被指令區塊蓋過去。"""
-    out = _repro(monkeypatch, ["src/cpbl/api/main.py", "Dockerfile", ".github/workflows/ci.yml"])
-
-    assert "uv run pytest -q" in out                    # 認得的那部分照常給指令
-    assert "不在自動判定範圍" in out                     # 認不得的那部分照樣吵
-    assert "Dockerfile" in out and ".github/workflows/ci.yml" in out
-
-
-def test_repro_docs_only_uses_extension_allowlist(monkeypatch: pytest.MonkeyPatch) -> None:
-    out = _repro(monkeypatch, ["docs/AI_RUNBOOK.md", "README.md"])
-
-    assert "純文件卡" in out and "沒有標準重現指令" in out
-    assert "無法判定" not in out
-
-
-def test_independence_composite_and_is_not_downgraded_to_either_or(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """F2 blocking：「先跨家族查核，並由需求方人工核可」曾被讀成「跨家族或人工」。"""
-    _write_indep_card(tmp_path, "先跨家族查核，並由需求方人工核可")
-    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
-
-    summary, detail = review_prompt.independence("CARD-I", "T2")
-
-    assert "且" in summary and "兩者皆須" in summary
-    assert summary != "跨模型家族（非執行者所屬家族）或人工"
-    assert "無法判定是二擇一還是兩者皆須" in detail   # 明講腳本沒在推斷
-    assert "以卡面原文為準" in detail
-
-
-@pytest.mark.parametrize(
-    "field",
-    ["待指派（≠ 執行；跨家族或人工）",
-     "待指派（≠ 執行；**跨模型家族或人工**——本卡有統計紅線）",
-     "待指派（人工或跨家族皆可）",
-     "跨家族 或 人工",
-     # REVIEW-007 的反向漏判：正則寫死 `跨(?:模型)?家族`，這兩種明寫二擇一的
-     # 別名寫法反而被誤升為 AND。別名現由 _CROSS_TOKENS 生成。
-     "跨模型或人工",
-     "換模型家族或人工"],
-)
-def test_independence_explicit_or_stays_either_or(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str
-) -> None:
-    """明寫「或」的既有寫法不得被誤升為 AND——只可升不可降不是「一律往上猜」。"""
-    _write_indep_card(tmp_path, field)
-    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
-
-    summary, _ = review_prompt.independence("CARD-I", "T2")
-
-    assert summary == "跨模型家族（非執行者所屬家族）或人工"
-
-
-@pytest.mark.parametrize(
-    "field",
-    [  # REVIEW-007 主案：跨家族必做、人工只是失敗時的後續關卡。距離式正則把它讀成
-       # 二擇一，等於允許人工直接取代跨家族查核。
-     "跨家族查核，若失敗或有疑問再人工核可",
-     "先跨家族查核，並由需求方人工核可",
-     "跨家族查核完成後，另需人工抽驗",
-     "跨家族／人工二擇一"],  # 沒寫「或」就不推斷，保守 AND ＋ 警告
-)
-def test_independence_prose_between_atoms_never_reads_as_either_or(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str
-) -> None:
-    """兩個約束原子之間一旦有實質文字，就不是「A 或 B」的寫法——不推斷句子的邏輯。"""
-    _write_indep_card(tmp_path, field)
-    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
-
-    summary, detail = review_prompt.independence("CARD-I", "T2")
-
-    assert "且" in summary and "兩者皆須" in summary
-    assert "無法判定是二擇一還是兩者皆須" in detail   # 保守之外還要吵
-
-
-def test_independence_body_hint_is_clipped(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """F3 minor：提示是指路標不是引文轉載，整行照登會稀釋旁邊真正該讀的字。"""
-    long_line = "- [ ] " + "描述另一張卡的問題時提到先本地人工審再交跨家族查核" * 6
-    _write_indep_card(tmp_path, "待指派（≠ 執行）", body=f"\n{long_line}\n")
-    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
-
-    _, detail = review_prompt.independence("CARD-I", "T2")
-
-    hint = next(line for line in detail.splitlines() if "卡片正文另提到跨家族" in line)
-    assert "…" in hint
-    assert len(hint) < len(long_line)
-
-
-def test_independence_body_hint_absent_when_already_strict(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """已經是跨家族時不再重複提示，避免雜訊淹沒真正需要看的那行。"""
-    _write_indep_card(tmp_path, "待指派（跨家族或人工）",
-                      body="\n- [ ] 交跨家族查核。\n")
-    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
-
-    _, detail = review_prompt.independence("CARD-I", "T2")
-
-    assert "卡片正文另提到跨家族" not in detail
 

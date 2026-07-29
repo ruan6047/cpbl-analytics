@@ -375,48 +375,39 @@ def repro_commands(ev: dict) -> str:
     return f"{tally}\n\n{body}"
 
 
-# --- 獨立性：tier 推導值與卡面〈查核〉欄取較嚴者 ---
-# 嚴格度全序：1 < 2 < 3 < 4。3 比 2 嚴是因為它拿掉了「AI 也行」這個選項；
-# 4 比 3 嚴是因為它多要一項，不是二擇一。
-_INDEP_DESC = {
-    1: "新 context／session 即可（不得為執行者本人）",
-    2: "跨模型家族（非執行者所屬家族）或人工",
-    3: "人工（需求方本人）",
-    4: "跨模型家族查核**且**人工核可（兩者皆須，非二擇一）",
+# --- 獨立性：只保證下限，不宣稱上限 ---
+#
+# 這一段曾經試圖從卡面自由文字推導出「這張卡需要哪一種查核獨立性」，
+# 被同一位跨家族查核者連續三輪以更根本的反例打穿（DEV-REVIEW-PROMPT-GUARD1）：
+#
+#   iteration 0（REVIEW-005）first-match scalar
+#     → 「先跨家族查核，並由需求方人工核可」的 AND 被讀成 OR。
+#   iteration 1（REVIEW-007）距離式正則
+#     → 條件句「跨家族查核，若失敗或有疑問再人工核可」被讀成二擇一；
+#       別名寫死又讓「跨模型或人工」這種明寫的二擇一被誤升為 AND。
+#   iteration 2（REVIEW-009）格式字元直連 ＋ 全文 search()
+#     → 否定句與引文裡的字樣覆蓋真正要求；
+#       「不可由跨家族或人工智慧代理取代」的命中甚至是把「人工智慧」從中切斷。
+#
+# 中文沒有空白分詞，否定、引文、條件句可任意嵌套。每一輪修法都更嚴謹、每一輪都被更
+# 根本的反例打穿——那不是實作品質問題，是路線問題。需求方 2026-07-29 裁定停止推斷。
+#
+# 現在的性質很簡單：**工具只宣稱一個下限，不宣稱上限。**
+# 不宣稱上限，就不可能把需求方寫在卡面的要求說低——三輪的反例全部失去適用對象，
+# 不是被更聰明的規則擋掉，是無處可施。要判讀卡面語意的是人，工具只負責把原文攤開。
+#
+# 機器可讀的獨立性欄位由 DEV-REVIEW-INDEP-FIELD1 承接（含值域與既有卡遷移）。
+_TIER_FLOOR = {
+    "T4": "跨模型家族（非執行者所屬家族）或人工",
 }
-_CROSS_TOKENS = ("跨家族", "跨模型家族", "跨模型", "換家族", "換模型家族")
-_HUMAN_TOKENS = ("人工",)
-
-# 兩個約束原子之間**只允許格式性字元**：空白、Markdown 強調、括號、分隔符。
-#
-# 這條規則被打穿過兩次，兩次都是想從自然語言推斷邏輯連接詞：
-# - REVIEW-005 F2：first-match scalar，「先跨家族查核，並由需求方人工核可」命中
-#   「跨家族」就結束 → AND 被讀成 OR。
-# - REVIEW-007：改用距離式正則（token 間可夾任意字元），
-#   「跨家族查核，若失敗或有疑問再人工核可」→ 判成二擇一，等於允許**人工直接取代
-#   跨家族查核**，而原文是「跨家族必做、人工是失敗時的後續關卡」。
-#
-# 所以這一版不再問「這句話是什麼意思」，只問一個**字面**問題：
-# 兩個原子是不是被一個「或」直接連起來的。中間一旦出現任何實質文字（「查核，若失敗」），
-# 那就不是二擇一的寫法，而是句子——句子的邏輯不推斷，一律走保守 AND ＋ 明示無法判定。
-#
-# 別名由 `_CROSS_TOKENS` 生成而非寫死：舊版寫死 `跨(?:模型)?家族`，
-# 於是「跨模型或人工」「換模型家族或人工」這兩種**明寫二擇一**的寫法反而被誤升為 AND
-# （REVIEW-007 的反向漏判）。只可升不可降不等於「一律往上猜」。
-_INDEP_JOIN = r"[\s*_`~（）()\[\]【】「」『』／/、，,；;：:\-－]*"
-_INDEP_OR_RE = re.compile(
-    "(?:{cross}){j}或{j}(?:{human})|(?:{human}){j}或{j}(?:{cross})".format(
-        cross="|".join(re.escape(t) for t in _CROSS_TOKENS),
-        human="|".join(re.escape(t) for t in _HUMAN_TOKENS),
-        j=_INDEP_JOIN,
-    ))
+_DEFAULT_FLOOR = "新 context／session 即可（不得為執行者本人）"
 
 
 def card_review_field(card_id: str) -> str | None:
     """卡面 header 的〈查核〉欄原文；找不到回 None。
 
-    只讀第一個 `## ` 標題之前的 header 區塊——正文裡的「查核」二字（例如
-    「先本地人工審再交跨家族查核」）屬敘述，不是欄位，混進來會誤判。
+    只讀第一個 `## ` 標題之前的 header 區塊——正文裡的「查核」二字屬敘述不是欄位。
+    **原文照登，不解讀**：這個函式回傳字串，不回傳結論。
     """
     path = _card_path(card_id)
     if path is None:
@@ -429,104 +420,29 @@ def card_review_field(card_id: str) -> str | None:
     return None
 
 
-def _card_indep_level(field: str) -> tuple[int | None, str | None]:
-    """卡面〈查核〉欄 →（嚴格度, 需要人看一眼的註記）。
-
-    REVIEW-005 F2（blocking）：iteration 0 用「命中第一個 token 就回傳」表達這件事，
-    於是「先跨家族查核，**並**由需求方人工核可」在命中「跨家族」時就結束，
-    輸出成「跨模型家族或人工」——**把 AND 讀成 OR，把兩道關卡降成一道**。
-
-    複合語句的 AND／OR 不做自然語言推斷：只認得明確寫成「或」的二擇一（`_INDEP_OR_RE`）；
-    兩個字樣都在、卻沒寫成「或」時，取**較嚴的 AND 讀法**並明講腳本無法判定、
-    以卡面原文為準。往嚴的方向猜錯只是多一道關卡，往寬的方向猜錯是漏掉一道。
-    """
-    has_cross = any(t in field for t in _CROSS_TOKENS)
-    has_human = any(t in field for t in _HUMAN_TOKENS)
-    if has_cross and has_human:
-        if _INDEP_OR_RE.search(field):
-            return 2, None
-        return 4, ("卡面同時出現「跨家族」與「人工」但未寫成「或」——"
-                   "**腳本無法判定是二擇一還是兩者皆須，取較嚴的 AND 讀法**；"
-                   "實際要求以卡面原文為準，必要時請需求方裁定。")
-    if has_cross:
-        return 2, None
-    if has_human:
-        return 3, None
-    return None, None
-
-
-def card_body_cross_family_hint(card_id: str) -> str | None:
-    """卡片正文（第一個 `## ` 之後）提到跨家族時，回傳該行原文。
-
-    〈查核〉欄是**指定欄位**，正文敘述不當欄位解析——但只讀欄位有漏的一面：
-    `UX-ENTITY-LINKS2` 的「先本地人工審再交跨家族查核」就寫在〈驗收〉章節而非欄位裡。
-    正文命中時不直接升級（正文是敘述，語境可能是「不需要跨家族」），改為附一行提示
-    要人自己判斷——**寧可多問一句，不可讓工具替需求方放寬要求**。
-
-    只掃跨家族字樣，不掃「人工」：後者在正文裡多半是「人工核對」「人工審」等敘述，
-    命中率高到會變成雜訊，反而讓提示被忽略。
-    """
-    path = _card_path(card_id)
-    if path is None:
-        return None
-    lines = path.read_text(encoding="utf-8").splitlines()
-    body_started = False
-    for line in lines:
-        if line.startswith("## "):
-            body_started = True
-            continue
-        if body_started and any(t in line for t in _CROSS_TOKENS):
-            return _clip(line.strip())
-    return None
-
-
-# 提示行是「要不要看一眼卡面」的指路標，不是引文轉載。整行照登會把三百字的段落
-# 塞進獨立性區塊，稀釋掉旁邊真正該讀的那幾行（REVIEW-005 F3）。
-_HINT_MAX = 60
-
-
-def _clip(text: str, limit: int = _HINT_MAX) -> str:
-    return text if len(text) <= limit else text[:limit] + "…"
-
-
 def independence(card_id: str, tier: str) -> tuple[str, str]:
-    """回傳 (單行摘要, 推導明細段)。
-
-    舊版只看 tier：T4 → 跨家族或人工、其餘 → 新 context 即可。`UX-ENTITY-LINKS2`
-    是 T2、卡面〈查核〉欄卻寫「≠ 執行；跨家族或人工」——工具產出的提示詞說
-    「新 context／session 即可」，**把需求方寫在卡面的要求稀釋掉，且沒有任何訊號**。
-
-    這裡取 tier 推導值與卡面要求的較嚴者，且**卡面原文一律原樣附上**：腳本的分類
-    只可升不可降，辨識不到的寫法由讀的人自己判斷，不會被靜默吃掉。
-    """
-    tier_level = 2 if tier == "T4" else 1
+    """回傳 (單行摘要, 明細段)。摘要講的是**下限**，不是結論。"""
+    floor = _TIER_FLOOR.get(tier, _DEFAULT_FLOOR)
     field = card_review_field(card_id)
-    if field is None:
-        print(f"警告：{card_id} 卡面找不到〈查核〉欄，獨立性只能依 tier 推導。",
-              file=sys.stderr)
-        card_line = ("- 卡面〈查核〉欄：**未找到**——只採 tier 推導值。"
-                     "卡片若確實有此欄請確認格式，**別讓工具替你放寬要求**。")
-        card_level = None
-    else:
-        card_level, ambiguity = _card_indep_level(field)
-        verdict = (f"→ {_INDEP_DESC[card_level]}" if card_level
-                   else "→ 腳本未在本欄辨識到強化要求（**你若讀出額外要求，以卡面為準**）")
-        card_line = f"- 卡面〈查核〉欄原文：`{field}` {verdict}"
-        if ambiguity:
-            card_line += f"\n  - ⚠️ {ambiguity}"
-    level = max(tier_level, card_level or 0)
-    detail_lines = [
-        f"- tier 推導（{tier}）：{_INDEP_DESC[tier_level]}",
-        card_line,
-        "- **取兩者較嚴者**；卡面另有本段未涵蓋的限制時一律以卡面為準。查核者 ≠ 執行者為所有情況的下限。",
+    lines = [
+        "- **本段只給下限，不給結論。** 腳本不解讀卡面語意——"
+        "獨立性要求由你讀卡面決定（理由見 `scripts/review_prompt.py` 的註解："
+        "自由文字推斷已連續三輪被否定句、引文與條件句打穿）。",
+        f"- tier 推導的下限（{tier}）：{floor}",
     ]
-    if level < 2:
-        hint = card_body_cross_family_hint(card_id)
-        if hint:
-            detail_lines.append(
-                f"- ⚠️ 卡片正文另提到跨家族：`{hint}`——欄位沒寫但正文寫了，"
-                "**接手前先確認這一條是否適用於本輪**。")
-    return _INDEP_DESC[level], "\n".join(detail_lines)
+    if field is None:
+        print(f"警告：{card_id} 卡面找不到〈查核〉欄，提示詞只能給 tier 下限。",
+              file=sys.stderr)
+        lines.append("- 卡面〈查核〉欄：**未找到**——**這不代表沒有額外要求**，"
+                     "請直接開卡片確認格式與內容，別讓工具替需求方放寬要求。")
+    else:
+        lines.append(f"- 卡面〈查核〉欄原文（**以此為準**）：`{field}`")
+    lines.append(
+        "- 卡面若要求得比上述下限嚴（跨家族、人工核可、兩者皆須、先後順序…），"
+        "**一律以卡面為準**；判讀有疑義請需求方裁定，**不得自行放寬**。"
+        "查核者 ≠ 執行者是所有情況的下限。")
+    # 摘要不帶 markdown：呼叫端已把它包進粗體與括號，這裡再加會變成巢狀粗體。
+    return f"下限 {floor}；實際要求以卡面〈查核〉欄為準", "\n".join(lines)
 
 
 def build_prompt(card_id: str) -> str:
