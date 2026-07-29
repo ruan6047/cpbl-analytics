@@ -2,7 +2,7 @@
 
 - 需求：ruan6047（2026-07-29 於 `GAME-RECAP-PA1-FIX1` 交付時指示開卡）　規劃：本卡 spec　分支：`ai/<執行者>/INGEST-SPLITS-PA-SPLIT1`
 - 執行：待指派（建議 L3；跨模組取捨與官方語意判讀，非新演算法）　查核：待指派（≠ 執行；**跨模型家族或人工**——本卡有統計紅線）
-- Initiative：INIT-OFFICIAL-DATA1　spec 基線：—（非 Initiative 子卡，僅歸屬）
+- Initiative：INIT-OFFICIAL-DATA1　spec 基線：v1
 - DB：`db_scope: read`（**查證卡；若結論為需重算，另開卡走 `data-migration` 閘門**）
 - 部署：否（本卡不改線上資料）　環境：—　PR：—　Merge SHA：—
 - 範圍：判定 `splits_calc.py` 是否因與 `GAME-RECAP-PA1-FIX1` 相同的島切分缺陷而重複計打席，若是則量化影響面。**本卡不修**。
