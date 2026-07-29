@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { StatAbbr, TeamBadge, TeamLogo, divBg, prColor } from "@/components/ui";
+import { ENTITY_LINK_TEXT, StatAbbr, TeamBadge, TeamLogo, divBg, prColor } from "@/components/ui";
 import { DataTable, type Column } from "@/components/table";
 import { StandingsTrend } from "@/components/standings-trend";
 import { StandingsNav } from "./nav";
@@ -30,9 +30,12 @@ function LinkedTeam({ code, name }: { code: string; name: string }) {
   const tc = teamPageCode(code);
   const shown = displayTeamName(name);
   if (!tc) return <TeamBadge code={code} name={shown} />;
+  // 保留外層 <Link> 的完整可點範圍（logo 仍可點進同頁），只把 ENTITY_LINK 的視覺
+  // 套在名稱文字上（linkStyle，不自建 <a>）。§3.5 要的是「只有文字帶底線」，
+  // 不是「只有文字可點」——iteration 0 誤把視覺規範當結構規範，經查核 F1 退回。
   return (
-    <Link href={`/teams/${tc}`} className="hover:underline">
-      <TeamBadge code={code} name={shown} />
+    <Link href={`/teams/${tc}`} className="group">
+      <TeamBadge code={code} name={shown} linkStyle />
     </Link>
   );
 }
@@ -143,14 +146,24 @@ function L10({ s }: { s: string | null }) {
 function TeamNameCell({ code, name }: { code: string; name: string }) {
   const tc = teamPageCode(code);
   const shown = displayTeamName(name);
-  const inner = (
-    <span className="inline-flex items-center gap-1.5">
-      <TeamLogo code={code} name={name} size={20} decorative />
+  // 底線只跟名稱文字，但整塊（含 logo）維持可點——外層 <Link> 不動，
+  // 名稱文字改套 ENTITY_LINK_TEXT。未連結時不套底線。
+  const nameSpans = (
+    <>
       <span className="hidden font-medium lg:inline">{shown}</span>
       <span className="font-medium lg:hidden">{teamShort(code) || shown}</span>
+    </>
+  );
+  const inner = (linked: boolean) => (
+    <span className="inline-flex items-center gap-1.5">
+      <TeamLogo code={code} name={name} size={20} decorative />
+      {linked ? <span className={ENTITY_LINK_TEXT}>{nameSpans}</span> : nameSpans}
     </span>
   );
-  return tc ? <Link href={`/teams/${tc}`} className="hover:underline" aria-label={shown}>{inner}</Link> : inner;
+  // aria-label 保留全名，避免手機縮寫成為無障礙名稱。
+  return tc
+    ? <Link href={`/teams/${tc}`} className="group" aria-label={shown}>{inner(true)}</Link>
+    : inner(false);
 }
 
 // 勝差標籤（取代獨立欄）：領先隊不顯示；落後隊以中性 chip 呈現

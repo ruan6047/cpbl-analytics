@@ -2,6 +2,7 @@
 // （投手先發/中繼/後援、替補…皆為通用 group）。呼叫端只餵已算好的顯示資料，元件不含資料邏輯，
 // 故可用於球隊頁、賽前預覽、比較等情境。視覺與互動三者一致：同寬格位、同字級、hover/focus/點擊同邏輯。
 import Link from "next/link";
+import { ENTITY_LINK_TEXT } from "@/components/ui";
 import { FieldDiagram, type FieldCellContent, type FieldCells } from "@/components/field-diagram";
 
 export type RosterCell = { id: string; name: string | null; badge: string; stat?: string | null };
@@ -16,11 +17,13 @@ export type RosterGroup = {
 // 互動邏輯與守備圖格位一致：hover 淡 accent 底、focus-visible accent 外框。
 export function RoleCell({ id, name, badge, stat }: RosterCell) {
   return (
+    // 整格卡片維持可點（hover 底色＋focus 外框不變），ENTITY_LINK 視覺只套姓名文字；
+    // inline-block 讓底線貼齊文字寬度而非橫跨整格。
     <Link href={`/players/${id}`}
-      className="flex items-stretch overflow-hidden rounded-md border border-line-strong bg-surface transition hover:bg-accent/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent">
+      className="group flex items-stretch overflow-hidden rounded-md border border-line-strong bg-surface transition hover:bg-accent/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent">
       <span className="flex w-8 shrink-0 items-center justify-center border-r border-line font-mono text-[9px] font-semibold text-muted">{badge}</span>
       <span className="min-w-0 flex-1 px-2 py-1 leading-tight">
-        <span className="block truncate text-[11px] font-medium text-ink">{name ?? "—"}</span>
+        <span className={`inline-block max-w-full truncate align-bottom text-[11px] font-medium ${ENTITY_LINK_TEXT}`}>{name ?? "—"}</span>
         {stat && <span className="block font-mono text-[9px] text-faint">{stat}</span>}
       </span>
     </Link>

@@ -1,6 +1,6 @@
 // 球隊頁展示元件與常數（Server Component 可用；無 client hooks）。
 import Link from "next/link";
-import { ActivePill, Card, EmptyState, ENTITY_LINK } from "@/components/ui";
+import { ActivePill, Card, EmptyState, ENTITY_LINK, ENTITY_LINK_TEXT } from "@/components/ui";
 import { DataTable, type Column } from "@/components/table";
 import type { SpecialRecord, WL, WTL, api } from "@/lib/api";
 
@@ -166,15 +166,21 @@ export function RetiredNumbers({ retired, color }: { retired: RetiredNumber[]; c
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg font-mono text-xl font-bold tabular-nums"
                 style={{ background: `${color}1a`, color }}>{r.number}</span>
               <div className="min-w-0">
-                <div className={`truncate font-medium ${r.player_id ? "text-accent" : "text-ink"} ${revoked ? "line-through" : ""}`}>
-                  {r.holder}
+                {/* 整張卡維持可點（外層 <Link> 不動），底線只套在球員名文字。
+                    原本連結態用 text-accent，正是 §3.5 明文禁止的實體名紅字；改走 ENTITY_LINK。
+                    line-through 留在外層 div：CSS text-decoration 會往內層傳遞並疊加，
+                    避免與內層 underline 在同一個 text-decoration-line 上互相覆蓋。 */}
+                <div className={`truncate font-medium ${revoked ? "line-through" : ""}`}>
+                  {r.player_id
+                    ? <span className={ENTITY_LINK_TEXT}>{r.holder}</span>
+                    : <span className="text-ink">{r.holder}</span>}
                 </div>
                 <div className="text-[10px] text-faint">{sub}</div>
               </div>
             </Card>
           );
           return r.player_id
-            ? <Link key={r.number} href={`/players/${r.player_id}`} title={r.note ?? "前球員 · 看球員頁"}>{inner}</Link>
+            ? <Link key={r.number} href={`/players/${r.player_id}`} className="group" title={r.note ?? "前球員 · 看球員頁"}>{inner}</Link>
             : <div key={r.number} title={r.note ?? undefined}>{inner}</div>;
         })}
       </div>
@@ -191,10 +197,14 @@ export function RosterChips({ label, players, color, dim }: {
       {label && <div className="mb-1.5 text-xs font-medium text-muted">{label}</div>}
       <div className="flex flex-wrap gap-1.5">
         {players.map((p) => (
+          // 整顆 chip 維持可點（外層 <Link> 不動），ENTITY_LINK 視覺只套姓名文字。
+          // ⚠️ Design Gate 待裁定：ENTITY_LINK 含 `text-ink`，會覆蓋 chip 原本的隊色文字
+          //（隊色仍保留在 chip 邊框，因 hover:border-current 取 <Link> 的 currentColor）。
+          // 若需求方認為隊色文字才是此處的識別重點，把 style 移到內層 span 即可還原。
           <Link key={p.player_id} href={`/players/${p.player_id}`}
-            className={`rounded-full border border-line px-2.5 py-1 text-sm transition hover:border-current ${dim ? "text-muted" : ""}`}
+            className={`group rounded-full border border-line px-2.5 py-1 text-sm transition hover:border-current ${dim ? "text-muted" : ""}`}
             style={dim ? undefined : { color }}>
-            {p.name}
+            <span className={ENTITY_LINK_TEXT}>{p.name}</span>
           </Link>
         ))}
       </div>
@@ -210,7 +220,17 @@ export function RosterTable({ rows, cols }: {
   return (
     <DataTable
       columns={[
-        { header: cols[0], cell: (r) => <Link href={`/players/${r.id}`} className="inline-flex items-center gap-1.5 hover:underline">{r.name}{r.active && <ActivePill />}</Link>, className: "font-sans" },
+        // 底線只跟著球員名（pill 不套），但整塊含 pill 維持可點——外層 <Link> 不動。
+        {
+          header: cols[0],
+          cell: (r) => (
+            <Link href={`/players/${r.id}`} className="group inline-flex items-center gap-1.5">
+              <span className={ENTITY_LINK_TEXT}>{r.name}</span>
+              {r.active && <ActivePill />}
+            </Link>
+          ),
+          className: "font-sans",
+        },
         { header: cols[1], cell: (r) => r.span, className: "font-mono text-[11px] text-muted" },
         { header: cols[2], cell: (r) => r.a, className: "font-mono" },
         { header: cols[3], cell: (r) => r.b, className: "font-mono text-muted" },
@@ -228,7 +248,7 @@ export function PlayerTable({ rows, cols }: { rows: { id: string; name: string |
   return (
     <DataTable
       columns={[
-        { header: cols[0], cell: (r) => <Link href={`/players/${r.id}`} className="hover:underline">{r.name ?? "—"}</Link>, className: "font-sans" },
+        { header: cols[0], cell: (r) => <Link href={`/players/${r.id}`} className={ENTITY_LINK}>{r.name ?? "—"}</Link>, className: "font-sans" },
         { header: cols[1], cell: (r) => r.a, className: "font-mono" },
         { header: cols[2], cell: (r) => r.b, className: "font-mono text-muted" },
       ] satisfies Column<(typeof rows)[number]>[]}

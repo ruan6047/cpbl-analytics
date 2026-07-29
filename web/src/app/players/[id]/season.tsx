@@ -3,7 +3,7 @@
 // 本季成績卡 + 官方進階 PR（dataTab=season）；生涯成績 + 最佳單季 + 里程碑（dataTab=career）。
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Card, EmptyState, PercentileBar, Skeleton, StatAbbr, StatTile, TeamLogo, prColor } from "@/components/ui";
+import { Card, EmptyState, ENTITY_LINK_TEXT, PercentileBar, Skeleton, StatAbbr, StatTile, TeamLogo, prColor } from "@/components/ui";
 import { DataTable, type Column } from "@/components/table";
 import { detail, type PlayerProfile, type StatRow } from "@/lib/client";
 import { fmtIP } from "@/lib/format";
@@ -190,10 +190,12 @@ export function CareerSummary({ careerStats, role }: { careerStats: CareerStats 
           <DataTable
             columns={[
               { header: "執教時期", cell: (m) => <span className="font-medium">{m.era_name || "—"}</span>, nowrap: true },
+              // 整塊（含 logo）維持可點，底線只跟隊名文字。logo 旁已顯示隊名 → decorative
+              // （與 NameTag／TeamBadge 一致，避免螢幕閱讀器重複念「隊徽 味全龍」；查核 C 裁定保留）。
               { header: "球隊", cell: (m) => m.team_code ? (
-                <Link href={`/teams/${m.team_code}`} className="inline-flex items-center gap-1.5 hover:underline">
-                  <TeamLogo code={m.team_code} size={16} />
-                  {m.team_name || m.team_code}
+                <Link href={`/teams/${m.team_code}`} className="group inline-flex items-center gap-1.5">
+                  <TeamLogo code={m.team_code} size={16} decorative />
+                  <span className={ENTITY_LINK_TEXT}>{m.team_name || m.team_code}</span>
                 </Link>
               ) : "—", nowrap: true },
               { header: "年度", cell: (m) => m.from_year === m.to_year ? String(m.from_year) : `${m.from_year}–${m.to_year}`, nowrap: true, className: "text-muted" },
@@ -245,9 +247,10 @@ export function CareerSummary({ careerStats, role }: { careerStats: CareerStats 
                 cell: (r) => (
                   <span className="flex items-center gap-1.5 font-sans">
                     {r.team_code ? (
-                      <Link href={`/teams/${r.team_code}`} className="inline-flex items-center gap-1.5 hover:underline">
-                        <TeamLogo code={r.team_code} size={16} />
-                        {r.team_raw}
+                      // 整塊（含 logo）維持可點，底線只跟隊名文字。
+                      <Link href={`/teams/${r.team_code}`} className="group inline-flex items-center gap-1.5">
+                        <TeamLogo code={r.team_code} size={16} decorative />
+                        <span className={ENTITY_LINK_TEXT}>{r.team_raw}</span>
                       </Link>
                     ) : (
                       r.team_raw

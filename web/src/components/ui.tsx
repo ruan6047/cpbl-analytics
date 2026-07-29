@@ -10,6 +10,14 @@ import { Tooltip } from "./tooltip";
 export const ENTITY_LINK =
   "text-ink underline decoration-line decoration-1 underline-offset-2 transition-colors hover:text-accent hover:decoration-accent";
 
+// 給「外層已經有 <Link> 包住整塊（logo＋名稱／整張卡／整顆 chip）」的呼叫點：
+// 只把 ENTITY_LINK 的**視覺**套在名稱文字上，本身不自建 <a>——可點範圍維持原樣
+// （卡面 UX-ENTITY-LINKS2「不改可點範圍語意」；§3.5 要的是「只有文字帶底線」，
+// 不是「只有文字可點」），也不會產生 nested <a>。
+// 外層 <Link> 需帶 `group`，hover 才會從整塊觸發而非只在文字上。
+export const ENTITY_LINK_TEXT =
+  `${ENTITY_LINK} group-hover:text-accent group-hover:decoration-accent`;
+
 // 字母方塊徽章（單一事實來源）：給定 {color, letter} 渲染隊色底＋對比字。
 // 各處（排行榜/紀錄室/球員頁/球隊頁沿革）原本各自手寫此 span，統一由此出。
 export function LetterBadge({ meta, size = 16, round = false }: { meta: { color: string; letter: string }; size?: number; round?: boolean }) {
@@ -113,12 +121,16 @@ export function StatTile({ label, value, accent, rank, rankTotal }: {
 }
 
 // link=true 時隊名文字連 /teams（§9.3；歷史/已解散隊自動不連）。
-export function TeamBadge({ code, name, size = 20, link = false }: { code?: string | null; name?: string | null; size?: number; link?: boolean }) {
+// linkStyle=true：外層呼叫點已自備 <Link> 包住整塊，此處只給名稱文字 ENTITY_LINK 的
+// 視覺、不自建 <a>（見 ENTITY_LINK_TEXT）。與 link 互斥——link 自建錨點、linkStyle 不。
+export function TeamBadge({ code, name, size = 20, link = false, linkStyle = false }: { code?: string | null; name?: string | null; size?: number; link?: boolean; linkStyle?: boolean }) {
   const href = link && isCurrentTeam(code) ? `/teams/${teamPageCode(code)}` : null;
   return (
     <span className="inline-flex items-center gap-1.5">
       <TeamLogo code={code} name={name} size={size} decorative={!!name} />
-      {name && (href ? <Link href={href} className={ENTITY_LINK}>{name}</Link> : <span>{name}</span>)}
+      {name && (href
+        ? <Link href={href} className={ENTITY_LINK}>{name}</Link>
+        : <span className={linkStyle ? ENTITY_LINK_TEXT : undefined}>{name}</span>)}
     </span>
   );
 }

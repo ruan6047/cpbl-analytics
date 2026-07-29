@@ -3,7 +3,7 @@
 // 單組打者×投手對決卡：首屏只放核心結果，進階計數與比例主動展開。
 // 資料為官網逐年彙總（本季年度列＋生涯彙總列），非逐打席事件流。
 import Link from "next/link";
-import { Card, EmptyState, StatGrid, TeamLogo } from "@/components/ui";
+import { Card, EmptyState, ENTITY_LINK, StatGrid, TeamLogo } from "@/components/ui";
 import { KIND_LABEL } from "@/lib/client";
 import type { Kind, PairDetail, PairRow, Role, YearCoverage } from "./api";
 
@@ -88,7 +88,7 @@ export default function PairCard({
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="inline-flex items-center gap-1.5 text-base font-bold text-ink">
           <TeamLogo code={any?.hitter_franchise ?? any?.hitter_team_code} size={20} decorative />
-          <Link href={`/players/${data.hitter}`} className="hover:underline">
+          <Link href={`/players/${data.hitter}`} className={ENTITY_LINK}>
             {any?.hitter_name ?? data.hitter}
           </Link>
           <span className="text-xs font-normal text-muted">打者</span>
@@ -96,7 +96,7 @@ export default function PairCard({
         <span className="text-faint">vs</span>
         <span className="inline-flex items-center gap-1.5 text-base font-bold text-ink">
           <TeamLogo code={any?.pitcher_franchise ?? any?.pitcher_team_code} size={20} decorative />
-          <Link href={`/players/${data.pitcher}`} className="hover:underline">
+          <Link href={`/players/${data.pitcher}`} className={ENTITY_LINK}>
             {any?.pitcher_name ?? data.pitcher}
           </Link>
           <span className="text-xs font-normal text-muted">投手</span>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Card, Eyebrow, TeamLogo } from "@/components/ui";
+import { Card, ENTITY_LINK, ENTITY_LINK_TEXT, Eyebrow, TeamLogo } from "@/components/ui";
 
 type LeaderItem = {
   player_id: string;
@@ -135,14 +135,14 @@ export default function LeagueLeaders({
                 
                 {top1 ? (
                   <div className="mb-3 flex items-center justify-between border-b border-line pb-2">
-                    <Link
-                      href={`/players/${top1.player_id}`}
-                      className="group flex items-center gap-2"
-                    >
+                    {/* 整塊（logo＋球員名＋隊名副標）維持可點，底線只跟球員名文字。 */}
+                    <Link href={`/players/${top1.player_id}`} className="group flex items-center gap-2">
                       <TeamLogo code={null} name={top1.team} size={28} decorative />
                       <div className="min-w-0">
-                        <div className="font-bold text-sm text-ink group-hover:text-accent transition truncate max-w-[80px]">
-                          {top1.name}
+                        <div className="text-sm font-bold">
+                          <span className={`inline-block max-w-[80px] truncate align-bottom ${ENTITY_LINK_TEXT}`}>
+                            {top1.name}
+                          </span>
                         </div>
                         <div className="text-[10px] text-muted truncate max-w-[80px]">{top1.team || "—"}</div>
                       </div>
@@ -171,7 +171,7 @@ export default function LeagueLeaders({
                         </span>
                         <Link
                           href={`/players/${item.player_id}`}
-                          className="font-medium text-ink hover:text-accent transition truncate max-w-[60px]"
+                          className={`truncate max-w-[60px] font-medium ${ENTITY_LINK}`}
                         >
                           {item.name}
                         </Link>
