@@ -75,8 +75,9 @@
 
 1. **`pre_state.outs` 改用 `content` 推導的 running outs**；`out_cnt` 只作對照。
    canonical 欄位語意改變，須在 `docs/reference/GLOSSARY.md` 記錄。
-   **統計口徑須分開陳述**（iteration 1 查核 Major）：修正前診斷基線＝有真實投球的 island
-   330,386 個中 2,157 個不一致；修正後實際寫入變動＝2,182 筆。兩者母體不同，不可互相引用。
+   **統計口徑須分開陳述**（iteration 1 查核 Major）：修正前診斷基線（有真實投球的 island 中
+   不一致者）與修正後實際寫入變動是不同母體，不可互相引用；且兩者皆隨資料增長漂移，
+   引用必須連同母體規模（iteration 5 查核 Major）。現值以 metrics artifact 為準。
 2. **不變式 fail-closed 粒度＝逐場**：任一半局出局 PA > 3 → 該場不 publish
    （build 標 `reconciliation_required`／PA 標 `unreliable`、保留舊 published 供稽核），
    其餘場次照常發布。不得只記 log。
@@ -132,8 +133,10 @@ island 規則有**六**處事實來源，改 `build_islands` 必須全數同步�
 - [ ] `(半局, pre_outs)` 有多筆出局 PA 的組數：1,175 → 0（同上例外處置）。
 - [ ] 296 對合併逐對列出（腳本產生），並確認兩個邊界皆未踩到：「零投球故意四壞＋打席間
       代打」與「球數不歸零但棒次已前進」的 7 對真打席邊界。
-- [ ] `pre_state.outs` 改用推導值；**2,182 筆實際變動逐筆列於 artifact**（不得只留 samples），
-      並與 330,386/2,157 的診斷基線分開陳述；`GLOSSARY.md` 記錄語意變更。
+- [ ] `pre_state.outs` 改用推導值；**實際變動逐筆列於 artifact**（不得只留 samples），
+      與診斷基線分開陳述，且 artifact 必須帶 `generated_at` 與母體規模——**數字隨每日爬蟲
+      增長**（診斷時 2,182/2,157；重建母體 4,279 場時 2,185/2,160），引用必須連同母體錨定
+      （iteration 5 查核 Major）；`GLOSSARY.md` 記錄語意變更。
 - [ ] 不變式 fail-closed 逐場生效；本機重建後被隔離的場次清單與理由逐場列出。
 - [ ] 四處 island SSoT 同步，conformance test 通過。
 - [ ] builder 升級的發布路徑設計寫明，並說明為何不削弱 fail closed。
