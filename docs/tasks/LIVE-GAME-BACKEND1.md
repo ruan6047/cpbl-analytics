@@ -2,7 +2,7 @@
 
 - 需求：ruan6047　規劃：GPT-5.6@Codex　分支：`ai/<執行者>/LIVE-GAME-BACKEND1`
 - 執行：待指派（建議 L3；跨來源時序觀測、production polling 與 fail-closed contract）　查核：待指派（L3；須跨模型家族或人工，且 ≠ 執行）
-- Initiative：INIT-OFFICIAL-DATA1　spec 基線：v1
+- Initiative：INIT-OFFICIAL-DATA1　spec 基線：v1　product spec：`LIVE_GAME_PRODUCT_SPEC v1.1`
 - DB：`db_scope: write`；`db_namespace: LIVE-GAME-BACKEND1`；`db_resources: db:test:cpbl, cache:live-game`；`migration_phase: none`
 - 部署：是　環境：production　PR：—　Merge SHA：—
 - 範圍：見 [`../LIVE_GAME_PRODUCT_SPEC.md`](../LIVE_GAME_PRODUCT_SPEC.md) §2–§4、§7
@@ -12,9 +12,9 @@
 
 ## 驗收條件
 
-- [ ] 以至少三場一軍例行賽完成 T-30h／T-90m／T-60m／T-30m／START 觀測矩陣，確認預告先發、先發棒次／守位的 exact key path、逐隊 partial 語意與首次出現時間；時間窗口只能加密觀測，不能替代來源事實。
+- [x] 以三場一軍例行賽完成 T-30h／T-90m／T-60m／T-30m／START 觀測矩陣：lineup 只在名目 START 附近出現，`Pitchers[]` 只在 raw START 後出現且不得映射 probable；預告先發依 Design Gate 延後。
 - [ ] 單一 production worker 由 stats 可連來源建立 canonical snapshot：具互斥、kill switch、jitter／backoff／request budget、last-known-good＋stale；`START` 以 10–15 秒為候選頻率，瀏覽器不得直打官方站，VPS 不得依賴回 404 的 `www`。
-- [ ] 既有 status／live API 以 additive contract 回 canonical phase、raw status、兩隊預告先發與 lineup availability、freshness 與 TrackMan availability；`START`、延期、保留、未知狀態及來源錯誤均 fail closed，final 後停止 polling 並接回既有賽後完整抓取／對帳。
+- [ ] 既有 status／live API 以 additive contract 回 canonical phase、raw status、兩隊 lineup availability、freshness 與 TrackMan availability；相容保留的 probable 欄固定 fail closed；`START`、延期、保留、未知狀態及來源錯誤均 fail closed，final 後停止 live polling 並接回既有賽後完整抓取／對帳。
 
 ## 紅線（違反即退回）
 
@@ -25,7 +25,7 @@
 
 ## 驗證
 
-- [ ] parser／state machine contract tests 覆蓋 `SCHEDULED → probable partial/full → lineup partial/full → START → FINISHED`、延期／保留、未知狀態、空陣列、schema drift、stale 與來源恢復。
+- [ ] parser／state machine contract tests 覆蓋 `SCHEDULED → lineup partial/full → START → FINISHED`、延期／保留、未知狀態、空陣列、schema drift、stale、來源恢復與 LiveLog 單調前進。
 - [ ] worker integration tests 證明單例鎖、停機、重啟續接、backoff、request budget、final 停止輪詢與不重複寫入；使用 `LIVE-GAME-BACKEND1` 隔離 DB/cache namespace。
 - [ ] 至少一場真實 live shadow canary，留下兩次以上事件單調增加、stats vs 官方頁抽樣一致、VPS HTTP/latency、來源流量與 TrackMan 0 筆語意證據；不得用完賽 fixture 冒充 live 證據。
 - [ ] `uv run ruff check`、`uv run pytest`、API route snapshot、fresh DB rehearsal 與 production kill-switch smoke test 通過；T4 查核者重跑狀態矩陣與 live canary。
@@ -33,9 +33,10 @@
 ## 依賴與範圍
 
 - 可沿用 `INGEST-GAME-TM-REFACTOR1` 的單場 parser 與 `GAME-RECAP-STATUS1` 的 freshness 語意，但不得改寫其歷史資料契約。
-- 與 `OPS-REMOTE-*` 的主站反爬路線分離；若預告先發只能由 `www` 取得，須先回到 Design Gate 決定 local relay，不得靜默擴張 production 權限。
+- 與 `OPS-REMOTE-*` 的主站反爬路線分離；v1 已核可不建 local relay，預告先發另行 discovery。
 - 完成 additive API contract 後才解除 `UX-LIVE-GAME1` claim 阻塞。
 
 ## Log
 
 - 2026-07-26T17:29:30+08:00 register by GPT-5.6@Codex（依 ruan6047 指示開後端卡）。
+- 2026-07-30 Design Gate by ruan6047 → 核可方案 1：stats live-only，更新既有賽事頁狀態板與 Recent Plays；預告先發延後。
