@@ -371,7 +371,12 @@ def test_independence_composite_and_is_not_downgraded_to_either_or(
     "field",
     ["待指派（≠ 執行；跨家族或人工）",
      "待指派（≠ 執行；**跨模型家族或人工**——本卡有統計紅線）",
-     "待指派（人工或跨家族皆可）"],
+     "待指派（人工或跨家族皆可）",
+     "跨家族 或 人工",
+     # REVIEW-007 的反向漏判：正則寫死 `跨(?:模型)?家族`，這兩種明寫二擇一的
+     # 別名寫法反而被誤升為 AND。別名現由 _CROSS_TOKENS 生成。
+     "跨模型或人工",
+     "換模型家族或人工"],
 )
 def test_independence_explicit_or_stays_either_or(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str
@@ -383,6 +388,28 @@ def test_independence_explicit_or_stays_either_or(
     summary, _ = review_prompt.independence("CARD-I", "T2")
 
     assert summary == "跨模型家族（非執行者所屬家族）或人工"
+
+
+@pytest.mark.parametrize(
+    "field",
+    [  # REVIEW-007 主案：跨家族必做、人工只是失敗時的後續關卡。距離式正則把它讀成
+       # 二擇一，等於允許人工直接取代跨家族查核。
+     "跨家族查核，若失敗或有疑問再人工核可",
+     "先跨家族查核，並由需求方人工核可",
+     "跨家族查核完成後，另需人工抽驗",
+     "跨家族／人工二擇一"],  # 沒寫「或」就不推斷，保守 AND ＋ 警告
+)
+def test_independence_prose_between_atoms_never_reads_as_either_or(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str
+) -> None:
+    """兩個約束原子之間一旦有實質文字，就不是「A 或 B」的寫法——不推斷句子的邏輯。"""
+    _write_indep_card(tmp_path, field)
+    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+
+    summary, detail = review_prompt.independence("CARD-I", "T2")
+
+    assert "且" in summary and "兩者皆須" in summary
+    assert "無法判定是二擇一還是兩者皆須" in detail   # 保守之外還要吵
 
 
 def test_independence_body_hint_is_clipped(
