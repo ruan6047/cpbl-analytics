@@ -13,9 +13,14 @@
 
 ## Event、claim 與 WIP
 
-- event 必填 canonical §4.1 欄位與投影欄位；同一卡 `state_version` 自 1 嚴格遞增。handoff、review、merge、release 固定 `source_sha` 與 evidence。
+- event 必填 canonical §4.1 欄位與投影欄位；同一卡 `state_version` 自 1 嚴格遞增。handoff、review、handoff-accepted、merge、release 固定 `source_sha` 與 evidence。
+- **跨 writer handoff 另見 [`HANDOFF_CONTRACT.md`](HANDOFF_CONTRACT.md)**（canonical §4.1／WF-20）：T2 以上或任何 owner 變更，sender 須先 push **完整 40 字元** `source_sha`，receiver 完成驗證清單後才寫 `handoff-accepted` 並取得所有權。該檔只規範 handoff 類事件的欄位與接收驗證，**envelope、event store 與 Ledger 投影仍以本檔為準**，不構成第二個狀態來源。baseline 為 2026-07-29，不追溯既有 150 筆無 acceptance 的 handoff。
 - `ruan6047` 是唯一 lifecycle writer；Coordinator 先追加 event，再建立／釋放 local lease，最後重建 Ledger。local telemetry 必填 `lifecycle=false`、`claim_event_id`，不得改 card state。
-- **lifecycle event 一律直接 commit 至 `main`**（由 Coordinator 或其指示的階段所有者執行），並在同一 commit 以 `--write` 重建 Ledger，使 `TASKS.md` 恆為當前狀態。**執行分支不得改動 `docs/control-plane/**` 與 `docs/TASKS.md`**；push main 前先 `git pull --rebase`。分支 merge 時上述路徑若衝突，一律以 main 為準（2026-07-17 前的舊分支載有歷史事件 commit，屬過渡遺留，衝突同樣以 main 為準）。
+- **lifecycle event 一律直接 commit 至 `main`**（由 Coordinator 或其指示的階段所有者執行），並在同一 commit 以 `--write` 重建 Ledger，使 `TASKS.md` 恆為當前狀態。**執行分支不得改動 `docs/control-plane/**` 與 `docs/TASKS.md`**；~~push main 前先 `git pull --rebase`~~ → **push main 前先 `git pull --ff-only`**（2026-07-29 修正，理由見下）。分支 merge 時上述路徑若衝突，一律以 main 為準（2026-07-17 前的舊分支載有歷史事件 commit，屬過渡遺留，衝突同樣以 main 為準）。
+- **⚠️ 不得在 `--no-ff` merge 之後執行 `git pull --rebase`**：`git rebase` **預設丟棄 merge commit**，會把剛建立的 merge 靜默壓平成線性歷史，且**不報錯**。後果是 merge event 記錄的 `source_sha` 指向一個不在 `main` 上的 orphan commit，`Reviewed-by` trailer 隨 merge commit 一併消失（canonical §6 要求 merge commit 帶此 trailer）。
+  - **已發生兩次**：2026-07-26 `INGEST-RECORDS-HR1`（non-ff merge `b8b89bc` 被線性化，實際落地 `78713dc`，見該卡 NOTE 事件）、2026-07-29 `DEV-TRAILER-GUARD-SCOPE1`（merge `cb97be1a` 成 orphan，見 `MERGE-CORRECTION-008`）。第一次已記錄卻未修本契約，故複發。
+  - **改用 `--ff-only` 的理由**：落後時**明確失敗**而非靜默改寫歷史，由人決定如何處理（rebase 純 event commit、或 `--rebase=merges` 保留拓樸）。fail-loud 優於 fail-silent。
+  - **已壓平且已推送時不得重寫 `main`**：改寫已推送的共用歷史比帳面錯誤嚴重得多。正確處置是追加 `merge-correction` 事件，記錄 orphan SHA、實際落地 SHA、內容等價性驗證，以及 `Reviewed-by` attestation 的補位。
 - claim concurrency key 為 `cpbl-analytics:<CARD_ID>`；共享資源逐項宣告 `file:*`、`port:*`、`container:*`、`db:*`。預設 lease 4 小時；到期回收前檢查 worktree 與未提交變更，禁止靜默移除。
 - WIP limit：agent 4、review queue 3（2026-07-24 自 2／2 上調，以吸收 BUILD1 執行期間的 lane-independent 前端批次；批次清空後回檢，非 lane-independent 卡不得靠此上調繞過車道互斥）；達上限停止新 claim，優先完成 review／release。
 
