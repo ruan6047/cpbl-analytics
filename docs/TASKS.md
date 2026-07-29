@@ -10,11 +10,11 @@
 |---|---|---|---|---|---|---|---|---|---|
 | [DEV-TRAILER-GUARD-SCOPE1](tasks/DEV-TRAILER-GUARD-SCOPE1.md) | — | T2 | trailer 守衛取樣範圍 | Claude Sonnet 5@Claude Code | `ai/sonnet-5/DEV-TRAILER-GUARD-SCOPE1 @ .claude/worktrees/dev-trailer-guard-scope1-execution` | 1 | 🔍待查核 | —不適用 | 2026-07-29T12:15:00+08:00 |
 | [DEV-VERIFY-TM-ASSERTS1](tasks/DEV-VERIFY-TM-ASSERTS1.md) | — | T2 | TM 回填驗證腳本補上真正的斷言 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-29T12:14:00+08:00 |
-| [GAME-RECAP-PA1-FIX1](tasks/GAME-RECAP-PA1-FIX1.md) | INIT-GAME-RECAP | T4 | canonical PA 表的打席切分與出局數正確性 | ruan6047（生產資料重建待執行） | `ai/fable-5/GAME-RECAP-PA1-FIX1 @ .claude/worktrees/fable-5-suitable-tasks-8aa8d9` | 6 | 📦已合併 | 🚀部署中 | 2026-07-29T13:08:13+08:00 |
+| [GAME-RECAP-PA1-FIX1](tasks/GAME-RECAP-PA1-FIX1.md) | INIT-GAME-RECAP | T4 | canonical PA 表的打席切分與出局數正確性 | ruan6047（生產資料重建待執行） | `ai/fable-5/GAME-RECAP-PA1-FIX1 @ .claude/worktrees/fable-5-suitable-tasks-8aa8d9` | 6 | 📦已合併 | ⏸未部署 | 2026-07-29T13:14:47+08:00 |
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | — | `ai/sonnet-5/INGEST-GAME-TM-REFACTOR1-g3 @ .claude/worktrees/ingest-game-tm-refactor1-g3-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-24T12:53:42+08:00 |
 | [INGEST-PA-DAILY1](tasks/INGEST-PA-DAILY1.md) | — | T3 | canonical PA build 接進每日 refresh 鏈 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-26T20:55:46+08:00 |
 | [INGEST-PLAYER-BIO-GAP1](tasks/INGEST-PLAYER-BIO-GAP1.md) | INIT-OFFICIAL-DATA1 | T3 | 補齊 14 位球員的 country／birthday | Claude Opus 5@Claude Code | `ai/opus-5/INGEST-PLAYER-BIO-GAP1 @ .claude/worktrees/ingest-player-bio-gap1-execution` | 3 | ⏸阻塞 | ⏸未部署 | 2026-07-28T11:50:08+08:00 |
-| [INGEST-SPLITS-PA-SPLIT1](tasks/INGEST-SPLITS-PA-SPLIT1.md) | INIT-OFFICIAL-DATA1 | T4 | 查證分項重算是否同樣重複計打席 | Claude Fable 5@Claude Code（真 Fable 5） | `ai/fable-5/INGEST-SPLITS-PA-SPLIT1 @ .claude/worktrees/fable-5-suitable-tasks-8aa8d9` | 1 | 🔨執行中 | —不適用 | 2026-07-29T13:09:26+08:00 |
+| [INGEST-SPLITS-PA-SPLIT1](tasks/INGEST-SPLITS-PA-SPLIT1.md) | INIT-OFFICIAL-DATA1 | T4 | 查證分項重算是否同樣重複計打席 | Claude Fable 5@Claude Code（真 Fable 5） | `ai/fable-5/INGEST-SPLITS-PA-SPLIT1 @ .claude/worktrees/fable-5-suitable-tasks-8aa8d9` | 1 | 🔍待查核 | —不適用 | 2026-07-29T13:14:47+08:00 |
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | 子卡依 v1.3 藍圖推進 | — | 0 | 📥Backlog | —不適用 | 2026-07-27T18:14:24+08:00 |
 | [INIT-OFFICIAL-DATA1](tasks/INIT-OFFICIAL-DATA1.md) | INIT-OFFICIAL-DATA1 | T4 | 官方資料契約完整性與低維護 ingest | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:00+08:00 |
 | [INIT-PRODUCT-UX](tasks/INIT-PRODUCT-UX.md) | INIT-PRODUCT-UX | T3 | 全站產品與 UI/UX 收斂 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-17T04:44:24+08:00 |
