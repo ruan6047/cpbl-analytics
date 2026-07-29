@@ -129,3 +129,31 @@
   註解，不需額外過濾），結構相同才算通過——斷言本身會隨 diff 內容重算，不會過期。
   變異檢驗：(a) 對帳腳本一處 `>=` 改 `>`（真實邏輯變更）→ 斷言 FAIL；(b) 純新增註解
   → PASS；(c) 純新增 docstring 文字 → PASS。三個既有回歸測試與對帳腳本行為不變。
+- 2026-07-29 iteration 5（查核阻塞修正，不動可執行邏輯）：查核發現兩個問題。
+  (1) Medium／阻塞：iteration 4 新增的自動斷言在 CI 從未真正跑過——
+  `actions/checkout@v4` 預設 `fetch-depth: 1`（淺層 clone），baseline `b974b10`
+  在此段歷史外，fixture 直接 `pytest.skip()`，合併閘門不會驗它。以真正的 depth-1
+  clone 重現：`git rev-parse --is-shallow-repository` → true、
+  `git rev-parse --verify b974b10^{commit}` 無法解析、測試 skip、exit 0。
+  處置兩層缺一不可：(a) `.github/workflows/ci.yml` 的 api job checkout 加
+  `fetch-depth: 0`，讓斷言在 CI 跑得到；(b) 測試 fixture 偵測到 CI 環境
+  （`CI`／`GITHUB_ACTIONS`）卻仍解析不到 baseline 時改 `pytest.fail()` 而非
+  skip——只改 (a) 的話，日後有人把 `fetch-depth` 改回預設值、或換一個看不到此
+  SHA 的 CI 平台，測試又會退化成通過式 skip 且沒人發現，這正是本卡從
+  iteration 2 起反覆出現的同一種病：守衛存在、本機通過、在真正要它把關的環境
+  靜默失效。本機（非 CI）仍維持 skip，不應對開發者的淺層 clone 硬擋。
+  變異檢驗：模擬 `CI=true` ＋ baseline 不可解析（`BASELINE_SHA` 暫時指向不存在
+  的 SHA）→ FAIL（非 skip）；同條件但非 CI 環境 → 仍 skip；CI＋baseline 可解析
+  → PASS；非 CI＋baseline 可解析 → PASS。
+  (2) Low／非阻塞：查核以探針實測 AST 比對的偵測範圍——一般字串常數／`__all__`／
+  型別註解可測到，`type comment` 與 **docstring 內容**測不到。`type comment`
+  不影響 CPython 執行故無妨；但 docstring 會改變 `__doc__`／doctest／
+  introspection 的可觀察結果，測試 docstring 原本「合法語法但不影響執行」與
+  memo「執行期行為與基線相同」兩處宣稱並非嚴格成立。已把宣稱收斂為「產品控制流
+  與資料流不變；排除註解及 docstring metadata」（`tests/test_scoreless_streak_no_logic_diff.py`
+  模組 docstring 與 `_strip_docstrings`、`ML-PITCHER-SCORELESS2_RESULTS.md` §4 同步
+  修正），並把偵測範圍表寫進測試模組 docstring，讓能力邊界是寫明的而非讀者自猜。
+  本卡範圍內沒有產品路徑讀取這些模組的 `__doc__`，故 API／模型行為未受影響。
+  三個既有回歸測試與對帳腳本行為不變；`uv run python scripts/reconcile_scoreless_streak.py`
+  仍零例外（絕對場數／outs 數會隨每日爬蟲刷新漂移，不作為不變式，見腳本輸出與
+  `git diff b974b10 -- src scripts` 本身即為可重現的證據來源）。

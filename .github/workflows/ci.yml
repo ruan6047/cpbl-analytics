@@ -10,6 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # fetch-depth: 0（完整歷史）：tests/test_scoreless_streak_no_logic_diff.py
+          # 要 diff 對 baseline commit b974b10；預設 fetch-depth: 1（淺層 clone）
+          # 會讓該 commit 在此 checkout 無法解析，測試因而 skip 而非真正驗證。
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"

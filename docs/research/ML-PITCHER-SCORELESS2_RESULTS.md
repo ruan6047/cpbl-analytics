@@ -112,14 +112,26 @@ official_outs − 3m − 3(S − last_pitch)  >  official_outs − 3·n_prefix
 1. **撤回 iteration 1 的兩個 commit**（`3517f54`、`f687daf`）。**可執行邏輯與 API
    payload 已回到合併基線 `b974b10`**；`git diff b974b10 -- src scripts` 並非為空，
    但那些差異全部是本輪刻意新增的**模組 docstring、R2 對帳腳本註解**（見下方第
-   2、3、4 項），**不含任何邏輯變更**；執行期行為與基線相同。
+   2、3、4 項）；**產品控制流與資料流不變，排除註解及 docstring metadata**。
+
+   （措辭收斂於 iteration 5：不再寫「執行期行為與基線相同」——docstring 內容改變會
+   改變 `__doc__`／doctest／introspection 的可觀察結果，AST 比對刻意剝除 docstring
+   後比對，證明的嚴格說是「控制流與資料流不變」，不是逐位元執行期等價。本卡範圍內
+   沒有產品路徑讀取這些模組的 `__doc__`，所以 API／模型行為確實未受影響，但這是
+   「本卡沒有反例」而非「該測試涵蓋 docstring」——兩者不可混為一談，偵測範圍細節見
+   `tests/test_scoreless_streak_no_logic_diff.py` 模組 docstring 的對照表。）
 
    這條「零邏輯變更」**不寫具體行數**——iteration 2 曾誤報「diff 為空」、iteration 3
    修正為「+25/−1」但本身又因新增一行 docstring 而立刻過期成 +26/−1，行數是「本輪自己
    也在改的那份 diff」的產物，每次編輯 memo 都可能讓它自己失效。iteration 4 起改為
    斷言：`tests/test_scoreless_streak_no_logic_diff.py` 把 `git diff b974b10 -- src
    scripts` 涉及的每個檔案剝除 docstring 後比對 AST，結構相同才算通過（Python 剖析器
-   本來就丟棄註解，不需要額外過濾規則）。要重現，跑
+   本來就丟棄註解，不需要額外過濾規則）。iteration 5 修了這個斷言本身的一個閘門缺口：
+   CI 的 `actions/checkout@v4` 預設 `fetch-depth: 1`（淺層 clone），baseline commit
+   不在歷史裡，測試會 `pytest.skip()`——CI 從未真正跑過這條斷言。現已 (a) 在
+   `.github/workflows/ci.yml` 的 api job 加 `fetch-depth: 0`，且 (b) 測試 fixture
+   在偵測到 CI 環境（`CI`／`GITHUB_ACTIONS`）卻解析不到 baseline 時改 `pytest.fail()`
+   而非 skip，避免日後有人把 `fetch-depth` 改回去又靜默失效而無人發現。要重現，跑
 
    ```bash
    uv run pytest tests/test_scoreless_streak_no_logic_diff.py -v
