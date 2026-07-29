@@ -4,7 +4,7 @@
 - 執行：Claude Fable 5@Claude Code（建議 L4；canonical 表的資料正確性，錯誤不會讓測試變紅）　查核：待指派（≠ 執行；**跨模型家族或人工**——本卡有統計紅線）
 - Initiative：INIT-GAME-RECAP　spec 基線：v1.3
 - DB：`db_scope: schema` ＋ `data-migration`（migration 068 加 `end_hitter_acnt`；重建全庫 published PA build）
-- 部署：是　環境：production（本機重建通過並經查核後另議）　PR：—　Merge SHA：—
+- 部署：是　環境：production（碼 `321c41f`、資料重建 2026-07-29 完成並驗收）　PR：—　Merge SHA：`3e30dbf`
 - 範圍：修 `cpbl-build-pa` 的 island 切分與 `pre_state.outs` 來源，加不變式 fail-closed，重建本機 canonical PA 表。
 
 ## 問題陳述
@@ -186,6 +186,29 @@ island 規則有**六**處事實來源，改 `build_islands` 必須全數同步�
 
 ## Log
 
+- 2026-07-29 **生產重建完成、卡結案**。需求方明示授權本機 AI session 執行 production 寫入
+  （僅此次、僅 `cpbl` schema），覆寫 `DATABASE_CONTRACT.md:53`。重建前生產仍停在 BUILD1
+  最初版（`pa-build-1.0.0` published 4263、migration 068/069 皆未套）。
+  備份→migration→重建→驗收四步全綠，驗收數字與本機**逐項相同**
+  （半局出局 PA > 3＝0、`(半局, pre_outs)` 重複＝0、published 4278 全 `1.3.0`、
+  cross-batter 296／記原打者 22、隔離恰 `2019/A/173`）。唯一差異 `changed_pas` 生產 86／本機 0
+  已查明：reconcile diff 是對前一個 build 比對，生產前一個是舊邏輯 1.0.0、本機是同邏輯 1.2.0，
+  屬預期。消費端 gating 實測正確（正常場 `build_published=true`、隔離場 `false` 且 0 items）。
+- 2026-07-29 **備份前置檢查意外發現生產災難復原能力歸零**：`/opt/backups` 86 份每日備份
+  全為 20 bytes 空檔、非空檔 0 份，`db-backup.log` 每日 `FATAL: role "admin" does not exist`。
+  根因是 `backup-db.sh` 缺 `set -o pipefail` 致 pg_dump 失敗被吞。已另開 `OPS-BACKUP-EMPTY1`。
+  **此事由「結構操作前必先備份」的紅線強制查驗才發現**——紅線救了一次場。
+- 2026-07-29 iteration 6 查核 APPROVE（零阻塞，1 Informational：卡面基線為歷史快照，
+  當時母體 1,177 非 1,175）。需求方授權 merge，`merge_sha=3e30dbf`（`--no-ff`，第二親 `7f3333d`）。
+- 2026-07-29 iteration 3–5 連續 REJECT，iteration 3 觸發 `🚨已升級`（三連退）。
+  依序為：taxonomy 產生器仍有第二套 island 實作（`_ISLAND_SQL`）餵動態證據、
+  全庫重建未執行、以及**版本紀律失效**——三項行為變更共用 `pa-build-1.2.0` 標籤致等價 noop
+  跳過降級副作用，且執行者曾刪除兩個中間 build 讓數字通過（違反 append-only 且不可重現）。
+  修法為 bump `1.3.0` 全量重評（零刪除）＋新增 `_repair_same_source_demotion` noop 自癒＋
+  rehearsal 擴至 6 階段。
+- 2026-07-29 iteration 2 查核 REJECT（1 Critical + 2 Major）：手改產生式 taxonomy JSON 未同步
+  產生器（重跑文件化指令會把 v1.1 蓋回 v1.0）、**不死三振被錯誤排除於 9.15(b)**
+  （規則 9.15(a)(3) 明列其為三振，執行者發明了規則沒有的第三類）、9.15(b) 統計未走真實程式路徑。
 - 2026-07-29 iteration 1 查核 REJECT（1 Critical + 2 Major）：`count_continues` 未檢查
   `batting_order` 會合併 7 對真打席、trailer 守衛未過（執行者在 commit 前跑 pytest，
   守衛當時 skip）、outs 統計混用兩個母體。iteration 2 全數修正，並依需求方裁定追加

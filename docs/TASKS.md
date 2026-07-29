@@ -10,7 +10,6 @@
 |---|---|---|---|---|---|---|---|---|---|
 | [DEV-TRAILER-GUARD-SCOPE1](tasks/DEV-TRAILER-GUARD-SCOPE1.md) | — | T2 | trailer 守衛取樣範圍 | Claude Sonnet 5@Claude Code | `ai/sonnet-5/DEV-TRAILER-GUARD-SCOPE1 @ .claude/worktrees/dev-trailer-guard-scope1-execution` | 1 | 🔍待查核 | —不適用 | 2026-07-29T12:15:00+08:00 |
 | [DEV-VERIFY-TM-ASSERTS1](tasks/DEV-VERIFY-TM-ASSERTS1.md) | — | T2 | TM 回填驗證腳本補上真正的斷言 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-29T12:14:00+08:00 |
-| [GAME-RECAP-PA1-FIX1](tasks/GAME-RECAP-PA1-FIX1.md) | INIT-GAME-RECAP | T4 | canonical PA 表的打席切分與出局數正確性 | ruan6047（生產資料重建待執行） | `ai/fable-5/GAME-RECAP-PA1-FIX1 @ .claude/worktrees/fable-5-suitable-tasks-8aa8d9` | 6 | 📦已合併 | ⏸未部署 | 2026-07-29T13:14:47+08:00 |
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | — | `ai/sonnet-5/INGEST-GAME-TM-REFACTOR1-g3 @ .claude/worktrees/ingest-game-tm-refactor1-g3-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-24T12:53:42+08:00 |
 | [INGEST-PA-DAILY1](tasks/INGEST-PA-DAILY1.md) | — | T3 | canonical PA build 接進每日 refresh 鏈 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-26T20:55:46+08:00 |
 | [INGEST-PLAYER-BIO-GAP1](tasks/INGEST-PLAYER-BIO-GAP1.md) | INIT-OFFICIAL-DATA1 | T3 | 補齊 14 位球員的 country／birthday | Claude Opus 5@Claude Code | `ai/opus-5/INGEST-PLAYER-BIO-GAP1 @ .claude/worktrees/ingest-player-bio-gap1-execution` | 3 | ⏸阻塞 | ⏸未部署 | 2026-07-28T11:50:08+08:00 |
@@ -27,6 +26,7 @@
 | [ML-PA-SIM-TEAM1](tasks/ML-PA-SIM-TEAM1.md) | — | T4 | 打席模擬對某一隊 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-25T19:07:00+08:00 |
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:09+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:10+08:00 |
+| [OPS-BACKUP-EMPTY1](tasks/OPS-BACKUP-EMPTY1.md) | — | T3 | 生產每日備份長期產出空檔 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-29T13:55:00+08:00 |
 | [OPS-LIVE-SHADOW1](tasks/OPS-LIVE-SHADOW1.md) | — | T4 | VPS 隔離 live source observer | ruan6047（7/30 evidence 對帳／撤除待辦） | `ai/codex/OPS-LIVE-SHADOW1 @ .claude/worktrees/ops-live-shadow1-execution（保留至 evidence 對帳／撤除後結案）` | 1 | 📦已合併 | ✅已驗證 | 2026-07-26T23:11:01+08:00 |
 | [OPS-REMOTE-CUTOVER1](tasks/OPS-REMOTE-CUTOVER1.md) | INIT-PRODUCT-UX | T4 | 遠端 crawler production canary 與切換 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:40+08:00 |
 | [OPS-REMOTE-PROBE1](tasks/OPS-REMOTE-PROBE1.md) | INIT-PRODUCT-UX | T3 | Opt-in DEBUG 網路探測介面 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:37+08:00 |
