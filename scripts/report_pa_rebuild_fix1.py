@@ -20,6 +20,7 @@ from cpbl.db import conn
 
 
 def collect() -> dict[str, Any]:
+    import datetime as _dt
     with conn() as c:
         c.execute("SET TRANSACTION READ ONLY")
         cur = c.cursor(row_factory=dict_row)
@@ -50,7 +51,7 @@ def collect() -> dict[str, Any]:
                    ) AS changed_pas
             FROM cpbl.game_recap_builds b
             WHERE b.state = 'reconciliation_required'
-              AND b.builder_version = 'pa-build-1.2.0'
+              AND b.builder_version = 'pa-build-1.3.0'
               AND b.built_at = (SELECT max(b2.built_at) FROM cpbl.game_recap_builds b2
                                 WHERE (b2.year, b2.kind_code, b2.game_sno)
                                     = (b.year, b.kind_code, b.game_sno))
@@ -103,7 +104,7 @@ def collect() -> dict[str, Any]:
             FROM cpbl.game_plate_appearances pa
             JOIN cpbl.game_recap_builds b
               ON b.build_id = pa.build_id AND b.state = 'published'
-                 AND b.builder_version = 'pa-build-1.2.0'
+                 AND b.builder_version = 'pa-build-1.3.0'
             GROUP BY 1 ORDER BY 1
             """
         )
@@ -116,7 +117,7 @@ def collect() -> dict[str, Any]:
             FROM cpbl.game_plate_appearances pa
             JOIN cpbl.game_recap_builds b
               ON b.build_id = pa.build_id AND b.state = 'published'
-                 AND b.builder_version = 'pa-build-1.2.0'
+                 AND b.builder_version = 'pa-build-1.3.0'
             WHERE pa.end_hitter_acnt IS NOT NULL
               AND EXISTS (SELECT 1 FROM cpbl.game_pa_events e
                           JOIN cpbl.game_livelog l
@@ -131,6 +132,7 @@ def collect() -> dict[str, Any]:
         attribution = dict(cur.fetchone())
 
     return {
+        "generated_at": _dt.datetime.now().astimezone().isoformat(),
         "build_version_distribution": version_dist,
         "published_uniqueness": pub_uniqueness,
         "isolated_games": isolated,
@@ -138,7 +140,7 @@ def collect() -> dict[str, Any]:
             "half_innings_with_out_pa_gt_3": over3,
             "half_inning_pre_outs_duplicates": dup_outs,
         },
-        "published_v120_pa_states": pa_states,
+        "published_current_pa_states": pa_states,
         "cross_batter_attribution_in_db": attribution,
     }
 

@@ -1,4 +1,5 @@
 {
+  "generated_at": "2026-07-29T12:25:06.147105+08:00",
   "build_version_distribution": [
     {
       "builder_version": "pa-build-1.0.0",
@@ -9,11 +10,23 @@
     {
       "builder_version": "pa-build-1.2.0",
       "taxonomy_version": "1.1.0",
+      "state": "reconciliation_required",
+      "n": 1
+    },
+    {
+      "builder_version": "pa-build-1.2.0",
+      "taxonomy_version": "1.1.0",
+      "state": "superseded",
+      "n": 4278
+    },
+    {
+      "builder_version": "pa-build-1.3.0",
+      "taxonomy_version": "1.1.0",
       "state": "published",
       "n": 4278
     },
     {
-      "builder_version": "pa-build-1.2.0",
+      "builder_version": "pa-build-1.3.0",
       "taxonomy_version": "1.1.0",
       "state": "reconciliation_required",
       "n": 1
@@ -28,7 +41,7 @@
       "year": 2019,
       "kind_code": "A",
       "game_sno": 173,
-      "builder_version": "pa-build-1.2.0",
+      "builder_version": "pa-build-1.3.0",
       "invariant_violations": [
         {
           "half": "1",
@@ -37,14 +50,14 @@
         }
       ],
       "reconcile_action": "reconcile",
-      "changed_pas": 86
+      "changed_pas": 0
     }
   ],
   "acceptance": {
     "half_innings_with_out_pa_gt_3": 0,
     "half_inning_pre_outs_duplicates": 0
   },
-  "published_v120_pa_states": {
+  "published_current_pa_states": {
     "non_pa": 258,
     "ready": 329117,
     "truncated": 1739
