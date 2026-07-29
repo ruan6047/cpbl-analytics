@@ -7,10 +7,17 @@
 資料來源（零 AI 成本、永遠反映最新交接狀態）：
 - docs/control-plane/events.jsonl：該卡最新 handoff event（分支、worktree、source_sha、
   tier、db_scope、執行者交付摘要）
-- docs/tasks/<CARD_ID>.md：標題含「驗收」「驗證」「Gate」的章節原文
+- docs/tasks/<CARD_ID>.md：標題含「驗收」「驗證」「Gate」的章節原文、卡面〈查核〉欄
+- git diff main...<source_sha>：該卡實際改動路徑（決定重現指令）
 
 慣例（CONTROL_PLANE_CONTRACT.md「Review→merge 慣例」）：查核 APPROVE（零阻塞
 findings）後 Coordinator 直接 merge，結果回傳執行者，部署另由需求方確認。
+
+**產出物是查核者實際照著做的那一份**（DEV-REVIEW-PROMPT-GUARD1）：契約寫了什麼、
+卡面要求什麼，若沒出現在這裡就等於沒有。因此三件事一律由輸出本身承載，不靠
+「查核者自己會知道」——查核環境（HANDOFF_CONTRACT §3 的 detached worktree）、
+重現指令（依實際改動路徑而非寫死）、獨立性（tier 與卡面取較嚴者）。
+三者任一判不出來時**明講判不出來**，不得靜默退回預設值。
 """
 
 from __future__ import annotations
@@ -22,6 +29,29 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _main_checkout() -> Path:
+    """主 checkout 的絕對路徑（worktree 慣例的錨點）。
+
+    `ROOT` 只是「腳本這次從哪裡被跑起來」——從某個執行 worktree 跑時它就是那個
+    worktree，拿它去組 `git worktree add .claude/worktrees/<卡>-review` 會把查核
+    worktree 建在**執行 worktree 裡面**。查核環境的路徑必須錨在主 checkout，
+    與腳本從哪跑無關，故走 `--git-common-dir`（worktree 與主 checkout 共用同一個
+    值，即主 checkout 的 `.git`）。解不出來時退回 `ROOT`，不靜默給錯路徑。
+    """
+    r = subprocess.run(
+        ["git", "-C", str(ROOT), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+        capture_output=True, text=True)
+    common = r.stdout.strip()
+    if r.returncode != 0 or not common:
+        print("警告：無法解析 --git-common-dir，worktree 指令改以腳本所在 repo 根目錄組成；"
+              "貼給查核者前請確認路徑。", file=sys.stderr)
+        return ROOT
+    return Path(common).parent
+
+
+MAIN_ROOT = _main_checkout()
 
 # 卡面欄位錨點（tasks-card 範本）：「- Initiative：<父卡 ID／—>　spec 基線：<版本／—>」
 _INITIATIVE_RE = re.compile(r"Initiative：\s*([A-Z][A-Z0-9\-]+)")
@@ -198,20 +228,236 @@ def card_sections(card_id: str, wanted: tuple[str, ...]) -> str:
     return sections
 
 
+# --- 查核環境：detached worktree（HANDOFF_CONTRACT.md §3／§5） ---
+def review_worktree_block(card_id: str, ev: dict) -> str:
+    """產生「建立獨立 detached 查核 worktree」的指令段。
+
+    舊版輸出的是「進駐 worktree：<執行者的 worktree>（指令在此目錄執行）」，
+    直接違反 `HANDOFF_CONTRACT.md` §3 receiver acceptance checklist 的
+    「查核環境隔離……**不得在執行者的 worktree 上查核**」。
+
+    契約寫了、工具卻教相反的事，而被照著執行的是工具——執行者的 worktree 可能
+    有未提交變更、可能已被推進到別的 commit，查核者重跑還會覆寫交付 artifact
+    （`CONTROL_PLANE_CONTRACT.md`：受查 artifact 是已提交版本，不是重跑產物）。
+    這裡輸出的是 §5 的建立指令與 §3 的兩項自我驗證（工作區乾淨、HEAD ＝ source_sha）。
+    """
+    sha = ev.get("source_sha", "")
+    rel = f".claude/worktrees/{card_id.lower()}-review"
+    exec_wt = ev.get("worktree", "") or "（handoff 未記錄）"
+    return f"""### 查核環境（HANDOFF_CONTRACT.md §3／§5）
+
+**不得在執行者的 worktree 上查核。** 建立獨立 detached worktree，所有指令在該目錄執行：
+
+```bash
+git -C {MAIN_ROOT} worktree add --detach {rel} {sha}
+cd {MAIN_ROOT}/{rel}
+git status --short      # 必須為空
+git rev-parse HEAD      # 必須等於 {sha}
+```
+
+- 路徑已被前一輪占用時：先 `git -C {MAIN_ROOT} worktree remove {rel}`；若該目錄有未提交
+  內容而移除失敗，改用 `{rel}2` 之類的新路徑——**不得改用執行者的 worktree**。
+- 查核結束後清理：`git -C {MAIN_ROOT} worktree remove {rel}`。
+- 執行者的 worktree（`{exec_wt}`）**僅供對照，不得進駐**。
+- 上列只涵蓋「環境隔離」一項；接收驗證其餘各項（SHA 已推送、本地與遠端 tip 一致、
+  分支不含 `docs/control-plane/**` 與 `docs/TASKS.md`、lease 有效…）見
+  `docs/HANDOFF_CONTRACT.md` §3 逐項完成。"""
+
+
+# --- 重現指令：依實際改動路徑判定卡片型態 ---
+# 「Python 側」不只 .py：migration 與依賴變更同樣由 pytest／ruff 這一側驗證。
+_PY_EXTRA = {"pyproject.toml", "uv.lock"}
+
+
+def changed_paths(sha: str) -> tuple[list[str], str | None]:
+    """回傳 (main...sha 的改動路徑, 無法取得時的原因)。取不到時**不猜**。"""
+    if not sha:
+        return [], "handoff 缺 source_sha"
+    r = subprocess.run(["git", "-C", str(ROOT), "diff", "--name-only", f"main...{sha}"],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        detail = (r.stderr.strip().splitlines() or ["git diff 失敗"])[-1]
+        return [], f"`git diff --name-only main...{sha}` 失敗：{detail}"
+    paths = [p for p in r.stdout.splitlines() if p.strip()]
+    if not paths:
+        return [], f"`main...{sha}` 沒有任何改動路徑（分支與 main 無差異？）"
+    return paths, None
+
+
+def _split_paths(paths: list[str]) -> tuple[list[str], list[str], list[str]]:
+    web = [p for p in paths if p.startswith("web/")]
+    py = [p for p in paths if not p.startswith("web/")
+          and (p.endswith((".py", ".sql")) or p in _PY_EXTRA)]
+    rest = [p for p in paths if p not in web and p not in py]
+    return py, web, rest
+
+
+_PY_BLOCK = """```bash
+uv run ruff check
+uv run pytest -q
+```"""
+
+# 本專案 web/ 下沒有任何 eslint 設定檔，package.json 的 lint 腳本是 `next lint`：
+# 跑下去會進入互動式初始化精靈，卡在 prompt 而不是回報驗證失敗。查核者若把它
+# 當成標準前端驗證指令執行，得到的是一個假的紅燈——所以這裡主動排除。
+_WEB_BLOCK = """```bash
+cd web
+npm ci                  # 查核 worktree 是新建的，沒有 node_modules
+npm run build:check     # 全路由編譯＋型別檢查（獨立 distDir，不影響 dev 快取）
+npm test
+```
+
+- **不要跑 `npm run lint`**：本專案未設定 ESLint，`lint` 腳本是 `next lint`，執行會進入
+  互動式初始化精靈。那**不是驗證失敗，不得據此開 finding**。
+- `npm ci` 不可略過：新建 worktree 沒有 `node_modules`，跳過會讓型別檢查與 build
+  整片變紅——那是環境假象，不是被審改動的缺陷。"""
+
+
+def repro_commands(ev: dict) -> str:
+    """依 handoff 的實際改動路徑輸出對應的重現指令。
+
+    舊版對所有卡硬編 `uv run ruff check` ＋ `uv run pytest -q`。對改動集中在 `web/`
+    的前端卡，那兩行掃不到任何被審改動，跑完全綠**證明不了任何事**——工具給的是
+    寫死的預設值，而該成立的性質是「跑得到這次改動的驗證指令」。
+
+    判不出來時（取不到 diff、或改動全落在既非 Python 也非前端的路徑）**明講判不出來**，
+    不退回任何預設指令組：錯的綠燈比沒有燈更糟。
+    """
+    sha = ev.get("source_sha", "")
+    paths, err = changed_paths(sha)
+    if err:
+        return ("⚠️ **無法判定卡片型態**（" + err + "）——請自行以 "
+                f"`git diff --name-only main...{sha}` 看實際改動選擇驗證指令，"
+                "**不要**套用任何預設指令組。")
+    py, web, rest = _split_paths(paths)
+    tally = (f"型態判定依據：`main...{sha[:7]}` 共 {len(paths)} 個檔案"
+             f"（Python 側 {len(py)}、`web/` {len(web)}、其他 {len(rest)}）。")
+    if py and web:
+        body = f"**混合卡**，兩組都要跑。\n\nPython 側：\n\n{_PY_BLOCK}\n\n前端側：\n\n{_WEB_BLOCK}"
+    elif py:
+        body = f"**Python 卡**：\n\n{_PY_BLOCK}"
+    elif web:
+        body = f"**前端卡**：\n\n{_WEB_BLOCK}"
+    else:
+        listed = "、".join(f"`{p}`" for p in rest[:8]) + ("…" if len(rest) > 8 else "")
+        body = ("**純文件／設定卡**（無 `.py`、無 `web/`）：**沒有標準重現指令**——"
+                f"依卡面〈驗證〉章節與交付摘要重跑，勿套用 Python 或前端的預設指令組。\n\n"
+                f"改動路徑：{listed}")
+    return f"{tally}\n\n{body}"
+
+
+# --- 獨立性：tier 推導值與卡面〈查核〉欄取較嚴者 ---
+_INDEP_DESC = {
+    1: "新 context／session 即可（不得為執行者本人）",
+    2: "跨模型家族（非執行者所屬家族）或人工",
+    3: "人工（需求方本人）",
+}
+# 卡面〈查核〉欄的辨識字樣。只升不降：辨識到就取該級，辨識不到不代表沒要求，
+# 故原文一律附上由人覆核。
+_INDEP_TOKENS: tuple[tuple[int, tuple[str, ...]], ...] = (
+    (2, ("跨家族", "跨模型家族", "跨模型", "換家族", "換模型家族")),
+    (3, ("人工",)),
+)
+
+
+def card_review_field(card_id: str) -> str | None:
+    """卡面 header 的〈查核〉欄原文；找不到回 None。
+
+    只讀第一個 `## ` 標題之前的 header 區塊——正文裡的「查核」二字（例如
+    「先本地人工審再交跨家族查核」）屬敘述，不是欄位，混進來會誤判。
+    """
+    path = _card_path(card_id)
+    if path is None:
+        return None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("## "):
+            break
+        if line.lstrip().startswith("-") and "查核：" in line:
+            return line.split("查核：", 1)[1].strip()
+    return None
+
+
+def _card_indep_level(field: str) -> int | None:
+    for level, tokens in _INDEP_TOKENS:
+        if any(t in field for t in tokens):
+            return level
+    return None
+
+
+def card_body_cross_family_hint(card_id: str) -> str | None:
+    """卡片正文（第一個 `## ` 之後）提到跨家族時，回傳該行原文。
+
+    〈查核〉欄是**指定欄位**，正文敘述不當欄位解析——但只讀欄位有漏的一面：
+    `UX-ENTITY-LINKS2` 的「先本地人工審再交跨家族查核」就寫在〈驗收〉章節而非欄位裡。
+    正文命中時不直接升級（正文是敘述，語境可能是「不需要跨家族」），改為附一行提示
+    要人自己判斷——**寧可多問一句，不可讓工具替需求方放寬要求**。
+
+    只掃跨家族字樣，不掃「人工」：後者在正文裡多半是「人工核對」「人工審」等敘述，
+    命中率高到會變成雜訊，反而讓提示被忽略。
+    """
+    path = _card_path(card_id)
+    if path is None:
+        return None
+    lines = path.read_text(encoding="utf-8").splitlines()
+    body_started = False
+    for line in lines:
+        if line.startswith("## "):
+            body_started = True
+            continue
+        if body_started and any(t in line for t in _INDEP_TOKENS[0][1]):
+            return line.strip()
+    return None
+
+
+def independence(card_id: str, tier: str) -> tuple[str, str]:
+    """回傳 (單行摘要, 推導明細段)。
+
+    舊版只看 tier：T4 → 跨家族或人工、其餘 → 新 context 即可。`UX-ENTITY-LINKS2`
+    是 T2、卡面〈查核〉欄卻寫「≠ 執行；跨家族或人工」——工具產出的提示詞說
+    「新 context／session 即可」，**把需求方寫在卡面的要求稀釋掉，且沒有任何訊號**。
+
+    這裡取 tier 推導值與卡面要求的較嚴者，且**卡面原文一律原樣附上**：腳本的分類
+    只可升不可降，辨識不到的寫法由讀的人自己判斷，不會被靜默吃掉。
+    """
+    tier_level = 2 if tier == "T4" else 1
+    field = card_review_field(card_id)
+    if field is None:
+        print(f"警告：{card_id} 卡面找不到〈查核〉欄，獨立性只能依 tier 推導。",
+              file=sys.stderr)
+        card_line = ("- 卡面〈查核〉欄：**未找到**——只採 tier 推導值。"
+                     "卡片若確實有此欄請確認格式，**別讓工具替你放寬要求**。")
+        card_level = None
+    else:
+        card_level = _card_indep_level(field)
+        verdict = (f"→ {_INDEP_DESC[card_level]}" if card_level
+                   else "→ 腳本未在本欄辨識到強化要求（**你若讀出額外要求，以卡面為準**）")
+        card_line = f"- 卡面〈查核〉欄原文：`{field}` {verdict}"
+    level = max(tier_level, card_level or 0)
+    detail_lines = [
+        f"- tier 推導（{tier}）：{_INDEP_DESC[tier_level]}",
+        card_line,
+        "- **取兩者較嚴者**；卡面另有本段未涵蓋的限制時一律以卡面為準。查核者 ≠ 執行者為所有情況的下限。",
+    ]
+    if level < 2:
+        hint = card_body_cross_family_hint(card_id)
+        if hint:
+            detail_lines.append(
+                f"- ⚠️ 卡片正文另提到跨家族：`{hint}`——欄位沒寫但正文寫了，"
+                "**接手前先確認這一條是否適用於本輪**。")
+    return _INDEP_DESC[level], "\n".join(detail_lines)
+
+
 def build_prompt(card_id: str) -> str:
     ev = latest_handoff(card_id)
     tier = ev.get("tier", "T3")
     redline = tier == "T4"
     db_scope = ev.get("db_scope", "none")
-    worktree = ev.get("worktree", "")
-    wt_abs = ROOT / worktree if worktree else ROOT
     sections = card_sections(card_id, ("驗收", "驗證", "Gate"))
     checklist = sections if sections else "（卡片無明列章節，依卡片全文與 spec 驗收）"
     baseline = baseline_check(card_id)
     if baseline:
         checklist += "\n\n" + baseline
-    indep = ("跨模型家族（非執行者所屬家族）或人工" if redline
-             else "新 context／session 即可（不得為執行者本人）")
+    indep, indep_detail = independence(card_id, tier)
     db_note = {
         "none": "本卡不涉 DB。",
         "read": "本卡 db_scope=read——你的所有查詢**必須唯讀**，嚴禁任何寫入。",
@@ -225,8 +471,15 @@ def build_prompt(card_id: str) -> str:
 
 - 功能：{ev.get('feature', '（見卡片）')}
 - 分支：`{ev.get('branch', '?')}` @ **{ev.get('source_sha', '?')[:7]}**（完整 SHA {ev.get('source_sha', '?')}）
-- 進駐 worktree：`{wt_abs}`（指令在此目錄執行）
 - 卡片：`docs/tasks/{card_id}.md`
+
+### 獨立性要求
+
+**{indep}**
+
+{indep_detail}
+
+{review_worktree_block(card_id, ev)}
 
 ### 環境紅線
 
@@ -242,10 +495,7 @@ def build_prompt(card_id: str) -> str:
 
 ### 基本重現指令
 
-```
-uv run ruff check
-uv run pytest -q
-```
+{repro_commands(ev)}
 
 （卡片與交付摘要中列出的專屬驗證指令一併重跑。）
 
