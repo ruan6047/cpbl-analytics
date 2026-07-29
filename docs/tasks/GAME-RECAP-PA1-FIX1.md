@@ -83,7 +83,8 @@
 3. **本機全庫重建押到 `ML-PITCHER-SCORELESS2` 查核結案後**再跑（見「邊界」）。
 4. **打席歸屬分兩欄**（2026-07-29 追加）：`hitter_acnt` 存記錄規則 9.15(b) 的記錄歸屬、
    新增 `end_hitter_acnt` 存實際完成者，比照投手側 `start_/end_pitcher_acnt` 先例。
-   實測 296 個跨打者打席中僅 21 筆歸原打者、275 筆歸完成者——**不可預設歸最初打者**。
+   實測 296 個跨打者打席中僅 **22** 筆歸原打者、**274** 筆歸完成者——**不可預設歸最初打者**。
+   「三振」採 9.15(a) 定義含 (a)(3) 不死三振；逐筆明細須由正式程式路徑產出至 artifact。
 
 ## 待執行者設計並在交付說明的關鍵決策
 
@@ -97,11 +98,14 @@ reconciliation 的用途是攔截**來源漂移**，不是攔截**builder 升級
 
 ## 同步 SSoT（漏改會被 conformance test 擋，且造成語意漂移）
 
-island 規則有四處事實來源，改 `build_islands` 必須同步：
-`docs/reference/GLOSSARY.md` 的 `island` 條、taxonomy JSON
-（`src/cpbl/resources/pa_transition_taxonomy.v1.json`，含 `taxonomy_version` 是否需進版）、
-`scripts/pa_transition_taxonomy.py` 的 `_island_starts`、
-以及 `tests/test_pa_builder.py` 釘住兩者一致的 conformance 測試。
+island 規則有**六**處事實來源，改 `build_islands` 必須全數同步：
+`docs/reference/GLOSSARY.md` 的 `island` 條、taxonomy JSON 兩份
+（`src/cpbl/resources/` 打包副本與 `docs/design/` canonical，須逐位元組相同）、
+**`scripts/pa_transition_taxonomy.py` 的 `TAXONOMY_VERSION` 與 `build_taxonomy_json()`**
+（JSON 是**產生物**不是手改檔——iteration 2 手改 JSON 沒改產生器，任何人按文件重跑都會
+把 v1.1 覆寫回 v1.0，被查核以 Critical 退回）、同檔的 `_island_starts`、
+`docs/design/GAME-RECAP-PA1-TAXONOMY1.md` 的規範文本，
+以及 `tests/test_pa_builder.py` 的 conformance 與可重現性測試。
 
 ## 紅線（違反即退回）
 
@@ -133,7 +137,12 @@ island 規則有四處事實來源，改 `build_islands` 必須同步：
 - [ ] 不變式 fail-closed 逐場生效；本機重建後被隔離的場次清單與理由逐場列出。
 - [ ] 四處 island SSoT 同步，conformance test 通過。
 - [ ] builder 升級的發布路徑設計寫明，並說明為何不削弱 fail closed。
-- [ ] 9.15(b) 歸屬：`hitter_acnt`／`end_hitter_acnt` 依規則填入，含三振與非三振兩側測試。
+- [ ] 9.15(b) 歸屬：`hitter_acnt`／`end_hitter_acnt` 依規則填入，含三振（**含不死三振**）與
+      非三振兩側測試；296 筆逐筆列於 artifact 的 `hitter_attribution.rows`，且該統計必須
+      走正式程式路徑產生（iteration 2 自寫簡化判定而少算一筆，被查核以 Major 退回）。
+- [ ] taxonomy JSON 必須由 `scripts/pa_transition_taxonomy.py` **產得出來**：
+      docstring 的一鍵重生成命令跑完後，靜態區塊與 committed JSON 一致（有測試守門）；
+      `docs/design/GAME-RECAP-PA1-TAXONOMY1.md` 的 island 規則同步修訂。
 - [ ] `uv run ruff check` ＋ `uv run pytest` 全綠（新端點須同步 EXPECTED 路由快照）。
       **必須在 commit 之後執行**——`test_new_commits_carry_the_required_trailer_set` 在
       `origin/main..HEAD` 無新 commit 時 skip，commit 前跑等於沒驗（iteration 1 查核 Major）。
