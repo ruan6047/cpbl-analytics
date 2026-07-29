@@ -219,7 +219,7 @@ def continues_same_plate_appearance(island: list[Event], event: Event) -> str | 
     該打席的每一列**（證據：``2018/A/116`` 的 ``0720010000``／``0720011000`` 在三振
     發生前就已標 ``三振``）。而打席中途換代打會使 ``hitter_acnt`` 在打席內就改變，
     若照打者切界，兩段碎片會各自被 ``_terminal_event`` 取到**同一個被複製的結果**，
-    同一打席被記成兩個 PA、同一個出局被記兩次（全庫 303 對，見 GAME-RECAP-PA1-FIX1）。
+    同一打席被記成兩個 PA、同一個出局被記兩次（全庫 296 對，見 GAME-RECAP-PA1-FIX1）。
 
     **必要條件**：兩段同一 ``batting_order``（livelog 語意＝該半局第幾位打者；代打接替
     不另開棒次槽，換下一位打者才會進位）。棒次槽前進即為兩個真打席，一律切界。

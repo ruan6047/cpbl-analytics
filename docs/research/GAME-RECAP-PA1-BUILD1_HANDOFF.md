@@ -25,10 +25,10 @@ tags:
 > [`docs/reference/GLOSSARY.md`](../reference/GLOSSARY.md) 的 `island`／
 > `半局出局不變式`／`PA 的 outs` 三條與 `src/cpbl/ingest/pa_build.py` module docstring：
 > 1. §3 的 island 偵測「連續同 `(inning, half, hitter)`」**不完整**——打者變化不等於
->    打席變化，打席中途代打換人不切界（全庫 303 對曾被誤切成兩個 PA）。
+>    打席變化，打席中途代打換人不切界（全庫 296 對曾被誤切成兩個 PA）。
 > 2. `pre_state`／`post_state` 的 outs 已改由 `content`「N人出局」推導，不再讀 `out_cnt`。
 > §5 的 taxonomy pin（`taxonomy_version=1.0.0`／`builder_version=pa-build-1.0.0`）
-> 相應變為 `1.1.0`／`pa-build-1.1.0`。
+> 相應變為 `1.1.0`／`pa-build-1.2.0`。
 
 ## 1. 交付範圍與結論
 
