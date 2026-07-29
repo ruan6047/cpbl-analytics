@@ -40,7 +40,7 @@
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
 | [UX-LEADERS-ORPHAN1](tasks/UX-LEADERS-ORPHAN1.md) | INIT-PRODUCT-UX | T2 | LeagueLeaders 元件已無 runtime consumer | 待指派（查核） | `ai/opus-5/UX-LEADERS-ORPHAN1 @ .claude/worktrees/ux-leaders-orphan1-execution` | 0 | 🔍待查核 | ⏸未部署 | 2026-07-29T23:11:46+08:00 |
 | [UX-LIVE-GAME1](tasks/UX-LIVE-GAME1.md) | INIT-PRODUCT-UX | T3 | 賽前情報到比賽中狀態板 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-26T17:29:31+08:00 |
-| [UX-ORPHAN-SWEEP1](tasks/UX-ORPHAN-SWEEP1.md) | INIT-PRODUCT-UX | T2 | 孤兒模組第二批：matchup-card 與 lib/cols（含文件對帳） | Claude Opus 5@Claude Code | `ai/opus-5/UX-ORPHAN-SWEEP1 @ .claude/worktrees/ux-orphan-sweep1-execution` | 0 | 🔨執行中 | ⏸未部署 | 2026-07-29T23:22:19+08:00 |
+| [UX-ORPHAN-SWEEP1](tasks/UX-ORPHAN-SWEEP1.md) | INIT-PRODUCT-UX | T2 | 孤兒模組第二批：matchup-card 與 lib/cols（含文件對帳） | 待指派（查核） | `ai/opus-5/UX-ORPHAN-SWEEP1 @ .claude/worktrees/ux-orphan-sweep1-execution` | 0 | 🔍待查核 | ⏸未部署 | 2026-07-29T23:27:35+08:00 |
 | [UX-TEAM-FIELD-HIST1](tasks/UX-TEAM-FIELD-HIST1.md) | INIT-PRODUCT-UX | T3 | 球隊頁歷史年守備位置圖（union fielding_seasons） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:36:00+08:00 |
 
 ## 依賴與資源註記
