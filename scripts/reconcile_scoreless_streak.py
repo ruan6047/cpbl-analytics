@@ -306,7 +306,13 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
                           "detail": f"{y}/{k}/{sno}：採計 {claimed} > 獨立重算下界 {recomputed}"})
         else:
             lb_ok += 1
-        # R2：後綴涵蓋的每一局，官方逐局比分必須是 0
+        # R2：後綴涵蓋的每一局，官方逐局比分必須是 0——**且後綴一路開到比賽末端**
+        # （`i >= suffix_from`，不是閉區間）。這個右端**不得**改成「他退場的局」：
+        # 規則允許零投球自責分（總教練手勢故意四壞 9.14(d)／5.05(b)(1) ＋ 投手犯規
+        # 6.02(a) 罰則，皆為 9.16 的自責分因素），所以視窗右端之後的任何得分都可能是
+        # 他的。ML-PITCHER-SCORELESS2 iteration 1 為了容納「提早收視窗」的下界而把這裡
+        # 放寬成閉區間，那個放寬本身就是前提出錯的徵兆——**為了讓新方法通過而放寬對帳
+        # 規則，等於把承重的牆拆掉**。詳見 docs/research/ML-PITCHER-SCORELESS2_RESULTS.md。
         bad = [i for i in opp if suffix_from is not None and i >= suffix_from and opp[i]]
         if suffix_from is None or bad:
             fails.append({"check": "R2", "player_id": pid,

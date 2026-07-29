@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from datetime import date
+from itertools import product
 
 import pytest
 
@@ -335,6 +336,98 @@ def test_tail_feeds_into_the_streak():
     res = compute_streak(apps, tail_lookup=lambda a: tail_credit(a.key, opp, a.outs, 3))
 
     assert res.strict_outs == 6 and res.outs == 15
+
+
+# --------------------------------------------------------------------------
+# ML-PITCHER-SCORELESS2：零投球自責分反例——為什麼視窗不得提早收掉
+# --------------------------------------------------------------------------
+
+def test_zero_pitch_earned_run_forbids_ending_the_window_early():
+    """規則反例：投手可以在**一球都不投**的情況下被記自責分。
+
+    ML-PITCHER-SCORELESS2 iteration 1 曾以「官方投球數耗盡的局」把零得分視窗提早收掉，
+    其前提是「讓跑者上壘一定要投球」。該前提被 `docs/reference/棒球規則.txt` 原文推翻：
+
+    - 用語定義 BASE ON BALLS（5.05(b)(1)）：四壞球「包括⋯⋯裁判員獲得來自守方總教練之
+      手勢，意圖故意四壞球讓擊球員上壘」；9.14(d)「對於守方總教練通知裁判員意圖讓擊
+      球員上一壘時，記錄員應記錄為故意四壞球」。**零投球即可送出保送。**
+    - 6.02(a) 罰則／5.06(c)(3)：「投手犯規—各跑壘員應進 1 個壘」。**零投球即可推進得分。**
+    - 9.16：「為決定自責分，無論任何情況，故意四壞球皆認定為四壞球」；9.16(a)【註 2】①
+      明列自責分因素含「四壞球（含故意四壞球）⋯⋯投手犯規」。
+
+    於是：投完第 8 局（累計 91 球、24 outs）→ 第 9 局仍是責任投手 → 以**手勢**故意四壞
+    三次（投球數仍是 91）→ 投手犯規使三壘跑者得分。**全程零新增投球，該分記為自責分。**
+
+    因此只要視窗右端之後還有任何得分局，那分就**可能**是他的，採計必須是 0。
+    這是確定性的規則路徑，不是低機率事件——紅線 2 明令不得以機率論證代替證明。
+    """
+    opp = dict(enumerate([0] * 8 + [1], start=1))
+
+    # 第 1~8 局零得分、24 outs；若容許把視窗收到「第 8 局」會採計到 24 outs（8.0 局），
+    # 而真值可能是 0（他的自責分發生在第 9 局）。全場式正確地回 0。
+    assert pigeonhole_tail_outs(opp, 24, 1) == (0, None)
+
+
+def test_credit_never_exceeds_the_full_game_pigeonhole():
+    """紅線：採計視窗**必須開到比賽末端**——窮舉釘死。
+
+    只有「全場最後得分局之後全零得分」這個視窗排除得掉零投球自責分：那些局根本沒有
+    分可以記給任何人。任何把視窗提早收掉的做法，都會把「他之後那幾局」留在視窗外，
+    而那正是零投球自責分（手勢故意四壞＋投手犯規）可以發生的地方。
+
+    等價陳述：採計值不得超過 `官方出局數 − 3 × 全場最後得分局`。
+    """
+    for innings in range(1, 10):
+        for runs in product(range(2), repeat=innings):
+            opp = dict(enumerate(runs, start=1))
+            scored = [i for i, r in opp.items() if r]
+            n_prefix = max(scored) if scored else 0
+            for official_outs in range(1, 3 * innings + 1):
+                credited, _ = pigeonhole_tail_outs(opp, official_outs, sum(runs))
+                assert credited <= max(official_outs - 3 * n_prefix, 0), (
+                    f"runs={runs} outs={official_outs} 採計 {credited} "
+                    f"超過全場鴿籠上限")
+
+
+def _withdrawn_last_pitch_bound(runs, official_outs, last_pitch):
+    """ML-PITCHER-SCORELESS2 iteration 1 撤回的第二式，僅供本測試對照，**不得回到產品碼**。"""
+    scored = [i for i, r in enumerate(runs, 1) if r]
+    n_prefix = max(scored) if scored else 0
+    baseline = official_outs - 3 * n_prefix
+    if not 1 <= last_pitch <= len(runs):
+        return baseline
+    before = [i for i in scored if i <= last_pitch]
+    m = max(before) if before else 0
+    return max(baseline, official_outs - 3 * m - 3 * (len(runs) - last_pitch))
+
+
+def test_a_last_pitch_narrowing_gains_only_where_the_counterexample_applies():
+    """為什麼這條下界**救不回來**：它的增益區**包含於**反例適用區。
+
+    窮舉小型組態證明：撤回的第二式嚴格大於全場式，**只有當** `last_pitch` 之後
+    存在得分局時才會發生（反之不成立——`last_pitch` 之後有得分局不保證有增益，
+    見 `docs/research/ML-PITCHER-SCORELESS2_RESULTS.md` §2 的反向反例統計）。
+    而「`last_pitch` 之後有得分局」正是零投球自責分可能發生的情形
+    （見 `test_zero_pitch_earned_run_forbids_ending_the_window_early`）。
+
+    推論：**沒有任何一塊增益落在安全區**。若加守衛把不安全的情形排除掉，剩下的增益
+    恰好是 0 ——也就是退回全場式本身。這條路不存在「部分可救」的中間地帶。
+    """
+    gains = 0
+    for innings in range(1, 10):
+        for runs in product(range(2), repeat=innings):
+            scored = [i for i, r in enumerate(runs, 1) if r]
+            n_prefix = max(scored) if scored else 0
+            for official_outs in range(1, 3 * innings + 1):
+                baseline = official_outs - 3 * n_prefix
+                for last_pitch in range(1, innings + 1):
+                    widened = _withdrawn_last_pitch_bound(runs, official_outs, last_pitch)
+                    if widened > baseline:
+                        gains += 1
+                        assert [i for i in scored if i > last_pitch], (
+                            f"runs={runs} outs={official_outs} last_pitch={last_pitch}："
+                            "有增益卻無反例適用條件，本卡的撤回理由需重新檢視")
+    assert gains, "測試參數必須涵蓋到有增益的組態，否則此測試沒有鑑別力"
 
 
 # --------------------------------------------------------------------------

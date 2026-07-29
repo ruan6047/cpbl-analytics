@@ -93,3 +93,67 @@
 - 2026-07-28 依 ruan6047 指示開卡。`ML-PITCHER-SCORELESS1` 歷經 7 輪跨家族查核收斂為
   零假設的鴿籠下界，代價是採計率 7%；需求方指示後續另卡處理。
   「已排除的路徑」節整理自該卡七輪的實證結論，是本卡最主要的資產。
+- 2026-07-28 iteration 1：新增第二條下界（以官方投球數耗盡的局 `last_pitch_inning` 把零得分
+  視窗提早收掉），採計率一軍 24→29 場、二軍 19→22 場。**查核 REJECT（1 Critical）**：
+  其前提「讓跑者上壘一定要投球」是列舉且不完整——規則允許零投球的自責分
+  （總教練手勢故意四壞 9.14(d)／5.05(b)(1) ＋ 投手犯規 6.02(a)，皆為 9.16 的自責分因素），
+  下界會高估、違反紅線 2。
+- 2026-07-29 iteration 2：**整條撤回，退回全場鴿籠下界**，交付結論 memo
+  [`docs/research/ML-PITCHER-SCORELESS2_RESULTS.md`](../research/ML-PITCHER-SCORELESS2_RESULTS.md)
+  （分支 `ai/opus-5/ML-PITCHER-SCORELESS2`，未 merge，worktree 保留給查核者進駐）。
+  撤回是唯一選擇而非保守選擇：**窮舉證明該下界的所有增益都落在反例適用區**
+  （202,734 組組態中 53,988 組有增益，全部滿足「`last_pitch` 之後有得分局」），
+  加守衛後增益恰好歸零。可執行邏輯與 API payload 已回到合併基線 `b974b10`（僅新增
+  docstring／註解，見 RESULTS.md §4.1）；採計率回到基線一軍 24 場／126 outs、二軍
+  19 場／152 outs，對帳全母體零例外，坎南 30.0 與黃子鵬 33.2 皆成立。
+  **即使下界已撤回仍新增三個回歸測試**（規則反例、視窗右端必須是比賽末端、
+  增益區定理），防止未來重新引入同型假設。
+  卡面點名的 `stats.cpbl.com.tw` 單場 API **兩輪皆未查證**（官網請求禁令），
+  仍是唯一能讓問題消失的方向，建議 8/7 觀測窗結束後另卡。
+- 2026-07-29 iteration 3（查核阻塞修正，不動可執行邏輯）：查核裁定撤回決策本身正確，
+  但兩處「宣稱與證據不符」需修——(1) 本節與 memo 誤將單向蘊含（有嚴格增益 ⇒
+  `last_pitch` 之後有得分局）寫成「當且僅當／恰好等於」，反向不成立（反向反例
+  99,852 組，例 `runs=(0,1,0)`／`last_pitch=1`／`official_outs=9`）；(2) memo 宣稱
+  `git diff b974b10 -- src scripts` 為空，實測並非為空（全為刻意新增的
+  docstring／R2 註解，無邏輯變更）。已修正 `scoreless_streak.py`、
+  `tests/test_scoreless_streak.py`、`ML-PITCHER-SCORELESS2_RESULTS.md` 與本節措辭，
+  結論不變。
+- 2026-07-29 iteration 4（查核阻塞修正，不動可執行邏輯）：iteration 3 把 diff 統計
+  數字修成 `+25/−1`，但同一個 commit 又替 docstring 多加一行，18→19，數字沒跟著改，
+  memo 與本節仍停在過期的 `+25/−1`（實際 `+26/−1`）——同一類「宣稱裡嵌一個會被自己
+  編輯弄髒的手工數字」第三次發生（iteration 2 說 diff 為空、iteration 3 說 +25/−1，
+  皆非事後才錯，而是**該輪自己交付時就已經或即將錯**）。治法不是把 25 改成 26，是不
+  再把「零可執行邏輯變更」寫成人工維護的行數：兩處具體行數已刪除，只留可重現指令與
+  定性結論；新增 `tests/test_scoreless_streak_no_logic_diff.py`，把 `git diff b974b10
+  -- src scripts` 涉及的每個檔案剝除 docstring 後比對 AST（Python 剖析器本身已丟棄
+  註解，不需額外過濾），結構相同才算通過——斷言本身會隨 diff 內容重算，不會過期。
+  變異檢驗：(a) 對帳腳本一處 `>=` 改 `>`（真實邏輯變更）→ 斷言 FAIL；(b) 純新增註解
+  → PASS；(c) 純新增 docstring 文字 → PASS。三個既有回歸測試與對帳腳本行為不變。
+- 2026-07-29 iteration 5（查核阻塞修正，不動可執行邏輯）：查核發現兩個問題。
+  (1) Medium／阻塞：iteration 4 新增的自動斷言在 CI 從未真正跑過——
+  `actions/checkout@v4` 預設 `fetch-depth: 1`（淺層 clone），baseline `b974b10`
+  在此段歷史外，fixture 直接 `pytest.skip()`，合併閘門不會驗它。以真正的 depth-1
+  clone 重現：`git rev-parse --is-shallow-repository` → true、
+  `git rev-parse --verify b974b10^{commit}` 無法解析、測試 skip、exit 0。
+  處置兩層缺一不可：(a) `.github/workflows/ci.yml` 的 api job checkout 加
+  `fetch-depth: 0`，讓斷言在 CI 跑得到；(b) 測試 fixture 偵測到 CI 環境
+  （`CI`／`GITHUB_ACTIONS`）卻仍解析不到 baseline 時改 `pytest.fail()` 而非
+  skip——只改 (a) 的話，日後有人把 `fetch-depth` 改回預設值、或換一個看不到此
+  SHA 的 CI 平台，測試又會退化成通過式 skip 且沒人發現，這正是本卡從
+  iteration 2 起反覆出現的同一種病：守衛存在、本機通過、在真正要它把關的環境
+  靜默失效。本機（非 CI）仍維持 skip，不應對開發者的淺層 clone 硬擋。
+  變異檢驗：模擬 `CI=true` ＋ baseline 不可解析（`BASELINE_SHA` 暫時指向不存在
+  的 SHA）→ FAIL（非 skip）；同條件但非 CI 環境 → 仍 skip；CI＋baseline 可解析
+  → PASS；非 CI＋baseline 可解析 → PASS。
+  (2) Low／非阻塞：查核以探針實測 AST 比對的偵測範圍——一般字串常數／`__all__`／
+  型別註解可測到，`type comment` 與 **docstring 內容**測不到。`type comment`
+  不影響 CPython 執行故無妨；但 docstring 會改變 `__doc__`／doctest／
+  introspection 的可觀察結果，測試 docstring 原本「合法語法但不影響執行」與
+  memo「執行期行為與基線相同」兩處宣稱並非嚴格成立。已把宣稱收斂為「產品控制流
+  與資料流不變；排除註解及 docstring metadata」（`tests/test_scoreless_streak_no_logic_diff.py`
+  模組 docstring 與 `_strip_docstrings`、`ML-PITCHER-SCORELESS2_RESULTS.md` §4 同步
+  修正），並把偵測範圍表寫進測試模組 docstring，讓能力邊界是寫明的而非讀者自猜。
+  本卡範圍內沒有產品路徑讀取這些模組的 `__doc__`，故 API／模型行為未受影響。
+  三個既有回歸測試與對帳腳本行為不變；`uv run python scripts/reconcile_scoreless_streak.py`
+  仍零例外（絕對場數／outs 數會隨每日爬蟲刷新漂移，不作為不變式，見腳本輸出與
+  `git diff b974b10 -- src scripts` 本身即為可重現的證據來源）。
