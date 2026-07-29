@@ -2,7 +2,7 @@
 title: "GAME-RECAP-PA1-TAXONOMY1 canonical PA 狀態機 transition taxonomy"
 card_id: GAME-RECAP-PA1-TAXONOMY1
 status: awaiting-independent-review
-taxonomy_version: 1.0.0
+taxonomy_version: 1.1.0
 date: 2026-07-24
 tags:
   - cpbl
@@ -23,7 +23,7 @@ links:
 
 > [!info] 三份交付物
 > 1. 本檔＝**規範文本**（狀態機、轉換 taxonomy、fail-closed、紅燈斷言）。
-> 2. [`pa_transition_taxonomy.v1.json`](pa_transition_taxonomy.v1.json)＝**builder 可直接消費**的版本化輸出（`taxonomy_version=1.0.0`）。
+> 2. [`pa_transition_taxonomy.v1.json`](pa_transition_taxonomy.v1.json)＝**builder 可直接消費**的版本化輸出（`taxonomy_version=1.1.0`）。
 > 3. [`../research/GAME-RECAP-PA1-TAXONOMY1_RESULTS.md`](../research/GAME-RECAP-PA1-TAXONOMY1_RESULTS.md)＝**自動產生的完整值域＋客觀效果證據**，供 reviewer 以原始事件複核。
 >
 > 三者皆由 `scripts/pa_transition_taxonomy.py`（唯讀）一鍵重跑產生。
@@ -78,15 +78,31 @@ canonical builder 對每一 livelog 事件列（嚴格全序 `main_event_no::big
 
 ## 3. Island 規則（PA 邊界）
 
-**PA island ＝** 連續同 `(year, kind_code, game_sno, inning_seq, visiting_home_type, hitter_acnt)`、以 `main_event_no::bigint` 嚴格排序的最大連續段，**且計算邊界時排除 `is_change_player` 列**（換人列附掛於當前 PA，永不獨立 seed 或切割）。
+> **v1.1 修訂（GAME-RECAP-PA1-FIX1，2026-07-29）**：本節原文主張「打者變化即打席邊界、
+> 代打天然為新 island」，該主張**已被實證推翻並取代**。修訂內容見下方第 4 點；
+> canonical 判準的單一實作是 `cpbl.ingest.pa_build.continues_same_plate_appearance`。
+
+**PA island ＝** 連續同 `(year, kind_code, game_sno, inning_seq, visiting_home_type, hitter_acnt)`、以 `main_event_no::bigint` 嚴格排序的最大連續段，**且計算邊界時排除 `is_change_player` 列**（換人列附掛於當前 PA，永不獨立 seed 或切割），**再套用第 4 點的代打續打席條款**。
 
 理由與證據：
 
 1. **同半局同棒次可二度上場**（大局打線輪轉）：必須用連續同 `hitter_acnt` island，不能用 `(inning, batting_order, hitter)` 去重——後者會吞掉第二次打席（紅燈 A/C）。
 2. **打席中換投不切界**：一個打席跨多位投手仍是**一個** PA；`(inning, pitcher, hitter)` 會把它拆碎（紅燈 B）。
 3. **換人列若不排除會製造幽靈島**：2018/A/4 含換人列時 `0000003336` 假象 3 島，排除後為各打者正確的 2 島。
+4. **打者變化是必要條件、不是充分條件（v1.1 新增）**：`action_name` 既然逐球傳播（§1），
+   把**打席中途代打換人**當邊界會讓兩段碎片各自取到**同一個**結果——一個打席記成兩個 PA、
+   一個出局記兩次（全庫 **296 對**，造成 134 個半局出現 >3 個出局 PA）。
+   同半局的打者變化**必須**兩段同一 `batting_order`（該半局第幾位打者，代打接替不另開槽）
+   才可能不切界，再加「球數未歸零續投」或「`更換代打` 公告列」其一佐證。
+   **球數單獨不足**：全庫有 7 個真打席邊界的來源球數不歸零（`2021/D/64` 6 局下、`2018/A/4`），
+   只看球數會合併兩個真打席。反例邊界：零投球故意四壞完成的打席＋緊接著的打席間代打不得合併。
+5. **打席歸屬（v1.1 新增）**：合併後的打席可跨兩位打者，依記錄規則 9.15(b) 分兩欄——
+   `hitter_acnt`＝記錄歸屬（**9.15(a) 定義的三振**，含 (a)(3) 不死三振，由代打者完成時
+   記「被判第 2 好球者」；其他結果含四壞記代打者），`end_hitter_acnt`＝實際完成者。
 
 ## 4. Island 分類（fail-closed 分區，全史實證乾淨）
+
+> 本節表格數字為 **v1.0 稽核當時**的快照；v1.1 起 island 分組含代打續打席條款且資料持續增長，**現行數字以重生成的 [`GAME-RECAP-PA1-TAXONOMY1_RESULTS.md`](../research/GAME-RECAP-PA1-TAXONOMY1_RESULTS.md) 為準**。
 
 `scripts/pa_transition_taxonomy.py` 對 2018–2026、kind A/C/D/E 重建 island 後分類（RESULTS §island 分區）：
 
@@ -143,7 +159,7 @@ canonical builder 對每一 livelog 事件列（嚴格全序 `main_event_no::big
 | --- | --- | --- | --- |
 | A | **同局同打者二度上場** | 2026/A/54（郭天信，12 分大局）；全史 20+ scope | island truth＝2 個不同 PA；`(inning,pitcher,hitter)` 三鍵合併 → `ambiguous_pitch_pas=2`；`run_dist` 較 canonical 少 3 |
 | B | **打席中換投** | 2025/A/52（陳思仲一保送對 2 實投投手） | island truth＝1 個 PA；三鍵拆成多段；`pitch_cnt` 逐投手重置；`run_dist` 較 canonical 少 6 |
-| C | **代打（換人成員事件）** | 更換代打列（cp=1）攜新打者名 | 代打天然為新 island（`hitter_acnt` 變）；換人列附掛不切界、不另成 PA |
+| C | **代打（換人成員事件）** | 更換代打列（cp=1）攜新打者名 | 換人列附掛不切界、不另成 PA。**v1.1 修訂**：代打**不**天然為新 island——打席間代打（棒次槽前進）才切界；**打席中途**代打（同 `batting_order` 槽＋球數未歸零或公告列）續同一 PA（§3 第 4 點，全庫 296 對） |
 | D | **跑壘特殊事件截斷打席** | 2026/A/76（朱育賢二壘牽制第三出局） | 打者 2 球後被跑壘出局截斷，空 action → `truncated_fragment`，非 PA、不產 outcome |
 | E | **突破僵局跑者（特殊事件/非 PA）** | 2026/D/137 第 10 局 | `突破僵局上壘` 全客觀訊號 0 → `non_pa_tiebreak`；不進 PA 分母、無投球歸屬 |
 | F | **pitch_cnt 非逐列唯一** | 全史 65,954 個多列 pitch 鍵 | 逐球映射須挑真正投球列，一個 pitch_cnt 可能對多列 |

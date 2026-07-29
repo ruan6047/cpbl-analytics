@@ -40,7 +40,40 @@ DB 實證（2026-07-26，本機 `cpbl.games` 全史 GROUP BY；場次數／起�
 
 livelog 逐事件切候選 PA 的分組單位：**連續同 `(game, inning, half, hitter)` 的事件島**；換人公告列（`is_change_player`）與空 hitter 列不 seed／不切界，附掛於當前 island。
 
-- SSoT：`scripts/pa_transition_taxonomy.py` `_island_starts`（`island_rule` 定義處）；`src/cpbl/ingest/pa_build.py` `build_islands` 為對齊實作（測試鎖定兩者一致，杜絕語意漂移）。
+**打者變化是切界的必要條件，不是充分條件**（GAME-RECAP-PA1-FIX1）：`action_name` 是**打席層級的最終結果被複製到該打席的每一列**，因此打席中途換代打若照打者切界，兩段碎片會各自取到同一個結果 → 一個打席記成兩個 PA、一個出局記兩次（全庫 **296 對**）。
+
+同半局的打者變化**必須**兩段同一 `batting_order`（＝該半局第幾位打者，代打接替不另開棒次槽）才可能不切界；在此前提上，球數未歸零續投或有 `更換代打` 公告列即視為同一打席。
+
+> **球數單獨不足以判定續打席**：全庫有 **7 個真打席邊界**的來源球數不歸零（`2021/D/64` 6 局下棒次 5 於 1-1 結束、棒次 6 首列是 2-1；`2018/A/4` 棒次 11 的 (1,0) 接棒次 12 的 (2,0)）。棒次槽是擋住它們的必要條件。反例邊界另有**零投球故意四壞完成的打席＋緊接著的打席間代打不得合併**（棒次槽已前進）。
+
+- SSoT：`src/cpbl/ingest/pa_build.py` `continues_same_plate_appearance`（切界判準）；`build_islands` 與 `scripts/pa_transition_taxonomy.py` `_island_starts` 各自實作分組迴圈但共用該判準（測試鎖定兩者分組一致，杜絕語意漂移）。
+
+### 打席歸屬（`hitter_acnt` vs `end_hitter_acnt`）
+
+一個打席可跨兩位打者（代打中途接替），故「誰被記錄」與「誰打完」分成兩欄，比照投手側 `start_pitcher_acnt`／`end_pitcher_acnt` 的先例：
+
+- `hitter_acnt`＝**記錄歸屬**打者，依記錄規則 9.15(b)：原打者於第 2 好球後退出、代打者以**三振**完成 → 記「被判第 2 好球者」；代打者以**其他結果**完成（含四壞球）→ 記該代打者。**「三振」採 9.15(a) 的定義**，含 (a)(3)「捕手未能確實接捕第 3 好球、擊球員成為跑壘員」——**不死三振仍是三振**（全庫 1,118 筆、每年皆有，目前尚無跨打者實例，但 canonical builder 不能對未來事件歸錯）。
+- `end_hitter_acnt`＝**實際完成該打席**者。無代打接替時兩者相同。
+
+全庫 296 個跨打者的打席中，僅 **22** 筆歸原打者（三振 21＋三振/遭捕手傳一壘刺殺 1）、**274** 筆歸完成者——**不可預設「打席歸最初打者」**。逐筆明細見 `docs/research/game_recap_pa1_fix1_metrics.json` 的 `hitter_attribution.rows`（由正式程式路徑產生，非另寫的簡化判定）。
+
+- SSoT：`src/cpbl/ingest/pa_build.py` `charged_hitter` 與 `STRIKEOUT_ACTIONS`；規則原文見 `docs/reference/棒球規則.txt` 9.15(a)（三振的定義）、9.15(b)（歸屬）及其【註】。
+
+### 半局出局不變式
+
+任一半局的「打者出局 PA」（`outcome_family in ('out','sacrifice')`、`state='ready'`）不得超過 **3** 筆。違反即 **fail closed 到整場**：該場不 publish，保留舊 published build 供稽核。**不得加白名單**——違反代表來源損壞或分類有誤（已知唯一實例 `2019/A/173` 是來源列 `inning_seq` 誤標）。此界刻意寬鬆（雙殺打只算 1 筆 out-PA 卻製造 2 個出局；`fielders_choice`／`uncaught_third_strike` 打者上壘故不計），只在物理上不可能時觸發。
+
+- SSoT：`src/cpbl/ingest/pa_build.py` `half_inning_out_violations`。
+
+### PA 的 outs（`pre_state.outs`／`post_state.outs`）
+
+半局累計出局數，**由 livelog `content` 的「N人出局」敘述推導**（該敘述＝該事件**後**的累計值），`pre_state` 取起始事件前、`post_state` 取終結事件後。**不讀 `game_livelog.out_cnt`**：該欄會落後。推導值自身可對帳（71,023 個半局收在恰好 3 出局）。
+
+> **兩個母體不可互相引用**（此處曾混用而被查核退回）：修正**前**的診斷基線＝有真實投球的 island 中不一致者；修正**後**寫進 canonical PA 的＝實際變動筆數。**兩組數字都隨每日爬蟲增長而漂移**（診斷時 2,157/330,386 與 2,182；2026-07-29 重建母體 4,279 場時 2,160/330,592 與 2,185），引用時必須連同母體規模一起引用——現值與逐筆清單一律以 `docs/research/game_recap_pa1_fix1_metrics.json`（含 `generated_at` 與 `scope`）為準。
+
+> 注意：`out_cnt` 與推導值的**合法**不一致只有一種來源——打席中途發生的出局（盜壘刺、牽制出局），此時該打席起訖之間出局數本就會變。不可與上述欄位落後混淆。
+
+- SSoT：`src/cpbl/ingest/pa_build.py` `derive_half_inning_outs`。
 
 ### 幽靈島
 

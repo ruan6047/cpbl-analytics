@@ -1,6 +1,6 @@
 {
-  "taxonomy_version": "1.0.0",
-  "generated_at": "2026-07-24 10:48:23.660667+08:00",
+  "taxonomy_version": "1.1.0",
+  "generated_at": "2026-07-29 10:25:57.126029+08:00",
   "parameters": {
     "from_year": 2018,
     "to_year": 2026,
@@ -20,7 +20,9 @@
       "visiting_home_type",
       "hitter_acnt"
     ],
-    "exclude_from_boundary": "is_change_player rows (attached as members, never seed/split)",
+    "exclude_from_boundary": "is_change_player rows (attached as members, never seed/split); mid-PA pinch-hit substitutions do not split either — a hitter change inside a half-inning continues the same PA when BOTH sides share the same batting_order slot AND either the count does not reset (count_continues) or a 更換代打 announcement is present (pinch_hit_slot). SSoT: cpbl.ingest.pa_build.continues_same_plate_appearance (GAME-RECAP-PA1-FIX1).",
+    "boundary_note": "hitter_acnt changes are necessary but not sufficient for a PA boundary: livelog action_name is the PA-level result copied onto every row of the PA, so splitting a PA at a pinch-hit substitution double-counts the outcome (296 island pairs corpus-wide, 2018-2026). Conversely the count alone is NOT sufficient evidence of continuation: 7 real PA boundaries in the corpus carry a non-resetting count (e.g. 2021/D/64 6th bottom, 2018/A/4), so batting_order equality is required.",
+    "attribution": "A merged PA can span two batters. hitter_acnt = the batter officially charged per scoring rule 9.15(b) — a strikeout as defined by 9.15(a) (INCLUDING the uncaught third strike, 9.15(a)(3)) completed by a substitute is charged to the batter who took the 2nd strike; any other result goes to the substitute. end_hitter_acnt = the batter who completed the PA.",
     "ordering": "main_event_no::bigint (strict total order)"
   },
   "island_classes": {
@@ -33,30 +35,31 @@
   "fail_closed": {
     "unknown_action": "unreliable：pa 保留成員事件，WP/WPA 與逐球映射回 null + reason",
     "truncated_fragment": "not_a_pa：不產出 credited outcome；逐球歸屬 mapping_failed",
-    "ambiguous_pitch_key": "(inning,pitcher,hitter) 候選>1 → mapping_state=failed"
+    "ambiguous_pitch_key": "(inning,pitcher,hitter) 候選>1 → mapping_state=failed",
+    "half_inning_out_overflow": "any half-inning with >3 batter-out PAs (outcome_family in out/sacrifice) fails the build closed: the whole game is not published and the prior published build is kept for audit. No allowlist — a violation means source corruption or a classification bug."
   },
   "actions": [
     {
       "action_name": "一壘安打",
       "role": "pa_terminal",
       "outcome_family": "hit",
-      "observed_islands": 51433,
+      "observed_islands": 51565,
       "observed": {
         "batter_out_rate": 0.0,
-        "hit_rate": 0.9971,
+        "hit_rate": 0.9978,
         "walk_hbp_rate": 0.0,
         "reach_error_rate": 0.0338,
-        "scored_rate": 0.2327
+        "scored_rate": 0.2328
       }
     },
     {
       "action_name": "一壘安打 內野安打",
       "role": "pa_terminal",
       "outcome_family": "hit",
-      "observed_islands": 5884,
+      "observed_islands": 5900,
       "observed": {
         "batter_out_rate": 0.0,
-        "hit_rate": 0.9973,
+        "hit_rate": 0.9981,
         "walk_hbp_rate": 0.0,
         "reach_error_rate": 0.0564,
         "scored_rate": 0.1115
@@ -79,13 +82,13 @@
       "action_name": "三壘安打",
       "role": "pa_terminal",
       "outcome_family": "hit",
-      "observed_islands": 1699,
+      "observed_islands": 1702,
       "observed": {
         "batter_out_rate": 0.0,
         "hit_rate": 0.9988,
         "walk_hbp_rate": 0.0,
         "reach_error_rate": 0.0165,
-        "scored_rate": 0.5274
+        "scored_rate": 0.527
       }
     },
     {
@@ -105,13 +108,13 @@
       "action_name": "三振",
       "role": "pa_terminal",
       "outcome_family": "out",
-      "observed_islands": 53235,
+      "observed_islands": 53347,
       "observed": {
-        "batter_out_rate": 0.9771,
+        "batter_out_rate": 0.9783,
         "hit_rate": 0.0,
         "walk_hbp_rate": 0.0,
-        "reach_error_rate": 0.0051,
-        "scored_rate": 0.0045
+        "reach_error_rate": 0.0052,
+        "scored_rate": 0.0046
       }
     },
     {
@@ -133,7 +136,7 @@
       "outcome_family": "out",
       "observed_islands": 82,
       "observed": {
-        "batter_out_rate": 0.9878,
+        "batter_out_rate": 1.0,
         "hit_rate": 0.0,
         "walk_hbp_rate": 0.0,
         "reach_error_rate": 0.0,
@@ -144,13 +147,13 @@
       "action_name": "三振/遭捕手傳一壘刺殺",
       "role": "pa_terminal",
       "outcome_family": "out",
-      "observed_islands": 1684,
+      "observed_islands": 1685,
       "observed": {
-        "batter_out_rate": 0.9751,
+        "batter_out_rate": 0.9757,
         "hit_rate": 0.0,
         "walk_hbp_rate": 0.0,
         "reach_error_rate": 0.0101,
-        "scored_rate": 0.0048
+        "scored_rate": 0.0047
       }
     },
     {
@@ -209,13 +212,13 @@
       "action_name": "不死三振 暴投",
       "role": "pa_terminal",
       "outcome_family": "uncaught_third_strike",
-      "observed_islands": 160,
+      "observed_islands": 161,
       "observed": {
         "batter_out_rate": 0.0,
         "hit_rate": 0.0,
         "walk_hbp_rate": 0.0,
-        "reach_error_rate": 0.0125,
-        "scored_rate": 0.0813
+        "reach_error_rate": 0.0124,
+        "scored_rate": 0.0807
       }
     },
     {
@@ -235,10 +238,10 @@
       "action_name": "二壘安打",
       "role": "pa_terminal",
       "outcome_family": "hit",
-      "observed_islands": 13737,
+      "observed_islands": 13775,
       "observed": {
         "batter_out_rate": 0.0,
-        "hit_rate": 0.9974,
+        "hit_rate": 0.9979,
         "walk_hbp_rate": 0.0,
         "reach_error_rate": 0.0209,
         "scored_rate": 0.379
@@ -287,22 +290,22 @@
       "action_name": "傳球失誤",
       "role": "pa_terminal",
       "outcome_family": "reach_on_error",
-      "observed_islands": 941,
+      "observed_islands": 945,
       "observed": {
         "batter_out_rate": 0.0,
         "hit_rate": 0.0,
         "walk_hbp_rate": 0.0,
-        "reach_error_rate": 0.9968,
-        "scored_rate": 0.1583
+        "reach_error_rate": 0.9979,
+        "scored_rate": 0.1587
       }
     },
     {
       "action_name": "內野高飛球",
       "role": "pa_terminal",
       "outcome_family": "out",
-      "observed_islands": 543,
+      "observed_islands": 541,
       "observed": {
-        "batter_out_rate": 0.9963,
+        "batter_out_rate": 1.0,
         "hit_rate": 0.0,
         "walk_hbp_rate": 0.0,
         "reach_error_rate": 0.0037,
@@ -313,37 +316,37 @@
       "action_name": "全壘打",
       "role": "pa_terminal",
       "outcome_family": "hit",
-      "observed_islands": 5086,
+      "observed_islands": 5099,
       "observed": {
         "batter_out_rate": 0.0,
-        "hit_rate": 0.988,
+        "hit_rate": 0.9882,
         "walk_hbp_rate": 0.0,
         "reach_error_rate": 0.0024,
-        "scored_rate": 0.998
+        "scored_rate": 0.9982
       }
     },
     {
       "action_name": "刺殺",
       "role": "pa_terminal",
       "outcome_family": "out",
-      "observed_islands": 49788,
+      "observed_islands": 49956,
       "observed": {
-        "batter_out_rate": 0.9835,
+        "batter_out_rate": 0.9841,
         "hit_rate": 0.0,
         "walk_hbp_rate": 0.0,
         "reach_error_rate": 0.0033,
-        "scored_rate": 0.0214
+        "scored_rate": 0.0215
       }
     },
     {
       "action_name": "四壞球",
       "role": "pa_terminal",
       "outcome_family": "walk",
-      "observed_islands": 27374,
+      "observed_islands": 27436,
       "observed": {
         "batter_out_rate": 0.0,
         "hit_rate": 0.0,
-        "walk_hbp_rate": 0.9981,
+        "walk_hbp_rate": 0.9995,
         "reach_error_rate": 0.0061,
         "scored_rate": 0.0399
       }
@@ -365,9 +368,9 @@
       "action_name": "妨礙守備",
       "role": "pa_terminal",
       "outcome_family": "out",
-      "observed_islands": 34,
+      "observed_islands": 35,
       "observed": {
-        "batter_out_rate": 0.9706,
+        "batter_out_rate": 0.9714,
         "hit_rate": 0.0,
         "walk_hbp_rate": 0.0,
         "reach_error_rate": 0.0,
@@ -391,13 +394,13 @@
       "action_name": "接球失誤",
       "role": "pa_terminal",
       "outcome_family": "reach_on_error",
-      "observed_islands": 2992,
+      "observed_islands": 2999,
       "observed": {
         "batter_out_rate": 0.0,
         "hit_rate": 0.0,
         "walk_hbp_rate": 0.0,
-        "reach_error_rate": 0.9987,
-        "scored_rate": 0.1678
+        "reach_error_rate": 0.9993,
+        "scored_rate": 0.1674
       }
     },
     {
@@ -417,11 +420,11 @@
       "action_name": "故意四壞球",
       "role": "pa_terminal",
       "outcome_family": "walk",
-      "observed_islands": 599,
+      "observed_islands": 601,
       "observed": {
         "batter_out_rate": 0.0,
         "hit_rate": 0.0,
-        "walk_hbp_rate": 0.995,
+        "walk_hbp_rate": 1.0,
         "reach_error_rate": 0.0083,
         "scored_rate": 0.005
       }
@@ -443,13 +446,13 @@
       "action_name": "犧牲短打 傳球",
       "role": "pa_terminal",
       "outcome_family": "sacrifice",
-      "observed_islands": 3183,
+      "observed_islands": 3198,
       "observed": {
-        "batter_out_rate": 0.9981,
+        "batter_out_rate": 0.9997,
         "hit_rate": 0.0,
         "walk_hbp_rate": 0.0,
         "reach_error_rate": 0.0022,
-        "scored_rate": 0.0185
+        "scored_rate": 0.0184
       }
     },
     {
@@ -469,13 +472,13 @@
       "action_name": "犧牲短打 野手接球觸殺",
       "role": "pa_terminal",
       "outcome_family": "sacrifice",
-      "observed_islands": 101,
+      "observed_islands": 102,
       "observed": {
         "batter_out_rate": 1.0,
         "hit_rate": 0.0,
         "walk_hbp_rate": 0.0,
         "reach_error_rate": 0.0,
-        "scored_rate": 0.0891
+        "scored_rate": 0.0882
       }
     },
     {
@@ -523,11 +526,11 @@
       "outcome_family": "sacrifice",
       "observed_islands": 3004,
       "observed": {
-        "batter_out_rate": 0.9923,
+        "batter_out_rate": 0.996,
         "hit_rate": 0.0,
         "walk_hbp_rate": 0.0,
         "reach_error_rate": 0.0273,
-        "scored_rate": 0.99
+        "scored_rate": 0.9937
       }
     },
     {
@@ -547,9 +550,9 @@
       "action_name": "界外飛球接殺",
       "role": "pa_terminal",
       "outcome_family": "out",
-      "observed_islands": 7598,
+      "observed_islands": 7627,
       "observed": {
-        "batter_out_rate": 0.9785,
+        "batter_out_rate": 0.9795,
         "hit_rate": 0.0,
         "walk_hbp_rate": 0.0,
         "reach_error_rate": 0.0028,
@@ -560,7 +563,7 @@
       "action_name": "突破僵局上壘",
       "role": "non_pa",
       "outcome_family": "tiebreak_runner",
-      "observed_islands": 245,
+      "observed_islands": 255,
       "observed": {
         "batter_out_rate": 0.0,
         "hit_rate": 0.0,
@@ -586,11 +589,11 @@
       "action_name": "裁定四壞球",
       "role": "pa_terminal",
       "outcome_family": "walk",
-      "observed_islands": 43,
+      "observed_islands": 42,
       "observed": {
         "batter_out_rate": 0.0,
         "hit_rate": 0.0,
-        "walk_hbp_rate": 0.9767,
+        "walk_hbp_rate": 1.0,
         "reach_error_rate": 0.0,
         "scored_rate": 0.0
       }
@@ -599,26 +602,26 @@
       "action_name": "觸身死球",
       "role": "pa_terminal",
       "outcome_family": "hbp",
-      "observed_islands": 4739,
+      "observed_islands": 4746,
       "observed": {
         "batter_out_rate": 0.0,
         "hit_rate": 0.0,
-        "walk_hbp_rate": 0.9973,
+        "walk_hbp_rate": 0.9989,
         "reach_error_rate": 0.0032,
-        "scored_rate": 0.0456
+        "scored_rate": 0.0455
       }
     },
     {
       "action_name": "趁傳",
       "role": "pa_terminal",
       "outcome_family": "fielders_choice",
-      "observed_islands": 9814,
+      "observed_islands": 9828,
       "observed": {
         "batter_out_rate": 0.0,
         "hit_rate": 0.0,
         "walk_hbp_rate": 0.0,
-        "reach_error_rate": 0.9802,
-        "scored_rate": 0.0971
+        "reach_error_rate": 0.9815,
+        "scored_rate": 0.0973
       }
     },
     {
@@ -664,9 +667,9 @@
       "action_name": "野手接球自踩壘包 一壘",
       "role": "pa_terminal",
       "outcome_family": "out",
-      "observed_islands": 6252,
+      "observed_islands": 6274,
       "observed": {
-        "batter_out_rate": 0.9797,
+        "batter_out_rate": 0.9804,
         "hit_rate": 0.0,
         "walk_hbp_rate": 0.0,
         "reach_error_rate": 0.0048,
@@ -677,39 +680,39 @@
       "action_name": "野手接球觸殺",
       "role": "pa_terminal",
       "outcome_family": "out",
-      "observed_islands": 466,
+      "observed_islands": 469,
       "observed": {
         "batter_out_rate": 0.9893,
         "hit_rate": 0.0,
         "walk_hbp_rate": 0.0,
         "reach_error_rate": 0.0043,
-        "scored_rate": 0.0451
+        "scored_rate": 0.0448
       }
     },
     {
       "action_name": "野手選擇",
       "role": "pa_terminal",
       "outcome_family": "fielders_choice",
-      "observed_islands": 222,
+      "observed_islands": 223,
       "observed": {
         "batter_out_rate": 0.0,
         "hit_rate": 0.0,
         "walk_hbp_rate": 0.0,
         "reach_error_rate": 0.9955,
-        "scored_rate": 0.5
+        "scored_rate": 0.4978
       }
     },
     {
       "action_name": "雙殺打 刺殺",
       "role": "pa_terminal",
       "outcome_family": "out",
-      "observed_islands": 6192,
+      "observed_islands": 6204,
       "observed": {
-        "batter_out_rate": 0.9656,
+        "batter_out_rate": 0.9673,
         "hit_rate": 0.0,
         "walk_hbp_rate": 0.0,
         "reach_error_rate": 0.0003,
-        "scored_rate": 0.0407
+        "scored_rate": 0.0406
       }
     },
     {
@@ -729,13 +732,13 @@
       "action_name": "雙殺打 野手接球自踩壘包",
       "role": "pa_terminal",
       "outcome_family": "out",
-      "observed_islands": 221,
+      "observed_islands": 223,
       "observed": {
-        "batter_out_rate": 0.9955,
+        "batter_out_rate": 0.991,
         "hit_rate": 0.0,
         "walk_hbp_rate": 0.0,
         "reach_error_rate": 0.0,
-        "scored_rate": 0.0407
+        "scored_rate": 0.0404
       }
     },
     {
@@ -755,13 +758,13 @@
       "action_name": "雙殺打上壘-失誤",
       "role": "pa_terminal",
       "outcome_family": "reach_on_error",
-      "observed_islands": 13,
+      "observed_islands": 14,
       "observed": {
         "batter_out_rate": 0.0,
         "hit_rate": 0.0,
         "walk_hbp_rate": 0.0,
         "reach_error_rate": 1.0,
-        "scored_rate": 0.3846
+        "scored_rate": 0.3571
       }
     },
     {
@@ -781,9 +784,9 @@
       "action_name": "飛球接殺",
       "role": "pa_terminal",
       "outcome_family": "out",
-      "observed_islands": 69992,
+      "observed_islands": 70244,
       "observed": {
-        "batter_out_rate": 0.9821,
+        "batter_out_rate": 0.9826,
         "hit_rate": 0.0,
         "walk_hbp_rate": 0.0,
         "reach_error_rate": 0.0036,

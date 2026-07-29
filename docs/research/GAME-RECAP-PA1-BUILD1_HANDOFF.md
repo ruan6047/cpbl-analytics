@@ -20,6 +20,16 @@ tags:
 > **執行者 = Opus 4.8；本報告交付後狀態 🔍待查核。** 查核須由**跨模型家族且非 Claude**
 > 之查核者（Gemini／Antigravity 或人工）進行。執行者不得自寫 APPROVE／merge。
 
+> ⚠️ **本檔是 BUILD1 當時的交付紀錄，非現行事實**（歷史記錄不回寫）。
+> `GAME-RECAP-PA1-FIX1`（2026-07-29）已修正其中兩點，現行語意見
+> [`docs/reference/GLOSSARY.md`](../reference/GLOSSARY.md) 的 `island`／
+> `半局出局不變式`／`PA 的 outs` 三條與 `src/cpbl/ingest/pa_build.py` module docstring：
+> 1. §3 的 island 偵測「連續同 `(inning, half, hitter)`」**不完整**——打者變化不等於
+>    打席變化，打席中途代打換人不切界（全庫 296 對曾被誤切成兩個 PA）。
+> 2. `pre_state`／`post_state` 的 outs 已改由 `content`「N人出局」推導，不再讀 `out_cnt`。
+> §5 的 taxonomy pin（`taxonomy_version=1.0.0`／`builder_version=pa-build-1.0.0`）
+> 相應變為 `1.1.0`／`pa-build-1.2.0`。
+
 ## 1. 交付範圍與結論
 
 實作每日批次 canonical PA builder，依 TAXONOMY1（taxonomy_version=1.0.0）把來源 revision
