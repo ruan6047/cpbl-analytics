@@ -23,7 +23,7 @@ links:
 
 > [!info] 三份交付物
 > 1. 本檔＝**規範文本**（狀態機、轉換 taxonomy、fail-closed、紅燈斷言）。
-> 2. [`pa_transition_taxonomy.v1.json`](pa_transition_taxonomy.v1.json)＝**builder 可直接消費**的版本化輸出（`taxonomy_version=1.0.0`）。
+> 2. [`pa_transition_taxonomy.v1.json`](pa_transition_taxonomy.v1.json)＝**builder 可直接消費**的版本化輸出（`taxonomy_version=1.1.0`）。
 > 3. [`../research/GAME-RECAP-PA1-TAXONOMY1_RESULTS.md`](../research/GAME-RECAP-PA1-TAXONOMY1_RESULTS.md)＝**自動產生的完整值域＋客觀效果證據**，供 reviewer 以原始事件複核。
 >
 > 三者皆由 `scripts/pa_transition_taxonomy.py`（唯讀）一鍵重跑產生。
@@ -102,6 +102,8 @@ canonical builder 對每一 livelog 事件列（嚴格全序 `main_event_no::big
 
 ## 4. Island 分類（fail-closed 分區，全史實證乾淨）
 
+> 本節表格數字為 **v1.0 稽核當時**的快照；v1.1 起 island 分組含代打續打席條款且資料持續增長，**現行數字以重生成的 [`GAME-RECAP-PA1-TAXONOMY1_RESULTS.md`](../research/GAME-RECAP-PA1-TAXONOMY1_RESULTS.md) 為準**。
+
 `scripts/pa_transition_taxonomy.py` 對 2018–2026、kind A/C/D/E 重建 island 後分類（RESULTS §island 分區）：
 
 | 類別 | 判定 | 全史 island 數 | 語意 |
@@ -157,7 +159,7 @@ canonical builder 對每一 livelog 事件列（嚴格全序 `main_event_no::big
 | --- | --- | --- | --- |
 | A | **同局同打者二度上場** | 2026/A/54（郭天信，12 分大局）；全史 20+ scope | island truth＝2 個不同 PA；`(inning,pitcher,hitter)` 三鍵合併 → `ambiguous_pitch_pas=2`；`run_dist` 較 canonical 少 3 |
 | B | **打席中換投** | 2025/A/52（陳思仲一保送對 2 實投投手） | island truth＝1 個 PA；三鍵拆成多段；`pitch_cnt` 逐投手重置；`run_dist` 較 canonical 少 6 |
-| C | **代打（換人成員事件）** | 更換代打列（cp=1）攜新打者名 | 代打天然為新 island（`hitter_acnt` 變）；換人列附掛不切界、不另成 PA |
+| C | **代打（換人成員事件）** | 更換代打列（cp=1）攜新打者名 | 換人列附掛不切界、不另成 PA。**v1.1 修訂**：代打**不**天然為新 island——打席間代打（棒次槽前進）才切界；**打席中途**代打（同 `batting_order` 槽＋球數未歸零或公告列）續同一 PA（§3 第 4 點，全庫 296 對） |
 | D | **跑壘特殊事件截斷打席** | 2026/A/76（朱育賢二壘牽制第三出局） | 打者 2 球後被跑壘出局截斷，空 action → `truncated_fragment`，非 PA、不產 outcome |
 | E | **突破僵局跑者（特殊事件/非 PA）** | 2026/D/137 第 10 局 | `突破僵局上壘` 全客觀訊號 0 → `non_pa_tiebreak`；不進 PA 分母、無投球歸屬 |
 | F | **pitch_cnt 非逐列唯一** | 全史 65,954 個多列 pitch 鍵 | 逐球映射須挑真正投球列，一個 pitch_cnt 可能對多列 |

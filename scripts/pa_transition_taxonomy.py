@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass
@@ -178,68 +179,80 @@ class ActionProfile:
 
 
 # ---------------------------------------------------------------------------
-# SQL：island 重建 + 客觀效果量測
+# island 重建（canonical）＋客觀效果量測
 # ---------------------------------------------------------------------------
 # 觀測訊號完全以 content 文字與 is_score 旗標判定，不引用 action_name 語意：
 #   batter_out : content 出現「打者…出局」（打者本人出局宣告）
 #   hit        : content 出現「安打」或「全壘打」
 #   walk_hbp   : content 出現「四壞」或「死球」
 #   reach_error: content 出現「失誤」或「野手選擇」或「趁傳」
-# island 邊界排除 is_change_player 列（對齊 buildMoments 的 skip 行為）。
-_ISLAND_SQL = """
-WITH base AS (
-    SELECT year, kind_code, game_sno, inning_seq,
-           visiting_home_type AS vht,
-           CASE WHEN main_event_no ~ '^[0-9]+$' THEN main_event_no::bigint END AS ev,
-           main_event_no,
-           hitter_acnt, pitcher_acnt, action_name, batting_action_name, content,
-           is_strike, is_ball, is_score, is_special_event, pitch_cnt,
-           LAG(hitter_acnt) OVER w AS prev_h,
-           LAG(inning_seq) OVER w AS prev_inn,
-           LAG(visiting_home_type) OVER w AS prev_vht
-    FROM cpbl.game_livelog
-    WHERE year BETWEEN %(from_year)s AND %(to_year)s
-      AND kind_code = ANY(%(kinds)s)
-      AND hitter_acnt IS NOT NULL AND hitter_acnt <> ''
-      AND NOT COALESCE(is_change_player, false)
-    WINDOW w AS (PARTITION BY year, kind_code, game_sno
-                 ORDER BY CASE WHEN main_event_no ~ '^[0-9]+$'
-                               THEN main_event_no::bigint END NULLS LAST, main_event_no)
-),
-isl AS (
-    SELECT *,
-        SUM(CASE WHEN hitter_acnt IS DISTINCT FROM prev_h
-                   OR inning_seq IS DISTINCT FROM prev_inn
-                   OR vht IS DISTINCT FROM prev_vht
-                 THEN 1 ELSE 0 END)
-            OVER (PARTITION BY year, kind_code, game_sno
-                  ORDER BY ev NULLS LAST, main_event_no) AS isl_id
-    FROM base
-),
-agg AS (
-    SELECT year, kind_code, game_sno, isl_id,
-        COUNT(*) AS rows,
-        COUNT(DISTINCT pitch_cnt) FILTER (WHERE pitch_cnt > 0) AS distinct_pitches,
-        BOOL_OR(is_score) AS scored,
-        BOOL_OR(content ~ '打者[^。]*出局') AS batter_out,
-        BOOL_OR(content LIKE '%%安打%%' OR content LIKE '%%全壘打%%') AS hit,
-        BOOL_OR(content LIKE '%%四壞%%' OR content LIKE '%%死球%%') AS walk_hbp,
-        BOOL_OR(content LIKE '%%失誤%%' OR content LIKE '%%野手選擇%%'
-                OR content LIKE '%%趁傳%%') AS reach_error,
-        (ARRAY_AGG(action_name ORDER BY ev DESC NULLS LAST, main_event_no DESC))[1] AS term_action,
-        (ARRAY_AGG(batting_action_name ORDER BY ev DESC NULLS LAST, main_event_no DESC))[1]
-            AS term_ban,
-        (ARRAY_AGG(content ORDER BY ev DESC NULLS LAST, main_event_no DESC))[1] AS term_content
-    FROM isl
-    GROUP BY 1, 2, 3, 4
-)
-SELECT * FROM agg
+#
+# v1.1（GAME-RECAP-PA1-FIX1 iteration 4）：island 分組**直接呼叫正式
+# `cpbl.ingest.pa_build.build_islands()`**（含代打續打席條款），不再以 SQL lag
+# 重新實作——iteration 3 之前這裡是一套獨立的 SQL 切界（打者一變就切），
+# 使 profiles／classification／JSON `actions[].observed_*` 的動態證據與 canonical
+# island 語意漂移（296 個跨打者 PA 被重複計算），經查核以 Critical 退回。
+# 聚合為純函式 `_aggregate_islands()`，可無 DB 測試（動態 conformance）。
+_RAW_ROWS_SQL = """
+SELECT year, kind_code, game_sno, main_event_no, inning_seq, visiting_home_type,
+       batting_order, ball_cnt, strike_cnt, pitch_cnt, content, action_name,
+       batting_action_name, hitter_acnt, pitcher_acnt,
+       is_strike, is_ball, is_score, is_change_player
+FROM cpbl.game_livelog
+WHERE year BETWEEN %(from_year)s AND %(to_year)s
+  AND kind_code = ANY(%(kinds)s)
 """
+
+_BATTER_OUT_RE = re.compile(r"打者[^。]*出局")
+
+
+def _aggregate_islands(rows: list[Event]) -> list[Event]:
+    """把逐事件列以 canonical build_islands 分組後聚合（純函式，供無 DB 測試）。
+
+    輸出列 shape 與舊 `_ISLAND_SQL` 的 agg 相同（rows/distinct_pitches/scored/…/
+    term_action/term_ban），下游 `_action_profiles`／`_classify_island` 不需改動。
+    聚合只計**非換人且 hitter 非空**的成員列（對齊舊 SQL 的 base 過濾；換人列仍
+    參與分組——代打續打席條款需要公告列）。
+    """
+    from cpbl.ingest.pa_build import build_islands
+
+    games: dict[tuple[Any, Any, Any], list[Event]] = defaultdict(list)
+    for r in rows:
+        games[(r["year"], r["kind_code"], r["game_sno"])].append(r)
+
+    out: list[Event] = []
+    for (year, kind, sno), events in sorted(games.items()):
+        for island in build_islands(events):
+            members = [e for e in island
+                       if not e.get("is_change_player")
+                       and (e.get("hitter_acnt") or "").strip()]
+            if not members:
+                continue
+            last = members[-1]
+            contents = [str(e.get("content") or "") for e in members]
+            out.append({
+                "year": year, "kind_code": kind, "game_sno": sno,
+                "rows": len(members),
+                "distinct_pitches": len({
+                    int(e["pitch_cnt"]) for e in members
+                    if e.get("pitch_cnt") not in (None, "") and int(e["pitch_cnt"]) > 0
+                }),
+                "scored": any(bool(e.get("is_score")) for e in members),
+                "batter_out": any(_BATTER_OUT_RE.search(c) for c in contents),
+                "hit": any(("安打" in c) or ("全壘打" in c) for c in contents),
+                "walk_hbp": any(("四壞" in c) or ("死球" in c) for c in contents),
+                "reach_error": any(("失誤" in c) or ("野手選擇" in c) or ("趁傳" in c)
+                                   for c in contents),
+                "term_action": (last.get("action_name") or "").strip(),
+                "term_ban": (last.get("batting_action_name") or "").strip(),
+                "term_content": (last.get("content") or "").strip(),
+            })
+    return out
 
 
 def _fetch_islands(cur: Any, params: dict[str, Any]) -> list[Event]:
-    cur.execute(_ISLAND_SQL, params)
-    return list(cur.fetchall())
+    cur.execute(_RAW_ROWS_SQL, params)
+    return _aggregate_islands(list(cur.fetchall()))
 
 
 def _action_profiles(islands: list[Event]) -> list[ActionProfile]:

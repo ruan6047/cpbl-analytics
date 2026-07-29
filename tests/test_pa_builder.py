@@ -863,3 +863,59 @@ def test_committed_taxonomy_declares_the_fix1_semantics() -> None:
     assert "boundary_note" in doc["island_rule"] and "attribution" in doc["island_rule"]
     assert "9.15(b)" in doc["island_rule"]["attribution"]
     assert "half_inning_out_overflow" in doc["fail_closed"]
+
+
+# ===========================================================================
+# FIX1 iteration 4：taxonomy 產生器的**動態證據**必須與 canonical island 同語意
+# ===========================================================================
+def test_generator_profiling_path_merges_mid_pa_pinch_hits() -> None:
+    """產生器的 profiles/classification 聚合必須走 canonical build_islands。
+
+    iteration 3 只修了紅燈抽樣的 `_island_starts()`，profiles 仍由獨立的
+    `_ISLAND_SQL`（打者一變就切）計算，296 個跨打者 PA 在動態證據裡被重複計算
+    （查核 Critical）。本測試以打席中途代打實形直打聚合純函式，無 DB。
+    """
+    from scripts.pa_transition_taxonomy import _aggregate_islands
+
+    agg = _aggregate_islands(_mid_pa_pinch_hit_events())
+    assert len(agg) == 1, "代打續打席必須聚合為一個 island"
+    assert agg[0]["term_action"] == "三振"
+    assert agg[0]["rows"] == 4  # 4 個非換人成員列（公告列參與分組但不計入聚合）
+    assert agg[0]["batter_out"] is True
+
+
+def test_generator_profiling_path_keeps_real_boundaries_split() -> None:
+    """反向：真打席邊界（球數不歸零但棒次前進、零投球故意四壞＋打席間代打）不得被聚合合併。"""
+    from scripts.pa_transition_taxonomy import _aggregate_islands
+
+    non_reset = [
+        ev(22, "H1", is_ball=True, pitch_cnt=20, balls=1, strikes=0, order=5),
+        ev(24, "H1", is_strike=True, pitch_cnt=22, balls=1, strikes=1, order=5,
+           content=" 2人出局。"),
+        ev(25, "H2", is_ball=True, pitch_cnt=23, balls=2, strikes=1, order=6),
+    ]
+    assert len(_aggregate_islands(non_reset)) == 2
+
+    walk_then_pinch = [
+        ev(15, "H1", action="故意四壞球", pitch_cnt=13, order=4, content="故意四壞球上壘。"),
+        {**ev(16, "H2", action="一壘安打", change=True, pitch_cnt=13, order=5),
+         "content": "更換代打：X=>H2。"},
+        ev(17, "H2", action="一壘安打", is_ball=True, pitch_cnt=14, balls=1, order=5,
+           content="擊出左外野平飛球，一壘安打 。"),
+    ]
+    assert len(_aggregate_islands(walk_then_pinch)) == 2
+
+
+def test_generator_aggregation_grouping_matches_build_islands() -> None:
+    """聚合的島數必須等於 canonical build_islands 的「含有效成員」島數（同一來源）。"""
+    from scripts.pa_transition_taxonomy import _aggregate_islands
+
+    events = (_mid_pa_pinch_hit_events()
+              + [ev(30, "H9", action="三振", is_strike=True, pitch_cnt=1, strikes=3,
+                    inning=2, half="1", order=1)])
+    canonical = [
+        isl for isl in build_islands(events)
+        if any(not e.get("is_change_player") and (e.get("hitter_acnt") or "").strip()
+               for e in isl)
+    ]
+    assert len(_aggregate_islands(events)) == len(canonical) == 2
