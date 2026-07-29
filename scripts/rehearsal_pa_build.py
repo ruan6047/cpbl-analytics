@@ -144,10 +144,64 @@ def run() -> None:
         log.info("v3 reconcile: 新 build 標 reconciliation_required=%s；舊 published 完整保留 ✓",
                  rec_states)
 
+        # 4) FIX1 builder 升級：來源 manifest 不變、只有 builder_version 進版 →
+        #    fingerprint 變更歸因於解讀改變，允許發布；差異仍留痕。
+        # 先把來源**逐欄**還原成 v1：source manifest 由 sha256 決定，還原不精確就會產生
+        # 新 revision，本步驟就測不到「來源不變」那條路。
+        cur.execute(
+            "UPDATE cpbl.game_livelog SET action_name='一壘安打', "
+            "content = CASE main_event_no WHEN '0000000002' THEN '一壘安打' ELSE '' END "
+            "WHERE year=%s AND kind_code=%s AND game_sno=%s "
+            "AND main_event_no IN ('0000000001','0000000002')", (Y, K, G))
+        c.commit()
+        cur.execute(  # 假裝既有 published 是舊 builder 產出的（模擬升級前的存量）
+            "UPDATE cpbl.game_recap_builds SET builder_version='pa-build-0.9.0' "
+            "WHERE build_id=%s", (pub1["build_id"],))
+        # 同時讓其 PA 指紋與新 build 不同，確保走的是「有差異但仍發布」那條路
+        cur.execute("UPDATE cpbl.game_pa_events SET event_fingerprint='stale-from-old-builder' "
+                    "WHERE pa_id=(SELECT pa_id FROM cpbl.game_plate_appearances "
+                    "WHERE build_id=%s ORDER BY pa_index LIMIT 1)", (pub1["build_id"],))
+        c.commit()
+        r4 = build_game(cur, Y, K, G)
+        c.commit()
+        assert r4.action == "publish" and r4.build_state == "published", r4
+        assert r4.summary["reconcile"]["builder_upgrade"] is True, r4.summary["reconcile"]
+        assert r4.summary["reconcile"]["changed"], "差異必須逐筆留痕，不得靜默"
+        assert _count_published(cur) == 1, "atomic swap 後仍須恰好一個 published"
+        pub4 = _published(cur)
+        assert pub4["build_id"] != pub1["build_id"], "builder 升級應發布新 build"
+        log.info("v4 builder upgrade: 來源不變+版本進版 → publish，changed=%d 筆留痕 ✓",
+                 len(r4.summary["reconcile"]["changed"]))
+
+        # 5) FIX1 fail closed：同半局塞出第 4 個打者出局 PA → 整場不 publish、舊 published 保留
+        _insert_livelog(cur, [
+            _ll_row(20, "X1", action="三振", is_strike=True, pitch_cnt=20, content="1人出局。"),
+            _ll_row(21, "X2", action="三振", is_strike=True, pitch_cnt=21, content="2人出局。"),
+            _ll_row(22, "X3", action="三振", is_strike=True, pitch_cnt=22, content="3人出局。"),
+            _ll_row(23, "X4", action="三振", is_strike=True, pitch_cnt=23, content="3人出局。"),
+        ])
+        c.commit()
+        r5 = build_game(cur, Y, K, G)
+        c.commit()
+        assert r5.action == "reconcile" and r5.build_state == "reconciliation_required", r5
+        assert r5.summary["invariant_violations"], "違反不變式必須留痕"
+        assert _count_published(cur) == 1 and _published(cur)["build_id"] == pub4["build_id"], \
+            "fail closed 不得動搖既有 published"
+        cur.execute(
+            "SELECT count(*) AS n FROM cpbl.game_plate_appearances pa "
+            "JOIN cpbl.game_recap_builds b ON b.build_id=pa.build_id "
+            "WHERE b.state='reconciliation_required' AND b.build_id=%s "
+            "AND pa.state='unreliable' AND pa.reconciliation_reason='half_inning_out_overflow'",
+            (r5.build_id,))
+        assert int(cur.fetchone()["n"]) >= 4, "違反半局的 PA 須標 unreliable"
+        log.info("v5 invariant fail closed: %s → 不 publish、舊 published 保留 ✓",
+                 r5.summary["invariant_violations"])
+
         # 清理
         _cleanup(cur)
         c.commit()
-        log.info("REHEARSAL PASSED：publish → idempotent noop → reconciliation（不換 ID、不刪舊、atomic 唯一）")
+        log.info("REHEARSAL PASSED：publish → idempotent noop → reconciliation → "
+                 "builder upgrade republish → 半局出局不變式 fail closed")
 
 
 if __name__ == "__main__":

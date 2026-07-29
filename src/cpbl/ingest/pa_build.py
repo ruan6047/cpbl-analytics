@@ -1,7 +1,7 @@
 """GAME-RECAP-PA1-BUILD1：canonical 打席 [plate appearance / PA] 批次 builder。
 
 依 [[GAME-RECAP-PA1_CONTRACT]] 與 TAXONOMY1（消費 ``docs/design/pa_transition_taxonomy.v1.json``，
-taxonomy_version=1.0.0）把來源 revision 物化為 deterministic、持久化的 ``pa_id``、event
+taxonomy_version=1.1.0）把來源 revision 物化為 deterministic、持久化的 ``pa_id``、event
 membership 與 ordered pitch mapping，寫入 EXPAND1（migration 066）建的表。
 
 設計（供跨家族查核者複核）:
@@ -10,9 +10,17 @@ membership 與 ordered pitch mapping，寫入 EXPAND1（migration 066）建的�
   reconciliation 全為純函式（對 event/pitch dict list 操作，無 DB），便於紅燈測試；
   DB 層只做 fetch/upsert/atomic publish。
 * **island 語意不重定義**：分組規則對齊 TAXONOMY1 ``island_rule``（連續同
-  ``(inning, half, hitter)``、換人列附掛不切界、``main_event_no::bigint`` 全序）；
+  ``(inning, half, hitter)``、換人列附掛不切界、``main_event_no::bigint`` 全序），
+  **但打者變化不等於打席變化**——打席中途代打換人不切界，見
+  :func:`continues_same_plate_appearance`（FIX1）；
   ``tests/test_pa_builder.py`` 有 conformance 測試釘住與 ``scripts.pa_transition_taxonomy``
   ``_island_starts`` 的一致性，杜絕語意漂移。分類 role/outcome_family 直接讀版本化 JSON。
+* **狀態數值不信來源欄位**：``pre_state``／``post_state`` 的 outs 由
+  :func:`derive_half_inning_outs` 自 ``content`` 敘述推導，不讀會落後的 ``out_cnt``（FIX1）。
+* **打席可跨兩位打者**：代打中途接替時 ``hitter_acnt`` 依記錄規則 9.15(b) 決定記錄歸屬、
+  ``end_hitter_acnt`` 記實際完成者，見 :func:`charged_hitter`（FIX1，migration 068）。
+* **不變式 fail closed**：任一半局的打者出局 PA > 3 → 整場不 publish，
+  見 :func:`half_inning_out_violations`（FIX1）。
 * **穩定 ``pa_id``**：deterministic UUIDv5，seed = ``year|kind|game|start_event_no|event_order_version``；
   同一 start 事件跨 build/revision 產生相同 ``pa_id``（契約不變量 #1/#2）。
 * **逐球映射**：pitch_tracking ``(pitcher_acnt, pitch_cnt)`` 全場逐投手唯一，映射靠
@@ -30,6 +38,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import uuid
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -47,7 +56,7 @@ Pitch = dict[str, Any]
 # ---------------------------------------------------------------------------
 # 版本 pin（改動任一者都會改變 build 身分；pa_id seed 只含 event_order_version）
 # ---------------------------------------------------------------------------
-BUILDER_VERSION = "pa-build-1.0.0"
+BUILDER_VERSION = "pa-build-1.2.0"  # FIX1：代打續打席合併 + outs 推導 + 出局不變式 + 9.15(b) 歸屬
 EVENT_ORDER_VERSION = "evord-1.0"  # main_event_no::bigint 嚴格全序
 # 固定 UUIDv5 namespace（勿更動：更動會使全部 pa_id 漂移）。
 PA_ID_NAMESPACE = uuid.UUID("5f3b9d2a-1c47-5e60-9a8b-6d2f0c1e7a44")
@@ -174,12 +183,95 @@ def _usable(event: Event) -> bool:
     return not event.get("is_change_player") and bool(_clean(event.get("hitter_acnt")))
 
 
+PINCH_HIT_MARKER = "更換代打"
+
+
+def _count_of(event: Event) -> tuple[int | None, int | None]:
+    b, s = event.get("ball_cnt"), event.get("strike_cnt")
+    return (
+        int(b) if b not in (None, "") else None,
+        int(s) if s not in (None, "") else None,
+    )
+
+
+def _last_member(island: list[Event]) -> Event | None:
+    """island 中最後一個非換人成員列（換人列不帶球數/棒次可比對資訊）。"""
+    for ev in reversed(island):
+        if not ev.get("is_change_player"):
+            return ev
+    return None
+
+
+def _trailing_change_rows(island: list[Event]) -> list[Event]:
+    """附掛在 island 尾端（最後一個成員列之後）的換人公告列。"""
+    trailing: list[Event] = []
+    for ev in reversed(island):
+        if not ev.get("is_change_player"):
+            break
+        trailing.append(ev)
+    return trailing
+
+
+def continues_same_plate_appearance(island: list[Event], event: Event) -> str | None:
+    """判定「打者變化」是否為**同一打席內的代打換人**，而非新打席開始。
+
+    為什麼需要這條規則：livelog 的 ``action_name`` 是**打席層級的最終結果，被複製到
+    該打席的每一列**（證據：``2018/A/116`` 的 ``0720010000``／``0720011000`` 在三振
+    發生前就已標 ``三振``）。而打席中途換代打會使 ``hitter_acnt`` 在打席內就改變，
+    若照打者切界，兩段碎片會各自被 ``_terminal_event`` 取到**同一個被複製的結果**，
+    同一打席被記成兩個 PA、同一個出局被記兩次（全庫 303 對，見 GAME-RECAP-PA1-FIX1）。
+
+    **必要條件**：兩段同一 ``batting_order``（livelog 語意＝該半局第幾位打者；代打接替
+    不另開棒次槽，換下一位打者才會進位）。棒次槽前進即為兩個真打席，一律切界。
+
+    在該必要條件上，下列任一佐證成立即視為同一打席：
+
+    * ``count_continues``：新打者首列球數 ≥2 且相對前一列未回退。此判準**不要求公告列**
+      ——官方偶有漏記代打公告（``2023/A/73`` 8 局下）；``batting_order`` 為 0 的早年資料
+      只要兩段同為 0 仍適用（``2020/A/239`` 3 局上）。
+    * ``pinch_hit_slot``：有 ``更換代打`` 公告列，**且**原打者未面對任何真實投球
+      （只有牽制／公告列）或球數未回退。
+
+    **為什麼球數不能單獨成立**（iteration 1 查核 Critical，實證推翻）：原先假設
+    「新打席首列球數必 ≤1」，實測**為假**——部分來源列的球數在換打者時不歸零：
+    ``2021/D/64`` 6 局下棒次 5 於 1-1 結束（「2人出局。」），棒次 6 首列是 **2-1**；
+    ``2018/A/4`` 棒次 11 的 (1,0) 接棒次 12 的 (2,0)。全母體有 7 對這種假象，
+    若只看球數會合併兩個真打席（違反紅線 1）。棒次槽是擋住它們的必要條件。
+
+    不得合併的邊界（查核重點）：**零投球故意四壞完成的打席 + 緊接著的打席間代打**
+    （``2018/A/9`` 9 局上、``2018/A/16`` 8 局下）——棒次槽已前進，兩條佐證皆不適用。
+    """
+    prev = _last_member(island)
+    if prev is None:
+        return None
+    bo_a, bo_b = prev.get("batting_order"), event.get("batting_order")
+    if bo_a is None or bo_b is None or bo_a != bo_b:
+        return None
+    b_a, s_a = _count_of(prev)
+    b_b, s_b = _count_of(event)
+    non_decreasing = False
+    if b_a is not None and s_a is not None and b_b is not None and s_b is not None:
+        non_decreasing = b_b >= b_a and s_b >= s_a
+        if non_decreasing and b_b + s_b >= 2:
+            return "count_continues"
+    if not any(PINCH_HIT_MARKER in str(c.get("content") or "")
+               for c in _trailing_change_rows(island)):
+        return None
+    if not bo_a:  # batting_order=0 是早年資料的缺值哨兵，不足以單獨支撐弱佐證
+        return None
+    if not any(_is_real_pitch(ev) for ev in island):
+        return "pinch_hit_slot"
+    return "pinch_hit_slot" if non_decreasing else None
+
+
 def build_islands(events: list[Event]) -> list[list[Event]]:
     """把逐事件切成 island（候選 PA）。
 
     語意對齊 TAXONOMY1 ``island_rule``：
     * 換人列 (``is_change_player``) 與空 hitter 列不 seed／不切界，附掛於當前 island。
-    * 以 ``(inning_seq, visiting_home_type, hitter_acnt)`` 變化切界。
+    * 以 ``(inning_seq, visiting_home_type, hitter_acnt)`` 變化切界，**但**同半局內的
+      打者變化若經 :func:`continues_same_plate_appearance` 判定為打席中途代打換人，
+      則不切界（FIX1；打者變化不等於打席變化）。
     * 事件先以 ``main_event_no::bigint`` 全序排序。
     """
     ordered = sorted(events, key=event_sort_key)
@@ -196,8 +288,13 @@ def build_islands(events: list[Event]) -> list[list[Event]]:
             _clean(ev.get("hitter_acnt")),
         )
         if key != prev_key:
-            islands.append([])
-            prev_key = key
+            same_half = prev_key is not None and key[:2] == prev_key[:2]
+            if (islands and same_half
+                    and continues_same_plate_appearance(islands[-1], ev)):
+                prev_key = key  # 代打續打席：沿用當前 island，只更新打者
+            else:
+                islands.append([])
+                prev_key = key
         islands[-1].append(ev)
     return islands
 
@@ -271,11 +368,42 @@ def _occupied_bases(event: Event) -> list[str]:
     return bases
 
 
-def _state_snapshot(event: Event) -> dict[str, Any]:
+_OUT_MARKER = re.compile(r"([0-9])人出局")
+
+
+def derive_half_inning_outs(events: list[Event]) -> dict[str, tuple[int, int]]:
+    """逐事件推導 ``(該事件前, 該事件後)`` 的半局累計出局數。
+
+    權威來源是 livelog ``content`` 的「N人出局」敘述（＝該事件**後**的半局累計出局數），
+    **不是** ``out_cnt`` 欄位——後者會落後：全庫 328,508 個有真實投球的 island 中
+    2,157 個（0.657%）與本推導值不一致，差值 ``-1`` 佔 2,148 例
+    （見 GAME-RECAP-PA1-FIX1）。推導值自身可對帳：71,023 個半局收在恰好 3 出局。
+
+    半局界線以 ``(inning_seq, visiting_home_type)`` 變化判定。累計值取 ``max`` 保持
+    單調（出局數不可能減少），使單一敘述異常不會讓後續事件整段偏移。
+    """
+    derived: dict[str, tuple[int, int]] = {}
+    running = 0
+    prev_half: tuple[Any, str] | None = None
+    for ev in sorted(events, key=event_sort_key):
+        half = (ev.get("inning_seq"), str(ev.get("visiting_home_type")))
+        if half != prev_half:
+            running = 0
+            prev_half = half
+        before = running
+        marks = _OUT_MARKER.findall(str(ev.get("content") or ""))
+        if marks:
+            running = max(running, max(int(m) for m in marks))
+        derived[str(ev.get("main_event_no"))] = (before, running)
+    return derived
+
+
+def _state_snapshot(event: Event, outs: int | None) -> dict[str, Any]:
+    """PA 邊界狀態快照。``outs`` 由 :func:`derive_half_inning_outs` 提供（不讀 out_cnt）。"""
     return {
         "inning": _clean(event.get("inning_seq")),
         "half": _clean(event.get("visiting_home_type")),
-        "outs": _clean(event.get("out_cnt")),
+        "outs": outs,
         "bases": _occupied_bases(event),
         "away_score": _clean(event.get("visiting_score")),
         "home_score": _clean(event.get("home_score")),
@@ -291,11 +419,13 @@ def compute_pa_fingerprint(
     result_action: str | None,
     start_event_no: str | None,
     end_event_no: str | None,
+    end_hitter: str | None = None,
 ) -> str:
     """PA 內容指紋的單一實作；新 build 與 published 重建共用，杜絕算法漂移。"""
     return canonical_source_version({
         "members": list(members),
         "hitter": hitter,
+        "end_hitter": end_hitter,
         "start_pitcher": start_pitcher,
         "end_pitcher": end_pitcher,
         "result_action": result_action,
@@ -320,7 +450,8 @@ class PlateAppearance:
     game_sno: int
     start_event_no: str
     end_event_no: str | None
-    hitter_acnt: str | None
+    hitter_acnt: str | None       # 記錄歸屬打者（記錄規則 9.15(b)）
+    end_hitter_acnt: str | None   # 實際完成打席者（無代打接替時同上）
     start_pitcher_acnt: str | None
     end_pitcher_acnt: str | None
     state: str
@@ -345,12 +476,46 @@ class PlateAppearance:
         return compute_pa_fingerprint(
             members=[m.fingerprint for m in self.members],
             hitter=self.hitter_acnt,
+            end_hitter=self.end_hitter_acnt,
             start_pitcher=self.start_pitcher_acnt,
             end_pitcher=self.end_pitcher_acnt,
             result_action=self.result_action,
             start_event_no=self.start_event_no,
             end_event_no=self.end_event_no,
         )
+
+
+STRIKEOUT_ACTIONS = frozenset({
+    "三振", "三振/妨礙", "三振/第三好球觸擊失敗", "三振/遭捕手傳一壘刺殺", "裁定三振",
+})
+# 不死三振（outcome_family=uncaught_third_strike）**刻意不列入**：9.15(a)(3) 雖記三振，
+# 但擊球員成為跑壘員，屬 9.15(b)「其他結果」與否規則未明文；全母體目前**零實例**，
+# 故採不套用第一句（歸完成者）並在此標記，待有實例時由規則層裁定，不以推測套用真實資料。
+
+
+def charged_hitter(members: list[Event], result_action: str | None) -> tuple[str | None, str | None]:
+    """依記錄規則 9.15(b) 回傳 ``(記錄歸屬打者, 完成打席者)``。
+
+    規則原文（``docs/reference/棒球規則.txt`` 9.15(b)）：「擊球員於第 2 好球後退出，
+    替代的擊球員以三振完成打擊，記為**最初擊球員**的三振與打數，若替代擊球員以其他結果
+    完成打擊（包括四壞球），皆視為**該替代擊球員**之行為。」
+    【註】「同一打席中分別由 3 位球員替換出場打擊，最後被三振時，其中**被判第 2 好球**之
+    擊球員，應被記為三振及打數。」——故三振時取「球數首次達 2 好球那一列」的打者，
+    不是無條件取最初擊球員（本語料目前無 3 人以上的實例，仍照規則實作）。
+
+    無代打接替（島內只有一位打者）時兩者相同。
+    """
+    hitters = [h for h in (_clean(e.get("hitter_acnt")) for e in members) if h]
+    if not hitters:
+        return None, None
+    completing = hitters[-1]
+    if result_action not in STRIKEOUT_ACTIONS or len(set(hitters)) < 2:
+        return completing, completing
+    for ev in members:
+        sc = ev.get("strike_cnt")
+        if sc not in (None, "") and int(sc) >= 2:
+            return (_clean(ev.get("hitter_acnt")) or completing), completing
+    return completing, completing
 
 
 def _is_real_pitch(event: Event) -> bool:
@@ -368,6 +533,7 @@ def plate_appearances(
 ) -> list[PlateAppearance]:
     """把單場逐事件物化為有序 PlateAppearance list（純函式）。"""
     islands = build_islands(events)
+    outs_by_event = derive_half_inning_outs(events)
     pas: list[PlateAppearance] = []
     for pa_index, island in enumerate(islands):
         ordered = sorted(island, key=event_sort_key)
@@ -410,6 +576,8 @@ def plate_appearances(
         pitchers_in_order = [
             _clean(e.get("pitcher_acnt")) for e in non_change if _clean(e.get("pitcher_acnt"))
         ]
+        # 打席可跨兩位打者（代打中途接替）：記錄歸屬依 9.15(b)，完成者另存。
+        charged, completing = charged_hitter(non_change, cls.result_action)
         pas.append(
             PlateAppearance(
                 pa_id=pa_id_for(year, kind_code, game_sno, start_event_no),
@@ -419,15 +587,21 @@ def plate_appearances(
                 game_sno=game_sno,
                 start_event_no=start_event_no,
                 end_event_no=str(terminal.get("main_event_no")) if terminal else None,
-                hitter_acnt=_clean(start_ev.get("hitter_acnt")),
+                hitter_acnt=charged, end_hitter_acnt=completing,
                 start_pitcher_acnt=pitchers_in_order[0] if pitchers_in_order else None,
                 end_pitcher_acnt=pitchers_in_order[-1] if pitchers_in_order else None,
                 state=cls.state,
                 island_class=cls.island_class,
                 result_action=cls.result_action,
                 outcome_family=cls.outcome_family,
-                pre_state=_state_snapshot(start_ev),
-                post_state=_state_snapshot(terminal) if terminal else {},
+                # pre＝起始事件「前」、post＝終結事件「後」的半局累計出局數
+                pre_state=_state_snapshot(
+                    start_ev, outs_by_event.get(start_event_no, (None, None))[0]
+                ),
+                post_state=_state_snapshot(
+                    terminal,
+                    outs_by_event.get(str(terminal.get("main_event_no")), (None, None))[1],
+                ) if terminal else {},
                 members=members,
                 pitch_slots=pitch_slots,
             )
@@ -576,6 +750,56 @@ def assign_tracking_availability(
 
 
 # ===========================================================================
+# 純核心：不變式（fail closed）
+# ===========================================================================
+MAX_OUT_PA_PER_HALF_INNING = 3
+INVARIANT_OUT_OVERFLOW = "half_inning_out_overflow"
+# 打者出局的 outcome_family。fielders_choice／uncaught_third_strike 打者上壘、
+# 出局記在跑者身上，不計入——本不變式刻意寬鬆（雙殺打只算 1 筆 out-PA 卻製造 2 個
+# 出局），只在**物理上不可能**時觸發，不會因邊界口徑誤殺。
+BATTER_OUT_FAMILIES = frozenset({"out", "sacrifice"})
+
+
+def half_inning_out_violations(pas: list[PlateAppearance]) -> list[dict[str, Any]]:
+    """不變式：任一半局的「打者出局 PA」不得超過 3 筆（一個半局最多 3 個出局）。
+
+    違反代表打席切分或結果分類有誤——不是可容忍的雜訊，故 :func:`build_game`
+    以此**逐場 fail closed**（該場不 publish、保留舊 published 供稽核），不只記 log。
+
+    已知會違反的真實案例只有 ``2019/A/173``：來源列 ``0110002000`` 的 ``inning_seq``
+    誤標成 7（應為 1）且 ``0110001000`` 帶 ``action_name=三振``（該打席實際是四壞球），
+    屬**來源資料損壞**。正確處置是隔離該場，**不得加白名單繞過**。
+    """
+    counts: Counter = Counter()
+    for pa in pas:
+        if pa.state != STATE_READY or pa.outcome_family not in BATTER_OUT_FAMILIES:
+            continue
+        inning, half = pa.pre_state.get("inning"), pa.pre_state.get("half")
+        if inning is None or half is None:
+            continue
+        counts[(inning, str(half))] += 1
+    return [
+        {"inning": inning, "half": half, "out_pa": n}
+        for (inning, half), n in sorted(counts.items(), key=lambda kv: str(kv[0]))
+        if n > MAX_OUT_PA_PER_HALF_INNING
+    ]
+
+
+def apply_invariant_states(
+    pas: list[PlateAppearance], violations: list[dict[str, Any]]
+) -> None:
+    """把違反半局的 PA 標為 ``unreliable``（in-place）。呼叫端負責整場不 publish。"""
+    if not violations:
+        return
+    bad = {(v["inning"], str(v["half"])) for v in violations}
+    for pa in pas:
+        key = (pa.pre_state.get("inning"), str(pa.pre_state.get("half")))
+        if key in bad and pa.state in (STATE_READY, STATE_TRUNCATED):
+            pa.state = STATE_UNRELIABLE
+            pa.reconciliation_reason = INVARIANT_OUT_OVERFLOW
+
+
+# ===========================================================================
 # 純核心：reconciliation
 # ===========================================================================
 @dataclass
@@ -584,10 +808,14 @@ class ReconcileResult:
     changed_pa_ids: list[str] = field(default_factory=list)
     added_pa_ids: list[str] = field(default_factory=list)
     removed_pa_ids: list[str] = field(default_factory=list)
+    builder_upgrade: bool = False  # 差異歸因於 builder/taxonomy 進版而非來源漂移
 
 
 def reconcile(
-    new_pas: list[PlateAppearance], published: dict[str, str] | None
+    new_pas: list[PlateAppearance],
+    published: dict[str, str] | None,
+    *,
+    builder_upgrade_same_source: bool = False,
 ) -> ReconcileResult:
     """比對新 PA 與既有 published build（``pa_id -> pa_fingerprint``）。
 
@@ -595,6 +823,14 @@ def reconcile(
     * 完全等價（相同 pa_id 集合 + 相同 fingerprint） → ``publish``（乾淨重建，atomic swap）。
     * 任一 PA 成員／投打／終點變更、或有新增／消失 pa_id → ``reconcile``：
       產出 reconciliation_required build，**不** publish、**不** 動舊 published（契約不變量 #3）。
+
+    ``builder_upgrade_same_source`` 是唯一例外，且**不削弱 fail closed**：
+    reconciliation 的用途是攔截**來源漂移**，不是攔截 builder 升級。呼叫端只有在
+    新舊 build 的 ``livelog_revision_id``／``tracking_revision_id`` **完全相同**
+    （來源 manifest 由 sha256 決定，相同即來源逐列未變）而 ``builder_version``／
+    ``taxonomy_version`` 不同時才可傳 ``True``——此時 fingerprint 變更**只可能**
+    來自我們對來源的解讀改變。來源一旦有任何變動，此旗標即為 ``False``，
+    行為與過去完全一致（fail closed）。差異仍逐筆記入 ``validation_summary`` 供稽核。
     """
     if not published:
         return ReconcileResult(action="publish")
@@ -610,17 +846,24 @@ def reconcile(
     if not changed and not added and not removed:
         return ReconcileResult(action="publish")
     return ReconcileResult(
-        action="reconcile", changed_pa_ids=sorted(changed),
-        added_pa_ids=added, removed_pa_ids=removed,
+        action="publish" if builder_upgrade_same_source else "reconcile",
+        changed_pa_ids=sorted(changed), added_pa_ids=added, removed_pa_ids=removed,
+        builder_upgrade=builder_upgrade_same_source,
     )
 
 
 def apply_reconciliation_states(new_pas: list[PlateAppearance], result: ReconcileResult) -> None:
-    """reconcile 時把變更／新增的 PA 標為 reconciliation_required（in-place，fail closed）。"""
+    """reconcile 時把變更／新增的 PA 標為 reconciliation_required（in-place，fail closed）。
+
+    不變式違反（``half_inning_out_overflow``）優先：那是「資料本身錯了」的判定，
+    強於「與既有發布不一致」的簿記，不得被覆寫。
+    """
     if result.action != "reconcile":
         return
     flagged = set(result.changed_pa_ids) | set(result.added_pa_ids)
     for pa in new_pas:
+        if pa.reconciliation_reason == INVARIANT_OUT_OVERFLOW:
+            continue
         if str(pa.pa_id) in flagged and pa.state in (STATE_READY, STATE_UNRELIABLE,
                                                       STATE_TRUNCATED):
             pa.state = STATE_RECONCILIATION
@@ -722,11 +965,27 @@ def upsert_source_revision(
     return int(cur.fetchone()["id"])
 
 
+def _published_build_meta(cur: Any, year: int, kind: str, game: int) -> dict[str, Any] | None:
+    """既有 published build 的身分欄位（判定 fingerprint 差異可否歸因於 builder 升級）。"""
+    cur.execute(
+        """
+        SELECT build_id, builder_version, taxonomy_version,
+               livelog_revision_id, tracking_revision_id
+        FROM cpbl.game_recap_builds
+        WHERE year=%s AND kind_code=%s AND game_sno=%s AND state='published'
+        """,
+        (year, kind, game),
+    )
+    row = cur.fetchone()
+    return dict(row) if row else None
+
+
 def _published_pa_fingerprints(cur: Any, year: int, kind: str, game: int) -> dict[str, str]:
     """讀既有 published build 的 PA → {pa_id: pa_fingerprint}（自儲存欄位無損重建）。"""
     cur.execute(
         """
-        SELECT pa.pa_id, pa.hitter_acnt, pa.start_pitcher_acnt, pa.end_pitcher_acnt,
+        SELECT pa.pa_id, pa.hitter_acnt, pa.end_hitter_acnt,
+               pa.start_pitcher_acnt, pa.end_pitcher_acnt,
                pa.result_action, pa.start_event_no, pa.end_event_no,
                COALESCE(array_agg(e.event_fingerprint ORDER BY e.event_position)
                         FILTER (WHERE e.event_fingerprint IS NOT NULL), '{}') AS member_fps
@@ -735,7 +994,8 @@ def _published_pa_fingerprints(cur: Any, year: int, kind: str, game: int) -> dic
           ON b.build_id = pa.build_id AND b.state = 'published'
         LEFT JOIN cpbl.game_pa_events e ON e.pa_row_id = pa.pa_row_id
         WHERE pa.year=%s AND pa.kind_code=%s AND pa.game_sno=%s
-        GROUP BY pa.pa_row_id, pa.pa_id, pa.hitter_acnt, pa.start_pitcher_acnt,
+        GROUP BY pa.pa_row_id, pa.pa_id, pa.hitter_acnt, pa.end_hitter_acnt,
+                 pa.start_pitcher_acnt,
                  pa.end_pitcher_acnt, pa.result_action, pa.start_event_no, pa.end_event_no
         """,
         (year, kind, game),
@@ -745,6 +1005,7 @@ def _published_pa_fingerprints(cur: Any, year: int, kind: str, game: int) -> dic
         out[str(r["pa_id"])] = compute_pa_fingerprint(
             members=list(r["member_fps"]),
             hitter=r["hitter_acnt"],
+            end_hitter=r["end_hitter_acnt"],
             start_pitcher=r["start_pitcher_acnt"],
             end_pitcher=r["end_pitcher_acnt"],
             result_action=r["result_action"],
@@ -848,8 +1109,33 @@ def build_game(cur: Any, year: int, kind: str, game: int, *, taxonomy: Taxonomy 
     plan = plan_pitch_mappings(pas, pitches)
     assign_tracking_availability(pas, plan, game_has_tracking)
 
+    published_meta = _published_build_meta(cur, year, kind, game)
     published = _published_pa_fingerprints(cur, year, kind, game)
-    rec = reconcile(pas, published)
+    # 來源 manifest（sha256 決定）完全相同、只有 builder/taxonomy 進版 → fingerprint
+    # 差異只可能來自解讀改變，非來源漂移；來源有任何變動則此旗標為 False（fail closed）。
+    builder_upgrade = bool(
+        published_meta
+        and published_meta["livelog_revision_id"] == livelog_rev
+        and published_meta["tracking_revision_id"] == tracking_rev
+        and (published_meta["builder_version"] != BUILDER_VERSION
+             or published_meta["taxonomy_version"] != taxonomy.version)
+    )
+    rec = reconcile(pas, published, builder_upgrade_same_source=builder_upgrade)
+
+    # 不變式 fail closed：任一半局出局 PA > 3 → 整場不 publish、保留舊 published 供稽核。
+    # **必須在 reconciliation 標記之前評估**：不變式看的是分類結果本身，若先套用
+    # reconciliation 會把 ready 改成 reconciliation_required，使不變式看不到違反而靜默放行。
+    violations = half_inning_out_violations(pas)
+    apply_invariant_states(pas, violations)
+    if violations:
+        rec = ReconcileResult(
+            action="reconcile", changed_pa_ids=rec.changed_pa_ids,
+            added_pa_ids=rec.added_pa_ids, removed_pa_ids=rec.removed_pa_ids,
+        )
+        log.error(
+            "invariant violated (half-inning out PA > %d), not publishing %s/%s/%s: %s",
+            MAX_OUT_PA_PER_HALF_INNING, year, kind, game, violations,
+        )
     apply_reconciliation_states(pas, rec)
 
     build_id = str(uuid.uuid4())
@@ -857,7 +1143,9 @@ def build_game(cur: Any, year: int, kind: str, game: int, *, taxonomy: Taxonomy 
     summary["reconcile"] = {
         "action": rec.action, "changed": rec.changed_pa_ids,
         "added": rec.added_pa_ids, "removed": rec.removed_pa_ids,
+        "builder_upgrade": rec.builder_upgrade,
     }
+    summary["invariant_violations"] = violations
     cur.execute(
         """
         INSERT INTO cpbl.game_recap_builds
@@ -901,15 +1189,16 @@ def _write_pas(
             """
             INSERT INTO cpbl.game_plate_appearances
                 (pa_id, build_id, year, kind_code, game_sno, pa_index, start_event_no,
-                 end_event_no, event_order_version, hitter_acnt, start_pitcher_acnt,
+                 end_event_no, event_order_version, hitter_acnt, end_hitter_acnt,
+                 start_pitcher_acnt,
                  end_pitcher_acnt, pre_state, post_state, result_action, outcome_family,
                  state, tracking_availability, reconciliation_reason)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s,%s,%s,%s,%s)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s,%s,%s,%s,%s)
             RETURNING pa_row_id
             """,
             (str(pa.pa_id), build_id, pa.year, pa.kind_code, pa.game_sno, pa.pa_index,
              pa.start_event_no, pa.end_event_no, EVENT_ORDER_VERSION, pa.hitter_acnt,
-             pa.start_pitcher_acnt, pa.end_pitcher_acnt,
+             pa.end_hitter_acnt, pa.start_pitcher_acnt, pa.end_pitcher_acnt,
              json.dumps(pa.pre_state, ensure_ascii=False),
              json.dumps(pa.post_state, ensure_ascii=False),
              pa.result_action, pa.outcome_family, pa.state, pa.tracking_availability,

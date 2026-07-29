@@ -15,12 +15,17 @@ from cpbl.ingest.pa_build import (
     STATE_RECONCILIATION,
     STATE_TRUNCATED,
     STATE_UNRELIABLE,
+    PlateAppearance,
+    ReconcileResult,
+    apply_invariant_states,
     apply_reconciliation_states,
     assign_tracking_availability,
     build_islands,
     classify_island,
     compute_pa_fingerprint,
+    derive_half_inning_outs,
     event_fingerprint,
+    half_inning_out_violations,
     load_taxonomy,
     pa_id_for,
     plan_pitch_mappings,
@@ -38,7 +43,7 @@ def ev(
     no: int, hitter: str | None, *, inning: int = 1, half: str = "1", pitcher: str = "P1",
     pitch_cnt: int | None = None, action: str = "", change: bool = False,
     is_strike: bool = False, is_ball: bool = False, is_score: bool = False,
-    out: int = 0, content: str = "",
+    out: int = 0, content: str = "", balls: int = 0, strikes: int = 0, order: int = 1,
 ) -> dict:
     return {
         "year": 2026, "kind_code": "A", "game_sno": 1,
@@ -48,9 +53,9 @@ def ev(
         "action_name": action, "batting_action_name": "", "content": content,
         "is_strike": is_strike, "is_ball": is_ball, "is_score": is_score,
         "is_change_player": change, "is_special_event": False,
-        "out_cnt": out, "ball_cnt": 0, "strike_cnt": 0,
+        "out_cnt": out, "ball_cnt": balls, "strike_cnt": strikes,
         "first_base": None, "second_base": None, "third_base": None,
-        "visiting_score": 0, "home_score": 0, "batting_order": 1,
+        "visiting_score": 0, "home_score": 0, "batting_order": order,
     }
 
 
@@ -112,6 +117,103 @@ def test_islands_conformance_with_taxonomy_script() -> None:
     assert [[e["main_event_no"] for e in isl] for isl in mine] == [
         [e["main_event_no"] for e in isl] for isl in theirs
     ]
+
+
+# ===========================================================================
+# FIX1：打席中途代打換人不切界（打者變化 ≠ 打席變化）
+# ===========================================================================
+def _mid_pa_pinch_hit_events() -> list[dict]:
+    """2018/A/116 7 局下實形：H1 打到 1-2，代打 H2 上場續打完成三振。
+
+    每一列都帶同一個 ``action_name=三振``——livelog 的結果是打席層級被複製到每列，
+    正是照打者切界會把「一個打席一個出局」記成兩個的成因。
+    """
+    return [
+        ev(10, "H1", action="三振", is_ball=True, pitch_cnt=103, balls=1, strikes=0, order=3),
+        ev(11, "H1", action="三振", is_strike=True, pitch_cnt=104, balls=1, strikes=1, order=3),
+        ev(12, "H1", action="三振", is_strike=True, pitch_cnt=105, balls=1, strikes=2, order=3),
+        {**ev(13, "H2", action="三振", change=True, pitch_cnt=105, balls=1, strikes=2, order=3),
+         "content": "更換代打：H1=>H2。"},
+        ev(14, "H2", action="三振", is_strike=True, pitch_cnt=106, balls=1, strikes=3, order=3,
+           content="好球沒揮棒。 打者出局-三振出局。 3人出局。"),
+    ]
+
+
+def test_mid_pa_pinch_hit_stays_one_island() -> None:
+    islands = build_islands(_mid_pa_pinch_hit_events())
+    assert len(islands) == 1 and len(islands[0]) == 5
+
+
+def test_mid_pa_pinch_hit_yields_single_out_pa() -> None:
+    pas = _pas(_mid_pa_pinch_hit_events())
+    assert len(pas) == 1
+    assert pas[0].outcome_family == "out" and pas[0].state == STATE_READY
+    # 打席歸屬於起始事件（pa_id seed），完成者記為終結投打側
+    assert pas[0].start_event_no == "0000000010" and pas[0].end_event_no == "0000000014"
+
+
+def test_mid_pa_pinch_hit_without_announcement_uses_count_continuity() -> None:
+    """2023/A/73 8 局下實形：官方漏記代打公告，但球數 1 壞續投到 2 壞。"""
+    events = [
+        ev(3, "H1", action="刺殺", is_ball=True, pitch_cnt=10, balls=1, strikes=0, order=2),
+        ev(4, "H2", action="刺殺", is_ball=True, pitch_cnt=11, balls=2, strikes=0, order=2),
+        ev(5, "H2", action="刺殺", is_strike=True, pitch_cnt=12, balls=2, strikes=0, order=2,
+           content="擊出內野滾地球，刺殺出局。 2人出局。"),
+    ]
+    assert len(build_islands(events)) == 1
+
+
+def test_pre_pitch_pinch_hit_stays_one_island() -> None:
+    """2019/A/68 實形：原打者只有牽制列（無真實投球）即被代打取代。"""
+    events = [
+        {**ev(18, "H1", action="三振", pitch_cnt=16, order=4), "content": "投手牽制一壘跑者"},
+        {**ev(19, "H2", action="三振", change=True, pitch_cnt=16, order=4),
+         "content": "更換代打：H1=>H2。"},
+        ev(20, "H2", action="三振", is_strike=True, pitch_cnt=17, strikes=1, order=4),
+        ev(21, "H2", action="三振", is_strike=True, pitch_cnt=18, strikes=3, order=4,
+           content="揮棒落空。 打者出局-三振出局。 3人出局。"),
+    ]
+    assert len(build_islands(events)) == 1
+
+
+def test_zero_pitch_walk_then_between_pa_pinch_hit_stays_two_islands() -> None:
+    """紅線反例（2018/A/9 9 局上實形）：零投球故意四壞是**完成的打席**，
+    緊接著的代打屬**打席間**換人，兩者不得合併——棒次槽不同且球數歸零。"""
+    events = [
+        ev(15, "H1", action="故意四壞球", pitch_cnt=13, order=4,
+           content="故意四壞球上壘。"),
+        {**ev(16, "H2", action="一壘安打", change=True, pitch_cnt=13, order=5),
+         "content": "更換代打：X=>H2。"},
+        ev(17, "H2", action="一壘安打", is_ball=True, pitch_cnt=14, balls=1, order=5),
+        ev(18, "H2", action="一壘安打", is_strike=True, pitch_cnt=15, balls=1, strikes=1,
+           order=5, content="擊出左外野平飛球，一壘安打 。"),
+    ]
+    islands = build_islands(events)
+    assert len(islands) == 2
+    pas = _pas(events)
+    assert [p.outcome_family for p in pas] == ["walk", "hit"]
+
+
+def test_pinch_hit_announcement_alone_does_not_merge_across_batting_order() -> None:
+    """公告列存在但棒次槽已前進（＝打席間換人）→ 仍須切界。"""
+    events = [
+        ev(1, "H1", action="三振", is_strike=True, pitch_cnt=1, strikes=3, order=1,
+           content="揮棒落空。 打者出局-三振出局。 1人出局。"),
+        {**ev(2, "H2", action="飛球接殺", change=True, pitch_cnt=1, order=2),
+         "content": "更換代打：X=>H2。"},
+        ev(3, "H2", action="飛球接殺", is_strike=True, pitch_cnt=2, strikes=1, order=2,
+           content="飛球接殺出局。 2人出局。"),
+    ]
+    assert len(build_islands(events)) == 2
+
+
+def test_pinch_hit_merge_does_not_cross_half_innings() -> None:
+    events = [
+        ev(1, "H1", action="三振", is_strike=True, pitch_cnt=1, balls=1, strikes=2, order=3),
+        ev(2, "H2", action="三振", inning=1, half="2", is_strike=True, pitch_cnt=1,
+           balls=1, strikes=3, order=3),
+    ]
+    assert len(build_islands(events)) == 2
 
 
 # ===========================================================================
@@ -386,7 +488,8 @@ def test_pa_fingerprint_reconstructable_from_stored_fields() -> None:
     pa = pas[0]
     rebuilt = compute_pa_fingerprint(
         members=[m.fingerprint for m in pa.members],
-        hitter=pa.hitter_acnt, start_pitcher=pa.start_pitcher_acnt,
+        hitter=pa.hitter_acnt, end_hitter=pa.end_hitter_acnt,
+        start_pitcher=pa.start_pitcher_acnt,
         end_pitcher=pa.end_pitcher_acnt, result_action=pa.result_action,
         start_event_no=pa.start_event_no, end_event_no=pa.end_event_no,
     )
@@ -423,10 +526,10 @@ def test_naive_three_key_double_binds_but_canonical_does_not() -> None:
 # taxonomy 打包：生產容器（無 repo docs/）也須能載入
 # ===========================================================================
 def test_taxonomy_loads_from_packaged_data() -> None:
-    # load_taxonomy 解析到的路徑必須存在且可載入（含 v1.0.0 全 action）
+    # load_taxonomy 解析到的路徑必須存在且可載入（含全 action）
     tax = load_taxonomy()
-    assert tax.version == "1.0.0"
-    assert len(tax.actions) >= 55  # v1.0.0 收錄 58 個 action
+    assert tax.version == "1.1.0"
+    assert len(tax.actions) >= 55  # v1.0.0 收錄 58 個 action，FIX1 未增刪 action
 
 
 def test_packaged_taxonomy_is_byte_identical_to_canonical_docs() -> None:
@@ -451,3 +554,252 @@ def test_default_taxonomy_path_prefers_packaged_copy() -> None:
     assert resolved.exists()
     # 打包副本存在時必須優先選它（不依賴 repo docs/）
     assert resolved.parent.name == "resources"
+
+
+# ===========================================================================
+# FIX1：outs 由 content 推導（不讀會落後的 out_cnt）
+# ===========================================================================
+def test_derive_outs_reads_narrative_not_out_cnt() -> None:
+    """2018/A/78 4 局下實形：新打席首列 out_cnt 停在 0（落後），實際已 2 出局。"""
+    events = [
+        ev(1, "H1", action="三振", is_strike=True, pitch_cnt=1, out=0,
+           content="揮棒落空。 打者出局-三振出局。 1人出局。"),
+        ev(2, "H2", action="刺殺", is_strike=True, pitch_cnt=2, out=1,
+           content="擊出內野滾地球，刺殺出局。 2人出局。"),
+        ev(3, "H3", action="飛球接殺", is_strike=True, pitch_cnt=3, out=0),  # out_cnt 落後
+        ev(4, "H3", action="飛球接殺", is_strike=True, pitch_cnt=4, out=2,
+           content="飛球接殺出局。 3人出局。"),
+    ]
+    derived = derive_half_inning_outs(events)
+    assert derived["0000000003"] == (2, 2)  # 前 2 出局；本列未再增加
+    pas = _pas(events)
+    assert [p.pre_state["outs"] for p in pas] == [0, 1, 2]
+    assert [p.post_state["outs"] for p in pas] == [1, 2, 3]
+
+
+def test_derive_outs_resets_per_half_inning() -> None:
+    events = [
+        ev(1, "H1", action="三振", is_strike=True, pitch_cnt=1, out=0,
+           content="打者出局-三振出局。 3人出局。"),
+        ev(2, "H9", action="三振", inning=1, half="2", is_strike=True, pitch_cnt=1, out=3,
+           content="打者出局-三振出局。 1人出局。"),
+    ]
+    derived = derive_half_inning_outs(events)
+    assert derived["0000000002"] == (0, 1)  # 換半局歸零，不沿用上半局的 3
+
+
+def test_derive_outs_is_monotonic_within_half_inning() -> None:
+    """單一敘述異常不得使後續事件整段偏移（出局數不可能減少）。"""
+    events = [
+        ev(1, "H1", action="三振", is_strike=True, pitch_cnt=1, content="2人出局。"),
+        ev(2, "H2", action="三振", is_strike=True, pitch_cnt=2, content="1人出局。"),
+        ev(3, "H3", action="三振", is_strike=True, pitch_cnt=3),
+    ]
+    assert derive_half_inning_outs(events)["0000000003"] == (2, 2)
+
+
+# ===========================================================================
+# FIX1：半局出局不變式 fail closed
+# ===========================================================================
+def _out_pa(index: int, inning: int, half: str) -> PlateAppearance:
+    return PlateAppearance(
+        pa_id=pa_id_for(2026, "A", 1, f"{index:010d}"), pa_index=index, year=2026,
+        kind_code="A", game_sno=1, start_event_no=f"{index:010d}", end_event_no=None,
+        hitter_acnt=f"H{index}", end_hitter_acnt=f"H{index}",
+        start_pitcher_acnt="P1", end_pitcher_acnt="P1",
+        state=STATE_READY, island_class="completed_pa", result_action="三振",
+        outcome_family="out", pre_state={"inning": inning, "half": half, "outs": 0},
+        post_state={}, members=[],
+    )
+
+
+def test_three_out_pa_per_half_inning_is_not_a_violation() -> None:
+    assert half_inning_out_violations([_out_pa(i, 1, "1") for i in range(3)]) == []
+
+
+def test_fourth_out_pa_in_half_inning_is_a_violation() -> None:
+    v = half_inning_out_violations([_out_pa(i, 1, "1") for i in range(4)])
+    assert v == [{"inning": 1, "half": "1", "out_pa": 4}]
+
+
+def test_violation_counts_per_half_inning_not_per_inning() -> None:
+    pas = [_out_pa(i, 1, "1") for i in range(3)] + [_out_pa(i + 10, 1, "2") for i in range(3)]
+    assert half_inning_out_violations(pas) == []
+
+
+def test_non_batter_out_families_do_not_count_toward_invariant() -> None:
+    """野手選擇／不死三振打者上壘，出局記在跑者身上——不計入本不變式。"""
+    pas = [_out_pa(i, 1, "1") for i in range(3)]
+    extra = _out_pa(9, 1, "1")
+    extra.outcome_family = "fielders_choice"
+    assert half_inning_out_violations([*pas, extra]) == []
+
+
+def test_invariant_marks_violating_half_inning_unreliable() -> None:
+    pas = [_out_pa(i, 1, "1") for i in range(4)] + [_out_pa(9, 2, "1")]
+    apply_invariant_states(pas, half_inning_out_violations(pas))
+    assert [p.state for p in pas[:4]] == [STATE_UNRELIABLE] * 4
+    assert all(p.reconciliation_reason == "half_inning_out_overflow" for p in pas[:4])
+    assert pas[4].state == STATE_READY  # 未違反的半局不受影響
+
+
+# ===========================================================================
+# FIX1：builder 升級的發布路徑不得削弱 fail closed
+# ===========================================================================
+def _one_pa() -> list[PlateAppearance]:
+    return _pas([ev(1, "H1", action="三振", is_strike=True, pitch_cnt=1)])
+
+
+def test_builder_upgrade_with_identical_source_publishes() -> None:
+    pas = _one_pa()
+    stale = {str(pas[0].pa_id): "fingerprint-from-old-builder"}
+    rec = reconcile(pas, stale, builder_upgrade_same_source=True)
+    assert rec.action == "publish" and rec.builder_upgrade is True
+    assert rec.changed_pa_ids == [str(pas[0].pa_id)]  # 差異仍逐筆留痕
+
+
+def test_source_drift_still_fails_closed_regardless_of_builder_version() -> None:
+    pas = _one_pa()
+    stale = {str(pas[0].pa_id): "fingerprint-from-drifted-source"}
+    rec = reconcile(pas, stale, builder_upgrade_same_source=False)
+    assert rec.action == "reconcile" and rec.builder_upgrade is False
+
+
+def test_builder_upgrade_flag_does_not_flag_pas_as_reconciliation() -> None:
+    pas = _one_pa()
+    rec = reconcile(pas, {str(pas[0].pa_id): "stale"}, builder_upgrade_same_source=True)
+    apply_reconciliation_states(pas, rec)
+    assert pas[0].state == STATE_READY
+
+
+def test_invariant_flag_is_not_overwritten_by_reconciliation_bookkeeping() -> None:
+    """不變式（資料本身錯）優先於 reconciliation（與既有發布不一致）的簿記。
+
+    次序若反過來，違反半局的 PA 會先被標 reconciliation_required，
+    不變式便看不到 ready 的出局 PA 而**靜默放行**——本測試釘住這個次序。
+    """
+    pas = [_out_pa(i, 1, "1") for i in range(4)]
+    apply_invariant_states(pas, half_inning_out_violations(pas))
+    rec = ReconcileResult(action="reconcile", added_pa_ids=[str(p.pa_id) for p in pas])
+    apply_reconciliation_states(pas, rec)
+    assert all(p.state == STATE_UNRELIABLE for p in pas)
+    assert all(p.reconciliation_reason == "half_inning_out_overflow" for p in pas)
+
+
+# ===========================================================================
+# FIX1 iteration 2：查核 Critical 反例——球數不歸零 ≠ 同一打席
+# ===========================================================================
+def test_count_continuation_across_advancing_batting_order_is_not_merged() -> None:
+    """`2021/D/64` 6 局下實形：棒次 5 於 1-1 結束（「2人出局。」），棒次 6 首列是 2-1。
+
+    來源球數在換打者時**沒有歸零**——iteration 1 只看球數會把兩個真打席併成一個
+    （查核 Critical，違反紅線 1）。棒次槽已前進即為兩個打席。
+    """
+    events = [
+        ev(22, "H1", is_ball=True, pitch_cnt=20, balls=1, strikes=0, order=5),
+        ev(23, "H1", is_strike=True, pitch_cnt=21, balls=1, strikes=1, order=5),
+        ev(24, "H1", is_strike=True, pitch_cnt=22, balls=1, strikes=1, order=5,
+           content=" 2人出局。"),
+        ev(25, "H2", is_ball=True, pitch_cnt=23, balls=2, strikes=1, order=6),
+        ev(26, "H2", is_strike=True, pitch_cnt=24, balls=2, strikes=2, order=6),
+    ]
+    assert len(build_islands(events)) == 2
+
+
+def test_count_continuation_with_advancing_order_and_no_announcement_is_not_merged() -> None:
+    """`2018/A/4` 實形：棒次 11 的 (1,0) 接棒次 12 的 (2,0)，無代打公告。"""
+    events = [
+        ev(33000, "H1", is_ball=True, pitch_cnt=0, balls=1, strikes=0, order=11),
+        ev(33900, "H2", action="四壞球", is_ball=True, pitch_cnt=1, balls=2, strikes=0, order=12),
+        ev(34000, "H2", action="四壞球", is_ball=True, pitch_cnt=2, balls=3, strikes=0, order=12),
+    ]
+    assert len(build_islands(events)) == 2
+
+
+def test_zero_batting_order_still_merges_on_count_continuation() -> None:
+    """`2020/A/239` 3 局上實形：早年資料 batting_order 全為 0，兩段同為 0 仍可合併。"""
+    events = [
+        ev(1, "H1", action="三振", is_strike=True, pitch_cnt=41, strikes=1, order=0),
+        ev(3, "H1", action="三振", is_strike=True, pitch_cnt=43, balls=1, strikes=2, order=0),
+        {**ev(4, "H2", action="三振", change=True, pitch_cnt=43, balls=1, strikes=2, order=0),
+         "content": "更換代打：H1=>H2。"},
+        ev(5, "H2", action="三振", is_strike=True, pitch_cnt=44, balls=1, strikes=3, order=0,
+           content="好球沒揮棒。 打者出局-三振出局。 1人出局。"),
+    ]
+    assert len(build_islands(events)) == 1
+
+
+def test_zero_batting_order_alone_cannot_carry_the_weak_signal() -> None:
+    """batting_order=0 是缺值哨兵：只有公告列而無球數佐證時不得合併。"""
+    events = [
+        {**ev(1, "H1", action="三振", pitch_cnt=16, order=0), "content": "投手牽制一壘跑者"},
+        {**ev(2, "H2", action="三振", change=True, pitch_cnt=16, order=0),
+         "content": "更換代打：H1=>H2。"},
+        ev(3, "H2", action="三振", is_strike=True, pitch_cnt=17, strikes=1, order=0),
+    ]
+    assert len(build_islands(events)) == 2
+
+
+# ===========================================================================
+# FIX1 iteration 2：記錄規則 9.15(b) 的打席歸屬
+# ===========================================================================
+def test_strikeout_after_two_strikes_is_charged_to_original_batter() -> None:
+    """9.15(b) 第一句：原打者於第 2 好球後退出、代打者以三振完成 → 記原打者。"""
+    pas = _pas(_mid_pa_pinch_hit_events())
+    assert len(pas) == 1
+    assert pas[0].hitter_acnt == "H1"      # 記錄歸屬＝被判第 2 好球者
+    assert pas[0].end_hitter_acnt == "H2"  # 實際打完的是代打者
+
+
+def test_non_strikeout_result_is_charged_to_the_substitute() -> None:
+    """9.15(b) 第二句：代打者以其他結果完成打擊（含四壞球）→ 記該代打者。"""
+    events = [
+        ev(1, "H1", action="一壘安打", is_ball=True, pitch_cnt=1, balls=1, order=3),
+        {**ev(2, "H2", action="一壘安打", change=True, pitch_cnt=1, balls=1, order=3),
+         "content": "更換代打：H1=>H2。"},
+        ev(3, "H2", action="一壘安打", is_ball=True, pitch_cnt=2, balls=2, order=3),
+        ev(4, "H2", action="一壘安打", is_strike=True, pitch_cnt=3, balls=2, strikes=1,
+           order=3, content="擊出中外野平飛球，一壘安打 。"),
+    ]
+    pas = _pas(events)
+    assert len(pas) == 1
+    assert pas[0].hitter_acnt == "H2" and pas[0].end_hitter_acnt == "H2"
+
+
+def test_strikeout_charged_to_substitute_when_original_never_reached_two_strikes() -> None:
+    """原打者未達 2 好球即退出（僅牽制列）→ 三振記代打者，非原打者。"""
+    events = [
+        {**ev(18, "H1", action="三振", pitch_cnt=16, order=4), "content": "投手牽制一壘跑者"},
+        {**ev(19, "H2", action="三振", change=True, pitch_cnt=16, order=4),
+         "content": "更換代打：H1=>H2。"},
+        ev(20, "H2", action="三振", is_strike=True, pitch_cnt=17, strikes=1, order=4),
+        ev(21, "H2", action="三振", is_strike=True, pitch_cnt=18, strikes=2, order=4),
+        ev(22, "H2", action="三振", is_strike=True, pitch_cnt=19, strikes=3, order=4,
+           content="揮棒落空。 打者出局-三振出局。 3人出局。"),
+    ]
+    pas = _pas(events)
+    assert len(pas) == 1
+    assert pas[0].hitter_acnt == "H2" and pas[0].end_hitter_acnt == "H2"
+
+
+def test_uncaught_third_strike_is_not_treated_as_a_9_15_b_strikeout() -> None:
+    """不死三振未列入 STRIKEOUT_ACTIONS（規則未明文＋全母體零實例）→ 歸完成者。
+
+    此測試釘住**現行的保守讀法**：若日後規則層裁定不死三振適用 9.15(b) 第一句，
+    這裡會紅，屆時是刻意變更而非漂移。
+    """
+    events = [
+        ev(1, "H1", action="不死三振 捕逸", is_strike=True, pitch_cnt=1, strikes=2, order=3),
+        {**ev(2, "H2", action="不死三振 捕逸", change=True, pitch_cnt=1, strikes=2, order=3),
+         "content": "更換代打：H1=>H2。"},
+        ev(3, "H2", action="不死三振 捕逸", is_strike=True, pitch_cnt=2, strikes=3, order=3,
+           content="不死三振上壘。"),
+    ]
+    pas = _pas(events)
+    assert len(pas) == 1 and pas[0].hitter_acnt == "H2"
+
+
+def test_single_batter_pa_has_identical_charged_and_completing_hitter() -> None:
+    events = [ev(1, "H1", action="三振", is_strike=True, pitch_cnt=1, strikes=3)]
+    pa = _pas(events)[0]
+    assert pa.hitter_acnt == pa.end_hitter_acnt == "H1"

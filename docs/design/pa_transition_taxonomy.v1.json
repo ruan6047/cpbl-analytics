@@ -1,5 +1,5 @@
 {
-  "taxonomy_version": "1.0.0",
+  "taxonomy_version": "1.1.0",
   "generated_at": "2026-07-24 10:48:23.660667+08:00",
   "parameters": {
     "from_year": 2018,
@@ -20,8 +20,10 @@
       "visiting_home_type",
       "hitter_acnt"
     ],
-    "exclude_from_boundary": "is_change_player rows (attached as members, never seed/split)",
-    "ordering": "main_event_no::bigint (strict total order)"
+    "exclude_from_boundary": "is_change_player rows (attached as members, never seed/split); mid-PA pinch-hit substitutions do not split either — a hitter change inside a half-inning continues the same PA when BOTH sides share the same batting_order slot AND either the count does not reset (count_continues) or a 更換代打 announcement is present (pinch_hit_slot). SSoT: cpbl.ingest.pa_build.continues_same_plate_appearance (GAME-RECAP-PA1-FIX1).",
+    "ordering": "main_event_no::bigint (strict total order)",
+    "boundary_note": "hitter_acnt changes are necessary but not sufficient for a PA boundary: livelog action_name is the PA-level result copied onto every row of the PA, so splitting a PA at a pinch-hit substitution double-counts the outcome (296 island pairs corpus-wide, 2018-2026). Conversely the count alone is NOT sufficient evidence of continuation: 7 real PA boundaries in the corpus carry a non-resetting count (e.g. 2021/D/64 6th bottom, 2018/A/4), so batting_order equality is a required condition.",
+    "attribution": "A merged PA can span two batters. hitter_acnt = the batter officially charged per scoring rule 9.15(b); end_hitter_acnt = the batter who completed the PA."
   },
   "island_classes": {
     "completed_pa": "≥1 island with a registered pa_terminal action (含無投球 award)",
@@ -33,7 +35,8 @@
   "fail_closed": {
     "unknown_action": "unreliable：pa 保留成員事件，WP/WPA 與逐球映射回 null + reason",
     "truncated_fragment": "not_a_pa：不產出 credited outcome；逐球歸屬 mapping_failed",
-    "ambiguous_pitch_key": "(inning,pitcher,hitter) 候選>1 → mapping_state=failed"
+    "ambiguous_pitch_key": "(inning,pitcher,hitter) 候選>1 → mapping_state=failed",
+    "half_inning_out_overflow": "any half-inning with >3 batter-out PAs (outcome_family in out/sacrifice) fails the build closed: the whole game is not published and the prior published build is kept for audit. No allowlist — a violation means source corruption or a classification bug."
   },
   "actions": [
     {

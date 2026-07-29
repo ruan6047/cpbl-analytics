@@ -365,7 +365,16 @@ def _game_events(cur: Any, year: int, kind: str, game: int) -> list[Event]:
 
 
 def _island_starts(events: list[Event]) -> list[list[Event]]:
-    """canonical island（排除換人列、切界 (inning,half,hitter)）。"""
+    """canonical island（排除換人列、切界 (inning,half,hitter)）。
+
+    GAME-RECAP-PA1-FIX1：同半局內的打者變化若為**打席中途代打換人**則不切界——
+    livelog 的 ``action_name`` 是打席層級結果被複製到每一列，照打者切界會把一個打席
+    記成兩個 PA。判準單一實作於 ``cpbl.ingest.pa_build.continues_same_plate_appearance``
+    （本檔與 builder 共用同一判準，僅分組迴圈各自實作；
+    ``tests/test_pa_builder.py`` 釘住兩者分組結果一致）。
+    """
+    from cpbl.ingest.pa_build import continues_same_plate_appearance
+
     islands: list[list[Event]] = []
     prev_key: tuple[Any, str, Any] | None = None
     for ev in events:
@@ -375,8 +384,12 @@ def _island_starts(events: list[Event]) -> list[list[Event]]:
             continue
         key = (ev.get("inning_seq"), str(ev.get("visiting_home_type")), ev.get("hitter_acnt"))
         if key != prev_key:
-            islands.append([])
-            prev_key = key
+            same_half = prev_key is not None and key[:2] == prev_key[:2]
+            if islands and same_half and continues_same_plate_appearance(islands[-1], ev):
+                prev_key = key  # 代打續打席
+            else:
+                islands.append([])
+                prev_key = key
         islands[-1].append(ev)
     return islands
 
