@@ -833,10 +833,9 @@ def reconcile(
 
     ``builder_upgrade_same_source`` 是唯一例外，且**不削弱 fail closed**：
     reconciliation 的用途是攔截**來源漂移**，不是攔截 builder 升級。呼叫端只有在
-    新舊 build 的 ``livelog_revision_id``／``tracking_revision_id`` **完全相同**
-    （來源 manifest 由 sha256 決定，相同即來源逐列未變）而 ``builder_version``／
+    新舊 build 的 ``livelog_revision_id`` **完全相同**（manifest 由 sha256 決定，相同即 livelog 逐列未變；tracking 刻意不比對——pa_fingerprint 是 livelog 的純函式，tracking 漂移不可能造成 fingerprint 差異）而 ``builder_version``／
     ``taxonomy_version`` 不同時才可傳 ``True``——此時 fingerprint 變更**只可能**
-    來自我們對來源的解讀改變。來源一旦有任何變動，此旗標即為 ``False``，
+    來自我們對來源的解讀改變。livelog 一旦有任何變動，此旗標即為 ``False``，
     行為與過去完全一致（fail closed）。差異仍逐筆記入 ``validation_summary`` 供稽核。
     """
     if not published:
@@ -1118,12 +1117,17 @@ def build_game(cur: Any, year: int, kind: str, game: int, *, taxonomy: Taxonomy 
 
     published_meta = _published_build_meta(cur, year, kind, game)
     published = _published_pa_fingerprints(cur, year, kind, game)
-    # 來源 manifest（sha256 決定）完全相同、只有 builder/taxonomy 進版 → fingerprint
-    # 差異只可能來自解讀改變，非來源漂移；來源有任何變動則此旗標為 False（fail closed）。
+    # livelog manifest（sha256 決定）完全相同、只有 builder/taxonomy 進版 → fingerprint
+    # 差異只可能來自解讀改變，非來源漂移；livelog 有任何變動則此旗標為 False（fail closed）。
+    # **只比對 livelog revision，刻意不比對 tracking revision**：pa_fingerprint 是
+    # livelog 列的純函式（成員指紋／打者／投手／事件號／result_action），tracking 從不
+    # 進入 fingerprint——tracking 漂移不可能造成 fingerprint 差異，卻常態發生
+    # （TrackMan 晚發布補資料，如 2026/A/215）。這與既有語意一致：builder 版本不變時，
+    # tracking-only 變動本就走「fingerprint 全等 → 乾淨 republish 帶新映射」路徑，
+    # 從不阻擋發布。
     builder_upgrade = bool(
         published_meta
         and published_meta["livelog_revision_id"] == livelog_rev
-        and published_meta["tracking_revision_id"] == tracking_rev
         and (published_meta["builder_version"] != BUILDER_VERSION
              or published_meta["taxonomy_version"] != taxonomy.version)
     )
@@ -1233,7 +1237,7 @@ def _write_pas(
     # 逐球映射（需 tracking_rev；plan 的 pa_index 對齊 pas list 索引）
     if plan.mappings and tracking_rev is not None:
         map_rows = [
-            (pa_row_ids[m.pa_index], str(pas[m.pa_index].pa_id), tracking_rev,
+            (pa_row_ids[m.pa_index], str(pas[m.pa_index].pa_id), build_id, tracking_rev,
              pas[m.pa_index].year, pas[m.pa_index].kind_code, pas[m.pa_index].game_sno,
              m.pitcher_acnt, m.pitch_cnt, m.pitch_position, m.mapping_state, m.mapping_reason)
             for m in plan.mappings
@@ -1241,9 +1245,9 @@ def _write_pas(
         cur.executemany(
             """
             INSERT INTO cpbl.game_pa_pitch_mappings
-                (pa_row_id, pa_id, source_revision_id, year, kind_code, game_sno,
+                (pa_row_id, pa_id, build_id, source_revision_id, year, kind_code, game_sno,
                  pitcher_acnt, pitch_cnt, pitch_position, mapping_state, mapping_reason)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """,
             map_rows,
         )

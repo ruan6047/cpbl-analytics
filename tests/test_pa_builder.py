@@ -919,3 +919,16 @@ def test_generator_aggregation_grouping_matches_build_islands() -> None:
                for e in isl)
     ]
     assert len(_aggregate_islands(events)) == len(canonical) == 2
+
+
+def test_builder_upgrade_ignores_tracking_only_drift() -> None:
+    """tracking revision 漂移不阻擋 builder 升級發布：pa_fingerprint 是 livelog 純函式。
+
+    真實案例 2026/A/215：livelog revision 相同、TrackMan 晚發布使 tracking revision
+    改變，iteration 4 首次重建時被過緊的雙 revision 守門擋成 reconciliation_required。
+    fingerprint 從不含 tracking 欄位，livelog 相同即可歸因於 builder。
+    （本測試釘 reconcile 的行為端：upgrade 旗標成立時有差異仍發布。）
+    """
+    pas = _one_pa()
+    rec = reconcile(pas, {str(pas[0].pa_id): "old-fp"}, builder_upgrade_same_source=True)
+    assert rec.action == "publish" and rec.changed_pa_ids
