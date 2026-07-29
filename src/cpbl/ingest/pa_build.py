@@ -1138,14 +1138,24 @@ def build_game(cur: Any, year: int, kind: str, game: int, *, taxonomy: Taxonomy 
     # reconciliation 會把 ready 改成 reconciliation_required，使不變式看不到違反而靜默放行。
     violations = half_inning_out_violations(pas)
     apply_invariant_states(pas, violations)
+    demote_published = False
     if violations:
         rec = ReconcileResult(
             action="reconcile", changed_pa_ids=rec.changed_pa_ids,
             added_pa_ids=rec.added_pa_ids, removed_pa_ids=rec.removed_pa_ids,
         )
+        # 同源降級：舊 published 與本次 build 的 livelog revision **相同**時，舊 build
+        # 是從同一份（已證損壞的）來源建的、必然帶有同一違反——留在 published 視圖等於
+        # 持續供應已知錯誤資料。fail closed 到「該場無 published」（列保留稽核，狀態轉
+        # superseded）。revision 不同則保留舊 published：那是「舊資料乾淨、新資料可疑」
+        # 的來源漂移情境（rehearsal v5 覆蓋該側）。實例：2019/A/173（同 revision 561）。
+        demote_published = bool(
+            published_meta and published_meta["livelog_revision_id"] == livelog_rev
+        )
         log.error(
-            "invariant violated (half-inning out PA > %d), not publishing %s/%s/%s: %s",
-            MAX_OUT_PA_PER_HALF_INNING, year, kind, game, violations,
+            "invariant violated (half-inning out PA > %d), not publishing %s/%s/%s"
+            " (demote_same_source_published=%s): %s",
+            MAX_OUT_PA_PER_HALF_INNING, year, kind, game, demote_published, violations,
         )
     apply_reconciliation_states(pas, rec)
 
@@ -1157,6 +1167,7 @@ def build_game(cur: Any, year: int, kind: str, game: int, *, taxonomy: Taxonomy 
         "builder_upgrade": rec.builder_upgrade,
     }
     summary["invariant_violations"] = violations
+    summary["published_demoted_same_source"] = demote_published
     cur.execute(
         """
         INSERT INTO cpbl.game_recap_builds
@@ -1185,6 +1196,12 @@ def build_game(cur: Any, year: int, kind: str, game: int, *, taxonomy: Taxonomy 
             "UPDATE cpbl.game_recap_builds SET state='reconciliation_required' WHERE build_id=%s",
             (build_id,),
         )
+        if demote_published:  # 同源不變式違反：舊 published 一併降級（該場轉為無 published）
+            cur.execute(
+                "UPDATE cpbl.game_recap_builds SET state='superseded' "
+                "WHERE year=%s AND kind_code=%s AND game_sno=%s AND state='published'",
+                (year, kind, game),
+            )
         build_state = "reconciliation_required"
 
     return GameBuildResult(year, kind, game, build_id, rec.action, build_state, summary)

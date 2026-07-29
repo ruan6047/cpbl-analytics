@@ -1,0 +1,56 @@
+{
+  "build_version_distribution": [
+    {
+      "builder_version": "pa-build-1.0.0",
+      "taxonomy_version": "1.0.0",
+      "state": "superseded",
+      "n": 4272
+    },
+    {
+      "builder_version": "pa-build-1.2.0",
+      "taxonomy_version": "1.1.0",
+      "state": "published",
+      "n": 4278
+    },
+    {
+      "builder_version": "pa-build-1.2.0",
+      "taxonomy_version": "1.1.0",
+      "state": "reconciliation_required",
+      "n": 1
+    }
+  ],
+  "published_uniqueness": {
+    "games": 4279,
+    "exactly_one": 4278
+  },
+  "isolated_games": [
+    {
+      "year": 2019,
+      "kind_code": "A",
+      "game_sno": 173,
+      "builder_version": "pa-build-1.2.0",
+      "invariant_violations": [
+        {
+          "half": "1",
+          "inning": 1,
+          "out_pa": 4
+        }
+      ],
+      "reconcile_action": "reconcile",
+      "changed_pas": 86
+    }
+  ],
+  "acceptance": {
+    "half_innings_with_out_pa_gt_3": 0,
+    "half_inning_pre_outs_duplicates": 0
+  },
+  "published_v120_pa_states": {
+    "non_pa": 258,
+    "ready": 329117,
+    "truncated": 1739
+  },
+  "cross_batter_attribution_in_db": {
+    "cross_batter": 296,
+    "charged_to_original": 22
+  }
+}
