@@ -9,6 +9,7 @@
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
 | [DEV-TRAILER-GUARD-SCOPE1](tasks/DEV-TRAILER-GUARD-SCOPE1.md) | — | T2 | trailer 守衛取樣範圍 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-28T19:14:00+08:00 |
+| [GAME-RECAP-PA1-FIX1](tasks/GAME-RECAP-PA1-FIX1.md) | INIT-GAME-RECAP | T4 | canonical PA 表的打席切分與出局數正確性 | Claude Fable 5@Claude Code | `ai/fable-5/GAME-RECAP-PA1-FIX1 @ .claude/worktrees/fable-5-suitable-tasks-8aa8d9` | 0 | 🔨執行中 | ⏸未部署 | 2026-07-29T08:50:43+08:00 |
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | — | `ai/sonnet-5/INGEST-GAME-TM-REFACTOR1-g3 @ .claude/worktrees/ingest-game-tm-refactor1-g3-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-24T12:53:42+08:00 |
 | [INGEST-PA-DAILY1](tasks/INGEST-PA-DAILY1.md) | — | T3 | canonical PA build 接進每日 refresh 鏈 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-26T20:55:46+08:00 |
 | [INGEST-PLAYER-BIO-GAP1](tasks/INGEST-PLAYER-BIO-GAP1.md) | INIT-OFFICIAL-DATA1 | T3 | 補齊 14 位球員的 country／birthday | Claude Opus 5@Claude Code | `ai/opus-5/INGEST-PLAYER-BIO-GAP1 @ .claude/worktrees/ingest-player-bio-gap1-execution` | 3 | ⏸阻塞 | ⏸未部署 | 2026-07-28T11:50:08+08:00 |
