@@ -46,6 +46,18 @@ def test_final_snapshot_does_not_age_into_stale() -> None:
     assert public["poll_after_seconds"] is None
 
 
+def test_public_snapshot_exposes_source_error_separately_from_age() -> None:
+    snapshot = build_snapshot(_raw(), fetched_at=NOW - timedelta(seconds=5))
+    snapshot["source"]["last_error_at"] = (NOW - timedelta(seconds=1)).isoformat()
+    snapshot["source"]["last_error_type"] = "ReadTimeout"
+
+    public = live_cache.public_snapshot(snapshot, now=NOW, live_stale_after_seconds=45)
+
+    assert public["freshness"] == "fresh"
+    assert public["source_status"] == "error"
+    assert public["source"]["last_error_type"] == "ReadTimeout"
+
+
 class _Cursor:
     description: list = []
 

@@ -51,6 +51,9 @@ class SnapshotCache(Protocol):
 
     def set_snapshot(self, snapshot: dict) -> None: ...
 
+    def record_source_error(self, year: int, kind: str, sno: int, *,
+                            observed_at: datetime, error_type: str) -> None: ...
+
 
 class RedisLiveGameCache:
     """Redis JSON cache；鎖以 SET NX EX 取得、Lua token compare 後釋放。"""
@@ -71,6 +74,9 @@ class RedisLiveGameCache:
 
     def _key(self, year: int, kind: str, sno: int) -> str:
         return f"{self.prefix}:{year}:{kind}:{sno}"
+
+    def _health_key(self, year: int, kind: str, sno: int) -> str:
+        return f"{self._key(year, kind, sno)}:health"
 
     def acquire_lock(self) -> bool:
         token = self.token_factory()
@@ -100,7 +106,16 @@ class RedisLiveGameCache:
         if isinstance(raw, bytes):
             raw = raw.decode()
         value = json.loads(raw)
-        return value if isinstance(value, dict) else None
+        if not isinstance(value, dict):
+            return None
+        health_raw = self.client.get(self._health_key(year, kind, sno))
+        if health_raw is not None:
+            if isinstance(health_raw, bytes):
+                health_raw = health_raw.decode()
+            health = json.loads(health_raw)
+            if isinstance(health, dict):
+                value["source"] = {**(value.get("source") or {}), **health}
+        return value
 
     def set_snapshot(self, snapshot: dict) -> None:
         identity = _identity({"GameId": snapshot.get("game_id")})
@@ -110,6 +125,18 @@ class RedisLiveGameCache:
         self.client.set(
             self._key(year, kind, sno),
             json.dumps(snapshot, ensure_ascii=False, separators=(",", ":")),
+            ex=self.snapshot_ttl_seconds,
+        )
+        self.client.delete(self._health_key(year, kind, sno))
+
+    def record_source_error(self, year: int, kind: str, sno: int, *,
+                            observed_at: datetime, error_type: str) -> None:
+        self.client.set(
+            self._health_key(year, kind, sno),
+            json.dumps({
+                "last_error_at": _iso(observed_at),
+                "last_error_type": error_type,
+            }, separators=(",", ":")),
             ex=self.snapshot_ttl_seconds,
         )
 
@@ -396,7 +423,12 @@ class LiveGameWorker:
                         previous=previous,
                     )
                     self.cache.set_snapshot(snapshot)
-                except (OSError, ValueError, httpx.HTTPError):
+                except (OSError, ValueError, httpx.HTTPError) as exc:
+                    self.cache.record_source_error(
+                        year, kind, sno,
+                        observed_at=now,
+                        error_type=type(exc).__name__,
+                    )
                     errors += 1
                     continue
                 cached += 1

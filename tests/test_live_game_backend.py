@@ -169,6 +169,7 @@ class _Cache:
         self.killed = killed
         self.released = 0
         self.items: dict[tuple[int, str, int], dict] = {}
+        self.source_errors: list[tuple[int, str, int, str, str]] = []
 
     def acquire_lock(self) -> bool:
         return self.lock
@@ -185,6 +186,10 @@ class _Cache:
     def set_snapshot(self, snapshot: dict) -> None:
         game_id = snapshot["game_id"].split("-")
         self.items[(int(game_id[0]), game_id[1], int(game_id[2]))] = snapshot
+
+    def record_source_error(self, year: int, kind: str, sno: int, *,
+                            observed_at: datetime, error_type: str) -> None:
+        self.source_errors.append((year, kind, sno, observed_at.isoformat(), error_type))
 
 
 def _schedule(game_id: str, status: str, starts_at: str) -> dict:
@@ -259,6 +264,9 @@ def test_worker_caches_only_observation_window_and_never_overwrites_on_error() -
     assert result["errors"] == 1
     assert result["cached"] == 1
     assert cache.get_snapshot(2026, "A", 226) == old
+    assert cache.source_errors == [
+        (2026, "A", 226, now.isoformat(), "ReadTimeout"),
+    ]
     assert cache.get_snapshot(2026, "A", 228)["phase"] == "postponed"
     assert cache.released == 1
 
@@ -376,6 +384,9 @@ class _Redis:
     def get(self, key: str):
         return self.values.get(key)
 
+    def delete(self, key: str):
+        return self.values.pop(key, None) is not None
+
     def eval(self, script: str, numkeys: int, key: str, token: str):
         self.eval_calls.append((key, token))
         if self.values.get(key) == token:
@@ -402,6 +413,30 @@ def test_redis_cache_uses_ttl_and_token_checked_lock_release() -> None:
 
     client.values["test:live:kill"] = "1"
     assert cache.is_killed() is True
+
+
+def test_redis_cache_tracks_source_error_without_discarding_last_success() -> None:
+    client = _Redis()
+    cache = RedisLiveGameCache(client, prefix="test:live")
+    snapshot = build_snapshot(
+        _game("START", livelog=[{"PitchCnt": 1}]),
+        fetched_at=T0,
+    )
+    cache.set_snapshot(snapshot)
+
+    cache.record_source_error(
+        2026, "A", 226,
+        observed_at=datetime(2026, 7, 28, 17, 0, 12, tzinfo=UTC),
+        error_type="ReadTimeout",
+    )
+
+    failed = cache.get_snapshot(2026, "A", 226)
+    assert failed["event_count"] == 1
+    assert failed["source"]["last_error_type"] == "ReadTimeout"
+    assert failed["source"]["last_error_at"] == "2026-07-28T17:00:12+00:00"
+
+    cache.set_snapshot(snapshot)
+    assert "last_error_at" not in cache.get_snapshot(2026, "A", 226)["source"]
 
 
 def test_stats_source_uses_only_verified_stats_endpoints() -> None:
