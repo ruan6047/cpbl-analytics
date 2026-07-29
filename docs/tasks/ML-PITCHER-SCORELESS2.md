@@ -114,7 +114,18 @@
   但兩處「宣稱與證據不符」需修——(1) 本節與 memo 誤將單向蘊含（有嚴格增益 ⇒
   `last_pitch` 之後有得分局）寫成「當且僅當／恰好等於」，反向不成立（反向反例
   99,852 組，例 `runs=(0,1,0)`／`last_pitch=1`／`official_outs=9`）；(2) memo 宣稱
-  `git diff b974b10 -- src scripts` 為空，實測並非為空（+25/−1，全為刻意新增的
+  `git diff b974b10 -- src scripts` 為空，實測並非為空（全為刻意新增的
   docstring／R2 註解，無邏輯變更）。已修正 `scoreless_streak.py`、
   `tests/test_scoreless_streak.py`、`ML-PITCHER-SCORELESS2_RESULTS.md` 與本節措辭，
   結論不變。
+- 2026-07-29 iteration 4（查核阻塞修正，不動可執行邏輯）：iteration 3 把 diff 統計
+  數字修成 `+25/−1`，但同一個 commit 又替 docstring 多加一行，18→19，數字沒跟著改，
+  memo 與本節仍停在過期的 `+25/−1`（實際 `+26/−1`）——同一類「宣稱裡嵌一個會被自己
+  編輯弄髒的手工數字」第三次發生（iteration 2 說 diff 為空、iteration 3 說 +25/−1，
+  皆非事後才錯，而是**該輪自己交付時就已經或即將錯**）。治法不是把 25 改成 26，是不
+  再把「零可執行邏輯變更」寫成人工維護的行數：兩處具體行數已刪除，只留可重現指令與
+  定性結論；新增 `tests/test_scoreless_streak_no_logic_diff.py`，把 `git diff b974b10
+  -- src scripts` 涉及的每個檔案剝除 docstring 後比對 AST（Python 剖析器本身已丟棄
+  註解，不需額外過濾），結構相同才算通過——斷言本身會隨 diff 內容重算，不會過期。
+  變異檢驗：(a) 對帳腳本一處 `>=` 改 `>`（真實邏輯變更）→ 斷言 FAIL；(b) 純新增註解
+  → PASS；(c) 純新增 docstring 文字 → PASS。三個既有回歸測試與對帳腳本行為不變。

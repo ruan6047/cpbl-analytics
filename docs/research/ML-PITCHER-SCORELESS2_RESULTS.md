@@ -110,10 +110,21 @@ official_outs − 3m − 3(S − last_pitch)  >  official_outs − 3·n_prefix
 ## 4. 本輪實際交付
 
 1. **撤回 iteration 1 的兩個 commit**（`3517f54`、`f687daf`）。**可執行邏輯與 API
-   payload 已回到合併基線 `b974b10`**；`git diff b974b10 -- src scripts` **並非為空**
-   （`scripts/reconcile_scoreless_streak.py` +6/−1、`src/cpbl/models/scoreless_streak.py`
-   +18/−0，共 +25/−1）——那些差異全部是本輪刻意新增的**模組 docstring、R2 對帳腳本
-   註解**（見下方第 2、3、4 項），不含任何邏輯變更；執行期行為與基線相同。
+   payload 已回到合併基線 `b974b10`**；`git diff b974b10 -- src scripts` 並非為空，
+   但那些差異全部是本輪刻意新增的**模組 docstring、R2 對帳腳本註解**（見下方第
+   2、3、4 項），**不含任何邏輯變更**；執行期行為與基線相同。
+
+   這條「零邏輯變更」**不寫具體行數**——iteration 2 曾誤報「diff 為空」、iteration 3
+   修正為「+25/−1」但本身又因新增一行 docstring 而立刻過期成 +26/−1，行數是「本輪自己
+   也在改的那份 diff」的產物，每次編輯 memo 都可能讓它自己失效。iteration 4 起改為
+   斷言：`tests/test_scoreless_streak_no_logic_diff.py` 把 `git diff b974b10 -- src
+   scripts` 涉及的每個檔案剝除 docstring 後比對 AST，結構相同才算通過（Python 剖析器
+   本來就丟棄註解，不需要額外過濾規則）。要重現，跑
+
+   ```bash
+   uv run pytest tests/test_scoreless_streak_no_logic_diff.py -v
+   git diff b974b10 -- src scripts   # 人眼複查差異內容本身
+   ```
 2. **新增三個回歸測試**（`tests/test_scoreless_streak.py`），即使下界已撤回也留著，
    防止未來重新引入同型假設：
    - `test_zero_pitch_earned_run_forbids_ending_the_window_early`：反例本身，
