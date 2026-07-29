@@ -67,12 +67,42 @@
 - [ ] 查核者自行構造缺 trailer 的 commit，在推前與推後各驗一次。
 - [ ] 查核者確認新判準不會反過來讓 Coordinator 的正常 main commit 大量誤鳴。
 
+## 次要交付：掃一遍其他守衛（2026-07-29 追加）
+
+開卡時只有 trailer 守衛一個案例。**同一天之內又出現三個同型缺陷**，其中兩個已就地修好，
+修法可直接當範本：
+
+| 守衛 | 檢查的「標記」 | 該成立的「性質」 | 狀態 |
+|---|---|---|---|
+| `tests/test_commit_trailers.py` | commit 不在 `origin/main` 裡 | 這是執行分支的 commit | **本卡待修** |
+| `scripts/review_prompt.py` | 兩個 SHA 字串相等 | 指向同一個 commit | 已修（`c740caa`，兩邊經 `rev-parse` 解析後比對） |
+| `tests/test_scoreless_streak_no_logic_diff.py` | 測試沒失敗 | 斷言確實執行過 | 已修（`1459357`，CI 環境缺 baseline 時 fail-not-skip） |
+| （Coordinator 的 deploy 等待迴圈） | 存在一個 completed 的 Deploy run | **我這次的** deploy 完成了 | 已修（改比對 headSha；非 repo 內程式） |
+
+共同結構是**檢查一個看得見的標記，而該成立的性質從來不是那個標記的存在或缺席**；
+症狀則多半是**在真正要它把關的環境靜默失效**（未推的 commit、淺層 clone、前一日的 run）。
+
+因此本卡追加一項次要交付：**掃一遍 `tests/` 與 `scripts/` 底下其餘守衛型檢查**
+（`test_coaches_guard.py`、`test_route_snapshot.py`、`test_task_card_sections.py`、
+`test_advanced_snapshot_schema.py`、`check_scoreless_null_folding.py`、
+`verify_refresh_info.py`、`verify_deep_tm_backfill.py`），對每一個回答兩個問題：
+
+1. 它檢查的是標記還是性質？
+2. **有沒有一個環境會讓它靜默通過？**（未推、淺層 clone、缺資料、跳過、空清單…）
+
+**只出報告與分級，不要一次全改**——本卡主體仍是 trailer 守衛。發現的其他缺陷若非顯而易見
+的一行修正，開後續卡而不要擴張本卡範圍。
+
 ## 邊界
 
 - 只動守衛，不回頭改寫既有歷史。
-- 預估 S。
+- 次要交付以**盤點報告**為主；主體（trailer 守衛）修好即算達標。
+- 預估 S～M。
 
 ## Log
 
 - 2026-07-28 於 `ML-PITCHER-SCORELESS1` 合併時暴露並開卡。同日該卡的合併事件
   （`ML-PITCHER-SCORELESS1-MERGE-023`）已記錄完整經過。
+- 2026-07-29 追加「掃一遍其他守衛」次要交付。理由：同型缺陷在開卡後一天內又出現三次
+  （見上表），顯示這不是單一守衛的疏忽而是跨檔案的模式；同時兩個已修案例提供了
+  可複用的修法範本（解析後比對、fail-not-skip）。
