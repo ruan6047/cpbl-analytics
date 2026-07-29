@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-30T00:17:15.304737+08:00",
+  "generated_at": "2026-07-30T00:56:33.486689+08:00",
   "scope": {
     "from_year": 2018,
     "to_year": 2026,
@@ -59,7 +59,155 @@
       "ghost_island_no_pitch": 210,
       "skipped_no_outcome": 3
     },
+    "by_criterion": {
+      "pinch_hit_slot": 216,
+      "count_continues": 80
+    },
     "anomalies": []
+  },
+  "iteration1_missed_classification": {
+    "iter1_found": 61,
+    "iter2_total": 83,
+    "iter1_subset_of_iter2": true,
+    "missed": 22,
+    "missed_by_criterion": {
+      "count_continues": 18,
+      "pinch_hit_slot": 4
+    },
+    "rows": [
+      {
+        "game": "2018/A/150",
+        "spurious_event_no": "0610010000",
+        "criterion": "count_continues",
+        "outcome": "右飛"
+      },
+      {
+        "game": "2018/A/194",
+        "spurious_event_no": "0910012000",
+        "criterion": "count_continues",
+        "outcome": "三振"
+      },
+      {
+        "game": "2018/A/7",
+        "spurious_event_no": "0510015000",
+        "criterion": "count_continues",
+        "outcome": "一安"
+      },
+      {
+        "game": "2018/D/59",
+        "spurious_event_no": "0520001000",
+        "criterion": "pinch_hit_slot",
+        "outcome": "投滾"
+      },
+      {
+        "game": "2018/D/72",
+        "spurious_event_no": "0810004000",
+        "criterion": "count_continues",
+        "outcome": "一安"
+      },
+      {
+        "game": "2019/A/36",
+        "spurious_event_no": "0710021000",
+        "criterion": "count_continues",
+        "outcome": "三振"
+      },
+      {
+        "game": "2020/A/182",
+        "spurious_event_no": "0910008000",
+        "criterion": "count_continues",
+        "outcome": "三振"
+      },
+      {
+        "game": "2020/A/22",
+        "spurious_event_no": "0710019000",
+        "criterion": "count_continues",
+        "outcome": "二安"
+      },
+      {
+        "game": "2020/D/206",
+        "spurious_event_no": "0610011000",
+        "criterion": "count_continues",
+        "outcome": "三振"
+      },
+      {
+        "game": "2021/D/161",
+        "spurious_event_no": "0720008000",
+        "criterion": "count_continues",
+        "outcome": "三振"
+      },
+      {
+        "game": "2022/A/206",
+        "spurious_event_no": "0710001000",
+        "criterion": "count_continues",
+        "outcome": "三振"
+      },
+      {
+        "game": "2022/D/128",
+        "spurious_event_no": "0320006000",
+        "criterion": "count_continues",
+        "outcome": "右飛"
+      },
+      {
+        "game": "2022/D/143",
+        "spurious_event_no": "0920002000",
+        "criterion": "count_continues",
+        "outcome": "四壞"
+      },
+      {
+        "game": "2022/D/226",
+        "spurious_event_no": "0920007000",
+        "criterion": "count_continues",
+        "outcome": "三振"
+      },
+      {
+        "game": "2023/A/9",
+        "spurious_event_no": "0720024000",
+        "criterion": "pinch_hit_slot",
+        "outcome": "游滾"
+      },
+      {
+        "game": "2023/D/151",
+        "spurious_event_no": "0910013000",
+        "criterion": "pinch_hit_slot",
+        "outcome": "一安"
+      },
+      {
+        "game": "2023/D/217",
+        "spurious_event_no": "0720008000",
+        "criterion": "count_continues",
+        "outcome": "三振"
+      },
+      {
+        "game": "2024/C/2",
+        "spurious_event_no": "0810020000",
+        "criterion": "count_continues",
+        "outcome": "界飛"
+      },
+      {
+        "game": "2025/A/220",
+        "spurious_event_no": "0820014000",
+        "criterion": "count_continues",
+        "outcome": "三振"
+      },
+      {
+        "game": "2025/A/250",
+        "spurious_event_no": "0620008000",
+        "criterion": "count_continues",
+        "outcome": "中飛"
+      },
+      {
+        "game": "2025/A/68",
+        "spurious_event_no": "0920005000",
+        "criterion": "count_continues",
+        "outcome": "二滾"
+      },
+      {
+        "game": "2025/D/215",
+        "spurious_event_no": "0720011000",
+        "criterion": "pinch_hit_slot",
+        "outcome": "四壞"
+      }
+    ]
   },
   "exposure": {
     "double_counted_pas": 83,
@@ -101,6 +249,10 @@
       "二飛": 1,
       "三滾": 1
     },
+    "by_criterion": {
+      "count_continues": 79,
+      "pinch_hit_slot": 4
+    },
     "strikeout_charged_to_prev_cases": 22,
     "rows": [
       {
@@ -108,6 +260,7 @@
         "inning": 5,
         "half": "1",
         "outcome": "一安",
+        "criterion": "count_continues",
         "game_date": "2018-03-29",
         "spurious_event_no": "0510015000",
         "spurious_hitter": "0000003551",
@@ -121,6 +274,7 @@
         "inning": 7,
         "half": "2",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2018-06-15",
         "spurious_event_no": "0720010000",
         "spurious_hitter": "0000003551",
@@ -134,6 +288,7 @@
         "inning": 3,
         "half": "1",
         "outcome": "一安",
+        "criterion": "count_continues",
         "game_date": "2018-06-23",
         "spurious_event_no": "0310008000",
         "spurious_hitter": "0000003395",
@@ -147,6 +302,7 @@
         "inning": 6,
         "half": "1",
         "outcome": "右飛",
+        "criterion": "count_continues",
         "game_date": "2018-07-29",
         "spurious_event_no": "0610010000",
         "spurious_hitter": "0000002289",
@@ -160,6 +316,7 @@
         "inning": 9,
         "half": "1",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2018-08-30",
         "spurious_event_no": "0910012000",
         "spurious_hitter": "0000001217",
@@ -173,6 +330,7 @@
         "inning": 5,
         "half": "2",
         "outcome": "投滾",
+        "criterion": "pinch_hit_slot",
         "game_date": "2018-06-02",
         "spurious_event_no": "0520001000",
         "spurious_hitter": "0000003275",
@@ -186,6 +344,7 @@
         "inning": 8,
         "half": "1",
         "outcome": "一安",
+        "criterion": "count_continues",
         "game_date": "2018-07-23",
         "spurious_event_no": "0810004000",
         "spurious_hitter": "0000003048",
@@ -199,6 +358,7 @@
         "inning": 7,
         "half": "1",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2019-04-18",
         "spurious_event_no": "0710021000",
         "spurious_hitter": "0000000132",
@@ -212,6 +372,7 @@
         "inning": 3,
         "half": "1",
         "outcome": "雙殺",
+        "criterion": "count_continues",
         "game_date": "2019-05-05",
         "spurious_event_no": "0310008000",
         "spurious_hitter": "0000003338",
@@ -225,6 +386,7 @@
         "inning": 1,
         "half": "1",
         "outcome": "界飛",
+        "criterion": "count_continues",
         "game_date": "2019-07-06",
         "spurious_event_no": "0110019000",
         "spurious_hitter": "0000002298",
@@ -238,6 +400,7 @@
         "inning": 9,
         "half": "1",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2019-08-02",
         "spurious_event_no": "0910030000",
         "spurious_hitter": "0000002286",
@@ -251,6 +414,7 @@
         "inning": 5,
         "half": "2",
         "outcome": "死球",
+        "criterion": "count_continues",
         "game_date": "2019-08-11",
         "spurious_event_no": "0520033000",
         "spurious_hitter": "0000002696",
@@ -264,6 +428,7 @@
         "inning": 1,
         "half": "2",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2019-08-16",
         "spurious_event_no": "0120028000",
         "spurious_hitter": "0000003563",
@@ -277,6 +442,7 @@
         "inning": 2,
         "half": "1",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2019-09-11",
         "spurious_event_no": "0210009000",
         "spurious_hitter": "0000002305",
@@ -290,6 +456,7 @@
         "inning": 5,
         "half": "2",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2019-09-01",
         "spurious_event_no": "0520007000",
         "spurious_hitter": "0000002350",
@@ -303,6 +470,7 @@
         "inning": 7,
         "half": "1",
         "outcome": "內安",
+        "criterion": "count_continues",
         "game_date": "2020-04-26",
         "spurious_event_no": "0710001000",
         "spurious_hitter": "0000000743",
@@ -316,6 +484,7 @@
         "inning": 7,
         "half": "1",
         "outcome": "二安",
+        "criterion": "count_continues",
         "game_date": "2020-04-26",
         "spurious_event_no": "0710019000",
         "spurious_hitter": "0000004636",
@@ -329,6 +498,7 @@
         "inning": 5,
         "half": "1",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2020-06-06",
         "spurious_event_no": "0510001000",
         "spurious_hitter": "0000003615",
@@ -342,6 +512,7 @@
         "inning": 5,
         "half": "2",
         "outcome": "四壞",
+        "criterion": "count_continues",
         "game_date": "2020-08-02",
         "spurious_event_no": "0520017000",
         "spurious_hitter": "0000003609",
@@ -355,6 +526,7 @@
         "inning": 8,
         "half": "1",
         "outcome": "中飛",
+        "criterion": "count_continues",
         "game_date": "2020-08-28",
         "spurious_event_no": "0810007000",
         "spurious_hitter": "0000003211",
@@ -368,6 +540,7 @@
         "inning": 9,
         "half": "1",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2020-09-04",
         "spurious_event_no": "0910008000",
         "spurious_hitter": "0000003339",
@@ -381,6 +554,7 @@
         "inning": 3,
         "half": "1",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2020-10-14",
         "spurious_event_no": "0310001000",
         "spurious_hitter": "0000003183",
@@ -394,6 +568,7 @@
         "inning": 6,
         "half": "2",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2020-08-10",
         "spurious_event_no": "0620003000",
         "spurious_hitter": "0000005563",
@@ -407,6 +582,7 @@
         "inning": 3,
         "half": "1",
         "outcome": "四壞",
+        "criterion": "count_continues",
         "game_date": "2020-06-16",
         "spurious_event_no": "0310006000",
         "spurious_hitter": "0000001406",
@@ -420,6 +596,7 @@
         "inning": 6,
         "half": "1",
         "outcome": "游飛",
+        "criterion": "count_continues",
         "game_date": "2020-08-11",
         "spurious_event_no": "0610030000",
         "spurious_hitter": "0000005532",
@@ -433,6 +610,7 @@
         "inning": 6,
         "half": "1",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2020-07-09",
         "spurious_event_no": "0610011000",
         "spurious_hitter": "0000005656",
@@ -446,6 +624,7 @@
         "inning": 6,
         "half": "2",
         "outcome": "犧飛",
+        "criterion": "count_continues",
         "game_date": "2020-07-11",
         "spurious_event_no": "0620016000",
         "spurious_hitter": "0000005538",
@@ -459,6 +638,7 @@
         "inning": 9,
         "half": "1",
         "outcome": "一滾",
+        "criterion": "count_continues",
         "game_date": "2020-07-18",
         "spurious_event_no": "0910013000",
         "spurious_hitter": "0000005538",
@@ -472,6 +652,7 @@
         "inning": 6,
         "half": "1",
         "outcome": "四壞",
+        "criterion": "count_continues",
         "game_date": "2021-07-16",
         "spurious_event_no": "0610011000",
         "spurious_hitter": "0000001114",
@@ -485,6 +666,7 @@
         "inning": 8,
         "half": "1",
         "outcome": "投滾",
+        "criterion": "count_continues",
         "game_date": "2021-07-17",
         "spurious_event_no": "0810001000",
         "spurious_hitter": "0000001284",
@@ -498,6 +680,7 @@
         "inning": 7,
         "half": "1",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2021-05-18",
         "spurious_event_no": "0710007000",
         "spurious_hitter": "0000006235",
@@ -511,6 +694,7 @@
         "inning": 7,
         "half": "2",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2021-11-11",
         "spurious_event_no": "0720008000",
         "spurious_hitter": "0000000772",
@@ -524,6 +708,7 @@
         "inning": 6,
         "half": "1",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2021-09-09",
         "spurious_event_no": "0610001000",
         "spurious_hitter": "0000006241",
@@ -537,6 +722,7 @@
         "inning": 7,
         "half": "2",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2022-04-08",
         "spurious_event_no": "0720007000",
         "spurious_hitter": "0000001474",
@@ -550,6 +736,7 @@
         "inning": 5,
         "half": "2",
         "outcome": "游滾",
+        "criterion": "count_continues",
         "game_date": "2022-07-14",
         "spurious_event_no": "0520001000",
         "spurious_hitter": "0000002275",
@@ -563,6 +750,7 @@
         "inning": 8,
         "half": "1",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2022-10-23",
         "spurious_event_no": "0810030000",
         "spurious_hitter": "0000002350",
@@ -576,6 +764,7 @@
         "inning": 7,
         "half": "1",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2022-08-19",
         "spurious_event_no": "0710001000",
         "spurious_hitter": "0000005656",
@@ -589,6 +778,7 @@
         "inning": 8,
         "half": "1",
         "outcome": "一安",
+        "criterion": "count_continues",
         "game_date": "2022-10-08",
         "spurious_event_no": "0810012000",
         "spurious_hitter": "0000002282",
@@ -602,6 +792,7 @@
         "inning": 1,
         "half": "2",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2022-10-10",
         "spurious_event_no": "0120010000",
         "spurious_hitter": "0000000362",
@@ -615,6 +806,7 @@
         "inning": 4,
         "half": "2",
         "outcome": "投滾",
+        "criterion": "count_continues",
         "game_date": "2022-11-06",
         "spurious_event_no": "0420001000",
         "spurious_hitter": "0000003609",
@@ -628,6 +820,7 @@
         "inning": 1,
         "half": "1",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2022-04-20",
         "spurious_event_no": "0110014000",
         "spurious_hitter": "0000001240",
@@ -641,6 +834,7 @@
         "inning": 3,
         "half": "2",
         "outcome": "右飛",
+        "criterion": "count_continues",
         "game_date": "2022-08-07",
         "spurious_event_no": "0320006000",
         "spurious_hitter": "0000004640",
@@ -654,6 +848,7 @@
         "inning": 5,
         "half": "1",
         "outcome": "二飛",
+        "criterion": "count_continues",
         "game_date": "2022-10-15",
         "spurious_event_no": "0510001000",
         "spurious_hitter": "0000005342",
@@ -667,6 +862,7 @@
         "inning": 9,
         "half": "2",
         "outcome": "四壞",
+        "criterion": "count_continues",
         "game_date": "2022-08-20",
         "spurious_event_no": "0920002000",
         "spurious_hitter": "0000006732",
@@ -680,6 +876,7 @@
         "inning": 4,
         "half": "2",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2022-08-26",
         "spurious_event_no": "0420003000",
         "spurious_hitter": "0000004641",
@@ -693,6 +890,7 @@
         "inning": 4,
         "half": "1",
         "outcome": "四壞",
+        "criterion": "count_continues",
         "game_date": "2022-10-05",
         "spurious_event_no": "0410006000",
         "spurious_hitter": "0000006731",
@@ -706,6 +904,7 @@
         "inning": 9,
         "half": "2",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2022-06-19",
         "spurious_event_no": "0920007000",
         "spurious_hitter": "0000005565",
@@ -719,6 +918,7 @@
         "inning": 7,
         "half": "2",
         "outcome": "游滾",
+        "criterion": "pinch_hit_slot",
         "game_date": "2023-04-05",
         "spurious_event_no": "0720024000",
         "spurious_hitter": "0000001473",
@@ -732,6 +932,7 @@
         "inning": 2,
         "half": "2",
         "outcome": "四壞",
+        "criterion": "count_continues",
         "game_date": "2023-05-11",
         "spurious_event_no": "0220010000",
         "spurious_hitter": "0000000910",
@@ -745,6 +946,7 @@
         "inning": 8,
         "half": "2",
         "outcome": "三滾",
+        "criterion": "count_continues",
         "game_date": "2023-05-14",
         "spurious_event_no": "0820003000",
         "spurious_hitter": "0000003337",
@@ -758,6 +960,7 @@
         "inning": 7,
         "half": "1",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2023-06-02",
         "spurious_event_no": "0710038000",
         "spurious_hitter": "0000006229",
@@ -771,6 +974,7 @@
         "inning": 8,
         "half": "2",
         "outcome": "投滾",
+        "criterion": "count_continues",
         "game_date": "2023-06-03",
         "spurious_event_no": "0820004000",
         "spurious_hitter": "0000003533",
@@ -784,6 +988,7 @@
         "inning": 9,
         "half": "1",
         "outcome": "游滾",
+        "criterion": "count_continues",
         "game_date": "2023-09-07",
         "spurious_event_no": "0910008000",
         "spurious_hitter": "0000004636",
@@ -797,6 +1002,7 @@
         "inning": 9,
         "half": "2",
         "outcome": "一安",
+        "criterion": "count_continues",
         "game_date": "2023-10-10",
         "spurious_event_no": "0920010000",
         "spurious_hitter": "0000003339",
@@ -810,6 +1016,7 @@
         "inning": 1,
         "half": "2",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2023-04-18",
         "spurious_event_no": "0120015000",
         "spurious_hitter": "0000006851",
@@ -823,6 +1030,7 @@
         "inning": 6,
         "half": "1",
         "outcome": "四壞",
+        "criterion": "count_continues",
         "game_date": "2023-05-18",
         "spurious_event_no": "0610001000",
         "spurious_hitter": "0000006931",
@@ -836,6 +1044,7 @@
         "inning": 9,
         "half": "1",
         "outcome": "一安",
+        "criterion": "pinch_hit_slot",
         "game_date": "2023-08-02",
         "spurious_event_no": "0910013000",
         "spurious_hitter": "0000006835",
@@ -849,6 +1058,7 @@
         "inning": 7,
         "half": "1",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2023-08-03",
         "spurious_event_no": "0710005000",
         "spurious_hitter": "0000006835",
@@ -862,6 +1072,7 @@
         "inning": 8,
         "half": "2",
         "outcome": "一安",
+        "criterion": "count_continues",
         "game_date": "2023-08-11",
         "spurious_event_no": "0820020000",
         "spurious_hitter": "0000006928",
@@ -875,6 +1086,7 @@
         "inning": 5,
         "half": "1",
         "outcome": "死球",
+        "criterion": "count_continues",
         "game_date": "2023-08-11",
         "spurious_event_no": "0510002000",
         "spurious_hitter": "0000006220",
@@ -888,6 +1100,7 @@
         "inning": 7,
         "half": "1",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2023-08-20",
         "spurious_event_no": "0710008000",
         "spurious_hitter": "0000005342",
@@ -901,6 +1114,7 @@
         "inning": 7,
         "half": "2",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2023-09-16",
         "spurious_event_no": "0720008000",
         "spurious_hitter": "0000006726",
@@ -914,6 +1128,7 @@
         "inning": 4,
         "half": "2",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2023-10-28",
         "spurious_event_no": "0420010000",
         "spurious_hitter": "0000002275",
@@ -927,6 +1142,7 @@
         "inning": 5,
         "half": "1",
         "outcome": "四壞",
+        "criterion": "count_continues",
         "game_date": "2024-06-13",
         "spurious_event_no": "0510010000",
         "spurious_hitter": "0000007070",
@@ -940,6 +1156,7 @@
         "inning": 4,
         "half": "1",
         "outcome": "四壞",
+        "criterion": "count_continues",
         "game_date": "2024-08-25",
         "spurious_event_no": "0410005000",
         "spurious_hitter": "0000006888",
@@ -953,6 +1170,7 @@
         "inning": 8,
         "half": "1",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2024-09-06",
         "spurious_event_no": "0810001000",
         "spurious_hitter": "0000005563",
@@ -966,6 +1184,7 @@
         "inning": 8,
         "half": "1",
         "outcome": "界飛",
+        "criterion": "count_continues",
         "game_date": "2024-10-20",
         "spurious_event_no": "0810020000",
         "spurious_hitter": "0000005531",
@@ -979,6 +1198,7 @@
         "inning": 8,
         "half": "2",
         "outcome": "游飛",
+        "criterion": "count_continues",
         "game_date": "2024-06-05",
         "spurious_event_no": "0820007000",
         "spurious_hitter": "0000004627",
@@ -992,6 +1212,7 @@
         "inning": 7,
         "half": "1",
         "outcome": "二滾",
+        "criterion": "count_continues",
         "game_date": "2024-06-22",
         "spurious_event_no": "0710018000",
         "spurious_hitter": "0000003174",
@@ -1005,6 +1226,7 @@
         "inning": 4,
         "half": "1",
         "outcome": "內安",
+        "criterion": "count_continues",
         "game_date": "2024-09-21",
         "spurious_event_no": "0410005000",
         "spurious_hitter": "0000007013",
@@ -1018,6 +1240,7 @@
         "inning": 7,
         "half": "2",
         "outcome": "二安",
+        "criterion": "count_continues",
         "game_date": "2024-07-27",
         "spurious_event_no": "0720006000",
         "spurious_hitter": "0000006718",
@@ -1031,6 +1254,7 @@
         "inning": 9,
         "half": "2",
         "outcome": "二滾",
+        "criterion": "count_continues",
         "game_date": "2025-04-30",
         "spurious_event_no": "0920005000",
         "spurious_hitter": "0000001754",
@@ -1044,6 +1268,7 @@
         "inning": 7,
         "half": "2",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2025-06-26",
         "spurious_event_no": "0720005000",
         "spurious_hitter": "0000006738",
@@ -1057,6 +1282,7 @@
         "inning": 8,
         "half": "2",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2025-07-26",
         "spurious_event_no": "0820014000",
         "spurious_hitter": "0000001804",
@@ -1070,6 +1296,7 @@
         "inning": 6,
         "half": "2",
         "outcome": "中飛",
+        "criterion": "count_continues",
         "game_date": "2025-08-09",
         "spurious_event_no": "0620008000",
         "spurious_hitter": "0000007070",
@@ -1083,6 +1310,7 @@
         "inning": 4,
         "half": "1",
         "outcome": "四壞",
+        "criterion": "count_continues",
         "game_date": "2025-08-16",
         "spurious_event_no": "0410003000",
         "spurious_hitter": "0000004633",
@@ -1096,6 +1324,7 @@
         "inning": 9,
         "half": "2",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2025-04-04",
         "spurious_event_no": "0920007000",
         "spurious_hitter": "0000005496",
@@ -1109,6 +1338,7 @@
         "inning": 7,
         "half": "2",
         "outcome": "游滾",
+        "criterion": "count_continues",
         "game_date": "2025-05-30",
         "spurious_event_no": "0720001000",
         "spurious_hitter": "0000007037",
@@ -1122,6 +1352,7 @@
         "inning": 1,
         "half": "1",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2025-06-10",
         "spurious_event_no": "0110005000",
         "spurious_hitter": "0000005553",
@@ -1135,6 +1366,7 @@
         "inning": 8,
         "half": "2",
         "outcome": "右飛",
+        "criterion": "count_continues",
         "game_date": "2025-06-22",
         "spurious_event_no": "0820003000",
         "spurious_hitter": "0000001409",
@@ -1148,6 +1380,7 @@
         "inning": 7,
         "half": "2",
         "outcome": "四壞",
+        "criterion": "pinch_hit_slot",
         "game_date": "2025-08-28",
         "spurious_event_no": "0720011000",
         "spurious_hitter": "0000005656",
@@ -1161,6 +1394,7 @@
         "inning": 7,
         "half": "1",
         "outcome": "三振",
+        "criterion": "count_continues",
         "game_date": "2026-06-24",
         "spurious_event_no": "0710010000",
         "spurious_hitter": "0000006725",
@@ -1174,6 +1408,7 @@
         "inning": 6,
         "half": "1",
         "outcome": "中飛",
+        "criterion": "count_continues",
         "game_date": "2026-06-24",
         "spurious_event_no": "0610025000",
         "spurious_hitter": "0000007070",
@@ -1185,7 +1420,7 @@
     ]
   },
   "h1_batting_order_shift": {
-    "hypothesis": "多出的 PA 使 pa_seq 進位，該場該隊其後所有 PA 的打序歸屬整體位移（splits_calc: order = seq %% 9 + 1，家族 10 ORDER_NAMES）",
+    "hypothesis": "多出的 PA 使 pa_seq 進位，該場該隊其後所有 PA 的打序歸屬整體位移（splits_calc: order = seq %% 9 + 1，家族 10 ORDER_NAMES）；此為『相對 corrected』的量化，非絕對真實打序保證（REVIEW-007）",
     "affected_team_games": 82,
     "total_pas_misattributed": 1291,
     "max_shift": 2,
@@ -1857,6 +2092,483 @@
       "pit": 3790,
       "bat_gofo": 2025
     }
+  },
+  "assembly_fidelity_vs_published": {
+    "2018/A/batting_splits": {
+      "assembled": 5137,
+      "published": 5137,
+      "common": 5137,
+      "equal_rows": 5137
+    },
+    "2018/A/pitching_splits": {
+      "assembled": 3621,
+      "published": 3621,
+      "common": 3621,
+      "equal_rows": 3621
+    },
+    "2018/D/batting_splits": {
+      "assembled": 5215,
+      "published": 5215,
+      "common": 5215,
+      "equal_rows": 5215
+    },
+    "2018/D/pitching_splits": {
+      "assembled": 3372,
+      "published": 3372,
+      "common": 3372,
+      "equal_rows": 3372
+    },
+    "2019/A/batting_splits": {
+      "assembled": 5290,
+      "published": 5290,
+      "common": 5290,
+      "equal_rows": 5290
+    },
+    "2019/A/pitching_splits": {
+      "assembled": 3937,
+      "published": 3937,
+      "common": 3937,
+      "equal_rows": 3937
+    },
+    "2019/D/batting_splits": {
+      "assembled": 6622,
+      "published": 6622,
+      "common": 6622,
+      "equal_rows": 6622
+    },
+    "2019/D/pitching_splits": {
+      "assembled": 4476,
+      "published": 4476,
+      "common": 4476,
+      "equal_rows": 4476
+    },
+    "2020/A/batting_splits": {
+      "assembled": 4707,
+      "published": 4707,
+      "common": 4707,
+      "equal_rows": 4707
+    },
+    "2020/A/pitching_splits": {
+      "assembled": 3397,
+      "published": 3397,
+      "common": 3397,
+      "equal_rows": 3397
+    },
+    "2020/D/batting_splits": {
+      "assembled": 9268,
+      "published": 9268,
+      "common": 9268,
+      "equal_rows": 9268
+    },
+    "2020/D/pitching_splits": {
+      "assembled": 6117,
+      "published": 6117,
+      "common": 6117,
+      "equal_rows": 6117
+    },
+    "2021/A/batting_splits": {
+      "assembled": 7181,
+      "published": 7181,
+      "common": 7181,
+      "equal_rows": 7181
+    },
+    "2021/A/pitching_splits": {
+      "assembled": 5044,
+      "published": 5044,
+      "common": 5044,
+      "equal_rows": 5044
+    },
+    "2021/D/batting_splits": {
+      "assembled": 7665,
+      "published": 7665,
+      "common": 7665,
+      "equal_rows": 7665
+    },
+    "2021/D/pitching_splits": {
+      "assembled": 5054,
+      "published": 5054,
+      "common": 5054,
+      "equal_rows": 5054
+    },
+    "2022/A/batting_splits": {
+      "assembled": 7406,
+      "published": 7406,
+      "common": 7406,
+      "equal_rows": 7406
+    },
+    "2022/A/pitching_splits": {
+      "assembled": 4930,
+      "published": 4930,
+      "common": 4930,
+      "equal_rows": 4930
+    },
+    "2022/D/batting_splits": {
+      "assembled": 10007,
+      "published": 10007,
+      "common": 10007,
+      "equal_rows": 10007
+    },
+    "2022/D/pitching_splits": {
+      "assembled": 6433,
+      "published": 6433,
+      "common": 6433,
+      "equal_rows": 6433
+    },
+    "2023/A/batting_splits": {
+      "assembled": 6980,
+      "published": 6980,
+      "common": 6980,
+      "equal_rows": 6980
+    },
+    "2023/A/pitching_splits": {
+      "assembled": 5101,
+      "published": 5101,
+      "common": 5101,
+      "equal_rows": 5101
+    },
+    "2023/D/batting_splits": {
+      "assembled": 9005,
+      "published": 9005,
+      "common": 9005,
+      "equal_rows": 9005
+    },
+    "2023/D/pitching_splits": {
+      "assembled": 6410,
+      "published": 6410,
+      "common": 6410,
+      "equal_rows": 6410
+    },
+    "2024/A/batting_splits": {
+      "assembled": 8147,
+      "published": 8147,
+      "common": 8147,
+      "equal_rows": 8147
+    },
+    "2024/A/pitching_splits": {
+      "assembled": 6054,
+      "published": 6054,
+      "common": 6054,
+      "equal_rows": 6054
+    },
+    "2024/D/batting_splits": {
+      "assembled": 8390,
+      "published": 8390,
+      "common": 8390,
+      "equal_rows": 8390
+    },
+    "2024/D/pitching_splits": {
+      "assembled": 6124,
+      "published": 6124,
+      "common": 6124,
+      "equal_rows": 6124
+    },
+    "2025/A/batting_splits": {
+      "assembled": 8077,
+      "published": 8077,
+      "common": 8077,
+      "equal_rows": 8077
+    },
+    "2025/A/pitching_splits": {
+      "assembled": 5941,
+      "published": 5941,
+      "common": 5941,
+      "equal_rows": 5941
+    },
+    "2025/D/batting_splits": {
+      "assembled": 8631,
+      "published": 8631,
+      "common": 8631,
+      "equal_rows": 8631
+    },
+    "2025/D/pitching_splits": {
+      "assembled": 6545,
+      "published": 6545,
+      "common": 6545,
+      "equal_rows": 6545
+    },
+    "2026/A/batting_splits": {
+      "assembled": 7229,
+      "published": 7229,
+      "common": 7229,
+      "equal_rows": 7229
+    },
+    "2026/A/pitching_splits": {
+      "assembled": 4885,
+      "published": 4885,
+      "common": 4885,
+      "equal_rows": 4885
+    },
+    "2026/D/batting_splits": {
+      "assembled": 8429,
+      "published": 8429,
+      "common": 8429,
+      "equal_rows": 8429
+    },
+    "2026/D/pitching_splits": {
+      "assembled": 5726,
+      "published": 5726,
+      "common": 5726,
+      "equal_rows": 5726
+    }
+  },
+  "corrected_invariants": {
+    "2018/A": {
+      "bat_f4_pa": [
+        18865,
+        18860
+      ],
+      "pit_f5_pa": [
+        18865,
+        18860
+      ],
+      "n_spurious": 5,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2018/D": {
+      "bat_f4_pa": [
+        9533,
+        9531
+      ],
+      "pit_f5_pa": [
+        9533,
+        9531
+      ],
+      "n_spurious": 2,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2019/A": {
+      "bat_f4_pa": [
+        18791,
+        18784
+      ],
+      "pit_f5_pa": [
+        18791,
+        18784
+      ],
+      "n_spurious": 7,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2019/D": {
+      "bat_f4_pa": [
+        11694,
+        11693
+      ],
+      "pit_f5_pa": [
+        11694,
+        11693
+      ],
+      "n_spurious": 1,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2020/A": {
+      "bat_f4_pa": [
+        19315,
+        19308
+      ],
+      "pit_f5_pa": [
+        19315,
+        19308
+      ],
+      "n_spurious": 7,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2020/D": {
+      "bat_f4_pa": [
+        18303,
+        18297
+      ],
+      "pit_f5_pa": [
+        18303,
+        18297
+      ],
+      "n_spurious": 6,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2021/A": {
+      "bat_f4_pa": [
+        22982,
+        22980
+      ],
+      "pit_f5_pa": [
+        22982,
+        22980
+      ],
+      "n_spurious": 2,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2021/D": {
+      "bat_f4_pa": [
+        12916,
+        12913
+      ],
+      "pit_f5_pa": [
+        12916,
+        12913
+      ],
+      "n_spurious": 3,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2022/A": {
+      "bat_f4_pa": [
+        22805,
+        22799
+      ],
+      "pit_f5_pa": [
+        22805,
+        22799
+      ],
+      "n_spurious": 6,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2022/D": {
+      "bat_f4_pa": [
+        12972,
+        12965
+      ],
+      "pit_f5_pa": [
+        12972,
+        12965
+      ],
+      "n_spurious": 7,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2023/A": {
+      "bat_f4_pa": [
+        22867,
+        22860
+      ],
+      "pit_f5_pa": [
+        22867,
+        22860
+      ],
+      "n_spurious": 7,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2023/D": {
+      "bat_f4_pa": [
+        17876,
+        17868
+      ],
+      "pit_f5_pa": [
+        17876,
+        17868
+      ],
+      "n_spurious": 8,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2024/A": {
+      "bat_f4_pa": [
+        27403,
+        27400
+      ],
+      "pit_f5_pa": [
+        27403,
+        27400
+      ],
+      "n_spurious": 3,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2024/D": {
+      "bat_f4_pa": [
+        16679,
+        16675
+      ],
+      "pit_f5_pa": [
+        16679,
+        16675
+      ],
+      "n_spurious": 4,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2025/A": {
+      "bat_f4_pa": [
+        27024,
+        27019
+      ],
+      "pit_f5_pa": [
+        27024,
+        27019
+      ],
+      "n_spurious": 5,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2025/D": {
+      "bat_f4_pa": [
+        15754,
+        15749
+      ],
+      "pit_f5_pa": [
+        15754,
+        15749
+      ],
+      "n_spurious": 5,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2026/A": {
+      "bat_f4_pa": [
+        16454,
+        16453
+      ],
+      "pit_f5_pa": [
+        16454,
+        16453
+      ],
+      "n_spurious": 1,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2026/D": {
+      "bat_f4_pa": [
+        12020,
+        12019
+      ],
+      "pit_f5_pa": [
+        12020,
+        12019
+      ],
+      "n_spurious": 1,
+      "per_pitcher_pitch_conserved": true
+    }
+  },
+  "cross_pitcher_cases": {
+    "note": "合併島內投球列跨投手的案例：投球數逐投手保留（守恆由不變量強制），打席結果責任依 9.16(h)",
+    "cases": [
+      {
+        "game": "2020/D/81",
+        "inning": 6,
+        "half": "2",
+        "outcome": "三振",
+        "pitch_by": {
+          "0000000760": {
+            "strikes": 2,
+            "balls": 3
+          },
+          "0000000117": {
+            "strikes": 1,
+            "balls": 0
+          }
+        },
+        "responsible": "0000000117",
+        "rule_916h": null
+      },
+      {
+        "game": "2022/D/140",
+        "inning": 5,
+        "half": "1",
+        "outcome": "二飛",
+        "pitch_by": {
+          "0000000155": {
+            "strikes": 1,
+            "balls": 3
+          },
+          "0000000364": {
+            "strikes": 4,
+            "balls": 0
+          }
+        },
+        "responsible": "0000000364",
+        "rule_916h": null
+      }
+    ]
   },
   "box_crosscheck": {
     "note": "受影響場次逐場逐人 PA 對照官方 box（batting_gamelog，未經 splits_calc，非自比）；寬過濾：凡任一版本不等於 box 或兩版互異者皆列",
@@ -2734,150 +3446,184 @@
     ]
   },
   "player_delta_summary": {
-    "rows": 8737,
-    "affected_players": 337,
-    "by_family": {
-      "bat/3": 742,
-      "bat/6": 249,
-      "bat/10": 5776,
-      "bat/5": 248,
-      "bat/4": 247,
-      "bat/7": 248,
-      "pit/5": 192,
-      "pit/6": 154,
-      "pit/3": 512,
-      "pit/8": 150,
-      "pit/7": 150,
-      "bat_gofo/9": 23,
-      "bat_gofo/8": 23,
-      "bat_gofo/1": 23
+    "rows": 2435,
+    "changed_cells": 17997,
+    "affected_players": 314,
+    "affected_table_players": {
+      "batting_splits": 249,
+      "pitching_splits": 65
     },
-    "by_col_abs": {
-      "bat/plate_appearances": 2976,
-      "bat/at_bats": 2538,
-      "bat/total_bases": 874,
-      "bat/so": 726,
-      "bat/ground_outs": 680,
-      "bat/hits": 622,
-      "bat/fly_outs": 618,
-      "pit/plate_appearances": 480,
-      "bat/singles": 462,
-      "bat/bb": 322,
-      "pit/pitch_cnt": 316,
-      "bat/rbi": 246,
-      "pit/so": 198,
-      "pit/balls": 160,
-      "pit/strikes": 156,
-      "bat/doubles": 118,
-      "bat/hbp": 66,
-      "pit/hits": 66,
-      "pit/bb": 66,
-      "bat/sac_hit": 46,
-      "bat/home_runs": 38,
-      "bat_gofo/ground_outs": 36,
-      "bat_gofo/fly_outs": 33,
-      "bat/sac_fly": 26,
-      "pit/hbp": 12,
-      "bat/triples": 10,
-      "pit/sac_fly": 6,
-      "bat/ibb": 4
+    "by_table_family": {
+      "batting_splits/10": 1284,
+      "batting_splits/3": 237,
+      "pitching_splits/3": 200,
+      "pitching_splits/5": 89,
+      "pitching_splits/6": 81,
+      "batting_splits/6": 80,
+      "pitching_splits/8": 80,
+      "pitching_splits/7": 80,
+      "batting_splits/5": 79,
+      "batting_splits/7": 79,
+      "batting_splits/4": 79,
+      "batting_splits/1": 23,
+      "batting_splits/8": 22,
+      "batting_splits/9": 22
+    },
+    "by_col": {
+      "plate_appearances": 2304,
+      "ops": 1734,
+      "obp": 1715,
+      "at_bats": 1651,
+      "slg": 1528,
+      "avg": 1515,
+      "so": 963,
+      "goao": 902,
+      "ground_outs": 712,
+      "hits": 705,
+      "fly_outs": 655,
+      "total_bases": 642,
+      "singles": 534,
+      "bb": 502,
+      "rbi": 319,
+      "doubles": 258,
+      "hbp": 226,
+      "sac_hit": 189,
+      "home_runs": 185,
+      "sac_fly": 181,
+      "triples": 161,
+      "ibb": 156,
+      "pitch_cnt": 106,
+      "strikes": 88,
+      "balls": 66
     },
     "skipped_pairs_no_published_splits": [
       "2022/C",
       "2023/E",
       "2024/C"
     ],
+    "note_ranking": "top_players 以整數計數欄位的 Σ|delta| 排序、跨表聚合到唯一 acnt（rate 欄不入排名）",
     "top_players_by_abs_delta": [
       {
-        "side": "bat",
         "acnt": "0000001118",
         "player": "高國麟",
-        "sum_abs_delta": 174
+        "sum_abs_delta": 174,
+        "by_table": {
+          "batting_splits": 174
+        }
       },
       {
-        "side": "bat",
         "acnt": "0000001240",
         "player": "鄭鎧文",
-        "sum_abs_delta": 166
+        "sum_abs_delta": 166,
+        "by_table": {
+          "batting_splits": 166
+        }
       },
       {
-        "side": "bat",
         "acnt": "0000002352",
         "player": "范國宸",
-        "sum_abs_delta": 158
+        "sum_abs_delta": 158,
+        "by_table": {
+          "batting_splits": 158
+        }
       },
       {
-        "side": "bat",
         "acnt": "0000001473",
         "player": "李宗賢",
-        "sum_abs_delta": 154
+        "sum_abs_delta": 157,
+        "by_table": {
+          "batting_splits": 157
+        }
       },
       {
-        "side": "bat",
         "acnt": "0000002707",
         "player": "潘傑楷",
-        "sum_abs_delta": 136
+        "sum_abs_delta": 136,
+        "by_table": {
+          "batting_splits": 136
+        }
       },
       {
-        "side": "bat",
-        "acnt": "0000003339",
-        "player": "林哲瑄",
-        "sum_abs_delta": 130
-      },
-      {
-        "side": "bat",
         "acnt": "0000004636",
         "player": "江坤宇",
-        "sum_abs_delta": 130
+        "sum_abs_delta": 133,
+        "by_table": {
+          "batting_splits": 133
+        }
       },
       {
-        "side": "bat",
+        "acnt": "0000003339",
+        "player": "林哲瑄",
+        "sum_abs_delta": 130,
+        "by_table": {
+          "batting_splits": 130
+        }
+      },
+      {
         "acnt": "0000005656",
         "player": "李聖裕",
-        "sum_abs_delta": 130
+        "sum_abs_delta": 130,
+        "by_table": {
+          "batting_splits": 130
+        }
       },
       {
-        "side": "bat",
         "acnt": "0000002305",
         "player": "王正棠",
-        "sum_abs_delta": 128
+        "sum_abs_delta": 128,
+        "by_table": {
+          "batting_splits": 128
+        }
       },
       {
-        "side": "bat",
         "acnt": "0000003551",
         "player": "羅國龍",
-        "sum_abs_delta": 124
+        "sum_abs_delta": 124,
+        "by_table": {
+          "batting_splits": 124
+        }
       },
       {
-        "side": "bat",
         "acnt": "0000003615",
         "player": "胡金龍",
-        "sum_abs_delta": 124
+        "sum_abs_delta": 124,
+        "by_table": {
+          "batting_splits": 124
+        }
       },
       {
-        "side": "bat",
         "acnt": "0000003144",
         "player": "林益全",
-        "sum_abs_delta": 122
+        "sum_abs_delta": 122,
+        "by_table": {
+          "batting_splits": 122
+        }
       },
       {
-        "side": "bat",
         "acnt": "0000000153",
         "player": "林承飛",
-        "sum_abs_delta": 120
+        "sum_abs_delta": 120,
+        "by_table": {
+          "batting_splits": 120
+        }
       },
       {
-        "side": "bat",
         "acnt": "0000005538",
         "player": "黃柏豪",
-        "sum_abs_delta": 112
+        "sum_abs_delta": 118,
+        "by_table": {
+          "batting_splits": 118
+        }
       },
       {
-        "side": "bat",
         "acnt": "0000002289",
         "player": "陳重廷",
-        "sum_abs_delta": 110
+        "sum_abs_delta": 113,
+        "by_table": {
+          "batting_splits": 113
+        }
       }
-    ]
+    ],
+    "vs_team_note": "batting_vs_team／pitching_vs_team 來自 T1（gamelog 加總，不經 livelog 島重建），本缺陷零影響，不列 diff"
   }
 }
