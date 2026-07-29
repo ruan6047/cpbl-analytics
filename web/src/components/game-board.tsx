@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
+import Link from "next/link";
 import type { StatRow } from "@/lib/client";
-import { TeamLogo } from "@/components/ui";
-import { teamColor } from "@/lib/teams";
+import { ENTITY_LINK, ENTITY_LINK_TEXT, TeamLogo } from "@/components/ui";
+import { isCurrentTeam, teamColor, teamPageCode } from "@/lib/teams";
 import { PITCH_CALL, PA_KIND } from "@/lib/chart-theme";
 import type { WpPoint } from "@/components/win-prob-chart";
 
@@ -110,15 +111,31 @@ function ScoreBar({ game, e, records }: { game: StatRow; e: StatRow; records: Re
   const ar = records[ac];
   const hr = records[hc];
 
-  const side = (code: string, name: StatRow[string], rec: Rec | undefined, alignRight: boolean) => (
-    <div className={`flex items-center gap-3 ${alignRight ? "flex-row-reverse text-right" : ""}`}>
-      <TeamLogo code={code} name={String(name ?? "")} size={40} />
-      <div>
-        <div className="text-base font-bold leading-tight">{String(name ?? "")}</div>
-        <div className="font-mono text-xs text-faint">{rec ? `${rec.w}-${rec.l}` : ""}</div>
-      </div>
-    </div>
-  );
+  // 隊名連結（UX-ENTITY-LINKS3 A 層；§9.3）：gating 只連現役 franchise，歷史／已解散隊
+  // 退化純文字。可點範圍與底線的取捨沿用 UX-ENTITY-LINKS2 的結論——**整塊（徽章＋隊名＋
+  // 戰績）可點，底線只跟隊名文字**，故外層 `<Link>` 帶 `group`、內層文字套
+  // `ENTITY_LINK_TEXT`（該常數本身不自建 `<a>`，不會產生 nested anchor）。
+  const side = (code: string, name: StatRow[string], rec: Rec | undefined, alignRight: boolean) => {
+    const label = String(name ?? "");
+    const box = `flex items-center gap-3 ${alignRight ? "flex-row-reverse text-right" : ""}`;
+    // `decorative`：旁邊已有隊名，徽章即裝飾（§9.3；與 `TeamBadge` 的 `decorative={!!name}`
+    // 一致）。兩個分支都設，否則同一個視覺會因球隊是否現役而有不同的無障礙行為，
+    // 且連結態會唸成「X隊徽 X」。
+    const inner = (linked: boolean) => (
+      <>
+        <TeamLogo code={code} name={label} size={40} decorative />
+        <div>
+          <div className={`text-base font-bold leading-tight ${linked ? ENTITY_LINK_TEXT : ""}`}>{label}</div>
+          <div className="font-mono text-xs text-faint">{rec ? `${rec.w}-${rec.l}` : ""}</div>
+        </div>
+      </>
+    );
+    return isCurrentTeam(code) ? (
+      <Link href={`/teams/${teamPageCode(code)}`} className={`group ${box}`}>{inner(true)}</Link>
+    ) : (
+      <div className={box}>{inner(false)}</div>
+    );
+  };
 
   return (
     <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
@@ -271,9 +288,18 @@ function ScoreLine({ sb, game, halves, curKey, onSelect }: {
     return base;
   };
 
-  const row = (label: StatRow[string], rows: StatRow[], half: string, score: number) => (
+  // 隊伍欄的隊名連結（UX-ENTITY-LINKS3 A 層）：此處**沒有**外層 `<Link>`（同列其餘格子是
+  // 局數導覽 `<button>`），故文字自建錨點、用 `ENTITY_LINK`；gating 同 §9.3。
+  const teamCell = (label: StatRow[string], code: string) => {
+    const text = String(label ?? "");
+    return isCurrentTeam(code)
+      ? <Link href={`/teams/${teamPageCode(code)}`} className={ENTITY_LINK}>{text}</Link>
+      : text;
+  };
+
+  const row = (label: StatRow[string], code: string, rows: StatRow[], half: string, score: number) => (
     <tr className="border-t border-line">
-      <td className="whitespace-nowrap px-3 py-2 font-sans font-medium">{String(label ?? "")}</td>
+      <td className="whitespace-nowrap px-3 py-2 font-sans font-medium">{teamCell(label, code)}</td>
       {innings.map((inn) => {
         const k = `${inn}|${half}`;
         const h = halfBy.get(k);
@@ -310,8 +336,8 @@ function ScoreLine({ sb, game, halves, curKey, onSelect }: {
           </tr>
         </thead>
         <tbody>
-          {row(game.away_team_name, away, "1", num(game.away_score))}
-          {row(game.home_team_name, home, "2", num(game.home_score))}
+          {row(game.away_team_name, String(game.away_team_code ?? ""), away, "1", num(game.away_score))}
+          {row(game.home_team_name, String(game.home_team_code ?? ""), home, "2", num(game.home_score))}
         </tbody>
       </table>
     </div>
