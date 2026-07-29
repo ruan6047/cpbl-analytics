@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/table";
-import { ActivePill, ENTITY_LINK, GonePill, Notice, PlayerLink, TeamBadge, TeamLogo } from "@/components/ui";
+import { ActivePill, GonePill, Notice, PlayerLink, TeamBadge, TeamLogo } from "@/components/ui";
 import { api } from "@/lib/api";
 import { teamFullName } from "@/lib/teams";
 import { CareerLeaders } from "./career-leaders";
@@ -75,15 +75,15 @@ function FranchiseTable({ rows }: { rows: Franchises }) {
   const columns: Column<Franchises[number]>[] = [
     {
       header: "球團",
-      // §3.5：只有球團名文字帶連結底線，logo 不套。
+      // 外層 <Link> 與可點範圍維持原樣（logo 仍可點），底線只套名稱文字（linkStyle）。
       // 刻意**不**改用 `TeamBadge link`（會套 §9.3 的 isCurrentTeam gating）——本表含已解散
       // 球團（見「現況」欄 GonePill），而 teams/[code] 在有沿革資料時仍會渲染頁面
       // （`!team && eras.length === 0` 才 notFound），套 gating 會移除可用連結。
+      // 查核者實測 /teams/ABB011、AFF011、AHH011、AII011 皆 HTTP 200，證實此判斷。
       cell: (r) => (
-        <span className="inline-flex items-center gap-1.5">
-          <TeamLogo code={r.code} name={r.name} size={20} decorative />
-          <Link href={`/teams/${r.code}`} className={`font-medium ${ENTITY_LINK}`}>{r.name}</Link>
-        </span>
+        <Link href={`/teams/${r.code}`} className="group font-medium">
+          <TeamBadge code={r.code} name={r.name} linkStyle />
+        </Link>
       ),
       sticky: true,
       nowrap: true,
