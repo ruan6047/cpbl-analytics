@@ -8,7 +8,7 @@
 
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
-| [DEV-REVIEW-INDEP-FIELD1](tasks/DEV-REVIEW-INDEP-FIELD1.md) | — | T3 | 卡面獨立性要求改為機器可讀欄位 | Claude Opus 5@Claude Code | `ai/opus-5/DEV-REVIEW-INDEP-FIELD1 @ .claude/worktrees/dev-review-indep-field1-execution` | 0 | 🔨執行中 | —不適用 | 2026-07-29T23:29:19+08:00 |
+| [DEV-REVIEW-INDEP-FIELD1](tasks/DEV-REVIEW-INDEP-FIELD1.md) | — | T3 | 卡面獨立性要求改為機器可讀欄位 | 待指派（查核） | `ai/opus-5/DEV-REVIEW-INDEP-FIELD1 @ .claude/worktrees/dev-review-indep-field1-execution` | 0 | 🔍待查核 | —不適用 | 2026-07-29T23:33:42+08:00 |
 | [DEV-REVIEW-PROMPT-GATE1](tasks/DEV-REVIEW-PROMPT-GATE1.md) | — | T2 | 中繼查核關卡被守衛當成本輪已結束 | Claude Opus 5@Claude Code（待 GUARD1 通過後 rebase） | `ai/opus-5/DEV-REVIEW-PROMPT-GATE1 @ .claude/worktrees/dev-review-prompt-gate1-execution` | 0 | ⏸阻塞 | —不適用 | 2026-07-29T20:47:01+08:00 |
 | [DEV-REVIEW-PROMPT-GUARD1](tasks/DEV-REVIEW-PROMPT-GUARD1.md) | — | T2 | 查核提示詞產生器的三處錯誤指引 | 待指派（查核） | `ai/opus-5/DEV-REVIEW-PROMPT-GUARD1 @ .claude/worktrees/dev-review-prompt-guard1-execution` | 3 | 🔍待查核 | —不適用 | 2026-07-29T21:30:25+08:00 |
 | [DEV-VERIFY-TM-ASSERTS1](tasks/DEV-VERIFY-TM-ASSERTS1.md) | — | T2 | TM 回填驗證腳本補上真正的斷言 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-29T12:14:00+08:00 |
