@@ -35,7 +35,6 @@
 | [OPS-REMOTE-PROBE1](tasks/OPS-REMOTE-PROBE1.md) | INIT-PRODUCT-UX | T3 | Opt-in DEBUG 網路探測介面 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:37+08:00 |
 | [OPS-REMOTE-ROUTE1](tasks/OPS-REMOTE-ROUTE1.md) | INIT-PRODUCT-UX | T3 | 遠端出口路線資格驗證 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:38+08:00 |
 | [OPS-REMOTE-WORKER1](tasks/OPS-REMOTE-WORKER1.md) | INIT-PRODUCT-UX | T4 | 隔離式遠端 crawler shadow worker | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:39+08:00 |
-| [UX-ENTITY-LINKS2](tasks/UX-ENTITY-LINKS2.md) | INIT-PRODUCT-UX | T2 | 實體連結 pattern 普及化（整塊 hover:underline → ENTITY_LINK） | ruan6047（部署驗證） | `ai/opus-5/UX-ENTITY-LINKS2 @ .claude/worktrees/ux-entity-links2-execution` | 1 | 📦已合併 | ⏸未部署 | 2026-07-29T20:15:55+08:00 |
 | [UX-ENTITY-LINKS3](tasks/UX-ENTITY-LINKS3.md) | INIT-PRODUCT-UX | T3 | 賽事情境的隊名連結化（範圍收斂為 A 層） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-29T18:00:45+08:00 |
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
