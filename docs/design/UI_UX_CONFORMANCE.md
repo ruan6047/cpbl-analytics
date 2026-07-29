@@ -26,7 +26,7 @@
 | `/batters` | §5.6 | `RankRoleTabs`+`level-year-nav`（bespoke，active `bg-ink text-paper` ✅）+ `Leaderboard` | ✅（Leaderboard/DataTable 內建） | ✅ | **四軸（role/view/kind/year）兩 nav 分列，且 `AwardRaces`(獎項排行榜) 垂直堆疊在 `Leaderboard`(完整清單) 上→難讀**；未走 §4.3 一體式導引欄、view 未做分頁（→ [`../tasks/UX-NAV-INTEGRATE1.md`](../tasks/UX-NAV-INTEGRATE1.md) Phase 2） | 🟡（多軸導引 + 視圖堆疊） |
 | `/pitchers` | §5.6 | 同 `/batters` | ✅ | ✅ | 同 `/batters` | 🟢 |
 | `/teams/[code]` | §5.8 | `Tabs`（pill）+ `DataTable` | ✅（`parts` import 三態） | ✅ | 多軸整合 **N/A**：`searchParams` 僅 `code`、無 kind/year 散置、已用 canonical `Tabs`（→ [`../tasks/UX-NAV-INTEGRATE1.md`](../tasks/UX-NAV-INTEGRATE1.md) Phase 4 稽核確認、預期無改動） | 🟢 |
-| `/matchups` | §5.9 | —+`EmptyState`；explorer 整合控制列 | ✅ | 🟡 **`text-amber-600`**（`matchup-card.tsx:89/91`）取代 `--color-amber`（先發投手文字） | 先發投手 amber 未走 token；多軸 explorer（role/kind/scope/年範圍/對手）**已有整合控制列**→align 共享軸（→ [`../tasks/UX-NAV-INTEGRATE1.md`](../tasks/UX-NAV-INTEGRATE1.md) Phase 4） | 🟡 |
+| `/matchups` | §5.9 | —+`EmptyState`；explorer 整合控制列 | ✅ | ✅ | ~~先發投手 amber 未走 token~~——**該記載已過期**：`948bb21` 重寫 `/matchups` 後即不再引用 `matchup-card.tsx`，該檔 `amber-600` 亦由 `b023385` 改為語意 token、並由 `UX-ORPHAN-SWEEP1` 移除。多軸 explorer（role/kind/scope/年範圍/對手）**已有整合控制列**→align 共享軸（→ [`../tasks/UX-NAV-INTEGRATE1.md`](../tasks/UX-NAV-INTEGRATE1.md) Phase 4） | 🟢 |
 | `/records` | §5.10 | `DataTable` | ✅（`emptyText`） | ✅ | 無明顯偏離 | 🟢 |
 | `/venues`,`/venues/[venue]` | §5.11 | `DataTable` | ✅（`emptyText`） | ✅ | 多軸整合 **N/A**：無軸選擇器、清單/詳情（→ [`../tasks/UX-NAV-INTEGRATE1.md`](../tasks/UX-NAV-INTEGRATE1.md) Phase 4 稽核確認、預期無改動） | 🟢 |
 | `/umpires` | §5.12 | bespoke toggle + `DataTable` | ⚠️ **ad-hoc「載入中…」**（`page.tsx:273`）；未 import 三態 | ✅ | active toggle `bg-cpbl text-white`（應 `text-paper`）；2 處手刻卡殼 | 🟡 |
@@ -43,7 +43,7 @@
 | **arbitrary 字級 `text-[Npx]`** | 全站 ~222 處（`[11px]`×127、`[10px]`×78、`[9px]`×11、`[13px]`×5、`[8px]`×1） | 幾乎全站 | 🟡（技術債；`UI_UX_SYSTEM §2.3` 收斂角色，**新碼強制、既有漸進**） |
 | **sub-legible 字級** `text-[8px]/[9px]` | 12 處 | 散見 hero/tracking/game-board | 🟡（可及性；建議上調 ≥10px 或改 icon） |
 | **`text-white` 於 active toggle/badge** | `detail.tsx:50`、`box-tabs.tsx:619/623`、`umpires:197/201`、`game-board:285`、`standings:645` | 上列頁 | 🟢/🟡（多在飽和底，對比合法；屬 §2.2 用語一致性——應 `text-paper`；非「白底白字」實害） |
-| **Tailwind 數字色階取代語意 token** | `standings`（amber-100/500/700）、`matchup-card`（amber-600） | standings、matchups | 🟡（違反 §2.8 hex/數字色階白名單） |
+| ~~**Tailwind 數字色階取代語意 token**~~ | ~~`standings`（amber-100/500/700）、`matchup-card`（amber-600）~~ | — | ✅ **已完成**（`b023385` 兩處皆改語意 token；2026-07-29 實測全站 `amber-[0-9]` 零命中。`matchup-card.tsx` 另因無 runtime consumer 由 `UX-ORPHAN-SWEEP1` 移除） |
 | **手刻 `rounded-xl border`（非 `Card`）** | box-tabs×4、standings×3、umpires×2、fielding×2、多元件×1 | 上列頁 | 🟢/🟡（部分為 `DataTable` 表殼/內部面板等授權情境，須 CONFORM 逐檔判別是否應改 `Card`） |
 
 ---
@@ -58,7 +58,7 @@
 | H2 | **深色模式缺 `--chart-7/8` 覆寫**（`[data-theme=dark]` 只到 chart-6）→ 深色退回淺色值，navy 底對比可能不足 | `globals.css:96-105` | 🟡 |
 | H3 | **`--chart-1..8` 分類序列從未跑 CVD 相鄰對驗證**（dataviz 要求 ΔE≥8） | `globals.css` + `chart-theme.ts` | 🟡 |
 | H4 | `zone-*`/`status-*` **語意在 `@theme` 與 `chart-theme.ts` 常數盤雙處定義** → 潛在 drift | `globals.css` + `chart-theme.ts` | 🟢 |
-| H5 | Tailwind 數字色階 `amber-N` 應改語意 `amber` token | `standings`、`matchup-card` | 🟡 |
+| H5 | Tailwind 數字色階 `amber-N` 應改語意 `amber` token | ~~`standings`、`matchup-card`~~ | ✅ **已完成**（`b023385`，2026-07-24 兩處皆改；`matchup-card.tsx` 另由 `UX-ORPHAN-SWEEP1` 移除。2026-07-29 實測全站 `amber-[0-9]` 零命中） |
 | H6 | ad-hoc「載入中…」應改三態元件 | `umpires`、`box-tabs` | 🟡 |
 | H7 | sub-legible `text-[8px]/[9px]` 上調 | 散見 | 🟡 |
 | H8 | `<select>` 圓角不一致（`YearSelect` `rounded-full` vs `Leaderboard` 篩選 `rounded-lg`）→ 統一 control `rounded-lg`（或明訂 pill-select 限工具列 chip） | `year-select.tsx`、`leaderboard.tsx` | 🟢 |
@@ -88,5 +88,5 @@
 ## 摘要
 
 - **強項**：token 紀律良好（app 頁面**零硬編 hex**）；三態/表格/徽章元件收斂度高；深色機制健全；多數頁 🟢。
-- **主要待對齊**：① `standings`/`matchup-card` 的 Tailwind 數字色階 →語意 token；② `umpires`/`box-tabs` ad-hoc 載入態 →三態；③ 全站 arbitrary 字級收斂（漸進）；④ token hygiene（chart-7/8、CVD）另卡修。
+- **主要待對齊**：~~① `standings`/`matchup-card` 的 Tailwind 數字色階 →語意 token~~（**已完成**，`b023385`；`matchup-card.tsx` 另由 `UX-ORPHAN-SWEEP1` 移除）；② `umpires`/`box-tabs` ad-hoc 載入態 →三態；③ 全站 arbitrary 字級收斂（漸進）；④ token hygiene（chart-7/8、CVD）另卡修。
 - **無 🔴 級**跨頁破壞：現況一致性整體良好，偏離集中於少數頁的 token/三態用語。
