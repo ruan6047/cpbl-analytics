@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import datetime
 import json
 from pathlib import Path
 from typing import Any
@@ -230,6 +231,9 @@ def collect(from_year: int, to_year: int, kinds: list[str]) -> dict[str, Any]:
                 baseline_hist[int(src) - der] += 1
 
     return {
+        "generated_at": datetime.datetime.now().astimezone().isoformat(),
+        "scope_note": "所有數字對「生成當下的本機 game_livelog 母體」成立；母體隨每日爬蟲增長，"
+                      "重跑須以 scope.games/events 對齊比較（iteration 5 查核 Major）",
         "scope": {"from_year": from_year, "to_year": to_year, "kinds": kinds,
                   "games": len(games), "events": len(rows)},
         "merge": {

@@ -1,4 +1,6 @@
 {
+  "generated_at": "2026-07-29T12:23:43.924705+08:00",
+  "scope_note": "所有數字對「生成當下的本機 game_livelog 母體」成立；母體隨每日爬蟲增長，重跑須以 scope.games/events 對齊比較（iteration 5 查核 Major）",
   "scope": {
     "from_year": 2018,
     "to_year": 2026,
@@ -8,8 +10,8 @@
       "D",
       "E"
     ],
-    "games": 4276,
-    "events": 1334122
+    "games": 4279,
+    "events": 1334970
   },
   "merge": {
     "total_pairs": 296,
@@ -3619,15 +3621,15 @@
     ]
   },
   "pre_outs_duplicates": {
-    "before": 1175,
+    "before": 1177,
     "after": 1
   },
   "pre_outs_source_change": {
     "population": "修正後的 canonical PA 起點（不限有無投球）＝實際寫入 DB 的變動",
-    "changed": 2182,
+    "changed": 2185,
     "diff_histogram": {
       "-2": 8,
-      "-1": 2170,
+      "-1": 2173,
       "2": 4
     },
     "changes": [
@@ -16244,6 +16246,12 @@
         "derived": 2
       },
       {
+        "game": "2026/A/227",
+        "event": "0120011000",
+        "out_cnt": 1,
+        "derived": 2
+      },
+      {
         "game": "2026/D/1",
         "event": "0220011000",
         "out_cnt": 1,
@@ -16722,16 +16730,28 @@
         "event": "0710020000",
         "out_cnt": 1,
         "derived": 2
+      },
+      {
+        "game": "2026/D/176",
+        "event": "0410010000",
+        "out_cnt": 1,
+        "derived": 2
+      },
+      {
+        "game": "2026/D/176",
+        "event": "0610014000",
+        "out_cnt": 1,
+        "derived": 2
       }
     ]
   },
   "pre_outs_baseline_diagnostic": {
     "population": "修正**前**的 island 起點且島內有真實投球＝診斷基線，與上一項是不同母體，數字不可互相引用",
-    "islands_with_real_pitch": 330386,
-    "mismatched": 2157,
+    "islands_with_real_pitch": 330592,
+    "mismatched": 2160,
     "diff_histogram": {
       "-2": 7,
-      "-1": 2148,
+      "-1": 2151,
       "2": 2
     }
   },
