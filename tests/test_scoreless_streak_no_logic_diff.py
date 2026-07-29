@@ -57,6 +57,12 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_SHA = "b974b10"
+# 交付端點釘死在 SCORELESS2 併入 main 的分支尾端（merge f1aa1aa 的第二親）。
+# 本守衛斷言的是「基線 → **交付 SHA**」這段歷史零可執行邏輯變更——那是該卡
+# memo 的宣稱範圍。原版比對「基線 → 當前工作樹」，等於凍結 src/scripts 整棵樹，
+# 合併後任何後續卡的正常開發都會誤中（2026-07-29 GAME-RECAP-PA1-FIX1 實中，
+# 需求方裁定改釘交付 SHA）。兩個 SHA 都是固定歷史，斷言永久成立且永不誤傷。
+DELIVERY_SHA = "14593576238b94385473f04d824a6553a3b028fc"
 CHECK_DIRS = ("src", "scripts")
 
 DOCSTRING_HOLDERS = (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
@@ -68,8 +74,11 @@ def _git(*args: str, check: bool = True) -> subprocess.CompletedProcess:
 
 
 def _baseline_available() -> bool:
-    return _git("rev-parse", "--verify", "--quiet", f"{BASELINE_SHA}^{{commit}}",
-                check=False).returncode == 0
+    return all(
+        _git("rev-parse", "--verify", "--quiet", f"{sha}^{{commit}}",
+             check=False).returncode == 0
+        for sha in (BASELINE_SHA, DELIVERY_SHA)
+    )
 
 
 def _in_ci() -> bool:
@@ -78,13 +87,13 @@ def _in_ci() -> bool:
 
 
 def _changed_python_files() -> list[str]:
-    out = _git("diff", "--name-only", BASELINE_SHA, "--", *CHECK_DIRS).stdout
+    out = _git("diff", "--name-only", BASELINE_SHA, DELIVERY_SHA, "--", *CHECK_DIRS).stdout
     return [p for p in out.splitlines() if p.endswith(".py")]
 
 
-def _source_at_baseline(path: str) -> str | None:
-    """`path` 在基線是否存在；不存在（新增檔案）回 None。"""
-    result = _git("show", f"{BASELINE_SHA}:{path}", check=False)
+def _source_at(sha: str, path: str) -> str | None:
+    """`path` 在指定 commit 是否存在；不存在回 None。"""
+    result = _git("show", f"{sha}:{path}", check=False)
     return result.stdout if result.returncode == 0 else None
 
 
@@ -118,44 +127,44 @@ def _require_baseline():
     if not _baseline_available():
         if _in_ci():
             pytest.fail(
-                f"基線 commit {BASELINE_SHA} 在 CI checkout 無法解析——CI 的 checkout "
+                f"基線 {BASELINE_SHA} 或交付 {DELIVERY_SHA[:7]} 在 CI checkout 無法解析——CI 的 checkout "
                 "應已用完整歷史（fetch-depth: 0，見 .github/workflows/ci.yml）取得此段"
                 "歷史；若仍解析不到，代表本守衛在合併閘門處於靜默失效狀態（例如"
                 "fetch-depth 被改回預設值、或換了看不到此 SHA 的 CI 平台），必須當"
                 "作失敗處理，不可比照本機 skip，否則「零可執行邏輯變更是自動斷言」"
                 "這句話就會退化成從未真正跑過的空話")
-        pytest.skip(f"基線 commit {BASELINE_SHA} 在此 checkout 無法解析"
+        pytest.skip(f"基線 {BASELINE_SHA} 或交付 {DELIVERY_SHA[:7]} 在此 checkout 無法解析"
                      "（shallow clone 或未 fetch 到此段歷史）——不代表無邏輯變更，"
                      "只是本環境驗不了，須換一個能看到完整歷史的環境重跑")
 
 
 def test_src_and_scripts_have_no_executable_change_since_baseline():
-    """`git diff b974b10 -- src scripts` 涉及的每個 .py 檔，AST（剝除 docstring）必須與基線相同。
+    """`git diff b974b10 1459357 -- src scripts` 涉及的每個 .py 檔，AST（剝除 docstring）須相同。
 
     這條成立即等同於 RESULTS.md／卡面歷次宣稱的「產品控制流與資料流不變、API payload
     與基線相同（排除註解及 docstring metadata）」——不再需要人工報行數，diff 內容
-    本身自動驗證，行號漂移也不會讓斷言跟著漂移。
+    本身自動驗證，行號漂移也不會讓斷言跟著漂移。比對兩端皆為**固定歷史 SHA**
+    （基線與交付），與當前工作樹無關，後續卡的開發不受本守衛約束。
     """
     files = _changed_python_files()
     assert files, (
-        f"git diff --name-only {BASELINE_SHA} 對 {CHECK_DIRS} 沒有變更檔案——"
-        "若這是預期狀態（例如已完全回到基線），本測試的存在意義改變，"
+        f"git diff --name-only {BASELINE_SHA} {DELIVERY_SHA[:7]} 對 {CHECK_DIRS} 沒有變更檔案——"
+        "若這是預期狀態（例如交付 SHA 標錯），本測試的存在意義改變，"
         "應同步更新這裡的斷言範圍，不該讓空清單悄悄通過")
 
     mismatches: list[str] = []
     for path in files:
-        baseline_source = _source_at_baseline(path)
-        current_path = ROOT / path
-        if not current_path.exists():
-            mismatches.append(f"{path}：檔案已刪除，無基準可比，視為潛在邏輯變更")
+        baseline_source = _source_at(BASELINE_SHA, path)
+        delivery_source = _source_at(DELIVERY_SHA, path)
+        if delivery_source is None:
+            mismatches.append(f"{path}：交付 SHA 不存在此檔（被刪除），無基準可比，視為邏輯變更")
             continue
         if baseline_source is None:
             mismatches.append(f"{path}：基線不存在此檔（新增檔案），AST 無基準可比，視為邏輯變更")
             continue
-        current_source = current_path.read_text(encoding="utf-8")
-        if _ast_signature(baseline_source) != _ast_signature(current_source):
+        if _ast_signature(baseline_source) != _ast_signature(delivery_source):
             mismatches.append(f"{path}：剝除 docstring 後 AST 仍不同——存在可執行邏輯變更")
 
     assert not mismatches, (
-        f"以下檔案相對基線 {BASELINE_SHA} 有可執行邏輯變更（非純 docstring／註解）：\n  "
-        + "\n  ".join(mismatches))
+        f"以下檔案在基線 {BASELINE_SHA} → 交付 {DELIVERY_SHA[:7]} 之間有可執行邏輯變更"
+        "（非純 docstring／註解）：\n  " + "\n  ".join(mismatches))
