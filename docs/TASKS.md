@@ -20,7 +20,7 @@
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | 子卡依 v1.3 藍圖推進 | — | 0 | 📥Backlog | —不適用 | 2026-07-27T18:14:24+08:00 |
 | [INIT-OFFICIAL-DATA1](tasks/INIT-OFFICIAL-DATA1.md) | INIT-OFFICIAL-DATA1 | T4 | 官方資料契約完整性與低維護 ingest | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:00+08:00 |
 | [INIT-PRODUCT-UX](tasks/INIT-PRODUCT-UX.md) | INIT-PRODUCT-UX | T3 | 全站產品與 UI/UX 收斂 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-17T04:44:24+08:00 |
-| [LIVE-GAME-BACKEND1](tasks/LIVE-GAME-BACKEND1.md) | INIT-OFFICIAL-DATA1 | T4 | 賽前情報與比賽中 live backend | ruan6047（Design Gate：預告先發來源／v1 範圍） | `ai/codex/LIVE-GAME-BACKEND1 @ .claude/worktrees/live-game-backend1-execution（乾淨保留）` | 1 | ⏸阻塞 | ⏸未部署 | 2026-07-30T00:27:30+08:00 |
+| [LIVE-GAME-BACKEND1](tasks/LIVE-GAME-BACKEND1.md) | INIT-OFFICIAL-DATA1 | T4 | 賽前情報與比賽中 live backend | GPT-5.6@Codex（執行；live-only v1 收尾） | `ai/codex/LIVE-GAME-BACKEND1 @ .claude/worktrees/live-game-backend1-execution` | 1 | 🔨執行中 | ⏸未部署 | 2026-07-30T00:31:04+08:00 |
 | [MATCHUP-DATA2](tasks/MATCHUP-DATA2.md) | — | T4 | 對戰對手歷史隊別歸屬修正 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T03:16:09+08:00 |
 | [ML-FIELD-LINEUP1](tasks/ML-FIELD-LINEUP1.md) | INIT-OFFICIAL-DATA1 | T4 | 逐局守備陣容重建可行性與 canonical contract | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:03+08:00 |
 | [ML-FIELD-OAA-VAL1](tasks/ML-FIELD-OAA-VAL1.md) | INIT-OFFICIAL-DATA1 | T4 | 利用極座標落點還原 Spray Chart 與外野 OAA | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:07+08:00 |
@@ -39,7 +39,7 @@
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
 | [UX-LEADERS-ORPHAN1](tasks/UX-LEADERS-ORPHAN1.md) | INIT-PRODUCT-UX | T2 | LeagueLeaders 元件已無 runtime consumer | ruan6047（部署驗證；卡在 observer 撤除） | `ai/opus-5/UX-LEADERS-ORPHAN1 @ .claude/worktrees/ux-leaders-orphan1-execution` | 0 | 📦已合併 | ⏸未部署 | 2026-07-30T00:08:03+08:00 |
-| [UX-LIVE-GAME1](tasks/UX-LIVE-GAME1.md) | INIT-PRODUCT-UX | T3 | 賽前情報到比賽中狀態板 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-26T17:29:31+08:00 |
+| [UX-LIVE-GAME1](tasks/UX-LIVE-GAME1.md) | INIT-PRODUCT-UX | T3 | 賽前情報到比賽中狀態板 | 待指派（依賴 backend T4 通過後） | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-30T00:31:04+08:00 |
 | [UX-ORPHAN-SWEEP1](tasks/UX-ORPHAN-SWEEP1.md) | INIT-PRODUCT-UX | T2 | 孤兒模組第二批：matchup-card 與 lib/cols（含文件對帳） | ruan6047（部署驗證；卡在 observer 撤除） | `ai/opus-5/UX-ORPHAN-SWEEP1 @ .claude/worktrees/ux-orphan-sweep1-execution` | 0 | 📦已合併 | ⏸未部署 | 2026-07-30T00:08:03+08:00 |
 | [UX-TEAM-FIELD-HIST1](tasks/UX-TEAM-FIELD-HIST1.md) | INIT-PRODUCT-UX | T3 | 球隊頁歷史年守備位置圖（union fielding_seasons） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:36:00+08:00 |
 
