@@ -152,36 +152,16 @@ def _iso(value: datetime) -> str:
     return value.isoformat()
 
 
-def _first_observed(previous: dict | None, key: str, identity: str | None,
-                    fetched_at: datetime) -> str:
-    old = (previous or {}).get(key) or {}
-    if identity and old.get("player_id") == identity and old.get("first_observed_at"):
-        return old["first_observed_at"]
-    if identity is None and old.get("items") and old.get("first_observed_at"):
-        return old["first_observed_at"]
-    return _iso(fetched_at)
-
-
 def _team_snapshot(raw: dict, fetched_at: datetime, previous: dict | None) -> dict:
     pitchers = raw.get("Pitchers") if isinstance(raw.get("Pitchers"), list) else []
-    starter = next((p for p in pitchers if p.get("RoleType") == "先發"), None)
-    pitcher_id = None if starter is None else starter.get("PitcherAcnt")
-    if starter and pitcher_id:
-        probable = {
-            "availability": "announced",
-            "player_id": pitcher_id,
-            "name": starter.get("PitcherName"),
-            "first_observed_at": _first_observed(
-                previous, "probable_pitcher", str(pitcher_id), fetched_at,
-            ),
-        }
-    else:
-        probable = {
-            "availability": "not_announced",
-            "player_id": None,
-            "name": None,
-            "first_observed_at": None,
-        }
+    # A-226～228 的跨時點觀測證實 Pitchers[] 僅在 START 後出現，屬 box
+    # 投手資料，不能倒推為賽前預告先發。真正來源完成 Design Gate 前保持 fail closed。
+    probable = {
+        "availability": "not_announced",
+        "player_id": None,
+        "name": None,
+        "first_observed_at": None,
+    }
 
     hitters = raw.get("Hitters") if isinstance(raw.get("Hitters"), list) else []
     items = [

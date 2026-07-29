@@ -66,7 +66,7 @@ def test_scheduled_empty_payload_does_not_infer_announcements_from_clock() -> No
     assert snapshot["tracking_availability"] == "not_announced"
 
 
-def test_probable_pitcher_and_lineup_are_independent_per_team() -> None:
+def test_lineup_is_independent_per_team_without_inventing_probable_pitcher() -> None:
     away = _team(
         "味全龍",
         pitchers=[_starter("p1", "伍鐸")],
@@ -77,12 +77,8 @@ def test_probable_pitcher_and_lineup_are_independent_per_team() -> None:
     snapshot = build_snapshot(_game("SCHEDULED", away=away, home=home), fetched_at=T0)
 
     assert snapshot["phase"] == "lineup_announced"
-    assert snapshot["away"]["probable_pitcher"] == {
-        "availability": "announced",
-        "player_id": "p1",
-        "name": "伍鐸",
-        "first_observed_at": T0.isoformat(),
-    }
+    assert snapshot["away"]["pitchers"] == [_starter("p1", "伍鐸")]
+    assert snapshot["away"]["probable_pitcher"]["availability"] == "not_announced"
     assert snapshot["away"]["lineup"]["availability"] == "announced"
     assert len(snapshot["away"]["lineup"]["items"]) == 9
     assert snapshot["home"]["probable_pitcher"]["availability"] == "not_announced"
@@ -107,6 +103,22 @@ def test_start_zero_zero_is_live_and_zero_trackman_is_pending_not_no_equipment()
     assert snapshot["tracking_availability"] == "pending"
 
 
+def test_started_box_pitcher_is_not_mislabeled_as_probable_pitcher() -> None:
+    """A-226～228 證實 Pitchers[] 只在 START 後出現，不能倒推成賽前公告。"""
+    away = _team("味全龍", pitchers=[_starter("p1", "伍鐸")])
+
+    snapshot = build_snapshot(_game("START", away=away), fetched_at=T0)
+
+    assert snapshot["phase"] == "live"
+    assert snapshot["away"]["pitchers"][0]["RoleType"] == "先發"
+    assert snapshot["away"]["probable_pitcher"] == {
+        "availability": "not_announced",
+        "player_id": None,
+        "name": None,
+        "first_observed_at": None,
+    }
+
+
 def test_finished_trackman_is_available_and_unknown_status_fails_closed() -> None:
     tracked = [{
         "PitchCnt": 1,
@@ -123,8 +135,8 @@ def test_finished_trackman_is_available_and_unknown_status_fails_closed() -> Non
     assert unknown["raw_status"] == "SUSPENDED"
 
 
-def test_first_observed_time_survives_later_snapshots() -> None:
-    away = _team("味全龍", pitchers=[_starter("p1", "伍鐸")])
+def test_lineup_first_observed_time_survives_later_snapshots() -> None:
+    away = _team("味全龍", hitters=[_hitter(1, "客隊第一棒")])
     first = build_snapshot(_game("SCHEDULED", away=away), fetched_at=T0)
     later = build_snapshot(
         _game("SCHEDULED", away=away),
@@ -132,7 +144,7 @@ def test_first_observed_time_survives_later_snapshots() -> None:
         previous=first,
     )
 
-    assert later["away"]["probable_pitcher"]["first_observed_at"] == T0.isoformat()
+    assert later["away"]["lineup"]["first_observed_at"] == T0.isoformat()
     assert later["source"]["fetched_at"] != T0.isoformat()
 
 
@@ -259,7 +271,7 @@ def test_worker_updates_snapshot_and_preserves_first_observed() -> None:
         "game_id": "2026-A-226",
         "phase": "live",
         "raw_status": "START",
-        "away_probable": "announced",
+        "away_probable": "not_announced",
         "home_probable": "not_announced",
         "away_lineup": "not_announced",
         "home_lineup": "not_announced",
@@ -267,7 +279,7 @@ def test_worker_updates_snapshot_and_preserves_first_observed() -> None:
         "tracking_count": 0,
     }]
     assert current["phase"] == "live"
-    assert current["away"]["probable_pitcher"]["first_observed_at"] == T0.isoformat()
+    assert current["away"]["probable_pitcher"]["first_observed_at"] is None
     assert cache.released == 1
 
 
