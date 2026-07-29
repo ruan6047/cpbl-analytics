@@ -95,7 +95,9 @@ docker compose exec redis redis-cli DEL cpbl:live:kill
 
 - polling base：live 12 秒、T-90m 內 60 秒、T-30h 內 10 分鐘、其餘 30 分鐘；正常值另加
   0.9–1.1 jitter，錯誤指數退避最多 5 分鐘，每 cycle 最多 8 場。
-- `START` 依官方 raw status，不看比分；兩隊 probable pitcher／lineup 可各自 partial。
+- `START` 依官方 raw status，不看比分；兩隊 lineup 可各自 partial。A-226～228 證實
+  `Pitchers[]` 僅在 START 後出現且帶 box 統計，正式 probable starter 來源在 Design Gate
+  定案前一律 fail closed，不得由 `RoleType=先發` 倒推。
 - final 後 TrackMan 可能延遲（2026-07-26 A-224／225 完賽當下仍 0），0 筆只標 pending。
 - 觀測矩陣與 canary evidence：[`research/LIVE_GAME_BACKEND1_OBSERVATION.md`](research/LIVE_GAME_BACKEND1_OBSERVATION.md)。
 
