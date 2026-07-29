@@ -234,6 +234,13 @@ def build_snapshot(raw_game: dict[str, Any], *, fetched_at: datetime,
         for event in raw_livelog
     ]
     phase = _phase(raw_status, away, home)
+    previous_count = int((previous or {}).get("event_count") or 0)
+    if (
+        phase in {"live", "final"}
+        and (previous or {}).get("phase") in {"live", "final"}
+        and len(livelog) < previous_count
+    ):
+        raise ValueError(f"LiveLog regressed from {previous_count} to {len(livelog)}")
     if tracked:
         tracking = "available"
     elif phase in {"live", "final"}:

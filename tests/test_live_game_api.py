@@ -31,6 +31,7 @@ def test_public_snapshot_marks_live_data_stale_without_discarding_last_known_goo
     assert public["phase"] == "live"
     assert public["freshness"] == "stale"
     assert public["stale_after_seconds"] == 45
+    assert public["poll_after_seconds"] == 12
     assert public["away"]["score"] == 0
 
 
@@ -42,6 +43,7 @@ def test_final_snapshot_does_not_age_into_stale() -> None:
     assert public["phase"] == "final"
     assert public["freshness"] == "final"
     assert public["stale_after_seconds"] is None
+    assert public["poll_after_seconds"] is None
 
 
 class _Cursor:

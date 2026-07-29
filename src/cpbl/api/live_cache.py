@@ -33,6 +33,7 @@ def public_snapshot(snapshot: dict, *, now: datetime,
     result = dict(snapshot)
     result["source"] = dict(snapshot.get("source") or {})
     phase = result.get("phase")
+    result["poll_after_seconds"] = 12 if phase == "live" else None
     if phase == "final":
         result["freshness"] = "final"
         result["stale_after_seconds"] = None

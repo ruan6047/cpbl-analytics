@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime
 
 import httpx
+import pytest
 
 from cpbl.ingest.live_game_worker import (
     LiveGameWorker,
@@ -117,6 +118,20 @@ def test_started_box_pitcher_is_not_mislabeled_as_probable_pitcher() -> None:
         "name": None,
         "first_observed_at": None,
     }
+
+
+def test_livelog_event_count_cannot_regress_below_last_known_good() -> None:
+    previous = build_snapshot(
+        _game("START", livelog=[{"PitchCnt": 1}, {"PitchCnt": 2}]),
+        fetched_at=T0,
+    )
+
+    with pytest.raises(ValueError, match="LiveLog regressed from 2 to 1"):
+        build_snapshot(
+            _game("START", livelog=[{"PitchCnt": 1}]),
+            fetched_at=datetime(2026, 7, 28, 17, 0, 12, tzinfo=UTC),
+            previous=previous,
+        )
 
 
 def test_finished_trackman_is_available_and_unknown_status_fails_closed() -> None:
@@ -281,6 +296,30 @@ def test_worker_updates_snapshot_and_preserves_first_observed() -> None:
     assert current["phase"] == "live"
     assert current["away"]["probable_pitcher"]["first_observed_at"] is None
     assert cache.released == 1
+
+
+def test_worker_keeps_last_known_good_when_livelog_temporarily_regresses() -> None:
+    now = datetime(2026, 7, 28, 10, 0, tzinfo=UTC)
+    cache = _Cache()
+    previous = build_snapshot(
+        _game("START", livelog=[{"PitchCnt": 1}, {"PitchCnt": 2}]),
+        fetched_at=T0,
+    )
+    cache.set_snapshot(previous)
+
+    worker = LiveGameWorker(
+        cache=cache,
+        fetch_schedule=lambda *_: [
+            _schedule("2026-A-226", "START", "2026-07-28T18:35:00"),
+        ],
+        fetch_game=lambda _game_id: _game("START", livelog=[{"PitchCnt": 1}]),
+    )
+
+    result = worker.run_cycle(now)
+
+    assert result["cached"] == 0
+    assert result["errors"] == 1
+    assert cache.get_snapshot(2026, "A", 226) == previous
 
 
 def test_poll_interval_is_adaptive_but_bounded() -> None:
