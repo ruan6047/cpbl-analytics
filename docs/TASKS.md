@@ -8,7 +8,7 @@
 
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
-| [DEV-REVIEW-PROMPT-GATE1](tasks/DEV-REVIEW-PROMPT-GATE1.md) | — | T2 | 中繼查核關卡被守衛當成本輪已結束 | Claude Opus 5@Claude Code | `ai/opus-5/DEV-REVIEW-PROMPT-GATE1 @ .claude/worktrees/dev-review-prompt-gate1-execution` | 0 | 🔨執行中 | —不適用 | 2026-07-29T19:34:58+08:00 |
+| [DEV-REVIEW-PROMPT-GATE1](tasks/DEV-REVIEW-PROMPT-GATE1.md) | — | T2 | 中繼查核關卡被守衛當成本輪已結束 | 待指派（查核） | `ai/opus-5/DEV-REVIEW-PROMPT-GATE1 @ .claude/worktrees/dev-review-prompt-gate1-execution` | 0 | 🔍待查核 | —不適用 | 2026-07-29T19:42:08+08:00 |
 | [DEV-REVIEW-PROMPT-GUARD1](tasks/DEV-REVIEW-PROMPT-GUARD1.md) | — | T2 | 查核提示詞產生器的三處錯誤指引 | 待指派（查核） | `ai/opus-5/DEV-REVIEW-PROMPT-GUARD1 @ .claude/worktrees/dev-review-prompt-guard1-execution` | 0 | 🔍待查核 | —不適用 | 2026-07-29T18:25:44+08:00 |
 | [DEV-VERIFY-TM-ASSERTS1](tasks/DEV-VERIFY-TM-ASSERTS1.md) | — | T2 | TM 回填驗證腳本補上真正的斷言 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-29T12:14:00+08:00 |
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | — | `ai/sonnet-5/INGEST-GAME-TM-REFACTOR1-g3 @ .claude/worktrees/ingest-game-tm-refactor1-g3-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-24T12:53:42+08:00 |
