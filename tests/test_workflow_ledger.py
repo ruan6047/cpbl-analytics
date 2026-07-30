@@ -72,7 +72,7 @@ def test_review_contract_keeps_pre_baseline_history_unchanged() -> None:
 
 
 def test_review_contract_rejects_free_text_review_after_baseline() -> None:
-    baseline = _contract_event("BASELINE-001", "status", 1)
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
     baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
     review = _review_event(review_result="REJECT")
 
@@ -84,8 +84,34 @@ def test_review_contract_rejects_free_text_review_after_baseline() -> None:
         raise AssertionError("WF-21 baseline 後不得接受自由文字 REJECT")
 
 
+def test_review_contract_rejects_duplicate_baseline_marker() -> None:
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    bypass = _review_event(review_result="REJECT")
+    bypass["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+
+    try:
+        workflow_ledger.render_ledger([baseline, bypass])
+    except ValueError as error:
+        assert "contract_baseline" in str(error)
+    else:
+        raise AssertionError("baseline marker 只能出現一次，不得略過後續 review 驗證")
+
+
+def test_review_contract_rejects_baseline_marker_on_review_event() -> None:
+    bypass = _review_event(state_version=1, review_result="REJECT")
+    bypass["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+
+    try:
+        workflow_ledger.render_ledger([bypass])
+    except ValueError as error:
+        assert "contract-baseline 事件" in str(error)
+    else:
+        raise AssertionError("baseline marker 不得附在 review 事件上略過驗證")
+
+
 def test_review_contract_derives_count_from_executor_finding() -> None:
-    baseline = _contract_event("BASELINE-001", "status", 1)
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
     baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
 
     rendered = workflow_ledger.render_ledger([baseline, _review_event()])
@@ -94,7 +120,7 @@ def test_review_contract_derives_count_from_executor_finding() -> None:
 
 
 def test_review_contract_does_not_count_governance_finding() -> None:
-    baseline = _contract_event("BASELINE-001", "status", 1)
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
     baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
     review = _review_event(
         findings=[_finding(finding_class="governance", attribution="coordinator")],
@@ -105,7 +131,7 @@ def test_review_contract_does_not_count_governance_finding() -> None:
 
 
 def test_review_contract_rejects_manually_declared_count() -> None:
-    baseline = _contract_event("BASELINE-001", "status", 1)
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
     baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
     review = _review_event(counts_toward_escalation=False)
 
@@ -118,7 +144,7 @@ def test_review_contract_rejects_manually_declared_count() -> None:
 
 
 def test_review_contract_deduplicates_same_attempt_before_checkpoint() -> None:
-    baseline = _contract_event("BASELINE-001", "status", 1)
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
     baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
     same_attempt = _review_event(state_version=3)
     same_attempt["event_id"] = "REVIEW-003"
@@ -166,7 +192,7 @@ def test_review_contract_deduplicates_same_attempt_before_checkpoint() -> None:
 
 
 def test_review_contract_requires_checkpoint_after_third_unique_attempt() -> None:
-    baseline = _contract_event("BASELINE-001", "status", 1)
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
     baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
     reviews = [_review_event()]
     for state_version, sha in ((3, "b" * 40), (4, "c" * 40)):
@@ -185,7 +211,7 @@ def test_review_contract_requires_checkpoint_after_third_unique_attempt() -> Non
 
 
 def test_review_contract_forces_escalation_for_repeated_root_cause() -> None:
-    baseline = _contract_event("BASELINE-001", "status", 1)
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
     baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
     reviews = [_review_event()]
     for state_version, sha in ((3, "b" * 40), (4, "c" * 40)):
@@ -209,6 +235,233 @@ def test_review_contract_forces_escalation_for_repeated_root_cause() -> None:
         assert "checkpoint_decision 必須為 escalate" in str(error)
     else:
         raise AssertionError("三次重複根因必須 fail loud 升級")
+
+
+def test_review_contract_forces_escalation_for_unresolved_carry() -> None:
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    first = _review_event()
+    second_sha = "b" * 40
+    second = _review_event(
+        state_version=3,
+        source_sha=second_sha,
+        attempt_id=f"CARD-WF21-e0-{second_sha}",
+        findings=[
+            _finding(),
+            _finding(finding_id="F-002", root_cause_id="root-2"),
+        ],
+    )
+    third_sha = "c" * 40
+    third = _review_event(
+        state_version=4,
+        source_sha=third_sha,
+        attempt_id=f"CARD-WF21-e0-{third_sha}",
+        findings=[
+            _finding(status="resolved", disposition="fixed late"),
+            _finding(finding_id="F-002", root_cause_id="root-2", status="resolved"),
+            _finding(finding_id="F-003", root_cause_id="root-3"),
+        ],
+    )
+    checkpoint = _contract_event("CHECKPOINT-005", "escalation-checkpoint", 5)
+    checkpoint.update({
+        "escalation_epoch": 0,
+        "trigger_attempt_id": third["attempt_id"],
+        "unique_attempt_count": 3,
+        "checkpoint_decision": "continue",
+        "checkpoint_rationale": "incorrectly ignores carry from first to second attempt",
+    })
+
+    try:
+        workflow_ledger.render_ledger([baseline, first, second, third, checkpoint])
+    except ValueError as error:
+        assert "checkpoint_decision 必須為 escalate" in str(error)
+    else:
+        raise AssertionError("前輪 finding 延續到下一 attempt 必須 fail loud 升級")
+
+
+def test_review_contract_rejects_unauthorized_epoch_jump() -> None:
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    second_sha = "b" * 40
+    second = _review_event(
+        state_version=3,
+        source_sha=second_sha,
+        attempt_id=f"CARD-WF21-e0-{second_sha}",
+        findings=[_finding(finding_id="F-002", root_cause_id="root-2")],
+    )
+    third_sha = "c" * 40
+    jumped = _review_event(
+        state_version=4,
+        source_sha=third_sha,
+        escalation_epoch=1,
+        attempt_id=f"CARD-WF21-e1-{third_sha}",
+        findings=[_finding(finding_id="F-003", root_cause_id="root-3")],
+    )
+
+    try:
+        workflow_ledger.render_ledger([baseline, _review_event(), second, jumped])
+    except ValueError as error:
+        assert "escalation_epoch" in str(error)
+    else:
+        raise AssertionError("未經需求方授權不得切換 escalation epoch")
+
+
+def test_review_contract_rejects_boolean_epoch() -> None:
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    review = _review_event(
+        escalation_epoch=False,
+        attempt_id=f"CARD-WF21-eFalse-{FULL_SHA}",
+    )
+
+    try:
+        workflow_ledger.render_ledger([baseline, review])
+    except ValueError as error:
+        assert "非負整數" in str(error)
+    else:
+        raise AssertionError("Python bool 不得冒充 escalation epoch 整數")
+
+
+def test_review_contract_accepts_requester_authorized_next_epoch() -> None:
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    epoch_change = _contract_event("EPOCH-002", "escalation-epoch-change", 2)
+    epoch_change.update({
+        "from_escalation_epoch": 0,
+        "to_escalation_epoch": 1,
+        "epoch_change_reason": "replan",
+        "requester_approved": True,
+    })
+    source_sha = "b" * 40
+    review = _review_event(
+        state_version=3,
+        source_sha=source_sha,
+        escalation_epoch=1,
+        attempt_id=f"CARD-WF21-e1-{source_sha}",
+    )
+
+    workflow_ledger.render_ledger([baseline, epoch_change, review])
+
+
+def test_review_contract_credits_resolution_in_non_counted_review() -> None:
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    first = _review_event()
+    second_sha = "b" * 40
+    second = _review_event(
+        state_version=3,
+        source_sha=second_sha,
+        attempt_id=f"CARD-WF21-e0-{second_sha}",
+        findings=[
+            _finding(status="resolved", disposition="fixed"),
+            _finding(finding_id="F-002", root_cause_id="root-2"),
+        ],
+    )
+    resolution_sha = "d" * 40
+    resolution = _review_event(
+        state_version=4,
+        source_sha=resolution_sha,
+        attempt_id=f"CARD-WF21-e0-{resolution_sha}",
+        review_result="APPROVE",
+        findings=[_finding(
+            finding_id="F-002", root_cause_id="root-2", status="resolved",
+            disposition="verified fixed",
+        )],
+        counts_toward_escalation=False,
+        delivery_status="🔍待查核",
+    )
+    third_sha = "c" * 40
+    third = _review_event(
+        state_version=5,
+        source_sha=third_sha,
+        attempt_id=f"CARD-WF21-e0-{third_sha}",
+        findings=[_finding(finding_id="F-003", root_cause_id="root-3")],
+    )
+    checkpoint = _contract_event("CHECKPOINT-006", "escalation-checkpoint", 6)
+    checkpoint.update({
+        "escalation_epoch": 0,
+        "trigger_attempt_id": third["attempt_id"],
+        "unique_attempt_count": 3,
+        "checkpoint_decision": "continue",
+        "checkpoint_rationale": "all earlier findings are closed and roots converge",
+    })
+
+    workflow_ledger.render_ledger([
+        baseline, first, second, resolution, third, checkpoint,
+    ])
+
+
+def test_review_contract_credits_resolution_from_correction_event() -> None:
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    correction = _contract_event("CORRECTION-003", "review-correction", 3)
+    correction.update({
+        "escalation_epoch": 0,
+        "target_attempt_id": f"CARD-WF21-e0-{FULL_SHA}",
+        "finding_updates": [_finding(status="resolved", disposition="withdrawn after evidence")],
+    })
+
+    workflow_ledger.render_ledger([baseline, _review_event(), correction])
+
+
+def test_review_contract_rejects_conflicting_finding_in_same_attempt() -> None:
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    conflicting = _review_event(
+        state_version=3,
+        review_result="APPROVE",
+        findings=[_finding(status="resolved", disposition="another reviewer says fixed")],
+        counts_toward_escalation=False,
+    )
+    conflicting["event_id"] = "REVIEW-003"
+
+    try:
+        workflow_ledger.render_ledger([baseline, _review_event(), conflicting])
+    except ValueError as error:
+        assert "finding" in str(error) and "衝突" in str(error)
+    else:
+        raise AssertionError("同一 attempt 的 finding 衝突必須 fail loud")
+
+
+def test_review_invalid_requires_boolean_preflight_status() -> None:
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    invalid = _contract_event("INVALID-002", "review-invalid", 2)
+    invalid.update({"preflight_passed": "false", "invalid_reasons": ["wrong family"]})
+
+    try:
+        workflow_ledger.render_ledger([baseline, invalid])
+    except ValueError as error:
+        assert "preflight_passed" in str(error)
+    else:
+        raise AssertionError("review-invalid.preflight_passed 必須是布林值")
+
+
+def test_preflight_failed_requires_false_and_nonempty_reasons() -> None:
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    invalid = _contract_event("PREFLIGHT-002", "preflight-failed", 2)
+    invalid.update({"preflight_passed": True, "failure_reasons": []})
+
+    try:
+        workflow_ledger.render_ledger([baseline, invalid])
+    except ValueError as error:
+        assert "preflight-failed" in str(error)
+    else:
+        raise AssertionError("preflight-failed schema 不合法時必須拒絕")
+
+
+def test_approve_rejects_open_accepted_blocking_finding() -> None:
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    invalid = _review_event(review_result="APPROVE", counts_toward_escalation=False)
+
+    try:
+        workflow_ledger.render_ledger([baseline, invalid])
+    except ValueError as error:
+        assert "APPROVE" in str(error) and "blocking finding" in str(error)
+    else:
+        raise AssertionError("APPROVE 不得保留 accepted blocking finding")
 
 
 def test_render_ledger_uses_latest_event_for_each_card() -> None:
