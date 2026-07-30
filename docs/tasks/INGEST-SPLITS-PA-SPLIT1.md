@@ -126,7 +126,9 @@ handoff evidence 須明確回答：本次交付是否又是「檢查容易取得
 - [x] v1 全部驗收條件（明確結論「有偏差且量化」／H1／H2／H3／選手層級量化）已於
       iteration 3 達成並經跨家族查核背書（REVIEW-010 通過清單），轉列〈重規劃〉節回歸斷言，
       iteration 4 不重做。
-- [ ] 全部回歸斷言通過：兩腳本重跑、artifact 重生後排除 `generated_at` 與提交版一致。
+- [ ] 全部回歸斷言通過：兩腳本重跑、artifact 重生後排除 `generated_at` 與提交版一致
+      （跨日重驗依 as-of 判讀原則：差異須全部落在 as-of 區段——scope／組裝層列數／
+      `post_baseline_rows`——且守衛的 baseline 窗斷言與歸因項仍全過）。
 - [ ] 同病自檢已在 handoff evidence 回答。
 - [ ] `uv run ruff check` ＋ `uv run pytest` 全綠（本卡若只新增腳本，仍須全綠）。
 
