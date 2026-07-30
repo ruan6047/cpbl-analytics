@@ -36,17 +36,20 @@ def _require_fields(event: dict[str, object], fields: set[str]) -> None:
         )
 
 
-def _counted_review(event: dict[str, object]) -> bool:
-    if event["review_result"] != "REQUEST_CHANGES":
-        return False
-    return any(
+def _is_counted_finding(finding: dict[str, object]) -> bool:
+    return (
         finding["accepted"] is True
         and finding["status"] == "open"
         and finding["blocking"] is True
         and finding["finding_class"] in COUNTED_FINDING_CLASSES
         and finding["attribution"] == "executor"
-        for finding in event["findings"]
     )
+
+
+def _counted_review(event: dict[str, object]) -> bool:
+    if event["review_result"] != "REQUEST_CHANGES":
+        return False
+    return any(_is_counted_finding(finding) for finding in event["findings"])
 
 
 def _validate_finding(event_id: object, finding: object) -> dict[str, object]:
@@ -140,11 +143,17 @@ def _validate_review_contract(events: list[dict[str, object]]) -> None:
     enabled = False
     counted_attempts: dict[tuple[str, int], set[str]] = {}
     open_findings: dict[tuple[str, int], set[str]] = {}
-    root_cause_attempts: dict[tuple[str, int], dict[str, set[str]]] = {}
-    unresolved_carry: dict[tuple[str, int], bool] = {}
+    root_cause_findings: dict[
+        tuple[str, int], dict[str, set[tuple[str, str]]]
+    ] = {}
+    unresolved_carry: dict[tuple[str, int], set[str]] = {}
     pending_checkpoint: dict[str, tuple[int, int, str]] = {}
+    pending_finding_conflicts: dict[str, set[tuple[int, str, str]]] = {}
     current_epochs: dict[str, int] = {}
     known_attempts: dict[tuple[str, int], set[str]] = {}
+    count_eligible_attempts: dict[tuple[str, int], set[str]] = {}
+    counted_finding_ids: dict[tuple[str, int, str], set[str]] = {}
+    attempt_previous_open: dict[tuple[str, int, str], set[str]] = {}
     attempt_findings: dict[tuple[str, int, str], dict[str, dict[str, object]]] = {}
     for event in events:
         if event.get("contract_baseline") == REVIEW_CONTRACT:
@@ -162,6 +171,14 @@ def _validate_review_contract(events: list[dict[str, object]]) -> None:
             continue
         event_type = event.get("type")
         card_id = str(event["card_id"])
+        if (
+            pending_finding_conflicts.get(card_id)
+            and event_type != "review-correction"
+        ):
+            raise ValueError(
+                f"{event['event_id']} 前必須先以 review-correction 裁決 {card_id} "
+                "同一 attempt 的 finding 衝突"
+            )
         if card_id in pending_checkpoint and event_type != "escalation-checkpoint":
             raise ValueError(
                 f"{event['event_id']} 前必須先為 {card_id} 寫 escalation-checkpoint"
@@ -177,40 +194,44 @@ def _validate_review_contract(events: list[dict[str, object]]) -> None:
                 )
             key = (card_id, epoch)
             attempt_id = str(event["attempt_id"])
+            attempt_key = (card_id, epoch, attempt_id)
             known_attempts.setdefault(key, set()).add(attempt_id)
-            per_attempt = attempt_findings.setdefault((card_id, epoch, attempt_id), {})
+            if event["counts_toward_escalation"] is True:
+                count_eligible_attempts.setdefault(key, set()).add(attempt_id)
+            per_attempt = attempt_findings.setdefault(attempt_key, {})
+            conflicting_ids: set[str] = set()
             for finding in event["findings"]:
                 finding_id = str(finding["finding_id"])
                 previous = per_attempt.get(finding_id)
                 if previous is not None and _findings_conflict(previous, finding):
-                    raise ValueError(
-                        f"{event['event_id']} 同一 attempt 的 finding {finding_id} 衝突；"
-                        "必須追加 correction 事件裁決"
+                    pending_finding_conflicts.setdefault(card_id, set()).add(
+                        (epoch, attempt_id, finding_id)
                     )
+                    conflicting_ids.add(finding_id)
+                    continue
                 per_attempt.setdefault(finding_id, finding)
 
             attempts = counted_attempts.setdefault(key, set())
-            is_new_counted_attempt = (
-                event["counts_toward_escalation"] is True and attempt_id not in attempts
-            )
             previous_open = set(open_findings.setdefault(key, set()))
+            attempt_previous_open.setdefault(attempt_key, previous_open)
             for finding in event["findings"]:
+                finding_id = str(finding["finding_id"])
+                if finding_id in conflicting_ids:
+                    continue
                 _apply_finding_state(finding, open_findings[key])
-                if (
-                    event["counts_toward_escalation"] is True
-                    and finding["status"] == "open"
-                    and finding["accepted"] is True
-                    and finding["blocking"] is True
-                    and finding["finding_class"] in COUNTED_FINDING_CLASSES
-                    and finding["attribution"] == "executor"
-                ):
-                    roots = root_cause_attempts.setdefault(key, {})
-                    roots.setdefault(str(finding["root_cause_id"]), set()).add(attempt_id)
+                if event["counts_toward_escalation"] is True and _is_counted_finding(finding):
+                    counted_finding_ids.setdefault(attempt_key, set()).add(finding_id)
+                    roots = root_cause_findings.setdefault(key, {})
+                    roots.setdefault(str(finding["root_cause_id"]), set()).add(
+                        (attempt_id, finding_id)
+                    )
+            is_new_counted_attempt = (
+                bool(counted_finding_ids.get(attempt_key)) and attempt_id not in attempts
+            )
             if is_new_counted_attempt:
                 attempts.add(attempt_id)
-                unresolved_carry[key] = (
-                    unresolved_carry.get(key, False)
-                    or bool(previous_open & open_findings[key])
+                unresolved_carry.setdefault(key, set()).update(
+                    previous_open & open_findings[key]
                 )
                 if len(attempts) >= 3:
                     pending_checkpoint[card_id] = (
@@ -244,12 +265,13 @@ def _validate_review_contract(events: list[dict[str, object]]) -> None:
                 raise ValueError(f"{event['event_id']} correction escalation_epoch 不合法")
             key = (card_id, epoch)
             target_attempt = str(event["target_attempt_id"])
+            target_key = (card_id, epoch, target_attempt)
             updates = event["finding_updates"]
             if target_attempt not in known_attempts.get(key, set()):
                 raise ValueError(f"{event['event_id']} correction target_attempt_id 不存在")
             if not isinstance(updates, list) or not updates:
                 raise ValueError(f"{event['event_id']} finding_updates 必須為非空陣列")
-            target_findings = attempt_findings[(card_id, epoch, target_attempt)]
+            target_findings = attempt_findings[target_key]
             update_ids: set[str] = set()
             for finding in updates:
                 finding = _validate_finding(event["event_id"], finding)
@@ -261,8 +283,54 @@ def _validate_review_contract(events: list[dict[str, object]]) -> None:
                     raise ValueError(
                         f"{event['event_id']} correction finding_id 不存在：{finding_id}"
                     )
+                previous_finding = target_findings[finding_id]
                 target_findings[finding_id] = finding
                 _apply_finding_state(finding, open_findings.setdefault(key, set()))
+                pending_finding_conflicts.setdefault(card_id, set()).discard(
+                    (epoch, target_attempt, finding_id)
+                )
+                revokes_count = (
+                    finding["status"] == "withdrawn"
+                    or finding["accepted"] is False
+                    or (finding["status"] == "open" and not _is_counted_finding(finding))
+                )
+                root_changed = finding["root_cause_id"] != previous_finding["root_cause_id"]
+                if revokes_count or root_changed:
+                    for occurrences in root_cause_findings.get(key, {}).values():
+                        occurrences.difference_update({
+                            occurrence
+                            for occurrence in occurrences
+                            if occurrence[1] == finding_id
+                        })
+                if revokes_count:
+                    counted_finding_ids.setdefault(target_key, set()).discard(finding_id)
+                    unresolved_carry.setdefault(key, set()).discard(finding_id)
+                elif (
+                    target_attempt in count_eligible_attempts.get(key, set())
+                    and _is_counted_finding(finding)
+                ):
+                    counted_finding_ids.setdefault(target_key, set()).add(finding_id)
+                    roots = root_cause_findings.setdefault(key, {})
+                    roots.setdefault(str(finding["root_cause_id"]), set()).add(
+                        (target_attempt, finding_id)
+                    )
+            attempts = counted_attempts.setdefault(key, set())
+            was_counted = target_attempt in attempts
+            if counted_finding_ids.get(target_key):
+                attempts.add(target_attempt)
+                if not was_counted:
+                    unresolved_carry.setdefault(key, set()).update(
+                        attempt_previous_open.get(target_key, set())
+                        & open_findings.setdefault(key, set())
+                    )
+                    if len(attempts) >= 3:
+                        pending_checkpoint[card_id] = (
+                            epoch, len(attempts), target_attempt,
+                        )
+            else:
+                attempts.discard(target_attempt)
+            if not pending_finding_conflicts.get(card_id):
+                pending_finding_conflicts.pop(card_id, None)
         elif event_type == "preflight-failed":
             _require_fields(event, {"preflight_passed", "failure_reasons"})
             if event["preflight_passed"] is not False or not isinstance(
@@ -311,16 +379,19 @@ def _validate_review_contract(events: list[dict[str, object]]) -> None:
                 )
             key = (card_id, expected_epoch)
             repeated_root = any(
-                len(attempts) >= 3
-                for attempts in root_cause_attempts.get(key, {}).values()
+                len({attempt_id for attempt_id, _finding_id in occurrences}) >= 3
+                for occurrences in root_cause_findings.get(key, {}).values()
             )
-            must_escalate = repeated_root or unresolved_carry.get(key, False)
+            must_escalate = repeated_root or bool(unresolved_carry.get(key))
             if must_escalate and event["checkpoint_decision"] != "escalate":
                 raise ValueError(
                     f"{event['event_id']} 存在三次重複根因或未閉合 finding，"
                     "checkpoint_decision 必須為 escalate"
                 )
             del pending_checkpoint[card_id]
+    if pending_finding_conflicts:
+        cards = ", ".join(sorted(pending_finding_conflicts))
+        raise ValueError(f"同一 attempt 的 finding 衝突缺 review-correction：{cards}")
     if pending_checkpoint:
         cards = ", ".join(sorted(pending_checkpoint))
         raise ValueError(f"第三次以後可計數 attempt 缺 escalation-checkpoint：{cards}")

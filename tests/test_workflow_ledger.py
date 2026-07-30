@@ -404,6 +404,113 @@ def test_review_contract_credits_resolution_from_correction_event() -> None:
     workflow_ledger.render_ledger([baseline, _review_event(), correction])
 
 
+def test_review_contract_allows_append_only_correction_after_same_attempt_conflict() -> None:
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    conflicting = _review_event(
+        state_version=3,
+        review_result="APPROVE",
+        findings=[_finding(status="resolved", disposition="reviewer says fixed")],
+        counts_toward_escalation=False,
+    )
+    conflicting["event_id"] = "REVIEW-003"
+    correction = _contract_event("CORRECTION-004", "review-correction", 4)
+    correction.update({
+        "escalation_epoch": 0,
+        "target_attempt_id": f"CARD-WF21-e0-{FULL_SHA}",
+        "finding_updates": [_finding(
+            status="withdrawn", accepted=False, blocking=False,
+            disposition="Coordinator adjudicated the conflict",
+        )],
+    })
+
+    workflow_ledger.render_ledger([
+        baseline, _review_event(), conflicting, correction,
+    ])
+
+
+def test_review_contract_withdrawn_correction_clears_prior_carry() -> None:
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    first = _review_event()
+    second_sha = "b" * 40
+    second = _review_event(
+        state_version=3,
+        source_sha=second_sha,
+        attempt_id=f"CARD-WF21-e0-{second_sha}",
+        findings=[
+            _finding(),
+            _finding(finding_id="F-002", root_cause_id="missing-boundary-check"),
+        ],
+    )
+    correction = _contract_event("CORRECTION-004", "review-correction", 4)
+    correction.update({
+        "escalation_epoch": 0,
+        "target_attempt_id": second["attempt_id"],
+        "finding_updates": [_finding(
+            status="withdrawn", accepted=False, blocking=False,
+            disposition="evidence disproved the accepted finding",
+        )],
+    })
+    third_sha = "c" * 40
+    third = _review_event(
+        state_version=5,
+        source_sha=third_sha,
+        attempt_id=f"CARD-WF21-e0-{third_sha}",
+        findings=[
+            _finding(
+                finding_id="F-002", root_cause_id="missing-boundary-check", status="resolved",
+                disposition="fixed",
+            ),
+            _finding(finding_id="F-003", root_cause_id="missing-boundary-check"),
+        ],
+    )
+    checkpoint = _contract_event("CHECKPOINT-006", "escalation-checkpoint", 6)
+    checkpoint.update({
+        "escalation_epoch": 0,
+        "trigger_attempt_id": third["attempt_id"],
+        "unique_attempt_count": 3,
+        "checkpoint_decision": "continue",
+        "checkpoint_rationale": "withdrawn finding no longer contributes carry or root history",
+    })
+
+    workflow_ledger.render_ledger([
+        baseline, first, second, correction, third, checkpoint,
+    ])
+
+
+def test_review_contract_withdrawn_correction_removes_attempt_from_count() -> None:
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    correction = _contract_event("CORRECTION-003", "review-correction", 3)
+    correction.update({
+        "escalation_epoch": 0,
+        "target_attempt_id": f"CARD-WF21-e0-{FULL_SHA}",
+        "finding_updates": [_finding(
+            status="withdrawn", accepted=False, blocking=False,
+            disposition="finding was not valid",
+        )],
+    })
+    reviews = []
+    for state_version, sha, finding_id in (
+        (4, "b" * 40, "F-002"),
+        (5, "c" * 40, "F-003"),
+    ):
+        reviews.append(_review_event(
+            state_version=state_version,
+            source_sha=sha,
+            attempt_id=f"CARD-WF21-e0-{sha}",
+            findings=[_finding(
+                finding_id=finding_id,
+                root_cause_id=f"root-{finding_id}",
+            )],
+        ))
+
+    workflow_ledger.render_ledger([
+        baseline, _review_event(), correction, *reviews,
+    ])
+
+
 def test_review_contract_rejects_conflicting_finding_in_same_attempt() -> None:
     baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
     baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
