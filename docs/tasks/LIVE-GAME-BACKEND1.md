@@ -2,6 +2,7 @@
 
 - 需求：ruan6047　規劃：GPT-5.6@Codex　分支：`ai/<執行者>/LIVE-GAME-BACKEND1`
 - 執行：待指派（建議 L3；跨來源時序觀測、production polling 與 fail-closed contract）　查核：待指派（L3；須跨模型家族或人工，且 ≠ 執行）
+- review_independence: [cross_family_or_human]
 - Initiative：INIT-OFFICIAL-DATA1　spec 基線：v1
 - DB：`db_scope: write`；`db_namespace: LIVE-GAME-BACKEND1`；`db_resources: db:test:cpbl, cache:live-game`；`migration_phase: none`
 - 部署：是　環境：production　PR：—　Merge SHA：—

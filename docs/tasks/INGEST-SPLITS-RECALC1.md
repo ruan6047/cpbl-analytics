@@ -2,6 +2,7 @@
 
 - 需求：ruan6047（2026-07-30 於 `INGEST-SPLITS-PA-SPLIT1` 結案後指示「開卡然後執行」）　規劃：本卡 spec　分支：`ai/fable-5/INGEST-SPLITS-RECALC1`
 - 執行：Claude Fable 5@Claude Code　查核：待指派（≠ 執行；**跨模型家族或人工**——統計紅線＋DB 寫入）
+- review_independence: [cross_family_or_human]
 - Initiative：INIT-OFFICIAL-DATA1　spec 基線：v1
 - DB：`db_scope: data-migration`（無 schema 變更，`migration_phase: none`；資料重建走既有
   `cpbl-build-splits` DELETE+INSERT，冪等可重跑。resources：`db:local:table:batting_splits`
