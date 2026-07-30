@@ -14,7 +14,7 @@
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | — | `ai/sonnet-5/INGEST-GAME-TM-REFACTOR1-g3 @ .claude/worktrees/ingest-game-tm-refactor1-g3-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-24T12:53:42+08:00 |
 | [INGEST-PA-DAILY1](tasks/INGEST-PA-DAILY1.md) | — | T3 | canonical PA build 接進每日 refresh 鏈 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-26T20:55:46+08:00 |
 | [INGEST-PLAYER-BIO-GAP1](tasks/INGEST-PLAYER-BIO-GAP1.md) | INIT-OFFICIAL-DATA1 | T3 | 補齊 14 位球員的 country／birthday | Claude Opus 5@Claude Code | `ai/opus-5/INGEST-PLAYER-BIO-GAP1 @ .claude/worktrees/ingest-player-bio-gap1-execution` | 3 | ⏸阻塞 | ⏸未部署 | 2026-07-28T11:50:08+08:00 |
-| [INGEST-SPLITS-RECALC1](tasks/INGEST-SPLITS-RECALC1.md) | INIT-OFFICIAL-DATA1 | T4 | 修正分項重算的代打誤切重複計數並重建 | Claude Fable 5@Claude Code | `ai/fable-5/INGEST-SPLITS-RECALC1 @ .claude/worktrees/ingest-splits-recalc1-execution` | 0 | 🔨執行中 | ⏸未部署 | 2026-07-30T16:47:31+08:00 |
+| [INGEST-SPLITS-RECALC1](tasks/INGEST-SPLITS-RECALC1.md) | INIT-OFFICIAL-DATA1 | T4 | 修正分項重算的代打誤切重複計數並重建 | 待指派（跨模型家族或人工查核；統計紅線＋DB 寫入） | `ai/fable-5/INGEST-SPLITS-RECALC1 @ .claude/worktrees/ingest-splits-recalc1-execution` | 0 | 🔍待查核 | ⏸未部署 | 2026-07-30T17:06:31+08:00 |
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | 子卡依 v1.3 藍圖推進 | — | 0 | 📥Backlog | —不適用 | 2026-07-27T18:14:24+08:00 |
 | [INIT-OFFICIAL-DATA1](tasks/INIT-OFFICIAL-DATA1.md) | INIT-OFFICIAL-DATA1 | T4 | 官方資料契約完整性與低維護 ingest | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:00+08:00 |
 | [INIT-PRODUCT-UX](tasks/INIT-PRODUCT-UX.md) | INIT-PRODUCT-UX | T3 | 全站產品與 UI/UX 收斂 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-17T04:44:24+08:00 |
