@@ -84,14 +84,17 @@ API 唯讀契約。預設 `LIVE_GAME_WORKER_ENABLED=false`，未完成 T4 查核
 
 ```bash
 docker compose up -d --build redis live-worker      # 本機持續 shadow
-LIVE_GAME_WORKER_ENABLED=true REDIS_URL=redis://localhost:6379/0 \
-  uv run cpbl-live-worker --once                    # 單 cycle canary
+docker compose run --rm live-worker cpbl-live-worker --once   # 單 cycle canary（compose 網路內的隔離 redis）
 docker compose logs -f live-worker
 
 # 即時 kill switch（1=停止抓取；DEL=恢復）
 docker compose exec redis redis-cli SET cpbl:live:kill 1
 docker compose exec redis redis-cli DEL cpbl:live:kill
 ```
+
+> ⚠️ one-shot 不要用 `REDIS_URL=redis://localhost:6379/0` 在 host 直跑：compose 的 redis
+> **沒有發布 host port**，host 的 6379 是主站 `personal_website_redis`——會把 `cpbl:live:*`
+> 寫進別的專案的 Redis（T4 查核實測踩中）。一律走 `docker compose run` 進 compose 網路。
 
 - polling base：live 12 秒、T-90m 內 60 秒、T-30h 內 10 分鐘、其餘 30 分鐘；正常值另加
   0.9–1.1 jitter，錯誤指數退避最多 5 分鐘，每 cycle 最多 8 場。
