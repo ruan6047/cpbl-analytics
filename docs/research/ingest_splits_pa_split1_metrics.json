@@ -1,0 +1,3721 @@
+{
+  "generated_at": "2026-07-30T10:37:22.670536+08:00",
+  "scope": {
+    "from_year": 2018,
+    "to_year": 2026,
+    "kinds": [
+      "A",
+      "C",
+      "D",
+      "E"
+    ],
+    "games": 4284,
+    "events": 1336639
+  },
+  "judgement_source": "canonical build_islands / charged_hitter（GAME-RECAP-PA1-FIX1，builder 1.3.0／taxonomy 1.1.0）",
+  "readonly_guard": {
+    "before": {
+      "batting_splits": {
+        "rows": 163268,
+        "max_updated_at": "2026-07-30 02:28:46.646954+00:00"
+      },
+      "pitching_splits": {
+        "rows": 115001,
+        "max_updated_at": "2026-07-30 02:28:47.502788+00:00"
+      },
+      "batting_vs_team": {
+        "rows": 12393,
+        "max_updated_at": "2026-07-30 02:28:46.171815+00:00"
+      },
+      "pitching_vs_team": {
+        "rows": 9974,
+        "max_updated_at": "2026-07-30 02:28:46.171815+00:00"
+      }
+    },
+    "after": {
+      "batting_splits": {
+        "rows": 163268,
+        "max_updated_at": "2026-07-30 02:28:46.646954+00:00"
+      },
+      "pitching_splits": {
+        "rows": 115001,
+        "max_updated_at": "2026-07-30 02:28:47.502788+00:00"
+      },
+      "batting_vs_team": {
+        "rows": 12393,
+        "max_updated_at": "2026-07-30 02:28:46.171815+00:00"
+      },
+      "pitching_vs_team": {
+        "rows": 9974,
+        "max_updated_at": "2026-07-30 02:28:46.171815+00:00"
+      }
+    },
+    "unchanged": true
+  },
+  "canonical_transitions": {
+    "total": 297,
+    "prev_disposition": {
+      "counted": 83,
+      "ghost_island_no_pitch": 211,
+      "skipped_no_outcome": 3
+    },
+    "by_criterion": {
+      "pinch_hit_slot": 217,
+      "count_continues": 80
+    },
+    "baseline_cutoff": "2026-07-28",
+    "baseline": {
+      "total": 296,
+      "prev_disposition": {
+        "counted": 83,
+        "ghost_island_no_pitch": 210,
+        "skipped_no_outcome": 3
+      },
+      "by_criterion": {
+        "pinch_hit_slot": 216,
+        "count_continues": 80
+      }
+    },
+    "post_baseline_rows": [
+      {
+        "game": "2026/A/230",
+        "game_date": "2026-07-29",
+        "inning": 8,
+        "half": "1",
+        "prev_first_event_no": "0810028000",
+        "prev_hitter": "0000005571",
+        "next_hitter": "0000005569",
+        "criterion": "pinch_hit_slot",
+        "prev_disposition": "ghost_island_no_pitch",
+        "next_disposition": "counted",
+        "outcome": "三振",
+        "islands_between": 0
+      }
+    ],
+    "anomalies": []
+  },
+  "iteration1_missed_classification": {
+    "iter1_found": 61,
+    "iter2_total": 83,
+    "iter1_subset_of_iter2": true,
+    "missed": 22,
+    "missed_by_criterion": {
+      "count_continues": 18,
+      "pinch_hit_slot": 4
+    },
+    "rows": [
+      {
+        "game": "2018/A/150",
+        "spurious_event_no": "0610010000",
+        "criterion": "count_continues",
+        "outcome": "右飛"
+      },
+      {
+        "game": "2018/A/194",
+        "spurious_event_no": "0910012000",
+        "criterion": "count_continues",
+        "outcome": "三振"
+      },
+      {
+        "game": "2018/A/7",
+        "spurious_event_no": "0510015000",
+        "criterion": "count_continues",
+        "outcome": "一安"
+      },
+      {
+        "game": "2018/D/59",
+        "spurious_event_no": "0520001000",
+        "criterion": "pinch_hit_slot",
+        "outcome": "投滾"
+      },
+      {
+        "game": "2018/D/72",
+        "spurious_event_no": "0810004000",
+        "criterion": "count_continues",
+        "outcome": "一安"
+      },
+      {
+        "game": "2019/A/36",
+        "spurious_event_no": "0710021000",
+        "criterion": "count_continues",
+        "outcome": "三振"
+      },
+      {
+        "game": "2020/A/182",
+        "spurious_event_no": "0910008000",
+        "criterion": "count_continues",
+        "outcome": "三振"
+      },
+      {
+        "game": "2020/A/22",
+        "spurious_event_no": "0710019000",
+        "criterion": "count_continues",
+        "outcome": "二安"
+      },
+      {
+        "game": "2020/D/206",
+        "spurious_event_no": "0610011000",
+        "criterion": "count_continues",
+        "outcome": "三振"
+      },
+      {
+        "game": "2021/D/161",
+        "spurious_event_no": "0720008000",
+        "criterion": "count_continues",
+        "outcome": "三振"
+      },
+      {
+        "game": "2022/A/206",
+        "spurious_event_no": "0710001000",
+        "criterion": "count_continues",
+        "outcome": "三振"
+      },
+      {
+        "game": "2022/D/128",
+        "spurious_event_no": "0320006000",
+        "criterion": "count_continues",
+        "outcome": "右飛"
+      },
+      {
+        "game": "2022/D/143",
+        "spurious_event_no": "0920002000",
+        "criterion": "count_continues",
+        "outcome": "四壞"
+      },
+      {
+        "game": "2022/D/226",
+        "spurious_event_no": "0920007000",
+        "criterion": "count_continues",
+        "outcome": "三振"
+      },
+      {
+        "game": "2023/A/9",
+        "spurious_event_no": "0720024000",
+        "criterion": "pinch_hit_slot",
+        "outcome": "游滾"
+      },
+      {
+        "game": "2023/D/151",
+        "spurious_event_no": "0910013000",
+        "criterion": "pinch_hit_slot",
+        "outcome": "一安"
+      },
+      {
+        "game": "2023/D/217",
+        "spurious_event_no": "0720008000",
+        "criterion": "count_continues",
+        "outcome": "三振"
+      },
+      {
+        "game": "2024/C/2",
+        "spurious_event_no": "0810020000",
+        "criterion": "count_continues",
+        "outcome": "界飛"
+      },
+      {
+        "game": "2025/A/220",
+        "spurious_event_no": "0820014000",
+        "criterion": "count_continues",
+        "outcome": "三振"
+      },
+      {
+        "game": "2025/A/250",
+        "spurious_event_no": "0620008000",
+        "criterion": "count_continues",
+        "outcome": "中飛"
+      },
+      {
+        "game": "2025/A/68",
+        "spurious_event_no": "0920005000",
+        "criterion": "count_continues",
+        "outcome": "二滾"
+      },
+      {
+        "game": "2025/D/215",
+        "spurious_event_no": "0720011000",
+        "criterion": "pinch_hit_slot",
+        "outcome": "四壞"
+      }
+    ]
+  },
+  "exposure": {
+    "double_counted_pas": 83,
+    "affected_games": 82,
+    "baseline": {
+      "double_counted_pas": 83,
+      "affected_games": 82
+    },
+    "by_year": {
+      "2018": 7,
+      "2019": 8,
+      "2020": 13,
+      "2021": 5,
+      "2022": 14,
+      "2023": 16,
+      "2024": 8,
+      "2025": 10,
+      "2026": 2
+    },
+    "by_kind": {
+      "A": 43,
+      "C": 2,
+      "D": 37,
+      "E": 1
+    },
+    "by_outcome": {
+      "三振": 34,
+      "四壞": 11,
+      "一安": 7,
+      "投滾": 4,
+      "游滾": 4,
+      "右飛": 3,
+      "中飛": 3,
+      "界飛": 2,
+      "死球": 2,
+      "內安": 2,
+      "二安": 2,
+      "游飛": 2,
+      "二滾": 2,
+      "雙殺": 1,
+      "犧飛": 1,
+      "一滾": 1,
+      "二飛": 1,
+      "三滾": 1
+    },
+    "by_criterion": {
+      "count_continues": 79,
+      "pinch_hit_slot": 4
+    },
+    "strikeout_charged_to_prev_cases": 22,
+    "rows": [
+      {
+        "game": "2018/A/7",
+        "inning": 5,
+        "half": "1",
+        "outcome": "一安",
+        "criterion": "count_continues",
+        "game_date": "2018-03-29",
+        "spurious_event_no": "0510015000",
+        "spurious_hitter": "0000003551",
+        "completing_hitter": "0000002298",
+        "charged_hitter": "0000002298",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2018/A/116",
+        "inning": 7,
+        "half": "2",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2018-06-15",
+        "spurious_event_no": "0720010000",
+        "spurious_hitter": "0000003551",
+        "completing_hitter": "0000001240",
+        "charged_hitter": "0000003551",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2018/A/118",
+        "inning": 3,
+        "half": "1",
+        "outcome": "一安",
+        "criterion": "count_continues",
+        "game_date": "2018-06-23",
+        "spurious_event_no": "0310008000",
+        "spurious_hitter": "0000003395",
+        "completing_hitter": "0000003225",
+        "charged_hitter": "0000003225",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2018/A/150",
+        "inning": 6,
+        "half": "1",
+        "outcome": "右飛",
+        "criterion": "count_continues",
+        "game_date": "2018-07-29",
+        "spurious_event_no": "0610010000",
+        "spurious_hitter": "0000002289",
+        "completing_hitter": "0000002661",
+        "charged_hitter": "0000002661",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2018/A/194",
+        "inning": 9,
+        "half": "1",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2018-08-30",
+        "spurious_event_no": "0910012000",
+        "spurious_hitter": "0000001217",
+        "completing_hitter": "0000003144",
+        "charged_hitter": "0000003144",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2018/D/59",
+        "inning": 5,
+        "half": "2",
+        "outcome": "投滾",
+        "criterion": "pinch_hit_slot",
+        "game_date": "2018-06-02",
+        "spurious_event_no": "0520001000",
+        "spurious_hitter": "0000003275",
+        "completing_hitter": "0000003628",
+        "charged_hitter": "0000003628",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2018/D/72",
+        "inning": 8,
+        "half": "1",
+        "outcome": "一安",
+        "criterion": "count_continues",
+        "game_date": "2018-07-23",
+        "spurious_event_no": "0810004000",
+        "spurious_hitter": "0000003048",
+        "completing_hitter": "0000000140",
+        "charged_hitter": "0000000140",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2019/A/36",
+        "inning": 7,
+        "half": "1",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2019-04-18",
+        "spurious_event_no": "0710021000",
+        "spurious_hitter": "0000000132",
+        "completing_hitter": "0000002286",
+        "charged_hitter": "0000002286",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2019/A/61",
+        "inning": 3,
+        "half": "1",
+        "outcome": "雙殺",
+        "criterion": "count_continues",
+        "game_date": "2019-05-05",
+        "spurious_event_no": "0310008000",
+        "spurious_hitter": "0000003338",
+        "completing_hitter": "0000001118",
+        "charged_hitter": "0000001118",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2019/A/124",
+        "inning": 1,
+        "half": "1",
+        "outcome": "界飛",
+        "criterion": "count_continues",
+        "game_date": "2019-07-06",
+        "spurious_event_no": "0110019000",
+        "spurious_hitter": "0000002298",
+        "completing_hitter": "0000001606",
+        "charged_hitter": "0000001606",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2019/A/155",
+        "inning": 9,
+        "half": "1",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2019-08-02",
+        "spurious_event_no": "0910030000",
+        "spurious_hitter": "0000002286",
+        "completing_hitter": "0000003345",
+        "charged_hitter": "0000002286",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2019/A/170",
+        "inning": 5,
+        "half": "2",
+        "outcome": "死球",
+        "criterion": "count_continues",
+        "game_date": "2019-08-11",
+        "spurious_event_no": "0520033000",
+        "spurious_hitter": "0000002696",
+        "completing_hitter": "0000003551",
+        "charged_hitter": "0000003551",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2019/A/175",
+        "inning": 1,
+        "half": "2",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2019-08-16",
+        "spurious_event_no": "0120028000",
+        "spurious_hitter": "0000003563",
+        "completing_hitter": "0000000153",
+        "charged_hitter": "0000003563",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2019/A/212",
+        "inning": 2,
+        "half": "1",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2019-09-11",
+        "spurious_event_no": "0210009000",
+        "spurious_hitter": "0000002305",
+        "completing_hitter": "0000000366",
+        "charged_hitter": "0000002305",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2019/D/142",
+        "inning": 5,
+        "half": "2",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2019-09-01",
+        "spurious_event_no": "0520007000",
+        "spurious_hitter": "0000002350",
+        "completing_hitter": "0000003278",
+        "charged_hitter": "0000002350",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/A/22",
+        "inning": 7,
+        "half": "1",
+        "outcome": "內安",
+        "criterion": "count_continues",
+        "game_date": "2020-04-26",
+        "spurious_event_no": "0710001000",
+        "spurious_hitter": "0000000743",
+        "completing_hitter": "0000001754",
+        "charged_hitter": "0000001754",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/A/22",
+        "inning": 7,
+        "half": "1",
+        "outcome": "二安",
+        "criterion": "count_continues",
+        "game_date": "2020-04-26",
+        "spurious_event_no": "0710019000",
+        "spurious_hitter": "0000004636",
+        "completing_hitter": "0000000853",
+        "charged_hitter": "0000000853",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/A/79",
+        "inning": 5,
+        "half": "1",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2020-06-06",
+        "spurious_event_no": "0510001000",
+        "spurious_hitter": "0000003615",
+        "completing_hitter": "0000003144",
+        "charged_hitter": "0000003615",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/A/135",
+        "inning": 5,
+        "half": "2",
+        "outcome": "四壞",
+        "criterion": "count_continues",
+        "game_date": "2020-08-02",
+        "spurious_event_no": "0520017000",
+        "spurious_hitter": "0000003609",
+        "completing_hitter": "0000001318",
+        "charged_hitter": "0000001318",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/A/172",
+        "inning": 8,
+        "half": "1",
+        "outcome": "中飛",
+        "criterion": "count_continues",
+        "game_date": "2020-08-28",
+        "spurious_event_no": "0810007000",
+        "spurious_hitter": "0000003211",
+        "completing_hitter": "0000001409",
+        "charged_hitter": "0000001409",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/A/182",
+        "inning": 9,
+        "half": "1",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2020-09-04",
+        "spurious_event_no": "0910008000",
+        "spurious_hitter": "0000003339",
+        "completing_hitter": "0000003337",
+        "charged_hitter": "0000003337",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/A/239",
+        "inning": 3,
+        "half": "1",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2020-10-14",
+        "spurious_event_no": "0310001000",
+        "spurious_hitter": "0000003183",
+        "completing_hitter": "0000005571",
+        "charged_hitter": "0000003183",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/D/81",
+        "inning": 6,
+        "half": "2",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2020-08-10",
+        "spurious_event_no": "0620003000",
+        "spurious_hitter": "0000005563",
+        "completing_hitter": "0000004622",
+        "charged_hitter": "0000005563",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/D/106",
+        "inning": 3,
+        "half": "1",
+        "outcome": "四壞",
+        "criterion": "count_continues",
+        "game_date": "2020-06-16",
+        "spurious_event_no": "0310006000",
+        "spurious_hitter": "0000001406",
+        "completing_hitter": "0000005531",
+        "charged_hitter": "0000005531",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/D/153",
+        "inning": 6,
+        "half": "1",
+        "outcome": "游飛",
+        "criterion": "count_continues",
+        "game_date": "2020-08-11",
+        "spurious_event_no": "0610030000",
+        "spurious_hitter": "0000005532",
+        "completing_hitter": "0000005536",
+        "charged_hitter": "0000005536",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/D/206",
+        "inning": 6,
+        "half": "1",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2020-07-09",
+        "spurious_event_no": "0610011000",
+        "spurious_hitter": "0000005656",
+        "completing_hitter": "0000001129",
+        "charged_hitter": "0000001129",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/D/210",
+        "inning": 6,
+        "half": "2",
+        "outcome": "犧飛",
+        "criterion": "count_continues",
+        "game_date": "2020-07-11",
+        "spurious_event_no": "0620016000",
+        "spurious_hitter": "0000005538",
+        "completing_hitter": "0000001713",
+        "charged_hitter": "0000001713",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2020/D/225",
+        "inning": 9,
+        "half": "1",
+        "outcome": "一滾",
+        "criterion": "count_continues",
+        "game_date": "2020-07-18",
+        "spurious_event_no": "0910013000",
+        "spurious_hitter": "0000005538",
+        "completing_hitter": "0000005546",
+        "charged_hitter": "0000005546",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2021/A/117",
+        "inning": 6,
+        "half": "1",
+        "outcome": "四壞",
+        "criterion": "count_continues",
+        "game_date": "2021-07-16",
+        "spurious_event_no": "0610011000",
+        "spurious_hitter": "0000001114",
+        "completing_hitter": "0000000350",
+        "charged_hitter": "0000000350",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2021/A/119",
+        "inning": 8,
+        "half": "1",
+        "outcome": "投滾",
+        "criterion": "count_continues",
+        "game_date": "2021-07-17",
+        "spurious_event_no": "0810001000",
+        "spurious_hitter": "0000001284",
+        "completing_hitter": "0000002293",
+        "charged_hitter": "0000002293",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2021/D/74",
+        "inning": 7,
+        "half": "1",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2021-05-18",
+        "spurious_event_no": "0710007000",
+        "spurious_hitter": "0000006235",
+        "completing_hitter": "0000006242",
+        "charged_hitter": "0000006235",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2021/D/161",
+        "inning": 7,
+        "half": "2",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2021-11-11",
+        "spurious_event_no": "0720008000",
+        "spurious_hitter": "0000000772",
+        "completing_hitter": "0000002307",
+        "charged_hitter": "0000002307",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2021/D/189",
+        "inning": 6,
+        "half": "1",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2021-09-09",
+        "spurious_event_no": "0610001000",
+        "spurious_hitter": "0000006241",
+        "completing_hitter": "0000006226",
+        "charged_hitter": "0000006241",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/A/10",
+        "inning": 7,
+        "half": "2",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2022-04-08",
+        "spurious_event_no": "0720007000",
+        "spurious_hitter": "0000001474",
+        "completing_hitter": "0000002350",
+        "charged_hitter": "0000002350",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/A/148",
+        "inning": 5,
+        "half": "2",
+        "outcome": "游滾",
+        "criterion": "count_continues",
+        "game_date": "2022-07-14",
+        "spurious_event_no": "0520001000",
+        "spurious_hitter": "0000002275",
+        "completing_hitter": "0000004641",
+        "charged_hitter": "0000004641",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/A/156",
+        "inning": 8,
+        "half": "1",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2022-10-23",
+        "spurious_event_no": "0810030000",
+        "spurious_hitter": "0000002350",
+        "completing_hitter": "0000003615",
+        "charged_hitter": "0000002350",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/A/206",
+        "inning": 7,
+        "half": "1",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2022-08-19",
+        "spurious_event_no": "0710001000",
+        "spurious_hitter": "0000005656",
+        "completing_hitter": "0000002285",
+        "charged_hitter": "0000002285",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/A/289",
+        "inning": 8,
+        "half": "1",
+        "outcome": "一安",
+        "criterion": "count_continues",
+        "game_date": "2022-10-08",
+        "spurious_event_no": "0810012000",
+        "spurious_hitter": "0000002282",
+        "completing_hitter": "0000003343",
+        "charged_hitter": "0000003343",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/A/293",
+        "inning": 1,
+        "half": "2",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2022-10-10",
+        "spurious_event_no": "0120010000",
+        "spurious_hitter": "0000000362",
+        "completing_hitter": "0000000343",
+        "charged_hitter": "0000000362",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/C/2",
+        "inning": 4,
+        "half": "2",
+        "outcome": "投滾",
+        "criterion": "count_continues",
+        "game_date": "2022-11-06",
+        "spurious_event_no": "0420001000",
+        "spurious_hitter": "0000003609",
+        "completing_hitter": "0000001318",
+        "charged_hitter": "0000001318",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/D/19",
+        "inning": 1,
+        "half": "1",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2022-04-20",
+        "spurious_event_no": "0110014000",
+        "spurious_hitter": "0000001240",
+        "completing_hitter": "0000006709",
+        "charged_hitter": "0000001240",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/D/128",
+        "inning": 3,
+        "half": "2",
+        "outcome": "右飛",
+        "criterion": "count_continues",
+        "game_date": "2022-08-07",
+        "spurious_event_no": "0320006000",
+        "spurious_hitter": "0000004640",
+        "completing_hitter": "0000001240",
+        "charged_hitter": "0000001240",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/D/140",
+        "inning": 5,
+        "half": "1",
+        "outcome": "二飛",
+        "criterion": "count_continues",
+        "game_date": "2022-10-15",
+        "spurious_event_no": "0510001000",
+        "spurious_hitter": "0000005342",
+        "completing_hitter": "0000006221",
+        "charged_hitter": "0000006221",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/D/143",
+        "inning": 9,
+        "half": "2",
+        "outcome": "四壞",
+        "criterion": "count_continues",
+        "game_date": "2022-08-20",
+        "spurious_event_no": "0920002000",
+        "spurious_hitter": "0000006732",
+        "completing_hitter": "0000002304",
+        "charged_hitter": "0000002304",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/D/150",
+        "inning": 4,
+        "half": "2",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2022-08-26",
+        "spurious_event_no": "0420003000",
+        "spurious_hitter": "0000004641",
+        "completing_hitter": "0000002295",
+        "charged_hitter": "0000004641",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/D/195",
+        "inning": 4,
+        "half": "1",
+        "outcome": "四壞",
+        "criterion": "count_continues",
+        "game_date": "2022-10-05",
+        "spurious_event_no": "0410006000",
+        "spurious_hitter": "0000006731",
+        "completing_hitter": "0000006730",
+        "charged_hitter": "0000006730",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2022/D/226",
+        "inning": 9,
+        "half": "2",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2022-06-19",
+        "spurious_event_no": "0920007000",
+        "spurious_hitter": "0000005565",
+        "completing_hitter": "0000006732",
+        "charged_hitter": "0000006732",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/A/9",
+        "inning": 7,
+        "half": "2",
+        "outcome": "游滾",
+        "criterion": "pinch_hit_slot",
+        "game_date": "2023-04-05",
+        "spurious_event_no": "0720024000",
+        "spurious_hitter": "0000001473",
+        "completing_hitter": "0000005496",
+        "charged_hitter": "0000005496",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/A/68",
+        "inning": 2,
+        "half": "2",
+        "outcome": "四壞",
+        "criterion": "count_continues",
+        "game_date": "2023-05-11",
+        "spurious_event_no": "0220010000",
+        "spurious_hitter": "0000000910",
+        "completing_hitter": "0000005563",
+        "charged_hitter": "0000005563",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/A/73",
+        "inning": 8,
+        "half": "2",
+        "outcome": "三滾",
+        "criterion": "count_continues",
+        "game_date": "2023-05-14",
+        "spurious_event_no": "0820003000",
+        "spurious_hitter": "0000003337",
+        "completing_hitter": "0000001118",
+        "charged_hitter": "0000001118",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/A/104",
+        "inning": 7,
+        "half": "1",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2023-06-02",
+        "spurious_event_no": "0710038000",
+        "spurious_hitter": "0000006229",
+        "completing_hitter": "0000006738",
+        "charged_hitter": "0000006738",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/A/106",
+        "inning": 8,
+        "half": "2",
+        "outcome": "投滾",
+        "criterion": "count_continues",
+        "game_date": "2023-06-03",
+        "spurious_event_no": "0820004000",
+        "spurious_hitter": "0000003533",
+        "completing_hitter": "0000003563",
+        "charged_hitter": "0000003563",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/A/239",
+        "inning": 9,
+        "half": "1",
+        "outcome": "游滾",
+        "criterion": "count_continues",
+        "game_date": "2023-09-07",
+        "spurious_event_no": "0910008000",
+        "spurious_hitter": "0000004636",
+        "completing_hitter": "0000006730",
+        "charged_hitter": "0000006730",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/A/295",
+        "inning": 9,
+        "half": "2",
+        "outcome": "一安",
+        "criterion": "count_continues",
+        "game_date": "2023-10-10",
+        "spurious_event_no": "0920010000",
+        "spurious_hitter": "0000003339",
+        "completing_hitter": "0000005563",
+        "charged_hitter": "0000005563",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/D/21",
+        "inning": 1,
+        "half": "2",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2023-04-18",
+        "spurious_event_no": "0120015000",
+        "spurious_hitter": "0000006851",
+        "completing_hitter": "0000001240",
+        "charged_hitter": "0000006851",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/D/65",
+        "inning": 6,
+        "half": "1",
+        "outcome": "四壞",
+        "criterion": "count_continues",
+        "game_date": "2023-05-18",
+        "spurious_event_no": "0610001000",
+        "spurious_hitter": "0000006931",
+        "completing_hitter": "0000006932",
+        "charged_hitter": "0000006932",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/D/151",
+        "inning": 9,
+        "half": "1",
+        "outcome": "一安",
+        "criterion": "pinch_hit_slot",
+        "game_date": "2023-08-02",
+        "spurious_event_no": "0910013000",
+        "spurious_hitter": "0000006835",
+        "completing_hitter": "0000004643",
+        "charged_hitter": "0000004643",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/D/154",
+        "inning": 7,
+        "half": "1",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2023-08-03",
+        "spurious_event_no": "0710005000",
+        "spurious_hitter": "0000006835",
+        "completing_hitter": "0000006934",
+        "charged_hitter": "0000006934",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/D/165",
+        "inning": 8,
+        "half": "2",
+        "outcome": "一安",
+        "criterion": "count_continues",
+        "game_date": "2023-08-11",
+        "spurious_event_no": "0820020000",
+        "spurious_hitter": "0000006928",
+        "completing_hitter": "0000006931",
+        "charged_hitter": "0000006931",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/D/166",
+        "inning": 5,
+        "half": "1",
+        "outcome": "死球",
+        "criterion": "count_continues",
+        "game_date": "2023-08-11",
+        "spurious_event_no": "0510002000",
+        "spurious_hitter": "0000006220",
+        "completing_hitter": "0000006792",
+        "charged_hitter": "0000006792",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/D/178",
+        "inning": 7,
+        "half": "1",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2023-08-20",
+        "spurious_event_no": "0710008000",
+        "spurious_hitter": "0000005342",
+        "completing_hitter": "0000006140",
+        "charged_hitter": "0000005342",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/D/217",
+        "inning": 7,
+        "half": "2",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2023-09-16",
+        "spurious_event_no": "0720008000",
+        "spurious_hitter": "0000006726",
+        "completing_hitter": "0000001114",
+        "charged_hitter": "0000001114",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2023/E/1",
+        "inning": 4,
+        "half": "2",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2023-10-28",
+        "spurious_event_no": "0420010000",
+        "spurious_hitter": "0000002275",
+        "completing_hitter": "0000003144",
+        "charged_hitter": "0000002275",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2024/A/155",
+        "inning": 5,
+        "half": "1",
+        "outcome": "四壞",
+        "criterion": "count_continues",
+        "game_date": "2024-06-13",
+        "spurious_event_no": "0510010000",
+        "spurious_hitter": "0000007070",
+        "completing_hitter": "0000005531",
+        "charged_hitter": "0000005531",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2024/A/283",
+        "inning": 4,
+        "half": "1",
+        "outcome": "四壞",
+        "criterion": "count_continues",
+        "game_date": "2024-08-25",
+        "spurious_event_no": "0410005000",
+        "spurious_hitter": "0000006888",
+        "completing_hitter": "0000006229",
+        "charged_hitter": "0000006229",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2024/A/307",
+        "inning": 8,
+        "half": "1",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2024-09-06",
+        "spurious_event_no": "0810001000",
+        "spurious_hitter": "0000005563",
+        "completing_hitter": "0000004645",
+        "charged_hitter": "0000005563",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2024/C/2",
+        "inning": 8,
+        "half": "1",
+        "outcome": "界飛",
+        "criterion": "count_continues",
+        "game_date": "2024-10-20",
+        "spurious_event_no": "0810020000",
+        "spurious_hitter": "0000005531",
+        "completing_hitter": "0000002275",
+        "charged_hitter": "0000002275",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2024/D/94",
+        "inning": 8,
+        "half": "2",
+        "outcome": "游飛",
+        "criterion": "count_continues",
+        "game_date": "2024-06-05",
+        "spurious_event_no": "0820007000",
+        "spurious_hitter": "0000004627",
+        "completing_hitter": "0000005565",
+        "charged_hitter": "0000005565",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2024/D/119",
+        "inning": 7,
+        "half": "1",
+        "outcome": "二滾",
+        "criterion": "count_continues",
+        "game_date": "2024-06-22",
+        "spurious_event_no": "0710018000",
+        "spurious_hitter": "0000003174",
+        "completing_hitter": "0000006932",
+        "charged_hitter": "0000006932",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2024/D/154",
+        "inning": 4,
+        "half": "1",
+        "outcome": "內安",
+        "criterion": "count_continues",
+        "game_date": "2024-09-21",
+        "spurious_event_no": "0410005000",
+        "spurious_hitter": "0000007013",
+        "completing_hitter": "0000003174",
+        "charged_hitter": "0000003174",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2024/D/167",
+        "inning": 7,
+        "half": "2",
+        "outcome": "二安",
+        "criterion": "count_continues",
+        "game_date": "2024-07-27",
+        "spurious_event_no": "0720006000",
+        "spurious_hitter": "0000006718",
+        "completing_hitter": "0000006234",
+        "charged_hitter": "0000006234",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2025/A/68",
+        "inning": 9,
+        "half": "2",
+        "outcome": "二滾",
+        "criterion": "count_continues",
+        "game_date": "2025-04-30",
+        "spurious_event_no": "0920005000",
+        "spurious_hitter": "0000001754",
+        "completing_hitter": "0000003609",
+        "charged_hitter": "0000003609",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2025/A/84",
+        "inning": 7,
+        "half": "2",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2025-06-26",
+        "spurious_event_no": "0720005000",
+        "spurious_hitter": "0000006738",
+        "completing_hitter": "0000007091",
+        "charged_hitter": "0000006738",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2025/A/220",
+        "inning": 8,
+        "half": "2",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2025-07-26",
+        "spurious_event_no": "0820014000",
+        "spurious_hitter": "0000001804",
+        "completing_hitter": "0000003615",
+        "charged_hitter": "0000003615",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2025/A/250",
+        "inning": 6,
+        "half": "2",
+        "outcome": "中飛",
+        "criterion": "count_continues",
+        "game_date": "2025-08-09",
+        "spurious_event_no": "0620008000",
+        "spurious_hitter": "0000007070",
+        "completing_hitter": "0000006847",
+        "charged_hitter": "0000006847",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2025/A/267",
+        "inning": 4,
+        "half": "1",
+        "outcome": "四壞",
+        "criterion": "count_continues",
+        "game_date": "2025-08-16",
+        "spurious_event_no": "0410003000",
+        "spurious_hitter": "0000004633",
+        "completing_hitter": "0000000132",
+        "charged_hitter": "0000000132",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2025/D/8",
+        "inning": 9,
+        "half": "2",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2025-04-04",
+        "spurious_event_no": "0920007000",
+        "spurious_hitter": "0000005496",
+        "completing_hitter": "0000007094",
+        "charged_hitter": "0000005496",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2025/D/88",
+        "inning": 7,
+        "half": "2",
+        "outcome": "游滾",
+        "criterion": "count_continues",
+        "game_date": "2025-05-30",
+        "spurious_event_no": "0720001000",
+        "spurious_hitter": "0000007037",
+        "completing_hitter": "0000003645",
+        "charged_hitter": "0000003645",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2025/D/102",
+        "inning": 1,
+        "half": "1",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2025-06-10",
+        "spurious_event_no": "0110005000",
+        "spurious_hitter": "0000005553",
+        "completing_hitter": "0000001240",
+        "charged_hitter": "0000005553",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2025/D/120",
+        "inning": 8,
+        "half": "2",
+        "outcome": "右飛",
+        "criterion": "count_continues",
+        "game_date": "2025-06-22",
+        "spurious_event_no": "0820003000",
+        "spurious_hitter": "0000001409",
+        "completing_hitter": "0000007310",
+        "charged_hitter": "0000007310",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2025/D/215",
+        "inning": 7,
+        "half": "2",
+        "outcome": "四壞",
+        "criterion": "pinch_hit_slot",
+        "game_date": "2025-08-28",
+        "spurious_event_no": "0720011000",
+        "spurious_hitter": "0000005656",
+        "completing_hitter": "0000006734",
+        "charged_hitter": "0000006734",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2026/A/58",
+        "inning": 7,
+        "half": "1",
+        "outcome": "三振",
+        "criterion": "count_continues",
+        "game_date": "2026-06-24",
+        "spurious_event_no": "0710010000",
+        "spurious_hitter": "0000006725",
+        "completing_hitter": "0000006216",
+        "charged_hitter": "0000006725",
+        "strikeout_charged_to_prev": true,
+        "has_real_pitch": true
+      },
+      {
+        "game": "2026/D/131",
+        "inning": 6,
+        "half": "1",
+        "outcome": "中飛",
+        "criterion": "count_continues",
+        "game_date": "2026-06-24",
+        "spurious_event_no": "0610025000",
+        "spurious_hitter": "0000007070",
+        "completing_hitter": "0000007036",
+        "charged_hitter": "0000007036",
+        "strikeout_charged_to_prev": false,
+        "has_real_pitch": true
+      }
+    ]
+  },
+  "h1_batting_order_shift": {
+    "hypothesis": "多出的 PA 使 pa_seq 進位，該場該隊其後所有 PA 的打序歸屬整體位移（splits_calc: order = seq %% 9 + 1，家族 10 ORDER_NAMES）；此為『相對 corrected』的量化，非絕對真實打序保證（REVIEW-007）",
+    "affected_team_games": 82,
+    "total_pas_misattributed": 1291,
+    "max_shift": 2,
+    "rows": [
+      {
+        "game": "2018/A/7",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 19,
+        "team_pa_total": 47
+      },
+      {
+        "game": "2018/A/116",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 8,
+        "team_pa_total": 35
+      },
+      {
+        "game": "2018/A/118",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 41,
+        "team_pa_total": 51
+      },
+      {
+        "game": "2018/A/150",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 12,
+        "team_pa_total": 38
+      },
+      {
+        "game": "2018/A/194",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 1,
+        "team_pa_total": 37
+      },
+      {
+        "game": "2018/D/59",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 18,
+        "team_pa_total": 38
+      },
+      {
+        "game": "2018/D/72",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 10,
+        "team_pa_total": 47
+      },
+      {
+        "game": "2019/A/36",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 10,
+        "team_pa_total": 46
+      },
+      {
+        "game": "2019/A/61",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 26,
+        "team_pa_total": 40
+      },
+      {
+        "game": "2019/A/124",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 33,
+        "team_pa_total": 39
+      },
+      {
+        "game": "2019/A/155",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 1,
+        "team_pa_total": 48
+      },
+      {
+        "game": "2019/A/170",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 21,
+        "team_pa_total": 54
+      },
+      {
+        "game": "2019/A/175",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 33,
+        "team_pa_total": 41
+      },
+      {
+        "game": "2019/A/212",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 40,
+        "team_pa_total": 46
+      },
+      {
+        "game": "2019/D/142",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 23,
+        "team_pa_total": 46
+      },
+      {
+        "game": "2020/A/22",
+        "half": "1",
+        "shift": 2,
+        "pas_after_shift": 16,
+        "team_pa_total": 40
+      },
+      {
+        "game": "2020/A/79",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 23,
+        "team_pa_total": 42
+      },
+      {
+        "game": "2020/A/135",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 20,
+        "team_pa_total": 43
+      },
+      {
+        "game": "2020/A/172",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 5,
+        "team_pa_total": 41
+      },
+      {
+        "game": "2020/A/182",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 1,
+        "team_pa_total": 35
+      },
+      {
+        "game": "2020/A/239",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 43,
+        "team_pa_total": 54
+      },
+      {
+        "game": "2020/D/81",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 13,
+        "team_pa_total": 39
+      },
+      {
+        "game": "2020/D/106",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 36,
+        "team_pa_total": 46
+      },
+      {
+        "game": "2020/D/153",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 19,
+        "team_pa_total": 55
+      },
+      {
+        "game": "2020/D/206",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 21,
+        "team_pa_total": 46
+      },
+      {
+        "game": "2020/D/210",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 9,
+        "team_pa_total": 41
+      },
+      {
+        "game": "2020/D/225",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 2,
+        "team_pa_total": 43
+      },
+      {
+        "game": "2021/A/117",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 15,
+        "team_pa_total": 38
+      },
+      {
+        "game": "2021/A/119",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 7,
+        "team_pa_total": 35
+      },
+      {
+        "game": "2021/D/74",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 10,
+        "team_pa_total": 39
+      },
+      {
+        "game": "2021/D/161",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 10,
+        "team_pa_total": 38
+      },
+      {
+        "game": "2021/D/189",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 16,
+        "team_pa_total": 43
+      },
+      {
+        "game": "2022/A/10",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 16,
+        "team_pa_total": 46
+      },
+      {
+        "game": "2022/A/148",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 22,
+        "team_pa_total": 44
+      },
+      {
+        "game": "2022/A/156",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 4,
+        "team_pa_total": 38
+      },
+      {
+        "game": "2022/A/206",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 12,
+        "team_pa_total": 36
+      },
+      {
+        "game": "2022/A/289",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 9,
+        "team_pa_total": 44
+      },
+      {
+        "game": "2022/A/293",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 31,
+        "team_pa_total": 34
+      },
+      {
+        "game": "2022/C/2",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 21,
+        "team_pa_total": 35
+      },
+      {
+        "game": "2022/D/19",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 29,
+        "team_pa_total": 34
+      },
+      {
+        "game": "2022/D/128",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 24,
+        "team_pa_total": 39
+      },
+      {
+        "game": "2022/D/140",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 24,
+        "team_pa_total": 52
+      },
+      {
+        "game": "2022/D/143",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 5,
+        "team_pa_total": 38
+      },
+      {
+        "game": "2022/D/150",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 23,
+        "team_pa_total": 37
+      },
+      {
+        "game": "2022/D/195",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 30,
+        "team_pa_total": 46
+      },
+      {
+        "game": "2022/D/226",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 1,
+        "team_pa_total": 34
+      },
+      {
+        "game": "2023/A/9",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 9,
+        "team_pa_total": 45
+      },
+      {
+        "game": "2023/A/68",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 28,
+        "team_pa_total": 33
+      },
+      {
+        "game": "2023/A/73",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 4,
+        "team_pa_total": 44
+      },
+      {
+        "game": "2023/A/104",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 11,
+        "team_pa_total": 49
+      },
+      {
+        "game": "2023/A/106",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 5,
+        "team_pa_total": 42
+      },
+      {
+        "game": "2023/A/239",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 4,
+        "team_pa_total": 39
+      },
+      {
+        "game": "2023/A/295",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 4,
+        "team_pa_total": 38
+      },
+      {
+        "game": "2023/D/21",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 34,
+        "team_pa_total": 38
+      },
+      {
+        "game": "2023/D/65",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 20,
+        "team_pa_total": 38
+      },
+      {
+        "game": "2023/D/151",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 2,
+        "team_pa_total": 39
+      },
+      {
+        "game": "2023/D/154",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 14,
+        "team_pa_total": 42
+      },
+      {
+        "game": "2023/D/165",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 2,
+        "team_pa_total": 48
+      },
+      {
+        "game": "2023/D/166",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 20,
+        "team_pa_total": 37
+      },
+      {
+        "game": "2023/D/178",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 12,
+        "team_pa_total": 37
+      },
+      {
+        "game": "2023/D/217",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 11,
+        "team_pa_total": 34
+      },
+      {
+        "game": "2023/E/1",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 21,
+        "team_pa_total": 35
+      },
+      {
+        "game": "2024/A/155",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 19,
+        "team_pa_total": 38
+      },
+      {
+        "game": "2024/A/283",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 23,
+        "team_pa_total": 35
+      },
+      {
+        "game": "2024/A/307",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 12,
+        "team_pa_total": 46
+      },
+      {
+        "game": "2024/C/2",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 6,
+        "team_pa_total": 44
+      },
+      {
+        "game": "2024/D/94",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 8,
+        "team_pa_total": 42
+      },
+      {
+        "game": "2024/D/119",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 9,
+        "team_pa_total": 37
+      },
+      {
+        "game": "2024/D/154",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 21,
+        "team_pa_total": 37
+      },
+      {
+        "game": "2024/D/167",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 11,
+        "team_pa_total": 37
+      },
+      {
+        "game": "2025/A/68",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 2,
+        "team_pa_total": 39
+      },
+      {
+        "game": "2025/A/84",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 18,
+        "team_pa_total": 42
+      },
+      {
+        "game": "2025/A/220",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 13,
+        "team_pa_total": 42
+      },
+      {
+        "game": "2025/A/250",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 13,
+        "team_pa_total": 32
+      },
+      {
+        "game": "2025/A/267",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 26,
+        "team_pa_total": 37
+      },
+      {
+        "game": "2025/D/8",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 2,
+        "team_pa_total": 33
+      },
+      {
+        "game": "2025/D/88",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 18,
+        "team_pa_total": 46
+      },
+      {
+        "game": "2025/D/102",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 36,
+        "team_pa_total": 39
+      },
+      {
+        "game": "2025/D/120",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 6,
+        "team_pa_total": 35
+      },
+      {
+        "game": "2025/D/215",
+        "half": "2",
+        "shift": 1,
+        "pas_after_shift": 10,
+        "team_pa_total": 40
+      },
+      {
+        "game": "2026/A/58",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 10,
+        "team_pa_total": 36
+      },
+      {
+        "game": "2026/D/131",
+        "half": "1",
+        "shift": 1,
+        "pas_after_shift": 14,
+        "team_pa_total": 42
+      }
+    ]
+  },
+  "simulator_fidelity_vs_calc_t2": {
+    "2018/A": {
+      "bat": 3754,
+      "pit": 2262,
+      "bat_gofo": 1372
+    },
+    "2018/D": {
+      "bat": 3919,
+      "pit": 2198,
+      "bat_gofo": 1269
+    },
+    "2019/A": {
+      "bat": 3881,
+      "pit": 2511,
+      "bat_gofo": 1387
+    },
+    "2019/D": {
+      "bat": 4977,
+      "pit": 2938,
+      "bat_gofo": 1614
+    },
+    "2020/A": {
+      "bat": 3590,
+      "pit": 2247,
+      "bat_gofo": 1111
+    },
+    "2020/D": {
+      "bat": 7103,
+      "pit": 4073,
+      "bat_gofo": 2125
+    },
+    "2021/A": {
+      "bat": 5197,
+      "pit": 3203,
+      "bat_gofo": 1961
+    },
+    "2021/D": {
+      "bat": 5736,
+      "pit": 3281,
+      "bat_gofo": 1900
+    },
+    "2022/A": {
+      "bat": 5386,
+      "pit": 3129,
+      "bat_gofo": 1977
+    },
+    "2022/D": {
+      "bat": 7561,
+      "pit": 4264,
+      "bat_gofo": 2413
+    },
+    "2023/A": {
+      "bat": 5024,
+      "pit": 3222,
+      "bat_gofo": 1908
+    },
+    "2023/D": {
+      "bat": 6676,
+      "pit": 4135,
+      "bat_gofo": 2306
+    },
+    "2024/A": {
+      "bat": 5705,
+      "pit": 3717,
+      "bat_gofo": 2370
+    },
+    "2024/D": {
+      "bat": 6301,
+      "pit": 4004,
+      "bat_gofo": 2072
+    },
+    "2025/A": {
+      "bat": 5750,
+      "pit": 3673,
+      "bat_gofo": 2269
+    },
+    "2025/D": {
+      "bat": 6404,
+      "pit": 4251,
+      "bat_gofo": 2199
+    },
+    "2026/A": {
+      "bat": 5326,
+      "pit": 3148,
+      "bat_gofo": 1886
+    },
+    "2026/D": {
+      "bat": 6400,
+      "pit": 3823,
+      "bat_gofo": 2031
+    }
+  },
+  "assembly_fidelity_vs_published": {
+    "2018/A/batting_splits": {
+      "assembled": 5137,
+      "published": 5137,
+      "common": 5137,
+      "equal_rows": 5137
+    },
+    "2018/A/pitching_splits": {
+      "assembled": 3621,
+      "published": 3621,
+      "common": 3621,
+      "equal_rows": 3621
+    },
+    "2018/D/batting_splits": {
+      "assembled": 5215,
+      "published": 5215,
+      "common": 5215,
+      "equal_rows": 5215
+    },
+    "2018/D/pitching_splits": {
+      "assembled": 3372,
+      "published": 3372,
+      "common": 3372,
+      "equal_rows": 3372
+    },
+    "2019/A/batting_splits": {
+      "assembled": 5290,
+      "published": 5290,
+      "common": 5290,
+      "equal_rows": 5290
+    },
+    "2019/A/pitching_splits": {
+      "assembled": 3937,
+      "published": 3937,
+      "common": 3937,
+      "equal_rows": 3937
+    },
+    "2019/D/batting_splits": {
+      "assembled": 6622,
+      "published": 6622,
+      "common": 6622,
+      "equal_rows": 6622
+    },
+    "2019/D/pitching_splits": {
+      "assembled": 4476,
+      "published": 4476,
+      "common": 4476,
+      "equal_rows": 4476
+    },
+    "2020/A/batting_splits": {
+      "assembled": 4707,
+      "published": 4707,
+      "common": 4707,
+      "equal_rows": 4707
+    },
+    "2020/A/pitching_splits": {
+      "assembled": 3397,
+      "published": 3397,
+      "common": 3397,
+      "equal_rows": 3397
+    },
+    "2020/D/batting_splits": {
+      "assembled": 9268,
+      "published": 9268,
+      "common": 9268,
+      "equal_rows": 9268
+    },
+    "2020/D/pitching_splits": {
+      "assembled": 6117,
+      "published": 6117,
+      "common": 6117,
+      "equal_rows": 6117
+    },
+    "2021/A/batting_splits": {
+      "assembled": 7181,
+      "published": 7181,
+      "common": 7181,
+      "equal_rows": 7181
+    },
+    "2021/A/pitching_splits": {
+      "assembled": 5044,
+      "published": 5044,
+      "common": 5044,
+      "equal_rows": 5044
+    },
+    "2021/D/batting_splits": {
+      "assembled": 7665,
+      "published": 7665,
+      "common": 7665,
+      "equal_rows": 7665
+    },
+    "2021/D/pitching_splits": {
+      "assembled": 5054,
+      "published": 5054,
+      "common": 5054,
+      "equal_rows": 5054
+    },
+    "2022/A/batting_splits": {
+      "assembled": 7406,
+      "published": 7406,
+      "common": 7406,
+      "equal_rows": 7406
+    },
+    "2022/A/pitching_splits": {
+      "assembled": 4930,
+      "published": 4930,
+      "common": 4930,
+      "equal_rows": 4930
+    },
+    "2022/D/batting_splits": {
+      "assembled": 10007,
+      "published": 10007,
+      "common": 10007,
+      "equal_rows": 10007
+    },
+    "2022/D/pitching_splits": {
+      "assembled": 6433,
+      "published": 6433,
+      "common": 6433,
+      "equal_rows": 6433
+    },
+    "2023/A/batting_splits": {
+      "assembled": 6980,
+      "published": 6980,
+      "common": 6980,
+      "equal_rows": 6980
+    },
+    "2023/A/pitching_splits": {
+      "assembled": 5101,
+      "published": 5101,
+      "common": 5101,
+      "equal_rows": 5101
+    },
+    "2023/D/batting_splits": {
+      "assembled": 9005,
+      "published": 9005,
+      "common": 9005,
+      "equal_rows": 9005
+    },
+    "2023/D/pitching_splits": {
+      "assembled": 6410,
+      "published": 6410,
+      "common": 6410,
+      "equal_rows": 6410
+    },
+    "2024/A/batting_splits": {
+      "assembled": 8147,
+      "published": 8147,
+      "common": 8147,
+      "equal_rows": 8147
+    },
+    "2024/A/pitching_splits": {
+      "assembled": 6054,
+      "published": 6054,
+      "common": 6054,
+      "equal_rows": 6054
+    },
+    "2024/D/batting_splits": {
+      "assembled": 8390,
+      "published": 8390,
+      "common": 8390,
+      "equal_rows": 8390
+    },
+    "2024/D/pitching_splits": {
+      "assembled": 6124,
+      "published": 6124,
+      "common": 6124,
+      "equal_rows": 6124
+    },
+    "2025/A/batting_splits": {
+      "assembled": 8077,
+      "published": 8077,
+      "common": 8077,
+      "equal_rows": 8077
+    },
+    "2025/A/pitching_splits": {
+      "assembled": 5941,
+      "published": 5941,
+      "common": 5941,
+      "equal_rows": 5941
+    },
+    "2025/D/batting_splits": {
+      "assembled": 8631,
+      "published": 8631,
+      "common": 8631,
+      "equal_rows": 8631
+    },
+    "2025/D/pitching_splits": {
+      "assembled": 6545,
+      "published": 6545,
+      "common": 6545,
+      "equal_rows": 6545
+    },
+    "2026/A/batting_splits": {
+      "assembled": 7252,
+      "published": 7252,
+      "common": 7252,
+      "equal_rows": 7252
+    },
+    "2026/A/pitching_splits": {
+      "assembled": 4923,
+      "published": 4923,
+      "common": 4923,
+      "equal_rows": 4923
+    },
+    "2026/D/batting_splits": {
+      "assembled": 8452,
+      "published": 8452,
+      "common": 8452,
+      "equal_rows": 8452
+    },
+    "2026/D/pitching_splits": {
+      "assembled": 5779,
+      "published": 5779,
+      "common": 5779,
+      "equal_rows": 5779
+    }
+  },
+  "corrected_invariants": {
+    "2018/A": {
+      "bat_f4_pa": [
+        18865,
+        18860
+      ],
+      "pit_f5_pa": [
+        18865,
+        18860
+      ],
+      "n_spurious": 5,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2018/D": {
+      "bat_f4_pa": [
+        9533,
+        9531
+      ],
+      "pit_f5_pa": [
+        9533,
+        9531
+      ],
+      "n_spurious": 2,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2019/A": {
+      "bat_f4_pa": [
+        18791,
+        18784
+      ],
+      "pit_f5_pa": [
+        18791,
+        18784
+      ],
+      "n_spurious": 7,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2019/D": {
+      "bat_f4_pa": [
+        11694,
+        11693
+      ],
+      "pit_f5_pa": [
+        11694,
+        11693
+      ],
+      "n_spurious": 1,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2020/A": {
+      "bat_f4_pa": [
+        19315,
+        19308
+      ],
+      "pit_f5_pa": [
+        19315,
+        19308
+      ],
+      "n_spurious": 7,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2020/D": {
+      "bat_f4_pa": [
+        18303,
+        18297
+      ],
+      "pit_f5_pa": [
+        18303,
+        18297
+      ],
+      "n_spurious": 6,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2021/A": {
+      "bat_f4_pa": [
+        22982,
+        22980
+      ],
+      "pit_f5_pa": [
+        22982,
+        22980
+      ],
+      "n_spurious": 2,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2021/D": {
+      "bat_f4_pa": [
+        12916,
+        12913
+      ],
+      "pit_f5_pa": [
+        12916,
+        12913
+      ],
+      "n_spurious": 3,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2022/A": {
+      "bat_f4_pa": [
+        22805,
+        22799
+      ],
+      "pit_f5_pa": [
+        22805,
+        22799
+      ],
+      "n_spurious": 6,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2022/D": {
+      "bat_f4_pa": [
+        12972,
+        12965
+      ],
+      "pit_f5_pa": [
+        12972,
+        12965
+      ],
+      "n_spurious": 7,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2023/A": {
+      "bat_f4_pa": [
+        22867,
+        22860
+      ],
+      "pit_f5_pa": [
+        22867,
+        22860
+      ],
+      "n_spurious": 7,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2023/D": {
+      "bat_f4_pa": [
+        17876,
+        17868
+      ],
+      "pit_f5_pa": [
+        17876,
+        17868
+      ],
+      "n_spurious": 8,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2024/A": {
+      "bat_f4_pa": [
+        27403,
+        27400
+      ],
+      "pit_f5_pa": [
+        27403,
+        27400
+      ],
+      "n_spurious": 3,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2024/D": {
+      "bat_f4_pa": [
+        16679,
+        16675
+      ],
+      "pit_f5_pa": [
+        16679,
+        16675
+      ],
+      "n_spurious": 4,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2025/A": {
+      "bat_f4_pa": [
+        27024,
+        27019
+      ],
+      "pit_f5_pa": [
+        27024,
+        27019
+      ],
+      "n_spurious": 5,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2025/D": {
+      "bat_f4_pa": [
+        15754,
+        15749
+      ],
+      "pit_f5_pa": [
+        15754,
+        15749
+      ],
+      "n_spurious": 5,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2026/A": {
+      "bat_f4_pa": [
+        16700,
+        16699
+      ],
+      "pit_f5_pa": [
+        16700,
+        16699
+      ],
+      "n_spurious": 1,
+      "per_pitcher_pitch_conserved": true
+    },
+    "2026/D": {
+      "bat_f4_pa": [
+        12176,
+        12175
+      ],
+      "pit_f5_pa": [
+        12176,
+        12175
+      ],
+      "n_spurious": 1,
+      "per_pitcher_pitch_conserved": true
+    }
+  },
+  "cross_pitcher_cases": {
+    "note": "合併島內投球列跨投手的案例：投球數逐投手保留（守恆由不變量強制），打席結果責任依 9.16(h)",
+    "cases": [
+      {
+        "game": "2020/D/81",
+        "inning": 6,
+        "half": "2",
+        "outcome": "三振",
+        "pitch_by": {
+          "0000000760": {
+            "strikes": 2,
+            "balls": 3
+          },
+          "0000000117": {
+            "strikes": 1,
+            "balls": 0
+          }
+        },
+        "responsible": "0000000117",
+        "rule_916h": null
+      },
+      {
+        "game": "2022/D/140",
+        "inning": 5,
+        "half": "1",
+        "outcome": "二飛",
+        "pitch_by": {
+          "0000000155": {
+            "strikes": 1,
+            "balls": 3
+          },
+          "0000000364": {
+            "strikes": 4,
+            "balls": 0
+          }
+        },
+        "responsible": "0000000364",
+        "rule_916h": null
+      }
+    ]
+  },
+  "box_crosscheck": {
+    "note": "受影響場次逐場逐人 PA 對照官方 box（batting_gamelog，未經 splits_calc，非自比）；寬過濾：凡任一版本不等於 box 或兩版互異者皆列",
+    "rows_total": 89,
+    "corrected_matches_box": 82,
+    "legacy_matches_box": 1,
+    "no_box_data": 0,
+    "corrected_mismatches": [
+      {
+        "game": "2018/A/116",
+        "acnt": "0000001240",
+        "legacy_pa": 1,
+        "corrected_pa": 0,
+        "box_pa": 1,
+        "corrected_matches_box": false,
+        "legacy_matches_box": true
+      },
+      {
+        "game": "2018/A/116",
+        "acnt": "0000003551",
+        "legacy_pa": 3,
+        "corrected_pa": 3,
+        "box_pa": 2,
+        "corrected_matches_box": false,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2020/A/22",
+        "acnt": "0000003615",
+        "legacy_pa": 3,
+        "corrected_pa": 3,
+        "box_pa": 4,
+        "corrected_matches_box": false,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2021/D/74",
+        "acnt": "0000005538",
+        "legacy_pa": 3,
+        "corrected_pa": 3,
+        "box_pa": 4,
+        "corrected_matches_box": false,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2022/D/140",
+        "acnt": "0000006726",
+        "legacy_pa": 5,
+        "corrected_pa": 5,
+        "box_pa": 6,
+        "corrected_matches_box": false,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2023/A/9",
+        "acnt": "0000000362",
+        "legacy_pa": 4,
+        "corrected_pa": 4,
+        "box_pa": 5,
+        "corrected_matches_box": false,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2025/D/215",
+        "acnt": "0000000908",
+        "legacy_pa": 0,
+        "corrected_pa": 0,
+        "box_pa": 1,
+        "corrected_matches_box": false,
+        "legacy_matches_box": false
+      }
+    ],
+    "rows": [
+      {
+        "game": "2018/A/7",
+        "acnt": "0000003551",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2018/A/116",
+        "acnt": "0000001240",
+        "legacy_pa": 1,
+        "corrected_pa": 0,
+        "box_pa": 1,
+        "corrected_matches_box": false,
+        "legacy_matches_box": true
+      },
+      {
+        "game": "2018/A/116",
+        "acnt": "0000003551",
+        "legacy_pa": 3,
+        "corrected_pa": 3,
+        "box_pa": 2,
+        "corrected_matches_box": false,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2018/A/118",
+        "acnt": "0000003395",
+        "legacy_pa": 2,
+        "corrected_pa": 1,
+        "box_pa": 1,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2018/A/150",
+        "acnt": "0000002289",
+        "legacy_pa": 3,
+        "corrected_pa": 2,
+        "box_pa": 2,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2018/A/194",
+        "acnt": "0000001217",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2018/D/59",
+        "acnt": "0000003275",
+        "legacy_pa": 3,
+        "corrected_pa": 2,
+        "box_pa": 2,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2018/D/72",
+        "acnt": "0000003048",
+        "legacy_pa": 5,
+        "corrected_pa": 4,
+        "box_pa": 4,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2019/A/36",
+        "acnt": "0000000132",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2019/A/61",
+        "acnt": "0000003338",
+        "legacy_pa": 2,
+        "corrected_pa": 1,
+        "box_pa": 1,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2019/A/124",
+        "acnt": "0000002298",
+        "legacy_pa": 1,
+        "corrected_pa": 0,
+        "box_pa": 0,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2019/A/155",
+        "acnt": "0000003345",
+        "legacy_pa": 1,
+        "corrected_pa": 0,
+        "box_pa": 0,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2019/A/170",
+        "acnt": "0000002696",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2019/A/175",
+        "acnt": "0000000153",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2019/A/212",
+        "acnt": "0000000366",
+        "legacy_pa": 5,
+        "corrected_pa": 4,
+        "box_pa": 4,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2019/D/142",
+        "acnt": "0000003278",
+        "legacy_pa": 1,
+        "corrected_pa": 0,
+        "box_pa": 0,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2020/A/22",
+        "acnt": "0000000743",
+        "legacy_pa": 3,
+        "corrected_pa": 2,
+        "box_pa": 2,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2020/A/22",
+        "acnt": "0000003615",
+        "legacy_pa": 3,
+        "corrected_pa": 3,
+        "box_pa": 4,
+        "corrected_matches_box": false,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2020/A/22",
+        "acnt": "0000004636",
+        "legacy_pa": 3,
+        "corrected_pa": 2,
+        "box_pa": 2,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2020/A/79",
+        "acnt": "0000003144",
+        "legacy_pa": 3,
+        "corrected_pa": 2,
+        "box_pa": 2,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2020/A/135",
+        "acnt": "0000003609",
+        "legacy_pa": 3,
+        "corrected_pa": 2,
+        "box_pa": 2,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2020/A/172",
+        "acnt": "0000003211",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2020/A/182",
+        "acnt": "0000003339",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2020/A/239",
+        "acnt": "0000005571",
+        "legacy_pa": 3,
+        "corrected_pa": 2,
+        "box_pa": 2,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2020/D/81",
+        "acnt": "0000004622",
+        "legacy_pa": 2,
+        "corrected_pa": 1,
+        "box_pa": 1,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2020/D/106",
+        "acnt": "0000001406",
+        "legacy_pa": 2,
+        "corrected_pa": 1,
+        "box_pa": 1,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2020/D/153",
+        "acnt": "0000005532",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2020/D/206",
+        "acnt": "0000005656",
+        "legacy_pa": 3,
+        "corrected_pa": 2,
+        "box_pa": 2,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2020/D/210",
+        "acnt": "0000005538",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2020/D/225",
+        "acnt": "0000005538",
+        "legacy_pa": 5,
+        "corrected_pa": 4,
+        "box_pa": 4,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2021/A/117",
+        "acnt": "0000001114",
+        "legacy_pa": 3,
+        "corrected_pa": 2,
+        "box_pa": 2,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2021/A/119",
+        "acnt": "0000001284",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2021/D/74",
+        "acnt": "0000005538",
+        "legacy_pa": 3,
+        "corrected_pa": 3,
+        "box_pa": 4,
+        "corrected_matches_box": false,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2021/D/74",
+        "acnt": "0000006242",
+        "legacy_pa": 2,
+        "corrected_pa": 1,
+        "box_pa": 1,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2021/D/161",
+        "acnt": "0000000772",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2021/D/189",
+        "acnt": "0000006226",
+        "legacy_pa": 2,
+        "corrected_pa": 1,
+        "box_pa": 1,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2022/A/10",
+        "acnt": "0000001474",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2022/A/148",
+        "acnt": "0000002275",
+        "legacy_pa": 3,
+        "corrected_pa": 2,
+        "box_pa": 2,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2022/A/156",
+        "acnt": "0000003615",
+        "legacy_pa": 1,
+        "corrected_pa": 0,
+        "box_pa": 0,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2022/A/206",
+        "acnt": "0000005656",
+        "legacy_pa": 3,
+        "corrected_pa": 2,
+        "box_pa": 2,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2022/A/289",
+        "acnt": "0000002282",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2022/A/293",
+        "acnt": "0000000343",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2022/C/2",
+        "acnt": "0000003609",
+        "legacy_pa": 2,
+        "corrected_pa": 1,
+        "box_pa": 1,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2022/D/19",
+        "acnt": "0000006709",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2022/D/128",
+        "acnt": "0000004640",
+        "legacy_pa": 2,
+        "corrected_pa": 1,
+        "box_pa": 1,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2022/D/140",
+        "acnt": "0000005342",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2022/D/140",
+        "acnt": "0000006726",
+        "legacy_pa": 5,
+        "corrected_pa": 5,
+        "box_pa": 6,
+        "corrected_matches_box": false,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2022/D/143",
+        "acnt": "0000006732",
+        "legacy_pa": 1,
+        "corrected_pa": 0,
+        "box_pa": 0,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2022/D/150",
+        "acnt": "0000002295",
+        "legacy_pa": 3,
+        "corrected_pa": 2,
+        "box_pa": 2,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2022/D/195",
+        "acnt": "0000006731",
+        "legacy_pa": 2,
+        "corrected_pa": 1,
+        "box_pa": 1,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2022/D/226",
+        "acnt": "0000005565",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2023/A/9",
+        "acnt": "0000000362",
+        "legacy_pa": 4,
+        "corrected_pa": 4,
+        "box_pa": 5,
+        "corrected_matches_box": false,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2023/A/9",
+        "acnt": "0000001473",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2023/A/68",
+        "acnt": "0000000910",
+        "legacy_pa": 1,
+        "corrected_pa": 0,
+        "box_pa": 0,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2023/A/73",
+        "acnt": "0000003337",
+        "legacy_pa": 5,
+        "corrected_pa": 4,
+        "box_pa": 4,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2023/A/104",
+        "acnt": "0000006229",
+        "legacy_pa": 5,
+        "corrected_pa": 4,
+        "box_pa": 4,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2023/A/106",
+        "acnt": "0000003533",
+        "legacy_pa": 5,
+        "corrected_pa": 4,
+        "box_pa": 4,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2023/A/239",
+        "acnt": "0000004636",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2023/A/295",
+        "acnt": "0000003339",
+        "legacy_pa": 1,
+        "corrected_pa": 0,
+        "box_pa": 0,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2023/D/21",
+        "acnt": "0000001240",
+        "legacy_pa": 3,
+        "corrected_pa": 2,
+        "box_pa": 2,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2023/D/65",
+        "acnt": "0000006931",
+        "legacy_pa": 2,
+        "corrected_pa": 1,
+        "box_pa": 1,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2023/D/151",
+        "acnt": "0000006835",
+        "legacy_pa": 5,
+        "corrected_pa": 4,
+        "box_pa": 4,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2023/D/154",
+        "acnt": "0000006835",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2023/D/165",
+        "acnt": "0000006928",
+        "legacy_pa": 6,
+        "corrected_pa": 5,
+        "box_pa": 5,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2023/D/166",
+        "acnt": "0000006220",
+        "legacy_pa": 2,
+        "corrected_pa": 1,
+        "box_pa": 1,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2023/D/178",
+        "acnt": "0000006140",
+        "legacy_pa": 1,
+        "corrected_pa": 0,
+        "box_pa": 0,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2023/D/217",
+        "acnt": "0000006726",
+        "legacy_pa": 3,
+        "corrected_pa": 2,
+        "box_pa": 2,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2023/E/1",
+        "acnt": "0000003144",
+        "legacy_pa": 3,
+        "corrected_pa": 2,
+        "box_pa": 2,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2024/A/155",
+        "acnt": "0000007070",
+        "legacy_pa": 3,
+        "corrected_pa": 2,
+        "box_pa": 2,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2024/A/283",
+        "acnt": "0000006888",
+        "legacy_pa": 2,
+        "corrected_pa": 1,
+        "box_pa": 1,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2024/A/307",
+        "acnt": "0000004645",
+        "legacy_pa": 2,
+        "corrected_pa": 1,
+        "box_pa": 1,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2024/C/2",
+        "acnt": "0000005531",
+        "legacy_pa": 5,
+        "corrected_pa": 4,
+        "box_pa": 4,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2024/D/94",
+        "acnt": "0000004627",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2024/D/119",
+        "acnt": "0000003174",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2024/D/154",
+        "acnt": "0000007013",
+        "legacy_pa": 2,
+        "corrected_pa": 1,
+        "box_pa": 1,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2024/D/167",
+        "acnt": "0000006718",
+        "legacy_pa": 3,
+        "corrected_pa": 2,
+        "box_pa": 2,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2025/A/68",
+        "acnt": "0000001754",
+        "legacy_pa": 5,
+        "corrected_pa": 4,
+        "box_pa": 4,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2025/A/84",
+        "acnt": "0000007091",
+        "legacy_pa": 2,
+        "corrected_pa": 1,
+        "box_pa": 1,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2025/A/220",
+        "acnt": "0000001804",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2025/A/250",
+        "acnt": "0000007070",
+        "legacy_pa": 3,
+        "corrected_pa": 2,
+        "box_pa": 2,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2025/A/267",
+        "acnt": "0000004633",
+        "legacy_pa": 2,
+        "corrected_pa": 1,
+        "box_pa": 1,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2025/D/8",
+        "acnt": "0000007094",
+        "legacy_pa": 1,
+        "corrected_pa": 0,
+        "box_pa": 0,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2025/D/88",
+        "acnt": "0000007037",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2025/D/102",
+        "acnt": "0000001240",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2025/D/120",
+        "acnt": "0000001409",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2025/D/215",
+        "acnt": "0000000908",
+        "legacy_pa": 0,
+        "corrected_pa": 0,
+        "box_pa": 1,
+        "corrected_matches_box": false,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2025/D/215",
+        "acnt": "0000005656",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2026/A/58",
+        "acnt": "0000006216",
+        "legacy_pa": 2,
+        "corrected_pa": 1,
+        "box_pa": 1,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      },
+      {
+        "game": "2026/D/131",
+        "acnt": "0000007070",
+        "legacy_pa": 4,
+        "corrected_pa": 3,
+        "box_pa": 3,
+        "corrected_matches_box": true,
+        "legacy_matches_box": false
+      }
+    ]
+  },
+  "h2_reconciliation_evidence": {
+    "note": "H2 斷言證據（REVIEW-017 處置）。apart 對帳母體僅 (2026,'A') 與生涯 9999，2018–2025 年度分項不在其中；歷史列全為單一日期回填的純重算值",
+    "apart_combos_in_code": [
+      [
+        2026,
+        "A"
+      ],
+      [
+        9999,
+        "A"
+      ],
+      [
+        9999,
+        "C"
+      ],
+      [
+        9999,
+        "E"
+      ]
+    ],
+    "historical_rows_updated_at": {
+      "batting_splits": {
+        "rows_before_2026": 117728,
+        "distinct_updated_dates": [
+          "2026-07-14"
+        ]
+      },
+      "pitching_splits": {
+        "rows_before_2026": 82556,
+        "distinct_updated_dates": [
+          "2026-07-14"
+        ]
+      }
+    },
+    "phase0_harness_commit": {
+      "sha": "3a66169f6bb960b90f0030081caaeb9ad7165f91",
+      "date": "2026-07-06",
+      "subject": "feat(ingest): splits recompute engine + verification harness",
+      "git_verified": true
+    },
+    "phase0_residuals_note": "Phase 0 收斂後仍有 3,248 筆殘差，僅存 commit message 總量數字、無逐格 artifact",
+    "phase1_overwrite_commit": {
+      "sha": "36e333404a02ec9bee58114d697a06b379803aa3",
+      "date": "2026-07-06",
+      "subject": "feat(ingest): splits builder writes recomputed current-season tables",
+      "git_verified": true
+    },
+    "prod_evidence_recorded": {
+      "source": "HANDOFF-006 生產端盤點；環境綁定證據（生產 DB／備份），非本腳本重導出",
+      "official_values_overwritten_since": "2026-07-06",
+      "prod_synced_from_local_since": "2026-07-14",
+      "earliest_backup": "2026-07-25",
+      "backup_policy": "keep 7"
+    },
+    "conclusion": {
+      "never_reconciled_2018_2025": true,
+      "snapshot_reproducible": false
+    }
+  },
+  "player_delta_summary": {
+    "rows": 2435,
+    "changed_cells": 17997,
+    "affected_players": 314,
+    "affected_table_players": {
+      "batting_splits": 249,
+      "pitching_splits": 65
+    },
+    "by_table_family": {
+      "batting_splits/10": 1284,
+      "batting_splits/3": 237,
+      "pitching_splits/3": 200,
+      "pitching_splits/5": 89,
+      "pitching_splits/6": 81,
+      "batting_splits/6": 80,
+      "pitching_splits/7": 80,
+      "pitching_splits/8": 80,
+      "batting_splits/5": 79,
+      "batting_splits/7": 79,
+      "batting_splits/4": 79,
+      "batting_splits/1": 23,
+      "batting_splits/9": 22,
+      "batting_splits/8": 22
+    },
+    "by_col": {
+      "plate_appearances": 2304,
+      "ops": 1734,
+      "obp": 1715,
+      "at_bats": 1651,
+      "slg": 1528,
+      "avg": 1515,
+      "so": 963,
+      "goao": 902,
+      "ground_outs": 712,
+      "hits": 705,
+      "fly_outs": 655,
+      "total_bases": 642,
+      "singles": 534,
+      "bb": 502,
+      "rbi": 319,
+      "doubles": 258,
+      "hbp": 226,
+      "sac_hit": 189,
+      "home_runs": 185,
+      "sac_fly": 181,
+      "triples": 161,
+      "ibb": 156,
+      "pitch_cnt": 106,
+      "strikes": 88,
+      "balls": 66
+    },
+    "skipped_pairs_no_published_splits": [
+      "2022/C",
+      "2023/E",
+      "2024/C"
+    ],
+    "note_ranking": "top_players 以整數計數欄位的 Σ|delta| 排序、跨表聚合到唯一 acnt（rate 欄不入排名）",
+    "top_players_by_abs_delta": [
+      {
+        "acnt": "0000001118",
+        "player": "高國麟",
+        "sum_abs_delta": 174,
+        "by_table": {
+          "batting_splits": 174
+        }
+      },
+      {
+        "acnt": "0000001240",
+        "player": "鄭鎧文",
+        "sum_abs_delta": 166,
+        "by_table": {
+          "batting_splits": 166
+        }
+      },
+      {
+        "acnt": "0000002352",
+        "player": "范國宸",
+        "sum_abs_delta": 158,
+        "by_table": {
+          "batting_splits": 158
+        }
+      },
+      {
+        "acnt": "0000001473",
+        "player": "李宗賢",
+        "sum_abs_delta": 157,
+        "by_table": {
+          "batting_splits": 157
+        }
+      },
+      {
+        "acnt": "0000002707",
+        "player": "潘傑楷",
+        "sum_abs_delta": 136,
+        "by_table": {
+          "batting_splits": 136
+        }
+      },
+      {
+        "acnt": "0000004636",
+        "player": "江坤宇",
+        "sum_abs_delta": 133,
+        "by_table": {
+          "batting_splits": 133
+        }
+      },
+      {
+        "acnt": "0000003339",
+        "player": "林哲瑄",
+        "sum_abs_delta": 130,
+        "by_table": {
+          "batting_splits": 130
+        }
+      },
+      {
+        "acnt": "0000005656",
+        "player": "李聖裕",
+        "sum_abs_delta": 130,
+        "by_table": {
+          "batting_splits": 130
+        }
+      },
+      {
+        "acnt": "0000002305",
+        "player": "王正棠",
+        "sum_abs_delta": 128,
+        "by_table": {
+          "batting_splits": 128
+        }
+      },
+      {
+        "acnt": "0000003551",
+        "player": "羅國龍",
+        "sum_abs_delta": 124,
+        "by_table": {
+          "batting_splits": 124
+        }
+      },
+      {
+        "acnt": "0000003615",
+        "player": "胡金龍",
+        "sum_abs_delta": 124,
+        "by_table": {
+          "batting_splits": 124
+        }
+      },
+      {
+        "acnt": "0000003144",
+        "player": "林益全",
+        "sum_abs_delta": 122,
+        "by_table": {
+          "batting_splits": 122
+        }
+      },
+      {
+        "acnt": "0000000153",
+        "player": "林承飛",
+        "sum_abs_delta": 120,
+        "by_table": {
+          "batting_splits": 120
+        }
+      },
+      {
+        "acnt": "0000005538",
+        "player": "黃柏豪",
+        "sum_abs_delta": 118,
+        "by_table": {
+          "batting_splits": 118
+        }
+      },
+      {
+        "acnt": "0000002289",
+        "player": "陳重廷",
+        "sum_abs_delta": 113,
+        "by_table": {
+          "batting_splits": 113
+        }
+      }
+    ],
+    "vs_team_note": "batting_vs_team／pitching_vs_team 來自 T1（gamelog 加總，不經 livelog 島重建），本缺陷零影響，不列 diff"
+  }
+}
