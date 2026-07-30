@@ -14,6 +14,8 @@ import json
 import sys
 from pathlib import Path
 
+from cpbl.ingest.cpbl_player_detail import APART_COMBOS
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -27,9 +29,23 @@ def main() -> int:
     af = m["assembly_fidelity_vs_published"]
     bc = m["box_crosscheck"]
 
+    tr = m["canonical_transitions"]
     checks = {
-        "296（transition 總數）":
-            m["canonical_transitions"]["total"] == 296 and "**296**" in doc,
+        "296（transition 總數，baseline 窗 ≤2026-07-28）":
+            tr["baseline"]["total"] == 296
+            and tr["baseline"]["prev_disposition"]
+            == {"counted": 83, "ghost_island_no_pitch": 210, "skipped_no_outcome": 3}
+            and tr["baseline"]["by_criterion"]
+            == {"pinch_hit_slot": 216, "count_continues": 80}
+            and "**296**" in doc,
+        "窗外新增全數歸因且未增曝險（as-of 原則）":
+            tr["total"] - tr["baseline"]["total"] == len(tr["post_baseline_rows"])
+            and all(t["game_date"] > tr["baseline_cutoff"]
+                    for t in tr["post_baseline_rows"])
+            and m["exposure"]["baseline"]["double_counted_pas"]
+            == m["exposure"]["double_counted_pas"]
+            and m["exposure"]["baseline"]["affected_games"]
+            == m["exposure"]["affected_games"],
         "83 筆／82 場":
             f'**{m["exposure"]["double_counted_pas"]} 筆／'
             f'{m["exposure"]["affected_games"]} 場**' in doc,
@@ -72,6 +88,25 @@ def main() -> int:
         "9.15(b) 歸原打者 22 例":
             m["exposure"]["strikeout_charged_to_prev_cases"] == 22
             and "22 筆原打者已被判第 2" in doc,
+        "H2 不可重現證據（artifact 化，REVIEW-017）":
+            (lambda h2, hist: (
+                h2["apart_combos_in_code"] == [list(t) for t in APART_COMBOS]
+                and all(v["distinct_updated_dates"] == ["2026-07-14"]
+                        for v in hist.values())
+                and hist["batting_splits"]["rows_before_2026"] > 0
+                and hist["pitching_splits"]["rows_before_2026"] > 0
+                and h2["phase0_harness_commit"].get("sha", "").startswith("3a66169")
+                and h2["phase1_overwrite_commit"].get("sha", "").startswith("36e3334")
+                and h2["prod_evidence_recorded"]["earliest_backup"] == "2026-07-25"
+                and h2["conclusion"] == {"never_reconciled_2018_2025": True,
+                                         "snapshot_reproducible": False}
+                and f'{hist["batting_splits"]["rows_before_2026"]:,}' in doc
+                and f'{hist["pitching_splits"]["rows_before_2026"]:,}' in doc
+                and "updated_at` = 2026-07-14" in doc
+                and "`3a66169`" in doc
+                and "不可重現" in doc
+            ))(m["h2_reconciliation_evidence"],
+               m["h2_reconciliation_evidence"]["historical_rows_updated_at"]),
     }
     bad = [k for k, ok in checks.items() if not ok]
     for k, ok in checks.items():

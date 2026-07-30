@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-30T00:56:33.486689+08:00",
+  "generated_at": "2026-07-30T10:37:22.670536+08:00",
   "scope": {
     "from_year": 2018,
     "to_year": 2026,
@@ -9,60 +9,89 @@
       "D",
       "E"
     ],
-    "games": 4279,
-    "events": 1334970
+    "games": 4284,
+    "events": 1336639
   },
   "judgement_source": "canonical build_islands / charged_hitter（GAME-RECAP-PA1-FIX1，builder 1.3.0／taxonomy 1.1.0）",
   "readonly_guard": {
     "before": {
       "batting_splits": {
-        "rows": 163204,
-        "max_updated_at": "2026-07-29 02:21:20.143006+00:00"
+        "rows": 163268,
+        "max_updated_at": "2026-07-30 02:28:46.646954+00:00"
       },
       "pitching_splits": {
-        "rows": 114848,
-        "max_updated_at": "2026-07-29 02:21:20.832442+00:00"
+        "rows": 115001,
+        "max_updated_at": "2026-07-30 02:28:47.502788+00:00"
       },
       "batting_vs_team": {
-        "rows": 12391,
-        "max_updated_at": "2026-07-29 02:21:19.386238+00:00"
+        "rows": 12393,
+        "max_updated_at": "2026-07-30 02:28:46.171815+00:00"
       },
       "pitching_vs_team": {
-        "rows": 9962,
-        "max_updated_at": "2026-07-29 02:21:19.386238+00:00"
+        "rows": 9974,
+        "max_updated_at": "2026-07-30 02:28:46.171815+00:00"
       }
     },
     "after": {
       "batting_splits": {
-        "rows": 163204,
-        "max_updated_at": "2026-07-29 02:21:20.143006+00:00"
+        "rows": 163268,
+        "max_updated_at": "2026-07-30 02:28:46.646954+00:00"
       },
       "pitching_splits": {
-        "rows": 114848,
-        "max_updated_at": "2026-07-29 02:21:20.832442+00:00"
+        "rows": 115001,
+        "max_updated_at": "2026-07-30 02:28:47.502788+00:00"
       },
       "batting_vs_team": {
-        "rows": 12391,
-        "max_updated_at": "2026-07-29 02:21:19.386238+00:00"
+        "rows": 12393,
+        "max_updated_at": "2026-07-30 02:28:46.171815+00:00"
       },
       "pitching_vs_team": {
-        "rows": 9962,
-        "max_updated_at": "2026-07-29 02:21:19.386238+00:00"
+        "rows": 9974,
+        "max_updated_at": "2026-07-30 02:28:46.171815+00:00"
       }
     },
     "unchanged": true
   },
   "canonical_transitions": {
-    "total": 296,
+    "total": 297,
     "prev_disposition": {
       "counted": 83,
-      "ghost_island_no_pitch": 210,
+      "ghost_island_no_pitch": 211,
       "skipped_no_outcome": 3
     },
     "by_criterion": {
-      "pinch_hit_slot": 216,
+      "pinch_hit_slot": 217,
       "count_continues": 80
     },
+    "baseline_cutoff": "2026-07-28",
+    "baseline": {
+      "total": 296,
+      "prev_disposition": {
+        "counted": 83,
+        "ghost_island_no_pitch": 210,
+        "skipped_no_outcome": 3
+      },
+      "by_criterion": {
+        "pinch_hit_slot": 216,
+        "count_continues": 80
+      }
+    },
+    "post_baseline_rows": [
+      {
+        "game": "2026/A/230",
+        "game_date": "2026-07-29",
+        "inning": 8,
+        "half": "1",
+        "prev_first_event_no": "0810028000",
+        "prev_hitter": "0000005571",
+        "next_hitter": "0000005569",
+        "criterion": "pinch_hit_slot",
+        "prev_disposition": "ghost_island_no_pitch",
+        "next_disposition": "counted",
+        "outcome": "三振",
+        "islands_between": 0
+      }
+    ],
     "anomalies": []
   },
   "iteration1_missed_classification": {
@@ -212,6 +241,10 @@
   "exposure": {
     "double_counted_pas": 83,
     "affected_games": 82,
+    "baseline": {
+      "double_counted_pas": 83,
+      "affected_games": 82
+    },
     "by_year": {
       "2018": 7,
       "2019": 8,
@@ -2083,14 +2116,14 @@
       "bat_gofo": 2199
     },
     "2026/A": {
-      "bat": 5308,
-      "pit": 3126,
-      "bat_gofo": 1881
+      "bat": 5326,
+      "pit": 3148,
+      "bat_gofo": 1886
     },
     "2026/D": {
-      "bat": 6383,
-      "pit": 3790,
-      "bat_gofo": 2025
+      "bat": 6400,
+      "pit": 3823,
+      "bat_gofo": 2031
     }
   },
   "assembly_fidelity_vs_published": {
@@ -2287,28 +2320,28 @@
       "equal_rows": 6545
     },
     "2026/A/batting_splits": {
-      "assembled": 7229,
-      "published": 7229,
-      "common": 7229,
-      "equal_rows": 7229
+      "assembled": 7252,
+      "published": 7252,
+      "common": 7252,
+      "equal_rows": 7252
     },
     "2026/A/pitching_splits": {
-      "assembled": 4885,
-      "published": 4885,
-      "common": 4885,
-      "equal_rows": 4885
+      "assembled": 4923,
+      "published": 4923,
+      "common": 4923,
+      "equal_rows": 4923
     },
     "2026/D/batting_splits": {
-      "assembled": 8429,
-      "published": 8429,
-      "common": 8429,
-      "equal_rows": 8429
+      "assembled": 8452,
+      "published": 8452,
+      "common": 8452,
+      "equal_rows": 8452
     },
     "2026/D/pitching_splits": {
-      "assembled": 5726,
-      "published": 5726,
-      "common": 5726,
-      "equal_rows": 5726
+      "assembled": 5779,
+      "published": 5779,
+      "common": 5779,
+      "equal_rows": 5779
     }
   },
   "corrected_invariants": {
@@ -2506,24 +2539,24 @@
     },
     "2026/A": {
       "bat_f4_pa": [
-        16454,
-        16453
+        16700,
+        16699
       ],
       "pit_f5_pa": [
-        16454,
-        16453
+        16700,
+        16699
       ],
       "n_spurious": 1,
       "per_pitcher_pitch_conserved": true
     },
     "2026/D": {
       "bat_f4_pa": [
-        12020,
-        12019
+        12176,
+        12175
       ],
       "pit_f5_pa": [
-        12020,
-        12019
+        12176,
+        12175
       ],
       "n_spurious": 1,
       "per_pitcher_pitch_conserved": true
@@ -3445,6 +3478,65 @@
       }
     ]
   },
+  "h2_reconciliation_evidence": {
+    "note": "H2 斷言證據（REVIEW-017 處置）。apart 對帳母體僅 (2026,'A') 與生涯 9999，2018–2025 年度分項不在其中；歷史列全為單一日期回填的純重算值",
+    "apart_combos_in_code": [
+      [
+        2026,
+        "A"
+      ],
+      [
+        9999,
+        "A"
+      ],
+      [
+        9999,
+        "C"
+      ],
+      [
+        9999,
+        "E"
+      ]
+    ],
+    "historical_rows_updated_at": {
+      "batting_splits": {
+        "rows_before_2026": 117728,
+        "distinct_updated_dates": [
+          "2026-07-14"
+        ]
+      },
+      "pitching_splits": {
+        "rows_before_2026": 82556,
+        "distinct_updated_dates": [
+          "2026-07-14"
+        ]
+      }
+    },
+    "phase0_harness_commit": {
+      "sha": "3a66169f6bb960b90f0030081caaeb9ad7165f91",
+      "date": "2026-07-06",
+      "subject": "feat(ingest): splits recompute engine + verification harness",
+      "git_verified": true
+    },
+    "phase0_residuals_note": "Phase 0 收斂後仍有 3,248 筆殘差，僅存 commit message 總量數字、無逐格 artifact",
+    "phase1_overwrite_commit": {
+      "sha": "36e333404a02ec9bee58114d697a06b379803aa3",
+      "date": "2026-07-06",
+      "subject": "feat(ingest): splits builder writes recomputed current-season tables",
+      "git_verified": true
+    },
+    "prod_evidence_recorded": {
+      "source": "HANDOFF-006 生產端盤點；環境綁定證據（生產 DB／備份），非本腳本重導出",
+      "official_values_overwritten_since": "2026-07-06",
+      "prod_synced_from_local_since": "2026-07-14",
+      "earliest_backup": "2026-07-25",
+      "backup_policy": "keep 7"
+    },
+    "conclusion": {
+      "never_reconciled_2018_2025": true,
+      "snapshot_reproducible": false
+    }
+  },
   "player_delta_summary": {
     "rows": 2435,
     "changed_cells": 17997,
@@ -3460,14 +3552,14 @@
       "pitching_splits/5": 89,
       "pitching_splits/6": 81,
       "batting_splits/6": 80,
-      "pitching_splits/8": 80,
       "pitching_splits/7": 80,
+      "pitching_splits/8": 80,
       "batting_splits/5": 79,
       "batting_splits/7": 79,
       "batting_splits/4": 79,
       "batting_splits/1": 23,
-      "batting_splits/8": 22,
-      "batting_splits/9": 22
+      "batting_splits/9": 22,
+      "batting_splits/8": 22
     },
     "by_col": {
       "plate_appearances": 2304,

@@ -14,13 +14,14 @@ tags:
 # 結論：**有偏差，已量化到選手 × 分項 × 全發布欄位**
 
 `splits_calc.py` 因與 `GAME-RECAP-PA1-FIX1` 同型的島切分缺陷而重複計打席。
-全量數字（2018–2026、kind A/C/D/E、4,279 場／1,334,970 事件；本文**所有數字**由
+全量數字（2018–2026、kind A/C/D/E、4,284 場／1,336,639 事件，DB as-of 2026-07-30
+每日增量後；scope 與組裝層列數繫於 DB as-of，見卡面 as-of 判讀原則；本文**所有數字**由
 `scripts/verify_splits_pa_split1.py` 的 artifact 程式化萃取——
 `ingest_splits_pa_split1_metrics.json`、`ingest_splits_pa_split1_player_delta.json`）：
 
 | 項目 | 數值 |
 |---|---:|
-| canonical 跨打者 transition（`build_islands` 列舉） | **296**（判準：`pinch_hit_slot` 216／`count_continues` 80） |
+| canonical 跨打者 transition（`build_islands` 列舉） | **296**（判準：`pinch_hit_slot` 216／`count_continues` 80；baseline 窗 `game_date ≤ 2026-07-28`——三輪查核背書的凍結基線（每日 10:10 爬前一天的比賽，查核基線的 DB 只含到 07-28 場次）。窗外由每日增量新增的 transition 逐筆列於 artifact `post_baseline_rows` 並由守衛自動歸因＋確認未增曝險） |
 | ↳ prev 片段被幽靈島規則擋掉 | 210 |
 | ↳ prev 片段整段無 `batting_action_name` 略過 | 3 |
 | ↳ **實際被重複計為 PA** | **83 筆／82 場**（A:43、D:37、C:2、E:1；判準 `count_continues` 79／`pinch_hit_slot` 4） |
@@ -65,8 +66,8 @@ REVIEW-008 F2 修正。）
    （18 個已發布 (year, kind) 全過；artifact `simulator_fidelity_vs_calc_t2`）。
 2. **組裝層保真**：在記憶體重現 `build_splits` 的 writer row（T1＋gofo 併入＋T2 覆蓋
    → `_meta`＋`_bat_rates`），assembled legacy row 與 **DB 已發布列逐格比對：
-   226,553／226,553 全等**（batting 133,386＋pitching 93,167；artifact
-   `assembly_fidelity_vs_published`）——組裝層完整重現了發布管線。
+   226,690／226,690 全等**（batting 133,432＋pitching 93,258，as-of 2026-07-30；
+   artifact `assembly_fidelity_vs_published`）——組裝層完整重現了發布管線。
 3. **corrected 路徑機器不變量**（REVIEW-007 對「corrected 無保真」的補位）：
    逐 (year,kind) 強制檢查 bat 家族 4／pit 家族 5 的 PA 總量 = legacy − spurious 數、
    以及**逐投手**家族 5 投球數（strikes/balls/pitch_cnt）守恆——投球數不得在投手間搬移。
@@ -123,7 +124,8 @@ box（上節）。
 1. **2018–2025 年度分項（77 場 A/D）：從未對過帳。** 官方 apart 頁只爬過
    `(2026, A)` 與生涯 9999（`cpbl_player_detail.py` `APART_COMBOS` 常數）；
    2018–2025 的分項列是 2026-07-14 由 VENUE-PARK1 `cpbl-build-splits <year>` 回填的
-   **純重算值**（各年度全部列 `updated_at` = 2026-07-14，DB 實查；VENUE-PARK1 結案
+   **純重算值**（各年度全部列 `updated_at` = 2026-07-14，DB 實查：batting_splits
+   117,728 列＋pitching_splits 82,556 列的 distinct 日期皆為單一值；VENUE-PARK1 結案
    紀錄見 `docs/archive/TASKS_ARCHIVE.md` L123–130）。
 2. **2026/A/58（06-24）：名義上在 Phase 0 對帳母體內，但結果不可考。**
    Phase 0 harness（2026-07-06，commit `3a66169`）對照當時新爬的 2026/A 官方值，
@@ -135,6 +137,12 @@ box（上節）。
 （07-14 起由本機同步）、備份（`backup-cpbl-prod.sh` keep 7，現存最早 2026-07-25，
 全部晚於覆寫）、git（無官方值或 harness 逐格輸出的 committed artifact）、raw payload
 （`cpbl_player_detail` 解析後直接 upsert，無 apart 快照表；migrations 全查）。
+
+**證據 artifact 化（REVIEW-017 處置，iteration 5）**：以上證據鏈已由
+`verify_splits_pa_split1.py` 導出為 metrics artifact 的 `h2_reconciliation_evidence`
+（機器導出＝`APART_COMBOS` 常數、歷史列 `updated_at` 分布、Phase 0／Phase 1 commit
+git 存在性；生產端備份範圍為標注來源的紀錄欄位），並由
+`check_splits_pa_split1_results.py` 第 14 組守衛比對本節數字。
 
 **恢復路徑（供修正卡）**：官方站 `/team/apart` 仍提供 year × kindCode 下拉
 （`docs/CPBL_SITE_MAP.md` L196），修正後可另開爬卡取歷年官方值作驗收對照；

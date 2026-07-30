@@ -38,6 +38,7 @@ from typing import Any
 from psycopg.rows import dict_row
 
 from cpbl.db import conn
+from cpbl.ingest.cpbl_player_detail import APART_COMBOS
 from cpbl.ingest.pa_build import (
     STRIKEOUT_ACTIONS,
     _clean,
@@ -72,6 +73,10 @@ from cpbl.ingest.splits_calc import (
 
 SCOPE_YEARS = (2018, 2026)
 SCOPE_KINDS = ("A", "C", "D", "E")
+# spec v2 斷言凍結窗：三輪查核背書的 296＝210＋3＋83 對應 game_date ≤ 此日的場次。
+# 注意每日 10:10 增量爬的是「前一天」的比賽——查核基線（2026-07-30 晨）的 DB 只含
+# 到 07-28 的場次；窗外新增 transition 逐筆列出、由守衛自動歸因（as-of 判讀原則）。
+BASELINE_CUTOFF = "2026-07-28"
 ITER1_SHA = "3b07d048c427b99d699a4f19c69600ff8d4352f5"  # 被 REJECT 的 iteration 1 交付
 
 # calc_t2 讀的 18 欄（順序語意見該函式）＋canonical 判準需要的 4 欄
@@ -621,6 +626,54 @@ def iter1_missed_classification(exposed: list[dict]) -> dict:
     }
 
 
+def h2_reconciliation_evidence() -> dict:
+    """REVIEW-017：H2「歷年分項從未對過帳、快照不可重現」的證據 artifact 化。
+
+    機器導出＝APART_COMBOS 常數、歷史列 updated_at 分布、關鍵 commit 存在性；
+    生產端證據（備份範圍）為紀錄欄位並標注來源，不偽裝為重新推導。
+    """
+    hist = {}
+    with conn() as c:
+        c.execute("SET TRANSACTION READ ONLY")
+        for t in ("batting_splits", "pitching_splits"):
+            n, dates = c.execute(
+                f"SELECT count(*),"
+                f" array_agg(DISTINCT updated_at::date ORDER BY updated_at::date)"
+                f" FROM cpbl.{t} WHERE year < 2026").fetchone()
+            hist[t] = {"rows_before_2026": n,
+                       "distinct_updated_dates": [d.isoformat() for d in dates]}
+
+    def commit_info(rev: str) -> dict:
+        try:
+            out = subprocess.run(
+                ["git", "log", "-1", "--format=%H %cs %s", rev],
+                capture_output=True, text=True, check=True).stdout.strip()
+            sha, cdate, subject = out.split(" ", 2)
+            return {"sha": sha, "date": cdate, "subject": subject, "git_verified": True}
+        except (subprocess.CalledProcessError, FileNotFoundError, ValueError) as exc:
+            return {"rev": rev, "git_verified": False, "error": str(exc)}
+
+    return {
+        "note": "H2 斷言證據（REVIEW-017 處置）。apart 對帳母體僅 (2026,'A') 與生涯 9999，"
+                "2018–2025 年度分項不在其中；歷史列全為單一日期回填的純重算值",
+        "apart_combos_in_code": [list(t) for t in APART_COMBOS],
+        "historical_rows_updated_at": hist,
+        "phase0_harness_commit": commit_info("3a66169"),
+        "phase0_residuals_note": "Phase 0 收斂後仍有 3,248 筆殘差，"
+                                 "僅存 commit message 總量數字、無逐格 artifact",
+        "phase1_overwrite_commit": commit_info("36e3334"),
+        "prod_evidence_recorded": {
+            "source": "HANDOFF-006 生產端盤點；環境綁定證據（生產 DB／備份），非本腳本重導出",
+            "official_values_overwritten_since": "2026-07-06",
+            "prod_synced_from_local_since": "2026-07-14",
+            "earliest_backup": "2026-07-25",
+            "backup_policy": "keep 7",
+        },
+        "conclusion": {"never_reconciled_2018_2025": True,
+                       "snapshot_reproducible": False},
+    }
+
+
 # ===========================================================================
 # 主流程
 # ===========================================================================
@@ -670,6 +723,8 @@ def collect(out_delta: Path | None) -> dict[str, Any]:
                     _nlp, next_why, _no = flush_decision(islands[j][0])
                     rec = {
                         "game": f"{year}/{kind}/{sno}",
+                        "game_date": None,  # 補於 gmeta 載入後
+                        "_year_kind": (year, kind), "_sno": sno,
                         "inning": prev_isl[-1]["inning_seq"],
                         "half": str(prev_isl[-1]["visiting_home_type"]),
                         "prev_first_event_no": str(prev_isl[0]["main_event_no"]),
@@ -738,10 +793,12 @@ def collect(out_delta: Path | None) -> dict[str, Any]:
                                 "team_pa_total": seq[vh],
                             })
 
-    # 補 game_date
+    # 補 game_date（transitions／anomalies 複製自同一 rec，一併補齊）
     gmeta_cache: dict[tuple[int, str], dict] = {}
-    for e in exposed:
-        yk = e.pop("_year_kind")
+    for e in transitions + anomalies + exposed:
+        yk = e.pop("_year_kind", None)
+        if yk is None:
+            continue
         sno = e.pop("_sno")
         if yk not in gmeta_cache:
             _r, gm = load_ctx(*yk)
@@ -876,12 +933,32 @@ def collect(out_delta: Path | None) -> dict[str, Any]:
             "prev_disposition": dict(disposition),
             "by_criterion": dict(Counter(
                 t["criterion"] for t in transitions).most_common()),
+            "baseline_cutoff": BASELINE_CUTOFF,
+            "baseline": {
+                "total": sum(1 for t in transitions
+                             if t["game_date"] <= BASELINE_CUTOFF),
+                "prev_disposition": dict(Counter(
+                    t["prev_disposition"] for t in transitions
+                    if t["game_date"] <= BASELINE_CUTOFF)),
+                "by_criterion": dict(Counter(
+                    t["criterion"] for t in transitions
+                    if t["game_date"] <= BASELINE_CUTOFF).most_common()),
+            },
+            "post_baseline_rows": [t for t in transitions
+                                   if t["game_date"] > BASELINE_CUTOFF],
             "anomalies": anomalies,
         },
         "iteration1_missed_classification": iter1_missed_classification(exposed),
         "exposure": {
             "double_counted_pas": len(exposed),
             "affected_games": len({e["game"] for e in exposed}),
+            "baseline": {
+                "double_counted_pas": sum(
+                    1 for e in exposed if e["game_date"] <= BASELINE_CUTOFF),
+                "affected_games": len({
+                    e["game"] for e in exposed
+                    if e["game_date"] <= BASELINE_CUTOFF}),
+            },
             "by_year": dict(sorted(Counter(
                 e["game"].split("/")[0] for e in exposed).items())),
             "by_kind": dict(sorted(Counter(
@@ -922,6 +999,7 @@ def collect(out_delta: Path | None) -> dict[str, Any]:
                                      and not r["corrected_matches_box"]],
             "rows": box_rows,
         },
+        "h2_reconciliation_evidence": h2_reconciliation_evidence(),
         "player_delta_summary": delta_summary,
     }
 
@@ -938,6 +1016,10 @@ def main() -> None:
     m1 = rep["iteration1_missed_classification"]
     print(f"scope: {s['games']} games / {s['events']} events")
     print(f"canonical transitions：{tr['total']}，prev 去向：{tr['prev_disposition']}")
+    print(f"  baseline 窗（≤{tr['baseline_cutoff']}）：{tr['baseline']['total']}，"
+          f"去向：{tr['baseline']['prev_disposition']}；"
+          f"窗外新增 {len(tr['post_baseline_rows'])} 筆"
+          f"（{[(t['game'], t['prev_disposition']) for t in tr['post_baseline_rows']]}）")
     print(f"  判準分布（全 transition）：{tr['by_criterion']}")
     if tr["anomalies"]:
         print(f"⚠️ anomalies：{len(tr['anomalies'])} 筆（詳 artifact）")
@@ -971,6 +1053,12 @@ def main() -> None:
           f"格（含 rate 欄）／唯一選手 {ds['affected_players']} 位"
           f"（逐表 {ds['affected_table_players']}）")
     print(f"  欄位分布 top：{dict(list(ds['by_col'].items())[:10])}")
+    h2 = rep["h2_reconciliation_evidence"]
+    print(f"H2 證據 artifact 化：歷史列 updated_at 單一日期＝"
+          f"{ {t: v['distinct_updated_dates'] for t, v in h2['historical_rows_updated_at'].items()} }，"
+          f"apart_combos={h2['apart_combos_in_code']}，"
+          f"phase0 git_verified={h2['phase0_harness_commit'].get('git_verified')}，"
+          f"不可重現={not h2['conclusion']['snapshot_reproducible']}")
     print(f"唯讀紅線：分項表前後不變 = {rep['readonly_guard']['unchanged']}")
     if args.out:
         args.out.write_text(json.dumps(rep, ensure_ascii=False, indent=2, default=str) + "\n",

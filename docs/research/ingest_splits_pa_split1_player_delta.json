@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-30T00:56:33.439291+08:00",
+  "generated_at": "2026-07-30T10:37:22.622947+08:00",
   "note": "完整發布欄位 diff（batting/pitching_splits 全欄含 goao/avg/obp/slg/ops）。corrected＝legacy＋僅合併 counted 缺陷邊界；打者歸屬 canonical charged_hitter（9.15(b)）；投球數依每列實際 pitcher_acnt 保留、打席結果責任依 9.16(h)；只列有差異的 row 與欄。",
   "summary": {
     "rows": 2435,
@@ -16,14 +16,14 @@
       "pitching_splits/5": 89,
       "pitching_splits/6": 81,
       "batting_splits/6": 80,
-      "pitching_splits/8": 80,
       "pitching_splits/7": 80,
+      "pitching_splits/8": 80,
       "batting_splits/5": 79,
       "batting_splits/7": 79,
       "batting_splits/4": 79,
       "batting_splits/1": 23,
-      "batting_splits/8": 22,
-      "batting_splits/9": 22
+      "batting_splits/9": 22,
+      "batting_splits/8": 22
     },
     "by_col": {
       "plate_appearances": 2304,
@@ -105964,32 +105964,32 @@
       "in_corrected": true,
       "cols": {
         "plate_appearances": {
-          "legacy": 198,
-          "corrected": 199
+          "legacy": 202,
+          "corrected": 203
         },
         "at_bats": {
-          "legacy": 170,
-          "corrected": 171
+          "legacy": 173,
+          "corrected": 174
         },
         "so": {
           "legacy": 25,
           "corrected": 26
         },
         "avg": {
-          "legacy": 0.271,
-          "corrected": 0.269
+          "legacy": 0.266,
+          "corrected": 0.264
         },
         "obp": {
-          "legacy": 0.3655,
-          "corrected": 0.3636
+          "legacy": 0.3632,
+          "corrected": 0.3614
         },
         "slg": {
-          "legacy": 0.3059,
-          "corrected": 0.3041
+          "legacy": 0.3006,
+          "corrected": 0.2989
         },
         "ops": {
-          "legacy": 0.6714,
-          "corrected": 0.6677
+          "legacy": 0.6638,
+          "corrected": 0.6603
         }
       }
     },
@@ -106342,36 +106342,36 @@
       "in_corrected": true,
       "cols": {
         "plate_appearances": {
-          "legacy": 304,
-          "corrected": 305
+          "legacy": 308,
+          "corrected": 309
         },
         "at_bats": {
-          "legacy": 275,
-          "corrected": 276
+          "legacy": 278,
+          "corrected": 279
         },
         "fly_outs": {
-          "legacy": 84,
-          "corrected": 85
+          "legacy": 85,
+          "corrected": 86
         },
         "goao": {
-          "legacy": 1.0714,
-          "corrected": 1.0588
+          "legacy": 1.0706,
+          "corrected": 1.0581
         },
         "avg": {
-          "legacy": 0.291,
-          "corrected": 0.29
+          "legacy": 0.295,
+          "corrected": 0.294
         },
         "obp": {
-          "legacy": 0.3422,
-          "corrected": 0.3411
+          "legacy": 0.3454,
+          "corrected": 0.3443
         },
         "slg": {
-          "legacy": 0.4182,
-          "corrected": 0.4167
+          "legacy": 0.4209,
+          "corrected": 0.4194
         },
         "ops": {
-          "legacy": 0.7604,
-          "corrected": 0.7578
+          "legacy": 0.7663,
+          "corrected": 0.7637
         }
       }
     },
@@ -106633,32 +106633,32 @@
       "in_corrected": true,
       "cols": {
         "plate_appearances": {
-          "legacy": 19,
-          "corrected": 18
+          "legacy": 20,
+          "corrected": 19
         },
         "at_bats": {
-          "legacy": 19,
-          "corrected": 18
+          "legacy": 20,
+          "corrected": 19
         },
         "so": {
           "legacy": 4,
           "corrected": 3
         },
         "avg": {
-          "legacy": 0.316,
-          "corrected": 0.333
+          "legacy": 0.3,
+          "corrected": 0.316
         },
         "obp": {
-          "legacy": 0.3158,
-          "corrected": 0.3333
+          "legacy": 0.3,
+          "corrected": 0.3158
         },
         "slg": {
-          "legacy": 0.5263,
-          "corrected": 0.5556
+          "legacy": 0.5,
+          "corrected": 0.5263
         },
         "ops": {
-          "legacy": 0.8421,
-          "corrected": 0.8889
+          "legacy": 0.8,
+          "corrected": 0.8421
         }
       }
     },
@@ -106676,32 +106676,32 @@
       "in_corrected": true,
       "cols": {
         "plate_appearances": {
-          "legacy": 117,
-          "corrected": 116
+          "legacy": 118,
+          "corrected": 117
         },
         "at_bats": {
-          "legacy": 100,
-          "corrected": 99
+          "legacy": 101,
+          "corrected": 100
         },
         "so": {
           "legacy": 31,
           "corrected": 30
         },
         "avg": {
-          "legacy": 0.29,
-          "corrected": 0.293
+          "legacy": 0.287,
+          "corrected": 0.29
         },
         "obp": {
-          "legacy": 0.3932,
-          "corrected": 0.3966
+          "legacy": 0.3898,
+          "corrected": 0.3932
         },
         "slg": {
-          "legacy": 0.4,
-          "corrected": 0.404
+          "legacy": 0.396,
+          "corrected": 0.4
         },
         "ops": {
-          "legacy": 0.7932,
-          "corrected": 0.8006
+          "legacy": 0.7858,
+          "corrected": 0.7932
         }
       }
     },
@@ -106719,32 +106719,32 @@
       "in_corrected": true,
       "cols": {
         "plate_appearances": {
-          "legacy": 109,
-          "corrected": 108
+          "legacy": 113,
+          "corrected": 112
         },
         "at_bats": {
-          "legacy": 96,
-          "corrected": 95
+          "legacy": 100,
+          "corrected": 99
         },
         "so": {
-          "legacy": 21,
-          "corrected": 20
+          "legacy": 22,
+          "corrected": 21
         },
         "avg": {
-          "legacy": 0.354,
-          "corrected": 0.358
+          "legacy": 0.34,
+          "corrected": 0.343
         },
         "obp": {
-          "legacy": 0.4312,
-          "corrected": 0.4352
+          "legacy": 0.4159,
+          "corrected": 0.4196
         },
         "slg": {
-          "legacy": 0.5417,
-          "corrected": 0.5474
+          "legacy": 0.52,
+          "corrected": 0.5253
         },
         "ops": {
-          "legacy": 0.9729,
-          "corrected": 0.9826
+          "legacy": 0.9359,
+          "corrected": 0.9449
         }
       }
     },
@@ -106805,32 +106805,32 @@
       "in_corrected": true,
       "cols": {
         "plate_appearances": {
-          "legacy": 25,
-          "corrected": 24
+          "legacy": 26,
+          "corrected": 25
         },
         "at_bats": {
-          "legacy": 24,
-          "corrected": 23
+          "legacy": 25,
+          "corrected": 24
         },
         "so": {
           "legacy": 7,
           "corrected": 6
         },
         "avg": {
-          "legacy": 0.167,
-          "corrected": 0.174
+          "legacy": 0.16,
+          "corrected": 0.167
         },
         "obp": {
-          "legacy": 0.2,
-          "corrected": 0.2083
+          "legacy": 0.1923,
+          "corrected": 0.2
         },
         "slg": {
-          "legacy": 0.25,
-          "corrected": 0.2609
+          "legacy": 0.24,
+          "corrected": 0.25
         },
         "ops": {
-          "legacy": 0.45,
-          "corrected": 0.4692
+          "legacy": 0.4323,
+          "corrected": 0.45
         }
       }
     },
