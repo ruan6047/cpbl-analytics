@@ -134,6 +134,26 @@ def test_livelog_event_count_cannot_regress_below_last_known_good() -> None:
         )
 
 
+@pytest.mark.parametrize("raw_status", ["SUSPENDED", "RESERVED", None])
+def test_live_livelog_cannot_regress_when_source_leaves_live_phase(
+    raw_status: str | None,
+) -> None:
+    previous = build_snapshot(
+        _game("START", livelog=[{"PitchCnt": 1}, {"PitchCnt": 2}]),
+        fetched_at=T0,
+    )
+    current = _game(raw_status or "START")
+    if raw_status is None:
+        current.pop("GameStatus")
+
+    with pytest.raises(ValueError, match="LiveLog regressed from 2 to 0"):
+        build_snapshot(
+            current,
+            fetched_at=datetime(2026, 7, 28, 17, 0, 12, tzinfo=UTC),
+            previous=previous,
+        )
+
+
 def test_finished_trackman_is_available_and_unknown_status_fails_closed() -> None:
     tracked = [{
         "PitchCnt": 1,
