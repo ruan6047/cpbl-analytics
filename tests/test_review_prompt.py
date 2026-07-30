@@ -384,13 +384,115 @@ def test_interim_gate_then_final_reject_still_blocks(
 def test_appended_correction_can_reopen_a_wrongly_closed_round(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """event log 是 append-only：寫錯只能追加更正，判定因此以最新一筆為準。"""
+    """event log 是 append-only：寫錯只能追加更正，且更正必須以 corrects_event_id 指名對象。"""
     _prepare(tmp_path, monkeypatch, _handoff(), _review(2),
-             _review(3, closes_review_round=False, evidence="更正 REVIEW-002：那是中繼關卡"))
+             _review(3, closes_review_round=False, corrects_event_id="CARD-G-REVIEW-002",
+                     evidence="更正 REVIEW-002：那是中繼關卡"))
 
     _, gates = review_prompt.latest_handoff("CARD-G")
 
-    assert len(gates) == 2
+    assert [g["event_id"] for g in gates] == ["CARD-G-REVIEW-002", "CARD-G-REVIEW-003"]
+
+
+def test_uncorrected_false_cannot_reopen_a_closed_round(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """iteration 1 退回 finding 1：終局 REJECT 後追加「任意」`false` 不得重開本輪，
+    否則中繼欄位就是繞過退回的後門；重開還會把該 REJECT 標成已通過關卡（finding 2）。"""
+    _prepare(tmp_path, monkeypatch, _handoff(),
+             _review(2, review_result="REJECT"),
+             _review(3, closes_review_round=False))
+
+    with pytest.raises(SystemExit) as exc:
+        review_prompt.latest_handoff("CARD-G")
+
+    message = str(exc.value)
+    assert "REJECT" in message
+    assert "corrects_event_id" in message   # 訊息給出的是「指名更正」這條路，不是任意追加
+
+
+def test_correction_without_field_restores_terminal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """更正事件自身缺席欄位＝宣告 true：誤標的中繼可被改回終局，兩個方向對稱。"""
+    _prepare(tmp_path, monkeypatch, _handoff(),
+             _review(2, closes_review_round=False),
+             _review(3, corrects_event_id="CARD-G-REVIEW-002",
+                     evidence="更正：REVIEW-002 其實是終局查核"))
+
+    with pytest.raises(SystemExit) as exc:
+        review_prompt.latest_handoff("CARD-G")
+
+    assert "拒絕產生提示詞" in str(exc.value)
+
+
+def test_correction_target_must_precede_it_in_current_round(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """更正只能指向同輪內較早的 review；上一輪的判定已被新 handoff 重置。"""
+    _prepare(tmp_path, monkeypatch, _handoff(), _review(2),
+             _handoff(event_id="CARD-G-HANDOFF-003", state_version=3),
+             _review(4, closes_review_round=False, corrects_event_id="CARD-G-REVIEW-002"))
+
+    with pytest.raises(SystemExit) as exc:
+        review_prompt.latest_handoff("CARD-G")
+
+    assert "沒有這筆 review" in str(exc.value)
+
+
+def test_correction_target_type_fails_loud(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _prepare(tmp_path, monkeypatch, _handoff(), _review(2),
+             _review(3, closes_review_round=False, corrects_event_id=2))
+
+    with pytest.raises(SystemExit) as exc:
+        review_prompt.latest_handoff("CARD-G")
+
+    assert "event_id 字串" in str(exc.value)
+
+
+def test_correction_cannot_target_itself(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _prepare(tmp_path, monkeypatch, _handoff(),
+             _review(2, closes_review_round=False, corrects_event_id="CARD-G-REVIEW-002"))
+
+    with pytest.raises(SystemExit) as exc:
+        review_prompt.latest_handoff("CARD-G")
+
+    assert "指向自己" in str(exc.value)
+
+
+def test_malformed_field_on_earlier_review_is_not_masked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """iteration 1 退回 finding 3：型別驗證涵蓋每一筆 review，
+    較早的 malformed 事件不得被後續 `false` 掩蓋。"""
+    _prepare(tmp_path, monkeypatch, _handoff(),
+             _review(2, closes_review_round="false"),
+             _review(3, closes_review_round=False))
+
+    with pytest.raises(SystemExit) as exc:
+        review_prompt.latest_handoff("CARD-G")
+
+    message = str(exc.value)
+    assert "只接受布林值" in message
+    assert "CARD-G-REVIEW-002" in message   # 指名的是 malformed 那一筆，不是最後一筆
+
+
+def test_malformed_field_in_previous_round_still_fails_loud(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """型別驗證不分輪：新 handoff 重置的是本輪判定，不是資料錯誤的追究。"""
+    _prepare(tmp_path, monkeypatch, _handoff(),
+             _review(2, closes_review_round=1),
+             _handoff(event_id="CARD-G-HANDOFF-003", state_version=3))
+
+    with pytest.raises(SystemExit) as exc:
+        review_prompt.latest_handoff("CARD-G")
+
+    assert "只接受布林值" in str(exc.value)
 
 
 def test_new_handoff_resets_the_round(

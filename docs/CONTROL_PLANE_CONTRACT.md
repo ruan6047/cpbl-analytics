@@ -15,7 +15,7 @@
 
 - event 必填 canonical §4.1 欄位與投影欄位；同一卡 `state_version` 自 1 嚴格遞增。handoff、review、handoff-accepted、merge、release 固定 `source_sha` 與 evidence。
 - **`closes_review_round`（review 事件選填，布林）**：`false` 表示這一筆是**中繼關卡**（Design Gate、需求方本地人工審…），**本輪查核尚未結束**；缺席即視為終結本輪。卡面要求多道關卡時（例：`UX-ENTITY-LINKS2` 的「先本地人工審再交跨家族查核」），**前面各關的 review 事件必須帶 `false`**，否則 `review_prompt.py` 會判定本輪已結束而拒絕為後續關卡產生提示詞（DEV-REVIEW-PROMPT-GATE1）。
-  - 判定**以最新一筆 review 為準**：event log append-only，寫錯只能追加更正——採「存在任一終結本輪者」就永遠改不回來。故 `[中繼, 終局 REJECT]` 仍視為本輪結束；`[終局, 追加更正為中繼]` 則回到未結束。
+  - 判定採**存在終結本輪者即拒絕**：最新 handoff 之後只要任一筆 review 缺席本欄位或為 `true`，本輪即視為已結束。寫錯時（event log append-only 不得改寫）追加一筆更正用 review 事件：帶 `closes_review_round: false` 並以 **`corrects_event_id`**（review 事件選填，字串）指名**同輪內較早**被更正的那筆 review；被指名者的判定以更正事件的宣告為準（多次更正以最新一筆為準）。**未指名更正對象的 `false` 只代表它自己，不會重開已終局的一輪**——iteration 1 曾採「以最新一筆為準」，終局 REJECT 後追加任意 `false` 即可重開本輪、且該 REJECT 會被標成已通過的中繼關卡，查核退回修正（DEV-REVIEW-PROMPT-GATE1 iteration 1）。欄位非布林、更正對象不存在或指向自己時 `review_prompt.py` 一律 fail loud，且型別驗證涵蓋該卡每一筆 review（malformed 不得被後續事件掩蓋）。
   - 不得用 `delivery_status`、`owner` 或 `review_result` 的字面推斷此性質：實測 146 筆既有 review，最終 APPROVE 有 17 筆同樣停在 `🔍待查核`，且 owner 常寫成「（執行，交付待查核）」本身就含「查核」二字。**這個性質只由本欄位表達。**
 - **跨 writer handoff 另見 [`HANDOFF_CONTRACT.md`](HANDOFF_CONTRACT.md)**（canonical §4.1／WF-20）：T2 以上或任何 owner 變更，sender 須先 push **完整 40 字元** `source_sha`，receiver 完成驗證清單後才寫 `handoff-accepted` 並取得所有權。該檔只規範 handoff 類事件的欄位與接收驗證，**envelope、event store 與 Ledger 投影仍以本檔為準**，不構成第二個狀態來源。baseline 為 2026-07-29，不追溯既有 150 筆無 acceptance 的 handoff。
 - `ruan6047` 是唯一 lifecycle writer；Coordinator 先追加 event，再建立／釋放 local lease，最後重建 Ledger。local telemetry 必填 `lifecycle=false`、`claim_event_id`，不得改 card state。

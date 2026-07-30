@@ -115,7 +115,7 @@ def baseline_check(card_id: str) -> str:
 def latest_handoff(card_id: str) -> tuple[dict, list[dict]]:
     """回傳 (最新 handoff event, 該 handoff 之後已發生的 review 事件)。
 
-    第二個回傳值只在「這些 review 都沒有終結本輪」時才非空——那是多關卡的卡
+    第二個回傳值只在「這些 review（經更正後）都沒有終結本輪」時才非空——那是多關卡的卡
     （Design Gate、本地人工審先於跨家族查核）；它們的裁定是下一位查核者的前提，
     必須帶進提示詞，不能只留在 event log 裡。
     """
@@ -136,10 +136,13 @@ def latest_handoff(card_id: str) -> tuple[dict, list[dict]]:
     return ev, gates
 
 
-# review 事件的選填欄位：`false` ＝ 這一筆是中繼關卡，不終結本輪查核。
-# 欄位缺席一律視為終結本輪——既有事件（升級前 146 筆）因此判定完全不變。
-# 語意與寫入時機見 docs/CONTROL_PLANE_CONTRACT.md。
+# review 事件的選填欄位（語意與寫入時機見 docs/CONTROL_PLANE_CONTRACT.md）：
+# - `closes_review_round`：`false` ＝ 這一筆是中繼關卡，不終結本輪查核。
+#   欄位缺席一律視為終結本輪——既有事件（升級前 146 筆）因此判定完全不變。
+# - `corrects_event_id`：這一筆更正**同輪內較早那筆** review 的 closes_review_round 宣告
+#   （event log append-only，寫錯只能追加更正）。未指名更正對象的事件只代表自己。
 CLOSES_ROUND_FIELD = "closes_review_round"
+CORRECTS_FIELD = "corrects_event_id"
 
 
 def _closes_review_round(e: dict) -> bool:
@@ -157,7 +160,7 @@ def _closes_review_round(e: dict) -> bool:
 
 
 def _assert_no_review_supersedes_handoff(card_id: str, events: list[dict]) -> list[dict]:
-    """最新 handoff 之後若已有**終結本輪**的 review，拒絕再發提示詞。
+    """最新 handoff 之後只要**存在終結本輪**的 review（經更正後），即拒絕再發提示詞。
 
     ML-PITCHER-SCORELESS1 的教訓：卡片已 `↩退回`、執行者尚未推修正，但本腳本
     只檢查「handoff SHA 是否等於分支 HEAD」——兩者當然還相等，於是照發提示詞。
@@ -176,39 +179,71 @@ def _assert_no_review_supersedes_handoff(card_id: str, events: list[dict]) -> li
     交付待查核）」，**本身就含「查核」二字**，子字串比對會把終局判成中繼。
     這個性質沒有既有欄位承載得住，所以讓它變成顯式欄位（`CLOSES_ROUND_FIELD`）。
 
-    **以最新一筆 review 為準**，不是「存在任一終結本輪者」：event log 是 append-only，
-    寫錯的事件只能靠追加更正，若採「存在即終結」就永遠無法更正。
-    [中繼, 終局 REJECT] → 最新為終局 → 照樣拒絕；[終局, 更正為中繼] → 最新為中繼 → 放行。
+    **存在終結本輪者即拒絕，且更正必須指名對象**（本卡 iteration 1 退回，2026-07-30）：
+    iteration 1 曾採「以最新一筆為準」讓 append-only 的更正成為可能，代價是終局 REJECT
+    之後追加**任意**一筆 `closes_review_round: false` 就重開同一 handoff，重開後先前的
+    終局 REJECT 還會被當成「已通過的中繼關卡」帶進提示詞——中繼欄位成了繞過退回的
+    後門。更正因此改為顯式：追加事件以 `corrects_event_id` 指向**同輪內較早**被更正的
+    那筆，被指名者的判定以更正事件的宣告為準（多次更正以最新一筆為準）；未指名對象
+    的事件只代表自己。型別驗證涵蓋該卡**每一筆** review 而非只有最後一筆——較早的
+    malformed 事件不得被後續事件掩蓋（同輪退回 finding 3）。
 
-    回傳值：本輪已發生但未終結本輪的 review（供提示詞帶出關卡裁定）。
+    回傳值：本輪已發生且（經更正後）不終結本輪的 review（供提示詞帶出關卡裁定）。
     """
-    after = []
+    after: list[dict] = []
     seen_handoff = False
     for e in events:
         if e.get("type") == "handoff":
             after = []            # 新一輪開始，之前的 review 不再相關
             seen_handoff = True
-        elif seen_handoff and e.get("type") == "review":
-            after.append(e)
+        elif e.get("type") == "review":
+            _closes_review_round(e)   # 型別驗證不分輪、不分先後：malformed 不得被掩蓋
+            if seen_handoff:
+                after.append(e)
     if not after:
         return []
-    if not _closes_review_round(after[-1]):
+    effective: dict[str, bool] = {}
+    for e in after:
+        eid = str(e.get("event_id", "?"))
+        declared = _closes_review_round(e)
+        target = e.get(CORRECTS_FIELD)
+        if target is not None:
+            if not isinstance(target, str) or not target:
+                sys.exit(
+                    f"錯誤：{eid} 的 `{CORRECTS_FIELD}` 是 {target!r}"
+                    f"（{type(target).__name__}），只接受被更正 review 的 event_id 字串。")
+            if target == eid:
+                sys.exit(f"錯誤：{eid} 的 `{CORRECTS_FIELD}` 指向自己，"
+                         "更正對象必須是同輪內較早的另一筆 review。")
+            if target not in effective:
+                sys.exit(
+                    f"錯誤：{eid} 宣告更正 {target}，但本輪（最新 handoff 之後）"
+                    "在它之前沒有這筆 review。\n"
+                    "  更正只能指向同一輪內較早的 review 事件——上一輪的判定已被新 handoff"
+                    " 重置；對象若確實存在，請檢查 event_id 是否打錯，修正後再重跑本指令。")
+            effective[target] = declared
+        effective[eid] = declared
+    closing = [e for e in after if effective[str(e.get("event_id", "?"))]]
+    if not closing:
         return after
-    last = after[-1]
+    listed = "\n".join(
+        f"  - {e.get('event_id', '?')}（state_version {e.get('state_version')}，"
+        f"{e.get('occurred_at', '?')}）actor：{e.get('actor', '?')}；"
+        f"review_result：{e.get('review_result', '（未填）')}"
+        for e in closing)
     sys.exit(
-        f"錯誤：{card_id} 最新 handoff 之後已有 {len(after)} 筆 review，最新一筆宣告終結本輪"
-        "（未帶 `closes_review_round: false`），拒絕產生提示詞。\n"
-        f"  最新一筆：{last.get('event_id', '?')}"
-        f"（state_version {last.get('state_version')}，{last.get('occurred_at')}）\n"
-        f"  actor：{last.get('actor', '?')}\n"
-        f"  review_result：{last.get('review_result', '（未填）')}\n"
-        f"  該事件記錄的交付狀態：{last.get('delivery_status')}\n"
-        "  ——以下兩種可能，本守衛分不出來，由你判斷：\n"
-        "  (a) 這確實是終局查核：REJECT → 等執行者推修正並補新的 handoff event"
+        f"錯誤：{card_id} 最新 handoff 之後已有 {len(after)} 筆 review，其中 {len(closing)} 筆"
+        f"終結本輪（`{CLOSES_ROUND_FIELD}` 缺席或為 true），拒絕產生提示詞：\n"
+        f"{listed}\n"
+        "  ——終結本輪的每一筆都有兩種可能，本守衛分不出來，由你判斷：\n"
+        "  (a) 確實是終局查核：REJECT → 等執行者推修正並補新的 handoff event"
         "（iteration+1）再重跑本指令；APPROVE → 接續 merge／結案流程。\n"
-        "  (b) 這其實是**中繼關卡**（Design Gate、需求方本地人工審…），本輪尚未結束：\n"
-        "      該事件應帶 `closes_review_round: false`。event log 是 append-only 不得改寫，\n"
-        "      請追加一筆更正用的 review 事件（帶該欄位並在 evidence 說明更正對象）後重跑。\n"
+        "  (b) 其實是**中繼關卡**（Design Gate、需求方本地人工審…），本輪尚未結束：\n"
+        "      event log 是 append-only 不得改寫，請追加一筆更正用的 review 事件，帶\n"
+        f"      `{CLOSES_ROUND_FIELD}: false` 並以 `{CORRECTS_FIELD}` 指名被更正的那一筆，"
+        "然後重跑。\n"
+        f"      未指名更正對象的 `{CLOSES_ROUND_FIELD}: false` 只代表它自己，"
+        "**不會**重開已終局的一輪。\n"
         "      欄位語意見 docs/CONTROL_PLANE_CONTRACT.md。")
 
 
