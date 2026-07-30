@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON, _batted_result, _dicts, kinds_of
-from cpbl.api.live_cache import get_public_live_snapshot
+from cpbl.api.live_cache import get_public_live_snapshot, status_snapshot
 from cpbl.db import conn
 from cpbl.models import matchup, pitcher_decisions
 
@@ -168,7 +168,7 @@ def game_status(
         "canonical_phase": (
             live_snapshot["phase"] if live_snapshot else status["official_game_status"]["status"]
         ),
-        "live_snapshot": live_snapshot,
+        "live_snapshot": status_snapshot(live_snapshot) if live_snapshot else None,
     }
 
 

@@ -90,6 +90,28 @@ def test_status_endpoint_adds_cache_phase_without_rewriting_db_official_status(m
     assert body["live_snapshot"]["raw_status"] == "START"
 
 
+def test_status_snapshot_drops_heavy_arrays_but_keeps_state_and_counts() -> None:
+    raw = _raw()
+    raw["LiveLog"] = [{"PitchCnt": i} for i in range(1, 4)]
+    raw["Visiting"]["Hitters"] = [{
+        "Lineup": 1, "HitterAcnt": "h1", "HitterName": "客隊第一棒", "DefendStation": "CF",
+    }]
+    raw["Visiting"]["Pitchers"] = [{"PitcherAcnt": "p1"}]
+    full = live_cache.public_snapshot(
+        build_snapshot(raw, fetched_at=NOW), now=NOW, live_stale_after_seconds=45,
+    )
+
+    slim = live_cache.status_snapshot(full)
+
+    assert "livelog" not in slim
+    assert "hitters" not in slim["away"] and "pitchers" not in slim["away"]
+    assert slim["event_count"] == 3
+    assert slim["away"]["lineup"]["availability"] == "partial"
+    assert slim["freshness"] == full["freshness"]
+    # /live 端保留全量，status_snapshot 不得改動原 snapshot
+    assert full["livelog"] and full["away"]["hitters"]
+
+
 def test_cache_failure_degrades_to_none(monkeypatch) -> None:
     class Broken:
         def get_snapshot(self, *_args):
