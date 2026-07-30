@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON, _batted_result, _dicts, kinds_of
+from cpbl.api.live_cache import get_public_live_snapshot, status_snapshot
 from cpbl.db import conn
 from cpbl.models import matchup, pitcher_decisions
 
@@ -157,11 +158,17 @@ def game_status(
             (season, kind_code, game_sno),
         )
         source_rows = {row["source"]: row for row in _dicts(cur)}
+    status = _build_game_status(schedule_rows, source_rows)
+    live_snapshot = get_public_live_snapshot(season, kind_code, game_sno)
     return {
         "season": season,
         "kind_code": kind_code,
         "game_sno": game_sno,
-        **_build_game_status(schedule_rows, source_rows),
+        **status,
+        "canonical_phase": (
+            live_snapshot["phase"] if live_snapshot else status["official_game_status"]["status"]
+        ),
+        "live_snapshot": status_snapshot(live_snapshot) if live_snapshot else None,
     }
 
 
@@ -337,11 +344,13 @@ def game_live(
             season, game_sno, gg.get("game_date"),
             gg.get("winning_pitcher_id"), gg.get("losing_pitcher_id"),
             gg.get("closer_id"), gg.get("mvp_id"), hold_acnts)
+    live_snapshot = get_public_live_snapshot(season, kind_code, game_sno)
     return {"game": g[0] if g else None, "scoreboard": scoreboard, "livelog": livelog,
             "batting": batting, "pitching": pitching, "people": people,
             "records": records, "batter_avg": batter_avg, "detail": gd[0] if gd else None,
             "decisions": decisions, "decision_counts": decision_counts,
-            "has_tracking": len(tracking) > 0, "tracking": tracking, "spray": spray}
+            "has_tracking": len(tracking) > 0, "tracking": tracking, "spray": spray,
+            "live_snapshot": live_snapshot}
 
 
 def _decision_counts(season: int, game_sno: int, gdate,
