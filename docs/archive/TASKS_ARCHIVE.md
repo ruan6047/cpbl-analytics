@@ -62,6 +62,7 @@
 | UX-PLAYER-IA2 | 球員頁 IA 修訂（role 拆標籤＋守備獨立層） | 🏁完成 | ✅已驗證 | [`tasks/UX-PLAYER-IA2.md`](tasks/UX-PLAYER-IA2.md)（iteration 2；REVIEW-007 APPROVE by Antigravity；merge 5a8d025） |
 | UX-PLAYER-FIELDVIZ1 | 球員守備呈現（身分圖＋價值卡） | 🏁完成 | ✅已驗證 | [`tasks/UX-PLAYER-FIELDVIZ1.md`](tasks/UX-PLAYER-FIELDVIZ1.md)（iteration 2；REVIEW-007 APPROVE；merge f085449） |
 | UX-PLAYER-SECTIONS1 | 球員頁分區內容遷移（Hybrid IA 四層） | 🏁完成 | ✅已驗證 | [`tasks/UX-PLAYER-SECTIONS1.md`](tasks/UX-PLAYER-SECTIONS1.md)（iteration 2；REVIEW-006 APPROVE；main 線性尾端 3ef9ff5） |
+| UX-PLAYER-IA1 | 球員頁 IA 骨架與 prototype 決策 | 🏁完成 | —不適用 | [`tasks/UX-PLAYER-IA1.md`](tasks/UX-PLAYER-IA1.md)（一度 🚨已升級——同一 P1 四輪執行者自驗 PASS／查核 FAIL，需求方裁決換執行者；REVIEW-014 需求方授權 APPROVE；--no-ff 節點 161563a 被 rebase 線性化，最終等價整合提交 37825e1；後續內容搬遷屬 UX-PLAYER-SECTIONS1。2026-07-30 結案對帳補封存：07-19 結案時漏搬卡檔） |
 | BUG-VENUE-ALIAS | 球場列表遺漏歷史桃園使用年份 | 🏁完成 | ✅已驗證 | [`tasks/BUG-VENUE-ALIAS.md`](tasks/BUG-VENUE-ALIAS.md) |
 | VENUE-DEFUNCT | 歷史 CPBL 球場納入球場維度 | 🏁完成 | ⏸未部署 | [`tasks/VENUE-DEFUNCT.md`](tasks/VENUE-DEFUNCT.md)（人工 T4 APPROVE；merge 876a70b） |
 | ML-MATCHUP1 | 天敵候選／優勢對位統計洞察 | 🏁完成 | —不適用 | [`tasks/ML-MATCHUP1.md`](tasks/ML-MATCHUP1.md)（WF-15；三輪跨家族審核，merge 336ee01） |
