@@ -511,6 +511,231 @@ def test_review_contract_withdrawn_correction_removes_attempt_from_count() -> No
     ])
 
 
+def _assert_open_correction_revocation_allows_continue(**finding_overrides: object) -> None:
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    correction = _contract_event("CORRECTION-003", "review-correction", 3)
+    correction.update({
+        "escalation_epoch": 0,
+        "target_attempt_id": f"CARD-WF21-e0-{FULL_SHA}",
+        "finding_updates": [_finding(
+            status="open", disposition="finding no longer counts", **finding_overrides,
+        )],
+    })
+    reviews = []
+    previous_id: str | None = None
+    for state_version, sha, finding_id in (
+        (4, "b" * 40, "F-002"),
+        (5, "c" * 40, "F-003"),
+        (6, "d" * 40, "F-004"),
+    ):
+        findings = []
+        if previous_id is not None:
+            findings.append(_finding(
+                finding_id=previous_id,
+                root_cause_id=f"root-{previous_id}",
+                status="resolved",
+                disposition="fixed",
+            ))
+        findings.append(_finding(
+            finding_id=finding_id,
+            root_cause_id=f"root-{finding_id}",
+        ))
+        reviews.append(_review_event(
+            state_version=state_version,
+            source_sha=sha,
+            attempt_id=f"CARD-WF21-e0-{sha}",
+            findings=findings,
+        ))
+        previous_id = finding_id
+    checkpoint = _contract_event("CHECKPOINT-007", "escalation-checkpoint", 7)
+    checkpoint.update({
+        "escalation_epoch": 0,
+        "trigger_attempt_id": reviews[-1]["attempt_id"],
+        "unique_attempt_count": 3,
+        "checkpoint_decision": "continue",
+        "checkpoint_rationale": "revoked open finding does not recreate carry",
+    })
+
+    workflow_ledger.render_ledger([
+        baseline, _review_event(), correction, *reviews, checkpoint,
+    ])
+
+
+def test_review_contract_accepted_false_open_correction_clears_open_state() -> None:
+    _assert_open_correction_revocation_allows_continue(accepted=False)
+
+
+def test_review_contract_nonblocking_open_correction_clears_open_state() -> None:
+    _assert_open_correction_revocation_allows_continue(blocking=False)
+
+
+def _conflict_checkpoint_events(*, withdraw_conflict: bool) -> list[dict]:
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    first = _review_event()
+    second_sha = "b" * 40
+    second = _review_event(
+        state_version=3,
+        source_sha=second_sha,
+        attempt_id=f"CARD-WF21-e0-{second_sha}",
+        findings=[_finding(finding_id="F-002", root_cause_id="root-2")],
+    )
+    withdraw_second = _contract_event("CORRECTION-004", "review-correction", 4)
+    withdraw_second.update({
+        "escalation_epoch": 0,
+        "target_attempt_id": second["attempt_id"],
+        "finding_updates": [_finding(
+            finding_id="F-002", root_cause_id="root-2", status="withdrawn",
+            accepted=False, blocking=False, disposition="temporarily withdrawn",
+        )],
+    })
+    third_sha = "c" * 40
+    third = _review_event(
+        state_version=5,
+        source_sha=third_sha,
+        attempt_id=f"CARD-WF21-e0-{third_sha}",
+        findings=[_finding(finding_id="F-003", root_cause_id="root-3")],
+    )
+    conflict = _review_event(
+        state_version=6,
+        source_sha=third_sha,
+        attempt_id=third["attempt_id"],
+        review_result="APPROVE",
+        findings=[_finding(
+            finding_id="F-003", root_cause_id="root-3", status="resolved",
+            disposition="conflicting reviewer result",
+        )],
+        counts_toward_escalation=False,
+    )
+    reinstate_second = _contract_event("CORRECTION-007", "review-correction", 7)
+    reinstate_second.update({
+        "escalation_epoch": 0,
+        "target_attempt_id": second["attempt_id"],
+        "finding_updates": [_finding(
+            finding_id="F-002", root_cause_id="root-2",
+            disposition="reinstated after evidence",
+        )],
+    })
+    resolve_conflict = _contract_event("CORRECTION-008", "review-correction", 8)
+    conflict_resolution = (
+        _finding(
+            finding_id="F-003", root_cause_id="root-3", status="withdrawn",
+            accepted=False, blocking=False,
+            disposition="Coordinator withdrew the conflicted finding",
+        )
+        if withdraw_conflict
+        else _finding(
+            finding_id="F-003", root_cause_id="root-3",
+            disposition="Coordinator adjudicated open",
+        )
+    )
+    resolve_conflict.update({
+        "escalation_epoch": 0,
+        "target_attempt_id": third["attempt_id"],
+        "finding_updates": [conflict_resolution],
+    })
+    checkpoint = _contract_event("CHECKPOINT-009", "escalation-checkpoint", 9)
+    checkpoint.update({
+        "escalation_epoch": 0,
+        "trigger_attempt_id": second["attempt_id"],
+        "unique_attempt_count": 3,
+        "checkpoint_decision": "escalate",
+        "checkpoint_rationale": "conflict resolved before mandatory checkpoint",
+    })
+
+    events = [
+        baseline, first, second, withdraw_second, third, conflict,
+        reinstate_second, resolve_conflict,
+    ]
+    if not withdraw_conflict:
+        events.append(checkpoint)
+    return events
+
+
+def test_review_contract_allows_conflict_correction_before_pending_checkpoint() -> None:
+    workflow_ledger.render_ledger(_conflict_checkpoint_events(withdraw_conflict=False))
+
+
+def test_review_contract_withdrawn_conflict_clears_pending_checkpoint() -> None:
+    workflow_ledger.render_ledger(_conflict_checkpoint_events(withdraw_conflict=True))
+
+
+def test_review_contract_root_change_migrates_all_finding_occurrences() -> None:
+    baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    first = _review_event()
+    resolve_one_sha = "d" * 40
+    resolve_one = _review_event(
+        state_version=3,
+        source_sha=resolve_one_sha,
+        attempt_id=f"CARD-WF21-e0-{resolve_one_sha}",
+        review_result="APPROVE",
+        findings=[_finding(status="resolved", disposition="closed before next attempt")],
+        counts_toward_escalation=False,
+    )
+    second_sha = "b" * 40
+    second = _review_event(
+        state_version=4,
+        source_sha=second_sha,
+        attempt_id=f"CARD-WF21-e0-{second_sha}",
+    )
+    resolve_two_sha = "e" * 40
+    resolve_two = _review_event(
+        state_version=5,
+        source_sha=resolve_two_sha,
+        attempt_id=f"CARD-WF21-e0-{resolve_two_sha}",
+        review_result="APPROVE",
+        findings=[_finding(status="resolved", disposition="closed before correction")],
+        counts_toward_escalation=False,
+    )
+    root_change = _contract_event("CORRECTION-006", "review-correction", 6)
+    root_change.update({
+        "escalation_epoch": 0,
+        "target_attempt_id": second["attempt_id"],
+        "finding_updates": [_finding(
+            root_cause_id="rediagnosed-root", disposition="root cause re-diagnosed",
+        )],
+    })
+    resolve_correction_sha = "f" * 40
+    resolve_correction = _review_event(
+        state_version=7,
+        source_sha=resolve_correction_sha,
+        attempt_id=f"CARD-WF21-e0-{resolve_correction_sha}",
+        review_result="APPROVE",
+        findings=[_finding(
+            root_cause_id="rediagnosed-root", status="resolved",
+            disposition="closed after re-diagnosis",
+        )],
+        counts_toward_escalation=False,
+    )
+    third_sha = "c" * 40
+    third = _review_event(
+        state_version=8,
+        source_sha=third_sha,
+        attempt_id=f"CARD-WF21-e0-{third_sha}",
+        findings=[_finding(root_cause_id="rediagnosed-root")],
+    )
+    checkpoint = _contract_event("CHECKPOINT-009", "escalation-checkpoint", 9)
+    checkpoint.update({
+        "escalation_epoch": 0,
+        "trigger_attempt_id": third["attempt_id"],
+        "unique_attempt_count": 3,
+        "checkpoint_decision": "continue",
+        "checkpoint_rationale": "incorrectly ignores migrated repeated root",
+    })
+
+    try:
+        workflow_ledger.render_ledger([
+            baseline, first, resolve_one, second, resolve_two, root_change,
+            resolve_correction, third, checkpoint,
+        ])
+    except ValueError as error:
+        assert "checkpoint_decision 必須為 escalate" in str(error)
+    else:
+        raise AssertionError("root re-diagnosis 必須遷移該 finding 的所有 attempt occurrences")
+
+
 def test_review_contract_rejects_conflicting_finding_in_same_attempt() -> None:
     baseline = _contract_event("BASELINE-001", "contract-baseline", 1)
     baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
