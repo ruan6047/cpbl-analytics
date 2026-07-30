@@ -18,7 +18,13 @@ log = logging.getLogger("cpbl.api.livecache")
 def _cache() -> RedisLiveGameCache | None:
     if not settings.redis_url:
         return None
-    client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
+    # API request path：Redis 掛起（非拒連）時不能拖住 request，逾時走既有 DB 退化。
+    client = redis.Redis.from_url(
+        settings.redis_url,
+        decode_responses=True,
+        socket_connect_timeout=1.0,
+        socket_timeout=1.0,
+    )
     return RedisLiveGameCache(
         client,
         prefix=settings.live_game_cache_prefix,
@@ -53,6 +59,22 @@ def public_snapshot(snapshot: dict, *, now: datetime,
         age = float("inf")
     result["freshness"] = "stale" if age > stale_after else "fresh"
     result["stale_after_seconds"] = stale_after
+    return result
+
+
+def status_snapshot(snapshot: dict) -> dict:
+    """/status 用的輕量視圖：去掉逐球與 box 陣列，保留 phase／lineup／freshness／計數。
+
+    /live 才回全量 livelog；/status 供賽程卡與狀態列以 12 秒輪詢，晚局全量 payload 過重。
+    """
+    result = {key: value for key, value in snapshot.items() if key != "livelog"}
+    for side in ("away", "home"):
+        team = snapshot.get(side)
+        if isinstance(team, dict):
+            result[side] = {
+                key: value for key, value in team.items()
+                if key not in ("hitters", "pitchers")
+            }
     return result
 
 

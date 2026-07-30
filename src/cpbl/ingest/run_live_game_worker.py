@@ -34,7 +34,12 @@ def main(argv: list[str] | None = None) -> None:
     if not settings.redis_url:
         raise RuntimeError("live worker enabled 但 REDIS_URL 未設定")
 
-    redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
+    redis_client = redis.Redis.from_url(
+        settings.redis_url,
+        decode_responses=True,
+        socket_connect_timeout=2.0,
+        socket_timeout=2.0,
+    )
     cache = RedisLiveGameCache(
         redis_client,
         prefix=settings.live_game_cache_prefix,
