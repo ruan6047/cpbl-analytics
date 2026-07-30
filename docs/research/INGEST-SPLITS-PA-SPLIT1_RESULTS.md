@@ -142,7 +142,8 @@ box（上節）。
 `verify_splits_pa_split1.py` 導出為 metrics artifact 的 `h2_reconciliation_evidence`
 （機器導出＝`APART_COMBOS` 常數、歷史列 `updated_at` 分布、Phase 0／Phase 1 commit
 git 存在性；生產端備份範圍為標注來源的紀錄欄位），並由
-`check_splits_pa_split1_results.py` 第 14 組守衛比對本節數字。
+`check_splits_pa_split1_results.py` 的「H2 不可重現證據」守衛比對本節數字
+（守衛以名稱識別；REVIEW-020 FYI：as-of 歸因守衛插在輸出前段，本項執行時列第 15）。
 
 **恢復路徑（供修正卡）**：官方站 `/team/apart` 仍提供 year × kindCode 下拉
 （`docs/CPBL_SITE_MAP.md` L196），修正後可另開爬卡取歷年官方值作驗收對照；
