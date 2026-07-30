@@ -68,14 +68,23 @@
   transition 分類 296＝pinch_hit_slot 216＋count_continues 80、counted 83＝cc 79＋phs 4。
 - H1（相對 corrected）：82 個 (場次,球隊)／1,291 筆後續 PA／位移分布 81×1＋1×2。
 - 模擬器保真：18 個已發布 (year,kind) 對 `calc_t2` 逐格相等；
-  組裝層對 DB 已發布列 226,553／226,553 逐格全等。
+  組裝層對 DB 已發布列**逐格全等（性質＝equal_rows == common）**——列數繫於 DB as-of
+  （每日 refresh 重建本季分項），spec v2 撰寫時為 226,553，以當日 artifact 為準。
 - corrected 不變量：逐投手 family-5 投球數守恆；兩例跨投手合併島
   （`2020/D/81`、`2022/D/140`）逐投手球數對帳成立、9.16(h)(1) 不適用。
 - 完整發布欄位 delta：2,435 rows／17,997 cells／314 位唯一選手（rate 欄 7,394 格）。
 - H2：歷年分項從未對過帳、當時快照不可重現（證據鏈：APART_COMBOS、updated_at、
   Phase 0 commit、備份範圍）。
+- H2 不可重現證據（REVIEW-017 補列）：`h2_reconciliation_evidence` artifact 節——
+  `APART_COMBOS` 僅 (2026,'A')＋生涯、歷史列（year<2026）`updated_at` 單一日期
+  2026-07-14、Phase 0（`3a66169`）／Phase 1（`36e3334`）commit git 存在性、
+  生產備份範圍（標注來源的紀錄欄位）。
 - H3：PA 隨 9.15(b) 歸屬 charged_hitter（`2025/A/84` 實證）；官方偏離一例 `2018/A/116`。
 - 唯讀紅線：`splits_calc.py` 零改動、四張分項表筆數與 max(updated_at) 前後全等。
+
+> **as-of 判讀原則**：斷言數值繫於本機 DB as-of。每日增量爬蟲可能改變 scope
+> （新場次進 livelog）與本季分項列數；若重驗出現位移，判讀方式＝「差異是否全部
+> 可歸因於新增場次」（HANDOFF-016 邊界），是則非退化。歷史年（<2026）數字不受影響。
 
 ### iteration 4 範圍（僅此兩項，禁止擴張）
 
