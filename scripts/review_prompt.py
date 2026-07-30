@@ -489,7 +489,7 @@ def repro_commands(ev: dict) -> str:
 # 不是被更聰明的規則擋掉，是無處可施。要判讀卡面語意的是人，工具只負責把原文攤開。
 #
 # 機器可讀的獨立性欄位由 DEV-REVIEW-INDEP-FIELD1 承接（見下方 `review_independence`）：
-# 那是**結構化宣告**，與這裡的下限並存——欄位不存在時本段行為逐字不變。
+# 那是**結構化宣告**，與這裡的下限並存——欄位不存在時本段照給下限，並明示宣告缺席。
 _TIER_FLOOR = {
     "T4": "跨模型家族（非執行者所屬家族）或人工",
 }
@@ -519,8 +519,9 @@ def card_review_field(card_id: str) -> str | None:
 # 欄位是**結構化宣告**：解析只做語法檢查與值域比對，一個中文字都不參與判定。因此
 # 三輪的四類反例（AND 複合、條件句、否定句與引文、「人工智慧」詞邊界）在這裡全部
 # **無處可施**——不是被更聰明的規則擋掉，是它們所在的自由文字根本沒被讀成要求。
-# 〈查核〉欄照舊原文照登；欄位存在時它退為人可讀補充，欄位缺席時行為與本欄位加入
-# 之前逐字相同（缺欄不得靜默放寬，本卡紅線 2）。
+# 〈查核〉欄照舊原文照登；欄位存在時它退為人可讀補充。**欄位缺席一律明示**
+# （紅線 2）：tier 下限與卡面原文照舊，但輸出會講明「這張卡沒有機器可讀宣告」，
+# 不讓「缺欄」與「工具本來就只給下限」長得一模一樣。
 #
 # 職權劃分（docs/CONTROL_PLANE_CONTRACT.md）：
 #   卡面 `review_independence` ＝ **靜態要求（應然）**：這張卡該有幾關、每關要什麼
@@ -547,9 +548,21 @@ _INDEPENDENCE_SHORT = {
     "cross_family_or_human": "跨家族或人工",
     "human": "人工審",
 }
-# 欄名一律 ASCII。冒號同時接受半形與全形，是因為卡面 header 其餘欄位慣用全形「：」——
-# 只認一種會讓寫錯冒號的卡被判成「沒宣告」，那正是紅線 2 的靜默放寬。
-_INDEP_FIELD_RE = re.compile(rf"{REVIEW_INDEPENDENCE_FIELD}`?\s*[:：]\s*(.*)$")
+# 欄名一律 ASCII。冒號同時接受半形與全形，是因為卡面 header 其餘欄位慣用全形「：」。
+#
+# **整行錨定**（iteration 2 REVIEW REJECT F2）：iteration 2 只檢查「這個 bullet 含
+# `review_independence` 字樣」，於是 `- note: review_independence: [human]` 這種**敘述**
+# 會被解析成宣告——那正是本卡要離開的病（把自由文字讀成流程要求），只是換了個位置
+# 復發。現在整行必須精確符合契約格式：`- ` 之後緊接完整 key，才算宣告。
+# `\b` 讓 `review_independence_note:` 這類**相似 key** 自然不匹配（`_` 是 word char，
+# key 之後沒有詞邊界），不需另外列舉排除。
+#
+# 錨定變嚴之後「寫錯格式＝被當成沒宣告」的風險由 F1 的修法承接：缺欄現在會在提示詞裡
+# **明示**「機器可讀宣告缺席」，不再與正常 fallback 混為一談，所以嚴格錨定不會製造靜默。
+_INDEP_LINE_RE = re.compile(
+    rf"^\s*-\s*`?{REVIEW_INDEPENDENCE_FIELD}`?\s*[:：]\s*(.*?)\s*$")
+# 行首就是本欄位、但格式不合契約（例：漏冒號）——這是**寫壞**不是敘述，fail loud。
+_INDEP_LINE_PREFIX_RE = re.compile(rf"^\s*-\s*`?{REVIEW_INDEPENDENCE_FIELD}\b")
 
 
 def _independence_syntax_help() -> str:
@@ -589,8 +602,10 @@ def _parse_independence_value(card_id: str, value: str) -> list[str]:
 def card_review_independence(card_id: str) -> list[str] | None:
     """卡面 header 的 `review_independence` 有序清單；欄位缺席回 None。
 
-    只讀第一個 `## ` 標題之前的 header 區塊——正文與程式碼區塊裡的同名字樣是敘述，
-    不是宣告（本卡自己的卡面正文就有一段舉例，必須不被讀成要求）。
+    只讀第一個 `## ` 標題之前的 header 區塊，且**整行**須符合契約格式
+    `- review_independence: [...]`：正文、程式碼區塊、以及 header 裡夾在別的文字中的
+    同名字樣（`- note: review_independence: [human]`）一律是敘述，不是宣告——
+    本欄位存在的理由就是「不從自由文字讀流程要求」，解析自己更不能破例。
     """
     path = _card_path(card_id)
     if path is None:
@@ -599,13 +614,13 @@ def card_review_independence(card_id: str) -> list[str] | None:
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.startswith("## "):
             break
-        if line.lstrip().startswith("-") and REVIEW_INDEPENDENCE_FIELD in line:
-            m = _INDEP_FIELD_RE.search(line)
-            if m is None:
-                sys.exit(f"錯誤：{card_id} 卡面出現 `{REVIEW_INDEPENDENCE_FIELD}` 字樣但解析不出值"
-                         f"（原行：{line.strip()!r}），拒絕產生提示詞。"
-                         f"\n  {_independence_syntax_help()}")
+        m = _INDEP_LINE_RE.match(line)
+        if m is not None:
             raw.append(m.group(1).strip())
+        elif _INDEP_LINE_PREFIX_RE.match(line):
+            sys.exit(f"錯誤：{card_id} 卡面有一行以 `{REVIEW_INDEPENDENCE_FIELD}` 起始但格式不合"
+                     f"契約（原行：{line.strip()!r}），拒絕產生提示詞。"
+                     f"\n  {_independence_syntax_help()}")
     if not raw:
         return None
     if len(raw) > 1:
@@ -652,7 +667,7 @@ def independence(card_id: str, tier: str, events: list[dict] | None = None) -> t
     """回傳 (單行摘要, 明細段)。摘要講的是**下限**，不是結論。
 
     卡面有 `review_independence` 時多印宣告的關卡序列，並與 event log 實況並列；
-    **欄位缺席時輸出與本欄位加入之前逐字相同**（紅線 2）。
+    **欄位缺席時明示缺席**（紅線 2），tier 下限與卡面〈查核〉欄原文照舊不放寬。
     """
     floor = _TIER_FLOOR.get(tier, _DEFAULT_FLOOR)
     field = card_review_field(card_id)
@@ -665,6 +680,20 @@ def independence(card_id: str, tier: str, events: list[dict] | None = None) -> t
     ]
     if declared is not None:
         lines += _declared_gates_lines(declared)
+    else:
+        # iteration 2 REVIEW REJECT F1（blocking）：iteration 2 讓缺欄輸出與加入本欄位
+        # 之前**逐字相同**，於是查核者分不出「這張卡沒有機器可讀宣告」與「工具本來就
+        # 只給下限」。卡面紅線 2 要的是「**明示**缺欄＋以卡面原文為準」——沉默地退回
+        # 正確行為仍然是沉默，讀提示詞的人得不到「該回填了」這個訊號。
+        print(f"警告：{card_id} 卡面找不到 `{REVIEW_INDEPENDENCE_FIELD}` 欄位。"
+              "活卡採按需回填（docs/TEMPLATES.md）——這張卡正要被產生提示詞，"
+              "請需求方裁定該填什麼值，**不得由執行者或工具推定**。",
+              file=sys.stderr)
+        lines.append(
+            f"- 卡面 `{REVIEW_INDEPENDENCE_FIELD}` 欄位：**未找到**——"
+            "**這不代表沒有額外要求**，只代表這張卡還沒有機器可讀的獨立性宣告"
+            "（活卡按需回填，見 docs/TEMPLATES.md）。一律以本段的 tier 下限與卡面"
+            "〈查核〉欄原文為準，**不得據此放寬**。")
     if field is None:
         print(f"警告：{card_id} 卡面找不到〈查核〉欄，提示詞只能給 tier 下限。",
               file=sys.stderr)
