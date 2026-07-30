@@ -34,7 +34,7 @@
 | [OPS-WEB-DEPS1](tasks/OPS-WEB-DEPS1.md) | — | T2 | 前端相依套件漏洞（1 critical ＋ 3 high，皆為建置面） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-29T22:51:02+08:00 |
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
-| [UX-LIVE-GAME1](tasks/UX-LIVE-GAME1.md) | INIT-PRODUCT-UX | T3 | 賽前情報到比賽中狀態板 | 待指派（依賴 backend T4 通過後） | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-30T00:31:04+08:00 |
+| [UX-LIVE-GAME1](tasks/UX-LIVE-GAME1.md) | INIT-PRODUCT-UX | T3 | 賽前情報到比賽中狀態板 | GPT-5.6@Codex（執行） | `ai/codex/UX-LIVE-GAME1 @ .claude/worktrees/ux-live-game1-execution` | 0 | 🔨執行中 | ⏸未部署 | 2026-07-30T21:20:23+08:00 |
 | [UX-TEAM-FIELD-HIST1](tasks/UX-TEAM-FIELD-HIST1.md) | INIT-PRODUCT-UX | T3 | 球隊頁歷史年守備位置圖（union fielding_seasons） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:36:00+08:00 |
 
 ## 依賴與資源註記
