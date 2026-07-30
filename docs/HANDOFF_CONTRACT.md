@@ -92,8 +92,13 @@ receiver 在寫 `handoff-accepted` 前必須逐項完成，並把結果寫進該
 - **查核提示詞**：`uv run python scripts/review_prompt.py <CARD_ID>`（見 `CONTROL_PLANE_CONTRACT.md`〈交付→查核→合併慣例〉）。
 - **tmux launcher／wake-up**：不使用。
 - **Runtime 路徑與 `.gitignore`**：不適用（無本機 queue）。
-- **失敗、重試與人工介入**：拒收即寫 `⏸阻塞` 或 review REJECT，退回原執行者、原分支、`iteration + 1`；
-  連續三次退回轉 `🚨已升級`，由需求方裁定（canonical §3、§5）。
+- **失敗、重試與人工介入**：receiver acceptance／review preflight 未通過時，可由 sender／
+  Coordinator 補齊的交付缺口寫 `preflight-failed`；外部等待不屬 preflight failure，應以
+  `status-change` 轉 `⏸阻塞`。兩者都**不得**建立 review event、不得增加 iteration；
+  只有 preflight 通過後的有效實質 `REQUEST_CHANGES` 才回原執行者、原分支並 `iteration + 1`。
+  同一 escalation epoch／source SHA 的多 reviewer 最多計一次；第三個可計數 attempt 先進
+  `escalation-checkpoint`，再依重複根因、未閉合 finding 或需求方裁定決定是否 `🚨已升級`
+  （canonical §3、§5 與 [`review-escalation.md`](../.ai-workflow/templates/review-escalation.md)）。
 
 ## 6. 已知落差
 

@@ -15,9 +15,200 @@ REQUIRED_FIELDS = {
     "source_sha", "evidence", "initiative", "tier", "feature", "owner", "branch_worktree",
     "delivery_status", "deployment_status",
 }
+REVIEW_CONTRACT = "review-escalation-v1"
+REVIEW_RESULTS = {"APPROVE", "REQUEST_CHANGES"}
+FINDING_FIELDS = {
+    "finding_id", "severity", "blocking", "accepted", "status", "finding_class",
+    "attribution", "root_cause_id", "evidence", "disposition",
+}
+COUNTED_FINDING_CLASSES = {"implementation", "authoritative-artifact"}
+
+
+def _require_fields(event: dict[str, object], fields: set[str]) -> None:
+    missing = fields - event.keys()
+    if missing:
+        raise ValueError(
+            f"{event.get('event_id', '?')} 事件缺少欄位：{', '.join(sorted(missing))}"
+        )
+
+
+def _counted_review(event: dict[str, object]) -> bool:
+    if event["review_result"] != "REQUEST_CHANGES":
+        return False
+    return any(
+        finding["accepted"] is True
+        and finding["status"] == "open"
+        and finding["blocking"] is True
+        and finding["finding_class"] in COUNTED_FINDING_CLASSES
+        and finding["attribution"] == "executor"
+        for finding in event["findings"]
+    )
+
+
+def _validate_review_event(event: dict[str, object]) -> None:
+    _require_fields(event, {
+        "attempt_id", "escalation_epoch", "preflight_passed", "review_result",
+        "findings", "counts_toward_escalation",
+    })
+    if event["preflight_passed"] is not True:
+        raise ValueError(f"{event['event_id']} review 必須 preflight_passed=true")
+    if event["review_result"] not in REVIEW_RESULTS:
+        raise ValueError(f"{event['event_id']} review_result 必須為 APPROVE 或 REQUEST_CHANGES")
+    if not isinstance(event["escalation_epoch"], int) or event["escalation_epoch"] < 0:
+        raise ValueError(f"{event['event_id']} escalation_epoch 必須為非負整數")
+    expected_attempt = (
+        f"{event['card_id']}-e{event['escalation_epoch']}-{event['source_sha']}"
+    )
+    if event["attempt_id"] != expected_attempt:
+        raise ValueError(f"{event['event_id']} attempt_id 與 card／epoch／source_sha 不一致")
+    if not isinstance(event["source_sha"], str) or len(event["source_sha"]) != 40:
+        raise ValueError(f"{event['event_id']} source_sha 必須為完整 40 字元")
+    if not isinstance(event["findings"], list):
+        raise ValueError(f"{event['event_id']} findings 必須為陣列")
+    finding_ids: set[str] = set()
+    for finding in event["findings"]:
+        if not isinstance(finding, dict):
+            raise ValueError(f"{event['event_id']} finding 必須為物件")
+        _require_fields(finding, FINDING_FIELDS)
+        finding_id = str(finding["finding_id"])
+        if finding_id in finding_ids:
+            raise ValueError(f"{event['event_id']} finding_id 重複：{finding_id}")
+        finding_ids.add(finding_id)
+        if finding["severity"] not in {"critical", "major", "minor", "info"}:
+            raise ValueError(f"{event['event_id']} finding severity 不合法")
+        if finding["status"] not in {"open", "resolved", "withdrawn"}:
+            raise ValueError(f"{event['event_id']} finding status 不合法")
+        if finding["finding_class"] not in {
+            "implementation", "authoritative-artifact", "governance", "coordination",
+            "environment",
+        }:
+            raise ValueError(f"{event['event_id']} finding_class 不合法")
+        if finding["attribution"] not in {
+            "executor", "planner", "coordinator", "reviewer", "external",
+        }:
+            raise ValueError(f"{event['event_id']} finding attribution 不合法")
+        if finding["root_cause_id"] == "unknown":
+            raise ValueError(
+                f"{event['event_id']} unknown root_cause_id 必須加 finding-specific 識別子"
+            )
+        if not isinstance(finding["blocking"], bool) or not isinstance(finding["accepted"], bool):
+            raise ValueError(f"{event['event_id']} finding blocking／accepted 必須為布林值")
+    if event["review_result"] == "APPROVE" and any(
+        finding["accepted"] is True and finding["blocking"] is True
+        and finding["status"] == "open" for finding in event["findings"]
+    ):
+        raise ValueError(f"{event['event_id']} APPROVE 不得含未閉合 blocking finding")
+    derived = _counted_review(event)
+    if event["counts_toward_escalation"] is not derived:
+        raise ValueError(
+            f"{event['event_id']} counts_toward_escalation 必須由結構化 findings 推導為 {derived}"
+        )
+
+
+def _validate_review_contract(events: list[dict[str, object]]) -> None:
+    """Baseline 前事件保持原貌；marker 之後 fail loud 驗證 WF-21 契約。"""
+    enabled = False
+    counted_attempts: dict[tuple[str, int], set[str]] = {}
+    open_findings: dict[tuple[str, int], set[str]] = {}
+    root_cause_attempts: dict[tuple[str, int], dict[str, set[str]]] = {}
+    unresolved_carry: dict[tuple[str, int], bool] = {}
+    pending_checkpoint: dict[str, tuple[int, int, str]] = {}
+    for event in events:
+        if event.get("contract_baseline") == REVIEW_CONTRACT:
+            enabled = True
+            continue
+        if not enabled:
+            continue
+        event_type = event.get("type")
+        card_id = str(event["card_id"])
+        if card_id in pending_checkpoint and event_type != "escalation-checkpoint":
+            raise ValueError(
+                f"{event['event_id']} 前必須先為 {card_id} 寫 escalation-checkpoint"
+            )
+        if event_type == "review":
+            _validate_review_event(event)
+            if event["counts_toward_escalation"] is True:
+                key = (card_id, int(event["escalation_epoch"]))
+                attempts = counted_attempts.setdefault(key, set())
+                attempt_id = str(event["attempt_id"])
+                before = len(attempts)
+                previous_open = set(open_findings.setdefault(key, set()))
+                for finding in event["findings"]:
+                    finding_id = str(finding["finding_id"])
+                    if finding["status"] in {"resolved", "withdrawn"}:
+                        open_findings[key].discard(finding_id)
+                    elif (
+                        finding["accepted"] is True
+                        and finding["blocking"] is True
+                        and finding["finding_class"] in COUNTED_FINDING_CLASSES
+                        and finding["attribution"] == "executor"
+                    ):
+                        open_findings[key].add(finding_id)
+                        roots = root_cause_attempts.setdefault(key, {})
+                        roots.setdefault(str(finding["root_cause_id"]), set()).add(attempt_id)
+                attempts.add(attempt_id)
+                if len(attempts) > before and previous_open & open_findings[key]:
+                    unresolved_carry[key] = True
+                if len(attempts) > before and len(attempts) >= 3:
+                    pending_checkpoint[card_id] = (
+                        int(event["escalation_epoch"]), len(attempts), attempt_id,
+                    )
+        elif event_type == "preflight-failed":
+            _require_fields(event, {"preflight_passed", "failure_reasons"})
+            if event["preflight_passed"] is not False or not isinstance(
+                event["failure_reasons"], list
+            ) or not event["failure_reasons"]:
+                raise ValueError(
+                    f"{event['event_id']} preflight-failed 必須帶 false 與非空 failure_reasons"
+                )
+        elif event_type == "review-invalid":
+            _require_fields(event, {"preflight_passed", "invalid_reasons"})
+            if not isinstance(event["invalid_reasons"], list) or not event["invalid_reasons"]:
+                raise ValueError(f"{event['event_id']} review-invalid 必須帶非空 invalid_reasons")
+        elif event_type == "escalation-checkpoint":
+            _require_fields(event, {
+                "escalation_epoch", "trigger_attempt_id", "unique_attempt_count",
+                "checkpoint_decision", "checkpoint_rationale",
+            })
+            if not isinstance(event["unique_attempt_count"], int) or event["unique_attempt_count"] < 3:
+                raise ValueError(f"{event['event_id']} escalation checkpoint 至少需三個 attempt")
+            if event["checkpoint_decision"] not in {
+                "continue", "replan", "change-executor", "escalate",
+            }:
+                raise ValueError(f"{event['event_id']} checkpoint_decision 不合法")
+            expected = pending_checkpoint.get(card_id)
+            if expected is None:
+                raise ValueError(f"{event['event_id']} 沒有待處理的第三次以後 attempt")
+            expected_epoch, expected_count, trigger_attempt = expected
+            if (
+                event["escalation_epoch"] != expected_epoch
+                or
+                event["unique_attempt_count"] != expected_count
+                or event["trigger_attempt_id"] != trigger_attempt
+            ):
+                raise ValueError(
+                    f"{event['event_id']} checkpoint 必須對應 {expected_count} 個唯一 attempt"
+                )
+            key = (card_id, expected_epoch)
+            repeated_root = any(
+                len(attempts) >= 3
+                for attempts in root_cause_attempts.get(key, {}).values()
+            )
+            must_escalate = repeated_root or unresolved_carry.get(key, False)
+            if must_escalate and event["checkpoint_decision"] != "escalate":
+                raise ValueError(
+                    f"{event['event_id']} 存在三次重複根因或未閉合 finding，"
+                    "checkpoint_decision 必須為 escalate"
+                )
+            del pending_checkpoint[card_id]
+    if pending_checkpoint:
+        cards = ", ".join(sorted(pending_checkpoint))
+        raise ValueError(f"第三次以後可計數 attempt 缺 escalation-checkpoint：{cards}")
 
 
 def _latest_events(events: Iterable[dict[str, object]]) -> list[dict[str, object]]:
+    events = list(events)
+    _validate_review_contract(events)
     by_card: dict[str, list[dict[str, object]]] = {}
     for event in events:
         missing = REQUIRED_FIELDS - event.keys()

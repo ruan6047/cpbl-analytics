@@ -50,6 +50,37 @@ def test_card_sections_warns_when_no_review_heading(
     assert "警告：CARD-A 找不到可錨定的驗收章節" in capsys.readouterr().err
 
 
+def test_build_prompt_uses_wf21_review_outcomes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_card(tmp_path, "驗收條件")
+    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+    monkeypatch.setattr(review_prompt, "latest_handoff", lambda _card_id: ({
+        "tier": "T3",
+        "db_scope": "none",
+        "feature": "test",
+        "branch": "ai/test/CARD-A",
+        "source_sha": "a" * 40,
+        "evidence": "handoff",
+    }, []))
+    monkeypatch.setattr(
+        review_prompt, "independence", lambda *_args: ("new context", "detail")
+    )
+    monkeypatch.setattr(review_prompt, "review_worktree_block", lambda *_args: "worktree")
+    monkeypatch.setattr(review_prompt, "repro_commands", lambda _event: "pytest")
+    monkeypatch.setattr(review_prompt, "review_gates_block", lambda _events: "")
+    monkeypatch.setattr(review_prompt, "card_events", lambda _card_id: [])
+
+    prompt = review_prompt.build_prompt("CARD-A")
+
+    assert "PREFLIGHT_FAILED" in prompt
+    assert "BLOCKED" in prompt
+    assert "REVIEW_INVALID" in prompt
+    assert "APPROVE 或 REQUEST_CHANGES" in prompt
+    assert "APPROVE 或 REJECT" not in prompt
+    assert "finding_class" in prompt
+
+
 # --- spec 基線一致性（OPS-REVIEW-BASELINE1；canonical baseline-cascade §5） ---
 def _write_child(root: Path, initiative: str, baseline: str | None) -> None:
     path = root / "docs" / "tasks" / "CHILD-1.md"

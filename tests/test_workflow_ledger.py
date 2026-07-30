@@ -8,6 +8,209 @@ workflow_ledger = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(workflow_ledger)
 
 
+FULL_SHA = "a" * 40
+
+
+def _contract_event(event_id: str, event_type: str, state_version: int) -> dict:
+    return {
+        "event_id": event_id,
+        "card_id": "CARD-WF21",
+        "type": event_type,
+        "actor": "ruan6047",
+        "occurred_at": f"2026-07-30T12:00:0{state_version}+08:00",
+        "state_version": state_version,
+        "iteration": 0,
+        "source_sha": FULL_SHA,
+        "evidence": "test",
+        "initiative": "—",
+        "tier": "T4",
+        "feature": "WF-21 contract test",
+        "owner": "reviewer",
+        "branch_worktree": "ai/test/CARD-WF21 @ wt",
+        "delivery_status": "🔍待查核",
+        "deployment_status": "—不適用",
+    }
+
+
+def _finding(**overrides: object) -> dict:
+    finding = {
+        "finding_id": "F-001",
+        "severity": "major",
+        "blocking": True,
+        "accepted": True,
+        "status": "open",
+        "finding_class": "implementation",
+        "attribution": "executor",
+        "root_cause_id": "missing-boundary-check",
+        "evidence": "reproduced",
+        "disposition": "fix the boundary",
+    }
+    finding.update(overrides)
+    return finding
+
+
+def _review_event(state_version: int = 2, **overrides: object) -> dict:
+    event = _contract_event("REVIEW-002", "review", state_version)
+    event.update({
+        "attempt_id": f"CARD-WF21-e0-{FULL_SHA}",
+        "escalation_epoch": 0,
+        "preflight_passed": True,
+        "review_result": "REQUEST_CHANGES",
+        "findings": [_finding()],
+        "counts_toward_escalation": True,
+        "delivery_status": "↩退回",
+    })
+    event.update(overrides)
+    return event
+
+
+def test_review_contract_keeps_pre_baseline_history_unchanged() -> None:
+    legacy = _contract_event("LEGACY-REVIEW-001", "review", 1)
+    legacy["review_result"] = "REJECT（free text legacy）"
+
+    workflow_ledger.render_ledger([legacy])
+
+
+def test_review_contract_rejects_free_text_review_after_baseline() -> None:
+    baseline = _contract_event("BASELINE-001", "status", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    review = _review_event(review_result="REJECT")
+
+    try:
+        workflow_ledger.render_ledger([baseline, review])
+    except ValueError as error:
+        assert "APPROVE 或 REQUEST_CHANGES" in str(error)
+    else:
+        raise AssertionError("WF-21 baseline 後不得接受自由文字 REJECT")
+
+
+def test_review_contract_derives_count_from_executor_finding() -> None:
+    baseline = _contract_event("BASELINE-001", "status", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+
+    rendered = workflow_ledger.render_ledger([baseline, _review_event()])
+
+    assert "CARD-WF21" in rendered
+
+
+def test_review_contract_does_not_count_governance_finding() -> None:
+    baseline = _contract_event("BASELINE-001", "status", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    review = _review_event(
+        findings=[_finding(finding_class="governance", attribution="coordinator")],
+        counts_toward_escalation=False,
+    )
+
+    workflow_ledger.render_ledger([baseline, review])
+
+
+def test_review_contract_rejects_manually_declared_count() -> None:
+    baseline = _contract_event("BASELINE-001", "status", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    review = _review_event(counts_toward_escalation=False)
+
+    try:
+        workflow_ledger.render_ledger([baseline, review])
+    except ValueError as error:
+        assert "推導為 True" in str(error)
+    else:
+        raise AssertionError("counts_toward_escalation 必須由 finding 推導")
+
+
+def test_review_contract_deduplicates_same_attempt_before_checkpoint() -> None:
+    baseline = _contract_event("BASELINE-001", "status", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    same_attempt = _review_event(state_version=3)
+    same_attempt["event_id"] = "REVIEW-003"
+    second_sha = "b" * 40
+    second = _review_event(
+        state_version=4,
+        source_sha=second_sha,
+        attempt_id=f"CARD-WF21-e0-{second_sha}",
+        findings=[
+            _finding(status="resolved"),
+            _finding(
+                finding_id="F-002", root_cause_id="missing-schema-check",
+                disposition="fix schema check",
+            ),
+        ],
+    )
+    third_sha = "c" * 40
+    third = _review_event(
+        state_version=5,
+        source_sha=third_sha,
+        attempt_id=f"CARD-WF21-e0-{third_sha}",
+        findings=[
+            _finding(
+                finding_id="F-002", root_cause_id="missing-schema-check",
+                status="resolved", disposition="fixed",
+            ),
+            _finding(
+                finding_id="F-003", root_cause_id="missing-epoch-check",
+                disposition="fix epoch check",
+            ),
+        ],
+    )
+    checkpoint = _contract_event("CHECKPOINT-006", "escalation-checkpoint", 6)
+    checkpoint.update({
+        "escalation_epoch": 0,
+        "trigger_attempt_id": third["attempt_id"],
+        "unique_attempt_count": 3,
+        "checkpoint_decision": "continue",
+        "checkpoint_rationale": "three distinct and converging findings",
+    })
+
+    workflow_ledger.render_ledger([
+        baseline, _review_event(), same_attempt, second, third, checkpoint,
+    ])
+
+
+def test_review_contract_requires_checkpoint_after_third_unique_attempt() -> None:
+    baseline = _contract_event("BASELINE-001", "status", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    reviews = [_review_event()]
+    for state_version, sha in ((3, "b" * 40), (4, "c" * 40)):
+        reviews.append(_review_event(
+            state_version=state_version,
+            source_sha=sha,
+            attempt_id=f"CARD-WF21-e0-{sha}",
+        ))
+
+    try:
+        workflow_ledger.render_ledger([baseline, *reviews])
+    except ValueError as error:
+        assert "缺 escalation-checkpoint" in str(error)
+    else:
+        raise AssertionError("第三個可計數 attempt 必須先進 checkpoint")
+
+
+def test_review_contract_forces_escalation_for_repeated_root_cause() -> None:
+    baseline = _contract_event("BASELINE-001", "status", 1)
+    baseline["contract_baseline"] = workflow_ledger.REVIEW_CONTRACT
+    reviews = [_review_event()]
+    for state_version, sha in ((3, "b" * 40), (4, "c" * 40)):
+        reviews.append(_review_event(
+            state_version=state_version,
+            source_sha=sha,
+            attempt_id=f"CARD-WF21-e0-{sha}",
+        ))
+    checkpoint = _contract_event("CHECKPOINT-005", "escalation-checkpoint", 5)
+    checkpoint.update({
+        "escalation_epoch": 0,
+        "trigger_attempt_id": reviews[-1]["attempt_id"],
+        "unique_attempt_count": 3,
+        "checkpoint_decision": "continue",
+        "checkpoint_rationale": "incorrectly ignore repeated cause",
+    })
+
+    try:
+        workflow_ledger.render_ledger([baseline, *reviews, checkpoint])
+    except ValueError as error:
+        assert "checkpoint_decision 必須為 escalate" in str(error)
+    else:
+        raise AssertionError("三次重複根因必須 fail loud 升級")
+
+
 def test_render_ledger_uses_latest_event_for_each_card() -> None:
     events = [
         {
