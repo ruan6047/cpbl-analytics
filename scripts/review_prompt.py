@@ -7,7 +7,8 @@
 資料來源（零 AI 成本、永遠反映最新交接狀態）：
 - docs/control-plane/events.jsonl：該卡最新 handoff event（分支、worktree、source_sha、
   tier、db_scope、執行者交付摘要）
-- docs/tasks/<CARD_ID>.md：標題含「驗收」「驗證」「Gate」的章節原文、卡面〈查核〉欄
+- docs/tasks/<CARD_ID>.md：標題含「驗收」「驗證」「Gate」的章節原文、卡面〈查核〉欄、
+  卡面 header 的 `review_independence` 欄位（機器可讀的查核獨立性宣告）
 - git diff main...<source_sha>：該卡實際改動路徑（決定重現指令）
 
 慣例（CONTROL_PLANE_CONTRACT.md「Review→merge 慣例」）：查核 APPROVE（零阻塞
@@ -16,7 +17,8 @@ findings）後 Coordinator 直接 merge，結果回傳執行者，部署另由�
 **產出物是查核者實際照著做的那一份**（DEV-REVIEW-PROMPT-GUARD1）：契約寫了什麼、
 卡面要求什麼，若沒出現在這裡就等於沒有。因此三件事一律由輸出本身承載，不靠
 「查核者自己會知道」——查核環境（HANDOFF_CONTRACT §3 的 detached worktree）、
-重現指令（依實際改動路徑而非寫死）、獨立性（只給 tier 下限，卡面原文照登由人判讀）。
+重現指令（依實際改動路徑而非寫死）、獨立性（tier 下限＋卡面 `review_independence`
+宣告＋〈查核〉欄原文照登；**不從自由文字推斷**，DEV-REVIEW-INDEP-FIELD1）。
 三者任一判不出來時**明講判不出來**，不得靜默退回預設值。
 """
 
@@ -112,6 +114,17 @@ def baseline_check(card_id: str) -> str:
     return "\n".join(lines)
 
 
+def card_events(card_id: str) -> list[dict]:
+    """該卡的所有 event，維持 append-only 的原始順序。"""
+    events: list[dict] = []
+    with open(ROOT / "docs/control-plane/events.jsonl", encoding="utf-8") as f:
+        for line in f:
+            e = json.loads(line)
+            if e.get("card_id") == card_id:
+                events.append(e)
+    return events
+
+
 def latest_handoff(card_id: str) -> tuple[dict, list[dict]]:
     """回傳 (最新 handoff event, 該 handoff 之後已發生的 review 事件)。
 
@@ -120,15 +133,10 @@ def latest_handoff(card_id: str) -> tuple[dict, list[dict]]:
     必須帶進提示詞，不能只留在 event log 裡。
     """
     ev = None
-    events: list[dict] = []
-    with open(ROOT / "docs/control-plane/events.jsonl", encoding="utf-8") as f:
-        for line in f:
-            e = json.loads(line)
-            if e.get("card_id") != card_id:
-                continue
-            events.append(e)
-            if e.get("type") == "handoff":
-                ev = e  # append-only → 最後一筆即最新
+    events = card_events(card_id)
+    for e in events:
+        if e.get("type") == "handoff":
+            ev = e  # append-only → 最後一筆即最新
     if ev is None:
         sys.exit(f"錯誤：{card_id} 沒有 handoff event（尚未交付查核）。")
     gates = _assert_no_review_supersedes_handoff(card_id, events)
@@ -480,7 +488,8 @@ def repro_commands(ev: dict) -> str:
 # 不宣稱上限，就不可能把需求方寫在卡面的要求說低——三輪的反例全部失去適用對象，
 # 不是被更聰明的規則擋掉，是無處可施。要判讀卡面語意的是人，工具只負責把原文攤開。
 #
-# 機器可讀的獨立性欄位由 DEV-REVIEW-INDEP-FIELD1 承接（含值域與既有卡遷移）。
+# 機器可讀的獨立性欄位由 DEV-REVIEW-INDEP-FIELD1 承接（見下方 `review_independence`）：
+# 那是**結構化宣告**，與這裡的下限並存——欄位不存在時本段照給下限，並明示宣告缺席。
 _TIER_FLOOR = {
     "T4": "跨模型家族（非執行者所屬家族）或人工",
 }
@@ -504,29 +513,210 @@ def card_review_field(card_id: str) -> str | None:
     return None
 
 
-def independence(card_id: str, tier: str) -> tuple[str, str]:
-    """回傳 (單行摘要, 明細段)。摘要講的是**下限**，不是結論。"""
+# --- 獨立性欄位：卡面 `review_independence`（DEV-REVIEW-INDEP-FIELD1） ---
+#
+# GUARD1 三輪的教訓不是「正則寫得不夠好」，是**不該從自由文字推流程門檻**。本段的
+# 欄位是**結構化宣告**：解析只做語法檢查與值域比對，一個中文字都不參與判定。因此
+# 三輪的四類反例（AND 複合、條件句、否定句與引文、「人工智慧」詞邊界）在這裡全部
+# **無處可施**——不是被更聰明的規則擋掉，是它們所在的自由文字根本沒被讀成要求。
+# 〈查核〉欄照舊原文照登；欄位存在時它退為人可讀補充。**欄位缺席一律明示**
+# （紅線 2）：tier 下限與卡面原文照舊，但輸出會講明「這張卡沒有機器可讀宣告」，
+# 不讓「缺欄」與「工具本來就只給下限」長得一模一樣。
+#
+# 職權劃分（docs/CONTROL_PLANE_CONTRACT.md）：
+#   卡面 `review_independence` ＝ **靜態要求（應然）**：這張卡該有幾關、每關要什麼
+#     獨立性、順序為何。
+#   event log `closes_review_round`／`corrects_event_id` ＝ **動態進度（實然）**：
+#     本輪實際跑到哪一關、誰查的、結束沒。
+# 兩者互不覆寫、互不為事實來源。本欄位**不參與任何守衛放行判定**——
+# `_assert_no_review_supersedes_handoff()` 與 `review_gates_block()` 完全不讀它，
+# 否則 GATE1 的「存在終結本輪者即拒絕」語意會被第二個來源污染。唯一交會點是
+# **並列印出**供人判讀：不仲裁、不產生結論、不因宣告與事件不一致而擋下任何東西。
+REVIEW_INDEPENDENCE_FIELD = "review_independence"
+
+# 值域（Q1 定案）：有序清單，單一元素＝單一關卡，清單順序＝關卡先後。
+# 「兩者皆須但不限順序」**不支援**（掃描 119 張卡出現 0 次），要兩關就寫兩個元素。
+_INDEPENDENCE_VALUES = {
+    "context": "新 context／session 即可，不得為執行者本人",
+    "cross_family": "跨模型家族的查核者，非執行者所屬家族",
+    "cross_family_or_human": "跨模型家族或需求方人工，二擇一",
+    "human": "需求方人工審，不得由 AI 代理",
+}
+_INDEPENDENCE_SHORT = {
+    "context": "新 context",
+    "cross_family": "跨家族",
+    "cross_family_or_human": "跨家族或人工",
+    "human": "人工審",
+}
+# 欄名一律 ASCII。冒號同時接受半形與全形，是因為卡面 header 其餘欄位慣用全形「：」。
+#
+# **整行錨定**（iteration 2 REVIEW REJECT F2）：iteration 2 只檢查「這個 bullet 含
+# `review_independence` 字樣」，於是 `- note: review_independence: [human]` 這種**敘述**
+# 會被解析成宣告——那正是本卡要離開的病（把自由文字讀成流程要求），只是換了個位置
+# 復發。現在整行必須精確符合契約格式：`- ` 之後緊接完整 key，才算宣告。
+# `\b` 讓 `review_independence_note:` 這類**相似 key** 自然不匹配（`_` 是 word char，
+# key 之後沒有詞邊界），不需另外列舉排除。
+#
+# 錨定變嚴之後「寫錯格式＝被當成沒宣告」的風險由 F1 的修法承接：缺欄現在會在提示詞裡
+# **明示**「機器可讀宣告缺席」，不再與正常 fallback 混為一談，所以嚴格錨定不會製造靜默。
+_INDEP_LINE_RE = re.compile(
+    rf"^\s*-\s*`?{REVIEW_INDEPENDENCE_FIELD}`?\s*[:：]\s*(.*?)\s*$")
+# 行首就是本欄位、但格式不合契約（例：漏冒號）——這是**寫壞**不是敘述，fail loud。
+_INDEP_LINE_PREFIX_RE = re.compile(rf"^\s*-\s*`?{REVIEW_INDEPENDENCE_FIELD}\b")
+
+
+def _independence_syntax_help() -> str:
+    return (f"寫法：卡面 header 獨立一行 `- {REVIEW_INDEPENDENCE_FIELD}: [human, cross_family]`"
+            "（有序清單；單一元素＝單一關卡，順序＝關卡先後）。"
+            f"值域：{'／'.join(f'`{v}`' for v in sorted(_INDEPENDENCE_VALUES))}。"
+            "語意與遷移程序見 docs/TEMPLATES.md、職權劃分見 docs/CONTROL_PLANE_CONTRACT.md。")
+
+
+def _parse_independence_value(card_id: str, value: str) -> list[str]:
+    """把欄位值解析成有序清單。語法／值域不合即 fail loud，不當成缺席。
+
+    比照 `closes_review_round` 的先例：欄位**缺席**有明確定義的行為（tier 下限＋
+    卡面原文照登），把**寫壞**當成缺席帶過，就是讓一個打字錯誤靜默放寬查核要求。
+    """
+    fail = (f"錯誤：{card_id} 卡面 `{REVIEW_INDEPENDENCE_FIELD}` 的值 "
+            f"{value!r} 無效，拒絕產生提示詞。\n  ")
+    tail = ("\n  拒絕臆測：欄位缺席另有明確定義的行為，寫壞不會被當成缺席帶過——"
+            "請先修正卡面再重跑本指令。")
+    if not (value.startswith("[") and value.endswith("]")):
+        sys.exit(f"{fail}值不是清單（必須以 `[` 開頭、`]` 結尾）。"
+                 f"{_independence_syntax_help()}{tail}")
+    inner = value[1:-1]
+    if not inner.strip():
+        sys.exit(f"{fail}空清單沒有語意——沒有額外要求就整行刪掉（缺欄行為明確定義），"
+                 f"要宣告就至少一個關卡。{_independence_syntax_help()}{tail}")
+    items = [x.strip() for x in inner.split(",")]
+    bad = [x for x in items if x not in _INDEPENDENCE_VALUES]
+    if bad:
+        listed = "、".join(repr(x) for x in bad)
+        sys.exit(f"{fail}下列元素不在值域：{listed}。{_independence_syntax_help()}"
+                 "\n  「兩者皆須」請寫成兩個元素（例 `[cross_family, human]`），"
+                 f"不要自造合成值。{tail}")
+    return items
+
+
+def card_review_independence(card_id: str) -> list[str] | None:
+    """卡面 header 的 `review_independence` 有序清單；欄位缺席回 None。
+
+    只讀第一個 `## ` 標題之前的 header 區塊，且**整行**須符合契約格式
+    `- review_independence: [...]`：正文、程式碼區塊、以及 header 裡夾在別的文字中的
+    同名字樣（`- note: review_independence: [human]`）一律是敘述，不是宣告——
+    本欄位存在的理由就是「不從自由文字讀流程要求」，解析自己更不能破例。
+    """
+    path = _card_path(card_id)
+    if path is None:
+        return None
+    raw: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("## "):
+            break
+        m = _INDEP_LINE_RE.match(line)
+        if m is not None:
+            raw.append(m.group(1).strip())
+        elif _INDEP_LINE_PREFIX_RE.match(line):
+            sys.exit(f"錯誤：{card_id} 卡面有一行以 `{REVIEW_INDEPENDENCE_FIELD}` 起始但格式不合"
+                     f"契約（原行：{line.strip()!r}），拒絕產生提示詞。"
+                     f"\n  {_independence_syntax_help()}")
+    if not raw:
+        return None
+    if len(raw) > 1:
+        sys.exit(f"錯誤：{card_id} 卡面 header 有 {len(raw)} 行 `{REVIEW_INDEPENDENCE_FIELD}`"
+                 f"（值：{raw}），無法判定以哪一行為準，拒絕產生提示詞。"
+                 "\n  多關卡請寫成同一行的有序清單，不是多行。"
+                 f"\n  {_independence_syntax_help()}")
+    return _parse_independence_value(card_id, raw[0])
+
+
+def _declared_gates_lines(declared: list[str]) -> list[str]:
+    """把宣告的關卡序列翻成人可讀，並講明它是留痕不是保證。"""
+    seq = "；".join(f"第 {i} 關 `{v}`（{_INDEPENDENCE_VALUES[v]}）"
+                    for i, v in enumerate(declared, 1))
+    lines = [f"- 卡面 `{REVIEW_INDEPENDENCE_FIELD}` 宣告 {len(declared)} 關"
+             f"（清單順序即關卡先後）：{seq}"]
+    if len(declared) > 1:
+        lines.append(
+            "- 你負責的是本輪**尚未完成的那一關**；已完成的關卡以 event log 為準"
+            "（見〈本輪已通過的中繼關卡〉一節；沒有該節即代表本輪尚無中繼關卡留痕，"
+            "**這不擋你查核**）。卡面欄位只說有幾關，**不說跑到哪一關**。")
+    lines.append(
+        f"- **`{REVIEW_INDEPENDENCE_FIELD}` 是留痕，不是保證**：它記錄需求方宣告的要求，"
+        "工具**無法驗證**實際查核者是否真的跨家族、是否真的是人（查核結論由需求方人工"
+        "轉錄，本專案沒有可信的查核者身分來源）。下列並列資訊供你與需求方判讀，"
+        "**工具不做一致性仲裁，也不據此擋下任何流程**。")
+    return lines
+
+
+def _actor_parallel_lines(events: list[dict]) -> list[str]:
+    """把宣告值與 event log 的實況並列（Q4 的低成本強化）——只並列事實，不下結論。"""
+    reviews = [e for e in events if e.get("type") == "review"]
+    if not reviews:
+        return ["- 對照（**輔助判讀，非保證**）：本卡 event log 尚無任何 review 事件。"]
+    last = reviews[-1]
+    return [f"- 對照（**輔助判讀，非保證**）：最近一筆 review 事件 "
+            f"`{last.get('event_id', '?')}`　actor：{last.get('actor', '?')}；"
+            f"review_result：{last.get('review_result', '（未填）')}。"
+            "與宣告值不一致時（例：宣告要跨家族、最近一輪 actor 卻同家族），"
+            "請向需求方確認後再開始——工具只並列事實，不替任何人下結論。"]
+
+
+def independence(card_id: str, tier: str, events: list[dict] | None = None) -> tuple[str, str]:
+    """回傳 (單行摘要, 明細段)。摘要講的是**下限**，不是結論。
+
+    卡面有 `review_independence` 時多印宣告的關卡序列，並與 event log 實況並列；
+    **欄位缺席時明示缺席**（紅線 2），tier 下限與卡面〈查核〉欄原文照舊不放寬。
+    """
     floor = _TIER_FLOOR.get(tier, _DEFAULT_FLOOR)
     field = card_review_field(card_id)
+    declared = card_review_independence(card_id)
     lines = [
         "- **本段只給下限，不給結論。** 腳本不解讀卡面語意——"
         "獨立性要求由你讀卡面決定（理由見 `scripts/review_prompt.py` 的註解："
         "自由文字推斷已連續三輪被否定句、引文與條件句打穿）。",
         f"- tier 推導的下限（{tier}）：{floor}",
     ]
+    if declared is not None:
+        lines += _declared_gates_lines(declared)
+    else:
+        # iteration 2 REVIEW REJECT F1（blocking）：iteration 2 讓缺欄輸出與加入本欄位
+        # 之前**逐字相同**，於是查核者分不出「這張卡沒有機器可讀宣告」與「工具本來就
+        # 只給下限」。卡面紅線 2 要的是「**明示**缺欄＋以卡面原文為準」——沉默地退回
+        # 正確行為仍然是沉默，讀提示詞的人得不到「該回填了」這個訊號。
+        print(f"警告：{card_id} 卡面找不到 `{REVIEW_INDEPENDENCE_FIELD}` 欄位。"
+              "活卡採按需回填（docs/TEMPLATES.md）——這張卡正要被產生提示詞，"
+              "請需求方裁定該填什麼值，**不得由執行者或工具推定**。",
+              file=sys.stderr)
+        lines.append(
+            f"- 卡面 `{REVIEW_INDEPENDENCE_FIELD}` 欄位：**未找到**——"
+            "**這不代表沒有額外要求**，只代表這張卡還沒有機器可讀的獨立性宣告"
+            "（活卡按需回填，見 docs/TEMPLATES.md）。一律以本段的 tier 下限與卡面"
+            "〈查核〉欄原文為準，**不得據此放寬**。")
     if field is None:
         print(f"警告：{card_id} 卡面找不到〈查核〉欄，提示詞只能給 tier 下限。",
               file=sys.stderr)
         lines.append("- 卡面〈查核〉欄：**未找到**——**這不代表沒有額外要求**，"
                      "請直接開卡片確認格式與內容，別讓工具替需求方放寬要求。")
-    else:
+    elif declared is None:
         lines.append(f"- 卡面〈查核〉欄原文（**以此為準**）：`{field}`")
+    else:
+        lines.append(f"- 卡面〈查核〉欄原文（**照登，不解讀**；機器可讀的要求已由上列欄位承載，"
+                     f"本欄為人可讀補充）：`{field}`")
     lines.append(
         "- 卡面若要求得比上述下限嚴（跨家族、人工核可、兩者皆須、先後順序…），"
         "**一律以卡面為準**；判讀有疑義請需求方裁定，**不得自行放寬**。"
         "查核者 ≠ 執行者是所有情況的下限。")
+    if declared is not None and events is not None:
+        lines += _actor_parallel_lines(events)
     # 摘要不帶 markdown：呼叫端已把它包進粗體與括號，這裡再加會變成巢狀粗體。
-    return f"下限 {floor}；實際要求以卡面〈查核〉欄為準", "\n".join(lines)
+    if declared is None:
+        summary = f"下限 {floor}；實際要求以卡面〈查核〉欄為準"
+    else:
+        seq = " → ".join(_INDEPENDENCE_SHORT[v] for v in declared)
+        summary = f"下限 {floor}；卡面宣告 {len(declared)} 關：{seq}"
+    return summary, "\n".join(lines)
 
 
 def review_gates_block(gates: list[dict]) -> str:
@@ -566,7 +756,7 @@ def build_prompt(card_id: str) -> str:
     baseline = baseline_check(card_id)
     if baseline:
         checklist += "\n\n" + baseline
-    indep, indep_detail = independence(card_id, tier)
+    indep, indep_detail = independence(card_id, tier, card_events(card_id))
     gates_block = review_gates_block(gates)
     gates_section = f"\n{gates_block}\n" if gates_block else ""
     db_note = {

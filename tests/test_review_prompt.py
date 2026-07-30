@@ -309,6 +309,275 @@ def test_independence_missing_field_says_so_without_relaxing(
     assert "找不到〈查核〉欄" in capsys.readouterr().err
 
 
+# --- 機器可讀獨立性欄位 review_independence（DEV-REVIEW-INDEP-FIELD1） ---
+def _write_field_card(
+    root: Path, field_value: str | None, review_field: str = "待指派（≠ 執行）"
+) -> None:
+    """卡面 header：〈查核〉自由文字欄 ＋（可選）`review_independence` 宣告行。"""
+    path = root / "docs" / "tasks" / "CARD-F.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    header = f"- 執行：待指派（建議 L2）　查核：{review_field}"
+    if field_value is not None:
+        header += f"\n- review_independence: {field_value}"
+    path.write_text(f"# CARD-F 卡\n\n{header}\n\n## 驗收條件\n\n- [ ] x\n", encoding="utf-8")
+
+
+def test_independence_missing_field_is_announced_not_silent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """紅線 2：缺欄必須**明示**，且不得放寬。
+
+    iteration 2 讓缺欄輸出與加入本欄位之前逐字相同，查核者因而分不出「這張卡沒有
+    機器可讀宣告」與「工具本來就只給下限」（REVIEW REJECT F1，blocking）。
+    沉默地退回正確行為仍然是沉默。
+    """
+    _write_field_card(tmp_path, None, review_field="待指派（≠ 執行；跨家族或人工）")
+    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+
+    summary, detail = review_prompt.independence("CARD-F", "T3")
+
+    assert "卡面 `review_independence` 欄位：**未找到**" in detail
+    assert "這不代表沒有額外要求" in detail
+    assert "不得據此放寬" in detail
+    assert "找不到 `review_independence` 欄位" in capsys.readouterr().err
+    # 缺欄不改變下限，也不吃掉〈查核〉欄原文
+    assert summary == "下限 新 context／session 即可（不得為執行者本人）；實際要求以卡面〈查核〉欄為準"
+    assert "卡面〈查核〉欄原文（**以此為準**）：`待指派（≠ 執行；跨家族或人工）`" in detail
+    # 缺欄時不得虛構關卡宣告，也不並列 actor（沒有宣告值可對照）
+    assert "宣告 1 關" not in detail and "留痕，不是保證" not in detail
+
+
+def test_independence_missing_field_output_is_unaffected_by_events(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """並列 actor 是「宣告值 vs 實況」的對照；沒有宣告值就沒有對照對象。"""
+    _write_field_card(tmp_path, None)
+    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+
+    assert (review_prompt.independence("CARD-F", "T3", [_review(2)])
+            == review_prompt.independence("CARD-F", "T3"))
+
+
+def test_independence_single_gate_field_is_printed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_field_card(tmp_path, "[cross_family]")
+    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+
+    summary, detail = review_prompt.independence("CARD-F", "T3")
+
+    assert "卡面宣告 1 關：跨家族" in summary
+    assert "第 1 關 `cross_family`（跨模型家族的查核者，非執行者所屬家族）" in detail
+    assert "留痕，不是保證" in detail
+    assert "第 2 關" not in detail
+
+
+def test_independence_multi_gate_keeps_declared_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """有序清單：印出的順序必須是卡面宣告的順序，不是值域或字母序。"""
+    _write_field_card(tmp_path, "[human, cross_family]")
+    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+
+    summary, detail = review_prompt.independence("CARD-F", "T3")
+
+    assert "卡面宣告 2 關：人工審 → 跨家族" in summary
+    assert detail.index("第 1 關 `human`") < detail.index("第 2 關 `cross_family`")
+    assert "尚未完成的那一關" in detail          # 幾關由欄位、跑到哪一關由事件
+    assert "不說跑到哪一關" in detail
+
+
+def test_independence_reversed_order_is_not_normalised(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_field_card(tmp_path, "[cross_family, human]")
+    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+
+    summary, detail = review_prompt.independence("CARD-F", "T3")
+
+    assert "卡面宣告 2 關：跨家族 → 人工審" in summary
+    assert detail.index("第 1 關 `cross_family`") < detail.index("第 2 關 `human`")
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [("human", "不是清單"),                       # 非清單
+     ("[]", "空清單"),                             # 空清單
+     ("[cross_family_and_human]", "不在值域"),      # 元素不在值域（合成值）
+     ("[cross_family, ]", "不在值域")],             # 空元素同樣不得靜默略過
+)
+def test_independence_illegal_value_fails_loud(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str, expected: str
+) -> None:
+    """比照 closes_review_round：寫壞不得被當成缺席帶過（那是靜默放寬）。"""
+    _write_field_card(tmp_path, value)
+    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+
+    with pytest.raises(SystemExit) as exc:
+        review_prompt.independence("CARD-F", "T3")
+
+    message = str(exc.value)
+    assert expected in message
+    assert "拒絕產生提示詞" in message
+    assert "review_independence: [human, cross_family]" in message   # 給出正確寫法
+
+
+def test_independence_duplicate_field_lines_fail_loud(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_field_card(tmp_path, "[human]")
+    path = tmp_path / "docs" / "tasks" / "CARD-F.md"
+    path.write_text(path.read_text(encoding="utf-8").replace(
+        "- review_independence: [human]",
+        "- review_independence: [human]\n- review_independence: [cross_family]"),
+        encoding="utf-8")
+    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+
+    with pytest.raises(SystemExit) as exc:
+        review_prompt.independence("CARD-F", "T3")
+
+    assert "2 行" in str(exc.value)
+
+
+@pytest.mark.parametrize(
+    "header_line",
+    [
+        # REVIEW REJECT F2 的最小反例：欄位名夾在別的 key 後面
+        "- note: review_independence: [human]",
+        # 說明文字裡提到欄位名
+        "- 說明：本卡的 review_independence 由需求方於 Design Gate 後裁定",
+        "- 查核：待指派（review_independence: [cross_family] 待補）",
+        # 相似 key：`_` 是 word char，key 之後沒有詞邊界，自然不匹配
+        "- review_independence_note: [human]",
+        "- pre_review_independence: [human]",
+    ],
+)
+def test_independence_field_is_line_anchored_against_prose(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, header_line: str
+) -> None:
+    """整行錨定：header 裡夾在其他文字中的同名字樣是敘述，不得被解析成宣告。
+
+    本欄位存在的理由就是「不從自由文字讀流程要求」——解析自己更不能破例
+    （REVIEW REJECT F2）。缺欄有明示輸出（F1），所以嚴格錨定不會製造靜默。
+    """
+    path = tmp_path / "docs" / "tasks" / "CARD-F.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"# CARD-F 卡\n\n- 執行：待指派　查核：待指派（≠ 執行）\n{header_line}\n\n"
+                    "## 驗收條件\n\n- [ ] x\n", encoding="utf-8")
+    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+
+    assert review_prompt.card_review_independence("CARD-F") is None
+
+    _, detail = review_prompt.independence("CARD-F", "T3")
+    assert "**未找到**" in detail          # 沒被讀成宣告，且缺席有被講出來
+
+
+@pytest.mark.parametrize(
+    "header_line",
+    ["- review_independence [human, cross_family]",   # 漏冒號
+     "- `review_independence` [human]",
+     "-   review_independence"],                      # 只有 key
+)
+def test_independence_field_line_malformed_fails_loud(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, header_line: str
+) -> None:
+    """行首就是本欄位卻不合契約格式＝**寫壞**（不是敘述），不得被當成缺席。"""
+    path = tmp_path / "docs" / "tasks" / "CARD-F.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"# CARD-F 卡\n\n- 執行：待指派　查核：待指派\n{header_line}\n\n"
+                    "## 驗收條件\n\n- [ ] x\n", encoding="utf-8")
+    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+
+    with pytest.raises(SystemExit) as exc:
+        review_prompt.card_review_independence("CARD-F")
+
+    assert "格式不合契約" in str(exc.value)
+
+
+def test_independence_field_accepts_contract_format_variants(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """契約格式本身容許的變體：反引號包欄名、全形冒號、行首縮排。"""
+    for header_line in ("- `review_independence`: [context]",
+                        "- review_independence：[context]",
+                        "  - review_independence: [context]"):
+        path = tmp_path / "docs" / "tasks" / "CARD-F.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"# CARD-F 卡\n\n- 查核：待指派\n{header_line}\n\n## 驗收條件\n\n- [ ] x\n",
+                        encoding="utf-8")
+        monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+
+        assert review_prompt.card_review_independence("CARD-F") == ["context"], header_line
+
+
+def test_independence_field_ignores_prose_below_header(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """正文與程式碼區塊裡的同名字樣是敘述，不是宣告（本卡自己的卡面就有舉例）。"""
+    path = tmp_path / "docs" / "tasks" / "CARD-F.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "# CARD-F 卡\n\n- 執行：待指派　查核：待指派（≠ 執行）\n\n## 目標\n\n"
+        "候選寫法：\n\n- review_independence: [human, cross_family]\n",
+        encoding="utf-8")
+    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+
+    assert review_prompt.card_review_independence("CARD-F") is None
+
+
+def test_independence_field_invariant_under_guard1_counterexamples(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """GUARD1 三輪四類反例：全部無處可施——自由文字根本不參與判定。
+
+    證明方式不是「規則擋掉了它們」，而是**輸出的關卡宣告在四種反例文字下逐字相同**，
+    且與卡面欄位一致；自由文字只以原文形式出現。
+    """
+    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+    declarations: list[str] = []
+    for prose in _REVIEW_009_COUNTEREXAMPLES:
+        _write_field_card(tmp_path, "[context]", review_field=prose)
+
+        assert review_prompt.card_review_independence("CARD-F") == ["context"]
+        summary, detail = review_prompt.independence("CARD-F", "T3")
+
+        assert "卡面宣告 1 關：新 context" in summary        # 反例文字動不了宣告
+        assert f"`{prose}`" in detail                        # 原文照登
+        assert "照登，不解讀" in detail
+        declarations.append(
+            "\n".join(ln for ln in detail.splitlines() if "宣告" in ln or "第 1 關" in ln))
+
+    assert len(set(declarations)) == 1, "自由文字改變了宣告輸出＝推斷邏輯復活"
+
+
+def test_independence_parallels_last_review_actor_as_advisory_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Q4：宣告值與上一輪 review 的 actor 並列，明示輔助判讀、非保證、不仲裁。"""
+    _write_field_card(tmp_path, "[cross_family]")
+    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+    events = [_handoff(), _review(2, actor="Claude Opus 5（與執行者同家族）")]
+
+    _, detail = review_prompt.independence("CARD-F", "T3", events)
+
+    assert "Claude Opus 5（與執行者同家族）" in detail
+    assert "CARD-G-REVIEW-002" in detail
+    assert "輔助判讀，非保證" in detail
+    assert "不做一致性仲裁" in detail
+    assert "不替任何人下結論" in detail
+
+
+def test_independence_parallel_states_when_no_review_events(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_field_card(tmp_path, "[human, cross_family]")
+    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+
+    _, detail = review_prompt.independence("CARD-F", "T3", [_handoff()])
+
+    assert "尚無任何 review 事件" in detail
+
+
 def test_no_prose_inference_helpers_remain() -> None:
     """路線已放棄：推斷用的常數與函式不得復活（復活即代表同一個病回來了）。"""
     for name in ("_CROSS_TOKENS", "_INDEP_OR_RE", "_INDEP_JOIN",
@@ -547,3 +816,58 @@ def test_gates_block_carries_rulings_and_warns_round_is_open() -> None:
 
 def test_gates_block_is_empty_without_gates() -> None:
     assert review_prompt.review_gates_block([]) == ""
+
+
+# --- 職權劃分：卡面欄位＝應然、event log＝實然（DEV-REVIEW-INDEP-FIELD1） ---
+def _write_gate_card(root: Path, field_value: str | None) -> None:
+    path = root / "docs" / "tasks" / "CARD-G.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    header = "- 執行：待指派　查核：待指派（≠ 執行）"
+    if field_value is not None:
+        header += f"\n- review_independence: {field_value}"
+    path.write_text(f"# CARD-G 卡\n\n{header}\n\n## 驗收條件\n\n- [ ] x\n", encoding="utf-8")
+
+
+def test_field_declaring_multiple_gates_does_not_block_without_events(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """宣告 N>1 關但本輪無中繼關卡事件：照登、**不擋**（欄位是宣告不是保證）。"""
+    _write_gate_card(tmp_path, "[human, cross_family]")
+    _prepare(tmp_path, monkeypatch, _handoff())
+    monkeypatch.setattr(review_prompt, "changed_paths", lambda _sha: (["scripts/x.py"], None))
+
+    prompt = review_prompt.build_prompt("CARD-G")
+
+    assert "卡面宣告 2 關：人工審 → 跨家族" in prompt
+    assert "尚無任何 review 事件" in prompt
+    assert "### 本輪已通過的中繼關卡" not in prompt   # 不因宣告而虛構關卡
+
+
+def test_guard_verdict_is_unaffected_by_the_card_field(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """守衛只看 event log：同一組事件下，卡面欄位不論宣告幾關，放行判定逐字相同。"""
+    _prepare(tmp_path, monkeypatch, _handoff(), _review(2))
+
+    verdicts = []
+    for field_value in (None, "[context]", "[human, cross_family]"):
+        _write_gate_card(tmp_path, field_value)
+        with pytest.raises(SystemExit) as exc:
+            review_prompt.latest_handoff("CARD-G")
+        verdicts.append(str(exc.value))
+
+    assert len(set(verdicts)) == 1
+    assert "review_independence" not in verdicts[0]
+
+
+def test_interim_event_without_field_declaration_still_passes_through(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """反向：欄位宣告單一關卡、事件卻有中繼關卡時，以事件為實然放行（不被欄位否決）。"""
+    _write_gate_card(tmp_path, "[context]")
+    _prepare(tmp_path, monkeypatch, _handoff(),
+             _review(2, closes_review_round=False, actor="ruan6047（人工審）"))
+
+    _, gates = review_prompt.latest_handoff("CARD-G")
+
+    assert [g["event_id"] for g in gates] == ["CARD-G-REVIEW-002"]
