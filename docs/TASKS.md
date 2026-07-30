@@ -8,7 +8,7 @@
 
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
-| [DEV-REVIEW-INDEP-FIELD1](tasks/DEV-REVIEW-INDEP-FIELD1.md) | — | T3 | 卡面獨立性要求改為機器可讀欄位 | Claude Opus 5@Claude Code | `ai/opus-5/DEV-REVIEW-INDEP-FIELD1 @ .claude/worktrees/dev-review-indep-field1-execution` | 1 | 🔨執行中 | —不適用 | 2026-07-30T10:27:17+08:00 |
+| [DEV-REVIEW-INDEP-FIELD1](tasks/DEV-REVIEW-INDEP-FIELD1.md) | — | T3 | 卡面獨立性要求改為機器可讀欄位 | 待指派（查核；需求方指定 Gemini 家族） | `ai/opus-5/DEV-REVIEW-INDEP-FIELD1 @ .claude/worktrees/dev-review-indep-field1-execution` | 1 | 🔍待查核 | —不適用 | 2026-07-30T10:43:21+08:00 |
 | [DEV-VERIFY-TM-ASSERTS1](tasks/DEV-VERIFY-TM-ASSERTS1.md) | — | T2 | TM 回填驗證腳本補上真正的斷言 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-29T12:14:00+08:00 |
 | [DOC-CARD-SPEC-RULES1](tasks/DOC-CARD-SPEC-RULES1.md) | — | T3 | 卡面規格三條規則（輸入空間／性質而非示範／同病自檢） | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-29T21:34:32+08:00 |
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | — | `ai/sonnet-5/INGEST-GAME-TM-REFACTOR1-g3 @ .claude/worktrees/ingest-game-tm-refactor1-g3-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-24T12:53:42+08:00 |
