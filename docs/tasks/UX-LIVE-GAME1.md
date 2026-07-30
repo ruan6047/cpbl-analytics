@@ -2,6 +2,7 @@
 
 - 需求：ruan6047　規劃：GPT-5.6@Codex　分支：`ai/<執行者>/UX-LIVE-GAME1`
 - 執行：待指派（建議 L2；既有 game board 上的狀態式 React UI 與 polling）　查核：待指派（L2 獨立 UX／browser review；須 ≠ 執行）
+- review_independence: [cross_family]
 - Initiative：INIT-PRODUCT-UX　spec 基線：v0.2　product spec：`LIVE_GAME_PRODUCT_SPEC v1.1`
 - DB：`db_scope: none`
 - 部署：是　環境：production　PR：—　Merge SHA：—
@@ -33,3 +34,4 @@
 
 - 2026-07-26T17:29:31+08:00 register by GPT-5.6@Codex（依 ruan6047 指示開前端卡；依賴後端卡）。
 - 2026-07-30 Design Gate by ruan6047 → v1 只把 live polling 整合進既有賽事頁狀態板與 Recent Plays；不新增獨立文字轉播頁，預告先發延後。
+- 2026-07-30 review independence by ruan6047 → 指定 Claude Fable 5，採跨模型家族 UX／browser 查核。
