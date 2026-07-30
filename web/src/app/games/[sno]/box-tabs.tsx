@@ -22,6 +22,7 @@ import { chartAxis, chartTooltip, useChartTheme } from "@/lib/chart-theme";
 import { teamColor, teamShort } from "@/lib/teams";
 import { DEFEND_ZH, type Live } from "@/components/game-board";
 import { SprayChart } from "@/components/spray-chart";
+import { trackingPendingMessage } from "@/lib/live-game";
 
 // 主審判決分布（描述性）：逐球位置＋判決（好球/壞球）。刻意無對錯/準確率/誤判欄位
 // （§5.12 NO-GO）。固定規則帶僅作散點的空間參考。
@@ -68,13 +69,13 @@ const avg3 = (v: number) => v.toFixed(3).replace(/^0/, "");
 const ipTxt = (r: StatRow) => fmtIPParts(r.inning_pitched_cnt as number | null, r.inning_pitched_div3 as number | null);
 const tint = (c: string) => `color-mix(in srgb, ${c} 35%, transparent)`; // 同隊次要段（壞球）
 
-// 打者亮點標記：滿貫/猛打賞(3安+)/致勝打點/MVP
-function batterMark(r: StatRow): string {
+// 打者亮點標記：滿貫/猛打賞可賽中顯示；致勝打點/MVP 必須等 canonical final。
+function batterMark(r: StatRow, showPostgameMarks: boolean): string {
   const t: string[] = [];
   if (n(r.grand_slam)) t.push("滿貫");
   if (n(r.hits) >= 3) t.push("猛打賞");
-  if (n(r.gw_rbi)) t.push("致勝打點");
-  if (r.is_mvp) t.push("MVP");
+  if (showPostgameMarks && n(r.gw_rbi)) t.push("致勝打點");
+  if (showPostgameMarks && r.is_mvp) t.push("MVP");
   return t.join("·");
 }
 const MARK: Record<string, { text: string; tone: "pos" | "neg" }> = {
@@ -91,8 +92,9 @@ function pitcherMarks(r: StatRow, decisions: Record<string, string>): { text: st
 }
 
 // ───────────────────────── 單隊表 ─────────────────────────
-function BattingTable({ rows, avgMap, posBy }: {
+function BattingTable({ rows, avgMap, posBy, showPostgameMarks }: {
   rows: StatRow[]; avgMap: Record<string, number>; posBy: Map<string, string>;
+  showPostgameMarks: boolean;
 }) {
   const cols: [string, (r: StatRow) => string][] = [
     ["打數", (r) => i0(r.at_bats)], ["得分", (r) => i0(r.runs)], ["安打", (r) => i0(r.hits)],
@@ -105,7 +107,7 @@ function BattingTable({ rows, avgMap, posBy }: {
     {
       header: "打者",
       cell: (r) => {
-        const mark = batterMark(r);
+        const mark = batterMark(r, showPostgameMarks);
         return (
           <><PlayerLink pid={String(r.hitter_acnt ?? "")} name={String(r.hitter_name ?? "")} />
             <span className="ml-1 text-[10px] text-faint">{String(r.role_type ?? "")}</span>
@@ -124,9 +126,10 @@ function BattingTable({ rows, avgMap, posBy }: {
   return <DataTable columns={columns} rows={rows} rowKey={(_r, i) => i} dense />;
 }
 
-function PitchingTable({ rows, decisions, ballsBy, paBy }: {
+function PitchingTable({ rows, decisions, ballsBy, paBy, showPostgameMarks }: {
   rows: StatRow[]; decisions: Record<string, string>;
   ballsBy: Map<string, number>; paBy: Map<string, number>;
+  showPostgameMarks: boolean;
 }) {
   const strikePct = (r: StatRow) => {
     const total = n(r.pitch_cnt);
@@ -147,7 +150,7 @@ function PitchingTable({ rows, decisions, ballsBy, paBy }: {
       header: "投手",
       cell: (r) => (
         <><PlayerLink pid={String(r.pitcher_acnt ?? "")} name={String(r.pitcher_name ?? "")} />
-          {pitcherMarks(r, decisions).map((m, j) => (
+          {showPostgameMarks && pitcherMarks(r, decisions).map((m, j) => (
             <span key={j} className={`ml-1 text-[10px] font-semibold ${m.tone === "neg" ? "text-down" : "text-accent"}`}>{m.text}</span>
           ))}</>
       ),
@@ -227,6 +230,7 @@ export default function BoxTabs({ data }: { data: Live }) {
   const ac = String(g.away_team_code ?? ""), hc = String(g.home_team_code ?? "");
   const awayColor = teamColor(ac), homeColor = teamColor(hc);
   const awayName = String(g.away_team_name ?? ""), homeName = String(g.home_team_name ?? "");
+  const showPostgameMarks = !data.live_snapshot || data.live_snapshot.phase === "final";
 
   const sp = useSearchParams();
   const defaultTab = (sp.get("tab") as "away" | "home" | "ana" | "umpire") || "away";
@@ -435,9 +439,9 @@ export default function BoxTabs({ data }: { data: Live }) {
       {(tab === "away" || tab === "home") && (
         <div className="space-y-4">
           <BattingTable rows={side(tab === "away" ? "1" : "2", data.batting)} avgMap={data.batter_avg}
-            posBy={derived.posBy} />
+            posBy={derived.posBy} showPostgameMarks={showPostgameMarks} />
           <PitchingTable rows={side(tab === "away" ? "1" : "2", data.pitching)} decisions={data.decisions ?? {}}
-            ballsBy={derived.ballsBy} paBy={derived.paBy} />
+            ballsBy={derived.ballsBy} paBy={derived.paBy} showPostgameMarks={showPostgameMarks} />
         </div>
       )}
 
@@ -475,7 +479,11 @@ export default function BoxTabs({ data }: { data: Live }) {
               </ResponsiveContainer>
             </ChartCard>
 
-            {data.has_tracking ? (
+            {data.live_snapshot && data.live_snapshot.phase !== "final" ? (
+              <div className="rounded-xl border border-dashed border-line bg-surface-2/50 px-4 py-3 text-xs text-muted">
+                {trackingPendingMessage(data.live_snapshot)}
+              </div>
+            ) : data.has_tracking ? (
               <ChartCard title="擊球落點" note="InPlay 擊球・依結果著色">
                 <div className="mb-2 flex gap-1 px-1">
                   {(["1", "2"] as const).map((s) => (
@@ -581,6 +589,8 @@ export default function BoxTabs({ data }: { data: Live }) {
                     </div>
                   </div>
                 </Card>
+              ) : data.live_snapshot && data.live_snapshot.phase !== "final" ? (
+                <EmptyState>{trackingPendingMessage(data.live_snapshot)}</EmptyState>
               ) : data.has_tracking ? (
                 <EmptyState>本場逐球追蹤尚未包含好壞球判決資料（可能延遲發布）。</EmptyState>
               ) : (

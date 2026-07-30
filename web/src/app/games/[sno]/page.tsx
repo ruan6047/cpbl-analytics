@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { detail, type StatRow } from "@/lib/client";
 import { fmtIPParts } from "@/lib/format";
 import GameBoard, { type Live } from "@/components/game-board";
@@ -15,6 +15,17 @@ import { resolvePregameCard, type PregameCardModel } from "@/lib/pregame-card";
 import { GameOverview, type DecItem } from "./overview";
 import { methodologyHref } from "@/lib/methodology-anchors";
 import { StartingLineups } from "@/components/starting-lineups";
+import { LiveGameLineups } from "@/components/live-game-lineups";
+import {
+  applyLiveSnapshot,
+  canShowPostgameConclusions,
+  isTopHalf,
+  nextPollDelay,
+  phaseLabel,
+  resolveStatusSnapshot,
+  shouldFetchLivePayload,
+  type LiveSnapshot,
+} from "@/lib/live-game";
 
 const n = (v: number | string | null) => (v === null || v === undefined ? "" : Number(v));
 
@@ -27,6 +38,8 @@ export default function GameLivePage() {
   const year = sp.get("year") ? Number(sp.get("year")) : undefined;
   const [data, setData] = useState<Live | null>(null);
   const [err, setErr] = useState(false);
+  const [refreshIssue, setRefreshIssue] = useState<"network" | "source" | null>(null);
+  const snapshotRef = useRef<LiveSnapshot | null>(null);
   const [idx, setIdx] = useState(0);
   // 頁面預設「比賽總覽」；逐打席為進階操作視圖
   const [view, setView] = useState<"overview" | "pbp">("overview");
@@ -35,37 +48,106 @@ export default function GameLivePage() {
   const [milestones, setMilestones] = useState<{ player: string; text: string }[]>([]);
 
   useEffect(() => {
-    detail.gameLive(Number(sno), kind, year)
-      .then((d) => {
-        const dd = d as Live;
-        setData(dd);
-        setIdx(Math.max(0, dd.livelog.length - 1)); // 逐打席視圖預設停在終局
-        // 未開賽（無逐打席）→ 固定語意的賽前勝率，不再使用可選特徵對戰 API。
-        if (!dd.livelog.length && dd.game) {
-          const game = dd.game;
-          detail.pregame()
-            .then((response) => setPregame(resolvePregameCard({
-              response,
-              game: {
-                season: Number(game.year),
-                game_sno: Number(game.game_sno),
-                kind_code: String(game.kind_code),
-              },
-            })))
-            .catch(() => setPregame(resolvePregameCard({
-              response: null,
-              fetchFailed: true,
-              game: {
-                season: Number(game.year),
-                game_sno: Number(game.game_sno),
-                kind_code: String(game.kind_code),
-              },
-            })));
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let hasData = false;
+
+    const clearTimer = () => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+    };
+
+    const loadFull = async () => {
+      const raw = await detail.gameLive(Number(sno), kind, year);
+      if (disposed) return;
+      const next = applyLiveSnapshot(raw);
+      const dd = next as unknown as Live;
+      const nextSnapshot = next.live_snapshot;
+      snapshotRef.current = nextSnapshot;
+      setRefreshIssue(nextSnapshot?.source_status === "error" ? "source" : null);
+      setData((previous) => {
+        const previousLength = previous?.livelog.length ?? 0;
+        setIdx((current) => previous === null || current >= Math.max(0, previousLength - 1)
+          ? Math.max(0, dd.livelog.length - 1)
+          : current);
+        return dd;
+      });
+      hasData = true;
+
+      // 未開賽（無逐打席）→ 固定語意的賽前勝率，不再使用可選特徵對戰 API。
+      if (!dd.livelog.length && dd.game) {
+        const game = dd.game;
+        detail.pregame()
+          .then((response) => setPregame(resolvePregameCard({
+            response,
+            game: {
+              season: Number(game.year),
+              game_sno: Number(game.game_sno),
+              kind_code: String(game.kind_code),
+            },
+          })))
+          .catch(() => setPregame(resolvePregameCard({
+            response: null,
+            fetchFailed: true,
+            game: {
+              season: Number(game.year),
+              game_sno: Number(game.game_sno),
+              kind_code: String(game.kind_code),
+            },
+          })));
+      }
+    };
+
+    const schedule = () => {
+      clearTimer();
+      const delay = nextPollDelay(snapshotRef.current, document.visibilityState === "visible");
+      if (delay !== null) timer = setTimeout(() => void refresh(false), delay);
+    };
+
+    const refresh = async (initial: boolean) => {
+      clearTimer();
+      if (document.visibilityState !== "visible") return;
+      try {
+        if (initial) {
+          await loadFull();
+        } else {
+          const status = await detail.gameStatus(Number(sno), kind, year);
+          if (disposed) return;
+          const previous = snapshotRef.current;
+          const resolved = resolveStatusSnapshot(previous, status.live_snapshot);
+          setRefreshIssue(resolved.interrupted ? "source" : null);
+          if (!resolved.accepted) return;
+          snapshotRef.current = resolved.snapshot;
+          if (shouldFetchLivePayload(previous, resolved.snapshot)) {
+            await loadFull();
+          } else {
+            setData((current) => current ? ({ ...current, live_snapshot: resolved.snapshot } as Live) : current);
+          }
         }
-      })
-      .catch(() => setErr(true));
+      } catch {
+        if (!disposed) {
+          if (hasData) setRefreshIssue("network");
+          else setErr(true);
+        }
+      } finally {
+        if (!disposed) schedule();
+      }
+    };
+
+    const onVisibilityChange = () => {
+      clearTimer();
+      if (document.visibilityState === "visible") void refresh(false);
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    void refresh(true);
+
     detail.winprob(Number(sno), kind, year).then((d) => setWp(d.items)).catch(() => setWp([]));
     detail.milestones(Number(sno), kind, year).then((d) => setMilestones(d.items)).catch(() => setMilestones([]));
+    return () => {
+      disposed = true;
+      clearTimer();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [sno, kind, year]);
 
   // 總覽點關鍵時刻/得分時刻/勝率曲線 → 跳到該打席（切逐打席視圖 + 捲到操作區）
@@ -92,6 +174,8 @@ export default function GameLivePage() {
   if (!data.game) return <EmptyState>查無此場比賽。</EmptyState>;
 
   const g = data.game;
+  const liveSnapshot = (data as Live & { live_snapshot?: LiveSnapshot | null }).live_snapshot ?? null;
+  const liveInterrupted = refreshIssue !== null || liveSnapshot?.freshness === "stale";
 
   // 本場焦點（門檻原則＝一季只會出現幾次才配當焦點）：
   // 賽事級（再見/逆轉/延長/和局/合力完封）→ 打者 → 投手 → 球速（≥155 才顯示）。
@@ -102,7 +186,7 @@ export default function GameLivePage() {
   const H = (text: string, team: string | null = null) => highlights.push({ text, team });
   const hs = n(g.home_score) as number;
   const aw = n(g.away_score) as number;
-  const completed = hs + aw > 0;
+  const completed = canShowPostgameConclusions(liveSnapshot, hs + aw);
   if (completed) {
     // 再見（主隊勝且全場最後一個得分事件在主隊末攻）：從末得分事件的 action_name 定名
     if (hs > aw) {
@@ -454,15 +538,20 @@ export default function GameLivePage() {
     .filter((r) => (n(r.gw_rbi) as number) > 0)
     .map((r) => String(r.hitter_name ?? ""))
     .filter(Boolean).join("、");
-  const decisionItems: DecItem[] = ([
+  const starterItems: DecItem[] = ([
     { label: "先發(客)", value: ppl[String(g.away_starter_id)], pid: String(g.away_starter_id ?? "") },
     { label: "先發(主)", value: ppl[String(g.home_starter_id)], pid: String(g.home_starter_id ?? "") },
+  ] as DecItem[]).filter((d) => d.value);
+  const resultItems: DecItem[] = ([
     { label: "勝投", value: ppl[String(g.winning_pitcher_id)], note: dc?.win ? `第${dc.win}勝` : undefined, pid: String(g.winning_pitcher_id ?? "") },
     { label: "敗投", value: ppl[String(g.losing_pitcher_id)], note: dc?.loss ? `第${dc.loss}敗` : undefined, pid: String(g.losing_pitcher_id ?? "") },
     { label: "救援", value: ppl[String(g.closer_id)], note: dc?.save ? `第${dc.save}救援` : undefined, pid: String(g.closer_id ?? "") },
     { label: "中繼", value: holdNames || undefined, note: holdNote },   // HLD 為官方 relief_point（中繼點）
     { label: "致勝打點", value: gwRbiNames || undefined },
   ] as DecItem[]).filter((d) => d.value);
+  const decisionItems = completed ? [...starterItems, ...resultItems] : starterItems;
+  const visibleHighlights = completed ? highlights : [];
+  const visibleMvp = completed ? mvp : null;
 
   // 賽事資訊（渲染於總覽右卡）：天氣/觀眾/時長併一列，裁判獨立一列
   const info: [string, React.ReactNode][] = [];
@@ -532,6 +621,33 @@ export default function GameLivePage() {
         )}
       </div>
 
+      {liveSnapshot && (
+        <div className="mt-2 flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-line bg-surface px-3 py-2 text-xs">
+          <span className={`font-semibold ${liveSnapshot.phase === "live" ? "text-accent" : "text-ink"}`}>
+            {liveSnapshot.phase === "live" && <span className="mr-1 inline-block h-2 w-2 rounded-full bg-accent" aria-hidden="true" />}
+            {phaseLabel(liveSnapshot.phase)}
+          </span>
+          <span className="text-muted">
+            {liveSnapshot.inning ? `${isTopHalf(liveSnapshot.half) ? "▲" : "▼"} ${liveSnapshot.inning} 局` : "等待賽況"}
+          </span>
+          <time className="ml-auto text-faint" dateTime={liveSnapshot.source.fetched_at ?? undefined}>
+            最後更新 {liveSnapshot.source.fetched_at
+              ? new Date(liveSnapshot.source.fetched_at).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+              : "—"}
+          </time>
+          <p className="sr-only" aria-live="polite" aria-atomic="true">
+            {phaseLabel(liveSnapshot.phase)}，{String(g.away_team_name)} {n(g.away_score)} 比 {n(g.home_score)} {String(g.home_team_name)}
+            {liveSnapshot.inning ? `，${isTopHalf(liveSnapshot.half) ? "上" : "下"}${liveSnapshot.inning}局` : ""}
+          </p>
+        </div>
+      )}
+
+      {liveInterrupted && (
+        <Notice className="mt-2" icon="⚠">
+          即時更新暫時中斷；畫面保留最後一次成功賽況，恢復連線後會自動續接。
+        </Notice>
+      )}
+
       {data.livelog.length > 0 ? (
         <section className="mb-8 mt-2 space-y-4">
           <GameBoard data={data} idx={idx} setIdx={setIdx} view={view} wp={wp ?? undefined}
@@ -542,9 +658,11 @@ export default function GameLivePage() {
                 homeName={String(g.home_team_name)} awayName={String(g.away_team_name)}
                 homeColor={teamColor(String(g.home_team_code ?? ""))}
                 awayColor={teamColor(String(g.away_team_code ?? ""))}
-                onJump={jumpToPa} highlights={highlights} milestones={milestoneItems} info={info}
-                mvp={mvp} decisions={decisionItems} />
-              <StartingLineups game={g} log={data.livelog} pitching={data.pitching} />
+                onJump={jumpToPa} highlights={visibleHighlights} milestones={milestoneItems} info={info}
+                mvp={visibleMvp} decisions={decisionItems} />
+              {liveSnapshot
+                ? <LiveGameLineups snapshot={liveSnapshot} />
+                : <StartingLineups game={g} log={data.livelog} pitching={data.pitching} />}
               <WinProbChart items={wp ?? []}
                 homeName={String(g.home_team_name)} awayName={String(g.away_team_name)}
                 homeColor={teamColor(String(g.home_team_code ?? ""))} onSelect={jumpToPa} />
@@ -563,7 +681,7 @@ export default function GameLivePage() {
             </>
           )}
         </section>
-      ) : ((n(g.home_score) as number) + (n(g.away_score) as number)) > 0 ? (
+      ) : completed ? (
         /* 已完賽但無逐打席（歷史場）：沿用比分標題 */
         <header className="mb-6 mt-2">
           <h1 className="text-2xl font-extrabold tracking-tight text-ink">
@@ -581,8 +699,12 @@ export default function GameLivePage() {
               {String(g.away_team_name)} <span className="mx-2 text-faint">@</span>
               {String(g.home_team_name)}
             </h1>
-            <p className="mt-1.5 text-sm text-muted">{String(g.game_date ?? "")}　賽事編號 {sno}　{String(g.venue ?? "")}　尚未開賽</p>
+            <p className="mt-1.5 text-sm text-muted">
+              {String(g.game_date ?? "")}　賽事編號 {sno}　{String(g.venue ?? "")}　
+              {liveSnapshot ? phaseLabel(liveSnapshot.phase) : "尚未開賽"}
+            </p>
           </header>
+          {liveSnapshot && <LiveGameLineups snapshot={liveSnapshot} />}
           {pregame && <PregameCard model={pregame} homeName={String(g.home_team_name)} />}
         </div>
       )}
@@ -593,7 +715,7 @@ export default function GameLivePage() {
       )}
 
       {/* 決勝資訊已併入總覽焦點卡；僅歷史無逐打席場次（無總覽）時在此顯示 */}
-      {data.livelog.length === 0 && (decisionItems.length > 0 || mvp) && (
+      {completed && data.livelog.length === 0 && (decisionItems.length > 0 || visibleMvp) && (
         <Card padding="px-4 py-3" className="mb-6 flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
           {decisionItems.map((d) => (
             <span key={d.label}><span className="text-muted">{d.label}</span>{" "}

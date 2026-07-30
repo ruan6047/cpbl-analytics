@@ -4,6 +4,7 @@ import { LevelYearNav } from "@/components/level-year-nav";
 import { NavBarRow, StickyNavBar } from "@/components/sticky-nav-bar";
 import { api, type CalendarGame } from "@/lib/api";
 import { contrastText, teamColor, teamFullName } from "@/lib/teams";
+import { LiveCalendarGame } from "@/components/live-calendar-game";
 
 export const dynamic = "force-dynamic";
 
@@ -167,7 +168,9 @@ export default async function GamesPage({
                     const body = (
                       <>
                         {POST_LABEL[g.kind_code] && <div className="mb-0.5 text-center text-[8px] font-bold leading-none text-accent">{POST_LABEL[g.kind_code]}</div>}
-                        <div className="flex items-center justify-between gap-1 leading-none">
+                        {isCurrent && c.key === todayStr ? (
+                          <LiveCalendarGame game={g} variant="compact" />
+                        ) : <div className="flex items-center justify-between gap-1 leading-none">
                           <span className="flex items-center gap-1">
                             <TeamLogo code={g.away_team_code} name={g.away_team_name} size={20} />
                             {done && <span className={`text-base tabular-nums ${awayWin ? "font-bold text-accent" : "text-muted"}`}>{g.away_score}</span>}
@@ -180,7 +183,7 @@ export default async function GamesPage({
                             {done && <span className={`text-base tabular-nums ${homeWin ? "font-bold text-accent" : "text-muted"}`}>{g.home_score}</span>}
                             <TeamLogo code={g.home_team_code} name={g.home_team_name} size={20} />
                           </span>
-                        </div>
+                        </div>}
                         {info && <div className="mt-1 truncate text-center text-[9px] leading-none text-faint">{info}</div>}
                       </>
                     );
@@ -216,7 +219,9 @@ export default async function GamesPage({
                 const info = done
                   ? (g.mvp ? `⭐ MVP: ${g.mvp}` : g.win_pitcher ? `勝投: ${g.win_pitcher}` : "")
                   : (g.away_starter || g.home_starter ? `先發: ${g.away_starter ?? "未定"} vs ${g.home_starter ?? "未定"}` : (g.venue ?? ""));
-                const body = (
+                const body = isCurrent && c.key === todayStr ? (
+                  <LiveCalendarGame game={g} variant="mobile" />
+                ) : (
                   <div className="flex flex-col gap-2 p-3 bg-surface-2/30 rounded-lg">
                     <div className="flex items-center justify-between">
                       <span className="flex max-w-fit items-center gap-1.5 leading-none">
