@@ -85,6 +85,25 @@ export const canShowPostgameConclusions = (
   scoreTotal: number,
 ): boolean => scoreTotal > 0 && (snapshot === null || snapshot.phase === "final");
 
+/** 局數是否為真值。worker 對未開打場次仍回 `inning=1／half=1` 佔位（生產實測
+ *  SCHEDULED 場 inning=1、event_count=0；FINISHED 場 inning=9、half=2 為真值），
+ *  故不可只判 `inning` truthy，否則未開賽會顯示「▲ 1 局」。判準＝比賽確實打過：
+ *  live／final 一律成立，其餘 phase（保留賽等可能已打數局）改以 event_count 認定。 */
+export const hasStartedPlay = (snapshot: LiveSnapshot): boolean =>
+  snapshot.phase === "live" || snapshot.phase === "final" || snapshot.event_count > 0;
+
+/** 狀態列與 aria-live 共用的局數文案；未開打回 null 讓呼叫端顯示「等待賽況」。 */
+export const inningLabel = (
+  snapshot: LiveSnapshot,
+  style: "glyph" | "text",
+): string | null => {
+  if (!hasStartedPlay(snapshot) || !snapshot.inning) return null;
+  const top = isTopHalf(snapshot.half);
+  return style === "glyph"
+    ? `${top ? "▲" : "▼"} ${snapshot.inning} 局`
+    : `${top ? "上" : "下"}${snapshot.inning}局`;
+};
+
 export function resolveStatusSnapshot(previous: LiveSnapshot | null, incoming: LiveSnapshot | null) {
   if (!incoming) return { accepted: false, interrupted: true, snapshot: previous };
   return {
