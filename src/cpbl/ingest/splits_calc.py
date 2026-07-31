@@ -26,6 +26,7 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from cpbl.db import conn
 from cpbl.imports import classify
+from cpbl.ingest.splits_pa_merge import merge_plan
 
 _RBI = re.compile(r"(\d+)分打點")
 
@@ -317,7 +318,12 @@ def calc_t2(year: int, kind: str, bat_cut: dict[str, date],
 
     pa_seq: dict[tuple, int] = {}  # (game_sno, vht) → 該隊已完成 PA 數（打序重建用）
 
-    def flush(island: list, score_before: tuple[int, int]) -> None:
+    # INGEST-SPLITS-RECALC1：canonical 合併邊界（代打誤切重複計數修正，
+    # 判準＝pa-build-1.3.0；只合併 legacy 去向 counted 的 83 缺陷邊界）
+    merges, merge_info = merge_plan(year, kind, PA_OUTCOME)
+
+    def flush(island: list, score_before: tuple[int, int],
+              info: dict | None = None) -> None:
         first = island[0]
         outcome = next((r[11] for r in reversed(island) if r[11]), None)
         diag["islands"] += 1
@@ -341,6 +347,9 @@ def calc_t2(year: int, kind: str, bat_cut: dict[str, date],
         # 會以同打者掛在島尾，其 out_cnt/壘包已含打席後變化，不可作為情境
         last = island[lp]
         sno, inning, vh, hitter = first[0], last[1], str(first[2]), first[4]
+        if info and info["charged_hitter"]:
+            # 合併島（代打誤切）：打者歸屬依規則 9.15(b)＝canonical charged_hitter
+            hitter = info["charged_hitter"]
         pitcher, outs = last[5], last[7]
         b1, b2, b3 = last[8], last[9], last[10]
         # 打序：livelog batting_order 是「該半局第幾位」非打序；打擊為嚴格輪轉，
@@ -401,17 +410,36 @@ def calc_t2(year: int, kind: str, bat_cut: dict[str, date],
                 cnt["fly_outs"] += delta.get("fo", 0)
 
         # ── 投手側（vh 反轉視角）──
-        if not _cut(pit_cut, pitcher, gd):
-            p_my, p_opp = opp_sc, my_sc
-            p_score = ("比分領先" if p_my > p_opp
-                       else "比分落後" if p_my < p_opp else "相同比分")
+        # 合併島（代打誤切）：投球數逐列依實際投手保留（不整島搬給錨定投手），
+        # 打席結果記責任投手（末球錨定＋9.16(h)(1) 四壞例外）；未合併島維持原語意
+        if info:
+            pitch_by: dict[str, list[int]] = {}
+            for rr in island:
+                if rr[12] or rr[13]:
+                    d = pitch_by.setdefault(rr[5], [0, 0])
+                    if rr[12]:
+                        d[0] += 1
+                    if rr[13]:
+                        d[1] += 1
+            resp = info["responsible_pitcher"] or pitcher
+            pitch_by.setdefault(resp, [0, 0])
+        else:
+            pitch_by = {pitcher: [strikes, balls]}
+            resp = pitcher
+        p_my, p_opp = opp_sc, my_sc
+        p_score = ("比分領先" if p_my > p_opp
+                   else "比分落後" if p_my < p_opp else "相同比分")
+        for p_acnt, (p_str, p_ball) in pitch_by.items():
+            if _cut(pit_cut, p_acnt, gd):
+                continue
+            _pb2, p_thr, _pc2 = bio.get(p_acnt, ("", "", ""))
             pbuckets: list[tuple[str, str]] = [
                 ("5", BASE_NAMES[bases]),
                 ("6", OUT_NAMES.get(outs, "二出局")),
                 ("7", INNING_NAMES.get(inning, "")),
                 ("8", p_score),
             ]
-            side = _batter_side(h_bats, p_throws)
+            side = _batter_side(h_bats, p_thr)
             if side:
                 pbuckets.append(("3", f"VS. {side}"))
             else:
@@ -420,25 +448,27 @@ def calc_t2(year: int, kind: str, bat_cut: dict[str, date],
                 pbuckets.append(("3", "VS. 本土打者" if _is_local(hitter, h_country)
                                  else "VS. 外籍打者"))
             for grp, item in pbuckets:
-                cnt = pit.setdefault((pitcher, grp, item), Counter())
-                for k, v in delta.items():
-                    if k in _PIT_COLS:
-                        cnt[_PIT_COLS[k]] += v
-                cnt["pitch_cnt"] += strikes + balls
-                cnt["strikes"] += strikes
-                cnt["balls"] += balls
+                cnt = pit.setdefault((p_acnt, grp, item), Counter())
+                if p_acnt == resp:
+                    for k, v in delta.items():
+                        if k in _PIT_COLS:
+                            cnt[_PIT_COLS[k]] += v
+                cnt["pitch_cnt"] += p_str + p_ball
+                cnt["strikes"] += p_str
+                cnt["balls"] += p_ball
 
     cur_game = None
     running = (0, 0)
     score_before = (0, 0)
     island: list = []
+    cur_info: dict | None = None
     ikey = None
     for r in rows:
         sno, inning, vh, _, hitter = r[0], r[1], r[2], r[3], r[4]
         if sno != cur_game:
             if island:
-                flush(island, score_before)
-            cur_game, running, island, ikey = sno, (0, 0), [], None
+                flush(island, score_before, cur_info)
+            cur_game, running, island, ikey, cur_info = sno, (0, 0), [], None, None
         if not hitter:
             # 特殊事件列（突破僵局上壘/更替等）：不切打席界，只推進比分
             v_sc, h_sc = r[14], r[15]
@@ -447,15 +477,20 @@ def calc_t2(year: int, kind: str, bat_cut: dict[str, date],
             continue
         key = (inning, vh, hitter)
         if key != ikey:
-            if island:
-                flush(island, score_before)
-            island, ikey, score_before = [], key, running
+            if island and (sno, r[3]) in merges:
+                # 缺陷邊界（代打誤切）：不切界，沿用前島與其 score_before
+                cur_info = merge_info[(sno, r[3])]
+                ikey = key
+            else:
+                if island:
+                    flush(island, score_before, cur_info)
+                island, ikey, score_before, cur_info = [], key, running, None
         island.append(r)
         v_sc, h_sc = r[14], r[15]
         if v_sc is not None and h_sc is not None:
             running = (v_sc, h_sc)
     if island:
-        flush(island, score_before)
+        flush(island, score_before, cur_info)
     return bat, pit, bat_gofo, diag
 
 
