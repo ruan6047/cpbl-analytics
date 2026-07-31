@@ -27,7 +27,7 @@
 | [ML-PA-SIM-TEAM1](tasks/ML-PA-SIM-TEAM1.md) | — | T4 | 打席模擬對某一隊 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-25T19:07:00+08:00 |
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:09+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:10+08:00 |
-| [OPS-BACKUP-EMPTY1](tasks/OPS-BACKUP-EMPTY1.md) | — | T3 | 生產每日備份長期產出空檔 | ruan6047（merge gate；代行 merge 須需求方授權） | `ai/opus-5/OPS-BACKUP-EMPTY1 @ .claude/worktrees/ops-backup-empty1-execution` | 0 | ✅可合併 | ✅已驗證 | 2026-08-01T02:00:21+08:00 |
+| [OPS-BACKUP-EMPTY1](tasks/OPS-BACKUP-EMPTY1.md) | — | T3 | 生產每日備份長期產出空檔 | —（本卡可結案） | `—（分支與 worktree 皆已清理）` | 0 | 📦已合併 | ✅已驗證 | 2026-08-01T02:03:09+08:00 |
 | [OPS-LIVE-SHADOW1](tasks/OPS-LIVE-SHADOW1.md) | — | T4 | VPS 隔離 live source observer | ruan6047（7/30 evidence 對帳／撤除待辦） | `ai/codex/OPS-LIVE-SHADOW1 @ .claude/worktrees/ops-live-shadow1-execution（保留至 evidence 對帳／撤除後結案）` | 1 | 📦已合併 | ✅已驗證 | 2026-07-26T23:11:01+08:00 |
 | [OPS-REMOTE-CUTOVER1](tasks/OPS-REMOTE-CUTOVER1.md) | INIT-PRODUCT-UX | T4 | 遠端 crawler production canary 與切換 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:40+08:00 |
 | [OPS-REMOTE-PROBE1](tasks/OPS-REMOTE-PROBE1.md) | INIT-PRODUCT-UX | T3 | Opt-in DEBUG 網路探測介面 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:37+08:00 |
