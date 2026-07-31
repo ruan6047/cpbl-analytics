@@ -304,7 +304,7 @@ def test_sync_sql_error_propagates_to_daily_failed_phase(tmp_path: Path) -> None
         "scrape-daily.sh",
         "refresh_status.py",
         "refresh-cpbl-prod.sh",
-        "backup-cpbl-prod.sh",
+        "backup-prod-db.sh",
         "verify_refresh_info.py",
     ):
         shutil.copy2(ROOT / "scripts" / script_name, scripts / script_name)
@@ -326,7 +326,10 @@ fi
         fake_bin / "ssh",
         """#!/bin/bash
 if [[ "$*" == *"pg_dump"* ]]; then
+  # 假 dump 需含 CREATE TABLE，否則會被 backup-prod-db.sh 的內容門檻擋在備份階段
+  # （exit 66），本測試就走不到它要驗的 sync SQL 錯誤傳遞。
   echo 'CREATE SCHEMA cpbl;'
+  echo 'CREATE TABLE cpbl.games (id integer);'
   exit 0
 fi
 if [[ "$*" == *"--single-transaction"* ]]; then
@@ -353,6 +356,11 @@ exit 0
             "REFRESH_LOCK_DIR": str(tmp_path / "refresh.lock"),
             "REFRESH_TRIGGER": "manual",
             "BACKUP_DIR": str(tmp_path / "backups"),
+            # 本測試驗的是 SQL 錯誤沿著 sync 相傳遞（exit 42），不是備份內容門檻。
+            # 假 dump 只有幾行，會撞到 backup-prod-db.sh 的正式門檻（90 表／100 MB）
+            # 而在備份階段就以 65 中止，測試永遠走不到要驗的地方。
+            "BACKUP_MIN_TABLES": "1",
+            "BACKUP_MIN_BYTES": "1",
             "SYNC_PROD": "1",
         }
     )

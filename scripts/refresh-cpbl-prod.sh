@@ -112,8 +112,8 @@ if [ -z "$EXPECTED_LAST_GAME_DATE" ] || ! [[ "$EXPECTED_COMPLETED" =~ ^[0-9]+$ ]
   exit 65
 fi
 
-echo "==> 2/4 備份 production cpbl schema"
-BACKUP_PATH="$(VPS="$VPS" DEPLOY_PATH="$DEPLOY_PATH" "$REPO_DIR/scripts/backup-cpbl-prod.sh")"
+echo "==> 2/4 備份 production 資料庫（整庫：cpbl ＋ 主站 public）"
+BACKUP_PATH="$(VPS="$VPS" DEPLOY_PATH="$DEPLOY_PATH" "$REPO_DIR/scripts/backup-prod-db.sh")"
 echo "    ✓ 已驗證備份：${BACKUP_PATH}"
 
 echo "==> 3/4 套用 prod migration + 非破壞性 upsert 同步"
