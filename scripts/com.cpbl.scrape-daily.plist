@@ -23,6 +23,16 @@
   <dict>
     <key>PATH</key><string>/Users/ruanruan/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>REFRESH_TRIGGER</key><string>launchd</string>
+    <!-- ⚠️ 暫時（2026-07-31 起）：只跑本機爬取、跳過生產同步。
+         原因：INGEST-SPLITS-RECALC1 merge（46aed5e）後主 checkout 已帶修正碼，
+         refresh-cpbl-prod.sh 的 sync_table batting_splits／pitching_splits 會把重算後的
+         splits 自動推上生產，繞過該卡 Phase P 的「先自建並驗證生產備份再重建」紅線
+         （OPS-BACKUP-EMPTY1 未修，生產每日備份全 0-byte）。
+         本機爬取必須繼續跑：INGEST-GAME-TM-REFACTOR1 的 14 天觀測窗（07-24 起，約 08-07 收窗）
+         以本機 cpbl.pitch_tracking 為比對基準，停掉會讓 local_lag 從「時間差」變成永久差異，
+         Gate 4 條件 2 直接作廢。
+         **Phase P 完成後移除本項**，恢復完整每日同步。 -->
+    <key>SYNC_PROD</key><string>0</string>
   </dict>
   <key>StartCalendarInterval</key>
   <dict>
