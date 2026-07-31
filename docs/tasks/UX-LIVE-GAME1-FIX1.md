@@ -1,6 +1,7 @@
 # UX-LIVE-GAME1-FIX1 未開賽不得顯示局數〔T2；⚪使用者可見文案〕
 
 - 需求：ruan6047　規劃／執行：Claude Opus 5@Claude Code　查核：須跨模型家族且 ≠ 執行
+- review_independence: [cross_family]
 - 父卡：`UX-LIVE-GAME1`　spec 基線：`LIVE_GAME_PRODUCT_SPEC v1.1`（沿用父卡）
 - DB：`db_scope: none`　部署：是（純前端，隨 submodule bump）
 - Design Gate：N/A；不新增介面或狀態，只收斂既有狀態列的局數顯示條件
