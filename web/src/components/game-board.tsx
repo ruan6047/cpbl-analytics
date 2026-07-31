@@ -7,6 +7,7 @@ import { ENTITY_LINK, ENTITY_LINK_TEXT, TeamLogo } from "@/components/ui";
 import { isCurrentTeam, teamColor, teamPageCode } from "@/lib/teams";
 import { PITCH_CALL, PA_KIND } from "@/lib/chart-theme";
 import type { WpPoint } from "@/components/win-prob-chart";
+import { canShowPostgameConclusions, trackingPendingMessage, type LiveSnapshot } from "@/lib/live-game";
 
 type Rec = { w: number; l: number; form: string };
 export type TrackRow = {
@@ -34,6 +35,7 @@ export type Live = {
   has_tracking: boolean;
   tracking: TrackRow[];
   spray?: { hitter_acnt: string; dir: number; dist: number; ev: number | null; la: number | null; result: string }[];
+  live_snapshot?: LiveSnapshot | null;
 };
 
 const occupied = (v: StatRow[string]) => v !== null && v !== undefined && String(v) !== "";
@@ -267,8 +269,9 @@ function buildHalves(log: StatRow[]): Half[] {
 }
 
 // 逐局比分 = 局數導覽：每局格子可點（客列=上半、主列=下半）
-function ScoreLine({ sb, game, halves, curKey, onSelect }: {
-  sb: StatRow[]; game: StatRow; halves: Half[]; curKey: string; onSelect: (h: Half) => void;
+function ScoreLine({ sb, game, snapshot, halves, curKey, onSelect }: {
+  sb: StatRow[]; game: StatRow; snapshot: LiveSnapshot | null;
+  halves: Half[]; curKey: string; onSelect: (h: Half) => void;
 }) {
   const away = sb.filter((r) => String(r.visiting_home_type) === "1");
   const home = sb.filter((r) => String(r.visiting_home_type) === "2");
@@ -279,7 +282,8 @@ function ScoreLine({ sb, game, halves, curKey, onSelect }: {
   // 主隊末局 Ｘ：主隊獲勝時，末局若未打（領先免打）標「Ｘ」，若打了（再見得分）標「{分}Ｘ」。僅主列(half 2)末局。
   // 「有無打末局」以 livelog 半局為準——scoreboard 對未打局仍有 phantom 0 列，不可信；無 livelog(歷史場)則不套用。
   const maxInn = innings.length ? innings[innings.length - 1] : 0;
-  const homeWon = (num(game.home_score) + num(game.away_score)) > 0 && num(game.home_score) > num(game.away_score);
+  const homeWon = canShowPostgameConclusions(snapshot, num(game.home_score) + num(game.away_score))
+    && num(game.home_score) > num(game.away_score);
   const homeBattedFinal = halfBy.has(`${maxInn}|2`);
   const cellNode = (rows: StatRow[], inn: number, half: string) => {
     const base = String(cellScore(rows, inn));
@@ -297,7 +301,11 @@ function ScoreLine({ sb, game, halves, curKey, onSelect }: {
       : text;
   };
 
-  const row = (label: StatRow[string], code: string, rows: StatRow[], half: string, score: number) => (
+  const row = (label: StatRow[string], code: string, rows: StatRow[], half: string, score: number) => {
+    const prefix = half === "1" ? "away" : "home";
+    const hits = snapshot ? num(game[`${prefix}_hits`]) : tot(rows, "hitting_cnt");
+    const errors = snapshot ? num(game[`${prefix}_errors`]) : tot(rows, "error_cnt");
+    return (
     <tr className="border-t border-line">
       <td className="whitespace-nowrap px-3 py-2 font-sans font-medium">{teamCell(label, code)}</td>
       {innings.map((inn) => {
@@ -318,10 +326,11 @@ function ScoreLine({ sb, game, halves, curKey, onSelect }: {
         );
       })}
       <td className="px-2.5 py-1.5 text-center font-semibold text-accent">{score}</td>
-      <td className="px-2.5 py-1.5 text-center text-muted">{tot(rows, "hitting_cnt")}</td>
-      <td className="px-2.5 py-1.5 text-center text-muted">{tot(rows, "error_cnt")}</td>
+      <td className="px-2.5 py-1.5 text-center text-muted">{hits}</td>
+      <td className="px-2.5 py-1.5 text-center text-muted">{errors}</td>
     </tr>
-  );
+    );
+  };
 
   return (
     <div className="overflow-x-auto rounded-xl border border-line bg-surface">
@@ -611,7 +620,7 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
     <div className="space-y-4">
       <ScoreBar game={game} e={e} records={data.records} />
 
-      <ScoreLine sb={data.scoreboard} game={game}
+      <ScoreLine sb={data.scoreboard} game={game} snapshot={data.live_snapshot ?? null}
         halves={halves} curKey={curKey} onSelect={(h) => selectIdx(h.firstIdx)} />
 
       {view === "pbp" && (
@@ -631,7 +640,11 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
           )}
           <Matchup e={e} game={game} batterAvg={data.batter_avg} uniforms={uniforms} pcount={pcount}
             pstats={pstats} batterToday={batterToday} onJump={selectIdx} />
-          {data.has_tracking ? (
+          {data.live_snapshot && data.live_snapshot.phase !== "final" ? (
+            <div className="rounded-xl border border-dashed border-line bg-surface-2/50 px-4 py-3 text-xs text-muted">
+              {trackingPendingMessage(data.live_snapshot)}
+            </div>
+          ) : data.has_tracking ? (
             paPitches.length > 0 ? (
               <StrikeZone pitches={paPitches} />
             ) : (
@@ -641,7 +654,7 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
             )
           ) : (
             <div className="rounded-xl border border-dashed border-line bg-surface-2/50 px-4 py-3 text-xs text-muted">
-              本場未提供逐球追蹤資料（該球場未設置 TrackMan 設備），因此無進壘點、球種與球速。
+              本場尚無可顯示的逐球追蹤資料，因此暫不呈現好球帶、球種與球速。
             </div>
           )}
         </div>

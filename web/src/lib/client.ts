@@ -1,4 +1,5 @@
 import type { PregameResponse } from "./pregame-card";
+import type { GameStatusResponse, LiveApiResponse } from "./live-game";
 
 // 瀏覽器端 API base。prod 同源(經 nginx)→ 可留空走相對路徑；dev 指向 FastAPI。
 export const CLIENT_API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4001";
@@ -265,14 +266,9 @@ export const detail = {
       `/api/v1/players/${id}/arsenal?role=${role}`,
     ),
   gameLive: (sno: number, kind = "A", year?: number) =>
-    clientGet<{
-      game: StatRow | null; scoreboard: StatRow[]; livelog: StatRow[];
-      batting: StatRow[]; pitching: StatRow[]; people: Record<string, string>;
-      records: Record<string, { w: number; l: number; form: string }>;
-      batter_avg: Record<string, number>;
-      detail: StatRow | null;
-      has_tracking: boolean;
-    }>(`/api/v1/games/${sno}/live?kind_code=${kind}${year ? `&season=${year}` : ""}`),
+    clientGet<LiveApiResponse>(`/api/v1/games/${sno}/live?kind_code=${kind}${year ? `&season=${year}` : ""}`),
+  gameStatus: (sno: number, kind = "A", year?: number) =>
+    clientGet<GameStatusResponse>(`/api/v1/games/${sno}/status?kind_code=${kind}${year ? `&season=${year}` : ""}`),
   // 全聯盟本季母體（算百分位 PR 用）
   leaders: (role: "batting" | "pitching") =>
     clientGet<{ items: StatRow[] }>(
