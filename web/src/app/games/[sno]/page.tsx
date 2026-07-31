@@ -19,7 +19,7 @@ import { LiveGameLineups } from "@/components/live-game-lineups";
 import {
   applyLiveSnapshot,
   canShowPostgameConclusions,
-  isTopHalf,
+  inningLabel,
   nextPollDelay,
   phaseLabel,
   resolveStatusSnapshot,
@@ -628,7 +628,7 @@ export default function GameLivePage() {
             {phaseLabel(liveSnapshot.phase)}
           </span>
           <span className="text-muted">
-            {liveSnapshot.inning ? `${isTopHalf(liveSnapshot.half) ? "▲" : "▼"} ${liveSnapshot.inning} 局` : "等待賽況"}
+            {inningLabel(liveSnapshot, "glyph") ?? "等待賽況"}
           </span>
           <time className="ml-auto text-faint" dateTime={liveSnapshot.source.fetched_at ?? undefined}>
             最後更新 {liveSnapshot.source.fetched_at
@@ -637,7 +637,7 @@ export default function GameLivePage() {
           </time>
           <p className="sr-only" aria-live="polite" aria-atomic="true">
             {phaseLabel(liveSnapshot.phase)}，{String(g.away_team_name)} {n(g.away_score)} 比 {n(g.home_score)} {String(g.home_team_name)}
-            {liveSnapshot.inning ? `，${isTopHalf(liveSnapshot.half) ? "上" : "下"}${liveSnapshot.inning}局` : ""}
+            {inningLabel(liveSnapshot, "text") ? `，${inningLabel(liveSnapshot, "text")}` : ""}
           </p>
         </div>
       )}

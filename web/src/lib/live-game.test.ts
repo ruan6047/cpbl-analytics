@@ -4,6 +4,8 @@ import { test } from "node:test";
 import {
   applyLiveSnapshot,
   canShowPostgameConclusions,
+  hasStartedPlay,
+  inningLabel,
   isTopHalf,
   lineupMessage,
   nextPollDelay,
@@ -143,6 +145,39 @@ test("stale 或 source error 仍保留 last-known-good 事件", () => {
   assert.equal(out.livelog.length, 2);
   assert.equal(out.live_snapshot?.freshness, "stale");
   assert.equal(out.live_snapshot?.source_status, "error");
+});
+
+// 生產實測（2026-07-31）：worker 對 SCHEDULED 場回 inning=1／half=1／event_count=0 佔位，
+// 對 FINISHED 場回 inning=9／half=2 真值。只判 inning truthy 會讓未開賽顯示「▲ 1 局」。
+test("未開打場次不顯示局數，即使 worker 回 inning=1 佔位", () => {
+  const pre = { inning: 1, half: "1", event_count: 0 } as const;
+  for (const phase of ["scheduled", "probable_announced", "lineup_announced"] as const) {
+    const s = snapshot({ phase, raw_status: "SCHEDULED", ...pre });
+    assert.equal(hasStartedPlay(s), false, `${phase} 不應視為已開打`);
+    assert.equal(inningLabel(s, "glyph"), null, `${phase} 不應顯示局數`);
+    assert.equal(inningLabel(s, "text"), null, `${phase} 不應播報局數`);
+  }
+});
+
+test("已開打場次照常顯示局數；上下半局對應 worker 的 1/2", () => {
+  const live = snapshot({ phase: "live", inning: 4, half: "1", event_count: 12 });
+  assert.equal(hasStartedPlay(live), true);
+  assert.equal(inningLabel(live, "glyph"), "▲ 4 局");
+  assert.equal(inningLabel(live, "text"), "上4局");
+
+  const final = snapshot({ phase: "final", inning: 9, half: "2", event_count: 355 });
+  assert.equal(inningLabel(final, "glyph"), "▼ 9 局");
+  assert.equal(inningLabel(final, "text"), "下9局");
+});
+
+test("保留賽等非 live/final phase 以 event_count 認定是否已開打", () => {
+  const played = snapshot({ phase: "reserved", inning: 5, half: "2", event_count: 180 });
+  assert.equal(hasStartedPlay(played), true);
+  assert.equal(inningLabel(played, "glyph"), "▼ 5 局");
+
+  const rainedOut = snapshot({ phase: "postponed", inning: 1, half: "1", event_count: 0 });
+  assert.equal(hasStartedPlay(rainedOut), false);
+  assert.equal(inningLabel(rainedOut, "glyph"), null);
 });
 
 test("兩隊 lineup 可各自 partial，stale/error 不偽裝成未公布", () => {
