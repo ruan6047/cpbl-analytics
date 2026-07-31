@@ -8,6 +8,7 @@
 
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
+| [DEV-REVIEW-DEACCEPT-TRAIL1](tasks/DEV-REVIEW-DEACCEPT-TRAIL1.md) | — | T3 | plain-review 翻案缺 correction 留痕（WF21-R-13） | —（未認領） | — | 0 | 📥Backlog | —不適用 | 2026-07-31T10:41:30+08:00 |
 | [DEV-VERIFY-TM-ASSERTS1](tasks/DEV-VERIFY-TM-ASSERTS1.md) | — | T2 | TM 回填驗證腳本補上真正的斷言 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-29T12:14:00+08:00 |
 | [DOC-CARD-SPEC-RULES1](tasks/DOC-CARD-SPEC-RULES1.md) | — | T3 | 卡面規格三條規則（輸入空間／性質而非示範／同病自檢） | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-29T21:34:32+08:00 |
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | — | `ai/sonnet-5/INGEST-GAME-TM-REFACTOR1-g3 @ .claude/worktrees/ingest-game-tm-refactor1-g3-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-24T12:53:42+08:00 |
