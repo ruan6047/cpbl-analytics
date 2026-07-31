@@ -802,11 +802,21 @@ def build_prompt(card_id: str) -> str:
 
 ### 產出格式
 
-回覆 **APPROVE 或 REJECT**，附 findings 清單（每條含 severity／證據／建議處置）
-與你實際重跑的指令與輸出摘要。依本專案慣例：**APPROVE（零阻塞 findings）後
-Coordinator 將直接 merge** 並將結果回傳執行者，部署與後續另由需求方確認；
-REJECT 則退回原執行者於原分支修正（iteration+1）。你的結論將由需求方轉錄為
-review event（source_sha={ev.get('source_sha', '?')[:7]}）留痕。
+先分類再給結論：若是卡面／baseline／SHA／依賴／必要證據等送審前條件不成立，
+回覆 **PREFLIGHT_FAILED**（外部等待改回 **BLOCKED**），不得用 REQUEST_CHANGES；
+若查核順序、artifact、環境或獨立性使本次查核不成立，回覆 **REVIEW_INVALID**。
+只有 preflight 通過且查核有效時，才回覆 **APPROVE 或 REQUEST_CHANGES**。
+
+APPROVE／REQUEST_CHANGES 必須附結構化 findings；每條含
+`finding_id`、`severity`、`blocking`、`finding_class`、`attribution`、
+`root_cause_id`、`evidence`、`disposition`。`accepted`、`status` 與
+`counts_toward_escalation` 由 lifecycle writer 依 canonical `review-escalation.md`
+及可重現證據裁定，reviewer 不得用自由文字自行宣告。另附你實際重跑的指令與輸出摘要。
+
+依本專案慣例：**APPROVE（零未閉合 blocking findings）後 Coordinator 將直接 merge**
+並將結果回傳執行者，部署與後續另由需求方確認；REQUEST_CHANGES 才會退回原執行者
+於原分支修正並增加 iteration。你的結論將由需求方轉錄為 event
+（source_sha={ev.get('source_sha', '?')[:7]}）留痕。
 """
 
 
