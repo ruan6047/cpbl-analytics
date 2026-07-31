@@ -1,13 +1,14 @@
-# DEV-REVIEW-GATE-DECLARE1 Discovery：把獨立性宣告升級成 Review Gate
+# DEV-REVIEW-PREFLIGHT-GATE1 Discovery：把前置查核關卡變成機器可讀的 preflight 宣告
 
-> 卡片：[`../tasks/DEV-REVIEW-GATE-DECLARE1.md`](../tasks/DEV-REVIEW-GATE-DECLARE1.md)　規劃：Claude Fable 5@Claude Code　日期：2026-07-31
+> 卡片：[`../tasks/DEV-REVIEW-PREFLIGHT-GATE1.md`](../tasks/DEV-REVIEW-PREFLIGHT-GATE1.md)　規劃：Claude Fable 5@Claude Code　日期：2026-07-31
 > 承接 [`DEV-REVIEW-INDEP-FIELD1-discovery.md`](DEV-REVIEW-INDEP-FIELD1-discovery.md)（🏁完成，iteration 1 已通過查核）。
 > **Q1／Q3 沿用前份答案；Q2／Q4 由需求方 2026-07-31 重新裁定（見四），取代前份答案。**
-> 本文記五件事：(一) 對前份與本次需求前提的**逐項核對**；(二) gate 模型新引入的五個問題；
-> (三) 可重現盤點（iteration 2：含分類與計數）；(四) 需求方裁定；(五) 待驗證假設。
 > 基線：工作樹原為 main `063d12d`，2026-07-31 稽核時 fast-forward 至 `37431a0`
-> （WF-21 審核契約採用後）；盤點另附 `81bcd4d` 的對照。契約 v0.3 ＋ §9 衝突稽核。
-> 🚧 **本 Discovery 的設計結論在 v0.4 對齊 WF-21 前不得據以開卡**，逐項見契約 §9。
+> （WF-21 審核契約採用後）；盤點另附 `81bcd4d` 的對照。**契約以 v1.0 為準。**
+>
+> ⚠️ **§一–§六 是路線改寫「之前」的紀錄，刻意保留不刪。** 2026-07-31 對抗式質詢後改採
+> 「前置關卡＝preflight 條件」，`gate_id`／gate 狀態機／`review-correction` 全部不再需要。
+> **轉折理由、哪些結論作廢、哪些仍然成立 → §七；改寫後的待驗證假設 → §八。**
 
 ## 一、前提核對（先修正，再往下走）
 
@@ -212,7 +213,7 @@ cutover 前的事件不回填、不改寫；Initiative 若不直接交付查核�
 這個數字必然是 100%；不是就代表有人繞過 preflight 手寫事件——那是**早期訊號**，
 不必等半年後才發現又是死欄位。
 
-## 六、待驗證假設
+## 六、待驗證假設（路線改寫前，部分已被 §八 取代）
 
 - 信號證明的是「**至少**這些張」。iteration 1 說「已知四種語彙、不能排除第五種」，
   iteration 2 **就找到了第五種**（`## Plan Gate` 章節，整張 `OPS-LIVE-SHADOW1` 因此曾在
@@ -230,3 +231,61 @@ cutover 前的事件不回填、不改寫；Initiative 若不直接交付查核�
   表達不了 `OPS-LIVE-SHADOW1` 這種卡。契約 §5.3 因此把 `plan`／`design` 納入慣用 `gate_id`。
   **未驗證的是回填成本**：14 張中多數已封存（不動），活卡那幾張仍須逐張裁定。
 - 快照會讓 handoff 事件變大（每輪多一個小陣列）。887 筆事件的規模下不成問題，未量測。
+
+## 七、路線轉折：從「gate 狀態機」到「preflight 條件」（2026-07-31）
+
+### 觸發
+
+開卡前的 WF-21 稽核發現整份規劃建立在過期基準（`063d12d`）上：`origin/main` 已到 `37431a0`，
+WF-21 當日 10:41 全鏈落地。逐項比對後有四項衝突（契約 §9 表格），其中兩項是**寫下去就會被
+`workflow_ledger.py --check` 擋掉**的硬衝突。
+
+### 真正的分岔點
+
+稽核時讀到 canonical 的一句話推翻了整個設計前提：**WF-21 的 preflight 必驗項已經包含
+「規定在跨家族查核前完成的人工檢查」**。也就是說 canonical 已經替「前置關卡」選好了位置——
+它是 **preflight 條件**，不是一次 review。
+
+我原本的設計把前置關卡做成 review 事件（帶 `gate_id` 推進的狀態機），那是在跟 canonical
+搶同一件事的定義權。改採 preflight 之後：
+
+- `gate_id`、`gate_result`、gate 狀態機、`review-correction` 撞名 → **全部不必存在**。
+- 兩個實測重現的 bug（終局 REJECT 可被更正重開、REJECT 被標成「已通過的中繼關卡」）→
+  **隨 `closes_review_round` 一起移除而消失，不需要修**。
+- 原本要拆的兩張卡 → **合成一張**，因為「守衛狀態機 vs 卡面宣告」那個切面消失了。
+
+### 哪些結論作廢、哪些仍然成立
+
+**作廢**：G1（`gate_id` 為什麼非要不可）、G3（跨輪繼承／`satisfied_by`）、G4（第二意見怎麼
+歸類）——這三題都預設「關卡是 review 事件」，前提沒了，題目也沒了。G4 的實質答案由 WF-21 的
+attempt 模型（同 SHA 多 reviewer 合併為一次）承接。
+
+**仍然成立**：
+- **§一的六項前提核對**（含「premise 5 不成立、真正的缺口是 `corrects_event_id` 跨輪型別」
+  與「premise 6 描述的是已修正的 iteration 0」）。
+- **G2（卡面會被就地改寫）** ——這是快照存在的理由，換成 preflight 之後仍然成立，只是快照的
+  內容從「gate 序列」變成「前置關卡與其結果」。
+- **G5（關卡不一定發生在某一輪之內）** ——處置從「`satisfied_by` 跨輪繼承」改成「Plan 本身就是
+  一次交付，先寫 handoff 再送查核」，修流程不修 schema。
+- **§三的盤點**（三型分類、五種語式、9 張指定卡的逐張結果）完全不受影響，只是用途改了：
+  它現在是 preflight 缺欄時的**提示**來源，不再是設計論證的唯一依據。
+- **§四的 Q2／Q4 裁定**（遷移策略、保證邊界五條）原封不動，只是「缺欄 fail」的把關者
+  從虛構的 `review_gate_preflight.py` 換成 `review_prompt.py --preflight`。
+
+### 這次踩到的兩個坑（不抹掉）
+
+1. **記憶說 WF-21 已上線，我卻因為工作樹讀不到那些檔案而當成「還沒發生」。** 正確反應是先
+   懷疑基準過期，而不是懷疑記憶。已寫成記憶 [[plan-against-fresh-origin-main]]。
+2. **iteration 2 初稿把 G5 當成「`satisfied_by` 非做不可」的證據**，那是推論太快——那兩種
+   形態要的是「查核必須有一輪可依附」這條流程規則，不是一個讓關卡跨輪飄移的欄位。
+
+## 八、待驗證假設（路線改寫後）
+
+- **`review_preflight_gates` 會不會又變成沒人填的死欄位**：`closes_review_round` 全庫用過 0 次
+  是前車之鑑。本次的差別是 `--check` 會在 replay 時擋（事件是人手寫的，工具擋不住手寫），
+  但那要等 cutover 後第一個月的追蹤才知道（契約 §8）。
+- **「缺欄 fail」的回填成本未實測**：活卡 30 張中多數要補一行 `[]`，14 張宣告過 Design／Plan
+  Gate 的卡多在封存區（不動），但活卡那幾張仍須需求方逐張裁定。
+- **盤點證明的是「至少」**：已知六種語式（iteration 1 說五種、iteration 2 就找到第六種），
+  不能排除第七種。任何回填都須逐張確認，不得把腳本輸出當完整宣稱。
+- **分類本身是自由文字判讀**，本次即自我修正兩處；它只用於提示，已在腳本三處寫明不得被判定消費。

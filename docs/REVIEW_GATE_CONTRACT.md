@@ -1,125 +1,91 @@
-# Review Gate 契約（草案 v0.3，**未生效**；**v0.4 對齊前不得開卡**）
+# Review Preflight Gate 契約（草案 v1.0，**未生效**）
 
-> 🚧 **阻塞：與已生效的 WF-21 審核契約有硬衝突，見 §9。** v0.1–v0.3 是在過期基準
-> （`063d12d`）上寫的；`origin/main` 已推進到 `37431a0`，WF-21 於 2026-07-31 10:41 全鏈落地
-> （`contract_baseline: review-escalation-v1`），`workflow_ledger.py` 多了 409 行 fail-loud
-> 契約驗證。§3.3 的 `review-correction` 與 §3.2 的 `gate_result`／`review_result` 定位
-> **會被驗證器擋下或與 canonical 相反**。**兩張卡在 v0.4 對齊前不得 register。**
+> **狀態：草案，等 `DEV-REVIEW-PREFLIGHT-GATE1` 執行並通過查核後生效。**
+> 本檔是該卡的 **spec 基線 v1.0**；合併後 §2–§5 併入
+> [`CONTROL_PLANE_CONTRACT.md`](CONTROL_PLANE_CONTRACT.md) 與 [`TEMPLATES.md`](TEMPLATES.md)，
+> 本檔降為歷史紀錄。
 >
-> **狀態：草案。** `scripts/review_prompt.py` 目前仍走 `closes_review_round` 舊路徑。
-> 本檔是 `DEV-REVIEW-GATE-CONTRACT1` 與 `DEV-REVIEW-GATE-DECLARE1` 的 **spec 基線 v0.3**；
-> 兩卡合併後 §2–§5 併入 [`CONTROL_PLANE_CONTRACT.md`](CONTROL_PLANE_CONTRACT.md) 與
-> [`TEMPLATES.md`](TEMPLATES.md)，本檔降為歷史紀錄。
+> **v1.0 是路線改寫，不是版本遞增。** v0.1–v0.3 設計的是「review 事件帶 `gate_id` 的 gate
+> 狀態機」，那份設計建立在過期基準上，與 2026-07-31 生效的 WF-21 審核契約硬衝突（稽核逐項見
+> §9）。需求方 2026-07-31 對抗式質詢後改採**前置關卡＝preflight 條件**：canonical 已經替這件
+> 事選好路，我們補的是它沒定義的那一半。連帶效果是 `gate_id`、`gate_result`、gate 狀態機、
+> `review-correction` 撞名**全部不必存在**。
 >
-> **v0.3 變更（2026-07-31，需求方採納規劃者對五項未決的建議）**：
-> **移除 `satisfied_by`**（跨輪繼承不做，一輪內的 gate 必須在該輪內完成，§3.1）、
-> Plan Gate 改為**先寫 handoff 再送查核**（修流程不修 schema，§5.3）、
-> **merge 順序對調為 CONTRACT1 → DECLARE1**（legacy 相容讓守衛可先無害落地，無空窗，§7）、
-> 第二意見維持可推翻、`review_result` 不結構化、卡 ID 用後繼卡；
-> 新增 release 後追蹤指標（§8）。
->
-> **v0.2 變更（2026-07-31 需求方對 Q2／Q4 裁定）**：遷移策略改為 cutover ＋ preflight
-> 強制（§5）、保證邊界五條（§2.1，自由文字**不再**是流程依據）、`review_gates: []`
-> 取得語意、盤點升級為分類與計數並新增兩種語式（§6）。
->
-> 前身：`DEV-REVIEW-PROMPT-GATE1`（`closes_review_round`，已合併 `9177ee8`）
-> 與 `DEV-REVIEW-INDEP-FIELD1`（卡面 `review_independence`，已合併）。
+> 前身：`DEV-REVIEW-PROMPT-GATE1`（`closes_review_round`，`9177ee8`）、
+> `DEV-REVIEW-INDEP-FIELD1`（卡面 `review_independence`，`c29657b`），兩張皆 🏁完成。
 
-## §1 問題：兩個來源各自宣告「有幾關、跑到哪一關」
+## §1 問題：canonical 要求了一件事，卻沒有人能機器可讀地宣告它
 
-前身兩卡各自正確，合起來是雙重狀態來源。`DEV-REVIEW-INDEP-FIELD1` 的 Discovery 提的
-「切開維度」（卡面＝應然、event log＝實然、互不為事實來源）沒有解決下面五件事：
+WF-21 把 canonical 的流程改成 `執行與自測 → {Review preflight} → 獨立查核`，preflight 的必驗項
+**明文包含**「Gate／依賴狀態」與「規定在跨家族查核前完成的**人工檢查**」。
 
-**（一）`closes_review_round` 是布林，承載不了「是哪一關」。** 三關的卡，工具只知道
-「還沒結束」，不知道下一位查核者該查哪一關，也察覺不到第二關被跳過。
+**但 canonical 沒有定義那些人工檢查要怎麼被宣告。** 現況它們散在四種互不相交的中文語式裡
+（§6 盤點）：正文順序語式、〈Design〉欄、`## Plan Gate` 章節標題，以及**根本沒寫在該寫的地方**
+——`UX-TEAM-STYLE1` 的〈查核〉欄只寫「≠ 執行；T3 一般查核」，完全看不出它的驗證段要求先人工審。
+preflight 要驗這一項，只剩下讀中文一途，而**從中文自由文字推流程門檻已被連續三輪打穿**
+（`DEV-REVIEW-PROMPT-GUARD1`：否定句、引文、條件句、詞邊界）。
 
-**（二）終局 REJECT 可被一筆追加事件重新開啟，且被錯標為「已通過的中繼關卡」。**
-2026-07-31 直接呼叫 `_assert_no_review_supersedes_handoff()` 實測：
+四件已證實的事實構成本契約的必要性：
 
-```
-守衛結果：放行，回傳 gates = [('C-REVIEW-002', 'REJECT（3 blocking）'), ...]
-### 本輪已通過的中繼關卡（**不代表本輪查核已結束**）
-#### 跨家族查核者
-- 結論：REJECT（3 blocking）
-```
+**（一）要求本身會從卡面消失。** `UX-LIVE-GAME1` 的〈Design〉欄在 2026-07-30 從「Design Gate 待
+需求方核可」被就地改寫成「2026-07-30 需求方核可 live-only v1」。盤點腳本在 `81bcd4d` 命中它、
+在 `37431a0` 不命中，差異就是這一張。**只要要求只活在卡面，歷史就會被日後的編輯重新解釋**
+——所以送審那一刻必須快照。
 
-一筆 REJECT 被印在「**已通過**的中繼關卡」標題下，還附「不要重開已定案的爭點」。
+**（二）同一張卡的兩處要求會互相矛盾。** `UX-TEAM-HOTZONE1`、`UX-TEAM-RECORDS1` 的〈查核〉欄
+寫「跨模型家族或人工」，正文卻寫「交 AI 查核」（§6 信號 F）。沒有結構化欄位時，preflight 要
+驗哪一個是無解的。
 
-**（三）「多關卡」與「同一關的第二意見複審」在現行 schema 裡長得一模一樣。**
-盤點（§6）分出來：同輪多關卡 6 張、同輪第二意見 1 張——**分辨的唯一依據是 actor 的中文**，
-那正是 `GUARD1` 三輪被打穿的路線。
+**（三）三種前置關卡流程在現實中都存在，且不是同一種**：human → cross-family（3 張）、
+human → 一般 AI（3 張）、Plan／Design Gate → implementation（14 張）。把它們寫成同一種，
+就是把「需求方親自審過」和「另一個 AI 看過」混為一談。
 
-**（四）結論欄位的值域不一致（v0.3 修正，原文寫「沒有機器可讀來源」是錯的）。**
-WF-21 baseline（2026-07-31 10:41）**之後**的 review 結論必為 `APPROVE`／`REQUEST_CHANGES`
-且由 `workflow_ledger.py` 強制；**之前**的 172 筆 review 裡 95 筆帶 `verdict`，值域卻有七種
-（`APPROVE`／`REJECT`／`REQUEST_CHANGES`／`✅通過`／`APPROVE_WITH_FINDINGS`／`RETURN`／
-`REQUEST_CHANGES_ESCALATED`），另 76 筆完全沒有；`review_result` 只有 65 筆有值。
-`delivery_status` 又同時被拿來記別的東西。所以問題是**baseline 前的值域不一致**，
-不是「沒有來源」——這一點影響 §3.2 的設計，見 §9.1（二）。
+**（四）前一版的機制從來沒被用過。** `closes_review_round`／`corrects_event_id` 在全庫
+892 筆事件裡使用次數是 **0**，而它們帶著兩個實測可重現的缺陷（終局 REJECT 可被一筆指名它的
+更正重開；重開後那筆 REJECT 會被印在「已通過的中繼關卡」標題下）。**移除比修好。**
 
-**（五）關卡不一定發生在某一輪之內。** 盤點新查出兩種形態：`OPS-LIVE-SHADOW1` 的
-Plan Gate 發生在**第一次 handoff 之前**（3 張）；另有 **7 張卡從未寫過任何 handoff 事件**
-卻有 review。兩者在 snapshot 模型下都**無處可掛快照**，必須在契約裡明講怎麼處理（§5.3）。
+## §2 卡面宣告
 
-結論：需要的不是第三個布林，而是**一個有序、有 id、有結果的 gate 模型**，且同一份 gate
-定義同時被卡面（宣告）與 event log（進度）使用。
-
-## §2 卡面宣告：`review_gates`
+### 2.1 `review_preflight_gates`（新欄位）
 
 卡面 header（第一個 `## ` 標題之前）**獨立一行**：
 
 ```
-- review_gates: [design=human, final=cross_family_or_human]
-- review_gates: [final=cross_family]     # 單一關卡
-- review_gates: []                       # 本卡不直接交付查核（Initiative 專用，見 §5.2）
+- review_preflight_gates: [design=human]                      # 送審前需求方人工審
+- review_preflight_gates: [plan=cross_family]                  # 送審前跨家族 Plan Gate
+- review_preflight_gates: [design=human, data=cross_family]    # 兩道，依序
+- review_preflight_gates: []                                   # 沒有前置關卡（必須明寫）
 ```
 
-- **有序清單**，順序即關卡先後；長度即關卡數。元素格式 `gate_id=requirement`。
-- `gate_id`：`^[a-z][a-z0-9_]{0,23}$`，卡內唯一，**穩定**——一經任何一輪 handoff 快照即
-  不得改名、不得改語意；要換語意就換新 `gate_id`。慣用值 `plan`（Plan Gate）、
-  `design`（Design Gate／需求方本地人工審）、`final`（終局查核）、`data`（資料紅線複核）。
-- `requirement` 值域四值：`context`（新 context／session，不得為執行者本人）、
-  `cross_family`（跨模型家族）、`cross_family_or_human`（二擇一）、`human`（需求方人工，
-  不得由 AI 代理）。**「兩者皆須」寫成兩個 gate**；「兩者皆須但不限順序」不支援。
-- **`ai` 不是值域的一員**，但盤點顯示現實有「先人工審再交**一般 AI** 查核」的卡
-  （§6：3 張，且其中 2 張的〈查核〉欄同時寫著「跨模型家族或人工」——互相矛盾）。
-  這類卡回填時必須由需求方裁定要哪一個，**不得由工具或執行者代選**；若確實只要求
-  「≠ 執行者的新 session」，正確的值是 `context`。
-- 寫壞（非清單／`gate_id` 重複或不合 pattern／`requirement` 不在值域／同卡多行）
-  一律 **fail loud**。
-- 舊欄名 `review_independence`：遷移期同時接受，單元素等價 `[final=<value>]`；
-  多元素者 fail loud 要求改寫（現況 0 張）。現存使用者 3 張。
+- **有序清單**，順序即先後；元素格式 `gate_id=requirement`。
+- `gate_id`：`^[a-z][a-z0-9_]{0,23}$`，卡內唯一，**穩定**——一經快照即不得改名或改語意；
+  要換語意就換新 id。慣用值 `plan`、`design`、`data`。
+- `requirement` 值域沿用 `review_independence` 的四值：`context`、`cross_family`、
+  `cross_family_or_human`、`human`。「兩者皆須」寫成兩個 gate。
+- **`[]` 是顯式宣告「本卡沒有前置關卡」**，與缺欄不同（§5.2）。
+- 寫壞（非清單／`gate_id` 重複或不合 pattern／`requirement` 不在值域／同卡多行）一律 fail loud。
 
-### §2.1 保證邊界（2026-07-31 需求方裁定，Q4）
+### 2.2 `review_independence`（沿用，不動）
 
-1. **`review_gates` 是「本輪要求什麼」的權威來源。**
-2. **handoff snapshot 是該輪不可變的流程基線**（§3.1）。
-3. **review event 的 `gate_id` 是「完成哪一關」的留痕**（§3.2）。
-4. **工具不能可信驗證 reviewer 的真實模型家族或人類身分。** 它只顯示宣告值與 actor
-   字串，並**明講這是人工核對輔助，不宣稱已自動驗證身分**；不據此擋任何流程。
-5. **欄位與舊〈查核〉自由文字衝突時，以結構化欄位決定流程**；自由文字只作說明。
+`DEV-REVIEW-INDEP-FIELD1` 已上線的欄位維持原樣，表達**終局那一關**的查核者資格，
+現有 3 張卡不需遷移、不需改名。兩個欄位的分工是：
 
-> 第 5 條**推翻**了現行 `review_prompt.py` 輸出的「卡面〈查核〉欄原文（**以此為準**）」
-> 與「卡面若要求得比下限嚴……一律以卡面為準」。cutover 後那兩句必須改寫：
-> 〈查核〉欄仍**原文照登**（人可讀），但**不再是流程依據**。這是 v0.2 相對
-> `DEV-REVIEW-INDEP-FIELD1` 的**行為變更**，不是措辭調整。
+- `review_preflight_gates` ＝ **送審前必須先完成什麼**（preflight 驗，不通過就不派 reviewer）。
+- `review_independence` ＝ **誰有資格做終局查核**（提示詞照登，不擋流程）。
 
-### §2.2 Preflight（新增工具）
+### 2.3 保證邊界（2026-07-31 需求方裁定）
 
-`review_gates` 的驗證不能等到產生查核提示詞才做——那時 handoff 已經寫進 append-only
-log 了。新增 preflight：**寫 handoff event 之前**執行，驗卡面欄位合法、產生要寫進事件的
-snapshot、並在缺欄或寫壞時**擋下 handoff**。
+1. 兩個欄位是各自維度的**權威來源**；handoff 快照是該輪**不可變的流程基線**。
+2. **工具不能可信驗證 reviewer 的真實模型家族或人類身分。** 它只顯示宣告值與 actor 字串，
+   並明講這是**人工核對輔助，不宣稱已自動驗證身分**。
+3. **欄位與舊〈查核〉自由文字衝突時，以結構化欄位決定流程**；自由文字只作說明。
+   > 這推翻現行 `review_prompt.py` 輸出的「卡面〈查核〉欄原文（**以此為準**）」與「卡面若要求
+   > 得比下限嚴……一律以卡面為準」兩處措辭。〈查核〉欄仍原文照登（人可讀），但不再是流程依據。
+   > 這是**行為變更**，不是措辭調整。
 
-```bash
-uv run python scripts/review_gate_preflight.py <CARD_ID>     # 印出待寫入的 snapshot JSON
-uv run python scripts/review_gate_preflight.py <CARD_ID> --check   # 只驗證，非 0 即擋
-```
+## §3 Event schema（**不新增任何 event type**）
 
-Preflight 失敗時**不得退化為 tier 下限或自由文字人工猜測**（§5.1）。
-
-## §3 Event schema
-
-### 3.1 `handoff`：快照該輪的 gates
+### 3.1 `handoff`：快照本輪的前置關卡與其結果
 
 ```json
 {
@@ -128,341 +94,196 @@ Preflight 失敗時**不得退化為 tier 下限或自由文字人工猜測**（
   "type": "handoff",
   "state_version": 6,
   "source_sha": "…40 字元…",
-  "review_gates": [
-    {"gate_id": "design", "requirement": "human"},
-    {"gate_id": "final",  "requirement": "cross_family_or_human"}
+  "preflight_passed": true,
+  "preflight_gates": [
+    {"gate_id": "design", "requirement": "human",
+     "actor": "ruan6047", "occurred_at": "2026-07-29T18:09:35+08:00",
+     "decision": "approve",
+     "evidence": "本地環境人工審：每點 block→text-only 觀感確認"}
   ]
 }
 ```
 
-- 由 sender 在寫 handoff 時**從卡面快照**（經 §2.2 preflight 產生）。
-- **快照是該輪不可變的流程基線**：卡面日後被改都不重解已發生的輪次。這不是假想——
-  `UX-LIVE-GAME1` 的〈Design〉欄在 2026-07-30 從「Design Gate 待需求方核可」被就地改寫成
-  「2026-07-30 需求方核可 live-only v1」，**要求本身消失**（盤點在 `81bcd4d` 命中它、
-  在 HEAD 不命中，差異就是這一張）。
-- **一輪內的 gate 必須在該輪內完成；新 handoff 一律從第一關重來，不繼承任何已通過的
-  gate。** v0.2 曾設計 `satisfied_by` 讓 handoff 指名承接前一輪的 review，v0.3 移除它：
-  - 它唯一的支撐案例是 `UX-ENTITY-LINKS3`（人工審 → 新 handoff → 跨家族），而那個中間的
-    handoff 是 Coordinator 為了「轉交下一關」補的——**在 gate 模型裡關卡靠 `gate_id` 推進，
-    那個 handoff 根本不需要存在**。支撐案例在新模型下自己消失了。
-  - 另兩個曾被引為理由的形態（Plan Gate 型、孤兒 review）改由 §5.3 的流程規則處理。
-  - 它是全份契約最容易寫錯的欄位（要驗同卡、同 `gate_id`、`approve`、跨輪且不得回指
-    更早的輪次），為一個不存在的需求付這個複雜度不划算。
-  - **純新增欄位，日後真的再發生跨輪繼承時補上不需任何遷移**——現在不做不是關門。
-- 欄位缺席 → 該輪走 §5.4 legacy 解讀（僅限 cutover 前的 handoff）。
-- 快照與卡面當前值不一致時：**以快照為準**，提示詞並列印出、不擋、工具不仲裁。
+- 由 sender 在寫 handoff 時，以 `review_prompt.py --preflight` 產生（§7）。
+- 快照的來源是卡面 `review_preflight_gates`；**卡面日後被改不重解已發生的輪次**（§1（一））。
+- `decision` 只有 `approve`（未通過就不會有 handoff，見 3.2）。
+- `preflight_passed: true` 是 canonical `review-escalation.md` §5 對 preflight pass event 的要求。
+- **快照與卡面當前值不一致時以快照為準**，提示詞並列印出、不擋、工具不仲裁。
 
-### 3.2 `review`：記錄本次完成的 gate
+### 3.2 `preflight-failed`：前置關卡未過（WF-21 既有型別）
 
 ```json
 {
-  "event_id": "UX-X-REVIEW-007",
-  "type": "review",
-  "gate_id": "design",
-  "gate_result": "approve",
-  "review_result": "APPROVE（人工審／Design Gate 階段；跨家族查核尚未進行）"
+  "type": "preflight-failed",
+  "preflight_passed": false,
+  "failure_reasons": ["卡面 review_preflight_gates 缺欄", "design 關卡尚未完成"],
+  "preflight_gates": [
+    {"gate_id": "design", "requirement": "human", "decision": "request_changes",
+     "actor": "ruan6047", "occurred_at": "…", "evidence": "…"}
+  ]
 }
 ```
 
-- `gate_id` 必填（本輪 handoff 有快照時），**須存在於該輪快照**，否則 fail loud。
-- `gate_result` 必填，enum **只有** `approve` 與 `request_changes`。
-- `review_result` 維持自由文字，**只供人閱讀，不參與任何判定**。
-- **`closes_review_round` 廢止**；未來事件若仍帶該欄位 → fail loud 並指向本節。
+依 canonical：`preflight-failed` **不建立 review event、不派 reviewer、不遞增 iteration、
+不計 escalation**。前置人工關卡退回走這條路，而不是寫一筆 review。
 
-### 3.3 `review-correction`：更正錯誤事件的唯一路徑
+### 3.3 `review`：完全照 WF-21，本契約不加任何欄位
 
-```json
-{
-  "event_id": "UX-X-REVIEW-CORRECTION-009",
-  "type": "review-correction",
-  "corrects_event_id": "UX-X-REVIEW-007",
-  "corrected": {"gate_id": "final", "gate_result": "approve"},
-  "reason": "轉錄時誤植 gate_id，原文查核的是終局關卡",
-  "reopens_round": false
-}
-```
+review 事件的必填欄位（`attempt_id`／`escalation_epoch`／`preflight_passed`／
+`review_result` enum／結構化 findings／`counts_toward_escalation`）全部以 canonical
+[`review-escalation.md`](../.ai-workflow/templates/review-escalation.md) 為準。
+**本契約不碰 review 事件**，因此不會與 WF-21 的 attempt 模型（同 SHA 多 reviewer 合併為一次）
+產生任何交互。
 
-- 只能指向**同一輪**較早的 `review` 事件。
-- **一個 target 只能被更正一次**；correction 不得指向 correction。**這條消滅
-  latest-wins**——沒有「以最新一筆為準」，就沒有「再追加一筆就翻盤」。
-- correction **本身永不完成任何 gate**（型別不同，不進 gate 完成集合）。
-- `corrected` 帶新的 `gate_id`／`gate_result`，或 `{"voided": true}`（該筆作廢）。
-- **若更正會讓一輪從 `changes_requested` 變回 open，必須顯式帶 `reopens_round: true`
-  ＋ `reason`**；缺旗標 → fail loud。重開可以，但**不能是副作用**。
-- 提示詞須完整印出 correction 鏈；`gate_result: request_changes` 的事件
-  **永遠不得出現在「已通過的關卡」段落**。
+### 3.4 廢止欄位
 
-### 3.4 驗證範圍
+`closes_review_round` 與 review 事件上的 `corrects_event_id` **廢止並從程式移除**。
+baseline 後的 review 若仍帶這兩個欄位，`workflow_ledger.py --check` **fail loud** 並指向本節
+——寫的人以為自己表達了「這一輪還沒結束」而實際沒有，那種靜默就是這批卡一直在治的病。
+cutover 前的歷史不受影響（全庫使用次數為 0）。
 
-**最新 handoff 之後的每一筆 `review` 與 `review-correction` 逐筆驗證**型別、`gate_id` 是否
-在快照內、`gate_result` 是否在 enum、correction target 是否合法。較早的 malformed 事件
-不得被後續事件掩蓋。
+## §4 狀態轉移
 
-> 對照現況（2026-07-31 實測）：`closes_review_round` 的布林檢查**已經**涵蓋該卡每一筆
-> review（含前幾輪），這點現行實作正確；**未涵蓋的是 `corrects_event_id`**——上一輪一筆
-> `corrects_event_id: 99`（int）可完全不被檢查地通過。新契約一併蓋掉。
+| 現況 | 動作／事件 | 條件 | 結果 |
+|---|---|---|---|
+| 🔨執行中 | 跑 `--preflight` | 卡面缺 `review_preflight_gates` | **fail**，列出疑似前置關卡供需求方裁定（§5.2） |
+| 🔨執行中 | 跑 `--preflight` | 欄位寫壞（值域／pattern／重複／多行） | **fail loud**，不得當成缺席 |
+| 🔨執行中 | 跑 `--preflight` | 宣告 `[]`，其餘機械條件通過 | 產生空 `preflight_gates` 快照 → 可寫 handoff |
+| 🔨執行中 | 跑 `--preflight` | 有前置關卡且全部 `approve` | 產生快照 → 可寫 handoff |
+| 🔨執行中 | 跑 `--preflight` | 有前置關卡尚未完成／被退回 | 寫 `preflight-failed`；**留在 🔨執行中**，不派 reviewer、不遞增 iteration |
+| 🔨執行中 | 跑 `--preflight` | 外部條件未滿足（等 sign-off／上游卡／服務） | 依 canonical 改寫 `status-change` → `⏸阻塞`，非 preflight failure |
+| 🔍待查核 | `review` | — | 完全由 WF-21 attempt 模型接手，本契約不介入 |
+| 任意 | `review` 帶 `closes_review_round`／`corrects_event_id` | baseline 後 | **`--check` fail loud**（§3.4） |
+| 任意 | `handoff` 缺 `preflight_gates` | baseline 後 | **`--check` fail loud**（§5.1） |
+| 任意 | `handoff` 缺 `preflight_gates` | baseline 前 | 不驗，歷史原貌 |
 
-## §4 狀態轉移表
+## §5 Migration
 
-一「輪」＝ 一筆 `handoff` 起，至該輪終結或下一筆 `handoff` 止。狀態
-`open(pending=g)`／`passed`／`changes_requested`；`pending` 是快照順序中第一個尚未
-`approve` 的 gate。**新 handoff 一律重置為第一關**（§3.1：不繼承）。
+### 5.1 cutover marker
 
-| 現態 | 事件 | 條件 | 新態 | `review_prompt.py` 行為 |
-|---|---|---|---|---|
-| （無 handoff） | — | — | — | 拒絕：尚未交付查核 |
-| 任意 | `handoff`（帶快照） | preflight 通過 | `open(gates[0])` | 放行；印出全部 gate、標明 pending 是哪一關 |
-| 任意 | `handoff`（無快照） | cutover 前 | `open(legacy)` | 放行（§5.4） |
-| 任意 | `handoff`（無快照） | cutover 後 | — | **preflight 擋在寫入前**；事後遇到則 fail loud |
-| `open(g)` | `review(gate_id=g, approve)` | g 是 pending | 還有未完成 gate → `open(下一關)`；否則 `passed` | 放行並帶出已通過關卡；`passed` 則拒絕並指示接 merge／結案 |
-| `open(g)` | `review(gate_id=j, approve)` | j 已完成（第二意見） | 不變 | 放行；列為附加意見，不推進 |
-| `open(g)` | `review(gate_id=j, approve)` | j 在快照中但尚未輪到（跳關） | 不變 | **fail loud** |
-| `open(g)` | `review(任一快照內 gate, request_changes)` | — | `changes_requested` | 拒絕：退回原執行者，修正後補**新 handoff** |
-| 任意 | `review(gate_id 不在快照)` | — | — | **fail loud** |
-| 任意 | `review`（缺 `gate_id` 或 `gate_result`，該輪有快照） | — | — | **fail loud** |
-| `passed` ／ `changes_requested` | `review`（任何） | — | 不變 | **fail loud**：本輪已終結，普通 review 不得重開；要重來請補新 handoff |
-| 任意 | `review-correction`（同輪、合法、target 未被更正過） | — | 依更正後**重算整輪** | 依重算結果；完整印出 correction 鏈 |
-| `changes_requested` | `review-correction`（重算後變 open） | 缺 `reopens_round: true` | 不變 | **fail loud** |
-| `changes_requested` | `review-correction`（重算後變 open） | 帶 `reopens_round: true` ＋ `reason` | `open(…)` | 放行，**置頂**印出重開告示與原 REJECT 全文 |
-| 任意 | `review-correction`（跨輪／指向自己／指向 correction／target 已被更正／型別錯） | — | — | **fail loud** |
-| `open(legacy)` | `review`（任何） | legacy 輪 | `terminated(legacy)` | 拒絕——**與現行行為逐字相同** |
+以獨立的 one-shot 事件 `contract-baseline` 寫 `contract_baseline: review-gate-v1`。
+其**之後**的 handoff 必須帶合法 `preflight_gates`，否則 `workflow_ledger.py --check` fail loud；
+之前的事件不回填、不重新解讀。
 
-## §5 Migration（2026-07-31 需求方裁定，Q2）
+`workflow_ledger.py` 目前把 `REVIEW_CONTRACT` 寫死為單一常數，須擴充成**支援多個 baseline
+並存**（各自記錄啟用點）。canonical 的「marker 為 one-shot、再次出現必須 fail loud」是針對
+**同一個 baseline 名**，不同名的 baseline 並存不違反。
 
-### 5.1 cutover 與缺欄
+> **為什麼要驗到 ledger 這一層**：事件實際上是需求方**親手** append（分類器把寫
+> `events.jsonl` 當硬邊界，agent 繞不過），所以「工具擋在寫入前」只對走工具的人成立。
+> 唯一真正硬的保證是 replay 驗證。
 
-- **cutover ＝ `DEV-REVIEW-GATE-DECLARE1` 合併之日**，寫進契約與 `TEMPLATES.md`。
-- **新卡自 cutover 起強制填 `review_gates`。**
-- **活卡不做一次性全面回填**，但**在下一次 handoff 前必須補齊**，由 §2.2 preflight 驗證；
-  補什麼值**由需求方逐張裁定**，執行者與工具不得推定。
-- **cutover 後缺欄 → preflight fail，擋下 handoff。不得退化成 tier 下限，也不得回退成
-  自由文字人工猜測。**（這與 cutover 前的「明示缺欄＋tier 下限＋原文照登」不同：
-  cutover 前是**沒有欄位可讀**，cutover 後是**該填而沒填**。）
-- **封存卡與 cutover 前的事件不回填、不改寫。**
+### 5.2 缺欄與回填
 
-### 5.2 Initiative 與不直接交付查核的卡
+- **新卡自 cutover 起必填** `review_preflight_gates`（沒有前置關卡就寫 `[]`）。
+- **活卡不做一次性全面回填**，但**下一次 handoff 前必須補齊**，由 preflight 擋住。
+- **缺欄一律 fail**，不得退化成「所以沒有前置關卡」；**不得用缺欄暗示不需查核**。
+- fail 訊息**列出盤點腳本（§6）在該卡找到的疑似前置關卡**（〈Design〉欄、`## Plan Gate`
+  章節、正文順序語式），標明**這是提示、不是判定**，由需求方裁定後填。
+- 值**由需求方逐張裁定**，執行者與工具不得推定；語意不明或自我矛盾（§6 信號 F 的 2 張）
+  標為待裁定並暫不填。
+- **封存卡與 cutover 前的事件一律不動。**
 
-- Initiative 若不直接交付查核，**明示 `review_gates: []`**——空清單是**顯式宣告**
-  「本卡不直接交付查核」，不是「沒寫」。
-- **不得用缺欄暗示不需查核。** 缺欄一律 preflight fail。
-- 宣告 `[]` 的卡若真的出現 `handoff` 事件 → **preflight fail**：要交付查核就必須先宣告關卡。
-  （查證：全庫 `INIT-*` 的 review 事件為 0 筆，此路徑目前是防呆而非常態。）
+### 5.3 沒有 handoff 可依附的 review
 
-### 5.3 沒有 handoff 可掛快照的兩種歷史形態
+盤點查出 3 張卡的 review 早於第一次 handoff（Plan Gate 型），另有 7 張卡從未寫過任何 handoff
+卻有 review。**cutover 後不得再出現沒有對應 handoff 的 review**：Plan 本身就是一次交付
+（有卡面修訂當 `source_sha`、有 evidence、有查核者），先寫 handoff 再送查核。
+既有 10 張屬歷史，不回填、不改寫。
 
-盤點查出 **3 張**卡的 review 早於第一次 handoff（Plan Gate 型），另有 **7 張**卡
-**從未寫過任何 handoff 事件**卻有 review。cutover 後兩者用同一條規則處理，
-**修的是流程不是 schema**：
-
-- **查核必須有一輪可依附：cutover 後不得再出現沒有對應 handoff 的 review。**
-  preflight 與守衛都以此為前提。
-- **Plan Gate 是一次交付，就先寫 handoff 再送查核。** `OPS-LIVE-SHADOW1` 的 Plan Gate
-  在第一次 handoff 之前，成因是「Plan 不算交付」這個習慣，不是 schema 缺欄位——
-  Plan 有 `source_sha`（卡面修訂）、有 evidence、有查核者，它就是一次 handoff。
-  Plan Gate 這一關照樣進 `review_gates`（例 `[plan=cross_family, final=cross_family]`），
-  在它自己那一輪完成。
-- 既有 10 張屬歷史，**不回填、不改寫**。
-
-### 5.4 Legacy 解讀
-
-- handoff 無 `review_gates` 快照（僅限 cutover 前）→ 該輪視為**單一隱含關卡**，
-  **任一 review 事件即終結本輪**，拒絕訊息與現行**逐字相同**。
-- 既有事件中 `review_gates` 0 筆、`closes_review_round` **0 筆**、
-  `corrects_event_id` 3 筆（皆在 `correction` 型別事件上，非 review）——
-  **全庫 100% 走 legacy**，行為零變更，須由回歸腳本窮舉證明（§7）。
-  母體以執行當時的 `origin/main` 為準（`37431a0`：892 筆事件／121 張卡／172 筆 review；
-  v0.1–v0.3 引用的 887／119／171 是 `063d12d` 的數字，見 §9.4）。
-
-## §6 多關卡盤點（可重現，含分類與計數）
+## §6 多關卡盤點（可重現，用途改為 preflight 的缺欄提示）
 
 腳本 [`../scripts/review_gate_inventory.py`](../scripts/review_gate_inventory.py)，完整輸出
 [`discovery/review-gate-inventory-2026-07-31.md`](discovery/review-gate-inventory-2026-07-31.md)。
-應然信號 A（正文順序語式，含「交給誰」判別）、B（〈Design〉欄待跑 Gate）、
-**E（`## Plan Gate` 章節標題，iteration 1 沒有這個信號，整張 `OPS-LIVE-SHADOW1` 因此在
-視野外）**、D（結構化欄位長度 > 1）、**F（〈查核〉欄與正文互相矛盾）**；
-實然信號 C1（同輪多筆 review，再分多關卡／第二意見）、C2（跨輪不同性質關卡）、
-C3（handoff 之前的 review，再分 Plan Gate 型／孤兒 review）。
+應然信號 A（正文順序語式，含「交給誰」判別）、B（〈Design〉欄待跑 Gate）、E（`## Plan Gate`
+章節標題）、D（結構化欄位）、F（〈查核〉欄與正文矛盾）；實然信號 C1／C2／C3。
 
-HEAD（122 張卡、887 筆事件）：**命中 32 張，實質 30 張**。分類與計數：
+`37431a0`（123 張卡、892 筆事件、172 筆 review）：**命中 32 張，實質 30 張**。
 
-| 卡面宣告的關卡型態 | 張數 |
+| 卡面宣告的前置關卡型態 | 張數 |
 |---|---|
 | Plan／Design Gate → 實作查核 | 14 |
 | 人工審 → 跨家族查核 | 3（`UX-DESIGN-CONFORM1`、`UX-ENTITY-LINKS1`、`UX-ENTITY-LINKS2`） |
 | 人工審 → 一般 AI 查核（未要求跨家族） | 3（`UX-TEAM-HOTZONE1`、`UX-TEAM-RECORDS1`、`UX-TEAM-STYLE1`） |
 
-| event log 的實然型態 | 卡數 |
-|---|---|
-| 全卡沒有任何 handoff 事件，review 無所依附 | 7 |
-| 同輪多關卡（不同性質的查核者） | 6 |
-| 有 handoff 但 review 更早（Plan Gate 型） | 3 |
-| 同輪第二意見（同性質查核者再查一次） | 1 |
-| 跨輪不同性質關卡 | 1（`UX-ENTITY-LINKS3`） |
+**這三種不得被寫成同一種**；另有 2 張自我矛盾（信號 F），回填時必須由需求方裁定。
 
-**這三種流程不得被寫成同一種**：`human → cross_family`、`human → 一般 AI`、
-`plan → implementation` 的 requirement 與 `gate_id` 都不同。另有 **2 張卡自我矛盾**
-（信號 F：`UX-TEAM-HOTZONE1`、`UX-TEAM-RECORDS1` 的〈查核〉欄寫「跨模型家族或人工」、
-正文寫「交 AI 查核」）——回填時**必須由需求方裁定**，這正是 §2.1 第 5 條
-「欄位決定流程、自由文字只作說明」要處理的情形。
-
-**分類欄是建議，待人工確認**：它讀中文自由文字，**不得被守衛／preflight／gate 判定
-消費**。盤點的用途是把要求搬進結構化欄位，不是當判定依據。
+**分類是建議，待人工確認。** 它讀中文自由文字，**不得被 preflight 判定消費**——只能出現在
+§5.2 的 fail 訊息裡當提示。盤點的用途是把要求搬進結構化欄位，搬完之後對那張卡就沒有用了。
 
 ## §7 受影響檔案與測試計畫
 
-### 落地順序：CONTRACT1 → DECLARE1（v0.3 對調）
-
-**守衛先行、宣告在後**，理由是 legacy 相容讓第一步可以無害落地：
-
-- **CONTRACT1 先合併**：狀態機就位，但全庫沒有任何 snapshot，**100% 走 legacy → 行為零變更**
-  （窮舉回歸差異 0 就是它的驗收）。DECLARE1 一合併，snapshot 開始出現，狀態機**自動生效**，
-  中間**沒有空窗**。
-- 反過來（DECLARE1 先）會製造空窗：卡面與事件都已帶 gate，守衛卻仍用 `closes_review_round`
-  判定，多關卡的卡在空窗期照樣被誤擋——等於把現在這個 bug 多留一段時間。
-- CONTRACT1 **不依賴** DECLARE1 的產出，只依賴本檔的 schema 定義；它的測試用 fixture，
-  不需要真實卡片帶 snapshot。
-
 ### 受影響檔案
 
-`DEV-REVIEW-GATE-CONTRACT1`（第一步）：`scripts/review_prompt.py`
-（`_assert_no_review_supersedes_handoff()`／`_closes_review_round()` → `round_state()`；
-`review_gates_block()` 改吃 gate 狀態；`independence()` 改讀快照並標明 pending 關卡；
-**移除「以卡面〈查核〉欄為準」的兩處措辭**，改為 §2.1 第 5 條）、
-`tests/test_review_prompt.py`、`docs/CONTROL_PLANE_CONTRACT.md` 的事件欄位定義處。
-
-`DEV-REVIEW-GATE-DECLARE1`（第二步）：`docs/TEMPLATES.md`（`review_independence` 段改寫）、
-`docs/CONTROL_PLANE_CONTRACT.md`（`closes_review_round` 條目換成 gate 契約＋保證邊界）、
-`docs/HANDOFF_CONTRACT.md`（sender 快照責任、receiver 確認 pending gate）、
-**新增 `scripts/review_gate_preflight.py` ＋ `tests/test_review_gate_preflight.py`**、
-`scripts/review_gate_inventory.py` 納管＋測試、活卡按需回填。
+`scripts/review_prompt.py`：新增 `--preflight` 模式（驗卡面欄位＋既有的 SHA 同一性／分支／
+工作區檢查，輸出要寫進 handoff 的 `preflight_gates` JSON）；移除 `CLOSES_ROUND_FIELD`／
+`CORRECTS_FIELD` 與 `_assert_no_review_supersedes_handoff()` 的中繼關卡邏輯；
+`review_gates_block()` 改吃 handoff 快照；移除 §2.3 第 3 條指出的兩處措辭。
+`scripts/workflow_ledger.py`：多 baseline 支援＋handoff `preflight_gates` 驗證＋廢止欄位 fail loud。
+`tests/test_review_prompt.py`、`tests/test_workflow_ledger.py` 同步。
+文件：`docs/CONTROL_PLANE_CONTRACT.md`、`docs/TEMPLATES.md`、`docs/HANDOFF_CONTRACT.md`。
+`scripts/review_gate_inventory.py` 納管＋測試。活卡按需回填。
 
 ### 測試計畫（性質，不是示範）
 
-**gate 序列**：單 gate approve → `passed`；兩 gate 第一關 approve → 放行且 pending 指向
-第二關；第二關 approve → `passed`；**任一關 request_changes → 終結，後續普通 review 一律
-fail loud**（含「中繼關卡之後才出現終局 REJECT」與「終局 REJECT 之後追加任何 review」）。
+**preflight**：合法卡面產生正確快照；缺欄 fail 且**訊息不得提供任何 fallback**、但**必須**
+列出疑似前置關卡並標明是提示；`[]` 產生空快照且通過；欄位寫壞（值域外／pattern 不合／
+`gate_id` 重複／同卡多行）逐一 fail loud；前置關卡未完成 → 產生 `preflight-failed` 內容
+而非 handoff 快照；外部阻塞不得被歸成 preflight failure。
 
-**不繼承（v0.3）**：第一關 approve 之後出現新 handoff → **pending 回到第一關**，
-前一輪的 approve 不帶過來；事件若帶 `satisfied_by` → **fail loud**（該欄位不在契約裡，
-默默忽略等於讓寫的人以為它生效了）。
+**ledger**：baseline 後 handoff 缺 `preflight_gates` → fail loud；快照結構不合（缺 `gate_id`／
+`requirement` 值域外／`decision` 非 `approve`）→ fail loud；baseline **前**的 handoff 不受影響
+（以現有 892 筆事件為 golden，差異必須為 0）；`review-gate-v1` marker 重複出現 → fail loud；
+兩個 baseline（`review-escalation-v1` ＋ `review-gate-v1`）並存時互不干擾。
 
-**gate_id 驗證**：不在快照內、跳關 approve、缺 `gate_id`、缺 `gate_result`、
-`gate_result` 不在 enum、型別錯——逐一 fail loud，且**錯誤事件位於本輪較早位置時同樣
-fail loud**。
+**廢止欄位**：baseline 後 review 帶 `closes_review_round` 或 `corrects_event_id` → fail loud；
+baseline 前不受影響。
 
-**correction**：合法更正（改 gate_id／改 gate_result／void）重算正確；correction 本身不
-完成 gate；同一 target 被兩筆 correction 指名 → fail loud；指向 correction／指向自己／
-跨輪 → fail loud；**由 `changes_requested` 變回 open 而缺 `reopens_round` → fail loud**；
-帶旗標時放行且輸出置頂告示。
+**保證邊界**：提示詞輸出**不得出現**任何把自由文字當流程依據的措辭（以字串斷言鎖住），
+且**不宣稱**已驗證 reviewer 身分。
 
-**preflight**：合法卡面產生正確 snapshot；缺欄 → 非 0 退出且**訊息不提供任何 fallback**；
-`gate_id` 重複／不合 pattern／`requirement` 不在值域／多行 → fail；`[]` 的卡通過 `--check`
-但**寫 handoff 時 fail**。
-
-**保證邊界**：輸出必須同時出現宣告值與最近 review 的 actor，且**明寫「工具無法驗證身分、
-這是人工核對輔助」**；輸出中**不得**出現「以卡面〈查核〉欄為準」這類把自由文字當成流程
-依據的措辭（以字串斷言鎖住）。
-
-**legacy**：無快照的 handoff ＋ 任一 review → 拒絕訊息與現行**逐字相同**（golden 比對）。
-
-**窮舉回歸（紅線）**：對全庫 887 筆事件跑新舊兩版判定，逐卡逐輪比對，**差異數 0**，
+**窮舉回歸（紅線）**：對全庫事件跑新舊兩版 `--check`，baseline 前逐筆一致，**差異數 0**，
 證據由腳本產生，不得以人工聲明承載。
 
-## §8 已裁定事項與 release 後追蹤
+## §8 決策紀錄（2026-07-31 對抗式質詢，ruan6047 裁定）
 
-**2026-07-31（ruan6047）**：Q2 遷移策略（§5.1／§5.2）、Q4 保證邊界（§2.1）。
+1. 前置關卡＝preflight 條件，不是 review event。
+2. `closes_review_round`／`corrects_event_id` 直接廢止移除（兩個 bug 隨之消失，不需修）。
+3. 卡面兩欄位分開：`review_preflight_gates` 新增、`review_independence` 沿用不遷移。
+4. 通過的關卡快照進 handoff、未通過寫 WF-21 既有 `preflight-failed`；**不新增 event type**。
+5. 工具落在 `review_prompt.py --preflight`（共用既有檢查，避免兩份漂移）。
+6. ledger 要驗 handoff 快照 → 第二個 marker `review-gate-v1` ＋ 多 baseline 支援。
+7. 缺欄 fail，且 fail 訊息列出盤點找到的疑似前置關卡（提示，不判定）。
+8. 合成一張卡（`DEV-REVIEW-PREFLIGHT-GATE1`）。
+9. 兩張未 register 的舊卡檔刪除；本契約改寫 v1.0，保留 §9 稽核。
+10. 先 adapter 落地、驗證後再提 canonical（WF-22）。
+11. 本卡先，認領 `file:scripts/workflow_ledger.py`；`DEV-REVIEW-DEACCEPT-TRAIL1` 之後 rebase。
+12. 廢止欄位再出現 → fail loud。
 
-**2026-07-31 第二批（ruan6047 採納規劃者建議）**，五項全數定案：
+### Release 後追蹤（不是驗收條件）
 
-1. **卡 ID：用後繼卡**，不 reopen `DEV-REVIEW-PROMPT-GATE1`／`DEV-REVIEW-INDEP-FIELD1`。
-   兩張皆 🏁完成、封存、結案對帳完成；reopen 會讓 `state_version` 接在 release 之後，
-   Ledger 與封存索引都要回頭改，而**歷史沒有錯**——兩卡各自解決了當時的問題，
-   是合起來才成為雙重來源。卡面以 `前身：` 欄指回。
-2. **`satisfied_by`：不做**（§3.1 已移除）。唯一支撐案例在 gate 模型下自己消失，
-   純新增欄位，日後真的需要再補、不需遷移。
-3. **第二意見維持可推翻**（任何 gate 的 `request_changes` 終結本輪）。規則要吻合已經在跑的
-   處置（`LIVE-GAME-BACKEND1` APPROVE 後複審翻 REJECT，卡確實退回）；反方向會讓第一個
-   APPROVE 鎖死結論。
-4. **`review_result` 不結構化**。`gate_result` 已承載判定，自由文字留給人讀；
-   106 筆缺值是 cutover 前的歷史，不追、不回填。多一個必填欄位只是增加寫事件的摩擦，
-   而摩擦正是這批卡片一直在製造的問題。
-5. **順序：CONTRACT1 → DECLARE1**（§7 已改寫）。
+`closes_review_round` 在全庫 892 筆事件裡用過 **0 次**——前一張卡建好的機制從未被使用。
+合併後第一個月追蹤「新寫的 handoff 是否 **100%** 帶 `preflight_gates`」；
+`--check` 會擋，所以這個數字若不是 100%，代表有人繞過驗證或事件根本沒寫進去。
 
-### Release 後追蹤（不是驗收條件，見 §9 對 WF-21 的調整）
+```bash
+jq -r 'select(.type=="handoff" and .occurred_at > "<cutover>") | .preflight_gates == null' docs/control-plane/events.jsonl | sort | uniq -c
+```
 
-`closes_review_round` 在全庫 887 筆事件裡**用過 0 次**——`DEV-REVIEW-PROMPT-GATE1` 交付的
-機制從來沒被實際使用。本契約比它大得多，有重蹈覆轍的風險：機制建好但沒人寫那些欄位。
+## §9 與 WF-21 的稽核紀錄（v0.1–v0.3 為何被推翻）
 
-因此 DECLARE1 合併後**第一個月追蹤一個可觀測事實：新寫的 handoff 是否 100% 帶 snapshot**。
-preflight 若真的擋在寫入路徑上，這個數字必然是 100%；不是 100% 就代表有人繞過 preflight
-手寫事件，那是機制沒落地的**早期訊號**，而不是等半年後才發現又是死欄位。
-查法：`jq -r 'select(.type=="handoff" and .occurred_at > "<cutover>") | .review_gates == null'
-docs/control-plane/events.jsonl | sort | uniq -c`。
+規劃期間工作樹停在 `063d12d`，而 `origin/main` 已推進到 `37431a0`：WF-21 於 2026-07-31 10:41
+全鏈落地（canonical `b113617` → adapter merge `f86bd5e` → marker `WF21-ADOPT-BASELINE-001`），
+`workflow_ledger.py` 因此多了 409 行 fail-loud 契約驗證。舊版設計的四項衝突與現在的處置：
 
-## §9 與 WF-21 的介面與衝突（2026-07-31 稽核，**v0.4 對齊前不得開卡**）
+| v0.3 的設計 | 與 WF-21 的衝突 | v1.0 的處置 |
+|---|---|---|
+| `review-correction` 型別帶 `corrects_event_id`／`reopens_round` | WF-21 已佔用同名型別且必填 `escalation_epoch`／`target_attempt_id`／`finding_updates`，canonical 明文不得混用 | **不需要了**——中繼關卡不是 review，沒有要更正的東西 |
+| review 新增 `gate_result` enum，`review_result` 降為自由文字 | WF-21 已強制 `review_result ∈ {APPROVE, REQUEST_CHANGES}` | **不需要了**——本契約不碰 review 事件 |
+| 「一輪」＝handoff→終結，任一 request_changes 即終結 | WF-21 的 attempt ＝ `(card, epoch, source_sha)`，同 SHA 多 reviewer 合併；舊設計會擋掉合法的第二位 reviewer | **不需要了**——review 之後的狀態機完全交給 WF-21 |
+| 另立 `scripts/review_gate_preflight.py` | WF-21 已有 preflight 概念、`preflight-failed` 型別與 `preflight_passed` 欄位 | 併入 `review_prompt.py --preflight`，用 WF-21 既有型別 |
 
-**v0.1–v0.3 是在過期基準上寫的。** 規劃期間工作樹停在 `063d12d`，而 `origin/main` 已推進到
-`37431a0`：WF-21「審核退回分流與升級計數去誤觸發」已於 2026-07-31 10:41 全鏈落地
-（canonical `b113617` → adapter merge `f86bd5e` → one-shot marker
-`WF21-ADOPT-BASELINE-001`，`contract_baseline: review-escalation-v1`）。
-`scripts/workflow_ledger.py` 因此多了 409 行 **fail-loud 契約驗證**，
-`scripts/review_prompt.py` 的〈產出格式〉段也已改寫。本節逐項列出衝突，
-**在完成 v0.4 對齊之前，`DEV-REVIEW-GATE-CONTRACT1` 與 `DEV-REVIEW-GATE-DECLARE1` 不得 register**。
-
-### 9.1 硬衝突（寫下去會被 `--check` 擋）
-
-**（一）`review-correction` 型別已被 WF-21 佔用。** 已合併的驗證器要求該型別必填
-`escalation_epoch`、既存的 `target_attempt_id` 與非空 `finding_updates`（每項是 §2 的十欄
-finding schema），canonical 並明文「此專用 type **不得與其他 lifecycle correction 混用**」。
-本契約 §3.3 用同名型別卻帶 `corrects_event_id`／`corrected`／`reason`／`reopens_round`——
-寫下去 `workflow_ledger.py --check` 直接 fail。
-→ **v0.4：改名 `gate-correction`**，或把 gate 更正併入 WF-21 的 `finding_updates` 流程。
-
-**（二）`review_result` 已經是 enum，不是自由文字。** 驗證器強制 baseline 後的 review
-`review_result ∈ {APPROVE, REQUEST_CHANGES}`，並強制 `attempt_id` ＝
-`<card>-e<epoch>-<40 字 SHA>`、`preflight_passed=true`、結構化 `findings`、
-adapter 推導的 `counts_toward_escalation`。本契約 §3.2／§8 第 4 項寫「`review_result`
-維持自由文字、不參與判定」並另立 `gate_result` enum——**與已生效的契約相反且重複**。
-→ **v0.4：刪掉 `gate_result`，結論沿用 `review_result`；review 只新增 `gate_id` 一個欄位。**
-這讓本契約的 schema 變小，是好消息。
-
-### 9.2 語意衝突（不擋寫入，但兩份規則會打架）
-
-**（三）「一輪」的識別鍵不同。** 本契約：一輪＝一筆 handoff 到終結。WF-21：attempt＝
-`(card_id, escalation_epoch, source_sha)`，且**同一 SHA 的多位 reviewer findings 合併為一個
-attempt**（T4 跨家族＋人工 sign-off 明文允許）。本契約 §4 的「任一 request_changes 立即終結、
-其後任何 review fail loud」會**擋掉 WF-21 明文允許的第二位 reviewer**。
-→ **v0.4：終結判定改為在 attempt（同 SHA）合併之後**。這與 gate 模型天然對應——
-同 SHA、同 `gate_id` ＝ 同一關的合併意見；不同 `gate_id` ＝ 不同關卡。
-
-**（四）preflight 已經存在，不該再造一套。** WF-21 定義了 `preflight-failed` 事件與
-`preflight_passed` 欄位，必查項甚至已含「**規定在跨家族查核前完成的人工檢查**」——那正是多關卡。
-`review_prompt.py` 也已改為要求查核者先分類 `PREFLIGHT_FAILED`／`BLOCKED`／`REVIEW_INVALID`
-再給結論。
-→ **v0.4：`scripts/review_gate_preflight.py` 降為 WF-21 preflight 的一個檢查項**，
-失敗寫 `preflight-failed` 事件，不自成一套非 0 退出的擋門機制。
-
-**（五）cutover 機制重複。** WF-21 用 one-shot `contract-baseline` event 當唯一 cutover marker
-（驗證器強制只能出現一次、只能由該型別啟用）。本契約 §5.1 把 cutover 定義成「DECLARE1 合併
-之日」寫在文件裡。
-→ **v0.4：改用 `contract-baseline` event（例 `review-gate-v1`）**；須先確認驗證器能否支援
-第二個 baseline 名並存（目前 `REVIEW_CONTRACT` 是寫死的常數）。
-
-### 9.3 排程衝突
-
-**（六）同區域已有一張在途卡。** WF-21 的 minor 收尾 `DEV-REVIEW-DEACCEPT-TRAIL1`
-（📥Backlog，2026-07-31 開）處理「plain-review 翻案缺 correction 留痕」，動的正是
-review-correction 語意。需求方 2026-07-30 曾指示「WF-21 escalation 實作須等 GATE1 任務鏈收束
-後再執行」，`DEV-REVIEW-INDEP-FIELD1-RELEASE-016` 也宣告「WF-21 escalation 實作解鎖」——
-**現在反過來，本契約要等 WF-21 的收尾卡定位清楚**，否則兩邊在同一段語意上互寫。
-
-### 9.4 本契約前幾版的事實錯誤（一併更正）
-
-- §1（四）寫「判定結果沒有機器可讀來源」——**過期**。baseline 後結論必為 enum 且由驗證器強制；
-  baseline 前也有 **95／172 筆**帶 `verdict`（值域不一致：`APPROVE`／`REJECT`／
-  `REQUEST_CHANGES`／`✅通過`／`APPROVE_WITH_FINDINGS`／`RETURN`／`REQUEST_CHANGES_ESCALATED`）。
-  正確說法是「**baseline 前的結論欄位值域不一致、76 筆完全缺**」，不是「沒有來源」。
-- §5.4 寫「全庫 887 筆事件」——現為 **892 筆／121 張卡／172 筆 review**（`37431a0`）。
-  §6 盤點數字在新基準重跑後不變（命中 32／實質 30），母體 123 張卡。
-- 相容性一項**沒有變**：驗證器只做必填欄位檢查，不禁止額外欄位，
-  所以 handoff 加 `review_gates`、review 加 `gate_id` 屬**additive，不會被擋**。
+**順帶更正 v0.1–v0.3 的一項事實錯誤**：舊版寫「判定結果沒有機器可讀來源」是錯的。
+baseline 後結論必為 enum 且由驗證器強制；baseline 前也有 95／172 筆帶 `verdict`，
+只是值域有七種（`APPROVE`／`REJECT`／`REQUEST_CHANGES`／`✅通過`／`APPROVE_WITH_FINDINGS`／
+`RETURN`／`REQUEST_CHANGES_ESCALATED`）、76 筆完全缺。正確說法是「baseline 前值域不一致」。
