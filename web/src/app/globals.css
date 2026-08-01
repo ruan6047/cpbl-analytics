@@ -41,10 +41,10 @@
   --color-muted: #5b6b7a;        /* 次要文字 / 軸刻度 */
   --color-faint: #94a3b8;        /* 三級文字 / 參考線 / 未知隊 */
   /* — 語意色 — */
-  --color-accent: #d62839;       /* 行動 / 焦點 */
+  --color-accent: #d12638;       /* 行動 / 焦點；三層底色一般文字 ≥4.60:1 */
   --color-up: #1d6fb8;           /* 數據佳（藍） */
-  --color-down: #d62839;         /* 數據差（紅） */
-  --color-amber: #b45400;        /* 狀態警示 / 次級身分（延賽、保留、二軍、獎項） */
+  --color-down: #d12638;         /* 數據差（紅）；與 accent 維持同色 */
+  --color-amber: #b15100;        /* 狀態警示 / 次級身分（延賽、保留、二軍、獎項） */
   --color-cpbl: #1b4da1;         /* CPBL 品牌藍 */
   /* — 圖表分類序列（含球種：速球/卡特滑球/指叉變速/滑球橫掃/曲球/變化球） — */
   --chart-1: #1d6fb8;
@@ -90,7 +90,7 @@
   --color-up: #4a9fe0;
   --color-down: #ff5a6a;
   --color-amber: #fb923c;
-  --color-cpbl: #5a8fe0;
+  --color-cpbl: #5c95e2;
   --chart-1: #4a9fe0;
   --chart-2: #2dd4bf;
   --chart-3: #fbbf24;
@@ -227,6 +227,5 @@ tr:hover .sticky-col {
 .animate-fade-out {
   animation: fadeOut var(--dur-fast) var(--ease-standard) forwards;
 }
-
 
 

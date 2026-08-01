@@ -41,6 +41,35 @@
 3. **要不要加自動守衛？** 是否可寫一條測試／腳本掃描「語意色 × 底色」的組合並計算對比，讓未來的違規被擋下？**若可行，這比改一次值更有價值**；若不可行，明講為什麼，不得宣稱有守衛而實際沒有。
 4. **`--color-up`（`#1d6fb8`）與其他語意色在三層底色上的對比是否也有同類問題？** 本卡不修，但要一次算清楚並記錄，避免下次又是「發現一個修一個」。
 
+### Discovery 書面答案（iteration 2）
+
+1. **實際影響範圍：10 個靜態 JSX site（production 7、`/dev` 3）。** 先以
+   `rg -o --glob '*.{ts,tsx}' 'text-accent(?:/[0-9]+)?' web/src | wc -l` 找到 86 個
+   `text-accent` token、分布 37 檔；再以 TypeScript AST 掃描帶 `bg-surface-2` 的 JSX
+   ancestor 與 `text-accent` descendant，得到 15 個候選。逐一排除 4 個只在 hover／互斥
+   conditional branch 才會成立的假陽性，以及 1 個 `text-2xl`（24px，已達大字門檻），
+   剩下 10 個一般字級 site：
+   - production 7：`ui.tsx` 3、`daily-hub.tsx` 1、`games/page.tsx` 3；
+   - `/dev` 3：`dev/player-ia/sections.tsx` 1、`variant-view.tsx` 2。
+
+   AST 掃描以 `node --input-type=module -e` 載入 `typescript`，對每個 TSX 的 `className`
+   文字收集 `bg-surface-2` ancestor，再列出含非 hover `text-accent` 的 descendant；完整候選
+   行號留在本輪 handoff evidence。這個計數是靜態 JSX site，不宣稱等於 runtime 元件實例數。
+2. **採路徑 A（調暗語意色）。** 10 個 site 已橫跨共用元件、首頁與賽程；選 C 會把單一
+   token 契約改成依 ancestor 背景判斷的人工規則，且 Tailwind class composition 無法可靠用
+   純字串 lint 防守。選 B 會壓縮 `paper／surface／surface-2` 的結構層次並影響所有中性容器。
+   A 的色差小、一次修正所有既存與未來組合，且可由數值守衛完整驗證，維護成本最低。
+3. **加兩層自動守衛。** `color-contrast.test.ts` 從 canonical `globals.css` 解析 5 個一般
+   文字語意色 × 3 底色 × 2 模式共 30 組，門檻 4.60:1，並守 `accent/down` 共色；
+   `chart-theme.test.ts` 另守 `LIGHT_FALLBACK` 的 `up/down/accent/cpbl` 必須鏡像淺色 CSS，
+   避免 SSR／首次繪製使用過期副本。前者不涵蓋 faint、圖表分類／隊色／status、alpha
+   背景與 runtime 巢狀組合；後者只守 fallback 與 CSS 的資料一致性，不替代元件視覺回歸。
+4. **其他語意色確有同類問題，已據實處理。** 舊 `amber #b45400` on 淺色
+   `surface-2` 只有 4.44:1；舊深色 `cpbl #5a8fe0` on 深色 `surface-2` 只有 4.33:1，
+   因此分別修為 `#b15100` 與 `#5c95e2`。`up` 舊值最差 4.65:1，維持不動。新矩陣
+   30 組全數 ≥4.60:1，最差為深色 cpbl on surface-2 的 4.61:1；完整表見
+   `docs/design/UI_UX_SYSTEM.md` §2.1。
+
 ## 紅線
 
 1. **不得只驗改動的那一組。** 任何 token 值變更都要重算**該色在三層底色 × 深淺兩態**的全部組合，附計算結果，不得只證明目標組合修好了。
@@ -71,3 +100,4 @@
 ## Log
 
 - 2026-07-31 register by Claude Opus 5@Claude Code（依 ruan6047 指示）；iteration 0。來源：`UX-BRAND-HOME1` 獨立 Design Gate 審查第 7 點。需求方裁定「兩者都做」——`UX-BRAND-HOME1` 內先以紅線約束用法（accent 在 surface-2 上只能用大字），token 本身是否調整由本卡獨立驗收。
+- 2026-08-02 iteration 2 by GPT-5@Codex：依獨立查核 REJECT 補 `LIGHT_FALLBACK` 同步與語意色 drift 守衛，重寫 §2.1 對比矩陣，並補齊 Discovery 四問與 canonical 文件殘留 hex。

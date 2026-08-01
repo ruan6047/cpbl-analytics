@@ -66,7 +66,7 @@
 | H10 | `/matchups` 查詢列三個 `<select>`（資料範圍／賽事類型／對手）實測高 **33px**，未達 §7 觸控 44px（`min-h-11`）門檻。同頁新增的情境控制已符合，形成同頁雙標準 | `components/matchups/explorer.tsx`（`selectCls`） | 🟡 |
 | H11 | `/matchups` 頁面最外層與 `QueryShell` 的 `scrollWidth` 較 `clientWidth` 多 4px（375px 實測 331>327）。`document` 本身無橫向捲動、視覺無溢出，屬容器內距計算殘留 | `app/matchups`＋`sticky-nav-bar` | 🟢 |
 
-> **`UX-TOKEN-HYGIENE1` 處置（2026-07-24 執行）**：H1 ✅ 移 dead dup／H2 ✅ 補深色 7/8（`#db2777`·`#e08a2a`）／H3 ✅ 驗證（淺 ΔE 10.1·深 9.5，見 §6.3、未重配）／H4 ✅ @theme canonical＋鏡像註解＋`chart-theme.test.ts` 對齊測試／H5 ✅ amber→token（接受黃→棕橘 `#b45400`，順帶修一處 `text-white`→`text-paper`）／H6 ✅ `Skeleton`/`EmptyState`／H8 ＝ §4.2 認可之工具列 pill-select 變體、無需改碼（圓角交 NAV）／H9 ✅ 加 `name3`/`char1`＋`teamName3()`/`teamChar1()` accessor（**③二字經 grilling 定案沿用現有 `short`＝「兄弟」隊慣稱，不改母企業「中信」**——避免「兄弟 煮粥」等球迷向文案變生硬）。**H7 移出交 CONFORM/NAV**（版面風險、非機械修）。
+> **`UX-TOKEN-HYGIENE1` 處置（2026-07-24 執行）**：H1 ✅ 移 dead dup／H2 ✅ 補深色 7/8（`#db2777`·`#e08a2a`）／H3 ✅ 驗證（淺 ΔE 10.1·深 9.5，見 §6.3、未重配）／H4 ✅ @theme canonical＋鏡像註解＋`chart-theme.test.ts` 對齊測試／H5 ✅ amber→token（原採棕橘 `#b45400`；2026-08-02 `UX-TOKEN-ACCENT-CONTRAST1` 因 surface-2 僅 4.44:1 再調為 `#b15100`，順帶修一處 `text-white`→`text-paper`）／H6 ✅ `Skeleton`/`EmptyState`／H8 ＝ §4.2 認可之工具列 pill-select 變體、無需改碼（圓角交 NAV）／H9 ✅ 加 `name3`/`char1`＋`teamName3()`/`teamChar1()` accessor（**③二字經 grilling 定案沿用現有 `short`＝「兄弟」隊慣稱，不改母企業「中信」**——避免「兄弟 煮粥」等球迷向文案變生硬）。**H7 移出交 CONFORM/NAV**（版面風險、非機械修）。
 
 > **H10／H11 來源（2026-07-25）**：由 `UX-PA-SIM-MATCHUP1` 的 375px 走查發現，屬
 > `UX-MATCHUP1` 既有偏離、非該卡引入。該卡執行者依資源紀律**刻意不擴張範圍修復**，
@@ -78,7 +78,7 @@
 
 - [ ] `faint #94a3b8` 承載必要文字之處（名次、單位）→ 確認非唯一資訊，否則改 `muted`（§2.1 對比 ~2.6:1）。**註**：2.6:1 亦**未達 AA-large 3:1**，故即使放大/加粗仍不合格——必要文字一律 `muted`，`faint` 僅留純裝飾/非必要。
 - [ ] `amber/15` 底上的 `amber` 文字（`StatusBadge warn`）對比 → WCAG 計算。
-- [ ] `white on accent #d62839`（~4.5:1 臨界）小字徽章 → 確認字級 ≥ 大字門檻或改色。
+- [x] `white on accent #d12638`＝5.19:1，已達 AA 一般文字；由 `UX-TOKEN-ACCENT-CONTRAST1` 重新計算結案。
 - [ ] 深色 `chart-7/8` 退回淺色值 on navy → 對比計算（H2）。
 - [ ] `text-[8px]/[9px]` 全數點名 → 上調（H7）。
 - [ ] 各圖表文字替代列表是否齊備（blueprint §8.3）。
