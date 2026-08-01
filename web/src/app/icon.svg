@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Ruan's CPBL Lab">
+  <style>
+    :root { --mark: #0a2540; --cutout: #f5f7fa; }
+    @media (prefers-color-scheme: dark) { :root { --mark: #f5f7fa; --cutout: #0a1626; } }
+  </style>
+  <path fill="var(--mark)" d="M12 8h40l8 16-28 32L4 24z"/>
+  <path fill="var(--cutout)" d="M23 18h13c8 0 13 4 13 11 0 5-3 8-7 9l9 12h-9L34 39h-3v11h-8zm8 7v8h5c3 0 5-1 5-4s-2-4-5-4z"/>
+</svg>

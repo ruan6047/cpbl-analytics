@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ venue: string }> }) {
   const { venue } = await params;
-  return { title: `${decodeURIComponent(venue)} | 球場 | CPBL 分析` };
+  return { title: `${decodeURIComponent(venue)}｜球場` };
 }
 
 const SHOW = 6;      // 每端顯示人數

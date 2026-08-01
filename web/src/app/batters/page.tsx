@@ -5,6 +5,7 @@ import { Eyebrow } from "@/components/ui";
 import { api } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "打者排行" };
 
 // 本季獎項競逐類別（前五）：計數型無門檻；rate 型套規定打席。
 const AWARD_CATS: Cat[] = [

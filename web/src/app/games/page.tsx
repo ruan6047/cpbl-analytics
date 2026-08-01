@@ -7,6 +7,7 @@ import { contrastText, teamColor, teamFullName } from "@/lib/teams";
 import { LiveCalendarGame } from "@/components/live-calendar-game";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "賽程與賽況" };
 
 const WD = ["日", "一", "二", "三", "四", "五", "六"];
 // 場次狀態 → 標籤＋語意 tone（完賽=中性／延賽·保留=warn／未開打=scheduled）

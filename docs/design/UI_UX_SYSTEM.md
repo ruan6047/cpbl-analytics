@@ -1,6 +1,6 @@
-# CPBL Analytics — UI/UX 設計系統（canonical）
+# Ruan's CPBL Lab — UI/UX 設計系統（canonical）
 
-> **狀態**：v1 **已通過查核 ✅**（跨家族查核 Gemini 3.6 ＋ 人工，2026-07-24；事實正確性 100%、邊界/紅線守住、0 🔴、2 🟢 提示）。需求方 ruan6047 於 2026-07-24 sign-off。**待 merge → 執行下游卡** `UX-NAV-INTEGRATE1`／`UX-TOKEN-HYGIENE1`。
+> **狀態**：v1 **已通過查核 ✅**（跨家族查核 Gemini 3.6 ＋ 人工，2026-07-24；事實正確性 100%、邊界/紅線守住、0 🔴、2 🟢 提示）。需求方 ruan6047 於 2026-07-24 sign-off。2026-08-01 依 `UX-BRAND-HOME1` 統一產品品牌名稱，內容規格不變。**待 merge → 執行下游卡** `UX-NAV-INTEGRATE1`／`UX-TOKEN-HYGIENE1`。
 > **定位**：全站**視覺／元件層的單一事實來源 [single source of truth]**。以球員個人頁旗艦（`web/src/app/players/[id]/` + `web/src/components/*`）為 100% 基準，把已落地的設計語言**逆向抽出、明確化**。
 > **本檔性質**：**描述現況＋明確化**，不推翻球員頁已定案語言。本卡不改 `globals.css`／元件碼；標「建議」者為未來遷移目標，非本卡執行。
 > **配套文件**：逐頁差距見 [`UI_UX_CONFORMANCE.md`](UI_UX_CONFORMANCE.md)；token hygiene 修復見 [`../tasks/UX-TOKEN-HYGIENE1.md`](../tasks/UX-TOKEN-HYGIENE1.md)。
