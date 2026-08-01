@@ -135,13 +135,27 @@ export function resolveStatusSnapshot(previous: LiveSnapshot | null, incoming: L
 /** 逐球追蹤缺資料的文案。實測 TrackMan 是賽後才發布（2026-A-234 完賽當下 0/260，
  *  約四小時後 249/260），故賽中缺資料是常態、不是球場沒設備。只有官方 `skip_trackman`
  *  明確為 true 時才可說該場地不提供；未知一律用中性文案。 */
-export const trackingPendingMessage = (snapshot: LiveSnapshot | null): string => {
-  if (trackmanAvailability(snapshot) === "unavailable") {
-    return "本場地未配置逐球追蹤設備，無進壘點、球種與球速。";
+export const trackingPendingMessage = (snapshot: LiveSnapshot | null): string =>
+  trackingEmptyMessage(snapshot, "無進壘點、球種與球速");
+
+/** 逐球追蹤缺資料時的文案，`what` 描述因此看不到什麼。
+ *
+ *  三態必須分流，因為「沒有資料」的原因不同、能說的話也不同：
+ *  - `unavailable`（官方 skip_trackman=true）：唯一可以說「場地未配置設備」的情況。
+ *  - `expected`（skip_trackman=false）：場地有設備，只是還沒發布——實測 TrackMan 是
+ *    賽後才補（2026-A-234 完賽當下 0/260、約四小時後 249/260），完賽當下沒有是常態。
+ *  - `unknown`（舊 snapshot 或無 snapshot）：不得推測原因，只陳述沒有資料。 */
+export const trackingEmptyMessage = (
+  snapshot: LiveSnapshot | null,
+  what: string,
+): string => {
+  const availability = trackmanAvailability(snapshot);
+  if (availability === "unavailable") return `本場地未配置逐球追蹤設備，${what}。`;
+  if (snapshot && snapshot.phase !== "final") {
+    return `賽中逐球追蹤尚在整理，${what}；完賽資料補齊後再顯示。`;
   }
-  return snapshot && snapshot.phase !== "final"
-    ? "賽中逐球追蹤尚在整理；目前以文字賽況為準，完賽資料補齊後再顯示。"
-    : "本場尚無可顯示的逐球追蹤資料。";
+  if (availability === "expected") return `本場逐球追蹤資料尚未發布，${what}。`;
+  return `本場無逐球追蹤資料，${what}。`;
 };
 
 export function lineupMessage(

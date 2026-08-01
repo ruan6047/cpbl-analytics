@@ -11,6 +11,7 @@ import {
   nextPollDelay,
   resolveStatusSnapshot,
   shouldFetchLivePayload,
+  trackingEmptyMessage,
   trackingPendingMessage,
   trackmanAvailability,
   type LiveApiResponse,
@@ -306,4 +307,48 @@ test("TrackMan 可用性以官方 skip_trackman 判定，未知不得說成沒�
 
   assert.ok(!/未配置|未設置/.test(trackingPendingMessage(snapshot())));
   assert.match(trackingPendingMessage(snapshot({ skip_trackman: true })), /未配置/);
+});
+
+// LIVE-SNAPSHOT-FIELDS1-F1（查核退回）：完賽且無逐球資料時，先前所有入口都硬編
+// 「球場未設置 TrackMan 設備」，即使 snapshot 明確 skip_trackman=false 也照講。
+// 三態必須分流，且只有 true 可宣稱未配置。
+test("完賽空狀態依 skip_trackman 三態分流，false/null 不得宣稱未配置設備", () => {
+  const finalWith = (skip: boolean | null) =>
+    snapshot({ phase: "final", freshness: "final", ...(skip === null ? {} : { skip_trackman: skip }) });
+
+  // true：唯一可以說未配置的情況
+  const unavailable = trackingEmptyMessage(finalWith(true), "無擊球落點圖");
+  assert.match(unavailable, /未配置/);
+  assert.match(unavailable, /無擊球落點圖/);
+
+  // false：場地有設備，只是尚未發布——不得說未配置
+  const expected = trackingEmptyMessage(finalWith(false), "無主審判決分布");
+  assert.doesNotMatch(expected, /未配置|未設置/);
+  assert.match(expected, /尚未發布/);
+  assert.match(expected, /無主審判決分布/);
+
+  // null（舊 snapshot 或無 snapshot）：不得推測原因
+  for (const s of [finalWith(null), null]) {
+    const unknown = trackingEmptyMessage(s, "無擊球落點圖");
+    assert.doesNotMatch(unknown, /未配置|未設置|尚未發布/);
+    assert.match(unknown, /無逐球追蹤資料/);
+  }
+});
+
+test("賽中三態：skip_trackman=true 仍講未配置，其餘走整理中文案", () => {
+  assert.match(trackingEmptyMessage(snapshot({ skip_trackman: true }), "X"), /未配置/);
+  assert.match(trackingEmptyMessage(snapshot({ skip_trackman: false }), "X"), /賽中逐球追蹤尚在整理/);
+  assert.match(trackingEmptyMessage(snapshot(), "X"), /賽中逐球追蹤尚在整理/);
+});
+
+test("spray chart 與 umpire tab 的完賽空狀態都改走 trackingEmptyMessage", () => {
+  const boxTabs = readFileSync(new URL("../app/games/[sno]/box-tabs.tsx", import.meta.url), "utf8");
+  assert.match(boxTabs, /trackingEmptyMessage\(data\.live_snapshot \?\? null, "無擊球落點圖"\)/);
+  assert.match(boxTabs, /trackingEmptyMessage\(data\.live_snapshot \?\? null, "無主審判決分布"\)/);
+  const board = readFileSync(new URL("../components/game-board.tsx", import.meta.url), "utf8");
+  assert.match(board, /trackingEmptyMessage\(data\.live_snapshot \?\? null/);
+  // 三個檔案都不得再出現硬編的設備結論
+  for (const src of [boxTabs, board]) {
+    assert.doesNotMatch(src, /未設置 TrackMan|未設置 TrackMan 的球場/);
+  }
 });

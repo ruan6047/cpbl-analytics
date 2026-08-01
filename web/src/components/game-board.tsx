@@ -7,7 +7,10 @@ import { ENTITY_LINK, ENTITY_LINK_TEXT, TeamLogo } from "@/components/ui";
 import { isCurrentTeam, teamColor, teamPageCode } from "@/lib/teams";
 import { PITCH_CALL, PA_KIND } from "@/lib/chart-theme";
 import type { WpPoint } from "@/components/win-prob-chart";
-import { canShowPostgameConclusions, trackingPendingMessage, type LiveSnapshot } from "@/lib/live-game";
+import {
+  canShowPostgameConclusions, trackingEmptyMessage, trackingPendingMessage,
+  type LiveSnapshot,
+} from "@/lib/live-game";
 
 type Rec = { w: number; l: number; form: string };
 export type TrackRow = {
@@ -660,7 +663,7 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
             )
           ) : (
             <div className="rounded-xl border border-dashed border-line bg-surface-2/50 px-4 py-3 text-xs text-muted">
-              本場尚無可顯示的逐球追蹤資料，因此暫不呈現好球帶、球種與球速。
+              {trackingEmptyMessage(data.live_snapshot ?? null, "暫不呈現好球帶、球種與球速")}
             </div>
           )}
         </div>

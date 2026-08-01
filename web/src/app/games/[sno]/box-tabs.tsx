@@ -22,7 +22,7 @@ import { chartAxis, chartTooltip, useChartTheme } from "@/lib/chart-theme";
 import { teamColor, teamShort } from "@/lib/teams";
 import { DEFEND_ZH, type Live } from "@/components/game-board";
 import { SprayChart } from "@/components/spray-chart";
-import { trackingPendingMessage } from "@/lib/live-game";
+import { trackingEmptyMessage, trackingPendingMessage } from "@/lib/live-game";
 
 // 主審判決分布（描述性）：逐球位置＋判決（好球/壞球）。刻意無對錯/準確率/誤判欄位
 // （§5.12 NO-GO）。固定規則帶僅作散點的空間參考。
@@ -505,7 +505,7 @@ export default function BoxTabs({ data }: { data: Live }) {
               </ChartCard>
             ) : (
               <div className="rounded-xl border border-dashed border-line bg-surface-2/50 px-4 py-3 text-xs text-muted">
-                本場未提供逐球追蹤資料（該球場未設置 TrackMan 設備），無擊球落點圖。
+                {trackingEmptyMessage(data.live_snapshot ?? null, "無擊球落點圖")}
               </div>
             )}
           </div>
@@ -589,12 +589,12 @@ export default function BoxTabs({ data }: { data: Live }) {
                     </div>
                   </div>
                 </Card>
-              ) : data.live_snapshot && data.live_snapshot.phase !== "final" ? (
-                <EmptyState>{trackingPendingMessage(data.live_snapshot)}</EmptyState>
               ) : data.has_tracking ? (
                 <EmptyState>本場逐球追蹤尚未包含好壞球判決資料（可能延遲發布）。</EmptyState>
               ) : (
-                <EmptyState>本場無逐球追蹤資料，無主審判決分布（常見於未設置 TrackMan 的球場）。</EmptyState>
+                <EmptyState>
+                  {trackingEmptyMessage(data.live_snapshot ?? null, "無主審判決分布")}
+                </EmptyState>
               )}
               <div className="text-[10px] text-faint leading-normal mt-2">
                 * 註：主審好壞球判決分布為非官方自動化推算，為<b className="font-semibold">描述性</b>呈現，非評判、非排行。好球帶採固定規則寬度（約外邊 22.0 cm）、高度採 TrackMan 固定邊界，未依每位打者實際蹲姿／身高個體化調整，僅作散點的空間參考。
