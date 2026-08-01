@@ -202,17 +202,6 @@ def daily_summary(
             (kinds, season, season, as_of, as_of.fromordinal(as_of.toordinal() - UNRESOLVED_WINDOW_DAYS)),
         )
         unresolved = _dicts(cur)
-        # 首頁品牌 statline：刻意不套 season/kind 篩選，避免切到二軍或歷史年時把
-        # 全站覆蓋度誤顯示為局部數字。模型列可合法缺席（尚未訓練）。
-        cur.execute(
-            """
-            SELECT (SELECT count(*) FROM cpbl.games),
-                   (SELECT count(DISTINCT year) FROM cpbl.games),
-                   (SELECT cv_metrics FROM cpbl.model_versions
-                    WHERE task = 'outcome' ORDER BY trained_at DESC LIMIT 1)
-            """
-        )
-        games_indexed, seasons_covered, outcome_metrics = cur.fetchone()
         last_refresh = _last_refresh(cur)
 
     latest_games = [_serialize(row, as_of) for row in by_day.get(latest_day, [])]
@@ -245,11 +234,6 @@ def daily_summary(
                           else {"status": "not_started", "reason": "範圍內尚無已完成場次"})
 
     return {
-        "statline": {
-            "games_indexed": games_indexed or 0,
-            "seasons_covered": seasons_covered or 0,
-            "outcome_model": outcome_metrics,
-        },
         "scope": {"season": season, "kind_code": kind_code, "kinds": kinds, "as_of": _iso(as_of)},
         "latest_game_day": None if latest_day is None else {
             "game_date": _iso(latest_day), "games": latest_games,

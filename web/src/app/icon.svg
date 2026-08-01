@@ -1,8 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Ruan's CPBL Lab">
   <style>
-    :root { --mark: #0a2540; --cutout: #f5f7fa; }
-    @media (prefers-color-scheme: dark) { :root { --mark: #f5f7fa; --cutout: #0a1626; } }
+    :root { --mark: #0a2540; }
+    @media (prefers-color-scheme: dark) { :root { --mark: #f5f7fa; } }
   </style>
-  <path fill="var(--mark)" d="M12 8h40l8 16-28 32L4 24z"/>
-  <path fill="var(--cutout)" d="M23 18h13c8 0 13 4 13 11 0 5-3 8-7 9l9 12h-9L34 39h-3v11h-8zm8 7v8h5c3 0 5-1 5-4s-2-4-5-4z"/>
+  <!-- 本壘板＋側面笑臉（圓＝眼＝球，弧＝微笑＝進壘軌跡），以 evenodd 打成真鏤空，
+       分頁底色透出來即可。笑臉是需求方定案的意涵，不是待修的巧合——
+       設計約束與不得改回的理由見 components/brand-mark.tsx 註解。
+       兩處為同一份 path，改一處必須兩處同步。 -->
+  <path fill="var(--mark)" fill-rule="evenodd" d="M8 8h48v24L32 56 8 32z M36 21a4.4 4.4 0 1 0 8.8 0 4.4 4.4 0 1 0-8.8 0z M16 28.5Q23 44 39 36.5L37.4 33.3Q24.8 39.2 19.3 27.2Z"/>
 </svg>

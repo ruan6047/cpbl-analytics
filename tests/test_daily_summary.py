@@ -87,24 +87,18 @@ def _run(monkeypatch, script, *, artifact=None, query="") -> tuple[dict, _Cursor
 
 
 def _script(*, latest: date | None, next_day: date | None, scoped: int, games: list[tuple],
-            unresolved: list[tuple] | None = None, refresh=("ok",),
-            statline=(100, 36, None)) -> list:
+            unresolved: list[tuple] | None = None, refresh=("ok",)) -> list:
     refresh_rows: object
     if refresh == ("ok",):
         refresh_rows = [(datetime.now(UTC) - timedelta(hours=2), True, "recent-games")]
     else:
         refresh_rows = refresh
-    script = [
+    return [
         (["latest", "next", "scoped"], [(latest, next_day, scoped)]),
-    ]
-    if latest is not None or next_day is not None:
-        script.append((_GAME_COLS, games))
-    script.extend([
+        (_GAME_COLS, games),
         (_GAME_COLS, unresolved or []),
-        (["games_indexed", "seasons_covered", "outcome_metrics"], [statline]),
         (["refreshed_at", "ok", "scope"], refresh_rows),
-    ])
-    return script
+    ]
 
 
 # --- 純函式：refresh 狀態字彙 -------------------------------------------------
@@ -386,14 +380,14 @@ def test_home_payload_never_exposes_model_interval(monkeypatch):
 # --- 契約：唯讀與查詢預算 -----------------------------------------------------
 
 def test_summary_is_read_only_and_within_query_budget(monkeypatch):
-    """§8.4：聚合取代十餘組請求；本端點固定 5 次唯讀查詢，且不得出現寫入。"""
+    """§8.4：聚合取代十餘組請求；本端點固定 4 次唯讀查詢，且不得出現寫入。"""
     _, cursor = _run(monkeypatch, _script(
         latest=_TODAY - timedelta(days=1), next_day=_TODAY + timedelta(days=1), scoped=2,
         games=[_game(1, _TODAY - timedelta(days=1), home=1, away=0),
                _game(2, _TODAY + timedelta(days=1))],
     ))
 
-    assert len(cursor.queries) == 5
+    assert len(cursor.queries) == 4
     assert all(q.lstrip().upper().startswith(("SELECT", "WITH")) for q in cursor.queries)
     forbidden = ("INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER")
     assert not any(word in q.upper() for q in cursor.queries for word in forbidden)
@@ -408,18 +402,6 @@ def test_scope_echoes_year_and_kind_range(monkeypatch):
 
     assert body["scope"] == {"season": 2026, "kind_code": "A", "kinds": ["A", "E", "C"],
                              "as_of": _TODAY.isoformat()}
-
-
-def test_statline_is_global_not_limited_by_the_selected_scope(monkeypatch):
-    body, _ = _run(monkeypatch, _script(
-        latest=None, next_day=None, scoped=0, games=[], statline=(9350, 36, None),
-    ), query="?season=2026&kind_code=D")
-
-    assert body["statline"] == {
-        "games_indexed": 9350,
-        "seasons_covered": 36,
-        "outcome_model": None,
-    }
 
 
 # --- 整合：本機真實 DB --------------------------------------------------------
@@ -449,7 +431,7 @@ def test_live_latest_game_day_is_never_in_the_future(kind_code):
 def test_live_summary_matches_contract_shape():
     body = _live()
 
-    assert set(body) == {"scope", "latest_game_day", "next_slate", "freshness", "availability", "statline"}
+    assert set(body) == {"scope", "latest_game_day", "next_slate", "freshness", "availability"}
     assert set(body["availability"]) == {"schedule", "results", "pregame_model"}
     for day in (body["latest_game_day"], body["next_slate"]):
         if day is not None:

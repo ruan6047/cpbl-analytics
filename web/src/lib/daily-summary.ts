@@ -61,11 +61,6 @@ export type LastRefresh = {
 };
 
 export type DailySummary = {
-  statline: {
-    games_indexed: number;
-    seasons_covered: number;
-    outcome_model: { models?: { name?: string; accuracy?: number }[] } | null;
-  };
   scope: { season: number | null; kind_code: string; kinds: string[]; as_of: string };
   latest_game_day: { game_date: string; games: DailyGame[] } | null;
   next_slate: { game_date: string; days_from_as_of: number; games: DailyGame[] } | null;
