@@ -115,6 +115,7 @@ test("掃描面涵蓋整個 web/src（不只 app/ 與 components/）", () => {
     "app/page.tsx",
     "app/methodology/page.tsx",
     "app/games/[sno]/page.tsx",
+    "app/games/[sno]/game-live-page.tsx",
     "components/daily-hub.tsx",
     "components/pregame-card.tsx",
     "lib/api.ts",
@@ -246,7 +247,7 @@ test("PregameCard 的告示只能由 view model 帶進來，不得自行取用�
 test("賽況頁把整份 response 交給 resolver，不自行挑欄位", () => {
   // 機率與 serving 狀態同在 /api/v1/outcome/pregame 這一份 response 內；
   // 只要整份傳進 resolver，單一來源不變式就是結構性的，不靠紀律維持。
-  const page = read("app/games/[sno]/page.tsx");
+  const page = read("app/games/[sno]/game-live-page.tsx");
 
   assert.ok(page.includes("resolvePregameCard({"), "賽況頁必須走 resolvePregameCard");
   assert.ok(
