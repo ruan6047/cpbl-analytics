@@ -44,3 +44,13 @@ test("chart-theme LIGHT_FALLBACK.status 與 STATUS_COLORS 皆鏡像 globals.css 
   assert.equal(sc[2].toLowerCase(), want.loree);
   assert.equal(sc[3].toLowerCase(), want.nagata);
 });
+
+test("chart-theme LIGHT_FALLBACK 語意色鏡像 globals.css @theme 淺色 token（防首繪 drift）", () => {
+  const block = chart.match(/const LIGHT_FALLBACK: ChartTheme = \{([\s\S]*?)\n\};/);
+  assert.ok(block, "chart-theme.ts 找不到 LIGHT_FALLBACK");
+  for (const name of ["up", "down", "accent", "cpbl"] as const) {
+    const value: RegExpMatchArray | null = block[1].match(new RegExp(`\\n\\s*${name}:\\s*"#${H}"`));
+    assert.ok(value, `LIGHT_FALLBACK 缺 ${name} 字面值`);
+    assert.equal(value[1].toLowerCase(), cssVar(`color-${name}`), `${name} fallback drifted`);
+  }
+});
