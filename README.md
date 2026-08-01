@@ -59,7 +59,8 @@ uv run uvicorn cpbl.api.main:app --reload --port 4001
 # → http://localhost:4001/api/info
 
 # 7. 起前端（另開終端機）
-cd web && npm install && NEXT_PUBLIC_API_URL=http://localhost:4001 npm run dev   # → :3000
+cd web && npm install && npm run dev                                            # → :3000（API 在預設 4001 時免設 env）
+# API 改埠時 SSR 與瀏覽器兩支都要設：API_URL=... NEXT_PUBLIC_API_URL=... npm run dev
 ```
 
 ## 前端（`web/`）

@@ -18,7 +18,7 @@
 
 | 場景 | DB | API | Web |
 |---|---|---|---|
-| **本機** | docker compose `db`（PG 17，**port 5433**） | `uvicorn cpbl.api.main:app --port 4001` | `web/` Next.js `:3000`（`NEXT_PUBLIC_API_URL`，**不是** `API_URL`） |
+| **本機** | docker compose `db`（PG 17，**port 5433**） | `uvicorn cpbl.api.main:app --port 4001` | `web/` Next.js `:3000`（**兩個** env：`API_URL` 給 SSR、`NEXT_PUBLIC_API_URL` 給瀏覽器；預設皆 `:4001`） |
 | **生產**（VPS Vultr `root@45.76.100.29`） | 容器 `prod_pg`（與主站共用，schema `cpbl`） | 容器 `prod_cpbl_api`（內網 `http://cpbl-api:4001`） | 容器 `prod_cpbl_web` |
 
 - 本機設定：`cp .env.example .env`；關鍵鍵 `DATABASE_URL`（本機預設 `postgresql://cpbl:cpbl@localhost:5433/cpbl`）。
@@ -374,7 +374,7 @@ EDITORIAL_TEST_DATABASE_URL=postgresql://cpbl:cpbl@localhost:5433/cpbl_data_edit
 | **`team_current` 是當前半季口徑** | 存官網 `/standings/season` 頁預設範圍＝**當前半季**，勿當全年資料（TEAM-STYLE1 §4 實證：全季聚合對帳全 FAIL、`game_season_code='2'` 聚合 5/6 隊逐位吻合）。`batting_current`／`pitching_current` 已實證為**全年**；`fielding_current` 已排除半季（全年未逐值對帳）。四表口徑對照與證據見 [`reference/GLOSSARY.md`](reference/GLOSSARY.md)；全年團隊數據由 gamelog 聚合（先例 `/api/v1/season/team-split`） |
 | **分項主鍵** | `*_splits` 主鍵含 `item_name`（mig 022）；前端分類用 item_name 內容非 group_code |
 | **官網 token** | `/schedule` inline JS 抽 `RequestVerificationToken`，放 **header**；不是 hidden input 的 `__RequestVerificationToken`（會 500） |
-| **前端 env** | 用 `NEXT_PUBLIC_API_URL`，舊 README 的 `API_URL` 會連不到 |
+| **前端 env** | **兩個都在用，不可互相取代**：`API_URL` → Server Component 取資料（`web/src/lib/api.ts:7`，全站 SSR 幾乎都走這支）；`NEXT_PUBLIC_API_URL` → 瀏覽器端（`web/src/lib/client.ts:5`，球員頁等 client component）。兩者預設皆 `http://localhost:4001`，故 **API 開在預設埠時兩個都不必設**；一旦改埠（例如同時跑兩個分支的 API）**必須兩個一起設**，只設一個會出現「SSR 拿到 A 的資料、client 拿到 B 的資料」或整區靜默空白。**此格原記「用 `NEXT_PUBLIC_API_URL`，`API_URL` 會連不到」是錯的**，已於 2026-08-02 更正——當時的誤記曾害人把非預設埠的 SSR 資料誤判為功能缺失。 |
 | **同年多隊** | 球員一年多列(多 team_id)，季彙總查詢要 `GROUP BY player_id, year` 加總 |
 | **build 污染 dev 快取** | `next build` 與 `next dev` 共用 `web/.next` → dev 跑著時跑 build，dev 讀到對不上的 `./NNN.js`／`Internal Server Error`。**已有 `prebuild` 守衛**（`web/scripts/guard-build.mjs`）：偵測 :3000 有 dev 就中止 `npm run build`。**驗證一律用 `npm run build:check`**（獨立 `.next-check`，守衛不擋、不影響 dev）。萬一仍中招：停 dev → `rm -rf web/.next` → 重啟 dev |
 
