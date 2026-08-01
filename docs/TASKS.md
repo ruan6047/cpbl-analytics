@@ -43,7 +43,7 @@
 | [UX-LIVE-GAME1-FIX1](tasks/UX-LIVE-GAME1-FIX1.md) | INIT-PRODUCT-UX | T2 | 未開賽不得顯示局數 | ruan6047（部署確認） | `ai/opus-5/UX-LIVE-GAME1-FIX1 @ .claude/worktrees/ux-live-game1-fix1-review` | 1 | 📦已合併 | 🚀待部署 | 2026-07-31T14:25:43+08:00 |
 | [UX-LIVE-TRACKMAN1](tasks/UX-LIVE-TRACKMAN1.md) | INIT-PRODUCT-UX | T3 | 賽中逐球 TrackMan 顯示 | 待指派（需求方 Design Gate） | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-01T17:46:02+08:00 |
 | [UX-TEAM-FIELD-HIST1](tasks/UX-TEAM-FIELD-HIST1.md) | INIT-PRODUCT-UX | T3 | 球隊頁歷史年守備位置圖（union fielding_seasons） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:36:00+08:00 |
-| [UX-TOKEN-ACCENT-CONTRAST1](tasks/UX-TOKEN-ACCENT-CONTRAST1.md) | INIT-PRODUCT-UX | T2 | accent 在 surface-2 底上未達 WCAG AA | 待指派（跨模型家族獨立查核；須 ≠ 執行者 Codex） | `ai/codex/UX-TOKEN-ACCENT-CONTRAST1 @ /private/tmp/cpbl-ux-token-contrast1` | 1 | 🔍待查核 | ⏸未部署 | 2026-08-02T00:59:20+08:00 |
+| [UX-TOKEN-ACCENT-CONTRAST1](tasks/UX-TOKEN-ACCENT-CONTRAST1.md) | INIT-PRODUCT-UX | T2 | accent 在 surface-2 底上未達 WCAG AA | GPT-5@Codex（iteration 2 執行） | `ai/codex/UX-TOKEN-ACCENT-CONTRAST1 @ /private/tmp/cpbl-ux-token-contrast1` | 2 | 🔨執行中 | ⏸未部署 | 2026-08-02T02:11:21+08:00 |
 
 ## 依賴與資源註記
 
