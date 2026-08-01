@@ -7,7 +7,10 @@ import { ENTITY_LINK, ENTITY_LINK_TEXT, TeamLogo } from "@/components/ui";
 import { isCurrentTeam, teamColor, teamPageCode } from "@/lib/teams";
 import { PITCH_CALL, PA_KIND } from "@/lib/chart-theme";
 import type { WpPoint } from "@/components/win-prob-chart";
-import { canShowPostgameConclusions, trackingPendingMessage, type LiveSnapshot } from "@/lib/live-game";
+import {
+  canShowPostgameConclusions, trackingEmptyMessage, trackingPendingMessage,
+  type LiveSnapshot,
+} from "@/lib/live-game";
 
 type Rec = { w: number; l: number; form: string };
 export type TrackRow = {
@@ -303,8 +306,14 @@ function ScoreLine({ sb, game, snapshot, halves, curKey, onSelect }: {
 
   const row = (label: StatRow[string], code: string, rows: StatRow[], half: string, score: number) => {
     const prefix = half === "1" ? "away" : "home";
-    const hits = snapshot ? num(game[`${prefix}_hits`]) : tot(rows, "hitting_cnt");
-    const errors = snapshot ? num(game[`${prefix}_errors`]) : tot(rows, "error_cnt");
+    // snapshot 路徑用官方隊伍層級真值；null＝官方未供，顯示「—」而非 0
+    // （未知不可寫成「沒有失誤」）。DB 路徑仍由逐局加總。
+    const teamTotal = (key: string) => {
+      const v = game[`${prefix}_${key}`];
+      return v === null || v === undefined ? <span className="text-faint">—</span> : num(v);
+    };
+    const hits = snapshot ? teamTotal("hits") : tot(rows, "hitting_cnt");
+    const errors = snapshot ? teamTotal("errors") : tot(rows, "error_cnt");
     return (
     <tr className="border-t border-line">
       <td className="whitespace-nowrap px-3 py-2 font-sans font-medium">{teamCell(label, code)}</td>
@@ -654,7 +663,7 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
             )
           ) : (
             <div className="rounded-xl border border-dashed border-line bg-surface-2/50 px-4 py-3 text-xs text-muted">
-              本場尚無可顯示的逐球追蹤資料，因此暫不呈現好球帶、球種與球速。
+              {trackingEmptyMessage(data.live_snapshot ?? null, "暫不呈現好球帶、球種與球速")}
             </div>
           )}
         </div>

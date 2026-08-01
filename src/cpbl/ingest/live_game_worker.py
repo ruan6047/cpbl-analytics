@@ -179,6 +179,26 @@ def _iso(value: datetime) -> str:
     return value.isoformat()
 
 
+def _int_or_none(value: Any) -> int | None:
+    """缺值必須是 None 而非 0——記分板要能區分「沒有資料」與「值為零」。"""
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _person(raw: object) -> dict | None:
+    """官方 {Acnt, Name[, YearlyCount]} → canonical；缺席或無 Acnt 一律 None。"""
+    if not isinstance(raw, dict) or not raw.get("Acnt"):
+        return None
+    person = {"player_id": raw.get("Acnt"), "name": raw.get("Name")}
+    if raw.get("YearlyCount") is not None:
+        person["yearly_count"] = _int_or_none(raw.get("YearlyCount"))
+    return person
+
+
 def _team_snapshot(raw: dict, fetched_at: datetime, previous: dict | None) -> dict:
     pitchers = raw.get("Pitchers") if isinstance(raw.get("Pitchers"), list) else []
     # A-226～228 的跨時點觀測證實 Pitchers[] 僅在 START 後出現，屬 box
@@ -212,9 +232,19 @@ def _team_snapshot(raw: dict, fetched_at: datetime, previous: dict | None) -> di
         lineup_first = previous_lineup.get("first_observed_at") or _iso(fetched_at)
 
     team = raw.get("Team") if isinstance(raw.get("Team"), dict) else {}
+    record = raw.get("AccumulationScore") if isinstance(raw.get("AccumulationScore"), dict) else {}
     return {
         "team": {"code": team.get("Code"), "name": team.get("Name")},
         "score": raw.get("Score"),
+        # 隊伍層級 H/E：記分板 R/H/E 欄的唯一來源。stats 站的 InningScore 只有
+        # {Seq, Score}，逐局 H/E 只有主站 box/getlive 才有，故本 snapshot 不供逐局值。
+        "hits": _int_or_none(raw.get("HittingCnt")),
+        "errors": _int_or_none(raw.get("ErrorCnt")),
+        "record": {
+            "w": _int_or_none(record.get("W")),
+            "l": _int_or_none(record.get("L")),
+            "t": _int_or_none(record.get("T")),
+        },
         "probable_pitcher": probable,
         "lineup": {
             "availability": availability,
@@ -288,6 +318,22 @@ def build_snapshot(raw_game: dict[str, Any], *, fetched_at: datetime,
         "half": raw_game.get("VisitingHomeType"),
         "away": away,
         "home": home,
+        # 決勝：官方頂層本來就給，缺席時整個為 None（不可用空 dict 冒充「沒有決勝」）。
+        "decisions": {
+            "winning_pitcher": _person(raw_game.get("WinningPitcher")),
+            "losing_pitcher": _person(raw_game.get("LoserPitcher")),
+            "closer": _person(raw_game.get("Closer")),
+            "mvp": _person(raw_game.get("MVP")),
+        },
+        "venue": (raw_game.get("Field") or {}).get("Abbe")
+        if isinstance(raw_game.get("Field"), dict) else None,
+        "umpires": [
+            {"job": u.get("Job"), "name": u.get("Name")}
+            for u in (raw_game.get("Referee") or [])
+            if isinstance(u, dict) and u.get("Name")
+        ],
+        # 官方權威的球場設備旗標；不再由 tracking_count 推測球場有無 TrackMan。
+        "skip_trackman": raw_game.get("SkipTrackman"),
         "livelog": livelog,
         "event_count": len(livelog),
         "tracking_count": tracked,
