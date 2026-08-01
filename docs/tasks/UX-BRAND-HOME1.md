@@ -6,7 +6,7 @@
 - review_independence: [human, cross_family]
 - DB：`db_scope: none`
 - 部署：是（前端）　環境：生產　PR：—　Merge SHA：—
-- 範圍：`web/src/app/layout.tsx`、`web/src/app/page.tsx`、`web/src/app/globals.css`、`web/src/app/icon.svg`（新）、`web/src/app/opengraph-image.*`（新）、`web/src/app/manifest.ts`（新）、`web/src/app/methodology/page.tsx`、上述 10 個缺 metadata 的頁面、`src/cpbl/api/routers/daily.py`（statline 欄位）、`web/src/lib/api.ts`（型別）、`tests/`（`daily/summary` 契約測試）、`docs/PRODUCT_UX_BLUEPRINT.md` 與 `docs/design/UI_UX_SYSTEM.md` 的 H1、`README.md`
+- 範圍：`web/src/app/layout.tsx`、`web/src/app/page.tsx`、`web/src/app/globals.css`、`web/src/app/icon.svg`（新）、`web/src/app/opengraph-image.*`（新）、`web/src/app/manifest.ts`（新）、`web/src/app/methodology/page.tsx`、上述 10 個缺 metadata 的頁面、`web/src/components/brand-mark.tsx`（新）、`docs/PRODUCT_UX_BLUEPRINT.md` 與 `docs/design/UI_UX_SYSTEM.md` 的 H1、`README.md`
 - Discovery：不適用——問題與解法已於 2026-07-31 的對抗式質詢中收斂，15 項決定全部有明確結論，無待驗證假設。
 - Design：**Design Gate 已由需求方本人完成**（本卡的品牌命名、配色語意、mark 形式、hero 結構、免責落點皆為需求方逐項裁定）。Stage 2 交付後另有**本地人工審**作為第二道 Design Gate，見〈驗證〉。
 
@@ -37,9 +37,25 @@
 
 要留意的是**比例而非對錯**：`--color-cpbl` 在設計系統 §2.1 的定義是「CPBL 品牌藍」、§9.1 補述為「聯盟層級用途，非隊色」。新 wordmark 以 `Ruan's`（accent）起首，聯盟藍在整個 lockup 中的視覺權重下降，本站身分的權重上升——這對一個必須維持非官方聲明的站是正確方向。三段各自有成立的語意，符合 §1-3「顏色必有語意、禁裝飾用色」。
 
-**Logo mark**：本壘板五角形內嵌 `R`，SVG 手刻，深淺兩態，作為 favicon、header wordmark 前的圖標與 OG 圖主視覺。選它的判準是 **16px 下必須仍可辨識**——好球帶九宮格的意象雖然更貼近本站差異化，但 3×3 網格在 favicon 尺寸會糊成一塊，故否決。
+**Logo mark**（2026-08-02 人工審後定案，取代原「本壘板內嵌 `R`」）：**本壘板 ＋ 側面笑臉**——圓＝眼睛＝球，弧＝微笑＝進壘軌跡，一個形狀兩種讀法。SVG 手刻，單一 path ＋ `evenodd` 真鏤空，深淺兩態；`variant="silhouette"` 供放大浮水印使用。
+
+原案「內嵌 `R`」**已撤除，不得改回**：需求方指出該字母撞 **樂天桃猿** 標誌，聯盟內球隊的識別不可挪用；且 wordmark 旁就是品牌名，字母屬重複資訊。**笑臉是需求方明確要的意涵**（親近感對應「讓棒球更好懂」），執行過程中規劃者一度誤判為需修掉的巧合而改成離散取樣點，經需求方退回。
+
+原本壘板路徑亦有誤——最寬處在腰部、上緣內縮，讀作盾牌／徽章；已改為最寬處＝上緣、兩側垂直下行再收斂成尖端的 17×17 等比正確形。選形判準仍是 **16px 下必須可辨識**（好球帶九宮格因 3×3 網格在該尺寸糊成一塊而否決）。
 
 **OG 圖**：mark ＋ wordmark ＋ 純色或漸層背景，**不加九宮格紋理**（社群動態牆通常只有 300–400px 寬，紋理在該尺寸下是雜訊且與前景搶注意力）。
+
+## ⚠️ 規格修訂（2026-08-02 需求方人工審，REVIEW-004／REVIEW-005）
+
+**statline 全案撤回。** 需求方於本機實際看過畫面後判定：`資料覆蓋 37 季`／`賽事索引 13,514` 這類數字**對訪客沒有決策價值，屬虛榮指標**。連帶撤回的還有 hero 的兩顆 CTA（頂欄導覽已有同樣入口，純重複）。
+
+連帶效果：statline 一撤，`daily.py` 新增的欄位就沒有 runtime consumer，已還原 `daily.py`、`tests/test_daily_summary.py` 與前端型別。**本卡因此回到純前端範圍**，`daily/summary` 契約未變更。此處置呼應本專案 `UX-LEADERS-ORPHAN1`／`UX-ORPHAN-SWEEP1` 的教訓：不留無消費者的程式碼。
+
+另一項定調：**視覺化與模型是達成目的的手段，不是目的本身**，故方法論不進首屏。Q3「hero 須露出實驗室證據」的義務**未解除，是落點改變**——hero 講目的，手段留在 `/methodology` 與各頁揭露。規劃者原提議在 hero 補一行方法論宣稱，經需求方指出即為果因倒置而撤回。
+
+> 以下 Stage 1／Stage 2 中所有 statline 相關段落**保留為設計歷程**（推理過程本身有參考價值），但**均已失效，不構成交付要求**。實際要求以〈驗收條件〉為準。
+
+---
 
 ## Stage 1｜確定性交付
 
@@ -113,7 +129,15 @@ statline 具體選哪三個數字，於人工審時定案；候選為 `seasons_c
 
 5. **hero 不得使用隊色**（`UI_UX_SYSTEM` §9：隊色＝身分，首頁不屬任何一隊）；**零硬編 hex**（§2.8 token 紀律），品牌視覺一律走既有 token。若人工審認為現有 token 撐不起「品牌視覺層」，**正解是另開卡擴充 token，不是就地手寫 hex 或漸層**。
 
-6. **`--color-accent` 在 `surface-2` 底色上只能用於大字。** 實測 `#d62839` on `#eef2f7` 對比 **4.42:1，未達 WCAG AA 的 4.5:1**（同色在 `surface` `#ffffff` 為 4.97:1、`paper` `#f5f7fa` 為 4.63:1，皆通過；深色模式 `#ff5a6a` on `#1a2c44` 為 4.65:1 通過）。hero 底色正是 `bg-surface-2`，故 wordmark 的 `Ruan's` 一段與任何 accent 文字**必須 ≥24px 或 ≥18.66px 粗體**（大字門檻 3:1）才合法；小字一律改用 `ink` 或 `cpbl`。此為既有設計系統議題，token 本身是否該調整移交 `UX-TOKEN-ACCENT-CONTRAST1`，本卡只約束用法、不動 token 值。
+6. **~~`--color-accent` 在 `surface-2` 底色上只能用於大字。~~ 此約束已於 2026-08-02 解除，見下。**
+
+   **原文（2026-07-31 撰寫，基線已失效）**：實測 `#d62839` on `#eef2f7` 對比 4.42:1，未達 WCAG AA 的 4.5:1；故 accent 文字在 `surface-2` 上必須 ≥24px 或 ≥18.66px 粗體，小字一律改用 `ink` 或 `cpbl`。
+
+   **失效原因**：該約束的前提是 accent ＝ `#d62839`。移交出去的 `UX-TOKEN-ACCENT-CONTRAST1` 已於 `a739b60` merge，把 accent 改為 **`#d12638`**，並同步修正 amber 與深色 cpbl。**現行值在三層底色 × 深淺兩態共 30 組合全數 ≥4.5:1，最差 4.61:1**（由 `web/src/lib/color-contrast.test.ts` 自動守衛，門檻 4.60）。
+
+   **現況（取代原約束）**：`#d12638` on `#eef2f7` ＝ **4.62:1，通過 AA**。accent 在 `surface-2` 上**可用於一般字級**，無字級下限。字級與用色仍須遵守設計系統 §1-3「顏色必有語意」，但對比不再是限制因素。
+
+   > **這條紅線過期造成過一次假缺陷，留作教訓**：跨家族查核者（Gemini 3.6 Flash，2026-08-02）照此原文查核，將 hero 的 `text-sm text-accent` 判為違規並開出 BLOCKING finding，且把舊值的 4.42:1 誤植為新值 `#d12638` 的對比。**推理鏈正確、結論錯誤，根因是本卡面未在上游 token 卡 merge 後同步更新**——屬 baseline cascade 缺口，責任在規格作者（Coordinator）而非執行者。日後移交出去的議題一旦有結論，**必須回頭修正本卡的相關紅線**，否則查核者會照著過期規格查出不存在的缺陷。
 
 7. **statline 的性質須據實描述，不得為了通過資訊預算而美化。** 它**會隨資料成長而變動**（`games_indexed` 每天在長，這正是紅線 1 禁止硬編的理由），只是不回答「今天發生什麼」、不可點、不可篩選。它佔用 §3.1 首屏「最多 3 個支持證據」的全部額度——**這是記在帳上的消耗，不是額外贈品**。任何主張它「不佔預算」的說法都是錯的。
 
@@ -128,10 +152,10 @@ statline 具體選哪三個數字，於人工審時定案；候選為 `seasons_c
 - [ ] Outfit 實際套用於 wordmark（以 computed style 驗證，非以 CSS 原始碼推論）。
 - [ ] **`--font-mono` 的綁定與行為零變更**：改動前後各抓一次任一表格數字的 computed `font-family` 並比對，須完全相同（非口頭聲明未破壞）。
 - [ ] footer 免責改寫完成，「僅供學習與作品集用途」字串消失，非官方與無隸屬關係聲明存在，未出現「非商業用途」字樣；署名列三個連結皆可達。
-- [ ] `daily/summary` 含 statline 欄位；`games_indexed`／`seasons_covered` 在 `kind_code=A` 與 `kind_code=D` 下數值相同（實測兩次呼叫比對）。
-- [ ] 模型指標缺席時（以清空或 mock `model_versions` 模擬），`daily/summary` 仍回 200 且其餘欄位完整、首頁不崩、statline 依紅線 2 降級。
+- [ ] **`daily/summary` 契約零變更**（statline 撤回後應無殘留）：`git diff main...HEAD -- src/cpbl/api/routers/daily.py tests/test_daily_summary.py` 為空。
+- [ ] 全庫無 `statline` 殘留：`grep -rn statline web/src src tests` 零命中。
 - [ ] 首頁請求數**仍為 2**（以 network 面板或 server log 實證），未新增第三個請求。
-- [ ] hero 零硬編 hex、未使用任何隊色 token；accent 文字若出現在 `surface-2` 底上，字級 ≥24px 或 ≥18.66px 粗體（逐處列出並實測對比）。
+- [ ] hero 零硬編 hex、未使用任何隊色 token。**accent 的字級限制已隨紅線 6 解除**（`UX-TOKEN-ACCENT-CONTRAST1` merge 後 `#d12638` on `surface-2` ＝ 4.62:1 通過 AA）；查核時請**實際重算現行 token 值**，不要沿用卡面早期版本的 4.42:1。
 - [ ] Logo mark 的 `aria-hidden`／`role="img"` 依情境正確；OG 圖有 `alt`。
 - [ ] `/methodology` 「關於本站與作者」段落存在。
 - [ ] 兩份 canonical 文件與 README 標題已改名，`UI_UX_SYSTEM.md` 狀態行留痕。
@@ -149,7 +173,7 @@ statline 具體選哪三個數字，於人工審時定案；候選為 `seasons_c
 
 ## 邊界
 
-- 前端 ＋ 一處 API 回應擴充（`daily_summary` 加 statline 欄位，唯讀查詢）＋ 文件 ＋ 契約測試。不動 DB schema、不動 ingest、不動 ML、**不新增 API 端點**。
+- **純前端 ＋ 文件。** statline 撤回後不再動任何 Python（原規劃的 `daily_summary` 欄位擴充已還原）。不動 DB schema、不動 ingest、不動 ML、不新增也不修改 API 端點。
 - **移交**：`UX-TOKEN-ACCENT-CONTRAST1`（檢討 `--color-accent` 在 `surface-2` 上未達 AA，屬全站 token 議題，需獨立驗收）——需求方 2026-07-31 裁定另開卡，本卡只約束用法。
 - 新 worktree 無 `web/node_modules`，執行與查核前皆須 `cd web && npm install`，否則 `tsc`／`build:check` 全紅是環境假象非缺陷。
 - 預估 M（Stage 1 機械性但面廣；Stage 2 依人工審輪數浮動）。
@@ -171,3 +195,8 @@ statline 具體選哪三個數字，於人工審時定案；候選為 `seasons_c
   - **規劃者的內在矛盾**：原紅線 6 同時宣稱 statline「不隨日期變動」與紅線 1「`games_indexed` 每天在長」，自相打架，且該矛盾正是用來主張 statline 不佔 §3.1 預算的論證基礎。改為據實記帳：statline 佔滿首屏三個支持證據額度，並補記現行兩顆對等 CTA 本就偏離「1 個主要下一步」。
   - **SEO 成本**：原卡只寫好處未寫成本（h1 關鍵字稀釋、全站 title 重構的短期波動），新增〈SEO 風險〉節據實補記。
   - 需求方裁定**動態路由 `generateMetadata` 留在卡內**（審查者建議拆出，需求方認為拆出會變成永遠不做的 Backlog，且它是 SEO 收益最高的部分）。
+- 2026-08-02 **需求方本地人工審（第一道關卡）APPROVE @ `78fd0e6`**，六項變更定案並落地：標誌形狀由盾牌改為正確本壘板；移除撞樂天桃猿的字母 `R`；改為需求方指定的側面笑臉；副標改為「用視覺化與數據分析，把棒球看得更懂。」；**移除 statline**（判定為虛榮指標）；移除兩顆重複 CTA。連帶還原已無消費者的 `daily.py`／測試／前端型別，本卡回到純前端範圍。需求方定調「視覺化與模型是手段不是目的」，方法論不進首屏——Q3 義務未解除、是落點改變。過程中規劃者兩度誤判需求方意圖（把要的笑臉當瑕疵改掉、提議在 hero 補方法論宣稱而倒置果因），皆經需求方退回後修正。
+- 2026-08-02 **跨家族查核（Gemini 3.6 Flash@Antigravity）REQUEST_CHANGES**，兩筆 finding，處置如下：
+  - **FINDING-001（BLOCKING）不成立，已駁回。** 該筆稱 hero 的 `text-sm text-accent` 在 `bg-surface-2` 上對比 4.42:1 違反紅線 6。**4.42:1 是舊值 `#d62839` 的比值**；受審 SHA 的 `globals.css:44` 實為 `#d12638`（`UX-TOKEN-ACCENT-CONTRAST1` 於 `a739b60` merge 所改），Coordinator 獨立重算 **`#d12638` on `#eef2f7` ＝ 4.62:1，通過 AA**。查核者把舊值的比值掛到新值的 hex 上，而整個 BLOCKING 判定僅建立在該數字。**但其推理鏈正確，根因在本卡面**：紅線 6 寫於上游 token 卡 merge 之前，merge 後未同步更新，查核者照過期規格查出假缺陷——**屬 baseline cascade 缺口，attribution 為 coordinator 而非 executor**。紅線 6 已改寫並標註失效原因與教訓。
+  - **FINDING-002（NON-BLOCKING）成立，已修正。** 卡面驗收條件仍保留 statline 項目、Log 未記人工審決策。已新增〈規格修訂〉節、改寫相關驗收條件、更新〈範圍〉與〈邊界〉為純前端，並補本 Log。
+  - **查核者的 Python 驗證不充分，記錄備查**：報告稱 `uv run --offline pytest -q` 得 `31 passed`，但本 repo 完整收集為 **984 個測試**（Coordinator 實測 `pytest --collect-only`）。31 表示絕大多數未被收集，多半是 `--offline` 導致相依缺失而 collection 靜默失敗；報告卻據此宣告「自動化建置與測試全數通過」。前端部分（`npm test` 255、`build:check`）數字與 Coordinator 實測一致、可信；**Python 那半等於未驗**。派工時應要求查核者回報收集數而非僅回報通過數。
