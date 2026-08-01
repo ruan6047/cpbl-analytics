@@ -303,8 +303,14 @@ function ScoreLine({ sb, game, snapshot, halves, curKey, onSelect }: {
 
   const row = (label: StatRow[string], code: string, rows: StatRow[], half: string, score: number) => {
     const prefix = half === "1" ? "away" : "home";
-    const hits = snapshot ? num(game[`${prefix}_hits`]) : tot(rows, "hitting_cnt");
-    const errors = snapshot ? num(game[`${prefix}_errors`]) : tot(rows, "error_cnt");
+    // snapshot 路徑用官方隊伍層級真值；null＝官方未供，顯示「—」而非 0
+    // （未知不可寫成「沒有失誤」）。DB 路徑仍由逐局加總。
+    const teamTotal = (key: string) => {
+      const v = game[`${prefix}_${key}`];
+      return v === null || v === undefined ? <span className="text-faint">—</span> : num(v);
+    };
+    const hits = snapshot ? teamTotal("hits") : tot(rows, "hitting_cnt");
+    const errors = snapshot ? teamTotal("errors") : tot(rows, "error_cnt");
     return (
     <tr className="border-t border-line">
       <td className="whitespace-nowrap px-3 py-2 font-sans font-medium">{teamCell(label, code)}</td>

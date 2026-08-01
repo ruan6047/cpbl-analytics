@@ -12,6 +12,7 @@ import {
   resolveStatusSnapshot,
   shouldFetchLivePayload,
   trackingPendingMessage,
+  trackmanAvailability,
   type LiveApiResponse,
   type LiveSnapshot,
 } from "./live-game.ts";
@@ -186,4 +187,123 @@ test("兩隊 lineup 可各自 partial，stale/error 不偽裝成未公布", () =
   assert.equal(lineupMessage("not_announced", "fresh", "ok"), "尚未公布");
   assert.equal(lineupMessage("announced", "stale", "ok"), "資料可能已過期（保留最近名單）");
   assert.equal(lineupMessage("announced", "fresh", "error"), "來源中斷（保留最近名單）");
+});
+
+// ── 官方既有欄位（LIVE-SNAPSHOT-FIELDS1）─────────────────────────────────
+// fixture 為生產真實 payload。父卡與 FIX1 的漏網全出於手寫 mock 比真實資料更完整
+// 更乾淨（自行補 ErrorCnt、把 RunBattedINCnt 拼成 RunBattedIncnt），
+// 等於用對契約的想像驗證對契約的實作。
+
+const realGame = JSON.parse(
+  readFileSync(new URL("./__fixtures__/stats_game_2026-A-234.json", import.meta.url), "utf8"),
+) as Record<string, never>;
+
+// 把真實官方 payload 轉成 worker 產出的 snapshot 形狀（與 build_snapshot 對齊）
+const realSnapshot = (): LiveSnapshot => {
+  const g = realGame as Record<string, Record<string, never>>;
+  const side = (key: "Visiting" | "Home") => {
+    const s = g[key] as Record<string, never>;
+    return {
+      team: { code: (s.Team as Record<string, string>).Code, name: (s.Team as Record<string, string>).Name },
+      score: Number(s.Score), hits: Number(s.HittingCnt), errors: Number(s.ErrorCnt),
+      record: { w: null, l: null, t: null },
+      inning_score: s.InningScore as unknown as Record<string, unknown>[],
+      lineup: { availability: "announced" as const, items: [], first_observed_at: null },
+      hitters: s.Hitters as unknown as Record<string, unknown>[],
+      pitchers: s.Pitchers as unknown as Record<string, unknown>[],
+      probable_pitcher: { availability: "not_announced" as const },
+    };
+  };
+  const person = (k: string) => {
+    const p = g[k] as unknown as { Acnt: string; Name: string; YearlyCount?: number } | undefined;
+    if (!p?.Acnt) return null;
+    return p.YearlyCount == null
+      ? { player_id: p.Acnt, name: p.Name }
+      : { player_id: p.Acnt, name: p.Name, yearly_count: p.YearlyCount };
+  };
+  return snapshot({
+    phase: "final", raw_status: "FINISHED", inning: 9, half: "2",
+    event_count: 260, away: side("Visiting"), home: side("Home"),
+    decisions: {
+      winning_pitcher: person("WinningPitcher"), losing_pitcher: person("LoserPitcher"),
+      closer: person("Closer"), mvp: person("MVP"),
+    },
+    skip_trackman: false,
+  });
+};
+
+test("記分板 H/E 取官方隊伍層級真值；E 不再恆為 0", () => {
+  const out = applyLiveSnapshot(response(realSnapshot()));
+  assert.equal(out.game?.away_hits, 7);
+  assert.equal(out.game?.home_hits, 7);
+  assert.equal(out.game?.away_errors, 0);
+  assert.equal(out.game?.home_errors, 1);   // 官方 Home.ErrorCnt=1，畫面曾印 0
+  // 逐局 H/E 仍為 unknown（stats 站不供），不得由總計回填
+  assert.ok(out.scoreboard.every((r) => r.hitting_cnt === null && r.error_cnt === null));
+});
+
+test("官方未供 H/E 時保持 null，不得回退成 0", () => {
+  const bare = snapshot({ away: { ...snapshot().away, hits: null, errors: null, hitters: [] } });
+  const out = applyLiveSnapshot(response(bare));
+  assert.equal(out.game?.away_hits, null);
+  assert.equal(out.game?.away_errors, null);
+});
+
+test("DB 未補資料時決勝改由 snapshot 供，有 DB 值則不倒退", () => {
+  const out = applyLiveSnapshot(response(realSnapshot()));
+  assert.equal(out.decisions?.["0000006906"], "W");   // 艾菩樂
+  assert.equal(out.decisions?.["0000005731"], "L");   // 布雷克
+  assert.equal(out.decisions?.["0000000941"], "SV");  // 陳冠宇
+
+  const withDb = response(realSnapshot());
+  withDb.decisions = { "9999999999": "W" };
+  assert.deepEqual(applyLiveSnapshot(withDb).decisions, { "9999999999": "W" });
+});
+
+test("決勝資訊列所需的 game.*_id 與 people 也由 snapshot 補上", () => {
+  const out = applyLiveSnapshot(response(realSnapshot()));
+  assert.equal(out.game?.winning_pitcher_id, "0000006906");
+  assert.equal(out.game?.losing_pitcher_id, "0000005731");
+  assert.equal(out.game?.closer_id, "0000000941");
+  assert.equal(out.game?.mvp_id, "0000006906");
+  assert.equal(out.people["0000006906"], "艾菩樂");
+  assert.equal(out.people["0000005731"], "布雷克");
+
+  // DB 有決勝時不得由 snapshot 覆寫
+  const withDb = response(realSnapshot());
+  withDb.decisions = { "9999999999": "W" };
+  const dbOut = applyLiveSnapshot(withDb);
+  assert.equal(dbOut.game?.winning_pitcher_id, undefined);
+});
+
+test("MVP 由 snapshot 補 box 旗標與本季次數，DB 有值時不覆寫", () => {
+  const out = applyLiveSnapshot(response(realSnapshot()));
+  const mvpRow = out.pitching.find((r) => r.is_mvp) ?? out.batting.find((r) => r.is_mvp);
+  assert.ok(mvpRow, "應在 box 列標出 MVP");
+  assert.equal(String(mvpRow!.pitcher_acnt ?? mvpRow!.hitter_acnt), "0000006906");
+  assert.equal((out.decision_counts as { mvp?: number }).mvp, 1);
+
+  const withDb = response(realSnapshot());
+  withDb.decisions = { "9999999999": "W" };
+  const dbOut = applyLiveSnapshot(withDb);
+  assert.equal(dbOut.batting.some((r) => r.is_mvp), false);
+  assert.equal(dbOut.pitching.some((r) => r.is_mvp), false);
+});
+
+test("打點／觸身／盜壘的 alias 對得上真實欄位（曾整欄空白）", () => {
+  const out = applyLiveSnapshot(response(realSnapshot()));
+  const row = out.batting.find((r) => Number(r.at_bats) > 0)!;
+  for (const key of ["rbi", "hbp", "sb"]) {
+    assert.ok(key in row, `${key} 未由 alias 映射出來`);
+  }
+});
+
+test("TrackMan 可用性以官方 skip_trackman 判定，未知不得說成沒有設備", () => {
+  assert.equal(trackmanAvailability(null), "unknown");
+  assert.equal(trackmanAvailability(snapshot()), "unknown");           // 舊 snapshot 無此欄位
+  assert.equal(trackmanAvailability(snapshot({ skip_trackman: false })), "expected");
+  assert.equal(trackmanAvailability(snapshot({ skip_trackman: true })), "unavailable");
+
+  assert.ok(!/未配置|未設置/.test(trackingPendingMessage(snapshot())));
+  assert.match(trackingPendingMessage(snapshot({ skip_trackman: true })), /未配置/);
 });

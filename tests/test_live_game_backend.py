@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
+from pathlib import Path
 
 import httpx
 import pytest
@@ -181,6 +183,83 @@ def test_lineup_first_observed_time_survives_later_snapshots() -> None:
 
     assert later["away"]["lineup"]["first_observed_at"] == T0.isoformat()
     assert later["source"]["fetched_at"] != T0.isoformat()
+
+
+# ── 官方既有欄位保留（LIVE-SNAPSHOT-FIELDS1）────────────────────────────────
+# fixture 是生產真實 payload，不是手寫 mock。父卡與 FIX1 的漏網全出於手寫 mock 比
+# 真實資料更完整／更乾淨（自行補 ErrorCnt、把 RunBattedINCnt 拼成 RunBattedIncnt），
+# 等於用對契約的想像驗證對契約的實作。
+
+_FIXTURE = Path(__file__).parent / "fixtures" / "stats_game_2026-A-234.json"
+
+
+def _real_game() -> dict:
+    return json.loads(_FIXTURE.read_text(encoding="utf-8"))
+
+
+def test_team_hits_and_errors_come_from_official_team_level_fields() -> None:
+    """記分板 E 曾恆為 0；官方 Home.ErrorCnt=1，snapshot 必須帶出真值。"""
+    snapshot = build_snapshot(_real_game(), fetched_at=T0)
+
+    assert snapshot["away"]["hits"] == 7
+    assert snapshot["away"]["errors"] == 0
+    assert snapshot["home"]["hits"] == 7
+    assert snapshot["home"]["errors"] == 1
+    # 逐局 H/E 只有主站 box/getlive 有；stats 的 InningScore 僅 {Seq, Score}，
+    # 不得由總計回填成逐局值。
+    assert all(set(row) <= {"Seq", "Score"} for row in snapshot["home"]["inning_score"])
+
+
+def test_decisions_and_game_facts_are_preserved_from_official_payload() -> None:
+    snapshot = build_snapshot(_real_game(), fetched_at=T0)
+    decisions = snapshot["decisions"]
+
+    assert decisions["winning_pitcher"] == {"player_id": "0000006906", "name": "艾菩樂"}
+    assert decisions["losing_pitcher"] == {"player_id": "0000005731", "name": "布雷克"}
+    assert decisions["closer"] == {"player_id": "0000000941", "name": "陳冠宇"}
+    assert decisions["mvp"]["yearly_count"] == 1
+    assert snapshot["venue"] == "亞太主"
+    assert [u["name"] for u in snapshot["umpires"]][:2] == ["劉世偉", "王俊宏"]
+    # 官方權威旗標，取代由 tracking_count 推測球場有無設備。
+    assert snapshot["skip_trackman"] is False
+    assert snapshot["home"]["record"] == {"w": 8, "l": 9, "t": 0}
+
+
+def test_missing_team_and_decision_fields_stay_none_instead_of_zero() -> None:
+    """缺資料與「值為零」必須可區分，否則記分板會把未知寫成 0。"""
+    snapshot = build_snapshot(_game("SCHEDULED"), fetched_at=T0)
+
+    assert snapshot["away"]["hits"] is None
+    assert snapshot["away"]["errors"] is None
+    assert snapshot["away"]["record"] == {"w": None, "l": None, "t": None}
+    assert snapshot["decisions"] == {
+        "winning_pitcher": None, "losing_pitcher": None, "closer": None, "mvp": None,
+    }
+    assert snapshot["venue"] is None
+    assert snapshot["umpires"] == []
+    assert snapshot["skip_trackman"] is None
+
+
+def test_batter_aliases_all_resolve_against_the_real_payload() -> None:
+    """alias 必須對得上真實欄位；拼錯不得再靜默通過（打點／觸身／盜壘曾整欄空白）。
+
+    前端 snake() 的等價實作——與 web/src/lib/live-game.ts 同一套規則。
+    """
+    def snake(key: str) -> str:
+        key = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", key)
+        key = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", key)
+        return key.lower()
+
+    game = _real_game()
+    produced = {snake(k) for side in ("Visiting", "Home")
+                for row in game[side]["Hitters"] for k in row}
+    # stats 站實際供應這些欄位，前端 alias 的 key 必須落在其中
+    for key in ("run_batted_in_cnt", "hit_by_pitch_cnt", "steal_base_ok_cnt",
+                "hitting_cnt", "hit_cnt", "score_cnt"):
+        assert key in produced, f"{key} 不在真實 payload 中"
+    # 這三個是主站 box/getlive 專有，stats 站永遠不會有 —— 賽中算不出滿貫／致勝打點
+    for key in ("grand_slam_homerun_cnt", "game_winning_rbi_cnt", "hitter_uniform_no"):
+        assert key not in produced
 
 
 class _Cache:

@@ -10,14 +10,27 @@ export type CanonicalLineup = {
   first_observed_at?: string | null;
 };
 
+export type LivePerson = { player_id: string; name: string; yearly_count?: number | null };
+
 export type LiveSide = {
   team: { code: string; name: string };
   score: number;
+  // 隊伍層級 H/E。null = 官方未供（與「值為零」不同），舊 snapshot 也可能整個缺欄位。
+  hits?: number | null;
+  errors?: number | null;
+  record?: { w: number | null; l: number | null; t: number | null } | null;
   inning_score: Record<string, unknown>[];
   lineup: CanonicalLineup;
   hitters: Record<string, unknown>[];
   pitchers: Record<string, unknown>[];
   probable_pitcher: { availability: "not_announced" };
+};
+
+export type LiveDecisions = {
+  winning_pitcher: LivePerson | null;
+  losing_pitcher: LivePerson | null;
+  closer: LivePerson | null;
+  mvp: LivePerson | null;
 };
 
 export type LiveSnapshot = {
@@ -40,6 +53,12 @@ export type LiveSnapshot = {
   away: LiveSide;
   home: LiveSide;
   livelog: Record<string, unknown>[];
+  // 以下為 LIVE-SNAPSHOT-FIELDS1 additive 欄位；舊 snapshot 可能整個缺，故全為 optional。
+  decisions?: LiveDecisions | null;
+  venue?: string | null;
+  umpires?: { job: string; name: string }[];
+  // 官方權威旗標：true = 該球場不配置 TrackMan。undefined = 舊 snapshot 未帶。
+  skip_trackman?: boolean | null;
 };
 
 export type LiveApiResponse = {
@@ -113,10 +132,17 @@ export function resolveStatusSnapshot(previous: LiveSnapshot | null, incoming: L
   };
 }
 
-export const trackingPendingMessage = (snapshot: LiveSnapshot | null): string =>
-  snapshot && snapshot.phase !== "final"
+/** 逐球追蹤缺資料的文案。實測 TrackMan 是賽後才發布（2026-A-234 完賽當下 0/260，
+ *  約四小時後 249/260），故賽中缺資料是常態、不是球場沒設備。只有官方 `skip_trackman`
+ *  明確為 true 時才可說該場地不提供；未知一律用中性文案。 */
+export const trackingPendingMessage = (snapshot: LiveSnapshot | null): string => {
+  if (trackmanAvailability(snapshot) === "unavailable") {
+    return "本場地未配置逐球追蹤設備，無進壘點、球種與球速。";
+  }
+  return snapshot && snapshot.phase !== "final"
     ? "賽中逐球追蹤尚在整理；目前以文字賽況為準，完賽資料補齊後再顯示。"
     : "本場尚無可顯示的逐球追蹤資料。";
+};
 
 export function lineupMessage(
   availability: Availability,
@@ -163,23 +189,31 @@ function normalized(row: Record<string, unknown>): StatRow {
   return result;
 }
 
+// key 必須等於 snake() 對官方欄位的實際輸出。曾把 RunBattedINCnt 手寫成
+// run_batted_incnt（少一個底線），使打點／觸身／盜壘整欄空白且測試靜默通過；
+// tests/test_live_game_backend.py 以真實 payload 的 key 集合守住這件事。
+//
+// 註：滿貫（GrandSlamHomerunCnt）、致勝打點（GameWinningRbiCnt）、背號
+// （HitterUniformNo）、個人失誤、IsMvp、RoleType 是主站 box/getlive 專有，
+// stats 站永遠不供，故賽中算不出來——不列 alias，由呼叫端 fail-closed。
 const BATTER_ALIASES: Record<string, string> = {
-  hit_cnt: "at_bats", hitting_cnt: "hits", run_batted_incnt: "rbi", score_cnt: "runs",
+  hit_cnt: "at_bats", hitting_cnt: "hits", run_batted_in_cnt: "rbi", score_cnt: "runs",
   one_base_hit_cnt: "singles", two_base_hit_cnt: "doubles", three_base_hit_cnt: "triples",
-  home_run_cnt: "home_runs", grand_slam_homerun_cnt: "grand_slam", double_play_bat_cnt: "gidp",
+  home_run_cnt: "home_runs", double_play_bat_cnt: "gidp",
   sacrifice_hit_cnt: "sac_hit", sacrifice_fly_cnt: "sac_fly", bases_on_balls_cnt: "bb",
-  intentional_bases_on_balls_cnt: "ibb", hit_bypitch_cnt: "hbp", strike_out_cnt: "so",
-  steal_base_okcnt: "sb", steal_base_fail_cnt: "cs", game_winning_rbi_cnt: "gw_rbi",
-  hitter_uniform_no: "uniform_no",
+  intentional_bases_on_balls_cnt: "ibb", hit_by_pitch_cnt: "hbp", strike_out_cnt: "so",
+  steal_base_ok_cnt: "sb", steal_base_fail_cnt: "cs",
 };
 
+// 投手側同理：GameResult／IsCompleteGame／IsShoutOut／GameHigherSpeedPitch 主站專有，
+// 故完投、完封、最速球賽中不可得（保留 alias 供 DB 路徑沿用同一組正規化）。
 const PITCHER_ALIASES: Record<string, string> = {
   inning_pitched_div3_cnt: "inning_pitched_div3", hitting_cnt: "hits", home_run_cnt: "home_runs",
   sacrifice_hit_cnt: "sac_hit", sacrifice_fly_cnt: "sac_fly", bases_on_balls_cnt: "bb",
-  intentional_bases_on_balls_cnt: "ibb", hit_bypitch_cnt: "hbp", strike_out_cnt: "so",
+  intentional_bases_on_balls_cnt: "ibb", hit_by_pitch_cnt: "hbp", strike_out_cnt: "so",
   wild_pitch_cnt: "wild_pitch", balk_cnt: "balk", run_cnt: "runs", earned_run_cnt: "earned_runs",
-  relief_point_cnt: "relief_point", game_higher_speed_pitch: "max_speed", pitcher_uniform_no: "uniform_no",
-  is_shout_out: "is_shutout",
+  relief_point_cnt: "relief_point", game_higher_speed_pitch: "max_speed",
+  pitcher_uniform_no: "uniform_no", is_shout_out: "is_shutout",
 };
 
 function aliases(row: StatRow, mapping: Record<string, string>): StatRow {
@@ -223,10 +257,17 @@ function liveLog(snapshot: LiveSnapshot): StatRow[] {
   });
 }
 
-function boxTotals(hitters: StatRow[]) {
+/** 記分板 R/H/E 的 H、E。
+ *
+ *  官方在隊伍層級就給 `HittingCnt`／`ErrorCnt`，直接採用。舊做法從 hitters 加總，
+ *  但 stats 站的打者列**沒有** error 欄位（個人失誤是主站 box 專有），故 E 恆為 0——
+ *  實測 2026-A-234 統一官方 ErrorCnt=1、畫面卻印 0。缺值回 null 讓呈現端顯示「—」，
+ *  不可回退成 0，否則「未知」會被寫成「沒有失誤」。 */
+function teamTotals(side: LiveSide, hitters: StatRow[]) {
+  const summedHits = hitters.reduce((sum, row) => sum + Number(row.hits ?? 0), 0);
   return {
-    hits: hitters.reduce((sum, row) => sum + Number(row.hits ?? 0), 0),
-    errors: hitters.reduce((sum, row) => sum + Number(row.error_cnt ?? row.errors ?? 0), 0),
+    hits: side.hits ?? (hitters.length ? summedHits : null),
+    errors: side.errors ?? null,
   };
 }
 
@@ -252,8 +293,20 @@ export function applyLiveSnapshot(response: LiveApiResponse): LiveApiResponse {
   const awayBatting = boxRows("1", snapshot.away.hitters, "batter");
   const homeBatting = boxRows("2", snapshot.home.hitters, "batter");
   const batting = [...awayBatting, ...homeBatting];
-  const awayTotals = boxTotals(awayBatting);
-  const homeTotals = boxTotals(homeBatting);
+  const awayTotals = teamTotals(snapshot.away, awayBatting);
+  const homeTotals = teamTotals(snapshot.home, homeBatting);
+  // DB 尚未補資料時，決勝改由 snapshot 供；DB 有值一律以 DB 為準（不倒退）。
+  const fromDb = Object.keys(response.decisions ?? {}).length > 0;
+  const decisions = fromDb ? response.decisions : snapshotDecisions(snapshot);
+  // 決勝資訊列讀的是 game.*_pitcher_id + people，與上面的 acnt→代碼 map 是兩條路徑，
+  // 兩邊都要接，否則賽後頁面「勝投／敗投／救援／MVP」整列空白。
+  const decisionIds = fromDb ? {} : snapshotDecisionIds(snapshot);
+  const decisionPeople = fromDb ? {} : snapshotPeople(snapshot);
+  // MVP 卡沿用既有的 is_mvp 掃描（box 旗標是主站專有，stats 站不供），這裡以 snapshot
+  // 的 MVP acnt 在 box 列上補旗標，讓成績行與本季次數不必另寫一套呈現路徑。
+  const mvpId = fromDb ? null : snapshot.decisions?.mvp?.player_id ?? null;
+  const markMvp = (rows: StatRow[], key: "hitter_acnt" | "pitcher_acnt") =>
+    mvpId ? rows.map((row) => (String(row[key]) === mvpId ? { ...row, is_mvp: true } : row)) : rows;
   const pitching = [
     ...boxRows("1", snapshot.away.pitchers, "pitcher"),
     ...boxRows("2", snapshot.home.pitchers, "pitcher"),
@@ -280,16 +333,69 @@ export function applyLiveSnapshot(response: LiveApiResponse): LiveApiResponse {
       home_score: snapshot.home.score,
       home_hits: homeTotals.hits,
       home_errors: homeTotals.errors,
+      ...decisionIds,
     },
     livelog: liveLog(snapshot),
-    batting,
-    pitching,
+    batting: markMvp(batting, "hitter_acnt"),
+    pitching: markMvp(pitching, "pitcher_acnt"),
+    // 官方 MVP.YearlyCount＝本季第 N 次；DB 未補資料時沿用它顯示「本季第 N 次」。
+    decision_counts: fromDb || snapshot.decisions?.mvp?.yearly_count == null
+      ? response.decision_counts
+      : { ...(response.decision_counts as object ?? {}), mvp: snapshot.decisions.mvp.yearly_count },
     scoreboard: [
       ...scoreRows("1", snapshot.away.inning_score),
       ...scoreRows("2", snapshot.home.inning_score),
     ],
     batter_avg: { ...response.batter_avg, ...batterAvg },
+    people: { ...response.people, ...decisionPeople },
+    decisions,
     // live snapshot 只有 availability/count，沒有逐球座標；不可渲染空好球帶。
     has_tracking: snapshot.phase === "final" ? response.has_tracking : false,
   };
 }
+
+/** snapshot 的決勝 → 既有 `decisions` 形狀（acnt → W/L/SV）。無資料回 `{}`。
+ *
+ *  DB 每日爬蟲補齊前，賽後頁面的決勝一度全空，使「問天」把勝投寫成「無關勝負」。
+ *  官方頂層本來就給 WinningPitcher／LoserPitcher／Closer，接上即可。 */
+function snapshotDecisions(snapshot: LiveSnapshot): Record<string, "W" | "L" | "SV" | "HLD"> {
+  const out: Record<string, "W" | "L" | "SV" | "HLD"> = {};
+  const map = [
+    ["winning_pitcher", "W"], ["losing_pitcher", "L"], ["closer", "SV"],
+  ] as const;
+  for (const [key, code] of map) {
+    const person = snapshot.decisions?.[key];
+    if (person?.player_id) out[person.player_id] = code;
+  }
+  return out;
+}
+
+/** snapshot 決勝 → `game.*_id` 欄位（決勝資訊列與 MVP 卡讀這組）。 */
+function snapshotDecisionIds(snapshot: LiveSnapshot): StatRow {
+  const d = snapshot.decisions;
+  if (!d) return {};
+  const out: StatRow = {};
+  if (d.winning_pitcher) out.winning_pitcher_id = d.winning_pitcher.player_id;
+  if (d.losing_pitcher) out.losing_pitcher_id = d.losing_pitcher.player_id;
+  if (d.closer) out.closer_id = d.closer.player_id;
+  if (d.mvp) out.mvp_id = d.mvp.player_id;
+  return out;
+}
+
+/** snapshot 決勝 → `people`（id → 姓名）；決勝資訊列以此顯示姓名。 */
+function snapshotPeople(snapshot: LiveSnapshot): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const person of Object.values(snapshot.decisions ?? {})) {
+    if (person?.player_id && person.name) out[person.player_id] = person.name;
+  }
+  return out;
+}
+
+/** 該場是否可能有逐球追蹤。官方 `skip_trackman` 是權威旗標；未帶（舊 snapshot）回 null
+ *  表示未知——未知不得被說成「球場沒有設備」。 */
+export const trackmanAvailability = (
+  snapshot: LiveSnapshot | null,
+): "unavailable" | "expected" | "unknown" => {
+  if (!snapshot || snapshot.skip_trackman == null) return "unknown";
+  return snapshot.skip_trackman ? "unavailable" : "expected";
+};

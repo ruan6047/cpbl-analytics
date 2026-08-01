@@ -1,0 +1,1485 @@
+{
+ "GameId": "2026-A-234",
+ "SkipTrackman": false,
+ "GameStatus": "FINISHED",
+ "Visiting": {
+  "Team": {
+   "Code": "AJL011",
+   "Name": "樂天桃猿",
+   "SmallLogoUrl": "http://cpbl.com.tw/files/atts/0L015574823122453305/2024_CPBL六隊Logo_R2_官網.png",
+   "BigLogoUrl": "http://cpbl.com.tw/files/atts/0L015581098468306680/2024_CPBL六隊Logo_R_官網.png"
+  },
+  "Score": 1,
+  "AccumulationScore": {
+   "W": 10,
+   "L": 6,
+   "T": 0
+  },
+  "HittingCnt": 7,
+  "ErrorCnt": 0,
+  "Hitters": [
+   {
+    "Avg": 0.317,
+    "Rboe": 0,
+    "HitCnt": 3,
+    "Lineup": 1,
+    "ScoreCnt": 0,
+    "HitterAcnt": "0000002286",
+    "HitterName": "林立",
+    "HittingCnt": 2,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 1,
+    "DefendStation": "RF",
+    "HitBYPitchCnt": 0,
+    "OneBaseHitCnt": 1,
+    "TwoBaseHitCnt": 1,
+    "RunBattedINCnt": 0,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 0,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 1,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 0,
+    "PlateAppearances": 4,
+    "StealBaseFailCnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Avg": 0.261,
+    "Rboe": 0,
+    "HitCnt": 4,
+    "Lineup": 2,
+    "ScoreCnt": 0,
+    "HitterAcnt": "0000007822",
+    "HitterName": "威克",
+    "HittingCnt": 0,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 0,
+    "DefendStation": "LF",
+    "HitBYPitchCnt": 0,
+    "OneBaseHitCnt": 0,
+    "TwoBaseHitCnt": 0,
+    "RunBattedINCnt": 0,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 0,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 0,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 0,
+    "PlateAppearances": 4,
+    "StealBaseFailCnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Avg": 0.298,
+    "Rboe": 0,
+    "HitCnt": 0,
+    "Lineup": 2,
+    "ScoreCnt": 0,
+    "HitterAcnt": "0000004633",
+    "HitterName": "陳晨威",
+    "HittingCnt": 0,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 0,
+    "DefendStation": "(LF)",
+    "HitBYPitchCnt": 0,
+    "OneBaseHitCnt": 0,
+    "TwoBaseHitCnt": 0,
+    "RunBattedINCnt": 0,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 0,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 0,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 0,
+    "PlateAppearances": 0,
+    "StealBaseFailCnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Avg": 0.279,
+    "Rboe": 1,
+    "HitCnt": 4,
+    "Lineup": 3,
+    "ScoreCnt": 0,
+    "HitterAcnt": "0000003345",
+    "HitterName": "林智平",
+    "HittingCnt": 1,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 0,
+    "DefendStation": "1B",
+    "HitBYPitchCnt": 0,
+    "OneBaseHitCnt": 1,
+    "TwoBaseHitCnt": 0,
+    "RunBattedINCnt": 0,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 0,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 0,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 0,
+    "PlateAppearances": 4,
+    "StealBaseFailCnt": 1,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Avg": 0.267,
+    "Rboe": 0,
+    "HitCnt": 4,
+    "Lineup": 4,
+    "ScoreCnt": 0,
+    "HitterAcnt": "0000003467",
+    "HitterName": "林泓育",
+    "HittingCnt": 0,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 3,
+    "DefendStation": "DH",
+    "HitBYPitchCnt": 0,
+    "OneBaseHitCnt": 0,
+    "TwoBaseHitCnt": 0,
+    "RunBattedINCnt": 0,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 0,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 0,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 0,
+    "PlateAppearances": 4,
+    "StealBaseFailCnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Avg": 0.235,
+    "Rboe": 0,
+    "HitCnt": 4,
+    "Lineup": 5,
+    "ScoreCnt": 0,
+    "HitterAcnt": "0000000132",
+    "HitterName": "梁家榮",
+    "HittingCnt": 2,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 0,
+    "DefendStation": "3B",
+    "HitBYPitchCnt": 0,
+    "OneBaseHitCnt": 2,
+    "TwoBaseHitCnt": 0,
+    "RunBattedINCnt": 0,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 0,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 0,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 0,
+    "PlateAppearances": 4,
+    "StealBaseFailCnt": 1,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Avg": 0.258,
+    "Rboe": 0,
+    "HitCnt": 3,
+    "Lineup": 6,
+    "ScoreCnt": 1,
+    "HitterAcnt": "0000006235",
+    "HitterName": "林政華",
+    "HittingCnt": 1,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 0,
+    "DefendStation": "CF",
+    "HitBYPitchCnt": 1,
+    "OneBaseHitCnt": 0,
+    "TwoBaseHitCnt": 1,
+    "RunBattedINCnt": 0,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 0,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 0,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 0,
+    "PlateAppearances": 4,
+    "StealBaseFailCnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Avg": 0.1,
+    "Rboe": 0,
+    "HitCnt": 3,
+    "Lineup": 7,
+    "ScoreCnt": 0,
+    "HitterAcnt": "0000003563",
+    "HitterName": "余德龍",
+    "HittingCnt": 0,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 1,
+    "DefendStation": "SS",
+    "HitBYPitchCnt": 0,
+    "OneBaseHitCnt": 0,
+    "TwoBaseHitCnt": 0,
+    "RunBattedINCnt": 0,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 0,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 1,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 0,
+    "PlateAppearances": 4,
+    "StealBaseFailCnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Avg": 0.156,
+    "Rboe": 0,
+    "HitCnt": 4,
+    "Lineup": 8,
+    "ScoreCnt": 0,
+    "HitterAcnt": "0000004032",
+    "HitterName": "嚴宏鈞",
+    "HittingCnt": 0,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 2,
+    "DefendStation": "C",
+    "HitBYPitchCnt": 0,
+    "OneBaseHitCnt": 0,
+    "TwoBaseHitCnt": 0,
+    "RunBattedINCnt": 1,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 0,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 0,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 0,
+    "PlateAppearances": 4,
+    "StealBaseFailCnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Avg": 0.231,
+    "Rboe": 0,
+    "HitCnt": 3,
+    "Lineup": 9,
+    "ScoreCnt": 0,
+    "HitterAcnt": "0000006240",
+    "HitterName": "馬傑森",
+    "HittingCnt": 1,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 0,
+    "DefendStation": "2B",
+    "HitBYPitchCnt": 0,
+    "OneBaseHitCnt": 1,
+    "TwoBaseHitCnt": 0,
+    "RunBattedINCnt": 0,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 0,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 0,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 0,
+    "PlateAppearances": 3,
+    "StealBaseFailCnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   }
+  ],
+  "Pitchers": [
+   {
+    "Era": 3.69,
+    "Whip": 1.27,
+    "RunCnt": 0,
+    "TotalL": 8,
+    "TotalS": 0,
+    "TotalW": 2,
+    "BalkCnt": 0,
+    "ErrorCnt": 0,
+    "IsSaveOK": "0",
+    "PitchCnt": 97,
+    "RoleType": "先發",
+    "StrikeCnt": 66,
+    "HittingCnt": 7,
+    "HomeRunCnt": 0,
+    "IsSaveFail": "0",
+    "PitcherAcnt": "0000006906",
+    "PitcherName": "艾菩樂",
+    "EarnedRunCnt": 0,
+    "StrikeOutCnt": 4,
+    "WildPitchCnt": 0,
+    "HitBYPitchCnt": 0,
+    "ReliefPointCnt": 0,
+    "BasesONBallsCnt": 0,
+    "InningPitchedCnt": 7,
+    "PlateAppearances": 26,
+    "InningPitchedDiv3Cnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Era": 0,
+    "Whip": 0.8,
+    "RunCnt": 0,
+    "TotalL": 1,
+    "TotalS": 0,
+    "TotalW": 0,
+    "BalkCnt": 0,
+    "ErrorCnt": 0,
+    "IsSaveOK": "0",
+    "PitchCnt": 14,
+    "RoleType": "中繼",
+    "StrikeCnt": 7,
+    "HittingCnt": 0,
+    "HomeRunCnt": 0,
+    "IsSaveFail": "0",
+    "PitcherAcnt": "0000005372",
+    "PitcherName": "呂詠臻",
+    "EarnedRunCnt": 0,
+    "StrikeOutCnt": 0,
+    "WildPitchCnt": 0,
+    "HitBYPitchCnt": 0,
+    "ReliefPointCnt": 1,
+    "BasesONBallsCnt": 1,
+    "InningPitchedCnt": 1,
+    "PlateAppearances": 3,
+    "InningPitchedDiv3Cnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Era": 2.36,
+    "Whip": 1.08,
+    "RunCnt": 0,
+    "TotalL": 3,
+    "TotalS": 5,
+    "TotalW": 3,
+    "BalkCnt": 0,
+    "ErrorCnt": 0,
+    "IsSaveOK": "1",
+    "PitchCnt": 18,
+    "RoleType": "最後一任",
+    "StrikeCnt": 15,
+    "HittingCnt": 0,
+    "HomeRunCnt": 0,
+    "IsSaveFail": "0",
+    "PitcherAcnt": "0000000941",
+    "PitcherName": "陳冠宇",
+    "EarnedRunCnt": 0,
+    "StrikeOutCnt": 2,
+    "WildPitchCnt": 0,
+    "HitBYPitchCnt": 0,
+    "ReliefPointCnt": 0,
+    "BasesONBallsCnt": 0,
+    "InningPitchedCnt": 1,
+    "PlateAppearances": 3,
+    "InningPitchedDiv3Cnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": true
+   }
+  ],
+  "InningScore": [
+   {
+    "Seq": 1,
+    "Score": "0"
+   },
+   {
+    "Seq": 2,
+    "Score": "0"
+   },
+   {
+    "Seq": 3,
+    "Score": "0"
+   },
+   {
+    "Seq": 4,
+    "Score": "0"
+   },
+   {
+    "Seq": 5,
+    "Score": "1"
+   },
+   {
+    "Seq": 6,
+    "Score": "0"
+   },
+   {
+    "Seq": 7,
+    "Score": "0"
+   },
+   {
+    "Seq": 8,
+    "Score": "0"
+   },
+   {
+    "Seq": 9,
+    "Score": "0"
+   }
+  ]
+ },
+ "Home": {
+  "Team": {
+   "Code": "ADD011",
+   "Name": "統一7-ELEVEn獅",
+   "SmallLogoUrl": "http://cpbl.com.tw/files/atts/0L021496162893869773/logo_lions.png",
+   "BigLogoUrl": "http://cpbl.com.tw/files/atts/0L021496167521474259/logo_lions_large.png"
+  },
+  "Score": 0,
+  "AccumulationScore": {
+   "W": 8,
+   "L": 9,
+   "T": 0
+  },
+  "HittingCnt": 7,
+  "ErrorCnt": 1,
+  "Hitters": [
+   {
+    "Avg": 0.366,
+    "Rboe": 0,
+    "HitCnt": 3,
+    "Lineup": 1,
+    "ScoreCnt": 0,
+    "HitterAcnt": "0000007037",
+    "HitterName": "張皓崴",
+    "HittingCnt": 1,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 0,
+    "DefendStation": "RF(CF)",
+    "HitBYPitchCnt": 0,
+    "OneBaseHitCnt": 1,
+    "TwoBaseHitCnt": 0,
+    "RunBattedINCnt": 0,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 1,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 0,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 0,
+    "PlateAppearances": 4,
+    "StealBaseFailCnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Avg": 0.332,
+    "Rboe": 0,
+    "HitCnt": 4,
+    "Lineup": 2,
+    "ScoreCnt": 0,
+    "HitterAcnt": "0000001804",
+    "HitterName": "陳傑憲",
+    "HittingCnt": 1,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 0,
+    "DefendStation": "LF",
+    "HitBYPitchCnt": 0,
+    "OneBaseHitCnt": 1,
+    "TwoBaseHitCnt": 0,
+    "RunBattedINCnt": 0,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 0,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 0,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 1,
+    "PlateAppearances": 4,
+    "StealBaseFailCnt": 1,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Avg": 0.272,
+    "Rboe": 0,
+    "HitCnt": 4,
+    "Lineup": 3,
+    "ScoreCnt": 0,
+    "HitterAcnt": "0000006223",
+    "HitterName": "林子豪",
+    "HittingCnt": 1,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 2,
+    "DefendStation": "1B",
+    "HitBYPitchCnt": 0,
+    "OneBaseHitCnt": 0,
+    "TwoBaseHitCnt": 1,
+    "RunBattedINCnt": 0,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 0,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 0,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 0,
+    "PlateAppearances": 4,
+    "StealBaseFailCnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Avg": 0.261,
+    "Rboe": 0,
+    "HitCnt": 3,
+    "Lineup": 4,
+    "ScoreCnt": 0,
+    "HitterAcnt": "0000002661",
+    "HitterName": "陳鏞基",
+    "HittingCnt": 1,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 0,
+    "DefendStation": "DH",
+    "HitBYPitchCnt": 0,
+    "OneBaseHitCnt": 1,
+    "TwoBaseHitCnt": 0,
+    "RunBattedINCnt": 0,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 0,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 0,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 0,
+    "PlateAppearances": 3,
+    "StealBaseFailCnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Avg": 0.245,
+    "Rboe": 0,
+    "HitCnt": 1,
+    "Lineup": 4,
+    "ScoreCnt": 0,
+    "HitterAcnt": "0000005531",
+    "HitterName": "邱智呈",
+    "HittingCnt": 0,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 1,
+    "DefendStation": "(PR)(DH)",
+    "HitBYPitchCnt": 0,
+    "OneBaseHitCnt": 0,
+    "TwoBaseHitCnt": 0,
+    "RunBattedINCnt": 0,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 0,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 0,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 0,
+    "PlateAppearances": 1,
+    "StealBaseFailCnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Avg": 0.281,
+    "Rboe": 0,
+    "HitCnt": 4,
+    "Lineup": 5,
+    "ScoreCnt": 0,
+    "HitterAcnt": "0000002707",
+    "HitterName": "潘傑楷",
+    "HittingCnt": 2,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 1,
+    "DefendStation": "3B",
+    "HitBYPitchCnt": 0,
+    "OneBaseHitCnt": 2,
+    "TwoBaseHitCnt": 0,
+    "RunBattedINCnt": 0,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 0,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 0,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 0,
+    "PlateAppearances": 4,
+    "StealBaseFailCnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": true
+   },
+   {
+    "Avg": 0.115,
+    "Rboe": 0,
+    "HitCnt": 3,
+    "Lineup": 6,
+    "ScoreCnt": 0,
+    "HitterAcnt": "0000004642",
+    "HitterName": "林靖凱",
+    "HittingCnt": 0,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 0,
+    "DefendStation": "2B",
+    "HitBYPitchCnt": 0,
+    "OneBaseHitCnt": 0,
+    "TwoBaseHitCnt": 0,
+    "RunBattedINCnt": 0,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 0,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 0,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 0,
+    "PlateAppearances": 3,
+    "StealBaseFailCnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Avg": 0.169,
+    "Rboe": 0,
+    "HitCnt": 3,
+    "Lineup": 7,
+    "ScoreCnt": 0,
+    "HitterAcnt": "0000007070",
+    "HitterName": "林佳緯",
+    "HittingCnt": 0,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 2,
+    "DefendStation": "CF",
+    "HitBYPitchCnt": 0,
+    "OneBaseHitCnt": 0,
+    "TwoBaseHitCnt": 0,
+    "RunBattedINCnt": 0,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 0,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 0,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 0,
+    "PlateAppearances": 3,
+    "StealBaseFailCnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Avg": 0.285,
+    "Rboe": 0,
+    "HitCnt": 0,
+    "Lineup": 7,
+    "ScoreCnt": 0,
+    "HitterAcnt": "0000002298",
+    "HitterName": "陳重羽",
+    "HittingCnt": 0,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 0,
+    "DefendStation": "(C)",
+    "HitBYPitchCnt": 0,
+    "OneBaseHitCnt": 0,
+    "TwoBaseHitCnt": 0,
+    "RunBattedINCnt": 0,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 0,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 0,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 0,
+    "PlateAppearances": 0,
+    "StealBaseFailCnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Avg": 0.224,
+    "Rboe": 0,
+    "HitCnt": 2,
+    "Lineup": 8,
+    "ScoreCnt": 0,
+    "HitterAcnt": "0000006716",
+    "HitterName": "張翔",
+    "HittingCnt": 1,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 0,
+    "DefendStation": "C",
+    "HitBYPitchCnt": 0,
+    "OneBaseHitCnt": 1,
+    "TwoBaseHitCnt": 0,
+    "RunBattedINCnt": 0,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 0,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 0,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 0,
+    "PlateAppearances": 2,
+    "StealBaseFailCnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Avg": 0.299,
+    "Rboe": 0,
+    "HitCnt": 1,
+    "Lineup": 8,
+    "ScoreCnt": 0,
+    "HitterAcnt": "0000005522",
+    "HitterName": "朱迦恩",
+    "HittingCnt": 0,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 0,
+    "DefendStation": "(PH)(RF)",
+    "HitBYPitchCnt": 0,
+    "OneBaseHitCnt": 0,
+    "TwoBaseHitCnt": 0,
+    "RunBattedINCnt": 0,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 0,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 0,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 0,
+    "PlateAppearances": 1,
+    "StealBaseFailCnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Avg": 0.079,
+    "Rboe": 0,
+    "HitCnt": 2,
+    "Lineup": 9,
+    "ScoreCnt": 0,
+    "HitterAcnt": "0000005306",
+    "HitterName": "許哲晏",
+    "HittingCnt": 0,
+    "HomeRunCnt": 0,
+    "StrikeOutCnt": 0,
+    "DefendStation": "SS",
+    "HitBYPitchCnt": 0,
+    "OneBaseHitCnt": 0,
+    "TwoBaseHitCnt": 0,
+    "RunBattedINCnt": 0,
+    "StealBaseOKCnt": 0,
+    "BasesONBallsCnt": 0,
+    "SacrificeFlyCnt": 0,
+    "SacrificeHitCnt": 1,
+    "ThreeBaseHitCnt": 0,
+    "DoublePlayBatCnt": 0,
+    "PlateAppearances": 3,
+    "StealBaseFailCnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   }
+  ],
+  "Pitchers": [
+   {
+    "Era": 1.89,
+    "Whip": 0.98,
+    "RunCnt": 1,
+    "TotalL": 6,
+    "TotalS": 0,
+    "TotalW": 3,
+    "BalkCnt": 0,
+    "ErrorCnt": 0,
+    "IsSaveOK": "0",
+    "PitchCnt": 91,
+    "RoleType": "先發",
+    "StrikeCnt": 70,
+    "HittingCnt": 5,
+    "HomeRunCnt": 0,
+    "IsSaveFail": "0",
+    "PitcherAcnt": "0000005731",
+    "PitcherName": "布雷克",
+    "EarnedRunCnt": 1,
+    "StrikeOutCnt": 6,
+    "WildPitchCnt": 0,
+    "HitBYPitchCnt": 0,
+    "ReliefPointCnt": 0,
+    "BasesONBallsCnt": 0,
+    "InningPitchedCnt": 7,
+    "PlateAppearances": 26,
+    "InningPitchedDiv3Cnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Era": 3.38,
+    "Whip": 1.33,
+    "RunCnt": 0,
+    "TotalL": 2,
+    "TotalS": 0,
+    "TotalW": 2,
+    "BalkCnt": 0,
+    "ErrorCnt": 0,
+    "IsSaveOK": "0",
+    "PitchCnt": 13,
+    "RoleType": "中繼",
+    "StrikeCnt": 7,
+    "HittingCnt": 1,
+    "HomeRunCnt": 0,
+    "IsSaveFail": "0",
+    "PitcherAcnt": "0000006818",
+    "PitcherName": "髙塩將樹",
+    "EarnedRunCnt": 0,
+    "StrikeOutCnt": 0,
+    "WildPitchCnt": 0,
+    "HitBYPitchCnt": 0,
+    "ReliefPointCnt": 0,
+    "BasesONBallsCnt": 0,
+    "InningPitchedCnt": 1,
+    "PlateAppearances": 4,
+    "InningPitchedDiv3Cnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   },
+   {
+    "Era": 1.96,
+    "Whip": 1.04,
+    "RunCnt": 0,
+    "TotalL": 1,
+    "TotalS": 0,
+    "TotalW": 1,
+    "BalkCnt": 0,
+    "ErrorCnt": 0,
+    "IsSaveOK": "0",
+    "PitchCnt": 17,
+    "RoleType": "最後一任",
+    "StrikeCnt": 11,
+    "HittingCnt": 1,
+    "HomeRunCnt": 0,
+    "IsSaveFail": "0",
+    "PitcherAcnt": "0000007292",
+    "PitcherName": "李軍",
+    "EarnedRunCnt": 0,
+    "StrikeOutCnt": 1,
+    "WildPitchCnt": 0,
+    "HitBYPitchCnt": 1,
+    "ReliefPointCnt": 0,
+    "BasesONBallsCnt": 0,
+    "InningPitchedCnt": 1,
+    "PlateAppearances": 5,
+    "InningPitchedDiv3Cnt": 0,
+    "IntentionalBasesONBallsCnt": 0,
+    "IsCurrent": false
+   }
+  ],
+  "InningScore": [
+   {
+    "Seq": 1,
+    "Score": "0"
+   },
+   {
+    "Seq": 2,
+    "Score": "0"
+   },
+   {
+    "Seq": 3,
+    "Score": "0"
+   },
+   {
+    "Seq": 4,
+    "Score": "0"
+   },
+   {
+    "Seq": 5,
+    "Score": "0"
+   },
+   {
+    "Seq": 6,
+    "Score": "0"
+   },
+   {
+    "Seq": 7,
+    "Score": "0"
+   },
+   {
+    "Seq": 8,
+    "Score": "0"
+   },
+   {
+    "Seq": 9,
+    "Score": "0"
+   }
+  ]
+ },
+ "Field": {
+  "No": "F31",
+  "Abbe": "亞太主"
+ },
+ "KindCode": "A",
+ "GameSno": 234,
+ "PreExeDate": "2026-07-31T18:35:00",
+ "Week": 31,
+ "InningSeq": 9,
+ "VisitingHomeType": 2,
+ "LiveLog": [
+  {
+   "Year": "2026",
+   "IsBall": "0",
+   "OutCnt": 0,
+   "BallCnt": 0,
+   "Content": "擊出界外球。",
+   "GameSno": 234,
+   "IsStrike": "1",
+   "KindCode": "A",
+   "PitchCnt": 1,
+   "FirstBase": "",
+   "HomeScore": 0,
+   "InningSeq": 1,
+   "StrikeCnt": 1,
+   "ThirdBase": "",
+   "ActionName": "三振",
+   "HitterAcnt": "0000002286",
+   "HitterName": "林立",
+   "IsScoreCnt": "0",
+   "SecondBase": "",
+   "CatcherAcnt": "0000006716",
+   "CatcherName": "張翔",
+   "MainEventNo": "0110001000",
+   "PitcherAcnt": "0000005731",
+   "PitcherName": "布雷克",
+   "BattingOrder": 1,
+   "HitterLineup": 1,
+   "HitterImgPath": "https://www.cpbl.com.tw/files/atts/0L087782035718925753/39林立2025.jpg",
+   "VisitingScore": 0,
+   "IsChangePlayer": "0",
+   "IsSpecialEvent": "0",
+   "HitterUniformNo": "39",
+   "CatcherUniformNo": "4",
+   "PitcherUniformNo": "50",
+   "VisitingHomeType": "1",
+   "BattingActionName": "三振",
+   "DefendStationCode": "RF",
+   "HitterDefendStation": "9",
+   "PitcherImgPath": "https://www.cpbl.com.tw/files/atts/0L088851516909723984/50布雷克.jpg",
+   "Trackman": {
+    "Play": {
+     "PitchTag": {
+      "PitchCall": "FoulBallNotFieldable",
+      "AutoPitchType": "breakingball",
+      "TaggedPitchType": "fastball"
+     }
+    },
+    "Pitch": {
+     "Release": {
+      "RelSide": 0.323548248,
+      "RelSpeed": 143.06409938304,
+      "SpinRate": 2250.692,
+      "Extension": 1.806912312,
+      "RelHeight": 2.180911056
+     },
+     "Location": {
+      "ZoneTime": 0.432902,
+      "ZoneSpeed": 127.8819343296,
+      "PlateLocSide": 0.039849552,
+      "PlateLocHeight": 1.056506904
+     },
+     "Flight": {
+      "PolyFit": {
+       "PitchTrajectory": {
+        "X": [
+         16.631354088,
+         -39.569190864,
+         4.978170384
+        ],
+        "Y": [
+         2.179536408,
+         -1.812124392,
+         -1.801118064
+        ],
+        "Z": [
+         -0.322838064,
+         0.955203576,
+         -0.6993422640000001
+        ]
+       }
+      }
+     }
+    },
+    "Hit": {
+     "Launch": {
+      "Angle": 38.67793,
+      "Direction": 127.800606,
+      "ExitSpeed": 117.75590969472,
+      "HitSpinRate": 4345.9404
+     },
+     "LandingFlat": {
+      "Bearing": 139.07797,
+      "Distance": 67.043628168,
+      "HangTime": 3.49316,
+      "Confidence": "Low"
+     }
+    }
+   }
+  },
+  {
+   "Year": "2026",
+   "IsBall": "1",
+   "OutCnt": 0,
+   "BallCnt": 1,
+   "Content": "壞球。",
+   "GameSno": 234,
+   "IsStrike": "0",
+   "KindCode": "A",
+   "PitchCnt": 2,
+   "FirstBase": "",
+   "HomeScore": 0,
+   "InningSeq": 1,
+   "StrikeCnt": 1,
+   "ThirdBase": "",
+   "ActionName": "三振",
+   "HitterAcnt": "0000002286",
+   "HitterName": "林立",
+   "IsScoreCnt": "0",
+   "SecondBase": "",
+   "CatcherAcnt": "0000006716",
+   "CatcherName": "張翔",
+   "MainEventNo": "0110002000",
+   "PitcherAcnt": "0000005731",
+   "PitcherName": "布雷克",
+   "BattingOrder": 1,
+   "HitterLineup": 1,
+   "HitterImgPath": "https://www.cpbl.com.tw/files/atts/0L087782035718925753/39林立2025.jpg",
+   "VisitingScore": 0,
+   "IsChangePlayer": "0",
+   "IsSpecialEvent": "0",
+   "HitterUniformNo": "39",
+   "CatcherUniformNo": "4",
+   "PitcherUniformNo": "50",
+   "VisitingHomeType": "1",
+   "BattingActionName": "三振",
+   "DefendStationCode": "RF",
+   "HitterDefendStation": "9",
+   "PitcherImgPath": "https://www.cpbl.com.tw/files/atts/0L088851516909723984/50布雷克.jpg",
+   "Trackman": {
+    "Play": {
+     "PitchTag": {
+      "PitchCall": "BallCalled",
+      "AutoPitchType": "breakingball",
+      "TaggedPitchType": "fastball"
+     }
+    },
+    "Pitch": {
+     "Release": {
+      "RelSide": 0.32825436,
+      "RelSpeed": 144.25272867456,
+      "SpinRate": 2287.5234,
+      "Extension": 1.859575656,
+      "RelHeight": 2.163101592
+     },
+     "Location": {
+      "ZoneTime": 0.425782,
+      "ZoneSpeed": 130.778109792,
+      "PlateLocSide": -0.305857656,
+      "PlateLocHeight": 0.7084954080000001
+     },
+     "Flight": {
+      "PolyFit": {
+       "PitchTrajectory": {
+        "X": [
+         16.579239384,
+         -39.833406744,
+         4.491932088
+        ],
+        "Y": [
+         2.161501392,
+         -2.802248904,
+         -1.429521144
+        ],
+        "Z": [
+         -0.327739248,
+         1.731041496,
+         -0.571881
+        ]
+       }
+      }
+     }
+    },
+    "Hit": null
+   }
+  },
+  {
+   "Year": "2026",
+   "IsBall": "0",
+   "OutCnt": 0,
+   "BallCnt": 1,
+   "Content": " 擦棒被捕球",
+   "GameSno": 234,
+   "IsStrike": "1",
+   "KindCode": "A",
+   "PitchCnt": 3,
+   "FirstBase": "",
+   "HomeScore": 0,
+   "InningSeq": 1,
+   "StrikeCnt": 2,
+   "ThirdBase": "",
+   "ActionName": "三振",
+   "HitterAcnt": "0000002286",
+   "HitterName": "林立",
+   "IsScoreCnt": "0",
+   "SecondBase": "",
+   "CatcherAcnt": "0000006716",
+   "CatcherName": "張翔",
+   "MainEventNo": "0110003000",
+   "PitcherAcnt": "0000005731",
+   "PitcherName": "布雷克",
+   "BattingOrder": 1,
+   "HitterLineup": 1,
+   "HitterImgPath": "https://www.cpbl.com.tw/files/atts/0L087782035718925753/39林立2025.jpg",
+   "VisitingScore": 0,
+   "IsChangePlayer": "0",
+   "IsSpecialEvent": "0",
+   "HitterUniformNo": "39",
+   "CatcherUniformNo": "4",
+   "PitcherUniformNo": "50",
+   "VisitingHomeType": "1",
+   "BattingActionName": "三振",
+   "DefendStationCode": "RF",
+   "HitterDefendStation": "9",
+   "PitcherImgPath": "https://www.cpbl.com.tw/files/atts/0L088851516909723984/50布雷克.jpg",
+   "Trackman": {
+    "Play": {
+     "PitchTag": {
+      "PitchCall": "StrikeSwinging",
+      "AutoPitchType": "breakingball",
+      "TaggedPitchType": "fastball"
+     }
+    },
+    "Pitch": {
+     "Release": {
+      "RelSide": 0.287149032,
+      "RelSpeed": 143.95305272832,
+      "SpinRate": 2355.967,
+      "Extension": 1.869929712,
+      "RelHeight": 2.176863312
+     },
+     "Location": {
+      "ZoneTime": 0.426669,
+      "ZoneSpeed": 129.87303081984,
+      "PlateLocSide": 0.08735263200000001,
+      "PlateLocHeight": 0.9533016240000001
+     },
+     "Flight": {
+      "PolyFit": {
+       "PitchTrajectory": {
+        "X": [
+         16.56851652,
+         -39.812616336,
+         4.67720172
+        ],
+        "Y": [
+         2.175321024,
+         -2.16830148,
+         -1.62757104
+        ],
+        "Z": [
+         -0.286685736,
+         0.6603705360000001,
+         -0.453746616
+        ]
+       }
+      }
+     }
+    },
+    "Hit": null
+   }
+  },
+  {
+   "Year": "2026",
+   "IsBall": "1",
+   "OutCnt": 0,
+   "BallCnt": 2,
+   "Content": "壞球。",
+   "GameSno": 234,
+   "IsStrike": "0",
+   "KindCode": "A",
+   "PitchCnt": 4,
+   "FirstBase": "",
+   "HomeScore": 0,
+   "InningSeq": 1,
+   "StrikeCnt": 2,
+   "ThirdBase": "",
+   "ActionName": "三振",
+   "HitterAcnt": "0000002286",
+   "HitterName": "林立",
+   "IsScoreCnt": "0",
+   "SecondBase": "",
+   "CatcherAcnt": "0000006716",
+   "CatcherName": "張翔",
+   "MainEventNo": "0110004000",
+   "PitcherAcnt": "0000005731",
+   "PitcherName": "布雷克",
+   "BattingOrder": 1,
+   "HitterLineup": 1,
+   "HitterImgPath": "https://www.cpbl.com.tw/files/atts/0L087782035718925753/39林立2025.jpg",
+   "VisitingScore": 0,
+   "IsChangePlayer": "0",
+   "IsSpecialEvent": "0",
+   "HitterUniformNo": "39",
+   "CatcherUniformNo": "4",
+   "PitcherUniformNo": "50",
+   "VisitingHomeType": "1",
+   "BattingActionName": "三振",
+   "DefendStationCode": "RF",
+   "HitterDefendStation": "9",
+   "PitcherImgPath": "https://www.cpbl.com.tw/files/atts/0L088851516909723984/50布雷克.jpg",
+   "Trackman": {
+    "Play": {
+     "PitchTag": {
+      "PitchCall": "BallCalled",
+      "AutoPitchType": "breakingball",
+      "TaggedPitchType": "fastball"
+     }
+    },
+    "Pitch": {
+     "Release": {
+      "RelSide": 0.296171112,
+      "RelSpeed": 145.5419902464,
+      "SpinRate": 2345.114,
+      "Extension": 1.88576712,
+      "RelHeight": 2.165872224
+     },
+     "Location": {
+      "ZoneTime": 0.421907,
+      "ZoneSpeed": 131.57928951552,
+      "PlateLocSide": -0.333996792,
+      "PlateLocHeight": 0.7181362320000001
+     },
+     "Flight": {
+      "PolyFit": {
+       "PitchTrajectory": {
+        "X": [
+         16.552913808,
+         -40.187127144,
+         4.694523504
+        ],
+        "Y": [
+         2.164268976,
+         -2.82188412,
+         -1.4316456
+        ],
+        "Z": [
+         -0.295710864,
+         1.710132216,
+         -0.516949944
+        ]
+       }
+      }
+     }
+    },
+    "Hit": null
+   }
+  },
+  {
+   "Year": "2026",
+   "IsBall": "0",
+   "OutCnt": 0,
+   "BallCnt": 2,
+   "Content": "好球沒揮棒。 打者出局-三振出局。 1人出局。",
+   "GameSno": 234,
+   "IsStrike": "1",
+   "KindCode": "A",
+   "PitchCnt": 5,
+   "FirstBase": "",
+   "HomeScore": 0,
+   "InningSeq": 1,
+   "StrikeCnt": 3,
+   "ThirdBase": "",
+   "ActionName": "三振",
+   "HitterAcnt": "0000002286",
+   "HitterName": "林立",
+   "IsScoreCnt": "0",
+   "SecondBase": "",
+   "CatcherAcnt": "0000006716",
+   "CatcherName": "張翔",
+   "MainEventNo": "0110005000",
+   "PitcherAcnt": "0000005731",
+   "PitcherName": "布雷克",
+   "BattingOrder": 1,
+   "HitterLineup": 1,
+   "HitterImgPath": "https://www.cpbl.com.tw/files/atts/0L087782035718925753/39林立2025.jpg",
+   "VisitingScore": 0,
+   "IsChangePlayer": "0",
+   "IsSpecialEvent": "0",
+   "HitterUniformNo": "39",
+   "CatcherUniformNo": "4",
+   "PitcherUniformNo": "50",
+   "VisitingHomeType": "1",
+   "BattingActionName": "三振",
+   "DefendStationCode": "RF",
+   "HitterDefendStation": "9",
+   "PitcherImgPath": "https://www.cpbl.com.tw/files/atts/0L088851516909723984/50布雷克.jpg",
+   "Trackman": {
+    "Play": {
+     "PitchTag": {
+      "PitchCall": "StrikeCalled",
+      "AutoPitchType": "breakingball",
+      "TaggedPitchType": "fastball"
+     }
+    },
+    "Pitch": {
+     "Release": {
+      "RelSide": 0.303577752,
+      "RelSpeed": 144.04802011776,
+      "SpinRate": 2304.139,
+      "Extension": 1.877260152,
+      "RelHeight": 2.173912848
+     },
+     "Location": {
+      "ZoneTime": 0.426241,
+      "ZoneSpeed": 130.34558249856,
+      "PlateLocSide": 0.226600512,
+      "PlateLocHeight": 0.631417584
+     },
+     "Flight": {
+      "PolyFit": {
+       "PitchTrajectory": {
+        "X": [
+         16.561746912,
+         -39.8009364,
+         4.608905184
+        ],
+        "Y": [
+         2.172465048,
+         -2.996333352,
+         -1.446117504
+        ],
+        "Z": [
+         -0.303132744,
+         0.3904366080000001,
+         -0.496729512
+        ]
+       }
+      }
+     }
+    },
+    "Hit": null
+   }
+  },
+  {
+   "Year": "2026",
+   "IsBall": "1",
+   "OutCnt": 1,
+   "BallCnt": 1,
+   "Content": "壞球。",
+   "GameSno": 234,
+   "IsStrike": "0",
+   "KindCode": "A",
+   "PitchCnt": 6,
+   "FirstBase": "",
+   "HomeScore": 0,
+   "InningSeq": 1,
+   "StrikeCnt": 0,
+   "ThirdBase": "",
+   "ActionName": "飛球接殺",
+   "HitterAcnt": "0000007822",
+   "HitterName": "威克",
+   "IsScoreCnt": "0",
+   "SecondBase": "",
+   "CatcherAcnt": "0000006716",
+   "CatcherName": "張翔",
+   "MainEventNo": "0110006000",
+   "PitcherAcnt": "0000005731",
+   "PitcherName": "布雷克",
+   "BattingOrder": 2,
+   "HitterLineup": 2,
+   "HitterImgPath": "https://www.cpbl.com.tw/theme/client/images/player_no_img.jpg",
+   "VisitingScore": 0,
+   "IsChangePlayer": "0",
+   "IsSpecialEvent": "0",
+   "HitterUniformNo": "74",
+   "CatcherUniformNo": "4",
+   "PitcherUniformNo": "50",
+   "VisitingHomeType": "1",
+   "BattingActionName": "中飛",
+   "DefendStationCode": "LF",
+   "HitterDefendStation": "7",
+   "PitcherImgPath": "https://www.cpbl.com.tw/files/atts/0L088851516909723984/50布雷克.jpg",
+   "Trackman": {
+    "Play": {
+     "PitchTag": {
+      "PitchCall": "BallCalled",
+      "AutoPitchType": "breakingball",
+      "TaggedPitchType": "fastball"
+     }
+    },
+    "Pitch": {
+     "Release": {
+      "RelSide": 0.287557464,
+      "RelSpeed": 145.63077775488,
+      "SpinRate": 2369.5742,
+      "Extension": 1.881810816,
+      "RelHeight": 2.15834976
+     },
+     "Location": {
+      "ZoneTime": 0.42184,
+      "ZoneSpeed": 132.09633955584,
+      "PlateLocSide": -0.4247662320000001,
+      "PlateLocHeight": 0.440503056
+     },
+     "Flight": {
+      "PolyFit": {
+       "PitchTrajectory": {
+        "X": [
+         16.55693412,
+         -40.157698704,
+         4.587029688
+        ],
+        "Y": [
+         2.156859288,
+         -3.433078224,
+         -1.50368508
+        ],
+        "Z": [
+         -0.287088072,
+         1.910663184,
+         -0.530038056
+        ]
+       }
+      }
+     }
+    },
+    "Hit": null
+   }
+  }
+ ],
+ "WinningPitcher": {
+  "Acnt": "0000006906",
+  "Name": "艾菩樂"
+ },
+ "LoserPitcher": {
+  "Acnt": "0000005731",
+  "Name": "布雷克"
+ },
+ "Closer": {
+  "Acnt": "0000000941",
+  "Name": "陳冠宇"
+ },
+ "MVP": {
+  "Acnt": "0000006906",
+  "Name": "艾菩樂",
+  "Team": {
+   "Code": "AJL011",
+   "Name": "樂天桃猿",
+   "SmallLogoUrl": "http://cpbl.com.tw/files/atts/0L015574823122453305/2024_CPBL六隊Logo_R2_官網.png",
+   "BigLogoUrl": "http://cpbl.com.tw/files/atts/0L015581098468306680/2024_CPBL六隊Logo_R_官網.png"
+  },
+  "YearlyCount": 1
+ },
+ "Referee": [
+  {
+   "Job": "主審",
+   "Name": "劉世偉"
+  },
+  {
+   "Job": "一壘審",
+   "Name": "王俊宏"
+  },
+  {
+   "Job": "二壘審",
+   "Name": "蔡豐澤"
+  },
+  {
+   "Job": "三壘審",
+   "Name": "木內九二生"
+  },
+  {
+   "Job": "左線審",
+   "Name": ""
+  },
+  {
+   "Job": "右線審",
+   "Name": ""
+  }
+ ]
+}
