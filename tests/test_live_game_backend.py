@@ -172,6 +172,48 @@ def test_finished_trackman_is_available_and_unknown_status_fails_closed() -> Non
     assert unknown["raw_status"] == "SUSPENDED"
 
 
+def test_live_snapshot_keeps_trackman_with_its_official_event_key() -> None:
+    """賽中逐球必能唯一回連官方 MainEventNo，且缺值不得正規化成 0。"""
+    tracked = [{
+        "MainEventNo": "42",
+        "PitchCnt": 3,
+        "PitcherAcnt": "p1",
+        "HitterAcnt": "h1",
+        "Trackman": {
+            "Play": {"PitchTag": {"PitchCall": "InPlay", "TaggedPitchType": "fastball"}},
+            "Pitch": {
+                "Release": {"RelSpeed": 150.4},
+                "Location": {"PlateLocSide": -0.12, "PlateLocHeight": 0.84},
+            },
+            "Hit": {"Launch": {"ExitSpeed": 166.2, "Angle": 24.5, "HitSpinRate": 1234.0},
+                    "LandingFlat": {"Distance": 98.1, "HangTime": 3.2}},
+        },
+    }]
+
+    snapshot = build_snapshot(_game("START", livelog=tracked), fetched_at=T0)
+    pitch = snapshot["livelog"][0]["trackman"]
+
+    assert snapshot["livelog"][0]["MainEventNo"] == "42"
+    assert pitch == {
+        "pitch_call": "InPlay", "tagged_pitch_type": "fastball",
+        "rel_speed": 150.4, "plate_loc_side": -0.12, "plate_loc_height": 0.84,
+        "exit_speed": 166.2, "launch_angle": 24.5, "hit_spin_rate": 1234.0,
+        "hit_distance": 98.1, "hit_hang_time": 3.2,
+    }
+
+
+def test_empty_official_trackman_object_is_not_a_usable_pitch() -> None:
+    """官方以空物件標記非投球事件時，不得產生幽靈逐球列。"""
+    snapshot = build_snapshot(
+        _game("START", livelog=[{"MainEventNo": "43", "Trackman": {"Play": None, "Pitch": None, "Hit": None}}]),
+        fetched_at=T0,
+    )
+
+    assert snapshot["livelog"][0]["trackman"] is None
+    assert snapshot["tracking_count"] == 0
+    assert snapshot["tracking_availability"] == "pending"
+
+
 def test_lineup_first_observed_time_survives_later_snapshots() -> None:
     away = _team("味全龍", hitters=[_hitter(1, "客隊第一棒")])
     first = build_snapshot(_game("SCHEDULED", away=away), fetched_at=T0)

@@ -40,6 +40,33 @@ _LIVELOG_FIELDS = {
 }
 
 
+def _trackman_snapshot(raw: Any) -> dict[str, Any] | None:
+    """保留賽中 UI 必要的官方直接值；缺欄維持 None，絕不推算。"""
+    if not isinstance(raw, dict):
+        return None
+    play = raw.get("Play") if isinstance(raw.get("Play"), dict) else {}
+    tag = play.get("PitchTag") if isinstance(play.get("PitchTag"), dict) else {}
+    pitch = raw.get("Pitch") if isinstance(raw.get("Pitch"), dict) else {}
+    release = pitch.get("Release") if isinstance(pitch.get("Release"), dict) else {}
+    location = pitch.get("Location") if isinstance(pitch.get("Location"), dict) else {}
+    hit = raw.get("Hit") if isinstance(raw.get("Hit"), dict) else {}
+    launch = hit.get("Launch") if isinstance(hit.get("Launch"), dict) else {}
+    landing = hit.get("LandingFlat") if isinstance(hit.get("LandingFlat"), dict) else {}
+    snapshot = {
+        "pitch_call": tag.get("PitchCall"),
+        "tagged_pitch_type": tag.get("TaggedPitchType"),
+        "rel_speed": release.get("RelSpeed"),
+        "plate_loc_side": location.get("PlateLocSide"),
+        "plate_loc_height": location.get("PlateLocHeight"),
+        "exit_speed": launch.get("ExitSpeed"),
+        "launch_angle": launch.get("Angle"),
+        "hit_spin_rate": launch.get("HitSpinRate"),
+        "hit_distance": landing.get("Distance"),
+        "hit_hang_time": landing.get("HangTime"),
+    }
+    return snapshot if any(value is not None for value in snapshot.values()) else None
+
+
 class SnapshotCache(Protocol):
     def is_killed(self) -> bool: ...
 
@@ -285,11 +312,13 @@ def build_snapshot(raw_game: dict[str, Any], *, fetched_at: datetime,
         (previous or {}).get("home"),
     )
     raw_livelog = raw_game.get("LiveLog") if isinstance(raw_game.get("LiveLog"), list) else []
-    tracked = sum(1 for event in raw_livelog if event.get("Trackman"))
-    livelog = [
-        {key: value for key, value in event.items() if key in _LIVELOG_FIELDS}
-        for event in raw_livelog
-    ]
+    livelog = []
+    for event in raw_livelog:
+        row = {key: value for key, value in event.items() if key in _LIVELOG_FIELDS}
+        row["trackman"] = _trackman_snapshot(event.get("Trackman"))
+        livelog.append(row)
+    # 只有可呈現的官方直接值才算可用；空 Trackman 物件不能把 UI 誤導成有逐球資料。
+    tracked = sum(1 for row in livelog if row["trackman"] is not None)
     phase = _phase(raw_status, away, home)
     previous_count = int((previous or {}).get("event_count") or 0)
     if (

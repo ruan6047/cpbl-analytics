@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from cpbl.api import live_cache
 from cpbl.api.routers import games
@@ -120,3 +121,15 @@ def test_cache_failure_degrades_to_none(monkeypatch) -> None:
     monkeypatch.setattr(live_cache, "_cache", lambda: Broken())
 
     assert live_cache.get_public_live_snapshot(2026, "A", 226, now=NOW) is None
+
+
+def test_postgame_tracking_only_uses_published_canonical_pa_mapping() -> None:
+    """禁止退回同局投打三鍵，否則重複對決必然存在誤配風險。"""
+    source = (Path(__file__).parents[1] / "src/cpbl/api/routers/games.py").read_text()
+
+    assert "pa.start_event_no AS main_event_no" in source
+    assert "JOIN cpbl.game_pa_pitch_mappings mapping" in source
+    assert "mapping.mapping_state='mapped'" in source
+    assert "JOIN cpbl.game_recap_builds build" in source
+    assert "build.state='published'" in source
+    assert "ORDER BY pa.pa_index, mapping.pitch_position" in source

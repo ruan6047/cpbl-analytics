@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import Link from "next/link";
 import type { StatRow } from "@/lib/client";
 import { ENTITY_LINK, ENTITY_LINK_TEXT, TeamLogo } from "@/components/ui";
@@ -8,17 +8,19 @@ import { isCurrentTeam, teamColor, teamPageCode } from "@/lib/teams";
 import { PITCH_CALL, PA_KIND } from "@/lib/chart-theme";
 import type { WpPoint } from "@/components/win-prob-chart";
 import {
-  canShowPostgameConclusions, trackingEmptyMessage, trackingPendingMessage,
+  canShowPostgameConclusions, trackingEmptyMessage,
   type LiveSnapshot,
 } from "@/lib/live-game";
 
 type Rec = { w: number; l: number; form: string };
 export type TrackRow = {
-  pitcher_acnt: string; hitter_acnt: string; inning_seq: number; pitch_cnt: number;
+  main_event_no?: string; main_event_nos?: string[]; pitcher_acnt: string; hitter_acnt: string; inning_seq: number; pitch_cnt: number;
   ball_cnt: number; strike_cnt: number;
   pitch_type_pred: string | null; tagged_pitch_type: string | null;
   rel_speed: number | null; plate_loc_side: number | null; plate_loc_height: number | null;
   pitch_call: string | null;
+  exit_speed?: number | null; launch_angle?: number | null; hit_spin_rate?: number | null;
+  hit_distance?: number | null; hit_hang_time?: number | null;
 };
 export type Live = {
   game: StatRow | null;
@@ -441,11 +443,10 @@ function PlayByPlay({ log, events, idx, setIdx, userAction }: {
 }
 
 // ───────────────────────── 好球帶（逐球進壘）─────────────────────────
-// tagged_pitch_type 弱標籤（二元）→ 中文，僅在推算球種缺值時 fallback。
+// tagged_pitch_type 是官方粗分類；只有整個 canonical PA 都具模型結果，才可顯示推算球種。
 const TAGGED_ZH: Record<string, string> = { fastball: "速球", breakingball: "變化球", offspeed: "變速" };
-// 顯示球種：優先離線推算值（pitch_type_pred），缺則退回 tagged 二元，再缺則 —。
-const pitchZh = (pred: string | null, tagged: string | null) =>
-  pred || (tagged && TAGGED_ZH[tagged]) || "—";
+const pitchZh = (pitch: TrackRow, useModel: boolean) =>
+  (useModel ? pitch.pitch_type_pred : null) || (pitch.tagged_pitch_type && TAGGED_ZH[pitch.tagged_pitch_type]) || "—";
 // 進壘判定 → 顏色（紅=好球/出局 綠=壞球 藍=擊出）
 function callStyle(call: string | null): { color: string; label: string } {
   const c = call || "";
@@ -461,14 +462,21 @@ const SY = (h: number) => 200 - ((h - 0.2) / 1.3) * 200;
 const ZONE = { l: -0.23, r: 0.23, b: 0.46, t: 1.05 }; // 名義好球帶
 
 function StrikeZone({ pitches }: { pitches: TrackRow[] }) {
+  const [expanded, setExpanded] = useState<number | null>(null);
+  // PA 來源鎖定：任一球沒有模型結果就整個 PA 降階官方粗分類，禁止混用兩種來源。
+  const useModel = pitches.length > 0 && pitches.every((pitch) => Boolean(pitch.pitch_type_pred));
+  const hasLocations = pitches.some((pitch) => pitch.plate_loc_side != null && pitch.plate_loc_height != null);
   const zl = SX(ZONE.l), zr = SX(ZONE.r), zt = SY(ZONE.t), zb = SY(ZONE.b);
   const gx1 = zl + (zr - zl) / 3, gx2 = zl + (2 * (zr - zl)) / 3;
   const gy1 = zt + (zb - zt) / 3, gy2 = zt + (2 * (zb - zt)) / 3;
   return (
     <div className="rounded-xl border border-line bg-surface px-3 py-2.5">
-      <div className="mb-1.5 text-xs font-semibold">本打席進壘（逐球追蹤・球種為推算）</div>
+      <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
+        <span className="font-semibold">本打席逐球追蹤</span>
+        <span className="text-muted">球種：{useModel ? "推算" : "官方粗分類"}</span>
+      </div>
       <div className="flex gap-3">
-        <svg viewBox="0 0 200 200" className="h-36 w-36 shrink-0">
+        {hasLocations && <svg viewBox="0 0 200 200" className="h-36 w-36 shrink-0" aria-label="本打席好球帶">
           <rect x={zl} y={zt} width={zr - zl} height={zb - zt} fill="var(--color-surface-2)" stroke="var(--color-faint)" strokeWidth={1.5} />
           <line x1={gx1} y1={zt} x2={gx1} y2={zb} stroke="var(--color-line)" />
           <line x1={gx2} y1={zt} x2={gx2} y2={zb} stroke="var(--color-line)" />
@@ -486,16 +494,24 @@ function StrikeZone({ pitches }: { pitches: TrackRow[] }) {
               </g>
             );
           })}
-        </svg>
+        </svg>}
         <ol className="min-w-0 flex-1 space-y-0.5 text-xs">
           {pitches.map((p, i) => {
             const { color, label } = callStyle(p.pitch_call);
             return (
-              <li key={i} className="flex items-center gap-1.5 whitespace-nowrap font-mono tabular-nums">
+              <li key={i} className="font-mono tabular-nums">
+              <div className="flex items-center gap-1.5 whitespace-nowrap">
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[10px] font-bold text-white" style={{ background: color }}>{i + 1}</span>
                 <span className="w-8 shrink-0 font-sans text-muted">{label}</span>
-                <span className="font-sans text-ink">{pitchZh(p.pitch_type_pred, p.tagged_pitch_type)}</span>
+                <span className="font-sans text-ink">{pitchZh(p, useModel)}</span>
                 {p.rel_speed != null && <span className="text-faint">{Math.round(p.rel_speed)} km/h</span>}
+                {label === "擊出" && <button type="button" className="ml-auto inline-flex min-h-11 min-w-11 items-center justify-center text-accent underline" onClick={() => setExpanded(expanded === i ? null : i)} aria-expanded={expanded === i} aria-controls={`hit-data-${i}`} aria-label={`${i + 1} 號擊出球數據`}>數據</button>}
+              </div>
+              {expanded === i && <div id={`hit-data-${i}`} className="grid grid-cols-2 gap-x-2 py-1 text-faint">
+                {p.exit_speed != null && <span>初速 {Math.round(p.exit_speed)} km/h</span>}{p.launch_angle != null && <span>仰角 {Math.round(p.launch_angle)}°</span>}
+                {p.hit_distance != null && <span>距離 {Math.round(p.hit_distance)} m</span>}{p.hit_hang_time != null && <span>滯空 {p.hit_hang_time.toFixed(1)} s</span>}
+                {p.hit_spin_rate != null && <span>轉速 {Math.round(p.hit_spin_rate)} rpm</span>}
+              </div>}
               </li>
             );
           })}
@@ -615,11 +631,12 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
     return best;
   }, [wp, e]);
 
-  // 當前打席逐球（以 投手×打者×局 三鍵精準比對 tracking）
+  // live 與賽後都只以官方事件鍵／canonical PA mapping 比對；不得退回同局投打三鍵猜測。
   const paPitches = useMemo(() => {
     if (!e || !e.pitcher_acnt || !e.hitter_acnt) return [];
+    const eventNo = String(e.main_event_no ?? "");
     return data.tracking
-      .filter((p) => p.pitcher_acnt === e.pitcher_acnt && p.hitter_acnt === e.hitter_acnt && p.inning_seq === Number(e.inning_seq))
+      .filter((p) => p.main_event_nos?.includes(eventNo) ?? p.main_event_no === eventNo)
       .sort((a, b) => a.pitch_cnt - b.pitch_cnt);
   }, [data.tracking, e]);
 
@@ -649,11 +666,7 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
           )}
           <Matchup e={e} game={game} batterAvg={data.batter_avg} uniforms={uniforms} pcount={pcount}
             pstats={pstats} batterToday={batterToday} onJump={selectIdx} />
-          {data.live_snapshot && data.live_snapshot.phase !== "final" ? (
-            <div className="rounded-xl border border-dashed border-line bg-surface-2/50 px-4 py-3 text-xs text-muted">
-              {trackingPendingMessage(data.live_snapshot)}
-            </div>
-          ) : data.has_tracking ? (
+          {data.has_tracking ? (
             paPitches.length > 0 ? (
               <StrikeZone pitches={paPitches} />
             ) : (
