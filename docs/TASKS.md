@@ -18,6 +18,7 @@
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | — | `ai/sonnet-5/INGEST-GAME-TM-REFACTOR1-g3 @ .claude/worktrees/ingest-game-tm-refactor1-g3-execution` | 2 | 📦已合併 | ⏸未部署 | 2026-07-24T12:53:42+08:00 |
 | [INGEST-PA-DAILY1](tasks/INGEST-PA-DAILY1.md) | — | T3 | canonical PA build 接進每日 refresh 鏈 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-26T20:55:46+08:00 |
 | [INGEST-PLAYER-BIO-GAP1](tasks/INGEST-PLAYER-BIO-GAP1.md) | INIT-OFFICIAL-DATA1 | T3 | 補齊 14 位球員的 country／birthday | Claude Opus 5@Claude Code | `ai/opus-5/INGEST-PLAYER-BIO-GAP1 @ .claude/worktrees/ingest-player-bio-gap1-execution` | 3 | ⏸阻塞 | ⏸未部署 | 2026-07-28T11:50:08+08:00 |
+| [INGEST-POSTGAME-FINALIZE1](tasks/INGEST-POSTGAME-FINALIZE1.md) | — | T3 | 依官方可用性補齊完賽資料 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-03T01:04:14+08:00 |
 | [INGEST-SPLITS-RECALC1](tasks/INGEST-SPLITS-RECALC1.md) | INIT-OFFICIAL-DATA1 | T4 | 修正分項重算的代打誤切重複計數並重建 | —（本卡已結案；本則為衍生調查留痕） | `ai/fable-5/INGEST-SPLITS-RECALC1 @ .claude/worktrees/ingest-splits-recalc1-execution` | 1 | 📦已合併 | ✅已驗證 | 2026-07-31T16:36:01+08:00 |
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | 子卡依 v1.3 藍圖推進 | — | 0 | 📥Backlog | —不適用 | 2026-07-27T18:14:24+08:00 |
 | [INIT-OFFICIAL-DATA1](tasks/INIT-OFFICIAL-DATA1.md) | INIT-OFFICIAL-DATA1 | T4 | 官方資料契約完整性與低維護 ingest | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:00+08:00 |
@@ -33,6 +34,7 @@
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:10+08:00 |
 | [OPS-BACKUP-EMPTY1](tasks/OPS-BACKUP-EMPTY1.md) | — | T3 | 生產每日備份長期產出空檔 | —（本卡可結案） | `—（分支與 worktree 皆已清理）` | 0 | 📦已合併 | ✅已驗證 | 2026-08-01T02:03:09+08:00 |
 | [OPS-LIVE-SHADOW1](tasks/OPS-LIVE-SHADOW1.md) | — | T4 | VPS 隔離 live source observer | ruan6047（7/30 evidence 對帳／撤除待辦） | `ai/codex/OPS-LIVE-SHADOW1 @ .claude/worktrees/ops-live-shadow1-execution（保留至 evidence 對帳／撤除後結案）` | 1 | 📦已合併 | ✅已驗證 | 2026-07-26T23:11:01+08:00 |
+| [OPS-POSTGAME-OBSERVE1](tasks/OPS-POSTGAME-OBSERVE1.md) | — | T2 | 完賽正式資料發布延遲觀測 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-08-03T01:04:14+08:00 |
 | [OPS-REMOTE-CUTOVER1](tasks/OPS-REMOTE-CUTOVER1.md) | INIT-PRODUCT-UX | T4 | 遠端 crawler production canary 與切換 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:40+08:00 |
 | [OPS-REMOTE-PROBE1](tasks/OPS-REMOTE-PROBE1.md) | INIT-PRODUCT-UX | T3 | Opt-in DEBUG 網路探測介面 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:37+08:00 |
 | [OPS-REMOTE-ROUTE1](tasks/OPS-REMOTE-ROUTE1.md) | INIT-PRODUCT-UX | T3 | 遠端出口路線資格驗證 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:38+08:00 |
