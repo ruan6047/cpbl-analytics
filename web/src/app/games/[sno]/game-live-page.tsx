@@ -6,8 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { detail, type StatRow } from "@/lib/client";
 import { fmtIPParts } from "@/lib/format";
 import GameBoard, { type Live } from "@/components/game-board";
-import { Card, Eyebrow, Notice, Skeleton, ErrorState, EmptyState, PlayerLink, ENTITY_LINK } from "@/components/ui";
-import BoxTabs from "./box-tabs";
+import { Card, Notice, Skeleton, ErrorState, EmptyState, PlayerLink, ENTITY_LINK } from "@/components/ui";
+import BoxTabs, { type BoxTab } from "./box-tabs";
 import { WinProbChart, type WpPoint } from "@/components/win-prob-chart";
 import { PregameCard } from "@/components/pregame-card";
 import { fanNick, teamColor, teamShort } from "@/lib/teams";
@@ -30,6 +30,7 @@ import {
 const n = (v: number | string | null) => (v === null || v === undefined ? "" : Number(v));
 
 const ipTxt = (r: StatRow) => fmtIPParts(r.inning_pitched_cnt as number | null, r.inning_pitched_div3 as number | null);
+type PageTab = "overview" | "pbp" | BoxTab;
 
 export default function GameLivePage() {
   const { sno } = useParams<{ sno: string }>();
@@ -42,7 +43,7 @@ export default function GameLivePage() {
   const snapshotRef = useRef<LiveSnapshot | null>(null);
   const [idx, setIdx] = useState(0);
   // 頁面預設「比賽總覽」；逐打席為進階操作視圖
-  const [view, setView] = useState<"overview" | "pbp">("overview");
+  const [view, setView] = useState<PageTab>("overview");
   const [wp, setWp] = useState<WpPoint[] | null>(null);
   const [pregame, setPregame] = useState<PregameCardModel | null>(null);
   const [milestones, setMilestones] = useState<{ player: string; text: string }[]>([]);
@@ -600,6 +601,19 @@ export default function GameLivePage() {
       : `原定 ${orig}${doneD && played !== orig ? `，${played} 補賽` : "，擇期補賽"}`;
     info.push([String(g.delay_kind), `☔ ${delayNote}`]);
   }
+  const boxTab: BoxTab | null = view === "away" || view === "home" || view === "ana" || view === "umpire" ? view : null;
+  const pageTabs: { value: PageTab; label: string }[] = [
+    { value: "overview", label: "比賽總覽" },
+    { value: "pbp", label: "逐打席" },
+  ];
+  if (data.batting.length > 0) {
+    pageTabs.push(
+      { value: "away", label: teamShort(String(g.away_team_code ?? "")) },
+      { value: "home", label: teamShort(String(g.home_team_code ?? "")) },
+      { value: "ana", label: "分析" },
+    );
+    if (data.detail?.head_umpire) pageTabs.push({ value: "umpire", label: "主審判決" });
+  }
 
   return (
     <div>
@@ -610,9 +624,9 @@ export default function GameLivePage() {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <span className="text-xs text-faint">{String(g.game_date ?? "")}　賽事編號 {sno}　{String(g.venue ?? "")}</span>
             <div className="inline-flex gap-1 rounded-lg bg-surface-2 p-1">
-              {([["overview", "比賽總覽"], ["pbp", "逐打席"]] as const).map(([v, label]) => (
-                <button key={v} onClick={() => setView(v)}
-                  className={`rounded-md px-3 py-1 text-sm transition ${view === v ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}>
+              {pageTabs.map(({ value, label }) => (
+                <button key={value} onClick={() => setView(value)}
+                  className={`rounded-md px-3 py-1 text-sm transition ${view === value ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}>
                   {label}
                 </button>
               ))}
@@ -650,7 +664,7 @@ export default function GameLivePage() {
 
       {data.livelog.length > 0 ? (
         <section className="mb-8 mt-2 space-y-4">
-          <GameBoard data={data} idx={idx} setIdx={setIdx} view={view} wp={wp ?? undefined}
+          <GameBoard data={data} idx={idx} setIdx={setIdx} view={view === "pbp" ? "pbp" : "overview"} wp={wp ?? undefined}
             onNavigate={() => setView("pbp")} />
           {view === "overview" && (
             <>
@@ -679,6 +693,9 @@ export default function GameLivePage() {
                 </p>
               )}
             </>
+          )}
+          {boxTab && (
+            <BoxTabs data={data} tab={boxTab} onTabChange={setView} showTabs={false} />
           )}
         </section>
       ) : completed ? (
@@ -732,12 +749,6 @@ export default function GameLivePage() {
 
       {/* 本場焦點 / 賽事資訊 已整併進總覽右卡（GameOverview），此處不重複 */}
 
-      {data.batting.length > 0 && (
-        <section className="mb-8">
-          <Eyebrow className="mb-3">Box Score・分析</Eyebrow>
-          <BoxTabs data={data} />
-        </section>
-      )}
     </div>
   );
 }

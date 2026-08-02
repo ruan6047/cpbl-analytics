@@ -224,7 +224,16 @@ function ChartCard({ title, note, children }: { title: string; note?: string; ch
   );
 }
 
-export default function BoxTabs({ data }: { data: Live }) {
+export type BoxTab = "away" | "home" | "ana" | "umpire";
+
+export default function BoxTabs({ data, tab: controlledTab, onTabChange, showTabs = true }: {
+  data: Live;
+  /** 由賽況頁頂部主頁籤控制時提供；未提供則保留舊版的獨立使用方式。 */
+  tab?: BoxTab;
+  onTabChange?: (tab: BoxTab) => void;
+  /** false 時只渲染內容，避免與頁面主頁籤重複。 */
+  showTabs?: boolean;
+}) {
   const g = data.game!;
   const ct = useChartTheme();
   const ac = String(g.away_team_code ?? ""), hc = String(g.home_team_code ?? "");
@@ -233,8 +242,13 @@ export default function BoxTabs({ data }: { data: Live }) {
   const showPostgameMarks = !data.live_snapshot || data.live_snapshot.phase === "final";
 
   const sp = useSearchParams();
-  const defaultTab = (sp.get("tab") as "away" | "home" | "ana" | "umpire") || "away";
-  const [tab, setTab] = useState<"away" | "home" | "ana" | "umpire">(defaultTab);
+  const defaultTab = (sp.get("tab") as BoxTab) || "away";
+  const [localTab, setLocalTab] = useState<BoxTab>(defaultTab);
+  const tab = controlledTab ?? localTab;
+  const selectTab = (next: BoxTab) => {
+    if (controlledTab === undefined) setLocalTab(next);
+    onTabChange?.(next);
+  };
 
   const [umpCard, setUmpCard] = useState<UmpireCardData | null>(null);
   const [umpLoading, setUmpLoading] = useState(false);
@@ -420,8 +434,8 @@ export default function BoxTabs({ data }: { data: Live }) {
 
   const axis = chartAxis(ct, 10);
   const hasUmpire = !!data.detail?.head_umpire;
-  const tabBtn = (v: "away" | "home" | "ana" | "umpire", label: React.ReactNode) => (
-    <button key={v} onClick={() => setTab(v)}
+  const tabBtn = (v: BoxTab, label: React.ReactNode) => (
+    <button key={v} onClick={() => selectTab(v)}
       className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-sm transition ${tab === v ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}>
       {label}
     </button>
@@ -429,12 +443,12 @@ export default function BoxTabs({ data }: { data: Live }) {
 
   return (
     <div>
-      <div className="mb-3 inline-flex flex-wrap gap-1 rounded-lg bg-surface-2 p-1">
+      {showTabs && <div className="mb-3 inline-flex flex-wrap gap-1 rounded-lg bg-surface-2 p-1">
         {tabBtn("away", <><TeamLogo code={ac} name={awayName} size={16} decorative />{teamShort(ac)}</>)}
         {tabBtn("home", <><TeamLogo code={hc} name={homeName} size={16} decorative />{teamShort(hc)}</>)}
         {tabBtn("ana", "分析")}
         {hasUmpire && tabBtn("umpire", "主審判決")}
-      </div>
+      </div>}
 
       {(tab === "away" || tab === "home") && (
         <div className="space-y-4">
