@@ -107,6 +107,12 @@ test("收合打席標示整個打席實際用球數，不標示隱藏球數", ()
   assert.equal(plateAppearancePitchCountLabel(1), "（1 球）");
 });
 
+test("收合打席把總球數放在投打名稱後，而非結果行後", () => {
+  const board = readFileSync(new URL("../components/game-board.tsx", import.meta.url), "utf8");
+  assert.match(board, /⚾ \{g\.name\}\s*\{g\.idxs\.length > 1 && <span[^>]*>\{plateAppearancePitchCountLabel\(g\.idxs\.length\)\}<\/span>\}/);
+  assert.doesNotMatch(board, /lineBtn\(outcomeIdx, true,\s*g\.idxs\.length > 1 \? <span[^>]*>\{plateAppearancePitchCountLabel/);
+});
+
 test("live 即使已有比分也不得啟用賽後結論，只有 final 或歷史無 snapshot 場可啟用", () => {
   assert.equal(canShowPostgameConclusions(snapshot({ phase: "live" }), 2), false);
   assert.equal(canShowPostgameConclusions(snapshot({ phase: "reserved" }), 2), false);

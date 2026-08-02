@@ -429,12 +429,12 @@ function PlayByPlay({ log, events, idx, setIdx, userAction }: {
             <div key={gk}>
               <div className="mt-2.5 text-sm font-medium text-ink">
                 ⚾ {g.name}
+                {g.idxs.length > 1 && <span className="ml-1 text-[10px] font-semibold text-muted">{plateAppearancePitchCountLabel(g.idxs.length)}</span>}
                 <span className="ml-2 text-xs text-faint">投：{g.pitcher}</span>
               </div>
               {expanded
                 ? g.idxs.map((gi) => lineBtn(gi, true))
-                : lineBtn(outcomeIdx, true,
-                    g.idxs.length > 1 ? <span className="ml-2 text-[10px] text-faint">{plateAppearancePitchCountLabel(g.idxs.length)}</span> : undefined)}
+                : lineBtn(outcomeIdx, true)}
             </div>
           );
         })}
