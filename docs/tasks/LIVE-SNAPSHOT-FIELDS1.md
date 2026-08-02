@@ -78,3 +78,7 @@ payload（`stats.cpbl.com.tw/api/proxy/v1/games/2026-A-234` 與主站 `/box/getl
 - 2026-08-01：父卡夜間實測後由需求方指示開卡。Discovery 以本機直連兩站原始 payload 完成；
   ②「無關勝負」假話已於 2026-08-01 02:00 的 refresh 同步後自然消失（DB 補齊 decisions），
   故本卡不含緊急止血，範圍為把官方既有欄位正式接上。
+- 2026-08-02T12:54:45+08:00 deploy 補記（`DEPLOY-011`）：碼已隨 2026-08-02T12:26 的 submodule bump
+  上線——主站 `453a418` 指向 cpbl-analytics `3127ad0`，`git merge-base --is-ancestor bc62f91 3127ad0`
+  為真。Ledger 先前的 `🚀待部署` 是留痕落後，非未上線。轉 `🚀部署待實測`：新 snapshot 欄位只對
+  新版 worker 抓過的場次生效，真值驗證須挑部署後才開打的場次，待需求方實測。
