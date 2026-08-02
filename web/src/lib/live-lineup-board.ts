@@ -17,7 +17,7 @@ export function liveLineupBoard(data: LiveSide): LiveLineupBoard {
   let designatedHitter: LiveLineupBoard["designatedHitter"] = null;
 
   for (const player of players) {
-    const content = { main: player.name, meta: String(player.batting_order), href: `/players/${player.player_id}` };
+    const content = { main: player.name, meta: `${player.batting_order}棒`, href: `/players/${player.player_id}` };
     if (player.position === "DH") designatedHitter = content;
     else if (FIELD_POSITIONS.has(player.position as FieldPosition) && !fieldCells[player.position as FieldPosition]) {
       fieldCells[player.position as FieldPosition] = content;
@@ -32,7 +32,7 @@ export function liveLineupBoard(data: LiveSide): LiveLineupBoard {
   const groups: RosterGroup[] = [{
     label: "先發打線",
     cells: players.map((player) => ({
-      id: player.player_id, name: player.name, badge: player.position, stat: `${player.batting_order} 棒`,
+      id: player.player_id, name: player.name, badge: player.position,
     })),
   }];
   if (starterId && starterName) groups.push({

@@ -33,9 +33,9 @@ test("真實官方先發 fixture 轉成隊伍頁同款守備圖與角色卡", ()
   const board = liveLineupBoard(realSide());
 
   assert.equal(board.fieldCells.RF?.main, "林立");
-  assert.equal(board.fieldCells.RF?.meta, "1");
+  assert.equal(board.fieldCells.RF?.meta, "1棒");
   assert.equal(board.fieldCells.P?.main, "艾菩樂");
   assert.equal(board.fieldCells.P?.sub, "先發投手");
   assert.equal(board.groups[0].label, "先發打線");
-  assert.ok(board.groups[0].cells.every((cell) => cell.badge && cell.stat?.endsWith("棒")));
+  assert.ok(board.groups[0].cells.every((cell) => cell.badge && cell.stat == null));
 });
