@@ -74,8 +74,10 @@ export function FieldDiagram({ cells, designatedHitter, caption = "守備位置"
             {c.meta && (
               <>
                 <path d={`M${c.x + c.w - META_W} ${c.y}V${c.y + c.h}`} className="stroke-line" strokeWidth={1} />
-                <text x={c.x + c.w - META_W / 2} y={c.y + 22.5} textAnchor="middle" fontSize={9}
+                <text x={c.x + c.w - META_W / 2} y={c.y + 16} textAnchor="middle" fontSize={9}
                   className="fill-ink font-mono font-semibold">{c.meta}</text>
+                <text x={c.x + c.w - META_W / 2} y={c.y + 29} textAnchor="middle" fontSize={7}
+                  className="fill-muted font-semibold">棒</text>
               </>
             )}
             <text

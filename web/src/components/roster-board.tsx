@@ -43,16 +43,17 @@ export function RosterBoard({ fieldCells, designatedHitter, caption, groups, emp
   emptyField?: string;
 }) {
   const hasField = Object.keys(fieldCells).length > 0;
+  const hasGroups = groups.length > 0;
   return (
     <div className="rounded-xl border border-line bg-surface p-3">
-      <div className="grid gap-x-6 gap-y-5 lg:grid-cols-[360px_1fr]">
+      <div className={`grid gap-x-6 gap-y-5 ${hasGroups ? "lg:grid-cols-[360px_1fr]" : "justify-items-center"}`}>
         {hasField ? (
           <FieldDiagram cells={fieldCells} designatedHitter={designatedHitter} caption={caption}
             className="mx-auto w-full max-w-[360px] self-start" />
         ) : (
           <p className="self-start px-4 py-6 text-center text-sm text-muted">{emptyField}</p>
         )}
-        <div className="space-y-3.5">
+        {hasGroups && <div className="w-full space-y-3.5">
           {groups.map((g) => (
             <div key={g.label} className={g.divider ? "border-t border-line pt-3.5" : undefined}>
               <h3 className="mb-1.5 text-xs font-semibold tracking-wide text-muted">{g.label}</h3>
@@ -61,7 +62,7 @@ export function RosterBoard({ fieldCells, designatedHitter, caption, groups, emp
               </div>
             </div>
           ))}
-        </div>
+        </div>}
       </div>
     </div>
   );
