@@ -375,9 +375,25 @@ export function applyLiveSnapshot(response: LiveApiResponse): LiveApiResponse {
   };
 }
 
+/**
+ * TrackMan 尚未發布 PitchCall 時，使用同一筆官方 LiveLog 的直接判決欄位降階。
+ * 回傳值只供既有逐球 UI 的顏色／文案共用；不是把官方 IsBall／IsStrike 偽裝成 TrackMan
+ * PitchCall。任何無法明確判定的事件一律保持 null。
+ */
+export function officialLivePitchCall(event: Record<string, unknown>, trackmanCall: string | null): string | null {
+  if (trackmanCall) return trackmanCall;
+  const content = String(event.Content ?? "");
+  // 擊出事件的 IsStrike 通常也為 1，故必須先保留官方文字所表達的界外／場內差異。
+  if (content.includes("界外")) return "FoulBallNotFieldable";
+  if (content.includes("擊出")) return "InPlay";
+  if (bool(event.IsBall)) return "BallCalled";
+  if (bool(event.IsStrike)) return content.includes("揮棒落空") ? "StrikeSwinging" : "StrikeCalled";
+  return null;
+}
+
 /** live TrackMan 與官方 MainEventNo 綁定，避免同局同投打重複對戰時誤配。 */
-function liveTracking(snapshot: LiveSnapshot): StatRow[] {
-  const groups: Record<string, unknown>[][] = [];
+export function liveTracking(snapshot: LiveSnapshot): StatRow[] {
+  const groups: LiveSnapshot["livelog"][] = [];
   for (const event of snapshot.livelog) {
     const previous = groups.at(-1);
     const samePa = previous && !bool(event.IsChangePlayer)
@@ -398,6 +414,7 @@ function liveTracking(snapshot: LiveSnapshot): StatRow[] {
       // T3 僅允許官方 TaggedPitchType；自家即時模型屬另一張 T4 卡。
       pitch_type_pred: null,
       ...trackman,
+      pitch_call: officialLivePitchCall(event, trackman.pitch_call),
     }];
   }));
 }

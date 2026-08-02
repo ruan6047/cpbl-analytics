@@ -34,7 +34,7 @@ return 0
 """
 _LIVELOG_FIELDS = {
     "MainEventNo", "InningSeq", "VisitingHomeType", "BattingOrder", "OutCnt",
-    "BallCnt", "StrikeCnt", "PitchCnt", "Content", "ActionName", "BattingActionName",
+    "BallCnt", "StrikeCnt", "PitchCnt", "IsBall", "IsStrike", "Content", "ActionName", "BattingActionName",
     "HitterAcnt", "HitterName", "PitcherAcnt", "PitcherName", "FirstBase", "SecondBase",
     "ThirdBase", "VisitingScore", "HomeScore", "IsChangePlayer", "IsSpecialEvent",
 }

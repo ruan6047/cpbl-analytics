@@ -202,6 +202,19 @@ def test_live_snapshot_keeps_trackman_with_its_official_event_key() -> None:
     }
 
 
+def test_live_snapshot_keeps_official_ball_strike_flags_from_real_fixture() -> None:
+    """TrackMan 的 PitchCall 可延遲發布；live UI 必須仍能讀官方逐球判決。"""
+    raw = json.loads((Path(__file__).parent / "fixtures" / "stats_game_2026-A-234.json").read_text())
+    snapshot = build_snapshot(raw, fetched_at=T0)
+
+    first = snapshot["livelog"][0]
+    second = snapshot["livelog"][1]
+    assert first["IsStrike"] == "1"
+    assert first["IsBall"] == "0"
+    assert second["IsStrike"] == "0"
+    assert second["IsBall"] == "1"
+
+
 def test_empty_official_trackman_object_is_not_a_usable_pitch() -> None:
     """官方以空物件標記非投球事件時，不得產生幽靈逐球列。"""
     snapshot = build_snapshot(

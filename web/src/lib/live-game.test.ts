@@ -11,6 +11,7 @@ import {
   nextPollDelay,
   resolveStatusSnapshot,
   shouldFetchLivePayload,
+  officialLivePitchCall,
   trackingEmptyMessage,
   trackingPendingMessage,
   trackmanAvailability,
@@ -248,6 +249,7 @@ const realLiveSnapshot = (mode: "available" | "empty" | "old" = "available"): Li
       MainEventNo: event.MainEventNo, PitcherAcnt: event.PitcherAcnt, HitterAcnt: event.HitterAcnt,
       InningSeq: event.InningSeq, VisitingHomeType: event.VisitingHomeType,
       IsChangePlayer: event.IsChangePlayer, PitchCnt: event.PitchCnt,
+      IsBall: event.IsBall, IsStrike: event.IsStrike, Content: event.Content,
     };
     if (mode !== "old") row.trackman = mode === "empty" || !raw ? null : {
       pitch_call: tag?.PitchCall ?? null, tagged_pitch_type: tag?.TaggedPitchType ?? null,
@@ -271,7 +273,9 @@ test("真實官方 TrackMan fixture 在 live snapshot 產生逐球列；空、pa
   assert.ok(rawTracked.length > 0, "fixture 必須含有官方 TrackMan 事件");
 
   const tracked = applyLiveSnapshot(response(realLiveSnapshot()));
-  const tracking = tracked.tracking as { main_event_no: string; main_event_nos: string[]; rel_speed: number | null }[];
+  const tracking = tracked.tracking as {
+    main_event_no: string; main_event_nos: string[]; rel_speed: number | null; pitch_call: string | null;
+  }[];
   assert.equal(tracked.has_tracking, true);
   assert.equal(tracking.length, rawTracked.length);
   assert.equal(tracking[0].main_event_no, String(rawTracked[0].MainEventNo));
@@ -280,12 +284,24 @@ test("真實官方 TrackMan fixture 在 live snapshot 產生逐球列；空、pa
   const firstPa = tracking.filter((pitch) => pitch.main_event_nos.includes("0110005000"));
   assert.equal(firstPa.length, 5);
   assert.ok(firstPa.every((pitch) => pitch.main_event_nos.length === 5));
+  assert.deepEqual(
+    tracking.slice(0, 5).map((pitch) => pitch.pitch_call),
+    ["FoulBallNotFieldable", "BallCalled", "StrikeSwinging", "BallCalled", "StrikeCalled"],
+    "TrackMan 尚無 PitchCall 時，應以真實官方 IsBall／IsStrike／Content 顯示判決",
+  );
 
   for (const mode of ["empty", "old"] as const) {
     const degraded = applyLiveSnapshot(response(realLiveSnapshot(mode)));
     assert.equal(degraded.has_tracking, false, `${mode} snapshot 不得捏造逐球資料`);
     assert.deepEqual(degraded.tracking, [], `${mode} snapshot 不得產生猜測 mapping`);
   }
+});
+
+test("官方 live 判決不完整時 fail-closed，不猜測好壞球", () => {
+  assert.equal(officialLivePitchCall({ IsBall: "1", IsStrike: "0", Content: "壞球。" }, null), "BallCalled");
+  assert.equal(officialLivePitchCall({ IsBall: "0", IsStrike: "1", Content: "好球沒揮棒。" }, null), "StrikeCalled");
+  assert.equal(officialLivePitchCall({ IsBall: "0", IsStrike: "1", Content: "擊出界外球。" }, null), "FoulBallNotFieldable");
+  assert.equal(officialLivePitchCall({ IsBall: "0", IsStrike: "0", Content: "換投。" }, null), null);
 });
 
 test("擊出球展開使用原生 button、可讀名稱與 44px 觸控目標", () => {
