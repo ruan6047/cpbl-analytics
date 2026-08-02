@@ -8,6 +8,7 @@
 
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
+| [DEV-CI-RED-OWNERSHIP1](tasks/DEV-CI-RED-OWNERSHIP1.md) | None | T3 | main 紅燈無歸屬：「非本卡引入」沒有強制去向 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-08-02T12:41:27+08:00 |
 | [DEV-EVENT-SCHEMA-GUARD1](tasks/DEV-EVENT-SCHEMA-GUARD1.md) | None | T3 | event log 寫入端無 schema 把關，壞資料會永久卡住 ledger | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-08-02T11:22:00+08:00 |
 | [DEV-REVIEW-DEACCEPT-TRAIL1](tasks/DEV-REVIEW-DEACCEPT-TRAIL1.md) | — | T3 | plain-review 翻案缺 correction 留痕（WF21-R-13） | —（未認領） | — | 0 | 📥Backlog | —不適用 | 2026-07-31T10:41:30+08:00 |
 | [DEV-REVIEW-PREFLIGHT-GATE1](tasks/DEV-REVIEW-PREFLIGHT-GATE1.md) | — | T3 | 前置查核關卡改為 preflight 的機器可讀宣告 | —（未認領） | — | 0 | 📥Backlog | —不適用 | 2026-07-31T13:15:24+08:00 |
