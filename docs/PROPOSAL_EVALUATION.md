@@ -1,7 +1,7 @@
-# 中職進階數據分析平台 (CPBL Analytics)
+# Ruan's CPBL Lab 中職進階數據分析平台
 ## 未來功能提案可行性評估報告 (Proposal Feasibility & Evaluation Report)
 
-本評估報告針對提升 **CPBL Analytics** 分析深度與用戶體驗的四項先進功能進行技術與可行性評估。各項提案均旨在橋接目前中職數據與大聯盟級別（Statcast/Savant, Pitcher List）的數據洞察力。
+本評估報告針對提升 **Ruan's CPBL Lab** 分析深度與用戶體驗的四項先進功能進行技術與可行性評估。各項提案均旨在橋接目前中職數據與大聯盟級別（Statcast/Savant, Pitcher List）的數據洞察力。
 
 ---
 

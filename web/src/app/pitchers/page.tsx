@@ -5,6 +5,7 @@ import { Eyebrow } from "@/components/ui";
 import { api } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "投手排行" };
 
 // 本季獎項競逐：勝投/三振/救援無門檻；防禦率/WHIP/K9 套規定投球局數（越低越好者 asc）。
 const AWARD_CATS: Cat[] = [

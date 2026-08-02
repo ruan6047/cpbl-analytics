@@ -4,9 +4,10 @@ import { ActivePill, Card, EraBadge, StatTile, TeamLogo } from "@/components/ui"
 import { DataTable, type Column } from "@/components/table";
 import { Tabs } from "@/components/tabs";
 import { type FieldCells, type FieldPosition } from "@/components/field-diagram";
+import type { Metadata } from "next";
 import { RosterBoard, type RosterGroup } from "@/components/roster-board";
 import { api } from "@/lib/api";
-import { contrastText, nameMeta, teamColor } from "@/lib/teams";
+import { contrastText, nameMeta, teamColor, teamName3 } from "@/lib/teams";
 import { CoachGrid, GROUPS, ManagersTable, RetiredNumbers, RosterChips, RosterTable, f2, f3 } from "./parts";
 import { TeamFocusSection } from "./focus-section";
 import { TeamRecordsSection } from "./records-section";
@@ -14,6 +15,11 @@ import { TeamStyleSection } from "./style-section";
 import { SEASON_GROUP, TeamTabs, type TeamGroup } from "./team-tabs";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ code: string }> }): Promise<Metadata> {
+  const code = (await params).code;
+  return { title: teamName3(code) ? `${teamName3(code)}｜球隊` : "球隊資料" };
+}
 
 // 攻守概覽 OPS/ERA/WHIP 由逐場 gamelog 聚合，僅 2018+ 有逐場個人資料（[[data-coverage-by-year]]）。
 const MIN_SPLIT_YEAR = 2018;

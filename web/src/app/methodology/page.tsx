@@ -16,7 +16,7 @@ import {
 } from "@/lib/methodology-content";
 import { Card, Eyebrow } from "@/components/ui";
 
-export const metadata = { title: "方法與模型透明度 | CPBL 分析" };
+export const metadata = { title: "方法與模型透明度" };
 
 /**
  * `/methodology`（PRODUCT_UX_BLUEPRINT v0.2 §5.14；UX-MODEL-METHOD1）。
@@ -341,6 +341,13 @@ export default async function MethodologyPage() {
                 </div>
               ))}
             </dl>
+          </section>
+        </Card>
+        <Card>
+          <section aria-labelledby="about-lab">
+            <h2 id="about-lab" className="text-lg font-bold text-ink">關於本站與作者</h2>
+            <p className="mt-1.5 text-sm leading-relaxed text-muted">我把 Ruan&apos;s CPBL Lab 做成一個可追溯的中職資料實驗室：資料缺口會揭露，模型必須先在時間切分回測勝過基準，不能證明的結論就不包裝成預測。</p>
+            <p className="mt-2 text-sm text-muted">本站為非官方獨立專案；資料來自 cpbl-opendata、cpbl.com.tw 與 stats.cpbl.com.tw。作者為 Ruan Ruan，持續在 <a className="underline underline-offset-2 hover:text-ink" href="https://ruan-ruan.com">ruan-ruan.com</a> 與 <a className="underline underline-offset-2 hover:text-ink" href="https://github.com/ruan6047/cpbl-analytics">GitHub</a> 維護專案與方法說明。</p>
           </section>
         </Card>
       </div>

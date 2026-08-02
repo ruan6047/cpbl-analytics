@@ -5,10 +5,11 @@ import { api } from "@/lib/api";
 import PlayerSearch from "@/components/player-search";
 import DailyHub from "@/components/daily-hub";
 import MiniStandings from "@/components/mini-standings";
+import { BrandMark } from "@/components/brand-mark";
 
 export const metadata = {
-  title: "CPBL 分析 | 中華職棒數據視覺化",
-  description: "非官方中華職棒 [CPBL] 數據視覺化網站——最近比賽日戰果、下一批賽事與賽前勝率、資料新鮮度，以及球員、球隊與投打脈絡的非即時分析。",
+  title: { absolute: "Ruan's 中職數據實驗室｜中華職棒數據視覺化" },
+  description: "從最近賽事到下一場對戰，用可追溯的數據看懂中職。",
 };
 
 export default async function Home({
@@ -35,34 +36,25 @@ export default async function Home({
   ]);
 
   const standings = standR.status === "fulfilled" ? standR.value.items : [];
-
   return (
     <div className="space-y-8">
-      {/* Hero：精簡標題 + 全站球員搜尋 + 導覽（移除舊 /predict CTA） */}
-      <header className="relative overflow-hidden rounded-xl border border-line bg-surface-2 px-6 py-7 text-center sm:px-12">
-        <div className="relative z-10 mx-auto max-w-2xl space-y-3">
-          <h1 className="text-2xl font-extrabold tracking-tight text-ink sm:text-3xl">
-            非官方中華職棒 [CPBL] 數據視覺化
+      <header className="relative overflow-hidden rounded-xl border border-line bg-surface-2 px-6 py-10 sm:px-12">
+        {/* 浮水印用剪影：五官是為 16–32px 調的，放大到 288px 會讓眼睛變孤立大圓、
+            微笑弧被容器裁掉，臉反而讀不出來。完整版留給 logo 與 favicon。 */}
+        <BrandMark variant="silhouette" className="absolute -right-12 -top-12 h-72 w-72 text-ink/5" />
+        {/* 目的優先：hero 只講「這個站讓你得到什麼」。視覺化與模型是手段，屬 /methodology
+            與各頁揭露，不放首屏（需求方 2026-08-02 人工審定案：果與因不可倒置）。
+            導覽已有賽程／戰績入口，故不重複 CTA。 */}
+        <div className="relative z-10 max-w-2xl space-y-4 text-left max-lg:text-center">
+          <p className="font-[family-name:var(--font-display)] text-sm font-bold tracking-wide text-accent">RUAN&apos;S CPBL LAB</p>
+          <h1 className="text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">
+            Ruan&apos;s 中職數據實驗室
           </h1>
-          <p className="mx-auto max-w-lg text-xs text-muted sm:text-sm">
-            最近比賽日發生什麼、下一批賽事看什麼——用視覺化把中職數據講清楚
+          <p className="max-w-lg text-base text-muted max-lg:mx-auto sm:text-lg">
+            用視覺化與數據分析，把棒球看得更懂。
           </p>
-          <div className="pt-1">
+          <div className="pt-1 md:hidden">
             <PlayerSearch />
-          </div>
-          <div className="flex flex-wrap justify-center gap-2 pt-1 text-xs sm:text-sm">
-            <Link
-              href="/standings"
-              className="rounded-full bg-ink px-4 py-1.5 font-medium text-paper transition hover:opacity-90"
-            >
-              本季戰績
-            </Link>
-            <Link
-              href="/games"
-              className="rounded-full border border-line bg-surface px-4 py-1.5 font-medium text-ink transition hover:bg-surface-2"
-            >
-              賽況與 Box
-            </Link>
           </div>
         </div>
       </header>

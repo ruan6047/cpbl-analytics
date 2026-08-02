@@ -8,6 +8,7 @@ import type { OfficialStanding, OfficialStandingsResponse, SpecialRecord, WL } f
 import { teamPageCode, teamShort } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "戰績" };
 
 const SEGS = [
   { v: 0, label: "全年" },

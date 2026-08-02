@@ -9,6 +9,7 @@ import { DynastyChart } from "./dynasty-chart";
 import { SectionTabs } from "./section-tabs";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "紀錄室" };
 
 const f3 = (v: number | string | null) => (v == null ? "—" : Number(v).toFixed(3).replace(/^0/, ""));
 

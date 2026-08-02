@@ -3,7 +3,7 @@ import { api } from "@/lib/api";
 import { Card } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "球場 | CPBL 分析" };
+export const metadata = { title: "球場" };
 
 const num = (v: number | null) => (v == null ? "—" : Number(v).toLocaleString());
 

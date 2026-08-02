@@ -3,12 +3,16 @@ import Link from "next/link";
 import { NavLinks } from "@/components/nav-links";
 import PlayerSearch from "@/components/player-search";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { BrandMark } from "@/components/brand-mark";
 import { Outfit } from "next/font/google";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "CPBL 分析 | Ruan Dev",
-  description: "中華職棒戰績、進階數據與賽事預測 — TrackMan/Statcast 視覺化。",
+  metadataBase: new URL("https://cpbl.ruan-ruan.com"),
+  title: { default: "Ruan's CPBL Lab", template: "%s | Ruan's CPBL Lab" },
+  description: "中華職棒戰績、進階數據與賽事預測的非官方資料實驗室。",
+  openGraph: { type: "website", locale: "zh_TW", siteName: "Ruan's CPBL Lab" },
+  twitter: { card: "summary_large_image" },
 };
 
 const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit" });
@@ -35,8 +39,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <a href="#main" className="skip-link">跳至主內容</a>
         <header className="sticky top-0 z-40 border-b border-line bg-surface/80 backdrop-blur-md">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3.5">
-            <Link href="/" className="text-lg font-extrabold tracking-tight">
-              <span className="text-cpbl">CPBL</span> <span className="text-accent">分析</span>
+            <Link href="/" className="flex items-center gap-2 font-[family-name:var(--font-display)] text-lg font-extrabold tracking-tight">
+              <BrandMark className="h-7 w-7 shrink-0 text-ink" />
+              <span className="text-accent">Ruan&apos;s</span>{" "}<span className="text-cpbl">CPBL</span>{" "}<span className="text-ink">Lab</span>
             </Link>
             {/* 全域球員搜尋（§5.5）：桌機常駐頂欄；行動端置於選單面板內 */}
             <div className="hidden md:block flex-1 max-w-xs">
@@ -50,11 +55,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </header>
         <main id="main" className="mx-auto max-w-6xl px-6 py-8">{children}</main>
         <footer className="mx-auto max-w-6xl border-t border-line/75 px-6 py-8 mt-12 text-xs text-faint flex flex-col md:flex-row items-center justify-between gap-4">
-          <div>
-            資料來源：cpbl-opendata (MIT) + cpbl.com.tw + stats.cpbl.com.tw。僅供學習與作品集用途。
+          <div className="max-w-2xl">
+            非官方獨立專案，與中華職棒大聯盟無隸屬關係。資料來源：cpbl-opendata (MIT)、cpbl.com.tw、stats.cpbl.com.tw。
           </div>
-          <div>
-            © {new Date().getFullYear()} CPBL Analytics.
+          <div className="text-center md:text-right">
+            <div>作者 Ruan Ruan · <a className="underline underline-offset-2 hover:text-ink" href="https://ruan-ruan.com">ruan-ruan.com</a> · <a className="underline underline-offset-2 hover:text-ink" href="https://github.com/ruan6047/cpbl-analytics">GitHub</a></div>
+            <div className="mt-1">© {new Date().getFullYear()} Ruan&apos;s CPBL Lab.</div>
           </div>
         </footer>
       </body>

@@ -1,4 +1,4 @@
-# CPBL Analytics
+# Ruan's CPBL Lab
 
 中華職棒（CPBL）資料管線、本季數據與**單場賽果預測**。
 PersonalWebsite 主站的子專案,透過 `/api/info` 掛載到子網域並被主站 `InfoPoller` 輪詢。

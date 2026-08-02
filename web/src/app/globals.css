@@ -65,6 +65,7 @@
   --status-loree: #0f766e;       /* 羅力條款（本土洋將） */
   --status-nagata: #7c3aed;      /* 永田條款（外籍本土） */
   --font-mono: var(--font-outfit), monospace;
+  --font-display: var(--font-outfit), sans-serif;
 }
 
 :root {
@@ -227,5 +228,4 @@ tr:hover .sticky-col {
 .animate-fade-out {
   animation: fadeOut var(--dur-fast) var(--ease-standard) forwards;
 }
-
 

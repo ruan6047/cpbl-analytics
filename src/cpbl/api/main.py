@@ -29,7 +29,7 @@ from cpbl.api.routers import (
     venues,
 )
 
-app = FastAPI(title="CPBL Analytics", version=__version__)
+app = FastAPI(title="Ruan's CPBL Lab API", version=__version__)
 
 # 公開唯讀 API；dev 時前端跨埠(:3000→:4001)需 CORS。prod 同源(經 nginx)不受影響。
 app.add_middleware(
