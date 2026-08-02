@@ -37,7 +37,7 @@
 | [OPS-REMOTE-ROUTE1](tasks/OPS-REMOTE-ROUTE1.md) | INIT-PRODUCT-UX | T3 | 遠端出口路線資格驗證 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:38+08:00 |
 | [OPS-REMOTE-WORKER1](tasks/OPS-REMOTE-WORKER1.md) | INIT-PRODUCT-UX | T4 | 隔離式遠端 crawler shadow worker | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:39+08:00 |
 | [OPS-WEB-DEPS1](tasks/OPS-WEB-DEPS1.md) | — | T2 | 前端相依套件漏洞（1 critical ＋ 3 high，皆為建置面） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-29T22:51:02+08:00 |
-| [UX-BRAND-HOME1](tasks/UX-BRAND-HOME1.md) | INIT-PRODUCT-UX | T3 | 站名品牌化與首頁門面升級 | ruan6047（部署確認） | `ai/codex/UX-BRAND-HOME1 @ /private/tmp/cpbl-ux-brand-home1` | 3 | 📦已合併 | 🚀待部署 | 2026-08-02T11:15:00+08:00 |
+| [UX-BRAND-HOME1](tasks/UX-BRAND-HOME1.md) | INIT-PRODUCT-UX | T3 | 站名品牌化與首頁門面升級 | ruan6047（可 release） | `ai/codex/UX-BRAND-HOME1 @ /private/tmp/cpbl-ux-brand-home1` | 3 | 📦已合併 | ✅已驗證 | 2026-08-02T12:26:06+08:00 |
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
 | [UX-HOME-LIVE-STRIP1](tasks/UX-HOME-LIVE-STRIP1.md) | INIT-PRODUCT-UX | T3 | 首頁 live 比賽精簡狀態列 | 待指派（先 Discovery 與需求方 Design Gate） | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-02T11:32:41+08:00 |
@@ -45,7 +45,7 @@
 | [UX-LIVE-GAME1-FIX1](tasks/UX-LIVE-GAME1-FIX1.md) | INIT-PRODUCT-UX | T2 | 未開賽不得顯示局數 | ruan6047（部署確認） | `ai/opus-5/UX-LIVE-GAME1-FIX1 @ .claude/worktrees/ux-live-game1-fix1-review` | 1 | 📦已合併 | 🚀待部署 | 2026-07-31T14:25:43+08:00 |
 | [UX-LIVE-TRACKMAN1](tasks/UX-LIVE-TRACKMAN1.md) | INIT-PRODUCT-UX | T3 | 賽中逐球 TrackMan 顯示 | 待指派（需求方 Design Gate） | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-01T17:46:02+08:00 |
 | [UX-TEAM-FIELD-HIST1](tasks/UX-TEAM-FIELD-HIST1.md) | INIT-PRODUCT-UX | T3 | 球隊頁歷史年守備位置圖（union fielding_seasons） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:36:00+08:00 |
-| [UX-TOKEN-ACCENT-CONTRAST1](tasks/UX-TOKEN-ACCENT-CONTRAST1.md) | INIT-PRODUCT-UX | T2 | accent 在 surface-2 底上未達 WCAG AA | ruan6047（部署確認） | `ai/codex/UX-TOKEN-ACCENT-CONTRAST1 @ /private/tmp/cpbl-ux-token-contrast1` | 2 | 📦已合併 | 🚀待部署 | 2026-08-02T02:31:00+08:00 |
+| [UX-TOKEN-ACCENT-CONTRAST1](tasks/UX-TOKEN-ACCENT-CONTRAST1.md) | INIT-PRODUCT-UX | T2 | accent 在 surface-2 底上未達 WCAG AA | ruan6047（可 release） | `ai/codex/UX-TOKEN-ACCENT-CONTRAST1 @ /private/tmp/cpbl-ux-token-contrast1` | 2 | 📦已合併 | ✅已驗證 | 2026-08-02T12:26:06+08:00 |
 
 ## 依賴與資源註記
 
