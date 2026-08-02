@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { detail, type StatRow } from "@/lib/client";
 import { fmtIPParts } from "@/lib/format";
 import GameBoard, { type Live } from "@/components/game-board";
-import { Card, Notice, Skeleton, ErrorState, EmptyState, PlayerLink, ENTITY_LINK } from "@/components/ui";
+import { Card, Notice, Skeleton, ErrorState, EmptyState, PlayerLink, TeamLogo, ENTITY_LINK } from "@/components/ui";
 import BoxTabs, { type BoxTab } from "./box-tabs";
 import { WinProbChart, type WpPoint } from "@/components/win-prob-chart";
 import { PregameCard } from "@/components/pregame-card";
@@ -617,21 +617,11 @@ export default function GameLivePage() {
 
   return (
     <div>
-      {/* 頂列：返回（左）＋ 日期球場／視圖切換（右）——填滿右側空白、並收掉記分條底列與獨立切換列 */}
+      {/* 頂列只放賽事脈絡；主頁籤另成一列，避免六個項目與日期／球場擠在一起。 */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Link href="/games" className="text-xs text-faint hover:text-accent">← 返回賽況列表</Link>
         {data.livelog.length > 0 && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <span className="text-xs text-faint">{String(g.game_date ?? "")}　賽事編號 {sno}　{String(g.venue ?? "")}</span>
-            <div className="inline-flex gap-1 rounded-lg bg-surface-2 p-1">
-              {pageTabs.map(({ value, label }) => (
-                <button key={value} onClick={() => setView(value)}
-                  className={`rounded-md px-3 py-1 text-sm transition ${view === value ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
+          <span className="text-xs text-faint">{String(g.game_date ?? "")}　賽事編號 {sno}　{String(g.venue ?? "")}</span>
         )}
       </div>
 
@@ -654,6 +644,24 @@ export default function GameLivePage() {
             {inningLabel(liveSnapshot, "text") ? `，${inningLabel(liveSnapshot, "text")}` : ""}
           </p>
         </div>
+      )}
+
+      {data.livelog.length > 0 && (
+        <nav aria-label="賽況檢視" className="mt-2 overflow-x-auto rounded-lg border border-line bg-surface p-1">
+          <div className="flex min-w-max gap-1">
+            {pageTabs.map(({ value, label }) => {
+              const teamCode = value === "away" ? String(g.away_team_code ?? "") : value === "home" ? String(g.home_team_code ?? "") : null;
+              const teamName = value === "away" ? String(g.away_team_name ?? "") : value === "home" ? String(g.home_team_name ?? "") : null;
+              return (
+                <button key={value} onClick={() => setView(value)} aria-pressed={view === value}
+                  className={`flex min-h-10 items-center gap-1.5 rounded-md px-3 text-sm transition ${view === value ? "bg-ink text-paper" : "text-muted hover:bg-surface-2 hover:text-ink"}`}>
+                  {teamCode && <TeamLogo code={teamCode} name={teamName ?? ""} size={16} decorative />}
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
       )}
 
       {liveInterrupted && (
