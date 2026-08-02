@@ -36,7 +36,7 @@
 | [OPS-REMOTE-ROUTE1](tasks/OPS-REMOTE-ROUTE1.md) | INIT-PRODUCT-UX | T3 | 遠端出口路線資格驗證 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:38+08:00 |
 | [OPS-REMOTE-WORKER1](tasks/OPS-REMOTE-WORKER1.md) | INIT-PRODUCT-UX | T4 | 隔離式遠端 crawler shadow worker | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:39+08:00 |
 | [OPS-WEB-DEPS1](tasks/OPS-WEB-DEPS1.md) | — | T2 | 前端相依套件漏洞（1 critical ＋ 3 high，皆為建置面） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-29T22:51:02+08:00 |
-| [UX-BRAND-HOME1](tasks/UX-BRAND-HOME1.md) | INIT-PRODUCT-UX | T3 | 站名品牌化與首頁門面升級 | ruan6047（merge gate；代行 merge 須需求方授權） | `ai/codex/UX-BRAND-HOME1 @ .claude/worktrees/ux-brand-home1-review` | 3 | ✅可合併 | ⏸未部署 | 2026-08-02T04:06:00+08:00 |
+| [UX-BRAND-HOME1](tasks/UX-BRAND-HOME1.md) | INIT-PRODUCT-UX | T3 | 站名品牌化與首頁門面升級 | ruan6047（部署確認） | `ai/codex/UX-BRAND-HOME1 @ /private/tmp/cpbl-ux-brand-home1` | 3 | 📦已合併 | 🚀待部署 | 2026-08-02T11:15:00+08:00 |
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
 | [UX-LIVE-GAME1](tasks/UX-LIVE-GAME1.md) | INIT-PRODUCT-UX | T3 | 賽前情報到比賽中狀態板 | ruan6047（人工實測） | `ai/codex/UX-LIVE-GAME1 @ —（已合併，worktree 待回收）` | 1 | 📦已合併 | 🚀部署待實測 | 2026-07-31T14:08:49+08:00 |
