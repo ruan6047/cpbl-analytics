@@ -8,7 +8,7 @@
 - 部署：是　環境：production　PR：—　Merge SHA：—
 - 範圍：既有 `/games/[sno]` 的 live snapshot、逐打席區與分析區；保留官方已回傳的 TrackMan，資料存在時顯示，缺值時誠實退化。不新增直播頁、推播、逐球時間戳或守備員追蹤。
 - Discovery：2026-08-01 需求方指示查核；官方進行中抽樣 `2026-A-235=127/148`、`2026-A-236=54/54`、`2026-A-237=0/59` 筆含 TrackMan。現有 worker 已取得原始 payload，但 `_LIVELOG_FIELDS` 丟棄 `Trackman`；前端非 final 時強制 `has_tracking=false`。
-- Design：需需求方 Design Gate；候選設計見本卡〈決策〉。未核可前不得 claim。
+- Design：✅需求方於 2026-08-02 核可。唯一賽況頁 `/games/[sno]` 共用標準化逐球契約：賽中 Redis snapshot 為暫態權威、賽後 PostgreSQL 為可追溯權威。資料無法唯一映射打席即不渲染；同打席來源鎖定，模型資料不完整則整個打席降階為官方粗分類。逐球介面同步升級 live 與賽後：好球帶、判決、球種、球速，擊出球可展開初速／仰角／距離／滯空時間／擊球轉速；不做整場落點圖、推播、OAA 或賽中勝率。
 - owner、worktree、iteration、最後交接、阻塞與交付／部署 current-state 見 [`../TASKS.md`](../TASKS.md) Ledger；歷史寫入 adapter event log
 
 ## 問題陳述
@@ -51,3 +51,4 @@
 
 - 2026-08-01T17:46:02+08:00 register by OpenAI Codex（依 ruan6047 指示）：官方 live payload 實測已證明部分進行中場次有 TrackMan，但覆蓋不穩定；先以 Backlog 卡保留可驗證範圍，等待需求方 Design Gate。
 - 2026-08-02T12:32:41+08:00 correction by Claude Opus 5@Claude Code（依 ruan6047 指示修 CI 紅燈）：`spec 基線` 欄補上父卡 `INIT-PRODUCT-UX` 的當前版本 `PRODUCT_UX_BLUEPRINT v0.2`。父卡卡面與 `PRODUCT_UX_BLUEPRINT.md` 檔頂皆為 v0.2、未曾推進，故屬 baseline-cascade §5 註冊時漏填而非基線變更；範圍、決策與驗收條件不變。詳見 `CORRECTION-002`。
+- 2026-08-02T13:38:04+08:00 Design Gate：需求方核可。核可內容以本卡 Design 行為準；賽中／賽後採同一賽況頁與元件，資料成熟度透過使用者語意揭露（不暴露儲存實作）。官方修訂直接覆蓋；螢幕閱讀器只播報狀態變更、不逐球播報。自家即時球種模型另列後續 T4 卡，不阻塞本卡先以官方 `TaggedPitchType` 粗分類上線。
