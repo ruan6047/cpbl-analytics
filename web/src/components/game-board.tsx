@@ -443,7 +443,7 @@ function PlayByPlay({ log, events, idx, setIdx, userAction }: {
 }
 
 // ───────────────────────── 好球帶（逐球進壘）─────────────────────────
-// tagged_pitch_type 是官方粗分類；只有整個 canonical PA 都具模型結果，才可顯示推算球種。
+// tagged_pitch_type 是官網分類；只有整個 canonical PA 都具模型結果，才可顯示推算球種。
 const TAGGED_ZH: Record<string, string> = { fastball: "速球", breakingball: "變化球", offspeed: "變速" };
 const pitchZh = (pitch: TrackRow, useModel: boolean) =>
   (useModel ? pitch.pitch_type_pred : null) || (pitch.tagged_pitch_type && TAGGED_ZH[pitch.tagged_pitch_type]) || "—";
@@ -463,7 +463,7 @@ const ZONE = { l: -0.23, r: 0.23, b: 0.46, t: 1.05 }; // 名義好球帶
 
 function StrikeZone({ pitches }: { pitches: TrackRow[] }) {
   const [expanded, setExpanded] = useState<number | null>(null);
-  // PA 來源鎖定：任一球沒有模型結果就整個 PA 降階官方粗分類，禁止混用兩種來源。
+  // PA 來源鎖定：任一球沒有模型結果就整個 PA 降階官網分類，禁止混用兩種來源。
   const useModel = pitches.length > 0 && pitches.every((pitch) => Boolean(pitch.pitch_type_pred));
   const hasLocations = pitches.some((pitch) => pitch.plate_loc_side != null && pitch.plate_loc_height != null);
   const zl = SX(ZONE.l), zr = SX(ZONE.r), zt = SY(ZONE.t), zb = SY(ZONE.b);
@@ -473,7 +473,7 @@ function StrikeZone({ pitches }: { pitches: TrackRow[] }) {
     <div className="rounded-xl border border-line bg-surface px-3 py-2.5">
       <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
         <span className="font-semibold">本打席逐球追蹤</span>
-        <span className="text-muted">球種：{useModel ? "推算" : "官方粗分類"}</span>
+        <span className="text-muted">球種：{useModel ? "推算" : "官網分類"}</span>
       </div>
       <div className="flex gap-3">
         {hasLocations && <svg viewBox="0 0 200 200" className="h-36 w-36 shrink-0" aria-label="本打席好球帶">
