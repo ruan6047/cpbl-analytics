@@ -102,6 +102,17 @@ test("頂部記分條以 snapshot 累計比分為準，不被最後事件的滯�
     liveScorebarScores({ away_score: null }, { visiting_score: 4 }), { away: 4, home: 0 });
 });
 
+test("賽況 Hero 收納狀態、賽事脈絡與更新時間，頁面不再另設狀態卡或返回連結", () => {
+  const board = readFileSync(new URL("../components/game-board.tsx", import.meta.url), "utf8");
+  const page = readFileSync(new URL("../app/games/[sno]/game-live-page.tsx", import.meta.url), "utf8");
+  assert.match(board, /phaseLabel\(snapshot\.phase\)/);
+  assert.match(board, /最後更新/);
+  assert.match(board, /賽事編號/);
+  assert.ok(board.indexOf("<ScoreBar") < board.indexOf("{tabs}"), "Hero 必須在主頁籤上方");
+  assert.doesNotMatch(page, /← 返回賽況列表/);
+  assert.doesNotMatch(page, /最後更新 \{liveSnapshot\.source\.fetched_at/);
+});
+
 test("收合打席標示整個打席實際用球數，不標示隱藏球數", () => {
   assert.equal(plateAppearancePitchCountLabel(3), "（3 球）");
   assert.equal(plateAppearancePitchCountLabel(1), "（1 球）");

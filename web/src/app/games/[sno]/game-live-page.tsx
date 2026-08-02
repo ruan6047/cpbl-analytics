@@ -21,7 +21,6 @@ import { StickyNavBar } from "@/components/sticky-nav-bar";
 import {
   applyLiveSnapshot,
   canShowPostgameConclusions,
-  inningLabel,
   nextPollDelay,
   phaseLabel,
   resolveStatusSnapshot,
@@ -619,43 +618,6 @@ export default function GameLivePage() {
 
   return (
     <div>
-      {/* 頂列只放賽事脈絡；主頁籤另成一列，避免六個項目與日期／球場擠在一起。 */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Link href="/games" className="text-xs text-faint hover:text-accent">← 返回賽況列表</Link>
-        {data.livelog.length > 0 && (
-          <span className="text-xs text-faint">{String(g.game_date ?? "")}　賽事編號 {sno}　{String(g.venue ?? "")}</span>
-        )}
-      </div>
-
-      {liveSnapshot && (
-        <div className="mt-2 flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-line bg-surface px-3 py-2 text-xs">
-          <span className={`font-semibold ${liveSnapshot.phase === "live" ? "text-accent" : "text-ink"}`}>
-            {liveSnapshot.phase === "live" && <span className="mr-1 inline-block h-2 w-2 rounded-full bg-accent" aria-hidden="true" />}
-            {phaseLabel(liveSnapshot.phase)}
-          </span>
-          <span className="text-muted">
-            {inningLabel(liveSnapshot, "glyph") ?? "等待賽況"}
-          </span>
-          <time className="ml-auto text-faint" dateTime={liveSnapshot.source.fetched_at ?? undefined}>
-            最後更新 {liveSnapshot.source.fetched_at
-              ? new Date(liveSnapshot.source.fetched_at).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
-              : "—"}
-          </time>
-          <p className="sr-only" aria-live="polite" aria-atomic="true">
-            {phaseLabel(liveSnapshot.phase)}，{String(g.away_team_name)} {n(g.away_score)} 比 {n(g.home_score)} {String(g.home_team_name)}
-            {inningLabel(liveSnapshot, "text") ? `，${inningLabel(liveSnapshot, "text")}` : ""}
-          </p>
-        </div>
-      )}
-
-      {data.livelog.length > 0 && (
-        <StickyNavBar label="賽況檢視" flush>
-          <div className="flex min-w-0 items-center overflow-x-auto overscroll-x-contain">
-            <MainTabs label="賽況檢視" value={view} onChange={setView} items={pageTabs} />
-          </div>
-        </StickyNavBar>
-      )}
-
       {liveInterrupted && (
         <Notice className="mt-2" icon="⚠">
           即時更新暫時中斷；畫面保留最後一次成功賽況，恢復連線後會自動續接。
@@ -664,8 +626,13 @@ export default function GameLivePage() {
 
       {data.livelog.length > 0 ? (
         <section className="mb-8 mt-2 space-y-4">
-          <GameBoard data={data} idx={idx} setIdx={setIdx} view={view === "pbp" ? "pbp" : "overview"} wp={wp ?? undefined}
-            onNavigate={() => setView("pbp")} />
+          <GameBoard data={data} idx={idx} setIdx={setIdx} view={view === "pbp" ? "pbp" : "overview"} wp={wp ?? undefined} gameSno={sno}
+            onNavigate={() => setView("pbp")}
+            tabs={<StickyNavBar label="賽況檢視" flush>
+              <div className="flex min-w-0 items-center overflow-x-auto overscroll-x-contain">
+                <MainTabs label="賽況檢視" value={view} onChange={setView} items={pageTabs} />
+              </div>
+            </StickyNavBar>} />
           {view === "overview" && (
             <>
               <GameOverview wp={wp ?? []} log={data.livelog}

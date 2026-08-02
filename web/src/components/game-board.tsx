@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import Link from "next/link";
 import type { StatRow } from "@/lib/client";
 import { ENTITY_LINK, ENTITY_LINK_TEXT, TeamLogo } from "@/components/ui";
@@ -8,7 +8,7 @@ import { isCurrentTeam, teamColor, teamPageCode } from "@/lib/teams";
 import { PITCH_CALL, PA_KIND } from "@/lib/chart-theme";
 import type { WpPoint } from "@/components/win-prob-chart";
 import {
-  canShowPostgameConclusions, liveScorebarScores, plateAppearancePitchCountLabel, trackingEmptyMessage,
+  canShowPostgameConclusions, inningLabel, liveScorebarScores, phaseLabel, plateAppearancePitchCountLabel, trackingEmptyMessage,
   type LiveSnapshot,
 } from "@/lib/live-game";
 
@@ -111,7 +111,9 @@ function BasesOuts({ b1, b2, b3, outs, size = 52 }: {
 }
 
 // ───────────────────────── 頂部記分條 ─────────────────────────
-function ScoreBar({ game, e, records }: { game: StatRow; e: StatRow; records: Record<string, Rec> }) {
+function ScoreBar({ game, e, records, snapshot, gameSno }: {
+  game: StatRow; e: StatRow; records: Record<string, Rec>; snapshot: LiveSnapshot | null; gameSno: string;
+}) {
   const ac = String(game.away_team_code ?? "");
   const hc = String(game.home_team_code ?? "");
   const half = String(e.visiting_home_type);
@@ -150,6 +152,25 @@ function ScoreBar({ game, e, records }: { game: StatRow; e: StatRow; records: Re
       <div className="flex h-1.5">
         <div className="flex-1" style={{ background: teamColor(ac) }} />
         <div className="flex-1" style={{ background: teamColor(hc) }} />
+      </div>
+      <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-5 py-2 text-xs">
+        {snapshot && <>
+          <span className={`font-semibold ${snapshot.phase === "live" ? "text-accent" : "text-ink"}`}>
+            {snapshot.phase === "live" && <span className="mr-1 inline-block h-2 w-2 rounded-full bg-accent" aria-hidden="true" />}
+            {phaseLabel(snapshot.phase)}
+          </span>
+          <span className="text-muted">{inningLabel(snapshot, "glyph") ?? "等待賽況"}</span>
+        </>}
+        <span className="text-faint">{String(game.game_date ?? "")}　賽事編號 {gameSno}　{String(game.venue ?? "")}</span>
+        {snapshot && <time className="ml-auto text-faint" dateTime={snapshot.source.fetched_at ?? undefined}>
+          最後更新 {snapshot.source.fetched_at
+            ? new Date(snapshot.source.fetched_at).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+            : "—"}
+        </time>}
+        {snapshot && <p className="sr-only" aria-live="polite" aria-atomic="true">
+          {phaseLabel(snapshot.phase)}，{String(game.away_team_name)} {score.away} 比 {score.home} {String(game.home_team_name)}
+          {inningLabel(snapshot, "text") ? `，${inningLabel(snapshot, "text")}` : ""}
+        </p>}
       </div>
       <div className="grid grid-cols-[1fr_auto_auto_auto_1fr] items-center gap-4 px-5 py-4">
         {side(ac, game.away_team_name, ar, false)}
@@ -523,12 +544,15 @@ function StrikeZone({ pitches }: { pitches: TrackRow[] }) {
 }
 
 // ───────────────────────── 主板 ─────────────────────────
-export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate, wp }: {
+export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate, wp, gameSno, tabs }: {
   data: Live;
   idx: number; setIdx: (i: number) => void;
   wp?: WpPoint[];                // 逐打席勝率（顯示當前打席的目前預期勝率）
   view?: "overview" | "pbp";     // overview=總覽（隱藏逐打席操作區）；pbp=逐打席
   onNavigate?: () => void;       // 使用者選打席/選局時通知父層（總覽→切逐打席）
+  gameSno: string;
+  /** 頁面唯一主頁籤：必須位於 Hero 記分條之後。 */
+  tabs?: ReactNode;
 }) {
   const log = data.livelog;
   const game = data.game!;
@@ -645,7 +669,9 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
 
   return (
     <div className="space-y-4">
-      <ScoreBar game={game} e={e} records={data.records} />
+      <ScoreBar game={game} e={e} records={data.records} snapshot={data.live_snapshot ?? null} gameSno={gameSno} />
+
+      {tabs}
 
       <ScoreLine sb={data.scoreboard} game={game} snapshot={data.live_snapshot ?? null}
         halves={halves} curKey={curKey} onSelect={(h) => selectIdx(h.firstIdx)} />
