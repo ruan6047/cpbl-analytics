@@ -8,7 +8,7 @@ import { isCurrentTeam, teamColor, teamPageCode } from "@/lib/teams";
 import { PITCH_CALL, PA_KIND } from "@/lib/chart-theme";
 import type { WpPoint } from "@/components/win-prob-chart";
 import {
-  canShowPostgameConclusions, trackingEmptyMessage,
+  canShowPostgameConclusions, liveScorebarScores, trackingEmptyMessage,
   type LiveSnapshot,
 } from "@/lib/live-game";
 
@@ -117,6 +117,7 @@ function ScoreBar({ game, e, records }: { game: StatRow; e: StatRow; records: Re
   const half = String(e.visiting_home_type);
   const ar = records[ac];
   const hr = records[hc];
+  const score = liveScorebarScores(game, e);
 
   // 隊名連結（UX-ENTITY-LINKS3 A 層；§9.3）：gating 只連現役 franchise，歷史／已解散隊
   // 退化純文字。可點範圍與底線的取捨沿用 UX-ENTITY-LINKS2 的結論——**整塊（徽章＋隊名＋
@@ -152,7 +153,7 @@ function ScoreBar({ game, e, records }: { game: StatRow; e: StatRow; records: Re
       </div>
       <div className="grid grid-cols-[1fr_auto_auto_auto_1fr] items-center gap-4 px-5 py-4">
         {side(ac, game.away_team_name, ar, false)}
-        <div className="font-mono text-4xl font-bold tabular-nums">{num(e.visiting_score)}</div>
+        <div className="font-mono text-4xl font-bold tabular-nums">{score.away}</div>
         <div className="flex flex-col items-center gap-0.5 px-2">
           <div className="text-xs font-semibold tracking-wide text-accent">
             {half === "1" ? "▲ TOP" : "▼ BOT"} {num(e.inning_seq)}
@@ -167,7 +168,7 @@ function ScoreBar({ game, e, records }: { game: StatRow; e: StatRow; records: Re
               <Dots n={num(e.strike_cnt)} total={2} color={PITCH_CALL.foul} /></span>
           </div>
         </div>
-        <div className="font-mono text-4xl font-bold tabular-nums">{num(e.home_score)}</div>
+        <div className="font-mono text-4xl font-bold tabular-nums">{score.home}</div>
         {side(hc, game.home_team_name, hr, true)}
       </div>
     </div>

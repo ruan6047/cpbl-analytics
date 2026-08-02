@@ -8,6 +8,7 @@ import {
   inningLabel,
   isTopHalf,
   lineupMessage,
+  liveScorebarScores,
   nextPollDelay,
   resolveStatusSnapshot,
   shouldFetchLivePayload,
@@ -84,6 +85,20 @@ test("status 只有事件數增加或尚無本地快照時才抓 full live paylo
   assert.equal(shouldFetchLivePayload(snapshot(), snapshot()), false);
   assert.equal(shouldFetchLivePayload(snapshot(), snapshot({ event_count: 3 })), true);
   assert.equal(shouldFetchLivePayload(snapshot(), snapshot({ source_status: "error" })), false);
+});
+
+test("頂部記分條以 snapshot 累計比分為準，不被最後事件的滯後比分倒退", () => {
+  assert.deepEqual(
+    liveScorebarScores(
+      { away_score: 5, home_score: 0 },
+      { visiting_score: 4, home_score: 0 },
+    ),
+    { away: 5, home: 0 },
+  );
+  assert.deepEqual(
+    liveScorebarScores({}, { visiting_score: 4, home_score: 0 }), { away: 4, home: 0 });
+  assert.deepEqual(
+    liveScorebarScores({ away_score: null }, { visiting_score: 4 }), { away: 4, home: 0 });
 });
 
 test("live 即使已有比分也不得啟用賽後結論，只有 final 或歷史無 snapshot 場可啟用", () => {

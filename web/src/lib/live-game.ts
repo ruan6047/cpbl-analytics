@@ -194,6 +194,26 @@ export function shouldFetchLivePayload(current: LiveSnapshot | null, next: LiveS
     || next.source.version !== current.source.version;
 }
 
+/**
+ * 頂部記分條顯示的是「現在」的總比分，必須以 canonical snapshot 的隊伍累計分數為準。
+ * LiveLog 的 VisitingScore／HomeScore 屬於單一事件的歷程欄位，官方可能先更新逐局／累計
+ * 分數、稍後才回填事件列；直接拿最後一列會把即時比分倒退。靜態舊 payload 沒有總分時，
+ * 才安全降階到該事件的比分。
+ */
+export function liveScorebarScores(
+  game: { away_score?: unknown; home_score?: unknown },
+  event: { visiting_score?: unknown; home_score?: unknown },
+): { away: number; home: number } {
+  const score = (current: unknown, fallback: unknown) => {
+    const value = current === null || current === undefined || current === "" ? NaN : Number(current);
+    return Number.isFinite(value) ? value : Number(fallback) || 0;
+  };
+  return {
+    away: score(game.away_score, event.visiting_score),
+    home: score(game.home_score, event.home_score),
+  };
+}
+
 const snake = (key: string) => key
   .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
   .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
