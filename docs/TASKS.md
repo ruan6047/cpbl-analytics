@@ -44,7 +44,7 @@
 | [UX-HOME-LIVE-STRIP1](tasks/UX-HOME-LIVE-STRIP1.md) | INIT-PRODUCT-UX | T3 | 首頁 live 比賽精簡狀態列 | 待指派（先 Discovery 與需求方 Design Gate） | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-02T11:32:41+08:00 |
 | [UX-LIVE-GAME1](tasks/UX-LIVE-GAME1.md) | INIT-PRODUCT-UX | T3 | 賽前情報到比賽中狀態板 | ruan6047（人工實測） | `ai/codex/UX-LIVE-GAME1 @ —（已合併，worktree 待回收）` | 1 | 📦已合併 | 🚀部署待實測 | 2026-07-31T14:08:49+08:00 |
 | [UX-LIVE-GAME1-FIX1](tasks/UX-LIVE-GAME1-FIX1.md) | INIT-PRODUCT-UX | T2 | 未開賽不得顯示局數 | ruan6047（部署實測） | `ai/opus-5/UX-LIVE-GAME1-FIX1 @ .claude/worktrees/ux-live-game1-fix1-review` | 1 | 📦已合併 | 🚀部署待實測 | 2026-08-02T12:54:45+08:00 |
-| [UX-LIVE-TRACKMAN1](tasks/UX-LIVE-TRACKMAN1.md) | INIT-PRODUCT-UX | T3 | 賽中逐球 TrackMan 顯示 | ruan6047（已授權 merge 與 live 測試部署） | `ai/codex/UX-LIVE-TRACKMAN1 @ .claude/worktrees/ux-live-trackman1-review` | 2 | ✅可合併 | ⏸未部署 | 2026-08-02T15:42:04+08:00 |
+| [UX-LIVE-TRACKMAN1](tasks/UX-LIVE-TRACKMAN1.md) | INIT-PRODUCT-UX | T3 | 賽中逐球 TrackMan 顯示 | ruan6047（正在進行中的 live 部署測試） | `ai/codex/UX-LIVE-TRACKMAN1 @ /private/tmp/cpbl-ux-live-trackman1` | 2 | 📦已合併 | 🚀待部署 | 2026-08-02T15:42:57+08:00 |
 | [UX-TEAM-FIELD-HIST1](tasks/UX-TEAM-FIELD-HIST1.md) | INIT-PRODUCT-UX | T3 | 球隊頁歷史年守備位置圖（union fielding_seasons） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:36:00+08:00 |
 | [UX-TOKEN-ACCENT-CONTRAST1](tasks/UX-TOKEN-ACCENT-CONTRAST1.md) | INIT-PRODUCT-UX | T2 | accent 在 surface-2 底上未達 WCAG AA | ruan6047（可 release） | `ai/codex/UX-TOKEN-ACCENT-CONTRAST1 @ /private/tmp/cpbl-ux-token-contrast1` | 2 | 📦已合併 | ✅已驗證 | 2026-08-02T12:26:06+08:00 |
 
