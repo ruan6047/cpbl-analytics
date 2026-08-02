@@ -47,3 +47,4 @@ published build」在每日流程後恆成立。
 
 - 2026-07-26 依 ruan6047 指示開卡（GAME-RECAP-WP-CAL1 結案後續）：CAL1 期間實證 build 缺口污染 coverage 門檻；根因為 build_pa 不在每日鏈。Coordinator register 併同 commit。
 - 2026-08-03 緊急資料修復（ruan6047 明確授權）：未認領、未改每日 refresh 鏈；僅對已有原始 TrackMan 的 2026-A-229～232、235、236 執行單場冪等 PA build，並在已驗證 production 全庫備份後同步 `game_recap_source_revisions` 與 PA build 家族表。production API 逐球列恢復為 309／327／332／348／294／257；229 的 3 球與 235 的 8 球仍 mapping_failed，維持 fail-closed。不寫 `pitch_tracking`，不影響 `INGEST-GAME-TM-REFACTOR1` Gate 3 的 14 天 shadow 基線；將 live 資料改為每日正式 writer 的方向必須待該觀測窗收束後另行 Design Gate。
+- 2026-08-03 單場補齊（ruan6047 明確授權）：239 的原始資料庫尚無終局資料，故以既有官方 ingest 依序更新賽程、單場 game log／box、單場 TrackMan（261）與 PA build，再以已驗證 production 全庫備份為前提同步必要正式與 PA 表。公開 API 對帳：終場 0:2、284 個逐打席事件、8 筆投手 box、261 列 tracking；不改每日 refresh 或 Gate 3 的正式 writer。
