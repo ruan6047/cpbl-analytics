@@ -298,22 +298,47 @@ def game_live(
         if bids:
             cur.execute("SELECT player_id, avg FROM cpbl.batting_current WHERE player_id = ANY(%s)", (bids,))
             batter_avg = {pid: float(a) for pid, a in cur.fetchall() if a is not None}
-        # 逐球 TrackMan（部分球場未設置 → 空陣列；前端以 (投手,打者,局) 比對當前打席）
-        # 名稱欄位有編碼問題，故只取以 acnt 比對與數值欄位，不取 *_name。
+        # 逐球 TrackMan 僅消費已發布 canonical PA 的 mapped 列：同局重複投打對戰不能以
+        # (投手、打者、局數) 猜測。缺 published build／任一球 mapping_failed 時不回傳該球，
+        # 前端因而 fail-closed 顯示「無對應逐球資料」而非誤配。
         cur.execute(
             """
-            SELECT pitcher_acnt, hitter_acnt, inning_seq, pitch_cnt, ball_cnt, strike_cnt,
-                   COALESCE(pitch_type_pred_v2, pitch_type_pred) AS pitch_type_pred, tagged_pitch_type, rel_speed, plate_loc_side, plate_loc_height, pitch_call
-            FROM cpbl.pitch_tracking
-            WHERE year=%s AND kind_code=%s AND game_sno=%s
-            ORDER BY pitcher_acnt, pitch_cnt
+            SELECT pa.start_event_no AS main_event_no,
+                   ARRAY(SELECT event_no FROM cpbl.game_pa_events
+                         WHERE pa_row_id=pa.pa_row_id ORDER BY event_position) AS main_event_nos,
+                   pt.pitcher_acnt, pt.hitter_acnt, pt.inning_seq, pt.pitch_cnt,
+                   pt.ball_cnt, pt.strike_cnt,
+                   COALESCE(pt.pitch_type_pred_v2, pt.pitch_type_pred) AS pitch_type_pred,
+                   pt.tagged_pitch_type, pt.rel_speed, pt.plate_loc_side, pt.plate_loc_height,
+                   pt.pitch_call, pt.hit_exit_speed AS exit_speed,
+                   pt.hit_launch_angle AS launch_angle, pt.hit_spin_rate,
+                   pt.hit_distance, pt.hit_hang_time
+            FROM cpbl.pitch_tracking pt
+            JOIN cpbl.game_pa_pitch_mappings mapping
+              ON mapping.year=pt.year AND mapping.kind_code=pt.kind_code
+             AND mapping.game_sno=pt.game_sno AND mapping.pitcher_acnt=pt.pitcher_acnt
+             AND mapping.pitch_cnt=pt.pitch_cnt AND mapping.mapping_state='mapped'
+            JOIN cpbl.game_plate_appearances pa
+              ON pa.pa_row_id=mapping.pa_row_id AND pa.state='ready'
+            JOIN cpbl.game_recap_builds build
+              ON build.build_id=pa.build_id AND build.state='published'
+            WHERE pt.year=%s AND pt.kind_code=%s AND pt.game_sno=%s
+            ORDER BY pa.pa_index, mapping.pitch_position
             """,
             (season, kind_code, game_sno),
         )
         tracking = _dicts(cur)
+        # 未建立 PA build 不能安全顯示「本打席」逐球，但仍保留原始 TrackMan 有無，
+        # 讓分析頁落點圖與空態不會被精確 mapping 的可用性錯誤關閉。
+        cur.execute(
+            "SELECT EXISTS(SELECT 1 FROM cpbl.pitch_tracking "
+            "WHERE year=%s AND kind_code=%s AND game_sno=%s)",
+            (season, kind_code, game_sno),
+        )
+        has_raw_tracking = bool(cur.fetchone()[0])
         # 擊球落點（分析 tab spray chart）：InPlay 且有方向/距離；result 由 content 分類（單一事實來源）
         spray: list[dict] = []
-        if tracking:
+        if has_raw_tracking:
             cur.execute(
                 """
                 SELECT hitter_acnt, hit_direction, hit_distance, hit_exit_speed, hit_launch_angle, content
@@ -349,7 +374,7 @@ def game_live(
             "batting": batting, "pitching": pitching, "people": people,
             "records": records, "batter_avg": batter_avg, "detail": gd[0] if gd else None,
             "decisions": decisions, "decision_counts": decision_counts,
-            "has_tracking": len(tracking) > 0, "tracking": tracking, "spray": spray,
+            "has_tracking": has_raw_tracking, "tracking": tracking, "spray": spray,
             "live_snapshot": live_snapshot}
 
 

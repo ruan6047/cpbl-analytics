@@ -1,4 +1,4 @@
-export type StatRow = Record<string, number | string | boolean | null | undefined>;
+export type StatRow = Record<string, number | string | string[] | boolean | null | undefined>;
 export type CanonicalPhase =
   | "scheduled" | "probable_announced" | "lineup_announced" | "live" | "final"
   | "postponed" | "reserved" | "unknown";
@@ -33,6 +33,13 @@ export type LiveDecisions = {
   mvp: LivePerson | null;
 };
 
+export type LiveTrackman = {
+  pitch_call: string | null; tagged_pitch_type: string | null;
+  rel_speed: number | null; plate_loc_side: number | null; plate_loc_height: number | null;
+  exit_speed: number | null; launch_angle: number | null; hit_spin_rate: number | null;
+  hit_distance: number | null; hit_hang_time: number | null;
+};
+
 export type LiveSnapshot = {
   game_id: string;
   game_sno: number;
@@ -52,7 +59,7 @@ export type LiveSnapshot = {
   source: { fetched_at: string | null; version?: string | null; last_error_at?: string | null };
   away: LiveSide;
   home: LiveSide;
-  livelog: Record<string, unknown>[];
+  livelog: (Record<string, unknown> & { trackman?: LiveTrackman | null })[];
   // 以下為 LIVE-SNAPSHOT-FIELDS1 additive 欄位；舊 snapshot 可能整個缺，故全為 optional。
   decisions?: LiveDecisions | null;
   venue?: string | null;
@@ -363,9 +370,36 @@ export function applyLiveSnapshot(response: LiveApiResponse): LiveApiResponse {
     batter_avg: { ...response.batter_avg, ...batterAvg },
     people: { ...response.people, ...decisionPeople },
     decisions,
-    // live snapshot 只有 availability/count，沒有逐球座標；不可渲染空好球帶。
-    has_tracking: snapshot.phase === "final" ? response.has_tracking : false,
+    tracking: snapshot.phase === "final" ? response.tracking : liveTracking(snapshot),
+    has_tracking: snapshot.phase === "final" ? response.has_tracking : liveTracking(snapshot).length > 0,
   };
+}
+
+/** live TrackMan 與官方 MainEventNo 綁定，避免同局同投打重複對戰時誤配。 */
+function liveTracking(snapshot: LiveSnapshot): StatRow[] {
+  const groups: Record<string, unknown>[][] = [];
+  for (const event of snapshot.livelog) {
+    const previous = groups.at(-1);
+    const samePa = previous && !bool(event.IsChangePlayer)
+      && String(previous[0].HitterAcnt ?? "") === String(event.HitterAcnt ?? "")
+      && String(previous[0].PitcherAcnt ?? "") === String(event.PitcherAcnt ?? "")
+      && String(previous[0].InningSeq ?? "") === String(event.InningSeq ?? "")
+      && String(previous[0].VisitingHomeType ?? "") === String(event.VisitingHomeType ?? "");
+    if (samePa) previous.push(event); else groups.push([event]);
+  }
+  return groups.flatMap((group) => group.flatMap((event) => {
+    const trackman = event.trackman;
+    if (!trackman) return [];
+    return [{
+      main_event_no: String(event.MainEventNo ?? ""),
+      main_event_nos: group.map((member) => String(member.MainEventNo ?? "")),
+      pitcher_acnt: String(event.PitcherAcnt ?? ""), hitter_acnt: String(event.HitterAcnt ?? ""),
+      inning_seq: Number(event.InningSeq ?? 0), pitch_cnt: Number(event.PitchCnt ?? 0),
+      // T3 僅允許官方 TaggedPitchType；自家即時模型屬另一張 T4 卡。
+      pitch_type_pred: null,
+      ...trackman,
+    }];
+  }));
 }
 
 /** snapshot 的決勝 → 既有 `decisions` 形狀（acnt → W/L/SV）。無資料回 `{}`。

@@ -200,7 +200,7 @@ const realGame = JSON.parse(
 ) as Record<string, never>;
 
 // 把真實官方 payload 轉成 worker 產出的 snapshot 形狀（與 build_snapshot 對齊）
-const realSnapshot = (): LiveSnapshot => {
+const realSnapshot = (overrides: Partial<LiveSnapshot> = {}): LiveSnapshot => {
   const g = realGame as Record<string, Record<string, never>>;
   const side = (key: "Visiting" | "Home") => {
     const s = g[key] as Record<string, never>;
@@ -230,8 +230,70 @@ const realSnapshot = (): LiveSnapshot => {
       closer: person("Closer"), mvp: person("MVP"),
     },
     skip_trackman: false,
+    ...overrides,
   });
 };
+
+/** 真實 stats payload → worker canonical 的逐球子集；不可另手寫官方欄位名稱。 */
+const realLiveSnapshot = (mode: "available" | "empty" | "old" = "available"): LiveSnapshot => {
+  const game = realGame as unknown as { LiveLog: Record<string, unknown>[] };
+  const livelog = game.LiveLog.map((event) => {
+    const raw = event.Trackman as Record<string, Record<string, Record<string, unknown>>> | null;
+    const tag = raw?.Play?.PitchTag;
+    const release = raw?.Pitch?.Release;
+    const location = raw?.Pitch?.Location;
+    const launch = raw?.Hit?.Launch;
+    const landing = raw?.Hit?.LandingFlat;
+    const row: Record<string, unknown> = {
+      MainEventNo: event.MainEventNo, PitcherAcnt: event.PitcherAcnt, HitterAcnt: event.HitterAcnt,
+      InningSeq: event.InningSeq, VisitingHomeType: event.VisitingHomeType,
+      IsChangePlayer: event.IsChangePlayer, PitchCnt: event.PitchCnt,
+    };
+    if (mode !== "old") row.trackman = mode === "empty" || !raw ? null : {
+      pitch_call: tag?.PitchCall ?? null, tagged_pitch_type: tag?.TaggedPitchType ?? null,
+      rel_speed: release?.RelSpeed ?? null, plate_loc_side: location?.PlateLocSide ?? null,
+      plate_loc_height: location?.PlateLocHeight ?? null, exit_speed: launch?.ExitSpeed ?? null,
+      launch_angle: launch?.Angle ?? null, hit_spin_rate: launch?.HitSpinRate ?? null,
+      hit_distance: landing?.Distance ?? null, hit_hang_time: landing?.HangTime ?? null,
+    };
+    return row;
+  });
+  return realSnapshot({
+    phase: "live", raw_status: "START", freshness: "fresh",
+    tracking_count: mode === "available" ? livelog.filter((row) => row.trackman).length : 0,
+    livelog,
+  });
+};
+
+test("真實官方 TrackMan fixture 在 live snapshot 產生逐球列；空、partial 與舊版均誠實降階", () => {
+  const raw = (realGame as unknown as { LiveLog: Record<string, unknown>[] }).LiveLog;
+  const rawTracked = raw.filter((row) => row.Trackman != null);
+  assert.ok(rawTracked.length > 0, "fixture 必須含有官方 TrackMan 事件");
+
+  const tracked = applyLiveSnapshot(response(realLiveSnapshot()));
+  const tracking = tracked.tracking as { main_event_no: string; main_event_nos: string[]; rel_speed: number | null }[];
+  assert.equal(tracked.has_tracking, true);
+  assert.equal(tracking.length, rawTracked.length);
+  assert.equal(tracking[0].main_event_no, String(rawTracked[0].MainEventNo));
+  assert.equal(tracking[0].rel_speed, (rawTracked[0].Trackman as { Pitch: { Release: { RelSpeed: number } } }).Pitch.Release.RelSpeed);
+  // fixture 的首打席有五顆官方 TrackMan 球；點末球也必須取回整個打席，不能只剩選中那顆。
+  const firstPa = tracking.filter((pitch) => pitch.main_event_nos.includes("0110005000"));
+  assert.equal(firstPa.length, 5);
+  assert.ok(firstPa.every((pitch) => pitch.main_event_nos.length === 5));
+
+  for (const mode of ["empty", "old"] as const) {
+    const degraded = applyLiveSnapshot(response(realLiveSnapshot(mode)));
+    assert.equal(degraded.has_tracking, false, `${mode} snapshot 不得捏造逐球資料`);
+    assert.deepEqual(degraded.tracking, [], `${mode} snapshot 不得產生猜測 mapping`);
+  }
+});
+
+test("擊出球展開使用原生 button、可讀名稱與 44px 觸控目標", () => {
+  const board = readFileSync(new URL("../components/game-board.tsx", import.meta.url), "utf8");
+  assert.match(board, /<button type="button"[^>]*min-h-11 min-w-11/);
+  assert.match(board, /aria-label=.*擊出球數據/);
+  assert.match(board, /aria-controls=/);
+});
 
 test("記分板 H/E 取官方隊伍層級真值；E 不再恆為 0", () => {
   const out = applyLiveSnapshot(response(realSnapshot()));
