@@ -8,7 +8,7 @@ import { isCurrentTeam, teamColor, teamPageCode } from "@/lib/teams";
 import { PITCH_CALL, PA_KIND } from "@/lib/chart-theme";
 import type { WpPoint } from "@/components/win-prob-chart";
 import {
-  canShowPostgameConclusions, liveScorebarScores, trackingEmptyMessage,
+  canShowPostgameConclusions, liveScorebarScores, plateAppearancePitchCountLabel, trackingEmptyMessage,
   type LiveSnapshot,
 } from "@/lib/live-game";
 
@@ -434,7 +434,7 @@ function PlayByPlay({ log, events, idx, setIdx, userAction }: {
               {expanded
                 ? g.idxs.map((gi) => lineBtn(gi, true))
                 : lineBtn(outcomeIdx, true,
-                    g.idxs.length > 1 ? <span className="ml-2 text-[10px] text-faint">＋{g.idxs.length - 1} 球</span> : undefined)}
+                    g.idxs.length > 1 ? <span className="ml-2 text-[10px] text-faint">{plateAppearancePitchCountLabel(g.idxs.length)}</span> : undefined)}
             </div>
           );
         })}

@@ -214,6 +214,9 @@ export function liveScorebarScores(
   };
 }
 
+/** 收合打席顯示整個打席的實際用球數，而非目前藏起來的球數。 */
+export const plateAppearancePitchCountLabel = (pitchCount: number): string => `（${pitchCount} 球）`;
+
 const snake = (key: string) => key
   .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
   .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")

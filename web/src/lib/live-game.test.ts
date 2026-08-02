@@ -10,6 +10,7 @@ import {
   lineupMessage,
   liveScorebarScores,
   nextPollDelay,
+  plateAppearancePitchCountLabel,
   resolveStatusSnapshot,
   shouldFetchLivePayload,
   officialLivePitchCall,
@@ -99,6 +100,11 @@ test("頂部記分條以 snapshot 累計比分為準，不被最後事件的滯�
     liveScorebarScores({}, { visiting_score: 4, home_score: 0 }), { away: 4, home: 0 });
   assert.deepEqual(
     liveScorebarScores({ away_score: null }, { visiting_score: 4 }), { away: 4, home: 0 });
+});
+
+test("收合打席標示整個打席實際用球數，不標示隱藏球數", () => {
+  assert.equal(plateAppearancePitchCountLabel(3), "（3 球）");
+  assert.equal(plateAppearancePitchCountLabel(1), "（1 球）");
 });
 
 test("live 即使已有比分也不得啟用賽後結論，只有 final 或歷史無 snapshot 場可啟用", () => {
