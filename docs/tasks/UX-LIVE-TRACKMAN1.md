@@ -3,7 +3,7 @@
 - 需求：ruan6047　規劃：OpenAI Codex　分支：`ai/<執行者>/UX-LIVE-TRACKMAN1`
 - 執行：待指派（建議 L3；需同時維護 live 資料契約、來源不完整退化與既有賽況 UI）　查核：待指派（建議 L2；獨立 contract／瀏覽器查核，須 ≠ 執行）
 - review_independence: [context]
-- Initiative：INIT-PRODUCT-UX　spec 基線：LIVE_GAME_PRODUCT_SPEC v1.1（Design Gate 核可後需更新 live TrackMan 邊界）
+- Initiative：INIT-PRODUCT-UX　spec 基線：PRODUCT_UX_BLUEPRINT v0.2、LIVE_GAME_PRODUCT_SPEC v1.1（Design Gate 核可後需更新 live TrackMan 邊界）
 - DB：`db_scope: none`；只改既有 Redis canonical snapshot、API 疊加與前端呈現，不新增 PostgreSQL 寫入或 migration
 - 部署：是　環境：production　PR：—　Merge SHA：—
 - 範圍：既有 `/games/[sno]` 的 live snapshot、逐打席區與分析區；保留官方已回傳的 TrackMan，資料存在時顯示，缺值時誠實退化。不新增直播頁、推播、逐球時間戳或守備員追蹤。
@@ -50,3 +50,4 @@
 ## Log
 
 - 2026-08-01T17:46:02+08:00 register by OpenAI Codex（依 ruan6047 指示）：官方 live payload 實測已證明部分進行中場次有 TrackMan，但覆蓋不穩定；先以 Backlog 卡保留可驗證範圍，等待需求方 Design Gate。
+- 2026-08-02T12:32:41+08:00 correction by Claude Opus 5@Claude Code（依 ruan6047 指示修 CI 紅燈）：`spec 基線` 欄補上父卡 `INIT-PRODUCT-UX` 的當前版本 `PRODUCT_UX_BLUEPRINT v0.2`。父卡卡面與 `PRODUCT_UX_BLUEPRINT.md` 檔頂皆為 v0.2、未曾推進，故屬 baseline-cascade §5 註冊時漏填而非基線變更；範圍、決策與驗收條件不變。詳見 `CORRECTION-002`。
