@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { detail, type StatRow } from "@/lib/client";
 import { fmtIPParts } from "@/lib/format";
 import GameBoard, { type Live } from "@/components/game-board";
-import { Card, Notice, Skeleton, ErrorState, EmptyState, PlayerLink, TeamLogo, ENTITY_LINK } from "@/components/ui";
+import { Card, Notice, Skeleton, ErrorState, EmptyState, PlayerLink, ENTITY_LINK } from "@/components/ui";
 import BoxTabs, { type BoxTab } from "./box-tabs";
 import { WinProbChart, type WpPoint } from "@/components/win-prob-chart";
 import { PregameCard } from "@/components/pregame-card";
@@ -16,6 +16,8 @@ import { GameOverview, type DecItem } from "./overview";
 import { methodologyHref } from "@/lib/methodology-anchors";
 import { StartingLineups } from "@/components/starting-lineups";
 import { LiveGameLineups } from "@/components/live-game-lineups";
+import { MainTabs } from "@/components/hierarchical-tabs";
+import { StickyNavBar } from "@/components/sticky-nav-bar";
 import {
   applyLiveSnapshot,
   canShowPostgameConclusions,
@@ -647,21 +649,11 @@ export default function GameLivePage() {
       )}
 
       {data.livelog.length > 0 && (
-        <nav aria-label="賽況檢視" className="mt-2 overflow-x-auto rounded-lg border border-line bg-surface p-1">
-          <div className="flex min-w-max gap-1">
-            {pageTabs.map(({ value, label }) => {
-              const teamCode = value === "away" ? String(g.away_team_code ?? "") : value === "home" ? String(g.home_team_code ?? "") : null;
-              const teamName = value === "away" ? String(g.away_team_name ?? "") : value === "home" ? String(g.home_team_name ?? "") : null;
-              return (
-                <button key={value} onClick={() => setView(value)} aria-pressed={view === value}
-                  className={`flex min-h-10 items-center gap-1.5 rounded-md px-3 text-sm transition ${view === value ? "bg-ink text-paper" : "text-muted hover:bg-surface-2 hover:text-ink"}`}>
-                  {teamCode && <TeamLogo code={teamCode} name={teamName ?? ""} size={16} decorative />}
-                  {label}
-                </button>
-              );
-            })}
+        <StickyNavBar label="賽況檢視" flush>
+          <div className="flex min-w-0 items-center overflow-x-auto overscroll-x-contain">
+            <MainTabs label="賽況檢視" value={view} onChange={setView} items={pageTabs} />
           </div>
-        </nav>
+        </StickyNavBar>
       )}
 
       {liveInterrupted && (
