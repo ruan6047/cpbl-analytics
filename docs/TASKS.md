@@ -40,6 +40,7 @@
 | [UX-BRAND-HOME1](tasks/UX-BRAND-HOME1.md) | INIT-PRODUCT-UX | T3 | 站名品牌化與首頁門面升級 | ruan6047（部署確認） | `ai/codex/UX-BRAND-HOME1 @ /private/tmp/cpbl-ux-brand-home1` | 3 | 📦已合併 | 🚀待部署 | 2026-08-02T11:15:00+08:00 |
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
+| [UX-HOME-LIVE-STRIP1](tasks/UX-HOME-LIVE-STRIP1.md) | INIT-PRODUCT-UX | T3 | 首頁 live 比賽精簡狀態列 | 待指派（先 Discovery 與需求方 Design Gate） | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-02T11:32:41+08:00 |
 | [UX-LIVE-GAME1](tasks/UX-LIVE-GAME1.md) | INIT-PRODUCT-UX | T3 | 賽前情報到比賽中狀態板 | ruan6047（人工實測） | `ai/codex/UX-LIVE-GAME1 @ —（已合併，worktree 待回收）` | 1 | 📦已合併 | 🚀部署待實測 | 2026-07-31T14:08:49+08:00 |
 | [UX-LIVE-GAME1-FIX1](tasks/UX-LIVE-GAME1-FIX1.md) | INIT-PRODUCT-UX | T2 | 未開賽不得顯示局數 | ruan6047（部署確認） | `ai/opus-5/UX-LIVE-GAME1-FIX1 @ .claude/worktrees/ux-live-game1-fix1-review` | 1 | 📦已合併 | 🚀待部署 | 2026-07-31T14:25:43+08:00 |
 | [UX-LIVE-TRACKMAN1](tasks/UX-LIVE-TRACKMAN1.md) | INIT-PRODUCT-UX | T3 | 賽中逐球 TrackMan 顯示 | 待指派（需求方 Design Gate） | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-01T17:46:02+08:00 |
