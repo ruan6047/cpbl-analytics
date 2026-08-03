@@ -64,9 +64,19 @@ Coordinator 寫入 `UX-BRAND-HOME1-REVIEW-007` 時，單一事件踩中四個欄
 
 需求方裁定只加 pytest：它是唯一無法被繞過又不需新基礎設施的一層。代價（CI 在 push 後才跑）已知並接受——本次事故的實害不是「壞資料進了歷史」，而是**靜默 40 分鐘**，pytest 把那段縮到數分鐘。
 
-**2. malformed 的合法修復程序 → 就地修復＋強制留痕。**
+**2. malformed 的合法修復程序 → 就地修復，留痕以獨立 `schema-repair` 事件承載。**
 
-已寫入 `CONTROL_PLANE_CONTRACT.md`（`schema-repair` 段），四項要求缺一不可：僅限機器可讀的分類欄位（`evidence`／`disposition`／`review_result`／`actor` 一律不得動）；修復事由就地留痕；commit message 說明；不得 force-push。並明訂**此程序不是 append-only 的例外通道**——凡能以追加事件表達的一律不得走此路。未採 `superseded_by`，因其與契約現行「malformed 不得被後續事件掩蓋」直接衝突，且多一個可被濫用來掩蓋事件的機制。
+> ⚠️ **本答案經三輪查核修訂過兩次，以下是現行版本**；修訂原因見〈Log〉。原始答案寫「修復事由**就地留痕**」（寫進被修事件的 `evidence`／`disposition`），該寫法已作廢——它與「不得改動判定欄位」自相矛盾（跨家族查核 iteration 2 指出）。
+
+已寫入 `CONTROL_PLANE_CONTRACT.md` 的 `schema-repair` 段，要求為：
+
+1. **可改欄位為正面表列，且必須是「非法 → 合法」**。事件層僅 `counts_toward_escalation`（推導值，「合法」＝等於由 findings 推導的結果）；finding 層僅 `severity`／`status`／`finding_class`／`attribution`。不得增刪 finding。**白名單內亦不得改寫已合法的值**。
+2. **留痕以獨立的 `type: "schema-repair"` 事件承載**，載明 `repaired_event_id`、逐欄位 before／after、以及無法以追加事件修復的理由。**不得**寫進被修事件本身的 `evidence`／`disposition`。
+3. commit message 說明；4. 不得 force-push；5. **由 CI 強制驗證**（見下）。
+
+機械強制分兩層：`workflow_ledger.diff_schema_repair()` 判斷單次修復是否逾越白名單；`test_modified_events_obey_the_schema_repair_allowlist` 比對 `git merge-base` 與工作區的 event log 自動套用之；`_validate_schema_repair_event()` 則驗證 `schema-repair` 事件本身的 payload 完整性與 before/after 一致性。
+
+未採 `superseded_by`，因其與契約「malformed 不得被後續事件掩蓋」直接衝突，且多一個可被濫用來掩蓋事件的機制。
 
 **3. fail loud 的粒度 → 維持全檔。**
 
@@ -110,3 +120,4 @@ Coordinator 寫入 `UX-BRAND-HOME1-REVIEW-007` 時，單一事件踩中四個欄
 - 2026-08-02 register by Claude Opus 5@Claude Code（依 ruan6047 授權開卡）；iteration 0。來源：`UX-BRAND-HOME1` 查核期間 Coordinator 寫入的 `REVIEW-007` 含四個不合法欄位，導致 ledger 自 `5736302` 起持續崩潰、`TASKS.md` 停在舊投影並隨兩次 commit 上了 main，最終由需求方裁定就地修復（`322f69a`）才解開。**開卡動機不是「有人寫錯」，而是「寫錯之後沒有合法的修法」**——契約的 append-only 與「malformed 不得被後續事件掩蓋」在 schema 層互鎖。附帶記錄近因：記錄方以 `2>/dev/null` 遮蔽錯誤並自行 `echo` 成功訊號，使崩潰隱形；此為操作紀律問題，工具能守的部分有限，見 Discovery 第 4 問。
 - 2026-08-03 iteration 1 by Claude Opus 5@Claude Code：Discovery 四問完成並經需求方裁定（pytest／全檔 fail loud／就地修復），交付兩條真實檔守衛測試與契約的 `schema-repair` 段。**紅線 1 實證**：baseline 前 review 事件 **172 筆**（卡面〈非目標〉原記 173，該數含當時尚未修復的 post-baseline `REVIEW-007`，實際 pre-baseline 為 172）其 schema 皆不合法，完整 replay 仍通過，證明守衛未讓它們開始失敗。**負向測試以兩種方式做**：(a) 單元層注入非法 `status` 給 `_validate_review_event`；(b) 直接把缺陷注入**真實** `events.jsonl` 後跑 pytest，實測 `test_real_event_log_passes_schema_and_replay_contract` 轉紅、還原後恢復——證明守衛真的會因真實檔變壞而失敗，不是碰巧全綠。**流程自陳**：claim 事件初次曾誤寫於執行分支並 commit，違反「執行分支不得改動 control-plane」，發現後即 `reset --hard` 還原（未推送）並改於主 checkout 重寫。
 - 2026-08-03 iteration 3 by Claude Opus 5@Claude Code：依跨家族查核第二輪 REQUEST_CHANGES 修正 F002／F003。**F002 三個子問題全部成立，且全是規劃者自己在提示詞裡請查核者攻擊的地方**——(a) 白名單只查欄位名，`attribution: executor → coordinator` 與 `status: open → withdrawn` 皆回傳合法，等於可用「修格式」之名改寫責任歸屬與 finding 狀態；已加上「**非法 → 合法**」條件，並為推導欄位 `counts_toward_escalation` 定義「合法＝等於由 findings 推導的結果」（否則 2026-08-02 那次正當修復會被誤判為改寫）。(b) **契約自相矛盾**：要求把修復留痕寫進 `evidence`／`disposition`，而同一份契約又禁止改動這兩欄——照契約做必定違反工具。已改為以獨立的 `schema-repair` 事件承載留痕；首例 `REVIEW-007` 於本規則成立前完成，其留痕留在 `disposition`，屬既成事實不回溯調整。(c) `diff_schema_repair()` 除自身測試外**沒有任何 consumer**，與「文字限制」無異；已新增 `test_modified_events_obey_the_schema_repair_allowlist`，比對 `git merge-base` 與工作區的 event log，對兩邊都存在但內容不同的事件強制套用白名單。**基準取 merge-base 而非 `origin/main` tip**——lifecycle 事件只落 main、執行分支通常落後，拿 tip 當基準會把「main 上較新的事件」誤判為分支刪除了它們（初版即如此，實測誤報多筆「遭刪除」）。**據實記載的不涵蓋**：直接在 main 上改寫已推送歷史（本測試以 merge-base 為基準，基準本身被改寫時無從察覺）、淺 clone／離線時 skip。F003 卡面兩處 173 → 172；Log 內記錄更正歷史的 173 屬正確保留。
+- 2026-08-03 iteration 4 by Claude Opus 5@Claude Code：依跨家族查核第三輪修正 F002／F004。**F002 正是規劃者在提示詞中自陳「本輪最大的未驗證假設」的那一項**——iteration 3 發明了 `schema-repair` 事件型別、寫進契約，卻**從未實際寫一筆試過**，驗證器也完全不認識它；查核者造一筆缺全部 payload 的 `schema-repair`，完整 replay 仍通過，等於該規則毫無強制力。已新增 `_validate_schema_repair_event()`（payload 四欄齊備、目標存在、before→after 須通過白名單、after 須與 log 現況一致）、負向測試涵蓋五種缺陷型態，以及**正向端到端測試**——在真實 log 後附加一組合成卡片的 review → schema-repair 生命週期並完整 replay，同時作為「一筆合法的 schema-repair 長什麼樣」的可執行範例。過程中實測發現該型事件與其他事件共用同一份 envelope 要求、且 `state_version` 必須是該卡下一號——這兩點原本沒人知道，正因為沒有實際走過。**F004 Discovery 第 2 問答案過期**（仍寫「就地留痕」，與 iteration 3 改用獨立事件的程序衝突）已改寫，並在該答案上方標註「經三輪查核修訂過兩次」與原始版本作廢的理由——這正是規劃者在提示詞中提醒查核者注意的「Discovery 答案可能過期」，實際發生了。

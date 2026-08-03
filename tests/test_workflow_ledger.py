@@ -1225,3 +1225,109 @@ def test_modified_events_obey_the_schema_repair_allowlist() -> None:
         "既有事件遭就地修改且不符 schema-repair 白名單（見 CONTROL_PLANE_CONTRACT.md）：\n  "
         + "\n  ".join(problems)
     )
+
+
+def _valid_schema_repair(target: dict, *, before_overrides: dict) -> dict:
+    """造一筆合法的 schema-repair：before 是修復前（含非法值），after 是 log 現況。"""
+    before = json.loads(json.dumps(target))
+    for path, value in before_overrides.items():
+        if path.startswith("f_"):
+            before["findings"][0][path[2:]] = value
+        else:
+            before[path] = value
+    return {
+        "event_id": f"{target['event_id']}-REPAIR-001",
+        "card_id": target["card_id"],
+        "type": "schema-repair",
+        "actor": "ruan6047",
+        "occurred_at": "2026-08-03T16:00:00+08:00",
+        "state_version": 1,
+        "iteration": 0,
+        "repaired_event_id": target["event_id"],
+        "before": before,
+        "after": json.loads(json.dumps(target)),
+        "reason": "原 status 為非法列舉值致 replay 崩潰；append-only 無法以追加事件修復。",
+    }
+
+
+def test_schema_repair_event_requires_full_payload() -> None:
+    """負向測試：缺 payload 的 schema-repair 必須被擋（DEV-EVENT-SCHEMA-GUARD1 F002）。
+
+    iteration 3 只在契約文件定義此型事件、驗證器完全不認識它——跨家族查核實測造一筆
+    缺全部 payload 的 schema-repair，完整 replay 仍通過，等於該規則毫無強制力。
+    """
+    target = {
+        "event_id": "CARD-SR-REVIEW-001", "card_id": "CARD-SR", "type": "review",
+        "findings": [{"finding_id": "F1", "status": "withdrawn"}],
+    }
+    seen = {"CARD-SR-REVIEW-001": target}
+
+    bare = {"event_id": "CARD-SR-REPAIR-001", "card_id": "CARD-SR", "type": "schema-repair"}
+    try:
+        workflow_ledger._validate_schema_repair_event(bare, seen)
+    except ValueError as exc:
+        assert "缺少欄位" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("缺 payload 的 schema-repair 未被擋下")
+
+    good = _valid_schema_repair(target, before_overrides={"f_status": "rejected"})
+    workflow_ledger._validate_schema_repair_event(good, seen)  # 合法者必須放行
+
+    for mutate, expect in (
+        (lambda e: e.update(repaired_event_id="CARD-SR-NOPE"), "不存在"),
+        (lambda e: e.update(reason="   "), "理由"),
+        (lambda e: e["before"].update(review_result="REQUEST_CHANGES"), "逾越白名單"),
+        (lambda e: e["after"]["findings"][0].update(status="resolved"), "現況不一致"),
+    ):
+        broken = json.loads(json.dumps(good))
+        mutate(broken)
+        try:
+            workflow_ledger._validate_schema_repair_event(broken, seen)
+        except ValueError as exc:
+            assert expect in str(exc), f"預期訊息含「{expect}」，實得：{exc}"
+        else:  # pragma: no cover
+            raise AssertionError(f"schema-repair 的 {expect} 情境未被擋下")
+
+
+def test_real_log_accepts_a_well_formed_schema_repair_event() -> None:
+    """正向端到端：完整合法的 schema-repair 附加到**真實 log** 後，完整 replay 仍通過。
+
+    disposition 明確要求「再以一筆完整合法的 schema-repair 事件驗證真實流程可通過」——
+    執行者 iteration 3 發明了此事件型別卻從未實際走過這條路，正是 F002 的成因。
+    這裡在真實 log 之後附加一組**合成卡片**的最小生命週期（review → schema-repair），
+    既不動真實資料，又能證明該型事件在真實 replay 環境下走得通；
+    同時作為「一筆合法的 schema-repair 事件長什麼樣」的可執行範例。
+    """
+    events = workflow_ledger._load_events(workflow_ledger.EVENTS_PATH)
+
+    envelope = {
+        "card_id": "CARD-SR-E2E", "initiative": None, "tier": "T2", "db_scope": "none",
+        "feature": "schema-repair 端到端驗證", "branch_worktree": "—",
+        "source_sha": FULL_SHA, "owner": "ruan6047",
+        "delivery_status": "🔍待查核", "deployment_status": "—不適用",
+        "actor": "ruan6047", "iteration": 1,
+    }
+    review = dict(envelope, **{
+        "event_id": "CARD-SR-E2E-REVIEW-001", "type": "review", "state_version": 1,
+        "occurred_at": "2026-08-03T16:00:00+08:00",
+        "attempt_id": f"CARD-SR-E2E-e0-{FULL_SHA}", "escalation_epoch": 0,
+        "preflight_passed": True, "review_result": "REQUEST_CHANGES",
+        "counts_toward_escalation": True, "evidence": "e",
+        "findings": [{
+            "finding_id": "F1", "severity": "major", "blocking": True, "accepted": True,
+            "status": "open", "finding_class": "implementation", "attribution": "executor",
+            "root_cause_id": "rc", "evidence": "e", "disposition": "d",
+        }],
+    })
+    before = json.loads(json.dumps(review))
+    before["findings"][0]["status"] = "rejected"   # 非法列舉值 → 這才是可修復的情形
+    repair = dict(envelope, **{
+        "event_id": "CARD-SR-E2E-REPAIR-002", "type": "schema-repair", "state_version": 2,
+        "occurred_at": "2026-08-03T16:05:00+08:00",
+        "repaired_event_id": "CARD-SR-E2E-REVIEW-001",
+        "before": before, "after": json.loads(json.dumps(review)),
+        "reason": "原 status 為非法列舉值致 replay 崩潰；append-only 無法以追加事件修復。",
+        "evidence": "schema-repair 留痕；僅改 findings[F1].status，未動任何判定欄位。",
+    })
+
+    workflow_ledger.render_ledger(events + [review, repair])

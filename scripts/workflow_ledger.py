@@ -133,6 +133,45 @@ def _findings_conflict(
     return any(previous[field] != current[field] for field in FINDING_CONFLICT_FIELDS)
 
 
+SCHEMA_REPAIR_FIELDS = {"repaired_event_id", "before", "after", "reason"}
+
+
+def _validate_schema_repair_event(event: dict, seen_by_id: dict[str, dict]) -> None:
+    """`schema-repair` 事件的專屬驗證（DEV-EVENT-SCHEMA-GUARD1 F002 iteration 4）。
+
+    契約要求此型事件承載修復留痕，但 iteration 3 只在文件裡定義、**驗證器完全不認識它**
+    ——跨家族查核實測：造一筆缺全部 payload 的 `schema-repair`，完整 replay 仍通過。
+    等於「以獨立事件留痕」這條規則沒有任何強制力。
+
+    本函式要求：payload 四欄齊備；`repaired_event_id` 指向**已出現過**的事件；
+    `before`／`after` 為 dict；兩者的差異必須通過 `diff_schema_repair()` 白名單；
+    且 `after` 必須與 log 中該事件的**現況一致**——否則留痕會與實際修復內容脫節。
+    """
+    eid = event.get("event_id")
+    missing = sorted(SCHEMA_REPAIR_FIELDS - set(event))
+    if missing:
+        raise ValueError(f"{eid} schema-repair 事件缺少欄位：{', '.join(missing)}")
+    target_id = str(event["repaired_event_id"])
+    target = seen_by_id.get(target_id)
+    if target is None:
+        raise ValueError(f"{eid} schema-repair 的 repaired_event_id 不存在：{target_id}")
+    before, after = event["before"], event["after"]
+    if not isinstance(before, dict) or not isinstance(after, dict):
+        raise ValueError(f"{eid} schema-repair 的 before／after 必須為物件")
+    if not str(event["reason"]).strip():
+        raise ValueError(f"{eid} schema-repair 必須說明無法以追加事件修復的理由")
+    violations = diff_schema_repair(before, after)
+    if violations:
+        raise ValueError(
+            f"{eid} schema-repair 的 before→after 逾越白名單：{violations}"
+        )
+    if after != target:
+        raise ValueError(
+            f"{eid} schema-repair 的 after 與 log 中 {target_id} 的現況不一致——"
+            "留痕必須反映實際修復結果"
+        )
+
+
 def _validate_review_contract(events: list[dict[str, object]]) -> None:
     """Baseline 前事件保持原貌；marker 之後 fail loud 驗證 WF-21 契約。"""
     enabled = False
@@ -151,7 +190,9 @@ def _validate_review_contract(events: list[dict[str, object]]) -> None:
     counted_finding_ids: dict[tuple[str, int, str], set[str]] = {}
     attempt_previous_open: dict[tuple[str, int, str], set[str]] = {}
     attempt_findings: dict[tuple[str, int, str], dict[str, dict[str, object]]] = {}
+    seen_by_id: dict[str, dict] = {}
     for event in events:
+        seen_by_id[str(event.get("event_id"))] = event
         if event.get("contract_baseline") == REVIEW_CONTRACT:
             if enabled:
                 raise ValueError(
@@ -187,6 +228,8 @@ def _validate_review_contract(events: list[dict[str, object]]) -> None:
             raise ValueError(
                 f"{event['event_id']} 前必須先為 {card_id} 寫 escalation-checkpoint"
             )
+        if event_type == "schema-repair":
+            _validate_schema_repair_event(event, seen_by_id)
         if event_type == "review":
             _validate_review_event(event)
             epoch = int(event["escalation_epoch"])
