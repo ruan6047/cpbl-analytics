@@ -20,11 +20,9 @@
 | [INGEST-PA-DAILY1](tasks/INGEST-PA-DAILY1.md) | — | T3 | canonical PA build 接進每日 refresh 鏈 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-26T20:55:46+08:00 |
 | [INGEST-PLAYER-BIO-GAP1](tasks/INGEST-PLAYER-BIO-GAP1.md) | INIT-OFFICIAL-DATA1 | T3 | 補齊 14 位球員的 country／birthday | Claude Opus 5@Claude Code | `ai/opus-5/INGEST-PLAYER-BIO-GAP1 @ .claude/worktrees/ingest-player-bio-gap1-execution` | 3 | ⏸阻塞 | ⏸未部署 | 2026-07-28T11:50:08+08:00 |
 | [INGEST-POSTGAME-FINALIZE1](tasks/INGEST-POSTGAME-FINALIZE1.md) | — | T3 | 依官方可用性補齊完賽資料 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-03T01:04:14+08:00 |
-| [INGEST-SPLITS-RECALC1](tasks/INGEST-SPLITS-RECALC1.md) | INIT-OFFICIAL-DATA1 | T4 | 修正分項重算的代打誤切重複計數並重建 | —（本卡已結案；本則為衍生調查留痕） | `ai/fable-5/INGEST-SPLITS-RECALC1 @ .claude/worktrees/ingest-splits-recalc1-execution` | 1 | 📦已合併 | ✅已驗證 | 2026-07-31T16:36:01+08:00 |
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | 子卡依 v1.3 藍圖推進 | — | 0 | 📥Backlog | —不適用 | 2026-07-27T18:14:24+08:00 |
 | [INIT-OFFICIAL-DATA1](tasks/INIT-OFFICIAL-DATA1.md) | INIT-OFFICIAL-DATA1 | T4 | 官方資料契約完整性與低維護 ingest | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:00+08:00 |
 | [INIT-PRODUCT-UX](tasks/INIT-PRODUCT-UX.md) | INIT-PRODUCT-UX | T3 | 全站產品與 UI/UX 收斂 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-17T04:44:24+08:00 |
-| [LIVE-SNAPSHOT-FIELDS1](tasks/LIVE-SNAPSHOT-FIELDS1.md) | INIT-PRODUCT-UX | T3 | canonical snapshot 保留官方既有欄位 | ruan6047（部署實測） | `ai/opus-5/LIVE-SNAPSHOT-FIELDS1 @ /tmp/cpbl-fields1` | 2 | 📦已合併 | 🚀部署待實測 | 2026-08-02T12:54:45+08:00 |
 | [MATCHUP-DATA2](tasks/MATCHUP-DATA2.md) | — | T4 | 對戰對手歷史隊別歸屬修正 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T03:16:09+08:00 |
 | [ML-FIELD-LINEUP1](tasks/ML-FIELD-LINEUP1.md) | INIT-OFFICIAL-DATA1 | T4 | 逐局守備陣容重建可行性與 canonical contract | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:03+08:00 |
 | [ML-FIELD-OAA-VAL1](tasks/ML-FIELD-OAA-VAL1.md) | INIT-OFFICIAL-DATA1 | T4 | 利用極座標落點還原 Spray Chart 與外野 OAA | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:07+08:00 |
@@ -33,23 +31,17 @@
 | [ML-PA-SIM-TEAM1](tasks/ML-PA-SIM-TEAM1.md) | — | T4 | 打席模擬對某一隊 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-25T19:07:00+08:00 |
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:09+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:10+08:00 |
-| [OPS-BACKUP-EMPTY1](tasks/OPS-BACKUP-EMPTY1.md) | — | T3 | 生產每日備份長期產出空檔 | —（本卡可結案） | `—（分支與 worktree 皆已清理）` | 0 | 📦已合併 | ✅已驗證 | 2026-08-01T02:03:09+08:00 |
+| [OPS-BACKUP-DR1](tasks/OPS-BACKUP-DR1.md) | — | T3 | 備份異地副本與還原演練自動化 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-03T13:21:47+08:00 |
 | [OPS-POSTGAME-OBSERVE1](tasks/OPS-POSTGAME-OBSERVE1.md) | — | T2 | 完賽正式資料發布延遲觀測 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-08-03T01:04:14+08:00 |
 | [OPS-REMOTE-CUTOVER1](tasks/OPS-REMOTE-CUTOVER1.md) | INIT-PRODUCT-UX | T4 | 遠端 crawler production canary 與切換 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:40+08:00 |
 | [OPS-REMOTE-PROBE1](tasks/OPS-REMOTE-PROBE1.md) | INIT-PRODUCT-UX | T3 | Opt-in DEBUG 網路探測介面 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:37+08:00 |
 | [OPS-REMOTE-ROUTE1](tasks/OPS-REMOTE-ROUTE1.md) | INIT-PRODUCT-UX | T3 | 遠端出口路線資格驗證 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:38+08:00 |
 | [OPS-REMOTE-WORKER1](tasks/OPS-REMOTE-WORKER1.md) | INIT-PRODUCT-UX | T4 | 隔離式遠端 crawler shadow worker | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:39+08:00 |
 | [OPS-WEB-DEPS1](tasks/OPS-WEB-DEPS1.md) | — | T2 | 前端相依套件漏洞（1 critical ＋ 3 high，皆為建置面） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-29T22:51:02+08:00 |
-| [UX-BRAND-HOME1](tasks/UX-BRAND-HOME1.md) | INIT-PRODUCT-UX | T3 | 站名品牌化與首頁門面升級 | ruan6047（可 release） | `ai/codex/UX-BRAND-HOME1 @ /private/tmp/cpbl-ux-brand-home1` | 3 | 📦已合併 | ✅已驗證 | 2026-08-02T12:26:06+08:00 |
-| [UX-BRAND-HOME1-FIX1](tasks/UX-BRAND-HOME1-FIX1.md) | INIT-PRODUCT-UX | T2 | description metadata 未隨品牌與副標收斂 | ruan6047 | `ai/opus-5/UX-BRAND-HOME1-FIX1 @ —` | 1 | 📦已合併 | ✅已驗證 | 2026-08-03T12:35:00+08:00 |
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
 | [UX-HOME-LIVE-STRIP1](tasks/UX-HOME-LIVE-STRIP1.md) | INIT-PRODUCT-UX | T3 | 首頁 live 比賽精簡狀態列 | 待指派（先 Discovery 與需求方 Design Gate） | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-02T11:32:41+08:00 |
-| [UX-LIVE-GAME1](tasks/UX-LIVE-GAME1.md) | INIT-PRODUCT-UX | T3 | 賽前情報到比賽中狀態板 | ruan6047（人工實測） | `ai/codex/UX-LIVE-GAME1 @ —（已合併，worktree 待回收）` | 1 | 📦已合併 | 🚀部署待實測 | 2026-07-31T14:08:49+08:00 |
-| [UX-LIVE-GAME1-FIX1](tasks/UX-LIVE-GAME1-FIX1.md) | INIT-PRODUCT-UX | T2 | 未開賽不得顯示局數 | ruan6047（部署實測） | `ai/opus-5/UX-LIVE-GAME1-FIX1 @ .claude/worktrees/ux-live-game1-fix1-review` | 1 | 📦已合併 | 🚀部署待實測 | 2026-08-02T12:54:45+08:00 |
-| [UX-LIVE-TRACKMAN1](tasks/UX-LIVE-TRACKMAN1.md) | INIT-PRODUCT-UX | T3 | 賽中逐球 TrackMan 顯示 | ruan6047（production live TrackMan 可用場次實測） | `ai/codex/UX-LIVE-TRACKMAN1 @ /private/tmp/cpbl-ux-live-trackman1` | 2 | 📦已合併 | 🚀部署待實測 | 2026-08-02T15:57:05+08:00 |
 | [UX-TEAM-FIELD-HIST1](tasks/UX-TEAM-FIELD-HIST1.md) | INIT-PRODUCT-UX | T3 | 球隊頁歷史年守備位置圖（union fielding_seasons） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-25T02:36:00+08:00 |
-| [UX-TOKEN-ACCENT-CONTRAST1](tasks/UX-TOKEN-ACCENT-CONTRAST1.md) | INIT-PRODUCT-UX | T2 | accent 在 surface-2 底上未達 WCAG AA | ruan6047（可 release） | `ai/codex/UX-TOKEN-ACCENT-CONTRAST1 @ /private/tmp/cpbl-ux-token-contrast1` | 2 | 📦已合併 | ✅已驗證 | 2026-08-02T12:26:06+08:00 |
 
 ## 依賴與資源註記
 
