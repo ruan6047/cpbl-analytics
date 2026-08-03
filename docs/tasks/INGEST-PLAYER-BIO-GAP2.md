@@ -3,7 +3,7 @@
 - review_independence: [context]
 - 需求：ruan6047（2026-08-03 於 `INGEST-PLAYER-BIO-GAP1` 合併後指示開卡）　規劃：本卡 spec　分支：`ai/<執行者>/INGEST-PLAYER-BIO-GAP2`
 - 執行：待指派（建議 L2；走 canonical CLI，範圍窄）　查核：待指派（新 session 即可；≠ 執行）
-- Initiative：INIT-OFFICIAL-DATA1　spec 基線：v1（＝父卡當前版本）
+- Initiative：INIT-OFFICIAL-DATA1　spec 基線：v1
 - 卡面修訂：rev2（2026-08-03 範圍 8→14，見背景「rev1 範圍錯誤」節與 `SCOPE-002` 事件）
 - 下游：`INGEST-SPLITS-IMPORT-RESTATE1` 以本卡為**硬前置**（本卡不補 `throws`，該卡即為 no-op）
 - DB：`db_scope: write`（只 UPDATE `cpbl.players` 的 bio 欄；不改 schema、不動其他表、`migration_phase: none`）

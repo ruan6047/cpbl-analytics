@@ -3,7 +3,7 @@
 - review_independence: [cross_family]
 - 需求：ruan6047（2026-08-03 於 `INGEST-PLAYER-BIO-GAP1` 合併後指示開卡）　規劃：本卡 spec　分支：`ai/<執行者>/INGEST-SPLITS-IMPORT-RESTATE1`
 - 執行：待指派（建議 L3；既有 canonical 管線重跑＋對帳，無新計算邏輯）　查核：待指派（跨家族；≠ 執行）
-- Initiative：INIT-OFFICIAL-DATA1　spec 基線：v1（＝父卡當前版本）
+- Initiative：INIT-OFFICIAL-DATA1　spec 基線：v1
 - 卡面修訂：rev2（2026-08-03 兩處前提經實測推翻，見背景節與 `BLOCKED-003` 事件）
 - 硬前置：`INGEST-PLAYER-BIO-GAP2`（補 `bats`／`throws`）完成並查核通過前，本卡為 no-op
 - DB：`db_scope: write`（重建 `cpbl.batting_splits`／`pitching_splits` 等四表的 2025 與生涯列；不改 schema、`migration_phase: none`）
