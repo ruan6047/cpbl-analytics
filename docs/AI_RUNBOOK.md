@@ -54,27 +54,17 @@ observer／production worker 使用；不得把「stats 可連」擴張成任意
   2026-07-03 實測）。先冷卻 **15–20 分鐘**再單次重試。
 - 端點/token/解析錨點/改版排查 → **[`CPBL_SITE_MAP.md`](CPBL_SITE_MAP.md)**（爬蟲事實單一來源）。
 
-### VPS 隔離 live observer（OPS-LIVE-SHADOW1）
+### VPS 隔離 live observer（OPS-LIVE-SHADOW1；**已退役，勿再啟動**）
 
-暫時 observer 只保存 `2026-A-226`～`228` 的 stats raw evidence，不讀 DB／Redis、不接
-API／前端。入口固定為 `python -m cpbl.ingest.live_shadow_observer`；host、path、kind、月份、
-game IDs、request hard limits 與 2026-07-30 00:00（Asia/Taipei）截止皆釘在 versioned code，
-不得用 runtime 參數放寬。production 只能經 PersonalWebsite protected main 的 companion
-compose service 啟動，禁止 SSH 手動 `docker run` 或部署 feature branch。
+暫時 observer 於 2026-07-30 00:00（Asia/Taipei）硬截止後 clean exit，service 已由
+PersonalWebsite protected main `3bee24c` 自 `docker-compose.prod.yml` 移除，該卡 2026-08-03 結案。
+截止時間釘在 versioned code，`src/cpbl/ingest/live_shadow_observer.py` 保留為 dormant 產物：
+任何啟動都會在發出 network request 前 exit 0，**不能靠它蒐集新資料**，需要即時來源請走
+下一節的 live worker。
 
-```bash
-# 本機單 cycle rehearsal；輸出路徑必須是隔離 scratch
-uv run python -m cpbl.ingest.live_shadow_observer --once \
-  --evidence-dir /private/tmp/ops-live-shadow1-evidence
-
-# 唯讀匯出 manifest／checksums
-uv run python -m cpbl.ingest.live_shadow_observer --export \
-  --evidence-dir /private/tmp/ops-live-shadow1-evidence
-```
-
-kill switch 是 evidence volume 的 `/evidence/STOP`。deadline／STOP／budget／disk gate 都以
-exit 0 結束，配合 `restart: on-failure:3` 防止截止後復活；volume 必須保留到 raw gzip、
-manifest 與 checksum 完成 T4 對帳，刪除前另取需求方明示。
+evidence volume `cpbl_live_shadow_evidence` 與 network `cpbl_live_shadow_egress` **刻意保留在
+主站 compose**（原始 raw gzip 與 manifest 已完成 T4 對帳，`LIVE-GAME-BACKEND1` 已據此結案）；
+刪除 volume 是不可回復資料操作，須 ruan6047 明示，**嚴禁 `docker compose down -v`**。
 
 ### Live game shadow worker（LIVE-GAME-BACKEND1；尚未 production cutover）
 
