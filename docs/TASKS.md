@@ -19,7 +19,6 @@
 | [INGEST-GAME-TM-REFACTOR1-G4](tasks/INGEST-GAME-TM-REFACTOR1-G4.md) | INIT-OFFICIAL-DATA1 | T4 | 逐球正式 writer 切換至單場 API 並對齊存量 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-03T17:49:14+08:00 |
 | [INGEST-LIVE-RECONCILE1](tasks/INGEST-LIVE-RECONCILE1.md) | — | T4 | 將官方 LIVE 暫態逐球納入每日可追溯校正 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-03T01:33:46+08:00 |
 | [INGEST-PA-DAILY1](tasks/INGEST-PA-DAILY1.md) | — | T3 | canonical PA build 接進每日 refresh 鏈 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-26T20:55:46+08:00 |
-| [INGEST-PLAYER-BIO-GAP1](tasks/INGEST-PLAYER-BIO-GAP1.md) | INIT-OFFICIAL-DATA1 | T3 | 補齊 14 位球員的 country／birthday | Claude Opus 5@Claude Code | `claude/ingest-player-bio-gap1-d85723 @ .claude/worktrees/ingest-player-bio-gap1-d85723` | 3 | 📦已合併 | ⏸未部署 | 2026-08-03T18:48:47+08:00 |
 | [INGEST-PLAYER-BIO-GAP2](tasks/INGEST-PLAYER-BIO-GAP2.md) | INIT-OFFICIAL-DATA1 | T2 | 補齊 batch 2 八人其餘 bio 欄 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-03T18:53:58+08:00 |
 | [INGEST-POSTGAME-FINALIZE1](tasks/INGEST-POSTGAME-FINALIZE1.md) | — | T3 | 依官方可用性補齊完賽資料 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-03T01:04:14+08:00 |
 | [INGEST-SPLITS-IMPORT-RESTATE1](tasks/INGEST-SPLITS-IMPORT-RESTATE1.md) | INIT-OFFICIAL-DATA1 | T3 | 重建 2025 本土／外籍分項以吸收 bio 補值 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-03T18:53:58+08:00 |
