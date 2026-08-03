@@ -66,11 +66,20 @@ evidence volume `cpbl_live_shadow_evidence` 與 network `cpbl_live_shadow_egress
 主站 compose**（原始 raw gzip 與 manifest 已完成 T4 對帳，`LIVE-GAME-BACKEND1` 已據此結案）；
 刪除 volume 是不可回復資料操作，須 ruan6047 明示，**嚴禁 `docker compose down -v`**。
 
-### Live game shadow worker（LIVE-GAME-BACKEND1；尚未 production cutover）
+### Live game worker（LIVE-GAME-BACKEND1；**已 production cutover，2026-07-30**）
 
 live worker 只打 VPS 可直連的 `stats.cpbl.com.tw`，不走 VPS 回 404 的 www 主站。它是獨立
 process：寫 Redis JSON cache，API 只讀 cache 並在 Redis 失效時退回既有 PostgreSQL；不違反
-API 唯讀契約。預設 `LIVE_GAME_WORKER_ENABLED=false`，未完成 T4 查核前不得 production 啟用。
+API 唯讀契約。
+
+**生產現況**：主站 compose 的 `cpbl-live-worker`（container `prod_cpbl_live_worker`、
+`restart: unless-stopped`、backend network、`depends_on: redis healthy`）以
+`LIVE_GAME_WORKER_ENABLED=true` 常駐運行；2026-07-30 由 `LIVE-GAME-BACKEND1` 完成 cutover
+（主站 merge `30d81b4f`、Deploy run `30544781295`、真實 live canary `2026-A-231`）。
+**碼內預設仍是 `LIVE_GAME_WORKER_ENABLED=false`**——啟用只發生在生產 compose 的 env，
+本機／CI 不會誤啟動。回滾路徑為 kill switch key `cpbl:live:kill` 或停掉該 service，兩者皆
+經 T4 查核與 production compose 查核確認（下方指令為本機 compose 版本；生產端需在 VPS 以
+主站 `REDIS_PASSWORD` 連 `prod_redis`，此處不放未實測的指令列）。
 
 ```bash
 docker compose up -d --build redis live-worker      # 本機持續 shadow
@@ -177,7 +186,7 @@ production 映像尚未部署，先停止同步並完成正常 main deploy，不
 | `cpbl-scrape-pitches [delay]` | 逐球 TrackMan（**投手中心** logs API，全投手→自動涵蓋所有場次）；**現行每日 refresh 的唯一正式 writer** | 逐球刷新 |
 | `cpbl-scrape-game-pitches [year] [kind] [snos…\|近N天]` | 逐球 TrackMan（**比賽中心**，單場 API `/games/{y}-{k}-{sno}` 的 LiveLog；與 logs 路徑共用 pure parser、冪等對接同表）；一場一請求、免名冊、實測 ~88% 少請求 | INGEST-GAME-TM-REFACTOR1 Gate 1-2 落地；**尚未切為 refresh 正式路徑**（Gate 3 shadow／Gate 4 cutover 待做） |
 | `cpbl-shadow-game-tm [year] [kind] [window_days]` / `--report` | Gate 3 shadow harness：抓賽程 shadow（`games/schedule`，GameStatus 分桶）+ 只對 FINISHED 場打單場 API，寫隔離 `cpbl.game_tm_shadow_*` 表並唯讀對帳正式 `pitch_tracking`；`--report` 只印最近一次 run 摘要 | 14 天觀測窗期間每日手動跑；**不寫** `cpbl.pitch_tracking`、不影響正式 refresh |
-| `cpbl-live-worker [--once]` | stats 單場 API → Redis canonical snapshot；集中式 lock／kill switch／adaptive polling | LIVE-GAME-BACKEND1 shadow；T4 查核前不得 production cutover |
+| `cpbl-live-worker [--once]` | stats 單場 API → Redis canonical snapshot；集中式 lock／kill switch／adaptive polling | **已 production cutover（2026-07-30）**，生產以 `prod_cpbl_live_worker` 常駐；碼內預設 `LIVE_GAME_WORKER_ENABLED=false`，本機須顯式開啟 |
 | `cpbl-scrape-advanced` | 官方進階 + 官方 PR(stats.cpbl) | 進階數據刷新 |
 | `cpbl-scrape-detail` / `cpbl-scrape-fighting` | 選手對戰各隊/分項 / 投打對決 | **分項/vs各隊已改重算停爬**（見 build-splits）；detail 僅剩季後 C/E 生涯補抓、fighting 供投打對決 |
 | `cpbl-refresh-recent [fast]` | 抓昨天/今天：games+累計+(增量)對戰/逐球 + **重算分項寫回**，寫 `refresh_log` | 每日增量（本機跑） |
