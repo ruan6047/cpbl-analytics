@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 
 SCRIPT_PATH = Path(__file__).parents[1] / "scripts" / "workflow_ledger.py"
@@ -962,7 +963,7 @@ def test_render_live_orders_in_flight_by_recency() -> None:
 # checkpoint 強制）——即 `render_ledger` 會走到的全部驗證。
 #
 # **不涵蓋**：(1) baseline 之前的既有事件——驗證器刻意跳過它們（早期無結構化 findings
-# 的格式，全庫 173 筆），本守衛不得讓它們開始失敗；(2) 事件內容的**語意正確性**
+# 的格式，全庫 172 筆），本守衛不得讓它們開始失敗；(2) 事件內容的**語意正確性**
 # ——schema 合法不代表判定正確，那要靠查核；(3) 寫入當下的即時攔截——本守衛在
 # pytest/CI 執行，壞資料仍可能先進 commit，只是會在 CI 於數分鐘內轉紅而非靜默。
 def test_real_event_log_passes_schema_and_replay_contract() -> None:
@@ -1011,3 +1012,105 @@ def test_real_event_log_guard_actually_catches_malformed_events() -> None:
         assert "status 不合法" in str(exc)
     else:  # pragma: no cover - 守衛失效時才會走到
         raise AssertionError("驗證器未擋下非法 finding status，真實 log 的守衛已失效")
+
+
+def test_real_event_log_requires_exactly_one_contract_baseline_marker(tmp_path) -> None:
+    """負向測試：刪掉 contract-baseline marker 必須 fail loud（DEV-EVENT-SCHEMA-GUARD1 F001）。
+
+    marker 是全部 schema 驗證的起點——它不在，每一筆 review 都會被當成 baseline 前的舊格式
+    而整批跳過，整條守衛可被**單一刪除動作**繞過。跨家族查核實測：移除該行後全部測試轉綠，
+    等於守衛消失而無人察覺。故此處直接對「缺 marker」與「重複 marker」兩種型態各驗一次。
+    """
+    real = workflow_ledger.EVENTS_PATH.read_text(encoding="utf-8").splitlines()
+
+    without = [
+        line for line in real
+        if json.loads(line).get("contract_baseline") != workflow_ledger.REVIEW_CONTRACT
+    ]
+    assert len(without) == len(real) - 1, "真實 log 應恰有一筆 marker，前提已變請先確認"
+    missing = tmp_path / "missing.jsonl"
+    missing.write_text("\n".join(without) + "\n", encoding="utf-8")
+    try:
+        workflow_ledger._load_events(missing)
+    except ValueError as exc:
+        assert "必須且只能有一筆" in str(exc)
+    else:  # pragma: no cover - 守衛失效時才會走到
+        raise AssertionError("缺 contract-baseline marker 未被擋下，schema 守衛可被繞過")
+
+    marker = next(
+        line for line in real
+        if json.loads(line).get("contract_baseline") == workflow_ledger.REVIEW_CONTRACT
+    )
+    duplicated = tmp_path / "duplicated.jsonl"
+    duplicated.write_text("\n".join(real + [marker]) + "\n", encoding="utf-8")
+    try:
+        workflow_ledger._load_events(duplicated)
+    except ValueError as exc:
+        assert "必須且只能有一筆" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("重複 contract-baseline marker 未被擋下")
+
+
+def _repair_case(**overrides) -> tuple[dict, dict]:
+    before = {
+        "event_id": "CARD-R-REVIEW-001", "card_id": "CARD-R", "type": "review",
+        "actor": "reviewer", "review_result": "REQUEST_CHANGES",
+        "counts_toward_escalation": True, "source_sha": FULL_SHA,
+        "attempt_id": f"CARD-R-e0-{FULL_SHA}", "escalation_epoch": 0,
+        "preflight_passed": True, "evidence": "原始查核意見",
+        "findings": [{
+            "finding_id": "F1", "severity": "major", "blocking": True, "accepted": True,
+            "status": "open", "finding_class": "implementation", "attribution": "executor",
+            "root_cause_id": "rc", "evidence": "e", "disposition": "d",
+        }],
+    }
+    after = json.loads(json.dumps(before))
+    for path, value in overrides.items():
+        if path.startswith("f_"):
+            after["findings"][0][path[2:]] = value
+        else:
+            after[path] = value
+    return before, after
+
+
+def test_schema_repair_whitelist_allows_only_classification_fields() -> None:
+    """合法修復：只改列舉值與推導布林 → 零違規。"""
+    before, after = _repair_case(f_status="withdrawn", f_finding_class="governance",
+                                 counts_toward_escalation=False)
+    assert workflow_ledger.diff_schema_repair(before, after) == []
+
+
+def test_schema_repair_whitelist_blocks_judgement_and_identity_fields() -> None:
+    """負向測試：以跨家族查核提出的實際攻擊手法逐一驗證（DEV-EVENT-SCHEMA-GUARD1 F002）。
+
+    契約原文只有文字限制、無工具攔截，查核者證明可用它把 review_result 改成 APPROVE、
+    把 finding 的 blocking 改成 false，並藉「補缺漏必填欄位」重定義 source_sha／attempt_id／
+    escalation_epoch／preflight_passed／accepted／root_cause_id 等判定與身分欄位。
+    白名單改為正面表列後，以下每一種都必須被指出。
+    """
+    attacks = {
+        "review_result": _repair_case(review_result="APPROVE"),
+        "evidence": _repair_case(evidence="改寫過的查核意見"),
+        "actor": _repair_case(actor="someone-else"),
+        "source_sha": _repair_case(source_sha="b" * 40),
+        "attempt_id": _repair_case(attempt_id="CARD-R-e0-" + "b" * 40),
+        "escalation_epoch": _repair_case(escalation_epoch=1),
+        "preflight_passed": _repair_case(preflight_passed=False),
+        "findings[F1].blocking": _repair_case(f_blocking=False),
+        "findings[F1].accepted": _repair_case(f_accepted=False),
+        "findings[F1].root_cause_id": _repair_case(f_root_cause_id="rc-other"),
+        "findings[F1].disposition": _repair_case(f_disposition="改寫過的處置"),
+    }
+    for expected_path, (before, after) in attacks.items():
+        violations = workflow_ledger.diff_schema_repair(before, after)
+        assert expected_path in violations, (
+            f"schema-repair 白名單未擋下 {expected_path}；該欄位承載判定或身分，"
+            "可被用來以「修格式」之名改寫歷史"
+        )
+
+
+def test_schema_repair_whitelist_blocks_adding_or_removing_findings() -> None:
+    before, after = _repair_case()
+    after["findings"] = []
+    assert any("不得新增或移除" in v for v in workflow_ledger.diff_schema_repair(before, after))
+

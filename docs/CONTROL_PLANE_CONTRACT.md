@@ -33,10 +33,20 @@
   「malformed 不得被後續事件掩蓋」在 **schema 層互鎖**——型別驗證涵蓋每一筆 review，故追加任何
   更正事件都救不了寫壞的那一行，`workflow_ledger.py` 會在每次 replay 重新崩潰、`docs/TASKS.md`
   永久停在舊投影。**此情形（且僅此情形）允許就地修復**，程序如下，四項缺一不可：
-  1. **僅限機器可讀的分類欄位**：列舉值（`severity`／`status`／`finding_class`／`attribution`）、
-     由結構推導的布林（`counts_toward_escalation`）、缺漏的必填欄位。
-     **`evidence`／`disposition`／`review_result`／`actor` 等承載判定與歸屬的欄位一律不得改動**
-     ——那是改寫歷史，不是修復格式。
+  1. **可改欄位為正面表列，白名單之外一律禁止**（機器可讀，非文字約定）：
+     事件層僅 `counts_toward_escalation`；finding 層僅 `severity`／`status`／`finding_class`／
+     `attribution`。**不得新增或移除 finding。** 其餘全部禁止，包含但不限於
+     `review_result`／`evidence`／`disposition`／`actor`（判定與歸屬）、
+     `blocking`／`accepted`／`root_cause_id`（finding 的實質判定）、
+     `source_sha`／`attempt_id`／`escalation_epoch`／`preflight_passed`／`event_id`／`card_id`
+     （身分與目標）——動它們是改寫歷史，不是修復格式。
+     > 本項初版寫「列舉值、推導布林、**缺漏的必填欄位**」，第三項無界限：跨家族查核實測可藉
+     > 「補缺漏欄位」之名補入或重定義 `source_sha`／`attempt_id`／`escalation_epoch`／
+     > `preflight_passed`／`accepted`／`blocking`／`root_cause_id`，並可把 `review_result` 改成
+     > `APPROVE`（schema 驗證只查列舉值，不查語意）。故改為正面表列。
+  1b. **修復 diff 須以工具驗證，不得只靠人工閱讀 commit**：
+     `workflow_ledger.diff_schema_repair(before, after)` 回傳逾越白名單的欄位路徑，
+     **非空即為不合法的修復**。查核者應以此複驗，而非逐行讀 commit message。
   2. **修復事由須就地留痕**：於被修欄位所屬的 `disposition`／`evidence` 前綴加註
      `[schema 修復 YYYY-MM-DD：原 X=… 非合法值，已改為語意等價的 Y；判定內容未變。]`。
   3. **commit message 須說明**修了哪些欄位、為何無法以追加事件修復、以及原始壞行仍保留於哪個 commit。

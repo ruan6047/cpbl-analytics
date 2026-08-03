@@ -493,7 +493,62 @@ def render_ledger(events: Iterable[dict[str, object]]) -> str:
 
 
 def _load_events(path: Path) -> list[dict[str, object]]:
-    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    events = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    _require_contract_baseline(events)
+    return events
+
+
+# schema-repair 的欄位白名單（DEV-EVENT-SCHEMA-GUARD1 F002）。
+# 就地修復**只能**改這些欄位——它們純粹是機器可讀的分類／推導值，改動不影響任何判定。
+# 白名單之外一律禁止，包含但不限於：review_result／evidence／disposition／actor（判定與歸屬）、
+# blocking／accepted／root_cause_id（finding 的實質判定）、
+# source_sha／attempt_id／escalation_epoch／preflight_passed／event_id／card_id（身分與目標）。
+# 契約原文曾寫「缺漏的必填欄位」，該表述無界限——查核實測可被用來「補入」judgement-bearing
+# 欄位而繞過限制，故改為正面表列。
+REPAIRABLE_EVENT_FIELDS = frozenset({"counts_toward_escalation"})
+REPAIRABLE_FINDING_FIELDS = frozenset({"severity", "status", "finding_class", "attribution"})
+
+
+def diff_schema_repair(before: dict, after: dict) -> list[str]:
+    """回傳 `before → after` 中**逾越 schema-repair 白名單**的欄位路徑；空 list 代表合法。
+
+    供 CI／查核者機械驗證一次就地修復是否只動了允許的欄位，不必靠人工閱讀 commit。
+    """
+    violations: list[str] = []
+    for key in set(before) | set(after):
+        if key == "findings":
+            continue
+        if before.get(key) != after.get(key) and key not in REPAIRABLE_EVENT_FIELDS:
+            violations.append(key)
+    fb = {str(f.get("finding_id")): f for f in before.get("findings", [])}
+    fa = {str(f.get("finding_id")): f for f in after.get("findings", [])}
+    for fid in set(fb) | set(fa):
+        if fid not in fb or fid not in fa:
+            violations.append(f"findings[{fid}]（不得新增或移除 finding）")
+            continue
+        for key in set(fb[fid]) | set(fa[fid]):
+            if fb[fid].get(key) != fa[fid].get(key) and key not in REPAIRABLE_FINDING_FIELDS:
+                violations.append(f"findings[{fid}].{key}")
+    return sorted(violations)
+
+
+def _require_contract_baseline(events: list[dict[str, object]]) -> None:
+    """真實 event log 必須恰有一筆 contract-baseline marker（DEV-EVENT-SCHEMA-GUARD1 F001）。
+
+    `_validate_review_contract` 的所有 schema 驗證都以 marker **之後**為範圍：marker 不在，
+    每一筆 review 都會被當成 baseline 前的舊格式而整批跳過，**整條守衛遂可被單一刪除動作
+    完全繞過**（查核實測：刪掉該行後 35 項測試全綠）。
+
+    刻意放在 `_load_events` 而非 `_validate_review_contract`：這是**真實檔案**的不變量，
+    不是任意事件列表的性質——`render_ledger` 須維持能接受合成 fixture 的純函式語意，
+    否則本檔既有的 render 測試會被迫全部塞進一個與其主題無關的 marker。
+    """
+    markers = [e for e in events if e.get("contract_baseline") == REVIEW_CONTRACT]
+    if len(markers) != 1:
+        raise ValueError(
+            f"event log 必須且只能有一筆 contract_baseline={REVIEW_CONTRACT} 的事件"
+            f"（實際 {len(markers)} 筆）；缺席會使全部 review 跳過 schema 驗證"
+        )
 
 
 # --live：稽核用。lifecycle 事件依契約直接落 main，分支不得攜帶事件；
