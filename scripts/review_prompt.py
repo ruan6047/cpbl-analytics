@@ -57,7 +57,50 @@ MAIN_ROOT = _main_checkout()
 
 # 卡面欄位錨點（tasks-card 範本）：「- Initiative：<父卡 ID／—>　spec 基線：<版本／—>」
 _INITIATIVE_RE = re.compile(r"Initiative：\s*([A-Z][A-Z0-9\-]+)")
-_BASELINE_RE = re.compile(r"spec 基線：\s*([^\s　]+)")
+# 欄位以全形空格分隔（同一行還有 Initiative 等欄），故切到 `　` 或行尾為止。
+_BASELINE_FIELD_RE = re.compile(r"spec 基線：\s*([^　\n]+)")
+# 括號（全形／半形，含未閉合）內是說明文字或 markdown 連結目標，兩者都不是宣告值。
+_PARENTHETICAL_RE = re.compile(r"（[^）]*(?:）|$)|\([^)]*(?:\)|$)")
+# 複合基線的分隔符：一張卡可同時受兩份 spec 約束。刻意只認 `＋`／`、`（實際卡面用法），
+# 不認逗號分號——那些在說明散文裡太常見，認了等於把剛堵上的破口從另一邊打開
+#（`v2，因 v1 過窄` 會被切成兩個子句而抽出 v1）。
+_COMPOSITE_SEP_RE = re.compile(r"[＋+、]")
+_VERSION_TOKEN_RE = re.compile(r"v\d+(?:\.\d+)*")
+
+
+def baseline_declaration(text: str) -> tuple[str | None, set[str]]:
+    """卡面 `spec 基線` 欄的原文，與**宣告值**中的版本 token 集合。
+
+    宣告值 ≠ 整段欄位文字。欄位常在版本後接括號說明（`v2（v1 範圍過窄，見背景節）`），
+    說明裡出現的版本是敘述、不是宣告；若整段一起抽 token，卡面等於可以「解釋自己
+    填錯的理由」來通過守衛——2026-08-03 `INGEST-PLAYER-BIO-GAP2` 與
+    `INGEST-SPLITS-IMPORT-RESTATE1` 兩卡把「spec 基線」誤當本卡 spec 修訂號而填 v2，
+    說明文字裡剛好提到父卡的 v1，守衛全綠放行，最後由獨立查核者以 PREFLIGHT_FAILED
+    擋下，燒掉一輪送審。與 UX-TEAM-SPLIT-SCOPE1（填卡名而非版本）同型：
+    **檢查哨兵值的缺席，不等於檢查該成立的性質**。
+
+    抽取規則：
+    1. 欄位切到全形空格或行尾（同一行還有其他欄位）。
+    2. 去掉括號內文字——說明與 markdown 連結目標都在此排除。
+    3. 其餘以複合分隔符切成宣告子句，允許複合基線
+       （`GAME_RECAP v1.3＋PRODUCT_UX_BLUEPRINT v0.2`），那類卡確實同時受兩份 spec 約束。
+    4. **每個子句只取第一個版本 token**：子句內第一個 token 才是宣告值，其後為敘述。
+       token 取整段相等而非子字串，否則 `v1.0` 會被 `v1` 誤放行。
+
+    以文件連結表示基線（無版本 token）時回空集合，由呼叫端退回人工核對，
+    不得當成「不一致」——那是誤報，不是防線。
+    """
+    m = _BASELINE_FIELD_RE.search(text)
+    if not m:
+        return None, set()
+    raw = m.group(1).strip()
+    declared = _PARENTHETICAL_RE.sub("　", raw)
+    versions = set()
+    for clause in _COMPOSITE_SEP_RE.split(declared):
+        first = _VERSION_TOKEN_RE.search(clause)
+        if first:
+            versions.add(first.group(0))
+    return raw, versions
 
 
 def _card_path(card_id: str) -> Path | None:
@@ -74,6 +117,8 @@ def baseline_check(card_id: str) -> str:
 
     無父卡（Initiative 欄為「—」或缺）回空字串——輸出不多任何段落。
     版本欄缺席時不靜默省略：明確標示「人工核對」。
+    判定只看 `baseline_declaration()` 抽出的**宣告值**：括號說明不計（否則卡面填錯版本
+    卻在說明裡提到正確版本就會被判一致），且允許複合基線（父卡版本是其一即可）。
     """
     path = _card_path(card_id)
     if path is None:
@@ -83,14 +128,12 @@ def baseline_check(card_id: str) -> str:
     if not m_init:
         return ""
     parent_id = m_init.group(1)
-    m_child = _BASELINE_RE.search(text)
-    child_ver = m_child.group(1) if m_child else None
+    child_raw, child_vers = baseline_declaration(text)
 
     parent_path = _card_path(parent_id)
-    parent_ver = None
+    parent_raw, parent_vers = None, set()
     if parent_path is not None:
-        m_parent = _BASELINE_RE.search(parent_path.read_text(encoding="utf-8"))
-        parent_ver = m_parent.group(1) if m_parent else None
+        parent_raw, parent_vers = baseline_declaration(parent_path.read_text(encoding="utf-8"))
 
     lines = [
         "### spec 基線一致性（canonical baseline-cascade §5）",
@@ -98,13 +141,21 @@ def baseline_check(card_id: str) -> str:
         f"- Initiative 父卡：{parent_id}"
         + (f"（`{parent_path.relative_to(ROOT)}`）" if parent_path else "（**卡片檔不存在**）"),
     ]
-    if parent_ver and child_ver:
-        verdict = "一致" if parent_ver == child_ver else "**不一致——舊基線交付，直接退回**"
-        lines.append(f"- 父卡當前 spec 基線：`{parent_ver}`；本卡卡面 spec 基線：`{child_ver}` → {verdict}")
-    else:
-        missing = "父卡" if not parent_ver else "本卡"
+    if parent_vers and child_vers:
+        verdict = "一致" if parent_vers & child_vers else "**不一致——舊基線交付，直接退回**"
         lines.append(
-            f"- {missing}的 spec 基線欄缺席，無法自動核對——**人工核對**：對照父卡「基線變更紀錄」"
+            f"- 父卡當前 spec 基線：`{'／'.join(sorted(parent_vers))}`；"
+            f"本卡卡面 spec 基線：`{'／'.join(sorted(child_vers))}` → {verdict}"
+        )
+        lines.append(
+            f"  - 卡面原文：父卡「{parent_raw}」／本卡「{child_raw}」"
+            "（判定只取宣告值，括號說明不計入）"
+        )
+    else:
+        missing = "父卡" if not parent_vers else "本卡"
+        lines.append(
+            f"- {missing}的 spec 基線欄未宣告可解析的版本（缺欄，或以文件連結／卡名表示）"
+            "，無法自動核對——**人工核對**：對照父卡「基線變更紀錄」"
             "與本卡範圍是否仍在當前基線內。"
         )
     lines.append(
