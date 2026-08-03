@@ -33,24 +33,33 @@
   「malformed 不得被後續事件掩蓋」在 **schema 層互鎖**——型別驗證涵蓋每一筆 review，故追加任何
   更正事件都救不了寫壞的那一行，`workflow_ledger.py` 會在每次 replay 重新崩潰、`docs/TASKS.md`
   永久停在舊投影。**此情形（且僅此情形）允許就地修復**，程序如下，四項缺一不可：
-  1. **可改欄位為正面表列，白名單之外一律禁止**（機器可讀，非文字約定）：
+  1. **可改欄位為正面表列，且必須是「非法 → 合法」**（機器可讀，非文字約定）：
      事件層僅 `counts_toward_escalation`；finding 層僅 `severity`／`status`／`finding_class`／
      `attribution`。**不得新增或移除 finding。** 其餘全部禁止，包含但不限於
      `review_result`／`evidence`／`disposition`／`actor`（判定與歸屬）、
      `blocking`／`accepted`／`root_cause_id`（finding 的實質判定）、
-     `source_sha`／`attempt_id`／`escalation_epoch`／`preflight_passed`／`event_id`／`card_id`
-     （身分與目標）——動它們是改寫歷史，不是修復格式。
-     > 本項初版寫「列舉值、推導布林、**缺漏的必填欄位**」，第三項無界限：跨家族查核實測可藉
-     > 「補缺漏欄位」之名補入或重定義 `source_sha`／`attempt_id`／`escalation_epoch`／
-     > `preflight_passed`／`accepted`／`blocking`／`root_cause_id`，並可把 `review_result` 改成
-     > `APPROVE`（schema 驗證只查列舉值，不查語意）。故改為正面表列。
-  1b. **修復 diff 須以工具驗證，不得只靠人工閱讀 commit**：
-     `workflow_ledger.diff_schema_repair(before, after)` 回傳逾越白名單的欄位路徑，
-     **非空即為不合法的修復**。查核者應以此複驗，而非逐行讀 commit message。
-  2. **修復事由須就地留痕**：於被修欄位所屬的 `disposition`／`evidence` 前綴加註
-     `[schema 修復 YYYY-MM-DD：原 X=… 非合法值，已改為語意等價的 Y；判定內容未變。]`。
+     `source_sha`／`attempt_id`／`escalation_epoch`／`preflight_passed`／`event_id`／`card_id`（身分與目標）。
+     **白名單內亦不得改寫已合法的值**——`status: open → withdrawn`、`attribution: executor → coordinator`
+     都是改寫判定，不是修復格式；要改語意請走 review／review-correction。
+     `counts_toward_escalation` 為推導值，其「合法」定義是**等於由結構化 findings 推導的結果**。
+     > 兩次收緊的由來：初版寫「列舉值、推導布林、**缺漏的必填欄位**」，第三項無界限，可藉「補欄位」
+     > 之名重定義 `source_sha`／`attempt_id`／`accepted`／`blocking`／`root_cause_id`；改為正面表列後，
+     > 跨家族查核再指出「只查欄位名」仍可 `executor → coordinator` 改寫責任歸屬，故加上「非法 → 合法」條件。
+  2. **修復事由以獨立事件留痕，不得寫進被修事件本身。**
+     追加一筆 `type: "schema-repair"` 事件，載明 `repaired_event_id`、逐欄位的 before／after、
+     以及無法用追加事件修復的理由。
+     > **不得**在被修事件的 `evidence`／`disposition` 加註——那兩欄承載判定，屬第 1 項的禁止清單，
+     > 契約若同時要求「在該處留痕」與「不得改動該處」即自相矛盾（跨家族查核指出，iteration 2 確實如此）。
+     > 首例 `UX-BRAND-HOME1-REVIEW-007`（`322f69a`）於本規則成立前完成，其留痕寫在 `disposition`
+     > 前綴，屬既成事實不回溯調整；本規則自 iteration 3 起適用。
   3. **commit message 須說明**修了哪些欄位、為何無法以追加事件修復、以及原始壞行仍保留於哪個 commit。
   4. **不得 force-push**：修復是一個新 commit，git 歷史保留原始壞行。
+  5. **由 CI 強制驗證，不靠人工閱讀**：`tests/test_workflow_ledger.py::
+     test_modified_events_obey_the_schema_repair_allowlist` 比對分支基底（`git merge-base`）
+     與工作區的 event log，對兩邊都存在但內容不同的事件逐一套用
+     `workflow_ledger.diff_schema_repair()`，違反白名單即 fail。
+     **已知不涵蓋**：直接在 main 上改寫已推送的歷史（本測試以 merge-base 為基準，
+     基準本身被改寫時無從察覺），以及取不到 merge-base 的環境（淺 clone／離線時 skip）。
   修復後必須 `--write` 與 `--check` 皆通過才算完成。**此程序不是 append-only 的例外通道**：
   凡能以追加事件表達的（語意更正、判定翻案、finding 狀態變更）一律不得走此路。
   2026-08-02 `UX-BRAND-HOME1-REVIEW-007` 為首例（四個非法欄位，`322f69a` 修復）。

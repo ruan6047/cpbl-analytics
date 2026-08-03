@@ -1073,10 +1073,46 @@ def _repair_case(**overrides) -> tuple[dict, dict]:
     return before, after
 
 
-def test_schema_repair_whitelist_allows_only_classification_fields() -> None:
-    """合法修復：只改列舉值與推導布林 → 零違規。"""
-    before, after = _repair_case(f_status="withdrawn", f_finding_class="governance",
-                                 counts_toward_escalation=False)
+def test_schema_repair_whitelist_allows_only_illegal_to_legal_fixes() -> None:
+    """合法修復：**非法值** → 合法值 → 零違規。
+
+    iteration 2 的版本只查欄位名，於是 `status: open → withdrawn` 這種「合法改合法」也放行；
+    跨家族查核指出那等於可用「修格式」之名改寫 finding 狀態與責任歸屬。收緊後修復必須是
+    「原值不合法」才成立——這正是 schema-repair 存在的唯一正當理由。
+    """
+    before, after = _repair_case()
+    before["findings"][0]["status"] = "rejected"          # 非法列舉值
+    before["findings"][0]["finding_class"] = "spec-staleness"  # 非法列舉值
+    assert workflow_ledger.diff_schema_repair(before, after) == []
+
+
+def test_schema_repair_whitelist_blocks_rewriting_already_legal_values() -> None:
+    """負向測試：白名單**內**的欄位，若原值已合法則不得改寫（DEV-EVENT-SCHEMA-GUARD1 F002）。
+
+    跨家族查核實測：`attribution: executor → coordinator` 可直接改寫責任歸屬、
+    `status: open → withdrawn` 可靜默關閉 finding，兩者在 iteration 2 都回傳合法。
+    """
+    for field, value, path in (
+        ("f_attribution", "coordinator", "findings[F1].attribution（已合法值不得改寫）"),
+        ("f_status", "withdrawn", "findings[F1].status（已合法值不得改寫）"),
+        ("f_severity", "info", "findings[F1].severity（已合法值不得改寫）"),
+        ("f_finding_class", "governance", "findings[F1].finding_class（已合法值不得改寫）"),
+    ):
+        before, after = _repair_case(**{field: value})
+        assert path in workflow_ledger.diff_schema_repair(before, after), (
+            f"{path} 未被擋下——白名單內的欄位仍可被用來改寫已合法的判定"
+        )
+
+
+def test_schema_repair_allows_fixing_derived_flag_against_findings() -> None:
+    """`counts_toward_escalation` 是推導值：與 findings 推導不符才算非法、才可修。
+
+    2026-08-02 的 REVIEW-007 正是此型（宣告 True、findings 推導為 False）。
+    若僅以「是不是布林」判斷，該次正當修復會被誤判為改寫。
+    """
+    before, after = _repair_case()                      # findings 為 executor/open/blocking
+    before["counts_toward_escalation"] = False          # 與推導不符 → 非法
+    after["counts_toward_escalation"] = True            # 等於推導 → 合法
     assert workflow_ledger.diff_schema_repair(before, after) == []
 
 
@@ -1114,3 +1150,78 @@ def test_schema_repair_whitelist_blocks_adding_or_removing_findings() -> None:
     after["findings"] = []
     assert any("不得新增或移除" in v for v in workflow_ledger.diff_schema_repair(before, after))
 
+
+
+def _events_at(ref: str) -> dict[str, dict] | None:
+    """讀取指定 git ref 的 events.jsonl，回傳 {event_id: event}；取不到回 None。"""
+    import subprocess
+    root = SCRIPT_PATH.parents[1]
+    try:
+        blob = subprocess.run(
+            ["git", "show", f"{ref}:docs/control-plane/events.jsonl"],
+            cwd=root, capture_output=True, text=True, check=True,
+        ).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+    return {
+        str(e["event_id"]): e
+        for e in (json.loads(line) for line in blob.splitlines() if line.strip())
+    }
+
+
+def test_modified_events_obey_the_schema_repair_allowlist() -> None:
+    """強制執行 schema-repair 白名單（DEV-EVENT-SCHEMA-GUARD1 F002）。
+
+    `diff_schema_repair()` 若只是個沒人呼叫的函式，它與「文字限制」沒有差別——
+    跨家族查核正是如此指出：CI 只跑 pytest、未對實際 event log 的 diff 強制驗證，
+    直接改寫既有事件仍可通過全套 CI。
+
+    本測試把該函式接上唯一能自動觸發的地方：比對**分支基底**（`git merge-base origin/main HEAD`）
+    與工作區的 event log，
+    對**兩邊都存在但內容不同**的事件（即就地修改過的事件）逐一套用白名單。
+    event log 是 append-only，正常情況下這個集合恆為空；非空即代表發生了就地修改，
+    此時必須通過白名單（僅限非法→合法的分類欄位）才放行。
+
+    基準取 merge-base 而非 `origin/main` tip：lifecycle 事件依契約只落 main，執行分支通常
+    落後若干筆，拿 tip 當基準會把「main 上較新的事件」誤判為分支刪除了它們。
+
+    **不涵蓋**：(1) 新增事件——那是正常 append，由其他 schema 測試把關；
+    (2) 取不到 merge-base 的環境（淺 clone、離線）——此時 skip 而非誤判通過，
+    因此**不是絕對防線**；(3) 直接在 main 上改寫已推送的歷史——本測試以 merge-base 為基準，
+    基準本身被改寫時無從察覺，那需要 protected branch 或 force-push 稽核，不在本卡範圍。
+    """
+    import subprocess
+
+    import pytest
+    root = SCRIPT_PATH.parents[1]
+    try:
+        merge_base = subprocess.run(
+            ["git", "merge-base", "origin/main", "HEAD"],
+            cwd=root, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pytest.skip("取不到 origin/main 的 merge-base（淺 clone 或離線），本守衛無法運作")
+    base = _events_at(merge_base)
+    if base is None:
+        pytest.skip("取不到 merge-base 的 event log，本守衛無法運作")
+    head = {
+        str(e["event_id"]): e
+        for e in workflow_ledger._load_events(workflow_ledger.EVENTS_PATH)
+    }
+
+    problems: list[str] = []
+    for event_id, before in base.items():
+        after = head.get(event_id)
+        if after is None:
+            problems.append(f"{event_id}：既有事件遭刪除（event log 為 append-only）")
+            continue
+        if before == after:
+            continue
+        violations = workflow_ledger.diff_schema_repair(before, after)
+        if violations:
+            problems.append(f"{event_id}：逾越 schema-repair 白名單 → {violations}")
+
+    assert not problems, (
+        "既有事件遭就地修改且不符 schema-repair 白名單（見 CONTROL_PLANE_CONTRACT.md）：\n  "
+        + "\n  ".join(problems)
+    )

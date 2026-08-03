@@ -498,37 +498,80 @@ def _load_events(path: Path) -> list[dict[str, object]]:
     return events
 
 
-# schema-repair 的欄位白名單（DEV-EVENT-SCHEMA-GUARD1 F002）。
-# 就地修復**只能**改這些欄位——它們純粹是機器可讀的分類／推導值，改動不影響任何判定。
-# 白名單之外一律禁止，包含但不限於：review_result／evidence／disposition／actor（判定與歸屬）、
-# blocking／accepted／root_cause_id（finding 的實質判定）、
-# source_sha／attempt_id／escalation_epoch／preflight_passed／event_id／card_id（身分與目標）。
-# 契約原文曾寫「缺漏的必填欄位」，該表述無界限——查核實測可被用來「補入」judgement-bearing
-# 欄位而繞過限制，故改為正面表列。
+# schema-repair 的欄位白名單（DEV-EVENT-SCHEMA-GUARD1 F002，iteration 3 收緊）。
+#
+# 就地修復的唯一正當理由是「原值不合法導致 log 無法 replay」。因此白名單有**兩道**條件，
+# 缺一不可：(1) 欄位在允許清單內；(2) **修復前的值必須是非法的、修復後必須合法**。
+# 第 (2) 條是 iteration 2 漏掉的——當時只查欄位名，導致 `attribution: executor → coordinator`
+# 與 `status: open → withdrawn` 都回傳合法（跨家族查核實測），等於可用「修格式」之名改寫
+# 責任歸屬與 finding 狀態。已合法的值一律不得改寫，要改語意請走 review／review-correction。
 REPAIRABLE_EVENT_FIELDS = frozenset({"counts_toward_escalation"})
 REPAIRABLE_FINDING_FIELDS = frozenset({"severity", "status", "finding_class", "attribution"})
+
+_LEGAL_FINDING_VALUES: dict[str, frozenset[str]] = {
+    "severity": frozenset({"critical", "major", "minor", "info"}),
+    "status": frozenset({"open", "resolved", "withdrawn"}),
+    "finding_class": frozenset({
+        "implementation", "authoritative-artifact", "governance", "coordination", "environment",
+    }),
+    "attribution": frozenset({"executor", "planner", "coordinator", "reviewer", "external"}),
+}
+
+
+def _repair_is_legalising(
+    field: str, before: object, after: object, event: dict | None = None
+) -> bool:
+    """修復是否為「非法 → 合法」。已合法的值改成另一個合法值不算修復，算改寫。
+
+    `counts_toward_escalation` 是**推導值**而非自由欄位：它的「合法」定義是「等於由結構化
+    findings 推導出來的值」，不是「是個布林」。故此處以 `_counted_review()` 重算——
+    2026-08-02 的 `REVIEW-007` 正是 `True` 與推導結果不符而必須修為 `False`，
+    若僅以型別判斷會把那次正當修復誤判為改寫。
+    """
+    if field == "counts_toward_escalation":
+        if event is None:
+            return False
+        try:
+            derived = _counted_review(event)
+        except (KeyError, TypeError):
+            return False
+        return before != derived and after == derived
+    legal = _LEGAL_FINDING_VALUES.get(field)
+    if legal is None:
+        return False
+    return before not in legal and after in legal
 
 
 def diff_schema_repair(before: dict, after: dict) -> list[str]:
     """回傳 `before → after` 中**逾越 schema-repair 白名單**的欄位路徑；空 list 代表合法。
 
-    供 CI／查核者機械驗證一次就地修復是否只動了允許的欄位，不必靠人工閱讀 commit。
+    供 CI 與查核者機械驗證一次就地修復，不必靠人工閱讀 commit。
+    白名單內但屬「合法值改合法值」者一律視為違規並標 `（已合法值不得改寫）`。
     """
     violations: list[str] = []
     for key in set(before) | set(after):
         if key == "findings":
             continue
-        if before.get(key) != after.get(key) and key not in REPAIRABLE_EVENT_FIELDS:
+        if before.get(key) == after.get(key):
+            continue
+        if key not in REPAIRABLE_EVENT_FIELDS:
             violations.append(key)
-    fb = {str(f.get("finding_id")): f for f in before.get("findings", [])}
-    fa = {str(f.get("finding_id")): f for f in after.get("findings", [])}
+        elif not _repair_is_legalising(key, before.get(key), after.get(key), after):
+            violations.append(f"{key}（已合法值不得改寫）")
+    fb = {str(x.get("finding_id")): x for x in before.get("findings", [])}
+    fa = {str(x.get("finding_id")): x for x in after.get("findings", [])}
     for fid in set(fb) | set(fa):
         if fid not in fb or fid not in fa:
             violations.append(f"findings[{fid}]（不得新增或移除 finding）")
             continue
         for key in set(fb[fid]) | set(fa[fid]):
-            if fb[fid].get(key) != fa[fid].get(key) and key not in REPAIRABLE_FINDING_FIELDS:
-                violations.append(f"findings[{fid}].{key}")
+            if fb[fid].get(key) == fa[fid].get(key):
+                continue
+            path = f"findings[{fid}].{key}"
+            if key not in REPAIRABLE_FINDING_FIELDS:
+                violations.append(path)
+            elif not _repair_is_legalising(key, fb[fid].get(key), fa[fid].get(key)):
+                violations.append(f"{path}（已合法值不得改寫）")
     return sorted(violations)
 
 

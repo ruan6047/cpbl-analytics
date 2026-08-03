@@ -38,7 +38,7 @@ Coordinator 寫入 `UX-BRAND-HOME1-REVIEW-007` 時，單一事件踩中四個欄
 ## 非目標
 
 - **不改 review 契約的語意規則**（`closes_review_round`、`corrects_event_id`、escalation 計數、finding 衝突裁決等）。本卡只處理「壞資料何時被擋下」與「已落地的壞資料如何合法修復」。
-- **不回填、不重新解讀 baseline 前的既有事件。** 現況 `contract-baseline` 之前有 **173 筆** review 事件缺欄位（多為早期無結構化 findings 的格式），驗證器刻意跳過它們——任何新守衛**不得**讓這些歷史事件開始失敗。
+- **不回填、不重新解讀 baseline 前的既有事件。** 現況 `contract-baseline` 之前有 **172 筆** review 事件缺欄位（多為早期無結構化 findings 的格式），驗證器刻意跳過它們——任何新守衛**不得**讓這些歷史事件開始失敗。
 - 不改 `review_prompt.py` 的提示詞產生邏輯。
 
 ## Discovery 必答（先答再改碼）
@@ -81,7 +81,7 @@ Coordinator 寫入 `UX-BRAND-HOME1-REVIEW-007` 時，單一事件踩中四個欄
 
 ## 紅線
 
-1. **不得讓 baseline 前的 173 筆既有事件開始失敗。** 任何守衛上線前必須以完整 `events.jsonl` replay 證明現況仍可重建。
+1. **不得讓 baseline 前的 172 筆既有事件開始失敗。** 任何守衛上線前必須以完整 `events.jsonl` replay 證明現況仍可重建。
 2. **不得宣稱涵蓋了守不住的部分**（見 Discovery 第 1、4 問）。本專案已有同型教訓（`DOC-CARD-SPEC-RULES1`：檢查容易取得的相關量而非該成立的性質）。
 3. **修復機制不得成為洗掉判定的後門。** 若採「就地修復」，必須限定僅能改機器可讀的分類欄位，且 `evidence`／`disposition` 等敘述欄位的原文不得被刪除；若採 `superseded_by`，必須無法用來取代語意判定。
 
@@ -109,3 +109,4 @@ Coordinator 寫入 `UX-BRAND-HOME1-REVIEW-007` 時，單一事件踩中四個欄
 
 - 2026-08-02 register by Claude Opus 5@Claude Code（依 ruan6047 授權開卡）；iteration 0。來源：`UX-BRAND-HOME1` 查核期間 Coordinator 寫入的 `REVIEW-007` 含四個不合法欄位，導致 ledger 自 `5736302` 起持續崩潰、`TASKS.md` 停在舊投影並隨兩次 commit 上了 main，最終由需求方裁定就地修復（`322f69a`）才解開。**開卡動機不是「有人寫錯」，而是「寫錯之後沒有合法的修法」**——契約的 append-only 與「malformed 不得被後續事件掩蓋」在 schema 層互鎖。附帶記錄近因：記錄方以 `2>/dev/null` 遮蔽錯誤並自行 `echo` 成功訊號，使崩潰隱形；此為操作紀律問題，工具能守的部分有限，見 Discovery 第 4 問。
 - 2026-08-03 iteration 1 by Claude Opus 5@Claude Code：Discovery 四問完成並經需求方裁定（pytest／全檔 fail loud／就地修復），交付兩條真實檔守衛測試與契約的 `schema-repair` 段。**紅線 1 實證**：baseline 前 review 事件 **172 筆**（卡面〈非目標〉原記 173，該數含當時尚未修復的 post-baseline `REVIEW-007`，實際 pre-baseline 為 172）其 schema 皆不合法，完整 replay 仍通過，證明守衛未讓它們開始失敗。**負向測試以兩種方式做**：(a) 單元層注入非法 `status` 給 `_validate_review_event`；(b) 直接把缺陷注入**真實** `events.jsonl` 後跑 pytest，實測 `test_real_event_log_passes_schema_and_replay_contract` 轉紅、還原後恢復——證明守衛真的會因真實檔變壞而失敗，不是碰巧全綠。**流程自陳**：claim 事件初次曾誤寫於執行分支並 commit，違反「執行分支不得改動 control-plane」，發現後即 `reset --hard` 還原（未推送）並改於主 checkout 重寫。
+- 2026-08-03 iteration 3 by Claude Opus 5@Claude Code：依跨家族查核第二輪 REQUEST_CHANGES 修正 F002／F003。**F002 三個子問題全部成立，且全是規劃者自己在提示詞裡請查核者攻擊的地方**——(a) 白名單只查欄位名，`attribution: executor → coordinator` 與 `status: open → withdrawn` 皆回傳合法，等於可用「修格式」之名改寫責任歸屬與 finding 狀態；已加上「**非法 → 合法**」條件，並為推導欄位 `counts_toward_escalation` 定義「合法＝等於由 findings 推導的結果」（否則 2026-08-02 那次正當修復會被誤判為改寫）。(b) **契約自相矛盾**：要求把修復留痕寫進 `evidence`／`disposition`，而同一份契約又禁止改動這兩欄——照契約做必定違反工具。已改為以獨立的 `schema-repair` 事件承載留痕；首例 `REVIEW-007` 於本規則成立前完成，其留痕留在 `disposition`，屬既成事實不回溯調整。(c) `diff_schema_repair()` 除自身測試外**沒有任何 consumer**，與「文字限制」無異；已新增 `test_modified_events_obey_the_schema_repair_allowlist`，比對 `git merge-base` 與工作區的 event log，對兩邊都存在但內容不同的事件強制套用白名單。**基準取 merge-base 而非 `origin/main` tip**——lifecycle 事件只落 main、執行分支通常落後，拿 tip 當基準會把「main 上較新的事件」誤判為分支刪除了它們（初版即如此，實測誤報多筆「遭刪除」）。**據實記載的不涵蓋**：直接在 main 上改寫已推送歷史（本測試以 merge-base 為基準，基準本身被改寫時無從察覺）、淺 clone／離線時 skip。F003 卡面兩處 173 → 172；Log 內記錄更正歷史的 173 屬正確保留。
