@@ -2,6 +2,7 @@
 
 - 需求：ruan6047　規劃：本卡 spec　分支：`ai/<執行者>/INGEST-PLAYER-BIO-GAP1`
 - 執行：待指派　查核：待指派（≠ 執行；輕量——核對補值來源、寫入冪等與敏感度輸出照實記錄）
+- review_independence: [context]
 - Initiative：INIT-OFFICIAL-DATA1　spec 基線：v1
 - DB：`db_scope: write`（只 UPDATE `cpbl.players` 的 bio 欄，不改 schema、不動其他表）
 - 部署：是　環境：production（本機補值後照 Runbook §3 同步生產）　PR：—　Merge SHA：—
