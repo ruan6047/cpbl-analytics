@@ -19,7 +19,7 @@
 | [INGEST-GAME-TM-REFACTOR1-G4](tasks/INGEST-GAME-TM-REFACTOR1-G4.md) | INIT-OFFICIAL-DATA1 | T4 | 逐球正式 writer 切換至單場 API 並對齊存量 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-03T17:49:14+08:00 |
 | [INGEST-LIVE-RECONCILE1](tasks/INGEST-LIVE-RECONCILE1.md) | — | T4 | 將官方 LIVE 暫態逐球納入每日可追溯校正 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-03T01:33:46+08:00 |
 | [INGEST-PA-DAILY1](tasks/INGEST-PA-DAILY1.md) | — | T3 | canonical PA build 接進每日 refresh 鏈 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-26T20:55:46+08:00 |
-| [INGEST-PLAYER-BIO-GAP2](tasks/INGEST-PLAYER-BIO-GAP2.md) | INIT-OFFICIAL-DATA1 | T2 | 補齊 14 人的 handedness 與 batch 2 其餘 bio 欄 | Claude Opus 5@Claude Code | `ai/opus-5/INGEST-PLAYER-BIO-GAP2 @ .claude/worktrees/ingest-player-bio-gap2-execution` | 1 | 🚧執行中 | ⏸未部署 | 2026-08-03T19:29:11+08:00 |
+| [INGEST-PLAYER-BIO-GAP2](tasks/INGEST-PLAYER-BIO-GAP2.md) | INIT-OFFICIAL-DATA1 | T2 | 補齊 14 人的 handedness 與 batch 2 其餘 bio 欄 | 待指派（查核；≠ 執行者。卡面 review_independence: [context]） | `ai/opus-5/INGEST-PLAYER-BIO-GAP2 @ .claude/worktrees/ingest-player-bio-gap2-execution` | 1 | 🔍待查核 | ⏸未部署 | 2026-08-03T19:34:50+08:00 |
 | [INGEST-POSTGAME-FINALIZE1](tasks/INGEST-POSTGAME-FINALIZE1.md) | — | T3 | 依官方可用性補齊完賽資料 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-03T01:04:14+08:00 |
 | [INGEST-SPLITS-IMPORT-RESTATE1](tasks/INGEST-SPLITS-IMPORT-RESTATE1.md) | INIT-OFFICIAL-DATA1 | T3 | 重建 2025 本土／外籍分項以吸收 bio 補值 | Claude Opus 5@Claude Code | `ai/opus-5/INGEST-SPLITS-IMPORT-RESTATE1 @ .claude/worktrees/ingest-splits-import-restate1-execution` | 1 | ⏸阻塞 | ⏸未部署 | 2026-08-03T19:28:34+08:00 |
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | 子卡依 v1.3 藍圖推進 | — | 0 | 📥Backlog | —不適用 | 2026-07-27T18:14:24+08:00 |
