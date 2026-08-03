@@ -6,7 +6,7 @@
 - Initiative：—　spec 基線：—
 - DB：`db_scope: schema`（新增或擴充 provisional source revision 的 append-only 儲存；`migration_phase: expand`）
 - 部署：是　環境：本機 ingest＋production 同步　PR：—　Merge SHA：—
-- **最早可實作時間**：不早於 **2026-08-08** 的 `INGEST-GAME-TM-REFACTOR1` Gate 3 觀測收窗報告完成後；實際 claim 還須該卡 Gate 4 的需求方 production sign-off 與本卡 Design Gate。任一前置未滿足時維持 Backlog。
+- **最早可實作時間**：Gate 3 觀測窗**已於 2026-08-03（第 9 天、`run_id=14`）依需求方裁示收窗**，原寫的「不早於 2026-08-08」以跑滿 14 天為前提，該前提已不成立，故**日期下限解除**。實際 claim 仍硬依賴 `INGEST-GAME-TM-REFACTOR1-G4` 的 Gate 4 需求方 production sign-off 與本卡 Design Gate；任一前置未滿足時維持 Backlog。
 - 範圍：將官方 LIVE 視為 provisional 基底，讓每日正式爬取可依來源版本校正，而非讓 Redis 快照直接覆寫賽後權威資料。
 - Discovery：`docs/research/GAME_TM_SHADOW_OBSERVATION.md` §4–5（現行正式 writer 與單場 API 的 14 天 shadow 證據）；需補本卡來源版本／衝突矩陣。
 - Design：待需求方核可（provisional 欄位範圍、promotion／correction 優先序、使用者可見的 provisional 標示、保留期與回滾）。
@@ -29,11 +29,11 @@ production 已有原始 TrackMan，但缺 canonical PA build 時前端必須 fai
 - [ ] promotion 至 `cpbl.pitch_tracking` 前，逐球鍵、row count、球數序與必要 TrackMan 直接值均通過預先核可的完整性 gate；未通過者停留 provisional 並在 API 回傳 pending／unknown，不得猜測或混合來源。
 - [ ] canonical PA build 與其所有相依表納入同一受控同步族；有原始 TrackMan 但沒有 published mapping 時可觀測、可補建，逐球 UI 繼續 fail-closed。
 - [ ] 本機與 production 的 source revisions、promotion 狀態、逐球列數與 checksum 可對帳；production 寫入前必有完整備份，且提供僅回退本卡新資料的程序。
-- [ ] `INGEST-GAME-TM-REFACTOR1` Gate 3 收窗前不修改 `run_refresh_recent.py` 的正式 `pitch_tracking` writer，也不把 provisional 資料併入其對帳母體。
+- [ ] 在 `INGEST-GAME-TM-REFACTOR1-G4` 完成 cutover 並取得 production sign-off 前，不修改 `run_refresh_recent.py` 的正式 `pitch_tracking` writer，也不把 provisional 資料併入其對帳母體。（Gate 3 收窗前的觀測隔離義務已於 2026-08-03 履行完畢。）
 
 ## 紅線（違反即退回）
 
-1. 2026-08-08 前（或 Gate 3 實測收窗日較晚者）禁止改寫正式 `pitch_tracking` writer、baseline 或 shadow 表；剩餘每一天的 Gate 3 report 必須仍以既有 logs writer 對單場 API 對帳。〔觀測隔離〕
+1. Gate 3 觀測窗已於 2026-08-03 收窗、凍結解除，本條的觀測隔離義務**已履行完畢**。改寫正式 `pitch_tracking` writer 的權責自此歸 `INGEST-GAME-TM-REFACTOR1-G4`：本卡在該卡完成 cutover 並取得 production sign-off 前，仍不得改動逐球正式 writer，亦不得把 provisional 資料併入其對帳母體。〔writer 單一權責〕
 2. 每筆 promotion 必須有 `official source payload hash`、抓取時間與來源類型；缺任一項不得寫入 canonical 表。不得以 Redis key、記憶體內容或 UI 顯示當作來源證據。〔可追溯性〕
 3. 對同一 `(year, kind_code, game_sno, pitcher_acnt, pitch_cnt)`，revision 不同時不得無條件 last-write-wins；必須依核可的官方來源優先序與完整性 gate 決定，並留下衝突／決策紀錄。〔資料正確性〕
 4. production promotion 前，目標場 TrackMan row count 與已核可來源的差異必為 0，或每個差異都有 `mapping_failed`／官方缺值的逐列證據；「接近完整」不得放行。〔完整性〕
@@ -48,7 +48,7 @@ production 已有原始 TrackMan，但缺 canonical PA build 時前端必須 fai
 
 ## 依賴與邊界
 
-- 硬依賴：`INGEST-GAME-TM-REFACTOR1` Gate 3 收窗、Gate 4 核可與需求方 production sign-off；最早可執行日僅為排程下限，非自動開工授權。
+- 硬依賴：Gate 3 收窗（**已於 2026-08-03 達成**）、`INGEST-GAME-TM-REFACTOR1-G4` 的核可與需求方 production sign-off（**未達成**）。日期下限已解除，但那從來只是排程下限、非自動開工授權——真正的閘門是 Gate 4 的 sign-off 與本卡 Design Gate。
 - 受影響但不在本卡偷渡實作：`INGEST-PA-DAILY1`（每日 PA build／同步）與 `INGEST-POSTGAME-FINALIZE1`（完賽補齊節點）；claim 時須先對帳資源並決定垂直切片。
 - 不調整賽中 UI，不把 provisional 資料標成賽後最終判決，也不在本卡重新設計逐球顯示文案。
 
