@@ -42,7 +42,7 @@
 | [OPS-REMOTE-WORKER1](tasks/OPS-REMOTE-WORKER1.md) | INIT-PRODUCT-UX | T4 | 隔離式遠端 crawler shadow worker | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:39+08:00 |
 | [OPS-WEB-DEPS1](tasks/OPS-WEB-DEPS1.md) | — | T2 | 前端相依套件漏洞（1 critical ＋ 3 high，皆為建置面） | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-29T22:51:02+08:00 |
 | [UX-BRAND-HOME1](tasks/UX-BRAND-HOME1.md) | INIT-PRODUCT-UX | T3 | 站名品牌化與首頁門面升級 | ruan6047（可 release） | `ai/codex/UX-BRAND-HOME1 @ /private/tmp/cpbl-ux-brand-home1` | 3 | 📦已合併 | ✅已驗證 | 2026-08-02T12:26:06+08:00 |
-| [UX-BRAND-HOME1-FIX1](tasks/UX-BRAND-HOME1-FIX1.md) | INIT-PRODUCT-UX | T2 | description metadata 未隨品牌與副標收斂 | 待指派（≠ 執行者 Claude 家族；卡面 review_independence: [cross_family_or_human]） | `ai/opus-5/UX-BRAND-HOME1-FIX1 @ /private/tmp/cpbl-brand-fix1` | 1 | 🔍待查核 | ⏸未部署 | 2026-08-03T11:53:00+08:00 |
+| [UX-BRAND-HOME1-FIX1](tasks/UX-BRAND-HOME1-FIX1.md) | INIT-PRODUCT-UX | T2 | description metadata 未隨品牌與副標收斂 | 待指派（≠ 執行者 Claude 家族；卡面 review_independence: [cross_family_or_human]） | `ai/opus-5/UX-BRAND-HOME1-FIX1 @ /private/tmp/cpbl-brand-fix1` | 1 | 🔍待查核 | ⏸未部署 | 2026-08-03T12:04:00+08:00 |
 | [UX-GAME-PA1](tasks/UX-GAME-PA1.md) | INIT-GAME-RECAP | T3 | 逐打席與逐球脈絡探索器 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-22T16:51:11+08:00 |
 | [UX-GAME-RECAP1](tasks/UX-GAME-RECAP1.md) | INIT-GAME-RECAP | T3 | 結論先行的單場賽後復盤 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-17T04:44:40+08:00 |
 | [UX-HOME-LIVE-STRIP1](tasks/UX-HOME-LIVE-STRIP1.md) | INIT-PRODUCT-UX | T3 | 首頁 live 比賽精簡狀態列 | 待指派（先 Discovery 與需求方 Design Gate） | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-02T11:32:41+08:00 |
