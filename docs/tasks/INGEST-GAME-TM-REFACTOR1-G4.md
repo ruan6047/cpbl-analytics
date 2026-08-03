@@ -98,8 +98,9 @@ Gate 3 於 2026-08-03（第 9 天、`run_id=14`）依需求方裁示提前收窗
 - [ ] Phase B 完成後對帳本機與 production 的 `pitch_tracking` 列數、PK 集合與 checksum，
       並保留回滾程序與其實測結果。
 - [ ] `uv run ruff check`、`uv run pytest`、`git diff --check` 全綠；部署 handoff 須以
-      `git merge-base --is-ancestor` 逐張列出本次 submodule bump 順帶帶上生產的卡
-      （已知 `LIVE-SNAPSHOT-FIELDS1` 現為 🚀部署待實測）。
+      `git merge-base --is-ancestor` 逐張列出本次 submodule bump 順帶帶上生產的卡——
+      Ledger 的「待部署」可能落後真實（碼已在生產），判斷一律對主站**現行** submodule
+      指標，不以卡面狀態推定。
 
 ## 依賴與邊界
 
