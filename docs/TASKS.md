@@ -19,7 +19,7 @@
 | [INGEST-GAME-TM-REFACTOR1-G4](tasks/INGEST-GAME-TM-REFACTOR1-G4.md) | INIT-OFFICIAL-DATA1 | T4 | 逐球正式 writer 切換至單場 API 並對齊存量 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-03T17:49:14+08:00 |
 | [INGEST-LIVE-RECONCILE1](tasks/INGEST-LIVE-RECONCILE1.md) | — | T4 | 將官方 LIVE 暫態逐球納入每日可追溯校正 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-03T01:33:46+08:00 |
 | [INGEST-PA-DAILY1](tasks/INGEST-PA-DAILY1.md) | — | T3 | canonical PA build 接進每日 refresh 鏈 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-26T20:55:46+08:00 |
-| [INGEST-PLAYER-BIO-GAP1](tasks/INGEST-PLAYER-BIO-GAP1.md) | INIT-OFFICIAL-DATA1 | T3 | 補齊 14 位球員的 country／birthday | 待指派（查核；≠ 執行者。🔴統計紅線卡須換模型家族，前三輪查核者 GPT-5.6@Codex 複審為佳） | `claude/ingest-player-bio-gap1-d85723 @ .claude/worktrees/ingest-player-bio-gap1-d85723` | 3 | 🔍待查核 | ⏸未部署 | 2026-08-03T16:04:36+08:00 |
+| [INGEST-PLAYER-BIO-GAP1](tasks/INGEST-PLAYER-BIO-GAP1.md) | INIT-OFFICIAL-DATA1 | T3 | 補齊 14 位球員的 country／birthday | 待指派（查核；≠ 執行者。獨立性下限見 review_prompt；卡面〈查核〉欄原文為「≠ 執行；輕量」，卡面缺 review_independence 欄位待需求方裁定） | `claude/ingest-player-bio-gap1-d85723 @ .claude/worktrees/ingest-player-bio-gap1-d85723` | 3 | 🔍待查核 | ⏸未部署 | 2026-08-03T18:35:00+08:00 |
 | [INGEST-POSTGAME-FINALIZE1](tasks/INGEST-POSTGAME-FINALIZE1.md) | — | T3 | 依官方可用性補齊完賽資料 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-03T01:04:14+08:00 |
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | 子卡依 v1.3 藍圖推進 | — | 0 | 📥Backlog | —不適用 | 2026-07-27T18:14:24+08:00 |
 | [INIT-OFFICIAL-DATA1](tasks/INIT-OFFICIAL-DATA1.md) | INIT-OFFICIAL-DATA1 | T4 | 官方資料契約完整性與低維護 ingest | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:00+08:00 |
