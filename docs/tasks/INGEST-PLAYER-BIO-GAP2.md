@@ -3,7 +3,8 @@
 - review_independence: [context]
 - 需求：ruan6047（2026-08-03 於 `INGEST-PLAYER-BIO-GAP1` 合併後指示開卡）　規劃：本卡 spec　分支：`ai/<執行者>/INGEST-PLAYER-BIO-GAP2`
 - 執行：待指派（建議 L2；走 canonical CLI，範圍窄）　查核：待指派（新 session 即可；≠ 執行）
-- Initiative：INIT-OFFICIAL-DATA1　spec 基線：v2（v1 範圍過窄，見背景「v1 範圍錯誤」節）
+- Initiative：INIT-OFFICIAL-DATA1　spec 基線：v1（＝父卡當前版本）
+- 卡面修訂：rev2（2026-08-03 範圍 8→14，見背景「rev1 範圍錯誤」節與 `SCOPE-002` 事件）
 - 下游：`INGEST-SPLITS-IMPORT-RESTATE1` 以本卡為**硬前置**（本卡不補 `throws`，該卡即為 no-op）
 - DB：`db_scope: write`（只 UPDATE `cpbl.players` 的 bio 欄；不改 schema、不動其他表、`migration_phase: none`）
 - 部署：是　環境：production（每日鏈自動同步，無獨立 deploy 動作）　PR：—　Merge SHA：—
@@ -20,9 +21,9 @@
 但該卡的 `db_scope` 只授權 `country`／`birthday` 兩欄，寫入走**專用窄 UPDATE**
 （結構上碰不到其餘欄位）。**這不是缺口未查明，是刻意留下的範圍邊界。**
 
-### ⚠️ v1 範圍錯誤（2026-08-03 實測更正）
+### ⚠️ 卡面 rev1 的範圍錯誤（2026-08-03 實測更正）
 
-v1 把範圍寫成「batch 2 的 8 人」，**過窄**。`cf9d8b8` 加的是「**handedness**, country,
+rev1 把範圍寫成「batch 2 的 8 人」，**過窄**。`cf9d8b8` 加的是「**handedness**, country,
 birthday」三者，所以 **batch 1 那 6 人的 `bats`／`throws` 一樣是 NULL**（他們只是靠更早的
 解析器拿到了 height／weight／debut／birthplace）。
 
@@ -127,6 +128,6 @@ debut／birthplace 是有值的**，`_upsert` 撞到退化頁會把它們覆蓋�
 - 2026-08-03 依 ruan6047 指示開卡（`INGEST-PLAYER-BIO-GAP1` 合併後的範圍外待辦具體化）。
   開卡時已查證：8 人其餘 bio 欄 8/8 仍全 NULL、官網頁面確有這些值、`--skip-done` 會跳過他們
   （時間戳已被 GAP1 更新為 2026-08-03），事實寫入背景節省執行者重複探查。
-- 2026-08-03 v2：`INGEST-SPLITS-IMPORT-RESTATE1` v1 執行時實測發現範圍過窄——`bats`／`throws`
+- 2026-08-03 rev2：`INGEST-SPLITS-IMPORT-RESTATE1` 執行時實測發現範圍過窄——`bats`／`throws`
   是全部 14 人皆缺（非只有 batch 2 的 8 人），且它正是本土／外籍分項的綁定條件。
   級別由 T2⚪ 升為 T2🔴資料正確性（本卡是下游資料正確性的解鎖點），範圍 8 → 14。

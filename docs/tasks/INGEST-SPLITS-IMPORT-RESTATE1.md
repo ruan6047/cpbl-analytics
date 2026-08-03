@@ -3,7 +3,8 @@
 - review_independence: [cross_family]
 - 需求：ruan6047（2026-08-03 於 `INGEST-PLAYER-BIO-GAP1` 合併後指示開卡）　規劃：本卡 spec　分支：`ai/<執行者>/INGEST-SPLITS-IMPORT-RESTATE1`
 - 執行：待指派（建議 L3；既有 canonical 管線重跑＋對帳，無新計算邏輯）　查核：待指派（跨家族；≠ 執行）
-- Initiative：INIT-OFFICIAL-DATA1　spec 基線：v2（v1 兩處前提經實測推翻，見背景節）
+- Initiative：INIT-OFFICIAL-DATA1　spec 基線：v1（＝父卡當前版本）
+- 卡面修訂：rev2（2026-08-03 兩處前提經實測推翻，見背景節與 `BLOCKED-003` 事件）
 - 硬前置：`INGEST-PLAYER-BIO-GAP2`（補 `bats`／`throws`）完成並查核通過前，本卡為 no-op
 - DB：`db_scope: write`（重建 `cpbl.batting_splits`／`pitching_splits` 等四表的 2025 與生涯列；不改 schema、`migration_phase: none`）
 - 部署：是　環境：production（每日鏈自動同步，無獨立 deploy 動作）　PR：—　Merge SHA：—
@@ -25,9 +26,9 @@
 **這不是計算錯誤，是輸入變更後的重述** [restatement]：`splits_calc` 的邏輯已於
 `INGEST-SPLITS-RECALC1` 查核通過並完成本機與生產重建，本卡**不改任何計算邏輯**。
 
-### ⚠️ spec v1 的兩處錯誤（2026-08-03 實測推翻，v2 更正）
+### ⚠️ 卡面 rev1 的兩處錯誤（2026-08-03 實測推翻，rev2 更正）
 
-**錯誤 1：綁定條件不是 `country`，是 `throws`。** v1 沿用 `INGEST-PLAYER-BIO-GAP1`
+**錯誤 1：綁定條件不是 `country`，是 `throws`。** rev1 沿用 `INGEST-PLAYER-BIO-GAP1`
 診斷 §6 的說法「這 14 人 country 為 NULL → 一律計入 VS. 本土投手」，**該說法為假**。
 [`splits_calc.py:388`](../../src/cpbl/ingest/splits_calc.py) 的本土／外籍 bucket
 **只在 `p_throws` 有值時才產生**，否則整個打席記進 `missing_pitcher_bio` 丟棄——
@@ -35,14 +36,14 @@
 
 `cf9d8b8` 加的是「**handedness**, country, birthday」三者，故這 14 人連 `bats`／`throws`
 都是 NULL（實查：14/14 皆 NULL，且**全表僅此 14 人** `throws` 為 NULL）。
-**只補 `country` 對本路徑完全無效**：v1 的作法實跑後四張表**零變動**
+**只補 `country` 對本路徑完全無效**：rev1 的作法實跑後四張表**零變動**
 （對帳工具已做變異檢驗，證明抓得到變動）。
 
 → **硬前置改為 `INGEST-PLAYER-BIO-GAP2`**（補 `bats`／`throws`）。該卡完成前本卡是 no-op。
 （此錯誤**不影響** `ML-WP-BIO-PRIOR1` 的敏感度結論——ML 特徵直接呼叫 `classify()`，
 無 `throws` 閘門，`identity_slots` 確實有 298→462 的搬移。是兩條不同路徑。）
 
-**錯誤 2：v1 宣稱連帶重建生涯「是正確行為」，該宣稱為假且會造成資料損壞。**
+**錯誤 2：rev1 宣稱連帶重建生涯「是正確行為」，該宣稱為假且會造成資料損壞。**
 `build_career(season)` ＝ base ＋ **該 season**，而 base ＝ 官方生涯 − 官方**當前**球季
 （＝2025 以前的歷史）。故 `cpbl-build-splits 2025` 產生的是 base+2025，
 **把 2026 整季換成 2025**。2026-08-03 實跑造成 17,306 列生涯值被改寫，
@@ -65,7 +66,7 @@
    `uv run cpbl-build-splits 2025`，使 2025 的本土／外籍分項納入那 14 位洋投的席次。
 2. 對帳確認變動**限於**與那 14 位洋投對戰過的打者，且方向正確：這批席次原本
    **兩邊都沒算到**（`missing_pitcher_bio`），補完後應**進入「VS. 外籍投手」**
-   ——是**淨增加**，不是本土側減少等量搬到外籍側（v1 對方向的描述亦錯）。
+   ——是**淨增加**，不是本土側減少等量搬到外籍側（rev1 對方向的描述亦錯）。
 3. 生涯（9999）**必須零變動**：那 14 人 2026 零出賽，且 base 來自官方生涯資料。
    生涯若有任何變動即為異常（多半是誤跑了非當季的 `build_career`，見紅線 5）。
 
@@ -88,7 +89,7 @@
    `DELETE year=9999` 後全量重插，破壞是全表級的。
    **本卡需要的是 2025 的 `build_splits`，不需要也不可以動生涯。**
    若必須以 CLI 執行，跑完**立刻**以 `uv run cpbl-build-splits <當前年>` 還原生涯，
-   並在交付文件證明生涯與前態逐格相同（2026-08-03 v1 執行時已實際踩過此坑）。
+   並在交付文件證明生涯與前態逐格相同（2026-08-03 rev1 執行時已實際踩過此坑）。
 
 ## 驗收條件
 
@@ -127,6 +128,6 @@
 - 2026-08-03 依 ruan6047 指示開卡（`INGEST-PLAYER-BIO-GAP1` 合併後的範圍外待辦具體化）。
   開卡時已查證：683 列、`updated_at` 2026-07-31 06:04 UTC、`build_splits` 之後會接 `build_career`
   （寫入範圍含生涯分項），事實寫入背景節省執行者重複探查。
-- 2026-08-03 v1 執行後**停下回報需求方**：實測推翻 v1 兩處前提（綁定條件是 `throws` 非 `country`；
-  連帶重建生涯不是正確行為而是資料損壞），spec 升 v2、硬前置改為 `INGEST-PLAYER-BIO-GAP2`、
+- 2026-08-03 rev1 執行後**停下回報需求方**：實測推翻兩處前提（綁定條件是 `throws` 非 `country`；
+  連帶重建生涯不是正確行為而是資料損壞），卡面升 rev2、硬前置改為 `INGEST-PLAYER-BIO-GAP2`、
   新增紅線 5。生涯損壞已還原且逐格驗證。
