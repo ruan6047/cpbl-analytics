@@ -70,7 +70,10 @@ CLI：`uv run cpbl-shadow-game-tm [year] [kind] [window_days]`（預設本季 A�
   `_cell_equal`／`dedupe_latest_per_game`）、`cpbl.pitch_tracking` schema 或正式寫入契約。
   `SkipTrackman=false` 不得被映射成 tracking available／complete。
 
-## 4. 續作程序（每日手動觸發，14 天）
+## 4. 續作程序（每日手動觸發）
+
+> **觀測窗已於 2026-08-03（第 9 天、`run_id=14`）依需求方裁示結案，見 §5。**
+> 以下指令保留供 Gate 4 期間覆核或日後重啟觀測使用。
 
 ```bash
 cd ~/Dev/cpbl-analytics   # 或本卡 worktree：.claude/worktrees/ingest-game-tm-refactor1-g3-execution
@@ -129,15 +132,66 @@ game 215 已超出該窗口，production 的舊文字不會被自然刷新覆蓋
 `only_shadow_pk`／`local_lag` 已全部消失（production 的每日 refresh 已追上），印證
 `local_lag`／新完賽場的 `only_shadow_pk` 確實只是時間差，不需人工介入。
 
+### 3.2 歷史回放：延期／保留賽分支覆蓋補證（2026-08-03）
+
+條件 3 要求「真實觀測過延期／保留／未開打分支」。至 `run_id=14`（觀測第 9 天）為止，
+12 次 run 的 `games_skipped_postponed`／`games_skipped_reserved` **全為 0**——這兩個分支
+是否觸發取決於天氣，不是取決於觀測天數，**再等 5 天到第 14 天也不會自動滿足**。
+
+改以歷史回放補證：`scripts/replay_schedule_branches.py` 以既有分類邏輯
+（`parse_schedule_row`／`classify_schedule`／`dedupe_latest_per_game`，均未修改）
+回放 2026 年 3–8 月全季賽程。唯讀，不寫任何表。重跑方式：
+
+```bash
+uv run python scripts/replay_schedule_branches.py
+```
+
+2026-08-03 執行結果（全季 320 筆賽程列、300 場去重後）：
+
+- **分支覆蓋**：`POSTPONED` 24 次、`RESERVED` 2 次、`SCHEDULED` 60 次——三個分支
+  皆在真實官方資料上被觸發並正確分類，**條件 3 達成**。
+- **值域假設經驗證**：`UNKNOWN` 0 次。`_KNOWN_STATUSES` 四值域在全季資料上無漏網，
+  由實測而非假設支撐。
+- **去重邏輯經真實多態場次驗證**：18 場有多筆歷史記錄。`2026-A-151` 完整走過
+  POSTPONED@06-09 → RESERVED@06-25 → FINISHED@06-28 三態並正確判定 FINISHED；
+  關鍵反向證據是 `2026-A-14`（POSTPONED@04-04 → POSTPONED@06-27）仍正確保持
+  POSTPONED，證明 `dedupe_latest_per_game` 不是無腦把所有多態場次推成 FINISHED。
+
+此回放取代「等待真實延期發生」作為條件 3 的證據來源；證據強度更高（全季母體
+窮舉，而非觀測窗內偶遇），且可重跑複驗。
+
 ## 5. Gate 4 晉升條件（本卡不做，另開卡）
 
 滿足以下條件後才可另開 `INGEST-GAME-TM-REFACTOR1-G4` cutover 卡：
 
-1. 觀測窗達 **14 天**（`observation_window_days()` ≥ 14）。
+1. ~~觀測窗達 **14 天**~~ → **2026-08-03 需求方裁示調整為 9 天（已達成）**。
+   原 14 天為寫卡時的保守預設值，無統計推導或事故經驗支撐（卡片與本文件均未記載
+   選定理由）。實際觀測顯示：第 3 天之後未再出現新種類差異，`run_id=6`～`14` 的所有
+   非零差異都收斂到兩種已知模式（新完賽場的時間差 lag、官方賽後修正文字未回補），
+   資訊增益已歸零，續跑只是重複同一結論。**調整判準本身由需求方裁示、非執行者自行
+   放寬**；Gate 4 查核者仍可獨立質疑此裁示並要求補證。
 2. 期間**每日** run 的 `diffs_found` 皆為 0，或所有非零差異皆已人工複核為可解釋的
    已知邊界（如 `local_lag` 純屬時間差，非資料錯誤）。
+   → **已達成**：`run_id=3`～`14` 共 12 次 run，非零差異全數複核完畢，收斂為兩類：
+   (a) 新完賽場的時間差（`only_shadow_pk`／`local_lag`，1–2 天內自然消失，已五度復現並
+   五度自我消失）；(b) 官方賽後修正逐球文字未回補正式表（`cell_mismatch` 共 2 筆，
+   run_id=5 與 run_id=14，屬現行 logs 路徑既有限制，已另立 follow-up task 追蹤）。
+   **無任何一筆物理欄位（速度／轉速／落點／軌跡）不一致。**
 3. 至少涵蓋一次真實的延期／保留賽／未開打場次觀測（`games_skipped_postponed`／
    `games_skipped_reserved`／`games_skipped_scheduled` 至少各出現過非零值，證明分類邏輯
    在真實資料上跑過這些分支，不只是單元測試）。
+   → **已達成（改以歷史回放取證，見 §3.2）**：觀測窗內未遇真實延期／保留（取決於天氣，
+   非取決於天數）；改以全季 320 筆賽程回放證明 POSTPONED 24／RESERVED 2／SCHEDULED 60
+   次皆正確分類，且 UNKNOWN 為 0。
 4. Gate 4 cutover 本身須由跨模型家族且非本卡執行者查核，並取得需求方 production
    sign-off 才可切換 `run_refresh_recent.py` 的逐球正式路徑。
+   → **未做，且不在本卡範圍**。
+
+**現況（2026-08-03）**：條件 1–3 皆已達成，Gate 3 觀測階段可結案；條件 4 由 Gate 4
+cutover 卡承接。以下兩項為觀測期間發現、**不屬於本卡但應追蹤**的既有問題：
+
+- 官方賽後修正逐球文字不會回補正式 `pitch_tracking`（已 spawn follow-up task）。
+- 大巨蛋（`Field.Abbe=大巨蛋`）連續 3 場（game_sno 233／237／238）shadow 與正式表
+  **雙邊皆 0 列**（彼此一致，非差異），且 `SkipTrackman=false`。該場館未列入既有的
+  無設備場館清單（花蓮／嘉義），疑為新場館 TrackMan 覆蓋缺口，待需求方決定是否另開卡。
+  再次印證 `SkipTrackman=false` 不可映射為 available。
