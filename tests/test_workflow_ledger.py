@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 
 SCRIPT_PATH = Path(__file__).parents[1] / "scripts" / "workflow_ledger.py"
@@ -946,3 +947,387 @@ def test_render_live_orders_in_flight_by_recency() -> None:
     ], generated_at="2026-07-17T18:00:00+08:00")
 
     assert rendered.index("CARD-NEW") < rendered.index("CARD-OLD")
+
+
+# --- 真實 event log 的 schema 守衛（DEV-EVENT-SCHEMA-GUARD1）---------------------
+#
+# 本檔其餘測試都用**合成 fixture** 驗證器邏輯；下面兩條是唯一拿驗證器去掃**真實**
+# `docs/control-plane/events.jsonl` 的守衛。缺了它們，schema 不合法的事件可以一路
+# 通過 commit、push 與 CI，之後每次 `workflow_ledger.py --write/--check` 都在同一行
+# 崩潰、`docs/TASKS.md` 永久停在舊投影——2026-08-02 的 `UX-BRAND-HOME1-REVIEW-007`
+# 即為實例（四個非法欄位，靜默卡住 ledger 逾 40 分鐘、兩次 commit 帶著陳舊投影上 main）。
+#
+# **涵蓋**：`contract-baseline` 之後每一筆 review 事件的結構化 schema（欄位齊備、
+# severity／status／finding_class／attribution 列舉值、`counts_toward_escalation` 由
+# findings 推導），以及整份 log 的 replay 契約（epoch 遞增、finding 衝突裁決、
+# checkpoint 強制）——即 `render_ledger` 會走到的全部驗證。
+#
+# **不涵蓋**：(1) baseline 之前的既有事件——驗證器刻意跳過它們（早期無結構化 findings
+# 的格式，全庫 172 筆），本守衛不得讓它們開始失敗；(2) 事件內容的**語意正確性**
+# ——schema 合法不代表判定正確，那要靠查核；(3) 寫入當下的即時攔截——本守衛在
+# pytest/CI 執行，壞資料仍可能先進 commit，只是會在 CI 於數分鐘內轉紅而非靜默。
+def test_real_event_log_passes_schema_and_replay_contract() -> None:
+    events = workflow_ledger._load_events(workflow_ledger.EVENTS_PATH)
+    # render_ledger 內含 _validate_review_contract 的完整 replay；拋錯即代表
+    # 真實 log 已有不可投影的事件，必須在合併前修掉。
+    workflow_ledger.render_ledger(events)
+
+
+def test_real_event_log_guard_actually_catches_malformed_events() -> None:
+    """負向測試：證明上一條守衛真的會紅，而不是碰巧全綠。
+
+    以 2026-08-02 實際發生的缺陷型態（finding status 用了非法列舉值）注入一筆
+    合成事件；若驗證器放行，代表守衛已失效。
+    """
+    malformed = {
+        "event_id": "CARD-MALFORMED-REVIEW-001",
+        "card_id": "CARD-MALFORMED",
+        "type": "review",
+        "actor": "ruan6047",
+        "occurred_at": "2026-08-02T12:00:00+08:00",
+        "state_version": 1,
+        "iteration": 1,
+        "source_sha": FULL_SHA,
+        "attempt_id": f"CARD-MALFORMED-e0-{FULL_SHA}",
+        "escalation_epoch": 0,
+        "preflight_passed": True,
+        "review_result": "REQUEST_CHANGES",
+        "counts_toward_escalation": False,
+        "findings": [{
+            "finding_id": "F1",
+            "severity": "major",
+            "blocking": True,
+            "accepted": False,
+            "status": "rejected",          # 非法：僅 open/resolved/withdrawn
+            "finding_class": "governance",
+            "attribution": "coordinator",
+            "root_cause_id": "rc",
+            "evidence": "e",
+            "disposition": "d",
+        }],
+    }
+    try:
+        workflow_ledger._validate_review_event(malformed)
+    except ValueError as exc:
+        assert "status 不合法" in str(exc)
+    else:  # pragma: no cover - 守衛失效時才會走到
+        raise AssertionError("驗證器未擋下非法 finding status，真實 log 的守衛已失效")
+
+
+def test_real_event_log_requires_exactly_one_contract_baseline_marker(tmp_path) -> None:
+    """負向測試：刪掉 contract-baseline marker 必須 fail loud（DEV-EVENT-SCHEMA-GUARD1 F001）。
+
+    marker 是全部 schema 驗證的起點——它不在，每一筆 review 都會被當成 baseline 前的舊格式
+    而整批跳過，整條守衛可被**單一刪除動作**繞過。跨家族查核實測：移除該行後全部測試轉綠，
+    等於守衛消失而無人察覺。故此處直接對「缺 marker」與「重複 marker」兩種型態各驗一次。
+    """
+    real = workflow_ledger.EVENTS_PATH.read_text(encoding="utf-8").splitlines()
+
+    without = [
+        line for line in real
+        if json.loads(line).get("contract_baseline") != workflow_ledger.REVIEW_CONTRACT
+    ]
+    assert len(without) == len(real) - 1, "真實 log 應恰有一筆 marker，前提已變請先確認"
+    missing = tmp_path / "missing.jsonl"
+    missing.write_text("\n".join(without) + "\n", encoding="utf-8")
+    try:
+        workflow_ledger._load_events(missing)
+    except ValueError as exc:
+        assert "必須且只能有一筆" in str(exc)
+    else:  # pragma: no cover - 守衛失效時才會走到
+        raise AssertionError("缺 contract-baseline marker 未被擋下，schema 守衛可被繞過")
+
+    marker = next(
+        line for line in real
+        if json.loads(line).get("contract_baseline") == workflow_ledger.REVIEW_CONTRACT
+    )
+    duplicated = tmp_path / "duplicated.jsonl"
+    duplicated.write_text("\n".join(real + [marker]) + "\n", encoding="utf-8")
+    try:
+        workflow_ledger._load_events(duplicated)
+    except ValueError as exc:
+        assert "必須且只能有一筆" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("重複 contract-baseline marker 未被擋下")
+
+
+def _repair_case(**overrides) -> tuple[dict, dict]:
+    before = {
+        "event_id": "CARD-R-REVIEW-001", "card_id": "CARD-R", "type": "review",
+        "actor": "reviewer", "review_result": "REQUEST_CHANGES",
+        "counts_toward_escalation": True, "source_sha": FULL_SHA,
+        "attempt_id": f"CARD-R-e0-{FULL_SHA}", "escalation_epoch": 0,
+        "preflight_passed": True, "evidence": "原始查核意見",
+        "findings": [{
+            "finding_id": "F1", "severity": "major", "blocking": True, "accepted": True,
+            "status": "open", "finding_class": "implementation", "attribution": "executor",
+            "root_cause_id": "rc", "evidence": "e", "disposition": "d",
+        }],
+    }
+    after = json.loads(json.dumps(before))
+    for path, value in overrides.items():
+        if path.startswith("f_"):
+            after["findings"][0][path[2:]] = value
+        else:
+            after[path] = value
+    return before, after
+
+
+def test_schema_repair_whitelist_allows_only_illegal_to_legal_fixes() -> None:
+    """合法修復：**非法值** → 合法值 → 零違規。
+
+    iteration 2 的版本只查欄位名，於是 `status: open → withdrawn` 這種「合法改合法」也放行；
+    跨家族查核指出那等於可用「修格式」之名改寫 finding 狀態與責任歸屬。收緊後修復必須是
+    「原值不合法」才成立——這正是 schema-repair 存在的唯一正當理由。
+    """
+    before, after = _repair_case()
+    before["findings"][0]["status"] = "rejected"          # 非法列舉值
+    before["findings"][0]["finding_class"] = "spec-staleness"  # 非法列舉值
+    assert workflow_ledger.diff_schema_repair(before, after) == []
+
+
+def test_schema_repair_whitelist_blocks_rewriting_already_legal_values() -> None:
+    """負向測試：白名單**內**的欄位，若原值已合法則不得改寫（DEV-EVENT-SCHEMA-GUARD1 F002）。
+
+    跨家族查核實測：`attribution: executor → coordinator` 可直接改寫責任歸屬、
+    `status: open → withdrawn` 可靜默關閉 finding，兩者在 iteration 2 都回傳合法。
+    """
+    for field, value, path in (
+        ("f_attribution", "coordinator", "findings[F1].attribution（已合法值不得改寫）"),
+        ("f_status", "withdrawn", "findings[F1].status（已合法值不得改寫）"),
+        ("f_severity", "info", "findings[F1].severity（已合法值不得改寫）"),
+        ("f_finding_class", "governance", "findings[F1].finding_class（已合法值不得改寫）"),
+    ):
+        before, after = _repair_case(**{field: value})
+        assert path in workflow_ledger.diff_schema_repair(before, after), (
+            f"{path} 未被擋下——白名單內的欄位仍可被用來改寫已合法的判定"
+        )
+
+
+def test_schema_repair_allows_fixing_derived_flag_against_findings() -> None:
+    """`counts_toward_escalation` 是推導值：與 findings 推導不符才算非法、才可修。
+
+    2026-08-02 的 REVIEW-007 正是此型（宣告 True、findings 推導為 False）。
+    若僅以「是不是布林」判斷，該次正當修復會被誤判為改寫。
+    """
+    before, after = _repair_case()                      # findings 為 executor/open/blocking
+    before["counts_toward_escalation"] = False          # 與推導不符 → 非法
+    after["counts_toward_escalation"] = True            # 等於推導 → 合法
+    assert workflow_ledger.diff_schema_repair(before, after) == []
+
+
+def test_schema_repair_whitelist_blocks_judgement_and_identity_fields() -> None:
+    """負向測試：以跨家族查核提出的實際攻擊手法逐一驗證（DEV-EVENT-SCHEMA-GUARD1 F002）。
+
+    契約原文只有文字限制、無工具攔截，查核者證明可用它把 review_result 改成 APPROVE、
+    把 finding 的 blocking 改成 false，並藉「補缺漏必填欄位」重定義 source_sha／attempt_id／
+    escalation_epoch／preflight_passed／accepted／root_cause_id 等判定與身分欄位。
+    白名單改為正面表列後，以下每一種都必須被指出。
+    """
+    attacks = {
+        "review_result": _repair_case(review_result="APPROVE"),
+        "evidence": _repair_case(evidence="改寫過的查核意見"),
+        "actor": _repair_case(actor="someone-else"),
+        "source_sha": _repair_case(source_sha="b" * 40),
+        "attempt_id": _repair_case(attempt_id="CARD-R-e0-" + "b" * 40),
+        "escalation_epoch": _repair_case(escalation_epoch=1),
+        "preflight_passed": _repair_case(preflight_passed=False),
+        "findings[F1].blocking": _repair_case(f_blocking=False),
+        "findings[F1].accepted": _repair_case(f_accepted=False),
+        "findings[F1].root_cause_id": _repair_case(f_root_cause_id="rc-other"),
+        "findings[F1].disposition": _repair_case(f_disposition="改寫過的處置"),
+    }
+    for expected_path, (before, after) in attacks.items():
+        violations = workflow_ledger.diff_schema_repair(before, after)
+        assert expected_path in violations, (
+            f"schema-repair 白名單未擋下 {expected_path}；該欄位承載判定或身分，"
+            "可被用來以「修格式」之名改寫歷史"
+        )
+
+
+def test_schema_repair_whitelist_blocks_adding_or_removing_findings() -> None:
+    before, after = _repair_case()
+    after["findings"] = []
+    assert any("不得新增或移除" in v for v in workflow_ledger.diff_schema_repair(before, after))
+
+
+
+def _events_at(ref: str) -> dict[str, dict] | None:
+    """讀取指定 git ref 的 events.jsonl，回傳 {event_id: event}；取不到回 None。"""
+    import subprocess
+    root = SCRIPT_PATH.parents[1]
+    try:
+        blob = subprocess.run(
+            ["git", "show", f"{ref}:docs/control-plane/events.jsonl"],
+            cwd=root, capture_output=True, text=True, check=True,
+        ).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+    return {
+        str(e["event_id"]): e
+        for e in (json.loads(line) for line in blob.splitlines() if line.strip())
+    }
+
+
+def test_modified_events_obey_the_schema_repair_allowlist() -> None:
+    """強制執行 schema-repair 白名單（DEV-EVENT-SCHEMA-GUARD1 F002）。
+
+    `diff_schema_repair()` 若只是個沒人呼叫的函式，它與「文字限制」沒有差別——
+    跨家族查核正是如此指出：CI 只跑 pytest、未對實際 event log 的 diff 強制驗證，
+    直接改寫既有事件仍可通過全套 CI。
+
+    本測試把該函式接上唯一能自動觸發的地方：比對**分支基底**（`git merge-base origin/main HEAD`）
+    與工作區的 event log，
+    對**兩邊都存在但內容不同**的事件（即就地修改過的事件）逐一套用白名單。
+    event log 是 append-only，正常情況下這個集合恆為空；非空即代表發生了就地修改，
+    此時必須通過白名單（僅限非法→合法的分類欄位）才放行。
+
+    基準取 merge-base 而非 `origin/main` tip：lifecycle 事件依契約只落 main，執行分支通常
+    落後若干筆，拿 tip 當基準會把「main 上較新的事件」誤判為分支刪除了它們。
+
+    **不涵蓋**：(1) 新增事件——那是正常 append，由其他 schema 測試把關；
+    (2) 取不到 merge-base 的環境（淺 clone、離線）——此時 skip 而非誤判通過，
+    因此**不是絕對防線**；(3) 直接在 main 上改寫已推送的歷史——本測試以 merge-base 為基準，
+    基準本身被改寫時無從察覺，那需要 protected branch 或 force-push 稽核，不在本卡範圍。
+    """
+    import subprocess
+
+    import pytest
+    root = SCRIPT_PATH.parents[1]
+    try:
+        merge_base = subprocess.run(
+            ["git", "merge-base", "origin/main", "HEAD"],
+            cwd=root, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pytest.skip("取不到 origin/main 的 merge-base（淺 clone 或離線），本守衛無法運作")
+    base = _events_at(merge_base)
+    if base is None:
+        pytest.skip("取不到 merge-base 的 event log，本守衛無法運作")
+    head = {
+        str(e["event_id"]): e
+        for e in workflow_ledger._load_events(workflow_ledger.EVENTS_PATH)
+    }
+
+    problems: list[str] = []
+    for event_id, before in base.items():
+        after = head.get(event_id)
+        if after is None:
+            problems.append(f"{event_id}：既有事件遭刪除（event log 為 append-only）")
+            continue
+        if before == after:
+            continue
+        violations = workflow_ledger.diff_schema_repair(before, after)
+        if violations:
+            problems.append(f"{event_id}：逾越 schema-repair 白名單 → {violations}")
+
+    assert not problems, (
+        "既有事件遭就地修改且不符 schema-repair 白名單（見 CONTROL_PLANE_CONTRACT.md）：\n  "
+        + "\n  ".join(problems)
+    )
+
+
+def _valid_schema_repair(target: dict, *, before_overrides: dict) -> dict:
+    """造一筆合法的 schema-repair：before 是修復前（含非法值），after 是 log 現況。"""
+    before = json.loads(json.dumps(target))
+    for path, value in before_overrides.items():
+        if path.startswith("f_"):
+            before["findings"][0][path[2:]] = value
+        else:
+            before[path] = value
+    return {
+        "event_id": f"{target['event_id']}-REPAIR-001",
+        "card_id": target["card_id"],
+        "type": "schema-repair",
+        "actor": "ruan6047",
+        "occurred_at": "2026-08-03T16:00:00+08:00",
+        "state_version": 1,
+        "iteration": 0,
+        "repaired_event_id": target["event_id"],
+        "before": before,
+        "after": json.loads(json.dumps(target)),
+        "reason": "原 status 為非法列舉值致 replay 崩潰；append-only 無法以追加事件修復。",
+    }
+
+
+def test_schema_repair_event_requires_full_payload() -> None:
+    """負向測試：缺 payload 的 schema-repair 必須被擋（DEV-EVENT-SCHEMA-GUARD1 F002）。
+
+    iteration 3 只在契約文件定義此型事件、驗證器完全不認識它——跨家族查核實測造一筆
+    缺全部 payload 的 schema-repair，完整 replay 仍通過，等於該規則毫無強制力。
+    """
+    target = {
+        "event_id": "CARD-SR-REVIEW-001", "card_id": "CARD-SR", "type": "review",
+        "findings": [{"finding_id": "F1", "status": "withdrawn"}],
+    }
+    seen = {"CARD-SR-REVIEW-001": target}
+
+    bare = {"event_id": "CARD-SR-REPAIR-001", "card_id": "CARD-SR", "type": "schema-repair"}
+    try:
+        workflow_ledger._validate_schema_repair_event(bare, seen)
+    except ValueError as exc:
+        assert "缺少欄位" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("缺 payload 的 schema-repair 未被擋下")
+
+    good = _valid_schema_repair(target, before_overrides={"f_status": "rejected"})
+    workflow_ledger._validate_schema_repair_event(good, seen)  # 合法者必須放行
+
+    for mutate, expect in (
+        (lambda e: e.update(repaired_event_id="CARD-SR-NOPE"), "不存在"),
+        (lambda e: e.update(reason="   "), "理由"),
+        (lambda e: e["before"].update(review_result="REQUEST_CHANGES"), "逾越白名單"),
+        (lambda e: e["after"]["findings"][0].update(status="resolved"), "現況不一致"),
+    ):
+        broken = json.loads(json.dumps(good))
+        mutate(broken)
+        try:
+            workflow_ledger._validate_schema_repair_event(broken, seen)
+        except ValueError as exc:
+            assert expect in str(exc), f"預期訊息含「{expect}」，實得：{exc}"
+        else:  # pragma: no cover
+            raise AssertionError(f"schema-repair 的 {expect} 情境未被擋下")
+
+
+def test_real_log_accepts_a_well_formed_schema_repair_event() -> None:
+    """正向端到端：完整合法的 schema-repair 附加到**真實 log** 後，完整 replay 仍通過。
+
+    disposition 明確要求「再以一筆完整合法的 schema-repair 事件驗證真實流程可通過」——
+    執行者 iteration 3 發明了此事件型別卻從未實際走過這條路，正是 F002 的成因。
+    這裡在真實 log 之後附加一組**合成卡片**的最小生命週期（review → schema-repair），
+    既不動真實資料，又能證明該型事件在真實 replay 環境下走得通；
+    同時作為「一筆合法的 schema-repair 事件長什麼樣」的可執行範例。
+    """
+    events = workflow_ledger._load_events(workflow_ledger.EVENTS_PATH)
+
+    envelope = {
+        "card_id": "CARD-SR-E2E", "initiative": None, "tier": "T2", "db_scope": "none",
+        "feature": "schema-repair 端到端驗證", "branch_worktree": "—",
+        "source_sha": FULL_SHA, "owner": "ruan6047",
+        "delivery_status": "🔍待查核", "deployment_status": "—不適用",
+        "actor": "ruan6047", "iteration": 1,
+    }
+    review = dict(envelope, **{
+        "event_id": "CARD-SR-E2E-REVIEW-001", "type": "review", "state_version": 1,
+        "occurred_at": "2026-08-03T16:00:00+08:00",
+        "attempt_id": f"CARD-SR-E2E-e0-{FULL_SHA}", "escalation_epoch": 0,
+        "preflight_passed": True, "review_result": "REQUEST_CHANGES",
+        "counts_toward_escalation": True, "evidence": "e",
+        "findings": [{
+            "finding_id": "F1", "severity": "major", "blocking": True, "accepted": True,
+            "status": "open", "finding_class": "implementation", "attribution": "executor",
+            "root_cause_id": "rc", "evidence": "e", "disposition": "d",
+        }],
+    })
+    before = json.loads(json.dumps(review))
+    before["findings"][0]["status"] = "rejected"   # 非法列舉值 → 這才是可修復的情形
+    repair = dict(envelope, **{
+        "event_id": "CARD-SR-E2E-REPAIR-002", "type": "schema-repair", "state_version": 2,
+        "occurred_at": "2026-08-03T16:05:00+08:00",
+        "repaired_event_id": "CARD-SR-E2E-REVIEW-001",
+        "before": before, "after": json.loads(json.dumps(review)),
+        "reason": "原 status 為非法列舉值致 replay 崩潰；append-only 無法以追加事件修復。",
+        "evidence": "schema-repair 留痕；僅改 findings[F1].status，未動任何判定欄位。",
+    })
+
+    workflow_ledger.render_ledger(events + [review, repair])

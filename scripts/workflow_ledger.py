@@ -133,6 +133,45 @@ def _findings_conflict(
     return any(previous[field] != current[field] for field in FINDING_CONFLICT_FIELDS)
 
 
+SCHEMA_REPAIR_FIELDS = {"repaired_event_id", "before", "after", "reason"}
+
+
+def _validate_schema_repair_event(event: dict, seen_by_id: dict[str, dict]) -> None:
+    """`schema-repair` 事件的專屬驗證（DEV-EVENT-SCHEMA-GUARD1 F002 iteration 4）。
+
+    契約要求此型事件承載修復留痕，但 iteration 3 只在文件裡定義、**驗證器完全不認識它**
+    ——跨家族查核實測：造一筆缺全部 payload 的 `schema-repair`，完整 replay 仍通過。
+    等於「以獨立事件留痕」這條規則沒有任何強制力。
+
+    本函式要求：payload 四欄齊備；`repaired_event_id` 指向**已出現過**的事件；
+    `before`／`after` 為 dict；兩者的差異必須通過 `diff_schema_repair()` 白名單；
+    且 `after` 必須與 log 中該事件的**現況一致**——否則留痕會與實際修復內容脫節。
+    """
+    eid = event.get("event_id")
+    missing = sorted(SCHEMA_REPAIR_FIELDS - set(event))
+    if missing:
+        raise ValueError(f"{eid} schema-repair 事件缺少欄位：{', '.join(missing)}")
+    target_id = str(event["repaired_event_id"])
+    target = seen_by_id.get(target_id)
+    if target is None:
+        raise ValueError(f"{eid} schema-repair 的 repaired_event_id 不存在：{target_id}")
+    before, after = event["before"], event["after"]
+    if not isinstance(before, dict) or not isinstance(after, dict):
+        raise ValueError(f"{eid} schema-repair 的 before／after 必須為物件")
+    if not str(event["reason"]).strip():
+        raise ValueError(f"{eid} schema-repair 必須說明無法以追加事件修復的理由")
+    violations = diff_schema_repair(before, after)
+    if violations:
+        raise ValueError(
+            f"{eid} schema-repair 的 before→after 逾越白名單：{violations}"
+        )
+    if after != target:
+        raise ValueError(
+            f"{eid} schema-repair 的 after 與 log 中 {target_id} 的現況不一致——"
+            "留痕必須反映實際修復結果"
+        )
+
+
 def _validate_review_contract(events: list[dict[str, object]]) -> None:
     """Baseline 前事件保持原貌；marker 之後 fail loud 驗證 WF-21 契約。"""
     enabled = False
@@ -151,7 +190,9 @@ def _validate_review_contract(events: list[dict[str, object]]) -> None:
     counted_finding_ids: dict[tuple[str, int, str], set[str]] = {}
     attempt_previous_open: dict[tuple[str, int, str], set[str]] = {}
     attempt_findings: dict[tuple[str, int, str], dict[str, dict[str, object]]] = {}
+    seen_by_id: dict[str, dict] = {}
     for event in events:
+        seen_by_id[str(event.get("event_id"))] = event
         if event.get("contract_baseline") == REVIEW_CONTRACT:
             if enabled:
                 raise ValueError(
@@ -187,6 +228,8 @@ def _validate_review_contract(events: list[dict[str, object]]) -> None:
             raise ValueError(
                 f"{event['event_id']} 前必須先為 {card_id} 寫 escalation-checkpoint"
             )
+        if event_type == "schema-repair":
+            _validate_schema_repair_event(event, seen_by_id)
         if event_type == "review":
             _validate_review_event(event)
             epoch = int(event["escalation_epoch"])
@@ -493,7 +536,105 @@ def render_ledger(events: Iterable[dict[str, object]]) -> str:
 
 
 def _load_events(path: Path) -> list[dict[str, object]]:
-    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    events = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    _require_contract_baseline(events)
+    return events
+
+
+# schema-repair 的欄位白名單（DEV-EVENT-SCHEMA-GUARD1 F002，iteration 3 收緊）。
+#
+# 就地修復的唯一正當理由是「原值不合法導致 log 無法 replay」。因此白名單有**兩道**條件，
+# 缺一不可：(1) 欄位在允許清單內；(2) **修復前的值必須是非法的、修復後必須合法**。
+# 第 (2) 條是 iteration 2 漏掉的——當時只查欄位名，導致 `attribution: executor → coordinator`
+# 與 `status: open → withdrawn` 都回傳合法（跨家族查核實測），等於可用「修格式」之名改寫
+# 責任歸屬與 finding 狀態。已合法的值一律不得改寫，要改語意請走 review／review-correction。
+REPAIRABLE_EVENT_FIELDS = frozenset({"counts_toward_escalation"})
+REPAIRABLE_FINDING_FIELDS = frozenset({"severity", "status", "finding_class", "attribution"})
+
+_LEGAL_FINDING_VALUES: dict[str, frozenset[str]] = {
+    "severity": frozenset({"critical", "major", "minor", "info"}),
+    "status": frozenset({"open", "resolved", "withdrawn"}),
+    "finding_class": frozenset({
+        "implementation", "authoritative-artifact", "governance", "coordination", "environment",
+    }),
+    "attribution": frozenset({"executor", "planner", "coordinator", "reviewer", "external"}),
+}
+
+
+def _repair_is_legalising(
+    field: str, before: object, after: object, event: dict | None = None
+) -> bool:
+    """修復是否為「非法 → 合法」。已合法的值改成另一個合法值不算修復，算改寫。
+
+    `counts_toward_escalation` 是**推導值**而非自由欄位：它的「合法」定義是「等於由結構化
+    findings 推導出來的值」，不是「是個布林」。故此處以 `_counted_review()` 重算——
+    2026-08-02 的 `REVIEW-007` 正是 `True` 與推導結果不符而必須修為 `False`，
+    若僅以型別判斷會把那次正當修復誤判為改寫。
+    """
+    if field == "counts_toward_escalation":
+        if event is None:
+            return False
+        try:
+            derived = _counted_review(event)
+        except (KeyError, TypeError):
+            return False
+        return before != derived and after == derived
+    legal = _LEGAL_FINDING_VALUES.get(field)
+    if legal is None:
+        return False
+    return before not in legal and after in legal
+
+
+def diff_schema_repair(before: dict, after: dict) -> list[str]:
+    """回傳 `before → after` 中**逾越 schema-repair 白名單**的欄位路徑；空 list 代表合法。
+
+    供 CI 與查核者機械驗證一次就地修復，不必靠人工閱讀 commit。
+    白名單內但屬「合法值改合法值」者一律視為違規並標 `（已合法值不得改寫）`。
+    """
+    violations: list[str] = []
+    for key in set(before) | set(after):
+        if key == "findings":
+            continue
+        if before.get(key) == after.get(key):
+            continue
+        if key not in REPAIRABLE_EVENT_FIELDS:
+            violations.append(key)
+        elif not _repair_is_legalising(key, before.get(key), after.get(key), after):
+            violations.append(f"{key}（已合法值不得改寫）")
+    fb = {str(x.get("finding_id")): x for x in before.get("findings", [])}
+    fa = {str(x.get("finding_id")): x for x in after.get("findings", [])}
+    for fid in set(fb) | set(fa):
+        if fid not in fb or fid not in fa:
+            violations.append(f"findings[{fid}]（不得新增或移除 finding）")
+            continue
+        for key in set(fb[fid]) | set(fa[fid]):
+            if fb[fid].get(key) == fa[fid].get(key):
+                continue
+            path = f"findings[{fid}].{key}"
+            if key not in REPAIRABLE_FINDING_FIELDS:
+                violations.append(path)
+            elif not _repair_is_legalising(key, fb[fid].get(key), fa[fid].get(key)):
+                violations.append(f"{path}（已合法值不得改寫）")
+    return sorted(violations)
+
+
+def _require_contract_baseline(events: list[dict[str, object]]) -> None:
+    """真實 event log 必須恰有一筆 contract-baseline marker（DEV-EVENT-SCHEMA-GUARD1 F001）。
+
+    `_validate_review_contract` 的所有 schema 驗證都以 marker **之後**為範圍：marker 不在，
+    每一筆 review 都會被當成 baseline 前的舊格式而整批跳過，**整條守衛遂可被單一刪除動作
+    完全繞過**（查核實測：刪掉該行後 35 項測試全綠）。
+
+    刻意放在 `_load_events` 而非 `_validate_review_contract`：這是**真實檔案**的不變量，
+    不是任意事件列表的性質——`render_ledger` 須維持能接受合成 fixture 的純函式語意，
+    否則本檔既有的 render 測試會被迫全部塞進一個與其主題無關的 marker。
+    """
+    markers = [e for e in events if e.get("contract_baseline") == REVIEW_CONTRACT]
+    if len(markers) != 1:
+        raise ValueError(
+            f"event log 必須且只能有一筆 contract_baseline={REVIEW_CONTRACT} 的事件"
+            f"（實際 {len(markers)} 筆）；缺席會使全部 review 跳過 schema 驗證"
+        )
 
 
 # --live：稽核用。lifecycle 事件依契約直接落 main，分支不得攜帶事件；

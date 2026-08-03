@@ -29,6 +29,40 @@
   repeated-root 與「只由該 finding 支撐」之 target attempt 計數；resolved 未撤銷不得洗掉
   真實歷史。root 重診斷須遷移同 finding 在該 epoch 全部 attempt 的 occurrence。epoch 只能由
   需求方核可事件逐一遞增，review 不得自行跳號。
+- **schema 壞損的修復程序（`schema-repair`；DEV-EVENT-SCHEMA-GUARD1）**：append-only 與上一段的
+  「malformed 不得被後續事件掩蓋」在 **schema 層互鎖**——型別驗證涵蓋每一筆 review，故追加任何
+  更正事件都救不了寫壞的那一行，`workflow_ledger.py` 會在每次 replay 重新崩潰、`docs/TASKS.md`
+  永久停在舊投影。**此情形（且僅此情形）允許就地修復**，程序如下，四項缺一不可：
+  1. **可改欄位為正面表列，且必須是「非法 → 合法」**（機器可讀，非文字約定）：
+     事件層僅 `counts_toward_escalation`；finding 層僅 `severity`／`status`／`finding_class`／
+     `attribution`。**不得新增或移除 finding。** 其餘全部禁止，包含但不限於
+     `review_result`／`evidence`／`disposition`／`actor`（判定與歸屬）、
+     `blocking`／`accepted`／`root_cause_id`（finding 的實質判定）、
+     `source_sha`／`attempt_id`／`escalation_epoch`／`preflight_passed`／`event_id`／`card_id`（身分與目標）。
+     **白名單內亦不得改寫已合法的值**——`status: open → withdrawn`、`attribution: executor → coordinator`
+     都是改寫判定，不是修復格式；要改語意請走 review／review-correction。
+     `counts_toward_escalation` 為推導值，其「合法」定義是**等於由結構化 findings 推導的結果**。
+     > 兩次收緊的由來：初版寫「列舉值、推導布林、**缺漏的必填欄位**」，第三項無界限，可藉「補欄位」
+     > 之名重定義 `source_sha`／`attempt_id`／`accepted`／`blocking`／`root_cause_id`；改為正面表列後，
+     > 跨家族查核再指出「只查欄位名」仍可 `executor → coordinator` 改寫責任歸屬，故加上「非法 → 合法」條件。
+  2. **修復事由以獨立事件留痕，不得寫進被修事件本身。**
+     追加一筆 `type: "schema-repair"` 事件，載明 `repaired_event_id`、逐欄位的 before／after、
+     以及無法用追加事件修復的理由。
+     > **不得**在被修事件的 `evidence`／`disposition` 加註——那兩欄承載判定，屬第 1 項的禁止清單，
+     > 契約若同時要求「在該處留痕」與「不得改動該處」即自相矛盾（跨家族查核指出，iteration 2 確實如此）。
+     > 首例 `UX-BRAND-HOME1-REVIEW-007`（`322f69a`）於本規則成立前完成，其留痕寫在 `disposition`
+     > 前綴，屬既成事實不回溯調整；本規則自 iteration 3 起適用。
+  3. **commit message 須說明**修了哪些欄位、為何無法以追加事件修復、以及原始壞行仍保留於哪個 commit。
+  4. **不得 force-push**：修復是一個新 commit，git 歷史保留原始壞行。
+  5. **由 CI 強制驗證，不靠人工閱讀**：`tests/test_workflow_ledger.py::
+     test_modified_events_obey_the_schema_repair_allowlist` 比對分支基底（`git merge-base`）
+     與工作區的 event log，對兩邊都存在但內容不同的事件逐一套用
+     `workflow_ledger.diff_schema_repair()`，違反白名單即 fail。
+     **已知不涵蓋**：直接在 main 上改寫已推送的歷史（本測試以 merge-base 為基準，
+     基準本身被改寫時無從察覺），以及取不到 merge-base 的環境（淺 clone／離線時 skip）。
+  修復後必須 `--write` 與 `--check` 皆通過才算完成。**此程序不是 append-only 的例外通道**：
+  凡能以追加事件表達的（語意更正、判定翻案、finding 狀態變更）一律不得走此路。
+  2026-08-02 `UX-BRAND-HOME1-REVIEW-007` 為首例（四個非法欄位，`322f69a` 修復）。
 - **`closes_review_round`（review 事件選填，布林）**：`false` 表示這一筆是**中繼關卡**（Design Gate、需求方本地人工審…），**本輪查核尚未結束**；缺席即視為終結本輪。卡面要求多道關卡時（例：`UX-ENTITY-LINKS2` 的「先本地人工審再交跨家族查核」），**前面各關的 review 事件必須帶 `false`**，否則 `review_prompt.py` 會判定本輪已結束而拒絕為後續關卡產生提示詞（DEV-REVIEW-PROMPT-GATE1）。
   - 判定採**存在終結本輪者即拒絕**：最新 handoff 之後只要任一筆 review 缺席本欄位或為 `true`，本輪即視為已結束。寫錯時（event log append-only 不得改寫）追加一筆更正用 review 事件：帶 `closes_review_round: false` 並以 **`corrects_event_id`**（review 事件選填，字串）指名**同輪內較早**被更正的那筆 review；被指名者的判定以更正事件的宣告為準（多次更正以最新一筆為準）。**未指名更正對象的 `false` 只代表它自己，不會重開已終局的一輪**——iteration 1 曾採「以最新一筆為準」，終局 REJECT 後追加任意 `false` 即可重開本輪、且該 REJECT 會被標成已通過的中繼關卡，查核退回修正（DEV-REVIEW-PROMPT-GATE1 iteration 1）。欄位非布林、更正對象不存在或指向自己時 `review_prompt.py` 一律 fail loud，且型別驗證涵蓋該卡每一筆 review（malformed 不得被後續事件掩蓋）。
   - 不得用 `delivery_status`、`owner` 或 `review_result` 的字面推斷此性質：實測 146 筆既有 review，最終 APPROVE 有 17 筆同樣停在 `🔍待查核`，且 owner 常寫成「（執行，交付待查核）」本身就含「查核」二字。**這個性質只由本欄位表達。**
