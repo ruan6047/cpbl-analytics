@@ -12,7 +12,9 @@ export const metadata = {
   // 與 hero 副標同一框架（手段→目的→範圍），並補回 h1 丟掉的「中華職棒」與 CPBL
   // 關鍵字（父卡〈SEO 風險〉要求 title 與 description 兩處補償，當時只做了 title）。
   // og:description 由本欄衍生，不另設 openGraph.description——不製造第二個真相來源。
-  description: "用視覺化與數據分析，把中華職棒 [CPBL] 的比賽、球員與歷史看得更懂——賽況復盤、進階數據與賽前勝率，非官方獨立專案。",
+  // 長度刻意控制在行動版 SERP 的截斷點（約 40–50 中文字）內：免責已在 footer，
+  // 不佔用這裡的字數（原版尾端的「非官方獨立專案」在行動版多半看不到，故移除）。
+  description: "用視覺化與數據分析，把中華職棒 [CPBL] 的比賽、球員與歷史看得更懂——賽況復盤、進階數據與賽前勝率。",
 };
 
 export default async function Home({
