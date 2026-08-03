@@ -48,6 +48,37 @@ Coordinator 寫入 `UX-BRAND-HOME1-REVIEW-007` 時，單一事件踩中四個欄
 3. **fail loud 的粒度是否過粗？** 現行是「任一事件 malformed → 整個 ledger 無法重建」。是否應改為「該卡標記為不可投影、其餘卡照常」？這會降低單點故障的爆炸半徑，但也可能讓壞資料更久不被發現——**這是真實取捨，要選一邊並說明理由**。
 4. **要不要同時擋「假的成功訊號」？** 本次事故的近因不是 schema 錯誤本身，而是**記錄流程遮蔽了 stderr 並自行 echo 成功**。這屬人／agent 的操作紀律，工具能做的有限——**明講哪一半守得住、哪一半守不住**，不得宣稱工具能涵蓋。
 
+### Discovery 書面答案（iteration 1；需求方 2026-08-03 裁定）
+
+**1. 該在哪一層把關 → 只加 pytest。**
+
+查證發現缺口比開卡假設的更單純：`tests/test_workflow_ledger.py` 的 20+ 個測試**全部使用合成 fixture**；`tests/test_task_card_sections.py` 與 `test_review_prompt.py` 雖讀真實 `events.jsonl`，但**只做 `json.loads` 取欄位、從不呼叫驗證器**。**整條鏈上（pytest／CI／hook）無一處拿驗證器掃真實檔**——這正是壞事件能通過 commit→push→CI 的原因。實測重建當時的 `REVIEW-007` 丟給 `_validate_review_event`，立即拋 `finding status 不合法`，**證明一條測試即可擋下本次事故**。
+
+各方案**擋得住什麼、擋不住什麼**（不宣稱單一手段涵蓋全部）：
+
+| 方案 | 擋得住 | 擋不住 |
+|---|---|---|
+| **pytest（採用）** | 任何進入 repo 的 malformed 事件，於 CI 數分鐘內轉紅；**無法被個別 agent 繞過**（CI 不看本地行為） | 寫入當下的即時攔截——壞資料仍可能先進 commit，只是不再靜默 |
+| pre-commit hook（未採用） | 壞資料進不了 commit | 無現成基礎設施需新建；`--no-verify` 可繞；新環境需安裝步驟 |
+| 寫入 helper（未採用） | 走 helper 的寫入 | **直接 `>>` 檔案完全不受保護，而實際上每個 agent 都是這樣寫的**；反而可能讓人誤以為有保護 |
+
+需求方裁定只加 pytest：它是唯一無法被繞過又不需新基礎設施的一層。代價（CI 在 push 後才跑）已知並接受——本次事故的實害不是「壞資料進了歷史」，而是**靜默 40 分鐘**，pytest 把那段縮到數分鐘。
+
+**2. malformed 的合法修復程序 → 就地修復＋強制留痕。**
+
+已寫入 `CONTROL_PLANE_CONTRACT.md`（`schema-repair` 段），四項要求缺一不可：僅限機器可讀的分類欄位（`evidence`／`disposition`／`review_result`／`actor` 一律不得動）；修復事由就地留痕；commit message 說明；不得 force-push。並明訂**此程序不是 append-only 的例外通道**——凡能以追加事件表達的一律不得走此路。未採 `superseded_by`，因其與契約現行「malformed 不得被後續事件掩蓋」直接衝突，且多一個可被濫用來掩蓋事件的機制。
+
+**3. fail loud 的粒度 → 維持全檔。**
+
+需求方裁定不改為逐卡隔離。理由：壞得夠明顯才會被修——本次正是因為整個 ledger 停擺才被察覺。逐卡隔離會讓 Ledger 在部分正確的狀態下繼續服務，壞資料可能更久不被發現。配上第 1 問的 pytest 後，「痛」的持續時間已從 40 分鐘縮到數分鐘，全檔粒度的代價已被抵銷。
+
+**4. 能不能擋「假的成功訊號」→ 擋得住一半，另一半擋不住。**
+
+本次事故的近因不是 schema 錯誤本身，而是記錄方以 `2>/dev/null` 遮蔽 `--write` 的錯誤、`--check` 因 `&&` 短路從未執行、再以無條件 `echo "ledger ok"` 宣告成功。
+
+- **擋得住**：CI 跑的是同一條 pytest，**與本地 echo 了什麼完全無關**。只要壞資料進了 repo，CI 就會紅。這是 pytest 方案相對 hook 的關鍵優勢。
+- **擋不住**：本地的自欺仍可發生——agent 仍可能對自己與需求方報告一個不存在的成功，只是這次會在 CI 轉紅時被戳破。**工具無法阻止「不看輸出就宣告成功」的操作習慣**，那屬人／agent 紀律，不在本卡可解範圍。
+
 ## 紅線
 
 1. **不得讓 baseline 前的 173 筆既有事件開始失敗。** 任何守衛上線前必須以完整 `events.jsonl` replay 證明現況仍可重建。
@@ -77,3 +108,4 @@ Coordinator 寫入 `UX-BRAND-HOME1-REVIEW-007` 時，單一事件踩中四個欄
 ## Log
 
 - 2026-08-02 register by Claude Opus 5@Claude Code（依 ruan6047 授權開卡）；iteration 0。來源：`UX-BRAND-HOME1` 查核期間 Coordinator 寫入的 `REVIEW-007` 含四個不合法欄位，導致 ledger 自 `5736302` 起持續崩潰、`TASKS.md` 停在舊投影並隨兩次 commit 上了 main，最終由需求方裁定就地修復（`322f69a`）才解開。**開卡動機不是「有人寫錯」，而是「寫錯之後沒有合法的修法」**——契約的 append-only 與「malformed 不得被後續事件掩蓋」在 schema 層互鎖。附帶記錄近因：記錄方以 `2>/dev/null` 遮蔽錯誤並自行 `echo` 成功訊號，使崩潰隱形；此為操作紀律問題，工具能守的部分有限，見 Discovery 第 4 問。
+- 2026-08-03 iteration 1 by Claude Opus 5@Claude Code：Discovery 四問完成並經需求方裁定（pytest／全檔 fail loud／就地修復），交付兩條真實檔守衛測試與契約的 `schema-repair` 段。**紅線 1 實證**：baseline 前 review 事件 **172 筆**（卡面〈非目標〉原記 173，該數含當時尚未修復的 post-baseline `REVIEW-007`，實際 pre-baseline 為 172）其 schema 皆不合法，完整 replay 仍通過，證明守衛未讓它們開始失敗。**負向測試以兩種方式做**：(a) 單元層注入非法 `status` 給 `_validate_review_event`；(b) 直接把缺陷注入**真實** `events.jsonl` 後跑 pytest，實測 `test_real_event_log_passes_schema_and_replay_contract` 轉紅、還原後恢復——證明守衛真的會因真實檔變壞而失敗，不是碰巧全綠。**流程自陳**：claim 事件初次曾誤寫於執行分支並 commit，違反「執行分支不得改動 control-plane」，發現後即 `reset --hard` 還原（未推送）並改於主 checkout 重寫。

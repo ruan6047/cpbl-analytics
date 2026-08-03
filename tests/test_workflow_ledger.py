@@ -946,3 +946,68 @@ def test_render_live_orders_in_flight_by_recency() -> None:
     ], generated_at="2026-07-17T18:00:00+08:00")
 
     assert rendered.index("CARD-NEW") < rendered.index("CARD-OLD")
+
+
+# --- 真實 event log 的 schema 守衛（DEV-EVENT-SCHEMA-GUARD1）---------------------
+#
+# 本檔其餘測試都用**合成 fixture** 驗證器邏輯；下面兩條是唯一拿驗證器去掃**真實**
+# `docs/control-plane/events.jsonl` 的守衛。缺了它們，schema 不合法的事件可以一路
+# 通過 commit、push 與 CI，之後每次 `workflow_ledger.py --write/--check` 都在同一行
+# 崩潰、`docs/TASKS.md` 永久停在舊投影——2026-08-02 的 `UX-BRAND-HOME1-REVIEW-007`
+# 即為實例（四個非法欄位，靜默卡住 ledger 逾 40 分鐘、兩次 commit 帶著陳舊投影上 main）。
+#
+# **涵蓋**：`contract-baseline` 之後每一筆 review 事件的結構化 schema（欄位齊備、
+# severity／status／finding_class／attribution 列舉值、`counts_toward_escalation` 由
+# findings 推導），以及整份 log 的 replay 契約（epoch 遞增、finding 衝突裁決、
+# checkpoint 強制）——即 `render_ledger` 會走到的全部驗證。
+#
+# **不涵蓋**：(1) baseline 之前的既有事件——驗證器刻意跳過它們（早期無結構化 findings
+# 的格式，全庫 173 筆），本守衛不得讓它們開始失敗；(2) 事件內容的**語意正確性**
+# ——schema 合法不代表判定正確，那要靠查核；(3) 寫入當下的即時攔截——本守衛在
+# pytest/CI 執行，壞資料仍可能先進 commit，只是會在 CI 於數分鐘內轉紅而非靜默。
+def test_real_event_log_passes_schema_and_replay_contract() -> None:
+    events = workflow_ledger._load_events(workflow_ledger.EVENTS_PATH)
+    # render_ledger 內含 _validate_review_contract 的完整 replay；拋錯即代表
+    # 真實 log 已有不可投影的事件，必須在合併前修掉。
+    workflow_ledger.render_ledger(events)
+
+
+def test_real_event_log_guard_actually_catches_malformed_events() -> None:
+    """負向測試：證明上一條守衛真的會紅，而不是碰巧全綠。
+
+    以 2026-08-02 實際發生的缺陷型態（finding status 用了非法列舉值）注入一筆
+    合成事件；若驗證器放行，代表守衛已失效。
+    """
+    malformed = {
+        "event_id": "CARD-MALFORMED-REVIEW-001",
+        "card_id": "CARD-MALFORMED",
+        "type": "review",
+        "actor": "ruan6047",
+        "occurred_at": "2026-08-02T12:00:00+08:00",
+        "state_version": 1,
+        "iteration": 1,
+        "source_sha": FULL_SHA,
+        "attempt_id": f"CARD-MALFORMED-e0-{FULL_SHA}",
+        "escalation_epoch": 0,
+        "preflight_passed": True,
+        "review_result": "REQUEST_CHANGES",
+        "counts_toward_escalation": False,
+        "findings": [{
+            "finding_id": "F1",
+            "severity": "major",
+            "blocking": True,
+            "accepted": False,
+            "status": "rejected",          # 非法：僅 open/resolved/withdrawn
+            "finding_class": "governance",
+            "attribution": "coordinator",
+            "root_cause_id": "rc",
+            "evidence": "e",
+            "disposition": "d",
+        }],
+    }
+    try:
+        workflow_ledger._validate_review_event(malformed)
+    except ValueError as exc:
+        assert "status 不合法" in str(exc)
+    else:  # pragma: no cover - 守衛失效時才會走到
+        raise AssertionError("驗證器未擋下非法 finding status，真實 log 的守衛已失效")
