@@ -9,7 +9,10 @@ import { BrandMark } from "@/components/brand-mark";
 
 export const metadata = {
   title: { absolute: "Ruan's 中職數據實驗室｜中華職棒數據視覺化" },
-  description: "從最近賽事到下一場對戰，用可追溯的數據看懂中職。",
+  // 與 hero 副標同一框架（手段→目的→範圍），並補回 h1 丟掉的「中華職棒」與 CPBL
+  // 關鍵字（父卡〈SEO 風險〉要求 title 與 description 兩處補償，當時只做了 title）。
+  // og:description 由本欄衍生，不另設 openGraph.description——不製造第二個真相來源。
+  description: "用視覺化與數據分析，把中華職棒 [CPBL] 的比賽、球員與歷史看得更懂——賽況復盤、進階數據與賽前勝率，非官方獨立專案。",
 };
 
 export default async function Home({

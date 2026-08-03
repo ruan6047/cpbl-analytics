@@ -6,7 +6,7 @@
 - review_independence: [cross_family_or_human]
 - DB：`db_scope: none`
 - 部署：是（前端）　環境：生產　PR：—　Merge SHA：—
-- 範圍：`web/src/app/page.tsx`、`web/src/app/layout.tsx`
+- 範圍：`web/src/app/page.tsx`、`web/src/app/layout.tsx`、`web/src/app/methodology/page.tsx`（執行時發現第三處同型缺陷，見〈Log〉）
 - Discovery：不適用——缺陷與修法皆已確定，文案由需求方定案。
 - Design：Design Gate 已由需求方完成（兩句文案 2026-08-03 逐句核可）。
 
@@ -34,7 +34,7 @@
 
 > 中華職棒戰績、進階數據與賽事預測的非官方數據實驗室。
 
-僅將「資料實驗室」改為「數據實驗室」以對齊品牌名。**已知並接受的代價**：「數據」在同一句出現兩次（進階數據、數據實驗室）。曾評估把「進階數據」改為「進階指標」以避免重複，但「進階數據」是本站對應官方進階數據的既定用語，**為修辭去動既定術語不划算**——需求方裁定品牌一致性優先。
+將舊用詞改為「數據實驗室」以對齊品牌名。**執行時發現同型缺陷共三處**：`layout.tsx:13` 之外，`methodology/page.tsx:349`（父卡新增的「關於本站與作者」段落）亦寫「可追溯的中職資料實驗室」，一併修正。**已知並接受的代價**：「數據」在同一句出現兩次（進階數據、數據實驗室）。曾評估把「進階數據」改為「進階指標」以避免重複，但「進階數據」是本站對應官方進階數據的既定用語，**為修辭去動既定術語不划算**——需求方裁定品牌一致性優先。
 
 ## 非目標
 
@@ -52,7 +52,8 @@
 - [ ] `page.tsx:12` 與 `layout.tsx:13` 為上列定案文案，逐字相同。
 - [ ] 全庫 `grep -rn "資料實驗室" web/src` 零命中。
 - [ ] 建置後首頁的 `<meta name="description">` 與 `<meta property="og:description">` **兩者皆為新文案**（實測 HTML，非讀原始碼），且兩者一致（證明未新增第二個真相來源）。
-- [ ] 其餘 metadata 未變動：`git diff main...HEAD` 僅涉上列兩檔、且 diff 內容僅為 description 兩行。
+- [ ] `git diff main...HEAD` 僅涉上列三檔；`page.tsx`／`layout.tsx` 僅動 description，`methodology/page.tsx` 僅動該一詞。
+- [ ] 程式碼註解不得複述舊用詞——否則 `grep` 守衛會被自己的註解污染而永遠命中（本卡執行時已踩過並修正）。
 - [ ] `cd web && npm test` ＋ `npm run build:check` 全綠。
 
 ## 驗證
@@ -70,3 +71,4 @@
 ## Log
 
 - 2026-08-03 register by Claude Opus 5@Claude Code（依 ruan6047 指示）；iteration 0。來源：父卡上線後 Coordinator 打生產抽驗 metadata 時發現，**非查核者發現**——父卡三輪查核（含跨家族）皆未涵蓋 description，因〈驗收條件〉只要求舊站名字串零命中，對「語意同義但用詞不同」與「metadata 與畫面文案不一致」兩類問題沒有判準。「資料實驗室 vs 數據實驗室」由需求方指出。**可移交的教訓**：命名收斂類卡片的驗收條件不應只寫「舊字串零命中」，還需涵蓋同義詞與非畫面文案（metadata／OG／manifest）；是否寫回卡片規格慣例，可併入 `DOC-CARD-SPEC-RULES1` 評估。
+- 2026-08-03 執行時發現**第三處同型缺陷**：`methodology/page.tsx:349` 的「可追溯的中職資料實驗室」——該段落正是父卡新增的「關於本站與作者」，與 `layout.tsx` 同一天寫入、同一個錯。開卡時只掃了 metadata 檔案，沒有先跑全庫 grep 就下了範圍，故卡面〈範圍〉原僅列兩檔。已擴為三檔並更新驗收條件。**這與本卡要修的是同一個病**：範圍憑印象界定而非先窮舉。另修正一處自傷——初版註解複述了舊用詞，會讓「全庫零命中」的 grep 守衛永遠失敗，已改為不複述。

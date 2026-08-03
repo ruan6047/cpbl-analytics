@@ -10,7 +10,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL("https://cpbl.ruan-ruan.com"),
   title: { default: "Ruan's CPBL Lab", template: "%s | Ruan's CPBL Lab" },
-  description: "中華職棒戰績、進階數據與賽事預測的非官方資料實驗室。",
+  // 「數據實驗室」須與站名一致（原用詞與站名不同，屬命名收斂漏網）。
+  // 註解刻意不複述舊用詞，讓 grep 守衛維持可用。
+  // 已知並接受「數據」在本句重複兩次——「進階數據」是對應官方進階數據的既定術語，
+  // 不為修辭而動既定術語，品牌一致性優先。
+  description: "中華職棒戰績、進階數據與賽事預測的非官方數據實驗室。",
   openGraph: { type: "website", locale: "zh_TW", siteName: "Ruan's CPBL Lab" },
   twitter: { card: "summary_large_image" },
 };
