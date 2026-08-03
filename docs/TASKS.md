@@ -16,6 +16,7 @@
 | [DEV-VERIFY-TM-ASSERTS1](tasks/DEV-VERIFY-TM-ASSERTS1.md) | — | T2 | TM 回填驗證腳本補上真正的斷言 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-29T12:14:00+08:00 |
 | [DOC-CARD-SPEC-RULES1](tasks/DOC-CARD-SPEC-RULES1.md) | — | T3 | 卡面規格三條規則（輸入空間／性質而非示範／同病自檢） | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-29T21:34:32+08:00 |
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | — | — | 2 | 📦已合併 | ⏸未部署 | 2026-08-03T11:47:42+08:00 |
+| [INGEST-GAME-TM-REFACTOR1-G4](tasks/INGEST-GAME-TM-REFACTOR1-G4.md) | INIT-OFFICIAL-DATA1 | T4 | 逐球正式 writer 切換至單場 API 並對齊存量 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-03T17:49:14+08:00 |
 | [INGEST-LIVE-RECONCILE1](tasks/INGEST-LIVE-RECONCILE1.md) | — | T4 | 將官方 LIVE 暫態逐球納入每日可追溯校正 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-03T01:33:46+08:00 |
 | [INGEST-PA-DAILY1](tasks/INGEST-PA-DAILY1.md) | — | T3 | canonical PA build 接進每日 refresh 鏈 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-26T20:55:46+08:00 |
 | [INGEST-PLAYER-BIO-GAP1](tasks/INGEST-PLAYER-BIO-GAP1.md) | INIT-OFFICIAL-DATA1 | T3 | 補齊 14 位球員的 country／birthday | 待指派（查核；≠ 執行者。🔴統計紅線卡須換模型家族，前三輪查核者 GPT-5.6@Codex 複審為佳） | `claude/ingest-player-bio-gap1-d85723 @ .claude/worktrees/ingest-player-bio-gap1-d85723` | 3 | 🔍待查核 | ⏸未部署 | 2026-08-03T16:04:36+08:00 |
