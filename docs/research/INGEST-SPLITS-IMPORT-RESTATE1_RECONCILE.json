@@ -1,0 +1,126 @@
+{
+ "generated_at": "2026-08-04T14:00:11.483604+00:00",
+ "expected_population": 261,
+ "tables": {
+  "batting_splits": {
+   "2025": {
+    "rows_pre": 16703,
+    "rows_post": 16721,
+    "added": 18,
+    "removed": 0,
+    "value_changed": 653,
+    "touched_total": 671,
+    "touched_acnt_count": 192,
+    "expect_zero_change": false,
+    "unexpected_count": 0,
+    "unexpected_acnts": [],
+    "touched_item_groups": [
+     "3"
+    ],
+    "touched_item_names": [
+     "VS. 右投",
+     "VS. 外籍投手",
+     "VS. 左投"
+    ],
+    "item_group_invariant_ok": true,
+    "item_name_invariant_ok": true
+   },
+   "9999": {
+    "rows_pre": 29928,
+    "rows_post": 29928,
+    "added": 0,
+    "removed": 0,
+    "value_changed": 0,
+    "touched_total": 0,
+    "touched_acnt_count": 0,
+    "expect_zero_change": true,
+    "unexpected_count": 0,
+    "unexpected_acnts": []
+   }
+  },
+  "pitching_splits": {
+   "2025": {
+    "rows_pre": 12486,
+    "rows_post": 12486,
+    "added": 0,
+    "removed": 0,
+    "value_changed": 0,
+    "touched_total": 0,
+    "touched_acnt_count": 0,
+    "expect_zero_change": true,
+    "unexpected_count": 0,
+    "unexpected_acnts": []
+   },
+   "9999": {
+    "rows_pre": 21870,
+    "rows_post": 21870,
+    "added": 0,
+    "removed": 0,
+    "value_changed": 0,
+    "touched_total": 0,
+    "touched_acnt_count": 0,
+    "expect_zero_change": true,
+    "unexpected_count": 0,
+    "unexpected_acnts": []
+   }
+  },
+  "batting_vs_team": {
+   "2025": {
+    "rows_pre": 1637,
+    "rows_post": 1637,
+    "added": 0,
+    "removed": 0,
+    "value_changed": 0,
+    "touched_total": 0,
+    "touched_acnt_count": 0,
+    "expect_zero_change": true,
+    "unexpected_count": 0,
+    "unexpected_acnts": []
+   },
+   "9999": {
+    "rows_pre": 0,
+    "rows_post": 0,
+    "added": 0,
+    "removed": 0,
+    "value_changed": 0,
+    "touched_total": 0,
+    "touched_acnt_count": 0,
+    "expect_zero_change": true,
+    "unexpected_count": 0,
+    "unexpected_acnts": []
+   }
+  },
+  "pitching_vs_team": {
+   "2025": {
+    "rows_pre": 1471,
+    "rows_post": 1471,
+    "added": 0,
+    "removed": 0,
+    "value_changed": 0,
+    "touched_total": 0,
+    "touched_acnt_count": 0,
+    "expect_zero_change": true,
+    "unexpected_count": 0,
+    "unexpected_acnts": []
+   },
+   "9999": {
+    "rows_pre": 0,
+    "rows_post": 0,
+    "added": 0,
+    "removed": 0,
+    "value_changed": 0,
+    "touched_total": 0,
+    "touched_acnt_count": 0,
+    "expect_zero_change": true,
+    "unexpected_count": 0,
+    "unexpected_acnts": []
+   }
+  }
+ },
+ "verdict": {
+  "unexpected_total": 0,
+  "career_changed_total": 0,
+  "zero_change_violations": [],
+  "ok": true
+ }
+}

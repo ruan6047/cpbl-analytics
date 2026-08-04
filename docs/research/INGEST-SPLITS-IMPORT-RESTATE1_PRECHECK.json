@@ -1,0 +1,135 @@
+{
+ "generated_at": "2026-08-04T13:59:17.045606+00:00",
+ "pitchers": [
+  {
+   "id": "0000004796",
+   "name": "鎛銳",
+   "bats": "右打",
+   "throws": "右投",
+   "country": "美國"
+  },
+  {
+   "id": "0000006891",
+   "name": "力亞士",
+   "bats": "左打",
+   "throws": "左投",
+   "country": "美國"
+  },
+  {
+   "id": "0000007547",
+   "name": "石萬金",
+   "bats": "右打",
+   "throws": "右投",
+   "country": "美國"
+  },
+  {
+   "id": "0000007554",
+   "name": "龍聖",
+   "bats": "左打",
+   "throws": "左投",
+   "country": "美國"
+  },
+  {
+   "id": "0000007555",
+   "name": "霸鉧德",
+   "bats": "左打",
+   "throws": "左投",
+   "country": "波多黎各"
+  },
+  {
+   "id": "0000007556",
+   "name": "波賽樂",
+   "bats": "右打",
+   "throws": "右投",
+   "country": "美國"
+  },
+  {
+   "id": "0000007558",
+   "name": "黃博多",
+   "bats": "右打",
+   "throws": "右投",
+   "country": "墨西哥"
+  },
+  {
+   "id": "0000007559",
+   "name": "蒙德茲",
+   "bats": "左打",
+   "throws": "左投",
+   "country": "委內瑞拉"
+  },
+  {
+   "id": "0000007573",
+   "name": "李博登",
+   "bats": "左打",
+   "throws": "左投",
+   "country": "美國"
+  },
+  {
+   "id": "0000007579",
+   "name": "韋禮加",
+   "bats": "右打",
+   "throws": "右投",
+   "country": "委內瑞拉"
+  },
+  {
+   "id": "0000007583",
+   "name": "柯威士",
+   "bats": "左右開弓",
+   "throws": "右投",
+   "country": "委內瑞拉"
+  },
+  {
+   "id": "0000007588",
+   "name": "奧德銳",
+   "bats": "左打",
+   "throws": "左投",
+   "country": "美國"
+  },
+  {
+   "id": "0000007590",
+   "name": "那瑪夏",
+   "bats": "右打",
+   "throws": "右投",
+   "country": "多明尼加"
+  },
+  {
+   "id": "0000007603",
+   "name": "凱樂",
+   "bats": "右打",
+   "throws": "左投",
+   "country": "美國"
+  }
+ ],
+ "pitcher_count": 14,
+ "throws_filled": 14,
+ "players_throws_null_total": 0,
+ "players_bats_null_total": 0,
+ "gate_ok": true,
+ "grp3_rows_before": [
+  {
+   "item_name": "VS. 右投",
+   "rows": 366,
+   "updated_at_min": "2026-08-03 11:15:49.48845+00",
+   "updated_at_max": "2026-08-03 11:15:50.491497+00"
+  },
+  {
+   "item_name": "VS. 外籍投手",
+   "rows": 314,
+   "updated_at_min": "2026-08-03 11:15:49.48845+00",
+   "updated_at_max": "2026-08-03 11:15:50.491497+00"
+  },
+  {
+   "item_name": "VS. 左投",
+   "rows": 350,
+   "updated_at_min": "2026-08-03 11:15:49.48845+00",
+   "updated_at_max": "2026-08-03 11:15:50.491497+00"
+  },
+  {
+   "item_name": "VS. 本土投手",
+   "rows": 369,
+   "updated_at_min": "2026-08-03 11:15:49.48845+00",
+   "updated_at_max": "2026-08-03 11:15:50.491497+00"
+  }
+ ],
+ "switch_hitter_pa_vs_gap1": 0
+}
