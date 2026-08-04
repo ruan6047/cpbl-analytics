@@ -259,7 +259,22 @@ IBB 差額應為 0。實查結果與此相反。
 
 ## 9. 驗證
 
-- `uv run ruff check` → 見 commit 後執行紀錄
-- `uv run pytest -q` → 見 commit 後執行紀錄
+- `uv run ruff check` → **All checks passed!**
+- `uv run pytest -q` → **1,075 passed, 3 skipped, 1 failed**
+- `uv run pytest tests/test_commit_trailers.py -v` → **12 項全 PASSED**，
+  其中 `test_new_commits_carry_the_required_trailer_set` 確實執行（非 skipped）。
 - 爬蟲紅線：官網實查**單次嘗試即成功**（3 位打者、`delay=2.0`），無重試、無冷卻事件。
-- 紅線 1（查證先於修改）：`git diff` 對 `src/cpbl/ingest/splits_calc.py` 為空。
+  首次呼叫的失敗是本 worktree 未裝 `playwright`（`uv sync --group scrape` 後解決），
+  **未對官網送出任何 request**，不構成連續重試。
+- 紅線 1（查證先於修改）：`git diff -- src/` 為空，`splits_calc.py` 未被觸碰。
+
+### 9.1 唯一紅燈是既有的、與本卡無關
+
+`tests/test_task_card_sections.py::test_active_cards_with_new_lifecycle_events_have_review_sections`
+失敗於 `找不到卡片檔 docs/tasks/DEV-CI-RED-OWNERSHIP1.md`。該卡已封存到
+`docs/archive/tasks/`，但 `docs/control-plane/events.jsonl` 仍有它的新 lifecycle 事件，
+守衛因此到 `docs/tasks/` 找不到檔案。
+
+**已實測為既有失敗**：把本卡全部改動 `git stash -u` 後、在乾淨的基底 `ba06493` 上
+單跑該檔仍是 `1 failed, 23 passed`。本卡未觸碰 `docs/tasks/`、`docs/control-plane/`，
+屬 §8 範圍外，回報 PM 由控制平面負責人處理。
