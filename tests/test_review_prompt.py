@@ -902,3 +902,93 @@ def test_interim_event_without_field_declaration_still_passes_through(
     _, gates = review_prompt.latest_handoff("CARD-G")
 
     assert [g["event_id"] for g in gates] == ["CARD-G-REVIEW-002"]
+
+
+# --- 找不到 handoff 時的成因分辨（DEV-REVIEW-PROMPT-BASE1） ---
+def _no_handoff_message(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, sources: list[tuple[str, str]]
+) -> str:
+    """本 checkout 沒有該卡任何事件時，`latest_handoff` 的退出訊息。"""
+    _prepare(tmp_path, monkeypatch, _review(1, card_id="OTHER-CARD"))
+    monkeypatch.setattr(review_prompt, "_other_control_plane_sources", lambda: sources)
+    monkeypatch.setattr(review_prompt, "_checkout_description", lambda _p: "abc1234（detached HEAD）")
+    with pytest.raises(SystemExit) as exc:
+        review_prompt.latest_handoff("CARD-G")
+    return str(exc.value)
+
+
+def test_missing_handoff_anywhere_reports_undelivered(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """真的沒交付：仍要明確失敗，並列出已查過哪些來源（「查過了」本身要可稽核）。"""
+    message = _no_handoff_message(tmp_path, monkeypatch, sources=[])
+
+    assert "尚未交付查核" in message
+    assert "已查來源" in message
+    # 不得反過來指控環境：這一種情境沒有「讀不到 main」這回事
+    assert "讀不到 main" not in message
+
+
+def test_handoff_present_on_main_blames_the_checkout_not_the_executor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """交付 SHA 的 detached worktree 內：說明成因並給指令，不得報成「執行者未交付」。
+
+    2026-08-04 `DEV-BASELINE-GUARD-DECL1` 三筆事件齊全落 main，查核者在交付 SHA 的
+    detached worktree 內產生提示詞得到「沒有 handoff event（尚未交付查核）」，據以判定
+    送審前條件未成立而退回，未進行程式碼查核——**訊息指控錯了對象**。
+    """
+    elsewhere = json.dumps(_handoff(occurred_at="2026-08-04T16:07:38+08:00"),
+                           ensure_ascii=False) + "\n"
+    message = _no_handoff_message(
+        tmp_path, monkeypatch, sources=[("`origin/main`", elsewhere)])
+
+    assert "讀不到 main" in message
+    assert "CARD-G-HANDOFF-001" in message and SHA[:7] in message
+    assert "review_prompt.py CARD-G" in message  # 可直接執行的處置指令
+    assert "尚未交付查核" not in message
+
+
+def test_the_two_missing_handoff_causes_do_not_share_a_message(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """兩種成因的輸出必須可區分——否則查核者無從自行判斷該修什麼。"""
+    undelivered = _no_handoff_message(tmp_path, monkeypatch, sources=[])
+    wrong_checkout = _no_handoff_message(
+        tmp_path, monkeypatch,
+        sources=[("主 checkout `/repo`（def5678（main））", json.dumps(_handoff()) + "\n")])
+
+    assert undelivered != wrong_checkout
+    assert not set(undelivered.splitlines()) & set(wrong_checkout.splitlines())
+
+
+def test_stale_main_checkout_is_covered_by_the_same_diagnosis(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """第二種同症狀成因：主 checkout 落後於 origin/main。處置指令須含 `pull --ff-only`。"""
+    message = _no_handoff_message(
+        tmp_path, monkeypatch,
+        sources=[("`origin/main`", json.dumps(_handoff()) + "\n")])
+
+    assert "git pull --ff-only" in message
+    assert "落後" in message
+
+
+def test_events_in_tolerates_blank_lines(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """診斷來源的原文可能帶尾端空行，不得因此拋 JSONDecodeError 而蓋掉真正的訊息。"""
+    text = json.dumps(_handoff(), ensure_ascii=False) + "\n\n"
+
+    assert [e["event_id"] for e in review_prompt._events_in(text, "CARD-G")] == ["CARD-G-HANDOFF-001"]
+
+
+def test_other_sources_degrade_quietly_outside_a_git_repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """真正的來源探查（非 monkeypatch 版）：非 git 目錄下不得拋例外，回空即可。
+
+    診斷是錦上添花，不能反過來讓「產生提示詞」在奇怪環境整個掛掉。
+    """
+    monkeypatch.setattr(review_prompt, "ROOT", tmp_path)
+    monkeypatch.setattr(review_prompt, "MAIN_ROOT", tmp_path)  # 同一個 → 不重複讀自己
+
+    assert review_prompt._other_control_plane_sources() == []
