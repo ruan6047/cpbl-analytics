@@ -9,7 +9,7 @@
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
 | [DEV-CI-RED-OWNERSHIP1](tasks/DEV-CI-RED-OWNERSHIP1.md) | None | T3 | main 紅燈無歸屬：「非本卡引入」沒有強制去向 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-08-02T12:41:27+08:00 |
-| [DEV-EVENT-REPAIR-ANCHOR1](tasks/DEV-EVENT-REPAIR-ANCHOR1.md) | None | T3 | schema-repair 留痕的 before 未錨定歷史，可被捏造 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-08-03T17:22:00+08:00 |
+| [DEV-EVENT-REPAIR-ANCHOR1](tasks/DEV-EVENT-REPAIR-ANCHOR1.md) | None | T3 | schema-repair 留痕的 before 未錨定歷史，可被捏造 | 待指派（執行） | — | 0 | ⏳待執行 | —不適用 | 2026-08-04T17:46:05+08:00 |
 | [DEV-REVIEW-DEACCEPT-TRAIL1](tasks/DEV-REVIEW-DEACCEPT-TRAIL1.md) | — | T3 | plain-review 翻案缺 correction 留痕（WF21-R-13） | —（未認領） | — | 0 | 📥Backlog | —不適用 | 2026-07-31T10:41:30+08:00 |
 | [DEV-REVIEW-PREFLIGHT-GATE1](tasks/DEV-REVIEW-PREFLIGHT-GATE1.md) | — | T3 | 前置查核關卡改為 preflight 的機器可讀宣告 | —（未認領） | — | 0 | 📥Backlog | —不適用 | 2026-07-31T13:15:24+08:00 |
 | [DEV-REVIEW-PREFLIGHT-SELFCHECK1](tasks/DEV-REVIEW-PREFLIGHT-SELFCHECK1.md) | None | T2 | 派審前自檢交接前提 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-08-02T12:01:34+08:00 |
