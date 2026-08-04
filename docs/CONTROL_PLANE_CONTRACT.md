@@ -6,11 +6,11 @@
 > 本次改版把卡狀態面／事件面的事實來源由 git（`events.jsonl` ＋ `TASKS.md` 投影）遷至
 > **GitHub Issues ＋ Projects v2**（決議紀錄〈工作流檢討決議 7〉；結構凍結見
 > `docs/research/OPS-STATE-PLANE-MIG1_field_mapping.md` 與 events.jsonl `a04a862`）。
-> **cutover 尚未宣告**：本檔以下內容分兩軌並存——「§1 現行機制（cutover 前生效）」
-> 與「§2 新狀態面（cutover 後生效）」。cutover 由需求方明示宣告前，§1 仍是唯一作業
-> 狀態事實來源，§2 只是目標狀態的權威描述，**尚不生效**。獨立校讀者請重點核對：
-> §2 是否忠實反映決議紀錄與 Task 1-3 的實測結果、雙軌分界是否清楚不含糊、
-> §1 是否仍完整未被誤刪（cutover 前它仍是真正在跑的機制）。
+> **cutover 已於 2026-08-04T23:47:31+08:00 宣告**（需求方 ruan6047；終筆封存事件
+> `OPS-STATE-PLANE-MIG1-NOTE-004`，main `8271d7c`）：**§2 生效中**，`events.jsonl` 已
+> 封存唯讀；§1 全段轉為**歷史參考**（逐字保留，供稽核與舊事件回溯解讀）。
+> 本段文字修正由 PM 祕書依 MIG-1 收官查核 disposition 於 merge 時落款（祕書單寫入
+> 通道職權；執行分支結構上不可能預載晚於自身提交的宣告）。
 
 ## §0 Adapter 邊界（雙軌現況）
 
@@ -188,6 +188,8 @@ canonical §2.1「實作與審核分離」不變：執行者不得查核或 merg
 
 ### events.jsonl 的終局地位
 
+> ✅ 本節條件已於 2026-08-04 `8271d7c` 觸發：終筆事件已寫入，封存生效。
+
 - **cutover 宣告後，`events.jsonl` 封存唯讀**：不再接受任何新 lifecycle event（append
   也不行——封存即凍結內容，不是「只是變慢」）；**不得刪除**（紅線 3），檔案與其
   git 歷史永久保留供稽核。
@@ -201,6 +203,8 @@ canonical §2.1「實作與審核分離」不變：執行者不得查核或 merg
   historical reference，§2 轉為生效中的唯一機制。
 
 ### 已知待決（Wave 2／`WF-22-CLI1` 範圍，本次改版不產出，如實列出而非靜默略過）
+
+- Issue open/closed 狀態與「交付狀態」欄位的同步策略（現況：🏁完成卡 Issue 維持 open、僅欄位標終態——dispose 刻意只處理 🛑已停止以避免不實留言；是否收斂由 Wave 2 決定）。
 
 - 結構化 review comment 的確切 JSON schema／型別驗證機制（對應 §1 的 REQUIRED_FIELDS／
   FINDING_FIELDS／escalation 計數規則如何在 Issue comment 上重建）。
