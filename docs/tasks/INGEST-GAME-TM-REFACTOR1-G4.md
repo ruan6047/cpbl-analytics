@@ -83,16 +83,20 @@ uv run cpbl-check-coverage 2>&1 | awk '/逐球完全零/,0' | grep 'sno=' \
       完成場**中**至少一場**達 `pitches >= 50 AND tracked >= pitches * 0.80`；該球場完成場
       不足 10 場時以現有場次計。
 
-      **兩個常數的選定依據（非事後挑值，可重跑複驗）**：
-      - **窗口 10**：下界由**已觀測最長良性中斷**決定。對「季末仍健康」的球場量其連續未達標
-        長度，最長為**亞太主 8 場**（2026-04-10～04-26，早季未裝機後恢復），其次新莊 2 場，
-        其餘 ≤1。窗口若 ≤8，亞太主會在四月被誤判為無設備而**失去自癒**——這是反例。
-        取 10 ＝ 已觀測最長良性中斷 8 ＋ 2 場餘裕。**不是為了讓大巨蛋掉出而選**：大巨蛋自
-        06-02 起連續 15 場未達標，任何 ≤15 的窗口都會讓它掉出，10 並非其中唯一或臨界值。
-      - **門檻 0.80**：**沿用專案既有常數**（`run_check_coverage.py` 的 `COVER_OK`、原 `equipped`
-        CTE），本卡不引入新的判定基準。改動它屬另卡範圍。
+      **這兩個常數是需求方裁定的營運政策 [operational policy]，不是資料推導的結果。**
+      前兩版卡面曾宣稱「非事後挑值」，經第 3 輪跨家族查核推翻並接受：所謂「已觀測最長良性
+      中斷 8 場」是**以未來結果（季末是否仍達標）反推「良性」**，這是分類政策而非無偏下界；
+      同一未達標定義下大巨蛋有 23 場連續區段，「季末仍健康」這個限定正好把它排除。`+2` 餘裕
+      亦無成本／風險依據。`0.80` 則是沿用既有常數（`COVER_OK`），**沿用不等於推導**。
 
-      兩者修訂須經需求方核可並留痕。
+      因此本欄改以政策形式陳述，取捨明寫：
+      - **窗口愈小**：死設備退出愈快、浪費的請求愈少，但**單場 downtime 較長的球場會被誤判
+        為無設備而失去自癒**（觀測到的最長恢復型中斷為亞太主 8 場，2026-04-10～04-26）。
+      - **窗口愈大**：自癒保得住，但源頭已無資料的球場會被持續重抓愈久。
+      - 現值 **10／0.80**：偏向保護自癒，容忍最多約 10 場的無效重抓（每場 1 請求、僅在近 3 天
+        窗口內，成本上限每日數個請求）。
+
+      **待需求方以 event 裁定；裁定前執行者不得自行更動，亦不得將其描述為資料推導的結果。**
 
       此值已於 2026-08-03 以全季資料驗證同時滿足兩項不變量（重現查詢見下），**執行者須重跑
       並附輸出**：
@@ -151,6 +155,13 @@ uv run cpbl-check-coverage 2>&1 | awk '/逐球完全零/,0' | grep 'sno=' \
       與 D 六場館（園區／斗六／樂天桃園／皇鷹學院／青埔／澄清湖），**執行時以當時查詢結果為準，
       不得硬編**。
       D 沒有 shadow 時間序列證據，全季 dry-run 只是橫斷面，**不得以之替代**本項。
+      **本條只覆蓋與球場相關的失效**（第 3 輪查核指出），故另加下列兩項：
+- [ ] **非球場相關的失效模式**須各有一次端對端證據：(a) 單日單場 API 部分失敗時，該場不寫入
+      殘缺資料且後續 run 可補齊；(b) 逐球鍵異常（`pitcher_acnt`／`pitch_cnt` 重複或缺漏）時
+      fail closed 而非寫入。可用 fixture，但須是端對端路徑而非單元測試。
+- [ ] **無賽程的逾時去向**：若某 `equipped` 球場在切換後 **21 個日曆日**內無排定主場賽事，
+      不得讓 Phase B 無限等待——以 `blocked` event 記錄該球場並交需求方裁定（沿用紅線 3 的
+      去向格式：具名 owner、期限、逾期維持現狀）。**21 日為暫定值，同屬待裁定的營運政策。**
 - [ ] 至少觀測到 **1 次**「TrackMan 發布延遲後由後續 refresh 自癒」的完整案例（某場首次
       抓取覆蓋不足、後續 run 補齊），證明新路徑的自癒在真實延遲下有效。若觀測窗內未自然
       發生，**不得以 fixture 代替**，須延長觀測直到發生。
@@ -182,8 +193,11 @@ uv run cpbl-check-coverage 2>&1 | awk '/逐球完全零/,0' | grep 'sno=' \
    （改的人可以同時重寫兩者）。故要求：artifact 目錄下產出 `manifest.json`（逐檔
    `path`／`sha256`／`bytes`／`fetched_at`），**該 manifest 自身的 sha256 須寫入本卡的
    handoff event evidence**（control-plane 為 append-only、且 event log 寫入受分類器保護）。
-   查核者以 event 內的 hash 驗 manifest、再以 manifest 驗各 payload——錨點在受保護的
-   control-plane，不在執行者可寫的目錄。〔清單 #7 #8〕
+   查核者以 event 內的 hash 驗 manifest、再以 manifest 驗各 payload。
+   **宣稱範圍限定為「防 handoff 之後的竄改」**——第 3 輪查核指出：若執行者在寫 handoff 前
+   同時改 payload、manifest 與 event evidence，整條鏈仍會自洽，故**這不是來源真實性錨點，
+   也不能稱為在執行者控制之外**。要達到後者需由獨立 CI／查核者產生 digest 或使用具 retention
+   lock 的外部儲存，屬另卡範圍。〔清單 #7 #8〕
 3. **`only_prod_pk` 為 0 才可進 Phase B**：正式表有、單場 API 沒有的列，**本卡不授權任何
    DELETE**，增量路徑與全季重跑一律純 UPSERT。狀態機明定如下，不得停在中間態：
    - 母體 **＝ 0** → 放行 Phase B。
@@ -213,15 +227,23 @@ uv run cpbl-check-coverage 2>&1 | awk '/逐球完全零/,0' | grep 'sno=' \
      **地板定義**：切換日之前、同 kind、`pitches >= 50 AND tracked > 0` 的全部場次之
      `tracked / pitches` **第 5 百分位數**，於切換當日算定、寫入交付 artifact（含母體場次清單）
      後不再重算。
-     **為何是 p05 而非「中位數 −10 個百分點」**：實測分布顯示後者會誤觸發——kind A 中位 99.6%
-     但最低 57.4%、kind D 中位 99.0% 而 **p05 僅 90.0%**，「中位 −10pp」對 D 等於 89.0%，
-     約 5% 的正常二軍場次即會踩線。改以實測 p05 為地板、且用日聚合（變異遠小於單場）、
-     再加連續兩日，三者都是為了讓門檻**來自觀測分布而非選定值**。
-     2026-08-03 實測參考值：A p05 ＝ 96.2%、D p05 ＝ 90.0%（**執行時重算，不得沿用**）。
+     **⚠️ 本條的三個參數（p05、連續兩日、母體 30 場）同屬需求方裁定的營運政策，未經推導。**
+     第 3 輪查核指出一個**統計單位不一致**的實質錯誤：p05 是**單場**分布的百分位數，卻被拿來
+     當**日聚合**的地板，兩者不同單位，**無法由此推出誤報率**。已知的只有：舊版「中位 −10pp」
+     確定會誤觸發（kind D 中位 99.0% 但 p05 僅 90.0%、最低 36.6%，門檻 89.0% 會讓約 5% 的正常
+     二軍場次踩線；A 亦有單場 57.4%），所以舊版必須換掉——但**新版的誤報率目前是未知數**。
+     2026-08-03 單場分布實測：A p05 ＝ 96.2%／中位 99.6%／最低 57.4%（187 場），
+     D p05 ＝ 90.0%／中位 99.0%／最低 36.6%（101 場）。
+     **正解是預先登錄** [pre-registration]：先定下可容忍的誤報率，再以歷史**日聚合**資料回測
+     推出門檻——如此門檻由方法產生而非事後挑選。此回測列為 Phase A 交付項（見驗證段），
+     在其完成前，上列數值僅為**暫定值**，不得宣稱為推導結果。
    - **物理欄位不一致**：出現任一筆物理欄位 `cell_mismatch`（欄位集同紅線 1）→ **立即觸發**，
      不適用連續兩日。
-   - 當日無 `equipped=true` 的新完成場時，本條**不判定**（不算通過也不算失敗），且該日不計入
-     連續兩日的計算（連續性以有判定的日子相接為準）。〔清單 #4 #8〕
+   - 當日無 `equipped=true` 的新完成場時，本條**不判定**（不算通過也不算失敗）。
+     **「連續兩日」的語意 ＝ 連續兩個 eligible day**（有判定的日子相接），**不是連續兩個
+     日曆日**。第 3 輪查核指出此處與上文衝突：照此定義，相隔數週的兩次低覆蓋也會觸發回滾。
+     **這是刻意保留的偏保守設定**（寧可多回滾），但**必須連同誤報率一起回測**，回測前不得
+     視為已定案。〔清單 #4 #8〕
    - **`equipped` 隨時間變動與地板凍結的關係**：地板凍結於切換日，但每日判定的**母體**取當日
      `equipped=true` 的場。若某場館在切換後才失效，它會先在當日聚合拉低覆蓋率（可能觸發回滾），
      隨後在連續 10 場未達標後自動退出 `equipped` 集合、不再計入母體——**這是刻意的**：新失效
@@ -244,24 +266,29 @@ uv run cpbl-check-coverage 2>&1 | awk '/逐球完全零/,0' | grep 'sno=' \
      指令**須在 DB 容器內執行**（host 沒有 `pg_dump`／`psql`，DB 在 `localhost:5433`）：
 
      ```bash
-     DC="docker compose -f ~/Dev/cpbl-analytics/docker-compose.yml exec -T db"
      SCHEMA=restore_check_$(date +%Y%m%d)
-     $DC bash -c "
-       set -e
-       pg_dump -U cpbl -d cpbl -Fc -t cpbl.pitch_tracking -f /tmp/pt.dump
-       psql -U cpbl -d cpbl -qc \"CREATE SCHEMA $SCHEMA;
-         CREATE TABLE $SCHEMA.pitch_tracking (LIKE cpbl.pitch_tracking INCLUDING DEFAULTS);\"
-       pg_restore --data-only --no-owner -f - /tmp/pt.dump \
-         | sed -E 's/^COPY cpbl\.pitch_tracking/COPY $SCHEMA.pitch_tracking/' \
-         | psql -U cpbl -d cpbl -q -v ON_ERROR_STOP=1
-       psql -U cpbl -d cpbl -At -F'|' -c \"
-         SET extra_float_digits = 3;
-         SELECT 'orig', count(*), md5(string_agg(t::text,'|' ORDER BY year,kind_code,game_sno,pitcher_acnt,pitch_cnt)) FROM cpbl.pitch_tracking t
-         UNION ALL
-         SELECT 'rest', count(*), md5(string_agg(t::text,'|' ORDER BY year,kind_code,game_sno,pitcher_acnt,pitch_cnt)) FROM $SCHEMA.pitch_tracking t;\"
-       psql -U cpbl -d cpbl -qc 'DROP SCHEMA $SCHEMA CASCADE;'
-       rm -f /tmp/pt.dump"
+     docker compose -f ~/Dev/cpbl-analytics/docker-compose.yml exec -T db bash -s <<EOSH
+     set -e
+     pg_dump -U cpbl -d cpbl -Fc -t cpbl.pitch_tracking -f /tmp/pt.dump
+     psql -U cpbl -d cpbl -qc "CREATE SCHEMA $SCHEMA;
+       CREATE TABLE $SCHEMA.pitch_tracking (LIKE cpbl.pitch_tracking INCLUDING DEFAULTS);"
+     pg_restore --data-only --no-owner -f - /tmp/pt.dump \
+       | sed -E 's/^COPY cpbl\.pitch_tracking/COPY $SCHEMA.pitch_tracking/' \
+       | psql -U cpbl -d cpbl -q -v ON_ERROR_STOP=1
+     psql -U cpbl -d cpbl -At -F'|' -c "
+       SET extra_float_digits = 3;
+       SELECT 'orig', count(*), md5(string_agg(t::text,'|' ORDER BY year,kind_code,game_sno,pitcher_acnt,pitch_cnt)) FROM cpbl.pitch_tracking t
+       UNION ALL
+       SELECT 'rest', count(*), md5(string_agg(t::text,'|' ORDER BY year,kind_code,game_sno,pitcher_acnt,pitch_cnt)) FROM $SCHEMA.pitch_tracking t;"
+     psql -U cpbl -d cpbl -qc "DROP SCHEMA $SCHEMA CASCADE;"
+     rm -f /tmp/pt.dump
+     EOSH
      ```
+
+     **不得改寫成 `DC="docker compose … exec -T db"` 再 `$DC bash -c …`**——zsh 不對命令字串
+     做分詞，會報 `no such file or directory`。上列 heredoc 形式已於 2026-08-03 **以卡面字面**
+     在 zsh 實跑通過（80,907 列、兩邊 md5 相同）。第 3 輪查核正是打穿了變數形式：撰擬者跑的
+     是展開後的指令、寫進卡面的卻是另一種寫法。**卡面指令必須以卡面字面實跑，不得等價替換。**
 
      **`SET extra_float_digits = 3` 不可省略**：查核者實測同一份資料在 `=0` 與 `=3` 下分別得到
      `84f6c325…` 與 `3586b426…`，不固定即會因 session 設定產生假陽性。**兩列的 count 與 md5
@@ -288,7 +315,11 @@ uv run cpbl-check-coverage 2>&1 | awk '/逐球完全零/,0' | grep 'sno=' \
       報告中的每個數字都要能指回該 artifact，**不得人工轉述、不得以終端輸出行數代替計數**
       （初稿即因把 `tail -25` 的行數誤記為場數而被查核推翻）。
 - [ ] 文字欄位歸因 artifact 須含 `endpoint_url`／`fetched_at`／`payload_sha256`（紅線 2），
-      且原始 payload 一併保存，查核者能以 hash 驗證未被事後修改。
+      且原始 payload 一併保存，查核者能以 hash 驗證 handoff 之後未被修改。
+- [ ] **回滾門檻的預先登錄回測**：先寫定可容忍的誤報率，再以歷史**日聚合**資料（同 kind、
+      `equipped=true`）回測，推出 p05／連續日數／母體下限三者的實際值與誤報率。**方法與容忍度
+      須在看到回測結果前寫定並留痕**，否則就是換個地方事後挑值（清單 #4 #5）。此前卡面數值
+      為暫定。
 - [ ] 查核者須能獨立重跑 dry-run 與 `uv run cpbl-shadow-game-tm --report`，自行核對
       `cpbl.game_tm_shadow_diffs` 與執行者宣稱是否一致。
 - [ ] Phase B 完成後對帳本機與 production 的 `pitch_tracking` 列數、PK 集合與 checksum，
@@ -316,9 +347,11 @@ uv run cpbl-check-coverage 2>&1 | awk '/逐球完全零/,0' | grep 'sno=' \
 - **不修覆蓋率告警的去向**：`cpbl-check-coverage` 對大巨蛋等場館已持續告警兩個半月而無人
   處置，缺陷在**告警沒有強制去向**而非偵測失靈（與 `DEV-CI-RED-OWNERSHIP1` 的「main 紅燈
   無歸屬」是同一種病的兩個表面）。本卡只修那句已被推翻的誤導性註解，告警機制本身另開卡。
-- **不追大巨蛋的缺漏資料**：源頭即無 `Trackman`，重爬任何次數都不會出現；正確的產品回應是
-  把缺席講清楚（沿用 `SkipTrackman` 三態語意），不是持續重試。venue-correlated missingness
-  的量化與前端揭露屬另卡。
+- **大巨蛋為既成的資料源事實，本卡不再往下追**（需求方 2026-08-04 裁定，避免在資料來源問題
+  上來回）。源頭即無 `Trackman`，重爬任何次數都不會出現；不開追蹤卡、不改判準去遷就它。
+  `equipped` 判準的存在理由是**一般性的效率性質**（不對源頭無資料的球場無限重抓），
+  **不是為了處理大巨蛋**——卡面若再出現以大巨蛋論證判準的敘述，即為越界。
+  venue-correlated missingness 的量化與前端揭露同屬另卡。
 - **下游影響（唯讀確認即可）**：`pitch_type_pred`／`pitch_type_pred_v2` 不在 `_upsert` 的
   `_COLS` 內，重跑**不會**洗掉球種分類；`pa_build` 逐球來源唯讀，但其 fail-closed
   reconciliation 對 PK 變動敏感，故紅線 3 的清單須一併交接。
