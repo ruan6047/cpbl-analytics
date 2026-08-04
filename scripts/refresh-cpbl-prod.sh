@@ -75,6 +75,42 @@ sync_advanced_snapshot() {
   echo "    ✓ advanced snapshot（runs/stats/pitch_type/league_summary/pointer 原子晉升）"
 }
 
+# canonical PA build 家族原子同步（INGEST-PA-DAILY1；migrations/066_game_recap_pa_expand.sql）。
+# 為何不能用通用 sync_table：
+#   1) game_recap_source_revisions/game_plate_appearances/game_pa_events/game_pa_pitch_mappings
+#      四表 PK 皆 GENERATED ALWAYS AS IDENTITY 代理鍵，INSERT 帶入 pg_dump 匯出的既有值
+#      需 OVERRIDING SYSTEM VALUE（同 advanced_ingest_runs 前例）；game_recap_builds 的
+#      build_id 是 builder 產生的 uuid（非 identity），走一般 INSERT 即可。
+#   2) 四表彼此 FK 相依（source_revisions ← builds ← plate_appearances ← pa_events／
+#      pitch_mappings），必須同一 --single-transaction 依此順序灌入，否則 FK 失敗。
+# id 值直接鏡像本機、不重新分配：本卡「不部署」——cpbl-refresh-recent 只在本機跑，
+# prod 從不獨立寫入這五張表（唯一 writer 是本同步腳本），故無 prod 自產 identity 與
+# 匯入值碰撞風險，與 advanced_ingest_runs「本機↔prod run id 語意已對齊」同一理由。
+# 各表 conflict 語意比照本機寫入契約：
+#   - game_recap_source_revisions：row_count 可能因同一 sha256 重抓而更新（同
+#     pa_build.upsert_source_revision 的 ON CONFLICT DO UPDATE SET row_count）。
+#   - game_recap_builds：只有 state 會在 insert 後變（published→superseded 等），其餘
+#     欄位（含 validation_summary）建立後不再變。
+#   - game_plate_appearances／game_pa_events／game_pa_pitch_mappings：write-once
+#     （pa_build._write_pas 只 INSERT、從不 UPDATE 既有列），故 DO NOTHING 即為正確語意。
+sync_pa_build() {
+  {
+    _stage game_recap_source_revisions _pa_rev
+    echo "INSERT INTO cpbl.game_recap_source_revisions OVERRIDING SYSTEM VALUE SELECT * FROM _pa_rev ON CONFLICT (id) DO UPDATE SET row_count=EXCLUDED.row_count;"
+    _stage game_recap_builds _pa_build
+    echo "INSERT INTO cpbl.game_recap_builds SELECT * FROM _pa_build ON CONFLICT (build_id) DO UPDATE SET state=EXCLUDED.state;"
+    _stage game_plate_appearances _pa_pa
+    echo "INSERT INTO cpbl.game_plate_appearances OVERRIDING SYSTEM VALUE SELECT * FROM _pa_pa ON CONFLICT (pa_row_id) DO NOTHING;"
+    _stage game_pa_events _pa_ev
+    echo "INSERT INTO cpbl.game_pa_events OVERRIDING SYSTEM VALUE SELECT * FROM _pa_ev ON CONFLICT (id) DO NOTHING;"
+    _stage game_pa_pitch_mappings _pa_map
+    echo "INSERT INTO cpbl.game_pa_pitch_mappings OVERRIDING SYSTEM VALUE SELECT * FROM _pa_map ON CONFLICT (id) DO NOTHING;"
+  } | ssh -o BatchMode=yes "$VPS" \
+        "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql \
+          -v ON_ERROR_STOP=1 -q --single-transaction -U \"\$DB_USER\" -d \"\$DB_NAME\""
+  echo "    ✓ canonical PA build（source_revisions/builds/plate_appearances/pa_events/pitch_mappings 原子同步）"
+}
+
 cd "$REPO_DIR"
 # SKIP_SCRAPE=1：本機 DB 已是最新時，跳過重爬、直接把現有資料同步到 prod。
 if [ -n "${SKIP_SCRAPE:-}" ]; then
@@ -224,6 +260,9 @@ if [ -n "${WITH_DETAIL:-}" ]; then
     pitcher_name visiting_home_type uniform_no role_type game_result is_complete_game is_shutout \
     inning_pitched_cnt inning_pitched_div3 plate_appearances pitch_cnt strike_cnt ball_cnt hits \
     home_runs sac_hit sac_fly bb ibb hbp so wild_pitch balk runs earned_runs relief_point max_speed is_mvp
+  # canonical PA build（INGEST-PA-DAILY1）：衍生自上面剛同步的 game_livelog／pitch_tracking／
+  # batting_gamelog／pitching_gamelog，故放在其後；父子表 FK 順序見檔首 sync_pa_build。
+  sync_pa_build
   sync_table batting_seasons "player_id,year,team_id" \
     team_name g pa ab rbi r h b1 b2 b3 hr tb so sb gidp sh sf bb ibb hbp cs go fo
   sync_table pitching_seasons "player_id,year,team_id" \
