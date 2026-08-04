@@ -9,11 +9,12 @@
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
 | [DEV-CI-RED-OWNERSHIP1](tasks/DEV-CI-RED-OWNERSHIP1.md) | None | T3 | main 紅燈無歸屬：「非本卡引入」沒有強制去向 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-08-02T12:41:27+08:00 |
-| [DEV-CI-SCORELESS-DB-SKIP1](tasks/DEV-CI-SCORELESS-DB-SKIP1.md) | None | T2 | CI api job 因單一測試未循同檔案模式 skip DB 不可用而長紅 | Claude Sonnet 5@Claude Code | `ai/claude-sonnet-5/DEV-CI-SCORELESS-DB-SKIP1 @ .claude/worktrees/upbeat-mayer-1840be` | 0 | 🚧進行中 | —不適用 | 2026-08-04T18:37:58+08:00 |
+| [DEV-CI-SCORELESS-DB-SKIP1](tasks/DEV-CI-SCORELESS-DB-SKIP1.md) | None | T2 | CI api job 因單一測試未循同檔案模式 skip DB 不可用而長紅 | 待指派（查核者；≠ 執行者） | `ai/claude-sonnet-5/DEV-CI-SCORELESS-DB-SKIP1 @ .claude/worktrees/upbeat-mayer-1840be` | 0 | 🔍待查核 | —不適用 | 2026-08-04T19:16:45+08:00 |
 | [DEV-EVENT-REPAIR-ANCHOR1](tasks/DEV-EVENT-REPAIR-ANCHOR1.md) | None | T3 | schema-repair 的歷史證據不可偽造 | 待建立 OPS-CONTROL-PLANE-PR-GUARD1 前置卡 | `待認領` | 0 | ⏸阻塞 | —不適用 | 2026-08-04T18:05:53+08:00 |
 | [DEV-REVIEW-DEACCEPT-TRAIL1](tasks/DEV-REVIEW-DEACCEPT-TRAIL1.md) | — | T3 | plain-review 翻案缺 correction 留痕（WF21-R-13） | —（未認領） | — | 0 | 📥Backlog | —不適用 | 2026-07-31T10:41:30+08:00 |
 | [DEV-REVIEW-PREFLIGHT-GATE1](tasks/DEV-REVIEW-PREFLIGHT-GATE1.md) | — | T3 | 前置查核關卡改為 preflight 的機器可讀宣告 | —（未認領） | — | 0 | 📥Backlog | —不適用 | 2026-07-31T13:15:24+08:00 |
 | [DEV-REVIEW-PREFLIGHT-SELFCHECK1](tasks/DEV-REVIEW-PREFLIGHT-SELFCHECK1.md) | None | T2 | 派審前自檢交接前提 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-08-02T12:01:34+08:00 |
+| [DEV-TRAILER-GUARD-PR-CHECKOUT1](tasks/DEV-TRAILER-GUARD-PR-CHECKOUT1.md) | None | T2 | trailer 守衛在 pull_request 觸發的 CI checkout 上恆定假陽性 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-08-04T19:16:45+08:00 |
 | [DEV-VERIFY-TM-ASSERTS1](tasks/DEV-VERIFY-TM-ASSERTS1.md) | — | T2 | TM 回填驗證腳本補上真正的斷言 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-29T12:14:00+08:00 |
 | [DOC-CARD-SPEC-RULES1](tasks/DOC-CARD-SPEC-RULES1.md) | — | T3 | 卡面規格三條規則（輸入空間／性質而非示範／同病自檢） | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-29T21:34:32+08:00 |
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | — | — | 2 | 📦已合併 | ⏸未部署 | 2026-08-03T11:47:42+08:00 |
@@ -35,7 +36,7 @@
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:09+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:10+08:00 |
 | [OPS-BACKUP-DR1](tasks/OPS-BACKUP-DR1.md) | — | T3 | 備份異地副本與還原演練自動化 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-03T13:21:47+08:00 |
-| [OPS-CONTROL-PLANE-PR-GUARD1](tasks/OPS-CONTROL-PLANE-PR-GUARD1.md) | None | T3 | 將 control-plane 轉為受保護 PR 的機械守衛 | 待指派（等待 DEV-CI-SCORELESS-DB-SKIP1 解除） | `claude/ops-control-plane-pr-guard-cc7d30 @ .claude/worktrees/upbeat-mayer-1840be` | 0 | ⏸阻塞 | —不適用 | 2026-08-04T18:28:39+08:00 |
+| [OPS-CONTROL-PLANE-PR-GUARD1](tasks/OPS-CONTROL-PLANE-PR-GUARD1.md) | None | T3 | 將 control-plane 轉為受保護 PR 的機械守衛 | 待指派（等待 DEV-CI-SCORELESS-DB-SKIP1 與 DEV-TRAILER-GUARD-PR-CHECKOUT1 解除） | `claude/ops-control-plane-pr-guard-cc7d30 @ .claude/worktrees/upbeat-mayer-1840be` | 0 | ⏸阻塞 | —不適用 | 2026-08-04T19:16:45+08:00 |
 | [OPS-POSTGAME-OBSERVE1](tasks/OPS-POSTGAME-OBSERVE1.md) | — | T2 | 完賽正式資料發布延遲觀測 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-08-03T01:04:14+08:00 |
 | [OPS-REMOTE-CUTOVER1](tasks/OPS-REMOTE-CUTOVER1.md) | INIT-PRODUCT-UX | T4 | 遠端 crawler production canary 與切換 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:40+08:00 |
 | [OPS-REMOTE-PROBE1](tasks/OPS-REMOTE-PROBE1.md) | INIT-PRODUCT-UX | T3 | Opt-in DEBUG 網路探測介面 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:37+08:00 |
