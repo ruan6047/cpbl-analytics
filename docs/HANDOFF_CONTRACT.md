@@ -49,6 +49,14 @@ claim_event_id: <對應的有效 claim 事件 event_id>
 
 ## 3. Receiver acceptance checklist
 
+> **先產生提示詞，再建下面第三項的 detached worktree**——順序不能反（DEV-REVIEW-PROMPT-BASE1）。
+> `review_prompt.py` 從**自身所在 checkout** 讀 event log，而 control-plane 依
+> [`CONTROL_PLANE_CONTRACT.md`](CONTROL_PLANE_CONTRACT.md) 只存在於 `main`、執行分支不攜帶；
+> 在交付 SHA 的 detached worktree 內產生提示詞必然讀不到該卡的 handoff。清單本身沒錯，缺的
+> 是它與工具的先後關係——2026-08-04 `DEV-BASELINE-GUARD-DECL1` 照清單順序做，第一步就撞到
+> 假性失敗並據以退回。現在腳本會分辨成因（本 checkout 不帶 control-plane／主 checkout 落後
+> ／真的未交付）並給出可直接執行的指令，但**正確順序仍以本註記為準**。
+
 receiver 在寫 `handoff-accepted` 前必須逐項完成，並把結果寫進該事件的 `evidence`：
 
 - [ ] **SHA 完整且已推送**：`git rev-parse <sha>` 解析成功，且 `git branch -r --contains <sha>` 顯示該 commit 已存在於遠端 ref。

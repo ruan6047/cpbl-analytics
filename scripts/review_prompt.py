@@ -1,8 +1,14 @@
 """審核提示詞產生器：從 control-plane 最新 handoff event + 卡片檔自動生成查核提示詞。
 
-用法（需求方在 repo 根目錄執行）：
+用法（**在帶有 main 的 checkout 執行**，見下）：
     uv run python scripts/review_prompt.py <CARD_ID>            # 印到 stdout
     uv run python scripts/review_prompt.py <CARD_ID> | pbcopy   # 直接進剪貼簿貼給查核者
+
+**先產生提示詞，再建查核 worktree**——順序不能反。event log 依契約只存在於 main，執行分支
+不攜帶，所以在交付 SHA 的 detached worktree 裡跑本腳本必然讀不到該卡的 handoff。而
+`HANDOFF_CONTRACT.md` §3 的驗收清單要求查核者建那個 worktree，照清單順序做的人第一步就會
+撞到（2026-08-04 `DEV-BASELINE-GUARD-DECL1` 因此被誤退一輪）。撞到時本腳本會分辨成因並給
+指令，不再一律報「尚未交付查核」（DEV-REVIEW-PROMPT-BASE1）。
 
 資料來源（零 AI 成本、永遠反映最新交接狀態）：
 - docs/control-plane/events.jsonl：該卡最新 handoff event（分支、worktree、source_sha、
@@ -29,6 +35,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import NoReturn
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -169,15 +176,96 @@ def baseline_check(card_id: str) -> str:
     return "\n".join(lines)
 
 
+CONTROL_PLANE_REL = "docs/control-plane/events.jsonl"
+
+
+def _events_in(text: str, card_id: str) -> list[dict]:
+    """從 event log 原文取出該卡的事件（容忍空行）。"""
+    return [
+        e for line in text.splitlines() if line.strip()
+        if (e := json.loads(line)).get("card_id") == card_id
+    ]
+
+
 def card_events(card_id: str) -> list[dict]:
-    """該卡的所有 event，維持 append-only 的原始順序。"""
-    events: list[dict] = []
-    with open(ROOT / "docs/control-plane/events.jsonl", encoding="utf-8") as f:
-        for line in f:
-            e = json.loads(line)
-            if e.get("card_id") == card_id:
-                events.append(e)
-    return events
+    """該卡的所有 event，維持 append-only 的原始順序。
+
+    **來源固定是本 checkout（`ROOT`）**，不偷偷改讀別處：提示詞的內容必須來自一份
+    說得出是哪裡的事實。本 checkout 讀不到時由 `_exit_without_handoff()` 診斷後給指引，
+    而不是靜默換來源——後者會讓「這份提示詞根據的是哪一版 event log」變得不可追。
+    """
+    return _events_in((ROOT / CONTROL_PLANE_REL).read_text(encoding="utf-8"), card_id)
+
+
+def _checkout_description(path: Path) -> str:
+    """`<短SHA>（分支名／detached）`，取不到時明講取不到。"""
+    def git(*args: str) -> str | None:
+        r = subprocess.run(["git", "-C", str(path), *args], capture_output=True, text=True)
+        return r.stdout.strip() if r.returncode == 0 else None
+
+    sha = git("rev-parse", "--short", "HEAD")
+    if sha is None:
+        return "無法解析 HEAD"
+    branch = git("rev-parse", "--abbrev-ref", "HEAD")
+    return f"{sha}（{'detached HEAD' if branch == 'HEAD' else branch}）"
+
+
+def _other_control_plane_sources() -> list[tuple[str, str]]:
+    """本 checkout 以外、可能帶有 control-plane 的來源：(來源描述, event log 原文)。
+
+    只用於「找不到 handoff」時的診斷，不參與提示詞內容。兩個來源對應兩種已實際發生的
+    成因：查核者在**交付 SHA 的 detached worktree** 內產生提示詞（執行分支依契約不攜帶
+    control-plane），以及**主 checkout 落後於 origin/main**。兩者症狀相同，故都要查。
+    """
+    sources: list[tuple[str, str]] = []
+    if MAIN_ROOT != ROOT:
+        path = MAIN_ROOT / CONTROL_PLANE_REL
+        try:
+            sources.append((f"主 checkout `{MAIN_ROOT}`（{_checkout_description(MAIN_ROOT)}）",
+                            path.read_text(encoding="utf-8")))
+        except OSError:
+            pass
+    r = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"origin/main:{CONTROL_PLANE_REL}"],
+        capture_output=True, text=True)
+    if r.returncode == 0 and r.stdout:
+        sources.append(("`origin/main`", r.stdout))
+    return sources
+
+
+def _exit_without_handoff(card_id: str) -> NoReturn:
+    """本 checkout 找不到 handoff 時，先分辨成因再退出（DEV-REVIEW-PROMPT-BASE1）。
+
+    舊版一律吐「沒有 handoff event（尚未交付查核）」——那句話指控執行者未交付，但最常見的
+    成因其實是**產生提示詞的位置不對**：control-plane 依契約只存在於 main，而
+    `HANDOFF_CONTRACT.md` §3 要求查核者建交付 SHA 的 detached worktree，照清單順序做的人
+    第一步就會撞到這個假性失敗。2026-08-04 `DEV-BASELINE-GUARD-DECL1` 因此被誤退一輪。
+
+    兩種輸出刻意完全不同：別處找得到 → 說明成因並給可直接執行的指令；到處都沒有 → 才是
+    真的尚未交付，並列出已查過哪些來源（讓「查過了」本身可稽核）。
+    """
+    found = [
+        (label, handoffs[-1])
+        for label, text in _other_control_plane_sources()
+        if (handoffs := [e for e in _events_in(text, card_id) if e.get("type") == "handoff"])
+    ]
+    if not found:
+        checked = "、".join(["本 checkout"] + [label for label, _ in _other_control_plane_sources()])
+        sys.exit(
+            f"錯誤：{card_id} 尚未交付查核——查無任何 handoff event。\n"
+            f"已查來源：{checked}。"
+        )
+    label, ev = found[0]
+    sys.exit(
+        f"錯誤：本 checkout 讀不到 main 的 control-plane，因此看不到 {card_id} 的 handoff event。\n"
+        f"**這不是「執行者未交付」**：{label} 有 {ev.get('event_id')}"
+        f"（source_sha {str(ev.get('source_sha'))[:7]}，{ev.get('occurred_at')}）。\n\n"
+        f"成因：`{CONTROL_PLANE_REL}` 依 CONTROL_PLANE_CONTRACT 只存在於 main，執行分支不攜帶；"
+        f"本 checkout 目前是 {_checkout_description(ROOT)}。\n"
+        f"（另一種同症狀的成因是主 checkout 落後於 origin/main，下面的指令一併涵蓋。）\n\n"
+        f"處置——先在帶有 main 的 checkout 產生提示詞，再依提示詞建交付 SHA 的 detached worktree：\n"
+        f"  cd {MAIN_ROOT} && git pull --ff-only && uv run python scripts/review_prompt.py {card_id}"
+    )
 
 
 def latest_handoff(card_id: str) -> tuple[dict, list[dict]]:
@@ -193,7 +281,7 @@ def latest_handoff(card_id: str) -> tuple[dict, list[dict]]:
         if e.get("type") == "handoff":
             ev = e  # append-only → 最後一筆即最新
     if ev is None:
-        sys.exit(f"錯誤：{card_id} 沒有 handoff event（尚未交付查核）。")
+        _exit_without_handoff(card_id)
     gates = _assert_no_review_supersedes_handoff(card_id, events)
     _assert_handoff_matches_branch_head(ev)
     return ev, gates
