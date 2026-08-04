@@ -34,7 +34,7 @@
 | [ML-PT3](tasks/ML-PT3.md) | — | T4 | 中職版球路品質指數 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:09+08:00 |
 | [ML-SIM2](tasks/ML-SIM2.md) | — | T4 | 全場狀態模擬器 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:10+08:00 |
 | [OPS-BACKUP-DR1](tasks/OPS-BACKUP-DR1.md) | — | T3 | 備份異地副本與還原演練自動化 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-03T13:21:47+08:00 |
-| [OPS-CONTROL-PLANE-PR-GUARD1](tasks/OPS-CONTROL-PLANE-PR-GUARD1.md) | None | T3 | 將 control-plane 轉為受保護 PR 的機械守衛 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-08-04T18:09:54+08:00 |
+| [OPS-CONTROL-PLANE-PR-GUARD1](tasks/OPS-CONTROL-PLANE-PR-GUARD1.md) | None | T3 | 將 control-plane 轉為受保護 PR 的機械守衛 | Claude Sonnet 5@Claude Code | `claude/ops-control-plane-pr-guard-cc7d30 @ .claude/worktrees/upbeat-mayer-1840be` | 0 | 🚧進行中 | —不適用 | 2026-08-04T18:20:22+08:00 |
 | [OPS-POSTGAME-OBSERVE1](tasks/OPS-POSTGAME-OBSERVE1.md) | — | T2 | 完賽正式資料發布延遲觀測 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-08-03T01:04:14+08:00 |
 | [OPS-REMOTE-CUTOVER1](tasks/OPS-REMOTE-CUTOVER1.md) | INIT-PRODUCT-UX | T4 | 遠端 crawler production canary 與切換 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-07-18T19:15:40+08:00 |
 | [OPS-REMOTE-PROBE1](tasks/OPS-REMOTE-PROBE1.md) | INIT-PRODUCT-UX | T3 | Opt-in DEBUG 網路探測介面 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-18T19:15:37+08:00 |
