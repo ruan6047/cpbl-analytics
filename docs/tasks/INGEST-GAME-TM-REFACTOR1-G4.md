@@ -55,8 +55,10 @@ uv run cpbl-check-coverage 2>&1 | awk '/逐球完全零/,0' | grep 'sno=' \
 
 當日輸出：「逐球完全零」**36 場**（大巨蛋 24／亞太主 8／新莊 3／樂天桃園 1）、「逐球部分
 缺漏」1 場。**該 36 場清單的層級是 `ℹ️`**，括號註記為「多為亞太主早季未裝機、大巨蛋設備
-不穩」——工具把這批視為預期噪音而非待辦，這正是「告警無去向」的具體形態。註記中「大巨蛋
-設備不穩」的判斷也已被上述時序推翻（不是不穩，是自 06-02 起持續無資料）。
+不穩」——工具把這批視為預期噪音而非待辦，這正是「告警無去向」的具體形態。註記中「設備
+不穩」的措辭與資料不符：資料能證明的是**自 06-02 起官方 TrackMan 持續缺失**，
+**不足以鑑別硬體故障、停用或其他原因**；能斷言的只有「不再是單次／偶發的不穩」。
+（第 2 輪查核指出初稿「已被時序推翻」屬過度推論，此處已收斂。）
 
 > **數字紀律**：本節所有計數均須以上列指令重新產生，**不得以終端輸出的行數代替計數**。
 > 初稿曾把 `tail -25` 的行數誤記為「25 場」，經跨家族查核（GPT-5／Codex，2026-08-03）
@@ -89,7 +91,8 @@ uv run cpbl-check-coverage 2>&1 | awk '/逐球完全零/,0' | grep 'sno=' \
         `true`（其 8 場零覆蓋屬早季未裝機，不應因此喪失自癒）；斗六僅 2 場完成場、2/2 為 `true`。
       - **kind D 同樣成立**（本卡 A＋D 一起切，判準須兩邊都驗）：`equipped=true` 為園區 10/10、
         青埔 10/10、樂天桃園 9/10、皇鷹學院 9/10、斗六 8/10、澄清湖 1/2；`false` 為亞太副 0/10、
-        嘉義市 0/10、場地未定 0/1——與既知的二軍設備／無設備清單吻合。
+        嘉義市 0/10、場地未定 0/1。**此處只陳述查詢結果**——專案內無可追溯的二軍設備權威
+        清單，初稿宣稱「與既知清單吻合」無來源（第 2 輪查核指出），已移除該宣稱。
 
       ```sql
       WITH cov AS (
@@ -158,8 +161,13 @@ uv run cpbl-check-coverage 2>&1 | awk '/逐球完全零/,0' | grep 'sno=' \
    **artifact 每列必含**：`endpoint_url`、`fetched_at`（ISO 8601 含時區）、`payload_sha256`
    （該次官方回應全文的 hash）、`prod_value`、`api_value`。**只重打即時端點不足以證明當時的
    官方修正**——官方可能在複驗前又改一次，沒有 hash 與抓取時間就無法分辨「當時就不同」與
-   「複驗時才不同」。artifact 連同原始 payload 存於 `ARTIFACT_DIR` 下版本化路徑，查核者須
-   能以 hash 驗證其未被事後修改。〔清單 #7 #8〕
+   「複驗時才不同」。
+   **信任錨點必須在 artifact 之外**：payload 與其 hash 同放一個目錄無法證明未被事後修改
+   （改的人可以同時重寫兩者）。故要求：artifact 目錄下產出 `manifest.json`（逐檔
+   `path`／`sha256`／`bytes`／`fetched_at`），**該 manifest 自身的 sha256 須寫入本卡的
+   handoff event evidence**（control-plane 為 append-only、且 event log 寫入受分類器保護）。
+   查核者以 event 內的 hash 驗 manifest、再以 manifest 驗各 payload——錨點在受保護的
+   control-plane，不在執行者可寫的目錄。〔清單 #7 #8〕
 3. **`only_prod_pk` 為 0 才可進 Phase B**：正式表有、單場 API 沒有的列，**本卡不授權任何
    DELETE**，增量路徑與全季重跑一律純 UPSERT。狀態機明定如下，不得停在中間態：
    - 母體 **＝ 0** → 放行 Phase B。
@@ -192,26 +200,45 @@ uv run cpbl-check-coverage 2>&1 | awk '/逐球完全零/,0' | grep 'sno=' \
      `restore_check_<YYYYMMDD>`。下列流程已於 2026-08-03 在本機實跑驗證（80,907 列、
      兩邊 md5 相同），**照抄即可跑**，`SCHEMA` 換成當日名稱：
 
+     **這是 `data-only recovery rehearsal`，不是完整單表復原**——`LIKE ... INCLUDING DEFAULTS`
+     不帶 PK、索引與約束（原表有 `pitch_tracking_pkey` 與 `idx_pitch_hitter`／`idx_pitch_pitcher`
+     ／`idx_pitch_type` 三個索引，臨時表皆無）。故本流程**不得援引 `OPS-BACKUP-EMPTY1` 的 FK
+     演練教訓**，那個教訓要求的是完整結構還原。結構面另以第二步驗證（見下）。
+
+     指令**須在 DB 容器內執行**（host 沒有 `pg_dump`／`psql`，DB 在 `localhost:5433`）：
+
      ```bash
+     DC="docker compose -f ~/Dev/cpbl-analytics/docker-compose.yml exec -T db"
      SCHEMA=restore_check_$(date +%Y%m%d)
-     pg_dump -U cpbl -d cpbl -Fc -t cpbl.pitch_tracking -f /tmp/pt.dump
-     psql -U cpbl -d cpbl -qc "CREATE SCHEMA $SCHEMA;
-       CREATE TABLE $SCHEMA.pitch_tracking (LIKE cpbl.pitch_tracking INCLUDING DEFAULTS);"
-     pg_restore --data-only --no-owner -f - /tmp/pt.dump \
-       | sed -E "s/^COPY cpbl\.pitch_tracking/COPY $SCHEMA.pitch_tracking/" \
-       | psql -U cpbl -d cpbl -q -v ON_ERROR_STOP=1
-     psql -U cpbl -d cpbl -At -F'|' -c "
-       SELECT 'orig', count(*), md5(string_agg(t::text,'|' ORDER BY year,kind_code,game_sno,pitcher_acnt,pitch_cnt)) FROM cpbl.pitch_tracking t
-       UNION ALL
-       SELECT 'rest', count(*), md5(string_agg(t::text,'|' ORDER BY year,kind_code,game_sno,pitcher_acnt,pitch_cnt)) FROM $SCHEMA.pitch_tracking t;"
-     psql -U cpbl -d cpbl -qc "DROP SCHEMA $SCHEMA CASCADE;" && rm -f /tmp/pt.dump
+     $DC bash -c "
+       set -e
+       pg_dump -U cpbl -d cpbl -Fc -t cpbl.pitch_tracking -f /tmp/pt.dump
+       psql -U cpbl -d cpbl -qc \"CREATE SCHEMA $SCHEMA;
+         CREATE TABLE $SCHEMA.pitch_tracking (LIKE cpbl.pitch_tracking INCLUDING DEFAULTS);\"
+       pg_restore --data-only --no-owner -f - /tmp/pt.dump \
+         | sed -E 's/^COPY cpbl\.pitch_tracking/COPY $SCHEMA.pitch_tracking/' \
+         | psql -U cpbl -d cpbl -q -v ON_ERROR_STOP=1
+       psql -U cpbl -d cpbl -At -F'|' -c \"
+         SET extra_float_digits = 3;
+         SELECT 'orig', count(*), md5(string_agg(t::text,'|' ORDER BY year,kind_code,game_sno,pitcher_acnt,pitch_cnt)) FROM cpbl.pitch_tracking t
+         UNION ALL
+         SELECT 'rest', count(*), md5(string_agg(t::text,'|' ORDER BY year,kind_code,game_sno,pitcher_acnt,pitch_cnt)) FROM $SCHEMA.pitch_tracking t;\"
+       psql -U cpbl -d cpbl -qc 'DROP SCHEMA $SCHEMA CASCADE;'
+       rm -f /tmp/pt.dump"
      ```
 
-     **兩列的 count 與 md5 都必須相同**，比對範圍為全表。
-     **踩雷留痕**：本卡初稿寫「`pg_restore --schema-only` 後 `--data-only`，或 `pg_restore -f -`
-     改寫 search_path」，實跑證明**根本跑不起來**——`-d` 與 `-f` 不能併用；改用整段 sed 改寫
-     schema 又會在 `CREATE INDEX ... ON cpbl.` 撞既有索引名。上列「先建空表再 data-only」
-     才是可行路徑。這正是查核者該條 Major finding 的實質：沒實跑過的指令不算可執行。
+     **`SET extra_float_digits = 3` 不可省略**：查核者實測同一份資料在 `=0` 與 `=3` 下分別得到
+     `84f6c325…` 與 `3586b426…`，不固定即會因 session 設定產生假陽性。**兩列的 count 與 md5
+     都必須相同**，比對範圍為全表。
+
+     第二步（結構面）：`pg_restore --list` 須列出 PK 與上述三個索引的 `INDEX`／`CONSTRAINT`
+     項目，證明 dump **本身**含結構；缺任一項即備份不完整，本條不通過。
+
+     **踩雷留痕**：初稿寫「`pg_restore --schema-only` 後 `--data-only`，或 `pg_restore -f -`
+     改寫 search_path」，實跑證明**根本跑不起來**（`-d` 與 `-f` 不能併用；整段 sed 改寫 schema
+     會在 `CREATE INDEX ... ON cpbl.` 撞既有索引名）。第 2 輪查核再指出：改好的版本仍寫成 host
+     指令而 host 無 client、checksum 未固定浮點輸出、且把 data-only 演練誤稱為完整復原。
+     **沒實跑過、或只在一種環境跑過的指令，都不算可執行。**
    - 需求方親手執行寫入。
    「備份檔案已產生」不等於通過本條（見 `OPS-BACKUP-EMPTY1`：只有還原演練才看得到
    `convalidated=t` 卻不成立的 FK）。〔清單 #8〕
