@@ -1,0 +1,479 @@
+{
+  "scope": "2025 A/D 受幽靈故四影響的 (場次, 打者)",
+  "source": "cpbl.batting_gamelog（官網 getlive Batting，官方逐場 box）",
+  "pairs": 26,
+  "official_equals_counted_only": 1,
+  "official_equals_counted_plus_ghost": 25,
+  "ibb_gap_zero": 1,
+  "ibb_gap_equals_ghost": 25,
+  "rows": [
+    {
+      "kind": "A",
+      "game_sno": 16,
+      "acnt": "0000003183",
+      "name": "張志豪",
+      "official_pa": 5,
+      "official_bb": 1,
+      "official_ibb": 1,
+      "ours_counted_pa": 4,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "A",
+      "game_sno": 86,
+      "acnt": "0000001804",
+      "name": "陳傑憲",
+      "official_pa": 5,
+      "official_bb": 1,
+      "official_ibb": 1,
+      "ours_counted_pa": 4,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "A",
+      "game_sno": 89,
+      "acnt": "0000007239",
+      "name": "魔鷹",
+      "official_pa": 5,
+      "official_bb": 1,
+      "official_ibb": 1,
+      "ours_counted_pa": 4,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "A",
+      "game_sno": 90,
+      "acnt": "0000002286",
+      "name": "林立",
+      "official_pa": 1,
+      "official_bb": 1,
+      "official_ibb": 1,
+      "ours_counted_pa": 0,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "A",
+      "game_sno": 103,
+      "acnt": "0000007239",
+      "name": "魔鷹",
+      "official_pa": 5,
+      "official_bb": 1,
+      "official_ibb": 1,
+      "ours_counted_pa": 4,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "A",
+      "game_sno": 106,
+      "acnt": "0000007239",
+      "name": "魔鷹",
+      "official_pa": 5,
+      "official_bb": 2,
+      "official_ibb": 2,
+      "ours_counted_pa": 4,
+      "ours_counted_ibb": 1,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "A",
+      "game_sno": 151,
+      "acnt": "0000007239",
+      "name": "魔鷹",
+      "official_pa": 5,
+      "official_bb": 1,
+      "official_ibb": 1,
+      "ours_counted_pa": 4,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "A",
+      "game_sno": 166,
+      "acnt": "0000007239",
+      "name": "魔鷹",
+      "official_pa": 5,
+      "official_bb": 2,
+      "official_ibb": 1,
+      "ours_counted_pa": 4,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "A",
+      "game_sno": 179,
+      "acnt": "0000007239",
+      "name": "魔鷹",
+      "official_pa": 4,
+      "official_bb": 2,
+      "official_ibb": 1,
+      "ours_counted_pa": 3,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "A",
+      "game_sno": 216,
+      "acnt": "0000005510",
+      "name": "林澤彬",
+      "official_pa": 5,
+      "official_bb": 1,
+      "official_ibb": 1,
+      "ours_counted_pa": 4,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "A",
+      "game_sno": 240,
+      "acnt": "0000001606",
+      "name": "林岱安",
+      "official_pa": 3,
+      "official_bb": 0,
+      "official_ibb": 0,
+      "ours_counted_pa": 3,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 0,
+      "ibb_gap_vs_counted": 0
+    },
+    {
+      "kind": "A",
+      "game_sno": 240,
+      "acnt": "0000003615",
+      "name": "胡金龍",
+      "official_pa": 1,
+      "official_bb": 1,
+      "official_ibb": 1,
+      "ours_counted_pa": 0,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "A",
+      "game_sno": 296,
+      "acnt": "0000000910",
+      "name": "張進德",
+      "official_pa": 1,
+      "official_bb": 1,
+      "official_ibb": 1,
+      "ours_counted_pa": 0,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "A",
+      "game_sno": 296,
+      "acnt": "0000001804",
+      "name": "陳傑憲",
+      "official_pa": 5,
+      "official_bb": 1,
+      "official_ibb": 1,
+      "ours_counted_pa": 4,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "A",
+      "game_sno": 307,
+      "acnt": "0000004636",
+      "name": "江坤宇",
+      "official_pa": 4,
+      "official_bb": 1,
+      "official_ibb": 1,
+      "ours_counted_pa": 3,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "A",
+      "game_sno": 323,
+      "acnt": "0000007070",
+      "name": "林佳緯",
+      "official_pa": 2,
+      "official_bb": 1,
+      "official_ibb": 1,
+      "ours_counted_pa": 1,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "A",
+      "game_sno": 328,
+      "acnt": "0000003467",
+      "name": "林泓育",
+      "official_pa": 4,
+      "official_bb": 1,
+      "official_ibb": 1,
+      "ours_counted_pa": 3,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "D",
+      "game_sno": 30,
+      "acnt": "0000006933",
+      "name": "林威漢",
+      "official_pa": 2,
+      "official_bb": 1,
+      "official_ibb": 1,
+      "ours_counted_pa": 1,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "D",
+      "game_sno": 82,
+      "acnt": "0000003548",
+      "name": "黃鈞聲",
+      "official_pa": 2,
+      "official_bb": 2,
+      "official_ibb": 1,
+      "ours_counted_pa": 1,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "D",
+      "game_sno": 82,
+      "acnt": "0000005342",
+      "name": "林志綱",
+      "official_pa": 4,
+      "official_bb": 1,
+      "official_ibb": 1,
+      "ours_counted_pa": 3,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "D",
+      "game_sno": 89,
+      "acnt": "0000006888",
+      "name": "張育成",
+      "official_pa": 5,
+      "official_bb": 1,
+      "official_ibb": 1,
+      "ours_counted_pa": 4,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "D",
+      "game_sno": 98,
+      "acnt": "0000006939",
+      "name": "顏郁軒",
+      "official_pa": 2,
+      "official_bb": 1,
+      "official_ibb": 1,
+      "ours_counted_pa": 1,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "D",
+      "game_sno": 132,
+      "acnt": "0000006743",
+      "name": "劉俊豪",
+      "official_pa": 1,
+      "official_bb": 1,
+      "official_ibb": 1,
+      "ours_counted_pa": 0,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "D",
+      "game_sno": 184,
+      "acnt": "0000006731",
+      "name": "周委宏",
+      "official_pa": 1,
+      "official_bb": 1,
+      "official_ibb": 1,
+      "ours_counted_pa": 0,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "D",
+      "game_sno": 215,
+      "acnt": "0000000908",
+      "name": "蘇緯達",
+      "official_pa": 1,
+      "official_bb": 1,
+      "official_ibb": 1,
+      "ours_counted_pa": 0,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    },
+    {
+      "kind": "D",
+      "game_sno": 237,
+      "acnt": "0000001258",
+      "name": "劉時豪",
+      "official_pa": 1,
+      "official_bb": 1,
+      "official_ibb": 1,
+      "ours_counted_pa": 0,
+      "ours_counted_ibb": 0,
+      "ghost_pa": 1,
+      "ghost_ibb": 1,
+      "ghost_outcomes": [
+        "故四"
+      ],
+      "pa_gap_vs_counted": 1,
+      "ibb_gap_vs_counted": 1
+    }
+  ]
+}

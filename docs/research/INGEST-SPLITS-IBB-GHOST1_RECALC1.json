@@ -1,0 +1,517 @@
+{
+  "grid_rows_total": 2435,
+  "grid_generated_at": "2026-07-30T10:37:22.622947+08:00",
+  "grid_note": "完整發布欄位 diff（batting/pitching_splits 全欄含 goao/avg/obp/slg/ops）。corrected＝legacy＋僅合併 counted 缺陷邊界；打者歸屬 canonical charged_hitter（9.15(b)）；投球數依每列實際 pitcher_acnt 保留、打席結果責任依 9.16(h)；只列有差異的 row 與欄。",
+  "affected_batter_kind_pairs": 20,
+  "affected_cells_total": 63,
+  "affected_cells_in_grid": 3,
+  "affected_cells_not_in_grid": 60,
+  "covered": [
+    {
+      "kind": "A",
+      "acnt": "0000001804",
+      "name": "陳傑憲",
+      "group": "3",
+      "item": "VS. 本土投手",
+      "ghost_seats": 2
+    },
+    {
+      "kind": "A",
+      "acnt": "0000007070",
+      "name": "林佳緯",
+      "group": "1",
+      "item": "主場",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000007070",
+      "name": "林佳緯",
+      "group": "3",
+      "item": "VS. 右投",
+      "ghost_seats": 1
+    }
+  ],
+  "missing": [
+    {
+      "kind": "A",
+      "acnt": "0000000910",
+      "name": "張進德",
+      "group": "1",
+      "item": "客場",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000000910",
+      "name": "張進德",
+      "group": "3",
+      "item": "VS. 右投",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000000910",
+      "name": "張進德",
+      "group": "3",
+      "item": "VS. 本土投手",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000001606",
+      "name": "林岱安",
+      "group": "1",
+      "item": "客場",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000001606",
+      "name": "林岱安",
+      "group": "3",
+      "item": "VS. 右投",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000001606",
+      "name": "林岱安",
+      "group": "3",
+      "item": "VS. 本土投手",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000001804",
+      "name": "陳傑憲",
+      "group": "1",
+      "item": "主場",
+      "ghost_seats": 2
+    },
+    {
+      "kind": "A",
+      "acnt": "0000001804",
+      "name": "陳傑憲",
+      "group": "3",
+      "item": "VS. 右投",
+      "ghost_seats": 2
+    },
+    {
+      "kind": "A",
+      "acnt": "0000002286",
+      "name": "林立",
+      "group": "1",
+      "item": "客場",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000002286",
+      "name": "林立",
+      "group": "3",
+      "item": "VS. 右投",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000002286",
+      "name": "林立",
+      "group": "3",
+      "item": "VS. 本土投手",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000003183",
+      "name": "張志豪",
+      "group": "1",
+      "item": "主場",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000003183",
+      "name": "張志豪",
+      "group": "3",
+      "item": "VS. 右投",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000003183",
+      "name": "張志豪",
+      "group": "3",
+      "item": "VS. 本土投手",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000003467",
+      "name": "林泓育",
+      "group": "1",
+      "item": "主場",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000003467",
+      "name": "林泓育",
+      "group": "3",
+      "item": "VS. 左投",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000003467",
+      "name": "林泓育",
+      "group": "3",
+      "item": "VS. 本土投手",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000003615",
+      "name": "胡金龍",
+      "group": "1",
+      "item": "客場",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000003615",
+      "name": "胡金龍",
+      "group": "3",
+      "item": "VS. 右投",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000003615",
+      "name": "胡金龍",
+      "group": "3",
+      "item": "VS. 本土投手",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000004636",
+      "name": "江坤宇",
+      "group": "1",
+      "item": "主場",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000004636",
+      "name": "江坤宇",
+      "group": "3",
+      "item": "VS. 右投",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000004636",
+      "name": "江坤宇",
+      "group": "3",
+      "item": "VS. 本土投手",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000005510",
+      "name": "林澤彬",
+      "group": "1",
+      "item": "主場",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000005510",
+      "name": "林澤彬",
+      "group": "3",
+      "item": "VS. 右投",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000005510",
+      "name": "林澤彬",
+      "group": "3",
+      "item": "VS. 本土投手",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000007070",
+      "name": "林佳緯",
+      "group": "3",
+      "item": "VS. 本土投手",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "A",
+      "acnt": "0000007239",
+      "name": "魔鷹",
+      "group": "1",
+      "item": "主場",
+      "ghost_seats": 3
+    },
+    {
+      "kind": "A",
+      "acnt": "0000007239",
+      "name": "魔鷹",
+      "group": "1",
+      "item": "客場",
+      "ghost_seats": 3
+    },
+    {
+      "kind": "A",
+      "acnt": "0000007239",
+      "name": "魔鷹",
+      "group": "3",
+      "item": "VS. 左投",
+      "ghost_seats": 3
+    },
+    {
+      "kind": "A",
+      "acnt": "0000007239",
+      "name": "魔鷹",
+      "group": "3",
+      "item": "VS. 右投",
+      "ghost_seats": 3
+    },
+    {
+      "kind": "A",
+      "acnt": "0000007239",
+      "name": "魔鷹",
+      "group": "3",
+      "item": "VS. 本土投手",
+      "ghost_seats": 4
+    },
+    {
+      "kind": "A",
+      "acnt": "0000007239",
+      "name": "魔鷹",
+      "group": "3",
+      "item": "VS. 外籍投手",
+      "ghost_seats": 2
+    },
+    {
+      "kind": "D",
+      "acnt": "0000000908",
+      "name": "蘇緯達",
+      "group": "1",
+      "item": "主場",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000000908",
+      "name": "蘇緯達",
+      "group": "3",
+      "item": "VS. 右投",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000000908",
+      "name": "蘇緯達",
+      "group": "3",
+      "item": "VS. 本土投手",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000001258",
+      "name": "劉時豪",
+      "group": "1",
+      "item": "主場",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000001258",
+      "name": "劉時豪",
+      "group": "3",
+      "item": "VS. 右投",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000001258",
+      "name": "劉時豪",
+      "group": "3",
+      "item": "VS. 本土投手",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000003548",
+      "name": "黃鈞聲",
+      "group": "1",
+      "item": "主場",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000003548",
+      "name": "黃鈞聲",
+      "group": "3",
+      "item": "VS. 右投",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000003548",
+      "name": "黃鈞聲",
+      "group": "3",
+      "item": "VS. 本土投手",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000005342",
+      "name": "林志綱",
+      "group": "1",
+      "item": "主場",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000005342",
+      "name": "林志綱",
+      "group": "3",
+      "item": "VS. 右投",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000005342",
+      "name": "林志綱",
+      "group": "3",
+      "item": "VS. 本土投手",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000006731",
+      "name": "周委宏",
+      "group": "1",
+      "item": "主場",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000006731",
+      "name": "周委宏",
+      "group": "3",
+      "item": "VS. 右投",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000006731",
+      "name": "周委宏",
+      "group": "3",
+      "item": "VS. 本土投手",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000006743",
+      "name": "劉俊豪",
+      "group": "1",
+      "item": "主場",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000006743",
+      "name": "劉俊豪",
+      "group": "3",
+      "item": "VS. 右投",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000006743",
+      "name": "劉俊豪",
+      "group": "3",
+      "item": "VS. 本土投手",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000006888",
+      "name": "張育成",
+      "group": "1",
+      "item": "客場",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000006888",
+      "name": "張育成",
+      "group": "3",
+      "item": "VS. 左投",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000006888",
+      "name": "張育成",
+      "group": "3",
+      "item": "VS. 外籍投手",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000006933",
+      "name": "林威漢",
+      "group": "1",
+      "item": "主場",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000006933",
+      "name": "林威漢",
+      "group": "3",
+      "item": "VS. 右投",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000006933",
+      "name": "林威漢",
+      "group": "3",
+      "item": "VS. 本土投手",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000006939",
+      "name": "顏郁軒",
+      "group": "1",
+      "item": "主場",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000006939",
+      "name": "顏郁軒",
+      "group": "3",
+      "item": "VS. 左投",
+      "ghost_seats": 1
+    },
+    {
+      "kind": "D",
+      "acnt": "0000006939",
+      "name": "顏郁軒",
+      "group": "3",
+      "item": "VS. 本土投手",
+      "ghost_seats": 1
+    }
+  ]
+}
