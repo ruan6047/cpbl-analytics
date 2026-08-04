@@ -20,10 +20,8 @@
 | [INGEST-GAME-TM-REFACTOR1-G4](tasks/INGEST-GAME-TM-REFACTOR1-G4.md) | INIT-OFFICIAL-DATA1 | T4 | 逐球正式 writer 切換至單場 API 並對齊存量 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-03T17:49:14+08:00 |
 | [INGEST-LIVE-RECONCILE1](tasks/INGEST-LIVE-RECONCILE1.md) | — | T4 | 將官方 LIVE 暫態逐球納入每日可追溯校正 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-03T01:33:46+08:00 |
 | [INGEST-PA-DAILY1](tasks/INGEST-PA-DAILY1.md) | — | T3 | canonical PA build 接進每日 refresh 鏈 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-26T20:55:46+08:00 |
-| [INGEST-PLAYER-BIO-GAP2](tasks/INGEST-PLAYER-BIO-GAP2.md) | INIT-OFFICIAL-DATA1 | T2 | 補齊 14 人的 handedness 與 batch 2 其餘 bio 欄 | Claude Fable 5@Claude Code（Coordinator） | `ai/opus-5/INGEST-PLAYER-BIO-GAP2 @ .claude/worktrees/ingest-player-bio-gap2-execution` | 1 | 📦已合併 | ⏸未部署 | 2026-08-04T21:51:32+08:00 |
 | [INGEST-POSTGAME-FINALIZE1](tasks/INGEST-POSTGAME-FINALIZE1.md) | — | T3 | 依官方可用性補齊完賽資料 | 待指派 | — | 0 | 📥Backlog | ⏸未部署 | 2026-08-03T01:04:14+08:00 |
 | [INGEST-SPLITS-IBB-GHOST1](tasks/INGEST-SPLITS-IBB-GHOST1.md) | INIT-OFFICIAL-DATA1 | T3 | 零投球手勢故四的分項語意查證 | 待指派（建議 L3；查核跨家族或人工） | — | 0 | 📥Backlog | —不適用 | 2026-08-04T22:22:49+08:00 |
-| [INGEST-SPLITS-IMPORT-RESTATE1](tasks/INGEST-SPLITS-IMPORT-RESTATE1.md) | INIT-OFFICIAL-DATA1 | T3 | 重建 2025 本土／外籍分項以吸收 bio 補值 | Claude Fable 5@Claude Code（Coordinator） | `ai/opus-5/INGEST-SPLITS-IMPORT-RESTATE1 @ .claude/worktrees/ingest-splits-import-restate1-execution` | 1 | 📦已合併 | 🚀待部署 | 2026-08-04T22:47:03+08:00 |
 | [INIT-GAME-RECAP](tasks/INIT-GAME-RECAP.md) | INIT-GAME-RECAP | T4 | 隔日賽事脈絡與逐打席復盤 | 子卡依 v1.3 藍圖推進 | — | 0 | 📥Backlog | —不適用 | 2026-07-27T18:14:24+08:00 |
 | [INIT-OFFICIAL-DATA1](tasks/INIT-OFFICIAL-DATA1.md) | INIT-OFFICIAL-DATA1 | T4 | 官方資料契約完整性與低維護 ingest | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-22T16:51:00+08:00 |
 | [INIT-PRODUCT-UX](tasks/INIT-PRODUCT-UX.md) | INIT-PRODUCT-UX | T3 | 全站產品與 UI/UX 收斂 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-17T04:44:24+08:00 |
