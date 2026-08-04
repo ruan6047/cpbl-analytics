@@ -65,7 +65,11 @@ _PARENTHETICAL_RE = re.compile(r"（[^）]*(?:）|$)|\([^)]*(?:\)|$)")
 # 不認逗號分號——那些在說明散文裡太常見，認了等於把剛堵上的破口從另一邊打開
 #（`v2，因 v1 過窄` 會被切成兩個子句而抽出 v1）。
 _COMPOSITE_SEP_RE = re.compile(r"[＋+、]")
-_VERSION_TOKEN_RE = re.compile(r"v\d+(?:\.\d+)*")
+# 版本 token 必須有字元邊界：`rev1`／`v1beta`／`SPEC_v1` 都**不是**宣告版本。無邊界時
+# `v\d+` 會在 `rev1` 裡撈到 `v1`——卡面正好有「卡面修訂：rev2」這種相鄰欄位，混用時
+# 「spec 基線：rev1」會被判成宣告了 v1 而放行（查核 finding DECL1-F001 實測）。
+# 邊界只排除 ASCII 英數與底線，不排除中日文——「基線v1」仍算宣告。
+_VERSION_TOKEN_RE = re.compile(r"(?<![0-9A-Za-z_])v\d+(?:\.\d+)*(?![0-9A-Za-z_])")
 
 
 def baseline_declaration(text: str) -> tuple[str | None, set[str]]:

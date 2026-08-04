@@ -104,6 +104,12 @@ BASELINE_CASES = [
     ("`UI_UX_SYSTEM` v1 §2.1／§8", {"v1"}),
     # 括號說明內含複合分隔符：說明必須先剝掉，否則會被切成子句而抽出說明裡的舊版本
     ("GAME_RECAP v1.3（含 v1.2、v1.1 的變更）", {"v1.3"}),
+    # 字元邊界：版本 token 必須獨立成詞，不得從別的字裡撈出來（DECL1-F001）
+    ("rev1", set()),
+    ("v1beta", set()),
+    ("v2rev1", set()),
+    ("SPEC_v1", set()),
+    ("`GAME_RECAP` v1.3", {"v1.3"}),  # 名稱含底線但版本獨立成詞，仍算宣告
     # 以文件連結或卡名表示：無版本可解析，回空集合（由呼叫端退回人工核對）
     ("[`../research/OFFICIAL_DATA_GAP1_RESULTS.md`](../research/OFFICIAL_DATA_GAP1_RESULTS.md) §4", set()),
     ("UX-TEAM-SPLIT-SCOPE1", set()),
@@ -122,6 +128,12 @@ def test_baseline_declaration_reads_the_declared_value_only(raw: str, expected: 
 
     本表是該判定的直接守衛（上面三列即當時的實測重現：紅／紅／綠）；下一支測試
     只負責把它套到真實卡面語料上。複合基線必須維持可通過——`docs/tasks/` 下有實例。
+
+    **iteration 1 的查核 finding `DECL1-F001`**：版本 token 原本沒有字元邊界，於是
+    `spec 基線：rev1` 被抽成 `{v1}` 而放行。這不是假想輸入——卡面正好有「卡面修訂：rev2」
+    這種相鄰欄位（`INGEST-PLAYER-BIO-GAP2`），兩欄混用正是本卡要擋的那個錯誤本身。
+    邊界只排除 ASCII 英數與底線；抽不到版本時判定會落到「無宣告值」那條路（pytest 硬紅），
+    **失敗方向是過嚴而非過寬**——過嚴只會逼人把欄位寫清楚，過寬會讓錯的基線交付。
     """
     line = f"- Initiative：INIT-X　spec 基線：{raw}\n"
     assert review_prompt.baseline_declaration(line) == (raw, expected)
