@@ -77,13 +77,9 @@ livelog 逐事件切候選 PA 的分組單位：**連續同 `(game, inning, half
 
 ### 幽靈島
 
-換人公告列掛「即將上場打者」的 acnt＋傳播的結果字串**自成一島（無投球）**——不是真打席，splits／PA 計算必須排除。
+換人公告列掛「即將上場打者」的 acnt＋傳播的結果字串**自成一島（無投球）**——不是真打席。splits／PA 計算必須排除（以 `distinct_pitches`／無投球特徵識別）。
 
-> ⚠️ **「無投球」不是幽靈島的判準**（INGEST-SPLITS-IBB-GHOST1 實查，2026-08-05）。**零投球的手勢故意四壞是真打席**，官方計入：官方分項頁 12/12 格滿足「官方 IBB − 我方 IBB ＝ 該格零投球故四席數」，官方逐場 box 亦逐席多算（`docs/research/INGEST-SPLITS-IBB-GHOST1_RESULTS.md`）。現行程式以「整島無投球列」識別，因此**同時丟掉真幽靈與真打席**：2018–2026 A/D 共 3,481 個無投球島，其中 **281 席是官方計入的真打席**（故四佔約 98%，另有雙殺／三振／犧短等）。已驗證較佳的判準是「島內是否存在**非換人／教練暫停公告**的結果敘述列」（2025 A/D 442/442、2018–2026 3,456/3,466），但仍非普適，正解需搭配對官方逐場 box 的 fail-loud 對帳。
->
-> **現行程式尚未修正**（本卡為研究卡，紅線禁止未經授權改碼），故 `batting_splits`／`pitching_splits` 的家族 3/4/5/6/7/10 與 3/5/6/7/8 目前**系統性少計**這 281 席；家族 1/8/9 與 `*_vs_team` 出自官方逐場 box，不受影響（其 `go`／`fo` 兩欄除外，由 livelog 補）。引用分項的 vs-投手打席數時必須知道這個偏差存在。
-
-- SSoT：`src/cpbl/ingest/splits_calc.py`（「幽靈島」註解處）；審計輸出見 `src/cpbl/ingest/run_verify_splits.py`；語意證據與影響面見 `docs/research/INGEST-SPLITS-IBB-GHOST1_RESULTS.md`。
+- SSoT：`src/cpbl/ingest/splits_calc.py`（「幽靈島」註解處）；審計輸出見 `src/cpbl/ingest/run_verify_splits.py`。
 
 ### canonical PA／`pa_id`
 
