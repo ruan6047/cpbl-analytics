@@ -6,7 +6,7 @@
 - review_independence: [cross_family]
 - DB：`db_scope: none`
 - 部署：否　環境：—　PR：—　Merge SHA：—
-- 範圍：`scripts/workflow_ledger.py`、`tests/test_workflow_ledger.py`、`docs/CONTROL_PLANE_CONTRACT.md`；必要時 `.github/workflows/ci.yml` 僅為保證完整 Git 歷史。**動工前阻塞：** 現有 direct-main 流程沒有機械保證 post-commit `--check` 先於 push，須先由需求方裁定 enforcement model。
+- 範圍：`scripts/workflow_ledger.py`、`tests/test_workflow_ledger.py`、`docs/CONTROL_PLANE_CONTRACT.md`；必要時 `.github/workflows/ci.yml` 僅為保證完整 Git 歷史。**動工前依賴：** 需求方已裁定 enforcement model＝受保護 PR＋required checks；仍須由獨立前置卡實際落地並驗證。
 - Discovery：已完成。Design Gate N/A——純 control-plane 稽核契約，沒有使用者可見介面。
 
 ## 問題陳述
@@ -60,7 +60,9 @@ Git I/O 不得放進 `render_ledger()`、`_validate_review_contract()`，也**�
 
 因此分成兩個明確入口：`_load_events(path)` 維持「解析 JSON + `contract-baseline` 檔案層不變量」且不做 Git I/O；新的 production-only loader（名稱由執行者依現有慣例定）只接受 canonical `EVENTS_PATH`，在 `_load_events(EVENTS_PATH)` 成功後再做 blob resolver／anchor scan。CLI `--check`、audit 與 CI 必走 production-only loader；tmp fixture、`render_ledger(events)` 與一般純函式測試不走它。這不是「path 剛好相等就偷加行為」，而是可由 call site 看出的兩個契約。
 
-`--write --prepare-schema-repair` 只允許明示 pending 的造提交階段；production `--check`、audit 與 CI 不得接受 pending。**但 pending 不能靠「提交後、push 前請記得跑」保證：目前 GitHub `main` 無 branch protection（2026-08-04 `gh api .../branches/main/protection` 回 404），CI 只在 push 後觸發，故它只能偵測、不能阻止壞 commit 已到 remote。** 在需求方裁定並落地 enforcement model 前，本卡不得認領實作。
+`--write --prepare-schema-repair` 只允許明示 pending 的造提交階段；production `--check`、audit 與 CI 不得接受 pending。需求方已裁定**受保護 PR＋required checks**：repair commit 先推送受保護 PR 分支，CI 在該 PR 的 full-history checkout 跑 production loader；只有 required check 通過才可 merge 到 main。merge 後 main 的 `--check` 是第二道驗證，不是唯一關卡。
+
+本卡等待獨立前置卡交付以下 remote enforcement evidence：禁止人類／AI 對 main 直接 `git push`（沒有可繞過的本機帳號），main 僅接受 PR merge；PR 必須 required 成功的 API CI（包含 full-history checkout、`ruff`、`pytest` 與 production `workflow_ledger.py --check`）；require branch up-to-date，避免以舊 main parent 合併。現有 main branch protection API 為 404，故在這些設定與 project contract 的 direct-main 條文改完前，本卡不得認領實作。
 
 新增唯讀 `--audit-schema-repairs --json`：輸出 `anchored`、`legacy_unverifiable`、`failed` 的 event ID／原因與總數；若 `failed > 0` exit 非零。它是唯一可用來宣稱完整性範圍的產物。直接呼叫純函式的 fixture 測試、未提交的 pending 工作樹，以及不在 `HEAD` 可達歷史中的 object 都不在 full validation 涵蓋內，必須在輸出或錯誤中明示，而不是靜默當成功。
 
@@ -93,16 +95,16 @@ Git I/O 不得放進 `render_ledger()`、`_validate_review_contract()`，也**�
 
 **驗證：** `uv run pytest tests/test_workflow_ledger.py -q`；`uv run python scripts/workflow_ledger.py --audit-schema-repairs --json`；`uv run python scripts/workflow_ledger.py --check`。
 
-### Task 3：在 enforcement model 成立後，寫入契約並做 mutation 驗證（S）
+### Task 3：在 PR guard 前置卡通過後，寫入契約並做 mutation 驗證（S）
 
-在需求方選定並驗證 enforcement model 後，更新 `CONTROL_PLANE_CONTRACT.md`，記錄單提交 repair 操作、pending／post-commit 次序、失效邊界、legacy 狀態與唯一完整性指令。把前卡三項教訓落成機器可測行為。
+在 PR guard 前置卡通過後，更新 `CONTROL_PLANE_CONTRACT.md`，記錄單提交 repair 操作、pending／post-commit 次序、失效邊界、legacy 狀態與唯一完整性指令。此時 lifecycle event 的既有 direct-main 條文必已改為「受保護 PR 合併後才是 event store 事實」；把前卡三項教訓落成機器可測行為。
 
 **驗收條件：**
 
 - [ ] 移除／破壞 Git resolver 的呼叫、把 repair event payload 刪成缺欄、或把合法 target 偽裝成 repair，三種 mutation 都會使對應測試轉紅。
 - [ ] 移除既有 `contract-baseline` marker 的既有負向測試仍轉紅；本卡不得把 172 筆 baseline 前 review 納入新驗證。
 - [ ] 契約不宣稱 GPG 等級不可竄改，且明示 `--check`／audit 在歷史不可用時 fail closed。
-- [ ] 以需求方核可的真實 remote path 證明 pending repair 無法在未通過 full `--check` 前抵達 protected main；若只剩 push 後 CI，必視為未達成本卡前置條件，不得以綠色 CI 補寫為預防。
+- [ ] 以前置卡產出的真實 remote evidence 證明：直接 push main 被拒絕、含 pending repair 的 PR required API check 失敗而無法 merge、通過 full `--check` 的 PR 才能 merge。若只剩 push 後 CI，必視為未達前置條件，不得以綠色 CI 補寫為預防。
 
 **驗證：** `uv run ruff check`；`uv run pytest -q`；`uv run python scripts/workflow_ledger.py --check`；`uv run python scripts/workflow_ledger.py --audit-schema-repairs --json`。
 
@@ -140,14 +142,14 @@ Git I/O 不得放進 `render_ledger()`、`_validate_review_contract()`，也**�
 
 - [ ] 執行者先以 temporary Git repo 做合法路徑與 F005 兩個提交層證據，再寫 production code。
 - [ ] 查核者以自己的 fixture 與 clean full-history checkout 重跑所有紅線攻擊。
-- [ ] 查核者確認所有 pending 只能出現在未提交造提交階段，不能讓 production `--check`、audit 或需求方核可的 remote enforcement path 放行。
+- [ ] 查核者確認所有 pending 只能出現在未提交造提交階段，不能讓 production `--check`、audit 或受保護 PR 的 required API check 放行。
 - [ ] 查核通過前不得 merge main。
 
 ## 邊界
 
 - 只動本卡列出的 control-plane 工具、測試、契約與必要 CI checkout 設定；不動 API、資料庫或 production。
 - 預估 M；由同一執行者依序完成，不與其他 control-plane writer 平行。
-- **外部阻塞：** GitHub `main` 現無 branch protection，現有 direct-main lifecycle 與「CI 先通過才進 main」不相容。需求方必須裁定新 enforcement model；未裁定前不得開始 Task 1。
+- **外部阻塞：** 需求方已裁定受保護 PR＋required checks，但 GitHub `main` 現無 branch protection，且 project contract 仍是 direct-main lifecycle。需先完成獨立 `OPS-CONTROL-PLANE-PR-GUARD1`（名稱待註冊）以修改 workflow／remote rules 並附真實拒絕與 merge evidence；在其 `🏁完成` 前不得開始 Task 1。
 - 若實作發現「同提交 history discovery」無法在不新增可信根的情況下與 pending 流程共存，停止並回到本卡重新設計，不得私下退回兩提交或任意 SHA 方案。
 
 ## Log
@@ -156,3 +158,4 @@ Git I/O 不得放進 `render_ledger()`、`_validate_review_contract()`，也**�
 - 2026-08-04 revision 1 by GPT-5.6@Codex：首次規劃採「payload 寫 repair commit SHA + 兩提交」；需求方隨後要求以本委託重新審視。該設計的問題是 audit event 不在 repair commit，無法驗自身內容，且第二個提交使修復曾短暫沒有稽核紀錄；故整份作廢，不留作執行依據。
 - 2026-08-04 revision 2 by GPT-5.6@Codex（本 spec）：問題從「before 要填什麼」改問為「repair event 首次出現的提交能否同時證明 target transition 與 audit 本體未被後改」。採由 Git history 反推 anchor commit 的單提交方案；拒絕新 baseline marker、任意 SHA、manifest 與 hash。需求方指定 Claude Opus 5 後續執行；本次只更新 spec，未認領、未實作。
 - 2026-08-04 revision 3 by GPT-5.6@Codex：依需求方動工前質詢修正三項。 (1) Git I/O 不再放進 `_load_events(path)`；分出 production-only loader，保住 tmp-path baseline marker 負向測試的錯誤語意。(2) 「一 target 一 repair」改為有 predecessor／successor 證據的線性鏈，允許日後 schema 收緊所需的二次修復、拒絕分叉與 repair→repair。(3) 實測 GitHub main branch protection API 為 404，CI 僅 push 後觸發，故 post-commit check 目前**不是機械守衛**；本卡標記為外部阻塞，等待需求方裁定 enforcement model。
+- 2026-08-04 revision 4 by GPT-5.6@Codex：需求方裁定 enforcement model 為「受保護 PR＋required checks」。本卡不自行混入 remote workflow／GitHub 規則改造，改以 `OPS-CONTROL-PLANE-PR-GUARD1`（待註冊）為硬依賴；該卡必證明 direct push 被拒、pending PR 無法 merge、通過 full check 的 PR 可 merge，並把 direct-main lifecycle 契約改為 PR merge。Anchor 卡在依賴完成前維持阻塞。
