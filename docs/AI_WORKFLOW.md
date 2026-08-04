@@ -1,5 +1,14 @@
 # AI 協作工作流（cpbl-analytics 採用）
 
+> **⚠️ 2026-08-04 起新治理生效（WF-22 Wave 0/1 已實施、cutover 已宣告）**：
+> 作業狀態唯一事實來源＝**GitHub Issues＋user Project #4「cpbl-analytics 任務看板」**；
+> 唯一狀態寫入通道＝ai-workflow repo 的 **`wfcli`**（`cli/`）。`docs/control-plane/events.jsonl`
+> 與 `docs/TASKS.md` 投影**已封存唯讀**（終筆 `8271d7c`）——不得再追加事件或重建 Ledger。
+> 開卡／派工／結案決策＝需求方本人；機械寫入＝PM 祕書 session 專責。canonical 全文
+> 改版（Wave 2）前，下文與新制衝突處以
+> [`research/WORKFLOW-REVIEW-2026-08-04.md`](research/WORKFLOW-REVIEW-2026-08-04.md)（決議紀錄）
+> ＋[`CONTROL_PLANE_CONTRACT.md`](CONTROL_PLANE_CONTRACT.md) §2 為準。
+
 > **完整規則見 canonical（submodule）：[`../.ai-workflow/AI_WORKFLOW.md`](../.ai-workflow/AI_WORKFLOW.md)**（唯一權威來源；規則改動在 [ruan6047/ai-workflow](https://github.com/ruan6047/ai-workflow)）。既有專案升級依 [`../.ai-workflow/MIGRATION.md`](../.ai-workflow/MIGRATION.md)。
 > 本專案任務看板見 [`TASKS.md`](TASKS.md)，控制平面見 [`CONTROL_PLANE_CONTRACT.md`](CONTROL_PLANE_CONTRACT.md)，新卡範本索引見 [`TEMPLATES.md`](TEMPLATES.md)，資料庫與部署操作分別見 [`DATABASE_CONTRACT.md`](DATABASE_CONTRACT.md) 與 [`AI_RUNBOOK.md`](AI_RUNBOOK.md) §7。模型選擇見 [`MODEL_ROUTING.md`](MODEL_ROUTING.md)。
 

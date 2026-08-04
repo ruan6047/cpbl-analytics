@@ -1,5 +1,10 @@
 # 任務看板（cpbl-analytics）
 
+> **⚠️ 本檔已於 2026-08-04 cutover 封存（終筆 `8271d7c`）**——不再重建、不再是投影、
+> 不得手動或以 `workflow_ledger.py --write` 更新。現行任務狀態唯一事實來源：
+> **GitHub Issues＋user Project #4「cpbl-analytics 任務看板」**（寫入一律經 ai-workflow `wfcli`）。
+> 以下為封存時點的最後快照，僅供歷史參考。
+
 > 規則見 canonical [`../.ai-workflow/AI_WORKFLOW.md`](../.ai-workflow/AI_WORKFLOW.md) 與本專案 [`AI_WORKFLOW.md`](AI_WORKFLOW.md)。git 是程式碼／文件事實來源；[`control-plane event log`](control-plane/events.jsonl) 是作業狀態事實來源；本檔是它的 current-state projection。
 > **不可手動修改表格**：以 `uv run python scripts/workflow_ledger.py --write` 重建；`--check` 驗證投影未漂移。每張卡的範圍與歷史 Log 位於 [`tasks/`](tasks/)；結案後移至 [`archive/tasks/`](archive/tasks/)，索引列移至 [`archive/TASKS_ARCHIVE.md`](archive/TASKS_ARCHIVE.md)。
 > **本表即當前狀態**：lifecycle 事件一律直接 commit 至 main 並同 commit 重建本檔（[`CONTROL_PLANE_CONTRACT.md`](CONTROL_PLANE_CONTRACT.md)）；執行分支不得改動 control-plane 與本檔。`--live` 可稽核是否有事件違規漏留在分支。
