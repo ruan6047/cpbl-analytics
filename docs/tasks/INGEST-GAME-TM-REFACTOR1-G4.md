@@ -87,6 +87,9 @@ uv run cpbl-check-coverage 2>&1 | awk '/逐球完全零/,0' | grep 'sno=' \
         15 場連續零覆蓋不再被反覆重抓；台東／嘉義市／花蓮同樣維持在外。
       - **單場 downtime 不得失去自癒**：新莊 9/10、洲際 9/10 仍為 `true`；亞太主 10/10 為
         `true`（其 8 場零覆蓋屬早季未裝機，不應因此喪失自癒）；斗六僅 2 場完成場、2/2 為 `true`。
+      - **kind D 同樣成立**（本卡 A＋D 一起切，判準須兩邊都驗）：`equipped=true` 為園區 10/10、
+        青埔 10/10、樂天桃園 9/10、皇鷹學院 9/10、斗六 8/10、澄清湖 1/2；`false` 為亞太副 0/10、
+        嘉義市 0/10、場地未定 0/1——與既知的二軍設備／無設備清單吻合。
 
       ```sql
       WITH cov AS (
@@ -185,14 +188,30 @@ uv run cpbl-check-coverage 2>&1 | awk '/逐球完全零/,0' | grep 'sno=' \
 6. **生產寫入前備份可還原**：Phase B 寫入 production 前須完成三層，**每層都要留可重跑的指令
    與輸出**：
    - 既有 `backup-prod-db.sh` 整庫備份，含 `gunzip -t` 與內容門檻。
-   - `cpbl.pitch_tracking` 單表 `pg_dump -Fc -t cpbl.pitch_tracking`，**還原到同一 DB 的臨時
-     schema** `restore_check_<YYYYMMDD>`（`pg_restore --schema-only` 後 `--data-only`，或
-     `pg_restore -f -` 改寫 search_path），比對兩項：列數相等，且下列 checksum 相等——
-     ```sql
-     SELECT md5(string_agg(t::text, '|' ORDER BY year, kind_code, game_sno, pitcher_acnt, pitch_cnt))
-     FROM <schema>.pitch_tracking t;
+   - `cpbl.pitch_tracking` 單表 dump 並**實測還原到同一 DB 的臨時 schema**
+     `restore_check_<YYYYMMDD>`。下列流程已於 2026-08-03 在本機實跑驗證（80,907 列、
+     兩邊 md5 相同），**照抄即可跑**，`SCHEMA` 換成當日名稱：
+
+     ```bash
+     SCHEMA=restore_check_$(date +%Y%m%d)
+     pg_dump -U cpbl -d cpbl -Fc -t cpbl.pitch_tracking -f /tmp/pt.dump
+     psql -U cpbl -d cpbl -qc "CREATE SCHEMA $SCHEMA;
+       CREATE TABLE $SCHEMA.pitch_tracking (LIKE cpbl.pitch_tracking INCLUDING DEFAULTS);"
+     pg_restore --data-only --no-owner -f - /tmp/pt.dump \
+       | sed -E "s/^COPY cpbl\.pitch_tracking/COPY $SCHEMA.pitch_tracking/" \
+       | psql -U cpbl -d cpbl -q -v ON_ERROR_STOP=1
+     psql -U cpbl -d cpbl -At -F'|' -c "
+       SELECT 'orig', count(*), md5(string_agg(t::text,'|' ORDER BY year,kind_code,game_sno,pitcher_acnt,pitch_cnt)) FROM cpbl.pitch_tracking t
+       UNION ALL
+       SELECT 'rest', count(*), md5(string_agg(t::text,'|' ORDER BY year,kind_code,game_sno,pitcher_acnt,pitch_cnt)) FROM $SCHEMA.pitch_tracking t;"
+     psql -U cpbl -d cpbl -qc "DROP SCHEMA $SCHEMA CASCADE;" && rm -f /tmp/pt.dump
      ```
-     比對範圍為全表。驗畢即 `DROP SCHEMA restore_check_<YYYYMMDD> CASCADE`。
+
+     **兩列的 count 與 md5 都必須相同**，比對範圍為全表。
+     **踩雷留痕**：本卡初稿寫「`pg_restore --schema-only` 後 `--data-only`，或 `pg_restore -f -`
+     改寫 search_path」，實跑證明**根本跑不起來**——`-d` 與 `-f` 不能併用；改用整段 sed 改寫
+     schema 又會在 `CREATE INDEX ... ON cpbl.` 撞既有索引名。上列「先建空表再 data-only」
+     才是可行路徑。這正是查核者該條 Major finding 的實質：沒實跑過的指令不算可執行。
    - 需求方親手執行寫入。
    「備份檔案已產生」不等於通過本條（見 `OPS-BACKUP-EMPTY1`：只有還原演練才看得到
    `convalidated=t` 卻不成立的 FK）。〔清單 #8〕
@@ -270,6 +289,14 @@ uv run cpbl-check-coverage 2>&1 | awk '/逐球完全零/,0' | grep 'sno=' \
   A/D 場列數、`2026-D-107` 382 列、台東／新莊／亞太主數字一致；Gate 3 物理欄位零 mismatch
   與 float4 處理有文件支撐；章節名、`review_independence`、`spec 基線 v1`、T4 紅線章節合規；
   116 tests passed、`workflow_ledger --check` 通過；父卡補帳無無事件推斷。
+- 2026-08-03 **修訂後自查補正兩處**（撰擬者主動，非查核者指出）：
+  1. `equipped` 的 N=10 判準原本只用 **kind A** 驗證，但本卡是 A＋D 一起切。補驗 kind D：
+     園區 10/10、青埔 10/10、樂天桃園 9/10、皇鷹學院 9/10、斗六 8/10、澄清湖 1/2 為 `true`；
+     亞太副 0/10、嘉義市 0/10、場地未定 0/1 為 `false`，與既知二軍設備清單吻合。判準兩邊皆成立。
+  2. 紅線 6 的還原流程**實跑證明跑不起來**（`pg_restore` 的 `-d` 與 `-f` 不能併用；改用整段
+     sed 改寫 schema 又會在 `CREATE INDEX ... ON cpbl.` 撞既有索引名）。已換成「先建空表再
+     `--data-only` 還原」並在本機實測通過（80,907 列、兩邊 md5 相同），卡面改為可照抄的指令。
+     **查核者該條 Major finding 的實質在此得到印證：沒實跑過的指令不算可執行。**
 - 2026-08-03 流程留痕（查核者記錄，需求方裁量）：本卡三個文件 commit 由撰擬者直接推 main、
   未先行獨立查核，屬**事後查核補救**；`DEV-CI-RED-OWNERSHIP1` 的「範圍未擴張」精確語意應為
   「未新增實作驗收項」，其新增的 Discovery 義務仍屬義務擴張，不得泛稱完全未擴張。
