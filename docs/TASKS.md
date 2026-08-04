@@ -13,7 +13,7 @@
 | [DEV-REVIEW-DEACCEPT-TRAIL1](tasks/DEV-REVIEW-DEACCEPT-TRAIL1.md) | None | T3 | plain-review 翻案缺 correction 留痕（WF21-R-13） | — | — | 0 | 🛑已停止 | —不適用 | 2026-08-04T22:39:10+08:00 |
 | [DEV-REVIEW-PREFLIGHT-GATE1](tasks/DEV-REVIEW-PREFLIGHT-GATE1.md) | None | T3 | 前置查核關卡改為 preflight 的機器可讀宣告 | — | — | 0 | 🛑已停止 | —不適用 | 2026-08-04T22:39:10+08:00 |
 | [DEV-REVIEW-PREFLIGHT-SELFCHECK1](tasks/DEV-REVIEW-PREFLIGHT-SELFCHECK1.md) | None | T2 | 派審前自檢交接前提 | — | — | 0 | 🛑已停止 | —不適用 | 2026-08-04T22:39:10+08:00 |
-| [DEV-TRAILER-GUARD-PR-CHECKOUT1](tasks/DEV-TRAILER-GUARD-PR-CHECKOUT1.md) | None | T2 | trailer 守衛在 pull_request 觸發的 CI checkout 上恆定假陽性 | 待指派（第二輪查核；同查核者可續任） | `ai/claude-sonnet-5/DEV-TRAILER-GUARD-PR-CHECKOUT1 @ .claude/worktrees/dev-trailer-guard-pr-checkout1-execution` | 1 | 🔍待查核 | —不適用 | 2026-08-04T22:43:24+08:00 |
+| [DEV-TRAILER-GUARD-PR-CHECKOUT1](tasks/DEV-TRAILER-GUARD-PR-CHECKOUT1.md) | None | T2 | trailer 守衛在 pull_request 觸發的 CI checkout 上恆定假陽性 | 待指派（Coordinator；merge 者不得為執行者） | `ai/claude-sonnet-5/DEV-TRAILER-GUARD-PR-CHECKOUT1 @ .claude/worktrees/dev-trailer-guard-pr-checkout1-execution` | 1 | ✅可合併 | —不適用 | 2026-08-04T22:54:09+08:00 |
 | [DEV-VERIFY-TM-ASSERTS1](tasks/DEV-VERIFY-TM-ASSERTS1.md) | — | T2 | TM 回填驗證腳本補上真正的斷言 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-07-29T12:14:00+08:00 |
 | [DOC-CARD-SPEC-RULES1](tasks/DOC-CARD-SPEC-RULES1.md) | None | T3 | 卡面規格三條規則（輸入空間／性質而非示範／同病自檢） | — | — | 0 | 🛑已停止 | —不適用 | 2026-08-04T22:39:10+08:00 |
 | [INGEST-GAME-TM-REFACTOR1](tasks/INGEST-GAME-TM-REFACTOR1.md) | INIT-OFFICIAL-DATA1 | T4 | 重構逐球爬蟲改以單場 API 為單位 | — | — | 2 | 📦已合併 | ⏸未部署 | 2026-08-03T11:47:42+08:00 |
