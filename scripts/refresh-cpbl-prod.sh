@@ -75,40 +75,64 @@ sync_advanced_snapshot() {
   echo "    ✓ advanced snapshot（runs/stats/pitch_type/league_summary/pointer 原子晉升）"
 }
 
-# canonical PA build 家族原子同步（INGEST-PA-DAILY1；migrations/066_game_recap_pa_expand.sql）。
+# canonical PA build 家族原子同步（INGEST-PA-DAILY1；migrations/066_game_recap_pa_expand.sql；
+# TRUNCATE+全量重灌改法見 INGEST-PA-DAILY1-FIX1／Issue #88）。
 # 為何不能用通用 sync_table：
 #   1) game_recap_source_revisions/game_plate_appearances/game_pa_events/game_pa_pitch_mappings
 #      四表 PK 皆 GENERATED ALWAYS AS IDENTITY 代理鍵，INSERT 帶入 pg_dump 匯出的既有值
 #      需 OVERRIDING SYSTEM VALUE（同 advanced_ingest_runs 前例）；game_recap_builds 的
 #      build_id 是 builder 產生的 uuid（非 identity），走一般 INSERT 即可。
 #   2) 四表彼此 FK 相依（source_revisions ← builds ← plate_appearances ← pa_events／
-#      pitch_mappings），必須同一 --single-transaction 依此順序灌入，否則 FK 失敗。
+#      pitch_mappings；source_revisions 同時被 pitch_mappings 直接參照），INSERT 必須
+#      同一 --single-transaction 依此順序灌入，否則 FK 失敗。
 # id 值直接鏡像本機、不重新分配：本卡「不部署」——cpbl-refresh-recent 只在本機跑，
 # prod 從不獨立寫入這五張表（唯一 writer 是本同步腳本），故無 prod 自產 identity 與
 # 匯入值碰撞風險，與 advanced_ingest_runs「本機↔prod run id 語意已對齊」同一理由。
-# 各表 conflict 語意比照本機寫入契約：
-#   - game_recap_source_revisions：row_count 可能因同一 sha256 重抓而更新（同
-#     pa_build.upsert_source_revision 的 ON CONFLICT DO UPDATE SET row_count）。
-#   - game_recap_builds：只有 state 會在 insert 後變（published→superseded 等），其餘
-#     欄位（含 validation_summary）建立後不再變。
-#   - game_plate_appearances／game_pa_events／game_pa_pitch_mappings：write-once
-#     （pa_build._write_pas 只 INSERT、從不 UPDATE 既有列），故 DO NOTHING 即為正確語意。
+#
+# 為何改 TRUNCATE 而非 ON CONFLICT upsert（FIX1 根因，首次真實生產同步實測炸裂）：
+# 2026-08-03 有一次一次性 ad-hoc 手動同步（見 INGEST-PA-DAILY1.md Log），對 prod 留下
+# 「內容相同、id 不同」的 game_recap_source_revisions 舊列。舊版 ON CONFLICT (id) 對不到
+# 那些列（衝突鍵是 id，來源 id 與舊列 id 不同→不觸發 UPDATE），退回一般 INSERT 又撞上
+# (year,kind_code,game_sno,source_kind,source_sha256) 內容唯一鍵
+# （game_recap_source_revisions_year_kind_code_game_sno_source__key）→ 整個
+# --single-transaction 回滾（prod 未污染，仍是同步前狀態）。只要 prod 曾有任何一次
+# id 與本機不同步的手動寫入，同一 class 的錯誤就會再發生；TRUNCATE 徹底消滅 id 漂移
+# 殘留列，是唯一能讓「每日全量重灌」真正對 id 漂移免疫的作法（比照下方 game_features
+# 既有 TRUNCATE 先例，理由相同：derived 資料、prod 非獨立 writer，可安全整表重建）。
+#
+# 五表在同一條 TRUNCATE 陳述式內列出（非個別五條）：Postgres 只要求「被參照表與參照表
+# 同時出現在同一 TRUNCATE 命令」，不檢查列出順序，故不需要 CASCADE（CASCADE 會波及
+# 「未列出但仍參照這 5 表的其他表」，此處刻意不用、以免意外波及未知表）。已逐一 grep
+# 全部 migrations 確認：除這 5 表彼此互相參照外，沒有其他表對它們建 FK
+# （見 INGEST-PA-DAILY1-FIX1 驗證留痕），故列出這 5 張即完整覆蓋。
+# TRUNCATE 與其後 INSERT 同在一個 --single-transaction 內（非分兩次呼叫，與下方
+# game_features 前例的兩段式不同——PA 家族有跨表 FK、blast radius 較大，要求更嚴格的
+# 原子性）：中途任何一步失敗即整體回滾，prod 維持同步前原狀，不留半殘表。
+# 不需要 RESTART IDENTITY：所有列都以 OVERRIDING SYSTEM VALUE 明確帶入本機 id，
+# 序列本身的下一個值從不被讀取（prod 對這 5 表從不自行 INSERT）。
+#
+# ON CONFLICT 子句已移除（不是遺漏）：TRUNCATE 與 INSERT 同一交易內，INSERT 執行時
+# 目標表保證清空，不可能真的觸發衝突；留著舊 ON CONFLICT (id) 只會誤導讀者以為這裡
+# 仍是「增量 upsert」語意——那正是本次事故的根因（id 對不上舊列、退回撞內容唯一鍵）。
+# 若未來要改回非 TRUNCATE 的增量同步，須重新設計 conflict 鍵（比照本機 pa_build 寫入
+# 契約逐表另行論證），不能只是加回這裡移除的舊子句。
 sync_pa_build() {
   {
+    echo "TRUNCATE cpbl.game_recap_source_revisions, cpbl.game_recap_builds, cpbl.game_plate_appearances, cpbl.game_pa_events, cpbl.game_pa_pitch_mappings;"
     _stage game_recap_source_revisions _pa_rev
-    echo "INSERT INTO cpbl.game_recap_source_revisions OVERRIDING SYSTEM VALUE SELECT * FROM _pa_rev ON CONFLICT (id) DO UPDATE SET row_count=EXCLUDED.row_count;"
+    echo "INSERT INTO cpbl.game_recap_source_revisions OVERRIDING SYSTEM VALUE SELECT * FROM _pa_rev;"
     _stage game_recap_builds _pa_build
-    echo "INSERT INTO cpbl.game_recap_builds SELECT * FROM _pa_build ON CONFLICT (build_id) DO UPDATE SET state=EXCLUDED.state;"
+    echo "INSERT INTO cpbl.game_recap_builds SELECT * FROM _pa_build;"
     _stage game_plate_appearances _pa_pa
-    echo "INSERT INTO cpbl.game_plate_appearances OVERRIDING SYSTEM VALUE SELECT * FROM _pa_pa ON CONFLICT (pa_row_id) DO NOTHING;"
+    echo "INSERT INTO cpbl.game_plate_appearances OVERRIDING SYSTEM VALUE SELECT * FROM _pa_pa;"
     _stage game_pa_events _pa_ev
-    echo "INSERT INTO cpbl.game_pa_events OVERRIDING SYSTEM VALUE SELECT * FROM _pa_ev ON CONFLICT (id) DO NOTHING;"
+    echo "INSERT INTO cpbl.game_pa_events OVERRIDING SYSTEM VALUE SELECT * FROM _pa_ev;"
     _stage game_pa_pitch_mappings _pa_map
-    echo "INSERT INTO cpbl.game_pa_pitch_mappings OVERRIDING SYSTEM VALUE SELECT * FROM _pa_map ON CONFLICT (id) DO NOTHING;"
+    echo "INSERT INTO cpbl.game_pa_pitch_mappings OVERRIDING SYSTEM VALUE SELECT * FROM _pa_map;"
   } | ssh -o BatchMode=yes "$VPS" \
         "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql \
           -v ON_ERROR_STOP=1 -q --single-transaction -U \"\$DB_USER\" -d \"\$DB_NAME\""
-  echo "    ✓ canonical PA build（source_revisions/builds/plate_appearances/pa_events/pitch_mappings 原子同步）"
+  echo "    ✓ canonical PA build（TRUNCATE + 全量重灌：source_revisions/builds/plate_appearances/pa_events/pitch_mappings 原子同步）"
 }
 
 cd "$REPO_DIR"
