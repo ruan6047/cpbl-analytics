@@ -65,9 +65,16 @@ MARKER_PREFIX = "state-plane-mig1:card_id="
 TIER_OPTIONS = ["T0", "T1", "T2", "T3", "T4"]
 DELIVERY_STATUS_OPTIONS = [
     "📥Backlog", "💡需求", "🚧進行中", "🚧執行中", "⏸阻塞",
-    "🔍待查核", "↩退回", "📦已合併", "🏁完成", "🚨已升級",
+    "🔍待查核", "↩退回", "📦已合併", "🏁完成", "🚨已升級", "🛑已停止",
 ]
-DEPLOY_STATUS_OPTIONS = ["—不適用", "⏸未部署", "✅已驗證", "🏁完成"]
+DEPLOY_STATUS_OPTIONS = ["—不適用", "⏸未部署", "🚀待部署", "✅已驗證", "🏁完成"]
+
+# 「不算活卡」的終態集合，供 resync 對帳表的活卡數計算——沿用
+# workflow_ledger.py 既有的 `_CLOSED_STATUSES = {"🏁完成"}` 慣例，Task 3 實測
+# （9fbf406）確認凍結卡處置用的是新值「🛑已停止」（不是決議紀錄 §6 表格用的
+# 「🛑封存」簡記；那只是文件裡的非正式標記，實際寫入 Ledger 的字面值不同，
+# 差一個字整個 single-select 選項就對不上，故此處以實測為準非決議文字為準）。
+CLOSED_DELIVERY_STATUSES = {"🏁完成", "🛑已停止"}
 
 # (欄位名, 型別, single-select 選項或 None)；資源宣告不在此列（body-only，見模組說明）。
 FIELD_SPECS: list[tuple[str, str, list[str] | None]] = [
@@ -104,6 +111,25 @@ def run(*args: str) -> str:
     return result.stdout
 
 
+def _run_git_with_fetch_retry(ref: str, *args: str) -> str:
+    """git 指令對 `<ref>:path`／`<ref>` 這類參照失敗、且錯誤訊息像是 ref 暫時解析不到
+    時，重新 `git fetch origin main` 後重試一次。
+
+    **實測踩過的真實 race**（Task 3，多 session 共用同一個 `.git` 常見資料夾）：
+    另一個 session 同時 `git fetch` 導致 `refs/remotes/origin/main` 短暫消失
+    （`git for-each-ref` 查無、需要再 fetch 一次才會出現「[new branch] main ->
+    origin/main」重建它），本地看到的是 `fatal: ambiguous argument 'origin/main':
+    unknown revision`。只重試一次；如果重試後仍失敗就是真的錯誤，原樣往上拋。
+    """
+    try:
+        return run(*args)
+    except RuntimeError as exc:
+        if "unknown revision" not in str(exc) and "bad revision" not in str(exc):
+            raise
+        run("git", "fetch", "origin", ref.split("~")[0].split("^")[0].replace("origin/", "") or "main")
+        return run(*args)
+
+
 def gh_json(*args: str) -> Any:
     return json.loads(run("gh", *args, "--format", "json"))
 
@@ -113,11 +139,26 @@ def graphql(query: str) -> dict:
 
 
 def git_show(ref: str, path: str) -> str:
-    return run("git", "show", f"{ref}:{path}")
+    return _run_git_with_fetch_retry(ref, "git", "show", f"{ref}:{path}")
 
 
 def resolve_sha(ref: str) -> str:
-    return run("git", "rev-parse", ref).strip()
+    return _run_git_with_fetch_retry(ref, "git", "rev-parse", ref).strip()
+
+
+def get_card_spec_text(ref: str, card_id: str) -> str:
+    """讀該卡 spec 檔全文；先試 `docs/tasks/<ID>.md`，該路徑在 `<ref>` 已不存在時
+    （`fatal: path '...' exists on disk, but not in '<ref>'`）改試
+    `docs/archive/tasks/<ID>.md`——Task 3 處置把 7 張卡的 spec 檔 `git mv` 進
+    archive，但 Ledger 表格列的連結仍指向舊路徑（main 上既有的落差，不是本腳本
+    造成，也不歸本腳本修），資源宣告／服務的原始目標仍應從實際檔案內容解析，
+    不能因為連結沒同步更新就讀不到。"""
+    try:
+        return git_show(ref, f"docs/tasks/{card_id}.md")
+    except RuntimeError as exc:
+        if "exists on disk, but not in" not in str(exc) and "does not exist in" not in str(exc):
+            raise
+        return git_show(ref, f"docs/archive/tasks/{card_id}.md")
 
 
 # --------------------------------------------------------------------------------------
@@ -220,6 +261,68 @@ def extract_chain_depth(card_text: str) -> int | None:
     卡片開始填寫後直接生效；目前恆回傳 None，呼叫端顯示「未分類」而非猜測 0。"""
     m = _CHAIN_DEPTH_RE.search(card_text)
     return int(m.group(1)) if m else None
+
+
+def find_close_event(events_jsonl_text: str, card_id: str) -> dict | None:
+    """從 events.jsonl（JSONL，一行一個事件）找該卡**最新一筆** `type: "close"` 事件，
+    回傳完整事件物件（含 `evidence`／`source_sha`／`occurred_at`）。
+
+    Task 3 的處置留痕（Issue disposition comment）直接引用這裡回傳的 `evidence`
+    原文，不手動轉錄——events.jsonl 本身才是處置理由的事實來源，轉錄會有抄錯風險，
+    直接讀原始事件同時也讓 comment 內容可被腳本重跑驗證是否與 main 一致。
+    """
+    latest = None
+    for line in events_jsonl_text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        event = json.loads(line)
+        if event.get("card_id") == card_id and event.get("type") == "close":
+            latest = event
+    return latest
+
+
+def find_latest_event(events_jsonl_text: str, card_id: str) -> dict | None:
+    """該卡**最新一筆事件**（任何 type），依檔案內出現順序取最後一筆——events.jsonl
+    是 append-only，同卡多筆事件時檔案順序即時間順序，不需要另外排序。
+
+    用途：卡片到達「🏁完成」時會被 `workflow_ledger.py --write` **從活表整列移除**
+    （既有 `_CLOSED_STATUSES` 慣例，2026-08-04 Task 3 執行中 main 推進、
+    TRAILER／GAP2／RESTATE1 三卡到此狀態才實測發現——這與「🛑已停止」卡刻意保留
+    整列於活表的做法不同，見 `DISPOSED_DELIVERY_STATUS` 說明）。resync 只逐列掃
+    `docs/TASKS.md` 會完全看不到這些卡，Project 上對應 item 就會停留在舊欄位值。
+    对策：Project 既有卻不在 fresh Ledger 裡的卡，改讀這裡取得最終欄位值。
+    """
+    latest = None
+    for line in events_jsonl_text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        event = json.loads(line)
+        if event.get("card_id") == card_id:
+            latest = event
+    return latest
+
+
+def event_to_ledger_row(event: dict, fallback_initiative: str = "—", fallback_tier: str = "T3") -> LedgerRow:
+    """把 events.jsonl 事件物件的欄位直接映射成 `LedgerRow`——事件層欄位名稱
+    （`deployment_status`／`occurred_at`）與 Ledger 表格欄位名稱（`deploy_status`／
+    `last_handoff`）不同，只是換了名字，語意一致，故直接映射不算臆測。
+    `initiative`／`tier` 是少數幾種事件型別（例如純 `release`）可能沒帶的欄位，
+    缺席時用呼叫端提供的 fallback（通常是該卡消失前最後一次出現在活表時的值）。
+    """
+    return LedgerRow(
+        card_id=event["card_id"],
+        initiative=str(event.get("initiative") or fallback_initiative),
+        tier=str(event.get("tier") or fallback_tier),
+        feature=str(event.get("feature", "")),
+        owner=str(event.get("owner", "—")),
+        branch_worktree=str(event.get("branch_worktree", "—")),
+        iteration=str(event.get("iteration", 0)),
+        delivery_status=str(event.get("delivery_status", "")),
+        deploy_status=str(event.get("deployment_status", "—不適用")),
+        last_handoff=str(event.get("occurred_at", "")),
+    )
 
 
 # --------------------------------------------------------------------------------------
@@ -390,6 +493,53 @@ def add_item_to_project(project_number: int, owner: str, issue_url: str) -> str:
     return data["id"]
 
 
+def get_project_items(project_id: str) -> dict[str, dict]:
+    """查 Project 目前**全部** item 當事實來源，回傳 `{card_id: {item_id, issue_number,
+    issue_url}}`。Task 3 resync／disposition 都以這份 ground truth 為準，不依賴本地
+    對帳表 JSON（那份可能因逾時中斷而漏記，Task 2 已實測踩過一次這個坑——見
+    `create_issue` docstring）。分頁 100 一批，目前規模（30-40 items）一次撈完。"""
+    data = graphql(
+        f'query {{ node(id: "{project_id}") {{ ... on ProjectV2 {{ '
+        f"items(first: 100) {{ nodes {{ id "
+        f"content {{ ... on Issue {{ number url }} }} "
+        f'cardId: fieldValueByName(name: "卡ID") '
+        f"{{ ... on ProjectV2ItemFieldTextValue {{ text }} }} "
+        f"}} }} }} }} }}"
+    )
+    result: dict[str, dict] = {}
+    for node in data["data"]["node"]["items"]["nodes"]:
+        content = node.get("content") or {}
+        card_id = (node.get("cardId") or {}).get("text") or (
+            content.get("url", "").rsplit("/", 1)[-1]  # 極端後備：卡ID欄位剛好沒寫到時退回無法辨識，留給呼叫端處理
+        )
+        result[card_id] = {
+            "item_id": node["id"],
+            "issue_number": content.get("number"),
+            "issue_url": content.get("url"),
+        }
+    return result
+
+
+def add_issue_comment(issue_number: int, body: str) -> None:
+    body_path = ROOT / f".migrate_comment_{issue_number}.tmp.md"
+    body_path.write_text(body, encoding="utf-8")
+    try:
+        run("gh", "issue", "comment", str(issue_number), "--repo", REPO, "--body-file", str(body_path))
+    finally:
+        body_path.unlink(missing_ok=True)
+
+
+def close_issue(issue_number: int) -> None:
+    run("gh", "issue", "close", str(issue_number), "--repo", REPO)
+
+
+def issue_state(issue_number: int) -> str:
+    """OPEN／CLOSED——處置前先查，避免對已經關過的 Issue 重複留言（resync／dispose
+    可能因逾時等原因需要重跑，重跑不該對同一張卡留兩次一樣的 disposition comment）。"""
+    data = json.loads(run("gh", "issue", "view", str(issue_number), "--repo", REPO, "--json", "state"))
+    return data["state"]
+
+
 def _alias(field_name: str) -> str:
     # GraphQL alias 不可含中文／全形符號，改用穩定的英數對照表。
     table = {
@@ -446,9 +596,13 @@ def write_reconciliation(
     total = len(results)
 
     lines = [
-        "# OPS-STATE-PLANE-MIG1 Task 2 — 卡ID ↔ Issue# 對帳表",
+        "# OPS-STATE-PLANE-MIG1 — 卡ID ↔ Issue# 對帳表",
         "",
-        f"- 遷移基準：`{baseline_ref}` @ `{baseline_sha}`",
+        "> 本檔由 `scripts/state_plane_migrate.py` 自動產生（Task 2 一次性遷移／Task 3",
+        "> `--resync` 共用同一份輸出邏輯），每次執行覆寫為最新結果，不代表僅反映",
+        "> 特定一次任務。",
+        "",
+        f"- 基準：`{baseline_ref}` @ `{baseline_sha}`",
         f"- 目標 Project：`{project_title}`（number {project_number}）",
         f"- 結果：**{len(ok)}/{total} 成功**"
         + ("　**全數通過，可宣告完整**" if len(ok) == total and total > 0 else "　**未全數通過，不得宣告完整（紅線 2）**"),
@@ -593,6 +747,174 @@ def migrate_one_card(
         return CardResult(card_id=row.card_id, status="failed", error=str(exc))
 
 
+def sync_one_card(
+    row: LedgerRow,
+    card_text: str,
+    baseline_sha: str,
+    project_id: str,
+    project_number: int,
+    owner: str,
+    field_defs: dict[str, dict],
+    existing_items: dict[str, dict],
+) -> tuple[CardResult, bool]:
+    """Task 3 resync 用：card 已有 item 就**只更新欄位、不重建 Issue**；沒有就照
+    Task 2 流程新建。與 `migrate_one_card`（一次性遷移、遇已完成整卡跳過）的差異
+    正是這裡——resync 存在的理由就是既有卡的欄位可能變了，要覆寫成最新，不能跳過。
+    回傳 `(結果, 是否為新建)` 供呼叫端印出更精準的 log。"""
+    is_new = row.card_id not in existing_items
+    try:
+        if is_new:
+            title = build_issue_title(row)
+            body = build_issue_body(row, card_text, baseline_sha)
+            issue_number, issue_url = create_issue(row.card_id, title, body)
+            item_id = add_item_to_project(project_number, owner, issue_url)
+        else:
+            item = existing_items[row.card_id]
+            item_id, issue_number, issue_url = item["item_id"], item["issue_number"], item["issue_url"]
+
+        original_goal = extract_original_goal(card_text)
+        chain_depth = extract_chain_depth(card_text)
+        mutations = build_field_mutations(
+            project_id, item_id, field_defs, row, original_goal, chain_depth,
+        )
+        graphql("mutation {\n  " + "\n  ".join(mutations) + "\n}")
+
+        return (
+            CardResult(
+                card_id=row.card_id, status="ok",
+                issue_number=issue_number, issue_url=issue_url, item_id=item_id,
+            ),
+            is_new,
+        )
+    except Exception as exc:  # noqa: BLE001 — 逐卡失敗須被捕捉，不得讓整迴圈中斷
+        return CardResult(card_id=row.card_id, status="failed", error=str(exc)), is_new
+
+
+def run_resync(
+    baseline_ref: str, baseline_sha: str, rows: list[LedgerRow],
+    owner: str, project_title: str, out_path: Path,
+) -> list[CardResult]:
+    """把目前 Project 上每個既有 item 的欄位刷新成 fresh Ledger 的當下值；Ledger
+    裡沒對應 item 的卡（新卡）比照 Task 2 建立。以 Project 自身資料當「已存在」
+    的事實來源（`get_project_items`），不依賴本地對帳表 JSON——那份可能因為
+    上次跑到一半被中斷而漏記（Task 2 已實測踩過，見 `create_issue` docstring）。"""
+    project_id, project_number = find_or_create_project(owner, project_title, False)
+    field_defs = ensure_fields(project_number, owner, False)
+    existing_items = get_project_items(project_id)
+    print(f"Project：{project_title} #{project_number}；既有 item：{len(existing_items)} 筆")
+
+    results: list[CardResult] = []
+    seen_card_ids: set[str] = set()
+    for row in rows:
+        seen_card_ids.add(row.card_id)
+        card_text = get_card_spec_text(baseline_ref, row.card_id)
+        result, is_new = sync_one_card(
+            row, card_text, baseline_sha, project_id, project_number, owner, field_defs, existing_items,
+        )
+        label = ("OK" if result.status == "ok" else "FAILED") + ("／新建" if is_new else "／更新")
+        print(f"  [{label}] {row.card_id}" + (f" -> #{result.issue_number}" if result.issue_number else ""))
+        if result.status == "failed":
+            print(f"      錯誤：{result.error}")
+        results.append(result)
+        write_reconciliation(out_path, results, baseline_ref, baseline_sha, project_title, project_number)
+
+    # 「消失」的卡：Project 既有 item，但這次 fresh Ledger 掃過的活表列裡完全沒出現
+    # ——多半是到達「🏁完成」後被 `_CLOSED_STATUSES` 慣例整列移出活表（見
+    # `find_latest_event` docstring）。這些卡的 Project 欄位若不補刷新，會停留在
+    # 消失前的舊狀態（例如仍顯示「🔍待查核」而非真正的「🏁完成」）。
+    vanished = [cid for cid in existing_items if cid not in seen_card_ids]
+    if vanished:
+        print(f"=== {len(vanished)} 張卡已從活表消失（多半是 🏁完成 後被移出）：改讀 events.jsonl 最終欄位值同步 ===")
+        events_text = git_show(baseline_ref, "docs/control-plane/events.jsonl")
+        for card_id in vanished:
+            event = find_latest_event(events_text, card_id)
+            if event is None:
+                print(f"  [FAILED] {card_id}：Project 有 item 但 events.jsonl 查無任何事件，無法判定終態欄位值")
+                results.append(CardResult(card_id=card_id, status="failed", error="events.jsonl 查無事件"))
+                write_reconciliation(out_path, results, baseline_ref, baseline_sha, project_title, project_number)
+                continue
+            row = event_to_ledger_row(event)
+            problems = validate_row_options(row)
+            if problems:
+                print(f"  [FAILED] {card_id}：" + "；".join(problems))
+                results.append(CardResult(card_id=card_id, status="failed", error="；".join(problems)))
+                write_reconciliation(out_path, results, baseline_ref, baseline_sha, project_title, project_number)
+                continue
+            item = existing_items[card_id]
+            try:
+                mutations = build_field_mutations(project_id, item["item_id"], field_defs, row, None, None)
+                graphql("mutation {\n  " + "\n  ".join(mutations) + "\n}")
+                print(f"  [OK／終態同步] {card_id} -> #{item['issue_number']}（{row.delivery_status}）")
+                results.append(CardResult(
+                    card_id=card_id, status="ok", issue_number=item["issue_number"],
+                    issue_url=item["issue_url"], item_id=item["item_id"],
+                ))
+            except Exception as exc:  # noqa: BLE001
+                print(f"  [FAILED] {card_id}：{exc}")
+                results.append(CardResult(card_id=card_id, status="failed", error=str(exc)))
+            write_reconciliation(out_path, results, baseline_ref, baseline_sha, project_title, project_number)
+
+    return results
+
+
+DISPOSED_DELIVERY_STATUS = "🛑已停止"
+"""凍結卡處置專用的終態標記——與 `CLOSED_DELIVERY_STATUSES`（活卡數計算用，涵蓋
+「🏁完成」＋「🛑已停止」兩種語意不同的終態）刻意分開。2026-08-04 Task 3 執行中
+main 又推進：TRAILER／GAP2／RESTATE1 三卡也到達「🏁完成」，但那是**任務正常結案**
+（merge／release），不是「工作流檢討決議 10」的凍結卡處置——兩者關閉原因不同，
+若 dispose 沿用 `CLOSED_DELIVERY_STATUSES` 篩選會把「依需求方批准之凍結卡處置表
+執行」這句**不實**的話發到正常結案卡的 Issue 上。disposition comment 只能發給
+真正落在決議 §6 處置表、`delivery_status` 精確等於「🛑已停止」的卡。"""
+
+
+def run_dispose(
+    baseline_ref: str, rows: list[LedgerRow], owner: str, project_title: str,
+    disposition_sha: str,
+) -> list[dict]:
+    """對 `delivery_status` 精確等於 `DISPOSED_DELIVERY_STATUS`（「🛑已停止」，即
+    工作流檢討決議 10 的凍結卡處置批次）的卡做 Issue 側收尾：留 disposition
+    comment（引 events.jsonl 的 close 事件原文＋main 處置 commit SHA）後 close。
+    已經 close 過的卡跳過（冪等，可安全重跑）。**刻意不處理**「🏁完成」——那是
+    任務正常結案，語意不同，見 `DISPOSED_DELIVERY_STATUS` 常數說明。"""
+    project_id, project_number = find_or_create_project(owner, project_title, False)
+    existing_items = get_project_items(project_id)
+    events_text = git_show(baseline_ref, "docs/control-plane/events.jsonl")
+
+    disposed: list[dict] = []
+    for row in rows:
+        if row.delivery_status != DISPOSED_DELIVERY_STATUS:
+            continue
+        item = existing_items.get(row.card_id)
+        if item is None or item.get("issue_number") is None:
+            disposed.append({"card_id": row.card_id, "status": "failed",
+                              "error": "找不到對應 Issue，需先 --resync 補建"})
+            print(f"  [FAILED] {row.card_id}：找不到對應 Issue，需先 --resync 補建")
+            continue
+        issue_number = item["issue_number"]
+        if issue_state(issue_number) == "CLOSED":
+            disposed.append({"card_id": row.card_id, "status": "already-closed", "issue_number": issue_number})
+            print(f"  [skip 已關閉] {row.card_id} -> #{issue_number}")
+            continue
+        close_event = find_close_event(events_text, row.card_id)
+        evidence = (
+            close_event["evidence"] if close_event
+            else "（events.jsonl 查無對應 close 事件，僅依 Ledger 交付狀態判定為終態）"
+        )
+        event_sha = close_event["source_sha"] if close_event else disposition_sha
+        comment = (
+            f"## 處置：{row.delivery_status}\n\n"
+            f"依需求方 2026-08-04 批准之凍結卡處置表執行（main `{disposition_sha}`）。\n\n"
+            f"**events.jsonl close 事件原文**（`source_sha` `{event_sha}`）：\n\n"
+            f"> {evidence}\n\n"
+            f"<!-- {MARKER_PREFIX}{row.card_id} disposition -->"
+        )
+        add_issue_comment(issue_number, comment)
+        close_issue(issue_number)
+        disposed.append({"card_id": row.card_id, "status": "closed", "issue_number": issue_number})
+        print(f"  [closed] {row.card_id} -> #{issue_number}")
+    return disposed
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline-ref", default=DEFAULT_BASELINE_REF)
@@ -601,6 +923,12 @@ def main() -> None:
     parser.add_argument("--out", default="docs/research/OPS-STATE-PLANE-MIG1_reconciliation.md")
     parser.add_argument("--only", action="append", default=None, help="只跑指定卡ID（可重複），用於試跑")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--resync", action="store_true",
+                         help="Task 3：既有 item 刷新欄位為當下 Ledger 值，新卡照常新建")
+    parser.add_argument("--dispose", action="store_true",
+                         help="Task 3：對 🛑已停止／🏁完成 的卡留 disposition comment 後 close Issue")
+    parser.add_argument("--disposition-sha", default=None,
+                         help="--dispose 用：main 上執行處置的 commit SHA，寫進 comment")
     args = parser.parse_args()
 
     baseline_sha = resolve_sha(args.baseline_ref)
@@ -622,6 +950,33 @@ def main() -> None:
     print(f"預檢查通過：{len(rows)} 卡的 級別／交付狀態／部署狀態 皆在凍結選項域內")
 
     out_path = ROOT / args.out
+
+    if args.dispose:
+        disposition_sha = args.disposition_sha or baseline_sha
+        print(f"=== --dispose：處置 comment 引用 main `{disposition_sha}` ===")
+        disposed = run_dispose(
+            args.baseline_ref, rows, args.owner, args.project_title, disposition_sha,
+        )
+        failed = [d for d in disposed if d["status"] == "failed"]
+        print(f"處置完成：{len(disposed)} 張終態卡，{len(failed)} 筆失敗")
+        if failed:
+            sys.exit(1)
+        return
+
+    if args.resync:
+        print("=== --resync：既有 item 刷新欄位，新卡照常新建 ===")
+        results = run_resync(
+            args.baseline_ref, baseline_sha, rows, args.owner, args.project_title, out_path,
+        )
+        ok_count = sum(1 for r in results if r.status == "ok")
+        active_count = sum(1 for r in rows if r.delivery_status not in CLOSED_DELIVERY_STATUSES)
+        print(f"對帳表已寫入：{out_path}")
+        print(f"resync 完成：{ok_count}/{len(results)}；扣除終態後現行活卡數：{active_count}")
+        if ok_count != len(results):
+            print("未全數成功，依紅線 2 不得宣告完整。", file=sys.stderr)
+            sys.exit(1)
+        return
+
     previous = load_progress(out_path) if not args.dry_run else {}
 
     project_id, project_number = find_or_create_project(args.owner, args.project_title, args.dry_run)
@@ -635,7 +990,7 @@ def main() -> None:
             results.append(previous[row.card_id])
             continue
 
-        card_text = git_show(args.baseline_ref, f"docs/tasks/{row.card_id}.md")
+        card_text = get_card_spec_text(args.baseline_ref, row.card_id)
         result = migrate_one_card(
             row, card_text, baseline_sha, project_id, project_number,
             args.owner, field_defs, args.dry_run,

@@ -7,6 +7,7 @@
 """
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -183,3 +184,108 @@ def test_build_issue_body_contains_marker_and_resource_json() -> None:
 
 def test_build_issue_title() -> None:
     assert m.build_issue_title(_sample_row()) == "CARD-A：測試"
+
+
+# ---------------------------------------------------------------------------
+# Task 3：resync／disposition 用的純函式
+# ---------------------------------------------------------------------------
+
+_SAMPLE_EVENTS_JSONL = "\n".join([
+    json.dumps({"card_id": "CARD-A", "type": "register", "evidence": "開卡", "source_sha": "a" * 40}),
+    json.dumps({"card_id": "CARD-B", "type": "close", "evidence": "第一次關閉（舊）", "source_sha": "b" * 40}),
+    json.dumps({"card_id": "CARD-B", "type": "close", "evidence": "第二次關閉（新，應取這筆）", "source_sha": "c" * 40}),
+])
+
+
+def test_find_close_event_returns_latest_matching_close() -> None:
+    event = m.find_close_event(_SAMPLE_EVENTS_JSONL, "CARD-B")
+    assert event is not None
+    assert event["evidence"] == "第二次關閉（新，應取這筆）"
+    assert event["source_sha"] == "c" * 40
+
+
+def test_find_close_event_ignores_non_close_events() -> None:
+    assert m.find_close_event(_SAMPLE_EVENTS_JSONL, "CARD-A") is None
+
+
+def test_find_close_event_absent_card_returns_none() -> None:
+    assert m.find_close_event(_SAMPLE_EVENTS_JSONL, "CARD-NONEXISTENT") is None
+
+
+def test_closed_delivery_statuses_excludes_active_ones() -> None:
+    assert "🛑已停止" in m.CLOSED_DELIVERY_STATUSES
+    assert "🏁完成" in m.CLOSED_DELIVERY_STATUSES
+    assert "🚧進行中" not in m.CLOSED_DELIVERY_STATUSES
+    assert "🔍待查核" not in m.CLOSED_DELIVERY_STATUSES
+
+
+_SAMPLE_EVENTS_WITH_RELEASE = "\n".join([
+    json.dumps({
+        "card_id": "CARD-C", "type": "handoff", "initiative": "WF-1", "tier": "T3",
+        "feature": "舊描述", "owner": "someone", "branch_worktree": "ai/x/CARD-C @ wt",
+        "iteration": 0, "delivery_status": "🔍待查核", "deployment_status": "⏸未部署",
+        "occurred_at": "2026-08-01T00:00:00+08:00",
+    }),
+    json.dumps({
+        "card_id": "CARD-C", "type": "release", "initiative": "WF-1", "tier": "T3",
+        "feature": "舊描述", "owner": "—", "branch_worktree": "—",
+        "iteration": 1, "delivery_status": "🏁完成", "deployment_status": "✅已驗證",
+        "occurred_at": "2026-08-04T22:56:44+08:00",
+    }),
+])
+
+
+def test_find_latest_event_ignores_type_and_takes_last() -> None:
+    event = m.find_latest_event(_SAMPLE_EVENTS_WITH_RELEASE, "CARD-C")
+    assert event is not None
+    assert event["type"] == "release"
+    assert event["delivery_status"] == "🏁完成"
+
+
+def test_find_latest_event_absent_card_returns_none() -> None:
+    assert m.find_latest_event(_SAMPLE_EVENTS_WITH_RELEASE, "CARD-NONEXISTENT") is None
+
+
+def test_event_to_ledger_row_maps_fields_directly() -> None:
+    event = m.find_latest_event(_SAMPLE_EVENTS_WITH_RELEASE, "CARD-C")
+    row = m.event_to_ledger_row(event)
+    assert row.card_id == "CARD-C"
+    assert row.initiative == "WF-1"
+    assert row.tier == "T3"
+    assert row.delivery_status == "🏁完成"
+    assert row.deploy_status == "✅已驗證"  # deployment_status -> deploy_status 換名映射
+    assert row.last_handoff == "2026-08-04T22:56:44+08:00"  # occurred_at -> last_handoff 換名映射
+    assert row.iteration == "1"
+
+
+def test_event_to_ledger_row_uses_fallback_when_initiative_tier_missing() -> None:
+    event = {
+        "card_id": "CARD-D", "delivery_status": "🏁完成", "deployment_status": "—不適用",
+        "owner": "—", "branch_worktree": "—", "iteration": 0, "occurred_at": "2026-08-04T00:00:00+08:00",
+    }
+    row = m.event_to_ledger_row(event, fallback_initiative="WF-22", fallback_tier="T4")
+    assert row.initiative == "WF-22"
+    assert row.tier == "T4"
+
+
+def test_disposed_status_is_distinct_from_normal_completion() -> None:
+    """凍結卡處置（🛑已停止）與任務正常結案（🏁完成）是兩種不同關閉原因；
+    `run_dispose` 只認前者，避免把「依需求方批准之凍結卡處置表執行」這句話
+    誤發到正常結案卡（2026-08-04 Task 3 執行中 main 推進使 TRAILER／GAP2／
+    RESTATE1 三卡到達 🏁完成 才發現的真實範圍問題）。"""
+    assert m.DISPOSED_DELIVERY_STATUS == "🛑已停止"
+    assert m.DISPOSED_DELIVERY_STATUS != "🏁完成"
+    assert m.DISPOSED_DELIVERY_STATUS in m.CLOSED_DELIVERY_STATUSES
+    assert "🏁完成" in m.CLOSED_DELIVERY_STATUSES  # 仍計入「不算活卡」，但不觸發 dispose comment
+
+
+def test_stopped_status_is_in_validate_options_domain() -> None:
+    row = _sample_row()
+    row.delivery_status = "🛑已停止"
+    assert m.validate_row_options(row) == []
+
+
+def test_pending_deploy_status_is_in_validate_options_domain() -> None:
+    row = _sample_row()
+    row.deploy_status = "🚀待部署"
+    assert m.validate_row_options(row) == []

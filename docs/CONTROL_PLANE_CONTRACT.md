@@ -1,17 +1,34 @@
 # Control-plane Contract — cpbl-analytics
 
 > 共同不變量見 canonical [`../.ai-workflow/AI_WORKFLOW.md`](../.ai-workflow/AI_WORKFLOW.md) §4.1。本檔將跨人協作狀態與本機資源鎖分離；不得填入 token、secret 或個資。
+>
+> **⚠️ B2 權威文件改版（OPS-STATE-PLANE-MIG1 Task 3，2026-08-04）：待獨立校讀。**
+> 本次改版把卡狀態面／事件面的事實來源由 git（`events.jsonl` ＋ `TASKS.md` 投影）遷至
+> **GitHub Issues ＋ Projects v2**（決議紀錄〈工作流檢討決議 7〉；結構凍結見
+> `docs/research/OPS-STATE-PLANE-MIG1_field_mapping.md` 與 events.jsonl `a04a862`）。
+> **cutover 尚未宣告**：本檔以下內容分兩軌並存——「§1 現行機制（cutover 前生效）」
+> 與「§2 新狀態面（cutover 後生效）」。cutover 由需求方明示宣告前，§1 仍是唯一作業
+> 狀態事實來源，§2 只是目標狀態的權威描述，**尚不生效**。獨立校讀者請重點核對：
+> §2 是否忠實反映決議紀錄與 Task 1-3 的實測結果、雙軌分界是否清楚不含糊、
+> §1 是否仍完整未被誤刪（cutover 前它仍是真正在跑的機制）。
 
-## Adapter 邊界
+## §0 Adapter 邊界（雙軌現況）
 
-| 範圍 | 實作 | 事實來源／用途 |
+| 範圍 | 現行（§1，cutover 前生效） | 新狀態面（§2，cutover 後生效） |
 |---|---|---|
-| Remote coordination | GitHub protected `main` + `ruan6047` 操作的 PR／Actions | 唯一 lifecycle writer；task、review、lease、CI |
-| Local resource | `/private/tmp/cpbl-analytics-control-plane/<CARD_ID>/lease.json` 原子目錄鎖 | worktree、port、container、DB namespace 暫時互斥；僅 telemetry |
-| Event store | [`events.jsonl`](control-plane/events.jsonl) 的 append-only Git history | 不可覆寫 lifecycle 歷史 |
-| Ledger projection | `uv run python scripts/workflow_ledger.py --write` | [`TASKS.md`](TASKS.md) current-state；禁止手改 |
+| 卡狀態／事件面 | `events.jsonl` append-only Git history ＋ `TASKS.md` 投影 | GitHub Issue（單卡狀態）＋ Issue timeline／結構化 comment（事件） |
+| 看板聚合 | 無（`TASKS.md` 表格） | user-level GitHub Project v2「cpbl-analytics 任務看板」（[#4](https://github.com/users/ruan6047/projects/4)），跨 repo 聚合＝多專案面板 v0 |
+| 寫入通道 | `ruan6047` 為唯一 lifecycle writer，Coordinator 代行機械寫入 | **祕書單寫入通道**（決議 1）：僅 PM 祕書 session 可寫 Issue 狀態／comment／Project 欄位；其他 session（含執行者、查核者）唯讀，經需求方或祕書轉達 |
+| Local resource | `/private/tmp/cpbl-analytics-control-plane/<CARD_ID>/lease.json` 原子目錄鎖 | 不變（本機資源鎖與遠端狀態面是兩層，cutover 不影響） |
+| 程式碼 remote coordination | GitHub protected `main` + PR／Actions | 不變；程式碼面 branch protection／required checks 另立 `OPS-CODE-BRANCH-PROTECT1`（`OPS-CONTROL-PLANE-PR-GUARD1` 封存後的窄卡），與**卡狀態面**（本檔主題）是兩個不同關切 |
+| Ledger projection | `uv run python scripts/workflow_ledger.py --write` → `TASKS.md` | 祕書每日 snapshot export 回 git（離線稽核用途，非事實來源） |
+| events.jsonl 地位 | **唯一作業狀態事實來源** | **cutover 後封存唯讀**：不得刪除（紅線 3），歷史稽核仍在 git，但不再接受新 lifecycle event |
 
-## Event、claim 與 WIP
+---
+
+## §1 現行機制（cutover 前生效——這段落是實際還在跑的規則，未經需求方 cutover 宣告前不得視為已停用）
+
+### Event、claim 與 WIP
 
 - event 必填 canonical §4.1 欄位與投影欄位；同一卡 `state_version` 自 1 嚴格遞增。handoff、review、handoff-accepted、merge、release 固定 `source_sha` 與 evidence。
 - WF-21 審核契約採用 [`review-escalation.md`](../.ai-workflow/templates/review-escalation.md)。於 canonical
@@ -76,13 +93,14 @@
 - `ruan6047` 是唯一 lifecycle writer；Coordinator 先追加 event，再建立／釋放 local lease，最後重建 Ledger。local telemetry 必填 `lifecycle=false`、`claim_event_id`，不得改 card state。
 - **lifecycle event 一律直接 commit 至 `main`**（由 Coordinator 或其指示的階段所有者執行），並在同一 commit 以 `--write` 重建 Ledger，使 `TASKS.md` 恆為當前狀態。**執行分支不得改動 `docs/control-plane/**` 與 `docs/TASKS.md`**；~~push main 前先 `git pull --rebase`~~ → **push main 前先 `git pull --ff-only`**（2026-07-29 修正，理由見下）。分支 merge 時上述路徑若衝突，一律以 main 為準（2026-07-17 前的舊分支載有歷史事件 commit，屬過渡遺留，衝突同樣以 main 為準）。
 - **⚠️ 不得在 `--no-ff` merge 之後執行 `git pull --rebase`**：`git rebase` **預設丟棄 merge commit**，會把剛建立的 merge 靜默壓平成線性歷史，且**不報錯**。後果是 merge event 記錄的 `source_sha` 指向一個不在 `main` 上的 orphan commit，`Reviewed-by` trailer 隨 merge commit 一併消失（canonical §6 要求 merge commit 帶此 trailer）。
-  - **已發生兩次**：2026-07-26 `INGEST-RECORDS-HR1`（non-ff merge `b8b89bc` 被線性化，實際落地 `78713dc`，見該卡 NOTE 事件）、2026-07-29 `DEV-TRAILER-GUARD-SCOPE1`（merge `cb97be1a` 成 orphan，見 `MERGE-CORRECTION-008`）。第一次已記錄卻未修本契約，故複發。
+  - **已發生至少三次**：2026-07-26 `INGEST-RECORDS-HR1`（non-ff merge `b8b89bc` 被線性化，實際落地 `78713dc`，見該卡 NOTE 事件）、2026-07-29 `DEV-TRAILER-GUARD-SCOPE1`（merge `cb97be1a` 成 orphan，見 `MERGE-CORRECTION-008`）、2026-08-04 `INGEST-SPLITS-IMPORT-RESTATE1` 一線（`481ca4c` 被線性化壓平至 `57ab9e1`，OPS-STATE-PLANE-MIG1 Task 3 resync 過程中實測發現，內容未受影響、`merge-correction` 事件留痕待補）。第一次已記錄卻未修本契約，故複發；本次改版仍未能根除，留給 Wave 2／`WF-22-CLI1` 評估是否需要工具層強制（例如 pre-push hook 偵測 orphan merge）。
   - **改用 `--ff-only` 的理由**：落後時**明確失敗**而非靜默改寫歷史，由人決定如何處理（rebase 純 event commit、或 `--rebase=merges` 保留拓樸）。fail-loud 優於 fail-silent。
   - **已壓平且已推送時不得重寫 `main`**：改寫已推送的共用歷史比帳面錯誤嚴重得多。正確處置是追加 `merge-correction` 事件，記錄 orphan SHA、實際落地 SHA、內容等價性驗證，以及 `Reviewed-by` attestation 的補位。
 - claim concurrency key 為 `cpbl-analytics:<CARD_ID>`；共享資源逐項宣告 `file:*`、`port:*`、`container:*`、`db:*`。預設 lease 4 小時；到期回收前檢查 worktree 與未提交變更，禁止靜默移除。
 - WIP limit：agent 4、review queue 3（2026-07-24 自 2／2 上調，以吸收 BUILD1 執行期間的 lane-independent 前端批次；批次清空後回檢，非 lane-independent 卡不得靠此上調繞過車道互斥）；達上限停止新 claim，優先完成 review／release。
+- **⚠️ 已實測的共用 `.git` race（OPS-STATE-PLANE-MIG1 Task 3，2026-08-04）**：多個 session（Coordinator／執行者／不同卡的 worktree）共用同一個 `.git`（worktree 機制的設計），並行 `git fetch` 時 `refs/remotes/origin/main` 可能短暫消失（`git rev-parse origin/main` 回 `unknown revision`），重新 fetch 即恢復；不影響已落地的內容，純屬遠端追蹤 ref 更新的競態，**目前無工具層防護**，腳本／人工操作遇到此錯誤訊息時重試一次即可，不必視為資料損毀。
 
-## 交付→查核→合併慣例（2026-07-25 定案）
+### 交付→查核→合併慣例（2026-07-25 定案）
 
 canonical §2.1「實作與審核分離」不變：執行者不得查核或 merge 自己的變更。本節只固定
 **查核之後**的操作分工，消除「每卡逐次請示」的往返。
@@ -96,7 +114,8 @@ canonical §2.1「實作與審核分離」不變：執行者不得查核或 merg
   無須再向需求方請求合併授權。merge 者仍不得是該卡執行者；**例外依 canonical
   §2.1（WF-18）**：APPROVE／必要 sign-off 完成後、需求方明確授權時，執行者可代行
   merge 機械操作，merge commit 必帶 `Reviewed-by`、merge 事件必記授權來源——授權
-  只豁免「誰按下 merge」，不豁免查核。
+  只豁免「誰按下 merge」，不豁免查核。**此慣例對程式碼 PR 的合併機制不變**（Issues/
+  Projects 遷移只動卡狀態面，不動 git／PR 機制，見 §0 表格「程式碼 remote coordination」列）。
 - **release 必以終態落地＋結案清單**（WF-18，canonical §0＋[`worktree-lifecycle.md`](../.ai-workflow/templates/worktree-lifecycle.md)）：
   免部署卡 release 即 `🏁完成`，需部署卡在部署 `✅已驗證` 前不得 release；結案
   五步（終態事件→卡檔封存→Ledger 重建→lease／分支清理→對帳三件套）缺一不可，
@@ -120,8 +139,78 @@ canonical §2.1「實作與審核分離」不變：執行者不得查核或 merg
   因 `file:scripts/review_prompt.py` 由 OPS-PROCESS-GUARD1 認領互斥，
   待該卡結案後以 follow-up 落地；落地前由查核者手動核對。
 
-## 權限與事故處理
+### 權限與事故處理
 
 - 只有 protected `main` 的部署 workflow 可操作 production；外部協作者可提交 PR／review evidence，不可自行 claim、release、merge 或改寫 event log。
 - GitHub 不可用時停止 claim／handoff／merge／release；本機鎖不可推進 card state。恢復後由 Coordinator 對帳並補 telemetry。
 - claim、handoff、review、merge、release 後執行 `git worktree list`、檢查 local leases，並跑 `uv run python scripts/workflow_ledger.py --check`。
+
+---
+
+## §2 新狀態面（cutover 後生效——目前是目標狀態的權威描述，尚未生效）
+
+### 卡狀態與看板
+
+- **卡狀態＝GitHub Issue**：每張活卡對應 repo `ruan6047/cpbl-analytics` 一個 Issue（一次性遷移由
+  `scripts/state_plane_migrate.py` 建立，見對帳表 `docs/research/OPS-STATE-PLANE-MIG1_reconciliation.md`）。
+  Issue open／closed 對應卡是否仍在途；body 含 spec 檔連結、遷移當下現況摘要、
+  fenced JSON 資源宣告區塊（`db_scope`／`resources`，見 Task 1 對照表的取捨：資源宣告
+  刻意不建 Project 欄位，因開放式檔案路徑會撞 single-select／multi-select 的選項配額，
+  結構化 body 才是機器可讀又不佔額度的解法）。
+- **看板＝Project v2「cpbl-analytics 任務看板」**：12 個凍結欄位（卡ID／Initiative／
+  級別／功能／owner／分支worktree／iteration／交付狀態／部署狀態／最後交接／
+  服務的原始目標／鏈深），型別與選項域見 Task 1 對照表；**最後交接用 TEXT 存完整
+  ISO-8601（字典序即時序），不用原生 DATE 欄位**（DATE 型別實測會靜默截斷時分秒與
+  時區，2026-08-04 Task 1 實測發現、需求方裁決採 TEXT 方案）。
+- **祕書單寫入通道**（決議 1）：Issue 狀態轉換、Project 欄位寫入、disposition comment
+  一律由 PM 祕書 session 執行；執行者／查核者對狀態面唯讀，需要轉態時經需求方或
+  祕書代寫，不得自行操作 Issue／Project（避免決策與機械寫入分散、失去單一事實
+  來源的可信度——這正是決議 1 要解決的「法理集權、實務失守」）。
+
+### 審核契約：結構化 comment
+
+- 審核結論以 **Issue 上的結構化 comment**（非事件，非 events.jsonl 條目）留痕，欄位對應
+  §1 review 事件的核心語意（`review_result`／`findings`／`attempt_id`／`escalation_epoch`
+  等）——**確切 schema 與型別驗證機制屬 Wave 2／`WF-22-CLI1` 實作範圍，本次改版只
+  定調「結構化 comment 取代 events.jsonl review 事件」這個方向，不在此重新設計整套
+  finding／escalation 計數細則**（那套規則歷經 WF-17／WF-18／WF-20／WF-21 多輪才成形，
+  一次性遷移任務不適合順手重新發明）。
+- **WF21-R-13 翻案／correction 概念併入**：§1 的 `review-correction` 事件（用
+  `corrects_event_id` 指名並裁決同輪內較早的 review／finding 衝突）在新狀態面對應
+  **一則新 comment 明確引用（回覆或指名）被更正的舊 comment**，同樣遵守「不得改寫
+  已發表的 comment 本體」（GitHub comment 技術上可編輯，但契約層面視同 append-only，
+  更正必須是新 comment，不得就地改字——與 events.jsonl append-only 精神一致）。此為
+  `DEV-REVIEW-DEACCEPT-TRAIL1`（WF21-R-13，已封存）原始需求的收容處，該卡本身不再
+  需要獨立事件載體。
+- **不計數／中繼關卡等 §1 既有語意**（`closes_review_round`、`review_independence`
+  職權劃分）**維持概念不變**，具體如何在 Issue comment 上表達（例如用固定前綴、
+  label、或 comment 內結構化欄位標記）屬 Wave 2 實作細節，本次不預先鎖定格式。
+
+### events.jsonl 的終局地位
+
+- **cutover 宣告後，`events.jsonl` 封存唯讀**：不再接受任何新 lifecycle event（append
+  也不行——封存即凍結內容，不是「只是變慢」）；**不得刪除**（紅線 3），檔案與其
+  git 歷史永久保留供稽核。
+- cutover 宣告**前**，本節（§2）不生效，`events.jsonl` 依 §1 規則繼續作為唯一事實
+  來源正常運作、正常寫入。**Issue 建立≠切換**：即使 Issue／Project 已存在且資料
+  正確（Task 2／3 已完成遷移＋resync），在需求方明示宣告 cutover 之前兩者是**影子
+  關係**——Issue 側資料僅供可視化與驗證，任何撞卡／狀態判斷仍須以 `events.jsonl`
+  為準（紅線 1）。
+- cutover 宣告由需求方執行，宣告後由 PM 祕書寫入終筆封存事件（`docs/control-plane/
+  events.jsonl` 最後一筆，標記封存原因與宣告來源），該事件之後本檔 §1 全段轉為
+  historical reference，§2 轉為生效中的唯一機制。
+
+### 已知待決（Wave 2／`WF-22-CLI1` 範圍，本次改版不產出，如實列出而非靜默略過）
+
+- 結構化 review comment 的確切 JSON schema／型別驗證機制（對應 §1 的 REQUIRED_FIELDS／
+  FINDING_FIELDS／escalation 計數規則如何在 Issue comment 上重建）。
+- WIP limit（agent 4／review queue 3）在新狀態面的機械執行機制（§1 靠人工對照
+  `TASKS.md`；新狀態面理論上可用 Project 篩選視圖或祕書 CLI `doctor` 指令核對，
+  但尚未實作）。
+- claim concurrency（`file:*`／`port:*`／`container:*`／`db:*` 資源互斥）的機械比對——
+  Task 1 已驗證 Issue body fenced JSON 可承載資源宣告，但「祕書派工時自動比對本卡
+  寫入集 × 現役卡寫入集交集」（決議 3）的比對程式尚未寫，屬 `WF-22-CLI1` 範圍。
+- schema-repair（§1 的就地修復程序）在 Issue comment 情境下的對應程序——GitHub
+  comment 的編輯歷史與 events.jsonl 的 git 歷史特性不同，需要重新評估同一套四項
+  紅線是否適用或需要調整。
+- 祕書每日 snapshot export 回 git 的確切格式與路徑。
