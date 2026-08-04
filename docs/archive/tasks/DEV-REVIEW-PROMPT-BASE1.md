@@ -10,7 +10,7 @@
 - Discovery：—（T2；缺陷已有逐字重現，見〈問題陳述〉）
 - Design：Design Gate N/A——無使用者可見介面。
 - **資源互斥**：`file:scripts/review_prompt.py` 目前由 `DEV-BASELINE-GUARD-DECL1`（🔍待查核）占用，**該卡合併前不得認領本卡**，否則同檔兩支未合併分支。
-- owner、worktree、iteration、最後交接、阻塞與交付／部署 current-state 見 [`../TASKS.md`](../TASKS.md) Ledger；歷史寫入 adapter event log。
+- owner、worktree、iteration、最後交接、阻塞與交付／部署 current-state 見 [`../../TASKS.md`](../../TASKS.md) Ledger；歷史寫入 adapter event log。
 
 ## 問題陳述
 
