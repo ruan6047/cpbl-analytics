@@ -40,10 +40,47 @@ T0/T1 commit 本來就只要求 Requested-by＋Implemented-by（不含 Co-Author
 
 必要集合以 `git interpret-trailers --parse` 的輸出為準（不是 grep 字串）——iteration 4
 的教訓正是「字串存在但空行使其不被解析為 trailer」。
+
+GitHub `pull_request` checkout 的 synthetic merge commit 排除（DEV-TRAILER-GUARD-
+PR-CHECKOUT1，2026-08-04）：GitHub Actions 的 `pull_request` 事件預設 checkout
+`refs/pull/<N>/merge`——GitHub 自動產生的合併結果 commit（訊息固定格式
+`Merge <sha> into <base>`），不是任何人手動建立、也不可能帶任何 trailer。這個
+commit 就是該次 checkout 的 HEAD，必然落在 `_base_ref()..HEAD` 範圍內（CI 上
+`_base_ref` 通常退回 `origin/main`：`pull_request` checkout 不會建立本地 `main`
+分支，但這個 repo 的 `ci.yml` 用 `fetch-depth: 0` 讓 `origin/main` 這個
+remote-tracking ref 存在），導致本測試在**任何** pull_request 觸發的 CI run 上
+恆定失敗，與 PR 實際內容無關（PR #41 兩次 push 重現、結果一致：詳見卡面）。
+
+`_pull_request_synthetic_merge_sha()` 排除這一個 commit，且只排除這一個——不
+靠 commit message 字串比對（會被巧合訊息繞過、也可能反向誤傷合法 commit），
+而是要求以下四條**同時成立**才判定為 synthetic merge（缺一律回 None，維持
+「照舊全檢」，寧可少排除也不要誤放行）：
+
+1. `GITHUB_EVENT_NAME` 是 `pull_request`——只有這個事件的預設 checkout 才會
+   把 GitHub 自產的合併 ref 當成 HEAD；本機互動或其他事件（含 `push`）一律
+   不觸發排除，這保證了驗收條件2：本機無 `GITHUB_*` 環境變數時行為完全不變。
+2. `GITHUB_SHA` 等於本地實際算出的 HEAD SHA——不是「假設」HEAD 是那個
+   commit，是拿 CI runtime 回報的環境變數對照本地 git 算出來的值，兩者一致
+   才算數。這一條同時保證了測試 fixture 之間互不干擾：獨立的 tmp repo 的
+   HEAD 是全新算出的 SHA，不可能巧合等於外層 CI（若有）的 `GITHUB_SHA`。
+3. HEAD 剛好是雙親 commit——這是 merge commit 的結構特徵，不是可選信號。
+4. HEAD 的 commit message **精確**符合 GitHub 產生 synthetic merge 的固定
+   格式 `Merge <40 碼 hex sha> into <GITHUB_BASE_REF 的實際值>`（用
+   `re.fullmatch` 比對整個 subject，`base` 那一半用 `GITHUB_BASE_REF` 的
+   實際字串精確比對，不是泛用正規表示式）。真人 `git merge --no-ff` 的預設
+   訊息格式是 `Merge branch '<name>' into <base>`——結構上不同（有引號、有
+   'branch' 字樣、不是完整 40 碼 hex），不會被這個格式誤認。
+
+四條都是 CI 環境變數或 commit 結構事實，訊息比對只是其中一條、且被
+`GITHUB_BASE_REF` 的實際值收緊，不是「看起來像不像」的字串猜測。排除的
+對象精確到「這一個 SHA」本身，它的 parent（含真正的 PR head commit）維持
+原樣照舊全檢——不放寬既有 REQUIRED 集合，也不擴大排除範圍。
 """
 
 from __future__ import annotations
 
+import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -84,12 +121,52 @@ def _base_ref(root: Path) -> str | None:
     return None
 
 
+def _pull_request_synthetic_merge_sha(root: Path) -> str | None:
+    """在 GitHub Actions `pull_request` checkout 下，若 HEAD 就是 GitHub 自動
+    產生、需被排除的 synthetic merge commit，回傳其 SHA；其餘一切情況
+    （本機、`push` 觸發、其他 CI、或任一信號對不上）一律回 None——回 None
+    不代表「確認不是」，只代表「無法高度確信是」，此時呼叫端維持照舊全檢。
+
+    四條件同時成立才回傳非 None（理由見本檔 module docstring 對應段落）：
+    GITHUB_EVENT_NAME == pull_request、GITHUB_SHA == 本地 HEAD、HEAD 雙親、
+    HEAD subject 精確符合 `Merge <40 hex sha> into <GITHUB_BASE_REF>`。
+    """
+    if os.environ.get("GITHUB_EVENT_NAME") != "pull_request":
+        return None
+    github_sha = os.environ.get("GITHUB_SHA")
+    base_ref = os.environ.get("GITHUB_BASE_REF")
+    if not github_sha or not base_ref:
+        return None
+    head_sha = _git(root, "rev-parse", "HEAD").strip()
+    if head_sha != github_sha:
+        return None
+    parents = _git(root, "log", "-1", "--format=%P", head_sha).split()
+    if len(parents) != 2:
+        return None
+    subject = _git(root, "log", "-1", "--format=%s", head_sha).strip()
+    if not re.fullmatch(rf"Merge [0-9a-f]{{40}} into {re.escape(base_ref)}", subject):
+        return None
+    return head_sha
+
+
 def _new_commits(root: Path = ROOT) -> list[str]:
-    """HEAD 相對 `_base_ref(root)` 的新 commit（邊界 ref 都解析不出時回空）。"""
+    """HEAD 相對 `_base_ref(root)` 的新 commit（邊界 ref 都解析不出時回空）。
+
+    排除 GitHub `pull_request` checkout 自動產生的 synthetic merge commit
+    （`_pull_request_synthetic_merge_sha`，DEV-TRAILER-GUARD-PR-CHECKOUT1）：
+    這個 commit 不是任何人寫的、帶不了任何 trailer，只是 GitHub 算
+    mergeability 的副產品，不該被當成「這張 PR 的新 commit」來驗。只排除這
+    一個精確識別出的 SHA 本身，它的 parent（含真正的 PR head commit）維持
+    原樣、照舊全檢。
+    """
     base = _base_ref(root)
     if base is None:
         return []
-    return [s for s in _git(root, "rev-list", f"{base}..HEAD").split() if s]
+    commits = [s for s in _git(root, "rev-list", f"{base}..HEAD").split() if s]
+    synthetic = _pull_request_synthetic_merge_sha(root)
+    if synthetic is not None:
+        commits = [s for s in commits if s != synthetic]
+    return commits
 
 
 def _parsed_trailers(root: Path, sha: str) -> dict[str, str]:
@@ -215,3 +292,191 @@ def test_main_scope_excludes_coordinator_commits_by_design(tmp_path: Path):
     assert _new_commits(work) == [], (
         "main 上的新 commit（HEAD == main）永遠不進取樣範圍——這是設計排除，"
         "不是漏掉；理由見本檔 module docstring 與 DEV-TRAILER-GUARD-SCOPE1 卡面 Log")
+
+
+# ---------------------------------------------------------------------------
+# DEV-TRAILER-GUARD-PR-CHECKOUT1（2026-08-04）：GitHub Actions 的 `pull_request`
+# 事件預設 checkout `refs/pull/<N>/merge`——GitHub 自動產生的合併結果 commit，
+# 訊息固定格式 `Merge <sha> into <base>`，不是任何人手動建立，帶不了任何
+# trailer。這個 commit 就是該次 checkout 的 HEAD，必然落在 `main..HEAD`（或
+# CI 退回用的 `origin/main..HEAD`）範圍內，導致 test_new_commits_carry_the_
+# required_trailer_set 在任何 pull_request 觸發的 CI run 上恆定失敗——與 PR
+# 實際內容無關（PR #41 兩次 run 重現，見卡面 Discovery）。
+#
+# 用 tmp bare repo + `git commit-tree` 手造一個雙親、無 trailer、訊息符合
+# GitHub 固定格式的 commit，模擬 `refs/pull/N/merge` 的行為，重現這個假陽性；
+# 同時在它下面疊一個「缺 trailer 的真實 commit」，證明修正不能矯枉過正——
+# 排除 synthetic commit 的同時，真正需要被抓的缺陷仍要被抓到。
+# ---------------------------------------------------------------------------
+
+def _seed_pr_branch_with_missing_trailer(work: Path) -> str:
+    """在 main 之外開一個分支，加一個缺 Planned-by 的真實 commit，模擬一張
+    PR 分支的 head（這是「真正待驗的 commit」，修正後仍必須被抓到）。回傳其
+    SHA。"""
+    _git(work, "checkout", "-q", "-b", "ai/executor/PR")
+    (work / "feature.py").write_text("x = 1\n")
+    _git(work, "add", "feature.py")
+    _git(work, "commit", "-q", "-m",
+         "feat(models): add x\n\n"
+         "Requested-by: test\nImplemented-by: test\nCo-Authored-By: test <t@example.com>\n")
+    return _git(work, "rev-parse", "HEAD").strip()
+
+
+def _graft_synthetic_merge_commit(work: Path, head_sha: str, *, base_branch: str = "main",
+                                  message: str | None = None) -> str:
+    """用 `git commit-tree` 手造一個雙親（base_branch 尖端 + head_sha）、無
+    trailer 的 commit，並 `checkout --detach` 上去（模擬 actions/checkout 對
+    `pull_request` 事件的預設行為：HEAD 落在 GitHub 自產的合併 ref 上，不是
+    本地分支）。`message` 預設為 GitHub 對 synthetic merge 使用的固定格式；
+    傳入不同格式可模擬「像但不是」的情境。回傳這個新 commit 的 SHA。"""
+    base_sha = _git(work, "rev-parse", base_branch).strip()
+    tree = _git(work, "rev-parse", f"{head_sha}^{{tree}}").strip()
+    if message is None:
+        message = f"Merge {head_sha} into {base_branch}"
+    synthetic_sha = subprocess.run(
+        ["git", "-C", str(work), "commit-tree", tree, "-p", base_sha, "-p", head_sha,
+         "-m", message],
+        capture_output=True, text=True, check=True).stdout.strip()
+    _git(work, "checkout", "-q", "--detach", synthetic_sha)
+    return synthetic_sha
+
+
+def test_pull_request_checkout_excludes_synthetic_merge_but_still_catches_missing_trailer(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """紅→綠核心案例，重現 PR #41 兩次 CI run 的實際故障並證明修正雙向正確。
+
+    修正前：synthetic merge commit 和它底下缺 Planned-by 的真實 commit 一起
+    被算進 `_new_commits`，前者缺全部 4 個必要 trailer，恆定回報問題——這條
+    assertion 在修正前會紅（即本卡的「紅」）。
+
+    修正後兩件事都要成立：
+      1. synthetic merge commit 完全不出現在新 commit 清單／問題清單裡。
+      2. 它底下真正缺 trailer 的 commit 仍被抓到——證明沒有矯枉過正把整條
+         守衛在 pull_request checkout 下變成失能（紅線3）。
+    """
+    work = _init_repo_with_remote(tmp_path)
+    bad_sha = _seed_pr_branch_with_missing_trailer(work)
+    synthetic_sha = _graft_synthetic_merge_commit(work, bad_sha, base_branch="main")
+
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_SHA", synthetic_sha)
+    monkeypatch.setenv("GITHUB_BASE_REF", "main")
+
+    commits = _new_commits(work)
+    assert synthetic_sha not in commits, (
+        "GitHub 自產的 synthetic merge commit（HEAD == GITHUB_SHA、雙親、訊息固定格式）"
+        "不該被當成『這張 PR 的新 commit』——它不是任何人寫的，帶不了任何 trailer")
+    assert bad_sha in commits, "排除 synthetic commit 不能連帶放過它底下真正的 PR commit"
+
+    problems = _trailer_problems(work, commits)
+    assert not any(synthetic_sha[:7] in p for p in problems), (
+        "synthetic commit 缺全部 trailer 是預期的（它本來就不該有），"
+        "守衛必須完全跳過它，不能出現在問題清單裡")
+    assert any(bad_sha[:7] in p and "Planned-by" in p for p in problems), (
+        "真實缺 trailer 的 commit 必須仍被抓到——不可矯枉過正變成整條守衛在 PR 上失能")
+
+
+def test_synthetic_merge_detection_is_noop_without_github_event_name(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """本機（無 GITHUB_EVENT_NAME）下即使雙親＋訊息格式都符合，也不得排除——
+    這條保證驗收條件2：本機行為完全不變，排除只在 CI 的 pull_request 情境下
+    生效。"""
+    work = _init_repo_with_remote(tmp_path)
+    bad_sha = _seed_pr_branch_with_missing_trailer(work)
+    synthetic_sha = _graft_synthetic_merge_commit(work, bad_sha, base_branch="main")
+    monkeypatch.delenv("GITHUB_EVENT_NAME", raising=False)
+    monkeypatch.setenv("GITHUB_SHA", synthetic_sha)
+    monkeypatch.setenv("GITHUB_BASE_REF", "main")
+
+    commits = _new_commits(work)
+    assert synthetic_sha in commits, (
+        "沒有 GITHUB_EVENT_NAME=pull_request 就不該排除任何 commit——"
+        "本機互動情境下這個分支本來就該被完整檢查")
+
+
+def test_synthetic_merge_detection_requires_github_sha_to_match_head(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """GITHUB_SHA 對不上實際 HEAD 時不得排除——避免環境變數殘留或誤設時
+    誤傷（例如同一個 CI job 裡先跑了別的 repo 的 checkout）。"""
+    work = _init_repo_with_remote(tmp_path)
+    bad_sha = _seed_pr_branch_with_missing_trailer(work)
+    synthetic_sha = _graft_synthetic_merge_commit(work, bad_sha, base_branch="main")
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_SHA", "0" * 40)  # 刻意對不上
+    monkeypatch.setenv("GITHUB_BASE_REF", "main")
+
+    commits = _new_commits(work)
+    assert synthetic_sha in commits, (
+        "GITHUB_SHA 與本地 HEAD 對不上時，不能假設 HEAD 是 synthetic merge commit")
+
+
+def test_synthetic_merge_detection_requires_two_parents(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """單親的一般 commit 即使 env 都設對也不得誤判為 synthetic merge——
+    synthetic merge 的結構特徵（雙親）是硬性條件，不是可選信號。"""
+    work = _init_repo_with_remote(tmp_path)
+    (work / "note.md").write_text("x\n")
+    _git(work, "add", "note.md")
+    _git(work, "commit", "-q", "-m", "chore: normal single-parent commit")
+    head_sha = _git(work, "rev-parse", "HEAD").strip()
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_SHA", head_sha)
+    monkeypatch.setenv("GITHUB_BASE_REF", "main")
+
+    assert _pull_request_synthetic_merge_sha(work) is None
+
+
+def test_synthetic_merge_detection_rejects_real_merge_with_similar_message(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """判別器精確性的關鍵案例：真人 `git merge --no-ff` 的預設訊息格式是
+    `Merge branch '<name>' into <base>`——雙親都有、也提到 into <base>，但
+    不是 GitHub 那個精確格式（`Merge <40 hex sha> into <base>`，沒有引號、
+    沒有 'branch' 字樣、sha 是完整 40 碼 hex）。即使 GITHUB_SHA／GITHUB_
+    BASE_REF 都刻意設成與這個真人 merge commit 一致（模擬環境變數不巧對上
+    的最壞情況），判別器仍不得把它當成 synthetic merge 排除——這正是紅線2
+    要求的「真人 merge commit 即使訊息相似也不得誤排除」。"""
+    work = _init_repo_with_remote(tmp_path)
+    bad_sha = _seed_pr_branch_with_missing_trailer(work)
+    real_merge_sha = _graft_synthetic_merge_commit(
+        work, bad_sha, base_branch="main",
+        message="Merge branch 'ai/executor/PR' into main")
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_SHA", real_merge_sha)
+    monkeypatch.setenv("GITHUB_BASE_REF", "main")
+
+    assert _pull_request_synthetic_merge_sha(work) is None, (
+        "真人 merge 的訊息格式（'Merge branch <name> into <base>'）不等於 GitHub "
+        "synthetic merge 的固定格式（'Merge <40 hex sha> into <base>'），不得誤排除")
+    # 而且這個「像但不是」的 merge commit 本身仍要被判定為需要驗 trailer
+    # （它缺 Reviewed-by，是 is_merge 分支要求的）。
+    commits = _new_commits(work)
+    assert real_merge_sha in commits
+    problems = _trailer_problems(work, commits)
+    assert any(real_merge_sha[:7] in p and "Reviewed-by" in p for p in problems)
+
+
+def test_synthetic_merge_detection_rejects_base_ref_mismatch(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """訊息裡的 base（'into main'）與 GITHUB_BASE_REF 對不上時不得排除——
+    避免只用泛用正規表示式比對訊息格式，確保是拿環境變數的實際值精確比對。"""
+    work = _init_repo_with_remote(tmp_path)
+    bad_sha = _seed_pr_branch_with_missing_trailer(work)
+    synthetic_sha = _graft_synthetic_merge_commit(work, bad_sha, base_branch="main")
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_SHA", synthetic_sha)
+    monkeypatch.setenv("GITHUB_BASE_REF", "develop")  # 訊息說 into main，env 卻說 develop
+
+    assert _pull_request_synthetic_merge_sha(work) is None
+
+
+def test_synthetic_merge_detection_succeeds_when_all_signals_agree(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """正面案例：四個條件都成立時，判別器準確回傳該 synthetic merge commit 的 SHA。"""
+    work = _init_repo_with_remote(tmp_path)
+    bad_sha = _seed_pr_branch_with_missing_trailer(work)
+    synthetic_sha = _graft_synthetic_merge_commit(work, bad_sha, base_branch="main")
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_SHA", synthetic_sha)
+    monkeypatch.setenv("GITHUB_BASE_REF", "main")
+
+    assert _pull_request_synthetic_merge_sha(work) == synthetic_sha
