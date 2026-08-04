@@ -1,0 +1,7450 @@
+{
+  "scope": "2025 A/D 全部含幽靈島的 (場次, 打者)",
+  "ground_truth": "cpbl.batting_gamelog（官方逐場 box）PA − 我方計入島 PA",
+  "pairs": 442,
+  "official_extra_total": 26,
+  "ghost_islands_total": 442,
+  "criterion_has_result_row": {
+    "pairs_matched": 442,
+    "pairs_total": 442,
+    "mismatches": []
+  },
+  "criterion_in_canonical_pa": {
+    "pairs_matched": 382,
+    "pairs_total": 442,
+    "mismatches": [
+      {
+        "kind": "A",
+        "game_sno": 3,
+        "acnt": "0000006868",
+        "hitter": "周佳樂",
+        "official_pa": 0,
+        "counted_pa": 0,
+        "official_extra": 0,
+        "ghosts": 1,
+        "pred_result_row": 0,
+        "pred_canonical": 1,
+        "pred_ibb": 0,
+        "outcomes": [
+          "一安"
+        ]
+      },
+      {
+        "kind": "A",
+        "game_sno": 16,
+        "acnt": "0000003183",
+        "hitter": "張志豪",
+        "official_pa": 5,
+        "counted_pa": 4,
+        "official_extra": 1,
+        "ghosts": 1,
+        "pred_result_row": 1,
+        "pred_canonical": 0,
+        "pred_ibb": 1,
+        "outcomes": [
+          "故四"
+        ]
+      },
+      {
+        "kind": "A",
+        "game_sno": 32,
+        "acnt": "0000000159",
+        "hitter": "成晉",
+        "official_pa": 2,
+        "counted_pa": 2,
+        "official_extra": 0,
+        "ghosts": 1,
+        "pred_result_row": 0,
+        "pred_canonical": 1,
+        "pred_ibb": 0,
+        "outcomes": [
+          "四壞"
+        ]
+      },
+      {
+        "kind": "A",
+        "game_sno": 32,
+        "acnt": "0000003183",
+        "hitter": "張志豪",
+        "official_pa": 3,
+        "counted_pa": 3,
+        "official_extra": 0,
+        "ghosts": 1,
+        "pred_result_row": 0,
+        "pred_canonical": 1,
+        "pred_ibb": 0,
+        "outcomes": [
+          "一飛"
+        ]
+      },
+      {
+        "kind": "A",
+        "game_sno": 39,
+        "acnt": "0000006806",
+        "hitter": "池恩齊",
+        "official_pa": 4,
+        "counted_pa": 4,
+        "official_extra": 0,
+        "ghosts": 1,
+        "pred_result_row": 0,
+        "pred_canonical": 1,
+        "pred_ibb": 0,
+        "outcomes": [
+          "二滾"
+        ]
+      },
+      {
+        "kind": "A",
+        "game_sno": 48,
+        "acnt": "0000005510",
+        "hitter": "林澤彬",
+        "official_pa": 2,
+        "counted_pa": 2,
+        "official_extra": 0,
+        "ghosts": 1,
+        "pred_result_row": 0,
+        "pred_canonical": 1,
+        "pred_ibb": 0,
+        "outcomes": [
+          "內飛"
+        ]
+      },
+      {
+        "kind": "A",
+        "game_sno": 60,
+        "acnt": "0000000361",
+        "hitter": "張洺瑀",
+        "official_pa": 4,
+        "counted_pa": 4,
+        "official_extra": 0,
+        "ghosts": 1,
+        "pred_result_row": 0,
+        "pred_canonical": 1,
+        "pred_ibb": 0,
+        "outcomes": [
+          "死球"
+        ]
+      },
+      {
+        "kind": "A",
+        "game_sno": 65,
+        "acnt": "0000006806",
+        "hitter": "池恩齊",
+        "official_pa": 3,
+        "counted_pa": 3,
+        "official_extra": 0,
+        "ghosts": 1,
+        "pred_result_row": 0,
+        "pred_canonical": 1,
+        "pred_ibb": 0,
+        "outcomes": [
+          "二滾"
+        ]
+      },
+      {
+        "kind": "A",
+        "game_sno": 84,
+        "acnt": "0000001286",
+        "hitter": "馮健庭",
+        "official_pa": 2,
+        "counted_pa": 2,
+        "official_extra": 0,
+        "ghosts": 1,
+        "pred_result_row": 0,
+        "pred_canonical": 1,
+        "pred_ibb": 0,
+        "outcomes": [
+          "二滾"
+        ]
+      },
+      {
+        "kind": "A",
+        "game_sno": 90,
+        "acnt": "0000002286",
+        "hitter": "林立",
+        "official_pa": 1,
+        "counted_pa": 0,
+        "official_extra": 1,
+        "ghosts": 1,
+        "pred_result_row": 1,
+        "pred_canonical": 0,
+        "pred_ibb": 1,
+        "outcomes": [
+          "故四"
+        ]
+      },
+      {
+        "kind": "A",
+        "game_sno": 102,
+        "acnt": "0000002285",
+        "hitter": "高宇杰",
+        "official_pa": 3,
+        "counted_pa": 3,
+        "official_extra": 0,
+        "ghosts": 1,
+        "pred_result_row": 0,
+        "pred_canonical": 1,
+        "pred_ibb": 0,
+        "outcomes": [
+          "二安"
+        ]
+      },
+      {
+        "kind": "A",
+        "game_sno": 113,
+        "acnt": "0000001118",
+        "hitter": "高國麟",
+        "official_pa": 2,
+        "counted_pa": 2,
+        "official_extra": 0,
+        "ghosts": 1,
+        "pred_result_row": 0,
+        "pred_canonical": 1,
+        "pred_ibb": 0,
+        "outcomes": [
+          "右飛"
+        ]
+      },
+      {
+        "kind": "A",
+        "game_sno": 114,
+        "acnt": "0000005306",
+        "hitter": "許哲晏",
+        "official_pa": 2,
+        "counted_pa": 2,
+        "official_extra": 0,
+        "ghosts": 1,
+        "pred_result_row": 0,
+        "pred_canonical": 1,
+        "pred_ibb": 0,
+        "outcomes": [
+          "三滾"
+        ]
+      },
+      {
+        "kind": "A",
+        "game_sno": 116,
+        "acnt": "0000006240",
+        "hitter": "馬傑森",
+        "official_pa": 3,
+        "counted_pa": 3,
+        "official_extra": 0,
+        "ghosts": 1,
+        "pred_result_row": 0,
+        "pred_canonical": 1,
+        "pred_ibb": 0,
+        "outcomes": [
+          "四壞"
+        ]
+      },
+      {
+        "kind": "A",
+        "game_sno": 117,
+        "acnt": "0000002285",
+        "hitter": "高宇杰",
+        "official_pa": 2,
+        "counted_pa": 2,
+        "official_extra": 0,
+        "ghosts": 1,
+        "pred_result_row": 0,
+        "pred_canonical": 1,
+        "pred_ibb": 0,
+        "outcomes": [
+          "犧飛"
+        ]
+      },
+      {
+        "kind": "A",
+        "game_sno": 133,
+        "acnt": "0000006216",
+        "hitter": "王順和",
+        "official_pa": 4,
+        "counted_pa": 4,
+        "official_extra": 0,
+        "ghosts": 1,
+        "pred_result_row": 0,
+        "pred_canonical": 1,
+        "pred_ibb": 0,
+        "outcomes": [
+          "左飛"
+        ]
+      },
+      {
+        "kind": "A",
+        "game_sno": 138,
+        "acnt": "0000007076",
+        "hitter": "李勛傑",
+        "official_pa": 2,
+        "counted_pa": 2,
+        "official_extra": 0,
+        "ghosts": 1,
+        "pred_result_row": 0,
+        "pred_canonical": 1,
+        "pred_ibb": 0,
+        "outcomes": [
+          "二滾"
+        ]
+      },
+      {
+        "kind": "A",
+        "game_sno": 166,
+        "acnt": "0000005571",
+        "hitter": "岳政華",
+        "official_pa": 4,
+        "counted_pa": 4,
+        "official_extra": 0,
+        "ghosts": 1,
+        "pred_result_row": 0,
+        "pred_canonical": 1,
+        "pred_ibb": 0,
+        "outcomes": [
+          "犧飛"
+        ]
+      },
+      {
+        "kind": "A",
+        "game_sno": 176,
+        "acnt": "0000006235",
+        "hitter": "林政華",
+        "official_pa": 3,
+        "counted_pa": 3,
+        "official_extra": 0,
+        "ghosts": 1,
+        "pred_result_row": 0,
+        "pred_canonical": 1,
+        "pred_ibb": 0,
+        "outcomes": [
+          "一安"
+        ]
+      },
+      {
+        "kind": "A",
+        "game_sno": 181,
+        "acnt": "0000006872",
+        "hitter": "林岳谷",
+        "official_pa": 3,
+        "counted_pa": 3,
+        "official_extra": 0,
+        "ghosts": 1,
+        "pred_result_row": 0,
+        "pred_canonical": 1,
+        "pred_ibb": 0,
+        "outcomes": [
+          "中飛"
+        ]
+      }
+    ]
+  },
+  "criterion_is_ibb": {
+    "pairs_matched": 440,
+    "pairs_total": 442,
+    "mismatches": [
+      {
+        "kind": "A",
+        "game_sno": 151,
+        "acnt": "0000006224",
+        "hitter": "林吳晉瑋",
+        "official_pa": 4,
+        "counted_pa": 3,
+        "official_extra": 1,
+        "ghosts": 1,
+        "pred_result_row": 1,
+        "pred_canonical": 1,
+        "pred_ibb": 0,
+        "outcomes": [
+          "雙殺"
+        ]
+      },
+      {
+        "kind": "A",
+        "game_sno": 240,
+        "acnt": "0000001606",
+        "hitter": "林岱安",
+        "official_pa": 3,
+        "counted_pa": 3,
+        "official_extra": 0,
+        "ghosts": 1,
+        "pred_result_row": 0,
+        "pred_canonical": 1,
+        "pred_ibb": 1,
+        "outcomes": [
+          "故四"
+        ]
+      }
+    ]
+  },
+  "rows": [
+    {
+      "kind": "A",
+      "game_sno": 2,
+      "acnt": "0000005538",
+      "hitter": "黃柏豪",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 2,
+      "acnt": "0000006858",
+      "hitter": "陳佳樂",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 3,
+      "acnt": "0000006868",
+      "hitter": "周佳樂",
+      "official_pa": 0,
+      "counted_pa": 0,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 5,
+      "acnt": "0000006927",
+      "hitter": "曾子祐",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 7,
+      "acnt": "0000002291",
+      "hitter": "岳東華",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 7,
+      "acnt": "0000006861",
+      "hitter": "蔡佳諺",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 8,
+      "acnt": "0000001474",
+      "hitter": "蘇智傑",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 8,
+      "acnt": "0000002282",
+      "hitter": "張閔勛",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 9,
+      "acnt": "0000004643",
+      "hitter": "胡冠俞",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 15,
+      "acnt": "0000003343",
+      "hitter": "郭嚴文",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 16,
+      "acnt": "0000003183",
+      "hitter": "張志豪",
+      "official_pa": 5,
+      "counted_pa": 4,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 0,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 18,
+      "acnt": "0000006929",
+      "hitter": "紀慶然",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 20,
+      "acnt": "0000006806",
+      "hitter": "池恩齊",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "雙殺"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 21,
+      "acnt": "0000004642",
+      "hitter": "林靖凱",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 23,
+      "acnt": "0000006940",
+      "hitter": "葉保弟",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 26,
+      "acnt": "0000000929",
+      "hitter": "王威晨",
+      "official_pa": 5,
+      "counted_pa": 5,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 28,
+      "acnt": "0000003625",
+      "hitter": "吉力吉撈．鞏冠",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 29,
+      "acnt": "0000005542",
+      "hitter": "張政禹",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "捕滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 31,
+      "acnt": "0000003533",
+      "hitter": "藍寅倫",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 32,
+      "acnt": "0000000159",
+      "hitter": "成晉",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 32,
+      "acnt": "0000002297",
+      "hitter": "詹子賢",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 32,
+      "acnt": "0000003183",
+      "hitter": "張志豪",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 33,
+      "acnt": "0000005306",
+      "hitter": "許哲晏",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 38,
+      "acnt": "0000000159",
+      "hitter": "成晉",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 38,
+      "acnt": "0000002282",
+      "hitter": "張閔勛",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 39,
+      "acnt": "0000005310",
+      "hitter": "陳真",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 39,
+      "acnt": "0000006806",
+      "hitter": "池恩齊",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 40,
+      "acnt": "0000002289",
+      "hitter": "陳重廷",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 42,
+      "acnt": "0000006879",
+      "hitter": "冉皓燐",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 43,
+      "acnt": "0000000159",
+      "hitter": "成晉",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 45,
+      "acnt": "0000006737",
+      "hitter": "董子恩",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 48,
+      "acnt": "0000005510",
+      "hitter": "林澤彬",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "內飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 51,
+      "acnt": "0000001606",
+      "hitter": "林岱安",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 52,
+      "acnt": "0000006738",
+      "hitter": "孔念恩",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 53,
+      "acnt": "0000000929",
+      "hitter": "王威晨",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 53,
+      "acnt": "0000001606",
+      "hitter": "林岱安",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 55,
+      "acnt": "0000002282",
+      "hitter": "張閔勛",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "界飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 57,
+      "acnt": "0000002291",
+      "hitter": "岳東華",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 58,
+      "acnt": "0000006926",
+      "hitter": "陳致嘉",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 59,
+      "acnt": "0000006211",
+      "hitter": "張肇元",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 60,
+      "acnt": "0000000361",
+      "hitter": "張洺瑀",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "死球"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 62,
+      "acnt": "0000002291",
+      "hitter": "岳東華",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 63,
+      "acnt": "0000006929",
+      "hitter": "紀慶然",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 65,
+      "acnt": "0000006806",
+      "hitter": "池恩齊",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 69,
+      "acnt": "0000001606",
+      "hitter": "林岱安",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 73,
+      "acnt": "0000006854",
+      "hitter": "宋嘉翔",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 75,
+      "acnt": "0000001804",
+      "hitter": "陳傑憲",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 75,
+      "acnt": "0000007268",
+      "hitter": "陳聖平",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "投滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 77,
+      "acnt": "0000006927",
+      "hitter": "曾子祐",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 78,
+      "acnt": "0000001473",
+      "hitter": "李宗賢",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 78,
+      "acnt": "0000003615",
+      "hitter": "胡金龍",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 82,
+      "acnt": "0000004642",
+      "hitter": "林靖凱",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 84,
+      "acnt": "0000001286",
+      "hitter": "馮健庭",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 84,
+      "acnt": "0000006858",
+      "hitter": "陳佳樂",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 84,
+      "acnt": "0000007078",
+      "hitter": "杜禹鋒",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 86,
+      "acnt": "0000001804",
+      "hitter": "陳傑憲",
+      "official_pa": 5,
+      "counted_pa": 4,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 1,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 87,
+      "acnt": "0000003563",
+      "hitter": "余德龍",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "投飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 89,
+      "acnt": "0000002285",
+      "hitter": "高宇杰",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 89,
+      "acnt": "0000007239",
+      "hitter": "魔鷹",
+      "official_pa": 5,
+      "counted_pa": 4,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 1,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 90,
+      "acnt": "0000002286",
+      "hitter": "林立",
+      "official_pa": 1,
+      "counted_pa": 0,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 0,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 91,
+      "acnt": "0000006216",
+      "hitter": "王順和",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "死球"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 94,
+      "acnt": "0000006940",
+      "hitter": "葉保弟",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 96,
+      "acnt": "0000006868",
+      "hitter": "周佳樂",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 96,
+      "acnt": "0000006909",
+      "hitter": "豊暐",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 98,
+      "acnt": "0000003467",
+      "hitter": "林泓育",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 99,
+      "acnt": "0000002289",
+      "hitter": "陳重廷",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 101,
+      "acnt": "0000004643",
+      "hitter": "胡冠俞",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 101,
+      "acnt": "0000006936",
+      "hitter": "高聖恩",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 102,
+      "acnt": "0000002285",
+      "hitter": "高宇杰",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 103,
+      "acnt": "0000007239",
+      "hitter": "魔鷹",
+      "official_pa": 5,
+      "counted_pa": 4,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 1,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 106,
+      "acnt": "0000007239",
+      "hitter": "魔鷹",
+      "official_pa": 5,
+      "counted_pa": 4,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 1,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 107,
+      "acnt": "0000005546",
+      "hitter": "拿莫．伊漾",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 108,
+      "acnt": "0000000929",
+      "hitter": "王威晨",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 109,
+      "acnt": "0000004642",
+      "hitter": "林靖凱",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 111,
+      "acnt": "0000006216",
+      "hitter": "王順和",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 112,
+      "acnt": "0000006854",
+      "hitter": "宋嘉翔",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 113,
+      "acnt": "0000001118",
+      "hitter": "高國麟",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 114,
+      "acnt": "0000005306",
+      "hitter": "許哲晏",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 116,
+      "acnt": "0000006240",
+      "hitter": "馬傑森",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 117,
+      "acnt": "0000002285",
+      "hitter": "高宇杰",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "犧飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 118,
+      "acnt": "0000003343",
+      "hitter": "郭嚴文",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 129,
+      "acnt": "0000001618",
+      "hitter": "林子偉",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 131,
+      "acnt": "0000005510",
+      "hitter": "林澤彬",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 133,
+      "acnt": "0000006216",
+      "hitter": "王順和",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 135,
+      "acnt": "0000002661",
+      "hitter": "陳鏞基",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 138,
+      "acnt": "0000007076",
+      "hitter": "李勛傑",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 140,
+      "acnt": "0000000929",
+      "hitter": "王威晨",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 140,
+      "acnt": "0000006225",
+      "hitter": "宋晟睿",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 143,
+      "acnt": "0000003609",
+      "hitter": "陳俊秀",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 146,
+      "acnt": "0000005571",
+      "hitter": "岳政華",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 150,
+      "acnt": "0000007076",
+      "hitter": "李勛傑",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 151,
+      "acnt": "0000006224",
+      "hitter": "林吳晉瑋",
+      "official_pa": 4,
+      "counted_pa": 3,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "雙殺"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 151,
+      "acnt": "0000006936",
+      "hitter": "高聖恩",
+      "official_pa": 1,
+      "counted_pa": 1,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 151,
+      "acnt": "0000007239",
+      "hitter": "魔鷹",
+      "official_pa": 5,
+      "counted_pa": 4,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 1,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 153,
+      "acnt": "0000005306",
+      "hitter": "許哲晏",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 153,
+      "acnt": "0000006909",
+      "hitter": "豊暐",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 155,
+      "acnt": "0000006872",
+      "hitter": "林岳谷",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 157,
+      "acnt": "0000005298",
+      "hitter": "黃韋盛",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 158,
+      "acnt": "0000005310",
+      "hitter": "陳真",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "犧短"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 166,
+      "acnt": "0000005571",
+      "hitter": "岳政華",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "犧飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 166,
+      "acnt": "0000006928",
+      "hitter": "林家鋐",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 166,
+      "acnt": "0000007239",
+      "hitter": "魔鷹",
+      "official_pa": 5,
+      "counted_pa": 4,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 1,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 169,
+      "acnt": "0000006909",
+      "hitter": "豊暐",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 174,
+      "acnt": "0000001318",
+      "hitter": "朱育賢",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 175,
+      "acnt": "0000007297",
+      "hitter": "楊泯貽",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 176,
+      "acnt": "0000002282",
+      "hitter": "張閔勛",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 176,
+      "acnt": "0000006235",
+      "hitter": "林政華",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 177,
+      "acnt": "0000005291",
+      "hitter": "蔣少宏",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 178,
+      "acnt": "0000002352",
+      "hitter": "范國宸",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "死球"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 179,
+      "acnt": "0000007239",
+      "hitter": "魔鷹",
+      "official_pa": 4,
+      "counted_pa": 3,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 1,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 180,
+      "acnt": "0000001606",
+      "hitter": "林岱安",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "界飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 181,
+      "acnt": "0000006872",
+      "hitter": "林岳谷",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 185,
+      "acnt": "0000003467",
+      "hitter": "林泓育",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "投滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 185,
+      "acnt": "0000004645",
+      "hitter": "戴培峰",
+      "official_pa": 5,
+      "counted_pa": 5,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 188,
+      "acnt": "0000006872",
+      "hitter": "林岳谷",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三失"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 189,
+      "acnt": "0000005306",
+      "hitter": "許哲晏",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 193,
+      "acnt": "0000006217",
+      "hitter": "林辰勳",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 193,
+      "acnt": "0000006728",
+      "hitter": "陳思仲",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "內安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 196,
+      "acnt": "0000007079",
+      "hitter": "劉俊緯",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 198,
+      "acnt": "0000006909",
+      "hitter": "豊暐",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 201,
+      "acnt": "0000006868",
+      "hitter": "周佳樂",
+      "official_pa": 1,
+      "counted_pa": 1,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 204,
+      "acnt": "0000006738",
+      "hitter": "孔念恩",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 204,
+      "acnt": "0000006835",
+      "hitter": "顏清浤",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 204,
+      "acnt": "0000006868",
+      "hitter": "周佳樂",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 204,
+      "acnt": "0000006909",
+      "hitter": "豊暐",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 204,
+      "acnt": "0000006926",
+      "hitter": "陳致嘉",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 205,
+      "acnt": "0000006927",
+      "hitter": "曾子祐",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 207,
+      "acnt": "0000005291",
+      "hitter": "蔣少宏",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "界飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 208,
+      "acnt": "0000000929",
+      "hitter": "王威晨",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "犧短"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 208,
+      "acnt": "0000005569",
+      "hitter": "曾頌恩",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 212,
+      "acnt": "0000007071",
+      "hitter": "林泓弦",
+      "official_pa": 0,
+      "counted_pa": 0,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 212,
+      "acnt": "0000007239",
+      "hitter": "魔鷹",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 214,
+      "acnt": "0000006930",
+      "hitter": "黃秉揚",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 216,
+      "acnt": "0000005510",
+      "hitter": "林澤彬",
+      "official_pa": 5,
+      "counted_pa": 4,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 1,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 216,
+      "acnt": "0000006888",
+      "hitter": "張育成",
+      "official_pa": 0,
+      "counted_pa": 0,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 216,
+      "acnt": "0000006909",
+      "hitter": "豊暐",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 219,
+      "acnt": "0000001339",
+      "hitter": "林祖傑",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 221,
+      "acnt": "0000005310",
+      "hitter": "陳真",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "犧短"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 223,
+      "acnt": "0000006223",
+      "hitter": "林子豪",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 227,
+      "acnt": "0000004645",
+      "hitter": "戴培峰",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 230,
+      "acnt": "0000005542",
+      "hitter": "張政禹",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 230,
+      "acnt": "0000006216",
+      "hitter": "王順和",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 232,
+      "acnt": "0000003563",
+      "hitter": "余德龍",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "犧飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 237,
+      "acnt": "0000007089",
+      "hitter": "王念好",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 238,
+      "acnt": "0000000929",
+      "hitter": "王威晨",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "犧短"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 239,
+      "acnt": "0000007064",
+      "hitter": "陳世嘉",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "犧選"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 240,
+      "acnt": "0000001606",
+      "hitter": "林岱安",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 240,
+      "acnt": "0000003615",
+      "hitter": "胡金龍",
+      "official_pa": 1,
+      "counted_pa": 0,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 0,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 240,
+      "acnt": "0000006743",
+      "hitter": "劉俊豪",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 241,
+      "acnt": "0000007268",
+      "hitter": "陳聖平",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 242,
+      "acnt": "0000002307",
+      "hitter": "王政順",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 243,
+      "acnt": "0000006743",
+      "hitter": "劉俊豪",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 243,
+      "acnt": "0000006861",
+      "hitter": "蔡佳諺",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 244,
+      "acnt": "0000002289",
+      "hitter": "陳重廷",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 245,
+      "acnt": "0000002291",
+      "hitter": "岳東華",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 250,
+      "acnt": "0000001804",
+      "hitter": "陳傑憲",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 251,
+      "acnt": "0000000132",
+      "hitter": "梁家榮",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 251,
+      "acnt": "0000005291",
+      "hitter": "蔣少宏",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 252,
+      "acnt": "0000005510",
+      "hitter": "林澤彬",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 254,
+      "acnt": "0000006854",
+      "hitter": "宋嘉翔",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 255,
+      "acnt": "0000006909",
+      "hitter": "豊暐",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 256,
+      "acnt": "0000001339",
+      "hitter": "林祖傑",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 256,
+      "acnt": "0000006861",
+      "hitter": "蔡佳諺",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 258,
+      "acnt": "0000001339",
+      "hitter": "林祖傑",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 258,
+      "acnt": "0000003615",
+      "hitter": "胡金龍",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 258,
+      "acnt": "0000006861",
+      "hitter": "蔡佳諺",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 261,
+      "acnt": "0000005291",
+      "hitter": "蔣少宏",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 262,
+      "acnt": "0000000361",
+      "hitter": "張洺瑀",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 262,
+      "acnt": "0000007094",
+      "hitter": "陳愷佑",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 265,
+      "acnt": "0000001291",
+      "hitter": "郭阜林",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 265,
+      "acnt": "0000006929",
+      "hitter": "紀慶然",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 266,
+      "acnt": "0000001119",
+      "hitter": "許基宏",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 269,
+      "acnt": "0000002307",
+      "hitter": "王政順",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 269,
+      "acnt": "0000006730",
+      "hitter": "張仁瑋",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "死球"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 270,
+      "acnt": "0000003343",
+      "hitter": "郭嚴文",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 274,
+      "acnt": "0000000361",
+      "hitter": "張洺瑀",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左失"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 274,
+      "acnt": "0000003467",
+      "hitter": "林泓育",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 274,
+      "acnt": "0000006738",
+      "hitter": "孔念恩",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 275,
+      "acnt": "0000003615",
+      "hitter": "胡金龍",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "捕飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 276,
+      "acnt": "0000005296",
+      "hitter": "董秉軒",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 278,
+      "acnt": "0000005310",
+      "hitter": "陳真",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 281,
+      "acnt": "0000006868",
+      "hitter": "周佳樂",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 282,
+      "acnt": "0000006926",
+      "hitter": "陳致嘉",
+      "official_pa": 0,
+      "counted_pa": 0,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 283,
+      "acnt": "0000004636",
+      "hitter": "江坤宇",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 283,
+      "acnt": "0000005571",
+      "hitter": "岳政華",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 287,
+      "acnt": "0000005510",
+      "hitter": "林澤彬",
+      "official_pa": 0,
+      "counted_pa": 0,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 289,
+      "acnt": "0000000361",
+      "hitter": "張洺瑀",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 289,
+      "acnt": "0000006861",
+      "hitter": "蔡佳諺",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 291,
+      "acnt": "0000000132",
+      "hitter": "梁家榮",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 292,
+      "acnt": "0000001318",
+      "hitter": "朱育賢",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 292,
+      "acnt": "0000006730",
+      "hitter": "張仁瑋",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "雙殺"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 293,
+      "acnt": "0000006868",
+      "hitter": "周佳樂",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 295,
+      "acnt": "0000003649",
+      "hitter": "吳念庭",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "內飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 295,
+      "acnt": "0000006240",
+      "hitter": "馬傑森",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 295,
+      "acnt": "0000006929",
+      "hitter": "紀慶然",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 296,
+      "acnt": "0000000910",
+      "hitter": "張進德",
+      "official_pa": 1,
+      "counted_pa": 0,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 0,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 296,
+      "acnt": "0000001339",
+      "hitter": "林祖傑",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 296,
+      "acnt": "0000001804",
+      "hitter": "陳傑憲",
+      "official_pa": 5,
+      "counted_pa": 4,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 1,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 296,
+      "acnt": "0000003615",
+      "hitter": "胡金龍",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 296,
+      "acnt": "0000006909",
+      "hitter": "豊暐",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 297,
+      "acnt": "0000005532",
+      "hitter": "全浩瑋",
+      "official_pa": 0,
+      "counted_pa": 0,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 298,
+      "acnt": "0000005532",
+      "hitter": "全浩瑋",
+      "official_pa": 1,
+      "counted_pa": 1,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 302,
+      "acnt": "0000000045",
+      "hitter": "林智勝",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 302,
+      "acnt": "0000007076",
+      "hitter": "李勛傑",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 304,
+      "acnt": "0000003563",
+      "hitter": "余德龍",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 305,
+      "acnt": "0000001606",
+      "hitter": "林岱安",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "場安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 306,
+      "acnt": "0000002298",
+      "hitter": "陳重羽",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 307,
+      "acnt": "0000001339",
+      "hitter": "林祖傑",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 307,
+      "acnt": "0000002285",
+      "hitter": "高宇杰",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 307,
+      "acnt": "0000004636",
+      "hitter": "江坤宇",
+      "official_pa": 4,
+      "counted_pa": 3,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 1,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 307,
+      "acnt": "0000007268",
+      "hitter": "陳聖平",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 308,
+      "acnt": "0000006909",
+      "hitter": "豊暐",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 309,
+      "acnt": "0000006936",
+      "hitter": "高聖恩",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 310,
+      "acnt": "0000002661",
+      "hitter": "陳鏞基",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 310,
+      "acnt": "0000005571",
+      "hitter": "岳政華",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 313,
+      "acnt": "0000003625",
+      "hitter": "吉力吉撈．鞏冠",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "界飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 313,
+      "acnt": "0000006931",
+      "hitter": "黃劼希",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 314,
+      "acnt": "0000005306",
+      "hitter": "許哲晏",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 316,
+      "acnt": "0000000753",
+      "hitter": "杜家明",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 317,
+      "acnt": "0000007071",
+      "hitter": "林泓弦",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 318,
+      "acnt": "0000000753",
+      "hitter": "杜家明",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 321,
+      "acnt": "0000005310",
+      "hitter": "陳真",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "捕滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 322,
+      "acnt": "0000006737",
+      "hitter": "董子恩",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 322,
+      "acnt": "0000007091",
+      "hitter": "高捷",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 323,
+      "acnt": "0000006851",
+      "hitter": "林培緯",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 323,
+      "acnt": "0000007070",
+      "hitter": "林佳緯",
+      "official_pa": 2,
+      "counted_pa": 1,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 1,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 325,
+      "acnt": "0000006928",
+      "hitter": "林家鋐",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 326,
+      "acnt": "0000007071",
+      "hitter": "林泓弦",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 328,
+      "acnt": "0000000159",
+      "hitter": "成晉",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 328,
+      "acnt": "0000003467",
+      "hitter": "林泓育",
+      "official_pa": 4,
+      "counted_pa": 3,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 1,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 329,
+      "acnt": "0000001291",
+      "hitter": "郭阜林",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 330,
+      "acnt": "0000001318",
+      "hitter": "朱育賢",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 332,
+      "acnt": "0000005306",
+      "hitter": "許哲晏",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 333,
+      "acnt": "0000007064",
+      "hitter": "陳世嘉",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 335,
+      "acnt": "0000003467",
+      "hitter": "林泓育",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "死球"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 335,
+      "acnt": "0000006861",
+      "hitter": "蔡佳諺",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 335,
+      "acnt": "0000006868",
+      "hitter": "周佳樂",
+      "official_pa": 1,
+      "counted_pa": 1,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 336,
+      "acnt": "0000005306",
+      "hitter": "許哲晏",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 341,
+      "acnt": "0000006928",
+      "hitter": "林家鋐",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 342,
+      "acnt": "0000000356",
+      "hitter": "石翔宇",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三滾"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 346,
+      "acnt": "0000006217",
+      "hitter": "林辰勳",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 349,
+      "acnt": "0000006732",
+      "hitter": "陳統恩",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 350,
+      "acnt": "0000001606",
+      "hitter": "林岱安",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 350,
+      "acnt": "0000002707",
+      "hitter": "潘傑楷",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 350,
+      "acnt": "0000005542",
+      "hitter": "張政禹",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 351,
+      "acnt": "0000006240",
+      "hitter": "馬傑森",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 353,
+      "acnt": "0000001606",
+      "hitter": "林岱安",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 354,
+      "acnt": "0000000153",
+      "hitter": "林承飛",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二安"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 354,
+      "acnt": "0000006928",
+      "hitter": "林家鋐",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 355,
+      "acnt": "0000003174",
+      "hitter": "郭永維",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 357,
+      "acnt": "0000006216",
+      "hitter": "王順和",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 358,
+      "acnt": "0000001339",
+      "hitter": "林祖傑",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 359,
+      "acnt": "0000006714",
+      "hitter": "鍾玉成",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "界飛"
+      ]
+    },
+    {
+      "kind": "A",
+      "game_sno": 359,
+      "acnt": "0000006854",
+      "hitter": "宋嘉翔",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 3,
+      "acnt": "0000007078",
+      "hitter": "杜禹鋒",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 4,
+      "acnt": "0000000908",
+      "hitter": "蘇緯達",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 4,
+      "acnt": "0000003144",
+      "hitter": "林益全",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 4,
+      "acnt": "0000006734",
+      "hitter": "黃鈞麟",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 5,
+      "acnt": "0000003548",
+      "hitter": "黃鈞聲",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 7,
+      "acnt": "0000007315",
+      "hitter": "游承勳",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 8,
+      "acnt": "0000006810",
+      "hitter": "潘瑋祥",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 9,
+      "acnt": "0000002304",
+      "hitter": "吳明鴻",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 10,
+      "acnt": "0000007078",
+      "hitter": "杜禹鋒",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 11,
+      "acnt": "0000006220",
+      "hitter": "馬鋼",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 12,
+      "acnt": "0000006879",
+      "hitter": "冉皓燐",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "犧飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 15,
+      "acnt": "0000006851",
+      "hitter": "林培緯",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 15,
+      "acnt": "0000006938",
+      "hitter": "吳柏萱",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 18,
+      "acnt": "0000006732",
+      "hitter": "陳統恩",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 25,
+      "acnt": "0000001240",
+      "hitter": "鄭鎧文",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 26,
+      "acnt": "0000003645",
+      "hitter": "柯育民",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 26,
+      "acnt": "0000006233",
+      "hitter": "黃兆維",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 27,
+      "acnt": "0000007278",
+      "hitter": "許庭綸",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 30,
+      "acnt": "0000006933",
+      "hitter": "林威漢",
+      "official_pa": 2,
+      "counted_pa": 1,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 1,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 30,
+      "acnt": "0000007277",
+      "hitter": "黃霆杉",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 31,
+      "acnt": "0000003645",
+      "hitter": "柯育民",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 32,
+      "acnt": "0000006234",
+      "hitter": "邱勝宥",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "內安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 33,
+      "acnt": "0000006847",
+      "hitter": "田子杰",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 36,
+      "acnt": "0000005571",
+      "hitter": "岳政華",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 38,
+      "acnt": "0000007075",
+      "hitter": "邱鑫",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 38,
+      "acnt": "0000007309",
+      "hitter": "",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 40,
+      "acnt": "0000001339",
+      "hitter": "林祖傑",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 41,
+      "acnt": "0000006879",
+      "hitter": "冉皓燐",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 43,
+      "acnt": "0000005536",
+      "hitter": "歐晉",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 43,
+      "acnt": "0000007309",
+      "hitter": "",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 45,
+      "acnt": "0000007075",
+      "hitter": "邱鑫",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "內安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 47,
+      "acnt": "0000006726",
+      "hitter": "李展毅",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 49,
+      "acnt": "0000005496",
+      "hitter": "辛元旭",
+      "official_pa": 5,
+      "counted_pa": 5,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 50,
+      "acnt": "0000006872",
+      "hitter": "林岳谷",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 51,
+      "acnt": "0000006714",
+      "hitter": "鍾玉成",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "犧飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 52,
+      "acnt": "0000003548",
+      "hitter": "黃鈞聲",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "投滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 58,
+      "acnt": "0000007282",
+      "hitter": "陳九登",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 59,
+      "acnt": "0000006806",
+      "hitter": "池恩齊",
+      "official_pa": 1,
+      "counted_pa": 1,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 59,
+      "acnt": "0000006879",
+      "hitter": "冉皓燐",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "雙殺"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 63,
+      "acnt": "0000003548",
+      "hitter": "黃鈞聲",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 64,
+      "acnt": "0000002275",
+      "hitter": "林安可",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 64,
+      "acnt": "0000006847",
+      "hitter": "田子杰",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 67,
+      "acnt": "0000002293",
+      "hitter": "洪瑋漢",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 68,
+      "acnt": "0000007018",
+      "hitter": "劉子杰",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 68,
+      "acnt": "0000007315",
+      "hitter": "游承勳",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 69,
+      "acnt": "0000000908",
+      "hitter": "蘇緯達",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 70,
+      "acnt": "0000002275",
+      "hitter": "林安可",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 70,
+      "acnt": "0000007013",
+      "hitter": "陳飛霖",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "死球"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 72,
+      "acnt": "0000006221",
+      "hitter": "劉貴元",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 73,
+      "acnt": "0000006770",
+      "hitter": "邱邦",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 74,
+      "acnt": "0000003645",
+      "hitter": "柯育民",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "界飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 74,
+      "acnt": "0000006847",
+      "hitter": "田子杰",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 75,
+      "acnt": "0000005522",
+      "hitter": "朱迦恩",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 76,
+      "acnt": "0000006933",
+      "hitter": "林威漢",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 79,
+      "acnt": "0000005522",
+      "hitter": "朱迦恩",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "死球"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 82,
+      "acnt": "0000003548",
+      "hitter": "黃鈞聲",
+      "official_pa": 2,
+      "counted_pa": 1,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 1,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 82,
+      "acnt": "0000005342",
+      "hitter": "林志綱",
+      "official_pa": 4,
+      "counted_pa": 3,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 1,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 83,
+      "acnt": "0000005548",
+      "hitter": "林孝程",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 83,
+      "acnt": "0000007018",
+      "hitter": "劉子杰",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 84,
+      "acnt": "0000003548",
+      "hitter": "黃鈞聲",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 86,
+      "acnt": "0000006770",
+      "hitter": "邱邦",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 86,
+      "acnt": "0000006843",
+      "hitter": "潘磊",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 89,
+      "acnt": "0000006888",
+      "hitter": "張育成",
+      "official_pa": 5,
+      "counted_pa": 4,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 1,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 89,
+      "acnt": "0000007075",
+      "hitter": "邱鑫",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 91,
+      "acnt": "0000003645",
+      "hitter": "柯育民",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 92,
+      "acnt": "0000007239",
+      "hitter": "魔鷹",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 93,
+      "acnt": "0000007037",
+      "hitter": "張皓崴",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 98,
+      "acnt": "0000004032",
+      "hitter": "嚴宏鈞",
+      "official_pa": 1,
+      "counted_pa": 1,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 98,
+      "acnt": "0000006939",
+      "hitter": "顏郁軒",
+      "official_pa": 2,
+      "counted_pa": 1,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 1,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 99,
+      "acnt": "0000005567",
+      "hitter": "林瑞鈞",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "投滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 100,
+      "acnt": "0000007291",
+      "hitter": "全紹凱",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 101,
+      "acnt": "0000001473",
+      "hitter": "李宗賢",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "雙殺"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 101,
+      "acnt": "0000005342",
+      "hitter": "林志綱",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 101,
+      "acnt": "0000005656",
+      "hitter": "李聖裕",
+      "official_pa": 0,
+      "counted_pa": 0,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 103,
+      "acnt": "0000006713",
+      "hitter": "楊竣翔",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 105,
+      "acnt": "0000005342",
+      "hitter": "林志綱",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 106,
+      "acnt": "0000002293",
+      "hitter": "洪瑋漢",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 106,
+      "acnt": "0000006939",
+      "hitter": "顏郁軒",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 109,
+      "acnt": "0000004643",
+      "hitter": "胡冠俞",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 110,
+      "acnt": "0000006858",
+      "hitter": "陳佳樂",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 112,
+      "acnt": "0000005536",
+      "hitter": "歐晉",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 113,
+      "acnt": "0000006736",
+      "hitter": "王苡丞",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 114,
+      "acnt": "0000000132",
+      "hitter": "梁家榮",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 114,
+      "acnt": "0000000158",
+      "hitter": "廖健富",
+      "official_pa": 1,
+      "counted_pa": 1,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 114,
+      "acnt": "0000005536",
+      "hitter": "歐晉",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 116,
+      "acnt": "0000004032",
+      "hitter": "嚴宏鈞",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 117,
+      "acnt": "0000007572",
+      "hitter": "",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 118,
+      "acnt": "0000006213",
+      "hitter": "何恆佑",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 119,
+      "acnt": "0000005563",
+      "hitter": "姚冠瑋",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 119,
+      "acnt": "0000007018",
+      "hitter": "劉子杰",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 120,
+      "acnt": "0000005656",
+      "hitter": "李聖裕",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游失"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 122,
+      "acnt": "0000004643",
+      "hitter": "胡冠俞",
+      "official_pa": 0,
+      "counted_pa": 0,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 122,
+      "acnt": "0000005333",
+      "hitter": "湯家豪",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 124,
+      "acnt": "0000003548",
+      "hitter": "黃鈞聲",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 128,
+      "acnt": "0000006736",
+      "hitter": "王苡丞",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 129,
+      "acnt": "0000006718",
+      "hitter": "毛英傑",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 129,
+      "acnt": "0000006725",
+      "hitter": "張祐嘉",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 132,
+      "acnt": "0000005536",
+      "hitter": "歐晉",
+      "official_pa": 0,
+      "counted_pa": 0,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "界飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 132,
+      "acnt": "0000006743",
+      "hitter": "劉俊豪",
+      "official_pa": 1,
+      "counted_pa": 0,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 0,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 133,
+      "acnt": "0000003183",
+      "hitter": "張志豪",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 133,
+      "acnt": "0000007086",
+      "hitter": "楊祥禾",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 134,
+      "acnt": "0000005522",
+      "hitter": "朱迦恩",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 134,
+      "acnt": "0000005533",
+      "hitter": "魏全",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 143,
+      "acnt": "0000007312",
+      "hitter": "張趙紘",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 150,
+      "acnt": "0000006856",
+      "hitter": "董順傑",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 154,
+      "acnt": "0000003183",
+      "hitter": "張志豪",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 157,
+      "acnt": "0000006924",
+      "hitter": "廖奕安",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 159,
+      "acnt": "0000006713",
+      "hitter": "楊竣翔",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 161,
+      "acnt": "0000006728",
+      "hitter": "陳思仲",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 164,
+      "acnt": "0000006725",
+      "hitter": "張祐嘉",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 164,
+      "acnt": "0000007082",
+      "hitter": "陽念祖",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "內安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 165,
+      "acnt": "0000006858",
+      "hitter": "陳佳樂",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 169,
+      "acnt": "0000005536",
+      "hitter": "歐晉",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 170,
+      "acnt": "0000006810",
+      "hitter": "潘瑋祥",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 171,
+      "acnt": "0000000908",
+      "hitter": "蘇緯達",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "界犧飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 174,
+      "acnt": "0000000910",
+      "hitter": "張進德",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 178,
+      "acnt": "0000005538",
+      "hitter": "黃柏豪",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 182,
+      "acnt": "0000007297",
+      "hitter": "楊泯貽",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "內安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 184,
+      "acnt": "0000006731",
+      "hitter": "周委宏",
+      "official_pa": 1,
+      "counted_pa": 0,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 0,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 184,
+      "acnt": "0000006940",
+      "hitter": "葉保弟",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 185,
+      "acnt": "0000005567",
+      "hitter": "林瑞鈞",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 187,
+      "acnt": "0000006955",
+      "hitter": "余羿賢",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 188,
+      "acnt": "0000005342",
+      "hitter": "林志綱",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 189,
+      "acnt": "0000006858",
+      "hitter": "陳佳樂",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 189,
+      "acnt": "0000007078",
+      "hitter": "杜禹鋒",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "界飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 190,
+      "acnt": "0000005553",
+      "hitter": "張祐銘",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 190,
+      "acnt": "0000007291",
+      "hitter": "全紹凱",
+      "official_pa": 1,
+      "counted_pa": 1,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 191,
+      "acnt": "0000003548",
+      "hitter": "黃鈞聲",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 191,
+      "acnt": "0000005296",
+      "hitter": "董秉軒",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 191,
+      "acnt": "0000006220",
+      "hitter": "馬鋼",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 192,
+      "acnt": "0000006858",
+      "hitter": "陳佳樂",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "犧飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 195,
+      "acnt": "0000007315",
+      "hitter": "游承勳",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 197,
+      "acnt": "0000000908",
+      "hitter": "蘇緯達",
+      "official_pa": 5,
+      "counted_pa": 5,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 197,
+      "acnt": "0000006853",
+      "hitter": "林禹叡",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 197,
+      "acnt": "0000006858",
+      "hitter": "陳佳樂",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 197,
+      "acnt": "0000007075",
+      "hitter": "邱鑫",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 198,
+      "acnt": "0000006731",
+      "hitter": "周委宏",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 202,
+      "acnt": "0000001286",
+      "hitter": "馮健庭",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 202,
+      "acnt": "0000006202",
+      "hitter": "蔡鎮宇",
+      "official_pa": 1,
+      "counted_pa": 1,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 202,
+      "acnt": "0000007018",
+      "hitter": "劉子杰",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 204,
+      "acnt": "0000003211",
+      "hitter": "王勝偉",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 205,
+      "acnt": "0000005533",
+      "hitter": "魏全",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 207,
+      "acnt": "0000005565",
+      "hitter": "張聖豪",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 207,
+      "acnt": "0000007302",
+      "hitter": "宋柏翰",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 208,
+      "acnt": "0000005553",
+      "hitter": "張祐銘",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 208,
+      "acnt": "0000007313",
+      "hitter": "曾冠傑",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 212,
+      "acnt": "0000005531",
+      "hitter": "邱智呈",
+      "official_pa": 0,
+      "counted_pa": 0,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 212,
+      "acnt": "0000006713",
+      "hitter": "楊竣翔",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 214,
+      "acnt": "0000004627",
+      "hitter": "張偉聖",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 214,
+      "acnt": "0000006714",
+      "hitter": "鍾玉成",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 214,
+      "acnt": "0000006843",
+      "hitter": "潘磊",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 214,
+      "acnt": "0000007313",
+      "hitter": "曾冠傑",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 215,
+      "acnt": "0000000908",
+      "hitter": "蘇緯達",
+      "official_pa": 1,
+      "counted_pa": 0,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 0,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 215,
+      "acnt": "0000001286",
+      "hitter": "馮健庭",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 215,
+      "acnt": "0000004032",
+      "hitter": "嚴宏鈞",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 216,
+      "acnt": "0000006229",
+      "hitter": "葉子霆",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 216,
+      "acnt": "0000006940",
+      "hitter": "葉保弟",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "死球"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 217,
+      "acnt": "0000005553",
+      "hitter": "張祐銘",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 218,
+      "acnt": "0000006713",
+      "hitter": "楊竣翔",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 219,
+      "acnt": "0000005296",
+      "hitter": "董秉軒",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "犧短"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 219,
+      "acnt": "0000006853",
+      "hitter": "林禹叡",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 220,
+      "acnt": "0000006713",
+      "hitter": "楊竣翔",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 220,
+      "acnt": "0000006879",
+      "hitter": "冉皓燐",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "內飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 221,
+      "acnt": "0000006933",
+      "hitter": "林威漢",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 221,
+      "acnt": "0000007087",
+      "hitter": "胡孟智",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "投飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 222,
+      "acnt": "0000003211",
+      "hitter": "王勝偉",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 222,
+      "acnt": "0000004032",
+      "hitter": "嚴宏鈞",
+      "official_pa": 1,
+      "counted_pa": 1,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 222,
+      "acnt": "0000005310",
+      "hitter": "陳真",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 222,
+      "acnt": "0000006858",
+      "hitter": "陳佳樂",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "二安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 224,
+      "acnt": "0000005310",
+      "hitter": "陳真",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "死球"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 224,
+      "acnt": "0000005548",
+      "hitter": "林孝程",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "四壞"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 224,
+      "acnt": "0000006217",
+      "hitter": "林辰勳",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "投滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 224,
+      "acnt": "0000006743",
+      "hitter": "劉俊豪",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 226,
+      "acnt": "0000005536",
+      "hitter": "歐晉",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 227,
+      "acnt": "0000006810",
+      "hitter": "潘瑋祥",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "左飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 227,
+      "acnt": "0000006940",
+      "hitter": "葉保弟",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 231,
+      "acnt": "0000006955",
+      "hitter": "余羿賢",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "游飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 231,
+      "acnt": "0000007078",
+      "hitter": "杜禹鋒",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "右飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 234,
+      "acnt": "0000006213",
+      "hitter": "何恆佑",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 236,
+      "acnt": "0000006810",
+      "hitter": "潘瑋祥",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 236,
+      "acnt": "0000007592",
+      "hitter": "",
+      "official_pa": 1,
+      "counted_pa": 1,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "一安"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 237,
+      "acnt": "0000001258",
+      "hitter": "劉時豪",
+      "official_pa": 1,
+      "counted_pa": 0,
+      "official_extra": 1,
+      "ghosts": 1,
+      "pred_result_row": 1,
+      "pred_canonical": 0,
+      "pred_ibb": 1,
+      "outcomes": [
+        "故四"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 237,
+      "acnt": "0000006718",
+      "hitter": "毛英傑",
+      "official_pa": 0,
+      "counted_pa": 0,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "死球"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 237,
+      "acnt": "0000007018",
+      "hitter": "劉子杰",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "投滾"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 237,
+      "acnt": "0000007288",
+      "hitter": "何品室融",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "中飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 237,
+      "acnt": "0000007308",
+      "hitter": "許博閎",
+      "official_pa": 0,
+      "counted_pa": 0,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 1,
+      "pred_ibb": 0,
+      "outcomes": [
+        "界飛"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 237,
+      "acnt": "0000007589",
+      "hitter": "許賀捷",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "死球"
+      ]
+    },
+    {
+      "kind": "D",
+      "game_sno": 238,
+      "acnt": "0000006713",
+      "hitter": "楊竣翔",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "ghosts": 1,
+      "pred_result_row": 0,
+      "pred_canonical": 0,
+      "pred_ibb": 0,
+      "outcomes": [
+        "三振"
+      ]
+    }
+  ]
+}

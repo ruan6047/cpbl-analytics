@@ -1,0 +1,628 @@
+{
+  "scope": "2018–2026 A/D",
+  "ground_truth": "cpbl.batting_gamelog（官方逐場 box）",
+  "total_ghost_islands": 3481,
+  "total_real_pa_dropped": 281,
+  "total_pairs": 3466,
+  "pairs_criterion_matched": 3456,
+  "years_criterion_exact": 10,
+  "years_total": 18,
+  "criterion_mismatches": [
+    {
+      "year": 2019,
+      "kind": "A",
+      "game_sno": 68,
+      "acnt": "0000003345",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "predicted": 1,
+      "ghosts": [
+        {
+          "outcome": "三振",
+          "ev": "0620018000",
+          "has_result_row": true
+        }
+      ]
+    },
+    {
+      "year": 2020,
+      "kind": "D",
+      "game_sno": 80,
+      "acnt": "0000003211",
+      "official_pa": 4,
+      "counted_pa": 4,
+      "official_extra": 0,
+      "predicted": 1,
+      "ghosts": [
+        {
+          "outcome": "死球",
+          "ev": "0810003000",
+          "has_result_row": true
+        }
+      ]
+    },
+    {
+      "year": 2021,
+      "kind": "A",
+      "game_sno": 78,
+      "acnt": "0000002285",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "predicted": 1,
+      "ghosts": [
+        {
+          "outcome": "二飛",
+          "ev": "0620013000",
+          "has_result_row": true
+        }
+      ]
+    },
+    {
+      "year": 2021,
+      "kind": "A",
+      "game_sno": 153,
+      "acnt": "0000000853",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "predicted": 1,
+      "ghosts": [
+        {
+          "outcome": "三振",
+          "ev": "0710007000",
+          "has_result_row": true
+        }
+      ]
+    },
+    {
+      "year": 2021,
+      "kind": "D",
+      "game_sno": 21,
+      "acnt": "0000002707",
+      "official_pa": 0,
+      "counted_pa": 0,
+      "official_extra": 0,
+      "predicted": 1,
+      "ghosts": [
+        {
+          "outcome": "四壞",
+          "ev": "0920018000",
+          "has_result_row": true
+        }
+      ]
+    },
+    {
+      "year": 2022,
+      "kind": "D",
+      "game_sno": 85,
+      "acnt": "0000006721",
+      "official_pa": 2,
+      "counted_pa": 2,
+      "official_extra": 0,
+      "predicted": 1,
+      "ghosts": [
+        {
+          "outcome": "三振",
+          "ev": "0910021000",
+          "has_result_row": true
+        }
+      ]
+    },
+    {
+      "year": 2023,
+      "kind": "A",
+      "game_sno": 99,
+      "acnt": "0000002297",
+      "official_pa": 6,
+      "counted_pa": 5,
+      "official_extra": 1,
+      "predicted": 0,
+      "ghosts": [
+        {
+          "outcome": "故四",
+          "ev": "1120006000",
+          "has_result_row": false
+        }
+      ]
+    },
+    {
+      "year": 2024,
+      "kind": "A",
+      "game_sno": 204,
+      "acnt": "0000005340",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "predicted": 1,
+      "ghosts": [
+        {
+          "outcome": "四壞",
+          "ev": "0720009000",
+          "has_result_row": true
+        }
+      ]
+    },
+    {
+      "year": 2024,
+      "kind": "A",
+      "game_sno": 214,
+      "acnt": "0000000362",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "predicted": 1,
+      "ghosts": [
+        {
+          "outcome": "二飛",
+          "ev": "0910014000",
+          "has_result_row": true
+        }
+      ]
+    },
+    {
+      "year": 2026,
+      "kind": "A",
+      "game_sno": 12,
+      "acnt": "0000005536",
+      "official_pa": 3,
+      "counted_pa": 3,
+      "official_extra": 0,
+      "predicted": 1,
+      "ghosts": [
+        {
+          "outcome": "犧短",
+          "ev": "0910006000",
+          "has_result_row": true
+        }
+      ]
+    }
+  ],
+  "rows": [
+    {
+      "year": 2018,
+      "kind": "A",
+      "ghost_islands": 186,
+      "pairs_with_official_box": 186,
+      "official_extra_pa": 43,
+      "predicted_by_has_result_row": 43,
+      "pairs_criterion_matched": 186,
+      "criterion_exact": true,
+      "real_pa_by_outcome": {
+        "故四": 42,
+        "飛": 1
+      },
+      "criterion_mismatches": []
+    },
+    {
+      "year": 2018,
+      "kind": "D",
+      "ghost_islands": 93,
+      "pairs_with_official_box": 91,
+      "official_extra_pa": 4,
+      "predicted_by_has_result_row": 4,
+      "pairs_criterion_matched": 91,
+      "criterion_exact": true,
+      "real_pa_by_outcome": {
+        "故四": 4
+      },
+      "criterion_mismatches": []
+    },
+    {
+      "year": 2019,
+      "kind": "A",
+      "ghost_islands": 238,
+      "pairs_with_official_box": 236,
+      "official_extra_pa": 52,
+      "predicted_by_has_result_row": 53,
+      "pairs_criterion_matched": 235,
+      "criterion_exact": false,
+      "real_pa_by_outcome": {
+        "故四": 51,
+        "三振": 1,
+        "一安": 1
+      },
+      "criterion_mismatches": [
+        {
+          "year": 2019,
+          "kind": "A",
+          "game_sno": 68,
+          "acnt": "0000003345",
+          "official_pa": 3,
+          "counted_pa": 3,
+          "official_extra": 0,
+          "predicted": 1,
+          "ghosts": [
+            {
+              "outcome": "三振",
+              "ev": "0620018000",
+              "has_result_row": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "year": 2019,
+      "kind": "D",
+      "ghost_islands": 137,
+      "pairs_with_official_box": 136,
+      "official_extra_pa": 5,
+      "predicted_by_has_result_row": 5,
+      "pairs_criterion_matched": 136,
+      "criterion_exact": true,
+      "real_pa_by_outcome": {
+        "故四": 5
+      },
+      "criterion_mismatches": []
+    },
+    {
+      "year": 2020,
+      "kind": "A",
+      "ghost_islands": 191,
+      "pairs_with_official_box": 191,
+      "official_extra_pa": 20,
+      "predicted_by_has_result_row": 20,
+      "pairs_criterion_matched": 191,
+      "criterion_exact": true,
+      "real_pa_by_outcome": {
+        "故四": 20
+      },
+      "criterion_mismatches": []
+    },
+    {
+      "year": 2020,
+      "kind": "D",
+      "ghost_islands": 164,
+      "pairs_with_official_box": 164,
+      "official_extra_pa": 11,
+      "predicted_by_has_result_row": 12,
+      "pairs_criterion_matched": 163,
+      "criterion_exact": false,
+      "real_pa_by_outcome": {
+        "故四": 10,
+        "一安": 1,
+        "死球": 1
+      },
+      "criterion_mismatches": [
+        {
+          "year": 2020,
+          "kind": "D",
+          "game_sno": 80,
+          "acnt": "0000003211",
+          "official_pa": 4,
+          "counted_pa": 4,
+          "official_extra": 0,
+          "predicted": 1,
+          "ghosts": [
+            {
+              "outcome": "死球",
+              "ev": "0810003000",
+              "has_result_row": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "year": 2021,
+      "kind": "A",
+      "ghost_islands": 220,
+      "pairs_with_official_box": 219,
+      "official_extra_pa": 15,
+      "predicted_by_has_result_row": 17,
+      "pairs_criterion_matched": 217,
+      "criterion_exact": false,
+      "real_pa_by_outcome": {
+        "故四": 15,
+        "二飛": 1,
+        "三振": 1
+      },
+      "criterion_mismatches": [
+        {
+          "year": 2021,
+          "kind": "A",
+          "game_sno": 78,
+          "acnt": "0000002285",
+          "official_pa": 2,
+          "counted_pa": 2,
+          "official_extra": 0,
+          "predicted": 1,
+          "ghosts": [
+            {
+              "outcome": "二飛",
+              "ev": "0620013000",
+              "has_result_row": true
+            }
+          ]
+        },
+        {
+          "year": 2021,
+          "kind": "A",
+          "game_sno": 153,
+          "acnt": "0000000853",
+          "official_pa": 3,
+          "counted_pa": 3,
+          "official_extra": 0,
+          "predicted": 1,
+          "ghosts": [
+            {
+              "outcome": "三振",
+              "ev": "0710007000",
+              "has_result_row": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "year": 2021,
+      "kind": "D",
+      "ghost_islands": 152,
+      "pairs_with_official_box": 151,
+      "official_extra_pa": 10,
+      "predicted_by_has_result_row": 11,
+      "pairs_criterion_matched": 150,
+      "criterion_exact": false,
+      "real_pa_by_outcome": {
+        "故四": 10,
+        "四壞": 1
+      },
+      "criterion_mismatches": [
+        {
+          "year": 2021,
+          "kind": "D",
+          "game_sno": 21,
+          "acnt": "0000002707",
+          "official_pa": 0,
+          "counted_pa": 0,
+          "official_extra": 0,
+          "predicted": 1,
+          "ghosts": [
+            {
+              "outcome": "四壞",
+              "ev": "0920018000",
+              "has_result_row": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "year": 2022,
+      "kind": "A",
+      "ghost_islands": 202,
+      "pairs_with_official_box": 201,
+      "official_extra_pa": 18,
+      "predicted_by_has_result_row": 18,
+      "pairs_criterion_matched": 201,
+      "criterion_exact": true,
+      "real_pa_by_outcome": {
+        "故四": 18
+      },
+      "criterion_mismatches": []
+    },
+    {
+      "year": 2022,
+      "kind": "D",
+      "ghost_islands": 190,
+      "pairs_with_official_box": 190,
+      "official_extra_pa": 13,
+      "predicted_by_has_result_row": 14,
+      "pairs_criterion_matched": 189,
+      "criterion_exact": false,
+      "real_pa_by_outcome": {
+        "故四": 13,
+        "三振": 1
+      },
+      "criterion_mismatches": [
+        {
+          "year": 2022,
+          "kind": "D",
+          "game_sno": 85,
+          "acnt": "0000006721",
+          "official_pa": 2,
+          "counted_pa": 2,
+          "official_extra": 0,
+          "predicted": 1,
+          "ghosts": [
+            {
+              "outcome": "三振",
+              "ev": "0910021000",
+              "has_result_row": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "year": 2023,
+      "kind": "A",
+      "ghost_islands": 272,
+      "pairs_with_official_box": 272,
+      "official_extra_pa": 18,
+      "predicted_by_has_result_row": 17,
+      "pairs_criterion_matched": 271,
+      "criterion_exact": false,
+      "real_pa_by_outcome": {
+        "故四": 16,
+        "雙殺": 1
+      },
+      "criterion_mismatches": [
+        {
+          "year": 2023,
+          "kind": "A",
+          "game_sno": 99,
+          "acnt": "0000002297",
+          "official_pa": 6,
+          "counted_pa": 5,
+          "official_extra": 1,
+          "predicted": 0,
+          "ghosts": [
+            {
+              "outcome": "故四",
+              "ev": "1120006000",
+              "has_result_row": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "year": 2023,
+      "kind": "D",
+      "ghost_islands": 240,
+      "pairs_with_official_box": 238,
+      "official_extra_pa": 6,
+      "predicted_by_has_result_row": 6,
+      "pairs_criterion_matched": 238,
+      "criterion_exact": true,
+      "real_pa_by_outcome": {
+        "故四": 6
+      },
+      "criterion_mismatches": []
+    },
+    {
+      "year": 2024,
+      "kind": "A",
+      "ghost_islands": 225,
+      "pairs_with_official_box": 224,
+      "official_extra_pa": 21,
+      "predicted_by_has_result_row": 23,
+      "pairs_criterion_matched": 222,
+      "criterion_exact": false,
+      "real_pa_by_outcome": {
+        "故四": 21,
+        "四壞": 1,
+        "二飛": 1
+      },
+      "criterion_mismatches": [
+        {
+          "year": 2024,
+          "kind": "A",
+          "game_sno": 204,
+          "acnt": "0000005340",
+          "official_pa": 3,
+          "counted_pa": 3,
+          "official_extra": 0,
+          "predicted": 1,
+          "ghosts": [
+            {
+              "outcome": "四壞",
+              "ev": "0720009000",
+              "has_result_row": true
+            }
+          ]
+        },
+        {
+          "year": 2024,
+          "kind": "A",
+          "game_sno": 214,
+          "acnt": "0000000362",
+          "official_pa": 3,
+          "counted_pa": 3,
+          "official_extra": 0,
+          "predicted": 1,
+          "ghosts": [
+            {
+              "outcome": "二飛",
+              "ev": "0910014000",
+              "has_result_row": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "year": 2024,
+      "kind": "D",
+      "ghost_islands": 190,
+      "pairs_with_official_box": 189,
+      "official_extra_pa": 3,
+      "predicted_by_has_result_row": 3,
+      "pairs_criterion_matched": 189,
+      "criterion_exact": true,
+      "real_pa_by_outcome": {
+        "故四": 3
+      },
+      "criterion_mismatches": []
+    },
+    {
+      "year": 2025,
+      "kind": "A",
+      "ghost_islands": 254,
+      "pairs_with_official_box": 254,
+      "official_extra_pa": 17,
+      "predicted_by_has_result_row": 17,
+      "pairs_criterion_matched": 254,
+      "criterion_exact": true,
+      "real_pa_by_outcome": {
+        "故四": 16,
+        "雙殺": 1
+      },
+      "criterion_mismatches": []
+    },
+    {
+      "year": 2025,
+      "kind": "D",
+      "ghost_islands": 190,
+      "pairs_with_official_box": 188,
+      "official_extra_pa": 9,
+      "predicted_by_has_result_row": 9,
+      "pairs_criterion_matched": 188,
+      "criterion_exact": true,
+      "real_pa_by_outcome": {
+        "故四": 9
+      },
+      "criterion_mismatches": []
+    },
+    {
+      "year": 2026,
+      "kind": "A",
+      "ghost_islands": 148,
+      "pairs_with_official_box": 148,
+      "official_extra_pa": 11,
+      "predicted_by_has_result_row": 12,
+      "pairs_criterion_matched": 147,
+      "criterion_exact": false,
+      "real_pa_by_outcome": {
+        "故四": 11,
+        "犧短": 1
+      },
+      "criterion_mismatches": [
+        {
+          "year": 2026,
+          "kind": "A",
+          "game_sno": 12,
+          "acnt": "0000005536",
+          "official_pa": 3,
+          "counted_pa": 3,
+          "official_extra": 0,
+          "predicted": 1,
+          "ghosts": [
+            {
+              "outcome": "犧短",
+              "ev": "0910006000",
+              "has_result_row": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "year": 2026,
+      "kind": "D",
+      "ghost_islands": 189,
+      "pairs_with_official_box": 188,
+      "official_extra_pa": 5,
+      "predicted_by_has_result_row": 5,
+      "pairs_criterion_matched": 188,
+      "criterion_exact": true,
+      "real_pa_by_outcome": {
+        "故四": 5
+      },
+      "criterion_mismatches": []
+    }
+  ]
+}
