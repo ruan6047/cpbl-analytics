@@ -1,0 +1,338 @@
+{
+  "baseline_ref": "origin/main",
+  "baseline_sha": "18b71cc546a46c7f01dd1b85a859baeb84fb0a33",
+  "project_title": "cpbl-analytics 任務看板",
+  "project_number": 4,
+  "total": 41,
+  "ok": 41,
+  "results": [
+    {
+      "card_id": "DEV-CI-RED-OWNERSHIP1",
+      "status": "ok",
+      "issue_number": 44,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/44",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PoIs",
+      "error": null
+    },
+    {
+      "card_id": "DEV-EVENT-REPAIR-ANCHOR1",
+      "status": "ok",
+      "issue_number": 45,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/45",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PoMA",
+      "error": null
+    },
+    {
+      "card_id": "DEV-REVIEW-DEACCEPT-TRAIL1",
+      "status": "ok",
+      "issue_number": 46,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/46",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PoO4",
+      "error": null
+    },
+    {
+      "card_id": "DEV-REVIEW-PREFLIGHT-GATE1",
+      "status": "ok",
+      "issue_number": 47,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/47",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PoR4",
+      "error": null
+    },
+    {
+      "card_id": "DEV-REVIEW-PREFLIGHT-SELFCHECK1",
+      "status": "ok",
+      "issue_number": 48,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/48",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PoVI",
+      "error": null
+    },
+    {
+      "card_id": "DEV-VERIFY-TM-ASSERTS1",
+      "status": "ok",
+      "issue_number": 50,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/50",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1Poa0",
+      "error": null
+    },
+    {
+      "card_id": "DOC-CARD-SPEC-RULES1",
+      "status": "ok",
+      "issue_number": 51,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/51",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1Pod4",
+      "error": null
+    },
+    {
+      "card_id": "INGEST-GAME-TM-REFACTOR1",
+      "status": "ok",
+      "issue_number": 52,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/52",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PohE",
+      "error": null
+    },
+    {
+      "card_id": "INGEST-GAME-TM-REFACTOR1-G4",
+      "status": "ok",
+      "issue_number": 53,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/53",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1Poj8",
+      "error": null
+    },
+    {
+      "card_id": "INGEST-LIVE-RECONCILE1",
+      "status": "ok",
+      "issue_number": 54,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/54",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PonQ",
+      "error": null
+    },
+    {
+      "card_id": "INGEST-PA-DAILY1",
+      "status": "ok",
+      "issue_number": 55,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/55",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PoqQ",
+      "error": null
+    },
+    {
+      "card_id": "INGEST-POSTGAME-FINALIZE1",
+      "status": "ok",
+      "issue_number": 57,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/57",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1Pow8",
+      "error": null
+    },
+    {
+      "card_id": "INGEST-SPLITS-IBB-GHOST1",
+      "status": "ok",
+      "issue_number": 58,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/58",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PozY",
+      "error": null
+    },
+    {
+      "card_id": "INIT-GAME-RECAP",
+      "status": "ok",
+      "issue_number": 60,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/60",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1Po5Y",
+      "error": null
+    },
+    {
+      "card_id": "INIT-OFFICIAL-DATA1",
+      "status": "ok",
+      "issue_number": 61,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/61",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1Po8k",
+      "error": null
+    },
+    {
+      "card_id": "INIT-PRODUCT-UX",
+      "status": "ok",
+      "issue_number": 62,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/62",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1Po-Y",
+      "error": null
+    },
+    {
+      "card_id": "MATCHUP-DATA2",
+      "status": "ok",
+      "issue_number": 63,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/63",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PrCs",
+      "error": null
+    },
+    {
+      "card_id": "ML-FIELD-LINEUP1",
+      "status": "ok",
+      "issue_number": 64,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/64",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PrGs",
+      "error": null
+    },
+    {
+      "card_id": "ML-FIELD-OAA-VAL1",
+      "status": "ok",
+      "issue_number": 65,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/65",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PrKw",
+      "error": null
+    },
+    {
+      "card_id": "ML-FIELD-OF1",
+      "status": "ok",
+      "issue_number": 66,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/66",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PrQU",
+      "error": null
+    },
+    {
+      "card_id": "ML-PA-SIM-CONTEXT1",
+      "status": "ok",
+      "issue_number": 67,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/67",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PrTY",
+      "error": null
+    },
+    {
+      "card_id": "ML-PA-SIM-TEAM1",
+      "status": "ok",
+      "issue_number": 68,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/68",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PrXE",
+      "error": null
+    },
+    {
+      "card_id": "ML-PT3",
+      "status": "ok",
+      "issue_number": 69,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/69",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PrbA",
+      "error": null
+    },
+    {
+      "card_id": "ML-SIM2",
+      "status": "ok",
+      "issue_number": 70,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/70",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1Prf8",
+      "error": null
+    },
+    {
+      "card_id": "OPS-BACKUP-DR1",
+      "status": "ok",
+      "issue_number": 71,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/71",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1Prjw",
+      "error": null
+    },
+    {
+      "card_id": "OPS-CODE-BRANCH-PROTECT1",
+      "status": "ok",
+      "issue_number": 83,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/83",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1QRTo",
+      "error": null
+    },
+    {
+      "card_id": "OPS-CONTROL-PLANE-PR-GUARD1",
+      "status": "ok",
+      "issue_number": 72,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/72",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1Prno",
+      "error": null
+    },
+    {
+      "card_id": "OPS-POSTGAME-OBSERVE1",
+      "status": "ok",
+      "issue_number": 73,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/73",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PrrM",
+      "error": null
+    },
+    {
+      "card_id": "OPS-REMOTE-CUTOVER1",
+      "status": "ok",
+      "issue_number": 74,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/74",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PruY",
+      "error": null
+    },
+    {
+      "card_id": "OPS-REMOTE-PROBE1",
+      "status": "ok",
+      "issue_number": 75,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/75",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PryE",
+      "error": null
+    },
+    {
+      "card_id": "OPS-REMOTE-ROUTE1",
+      "status": "ok",
+      "issue_number": 76,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/76",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1Pr2E",
+      "error": null
+    },
+    {
+      "card_id": "OPS-REMOTE-WORKER1",
+      "status": "ok",
+      "issue_number": 77,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/77",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1Pr5A",
+      "error": null
+    },
+    {
+      "card_id": "OPS-STATE-PLANE-MIG1",
+      "status": "ok",
+      "issue_number": 43,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/43",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PmDI",
+      "error": null
+    },
+    {
+      "card_id": "OPS-WEB-DEPS1",
+      "status": "ok",
+      "issue_number": 78,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/78",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1Pr84",
+      "error": null
+    },
+    {
+      "card_id": "UX-GAME-PA1",
+      "status": "ok",
+      "issue_number": 79,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/79",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PsAI",
+      "error": null
+    },
+    {
+      "card_id": "UX-GAME-RECAP1",
+      "status": "ok",
+      "issue_number": 80,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/80",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PsC8",
+      "error": null
+    },
+    {
+      "card_id": "UX-HOME-LIVE-STRIP1",
+      "status": "ok",
+      "issue_number": 81,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/81",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PsGU",
+      "error": null
+    },
+    {
+      "card_id": "UX-TEAM-FIELD-HIST1",
+      "status": "ok",
+      "issue_number": 82,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/82",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PsJY",
+      "error": null
+    },
+    {
+      "card_id": "DEV-TRAILER-GUARD-PR-CHECKOUT1",
+      "status": "ok",
+      "issue_number": 49,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/49",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1PoX8",
+      "error": null
+    },
+    {
+      "card_id": "INGEST-PLAYER-BIO-GAP2",
+      "status": "ok",
+      "issue_number": 56,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/56",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1Pos4",
+      "error": null
+    },
+    {
+      "card_id": "INGEST-SPLITS-IMPORT-RESTATE1",
+      "status": "ok",
+      "issue_number": 59,
+      "issue_url": "https://github.com/ruan6047/cpbl-analytics/issues/59",
+      "item_id": "PVTI_lAHOAvJcys4BfXPrzg1Po2g",
+      "error": null
+    }
+  ]
+}
