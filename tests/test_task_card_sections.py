@@ -21,6 +21,17 @@ def _events() -> list[dict[str, object]]:
 
 
 def test_active_cards_with_new_lifecycle_events_have_review_sections() -> None:
+    """流程守門生效後有 lifecycle event 的活卡，卡面須有可錨定的驗收章節。
+
+    2026-08-04 狀態面 cutover：`events.jsonl` 封存唯讀，`affected`／`active` 由
+    此刻起是固定集合，不會再有新卡加入。其中七張 🛑已停止 卡已依需求方裁決
+    `git mv` 進 `docs/archive/tasks/`（commit 9fbf406）——這不是資料流失，是
+    結案流程對帳過的搬遷，卡面內容仍在，只是換了目錄。本測試只稽核**仍在
+    `docs/tasks/` 的卡面**是否有驗收章節；已封存者略過，同下面兩支測試
+    （`test_statistical_t4_cards_have_a_redline_section`、
+    `test_initiative_children_baseline_matches_parent_version`）既有的
+    「已封存」跳過慣例，非新規則。
+    """
     events = _events()
     start = next(
         index for index, event in enumerate(events) if event["event_id"] == ENFORCEMENT_EVENT_ID
@@ -33,6 +44,9 @@ def test_active_cards_with_new_lifecycle_events_have_review_sections() -> None:
 
     missing = []
     for card_id in active:
+        path = ROOT / "docs" / "tasks" / f"{card_id}.md"
+        if not path.exists():
+            continue  # 已封存（archive 由結案流程對帳）
         if not review_prompt.card_sections(card_id, REVIEW_TOKENS):
             missing.append(card_id)
 
