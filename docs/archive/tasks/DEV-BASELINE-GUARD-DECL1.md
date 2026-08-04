@@ -9,7 +9,7 @@
 - 範圍：`tests/test_task_card_sections.py`、`scripts/review_prompt.py`（含 `baseline_check()` 的同型誤報）
 - Discovery：—（T2；缺陷與重現由需求方於卡前實測給定，見〈問題陳述〉）
 - Design：Design Gate N/A——無使用者可見介面。
-- owner、worktree、iteration、最後交接、阻塞與交付／部署 current-state 見 [`../TASKS.md`](../TASKS.md) Ledger；歷史寫入 adapter event log。
+- owner、worktree、iteration、最後交接、阻塞與交付／部署 current-state 見 [`../../TASKS.md`](../../TASKS.md) Ledger；歷史寫入 adapter event log。
 
 ## 問題陳述
 
