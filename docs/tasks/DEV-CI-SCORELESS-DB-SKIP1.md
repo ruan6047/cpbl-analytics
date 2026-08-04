@@ -1,7 +1,7 @@
-# DEV-CI-SCORELESS-DB-SKIP1 CI `api` job 因單一測試未循同檔案模式 skip DB 不可用而長紅〔T1；⚪一般〕
+# DEV-CI-SCORELESS-DB-SKIP1 CI `api` job 因單一測試未循同檔案模式 skip DB 不可用而長紅〔T2；⚪一般〕
 
-- 需求：ruan6047（經 `OPS-CONTROL-PLANE-PR-GUARD1` Task 1 Discovery 發現並登記）　規劃：Claude Sonnet 5@Claude Code　分支：`ai/<執行者>/DEV-CI-SCORELESS-DB-SKIP1`
-- 執行：待指派（建議 L1；純測試容錯修正，不涉統計／資料正確性邏輯）　查核：待指派（新 context 即可，≠ 執行）
+- 需求：ruan6047（經 `OPS-CONTROL-PLANE-PR-GUARD1` Task 1 Discovery 發現並登記）　規劃：Claude Sonnet 5@Claude Code　分支：`ai/claude-sonnet-5/DEV-CI-SCORELESS-DB-SKIP1`
+- 執行：待指派（建議 L1；純測試容錯修正，不涉統計／資料正確性邏輯）　查核：待指派（新 context 即可，≠ 執行；T2 局部修正門檻）
 - Initiative：—　spec 基線：—
 - DB：`db_scope: none`
 - 部署：否　環境：—　PR：—　Merge SHA：—
@@ -46,3 +46,4 @@ def _get(path: str):
 ## Log
 
 - 2026-08-04 register by Claude Sonnet 5@Claude Code（於 `OPS-CONTROL-PLANE-PR-GUARD1` Task 1 Discovery 期間發現並登記；三次連續 main run 一致重現，root cause 已定位至測試檔案層級的 skip 防護缺漏，非 CI 環境或統計邏輯問題）。
+- 2026-08-04 correction by Claude Sonnet 5@Claude Code：register 事件誤標 T1。canonical `AI_WORKFLOW.md` 定義 T1 僅限「已知 typo、非執行期文案；不得改 versioned source」；本卡變更 `tests/test_scoreless_streak_api.py` 的執行期分支邏輯（新增 skip 防護），屬 `bug-workflow.md` 的「T2 快線：根因已知、局部、可逆、無紅線」。改為 T2，流程門檻為分支 → 先紅後綠 → 獨立輕量查核 → merge；不再適用 T1 的「可直接 commit」。

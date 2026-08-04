@@ -9,7 +9,7 @@
 | 卡ID | Initiative | 級別 | 功能 | owner | 分支／worktree | iteration | 交付狀態 | 部署狀態 | 最後交接 |
 |---|---|---|---|---|---|---|---|---|---|
 | [DEV-CI-RED-OWNERSHIP1](tasks/DEV-CI-RED-OWNERSHIP1.md) | None | T3 | main 紅燈無歸屬：「非本卡引入」沒有強制去向 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-08-02T12:41:27+08:00 |
-| [DEV-CI-SCORELESS-DB-SKIP1](tasks/DEV-CI-SCORELESS-DB-SKIP1.md) | None | T1 | CI api job 因單一測試未循同檔案模式 skip DB 不可用而長紅 | 待指派 | — | 0 | 📥Backlog | —不適用 | 2026-08-04T18:28:39+08:00 |
+| [DEV-CI-SCORELESS-DB-SKIP1](tasks/DEV-CI-SCORELESS-DB-SKIP1.md) | None | T2 | CI api job 因單一測試未循同檔案模式 skip DB 不可用而長紅 | Claude Sonnet 5@Claude Code | `ai/claude-sonnet-5/DEV-CI-SCORELESS-DB-SKIP1 @ .claude/worktrees/upbeat-mayer-1840be` | 0 | 🚧進行中 | —不適用 | 2026-08-04T18:37:58+08:00 |
 | [DEV-EVENT-REPAIR-ANCHOR1](tasks/DEV-EVENT-REPAIR-ANCHOR1.md) | None | T3 | schema-repair 的歷史證據不可偽造 | 待建立 OPS-CONTROL-PLANE-PR-GUARD1 前置卡 | `待認領` | 0 | ⏸阻塞 | —不適用 | 2026-08-04T18:05:53+08:00 |
 | [DEV-REVIEW-DEACCEPT-TRAIL1](tasks/DEV-REVIEW-DEACCEPT-TRAIL1.md) | — | T3 | plain-review 翻案缺 correction 留痕（WF21-R-13） | —（未認領） | — | 0 | 📥Backlog | —不適用 | 2026-07-31T10:41:30+08:00 |
 | [DEV-REVIEW-PREFLIGHT-GATE1](tasks/DEV-REVIEW-PREFLIGHT-GATE1.md) | — | T3 | 前置查核關卡改為 preflight 的機器可讀宣告 | —（未認領） | — | 0 | 📥Backlog | —不適用 | 2026-07-31T13:15:24+08:00 |
