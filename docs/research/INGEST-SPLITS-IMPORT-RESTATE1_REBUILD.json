@@ -1,0 +1,28 @@
+{
+ "generated_at": "2026-08-04T13:59:37.961730+00:00",
+ "year": 2025,
+ "kinds": [
+  "A",
+  "D"
+ ],
+ "entrypoint": "cpbl.ingest.splits_calc.build_splits",
+ "career_touched": false,
+ "summary": {
+  "A": {
+   "bsplit": 8081,
+   "psplit": 5941,
+   "bvt": 770,
+   "pvt": 703,
+   "pa": 27019,
+   "blown_saves": 11
+  },
+  "D": {
+   "bsplit": 8640,
+   "psplit": 6545,
+   "bvt": 867,
+   "pvt": 768,
+   "pa": 15749,
+   "blown_saves": 7
+  }
+ }
+}
