@@ -187,6 +187,12 @@ uv run cpbl-check-coverage 2>&1 | awk '/逐球完全零/,0' | grep 'sno=' \
 1. **物理欄位零容忍**：全季 dry-run 的 `cell_mismatch` 中，`rel_speed`／`spin_rate`／
    `plate_loc_*`／`traj_*`／`hit_*` 等物理與軌跡欄位必為 **0 筆**。此 0 有實證基礎——Gate 3
    的 12 次 run 在修正 float4 儲存精度假陽性後，物理欄位不一致數始終為 0。〔清單 #4 #8〕
+   **需求方 2026-08-05 裁定的凍結例外機制**：經逐場歸因證實「兩支官方端點互相矛盾且單場
+   API 為較差來源」的場次，由需求方逐場核入**凍結例外清單**（首例 `2026-D-180`，證據＝
+   Phase A dry-run 三方比對＋Codex 複驗）。凍結場次由增量路徑與每週全季重跑**一律跳過
+   不寫**——此 fail-closed 保護必須以實作＋端對端測試證明（含「清單外場次照常寫、清單內
+   場次任何路徑都不觸碰」兩向）。凍結場次的 mismatch 不計入本紅線母體；**清單新增一律
+   需求方明示核入，執行者不得自行擴充**。
 2. **文字欄位逐筆歸因**：`content` 等敘述欄位允許非 0，但**每一筆**都須列出 `(year, kind_code,
    game_sno, pitcher_acnt, pitch_cnt)`、雙方值，並可重打官方端點複驗其為官方賽後修正。
    **禁止「大致上都是官方修正」這類整批宣稱**；歸因清單須由腳本自動產生，不得人工聲明。
@@ -203,8 +209,14 @@ uv run cpbl-check-coverage 2>&1 | awk '/逐球完全零/,0' | grep 'sno=' \
    同時改 payload、manifest 與 event evidence，整條鏈仍會自洽，故**這不是來源真實性錨點，
    也不能稱為在執行者控制之外**。要達到後者需由獨立 CI／查核者產生 digest 或使用具 retention
    lock 的外部儲存，屬另卡範圍。〔清單 #7 #8〕
-3. **`only_prod_pk` 為 0 才可進 Phase B**：正式表有、單場 API 沒有的列，**本卡不授權任何
-   DELETE**，增量路徑與全季重跑一律純 UPSERT。狀態機明定如下，不得停在中間態：
+3. **`only_prod_pk`（未歸因）為 0 才可進 Phase B**：正式表有、單場 API 沒有的列，**本卡不授權任何
+   DELETE**，增量路徑與全季重跑一律純 UPSERT。
+   **需求方 2026-08-05 gate 語意修訂（明示契約變更，回應 Phase A 實測）**：已完成逐筆歸因
+   且歸因為官方端**結構性差異**者（本次 43 筆＝42 筆單場 API 有事件但 Trackman=null 的
+   掛載範圍差異＋1 筆事件不存在），自 gate 母體除外——**原始筆數與逐筆分類必須完整保留於
+   artifact 不得刪減**，這些列以純 UPSERT 永久保留（較完整資料非缺陷）。gate 判準＝
+   **未歸因 only_prod_pk ＝ 0**。**pa_build 影響必須交接**：附「除外列 PK 穩定、
+   reconciliation 不受影響」的證據說明。狀態機明定如下，不得停在中間態：
    - 母體 **＝ 0** → 放行 Phase B。
    - 母體 **≠ 0** → **阻擋 Phase B 且阻擋本卡結案**，且**必須有指名的去向**（否則本條就是本卡
      自己在 `DEV-CI-RED-OWNERSHIP1` 相鄰面上指出的那種「無主待辦」）：
@@ -325,6 +337,9 @@ uv run cpbl-check-coverage 2>&1 | awk '/逐球完全零/,0' | grep 'sno=' \
       （初稿即因把 `tail -25` 的行數誤記為場數而被查核推翻）。
 - [ ] 文字欄位歸因 artifact 須含 `endpoint_url`／`fetched_at`／`payload_sha256`（紅線 2），
       且原始 payload 一併保存，查核者能以 hash 驗證 handoff 之後未被修改。
+- [ ] **回測結果裁定（需求方 2026-08-05）**：Phase A 回放 8 次觸發（A7／D1，成因＝已文件化
+      場館事件：亞太主早季未裝機、大巨蛋衰退）**重分類為環境告警記錄**，暫定值照案採用；
+      此裁定**不改動** p05 地板、連續 2 eligible day 語意或任何參數，上線後回滾規則原樣生效。
 - [ ] **回滾門檻的預先登錄回測（需求方 2026-08-04 裁定採降級版）**：**不做參數搜尋**，只回答
       一個問題——以歷史日聚合資料（同 kind、`equipped=true`）回放，**現行暫定值**（p05 地板、
       連續 2 個 eligible day）會誤觸發幾次。
@@ -458,5 +473,14 @@ uv run cpbl-check-coverage 2>&1 | awk '/逐球完全零/,0' | grep 'sno=' \
 - 2026-08-03 流程留痕（查核者記錄，需求方裁量）：本卡三個文件 commit 由撰擬者直接推 main、
   未先行獨立查核，屬**事後查核補救**；`DEV-CI-RED-OWNERSHIP1` 的「範圍未擴張」精確語意應為
   「未新增實作驗收項」，其新增的 Discovery 義務仍屬義務擴張，不得泛稱完全未擴張。
+- 2026-08-05 **Phase A 交付＋第 1 輪跨家族查核（GPT-5.6/Codex）REQUEST_CHANGES＋需求方三項裁定**：
+  查核通過項——artifact 錨定鏈（manifest f8dc…e513、18 檔、payload hash 鏈）、dry-run 獨立重跑
+  一致（398 場、945 物理格、only_prod_pk=43、確未寫入 checksum 3586b426）、D-180 重打兩端定性
+  成立、歸因可重現、equipped/p05 一致、請求量 89.6%／-58.9% 複算成立。三 findings：F1 Critical
+  紅線 1 FAIL 無凍結保護（不得安裝 writer/週排程直到處置落地）；F2 Critical 空窗日 early return
+  連 lagging 自癒一起跳過（run_refresh_recent.py:381/413，測試未覆蓋端對端）；F3 Critical gate
+  only_prod_pk=43 依狀態機阻擋。需求方裁定（本 Log 上方三處修訂為正文化）：(1) D-180 凍結例外
+  清單＋fail-closed 機制；(2) gate 改「未歸因=0」明示契約＋pa_build 交接；(3) 回測 8 次重分類
+  環境告警、參數不動。退回原執行者 iteration 1 續修 F1/F2 實作＋F3 文件面。
 - 待需求方另行裁定（不屬本卡）：大巨蛋 TrackMan 覆蓋缺口是否另開追蹤卡；
   `INGEST-LIVE-RECONCILE1` 的失效日期由誰修正。
