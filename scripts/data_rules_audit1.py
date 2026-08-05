@@ -1102,8 +1102,103 @@ def cand11(cur) -> dict:
     return out
 
 
+# ===========================================================================
+# c233fp｜候選 233 修法提案的偽陽性反例集（跨家族查核 P1，Codex 2026-08-05）
+# ===========================================================================
+def cand233_false_positives(cur) -> dict:
+    """實測「`present_status = 1` + 日期界線」當完成判準會納入多少 0:0 偽陽性。
+
+    背景：本報告初版的 D1 修法提案是
+    ``present_status = 1 AND game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date``。
+    跨家族查核（GPT-5.6@Codex）本機實測指出此判準會整批誤納未打的場次。本函式
+    **重現該反例集**，並附各層過濾的計數階梯，作為推翻自家提案的證據。
+    """
+    out: dict[str, Any] = {
+        "rejected_proposal": (
+            "present_status = 1 AND game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date"),
+        "why_rejected": (
+            "present_status 不是完賽旗標：全庫 13,480 場為 1（含 192 場未來日期、475 場零比分），"
+            "僅 34 場為 0。用它當完成證據會把「排定但未打／已取消／尚未入庫比分」的場次"
+            "整批誤判為完成場。"),
+        "confirmed_tie_games": [
+            "2018/A/124", "2021/A/256", "2023/A/119", "2023/A/175", "2025/A/233"],
+    }
+
+    # 計數階梯：逐層加過濾，看偽陽性如何收斂（或不收斂）
+    ladder = []
+    steps = [
+        ("0:0 且 game_date <= CURRENT_DATE", ""),
+        ("+ present_status = 1", " AND present_status = 1"),
+        ("+ present_status = 1, 限 kind A", " AND present_status = 1 AND kind_code = 'A'"),
+        ("+ present_status = 1, 限 A, year >= 2018",
+         " AND present_status = 1 AND kind_code = 'A' AND year >= 2018"),
+        ("+ present_status = 1, 限 A, year >= 2018, delay_kind IS NULL",
+         " AND present_status = 1 AND kind_code = 'A' AND year >= 2018 AND delay_kind IS NULL"),
+    ]
+    base = ("SELECT count(*) FROM cpbl.games "
+            "WHERE home_score = 0 AND away_score = 0 AND game_date <= CURRENT_DATE")
+    for label, extra in steps:
+        cur.execute(base + extra)  # noqa: S608
+        ladder.append({"filter": label, "n": cur.fetchone()[0]})
+    out["count_ladder"] = ladder
+
+    # 288 場反例集全表（附是否有任何逐場資料——真打過的場不可能三表全空）
+    cur.execute("""
+        SELECT g.year, g.kind_code, g.game_sno, g.game_date, g.delay_kind,
+               g.home_team_name, g.away_team_name,
+               (SELECT count(*) FROM cpbl.game_livelog l WHERE l.year=g.year
+                  AND l.kind_code=g.kind_code AND l.game_sno=g.game_sno) AS livelog_rows,
+               (SELECT count(*) FROM cpbl.batting_gamelog b WHERE b.year=g.year
+                  AND b.kind_code=g.kind_code AND b.game_sno=g.game_sno) AS gamelog_rows,
+               (SELECT count(*) FROM cpbl.game_scoreboard s WHERE s.year=g.year
+                  AND s.kind_code=g.kind_code AND s.game_sno=g.game_sno) AS scoreboard_rows
+        FROM cpbl.games g
+        WHERE g.home_score = 0 AND g.away_score = 0 AND g.game_date <= CURRENT_DATE
+          AND g.present_status = 1
+        ORDER BY g.year, g.kind_code, g.game_sno
+    """)
+    fp = _rows(cur)
+    out["false_positive_set_total"] = len(fp)
+    out["false_positive_by_kind"] = dict(Counter(r["kind_code"] for r in fp))
+    out["false_positive_by_year"] = dict(Counter(r["year"] for r in fp))
+    out["false_positive_set"] = fp
+
+    confirmed = set(out["confirmed_tie_games"])
+    def key(r: dict) -> str:
+        return f"{r['year']}/{r['kind_code']}/{r['game_sno']}"
+
+    out["false_positive_excluding_confirmed"] = len(
+        [r for r in fp if key(r) not in confirmed])
+    # 三表全空 ≠ 未打（5 場已確認和局也三表全空），故此欄只作參考、不可當判準
+    out["false_positive_with_any_game_data"] = len(
+        [r for r in fp if r["livelog_rows"] or r["gamelog_rows"] or r["scoreboard_rows"]])
+    out["false_positive_note"] = (
+        "5 場已確認和局本身也是三表全空（爬蟲從未抓過），故『無逐場資料』**不能**用來"
+        "區分真和局與未打場——這正是本缺口自我隱蔽的原因，也是為何判準必須引入外部證據。")
+
+    # 限 A + 2018+ 的窄母體逐場（查核者最容易人工複驗的切面）
+    cur.execute("""
+        SELECT g.year, g.kind_code, g.game_sno, g.game_date, g.delay_kind,
+               g.home_team_name, g.away_team_name, g.venue
+        FROM cpbl.games g
+        WHERE g.home_score = 0 AND g.away_score = 0 AND g.game_date <= CURRENT_DATE
+          AND g.present_status = 1 AND g.kind_code = 'A' AND g.year >= 2018
+          AND g.delay_kind IS NULL
+        ORDER BY g.year, g.game_sno
+    """)
+    narrow = _rows(cur)
+    for r in narrow:
+        r["is_confirmed_tie"] = key(r) in confirmed
+    out["narrow_scope_A_2018plus"] = narrow
+    out["narrow_scope_total"] = len(narrow)
+    out["narrow_scope_confirmed"] = sum(1 for r in narrow if r["is_confirmed_tie"])
+    out["narrow_scope_false_positive"] = sum(1 for r in narrow if not r["is_confirmed_tie"])
+    return out
+
+
 COMMANDS = {"c6": cand6, "c7": cand7, "c8": cand8, "c9": cand9, "c10": cand10,
-            "c11": cand11, "c12": cand12, "recon": recon, "terminal": terminal}
+            "c11": cand11, "c12": cand12, "c233fp": cand233_false_positives,
+            "recon": recon, "terminal": terminal}
 
 
 def main() -> int:

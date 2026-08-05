@@ -17,12 +17,13 @@
 | `DATA-RULES-AUDIT1/C11_convergence_matrix.json` | 逐表新鮮度、衍生表停滯實證、refresh_log 軌跡 |
 | `DATA-RULES-AUDIT1/C12_timezone_windows.json` | DB 時區、日界確定性示範、**36 個 `CURRENT_DATE` 使用點逐行分類** |
 | `DATA-RULES-AUDIT1/C1-5_terminal_judgments.json` | 和局對帳（官方 ground truth）、105 場殘局、保留賽、突破僵局、kind 覆蓋 |
+| `DATA-RULES-AUDIT1/C233_false_positive_set.json` | **D1 修法提案的 288 場偽陽性反例集**＋計數階梯＋窄母體逐場（iteration 2 新增） |
 | `DATA-RULES-AUDIT1/RECON_splits_vs_canonical.json` | splits 島計數 vs canonical PA 全 31 組 (年,kind) 對帳 |
 
 重現指令（查核者可拿受審 SHA 自跑；`DATABASE_URL` 指本機 5433）：
 
 ```bash
-for c in c6 c7 c8 c9 c10 c11 c12 terminal recon; do
+for c in c6 c7 c8 c9 c10 c11 c12 c233fp terminal recon; do
   uv run python scripts/data_rules_audit1.py "$c" --out docs/research/DATA-RULES-AUDIT1/$c.json
 done
 ```
@@ -310,7 +311,7 @@ uv run python scripts/data_rules_audit1.py c11 --out /tmp/c11.json
 
 #### (c) 季後批次重跑清單（全量重抓一次即收斂）
 
-1. `cpbl-scrape-game-detail` 全季（A、D）——**唯一能收斂 livelog 改判的路徑**，優先級最高。
+1. `cpbl-scrape-detail` 全季（A、D）——**唯一能收斂 livelog 改判的路徑**，優先級最高。
 2. `cpbl-scrape-gamelog` 全季（A、D）——收斂 box 改判。
 3. `cpbl-build-pa` 全季重建（livelog 換版後 fingerprint 會觸發改版）。
 4. `cpbl-build-splits` + `cpbl-build-career`（重算即可，無需重抓）。
@@ -510,6 +511,13 @@ C/E 不與 A 混算。**乾淨。**
 RE24／WP、特殊戰績連勝連敗序列、outcome 模型特徵**全部缺席**；
 36 個完成判定使用點中的 26 個 `range` 類全部受影響。
 
+> **宣稱範圍的兩道界線**（跨家族查核 2026-08-05 要求的限縮，詳 §3.2）：
+> (1) 官方帳上**存在**這些和局場——由 `standings.tie` 逐年對帳支持，是**間接證據**；
+> 官方逐場 box 的**直接取證尚未完成**（查核者實測 stats 端點 404、www box 被 HiNet 308
+> 自迴圈擋），故「可補爬」目前是待驗證假設。
+> (2) **修法不可用 `present_status` 當完成證據**——實測會納入 288 場 0:0 而其中僅 5 場為真，
+> 反例集與改採判準見 §3.1。
+
 ---
 
 ### recon｜splits 島計數 vs canonical PA 全庫對帳（跨候選共用證據）
@@ -540,7 +548,7 @@ RE24／WP、特殊戰績連勝連敗序列、outcome 模型特徵**全部缺席*
 
 | ID | 候選 | 嚴重度 | 缺陷 | 修復提案 |
 |---|---|---|---|---|
-| **D1** | 233 | 🔴 資料正確性 | 完成場判準把 5 場真實 0:0 和局判為未完成，導致該 5 場全鏈缺席且爬蟲不會回頭抓 | 完成判準改為**不依賴比分**的訊號。建議以 `games.present_status = 1 AND game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date` 為主，**保留** `home_score+away_score>0` 作為 OR 條件以相容歷史。⚠️ 單用 `present_status` 不可行——實測 13,480 場 status=1 含 192 場未來日期與 475 場零比分，須與日期界線併用；落地前必須先用本卡的官方和局對帳當回歸測試。補抓後另需重跑 §2 candidate-11 的季後批次清單 |
+| **D1** | 233 | 🔴 資料正確性 | 完成場判準把 5 場真實 0:0 和局判為未完成，導致該 5 場全鏈缺席且爬蟲不會回頭抓 | 判準改為 `home_score + away_score > 0 OR verified_completion_evidence = true`，日期界線同步時區修正為 `game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date`。**`verified_completion_evidence` 必須是官網明確完賽狀態或人工核准來源，`present_status = 1` 不得單獨充當完成證據**（反例集見下）。0:0 且無證據者**隔離為待判讀**，不得預設納入。三重回歸測試見 §3.1 |
 | **D2** | 11 | 🟠 | `game_livelog`/`game_detail`/`game_scoreboard` 僅重抓當日窗，官方事後改寫**永不收斂**；`batting_gamelog` 只補「整場缺」不補「已改」 | 依需求方裁定**不建自動機制**：把 §2-(c) 季後批次重跑清單與 §2-(b) 人工 runbook 寫入 `docs/AI_RUNBOOK.md` 並排一張季後執行卡 |
 | **D3** | 11 / 6 | 🟠 | SABR 衍生表不在每日鏈：`batter_traits` 2026/A 只有 canonical 的 **78.6%**；且 2024/2025 因 legacy 島規則多算 1.5–1.8% | (a) 把 `cpbl-build-sabr` 納入每日鏈或季後批次；(b) `sabr._TRAITS_SQL` 的島切界改讀 canonical `game_plate_appearances`（published + `state='ready'`），一次消除 legacy 島規則偏差 |
 | **D4** | 12 | 🟡 | `_lagging_pitch_games` 的 equipped「最近 10 場完成場」窗無未來日期界線，實測 5 場保留賽佔窗 | 該子查詢補 `AND game_date <= CURRENT_DATE`（與 `completed_games_sql()` 對齊）。影響方向保守（只會多抓不會漏抓），可併入其他卡 |
@@ -548,6 +556,85 @@ RE24／WP、特殊戰績連勝連敗序列、outcome 模型特徵**全部缺席*
 | **D6** | recon | 🟡 | `pa_build` 以不變式隔離損壞場（2019/A/173 不 publish），`splits_calc` 無等價護欄，該場 ~84 席仍進分項 | `build_splits` 增加「該場若無 published PA build 則整場排除並記錄」的護欄，使兩套實作的隔離範圍一致 |
 | **D7** | 12 | 🟢 | DB timezone=UTC，`api/routers/info.py:58` 的 `predictions_today` 在台北 00:00–08:00 指向前一日 | 該處改 `game_date = (now() AT TIME ZONE 'Asia/Taipei')::date`。**不建議**改 DB 全域 timezone——26 個 `range` 使用點目前行為正確且保守，全域改動的回歸面遠大於收益 |
 | **D8** | 6 | （已登記） | 291 席零投球故四被 splits 丟棄 | 已由 INGEST-SPLITS-IBB-GHOST1 定案，本卡以獨立方法交叉驗證其量級。不重複開卡 |
+
+### 3.1 D1 補充：被推翻的自家提案，與它的反例集
+
+> 本報告初版對 D1 提的修法是
+> **`present_status = 1 AND game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date`**。
+> 跨家族查核（GPT-5.6@Codex，2026-08-05）實測指出它會整批誤納未打的場次。
+> **該提案已作廢**，以下是我方獨立重現的反例集（artifact `C233_false_positive_set.json`，
+> 可重跑：`uv run python scripts/data_rules_audit1.py c233fp`）。
+
+**計數階梯**（0:0 且 `game_date <= CURRENT_DATE` 為起點）：
+
+| 過濾條件 | 場次數 |
+|---|---:|
+| 0:0 且日期已過 | 322 |
+| **＋ `present_status = 1`** | **288** |
+| ＋ 限 kind A | 22 |
+| ＋ 限 A、`year >= 2018` | 11 |
+| ＋ 限 A、`year >= 2018`、`delay_kind IS NULL` | **10** |
+
+**288 場中僅 5 場是已確認和局，283 場是偽陽性。** 窄母體（A、2018+、無 delay_kind）
+10 場逐場攤開後，偽陽性的性質一目了然：
+
+| game | 日期 | 對戰 | 已確認和局？ |
+|---|---|---|---|
+| 2018/A/124 | 2018-07-12 | 統一 vs 中信兄弟 | ✅ |
+| 2021/A/256 | 2021-10-23 | 樂天 vs 統一 | ✅ |
+| 2023/A/119 | 2023-06-10 | 味全 vs 富邦 | ✅ |
+| 2023/A/175 | 2023-08-01 | 統一 vs 味全 | ✅ |
+| 2025/A/233 | 2025-08-01 | 台鋼 vs 味全 | ✅ |
+| 2026/A/241 | 2026-08-04 | 台鋼 vs 樂天 | ❌ 偽陽 |
+| 2026/A/242 | 2026-08-04 | 中信兄弟 vs 富邦 | ❌ 偽陽 |
+| 2026/A/243 | **2026-08-05** | 台鋼 vs 樂天 | ❌ 偽陽 |
+| 2026/A/244 | **2026-08-05** | 中信兄弟 vs 富邦 | ❌ 偽陽 |
+| 2026/A/245 | **2026-08-05** | 味全 vs 統一 | ❌ 偽陽 |
+
+後三場是**報告產出當天（2026-08-05）的比賽**——根本還沒打完，`present_status` 依然是 1。
+這是最乾淨的反證：**`present_status` 對「是否已完賽」毫無鑑別力**
+（全庫 13,480 場為 1，含 192 場未來日期、475 場零比分；僅 34 場為 0）。
+
+**而且不能靠「有沒有逐場資料」來救**：288 場反例集中
+`false_positive_with_any_game_data = **0**`——**5 場已確認和局本身也是 livelog／gamelog／
+scoreboard 三表全空**（爬蟲從未抓過它們）。所以「無逐場資料」無法區分真和局與未打場。
+這正是本缺口自我隱蔽的機制，也正是判準**必須引入外部證據**、不能靠自家欄位組合硬湊的原因。
+
+**改採的判準**：
+
+```sql
+home_score + away_score > 0
+OR verified_completion_evidence = true      -- 官網明確完賽狀態，或人工核准來源
+-- 日期界線同步時區修正：
+AND game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date
+```
+
+`verified_completion_evidence` 的取得方式屬補爬卡範圍（見 §3.2 的取證限制）。
+**0:0 且無證據者一律隔離為待判讀**，既不納入完成場、也不當作未打場靜默丟棄。
+
+**三重回歸測試**（落地卡的驗收條件，缺一不可）：
+
+1. **5 場全納入**：2018/A/124、2021/A/256、2023/A/119、2023/A/175、2025/A/233 皆判為完成場。
+2. **歷年官方和局對帳仍 7/7**：2018–2024 逐年「官方和局場 − 我方推導和局場 = 0」
+   （`uv run python scripts/data_rules_audit1.py terminal`，檢查 `tie_reconciliation_all_explained`）。
+3. **288 場不被整批誤納**：`c233fp` 的 `false_positive_set` 中除該 5 場外，
+   其餘 283 場不得因新判準而進入完成場母體。
+
+### 3.2 D1 取證限制：官方 box 存在性尚未以可重現方式證實
+
+必須把宣稱範圍講清楚：**這 5 場「官方確實打過且有 box」目前只有間接證據**。
+
+- **有的**：官方 `cpbl.standings.tie` 逐年對帳 2018–2024 **7/7 完全解釋**（§2 候選 233），
+  含 4 個「差額 0、候選 0」的對照年。這證明官方帳上**存在**這些和局場。
+- **沒有的**：官方逐場 box／livelog 頁面的**直接取證**。跨家族查核獨立嘗試的結果是
+  stats 端點對 2018-A-124／2023-A-119 皆回 **404**、www box 被 **HiNet 308 自迴圈**擋住。
+  我方本卡**未嘗試爬取**（db_scope=read 且爬蟲紅線要求冷卻紀律，不在審計卡內動）。
+
+**因此**：補爬卡的第一步必須是**以可重現方式取得至少 1–2 場的官方完賽證據**——
+Playwright（本機、遵守 15–20 分鐘冷卻紀律，見 `docs/CPBL_SITE_MAP.md`）或人工官方頁截證。
+在那之前，「這 5 場有官方 box 可補爬」是**待驗證假設**，不是既成事實；
+若取證發現官方端根本沒有逐場資料（例如年代久遠或和局場不建 box），
+則 D1 的處置要從「補爬」改為「以 `verified_completion_evidence` 標記後僅修正完成場判定」。
 
 ---
 
@@ -559,7 +646,7 @@ RE24／WP、特殊戰績連勝連敗序列、outcome 模型特徵**全部缺席*
 | **M2** | 球隊連勝／連敗遇和局應中斷還是跳過？ | 我方 `special_records._add_streaks` 註明「和局中斷連勝/連敗」；規則庫**查無**球隊連續紀錄條文（9.23 只管個人）；官方 `team_standings.streak` 快照窗內無和局，無法證偽 | CPBL 官方連勝紀錄的慣例（和局是否斷連） |
 | **M3** | 6 組 (年,kind) 的 splits↔canonical 殘差 −1~+2（淨 +4），是否值得逐例追？ | 2018/E +1、2020/D −1、2021/D −1、2022/D +2、2023/E +1、2026/D +2；其餘 24 組恆等式逐值成立 | 是否接受此量級為背景雜訊；若要追需另開小卡 |
 | **M4** | 候選 8 的 7 例「次局重打球數未歸零」 | 2018/A/234、2018/D/21、2019/D/152、2020/D/204（皆 1-1）、2021/A/39（3-2）、2021/D/22（1-2）、2021/D/181（2-2）——全部是盜壘刺造成的第三出局 | 這 7 例是來源資料球數欄漏更新，還是我方「下一個同打者 PA」的配對啟發式選錯了 PA？（2021/A/39 的 3-2 尤其不可能是新打席） |
-| **M5** | 2025/A/233 以外的 4 場 0:0 和局是否確認為真實和局？ | 官方 standings 和局數逐年對帳 7/7 完全解釋；5 場皆 `present_status=1`、無 `delay_kind` | 需求方對 2018/A/124、2021/A/256、2023/A/119、2023/A/175 的確認（供 D1 回歸測試當黃金樣本） |
+| **M5** | 2025/A/233 以外的 4 場 0:0 和局是否確認為真實和局？ | 官方 standings 和局數逐年對帳 7/7 完全解釋（間接證據）；官方逐場 box **直接取證尚未完成**（§3.2）；`present_status` 無鑑別力故不能當佐證（§3.1） | 需求方對 2018/A/124、2021/A/256、2023/A/119、2023/A/175 的確認（供 D1 三重回歸測試當黃金樣本） |
 
 ---
 
@@ -607,6 +694,13 @@ RE24／WP、特殊戰績連勝連敗序列、outcome 模型特徵**全部缺席*
 4. **recon 殘差 6 組共淨 +4 PA 未逐例歸因**（M3）。
 5. **未驗證生產環境**：所有查詢跑在本機 5433。生產 DB 的時區設定（候選 12）**未查**——
    本機容器為 UTC，生產若為主站 PostgreSQL 需另行確認，這是 D7 落地前的必要前置。
+6. **5 場 0:0 和局的官方 box 存在性未直接取證**（§3.2）：只有 `standings.tie` 對帳這項
+   間接證據。查核者實測 stats 端點 404、www box 被 HiNet 308 自迴圈擋；本卡**未嘗試爬取**
+   （審計卡不動爬蟲，冷卻紀律屬補爬卡）。故「可補爬」是待驗證假設而非既成事實。
+7. **本報告初版的 D1 修法提案已被推翻**（§3.1）：`present_status = 1` + 日期界線會納入
+   288 場 0:0 而其中僅 5 場為真。留痕於此是因為它示範了一個具體教訓——**在一個
+   自我隱蔽的缺口上，任何只用自家欄位組合湊出來的判準都無法自證**，必須引入外部證據。
+   我方初版把「不依賴比分」誤當成充分條件，忽略了 `present_status` 根本不是完賽旗標。
 
 **範圍外發現（回報 PM，未 spawn_task）**：
 `cpbl.refresh_log` 最新一筆為 `2026-08-04 07:02:19`、**`ok = false`**（前三日皆 ok）。
