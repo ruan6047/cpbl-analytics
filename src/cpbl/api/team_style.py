@@ -181,17 +181,22 @@ def build_team_style(
 def _in_progress_years(c) -> set[int]:
     """該年仍有「排在今天（含）之後、未完成」的一軍例行賽 → 「賽季進行中」（設計約束 8）。
 
-    完成判定沿 ``cpbl.completion``；必須加 ``game_date >= CURRENT_DATE`` 的未來界線：
+    完成判定沿 ``cpbl.completion``；必須加「今天（含）之後」的未來界線：
     歷史年份的 0-0 列**不是**取消未補——2018/2025 各一場其實是真實的 0:0 和局
     （DATA-TIE-REMEDY1 已取官方 box 證據）。改用證據感知判準後它們算完成場，
     不再被誤計為 pending。球季打完（無未來場次）標注自動消失，不寫死年份。
+
+    界線用**台北日**而非 ``CURRENT_DATE``（DATA-TZ-BOUNDARY1／AUDIT1 C12）：DB
+    timezone 是 UTC，台北 00:00–07:59 期間 ``CURRENT_DATE`` 仍是前一日。這裡是
+    **下界**（``>=``），UTC 落後的方向與上界相反——會把**昨天**未完成的場次也算成
+    「今天之後待打」，使已打完的球季在晨間 8 小時被誤標為「進行中」。
     """
-    from cpbl.completion import completed_games_sql_with_evidence
+    from cpbl.completion import TAIPEI_TODAY_SQL, completed_games_sql_with_evidence
 
     rows = c.execute(
         "SELECT year, count(*) FILTER (WHERE NOT ("
         + completed_games_sql_with_evidence("games")
-        + ") AND game_date >= CURRENT_DATE) "
+        + f") AND game_date >= {TAIPEI_TODAY_SQL}) "
         "FROM cpbl.games WHERE kind_code = 'A' AND year BETWEEN %s AND %s "
         "GROUP BY year",
         (ts.YEAR_FROM, ts.YEAR_TO),

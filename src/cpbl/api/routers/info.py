@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter
 
 from cpbl.api.helpers import DEFAULT_SEASON
-from cpbl.completion import completed_games_sql_with_evidence
+from cpbl.completion import TAIPEI_TODAY_SQL, completed_games_sql_with_evidence
 from cpbl.config import settings
 from cpbl.db import conn
 
@@ -54,12 +54,17 @@ def info() -> dict:
             (_scalar("SELECT count(*) FROM cpbl.batting_splits") or 0)
             + (_scalar("SELECT count(*) FROM cpbl.pitching_splits") or 0)
         )
-        # 「今日待預測場次」＝排在今天且尚未有比分者。這裡刻意**不**改用完成判準：
-        # 母體限定 game_date = CURRENT_DATE，5 場歷史和局（2018–2025）不可能落入；
-        # 其時區界線問題屬 DATA-RULES-AUDIT1 的 D7，不在本卡範圍。
+        # 「今日待預測場次」＝排在今天且尚未有比分者。刻意**不**改用完成判準：
+        # 母體限定當日，5 場歷史和局（2018–2025）不可能落入。
+        #
+        # 「今天」必須以**台北日**為準（DATA-TZ-BOUNDARY1／AUDIT1 C12）：DB timezone
+        # 是 UTC，`CURRENT_DATE` 在台北 00:00–07:59 仍停在前一日，此處是全庫唯一的
+        # **精確等值**日期界線，一偏移就整個指到錯誤的一天——該指標每日有 8 小時讀到
+        # 昨天的場次數。上下界（<= / >=）頂多寬鬆或保守，等值沒有這種緩衝。
         metrics["predictions_today"] = _scalar(
             "SELECT count(*) FROM cpbl.games "
-            "WHERE year = %s AND home_score + away_score = 0 AND game_date = CURRENT_DATE", (season,)
+            "WHERE year = %s AND home_score + away_score = 0 "
+            f"AND game_date = {TAIPEI_TODAY_SQL}", (season,)
         ) or 0
         last_game = _scalar(
             f"SELECT max(game_date) FROM cpbl.games WHERE {completed_sql}"
