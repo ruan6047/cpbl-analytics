@@ -52,7 +52,14 @@ def is_completed(
 
 
 def completed_games_sql(as_of_sql: str = "CURRENT_DATE") -> str:
-    """回傳與 :func:`is_completed` 等價、可嵌入 ``cpbl.games`` 查詢的 SQL 條件（**舊判準**）。"""
+    """回傳與 :func:`is_completed` 等價、可嵌入 ``cpbl.games`` 查詢的 SQL 條件（**舊判準**）。
+
+    ⚠️ 預設值刻意仍是 UTC 的 ``CURRENT_DATE``（DATA-TZ-BOUNDARY1 盤點後**明確不改**）：
+    本函式現存的呼叫端都在每日 refresh 鏈上，G4 觀測期內換日界會改變爬取母體而污染
+    觀測。此處是 ``upper_bound`` 用法，UTC 落後只會「晚 8 小時納入」，方向保守、
+    不會誤納未來場，因此擱置無資料正確性風險。與判準本身一起在 REMEDY1 Phase 2
+    （G4 Phase B 後）切換。新程式碼請用 :data:`TAIPEI_TODAY_SQL`。
+    """
     return f"home_score + away_score > 0 AND game_date <= {as_of_sql}"
 
 

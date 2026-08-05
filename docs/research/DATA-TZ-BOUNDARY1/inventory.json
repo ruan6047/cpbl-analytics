@@ -1,0 +1,2063 @@
+{
+  "generated_at": "2026-08-05T14:26:31+08:00",
+  "db_timezone_note": "DB SHOW timezone = UTC；game_date 語意為台北日。",
+  "direction_asymmetry": "AUDIT1 C12 把 range 一律視為無害，本卡實測補正：只有**上界**（<=）在 UTC 落後時是保守的；**下界**（>=）方向相反，會把昨天算進「今天起」。",
+  "self_reference_note": "掃描器走 git ls-files，故本卡的掃描器與其測試入樹後必然掃到自己。這些命中歸入 tooling_self_reference 明確計列，**不計入** runtime 統計，使 artifact 在工具入樹前後都是同一個答案（R1 查核 TZBD1-R1-1）。",
+  "total_occurrences": 219,
+  "runtime_occurrences": 172,
+  "self_reference_occurrences": 30,
+  "self_reference_files": [
+    "scripts/data_tz_boundary1.py",
+    "tests/test_tz_boundary.py"
+  ],
+  "by_category": {
+    "timestamp_write": 101,
+    "upper_bound": 30,
+    "tooling_self_reference": 30,
+    "already_taipei": 20,
+    "comment_or_string": 17,
+    "meta_reference": 9,
+    "unclassified": 3,
+    "lower_bound": 3,
+    "exact_equality": 3,
+    "window_offset": 2,
+    "default_parameter": 1
+  },
+  "by_zone": {
+    "scripts": 64,
+    "migrations": 39,
+    "chain_frozen": 36,
+    "tooling_self_reference": 30,
+    "in_scope": 28,
+    "tests": 22
+  },
+  "by_sensitivity": {
+    "無害": 110,
+    "無害-保守": 30,
+    "無害-自指": 30,
+    "已修正": 20,
+    "說明文字": 17,
+    "敏感-中": 5,
+    "待人工判讀": 3,
+    "敏感-高": 3,
+    "敏感-低": 1
+  },
+  "sensitive_total": 9,
+  "sensitive_in_scope": [
+    "src/cpbl/completion.py:54"
+  ],
+  "sensitive_chain_frozen_record_only": [
+    "src/cpbl/ingest/cpbl_pitch_tracking.py:306",
+    "src/cpbl/ingest/run_refresh_recent.py:140"
+  ],
+  "sensitive_outside_write_set": [
+    "scripts/data_rules_audit1.py:733",
+    "scripts/data_rules_audit1.py:740",
+    "scripts/data_rules_audit1.py:790",
+    "scripts/data_rules_audit1.py:912",
+    "scripts/data_tie_remedy1.py:287",
+    "scripts/ibb_ghost1_probe.py:451"
+  ],
+  "needs_human_review": [
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 725,
+      "zone": "scripts",
+      "category": "unclassified",
+      "sensitivity": "待人工判讀",
+      "rationale": "未落入既有規則，需人工看上下文",
+      "code": "\"CURRENT_DATE AS current_date_val, \""
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 773,
+      "zone": "scripts",
+      "category": "unclassified",
+      "sensitivity": "待人工判讀",
+      "rationale": "未落入既有規則，需人工看上下文",
+      "code": "r\"CURRENT_DATE\\s*[<>]=?\", stripped):"
+    },
+    {
+      "file": "tests/test_completion.py",
+      "line": 34,
+      "zone": "tests",
+      "category": "unclassified",
+      "sensitivity": "待人工判讀",
+      "rationale": "未落入既有規則，需人工看上下文",
+      "code": "assert completed_games_sql(\"CURRENT_DATE\") == ("
+    }
+  ],
+  "hits": [
+    {
+      "file": "migrations/001_init.sql",
+      "line": 86,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "trained_at  TIMESTAMPTZ NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/011_matchups.sql",
+      "line": 43,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updated_at            timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/012_vs_team_splits.sql",
+      "line": 39,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updated_at       timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/012_vs_team_splits.sql",
+      "line": 77,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updated_at       timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/012_vs_team_splits.sql",
+      "line": 112,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updated_at       timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/012_vs_team_splits.sql",
+      "line": 149,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updated_at       timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/015_refresh_log.sql",
+      "line": 5,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "refreshed_at    timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/017_advanced_stats.sql",
+      "line": 23,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updated_at   timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/020_team_standings.sql",
+      "line": 22,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updated_at   timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/035_player_transactions.sql",
+      "line": 12,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updated_at TIMESTAMPTZ DEFAULT now(),"
+    },
+    {
+      "file": "migrations/039_game_detail.sql",
+      "line": 15,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updated_at        timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/046_splits_career_base.sql",
+      "line": 31,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "anchored_at      timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/046_splits_career_base.sql",
+      "line": 65,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "anchored_at      timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/053_coach_history.sql",
+      "line": 17,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updated_at     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP"
+    },
+    {
+      "file": "migrations/055_player_bio.sql",
+      "line": 29,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updated_at     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP"
+    },
+    {
+      "file": "migrations/055_player_bio.sql",
+      "line": 47,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()"
+    },
+    {
+      "file": "migrations/056_team_roster.sql",
+      "line": 13,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updated_at  timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/058_team_history.sql",
+      "line": 22,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updated_at  timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/058_team_history.sql",
+      "line": 34,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updated_at  timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/058_team_history.sql",
+      "line": 47,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updated_at  timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/058_team_history.sql",
+      "line": 58,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updated_at  timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/060_editorial_content.sql",
+      "line": 49,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "ingested_at TIMESTAMPTZ NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/061_game_source_revisions.sql",
+      "line": 17,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "fetched_at      timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/061_game_source_revisions.sql",
+      "line": 18,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "last_seen_at    timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/061_game_source_revisions.sql",
+      "line": 39,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "fetched_at          timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/061_game_source_revisions.sql",
+      "line": 40,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "last_seen_at        timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/062_advanced_snapshot_schema.sql",
+      "line": 24,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "started_at          timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/062_advanced_snapshot_schema.sql",
+      "line": 52,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "promoted_at         timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/062_advanced_snapshot_schema.sql",
+      "line": 127,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updated_at          timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/062_advanced_snapshot_schema.sql",
+      "line": 145,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updated_at          timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/065_game_tm_shadow.sql",
+      "line": 12,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "started_at                    timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/065_game_tm_shadow.sql",
+      "line": 46,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "observed_at    timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/065_game_tm_shadow.sql",
+      "line": 63,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "written_at   timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/065_game_tm_shadow.sql",
+      "line": 76,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "created_at  timestamptz NOT NULL DEFAULT now()"
+    },
+    {
+      "file": "migrations/066_game_recap_pa_expand.sql",
+      "line": 43,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "fetched_at      timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/066_game_recap_pa_expand.sql",
+      "line": 69,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "built_at             timestamptz NOT NULL DEFAULT now()"
+    },
+    {
+      "file": "migrations/066_game_recap_pa_expand.sql",
+      "line": 115,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "built_at              timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/067_home_run_log.sql",
+      "line": 22,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "fetched_at      timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "migrations/070_game_completion_evidence.sql",
+      "line": 29,
+      "zone": "migrations",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "created_at      timestamptz NOT NULL DEFAULT now(),"
+    },
+    {
+      "file": "scripts/audit_game_recap_data.py",
+      "line": 623,
+      "zone": "scripts",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"generated_at\": datetime.now().astimezone(),"
+    },
+    {
+      "file": "scripts/backfill_player_bio_gap1.py",
+      "line": 70,
+      "zone": "scripts",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"    bio_updated_at = now() \""
+    },
+    {
+      "file": "scripts/backfill_player_bio_gap2.py",
+      "line": 54,
+      "zone": "scripts",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "+ \", bio_updated_at = now() WHERE id = %s\""
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 716,
+      "zone": "scripts",
+      "category": "already_taipei",
+      "sensitivity": "已修正",
+      "rationale": "已用 Asia/Taipei 模式",
+      "code": "cur.execute(\"SELECT CURRENT_DATE, now(), now() AT TIME ZONE 'Asia/Taipei', \""
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 719,
+      "zone": "scripts",
+      "category": "meta_reference",
+      "sensitivity": "無害",
+      "rationale": "分析腳本在談論這個字串（正規式／輸出鍵），非日期界線用點",
+      "code": "out[\"db_current_date\"] = str(r[0])"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 724,
+      "zone": "scripts",
+      "category": "already_taipei",
+      "sensitivity": "已修正",
+      "rationale": "已用 Asia/Taipei 模式",
+      "code": "cur.execute(\"SELECT (now() AT TIME ZONE 'Asia/Taipei')::date AS taipei_date, \""
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 725,
+      "zone": "scripts",
+      "category": "unclassified",
+      "sensitivity": "待人工判讀",
+      "rationale": "未落入既有規則，需人工看上下文",
+      "code": "\"CURRENT_DATE AS current_date_val, \""
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 726,
+      "zone": "scripts",
+      "category": "already_taipei",
+      "sensitivity": "已修正",
+      "rationale": "已用 Asia/Taipei 模式",
+      "code": "\"((now() AT TIME ZONE 'Asia/Taipei')::date - CURRENT_DATE) AS day_delta\")"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 733,
+      "zone": "scripts",
+      "category": "lower_bound",
+      "sensitivity": "敏感-中",
+      "rationale": "UTC 落後使下界過度納入——昨天的場次被算成「今天起」",
+      "code": "WHERE home_score + away_score > 0 AND game_date > CURRENT_DATE"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 740,
+      "zone": "scripts",
+      "category": "exact_equality",
+      "sensitivity": "敏感-高",
+      "rationale": "直接指向錯誤的一天；台北 00:00–07:59 全錯",
+      "code": "AND game_date = CURRENT_DATE"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 769,
+      "zone": "scripts",
+      "category": "meta_reference",
+      "sensitivity": "無害",
+      "rationale": "分析腳本在談論這個字串（正規式／輸出鍵），非日期界線用點",
+      "code": "if \"CURRENT_DATE\" not in line:"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 772,
+      "zone": "scripts",
+      "category": "meta_reference",
+      "sensitivity": "無害",
+      "rationale": "分析腳本在談論這個字串（正規式／輸出鍵），非日期界線用點",
+      "code": "if re.search(r\"[<>]=?\\s*(?:\\()?\\s*CURRENT_DATE\", stripped) or re.search("
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 773,
+      "zone": "scripts",
+      "category": "unclassified",
+      "sensitivity": "待人工判讀",
+      "rationale": "未落入既有規則，需人工看上下文",
+      "code": "r\"CURRENT_DATE\\s*[<>]=?\", stripped):"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 775,
+      "zone": "scripts",
+      "category": "meta_reference",
+      "sensitivity": "無害",
+      "rationale": "分析腳本在談論這個字串（正規式／輸出鍵），非日期界線用點",
+      "code": "elif re.search(r\"CURRENT_DATE\\s*-\", stripped):"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 777,
+      "zone": "scripts",
+      "category": "meta_reference",
+      "sensitivity": "無害",
+      "rationale": "分析腳本在談論這個字串（正規式／輸出鍵），非日期界線用點",
+      "code": "elif re.search(r\"=\\s*CURRENT_DATE\", stripped):"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 785,
+      "zone": "scripts",
+      "category": "meta_reference",
+      "sensitivity": "無害",
+      "rationale": "分析腳本在談論這個字串（正規式／輸出鍵），非日期界線用點",
+      "code": "out[\"current_date_usage_total\"] = len(usages)"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 786,
+      "zone": "scripts",
+      "category": "meta_reference",
+      "sensitivity": "無害",
+      "rationale": "分析腳本在談論這個字串（正規式／輸出鍵），非日期界線用點",
+      "code": "out[\"current_date_usage_by_class\"] = dict(Counter(u[\"operator_class\"] for u in usages))"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 787,
+      "zone": "scripts",
+      "category": "meta_reference",
+      "sensitivity": "無害",
+      "rationale": "分析腳本在談論這個字串（正規式／輸出鍵），非日期界線用點",
+      "code": "out[\"current_date_usages\"] = usages"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 788,
+      "zone": "scripts",
+      "category": "meta_reference",
+      "sensitivity": "無害",
+      "rationale": "分析腳本在談論這個字串（正規式／輸出鍵），非日期界線用點",
+      "code": "out[\"current_date_risk_note\"] = ("
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 790,
+      "zone": "scripts",
+      "category": "exact_equality",
+      "sensitivity": "敏感-高",
+      "rationale": "直接指向錯誤的一天；台北 00:00–07:59 全錯",
+      "code": "\"exact_equality 類（game_date = CURRENT_DATE）在台北 00:00–08:00 會指向前一日，\""
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 839,
+      "zone": "scripts",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "AND g.game_date <= CURRENT_DATE AND g.present_status=1"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 864,
+      "zone": "scripts",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "AND game_date <= CURRENT_DATE AND present_status=1 AND delay_kind IS NULL"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 876,
+      "zone": "scripts",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "WHERE home_score=0 AND away_score=0 AND game_date <= CURRENT_DATE"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 889,
+      "zone": "scripts",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "WHERE g.home_score + g.away_score > 0 AND g.game_date <= CURRENT_DATE"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 903,
+      "zone": "scripts",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "WHERE g.home_score + g.away_score > 0 AND g.game_date <= CURRENT_DATE"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 912,
+      "zone": "scripts",
+      "category": "lower_bound",
+      "sensitivity": "敏感-中",
+      "rationale": "UTC 落後使下界過度納入——昨天的場次被算成「今天起」",
+      "code": "count(*) FILTER (WHERE game_date > CURRENT_DATE) AS future_dated,"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 968,
+      "zone": "scripts",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "AND g.game_date<=CURRENT_DATE) AS completed,"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 1015,
+      "zone": "scripts",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "AND home_score + away_score > 0 AND game_date <= CURRENT_DATE"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 1033,
+      "zone": "scripts",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "\"WHERE home_score+away_score>0 AND game_date<=CURRENT_DATE AND kind_code='A'\")"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 1048,
+      "zone": "scripts",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "\"AND home_score+away_score>0 AND game_date<=CURRENT_DATE\"),"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 1112,
+      "zone": "scripts",
+      "category": "comment_or_string",
+      "sensitivity": "說明文字",
+      "rationale": "註解／docstring，非程式用點",
+      "code": "``present_status = 1 AND game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date``。"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 1118,
+      "zone": "scripts",
+      "category": "already_taipei",
+      "sensitivity": "已修正",
+      "rationale": "已用 Asia/Taipei 模式",
+      "code": "\"present_status = 1 AND game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date\"),"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 1130,
+      "zone": "scripts",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "(\"0:0 且 game_date <= CURRENT_DATE\", \"\"),"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 1139,
+      "zone": "scripts",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "\"WHERE home_score = 0 AND away_score = 0 AND game_date <= CURRENT_DATE\")"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 1156,
+      "zone": "scripts",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "WHERE g.home_score = 0 AND g.away_score = 0 AND g.game_date <= CURRENT_DATE"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 1184,
+      "zone": "scripts",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "WHERE g.home_score = 0 AND g.away_score = 0 AND g.game_date <= CURRENT_DATE"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 1204,
+      "zone": "scripts",
+      "category": "already_taipei",
+      "sensitivity": "已修正",
+      "rationale": "已用 Asia/Taipei 模式",
+      "code": "\"AND game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date\"),"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 1205,
+      "zone": "scripts",
+      "category": "already_taipei",
+      "sensitivity": "已修正",
+      "rationale": "已用 Asia/Taipei 模式",
+      "code": "\"parenthesized_sql\": (\"game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date \""
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 1212,
+      "zone": "scripts",
+      "category": "already_taipei",
+      "sensitivity": "已修正",
+      "rationale": "已用 Asia/Taipei 模式",
+      "code": "AND game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date)"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 1214,
+      "zone": "scripts",
+      "category": "already_taipei",
+      "sensitivity": "已修正",
+      "rationale": "已用 Asia/Taipei 模式",
+      "code": "count(*) FILTER (WHERE game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 1229,
+      "zone": "scripts",
+      "category": "already_taipei",
+      "sensitivity": "已修正",
+      "rationale": "已用 Asia/Taipei 模式",
+      "code": "AND game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date) AS unparenthesized,"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 1230,
+      "zone": "scripts",
+      "category": "already_taipei",
+      "sensitivity": "已修正",
+      "rationale": "已用 Asia/Taipei 模式",
+      "code": "(game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date"
+    },
+    {
+      "file": "scripts/data_rules_audit1.py",
+      "line": 1234,
+      "zone": "scripts",
+      "category": "already_taipei",
+      "sensitivity": "已修正",
+      "rationale": "已用 Asia/Taipei 模式",
+      "code": "AND game_date > (now() AT TIME ZONE 'Asia/Taipei')::date"
+    },
+    {
+      "file": "scripts/data_tie_remedy1.py",
+      "line": 287,
+      "zone": "scripts",
+      "category": "exact_equality",
+      "sensitivity": "敏感-高",
+      "rationale": "直接指向錯誤的一天；台北 00:00–07:59 全錯",
+      "code": "\"predictions_today＝排在**今天**且尚無比分者；母體限定 game_date = CURRENT_DATE，\""
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 7,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "台北 00:00–07:59 這段，``CURRENT_DATE`` 仍停在前一日 → 日期界線整批偏移一天。"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 11,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "* ``<= CURRENT_DATE``（上界／「不含未來」）：UTC 落後 → 收得**更少** → 保守，不會誤納。"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 12,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "* ``>= CURRENT_DATE``（下界／「今天起的未來」）：UTC 落後 → 收得**更多** →"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 14,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "* ``= CURRENT_DATE``（精確等值）：直接指向錯誤的一天，晨間 8 小時全錯。"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 41,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "# **自指檔案**：本卡的掃描器與其測試自身就含 CURRENT_DATE 字樣（偵測樣式／SQL 形態"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 50,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "# 掃描對象含 TAIPEI_TODAY_SQL：已修正的用點必須在盤點裡「看得見」，"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 53,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "r\"CURRENT_DATE|CURRENT_TIMESTAMP|\\bnow\\s*\\(\\s*\\)|TAIPEI_TODAY_SQL\", re.I)"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 54,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "_TAIPEI_RE = re.compile(r\"AT TIME ZONE\\s+'Asia/Taipei'|TAIPEI_TODAY_SQL\")"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 75,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "用 tokenize／ast 而非字串啟發式——說明文字裡的 CURRENT_DATE 不該被算成用點。"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 102,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "# Python 端「談論 CURRENT_DATE」而非「使用」它的痕跡（分析腳本自己的正規式／輸出鍵）"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 112,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "if re.search(r\"DEFAULT\\s+(CURRENT_TIMESTAMP|CURRENT_DATE|now\\s*\\(\\s*\\))\", line, re.I):"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 114,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "# 函式預設參數（如 completed_games_sql(as_of_sql=\"CURRENT_DATE\")）：語意由呼叫端決定"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 115,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "if re.search(r\"def\\s+\\w+\\s*\\(.*CURRENT_DATE\", line, re.I) or \\"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 116,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "re.search(r\"as_of_sql\\s*[:=].*CURRENT_DATE\", line, re.I):"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 121,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "# 視窗位移（CURRENT_DATE - N／- %s::int）先判，否則會被上下界規則吃掉"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 122,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "if re.search(r\"CURRENT_DATE\\s*[-+]\\s*\\S\", line, re.I) or \\"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 123,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "re.search(r\"\\S\\s*[-+]\\s*CURRENT_DATE\", line, re.I):"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 129,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "# 反向寫法：CURRENT_DATE >= x 等價於 x <= CURRENT_DATE"
+    },
+    {
+      "file": "scripts/dryrun_game_tm_fullseason.py",
+      "line": 7,
+      "zone": "scripts",
+      "category": "comment_or_string",
+      "sensitivity": "說明文字",
+      "rationale": "註解／docstring，非程式用點",
+      "code": "`game_date <= CURRENT_DATE` 界線以排除掛未來日期的保留賽）。逐場打單場 API、經共用"
+    },
+    {
+      "file": "scripts/dryrun_game_tm_fullseason.py",
+      "line": 180,
+      "zone": "scripts",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"generated_at\": _dt.datetime.now().astimezone().isoformat(),"
+    },
+    {
+      "file": "scripts/dryrun_game_tm_fullseason.py",
+      "line": 238,
+      "zone": "scripts",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "fetched_at = _dt.datetime.now().astimezone().isoformat()"
+    },
+    {
+      "file": "scripts/dryrun_game_tm_fullseason.py",
+      "line": 312,
+      "zone": "scripts",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"generated_at\": _dt.datetime.now().astimezone().isoformat(),"
+    },
+    {
+      "file": "scripts/g4_gate_report.py",
+      "line": 110,
+      "zone": "scripts",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"generated_at\": _dt.datetime.now().astimezone().isoformat(),"
+    },
+    {
+      "file": "scripts/g4_phase_a_metrics.py",
+      "line": 50,
+      "zone": "scripts",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "return _dt.datetime.now().astimezone().isoformat()"
+    },
+    {
+      "file": "scripts/g4_phase_a_metrics.py",
+      "line": 256,
+      "zone": "scripts",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "\"AND home_score+away_score>0 AND game_date<=CURRENT_DATE\", (year, k)"
+    },
+    {
+      "file": "scripts/g4_redline1_probe.py",
+      "line": 79,
+      "zone": "scripts",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"generated_at\": _dt.datetime.now().astimezone().isoformat(),"
+    },
+    {
+      "file": "scripts/ibb_ghost1_probe.py",
+      "line": 451,
+      "zone": "scripts",
+      "category": "lower_bound",
+      "sensitivity": "敏感-中",
+      "rationale": "UTC 落後使下界過度納入——昨天的場次被算成「今天起」",
+      "code": "\"  AND game_date > CURRENT_DATE\", (YEAR, kind)).fetchall()}"
+    },
+    {
+      "file": "scripts/pa_transition_taxonomy.py",
+      "line": 587,
+      "zone": "scripts",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"generated_at\": datetime.now().astimezone(),"
+    },
+    {
+      "file": "scripts/reconcile_game_tm.py",
+      "line": 50,
+      "zone": "scripts",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "AND g.game_date <= CURRENT_DATE"
+    },
+    {
+      "file": "scripts/reconcile_splits_recalc1.py",
+      "line": 147,
+      "zone": "scripts",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"generated_at\": dt.datetime.now().astimezone().isoformat(),"
+    },
+    {
+      "file": "scripts/refresh_status.py",
+      "line": 147,
+      "zone": "scripts",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "now = _parse_timestamp(args.now) if args.now else datetime.now().astimezone()"
+    },
+    {
+      "file": "scripts/report_pa_rebuild_fix1.py",
+      "line": 135,
+      "zone": "scripts",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"generated_at\": _dt.datetime.now().astimezone().isoformat(),"
+    },
+    {
+      "file": "scripts/team_style_vectors.py",
+      "line": 331,
+      "zone": "scripts",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "\"completed_rule\": \"home_score+away_score>0 AND game_date<=CURRENT_DATE\","
+    },
+    {
+      "file": "scripts/verify_pa_build_fix1.py",
+      "line": 234,
+      "zone": "scripts",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"generated_at\": datetime.datetime.now().astimezone().isoformat(),"
+    },
+    {
+      "file": "scripts/verify_splits_pa_split1.py",
+      "line": 912,
+      "zone": "scripts",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"generated_at\": datetime.datetime.now().astimezone().isoformat(),"
+    },
+    {
+      "file": "scripts/verify_splits_pa_split1.py",
+      "line": 923,
+      "zone": "scripts",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"generated_at\": datetime.datetime.now().astimezone().isoformat(),"
+    },
+    {
+      "file": "scripts/workflow_ledger.py",
+      "line": 716,
+      "zone": "scripts",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "generated_at = datetime.now().astimezone().isoformat(timespec=\"seconds\")"
+    },
+    {
+      "file": "scripts/wp_bio_prior1.py",
+      "line": 280,
+      "zone": "scripts",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"generated_at\": datetime.now().isoformat(timespec=\"seconds\"),"
+    },
+    {
+      "file": "src/cpbl/api/routers/info.py",
+      "line": 10,
+      "zone": "in_scope",
+      "category": "already_taipei",
+      "sensitivity": "已修正",
+      "rationale": "已用 Asia/Taipei 模式",
+      "code": "from cpbl.completion import TAIPEI_TODAY_SQL, completed_games_sql_with_evidence"
+    },
+    {
+      "file": "src/cpbl/api/routers/info.py",
+      "line": 61,
+      "zone": "in_scope",
+      "category": "comment_or_string",
+      "sensitivity": "說明文字",
+      "rationale": "註解／docstring，非程式用點",
+      "code": "# 是 UTC，`CURRENT_DATE` 在台北 00:00–07:59 仍停在前一日，此處是全庫唯一的"
+    },
+    {
+      "file": "src/cpbl/api/routers/info.py",
+      "line": 67,
+      "zone": "in_scope",
+      "category": "already_taipei",
+      "sensitivity": "已修正",
+      "rationale": "已用 Asia/Taipei 模式",
+      "code": "f\"AND game_date = {TAIPEI_TODAY_SQL}\", (season,)"
+    },
+    {
+      "file": "src/cpbl/api/routers/recap.py",
+      "line": 290,
+      "zone": "in_scope",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "\" AND game_date <= CURRENT_DATE) AS completed \""
+    },
+    {
+      "file": "src/cpbl/api/routers/umpires.py",
+      "line": 75,
+      "zone": "in_scope",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "AND g.game_date <= CURRENT_DATE"
+    },
+    {
+      "file": "src/cpbl/api/team_focus.py",
+      "line": 23,
+      "zone": "in_scope",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "f\"AND g.home_score+g.away_score>0 AND g.game_date<=CURRENT_DATE AND {_TEAM_CODE_EXPR}=%s \""
+    },
+    {
+      "file": "src/cpbl/api/team_hotzone.py",
+      "line": 17,
+      "zone": "in_scope",
+      "category": "comment_or_string",
+      "sensitivity": "說明文字",
+      "rationale": "註解／docstring，非程式用點",
+      "code": "game_date<=CURRENT_DATE）。7 天窗口下，擊球事件（BIP）比打席稀疏得多，實測"
+    },
+    {
+      "file": "src/cpbl/api/team_hotzone.py",
+      "line": 91,
+      "zone": "in_scope",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "WHERE g.year=%s AND g.kind_code='A' AND g.home_score+g.away_score>0 AND g.game_date<=CURRENT_DATE"
+    },
+    {
+      "file": "src/cpbl/api/team_style.py",
+      "line": 189,
+      "zone": "in_scope",
+      "category": "comment_or_string",
+      "sensitivity": "說明文字",
+      "rationale": "註解／docstring，非程式用點",
+      "code": "界線用**台北日**而非 ``CURRENT_DATE``（DATA-TZ-BOUNDARY1／AUDIT1 C12）：DB"
+    },
+    {
+      "file": "src/cpbl/api/team_style.py",
+      "line": 190,
+      "zone": "in_scope",
+      "category": "comment_or_string",
+      "sensitivity": "說明文字",
+      "rationale": "註解／docstring，非程式用點",
+      "code": "timezone 是 UTC，台北 00:00–07:59 期間 ``CURRENT_DATE`` 仍是前一日。這裡是"
+    },
+    {
+      "file": "src/cpbl/api/team_style.py",
+      "line": 194,
+      "zone": "in_scope",
+      "category": "already_taipei",
+      "sensitivity": "已修正",
+      "rationale": "已用 Asia/Taipei 模式",
+      "code": "from cpbl.completion import TAIPEI_TODAY_SQL, completed_games_sql_with_evidence"
+    },
+    {
+      "file": "src/cpbl/api/team_style.py",
+      "line": 199,
+      "zone": "in_scope",
+      "category": "already_taipei",
+      "sensitivity": "已修正",
+      "rationale": "已用 Asia/Taipei 模式",
+      "code": "+ f\") AND game_date >= {TAIPEI_TODAY_SQL}) \""
+    },
+    {
+      "file": "src/cpbl/completion.py",
+      "line": 33,
+      "zone": "in_scope",
+      "category": "comment_or_string",
+      "sensitivity": "說明文字",
+      "rationale": "註解／docstring，非程式用點",
+      "code": "# DB timezone 為 UTC，``CURRENT_DATE`` 在台北 00:00–08:00 會指向前一日。"
+    },
+    {
+      "file": "src/cpbl/completion.py",
+      "line": 35,
+      "zone": "in_scope",
+      "category": "already_taipei",
+      "sensitivity": "已修正",
+      "rationale": "已用 Asia/Taipei 模式",
+      "code": "TAIPEI_TODAY_SQL = \"(now() AT TIME ZONE 'Asia/Taipei')::date\""
+    },
+    {
+      "file": "src/cpbl/completion.py",
+      "line": 54,
+      "zone": "in_scope",
+      "category": "default_parameter",
+      "sensitivity": "敏感-低",
+      "rationale": "helper 預設參數；實際語意由呼叫端傳入值決定",
+      "code": "def completed_games_sql(as_of_sql: str = \"CURRENT_DATE\") -> str:"
+    },
+    {
+      "file": "src/cpbl/completion.py",
+      "line": 57,
+      "zone": "in_scope",
+      "category": "comment_or_string",
+      "sensitivity": "說明文字",
+      "rationale": "註解／docstring，非程式用點",
+      "code": "⚠️ 預設值刻意仍是 UTC 的 ``CURRENT_DATE``（DATA-TZ-BOUNDARY1 盤點後**明確不改**）："
+    },
+    {
+      "file": "src/cpbl/completion.py",
+      "line": 61,
+      "zone": "in_scope",
+      "category": "comment_or_string",
+      "sensitivity": "說明文字",
+      "rationale": "註解／docstring，非程式用點",
+      "code": "（G4 Phase B 後）切換。新程式碼請用 :data:`TAIPEI_TODAY_SQL`。"
+    },
+    {
+      "file": "src/cpbl/completion.py",
+      "line": 86,
+      "zone": "in_scope",
+      "category": "already_taipei",
+      "sensitivity": "已修正",
+      "rationale": "已用 Asia/Taipei 模式",
+      "code": "as_of_sql: str = TAIPEI_TODAY_SQL,"
+    },
+    {
+      "file": "src/cpbl/ingest/advanced_snapshot.py",
+      "line": 117,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "duplicate_key_rows=%s, error_report=%s::jsonb, completed_at=now()"
+    },
+    {
+      "file": "src/cpbl/ingest/advanced_snapshot.py",
+      "line": 181,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "duplicate_key_rows=%s, error_report=%s::jsonb, completed_at=now()"
+    },
+    {
+      "file": "src/cpbl/ingest/advanced_snapshot.py",
+      "line": 195,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "source_fetched_at=EXCLUDED.source_fetched_at, promoted_at=now()"
+    },
+    {
+      "file": "src/cpbl/ingest/advanced_snapshot.py",
+      "line": 235,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "SET current_run_id=%s, promoted_at=now(),"
+    },
+    {
+      "file": "src/cpbl/ingest/cpbl_advanced.py",
+      "line": 86,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updates = \", \".join(f\"{c}=EXCLUDED.{c}\" for c in non_pk) + \", updated_at=now()\""
+    },
+    {
+      "file": "src/cpbl/ingest/cpbl_advanced.py",
+      "line": 258,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "source_payload=EXCLUDED.source_payload, updated_at=now()"
+    },
+    {
+      "file": "src/cpbl/ingest/cpbl_advanced.py",
+      "line": 279,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "source_payload=EXCLUDED.source_payload, updated_at=now()"
+    },
+    {
+      "file": "src/cpbl/ingest/cpbl_coaches_history.py",
+      "line": 686,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"updated_at=now()\","
+    },
+    {
+      "file": "src/cpbl/ingest/cpbl_fighting.py",
+      "line": 165,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": ") + \", updated_at=now()\""
+    },
+    {
+      "file": "src/cpbl/ingest/cpbl_home_runs.py",
+      "line": 213,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "fetched_at=now()"
+    },
+    {
+      "file": "src/cpbl/ingest/cpbl_live_game.py",
+      "line": 54,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"fetched_at\": _dt.datetime.now().isoformat(timespec=\"seconds\"),"
+    },
+    {
+      "file": "src/cpbl/ingest/cpbl_pitch_tracking.py",
+      "line": 300,
+      "zone": "chain_frozen",
+      "category": "comment_or_string",
+      "sensitivity": "說明文字",
+      "rationale": "註解／docstring，非程式用點",
+      "code": "game_date <= CURRENT_DATE，避免保留賽掛未來日卻有比分被誤判。"
+    },
+    {
+      "file": "src/cpbl/ingest/cpbl_pitch_tracking.py",
+      "line": 303,
+      "zone": "chain_frozen",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "\"AND home_score + away_score > 0 AND game_date <= CURRENT_DATE\")"
+    },
+    {
+      "file": "src/cpbl/ingest/cpbl_pitch_tracking.py",
+      "line": 306,
+      "zone": "chain_frozen",
+      "category": "window_offset",
+      "sensitivity": "敏感-中",
+      "rationale": "整個視窗連動位移一天",
+      "code": "sql += \" AND game_date >= (CURRENT_DATE - %s::int)\""
+    },
+    {
+      "file": "src/cpbl/ingest/cpbl_player_bio.py",
+      "line": 95,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,now()) \""
+    },
+    {
+      "file": "src/cpbl/ingest/cpbl_player_bio.py",
+      "line": 98,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"birthplace=EXCLUDED.birthplace, draft=EXCLUDED.draft, bio_updated_at=now(), \""
+    },
+    {
+      "file": "src/cpbl/ingest/cpbl_player_detail.py",
+      "line": 180,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updates = \", \".join(f\"{c}=EXCLUDED.{c}\" for c in col_list[n_pk:]) + \", updated_at=now()\""
+    },
+    {
+      "file": "src/cpbl/ingest/cpbl_roster.py",
+      "line": 70,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"updated_at=now()\","
+    },
+    {
+      "file": "src/cpbl/ingest/cpbl_standings.py",
+      "line": 89,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "updates = \", \".join(f\"{c}=EXCLUDED.{c}\" for c in cols[4:]) + \", updated_at=now()\""
+    },
+    {
+      "file": "src/cpbl/ingest/cpbl_transactions.py",
+      "line": 73,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"name=EXCLUDED.name, team_name=EXCLUDED.team_name, reason=EXCLUDED.reason, updated_at=now()\","
+    },
+    {
+      "file": "src/cpbl/ingest/game_source_revisions.py",
+      "line": 61,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "last_seen_at = now(),"
+    },
+    {
+      "file": "src/cpbl/ingest/game_source_revisions.py",
+      "line": 123,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "last_seen_at = now(),"
+    },
+    {
+      "file": "src/cpbl/ingest/game_source_revisions.py",
+      "line": 135,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "last_seen_at = now(),"
+    },
+    {
+      "file": "src/cpbl/ingest/game_tm_shadow.py",
+      "line": 260,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"DO UPDATE SET row=EXCLUDED.row, run_id=EXCLUDED.run_id, written_at=now()\","
+    },
+    {
+      "file": "src/cpbl/ingest/game_tm_shadow.py",
+      "line": 312,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "finished_at = now(),"
+    },
+    {
+      "file": "src/cpbl/ingest/game_tm_shadow.py",
+      "line": 462,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "now = _dt.datetime.now()"
+    },
+    {
+      "file": "src/cpbl/ingest/live_shadow_observer.py",
+      "line": 653,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "observed_at = now()"
+    },
+    {
+      "file": "src/cpbl/ingest/live_shadow_observer.py",
+      "line": 724,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "observed_at = now()"
+    },
+    {
+      "file": "src/cpbl/ingest/live_shadow_observer.py",
+      "line": 759,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "self.store.write_termination(reason, now())"
+    },
+    {
+      "file": "src/cpbl/ingest/run_refresh_recent.py",
+      "line": 140,
+      "zone": "chain_frozen",
+      "category": "window_offset",
+      "sensitivity": "敏感-中",
+      "rationale": "整個視窗連動位移一天",
+      "code": "WHERE cov.game_date >= (CURRENT_DATE - %s::int)"
+    },
+    {
+      "file": "src/cpbl/ingest/splits_calc.py",
+      "line": 176,
+      "zone": "chain_frozen",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "WHERE bg.year = %s AND bg.kind_code = %s AND g.game_date <= CURRENT_DATE"
+    },
+    {
+      "file": "src/cpbl/ingest/splits_calc.py",
+      "line": 226,
+      "zone": "chain_frozen",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "WHERE pg.year = %s AND pg.kind_code = %s AND g.game_date <= CURRENT_DATE"
+    },
+    {
+      "file": "src/cpbl/ingest/splits_calc.py",
+      "line": 585,
+      "zone": "chain_frozen",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "\"WHERE ll.year=%s AND ll.kind_code=%s AND g.game_date <= CURRENT_DATE \""
+    },
+    {
+      "file": "src/cpbl/ingest/splits_calc.py",
+      "line": 636,
+      "zone": "chain_frozen",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "\"WHERE x.year=%s AND x.kind_code=%s AND g.game_date <= CURRENT_DATE \""
+    },
+    {
+      "file": "src/cpbl/ingest/splits_calc.py",
+      "line": 744,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "ph = \", \".join([\"%s\"] * len(cols.split(\", \"))) + \", now()\""
+    },
+    {
+      "file": "src/cpbl/ingest/splits_calc.py",
+      "line": 905,
+      "zone": "chain_frozen",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "ph = \", \".join([\"%s\"] * n_ph) + \", now()\""
+    },
+    {
+      "file": "src/cpbl/models/pitch_type_v2.py",
+      "line": 223,
+      "zone": "in_scope",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"cv_metrics=EXCLUDED.cv_metrics, trained_at=now()\","
+    },
+    {
+      "file": "src/cpbl/models/train.py",
+      "line": 133,
+      "zone": "in_scope",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "trained_at=now()"
+    },
+    {
+      "file": "src/cpbl/models/train_pitching.py",
+      "line": 154,
+      "zone": "in_scope",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "cv_metrics=EXCLUDED.cv_metrics, trained_at=now()"
+    },
+    {
+      "file": "src/cpbl/models/winprob_strength.py",
+      "line": 747,
+      "zone": "in_scope",
+      "category": "comment_or_string",
+      "sensitivity": "說明文字",
+      "rationale": "註解／docstring，非程式用點",
+      "code": "「對已捨入 p 的未捨入計算」）。此處不捨入，並吃 `as_of` 而非 `CURRENT_DATE`。"
+    },
+    {
+      "file": "src/cpbl/models/winprob_strength.py",
+      "line": 993,
+      "zone": "in_scope",
+      "category": "comment_or_string",
+      "sensitivity": "說明文字",
+      "rationale": "註解／docstring，非程式用點",
+      "code": "`CURRENT_DATE` 為界；直接沿用會讓這個欄位隨當下全表漂移（iteration 3 查核 F1）。"
+    },
+    {
+      "file": "src/cpbl/models/winprob_strength.py",
+      "line": 1041,
+      "zone": "in_scope",
+      "category": "comment_or_string",
+      "sensitivity": "說明文字",
+      "rationale": "註解／docstring，非程式用點",
+      "code": "# `load_eval_season()` 內部以 CURRENT_DATE 為界（winprob_val，本卡不得修改），"
+    },
+    {
+      "file": "src/cpbl/models/winprob_strength.py",
+      "line": 1058,
+      "zone": "in_scope",
+      "category": "comment_or_string",
+      "sensitivity": "說明文字",
+      "rationale": "註解／docstring，非程式用點",
+      "code": "# 以下三個欄位原本直接取自 `season`（＝`load_eval_season()`，以 CURRENT_DATE 為界），"
+    },
+    {
+      "file": "src/cpbl/models/winprob_strength.py",
+      "line": 1114,
+      "zone": "in_scope",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "\"generated_at\": datetime.now().astimezone().isoformat(timespec=\"seconds\"),"
+    },
+    {
+      "file": "src/cpbl/models/winprob_val.py",
+      "line": 323,
+      "zone": "in_scope",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "\"AND g.home_score + g.away_score > 0 AND g.game_date <= CURRENT_DATE\","
+    },
+    {
+      "file": "src/cpbl/models/winprob_val.py",
+      "line": 490,
+      "zone": "in_scope",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "\"AND home_score+away_score>0 AND game_date<=CURRENT_DATE\", (y0, y1, kind))"
+    },
+    {
+      "file": "tests/test_advanced_snapshot_schema.py",
+      "line": 186,
+      "zone": "tests",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "'/leaderboards/pr-table', now(), %s"
+    },
+    {
+      "file": "tests/test_advanced_snapshot_schema.py",
+      "line": 201,
+      "zone": "tests",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "'/leaderboards/pr-table', now()"
+    },
+    {
+      "file": "tests/test_advanced_snapshot_schema.py",
+      "line": 213,
+      "zone": "tests",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "'/leaderboards/pr-table', now(), 1, 2"
+    },
+    {
+      "file": "tests/test_advanced_snapshot_schema.py",
+      "line": 225,
+      "zone": "tests",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "'/leaderboards/pr-table', now(),"
+    },
+    {
+      "file": "tests/test_advanced_snapshot_schema.py",
+      "line": 251,
+      "zone": "tests",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "'/leaderboards/summary', now()"
+    },
+    {
+      "file": "tests/test_advanced_snapshot_schema.py",
+      "line": 261,
+      "zone": "tests",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": ") VALUES (2026, 'A', 'league_summary', '', %s, 1, now())"
+    },
+    {
+      "file": "tests/test_advanced_snapshot_schema.py",
+      "line": 273,
+      "zone": "tests",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "'/leaderboards/pitch-tracking', now()"
+    },
+    {
+      "file": "tests/test_advanced_snapshot_schema.py",
+      "line": 283,
+      "zone": "tests",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": ") VALUES (1999, 'D', 'league_summary', 'batting', %s, 1, now())"
+    },
+    {
+      "file": "tests/test_advanced_snapshot_schema.py",
+      "line": 347,
+      "zone": "tests",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "'/leaderboards/summary', now()"
+    },
+    {
+      "file": "tests/test_advanced_snapshot_schema.py",
+      "line": 357,
+      "zone": "tests",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": ") VALUES (2026, 'A', 'league_summary', '', %s, 1, now())"
+    },
+    {
+      "file": "tests/test_bio_gap2_backfill.py",
+      "line": 32,
+      "zone": "tests",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "assert \"bio_updated_at = now()\" in sql"
+    },
+    {
+      "file": "tests/test_completion.py",
+      "line": 34,
+      "zone": "tests",
+      "category": "unclassified",
+      "sensitivity": "待人工判讀",
+      "rationale": "未落入既有規則，需人工看上下文",
+      "code": "assert completed_games_sql(\"CURRENT_DATE\") == ("
+    },
+    {
+      "file": "tests/test_completion.py",
+      "line": 35,
+      "zone": "tests",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "\"home_score + away_score > 0 AND game_date <= CURRENT_DATE\""
+    },
+    {
+      "file": "tests/test_completion_evidence.py",
+      "line": 77,
+      "zone": "tests",
+      "category": "already_taipei",
+      "sensitivity": "已修正",
+      "rationale": "已用 Asia/Taipei 模式",
+      "code": "_TAIPEI_TODAY = \"(now() AT TIME ZONE 'Asia/Taipei')::date\""
+    },
+    {
+      "file": "tests/test_completion_evidence.py",
+      "line": 216,
+      "zone": "tests",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "WHERE g.home_score + g.away_score = 0 AND g.game_date <= CURRENT_DATE"
+    },
+    {
+      "file": "tests/test_completion_evidence.py",
+      "line": 223,
+      "zone": "tests",
+      "category": "upper_bound",
+      "sensitivity": "無害-保守",
+      "rationale": "UTC 落後只會晚 8 小時納入，永不誤納未來場",
+      "code": "WHERE g.home_score + g.away_score = 0 AND g.game_date <= CURRENT_DATE"
+    },
+    {
+      "file": "tests/test_completion_evidence.py",
+      "line": 310,
+      "zone": "tests",
+      "category": "already_taipei",
+      "sensitivity": "已修正",
+      "rationale": "已用 Asia/Taipei 模式",
+      "code": "WHERE g.game_date > (now() AT TIME ZONE 'Asia/Taipei')::date"
+    },
+    {
+      "file": "tests/test_completion_evidence.py",
+      "line": 318,
+      "zone": "tests",
+      "category": "already_taipei",
+      "sensitivity": "已修正",
+      "rationale": "已用 Asia/Taipei 模式",
+      "code": "WHERE g.game_date > (now() AT TIME ZONE 'Asia/Taipei')::date AND ({cond})"
+    },
+    {
+      "file": "tests/test_refresh_pa_daily.py",
+      "line": 101,
+      "zone": "tests",
+      "category": "comment_or_string",
+      "sensitivity": "說明文字",
+      "rationale": "註解／docstring，非程式用點",
+      "code": "assert \"CURRENT_DATE\" in holder.cursor.sql  # 保留賽保護：不得只憑 score>0 判完成"
+    },
+    {
+      "file": "tests/test_scrape_daily.py",
+      "line": 345,
+      "zone": "tests",
+      "category": "timestamp_write",
+      "sensitivity": "無害",
+      "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
+      "code": "now = datetime.now().astimezone().isoformat()"
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 4,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "這段 ``CURRENT_DATE`` 仍停在前一日 → 日期界線偏移一天。"
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 23,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "from cpbl.completion import TAIPEI_TODAY_SQL"
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 111,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "def test_taipei_today_sql_is_a_date_in_taipei_zone() -> None:"
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 113,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "assert \"Asia/Taipei\" in TAIPEI_TODAY_SQL"
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 114,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "assert TAIPEI_TODAY_SQL.strip().endswith(\"::date\")"
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 121,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "且不再是裸 `CURRENT_DATE`。"
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 138,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "assert TAIPEI_TODAY_SQL in sql, \"predictions_today 未使用台北日界線\""
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 139,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "assert \"game_date = CURRENT_DATE\" not in sql, \"仍殘留 UTC 精確等值界線\""
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 160,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "assert TAIPEI_TODAY_SQL in sql, \"in_progress 下界未使用台北日\""
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 161,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "assert \"game_date >= CURRENT_DATE\" not in sql, \"仍殘留 UTC 下界\""
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 171,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "assert \"CURRENT_DATE\" in completed_games_sql()"
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 174,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "assert TAIPEI_TODAY_SQL in completed_games_sql(TAIPEI_TODAY_SQL)"
+    },
+    {
+      "file": "tests/test_winprob_strength.py",
+      "line": 794,
+      "zone": "tests",
+      "category": "comment_or_string",
+      "sensitivity": "說明文字",
+      "rationale": "註解／docstring，非程式用點",
+      "code": "\"\"\"iteration 2 查核 F1a：主場常數基準須未捨入，且吃傳入的 as_of 而非 CURRENT_DATE。\"\"\""
+    },
+    {
+      "file": "tests/test_winprob_strength.py",
+      "line": 913,
+      "zone": "tests",
+      "category": "comment_or_string",
+      "sensitivity": "說明文字",
+      "rationale": "註解／docstring，非程式用點",
+      "code": "`load_eval_season()`（以 CURRENT_DATE 為界），as_of 之後入庫的比賽會混進來。\"\"\""
+    }
+  ]
+}
