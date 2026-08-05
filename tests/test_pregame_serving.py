@@ -162,7 +162,9 @@ def test_db_is_written_after_the_artifact_is_in_place(monkeypatch, tmp_path: Pat
                         lambda artifact, p, probe: order.append("artifact"))
     monkeypatch.setattr(trainer, "_persist", lambda *a, **k: order.append("db"))
 
-    trainer.main()
+    # 顯式空 argv：main 自 DEV-CLI-HELP-GUARD2 起會先過 argparse 護欄（`--help` 零副作用），
+    # 不給的話會解析到 pytest 自己的命令列而 exit(2)。
+    trainer.main([])
 
     assert order == ["artifact", "db"], "artifact 必須先就位，DB 最後才宣稱狀態"
     assert path.exists() is False  # promote 被替身攔下，確認測的是順序而非副作用

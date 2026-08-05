@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import time
@@ -9,6 +10,7 @@ from datetime import date
 
 from cpbl.config import settings
 from cpbl.db import conn
+from cpbl.ingest._cli import cli_parser
 from cpbl.models.pa_backtest import (
     DEFAULT_STRENGTH_GRID,
     select_prior_strengths,
@@ -38,7 +40,12 @@ def _persist(result: dict, coverage: dict) -> str:
     return version
 
 
+def _parser() -> argparse.ArgumentParser:
+    return cli_parser("cpbl-train-pa-sim", __doc__)
+
+
 def main() -> None:
+    _parser().parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     trained_through = date.today().year - 1
     dataset = load_pa_dataset(2018, trained_through)

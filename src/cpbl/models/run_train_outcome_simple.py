@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import os
@@ -17,6 +18,7 @@ from pathlib import Path
 
 from cpbl.config import settings
 from cpbl.db import conn
+from cpbl.ingest._cli import cli_parser
 from cpbl.models.outcome_simple import (
     OutcomeRow,
     deployment_gate,
@@ -77,7 +79,16 @@ def promote_artifact(artifact: dict, path: Path, probe: list[OutcomeRow]) -> Non
         staged.unlink(missing_ok=True)
 
 
-def main() -> None:
+def _parser() -> argparse.ArgumentParser:
+    return cli_parser("cpbl-train-outcome-simple", __doc__)
+
+
+def main(argv: list[str] | None = None) -> None:
+    # `argv` 顯式參數（比照 `cpbl.ingest.run_live_game_worker.main`）：本模組的 `main`
+    # 有程式化呼叫者（tests/test_pregame_serving.py 驗「artifact 先於 DB 落地」的順序
+    # 紅線），而讀全域 `sys.argv` 會讓它在 pytest 底下解析到 pytest 自己的命令列。
+    # 其餘入口沒有程式化呼叫者，維持無參數以免擴大差異面。
+    _parser().parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     trained_through = date.today().year - 1
     rows = [row for row in load_outcome_rows() if row.season <= trained_through]
