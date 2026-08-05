@@ -1,7 +1,7 @@
 {
  "card": "INGEST-GAME-TM-REFACTOR1-G4",
  "phase": "A",
- "generated_at": "2026-08-05T08:06:38.746648+08:00",
+ "generated_at": "2026-08-05T08:34:52.854003+08:00",
  "files": [
   {
    "path": "dryrun_fetch_log.jsonl",
@@ -31,6 +31,12 @@
    "path": "equipped_invariants.json",
    "sha256": "d9f5db549614e7dbaf549ffaa2803be7c0b34ac1118c2d88eaf5a666cb8bb3db",
    "bytes": 6024,
+   "fetched_at": null
+  },
+  {
+   "path": "gate_only_prod_pk.json",
+   "sha256": "04da60f2d3fe0769f0dab0989b8b48b3ccd294a06f758ac4b32ffad71073cb5e",
+   "bytes": 26282,
    "fetched_at": null
   },
   {
@@ -107,8 +113,8 @@
   },
   {
    "path": "rollback_backtest.json",
-   "sha256": "ff3a1d2661adb53fddbedd1881986629329112aceb788fcd25260f510c755d5a",
-   "bytes": 40094,
+   "sha256": "499e300fc895d4278161dbdfec7e4a7aea29399aa2d99502b854891d340f731e",
+   "bytes": 40637,
    "fetched_at": null
   }
  ]

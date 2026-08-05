@@ -1,7 +1,7 @@
 {
  "card": "INGEST-GAME-TM-REFACTOR1-G4",
  "metric": "rollback_threshold_backtest",
- "generated_at": "2026-08-05T08:06:38.579350+08:00",
+ "generated_at": "2026-08-05T08:34:52.601233+08:00",
  "pre_registration": {
   "note": "降級版：不做參數搜尋，只回放現行暫定值的誤觸發次數。容忍度於需求方 2026-08-04 裁定時固定，**回放結果不得反過來修改門檻或容忍度**。",
   "floor_percentile": 0.05,
@@ -2318,6 +2318,12 @@
  "verdict": {
   "total_trigger_count": 8,
   "tolerance": 2,
-  "action": "逾越裁定容忍度 → 回報需求方裁定，執行者不得自行調參"
+  "action": "逾越裁定容忍度 → 回報需求方裁定，執行者不得自行調參",
+  "requester_ruling_2026_08_05": {
+   "decision": "回放 8 次觸發（A7／D1）**重分類為環境告警記錄**，暫定值照案採用；成因為已文件化的場館事件（亞太主早季未裝機、大巨蛋衰退），非門檻設計缺陷。",
+   "parameter_changes": "無——p05 地板、連續 2 eligible day 語意與任何參數皆不改動",
+   "effect": "上線後回滾規則原樣生效；本回測不重跑、不調參",
+   "source": "docs/tasks/INGEST-GAME-TM-REFACTOR1-G4.md〈驗證〉回測結果裁定條目"
+  }
  }
 }

@@ -176,10 +176,17 @@ launchctl kickstart -k gui/$(id -u)/com.cpbl.weekly-game-pitches   # 立即測�
 cat logs/last-weekly-pitches.json                                  # 狀態（ok/skipped/failed）
 ```
 
-> ⚠️ **安裝前先看 Phase A dry-run 結論**：`docs/research/INGEST-GAME-TM-REFACTOR1-G4/`
-> 的全季對帳查出 `2026-D-180` 兩支官方端點**當下互相矛盾**（單場 API 的 TrackMan 缺
-> `PitchTag` 且軌跡係數不同）。全季**寫入**重跑會用單場 API 的值覆蓋既有 logs 值，
-> 該場屬淨損。此屬紅線 1 事件，須需求方裁定後才啟用本排程。
+**凍結例外清單**（`cpbl_pitch_tracking.FROZEN_GAMES`）：經三方比對證實**兩支官方端點
+互相矛盾且單場 API 為較差來源**的場次，由需求方逐場核入；凍結場次**任何寫入路徑都跳過
+不寫**（增量、每週全季重跑、手動 CLI、logs 回退路徑皆然）。fail-closed 為雙層——
+`_upsert` 在唯一寫入口過濾，`scrape_game_pitches` 另外連請求都不發。
+
+首例 `2026-D-180`（07-30 澄清湖）：logs 端點現值 vs 正式表 0/109 不一致（排除正式表過期）、
+vs 單場 API 100/100 不一致，且單場 API 全 105 列缺 `PitchTag`、軌跡係數全異、少 4 列。
+
+> ⚠️ **執行者／AI 不得自行擴充此清單**。新增一律需求方明示核入並留 event，且必須先有
+> 三方比對證據證明單場 API 較差——「兩邊不一樣」本身不是核入理由。
+> 兩向端對端測試見 `tests/test_refresh_pitch_ingest.py`（清單外照常寫、清單內任何路徑都不觸碰）。
 
 ### 同步流程（本機 → 生產）
 
