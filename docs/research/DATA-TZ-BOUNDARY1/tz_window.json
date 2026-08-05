@@ -1,0 +1,38 @@
+{
+  "generated_at": "2026-08-05T13:58:13+08:00",
+  "db_timezone": "UTC",
+  "divergence_window_taipei": "00:00–07:59",
+  "samples": [
+    {
+      "taipei_wallclock": "2026-08-04 16:00:00+00",
+      "utc_date": "2026-08-04",
+      "taipei_date": "2026-08-05",
+      "differs": true
+    },
+    {
+      "taipei_wallclock": "2026-08-04 19:00:00+00",
+      "utc_date": "2026-08-04",
+      "taipei_date": "2026-08-05",
+      "differs": true
+    },
+    {
+      "taipei_wallclock": "2026-08-04 23:59:00+00",
+      "utc_date": "2026-08-04",
+      "taipei_date": "2026-08-05",
+      "differs": true
+    },
+    {
+      "taipei_wallclock": "2026-08-05 00:00:00+00",
+      "utc_date": "2026-08-05",
+      "taipei_date": "2026-08-05",
+      "differs": false
+    },
+    {
+      "taipei_wallclock": "2026-08-05 13:00:00+00",
+      "utc_date": "2026-08-05",
+      "taipei_date": "2026-08-05",
+      "differs": false
+    }
+  ],
+  "window_exists": true
+}
