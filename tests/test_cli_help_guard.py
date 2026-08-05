@@ -21,7 +21,7 @@
 from __future__ import annotations
 
 import importlib
-import subprocess
+import importlib.util
 import sys
 import tomllib
 from pathlib import Path
@@ -38,6 +38,68 @@ FROZEN_MODULES = {
 
 # 護欄本身沒有 I/O，封印它會把「護欄有生效」誤判成「主流程被觸發」。
 UNSEALED_MODULES = {"cpbl.ingest._cli"}
+
+# 硬封鎖的 I/O 出口：(import 名, 擁有者屬性路徑（空字串＝模組本身）, 屬性名)。
+#
+# ⚠️ 與 `docs/research/DEV-CLI-HELP-GUARD1/audit_cli_help.py` 的同名常數必須逐項一致，
+# 由 `test_seal_surface_matches_audit_tool` 擋住漂移。
+#
+# psycopg 的連線入口有數個彼此獨立的符號——`psycopg.connect` **不是**
+# `psycopg.Connection.connect`（實測 `is` 為 False），非同步版又是另外一個；pool 亦分
+# 同步／非同步／null 四類。初版只封了 `psycopg.connect` 與同步 `ConnectionPool`，
+# 於是 `psycopg.AsyncConnection.connect` 與 `AsyncConnectionPool` 是開的，
+# 「探針碰不到 DB」不成立（查核 CLIHG1-R1-01）。
+#
+# ⚠️ **socket 層封鎖擋不住 psycopg**：實測（打 127.0.0.1:1 無人監聽的埠）在
+# `socket.socket.connect` / `create_connection` / `getaddrinfo` 全封的情況下，
+# `psycopg.connect` 與 `psycopg.AsyncConnection.connect` **仍照常發出連線**，回的是
+# libpq 的 OperationalError 而非 stub 例外——連線由 libpq 在 C 層自己做，不經過
+# Python socket 模組。psycopg 這幾個入口因此不是「多一層保險」，而是唯一擋得住 DB
+# 連線的地方；漏掉 async 版就是真的會連出去。
+IO_TARGETS = (
+    ("socket", "socket", "connect"),
+    ("socket", "", "create_connection"),
+    ("socket", "", "getaddrinfo"),          # DNS 解析本身也是對外流量
+    ("subprocess", "", "run"),
+    ("subprocess", "", "Popen"),
+    ("psycopg", "", "connect"),
+    ("psycopg", "Connection", "connect"),
+    ("psycopg", "AsyncConnection", "connect"),
+    ("psycopg_pool", "", "ConnectionPool"),
+    ("psycopg_pool", "", "AsyncConnectionPool"),
+    ("psycopg_pool", "", "NullConnectionPool"),
+    ("psycopg_pool", "", "AsyncNullConnectionPool"),
+)
+
+
+def _io_target_labels() -> tuple[str, ...]:
+    return tuple(f"{m}.{o + '.' if o else ''}{a}" for m, o, a in IO_TARGETS)
+
+
+def _io_target_owner(mod_name: str, owner_path: str):
+    owner = importlib.import_module(mod_name)
+    for part in filter(None, owner_path.split(".")):
+        owner = getattr(owner, part)
+    return owner
+
+
+def _raw_attr(mod_name: str, owner_path: str, attr: str):
+    """取屬性的**穩定身分**——`vars()` 而非 `getattr()`。
+
+    `getattr(SomeClass, 'a_classmethod')` 每次都回傳新的 bound method，用 `is`
+    比較無論封沒封都會「不相同」。本檔初版的正控制就是這樣寫成空斷言的，靠負控制
+    腳本才抓到。`vars(owner)[attr]` 拿到的是底層描述子／函式本身，身分才穩定。
+
+    有些屬性繼承自基底（`socket.socket.connect` 實際定義在 C 層 `_socket.socket`），
+    自身 `vars()` 裡沒有，需往 MRO 找封印前的原值；封印後則會落在自身 `vars()`。
+    """
+    owner = _io_target_owner(mod_name, owner_path)
+    if attr in vars(owner):
+        return vars(owner)[attr]
+    for base in getattr(owner, "__mro__", ())[1:]:
+        if attr in vars(base):
+            return vars(base)[attr]
+    return getattr(owner, attr)
 
 
 class SideEffectReached(RuntimeError):
@@ -68,8 +130,8 @@ def test_entry_discovery_actually_found_the_ingest_clis() -> None:
     assert "cpbl-refresh-recent" not in ids  # G4 凍結，明文排除
 
 
-def _seal(module, monkeypatch: pytest.MonkeyPatch) -> None:
-    """把副作用出口全部換成會拋例外的 stub（monkeypatch 會自動還原）。"""
+def _seal(module, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """把副作用出口換成會拋例外的 stub（monkeypatch 自動還原）。回傳實際封住的 I/O 出口。"""
     def _stub(label: str):
         def _raise(*_a, **_kw):
             raise SideEffectReached(label)
@@ -90,12 +152,114 @@ def _seal(module, monkeypatch: pytest.MonkeyPatch) -> None:
     for name in ("migrate", "conn", "pool"):
         monkeypatch.setattr(_db, name, _stub(f"cpbl.db.{name}"))
 
-    # 最後一道保險：任何漏網的網路／子行程呼叫一律拋例外，不會真的送出去
-    import socket
-    monkeypatch.setattr(socket.socket, "connect", _stub("socket.connect"))
-    monkeypatch.setattr(socket, "create_connection", _stub("socket.create_connection"))
-    monkeypatch.setattr(subprocess, "run", _stub("subprocess.run"))
-    monkeypatch.setattr(subprocess, "Popen", _stub("subprocess.Popen"))
+    # 最後一道保險：列舉的網路／DB／子行程出口一律拋例外，不會真的送出去。
+    # 同步與非同步開口必須對齊——只封同步版等於留了一扇沒鎖的門。
+    sealed: list[str] = []
+    for mod_name, owner_path, attr in IO_TARGETS:
+        label = f"{mod_name}.{owner_path + '.' if owner_path else ''}{attr}"
+        try:
+            owner = importlib.import_module(mod_name)
+            for part in filter(None, owner_path.split(".")):
+                owner = getattr(owner, part)
+            getattr(owner, attr)  # 符號不存在就別假裝封住了
+            monkeypatch.setattr(owner, attr, _stub(label))
+        except (ImportError, AttributeError):
+            continue
+        sealed.append(label)
+    return sealed
+
+
+# ------------------------------------------------- 探針封鎖面本身（CLIHG1-R1-01）
+# 上面每一條 `--help` 斷言的前提都是「主流程真的跑起來就會被 stub 攔下」。前提若破，
+# 測試會從「證明護欄有效」退化成「證明什麼都沒發生」。以下直接驗證前提。
+
+SEAL_SAMPLE_MODULE = "cpbl.ingest.run_scrape_pitches"  # 事故當事者，任一入口皆可
+_DEAD_DSN = "postgresql://sealed.invalid/never-connects"
+
+
+def test_seal_reports_every_declared_io_target_as_sealed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """漏封必須看得見：`_seal` 回報的清單要與宣告的出口逐項相符。"""
+    mod = importlib.import_module(SEAL_SAMPLE_MODULE)
+    assert _seal(mod, monkeypatch) == list(_io_target_labels())
+
+
+def test_seal_actually_installs_a_stub_at_every_declared_io_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """正控制：每個宣告的出口都確實被換成 stub，不是「剛好沒被呼叫到」。
+
+    身分比較走 `vars()`——`getattr` 對 classmethod 每次回傳新物件，用它做斷言等於
+    沒斷言（見 `_raw_attr` docstring）。
+    """
+    before = {t: _raw_attr(*t) for t in IO_TARGETS}
+    _seal(importlib.import_module(SEAL_SAMPLE_MODULE), monkeypatch)
+
+    for target in IO_TARGETS:
+        after = _raw_attr(*target)
+        label = f"{target[0]}.{target[1] + '.' if target[1] else ''}{target[2]}"
+        assert after is not before[target], f"{label} 未被替換"
+        assert getattr(after, "__name__", None) == "_raise", f"{label} 換上的不是 stub"
+
+
+def test_sealed_probe_blocks_async_psycopg_connection(monkeypatch: pytest.MonkeyPatch) -> None:
+    """走真正的 async/await 路徑：`await AsyncConnection.connect(...)` 必須被攔下。
+
+    初版探針只封 `psycopg.connect` 與同步 `ConnectionPool`，這條路是通的——查核
+    CLIHG1-R1-01 據此判定「物理上不可能碰 DB」的宣稱不成立。
+    """
+    import asyncio
+
+    import psycopg
+
+    _seal(importlib.import_module(SEAL_SAMPLE_MODULE), monkeypatch)
+
+    async def _open_async_connection():
+        return await psycopg.AsyncConnection.connect(_DEAD_DSN)
+
+    with pytest.raises(SideEffectReached, match="AsyncConnection.connect"):
+        asyncio.run(_open_async_connection())
+
+
+@pytest.mark.parametrize("pool_attr", ["AsyncConnectionPool", "AsyncNullConnectionPool",
+                                       "ConnectionPool", "NullConnectionPool"])
+def test_sealed_probe_blocks_every_psycopg_pool_class(
+    pool_attr: str, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import psycopg_pool
+
+    _seal(importlib.import_module(SEAL_SAMPLE_MODULE), monkeypatch)
+    with pytest.raises(SideEffectReached, match=pool_attr):
+        getattr(psycopg_pool, pool_attr)(_DEAD_DSN)
+
+
+@pytest.mark.parametrize("call", ["module", "classmethod"])
+def test_sealed_probe_blocks_sync_psycopg_connect(
+    call: str, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`psycopg.connect` 與 `psycopg.Connection.connect` 是兩個獨立符號（`is` 為 False）。"""
+    import psycopg
+
+    _seal(importlib.import_module(SEAL_SAMPLE_MODULE), monkeypatch)
+    entry = psycopg.connect if call == "module" else psycopg.Connection.connect
+    with pytest.raises(SideEffectReached):
+        entry(_DEAD_DSN)
+
+
+def test_seal_surface_matches_audit_tool() -> None:
+    """盤點工具與本測試各有一份 seal，兩邊漂移就會重演 CLIHG1-R1-01 那種單邊漏封。"""
+    audit_path = (REPO_ROOT / "docs/research/DEV-CLI-HELP-GUARD1/audit_cli_help.py")
+    spec = importlib.util.spec_from_file_location("_cli_help_audit_tool", audit_path)
+    assert spec and spec.loader
+    audit = importlib.util.module_from_spec(spec)
+    # 先掛進 sys.modules：工具裡的 @dataclass 解析註解時會回查自己的模組
+    sys.modules[spec.name] = audit
+    try:
+        spec.loader.exec_module(audit)
+    finally:
+        sys.modules.pop(spec.name, None)
+    assert audit.io_target_labels() == _io_target_labels()
+    assert audit.UNSEALED_MODULES == UNSEALED_MODULES
+    assert audit.FROZEN_MODULES == FROZEN_MODULES
 
 
 @pytest.mark.parametrize("flag", ["--help", "-h"])

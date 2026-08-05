@@ -20,12 +20,19 @@
    - 入口模組命名空間中「來自其他 `cpbl.*` 模組的 callable」（`migrate` / `conn` /
      `scrape_*` / `build_*` …）全部換 stub；
    - `cpbl.db.migrate` / `cpbl.db.conn` 於**來源模組**也換 stub，堵住函式內延遲 import；
-   - `socket.socket.connect` / `socket.create_connection` / `psycopg.connect` /
-     `psycopg_pool.ConnectionPool` / `subprocess.run` / `subprocess.Popen` 硬封鎖。
+   - `_IO_TARGETS` 列舉的 socket / subprocess / psycopg（同步**與非同步**）出口硬封鎖。
 
-   因此探針**物理上不可能**送出任何網路請求或碰到資料庫；它唯一能觀察到的事實是
-   「主流程有沒有被觸發」——正是本卡要盤點的東西。每個入口一個子行程，彼此隔離，
-   模組 import 失敗（例如 macOS host 上的 LightGBM 缺 libomp）也只影響該列。
+   封鎖範圍是**列舉**的，不是「全部」——見 `_IO_TARGETS`。這個區別是查核退回
+   CLIHG1-R1-01 的結果：初版只封了 `psycopg.connect` 與同步 `ConnectionPool`，
+   `psycopg.AsyncConnection.connect` 與 `AsyncConnectionPool` 是開的，於是「物理上
+   不可能碰 DB」這句絕對宣稱並不成立。現在同步與非同步開口對齊，且 `_seal` 會回報
+   實際封住的清單，讓「有沒有漏封」變成可驗證的事實而不是宣稱。
+   即便如此，仍**不宣稱窮盡**：繞過這些 Python 層符號的路徑（ctypes、直接 syscall、
+   未列舉的第三方 driver）不在封鎖範圍內。本專案的 ingest 入口只走 psycopg 與
+   httpx/socket，故此封鎖面對本盤點是充分的。
+
+   每個入口一個子行程，彼此隔離，模組 import 失敗（例如 macOS host 上的 LightGBM
+   缺 libomp）也只影響該列。
 
 判定碼：
 
@@ -67,6 +74,37 @@ FROZEN_MODULES = {
 # 讓真實副作用漏網。
 UNSEALED_MODULES = {"cpbl.ingest._cli"}
 
+# 探針硬封鎖的 I/O 出口：(import 名, 擁有者屬性路徑（空字串＝模組本身）, 屬性名)。
+#
+# ⚠️ 這份清單與 `tests/test_cli_help_guard.py` 的同名常數必須逐項一致，由
+# `test_cli_help_guard.py::test_seal_surface_matches_audit_tool` 擋住漂移——兩份
+# 各寫一份 seal 而其中一份漏補，正是 CLIHG1-R1-01 那種洞的溫床。
+#
+# psycopg 的連線入口有數個彼此獨立的符號（`psycopg.connect` 不是
+# `Connection.connect`，實測 `is` 為 False），非同步版又是另外一個；pool 亦分同步／
+# 非同步／null 四個類別。少封任何一個，「探針碰不到 DB」就不成立。
+#
+# ⚠️ **socket 層封鎖擋不住 psycopg**：實測（打 127.0.0.1:1 無人監聽的埠）在
+# `socket.socket.connect` / `create_connection` / `getaddrinfo` 全封的情況下，
+# `psycopg.connect` 與 `psycopg.AsyncConnection.connect` **仍然照常發出連線**，
+# 回的是 libpq 的 OperationalError 而不是 stub 的例外——連線由 libpq 在 C 層自己
+# 做，根本不經過 Python 的 socket 模組。所以 psycopg 那幾個入口不是「多一層保險」，
+# 而是唯一能擋住 DB 連線的地方；漏掉 async 版就是真的會連出去。
+_IO_TARGETS = (
+    ("socket", "socket", "connect"),
+    ("socket", "", "create_connection"),
+    ("socket", "", "getaddrinfo"),          # DNS 解析本身也是對外流量
+    ("subprocess", "", "run"),
+    ("subprocess", "", "Popen"),
+    ("psycopg", "", "connect"),
+    ("psycopg", "Connection", "connect"),
+    ("psycopg", "AsyncConnection", "connect"),
+    ("psycopg_pool", "", "ConnectionPool"),
+    ("psycopg_pool", "", "AsyncConnectionPool"),
+    ("psycopg_pool", "", "NullConnectionPool"),
+    ("psycopg_pool", "", "AsyncNullConnectionPool"),
+)
+
 
 class SideEffectReached(RuntimeError):
     """探針 stub 被呼叫＝主流程真的會跑起來。"""
@@ -87,6 +125,7 @@ class Entry:
     bad_flag_verdict: str
     bad_positional_verdict: str
     frozen: bool
+    seal_gap: list[str]
 
 
 # ---------------------------------------------------------------- 靜態分類
@@ -138,9 +177,14 @@ def _classify(module: str, func: str) -> tuple[str, bool, bool]:
 # ---------------------------------------------------------------- 密封探針
 
 
+def io_target_labels() -> tuple[str, ...]:
+    """`_IO_TARGETS` 的可讀標籤，供跨檔案一致性斷言使用。"""
+    return tuple(f"{mod}.{owner + '.' if owner else ''}{attr}" for mod, owner, attr in _IO_TARGETS)
+
+
 def _seal(entry_module) -> list[str]:
-    """把所有副作用出口換成 stub。回傳被封住的名字（供除錯）。"""
-    import socket
+    """把所有副作用出口換成 stub。回傳**實際**封住的名字——漏封會直接反映在回傳值上。"""
+    import importlib
 
     sealed: list[str] = []
 
@@ -171,20 +215,18 @@ def _seal(entry_module) -> list[str]:
         setattr(_db, name, _stub(f"cpbl.db.{name}"))
         sealed.append(f"cpbl.db.{name}")
 
-    # 3) 網路 / DB / 子行程硬封鎖——探針的最後一道保險
-    socket.socket.connect = _stub("socket.connect")  # type: ignore[method-assign]
-    socket.create_connection = _stub("socket.create_connection")  # type: ignore[assignment]
-    subprocess.run = _stub("subprocess.run")  # type: ignore[assignment]
-    subprocess.Popen = _stub("subprocess.Popen")  # type: ignore[misc,assignment]
-    with contextlib.suppress(ImportError):
-        import psycopg
-
-        psycopg.connect = _stub("psycopg.connect")  # type: ignore[assignment]
-    with contextlib.suppress(ImportError):
-        import psycopg_pool
-
-        psycopg_pool.ConnectionPool = _stub("psycopg_pool.ConnectionPool")  # type: ignore[misc,assignment]
-    sealed += ["socket.connect", "socket.create_connection", "subprocess.*", "psycopg.connect"]
+    # 3) 網路 / DB / 子行程硬封鎖——探針的最後一道保險（同步與非同步開口對齊）
+    for mod_name, owner_path, attr in _IO_TARGETS:
+        label = f"{mod_name}.{owner_path + '.' if owner_path else ''}{attr}"
+        try:
+            owner = importlib.import_module(mod_name)
+            for part in filter(None, owner_path.split(".")):
+                owner = getattr(owner, part)
+            getattr(owner, attr)  # 先確認符號存在，不存在就別假裝封住了
+            setattr(owner, attr, _stub(label))
+        except (ImportError, AttributeError):
+            continue  # 未封住就不列入 sealed——呼叫端據此得知有缺口
+        sealed.append(label)
     return sealed
 
 
@@ -219,8 +261,9 @@ def _probe_child(module: str, func: str) -> None:
     except BaseException as exc:  # noqa: BLE001
         print(json.dumps({"import_error": f"{type(exc).__name__}: {str(exc)[:120]}"}))
         return
-    _seal(mod)
-    result = {}
+    sealed = _seal(mod)
+    # 漏封哪個出口就誠實回報哪個——報告據此判斷「封鎖面完整」是不是事實。
+    result: dict = {"seal_gap": [lb for lb in io_target_labels() if lb not in sealed]}
     for key, argv in (
         ("help", ["--help"]),
         ("dash_h", ["-h"]),
@@ -291,6 +334,7 @@ def collect() -> list[Entry]:
             bad_flag_verdict=verdicts["bad_flag"][0],
             bad_positional_verdict=verdicts["bad_positional"][0],
             frozen=module in FROZEN_MODULES,
+            seal_gap=list(probe.get("seal_gap", [])),
         ))
     return entries
 
@@ -306,6 +350,8 @@ def render(entries: list[Entry], note: str | None = None) -> str:
     bad = [e for e in entries if e.help_verdict == "SIDE_EFFECT"]
     safe = [e for e in entries if e.help_verdict == "SAFE"]
     other = [e for e in entries if e.help_verdict not in ("SAFE", "SIDE_EFFECT")]
+    gaps = sorted({lb for e in entries for lb in e.seal_gap})
+    sealed_now = [lb for lb in io_target_labels() if lb not in gaps]
     lines = [
         "# DEV-CLI-HELP-GUARD1 — `[project.scripts]` 入口 `--help` 行為盤點",
         "",
@@ -317,7 +363,19 @@ def render(entries: list[Entry], note: str | None = None) -> str:
         "",
         "取證方式與判定碼定義見 `audit_cli_help.py` docstring。重點：盤點**未真跑任何爬蟲**——",
         "探針在子行程中把 `migrate`／`conn`／`scrape_*` 等副作用出口換成會拋例外的 stub，",
-        "再對 socket／psycopg／subprocess 硬封鎖，因此物理上不可能送出請求或碰 DB。",
+        "再對下列 I/O 出口硬封鎖，任何呼叫都會拋例外而不是真的送出去：",
+        "",
+        *[f"- `{lb}`" for lb in sealed_now],
+        "",
+        "封鎖面是**列舉**的，不是「全部」。本檔刻意不宣稱「物理上不可能碰 DB」——初版就是",
+        "因為漏封 `psycopg.AsyncConnection.connect` 與 `AsyncConnectionPool` 而讓那句絕對",
+        "宣稱不成立（查核 CLIHG1-R1-01）。繞過上列 Python 符號的路徑（ctypes、直接 syscall、",
+        "未列舉的第三方 driver）不在封鎖範圍內；本專案 ingest 入口只走 psycopg 與 httpx/socket，",
+        "故此封鎖面對本盤點充分。清單與 `tests/test_cli_help_guard.py` 由測試綁定，不得單邊漂移。",
+        "",
+        ("✅ 上列出口本次全部封鎖成功（探針自行回報，非人工聲明）。" if not gaps else
+         "🔴 **封鎖不完整**，下列出口未封住，本報告的無副作用宣稱不成立："
+         + "、".join(f"`{lb}`" for lb in gaps)),
         "",
         f"入口總數 **{total}**：✅ SAFE {len(safe)}／🔴 SIDE_EFFECT {len(bad)}／其他 {len(other)}。",
         "",
