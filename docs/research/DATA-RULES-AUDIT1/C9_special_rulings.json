@@ -1,0 +1,1930 @@
+{
+  "rule_anchor": {
+    "file": "docs/reference/棒球規則.txt",
+    "uncaught_third_strike": {
+      "rule": "9.15(a)(3)",
+      "lines": "6027",
+      "quote": "捕手未能確實接捕第 3 好球，擊球員成為跑壘員時"
+    },
+    "catcher_interference_ab": {
+      "rule": "9.02(a)(1)(D)",
+      "lines": "5044-5045",
+      "quote": "因妨礙（Interference）、妨礙跑壘（Obstruction）、違反野手位置規定，獲進一壘時"
+    },
+    "obp_excludes_interference": {
+      "rule": "9.21(f)【原註】",
+      "lines": "6464-6466",
+      "quote": "計算上壘率時，因妨礙（Interference）或妨礙跑壘（Obstruction）而獲得上壘者不計算在內"
+    },
+    "interference_not_gidp": {
+      "rule": "9.02(a)(17)【原註】",
+      "lines": "5076-5078",
+      "quote": "擊球跑壘員因前位跑壘員的妨礙行為而被判出局時，不得記錄為雙殺打"
+    },
+    "obstruction": {
+      "rule": "6.01(h)",
+      "lines": "3717-3733",
+      "quote": "若發生妨礙跑壘時，裁判員應宣告「Obstruction」"
+    }
+  },
+  "action_name_to_batting_action_name": [
+    {
+      "action_name": "一壘安打 ",
+      "batting_action_name": "一安",
+      "n": 187537
+    },
+    {
+      "action_name": "一壘安打 內野安打",
+      "batting_action_name": "內安",
+      "n": 21224
+    },
+    {
+      "action_name": "一壘安打 場地安打",
+      "batting_action_name": "場安",
+      "n": 1598
+    },
+    {
+      "action_name": "三壘安打 ",
+      "batting_action_name": "三安",
+      "n": 6176
+    },
+    {
+      "action_name": "三壘安打 場地安打",
+      "batting_action_name": "場三",
+      "n": 58
+    },
+    {
+      "action_name": "三振",
+      "batting_action_name": "三振",
+      "n": 276273
+    },
+    {
+      "action_name": "三振/妨礙",
+      "batting_action_name": "",
+      "n": 5
+    },
+    {
+      "action_name": "三振/妨礙",
+      "batting_action_name": "三振",
+      "n": 7
+    },
+    {
+      "action_name": "三振/第三好球觸擊失敗",
+      "batting_action_name": "三振",
+      "n": 365
+    },
+    {
+      "action_name": "三振/遭捕手傳一壘刺殺",
+      "batting_action_name": "三振",
+      "n": 8199
+    },
+    {
+      "action_name": "三殺打 刺殺",
+      "batting_action_name": "三殺",
+      "n": 13
+    },
+    {
+      "action_name": "不死三振 捕手傳一壘傳球失誤",
+      "batting_action_name": "不死三振",
+      "n": 80
+    },
+    {
+      "action_name": "不死三振 捕手傳一壘接球失誤",
+      "batting_action_name": "不死三振",
+      "n": 6
+    },
+    {
+      "action_name": "不死三振 捕逸",
+      "batting_action_name": "不死三振",
+      "n": 142
+    },
+    {
+      "action_name": "不死三振 暴投",
+      "batting_action_name": "不死三振",
+      "n": 811
+    },
+    {
+      "action_name": "不死三振 趁傳",
+      "batting_action_name": "不死三振",
+      "n": 85
+    },
+    {
+      "action_name": "二壘安打 ",
+      "batting_action_name": "二安",
+      "n": 49009
+    },
+    {
+      "action_name": "二壘安打 內野安打",
+      "batting_action_name": "內二",
+      "n": 13
+    },
+    {
+      "action_name": "二壘安打 場地安打",
+      "batting_action_name": "場二",
+      "n": 354
+    },
+    {
+      "action_name": "促請裁決/打序錯誤",
+      "batting_action_name": "裁決",
+      "n": 5
+    },
+    {
+      "action_name": "傳球失誤",
+      "batting_action_name": "一失",
+      "n": 129
+    },
+    {
+      "action_name": "傳球失誤",
+      "batting_action_name": "三失",
+      "n": 1137
+    },
+    {
+      "action_name": "傳球失誤",
+      "batting_action_name": "二失",
+      "n": 483
+    },
+    {
+      "action_name": "傳球失誤",
+      "batting_action_name": "左失",
+      "n": 2
+    },
+    {
+      "action_name": "傳球失誤",
+      "batting_action_name": "投失",
+      "n": 389
+    },
+    {
+      "action_name": "傳球失誤",
+      "batting_action_name": "捕失",
+      "n": 62
+    },
+    {
+      "action_name": "傳球失誤",
+      "batting_action_name": "游失",
+      "n": 1323
+    },
+    {
+      "action_name": "內野高飛球",
+      "batting_action_name": "內飛",
+      "n": 1889
+    },
+    {
+      "action_name": "全壘打",
+      "batting_action_name": "全打",
+      "n": 17519
+    },
+    {
+      "action_name": "刺殺",
+      "batting_action_name": "一滾",
+      "n": 12485
+    },
+    {
+      "action_name": "刺殺",
+      "batting_action_name": "一飛",
+      "n": 6
+    },
+    {
+      "action_name": "刺殺",
+      "batting_action_name": "三滾",
+      "n": 34318
+    },
+    {
+      "action_name": "刺殺",
+      "batting_action_name": "三飛",
+      "n": 13
+    },
+    {
+      "action_name": "刺殺",
+      "batting_action_name": "中飛",
+      "n": 17
+    },
+    {
+      "action_name": "刺殺",
+      "batting_action_name": "二滾",
+      "n": 63800
+    },
+    {
+      "action_name": "刺殺",
+      "batting_action_name": "二飛",
+      "n": 13
+    },
+    {
+      "action_name": "刺殺",
+      "batting_action_name": "右滾",
+      "n": 6
+    },
+    {
+      "action_name": "刺殺",
+      "batting_action_name": "右飛",
+      "n": 18
+    },
+    {
+      "action_name": "刺殺",
+      "batting_action_name": "左飛",
+      "n": 31
+    },
+    {
+      "action_name": "刺殺",
+      "batting_action_name": "投",
+      "n": 6
+    },
+    {
+      "action_name": "刺殺",
+      "batting_action_name": "投滾",
+      "n": 20186
+    },
+    {
+      "action_name": "刺殺",
+      "batting_action_name": "投飛",
+      "n": 30
+    },
+    {
+      "action_name": "刺殺",
+      "batting_action_name": "捕",
+      "n": 3
+    },
+    {
+      "action_name": "刺殺",
+      "batting_action_name": "捕滾",
+      "n": 1762
+    },
+    {
+      "action_name": "刺殺",
+      "batting_action_name": "游滾",
+      "n": 52344
+    },
+    {
+      "action_name": "刺殺",
+      "batting_action_name": "游飛",
+      "n": 5
+    },
+    {
+      "action_name": "四壞球",
+      "batting_action_name": "四壞",
+      "n": 164873
+    },
+    {
+      "action_name": "場內全壘打",
+      "batting_action_name": "內全",
+      "n": 47
+    },
+    {
+      "action_name": "妨礙守備",
+      "batting_action_name": "礙守",
+      "n": 111
+    },
+    {
+      "action_name": "妨礙打擊",
+      "batting_action_name": "礙打",
+      "n": 119
+    },
+    {
+      "action_name": "接球失誤",
+      "batting_action_name": "一失",
+      "n": 1755
+    },
+    {
+      "action_name": "接球失誤",
+      "batting_action_name": "三失",
+      "n": 2559
+    },
+    {
+      "action_name": "接球失誤",
+      "batting_action_name": "中失",
+      "n": 252
+    },
+    {
+      "action_name": "接球失誤",
+      "batting_action_name": "二失",
+      "n": 2455
+    },
+    {
+      "action_name": "接球失誤",
+      "batting_action_name": "右失",
+      "n": 247
+    },
+    {
+      "action_name": "接球失誤",
+      "batting_action_name": "失",
+      "n": 28
+    },
+    {
+      "action_name": "接球失誤",
+      "batting_action_name": "左失",
+      "n": 301
+    },
+    {
+      "action_name": "接球失誤",
+      "batting_action_name": "投失",
+      "n": 459
+    },
+    {
+      "action_name": "接球失誤",
+      "batting_action_name": "捕失",
+      "n": 59
+    },
+    {
+      "action_name": "接球失誤",
+      "batting_action_name": "游失",
+      "n": 3179
+    },
+    {
+      "action_name": "擊球員碰觸界內球",
+      "batting_action_name": "觸球",
+      "n": 5
+    },
+    {
+      "action_name": "故意四壞球",
+      "batting_action_name": "故四",
+      "n": 1655
+    },
+    {
+      "action_name": "犧牲界外飛球",
+      "batting_action_name": "界犧飛",
+      "n": 265
+    },
+    {
+      "action_name": "犧牲短打 傳球",
+      "batting_action_name": "犧短",
+      "n": 6819
+    },
+    {
+      "action_name": "犧牲短打 野手接球自踩壘包",
+      "batting_action_name": "犧短",
+      "n": 12
+    },
+    {
+      "action_name": "犧牲短打 野手接球觸殺",
+      "batting_action_name": "犧短",
+      "n": 245
+    },
+    {
+      "action_name": "犧牲短打 野手跑離三呎線",
+      "batting_action_name": "犧短",
+      "n": 3
+    },
+    {
+      "action_name": "犧牲短打上壘-失誤",
+      "batting_action_name": "犧短誤",
+      "n": 465
+    },
+    {
+      "action_name": "犧牲短打上壘-野選",
+      "batting_action_name": "犧選",
+      "n": 285
+    },
+    {
+      "action_name": "犧牲飛球",
+      "batting_action_name": "犧飛",
+      "n": 10475
+    },
+    {
+      "action_name": "犧牲飛球上壘-失誤",
+      "batting_action_name": "犧飛誤",
+      "n": 46
+    },
+    {
+      "action_name": "界外飛球接殺",
+      "batting_action_name": "界飛",
+      "n": 27858
+    },
+    {
+      "action_name": "突破僵局上壘",
+      "batting_action_name": "",
+      "n": 377
+    },
+    {
+      "action_name": "裁定三振",
+      "batting_action_name": "三振",
+      "n": 24
+    },
+    {
+      "action_name": "裁定四壞球",
+      "batting_action_name": "四壞",
+      "n": 271
+    },
+    {
+      "action_name": "觸身死球",
+      "batting_action_name": "死球",
+      "n": 15746
+    },
+    {
+      "action_name": "趁傳",
+      "batting_action_name": "一滾",
+      "n": 3761
+    },
+    {
+      "action_name": "趁傳",
+      "batting_action_name": "一飛",
+      "n": 71
+    },
+    {
+      "action_name": "趁傳",
+      "batting_action_name": "三滾",
+      "n": 6924
+    },
+    {
+      "action_name": "趁傳",
+      "batting_action_name": "三飛",
+      "n": 198
+    },
+    {
+      "action_name": "趁傳",
+      "batting_action_name": "中滾",
+      "n": 2
+    },
+    {
+      "action_name": "趁傳",
+      "batting_action_name": "中飛",
+      "n": 49
+    },
+    {
+      "action_name": "趁傳",
+      "batting_action_name": "二滾",
+      "n": 7625
+    },
+    {
+      "action_name": "趁傳",
+      "batting_action_name": "二飛",
+      "n": 241
+    },
+    {
+      "action_name": "趁傳",
+      "batting_action_name": "右滾",
+      "n": 17
+    },
+    {
+      "action_name": "趁傳",
+      "batting_action_name": "右飛",
+      "n": 141
+    },
+    {
+      "action_name": "趁傳",
+      "batting_action_name": "左滾",
+      "n": 12
+    },
+    {
+      "action_name": "趁傳",
+      "batting_action_name": "左飛",
+      "n": 52
+    },
+    {
+      "action_name": "趁傳",
+      "batting_action_name": "投",
+      "n": 7
+    },
+    {
+      "action_name": "趁傳",
+      "batting_action_name": "投滾",
+      "n": 2499
+    },
+    {
+      "action_name": "趁傳",
+      "batting_action_name": "投飛",
+      "n": 110
+    },
+    {
+      "action_name": "趁傳",
+      "batting_action_name": "捕",
+      "n": 5
+    },
+    {
+      "action_name": "趁傳",
+      "batting_action_name": "捕滾",
+      "n": 412
+    },
+    {
+      "action_name": "趁傳",
+      "batting_action_name": "捕飛",
+      "n": 6
+    },
+    {
+      "action_name": "趁傳",
+      "batting_action_name": "游滾",
+      "n": 10880
+    },
+    {
+      "action_name": "趁傳",
+      "batting_action_name": "游飛",
+      "n": 367
+    },
+    {
+      "action_name": "跑一壘時，在三呎區外遭傳球觸及",
+      "batting_action_name": "觸傳球",
+      "n": 11
+    },
+    {
+      "action_name": "跑離三呎線",
+      "batting_action_name": "三呎線",
+      "n": 28
+    },
+    {
+      "action_name": "違規被判出局",
+      "batting_action_name": "違規",
+      "n": 10
+    },
+    {
+      "action_name": "野手接球自踩壘包 一壘",
+      "batting_action_name": "一滾",
+      "n": 22569
+    },
+    {
+      "action_name": "野手接球自踩壘包 一壘",
+      "batting_action_name": "一飛",
+      "n": 18
+    },
+    {
+      "action_name": "野手接球自踩壘包 一壘",
+      "batting_action_name": "二滾",
+      "n": 26
+    },
+    {
+      "action_name": "野手接球自踩壘包 一壘",
+      "batting_action_name": "投滾",
+      "n": 322
+    },
+    {
+      "action_name": "野手接球自踩壘包 一壘",
+      "batting_action_name": "投飛",
+      "n": 3
+    },
+    {
+      "action_name": "野手接球自踩壘包 二壘",
+      "batting_action_name": "二滾",
+      "n": 4
+    },
+    {
+      "action_name": "野手接球觸殺",
+      "batting_action_name": "一滾",
+      "n": 519
+    },
+    {
+      "action_name": "野手接球觸殺",
+      "batting_action_name": "一飛",
+      "n": 4
+    },
+    {
+      "action_name": "野手接球觸殺",
+      "batting_action_name": "三滾",
+      "n": 330
+    },
+    {
+      "action_name": "野手接球觸殺",
+      "batting_action_name": "三飛",
+      "n": 16
+    },
+    {
+      "action_name": "野手接球觸殺",
+      "batting_action_name": "二滾",
+      "n": 53
+    },
+    {
+      "action_name": "野手接球觸殺",
+      "batting_action_name": "二飛",
+      "n": 3
+    },
+    {
+      "action_name": "野手接球觸殺",
+      "batting_action_name": "投滾",
+      "n": 278
+    },
+    {
+      "action_name": "野手接球觸殺",
+      "batting_action_name": "捕滾",
+      "n": 56
+    },
+    {
+      "action_name": "野手接球觸殺",
+      "batting_action_name": "游滾",
+      "n": 441
+    },
+    {
+      "action_name": "野手接球觸殺",
+      "batting_action_name": "游飛",
+      "n": 16
+    },
+    {
+      "action_name": "野手選擇",
+      "batting_action_name": "野選",
+      "n": 850
+    },
+    {
+      "action_name": "雙殺打 刺殺",
+      "batting_action_name": "雙殺",
+      "n": 21747
+    },
+    {
+      "action_name": "雙殺打 妨礙守備",
+      "batting_action_name": "雙礙守",
+      "n": 18
+    },
+    {
+      "action_name": "雙殺打 野手接球自踩壘包",
+      "batting_action_name": "雙殺",
+      "n": 748
+    },
+    {
+      "action_name": "雙殺打 野手接球觸殺",
+      "batting_action_name": "雙殺",
+      "n": 23
+    },
+    {
+      "action_name": "雙殺打上壘-失誤",
+      "batting_action_name": "雙誤",
+      "n": 54
+    },
+    {
+      "action_name": "雙殺打上壘-趁傳",
+      "batting_action_name": "雙殺",
+      "n": 66
+    },
+    {
+      "action_name": "飛球接殺",
+      "batting_action_name": "一飛",
+      "n": 7692
+    },
+    {
+      "action_name": "飛球接殺",
+      "batting_action_name": "三飛",
+      "n": 9596
+    },
+    {
+      "action_name": "飛球接殺",
+      "batting_action_name": "中飛",
+      "n": 74836
+    },
+    {
+      "action_name": "飛球接殺",
+      "batting_action_name": "二飛",
+      "n": 19748
+    },
+    {
+      "action_name": "飛球接殺",
+      "batting_action_name": "右飛",
+      "n": 59605
+    },
+    {
+      "action_name": "飛球接殺",
+      "batting_action_name": "左飛",
+      "n": 58558
+    },
+    {
+      "action_name": "飛球接殺",
+      "batting_action_name": "投飛",
+      "n": 1720
+    },
+    {
+      "action_name": "飛球接殺",
+      "batting_action_name": "捕飛",
+      "n": 692
+    },
+    {
+      "action_name": "飛球接殺",
+      "batting_action_name": "游飛",
+      "n": 21279
+    },
+    {
+      "action_name": "飛球接殺",
+      "batting_action_name": "飛",
+      "n": 3
+    }
+  ],
+  "special_case_pa_counts": [
+    {
+      "result_action": "不死三振 暴投",
+      "outcome_family": "uncaught_third_strike",
+      "state": "ready",
+      "n": 162
+    },
+    {
+      "result_action": "妨礙守備",
+      "outcome_family": "out",
+      "state": "ready",
+      "n": 35
+    },
+    {
+      "result_action": "妨礙打擊",
+      "outcome_family": "interference",
+      "state": "ready",
+      "n": 29
+    },
+    {
+      "result_action": "不死三振 捕逸",
+      "outcome_family": "uncaught_third_strike",
+      "state": "ready",
+      "n": 28
+    },
+    {
+      "result_action": "不死三振 趁傳",
+      "outcome_family": "uncaught_third_strike",
+      "state": "ready",
+      "n": 19
+    },
+    {
+      "result_action": "不死三振 捕手傳一壘傳球失誤",
+      "outcome_family": "uncaught_third_strike",
+      "state": "ready",
+      "n": 16
+    },
+    {
+      "result_action": "雙殺打 妨礙守備",
+      "outcome_family": "out",
+      "state": "ready",
+      "n": 5
+    },
+    {
+      "result_action": "三振/妨礙",
+      "outcome_family": "out",
+      "state": "ready",
+      "n": 2
+    },
+    {
+      "result_action": "不死三振 捕手傳一壘接球失誤",
+      "outcome_family": "uncaught_third_strike",
+      "state": "ready",
+      "n": 1
+    }
+  ],
+  "content_pattern_frequency": {
+    "不死三振": {
+      "n": 225,
+      "games": 214,
+      "y0": 2018,
+      "y1": 2026
+    },
+    "妨礙打擊": {
+      "n": 29,
+      "games": 29,
+      "y0": 2018,
+      "y1": 2026
+    },
+    "妨害打擊": {
+      "n": 0,
+      "games": 0,
+      "y0": null,
+      "y1": null
+    },
+    "捕手妨礙": {
+      "n": 0,
+      "games": 0,
+      "y0": null,
+      "y1": null
+    },
+    "妨礙守備": {
+      "n": 68,
+      "games": 67,
+      "y0": 2018,
+      "y1": 2026
+    },
+    "妨害守備": {
+      "n": 0,
+      "games": 0,
+      "y0": null,
+      "y1": null
+    },
+    "妨礙跑壘": {
+      "n": 10,
+      "games": 10,
+      "y0": 2020,
+      "y1": 2026
+    },
+    "妨害跑壘": {
+      "n": 0,
+      "games": 0,
+      "y0": null,
+      "y1": null
+    },
+    "阻擋": {
+      "n": 0,
+      "games": 0,
+      "y0": null,
+      "y1": null
+    },
+    "Obstruction": {
+      "n": 0,
+      "games": 0,
+      "y0": null,
+      "y1": null
+    },
+    "Interference": {
+      "n": 0,
+      "games": 0,
+      "y0": null,
+      "y1": null
+    },
+    "違規": {
+      "n": 5,
+      "games": 5,
+      "y0": 2018,
+      "y1": 2026
+    },
+    "促請裁決": {
+      "n": 11,
+      "games": 11,
+      "y0": 2018,
+      "y1": 2026
+    },
+    "打序錯誤": {
+      "n": 2,
+      "games": 2,
+      "y0": 2018,
+      "y1": 2019
+    }
+  },
+  "uncaught_third_strike_total": 226,
+  "uncaught_third_strike_by_action": {
+    "不死三振 暴投": 162,
+    "不死三振 捕逸": 28,
+    "不死三振 捕手傳一壘傳球失誤": 16,
+    "不死三振 趁傳": 19,
+    "不死三振 捕手傳一壘接球失誤": 1
+  },
+  "uncaught_third_strike_samples": [
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 18,
+      "pa_index": 2,
+      "result_action": "不死三振 暴投",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "1",
+        "outs": 2,
+        "bases": [],
+        "inning": 1,
+        "away_score": 0,
+        "home_score": 0
+      },
+      "post_state": {
+        "half": "1",
+        "outs": 2,
+        "bases": [],
+        "inning": 1,
+        "away_score": 0,
+        "home_score": 0
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 32,
+      "pa_index": 19,
+      "result_action": "不死三振 暴投",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "2",
+        "outs": 1,
+        "bases": [],
+        "inning": 3,
+        "away_score": 0,
+        "home_score": 0
+      },
+      "post_state": {
+        "half": "2",
+        "outs": 1,
+        "bases": [],
+        "inning": 3,
+        "away_score": 0,
+        "home_score": 0
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 34,
+      "pa_index": 56,
+      "result_action": "不死三振 暴投",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "2",
+        "outs": 1,
+        "bases": [],
+        "inning": 7,
+        "away_score": 3,
+        "home_score": 3
+      },
+      "post_state": {
+        "half": "2",
+        "outs": 1,
+        "bases": [],
+        "inning": 7,
+        "away_score": 3,
+        "home_score": 3
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 58,
+      "pa_index": 60,
+      "result_action": "不死三振 暴投",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "2",
+        "outs": 0,
+        "bases": [],
+        "inning": 8,
+        "away_score": 3,
+        "home_score": 4
+      },
+      "post_state": {
+        "half": "2",
+        "outs": 0,
+        "bases": [],
+        "inning": 8,
+        "away_score": 3,
+        "home_score": 4
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 88,
+      "pa_index": 43,
+      "result_action": "不死三振 暴投",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "2",
+        "outs": 1,
+        "bases": [],
+        "inning": 5,
+        "away_score": 0,
+        "home_score": 7
+      },
+      "post_state": {
+        "half": "2",
+        "outs": 1,
+        "bases": [],
+        "inning": 5,
+        "away_score": 0,
+        "home_score": 7
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 89,
+      "pa_index": 13,
+      "result_action": "不死三振 暴投",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "2",
+        "outs": 1,
+        "bases": [],
+        "inning": 2,
+        "away_score": 1,
+        "home_score": 0
+      },
+      "post_state": {
+        "half": "2",
+        "outs": 1,
+        "bases": [],
+        "inning": 2,
+        "away_score": 1,
+        "home_score": 0
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 91,
+      "pa_index": 4,
+      "result_action": "不死三振 暴投",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "2",
+        "outs": 0,
+        "bases": [],
+        "inning": 1,
+        "away_score": 0,
+        "home_score": 0
+      },
+      "post_state": {
+        "half": "2",
+        "outs": 0,
+        "bases": [],
+        "inning": 1,
+        "away_score": 0,
+        "home_score": 0
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 94,
+      "pa_index": 76,
+      "result_action": "不死三振 暴投",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "1",
+        "outs": 1,
+        "bases": [],
+        "inning": 9,
+        "away_score": 3,
+        "home_score": 9
+      },
+      "post_state": {
+        "half": "1",
+        "outs": 1,
+        "bases": [],
+        "inning": 9,
+        "away_score": 3,
+        "home_score": 9
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 101,
+      "pa_index": 76,
+      "result_action": "不死三振 暴投",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "1",
+        "outs": 2,
+        "bases": [],
+        "inning": 9,
+        "away_score": 4,
+        "home_score": 9
+      },
+      "post_state": {
+        "half": "1",
+        "outs": 2,
+        "bases": [],
+        "inning": 9,
+        "away_score": 4,
+        "home_score": 9
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 123,
+      "pa_index": 80,
+      "result_action": "不死三振 捕逸",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "1",
+        "outs": 0,
+        "bases": [
+          "2"
+        ],
+        "inning": 10,
+        "away_score": 3,
+        "home_score": 3
+      },
+      "post_state": {
+        "half": "1",
+        "outs": 0,
+        "bases": [
+          "2"
+        ],
+        "inning": 10,
+        "away_score": 3,
+        "home_score": 3
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 149,
+      "pa_index": 50,
+      "result_action": "不死三振 暴投",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "2",
+        "outs": 0,
+        "bases": [],
+        "inning": 7,
+        "away_score": 2,
+        "home_score": 0
+      },
+      "post_state": {
+        "half": "2",
+        "outs": 0,
+        "bases": [],
+        "inning": 7,
+        "away_score": 2,
+        "home_score": 0
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 150,
+      "pa_index": 8,
+      "result_action": "不死三振 捕逸",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "2",
+        "outs": 2,
+        "bases": [
+          "1",
+          "3"
+        ],
+        "inning": 1,
+        "away_score": 0,
+        "home_score": 0
+      },
+      "post_state": {
+        "half": "2",
+        "outs": 2,
+        "bases": [
+          "1",
+          "3"
+        ],
+        "inning": 1,
+        "away_score": 0,
+        "home_score": 1
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 165,
+      "pa_index": 11,
+      "result_action": "不死三振 暴投",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "1",
+        "outs": 1,
+        "bases": [],
+        "inning": 2,
+        "away_score": 2,
+        "home_score": 0
+      },
+      "post_state": {
+        "half": "1",
+        "outs": 1,
+        "bases": [],
+        "inning": 2,
+        "away_score": 2,
+        "home_score": 0
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 183,
+      "pa_index": 19,
+      "result_action": "不死三振 暴投",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "2",
+        "outs": 1,
+        "bases": [],
+        "inning": 2,
+        "away_score": 1,
+        "home_score": 2
+      },
+      "post_state": {
+        "half": "2",
+        "outs": 1,
+        "bases": [],
+        "inning": 2,
+        "away_score": 1,
+        "home_score": 2
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 211,
+      "pa_index": 69,
+      "result_action": "不死三振 暴投",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "1",
+        "outs": 2,
+        "bases": [
+          "1"
+        ],
+        "inning": 9,
+        "away_score": 6,
+        "home_score": 1
+      },
+      "post_state": {
+        "half": "1",
+        "outs": 2,
+        "bases": [
+          "1"
+        ],
+        "inning": 9,
+        "away_score": 6,
+        "home_score": 1
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 224,
+      "pa_index": 48,
+      "result_action": "不死三振 暴投",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "2",
+        "outs": 2,
+        "bases": [
+          "1"
+        ],
+        "inning": 6,
+        "away_score": 0,
+        "home_score": 4
+      },
+      "post_state": {
+        "half": "2",
+        "outs": 2,
+        "bases": [
+          "2"
+        ],
+        "inning": 6,
+        "away_score": 0,
+        "home_score": 4
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "game_sno": 21,
+      "pa_index": 43,
+      "result_action": "不死三振 暴投",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "2",
+        "outs": 2,
+        "bases": [],
+        "inning": 5,
+        "away_score": 6,
+        "home_score": 0
+      },
+      "post_state": {
+        "half": "2",
+        "outs": 2,
+        "bases": [],
+        "inning": 5,
+        "away_score": 6,
+        "home_score": 0
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "game_sno": 29,
+      "pa_index": 48,
+      "result_action": "不死三振 捕逸",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "2",
+        "outs": 0,
+        "bases": [],
+        "inning": 6,
+        "away_score": 1,
+        "home_score": 3
+      },
+      "post_state": {
+        "half": "2",
+        "outs": 0,
+        "bases": [],
+        "inning": 6,
+        "away_score": 1,
+        "home_score": 3
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "game_sno": 43,
+      "pa_index": 43,
+      "result_action": "不死三振 捕手傳一壘傳球失誤",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "1",
+        "outs": 0,
+        "bases": [
+          "2"
+        ],
+        "inning": 5,
+        "away_score": 2,
+        "home_score": 5
+      },
+      "post_state": {
+        "half": "1",
+        "outs": 0,
+        "bases": [
+          "2"
+        ],
+        "inning": 5,
+        "away_score": 3,
+        "home_score": 5
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "game_sno": 45,
+      "pa_index": 7,
+      "result_action": "不死三振 捕逸",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "2",
+        "outs": 0,
+        "bases": [
+          "2"
+        ],
+        "inning": 1,
+        "away_score": 0,
+        "home_score": 1
+      },
+      "post_state": {
+        "half": "2",
+        "outs": 0,
+        "bases": [
+          "2"
+        ],
+        "inning": 1,
+        "away_score": 0,
+        "home_score": 1
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "game_sno": 57,
+      "pa_index": 52,
+      "result_action": "不死三振 暴投",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "2",
+        "outs": 1,
+        "bases": [],
+        "inning": 7,
+        "away_score": 2,
+        "home_score": 2
+      },
+      "post_state": {
+        "half": "2",
+        "outs": 1,
+        "bases": [],
+        "inning": 7,
+        "away_score": 2,
+        "home_score": 2
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "game_sno": 62,
+      "pa_index": 5,
+      "result_action": "不死三振 暴投",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "2",
+        "outs": 1,
+        "bases": [],
+        "inning": 1,
+        "away_score": 0,
+        "home_score": 0
+      },
+      "post_state": {
+        "half": "2",
+        "outs": 1,
+        "bases": [],
+        "inning": 1,
+        "away_score": 0,
+        "home_score": 0
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "game_sno": 67,
+      "pa_index": 56,
+      "result_action": "不死三振 暴投",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "1",
+        "outs": 0,
+        "bases": [],
+        "inning": 8,
+        "away_score": 0,
+        "home_score": 4
+      },
+      "post_state": {
+        "half": "1",
+        "outs": 0,
+        "bases": [],
+        "inning": 8,
+        "away_score": 0,
+        "home_score": 4
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "game_sno": 124,
+      "pa_index": 65,
+      "result_action": "不死三振 暴投",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "2",
+        "outs": 2,
+        "bases": [
+          "2",
+          "3"
+        ],
+        "inning": 8,
+        "away_score": 1,
+        "home_score": 7
+      },
+      "post_state": {
+        "half": "2",
+        "outs": 2,
+        "bases": [
+          "2",
+          "3"
+        ],
+        "inning": 8,
+        "away_score": 1,
+        "home_score": 9
+      }
+    },
+    {
+      "year": 2018,
+      "kind_code": "E",
+      "game_sno": 4,
+      "pa_index": 87,
+      "result_action": "不死三振 暴投",
+      "outcome_family": "uncaught_third_strike",
+      "pre_state": {
+        "half": "2",
+        "outs": 1,
+        "bases": [],
+        "inning": 9,
+        "away_score": 9,
+        "home_score": 7
+      },
+      "post_state": {
+        "half": "2",
+        "outs": 1,
+        "bases": [],
+        "inning": 9,
+        "away_score": 9,
+        "home_score": 7
+      }
+    }
+  ],
+  "interference_rows_total": 248,
+  "interference_rows_by_abbrev": {
+    "礙打": 119,
+    "礙守": 111,
+    "雙礙守": 18
+  },
+  "interference_samples": [
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 76,
+      "main_event_no": "0610014000",
+      "hitter_acnt": "0000000161",
+      "action_name": "妨礙打擊",
+      "batting_action_name": "礙打",
+      "content": "好球沒揮棒。"
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 76,
+      "main_event_no": "0610015000",
+      "hitter_acnt": "0000000161",
+      "action_name": "妨礙打擊",
+      "batting_action_name": "礙打",
+      "content": "擊出內野平飛球，妨礙打擊上壘。 一壘跑者林智平 上二壘。 二壘跑者朱育賢 上三壘。"
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 93,
+      "main_event_no": "0120024000",
+      "hitter_acnt": "0000003533",
+      "action_name": "妨礙守備",
+      "batting_action_name": "礙守",
+      "content": "壞球。"
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 93,
+      "main_event_no": "0120025000",
+      "hitter_acnt": "0000003533",
+      "action_name": "妨礙守備",
+      "batting_action_name": "礙守",
+      "content": "擊出內野高飛球， 打者出局-妨礙守備出局。 3人出局。 一壘跑者廖健富 上二壘。一、二壘殘壘。\r\n"
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 97,
+      "main_event_no": "0310016000",
+      "hitter_acnt": "0000002707",
+      "action_name": "妨礙守備",
+      "batting_action_name": "礙守",
+      "content": "壞球。"
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 97,
+      "main_event_no": "0310017000",
+      "hitter_acnt": "0000002707",
+      "action_name": "妨礙守備",
+      "batting_action_name": "礙守",
+      "content": "揮棒落空。"
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 97,
+      "main_event_no": "0310018000",
+      "hitter_acnt": "0000002707",
+      "action_name": "妨礙守備",
+      "batting_action_name": "礙守",
+      "content": "壞球。 打者出局-妨礙守備出局。 2人出局。"
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 105,
+      "main_event_no": "0110029000",
+      "hitter_acnt": "0000003551",
+      "action_name": "妨礙打擊",
+      "batting_action_name": "礙打",
+      "content": "擊出界外球。"
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 105,
+      "main_event_no": "0110030000",
+      "hitter_acnt": "0000003551",
+      "action_name": "妨礙打擊",
+      "batting_action_name": "礙打",
+      "content": "壞球。"
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 105,
+      "main_event_no": "0110031000",
+      "hitter_acnt": "0000003551",
+      "action_name": "妨礙打擊",
+      "batting_action_name": "礙打",
+      "content": "揮棒落空。"
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 105,
+      "main_event_no": "0110032000",
+      "hitter_acnt": "0000003551",
+      "action_name": "妨礙打擊",
+      "batting_action_name": "礙打",
+      "content": "壞球。"
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 105,
+      "main_event_no": "0110033000",
+      "hitter_acnt": "0000003551",
+      "action_name": "妨礙打擊",
+      "batting_action_name": "礙打",
+      "content": "妨礙打擊上壘。"
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 125,
+      "main_event_no": "0120016000",
+      "hitter_acnt": "0000003533",
+      "action_name": "妨礙守備",
+      "batting_action_name": "礙守",
+      "content": "揮棒落空。 打者出局-妨礙守備出局。 3人出局。一壘殘壘。\r\n"
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 164,
+      "main_event_no": "0320017000",
+      "hitter_acnt": "0000001754",
+      "action_name": "妨礙打擊",
+      "batting_action_name": "礙打",
+      "content": "好球沒揮棒。"
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 164,
+      "main_event_no": "0320018000",
+      "hitter_acnt": "0000001754",
+      "action_name": "妨礙打擊",
+      "batting_action_name": "礙打",
+      "content": "擊出界外球。"
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 164,
+      "main_event_no": "0320019000",
+      "hitter_acnt": "0000001754",
+      "action_name": "妨礙打擊",
+      "batting_action_name": "礙打",
+      "content": "壞球。"
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 164,
+      "main_event_no": "0320020000",
+      "hitter_acnt": "0000001754",
+      "action_name": "妨礙打擊",
+      "batting_action_name": "礙打",
+      "content": "擊出界外球。妨礙打擊上壘。 一壘跑者詹子賢 上二壘。 二壘跑者周思齊 上三壘。"
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 192,
+      "main_event_no": "0110013000",
+      "hitter_acnt": "0000003337",
+      "action_name": "妨礙守備",
+      "batting_action_name": "礙守",
+      "content": "壞球。"
+    },
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 192,
+      "main_event_no": "0110014000",
+      "hitter_acnt": "0000003337",
+      "action_name": "妨礙守備",
+      "batting_action_name": "礙守",
+      "content": "揮棒落空。 打者出局-妨礙守備出局。 3人出局。一壘殘壘。\r\n"
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "game_sno": 35,
+      "main_event_no": "0710010000",
+      "hitter_acnt": "0000003517",
+      "action_name": "妨礙打擊",
+      "batting_action_name": "礙打",
+      "content": "擊出界外球。妨礙打擊上壘。 一壘跑者吳國豪 上二壘。"
+    },
+    {
+      "year": 2019,
+      "kind_code": "A",
+      "game_sno": 112,
+      "main_event_no": "0510032000",
+      "hitter_acnt": "0000001409",
+      "action_name": "妨礙打擊",
+      "batting_action_name": "礙打",
+      "content": "揮棒落空。"
+    },
+    {
+      "year": 2019,
+      "kind_code": "A",
+      "game_sno": 112,
+      "main_event_no": "0510033000",
+      "hitter_acnt": "0000001409",
+      "action_name": "妨礙打擊",
+      "batting_action_name": "礙打",
+      "content": "擊出界外球。"
+    },
+    {
+      "year": 2019,
+      "kind_code": "A",
+      "game_sno": 112,
+      "main_event_no": "0510034000",
+      "hitter_acnt": "0000001409",
+      "action_name": "妨礙打擊",
+      "batting_action_name": "礙打",
+      "content": "壞球。妨礙打擊上壘。 一壘跑者周思齊 上二壘。 二壘跑者王威晨 上三壘。"
+    },
+    {
+      "year": 2019,
+      "kind_code": "A",
+      "game_sno": 148,
+      "main_event_no": "0520006000",
+      "hitter_acnt": "0000000153",
+      "action_name": "妨礙守備",
+      "batting_action_name": "礙守",
+      "content": "壞球。"
+    },
+    {
+      "year": 2019,
+      "kind_code": "A",
+      "game_sno": 148,
+      "main_event_no": "0520007000",
+      "hitter_acnt": "0000000153",
+      "action_name": "妨礙守備",
+      "batting_action_name": "礙守",
+      "content": "擊出球(觸擊)， 打者出局-妨礙守備出局。 1人出局。"
+    }
+  ],
+  "splits_mapping_special": {
+    "不死三振": {
+      "pa": 1,
+      "ab": 1,
+      "so": 1
+    },
+    "礙打": {
+      "pa": 1
+    },
+    "礙守": {
+      "pa": 1,
+      "ab": 1,
+      "go": 1
+    },
+    "雙礙守": {
+      "pa": 1,
+      "ab": 1,
+      "go": 1
+    },
+    "違規": {
+      "pa": 1,
+      "ab": 1
+    },
+    "裁決": {
+      "pa": 1,
+      "ab": 1
+    },
+    "三振": {
+      "pa": 1,
+      "ab": 1,
+      "so": 1
+    },
+    "犧短": {
+      "pa": 1,
+      "sh": 1,
+      "go": 1
+    },
+    "犧短誤": {
+      "pa": 1,
+      "sh": 1,
+      "go": 1
+    },
+    "犧選": {
+      "pa": 1,
+      "sh": 1,
+      "go": 1
+    },
+    "犧飛": {
+      "pa": 1,
+      "sf": 1,
+      "fo": 1
+    },
+    "界犧飛": {
+      "pa": 1,
+      "sf": 1,
+      "fo": 1
+    }
+  },
+  "splits_mapping_all_keys": [
+    "一失",
+    "一安",
+    "一滾",
+    "一飛",
+    "三呎線",
+    "三失",
+    "三安",
+    "三振",
+    "三殺",
+    "三滾",
+    "三飛",
+    "不死三振",
+    "中失",
+    "中滾",
+    "中飛",
+    "二失",
+    "二安",
+    "二滾",
+    "二飛",
+    "內二",
+    "內全",
+    "內安",
+    "內飛",
+    "全打",
+    "右失",
+    "右滾",
+    "右飛",
+    "四壞",
+    "場三",
+    "場二",
+    "場安",
+    "失",
+    "左失",
+    "左滾",
+    "左飛",
+    "投",
+    "投失",
+    "投滾",
+    "投飛",
+    "捕",
+    "捕失",
+    "捕滾",
+    "捕滾飛",
+    "捕飛",
+    "故四",
+    "死球",
+    "游失",
+    "游滾",
+    "游飛",
+    "犧短",
+    "犧短誤",
+    "犧選",
+    "犧飛",
+    "犧飛誤",
+    "界犧飛",
+    "界飛",
+    "礙守",
+    "礙打",
+    "裁決",
+    "觸傳球",
+    "觸球",
+    "違規",
+    "野選",
+    "雙殺",
+    "雙礙守",
+    "雙誤",
+    "飛"
+  ],
+  "observed_batting_action_names": [
+    "一失",
+    "一安",
+    "一滾",
+    "一飛",
+    "三呎線",
+    "三失",
+    "三安",
+    "三振",
+    "三殺",
+    "三滾",
+    "三飛",
+    "不死三振",
+    "中失",
+    "中滾",
+    "中飛",
+    "二失",
+    "二安",
+    "二滾",
+    "二飛",
+    "內二",
+    "內全",
+    "內安",
+    "內飛",
+    "全打",
+    "右失",
+    "右滾",
+    "右飛",
+    "四壞",
+    "場三",
+    "場二",
+    "場安",
+    "失",
+    "左失",
+    "左滾",
+    "左飛",
+    "投",
+    "投失",
+    "投滾",
+    "投飛",
+    "捕",
+    "捕失",
+    "捕滾",
+    "捕飛",
+    "故四",
+    "死球",
+    "游失",
+    "游滾",
+    "游飛",
+    "犧短",
+    "犧短誤",
+    "犧選",
+    "犧飛",
+    "犧飛誤",
+    "界犧飛",
+    "界飛",
+    "礙守",
+    "礙打",
+    "裁決",
+    "觸傳球",
+    "觸球",
+    "違規",
+    "野選",
+    "雙殺",
+    "雙礙守",
+    "雙誤",
+    "飛"
+  ],
+  "unmapped_batting_action_names": []
+}
