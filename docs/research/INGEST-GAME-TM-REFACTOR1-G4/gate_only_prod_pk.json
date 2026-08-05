@@ -1,0 +1,740 @@
+{
+ "card": "INGEST-GAME-TM-REFACTOR1-G4",
+ "phase": "A",
+ "purpose": "第 1 輪查核 F1/F3 的需求方裁定落地判定（自既有 dry-run artifact 推導，未重抓）",
+ "generated_at": "2026-08-05T08:33:53.201584+08:00",
+ "derived_from": {
+  "dryrun_summary.json": "未修改（逐檔 sha256 見 manifest.json）",
+  "redline_attribution.json": "未修改",
+  "note": "本判定不重跑 dry-run，故查核者對 base artifact 的既有複驗繼續成立。"
+ },
+ "frozen_games": {
+  "list": [
+   "2026-D-180"
+  ],
+  "source": "需求方 2026-08-05 逐場核入（卡面紅線 1）；執行者不得自行擴充",
+  "enforcement": "cpbl_pitch_tracking._upsert 於唯一寫入口過濾 + scrape_game_pitches 跳過請求"
+ },
+ "redline1": {
+  "physical_cell_mismatches_total": 945,
+  "physical_cell_mismatches_frozen_excluded": 945,
+  "physical_cell_mismatches_in_scope": 0,
+  "verdict": "PASS",
+  "games_with_physical_mismatch_in_scope": [],
+  "frozen_games_detail": [
+   {
+    "game": "2026-D-180",
+    "physical_cells": 945,
+    "other_cells": 201,
+    "text_cells": 0
+   }
+  ]
+ },
+ "redline3_gate": {
+  "gate_definition": "未歸因 only_prod_pk = 0（需求方 2026-08-05 語意修訂）",
+  "total_rows": 43,
+  "by_attribution": {
+   "present_but_trackman_null": 42,
+   "absent_from_livelog": 1
+  },
+  "structural_categories": {
+   "present_but_trackman_null": "單場 API 有該事件但 Trackman=null（兩端點 TrackMan 掛載範圍不同）",
+   "absent_from_livelog": "單場 API LiveLog 無該事件（官方事件集合差異）"
+  },
+  "unattributed_count": 0,
+  "unattributed_rows": [],
+  "verdict": "PASS",
+  "rows_present_in_pitch_tracking": "43/43",
+  "retention": "純 UPSERT 永久保留（本卡不授權任何 DELETE；較完整資料非缺陷）",
+  "rows": [
+   {
+    "year": 2026,
+    "kind_code": "A",
+    "game_sno": 141,
+    "pitcher_acnt": "0000005561",
+    "pitch_cnt": 14,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-141",
+    "fetched_at": "2026-08-05T07:54:12.839771+08:00",
+    "payload_sha256": "4a6f82d3b9e0e54b36c2b887a8fda541b14aa90e8e331b05c05bf52d03e4a0e6",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 7
+   },
+   {
+    "year": 2026,
+    "kind_code": "A",
+    "game_sno": 146,
+    "pitcher_acnt": "0000006555",
+    "pitch_cnt": 55,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-146",
+    "fetched_at": "2026-08-05T07:54:15.487430+08:00",
+    "payload_sha256": "15c01fcde161c89f85349d917982874ce97ff0f374257c6e857527d76966de80",
+    "attribution": "present_but_trackman_null",
+    "content": "擊出界外球。",
+    "inning_seq": 5
+   },
+   {
+    "year": 2026,
+    "kind_code": "A",
+    "game_sno": 146,
+    "pitcher_acnt": "0000006555",
+    "pitch_cnt": 56,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-146",
+    "fetched_at": "2026-08-05T07:54:15.487430+08:00",
+    "payload_sha256": "15c01fcde161c89f85349d917982874ce97ff0f374257c6e857527d76966de80",
+    "attribution": "present_but_trackman_null",
+    "content": "擊出界外球。",
+    "inning_seq": 5
+   },
+   {
+    "year": 2026,
+    "kind_code": "A",
+    "game_sno": 146,
+    "pitcher_acnt": "0000006555",
+    "pitch_cnt": 57,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-146",
+    "fetched_at": "2026-08-05T07:54:15.487430+08:00",
+    "payload_sha256": "15c01fcde161c89f85349d917982874ce97ff0f374257c6e857527d76966de80",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 5
+   },
+   {
+    "year": 2026,
+    "kind_code": "A",
+    "game_sno": 146,
+    "pitcher_acnt": "0000006555",
+    "pitch_cnt": 58,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-146",
+    "fetched_at": "2026-08-05T07:54:15.487430+08:00",
+    "payload_sha256": "15c01fcde161c89f85349d917982874ce97ff0f374257c6e857527d76966de80",
+    "attribution": "present_but_trackman_null",
+    "content": "揮棒落空。 打者出局-三振出局。 1人出局。",
+    "inning_seq": 5
+   },
+   {
+    "year": 2026,
+    "kind_code": "A",
+    "game_sno": 146,
+    "pitcher_acnt": "0000006833",
+    "pitch_cnt": 1,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-146",
+    "fetched_at": "2026-08-05T07:54:15.487430+08:00",
+    "payload_sha256": "15c01fcde161c89f85349d917982874ce97ff0f374257c6e857527d76966de80",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 5
+   },
+   {
+    "year": 2026,
+    "kind_code": "A",
+    "game_sno": 146,
+    "pitcher_acnt": "0000006833",
+    "pitch_cnt": 3,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-146",
+    "fetched_at": "2026-08-05T07:54:15.487430+08:00",
+    "payload_sha256": "15c01fcde161c89f85349d917982874ce97ff0f374257c6e857527d76966de80",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 5
+   },
+   {
+    "year": 2026,
+    "kind_code": "A",
+    "game_sno": 146,
+    "pitcher_acnt": "0000006833",
+    "pitch_cnt": 4,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-146",
+    "fetched_at": "2026-08-05T07:54:15.487430+08:00",
+    "payload_sha256": "15c01fcde161c89f85349d917982874ce97ff0f374257c6e857527d76966de80",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 5
+   },
+   {
+    "year": 2026,
+    "kind_code": "A",
+    "game_sno": 146,
+    "pitcher_acnt": "0000006833",
+    "pitch_cnt": 6,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-146",
+    "fetched_at": "2026-08-05T07:54:15.487430+08:00",
+    "payload_sha256": "15c01fcde161c89f85349d917982874ce97ff0f374257c6e857527d76966de80",
+    "attribution": "present_but_trackman_null",
+    "content": "擊出界外球。",
+    "inning_seq": 5
+   },
+   {
+    "year": 2026,
+    "kind_code": "A",
+    "game_sno": 155,
+    "pitcher_acnt": "0000006848",
+    "pitch_cnt": 64,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-155",
+    "fetched_at": "2026-08-05T07:54:21.050004+08:00",
+    "payload_sha256": "005441a1c457bc1e7bdb72cd4e94ae393b8a0e3fd732c7f8894ed1b105505b79",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 4
+   },
+   {
+    "year": 2026,
+    "kind_code": "A",
+    "game_sno": 157,
+    "pitcher_acnt": "0000007779",
+    "pitch_cnt": 56,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-157",
+    "fetched_at": "2026-08-05T07:54:22.178790+08:00",
+    "payload_sha256": "9b0e48b63d4f73ef42988ac89fe4669a9250f6e5025de4140b84fb29df341c5c",
+    "attribution": "present_but_trackman_null",
+    "content": "裁定壞球-投手。",
+    "inning_seq": 5
+   },
+   {
+    "year": 2026,
+    "kind_code": "A",
+    "game_sno": 157,
+    "pitcher_acnt": "0000007779",
+    "pitch_cnt": 92,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-157",
+    "fetched_at": "2026-08-05T07:54:22.178790+08:00",
+    "payload_sha256": "9b0e48b63d4f73ef42988ac89fe4669a9250f6e5025de4140b84fb29df341c5c",
+    "attribution": "absent_from_livelog",
+    "content": null,
+    "inning_seq": null
+   },
+   {
+    "year": 2026,
+    "kind_code": "A",
+    "game_sno": 158,
+    "pitcher_acnt": "0000000998",
+    "pitch_cnt": 18,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-158",
+    "fetched_at": "2026-08-05T07:54:22.724192+08:00",
+    "payload_sha256": "5495a6812c26cabc9652cbaeb732aae897af1bd4dd89cd945da8f6acd6fa2371",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 7
+   },
+   {
+    "year": 2026,
+    "kind_code": "A",
+    "game_sno": 158,
+    "pitcher_acnt": "0000000998",
+    "pitch_cnt": 19,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-158",
+    "fetched_at": "2026-08-05T07:54:22.724192+08:00",
+    "payload_sha256": "5495a6812c26cabc9652cbaeb732aae897af1bd4dd89cd945da8f6acd6fa2371",
+    "attribution": "present_but_trackman_null",
+    "content": "擊出界外球。",
+    "inning_seq": 7
+   },
+   {
+    "year": 2026,
+    "kind_code": "A",
+    "game_sno": 158,
+    "pitcher_acnt": "0000000998",
+    "pitch_cnt": 20,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-158",
+    "fetched_at": "2026-08-05T07:54:22.724192+08:00",
+    "payload_sha256": "5495a6812c26cabc9652cbaeb732aae897af1bd4dd89cd945da8f6acd6fa2371",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 7
+   },
+   {
+    "year": 2026,
+    "kind_code": "A",
+    "game_sno": 158,
+    "pitcher_acnt": "0000000998",
+    "pitch_cnt": 21,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-158",
+    "fetched_at": "2026-08-05T07:54:22.724192+08:00",
+    "payload_sha256": "5495a6812c26cabc9652cbaeb732aae897af1bd4dd89cd945da8f6acd6fa2371",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 7
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 100,
+    "pitcher_acnt": "0000006860",
+    "pitch_cnt": 32,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-100",
+    "fetched_at": "2026-08-05T07:56:01.611059+08:00",
+    "payload_sha256": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 3
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 100,
+    "pitcher_acnt": "0000006860",
+    "pitch_cnt": 36,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-100",
+    "fetched_at": "2026-08-05T07:56:01.611059+08:00",
+    "payload_sha256": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898",
+    "attribution": "present_but_trackman_null",
+    "content": "好球沒揮棒。",
+    "inning_seq": 3
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 100,
+    "pitcher_acnt": "0000007303",
+    "pitch_cnt": 12,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-100",
+    "fetched_at": "2026-08-05T07:56:01.611059+08:00",
+    "payload_sha256": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 2
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 100,
+    "pitcher_acnt": "0000007303",
+    "pitch_cnt": 13,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-100",
+    "fetched_at": "2026-08-05T07:56:01.611059+08:00",
+    "payload_sha256": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 2
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 100,
+    "pitcher_acnt": "0000007303",
+    "pitch_cnt": 14,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-100",
+    "fetched_at": "2026-08-05T07:56:01.611059+08:00",
+    "payload_sha256": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 2
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 100,
+    "pitcher_acnt": "0000007303",
+    "pitch_cnt": 15,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-100",
+    "fetched_at": "2026-08-05T07:56:01.611059+08:00",
+    "payload_sha256": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898",
+    "attribution": "present_but_trackman_null",
+    "content": "好球沒揮棒。",
+    "inning_seq": 2
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 100,
+    "pitcher_acnt": "0000007303",
+    "pitch_cnt": 30,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-100",
+    "fetched_at": "2026-08-05T07:56:01.611059+08:00",
+    "payload_sha256": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。四壞球上壘。 一壘跑者*呂承諺 上二壘。",
+    "inning_seq": 2
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 100,
+    "pitcher_acnt": "0000007303",
+    "pitch_cnt": 34,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-100",
+    "fetched_at": "2026-08-05T07:56:01.611059+08:00",
+    "payload_sha256": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898",
+    "attribution": "present_but_trackman_null",
+    "content": "擊出中外野平飛球，一壘安打 。1分打點。 二壘跑者*呂承諺回本壘得分。 一壘跑者毛英傑 上二壘。 二壘跑者毛英傑-中外野手 傳 三壘手 傳 游擊手 傳 一壘手 觸殺出局 3人出局。一壘殘壘。\r\n",
+    "inning_seq": 2
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 100,
+    "pitcher_acnt": "0000007303",
+    "pitch_cnt": 66,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-100",
+    "fetched_at": "2026-08-05T07:56:01.611059+08:00",
+    "payload_sha256": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898",
+    "attribution": "present_but_trackman_null",
+    "content": "好球沒揮棒。",
+    "inning_seq": 5
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 100,
+    "pitcher_acnt": "0000007303",
+    "pitch_cnt": 68,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-100",
+    "fetched_at": "2026-08-05T07:56:01.611059+08:00",
+    "payload_sha256": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 5
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 124,
+    "pitcher_acnt": "0000002345",
+    "pitch_cnt": 27,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-124",
+    "fetched_at": "2026-08-05T07:56:09.733453+08:00",
+    "payload_sha256": "4c88ffffc413e6834398c323b11063f31bf47c14cade0c3801e071764f60a248",
+    "attribution": "present_but_trackman_null",
+    "content": "好球沒揮棒。",
+    "inning_seq": 3
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 124,
+    "pitcher_acnt": "0000002345",
+    "pitch_cnt": 28,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-124",
+    "fetched_at": "2026-08-05T07:56:09.733453+08:00",
+    "payload_sha256": "4c88ffffc413e6834398c323b11063f31bf47c14cade0c3801e071764f60a248",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 3
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 124,
+    "pitcher_acnt": "0000002345",
+    "pitch_cnt": 29,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-124",
+    "fetched_at": "2026-08-05T07:56:09.733453+08:00",
+    "payload_sha256": "4c88ffffc413e6834398c323b11063f31bf47c14cade0c3801e071764f60a248",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 3
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 124,
+    "pitcher_acnt": "0000002345",
+    "pitch_cnt": 30,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-124",
+    "fetched_at": "2026-08-05T07:56:09.733453+08:00",
+    "payload_sha256": "4c88ffffc413e6834398c323b11063f31bf47c14cade0c3801e071764f60a248",
+    "attribution": "present_but_trackman_null",
+    "content": "擊出界外球。",
+    "inning_seq": 3
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 124,
+    "pitcher_acnt": "0000002345",
+    "pitch_cnt": 31,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-124",
+    "fetched_at": "2026-08-05T07:56:09.733453+08:00",
+    "payload_sha256": "4c88ffffc413e6834398c323b11063f31bf47c14cade0c3801e071764f60a248",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 3
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 124,
+    "pitcher_acnt": "0000002345",
+    "pitch_cnt": 33,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-124",
+    "fetched_at": "2026-08-05T07:56:09.733453+08:00",
+    "payload_sha256": "4c88ffffc413e6834398c323b11063f31bf47c14cade0c3801e071764f60a248",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 3
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 124,
+    "pitcher_acnt": "0000007626",
+    "pitch_cnt": 11,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-124",
+    "fetched_at": "2026-08-05T07:56:09.733453+08:00",
+    "payload_sha256": "4c88ffffc413e6834398c323b11063f31bf47c14cade0c3801e071764f60a248",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 4
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 137,
+    "pitcher_acnt": "0000003608",
+    "pitch_cnt": 7,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-137",
+    "fetched_at": "2026-08-05T07:56:15.176029+08:00",
+    "payload_sha256": "dae70c35b1877b51365c7b2aeaa25b4acc0b8d0554068fa4edb0f18de57209af",
+    "attribution": "present_but_trackman_null",
+    "content": "好球沒揮棒。",
+    "inning_seq": 1
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 180,
+    "pitcher_acnt": "0000001260",
+    "pitch_cnt": 12,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-180",
+    "fetched_at": "2026-08-05T07:56:34.298690+08:00",
+    "payload_sha256": "d3ee5ffa74ed573b2e5d73eef96b5251f998b3a1e7e0460d944ad70a763cfbf8",
+    "attribution": "present_but_trackman_null",
+    "content": "好球沒揮棒。",
+    "inning_seq": 2
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 180,
+    "pitcher_acnt": "0000001260",
+    "pitch_cnt": 13,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-180",
+    "fetched_at": "2026-08-05T07:56:34.298690+08:00",
+    "payload_sha256": "d3ee5ffa74ed573b2e5d73eef96b5251f998b3a1e7e0460d944ad70a763cfbf8",
+    "attribution": "present_but_trackman_null",
+    "content": "擊出界外球。",
+    "inning_seq": 2
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 180,
+    "pitcher_acnt": "0000001260",
+    "pitch_cnt": 14,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-180",
+    "fetched_at": "2026-08-05T07:56:34.298690+08:00",
+    "payload_sha256": "d3ee5ffa74ed573b2e5d73eef96b5251f998b3a1e7e0460d944ad70a763cfbf8",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 2
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 180,
+    "pitcher_acnt": "0000001260",
+    "pitch_cnt": 15,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-180",
+    "fetched_at": "2026-08-05T07:56:34.298690+08:00",
+    "payload_sha256": "d3ee5ffa74ed573b2e5d73eef96b5251f998b3a1e7e0460d944ad70a763cfbf8",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 2
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 180,
+    "pitcher_acnt": "0000001260",
+    "pitch_cnt": 16,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-180",
+    "fetched_at": "2026-08-05T07:56:34.298690+08:00",
+    "payload_sha256": "d3ee5ffa74ed573b2e5d73eef96b5251f998b3a1e7e0460d944ad70a763cfbf8",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 2
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 180,
+    "pitcher_acnt": "0000001260",
+    "pitch_cnt": 17,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-180",
+    "fetched_at": "2026-08-05T07:56:34.298690+08:00",
+    "payload_sha256": "d3ee5ffa74ed573b2e5d73eef96b5251f998b3a1e7e0460d944ad70a763cfbf8",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。四壞球上壘。",
+    "inning_seq": 2
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 180,
+    "pitcher_acnt": "0000001260",
+    "pitch_cnt": 41,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-180",
+    "fetched_at": "2026-08-05T07:56:34.298690+08:00",
+    "payload_sha256": "d3ee5ffa74ed573b2e5d73eef96b5251f998b3a1e7e0460d944ad70a763cfbf8",
+    "attribution": "present_but_trackman_null",
+    "content": "壞球。",
+    "inning_seq": 4
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 180,
+    "pitcher_acnt": "0000001260",
+    "pitch_cnt": 42,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-180",
+    "fetched_at": "2026-08-05T07:56:34.298690+08:00",
+    "payload_sha256": "d3ee5ffa74ed573b2e5d73eef96b5251f998b3a1e7e0460d944ad70a763cfbf8",
+    "attribution": "present_but_trackman_null",
+    "content": "好球沒揮棒。",
+    "inning_seq": 4
+   },
+   {
+    "year": 2026,
+    "kind_code": "D",
+    "game_sno": 180,
+    "pitcher_acnt": "0000001260",
+    "pitch_cnt": 43,
+    "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-180",
+    "fetched_at": "2026-08-05T07:56:34.298690+08:00",
+    "payload_sha256": "d3ee5ffa74ed573b2e5d73eef96b5251f998b3a1e7e0460d944ad70a763cfbf8",
+    "attribution": "present_but_trackman_null",
+    "content": "擊出內野滾地球， 打者-游擊手  傳一壘手刺殺出局。 1人出局。",
+    "inning_seq": 4
+   }
+  ]
+ },
+ "pa_build_handoff": {
+  "why_it_matters": "pa_build 以 (pitcher_acnt, pitch_cnt) 把 pitch_tracking 逐球映射到 PA，orphan（無 PA 擁有的逐球）為 fail-closed 訊號；故 PK 集合變動會影響 reconciliation。",
+  "pk_stability_argument": [
+   "1. 寫入路徑無任何 DELETE（tests/test_refresh_pitch_ingest.py 有原始碼層斷言），故 PK 集合只增不減——除外的 43 列不會消失。",
+   "2. 除外列現況全數存在於正式表（見 rows_present_in_pitch_tracking）。",
+   "3. 受影響場次切換後的寫入效果逐場列出：凍結場完全不寫；其餘場 cell_mismatch=0 且 only_api_pk=0，UPSERT 為值相同的 no-op → pa_build 輸入位元不變。",
+   "4. 因此 reconciliation 不會被本次切換觸發（其比對對象 pa_id × PA fingerprint 的輸入未變）。"
+  ],
+  "all_games_no_op_or_frozen": true,
+  "per_game": [
+   {
+    "game": "2026-A-141",
+    "frozen": false,
+    "only_api_pk": 0,
+    "only_prod_pk": 1,
+    "cell_mismatch_total": 0,
+    "build_state": {
+     "state": "published",
+     "builder_version": "pa-build-1.3.0",
+     "taxonomy_version": "1.1.0"
+    },
+    "write_effect_after_cutover": "UPSERT 共同 PK 但逐格全等（cell_mismatch=0）且無新增列（only_api_pk=0） → 值不變、PK 集合不變，等同 no-op"
+   },
+   {
+    "game": "2026-A-146",
+    "frozen": false,
+    "only_api_pk": 0,
+    "only_prod_pk": 8,
+    "cell_mismatch_total": 0,
+    "build_state": {
+     "state": "published",
+     "builder_version": "pa-build-1.3.0",
+     "taxonomy_version": "1.1.0"
+    },
+    "write_effect_after_cutover": "UPSERT 共同 PK 但逐格全等（cell_mismatch=0）且無新增列（only_api_pk=0） → 值不變、PK 集合不變，等同 no-op"
+   },
+   {
+    "game": "2026-A-155",
+    "frozen": false,
+    "only_api_pk": 0,
+    "only_prod_pk": 1,
+    "cell_mismatch_total": 0,
+    "build_state": {
+     "state": "published",
+     "builder_version": "pa-build-1.3.0",
+     "taxonomy_version": "1.1.0"
+    },
+    "write_effect_after_cutover": "UPSERT 共同 PK 但逐格全等（cell_mismatch=0）且無新增列（only_api_pk=0） → 值不變、PK 集合不變，等同 no-op"
+   },
+   {
+    "game": "2026-A-157",
+    "frozen": false,
+    "only_api_pk": 0,
+    "only_prod_pk": 2,
+    "cell_mismatch_total": 0,
+    "build_state": {
+     "state": "published",
+     "builder_version": "pa-build-1.3.0",
+     "taxonomy_version": "1.1.0"
+    },
+    "write_effect_after_cutover": "UPSERT 共同 PK 但逐格全等（cell_mismatch=0）且無新增列（only_api_pk=0） → 值不變、PK 集合不變，等同 no-op"
+   },
+   {
+    "game": "2026-A-158",
+    "frozen": false,
+    "only_api_pk": 0,
+    "only_prod_pk": 4,
+    "cell_mismatch_total": 0,
+    "build_state": {
+     "state": "published",
+     "builder_version": "pa-build-1.3.0",
+     "taxonomy_version": "1.1.0"
+    },
+    "write_effect_after_cutover": "UPSERT 共同 PK 但逐格全等（cell_mismatch=0）且無新增列（only_api_pk=0） → 值不變、PK 集合不變，等同 no-op"
+   },
+   {
+    "game": "2026-D-100",
+    "frozen": false,
+    "only_api_pk": 0,
+    "only_prod_pk": 10,
+    "cell_mismatch_total": 0,
+    "build_state": {
+     "state": "published",
+     "builder_version": "pa-build-1.3.0",
+     "taxonomy_version": "1.1.0"
+    },
+    "write_effect_after_cutover": "UPSERT 共同 PK 但逐格全等（cell_mismatch=0）且無新增列（only_api_pk=0） → 值不變、PK 集合不變，等同 no-op"
+   },
+   {
+    "game": "2026-D-124",
+    "frozen": false,
+    "only_api_pk": 0,
+    "only_prod_pk": 7,
+    "cell_mismatch_total": 0,
+    "build_state": {
+     "state": "published",
+     "builder_version": "pa-build-1.3.0",
+     "taxonomy_version": "1.1.0"
+    },
+    "write_effect_after_cutover": "UPSERT 共同 PK 但逐格全等（cell_mismatch=0）且無新增列（only_api_pk=0） → 值不變、PK 集合不變，等同 no-op"
+   },
+   {
+    "game": "2026-D-137",
+    "frozen": false,
+    "only_api_pk": 0,
+    "only_prod_pk": 1,
+    "cell_mismatch_total": 0,
+    "build_state": {
+     "state": "published",
+     "builder_version": "pa-build-1.3.0",
+     "taxonomy_version": "1.1.0"
+    },
+    "write_effect_after_cutover": "UPSERT 共同 PK 但逐格全等（cell_mismatch=0）且無新增列（only_api_pk=0） → 值不變、PK 集合不變，等同 no-op"
+   },
+   {
+    "game": "2026-D-180",
+    "frozen": true,
+    "only_api_pk": 5,
+    "only_prod_pk": 9,
+    "cell_mismatch_total": 1146,
+    "build_state": {
+     "state": "published",
+     "builder_version": "pa-build-1.3.0",
+     "taxonomy_version": "1.1.0"
+    },
+    "write_effect_after_cutover": "凍結：任何路徑都不寫入 → 逐球列集合與值完全不變"
+   }
+  ]
+ }
+}

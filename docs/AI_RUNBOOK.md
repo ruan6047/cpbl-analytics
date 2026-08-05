@@ -145,6 +145,49 @@ docker compose exec -T db psql -U cpbl -d cpbl -c \
 （預設 `trigger=manual`）；若爬取已成功、只有 sync 失敗，修正 production 原因後應以
 `SKIP_SCRAPE=1 WITH_DETAIL=1 scripts/refresh-cpbl-prod.sh` 重試，**不可再次冷啟動 crawler**。
 
+### 逐球 TrackMan：抓取維度 flag 與每週全季重跑（INGEST-GAME-TM-REFACTOR1-G4 Phase A）
+
+refresh 鏈的逐球抓取維度由 `CPBL_PITCH_INGEST` 控制（pydantic-settings）：
+
+| 值 | 路徑 | 請求量 | 用途 |
+|---|---|---|---|
+| `game`（預設） | 單場 API `/api/proxy/v1/games/{y}-{k}-{sno}` | 每場 1 請求 | 正式路徑；不受球員名冊異動的 acnt 對帳漏損 |
+| `pitcher` | 逐投手 logs `/api/proxy/v1/players/logs` | 每投手 1 請求 | **回滾**路徑（紅線 5 觸發時使用） |
+
+值打錯會在啟動時直接拋 `ValidationError`（Literal 型別）——回滾控制桿不得靜默落回預設，
+否則「已回退」的宣稱不成立。兩條路徑共用同一組落後場判準（`_lagging_pitch_games`）、
+同一 pure parser 與同一冪等 UPSERT，切換只改請求維度、不改入庫語意。
+
+`_lagging_pitch_games` 的**設備判準是近期感知**：某球場最近 **10** 場完成場中至少一場達
+`pitches >= 50 AND tracked >= pitches * 0.80`。這兩個常數是**需求方 2026-08-04 裁定的營運
+政策**（非資料推導），改動須先有需求方 event——`tests/test_refresh_pitch_ingest.py` 有
+字面 pin 住，改了會紅。舊的「本季曾達」判準是 recency-blind 的，已被實測推翻
+（大巨蛋 2026-03 覆蓋 98.4%、06-02 起連續全零，舊判準會讓它永久通過而被每日重抓）。
+
+**每週全季重跑**（週一 13:10，`scripts/weekly-game-pitches.sh`）：官方可在任何時點做賽後
+修正，每日增量只看近幾天窗口不會回頭，故每週把全季完成場重跑一次使修正最遲七天內收斂。
+排程失敗**不得中斷每日 refresh**，落地方式三層：獨立 launchd job 與狀態檔（每日鏈不讀）、
+共用 refresh lock 且**忙碌即跳過**（不等待不搶佔）、排在週一休兵日且遠離 10:10。
+
+```bash
+ln -sf "$PWD/scripts/com.cpbl.weekly-game-pitches.plist" ~/Library/LaunchAgents/com.cpbl.weekly-game-pitches.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.cpbl.weekly-game-pitches.plist
+launchctl kickstart -k gui/$(id -u)/com.cpbl.weekly-game-pitches   # 立即測跑
+cat logs/last-weekly-pitches.json                                  # 狀態（ok/skipped/failed）
+```
+
+**凍結例外清單**（`cpbl_pitch_tracking.FROZEN_GAMES`）：經三方比對證實**兩支官方端點
+互相矛盾且單場 API 為較差來源**的場次，由需求方逐場核入；凍結場次**任何寫入路徑都跳過
+不寫**（增量、每週全季重跑、手動 CLI、logs 回退路徑皆然）。fail-closed 為雙層——
+`_upsert` 在唯一寫入口過濾，`scrape_game_pitches` 另外連請求都不發。
+
+首例 `2026-D-180`（07-30 澄清湖）：logs 端點現值 vs 正式表 0/109 不一致（排除正式表過期）、
+vs 單場 API 100/100 不一致，且單場 API 全 105 列缺 `PitchTag`、軌跡係數全異、少 4 列。
+
+> ⚠️ **執行者／AI 不得自行擴充此清單**。新增一律需求方明示核入並留 event，且必須先有
+> 三方比對證據證明單場 API 較差——「兩邊不一樣」本身不是核入理由。
+> 兩向端對端測試見 `tests/test_refresh_pitch_ingest.py`（清單外照常寫、清單內任何路徑都不觸碰）。
+
 ### 同步流程（本機 → 生產）
 
 每日同步採逐表冪等 upsert，且只動 `cpbl` schema；禁止在 VPS 爬官網。標準入口已內建

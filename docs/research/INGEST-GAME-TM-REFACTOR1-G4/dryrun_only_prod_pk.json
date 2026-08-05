@@ -1,0 +1,432 @@
+[
+ {
+  "year": 2026,
+  "kind_code": "A",
+  "game_sno": 141,
+  "pitcher_acnt": "0000005561",
+  "pitch_cnt": 14,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-141",
+  "fetched_at": "2026-08-05T07:54:12.839771+08:00",
+  "payload_sha256": "4a6f82d3b9e0e54b36c2b887a8fda541b14aa90e8e331b05c05bf52d03e4a0e6"
+ },
+ {
+  "year": 2026,
+  "kind_code": "A",
+  "game_sno": 146,
+  "pitcher_acnt": "0000006555",
+  "pitch_cnt": 55,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-146",
+  "fetched_at": "2026-08-05T07:54:15.487430+08:00",
+  "payload_sha256": "15c01fcde161c89f85349d917982874ce97ff0f374257c6e857527d76966de80"
+ },
+ {
+  "year": 2026,
+  "kind_code": "A",
+  "game_sno": 146,
+  "pitcher_acnt": "0000006555",
+  "pitch_cnt": 56,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-146",
+  "fetched_at": "2026-08-05T07:54:15.487430+08:00",
+  "payload_sha256": "15c01fcde161c89f85349d917982874ce97ff0f374257c6e857527d76966de80"
+ },
+ {
+  "year": 2026,
+  "kind_code": "A",
+  "game_sno": 146,
+  "pitcher_acnt": "0000006555",
+  "pitch_cnt": 57,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-146",
+  "fetched_at": "2026-08-05T07:54:15.487430+08:00",
+  "payload_sha256": "15c01fcde161c89f85349d917982874ce97ff0f374257c6e857527d76966de80"
+ },
+ {
+  "year": 2026,
+  "kind_code": "A",
+  "game_sno": 146,
+  "pitcher_acnt": "0000006555",
+  "pitch_cnt": 58,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-146",
+  "fetched_at": "2026-08-05T07:54:15.487430+08:00",
+  "payload_sha256": "15c01fcde161c89f85349d917982874ce97ff0f374257c6e857527d76966de80"
+ },
+ {
+  "year": 2026,
+  "kind_code": "A",
+  "game_sno": 146,
+  "pitcher_acnt": "0000006833",
+  "pitch_cnt": 1,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-146",
+  "fetched_at": "2026-08-05T07:54:15.487430+08:00",
+  "payload_sha256": "15c01fcde161c89f85349d917982874ce97ff0f374257c6e857527d76966de80"
+ },
+ {
+  "year": 2026,
+  "kind_code": "A",
+  "game_sno": 146,
+  "pitcher_acnt": "0000006833",
+  "pitch_cnt": 3,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-146",
+  "fetched_at": "2026-08-05T07:54:15.487430+08:00",
+  "payload_sha256": "15c01fcde161c89f85349d917982874ce97ff0f374257c6e857527d76966de80"
+ },
+ {
+  "year": 2026,
+  "kind_code": "A",
+  "game_sno": 146,
+  "pitcher_acnt": "0000006833",
+  "pitch_cnt": 4,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-146",
+  "fetched_at": "2026-08-05T07:54:15.487430+08:00",
+  "payload_sha256": "15c01fcde161c89f85349d917982874ce97ff0f374257c6e857527d76966de80"
+ },
+ {
+  "year": 2026,
+  "kind_code": "A",
+  "game_sno": 146,
+  "pitcher_acnt": "0000006833",
+  "pitch_cnt": 6,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-146",
+  "fetched_at": "2026-08-05T07:54:15.487430+08:00",
+  "payload_sha256": "15c01fcde161c89f85349d917982874ce97ff0f374257c6e857527d76966de80"
+ },
+ {
+  "year": 2026,
+  "kind_code": "A",
+  "game_sno": 155,
+  "pitcher_acnt": "0000006848",
+  "pitch_cnt": 64,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-155",
+  "fetched_at": "2026-08-05T07:54:21.050004+08:00",
+  "payload_sha256": "005441a1c457bc1e7bdb72cd4e94ae393b8a0e3fd732c7f8894ed1b105505b79"
+ },
+ {
+  "year": 2026,
+  "kind_code": "A",
+  "game_sno": 157,
+  "pitcher_acnt": "0000007779",
+  "pitch_cnt": 56,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-157",
+  "fetched_at": "2026-08-05T07:54:22.178790+08:00",
+  "payload_sha256": "9b0e48b63d4f73ef42988ac89fe4669a9250f6e5025de4140b84fb29df341c5c"
+ },
+ {
+  "year": 2026,
+  "kind_code": "A",
+  "game_sno": 157,
+  "pitcher_acnt": "0000007779",
+  "pitch_cnt": 92,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-157",
+  "fetched_at": "2026-08-05T07:54:22.178790+08:00",
+  "payload_sha256": "9b0e48b63d4f73ef42988ac89fe4669a9250f6e5025de4140b84fb29df341c5c"
+ },
+ {
+  "year": 2026,
+  "kind_code": "A",
+  "game_sno": 158,
+  "pitcher_acnt": "0000000998",
+  "pitch_cnt": 18,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-158",
+  "fetched_at": "2026-08-05T07:54:22.724192+08:00",
+  "payload_sha256": "5495a6812c26cabc9652cbaeb732aae897af1bd4dd89cd945da8f6acd6fa2371"
+ },
+ {
+  "year": 2026,
+  "kind_code": "A",
+  "game_sno": 158,
+  "pitcher_acnt": "0000000998",
+  "pitch_cnt": 19,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-158",
+  "fetched_at": "2026-08-05T07:54:22.724192+08:00",
+  "payload_sha256": "5495a6812c26cabc9652cbaeb732aae897af1bd4dd89cd945da8f6acd6fa2371"
+ },
+ {
+  "year": 2026,
+  "kind_code": "A",
+  "game_sno": 158,
+  "pitcher_acnt": "0000000998",
+  "pitch_cnt": 20,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-158",
+  "fetched_at": "2026-08-05T07:54:22.724192+08:00",
+  "payload_sha256": "5495a6812c26cabc9652cbaeb732aae897af1bd4dd89cd945da8f6acd6fa2371"
+ },
+ {
+  "year": 2026,
+  "kind_code": "A",
+  "game_sno": 158,
+  "pitcher_acnt": "0000000998",
+  "pitch_cnt": 21,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-158",
+  "fetched_at": "2026-08-05T07:54:22.724192+08:00",
+  "payload_sha256": "5495a6812c26cabc9652cbaeb732aae897af1bd4dd89cd945da8f6acd6fa2371"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 100,
+  "pitcher_acnt": "0000006860",
+  "pitch_cnt": 32,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-100",
+  "fetched_at": "2026-08-05T07:56:01.611059+08:00",
+  "payload_sha256": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 100,
+  "pitcher_acnt": "0000006860",
+  "pitch_cnt": 36,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-100",
+  "fetched_at": "2026-08-05T07:56:01.611059+08:00",
+  "payload_sha256": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 100,
+  "pitcher_acnt": "0000007303",
+  "pitch_cnt": 12,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-100",
+  "fetched_at": "2026-08-05T07:56:01.611059+08:00",
+  "payload_sha256": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 100,
+  "pitcher_acnt": "0000007303",
+  "pitch_cnt": 13,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-100",
+  "fetched_at": "2026-08-05T07:56:01.611059+08:00",
+  "payload_sha256": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 100,
+  "pitcher_acnt": "0000007303",
+  "pitch_cnt": 14,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-100",
+  "fetched_at": "2026-08-05T07:56:01.611059+08:00",
+  "payload_sha256": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 100,
+  "pitcher_acnt": "0000007303",
+  "pitch_cnt": 15,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-100",
+  "fetched_at": "2026-08-05T07:56:01.611059+08:00",
+  "payload_sha256": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 100,
+  "pitcher_acnt": "0000007303",
+  "pitch_cnt": 30,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-100",
+  "fetched_at": "2026-08-05T07:56:01.611059+08:00",
+  "payload_sha256": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 100,
+  "pitcher_acnt": "0000007303",
+  "pitch_cnt": 34,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-100",
+  "fetched_at": "2026-08-05T07:56:01.611059+08:00",
+  "payload_sha256": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 100,
+  "pitcher_acnt": "0000007303",
+  "pitch_cnt": 66,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-100",
+  "fetched_at": "2026-08-05T07:56:01.611059+08:00",
+  "payload_sha256": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 100,
+  "pitcher_acnt": "0000007303",
+  "pitch_cnt": 68,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-100",
+  "fetched_at": "2026-08-05T07:56:01.611059+08:00",
+  "payload_sha256": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 124,
+  "pitcher_acnt": "0000002345",
+  "pitch_cnt": 27,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-124",
+  "fetched_at": "2026-08-05T07:56:09.733453+08:00",
+  "payload_sha256": "4c88ffffc413e6834398c323b11063f31bf47c14cade0c3801e071764f60a248"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 124,
+  "pitcher_acnt": "0000002345",
+  "pitch_cnt": 28,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-124",
+  "fetched_at": "2026-08-05T07:56:09.733453+08:00",
+  "payload_sha256": "4c88ffffc413e6834398c323b11063f31bf47c14cade0c3801e071764f60a248"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 124,
+  "pitcher_acnt": "0000002345",
+  "pitch_cnt": 29,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-124",
+  "fetched_at": "2026-08-05T07:56:09.733453+08:00",
+  "payload_sha256": "4c88ffffc413e6834398c323b11063f31bf47c14cade0c3801e071764f60a248"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 124,
+  "pitcher_acnt": "0000002345",
+  "pitch_cnt": 30,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-124",
+  "fetched_at": "2026-08-05T07:56:09.733453+08:00",
+  "payload_sha256": "4c88ffffc413e6834398c323b11063f31bf47c14cade0c3801e071764f60a248"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 124,
+  "pitcher_acnt": "0000002345",
+  "pitch_cnt": 31,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-124",
+  "fetched_at": "2026-08-05T07:56:09.733453+08:00",
+  "payload_sha256": "4c88ffffc413e6834398c323b11063f31bf47c14cade0c3801e071764f60a248"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 124,
+  "pitcher_acnt": "0000002345",
+  "pitch_cnt": 33,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-124",
+  "fetched_at": "2026-08-05T07:56:09.733453+08:00",
+  "payload_sha256": "4c88ffffc413e6834398c323b11063f31bf47c14cade0c3801e071764f60a248"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 124,
+  "pitcher_acnt": "0000007626",
+  "pitch_cnt": 11,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-124",
+  "fetched_at": "2026-08-05T07:56:09.733453+08:00",
+  "payload_sha256": "4c88ffffc413e6834398c323b11063f31bf47c14cade0c3801e071764f60a248"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 137,
+  "pitcher_acnt": "0000003608",
+  "pitch_cnt": 7,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-137",
+  "fetched_at": "2026-08-05T07:56:15.176029+08:00",
+  "payload_sha256": "dae70c35b1877b51365c7b2aeaa25b4acc0b8d0554068fa4edb0f18de57209af"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 180,
+  "pitcher_acnt": "0000001260",
+  "pitch_cnt": 12,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-180",
+  "fetched_at": "2026-08-05T07:56:34.298690+08:00",
+  "payload_sha256": "d3ee5ffa74ed573b2e5d73eef96b5251f998b3a1e7e0460d944ad70a763cfbf8"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 180,
+  "pitcher_acnt": "0000001260",
+  "pitch_cnt": 13,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-180",
+  "fetched_at": "2026-08-05T07:56:34.298690+08:00",
+  "payload_sha256": "d3ee5ffa74ed573b2e5d73eef96b5251f998b3a1e7e0460d944ad70a763cfbf8"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 180,
+  "pitcher_acnt": "0000001260",
+  "pitch_cnt": 14,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-180",
+  "fetched_at": "2026-08-05T07:56:34.298690+08:00",
+  "payload_sha256": "d3ee5ffa74ed573b2e5d73eef96b5251f998b3a1e7e0460d944ad70a763cfbf8"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 180,
+  "pitcher_acnt": "0000001260",
+  "pitch_cnt": 15,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-180",
+  "fetched_at": "2026-08-05T07:56:34.298690+08:00",
+  "payload_sha256": "d3ee5ffa74ed573b2e5d73eef96b5251f998b3a1e7e0460d944ad70a763cfbf8"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 180,
+  "pitcher_acnt": "0000001260",
+  "pitch_cnt": 16,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-180",
+  "fetched_at": "2026-08-05T07:56:34.298690+08:00",
+  "payload_sha256": "d3ee5ffa74ed573b2e5d73eef96b5251f998b3a1e7e0460d944ad70a763cfbf8"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 180,
+  "pitcher_acnt": "0000001260",
+  "pitch_cnt": 17,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-180",
+  "fetched_at": "2026-08-05T07:56:34.298690+08:00",
+  "payload_sha256": "d3ee5ffa74ed573b2e5d73eef96b5251f998b3a1e7e0460d944ad70a763cfbf8"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 180,
+  "pitcher_acnt": "0000001260",
+  "pitch_cnt": 41,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-180",
+  "fetched_at": "2026-08-05T07:56:34.298690+08:00",
+  "payload_sha256": "d3ee5ffa74ed573b2e5d73eef96b5251f998b3a1e7e0460d944ad70a763cfbf8"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 180,
+  "pitcher_acnt": "0000001260",
+  "pitch_cnt": 42,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-180",
+  "fetched_at": "2026-08-05T07:56:34.298690+08:00",
+  "payload_sha256": "d3ee5ffa74ed573b2e5d73eef96b5251f998b3a1e7e0460d944ad70a763cfbf8"
+ },
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 180,
+  "pitcher_acnt": "0000001260",
+  "pitch_cnt": 43,
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-180",
+  "fetched_at": "2026-08-05T07:56:34.298690+08:00",
+  "payload_sha256": "d3ee5ffa74ed573b2e5d73eef96b5251f998b3a1e7e0460d944ad70a763cfbf8"
+ }
+]

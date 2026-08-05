@@ -23,12 +23,13 @@ from datetime import date, timedelta
 from typing import Any
 
 from cpbl.completion import completed_games_sql
+from cpbl.config import settings
 from cpbl.db import conn, migrate
 from cpbl.ingest.championships import build_championships
 from cpbl.ingest.cpbl_advanced import AdvancedScrapeResult, scrape_advanced_result
 from cpbl.ingest.cpbl_fighting import YEAR_CAREER, scrape_matchups
 from cpbl.ingest.cpbl_gamelog import scrape_game_details, scrape_gamelogs
-from cpbl.ingest.cpbl_pitch_tracking import scrape_pitches
+from cpbl.ingest.cpbl_pitch_tracking import is_frozen, scrape_game_pitches, scrape_pitches
 from cpbl.ingest.cpbl_site import lineup_acnts, scrape_games
 from cpbl.ingest.cpbl_standings import scrape_standings
 from cpbl.ingest.cpbl_stats import scrape_all
@@ -93,43 +94,103 @@ def _completed_snos(year: int, days: list[date], kind_code: str = "A") -> list[i
     return [r[0] for r in rows]
 
 
-def _lagging_pitch_pitchers(year: int, kind_code: str, days_back: int = 3) -> set[str]:
-    """近 days_back 天完成場中，逐球覆蓋 < 85% 者的所有投手 acnt（**不限現役**）。
+def _lagging_pitch_games(year: int, kind_code: str, days_back: int = 3) -> set[int]:
+    """近 days_back 天完成場中，逐球覆蓋 < 85% 的 `game_sno` 集合（**限近期實證有設備的球場**）。
 
     為什麼要這一步：TrackMan 資料源常延遲 0–2 天發布。refresh 隔天跑時源頭若還沒好，
-    當日窗口的 scrape_pitches 會抓到投手但 Trackman=null（不存），下一輪換新窗口不再回頭
+    當日窗口抓到的該場逐球會缺（Trackman=null 不存），下一輪換新窗口不再回頭
     → 該場永久缺（見 pitch-tracking-venue-coverage）。故每次 refresh 額外回抓近幾日
-    覆蓋不足場次的投手，讓延遲發布的逐球在後續 refresh 自癒。逐投手全季一次抓故冪等。
+    覆蓋不足的**場次**，讓延遲發布的逐球在後續 refresh 自癒。單場 API 冪等 UPSERT。
 
-    **只限「本季實證有設備」的球場**（某場曾達 80% 覆蓋）——否則會每輪重爬二軍多數
-    無設備球場、大巨蛋等源頭本就無資料的場，永遠補不上白費請求。設備場的零覆蓋場
-    （大巨蛋設備當日沒錄）最多多打幾天隨窗口滑出，可接受。
+    輸出改為場次維度（原 `_lagging_pitch_pitchers` 輸出投手 acnt）：呼叫端與當日窗口完成場
+    **取聯集後單次**送進 `scrape_game_pitches`，故不構成第二條抓取路徑。
+
+    **設備判準為「近期感知」**：`equipped` ＝ 該球場**最近 10 場完成場**中至少一場達
+    `pitches >= 50 AND tracked >= pitches * 0.80`（不足 10 場以現有場次計）。
+    此判準與兩個常數（10／0.80）是**需求方 2026-08-04 裁定的營運政策**
+    （見 docs/tasks/INGEST-GAME-TM-REFACTOR1-G4.md 驗收條件與紅線 4），
+    **不是資料推導的結果**，執行者不得自行更動；修訂須另有需求方 event。
+    取捨：窗口愈小則死設備退出愈快但單場 downtime 較長的球場會失去自癒；愈大則反之。
+
+    舊判準為「**本季曾**達 0.80」，其前提（設備狀態不隨時間變化）已被實測推翻——
+    一個已停止產出的球場會因早季那幾場而永久通過測試、其死場次被每日重抓且永遠補不上。
     """
     with conn() as c:
         rows = c.execute(
             """
             WITH cov AS (
-              SELECT gm.game_sno, gm.venue, gm.game_date,
-                (SELECT count(*) FROM cpbl.game_livelog ll
-                   WHERE ll.year=gm.year AND ll.kind_code=gm.kind_code AND ll.game_sno=gm.game_sno
-                     AND (ll.is_ball OR ll.is_strike)) AS pitches,
-                (SELECT count(*) FROM cpbl.pitch_tracking pt
-                   WHERE pt.year=gm.year AND pt.kind_code=gm.kind_code AND pt.game_sno=gm.game_sno) AS tracked
+              SELECT gm.venue, gm.game_sno, gm.game_date,
+                (SELECT count(*) FROM cpbl.game_livelog ll WHERE ll.year=gm.year
+                   AND ll.kind_code=gm.kind_code AND ll.game_sno=gm.game_sno
+                   AND (ll.is_ball OR ll.is_strike)) AS pitches,
+                (SELECT count(*) FROM cpbl.pitch_tracking pt WHERE pt.year=gm.year
+                   AND pt.kind_code=gm.kind_code AND pt.game_sno=gm.game_sno) AS tracked
               FROM cpbl.games gm
-              WHERE gm.year=%s AND gm.kind_code=%s AND gm.home_score + gm.away_score > 0
-            ), equipped AS (  -- 本季曾達 0.80 覆蓋率的球場＝有設備
-              SELECT DISTINCT venue FROM cov WHERE pitches >= 50 AND tracked >= pitches * 0.80
+              WHERE gm.year=%s AND gm.kind_code=%s AND gm.home_score+gm.away_score>0),
+            r AS (SELECT *, row_number() OVER (PARTITION BY venue
+                    ORDER BY game_date DESC, game_sno DESC) rn FROM cov),
+            equipped AS (
+              SELECT venue FROM (
+                SELECT venue, bool_or(pitches>=50 AND tracked>=pitches*0.80) AS equipped
+                FROM r WHERE rn<=10 GROUP BY venue
+              ) e WHERE e.equipped
             )
-            SELECT DISTINCT p.pitcher_acnt FROM cpbl.pitching_gamelog p
-            JOIN cov ON cov.game_sno = p.game_sno
-            WHERE p.year=%s AND p.kind_code=%s
-              AND cov.game_date >= (CURRENT_DATE - %s::int)
-              AND cov.venue IN (SELECT venue FROM equipped)
+            SELECT cov.game_sno FROM cov
+            JOIN equipped ON equipped.venue = cov.venue
+            WHERE cov.game_date >= (CURRENT_DATE - %s::int)
               AND cov.pitches >= 50 AND cov.tracked < cov.pitches * 0.85
+            ORDER BY cov.game_sno
             """,
-            (year, kind_code, year, kind_code, days_back),
+            (year, kind_code, days_back),
         ).fetchall()
     return {r[0] for r in rows}
+
+
+def _pitchers_of_games(year: int, kind_code: str, snos: list[int]) -> set[str]:
+    """指定場次的出賽投手 acnt（`pitching_gamelog`）——供 `pitcher` 回退路徑把場次映射回投手。
+
+    刻意不重寫一套設備／落後判準：唯一的判準在 `_lagging_pitch_games`，這裡只做維度轉換，
+    避免兩條路徑對「哪些場需要補抓」有各自的定義而分岔。
+    """
+    if not snos:
+        return set()
+    with conn() as c:
+        rows = c.execute(
+            "SELECT DISTINCT pitcher_acnt FROM cpbl.pitching_gamelog "
+            "WHERE year=%s AND kind_code=%s AND game_sno = ANY(%s)",
+            (year, kind_code, snos),
+        ).fetchall()
+    return {r[0] for r in rows}
+
+
+def _refresh_pitches(year: int, kind_code: str, day_snos: list[int],
+                     day_pitchers: list[str], delay: float) -> dict:
+    """逐球 TrackMan 抓取的維度分派（`CPBL_PITCH_INGEST`）。
+
+    - `game`（預設）：當日窗完成場 ∪ 落後場，**單次**送進 `scrape_game_pitches`（一場一請求）。
+    - `pitcher`（回退）：當日上場投手 ∪ 落後場之出賽投手，送進 `scrape_pitches`（逐投手全季）。
+
+    兩路皆走同一組 lagging 判準與同一 pure parser／冪等 UPSERT，故切換不改變入庫語意，
+    只改變請求維度。`settings.pitch_ingest` 於呼叫時讀取（非 import 時），回退才能即時生效。
+
+    **`day_snos` 允許為空**：呼叫端在當日窗無完成場時仍須呼叫本函式，讓落後場自癒在
+    賽程空檔繼續運作（F2）；此時目標集合即 lagging 集合，仍是單次送出。
+    **凍結例外場一律不進目標集合**（紅線 1），`_upsert` 另有最終過濾形成雙層 fail-closed。
+    """
+    mode = settings.pitch_ingest
+    # 凍結例外（紅線 1）：在目標集合就先排除，凍結場不進入任何一條路徑的抓取清單。
+    # `_upsert` 另有最終過濾（fail-closed 雙層），此處只是不浪費請求並讓摘要誠實。
+    lagging = {s for s in _lagging_pitch_games(year, kind_code)
+               if not is_frozen(year, kind_code, s)}
+    if mode == "game":
+        snos = sorted({s for s in day_snos if not is_frozen(year, kind_code, s)} | lagging)
+        out = (scrape_game_pitches([(year, kind_code, s) for s in snos], delay=delay)
+               if snos else {"games": 0, "pitches": 0})
+    else:
+        acnts = sorted(set(day_pitchers) | _pitchers_of_games(year, kind_code, sorted(lagging)))
+        out = (scrape_pitches(acnts, year, kind_code=kind_code, delay=delay)
+               if acnts else {"pitchers": 0, "pitches": 0})
+    return {**out, "mode": mode, "lagging_games": len(lagging)}
 
 
 def _missing_gamelog_snos(year: int, kind_code: str = "A") -> list[int]:
@@ -322,11 +383,16 @@ def _farm_detail(year: int, days: list[date], delay: float = 1.2) -> dict:
     來源限制：**vs-team(對戰各隊) 與 官方進階 無 kindCode**（getfighterscore 只有 defendStation、
     stats.cpbl 進階經 gated proxy），故二軍不含此兩項；其餘皆與一軍同源可抓。
     matchups 走當日對手隊捷徑(kind=D)；splits 走 apart(kindCode=D 本季+生涯)且跳過 vs-team；
-    逐球以當日上場二軍投手抓其頁面（逐球自帶 kindCode，涵蓋該場二軍打者面對）。
+    逐球走 `_refresh_pitches`（預設單場 API、與一軍同一條路徑與同一 pure parser）。
     """
     d_snos = _completed_snos(year, days, "D")
     if not d_snos:
-        return {"skipped": "近兩日無二軍完成場"}
+        # 當日窗無完成場**仍須跑 lagging 自癒**：TrackMan 發布延遲 0–2 天，賽程空檔
+        # （週一休兵、二軍連續無賽）正是延遲最容易卡住的時候——若連 `_refresh_pitches`
+        # 一起跳過，前幾日覆蓋不足的場會隨窗口滑出而永久缺（F2，第 1 輪查核 Critical）。
+        # 聯集語意不變：day_snos 為空 → 目標＝lagging 集合，仍是單次送出。
+        return {"skipped": "近兩日無二軍完成場",
+                "pitches": _refresh_pitches(year, "D", [], [], delay)}
     gamelog = scrape_gamelogs(year, d_snos, "D")
     scrape_game_details(year, d_snos, "D")  # 觀眾/裁判/時長
     batters, pitchers = lineup_acnts(year, d_snos, "D")
@@ -346,8 +412,8 @@ def _farm_detail(year: int, days: list[date], delay: float = 1.2) -> dict:
         else AdvancedScrapeResult(rows=0, outcome="missing", error_codes=())
     )
     _record_advanced_revisions(year, "D", d_snos, adv_result)
-    rp_pitch = sorted(set(rp) | _lagging_pitch_pitchers(year, "D"))  # 補 TrackMan 發布延遲（同一軍）
-    pitches = scrape_pitches(rp_pitch, year, kind_code="D", delay=delay) if rp_pitch else {"pitchers": 0, "pitches": 0}
+    # 逐球：當日窗完成場 ∪ 落後場（補 TrackMan 發布延遲自癒），單次送出（同一軍）
+    pitches = _refresh_pitches(year, "D", d_snos, rp, delay)
     return {"completed_games": len(d_snos), "gamelog": gamelog,
             "lineup_batters": len(rb), "lineup_pitchers": len(rp),
             "matchup_rows": m, "advanced": adv_result.rows, "pitches": pitches}
@@ -358,7 +424,9 @@ def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict
     farm = _farm_detail(year, days, delay)          # 二軍獨立跑（一軍無場也要更新二軍）
     snos = _completed_snos(year, days, "A")
     if not snos:
-        return {"skipped": "近兩日無一軍完成場", "farm": farm}
+        # 同 `_farm_detail`：窗空仍跑 lagging 自癒（F2）。farm 已於上一行獨立處理完畢。
+        return {"skipped": "近兩日無一軍完成場",
+                "pitches": _refresh_pitches(year, "A", [], [], delay), "farm": farm}
     # 賽況（逐局比分 + 逐打席事件）：當日完成場
     gamelog = scrape_gamelogs(year, snos)
     scrape_game_details(year, snos, "A")  # 觀眾/裁判/時長
@@ -370,8 +438,11 @@ def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict
         _record_advanced_revisions(
             year, "A", snos, AdvancedScrapeResult(rows=0, outcome="missing", error_codes=()),
         )
+        # 與 F2 同類：名冊抓不到（box score 尚未發布）不該連逐球一起跳過——**場次維度
+        # 根本不需要名冊**，snos 已在手上。此處仍送出當日窗 ∪ lagging。
         return {"completed_games": len(snos), "gamelog": gamelog,
-                "lineup_batters": 0, "lineup_pitchers": 0, "farm": farm}
+                "lineup_batters": 0, "lineup_pitchers": 0,
+                "pitches": _refresh_pitches(year, "A", snos, [], delay), "farm": farm}
     # 對戰：只重抓「當日打者 × 當日對手隊」的生涯對戰即涵蓋所有變動的 (打者,投手) 組合
     # （對手投手全在當日對手隊，故無需掃該打者生涯面對過的所有隊，省 ~15× 請求）。
     # 不帶 pitcher_ids＝不濾對戰投手層級（比照二軍，完整保留對戰史）。
@@ -387,9 +458,8 @@ def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict
         delay=delay,
     )
     _record_advanced_revisions(year, "A", snos, adv_result)
-    # 逐球 TrackMan：當日上場投手 ∪ 近幾日「逐球覆蓋不足」場次投手（補 TrackMan 發布延遲，自癒）
-    rp_pitch = sorted(set(rp) | _lagging_pitch_pitchers(year, "A"))
-    pitches = scrape_pitches(rp_pitch, year, delay=delay) if rp_pitch else {"pitchers": 0, "pitches": 0}
+    # 逐球 TrackMan：當日窗完成場 ∪ 近幾日「逐球覆蓋不足」場次（補 TrackMan 發布延遲，自癒）
+    pitches = _refresh_pitches(year, "A", snos, rp, delay)
     return {"completed_games": len(snos), "gamelog": gamelog,
             "lineup_batters": len(rb), "lineup_pitchers": len(rp),
             "matchup_rows": m, "advanced": adv_result.rows, "pitches": pitches, "farm": farm}

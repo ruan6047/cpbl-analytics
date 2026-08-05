@@ -1,0 +1,422 @@
+{
+ "card": "INGEST-GAME-TM-REFACTOR1-G4",
+ "metric": "request_volume",
+ "generated_at": "2026-08-05T08:06:38.578731+08:00",
+ "method": "回放最近 30 個 refresh 日；場次維度=場數、投手維度=那些場的 pitching_gamelog 出賽投手數（A+D 合計）。主模型 prev_day＝當日窗實際產出的完成場為昨天那批（10:10 跑、今日賽事晚間才打）；as_run＝直接數 [昨天,今天] 窗的上界（同一場相鄰兩日各數一次）。無完成場之日不計入。",
+ "replay_days_with_games": 20,
+ "totals": {
+  "game_dim_requests": 80,
+  "pitcher_dim_requests": 766,
+  "as_run_game_dim": 160,
+  "as_run_pitcher_dim": 1480
+ },
+ "daily_mean": {
+  "game_dim": 4.0,
+  "pitcher_dim": 38.3
+ },
+ "weekly_full_season": {
+  "completed_games_A": 234,
+  "completed_games_D": 164,
+  "requests_per_week": 398,
+  "amortised_per_day": 56.9
+ },
+ "amortised_daily_game_dim": 60.86,
+ "reduction_pct": {
+  "pure_incremental": 89.6,
+  "pure_incremental_as_run_model": 89.2,
+  "with_weekly_full_season": -58.9
+ },
+ "live_worker_background": {
+  "kind": "capacity_model_not_measured",
+  "assumptions": {
+   "live_poll_interval_s": 12,
+   "pregame_poll_interval_s": 60,
+   "live_hours_per_game": 3.5,
+   "pregame_window_min": 90,
+   "concurrent_games": 5,
+   "max_games_per_cycle": 8,
+   "worker_enabled_default": false
+  },
+  "same_endpoint_requests_per_game_day": 5700,
+  "note": "live worker 打的是同一支 /api/proxy/v1/games/{id}。此模型顯示該端點的既有請求量比本卡增量路徑高出兩個數量級，故切換與週跑的絕對請求量在該端點的整體負載中屬雜訊等級。"
+ },
+ "lagging_today": {
+  "A": {
+   "games": 0,
+   "game_snos": [],
+   "pitchers": 0
+  },
+  "D": {
+   "games": 3,
+   "game_snos": [
+    117,
+    119,
+    165
+   ],
+   "pitchers": 10
+  }
+ },
+ "per_day": [
+  {
+   "refresh_date": "2026-08-03",
+   "prev_day": "2026-08-02",
+   "game_dim_requests": 5,
+   "pitcher_dim_requests": 50,
+   "as_run_game_dim": 5,
+   "as_run_pitcher_dim": 50,
+   "by_kind": {
+    "A": {
+     "games": 3,
+     "pitchers": 27
+    },
+    "D": {
+     "games": 2,
+     "pitchers": 23
+    }
+   }
+  },
+  {
+   "refresh_date": "2026-08-02",
+   "prev_day": "2026-08-01",
+   "game_dim_requests": 4,
+   "pitcher_dim_requests": 37,
+   "as_run_game_dim": 9,
+   "as_run_pitcher_dim": 86,
+   "by_kind": {
+    "A": {
+     "games": 3,
+     "pitchers": 21
+    },
+    "D": {
+     "games": 1,
+     "pitchers": 16
+    }
+   }
+  },
+  {
+   "refresh_date": "2026-08-01",
+   "prev_day": "2026-07-31",
+   "game_dim_requests": 5,
+   "pitcher_dim_requests": 46,
+   "as_run_game_dim": 9,
+   "as_run_pitcher_dim": 76,
+   "by_kind": {
+    "A": {
+     "games": 3,
+     "pitchers": 26
+    },
+    "D": {
+     "games": 2,
+     "pitchers": 20
+    }
+   }
+  },
+  {
+   "refresh_date": "2026-07-31",
+   "prev_day": "2026-07-30",
+   "game_dim_requests": 3,
+   "pitcher_dim_requests": 32,
+   "as_run_game_dim": 8,
+   "as_run_pitcher_dim": 78,
+   "by_kind": {
+    "A": {
+     "games": 1,
+     "pitchers": 11
+    },
+    "D": {
+     "games": 2,
+     "pitchers": 21
+    }
+   }
+  },
+  {
+   "refresh_date": "2026-07-30",
+   "prev_day": "2026-07-29",
+   "game_dim_requests": 5,
+   "pitcher_dim_requests": 53,
+   "as_run_game_dim": 8,
+   "as_run_pitcher_dim": 82,
+   "by_kind": {
+    "A": {
+     "games": 3,
+     "pitchers": 30
+    },
+    "D": {
+     "games": 2,
+     "pitchers": 23
+    }
+   }
+  },
+  {
+   "refresh_date": "2026-07-29",
+   "prev_day": "2026-07-28",
+   "game_dim_requests": 3,
+   "pitcher_dim_requests": 27,
+   "as_run_game_dim": 8,
+   "as_run_pitcher_dim": 77,
+   "by_kind": {
+    "A": {
+     "games": 2,
+     "pitchers": 16
+    },
+    "D": {
+     "games": 1,
+     "pitchers": 11
+    }
+   }
+  },
+  {
+   "refresh_date": "2026-07-27",
+   "prev_day": "2026-07-26",
+   "game_dim_requests": 4,
+   "pitcher_dim_requests": 35,
+   "as_run_game_dim": 4,
+   "as_run_pitcher_dim": 35,
+   "by_kind": {
+    "A": {
+     "games": 3,
+     "pitchers": 25
+    },
+    "D": {
+     "games": 1,
+     "pitchers": 10
+    }
+   }
+  },
+  {
+   "refresh_date": "2026-07-26",
+   "prev_day": "2026-07-25",
+   "game_dim_requests": 4,
+   "pitcher_dim_requests": 34,
+   "as_run_game_dim": 8,
+   "as_run_pitcher_dim": 67,
+   "by_kind": {
+    "A": {
+     "games": 3,
+     "pitchers": 24
+    },
+    "D": {
+     "games": 1,
+     "pitchers": 10
+    }
+   }
+  },
+  {
+   "refresh_date": "2026-07-25",
+   "prev_day": "2026-07-24",
+   "game_dim_requests": 5,
+   "pitcher_dim_requests": 53,
+   "as_run_game_dim": 9,
+   "as_run_pitcher_dim": 80,
+   "by_kind": {
+    "A": {
+     "games": 3,
+     "pitchers": 33
+    },
+    "D": {
+     "games": 2,
+     "pitchers": 20
+    }
+   }
+  },
+  {
+   "refresh_date": "2026-07-24",
+   "prev_day": "2026-07-23",
+   "game_dim_requests": 3,
+   "pitcher_dim_requests": 29,
+   "as_run_game_dim": 8,
+   "as_run_pitcher_dim": 81,
+   "by_kind": {
+    "A": {
+     "games": 1,
+     "pitchers": 7
+    },
+    "D": {
+     "games": 2,
+     "pitchers": 22
+    }
+   }
+  },
+  {
+   "refresh_date": "2026-07-23",
+   "prev_day": "2026-07-22",
+   "game_dim_requests": 5,
+   "pitcher_dim_requests": 53,
+   "as_run_game_dim": 8,
+   "as_run_pitcher_dim": 81,
+   "by_kind": {
+    "A": {
+     "games": 3,
+     "pitchers": 27
+    },
+    "D": {
+     "games": 2,
+     "pitchers": 26
+    }
+   }
+  },
+  {
+   "refresh_date": "2026-07-22",
+   "prev_day": "2026-07-21",
+   "game_dim_requests": 4,
+   "pitcher_dim_requests": 40,
+   "as_run_game_dim": 9,
+   "as_run_pitcher_dim": 82,
+   "by_kind": {
+    "A": {
+     "games": 2,
+     "pitchers": 19
+    },
+    "D": {
+     "games": 2,
+     "pitchers": 21
+    }
+   }
+  },
+  {
+   "refresh_date": "2026-07-17",
+   "prev_day": "2026-07-16",
+   "game_dim_requests": 3,
+   "pitcher_dim_requests": 14,
+   "as_run_game_dim": 3,
+   "as_run_pitcher_dim": 14,
+   "by_kind": {
+    "A": {
+     "games": 1,
+     "pitchers": 5
+    },
+    "D": {
+     "games": 2,
+     "pitchers": 9
+    }
+   }
+  },
+  {
+   "refresh_date": "2026-07-16",
+   "prev_day": "2026-07-15",
+   "game_dim_requests": 5,
+   "pitcher_dim_requests": 52,
+   "as_run_game_dim": 8,
+   "as_run_pitcher_dim": 65,
+   "by_kind": {
+    "A": {
+     "games": 3,
+     "pitchers": 31
+    },
+    "D": {
+     "games": 2,
+     "pitchers": 21
+    }
+   }
+  },
+  {
+   "refresh_date": "2026-07-15",
+   "prev_day": "2026-07-14",
+   "game_dim_requests": 4,
+   "pitcher_dim_requests": 31,
+   "as_run_game_dim": 9,
+   "as_run_pitcher_dim": 82,
+   "by_kind": {
+    "A": {
+     "games": 2,
+     "pitchers": 15
+    },
+    "D": {
+     "games": 2,
+     "pitchers": 16
+    }
+   }
+  },
+  {
+   "refresh_date": "2026-07-13",
+   "prev_day": "2026-07-12",
+   "game_dim_requests": 4,
+   "pitcher_dim_requests": 36,
+   "as_run_game_dim": 4,
+   "as_run_pitcher_dim": 36,
+   "by_kind": {
+    "A": {
+     "games": 3,
+     "pitchers": 26
+    },
+    "D": {
+     "games": 1,
+     "pitchers": 10
+    }
+   }
+  },
+  {
+   "refresh_date": "2026-07-11",
+   "prev_day": "2026-07-10",
+   "game_dim_requests": 2,
+   "pitcher_dim_requests": 23,
+   "as_run_game_dim": 2,
+   "as_run_pitcher_dim": 23,
+   "by_kind": {
+    "A": {
+     "games": 1,
+     "pitchers": 10
+    },
+    "D": {
+     "games": 1,
+     "pitchers": 13
+    }
+   }
+  },
+  {
+   "refresh_date": "2026-07-10",
+   "prev_day": "2026-07-09",
+   "game_dim_requests": 3,
+   "pitcher_dim_requests": 31,
+   "as_run_game_dim": 5,
+   "as_run_pitcher_dim": 51,
+   "by_kind": {
+    "A": {
+     "games": 1,
+     "pitchers": 7
+    },
+    "D": {
+     "games": 2,
+     "pitchers": 24
+    }
+   }
+  },
+  {
+   "refresh_date": "2026-07-09",
+   "prev_day": "2026-07-08",
+   "game_dim_requests": 5,
+   "pitcher_dim_requests": 48,
+   "as_run_game_dim": 8,
+   "as_run_pitcher_dim": 78,
+   "by_kind": {
+    "A": {
+     "games": 3,
+     "pitchers": 27
+    },
+    "D": {
+     "games": 2,
+     "pitchers": 21
+    }
+   }
+  },
+  {
+   "refresh_date": "2026-07-08",
+   "prev_day": "2026-07-07",
+   "game_dim_requests": 4,
+   "pitcher_dim_requests": 42,
+   "as_run_game_dim": 9,
+   "as_run_pitcher_dim": 80,
+   "by_kind": {
+    "A": {
+     "games": 2,
+     "pitchers": 20
+    },
+    "D": {
+     "games": 2,
+     "pitchers": 22
+    }
+   }
+  }
+ ],
+ "weekly_rerun_vs_live_worker_pct": 1.0
+}

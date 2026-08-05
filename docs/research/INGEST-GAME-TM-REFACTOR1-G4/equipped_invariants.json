@@ -1,0 +1,295 @@
+{
+ "card": "INGEST-GAME-TM-REFACTOR1-G4",
+ "metric": "equipped_recency_aware",
+ "generated_at": "2026-08-05T08:06:38.363498+08:00",
+ "policy": {
+  "window": 10,
+  "ratio": 0.8,
+  "min_pitches": 50,
+  "source": "需求方 2026-08-04 裁定（營運政策，非資料推導）"
+ },
+ "sql": "WITH cov AS (\n  SELECT gm.venue, gm.game_sno, gm.game_date,\n    (SELECT count(*) FROM cpbl.game_livelog ll WHERE ll.year=gm.year\n       AND ll.kind_code=gm.kind_code AND ll.game_sno=gm.game_sno\n       AND (ll.is_ball OR ll.is_strike)) AS pitches,\n    (SELECT count(*) FROM cpbl.pitch_tracking pt WHERE pt.year=gm.year\n       AND pt.kind_code=gm.kind_code AND pt.game_sno=gm.game_sno) AS tracked\n  FROM cpbl.games gm\n  WHERE gm.year=%s AND gm.kind_code=%s AND gm.home_score+gm.away_score>0),\nr AS (SELECT *, row_number() OVER (PARTITION BY venue\n        ORDER BY game_date DESC, game_sno DESC) rn FROM cov)\nSELECT venue, bool_or(pitches>=50 AND tracked>=pitches*0.80) AS equipped,\n       count(*) FILTER (WHERE pitches>=50 AND tracked>=pitches*0.80) AS hit,\n       count(*) AS window_games\nFROM r WHERE rn<=10 GROUP BY venue ORDER BY venue",
+ "by_kind": {
+  "A": {
+   "venues": [
+    {
+     "venue": "亞太主",
+     "equipped": true,
+     "hit": 10,
+     "window_games": 10
+    },
+    {
+     "venue": "台東",
+     "equipped": false,
+     "hit": 0,
+     "window_games": 2
+    },
+    {
+     "venue": "嘉義市",
+     "equipped": false,
+     "hit": 0,
+     "window_games": 7
+    },
+    {
+     "venue": "大巨蛋",
+     "equipped": false,
+     "hit": 0,
+     "window_games": 10
+    },
+    {
+     "venue": "天母",
+     "equipped": true,
+     "hit": 10,
+     "window_games": 10
+    },
+    {
+     "venue": "斗六",
+     "equipped": true,
+     "hit": 2,
+     "window_games": 2
+    },
+    {
+     "venue": "新莊",
+     "equipped": true,
+     "hit": 9,
+     "window_games": 10
+    },
+    {
+     "venue": "樂天桃園",
+     "equipped": true,
+     "hit": 10,
+     "window_games": 10
+    },
+    {
+     "venue": "洲際",
+     "equipped": true,
+     "hit": 9,
+     "window_games": 10
+    },
+    {
+     "venue": "澄清湖",
+     "equipped": true,
+     "hit": 10,
+     "window_games": 10
+    },
+    {
+     "venue": "花蓮",
+     "equipped": false,
+     "hit": 0,
+     "window_games": 2
+    }
+   ],
+   "equipped_true": [
+    "亞太主",
+    "天母",
+    "斗六",
+    "新莊",
+    "樂天桃園",
+    "洲際",
+    "澄清湖"
+   ],
+   "equipped_false": [
+    "台東",
+    "嘉義市",
+    "大巨蛋",
+    "花蓮"
+   ],
+   "invariant_checks": [
+    {
+     "venue": "大巨蛋",
+     "expect": false,
+     "observed": false,
+     "present_in_data": true,
+     "ok": true
+    },
+    {
+     "venue": "台東",
+     "expect": false,
+     "observed": false,
+     "present_in_data": true,
+     "ok": true
+    },
+    {
+     "venue": "嘉義市",
+     "expect": false,
+     "observed": false,
+     "present_in_data": true,
+     "ok": true
+    },
+    {
+     "venue": "花蓮",
+     "expect": false,
+     "observed": false,
+     "present_in_data": true,
+     "ok": true
+    },
+    {
+     "venue": "新莊",
+     "expect": true,
+     "observed": true,
+     "present_in_data": true,
+     "ok": true
+    },
+    {
+     "venue": "洲際",
+     "expect": true,
+     "observed": true,
+     "present_in_data": true,
+     "ok": true
+    },
+    {
+     "venue": "亞太主",
+     "expect": true,
+     "observed": true,
+     "present_in_data": true,
+     "ok": true
+    },
+    {
+     "venue": "斗六",
+     "expect": true,
+     "observed": true,
+     "present_in_data": true,
+     "ok": true
+    }
+   ],
+   "invariants_all_ok": true
+  },
+  "D": {
+   "venues": [
+    {
+     "venue": "亞太副",
+     "equipped": false,
+     "hit": 0,
+     "window_games": 10
+    },
+    {
+     "venue": "嘉義市",
+     "equipped": false,
+     "hit": 0,
+     "window_games": 10
+    },
+    {
+     "venue": "園區",
+     "equipped": true,
+     "hit": 10,
+     "window_games": 10
+    },
+    {
+     "venue": "場地未定",
+     "equipped": false,
+     "hit": 0,
+     "window_games": 1
+    },
+    {
+     "venue": "斗六",
+     "equipped": true,
+     "hit": 8,
+     "window_games": 10
+    },
+    {
+     "venue": "樂天桃園",
+     "equipped": true,
+     "hit": 9,
+     "window_games": 10
+    },
+    {
+     "venue": "澄清湖",
+     "equipped": true,
+     "hit": 1,
+     "window_games": 2
+    },
+    {
+     "venue": "皇鷹學院",
+     "equipped": true,
+     "hit": 9,
+     "window_games": 10
+    },
+    {
+     "venue": "青埔",
+     "equipped": true,
+     "hit": 10,
+     "window_games": 10
+    }
+   ],
+   "equipped_true": [
+    "園區",
+    "斗六",
+    "樂天桃園",
+    "澄清湖",
+    "皇鷹學院",
+    "青埔"
+   ],
+   "equipped_false": [
+    "亞太副",
+    "嘉義市",
+    "場地未定"
+   ],
+   "invariant_checks": [
+    {
+     "venue": "亞太副",
+     "expect": false,
+     "observed": false,
+     "present_in_data": true,
+     "ok": true
+    },
+    {
+     "venue": "嘉義市",
+     "expect": false,
+     "observed": false,
+     "present_in_data": true,
+     "ok": true
+    },
+    {
+     "venue": "場地未定",
+     "expect": false,
+     "observed": false,
+     "present_in_data": true,
+     "ok": true
+    },
+    {
+     "venue": "園區",
+     "expect": true,
+     "observed": true,
+     "present_in_data": true,
+     "ok": true
+    },
+    {
+     "venue": "青埔",
+     "expect": true,
+     "observed": true,
+     "present_in_data": true,
+     "ok": true
+    },
+    {
+     "venue": "樂天桃園",
+     "expect": true,
+     "observed": true,
+     "present_in_data": true,
+     "ok": true
+    },
+    {
+     "venue": "皇鷹學院",
+     "expect": true,
+     "observed": true,
+     "present_in_data": true,
+     "ok": true
+    },
+    {
+     "venue": "斗六",
+     "expect": true,
+     "observed": true,
+     "present_in_data": true,
+     "ok": true
+    },
+    {
+     "venue": "澄清湖",
+     "expect": true,
+     "observed": true,
+     "present_in_data": true,
+     "ok": true
+    }
+   ],
+   "invariants_all_ok": true
+  }
+ }
+}
