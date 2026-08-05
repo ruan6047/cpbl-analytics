@@ -23,6 +23,9 @@ pure parser `parse_pitches` 解析，與正式表該場既有列逐格比對。
 - `other`：兩份清單都沒點名的欄位（球種標籤、局數/球數狀態）。**刻意不併入任一紅線**，
   單獨列出交查核者／需求方判讀，避免執行者替紅線範圍作擴張或縮減解釋。
 
+**凍結例外**（需求方 2026-08-05 裁定）：`FROZEN_GAMES` 內的場次其 physical mismatch
+不計入紅線 1 母體。三個數字全留（合計／凍結／母體內），「排除」必須看得見而非消失。
+
 產出（`--outdir`，預設 docs/research/INGEST-GAME-TM-REFACTOR1-G4/）：
 - `dryrun_summary.json`     全域與逐 kind 統計、逐場明細
 - `dryrun_text_diffs.json`  紅線 2 逐筆歸因（含 endpoint_url／fetched_at／payload_sha256）
@@ -49,9 +52,11 @@ import httpx
 from cpbl.db import conn
 from cpbl.ingest.cpbl_pitch_tracking import (
     _COLS,
+    FROZEN_GAMES,
     GAMES_EP,
     _client,
     completed_game_snos,
+    is_frozen,
     parse_pitches,
 )
 from cpbl.ingest.game_tm_shadow import _cell_equal
@@ -215,6 +220,7 @@ def main() -> None:
     by_kind: dict[str, dict] = {}
     fetch_errors: list[dict] = []
     requests_made = 0
+    frozen_physical = 0   # 凍結例外場貢獻的物理欄位不一致（不計入紅線 1 母體）
 
     try:
         for kind in args.kinds:
@@ -256,6 +262,8 @@ def main() -> None:
                 k_stat["only_prod_pk"] += len(d["only_prod_pk"])
                 k_stat["dup_pk_dropped"] += dup
                 for cell in d["cell_mismatches"]:
+                    if cell["bucket"] == "physical" and is_frozen(args.year, kind, sno):
+                        frozen_physical += 1
                     k_stat["cells"][cell["bucket"]] += 1
                     bucket_counter[cell["bucket"]] += 1
                     col_counter[cell["column"]] += 1
@@ -318,8 +326,13 @@ def main() -> None:
             "cell_mismatch_by_column": dict(col_counter),
         },
         "redlines": {
-            "redline1_physical_cell_mismatches": bucket_counter.get("physical", 0),
-            "redline1_pass": bucket_counter.get("physical", 0) == 0,
+            # 紅線 1 母體排除凍結例外場（需求方 2026-08-05 裁定；清單見
+            # cpbl_pitch_tracking.FROZEN_GAMES）。兩個數字都留，避免「排除後就看不見」。
+            "frozen_games": sorted(f"{y}-{k}-{s}" for y, k, s in FROZEN_GAMES),
+            "redline1_physical_cell_mismatches_all": bucket_counter.get("physical", 0),
+            "redline1_physical_cell_mismatches_frozen": frozen_physical,
+            "redline1_physical_cell_mismatches": bucket_counter.get("physical", 0) - frozen_physical,
+            "redline1_pass": (bucket_counter.get("physical", 0) - frozen_physical) == 0,
             "redline2_text_cell_mismatches": bucket_counter.get("text", 0),
             "redline3_only_prod_pk": sum(v["only_prod_pk"] for v in by_kind.values()),
             "redline3_pass": sum(v["only_prod_pk"] for v in by_kind.values()) == 0,
@@ -341,8 +354,10 @@ def main() -> None:
         print(f"kind {k}: 完成場={v['completed_games']} api列={v['api_rows']} 表列={v['prod_rows']} "
               f"only_api={v['only_api_pk']} only_prod={v['only_prod_pk']} "
               f"dup丟棄={v['dup_pk_dropped']} 逐格={v['cells']}")
-    print(f"紅線1 物理欄位不一致={bucket_counter.get('physical', 0)}"
-          f"（{'PASS' if bucket_counter.get('physical', 0) == 0 else 'FAIL'}）")
+    in_scope = bucket_counter.get("physical", 0) - frozen_physical
+    print(f"紅線1 物理欄位不一致：合計={bucket_counter.get('physical', 0)} "
+          f"凍結場除外={frozen_physical} 母體內={in_scope}"
+          f"（{'PASS' if in_scope == 0 else 'FAIL'}）")
     print(f"紅線2 文字欄位不一致={bucket_counter.get('text', 0)} 筆 → dryrun_text_diffs.json")
     print(f"紅線3 only_prod_pk={summary['redlines']['redline3_only_prod_pk']}"
           f"（{'PASS' if summary['redlines']['redline3_pass'] else '阻擋 Phase B，須交需求方裁定'}）")

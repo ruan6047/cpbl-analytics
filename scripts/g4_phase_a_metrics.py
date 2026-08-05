@@ -417,6 +417,15 @@ def cmd_rollback(year: int, outdir: Path) -> dict:
         "action": ("採用暫定值並留痕（≤1/季）" if all(v["trigger_count"] <= 1
                                                     for v in out["by_kind"].values())
                    else "逾越裁定容忍度 → 回報需求方裁定，執行者不得自行調參"),
+        # 需求方 2026-08-05 裁定（第 1 輪跨家族查核後正文化入卡面〈驗證〉）：
+        "requester_ruling_2026_08_05": {
+            "decision": ("回放 8 次觸發（A7／D1）**重分類為環境告警記錄**，暫定值照案採用；"
+                         "成因為已文件化的場館事件（亞太主早季未裝機、大巨蛋衰退），"
+                         "非門檻設計缺陷。"),
+            "parameter_changes": "無——p05 地板、連續 2 eligible day 語意與任何參數皆不改動",
+            "effect": "上線後回滾規則原樣生效；本回測不重跑、不調參",
+            "source": "docs/tasks/INGEST-GAME-TM-REFACTOR1-G4.md〈驗證〉回測結果裁定條目",
+        },
     }
     print(f"[rollback] 合計觸發 {total} 次 → {out['verdict']['action']}")
     _write(outdir, "rollback_backtest.json", out)
