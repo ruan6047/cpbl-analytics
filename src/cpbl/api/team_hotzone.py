@@ -50,6 +50,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
 
 WINDOW_DAYS = 14
@@ -68,7 +69,7 @@ _PIT_TEAM_EXPR = "CASE pg.visiting_home_type WHEN '2' THEN g.home_team_code ELSE
 def _last_completed_game_date(cur, code: str, season: int) -> date | None:
     cur.execute(
         "SELECT max(game_date) FROM cpbl.games "
-        "WHERE year=%s AND kind_code='A' AND home_score+away_score>0 AND game_date<=CURRENT_DATE "
+        f"WHERE year=%s AND kind_code='A' AND {completed_games_sql_with_evidence('games')} "
         "AND (home_team_code=%s OR away_team_code=%s)",
         (season, code, code),
     )

@@ -149,9 +149,11 @@ def raw_axes(agg: dict[str, int]) -> dict[str, float | None]:
 # ---------------------------------------------------------------------------
 
 def completed_a_filter() -> str:
-    from cpbl.completion import completed_games_sql
+    # 證據感知完成判準：0:0 真和局需外部完賽證據（DATA-TIE-REMEDY1）。
+    from cpbl.completion import completed_games_sql_with_evidence
 
-    return f"g.kind_code = 'A' AND g.year BETWEEN %s AND %s AND {completed_games_sql()}"
+    return ("g.kind_code = 'A' AND g.year BETWEEN %s AND %s AND "
+            f"{completed_games_sql_with_evidence('g')}")
 
 
 def load_team_games(c) -> dict[tuple[int, str], list[dict]]:

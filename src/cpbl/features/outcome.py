@@ -3,7 +3,8 @@
 逐場依日期順序處理，維護每隊 running state（季內勝率、近10場、得失分、對戰史）。
 每場特徵在「套用該場結果之前」計算 → 嚴格只用過去資訊，無資料洩漏。
 
-completed 判定：home_score + away_score > 0（未開打的場次比分為 0-0）。
+completed 判定：走 `cpbl.completion.is_completed_game`——比分 > 0 **或**有官方完賽證據
+（0:0 真和局屬後者，見 DATA-TIE-REMEDY1；未開打的場次比分同為 0-0，故不能只看比分）。
 
 先發投手 ERA/WHIP/K9（ML-OUTCOME-LEAK1）：**賽前 as-of**。
 舊版以 `(starter_id, year)` 讀同季彙總（`pitching_seasons`／`pitching_current`），
@@ -19,8 +20,16 @@ import logging
 import math
 from collections import defaultdict, deque
 from dataclasses import dataclass, replace
+from datetime import datetime, timedelta, timezone
 
+from cpbl.completion import (
+    completed_games_sql_with_evidence,
+    is_completed_game,
+)
 from cpbl.db import conn
+
+# 台北時區（DB timezone 為 UTC，完成場的「今天」須以台北日界為準）
+_TAIPEI = timezone(timedelta(hours=8))
 
 log = logging.getLogger("cpbl.features.outcome")
 
@@ -231,10 +240,10 @@ def _prior_winpct() -> dict[tuple[int, str], float]:
     with conn() as c:
         cur = c.cursor()
         cur.execute(
-            """
+            f"""
             SELECT year, home_team_code, away_team_code, home_score, away_score
             FROM cpbl.games
-            WHERE kind_code = 'A' AND home_score + away_score > 0
+            WHERE kind_code = 'A' AND {completed_games_sql_with_evidence('games')}
             """
         )
         for year, hc, ac, hs, as_ in cur.fetchall():
@@ -303,7 +312,20 @@ def _team_batting_box() -> dict[tuple[int, str, int], dict]:
     return box
 
 
+def _completion_evidence() -> set[tuple[int, str, int]]:
+    """已取得外部完賽證據的場次集合（0:0 真和局靠它才判得出完成）。"""
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            "SELECT year, kind_code, game_sno FROM cpbl.game_completion_evidence")
+        return {(y, k, s) for y, k, s in cur.fetchall()}
+
+
 def build_game_features() -> list[dict]:
+    # 完賽判定所需：外部證據集合 + 日期界線（台北日界）。逐場在迴圈內以
+    # `is_completed_game` 判定，與 SQL 端的 `completed_games_sql_with_evidence` 同語意。
+    _evidence = _completion_evidence()
+    _AS_OF = datetime.now(_TAIPEI).date()
     pitch_game = _starter_game_counts()
     pitch_season = _pitcher_season_totals(pitch_game)
     lg_pitch = _league_pitch_rates(pitch_season)
@@ -444,7 +466,8 @@ def build_game_features() -> list[dict]:
             "team_err_now_diff": team_err_now,
         }
 
-        completed = hs is not None and as_ is not None and (hs + as_) > 0
+        completed = is_completed_game(
+            hs, as_, date, _AS_OF, (year, kind, sno) in _evidence)
         home_win = None
         if completed:
             home_win = 1 if hs > as_ else (0 if hs < as_ else None)

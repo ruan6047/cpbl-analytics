@@ -32,6 +32,9 @@ class _FakeCursor:
             self._rows = []
         elif "FROM cpbl.batting_gamelog" in sql or "sum(wild_pitch)" in sql:
             self._rows = []
+        elif "FROM cpbl.game_completion_evidence" in sql:
+            # 完成場的外部證據（DATA-TIE-REMEDY1）：本檔樣本皆為正比分，預設無證據。
+            self._rows = self._s.get("evidence", [])
         elif "FROM cpbl.games" in sql:
             # `_prior_winpct` 與主迴圈都查 games；用 SELECT 首欄組合判別。
             self._rows = ([(g[0], g[5], g[7], g[9], g[10]) for g in self._s["games"]]

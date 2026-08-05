@@ -23,8 +23,12 @@
 
 from __future__ import annotations
 
+from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
 from cpbl.venues import is_artificial, is_indoor
+
+# 完成場判準（證據感知）：0:0 真和局需外部完賽證據才算完成場（DATA-TIE-REMEDY1）。
+_DONE = completed_games_sql_with_evidence("games")
 
 LEAD_MARGIN = 3       # 順風/逆風門檻
 BLOWOUT_MARGIN = 5    # 大勝/大敗門檻
@@ -260,7 +264,7 @@ def _add_streaks(season: int, kind_code: str, out: dict[str, dict]) -> None:
     with conn() as c:
         games = c.execute(
             "SELECT home_team_code, away_team_code, home_score, away_score "
-            "FROM cpbl.games WHERE year=%s AND kind_code=%s AND home_score+away_score>0 "
+            f"FROM cpbl.games WHERE year=%s AND kind_code=%s AND {_DONE} "
             "ORDER BY game_date, game_sno",
             (season, kind_code),
         ).fetchall()
@@ -361,7 +365,7 @@ def _add_series(season: int, kind_code: str, out: dict[str, dict]) -> None:
     with conn() as c:
         games = c.execute(
             "SELECT home_team_code, away_team_code, game_sno, home_score, away_score "
-            "FROM cpbl.games WHERE year=%s AND kind_code=%s AND home_score+away_score>0 "
+            f"FROM cpbl.games WHERE year=%s AND kind_code=%s AND {_DONE} "
             "ORDER BY home_team_code, away_team_code, game_sno",
             (season, kind_code),
         ).fetchall()

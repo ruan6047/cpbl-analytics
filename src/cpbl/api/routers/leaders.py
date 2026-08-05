@@ -7,11 +7,15 @@ from fastapi import APIRouter, Query
 from cpbl.api.helpers import DEFAULT_SEASON, _ip_disp
 from cpbl.api.rows import _batting_rows, _pitching_rows, _primary_positions
 from cpbl.api.scoreless import streak_payload
+from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
 from cpbl.franchises import franchise_of
 from cpbl.ingest.championships import championship_coverage
 
 router = APIRouter()
+
+# 完成場判準（證據感知）：歷史紀錄室的場次母體含 0:0 真和局（DATA-TIE-REMEDY1）。
+_DONE = completed_games_sql_with_evidence("games")
 
 
 def _longest_title_streak(years: list[int]) -> tuple[int, int, int]:
@@ -53,7 +57,7 @@ def records(kind_code: str = Query("A"), limit: int = Query(5, ge=1, le=50)) -> 
         def game_rec(order: str) -> dict | None:
             cur.execute(
                 f"SELECT year, game_date, home_team_name, away_team_name, home_score, away_score "
-                f"FROM cpbl.games WHERE kind_code=%s AND home_score+away_score>0 ORDER BY {order} LIMIT 1",
+                f"FROM cpbl.games WHERE kind_code=%s AND {_DONE} ORDER BY {order} LIMIT 1",
                 (kind_code,))
             r = cur.fetchone()
             if not r:
@@ -269,7 +273,7 @@ def postseason_records() -> dict:
 
         # 季後賽 W/L + 出賽年數（kind C 台灣大賽、E 挑戰賽）
         cur.execute("SELECT home_team_code, away_team_code, home_score, away_score, year "
-                    "FROM cpbl.games WHERE kind_code IN ('C','E') AND home_score+away_score>0")
+                    f"FROM cpbl.games WHERE kind_code IN ('C','E') AND {_DONE}")
         wins: dict[str, int] = defaultdict(int)
         losses: dict[str, int] = defaultdict(int)
         years_seen: dict[str, set[int]] = defaultdict(set)
@@ -382,7 +386,7 @@ def team_records() -> dict:
     with conn() as c:
         cur = c.cursor()
         cur.execute("SELECT home_team_code, away_team_code, home_score, away_score, year "
-                    "FROM cpbl.games WHERE kind_code='A' AND home_score+away_score>0 "
+                    f"FROM cpbl.games WHERE kind_code='A' AND {_DONE} "
                     "ORDER BY game_date, game_sno")
         # 逐 (code, year)：勝敗序（W/L/T）、完封對手序（1/0）、勝場數
         res_seq: dict[tuple[str, int], list[str]] = defaultdict(list)

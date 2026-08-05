@@ -8,6 +8,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
 from cpbl.models.umpire_impact import (
     BALL_RADIUS_M,
@@ -166,7 +167,7 @@ def _score(
         )
         completed_rows = connection.execute(
             "SELECT venue, count(DISTINCT game_sno) FROM cpbl.games "
-            "WHERE year=%s AND kind_code=%s AND home_score + away_score > 0 "
+            f"WHERE year=%s AND kind_code=%s AND {completed_games_sql_with_evidence('games')} "
             "GROUP BY venue",
             (season, kind),
         ).fetchall()

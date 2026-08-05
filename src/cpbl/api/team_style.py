@@ -182,14 +182,15 @@ def _in_progress_years(c) -> set[int]:
     """該年仍有「排在今天（含）之後、未完成」的一軍例行賽 → 「賽季進行中」（設計約束 8）。
 
     完成判定沿 ``cpbl.completion``；必須加 ``game_date >= CURRENT_DATE`` 的未來界線：
-    歷史年份會殘留取消未補的 0-0 列（如 2018/2025 各一場），只看 pending 數會把
-    已結束球季誤標進行中。球季打完（無未來場次）標注自動消失，不寫死年份。
+    歷史年份的 0-0 列**不是**取消未補——2018/2025 各一場其實是真實的 0:0 和局
+    （DATA-TIE-REMEDY1 已取官方 box 證據）。改用證據感知判準後它們算完成場，
+    不再被誤計為 pending。球季打完（無未來場次）標注自動消失，不寫死年份。
     """
-    from cpbl.completion import completed_games_sql
+    from cpbl.completion import completed_games_sql_with_evidence
 
     rows = c.execute(
         "SELECT year, count(*) FILTER (WHERE NOT ("
-        + completed_games_sql()
+        + completed_games_sql_with_evidence("games")
         + ") AND game_date >= CURRENT_DATE) "
         "FROM cpbl.games WHERE kind_code = 'A' AND year BETWEEN %s AND %s "
         "GROUP BY year",

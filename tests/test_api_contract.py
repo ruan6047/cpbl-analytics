@@ -13,6 +13,7 @@ from psycopg_pool import ConnectionPool
 from cpbl import db
 from cpbl.api.main import app
 from cpbl.api.routers import info
+from cpbl.completion import completed_games_sql_with_evidence
 
 
 @pytest.fixture
@@ -52,7 +53,12 @@ def test_info_status_vocabulary(client, broken_db):
 
 
 def test_info_freshness_metrics_use_completed_game_contract(monkeypatch):
-    """未完成保留賽的中止比分不得推高 completed 或最後比賽日。"""
+    """未完成保留賽的中止比分不得推高 completed 或最後比賽日。
+
+    斷言方式刻意**引用 SSoT helper 而非硬寫字串**：判準改版時（如
+    DATA-TIE-REMEDY1 加入外部證據）本測試自動跟著走，不會因為釘死舊字串而
+    在真正的語意錯誤（運算子優先序）面前仍然通過。判準本身的語意回歸在
+    `tests/test_completion_evidence.py`。"""
     queries: list[str] = []
 
     def scalar(sql, params=()):
@@ -66,15 +72,10 @@ def test_info_freshness_metrics_use_completed_game_contract(monkeypatch):
     body = info.info()
 
     assert body["metrics"]["season_games_completed"] == 0
-    assert any(
-        "WHERE year = %s AND home_score + away_score > 0 AND game_date <= CURRENT_DATE" in sql
-        for sql in queries
-    )
-    assert any(
-        "SELECT max(game_date) FROM cpbl.games "
-        "WHERE home_score + away_score > 0 AND game_date <= CURRENT_DATE" in sql
-        for sql in queries
-    )
+    done = completed_games_sql_with_evidence("games")
+    assert any(f"WHERE year = %s AND {done}" in sql for sql in queries)
+    assert any(f"SELECT max(game_date) FROM cpbl.games WHERE {done}" in sql
+               for sql in queries)
 
 
 def test_matchup_query_parameters_are_exposed_in_openapi():
