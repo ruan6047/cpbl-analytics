@@ -1,0 +1,3239 @@
+{
+  "rule_anchor": {
+    "called_game": {
+      "file": "docs/reference/聯盟規章.txt",
+      "rule": "第9章 第38條【正式比賽的確定】",
+      "lines": "1330-1344",
+      "quote": "未賽完第 1 局：比賽不算，另擇期重賽。已賽 2 至未滿 5 局：比賽保留，另擇期進行（記錄認定於比賽完成日之成績）。已賽完 5 局上半或 5 局下半中途：後攻隊為領先或追平時，視同已賽滿 5 局，成為正式比賽。已賽滿 5 局以上：以棒球規則判定為基準…殘局不算，以賽至前一完整局數之結果判定勝負"
+    },
+    "postseason": {
+      "file": "docs/reference/聯盟規章.txt",
+      "rule": "第12章 第66條【正式比賽的確定】",
+      "lines": "1779-1786",
+      "quote": "比賽採 9 局制，每場比賽皆須完成正規 9 局。在完成第 9 局前，因雨或其他不可抗力等因素而終止比賽時，皆成為保留比賽。在完成第 9 局後、及延長賽任一局數中成為平手，因雨或其他不可抗力等因素而終止比賽時，成為和局比賽"
+    },
+    "extra_inning_tiebreak": {
+      "file": "docs/reference/棒球規則.txt",
+      "rule": "7.01(b)(2)(C)",
+      "quote": "為符合規則 9.16 自責分的計算，每半局開始位於二壘的跑壘員，視為守備失誤上壘，但不記錄球隊或任何球員失誤"
+    },
+    "extra_inning_rule": {
+      "file": "docs/reference/棒球規則.txt",
+      "rule": "7.01(b)(2)",
+      "quote": "第 9 局之後的每半局，將以跑壘員位於二壘開始"
+    },
+    "postseason_stats_excluded": {
+      "file": "docs/reference/聯盟規章.txt",
+      "rule": "第48條【加賽記錄】",
+      "quote": "季後決賽之各項成績均不列入球季例行賽記錄；加賽之成績得列入例行賽記錄"
+    }
+  },
+  "tie_reconciliation_vs_official_standings": [
+    {
+      "year": 2018,
+      "official_tie_slots": 2,
+      "derived_nonzero_tie_games": 0,
+      "zero_zero_candidates": 1,
+      "official_tie_games": 1.0,
+      "unaccounted_tie_games": 1.0,
+      "explained_by_zero_zero": true
+    },
+    {
+      "year": 2019,
+      "official_tie_slots": 8,
+      "derived_nonzero_tie_games": 4,
+      "zero_zero_candidates": 0,
+      "official_tie_games": 4.0,
+      "unaccounted_tie_games": 0.0,
+      "explained_by_zero_zero": true
+    },
+    {
+      "year": 2020,
+      "official_tie_slots": 4,
+      "derived_nonzero_tie_games": 2,
+      "zero_zero_candidates": 0,
+      "official_tie_games": 2.0,
+      "unaccounted_tie_games": 0.0,
+      "explained_by_zero_zero": true
+    },
+    {
+      "year": 2021,
+      "official_tie_slots": 20,
+      "derived_nonzero_tie_games": 9,
+      "zero_zero_candidates": 1,
+      "official_tie_games": 10.0,
+      "unaccounted_tie_games": 1.0,
+      "explained_by_zero_zero": true
+    },
+    {
+      "year": 2022,
+      "official_tie_slots": 20,
+      "derived_nonzero_tie_games": 10,
+      "zero_zero_candidates": 0,
+      "official_tie_games": 10.0,
+      "unaccounted_tie_games": 0.0,
+      "explained_by_zero_zero": true
+    },
+    {
+      "year": 2023,
+      "official_tie_slots": 22,
+      "derived_nonzero_tie_games": 9,
+      "zero_zero_candidates": 2,
+      "official_tie_games": 11.0,
+      "unaccounted_tie_games": 2.0,
+      "explained_by_zero_zero": true
+    },
+    {
+      "year": 2024,
+      "official_tie_slots": 4,
+      "derived_nonzero_tie_games": 2,
+      "zero_zero_candidates": 0,
+      "official_tie_games": 2.0,
+      "unaccounted_tie_games": 0.0,
+      "explained_by_zero_zero": true
+    }
+  ],
+  "tie_reconciliation_all_explained": true,
+  "confirmed_scoreless_tie_games": [
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 124,
+      "game_date": "2018-07-12",
+      "game_season_code": "2",
+      "present_status": 1,
+      "delay_kind": null,
+      "orig_date": null,
+      "home_team_name": "統一7-ELEVEn獅",
+      "away_team_name": "中信兄弟",
+      "venue": "新莊",
+      "livelog_rows": 0,
+      "gamelog_rows": 0,
+      "scoreboard_rows": 0
+    },
+    {
+      "year": 2021,
+      "kind_code": "A",
+      "game_sno": 256,
+      "game_date": "2021-10-23",
+      "game_season_code": "2",
+      "present_status": 1,
+      "delay_kind": null,
+      "orig_date": null,
+      "home_team_name": "樂天桃猿",
+      "away_team_name": "統一7-ELEVEn獅",
+      "venue": "桃園",
+      "livelog_rows": 0,
+      "gamelog_rows": 0,
+      "scoreboard_rows": 0
+    },
+    {
+      "year": 2023,
+      "kind_code": "A",
+      "game_sno": 119,
+      "game_date": "2023-06-10",
+      "game_season_code": "1",
+      "present_status": 1,
+      "delay_kind": null,
+      "orig_date": null,
+      "home_team_name": "味全龍",
+      "away_team_name": "富邦悍將",
+      "venue": "天母",
+      "livelog_rows": 0,
+      "gamelog_rows": 0,
+      "scoreboard_rows": 0
+    },
+    {
+      "year": 2023,
+      "kind_code": "A",
+      "game_sno": 175,
+      "game_date": "2023-08-01",
+      "game_season_code": "2",
+      "present_status": 1,
+      "delay_kind": null,
+      "orig_date": null,
+      "home_team_name": "統一7-ELEVEn獅",
+      "away_team_name": "味全龍",
+      "venue": "天母",
+      "livelog_rows": 0,
+      "gamelog_rows": 0,
+      "scoreboard_rows": 0
+    },
+    {
+      "year": 2025,
+      "kind_code": "A",
+      "game_sno": 233,
+      "game_date": "2025-08-01",
+      "game_season_code": "2",
+      "present_status": 1,
+      "delay_kind": null,
+      "orig_date": null,
+      "home_team_name": "台鋼雄鷹",
+      "away_team_name": "味全龍",
+      "venue": "澄清湖",
+      "livelog_rows": 0,
+      "gamelog_rows": 0,
+      "scoreboard_rows": 0
+    }
+  ],
+  "zero_score_past_dated_population": {
+    "no_delay_kind": 321,
+    "with_delay_kind": 1,
+    "total": 322
+  },
+  "completed_game_max_inning_distribution": [
+    {
+      "kind_code": "A",
+      "max_inning": 5,
+      "n": 5
+    },
+    {
+      "kind_code": "A",
+      "max_inning": 6,
+      "n": 5
+    },
+    {
+      "kind_code": "A",
+      "max_inning": 7,
+      "n": 2
+    },
+    {
+      "kind_code": "A",
+      "max_inning": 8,
+      "n": 3
+    },
+    {
+      "kind_code": "A",
+      "max_inning": 9,
+      "n": 2349
+    },
+    {
+      "kind_code": "A",
+      "max_inning": 10,
+      "n": 107
+    },
+    {
+      "kind_code": "A",
+      "max_inning": 11,
+      "n": 52
+    },
+    {
+      "kind_code": "A",
+      "max_inning": 12,
+      "n": 46
+    },
+    {
+      "kind_code": "C",
+      "max_inning": 9,
+      "n": 38
+    },
+    {
+      "kind_code": "C",
+      "max_inning": 10,
+      "n": 1
+    },
+    {
+      "kind_code": "C",
+      "max_inning": 11,
+      "n": 2
+    },
+    {
+      "kind_code": "C",
+      "max_inning": 14,
+      "n": 1
+    },
+    {
+      "kind_code": "D",
+      "max_inning": 5,
+      "n": 14
+    },
+    {
+      "kind_code": "D",
+      "max_inning": 6,
+      "n": 29
+    },
+    {
+      "kind_code": "D",
+      "max_inning": 7,
+      "n": 29
+    },
+    {
+      "kind_code": "D",
+      "max_inning": 8,
+      "n": 18
+    },
+    {
+      "kind_code": "D",
+      "max_inning": 9,
+      "n": 1549
+    },
+    {
+      "kind_code": "D",
+      "max_inning": 10,
+      "n": 29
+    },
+    {
+      "kind_code": "E",
+      "max_inning": 9,
+      "n": 16
+    },
+    {
+      "kind_code": "E",
+      "max_inning": 10,
+      "n": 1
+    }
+  ],
+  "short_games_under_9_innings": [
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 175,
+      "game_date": "2018-08-19",
+      "max_inning": 7,
+      "home_score": 3,
+      "away_score": 5,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "game_sno": 10,
+      "game_date": "2018-04-06",
+      "max_inning": 7,
+      "home_score": 2,
+      "away_score": 6,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "game_sno": 63,
+      "game_date": "2018-06-07",
+      "max_inning": 8,
+      "home_score": 15,
+      "away_score": 5,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "game_sno": 73,
+      "game_date": "2018-07-30",
+      "max_inning": 8,
+      "home_score": 8,
+      "away_score": 10,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "game_sno": 93,
+      "game_date": "2018-07-12",
+      "max_inning": 8,
+      "home_score": 9,
+      "away_score": 2,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "game_sno": 95,
+      "game_date": "2018-07-14",
+      "max_inning": 6,
+      "home_score": 2,
+      "away_score": 7,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "game_sno": 110,
+      "game_date": "2018-08-01",
+      "max_inning": 7,
+      "home_score": 6,
+      "away_score": 5,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "game_sno": 118,
+      "game_date": "2018-08-10",
+      "max_inning": 6,
+      "home_score": 6,
+      "away_score": 1,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "game_sno": 119,
+      "game_date": "2018-08-11",
+      "max_inning": 8,
+      "home_score": 6,
+      "away_score": 1,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "game_sno": 136,
+      "game_date": "2018-08-31",
+      "max_inning": 8,
+      "home_score": 4,
+      "away_score": 6,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "game_sno": 142,
+      "game_date": "2018-09-07",
+      "max_inning": 7,
+      "home_score": 10,
+      "away_score": 0,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "game_sno": 143,
+      "game_date": "2018-09-08",
+      "max_inning": 8,
+      "home_score": 7,
+      "away_score": 4,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2019,
+      "kind_code": "A",
+      "game_sno": 39,
+      "game_date": "2019-04-20",
+      "max_inning": 5,
+      "home_score": 3,
+      "away_score": 3,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2019,
+      "kind_code": "A",
+      "game_sno": 40,
+      "game_date": "2019-04-20",
+      "max_inning": 6,
+      "home_score": 12,
+      "away_score": 5,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2019,
+      "kind_code": "A",
+      "game_sno": 77,
+      "game_date": "2019-05-18",
+      "max_inning": 7,
+      "home_score": 4,
+      "away_score": 7,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2019,
+      "kind_code": "D",
+      "game_sno": 22,
+      "game_date": "2019-04-19",
+      "max_inning": 5,
+      "home_score": 3,
+      "away_score": 4,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2019,
+      "kind_code": "D",
+      "game_sno": 44,
+      "game_date": "2019-07-08",
+      "max_inning": 8,
+      "home_score": 8,
+      "away_score": 4,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2019,
+      "kind_code": "D",
+      "game_sno": 69,
+      "game_date": "2019-06-13",
+      "max_inning": 5,
+      "home_score": 6,
+      "away_score": 6,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2019,
+      "kind_code": "D",
+      "game_sno": 100,
+      "game_date": "2019-07-19",
+      "max_inning": 8,
+      "home_score": 0,
+      "away_score": 9,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2019,
+      "kind_code": "D",
+      "game_sno": 110,
+      "game_date": "2019-07-31",
+      "max_inning": 7,
+      "home_score": 4,
+      "away_score": 0,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2019,
+      "kind_code": "D",
+      "game_sno": 114,
+      "game_date": "2019-08-02",
+      "max_inning": 7,
+      "home_score": 2,
+      "away_score": 8,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2019,
+      "kind_code": "D",
+      "game_sno": 140,
+      "game_date": "2019-08-30",
+      "max_inning": 6,
+      "home_score": 5,
+      "away_score": 9,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2020,
+      "kind_code": "D",
+      "game_sno": 74,
+      "game_date": "2020-05-21",
+      "max_inning": 6,
+      "home_score": 8,
+      "away_score": 4,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2020,
+      "kind_code": "D",
+      "game_sno": 78,
+      "game_date": "2020-06-08",
+      "max_inning": 6,
+      "home_score": 1,
+      "away_score": 3,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2020,
+      "kind_code": "D",
+      "game_sno": 84,
+      "game_date": "2020-05-27",
+      "max_inning": 6,
+      "home_score": 6,
+      "away_score": 12,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2020,
+      "kind_code": "D",
+      "game_sno": 121,
+      "game_date": "2020-06-30",
+      "max_inning": 8,
+      "home_score": 13,
+      "away_score": 6,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2020,
+      "kind_code": "D",
+      "game_sno": 124,
+      "game_date": "2020-07-01",
+      "max_inning": 6,
+      "home_score": 11,
+      "away_score": 2,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2020,
+      "kind_code": "D",
+      "game_sno": 132,
+      "game_date": "2020-07-22",
+      "max_inning": 6,
+      "home_score": 17,
+      "away_score": 0,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2020,
+      "kind_code": "D",
+      "game_sno": 143,
+      "game_date": "2020-08-03",
+      "max_inning": 7,
+      "home_score": 3,
+      "away_score": 11,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2020,
+      "kind_code": "D",
+      "game_sno": 144,
+      "game_date": "2020-08-02",
+      "max_inning": 6,
+      "home_score": 0,
+      "away_score": 5,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2020,
+      "kind_code": "D",
+      "game_sno": 149,
+      "game_date": "2020-08-06",
+      "max_inning": 6,
+      "home_score": 5,
+      "away_score": 6,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2020,
+      "kind_code": "D",
+      "game_sno": 154,
+      "game_date": "2020-08-13",
+      "max_inning": 5,
+      "home_score": 9,
+      "away_score": 9,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2020,
+      "kind_code": "D",
+      "game_sno": 159,
+      "game_date": "2020-09-14",
+      "max_inning": 6,
+      "home_score": 4,
+      "away_score": 3,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2020,
+      "kind_code": "D",
+      "game_sno": 167,
+      "game_date": "2020-08-22",
+      "max_inning": 6,
+      "home_score": 5,
+      "away_score": 10,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2020,
+      "kind_code": "D",
+      "game_sno": 191,
+      "game_date": "2020-09-12",
+      "max_inning": 6,
+      "home_score": 7,
+      "away_score": 4,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2021,
+      "kind_code": "A",
+      "game_sno": 18,
+      "game_date": "2021-07-21",
+      "max_inning": 6,
+      "home_score": 4,
+      "away_score": 8,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2021,
+      "kind_code": "A",
+      "game_sno": 140,
+      "game_date": "2021-08-14",
+      "max_inning": 5,
+      "home_score": 1,
+      "away_score": 2,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2021,
+      "kind_code": "D",
+      "game_sno": 48,
+      "game_date": "2021-04-25",
+      "max_inning": 5,
+      "home_score": 5,
+      "away_score": 2,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2021,
+      "kind_code": "D",
+      "game_sno": 181,
+      "game_date": "2021-09-02",
+      "max_inning": 8,
+      "home_score": 4,
+      "away_score": 3,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2021,
+      "kind_code": "D",
+      "game_sno": 182,
+      "game_date": "2021-09-03",
+      "max_inning": 6,
+      "home_score": 3,
+      "away_score": 3,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2021,
+      "kind_code": "D",
+      "game_sno": 186,
+      "game_date": "2021-09-07",
+      "max_inning": 6,
+      "home_score": 0,
+      "away_score": 8,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2021,
+      "kind_code": "D",
+      "game_sno": 195,
+      "game_date": "2021-09-15",
+      "max_inning": 6,
+      "home_score": 1,
+      "away_score": 1,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2022,
+      "kind_code": "A",
+      "game_sno": 140,
+      "game_date": "2022-06-25",
+      "max_inning": 6,
+      "home_score": 10,
+      "away_score": 2,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2022,
+      "kind_code": "A",
+      "game_sno": 149,
+      "game_date": "2022-07-02",
+      "max_inning": 8,
+      "home_score": 2,
+      "away_score": 1,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2022,
+      "kind_code": "A",
+      "game_sno": 225,
+      "game_date": "2022-08-31",
+      "max_inning": 6,
+      "home_score": 4,
+      "away_score": 4,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2022,
+      "kind_code": "D",
+      "game_sno": 65,
+      "game_date": "2022-05-31",
+      "max_inning": 7,
+      "home_score": 0,
+      "away_score": 5,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2022,
+      "kind_code": "D",
+      "game_sno": 103,
+      "game_date": "2022-07-16",
+      "max_inning": 7,
+      "home_score": 3,
+      "away_score": 0,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2022,
+      "kind_code": "D",
+      "game_sno": 124,
+      "game_date": "2022-08-04",
+      "max_inning": 5,
+      "home_score": 0,
+      "away_score": 4,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2022,
+      "kind_code": "D",
+      "game_sno": 132,
+      "game_date": "2022-08-11",
+      "max_inning": 5,
+      "home_score": 6,
+      "away_score": 4,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2022,
+      "kind_code": "D",
+      "game_sno": 136,
+      "game_date": "2022-08-14",
+      "max_inning": 6,
+      "home_score": 0,
+      "away_score": 7,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2022,
+      "kind_code": "D",
+      "game_sno": 137,
+      "game_date": "2022-08-16",
+      "max_inning": 8,
+      "home_score": 3,
+      "away_score": 8,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2022,
+      "kind_code": "D",
+      "game_sno": 163,
+      "game_date": "2022-09-07",
+      "max_inning": 7,
+      "home_score": 1,
+      "away_score": 4,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2022,
+      "kind_code": "D",
+      "game_sno": 204,
+      "game_date": "2022-06-08",
+      "max_inning": 7,
+      "home_score": 6,
+      "away_score": 4,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2023,
+      "kind_code": "D",
+      "game_sno": 23,
+      "game_date": "2023-04-19",
+      "max_inning": 7,
+      "home_score": 0,
+      "away_score": 10,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2023,
+      "kind_code": "D",
+      "game_sno": 24,
+      "game_date": "2023-04-19",
+      "max_inning": 6,
+      "home_score": 3,
+      "away_score": 3,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2023,
+      "kind_code": "D",
+      "game_sno": 26,
+      "game_date": "2023-09-09",
+      "max_inning": 7,
+      "home_score": 9,
+      "away_score": 5,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2023,
+      "kind_code": "D",
+      "game_sno": 30,
+      "game_date": "2023-04-23",
+      "max_inning": 8,
+      "home_score": 2,
+      "away_score": 2,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2023,
+      "kind_code": "D",
+      "game_sno": 71,
+      "game_date": "2023-05-23",
+      "max_inning": 8,
+      "home_score": 4,
+      "away_score": 7,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2023,
+      "kind_code": "D",
+      "game_sno": 106,
+      "game_date": "2023-06-29",
+      "max_inning": 7,
+      "home_score": 1,
+      "away_score": 4,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2023,
+      "kind_code": "D",
+      "game_sno": 135,
+      "game_date": "2023-07-20",
+      "max_inning": 5,
+      "home_score": 3,
+      "away_score": 0,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2023,
+      "kind_code": "D",
+      "game_sno": 140,
+      "game_date": "2023-07-23",
+      "max_inning": 7,
+      "home_score": 2,
+      "away_score": 9,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2023,
+      "kind_code": "D",
+      "game_sno": 185,
+      "game_date": "2023-08-25",
+      "max_inning": 6,
+      "home_score": 1,
+      "away_score": 4,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2023,
+      "kind_code": "D",
+      "game_sno": 194,
+      "game_date": "2023-08-31",
+      "max_inning": 6,
+      "home_score": 6,
+      "away_score": 6,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2023,
+      "kind_code": "D",
+      "game_sno": 205,
+      "game_date": "2023-09-08",
+      "max_inning": 8,
+      "home_score": 2,
+      "away_score": 5,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2023,
+      "kind_code": "D",
+      "game_sno": 208,
+      "game_date": "2023-09-10",
+      "max_inning": 7,
+      "home_score": 3,
+      "away_score": 7,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2023,
+      "kind_code": "D",
+      "game_sno": 209,
+      "game_date": "2023-09-12",
+      "max_inning": 7,
+      "home_score": 7,
+      "away_score": 3,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2023,
+      "kind_code": "D",
+      "game_sno": 216,
+      "game_date": "2023-09-15",
+      "max_inning": 8,
+      "home_score": 2,
+      "away_score": 0,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2023,
+      "kind_code": "D",
+      "game_sno": 227,
+      "game_date": "2023-09-23",
+      "max_inning": 5,
+      "home_score": 0,
+      "away_score": 8,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2023,
+      "kind_code": "D",
+      "game_sno": 229,
+      "game_date": "2023-09-26",
+      "max_inning": 6,
+      "home_score": 1,
+      "away_score": 2,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2023,
+      "kind_code": "D",
+      "game_sno": 233,
+      "game_date": "2023-09-28",
+      "max_inning": 7,
+      "home_score": 2,
+      "away_score": 4,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2024,
+      "kind_code": "A",
+      "game_sno": 341,
+      "game_date": "2024-10-07",
+      "max_inning": 5,
+      "home_score": 3,
+      "away_score": 6,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2024,
+      "kind_code": "D",
+      "game_sno": 34,
+      "game_date": "2024-04-24",
+      "max_inning": 7,
+      "home_score": 5,
+      "away_score": 4,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2024,
+      "kind_code": "D",
+      "game_sno": 91,
+      "game_date": "2024-06-04",
+      "max_inning": 6,
+      "home_score": 3,
+      "away_score": 1,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2024,
+      "kind_code": "D",
+      "game_sno": 92,
+      "game_date": "2024-06-04",
+      "max_inning": 5,
+      "home_score": 1,
+      "away_score": 5,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2024,
+      "kind_code": "D",
+      "game_sno": 124,
+      "game_date": "2024-06-26",
+      "max_inning": 5,
+      "home_score": 1,
+      "away_score": 0,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2024,
+      "kind_code": "D",
+      "game_sno": 139,
+      "game_date": "2024-07-06",
+      "max_inning": 7,
+      "home_score": 7,
+      "away_score": 2,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2024,
+      "kind_code": "D",
+      "game_sno": 140,
+      "game_date": "2024-07-07",
+      "max_inning": 7,
+      "home_score": 0,
+      "away_score": 6,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2024,
+      "kind_code": "D",
+      "game_sno": 151,
+      "game_date": "2024-07-16",
+      "max_inning": 7,
+      "home_score": 0,
+      "away_score": 15,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2024,
+      "kind_code": "D",
+      "game_sno": 153,
+      "game_date": "2024-07-17",
+      "max_inning": 8,
+      "home_score": 4,
+      "away_score": 7,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2024,
+      "kind_code": "D",
+      "game_sno": 158,
+      "game_date": "2024-07-19",
+      "max_inning": 6,
+      "home_score": 11,
+      "away_score": 3,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2024,
+      "kind_code": "D",
+      "game_sno": 193,
+      "game_date": "2024-08-15",
+      "max_inning": 5,
+      "home_score": 1,
+      "away_score": 1,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2024,
+      "kind_code": "D",
+      "game_sno": 198,
+      "game_date": "2024-08-18",
+      "max_inning": 7,
+      "home_score": 14,
+      "away_score": 0,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2024,
+      "kind_code": "D",
+      "game_sno": 218,
+      "game_date": "2024-09-01",
+      "max_inning": 5,
+      "home_score": 2,
+      "away_score": 6,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2024,
+      "kind_code": "D",
+      "game_sno": 224,
+      "game_date": "2024-09-05",
+      "max_inning": 6,
+      "home_score": 1,
+      "away_score": 5,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2024,
+      "kind_code": "D",
+      "game_sno": 231,
+      "game_date": "2024-09-11",
+      "max_inning": 5,
+      "home_score": 3,
+      "away_score": 1,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2024,
+      "kind_code": "D",
+      "game_sno": 236,
+      "game_date": "2024-09-13",
+      "max_inning": 7,
+      "home_score": 1,
+      "away_score": 5,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2025,
+      "kind_code": "A",
+      "game_sno": 119,
+      "game_date": "2025-05-24",
+      "max_inning": 5,
+      "home_score": 1,
+      "away_score": 0,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2025,
+      "kind_code": "A",
+      "game_sno": 235,
+      "game_date": "2025-08-02",
+      "max_inning": 5,
+      "home_score": 5,
+      "away_score": 1,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2025,
+      "kind_code": "D",
+      "game_sno": 59,
+      "game_date": "2025-09-17",
+      "max_inning": 6,
+      "home_score": 0,
+      "away_score": 3,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2025,
+      "kind_code": "D",
+      "game_sno": 90,
+      "game_date": "2025-06-01",
+      "max_inning": 6,
+      "home_score": 3,
+      "away_score": 1,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2025,
+      "kind_code": "D",
+      "game_sno": 95,
+      "game_date": "2025-09-23",
+      "max_inning": 7,
+      "home_score": 3,
+      "away_score": 1,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2025,
+      "kind_code": "D",
+      "game_sno": 107,
+      "game_date": "2025-09-20",
+      "max_inning": 7,
+      "home_score": 6,
+      "away_score": 12,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2025,
+      "kind_code": "D",
+      "game_sno": 141,
+      "game_date": "2025-09-18",
+      "max_inning": 6,
+      "home_score": 2,
+      "away_score": 6,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2025,
+      "kind_code": "D",
+      "game_sno": 219,
+      "game_date": "2025-08-30",
+      "max_inning": 8,
+      "home_score": 1,
+      "away_score": 0,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2025,
+      "kind_code": "D",
+      "game_sno": 230,
+      "game_date": "2025-09-07",
+      "max_inning": 6,
+      "home_score": 1,
+      "away_score": 2,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2025,
+      "kind_code": "D",
+      "game_sno": 232,
+      "game_date": "2025-09-09",
+      "max_inning": 8,
+      "home_score": 3,
+      "away_score": 5,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "game_sno": 23,
+      "game_date": "2026-04-07",
+      "max_inning": 8,
+      "home_score": 1,
+      "away_score": 1,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "game_sno": 69,
+      "game_date": "2026-04-29",
+      "max_inning": 8,
+      "home_score": 2,
+      "away_score": 2,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "game_sno": 80,
+      "game_date": "2026-06-26",
+      "max_inning": 6,
+      "home_score": 1,
+      "away_score": 3,
+      "delay_kind": "延賽",
+      "orig_date": "2026-05-05"
+    },
+    {
+      "year": 2026,
+      "kind_code": "D",
+      "game_sno": 17,
+      "game_date": "2026-04-07",
+      "max_inning": 7,
+      "home_score": 5,
+      "away_score": 0,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2026,
+      "kind_code": "D",
+      "game_sno": 49,
+      "game_date": "2026-04-29",
+      "max_inning": 7,
+      "home_score": 9,
+      "away_score": 3,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2026,
+      "kind_code": "D",
+      "game_sno": 96,
+      "game_date": "2026-05-30",
+      "max_inning": 7,
+      "home_score": 2,
+      "away_score": 2,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2026,
+      "kind_code": "D",
+      "game_sno": 133,
+      "game_date": "2026-06-25",
+      "max_inning": 6,
+      "home_score": 4,
+      "away_score": 3,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2026,
+      "kind_code": "D",
+      "game_sno": 162,
+      "game_date": "2026-07-16",
+      "max_inning": 5,
+      "home_score": 0,
+      "away_score": 3,
+      "delay_kind": null,
+      "orig_date": null
+    },
+    {
+      "year": 2026,
+      "kind_code": "D",
+      "game_sno": 163,
+      "game_date": "2026-07-16",
+      "max_inning": 7,
+      "home_score": 2,
+      "away_score": 0,
+      "delay_kind": null,
+      "orig_date": null
+    }
+  ],
+  "delay_kind_distribution": [
+    {
+      "kind_code": "A",
+      "delay_kind": "保留",
+      "n": 2,
+      "future_dated": 0,
+      "with_score": 2
+    },
+    {
+      "kind_code": "A",
+      "delay_kind": "延賽",
+      "n": 21,
+      "future_dated": 5,
+      "with_score": 15
+    },
+    {
+      "kind_code": "A",
+      "delay_kind": null,
+      "n": 9785,
+      "future_dated": 115,
+      "with_score": 9648
+    },
+    {
+      "kind_code": "C",
+      "delay_kind": null,
+      "n": 184,
+      "future_dated": 0,
+      "with_score": 184
+    },
+    {
+      "kind_code": "D",
+      "delay_kind": "保留",
+      "n": 6,
+      "future_dated": 6,
+      "with_score": 5
+    },
+    {
+      "kind_code": "D",
+      "delay_kind": "延賽",
+      "n": 26,
+      "future_dated": 15,
+      "with_score": 11
+    },
+    {
+      "kind_code": "D",
+      "delay_kind": null,
+      "n": 3347,
+      "future_dated": 51,
+      "with_score": 2997
+    },
+    {
+      "kind_code": "E",
+      "delay_kind": null,
+      "n": 40,
+      "future_dated": 0,
+      "with_score": 40
+    },
+    {
+      "kind_code": "F",
+      "delay_kind": "延賽",
+      "n": 8,
+      "future_dated": 0,
+      "with_score": 8
+    },
+    {
+      "kind_code": "F",
+      "delay_kind": null,
+      "n": 95,
+      "future_dated": 0,
+      "with_score": 95
+    }
+  ],
+  "held_games": [
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "game_sno": 150,
+      "game_date": "2026-06-28",
+      "orig_date": "2026-06-07",
+      "delay_kind": "保留",
+      "home_score": 0,
+      "away_score": 2,
+      "livelog_rows": 232
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "game_sno": 151,
+      "game_date": "2026-06-28",
+      "orig_date": "2026-06-25",
+      "delay_kind": "保留",
+      "home_score": 4,
+      "away_score": 1,
+      "livelog_rows": 309
+    },
+    {
+      "year": 2026,
+      "kind_code": "D",
+      "game_sno": 97,
+      "game_date": "2026-08-09",
+      "orig_date": "2026-05-31",
+      "delay_kind": "保留",
+      "home_score": 4,
+      "away_score": 3,
+      "livelog_rows": 115
+    },
+    {
+      "year": 2026,
+      "kind_code": "D",
+      "game_sno": 117,
+      "game_date": "2026-08-30",
+      "orig_date": "2026-06-14",
+      "delay_kind": "保留",
+      "home_score": 1,
+      "away_score": 4,
+      "livelog_rows": 154
+    },
+    {
+      "year": 2026,
+      "kind_code": "D",
+      "game_sno": 118,
+      "game_date": "2026-08-22",
+      "orig_date": "2026-06-16",
+      "delay_kind": "保留",
+      "home_score": 1,
+      "away_score": 0,
+      "livelog_rows": 61
+    },
+    {
+      "year": 2026,
+      "kind_code": "D",
+      "game_sno": 119,
+      "game_date": "2026-08-08",
+      "orig_date": "2026-06-16",
+      "delay_kind": "保留",
+      "home_score": 5,
+      "away_score": 4,
+      "livelog_rows": 177
+    },
+    {
+      "year": 2026,
+      "kind_code": "D",
+      "game_sno": 164,
+      "game_date": "2026-09-16",
+      "orig_date": "2026-07-17",
+      "delay_kind": "保留",
+      "home_score": 0,
+      "away_score": 0,
+      "livelog_rows": 0
+    },
+    {
+      "year": 2026,
+      "kind_code": "D",
+      "game_sno": 165,
+      "game_date": "2026-09-15",
+      "orig_date": "2026-07-17",
+      "delay_kind": "保留",
+      "home_score": 1,
+      "away_score": 3,
+      "livelog_rows": 85
+    }
+  ],
+  "extra_inning_games_by_year": [
+    {
+      "year": 2018,
+      "kind_code": "A",
+      "extra_inning_games": 16,
+      "deepest_inning": 12
+    },
+    {
+      "year": 2018,
+      "kind_code": "C",
+      "extra_inning_games": 0,
+      "deepest_inning": 9
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "extra_inning_games": 0,
+      "deepest_inning": 9
+    },
+    {
+      "year": 2018,
+      "kind_code": "E",
+      "extra_inning_games": 0,
+      "deepest_inning": 9
+    },
+    {
+      "year": 2019,
+      "kind_code": "A",
+      "extra_inning_games": 15,
+      "deepest_inning": 12
+    },
+    {
+      "year": 2019,
+      "kind_code": "C",
+      "extra_inning_games": 0,
+      "deepest_inning": 9
+    },
+    {
+      "year": 2019,
+      "kind_code": "D",
+      "extra_inning_games": 1,
+      "deepest_inning": 10
+    },
+    {
+      "year": 2020,
+      "kind_code": "A",
+      "extra_inning_games": 19,
+      "deepest_inning": 12
+    },
+    {
+      "year": 2020,
+      "kind_code": "C",
+      "extra_inning_games": 1,
+      "deepest_inning": 10
+    },
+    {
+      "year": 2020,
+      "kind_code": "D",
+      "extra_inning_games": 2,
+      "deepest_inning": 10
+    },
+    {
+      "year": 2021,
+      "kind_code": "A",
+      "extra_inning_games": 29,
+      "deepest_inning": 12
+    },
+    {
+      "year": 2021,
+      "kind_code": "C",
+      "extra_inning_games": 0,
+      "deepest_inning": 9
+    },
+    {
+      "year": 2021,
+      "kind_code": "D",
+      "extra_inning_games": 0,
+      "deepest_inning": 9
+    },
+    {
+      "year": 2022,
+      "kind_code": "A",
+      "extra_inning_games": 24,
+      "deepest_inning": 12
+    },
+    {
+      "year": 2022,
+      "kind_code": "C",
+      "extra_inning_games": 0,
+      "deepest_inning": 9
+    },
+    {
+      "year": 2022,
+      "kind_code": "D",
+      "extra_inning_games": 0,
+      "deepest_inning": 9
+    },
+    {
+      "year": 2022,
+      "kind_code": "E",
+      "extra_inning_games": 0,
+      "deepest_inning": 9
+    },
+    {
+      "year": 2023,
+      "kind_code": "A",
+      "extra_inning_games": 26,
+      "deepest_inning": 12
+    },
+    {
+      "year": 2023,
+      "kind_code": "C",
+      "extra_inning_games": 2,
+      "deepest_inning": 14
+    },
+    {
+      "year": 2023,
+      "kind_code": "D",
+      "extra_inning_games": 0,
+      "deepest_inning": 9
+    },
+    {
+      "year": 2023,
+      "kind_code": "E",
+      "extra_inning_games": 0,
+      "deepest_inning": 9
+    },
+    {
+      "year": 2024,
+      "kind_code": "A",
+      "extra_inning_games": 26,
+      "deepest_inning": 12
+    },
+    {
+      "year": 2024,
+      "kind_code": "C",
+      "extra_inning_games": 0,
+      "deepest_inning": 9
+    },
+    {
+      "year": 2024,
+      "kind_code": "D",
+      "extra_inning_games": 0,
+      "deepest_inning": 9
+    },
+    {
+      "year": 2024,
+      "kind_code": "E",
+      "extra_inning_games": 0,
+      "deepest_inning": 9
+    },
+    {
+      "year": 2025,
+      "kind_code": "A",
+      "extra_inning_games": 33,
+      "deepest_inning": 12
+    },
+    {
+      "year": 2025,
+      "kind_code": "C",
+      "extra_inning_games": 1,
+      "deepest_inning": 11
+    },
+    {
+      "year": 2025,
+      "kind_code": "D",
+      "extra_inning_games": 13,
+      "deepest_inning": 10
+    },
+    {
+      "year": 2025,
+      "kind_code": "E",
+      "extra_inning_games": 1,
+      "deepest_inning": 10
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "extra_inning_games": 17,
+      "deepest_inning": 12
+    },
+    {
+      "year": 2026,
+      "kind_code": "D",
+      "extra_inning_games": 13,
+      "deepest_inning": 10
+    }
+  ],
+  "tiebreak_runner_pa_by_year": [
+    {
+      "year": 2019,
+      "kind_code": "D",
+      "tiebreak_runner_pa": 4
+    },
+    {
+      "year": 2020,
+      "kind_code": "D",
+      "tiebreak_runner_pa": 8
+    },
+    {
+      "year": 2024,
+      "kind_code": "A",
+      "tiebreak_runner_pa": 67
+    },
+    {
+      "year": 2025,
+      "kind_code": "A",
+      "tiebreak_runner_pa": 86
+    },
+    {
+      "year": 2025,
+      "kind_code": "D",
+      "tiebreak_runner_pa": 26
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "tiebreak_runner_pa": 47
+    },
+    {
+      "year": 2026,
+      "kind_code": "D",
+      "tiebreak_runner_pa": 25
+    }
+  ],
+  "runs_vs_earned_by_year": [
+    {
+      "year": 2022,
+      "kind_code": "A",
+      "runs": 2420,
+      "er": 1991,
+      "unearned": 429
+    },
+    {
+      "year": 2022,
+      "kind_code": "D",
+      "runs": 1541,
+      "er": 1277,
+      "unearned": 264
+    },
+    {
+      "year": 2023,
+      "kind_code": "A",
+      "runs": 2512,
+      "er": 2196,
+      "unearned": 316
+    },
+    {
+      "year": 2023,
+      "kind_code": "D",
+      "runs": 2137,
+      "er": 1805,
+      "unearned": 332
+    },
+    {
+      "year": 2024,
+      "kind_code": "A",
+      "runs": 3015,
+      "er": 2593,
+      "unearned": 422
+    },
+    {
+      "year": 2024,
+      "kind_code": "D",
+      "runs": 1932,
+      "er": 1622,
+      "unearned": 310
+    },
+    {
+      "year": 2025,
+      "kind_code": "A",
+      "runs": 2872,
+      "er": 2439,
+      "unearned": 433
+    },
+    {
+      "year": 2025,
+      "kind_code": "D",
+      "runs": 1953,
+      "er": 1661,
+      "unearned": 292
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "runs": 1707,
+      "er": 1469,
+      "unearned": 238
+    },
+    {
+      "year": 2026,
+      "kind_code": "D",
+      "runs": 1669,
+      "er": 1404,
+      "unearned": 265
+    }
+  ],
+  "nonzero_tie_games_by_year": [
+    {
+      "year": 1990,
+      "kind_code": "A",
+      "tie_games": 10
+    },
+    {
+      "year": 1991,
+      "kind_code": "A",
+      "tie_games": 16
+    },
+    {
+      "year": 1992,
+      "kind_code": "A",
+      "tie_games": 11
+    },
+    {
+      "year": 1993,
+      "kind_code": "A",
+      "tie_games": 6
+    },
+    {
+      "year": 1994,
+      "kind_code": "A",
+      "tie_games": 6
+    },
+    {
+      "year": 1995,
+      "kind_code": "A",
+      "tie_games": 4
+    },
+    {
+      "year": 1996,
+      "kind_code": "A",
+      "tie_games": 10
+    },
+    {
+      "year": 1997,
+      "kind_code": "A",
+      "tie_games": 15
+    },
+    {
+      "year": 1998,
+      "kind_code": "A",
+      "tie_games": 7
+    },
+    {
+      "year": 1999,
+      "kind_code": "A",
+      "tie_games": 7
+    },
+    {
+      "year": 2000,
+      "kind_code": "A",
+      "tie_games": 6
+    },
+    {
+      "year": 2001,
+      "kind_code": "A",
+      "tie_games": 6
+    },
+    {
+      "year": 2002,
+      "kind_code": "A",
+      "tie_games": 6
+    },
+    {
+      "year": 2003,
+      "kind_code": "A",
+      "tie_games": 19
+    },
+    {
+      "year": 2004,
+      "kind_code": "A",
+      "tie_games": 12
+    },
+    {
+      "year": 2005,
+      "kind_code": "A",
+      "tie_games": 14
+    },
+    {
+      "year": 2005,
+      "kind_code": "D",
+      "tie_games": 2
+    },
+    {
+      "year": 2006,
+      "kind_code": "A",
+      "tie_games": 11
+    },
+    {
+      "year": 2006,
+      "kind_code": "D",
+      "tie_games": 8
+    },
+    {
+      "year": 2007,
+      "kind_code": "A",
+      "tie_games": 3
+    },
+    {
+      "year": 2007,
+      "kind_code": "D",
+      "tie_games": 8
+    },
+    {
+      "year": 2008,
+      "kind_code": "A",
+      "tie_games": 5
+    },
+    {
+      "year": 2008,
+      "kind_code": "D",
+      "tie_games": 3
+    },
+    {
+      "year": 2009,
+      "kind_code": "A",
+      "tie_games": 5
+    },
+    {
+      "year": 2009,
+      "kind_code": "D",
+      "tie_games": 8
+    },
+    {
+      "year": 2010,
+      "kind_code": "A",
+      "tie_games": 4
+    },
+    {
+      "year": 2010,
+      "kind_code": "D",
+      "tie_games": 10
+    },
+    {
+      "year": 2011,
+      "kind_code": "A",
+      "tie_games": 4
+    },
+    {
+      "year": 2011,
+      "kind_code": "D",
+      "tie_games": 11
+    },
+    {
+      "year": 2011,
+      "kind_code": "F",
+      "tie_games": 1
+    },
+    {
+      "year": 2012,
+      "kind_code": "A",
+      "tie_games": 4
+    },
+    {
+      "year": 2012,
+      "kind_code": "D",
+      "tie_games": 12
+    },
+    {
+      "year": 2013,
+      "kind_code": "A",
+      "tie_games": 3
+    },
+    {
+      "year": 2013,
+      "kind_code": "D",
+      "tie_games": 8
+    },
+    {
+      "year": 2014,
+      "kind_code": "A",
+      "tie_games": 8
+    },
+    {
+      "year": 2014,
+      "kind_code": "D",
+      "tie_games": 16
+    },
+    {
+      "year": 2015,
+      "kind_code": "A",
+      "tie_games": 1
+    },
+    {
+      "year": 2015,
+      "kind_code": "D",
+      "tie_games": 8
+    },
+    {
+      "year": 2016,
+      "kind_code": "A",
+      "tie_games": 2
+    },
+    {
+      "year": 2016,
+      "kind_code": "D",
+      "tie_games": 8
+    },
+    {
+      "year": 2017,
+      "kind_code": "A",
+      "tie_games": 4
+    },
+    {
+      "year": 2017,
+      "kind_code": "D",
+      "tie_games": 2
+    },
+    {
+      "year": 2018,
+      "kind_code": "D",
+      "tie_games": 5
+    },
+    {
+      "year": 2019,
+      "kind_code": "A",
+      "tie_games": 4
+    },
+    {
+      "year": 2019,
+      "kind_code": "D",
+      "tie_games": 6
+    },
+    {
+      "year": 2020,
+      "kind_code": "A",
+      "tie_games": 2
+    },
+    {
+      "year": 2020,
+      "kind_code": "D",
+      "tie_games": 9
+    },
+    {
+      "year": 2021,
+      "kind_code": "A",
+      "tie_games": 9
+    },
+    {
+      "year": 2021,
+      "kind_code": "D",
+      "tie_games": 20
+    },
+    {
+      "year": 2022,
+      "kind_code": "A",
+      "tie_games": 10
+    },
+    {
+      "year": 2022,
+      "kind_code": "D",
+      "tie_games": 16
+    },
+    {
+      "year": 2023,
+      "kind_code": "A",
+      "tie_games": 9
+    },
+    {
+      "year": 2023,
+      "kind_code": "D",
+      "tie_games": 16
+    },
+    {
+      "year": 2024,
+      "kind_code": "A",
+      "tie_games": 2
+    },
+    {
+      "year": 2024,
+      "kind_code": "D",
+      "tie_games": 25
+    },
+    {
+      "year": 2025,
+      "kind_code": "A",
+      "tie_games": 1
+    },
+    {
+      "year": 2025,
+      "kind_code": "D",
+      "tie_games": 1
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "tie_games": 3
+    },
+    {
+      "year": 2026,
+      "kind_code": "D",
+      "tie_games": 5
+    }
+  ],
+  "kind_coverage": [
+    {
+      "kind_code": "A",
+      "games": 9808,
+      "completed": 9665,
+      "y0": 1990,
+      "y1": 2026,
+      "livelog_games": 2569,
+      "published_pa_games": 2568,
+      "in_batting_splits": true
+    },
+    {
+      "kind_code": "C",
+      "games": 184,
+      "completed": 184,
+      "y0": 1990,
+      "y1": 2025,
+      "livelog_games": 42,
+      "published_pa_games": 42,
+      "in_batting_splits": true
+    },
+    {
+      "kind_code": "D",
+      "games": 3379,
+      "completed": 3008,
+      "y0": 2005,
+      "y1": 2026,
+      "livelog_games": 1673,
+      "published_pa_games": 1673,
+      "in_batting_splits": true
+    },
+    {
+      "kind_code": "E",
+      "games": 40,
+      "completed": 40,
+      "y0": 1998,
+      "y1": 2025,
+      "livelog_games": 17,
+      "published_pa_games": 17,
+      "in_batting_splits": true
+    },
+    {
+      "kind_code": "F",
+      "games": 103,
+      "completed": 103,
+      "y0": 2005,
+      "y1": 2025,
+      "livelog_games": 0,
+      "published_pa_games": 0,
+      "in_batting_splits": false
+    }
+  ],
+  "official_streak_snapshot": [
+    {
+      "year": 2025,
+      "kind_code": "A",
+      "season_code": 0,
+      "team_code": "AAA011",
+      "streak": "敗2",
+      "updated_at": "2026-06-17 07:38:59.934452+00:00"
+    },
+    {
+      "year": 2025,
+      "kind_code": "A",
+      "season_code": 0,
+      "team_code": "ACN011",
+      "streak": "敗1",
+      "updated_at": "2026-06-17 07:38:59.934452+00:00"
+    },
+    {
+      "year": 2025,
+      "kind_code": "A",
+      "season_code": 0,
+      "team_code": "ADD011",
+      "streak": "勝2",
+      "updated_at": "2026-06-17 07:38:59.934452+00:00"
+    },
+    {
+      "year": 2025,
+      "kind_code": "A",
+      "season_code": 0,
+      "team_code": "AEO011",
+      "streak": "勝1",
+      "updated_at": "2026-06-17 07:38:59.934452+00:00"
+    },
+    {
+      "year": 2025,
+      "kind_code": "A",
+      "season_code": 0,
+      "team_code": "AJL011",
+      "streak": "-",
+      "updated_at": "2026-06-17 07:38:59.934452+00:00"
+    },
+    {
+      "year": 2025,
+      "kind_code": "A",
+      "season_code": 0,
+      "team_code": "AKP011",
+      "streak": "勝1",
+      "updated_at": "2026-06-17 07:38:59.934452+00:00"
+    },
+    {
+      "year": 2025,
+      "kind_code": "A",
+      "season_code": 1,
+      "team_code": "AAA011",
+      "streak": "敗2",
+      "updated_at": "2026-06-17 07:39:00.043883+00:00"
+    },
+    {
+      "year": 2025,
+      "kind_code": "A",
+      "season_code": 1,
+      "team_code": "ACN011",
+      "streak": "敗1",
+      "updated_at": "2026-06-17 07:39:00.043883+00:00"
+    },
+    {
+      "year": 2025,
+      "kind_code": "A",
+      "season_code": 1,
+      "team_code": "ADD011",
+      "streak": "勝2",
+      "updated_at": "2026-06-17 07:39:00.043883+00:00"
+    },
+    {
+      "year": 2025,
+      "kind_code": "A",
+      "season_code": 1,
+      "team_code": "AEO011",
+      "streak": "勝1",
+      "updated_at": "2026-06-17 07:39:00.043883+00:00"
+    },
+    {
+      "year": 2025,
+      "kind_code": "A",
+      "season_code": 1,
+      "team_code": "AJL011",
+      "streak": "-",
+      "updated_at": "2026-06-17 07:39:00.043883+00:00"
+    },
+    {
+      "year": 2025,
+      "kind_code": "A",
+      "season_code": 1,
+      "team_code": "AKP011",
+      "streak": "勝1",
+      "updated_at": "2026-06-17 07:39:00.043883+00:00"
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "season_code": 0,
+      "team_code": "AAA011",
+      "streak": "敗1",
+      "updated_at": "2026-08-03 03:29:59.052124+00:00"
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "season_code": 0,
+      "team_code": "ACN011",
+      "streak": "勝1",
+      "updated_at": "2026-08-03 03:29:59.052124+00:00"
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "season_code": 0,
+      "team_code": "ADD011",
+      "streak": "勝1",
+      "updated_at": "2026-08-03 03:29:59.052124+00:00"
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "season_code": 0,
+      "team_code": "AEO011",
+      "streak": "敗1",
+      "updated_at": "2026-08-03 03:29:59.052124+00:00"
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "season_code": 0,
+      "team_code": "AJL011",
+      "streak": "敗1",
+      "updated_at": "2026-08-03 03:29:59.052124+00:00"
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "season_code": 0,
+      "team_code": "AKP011",
+      "streak": "勝1",
+      "updated_at": "2026-08-03 03:29:59.052124+00:00"
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "season_code": 1,
+      "team_code": "AAA011",
+      "streak": "勝1",
+      "updated_at": "2026-08-03 03:29:59.169850+00:00"
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "season_code": 1,
+      "team_code": "ACN011",
+      "streak": "敗3",
+      "updated_at": "2026-08-03 03:29:59.169850+00:00"
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "season_code": 1,
+      "team_code": "ADD011",
+      "streak": "勝1",
+      "updated_at": "2026-08-03 03:29:59.169850+00:00"
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "season_code": 1,
+      "team_code": "AEO011",
+      "streak": "勝3",
+      "updated_at": "2026-08-03 03:29:59.169850+00:00"
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "season_code": 1,
+      "team_code": "AJL011",
+      "streak": "勝1",
+      "updated_at": "2026-08-03 03:29:59.169850+00:00"
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "season_code": 1,
+      "team_code": "AKP011",
+      "streak": "敗2",
+      "updated_at": "2026-08-03 03:29:59.169850+00:00"
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "season_code": 2,
+      "team_code": "AAA011",
+      "streak": "敗1",
+      "updated_at": "2026-08-03 03:29:59.248858+00:00"
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "season_code": 2,
+      "team_code": "ACN011",
+      "streak": "勝1",
+      "updated_at": "2026-08-03 03:29:59.248858+00:00"
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "season_code": 2,
+      "team_code": "ADD011",
+      "streak": "勝1",
+      "updated_at": "2026-08-03 03:29:59.248858+00:00"
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "season_code": 2,
+      "team_code": "AEO011",
+      "streak": "敗1",
+      "updated_at": "2026-08-03 03:29:59.248858+00:00"
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "season_code": 2,
+      "team_code": "AJL011",
+      "streak": "敗1",
+      "updated_at": "2026-08-03 03:29:59.248858+00:00"
+    },
+    {
+      "year": 2026,
+      "kind_code": "A",
+      "season_code": 2,
+      "team_code": "AKP011",
+      "streak": "勝1",
+      "updated_at": "2026-08-03 03:29:59.248858+00:00"
+    }
+  ],
+  "recent_result_sequences": {
+    "2025/A/AAA011": [
+      {
+        "date": "2025-10-05",
+        "sno": 239,
+        "result": "L"
+      },
+      {
+        "date": "2025-10-03",
+        "sno": 217,
+        "result": "L"
+      },
+      {
+        "date": "2025-10-02",
+        "sno": 196,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-29",
+        "sno": 193,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-28",
+        "sno": 360,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-27",
+        "sno": 357,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-26",
+        "sno": 353,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-25",
+        "sno": 350,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-23",
+        "sno": 346,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-21",
+        "sno": 345,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-20",
+        "sno": 342,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-19",
+        "sno": 337,
+        "result": "W"
+      }
+    ],
+    "2025/A/ACN011": [
+      {
+        "date": "2025-10-05",
+        "sno": 314,
+        "result": "L"
+      },
+      {
+        "date": "2025-10-04",
+        "sno": 187,
+        "result": "W"
+      },
+      {
+        "date": "2025-10-03",
+        "sno": 348,
+        "result": "W"
+      },
+      {
+        "date": "2025-10-02",
+        "sno": 196,
+        "result": "W"
+      },
+      {
+        "date": "2025-10-01",
+        "sno": 216,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-29",
+        "sno": 192,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-28",
+        "sno": 359,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-27",
+        "sno": 356,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-26",
+        "sno": 352,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-25",
+        "sno": 349,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-21",
+        "sno": 345,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-20",
+        "sno": 342,
+        "result": "L"
+      }
+    ],
+    "2025/A/ADD011": [
+      {
+        "date": "2025-10-06",
+        "sno": 343,
+        "result": "L"
+      },
+      {
+        "date": "2025-10-05",
+        "sno": 314,
+        "result": "W"
+      },
+      {
+        "date": "2025-10-03",
+        "sno": 197,
+        "result": "L"
+      },
+      {
+        "date": "2025-10-02",
+        "sno": 347,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-29",
+        "sno": 192,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-28",
+        "sno": 358,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-27",
+        "sno": 355,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-26",
+        "sno": 353,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-25",
+        "sno": 350,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-20",
+        "sno": 340,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-19",
+        "sno": 339,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-18",
+        "sno": 336,
+        "result": "L"
+      }
+    ],
+    "2025/A/AEO011": [
+      {
+        "date": "2025-10-04",
+        "sno": 315,
+        "result": "W"
+      },
+      {
+        "date": "2025-10-03",
+        "sno": 217,
+        "result": "W"
+      },
+      {
+        "date": "2025-10-02",
+        "sno": 347,
+        "result": "W"
+      },
+      {
+        "date": "2025-10-01",
+        "sno": 216,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-29",
+        "sno": 193,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-28",
+        "sno": 360,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-27",
+        "sno": 357,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-26",
+        "sno": 352,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-25",
+        "sno": 349,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-21",
+        "sno": 344,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-20",
+        "sno": 341,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-19",
+        "sno": 338,
+        "result": "L"
+      }
+    ],
+    "2025/A/AJL011": [
+      {
+        "date": "2025-10-06",
+        "sno": 343,
+        "result": "W"
+      },
+      {
+        "date": "2025-10-04",
+        "sno": 315,
+        "result": "L"
+      },
+      {
+        "date": "2025-10-03",
+        "sno": 197,
+        "result": "W"
+      },
+      {
+        "date": "2025-10-02",
+        "sno": 194,
+        "result": "W"
+      },
+      {
+        "date": "2025-10-01",
+        "sno": 195,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-29",
+        "sno": 218,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-28",
+        "sno": 359,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-27",
+        "sno": 356,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-26",
+        "sno": 354,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-25",
+        "sno": 351,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-23",
+        "sno": 346,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-20",
+        "sno": 340,
+        "result": "L"
+      }
+    ],
+    "2025/A/AKP011": [
+      {
+        "date": "2025-10-05",
+        "sno": 239,
+        "result": "W"
+      },
+      {
+        "date": "2025-10-04",
+        "sno": 187,
+        "result": "L"
+      },
+      {
+        "date": "2025-10-03",
+        "sno": 348,
+        "result": "L"
+      },
+      {
+        "date": "2025-10-02",
+        "sno": 194,
+        "result": "L"
+      },
+      {
+        "date": "2025-10-01",
+        "sno": 195,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-29",
+        "sno": 218,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-28",
+        "sno": 358,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-27",
+        "sno": 355,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-26",
+        "sno": 354,
+        "result": "L"
+      },
+      {
+        "date": "2025-09-25",
+        "sno": 351,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-21",
+        "sno": 344,
+        "result": "W"
+      },
+      {
+        "date": "2025-09-20",
+        "sno": 341,
+        "result": "L"
+      }
+    ],
+    "2026/A/AAA011": [
+      {
+        "date": "2026-08-02",
+        "sno": 238,
+        "result": "L"
+      },
+      {
+        "date": "2026-08-01",
+        "sno": 237,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-31",
+        "sno": 233,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-29",
+        "sno": 228,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-28",
+        "sno": 226,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-26",
+        "sno": 223,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-25",
+        "sno": 220,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-24",
+        "sno": 218,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-22",
+        "sno": 214,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-21",
+        "sno": 212,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-15",
+        "sno": 207,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-14",
+        "sno": 205,
+        "result": "W"
+      }
+    ],
+    "2026/A/ACN011": [
+      {
+        "date": "2026-08-02",
+        "sno": 238,
+        "result": "W"
+      },
+      {
+        "date": "2026-08-01",
+        "sno": 237,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-31",
+        "sno": 233,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-30",
+        "sno": 231,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-29",
+        "sno": 230,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-26",
+        "sno": 224,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-25",
+        "sno": 221,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-24",
+        "sno": 217,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-22",
+        "sno": 213,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-21",
+        "sno": 211,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-15",
+        "sno": 207,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-14",
+        "sno": 205,
+        "result": "L"
+      }
+    ],
+    "2026/A/ADD011": [
+      {
+        "date": "2026-08-02",
+        "sno": 239,
+        "result": "W"
+      },
+      {
+        "date": "2026-08-01",
+        "sno": 235,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-31",
+        "sno": 234,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-29",
+        "sno": 229,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-28",
+        "sno": 227,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-26",
+        "sno": 224,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-25",
+        "sno": 221,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-24",
+        "sno": 217,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-23",
+        "sno": 216,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-22",
+        "sno": 215,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-16",
+        "sno": 210,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-15",
+        "sno": 209,
+        "result": "W"
+      }
+    ],
+    "2026/A/AEO011": [
+      {
+        "date": "2026-08-02",
+        "sno": 240,
+        "result": "L"
+      },
+      {
+        "date": "2026-08-01",
+        "sno": 236,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-31",
+        "sno": 232,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-29",
+        "sno": 228,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-28",
+        "sno": 226,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-26",
+        "sno": 225,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-25",
+        "sno": 222,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-24",
+        "sno": 219,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-23",
+        "sno": 216,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-22",
+        "sno": 215,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-15",
+        "sno": 208,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-14",
+        "sno": 206,
+        "result": "W"
+      }
+    ],
+    "2026/A/AJL011": [
+      {
+        "date": "2026-08-02",
+        "sno": 239,
+        "result": "L"
+      },
+      {
+        "date": "2026-08-01",
+        "sno": 235,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-31",
+        "sno": 234,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-30",
+        "sno": 231,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-29",
+        "sno": 230,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-26",
+        "sno": 225,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-25",
+        "sno": 222,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-24",
+        "sno": 219,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-22",
+        "sno": 214,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-21",
+        "sno": 212,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-16",
+        "sno": 210,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-15",
+        "sno": 209,
+        "result": "L"
+      }
+    ],
+    "2026/A/AKP011": [
+      {
+        "date": "2026-08-02",
+        "sno": 240,
+        "result": "W"
+      },
+      {
+        "date": "2026-08-01",
+        "sno": 236,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-31",
+        "sno": 232,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-29",
+        "sno": 229,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-28",
+        "sno": 227,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-26",
+        "sno": 223,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-25",
+        "sno": 220,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-24",
+        "sno": 218,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-22",
+        "sno": 213,
+        "result": "L"
+      },
+      {
+        "date": "2026-07-21",
+        "sno": 211,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-15",
+        "sno": 208,
+        "result": "W"
+      },
+      {
+        "date": "2026-07-14",
+        "sno": 206,
+        "result": "L"
+      }
+    ]
+  }
+}

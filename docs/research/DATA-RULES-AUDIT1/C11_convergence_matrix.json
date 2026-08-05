@@ -1,0 +1,228 @@
+{
+  "policy": "需求方 2026-08-05 裁定：改判一律賽季後批次或人工更新，不建自動收斂機制",
+  "latest_completed_game_date_A": "2026-08-02",
+  "recent_refresh_log": [
+    {
+      "scope": "recent-games",
+      "from_date": "2026-08-03",
+      "to_date": "2026-08-04",
+      "games_total": 0,
+      "games_completed": 0,
+      "ok": false,
+      "note": "抓取失敗：Page.goto: net::ERR_INTERNET_DISCONNECTED at https://www.cpbl.com.tw/schedule\nCall log:\n  - navigating to \"https://www.cpbl.com.tw/schedule\", waiting until \"networkidle\"\n",
+      "refreshed_at": "2026-08-04 07:02:19.643208+00:00"
+    },
+    {
+      "scope": "recent-games",
+      "from_date": "2026-08-02",
+      "to_date": "2026-08-03",
+      "games_total": 5,
+      "games_completed": 5,
+      "ok": true,
+      "note": null,
+      "refreshed_at": "2026-08-03 03:47:38.530128+00:00"
+    },
+    {
+      "scope": "recent-games",
+      "from_date": "2026-08-01",
+      "to_date": "2026-08-02",
+      "games_total": 9,
+      "games_completed": 4,
+      "ok": true,
+      "note": null,
+      "refreshed_at": "2026-08-02 03:25:00.390458+00:00"
+    },
+    {
+      "scope": "recent-games",
+      "from_date": "2026-07-31",
+      "to_date": "2026-08-01",
+      "games_total": 9,
+      "games_completed": 5,
+      "ok": true,
+      "note": null,
+      "refreshed_at": "2026-08-01 02:39:55.539620+00:00"
+    },
+    {
+      "scope": "recent-games",
+      "from_date": "2026-07-31",
+      "to_date": "2026-08-01",
+      "games_total": 9,
+      "games_completed": 5,
+      "ok": true,
+      "note": null,
+      "refreshed_at": "2026-07-31 17:56:02.428036+00:00"
+    },
+    {
+      "scope": "recent-games",
+      "from_date": "2026-07-30",
+      "to_date": "2026-07-31",
+      "games_total": 8,
+      "games_completed": 3,
+      "ok": true,
+      "note": null,
+      "refreshed_at": "2026-07-31 02:22:36.939386+00:00"
+    },
+    {
+      "scope": "recent-games",
+      "from_date": "2026-07-29",
+      "to_date": "2026-07-30",
+      "games_total": 8,
+      "games_completed": 5,
+      "ok": true,
+      "note": null,
+      "refreshed_at": "2026-07-30 02:28:48.018042+00:00"
+    },
+    {
+      "scope": "recent-games",
+      "from_date": "2026-07-28",
+      "to_date": "2026-07-29",
+      "games_total": 8,
+      "games_completed": 3,
+      "ok": true,
+      "note": null,
+      "refreshed_at": "2026-07-29 02:21:21.422544+00:00"
+    },
+    {
+      "scope": "recent-games",
+      "from_date": "2026-07-27",
+      "to_date": "2026-07-28",
+      "games_total": 4,
+      "games_completed": 0,
+      "ok": true,
+      "note": null,
+      "refreshed_at": "2026-07-28 02:10:45.253128+00:00"
+    },
+    {
+      "scope": "recent-games",
+      "from_date": "2026-07-26",
+      "to_date": "2026-07-27",
+      "games_total": 4,
+      "games_completed": 4,
+      "ok": true,
+      "note": null,
+      "refreshed_at": "2026-07-27 02:22:47.486480+00:00"
+    }
+  ],
+  "table_freshness_2026_A": {
+    "games": "2026-08-02",
+    "batting_gamelog": "2026-08-02",
+    "game_livelog": "2026-08-02",
+    "pitch_tracking": "2026-08-04",
+    "game_plate_appearances": "2026-08-02"
+  },
+  "derived_table_staleness_batter_traits": [
+    {
+      "year": 2018,
+      "kind": "A",
+      "batter_traits_pa": 19162,
+      "canonical_ready_pa": 18903,
+      "ratio": 1.0137
+    },
+    {
+      "year": 2019,
+      "kind": "A",
+      "batter_traits_pa": 19121,
+      "canonical_ready_pa": 18752,
+      "ratio": 1.0197
+    },
+    {
+      "year": 2020,
+      "kind": "A",
+      "batter_traits_pa": 19587,
+      "canonical_ready_pa": 19328,
+      "ratio": 1.0134
+    },
+    {
+      "year": 2021,
+      "kind": "A",
+      "batter_traits_pa": 23314,
+      "canonical_ready_pa": 22996,
+      "ratio": 1.0138
+    },
+    {
+      "year": 2022,
+      "kind": "A",
+      "batter_traits_pa": 23114,
+      "canonical_ready_pa": 22817,
+      "ratio": 1.013
+    },
+    {
+      "year": 2023,
+      "kind": "A",
+      "batter_traits_pa": 23216,
+      "canonical_ready_pa": 22878,
+      "ratio": 1.0148
+    },
+    {
+      "year": 2024,
+      "kind": "A",
+      "batter_traits_pa": 27829,
+      "canonical_ready_pa": 27421,
+      "ratio": 1.0149
+    },
+    {
+      "year": 2025,
+      "kind": "A",
+      "batter_traits_pa": 27533,
+      "canonical_ready_pa": 27036,
+      "ratio": 1.0184
+    },
+    {
+      "year": 2026,
+      "kind": "A",
+      "batter_traits_pa": 13735,
+      "canonical_ready_pa": 17472,
+      "ratio": 0.7861
+    }
+  ],
+  "derived_table_year_coverage": {
+    "run_expectancy": {
+      "n": 24,
+      "max_year": null
+    },
+    "batter_re24": {
+      "n": 1284,
+      "max_year": 2026
+    },
+    "pitcher_re24": {
+      "n": 1214,
+      "max_year": 2026
+    },
+    "batter_wsb": {
+      "n": 3927,
+      "max_year": 2026
+    },
+    "team_der": {
+      "n": 184,
+      "max_year": 2026
+    },
+    "catcher_runs": {
+      "n": 205,
+      "max_year": 2026
+    },
+    "sabr_run_values": {
+      "n": 2,
+      "max_year": null
+    },
+    "fielding_innings": {
+      "n": 4209,
+      "max_year": 2026
+    },
+    "batter_traits": {
+      "n": 1291,
+      "max_year": 2026
+    },
+    "pitcher_traits": {
+      "n": 1212,
+      "max_year": 2026
+    },
+    "advanced_stats": {
+      "n": 698,
+      "max_year": 2026
+    },
+    "game_scoreboard": {
+      "n": 77599,
+      "max_year": 2026
+    }
+  }
+}

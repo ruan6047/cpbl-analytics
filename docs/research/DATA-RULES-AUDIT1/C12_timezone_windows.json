@@ -1,0 +1,294 @@
+{
+  "db_timezone": "UTC",
+  "db_current_date": "2026-08-05",
+  "db_now": "2026-08-05 01:20:30.865496+00:00",
+  "db_now_taipei": "2026-08-05 09:20:30.865496",
+  "db_timezone_setting": "UTC",
+  "db_version": "PostgreSQL 17.9 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+  "date_delta": {
+    "taipei_date": "2026-08-05",
+    "current_date_val": "2026-08-05",
+    "day_delta": 0
+  },
+  "future_dated_with_score": [
+    {
+      "year": 2026,
+      "kind_code": "D",
+      "game_sno": 119,
+      "game_date": "2026-08-08",
+      "home_score": 5,
+      "away_score": 4,
+      "delay_kind": "保留"
+    },
+    {
+      "year": 2026,
+      "kind_code": "D",
+      "game_sno": 97,
+      "game_date": "2026-08-09",
+      "home_score": 4,
+      "away_score": 3,
+      "delay_kind": "保留"
+    },
+    {
+      "year": 2026,
+      "kind_code": "D",
+      "game_sno": 118,
+      "game_date": "2026-08-22",
+      "home_score": 1,
+      "away_score": 0,
+      "delay_kind": "保留"
+    },
+    {
+      "year": 2026,
+      "kind_code": "D",
+      "game_sno": 117,
+      "game_date": "2026-08-30",
+      "home_score": 1,
+      "away_score": 4,
+      "delay_kind": "保留"
+    },
+    {
+      "year": 2026,
+      "kind_code": "D",
+      "game_sno": 165,
+      "game_date": "2026-09-15",
+      "home_score": 1,
+      "away_score": 3,
+      "delay_kind": "保留"
+    }
+  ],
+  "today_dated_with_score": {
+    "n": 0
+  },
+  "timezone_boundary_demo": {
+    "utc_date": "2026-08-04",
+    "taipei_date": "2026-08-05",
+    "utc_date_0900": "2026-08-05",
+    "taipei_date_0900": "2026-08-05"
+  },
+  "current_date_usage_total": 36,
+  "current_date_usage_by_class": {
+    "exact_equality": 1,
+    "range": 26,
+    "other_or_comment": 9
+  },
+  "current_date_usages": [
+    {
+      "file": "src/cpbl/api/routers/info.py",
+      "line": 58,
+      "operator_class": "exact_equality",
+      "text": "\"WHERE year = %s AND home_score + away_score = 0 AND game_date = CURRENT_DATE\", (season,)"
+    },
+    {
+      "file": "src/cpbl/api/routers/recap.py",
+      "line": 290,
+      "operator_class": "range",
+      "text": "\" AND game_date <= CURRENT_DATE) AS completed \""
+    },
+    {
+      "file": "src/cpbl/api/routers/umpires.py",
+      "line": 75,
+      "operator_class": "range",
+      "text": "AND g.game_date <= CURRENT_DATE"
+    },
+    {
+      "file": "src/cpbl/api/team_focus.py",
+      "line": 23,
+      "operator_class": "range",
+      "text": "f\"AND g.home_score+g.away_score>0 AND g.game_date<=CURRENT_DATE AND {_TEAM_CODE_EXPR}=%s \""
+    },
+    {
+      "file": "src/cpbl/api/team_hotzone.py",
+      "line": 17,
+      "operator_class": "range",
+      "text": "game_date<=CURRENT_DATE）。7 天窗口下，擊球事件（BIP）比打席稀疏得多，實測"
+    },
+    {
+      "file": "src/cpbl/api/team_hotzone.py",
+      "line": 71,
+      "operator_class": "range",
+      "text": "\"WHERE year=%s AND kind_code='A' AND home_score+away_score>0 AND game_date<=CURRENT_DATE \""
+    },
+    {
+      "file": "src/cpbl/api/team_hotzone.py",
+      "line": 90,
+      "operator_class": "range",
+      "text": "WHERE g.year=%s AND g.kind_code='A' AND g.home_score+g.away_score>0 AND g.game_date<=CURRENT_DATE"
+    },
+    {
+      "file": "src/cpbl/api/team_style.py",
+      "line": 184,
+      "operator_class": "range",
+      "text": "完成判定沿 ``cpbl.completion``；必須加 ``game_date >= CURRENT_DATE`` 的未來界線："
+    },
+    {
+      "file": "src/cpbl/api/team_style.py",
+      "line": 193,
+      "operator_class": "range",
+      "text": "+ \") AND game_date >= CURRENT_DATE) \""
+    },
+    {
+      "file": "src/cpbl/completion.py",
+      "line": 18,
+      "operator_class": "other_or_comment",
+      "text": "def completed_games_sql(as_of_sql: str = \"CURRENT_DATE\") -> str:"
+    },
+    {
+      "file": "src/cpbl/ingest/cpbl_pitch_tracking.py",
+      "line": 300,
+      "operator_class": "range",
+      "text": "game_date <= CURRENT_DATE，避免保留賽掛未來日卻有比分被誤判。"
+    },
+    {
+      "file": "src/cpbl/ingest/cpbl_pitch_tracking.py",
+      "line": 303,
+      "operator_class": "range",
+      "text": "\"AND home_score + away_score > 0 AND game_date <= CURRENT_DATE\")"
+    },
+    {
+      "file": "src/cpbl/ingest/cpbl_pitch_tracking.py",
+      "line": 306,
+      "operator_class": "range",
+      "text": "sql += \" AND game_date >= (CURRENT_DATE - %s::int)\""
+    },
+    {
+      "file": "src/cpbl/ingest/run_refresh_recent.py",
+      "line": 140,
+      "operator_class": "range",
+      "text": "WHERE cov.game_date >= (CURRENT_DATE - %s::int)"
+    },
+    {
+      "file": "src/cpbl/ingest/splits_calc.py",
+      "line": 176,
+      "operator_class": "range",
+      "text": "WHERE bg.year = %s AND bg.kind_code = %s AND g.game_date <= CURRENT_DATE"
+    },
+    {
+      "file": "src/cpbl/ingest/splits_calc.py",
+      "line": 226,
+      "operator_class": "range",
+      "text": "WHERE pg.year = %s AND pg.kind_code = %s AND g.game_date <= CURRENT_DATE"
+    },
+    {
+      "file": "src/cpbl/ingest/splits_calc.py",
+      "line": 585,
+      "operator_class": "range",
+      "text": "\"WHERE ll.year=%s AND ll.kind_code=%s AND g.game_date <= CURRENT_DATE \""
+    },
+    {
+      "file": "src/cpbl/ingest/splits_calc.py",
+      "line": 636,
+      "operator_class": "range",
+      "text": "\"WHERE x.year=%s AND x.kind_code=%s AND g.game_date <= CURRENT_DATE \""
+    },
+    {
+      "file": "src/cpbl/models/winprob_strength.py",
+      "line": 747,
+      "operator_class": "other_or_comment",
+      "text": "「對已捨入 p 的未捨入計算」）。此處不捨入，並吃 `as_of` 而非 `CURRENT_DATE`。"
+    },
+    {
+      "file": "src/cpbl/models/winprob_strength.py",
+      "line": 993,
+      "operator_class": "other_or_comment",
+      "text": "`CURRENT_DATE` 為界；直接沿用會讓這個欄位隨當下全表漂移（iteration 3 查核 F1）。"
+    },
+    {
+      "file": "src/cpbl/models/winprob_strength.py",
+      "line": 1041,
+      "operator_class": "other_or_comment",
+      "text": "# `load_eval_season()` 內部以 CURRENT_DATE 為界（winprob_val，本卡不得修改），"
+    },
+    {
+      "file": "src/cpbl/models/winprob_strength.py",
+      "line": 1058,
+      "operator_class": "other_or_comment",
+      "text": "# 以下三個欄位原本直接取自 `season`（＝`load_eval_season()`，以 CURRENT_DATE 為界），"
+    },
+    {
+      "file": "src/cpbl/models/winprob_val.py",
+      "line": 323,
+      "operator_class": "range",
+      "text": "\"AND g.home_score + g.away_score > 0 AND g.game_date <= CURRENT_DATE\","
+    },
+    {
+      "file": "src/cpbl/models/winprob_val.py",
+      "line": 490,
+      "operator_class": "range",
+      "text": "\"AND home_score+away_score>0 AND game_date<=CURRENT_DATE\", (y0, y1, kind))"
+    },
+    {
+      "file": "scripts/dryrun_game_tm_fullseason.py",
+      "line": 7,
+      "operator_class": "range",
+      "text": "`game_date <= CURRENT_DATE` 界線以排除掛未來日期的保留賽）。逐場打單場 API、經共用"
+    },
+    {
+      "file": "scripts/g4_phase_a_metrics.py",
+      "line": 256,
+      "operator_class": "range",
+      "text": "\"AND home_score+away_score>0 AND game_date<=CURRENT_DATE\", (year, k)"
+    },
+    {
+      "file": "scripts/ibb_ghost1_probe.py",
+      "line": 451,
+      "operator_class": "range",
+      "text": "\"  AND game_date > CURRENT_DATE\", (YEAR, kind)).fetchall()}"
+    },
+    {
+      "file": "scripts/reconcile_game_tm.py",
+      "line": 50,
+      "operator_class": "range",
+      "text": "AND g.game_date <= CURRENT_DATE"
+    },
+    {
+      "file": "scripts/team_style_vectors.py",
+      "line": 331,
+      "operator_class": "range",
+      "text": "\"completed_rule\": \"home_score+away_score>0 AND game_date<=CURRENT_DATE\","
+    },
+    {
+      "file": "tests/test_api_contract.py",
+      "line": 70,
+      "operator_class": "range",
+      "text": "\"WHERE year = %s AND home_score + away_score > 0 AND game_date <= CURRENT_DATE\" in sql"
+    },
+    {
+      "file": "tests/test_api_contract.py",
+      "line": 75,
+      "operator_class": "range",
+      "text": "\"WHERE home_score + away_score > 0 AND game_date <= CURRENT_DATE\" in sql"
+    },
+    {
+      "file": "tests/test_completion.py",
+      "line": 34,
+      "operator_class": "other_or_comment",
+      "text": "assert completed_games_sql(\"CURRENT_DATE\") == ("
+    },
+    {
+      "file": "tests/test_completion.py",
+      "line": 35,
+      "operator_class": "range",
+      "text": "\"home_score + away_score > 0 AND game_date <= CURRENT_DATE\""
+    },
+    {
+      "file": "tests/test_refresh_pa_daily.py",
+      "line": 101,
+      "operator_class": "other_or_comment",
+      "text": "assert \"CURRENT_DATE\" in holder.cursor.sql  # 保留賽保護：不得只憑 score>0 判完成"
+    },
+    {
+      "file": "tests/test_winprob_strength.py",
+      "line": 794,
+      "operator_class": "other_or_comment",
+      "text": "\"\"\"iteration 2 查核 F1a：主場常數基準須未捨入，且吃傳入的 as_of 而非 CURRENT_DATE。\"\"\""
+    },
+    {
+      "file": "tests/test_winprob_strength.py",
+      "line": 913,
+      "operator_class": "other_or_comment",
+      "text": "`load_eval_season()`（以 CURRENT_DATE 為界），as_of 之後入庫的比賽會混進來。\"\"\""
+    }
+  ],
+  "current_date_risk_note": "range／window_offset 類在 UTC 落後 8 小時下只會「保守地晚一天納入」，不會誤納未來場；exact_equality 類（game_date = CURRENT_DATE）在台北 00:00–08:00 會指向前一日，屬真實行為差異。"
+}
