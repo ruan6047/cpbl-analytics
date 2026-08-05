@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 from datetime import date
@@ -30,6 +31,7 @@ from cpbl.features.batting import (
     _load_aggregates,
     build_batting_dataset,
 )
+from cpbl.ingest._cli import cli_parser
 from cpbl.models import marcel
 
 log = logging.getLogger("cpbl.train")
@@ -231,7 +233,12 @@ def train() -> dict:
             "projected_players": len(infer_rows)}
 
 
+def _parser() -> argparse.ArgumentParser:
+    return cli_parser("cpbl-train", __doc__)
+
+
 def main() -> None:
+    _parser().parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
     result = train()
     print("\n=== 回測結果（test target_year >= %d）===" % TEST_FROM)

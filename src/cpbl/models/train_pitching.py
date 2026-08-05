@@ -20,6 +20,7 @@ LGBM 對照表保留於 cv_metrics 存證；資料量增長後（>1500 列）可
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 from datetime import date
@@ -36,6 +37,7 @@ from cpbl.features.pitching import (
     _load_aggregates,
     build_pitching_dataset,
 )
+from cpbl.ingest._cli import cli_parser
 from cpbl.models import marcel
 
 log = logging.getLogger("cpbl.train")
@@ -242,7 +244,12 @@ def train() -> dict:
             "projected_players": len(infer_rows)}
 
 
+def _parser() -> argparse.ArgumentParser:
+    return cli_parser("cpbl-train-pitching", __doc__)
+
+
 def main() -> None:
+    _parser().parse_args()
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s | %(message)s")
     result = train()

@@ -1,11 +1,16 @@
-"""ingest CLI 入口的 `--help` 護欄（DEV-CLI-HELP-GUARD1）。
+"""CLI 入口的 `--help` 護欄（DEV-CLI-HELP-GUARD1／GUARD2）。
+
+模組雖然放在 `cpbl.ingest` 底下（GUARD1 只授權改 ingest/），使用者已擴及
+`cpbl.models` 與 `cpbl.features` 的入口（GUARD2）。搬到 `cpbl/_cli.py` 會更符合分層，
+但那要動 30 個 ingest 入口的 import，不在 GUARD2 範圍——留給後續整理。
+
 
 2026-08-05 跨家族查核期間，查核者為了看用法打了 `cpbl-scrape-pitches --help`，
 結果 `--help` 被當成位置參數吞掉，直接對官方 stats 站開了真實爬蟲並寫入 DB（+46 列）。
 **用 `--help` 探索一支 CLI 竟然有副作用**——這是工程安全缺陷，不只是使用體驗問題：
 查核者、新進維運者、任何人第一次碰這些指令時的自然動作就是先打 `--help`。
 
-本模組提供所有 ingest 入口共用的 argparse 殼，保證三件事：
+本模組提供所有 CLI 入口共用的 argparse 殼，保證三件事：
 
 1. `-h/--help` 由 argparse 原生處理 → 印 usage 後 `SystemExit(0)`，主流程一行都沒跑。
 2. 未知旗標／無法辨識的位置參數 → `SystemExit(2)`，主流程不執行。

@@ -12,6 +12,7 @@ LightGBM 需 libgomp → 在容器內跑（`docker compose run --rm api cpbl-tra
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import time
@@ -23,6 +24,7 @@ from sklearn.preprocessing import StandardScaler
 
 from cpbl.db import conn
 from cpbl.features.outcome import FEATURE_KEYS, REAL_FEATURES_LABELS
+from cpbl.ingest._cli import cli_parser
 from cpbl.models.outcome import REAL_FEATURES, _load, _matrix
 
 log = logging.getLogger("cpbl.models.outcome_gbm")
@@ -135,7 +137,12 @@ def persist(result: dict) -> str:
     return vid
 
 
+def _parser() -> argparse.ArgumentParser:
+    return cli_parser("cpbl-train-outcome", __doc__)
+
+
 def main() -> None:
+    _parser().parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     r = backtest()
     if "error" in r:

@@ -1,11 +1,14 @@
-"""DEV-CLI-HELP-GUARD1 回歸測試：CLI 探索必須零副作用。
+"""DEV-CLI-HELP-GUARD1／GUARD2 回歸測試：CLI 探索必須零副作用。
 
 事故（2026-08-05 跨家族查核）：查核者為了看用法打 `cpbl-scrape-pitches --help`，
 `--help` 被當成位置參數吞掉，直接對官方 stats 站開真實爬蟲並寫入 DB（+46 列）。
 
+涵蓋範圍：GUARD1 修 `cpbl.ingest.*`，GUARD2 補上 `cpbl.models.*` 與 `cpbl.features.*`
+——後者被 `--help` 觸發的是重訓練／全量重建，代價比爬蟲更高。
+
 本檔鎖住三件事，全部**不觸網、不觸 DB**：
 
-1. **`--help` / `-h` 零副作用**：對每個 ingest 入口，把所有對外副作用出口換成會拋
+1. **`--help` / `-h` 零副作用**：對每個入口，把所有對外副作用出口換成會拋
    `SideEffectReached` 的 stub 之後才呼叫 `main()`。若護欄失效、主流程真的跑起來，
    stub 會先被呼叫 → 測試炸掉，而不是真的送出請求。
 2. **非法參數不執行主流程**：未知旗標 → `SystemExit(code != 0)`；必填參數缺漏同理。
@@ -106,28 +109,64 @@ class SideEffectReached(RuntimeError):
     """副作用 stub 被呼叫＝主流程真的跑起來了。"""
 
 
-def _ingest_entries() -> list:
+# GUARD2 起涵蓋 models/ 與 features/ 入口，不再限於 ingest。
+GUARDED_PACKAGES = ("cpbl.ingest.", "cpbl.models.", "cpbl.features.")
+
+# macOS host 上 LightGBM 缺 `libomp` 無法 import（CLAUDE.md 既知限制，需容器內跑）。
+# 這兩支的護欄改由**容器內**密封探針取證（DEV-CLI-HELP-GUARD2 交付報告附輸出）；
+# 在有 libgomp 的環境（容器／Linux CI）本檔照常驗它們，不會跳過。
+CONTAINER_ONLY_MODULES = {"cpbl.models.train", "cpbl.models.train_pitching"}
+
+
+def _guarded_entries() -> list:
     scripts = tomllib.loads(
         (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["scripts"]
     params = []
     for script, target in sorted(scripts.items()):
         module, func = target.split(":")
-        if module.startswith("cpbl.ingest.") and module not in FROZEN_MODULES:
+        if module.startswith(GUARDED_PACKAGES) and module not in FROZEN_MODULES:
             params.append(pytest.param(script, module, func, id=script))
     return params
 
 
-INGEST_ENTRIES = _ingest_entries()
+GUARDED_ENTRIES = _guarded_entries()
 
 
-def test_entry_discovery_actually_found_the_ingest_clis() -> None:
+def _import_entry(module: str):
+    """import 入口模組；只有列舉過的容器限定模組才允許以 skip 收場。"""
+    try:
+        return importlib.import_module(module)
+    except Exception as exc:  # noqa: BLE001 — 什麼型別都要判斷是否屬於已知環境限制
+        if module in CONTAINER_ONLY_MODULES:
+            pytest.skip(f"{module} 在此環境無法 import（{type(exc).__name__}）——"
+                        "LightGBM 缺 libomp，護欄由容器內密封探針取證")
+        raise
+
+
+def test_entry_discovery_actually_found_the_clis() -> None:
     """守住探索邏輯本身：清單若因 pyproject 改格式而變空，下面的參數化會全部靜默跳過。"""
-    ids = {p.id for p in INGEST_ENTRIES}
-    assert len(ids) >= 25
-    # 事故當事者與幾支排程實際會跑的入口必須在範圍內
+    ids = {p.id for p in GUARDED_ENTRIES}
+    assert len(ids) >= 33
+    # 事故當事者、幾支排程實際會跑的入口，與 GUARD2 補的 models/features 入口
     assert {"cpbl-scrape-pitches", "cpbl-scrape-game-pitches", "cpbl-scrape-games",
-            "cpbl-scrape-stats", "cpbl-scrape-detail", "cpbl-scrape-fighting"} <= ids
+            "cpbl-scrape-stats", "cpbl-scrape-detail", "cpbl-scrape-fighting",
+            "cpbl-build-features", "cpbl-build-sabr", "cpbl-classify-pitches",
+            "cpbl-train-outcome", "cpbl-train-outcome-simple", "cpbl-train-pa-sim",
+            "cpbl-train", "cpbl-train-pitching"} <= ids
     assert "cpbl-refresh-recent" not in ids  # G4 凍結，明文排除
+
+
+def test_only_declared_modules_are_unimportable_in_this_environment() -> None:
+    """跳過必須是列舉的——新的無法 import 模組不得躲在 skip 後面靜默失去覆蓋。"""
+    unimportable = set()
+    for param in GUARDED_ENTRIES:
+        module = param.values[1]
+        try:
+            importlib.import_module(module)
+        except Exception:  # noqa: BLE001
+            unimportable.add(module)
+    assert unimportable <= CONTAINER_ONLY_MODULES, (
+        f"未列舉的模組無法 import：{sorted(unimportable - CONTAINER_ONLY_MODULES)}")
 
 
 def _seal(module, monkeypatch: pytest.MonkeyPatch) -> list[str]:
@@ -263,12 +302,12 @@ def test_seal_surface_matches_audit_tool() -> None:
 
 
 @pytest.mark.parametrize("flag", ["--help", "-h"])
-@pytest.mark.parametrize(("script", "module", "func"), INGEST_ENTRIES)
+@pytest.mark.parametrize(("script", "module", "func"), GUARDED_ENTRIES)
 def test_help_exits_zero_with_no_side_effects(
     script: str, module: str, func: str, flag: str,
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture,
 ) -> None:
-    mod = importlib.import_module(module)
+    mod = _import_entry(module)
     _seal(mod, monkeypatch)
     monkeypatch.setattr(sys, "argv", [script, flag])
 
@@ -279,11 +318,11 @@ def test_help_exits_zero_with_no_side_effects(
     assert script in capsys.readouterr().out, f"{script} {flag} 應印出含 prog 名稱的 usage"
 
 
-@pytest.mark.parametrize(("script", "module", "func"), INGEST_ENTRIES)
+@pytest.mark.parametrize(("script", "module", "func"), GUARDED_ENTRIES)
 def test_unknown_flag_exits_nonzero_with_no_side_effects(
     script: str, module: str, func: str, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    mod = importlib.import_module(module)
+    mod = _import_entry(module)
     _seal(mod, monkeypatch)
     monkeypatch.setattr(sys, "argv", [script, "--zzz-not-a-real-flag"])
 
@@ -294,14 +333,14 @@ def test_unknown_flag_exits_nonzero_with_no_side_effects(
 
 
 @pytest.mark.parametrize(("script", "module", "func"), [
-    p for p in INGEST_ENTRIES
+    p for p in GUARDED_ENTRIES
     if p.id in ("cpbl-anchor-career", "cpbl-backfill-season", "cpbl-live-game")
 ])
 def test_missing_required_args_exit_nonzero(
     script: str, module: str, func: str, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """必填參數的入口：不帶參數要報 usage 並非零退出，不能落入預設值就開跑。"""
-    mod = importlib.import_module(module)
+    mod = _import_entry(module)
     _seal(mod, monkeypatch)
     monkeypatch.setattr(sys, "argv", [script])
 
@@ -398,6 +437,10 @@ SNIFFING_FORMS = [
     ("cpbl.ingest.run_scrape_game_pitches", ["2026", "D"], (2026, "D", [], None)),
     ("cpbl.ingest.run_scrape_game_pitches", ["2026", "A", "7"], (2026, "A", [], 7)),
     ("cpbl.ingest.run_scrape_game_pitches", ["2026", "A", "99", "100"], (2026, "A", [99, 100], None)),
+    # cpbl-classify-pitches（GUARD2；docstring 三種形式 + 順序無關）
+    ("cpbl.models.run_classify_pitches", ["2026", "D"], (2026, "D")),
+    ("cpbl.models.run_classify_pitches", ["2025", "A"], (2025, "A")),
+    ("cpbl.models.run_classify_pitches", ["D", "2026"], (2026, "D")),
 ]
 
 
@@ -409,12 +452,35 @@ def test_sniffing_parsers_preserve_semantics(module: str, argv: list[str], expec
     assert mod._parse_args(mod._parser().parse_args(argv).args) == expected
 
 
-def test_scrape_pitches_rejects_unrecognised_token() -> None:
+@pytest.mark.parametrize("module", ["cpbl.ingest.run_scrape_pitches",
+                                    "cpbl.models.run_classify_pitches"])
+def test_sniffing_parsers_reject_unrecognised_token(module: str) -> None:
     """事故的核心：舊版把無法辨識的 token 靜默略過，`--help` 就是這樣被吞掉的。"""
-    mod = importlib.import_module("cpbl.ingest.run_scrape_pitches")
+    mod = importlib.import_module(module)
     with pytest.raises(SystemExit) as exc:
         mod._parse_args(["zzz-not-a-real-value"])
     assert exc.value.code != 0
+
+
+def test_build_sabr_rejects_half_given_year_range(monkeypatch: pytest.MonkeyPatch) -> None:
+    """單給一個年份，舊版會靜默改跑「全量重建」——連 RE 矩陣／DER／wSB／勝率矩陣一起重算。
+
+    docs/research/DATA-RULES-AUDIT1_REPORT.md 以 `cpbl-build-sabr <YEAR>` 單年形式記載，
+    與程式的 `len(sys.argv) > 2` 判斷對不上。寧可炸掉也不要靜默做一件重得多的事。
+    """
+    mod = _import_entry("cpbl.models.run_build_sabr")
+    _seal(mod, monkeypatch)
+    monkeypatch.setattr(sys, "argv", ["cpbl-build-sabr", "2026"])
+    with pytest.raises(SystemExit) as exc:
+        mod.main()
+    assert exc.value.code not in (0, None)
+
+
+def test_build_sabr_year_range_and_bare_forms_still_parse() -> None:
+    parser = importlib.import_module("cpbl.models.run_build_sabr")._parser()
+    assert (parser.parse_args([]).from_year, parser.parse_args([]).to_year) == (None, None)
+    ns = parser.parse_args(["2026", "2026"])
+    assert (ns.from_year, ns.to_year) == (2026, 2026)
 
 
 def test_shadow_game_tm_report_flag_and_positionals() -> None:

@@ -7,11 +7,12 @@
 
 from __future__ import annotations
 
+import argparse
 import datetime as _dt
 import logging
-import sys
 
 from cpbl.db import migrate
+from cpbl.ingest._cli import cli_parser
 from cpbl.models.sabr import (
     build_catcher_runs,
     build_fielding_innings,
@@ -25,12 +26,29 @@ from cpbl.models.sabr import (
 log = logging.getLogger("cpbl.sabr")
 
 
+def _parser() -> argparse.ArgumentParser:
+    p = cli_parser("cpbl-build-sabr", __doc__)
+    p.add_argument("from_year", nargs="?", type=int,
+                   help="起始年（須與 to_year 成對給定；兩者都省略＝全量重建）")
+    p.add_argument("to_year", nargs="?", type=int, help="結束年（含）")
+    return p
+
+
 def main() -> None:
+    parser = _parser()
+    args = parser.parse_args()
+    # 舊版的判斷是 `len(sys.argv) > 2`：只給**一個**年份會被靜默忽略，落回全量重建——
+    # 而全量重建除了該年的年度表，還會連 RE 矩陣／run 係數／team DER／wSB／勝率矩陣
+    # 一起重算，遠重於使用者要求的事。docs/research/DATA-RULES-AUDIT1_REPORT.md 正是
+    # 以 `cpbl-build-sabr <YEAR>` 單年形式記載，兩邊對不上。寧可炸掉也不要靜默做別的事。
+    if (args.from_year is None) != (args.to_year is None):
+        parser.error("from_year 與 to_year 必須成對給定（如 `cpbl-build-sabr 2026 2026`）；"
+                     "只給一個年份在舊版會靜默改跑全量重建，語意不明故不再接受")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
     migrate()
     this_year = _dt.date.today().year
-    if len(sys.argv) > 2:
-        frm, to = int(sys.argv[1]), int(sys.argv[2])
+    if args.from_year is not None and args.to_year is not None:
+        frm, to = args.from_year, args.to_year
         for y in range(frm, to + 1):
             build_fielding_innings(y)
             build_traits(y)
