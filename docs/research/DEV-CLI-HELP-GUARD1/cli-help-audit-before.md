@@ -3,11 +3,32 @@
 > **本檔由指令產生，勿手改。**重新產生：
 > `uv run python docs/research/DEV-CLI-HELP-GUARD1/audit_cli_help.py --out docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit.md`
 
-掃描對象：`af35ab306dc3fa8b96534f11eb3e329c0c9e9630`　—　**修補前基線**（本卡 spec 基線 commit）。同一支工具、同一套判定，對照 cli-help-audit.md 的修補後結果。
+掃描對象：`af35ab306dc3fa8b96534f11eb3e329c0c9e9630`　—　**修補前基線**（本卡 spec 基線 commit）。同一支工具、同一套判定與同一份封鎖清單，對照 cli-help-audit.md 的修補後結果。
 
 取證方式與判定碼定義見 `audit_cli_help.py` docstring。重點：盤點**未真跑任何爬蟲**——
 探針在子行程中把 `migrate`／`conn`／`scrape_*` 等副作用出口換成會拋例外的 stub，
-再對 socket／psycopg／subprocess 硬封鎖，因此物理上不可能送出請求或碰 DB。
+再對下列 I/O 出口硬封鎖，任何呼叫都會拋例外而不是真的送出去：
+
+- `socket.socket.connect`
+- `socket.create_connection`
+- `socket.getaddrinfo`
+- `subprocess.run`
+- `subprocess.Popen`
+- `psycopg.connect`
+- `psycopg.Connection.connect`
+- `psycopg.AsyncConnection.connect`
+- `psycopg_pool.ConnectionPool`
+- `psycopg_pool.AsyncConnectionPool`
+- `psycopg_pool.NullConnectionPool`
+- `psycopg_pool.AsyncNullConnectionPool`
+
+封鎖面是**列舉**的，不是「全部」。本檔刻意不宣稱「物理上不可能碰 DB」——初版就是
+因為漏封 `psycopg.AsyncConnection.connect` 與 `AsyncConnectionPool` 而讓那句絕對
+宣稱不成立（查核 CLIHG1-R1-01）。繞過上列 Python 符號的路徑（ctypes、直接 syscall、
+未列舉的第三方 driver）不在封鎖範圍內；本專案 ingest 入口只走 psycopg 與 httpx/socket，
+故此封鎖面對本盤點充分。清單與 `tests/test_cli_help_guard.py` 由測試綁定，不得單邊漂移。
+
+✅ 上列出口本次全部封鎖成功（探針自行回報，非人工聲明）。
 
 入口總數 **46**：✅ SAFE 8／🔴 SIDE_EFFECT 18／其他 20。
 
