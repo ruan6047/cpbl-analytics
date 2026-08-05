@@ -16,15 +16,25 @@ writer），本 CLI 不改動該路徑。
 
 from __future__ import annotations
 
+import argparse
 import datetime as _dt
 import logging
-import sys
 
 from cpbl.db import migrate
+from cpbl.ingest._cli import KIND_CODES, cli_parser
 from cpbl.ingest.cpbl_pitch_tracking import completed_game_snos, scrape_game_pitches
 
 
-def _parse_args(argv: list[str]) -> tuple[int, str, list[int], int | None]:
+def _parser() -> argparse.ArgumentParser:
+    p = cli_parser("cpbl-scrape-game-pitches", __doc__)
+    p.add_argument("args", nargs="*", metavar="ARG",
+                   help=f"YEAR（4 位數）／KIND（{'|'.join(KIND_CODES)}）／SINCE_DAYS 或 GAME_SNO；"
+                        "順序無關，皆可省略")
+    return p
+
+
+def _parse_args(argv: list[str],
+                parser: argparse.ArgumentParser | None = None) -> tuple[int, str, list[int], int | None]:
     """回傳 (year, kind, explicit_snos, since_days)。
 
     第 3 個以後的數字：若只有一個且介於 1..60 視為 since_days（增量窗口）；否則全視為
@@ -34,20 +44,26 @@ def _parse_args(argv: list[str]) -> tuple[int, str, list[int], int | None]:
     kind = "A"
     nums: list[int] = []
     for a in argv:
-        if a in ("A", "C", "D", "E"):
+        if a in KIND_CODES:
             kind = a
         elif a.isdigit() and len(a) == 4:
             year = int(a)
         elif a.isdigit():
             nums.append(int(a))
+        else:
+            # 舊版在此靜默略過——`--help` 會被吞掉後直接開爬（DEV-CLI-HELP-GUARD1）。
+            (parser or _parser()).error(
+                f"無法辨識的參數 {a!r}；可用：YEAR（4 位數）／KIND（{'|'.join(KIND_CODES)}）／"
+                "SINCE_DAYS（1-60）或 GAME_SNO")
     if len(nums) == 1 and 1 <= nums[0] <= 60:
         return year, kind, [], nums[0]
     return year, kind, nums, None
 
 
 def main() -> None:
+    parser = _parser()
+    year, kind, snos, since_days = _parse_args(parser.parse_args().args, parser)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
-    year, kind, snos, since_days = _parse_args(sys.argv[1:])
     migrate()
     log = logging.getLogger("cpbl.pitch")
     if not snos:

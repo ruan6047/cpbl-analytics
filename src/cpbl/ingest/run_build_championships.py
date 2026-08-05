@@ -8,13 +8,20 @@ season/gamelog/managers 補齊。每日增量爬蟲（run_refresh_recent）會�
 
 from __future__ import annotations
 
+import argparse
 import logging
 
 from cpbl.db import migrate
+from cpbl.ingest._cli import cli_parser
 from cpbl.ingest.championships import build_championships
 
 
+def _parser() -> argparse.ArgumentParser:
+    return cli_parser("cpbl-build-championships", __doc__)
+
+
 def main() -> None:
+    _parser().parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
     migrate()
     out = build_championships()

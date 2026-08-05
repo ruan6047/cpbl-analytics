@@ -11,20 +11,29 @@ daily partial refresh 走 cpbl-refresh-recent（scrape_advanced_result）。污�
 
 from __future__ import annotations
 
+import argparse
 import logging
-import sys
 from datetime import date
 
 from cpbl.db import migrate
+from cpbl.ingest._cli import cli_parser
 from cpbl.ingest.cpbl_advanced import run_full_snapshot
 
 log = logging.getLogger("cpbl.advanced")
 
 
+def _parser() -> argparse.ArgumentParser:
+    p = cli_parser("cpbl-scrape-advanced", __doc__)
+    p.add_argument("delay", nargs="?", type=float, default=0.5, help="每請求間隔秒數（預設 0.5）")
+    p.add_argument("kinds", nargs="?", default="A", help="逗號分隔軍別，如 A,D（預設 A）")
+    return p
+
+
 def main() -> None:
+    args = _parser().parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
-    delay = float(sys.argv[1]) if len(sys.argv) >= 2 else 0.5
-    kinds = sys.argv[2].split(",") if len(sys.argv) >= 3 else ["A"]
+    delay = args.delay
+    kinds = args.kinds.split(",")
     year = date.today().year
     migrate()
     for kind in kinds:

@@ -22,10 +22,12 @@
 
 from __future__ import annotations
 
+import argparse
 import sys
 from datetime import date
 
 from cpbl.db import conn
+from cpbl.ingest._cli import cli_parser
 
 COVER_OK = 0.80   # 判定「有設備」的球場：本季曾達此覆蓋率
 COVER_BAD = 0.70  # 低於此且在有設備球場 → 標為缺漏
@@ -55,9 +57,17 @@ def _rows(year: int, kind: str) -> list[dict]:
         return [dict(zip(cols, r, strict=True)) for r in cur.fetchall()]
 
 
+def _parser() -> argparse.ArgumentParser:
+    p = cli_parser("cpbl-check-coverage", __doc__)
+    p.add_argument("year", nargs="?", type=int, help="年份（省略＝當年）")
+    p.add_argument("kind", nargs="?", default="A", help="賽別碼（預設 A）")
+    return p
+
+
 def main() -> None:
-    year = int(sys.argv[1]) if len(sys.argv) > 1 else date.today().year
-    kind = sys.argv[2] if len(sys.argv) > 2 else "A"
+    args = _parser().parse_args()
+    year = args.year if args.year is not None else date.today().year
+    kind = args.kind
     rows = _rows(year, kind)
 
     # 有設備球場：本季曾達 COVER_OK 覆蓋率

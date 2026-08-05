@@ -6,17 +6,26 @@
 
 from __future__ import annotations
 
+import argparse
 import logging
-import sys
 
 from cpbl.db import migrate
+from cpbl.ingest._cli import cli_parser
 from cpbl.ingest.cpbl_field import scrape
 
 
+def _parser() -> argparse.ArgumentParser:
+    p = cli_parser("cpbl-scrape-field", __doc__)
+    p.add_argument("venues", nargs="*", metavar="VENUE",
+                   help="只爬指定球場名（省略＝全部可對照球場）")
+    return p
+
+
 def main() -> None:
+    args = _parser().parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
     migrate()
-    only = sys.argv[1:] or None
+    only = args.venues or None
     out = scrape(only=only)
     logging.getLogger("cpbl.field").info("完成：%s", out)
 

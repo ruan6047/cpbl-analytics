@@ -13,19 +13,25 @@ base = 表中官方生涯(9999) − 備份 CSV 的官方本季（Phase 1 覆蓋�
 
 from __future__ import annotations
 
+import argparse
 import logging
-import sys
 
+from cpbl.ingest._cli import cli_parser
 from cpbl.ingest.splits_calc import anchor_career
 
 
+def _parser() -> argparse.ArgumentParser:
+    p = cli_parser("cpbl-anchor-career", __doc__)
+    p.add_argument("season", type=int, help="錨定基準球季")
+    p.add_argument("backup_csv_dir", help="Phase 1 覆蓋前 dump 的官方本季 CSV 目錄")
+    return p
+
+
 def main() -> None:
+    args = _parser().parse_args()
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s | %(message)s")
-    if len(sys.argv) < 3:
-        print(__doc__)
-        sys.exit(2)
-    season, csv_dir = int(sys.argv[1]), sys.argv[2]
+    season, csv_dir = args.season, args.backup_csv_dir
     summary = anchor_career(season, csv_dir)
     logging.getLogger("cpbl.splits").info("anchor_career season=%s %s", season, summary)
 

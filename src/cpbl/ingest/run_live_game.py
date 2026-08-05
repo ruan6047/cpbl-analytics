@@ -9,21 +9,28 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
-import sys
 
+from cpbl.ingest._cli import KIND_CODES, cli_parser
 from cpbl.ingest.cpbl_live_game import probe
 
 
+def _parser() -> argparse.ArgumentParser:
+    p = cli_parser("cpbl-live-game", __doc__)
+    p.add_argument("year", type=int, help="年份")
+    p.add_argument("kind", choices=KIND_CODES, help="賽別碼")
+    p.add_argument("sno", type=int, help="game_sno")
+    p.add_argument("dump", nargs="?", help="另存完整 payload 的路徑（省略＝不存）")
+    return p
+
+
 def main() -> None:
+    args = _parser().parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
-    if len(sys.argv) < 4:
-        print(__doc__)
-        sys.exit(1)
-    year, kind, sno = int(sys.argv[1]), sys.argv[2], int(sys.argv[3])
-    dump = sys.argv[4] if len(sys.argv) > 4 else None
-    print(json.dumps(probe(year, kind, sno, dump_path=dump), ensure_ascii=False, indent=1))
+    payload = probe(args.year, args.kind, args.sno, dump_path=args.dump)
+    print(json.dumps(payload, ensure_ascii=False, indent=1))
 
 
 if __name__ == "__main__":

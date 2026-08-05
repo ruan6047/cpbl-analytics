@@ -8,18 +8,31 @@
 
 from __future__ import annotations
 
+import argparse
 import logging
-import sys
 from datetime import date
 
 from cpbl.db import migrate
+from cpbl.ingest._cli import cli_parser
 from cpbl.ingest.cpbl_transactions import scrape_transactions
 
 
+def _parser() -> argparse.ArgumentParser:
+    p = cli_parser("cpbl-scrape-transactions", __doc__)
+    p.add_argument("start_year", nargs="?", type=int, help="起始年（含）；與 end_year 成對給")
+    p.add_argument("end_year", nargs="?", type=int, help="結束年（不含）")
+    return p
+
+
 def main() -> None:
+    parser = _parser()
+    args = parser.parse_args()
+    # 舊版只認「兩個都給」，單給一個會被靜默忽略而爬成當年——靜默吞參數是本卡要消滅的模式。
+    if (args.start_year is None) != (args.end_year is None):
+        parser.error("start_year 與 end_year 必須成對給定（範圍 [start, end)）")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
-    if len(sys.argv) >= 3:
-        years = list(range(int(sys.argv[1]), int(sys.argv[2])))
+    if args.start_year is not None and args.end_year is not None:
+        years = list(range(args.start_year, args.end_year))
     else:
         years = [date.today().year]
     migrate()

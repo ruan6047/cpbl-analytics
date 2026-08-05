@@ -13,17 +13,27 @@
 
 from __future__ import annotations
 
+import argparse
 import logging
-import sys
 
 from cpbl.db import migrate
+from cpbl.ingest._cli import cli_parser
 from cpbl.ingest.cpbl_player_detail import scrape
 
 
+def _parser() -> argparse.ArgumentParser:
+    p = cli_parser("cpbl-scrape-detail", __doc__)
+    p.add_argument("delay", nargs="?", type=float, default=1.2, help="每請求間隔秒數（預設 1.2）")
+    p.add_argument("group", nargs="?", choices=("batters", "pitchers"),
+                   help="只跑打者或投手（省略＝兩者都跑）")
+    return p
+
+
 def main() -> None:
+    args = _parser().parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
-    delay = float(sys.argv[1]) if len(sys.argv) >= 2 else 1.2
-    groups = (sys.argv[2],) if len(sys.argv) >= 3 else ("batters", "pitchers")
+    delay = args.delay
+    groups = (args.group,) if args.group else ("batters", "pitchers")
     migrate()
     out = scrape(delay=delay, groups=groups)
     logging.getLogger("cpbl.detail").info("done: %s", out)

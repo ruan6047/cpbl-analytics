@@ -10,12 +10,14 @@
 
 from __future__ import annotations
 
+import argparse
 import sys
 from collections import Counter, defaultdict
 from datetime import date
 from zoneinfo import ZoneInfo
 
 from cpbl.db import conn
+from cpbl.ingest._cli import cli_parser
 from cpbl.ingest.splits_calc import (
     Table,
     calc_batting_t1,
@@ -130,9 +132,16 @@ def _compare(label: str, computed: Table, official: dict, groups: dict[str, str]
             print(f"    ⚠️ 官方有值未重算欄: {dict(off_cols)}")
 
 
+def _parser() -> argparse.ArgumentParser:
+    p = cli_parser("cpbl-verify-splits", __doc__)
+    p.add_argument("year", nargs="?", type=int, default=2026, help="年份（預設 2026）")
+    p.add_argument("kind", nargs="?", default="A", help="賽別碼（預設 A）")
+    return p
+
+
 def main() -> None:
-    year = int(sys.argv[1]) if len(sys.argv) > 1 else 2026
-    kind = sys.argv[2] if len(sys.argv) > 2 else "A"
+    args = _parser().parse_args()
+    year, kind = args.year, args.kind
     names = _names()
 
     off_bat, bat_cut = _official("batting_splits", year, kind)

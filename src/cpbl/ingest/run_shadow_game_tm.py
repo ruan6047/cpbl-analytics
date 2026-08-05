@@ -11,11 +11,13 @@
 
 from __future__ import annotations
 
+import argparse
 import datetime as _dt
 import logging
 import sys
 
 from cpbl.db import migrate
+from cpbl.ingest._cli import KIND_CODES, cli_parser
 from cpbl.ingest.game_tm_shadow import (
     latest_run_report,
     observation_window_days,
@@ -25,17 +27,33 @@ from cpbl.ingest.game_tm_shadow import (
 log = logging.getLogger("cpbl.shadow")
 
 
-def _parse_args(argv: list[str]) -> tuple[bool, int, str, int]:
-    """回傳 (report_only, year, kind, window_days)。"""
-    if "--report" in argv:
+def _parser() -> argparse.ArgumentParser:
+    p = cli_parser("cpbl-shadow-game-tm", __doc__)
+    p.add_argument("--report", action="store_true",
+                   help="不重跑，只印最近一次 run 摘要 + 未解差異")
+    p.add_argument("args", nargs="*", metavar="ARG",
+                   help=f"YEAR（4 位數）／KIND（{'|'.join(KIND_CODES)}）／WINDOW_DAYS；皆可省略")
+    return p
+
+
+def _parse_args(argv: list[str], report: bool = False,
+                parser: argparse.ArgumentParser | None = None) -> tuple[bool, int, str, int]:
+    """回傳 (report_only, year, kind, window_days)。`--report` 由 argparse 先行剝離。"""
+    if report or "--report" in argv:
         return True, 0, "A", 0
     year = _dt.date.today().year
     kind = "A"
     window_days = 3
-    nums = [a for a in argv if a not in ("A", "C", "D", "E")]
+    nums = []
     for a in argv:
-        if a in ("A", "C", "D", "E"):
+        if a in KIND_CODES:
             kind = a
+        elif a.isdigit():
+            nums.append(a)
+        else:
+            # 舊版在此讓 int() 直接炸 ValueError（`--help` 亦然），訊息不可讀。
+            (parser or _parser()).error(
+                f"無法辨識的參數 {a!r}；可用：YEAR（4 位數）／KIND（{'|'.join(KIND_CODES)}）／WINDOW_DAYS")
     if nums:
         if len(nums[0]) == 4:
             year = int(nums[0])
@@ -61,8 +79,10 @@ def _print_report(report: dict | None) -> None:
 
 
 def main() -> None:
+    parser = _parser()
+    ns = parser.parse_args()
+    report_only, year, kind, window_days = _parse_args(ns.args, ns.report, parser)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
-    report_only, year, kind, window_days = _parse_args(sys.argv[1:])
     migrate()
 
     if report_only:
