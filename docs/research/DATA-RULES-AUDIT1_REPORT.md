@@ -298,7 +298,7 @@ uv run cpbl-anchor-career <YEAR>            # 生涯 = base + 本季
 # 對帳：published build 的 ready PA 應與官方 box PA 一致（見 build 的 validation_summary）
 
 # 2) SABR 衍生表（每季至少一次、改判後必跑）
-uv run cpbl-build-sabr <YEAR>               # traits / RE24 / wSB / DER / catcher runs
+uv run cpbl-build-sabr                      # traits / RE24 / wSB / DER / catcher runs（全量；單年需成對 <FROM> <TO>，舊版單一年份參數會被靜默忽略仍跑全量——GUARD2 已改為報錯，2026-08-05 更正）
 # 對帳指令（本卡腳本）：
 uv run python scripts/data_rules_audit1.py c11 --out /tmp/c11.json
 #   檢查 derived_table_staleness_batter_traits 的 ratio 應 ≈ 1.00
