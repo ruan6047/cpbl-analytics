@@ -1,12 +1,19 @@
 {
-  "generated_at": "2026-08-05T13:58:42+08:00",
+  "generated_at": "2026-08-05T14:26:31+08:00",
   "db_timezone_note": "DB SHOW timezone = UTC；game_date 語意為台北日。",
   "direction_asymmetry": "AUDIT1 C12 把 range 一律視為無害，本卡實測補正：只有**上界**（<=）在 UTC 落後時是保守的；**下界**（>=）方向相反，會把昨天算進「今天起」。",
-  "total_occurrences": 189,
-  "executable_occurrences": 172,
+  "self_reference_note": "掃描器走 git ls-files，故本卡的掃描器與其測試入樹後必然掃到自己。這些命中歸入 tooling_self_reference 明確計列，**不計入** runtime 統計，使 artifact 在工具入樹前後都是同一個答案（R1 查核 TZBD1-R1-1）。",
+  "total_occurrences": 219,
+  "runtime_occurrences": 172,
+  "self_reference_occurrences": 30,
+  "self_reference_files": [
+    "scripts/data_tz_boundary1.py",
+    "tests/test_tz_boundary.py"
+  ],
   "by_category": {
     "timestamp_write": 101,
     "upper_bound": 30,
+    "tooling_self_reference": 30,
     "already_taipei": 20,
     "comment_or_string": 17,
     "meta_reference": 9,
@@ -20,12 +27,14 @@
     "scripts": 64,
     "migrations": 39,
     "chain_frozen": 36,
+    "tooling_self_reference": 30,
     "in_scope": 28,
     "tests": 22
   },
   "by_sensitivity": {
     "無害": 110,
     "無害-保守": 30,
+    "無害-自指": 30,
     "已修正": 20,
     "說明文字": 17,
     "敏感-中": 5,
@@ -825,6 +834,168 @@
       "sensitivity": "敏感-高",
       "rationale": "直接指向錯誤的一天；台北 00:00–07:59 全錯",
       "code": "\"predictions_today＝排在**今天**且尚無比分者；母體限定 game_date = CURRENT_DATE，\""
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 7,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "台北 00:00–07:59 這段，``CURRENT_DATE`` 仍停在前一日 → 日期界線整批偏移一天。"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 11,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "* ``<= CURRENT_DATE``（上界／「不含未來」）：UTC 落後 → 收得**更少** → 保守，不會誤納。"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 12,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "* ``>= CURRENT_DATE``（下界／「今天起的未來」）：UTC 落後 → 收得**更多** →"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 14,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "* ``= CURRENT_DATE``（精確等值）：直接指向錯誤的一天，晨間 8 小時全錯。"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 41,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "# **自指檔案**：本卡的掃描器與其測試自身就含 CURRENT_DATE 字樣（偵測樣式／SQL 形態"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 50,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "# 掃描對象含 TAIPEI_TODAY_SQL：已修正的用點必須在盤點裡「看得見」，"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 53,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "r\"CURRENT_DATE|CURRENT_TIMESTAMP|\\bnow\\s*\\(\\s*\\)|TAIPEI_TODAY_SQL\", re.I)"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 54,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "_TAIPEI_RE = re.compile(r\"AT TIME ZONE\\s+'Asia/Taipei'|TAIPEI_TODAY_SQL\")"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 75,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "用 tokenize／ast 而非字串啟發式——說明文字裡的 CURRENT_DATE 不該被算成用點。"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 102,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "# Python 端「談論 CURRENT_DATE」而非「使用」它的痕跡（分析腳本自己的正規式／輸出鍵）"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 112,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "if re.search(r\"DEFAULT\\s+(CURRENT_TIMESTAMP|CURRENT_DATE|now\\s*\\(\\s*\\))\", line, re.I):"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 114,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "# 函式預設參數（如 completed_games_sql(as_of_sql=\"CURRENT_DATE\")）：語意由呼叫端決定"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 115,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "if re.search(r\"def\\s+\\w+\\s*\\(.*CURRENT_DATE\", line, re.I) or \\"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 116,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "re.search(r\"as_of_sql\\s*[:=].*CURRENT_DATE\", line, re.I):"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 121,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "# 視窗位移（CURRENT_DATE - N／- %s::int）先判，否則會被上下界規則吃掉"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 122,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "if re.search(r\"CURRENT_DATE\\s*[-+]\\s*\\S\", line, re.I) or \\"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 123,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "re.search(r\"\\S\\s*[-+]\\s*CURRENT_DATE\", line, re.I):"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 129,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "# 反向寫法：CURRENT_DATE >= x 等價於 x <= CURRENT_DATE"
     },
     {
       "file": "scripts/dryrun_game_tm_fullseason.py",
@@ -1761,6 +1932,114 @@
       "sensitivity": "無害",
       "rationale": "純寫入時戳（trained_at/fetched_at/DEFAULT），不參與日期界線比較",
       "code": "now = datetime.now().astimezone().isoformat()"
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 4,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "這段 ``CURRENT_DATE`` 仍停在前一日 → 日期界線偏移一天。"
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 23,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "from cpbl.completion import TAIPEI_TODAY_SQL"
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 111,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "def test_taipei_today_sql_is_a_date_in_taipei_zone() -> None:"
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 113,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "assert \"Asia/Taipei\" in TAIPEI_TODAY_SQL"
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 114,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "assert TAIPEI_TODAY_SQL.strip().endswith(\"::date\")"
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 121,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "且不再是裸 `CURRENT_DATE`。"
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 138,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "assert TAIPEI_TODAY_SQL in sql, \"predictions_today 未使用台北日界線\""
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 139,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "assert \"game_date = CURRENT_DATE\" not in sql, \"仍殘留 UTC 精確等值界線\""
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 160,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "assert TAIPEI_TODAY_SQL in sql, \"in_progress 下界未使用台北日\""
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 161,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "assert \"game_date >= CURRENT_DATE\" not in sql, \"仍殘留 UTC 下界\""
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 171,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "assert \"CURRENT_DATE\" in completed_games_sql()"
+    },
+    {
+      "file": "tests/test_tz_boundary.py",
+      "line": 174,
+      "zone": "tooling_self_reference",
+      "category": "tooling_self_reference",
+      "sensitivity": "無害-自指",
+      "rationale": "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL",
+      "code": "assert TAIPEI_TODAY_SQL in completed_games_sql(TAIPEI_TODAY_SQL)"
     },
     {
       "file": "tests/test_winprob_strength.py",

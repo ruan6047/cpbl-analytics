@@ -38,6 +38,15 @@ IN_SCOPE_PREFIXES = (
 # G4 觀測凍結＋平行卡佔用：只記錄不改
 CHAIN_FROZEN_PREFIX = "src/cpbl/ingest/"
 
+# **自指檔案**：本卡的掃描器與其測試自身就含 CURRENT_DATE 字樣（偵測樣式／SQL 形態
+# 斷言），走 git ls-files 必然掃到自己。它們**不是 runtime SQL**，但也不能偷偷排除
+# ——否則盤點會在「工具入樹前 vs 入樹後」給出不同答案（R1 查核實測 189/172 vs
+# 218/189）。作法是**明確歸類**，讓自指命中在 artifact 裡看得見卻不污染敏感度統計。
+SELF_REFERENCE_FILES = (
+    "scripts/data_tz_boundary1.py",
+    "tests/test_tz_boundary.py",
+)
+
 # 掃描對象含 TAIPEI_TODAY_SQL：已修正的用點必須在盤點裡「看得見」，
 # 否則修好的點只會從清單消失，artifact 就無法自證修復（只能證明「不見了」）。
 _TOKEN_RE = re.compile(
@@ -128,6 +137,8 @@ def _classify(line: str) -> str:
 
 
 def _zone(path: str) -> str:
+    if path in SELF_REFERENCE_FILES:
+        return "tooling_self_reference"
     if path.startswith(CHAIN_FROZEN_PREFIX):
         return "chain_frozen"
     if path.startswith(IN_SCOPE_PREFIXES):
@@ -151,6 +162,7 @@ SENSITIVITY = {
     "already_taipei": ("已修正", "已用 Asia/Taipei 模式"),
     "default_parameter": ("敏感-低", "helper 預設參數；實際語意由呼叫端傳入值決定"),
     "meta_reference": ("無害", "分析腳本在談論這個字串（正規式／輸出鍵），非日期界線用點"),
+    "tooling_self_reference": ("無害-自指", "本卡掃描器／其測試自身的樣式字串與斷言，非 runtime SQL"),
     "unclassified": ("待人工判讀", "未落入既有規則，需人工看上下文"),
 }
 
@@ -175,7 +187,12 @@ def cmd_inventory(args: argparse.Namespace) -> dict:
                 continue
             is_comment = (i in nonexec) or (path.endswith(".sql")
                                             and line.lstrip().startswith("--"))
-            category = "comment_or_string" if is_comment else _classify(line)
+            if path in SELF_REFERENCE_FILES:
+                category = "tooling_self_reference"
+            elif is_comment:
+                category = "comment_or_string"
+            else:
+                category = _classify(line)
             sens, why = SENSITIVITY.get(category, ("說明文字", "註解／docstring，非程式用點"))
             hits.append({
                 "file": path, "line": i, "zone": _zone(path),
@@ -189,17 +206,25 @@ def cmd_inventory(args: argparse.Namespace) -> dict:
             out[h[key]] = out.get(h[key], 0) + 1
         return dict(sorted(out.items(), key=lambda kv: -kv[1]))
 
-    executable = [h for h in hits if h["category"] != "comment_or_string"]
-    sensitive = [h for h in executable
-                 if h["sensitivity"].startswith("敏感")]
+    executable = [h for h in hits
+                  if h["category"] not in ("comment_or_string", "tooling_self_reference")]
+    self_ref = [h for h in hits if h["category"] == "tooling_self_reference"]
+    # 敏感度統計**只計 runtime 用點**：自指命中與說明文字都不是會跑的 SQL
+    sensitive = [h for h in executable if h["sensitivity"].startswith("敏感")]
     return {
         "generated_at": _now_iso(),
         "db_timezone_note": "DB SHOW timezone = UTC；game_date 語意為台北日。",
         "direction_asymmetry": (
             "AUDIT1 C12 把 range 一律視為無害，本卡實測補正：只有**上界**（<=）"
             "在 UTC 落後時是保守的；**下界**（>=）方向相反，會把昨天算進「今天起」。"),
+        "self_reference_note": (
+            "掃描器走 git ls-files，故本卡的掃描器與其測試入樹後必然掃到自己。"
+            "這些命中歸入 tooling_self_reference 明確計列，**不計入** runtime 統計，"
+            "使 artifact 在工具入樹前後都是同一個答案（R1 查核 TZBD1-R1-1）。"),
         "total_occurrences": len(hits),
-        "executable_occurrences": len(executable),
+        "runtime_occurrences": len(executable),
+        "self_reference_occurrences": len(self_ref),
+        "self_reference_files": list(SELF_REFERENCE_FILES),
         "by_category": tally("category"),
         "by_zone": tally("zone"),
         "by_sensitivity": tally("sensitivity"),
@@ -214,6 +239,32 @@ def cmd_inventory(args: argparse.Namespace) -> dict:
         "needs_human_review": [h for h in executable
                                if h["category"] == "unclassified"],
         "hits": hits,
+    }
+
+
+def cmd_verify(args: argparse.Namespace) -> dict:
+    """證明存檔 artifact 是**當前 HEAD 樹上的穩定不動點**（R1 查核 TZBD1-R1-1）。
+
+    重產一份並與存檔逐鍵比對，忽略 ``generated_at``（每次執行必然不同）。
+    掃描器與 artifact 同 commit 提交後，本命令在新 HEAD 上必須回 ``stable=true``。
+    """
+    fresh = cmd_inventory(args)
+    with open(args.inventory, encoding="utf-8") as fh:
+        stored = json.load(fh)
+    volatile = ("generated_at",)
+    a = {k: v for k, v in fresh.items() if k not in volatile}
+    b = {k: v for k, v in stored.items() if k not in volatile}
+    differing = sorted({k for k in set(a) | set(b) if a.get(k) != b.get(k)})
+    return {
+        "generated_at": _now_iso(),
+        "inventory_path": args.inventory,
+        "ignored_volatile_keys": list(volatile),
+        "stable": not differing,
+        "differing_keys": differing,
+        "stored_totals": {"total": stored.get("total_occurrences"),
+                          "runtime": stored.get("runtime_occurrences")},
+        "fresh_totals": {"total": fresh.get("total_occurrences"),
+                         "runtime": fresh.get("runtime_occurrences")},
     }
 
 
@@ -253,6 +304,11 @@ def main() -> None:
     p = sub.add_parser("inventory", help="全庫日期界線用點盤點")
     p.add_argument("--out", default=f"{OUT_DIR}/inventory.json")
     p.set_defaults(func=cmd_inventory)
+
+    p = sub.add_parser("verify", help="驗證 artifact 為 HEAD 樹上的穩定不動點")
+    p.add_argument("--inventory", default=f"{OUT_DIR}/inventory.json")
+    p.add_argument("--out", default=None)
+    p.set_defaults(func=cmd_verify)
 
     p = sub.add_parser("window", help="DB 端雙時區日界差示範")
     p.add_argument("--out", default=f"{OUT_DIR}/tz_window.json")
