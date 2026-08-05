@@ -26,8 +26,8 @@
 
 清掉 `npm audit` 的 high／critical，且**不改任何行為**。
 
-- `next` 15.5.20 → **15.5.22**（patch；連帶解 `postcss`、`sharp`）。
-- `tar` 經 `@tailwindcss/*` 鏈解決（升 tailwind 相關套件或 `npm audit fix`，**不得用 `--force`**）。
+- `next` 15.5.20 → **15.5.22**（patch）。~~連帶解 `postcss`、`sharp`~~——**執行實查證偽（2026-08-05）**：next 內部精確釘死 postcss 8.4.31、sharp ^0.34.3，連 15.6 canary 皆未鬆綁，僅 next 16.x 可解；原假設來源＝`npm audit` 的 `fixAvailable` 誤導性建議（升版前稱 15.5.22 非 major 可解、升版後同 finding 改口 16.3.0 major——該工具不驗證巢狀套件實際解析版本，查核者已還原根因）。**需求方 2026-08-05 裁定：postcss(4)/sharp(1) 殘留接受**（暴露面三度查證：build 面、未用 next/image、未用 Server Actions）；next 16 升級入提案清單遠期。
+- `tar` 經 `@tailwindcss/*` 鏈解決（升 tailwind 4.1.18 後 oxide 不再依賴 tar，整組移除）。
 
 ## 紅線
 
@@ -39,7 +39,7 @@
 
 - [ ] `npm audit` 的 high／critical 歸零；若有項目無法在不做 major 升級的前提下解決，**明列該項與理由**（不得靜默留著也不得硬升）。
 - [ ] `next` 停在 15.x patch 版；`package.json` 與 `package-lock.json` 同步提交。
-- [ ] `npm ci` 於乾淨 worktree 成功；`npm run build:check` 21 routes 全過；`npm test` 全過。
+- [ ] `npm ci` 於乾淨 worktree 成功；`npm run build:check` 24 routes 全過（原文 21 為過期數字，查核者確認升版前後皆 24 且集合一致）；`npm test` 全過。
 - [ ] **行為未變的證據**：至少三頁（建議 `/`、`/games/[sno]`、`/standings`）與升版前的渲染結果比對，DOM 結構或截圖擇一，說明比對方法。
 - [ ] `docker compose build`（或等效的 web 映像建置）成功——升版可能踩到 Alpine／node:22 的原生模組差異，**本機 build 過不代表映像 build 過**。
 
@@ -47,7 +47,7 @@
 
 - [ ] 查核者於獨立 detached worktree 重跑 `npm ci` ＋ `audit` ＋ `build:check` ＋ `test`。
 - [ ] 查核者確認沒有 semver-major 升級混入（比對 `package.json` diff 與 lock 中主要套件的 major 版號）。
-- [ ] 查核者確認 `next` 的升版未改變既有路由集合（21 routes 不多不少）。
+- [ ] 查核者確認 `next` 的升版未改變既有路由集合（24 routes，前後一致）。
 
 ## 邊界
 
