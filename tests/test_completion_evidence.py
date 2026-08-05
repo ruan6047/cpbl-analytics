@@ -57,33 +57,99 @@ def test_is_completed_game_semantics(
 
 
 def test_sql_builder_refuses_empty_alias() -> None:
-    """空別名會讓相關子查詢退化成恆真（實測誤納 318 場），必須直接拒絕。"""
+    """空別名會讓相關子查詢退化成恆真（母體暴增，見下方變體測試），必須直接拒絕。"""
     with pytest.raises(ValueError):
         completed_games_sql_with_evidence("")
 
 
-def test_sql_correlates_subquery_to_outer_games_row() -> None:
-    """證據子查詢必須關聯到**外層**該場，而非只問「證據表有沒有資料」。
+# ────────────────────────────────── 判準 SQL：以**母體差集**證明，不比對字串
+#
+# 這裡刻意不檢查 SQL 字面（`"g.year" in sql`、`startswith("(")` 之類）：字串比對
+# 正是本卡一再強調擋不住運算子優先序／作用域錯誤的手法，拿它來驗判準等於自打嘴巴
+# （跨家族查核 R1 的 RMDY1-R1-1）。改以唯讀 DB 跑真判準與**刻意構造的壞變體**，
+# 比對它們選出的場次集合差在哪裡——錯誤只要存在就一定反映在母體上。
+#
+# 斷言一律針對**集合恆等式**而非絕對筆數：本庫是活的（每日爬蟲進新場、當日賽事
+# 比分陸續寫入），任何硬編數字都會過期。查核者與我實測的絕對值本就不同
+# （漏括號變體兩邊都是 13014，但總數 12955/13009、13263/13322 各有差異），
+# 集合恆等式則兩邊完全一致。
 
-    相關子查詢內的未限定欄名會優先解析到內層表：``gce_.year = year`` 會被
-    PostgreSQL 解析成 ``gce_.year = gce_.year``（恆真）。故外層欄位必須帶限定詞。
+_TAIPEI_TODAY = "(now() AT TIME ZONE 'Asia/Taipei')::date"
+_EVIDENCE_EXISTS = (
+    "EXISTS (SELECT 1 FROM cpbl.game_completion_evidence e "
+    "WHERE e.year = games.year AND e.kind_code = games.kind_code "
+    "AND e.game_sno = games.game_sno)")
+
+# 壞變體 1：日期界線寫成尾隨 AND。SQL 的 AND 優先於 OR，實際解析為
+# `score > 0 OR (evidence AND date)`——正比分場次完全繞過日期界線。
+_VARIANT_MISSING_PARENS = (
+    f"games.home_score + games.away_score > 0 OR {_EVIDENCE_EXISTS} "
+    f"AND games.game_date <= {_TAIPEI_TODAY}")
+
+# 壞變體 2：子查詢未關聯外層。未限定的 `year` 會解析到**內層**表，
+# 變成 `gce_.year = gce_.year` 恆真，EXISTS 退化成「證據表有沒有任何一列」。
+_VARIANT_UNCORRELATED = (
+    f"games.game_date <= {_TAIPEI_TODAY} AND ("
+    "games.home_score + games.away_score > 0 OR "
+    "EXISTS (SELECT 1 FROM cpbl.game_completion_evidence gce_ "
+    "WHERE gce_.year = year AND gce_.kind_code = kind_code "
+    "AND gce_.game_sno = game_sno))")
+
+
+def _game_set(cond: str) -> set[tuple]:
+    """跑條件取場次集合（唯讀）。無 DB 時 skip。"""
+    try:
+        from cpbl.db import conn
+
+        with conn() as c, c.cursor() as cur:
+            cur.execute(
+                f"SELECT year, kind_code, game_sno FROM cpbl.games games WHERE {cond}")
+            return {tuple(r) for r in cur.fetchall()}
+    except Exception as exc:  # noqa: BLE001 — 無 DB 時跳過（CI 無 Postgres）
+        pytest.skip(f"需本機 DB：{exc}")
+
+
+def test_criterion_adds_exactly_the_evidenced_ties_over_the_legacy_one() -> None:
+    """真判準相對舊判準，**只**多收那 5 場有證據的 0:0，且不漏掉任何舊有場次。"""
+    from cpbl.completion import completed_games_sql
+
+    correct = _game_set(completed_games_sql_with_evidence("games"))
+    legacy = _game_set(completed_games_sql())
+
+    assert correct - legacy == set(CONFIRMED_TIES), "多收的不是那 5 場和局"
+    assert legacy - correct == set(), "新判準漏掉了舊判準已收的場次"
+
+
+def test_missing_parentheses_variant_leaks_future_dated_games() -> None:
+    """壞變體 1 的母體**必須**與真判準不同，差集恰為「未來日期且已有比分」。
+
+    這正是保留賽的形態（掛未來續賽日卻帶著中止比分）。差集非空才證明括號有意義。
     """
-    sql = completed_games_sql_with_evidence("g")
+    correct = _game_set(completed_games_sql_with_evidence("games"))
+    leaked = _game_set(_VARIANT_MISSING_PARENS) - correct
+    future_scored = _game_set(
+        f"games.game_date > {_TAIPEI_TODAY} AND games.home_score + games.away_score > 0")
 
-    assert "g.year" in sql and "g.kind_code" in sql and "g.game_sno" in sql
-    # 子查詢的比對右側不得是未限定的裸欄名
-    for col in ("year", "kind_code", "game_sno"):
-        assert f"= {col}" not in sql, f"{col} 未加限定詞 → 相關子查詢會恆真"
+    if not future_scored:
+        pytest.skip("目前無未來日期保留賽，此變體無可觀察差異")
+    assert leaked == future_scored, "漏括號洩漏的不是未來日期保留賽"
+    assert leaked, "漏括號變體與真判準母體相同 → 括號守衛失效"
 
 
-def test_sql_wraps_date_boundary_outside_the_or() -> None:
-    """日期界線必須在最外層、OR 子句必須加括號（AND 優先於 OR 的陷阱）。"""
-    sql = completed_games_sql_with_evidence("g")
+def test_uncorrelated_subquery_variant_swallows_unevidenced_scoreless_games() -> None:
+    """壞變體 2 的母體**必須**與真判準不同，差集恰為「過去 0:0 且無證據」。
 
-    assert sql.startswith("(") and sql.endswith(")")
-    # 日期條件出現在第一個 OR 之前，且 OR 被括號包住
-    assert sql.index("game_date <=") < sql.index(" OR ")
-    assert "> 0 OR EXISTS" in sql
+    未關聯的 EXISTS 恆真，於是每一場過去日期的 0:0 都被當成完成場。
+    """
+    correct = _game_set(completed_games_sql_with_evidence("games"))
+    swallowed = _game_set(_VARIANT_UNCORRELATED) - correct
+    unevidenced_scoreless = _game_set(
+        f"games.game_date <= {_TAIPEI_TODAY} "
+        f"AND games.home_score + games.away_score = 0 AND NOT {_EVIDENCE_EXISTS}")
+
+    assert swallowed == unevidenced_scoreless, "恆真變體吞下的不是無證據的 0:0"
+    assert len(swallowed) > 100, (
+        f"差集只有 {len(swallowed)} 場，樣本過小則本測試失去鑑別力")
 
 
 # ────────────────────────────────── 真實 DB：四重回歸
