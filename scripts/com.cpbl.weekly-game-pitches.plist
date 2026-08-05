@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- macOS launchd 排程：每週一次逐球全季重跑（INGEST-GAME-TM-REFACTOR1-G4 Phase A）。
+     目的：官方可在任何時點做賽後修正，每日增量只看近幾天窗口不會回頭；每週全季重跑
+     使任何時點的修正最遲七天內收斂。
+
+     時段選擇：**週一 13:10**。
+       · 週一＝中職固定休兵日，無新完成場，重跑不會與當日賽事資料競爭。
+       · 13:10 距每日 10:10 觸發點三小時，遠超每日鏈典型耗時，時間上不重疊。
+       · 腳本另共用同一把 refresh lock 且「忙碌即跳過」，即使 Mac 睡醒後 launchd 補跑
+         錯過的每日 job，本排程也只會跳過、不會卡住每日鏈（卡面紅線：排程失敗不得
+         中斷既有每日 refresh）。
+       · 抓的是 stats.cpbl（無反爬、httpx 直連），不受 cpbl.com.tw 深夜 HiNet 加嚴影響；
+         但仍沿用白天時段的既有紀律。
+
+     安裝（⚠️ 屬部署步驟，須在本卡 merge 後、由需求方或部署者執行；
+           Phase A 執行者交付碼與此檔，不自行 bootstrap 未合併分支的排程）：
+       ln -sf "$PWD/scripts/com.cpbl.weekly-game-pitches.plist" \
+         ~/Library/LaunchAgents/com.cpbl.weekly-game-pitches.plist
+       launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.cpbl.weekly-game-pitches.plist
+     立即測跑一次：launchctl kickstart -k gui/$(id -u)/com.cpbl.weekly-game-pitches
+     停用：launchctl bootout gui/$(id -u)/com.cpbl.weekly-game-pitches
+     狀態：logs/last-weekly-pitches.json（每日鏈不讀此檔，兩者狀態面互不影響） -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.cpbl.weekly-game-pitches</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/ruanruan/Dev/cpbl-analytics/scripts/weekly-game-pitches.sh</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/ruanruan/Dev/cpbl-analytics</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>/Users/ruanruan/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key><integer>1</integer>
+    <key>Hour</key><integer>13</integer>
+    <key>Minute</key><integer>10</integer>
+  </dict>
+  <key>RunAtLoad</key><false/>
+  <key>StandardOutPath</key><string>/Users/ruanruan/Dev/cpbl-analytics/logs/launchd-weekly-pitches.out.log</string>
+  <key>StandardErrorPath</key><string>/Users/ruanruan/Dev/cpbl-analytics/logs/launchd-weekly-pitches.err.log</string>
+</dict>
+</plist>
