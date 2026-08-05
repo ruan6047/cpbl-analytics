@@ -9,20 +9,26 @@
 
 from __future__ import annotations
 
+import argparse
 import logging
-import sys
 from datetime import date
 
 from cpbl.db import migrate
+from cpbl.ingest._cli import cli_parser
 from cpbl.ingest.cpbl_wiki import run
 
 
+def _parser() -> argparse.ArgumentParser:
+    p = cli_parser("cpbl-scrape-wiki", __doc__)
+    p.add_argument("limit", nargs="?", type=int, help="只跑前 N 個目標（測試用；省略＝全部）")
+    return p
+
+
 def main() -> None:
+    args = _parser().parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
-    args = sys.argv[1:]
-    limit = int(args[0]) if args else None
     migrate()
-    st = run(year=date.today().year, limit=limit)
+    st = run(year=date.today().year, limit=args.limit)
     logging.getLogger("cpbl.wiki").info("完成：%s", st)
 
 

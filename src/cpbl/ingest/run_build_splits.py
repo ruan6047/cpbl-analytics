@@ -9,18 +9,27 @@
 
 from __future__ import annotations
 
+import argparse
 import logging
-import sys
 from datetime import date
 
+from cpbl.ingest._cli import cli_parser
 from cpbl.ingest.splits_calc import build_career, build_splits
 
 
+def _parser() -> argparse.ArgumentParser:
+    p = cli_parser("cpbl-build-splits", __doc__)
+    p.add_argument("year", nargs="?", type=int, help="年份（省略＝當年）")
+    p.add_argument("kinds", nargs="?", help="逗號分隔賽別，如 A,D（省略＝A,D）")
+    return p
+
+
 def main() -> None:
+    args = _parser().parse_args()
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s | %(message)s")
-    year = int(sys.argv[1]) if len(sys.argv) > 1 else date.today().year
-    kinds = tuple(sys.argv[2].split(",")) if len(sys.argv) > 2 else ("A", "D")
+    year = args.year if args.year is not None else date.today().year
+    kinds = tuple(args.kinds.split(",")) if args.kinds else ("A", "D")
     log = logging.getLogger("cpbl.splits")
     summary = build_splits(year, kinds)
     log.info("build_splits year=%s %s", year, summary)

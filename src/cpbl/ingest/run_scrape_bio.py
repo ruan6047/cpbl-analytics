@@ -8,20 +8,27 @@
 
 from __future__ import annotations
 
+import argparse
 import logging
-import sys
 
+from cpbl.ingest._cli import cli_parser
 from cpbl.ingest.cpbl_player_bio import scrape
 
 
+def _parser() -> argparse.ArgumentParser:
+    p = cli_parser("cpbl-scrape-bio", __doc__)
+    p.add_argument("scope", nargs="?", choices=("current", "all"), default="current",
+                   help="current＝本季登錄選手（預設）；all＝players 全員")
+    p.add_argument("--skip-done", action="store_true", help="只補未抓過的（背景續跑）")
+    return p
+
+
 def main() -> None:
+    args = _parser().parse_args()
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s | %(message)s")
-    args = sys.argv[1:]
-    scope = "all" if "all" in args else "current"
-    skip_done = "--skip-done" in args
-    scrape(scope=scope, skip_done=skip_done)
+    scrape(scope=args.scope, skip_done=args.skip_done)
 
 
 if __name__ == "__main__":

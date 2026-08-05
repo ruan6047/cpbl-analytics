@@ -14,10 +14,11 @@
 
 from __future__ import annotations
 
+import argparse
 import logging
-import sys
 
 from cpbl.db import conn, migrate
+from cpbl.ingest._cli import cli_parser
 from cpbl.ingest.cpbl_player_detail import scrape
 
 log = logging.getLogger("cpbl.legends")
@@ -69,9 +70,16 @@ def _targets() -> tuple[list[str], list[str]]:
     return batters, pitchers
 
 
+def _parser() -> argparse.ArgumentParser:
+    p = cli_parser("cpbl-scrape-legends", __doc__)
+    p.add_argument("delay", nargs="?", type=float, default=1.2, help="每請求間隔秒數（預設 1.2）")
+    return p
+
+
 def main() -> None:
+    args = _parser().parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
-    delay = float(sys.argv[1]) if len(sys.argv) >= 2 else 1.2
+    delay = args.delay
     migrate()
     batters, pitchers = _targets()
     log.info("退役/教練生涯分項：打者 %d / 投手 %d（去重後不重複球員若干），delay=%.1fs",

@@ -13,20 +13,30 @@
 
 from __future__ import annotations
 
+import argparse
 import logging
-import sys
 from datetime import date
 
 from cpbl.db import migrate
+from cpbl.ingest._cli import cli_parser
 from cpbl.ingest.cpbl_fighting import YEAR_CAREER, _current_pitchers, scrape_matchups
 
 
+def _parser() -> argparse.ArgumentParser:
+    p = cli_parser("cpbl-scrape-fighting", __doc__)
+    p.add_argument("year", nargs="?", type=int, help="年份（省略＝當年）；一律再加生涯 9999")
+    p.add_argument("delay", nargs="?", type=float, default=1.2, help="每請求間隔秒數（預設 1.2）")
+    p.add_argument("scope", nargs="?", choices=("cur",),
+                   help="cur＝只保留本季登錄一軍投手（省略＝全部）")
+    return p
+
+
 def main() -> None:
+    args = _parser().parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
-    args = sys.argv[1:]
-    year = int(args[0]) if len(args) >= 1 else date.today().year
-    delay = float(args[1]) if len(args) >= 2 else 1.2
-    pitcher_ids = _current_pitchers() if (len(args) >= 3 and args[2] == "cur") else None
+    year = args.year if args.year is not None else date.today().year
+    delay = args.delay
+    pitcher_ids = _current_pitchers() if args.scope == "cur" else None
 
     migrate()
     total = scrape_matchups([YEAR_CAREER, year], delay=delay, pitcher_ids=pitcher_ids)

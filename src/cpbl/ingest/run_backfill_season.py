@@ -5,19 +5,24 @@
 
 from __future__ import annotations
 
+import argparse
 import logging
-import sys
 
 from cpbl.db import migrate
+from cpbl.ingest._cli import cli_parser
 from cpbl.ingest.cpbl_season_backfill import backfill_batting_season, backfill_pitching_season
 
 
+def _parser() -> argparse.ArgumentParser:
+    p = cli_parser("cpbl-backfill-season", __doc__)
+    p.add_argument("year", type=int, help="要回填的年份")
+    return p
+
+
 def main() -> None:
+    args = _parser().parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
-    if len(sys.argv) < 2:
-        print("用法：cpbl-backfill-season <YEAR>")
-        sys.exit(1)
-    year = int(sys.argv[1])
+    year = args.year
     migrate()
     b = backfill_batting_season(year)
     p = backfill_pitching_season(year)

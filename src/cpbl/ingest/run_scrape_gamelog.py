@@ -8,17 +8,25 @@
 
 from __future__ import annotations
 
+import argparse
 import logging
-import sys
 from datetime import date
 
 from cpbl.db import migrate
+from cpbl.ingest._cli import cli_parser
 from cpbl.ingest.cpbl_gamelog import completed_snos, scrape_gamelogs
 
 
+def _parser() -> argparse.ArgumentParser:
+    p = cli_parser("cpbl-scrape-gamelog", __doc__)
+    p.add_argument("year", nargs="?", type=int, help="年份（省略＝當年）")
+    return p
+
+
 def main() -> None:
+    args = _parser().parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
-    year = int(sys.argv[1]) if len(sys.argv) >= 2 else date.today().year
+    year = args.year if args.year is not None else date.today().year
     migrate()
     snos = completed_snos(year)
     logging.getLogger("cpbl.gamelog").info("回填 %d 場已完成賽事的賽況 …", len(snos))
