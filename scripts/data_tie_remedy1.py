@@ -600,26 +600,25 @@ def cmd_streak_impact(args: argparse.Namespace) -> dict:
     與官方連勝／連敗榜衝突，其中三筆會憑空製造官方榜上不存在的歷史前三
     （1997 統一 13、1990 三商 12、2003 統一 11）。
 
-    原始比較設計（保留供覆核者重跑）：
+    2×2 因子設計（保留供覆核者重跑）。**注意 B 不是終態**：
 
-    以 **2×2 因子設計**分離成因，避免把兩個獨立變更混為一談：
+    ==============  ==========================  ==============================
+    　              和局中斷（官方語意，採用）    和局跳過（已否決）
+    ==============  ==========================  ==============================
+    舊判準（比分>0）  A＝本卡之前的生產狀態         D＝反事實
+    新判準（＋證據）  **C＝本卡終態**              B＝反事實（skip 世界）
+    ==============  ==========================  ==============================
 
-    ==============  ================  =================
-    　              和局中斷（舊語意）  和局跳過（新語意）
-    ==============  ================  =================
-    舊判準（比分>0）  A＝現行生產         D
-    新判準（＋證據）  C＝Phase 1 中間態   B＝最終
-    ==============  ================  =================
-
-    某 (隊, 年, 指標) 的成因判定：``A==D 且 A!=C`` → **判準**；``A==C 且 A!=D``
-    → **語意**；兩者都不等 → **兩者**。
+    * ``actual_changes``＝A→**C**：本卡真正造成的生產變動（判準變更的效果）。
+    * ``counterfactual_skip_changes``＝A→**B**：若採已否決的 skip 語意會發生什麼，
+      保留為反證（其中多筆會與官方連勝／連敗榜衝突）。
     """
     from cpbl.completion import completed_games_sql, completed_games_sql_with_evidence
     from cpbl.db import conn
 
     old_c, new_c = completed_games_sql(), completed_games_sql_with_evidence("games")
     kinds = args.kinds
-    rows_out, per_year_counts = [], []
+    rows_out, per_year_counts, actual_rows = [], [], []
     alltime: dict[tuple[str, int], dict[str, tuple[int, int]]] = {}
     with conn() as c, c.cursor() as cur:
         cur.execute("SELECT DISTINCT year FROM cpbl.games ORDER BY year")
@@ -645,63 +644,77 @@ def cmd_streak_impact(args: argparse.Namespace) -> dict:
                         "ORDER BY game_date, game_sno", (year, kind))
                     return cur.fetchall()
 
-                A = _streaks_for(g_old, tie_breaks=True)    # 現行生產
-                C = _streaks_for(g_new, tie_breaks=True)    # 只換判準
-                D = _streaks_for(g_old, tie_breaks=False)   # 只換語意
-                B = _streaks_for(g_new, tie_breaks=False)   # 最終
-                for tc in set(A) | set(B):
-                    alltime[(tc, year)] = {"A": A.get(tc, (0, 0)), "B": B.get(tc, (0, 0))}
+                A = _streaks_for(g_old, tie_breaks=True)    # 本卡之前的生產狀態
+                C = _streaks_for(g_new, tie_breaks=True)    # **本卡終態**
+                D = _streaks_for(g_old, tie_breaks=False)   # 反事實：只換語意
+                B = _streaks_for(g_new, tie_breaks=False)   # 反事實：skip 世界
+                for tc in set(A) | set(B) | set(C):
+                    alltime[(tc, year)] = {"A": A.get(tc, (0, 0)),
+                                           "C": C.get(tc, (0, 0)),
+                                           "B": B.get(tc, (0, 0))}
                 changed = 0
-                for tc in sorted(set(A) | set(B)):
+                for tc in sorted(set(A) | set(B) | set(C)):
                     for idx, metric in ((0, "max_win_streak"), (1, "max_lose_streak")):
                         a = A.get(tc, (None, None))[idx]
-                        b = B.get(tc, (None, None))[idx]
-                        if a == b:
-                            continue
                         cc = C.get(tc, (None, None))[idx]
+                        b = B.get(tc, (None, None))[idx]
                         dd = D.get(tc, (None, None))[idx]
-                        if a == dd and a != cc:
-                            cause = "判準"
-                        elif a == cc and a != dd:
-                            cause = "語意"
-                        else:
-                            cause = "兩者"
-                        changed += 1
-                        detail = _best_run_detail(
-                            _detail_games(), tc,
-                            "W" if metric == "max_win_streak" else "L")
-                        rows_out.append({
-                            "year": year, "kind_code": kind, "team_code": tc,
-                            "metric": metric,
-                            "current_production": a, "final": b, "delta": b - a,
-                            "criterion_only": cc, "semantics_only": dd,
-                            "cause": cause,
-                            # 人工判讀載體：最終連段的逐場明細與它跨過的和局
-                            "final_run_length": detail["length"],
-                            "ties_spanned": detail.get("ties_spanned", []),
-                            "final_run_games": detail["games"],
-                        })
+                        base = {"year": year, "kind_code": kind, "team_code": tc,
+                                "metric": metric, "before": a}
+
+                        # (1) 本卡真正的生產變動：A → C（判準變更，語意維持官方中斷）
+                        if a != cc:
+                            actual_rows.append({**base, "after": cc, "delta": cc - a,
+                                                "cause": "判準（和局可見）"})
+
+                        # (2) 反事實：A → B（若採已否決的 skip 語意）
+                        if a != b:
+                            if a == dd and a != cc:
+                                cause = "判準"
+                            elif a == cc and a != dd:
+                                cause = "語意"
+                            else:
+                                cause = "兩者"
+                            changed += 1
+                            detail = _best_run_detail(
+                                _detail_games(), tc,
+                                "W" if metric == "max_win_streak" else "L")
+                            rows_out.append({
+                                **base,
+                                "counterfactual_skip": b, "delta": b - a,
+                                "criterion_only": cc, "semantics_only": dd,
+                                "cause": cause,
+                                # 人工判讀載體：skip 世界的連段明細與它跨過的和局
+                                "counterfactual_skip_run_length": detail["length"],
+                                "ties_spanned": detail.get("ties_spanned", []),
+                                "counterfactual_skip_run_games": detail["games"],
+                            })
                 if changed:
                     per_year_counts.append({"year": year, "kind_code": kind,
-                                            "changed_values": changed})
+                                            "counterfactual_changed_values": changed})
 
     # 全史頭條紀錄（歷史紀錄室 /api/v1/records 對外展示的那一筆）：值與保持者是否易主。
     # 這是**最容易被外部查核的一筆**（官方／新聞都查得到），故單獨拉出來。
     headline = {}
     for metric, idx in (("max_win_streak", 0), ("max_lose_streak", 1)):
-        cur_best = fin_best = (0, None, 0)
+        cur_best = fin_best = skip_best = (0, None, 0)
         for (tc, yr), vals in alltime.items():
             # 同值取較近年份（與 api/routers/leaders.best_of 的排序鍵一致）
             if (vals["A"][idx], yr) > (cur_best[0], cur_best[2]):
                 cur_best = (vals["A"][idx], tc, yr)
-            if (vals["B"][idx], yr) > (fin_best[0], fin_best[2]):
-                fin_best = (vals["B"][idx], tc, yr)
+            if (vals["C"][idx], yr) > (fin_best[0], fin_best[2]):
+                fin_best = (vals["C"][idx], tc, yr)
+            if (vals["B"][idx], yr) > (skip_best[0], skip_best[2]):
+                skip_best = (vals["B"][idx], tc, yr)
         headline[metric] = {
-            "current_production": {"value": cur_best[0], "team_code": cur_best[1],
-                                   "year": cur_best[2]},
+            "before": {"value": cur_best[0], "team_code": cur_best[1], "year": cur_best[2]},
+            # 終態＝C（新判準＋官方的和局中斷語意）
             "final": {"value": fin_best[0], "team_code": fin_best[1], "year": fin_best[2]},
-            "holder_changed": (cur_best[1], cur_best[2]) != (fin_best[1], fin_best[2]),
-            "value_changed": cur_best[0] != fin_best[0],
+            "counterfactual_skip": {"value": skip_best[0], "team_code": skip_best[1],
+                                    "year": skip_best[2]},
+            "holder_changed_in_final": (cur_best[1], cur_best[2]) != (fin_best[1], fin_best[2]),
+            "holder_would_change_under_skip": (
+                (cur_best[1], cur_best[2]) != (skip_best[1], skip_best[2])),
         }
 
     by_cause: dict[str, int] = {}
@@ -710,7 +723,7 @@ def cmd_streak_impact(args: argparse.Namespace) -> dict:
         by_cause[r["cause"]] = by_cause.get(r["cause"], 0) + 1
         by_metric[r["metric"]] = by_metric.get(r["metric"], 0) + 1
     deltas = [r["delta"] for r in rows_out]
-    # 方向性健全檢查：新語意只會讓連段「不被和局切斷」，故最終值不應變小。
+    # 方向性健全檢查：skip 語意只會讓連段跨過和局而延長，故反事實值不應變小。
     suspicious = [r for r in rows_out if r["delta"] < 0]
     return {
         "generated_at": _now_iso(),
@@ -724,19 +737,32 @@ def cmd_streak_impact(args: argparse.Namespace) -> dict:
             "2022 富邦": {"官方": 11, "skip 會算成": 12,
                           "備註": "6/22–7/16 純 11 連敗，7/17 和局、7/18 再敗；媒體「13 連不勝、一度 11 連敗追平隊史」＝break 精確重現"},
         },
-        "rows_meaning": "以下 41 筆＝若改用 skip 語意會偏離官方榜的清單（非待辦）。",
-        "design": "2x2 因子：A=舊判準+中斷(現行生產) / C=新判準+中斷 / D=舊判準+跳過 / B=新判準+跳過(最終)",
+        "design": ("2x2 因子：A=舊判準+官方中斷（本卡之前的生產狀態）／"
+                   "**C=新判準+官方中斷＝本卡終態**／D=舊判準+跳過（反事實）／"
+                   "B=新判準+跳過（反事實，skip 世界，已否決）"),
         "kinds": list(kinds),
         "years_scanned": len(years),
-        "changed_values_total": len(rows_out),
-        "by_cause": by_cause,
-        "by_metric": by_metric,
-        "delta_max": max(deltas) if deltas else 0,
-        "delta_min": min(deltas) if deltas else 0,
-        "negative_delta_rows": len(suspicious),
-        "negative_delta_note": (
-            "新語意只會讓連段跨過和局而延長，最終值理應 >= 現行生產值。"
-            "若此數非 0，該列標記為**待人工判讀**，不得逕自採用。"),
+
+        # ── 本卡真正造成的生產變動：A → C ──
+        "actual_changes_meaning": (
+            "本卡終態（新判準＋官方中斷語意）相對先前生產狀態的實際差異。"
+            "成因單一：5 場和局可見後，依官方語意中斷了原本連續的連段。"),
+        "actual_changes_total": len(actual_rows),
+        "actual_changes": actual_rows,
+
+        # ── 反事實：若採已否決的 skip 語意 ──
+        "counterfactual_skip_meaning": (
+            "以下為**反事實**：若改用已否決的 skip 語意會偏離現況的清單。"
+            "**非待辦、非待套用修正**，保留為翻案證據鏈的一環。"),
+        "counterfactual_skip_total": len(rows_out),
+        "counterfactual_by_cause": by_cause,
+        "counterfactual_by_metric": by_metric,
+        "counterfactual_delta_max": max(deltas) if deltas else 0,
+        "counterfactual_delta_min": min(deltas) if deltas else 0,
+        "counterfactual_negative_delta_rows": len(suspicious),
+        "counterfactual_negative_delta_note": (
+            "skip 語意只會讓連段跨過和局而延長，故反事實值理應 >= 先前值。"
+            "若此數非 0，該列標記為**待人工判讀**。"),
         "needs_human_review": suspicious,
         "headline_alltime_records": headline,
         "headline_note": (
@@ -744,8 +770,8 @@ def cmd_streak_impact(args: argparse.Namespace) -> dict:
             "**無法用來分辨語意**——這是本卡最初查證時的盲點。PM 後續改查「連段跨過和局」"
             "的個案（見各列 ties_spanned）才分出勝負：官方榜逐條與 break 相符。"
             "採 break 後保持者易主問題自動消解——興農 2012 回到 9，兄弟 2006 獨保 13。"),
-        "changed_by_year": per_year_counts,
-        "changes": rows_out,
+        "counterfactual_changed_by_year": per_year_counts,
+        "counterfactual_skip_changes": rows_out,
     }
 
 
