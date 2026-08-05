@@ -162,29 +162,64 @@ def test_r3_scoreless_false_positive_set_is_not_admitted_wholesale() -> None:
         f"0:0 母體 {total} 場中被納入的不是恰好那 5 場，而是 {admitted}")
 
 
-# ────────────────────────────────── Phase 1b：連段語意（和局跳過不計）
+# ────────────────────────────────── 連段語意：和局中斷（官方，二次裁定定案）
+#
+# 語意經過一次翻案：首裁曾定「和局跳過不計」，PM 外部查證後**推翻**——官方語意是
+# **和局中斷連段**，即原實作正確（需求方二次裁定，Issue #90）。
+#
+# 決定性反證（skip 語意會憑空製造官方榜上不存在的紀錄）：
+#   * 2003 兄弟官方最長連勝 9，skip 會算成 12
+#   * 1997 統一官方 7，skip 會算成 13（且會擠進歷史前三，官方榜查無此筆）
+#   * 2022 富邦 6/22–7/16 為純 11 連敗，7/17 和局、7/18 再敗；媒體記載
+#     「13 連不勝、一度 11 連敗追平隊史」——break 精確重現 11，skip 會算成 12
+#
+# 以下把官方值直接釘成黃金樣本：它們是**外部可查證**的，比任何內部一致性檢查都強。
 
 
-def test_streak_semantics_tie_is_skipped_not_breaking() -> None:
-    """純語意單元：和局對連段**透明**——跨過它繼續累計，不歸零。
-
-    不碰 DB，直接餵序列給和 `_add_streaks` 同構的計算，釘住語意本身。
-    """
+def test_streak_semantics_tie_breaks_the_run() -> None:
+    """純語意單元：和局**中斷**連段（官方語意）。"""
     from scripts.data_tie_remedy1 import _streaks_for
 
-    # A 隊：勝、勝、和、勝 → 新語意應為 3 連勝（舊語意會被和局切成 2）
+    # A 隊：勝、勝、和、勝 → 官方語意為 2 連勝（和局把連段切斷），不是 3
     games = [("A", "B", 5, 1), ("A", "B", 4, 2), ("A", "B", 3, 3), ("A", "B", 6, 0)]
-    assert _streaks_for(games, tie_breaks=False)["A"][0] == 3
-    assert _streaks_for(games, tie_breaks=True)["A"][0] == 2   # 舊語意對照
-    # 對手同時是 3 連敗
-    assert _streaks_for(games, tie_breaks=False)["B"][1] == 3
+    assert _streaks_for(games, tie_breaks=True)["A"][0] == 2
+    assert _streaks_for(games, tie_breaks=False)["A"][0] == 3   # skip 語意對照（已否決）
 
 
-def test_r5_2023_lose_streaks_survive_the_newly_visible_ties() -> None:
-    """回歸 5（Phase 1b）：新判準＋新語意下，2023 的最長連敗**不得**被和局縮短。
+@pytest.mark.parametrize(
+    ("year", "team_code", "metric", "official", "skip_would_give", "note"),
+    [
+        (2003, "ACC011", "max_win_streak", 9, 12, "兄弟：官方連勝榜 9"),
+        (1997, "ADD011", "max_win_streak", 7, 13, "統一：skip 會虛構出 13 並擠進歷史前三"),
+        (2022, "AEO011", "max_lose_streak", 11, 12, "富邦：7/17 和局中斷，官方 11 追平隊史"),
+    ],
+)
+def test_streaks_match_official_leaderboard(
+    year: int, team_code: str, metric: str, official: int,
+    skip_would_give: int, note: str,
+) -> None:
+    """回歸：連段須重現**官方榜**的值，且不得等於 skip 語意的值。"""
+    import cpbl.models.special_records as sr
 
-    Phase 1（新判準＋舊「和局中斷」語意）曾把統一 5→4、富邦 8→7——那是錯誤語意
-    被新可見和局觸發的產物。修正語意後兩者必須回到 5 與 8。
+    try:
+        out: dict = {}
+        sr._add_streaks(year, "A", out)
+    except Exception as exc:  # noqa: BLE001 — 無 DB 時跳過
+        pytest.skip(f"需本機 DB：{exc}")
+    if not out:
+        pytest.skip(f"需本機 DB：{year} 無資料")
+
+    got = out[team_code][metric]
+    assert got == official, f"{note}：得 {got}，官方 {official}"
+    assert got != skip_would_give, f"{note}：命中已否決的 skip 語意值 {skip_would_give}"
+
+
+def test_r5_newly_visible_ties_do_break_2023_streaks() -> None:
+    """回歸 5：和局可見（新判準）後，2023 的連敗**應該**被和局中斷。
+
+    Phase 1 首次觀測到的統一 5→4、富邦 8→7 **是正確行為**（新資料讓官方語意生效），
+    不是缺陷——首裁一度誤判為錯並要求改成 skip，二次裁定翻案後這裡改為守衛：
+    若哪天有人把語意改回 skip，這兩個值會漲回 5／8 而被此測試擋下。
     """
     import cpbl.models.special_records as sr
 
@@ -196,9 +231,9 @@ def test_r5_2023_lose_streaks_survive_the_newly_visible_ties() -> None:
     if not out:
         pytest.skip("需本機 DB：2023 無資料")
 
-    # ADD011 = 統一7-ELEVEn獅（2023/A/175 的主隊）、AEO011 = 富邦悍將（2023/A/119 的客隊）
-    assert out["ADD011"]["max_lose_streak"] == 5
-    assert out["AEO011"]["max_lose_streak"] == 8
+    # ADD011 = 統一7-ELEVEn獅（2023/A/175）、AEO011 = 富邦悍將（2023/A/119）
+    assert out["ADD011"]["max_lose_streak"] == 4
+    assert out["AEO011"]["max_lose_streak"] == 7
 
 
 def test_r4_future_dated_games_are_never_completed() -> None:

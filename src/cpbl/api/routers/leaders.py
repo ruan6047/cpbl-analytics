@@ -395,12 +395,8 @@ def team_records() -> dict:
         max_runs = (0, "", 0)    # 單場單隊最多得分 (value, code, year)
         max_margin = (0, "", 0)  # 單場最大分差
         for hc, ac, hs, as_, y in cur.fetchall():
-            # 和局**跳過不計、連段不中斷**（官方語意；需求方 2026-08-05 裁定，Issue #90）。
-            # 與 models/special_records._add_streaks 同語意——兩處算的是同一個概念
-            # （最長連勝／連敗），語意不一致會讓紀錄室與球隊頁互相打架。
-            if hs != as_:
-                res_seq[(hc, y)].append("W" if hs > as_ else "L")
-                res_seq[(ac, y)].append("W" if as_ > hs else "L")
+            res_seq[(hc, y)].append("W" if hs > as_ else "L" if as_ > hs else "T")
+            res_seq[(ac, y)].append("W" if as_ > hs else "L" if hs > as_ else "T")
             shut_seq[(hc, y)].append(1 if as_ == 0 else 0)
             shut_seq[(ac, y)].append(1 if hs == 0 else 0)
             if hs > as_:

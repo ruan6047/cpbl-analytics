@@ -260,13 +260,7 @@ def team_situational(season: int, kind_code: str = "A") -> dict[str, dict]:
 
 
 def _add_streaks(season: int, kind_code: str, out: dict[str, dict]) -> None:
-    """最大連勝 / 最大連敗：依日期重建每隊勝敗序列取最長連續段。
-
-    **和局跳過不計、連段不中斷**（官方語意；需求方 2026-08-05 裁定，Issue #90）。
-    舊實作把和局當成中斷連段，是錯的：DATA-TIE-REMEDY1 讓 5 場 0:0 和局可見後，
-    2023 味全最長連敗會被誤縮 5→4、富邦 8→7，正是這個錯誤語意被新資料觸發的產物。
-    「跳過」意味著和局對連段完全透明——連段跨過該場繼續累計。
-    """
+    """最大連勝 / 最大連敗：依日期重建每隊勝敗序列取最長連續段（和局中斷連勝/連敗）。"""
     with conn() as c:
         games = c.execute(
             "SELECT home_team_code, away_team_code, home_score, away_score "
@@ -276,13 +270,13 @@ def _add_streaks(season: int, kind_code: str, out: dict[str, dict]) -> None:
         ).fetchall()
     seq: dict[str, list[str]] = {}
     for hc, ac, hs, as_ in games:
-        # 兩隊都先登記（即使本場為和局），否則整季只有和局的隊會整個從輸出消失
-        sh, sa = seq.setdefault(hc, []), seq.setdefault(ac, [])
         if hs == as_:
-            continue  # 和局跳過不計
-        hw, aw = ("W", "L") if hs > as_ else ("L", "W")
-        sh.append(hw)
-        sa.append(aw)
+            seq.setdefault(hc, []).append("T")
+            seq.setdefault(ac, []).append("T")
+        else:
+            hw, aw = ("W", "L") if hs > as_ else ("L", "W")
+            seq.setdefault(hc, []).append(hw)
+            seq.setdefault(ac, []).append(aw)
     for tc, s in seq.items():
         mw = ml = cw = cl = 0
         for r in s:
