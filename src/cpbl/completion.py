@@ -113,5 +113,11 @@ def completed_games_sql_with_evidence(
 
 
 if __name__ == "__main__":
-    print(completed_games_sql())
-    print(completed_games_sql_with_evidence("g"))
+    # stdout 是 shell 契約：refresh-cpbl-prod.sh 以 $(python -m cpbl.completion)
+    # 直接內插進 SQL，輸出必須恰為一行、不得帶表別名前綴。
+    import sys
+
+    if "--with-evidence" in sys.argv[1:]:
+        print(completed_games_sql_with_evidence("g"))
+    else:
+        print(completed_games_sql())
