@@ -590,7 +590,17 @@ def _best_run_detail(games: list[tuple], team: str, want: str) -> dict:
 
 
 def cmd_streak_impact(args: argparse.Namespace) -> dict:
-    """全史連勝／連敗影響對照：現行生產（舊判準＋和局中斷）→ 最終（新判準＋跳過）。
+    """全史連勝／連敗：**「和局跳過」語意的反證存證**（該語意已被否決）。
+
+    ⚠️ **本 artifact 的定性已翻轉，保留是為了證據鏈完整，不是為了採用它。**
+
+    語意經一次翻案：首裁曾定「和局跳過不計」，PM 外部查證後推翻——官方語意是
+    **和局中斷連段**（原實作正確；需求方二次裁定，Issue #90）。本檔列出的 41 筆
+    「變動」因此不是待套用的修正，而是**反證**：若 skip 語意成立，這 41 筆就會
+    與官方連勝／連敗榜衝突，其中三筆會憑空製造官方榜上不存在的歷史前三
+    （1997 統一 13、1990 三商 12、2003 統一 11）。
+
+    原始比較設計（保留供覆核者重跑）：
 
     以 **2×2 因子設計**分離成因，避免把兩個獨立變更混為一談：
 
@@ -704,7 +714,17 @@ def cmd_streak_impact(args: argparse.Namespace) -> dict:
     suspicious = [r for r in rows_out if r["delta"] < 0]
     return {
         "generated_at": _now_iso(),
-        "semantics_ruling": "和局跳過不計、連段不中斷（需求方 2026-08-05 裁定，Issue #90）",
+        "verdict": "SKIP 語意已被否決——官方語意＝和局中斷連段（需求方二次裁定，Issue #90）。"
+                   "本檔為 skip 語意的**反證存證**，勿當成待套用的修正清單。",
+        "semantics_final": "和局中斷連段（官方；原實作正確，程式碼已 revert 回此語意）",
+        "counter_evidence": {
+            "官方連勝榜逐條以 break 命中": True,
+            "2003 兄弟": {"官方": 9, "skip 會算成": 12},
+            "1997 統一": {"官方": 7, "skip 會算成": 13, "備註": "skip 會擠進歷史前三，官方榜查無"},
+            "2022 富邦": {"官方": 11, "skip 會算成": 12,
+                          "備註": "6/22–7/16 純 11 連敗，7/17 和局、7/18 再敗；媒體「13 連不勝、一度 11 連敗追平隊史」＝break 精確重現"},
+        },
+        "rows_meaning": "以下 41 筆＝若改用 skip 語意會偏離官方榜的清單（非待辦）。",
         "design": "2x2 因子：A=舊判準+中斷(現行生產) / C=新判準+中斷 / D=舊判準+跳過 / B=新判準+跳過(最終)",
         "kinds": list(kinds),
         "years_scanned": len(years),
@@ -720,11 +740,10 @@ def cmd_streak_impact(args: argparse.Namespace) -> dict:
         "needs_human_review": suspicious,
         "headline_alltime_records": headline,
         "headline_note": (
-            "全史頭條紀錄是本次變更中最容易被外部查核的一筆。已查得的外部佐證："
-            "官方／新聞記載中職例行賽最長連敗＝兄弟象 2006 年 13 連敗（8/8–8/31）；"
-            "本庫該段實測為連續 13 敗且**中間無和局**，故新舊語意皆重現 13——"
-            "此紀錄本身**無法用來分辨兩種語意**。真正的分辨點是那些「連段跨過和局」"
-            "的個案（見各列 ties_spanned），需求方／查核者可逐筆對照官方紀錄。"),
+            "兄弟象 2006 年 13 連敗（8/8–8/31）該段中間無和局，故兩種語意皆重現 13，"
+            "**無法用來分辨語意**——這是本卡最初查證時的盲點。PM 後續改查「連段跨過和局」"
+            "的個案（見各列 ties_spanned）才分出勝負：官方榜逐條與 break 相符。"
+            "採 break 後保持者易主問題自動消解——興農 2012 回到 9，兄弟 2006 獨保 13。"),
         "changed_by_year": per_year_counts,
         "changes": rows_out,
     }
