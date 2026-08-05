@@ -1,0 +1,15 @@
+[
+ {
+  "year": 2026,
+  "kind_code": "D",
+  "game_sno": 184,
+  "pitcher_acnt": "0000007311",
+  "pitch_cnt": 13,
+  "column": "content",
+  "prod_value": "擊出內野滾地球， 二壘跑者顏清浤-投手  傳三壘手封殺出局 1人出局。 一壘跑者林家鋐 上二壘。趁傳上壘。",
+  "api_value": "擊出球(觸擊)， 二壘跑者顏清浤-投手  傳三壘手封殺出局 1人出局。 一壘跑者林家鋐 上二壘。趁傳上壘。",
+  "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-184",
+  "fetched_at": "2026-08-05T07:56:36.346017+08:00",
+  "payload_sha256": "1f9482e60986c66ec028c88f1d39a52d3e4f0ee4b9d8a52798f630e2c0c50493"
+ }
+]

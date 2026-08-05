@@ -1,0 +1,2323 @@
+{
+ "card": "INGEST-GAME-TM-REFACTOR1-G4",
+ "metric": "rollback_threshold_backtest",
+ "generated_at": "2026-08-05T08:06:38.579350+08:00",
+ "pre_registration": {
+  "note": "降級版：不做參數搜尋，只回放現行暫定值的誤觸發次數。容忍度於需求方 2026-08-04 裁定時固定，**回放結果不得反過來修改門檻或容忍度**。",
+  "floor_percentile": 0.05,
+  "consecutive_eligible_days": 2,
+  "false_alarm_tolerance_per_season": 2,
+  "min_floor_population": 30
+ },
+ "by_kind": {
+  "A": {
+   "floor_population_games": 187,
+   "floor_population_sufficient": true,
+   "floor_p05": 0.9612,
+   "single_game_distribution": {
+    "min": 0.5739,
+    "p05": 0.9612,
+    "median": 0.9963,
+    "max": 1.0
+   },
+   "eligible_days": 97,
+   "days_below_floor": 25,
+   "trigger_count": 7,
+   "within_tolerance": false,
+   "triggers": [
+    {
+     "trigger_on": "2026-04-01",
+     "eligible_days": [
+      "2026-03-31",
+      "2026-04-01"
+     ],
+     "ratios": [
+      0.9563,
+      0.9579
+     ],
+     "venues": [
+      "亞太主",
+      "樂天桃園",
+      "洲際"
+     ]
+    },
+    {
+     "trigger_on": "2026-04-11",
+     "eligible_days": [
+      "2026-04-10",
+      "2026-04-11"
+     ],
+     "ratios": [
+      0.6425,
+      0.5824
+     ],
+     "venues": [
+      "亞太主",
+      "樂天桃園",
+      "澄清湖"
+     ]
+    },
+    {
+     "trigger_on": "2026-04-22",
+     "eligible_days": [
+      "2026-04-21",
+      "2026-04-22"
+     ],
+     "ratios": [
+      0.4697,
+      0.4121
+     ],
+     "venues": [
+      "亞太主",
+      "樂天桃園"
+     ]
+    },
+    {
+     "trigger_on": "2026-04-25",
+     "eligible_days": [
+      "2026-04-24",
+      "2026-04-25"
+     ],
+     "ratios": [
+      0.0,
+      0.6415
+     ],
+     "venues": [
+      "亞太主",
+      "樂天桃園",
+      "洲際"
+     ]
+    },
+    {
+     "trigger_on": "2026-05-16",
+     "eligible_days": [
+      "2026-05-15",
+      "2026-05-16"
+     ],
+     "ratios": [
+      0.7063,
+      0.6319
+     ],
+     "venues": [
+      "亞太主",
+      "天母",
+      "新莊"
+     ]
+    },
+    {
+     "trigger_on": "2026-05-23",
+     "eligible_days": [
+      "2026-05-22",
+      "2026-05-23"
+     ],
+     "ratios": [
+      0.6181,
+      0.6739
+     ],
+     "venues": [
+      "大巨蛋",
+      "樂天桃園",
+      "澄清湖"
+     ]
+    },
+    {
+     "trigger_on": "2026-05-30",
+     "eligible_days": [
+      "2026-05-29",
+      "2026-05-30"
+     ],
+     "ratios": [
+      0.6885,
+      0.6339
+     ],
+     "venues": [
+      "大巨蛋",
+      "天母",
+      "樂天桃園"
+     ]
+    }
+   ],
+   "daily": [
+    {
+     "date": "2026-03-28",
+     "games": 1,
+     "pitches": 277,
+     "tracked": 274,
+     "ratio": 0.9892,
+     "below_floor": false,
+     "venues": [
+      "大巨蛋"
+     ]
+    },
+    {
+     "date": "2026-03-29",
+     "games": 3,
+     "pitches": 867,
+     "tracked": 852,
+     "ratio": 0.9827,
+     "below_floor": false,
+     "venues": [
+      "亞太主",
+      "大巨蛋",
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-03-31",
+     "games": 3,
+     "pitches": 824,
+     "tracked": 788,
+     "ratio": 0.9563,
+     "below_floor": true,
+     "venues": [
+      "亞太主",
+      "樂天桃園",
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-04-01",
+     "games": 3,
+     "pitches": 902,
+     "tracked": 864,
+     "ratio": 0.9579,
+     "below_floor": true,
+     "venues": [
+      "亞太主",
+      "樂天桃園",
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-04-03",
+     "games": 3,
+     "pitches": 881,
+     "tracked": 856,
+     "ratio": 0.9716,
+     "below_floor": false,
+     "venues": [
+      "天母",
+      "新莊",
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-04-04",
+     "games": 1,
+     "pitches": 313,
+     "tracked": 310,
+     "ratio": 0.9904,
+     "below_floor": false,
+     "venues": [
+      "天母"
+     ]
+    },
+    {
+     "date": "2026-04-05",
+     "games": 3,
+     "pitches": 823,
+     "tracked": 812,
+     "ratio": 0.9866,
+     "below_floor": false,
+     "venues": [
+      "天母",
+      "新莊",
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-04-06",
+     "games": 3,
+     "pitches": 829,
+     "tracked": 825,
+     "ratio": 0.9952,
+     "below_floor": false,
+     "venues": [
+      "天母",
+      "新莊",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-04-07",
+     "games": 1,
+     "pitches": 211,
+     "tracked": 211,
+     "ratio": 1.0,
+     "below_floor": false,
+     "venues": [
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-04-10",
+     "games": 3,
+     "pitches": 842,
+     "tracked": 541,
+     "ratio": 0.6425,
+     "below_floor": true,
+     "venues": [
+      "亞太主",
+      "樂天桃園",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-04-11",
+     "games": 3,
+     "pitches": 862,
+     "tracked": 502,
+     "ratio": 0.5824,
+     "below_floor": true,
+     "venues": [
+      "亞太主",
+      "樂天桃園",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-04-12",
+     "games": 3,
+     "pitches": 909,
+     "tracked": 314,
+     "ratio": 0.3454,
+     "below_floor": true,
+     "venues": [
+      "亞太主",
+      "樂天桃園",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-04-14",
+     "games": 2,
+     "pitches": 572,
+     "tracked": 304,
+     "ratio": 0.5315,
+     "below_floor": true,
+     "venues": [
+      "新莊",
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-04-15",
+     "games": 3,
+     "pitches": 866,
+     "tracked": 864,
+     "ratio": 0.9977,
+     "below_floor": false,
+     "venues": [
+      "新莊",
+      "樂天桃園",
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-04-16",
+     "games": 1,
+     "pitches": 303,
+     "tracked": 303,
+     "ratio": 1.0,
+     "below_floor": false,
+     "venues": [
+      "樂天桃園"
+     ]
+    },
+    {
+     "date": "2026-04-17",
+     "games": 3,
+     "pitches": 865,
+     "tracked": 859,
+     "ratio": 0.9931,
+     "below_floor": false,
+     "venues": [
+      "天母",
+      "新莊",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-04-18",
+     "games": 3,
+     "pitches": 797,
+     "tracked": 790,
+     "ratio": 0.9912,
+     "below_floor": false,
+     "venues": [
+      "天母",
+      "新莊",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-04-19",
+     "games": 3,
+     "pitches": 822,
+     "tracked": 812,
+     "ratio": 0.9878,
+     "below_floor": false,
+     "venues": [
+      "天母",
+      "新莊",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-04-21",
+     "games": 2,
+     "pitches": 479,
+     "tracked": 225,
+     "ratio": 0.4697,
+     "below_floor": true,
+     "venues": [
+      "亞太主",
+      "樂天桃園"
+     ]
+    },
+    {
+     "date": "2026-04-22",
+     "games": 2,
+     "pitches": 529,
+     "tracked": 218,
+     "ratio": 0.4121,
+     "below_floor": true,
+     "venues": [
+      "亞太主",
+      "樂天桃園"
+     ]
+    },
+    {
+     "date": "2026-04-23",
+     "games": 1,
+     "pitches": 268,
+     "tracked": 266,
+     "ratio": 0.9925,
+     "below_floor": false,
+     "venues": [
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-04-24",
+     "games": 1,
+     "pitches": 347,
+     "tracked": 0,
+     "ratio": 0.0,
+     "below_floor": true,
+     "venues": [
+      "亞太主"
+     ]
+    },
+    {
+     "date": "2026-04-25",
+     "games": 3,
+     "pitches": 756,
+     "tracked": 485,
+     "ratio": 0.6415,
+     "below_floor": true,
+     "venues": [
+      "亞太主",
+      "樂天桃園",
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-04-26",
+     "games": 3,
+     "pitches": 929,
+     "tracked": 612,
+     "ratio": 0.6588,
+     "below_floor": true,
+     "venues": [
+      "亞太主",
+      "樂天桃園",
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-04-28",
+     "games": 2,
+     "pitches": 514,
+     "tracked": 511,
+     "ratio": 0.9942,
+     "below_floor": false,
+     "venues": [
+      "天母",
+      "新莊"
+     ]
+    },
+    {
+     "date": "2026-04-29",
+     "games": 3,
+     "pitches": 748,
+     "tracked": 748,
+     "ratio": 1.0,
+     "below_floor": false,
+     "venues": [
+      "天母",
+      "新莊",
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-04-30",
+     "games": 1,
+     "pitches": 238,
+     "tracked": 237,
+     "ratio": 0.9958,
+     "below_floor": false,
+     "venues": [
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-05-01",
+     "games": 3,
+     "pitches": 725,
+     "tracked": 474,
+     "ratio": 0.6538,
+     "below_floor": true,
+     "venues": [
+      "亞太主",
+      "大巨蛋",
+      "天母"
+     ]
+    },
+    {
+     "date": "2026-05-02",
+     "games": 3,
+     "pitches": 813,
+     "tracked": 809,
+     "ratio": 0.9951,
+     "below_floor": false,
+     "venues": [
+      "亞太主",
+      "大巨蛋",
+      "天母"
+     ]
+    },
+    {
+     "date": "2026-05-03",
+     "games": 3,
+     "pitches": 802,
+     "tracked": 801,
+     "ratio": 0.9988,
+     "below_floor": false,
+     "venues": [
+      "亞太主",
+      "大巨蛋",
+      "天母"
+     ]
+    },
+    {
+     "date": "2026-05-05",
+     "games": 1,
+     "pitches": 336,
+     "tracked": 335,
+     "ratio": 0.997,
+     "below_floor": false,
+     "venues": [
+      "大巨蛋"
+     ]
+    },
+    {
+     "date": "2026-05-06",
+     "games": 2,
+     "pitches": 625,
+     "tracked": 621,
+     "ratio": 0.9936,
+     "below_floor": false,
+     "venues": [
+      "大巨蛋",
+      "新莊"
+     ]
+    },
+    {
+     "date": "2026-05-08",
+     "games": 3,
+     "pitches": 793,
+     "tracked": 789,
+     "ratio": 0.995,
+     "below_floor": false,
+     "venues": [
+      "新莊",
+      "樂天桃園",
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-05-09",
+     "games": 3,
+     "pitches": 829,
+     "tracked": 824,
+     "ratio": 0.994,
+     "below_floor": false,
+     "venues": [
+      "新莊",
+      "樂天桃園",
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-05-10",
+     "games": 3,
+     "pitches": 894,
+     "tracked": 892,
+     "ratio": 0.9978,
+     "below_floor": false,
+     "venues": [
+      "新莊",
+      "樂天桃園",
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-05-12",
+     "games": 2,
+     "pitches": 539,
+     "tracked": 538,
+     "ratio": 0.9981,
+     "below_floor": false,
+     "venues": [
+      "亞太主",
+      "新莊"
+     ]
+    },
+    {
+     "date": "2026-05-13",
+     "games": 2,
+     "pitches": 596,
+     "tracked": 596,
+     "ratio": 1.0,
+     "below_floor": false,
+     "venues": [
+      "亞太主",
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-05-14",
+     "games": 1,
+     "pitches": 247,
+     "tracked": 246,
+     "ratio": 0.996,
+     "below_floor": false,
+     "venues": [
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-05-15",
+     "games": 3,
+     "pitches": 841,
+     "tracked": 594,
+     "ratio": 0.7063,
+     "below_floor": true,
+     "venues": [
+      "亞太主",
+      "天母",
+      "新莊"
+     ]
+    },
+    {
+     "date": "2026-05-16",
+     "games": 3,
+     "pitches": 758,
+     "tracked": 479,
+     "ratio": 0.6319,
+     "below_floor": true,
+     "venues": [
+      "亞太主",
+      "天母",
+      "新莊"
+     ]
+    },
+    {
+     "date": "2026-05-17",
+     "games": 3,
+     "pitches": 835,
+     "tracked": 833,
+     "ratio": 0.9976,
+     "below_floor": false,
+     "venues": [
+      "亞太主",
+      "天母",
+      "新莊"
+     ]
+    },
+    {
+     "date": "2026-05-20",
+     "games": 2,
+     "pitches": 566,
+     "tracked": 561,
+     "ratio": 0.9912,
+     "below_floor": false,
+     "venues": [
+      "新莊",
+      "樂天桃園"
+     ]
+    },
+    {
+     "date": "2026-05-21",
+     "games": 1,
+     "pitches": 291,
+     "tracked": 291,
+     "ratio": 1.0,
+     "below_floor": false,
+     "venues": [
+      "新莊"
+     ]
+    },
+    {
+     "date": "2026-05-22",
+     "games": 3,
+     "pitches": 830,
+     "tracked": 513,
+     "ratio": 0.6181,
+     "below_floor": true,
+     "venues": [
+      "大巨蛋",
+      "樂天桃園",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-05-23",
+     "games": 3,
+     "pitches": 687,
+     "tracked": 463,
+     "ratio": 0.6739,
+     "below_floor": true,
+     "venues": [
+      "大巨蛋",
+      "樂天桃園",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-05-24",
+     "games": 3,
+     "pitches": 889,
+     "tracked": 598,
+     "ratio": 0.6727,
+     "below_floor": true,
+     "venues": [
+      "大巨蛋",
+      "樂天桃園",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-05-26",
+     "games": 1,
+     "pitches": 315,
+     "tracked": 0,
+     "ratio": 0.0,
+     "below_floor": true,
+     "venues": [
+      "大巨蛋"
+     ]
+    },
+    {
+     "date": "2026-05-27",
+     "games": 2,
+     "pitches": 596,
+     "tracked": 304,
+     "ratio": 0.5101,
+     "below_floor": true,
+     "venues": [
+      "大巨蛋",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-05-28",
+     "games": 1,
+     "pitches": 266,
+     "tracked": 261,
+     "ratio": 0.9812,
+     "below_floor": false,
+     "venues": [
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-05-29",
+     "games": 3,
+     "pitches": 915,
+     "tracked": 630,
+     "ratio": 0.6885,
+     "below_floor": true,
+     "venues": [
+      "大巨蛋",
+      "天母",
+      "樂天桃園"
+     ]
+    },
+    {
+     "date": "2026-05-30",
+     "games": 3,
+     "pitches": 915,
+     "tracked": 580,
+     "ratio": 0.6339,
+     "below_floor": true,
+     "venues": [
+      "大巨蛋",
+      "天母",
+      "樂天桃園"
+     ]
+    },
+    {
+     "date": "2026-05-31",
+     "games": 3,
+     "pitches": 844,
+     "tracked": 574,
+     "ratio": 0.6801,
+     "below_floor": true,
+     "venues": [
+      "大巨蛋",
+      "天母",
+      "樂天桃園"
+     ]
+    },
+    {
+     "date": "2026-06-02",
+     "games": 2,
+     "pitches": 620,
+     "tracked": 280,
+     "ratio": 0.4516,
+     "below_floor": true,
+     "venues": [
+      "大巨蛋",
+      "天母"
+     ]
+    },
+    {
+     "date": "2026-06-03",
+     "games": 2,
+     "pitches": 643,
+     "tracked": 638,
+     "ratio": 0.9922,
+     "below_floor": false,
+     "venues": [
+      "樂天桃園",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-06-05",
+     "games": 1,
+     "pitches": 343,
+     "tracked": 337,
+     "ratio": 0.9825,
+     "below_floor": false,
+     "venues": [
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-06-06",
+     "games": 2,
+     "pitches": 568,
+     "tracked": 563,
+     "ratio": 0.9912,
+     "below_floor": false,
+     "venues": [
+      "洲際",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-06-07",
+     "games": 1,
+     "pitches": 272,
+     "tracked": 269,
+     "ratio": 0.989,
+     "below_floor": false,
+     "venues": [
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-06-11",
+     "games": 2,
+     "pitches": 606,
+     "tracked": 596,
+     "ratio": 0.9835,
+     "below_floor": false,
+     "venues": [
+      "天母",
+      "新莊"
+     ]
+    },
+    {
+     "date": "2026-06-12",
+     "games": 1,
+     "pitches": 292,
+     "tracked": 292,
+     "ratio": 1.0,
+     "below_floor": false,
+     "venues": [
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-06-13",
+     "games": 3,
+     "pitches": 981,
+     "tracked": 975,
+     "ratio": 0.9939,
+     "below_floor": false,
+     "venues": [
+      "天母",
+      "新莊",
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-06-14",
+     "games": 2,
+     "pitches": 613,
+     "tracked": 611,
+     "ratio": 0.9967,
+     "below_floor": false,
+     "venues": [
+      "天母",
+      "新莊"
+     ]
+    },
+    {
+     "date": "2026-06-16",
+     "games": 1,
+     "pitches": 269,
+     "tracked": 267,
+     "ratio": 0.9926,
+     "below_floor": false,
+     "venues": [
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-06-17",
+     "games": 2,
+     "pitches": 561,
+     "tracked": 558,
+     "ratio": 0.9947,
+     "below_floor": false,
+     "venues": [
+      "天母",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-06-18",
+     "games": 3,
+     "pitches": 867,
+     "tracked": 866,
+     "ratio": 0.9988,
+     "below_floor": false,
+     "venues": [
+      "亞太主",
+      "樂天桃園",
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-06-19",
+     "games": 3,
+     "pitches": 989,
+     "tracked": 977,
+     "ratio": 0.9879,
+     "below_floor": false,
+     "venues": [
+      "亞太主",
+      "樂天桃園",
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-06-20",
+     "games": 3,
+     "pitches": 733,
+     "tracked": 729,
+     "ratio": 0.9945,
+     "below_floor": false,
+     "venues": [
+      "亞太主",
+      "樂天桃園",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-06-21",
+     "games": 3,
+     "pitches": 875,
+     "tracked": 864,
+     "ratio": 0.9874,
+     "below_floor": false,
+     "venues": [
+      "亞太主",
+      "樂天桃園",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-06-23",
+     "games": 3,
+     "pitches": 799,
+     "tracked": 793,
+     "ratio": 0.9925,
+     "below_floor": false,
+     "venues": [
+      "樂天桃園",
+      "洲際",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-06-24",
+     "games": 2,
+     "pitches": 518,
+     "tracked": 505,
+     "ratio": 0.9749,
+     "below_floor": false,
+     "venues": [
+      "樂天桃園",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-06-26",
+     "games": 2,
+     "pitches": 410,
+     "tracked": 408,
+     "ratio": 0.9951,
+     "below_floor": false,
+     "venues": [
+      "新莊",
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-06-27",
+     "games": 1,
+     "pitches": 278,
+     "tracked": 277,
+     "ratio": 0.9964,
+     "below_floor": false,
+     "venues": [
+      "新莊"
+     ]
+    },
+    {
+     "date": "2026-06-28",
+     "games": 2,
+     "pitches": 510,
+     "tracked": 321,
+     "ratio": 0.6294,
+     "below_floor": true,
+     "venues": [
+      "新莊",
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-06-30",
+     "games": 2,
+     "pitches": 645,
+     "tracked": 642,
+     "ratio": 0.9953,
+     "below_floor": false,
+     "venues": [
+      "天母",
+      "新莊"
+     ]
+    },
+    {
+     "date": "2026-07-01",
+     "games": 1,
+     "pitches": 231,
+     "tracked": 231,
+     "ratio": 1.0,
+     "below_floor": false,
+     "venues": [
+      "亞太主"
+     ]
+    },
+    {
+     "date": "2026-07-02",
+     "games": 1,
+     "pitches": 312,
+     "tracked": 311,
+     "ratio": 0.9968,
+     "below_floor": false,
+     "venues": [
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-07-03",
+     "games": 3,
+     "pitches": 852,
+     "tracked": 842,
+     "ratio": 0.9883,
+     "below_floor": false,
+     "venues": [
+      "天母",
+      "洲際",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-07-04",
+     "games": 3,
+     "pitches": 866,
+     "tracked": 861,
+     "ratio": 0.9942,
+     "below_floor": false,
+     "venues": [
+      "天母",
+      "洲際",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-07-05",
+     "games": 3,
+     "pitches": 799,
+     "tracked": 791,
+     "ratio": 0.99,
+     "below_floor": false,
+     "venues": [
+      "天母",
+      "洲際",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-07-07",
+     "games": 2,
+     "pitches": 617,
+     "tracked": 613,
+     "ratio": 0.9935,
+     "below_floor": false,
+     "venues": [
+      "亞太主",
+      "新莊"
+     ]
+    },
+    {
+     "date": "2026-07-08",
+     "games": 3,
+     "pitches": 836,
+     "tracked": 834,
+     "ratio": 0.9976,
+     "below_floor": false,
+     "venues": [
+      "亞太主",
+      "斗六",
+      "新莊"
+     ]
+    },
+    {
+     "date": "2026-07-09",
+     "games": 1,
+     "pitches": 274,
+     "tracked": 262,
+     "ratio": 0.9562,
+     "below_floor": true,
+     "venues": [
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-07-10",
+     "games": 1,
+     "pitches": 335,
+     "tracked": 334,
+     "ratio": 0.997,
+     "below_floor": false,
+     "venues": [
+      "亞太主"
+     ]
+    },
+    {
+     "date": "2026-07-12",
+     "games": 3,
+     "pitches": 938,
+     "tracked": 923,
+     "ratio": 0.984,
+     "below_floor": false,
+     "venues": [
+      "亞太主",
+      "新莊",
+      "樂天桃園"
+     ]
+    },
+    {
+     "date": "2026-07-15",
+     "games": 1,
+     "pitches": 349,
+     "tracked": 347,
+     "ratio": 0.9943,
+     "below_floor": false,
+     "venues": [
+      "樂天桃園"
+     ]
+    },
+    {
+     "date": "2026-07-16",
+     "games": 1,
+     "pitches": 225,
+     "tracked": 225,
+     "ratio": 1.0,
+     "below_floor": false,
+     "venues": [
+      "樂天桃園"
+     ]
+    },
+    {
+     "date": "2026-07-21",
+     "games": 1,
+     "pitches": 329,
+     "tracked": 326,
+     "ratio": 0.9909,
+     "below_floor": false,
+     "venues": [
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-07-22",
+     "games": 2,
+     "pitches": 593,
+     "tracked": 589,
+     "ratio": 0.9933,
+     "below_floor": false,
+     "venues": [
+      "亞太主",
+      "洲際"
+     ]
+    },
+    {
+     "date": "2026-07-23",
+     "games": 1,
+     "pitches": 269,
+     "tracked": 269,
+     "ratio": 1.0,
+     "below_floor": false,
+     "venues": [
+      "亞太主"
+     ]
+    },
+    {
+     "date": "2026-07-24",
+     "games": 2,
+     "pitches": 587,
+     "tracked": 586,
+     "ratio": 0.9983,
+     "below_floor": false,
+     "venues": [
+      "洲際",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-07-25",
+     "games": 2,
+     "pitches": 519,
+     "tracked": 515,
+     "ratio": 0.9923,
+     "below_floor": false,
+     "venues": [
+      "洲際",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-07-26",
+     "games": 2,
+     "pitches": 514,
+     "tracked": 512,
+     "ratio": 0.9961,
+     "below_floor": false,
+     "venues": [
+      "洲際",
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-07-28",
+     "games": 1,
+     "pitches": 274,
+     "tracked": 273,
+     "ratio": 0.9964,
+     "below_floor": false,
+     "venues": [
+      "亞太主"
+     ]
+    },
+    {
+     "date": "2026-07-29",
+     "games": 2,
+     "pitches": 641,
+     "tracked": 639,
+     "ratio": 0.9969,
+     "below_floor": false,
+     "venues": [
+      "亞太主",
+      "樂天桃園"
+     ]
+    },
+    {
+     "date": "2026-07-30",
+     "games": 1,
+     "pitches": 332,
+     "tracked": 332,
+     "ratio": 1.0,
+     "below_floor": false,
+     "venues": [
+      "樂天桃園"
+     ]
+    },
+    {
+     "date": "2026-07-31",
+     "games": 2,
+     "pitches": 598,
+     "tracked": 597,
+     "ratio": 0.9983,
+     "below_floor": false,
+     "venues": [
+      "亞太主",
+      "新莊"
+     ]
+    },
+    {
+     "date": "2026-08-01",
+     "games": 2,
+     "pitches": 562,
+     "tracked": 559,
+     "ratio": 0.9947,
+     "below_floor": false,
+     "venues": [
+      "亞太主",
+      "新莊"
+     ]
+    },
+    {
+     "date": "2026-08-02",
+     "games": 2,
+     "pitches": 601,
+     "tracked": 597,
+     "ratio": 0.9933,
+     "below_floor": false,
+     "venues": [
+      "亞太主",
+      "新莊"
+     ]
+    }
+   ]
+  },
+  "D": {
+   "floor_population_games": 101,
+   "floor_population_sufficient": true,
+   "floor_p05": 0.8997,
+   "single_game_distribution": {
+    "min": 0.3658,
+    "p05": 0.8997,
+    "median": 0.9901,
+    "max": 1.0
+   },
+   "eligible_days": 86,
+   "days_below_floor": 4,
+   "trigger_count": 1,
+   "within_tolerance": true,
+   "triggers": [
+    {
+     "trigger_on": "2026-04-29",
+     "eligible_days": [
+      "2026-04-28",
+      "2026-04-29"
+     ],
+     "ratios": [
+      0.8893,
+      0.0
+     ],
+     "venues": [
+      "樂天桃園",
+      "青埔"
+     ]
+    }
+   ],
+   "daily": [
+    {
+     "date": "2026-03-26",
+     "games": 1,
+     "pitches": 248,
+     "tracked": 247,
+     "ratio": 0.996,
+     "below_floor": false,
+     "venues": [
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-03-27",
+     "games": 1,
+     "pitches": 291,
+     "tracked": 290,
+     "ratio": 0.9966,
+     "below_floor": false,
+     "venues": [
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-03-31",
+     "games": 1,
+     "pitches": 223,
+     "tracked": 223,
+     "ratio": 1.0,
+     "below_floor": false,
+     "venues": [
+      "青埔"
+     ]
+    },
+    {
+     "date": "2026-04-02",
+     "games": 2,
+     "pitches": 512,
+     "tracked": 503,
+     "ratio": 0.9824,
+     "below_floor": false,
+     "venues": [
+      "園區",
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-04-03",
+     "games": 2,
+     "pitches": 601,
+     "tracked": 598,
+     "ratio": 0.995,
+     "below_floor": false,
+     "venues": [
+      "園區",
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-04-07",
+     "games": 1,
+     "pitches": 338,
+     "tracked": 337,
+     "ratio": 0.997,
+     "below_floor": false,
+     "venues": [
+      "園區"
+     ]
+    },
+    {
+     "date": "2026-04-08",
+     "games": 1,
+     "pitches": 278,
+     "tracked": 278,
+     "ratio": 1.0,
+     "below_floor": false,
+     "venues": [
+      "園區"
+     ]
+    },
+    {
+     "date": "2026-04-09",
+     "games": 1,
+     "pitches": 300,
+     "tracked": 300,
+     "ratio": 1.0,
+     "below_floor": false,
+     "venues": [
+      "園區"
+     ]
+    },
+    {
+     "date": "2026-04-10",
+     "games": 1,
+     "pitches": 306,
+     "tracked": 302,
+     "ratio": 0.9869,
+     "below_floor": false,
+     "venues": [
+      "園區"
+     ]
+    },
+    {
+     "date": "2026-04-11",
+     "games": 1,
+     "pitches": 310,
+     "tracked": 300,
+     "ratio": 0.9677,
+     "below_floor": false,
+     "venues": [
+      "青埔"
+     ]
+    },
+    {
+     "date": "2026-04-12",
+     "games": 1,
+     "pitches": 360,
+     "tracked": 356,
+     "ratio": 0.9889,
+     "below_floor": false,
+     "venues": [
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-04-14",
+     "games": 1,
+     "pitches": 275,
+     "tracked": 275,
+     "ratio": 1.0,
+     "below_floor": false,
+     "venues": [
+      "園區"
+     ]
+    },
+    {
+     "date": "2026-04-15",
+     "games": 1,
+     "pitches": 352,
+     "tracked": 350,
+     "ratio": 0.9943,
+     "below_floor": false,
+     "venues": [
+      "園區"
+     ]
+    },
+    {
+     "date": "2026-04-16",
+     "games": 1,
+     "pitches": 288,
+     "tracked": 281,
+     "ratio": 0.9757,
+     "below_floor": false,
+     "venues": [
+      "青埔"
+     ]
+    },
+    {
+     "date": "2026-04-17",
+     "games": 1,
+     "pitches": 334,
+     "tracked": 314,
+     "ratio": 0.9401,
+     "below_floor": false,
+     "venues": [
+      "樂天桃園"
+     ]
+    },
+    {
+     "date": "2026-04-18",
+     "games": 1,
+     "pitches": 257,
+     "tracked": 257,
+     "ratio": 1.0,
+     "below_floor": false,
+     "venues": [
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-04-19",
+     "games": 1,
+     "pitches": 316,
+     "tracked": 315,
+     "ratio": 0.9968,
+     "below_floor": false,
+     "venues": [
+      "園區"
+     ]
+    },
+    {
+     "date": "2026-04-21",
+     "games": 1,
+     "pitches": 253,
+     "tracked": 253,
+     "ratio": 1.0,
+     "below_floor": false,
+     "venues": [
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-04-22",
+     "games": 1,
+     "pitches": 259,
+     "tracked": 258,
+     "ratio": 0.9961,
+     "below_floor": false,
+     "venues": [
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-04-23",
+     "games": 1,
+     "pitches": 347,
+     "tracked": 345,
+     "ratio": 0.9942,
+     "below_floor": false,
+     "venues": [
+      "園區"
+     ]
+    },
+    {
+     "date": "2026-04-25",
+     "games": 1,
+     "pitches": 245,
+     "tracked": 240,
+     "ratio": 0.9796,
+     "below_floor": false,
+     "venues": [
+      "青埔"
+     ]
+    },
+    {
+     "date": "2026-04-26",
+     "games": 1,
+     "pitches": 278,
+     "tracked": 271,
+     "ratio": 0.9748,
+     "below_floor": false,
+     "venues": [
+      "青埔"
+     ]
+    },
+    {
+     "date": "2026-04-28",
+     "games": 1,
+     "pitches": 298,
+     "tracked": 265,
+     "ratio": 0.8893,
+     "below_floor": true,
+     "venues": [
+      "青埔"
+     ]
+    },
+    {
+     "date": "2026-04-29",
+     "games": 1,
+     "pitches": 254,
+     "tracked": 0,
+     "ratio": 0.0,
+     "below_floor": true,
+     "venues": [
+      "樂天桃園"
+     ]
+    },
+    {
+     "date": "2026-05-01",
+     "games": 1,
+     "pitches": 279,
+     "tracked": 258,
+     "ratio": 0.9247,
+     "below_floor": false,
+     "venues": [
+      "樂天桃園"
+     ]
+    },
+    {
+     "date": "2026-05-02",
+     "games": 1,
+     "pitches": 226,
+     "tracked": 223,
+     "ratio": 0.9867,
+     "below_floor": false,
+     "venues": [
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-05-05",
+     "games": 1,
+     "pitches": 288,
+     "tracked": 288,
+     "ratio": 1.0,
+     "below_floor": false,
+     "venues": [
+      "園區"
+     ]
+    },
+    {
+     "date": "2026-05-06",
+     "games": 1,
+     "pitches": 356,
+     "tracked": 355,
+     "ratio": 0.9972,
+     "below_floor": false,
+     "venues": [
+      "園區"
+     ]
+    },
+    {
+     "date": "2026-05-07",
+     "games": 1,
+     "pitches": 285,
+     "tracked": 277,
+     "ratio": 0.9719,
+     "below_floor": false,
+     "venues": [
+      "園區"
+     ]
+    },
+    {
+     "date": "2026-05-08",
+     "games": 1,
+     "pitches": 277,
+     "tracked": 276,
+     "ratio": 0.9964,
+     "below_floor": false,
+     "venues": [
+      "園區"
+     ]
+    },
+    {
+     "date": "2026-05-09",
+     "games": 1,
+     "pitches": 310,
+     "tracked": 297,
+     "ratio": 0.9581,
+     "below_floor": false,
+     "venues": [
+      "皇鷹學院"
+     ]
+    },
+    {
+     "date": "2026-05-10",
+     "games": 1,
+     "pitches": 263,
+     "tracked": 240,
+     "ratio": 0.9125,
+     "below_floor": false,
+     "venues": [
+      "青埔"
+     ]
+    },
+    {
+     "date": "2026-05-12",
+     "games": 1,
+     "pitches": 311,
+     "tracked": 310,
+     "ratio": 0.9968,
+     "below_floor": false,
+     "venues": [
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-05-13",
+     "games": 1,
+     "pitches": 274,
+     "tracked": 270,
+     "ratio": 0.9854,
+     "below_floor": false,
+     "venues": [
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-05-15",
+     "games": 1,
+     "pitches": 314,
+     "tracked": 312,
+     "ratio": 0.9936,
+     "below_floor": false,
+     "venues": [
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-05-16",
+     "games": 1,
+     "pitches": 338,
+     "tracked": 337,
+     "ratio": 0.997,
+     "below_floor": false,
+     "venues": [
+      "樂天桃園"
+     ]
+    },
+    {
+     "date": "2026-05-19",
+     "games": 1,
+     "pitches": 235,
+     "tracked": 232,
+     "ratio": 0.9872,
+     "below_floor": false,
+     "venues": [
+      "青埔"
+     ]
+    },
+    {
+     "date": "2026-05-20",
+     "games": 1,
+     "pitches": 256,
+     "tracked": 250,
+     "ratio": 0.9766,
+     "below_floor": false,
+     "venues": [
+      "青埔"
+     ]
+    },
+    {
+     "date": "2026-05-21",
+     "games": 1,
+     "pitches": 273,
+     "tracked": 271,
+     "ratio": 0.9927,
+     "below_floor": false,
+     "venues": [
+      "園區"
+     ]
+    },
+    {
+     "date": "2026-05-22",
+     "games": 1,
+     "pitches": 352,
+     "tracked": 350,
+     "ratio": 0.9943,
+     "below_floor": false,
+     "venues": [
+      "園區"
+     ]
+    },
+    {
+     "date": "2026-05-24",
+     "games": 1,
+     "pitches": 292,
+     "tracked": 287,
+     "ratio": 0.9829,
+     "below_floor": false,
+     "venues": [
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-05-26",
+     "games": 2,
+     "pitches": 641,
+     "tracked": 575,
+     "ratio": 0.897,
+     "below_floor": true,
+     "venues": [
+      "園區",
+      "皇鷹學院"
+     ]
+    },
+    {
+     "date": "2026-05-27",
+     "games": 2,
+     "pitches": 605,
+     "tracked": 582,
+     "ratio": 0.962,
+     "below_floor": false,
+     "venues": [
+      "園區",
+      "皇鷹學院"
+     ]
+    },
+    {
+     "date": "2026-05-28",
+     "games": 1,
+     "pitches": 336,
+     "tracked": 315,
+     "ratio": 0.9375,
+     "below_floor": false,
+     "venues": [
+      "皇鷹學院"
+     ]
+    },
+    {
+     "date": "2026-05-29",
+     "games": 1,
+     "pitches": 241,
+     "tracked": 236,
+     "ratio": 0.9793,
+     "below_floor": false,
+     "venues": [
+      "皇鷹學院"
+     ]
+    },
+    {
+     "date": "2026-05-30",
+     "games": 2,
+     "pitches": 530,
+     "tracked": 525,
+     "ratio": 0.9906,
+     "below_floor": false,
+     "venues": [
+      "園區",
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-05-31",
+     "games": 1,
+     "pitches": 334,
+     "tracked": 324,
+     "ratio": 0.9701,
+     "below_floor": false,
+     "venues": [
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-06-02",
+     "games": 1,
+     "pitches": 336,
+     "tracked": 330,
+     "ratio": 0.9821,
+     "below_floor": false,
+     "venues": [
+      "青埔"
+     ]
+    },
+    {
+     "date": "2026-06-03",
+     "games": 1,
+     "pitches": 343,
+     "tracked": 276,
+     "ratio": 0.8047,
+     "below_floor": true,
+     "venues": [
+      "青埔"
+     ]
+    },
+    {
+     "date": "2026-06-04",
+     "games": 1,
+     "pitches": 373,
+     "tracked": 370,
+     "ratio": 0.992,
+     "below_floor": false,
+     "venues": [
+      "皇鷹學院"
+     ]
+    },
+    {
+     "date": "2026-06-06",
+     "games": 1,
+     "pitches": 318,
+     "tracked": 312,
+     "ratio": 0.9811,
+     "below_floor": false,
+     "venues": [
+      "園區"
+     ]
+    },
+    {
+     "date": "2026-06-07",
+     "games": 2,
+     "pitches": 638,
+     "tracked": 635,
+     "ratio": 0.9953,
+     "below_floor": false,
+     "venues": [
+      "園區",
+      "樂天桃園"
+     ]
+    },
+    {
+     "date": "2026-06-10",
+     "games": 1,
+     "pitches": 291,
+     "tracked": 289,
+     "ratio": 0.9931,
+     "below_floor": false,
+     "venues": [
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-06-11",
+     "games": 1,
+     "pitches": 263,
+     "tracked": 260,
+     "ratio": 0.9886,
+     "below_floor": false,
+     "venues": [
+      "樂天桃園"
+     ]
+    },
+    {
+     "date": "2026-06-12",
+     "games": 1,
+     "pitches": 276,
+     "tracked": 275,
+     "ratio": 0.9964,
+     "below_floor": false,
+     "venues": [
+      "皇鷹學院"
+     ]
+    },
+    {
+     "date": "2026-06-17",
+     "games": 1,
+     "pitches": 297,
+     "tracked": 285,
+     "ratio": 0.9596,
+     "below_floor": false,
+     "venues": [
+      "皇鷹學院"
+     ]
+    },
+    {
+     "date": "2026-06-18",
+     "games": 2,
+     "pitches": 642,
+     "tracked": 640,
+     "ratio": 0.9969,
+     "below_floor": false,
+     "venues": [
+      "園區",
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-06-19",
+     "games": 2,
+     "pitches": 553,
+     "tracked": 523,
+     "ratio": 0.9458,
+     "below_floor": false,
+     "venues": [
+      "園區",
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-06-20",
+     "games": 1,
+     "pitches": 294,
+     "tracked": 293,
+     "ratio": 0.9966,
+     "below_floor": false,
+     "venues": [
+      "青埔"
+     ]
+    },
+    {
+     "date": "2026-06-23",
+     "games": 2,
+     "pitches": 529,
+     "tracked": 516,
+     "ratio": 0.9754,
+     "below_floor": false,
+     "venues": [
+      "斗六",
+      "青埔"
+     ]
+    },
+    {
+     "date": "2026-06-24",
+     "games": 2,
+     "pitches": 642,
+     "tracked": 623,
+     "ratio": 0.9704,
+     "below_floor": false,
+     "venues": [
+      "斗六",
+      "青埔"
+     ]
+    },
+    {
+     "date": "2026-06-25",
+     "games": 1,
+     "pitches": 187,
+     "tracked": 181,
+     "ratio": 0.9679,
+     "below_floor": false,
+     "venues": [
+      "皇鷹學院"
+     ]
+    },
+    {
+     "date": "2026-06-28",
+     "games": 1,
+     "pitches": 339,
+     "tracked": 334,
+     "ratio": 0.9853,
+     "below_floor": false,
+     "venues": [
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-06-30",
+     "games": 1,
+     "pitches": 293,
+     "tracked": 286,
+     "ratio": 0.9761,
+     "below_floor": false,
+     "venues": [
+      "園區"
+     ]
+    },
+    {
+     "date": "2026-07-01",
+     "games": 1,
+     "pitches": 245,
+     "tracked": 245,
+     "ratio": 1.0,
+     "below_floor": false,
+     "venues": [
+      "園區"
+     ]
+    },
+    {
+     "date": "2026-07-02",
+     "games": 2,
+     "pitches": 543,
+     "tracked": 524,
+     "ratio": 0.965,
+     "below_floor": false,
+     "venues": [
+      "斗六",
+      "青埔"
+     ]
+    },
+    {
+     "date": "2026-07-03",
+     "games": 1,
+     "pitches": 335,
+     "tracked": 315,
+     "ratio": 0.9403,
+     "below_floor": false,
+     "venues": [
+      "樂天桃園"
+     ]
+    },
+    {
+     "date": "2026-07-04",
+     "games": 1,
+     "pitches": 281,
+     "tracked": 280,
+     "ratio": 0.9964,
+     "below_floor": false,
+     "venues": [
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-07-05",
+     "games": 1,
+     "pitches": 267,
+     "tracked": 263,
+     "ratio": 0.985,
+     "below_floor": false,
+     "venues": [
+      "園區"
+     ]
+    },
+    {
+     "date": "2026-07-07",
+     "games": 2,
+     "pitches": 641,
+     "tracked": 608,
+     "ratio": 0.9485,
+     "below_floor": false,
+     "venues": [
+      "園區",
+      "皇鷹學院"
+     ]
+    },
+    {
+     "date": "2026-07-08",
+     "games": 2,
+     "pitches": 594,
+     "tracked": 586,
+     "ratio": 0.9865,
+     "below_floor": false,
+     "venues": [
+      "園區",
+      "皇鷹學院"
+     ]
+    },
+    {
+     "date": "2026-07-09",
+     "games": 1,
+     "pitches": 313,
+     "tracked": 291,
+     "ratio": 0.9297,
+     "below_floor": false,
+     "venues": [
+      "青埔"
+     ]
+    },
+    {
+     "date": "2026-07-14",
+     "games": 2,
+     "pitches": 571,
+     "tracked": 568,
+     "ratio": 0.9947,
+     "below_floor": false,
+     "venues": [
+      "皇鷹學院",
+      "青埔"
+     ]
+    },
+    {
+     "date": "2026-07-15",
+     "games": 2,
+     "pitches": 582,
+     "tracked": 570,
+     "ratio": 0.9794,
+     "below_floor": false,
+     "venues": [
+      "皇鷹學院",
+      "青埔"
+     ]
+    },
+    {
+     "date": "2026-07-16",
+     "games": 1,
+     "pitches": 206,
+     "tracked": 206,
+     "ratio": 1.0,
+     "below_floor": false,
+     "venues": [
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-07-21",
+     "games": 1,
+     "pitches": 258,
+     "tracked": 257,
+     "ratio": 0.9961,
+     "below_floor": false,
+     "venues": [
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-07-22",
+     "games": 1,
+     "pitches": 315,
+     "tracked": 312,
+     "ratio": 0.9905,
+     "below_floor": false,
+     "venues": [
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-07-23",
+     "games": 1,
+     "pitches": 326,
+     "tracked": 324,
+     "ratio": 0.9939,
+     "below_floor": false,
+     "venues": [
+      "皇鷹學院"
+     ]
+    },
+    {
+     "date": "2026-07-24",
+     "games": 1,
+     "pitches": 308,
+     "tracked": 306,
+     "ratio": 0.9935,
+     "below_floor": false,
+     "venues": [
+      "皇鷹學院"
+     ]
+    },
+    {
+     "date": "2026-07-25",
+     "games": 1,
+     "pitches": 301,
+     "tracked": 297,
+     "ratio": 0.9867,
+     "below_floor": false,
+     "venues": [
+      "樂天桃園"
+     ]
+    },
+    {
+     "date": "2026-07-26",
+     "games": 1,
+     "pitches": 303,
+     "tracked": 301,
+     "ratio": 0.9934,
+     "below_floor": false,
+     "venues": [
+      "樂天桃園"
+     ]
+    },
+    {
+     "date": "2026-07-28",
+     "games": 1,
+     "pitches": 241,
+     "tracked": 240,
+     "ratio": 0.9959,
+     "below_floor": false,
+     "venues": [
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-07-29",
+     "games": 1,
+     "pitches": 277,
+     "tracked": 277,
+     "ratio": 1.0,
+     "below_floor": false,
+     "venues": [
+      "斗六"
+     ]
+    },
+    {
+     "date": "2026-07-31",
+     "games": 1,
+     "pitches": 259,
+     "tracked": 256,
+     "ratio": 0.9884,
+     "below_floor": false,
+     "venues": [
+      "澄清湖"
+     ]
+    },
+    {
+     "date": "2026-08-01",
+     "games": 1,
+     "pitches": 378,
+     "tracked": 377,
+     "ratio": 0.9974,
+     "below_floor": false,
+     "venues": [
+      "皇鷹學院"
+     ]
+    },
+    {
+     "date": "2026-08-02",
+     "games": 1,
+     "pitches": 308,
+     "tracked": 294,
+     "ratio": 0.9545,
+     "below_floor": false,
+     "venues": [
+      "樂天桃園"
+     ]
+    }
+   ]
+  }
+ },
+ "verdict": {
+  "total_trigger_count": 8,
+  "tolerance": 2,
+  "action": "逾越裁定容忍度 → 回報需求方裁定，執行者不得自行調參"
+ }
+}
