@@ -1193,6 +1193,51 @@ def cand233_false_positives(cur) -> dict:
     out["narrow_scope_total"] = len(narrow)
     out["narrow_scope_confirmed"] = sum(1 for r in narrow if r["is_confirmed_tie"])
     out["narrow_scope_false_positive"] = sum(1 for r in narrow if not r["is_confirmed_tie"])
+
+    # ── 運算子優先序：改採判準的括號是語意的一部分（第 2 輪查核 P1）──
+    # 以 present_status 暫代 verified_completion_evidence（該欄尚不存在），
+    # **僅為證明 AND/OR 優先序**，不代表 present_status 可當完成證據（見 why_rejected）。
+    out["operator_precedence"] = {
+        "note": ("以 present_status 暫代尚不存在的 verified_completion_evidence 欄位，"
+                 "僅用於證明 AND 優先於 OR 造成的語意差異；present_status 本身不得當完成證據。"),
+        "unparenthesized_sql": ("home_score + away_score > 0 OR <evidence> "
+                                "AND game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date"),
+        "parenthesized_sql": ("game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date "
+                              "AND (home_score + away_score > 0 OR <evidence>)"),
+    }
+    cur.execute("""
+        SELECT
+          count(*) FILTER (WHERE home_score + away_score > 0
+                              OR present_status = 1
+                             AND game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date)
+              AS unparenthesized_total,
+          count(*) FILTER (WHERE game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date
+                             AND (home_score + away_score > 0 OR present_status = 1))
+              AS parenthesized_total
+        FROM cpbl.games
+    """)
+    counts = _rows(cur)[0]
+    out["operator_precedence"].update(counts)
+    out["operator_precedence"]["delta"] = (
+        counts["unparenthesized_total"] - counts["parenthesized_total"])
+
+    # 差額逐場：未來日期且已有比分的保留賽（無括號會誤納、有括號正確排除）
+    cur.execute("""
+        SELECT year, kind_code, game_sno, game_date, home_score, away_score, delay_kind,
+               (home_score + away_score > 0
+                   OR present_status = 1
+                  AND game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date) AS unparenthesized,
+               (game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date
+                  AND (home_score + away_score > 0 OR present_status = 1)) AS parenthesized
+        FROM cpbl.games
+        WHERE home_score + away_score > 0
+          AND game_date > (now() AT TIME ZONE 'Asia/Taipei')::date
+        ORDER BY game_date
+    """)
+    diff = _rows(cur)
+    out["operator_precedence"]["future_dated_with_score"] = diff
+    out["operator_precedence"]["delta_explained_by_future_dated"] = (
+        out["operator_precedence"]["delta"] == len(diff))
     return out
 
 

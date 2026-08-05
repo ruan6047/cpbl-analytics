@@ -3637,5 +3637,71 @@
   ],
   "narrow_scope_total": 10,
   "narrow_scope_confirmed": 5,
-  "narrow_scope_false_positive": 5
+  "narrow_scope_false_positive": 5,
+  "operator_precedence": {
+    "note": "以 present_status 暫代尚不存在的 verified_completion_evidence 欄位，僅用於證明 AND 優先於 OR 造成的語意差異；present_status 本身不得當完成證據。",
+    "unparenthesized_sql": "home_score + away_score > 0 OR <evidence> AND game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date",
+    "parenthesized_sql": "game_date <= (now() AT TIME ZONE 'Asia/Taipei')::date AND (home_score + away_score > 0 OR <evidence>)",
+    "unparenthesized_total": 13293,
+    "parenthesized_total": 13288,
+    "delta": 5,
+    "future_dated_with_score": [
+      {
+        "year": 2026,
+        "kind_code": "D",
+        "game_sno": 119,
+        "game_date": "2026-08-08",
+        "home_score": 5,
+        "away_score": 4,
+        "delay_kind": "保留",
+        "unparenthesized": true,
+        "parenthesized": false
+      },
+      {
+        "year": 2026,
+        "kind_code": "D",
+        "game_sno": 97,
+        "game_date": "2026-08-09",
+        "home_score": 4,
+        "away_score": 3,
+        "delay_kind": "保留",
+        "unparenthesized": true,
+        "parenthesized": false
+      },
+      {
+        "year": 2026,
+        "kind_code": "D",
+        "game_sno": 118,
+        "game_date": "2026-08-22",
+        "home_score": 1,
+        "away_score": 0,
+        "delay_kind": "保留",
+        "unparenthesized": true,
+        "parenthesized": false
+      },
+      {
+        "year": 2026,
+        "kind_code": "D",
+        "game_sno": 117,
+        "game_date": "2026-08-30",
+        "home_score": 1,
+        "away_score": 4,
+        "delay_kind": "保留",
+        "unparenthesized": true,
+        "parenthesized": false
+      },
+      {
+        "year": 2026,
+        "kind_code": "D",
+        "game_sno": 165,
+        "game_date": "2026-09-15",
+        "home_score": 1,
+        "away_score": 3,
+        "delay_kind": "保留",
+        "unparenthesized": true,
+        "parenthesized": false
+      }
+    ],
+    "delta_explained_by_future_dated": true
+  }
 }
