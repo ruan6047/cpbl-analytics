@@ -1,0 +1,48 @@
+{
+  "generated_at": "2026-08-05T10:41:07+08:00",
+  "written": 10,
+  "skipped": [],
+  "rows_in_table": 10,
+  "detail": [
+    {
+      "game": "2018/A/124",
+      "evidence_kind": "requester_approved_tie"
+    },
+    {
+      "game": "2018/A/124",
+      "evidence_kind": "official_box_final"
+    },
+    {
+      "game": "2021/A/256",
+      "evidence_kind": "requester_approved_tie"
+    },
+    {
+      "game": "2021/A/256",
+      "evidence_kind": "official_box_final"
+    },
+    {
+      "game": "2023/A/119",
+      "evidence_kind": "requester_approved_tie"
+    },
+    {
+      "game": "2023/A/119",
+      "evidence_kind": "official_box_final"
+    },
+    {
+      "game": "2023/A/175",
+      "evidence_kind": "requester_approved_tie"
+    },
+    {
+      "game": "2023/A/175",
+      "evidence_kind": "official_box_final"
+    },
+    {
+      "game": "2025/A/233",
+      "evidence_kind": "requester_approved_tie"
+    },
+    {
+      "game": "2025/A/233",
+      "evidence_kind": "official_box_final"
+    }
+  ]
+}

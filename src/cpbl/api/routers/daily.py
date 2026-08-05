@@ -21,10 +21,15 @@ from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import _dicts, kinds_of
 from cpbl.api.pregame_serving import serving_state
+from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
 from cpbl.models.outcome_simple import ORIENT, load_outcome_rows
 
 router = APIRouter()
+
+# 完成場判準（證據感知），以呼叫端的 as_of 參數為日期界線：
+# 0:0 真和局需外部證據才算完成，否則「最近比賽日」會跳過那一天（DATA-TIE-REMEDY1）。
+_DONE_AS_OF = completed_games_sql_with_evidence("games", "%(as_of)s")
 
 # 超過此時數未成功 refresh 視為 stale（排程為每日一次；OPS-REFRESH1 擁有排程本身）。
 STALE_AFTER_HOURS = 24
@@ -157,10 +162,10 @@ def daily_summary(
     with conn() as c:
         cur = c.cursor()
         cur.execute(
-            """
+            f"""
             WITH scoped AS (
                 SELECT game_date,
-                       home_score + away_score > 0 AND game_date <= %(as_of)s AS completed
+                       {_DONE_AS_OF} AS completed
                 FROM cpbl.games
                 WHERE kind_code = ANY(%(kinds)s)
                   AND (%(season)s::int IS NULL OR year = %(season)s)

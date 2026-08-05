@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter
 
 from cpbl.api.helpers import DEFAULT_SEASON
-from cpbl.completion import completed_games_sql
+from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.config import settings
 from cpbl.db import conn
 
@@ -29,7 +29,8 @@ def info() -> dict:
     status = "running"
     try:
         season = DEFAULT_SEASON
-        completed_sql = completed_games_sql()
+        # 證據感知判準：0:0 真和局需外部證據才算完成（DATA-TIE-REMEDY1）
+        completed_sql = completed_games_sql_with_evidence("games")
         games = _scalar("SELECT count(*) FROM cpbl.games") or 0
         metrics["games_indexed"] = games
         metrics["seasons_covered"] = _scalar("SELECT count(DISTINCT year) FROM cpbl.games") or 0
@@ -53,6 +54,9 @@ def info() -> dict:
             (_scalar("SELECT count(*) FROM cpbl.batting_splits") or 0)
             + (_scalar("SELECT count(*) FROM cpbl.pitching_splits") or 0)
         )
+        # 「今日待預測場次」＝排在今天且尚未有比分者。這裡刻意**不**改用完成判準：
+        # 母體限定 game_date = CURRENT_DATE，5 場歷史和局（2018–2025）不可能落入；
+        # 其時區界線問題屬 DATA-RULES-AUDIT1 的 D7，不在本卡範圍。
         metrics["predictions_today"] = _scalar(
             "SELECT count(*) FROM cpbl.games "
             "WHERE year = %s AND home_score + away_score = 0 AND game_date = CURRENT_DATE", (season,)

@@ -10,12 +10,16 @@ from cpbl.api.rows import _ERA_SPLIT
 from cpbl.api.team_hotzone import hot_zone
 from cpbl.api.team_records import upcoming_records
 from cpbl.api.team_style import team_style_payload
+from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
 from cpbl.franchises import FRANCHISE_MAP as _FRANCHISE
 from cpbl.franchises import franchise_of as _franchise_of
 from cpbl.models import special_records
 
 router = APIRouter()
+
+# 完成場判準（證據感知）：隊史勝敗和統計含 0:0 真和局，需外部證據（DATA-TIE-REMEDY1）。
+_DONE = completed_games_sql_with_evidence("games")
 
 
 @router.get("/api/v1/teams")
@@ -39,7 +43,7 @@ def _franchise_year_record(cur, fc: str, kind_code: str = "A") -> dict[int, dict
                       if _franchise_of(c) == fc})
     cur.execute(
         "SELECT year, home_team_code, home_score, away_score FROM cpbl.games "
-        "WHERE kind_code=%s AND home_score+away_score>0 "
+        f"WHERE kind_code=%s AND {_DONE} "
         "AND (home_team_code = ANY(%s) OR away_team_code = ANY(%s))",
         (kind_code, members, members))
     rec: dict[int, dict] = {}
@@ -68,7 +72,7 @@ def team_eras(code: str, kind_code: str = Query("A")) -> dict:
     with conn() as c:
         games = c.execute(
             "SELECT year, home_team_code, away_team_code, home_score, away_score "
-            "FROM cpbl.games WHERE kind_code=%s AND home_score+away_score>0 "
+            f"FROM cpbl.games WHERE kind_code=%s AND {_DONE} "
             "AND (home_team_code = ANY(%s) OR away_team_code = ANY(%s)) ORDER BY year, game_sno",
             (kind_code, members, members),
         ).fetchall()
@@ -153,7 +157,7 @@ def franchises() -> dict:
     with conn() as c:
         games = c.execute(
             "SELECT year, home_team_code, away_team_code, home_score, away_score "
-            "FROM cpbl.games WHERE kind_code='A' AND home_score+away_score>0"
+            f"FROM cpbl.games WHERE kind_code='A' AND {_DONE}"
         ).fetchall()
         names3 = dict(c.execute("SELECT team_id, name FROM cpbl.teams").fetchall())
         active = {r[0] for r in c.execute("SELECT team_code FROM cpbl.team_dim WHERE active=true").fetchall()}

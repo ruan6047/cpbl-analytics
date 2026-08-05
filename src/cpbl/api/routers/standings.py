@@ -6,10 +6,15 @@ from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON, _dicts
 from cpbl.api.rows import _team_advanced
+from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
 from cpbl.models import matchup
 
 router = APIRouter()
+
+# 完成場判準（證據感知）：0:0 真和局需外部證據才算完成，故不可只看比分和。
+# 戰績計算對此特別敏感——和局場漏算會讓官方和局數對不上（DATA-TIE-REMEDY1）。
+_DONE = completed_games_sql_with_evidence("games")
 
 
 def _team_advanced_current_computed(season: int) -> dict[str, dict]:
@@ -147,10 +152,10 @@ def _team_scoped_metrics(cur, season: int, half: str | None) -> dict[str, dict]:
     cur.execute(
         "SELECT tc, sum(rs), sum(ra), count(*) FROM ("
         f" SELECT home_team_code tc, home_score rs, away_score ra FROM cpbl.games "
-        f"  WHERE year=%s AND kind_code='A' AND home_score+away_score>0{seg2}"
+        f"  WHERE year=%s AND kind_code='A' AND {_DONE}{seg2}"
         " UNION ALL "
         f" SELECT away_team_code, away_score, home_score FROM cpbl.games "
-        f"  WHERE year=%s AND kind_code='A' AND home_score+away_score>0{seg2}"
+        f"  WHERE year=%s AND kind_code='A' AND {_DONE}{seg2}"
         ") x GROUP BY tc",
         (season, *seg_p, season, *seg_p),
     )
@@ -223,7 +228,7 @@ def postseason_summary(season: int = Query(DEFAULT_SEASON), kind_code: str = Que
             "SELECT kind_code, home_team_code, home_team_name, away_team_code, away_team_name, "
             "home_score, away_score, game_date "
             "FROM cpbl.games "
-            "WHERE year=%s AND kind_code = ANY(%s) AND home_score+away_score>0 "
+            f"WHERE year=%s AND kind_code = ANY(%s) AND {_DONE} "
             "ORDER BY game_date, game_sno",
             (season, codes),
         ).fetchall()
@@ -269,7 +274,7 @@ def _computed_standings(season: int, kind_code: str, season_code: int = 0) -> li
     with conn() as c:
         games = c.execute(
             "SELECT home_team_code, home_team_name, away_team_code, away_team_name, home_score, away_score "
-            f"FROM cpbl.games WHERE year=%s AND kind_code=%s AND home_score+away_score>0{seg_sql}",
+            f"FROM cpbl.games WHERE year=%s AND kind_code=%s AND {_DONE}{seg_sql}",
             params,
         ).fetchall()
     rec: dict = defaultdict(lambda: {
@@ -315,7 +320,7 @@ def seasons(kind_code: str = Query("A")) -> dict:
     """有逐場資料的年份清單（供歷史年份選擇器）。"""
     with conn() as c:
         years = [r[0] for r in c.execute(
-            "SELECT DISTINCT year FROM cpbl.games WHERE kind_code=%s AND home_score+away_score>0 "
+            f"SELECT DISTINCT year FROM cpbl.games WHERE kind_code=%s AND {_DONE} "
             "ORDER BY year DESC", (kind_code,),
         ).fetchall()]
     return {"years": years}
@@ -325,12 +330,12 @@ def _half_progress(season: int, game_season_code: str, kind_code: str) -> dict[s
     """回傳 {team_code: 該半季剩餘未打場數}。供半季冠軍/提前封王判定。"""
     with conn() as c:
         rows = c.execute(
-            """
+            f"""
             SELECT tc, count(*) FILTER (WHERE NOT done) AS remaining FROM (
-                SELECT home_team_code AS tc, home_score + away_score > 0 AS done
+                SELECT home_team_code AS tc, {_DONE} AS done
                   FROM cpbl.games WHERE year=%s AND kind_code=%s AND game_season_code=%s
                 UNION ALL
-                SELECT away_team_code, home_score + away_score > 0
+                SELECT away_team_code, {_DONE}
                   FROM cpbl.games WHERE year=%s AND kind_code=%s AND game_season_code=%s
             ) x GROUP BY tc
             """,
@@ -394,7 +399,7 @@ def standings_trend(
         games = c.execute(
             "SELECT game_date, home_team_code, away_team_code, home_score, away_score, "
             "home_team_name, away_team_name "
-            "FROM cpbl.games WHERE year=%s AND kind_code=%s AND home_score+away_score>0 "
+            f"FROM cpbl.games WHERE year=%s AND kind_code=%s AND {_DONE} "
             "ORDER BY game_date, game_sno",
             (season, kind_code),
         ).fetchall()

@@ -18,8 +18,12 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import StandardScaler
 
+from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
 from cpbl.features.outcome import CANDIDATE_FEATURES, FEATURE_KEYS
+
+# 完成場判準（證據感知）：0:0 真和局需外部完賽證據才算完成場（DATA-TIE-REMEDY1）。
+_DONE = completed_games_sql_with_evidence("games")
 
 HOME_FIELD = "home_field"
 # 各「球隊級」變因 → team_stats 的 key
@@ -81,18 +85,18 @@ def _prior_winpct(season: int) -> dict[str, float]:
     with conn() as c:
         cur = c.cursor()
         cur.execute(
-            """
+            f"""
             SELECT team, sum(w)::float / NULLIF(sum(w + l), 0) FROM (
                 SELECT home_team_code AS team,
                        count(*) FILTER (WHERE home_score > away_score) w,
                        count(*) FILTER (WHERE home_score < away_score) l
-                FROM cpbl.games WHERE kind_code='A' AND year=%s AND home_score+away_score>0
+                FROM cpbl.games WHERE kind_code='A' AND year=%s AND {_DONE}
                 GROUP BY home_team_code
                 UNION ALL
                 SELECT away_team_code,
                        count(*) FILTER (WHERE away_score > home_score),
                        count(*) FILTER (WHERE away_score < home_score)
-                FROM cpbl.games WHERE kind_code='A' AND year=%s AND home_score+away_score>0
+                FROM cpbl.games WHERE kind_code='A' AND year=%s AND {_DONE}
                 GROUP BY away_team_code
             ) t GROUP BY team
             """,
@@ -168,11 +172,11 @@ def team_stats(season: int) -> dict[str, dict]:
     with conn() as c:
         cur = c.cursor()
         cur.execute(
-            """
+            f"""
             SELECT game_date, home_team_code, home_team_name, away_team_code, away_team_name,
                    home_score, away_score
             FROM cpbl.games
-            WHERE year = %s AND kind_code = 'A' AND home_score + away_score > 0
+            WHERE year = %s AND kind_code = 'A' AND {_DONE}
             ORDER BY game_date, game_sno
             """,
             (season,),
@@ -258,13 +262,13 @@ def h2h_rate(home: str, away: str, season: int) -> float:
     with conn() as c:
         cur = c.cursor()
         cur.execute(
-            """
+            f"""
             SELECT
                 count(*) FILTER (WHERE (home_team_code = %s AND home_score > away_score)
                                     OR (away_team_code = %s AND away_score > home_score)),
                 count(*)
             FROM cpbl.games
-            WHERE year = %s AND home_score + away_score > 0
+            WHERE year = %s AND {_DONE}
               AND ((home_team_code = %s AND away_team_code = %s)
                 OR (home_team_code = %s AND away_team_code = %s))
             """,

@@ -1,0 +1,240 @@
+{
+  "generated_at": "2026-08-05T12:47:46+08:00",
+  "ruling": "需求方 2026-08-05 裁定（Issue #90）：延後，與 IBB 281 席修復打包成單一衍生層重建批次卡；本卡只交評估不執行。",
+  "affected_year_kinds": [
+    "2018/A",
+    "2021/A",
+    "2023/A",
+    "2025/A"
+  ],
+  "affected_years": [
+    2018,
+    2021,
+    2023,
+    2025
+  ],
+  "five_games_current_data": [
+    {
+      "game": "2018/A/124",
+      "scoreboard": 24,
+      "livelog": 399,
+      "batting_box": 25,
+      "pitching_box": 14,
+      "canonical_pa": 95
+    },
+    {
+      "game": "2021/A/256",
+      "scoreboard": 12,
+      "livelog": 162,
+      "batting_box": 18,
+      "pitching_box": 2,
+      "canonical_pa": 41
+    },
+    {
+      "game": "2023/A/119",
+      "scoreboard": 16,
+      "livelog": 248,
+      "batting_box": 19,
+      "pitching_box": 6,
+      "canonical_pa": 63
+    },
+    {
+      "game": "2023/A/175",
+      "scoreboard": 15,
+      "livelog": 209,
+      "batting_box": 19,
+      "pitching_box": 5,
+      "canonical_pa": 53
+    },
+    {
+      "game": "2025/A/233",
+      "scoreboard": 12,
+      "livelog": 144,
+      "batting_box": 19,
+      "pitching_box": 3,
+      "canonical_pa": 39
+    }
+  ],
+  "derived_tables": [
+    {
+      "table": "game_plate_appearances",
+      "rebuild_command": "cpbl-build-pa --game <year>-<kind>-<sno>",
+      "granularity": "逐場",
+      "note": "canonical PA；本卡已對 5 場逐場執行，故此表已吸收。下列各表都建立在它之上。",
+      "exists": true,
+      "rows_in_affected_years": 454441,
+      "rows_total": 995832
+    },
+    {
+      "table": "game_pa_events",
+      "rebuild_command": "（同 cpbl-build-pa）",
+      "granularity": "逐場",
+      "note": "隨 PA build 一併產生。",
+      "exists": true,
+      "rows_in_affected_years": 1832371,
+      "rows_total": 4012664
+    },
+    {
+      "table": "game_pa_pitch_mappings",
+      "rebuild_command": "（同 cpbl-build-pa）",
+      "granularity": "逐場",
+      "note": "隨 PA build 一併產生。",
+      "exists": true,
+      "rows_in_affected_years": 0,
+      "rows_total": 234485
+    },
+    {
+      "table": "batting_splits",
+      "rebuild_command": "cpbl-build-splits <year>",
+      "granularity": "整年重算",
+      "note": "分項是**整年重算**不是增量：跑該年會重寫整年所有格。RECALC1 已定案其對帳程序，重建後須跑對帳（見 memory「分項重算語意」）。",
+      "exists": true,
+      "rows_in_affected_years": 57878,
+      "rows_total": 163705
+    },
+    {
+      "table": "pitching_splits",
+      "rebuild_command": "cpbl-build-splits <year>",
+      "granularity": "整年重算",
+      "note": "同上。",
+      "exists": true,
+      "rows_in_affected_years": 41088,
+      "rows_total": 115538
+    },
+    {
+      "table": "batting_splits_career_base",
+      "rebuild_command": "（生涯基底＝官方生涯−官方本季，migration 046）",
+      "granularity": "全庫",
+      "note": "生涯基底由官方數字相減而得，**不因本地補爬而變**；但本季分項變動會改變「基底＋本季」的合成結果，需一併覆核。",
+      "exists": true,
+      "rows_in_affected_years": null,
+      "rows_total": 29330
+    },
+    {
+      "table": "pitching_splits_career_base",
+      "rebuild_command": "（同上）",
+      "granularity": "全庫",
+      "note": "同上。",
+      "exists": true,
+      "rows_in_affected_years": null,
+      "rows_total": 21204
+    },
+    {
+      "table": "batter_re24",
+      "rebuild_command": "cpbl-build-sabr",
+      "granularity": "整年",
+      "note": "RE24 依 canonical PA；新增 5 場的打席會進入。",
+      "exists": true,
+      "rows_in_affected_years": 585,
+      "rows_total": 1284
+    },
+    {
+      "table": "pitcher_re24",
+      "rebuild_command": "cpbl-build-sabr",
+      "granularity": "整年",
+      "note": "同上。",
+      "exists": true,
+      "rows_in_affected_years": 556,
+      "rows_total": 1214
+    },
+    {
+      "table": "batter_traits",
+      "rebuild_command": "cpbl-build-sabr",
+      "granularity": "整年",
+      "note": "AUDIT1 D3 已記錄此表本就落後 canonical（2026/A 僅 78.6%），重建範圍應與 D3 一併規劃。",
+      "exists": true,
+      "rows_in_affected_years": 587,
+      "rows_total": 1291
+    },
+    {
+      "table": "pitcher_traits",
+      "rebuild_command": "cpbl-build-sabr",
+      "granularity": "整年",
+      "note": "同上。",
+      "exists": true,
+      "rows_in_affected_years": 556,
+      "rows_total": 1212
+    },
+    {
+      "table": "batter_wsb",
+      "rebuild_command": "cpbl-build-sabr",
+      "granularity": "整年",
+      "note": "wSB 依逐打席盜壘事件。",
+      "exists": true,
+      "rows_in_affected_years": 547,
+      "rows_total": 3927
+    },
+    {
+      "table": "catcher_runs",
+      "rebuild_command": "cpbl-build-sabr",
+      "granularity": "整年",
+      "note": "捕手 RA9 依逐打席。",
+      "exists": true,
+      "rows_in_affected_years": 93,
+      "rows_total": 205
+    },
+    {
+      "table": "team_der",
+      "rebuild_command": "cpbl-build-sabr",
+      "granularity": "整年",
+      "note": "DER 依逐打席擊球結果。",
+      "exists": true,
+      "rows_in_affected_years": 20,
+      "rows_total": 184
+    },
+    {
+      "table": "run_expectancy",
+      "rebuild_command": "cpbl-build-sabr",
+      "granularity": "全庫矩陣",
+      "note": "RE 矩陣由全庫 PA 統計而得。5 場 ≈ 全庫萬分之四量級，數值影響極小，但矩陣一動就會連帶改變所有 RE24／WP 衍生值——**牽動面最大，最需要需求方裁定**。",
+      "exists": true,
+      "rows_in_affected_years": null,
+      "rows_total": 24
+    },
+    {
+      "table": "run_dist",
+      "rebuild_command": "cpbl-build-sabr",
+      "granularity": "全庫矩陣",
+      "note": "同上（得分分布）。",
+      "exists": true,
+      "rows_in_affected_years": null,
+      "rows_total": 336
+    },
+    {
+      "table": "win_expectancy",
+      "rebuild_command": "cpbl-build-sabr",
+      "granularity": "全庫矩陣",
+      "note": "同上（勝率矩陣）。",
+      "exists": true,
+      "rows_in_affected_years": null,
+      "rows_total": 744
+    },
+    {
+      "table": "sabr_run_values",
+      "rebuild_command": "cpbl-build-sabr",
+      "granularity": "全庫",
+      "note": "線性權重，同屬全庫統計量。",
+      "exists": true,
+      "rows_in_affected_years": null,
+      "rows_total": 2
+    },
+    {
+      "table": "game_features",
+      "rebuild_command": "cpbl-build-features",
+      "granularity": "全史重建",
+      "note": "本卡已改 `features/outcome.py` 的完成判準，但**未重建此表**。重建後 5 場會以completed=True、home_win=NULL 入表，並讓後續場次的 rfra 場數＋1。",
+      "exists": true,
+      "rows_in_affected_years": 1200,
+      "rows_total": 9808
+    },
+    {
+      "table": "model_versions",
+      "rebuild_command": "cpbl-train-outcome / cpbl-train",
+      "granularity": "重訓",
+      "note": "只有在重訓時才會變。賽果模型的回測母體會多 5 場（和局無勝負，對準確率分母的處理需確認）。",
+      "exists": true,
+      "rows_in_affected_years": null,
+      "rows_total": 8
+    }
+  ]
+}

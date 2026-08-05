@@ -10,10 +10,14 @@ from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON, _batted_result, _dicts, kinds_of
 from cpbl.api.live_cache import get_public_live_snapshot, status_snapshot
+from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
 from cpbl.models import matchup, pitcher_decisions
 
 router = APIRouter()
+
+# 完成場判準（證據感知）：0:0 真和局需外部證據（DATA-TIE-REMEDY1）。
+_DONE = completed_games_sql_with_evidence("games")
 
 
 def _official_status(schedule_rows: list[dict[str, Any]]) -> tuple[str, dict[str, Any] | None]:
@@ -178,7 +182,8 @@ def games_calendar(
     kind_code: str = Query("A"),
 ) -> dict:
     """整季所有場次（已完成 + 未開打，含季後賽）供月曆呈現。每筆帶比分/狀態/勝敗投/先發/
-    球場/觀眾/時長/延賽備註。completed 由 home_score+away_score>0 判定。"""
+    球場/觀眾/時長/延賽備註。completed 由 cpbl.completion 的證據感知判準決定
+    （比分 > 0 或有官方完賽證據；0:0 真和局屬後者）。"""
     kinds = kinds_of(kind_code)
     with conn() as c:
         cur = c.cursor()
@@ -216,12 +221,12 @@ def games_recent(
     with conn() as c:
         cur = c.cursor()
         cur.execute(
-            """
+            f"""
             SELECT year, kind_code, game_sno, game_date,
                    away_team_name, away_team_code, away_score,
                    home_team_name, home_team_code, home_score
             FROM cpbl.games
-            WHERE year = %s AND kind_code = %s AND home_score + away_score > 0
+            WHERE year = %s AND kind_code = %s AND {_DONE}
             ORDER BY game_date DESC, game_sno DESC
             LIMIT %s
             """,
@@ -509,7 +514,7 @@ def _season_decisions(season: int, kind_code: str) -> dict[str, list[tuple[str, 
     with conn() as c:
         cur = c.cursor()
         cur.execute("SELECT game_sno, game_date, home_score, away_score FROM cpbl.games "
-                    "WHERE year=%s AND kind_code=%s AND home_score+away_score>0 "
+                    f"WHERE year=%s AND kind_code=%s AND {_DONE} "
                     "ORDER BY game_date, game_sno", (season, kind_code))
         games = cur.fetchall()
         for sno, gdate, hs, aws in games:

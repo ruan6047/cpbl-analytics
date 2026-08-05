@@ -1,0 +1,149 @@
+{
+  "generated_at": "2026-08-05T11:01:21+08:00",
+  "attempted": 5,
+  "succeeded": 5,
+  "aborted_at": null,
+  "degraded_games": [],
+  "results": [
+    {
+      "game": "2018/A/124",
+      "before": {
+        "scoreboard": 0,
+        "livelog": 0,
+        "batting_box": 0,
+        "pitching_box": 0,
+        "canonical_pa": 0
+      },
+      "ok": true,
+      "scraped": {
+        "games": 1,
+        "scoreboard": 24,
+        "livelog": 400,
+        "batting_box": 25,
+        "pitching_box": 14,
+        "weather": 1
+      },
+      "details": 1,
+      "after": {
+        "scoreboard": 24,
+        "livelog": 399,
+        "batting_box": 25,
+        "pitching_box": 14,
+        "canonical_pa": 0
+      },
+      "degraded": false
+    },
+    {
+      "game": "2021/A/256",
+      "before": {
+        "scoreboard": 0,
+        "livelog": 0,
+        "batting_box": 0,
+        "pitching_box": 0,
+        "canonical_pa": 0
+      },
+      "ok": true,
+      "scraped": {
+        "games": 1,
+        "scoreboard": 12,
+        "livelog": 163,
+        "batting_box": 18,
+        "pitching_box": 2,
+        "weather": 1
+      },
+      "details": 1,
+      "after": {
+        "scoreboard": 12,
+        "livelog": 162,
+        "batting_box": 18,
+        "pitching_box": 2,
+        "canonical_pa": 0
+      },
+      "degraded": false
+    },
+    {
+      "game": "2023/A/119",
+      "before": {
+        "scoreboard": 0,
+        "livelog": 0,
+        "batting_box": 0,
+        "pitching_box": 0,
+        "canonical_pa": 0
+      },
+      "ok": true,
+      "scraped": {
+        "games": 1,
+        "scoreboard": 16,
+        "livelog": 249,
+        "batting_box": 19,
+        "pitching_box": 6,
+        "weather": 1
+      },
+      "details": 1,
+      "after": {
+        "scoreboard": 16,
+        "livelog": 248,
+        "batting_box": 19,
+        "pitching_box": 6,
+        "canonical_pa": 0
+      },
+      "degraded": false
+    },
+    {
+      "game": "2023/A/175",
+      "before": {
+        "scoreboard": 0,
+        "livelog": 0,
+        "batting_box": 0,
+        "pitching_box": 0,
+        "canonical_pa": 0
+      },
+      "ok": true,
+      "scraped": {
+        "games": 1,
+        "scoreboard": 15,
+        "livelog": 210,
+        "batting_box": 19,
+        "pitching_box": 5,
+        "weather": 1
+      },
+      "details": 1,
+      "after": {
+        "scoreboard": 15,
+        "livelog": 209,
+        "batting_box": 19,
+        "pitching_box": 5,
+        "canonical_pa": 0
+      },
+      "degraded": false
+    },
+    {
+      "game": "2025/A/233",
+      "before": {
+        "scoreboard": 0,
+        "livelog": 0,
+        "batting_box": 0,
+        "pitching_box": 0,
+        "canonical_pa": 0
+      },
+      "ok": true,
+      "scraped": {
+        "games": 1,
+        "scoreboard": 12,
+        "livelog": 145,
+        "batting_box": 19,
+        "pitching_box": 3,
+        "weather": 1
+      },
+      "details": 1,
+      "after": {
+        "scoreboard": 12,
+        "livelog": 144,
+        "batting_box": 19,
+        "pitching_box": 3,
+        "canonical_pa": 0
+      },
+      "degraded": false
+    }
+  ]
+}

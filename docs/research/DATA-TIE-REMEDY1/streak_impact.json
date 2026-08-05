@@ -1,0 +1,3924 @@
+{
+  "generated_at": "2026-08-05T13:27:02+08:00",
+  "verdict": "SKIP 語意已被否決——官方語意＝和局中斷連段（需求方二次裁定，Issue #90）。本檔為 skip 語意的**反證存證**，勿當成待套用的修正清單。",
+  "semantics_final": "和局中斷連段（官方；原實作正確，程式碼已 revert 回此語意）",
+  "counter_evidence": {
+    "官方連勝榜逐條以 break 命中": true,
+    "2003 兄弟": {
+      "官方": 9,
+      "skip 會算成": 12
+    },
+    "1997 統一": {
+      "官方": 7,
+      "skip 會算成": 13,
+      "備註": "skip 會擠進歷史前三，官方榜查無"
+    },
+    "2022 富邦": {
+      "官方": 11,
+      "skip 會算成": 12,
+      "備註": "6/22–7/16 純 11 連敗，7/17 和局、7/18 再敗；媒體「13 連不勝、一度 11 連敗追平隊史」＝break 精確重現"
+    }
+  },
+  "design": "2x2 因子：A=舊判準+官方中斷（本卡之前的生產狀態）／**C=新判準+官方中斷＝本卡終態**／D=舊判準+跳過（反事實）／B=新判準+跳過（反事實，skip 世界，已否決）",
+  "kinds": [
+    "A"
+  ],
+  "years_scanned": 37,
+  "actual_changes_meaning": "本卡終態（新判準＋官方中斷語意）相對先前生產狀態的實際差異。成因單一：5 場和局可見後，依官方語意中斷了原本連續的連段。",
+  "actual_changes_total": 2,
+  "actual_changes": [
+    {
+      "year": 2023,
+      "kind_code": "A",
+      "team_code": "ADD011",
+      "metric": "max_lose_streak",
+      "before": 5,
+      "after": 4,
+      "delta": -1,
+      "cause": "判準（和局可見）"
+    },
+    {
+      "year": 2023,
+      "kind_code": "A",
+      "team_code": "AEO011",
+      "metric": "max_lose_streak",
+      "before": 8,
+      "after": 7,
+      "delta": -1,
+      "cause": "判準（和局可見）"
+    }
+  ],
+  "counterfactual_skip_meaning": "以下為**反事實**：若改用已否決的 skip 語意會偏離現況的清單。**非待辦、非待套用修正**，保留為翻案證據鏈的一環。",
+  "counterfactual_skip_total": 41,
+  "counterfactual_by_cause": {
+    "語意": 41
+  },
+  "counterfactual_by_metric": {
+    "max_win_streak": 24,
+    "max_lose_streak": 17
+  },
+  "counterfactual_delta_max": 6,
+  "counterfactual_delta_min": 1,
+  "counterfactual_negative_delta_rows": 0,
+  "counterfactual_negative_delta_note": "skip 語意只會讓連段跨過和局而延長，故反事實值理應 >= 先前值。若此數非 0，該列標記為**待人工判讀**。",
+  "needs_human_review": [],
+  "headline_alltime_records": {
+    "max_win_streak": {
+      "before": {
+        "value": 17,
+        "team_code": "ADD011",
+        "year": 2006
+      },
+      "final": {
+        "value": 17,
+        "team_code": "ADD011",
+        "year": 2006
+      },
+      "counterfactual_skip": {
+        "value": 17,
+        "team_code": "ADD011",
+        "year": 2006
+      },
+      "holder_changed_in_final": false,
+      "holder_would_change_under_skip": false
+    },
+    "max_lose_streak": {
+      "before": {
+        "value": 13,
+        "team_code": "ACC011",
+        "year": 2006
+      },
+      "final": {
+        "value": 13,
+        "team_code": "ACC011",
+        "year": 2006
+      },
+      "counterfactual_skip": {
+        "value": 13,
+        "team_code": "AEG011",
+        "year": 2012
+      },
+      "holder_changed_in_final": false,
+      "holder_would_change_under_skip": true
+    }
+  },
+  "headline_note": "兄弟象 2006 年 13 連敗（8/8–8/31）該段中間無和局，故兩種語意皆重現 13，**無法用來分辨語意**——這是本卡最初查證時的盲點。PM 後續改查「連段跨過和局」的個案（見各列 ties_spanned）才分出勝負：官方榜逐條與 break 相符。採 break 後保持者易主問題自動消解——興農 2012 回到 9，兄弟 2006 獨保 13。",
+  "counterfactual_changed_by_year": [
+    {
+      "year": 1990,
+      "kind_code": "A",
+      "counterfactual_changed_values": 3
+    },
+    {
+      "year": 1991,
+      "kind_code": "A",
+      "counterfactual_changed_values": 3
+    },
+    {
+      "year": 1993,
+      "kind_code": "A",
+      "counterfactual_changed_values": 2
+    },
+    {
+      "year": 1995,
+      "kind_code": "A",
+      "counterfactual_changed_values": 1
+    },
+    {
+      "year": 1997,
+      "kind_code": "A",
+      "counterfactual_changed_values": 5
+    },
+    {
+      "year": 1998,
+      "kind_code": "A",
+      "counterfactual_changed_values": 2
+    },
+    {
+      "year": 1999,
+      "kind_code": "A",
+      "counterfactual_changed_values": 1
+    },
+    {
+      "year": 2001,
+      "kind_code": "A",
+      "counterfactual_changed_values": 1
+    },
+    {
+      "year": 2002,
+      "kind_code": "A",
+      "counterfactual_changed_values": 1
+    },
+    {
+      "year": 2003,
+      "kind_code": "A",
+      "counterfactual_changed_values": 6
+    },
+    {
+      "year": 2004,
+      "kind_code": "A",
+      "counterfactual_changed_values": 2
+    },
+    {
+      "year": 2005,
+      "kind_code": "A",
+      "counterfactual_changed_values": 1
+    },
+    {
+      "year": 2006,
+      "kind_code": "A",
+      "counterfactual_changed_values": 2
+    },
+    {
+      "year": 2007,
+      "kind_code": "A",
+      "counterfactual_changed_values": 1
+    },
+    {
+      "year": 2012,
+      "kind_code": "A",
+      "counterfactual_changed_values": 1
+    },
+    {
+      "year": 2013,
+      "kind_code": "A",
+      "counterfactual_changed_values": 1
+    },
+    {
+      "year": 2014,
+      "kind_code": "A",
+      "counterfactual_changed_values": 2
+    },
+    {
+      "year": 2021,
+      "kind_code": "A",
+      "counterfactual_changed_values": 4
+    },
+    {
+      "year": 2022,
+      "kind_code": "A",
+      "counterfactual_changed_values": 1
+    },
+    {
+      "year": 2023,
+      "kind_code": "A",
+      "counterfactual_changed_values": 1
+    }
+  ],
+  "counterfactual_skip_changes": [
+    {
+      "year": 1990,
+      "kind_code": "A",
+      "team_code": "ABB011",
+      "metric": "max_win_streak",
+      "before": 7,
+      "counterfactual_skip": 12,
+      "delta": 5,
+      "criterion_only": 7,
+      "semantics_only": 12,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 12,
+      "ties_spanned": [
+        {
+          "game_date": "1990-04-28",
+          "game_sno": 39,
+          "result": "T",
+          "score": "4:4",
+          "opponent": "ACC011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "1990-04-14",
+          "game_sno": 27,
+          "result": "W",
+          "score": "5:3",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1990-04-18",
+          "game_sno": 25,
+          "result": "W",
+          "score": "5:1",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1990-04-21",
+          "game_sno": 33,
+          "result": "W",
+          "score": "10:0",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1990-04-22",
+          "game_sno": 35,
+          "result": "W",
+          "score": "3:2",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1990-04-27",
+          "game_sno": 38,
+          "result": "W",
+          "score": "4:3",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1990-04-28",
+          "game_sno": 39,
+          "result": "T",
+          "score": "4:4",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1990-04-29",
+          "game_sno": 41,
+          "result": "W",
+          "score": "8:4",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1990-05-02",
+          "game_sno": 30,
+          "result": "W",
+          "score": "2:1",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1990-05-03",
+          "game_sno": 43,
+          "result": "W",
+          "score": "5:4",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1990-05-06",
+          "game_sno": 47,
+          "result": "W",
+          "score": "5:3",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1990-05-09",
+          "game_sno": 31,
+          "result": "W",
+          "score": "5:1",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1990-05-10",
+          "game_sno": 49,
+          "result": "W",
+          "score": "13:3",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1990-05-12",
+          "game_sno": 51,
+          "result": "W",
+          "score": "4:3",
+          "opponent": "AAA011"
+        }
+      ]
+    },
+    {
+      "year": 1990,
+      "kind_code": "A",
+      "team_code": "ACC011",
+      "metric": "max_win_streak",
+      "before": 3,
+      "counterfactual_skip": 5,
+      "delta": 2,
+      "criterion_only": 3,
+      "semantics_only": 5,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 5,
+      "ties_spanned": [
+        {
+          "game_date": "1990-04-05",
+          "game_sno": 19,
+          "result": "T",
+          "score": "4:4",
+          "opponent": "ABB011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "1990-03-31",
+          "game_sno": 14,
+          "result": "W",
+          "score": "3:2",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1990-04-01",
+          "game_sno": 16,
+          "result": "W",
+          "score": "4:3",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1990-04-04",
+          "game_sno": 17,
+          "result": "W",
+          "score": "6:4",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1990-04-05",
+          "game_sno": 19,
+          "result": "T",
+          "score": "4:4",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1990-04-07",
+          "game_sno": 21,
+          "result": "W",
+          "score": "2:1",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1990-04-08",
+          "game_sno": 23,
+          "result": "W",
+          "score": "3:2",
+          "opponent": "AAA011"
+        }
+      ]
+    },
+    {
+      "year": 1990,
+      "kind_code": "A",
+      "team_code": "ACC011",
+      "metric": "max_lose_streak",
+      "before": 4,
+      "counterfactual_skip": 6,
+      "delta": 2,
+      "criterion_only": 4,
+      "semantics_only": 6,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 6,
+      "ties_spanned": [
+        {
+          "game_date": "1990-06-14",
+          "game_sno": 79,
+          "result": "T",
+          "score": "7:7",
+          "opponent": "ABB011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "1990-06-02",
+          "game_sno": 70,
+          "result": "L",
+          "score": "5:10",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1990-06-11",
+          "game_sno": 73,
+          "result": "L",
+          "score": "2:6",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1990-06-12",
+          "game_sno": 75,
+          "result": "L",
+          "score": "7:8",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1990-06-13",
+          "game_sno": 46,
+          "result": "L",
+          "score": "1:9",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1990-06-14",
+          "game_sno": 79,
+          "result": "T",
+          "score": "7:7",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1990-06-16",
+          "game_sno": 81,
+          "result": "L",
+          "score": "2:5",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1990-06-17",
+          "game_sno": 83,
+          "result": "L",
+          "score": "5:6",
+          "opponent": "AAA011"
+        }
+      ]
+    },
+    {
+      "year": 1991,
+      "kind_code": "A",
+      "team_code": "AAA011",
+      "metric": "max_win_streak",
+      "before": 5,
+      "counterfactual_skip": 9,
+      "delta": 4,
+      "criterion_only": 5,
+      "semantics_only": 9,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 9,
+      "ties_spanned": [
+        {
+          "game_date": "1991-05-12",
+          "game_sno": 47,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "ABB011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "1991-05-04",
+          "game_sno": 40,
+          "result": "W",
+          "score": "3:0",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1991-05-05",
+          "game_sno": 41,
+          "result": "W",
+          "score": "5:1",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1991-05-09",
+          "game_sno": 43,
+          "result": "W",
+          "score": "11:8",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1991-05-11",
+          "game_sno": 45,
+          "result": "W",
+          "score": "5:3",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1991-05-12",
+          "game_sno": 47,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1991-05-16",
+          "game_sno": 49,
+          "result": "W",
+          "score": "3:0",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1991-05-18",
+          "game_sno": 52,
+          "result": "W",
+          "score": "9:1",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1991-05-19",
+          "game_sno": 54,
+          "result": "W",
+          "score": "6:2",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1991-05-22",
+          "game_sno": 27,
+          "result": "W",
+          "score": "6:1",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1991-05-24",
+          "game_sno": 56,
+          "result": "W",
+          "score": "11:6",
+          "opponent": "ABB011"
+        }
+      ]
+    },
+    {
+      "year": 1991,
+      "kind_code": "A",
+      "team_code": "ABB011",
+      "metric": "max_lose_streak",
+      "before": 8,
+      "counterfactual_skip": 9,
+      "delta": 1,
+      "criterion_only": 8,
+      "semantics_only": 9,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 9,
+      "ties_spanned": [
+        {
+          "game_date": "1991-08-01",
+          "game_sno": 111,
+          "result": "T",
+          "score": "4:4",
+          "opponent": "AAA011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "1991-07-16",
+          "game_sno": 97,
+          "result": "L",
+          "score": "4:9",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1991-07-19",
+          "game_sno": 100,
+          "result": "L",
+          "score": "0:4",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1991-07-21",
+          "game_sno": 102,
+          "result": "L",
+          "score": "2:4",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1991-07-24",
+          "game_sno": 104,
+          "result": "L",
+          "score": "3:4",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1991-07-26",
+          "game_sno": 106,
+          "result": "L",
+          "score": "0:2",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1991-07-27",
+          "game_sno": 107,
+          "result": "L",
+          "score": "2:3",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1991-07-28",
+          "game_sno": 84,
+          "result": "L",
+          "score": "4:5",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1991-07-31",
+          "game_sno": 110,
+          "result": "L",
+          "score": "4:5",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1991-08-01",
+          "game_sno": 111,
+          "result": "T",
+          "score": "4:4",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1991-08-03",
+          "game_sno": 113,
+          "result": "L",
+          "score": "5:6",
+          "opponent": "ADD011"
+        }
+      ]
+    },
+    {
+      "year": 1991,
+      "kind_code": "A",
+      "team_code": "ADD011",
+      "metric": "max_win_streak",
+      "before": 5,
+      "counterfactual_skip": 8,
+      "delta": 3,
+      "criterion_only": 5,
+      "semantics_only": 8,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 8,
+      "ties_spanned": [
+        {
+          "game_date": "1991-08-29",
+          "game_sno": 135,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "ABB011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "1991-08-18",
+          "game_sno": 125,
+          "result": "W",
+          "score": "6:3",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1991-08-21",
+          "game_sno": 128,
+          "result": "W",
+          "score": "2:1",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1991-08-22",
+          "game_sno": 129,
+          "result": "W",
+          "score": "5:2",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1991-08-25",
+          "game_sno": 132,
+          "result": "W",
+          "score": "2:1",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1991-08-28",
+          "game_sno": 134,
+          "result": "W",
+          "score": "2:1",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1991-08-29",
+          "game_sno": 135,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1991-09-01",
+          "game_sno": 138,
+          "result": "W",
+          "score": "2:1",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1991-09-06",
+          "game_sno": 140,
+          "result": "W",
+          "score": "6:4",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1991-09-07",
+          "game_sno": 141,
+          "result": "W",
+          "score": "3:0",
+          "opponent": "ACC011"
+        }
+      ]
+    },
+    {
+      "year": 1993,
+      "kind_code": "A",
+      "team_code": "AEE011",
+      "metric": "max_lose_streak",
+      "before": 5,
+      "counterfactual_skip": 8,
+      "delta": 3,
+      "criterion_only": 5,
+      "semantics_only": 8,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 8,
+      "ties_spanned": [
+        {
+          "game_date": "1993-07-02",
+          "game_sno": 140,
+          "result": "T",
+          "score": "6:6",
+          "opponent": "ABB011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "1993-06-19",
+          "game_sno": 117,
+          "result": "L",
+          "score": "5:13",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1993-06-20",
+          "game_sno": 128,
+          "result": "L",
+          "score": "3:4",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1993-06-20",
+          "game_sno": 134,
+          "result": "L",
+          "score": "0:4",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1993-07-02",
+          "game_sno": 140,
+          "result": "T",
+          "score": "6:6",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1993-07-03",
+          "game_sno": 142,
+          "result": "L",
+          "score": "1:4",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1993-07-04",
+          "game_sno": 144,
+          "result": "L",
+          "score": "6:10",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1993-07-09",
+          "game_sno": 149,
+          "result": "L",
+          "score": "2:3",
+          "opponent": "AFF011"
+        },
+        {
+          "game_date": "1993-07-10",
+          "game_sno": 151,
+          "result": "L",
+          "score": "0:2",
+          "opponent": "AFF011"
+        },
+        {
+          "game_date": "1993-07-11",
+          "game_sno": 153,
+          "result": "L",
+          "score": "0:5",
+          "opponent": "AFF011"
+        }
+      ]
+    },
+    {
+      "year": 1993,
+      "kind_code": "A",
+      "team_code": "AFF011",
+      "metric": "max_lose_streak",
+      "before": 6,
+      "counterfactual_skip": 8,
+      "delta": 2,
+      "criterion_only": 6,
+      "semantics_only": 8,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 8,
+      "ties_spanned": [
+        {
+          "game_date": "1993-05-02",
+          "game_sno": 71,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "ACC011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "1993-04-23",
+          "game_sno": 59,
+          "result": "L",
+          "score": "4:8",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1993-04-24",
+          "game_sno": 61,
+          "result": "L",
+          "score": "2:5",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1993-04-25",
+          "game_sno": 63,
+          "result": "L",
+          "score": "3:6",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1993-04-27",
+          "game_sno": 64,
+          "result": "L",
+          "score": "9:19",
+          "opponent": "AEE011"
+        },
+        {
+          "game_date": "1993-05-02",
+          "game_sno": 71,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1993-05-03",
+          "game_sno": 69,
+          "result": "L",
+          "score": "3:4",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1993-05-05",
+          "game_sno": 74,
+          "result": "L",
+          "score": "3:6",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1993-05-06",
+          "game_sno": 75,
+          "result": "L",
+          "score": "4:13",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1993-05-07",
+          "game_sno": 76,
+          "result": "L",
+          "score": "3:4",
+          "opponent": "AEE011"
+        }
+      ]
+    },
+    {
+      "year": 1995,
+      "kind_code": "A",
+      "team_code": "ADD011",
+      "metric": "max_win_streak",
+      "before": 5,
+      "counterfactual_skip": 8,
+      "delta": 3,
+      "criterion_only": 5,
+      "semantics_only": 8,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 8,
+      "ties_spanned": [
+        {
+          "game_date": "1995-05-20",
+          "game_sno": 98,
+          "result": "T",
+          "score": "5:5",
+          "opponent": "AEE011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "1995-05-14",
+          "game_sno": 89,
+          "result": "W",
+          "score": "6:0",
+          "opponent": "AEE011"
+        },
+        {
+          "game_date": "1995-05-18",
+          "game_sno": 94,
+          "result": "W",
+          "score": "6:3",
+          "opponent": "AEE011"
+        },
+        {
+          "game_date": "1995-05-19",
+          "game_sno": 96,
+          "result": "W",
+          "score": "9:2",
+          "opponent": "AEE011"
+        },
+        {
+          "game_date": "1995-05-20",
+          "game_sno": 98,
+          "result": "T",
+          "score": "5:5",
+          "opponent": "AEE011"
+        },
+        {
+          "game_date": "1995-05-21",
+          "game_sno": 100,
+          "result": "W",
+          "score": "4:0",
+          "opponent": "AEE011"
+        },
+        {
+          "game_date": "1995-05-23",
+          "game_sno": 101,
+          "result": "W",
+          "score": "4:1",
+          "opponent": "AFF011"
+        },
+        {
+          "game_date": "1995-05-26",
+          "game_sno": 105,
+          "result": "W",
+          "score": "4:2",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1995-05-28",
+          "game_sno": 109,
+          "result": "W",
+          "score": "4:1",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1995-05-30",
+          "game_sno": 111,
+          "result": "W",
+          "score": "7:3",
+          "opponent": "AEE011"
+        }
+      ]
+    },
+    {
+      "year": 1997,
+      "kind_code": "A",
+      "team_code": "AAA011",
+      "metric": "max_win_streak",
+      "before": 7,
+      "counterfactual_skip": 8,
+      "delta": 1,
+      "criterion_only": 7,
+      "semantics_only": 8,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 8,
+      "ties_spanned": [
+        {
+          "game_date": "1997-08-31",
+          "game_sno": 276,
+          "result": "T",
+          "score": "2:2",
+          "opponent": "ADD011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "1997-08-29",
+          "game_sno": 272,
+          "result": "W",
+          "score": "5:3",
+          "opponent": "AFF011"
+        },
+        {
+          "game_date": "1997-08-31",
+          "game_sno": 276,
+          "result": "T",
+          "score": "2:2",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1997-09-02",
+          "game_sno": 278,
+          "result": "W",
+          "score": "7:1",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1997-09-07",
+          "game_sno": 286,
+          "result": "W",
+          "score": "7:0",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "1997-09-07",
+          "game_sno": 288,
+          "result": "W",
+          "score": "7:2",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "1997-09-09",
+          "game_sno": 289,
+          "result": "W",
+          "score": "8:2",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1997-09-10",
+          "game_sno": 291,
+          "result": "W",
+          "score": "5:3",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "1997-09-12",
+          "game_sno": 295,
+          "result": "W",
+          "score": "7:4",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1997-09-13",
+          "game_sno": 297,
+          "result": "W",
+          "score": "8:5",
+          "opponent": "AHH011"
+        }
+      ]
+    },
+    {
+      "year": 1997,
+      "kind_code": "A",
+      "team_code": "AAA011",
+      "metric": "max_lose_streak",
+      "before": 9,
+      "counterfactual_skip": 11,
+      "delta": 2,
+      "criterion_only": 9,
+      "semantics_only": 11,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 11,
+      "ties_spanned": [
+        {
+          "game_date": "1997-07-03",
+          "game_sno": 174,
+          "result": "T",
+          "score": "8:8",
+          "opponent": "ADD011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "1997-05-27",
+          "game_sno": 134,
+          "result": "L",
+          "score": "5:6",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1997-05-29",
+          "game_sno": 138,
+          "result": "L",
+          "score": "5:10",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1997-05-31",
+          "game_sno": 142,
+          "result": "L",
+          "score": "1:6",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1997-06-05",
+          "game_sno": 150,
+          "result": "L",
+          "score": "5:7",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1997-06-06",
+          "game_sno": 152,
+          "result": "L",
+          "score": "2:12",
+          "opponent": "AFF011"
+        },
+        {
+          "game_date": "1997-06-08",
+          "game_sno": 156,
+          "result": "L",
+          "score": "5:6",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "1997-06-11",
+          "game_sno": 159,
+          "result": "L",
+          "score": "3:14",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1997-06-14",
+          "game_sno": 161,
+          "result": "L",
+          "score": "3:4",
+          "opponent": "AFF011"
+        },
+        {
+          "game_date": "1997-06-16",
+          "game_sno": 165,
+          "result": "L",
+          "score": "2:3",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1997-07-03",
+          "game_sno": 174,
+          "result": "T",
+          "score": "8:8",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1997-07-04",
+          "game_sno": 176,
+          "result": "L",
+          "score": "0:1",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "1997-07-08",
+          "game_sno": 182,
+          "result": "L",
+          "score": "4:7",
+          "opponent": "ABB011"
+        }
+      ]
+    },
+    {
+      "year": 1997,
+      "kind_code": "A",
+      "team_code": "ACC011",
+      "metric": "max_win_streak",
+      "before": 5,
+      "counterfactual_skip": 6,
+      "delta": 1,
+      "criterion_only": 5,
+      "semantics_only": 6,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 6,
+      "ties_spanned": [
+        {
+          "game_date": "1997-06-07",
+          "game_sno": 153,
+          "result": "T",
+          "score": "2:2",
+          "opponent": "ADD011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "1997-05-30",
+          "game_sno": 140,
+          "result": "W",
+          "score": "11:5",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1997-05-31",
+          "game_sno": 142,
+          "result": "W",
+          "score": "6:1",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1997-06-06",
+          "game_sno": 151,
+          "result": "W",
+          "score": "5:0",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "1997-06-07",
+          "game_sno": 153,
+          "result": "T",
+          "score": "2:2",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1997-06-09",
+          "game_sno": 145,
+          "result": "W",
+          "score": "8:5",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "1997-06-10",
+          "game_sno": 157,
+          "result": "W",
+          "score": "6:5",
+          "opponent": "AFF011"
+        },
+        {
+          "game_date": "1997-06-11",
+          "game_sno": 159,
+          "result": "W",
+          "score": "14:3",
+          "opponent": "AAA011"
+        }
+      ]
+    },
+    {
+      "year": 1997,
+      "kind_code": "A",
+      "team_code": "ADD011",
+      "metric": "max_win_streak",
+      "before": 7,
+      "counterfactual_skip": 13,
+      "delta": 6,
+      "criterion_only": 7,
+      "semantics_only": 13,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 13,
+      "ties_spanned": [
+        {
+          "game_date": "1997-05-01",
+          "game_sno": 89,
+          "result": "T",
+          "score": "4:4",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1997-05-16",
+          "game_sno": 116,
+          "result": "T",
+          "score": "10:10",
+          "opponent": "ACC011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "1997-04-20",
+          "game_sno": 71,
+          "result": "W",
+          "score": "7:3",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1997-04-23",
+          "game_sno": 76,
+          "result": "W",
+          "score": "5:4",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1997-04-24",
+          "game_sno": 78,
+          "result": "W",
+          "score": "2:0",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "1997-04-26",
+          "game_sno": 82,
+          "result": "W",
+          "score": "5:3",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "1997-04-29",
+          "game_sno": 85,
+          "result": "W",
+          "score": "7:3",
+          "opponent": "AFF011"
+        },
+        {
+          "game_date": "1997-05-01",
+          "game_sno": 89,
+          "result": "T",
+          "score": "4:4",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1997-05-02",
+          "game_sno": 91,
+          "result": "W",
+          "score": "16:4",
+          "opponent": "AFF011"
+        },
+        {
+          "game_date": "1997-05-04",
+          "game_sno": 95,
+          "result": "W",
+          "score": "7:3",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1997-05-06",
+          "game_sno": 98,
+          "result": "W",
+          "score": "2:1",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "1997-05-07",
+          "game_sno": 100,
+          "result": "W",
+          "score": "11:5",
+          "opponent": "AFF011"
+        },
+        {
+          "game_date": "1997-05-09",
+          "game_sno": 104,
+          "result": "W",
+          "score": "8:0",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1997-05-13",
+          "game_sno": 110,
+          "result": "W",
+          "score": "4:1",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "1997-05-14",
+          "game_sno": 112,
+          "result": "W",
+          "score": "14:3",
+          "opponent": "AFF011"
+        },
+        {
+          "game_date": "1997-05-16",
+          "game_sno": 116,
+          "result": "T",
+          "score": "10:10",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1997-05-20",
+          "game_sno": 121,
+          "result": "W",
+          "score": "5:1",
+          "opponent": "AEG011"
+        }
+      ]
+    },
+    {
+      "year": 1997,
+      "kind_code": "A",
+      "team_code": "AFF011",
+      "metric": "max_win_streak",
+      "before": 6,
+      "counterfactual_skip": 8,
+      "delta": 2,
+      "criterion_only": 6,
+      "semantics_only": 8,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 8,
+      "ties_spanned": [
+        {
+          "game_date": "1997-04-09",
+          "game_sno": 52,
+          "result": "T",
+          "score": "2:2",
+          "opponent": "ADD011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "1997-04-05",
+          "game_sno": 43,
+          "result": "W",
+          "score": "6:4",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "1997-04-06",
+          "game_sno": 47,
+          "result": "W",
+          "score": "11:3",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "1997-04-08",
+          "game_sno": 50,
+          "result": "W",
+          "score": "3:1",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1997-04-09",
+          "game_sno": 52,
+          "result": "T",
+          "score": "2:2",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1997-04-12",
+          "game_sno": 58,
+          "result": "W",
+          "score": "8:1",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "1997-04-15",
+          "game_sno": 61,
+          "result": "W",
+          "score": "10:7",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1997-04-16",
+          "game_sno": 63,
+          "result": "W",
+          "score": "20:5",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1997-04-18",
+          "game_sno": 67,
+          "result": "W",
+          "score": "4:0",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1997-04-19",
+          "game_sno": 69,
+          "result": "W",
+          "score": "4:3",
+          "opponent": "ADD011"
+        }
+      ]
+    },
+    {
+      "year": 1998,
+      "kind_code": "A",
+      "team_code": "ACC011",
+      "metric": "max_lose_streak",
+      "before": 10,
+      "counterfactual_skip": 12,
+      "delta": 2,
+      "criterion_only": 10,
+      "semantics_only": 12,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 12,
+      "ties_spanned": [
+        {
+          "game_date": "1998-09-24",
+          "game_sno": 273,
+          "result": "T",
+          "score": "6:6",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1998-10-24",
+          "game_sno": 312,
+          "result": "T",
+          "score": "1:1",
+          "opponent": "ADD011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "1998-09-23",
+          "game_sno": 272,
+          "result": "L",
+          "score": "2:6",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1998-09-24",
+          "game_sno": 273,
+          "result": "T",
+          "score": "6:6",
+          "opponent": "ABB011"
+        },
+        {
+          "game_date": "1998-09-29",
+          "game_sno": 280,
+          "result": "L",
+          "score": "7:10",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1998-09-30",
+          "game_sno": 281,
+          "result": "L",
+          "score": "3:4",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1998-10-01",
+          "game_sno": 282,
+          "result": "L",
+          "score": "4:9",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1998-10-09",
+          "game_sno": 293,
+          "result": "L",
+          "score": "0:8",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "1998-10-10",
+          "game_sno": 295,
+          "result": "L",
+          "score": "2:7",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "1998-10-11",
+          "game_sno": 297,
+          "result": "L",
+          "score": "7:9",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "1998-10-17",
+          "game_sno": 304,
+          "result": "L",
+          "score": "3:6",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "1998-10-18",
+          "game_sno": 302,
+          "result": "L",
+          "score": "4:5",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "1998-10-18",
+          "game_sno": 306,
+          "result": "L",
+          "score": "2:5",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "1998-10-23",
+          "game_sno": 310,
+          "result": "L",
+          "score": "5:9",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1998-10-24",
+          "game_sno": 312,
+          "result": "T",
+          "score": "1:1",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1998-10-25",
+          "game_sno": 314,
+          "result": "L",
+          "score": "2:5",
+          "opponent": "ADD011"
+        }
+      ]
+    },
+    {
+      "year": 1998,
+      "kind_code": "A",
+      "team_code": "AEG011",
+      "metric": "max_lose_streak",
+      "before": 3,
+      "counterfactual_skip": 5,
+      "delta": 2,
+      "criterion_only": 3,
+      "semantics_only": 5,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 5,
+      "ties_spanned": [
+        {
+          "game_date": "1998-09-28",
+          "game_sno": 251,
+          "result": "T",
+          "score": "4:4",
+          "opponent": "ADD011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "1998-09-25",
+          "game_sno": 274,
+          "result": "L",
+          "score": "2:11",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "1998-09-26",
+          "game_sno": 276,
+          "result": "L",
+          "score": "5:9",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "1998-09-27",
+          "game_sno": 278,
+          "result": "L",
+          "score": "5:6",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "1998-09-28",
+          "game_sno": 251,
+          "result": "T",
+          "score": "4:4",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1998-10-02",
+          "game_sno": 283,
+          "result": "L",
+          "score": "6:13",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1998-10-03",
+          "game_sno": 285,
+          "result": "L",
+          "score": "8:11",
+          "opponent": "ADD011"
+        }
+      ]
+    },
+    {
+      "year": 1999,
+      "kind_code": "A",
+      "team_code": "ABB011",
+      "metric": "max_lose_streak",
+      "before": 6,
+      "counterfactual_skip": 12,
+      "delta": 6,
+      "criterion_only": 6,
+      "semantics_only": 12,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 12,
+      "ties_spanned": [
+        {
+          "game_date": "1999-05-14",
+          "game_sno": 85,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "ACC011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "1999-04-27",
+          "game_sno": 61,
+          "result": "L",
+          "score": "3:4",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1999-04-28",
+          "game_sno": 62,
+          "result": "L",
+          "score": "0:5",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1999-04-29",
+          "game_sno": 64,
+          "result": "L",
+          "score": "0:1",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1999-05-04",
+          "game_sno": 71,
+          "result": "L",
+          "score": "2:3",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1999-05-06",
+          "game_sno": 74,
+          "result": "L",
+          "score": "1:9",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1999-05-08",
+          "game_sno": 72,
+          "result": "L",
+          "score": "10:12",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "1999-05-14",
+          "game_sno": 85,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1999-05-15",
+          "game_sno": 87,
+          "result": "L",
+          "score": "0:1",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1999-05-16",
+          "game_sno": 89,
+          "result": "L",
+          "score": "3:7",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "1999-05-19",
+          "game_sno": 93,
+          "result": "L",
+          "score": "7:9",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1999-05-21",
+          "game_sno": 96,
+          "result": "L",
+          "score": "5:7",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1999-05-22",
+          "game_sno": 98,
+          "result": "L",
+          "score": "5:6",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "1999-05-23",
+          "game_sno": 100,
+          "result": "L",
+          "score": "2:4",
+          "opponent": "ADD011"
+        }
+      ]
+    },
+    {
+      "year": 2001,
+      "kind_code": "A",
+      "team_code": "ACC011",
+      "metric": "max_win_streak",
+      "before": 7,
+      "counterfactual_skip": 9,
+      "delta": 2,
+      "criterion_only": 7,
+      "semantics_only": 9,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 9,
+      "ties_spanned": [
+        {
+          "game_date": "2001-05-12",
+          "game_sno": 59,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "ADD011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2001-04-28",
+          "game_sno": 46,
+          "result": "W",
+          "score": "7:4",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2001-05-02",
+          "game_sno": 49,
+          "result": "W",
+          "score": "4:2",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2001-05-04",
+          "game_sno": 51,
+          "result": "W",
+          "score": "4:2",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2001-05-05",
+          "game_sno": 52,
+          "result": "W",
+          "score": "3:1",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2001-05-10",
+          "game_sno": 56,
+          "result": "W",
+          "score": "4:3",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2001-05-12",
+          "game_sno": 59,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2001-05-13",
+          "game_sno": 60,
+          "result": "W",
+          "score": "8:2",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2001-05-16",
+          "game_sno": 61,
+          "result": "W",
+          "score": "6:2",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "2001-05-21",
+          "game_sno": 64,
+          "result": "W",
+          "score": "3:1",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "2001-05-24",
+          "game_sno": 68,
+          "result": "W",
+          "score": "9:3",
+          "opponent": "AHH011"
+        }
+      ]
+    },
+    {
+      "year": 2002,
+      "kind_code": "A",
+      "team_code": "ACC011",
+      "metric": "max_win_streak",
+      "before": 5,
+      "counterfactual_skip": 6,
+      "delta": 1,
+      "criterion_only": 5,
+      "semantics_only": 6,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 6,
+      "ties_spanned": [
+        {
+          "game_date": "2002-06-29",
+          "game_sno": 100,
+          "result": "T",
+          "score": "4:4",
+          "opponent": "ADD011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2002-06-28",
+          "game_sno": 99,
+          "result": "W",
+          "score": "5:3",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2002-06-29",
+          "game_sno": 100,
+          "result": "T",
+          "score": "4:4",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2002-07-03",
+          "game_sno": 103,
+          "result": "W",
+          "score": "5:3",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2002-07-05",
+          "game_sno": 105,
+          "result": "W",
+          "score": "8:6",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2002-07-06",
+          "game_sno": 106,
+          "result": "W",
+          "score": "9:1",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2002-07-11",
+          "game_sno": 110,
+          "result": "W",
+          "score": "7:1",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2002-07-13",
+          "game_sno": 113,
+          "result": "W",
+          "score": "2:0",
+          "opponent": "ADD011"
+        }
+      ]
+    },
+    {
+      "year": 2003,
+      "kind_code": "A",
+      "team_code": "ACC011",
+      "metric": "max_win_streak",
+      "before": 9,
+      "counterfactual_skip": 12,
+      "delta": 3,
+      "criterion_only": 9,
+      "semantics_only": 12,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 12,
+      "ties_spanned": [
+        {
+          "game_date": "2003-06-13",
+          "game_sno": 145,
+          "result": "T",
+          "score": "5:5",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2003-06-18",
+          "game_sno": 137,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "AJJ011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2003-05-28",
+          "game_sno": 122,
+          "result": "W",
+          "score": "6:2",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2003-05-30",
+          "game_sno": 126,
+          "result": "W",
+          "score": "9:4",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2003-05-31",
+          "game_sno": 127,
+          "result": "W",
+          "score": "8:3",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2003-06-03",
+          "game_sno": 131,
+          "result": "W",
+          "score": "2:1",
+          "opponent": "AJJ011"
+        },
+        {
+          "game_date": "2003-06-04",
+          "game_sno": 132,
+          "result": "W",
+          "score": "8:3",
+          "opponent": "AJJ011"
+        },
+        {
+          "game_date": "2003-06-10",
+          "game_sno": 136,
+          "result": "W",
+          "score": "9:5",
+          "opponent": "AJJ011"
+        },
+        {
+          "game_date": "2003-06-12",
+          "game_sno": 143,
+          "result": "W",
+          "score": "11:1",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2003-06-13",
+          "game_sno": 145,
+          "result": "T",
+          "score": "5:5",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2003-06-15",
+          "game_sno": 149,
+          "result": "W",
+          "score": "5:4",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2003-06-16",
+          "game_sno": 109,
+          "result": "W",
+          "score": "3:0",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "2003-06-18",
+          "game_sno": 137,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "AJJ011"
+        },
+        {
+          "game_date": "2003-06-21",
+          "game_sno": 152,
+          "result": "W",
+          "score": "10:3",
+          "opponent": "AII011"
+        },
+        {
+          "game_date": "2003-06-26",
+          "game_sno": 158,
+          "result": "W",
+          "score": "3:1",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2003-06-28",
+          "game_sno": 162,
+          "result": "W",
+          "score": "6:4",
+          "opponent": "AHH011"
+        }
+      ]
+    },
+    {
+      "year": 2003,
+      "kind_code": "A",
+      "team_code": "ADD011",
+      "metric": "max_win_streak",
+      "before": 7,
+      "counterfactual_skip": 11,
+      "delta": 4,
+      "criterion_only": 7,
+      "semantics_only": 11,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 11,
+      "ties_spanned": [
+        {
+          "game_date": "2003-08-21",
+          "game_sno": 234,
+          "result": "T",
+          "score": "4:4",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "2003-08-30",
+          "game_sno": 248,
+          "result": "T",
+          "score": "2:2",
+          "opponent": "AJJ011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2003-08-07",
+          "game_sno": 213,
+          "result": "W",
+          "score": "7:1",
+          "opponent": "AII011"
+        },
+        {
+          "game_date": "2003-08-08",
+          "game_sno": 215,
+          "result": "W",
+          "score": "2:1",
+          "opponent": "AII011"
+        },
+        {
+          "game_date": "2003-08-10",
+          "game_sno": 219,
+          "result": "W",
+          "score": "12:1",
+          "opponent": "AII011"
+        },
+        {
+          "game_date": "2003-08-12",
+          "game_sno": 221,
+          "result": "W",
+          "score": "2:1",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2003-08-13",
+          "game_sno": 222,
+          "result": "W",
+          "score": "5:0",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2003-08-15",
+          "game_sno": 226,
+          "result": "W",
+          "score": "7:1",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2003-08-16",
+          "game_sno": 227,
+          "result": "W",
+          "score": "6:0",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2003-08-21",
+          "game_sno": 234,
+          "result": "T",
+          "score": "4:4",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "2003-08-23",
+          "game_sno": 238,
+          "result": "W",
+          "score": "2:1",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "2003-08-24",
+          "game_sno": 240,
+          "result": "W",
+          "score": "4:2",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "2003-08-28",
+          "game_sno": 244,
+          "result": "W",
+          "score": "4:0",
+          "opponent": "AJJ011"
+        },
+        {
+          "game_date": "2003-08-30",
+          "game_sno": 248,
+          "result": "T",
+          "score": "2:2",
+          "opponent": "AJJ011"
+        },
+        {
+          "game_date": "2003-08-31",
+          "game_sno": 250,
+          "result": "W",
+          "score": "6:0",
+          "opponent": "AJJ011"
+        }
+      ]
+    },
+    {
+      "year": 2003,
+      "kind_code": "A",
+      "team_code": "AEG011",
+      "metric": "max_win_streak",
+      "before": 6,
+      "counterfactual_skip": 7,
+      "delta": 1,
+      "criterion_only": 6,
+      "semantics_only": 7,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 7,
+      "ties_spanned": [
+        {
+          "game_date": "2003-07-03",
+          "game_sno": 167,
+          "result": "T",
+          "score": "2:2",
+          "opponent": "AHH011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2003-06-29",
+          "game_sno": 163,
+          "result": "W",
+          "score": "3:0",
+          "opponent": "AII011"
+        },
+        {
+          "game_date": "2003-07-03",
+          "game_sno": 167,
+          "result": "T",
+          "score": "2:2",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2003-07-04",
+          "game_sno": 169,
+          "result": "W",
+          "score": "3:2",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2003-07-06",
+          "game_sno": 173,
+          "result": "W",
+          "score": "5:4",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2003-07-10",
+          "game_sno": 180,
+          "result": "W",
+          "score": "8:2",
+          "opponent": "AJJ011"
+        },
+        {
+          "game_date": "2003-07-15",
+          "game_sno": 181,
+          "result": "W",
+          "score": "5:2",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2003-07-16",
+          "game_sno": 182,
+          "result": "W",
+          "score": "11:4",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2003-07-18",
+          "game_sno": 186,
+          "result": "W",
+          "score": "2:0",
+          "opponent": "ADD011"
+        }
+      ]
+    },
+    {
+      "year": 2003,
+      "kind_code": "A",
+      "team_code": "AHH011",
+      "metric": "max_lose_streak",
+      "before": 4,
+      "counterfactual_skip": 8,
+      "delta": 4,
+      "criterion_only": 4,
+      "semantics_only": 8,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 8,
+      "ties_spanned": [
+        {
+          "game_date": "2003-06-13",
+          "game_sno": 145,
+          "result": "T",
+          "score": "5:5",
+          "opponent": "ACC011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2003-06-05",
+          "game_sno": 133,
+          "result": "L",
+          "score": "3:6",
+          "opponent": "AII011"
+        },
+        {
+          "game_date": "2003-06-06",
+          "game_sno": 135,
+          "result": "L",
+          "score": "6:12",
+          "opponent": "AII011"
+        },
+        {
+          "game_date": "2003-06-08",
+          "game_sno": 139,
+          "result": "L",
+          "score": "2:3",
+          "opponent": "AII011"
+        },
+        {
+          "game_date": "2003-06-12",
+          "game_sno": 143,
+          "result": "L",
+          "score": "1:11",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2003-06-13",
+          "game_sno": 145,
+          "result": "T",
+          "score": "5:5",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2003-06-15",
+          "game_sno": 149,
+          "result": "L",
+          "score": "4:5",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2003-06-22",
+          "game_sno": 153,
+          "result": "L",
+          "score": "6:10",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2003-06-26",
+          "game_sno": 158,
+          "result": "L",
+          "score": "1:3",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2003-06-28",
+          "game_sno": 162,
+          "result": "L",
+          "score": "4:6",
+          "opponent": "ACC011"
+        }
+      ]
+    },
+    {
+      "year": 2003,
+      "kind_code": "A",
+      "team_code": "AII011",
+      "metric": "max_win_streak",
+      "before": 6,
+      "counterfactual_skip": 7,
+      "delta": 1,
+      "criterion_only": 6,
+      "semantics_only": 7,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 7,
+      "ties_spanned": [
+        {
+          "game_date": "2003-05-29",
+          "game_sno": 123,
+          "result": "T",
+          "score": "9:9",
+          "opponent": "AJJ011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2003-05-25",
+          "game_sno": 119,
+          "result": "W",
+          "score": "5:3",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2003-05-29",
+          "game_sno": 123,
+          "result": "T",
+          "score": "9:9",
+          "opponent": "AJJ011"
+        },
+        {
+          "game_date": "2003-05-30",
+          "game_sno": 125,
+          "result": "W",
+          "score": "2:1",
+          "opponent": "AJJ011"
+        },
+        {
+          "game_date": "2003-06-01",
+          "game_sno": 129,
+          "result": "W",
+          "score": "6:3",
+          "opponent": "AJJ011"
+        },
+        {
+          "game_date": "2003-06-05",
+          "game_sno": 133,
+          "result": "W",
+          "score": "6:3",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2003-06-06",
+          "game_sno": 135,
+          "result": "W",
+          "score": "12:6",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2003-06-08",
+          "game_sno": 139,
+          "result": "W",
+          "score": "3:2",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2003-06-10",
+          "game_sno": 141,
+          "result": "W",
+          "score": "4:2",
+          "opponent": "AEG011"
+        }
+      ]
+    },
+    {
+      "year": 2003,
+      "kind_code": "A",
+      "team_code": "AII011",
+      "metric": "max_lose_streak",
+      "before": 5,
+      "counterfactual_skip": 10,
+      "delta": 5,
+      "criterion_only": 5,
+      "semantics_only": 10,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 10,
+      "ties_spanned": [
+        {
+          "game_date": "2003-08-17",
+          "game_sno": 230,
+          "result": "T",
+          "score": "4:4",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2003-08-26",
+          "game_sno": 241,
+          "result": "T",
+          "score": "4:4",
+          "opponent": "AEG011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2003-08-07",
+          "game_sno": 213,
+          "result": "L",
+          "score": "1:7",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2003-08-08",
+          "game_sno": 215,
+          "result": "L",
+          "score": "1:2",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2003-08-10",
+          "game_sno": 219,
+          "result": "L",
+          "score": "1:12",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2003-08-14",
+          "game_sno": 224,
+          "result": "L",
+          "score": "1:13",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2003-08-16",
+          "game_sno": 228,
+          "result": "L",
+          "score": "0:10",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2003-08-17",
+          "game_sno": 230,
+          "result": "T",
+          "score": "4:4",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2003-08-21",
+          "game_sno": 233,
+          "result": "L",
+          "score": "4:10",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2003-08-22",
+          "game_sno": 235,
+          "result": "L",
+          "score": "0:7",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2003-08-26",
+          "game_sno": 241,
+          "result": "T",
+          "score": "4:4",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "2003-08-27",
+          "game_sno": 242,
+          "result": "L",
+          "score": "1:9",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "2003-08-29",
+          "game_sno": 246,
+          "result": "L",
+          "score": "0:8",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "2003-09-04",
+          "game_sno": 253,
+          "result": "L",
+          "score": "1:5",
+          "opponent": "AJJ011"
+        }
+      ]
+    },
+    {
+      "year": 2004,
+      "kind_code": "A",
+      "team_code": "ADD011",
+      "metric": "max_lose_streak",
+      "before": 5,
+      "counterfactual_skip": 6,
+      "delta": 1,
+      "criterion_only": 5,
+      "semantics_only": 6,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 6,
+      "ties_spanned": [
+        {
+          "game_date": "2004-10-21",
+          "game_sno": 283,
+          "result": "T",
+          "score": "2:2",
+          "opponent": "AJK011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2004-10-09",
+          "game_sno": 267,
+          "result": "L",
+          "score": "0:2",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "2004-10-12",
+          "game_sno": 225,
+          "result": "L",
+          "score": "2:7",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2004-10-14",
+          "game_sno": 274,
+          "result": "L",
+          "score": "6:12",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2004-10-16",
+          "game_sno": 278,
+          "result": "L",
+          "score": "1:6",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2004-10-17",
+          "game_sno": 280,
+          "result": "L",
+          "score": "3:4",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2004-10-21",
+          "game_sno": 283,
+          "result": "T",
+          "score": "2:2",
+          "opponent": "AJK011"
+        },
+        {
+          "game_date": "2004-10-22",
+          "game_sno": 285,
+          "result": "L",
+          "score": "1:5",
+          "opponent": "AJK011"
+        }
+      ]
+    },
+    {
+      "year": 2004,
+      "kind_code": "A",
+      "team_code": "AHH011",
+      "metric": "max_lose_streak",
+      "before": 6,
+      "counterfactual_skip": 9,
+      "delta": 3,
+      "criterion_only": 6,
+      "semantics_only": 9,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 9,
+      "ties_spanned": [
+        {
+          "game_date": "2004-03-18",
+          "game_sno": 23,
+          "result": "T",
+          "score": "9:9",
+          "opponent": "AEG011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2004-03-13",
+          "game_sno": 18,
+          "result": "L",
+          "score": "1:2",
+          "opponent": "AII011"
+        },
+        {
+          "game_date": "2004-03-14",
+          "game_sno": 20,
+          "result": "L",
+          "score": "2:4",
+          "opponent": "AII011"
+        },
+        {
+          "game_date": "2004-03-16",
+          "game_sno": 9,
+          "result": "L",
+          "score": "0:6",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2004-03-18",
+          "game_sno": 23,
+          "result": "T",
+          "score": "9:9",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "2004-03-19",
+          "game_sno": 25,
+          "result": "L",
+          "score": "3:7",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "2004-03-21",
+          "game_sno": 29,
+          "result": "L",
+          "score": "2:4",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "2004-03-27",
+          "game_sno": 38,
+          "result": "L",
+          "score": "1:3",
+          "opponent": "AJK011"
+        },
+        {
+          "game_date": "2004-03-28",
+          "game_sno": 40,
+          "result": "L",
+          "score": "1:5",
+          "opponent": "AJK011"
+        },
+        {
+          "game_date": "2004-03-30",
+          "game_sno": 41,
+          "result": "L",
+          "score": "5:8",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2004-03-31",
+          "game_sno": 42,
+          "result": "L",
+          "score": "4:11",
+          "opponent": "ACC011"
+        }
+      ]
+    },
+    {
+      "year": 2005,
+      "kind_code": "A",
+      "team_code": "AHH011",
+      "metric": "max_win_streak",
+      "before": 4,
+      "counterfactual_skip": 5,
+      "delta": 1,
+      "criterion_only": 4,
+      "semantics_only": 5,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 5,
+      "ties_spanned": [
+        {
+          "game_date": "2005-09-24",
+          "game_sno": 268,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "AJK011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2005-09-24",
+          "game_sno": 264,
+          "result": "W",
+          "score": "8:6",
+          "opponent": "AJK011"
+        },
+        {
+          "game_date": "2005-09-24",
+          "game_sno": 268,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "AJK011"
+        },
+        {
+          "game_date": "2005-09-25",
+          "game_sno": 270,
+          "result": "W",
+          "score": "7:4",
+          "opponent": "AJK011"
+        },
+        {
+          "game_date": "2005-09-27",
+          "game_sno": 234,
+          "result": "W",
+          "score": "5:3",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2005-09-29",
+          "game_sno": 273,
+          "result": "W",
+          "score": "5:1",
+          "opponent": "AII011"
+        },
+        {
+          "game_date": "2005-09-30",
+          "game_sno": 275,
+          "result": "W",
+          "score": "5:4",
+          "opponent": "AII011"
+        }
+      ]
+    },
+    {
+      "year": 2006,
+      "kind_code": "A",
+      "team_code": "AEG011",
+      "metric": "max_win_streak",
+      "before": 5,
+      "counterfactual_skip": 7,
+      "delta": 2,
+      "criterion_only": 5,
+      "semantics_only": 7,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 7,
+      "ties_spanned": [
+        {
+          "game_date": "2006-05-14",
+          "game_sno": 95,
+          "result": "T",
+          "score": "6:6",
+          "opponent": "ADD011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2006-05-10",
+          "game_sno": 87,
+          "result": "W",
+          "score": "8:1",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2006-05-13",
+          "game_sno": 94,
+          "result": "W",
+          "score": "7:2",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2006-05-14",
+          "game_sno": 95,
+          "result": "T",
+          "score": "6:6",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2006-05-16",
+          "game_sno": 97,
+          "result": "W",
+          "score": "5:4",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2006-05-18",
+          "game_sno": 101,
+          "result": "W",
+          "score": "5:1",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2006-05-19",
+          "game_sno": 103,
+          "result": "W",
+          "score": "5:4",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2006-05-20",
+          "game_sno": 105,
+          "result": "W",
+          "score": "3:2",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2006-05-23",
+          "game_sno": 109,
+          "result": "W",
+          "score": "7:3",
+          "opponent": "AJK011"
+        }
+      ]
+    },
+    {
+      "year": 2006,
+      "kind_code": "A",
+      "team_code": "AJK011",
+      "metric": "max_win_streak",
+      "before": 6,
+      "counterfactual_skip": 9,
+      "delta": 3,
+      "criterion_only": 6,
+      "semantics_only": 9,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 9,
+      "ties_spanned": [
+        {
+          "game_date": "2006-08-20",
+          "game_sno": 230,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "AHH011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2006-08-11",
+          "game_sno": 218,
+          "result": "W",
+          "score": "6:3",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2006-08-13",
+          "game_sno": 222,
+          "result": "W",
+          "score": "5:4",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2006-08-16",
+          "game_sno": 226,
+          "result": "W",
+          "score": "12:1",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2006-08-17",
+          "game_sno": 228,
+          "result": "W",
+          "score": "17:6",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2006-08-20",
+          "game_sno": 230,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2006-08-20",
+          "game_sno": 234,
+          "result": "W",
+          "score": "9:1",
+          "opponent": "AHH011"
+        },
+        {
+          "game_date": "2006-08-23",
+          "game_sno": 238,
+          "result": "W",
+          "score": "8:0",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2006-08-24",
+          "game_sno": 240,
+          "result": "W",
+          "score": "4:1",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2006-08-25",
+          "game_sno": 242,
+          "result": "W",
+          "score": "5:4",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2006-08-29",
+          "game_sno": 248,
+          "result": "W",
+          "score": "2:0",
+          "opponent": "AII011"
+        }
+      ]
+    },
+    {
+      "year": 2007,
+      "kind_code": "A",
+      "team_code": "AHH011",
+      "metric": "max_lose_streak",
+      "before": 4,
+      "counterfactual_skip": 7,
+      "delta": 3,
+      "criterion_only": 4,
+      "semantics_only": 7,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 7,
+      "ties_spanned": [
+        {
+          "game_date": "2007-06-06",
+          "game_sno": 135,
+          "result": "T",
+          "score": "2:2",
+          "opponent": "AII011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2007-05-25",
+          "game_sno": 116,
+          "result": "L",
+          "score": "8:9",
+          "opponent": "AII011"
+        },
+        {
+          "game_date": "2007-05-31",
+          "game_sno": 126,
+          "result": "L",
+          "score": "1:5",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2007-06-01",
+          "game_sno": 127,
+          "result": "L",
+          "score": "6:9",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2007-06-05",
+          "game_sno": 133,
+          "result": "L",
+          "score": "3:12",
+          "opponent": "AII011"
+        },
+        {
+          "game_date": "2007-06-06",
+          "game_sno": 135,
+          "result": "T",
+          "score": "2:2",
+          "opponent": "AII011"
+        },
+        {
+          "game_date": "2007-06-10",
+          "game_sno": 141,
+          "result": "L",
+          "score": "1:2",
+          "opponent": "AJK011"
+        },
+        {
+          "game_date": "2007-06-12",
+          "game_sno": 143,
+          "result": "L",
+          "score": "1:4",
+          "opponent": "AEG011"
+        },
+        {
+          "game_date": "2007-06-13",
+          "game_sno": 145,
+          "result": "L",
+          "score": "0:1",
+          "opponent": "AEG011"
+        }
+      ]
+    },
+    {
+      "year": 2012,
+      "kind_code": "A",
+      "team_code": "AEG011",
+      "metric": "max_lose_streak",
+      "before": 9,
+      "counterfactual_skip": 13,
+      "delta": 4,
+      "criterion_only": 9,
+      "semantics_only": 13,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 13,
+      "ties_spanned": [
+        {
+          "game_date": "2012-08-16",
+          "game_sno": 184,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "ADD011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2012-08-09",
+          "game_sno": 173,
+          "result": "L",
+          "score": "1:8",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2012-08-10",
+          "game_sno": 175,
+          "result": "L",
+          "score": "5:24",
+          "opponent": "AJK011"
+        },
+        {
+          "game_date": "2012-08-12",
+          "game_sno": 177,
+          "result": "L",
+          "score": "4:9",
+          "opponent": "AJK011"
+        },
+        {
+          "game_date": "2012-08-15",
+          "game_sno": 182,
+          "result": "L",
+          "score": "1:9",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2012-08-16",
+          "game_sno": 184,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2012-08-18",
+          "game_sno": 186,
+          "result": "L",
+          "score": "5:16",
+          "opponent": "AJK011"
+        },
+        {
+          "game_date": "2012-08-18",
+          "game_sno": 188,
+          "result": "L",
+          "score": "5:13",
+          "opponent": "AJK011"
+        },
+        {
+          "game_date": "2012-08-19",
+          "game_sno": 190,
+          "result": "L",
+          "score": "2:10",
+          "opponent": "AJK011"
+        },
+        {
+          "game_date": "2012-08-22",
+          "game_sno": 192,
+          "result": "L",
+          "score": "2:5",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2012-08-23",
+          "game_sno": 194,
+          "result": "L",
+          "score": "2:13",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2012-08-24",
+          "game_sno": 195,
+          "result": "L",
+          "score": "2:3",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2012-08-25",
+          "game_sno": 197,
+          "result": "L",
+          "score": "1:2",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2012-08-26",
+          "game_sno": 199,
+          "result": "L",
+          "score": "2:8",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2012-08-29",
+          "game_sno": 202,
+          "result": "L",
+          "score": "2:9",
+          "opponent": "AJK011"
+        }
+      ]
+    },
+    {
+      "year": 2013,
+      "kind_code": "A",
+      "team_code": "ADD011",
+      "metric": "max_win_streak",
+      "before": 6,
+      "counterfactual_skip": 7,
+      "delta": 1,
+      "criterion_only": 6,
+      "semantics_only": 7,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 7,
+      "ties_spanned": [
+        {
+          "game_date": "2013-09-22",
+          "game_sno": 226,
+          "result": "T",
+          "score": "5:5",
+          "opponent": "AJK011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2013-09-14",
+          "game_sno": 217,
+          "result": "W",
+          "score": "4:1",
+          "opponent": "AEM011"
+        },
+        {
+          "game_date": "2013-09-15",
+          "game_sno": 219,
+          "result": "W",
+          "score": "11:3",
+          "opponent": "AEM011"
+        },
+        {
+          "game_date": "2013-09-17",
+          "game_sno": 221,
+          "result": "W",
+          "score": "4:2",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2013-09-19",
+          "game_sno": 223,
+          "result": "W",
+          "score": "4:3",
+          "opponent": "ACC011"
+        },
+        {
+          "game_date": "2013-09-22",
+          "game_sno": 226,
+          "result": "T",
+          "score": "5:5",
+          "opponent": "AJK011"
+        },
+        {
+          "game_date": "2013-09-22",
+          "game_sno": 230,
+          "result": "W",
+          "score": "8:3",
+          "opponent": "AJK011"
+        },
+        {
+          "game_date": "2013-09-25",
+          "game_sno": 232,
+          "result": "W",
+          "score": "9:3",
+          "opponent": "AEM011"
+        },
+        {
+          "game_date": "2013-09-26",
+          "game_sno": 234,
+          "result": "W",
+          "score": "3:1",
+          "opponent": "AEM011"
+        }
+      ]
+    },
+    {
+      "year": 2014,
+      "kind_code": "A",
+      "team_code": "ADD011",
+      "metric": "max_lose_streak",
+      "before": 4,
+      "counterfactual_skip": 5,
+      "delta": 1,
+      "criterion_only": 4,
+      "semantics_only": 5,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 5,
+      "ties_spanned": [
+        {
+          "game_date": "2014-09-14",
+          "game_sno": 219,
+          "result": "T",
+          "score": "7:7",
+          "opponent": "ACN011"
+        },
+        {
+          "game_date": "2014-09-17",
+          "game_sno": 222,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "AEM011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2014-09-13",
+          "game_sno": 217,
+          "result": "L",
+          "score": "0:3",
+          "opponent": "ACN011"
+        },
+        {
+          "game_date": "2014-09-14",
+          "game_sno": 219,
+          "result": "T",
+          "score": "7:7",
+          "opponent": "ACN011"
+        },
+        {
+          "game_date": "2014-09-17",
+          "game_sno": 222,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "AEM011"
+        },
+        {
+          "game_date": "2014-09-18",
+          "game_sno": 224,
+          "result": "L",
+          "score": "5:6",
+          "opponent": "AEM011"
+        },
+        {
+          "game_date": "2014-09-19",
+          "game_sno": 225,
+          "result": "L",
+          "score": "4:9",
+          "opponent": "AJK011"
+        },
+        {
+          "game_date": "2014-09-20",
+          "game_sno": 227,
+          "result": "L",
+          "score": "2:5",
+          "opponent": "AJK011"
+        },
+        {
+          "game_date": "2014-09-25",
+          "game_sno": 234,
+          "result": "L",
+          "score": "1:3",
+          "opponent": "ACN011"
+        }
+      ]
+    },
+    {
+      "year": 2014,
+      "kind_code": "A",
+      "team_code": "AEM011",
+      "metric": "max_win_streak",
+      "before": 4,
+      "counterfactual_skip": 5,
+      "delta": 1,
+      "criterion_only": 4,
+      "semantics_only": 5,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 5,
+      "ties_spanned": [
+        {
+          "game_date": "2014-09-17",
+          "game_sno": 222,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "ADD011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2014-09-14",
+          "game_sno": 220,
+          "result": "W",
+          "score": "8:2",
+          "opponent": "AJK011"
+        },
+        {
+          "game_date": "2014-09-17",
+          "game_sno": 222,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2014-09-18",
+          "game_sno": 224,
+          "result": "W",
+          "score": "6:5",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2014-09-19",
+          "game_sno": 226,
+          "result": "W",
+          "score": "5:1",
+          "opponent": "ACN011"
+        },
+        {
+          "game_date": "2014-09-23",
+          "game_sno": 231,
+          "result": "W",
+          "score": "9:2",
+          "opponent": "AJK011"
+        },
+        {
+          "game_date": "2014-09-25",
+          "game_sno": 233,
+          "result": "W",
+          "score": "4:0",
+          "opponent": "AJK011"
+        }
+      ]
+    },
+    {
+      "year": 2021,
+      "kind_code": "A",
+      "team_code": "ACN011",
+      "metric": "max_win_streak",
+      "before": 6,
+      "counterfactual_skip": 7,
+      "delta": 1,
+      "criterion_only": 6,
+      "semantics_only": 7,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 7,
+      "ties_spanned": [
+        {
+          "game_date": "2021-10-06",
+          "game_sno": 225,
+          "result": "T",
+          "score": "10:10",
+          "opponent": "AJL011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2021-10-03",
+          "game_sno": 222,
+          "result": "W",
+          "score": "7:3",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "2021-10-05",
+          "game_sno": 223,
+          "result": "W",
+          "score": "8:6",
+          "opponent": "AJL011"
+        },
+        {
+          "game_date": "2021-10-06",
+          "game_sno": 225,
+          "result": "T",
+          "score": "10:10",
+          "opponent": "AJL011"
+        },
+        {
+          "game_date": "2021-10-08",
+          "game_sno": 230,
+          "result": "W",
+          "score": "5:4",
+          "opponent": "AEO011"
+        },
+        {
+          "game_date": "2021-10-09",
+          "game_sno": 232,
+          "result": "W",
+          "score": "3:1",
+          "opponent": "AEO011"
+        },
+        {
+          "game_date": "2021-10-10",
+          "game_sno": 234,
+          "result": "W",
+          "score": "6:2",
+          "opponent": "AEO011"
+        },
+        {
+          "game_date": "2021-10-11",
+          "game_sno": 235,
+          "result": "W",
+          "score": "6:5",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2021-10-13",
+          "game_sno": 238,
+          "result": "W",
+          "score": "8:4",
+          "opponent": "AJL011"
+        }
+      ]
+    },
+    {
+      "year": 2021,
+      "kind_code": "A",
+      "team_code": "ADD011",
+      "metric": "max_win_streak",
+      "before": 5,
+      "counterfactual_skip": 6,
+      "delta": 1,
+      "criterion_only": 5,
+      "semantics_only": 6,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 6,
+      "ties_spanned": [
+        {
+          "game_date": "2021-08-28",
+          "game_sno": 160,
+          "result": "T",
+          "score": "1:1",
+          "opponent": "ACN011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2021-08-26",
+          "game_sno": 155,
+          "result": "W",
+          "score": "5:1",
+          "opponent": "AEO011"
+        },
+        {
+          "game_date": "2021-08-27",
+          "game_sno": 158,
+          "result": "W",
+          "score": "10:4",
+          "opponent": "ACN011"
+        },
+        {
+          "game_date": "2021-08-28",
+          "game_sno": 160,
+          "result": "T",
+          "score": "1:1",
+          "opponent": "ACN011"
+        },
+        {
+          "game_date": "2021-08-29",
+          "game_sno": 162,
+          "result": "W",
+          "score": "3:2",
+          "opponent": "ACN011"
+        },
+        {
+          "game_date": "2021-08-31",
+          "game_sno": 163,
+          "result": "W",
+          "score": "9:4",
+          "opponent": "AJL011"
+        },
+        {
+          "game_date": "2021-09-01",
+          "game_sno": 165,
+          "result": "W",
+          "score": "12:7",
+          "opponent": "AJL011"
+        },
+        {
+          "game_date": "2021-09-03",
+          "game_sno": 170,
+          "result": "W",
+          "score": "3:1",
+          "opponent": "AAA011"
+        }
+      ]
+    },
+    {
+      "year": 2021,
+      "kind_code": "A",
+      "team_code": "AJL011",
+      "metric": "max_win_streak",
+      "before": 4,
+      "counterfactual_skip": 5,
+      "delta": 1,
+      "criterion_only": 4,
+      "semantics_only": 5,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 5,
+      "ties_spanned": [
+        {
+          "game_date": "2021-09-20",
+          "game_sno": 199,
+          "result": "T",
+          "score": "4:4",
+          "opponent": "AEO011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2021-09-17",
+          "game_sno": 194,
+          "result": "W",
+          "score": "11:5",
+          "opponent": "AEO011"
+        },
+        {
+          "game_date": "2021-09-18",
+          "game_sno": 196,
+          "result": "W",
+          "score": "6:5",
+          "opponent": "AEO011"
+        },
+        {
+          "game_date": "2021-09-19",
+          "game_sno": 198,
+          "result": "W",
+          "score": "8:5",
+          "opponent": "AEO011"
+        },
+        {
+          "game_date": "2021-09-20",
+          "game_sno": 199,
+          "result": "T",
+          "score": "4:4",
+          "opponent": "AEO011"
+        },
+        {
+          "game_date": "2021-09-22",
+          "game_sno": 201,
+          "result": "W",
+          "score": "4:3",
+          "opponent": "AEO011"
+        },
+        {
+          "game_date": "2021-09-24",
+          "game_sno": 206,
+          "result": "W",
+          "score": "8:6",
+          "opponent": "AAA011"
+        }
+      ]
+    },
+    {
+      "year": 2021,
+      "kind_code": "A",
+      "team_code": "AJL011",
+      "metric": "max_lose_streak",
+      "before": 4,
+      "counterfactual_skip": 7,
+      "delta": 3,
+      "criterion_only": 4,
+      "semantics_only": 7,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 7,
+      "ties_spanned": [
+        {
+          "game_date": "2021-10-06",
+          "game_sno": 225,
+          "result": "T",
+          "score": "10:10",
+          "opponent": "ACN011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2021-10-01",
+          "game_sno": 217,
+          "result": "L",
+          "score": "7:9",
+          "opponent": "AEO011"
+        },
+        {
+          "game_date": "2021-10-02",
+          "game_sno": 219,
+          "result": "L",
+          "score": "5:10",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2021-10-05",
+          "game_sno": 223,
+          "result": "L",
+          "score": "6:8",
+          "opponent": "ACN011"
+        },
+        {
+          "game_date": "2021-10-06",
+          "game_sno": 225,
+          "result": "T",
+          "score": "10:10",
+          "opponent": "ACN011"
+        },
+        {
+          "game_date": "2021-10-07",
+          "game_sno": 227,
+          "result": "L",
+          "score": "6:7",
+          "opponent": "AEO011"
+        },
+        {
+          "game_date": "2021-10-09",
+          "game_sno": 231,
+          "result": "L",
+          "score": "6:9",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "2021-10-10",
+          "game_sno": 233,
+          "result": "L",
+          "score": "0:7",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2021-10-13",
+          "game_sno": 238,
+          "result": "L",
+          "score": "4:8",
+          "opponent": "ACN011"
+        }
+      ]
+    },
+    {
+      "year": 2022,
+      "kind_code": "A",
+      "team_code": "AEO011",
+      "metric": "max_lose_streak",
+      "before": 11,
+      "counterfactual_skip": 12,
+      "delta": 1,
+      "criterion_only": 11,
+      "semantics_only": 12,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 12,
+      "ties_spanned": [
+        {
+          "game_date": "2022-07-17",
+          "game_sno": 71,
+          "result": "T",
+          "score": "5:5",
+          "opponent": "ACN011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2022-06-22",
+          "game_sno": 134,
+          "result": "L",
+          "score": "3:6",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "2022-06-23",
+          "game_sno": 88,
+          "result": "L",
+          "score": "2:8",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "2022-06-25",
+          "game_sno": 139,
+          "result": "L",
+          "score": "2:9",
+          "opponent": "ACN011"
+        },
+        {
+          "game_date": "2022-06-26",
+          "game_sno": 141,
+          "result": "L",
+          "score": "1:4",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "2022-07-05",
+          "game_sno": 73,
+          "result": "L",
+          "score": "1:3",
+          "opponent": "ACN011"
+        },
+        {
+          "game_date": "2022-07-08",
+          "game_sno": 90,
+          "result": "L",
+          "score": "5:8",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "2022-07-09",
+          "game_sno": 60,
+          "result": "L",
+          "score": "1:3",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "2022-07-12",
+          "game_sno": 110,
+          "result": "L",
+          "score": "2:8",
+          "opponent": "ACN011"
+        },
+        {
+          "game_date": "2022-07-14",
+          "game_sno": 148,
+          "result": "L",
+          "score": "3:10",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2022-07-15",
+          "game_sno": 143,
+          "result": "L",
+          "score": "2:5",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "2022-07-16",
+          "game_sno": 119,
+          "result": "L",
+          "score": "5:8",
+          "opponent": "AJL011"
+        },
+        {
+          "game_date": "2022-07-17",
+          "game_sno": 71,
+          "result": "T",
+          "score": "5:5",
+          "opponent": "ACN011"
+        },
+        {
+          "game_date": "2022-07-18",
+          "game_sno": 145,
+          "result": "L",
+          "score": "1:8",
+          "opponent": "AAA011"
+        }
+      ]
+    },
+    {
+      "year": 2023,
+      "kind_code": "A",
+      "team_code": "ACN011",
+      "metric": "max_win_streak",
+      "before": 5,
+      "counterfactual_skip": 7,
+      "delta": 2,
+      "criterion_only": 5,
+      "semantics_only": 7,
+      "cause": "語意",
+      "counterfactual_skip_run_length": 7,
+      "ties_spanned": [
+        {
+          "game_date": "2023-06-08",
+          "game_sno": 114,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "2023-06-17",
+          "game_sno": 129,
+          "result": "T",
+          "score": "2:2",
+          "opponent": "AJL011"
+        }
+      ],
+      "counterfactual_skip_run_games": [
+        {
+          "game_date": "2023-06-04",
+          "game_sno": 109,
+          "result": "W",
+          "score": "9:5",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2023-06-06",
+          "game_sno": 111,
+          "result": "W",
+          "score": "1:0",
+          "opponent": "ADD011"
+        },
+        {
+          "game_date": "2023-06-08",
+          "game_sno": 114,
+          "result": "T",
+          "score": "3:3",
+          "opponent": "AAA011"
+        },
+        {
+          "game_date": "2023-06-09",
+          "game_sno": 116,
+          "result": "W",
+          "score": "6:5",
+          "opponent": "AJL011"
+        },
+        {
+          "game_date": "2023-06-10",
+          "game_sno": 118,
+          "result": "W",
+          "score": "7:0",
+          "opponent": "AJL011"
+        },
+        {
+          "game_date": "2023-06-11",
+          "game_sno": 120,
+          "result": "W",
+          "score": "9:3",
+          "opponent": "AJL011"
+        },
+        {
+          "game_date": "2023-06-14",
+          "game_sno": 125,
+          "result": "W",
+          "score": "3:1",
+          "opponent": "AEO011"
+        },
+        {
+          "game_date": "2023-06-17",
+          "game_sno": 129,
+          "result": "T",
+          "score": "2:2",
+          "opponent": "AJL011"
+        },
+        {
+          "game_date": "2023-06-18",
+          "game_sno": 131,
+          "result": "W",
+          "score": "11:6",
+          "opponent": "AEO011"
+        }
+      ]
+    }
+  ]
+}
