@@ -162,6 +162,45 @@ def test_r3_scoreless_false_positive_set_is_not_admitted_wholesale() -> None:
         f"0:0 母體 {total} 場中被納入的不是恰好那 5 場，而是 {admitted}")
 
 
+# ────────────────────────────────── Phase 1b：連段語意（和局跳過不計）
+
+
+def test_streak_semantics_tie_is_skipped_not_breaking() -> None:
+    """純語意單元：和局對連段**透明**——跨過它繼續累計，不歸零。
+
+    不碰 DB，直接餵序列給和 `_add_streaks` 同構的計算，釘住語意本身。
+    """
+    from scripts.data_tie_remedy1 import _streaks_for
+
+    # A 隊：勝、勝、和、勝 → 新語意應為 3 連勝（舊語意會被和局切成 2）
+    games = [("A", "B", 5, 1), ("A", "B", 4, 2), ("A", "B", 3, 3), ("A", "B", 6, 0)]
+    assert _streaks_for(games, tie_breaks=False)["A"][0] == 3
+    assert _streaks_for(games, tie_breaks=True)["A"][0] == 2   # 舊語意對照
+    # 對手同時是 3 連敗
+    assert _streaks_for(games, tie_breaks=False)["B"][1] == 3
+
+
+def test_r5_2023_lose_streaks_survive_the_newly_visible_ties() -> None:
+    """回歸 5（Phase 1b）：新判準＋新語意下，2023 的最長連敗**不得**被和局縮短。
+
+    Phase 1（新判準＋舊「和局中斷」語意）曾把統一 5→4、富邦 8→7——那是錯誤語意
+    被新可見和局觸發的產物。修正語意後兩者必須回到 5 與 8。
+    """
+    import cpbl.models.special_records as sr
+
+    try:
+        out: dict = {}
+        sr._add_streaks(2023, "A", out)
+    except Exception as exc:  # noqa: BLE001 — 無 DB 時跳過
+        pytest.skip(f"需本機 DB：{exc}")
+    if not out:
+        pytest.skip("需本機 DB：2023 無資料")
+
+    # ADD011 = 統一7-ELEVEn獅（2023/A/175 的主隊）、AEO011 = 富邦悍將（2023/A/119 的客隊）
+    assert out["ADD011"]["max_lose_streak"] == 5
+    assert out["AEO011"]["max_lose_streak"] == 8
+
+
 def test_r4_future_dated_games_are_never_completed() -> None:
     """回歸 4：未來日期的場次一律排除，**即使已有比分**（保留賽的中止比分）。"""
     cond = completed_games_sql_with_evidence("g")
