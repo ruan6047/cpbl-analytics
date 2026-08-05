@@ -1,0 +1,97 @@
+{
+  "generated_at": "2026-08-05T10:36:01+08:00",
+  "targets": [
+    "2018/A/124",
+    "2021/A/256",
+    "2023/A/119",
+    "2023/A/175",
+    "2025/A/233"
+  ],
+  "attempted": 5,
+  "succeeded": 5,
+  "aborted_at": null,
+  "gate_min_success": 2,
+  "gate_passed": true,
+  "results": [
+    {
+      "game": "2018/A/124",
+      "year": 2018,
+      "kind_code": "A",
+      "game_sno": 124,
+      "source_url": "https://www.cpbl.com.tw/box?year=2018&KindCode=A&gameSno=124",
+      "ok": true,
+      "fetched_at": "2026-08-05T10:33:27+08:00",
+      "payload_sha256": "dffc1fd4b9b19b722df3495ee2df6b8fd6a12d82864d4d1dec1a423163ce6448",
+      "html_bytes": 154496,
+      "html_file": "2018-A-124_box.html",
+      "parsed": {
+        "has_livelog_block": true,
+        "has_box_block": true
+      }
+    },
+    {
+      "game": "2021/A/256",
+      "year": 2021,
+      "kind_code": "A",
+      "game_sno": 256,
+      "source_url": "https://www.cpbl.com.tw/box?year=2021&KindCode=A&gameSno=256",
+      "ok": true,
+      "fetched_at": "2026-08-05T10:34:06+08:00",
+      "payload_sha256": "68d44558c64c4764c46e127a415c1efe4553ad3f1473cb3d1b960e6dd43671d9",
+      "html_bytes": 137736,
+      "html_file": "2021-A-256_box.html",
+      "parsed": {
+        "has_livelog_block": true,
+        "has_box_block": true
+      }
+    },
+    {
+      "game": "2023/A/119",
+      "year": 2023,
+      "kind_code": "A",
+      "game_sno": 119,
+      "source_url": "https://www.cpbl.com.tw/box?year=2023&KindCode=A&gameSno=119",
+      "ok": true,
+      "fetched_at": "2026-08-05T10:34:44+08:00",
+      "payload_sha256": "139750e8eba2d2307a6769687a8d0cd59dbc26e45c478a35ca65fd670ff12abe",
+      "html_bytes": 141495,
+      "html_file": "2023-A-119_box.html",
+      "parsed": {
+        "has_livelog_block": true,
+        "has_box_block": true
+      }
+    },
+    {
+      "game": "2023/A/175",
+      "year": 2023,
+      "kind_code": "A",
+      "game_sno": 175,
+      "source_url": "https://www.cpbl.com.tw/box?year=2023&KindCode=A&gameSno=175",
+      "ok": true,
+      "fetched_at": "2026-08-05T10:35:23+08:00",
+      "payload_sha256": "a3d26f3aea98c8cac0abbe821a247baaadfd58e2e10aae6c53c79ac7ae19aaf0",
+      "html_bytes": 141031,
+      "html_file": "2023-A-175_box.html",
+      "parsed": {
+        "has_livelog_block": true,
+        "has_box_block": true
+      }
+    },
+    {
+      "game": "2025/A/233",
+      "year": 2025,
+      "kind_code": "A",
+      "game_sno": 233,
+      "source_url": "https://www.cpbl.com.tw/box?year=2025&KindCode=A&gameSno=233",
+      "ok": true,
+      "fetched_at": "2026-08-05T10:36:01+08:00",
+      "payload_sha256": "3b8a463ee94d0445fdff73ba692dec3144185b1a2ac2615acfbeaa929c2d8440",
+      "html_bytes": 140985,
+      "html_file": "2025-A-233_box.html",
+      "parsed": {
+        "has_livelog_block": true,
+        "has_box_block": true
+      }
+    }
+  ]
+}
