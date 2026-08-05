@@ -279,8 +279,9 @@ FROZEN_FILES = (
 # 本批切換範圍（卡面：非鏈的 API／features／models）。其餘 scripts/ 屬研究產物，不在本批。
 SWITCH_PREFIXES = ("src/cpbl/api/", "src/cpbl/features/", "src/cpbl/models/")
 
-# 在切換範圍內、但**經逐點檢視後刻意不換**者（file:line → 理由）。
-# 這些不是遺漏：留在此表代表已判讀，理由隨程式碼一起版控。
+# 在切換範圍內、但**刻意不換**者（file:line → 理由）。
+# 這些不是遺漏也不是待辦：winprob 家族 4 點已由需求方 2026-08-05 裁定保留舊判準
+#（Issue #90，可重現雜湊優先）；其餘為語意上本就不該換的點。理由隨程式碼一起版控。
 REVIEWED_NOT_SWITCHED = {
     "src/cpbl/api/routers/info.py": (
         "predictions_today＝排在**今天**且尚無比分者；母體限定 game_date = CURRENT_DATE，"
@@ -292,13 +293,15 @@ REVIEWED_NOT_SWITCHED = {
         "`home_score + away_score = 0 AND game_date >= today`＝**未來待預測**場次（判準的反面）。"
         "5 場和局皆為歷史日期，被 game_date >= today 擋掉，語意不受影響。"),
     "src/cpbl/models/winprob_strength.py": (
-        "此處的完成場母體會進 `sno_md5`/`games_md5` **可重現性雜湊**（iteration 2 查核 F2 的"
-        "指定修法：依 as_of 重新界定母體，讓部分重跑逐位重現）。換判準會讓既有紀錄的雜湊"
-        "全部對不上，屬研究產物的 provenance 破壞。5 場／約 13,000 場的量級不值得，"
-        "交需求方裁定（見影響評估）。"),
+        "**需求方 2026-08-05 裁定：保留舊判準**（Issue #90）。此處的完成場母體會進 "
+        "`sno_md5`/`games_md5` 可重現性雜湊（iteration 2 查核 F2 的指定修法：依 as_of "
+        "重新界定母體，讓部分重跑逐位重現）；換判準會讓既有紀錄的雜湊全部對不上，"
+        "屬研究產物的 provenance 破壞。裁定以可重現性優先，影響量級 5／約 13,000 場已記錄。"
+        "此項為**定案**，非待辦。"),
     "src/cpbl/models/winprob_val.py": (
-        "同 winprob_strength：全押主場基準線屬研究產物，且 WP-VAL1 全 scope 已判 unsupported。"
-        "與該家族一起交需求方裁定，不在本卡單獨改動。"),
+        "**需求方 2026-08-05 裁定：保留舊判準**（Issue #90）。同 winprob_strength——"
+        "全押主場基準線屬研究產物，且 WP-VAL1 全 scope 已判 unsupported。"
+        "與該家族一併定案保留，非待辦。"),
 }
 
 # 完成判準的兩種寫法：直接手寫比分和，或引用舊 helper。
@@ -520,6 +523,213 @@ def cmd_backfill(args: argparse.Namespace) -> dict:
     }
 
 
+# ---------------------------------------------------------------- streaks
+
+def _streaks_for(games: list[tuple], tie_breaks: bool) -> dict[str, tuple[int, int]]:
+    """由 (home, away, hs, as) 逐場序列算每隊 (最長連勝, 最長連敗)。
+
+    ``tie_breaks=True``＝**舊語意**（和局中斷連段）；``False``＝**新語意**
+    （和局跳過不計、連段不中斷；需求方 2026-08-05 裁定）。
+    """
+    seq: dict[str, list[str]] = {}
+    for hc, ac, hs, as_ in games:
+        sh, sa = seq.setdefault(hc, []), seq.setdefault(ac, [])
+        if hs == as_:
+            if tie_breaks:
+                sh.append("T")
+                sa.append("T")
+            continue
+        hw, aw = ("W", "L") if hs > as_ else ("L", "W")
+        sh.append(hw)
+        sa.append(aw)
+    out = {}
+    for tc, s in seq.items():
+        mw = ml = cw = cl = 0
+        for r in s:
+            cw = cw + 1 if r == "W" else 0
+            cl = cl + 1 if r == "L" else 0
+            mw, ml = max(mw, cw), max(ml, cl)
+        out[tc] = (mw, ml)
+    return out
+
+
+def _best_run_detail(games: list[tuple], team: str, want: str) -> dict:
+    """新語意下該隊最長 ``want``（W／L）連段的逐場明細，標出它跨過的和局。
+
+    這是**人工判讀的載體**：每一筆異動都附上實際比賽序列，覆核者可逐場對照官方紀錄，
+    不必相信腳本的結論。
+    """
+    seq = []
+    for gd, sno, hc, ac, hs, as_ in games:
+        if team not in (hc, ac):
+            continue
+        me_home = hc == team
+        my, opp = (hs, as_) if me_home else (as_, hs)
+        r = "W" if my > opp else ("L" if my < opp else "T")
+        seq.append({"game_date": str(gd), "game_sno": sno, "result": r,
+                    "score": f"{my}:{opp}", "opponent": ac if me_home else hc})
+    best_len, best_slice, run, start = 0, None, 0, None
+    for i, g in enumerate(seq):
+        if g["result"] == want:
+            if run == 0:
+                start = i
+            run += 1
+            if run > best_len:
+                best_len, best_slice = run, (start, i)
+        elif g["result"] == "T":
+            continue  # 和局跳過不計
+        else:
+            run = 0
+    if not best_slice:
+        return {"length": 0, "games": []}
+    lo, hi = best_slice
+    span = seq[lo:hi + 1]
+    return {"length": best_len,
+            "ties_spanned": [g for g in span if g["result"] == "T"],
+            "games": span}
+
+
+def cmd_streak_impact(args: argparse.Namespace) -> dict:
+    """全史連勝／連敗影響對照：現行生產（舊判準＋和局中斷）→ 最終（新判準＋跳過）。
+
+    以 **2×2 因子設計**分離成因，避免把兩個獨立變更混為一談：
+
+    ==============  ================  =================
+    　              和局中斷（舊語意）  和局跳過（新語意）
+    ==============  ================  =================
+    舊判準（比分>0）  A＝現行生產         D
+    新判準（＋證據）  C＝Phase 1 中間態   B＝最終
+    ==============  ================  =================
+
+    某 (隊, 年, 指標) 的成因判定：``A==D 且 A!=C`` → **判準**；``A==C 且 A!=D``
+    → **語意**；兩者都不等 → **兩者**。
+    """
+    from cpbl.completion import completed_games_sql, completed_games_sql_with_evidence
+    from cpbl.db import conn
+
+    old_c, new_c = completed_games_sql(), completed_games_sql_with_evidence("games")
+    kinds = args.kinds
+    rows_out, per_year_counts = [], []
+    alltime: dict[tuple[str, int], dict[str, tuple[int, int]]] = {}
+    with conn() as c, c.cursor() as cur:
+        cur.execute("SELECT DISTINCT year FROM cpbl.games ORDER BY year")
+        years = [r[0] for r in cur.fetchall()]
+        for year in years:
+            for kind in kinds:
+                def _games(cond, year=year, kind=kind):
+                    cur.execute(
+                        "SELECT home_team_code, away_team_code, home_score, away_score "
+                        f"FROM cpbl.games WHERE year=%s AND kind_code=%s AND {cond} "  # noqa: S608
+                        "ORDER BY game_date, game_sno", (year, kind))
+                    return cur.fetchall()
+
+                g_old, g_new = _games(old_c), _games(new_c)
+                if not g_old and not g_new:
+                    continue
+
+                def _detail_games(year=year, kind=kind):
+                    cur.execute(
+                        "SELECT game_date, game_sno, home_team_code, away_team_code, "
+                        "home_score, away_score "
+                        f"FROM cpbl.games WHERE year=%s AND kind_code=%s AND {new_c} "  # noqa: S608
+                        "ORDER BY game_date, game_sno", (year, kind))
+                    return cur.fetchall()
+
+                A = _streaks_for(g_old, tie_breaks=True)    # 現行生產
+                C = _streaks_for(g_new, tie_breaks=True)    # 只換判準
+                D = _streaks_for(g_old, tie_breaks=False)   # 只換語意
+                B = _streaks_for(g_new, tie_breaks=False)   # 最終
+                for tc in set(A) | set(B):
+                    alltime[(tc, year)] = {"A": A.get(tc, (0, 0)), "B": B.get(tc, (0, 0))}
+                changed = 0
+                for tc in sorted(set(A) | set(B)):
+                    for idx, metric in ((0, "max_win_streak"), (1, "max_lose_streak")):
+                        a = A.get(tc, (None, None))[idx]
+                        b = B.get(tc, (None, None))[idx]
+                        if a == b:
+                            continue
+                        cc = C.get(tc, (None, None))[idx]
+                        dd = D.get(tc, (None, None))[idx]
+                        if a == dd and a != cc:
+                            cause = "判準"
+                        elif a == cc and a != dd:
+                            cause = "語意"
+                        else:
+                            cause = "兩者"
+                        changed += 1
+                        detail = _best_run_detail(
+                            _detail_games(), tc,
+                            "W" if metric == "max_win_streak" else "L")
+                        rows_out.append({
+                            "year": year, "kind_code": kind, "team_code": tc,
+                            "metric": metric,
+                            "current_production": a, "final": b, "delta": b - a,
+                            "criterion_only": cc, "semantics_only": dd,
+                            "cause": cause,
+                            # 人工判讀載體：最終連段的逐場明細與它跨過的和局
+                            "final_run_length": detail["length"],
+                            "ties_spanned": detail.get("ties_spanned", []),
+                            "final_run_games": detail["games"],
+                        })
+                if changed:
+                    per_year_counts.append({"year": year, "kind_code": kind,
+                                            "changed_values": changed})
+
+    # 全史頭條紀錄（歷史紀錄室 /api/v1/records 對外展示的那一筆）：值與保持者是否易主。
+    # 這是**最容易被外部查核的一筆**（官方／新聞都查得到），故單獨拉出來。
+    headline = {}
+    for metric, idx in (("max_win_streak", 0), ("max_lose_streak", 1)):
+        cur_best = fin_best = (0, None, 0)
+        for (tc, yr), vals in alltime.items():
+            # 同值取較近年份（與 api/routers/leaders.best_of 的排序鍵一致）
+            if (vals["A"][idx], yr) > (cur_best[0], cur_best[2]):
+                cur_best = (vals["A"][idx], tc, yr)
+            if (vals["B"][idx], yr) > (fin_best[0], fin_best[2]):
+                fin_best = (vals["B"][idx], tc, yr)
+        headline[metric] = {
+            "current_production": {"value": cur_best[0], "team_code": cur_best[1],
+                                   "year": cur_best[2]},
+            "final": {"value": fin_best[0], "team_code": fin_best[1], "year": fin_best[2]},
+            "holder_changed": (cur_best[1], cur_best[2]) != (fin_best[1], fin_best[2]),
+            "value_changed": cur_best[0] != fin_best[0],
+        }
+
+    by_cause: dict[str, int] = {}
+    by_metric: dict[str, int] = {}
+    for r in rows_out:
+        by_cause[r["cause"]] = by_cause.get(r["cause"], 0) + 1
+        by_metric[r["metric"]] = by_metric.get(r["metric"], 0) + 1
+    deltas = [r["delta"] for r in rows_out]
+    # 方向性健全檢查：新語意只會讓連段「不被和局切斷」，故最終值不應變小。
+    suspicious = [r for r in rows_out if r["delta"] < 0]
+    return {
+        "generated_at": _now_iso(),
+        "semantics_ruling": "和局跳過不計、連段不中斷（需求方 2026-08-05 裁定，Issue #90）",
+        "design": "2x2 因子：A=舊判準+中斷(現行生產) / C=新判準+中斷 / D=舊判準+跳過 / B=新判準+跳過(最終)",
+        "kinds": list(kinds),
+        "years_scanned": len(years),
+        "changed_values_total": len(rows_out),
+        "by_cause": by_cause,
+        "by_metric": by_metric,
+        "delta_max": max(deltas) if deltas else 0,
+        "delta_min": min(deltas) if deltas else 0,
+        "negative_delta_rows": len(suspicious),
+        "negative_delta_note": (
+            "新語意只會讓連段跨過和局而延長，最終值理應 >= 現行生產值。"
+            "若此數非 0，該列標記為**待人工判讀**，不得逕自採用。"),
+        "needs_human_review": suspicious,
+        "headline_alltime_records": headline,
+        "headline_note": (
+            "全史頭條紀錄是本次變更中最容易被外部查核的一筆。已查得的外部佐證："
+            "官方／新聞記載中職例行賽最長連敗＝兄弟象 2006 年 13 連敗（8/8–8/31）；"
+            "本庫該段實測為連續 13 敗且**中間無和局**，故新舊語意皆重現 13——"
+            "此紀錄本身**無法用來分辨兩種語意**。真正的分辨點是那些「連段跨過和局」"
+            "的個案（見各列 ties_spanned），需求方／查核者可逐筆對照官方紀錄。"),
+        "changed_by_year": per_year_counts,
+        "changes": rows_out,
+    }
+
+
 # ---------------------------------------------------------------- impact
 
 # 受影響的 (年, kind)：5 場所在的球季。衍生表若要吸收這 5 場，重建範圍以此為界。
@@ -563,7 +773,12 @@ DERIVED_TABLES: tuple[tuple[str, str, str, str], ...] = (
 
 
 def cmd_impact(args: argparse.Namespace) -> dict:
-    """衍生表影響評估（**唯讀，不執行任何重建**）——交需求方裁定範圍與時機。"""
+    """衍生表影響評估（**唯讀，不執行任何重建**）。
+
+    需求方 2026-08-05 裁定（Issue #90）：歷史年重建**延後**，與 IBB 幽靈 281 席修復
+    打包成單一「衍生層重建批次」卡（G4 穩定後排程），避免全庫矩陣重算兩次。
+    本卡只交評估，不執行。
+    """
     from cpbl.db import conn
 
     years = sorted({y for y, _ in AFFECTED_YEAR_KINDS})
@@ -601,7 +816,8 @@ def cmd_impact(args: argparse.Namespace) -> dict:
 
     return {
         "generated_at": _now_iso(),
-        "decision_required": "衍生表是否／何時重建，交需求方裁定；本卡不自動執行。",
+        "ruling": "需求方 2026-08-05 裁定（Issue #90）：延後，與 IBB 281 席修復"
+                  "打包成單一衍生層重建批次卡；本卡只交評估不執行。",
         "affected_year_kinds": [f"{y}/{k}" for y, k in AFFECTED_YEAR_KINDS],
         "affected_years": years,
         "five_games_current_data": per_game,
@@ -630,6 +846,11 @@ def main() -> None:
     p = sub.add_parser("consumers", help="盤點完成判準消費點（chain / non-chain）")
     p.add_argument("--out", default=f"{EVIDENCE_DIR}/consumers.json")
     p.set_defaults(func=cmd_consumers)
+
+    p = sub.add_parser("streak-impact", help="全史連勝／連敗影響對照（唯讀）")
+    p.add_argument("--out", default=f"{EVIDENCE_DIR}/streak_impact.json")
+    p.add_argument("--kinds", nargs="*", default=["A"], help="賽事種類（預設一軍 A）")
+    p.set_defaults(func=cmd_streak_impact)
 
     p = sub.add_parser("impact", help="衍生表影響評估（唯讀，不重建）")
     p.add_argument("--out", default=f"{EVIDENCE_DIR}/derived_impact.json")

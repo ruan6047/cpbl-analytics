@@ -1,14 +1,14 @@
 {
-  "generated_at": "2026-08-05T10:55:33+08:00",
-  "total_hits": 60,
+  "generated_at": "2026-08-05T12:47:45+08:00",
+  "total_hits": 69,
   "by_match_kind": {
     "score_sum": 34,
-    "evidence_helper": 15,
+    "legacy_helper": 8,
+    "evidence_helper": 22,
     "legacy_pyfn": 2,
-    "legacy_helper": 7,
-    "evidence_pyfn": 2
+    "evidence_pyfn": 3
   },
-  "production_hits": 54,
+  "production_hits": 57,
   "chain_hits": 7,
   "frozen_hits": 22,
   "switch_scope_hits": 21,
@@ -22,7 +22,7 @@
     "src/cpbl/api/team_hotzone.py:72",
     "src/cpbl/api/team_style.py:193",
     "src/cpbl/features/outcome.py:246",
-    "src/cpbl/features/outcome.py:467",
+    "src/cpbl/features/outcome.py:469",
     "src/cpbl/models/matchup.py:26",
     "src/cpbl/models/run_umpire_impact.py:170",
     "src/cpbl/models/special_records.py:31",
@@ -43,8 +43,8 @@
     "src/cpbl/api/routers/info.py": "predictions_today＝排在**今天**且尚無比分者；母體限定 game_date = CURRENT_DATE，5 場歷史和局（2018–2025）不可能落入。其時區界線問題屬 AUDIT1 的 D7，非本卡。",
     "src/cpbl/api/routers/leaders.py": "`home_score+away_score DESC` 是 ORDER BY 排序鍵（單場最多合計得分紀錄），**不是**完成判準——grep 的偽陽性，改了會破壞排序語意。",
     "src/cpbl/models/matchup.py": "`home_score + away_score = 0 AND game_date >= today`＝**未來待預測**場次（判準的反面）。5 場和局皆為歷史日期，被 game_date >= today 擋掉，語意不受影響。",
-    "src/cpbl/models/winprob_strength.py": "此處的完成場母體會進 `sno_md5`/`games_md5` **可重現性雜湊**（iteration 2 查核 F2 的指定修法：依 as_of 重新界定母體，讓部分重跑逐位重現）。換判準會讓既有紀錄的雜湊全部對不上，屬研究產物的 provenance 破壞。5 場／約 13,000 場的量級不值得，交需求方裁定（見影響評估）。",
-    "src/cpbl/models/winprob_val.py": "同 winprob_strength：全押主場基準線屬研究產物，且 WP-VAL1 全 scope 已判 unsupported。與該家族一起交需求方裁定，不在本卡單獨改動。"
+    "src/cpbl/models/winprob_strength.py": "**需求方 2026-08-05 裁定：保留舊判準**（Issue #90）。此處的完成場母體會進 `sno_md5`/`games_md5` 可重現性雜湊（iteration 2 查核 F2 的指定修法：依 as_of 重新界定母體，讓部分重跑逐位重現）；換判準會讓既有紀錄的雜湊全部對不上，屬研究產物的 provenance 破壞。裁定以可重現性優先，影響量級 5／約 13,000 場已記錄。此項為**定案**，非待辦。",
+    "src/cpbl/models/winprob_val.py": "**需求方 2026-08-05 裁定：保留舊判準**（Issue #90）。同 winprob_strength——全押主場基準線屬研究產物，且 WP-VAL1 全 scope 已判 unsupported。與該家族一併定案保留，非待辦。"
   },
   "chain_deferred_to_phase2": [
     "src/cpbl/ingest/cpbl_gamelog.py:316",
@@ -223,6 +223,42 @@
       "reviewed_not_switched": null,
       "pending_switch": false,
       "code": "WHERE home_score + away_score > 0"
+    },
+    {
+      "file": "scripts/data_tie_remedy1.py",
+      "line": 290,
+      "match_kind": "score_sum",
+      "is_chain": false,
+      "is_frozen": false,
+      "is_test": false,
+      "in_switch_scope": false,
+      "reviewed_not_switched": null,
+      "pending_switch": false,
+      "code": "\"`home_score+away_score DESC` 是 ORDER BY 排序鍵（單場最多合計得分紀錄），\""
+    },
+    {
+      "file": "scripts/data_tie_remedy1.py",
+      "line": 293,
+      "match_kind": "score_sum",
+      "is_chain": false,
+      "is_frozen": false,
+      "is_test": false,
+      "in_switch_scope": false,
+      "reviewed_not_switched": null,
+      "pending_switch": false,
+      "code": "\"`home_score + away_score = 0 AND game_date >= today`＝**未來待預測**場次（判準的反面）。\""
+    },
+    {
+      "file": "scripts/data_tie_remedy1.py",
+      "line": 610,
+      "match_kind": "legacy_helper",
+      "is_chain": false,
+      "is_frozen": false,
+      "is_test": false,
+      "in_switch_scope": false,
+      "reviewed_not_switched": null,
+      "pending_switch": false,
+      "code": "old_c, new_c = completed_games_sql(), completed_games_sql_with_evidence(\"games\")"
     },
     {
       "file": "scripts/g4_phase_a_metrics.py",
@@ -502,7 +538,7 @@
     },
     {
       "file": "src/cpbl/features/outcome.py",
-      "line": 467,
+      "line": 469,
       "match_kind": "evidence_pyfn",
       "is_chain": false,
       "is_frozen": false,
@@ -664,7 +700,7 @@
       "is_frozen": false,
       "is_test": false,
       "in_switch_scope": true,
-      "reviewed_not_switched": "此處的完成場母體會進 `sno_md5`/`games_md5` **可重現性雜湊**（iteration 2 查核 F2 的指定修法：依 as_of 重新界定母體，讓部分重跑逐位重現）。換判準會讓既有紀錄的雜湊全部對不上，屬研究產物的 provenance 破壞。5 場／約 13,000 場的量級不值得，交需求方裁定（見影響評估）。",
+      "reviewed_not_switched": "**需求方 2026-08-05 裁定：保留舊判準**（Issue #90）。此處的完成場母體會進 `sno_md5`/`games_md5` 可重現性雜湊（iteration 2 查核 F2 的指定修法：依 as_of 重新界定母體，讓部分重跑逐位重現）；換判準會讓既有紀錄的雜湊全部對不上，屬研究產物的 provenance 破壞。裁定以可重現性優先，影響量級 5／約 13,000 場已記錄。此項為**定案**，非待辦。",
       "pending_switch": false,
       "code": "\"AND home_score+away_score>0 AND game_date<=%s\", (y0, y1, kind, as_of))"
     },
@@ -676,7 +712,7 @@
       "is_frozen": false,
       "is_test": false,
       "in_switch_scope": true,
-      "reviewed_not_switched": "此處的完成場母體會進 `sno_md5`/`games_md5` **可重現性雜湊**（iteration 2 查核 F2 的指定修法：依 as_of 重新界定母體，讓部分重跑逐位重現）。換判準會讓既有紀錄的雜湊全部對不上，屬研究產物的 provenance 破壞。5 場／約 13,000 場的量級不值得，交需求方裁定（見影響評估）。",
+      "reviewed_not_switched": "**需求方 2026-08-05 裁定：保留舊判準**（Issue #90）。此處的完成場母體會進 `sno_md5`/`games_md5` 可重現性雜湊（iteration 2 查核 F2 的指定修法：依 as_of 重新界定母體，讓部分重跑逐位重現）；換判準會讓既有紀錄的雜湊全部對不上，屬研究產物的 provenance 破壞。裁定以可重現性優先，影響量級 5／約 13,000 場已記錄。此項為**定案**，非待辦。",
       "pending_switch": false,
       "code": "\"AND home_score + away_score > 0 AND game_date <= %s GROUP BY year ORDER BY year\","
     },
@@ -688,7 +724,7 @@
       "is_frozen": false,
       "is_test": false,
       "in_switch_scope": true,
-      "reviewed_not_switched": "此處的完成場母體會進 `sno_md5`/`games_md5` **可重現性雜湊**（iteration 2 查核 F2 的指定修法：依 as_of 重新界定母體，讓部分重跑逐位重現）。換判準會讓既有紀錄的雜湊全部對不上，屬研究產物的 provenance 破壞。5 場／約 13,000 場的量級不值得，交需求方裁定（見影響評估）。",
+      "reviewed_not_switched": "**需求方 2026-08-05 裁定：保留舊判準**（Issue #90）。此處的完成場母體會進 `sno_md5`/`games_md5` 可重現性雜湊（iteration 2 查核 F2 的指定修法：依 as_of 重新界定母體，讓部分重跑逐位重現）；換判準會讓既有紀錄的雜湊全部對不上，屬研究產物的 provenance 破壞。裁定以可重現性優先，影響量級 5／約 13,000 場已記錄。此項為**定案**，非待辦。",
       "pending_switch": false,
       "code": "\"AND home_score + away_score > 0 AND game_date <= %s\", (year, KIND, as_of))"
     },
@@ -700,33 +736,21 @@
       "is_frozen": false,
       "is_test": false,
       "in_switch_scope": true,
-      "reviewed_not_switched": "同 winprob_strength：全押主場基準線屬研究產物，且 WP-VAL1 全 scope 已判 unsupported。與該家族一起交需求方裁定，不在本卡單獨改動。",
+      "reviewed_not_switched": "**需求方 2026-08-05 裁定：保留舊判準**（Issue #90）。同 winprob_strength——全押主場基準線屬研究產物，且 WP-VAL1 全 scope 已判 unsupported。與該家族一併定案保留，非待辦。",
       "pending_switch": false,
       "code": "\"AND home_score+away_score>0 AND game_date<=CURRENT_DATE\", (y0, y1, kind))"
     },
     {
       "file": "tests/test_api_contract.py",
-      "line": 70,
-      "match_kind": "score_sum",
-      "is_chain": false,
-      "is_frozen": false,
-      "is_test": true,
-      "in_switch_scope": false,
-      "reviewed_not_switched": null,
-      "pending_switch": false,
-      "code": "\"WHERE year = %s AND home_score + away_score > 0 AND game_date <= CURRENT_DATE\" in sql"
-    },
-    {
-      "file": "tests/test_api_contract.py",
       "line": 75,
-      "match_kind": "score_sum",
+      "match_kind": "evidence_helper",
       "is_chain": false,
       "is_frozen": false,
       "is_test": true,
       "in_switch_scope": false,
       "reviewed_not_switched": null,
       "pending_switch": false,
-      "code": "\"WHERE home_score + away_score > 0 AND game_date <= CURRENT_DATE\" in sql"
+      "code": "done = completed_games_sql_with_evidence(\"games\")"
     },
     {
       "file": "tests/test_completion.py",
@@ -763,6 +787,90 @@
       "reviewed_not_switched": null,
       "pending_switch": false,
       "code": "\"home_score + away_score > 0 AND game_date <= CURRENT_DATE\""
+    },
+    {
+      "file": "tests/test_completion_evidence.py",
+      "line": 56,
+      "match_kind": "evidence_pyfn",
+      "is_chain": false,
+      "is_frozen": false,
+      "is_test": true,
+      "in_switch_scope": false,
+      "reviewed_not_switched": null,
+      "pending_switch": false,
+      "code": "assert is_completed_game(home, away, game_day, _TODAY, has_evidence) is expected, why"
+    },
+    {
+      "file": "tests/test_completion_evidence.py",
+      "line": 62,
+      "match_kind": "evidence_helper",
+      "is_chain": false,
+      "is_frozen": false,
+      "is_test": true,
+      "in_switch_scope": false,
+      "reviewed_not_switched": null,
+      "pending_switch": false,
+      "code": "completed_games_sql_with_evidence(\"\")"
+    },
+    {
+      "file": "tests/test_completion_evidence.py",
+      "line": 71,
+      "match_kind": "evidence_helper",
+      "is_chain": false,
+      "is_frozen": false,
+      "is_test": true,
+      "in_switch_scope": false,
+      "reviewed_not_switched": null,
+      "pending_switch": false,
+      "code": "sql = completed_games_sql_with_evidence(\"g\")"
+    },
+    {
+      "file": "tests/test_completion_evidence.py",
+      "line": 81,
+      "match_kind": "evidence_helper",
+      "is_chain": false,
+      "is_frozen": false,
+      "is_test": true,
+      "in_switch_scope": false,
+      "reviewed_not_switched": null,
+      "pending_switch": false,
+      "code": "sql = completed_games_sql_with_evidence(\"g\")"
+    },
+    {
+      "file": "tests/test_completion_evidence.py",
+      "line": 105,
+      "match_kind": "evidence_helper",
+      "is_chain": false,
+      "is_frozen": false,
+      "is_test": true,
+      "in_switch_scope": false,
+      "reviewed_not_switched": null,
+      "pending_switch": false,
+      "code": "cond = completed_games_sql_with_evidence(\"g\")"
+    },
+    {
+      "file": "tests/test_completion_evidence.py",
+      "line": 147,
+      "match_kind": "evidence_helper",
+      "is_chain": false,
+      "is_frozen": false,
+      "is_test": true,
+      "in_switch_scope": false,
+      "reviewed_not_switched": null,
+      "pending_switch": false,
+      "code": "cond = completed_games_sql_with_evidence(\"g\")"
+    },
+    {
+      "file": "tests/test_completion_evidence.py",
+      "line": 206,
+      "match_kind": "evidence_helper",
+      "is_chain": false,
+      "is_frozen": false,
+      "is_test": true,
+      "in_switch_scope": false,
+      "reviewed_not_switched": null,
+      "pending_switch": false,
+      "code": "cond = completed_games_sql_with_evidence(\"g\")"
     },
     {
       "file": "tests/test_refresh_pa_daily.py",
