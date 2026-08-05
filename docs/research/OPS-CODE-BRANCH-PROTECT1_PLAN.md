@@ -11,9 +11,14 @@
 一律標記為「需求方執行」；執行者只跑 `GET`。所有「規則會怎樣」的宣稱都附兩種來源之一：
 
 - 📖 GitHub 官方文件原文（引 `github/docs` repo 的 markdown 原始檔，非渲染頁摘要）
-- 🔬 `gh api` 唯讀實測輸出（本 repo 或第三方公開 repo）
+- 🔬 唯讀實測輸出：`gh api` GET（本 repo 或第三方公開 repo）、或本機 `git` 讀取指令
 
 沒有這兩種背書的行為描述，一律標為 **未驗證假設**（§9），不寫進建議方案的保證。
+
+**引用外部 repo 的規矩（R1 修正後補訂）**：任何跨 repo 的證據都必須寫**完整絕對路徑 +
+釘 SHA + 把關鍵碼段摘進本文**，讓查核者不必猜檔案在哪就能複驗。踩過的坑：`git worktree add`
+不帶 submodule 內容，所以本 worktree 的 `.ai-workflow/` 是**空目錄**——在 worktree 內 glob
+`.ai-workflow/**` 一定全空，這是預期行為，不是查核者漏找（見 §7.2.1）。
 
 ---
 
@@ -109,13 +114,19 @@ PR #41/#42/#85/#87 的 `mergeCommit` 都對得上 main 上「`merge: <CARD>`」�
 commit（GitHub 偵測到 head 已可從 base 到達，於是標記 PR 為 merged）。也就是說：
 **現行流程確實是「本機 merge → 直推 main」，PR 只是留痕載體，不是 merge 通道。**
 
-直推量體（`--first-parent` 口徑）：
+直推量體（`--first-parent` 口徑）。**量測時刻 2026-08-05T17:46:38+0800，`origin/main` = `b78def9`**：
 
 | 期間 | main 上 first-parent commit | 其中 merge commit | 直接落 main 的 commit |
 |---|---|---|---|
-| 近 30 天 | 1278 | 134 | 1144（89.5%） |
-| 近 7 天 | 352 | 41 | 311（88.4%） |
-| 2026-08-05 當日（cutover 後） | 38 | 12 | 26 |
+| 近 30 天 | 1278 | 135 | 1143（89.4%） |
+| 近 7 天 | 345 | 42 | 303（87.8%） |
+| 2026-08-05 當日（cutover 後，量測於 15:07） | 38 | 12 | 26 |
+
+> ⚠️ **這組數字是滾動視窗，重測必然不同，不要當固定事實引用。** 本文初稿於同日
+> 15:07（`origin/main` = `fab5e3b`）量到近 7 天 352／41／**311**；R1 查核者稍後重測得
+> **303**。兩者都對——`--since=7.days` 的視窗左緣隨時鐘前移、右緣隨 main 推進，2 小時
+> 39 分內就滑掉 8 筆。要複驗請重跑附錄指令並自行記錄當下的 `origin/main` SHA 與時刻；
+> 結論只依賴「直推佔比穩定在 ~88–90%」這個量級，不依賴任何單一數值。
 
 近 30 天非 merge commit 的前綴分布前幾名：`chore(control-plane)` 624、`docs` 214、
 `docs(tasks)` 116、`feat(web)` 107。`chore(control-plane)` 已隨 state-plane cutover 消失，
@@ -442,13 +453,90 @@ ai/* 分支無 PR → 分支 head 無 check → 本機 merge 出的 M 無 check 
 
 | 項目 | 現況 | 轉換後 | 成本 |
 |---|---|---|---|
-| 落 main 的 commit 量 | 近 7 天 311 筆直接 commit（88.4%） | 全部要開 PR | 每筆多一次 branch + PR + 等 CI（api job 含 `uv sync`、web job 含 `npm ci`，非秒級） |
+| 落 main 的 commit 量 | 近 7 天 303 筆直接 commit（87.8%，量測條件見 §1.4 註記） | 全部要開 PR | 每筆多一次 branch + PR + 等 CI（api job 含 `uv sync`、web job 含 `npm ci`，非秒級） |
 | B1 記錄文件（`docs/tasks`、Issue 留痕伴生檔） | canonical §0 明列「直接 commit；免審，不部署」 | 必須走 PR | **與 canonical §0 直接衝突**，要改 canonical 或給 B1 例外路徑 |
 | B2 權威文件小改 | canonical §0「小改可直接 commit」 | 必須走 PR | 同上 |
-| `wfcli snapshot` 產出 | `--out-dir` 寫檔後由人 commit（🔬 `snapshot_cmd.py` 不含任何 git 寫入） | 需要 PR 或自動化 PR | 需設計自動化路徑 |
+| `wfcli snapshot` 產出 | `--out-dir` 寫檔後由人 commit（證據鏈見 §7.2.1，**外部 repo**） | 需要 PR 或自動化 PR | 需設計自動化路徑 |
 | PM merge 動作 | 本機 `--no-ff` + push | 改按 GitHub merge，或維持本機 merge 但需 head 綠 | merge commit 訊息格式（`merge: <CARD> (...)`）與 `Reviewed-by` trailer 需重新對齊；GitHub 端 merge 的訊息不可自由控制 |
 | trailer 守衛 | 只驗 `本地 main..HEAD`，明確排除 main 上的 Coordinator commit | PR 路徑下守衛驗的是分支 commit（原本設計意圖），且 synthetic merge 已被 `DEV-TRAILER-GUARD-PR-CHECKOUT1` 排除 | **無新增成本**；反而是 PR 路徑讓守衛更貼近設計 |
 | `ai/*` 的 `--force-with-lease` | 自由 | 不受影響（ruleset 只 target 預設分支） | 無 |
+
+### 7.2.1 `wfcli snapshot` 證據鏈（外部 repo，釘 SHA）
+
+> **R1 查核 BRPROT1-R1-1 修正**：初稿只寫「🔬 `snapshot_cmd.py` 不含 git 寫入」，卻沒說
+> 那個檔在哪個 repo。它**不在 cpbl-analytics 內**——`git worktree add` 不會帶出 submodule
+> 內容，本 worktree 的 `.ai-workflow/` 是空目錄（`ls` 只有 `.`／`..`），查核者 glob 全空
+> 是正確結果，不是他漏找。以下把來源、SHA 與關鍵碼段全部搬進本文，使宣稱在文件內自足。
+
+**來源定位**
+
+| 項目 | 值 |
+|---|---|
+| repo | `ruan6047/ai-workflow`（`git@github.com:ruan6047/ai-workflow.git`） |
+| 本機獨立 clone | `/Users/ruanruan/Dev/ai-workflow`，`HEAD` = `8d47336303ee3a7c7eb546eeb70d108b5791f030`（工作區乾淨） |
+| cpbl-analytics `origin/main` 釘住的 submodule 指標 | `4bd4f2cfdc941d56d9a163ae50e1b8916ba6e23f`（`git ls-tree origin/main .ai-workflow`） |
+| 檔案 | `cli/src/wf_cli/commands/snapshot_cmd.py` |
+| **blob hash（兩個 SHA 皆同）** | `abb7cd7859327be52d68dedd6988e0a28e301368` |
+
+blob hash 在 `4bd4f2c`（repo 實際消費的版本）與 `8d47336`（dev clone HEAD）**位元組相同**，
+所以本結論不受「查核者手上是哪一版」影響：
+
+```bash
+git -C ~/Dev/ai-workflow rev-parse 4bd4f2c...:cli/src/wf_cli/commands/snapshot_cmd.py
+git -C ~/Dev/ai-workflow rev-parse 8d47336...:cli/src/wf_cli/commands/snapshot_cmd.py
+# 兩行皆輸出 abb7cd7859327be52d68dedd6988e0a28e301368
+```
+
+**關鍵碼段**（`snapshot_cmd.run()`，出口只有 `write_text`）：
+
+```python
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    json_path = out_dir / "snapshot.json"
+    md_path = out_dir / "SNAPSHOT.md"
+    json_path.write_text(json_str, encoding="utf-8")
+    md_path.write_text(md_str, encoding="utf-8")
+
+    print(f"[snapshot] {len(rows)} 張卡 → {json_path}, {md_path}")
+    return 0
+```
+
+**呼叫鏈全域檢查**（`snapshot_cmd` → `config`／`card`／`gh`／`project`／`snapshot`）：
+
+```bash
+# 兩個 SHA 都測，五個模組全部 0
+for sha in 4bd4f2c... 8d47336...; do
+  for f in commands/snapshot_cmd.py snapshot.py project.py card.py config.py; do
+    git -C ~/Dev/ai-workflow show "$sha:cli/src/wf_cli/$f" | grep -cE '^\s*(import|from)\s+subprocess'
+  done
+done
+# → 全部輸出 0
+```
+
+唯一 import `subprocess` 的是 `gh.py`，而它跑的 binary 是 `gh` 不是 `git`：
+
+```python
+@dataclass
+class GhRunner:
+    binary: str = "gh"
+
+    def execute(self, args: Sequence[str], input: str | None = None) -> str:
+        proc = subprocess.run(
+            [self.binary, *args],
+            ...
+```
+
+**因此，精確的宣稱是**：`wfcli snapshot` 的行為是「以 `gh` 讀 GitHub Project → 渲染 →
+`write_text` 落檔到 `--out-dir`」，呼叫鏈上**沒有任何 `git` 子行程，也沒有 commit／push**。
+（注意措辭：它**會** shell out，只是 shell out 的對象是 `gh`。寫成「完全不呼叫外部程式」是錯的。）
+
+**校準結論的效力範圍** ⚠️
+
+這是**外部工具依賴**：`wfcli` 住在 ai-workflow repo，**其行為變更不受 cpbl-analytics 的
+任何 ruleset 或 CI 守衛管轄**。所以本結論不是「已證成、永久成立」，而是
+**「於 `ai-workflow@4bd4f2c`／`@8d47336`（blob `abb7cd7`）驗證成立」**。若日後 wfcli 加入
+自動 commit／push，§10 的驗收③就不再自動滿足，必須重驗。建議把「submodule 指標 bump 時
+重跑本節檢查」列入 ai-workflow 升級的例行項。
 
 還有一條 canonical 內部張力值得需求方一併裁決：canonical §2.2 寫
 「A 類 repo 必開 branch protection／required checks；`git push origin HEAD:main` 是違規」，
@@ -513,6 +601,9 @@ flowchart TD
 5. `GET /rulesets/{id}/history` 對本 repo owner 是否可用——🔬 以非 admin 讀第三方 repo 回
    404（代表需 admin），owner 對自家 repo 應可用但未實測（本 repo 目前無 ruleset）。
    → Wave 1 建立後第一次驗證即可確認。
+6. 「`wfcli snapshot` 不 commit／push」在**未來**版本仍成立——§7.2.1 只驗到
+   `ai-workflow@4bd4f2c`／`@8d47336`。wfcli 在外部 repo，不受本 repo 任何守衛管轄。
+   → 每次 bump `.ai-workflow` submodule 指標時重跑 §7.2.1 的檢查；驗收③的效力隨之更新。
 
 **非目標**
 
@@ -532,7 +623,7 @@ Issue #83 的三條驗收與 PM 給的約束 1（預設方案不得強制 PR）*
 |---|---|
 | ① direct push main 被拒的實際輸出 | **部分可達**。預設方案下，「直推改寫歷史／刪除」被拒可取得實際輸出（§4.3）；但「一般 fast-forward 直推被拒」需要 required PR／checks，與約束 1 衝突。建議改寫為「**破壞性**直推被拒的實際輸出」。 |
 | ② 含紅 required check 的 PR 無法 merge、綠色後可 merge 各一 | **本卡不可達**。需要 `required_status_checks` 生效於 main。建議降級為 Wave 2 的 probe 分支證據（同樣是紅／綠各一，但在 `protect-probe` 上取得），main 上的版本移到 Wave 3。 |
-| ③ snapshot／B1 落 main 路徑設計文件化並實跑一次 | **預設方案下自動滿足**：`wfcli snapshot --out-dir` 產檔後由 PM 直接 commit + fast-forward push main，路徑完全不變。已於 §7.2 記錄成因（🔬 `snapshot_cmd.py` 無 git 寫入）。若未來走 Wave 3B（強制 PR），此路徑才需要重新設計。 |
+| ③ snapshot／B1 落 main 路徑設計文件化並實跑一次 | **預設方案下自動滿足，但效力有邊界**：`wfcli snapshot --out-dir` 產檔後由 PM 直接 commit + fast-forward push main，路徑完全不變。成因與完整證據鏈見 §7.2.1——結論限定為**「於 `ai-workflow@4bd4f2c`／`@8d47336`（blob `abb7cd7`）驗證成立」**，不是永久性質；wfcli 屬外部 repo，不受本 repo 守衛管轄。若未來走 Wave 3B（強制 PR），或 wfcli 加入自動 commit／push，此路徑須重新設計並重驗。 |
 
 **建議裁決**：把①改寫為破壞性直推、②移到 Wave 2 的 probe 分支、③維持原樣。若需求方
 堅持①②照原文，那等於選了方案 F/E，必須先接受 §7.2 的轉換成本並先解 B1／B2 例外路徑，
@@ -555,9 +646,17 @@ gh api repos/ruan6047/cpbl-analytics/commits/main/check-runs --jq '.check_runs[]
 gh api "repos/ruan6047/cpbl-analytics/actions/runs?per_page=100" \
   --jq '[.workflow_runs[]|{branch:.head_branch,event}]|group_by(.branch+"|"+.event)|map({key:(.[0].branch+" | "+.[0].event),n:length})|.[]'
 
-# 直推量體
+# 直推量體（滾動視窗，重測必不同——請一併記錄當下時刻與 origin/main SHA，見 §1.4 註記）
+date "+%Y-%m-%dT%H:%M:%S%z"; git rev-parse --short origin/main
 git rev-list --count --first-parent --since=7.days origin/main
 git rev-list --count --first-parent --merges --since=7.days origin/main
+
+# wfcli snapshot 證據鏈（⚠️ 外部 repo，不在 cpbl worktree 內；worktree 的 .ai-workflow 是空目錄）
+git -C ~/Dev/ai-workflow rev-parse HEAD
+git -C /Users/ruanruan/Dev/cpbl-analytics ls-tree origin/main .ai-workflow   # submodule 指標
+git -C ~/Dev/ai-workflow rev-parse 4bd4f2cfdc941d56d9a163ae50e1b8916ba6e23f:cli/src/wf_cli/commands/snapshot_cmd.py
+git -C ~/Dev/ai-workflow rev-parse 8d47336303ee3a7c7eb546eeb70d108b5791f030:cli/src/wf_cli/commands/snapshot_cmd.py
+git -C ~/Dev/ai-workflow show 4bd4f2cfdc941d56d9a163ae50e1b8916ba6e23f:cli/src/wf_cli/commands/snapshot_cmd.py
 
 # 平台文件原文（github/docs 原始 markdown，含 ifversion 條件）
 gh api repos/github/docs/contents/data/reusables/gated-features/repo-rules.md --jq .content | base64 -d
