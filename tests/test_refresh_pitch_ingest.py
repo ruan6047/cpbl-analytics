@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import importlib.util
 from contextlib import contextmanager
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -171,13 +172,161 @@ def test_empty_livelog_writes_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(pt, "_fetch_game_livelog", lambda c, y, k, s: [])
     monkeypatch.setattr(pt.time, "sleep", lambda s: None)
     out = pt.scrape_game_pitches([(2026, "A", 1)], delay=0)
-    assert out == {"games": 1, "pitches": 0}
+    assert out == {"games": 1, "pitches": 0, "skipped_frozen": 0}
 
 
 def test_ingest_module_has_no_delete_statement() -> None:
     """紅線 3：本卡不授權任何 DELETE，增量與全季重跑一律純 UPSERT。"""
     src = Path(pt.__file__).read_text()
     assert "DELETE" not in src.upper()
+
+
+# ---------------------------------------------------------------------------
+# 凍結例外清單（紅線 1，fail-closed）——**兩向**端對端
+# ---------------------------------------------------------------------------
+FROZEN = (2026, "D", 180)
+NOT_FROZEN = (2026, "D", 181)
+
+
+def _capture_upsert_writes(monkeypatch: pytest.MonkeyPatch) -> list[tuple]:
+    """攔在真正的 DB 寫入邊界（executemany 的參數），而不是攔 `_upsert` 本身——
+    後者會讓「凍結過濾寫在 _upsert 裡」這件事無法被測到。"""
+    written: list[tuple] = []
+
+    class _Cur:
+        def executemany(self, sql, rows):
+            written.extend(rows)
+
+    class _C:
+        def cursor(self):
+            return _Cur()
+
+    @contextmanager
+    def factory():
+        yield _C()
+
+    monkeypatch.setattr(pt, "conn", factory)
+    return written
+
+
+def _pitch_row(year: int, kind: str, sno: int, pitch_cnt: int = 1) -> tuple:
+    d = dict.fromkeys([c.strip() for c in pt._COLS.split(",")])
+    d.update({"year": year, "kind_code": kind, "game_sno": sno,
+              "pitcher_acnt": "p1", "pitch_cnt": pitch_cnt})
+    return tuple(d[c.strip()] for c in pt._COLS.split(","))
+
+
+def test_frozen_list_contains_only_requester_approved_entry() -> None:
+    """清單內容本身即契約：執行者不得自行擴充，改動必須在 diff 上顯而易見。"""
+    assert pt.FROZEN_GAMES == frozenset({(2026, "D", 180)})
+    assert pt.is_frozen(*FROZEN) and not pt.is_frozen(*NOT_FROZEN)
+
+
+def test_frozen_game_never_reaches_db_from_any_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    """向一：清單內場次**任何路徑都不觸碰**——直接餵給唯一寫入口也寫不進去。"""
+    written = _capture_upsert_writes(monkeypatch)
+    n = pt._upsert([_pitch_row(*FROZEN, pitch_cnt=1), _pitch_row(*FROZEN, pitch_cnt=2)])
+    assert n == 0 and written == []
+
+
+def test_non_frozen_game_writes_normally(monkeypatch: pytest.MonkeyPatch) -> None:
+    """向二：清單外場次照常寫入（證明過濾器沒有把所有東西一起擋掉）。"""
+    written = _capture_upsert_writes(monkeypatch)
+    n = pt._upsert([_pitch_row(*NOT_FROZEN, pitch_cnt=1), _pitch_row(*NOT_FROZEN, pitch_cnt=2)])
+    assert n == 2 and len(written) == 2
+
+
+def test_mixed_batch_writes_only_non_frozen(monkeypatch: pytest.MonkeyPatch) -> None:
+    """混合批次：凍結列被剔除、其餘照寫（逐投手 logs 路徑的真實形態——
+    一次抓整季會同時含凍結場與正常場）。"""
+    written = _capture_upsert_writes(monkeypatch)
+    n = pt._upsert([_pitch_row(*FROZEN), _pitch_row(*NOT_FROZEN), _pitch_row(2026, "A", 1)])
+    assert n == 2
+    assert {(r[0], r[1], r[2]) for r in written} == {NOT_FROZEN, (2026, "A", 1)}
+
+
+def test_game_path_skips_frozen_without_requesting(monkeypatch: pytest.MonkeyPatch) -> None:
+    """端對端（單場路徑）：凍結場連請求都不發，清單外場照常抓照常寫。"""
+    written = _capture_upsert_writes(monkeypatch)
+    fetched: list[tuple] = []
+
+    def fake_fetch(client, year, kind, sno):
+        fetched.append((year, kind, sno))
+        return [{"Year": year, "KindCode": kind, "GameSno": sno, "PitchCnt": 1,
+                 "PitcherAcnt": "p1", "Trackman": {"Play": {}, "Pitch": {}}}]
+
+    monkeypatch.setattr(pt, "_fetch_game_livelog", fake_fetch)
+    monkeypatch.setattr(pt.time, "sleep", lambda s: None)
+    out = pt.scrape_game_pitches([FROZEN, NOT_FROZEN], delay=0)
+
+    assert fetched == [NOT_FROZEN], "凍結場不得發出任何請求"
+    assert out["skipped_frozen"] == 1 and out["games"] == 1
+    assert {(r[0], r[1], r[2]) for r in written} == {NOT_FROZEN}
+
+
+def test_pitcher_fallback_path_also_cannot_write_frozen(monkeypatch: pytest.MonkeyPatch) -> None:
+    """端對端（回退路徑）：logs 一次回整季、內含凍結場的球，同樣寫不進去。"""
+    written = _capture_upsert_writes(monkeypatch)
+    monkeypatch.setattr(pt.time, "sleep", lambda s: None)
+    monkeypatch.setattr(pt, "_fetch_logs", lambda c, a, y, k: [
+        {"Year": 2026, "KindCode": "D", "GameSno": 180, "PitchCnt": 1,
+         "PitcherAcnt": "p1", "Trackman": {"Play": {}, "Pitch": {}}},
+        {"Year": 2026, "KindCode": "D", "GameSno": 181, "PitchCnt": 1,
+         "PitcherAcnt": "p1", "Trackman": {"Play": {}, "Pitch": {}}},
+    ])
+    pt.scrape_pitches(["p1"], 2026, kind_code="D", delay=0)
+    assert {(r[0], r[1], r[2]) for r in written} == {NOT_FROZEN}
+
+
+def test_refresh_union_excludes_frozen(monkeypatch: pytest.MonkeyPatch) -> None:
+    """凍結場不進 refresh 的目標集合（即使它同時是當日窗完成場與落後場）。"""
+    calls = _spy(monkeypatch)
+    monkeypatch.setattr(rr.settings, "pitch_ingest", "game")
+    monkeypatch.setattr(rr, "_lagging_pitch_games", lambda y, k: {180, 182})
+    rr._refresh_pitches(2026, "D", [180, 181], [], delay=0)
+    assert calls["game"][0]["games"] == [(2026, "D", 181), (2026, "D", 182)]
+
+
+# ---------------------------------------------------------------------------
+# F2：當日窗為空時 lagging 自癒仍須運作（端對端）
+# ---------------------------------------------------------------------------
+def test_farm_detail_runs_lagging_when_day_window_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    """二軍當日窗無完成場（賽程空檔）時，落後場補抓仍須送出——不得整段跳過。"""
+    calls = _spy(monkeypatch)
+    monkeypatch.setattr(rr.settings, "pitch_ingest", "game")
+    monkeypatch.setattr(rr, "_completed_snos", lambda y, d, k="A": [])
+    monkeypatch.setattr(rr, "_lagging_pitch_games", lambda y, k: {77})
+    out = rr._farm_detail(2026, [date(2026, 8, 4), date(2026, 8, 5)], delay=0)
+
+    assert out["skipped"] == "近兩日無二軍完成場"
+    assert calls["game"] == [{"games": [(2026, "D", 77)], "delay": 0}]
+    assert out["pitches"]["lagging_games"] == 1
+
+
+def test_incremental_detail_runs_lagging_when_day_window_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """一軍同上；且二軍分支獨立完成，兩者互不吞掉對方的自癒。"""
+    calls = _spy(monkeypatch)
+    monkeypatch.setattr(rr.settings, "pitch_ingest", "game")
+    monkeypatch.setattr(rr, "_completed_snos", lambda y, d, k="A": [])
+    monkeypatch.setattr(rr, "_lagging_pitch_games", lambda y, k: {5} if k == "A" else {9})
+    out = rr._incremental_detail(2026, [date(2026, 8, 4), date(2026, 8, 5)], delay=0)
+
+    assert out["skipped"] == "近兩日無一軍完成場"
+    sent = [c["games"] for c in calls["game"]]
+    assert [(2026, "D", 9)] in sent and [(2026, "A", 5)] in sent
+    assert out["farm"]["pitches"]["lagging_games"] == 1
+
+
+def test_empty_window_and_no_lagging_makes_no_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    """窗空且無落後場 → 不發請求（修 F2 不得變成每日空轉打 API）。"""
+    calls = _spy(monkeypatch)
+    monkeypatch.setattr(rr.settings, "pitch_ingest", "game")
+    monkeypatch.setattr(rr, "_completed_snos", lambda y, d, k="A": [])
+    monkeypatch.setattr(rr, "_lagging_pitch_games", lambda y, k: set())
+    rr._incremental_detail(2026, [date(2026, 8, 4), date(2026, 8, 5)], delay=0)
+    assert calls["game"] == []
 
 
 # ---------------------------------------------------------------------------

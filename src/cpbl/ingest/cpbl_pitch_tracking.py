@@ -42,6 +42,34 @@ GAMES_EP = f"{BASE}/api/proxy/v1/games"  # 單場物件 /api/proxy/v1/games/{yea
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 
 
+# ── 凍結例外清單（INGEST-GAME-TM-REFACTOR1-G4 紅線 1；需求方 2026-08-05 裁定）────────
+#
+# 語意：經逐場歸因**證實兩支官方端點互相矛盾、且單場 API 為較差來源**的場次，由**需求方
+# 逐場核入**本清單。凍結場次由增量路徑與每週全季重跑**一律跳過不寫**（fail-closed），
+# 使較差來源不會覆蓋既有較完整資料；其 mismatch 亦不計入紅線 1 母體。
+#
+# ⚠️ **執行者不得自行擴充本清單**——新增一律需求方明示核入並留 event。
+#    這不是「發現差異就加進來」的白名單，加入前必須有三方比對證據
+#    （logs 端點現值 vs 正式表 vs 單場 API）證明單場 API 較差，而非單純不一致。
+#
+# 首例 `(2026, "D", 180)`（2026-07-30 澄清湖）核入理由：
+#   · logs 端點**現值** vs 正式表 0/109 列不一致 → 排除「正式表過期」。
+#   · logs 端點現值 vs 單場 API 100/100 列不一致 → 兩支官方端點當下互相矛盾。
+#   · 單場 API 全 105 列缺 `Trackman.Play.PitchTag`（`pitch_call`／`auto_pitch_type` 全 null）、
+#     軌跡係數全異、2 球 `rel_speed` 差 > 1 km/h（最大 15.56）、且少 4 列 → 單場 API 較差。
+#   證據：Phase A dry-run 三方比對
+#   （docs/research/INGEST-GAME-TM-REFACTOR1-G4/redline_attribution.json）＋ 第 1 輪
+#   跨家族查核（GPT-5.6@Codex）複驗；需求方 2026-08-05 裁定正文化入卡面紅線 1。
+FROZEN_GAMES: frozenset[tuple[int, str, int]] = frozenset({
+    (2026, "D", 180),
+})
+
+
+def is_frozen(year: int | None, kind_code: str | None, game_sno: int | None) -> bool:
+    """該場是否在凍結例外清單內（任何寫入路徑都必須先問這一句）。"""
+    return (year, kind_code, game_sno) in FROZEN_GAMES
+
+
 def _client() -> httpx.Client:
     return httpx.Client(timeout=60.0, headers={"User-Agent": UA}, follow_redirects=True)
 
@@ -160,6 +188,10 @@ _COLS = ("year,kind_code,game_sno,pitcher_acnt,pitch_cnt,pitcher_name,hitter_acn
 
 
 def _upsert(records: list[tuple]) -> int:
+    # 凍結例外（紅線 1，fail-closed）：在**唯一寫入口**過濾，故 logs 路徑、單場路徑、
+    # 每週全季重跑、手動 CLI ——**任何**路徑都不可能寫進凍結場，不必逐個呼叫點記得擋。
+    # 放在去重之前：凍結列連去重都不參與，避免任何後續步驟看見它們。
+    records = [r for r in records if not is_frozen(r[0], r[1], r[2])]
     # 去重：同一 PK (year,kind,game,pitcher,pitch_cnt) 只留一筆
     seen, uniq = set(), []
     for r in records:
@@ -227,9 +259,15 @@ def scrape_game_pitches(games: list[tuple[int, str, int]], delay: float = 1.0) -
     改名／註銷造成的 acnt 對帳漏損。無 Trackman 設備球場之球 Trackman=null → 不收（既有語意）。
     """
     client = _client()
-    out = {"games": 0, "pitches": 0}
+    out = {"games": 0, "pitches": 0, "skipped_frozen": 0}
     try:
         for idx, (year, kind_code, sno) in enumerate(games, 1):
+            if is_frozen(year, kind_code, sno):
+                # 凍結場連請求都不發（_upsert 仍會再擋一次；這裡只是省掉無用請求）
+                out["skipped_frozen"] += 1
+                log.info("[%d/%d] %d-%s-%s 在凍結例外清單內 → 跳過不抓不寫",
+                         idx, len(games), year, kind_code, sno)
+                continue
             time.sleep(delay)
             try:
                 livelog = _fetch_game_livelog(client, year, kind_code, sno)

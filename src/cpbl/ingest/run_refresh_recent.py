@@ -29,7 +29,7 @@ from cpbl.ingest.championships import build_championships
 from cpbl.ingest.cpbl_advanced import AdvancedScrapeResult, scrape_advanced_result
 from cpbl.ingest.cpbl_fighting import YEAR_CAREER, scrape_matchups
 from cpbl.ingest.cpbl_gamelog import scrape_game_details, scrape_gamelogs
-from cpbl.ingest.cpbl_pitch_tracking import scrape_game_pitches, scrape_pitches
+from cpbl.ingest.cpbl_pitch_tracking import is_frozen, scrape_game_pitches, scrape_pitches
 from cpbl.ingest.cpbl_site import lineup_acnts, scrape_games
 from cpbl.ingest.cpbl_standings import scrape_standings
 from cpbl.ingest.cpbl_stats import scrape_all
@@ -172,11 +172,18 @@ def _refresh_pitches(year: int, kind_code: str, day_snos: list[int],
 
     兩路皆走同一組 lagging 判準與同一 pure parser／冪等 UPSERT，故切換不改變入庫語意，
     只改變請求維度。`settings.pitch_ingest` 於呼叫時讀取（非 import 時），回退才能即時生效。
+
+    **`day_snos` 允許為空**：呼叫端在當日窗無完成場時仍須呼叫本函式，讓落後場自癒在
+    賽程空檔繼續運作（F2）；此時目標集合即 lagging 集合，仍是單次送出。
+    **凍結例外場一律不進目標集合**（紅線 1），`_upsert` 另有最終過濾形成雙層 fail-closed。
     """
     mode = settings.pitch_ingest
-    lagging = _lagging_pitch_games(year, kind_code)
+    # 凍結例外（紅線 1）：在目標集合就先排除，凍結場不進入任何一條路徑的抓取清單。
+    # `_upsert` 另有最終過濾（fail-closed 雙層），此處只是不浪費請求並讓摘要誠實。
+    lagging = {s for s in _lagging_pitch_games(year, kind_code)
+               if not is_frozen(year, kind_code, s)}
     if mode == "game":
-        snos = sorted(set(day_snos) | lagging)
+        snos = sorted({s for s in day_snos if not is_frozen(year, kind_code, s)} | lagging)
         out = (scrape_game_pitches([(year, kind_code, s) for s in snos], delay=delay)
                if snos else {"games": 0, "pitches": 0})
     else:
@@ -380,7 +387,12 @@ def _farm_detail(year: int, days: list[date], delay: float = 1.2) -> dict:
     """
     d_snos = _completed_snos(year, days, "D")
     if not d_snos:
-        return {"skipped": "近兩日無二軍完成場"}
+        # 當日窗無完成場**仍須跑 lagging 自癒**：TrackMan 發布延遲 0–2 天，賽程空檔
+        # （週一休兵、二軍連續無賽）正是延遲最容易卡住的時候——若連 `_refresh_pitches`
+        # 一起跳過，前幾日覆蓋不足的場會隨窗口滑出而永久缺（F2，第 1 輪查核 Critical）。
+        # 聯集語意不變：day_snos 為空 → 目標＝lagging 集合，仍是單次送出。
+        return {"skipped": "近兩日無二軍完成場",
+                "pitches": _refresh_pitches(year, "D", [], [], delay)}
     gamelog = scrape_gamelogs(year, d_snos, "D")
     scrape_game_details(year, d_snos, "D")  # 觀眾/裁判/時長
     batters, pitchers = lineup_acnts(year, d_snos, "D")
@@ -412,7 +424,9 @@ def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict
     farm = _farm_detail(year, days, delay)          # 二軍獨立跑（一軍無場也要更新二軍）
     snos = _completed_snos(year, days, "A")
     if not snos:
-        return {"skipped": "近兩日無一軍完成場", "farm": farm}
+        # 同 `_farm_detail`：窗空仍跑 lagging 自癒（F2）。farm 已於上一行獨立處理完畢。
+        return {"skipped": "近兩日無一軍完成場",
+                "pitches": _refresh_pitches(year, "A", [], [], delay), "farm": farm}
     # 賽況（逐局比分 + 逐打席事件）：當日完成場
     gamelog = scrape_gamelogs(year, snos)
     scrape_game_details(year, snos, "A")  # 觀眾/裁判/時長
@@ -424,8 +438,11 @@ def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict
         _record_advanced_revisions(
             year, "A", snos, AdvancedScrapeResult(rows=0, outcome="missing", error_codes=()),
         )
+        # 與 F2 同類：名冊抓不到（box score 尚未發布）不該連逐球一起跳過——**場次維度
+        # 根本不需要名冊**，snos 已在手上。此處仍送出當日窗 ∪ lagging。
         return {"completed_games": len(snos), "gamelog": gamelog,
-                "lineup_batters": 0, "lineup_pitchers": 0, "farm": farm}
+                "lineup_batters": 0, "lineup_pitchers": 0,
+                "pitches": _refresh_pitches(year, "A", snos, [], delay), "farm": farm}
     # 對戰：只重抓「當日打者 × 當日對手隊」的生涯對戰即涵蓋所有變動的 (打者,投手) 組合
     # （對手投手全在當日對手隊，故無需掃該打者生涯面對過的所有隊，省 ~15× 請求）。
     # 不帶 pitcher_ids＝不濾對戰投手層級（比照二軍，完整保留對戰史）。
