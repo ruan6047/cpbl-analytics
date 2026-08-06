@@ -64,8 +64,10 @@ export default async function Home({
         </div>
       </header>
 
-      {/* 每日入口 hub：最近比賽日 → freshness → 下一批賽事。API 失敗顯示可重試錯誤，
-          不把錯誤當成「今天沒比賽」（GAME_RECAP §7.1）。 */}
+      {/* 每日入口 hub：今日賽事（每場三態）／最近比賽日 → freshness → 下一批賽事。
+          API 失敗顯示可重試錯誤，不把錯誤當成「今天沒比賽」（GAME_RECAP §7.1）。
+          hub 自己是 client island：主區塊要在比賽日隨 phase 自行翻頁，而它的前景輪詢
+          打的就是這裡 SSR 用的同一支 dailySummary，不另開第二個來源。 */}
       {dailyR.status === "fulfilled" ? (
         <DailyHub summary={dailyR.value} />
       ) : (

@@ -11,9 +11,27 @@ import {
   slateDistanceText,
   gameHref,
   REFRESH_COPY,
+  dailySummaryQuery,
+  liveAgeSeconds,
+  liveInterrupt,
+  liveSourceNotice,
+  officialFactLine,
+  phaseTone,
+  showTodaySlate,
+  sortTodayGames,
+  todayCardKind,
+  todayInningLabel,
+  todayPollDelayMs,
+  todayStatusText,
+  TODAY_COPY,
+  TODAY_POLL_LIVE_MS,
+  TODAY_POLL_PREGAME_MS,
   type DailyGamePregame,
   type DailySummary,
   type RefreshStatus,
+  type TodayGame,
+  type TodayLive,
+  type TodaySlate,
 } from "./daily-summary.ts";
 
 // —— PregameCard adapter：daily summary 內嵌 pregame → 五態，永不 throw、永不造 50% ——
@@ -397,4 +415,249 @@ test("同一份 response 顯示 serving_current 時才可以沒有告示", () =>
   });
 
   assert.equal(homePregameNotice(fresh), null);
+});
+
+// —— 今日賽事三態（UX-HOME-LIVE-STRIP1）——
+//
+// 卡面點名的十種情境，逐一在此以純函式覆蓋（後端側在 `tests/test_daily_summary.py`）：
+// 今天無場次／賽前未達 lineup／任一場 lineup 觸發切換／單場 live／三場 live／
+// stale 一階／stale 二階／worker 不可用／final 當晚／跨日回退。
+
+const T0 = Date.parse("2026-08-07T19:30:00+08:00");
+
+function live(over: Partial<TodayLive> = {}): TodayLive {
+  return {
+    phase: "live",
+    raw_status: "START",
+    starts_at: "2026-08-07T18:35:00+08:00",
+    inning: 5,
+    half: "2",
+    outs: 1,
+    bases: { first: true, second: false, third: false },
+    away_score: 2,
+    home_score: 3,
+    event_count: 150,
+    freshness: "fresh",
+    stale_after_seconds: 45,
+    source_status: "ok",
+    fetched_at: new Date(T0 - 10_000).toISOString(),
+    interrupt: "none",
+    decisions: null,
+    ...over,
+  };
+}
+
+function game(sno: number, over: Partial<TodayGame> = {}): TodayGame {
+  return {
+    season: 2026, kind_code: "A", game_sno: sno, game_date: "2026-08-07", venue: "洲際",
+    away_team_code: "ADD011", away_team_name: "統一7-ELEVEn獅", away_score: null,
+    home_team_code: "ACN011", home_team_name: "中信兄弟", home_score: null,
+    completed: false, delay_kind: null, orig_date: null, live: null,
+    ...over,
+  } as TodayGame;
+}
+
+function slate(games: TodayGame[], over: Partial<TodaySlate> = {}): TodaySlate {
+  const snapshots = games.filter((g) => g.live !== null).length;
+  return {
+    game_date: "2026-08-07",
+    started: games.some((g) => g.completed
+      || ["lineup_announced", "live", "final"].includes(g.live?.phase ?? "")),
+    live_source: { status: snapshots === games.length ? "ok" : snapshots ? "partial" : "unavailable",
+                   reason: null, snapshots, games: games.length },
+    games,
+    ...over,
+  };
+}
+
+function summaryOf(today: TodaySlate | null): DailySummary {
+  return { ...summaryWith({ status: "serving_current", degradation: null }), today };
+}
+
+test("情境1｜今天無場次：today 為 null → 退回最近比賽日＋下一批賽事", () => {
+  assert.equal(showTodaySlate(summaryOf(null)), false);
+  assert.equal(todayPollDelayMs(null), null, "沒有今日場次時零 polling");
+});
+
+test("情境2｜賽前未達 lineup：主位維持上一個比賽日", () => {
+  const s = slate([game(247, { live: live({ phase: "scheduled", inning: null, bases: null }) }),
+                   game(248, { live: live({ phase: "probable_announced", inning: null, bases: null }) })]);
+  assert.equal(s.started, false);
+  assert.equal(showTodaySlate(summaryOf(s)), false);
+  // 但今天仍有會變的場次 → 必須輪詢，否則打線公布永遠翻不了頁。
+  assert.equal(todayPollDelayMs(s), TODAY_POLL_PREGAME_MS);
+});
+
+test("情境3｜任一場 lineup_announced 即切換；單邊公布也算（phase 已是任一隊判準）", () => {
+  const s = slate([game(247, { live: live({ phase: "scheduled", inning: null, bases: null }) }),
+                   game(248, { live: live({ phase: "lineup_announced", inning: null, bases: null }) })]);
+  assert.equal(showTodaySlate(summaryOf(s)), true);
+  // 打線公布仍是**賽前態**：賽前卡不得被收掉。
+  assert.equal(todayCardKind(s.games[1]), "pregame");
+});
+
+test("情境4｜單場 live：卡片為賽中態，輪詢 20 秒", () => {
+  const s = slate([game(247, { live: live() }), game(248, { live: live({ phase: "lineup_announced" }) })]);
+  assert.equal(todayCardKind(s.games[0]), "live");
+  assert.equal(todayPollDelayMs(s), TODAY_POLL_LIVE_MS);
+  assert.equal(todayInningLabel(s.games[0].live!, "glyph"), "▼ 5 局");
+  assert.equal(todayInningLabel(s.games[0].live!, "text"), "下5局");
+});
+
+test("情境5｜三場 live：全部顯示，不截斷、不摺疊", () => {
+  const s = slate([247, 248, 249].map((sno) => game(sno, { live: live() })));
+  assert.equal(sortTodayGames(s.games).length, 3);
+  assert.equal(s.games.every((g) => todayCardKind(g) === "live"), true);
+});
+
+test("情境6｜stale 一階：保留數字，只加中斷標示", () => {
+  const l = live({ fetched_at: new Date(T0 - 60_000).toISOString(), freshness: "stale" });
+  assert.equal(liveInterrupt(l, T0), "degraded");
+  assert.ok(todayStatusText(l, "degraded")?.includes(TODAY_COPY.interrupted));
+});
+
+test("情境7｜stale 二階：超過門檻→ blackout（呈現端據此收掉所有會變的數字）", () => {
+  const l = live({ fetched_at: new Date(T0 - 200_000).toISOString(), freshness: "stale" });
+  assert.equal(liveInterrupt(l, T0), "blackout");
+  assert.ok(todayStatusText(l, "blackout")?.includes(TODAY_COPY.blackout));
+});
+
+test("兩階門檻的邊界：45 秒內正常、45～180 秒一階、180 秒後二階", () => {
+  const at = (ageSec: number) => liveInterrupt(
+    live({ fetched_at: new Date(T0 - ageSec * 1000).toISOString() }), T0);
+  assert.equal(at(44), "none");
+  assert.equal(at(46), "degraded");
+  assert.equal(at(179), "degraded");
+  assert.equal(at(181), "blackout");
+});
+
+test("**紅線**：fetched_at 缺席＝無從證明新鮮 → fail closed 收掉數字", () => {
+  assert.equal(liveAgeSeconds(live({ fetched_at: null }), T0), null);
+  assert.equal(liveInterrupt(live({ fetched_at: null }), T0), "blackout");
+});
+
+test("**紅線**：首屏（nowMs=null）吃後端算好的那一格，不碰瀏覽器時鐘", () => {
+  // 首屏不能用瀏覽器時鐘（SSR 與 hydration 會畫出不同的卡），但也不該先亮出十分鐘前
+  // 的比分再等一個輪詢週期才收掉——所以後端把分級一起送過來。
+  const dead = live({ fetched_at: new Date(T0 - 600_000).toISOString(),
+                      freshness: "stale", interrupt: "blackout" });
+  assert.equal(liveInterrupt(dead, null), "blackout");
+  assert.equal(liveInterrupt(live(), null), "none");
+});
+
+test("兩份判定取較嚴重者：輪詢打不出去時只有瀏覽器時鐘會繼續走", () => {
+  // 後端那一格凍在最後一次成功的回應（none），瀏覽器時鐘已經走過門檻。
+  const frozen = live({ fetched_at: new Date(T0 - 400_000).toISOString(), interrupt: "none" });
+  assert.equal(liveInterrupt(frozen, T0), "blackout");
+  // 反向：瀏覽器時鐘看起來很新，但後端說已經中斷 → 仍以後端為準。
+  const skewed = live({ interrupt: "blackout" });
+  assert.equal(liveInterrupt(skewed, T0), "blackout");
+});
+
+test("final 是不可變快照：不因時間經過被誤標中斷", () => {
+  const done = live({ phase: "final", freshness: "final", stale_after_seconds: null,
+                      fetched_at: new Date(T0 - 86_400_000).toISOString() });
+  assert.equal(liveInterrupt(done, T0), "none");
+});
+
+test("賽前場次不套 3 分鐘黑幕（後端門檻是 20 分鐘，且卡上沒有會變的數字）", () => {
+  const pre = live({ phase: "lineup_announced", inning: null, bases: null, outs: null,
+                     stale_after_seconds: 1200,
+                     fetched_at: new Date(T0 - 300_000).toISOString() });
+  assert.equal(liveInterrupt(pre, T0), "none");
+});
+
+test("情境8｜worker 不可用：全場無 snapshot → started 為假、退回純日期版面", () => {
+  const s = slate([game(247), game(248)]);
+  assert.equal(s.started, false);
+  assert.equal(showTodaySlate(summaryOf(s)), false);
+  assert.equal(s.games.every((g) => todayCardKind(g) === "pregame"), true);
+  // 維護者訊號進 freshness 條；訪客面不宣稱即時。
+  assert.equal(liveSourceNotice(s), TODAY_COPY.liveSourceDown);
+  assert.equal(liveSourceNotice(slate([game(247, { live: live() }), game(248)])),
+               TODAY_COPY.liveSourcePartial);
+  assert.equal(liveSourceNotice(slate([game(247, { live: live() })])), null);
+  assert.equal(liveSourceNotice(null), null);
+});
+
+test("情境9｜final 當晚：官方事實取自 snapshot decisions，零模型衍生", () => {
+  const done = live({
+    phase: "final", freshness: "final", inning: 9,
+    decisions: { winning_pitcher: { player_id: "A", name: "投手甲" }, losing_pitcher: null,
+                 closer: null, mvp: { player_id: "B", name: "打者乙", yearly_count: 3 } },
+  });
+  const g = game(247, { live: done });
+  assert.equal(todayCardKind(g), "final");
+  assert.equal(officialFactLine(done), "單場 MVP 打者乙・勝投 投手甲");
+  // DB 仍是 0–0（隔日爬蟲才補）——當晚看得到比分靠的就是 snapshot。
+  assert.equal(g.completed, false);
+  assert.equal(showTodaySlate(summaryOf(slate([g]))), true);
+});
+
+test("決勝全缺 → 官方紀錄確認中（不留空、不猜）；非 final 不給事實行", () => {
+  assert.equal(officialFactLine(live({ phase: "final", decisions: null })),
+               TODAY_COPY.officialPending);
+  assert.equal(officialFactLine(live()), null);
+  assert.equal(officialFactLine(null), null);
+});
+
+test("情境10｜跨日回退：今天的場次已入庫 → 仍是賽後態，且賽前機率不得回來", () => {
+  const g = game(247, { completed: true, home_score: 6, away_score: 2, live: null });
+  assert.equal(todayCardKind(g), "final");
+  assert.equal(g.pregame, undefined, "後端不得對已開打場次送出 pregame 欄位");
+  assert.equal(todayPollDelayMs(slate([g])), null, "都定案了就零 polling");
+});
+
+test("**紅線**：已開打場次一律不是賽前態（live／final／DB 已完成三條路徑）", () => {
+  assert.equal(todayCardKind(game(1, { live: live() })), "live");
+  assert.equal(todayCardKind(game(2, { live: live({ phase: "final" }) })), "final");
+  assert.equal(todayCardKind(game(3, { completed: true })), "final");
+});
+
+test("延賽／保留：既不是賽前也不是賽中，不掛賽前機率", () => {
+  assert.equal(todayCardKind(game(1, { live: live({ phase: "postponed" }) })), "suspended");
+  assert.equal(todayCardKind(game(2, { live: live({ phase: "reserved" }) })), "suspended");
+  assert.equal(todayPollDelayMs(slate([game(1, { live: live({ phase: "postponed" }) })])), null);
+});
+
+test("排序 deterministic：開賽時間 → game_sno；無開賽時間者排在後面", () => {
+  const games = [
+    game(249, { live: live({ starts_at: "2026-08-07T18:35:00+08:00" }) }),
+    game(247),
+    game(248, { live: live({ starts_at: "2026-08-07T17:05:00+08:00" }) }),
+    game(246, { live: live({ starts_at: "2026-08-07T18:35:00+08:00" }) }),
+  ];
+  assert.deepEqual(sortTodayGames(games).map((g) => g.game_sno), [248, 246, 249, 247]);
+  // 純函式：不得就地改寫輸入。
+  assert.deepEqual(games.map((g) => g.game_sno), [249, 247, 248, 246]);
+});
+
+test("**紅線**：today 有場次但都還沒開始時不得渲染今日賽事區塊（零空容器的另一面）", () => {
+  assert.equal(showTodaySlate(summaryOf(slate([], { started: true }))), false);
+  assert.equal(showTodaySlate(summaryOf(slate([game(247)], { started: false }))), false);
+  assert.equal(showTodaySlate(summaryOf(slate([game(247, { live: live() })]))), true);
+});
+
+test("輪詢查詢字串由 SSR 那一份 response 的 scope 推導（結構上同源）", () => {
+  assert.equal(dailySummaryQuery({ season: null, kind_code: "A", kinds: ["A"], as_of: "2026-08-07" }),
+               "?kind_code=A");
+  assert.equal(dailySummaryQuery({ season: 2026, kind_code: "D", kinds: ["D"], as_of: "2026-08-07" }),
+               "?kind_code=D&season=2026");
+});
+
+test("**紅線**：本區塊不得出現任何 WP／WPA／leverage 欄位", () => {
+  const keys = Object.keys(live());
+  for (const banned of ["wp", "wpa", "leverage", "win_prob", "home_win_probability"]) {
+    assert.equal(keys.some((k) => k.includes(banned)), false, `live view 不得帶 ${banned}`);
+  }
+});
+
+test("phaseTone 走 StatusBadge 四語彙，不發明第五種狀態色", () => {
+  assert.equal(phaseTone("live"), "live");
+  assert.equal(phaseTone("final"), "done");
+  assert.equal(phaseTone("postponed"), "warn");
+  assert.equal(phaseTone("reserved"), "warn");
+  assert.equal(phaseTone("unknown"), "warn");
+  assert.equal(phaseTone("scheduled"), "scheduled");
+  assert.equal(phaseTone("lineup_announced"), "scheduled");
 });
