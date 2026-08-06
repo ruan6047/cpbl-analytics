@@ -6,8 +6,10 @@ snapshot、呼叫服務、貼快取標頭。
 與既有路由的分工（**不重疊、不取代**）：
 
 * ``/api/v1/games/{sno}/live``：全量賽況 payload（box／逐球／snapshot），賽況頁主資料源。
-* ``/api/v1/games/{sno}/winprob``、``/recap-wp``：WP／WPA **參考資訊**（全 scope 驗證
-  unsupported）。本路由**不回任何 WP 欄位**，也禁止 WPA 參與關鍵打席排序。
+* ``/api/v1/games/{sno}/winprob``、``/recap-wp``：逐打席 WP 水平值（參考資訊，全 scope
+  時間外驗證 unsupported）。本路由**不回水平值**，只在 ``key_plays`` 逐列附該打席的
+  勝率**變化量** ``delta_wp``（主隊視角，與賽況頁 WP 曲線同解算器、同視角）；
+  ``plate_appearances`` 一律不帶 WP 欄位。
 * 本路由：canonical 打席 × ΔRE24 的事實流 ＋ 結論行事實句 ＋ 得分半局鏈。
 """
 
@@ -35,6 +37,10 @@ def game_facts(
     ``authoritative``（DB canonical PA）／``provisional``（當晚 snapshot，mini 對帳全過）／
     ``provisional_simple``（對帳未過 → 簡版）／``stale_live``／``pending``／``postponed``／
     ``reconciling``。**呼叫端必須據此揭露，不得把暫定當權威照顯。**
+
+    關鍵打席的選取準則由 ``key_play_selection`` 揭露：``signal='delta_wp'``＝以勝率擺動
+    量選取（正常路徑）；``signal='delta_re24'`` ＋ ``degraded=true``＝WP 模型不可用時的
+    降級路徑，呼叫端必須顯示降級註記。
     """
     snapshot = get_public_live_snapshot(season, kind_code, game_sno)
     payload = build_game_facts(season, kind_code, game_sno, snapshot=snapshot)

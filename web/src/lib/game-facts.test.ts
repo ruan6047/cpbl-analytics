@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  buildPaGroups, halfLabel, marginText, personName, scoreAfterPlay, signedDelta,
+  buildPaGroups, halfLabel, marginText, personName, scoreAfterPlay, signedDelta, signedWpPt,
   situationText, type PaFact,
 } from "./game-facts.ts";
 
@@ -125,6 +125,17 @@ test("signedDelta 帶正負號、缺值不寫成 0", () => {
   assert.equal(signedDelta(-0.1613), "−0.16");
   assert.equal(signedDelta(0), "0.00");
   assert.equal(signedDelta(null), "—");
+});
+
+test("signedWpPt 取整數百分點（不給假精度）、缺值不寫成 0", () => {
+  assert.equal(signedWpPt(0.2934), "+29pt");
+  assert.equal(signedWpPt(-0.1712), "−17pt");
+  assert.equal(signedWpPt(0.0049), "0pt");   // 四捨五入到 0：仍是「量測到的 0」，不是缺值
+  assert.equal(signedWpPt(0), "0pt");
+  assert.equal(signedWpPt(null), "—");
+  // `plate_appearances` 不帶 delta_wp（undefined）→ 與 null 同樣不得印成 0
+  assert.equal(signedWpPt(undefined), "—");
+  assert.equal(signedWpPt(Number.NaN), "—");
 });
 
 test("situationText 給出圖示以外的文字替代（a11y）", () => {

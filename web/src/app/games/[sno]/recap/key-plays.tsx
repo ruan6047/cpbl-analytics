@@ -1,20 +1,30 @@
 "use client";
 
-// recap ②關鍵打席 3–5：**|ΔRE24| 選取、時間序呈現、帶局面脈絡**。
+// recap ②關鍵打席 3–5：**|ΔWP| 選取、直接顯示勝率擺動、時間序呈現、帶局面脈絡**。
 //
-// 紅線（v1.3 排序契約，由 `tests/test_pa_facts.py` 與後端 `key_plays()` 一起釘住）：
-//   * 主排序＝|ΔRE24|，不加任何權重；**禁 WPA／WP 參與排序**。
+// 選取與顯示契約（2026-08-06 需求方第五輪人工審兩次裁決，後端 `pa_facts.key_plays()`
+// 與 `tests/test_pa_facts.py` 一起釘住）：
+//   * 主排序＝|ΔWP|（勝率擺動絕對值）取前 3–5，呈現時改回時間序。
+//   * 勝率擺動為主資訊、ΔRE24 降為次要 chip（`muted`）——一個對勝負、一個對得分期望，
+//     互補而不重複。
+//   * WP 模型不可用時後端降級為 |ΔRE24| 選取，本卡**必須顯示降級註記**（不靜默換準則）。
+//   * 垃圾時間（分差 ≥7）**不再降飽和**：|ΔWP| 選取下 81 場實測 0 命中（舊 |ΔRE24| 選法
+//     為 15 命中），呈現層的補丁已無對象。事實旗標仍在資料裡、降級路徑仍可能選到，故
+//     保留「分差 ≥7」文字標籤，只移除淡底。
 //   * 每筆必附局面標示（局數／出局／壘況／分差），把「這打席重不重要」的判讀交給讀者。
-//   * 分差 ≥7 的打席**降飽和呈現，不剔除、不加權**——垃圾時間用呈現層解決，不用數學
-//     加工解決。降飽和後仍須通過對比度檢查，故走 surface-2 底 + muted 文字（皆為
-//     語意 token，深色模式自動適配），**不用 opacity**。
 
+import Link from "next/link";
 import { Card, EmptyState, Eyebrow, PlayerLink } from "@/components/ui";
 import { Re24Badge } from "@/components/re24-badge";
 import { RunsBadge } from "@/components/runs-badge";
+import { WP_SWING_DISCLOSURE, WpSwingBadge } from "@/components/wp-swing-badge";
+import { WpSwingBar } from "@/components/wp-swing-bar";
 import {
-  halfLabel, marginText, personName, scoreAfterPlay, signedDelta, situationText, type PaFact,
+  halfLabel, marginText, personName, scoreAfterPlay, signedDelta, signedWpPt, situationText,
+  type KeyPlaySelection, type PaFact,
 } from "@/lib/game-facts";
+import { methodologyHref } from "@/lib/methodology-anchors";
+import { teamColor } from "@/lib/teams";
 
 function BaseDiamond({ bases }: { bases: string[] }) {
   const on = (b: string) => (bases ?? []).includes(b);
@@ -28,29 +38,57 @@ function BaseDiamond({ bases }: { bases: string[] }) {
   );
 }
 
-export function KeyPlays({ plays, onJump }: {
+export function KeyPlays({ plays, selection, homeName, awayName, homeCode, awayCode, onJump }: {
   plays: PaFact[];
+  selection?: KeyPlaySelection | null;
+  homeName?: string | null;
+  awayName?: string | null;
+  homeCode?: string | null;
+  awayCode?: string | null;
   onJump?: (eventNo: string) => void;
 }) {
+  const homeColor = teamColor(String(homeCode ?? ""));
+  const awayColor = teamColor(String(awayCode ?? ""));
+  // 降級＝後端拿不到 WP 模型時退回 |ΔRE24| 選取（signal 由後端揭露，前端不自行推斷）。
+  const degraded = selection?.signal === "delta_re24";
   if (plays.length === 0) {
     return (
       <Card padding="p-3" className="min-w-0">
         <Eyebrow className="mb-2 px-1">關鍵打席</Eyebrow>
-        <EmptyState>本場沒有足以列為關鍵的打席（|ΔRE24| 皆低於門檻）。</EmptyState>
+        <EmptyState>
+          {degraded
+            ? "本場沒有足以列為關鍵的打席（|ΔRE24| 皆低於門檻）。"
+            : "本場沒有足以列為關鍵的打席（勝率擺動皆低於門檻）。"}
+        </EmptyState>
       </Card>
     );
   }
   return (
     <Card padding="p-3" className="min-w-0">
-      <div className="mb-1.5 flex items-baseline justify-between px-2 pt-1">
+      <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-2 px-2 pt-1">
         <span className="text-sm font-semibold">
-          關鍵打席 <span className="text-xs font-normal text-faint">（依 |ΔRE24| 選出・依時間排列）</span>
+          關鍵打席{" "}
+          <span className="text-xs font-normal text-faint">
+            {degraded ? "（依 |ΔRE24| 選出・依時間排列）" : "（依勝率擺動選出・依時間排列）"}
+          </span>
         </span>
-        <span className="text-[10px] text-muted">ΔRE24＝該打席造成的得分期望值變化</span>
+        {!degraded && (
+          <Link href={methodologyHref("key-plays")}
+            title={WP_SWING_DISCLOSURE}
+            className="text-[10px] text-muted underline-offset-2 hover:underline">
+            勝率為{homeName || "主隊"}視角・選取準則
+          </Link>
+        )}
       </div>
+      {degraded && (
+        <p className="mx-2 mb-1.5 rounded-lg bg-surface-2 px-2 py-1 text-[11px] text-muted">
+          勝率模型目前不可用，本場改以得分期望值變化 |ΔRE24| 選取關鍵打席。
+        </p>
+      )}
       <ol className="space-y-0.5">
         {plays.map((play) => {
-          // ΔRE24 併進打席資訊的同一行（需求方 2026-08-06：不要跟打席訊息分開）。
+          // 勝率擺動與 ΔRE24 併進打席資訊的同一行（需求方 2026-08-06：不要跟打席訊息分開）。
+          const hasSwing = play.delta_wp !== null && play.delta_wp !== undefined;
           const row = (
             <>
               <div className="flex items-center gap-1.5 text-xs font-medium text-muted">
@@ -70,23 +108,29 @@ export function KeyPlays({ plays, onJump }: {
                 {(play.result_action ?? "").trim()}
                 <span className="ml-1.5 text-xs text-faint">投：{personName(play.pitcher)}</span>
                 <RunsBadge runs={play.runs_on_play} {...(scoreAfterPlay(play) ?? {})} />
-                <Re24Badge value={play.delta_re24} />
+                {hasSwing && <WpSwingBadge value={play.delta_wp} homeName={homeName} />}
+                <Re24Badge value={play.delta_re24} muted={hasSwing} />
               </div>
+              {hasSwing && (
+                <WpSwingBar before={play.wp_before} after={play.wp_after}
+                  terminal={play.wp_after_terminal} homeColor={homeColor} awayColor={awayColor}
+                  homeName={homeName} awayName={awayName} />
+              )}
             </>
           );
-          const label = `${situationText(play)}，${personName(play.hitter)} ${play.result_action ?? ""}，ΔRE24 ${signedDelta(play.delta_re24)}`;
+          const swing = hasSwing ? `，${homeName || "主隊"}勝率 ${signedWpPt(play.delta_wp)}` : "";
+          const label = `${situationText(play)}，${personName(play.hitter)} `
+            + `${play.result_action ?? ""}${swing}，ΔRE24 ${signedDelta(play.delta_re24)}`;
           return (
             <li key={play.pa_index}>
               {onJump && play.start_event_no ? (
                 <button type="button" aria-label={label}
                   onClick={() => onJump(play.start_event_no!)}
-                  className={`block w-full rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-surface-2 ${
-                    play.garbage_time ? "bg-surface-2/60" : ""}`}>
+                  className="block w-full rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-surface-2">
                   {row}
                 </button>
               ) : (
-                <div aria-label={label}
-                  className={`rounded-lg px-2.5 py-2 ${play.garbage_time ? "bg-surface-2/60" : ""}`}>
+                <div aria-label={label} className="rounded-lg px-2.5 py-2">
                   {row}
                 </div>
               )}

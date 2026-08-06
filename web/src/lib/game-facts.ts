@@ -3,8 +3,11 @@
 // 對應後端 `src/cpbl/models/pa_facts.py`（唯一事實來源）。前端**不重算 ΔRE24、不重刻
 // 打席切界**——賽況頁 live 逐打席、賽後 recap、#79 探索器三個消費者共用同一份事實。
 //
-// 紅線：|ΔRE24| 是關鍵打席的唯一排序依據；**禁 WPA／WP 參與排序**（WP 全 scope 時間外
-// 驗證 unsupported，只作參考資訊，見 /methodology#winprob）。
+// 關鍵打席＝**|ΔWP|（勝率擺動）選取並直接顯示擺動量**（2026-08-06 需求方兩次裁決；
+// brief 非目標欄已修訂留痕）。原「禁 WPA 排序」禁令精確化為：WP 機率**水平值**不作
+// 宣稱（VAL1 中段 ±4–6pt 校準偏差），而序數選取與變化量顯示不依賴水平校準。
+// 守門：`plate_appearances`（逐打席頁籤）**不帶 WP 欄位**——差異由後端資料守住；
+// 擺動量只出現在 `key_plays`，且顯示處必附偏差揭露（見 /methodology#key-plays）。
 
 export type FactPerson = { player_id: string; name: string | null };
 
@@ -31,21 +34,28 @@ export type PaFact = {
   member_event_nos: string[];
   runs_on_play: number | null;
   delta_re24: number | null;
+  /**
+   * 該打席的**主隊勝率變化**（0–1；正＝主隊勝率上升），與賽況頁 WP 曲線同解算器、
+   * 同視角、正負與曲線升降對齊。**只有 `key_plays` 的元素帶此欄**；逐打席頁籤的
+   * `plate_appearances` 恆為 undefined。
+   */
+  delta_wp?: number | null;
+  /** 打席前／後的主隊勝率水平值（0–1），供勝率條視覺化；同樣只出現在 `key_plays`。 */
+  wp_before?: number | null;
+  wp_after?: number | null;
+  /** `wp_after` 是終場結果而非局面推算值 → 顯示夾層豁免（見 `win-prob-display.ts`）。 */
+  wp_after_terminal?: boolean;
   unavailable_reason: string | null;
-  /** 分差 ≥7：呈現層降飽和，**不剔除、不加權**（v1.3 排序契約）。 */
+  /** 分差 ≥7 的事實旗標。|ΔWP| 選取下實測不會入選（81 場 0 命中），呈現層不再降飽和。 */
   garbage_time: boolean;
 };
 
-export type ScoringHalf = {
-  inning: number;
-  half: string;
-  runs: number;
-  plays: {
-    pa_index: number; pa_id: string | null; hitter: FactPerson | null;
-    result_action: string | null; runs: number; delta_re24: number | null;
-    start_event_no: string | null; end_event_no: string | null;
-    half: string | null; away_score_after: number | null; home_score_after: number | null;
-  }[];
+/** 關鍵打席選取準則的揭露（後端 `pa_facts.key_play_selection`）；缺關鍵打席時為 null。 */
+export type KeyPlaySelection = {
+  signal: "delta_wp" | "delta_re24";
+  min_abs: number;
+  degraded: boolean;
+  reason: string | null;
 };
 
 export type FactDecisions = {
@@ -80,7 +90,7 @@ export type GameFacts = {
                 focus_pa_index?: number } | null;
   plate_appearances: PaFact[];
   key_plays: PaFact[];
-  scoring_chain: ScoringHalf[];
+  key_play_selection: KeyPlaySelection | null;
   half_innings: Record<string, PaFact[]>;
   re_matrix: { span: string; kind_code: string };
 };
@@ -132,6 +142,18 @@ export function scoreAfterPlay(play: {
 
 export const signedDelta = (value: number | null): string =>
   value === null ? "—" : `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value).toFixed(2)}`;
+
+/**
+ * 勝率變化的顯示字串：**取整數百分點**（如 `+29pt`）。
+ *
+ * 不給小數是刻意的誠實：WP 的機率水平值有已知 ±4–6 個百分點的校準偏差
+ * （/methodology#winprob-validation），把擺動量寫到小數點後一位是假精度。
+ */
+export const signedWpPt = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  const pt = Math.round(value * 100);
+  return `${pt > 0 ? "+" : pt < 0 ? "−" : ""}${Math.abs(pt)}pt`;
+};
 
 /** 顯示用姓名：逐場來源優先，缺名才退回 ID（`cpbl.players` 會缺當季新登錄球員）。 */
 export const personName = (person: FactPerson | null | undefined): string =>

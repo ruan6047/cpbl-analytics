@@ -34,8 +34,20 @@ Plays／賽後 recap 五塊／#79 逐打席探索器），不各自重建打席�
 與截斷碎片 137、突破僵局非打席 49、記錄規則 9.15(b) 歸屬 1），**未歸類 0**。
 ``tests/test_pa_facts.py`` 以合成事件流把這四類逐一釘住。
 
-紅線：唯讀（不寫任何表）；不改 ``pa_build``／每日鏈／G4 凍結檔；**禁 WPA/WP 參與排序**
-（WP 全 scope 驗證 unsupported，只作參考資訊，見 ``api/routers/recap.py``）。
+紅線：唯讀（不寫任何表）；不改 ``pa_build``／每日鏈／G4 凍結檔。
+
+WP 的用法（2026-08-06 需求方三階裁決後的現行界線，brief 已留痕）：關鍵打席**以 |ΔWP|
+序數選取、顯示擺動量、並以勝率條視覺化打席前後的水平值**。
+
+* 階一（選取）：unsupported 的是 WP 機率**水平值的文字宣稱**（VAL1 中段 ±4–6pt 校準
+  偏差），辨別力則有實證（池化 Brier 0.153 vs 主場常數基準 0.245）；序數不依賴校準。
+* 階二（顯示擺動量）：變化量的兩端點同帶偏差、方向性相消，比水平值穩。
+* 階三（勝率條）：條顯示的是水平值的**視覺化**——與已上線的 WP 曲線同資訊類（曲線本來
+  就逐點畫水平值），揭露沿曲線既有框架，不另開新的誠實暴露面。
+
+守門：``plate_appearances``（逐打席頁籤）**不帶任何 WP 欄位**、WP 欄位只掛在
+``key_plays``、降級一律由 ``key_play_selection`` 揭露、顯示夾層（非終點不顯示 0/100%）
+由前端 ``lib/win-prob-display.ts`` 唯一擁有並靠 ``wp_after_terminal`` 判斷豁免。
 """
 
 from __future__ import annotations
@@ -61,8 +73,11 @@ GARBAGE_TIME_MARGIN = 7
 
 # 關鍵打席取幾筆（brief recap 五塊②「關鍵打席 3–5」）。
 KEY_PLAY_LIMIT = 5
-# 低於此 |ΔRE24| 不值得叫「關鍵」（一次尋常出局約 0.25）。
+# 低於此 |ΔRE24| 不值得叫「關鍵」（一次尋常出局約 0.25）。**降級路徑**才用得到。
 KEY_PLAY_MIN_ABS = 0.30
+# |ΔWP| 選取路徑的門檻：低於 3 個百分點的勝率擺動不值得叫「關鍵」。
+# 尋常一出局的擺動約 1–2pt，得分打席通常 ≥5pt——3pt 剛好切在「有事發生」那條線上。
+KEY_PLAY_MIN_WP_ABS = 0.03
 
 # 事實句分支門檻（2026-08-06 需求方裁決 Q1）。
 BLOWOUT_MARGIN = 5
@@ -315,19 +330,123 @@ def player_names(events: list[dict]) -> dict[str, str]:
 # ===========================================================================
 # 純核心：關鍵打席／得分半局鏈
 # ===========================================================================
-def key_plays(facts: list[dict], *, limit: int = KEY_PLAY_LIMIT,
-              min_abs: float = KEY_PLAY_MIN_ABS) -> list[dict]:
-    """|ΔRE24| 取前 N，**回傳時改回時間序**（brief recap 五塊②）。
+def wp_before(fact: dict, scorer: Any) -> float | None:
+    """該打席**打席前**局面的主隊 WP；狀態欄不全回 None（不猜）。
 
-    **禁 WPA／WP 參與排序**（紅線）：WP 為參考級、全 scope 時間外驗證 unsupported，
-    三次 No-Go 守下的線就是不做單打席歸因。本函式只吃 ``delta_re24``。
-
-    垃圾時間打席（分差 ≥ 7）**不剔除**，只在回傳的 ``garbage_time`` 旗標讓呈現層降飽和。
+    與 ``api/routers/recap._score_pre`` 同一台解算器（``models/winprob_scorer``）、同一組
+    輸入語意（diff＝主隊視角、bases/outs＝打擊方狀態），差別只在比分取事件流的
+    打席前快照而非 ``pre_state``（後者對「單一事件就結束的得分打席」是得分**後**的值，
+    見 :func:`delta_re24` 的說明）。
     """
+    inning, half = fact.get("inning"), fact.get("half")
+    outs = fact.get("outs_before")
+    away, home = fact.get("away_score_before"), fact.get("home_score_before")
+    if inning is None or half is None or outs is None or away is None or home is None:
+        return None
+    return scorer(int(inning), str(half), int(home) - int(away),
+                  bases_key(fact.get("bases_before")), min(int(outs), 2))
+
+
+def wp_swings(facts: list[dict], *, scorer: Any,
+              final_outcome: float | None = None) -> dict[int, dict[str, Any]]:
+    """``pa_index`` → ``{before, after, delta, terminal}``（純函式；缺值不進 map，**不以 0 冒充**）。
+
+    ``before``／``after``＝該打席前後的**主隊勝率水平值**（供關鍵打席的勝率條視覺化；
+    需求方 2026-08-06 第三階裁決「保留長條圖顯示當前勝率與該打席造成的變化」——水平值
+    的視覺化與已上線的 WP 曲線同資訊類，曲線本來就逐點畫水平值，揭露沿曲線既有框架）。
+    ``delta``＝``after − before``（主隊視角）。``terminal``＝該打席的 after 是終場結果
+    （非局面推算值）→ 呼叫端的顯示夾層須豁免這一點（`lib/win-prob-display.ts`）。
+
+    錨點語意與 ``/api/v1/games/{sno}/recap-wp`` **逐位一致**（同解算器、同 before/after
+    捨入後相減）：after＝下一個真實打席（``state != 'non_pa'``）的打席前局面，最後一個
+    真實打席收斂到終場結果（勝 1／負 0／和 0.5，含再見）。突破僵局的跑者佈局列不可作
+    錨點（其快照在佈局前、壘位恆空）。
+
+    **主隊視角**（正＝主隊勝率上升），與賽況頁 WP 曲線同視角、正負與曲線升降對齊——
+    兩處對照不打架是顯示面的硬需求（2026-08-06 需求方裁決）。
+
+    誠實邊界：WP 全 scope 時間外驗證 unsupported（WP-VAL1）——**機率水平值不作文字宣稱**，
+    只作與既有 WP 曲線同框架的視覺化；變化量的兩端點同帶偏差、方向性相消。
+    """
+    if scorer is None:
+        return {}
+    real_positions = [i for i, f in enumerate(facts) if f.get("state") != "non_pa"]
+    next_real = {
+        pos: (real_positions[j + 1] if j + 1 < len(real_positions) else None)
+        for j, pos in enumerate(real_positions)
+    }
+    out: dict[int, dict[str, Any]] = {}
+    for index in real_positions:
+        fact = facts[index]
+        if fact.get("state") != "ready":
+            continue  # fail closed：不可靠打席不給擺動值
+        before = wp_before(fact, scorer)
+        if before is None:
+            continue
+        nxt = next_real.get(index)
+        after = final_outcome if nxt is None else wp_before(facts[nxt], scorer)
+        if after is None:
+            continue
+        before, after = round(before, 4), round(after, 4)
+        out[fact["pa_index"]] = {
+            "before": before, "after": after, "delta": round(after - before, 4),
+            # 最後一個真實打席的 after＝終場結果，不是局面推算值 → 顯示夾層豁免
+            "terminal": nxt is None,
+        }
+    return out
+
+
+def key_plays(facts: list[dict], *, wp_by_index: dict[int, dict[str, Any]] | None = None,
+              limit: int = KEY_PLAY_LIMIT, min_abs: float = KEY_PLAY_MIN_ABS,
+              min_wp_abs: float = KEY_PLAY_MIN_WP_ABS) -> list[dict]:
+    """關鍵打席 3–5：**|ΔWP| 取前 N，回傳時改回時間序**（brief recap 五塊②）。
+
+    選取訊號（2026-08-06 需求方第五輪人工審裁決，統計紅線修訂）：
+
+    * **主路徑＝|ΔWP|**（``wp_by_index``）。原「禁 WPA 排序」禁令經需求方重查 VAL1 後
+      精確化：unsupported 的是**機率水平值的宣稱**，辨別力則有實證（池化 Brier 0.153
+      vs 主場常數基準 0.245），而**序數選取不依賴水平校準**——中段 ±4–6pt 的偏差不改變
+      「哪幾個打席擺動最大」的排序。
+    * **降級路徑＝|ΔRE24|**：WP 模型不可用（無分布 artifact／賽事類型不支援）時退回，
+      由呼叫端在 ``key_play_selection`` 揭露，**不靜默改變選取準則**。
+
+    候選必須同時有 ``delta_re24``（ΔRE24 chip 是呈現面的次要資訊，缺值不入選以免整列
+    只剩擺動量）。回傳的是**淺拷貝**並掛上 ``delta_wp``／``wp_before``／``wp_after``／
+    ``wp_after_terminal``（後三者供勝率條視覺化）：``plate_appearances``（逐打席頁籤）
+    **不帶任何 WP 欄位**，顯示面差異靠資料本身守住，不靠前端自律。
+
+    垃圾時間（分差 ≥7）在 |ΔWP| 路徑下**天然被壓到選不上**（大比分領先時任何打席的勝率
+    擺動都接近 0），故不再需要呈現層降飽和；``garbage_time`` 旗標仍隨事實流保留，供
+    其他消費者使用。
+    """
+    if wp_by_index:
+        scored = [f for f in facts
+                  if f.get("delta_re24") is not None
+                  and f["pa_index"] in wp_by_index
+                  and abs(wp_by_index[f["pa_index"]]["delta"]) >= min_wp_abs]
+        top = sorted(scored,
+                     key=lambda f: (-abs(wp_by_index[f["pa_index"]]["delta"]), f["pa_index"]))[:limit]
+        return [{**f, "delta_wp": wp_by_index[f["pa_index"]]["delta"],
+                 "wp_before": wp_by_index[f["pa_index"]]["before"],
+                 "wp_after": wp_by_index[f["pa_index"]]["after"],
+                 "wp_after_terminal": wp_by_index[f["pa_index"]]["terminal"]}
+                for f in sorted(top, key=lambda f: f["pa_index"])]
     scored = [f for f in facts if f.get("delta_re24") is not None
               and abs(f["delta_re24"]) >= min_abs]
     top = sorted(scored, key=lambda f: (-abs(f["delta_re24"]), f["pa_index"]))[:limit]
-    return sorted(top, key=lambda f: f["pa_index"])
+    return [{**f, "delta_wp": None, "wp_before": None, "wp_after": None,
+             "wp_after_terminal": False}
+            for f in sorted(top, key=lambda f: f["pa_index"])]
+
+
+def key_play_selection(wp_by_index: dict[int, dict[str, Any]] | None,
+                       reason: str | None = None) -> dict[str, Any]:
+    """關鍵打席選取準則的**機器可讀揭露**（呼叫端據此標示，不得靜默降級）。"""
+    if wp_by_index:
+        return {"signal": "delta_wp", "min_abs": KEY_PLAY_MIN_WP_ABS,
+                "degraded": False, "reason": None}
+    return {"signal": "delta_re24", "min_abs": KEY_PLAY_MIN_ABS,
+            "degraded": True, "reason": reason or "winprob_unavailable"}
 
 
 def scoring_chain(facts: list[dict]) -> list[dict]:
@@ -424,8 +543,9 @@ def conclusion(facts: list[dict], *, home_score: int, away_score: int,
     缺席時退回由打席事實流推導，兩者皆缺則降級為只有比分的句子。
 
     ⚠️ **再見打席的 ΔRE24 是負值**：半局結束使 RE(after)=0，一支只帶 1 分的再見安打會被
-    記成 ``1 − RE(_2_,0)``。故再見場**不能指望②關鍵打席選到它**，必須由本結論行以賽果
-    事實單獨承載——這正是 brief 把①②分開的理由（spike §6.1 發現 1）。
+    記成 ``1 − RE(_2_,0)``。本函式（結論行）固定以賽果事實單獨承載再見，不依賴②的排序
+    ——這正是 brief 把①②分開的理由（spike §6.1 發現 1）。改採 |ΔWP| 選取後②通常也會
+    選到再見打席（勝率直接收斂到 1），但那是選取訊號的副產品，不是本函式的前提。
     """
     ranked = sorted([f for f in facts if f.get("delta_re24") is not None],
                     key=lambda f: (-abs(f["delta_re24"]), f["pa_index"]))
@@ -730,6 +850,8 @@ def _empty(season: int, kind_code: str, game_sno: int, state: str, reason: str,
             "home_score": game.get("home_score"), "away_score": game.get("away_score")},
         "teams": None if game is None else _teams_of(game),
         "conclusion": None, "plate_appearances": [], "key_plays": [],
+        # 沒有關鍵打席可選 → 選取準則不適用（null），不謊稱「降級」
+        "key_play_selection": None,
         "scoring_chain": [], "half_innings": {},
         "re_matrix": {"span": RE_SPAN, "kind_code": kind_code},
     }
@@ -755,7 +877,9 @@ def _db_decisions(game: dict, names: dict[str, str]) -> dict:
 
 def _assemble(*, season: int, kind_code: str, game_sno: int, source: str, render_state: str,
               reason: str | None, game: dict, facts: list[dict], decisions: dict,
-              inning_runs: dict[tuple[int, str], int], simple: bool = False) -> dict:
+              inning_runs: dict[tuple[int, str], int], simple: bool = False,
+              wp_by_index: dict[int, dict[str, Any]] | None = None,
+              wp_reason: str | None = None) -> dict:
     home_score = int(game.get("home_score") or 0)
     away_score = int(game.get("away_score") or 0)
     result = ("home_win" if home_score > away_score
@@ -771,7 +895,9 @@ def _assemble(*, season: int, kind_code: str, game_sno: int, source: str, render
         "decisions": decisions,
         "conclusion": None,
         "plate_appearances": [] if simple else facts,
-        "key_plays": [] if simple else key_plays(facts),
+        "key_plays": [] if simple else key_plays(facts, wp_by_index=wp_by_index),
+        # 簡版不出關鍵打席 → 選取準則不適用（null），不謊報「降級」
+        "key_play_selection": None if simple else key_play_selection(wp_by_index, wp_reason),
         "scoring_chain": scoring_chain(facts) if facts else [],
         "half_innings": {} if simple else half_inning_breakdown(facts),
         "re_matrix": {"span": RE_SPAN, "kind_code": kind_code},
@@ -789,6 +915,31 @@ def _assemble(*, season: int, kind_code: str, game_sno: int, source: str, render
         payload["conclusion"] = {"shape": "score_only", "slots": slots,
                                  "sentence": SENTENCE_TEMPLATES["score_only"].format(**slots)}
     return payload
+
+
+def _load_wp_swings(facts: list[dict], *, season: int, kind_code: str,
+                    home_score: Any, away_score: Any) -> tuple[dict[int, dict[str, Any]], str | None]:
+    """關鍵打席選取／顯示用的 ΔWP map；不可用時回 ``({}, reason)`` 讓呼叫端降級揭露。
+
+    **絕不讓 WP 拖垮事實流**：ΔRE24、得分鏈、事實句全部不依賴 WP，故此處任何失敗都
+    只降級關鍵打席的選取訊號（回 ``|ΔRE24|``），不讓整個 recap 掛掉。
+    """
+    from cpbl.models.winprob_scorer import DIST_SOURCE, get_scorer
+
+    if kind_code not in DIST_SOURCE:
+        return {}, "wp_scope_unsupported"  # 如 F（明星賽）：無分布，也不借用
+    if home_score is None or away_score is None:
+        return {}, "final_unknown"
+    try:
+        scorer, _model = get_scorer(kind_code, season)
+    except Exception:  # noqa: BLE001 — artifact／解算器異常一律降級，不中斷事實流
+        return {}, "winprob_model_error"
+    if scorer is None:
+        return {}, "winprob_model_not_built"
+    home, away = int(home_score), int(away_score)
+    final_outcome = 1.0 if home > away else (0.0 if home < away else 0.5)
+    swings = wp_swings(facts, scorer=scorer, final_outcome=final_outcome)
+    return swings, None if swings else "winprob_no_scored_plays"
 
 
 def build_game_facts(season: int, kind_code: str, game_sno: int,
@@ -825,11 +976,15 @@ def build_game_facts(season: int, kind_code: str, game_sno: int,
                 for row in pa_rows:
                     row["member_event_nos"] = members.get(row["pa_index"], [])
                 facts = delta_re24(pa_rows, events, re_map)
+                swings, wp_reason = _load_wp_swings(
+                    facts, season=season, kind_code=kind_code,
+                    home_score=game.get("home_score"), away_score=game.get("away_score"))
                 return _assemble(
                     season=season, kind_code=kind_code, game_sno=game_sno,
                     source="authoritative", render_state=STATE_AUTHORITATIVE, reason=None,
                     game=game, facts=facts, decisions=_db_decisions(game, names),
-                    inning_runs=load_inning_runs(cur, season, kind_code, game_sno))
+                    inning_runs=load_inning_runs(cur, season, kind_code, game_sno),
+                    wp_by_index=swings, wp_reason=wp_reason)
             # 階 7：有 build 但待對帳 → 走簡版並揭露（不可靜默當成「沒有打席」）
             if has_reconciliation_build(cur, season, kind_code, game_sno):
                 return _assemble(
@@ -854,11 +1009,14 @@ def build_game_facts(season: int, kind_code: str, game_sno: int,
         inning_runs = snapshot_inning_runs(snapshot) or inning_runs_db
         if ok:
             facts = delta_re24(pa_rows, events, re_map)
+            swings, wp_reason = _load_wp_swings(
+                facts, season=season, kind_code=kind_code,
+                home_score=snap_game.get("home_score"), away_score=snap_game.get("away_score"))
             return _assemble(
                 season=season, kind_code=kind_code, game_sno=game_sno,
                 source="provisional", render_state=STATE_PROVISIONAL, reason=None,
                 game=snap_game, facts=facts, decisions=snapshot_decisions(snapshot),
-                inning_runs=inning_runs)
+                inning_runs=inning_runs, wp_by_index=swings, wp_reason=wp_reason)
         return _assemble(
             season=season, kind_code=kind_code, game_sno=game_sno,
             source="provisional", render_state=STATE_PROVISIONAL_SIMPLE, reason=reason,

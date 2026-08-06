@@ -31,12 +31,14 @@ from cpbl.models.pa_facts import (
     conclusion,
     delta_re24,
     game_shape,
+    key_play_selection,
     key_plays,
     mini_reconcile,
     pa_rows_from_snapshot,
     player_names,
     scoring_chain,
     snapshot_events,
+    wp_swings,
 )
 
 # 真實 RE 矩陣值（2018-2025 / A；migration 既有，抄進測試以免測試依賴 DB）
@@ -234,11 +236,148 @@ def test_key_plays_ranked_by_abs_delta_but_returned_in_time_order():
 
 
 def test_key_plays_keep_garbage_time_plays():
-    """分差 ≥7 的打席**降飽和呈現、不剔除、不加權**（v1.3 排序契約紅線）。"""
+    """降級路徑（|ΔRE24|）：分差 ≥7 的打席**不剔除、不加權**，只帶旗標讓呈現層決定。"""
     facts = [_fact(0, 0.4), _fact(1, 1.8, garbage=True)]
     picked = key_plays(facts, limit=5)
     assert [f["pa_index"] for f in picked] == [0, 1]
     assert picked[1]["garbage_time"] is True
+
+
+# ===========================================================================
+# 關鍵打席 v2：|ΔWP| 選取＋擺動量顯示（2026-08-06 需求方兩次裁決）
+# ===========================================================================
+def _wp_fact(index: int, delta_re24: float | None, *, inning: int = 1, half: str = "1",
+             outs: int = 0, bases: tuple[str, ...] = (), away: int = 0, home: int = 0,
+             state: str = "ready") -> dict:
+    fact = _fact(index, delta_re24, inning=inning)
+    fact.update({"half": half, "outs_before": outs, "bases_before": list(bases),
+                 "away_score_before": away, "home_score_before": home, "state": state})
+    return fact
+
+
+def _swing(delta: float, *, before: float = 0.5, terminal: bool = False) -> dict:
+    """wp_swings 的回傳形狀（before/after/delta/terminal）——選取只吃 delta。"""
+    return {"before": before, "after": round(before + delta, 4), "delta": delta,
+            "terminal": terminal}
+
+
+def fake_scorer(inning: int, vht: str, diff: int, bases: str, outs: int) -> float:
+    """決定性 scorer（同 tests/test_recap_wp_boundaries.py），值由狀態唯一決定。"""
+    v = (0.5 + 0.08 * diff + 0.01 * (inning - 1) + (0.02 if vht == "2" else 0.0)
+         + 0.005 * outs + 0.03 * sum(1 for b in bases if b != "_"))
+    return min(0.99, max(0.01, v))
+
+
+def test_wp_swings_anchor_on_next_real_pa_and_converge_to_final():
+    """after 錨點＝下一個真實打席的打席前局面；最後一個真實打席收斂到終場結果。"""
+    facts = [_wp_fact(0, 0.4), _wp_fact(1, 0.5, outs=1), _wp_fact(2, 0.6, outs=2)]
+    swings = wp_swings(facts, scorer=fake_scorer, final_outcome=1.0)
+    assert set(swings) == {0, 1, 2}
+    assert swings[0]["delta"] == pytest.approx(
+        round(fake_scorer(1, "1", 0, "___", 1), 4) - round(fake_scorer(1, "1", 0, "___", 0), 4))
+    # 水平值也一併回傳（勝率條視覺化用），且 after＝下一打席的 before
+    assert swings[0]["after"] == pytest.approx(swings[1]["before"])
+    assert swings[0]["terminal"] is False
+    # 最後一個打席：after＝終場結果（主隊勝＝1.0），且標記為終點（顯示夾層豁免）
+    assert swings[2]["delta"] == pytest.approx(1.0 - round(fake_scorer(1, "1", 0, "___", 2), 4))
+    assert (swings[2]["after"], swings[2]["terminal"]) == (1.0, True)
+
+
+def test_wp_swings_never_anchor_on_non_pa_rows():
+    """突破僵局佈局列（non_pa）的快照在跑者佈局前，不得當 after 錨點，也不得有自己的擺動。"""
+    facts = [_wp_fact(0, 0.4), _wp_fact(1, None, state="non_pa", bases=("2",), inning=10),
+             _wp_fact(2, 0.6, inning=10, bases=("2",))]
+    swings = wp_swings(facts, scorer=fake_scorer, final_outcome=0.0)
+    assert 1 not in swings  # 佈局列本身不給擺動值
+    assert swings[0]["delta"] == pytest.approx(
+        round(fake_scorer(10, "1", 0, "_2_", 0), 4) - round(fake_scorer(1, "1", 0, "___", 0), 4))
+
+
+def test_wp_swings_fail_closed_on_unreliable_states_and_missing_fields():
+    """不可靠打席與狀態欄缺值：不進 map（**不以 0 冒充「沒有影響」**）。"""
+    broken = _wp_fact(1, 0.5)
+    broken["outs_before"] = None
+    facts = [_wp_fact(0, 0.4, state="truncated"), broken, _wp_fact(2, 0.6)]
+    swings = wp_swings(facts, scorer=fake_scorer, final_outcome=1.0)
+    assert set(swings) == {2}
+
+
+def test_wp_swings_are_home_perspective_matching_the_curve():
+    """主隊視角：主隊得分推升為正、客隊得分推升為負（與賽況頁曲線升降對齊）。"""
+    facts = [_wp_fact(0, 0.4, home=0, away=0), _wp_fact(1, 0.4, home=1, away=0),
+             _wp_fact(2, 0.4, home=1, away=2)]
+    swings = wp_swings(facts, scorer=fake_scorer, final_outcome=0.5)
+    assert swings[0]["delta"] > 0   # 下一個打席主隊已多得一分 → 主隊勝率上升
+    assert swings[1]["delta"] < 0   # 再下一個打席客隊反超 → 主隊勝率下降
+
+
+def test_key_plays_rank_by_wp_swing_and_return_time_order():
+    """主路徑：排序吃 |ΔWP|，與 |ΔRE24| 的排名**刻意不同**；回傳仍是時間序。"""
+    facts = [_fact(0, 1.9), _fact(1, 0.4), _fact(2, 0.5), _fact(3, 0.35)]
+    swings = {i: _swing(d) for i, d in ((0, 0.01), (1, -0.25), (2, 0.18), (3, 0.04))}
+    picked = key_plays(facts, wp_by_index=swings, limit=2)
+    assert [f["pa_index"] for f in picked] == [1, 2]      # |ΔWP| 前二，回到時間序
+    assert [f["delta_wp"] for f in picked] == [-0.25, 0.18]
+    # 勝率條需要的水平值一併帶出（打席前後），供視覺化；逐打席頁籤仍不帶
+    assert [f["wp_after"] for f in picked] == [0.25, 0.68]  # ＝ before 0.5 ＋ 各自的 delta
+    # 對照：同一份事實在舊準則下會選到 ΔRE24 最大的 0 號
+    assert [f["pa_index"] for f in key_plays(facts, limit=2)] == [0, 2]
+
+
+def test_key_plays_do_not_write_wp_back_into_the_fact_stream():
+    """守門：``plate_appearances`` 不得帶 WP 欄位——回傳的是淺拷貝，不是同一顆 dict。"""
+    facts = [_fact(0, 0.4), _fact(1, 0.9)]
+    picked = key_plays(facts, wp_by_index={0: _swing(0.2), 1: _swing(0.3)})
+    assert all(not any(k.startswith("wp_") or k == "delta_wp" for k in f) for f in facts)
+    assert picked[0] is not facts[0]
+
+
+def test_key_plays_wp_path_skips_plays_without_delta_re24():
+    """|ΔWP| 夠大但 ΔRE24 不可得 → 不入選（整列只剩擺動量不是完整的一列事實）。"""
+    facts = [_fact(0, None), _fact(1, 0.4)]
+    picked = key_plays(facts, wp_by_index={0: _swing(0.5), 1: _swing(0.05)})
+    assert [f["pa_index"] for f in picked] == [1]
+
+
+def test_key_plays_wp_path_applies_swing_threshold():
+    facts = [_fact(0, 0.4), _fact(1, 0.9)]
+    picked = key_plays(facts, wp_by_index={0: _swing(0.005), 1: _swing(0.2)}, min_wp_abs=0.03)
+    assert [f["pa_index"] for f in picked] == [1]
+
+
+def test_key_play_selection_discloses_signal_and_degradation():
+    """降級不得靜默：選取準則與原因一律機器可讀地揭露給呼叫端。"""
+    normal = key_play_selection({1: _swing(0.2)})
+    assert (normal["signal"], normal["degraded"], normal["reason"]) == ("delta_wp", False, None)
+    degraded = key_play_selection({}, "winprob_model_not_built")
+    assert (degraded["signal"], degraded["degraded"]) == ("delta_re24", True)
+    assert degraded["reason"] == "winprob_model_not_built"
+    # 降級時關鍵打席仍照出（退回 |ΔRE24|），不是整塊消失
+    assert [f["pa_index"] for f in key_plays([_fact(0, 1.2)], wp_by_index={})] == [0]
+    assert key_plays([_fact(0, 1.2)], wp_by_index={})[0]["delta_wp"] is None
+
+
+def test_wp_swings_match_recap_wp_endpoint_semantics():
+    """跨模組紅線：同一場、同一台 scorer 下，事實流的 ΔWP 必須等於 /recap-wp 的 wpa。
+
+    （比分不變的打席流，排除 recap 讀 ``pre_state`` 比分的已知差異來源。）
+    """
+    from cpbl.api.routers.recap import enrich_items
+
+    states = [(1, "1", 0, ()), (1, "1", 1, ("1",)), (1, "2", 0, ()), (2, "1", 2, ("1", "2"))]
+    facts = [_wp_fact(i, 0.4, inning=inn, half=half, outs=outs, bases=bases)
+             for i, (inn, half, outs, bases) in enumerate(states)]
+    rows = [{"pa_id": f"pa-{i}", "pa_index": i, "state": "ready", "hitter_acnt": "H",
+             "start_pitcher_acnt": "P", "end_pitcher_acnt": "P", "result_action": "一壘安打",
+             "outcome_family": None,
+             "pre_state": {"inning": inn, "half": half, "outs": outs, "bases": list(bases),
+                           "away_score": 0, "home_score": 0}}
+            for i, (inn, half, outs, bases) in enumerate(states)]
+    mine = {i: v["delta"] for i, v in
+            wp_swings(facts, scorer=fake_scorer, final_outcome=1.0).items()}
+    theirs = {it["pa_index"]: it["wpa"] for it in
+              enrich_items(rows, completed=True, final_outcome=1.0, scorer=fake_scorer)}
+    assert mine == theirs
 
 
 def test_garbage_time_flag_uses_pre_pa_margin():
