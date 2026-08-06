@@ -82,8 +82,22 @@ MVP 雛形）⑤跳入點（探索器／逐球）。
   2. 「一句事實句」模板生成可讀性——模板＋事實槽，人工審把關；
   3. 首頁 live 態沿用既有端點即足；
   4. 「後續成本低」前提成立與否繫於全即時算架構（已定案，spike 驗效能）；
-  5. **live worker final snapshot 的 livelog 完整性**（含末打席、無截斷、終場後
-     可取用時長）——spike 首步驗，不成立則退回分級渲染設計。
+  5. **live worker final snapshot 的 livelog 完整性**（含末打席、無截斷）——spike
+     首步驗，不成立則退回分級渲染。已查實：TTL 48h（config:35，留存窗足）、
+     snapshot 已保留 winning_pitcher／mvp（live_game_worker.py:352–355）；
+     致勝方式同源 CurtGameDetailJson，snapshot 未留則補一行保留（worker 非凍結檔）；
+  6. **canonical PA 切界核心可否 library 化跑在 snapshot 資料上**——能＝當晚與隔日
+     零分歧；不能＝當晚版掛「暫定」標記（隔日權威源自動除），輕量切界嚴禁重刻
+     幽靈島／末球錨定／9.15(b) 全套語意（那是 PA builder 的地雷區）。
+
+### 端到端檢視補充（2026-08-06 全流程走查）
+
+- **權威源路徑必吃 canonical PA 表**，不得從 raw livelog 重刻切界。
+- **完賽觸發雙層**：頁面層＝snapshot.phase=final（當晚）；資料層＝is_completed_game
+  （隔日）——現行 canShowPostgameConclusions 模式形式化進 spec。
+- **二軍無 live worker**：D 卡 recap 僅隔日權威源，明寫預期。
+- **保留賽**：final 不觸發、日期界線本就排除——沿現行顯示，設計注記。
+- **快取切換**：暫定（短快取）→權威（長快取／ISR）revalidate 機制進 spec。
 - 研究計畫：—（假設驗證併入 #80 執行首步）
 - 驗證方法：需求方人工驗收（每 wave 交付）＋跨家族查核。
 - 對抗式質詢：**2026-08-06 同步 grilling 真對話（Q1–Q8）已完成**。被推翻的前提：
