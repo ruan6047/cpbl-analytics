@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  buildPaGroups, halfLabel, marginText, personName, signedDelta, situationText,
-  type PaFact,
+  buildPaGroups, halfLabel, marginText, personName, scoreAfterPlay, signedDelta,
+  situationText, type PaFact,
 } from "./game-facts.ts";
 
 // ---------------------------------------------------------------------------
@@ -22,7 +22,7 @@ const fact = (paIndex: number, hitterId: string, members: string[],
               opts: Partial<{ name: string; pitcher: string }> = {}): PaFact => ({
   pa_id: `pa-${paIndex}`, pa_index: paIndex, state: "ready",
   inning: 1, half: "1", outs_before: 0, bases_before: [],
-  away_score_before: 0, home_score_before: 0,
+  away_score_before: 0, home_score_before: 0, away_score_after: 0, home_score_after: 0,
   hitter: { player_id: hitterId, name: opts.name ?? `打者${hitterId}` },
   end_hitter: { player_id: hitterId, name: opts.name ?? `打者${hitterId}` },
   pitcher: { player_id: "P1", name: opts.pitcher ?? "投手甲" },
@@ -145,4 +145,24 @@ test("personName 缺名時退回 ID，不回空字串（players 表會缺當季�
   assert.equal(personName({ player_id: "0000007822", name: "威克" }), "威克");
   assert.equal(personName({ player_id: "0000007822", name: null }), "0000007822");
   assert.equal(personName(null), "");
+});
+
+// ---------------------------------------------------------------------------
+// 得分後比分（得分標示元件用）
+// ---------------------------------------------------------------------------
+test("直接取終結事件的事件後比分，不做加法", () => {
+  // 首球全壘打：起始列即終結列，livelog 比分欄已是得分後值。
+  // 若用「打席前比分 + 進帳分數」推算會多加一次（1+2=3 vs 正確的 3）。
+  assert.deepEqual(scoreAfterPlay({ away_score_after: 3, home_score_after: 1 }),
+    { away: 3, home: 1 });
+});
+
+test("缺任一欄回 null，不猜——比分寧可不顯示也不能顯示錯的", () => {
+  assert.equal(scoreAfterPlay({ away_score_after: null, home_score_after: 0 }), null);
+  assert.equal(scoreAfterPlay({ away_score_after: 0, home_score_after: null }), null);
+});
+
+test("0:0 是合法比分，不可被當成缺值", () => {
+  assert.deepEqual(scoreAfterPlay({ away_score_after: 0, home_score_after: 0 }),
+    { away: 0, home: 0 });
 });

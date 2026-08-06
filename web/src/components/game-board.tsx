@@ -10,6 +10,7 @@ import type { WpPoint } from "@/components/win-prob-chart";
 import { buildPaGroups, type PaFact } from "@/lib/game-facts";
 import { displayWpPctInt } from "@/lib/win-prob-display";
 import { Re24Badge } from "@/components/re24-badge";
+import { RunsBadge } from "@/components/runs-badge";
 import {
   canShowPostgameConclusions, inningLabel, liveScorebarScores, phaseLabel, plateAppearancePitchCountLabel, trackingEmptyMessage,
   type LiveSnapshot,
@@ -429,19 +430,39 @@ function PlayByPlay({ log, events, idx, setIdx, userAction, facts }: {
   // 「連續同打者」近似切法（`pa-groups.test.ts` 釘住兩者在無事實流時完全相同）。
   const groups = buildPaGroups(log as unknown as Parameters<typeof buildPaGroups>[0], events, facts);
 
+  // 逐列的「該事件進帳分數 ＋ 事件後比分」。livelog 的比分欄是**事件後**快照且可能為
+  // null（沿用前值），故必須全場前掃一次，不能只讀單列。
+  const runningScore = useMemo(() => {
+    const out: { runs: number; away: number; home: number }[] = [];
+    let away = 0, home = 0;
+    for (const ev of log) {
+      const preAway = away, preHome = home;
+      if (ev.visiting_score != null) away = num(ev.visiting_score);
+      if (ev.home_score != null) home = num(ev.home_score);
+      const runs = String(ev.visiting_home_type) === "1" ? away - preAway : home - preHome;
+      out.push({ runs, away, home });
+    }
+    return out;
+  }, [log]);
+
   const lineBtn = (gi: number, showScore: boolean, extra?: React.ReactNode) => {
     const ev = log[gi];
     const content = String(ev.content ?? "").split(/[\r\n]/)[0];
     const isScore = Boolean(ev.is_score);
     const isPitch = content.length <= 8;
     const active = gi === idx;
+    const s = runningScore[gi];
+    // 得分事件的敘述文字走**一般字級**（與其他結果行相同）——重要性由 RunsBadge 承載。
+    // 這一行原本沒給 size class，於是繼承 text-base 而比周圍列大一級，讀起來突兀
+    // （需求方 2026-08-06 第三輪人工審）。
     return (
       <button key={gi} ref={active ? activeRef : undefined} onClick={() => setIdx(gi)}
         className={`block w-full scroll-mt-16 rounded px-2 py-0.5 pl-5 text-left transition-colors hover:bg-surface-2 ${
           active ? "bg-accent/10 ring-1 ring-accent/30" : ""} ${
-          isScore ? "text-accent" : isPitch ? "text-xs text-faint" : "text-sm text-ink"}`}>
+          isScore ? "text-sm text-accent" : isPitch ? "text-xs text-faint" : "text-sm text-ink"}`}>
         {content}
-        {showScore && isScore && <span className="ml-2 font-mono text-xs">({num(ev.visiting_score)}-{num(ev.home_score)})</span>}
+        {showScore && isScore && s
+          && <RunsBadge runs={s.runs} away={s.away} home={s.home} />}
         {extra}
       </button>
     );

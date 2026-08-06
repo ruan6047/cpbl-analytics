@@ -5,7 +5,8 @@
 
 import { Card, EmptyState, Eyebrow, PlayerLink } from "@/components/ui";
 import { Re24Badge } from "@/components/re24-badge";
-import { halfLabel, personName, type ScoringHalf } from "@/lib/game-facts";
+import { RunsBadge } from "@/components/runs-badge";
+import { halfLabel, personName, scoreAfterPlay, type ScoringHalf } from "@/lib/game-facts";
 import { teamColor } from "@/lib/teams";
 
 export function ScoringChain({ chain, awayCode, homeCode, onJump }: {
@@ -42,7 +43,7 @@ export function ScoringChain({ chain, awayCode, homeCode, onJump }: {
                           <PlayerLink pid={play.hitter?.player_id} name={personName(play.hitter)} />
                           <span className="mx-1 text-faint">·</span>
                           {(play.result_action ?? "").trim()}
-                          <span className="ml-1.5 text-accent">{play.runs} 分</span>
+                          <RunsBadge runs={play.runs} {...(scoreAfterPlay(play) ?? {})} />
                           <Re24Badge value={play.delta_re24} />
                         </>
                       );

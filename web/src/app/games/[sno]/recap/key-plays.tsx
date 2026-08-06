@@ -11,8 +11,9 @@
 
 import { Card, EmptyState, Eyebrow, PlayerLink } from "@/components/ui";
 import { Re24Badge } from "@/components/re24-badge";
+import { RunsBadge } from "@/components/runs-badge";
 import {
-  halfLabel, marginText, personName, signedDelta, situationText, type PaFact,
+  halfLabel, marginText, personName, scoreAfterPlay, signedDelta, situationText, type PaFact,
 } from "@/lib/game-facts";
 
 function BaseDiamond({ bases }: { bases: string[] }) {
@@ -67,8 +68,8 @@ export function KeyPlays({ plays, onJump }: {
                 <PlayerLink pid={play.hitter?.player_id} name={personName(play.hitter)} />
                 <span className="mx-1 text-faint">·</span>
                 {(play.result_action ?? "").trim()}
-                {play.runs_on_play ? <span className="ml-1.5 text-accent">{play.runs_on_play} 分打點</span> : null}
                 <span className="ml-1.5 text-xs text-faint">投：{personName(play.pitcher)}</span>
+                <RunsBadge runs={play.runs_on_play} {...(scoreAfterPlay(play) ?? {})} />
                 <Re24Badge value={play.delta_re24} />
               </div>
             </>

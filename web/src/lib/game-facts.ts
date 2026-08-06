@@ -18,6 +18,9 @@ export type PaFact = {
   bases_before: string[];
   away_score_before: number | null;
   home_score_before: number | null;
+  /** 該打席**結束後**的比分（取終結事件的事件後快照，非加總推算）。 */
+  away_score_after: number | null;
+  home_score_after: number | null;
   hitter: FactPerson | null;
   end_hitter: FactPerson | null;
   pitcher: FactPerson | null;
@@ -41,6 +44,7 @@ export type ScoringHalf = {
     pa_index: number; pa_id: string | null; hitter: FactPerson | null;
     result_action: string | null; runs: number; delta_re24: number | null;
     start_event_no: string | null; end_event_no: string | null;
+    half: string | null; away_score_after: number | null; home_score_after: number | null;
   }[];
 };
 
@@ -109,6 +113,21 @@ export function marginText(fact: Pick<PaFact, "away_score_before" | "home_score_
   if (away === null || home === null) return "";
   if (away === home) return "平手";
   return `${Math.max(away, home)}–${Math.min(away, home)}`;
+}
+
+/**
+ * 該打席得分**之後**的比分（客, 主）。
+ *
+ * 直接取事實流給的「終結事件事件後快照」，**不做加法**——livelog 的比分欄是事件後值，
+ * 單一事件就結束的得分打席（首球全壘打）其起始列即終結列，用「打席前比分 + 進帳分數」
+ * 推算會多加一次。缺任一欄回 null，**不猜**：比分寧可不顯示也不能顯示錯的。
+ */
+export function scoreAfterPlay(play: {
+  away_score_after: number | null; home_score_after: number | null;
+}): { away: number; home: number } | null {
+  const { away_score_after: away, home_score_after: home } = play;
+  if (away === null || home === null) return null;
+  return { away, home };
 }
 
 export const signedDelta = (value: number | null): string =>

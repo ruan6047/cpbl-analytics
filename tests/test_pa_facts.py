@@ -242,9 +242,25 @@ def test_key_plays_keep_garbage_time_plays():
 
 
 def test_garbage_time_flag_uses_pre_pa_margin():
-    events = [ev(1, "H1", action="一壘安打", content="擊出一壘安打。", is_strike=True,
-                 away=0, home=GARBAGE_TIME_MARGIN)]
-    assert facts_of(events)[0]["garbage_time"] is True
+    """分差看的是**打席前**的比分：前一個打席把分數拉開，下一個打席才進垃圾時間。"""
+    events = [
+        ev(1, "H0", inning=1, half="2", action="全壘打", content="擊出全壘打。",
+           is_strike=True, home=GARBAGE_TIME_MARGIN),
+        ev(2, "H1", inning=2, action="一壘安打", content="擊出一壘安打。", is_strike=True,
+           away=0, home=GARBAGE_TIME_MARGIN),
+    ]
+    facts = facts_of(events)
+    assert facts[0]["garbage_time"] is False   # 造成分差的那一打席本身還不是垃圾時間
+    assert facts[1]["garbage_time"] is True
+
+
+def test_scores_come_from_event_stream_not_pre_state():
+    """單一事件就結束的得分打席：`pre_state` 存的比分已是得分**後**的值，不可當打席前比分。"""
+    events = [ev(1, "H1", action="全壘打", content="擊出全壘打。1分打點。",
+                 is_strike=True, away=1)]
+    fact = facts_of(events)[0]
+    assert (fact["away_score_before"], fact["home_score_before"]) == (0, 0)
+    assert (fact["away_score_after"], fact["home_score_after"]) == (1, 0)
 
 
 # ===========================================================================
@@ -311,6 +327,24 @@ def test_scoring_chain_only_lists_halves_with_runs():
     chain = scoring_chain(facts_of(events))
     assert [(c["inning"], c["half"], c["runs"]) for c in chain] == [(1, "1", 1)]
     assert chain[0]["plays"][0]["result_action"] == "全壘打"
+
+
+def test_scoring_chain_plays_carry_pre_play_score():
+    """得分標示元件要算「得分後變成幾比幾」，故每筆得分打席須帶打席前比分與半局。
+
+    三處逐列呈現（逐打席頁籤／關鍵打席／得分過程）共用同一個元件，缺這幾欄會讓得分過程
+    只能顯示分數而顯示不出比分，形式就不一致了。
+    """
+    events = [
+        ev(1, "H1", action="全壘打", content="擊出全壘打。1分打點。", is_strike=True, away=1),
+    ]
+    play = scoring_chain(facts_of(events))[0]["plays"][0]
+    assert play["half"] == "1"
+    assert play["runs"] == 1
+    # 得分後比分直接取終結事件的事件後快照——首球全壘打的起始列即終結列，
+    # 用「打席前比分 + 進帳分數」推算會多加一次。
+    assert play["away_score_after"] == 1
+    assert play["home_score_after"] == 0
 
 
 # ===========================================================================

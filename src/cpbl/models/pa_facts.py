@@ -209,7 +209,16 @@ def delta_re24(pa_rows: list[dict], events: list[dict],
         post = pa.get("post_state") or {}
         half = str(pre.get("half") or "")
         pre_key, post_key = _score_keys(half)
-        away_before, home_before = pre.get("away_score"), pre.get("home_score")
+        # ⚠️ 比分不能讀 `pre_state.away_score`／`post_state.home_score`：那是把**該事件列的
+        # 比分欄**原樣存下來，而 livelog 的比分欄是**事件後**快照。單一事件就結束的得分打席
+        # （例如首球全壘打），起始列＝終結列，`pre_state` 存到的已經是得分**後**的比分，拿去
+        # 算「這打席讓比分變成幾比幾」會多加一次。改由事件流的前／後比分直接取。
+        start_ev = by_event_no.get(str(pa.get("start_event_no"))) if pa.get("start_event_no") else None
+        end_ev = by_event_no.get(str(pa.get("end_event_no"))) if pa.get("end_event_no") else None
+        away_before = start_ev["_pre_away"] if start_ev else pre.get("away_score")
+        home_before = start_ev["_pre_home"] if start_ev else pre.get("home_score")
+        away_after = end_ev["_post_away"] if end_ev else None
+        home_after = end_ev["_post_home"] if end_ev else None
         fact: dict[str, Any] = {
             "pa_id": pa.get("pa_id"),
             "pa_index": pa["pa_index"],
@@ -220,6 +229,9 @@ def delta_re24(pa_rows: list[dict], events: list[dict],
             "bases_before": pre.get("bases") or [],
             "away_score_before": away_before,
             "home_score_before": home_before,
+            # 該打席結束後的比分（直接取終結事件的事件後快照，不做加法）
+            "away_score_after": away_after,
+            "home_score_after": home_after,
             "hitter": _person(pa.get("hitter_acnt"), names),
             "end_hitter": _person(pa.get("end_hitter_acnt"), names),
             "pitcher": _person(pa.get("end_pitcher_acnt"), names),
@@ -235,7 +247,7 @@ def delta_re24(pa_rows: list[dict], events: list[dict],
             "unavailable_reason": None,
             "garbage_time": _is_garbage_time(away_before, home_before),
         }
-        terminal = by_event_no.get(str(pa.get("end_event_no"))) if pa.get("end_event_no") else None
+        terminal = end_ev
         if pa["state"] != "ready" or terminal is None:
             fact["unavailable_reason"] = (
                 f"pa_state_{pa['state']}" if pa["state"] != "ready" else "terminal_event_missing")
@@ -339,6 +351,11 @@ def scoring_chain(facts: list[dict]) -> list[dict]:
                 "runs": runs, "delta_re24": fact.get("delta_re24"),
                 "end_event_no": fact.get("end_event_no"),
                 "start_event_no": fact.get("start_event_no"),
+                # 得分後比分：三處逐列呈現才能用同一個得分標示元件
+                # （前端不自行掃 livelog 重算比分，也不做加法）。
+                "half": str(fact["half"]) if fact["half"] is not None else None,
+                "away_score_after": fact["away_score_after"],
+                "home_score_after": fact["home_score_after"],
             })
     return [{k: v for k, v in half.items() if k != "_key"} for half in chain if half["runs"] > 0]
 
