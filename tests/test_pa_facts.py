@@ -357,27 +357,63 @@ def test_key_play_selection_discloses_signal_and_degradation():
     assert key_plays([_fact(0, 1.2)], wp_by_index={})[0]["delta_wp"] is None
 
 
+# 含「單一事件就結束的得分打席」（首球全壘打）的合成事件流：這正是兩支消費者最容易
+# 分歧的形狀——recap 曾讀 pre_state 比分（事件**後**值），使該打席 WPA 歸零、得分被
+# 誤記到前一打席（DATA-RECAP-WP-PRESTATE1）。
+SINGLE_EVENT_SCORING_EVENTS = [
+    ev(1, "A1", action="三振", content="三振出局。 1人出局。", is_strike=True),
+    ev(2, "A2", action="全壘打", content="擊出中外野方向陽春全壘打。1分打點。",
+       is_strike=True, out=1, order=2, away=1),
+    ev(3, "A3", action="一壘安打", content="擊出一壘安打。", is_strike=True, out=1,
+       order=3, away=1),
+    ev(4, "B1", inning=1, half="2", pitcher="P2", action="飛球接殺",
+       content="飛球接殺出局。 1人出局。", is_strike=True, away=1),
+    ev(5, "B2", inning=1, half="2", pitcher="P2", action="二壘安打",
+       content="擊出二壘安打。", is_strike=True, out=1, order=2, away=1),
+]
+
+
 def test_wp_swings_match_recap_wp_endpoint_semantics():
-    """跨模組紅線：同一場、同一台 scorer 下，事實流的 ΔWP 必須等於 /recap-wp 的 wpa。
+    """跨模組紅線：同一場、同一台 scorer 下，事實流的 ΔWP 必須逐位等於 /recap-wp 的 wpa。
 
-    （比分不變的打席流，排除 recap 讀 ``pre_state`` 比分的已知差異來源。）
+    事件流刻意含首球全壘打——修復前這裡兩支會分歧（recap 的 ``pre_state`` 比分是事件
+    後值）；修復後兩支都從事件流取打席前比分，水平值與擺動量都必須相等。
     """
-    from cpbl.api.routers.recap import enrich_items
+    from cpbl.api.routers.recap import enrich_items, pre_scores_from_events
 
-    states = [(1, "1", 0, ()), (1, "1", 1, ("1",)), (1, "2", 0, ()), (2, "1", 2, ("1", "2"))]
-    facts = [_wp_fact(i, 0.4, inning=inn, half=half, outs=outs, bases=bases)
-             for i, (inn, half, outs, bases) in enumerate(states)]
-    rows = [{"pa_id": f"pa-{i}", "pa_index": i, "state": "ready", "hitter_acnt": "H",
-             "start_pitcher_acnt": "P", "end_pitcher_acnt": "P", "result_action": "一壘安打",
-             "outcome_family": None,
-             "pre_state": {"inning": inn, "half": half, "outs": outs, "bases": list(bases),
-                           "away_score": 0, "home_score": 0}}
-            for i, (inn, half, outs, bases) in enumerate(states)]
-    mine = {i: v["delta"] for i, v in
-            wp_swings(facts, scorer=fake_scorer, final_outcome=1.0).items()}
-    theirs = {it["pa_index"]: it["wpa"] for it in
-              enrich_items(rows, completed=True, final_outcome=1.0, scorer=fake_scorer)}
-    assert mine == theirs
+    events = SINGLE_EVENT_SCORING_EVENTS
+    rows, _ = pa_rows_from_snapshot(2026, "A", 1, events)
+    facts = delta_re24(rows, events, RE)
+    swings = wp_swings(facts, scorer=fake_scorer, final_outcome=1.0)
+    items = {it["pa_index"]: it for it in enrich_items(
+        rows, pre_scores=pre_scores_from_events(rows, events),
+        completed=True, final_outcome=1.0, scorer=fake_scorer)}
+    assert set(swings) == {i for i, it in items.items() if it["wp_status"] == "available"}
+    for index, swing in swings.items():
+        assert items[index]["wpa"] == pytest.approx(swing["delta"])
+        assert items[index]["home_wp_before"] == pytest.approx(swing["before"])
+        assert items[index]["home_wp_after"] == pytest.approx(swing["after"])
+    # 兩支的打席前比分也必須逐打席一致（wpa 相等的前提，不是巧合）
+    assert ({(f["pa_index"], f["away_score_before"], f["home_score_before"]) for f in facts}
+            == {(i, it["away_score_before"], it["home_score_before"]) for i, it in items.items()})
+
+
+def test_recap_wp_pre_scores_come_from_event_stream_not_pre_state():
+    """病灶的直接紅燈：首球全壘打的打席前比分必須是 0，且該分歸這一打席、非前一打席。"""
+    from cpbl.api.routers.recap import enrich_items, pre_scores_from_events
+
+    events = SINGLE_EVENT_SCORING_EVENTS
+    rows, _ = pa_rows_from_snapshot(2026, "A", 1, events)
+    homer = next(r for r in rows if r["result_action"] == "全壘打")
+    # canonical 存的是事件後值（來源忠實）——病灶在讀取端，不在 DB
+    assert homer["pre_state"]["away_score"] == 1
+    items = {it["pa_index"]: it for it in enrich_items(
+        rows, pre_scores=pre_scores_from_events(rows, events),
+        completed=True, final_outcome=0.0, scorer=fake_scorer)}
+    assert items[homer["pa_index"]]["away_score_before"] == 0   # 讀取端修正
+    # 客隊得分 → 主隊勝率下降；修復前這一打席的 wpa 會是「無事發生」而前一打席背鍋
+    assert items[homer["pa_index"]]["wpa"] < 0
+    assert items[homer["pa_index"] - 1]["away_score_before"] == 0
 
 
 def test_garbage_time_flag_uses_pre_pa_margin():

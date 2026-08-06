@@ -72,7 +72,14 @@ def _canonical_rows(events: list[dict]) -> list[dict]:
         "hitter_acnt": p.hitter_acnt, "start_pitcher_acnt": p.start_pitcher_acnt,
         "end_pitcher_acnt": p.end_pitcher_acnt, "result_action": p.result_action,
         "outcome_family": p.outcome_family, "pre_state": p.pre_state,
+        "start_event_no": p.start_event_no,
     } for p in plate_appearances(2026, "A", 1, events, TAX)]
+
+
+def _livelog_scores(events: list[dict]) -> list[dict]:
+    """DB adapter ``_load_livelog_scores`` 的回傳形狀（只有比分解算需要的三欄）。"""
+    return [{"main_event_no": e["main_event_no"], "visiting_score": e["visiting_score"],
+             "home_score": e["home_score"]} for e in events]
 
 
 # 最小 run_dist：只需上/下半局空壘 0 出局分布（其餘狀態 fallback）
@@ -110,11 +117,13 @@ def recap_module(monkeypatch):
     winprob_scorer._solver_cache.clear()
 
 
-def _get(recap, monkeypatch, rows, game, **params):
+def _get(recap, monkeypatch, rows, game, events=REPEAT_BATTER_EVENTS, **params):
     from cpbl.api.main import app
 
     monkeypatch.setattr(recap, "_load_pa_rows", lambda season, kind, sno: rows)
     monkeypatch.setattr(recap, "_load_game_row", lambda season, kind, sno: game)
+    monkeypatch.setattr(recap, "_load_livelog_scores",
+                        lambda season, kind, sno: _livelog_scores(events))
     q = {"season": 2026, "kind_code": "A", **params}
     return TestClient(app).get("/api/v1/games/1/recap-wp", params=q)
 
