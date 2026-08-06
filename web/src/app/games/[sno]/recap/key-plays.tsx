@@ -16,31 +16,19 @@
 //     為 15 命中），呈現層的補丁已無對象。事實旗標仍在資料裡、降級路徑仍可能選到，故
 //     保留「分差 ≥7」文字標籤，只移除淡底。
 //   * 每筆必附局面標示（局數／出局／壘況／分差），把「這打席重不重要」的判讀交給讀者。
+//   * 版式與逐打席頁籤**共用同一個元件**（`components/play-card.tsx`，UX-GAME-PA1）：
+//     本檔只負責「選哪些打席、怎麼揭露選取準則」，一列長什麼樣由 PlayCard 決定。
 
 import Link from "next/link";
-import { Card, EmptyState, Eyebrow, PlayerLink } from "@/components/ui";
-import { Re24Badge } from "@/components/re24-badge";
-import { RunsBadge } from "@/components/runs-badge";
-import { WP_SWING_DISCLOSURE, WpSwingBadge } from "@/components/wp-swing-badge";
-import { WpSwingBar } from "@/components/wp-swing-bar";
+import { Card, EmptyState, Eyebrow } from "@/components/ui";
+import { PlayCard } from "@/components/play-card";
+import { WP_SWING_DISCLOSURE } from "@/components/wp-swing-badge";
 import {
-  halfLabel, marginText, personName, scoreAfterPlay, signedDelta, situationText, wpSwingLabel,
+  marginText, personName, scoreAfterPlay, signedDelta, situationText, wpSwingLabel,
   type KeyPlaySelection, type PaFact,
 } from "@/lib/game-facts";
 import { methodologyHref } from "@/lib/methodology-anchors";
 import { teamColor } from "@/lib/teams";
-
-function BaseDiamond({ bases }: { bases: string[] }) {
-  const on = (b: string) => (bases ?? []).includes(b);
-  const cell = (filled: boolean) =>
-    `inline-block h-2 w-2 rotate-45 border ${filled ? "border-ink bg-ink" : "border-line-strong"}`;
-  return (
-    <span aria-hidden className="inline-grid grid-cols-3 grid-rows-2 items-center gap-px">
-      <span /><span className={cell(on("2"))} /><span />
-      <span className={cell(on("3"))} /><span /><span className={cell(on("1"))} />
-    </span>
-  );
-}
 
 export function KeyPlays({ plays, selection, homeName, awayName, homeCode, awayCode, onJump }: {
   plays: PaFact[];
@@ -91,62 +79,30 @@ export function KeyPlays({ plays, selection, homeName, awayName, homeCode, awayC
       )}
       <ol className="space-y-0.5">
         {plays.map((play) => {
-          // ΔRE24 併進打席敘述的同一行（需求方 2026-08-06：不要跟打席訊息分開）；
-          // 受益隊擺動則獨立置右（同日定稿：沿用生產卡版式）。
-          const hasSwing = play.delta_wp !== null && play.delta_wp !== undefined;
-          const row = (
-            <>
-              {/* 上排＝局面脈絡（左）＋受益隊擺動（右，獨立元素）：生產「關鍵時刻」卡的
-                  版式骨架，只把壘況／出局／分差併進左側資訊區。 */}
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="flex items-center gap-1.5 text-xs font-medium text-muted">
-                  {play.inning}{halfLabel(play.half)}
-                  <BaseDiamond bases={play.bases_before} />
-                  <span className="text-faint">{play.outs_before ?? "—"} 出局</span>
-                  {marginText(play) && <span className="text-faint">{marginText(play)}</span>}
-                  {play.garbage_time && (
-                    <span className="rounded bg-surface-2 px-1 py-px text-[10px] text-muted">
-                      分差 ≥7
-                    </span>
-                  )}
-                </span>
-                {hasSwing && (
-                  <WpSwingBadge value={play.delta_wp} homeName={homeName} awayName={awayName}
-                    homeColor={homeColor} awayColor={awayColor} />
-                )}
-              </div>
-              <div className="mt-0.5 text-sm text-ink">
-                <PlayerLink pid={play.hitter?.player_id} name={personName(play.hitter)} />
-                <span className="mx-1 text-faint">·</span>
-                {(play.result_action ?? "").trim()}
-                <span className="ml-1.5 text-xs text-faint">投：{personName(play.pitcher)}</span>
-                <RunsBadge runs={play.runs_on_play} {...(scoreAfterPlay(play) ?? {})} />
-                <Re24Badge value={play.delta_re24} muted={hasSwing} />
-              </div>
-              {hasSwing && (
-                <WpSwingBar before={play.wp_before} after={play.wp_after}
-                  terminal={play.wp_after_terminal} homeColor={homeColor} awayColor={awayColor}
-                  homeName={homeName} awayName={awayName} />
-              )}
-            </>
-          );
           const swingLabel = wpSwingLabel(play.delta_wp, homeName, awayName);
           const swing = swingLabel ? `，勝率推向${swingLabel.team} ${swingLabel.pt} 個百分點` : "";
           const label = `${situationText(play)}，${personName(play.hitter)} `
             + `${play.result_action ?? ""}${swing}，ΔRE24 ${signedDelta(play.delta_re24)}`;
           return (
             <li key={play.pa_index}>
-              {onJump && play.start_event_no ? (
-                <button type="button" aria-label={label}
-                  onClick={() => onJump(play.start_event_no!)}
-                  className="block w-full rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-surface-2">
-                  {row}
-                </button>
-              ) : (
-                <div aria-label={label} className="rounded-lg px-2.5 py-2">
-                  {row}
-                </div>
-              )}
+              <PlayCard
+                variant="key"
+                inning={play.inning} half={play.half}
+                outsBefore={play.outs_before} basesBefore={play.bases_before}
+                margin={marginText(play)} garbageTime={play.garbage_time}
+                hitterId={play.hitter?.player_id} hitterName={personName(play.hitter)}
+                pitcherName={personName(play.pitcher)} resultAction={play.result_action}
+                runs={play.runs_on_play} scoreAfter={scoreAfterPlay(play)}
+                deltaRe24={play.delta_re24}
+                wp={play.delta_wp === null || play.delta_wp === undefined ? null : {
+                  before: play.wp_before ?? null, after: play.wp_after ?? null,
+                  terminal: play.wp_after_terminal, delta: play.delta_wp,
+                }}
+                teams={{ homeName, awayName, homeColor, awayColor }}
+                ariaLabel={label}
+                onActivate={onJump && play.start_event_no
+                  ? () => onJump(play.start_event_no!) : undefined}
+              />
             </li>
           );
         })}
