@@ -30,3 +30,28 @@ export function RunsBadge({ runs, away, home, className = "" }: {
     </span>
   );
 }
+
+/**
+ * 打席層級的**比分**（得分打席才顯示）。
+ *
+ * 需求方 2026-08-06 第五輪人工審：「分數變動可以放到跟球員名稱同樣層級，字樣可以放大
+ * ——畢竟是關鍵資訊；打點數（+N 進帳）留在原先位置。」故比分自事件列上移到打席標題列，
+ * 與打者名同層級同字級；`RunsBadge` 的 `+N` 留在原位、原大小（進帳是事件層級的事實）。
+ *
+ * 客隊在前（`{away}–{home}`），與記分板欄序、`RunsBadge` 內的比分寫法完全一致。
+ */
+export function ScoreAfterBadge({ away, home, className = "" }: {
+  away?: number | null;
+  home?: number | null;
+  className?: string;
+}) {
+  if (away === null || away === undefined || home === null || home === undefined) return null;
+  return (
+    <span
+      title={`此打席後比分 ${away}:${home}（客:主）`}
+      className={`ml-2 inline-block whitespace-nowrap rounded bg-accent/10 px-1.5 align-middle font-mono text-sm font-bold tabular-nums text-accent ${className}`}
+    >
+      {away}–{home}
+    </span>
+  );
+}

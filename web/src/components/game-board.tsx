@@ -10,7 +10,7 @@ import type { WpPoint } from "@/components/win-prob-chart";
 import { buildPaGroups, type PaFact } from "@/lib/game-facts";
 import { displayWpPctInt } from "@/lib/win-prob-display";
 import { Re24Badge } from "@/components/re24-badge";
-import { RunsBadge } from "@/components/runs-badge";
+import { RunsBadge, ScoreAfterBadge } from "@/components/runs-badge";
 import {
   canShowPostgameConclusions, inningLabel, liveScorebarScores, phaseLabel, plateAppearancePitchCountLabel, trackingEmptyMessage,
   type LiveSnapshot,
@@ -461,8 +461,8 @@ function PlayByPlay({ log, events, idx, setIdx, userAction, facts }: {
           active ? "bg-accent/10 ring-1 ring-accent/30" : ""} ${
           isScore ? "text-sm text-accent" : isPitch ? "text-xs text-faint" : "text-sm text-ink"}`}>
         {content}
-        {showScore && isScore && s
-          && <RunsBadge runs={s.runs} away={s.away} home={s.home} />}
+        {/* 進帳分數留在事件列（事件層級的事實）；比分已上移到打席標題列，此處不重複 */}
+        {showScore && isScore && s && <RunsBadge runs={s.runs} />}
         {extra}
       </button>
     );
@@ -480,6 +480,10 @@ function PlayByPlay({ log, events, idx, setIdx, userAction, facts }: {
           if (g.kind === "sub") return lineBtn(g.gi, false);
           const outcomeIdx = g.idxs[g.idxs.length - 1];
           const expanded = g.idxs.includes(idx);   // 當前打席自動展開
+          // 該打席若有得分事件，取最後一個得分事件的事件後比分（打席可能多次得分）
+          const scoringIdxs = g.idxs.filter((gi) => log[gi].is_score && runningScore[gi]?.runs > 0);
+          const paScore = scoringIdxs.length
+            ? runningScore[scoringIdxs[scoringIdxs.length - 1]] : null;
           return (
             <div key={gk}>
               {/* 一列＝一個打席的完整資訊：打者・球數・投手・ΔRE24 同一視覺單元
@@ -488,6 +492,10 @@ function PlayByPlay({ log, events, idx, setIdx, userAction, facts }: {
                 ⚾ {g.name}
                 {g.idxs.length > 1 && <span className="ml-1 text-[10px] font-semibold text-muted">{plateAppearancePitchCountLabel(g.idxs.length)}</span>}
                 <span className="ml-2 text-xs text-faint">投：{g.pitcher}</span>
+                {/* 得分打席的比分上移到與打者名同層級、同字級放大（需求方 2026-08-06
+                    第五輪人工審）：比分是關鍵資訊，不該埋在事件敘述行的 chip 裡。
+                    值取該打席最後一個得分事件的**事件後**比分，不做加法。 */}
+                {paScore && <ScoreAfterBadge away={paScore.away} home={paScore.home} />}
                 {g.fact && g.fact.state === "ready" && <Re24Badge value={g.fact.delta_re24} />}
               </div>
               {expanded
