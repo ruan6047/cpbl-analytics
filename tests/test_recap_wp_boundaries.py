@@ -53,10 +53,20 @@ def wp_of(r: dict) -> float:
                              pre["home_score"] - pre["away_score"], bases, pre["outs"]), 4)
 
 
+def declared_pre_scores(rows: list[dict]) -> dict[int, tuple[int, int]]:
+    """本檔的 row 直接宣告打席前比分（測的是鏈結語意，非比分來源）。
+
+    生產路徑的比分一律由 :func:`recap.pre_scores_from_events` 從事件流解出——比分來源
+    本身的紅線在 ``test_recap_wp_pre_scores.py``，此處只是把同一組值以正確的通道餵進去。
+    """
+    return {r["pa_index"]: (r["pre_state"]["away_score"], r["pre_state"]["home_score"])
+            for r in rows}
+
+
 def enrich(rows: list[dict], *, completed: bool = True,
            final_outcome: float | None = 1.0) -> list[dict]:
-    return enrich_items(rows, completed=completed, final_outcome=final_outcome,
-                        scorer=fake_scorer)
+    return enrich_items(rows, pre_scores=declared_pre_scores(rows), completed=completed,
+                        final_outcome=final_outcome, scorer=fake_scorer)
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +151,27 @@ def test_unreliable_next_pa_pre_state_still_anchors_previous() -> None:
     assert items[2]["wp_status"] == "available"
 
 
+def test_unresolved_pre_score_fails_closed_without_falling_back_to_pre_state() -> None:
+    """打席前比分解不出來時 fail closed：**不得**退回 ``pre_state`` 的事件後比分。
+
+    ``pre_state`` 對「單一事件就結束的得分打席」存的是得分**後**的值，退回去等於把本卡
+    修掉的病灶留一條後門——故連 ``away_score_before`` 都要誠實回 None。
+    """
+    rows = [row(0, away=3, home=1), row(1, away=3, home=1)]
+    items = enrich_items(rows, pre_scores={1: (3, 1)}, completed=True,
+                         final_outcome=1.0, scorer=fake_scorer)
+    assert items[0]["wp_status"] == "unavailable"
+    assert items[0]["wp_unavailable_reason"] == "pre_score_unresolved"
+    assert items[0]["away_score_before"] is None and items[0]["home_score_before"] is None
+    assert items[0]["inning"] == 1 and items[0]["outs_before"] == 0  # 局面欄仍照給
+    # 下一個打席的比分解不出 → 前一打席只有 before（partial），不猜 after
+    items = enrich_items(rows, pre_scores={0: (3, 1)}, completed=True,
+                         final_outcome=1.0, scorer=fake_scorer)
+    assert items[0]["wp_status"] == "partial"
+    assert items[0]["wp_unavailable_reason"] == "next_pa_score_unresolved"
+    assert items[0]["home_wp_before"] is not None and items[0]["home_wp_after"] is None
+
+
 def test_next_pa_incomplete_pre_state_gives_partial() -> None:
     rows = [row(0), row(1, state="truncated", outs=None), row(2)]
     items = enrich(rows)
@@ -196,7 +227,9 @@ def test_wpa_equals_rounded_after_minus_before() -> None:
 
 
 def test_no_model_fails_closed_for_all_rows() -> None:
-    items = enrich_items([row(0), row(1)], completed=True, final_outcome=1.0, scorer=None)
+    rows = [row(0), row(1)]
+    items = enrich_items(rows, pre_scores=declared_pre_scores(rows), completed=True,
+                         final_outcome=1.0, scorer=None)
     assert all(i["wp_status"] == "unavailable" for i in items)
     assert all(i["wp_unavailable_reason"] == "model_not_built" for i in items)
 
