@@ -83,6 +83,9 @@ def _default_taxonomy_path() -> Path:
 
 _TAXONOMY_PATH = _default_taxonomy_path()
 
+# taxonomy role（**與 PA state 是不同命名空間**，字面值恰好相同勿混用）
+ROLE_NON_PA = "non_pa"
+
 # PA state（對齊 migration 066 CHECK 值域）
 STATE_READY = "ready"
 STATE_UNRELIABLE = "unreliable"
@@ -118,6 +121,23 @@ def load_taxonomy(path: str | None = None) -> Taxonomy:
         for a in doc["actions"]
     }
     return Taxonomy(version=str(doc["taxonomy_version"]), actions=actions)
+
+
+def is_non_pa_action(action_name: Any, taxonomy: Taxonomy) -> bool:
+    """該 action 是否為 taxonomy 登錄的 **non_pa 角色**（現行唯一成員：突破僵局上壘）。
+
+    **單一擁有者**：canonical PA builder（:func:`classify_island`）與季彙總 RE24
+    （``models/sabr.build_re24``）共用這一個判準，兩邊都不自己比對中文字串。新增
+    non_pa action 只要改 taxonomy JSON，兩條路徑同時生效、不會漂移。
+
+    未登錄 taxonomy 的 action 回 ``False``（不是 non_pa）——「未知」的 fail-closed 由
+    呼叫端各自處理（builder 標 ``unreliable``），本判準只回答「是不是已知的非打席」。
+    """
+    action = _clean(action_name)
+    if not action:
+        return False
+    entry = taxonomy.entry(str(action))
+    return entry is not None and entry["role"] == ROLE_NON_PA
 
 
 # ===========================================================================
@@ -354,7 +374,7 @@ def classify_island(island: list[Event], taxonomy: Taxonomy) -> IslandClass:
     if entry is None:
         # 有 action 但未登錄 taxonomy → fail closed（保留成員事件，state=unreliable）
         return IslandClass("unknown_action", STATE_UNRELIABLE, action, None)
-    if entry["role"] == "non_pa":
+    if is_non_pa_action(action, taxonomy):
         return IslandClass("non_pa_tiebreak", STATE_NON_PA, action, entry.get("outcome_family"))
     # pa_terminal：無投球但為 award（故意四壞/妨礙打擊）仍是完成 PA。
     return IslandClass("completed_pa", STATE_READY, action, entry.get("outcome_family"))
