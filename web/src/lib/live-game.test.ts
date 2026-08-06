@@ -119,9 +119,16 @@ test("收合打席標示整個打席實際用球數，不標示隱藏球數", ()
 });
 
 test("收合打席把總球數放在投打名稱後，而非結果行後", () => {
+  // UX-GAME-PA1：逐打席改用共用打席卡後，球數由 game-board 算、由 play-card 排版，
+  // 故守衛跨兩檔——意圖不變（球數黏在打者名後面，不落到結果敘述之後）。
   const board = readFileSync(new URL("../components/game-board.tsx", import.meta.url), "utf8");
-  assert.match(board, /⚾ \{g\.name\}\s*\{g\.idxs\.length > 1 && <span[^>]*>\{plateAppearancePitchCountLabel\(g\.idxs\.length\)\}<\/span>\}/);
-  assert.doesNotMatch(board, /lineBtn\(outcomeIdx, true,\s*g\.idxs\.length > 1 \? <span[^>]*>\{plateAppearancePitchCountLabel/);
+  assert.match(board, /pitchCountLabel=\{g\.idxs\.length > 1\s*\?\s*plateAppearancePitchCountLabel\(g\.idxs\.length\) : null\}/);
+  const card = readFileSync(new URL("../components/play-card.tsx", import.meta.url), "utf8");
+  const nameAt = card.indexOf("<PlayerLink");
+  const countAt = card.indexOf("{pitchCountLabel &&");
+  const resultAt = card.indexOf("{(resultAction ?? \"\").trim()}");
+  assert.ok(nameAt >= 0 && countAt > nameAt, "球數必須排在打者名之後");
+  assert.ok(resultAt > countAt, "球數必須排在官方結果之前（不落到結果行後）");
 });
 
 test("live 即使已有比分也不得啟用賽後結論，只有 final 或歷史無 snapshot 場可啟用", () => {
