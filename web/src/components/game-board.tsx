@@ -9,6 +9,7 @@ import { PITCH_CALL, PA_KIND } from "@/lib/chart-theme";
 import type { WpPoint } from "@/components/win-prob-chart";
 import { buildPaGroups, type PaFact } from "@/lib/game-facts";
 import { displayWpPctInt } from "@/lib/win-prob-display";
+import { Re24Badge } from "@/components/re24-badge";
 import {
   canShowPostgameConclusions, inningLabel, liveScorebarScores, phaseLabel, plateAppearancePitchCountLabel, trackingEmptyMessage,
   type LiveSnapshot,
@@ -299,17 +300,16 @@ function buildHalves(log: StatRow[]): Half[] {
   return [...seen.values()];
 }
 
-// 逐局比分 = 局數導覽：每局格子可點（客列=上半、主列=下半）
+// 逐局比分 = 局數導覽：每局格子可點（客列=上半、主列=下半）→ 跳到該半局的逐打席。
 //
-// 兩種點擊語意（**互斥，不在同一個控制項上疊兩件事**）：
-//   * 預設（賽中／無事實流）＝跳到該半局的逐打席（既有行為，一律不變）。
-//   * `expandable`（賽後且打席事實流可用）＝就地展開該半局打席列表（Wave 1 新增）。
-function ScoreLine({ sb, game, snapshot, halves, curKey, onSelect,
-                     expandable = false, expandedHalf = null, onToggle }: {
+// `highlightSelection=false`＝**純顯示**：仍可點（一次點擊跳到逐打席並定位該半局），但不標
+// 示選中局。賽後戰報總覽用這個模式——那裡的記分板是戰報的一部分，標一個選中局會讓讀者
+// 以為總覽內容跟著它變；逐打席頁籤裡的記分板才是導航器，標示在那裡才有功能意義
+// （2026-08-06 需求方人工審定案）。
+function ScoreLine({ sb, game, snapshot, halves, curKey, onSelect, highlightSelection = true }: {
   sb: StatRow[]; game: StatRow; snapshot: LiveSnapshot | null;
   halves: Half[]; curKey: string; onSelect: (h: Half) => void;
-  expandable?: boolean; expandedHalf?: string | null;
-  onToggle?: (key: string, half: Half) => void;
+  highlightSelection?: boolean;
 }) {
   const away = sb.filter((r) => String(r.visiting_home_type) === "1");
   const home = sb.filter((r) => String(r.visiting_home_type) === "2");
@@ -355,13 +355,12 @@ function ScoreLine({ sb, game, snapshot, halves, curKey, onSelect,
       {innings.map((inn) => {
         const k = `${inn}|${half}`;
         const h = halfBy.get(k);
-        const active = expandable ? k === expandedHalf : k === curKey;
+        const active = highlightSelection && k === curKey;
         return (
           <td key={inn} className="p-0 text-center">
             {h ? (
-              <button onClick={() => (expandable && onToggle ? onToggle(k, h) : onSelect(h))}
-                aria-expanded={expandable ? k === expandedHalf : undefined}
-                title={expandable ? `展開 ${inn} 局${half === "1" ? "上" : "下"}打席` : undefined}
+              <button onClick={() => onSelect(h)}
+                title={`看 ${inn} 局${half === "1" ? "上" : "下"}的逐打席`}
                 // hover 變體的特異性高於基底 class：選中格若同時掛 `hover:bg-surface-2`，
                 // 滑鼠停留時底色會被換成淺灰而文字仍是白色（對比度不足）。故 hover 樣式
                 // 只給未選中的格子。
@@ -462,10 +461,13 @@ function PlayByPlay({ log, events, idx, setIdx, userAction, facts }: {
           const expanded = g.idxs.includes(idx);   // 當前打席自動展開
           return (
             <div key={gk}>
+              {/* 一列＝一個打席的完整資訊：打者・球數・投手・ΔRE24 同一視覺單元
+                  （需求方 2026-08-06：ΔRE24 不要跟打席訊息分開）。 */}
               <div className="mt-2.5 text-sm font-medium text-ink">
                 ⚾ {g.name}
                 {g.idxs.length > 1 && <span className="ml-1 text-[10px] font-semibold text-muted">{plateAppearancePitchCountLabel(g.idxs.length)}</span>}
                 <span className="ml-2 text-xs text-faint">投：{g.pitcher}</span>
+                {g.fact && g.fact.state === "ready" && <Re24Badge value={g.fact.delta_re24} />}
               </div>
               {expanded
                 ? g.idxs.map((gi) => lineBtn(gi, true))
@@ -559,7 +561,7 @@ function StrikeZone({ pitches }: { pitches: TrackRow[] }) {
 
 // ───────────────────────── 主板 ─────────────────────────
 export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate, wp, gameSno, tabs,
-                                    facts, halfPanel, expandedHalf, onToggleHalf, showPlayByPlay }: {
+                                    facts, highlightSelection }: {
   data: Live;
   idx: number; setIdx: (i: number) => void;
   wp?: WpPoint[];                // 逐打席勝率（顯示當前打席的目前預期勝率）
@@ -570,16 +572,8 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
   tabs?: ReactNode;
   /** canonical 打席（打席事實流）；缺席時逐打席分組退回既有近似切法。 */
   facts?: PaFact[] | null;
-  /** linescore 展開面板（賽後態才給；給了才會啟用「點格子＝展開」語意）。 */
-  halfPanel?: ReactNode;
-  expandedHalf?: string | null;
-  onToggleHalf?: (key: string) => void;
-  /**
-   * 強制顯示逐打席操作區，與 `view` 無關。
-   * 賽後態沒有獨立的「逐打席」頁籤——逐打席內容直接跟隨 linescore 的選擇顯示，
-   * 由父層以 `expandedHalf !== null` 驅動（2026-08-06 需求方人工審裁決）。
-   */
-  showPlayByPlay?: boolean;
+  /** false＝記分板純顯示（不標選中局）；點擊仍會跳到該半局的逐打席。 */
+  highlightSelection?: boolean;
 }) {
   const log = data.livelog;
   const game = data.game!;
@@ -589,9 +583,6 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
   // 區分 page 載入時程式化的 setIdx(終局)——後者不得捲動整頁。
   const userAction = useRef(false);
   const selectIdx = (i: number) => { userAction.current = true; setIdx(i); onNavigate?.(); };
-  // 賽後態沒有「逐打席」頁籤，選局不需要（也不可以）通知父層切頁籤——切了會讓主頁籤
-  // 落在一個不存在的值上。只移動指標，讓下方逐打席區跟著展開的半局走。
-  const selectIdxQuiet = (i: number) => { userAction.current = true; setIdx(i); };
 
   const e = log[idx] ?? log[total - 1];
   const halves = useMemo(() => buildHalves(log), [log]);
@@ -705,11 +696,9 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
 
       <ScoreLine sb={data.scoreboard} game={game} snapshot={data.live_snapshot ?? null}
         halves={halves} curKey={curKey} onSelect={(h) => selectIdx(h.firstIdx)}
-        expandable={!!onToggleHalf} expandedHalf={expandedHalf}
-        onToggle={(key, h) => { selectIdxQuiet(h.firstIdx); onToggleHalf?.(key); }} />
-      {halfPanel}
+        highlightSelection={highlightSelection} />
 
-      {(view === "pbp" || showPlayByPlay) && (
+      {view === "pbp" && (
       <div id="pbp-section" className="grid scroll-mt-16 gap-4 lg:grid-cols-[1fr_360px]">
         {/* 左：逐打席賽況（選定半局）*/}
         <PlayByPlay log={log} events={curEvents} idx={idx} setIdx={selectIdx} userAction={userAction} facts={facts} />

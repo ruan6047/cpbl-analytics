@@ -10,6 +10,7 @@
 //     語意 token，深色模式自動適配），**不用 opacity**。
 
 import { Card, EmptyState, Eyebrow, PlayerLink } from "@/components/ui";
+import { Re24Badge } from "@/components/re24-badge";
 import {
   halfLabel, marginText, personName, signedDelta, situationText, type PaFact,
 } from "@/lib/game-facts";
@@ -48,32 +49,27 @@ export function KeyPlays({ plays, onJump }: {
       </div>
       <ol className="space-y-0.5">
         {plays.map((play) => {
-          const positive = (play.delta_re24 ?? 0) > 0;
+          // ΔRE24 併進打席資訊的同一行（需求方 2026-08-06：不要跟打席訊息分開）。
           const row = (
             <>
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="flex items-center gap-1.5 text-xs font-medium text-muted">
-                  {play.inning}{halfLabel(play.half)}
-                  <BaseDiamond bases={play.bases_before} />
-                  <span className="text-faint">{play.outs_before ?? "—"} 出局</span>
-                  {marginText(play) && <span className="text-faint">{marginText(play)}</span>}
-                  {play.garbage_time && (
-                    <span className="rounded bg-surface-2 px-1 py-px text-[10px] text-muted">
-                      分差 ≥7
-                    </span>
-                  )}
-                </span>
-                <span className={`shrink-0 font-mono text-xs font-semibold tabular-nums ${
-                  positive ? "text-up" : "text-down"}`}>
-                  ΔRE24 {signedDelta(play.delta_re24)}
-                </span>
+              <div className="flex items-center gap-1.5 text-xs font-medium text-muted">
+                {play.inning}{halfLabel(play.half)}
+                <BaseDiamond bases={play.bases_before} />
+                <span className="text-faint">{play.outs_before ?? "—"} 出局</span>
+                {marginText(play) && <span className="text-faint">{marginText(play)}</span>}
+                {play.garbage_time && (
+                  <span className="rounded bg-surface-2 px-1 py-px text-[10px] text-muted">
+                    分差 ≥7
+                  </span>
+                )}
               </div>
-              <div className="mt-0.5 truncate text-sm text-ink">
+              <div className="mt-0.5 text-sm text-ink">
                 <PlayerLink pid={play.hitter?.player_id} name={personName(play.hitter)} />
                 <span className="mx-1 text-faint">·</span>
                 {(play.result_action ?? "").trim()}
                 {play.runs_on_play ? <span className="ml-1.5 text-accent">{play.runs_on_play} 分打點</span> : null}
                 <span className="ml-1.5 text-xs text-faint">投：{personName(play.pitcher)}</span>
+                <Re24Badge value={play.delta_re24} />
               </div>
             </>
           );

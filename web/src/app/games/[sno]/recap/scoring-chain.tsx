@@ -4,7 +4,8 @@
 // 資料源＝打席事實流（runs_on_play > 0 的打席聚合到半局），與 linescore 同源、不另算。
 
 import { Card, EmptyState, Eyebrow, PlayerLink } from "@/components/ui";
-import { halfLabel, personName, signedDelta, type ScoringHalf } from "@/lib/game-facts";
+import { Re24Badge } from "@/components/re24-badge";
+import { halfLabel, personName, type ScoringHalf } from "@/lib/game-facts";
 import { teamColor } from "@/lib/teams";
 
 export function ScoringChain({ chain, awayCode, homeCode, onJump }: {
@@ -42,18 +43,14 @@ export function ScoringChain({ chain, awayCode, homeCode, onJump }: {
                           <span className="mx-1 text-faint">·</span>
                           {(play.result_action ?? "").trim()}
                           <span className="ml-1.5 text-accent">{play.runs} 分</span>
-                          {play.delta_re24 !== null && (
-                            <span className="ml-1.5 font-mono text-[11px] tabular-nums text-faint">
-                              ΔRE24 {signedDelta(play.delta_re24)}
-                            </span>
-                          )}
+                          <Re24Badge value={play.delta_re24} />
                         </>
                       );
                       return (
-                        <li key={play.pa_index} className="truncate text-sm text-ink">
+                        <li key={play.pa_index} className="text-sm text-ink">
                           {onJump && play.start_event_no ? (
                             <button type="button" onClick={() => onJump(play.start_event_no!)}
-                              className="w-full truncate rounded px-1 py-0.5 text-left transition-colors hover:bg-surface-2">
+                              className="w-full rounded px-1 py-0.5 text-left transition-colors hover:bg-surface-2">
                               {body}
                             </button>
                           ) : body}
