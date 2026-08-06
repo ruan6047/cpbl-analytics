@@ -11,7 +11,7 @@ import {
   dailySummaryQuery,
   resolvePregameFromDaily,
   homePregameNotice,
-  liveSourceNotice,
+  liveSourceSignal,
   refreshCopy,
   refreshAgeText,
   shortDate,
@@ -193,7 +193,7 @@ export default function DailyHub({ summary: initial }: { summary: DailySummary }
   const notice = homePregameNotice(summary);
   const refresh = refreshCopy(freshness.last_refresh.status);
   const ageText = refreshAgeText(freshness.last_refresh.hours_ago);
-  const liveNotice = liveSourceNotice(today);
+  const liveSource = liveSourceSignal(today);
 
   // 日界線：今天任一場走到打線公布或更後 → 主區塊整個換成「今日賽事」，舊的兩塊
   // 不再渲染。兩者擇一是「同一場比賽不得同時出現在兩個區塊」的結構性保證，
@@ -252,7 +252,9 @@ export default function DailyHub({ summary: initial }: { summary: DailySummary }
 
       {/* 2. 資料 freshness（維護者 fail-fast 安全網；各 status 文案分立）。
           即時來源訊號併在這一條（藍圖 §8.1 模式）：訪客面已靜默降級，這裡只讓維護者
-          fail fast，且只描述觀察到的事實，不診斷 Redis 或 worker。 */}
+          fail fast，且只描述觀察到的事實，不診斷即時管道的成因。
+          該格**恆常渲染**（含「今日無賽程」這個正常態）：即時管道全斷時訪客面會退回
+          純日期版面，與休兵日長得一模一樣，用「沒有訊號」表達正常會讓維護者分不出來。 */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-surface-2 px-3 py-2 text-xs">
         <span className="text-muted">
           資料更新至{" "}
@@ -260,7 +262,7 @@ export default function DailyHub({ summary: initial }: { summary: DailySummary }
         </span>
         <StatusBadge tone={refresh.tone}>{refresh.label}</StatusBadge>
         {ageText && <span className="text-faint">刷新於 {ageText}</span>}
-        {liveNotice && <StatusBadge tone="warn">{liveNotice}</StatusBadge>}
+        <StatusBadge tone={liveSource.tone}>{liveSource.label}</StatusBadge>
       </div>
 
       {/* 3. 下一批賽事。今日賽事區塊在位時整塊不渲染——今天的場次同時就是 next_slate，

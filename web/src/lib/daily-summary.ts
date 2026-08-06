@@ -274,8 +274,8 @@ export const TODAY_COPY = {
   blackout: "即時資料中斷",
   inProgress: "比賽進行中",
   officialPending: "官方紀錄確認中",
-  liveSourceDown: "今日即時賽況來源無資料",
-  liveSourcePartial: "部分今日場次無即時賽況",
+  liveSourceNoGames: "今日無賽程",
+  liveSourceOk: "即時賽況正常",
 } as const;
 
 export type TodayCardKind = "pregame" | "live" | "final" | "suspended";
@@ -411,12 +411,32 @@ export function todayStatusText(live: TodayLive | null, interrupt: LiveInterrupt
 }
 
 /** freshness 條的即時來源訊號（維護者 fail-fast；藍圖 §8.1）。
- *  訪客面的降級是靜默的——這一句只描述觀察到的事實，不診斷 Redis 或 worker。 */
-export function liveSourceNotice(today: TodaySlate | null): string | null {
-  if (!today || today.games.length === 0) return null;
-  if (today.live_source.status === "unavailable" || today.live_source.status === "disabled") {
-    return TODAY_COPY.liveSourceDown;
+ *
+ *  **四態各有自己的文案，且一定會渲染其中一格**——這是需求方 2026-08-07 裁決 B 的要求。
+ *  原本只在異常時顯示一句話，於是「今天沒有比賽」（正常，沒有人需要做事）與「今日即時
+ *  來源不可用」（要人去看即時管道）在畫面上都是**一片空白**，維護者分不出來；而 Redis
+ *  全斷時訪客面本來就會靜默退回純日期版面，兩者長得一模一樣。用「沒有訊號」表達「一切
+ *  正常」在這裡行不通，所以正常態也明講。
+ *
+ *  文案只描述**觀察到的事實**（今天有幾場、其中幾場拿得到即時資料），不診斷成因——
+ *  API 這一側分不出「即時管道不通」「上游沒跑」「不在抓取窗口」，講死任何一個都超出
+ *  證據，而且訪客也看得到這一條。 */
+export type LiveSourceSignalKind = "no_games" | "ok" | "partial" | "down";
+
+export type LiveSourceSignal = { kind: LiveSourceSignalKind; label: string; tone: FreshnessTone };
+
+export function liveSourceSignal(today: TodaySlate | null): LiveSourceSignal {
+  if (!today || today.games.length === 0) {
+    // 正常狀態，不需要任何人做事——但必須明說，否則它與下面的 down 在畫面上同形。
+    return { kind: "no_games", label: TODAY_COPY.liveSourceNoGames, tone: "scheduled" };
   }
-  if (today.live_source.status === "partial") return TODAY_COPY.liveSourcePartial;
-  return null;
+  const { status, snapshots, games } = today.live_source;
+  if (status === "unavailable" || status === "disabled") {
+    return { kind: "down", label: `今日 ${games} 場皆無即時賽況`, tone: "warn" };
+  }
+  if (status === "partial") {
+    return { kind: "partial", label: `今日 ${games} 場中 ${games - snapshots} 場無即時賽況`,
+             tone: "warn" };
+  }
+  return { kind: "ok", label: TODAY_COPY.liveSourceOk, tone: "done" };
 }

@@ -14,7 +14,7 @@ import {
   dailySummaryQuery,
   liveAgeSeconds,
   liveInterrupt,
-  liveSourceNotice,
+  liveSourceSignal,
   officialFactLine,
   phaseTone,
   showTodaySlate,
@@ -573,11 +573,86 @@ test("情境8｜worker 不可用：全場無 snapshot → started 為假、退�
   assert.equal(showTodaySlate(summaryOf(s)), false);
   assert.equal(s.games.every((g) => todayCardKind(g) === "pregame"), true);
   // 維護者訊號進 freshness 條；訪客面不宣稱即時。
-  assert.equal(liveSourceNotice(s), TODAY_COPY.liveSourceDown);
-  assert.equal(liveSourceNotice(slate([game(247, { live: live() }), game(248)])),
-               TODAY_COPY.liveSourcePartial);
-  assert.equal(liveSourceNotice(slate([game(247, { live: live() })])), null);
-  assert.equal(liveSourceNotice(null), null);
+  assert.equal(liveSourceSignal(s).kind, "down");
+  assert.equal(liveSourceSignal(s).tone, "warn");
+});
+
+// —— 裁決 B｜freshness 條的即時來源四態 ——
+
+test("裁決B｜「今天沒有場次」與「今日即時來源不可用」必須是兩種不同的訊號", () => {
+  // 這兩種情形在**訪客面完全同形**（都退回純日期版面）。維護者要能一眼分出
+  // 「不需要做事」與「即時管道斷了」，只能靠這一格。
+  const restDay = liveSourceSignal(null);
+  const sourceDown = liveSourceSignal(slate([game(247), game(248), game(249)]));
+
+  assert.equal(restDay.kind, "no_games");
+  assert.equal(sourceDown.kind, "down");
+  assert.notEqual(restDay.label, sourceDown.label);
+  assert.notEqual(restDay.tone, sourceDown.tone);
+  // 休兵日是正常狀態，不得用警示色叫人去看東西。
+  assert.equal(restDay.tone, "scheduled");
+  assert.equal(sourceDown.tone, "warn");
+});
+
+test("裁決B｜正常態也要明講——用「沒有訊號」表達正常會讓兩種空白同形", () => {
+  const allGood = liveSourceSignal(slate([game(247, { live: live() })]));
+
+  assert.equal(allGood.kind, "ok");
+  assert.ok(allGood.label, "正常態必須有文案，不得回空字串或 null");
+  assert.equal(allGood.tone, "done");
+  // 四態一定回得出一格，呈現端因此可以恆常渲染，不必自己判斷要不要留位子。
+  for (const t of [null, slate([game(247)]), slate([game(247, { live: live() })]),
+                   slate([game(247, { live: live() }), game(248)])]) {
+    assert.ok(liveSourceSignal(t).label);
+  }
+});
+
+test("裁決B｜四態文案兩兩不同（§8.1：不同語意不共用同一句）", () => {
+  const signals = [
+    liveSourceSignal(null),
+    liveSourceSignal(slate([game(247, { live: live() })])),
+    liveSourceSignal(slate([game(247, { live: live() }), game(248)])),
+    liveSourceSignal(slate([game(247), game(248), game(249)])),
+  ];
+
+  assert.deepEqual(signals.map((x) => x.kind), ["no_games", "ok", "partial", "down"]);
+  assert.equal(new Set(signals.map((x) => x.label)).size, 4, "四態文案不得共用");
+});
+
+test("裁決B｜異常態要講得出幾場，維護者才知道規模", () => {
+  const partial = liveSourceSignal(slate([game(247, { live: live() }), game(248), game(249)]));
+  const down = liveSourceSignal(slate([game(247), game(248), game(249)]));
+
+  assert.match(partial.label, /3 場中 2 場/);
+  assert.match(down.label, /3 場/);
+});
+
+test("**紅線**：訪客也看得到這一條，四態文案皆不得洩漏實作字彙", () => {
+  const labels = [
+    liveSourceSignal(null),
+    liveSourceSignal(slate([game(247, { live: live() })])),
+    liveSourceSignal(slate([game(247, { live: live() }), game(248)])),
+    liveSourceSignal(slate([game(247), game(248), game(249)])),
+    liveSourceSignal(slate([game(247)], { live_source: { status: "disabled", reason: null,
+                                                         snapshots: 0, games: 1 } })),
+  ].map((x) => x.label);
+
+  for (const label of labels) {
+    for (const word of ["Redis", "redis", "worker", "Worker", "當機", "掛掉", "錯誤", "URL", "API"]) {
+      assert.equal(label.includes(word), false, `文案洩漏實作字彙 ${word}：${label}`);
+    }
+  }
+});
+
+test("未啟用即時來源（無 REDIS_URL 的本機／CI）與啟用卻拿不到，訪客面同一句", () => {
+  // 兩者對維護者的意義不同，但那個差異由後端 `status` 判別碼承載；畫面上都是
+  // 「今日 N 場皆無即時賽況」——訪客不需要、也不該讀到部署層的差別。
+  const disabled = liveSourceSignal(slate([game(247)], {
+    live_source: { status: "disabled", reason: null, snapshots: 0, games: 1 },
+  }));
+
+  assert.equal(disabled.kind, "down");
+  assert.equal(disabled.label, liveSourceSignal(slate([game(247)])).label);
 });
 
 test("情境9｜final 當晚：官方事實取自 snapshot decisions，零模型衍生", () => {

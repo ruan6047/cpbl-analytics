@@ -557,9 +557,8 @@ def test_worker_unavailable_degrades_silently_and_signals_the_maintainer(monkeyp
     assert today["started"] is False
     assert today["live_source"]["status"] == "unavailable"
     assert today["live_source"]["snapshots"] == 0
+    assert today["live_source"]["games"] == 2
     assert all(g["live"] is None for g in today["games"])
-    for word in ("Redis", "worker", "當機", "錯誤"):
-        assert word not in (today["live_source"]["reason"] or "")
 
 
 def test_partial_snapshots_are_reported_as_partial_not_ok(monkeypatch):
@@ -571,11 +570,65 @@ def test_partial_snapshots_are_reported_as_partial_not_ok(monkeypatch):
 
 def test_live_source_disabled_when_redis_not_configured(monkeypatch):
     """本機／CI 預設沒有 REDIS_URL。這與「有設定但拿不到資料」是不同的狀態，
-    文案不得共用（blueprint §8.1：不同語意不共用同一句空態）。"""
+    判別碼不得共用（blueprint §8.1：不同語意不共用同一句空態）。"""
     body, _ = _run(monkeypatch, _today_script([_game(247, _TODAY)]))
 
     assert body["today"]["live_source"]["status"] == "disabled"
     assert body["today"]["games"][0]["live"] is None
+
+
+def test_live_source_reason_never_leaks_implementation_vocabulary():
+    """**紅線**：`reason` 是訪客也收得到的 payload，不得出現元件名、環境變數名或成因
+    宣稱。要分辨「未啟用」與「啟用了但拿不到」看的是 `status` 這個機器可讀的判別碼。
+
+    窮舉四種輸入組合，而不是只抽驗異常那一支——上一版的斷言只蓋到 `unavailable`，
+    而洩漏實作字彙的其實是沒被蓋到的 `disabled` 分支。
+    """
+    banned = ("Redis", "REDIS", "redis", "worker", "Worker", "當機", "掛掉", "錯誤", "URL")
+    cases = [(False, 0, 3), (True, 3, 3), (True, 0, 3), (True, 1, 3), (True, 0, 0)]
+    reasons = [daily.live_source_status(*case)[1] for case in cases]
+
+    assert any(reason for reason in reasons), "至少要有一種情形給得出 reason，否則本測試空轉"
+    for reason in reasons:
+        for word in banned:
+            assert word not in (reason or ""), f"reason 洩漏實作字彙 {word}：{reason}"
+
+
+def test_today_query_is_scoped_to_the_requested_season():
+    """**回歸**：`as_of` 是外部給的日期，不像 latest／next 那樣自帶球季。
+
+    `latest_day`／`next_day` 是在 season 範圍內推導出來的，所以「只用日期查」隱含就選中
+    了正確的球季；`as_of` 沒有這個保護。少了 season 條件，`?season=2020` 會讓 today 區塊
+    裝進今天的 2026 場次，與同一份 response 的 `scope.season` 自相矛盾。
+
+    本測試釘的是查詢本身（腳本化 cursor 不會真的過濾），因為缺陷在 SQL 而不在後續邏輯。
+    """
+    import inspect
+
+    source = inspect.getsource(daily.daily_summary)
+    per_day = source[source.index("WHERE g.kind_code = ANY(%s) AND g.game_date = ANY(%s)"):]
+    per_day = per_day[:per_day.index("ORDER BY")]
+
+    assert "g.year = %s" in per_day, "逐日場次查詢必須帶 season 條件（as_of 不自帶球季）"
+
+
+def test_live_source_status_separates_no_games_from_unavailable(monkeypatch):
+    """裁決 B｜「今天沒有場次」與「今日即時來源不可用」必須是兩個可分辨的狀態。
+
+    後端這一側的分界是 `today` 本身：今天沒有排定場次時整塊為 None（呈現端據此說
+    「今日無賽程」），有場次卻一份快照都拿不到才是 `unavailable`。兩者在訪客面都會
+    退回純日期版面，長得一模一樣——分辨得靠這裡的結構差異，不能靠畫面。
+    """
+    rest_day, _ = _run(monkeypatch, _script(
+        latest=_TODAY - timedelta(days=1), next_day=_TODAY + timedelta(days=3), scoped=2,
+        games=[_game(1, _TODAY - timedelta(days=1), home=2, away=1),
+               _game(2, _TODAY + timedelta(days=3))],
+    ), snapshots={})
+    source_down, _ = _run(monkeypatch, _today_script([_game(247, _TODAY), _game(248, _TODAY)]),
+                          snapshots={})
+
+    assert rest_day["today"] is None
+    assert source_down["today"]["live_source"]["status"] == "unavailable"
 
 
 def test_db_completed_today_game_counts_as_started_without_any_snapshot(monkeypatch):

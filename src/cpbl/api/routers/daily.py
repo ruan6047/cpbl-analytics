@@ -212,9 +212,13 @@ def live_source_status(configured: bool, snapshots: int, games: int) -> tuple[st
     刻意只描述**觀察到的事實**（今天有幾場拿得到 snapshot），不宣稱 worker 或 Redis 的
     健康狀態——API 這一側分不出「Redis 不通」「worker 沒跑」「該場不在抓取窗口」，
     講死任何一個都是超出證據的診斷。訪客面的降級是靜默的，這裡只給維護者訊號。
+
+    `reason` 一律不帶實作字彙（元件名、環境變數名、「當機」之類的成因宣稱）：這份
+    payload 瀏覽器也收得到。要分辨「未啟用」與「啟用了但拿不到」看的是 `status`
+    （`disabled` vs `unavailable`），那是機器可讀的判別碼，不是給人看的文案。
     """
     if not configured:
-        return "disabled", "未設定 REDIS_URL"
+        return "disabled", "即時來源未啟用"
     if games == 0:
         return "ok", None
     if snapshots == games:
@@ -379,14 +383,19 @@ def daily_summary(
         # 多帶一天不增加查詢次數，仍是同一支 `game_date = ANY(...)`。
         days = sorted({d for d in (latest_day, next_day, as_of) if d is not None})
         by_day: dict[date, list[dict]] = {d: [] for d in days}
+        # season 條件不可省：`latest_day`／`next_day` 本來就是 season 範圍內推導出的日期，
+        # 所以舊版只靠日期就隱含選中了正確的球季；但 `as_of` 是**外部給的**日期，它落在
+        # 哪一季與請求的 season 無關。少了這一行，`?season=2020` 會讓 today 區塊裝進今天
+        # 的 2026 場次，與 `scope.season` 自相矛盾。
         cur.execute(
             f"""
             SELECT {_GAME_COLUMNS}
             FROM cpbl.games g
             WHERE g.kind_code = ANY(%s) AND g.game_date = ANY(%s)
+              AND (%s::int IS NULL OR g.year = %s)
             ORDER BY g.game_date, g.kind_code, g.game_sno
             """,
-            (kinds, days),
+            (kinds, days, season, season),
         )
         for row in _dicts(cur):
             # setdefault 而非索引：查詢已限定在 days 內，但用索引的話任何意料外的日期
