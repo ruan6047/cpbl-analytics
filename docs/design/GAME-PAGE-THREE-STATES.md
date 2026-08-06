@@ -1,11 +1,11 @@
 # 單場賽況頁三態體驗 — 結構規格（UX-GAME-RECAP1 Phase A 設計稿）
 
 > 卡片：[Issue #80](https://github.com/ruan6047/cpbl-analytics/issues/80)（T3，`INIT-GAME-RECAP` Wave 1）
-> spec 基線：[`docs/research/INIT-GAME-RECAP_DISCOVERY-BRIEF.md`](../research/INIT-GAME-RECAP_DISCOVERY-BRIEF.md) @ main `8f250d9`
+> spec 基線：[`docs/research/INIT-GAME-RECAP_DISCOVERY-BRIEF.md`](../research/INIT-GAME-RECAP_DISCOVERY-BRIEF.md) @ main `91457b2`（含 2026-08-06 WPA 禁令兩次修訂）
 > 設計系統：[`docs/design/UI_UX_SYSTEM.md`](UI_UX_SYSTEM.md)（canonical；本檔只引用節次，不複述 token 數值）
 > spike 證據：[`docs/research/INIT-GAME-RECAP/spike-report.md`](../research/INIT-GAME-RECAP/spike-report.md)
 > 狀態：**待需求方人工審**。本檔是**結構規格**（元件層級 + 欄位 + 資料源 + 狀態機），不是像素稿。
-> 版本：v0.1（2026-08-06，Claude Opus 5@Claude Code）
+> 版本：v0.2（2026-08-06，Claude Opus 5@Claude Code）——第五輪人工審裁決：②關鍵打席改 |ΔWP| 選取＋直接顯示擺動量、③得分半局鏈移除、Δ 符號 tooltip、`/methodology#key-plays` 新段
 
 ---
 
@@ -13,7 +13,7 @@
 
 - 本檔涵蓋 `/games/[sno]` 的**三態一次設計**（brief §「三態設計原則」Q8 定案），實作分波：完賽態＝本卡 Wave 1，賽前態＝Wave 2，逐打席探索器（#79）＝Wave 3。
 - **不引入 brief 以外的新範圍**：每個區塊在 §8 溯源表列出 brief 出處；無出處者一律不畫。
-- 紅線沿用：**禁 WPA／WP 參與任何排序**；正式文案**禁球迷暱稱**（暱稱僅限賽況頁焦點區既有用法）；`/api/info` 契約不動；每日鏈與 G4 凍結檔不動；API 唯讀。
+- 紅線沿用（2026-08-06 修訂）：WP 機率**水平值**不作敘事宣稱，**\|ΔWP\| 序數選取與變化量顯示為可**（brief 非目標欄兩次修訂；守門條件見 §4.2）；正式文案**禁球迷暱稱**（暱稱僅限賽況頁焦點區既有用法）；`/api/info` 契約不動；每日鏈與 G4 凍結檔不動；API 唯讀。
 - 「進行中態＝現行 ESPN 板，不動」是 brief 明訂的非目標——本設計對 live 態的唯一改變是**換底不換臉**（Recent Plays 改吃共用的打席事實流），**行為與外觀不得變化**，此為驗收條件。
 
 ---
@@ -70,7 +70,7 @@
 
 ---
 
-## 4. 賽後態 — recap 五塊
+## 4. 賽後態 — recap 區塊（原五塊，③得分半局鏈於 2026-08-06 人工審移除）
 
 主區塊 `<RecapMain>`。ΔRE24 一律為**打者觀點**（正＝對打擊方有利）。
 
@@ -98,28 +98,33 @@
 
 - 「官方結果」＝ canonical PA 的 `result_action`（taxonomy 已規範的封閉集合），**不引用逐球自由文字**（兩個官方來源的 `content` 不保證逐字一致，spike §4.2）。
 - **`blowout`／`close` 的分差門檻需要需求方裁定**（現值 5 分為 spike 暫定；3:0 被歸為 `close` 讀來略勉強）。
-- **再見打席的 ΔRE24 是負值**（半局結束使 RE(after)=0）→ 這正是①與②必須分開的理由：再見打席永遠上不了 |ΔRE24| 排行，必須由結論行單獨承載。
+- **再見打席的 ΔRE24 是負值**（半局結束使 RE(after)=0）→ 這正是①與②必須分開的理由：再見打席永遠上不了 |ΔRE24| 排行，必須由結論行單獨承載。（改採 |ΔWP| 選取後②通常也會選到再見打席——勝率直接收斂到 1——但那是選取訊號的副產品，①不改為依賴②。）
 
 ### 4.2 ②關鍵打席 3–5 `<KeyPlays>`
 
 | 項目 | 規格 |
 |---|---|
-| 選取 | **主排序＝\|ΔRE24\|** 取前 3–5，**呈現時改回時間序**（brief §recap 五塊「時間序呈現」） |
-| 每列欄位 | 局數＋上/下、打者（`PlayerLink`，§3.5 實體連結）、投手、**打席前局面**（出局數／壘況／分差）、官方結果、ΔRE24（帶正負號） |
+| 選取 | **主排序＝\|ΔWP\|**（勝率擺動絕對值）取前 3–5，**呈現時改回時間序**（brief §recap 五塊「時間序呈現」） |
+| 每列欄位 | 局數＋上/下、打者（`PlayerLink`，§3.5 實體連結）、投手、**打席前局面**（出局數／壘況／分差）、官方結果、**勝率變化**（主資訊，整數百分點）、ΔRE24（次要 chip）、**雙色勝率條**（打席後水平＋此打席位移段，沿 `game-board.tsx` 既有勝率條視覺語言） |
+| 勝率視角 | **主隊視角**，正負與同頁 WP 曲線的升降對齊；卡片標頭標示視角並 deep-link `/methodology#key-plays` |
 | 局面脈絡 | 壘況以 3 格壘包圖示 ＋ 文字替代（§8 可及性：不只靠顏色） |
-| 垃圾時間 | **分差 ≥ 7 的打席降飽和呈現，不剔除、不加權**（沿用 v1.3 排序契約）；降飽和後仍須通過對比度檢查 |
+| 垃圾時間 | 分差 ≥7 的**淡底降飽和已移除**：\|ΔWP\| 選取下 81 場實測 0 命中（舊 \|ΔRE24\| 選法 15 命中），呈現層補丁已無對象；事實旗標與「分差 ≥7」文字標籤保留（降級路徑仍可能選到） |
+| 降級 | 勝率模型不可用（無分布 artifact／賽事類型不支援）→ 後端退回 \|ΔRE24\| 選取並以 `key_play_selection` 揭露，卡片**必須顯示降級註記** |
 | 互動 | 點列 → 跳該打席逐球（既有 `jumpToPa`）；Wave 3 接 #79 探索器 |
-| 紅線 | **禁 WPA／WP 參與排序**；此契約由實作卡加測試釘住 |
-| 排除 | `state != 'ready'` 的 PA（`non_pa` 突破僵局佈局列、`truncated`、`unreliable`）一律不進候選 |
+| 紅線 | 勝率水平值只作**視覺化**（與已上線 WP 曲線同資訊類），**不作文字宣稱**；顯示夾層沿 `lib/win-prob-display.ts`（終場點豁免靠 `wp_after_terminal`）；`plate_appearances`（逐打席頁籤）不得帶任何 WP 欄位；此契約由 `tests/test_pa_facts.py` 釘住 |
+| 排除 | `state != 'ready'` 的 PA（`non_pa` 突破僵局佈局列、`truncated`、`unreliable`）一律不進候選；`delta_re24` 缺值者亦不入選 |
 
-### 4.3 ③得分半局事實鏈 `<ScoringChain>`
+> **選取準則沿革**：v1＝\|ΔRE24\|（禁 WPA 排序）→ v2＝\|ΔWP\| 選取 → v2.1 直接顯示擺動量
+> → v2.2 加回雙色勝率條（水平值視覺化）（2026-08-06 需求方第五輪人工審三階裁決）。禁令精確化為「WP 機率**水平值**不作宣稱」，
+> 序數選取與變化量顯示不依賴水平校準；統計依據與守門條件見 `/methodology#key-plays`
+> 與 brief 非目標欄的修訂段。
 
-| 項目 | 規格 |
-|---|---|
-| 內容 | 依時間序列出**有得分的半局**：局數／半／得分隊／該半局得分／該半局的得分打席（官方結果） |
-| 資料源 | `cpbl.game_scoreboard`（逐局得分）＋ 打席事實流（該半局內 `runs_play > 0` 的打席） |
-| 呈現 | 縱向時間軸；每個半局一行，得分打席為子列 |
-| 缺值 | 無 scoreboard → 只用打席事實流推導；兩者皆無 → 整塊不顯示（`EmptyState`，文案標明來源缺席而非「無得分」） |
+### 4.3 ~~③得分半局事實鏈 `<ScoringChain>`~~（2026-08-06 人工審移除）
+
+需求方第五輪人工審裁定移除：與②關鍵打席重複，且得分脈絡已由每列的得分 chip
+（`RunsBadge`，含得分後比分）承載。前端元件已刪除；後端 `pa_facts.scoring_chain()`
+與 `facts.scoring_chain` 欄位**保留**（事實流服務的輸出，#79 探索器等消費者可用），
+但賽後態總覽不再呈現。
 
 ### 4.4 ④兩隊表現行 `<TeamLines>`
 
@@ -242,8 +247,8 @@ src/cpbl/api/routers/facts.py        # 新：GET /api/v1/games/{sno}/facts
 
 | 階 | 條件 | 呈現 |
 |---|---|---|
-| **1 權威完整** | `is_completed_game` ∧ 該場有 `published` PA build | 完整 recap 五塊，無來源標記 |
-| **2 暫定完整** | `snapshot.phase == 'final'` ∧ **mini 對帳閘門全過** | 完整 recap 五塊 ＋ 頁面級暫定 Pill ＋ 勝敗投「官方確認中」 |
+| **1 權威完整** | `is_completed_game` ∧ 該場有 `published` PA build | 完整 recap 區塊，無來源標記 |
+| **2 暫定完整** | `snapshot.phase == 'final'` ∧ **mini 對帳閘門全過** | 完整 recap 區塊 ＋ 頁面級暫定 Pill ＋ 勝敗投「官方確認中」 |
 | **3 簡版** | `snapshot.phase == 'final'` ∧ **mini 對帳不過**（或缺 `IsBall`/`IsStrike`） | ①結論行（僅比分句）＋③得分半局鏈（走 snapshot `inning_score`）＋④兩隊表現行；**不出②關鍵打席**，以 `EmptyState` 說明「打席資料一致性檢查未通過，待官方資料入庫」 |
 | **4 stale live** | 有 snapshot 但 `phase` 仍為 `live`／`unknown`，且已超過 `stale_after_seconds` | **停在賽中態**＋`Notice` 揭露最後更新時間；**嚴禁時間推斷硬切完賽** |
 | **5 無即時源** | 無 snapshot（Redis 掛／二軍 D／賽制無 worker） | 走權威源；若權威源也未到 → 顯示賽程與 freshness，不產生假打席 |
@@ -309,7 +314,6 @@ app/games/[sno]/
 ├─ recap/
 │  ├─ conclusion-line.tsx       # ①
 │  ├─ key-plays.tsx             # ②
-│  ├─ scoring-chain.tsx         # ③
 │  ├─ team-lines.tsx            # ④（吸收 overview.tsx 的 GameOverview + highlights/decisions/mvp）
 │  └─ jump-links.tsx            # ⑤
 ├─ overview.tsx                 # 縮減：只留 Pregame/PregameCard（供 Wave 2）
@@ -322,7 +326,7 @@ app/games/[sno]/
 
 ### 9.3 切分原則（對齊 UI_UX_SYSTEM §10）
 
-- **Presentational（server-safe）**：`scorebar`、`conclusion-line`、`key-plays`、`scoring-chain`、`team-lines` — 無 hook、不加 `"use client"`。
+- **Presentational（server-safe）**：`scorebar`、`conclusion-line`、`key-plays`、`team-lines` — 無 hook、不加 `"use client"`。
 - **Client island**：`game-shell`（輪詢／tab）、`live-main`（即時更新）、`jump-links`（互動跳轉）。
 - **可序列化 props 鐵則**：server → client 一律傳可序列化物件，不傳函式。
 - **抽取準則**（§10.3）：三態共用的記分條、三態共用的狀態揭露列都達「跨頁重用／設計系統元素」門檻，必須上抽。
@@ -333,7 +337,7 @@ app/games/[sno]/
 1. **S1** 抽出 `<GameScorebar>` 與 `<DataStateNotice>`，三態共用，行為零變化（純重構，可獨立驗證）。
 2. **S2** 後端 `pa_facts.py` + `/api/v1/games/{sno}/facts`（權威源路徑），加逐打席窮舉歸類迴歸測試（spike §2.3 為基準值）。
 3. **S3** `<LiveMain>` 搬出並換底吃 facts API — **換底不換臉**對照驗收。
-4. **S4** `<RecapMain>` 五塊 + 降級階梯 + 快取。
+4. **S4** `<RecapMain>` 各區塊 + 降級階梯 + 快取。
 5. **S5** 後備源（snapshot）adapter + mini 對帳閘門。
 
 > S5 可與 S4 並行但**不得先於 S4**：沒有權威源基準就無法驗證暫定源等價。
@@ -362,8 +366,8 @@ app/games/[sno]/
 | §3 賽中態不動 | §非目標「賽中即時 recap（進行中態＝現行 ESPN 板，不動）」＋§架構定案「live 頁換底不換臉、行為不變為驗收條件」 | — |
 | §4.1 結論行 | §recap 五塊①「比分＋致勝方式＋一句事實句」 | **「致勝方式」欄取消**，見下 |
 | §4.1.1 事實句 | §待驗證假設 2「模板＋事實槽，人工審把關」 | 分支門檻待需求方裁定 |
-| §4.2 關鍵打席 | §recap 五塊②「\|ΔRE24\| 選取、時間序呈現、帶局面脈絡」＋§非目標「WPA 排序」 | 降飽和沿用 v1.3 排序契約 |
-| §4.3 得分半局鏈 | §recap 五塊③ | — |
+| §4.2 關鍵打席 | §recap 五塊②「時間序呈現、帶局面脈絡」＋§非目標欄 2026-08-06 兩次修訂（\|ΔWP\| 序數選取＋直接顯示擺動量） | 選取準則升為 v2；淡底降飽和移除 |
+| §4.3 得分半局鏈 | §recap 五塊③ | **2026-08-06 人工審移除**（與②重複，得分 chip 已承載） |
 | §4.4 兩隊表現行 | §recap 五塊④「吸收既有 decisions／highlights／MVP 雛形」 | — |
 | §4.5 跳入點 | §recap 五塊⑤＋§非目標「recap 區塊重複內嵌 WP 曲線」 | — |
 | §5 雙源／暫定 | §雙源打席事實流（2026-08-06 需求方修訂）＋§待驗證假設 6 | 暫定範圍依 spike 實測**縮小**（見下） |
