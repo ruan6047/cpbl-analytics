@@ -11,15 +11,17 @@ import pytest
 
 from cpbl.api.routers import recap
 from cpbl.api.routers.recap import enrich_items
+from cpbl.models import winprob_scorer
 
 
 @pytest.fixture(autouse=True)
 def _clear_caches():
-    recap._dist_cache.clear()
-    recap._solver_cache.clear()
+    # 快取與分布載入的 owner 是 models/winprob_scorer（recap 以別名 re-export）。
+    winprob_scorer._dist_cache.clear()
+    winprob_scorer._solver_cache.clear()
     yield
-    recap._dist_cache.clear()
-    recap._solver_cache.clear()
+    winprob_scorer._dist_cache.clear()
+    winprob_scorer._solver_cache.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +175,7 @@ def test_tiebreak_ruleset_changes_extra_inning_wp(monkeypatch) -> None:
         ("1", "_2_", 0): [0.35, 0.40, 0.15, 0.07, 0.03, 0.0, 0.0],
         ("2", "_2_", 0): [0.30, 0.42, 0.17, 0.08, 0.03, 0.0, 0.0],
     }
-    monkeypatch.setattr(recap, "_load_dist", lambda span, kind: dict(dist))
+    monkeypatch.setattr(winprob_scorer, "_load_dist", lambda span, kind: dict(dist))
     s23, m23 = recap._get_scorer("A", 2023)
     s24, m24 = recap._get_scorer("A", 2024)
     assert m23["ruleset"] == "cap12,tie"
