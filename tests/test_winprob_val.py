@@ -8,17 +8,23 @@
 3. 記憶體快照機器對合成事件的抽取語意正確（末半局排除、rest<0 略過、
    打席去重、outs 夾 0..2）。
 4. 指標與 Go/No-Go verdict 邏輯。
+5. （ML-WP-VAL-RESAMPLE1）評估樣本的局面分差取**打席前**比分：由事件流解出，
+   不讀受污染的 `pre_state` 比分欄；解不出來 fail closed。
 """
 
 from __future__ import annotations
 
+import pytest
+
 from cpbl.models.winprob import _we_solver, wp_state
 from cpbl.models.winprob_val import (
+    PRE_SCORE_SOURCES,
     THRESHOLDS,
     RuleSet,
     brier_constant,
     dist_from_counts,
     iter_half_pa_records,
+    load_eval_season,
     metrics,
     ruleset_for,
     verdict_for,
@@ -232,3 +238,126 @@ def test_verdict_proxy_requires_minimum_pooled_evidence():
     bad = verdict_for("C", [_season(2024, n=400)],
                       _pooled(n=1600, ece=THRESHOLDS["proxy_pooled_ece_max"] + 0.01))
     assert bad["status"] == "unsupported"              # 池化嚴重失準 → 不得掛警示上線
+
+
+# ===========================================================================
+# ML-WP-VAL-RESAMPLE1：評估樣本的打席前比分
+# ===========================================================================
+_FULL = {"inning": 5, "half": "1", "outs": 0, "bases": []}
+
+
+class _EvalCursor:
+    """`load_eval_season()` 的三段查詢：完成場、published PA、逐球事件流。"""
+
+    def __init__(self, games, pas, livelog):
+        # games:   [(sno, home_score, away_score, delay_kind, max_inn), ...]
+        # pas:     [(sno, state, pre_state, pa_index, start_event_no), ...]
+        # livelog: [(sno, main_event_no, visiting_score, home_score), ...]
+        self._games, self._pas, self._livelog = games, pas, livelog
+        self._rows: list = []
+
+    def execute(self, sql, params=None):
+        if "FROM cpbl.games g " in sql:
+            self._rows = list(self._games)
+        elif "FROM cpbl.game_livelog WHERE" in sql:
+            self._rows = list(self._livelog)
+        elif "FROM cpbl.game_plate_appearances" in sql:
+            self._rows = list(self._pas)
+        else:
+            raise AssertionError(f"未預期的查詢：{sql[:70]}")
+
+    def fetchall(self):
+        return self._rows
+
+
+def _first_pitch_hr_fixture():
+    """本卡病灶的最小重現。
+
+    一場 1:0 主隊勝。第 2 個打席是**主隊**首球陽春全壘打，起始列＝終結列，故
+    canonical `pre_state` 記到的已是得分**後**的 1:0；正確的打席前比分是 0:0。
+    事件 "e1"（前一個打席）與 "e2"（全壘打）都在事件流裡。
+    """
+    games = [(1, 1, 0, None, 9)]
+    pre_before = {**_FULL, "away_score": 0, "home_score": 0}
+    pre_polluted = {**_FULL, "away_score": 0, "home_score": 1}   # ← 事件後快照
+    pas = [(1, "ready", pre_before, 1, "e1"),
+           (1, "ready", pre_polluted, 2, "e2")]
+    # livelog 比分欄是事件**後**快照：e1 之後仍 0:0，e2 之後 0:1（主隊得 1 分）
+    livelog = [(1, "e1", 0, 0), (1, "e2", 0, 1)]
+    return games, pas, livelog
+
+
+def test_eval_sample_uses_pre_pa_scores_not_the_polluted_snapshot():
+    """全壘打打席自己的局面分差必須是 0，不是 +1（那一分是它造成的，不是它面對的）。"""
+    games, pas, livelog = _first_pitch_hr_fixture()
+    season = load_eval_season(_EvalCursor(games, pas, livelog), "A", 2026)
+    assert [p["diff"] for p in season["pas"]] == [0, 0]
+    assert season["pre_score_source"] == "events"
+
+
+def test_legacy_pre_state_source_reproduces_the_contaminated_diff():
+    """舊讀法必須**仍可重現**受污染的值——A/B 對照要能量出差異，不能兩邊都已修好。"""
+    games, pas, livelog = _first_pitch_hr_fixture()
+    season = load_eval_season(_EvalCursor(games, pas, livelog), "A", 2026,
+                              pre_score_source="pre_state")
+    assert [p["diff"] for p in season["pas"]] == [0, 1]   # ← 病灶：+1 是自己打出來的
+    assert season["pre_score_source"] == "pre_state"
+
+
+def test_scores_between_plate_appearances_are_still_carried():
+    """打席**之間**造成得分的事件（盜壘／暴投）不得被吃掉——舊讀法在這種形狀碰巧正確，
+    修法不能為了修 A 形狀而弄壞 B 形狀。"""
+    games = [(1, 1, 0, None, 9)]
+    pas = [(1, "ready", {**_FULL, "away_score": 0, "home_score": 0}, 1, "e1"),
+           (1, "ready", {**_FULL, "away_score": 0, "home_score": 1}, 2, "e3")]
+    # e2 是打席之間的暴投得分（不是任何打席的起始列）
+    livelog = [(1, "e1", 0, 0), (1, "e2", 0, 1), (1, "e3", 0, 1)]
+    season = load_eval_season(_EvalCursor(games, pas, livelog), "A", 2026)
+    assert [p["diff"] for p in season["pas"]] == [0, 1]
+
+
+def test_unresolved_pre_score_fails_closed_and_is_counted():
+    """起始事件對不回事件流 → 排除且獨立計數，**不得**退回 `pre_state` 的污染值。"""
+    games = [(1, 1, 0, None, 9)]
+    pas = [(1, "ready", {**_FULL, "away_score": 0, "home_score": 0}, 1, "e1"),
+           (1, "ready", {**_FULL, "away_score": 0, "home_score": 1}, 2, "MISSING")]
+    livelog = [(1, "e1", 0, 0)]
+    season = load_eval_season(_EvalCursor(games, pas, livelog), "A", 2026)
+    assert [p["diff"] for p in season["pas"]] == [0]
+    assert season["pa_state_counts"]["ready_pre_score_unresolved"] == 1
+    # 舊讀法沒有這個分支（它永遠讀得到 pre_state）——對照組樣本數因此不同，
+    # A/B 報表必須把這件事顯式列出來
+    legacy = load_eval_season(_EvalCursor(games, pas, livelog), "A", 2026,
+                              pre_score_source="pre_state")
+    assert "ready_pre_score_unresolved" not in legacy["pa_state_counts"]
+    assert len(legacy["pas"]) == 2
+
+
+def test_pre_score_resolution_delegates_to_the_single_recap_implementation(monkeypatch):
+    """同一條紅線只能有一份實作：本 harness 必須真的呼叫 `recap.pre_scores_from_events`。
+
+    這支測試釘住的是**依賴**而非數值——若日後有人在 models 這側另刻一份解算，
+    數值測試仍可能全綠，這裡會紅。
+    """
+    from cpbl.api.routers import recap
+    from cpbl.models import winprob_val
+
+    calls: list[int] = []
+    original = recap.pre_scores_from_events
+
+    def spy(pa_rows, events):
+        calls.append(len(pa_rows))
+        return original(pa_rows, events)
+
+    monkeypatch.setattr(recap, "pre_scores_from_events", spy)
+    games, pas, livelog = _first_pitch_hr_fixture()
+    winprob_val.load_eval_season(_EvalCursor(games, pas, livelog), "A", 2026)
+    assert calls == [2], "評估樣本沒走 recap 的那支純函式（疑似另刻了第二份實作）"
+
+
+def test_unknown_pre_score_source_is_rejected():
+    games, pas, livelog = _first_pitch_hr_fixture()
+    with pytest.raises(ValueError):
+        load_eval_season(_EvalCursor(games, pas, livelog), "A", 2026,
+                         pre_score_source="pre_State")
+    assert PRE_SCORE_SOURCES == ("events", "pre_state")

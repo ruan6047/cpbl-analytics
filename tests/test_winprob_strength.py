@@ -883,19 +883,24 @@ def test_fingerprint_diff_names_the_drifted_key():
 
 
 class _SeasonPackCursor:
-    """`build_season_pack` 用到的三段查詢：as-of 完成場、as-of PA state、主場勝率。"""
+    """`build_season_pack` 用到的四段查詢：as-of 完成場、as-of PA state、逐球事件流
+    （ML-WP-VAL-RESAMPLE1 起 `_pa_state_counts_as_of()` 要解打席前比分）、主場勝率。"""
 
-    def __init__(self, as_of_games, pas):
-        self._as_of_games, self._pas = as_of_games, pas
+    def __init__(self, as_of_games, pas, livelog=()):
+        self._as_of_games, self._pas, self._livelog = as_of_games, pas, list(livelog)
         self._rows: list = []
 
     def execute(self, sql, params=None):
         if "SELECT game_sno FROM cpbl.games" in sql:
             as_of = params[2]
             self._rows = [(sno,) for sno, d in self._as_of_games if d <= as_of]
+        elif "FROM cpbl.game_livelog WHERE" in sql:
+            self._rows = list(self._livelog)
         elif "FROM cpbl.game_plate_appearances" in sql:
             as_of = params[2]
-            self._rows = [(sno, state, pre) for sno, d, state, pre in self._pas if d <= as_of]
+            self._rows = [(sno, state, pre, index, str(index))
+                          for index, (sno, d, state, pre) in enumerate(self._pas, start=1)
+                          if d <= as_of]
         elif "avg(CASE WHEN home_score>away_score" in sql:
             self._rows = [(0.5,)]
         else:
@@ -918,7 +923,7 @@ def test_season_metadata_ignores_games_after_as_of(monkeypatch):
             "irregular": False, "game_key": (2026, "A", 1), "diff": 0, "bases": "___"},
            {"game_sno": 2, "inning": 1, "vht": "T", "outs": 0, "outcome": 0.0,
             "irregular": False, "game_key": (2026, "A", 2), "diff": 0, "bases": "___"}]
-    monkeypatch.setattr(ws, "load_eval_season", lambda cur, kind, year: {
+    monkeypatch.setattr(ws, "load_eval_season", lambda cur, kind, year, **kw: {
         "pas": pas, "rules": None,
         # 上游一律看到兩場（含 as_of 之後那場），且其中一場 irregular
         "games": {1: {"outcome": 1.0, "irregular": False},
@@ -936,7 +941,9 @@ def test_season_metadata_ignores_games_after_as_of(monkeypatch):
         pas=[(1, early, "ready", {"inning": 1, "half": "T", "outs": 0,
                                   "home_score": 0, "away_score": 0}),
              (2, late, "ready", {"inning": 1, "half": "T", "outs": 0,
-                                 "home_score": 0, "away_score": 0})])
+                                 "home_score": 0, "away_score": 0})],
+        # PA 的 start_event_no 由 fixture 依序給 "1"／"2"，事件流需對得回去
+        livelog=[(1, "1", 0, 0), (2, "2", 0, 0)])
     pack = ws.build_season_pack(cur, {}, 2026, 2025, {1, 2}, date(2026, 6, 30))
 
     assert pack.n_completed_games == 1              # 只算 as_of 界限內的完成場
@@ -948,14 +955,16 @@ def test_season_metadata_ignores_games_after_as_of(monkeypatch):
 class _StateCountCursor:
     """同一份 fixture 同時餵給 `load_eval_season()` 與 `_pa_state_counts_as_of()`。
 
-    三段查詢以 SQL 特徵分派：games＋livelog（上游）、無 games join 的 PA 查詢（上游）、
-    有 games join＋日期界限的 PA 查詢（本卡）。
+    四段查詢以 SQL 特徵分派：games＋livelog 彙總（上游完成場）、逐球事件流
+    （兩邊解打席前比分共用）、無 games join 的 PA 查詢（上游）、有 games join＋
+    日期界限的 PA 查詢（本卡）。
     """
 
-    def __init__(self, games, pas):
-        # games: [(sno, home_score, away_score, delay_kind, max_inn, game_date), ...]
-        # pas:   [(sno, state, pre_state), ...]（sno 對應 games，日期由 games 決定）
-        self._games, self._pas = games, pas
+    def __init__(self, games, pas, livelog=()):
+        # games:   [(sno, home_score, away_score, delay_kind, max_inn, game_date), ...]
+        # pas:     [(sno, state, pre_state, pa_index, start_event_no), ...]
+        # livelog: [(sno, main_event_no, visiting_score, home_score), ...]
+        self._games, self._pas, self._livelog = games, pas, list(livelog)
         self._date = {g[0]: g[5] for g in games}
         self._rows: list = []
 
@@ -963,10 +972,11 @@ class _StateCountCursor:
         if "FROM cpbl.games g " in sql and "game_livelog" in sql:
             self._rows = [(sno, hs, aw, delay, mx)
                           for sno, hs, aw, delay, mx, _d in self._games if hs + aw > 0]
+        elif "FROM cpbl.game_livelog WHERE" in sql:
+            self._rows = list(self._livelog)
         elif "FROM cpbl.game_plate_appearances" in sql and "JOIN cpbl.games g" in sql:
             as_of = params[2]
-            self._rows = [(sno, state, pre) for sno, state, pre in self._pas
-                          if self._date[sno] <= as_of]
+            self._rows = [row for row in self._pas if self._date[row[0]] <= as_of]
         elif "FROM cpbl.game_plate_appearances" in sql:
             self._rows = list(self._pas)          # 上游：無日期界限
         else:
@@ -979,7 +989,9 @@ class _StateCountCursor:
 def _state_fixture():
     """涵蓋所有 state 與缺欄位組合：
 
-    - sno 1：完成場、`ready` 且 pre_state 完整 → 只進 `ready`
+    - sno 1：完成場、`ready` 且 pre_state 完整 → 只進 `ready`；其中一筆的
+      `start_event_no` 對不回事件流 → 另計 `ready_pre_score_unresolved`
+      （ML-WP-VAL-RESAMPLE1 新增的 fail-closed 分支）
     - sno 2：完成場、`ready` 但缺 `outs` → `ready` ＋ `ready_incomplete_state`
     - sno 3：**未完成場**（0-0）、`ready` 且完整 → 只進 `ready`，不得計 incomplete
       （上游 `sno not in games` 就 continue，本卡以 as_of 完成場集合對應）
@@ -991,11 +1003,15 @@ def _state_fixture():
              (2, 5, 2, None, 9, date(2026, 4, 2)),
              (3, 0, 0, None, None, date(2026, 4, 3)),
              (4, 1, 0, "雨", 7, date(2026, 4, 4))]
-    pas = [(1, "ready", full), (1, "ready", full),
-           (2, "ready", missing_outs),
-           (3, "ready", full),
-           (4, "truncated", full), (4, "non_pa", full), (4, "ready", missing_outs)]
-    return games, pas
+    pas = [(1, "ready", full, 1, "101"), (1, "ready", full, 2, "999"),
+           (2, "ready", missing_outs, 1, "201"),
+           (3, "ready", full, 1, "301"),
+           (4, "truncated", full, 1, "401"), (4, "non_pa", full, 2, "402"),
+           (4, "ready", missing_outs, 3, "403")]
+    # "999" 刻意不入事件流 → sno 1 的第二筆打席前比分解不出（fail closed）
+    livelog = [(1, "101", 0, 0), (2, "201", 0, 0), (3, "301", 0, 0),
+               (4, "401", 0, 0), (4, "402", 0, 0), (4, "403", 0, 0)]
+    return games, pas, livelog
 
 
 def test_as_of_pa_state_counts_match_upstream_when_as_of_is_future():
@@ -1007,17 +1023,20 @@ def test_as_of_pa_state_counts_match_upstream_when_as_of_is_future():
     from cpbl.models.winprob_strength import KIND, _pa_state_counts_as_of
     from cpbl.models.winprob_val import load_eval_season
 
-    games, pas = _state_fixture()
-    upstream = load_eval_season(_StateCountCursor(games, pas), KIND, 2026)
+    games, pas, livelog = _state_fixture()
+    upstream = load_eval_season(_StateCountCursor(games, pas, livelog), KIND, 2026)
     far_future = date(2099, 12, 31)
     as_of_snos = {sno for sno, hs, aw, _d, _m, _dt in games if hs + aw > 0}
-    mine = _pa_state_counts_as_of(_StateCountCursor(games, pas), 2026, far_future, as_of_snos)
+    mine = _pa_state_counts_as_of(_StateCountCursor(games, pas, livelog), 2026,
+                                  far_future, as_of_snos)
 
     assert mine == upstream["pa_state_counts"], (
         f"與上游判準分岔：本卡 {mine} vs 上游 {upstream['pa_state_counts']}")
     # 光是相等不夠——fixture 必須真的走過每一條分支，否則這個等式是空的
-    assert set(mine) == {"ready", "ready_incomplete_state", "truncated", "non_pa"}
+    assert set(mine) == {"ready", "ready_incomplete_state", "ready_pre_score_unresolved",
+                         "truncated", "non_pa"}
     assert mine["ready"] == 5 and mine["ready_incomplete_state"] == 2
+    assert mine["ready_pre_score_unresolved"] == 1
     assert mine["truncated"] == 1 and mine["non_pa"] == 1
 
 
@@ -1026,12 +1045,13 @@ def test_as_of_pa_state_counts_drop_games_after_the_cutoff():
     from cpbl.models.winprob_strength import KIND, _pa_state_counts_as_of
     from cpbl.models.winprob_val import load_eval_season
 
-    games, pas = _state_fixture()
-    upstream = load_eval_season(_StateCountCursor(games, pas), KIND, 2026)
+    games, pas, livelog = _state_fixture()
+    upstream = load_eval_season(_StateCountCursor(games, pas, livelog), KIND, 2026)
     cut = date(2026, 4, 2)
-    mine = _pa_state_counts_as_of(_StateCountCursor(games, pas), 2026, cut, {1, 2})
+    mine = _pa_state_counts_as_of(_StateCountCursor(games, pas, livelog), 2026, cut, {1, 2})
 
-    assert mine == {"ready": 3, "ready_incomplete_state": 1}
+    assert mine == {"ready": 3, "ready_incomplete_state": 1,
+                    "ready_pre_score_unresolved": 1}
     assert upstream["pa_state_counts"]["ready"] == 5      # 上游看得到界限後的場次
 
 

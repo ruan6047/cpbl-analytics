@@ -67,7 +67,9 @@ from cpbl.db import conn
 from cpbl.models.winprob_cal import BANDS, REGULATION_BANDS, band_of, band_summary
 from cpbl.models.winprob_val import (
     FIRST_YEAR,
+    PRE_SCORE_SOURCES,
     THRESHOLDS,
+    _resolve_pre_scores,
     brier_constant,
     collect_training_counts,
     dist_from_counts,
@@ -986,7 +988,8 @@ def _built_snos(season: dict) -> set[int]:
 _PRE_STATE_REQUIRED = ("inning", "half", "outs", "home_score", "away_score")
 
 
-def _pa_state_counts_as_of(cur, year: int, as_of: date, as_of_snos: set[int]) -> dict:
+def _pa_state_counts_as_of(cur, year: int, as_of: date, as_of_snos: set[int],
+                           pre_score_source: str = "events") -> dict:
     """`pa_state_counts` 的 as-of 版本。
 
     上游 `load_eval_season()` 的 PA 查詢**完全沒有日期界限**，`games` 那一半才以
@@ -998,12 +1001,16 @@ def _pa_state_counts_as_of(cur, year: int, as_of: date, as_of_snos: set[int]) ->
     - `ready_incomplete_state`：僅在**完成場**（as_of 母體）且 `pre_state` 關鍵欄位缺值時計入，
       與上游 `sno not in games → continue` 的順序一致。
 
+    - `ready_pre_score_unresolved`：ML-WP-VAL-RESAMPLE1 起上游改以事件流解打席前比分，
+      解不出來的 ready 打席 fail closed 排除；此處以同一支 `_resolve_pre_scores()`
+      重算，判準與順序（state → 完成場 → pre_state 完整 → 比分可解）逐條對齊上游。
+
     兩處判準日後分岔是這個重算最大的風險，故以
     `test_as_of_pa_state_counts_match_upstream_when_as_of_is_future` 釘住：as_of 取未來日時，
     本函式輸出必須與 `load_eval_season()` 的 `pa_state_counts` 逐鍵相同。
     """
     cur.execute(
-        "SELECT pa.game_sno, pa.state, pa.pre_state "
+        "SELECT pa.game_sno, pa.state, pa.pre_state, pa.pa_index, pa.start_event_no "
         "FROM cpbl.game_plate_appearances pa "
         "JOIN cpbl.game_recap_builds b ON b.build_id = pa.build_id "
         "  AND b.state = 'published' "
@@ -1011,18 +1018,28 @@ def _pa_state_counts_as_of(cur, year: int, as_of: date, as_of_snos: set[int]) ->
         "  AND g.game_sno = pa.game_sno "
         "WHERE pa.year=%s AND pa.kind_code=%s AND g.game_date <= %s",
         (year, KIND, as_of))
+    fetched = list(cur.fetchall())
+    pa_rows_by_game: dict[int, list[dict]] = defaultdict(list)
+    for sno, _state, _pre, pa_index, start_event_no in fetched:
+        pa_rows_by_game[sno].append({"pa_index": pa_index, "start_event_no": start_event_no})
+    pre_scores = (_resolve_pre_scores(cur, KIND, year, pa_rows_by_game)
+                  if pre_score_source == "events" else None)
     counts: Counter = Counter()
-    for sno, state, pre in cur.fetchall():
+    for sno, state, pre, pa_index, _start in fetched:
         counts[state] += 1
         if state != "ready" or sno not in as_of_snos:
             continue
         if any((pre or {}).get(f) is None for f in _PRE_STATE_REQUIRED):
             counts["ready_incomplete_state"] += 1
+            continue
+        if pre_scores is not None and (sno, pa_index) not in pre_scores:
+            counts["ready_pre_score_unresolved"] += 1
     return dict(counts)
 
 
 def build_season_pack(cur, per_year, year: int, span_end: int,
-                      known_snos: set[int], as_of: date) -> SeasonPack | None:
+                      known_snos: set[int], as_of: date,
+                      pre_score_source: str = "events") -> SeasonPack | None:
     """以 span [2018, span_end] 的 base run_dist 評 `year` 的 canonical PA。
 
     fail closed：無賽前特徵的場次（例：缺 game_features 列）整場排除並計數，
@@ -1035,7 +1052,7 @@ def build_season_pack(cur, per_year, year: int, span_end: int,
       與賽前特徵。原實作把缺賽前特徵的場次靜默排除卻仍沿用 build coverage，理論上可在
       縮小後的母體上維持 1.0 並通過 gate；改以交集計算後該漏洞關閉。
     """
-    season = load_eval_season(cur, KIND, year)
+    season = load_eval_season(cur, KIND, year, pre_score_source=pre_score_source)
     if not season["pas"]:
         return None
     # `load_eval_season()` 內部以 CURRENT_DATE 為界（winprob_val，本卡不得修改），
@@ -1072,7 +1089,8 @@ def build_season_pack(cur, per_year, year: int, span_end: int,
         n_scored_games=n_scored,
         n_irregular_games=sum(1 for sno in as_of_snos
                               if season["games"].get(sno, {}).get("irregular")),
-        pa_state_counts=_pa_state_counts_as_of(cur, year, as_of, as_of_snos),
+        pa_state_counts=_pa_state_counts_as_of(cur, year, as_of, as_of_snos,
+                                               pre_score_source),
         home_p=home_rate_exact(cur, KIND, CORE_FIRST, span_end, as_of),
         excluded_no_prior=excluded,
     )
@@ -1099,10 +1117,14 @@ def predict_prior(model: PriorModel, rows: Sequence[GameRow],
 
 def run_strength(out_path: Path, val_seasons: Sequence[int],
                  as_of: date | None = None,
-                 expect_fingerprint: dict | None = None) -> dict:
+                 expect_fingerprint: dict | None = None,
+                 pre_score_source: str = "events") -> dict:
     result: dict = {
         "card": "GAME-RECAP-WP-STRENGTH1",
         "kind": KIND,
+        # ML-WP-VAL-RESAMPLE1：局面分差的打席前比分來源。events＝事件流（唯一正確）；
+        # pre_state＝受污染的舊讀法，僅供 A/B 對照，產出不得作為對外數字。
+        "pre_score_source": pre_score_source,
         "core_span": [CORE_FIRST, LAST_YEAR],
         "val_seasons": list(val_seasons),
         "feature_keys": list(FEATURE_KEYS),
@@ -1135,7 +1157,8 @@ def run_strength(out_path: Path, val_seasons: Sequence[int],
         packs: dict[int, SeasonPack] = {}
         for s in need:
             known = {r.game_sno for r in by_year.get(s, ())}
-            pack = build_season_pack(cur, per_year, s, s - 1, known, as_of or date.today())
+            pack = build_season_pack(cur, per_year, s, s - 1, known, as_of or date.today(),
+                                     pre_score_source)
             if pack:
                 packs[s] = pack
                 assert pack.span_end <= s - 1, f"wf {s} base span 洩漏"
@@ -1695,6 +1718,10 @@ def main() -> None:
                          "重跑要與既有數字對照時務必指定，否則輸入已變也看不出來")
     ap.add_argument("--diagnostics", action="store_true",
                     help="只印先驗訊號四路對照（診斷；不寫 artifact、不進判定）")
+    ap.add_argument("--pre-score-source", default="events", choices=list(PRE_SCORE_SOURCES),
+                    help="局面分差的打席前比分來源。events＝事件流（預設，唯一正確）；"
+                         "pre_state＝已知受污染的舊讀法，只給 ML-WP-VAL-RESAMPLE1 的 A/B "
+                         "對照用，產出不得作為對外數字")
     args = ap.parse_args()
     as_of = date.fromisoformat(args.as_of) if args.as_of else None
     expect = (json.loads(Path(args.expect_fingerprint).read_text(encoding="utf-8"))
@@ -1715,7 +1742,8 @@ def main() -> None:
         return
     seasons = ([int(s) for s in args.seasons.split(",") if s.strip()]
                or list(range(VAL_FIRST, VAL_LAST + 1)))
-    result = run_strength(Path(args.out), sorted(seasons), as_of, expect)
+    result = run_strength(Path(args.out), sorted(seasons), as_of, expect,
+                          args.pre_score_source)
     v = result["verdict"]
     print(f"\n=== GAME-RECAP-WP-STRENGTH1 A scope：{v['status']} ===")
     for label, items in (("硬性", v["reasons"]), ("揭露", v.get("disclosure", []))):
