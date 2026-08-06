@@ -67,9 +67,11 @@ test("首事件之前沒有累計比分（半局首打席在全場第一列）�
   assert.equal(vm.margin, "");
 });
 
-test("marginTextOf：平手／大者在前；缺值回空字串", () => {
-  assert.equal(marginTextOf(3, 3), "平手");
+test("marginTextOf：大者在前；平手也出數字（不寫「平手」）；缺值回空字串", () => {
   assert.equal(marginTextOf(2, 6), "6–2");
+  // 「平手」把 0–0 與 7–7 壓成同一個詞，資訊被丟掉；數字相等本身已自明
+  assert.equal(marginTextOf(3, 3), "3–3");
+  assert.equal(marginTextOf(0, 0), "0–0");
   assert.equal(marginTextOf(null, 1), "");
 });
 

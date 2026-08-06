@@ -52,7 +52,7 @@ export type PlayCardProps = {
   half: string | null;
   outsBefore: number | null;
   basesBefore: string[];
-  /** 打席前分差文字（如「4–2」「平手」）；空字串＝不顯示。 */
+  /** 打席前比分文字（如「4–2」；平手也出數字「4–4」）；空字串＝不顯示。 */
   margin?: string;
   /** 分差 ≥7 的事實旗標（呈現為文字標籤，不降飽和）。 */
   garbageTime?: boolean;

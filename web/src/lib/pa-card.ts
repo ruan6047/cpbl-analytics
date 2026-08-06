@@ -59,10 +59,15 @@ export function basesFromEvent(ev: PaCardEvent | undefined): string[] {
   return out;
 }
 
-/** 打席前分差文字（與關鍵打席卡同一套用語）。 */
+/**
+ * 打席前分差文字（與關鍵打席卡同一套用語）。
+ *
+ * 平手**一律出數字**（`0–0`／`7–7`），不寫「平手」——需求方 2026-08-06：「平手」把兩個
+ * 完全不同的局面壓成同一個詞（0–0 的平手與 7–7 的平手，緊張程度差很多），而數字相等
+ * 本身已自明。故不再有平手分支，兩側相等時 max/min 自然輸出同一個數字。
+ */
 export function marginTextOf(away: number | null, home: number | null): string {
   if (away === null || home === null) return "";
-  if (away === home) return "平手";
   return `${Math.max(away, home)}–${Math.min(away, home)}`;
 }
 
