@@ -333,26 +333,64 @@ def test_unresolved_pre_score_fails_closed_and_is_counted():
     assert len(legacy["pas"]) == 2
 
 
-def test_pre_score_resolution_delegates_to_the_single_recap_implementation(monkeypatch):
-    """同一條紅線只能有一份實作：本 harness 必須真的呼叫 `recap.pre_scores_from_events`。
+def test_recap_reexports_the_same_pre_score_function_object():
+    """同一條紅線只能有一份實作（其一）：`/recap-wp` 用的必須是**同一個函式物件**。
 
-    這支測試釘住的是**依賴**而非數值——若日後有人在 models 這側另刻一份解算，
-    數值測試仍可能全綠，這裡會紅。
+    ML-WP-VAL-RESAMPLE1 把該純函式從 `api/routers/recap` 上抽到本模組（models 不得
+    import api，且留在 api 側會構成 winprob_val → recap → winprob_scorer → winprob_val
+    迴圈），recap 改以別名 re-export。這裡釘住 re-export 是**別名而非副本**：
+    若日後有人在 recap 側貼回一份實作，識別測試會紅而數值測試不會。
     """
     from cpbl.api.routers import recap
     from cpbl.models import winprob_val
 
+    assert recap.pre_scores_from_events is winprob_val.pre_scores_from_events
+    # 既有 import 路徑必須仍可用（#96 落地的測試正是走這條）
+    from cpbl.api.routers.recap import pre_scores_from_events as reexported
+
+    assert reexported is winprob_val.pre_scores_from_events
+    assert winprob_val.pre_scores_from_events.__module__ == "cpbl.models.winprob_val"
+
+
+def test_models_layer_does_not_import_the_api_layer():
+    """分層方向：`models` 不得 import `api`。
+
+    以子行程從乾淨的 import 狀態載入 `cpbl.models.winprob_val`，斷言載入後
+    `sys.modules` 裡沒有任何 `cpbl.api.*`。上抽之前這條會紅（取樣路徑得延後 import
+    `api/routers/recap` 才拿得到解算），是本次上抽要證明的東西。
+    """
+    import subprocess
+    import sys
+
+    code = (
+        "import sys; import cpbl.models.winprob_val; "
+        "leaked = sorted(m for m in sys.modules if m.startswith('cpbl.api')); "
+        "print(leaked)"
+    )
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                         check=True)
+    assert out.stdout.strip() == "[]", f"models 層洩漏了 api 依賴：{out.stdout.strip()}"
+
+
+def test_pre_score_resolution_delegates_to_the_single_implementation(monkeypatch):
+    """同一條紅線只能有一份實作（其二）：評估樣本必須真的呼叫那支共用純函式。
+
+    這支測試釘住的是**依賴**而非數值——若日後有人在取樣路徑上另刻一份解算，
+    數值測試仍可能全綠，這裡會紅。
+    """
+    from cpbl.models import winprob_val
+
     calls: list[int] = []
-    original = recap.pre_scores_from_events
+    original = winprob_val.pre_scores_from_events
 
     def spy(pa_rows, events):
         calls.append(len(pa_rows))
         return original(pa_rows, events)
 
-    monkeypatch.setattr(recap, "pre_scores_from_events", spy)
+    monkeypatch.setattr(winprob_val, "pre_scores_from_events", spy)
     games, pas, livelog = _first_pitch_hr_fixture()
     winprob_val.load_eval_season(_EvalCursor(games, pas, livelog), "A", 2026)
-    assert calls == [2], "評估樣本沒走 recap 的那支純函式（疑似另刻了第二份實作）"
+    assert calls == [2], "評估樣本沒走那支共用純函式（疑似另刻了第二份實作）"
 
 
 def test_unknown_pre_score_source_is_rejected():

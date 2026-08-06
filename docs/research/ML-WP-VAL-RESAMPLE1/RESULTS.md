@@ -42,15 +42,46 @@ test_pre_score_resolution_delegates_to_the_single_recap_implementation` 以 spy 
 解不出打席前比分的 `ready` 打席 **fail closed 排除**並計入
 `pa_state_counts.ready_pre_score_unresolved`，不以受污染的 `pre_state` 值冒充。
 
-### 1.1 分層債（**需求方裁決項**，見 §7-P1）
+### 1.1 分層債——**已依需求方裁決於本卡上抽**
 
-`pre_scores_from_events()` 住在 `api/routers/recap.py`，而 `models` 不得 import `api`；
-更硬的是**模組層 import 會構成循環**：`winprob_val → recap → winprob_scorer → winprob_val`
-（`winprob_scorer` 已 import `winprob_val` 的 `RuleSet`／`we_solver_rules`／`wp_state_rules`）。
-本卡因此以**函式內延後 import** 取用該純函式——寧可留這個氣味，也不違反「同一條紅線只能有
-一份實作」。乾淨解是把它上抽到 `models/`（`recap` 已有 `winprob_scorer` 的上抽前例，且 recap
-可原樣 re-export 保持相容），但那要動 `src/cpbl/api/routers/recap.py`，不在本卡寫入集，
-**未動、留待裁決**。
+原始狀況：`pre_scores_from_events()` 住在 `api/routers/recap.py`，而 `models` 不得 import
+`api`；更硬的是**模組層 import 會構成循環**：`winprob_val → recap → winprob_scorer →
+winprob_val`（`winprob_scorer` 已 import `winprob_val` 的 `RuleSet`／`we_solver_rules`／
+`wp_state_rules`）。首版交付因此用**函式內延後 import**，並把上抽列為裁決項。
+
+需求方裁定「本卡上抽」（#98，寫入集擴充納入 `src/cpbl/api/routers/recap.py`）後：
+
+- 該純函式移入 `models/winprob_val.py`，`api/routers/recap.py` 以別名 re-export
+  （`from cpbl.models.winprob_val import pre_scores_from_events`），既有 import 路徑不變。
+- 延後 import 已改回正常的模組層 import；`winprob_val` 改為模組層 import
+  `pa_facts.annotate_scores`（無循環：`pa_facts` 模組層只依賴 `ingest.pa_build`／`db`／
+  `completion`，它對 `winprob_scorer` 的依賴本身就是函式內延後的）。
+- **`models → api` 的方向反轉已消除**，並由
+  `test_models_layer_does_not_import_the_api_layer` 以子行程斷言
+  「載入 `cpbl.models.winprob_val` 後 `sys.modules` 不含任何 `cpbl.api.*`」釘住。
+
+**純搬家的證明**（行為零變化）：
+
+1. 函式主體與基準 `b853572` 的原始碼**逐字相同**
+   （`git show b853572:src/cpbl/api/routers/recap.py` 取出後 diff 為空）。
+2. 上抽後重跑 `winprob_val --pre-score-source events`，與上抽前的
+   `val1_metrics_events.json` **逐位相同**（63,666 bytes 對 63,666 bytes；
+   唯一差異是 `counting_machine_check.mismatches` 這個 `set` 迭代序 + `[:20]` 截斷的
+   **樣本清單順序**，跨行程受 `PYTHONHASHSEED` 影響，與本次搬家無關）。
+3. `#96` 落地的測試（`test_recap_wp_pre_scores.py`／`test_recap_wp_boundaries.py`／
+   `test_recap_wp_contract.py`／`test_pa_facts.py`）全數不受影響，仍走
+   `from cpbl.api.routers.recap import pre_scores_from_events` 這條路徑。
+4. 原 spy 測試改守新位置且**守的東西不變**，並拆成兩支：
+   `test_recap_reexports_the_same_pre_score_function_object`（re-export 必須是**別名而非
+   副本**——若有人在 recap 側貼回一份實作，識別測試會紅而數值測試不會）與
+   `test_pre_score_resolution_delegates_to_the_single_implementation`（取樣路徑必須真的
+   呼叫那支共用純函式）。
+
+> ⚠️ 語意上更貼近的家其實是 `models/pa_facts`（就在 `annotate_scores` 隔壁，且與
+> `delta_re24` 同一族）。**`pa_facts.py` 不在本卡擴充後的寫入集**，故未寫入該檔；
+> 現址 `winprob_val` 沿用 `winprob_scorer` 的既有前例（生產 recap 已 import 該模組的
+> DP 解算器）。若需求方願意授權 `pa_facts.py`，再搬一次只是移動函式 + 調整 re-export，
+> 對呼叫端零影響——列為 §7-P2。
 
 ---
 
@@ -146,6 +177,12 @@ uv run python docs/research/ML-WP-VAL-RESAMPLE1/compare.py
 | E | 今日×舊 | unsupported | 0.08539 | E2025 0.28741 vs 0.25301 |
 | E | 今日×修正 | unsupported | **0.08548** | E2025 **0.28588** vs 0.25301 |
 
+> 📌 **本節的 C／E 判定理由已被需求方裁決點名**（#98 留言 `5208856434`，統計結果解讀
+> 三準則之準則 3）：VAL1 挑單一小樣本季（C2025 五場、E2025 四場）當失敗證據，而**池化
+> 結果模型其實贏基準**（C 25 場 0.150 vs 0.257、E 13 場 0.148 vs 0.238）。上表照原判定
+> 邏輯呈現以維持與舊結論的可比性，**但那個 `unsupported` 標籤的正當性另案重審**
+> （C1 文案卡與 #99 `RESEARCH-VERDICT-AUDIT1`）。本卡不改判定邏輯。
+
 > ⚠️ E 的 canonical 比較基準**不能用** `docs/research/game_recap_wp_val1_metrics.json`：
 > 該 artifact 是 **pre-FIX1** 版（E 仍借 D 分布、ruleset `cap15`，池化 ECE 0.10054），
 > FIX1 修正後的正確值只存在於 `GAME-RECAP-WP-VAL1-FIX1_ERRATA.md` 的表格。
@@ -233,6 +270,16 @@ VAL1 的硬性判定是「|dev| 超界 **且** 99% CI 排除 0」。CI 由固定
   `_pa_state_counts_as_of()` 手抄了上游的 fail-closed 判準（本卡已同步更新並由既有 parity
   測試釘住）。這種「複製判準 + 測試釘住」的模式已經是第二次出現，長期應把 as-of 界限下推到
   `load_eval_season()` 本身。
+- **F5（第二輪新增，要緊）｜生產 `run_dist` artifact 已與今日 DB 不一致**。
+  `verify_counting_machine()` 是 VAL1 不變量 2 的實體（「等價 ⇒ 本 harness 的訓練管線與
+  已上線 `build_run_dist` 同語意」）。canonical artifact 記錄 `status: "match"`，
+  **今日重跑為 `MISMATCH`：48 個狀態中 31 個不符，最大單格絕對差 0.00169**。
+  兩路 A/B 皆為 MISMATCH，故與取樣修正無關——應是 2018–2025 的歷史資料在 artifact 建置後
+  又有增補（見記憶 `historical-minor-data`：全史 games 已回填本機）。
+  影響面：生產 `/recap-wp` 的 scorer 仍跑在那份舊 `cpbl.run_dist` 上。
+  **不在本卡處置**（唯讀，且 artifact 重生成已歸 C1 卡），但重生成時必須把 `cpbl.run_dist`
+  一起納入，否則 harness 與生產會持續分岔。這也是「準則 1 標 as-of」在**模型 artifact**
+  層面的對應問題：目前沒有任何機制會在分布過期時出聲。
 
 ---
 
@@ -240,20 +287,30 @@ VAL1 的硬性判定是「|dev| 超界 **且** 99% CI 排除 0」。CI 由固定
 
 ### P1｜`pre_scores_from_events()` 是否上抽到 `models/`
 
-現況是 models 以函式內延後 import 取用 api 層的純函式（§1.1），能跑、不重複實作，但分層是髒的。
-乾淨解要動 `src/cpbl/api/routers/recap.py`（不在本卡寫入集，且無並行卡持有）。
-建議：獨立小卡上抽到 `models/pa_facts.py`，`recap` re-export 保持相容。
+> **需求方裁定（2026-08-07）：本卡上抽。** 已於本卡執行完畢，實作與純搬家證明見 §1.1；
+> 寫入集同步擴充納入 `src/cpbl/api/routers/recap.py`。本項結案。
+
+### P2｜是否再把該函式搬到 `models/pa_facts`（新增，承 P1）
+
+P1 已解掉方向反轉與循環，但落點是 `winprob_val`；語意上更貼近的家是 `pa_facts`
+（`annotate_scores` 隔壁）。`pa_facts.py` 不在本卡寫入集故未動。若要收乾淨，授權該檔即可，
+是純移動＋調整 re-export，對呼叫端零影響。**低優先**。
 
 ### D1｜D scope 的 `wp_reliability` 要怎麼寫
 
-`unsupported` 的唯一支撐（池化十分位 2 顯著超界）在今日資料上不再重現，但那是 bootstrap
-實現的隨機性（§5：7–8/12 seed）。三個選項：
+> **需求方裁定（2026-08-07）：採 (a)——維持 `unsupported`，理由改寫為「幅度超界且顯著性
+> 隨重抽擺盪」。文案改寫本身移交另一張卡，本卡不動 `WP_RELIABILITY_SCOPES` 的文字。**
+
+原始選項留存供稽核：
 (a) 維持 `unsupported`，把理由改寫成「偏差 +4.9pt 幅度超界，顯著性隨重抽實現擺盪」；
 (b) 依現行機械判定翻成 `supported`——**不建議**，等於讓對外可信度標籤吃 seed 的運氣；
 (c) 先修 F2 的判定方法，再重跑定案。
-**執行者不自行選擇。**
 
 ### C1｜對外文案要改哪些字（**只列出，未改**）
+
+> **需求方裁定（2026-08-07）：全部移交另一張文案卡**（含 `WP_RELIABILITY_SCOPES` 的
+> A／D／E 文字、`web/` 方法頁、artifact 重生成）。本卡雖已把 `recap.py` 納入寫入集，
+> 但**只做 P1 的 re-export，一個字的對外文案都沒有改**。下表原樣保留給文案卡當輸入。
 
 | 位置 | 現行文字 | 修正後應為 | 成因 |
 |---|---|---|---|
@@ -276,8 +333,22 @@ VAL1 的硬性判定是「|dev| 超界 **且** 99% CI 排除 0」。CI 由固定
 
 ```
 uv run ruff check     # All checks passed!
-uv run pytest         # 1428 passed, 10 skipped（基準 1422/10；+6 為本卡新增測試）
+uv run pytest         # 1431 passed, 9 skipped
 ```
+
+計數對帳（同一台機器連續量測，排除環境噪音）：
+
+| 狀態 | passed | skipped | 合計 | 來源 |
+|---|---|---|---|---|
+| main 基準 `b853572` | 1422 | 10 | 1432 | 派工包所述（未由本卡重量測） |
+| 首版交付 `e788f94`（取樣修正，+6 測試） | 1429 | 9 | 1438 | 本次重量測 |
+| 本版（P1 上抽，+2 測試） | **1431** | 9 | 1440 | 本次重量測 |
+
+> 首版交付當下讀到的是「1428 passed / 10 skipped」，與上表第二列**同為合計 1438**——
+> 差異在 `tests/test_cli_help_guard.py` 的 LightGBM 護欄探針會依 import 狀態在
+> skip／pass 之間浮動（macOS host 缺 `libomp`），屬環境噪音，非本卡引入。
+> 後兩列由同一台機器連續量測（`git stash` 切換工作樹狀態）取得；
+> 第一列沿用派工包數字，本卡未回頭重跑基準 commit。
 
 本卡新增測試（`tests/test_winprob_val.py`）：
 
@@ -285,7 +356,9 @@ uv run pytest         # 1428 passed, 10 skipped（基準 1422/10；+6 為本卡�
 - `test_legacy_pre_state_source_reproduces_the_contaminated_diff` — 對照組必須仍能重現污染值
 - `test_scores_between_plate_appearances_are_still_carried` — 打席**之間**得分（盜壘／暴投）不得被吃掉
 - `test_unresolved_pre_score_fails_closed_and_is_counted` — fail closed 且獨立計數
-- `test_pre_score_resolution_delegates_to_the_single_recap_implementation` — 釘住「只有一份實作」
+- `test_recap_reexports_the_same_pre_score_function_object` — re-export 必須是別名而非副本
+- `test_models_layer_does_not_import_the_api_layer` — 子行程斷言 `models` 不再拉進 `cpbl.api.*`
+- `test_pre_score_resolution_delegates_to_the_single_implementation` — 釘住「只有一份實作」
 - `test_unknown_pre_score_source_is_rejected` — 來源參數白名單
 
 `tests/test_winprob_strength.py` 的兩支 as-of parity 測試已擴充涵蓋新的

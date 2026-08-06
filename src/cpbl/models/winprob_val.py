@@ -51,6 +51,10 @@ from pathlib import Path
 
 from cpbl.db import conn
 
+# 打席前比分的 running 比分標註器。models 內部依賴，無循環：
+# pa_facts 只在模組層 import ingest/db/completion（winprob_scorer 是它的函式內延後 import）。
+from cpbl.models.pa_facts import annotate_scores
+
 log = logging.getLogger("cpbl.winprob_val")
 
 K_CAP = 6
@@ -313,6 +317,40 @@ def wp_state_rules(dist: dict, we_top, we_bot, rules: RuleSet, inning: int,
     return w + 0.5 * t
 
 
+# ───────────────────────── 打席前比分（跨消費者共用的唯一實作）─────────────────────────
+def pre_scores_from_events(pa_rows: list[dict], events: list[dict]) -> dict[int, tuple[int, int]]:
+    """``pa_index`` → 該打席**開始之前**的 ``(away, home)``（純函式）。
+
+    唯一正確的打席前比分來源：以 ``start_event_no`` 對回事件流，取
+    :func:`cpbl.models.pa_facts.annotate_scores` 標上的「事件**之前**」running 比分。
+    **不可讀 ``pre_state.away_score``／``home_score``**——那是起始事件列的比分欄原值，
+    而 livelog 的比分欄是事件**後**快照（DATA-RECAP-WP-PRESTATE1／#96）。
+
+    對不回事件流的打席**不進 map**（fail closed，由呼叫端標 ``pre_score_unresolved``），
+    不以 ``pre_state`` 的值冒充。
+
+    **住在這裡的理由**（ML-WP-VAL-RESAMPLE1 上抽；原本住 ``api/routers/recap.py``）：
+    消費者有兩個——``api/routers/recap``（``/recap-wp`` 生產路徑）與本模組的驗證
+    harness——而 ``models`` 不得 import ``api``；留在 api 側還會構成
+    ``winprob_val → recap → winprob_scorer → winprob_val`` 迴圈。同一條紅線只能有一份
+    實作（本卡的病灶正是同一語意有兩份讀法），故上抽到 models 由兩邊共用，
+    ``recap`` 以別名 re-export 保持既有 import 路徑相容（同 ``winprob_scorer`` 前例）。
+
+    ⚠️ 語意上更貼近的家其實是 ``models/pa_facts``（就在 ``annotate_scores`` 隔壁），
+    但該檔不在本卡寫入集；若日後獲授權，搬過去只是移動函式 + 調整 re-export。
+    """
+    ordered = annotate_scores(events)
+    by_event_no = {str(e["main_event_no"]): e for e in ordered}
+    scores: dict[int, tuple[int, int]] = {}
+    for row in pa_rows:
+        start = row.get("start_event_no")
+        event = by_event_no.get(str(start)) if start is not None else None
+        if event is None:
+            continue
+        scores[row["pa_index"]] = (event["_pre_away"], event["_pre_home"])
+    return scores
+
+
 # ───────────────────────── 驗證資料：canonical PA + 賽果 ─────────────────────────
 PRE_SCORE_SOURCES = ("events", "pre_state")
 
@@ -321,18 +359,8 @@ def _resolve_pre_scores(cur, kind: str, year: int,
                         pa_rows_by_game: dict[int, list[dict]]) -> dict[tuple[int, int], tuple[int, int]]:
     """``(game_sno, pa_index)`` → 該打席**開始之前**的 ``(away, home)``。
 
-    唯一正確的打席前比分來源，語意與紅線見
-    :func:`cpbl.api.routers.recap.pre_scores_from_events` 的 docstring。
-
-    ⚠️ **這裡刻意用函式內 import**：``winprob_scorer`` 已 import 本模組，而
-    ``api/routers/recap`` 又 import ``winprob_scorer``——模組層 import 會構成
-    ``winprob_val → recap → winprob_scorer → winprob_val`` 迴圈。同一條紅線只能有一份
-    實作（本卡的病灶就是同一語意有兩份讀法），故寧可延後 import 也不在此另刻一份。
-    正解是把該純函式上抽到 ``models/``（``recap`` 已有 ``winprob_scorer`` 的前例），
-    但那要動 ``api/routers/recap.py``——不在本卡寫入集，留待需求方裁決。
+    語意與紅線見 :func:`pre_scores_from_events`；此處只負責取事件流與逐場分組。
     """
-    from cpbl.api.routers.recap import pre_scores_from_events
-
     cur.execute(
         "SELECT game_sno, main_event_no, visiting_score, home_score "
         "FROM cpbl.game_livelog WHERE year=%s AND kind_code=%s", (year, kind))
