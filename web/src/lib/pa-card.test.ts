@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { basesFromEvent, buildPaCardVM, marginTextOf, paCardLabel } from "./pa-card.ts";
+import { basesFromEvent, buildPaCardVM, marginTextOf, paCardLabel, paScoreLineOf } from "./pa-card.ts";
 import type { PaFact } from "./game-facts.ts";
 
 const fact = (over: Partial<PaFact> = {}): PaFact => ({
@@ -77,6 +77,30 @@ test("basesFromEvent：只認有人的壘位，順序固定一二三", () => {
   assert.deepEqual(basesFromEvent(ev({ second_base: "張二" })), ["1", "2", "3"]);
   assert.deepEqual(basesFromEvent(ev({ first_base: null, third_base: null })), []);
   assert.deepEqual(basesFromEvent(undefined), []);
+});
+
+test("paScoreLineOf：進帳掛在進攻方那一側（上半局客隊、下半局主隊）", () => {
+  assert.deepEqual(paScoreLineOf({ scoreAfter: { away: 2, home: 4 }, runs: 2, half: "2" }),
+    { away: 2, home: 4, runs: 2, side: "home" });
+  assert.deepEqual(paScoreLineOf({ scoreAfter: { away: 3, home: 1 }, runs: 1, half: "1" }),
+    { away: 3, home: 1, runs: 1, side: "away" });
+});
+
+test("paScoreLineOf：非得分打席／比分缺值不出比分列", () => {
+  assert.equal(paScoreLineOf({ scoreAfter: { away: 2, home: 4 }, runs: 0, half: "2" }), null);
+  assert.equal(paScoreLineOf({ scoreAfter: { away: 2, home: 4 }, runs: null, half: "2" }), null);
+  assert.equal(paScoreLineOf({ scoreAfter: null, runs: 2, half: "2" }), null);
+});
+
+test("paScoreLineOf：半局不明時不亂掛一側（side 為 null）", () => {
+  assert.equal(paScoreLineOf({ scoreAfter: { away: 2, home: 4 }, runs: 2, half: null })?.side, null);
+});
+
+test("paScoreLineOf：比分一律取 score_after，不由前值＋進帳推算", () => {
+  // 一個打席多次得分時，前值＋進帳的舊算法會漏掉中間的變化；此處釘住只吃 scoreAfter。
+  const vm = buildPaCardVM(fact({ away_score_before: 0, home_score_before: 0, runs_on_play: 3,
+    away_score_after: 0, home_score_after: 3 }), ev(), ev(), null, null, 0);
+  assert.deepEqual(paScoreLineOf(vm), { away: 0, home: 3, runs: 3, side: "home" });
 });
 
 test("paCardLabel：壘包圖示要有文字替代（a11y）", () => {

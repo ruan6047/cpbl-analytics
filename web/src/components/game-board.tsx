@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import Link from "next/link";
 import type { StatRow } from "@/lib/client";
 import { ENTITY_LINK, ENTITY_LINK_TEXT, TeamLogo } from "@/components/ui";
@@ -9,10 +9,10 @@ import { PITCH_CALL, PA_KIND } from "@/lib/chart-theme";
 import type { WpPoint } from "@/components/win-prob-chart";
 import { buildPaGroups, wpSwingLabel, type PaFact } from "@/lib/game-facts";
 import { PlayCard, type PlayCardTeams } from "@/components/play-card";
-import { buildPaCardVM, paCardHitterName, paCardLabel, type PaCardEvent } from "@/lib/pa-card";
+import { buildPaCardVM, paCardHitterName, paCardLabel, paScoreLineOf, type PaCardEvent } from "@/lib/pa-card";
 import { indexWpCurve, joinPaSwing } from "@/lib/pa-wp-join";
 import { displayWpPctInt } from "@/lib/win-prob-display";
-import { RunsBadge } from "@/components/runs-badge";
+import { PaScoreLine } from "@/components/pa-score-line";
 import {
   canShowPostgameConclusions, inningLabel, liveScorebarScores, phaseLabel, plateAppearancePitchCountLabel, trackingEmptyMessage,
   type LiveSnapshot,
@@ -468,14 +468,13 @@ function PlayByPlay({ log, events, halfKey, idx, setIdx, userAction, facts, wp, 
   // 曲線索引：整場算一次，逐打席 join（避免每張卡重掃整條曲線）。
   const wpIndex = useMemo(() => indexWpCurve(wp), [wp]);
 
-  const lineBtn = (gi: number, showScore: boolean, inCard = false) => {
+  const lineBtn = (gi: number, inCard = false) => {
     const ev = log[gi];
     const content = String(ev.content ?? "").split(/[\r\n]/)[0];
     const isScore = Boolean(ev.is_score);
     const isPitch = content.length <= 8;
     const active = gi === idx;
-    const s = runningScore[gi];
-    // 得分事件的敘述文字走**一般字級**（與其他結果行相同）——重要性由 RunsBadge 承載。
+    // 得分事件的敘述文字走**一般字級**（與其他結果行相同）——重要性由清單級的 PaScoreLine 承載。
     // 字級與色調分開算：選中態要能蓋掉色調而不動字級，否則 Tailwind 同屬性衝突的勝負
     // 取決於 CSS 順序而非字串順序（會時靈時不靈）。
     // 選中態＝中性 `ink/10` 淡底，**不用 accent 紅底也不加框線**（需求方回饋）；紅色系在
@@ -489,8 +488,6 @@ function PlayByPlay({ log, events, halfKey, idx, setIdx, userAction, facts, wp, 
         className={`block w-full scroll-mt-16 rounded px-2 py-0.5 text-left transition-colors hover:bg-surface-2 ${
           inCard ? "pl-3" : "pl-5"} ${size} ${tone}`}>
         {content}
-        {/* 進帳分數留在事件列（事件層級的事實）；比分已上移到卡片，此處不重複 */}
-        {showScore && isScore && s && <RunsBadge runs={s.runs} />}
       </button>
     );
   };
@@ -505,7 +502,7 @@ function PlayByPlay({ log, events, halfKey, idx, setIdx, userAction, facts, wp, 
       <ul className="max-h-[65vh] space-y-1 overflow-y-auto pr-1">
         {groups.map((g, gk) => {
           if (g.kind === "sub") {
-            return <li key={gk} className="pt-0.5">{lineBtn(g.gi, false)}</li>;
+            return <li key={gk} className="pt-0.5">{lineBtn(g.gi)}</li>;
           }
           const key = `pa-${gk}`;
           const firstIdx = g.idxs[0];
@@ -531,35 +528,45 @@ function PlayByPlay({ log, events, halfKey, idx, setIdx, userAction, facts, wp, 
           const swingLabel = wpSwingLabel(swing?.delta, teams.homeName, teams.awayName);
           const label = paCardLabel(vm, paCardHitterName(g.fact, g.name),
             swingLabel ? `，勝率推向${swingLabel.team} ${swingLabel.pt} 個百分點` : "");
+          // 得分打席的比分列：清單級（與「更換選手」列同層級），排在該打席卡之後。
+          const scoreLine = paScoreLineOf(vm);
           return (
-            <li key={key} ref={active ? activeRef : undefined}>
-              <PlayCard
-                variant="pbp"
-                inning={vm.inning} half={vm.half}
-                outsBefore={vm.outsBefore} basesBefore={vm.basesBefore}
-                margin={vm.margin} garbageTime={vm.garbageTime}
-                hitterId={g.fact?.hitter?.player_id ?? g.hitter}
-                hitterName={paCardHitterName(g.fact, g.name)}
-                pitcherName={g.pitcher} resultAction={vm.resultAction}
-                pitchCountLabel={g.idxs.length > 1
-                  ? plateAppearancePitchCountLabel(g.idxs.length) : null}
-                runs={vm.runs} scoreAfter={vm.scoreAfter} deltaRe24={vm.deltaRe24}
-                wp={swing}
-                teams={teams}
-                ariaLabel={label}
-                active={active}
-                expanded={expanded}
-                onActivate={() => {
-                  if (expanded) { setOpen(""); return; }
-                  setOpen(key);
-                  setIdx(outcomeIdx);
-                }}
-              >
-                <div className="space-y-0.5">
-                  {g.idxs.map((gi) => lineBtn(gi, true, true))}
-                </div>
-              </PlayCard>
-            </li>
+            <Fragment key={key}>
+              <li ref={active ? activeRef : undefined}>
+                <PlayCard
+                  variant="pbp"
+                  inning={vm.inning} half={vm.half}
+                  outsBefore={vm.outsBefore} basesBefore={vm.basesBefore}
+                  margin={vm.margin} garbageTime={vm.garbageTime}
+                  hitterId={g.fact?.hitter?.player_id ?? g.hitter}
+                  hitterName={paCardHitterName(g.fact, g.name)}
+                  pitcherName={g.pitcher} resultAction={vm.resultAction}
+                  pitchCountLabel={g.idxs.length > 1
+                    ? plateAppearancePitchCountLabel(g.idxs.length) : null}
+                  deltaRe24={vm.deltaRe24}
+                  wp={swing}
+                  teams={teams}
+                  ariaLabel={label}
+                  active={active}
+                  expanded={expanded}
+                  onActivate={() => {
+                    if (expanded) { setOpen(""); return; }
+                    setOpen(key);
+                    setIdx(outcomeIdx);
+                  }}
+                >
+                  <div className="space-y-0.5">
+                    {g.idxs.map((gi) => lineBtn(gi, true))}
+                  </div>
+                </PlayCard>
+              </li>
+              {scoreLine && (
+                <li className="pt-0.5">
+                  <PaScoreLine {...scoreLine}
+                    awayName={teams.awayName} homeName={teams.homeName} className="ml-3" />
+                </li>
+              )}
+            </Fragment>
           );
         })}
       </ul>

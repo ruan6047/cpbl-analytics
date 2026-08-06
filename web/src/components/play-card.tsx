@@ -9,9 +9,12 @@
 //
 // 版式（三排，兩變體共用；沿生產「關鍵時刻」卡骨架）：
 //   上排：局面脈絡（局數／壘包圖／出局／分差）＋**置右獨立**的受益隊勝率標示
-//   中排：打者 · 官方結果 · 投手（＋得分 chip、ΔRE24 chip）
+//   中排：打者 · 官方結果 · 投手（＋ΔRE24 chip）
 //   下排：雙色勝率條（打席後水平＋受益隊輔助色位移段）
 //   折疊區（`pbp` 變體）：該打席的每顆球，由呼叫端以 children 傳入，**展開才渲染**
+//
+// 得分**不在卡內**：比分與進帳合體成清單級的 `ScoreLine`，由呼叫端排在本卡之後
+//（需求方 2026-08-06 第六輪人工審）。卡只講「誰、對誰、結果如何、值多少」。
 //
 // 兩變體的差異只有互動與折疊，不是兩套視覺：
 //   * `key`（關鍵打席）：整張卡是跳轉按鈕，無折疊、無選中態。
@@ -23,7 +26,6 @@
 import type { ReactNode } from "react";
 import { PlayerLink } from "@/components/ui";
 import { Re24Badge } from "@/components/re24-badge";
-import { RunsBadge } from "@/components/runs-badge";
 import { WpSwingBadge } from "@/components/wp-swing-badge";
 import { WpSwingBar } from "@/components/wp-swing-bar";
 import { halfLabel } from "@/lib/game-facts";
@@ -61,8 +63,6 @@ export type PlayCardProps = {
   resultAction: string | null;
   /** `（5 球）`——逐打席變體的球數標示。 */
   pitchCountLabel?: string | null;
-  runs?: number | null;
-  scoreAfter?: { away: number; home: number } | null;
   deltaRe24?: number | null;
   wp?: PlayCardWp | null;
   teams: PlayCardTeams;
@@ -102,7 +102,7 @@ function Caret({ open }: { open: boolean }) {
 export function PlayCard({
   variant = "key", inning, half, outsBefore, basesBefore, margin, garbageTime,
   hitterId, hitterName, pitcherName, resultAction, pitchCountLabel,
-  runs, scoreAfter, deltaRe24, wp, teams, onActivate, ariaLabel,
+  deltaRe24, wp, teams, onActivate, ariaLabel,
   active = false, expanded = false, children,
 }: PlayCardProps) {
   const pbp = variant === "pbp";
@@ -127,7 +127,7 @@ export function PlayCard({
             homeColor={teams.homeColor} awayColor={teams.awayColor} />
         )}
       </div>
-      {/* 中排：打者 · 結果 · 投手（＋得分／ΔRE24 chips） */}
+      {/* 中排：打者 · 結果 · 投手（＋ΔRE24 chip） */}
       <div className="mt-0.5 text-sm text-ink">
         <PlayerLink pid={hitterId ?? undefined} name={hitterName} />
         {pitchCountLabel && (
@@ -136,7 +136,6 @@ export function PlayCard({
         <span className="mx-1 text-faint">·</span>
         {(resultAction ?? "").trim()}
         {pitcherName && <span className="ml-1.5 text-xs text-faint">投：{pitcherName}</span>}
-        <RunsBadge runs={runs} {...(scoreAfter ?? {})} />
         {/* ΔRE24 缺值時整個 chip 不出現（非打席的佈局列、來源修正待對帳…）：
             「ΔRE24 —」對讀者沒有資訊，只是佔位。關鍵打席一律有值，故不受影響。 */}
         {deltaRe24 !== null && deltaRe24 !== undefined && (

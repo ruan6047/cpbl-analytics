@@ -6,8 +6,10 @@
 // 與 `tests/test_pa_facts.py` 一起釘住）：
 //   * 主排序＝|ΔWP|（勝率擺動絕對值）取前 3–5，呈現時改回時間序。
 //   * 版式沿用生產「關鍵時刻」卡（需求方 2026-08-06 定稿）：上排＝局面脈絡（左）＋
-//     **置右獨立**的受益隊擺動標示，中排＝打者·結果·投手（＋得分 chip、ΔRE24 chip），
+//     **置右獨立**的受益隊擺動標示，中排＝打者·結果·投手（＋ΔRE24 chip），
 //     下排＝雙色勝率條。新增的壘況與 ΔRE24 融入左側資訊區，不動右側元素的位置與存在感。
+//   * 得分打席在卡**之後**接一列合體版比分（`PaScoreLine`，客隊徽 2：4(+2) 主隊徽）——
+//     與逐打席同一個元件、同一個位置慣例（清單級而非卡內），兩處不會各自演化。
 //   * 勝率擺動為主資訊、ΔRE24 降為次要 chip（`muted`）——一個對勝負、一個對得分期望，
 //     互補而不重複。擺動量以**受益隊＋恆正值**標示（同生產卡），方向由隊名與隊色承載；
 //     主隊視角只留在資料層與勝率條的幾何。
@@ -22,11 +24,13 @@
 import Link from "next/link";
 import { Card, EmptyState, Eyebrow } from "@/components/ui";
 import { PlayCard } from "@/components/play-card";
+import { PaScoreLine } from "@/components/pa-score-line";
 import { WP_SWING_DISCLOSURE } from "@/components/wp-swing-badge";
 import {
   marginText, personName, scoreAfterPlay, signedDelta, situationText, wpSwingLabel,
   type KeyPlaySelection, type PaFact,
 } from "@/lib/game-facts";
+import { paScoreLineOf } from "@/lib/pa-card";
 import { methodologyHref } from "@/lib/methodology-anchors";
 import { teamColor } from "@/lib/teams";
 
@@ -83,6 +87,9 @@ export function KeyPlays({ plays, selection, homeName, awayName, homeCode, awayC
           const swing = swingLabel ? `，勝率推向${swingLabel.team} ${swingLabel.pt} 個百分點` : "";
           const label = `${situationText(play)}，${personName(play.hitter)} `
             + `${play.result_action ?? ""}${swing}，ΔRE24 ${signedDelta(play.delta_re24)}`;
+          const scoreLine = paScoreLineOf({
+            scoreAfter: scoreAfterPlay(play), runs: play.runs_on_play, half: play.half,
+          });
           return (
             <li key={play.pa_index}>
               <PlayCard
@@ -92,7 +99,6 @@ export function KeyPlays({ plays, selection, homeName, awayName, homeCode, awayC
                 margin={marginText(play)} garbageTime={play.garbage_time}
                 hitterId={play.hitter?.player_id} hitterName={personName(play.hitter)}
                 pitcherName={personName(play.pitcher)} resultAction={play.result_action}
-                runs={play.runs_on_play} scoreAfter={scoreAfterPlay(play)}
                 deltaRe24={play.delta_re24}
                 wp={play.delta_wp === null || play.delta_wp === undefined ? null : {
                   before: play.wp_before ?? null, after: play.wp_after ?? null,
@@ -103,6 +109,10 @@ export function KeyPlays({ plays, selection, homeName, awayName, homeCode, awayC
                 onActivate={onJump && play.start_event_no
                   ? () => onJump(play.start_event_no!) : undefined}
               />
+              {scoreLine && (
+                <PaScoreLine {...scoreLine} awayName={awayName} homeName={homeName}
+                  className="ml-2.5 mt-0.5" />
+              )}
             </li>
           );
         })}

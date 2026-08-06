@@ -107,6 +107,34 @@ export function buildPaCardVM(
   };
 }
 
+/** 合體版比分列（`PaScoreLine`）的資料；非得分打席為 null。 */
+export type PaScoreLineData = {
+  /** 該打席**得分後**的比分（`score_after`；不由前值＋進帳推算）。 */
+  away: number;
+  home: number;
+  /** 該打席進帳分數（> 0）。 */
+  runs: number;
+  /**
+   * `(+N)` 掛在哪一側。進帳一定屬於**進攻方**：上半局（`half==="1"`）＝客隊、
+   * 下半局＝主隊。半局不明時回 null，由呈現層把 `(+N)` 放在比分之後而不亂掛一側。
+   */
+  side: "away" | "home" | null;
+};
+
+/** 得分打席 → 比分列資料；無得分或比分缺值時回 null（呈現層據此不渲染該列）。 */
+export function paScoreLineOf(
+  pa: { scoreAfter: { away: number; home: number } | null; runs: number | null; half: string | null },
+): PaScoreLineData | null {
+  if (!pa.scoreAfter || !pa.runs || pa.runs <= 0) return null;
+  const half = String(pa.half);
+  return {
+    away: pa.scoreAfter.away,
+    home: pa.scoreAfter.home,
+    runs: pa.runs,
+    side: half === "1" ? "away" : half === "2" ? "home" : null,
+  };
+}
+
 /** 卡片的無障礙標籤（螢幕閱讀器不看壘包圖示，須有文字替代）。 */
 export function paCardLabel(vm: PaCardVM, hitterName: string, swingText: string): string {
   const bases = vm.basesBefore.length === 0 ? "壘上無人"
