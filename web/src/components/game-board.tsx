@@ -8,6 +8,7 @@ import { isCurrentTeam, teamColor, teamPageCode } from "@/lib/teams";
 import { PITCH_CALL, PA_KIND } from "@/lib/chart-theme";
 import type { WpPoint } from "@/components/win-prob-chart";
 import { buildPaGroups, type PaFact } from "@/lib/game-facts";
+import { displayWpPctInt } from "@/lib/win-prob-display";
 import {
   canShowPostgameConclusions, inningLabel, liveScorebarScores, phaseLabel, plateAppearancePitchCountLabel, trackingEmptyMessage,
   type LiveSnapshot,
@@ -201,7 +202,9 @@ function ScoreBar({ game, e, records, snapshot, gameSno }: {
 function WpBar({ homeWp, homeName, awayName, homeColor, awayColor }: {
   homeWp: number; homeName: string; awayName: string; homeColor: string; awayColor: string;
 }) {
-  const h = Math.round(homeWp * 100);
+  // 顯示夾層：本條顯示的一律是「當前打席開始時」的勝率——依定義不是終場點，故一律夾到
+  // [1%, 99%]，比賽終結前不顯示 100%／0%（`lib/win-prob-display.ts`）。
+  const h = displayWpPctInt(homeWp);
   const a = 100 - h;
   return (
     <div className="rounded-xl border border-line bg-surface px-3 py-2">
@@ -305,7 +308,8 @@ function ScoreLine({ sb, game, snapshot, halves, curKey, onSelect,
                      expandable = false, expandedHalf = null, onToggle }: {
   sb: StatRow[]; game: StatRow; snapshot: LiveSnapshot | null;
   halves: Half[]; curKey: string; onSelect: (h: Half) => void;
-  expandable?: boolean; expandedHalf?: string | null; onToggle?: (key: string) => void;
+  expandable?: boolean; expandedHalf?: string | null;
+  onToggle?: (key: string, half: Half) => void;
 }) {
   const away = sb.filter((r) => String(r.visiting_home_type) === "1");
   const home = sb.filter((r) => String(r.visiting_home_type) === "2");
@@ -355,7 +359,7 @@ function ScoreLine({ sb, game, snapshot, halves, curKey, onSelect,
         return (
           <td key={inn} className="p-0 text-center">
             {h ? (
-              <button onClick={() => (expandable && onToggle ? onToggle(k) : onSelect(h))}
+              <button onClick={() => (expandable && onToggle ? onToggle(k, h) : onSelect(h))}
                 aria-expanded={expandable ? k === expandedHalf : undefined}
                 title={expandable ? `展開 ${inn} 局${half === "1" ? "上" : "下"}打席` : undefined}
                 // hover 變體的特異性高於基底 class：選中格若同時掛 `hover:bg-surface-2`，
@@ -380,7 +384,7 @@ function ScoreLine({ sb, game, snapshot, halves, curKey, onSelect,
   };
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+    <div id="linescore" className="scroll-mt-16 overflow-x-auto rounded-xl border border-line bg-surface">
       <table className="w-full text-sm font-mono tabular-nums">
         <thead className="bg-surface-2 text-muted">
           <tr>
@@ -555,7 +559,7 @@ function StrikeZone({ pitches }: { pitches: TrackRow[] }) {
 
 // ───────────────────────── 主板 ─────────────────────────
 export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate, wp, gameSno, tabs,
-                                    facts, halfPanel, expandedHalf, onToggleHalf }: {
+                                    facts, halfPanel, expandedHalf, onToggleHalf, showPlayByPlay }: {
   data: Live;
   idx: number; setIdx: (i: number) => void;
   wp?: WpPoint[];                // 逐打席勝率（顯示當前打席的目前預期勝率）
@@ -570,6 +574,12 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
   halfPanel?: ReactNode;
   expandedHalf?: string | null;
   onToggleHalf?: (key: string) => void;
+  /**
+   * 強制顯示逐打席操作區，與 `view` 無關。
+   * 賽後態沒有獨立的「逐打席」頁籤——逐打席內容直接跟隨 linescore 的選擇顯示，
+   * 由父層以 `expandedHalf !== null` 驅動（2026-08-06 需求方人工審裁決）。
+   */
+  showPlayByPlay?: boolean;
 }) {
   const log = data.livelog;
   const game = data.game!;
@@ -579,6 +589,9 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
   // 區分 page 載入時程式化的 setIdx(終局)——後者不得捲動整頁。
   const userAction = useRef(false);
   const selectIdx = (i: number) => { userAction.current = true; setIdx(i); onNavigate?.(); };
+  // 賽後態沒有「逐打席」頁籤，選局不需要（也不可以）通知父層切頁籤——切了會讓主頁籤
+  // 落在一個不存在的值上。只移動指標，讓下方逐打席區跟著展開的半局走。
+  const selectIdxQuiet = (i: number) => { userAction.current = true; setIdx(i); };
 
   const e = log[idx] ?? log[total - 1];
   const halves = useMemo(() => buildHalves(log), [log]);
@@ -692,10 +705,11 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
 
       <ScoreLine sb={data.scoreboard} game={game} snapshot={data.live_snapshot ?? null}
         halves={halves} curKey={curKey} onSelect={(h) => selectIdx(h.firstIdx)}
-        expandable={!!onToggleHalf} expandedHalf={expandedHalf} onToggle={onToggleHalf} />
+        expandable={!!onToggleHalf} expandedHalf={expandedHalf}
+        onToggle={(key, h) => { selectIdxQuiet(h.firstIdx); onToggleHalf?.(key); }} />
       {halfPanel}
 
-      {view === "pbp" && (
+      {(view === "pbp" || showPlayByPlay) && (
       <div id="pbp-section" className="grid scroll-mt-16 gap-4 lg:grid-cols-[1fr_360px]">
         {/* 左：逐打席賽況（選定半局）*/}
         <PlayByPlay log={log} events={curEvents} idx={idx} setIdx={selectIdx} userAction={userAction} facts={facts} />

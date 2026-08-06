@@ -185,16 +185,6 @@ export default function GameLivePage() {
     };
   }, [sno, kind, year]);
 
-  // 總覽點關鍵打席／得分事實鏈／勝率曲線 → 跳到該打席（切逐打席視圖 + 捲到操作區）
-  const jumpToPa = (evt: string) => {
-    const i = data?.livelog.findIndex((e) => String(e.main_event_no) === evt) ?? -1;
-    if (i < 0) return;
-    setIdx(i);
-    setView("pbp");
-    requestAnimationFrame(() =>
-      document.getElementById("pbp-section")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  };
-
   if (err) return <ErrorState>載入賽況失敗。</ErrorState>;
   // 載入骨架：對齊記分條(rounded-2xl)＋linescore＋總覽雙卡的量體，避免 CLS
   if (!data) return (
@@ -217,6 +207,29 @@ export default function GameLivePage() {
   const completed = canShowPostgameConclusions(liveSnapshot, hs + aw);
   // 賽後主區塊只在事實流可用時置換；否則沿用既有總覽（不留白、不硬切）
   const showRecap = completed && isRecapReady(facts);
+  // 賽後態的導航模型：**記分板是唯一入口**。點逐局格子＝就地展開該半局的打席摘要，
+  // 逐打席／逐球操作區直接跟著同一個選擇顯示，不再有獨立的「逐打席」頁籤
+  // （2026-08-06 需求方人工審：頁籤是冗餘的一步，點了還是得回記分板選局）。
+  const expandable = showRecap;
+  // 事實流可能比 `view` 晚到：賽後態沒有「逐打席」頁籤，若 view 還停在 "pbp"，主頁籤會
+  // 落在一個不存在的值上。這裡正規化回總覽（逐打席內容改由 linescore 選擇驅動）。
+  const activeView: PageTab = expandable && view === "pbp" ? "overview" : view;
+
+  // 關鍵打席／得分事實鏈／勝率曲線 → 跳到該打席。
+  // 賽後態＝把該打席所屬半局展開（連帶顯示逐打席區）；賽中態＝維持既有的切頁籤行為。
+  const jumpToPa = (evt: string) => {
+    const i = data.livelog.findIndex((e) => String(e.main_event_no) === evt);
+    if (i < 0) return;
+    setIdx(i);
+    if (expandable) {
+      const row = data.livelog[i];
+      setExpandedHalf(`${row.inning_seq}|${row.visiting_home_type}`);
+    } else {
+      setView("pbp");
+    }
+    requestAnimationFrame(() =>
+      document.getElementById("pbp-section")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
 
   const highlights = buildHighlights(data, completed);
   const { items: decisionItems, mvp } = buildDecisions(data, completed);
@@ -253,10 +266,11 @@ export default function GameLivePage() {
   const delayNote = delayNoteOf(g);
   if (delayNote) info.push([String(g.delay_kind), `☔ ${delayNote}`]);
 
-  const boxTab: BoxTab | null = view === "away" || view === "home" || view === "ana" || view === "umpire" ? view : null;
+  const boxTab: BoxTab | null = activeView === "away" || activeView === "home" || activeView === "ana" || activeView === "umpire" ? activeView : null;
   const pageTabs: { value: PageTab; label: string }[] = [
     { value: "overview", label: completed ? "賽後戰報" : "比賽總覽" },
-    { value: "pbp", label: "逐打席" },
+    // 賽後態的逐打席內容跟隨 linescore 選擇顯示，不另設頁籤（見上方導航模型註解）
+    ...(expandable ? [] : [{ value: "pbp" as PageTab, label: "逐打席" }]),
   ];
   if (data.batting.length > 0) {
     pageTabs.push(
@@ -268,7 +282,6 @@ export default function GameLivePage() {
   }
 
   // linescore 展開面板（只在賽後態且事實流可用時啟用「點格子＝展開」語意）
-  const expandable = showRecap;
   const expandedPlays = expandedHalf ? facts?.half_innings?.[expandedHalf] : undefined;
   const halfPanel = expandable && expandedHalf ? (
     <HalfInningPlays
@@ -286,20 +299,21 @@ export default function GameLivePage() {
 
       {data.livelog.length > 0 ? (
         <section className="mb-8 mt-2 space-y-4">
-          <GameBoard data={data} idx={idx} setIdx={setIdx} view={view === "pbp" ? "pbp" : "overview"} wp={wp ?? undefined} gameSno={sno}
+          <GameBoard data={data} idx={idx} setIdx={setIdx} view={activeView === "pbp" ? "pbp" : "overview"} wp={wp ?? undefined} gameSno={sno}
             onNavigate={() => setView("pbp")}
             facts={facts?.plate_appearances ?? null}
             halfPanel={halfPanel}
             expandedHalf={expandedHalf}
+            showPlayByPlay={expandable && expandedHalf !== null}
             onToggleHalf={expandable
               ? (key) => setExpandedHalf((current) => (current === key ? null : key))
               : undefined}
             tabs={<StickyNavBar label="賽況檢視" flush>
               <div className="flex min-w-0 items-center overflow-x-auto overscroll-x-contain">
-                <MainTabs label="賽況檢視" value={view} onChange={setView} items={pageTabs} />
+                <MainTabs label="賽況檢視" value={activeView} onChange={setView} items={pageTabs} />
               </div>
             </StickyNavBar>} />
-          {view === "overview" && (
+          {activeView === "overview" && (
             <>
               {isProvisional(facts) && showRecap && (
                 <div className="flex justify-end px-1"><ProvisionalBadge /></div>
@@ -307,7 +321,9 @@ export default function GameLivePage() {
               {showRecap ? (
                 <RecapMain facts={facts} decisions={decisionItems} mvp={mvp}
                   highlights={visibleHighlights} milestones={milestoneItems} info={info}
-                  onJump={jumpToPa} onPlayByPlay={() => setView("pbp")} />
+                  onJump={jumpToPa}
+                  onPickInning={() => document.getElementById("linescore")
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" })} />
               ) : (
                 <GameOverview wp={wp ?? []} log={data.livelog}
                   homeName={String(g.home_team_name)} awayName={String(g.away_team_name)}

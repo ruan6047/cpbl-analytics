@@ -19,7 +19,7 @@ import { TeamLines } from "../recap/team-lines";
 import type { DecItem, Highlight, MvpLine } from "../game-summary";
 
 export function RecapMain({ facts, decisions, mvp, highlights, milestones, info,
-                            onJump, onPlayByPlay }: {
+                            onJump, onPickInning }: {
   facts: GameFacts | null;
   decisions: DecItem[];
   mvp: MvpLine | null;
@@ -27,7 +27,7 @@ export function RecapMain({ facts, decisions, mvp, highlights, milestones, info,
   milestones: Highlight[];
   info: [string, React.ReactNode][];
   onJump: (eventNo: string) => void;
-  onPlayByPlay: () => void;
+  onPickInning: () => void;
 }) {
   // 事實流還在路上：只放骨架，不塌陷（CLS）
   if (!facts) {
@@ -52,7 +52,7 @@ export function RecapMain({ facts, decisions, mvp, highlights, milestones, info,
           onJump={onJump} />
         <TeamLines highlights={highlights} milestones={milestones} info={info} />
       </div>
-      <JumpLinks onPlayByPlay={onPlayByPlay} />
+      <JumpLinks onPickInning={onPickInning} />
     </div>
   );
 }
