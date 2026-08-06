@@ -1,8 +1,17 @@
 // 關鍵打席的**勝率條**：打席後的勝率水平 ＋ 該打席造成的位移段。
 //
 // 需求方 2026-08-06 第五輪人工審第三階裁決：「我想保留原先的長條圖來顯示當前勝率以及
-// 該打席造成的變化，而不是只顯示數字。」——沿用 `game-board.tsx` 的雙色勝率條視覺語言
-// （客隊色｜主隊色，主隊佔比＝主隊勝率），再疊一段標示此打席造成的位移。
+// 該打席造成的變化，而不是只顯示數字。」＋第四階樣式回饋：「之前關鍵打席差值會改用輔色，
+// 感覺那樣效果比較好」——**視覺完全對齊生產上線版**的「關鍵時刻」卡
+// （`games/[sno]/overview.tsx` 的 `MomentRow`，即目前 cpbl.ruan-ruan.com 跑的版本）：
+//   * 底層雙色條：左＝客隊色、右＝主隊色，交界＝打席後的主隊勝率。
+//   * 位移段＝**受益隊的輔助色**（同色相的亮版 tint，`color-mix` 55% white）＋白色左右邊界，
+//     色相相同保住「這一打席往哪隊推」的語意，亮度差提供辨識度。
+//   * 條高 h-2、邊界 border-x border-white/70 皆與生產版逐項相同。
+//
+// 為什麼是複製而不是 import 生產那支：`MomentRow` 是舊 fallback 路徑的內部元件，吃的是
+// 近似分組的 `Moment`；本元件吃事實流的 canonical 打席。兩者資料源不同、生命週期不同
+//（fallback 遲早退場），共用會把舊路徑釘死；視覺契約則以本註解與下方常數對齊。
 //
 // 統計守門（裁決演進第三階，交付說明已寫給查核者）：條顯示的是**水平值的視覺化**，
 // 與已上線的 WP 曲線同資訊類——曲線本來就逐點畫水平值，故揭露沿曲線既有框架
@@ -33,29 +42,25 @@ export function WpSwingBar({ before, after, terminal = false, homeColor, awayCol
   const a = displayWpPctInt(after, terminal);
   if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
 
-  // 位移段＝兩個主隊勝率之間的區間（畫在主隊側的邊界上，方向即升降）。
-  const lo = Math.min(a, b);
-  const hi = Math.max(a, b);
-  const rising = a >= b;   // 主隊勝率上升
+  // 受益隊用**原值**判定，不吃夾層（與生產版同一條註記）：夾層是顯示規則，極端局面下
+  // 夾過的兩端可能相等，但「這一打席往哪隊推」是事實，不該被顯示規則抹掉。
+  const gain = after - before > 0;                       // 主隊受益
+  const aux = `color-mix(in srgb, ${gain ? homeColor : awayColor} 55%, white)`;
+  // 幾何與生產版同式：以客隊側（左）為座標，交界＝1 − 主隊勝率。
+  const lo = Math.min(100 - a, 100 - b);
+  const hi = Math.max(100 - a, 100 - b);
   const label = `${awayName || "客隊"} ${100 - a}%／${homeName || "主隊"} ${a}%`
     + `（此打席位移 ${hi - lo} 個百分點）`;
 
   return (
-    <div className={`mt-1 ${className}`} title={label} aria-label={label} role="img">
-      <div className="relative flex h-1.5 overflow-hidden rounded-full">
+    <div className={`mt-1.5 ${className}`} title={label} aria-label={label} role="img">
+      <div className="relative flex h-2 overflow-hidden rounded-full">
         {/* 底層：打席**後**的水平（客隊左、主隊右，與記分條的勝率條同方向） */}
         <div style={{ width: `${100 - a}%`, background: awayColor }} />
         <div style={{ width: `${a}%`, background: homeColor }} />
-        {/* 疊層：此打席造成的位移段——用受益方的隊色描邊，方向靠位置本身表達 */}
-        <span
-          aria-hidden
-          className="absolute inset-y-0 rounded-full ring-1 ring-inset ring-paper/70"
-          style={{
-            left: `${100 - hi}%`,
-            width: `${Math.max(hi - lo, 0.6)}%`,
-            background: rising ? homeColor : awayColor,
-          }}
-        />
+        {/* 位移段：受益隊輔助色（亮版隊色）＋白色左右邊界，同生產版 */}
+        <div aria-hidden className="absolute inset-y-0 border-x border-white/70"
+          style={{ left: `${lo}%`, width: `${hi - lo}%`, background: aux }} />
       </div>
     </div>
   );
