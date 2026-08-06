@@ -25,6 +25,7 @@ import re
 from collections import defaultdict
 
 from cpbl.db import conn
+from cpbl.ingest.pa_build import Taxonomy, event_sort_key, is_non_pa_action, load_taxonomy
 
 log = logging.getLogger("cpbl.sabr")
 
@@ -575,6 +576,120 @@ def _bases_of(e: dict) -> str:
             + ("3" if e.get("third_base") else "_"))
 
 
+# ── 打席處置的**封閉集合**（「未歸類 = 0」的形式化）────────────────────────
+# 每個 naive 打席只有四種下場：記給打者，或以三種**列得出名字的**理由歸跑者桶。
+# 不存在第五種狀態——新增理由必須同時擴充 RE24_DISPOSITIONS，否則
+# tests/test_sabr_re24.py 紅燈。這是 spike「逐打席窮舉歸類，未歸類 = 0」
+# （docs/research/INIT-GAME-RECAP/spike-report.md §2.3）帶進生產碼的形式。
+RE24_CHARGED = "charged_to_batter"
+RE24_NON_PA = "runner_bucket_non_pa"                 # 非打席列（突破僵局幽靈跑者）
+RE24_TRUNCATED = "runner_bucket_truncated"           # 截斷碎片（跑壘出局／無打者結果）
+RE24_NEGATIVE_RUNS = "runner_bucket_negative_runs"   # 比分修正列
+RE24_DISPOSITIONS = frozenset({
+    RE24_CHARGED, RE24_NON_PA, RE24_TRUNCATED, RE24_NEGATIVE_RUNS,
+})
+
+
+def re24_disposition(final_action: object, *, outs_before_terminal: int,
+                     runs_on_play: int, taxonomy: Taxonomy) -> str:
+    """單一 naive 打席該記給打者還是跑者桶（純函式，判準的唯一擁有者）。
+
+    優先序刻意讓 **non_pa 走在 truncated 之前**：幽靈跑者列該被叫做「非打席」，
+    不是「截斷碎片」——兩者都進跑者桶、數值相同，但混在同一個計數器裡會讓
+    「截斷碎片量級」這個體檢指標被延長賽場次數稀釋，看不出哪個在成長。
+    """
+    if is_non_pa_action(final_action, taxonomy):
+        return RE24_NON_PA
+    if outs_before_terminal >= 3 or not str(final_action or "").strip():
+        return RE24_TRUNCATED
+    if runs_on_play < 0:
+        return RE24_NEGATIVE_RUNS
+    return RE24_CHARGED
+
+
+def re24_plays(events: list[dict], re_map: dict[tuple[str, int], float],
+               taxonomy: Taxonomy) -> tuple[list[dict], dict]:
+    """單場 livelog → 逐打席 RE24 歸因（**純函式**：不碰 DB、不改動輸入 dict）。
+
+    抽成純函式是為了讓幽靈跑者與「未歸類 = 0」能用合成事件流釘死，不必起 DB。
+    :func:`build_re24` 只剩「載資料 → 呼叫本函式 → 累加 → 寫表」。
+
+    回傳 ``(plays, totals)``：
+      * ``plays``：每個 naive 打席一筆，含 ``disposition``（RE24_DISPOSITIONS 之一）
+        與 ``delta``（打者觀點 ΔRE24）；非 ``charged_to_batter`` 者其 delta 已計入
+        ``totals["runner_delta"]``，呼叫端**不得**再記給打者。
+      * ``totals``：``halves``／``runs``／``runner_delta``（恆等式驗算用）。
+    """
+    ordered = [dict(e) for e in sorted(events, key=event_sort_key)]
+    # 預跑：每列標「事件前/後比分」（None 比分沿用前值，跨半局連續）
+    pv = ph = 0
+    for e in ordered:
+        e["_pre_vs"], e["_pre_hs"] = pv, ph
+        pv = e["visiting_score"] if e.get("visiting_score") is not None else pv
+        ph = e["home_score"] if e.get("home_score") is not None else ph
+        e["_post_vs"], e["_post_hs"] = pv, ph
+    # 依半局分組（保序）
+    halves: dict[tuple, list[dict]] = {}
+    order: list[tuple] = []
+    for e in ordered:
+        k = (e["inning_seq"], str(e["visiting_home_type"]))
+        if k not in halves:
+            halves[k] = []
+            order.append(k)
+        halves[k].append(e)
+
+    plays: list[dict] = []
+    runner_delta, runs, n_halves = 0.0, 0, 0
+    for hk in order:
+        vht = hk[1]
+        pre_k = "_pre_vs" if vht == "1" else "_pre_hs"
+        post_k = "_post_vs" if vht == "1" else "_post_hs"
+        evs = [e for e in halves[hk] if not e.get("is_change_player") and e.get("hitter_acnt")]
+        if not evs:
+            continue
+        n_halves += 1
+        runs += halves[hk][-1][post_k] - halves[hk][0][pre_k]
+        # 打席切界：連續同 hitter
+        pas: list[list[dict]] = []
+        for e in evs:
+            if pas and pas[-1][-1]["hitter_acnt"] == e["hitter_acnt"]:
+                pas[-1].append(e)
+            else:
+                pas.append([e])
+        for pi, pa in enumerate(pas):
+            first, final = pa[0], pa[-1]
+            s_state = (_bases_of(first), min(int(first.get("out_cnt") or 0), 2))
+            outs_f = int(first.get("out_cnt") or 0)
+            for e in pa[:-1]:
+                for m in _OUTS_ANN.findall(e.get("content") or ""):
+                    outs_f = max(outs_f, int(m))
+            runs_play = final[post_k] - final[pre_k]      # 末事件自身的得分
+            mid_runs = final[pre_k] - first[pre_k]        # 打席中途（跑者）得分
+            if pi + 1 < len(pas):
+                nxt = pas[pi + 1][0]
+                re_after = re_map[(_bases_of(nxt), min(int(nxt.get("out_cnt") or 0), 2))]
+            else:
+                re_after = 0.0                            # 半局末
+            re_f = re_map[(_bases_of(final), min(outs_f, 2))]
+            # 跑者桶：打席中途異動（起始態→末事件前態 + 中途得分）
+            runner_delta += re_f + mid_runs - re_map[s_state]
+            delta = re_after + runs_play - re_f
+            disposition = re24_disposition(
+                final.get("action_name"), outs_before_terminal=outs_f,
+                runs_on_play=runs_play, taxonomy=taxonomy)
+            if disposition != RE24_CHARGED:
+                runner_delta += delta
+            plays.append({
+                "inning": hk[0], "half": vht,
+                "end_event_no": str(final.get("main_event_no")),
+                "hitter_acnt": final.get("hitter_acnt"),
+                "pitcher_acnt": final.get("pitcher_acnt"),
+                "action_name": final.get("action_name"),
+                "delta": delta, "disposition": disposition,
+            })
+    return plays, {"halves": n_halves, "runs": runs, "runner_delta": runner_delta}
+
+
 def build_re24(year: int, kind: str = "A", span: str = "2018-2025") -> dict:
     """打者/投手 RE24（Retrosheet 慣例）→ batter_re24 / pitcher_re24。
 
@@ -588,6 +703,11 @@ def build_re24(year: int, kind: str = "A", span: str = "2018-2025") -> dict:
     - 打席切界：同半局內連續同 hitter 的**非更換**事件（更換列 out_cnt 陳舊、代打列帶新打者）。
     - 末事件態出局數 = 打席起始 out_cnt + 末事件**之前**內文宣告「N人出局」補正；≥3 即截斷。
     - 截斷碎片（末事件 action_name 空 = 無打者結果）歸跑者桶。
+    - **非打席列（taxonomy role=non_pa，現行即突破僵局上壘）歸跑者桶**：延長賽把跑者
+      直接放上二壘，沒有打席、沒有投球，被放上壘的那個人不該記一個打席與 +0.6356
+      RE24（DATA-RE24-GHOST-RUNNER1／spike-report §2.3）。判準走
+      ``pa_build.is_non_pa_action``——與 canonical PA builder 同一擁有者，不自比字串。
+      該 ΔRE 屬「非打者造成的壘況變化」，與盜壘／暴投同性質，故入跑者桶（恆等式守恆）。
     - 半局末打席 RE_after=0（再見局 RE 依慣例歸零、得分照記）。
     - 投手 = 末事件 pitcher_acnt，記同值（打者觀點，負=壓制）。
     驗證恆等式：Σ打者+Σ跑者 = Σ得分 − 半局數×RE(空壘,0)（望遠鏡求和，結構性成立；
@@ -595,7 +715,9 @@ def build_re24(year: int, kind: str = "A", span: str = "2018-2025") -> dict:
     """
     bat: dict[str, list] = defaultdict(lambda: [0, 0.0])   # player -> [pa, re24]
     pit: dict[str, list] = defaultdict(lambda: [0, 0.0])
-    runner_sum, runs_total, n_halves, skipped_pa = 0.0, 0, 0, 0
+    runner_sum, runs_total, n_halves = 0.0, 0, 0
+    counts: dict[str, int] = dict.fromkeys(sorted(RE24_DISPOSITIONS), 0)
+    taxonomy = load_taxonomy()
     with conn() as c:
         cur = c.cursor()
         re_map = _load_re_matrix(cur, span, kind)
@@ -609,68 +731,20 @@ def build_re24(year: int, kind: str = "A", span: str = "2018-2025") -> dict:
             events = _load_game(cur, year, kind, sno)
             if not events:
                 continue
-            # 預跑：每列標「事件前比分」（None 比分沿用前值）
-            pv, ph = 0, 0
-            for e in events:
-                e["_pre_vs"], e["_pre_hs"] = pv, ph
-                pv = e["visiting_score"] if e.get("visiting_score") is not None else pv
-                ph = e["home_score"] if e.get("home_score") is not None else ph
-                e["_post_vs"], e["_post_hs"] = pv, ph
-            # 依半局分組（保序）
-            halves: dict[tuple, list[dict]] = {}
-            order: list[tuple] = []
-            for e in events:
-                k = (e["inning_seq"], str(e["visiting_home_type"]))
-                if k not in halves:
-                    halves[k] = []
-                    order.append(k)
-                halves[k].append(e)
-            for hk in order:
-                vht = hk[1]
-                pre_k = "_pre_vs" if vht == "1" else "_pre_hs"
-                post_k = "_post_vs" if vht == "1" else "_post_hs"
-                evs = [e for e in halves[hk] if not e.get("is_change_player")
-                       and e.get("hitter_acnt")]
-                if not evs:
+            plays, totals = re24_plays(events, re_map, taxonomy)
+            n_halves += totals["halves"]
+            runs_total += totals["runs"]
+            runner_sum += totals["runner_delta"]   # 含非 charged 打席已轉入的 delta
+            for play in plays:
+                counts[play["disposition"]] += 1
+                if play["disposition"] != RE24_CHARGED:
                     continue
-                n_halves += 1
-                runs_total += halves[hk][-1][post_k] - halves[hk][0][pre_k]
-                # 打席切界：連續同 hitter
-                pas: list[list[dict]] = []
-                for e in evs:
-                    if pas and pas[-1][-1]["hitter_acnt"] == e["hitter_acnt"]:
-                        pas[-1].append(e)
-                    else:
-                        pas.append([e])
-                for pi, pa in enumerate(pas):
-                    first, final = pa[0], pa[-1]
-                    s_state = (_bases_of(first), min(int(first.get("out_cnt") or 0), 2))
-                    outs_f = int(first.get("out_cnt") or 0)
-                    for e in pa[:-1]:
-                        for m in _OUTS_ANN.findall(e.get("content") or ""):
-                            outs_f = max(outs_f, int(m))
-                    runs_play = final[post_k] - final[pre_k]      # 末事件自身的得分
-                    mid_runs = final[pre_k] - first[pre_k]        # 打席中途（跑者）得分
-                    if pi + 1 < len(pas):
-                        nxt = pas[pi + 1][0]
-                        re_after = re_map[(_bases_of(nxt), min(int(nxt.get("out_cnt") or 0), 2))]
-                    else:
-                        re_after = 0.0
-                    truncated = outs_f >= 3 or not (final.get("action_name") or "").strip()
-                    re_f = re_map[(_bases_of(final), min(outs_f, 2))]
-                    # 跑者桶：打席中途異動（起始態→末事件前態 + 中途得分）
-                    runner_sum += re_f + mid_runs - re_map[s_state]
-                    delta = re_after + runs_play - re_f
-                    if truncated or runs_play < 0:
-                        runner_sum += delta
-                        skipped_pa += 1
-                        continue
-                    bat[final["hitter_acnt"]][0] += 1
-                    bat[final["hitter_acnt"]][1] += delta
-                    if final.get("pitcher_acnt"):
-                        p = pit[final["pitcher_acnt"]]
-                        p[0] += 1
-                        p[1] += delta
+                bat[play["hitter_acnt"]][0] += 1
+                bat[play["hitter_acnt"]][1] += play["delta"]
+                if play.get("pitcher_acnt"):
+                    p = pit[play["pitcher_acnt"]]
+                    p[0] += 1
+                    p[1] += play["delta"]
     with conn() as c:
         c.execute("DELETE FROM cpbl.batter_re24 WHERE year=%s AND kind_code=%s", (year, kind))
         c.execute("DELETE FROM cpbl.pitcher_re24 WHERE year=%s AND kind_code=%s", (year, kind))
@@ -685,9 +759,12 @@ def build_re24(year: int, kind: str = "A", span: str = "2018-2025") -> dict:
     bat_sum = sum(v for _n, v in bat.values())
     resid = bat_sum + runner_sum - (runs_total - n_halves * re_start)
     log.info("re24 %s/%s：%d 場 %d 半局；打者Σ=%+.1f 跑者Σ=%+.1f 得分=%d "
-             "恆等式殘差=%+.1f（截斷/異常打席 %d）",
-             year, kind, len(snos), n_halves, bat_sum, runner_sum, runs_total,
-             resid, skipped_pa)
+             "恆等式殘差=%+.1f（截斷碎片 %d，非打席列 %d，比分修正 %d）",
+             year, kind, len(snos), n_halves, bat_sum, runner_sum, runs_total, resid,
+             counts[RE24_TRUNCATED], counts[RE24_NON_PA], counts[RE24_NEGATIVE_RUNS])
     return {"halves": n_halves, "batters": len(bat), "pitchers": len(pit),
             "bat_sum": round(bat_sum, 1), "runner_sum": round(runner_sum, 1),
-            "residual": round(resid, 1)}
+            "residual": round(resid, 1),
+            # 逐打席處置的完整分割：sum(dispositions.values()) == naive 打席總數，
+            # 且鍵集恆等於 RE24_DISPOSITIONS（未歸類 = 0 的可稽核形式）。
+            "dispositions": counts}
