@@ -84,7 +84,9 @@ function MomentRow({ m, homeName, awayName, homeColor, awayColor, onJump }: {
   );
 }
 
-export type DecItem = { label: string; value: string; note?: string; pid?: string };
+// 決勝資訊項的型別統一由 `game-summary.ts` 出（原本在本檔宣告，重構後上移）。
+import type { DecItem } from "./game-summary";
+export type { DecItem };
 
 export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor, onJump, highlights, milestones, info, mvp, decisions }: {
   wp: WpPoint[]; log: StatRow[]; homeName: string; awayName: string;
