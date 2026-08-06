@@ -144,16 +144,28 @@ export const signedDelta = (value: number | null): string =>
   value === null ? "—" : `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value).toFixed(2)}`;
 
 /**
- * 勝率變化的顯示字串：**取整數百分點**（如 `+29pt`）。
+ * 勝率擺動的顯示標示：**受益隊＋恆正值**（如 `樂天桃猿 +19pt`）。
  *
- * 不給小數是刻意的誠實：WP 的機率水平值有已知 ±4–6 個百分點的校準偏差
- * （/methodology#winprob-validation），把擺動量寫到小數點後一位是假精度。
+ * 需求方 2026-08-06 樣式回饋：「上線版資訊比較少但可視度比較清楚，像『ＸＸＸ隊＋Ｏ％』
+ * 就很明顯。」——與生產「關鍵時刻」卡同一套標示法。**內部資料維持主隊視角**
+ * （`delta_wp` 正＝主隊上升），受益方轉換只發生在顯示層：讀者不必先知道誰是主隊、
+ * 也不必解讀負號，就能讀出「這一打席把勝率推向誰、推了多少」。
+ *
+ * 取整數百分點是刻意的誠實：WP 水平值有已知 ±4–6 個百分點的校準偏差
+ * （/methodology#winprob-validation），寫到小數點後一位是假精度。
+ *
+ * 回傳 null＝無擺動值或剛好持平（**不編一個受益隊**）。
  */
-export const signedWpPt = (value: number | null | undefined): string => {
-  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
-  const pt = Math.round(value * 100);
-  return `${pt > 0 ? "+" : pt < 0 ? "−" : ""}${Math.abs(pt)}pt`;
-};
+export function wpSwingLabel(
+  value: number | null | undefined, homeName?: string | null, awayName?: string | null,
+): { team: string; home: boolean; pt: number; text: string } | null {
+  if (value === null || value === undefined || !Number.isFinite(value)) return null;
+  const pt = Math.abs(Math.round(value * 100));
+  if (value === 0) return null;
+  const home = value > 0;
+  const team = (home ? homeName : awayName) || (home ? "主隊" : "客隊");
+  return { team, home, pt, text: `${team} +${pt}pt` };
+}
 
 /** 顯示用姓名：逐場來源優先，缺名才退回 ID（`cpbl.players` 會缺當季新登錄球員）。 */
 export const personName = (person: FactPerson | null | undefined): string =>

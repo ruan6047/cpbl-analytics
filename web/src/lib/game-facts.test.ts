@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  buildPaGroups, halfLabel, marginText, personName, scoreAfterPlay, signedDelta, signedWpPt,
-  situationText, type PaFact,
+  buildPaGroups, halfLabel, marginText, personName, scoreAfterPlay, signedDelta,
+  situationText, wpSwingLabel, type PaFact,
 } from "./game-facts.ts";
 
 // ---------------------------------------------------------------------------
@@ -127,15 +127,25 @@ test("signedDelta 帶正負號、缺值不寫成 0", () => {
   assert.equal(signedDelta(null), "—");
 });
 
-test("signedWpPt 取整數百分點（不給假精度）、缺值不寫成 0", () => {
-  assert.equal(signedWpPt(0.2934), "+29pt");
-  assert.equal(signedWpPt(-0.1712), "−17pt");
-  assert.equal(signedWpPt(0.0049), "0pt");   // 四捨五入到 0：仍是「量測到的 0」，不是缺值
-  assert.equal(signedWpPt(0), "0pt");
-  assert.equal(signedWpPt(null), "—");
-  // `plate_appearances` 不帶 delta_wp（undefined）→ 與 null 同樣不得印成 0
-  assert.equal(signedWpPt(undefined), "—");
-  assert.equal(signedWpPt(Number.NaN), "—");
+test("wpSwingLabel 以受益隊＋恆正值標示（同上線版關鍵時刻卡）", () => {
+  // 主隊視角的正值 → 受益隊＝主隊；負值 → 受益隊＝客隊，且數字恆正（不留負號給讀者解讀）
+  assert.deepEqual(wpSwingLabel(0.2934, "台鋼雄鷹", "樂天桃猿"),
+    { team: "台鋼雄鷹", home: true, pt: 29, text: "台鋼雄鷹 +29pt" });
+  assert.deepEqual(wpSwingLabel(-0.1712, "台鋼雄鷹", "樂天桃猿"),
+    { team: "樂天桃猿", home: false, pt: 17, text: "樂天桃猿 +17pt" });
+  // 取整數百分點（不給假精度）
+  assert.equal(wpSwingLabel(0.0549, "主", "客")?.text, "主 +5pt");
+  // 隊名缺席時退回主／客，不留空字串
+  assert.equal(wpSwingLabel(0.2, null, null)?.text, "主隊 +20pt");
+  assert.equal(wpSwingLabel(-0.2, null, null)?.text, "客隊 +20pt");
+});
+
+test("wpSwingLabel 缺值與持平回 null（不編一個受益隊）", () => {
+  assert.equal(wpSwingLabel(null, "主", "客"), null);
+  // `plate_appearances` 不帶 delta_wp（undefined）→ 同樣不得標出受益隊
+  assert.equal(wpSwingLabel(undefined, "主", "客"), null);
+  assert.equal(wpSwingLabel(Number.NaN, "主", "客"), null);
+  assert.equal(wpSwingLabel(0, "主", "客"), null);
 });
 
 test("situationText 給出圖示以外的文字替代（a11y）", () => {
