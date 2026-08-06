@@ -1,4 +1,5 @@
 import type { PregameResponse } from "./pregame-card";
+import type { GameFacts } from "./game-facts";
 import type { GameStatusResponse, LiveApiResponse } from "./live-game";
 
 // 瀏覽器端 API base。prod 同源(經 nginx)→ 可留空走相對路徑；dev 指向 FastAPI。
@@ -269,6 +270,9 @@ export const detail = {
     clientGet<LiveApiResponse>(`/api/v1/games/${sno}/live?kind_code=${kind}${year ? `&season=${year}` : ""}`),
   gameStatus: (sno: number, kind = "A", year?: number) =>
     clientGet<GameStatusResponse>(`/api/v1/games/${sno}/status?kind_code=${kind}${year ? `&season=${year}` : ""}`),
+  // 打席事實流（recap 五塊／linescore 展開／逐打席換底共用；ΔRE24 由後端算）
+  gameFacts: (sno: number, kind = "A", year?: number) =>
+    clientGet<GameFacts>(`/api/v1/games/${sno}/facts?kind_code=${kind}${year ? `&season=${year}` : ""}`),
   // 全聯盟本季母體（算百分位 PR 用）
   leaders: (role: "batting" | "pitching") =>
     clientGet<{ items: StatRow[] }>(

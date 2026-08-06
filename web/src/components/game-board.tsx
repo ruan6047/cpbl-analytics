@@ -7,6 +7,10 @@ import { ENTITY_LINK, ENTITY_LINK_TEXT, TeamLogo } from "@/components/ui";
 import { isCurrentTeam, teamColor, teamPageCode } from "@/lib/teams";
 import { PITCH_CALL, PA_KIND } from "@/lib/chart-theme";
 import type { WpPoint } from "@/components/win-prob-chart";
+import { buildPaGroups, type PaFact } from "@/lib/game-facts";
+import { displayWpPctInt } from "@/lib/win-prob-display";
+import { Re24Badge } from "@/components/re24-badge";
+import { RunsBadge, ScoreAfterBadge } from "@/components/runs-badge";
 import {
   canShowPostgameConclusions, inningLabel, liveScorebarScores, phaseLabel, plateAppearancePitchCountLabel, trackingEmptyMessage,
   type LiveSnapshot,
@@ -200,7 +204,9 @@ function ScoreBar({ game, e, records, snapshot, gameSno }: {
 function WpBar({ homeWp, homeName, awayName, homeColor, awayColor }: {
   homeWp: number; homeName: string; awayName: string; homeColor: string; awayColor: string;
 }) {
-  const h = Math.round(homeWp * 100);
+  // 顯示夾層：本條顯示的一律是「當前打席開始時」的勝率——依定義不是終場點，故一律夾到
+  // [1%, 99%]，比賽終結前不顯示 100%／0%（`lib/win-prob-display.ts`）。
+  const h = displayWpPctInt(homeWp);
   const a = 100 - h;
   return (
     <div className="rounded-xl border border-line bg-surface px-3 py-2">
@@ -295,10 +301,16 @@ function buildHalves(log: StatRow[]): Half[] {
   return [...seen.values()];
 }
 
-// 逐局比分 = 局數導覽：每局格子可點（客列=上半、主列=下半）
-function ScoreLine({ sb, game, snapshot, halves, curKey, onSelect }: {
+// 逐局比分 = 局數導覽：每局格子可點（客列=上半、主列=下半）→ 跳到該半局的逐打席。
+//
+// `highlightSelection=false`＝**純顯示**：仍可點（一次點擊跳到逐打席並定位該半局），但不標
+// 示選中局。賽後戰報總覽用這個模式——那裡的記分板是戰報的一部分，標一個選中局會讓讀者
+// 以為總覽內容跟著它變；逐打席頁籤裡的記分板才是導航器，標示在那裡才有功能意義
+// （2026-08-06 需求方人工審定案）。
+function ScoreLine({ sb, game, snapshot, halves, curKey, onSelect, highlightSelection = true }: {
   sb: StatRow[]; game: StatRow; snapshot: LiveSnapshot | null;
   halves: Half[]; curKey: string; onSelect: (h: Half) => void;
+  highlightSelection?: boolean;
 }) {
   const away = sb.filter((r) => String(r.visiting_home_type) === "1");
   const home = sb.filter((r) => String(r.visiting_home_type) === "2");
@@ -344,12 +356,18 @@ function ScoreLine({ sb, game, snapshot, halves, curKey, onSelect }: {
       {innings.map((inn) => {
         const k = `${inn}|${half}`;
         const h = halfBy.get(k);
-        const active = k === curKey;
+        const active = highlightSelection && k === curKey;
         return (
           <td key={inn} className="p-0 text-center">
             {h ? (
               <button onClick={() => onSelect(h)}
-                className={`h-9 w-full px-2.5 transition-colors hover:bg-surface-2 ${active ? "bg-accent font-semibold text-white" : "text-muted"}`}>
+                title={`看 ${inn} 局${half === "1" ? "上" : "下"}的逐打席`}
+                // hover 變體的特異性高於基底 class：選中格若同時掛 `hover:bg-surface-2`，
+                // 滑鼠停留時底色會被換成淺灰而文字仍是白色（對比度不足）。故 hover 樣式
+                // 只給未選中的格子。
+                className={`h-9 w-full px-2.5 transition-colors ${active
+                  ? "bg-accent font-semibold text-white"
+                  : "text-muted hover:bg-surface-2"}`}>
                 {cellNode(rows, inn, half)}
               </button>
             ) : (
@@ -366,7 +384,7 @@ function ScoreLine({ sb, game, snapshot, halves, curKey, onSelect }: {
   };
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+    <div id="linescore" className="scroll-mt-16 overflow-x-auto rounded-xl border border-line bg-surface">
       <table className="w-full text-sm font-mono tabular-nums">
         <thead className="bg-surface-2 text-muted">
           <tr>
@@ -387,9 +405,11 @@ function ScoreLine({ sb, game, snapshot, halves, curKey, onSelect }: {
 }
 
 // ───────────────────────── 逐打席賽況（選定半局）─────────────────────────
-function PlayByPlay({ log, events, idx, setIdx, userAction }: {
+function PlayByPlay({ log, events, idx, setIdx, userAction, facts }: {
   log: StatRow[]; events: number[]; idx: number; setIdx: (i: number) => void;
   userAction: MutableRefObject<boolean>;
+  /** canonical 打席（打席事實流）；缺席時分組退回既有近似切法，行為完全不變。 */
+  facts?: PaFact[] | null;
 }) {
   const activeRef = useRef<HTMLButtonElement | null>(null);
   // 只在使用者切半局／點打席時才把當前打席捲入視野。
@@ -402,19 +422,28 @@ function PlayByPlay({ log, events, idx, setIdx, userAction }: {
     activeRef.current?.scrollIntoView({ block: "nearest" });
   }, [idx, userAction]);
 
-  // 將本半局事件切成打席群組：連續同打者（非換人）＝一個打席；換人/跑者事件單獨成列。
-  // 收合時每個打席只顯示「結果行」（該打席末筆），點擊展開該打席的逐球（含當前 idx 的打席自動展開）。
-  type Grp =
-    | { kind: "pa"; hitter: string; name: string; pitcher: string; idxs: number[] }
-    | { kind: "sub"; gi: number };
-  const groups: Grp[] = [];
-  for (const gi of events) {
-    const ev = log[gi];
-    if (ev.is_change_player || !ev.hitter_acnt) { groups.push({ kind: "sub", gi }); continue; }
-    const last = groups[groups.length - 1];
-    if (last && last.kind === "pa" && last.hitter === String(ev.hitter_acnt)) last.idxs.push(gi);
-    else groups.push({ kind: "pa", hitter: String(ev.hitter_acnt), name: String(ev.hitter_name ?? ""), pitcher: String(ev.pitcher_name ?? ""), idxs: [gi] });
-  }
+  // 將本半局事件切成打席群組。收合時每個打席只顯示「結果行」（該打席末筆），點擊展開
+  // 該打席的逐球（含當前 idx 的打席自動展開）。
+  //
+  // **換底不換臉**：分組改由 `buildPaGroups` 統一產生——有 canonical 打席就用它
+  // （打席中途代打不再被切成兩段、記錄歸屬依規則 9.15(b)），沒有就逐位元退回原本的
+  // 「連續同打者」近似切法（`pa-groups.test.ts` 釘住兩者在無事實流時完全相同）。
+  const groups = buildPaGroups(log as unknown as Parameters<typeof buildPaGroups>[0], events, facts);
+
+  // 逐列的「該事件進帳分數 ＋ 事件後比分」。livelog 的比分欄是**事件後**快照且可能為
+  // null（沿用前值），故必須全場前掃一次，不能只讀單列。
+  const runningScore = useMemo(() => {
+    const out: { runs: number; away: number; home: number }[] = [];
+    let away = 0, home = 0;
+    for (const ev of log) {
+      const preAway = away, preHome = home;
+      if (ev.visiting_score != null) away = num(ev.visiting_score);
+      if (ev.home_score != null) home = num(ev.home_score);
+      const runs = String(ev.visiting_home_type) === "1" ? away - preAway : home - preHome;
+      out.push({ runs, away, home });
+    }
+    return out;
+  }, [log]);
 
   const lineBtn = (gi: number, showScore: boolean, extra?: React.ReactNode) => {
     const ev = log[gi];
@@ -422,13 +451,18 @@ function PlayByPlay({ log, events, idx, setIdx, userAction }: {
     const isScore = Boolean(ev.is_score);
     const isPitch = content.length <= 8;
     const active = gi === idx;
+    const s = runningScore[gi];
+    // 得分事件的敘述文字走**一般字級**（與其他結果行相同）——重要性由 RunsBadge 承載。
+    // 這一行原本沒給 size class，於是繼承 text-base 而比周圍列大一級，讀起來突兀
+    // （需求方 2026-08-06 第三輪人工審）。
     return (
       <button key={gi} ref={active ? activeRef : undefined} onClick={() => setIdx(gi)}
         className={`block w-full scroll-mt-16 rounded px-2 py-0.5 pl-5 text-left transition-colors hover:bg-surface-2 ${
           active ? "bg-accent/10 ring-1 ring-accent/30" : ""} ${
-          isScore ? "text-accent" : isPitch ? "text-xs text-faint" : "text-sm text-ink"}`}>
+          isScore ? "text-sm text-accent" : isPitch ? "text-xs text-faint" : "text-sm text-ink"}`}>
         {content}
-        {showScore && isScore && <span className="ml-2 font-mono text-xs">({num(ev.visiting_score)}-{num(ev.home_score)})</span>}
+        {/* 進帳分數留在事件列（事件層級的事實）；比分已上移到打席標題列，此處不重複 */}
+        {showScore && isScore && s && <RunsBadge runs={s.runs} />}
         {extra}
       </button>
     );
@@ -446,12 +480,23 @@ function PlayByPlay({ log, events, idx, setIdx, userAction }: {
           if (g.kind === "sub") return lineBtn(g.gi, false);
           const outcomeIdx = g.idxs[g.idxs.length - 1];
           const expanded = g.idxs.includes(idx);   // 當前打席自動展開
+          // 該打席若有得分事件，取最後一個得分事件的事件後比分（打席可能多次得分）
+          const scoringIdxs = g.idxs.filter((gi) => log[gi].is_score && runningScore[gi]?.runs > 0);
+          const paScore = scoringIdxs.length
+            ? runningScore[scoringIdxs[scoringIdxs.length - 1]] : null;
           return (
             <div key={gk}>
+              {/* 一列＝一個打席的完整資訊：打者・球數・投手・ΔRE24 同一視覺單元
+                  （需求方 2026-08-06：ΔRE24 不要跟打席訊息分開）。 */}
               <div className="mt-2.5 text-sm font-medium text-ink">
                 ⚾ {g.name}
                 {g.idxs.length > 1 && <span className="ml-1 text-[10px] font-semibold text-muted">{plateAppearancePitchCountLabel(g.idxs.length)}</span>}
                 <span className="ml-2 text-xs text-faint">投：{g.pitcher}</span>
+                {/* 得分打席的比分上移到與打者名同層級、同字級放大（需求方 2026-08-06
+                    第五輪人工審）：比分是關鍵資訊，不該埋在事件敘述行的 chip 裡。
+                    值取該打席最後一個得分事件的**事件後**比分，不做加法。 */}
+                {paScore && <ScoreAfterBadge away={paScore.away} home={paScore.home} />}
+                {g.fact && g.fact.state === "ready" && <Re24Badge value={g.fact.delta_re24} />}
               </div>
               {expanded
                 ? g.idxs.map((gi) => lineBtn(gi, true))
@@ -544,7 +589,8 @@ function StrikeZone({ pitches }: { pitches: TrackRow[] }) {
 }
 
 // ───────────────────────── 主板 ─────────────────────────
-export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate, wp, gameSno, tabs }: {
+export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate, wp, gameSno, tabs,
+                                    facts, highlightSelection }: {
   data: Live;
   idx: number; setIdx: (i: number) => void;
   wp?: WpPoint[];                // 逐打席勝率（顯示當前打席的目前預期勝率）
@@ -553,6 +599,10 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
   gameSno: string;
   /** 頁面唯一主頁籤：必須位於 Hero 記分條之後。 */
   tabs?: ReactNode;
+  /** canonical 打席（打席事實流）；缺席時逐打席分組退回既有近似切法。 */
+  facts?: PaFact[] | null;
+  /** false＝記分板純顯示（不標選中局）；點擊仍會跳到該半局的逐打席。 */
+  highlightSelection?: boolean;
 }) {
   const log = data.livelog;
   const game = data.game!;
@@ -674,12 +724,13 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
       {tabs}
 
       <ScoreLine sb={data.scoreboard} game={game} snapshot={data.live_snapshot ?? null}
-        halves={halves} curKey={curKey} onSelect={(h) => selectIdx(h.firstIdx)} />
+        halves={halves} curKey={curKey} onSelect={(h) => selectIdx(h.firstIdx)}
+        highlightSelection={highlightSelection} />
 
       {view === "pbp" && (
       <div id="pbp-section" className="grid scroll-mt-16 gap-4 lg:grid-cols-[1fr_360px]">
         {/* 左：逐打席賽況（選定半局）*/}
-        <PlayByPlay log={log} events={curEvents} idx={idx} setIdx={selectIdx} userAction={userAction} />
+        <PlayByPlay log={log} events={curEvents} idx={idx} setIdx={selectIdx} userAction={userAction} facts={facts} />
 
         {/* 右：當前對戰 + 好球帶（sticky）。窄螢幕排到清單上方（order-1），避免長局把
             當前打席/WP/好球帶擠到超長清單下方看不到；桌面維持右側（lg:order-2）。

@@ -98,13 +98,16 @@ def test_legacy_grouping_merges_repeat_batter() -> None:
 @pytest.fixture()
 def recap_module(monkeypatch):
     from cpbl.api.routers import recap
+    from cpbl.models import winprob_scorer
 
-    recap._dist_cache.clear()
-    recap._solver_cache.clear()
-    monkeypatch.setattr(recap, "_load_dist", lambda span, kind: dict(DIST))
+    # 解算器住在 models/winprob_scorer（recap 以別名 re-export）→ 分布載入的
+    # monkeypatch 必須打在該模組上，否則會靜默去讀真的 artifact。
+    winprob_scorer._dist_cache.clear()
+    winprob_scorer._solver_cache.clear()
+    monkeypatch.setattr(winprob_scorer, "_load_dist", lambda span, kind: dict(DIST))
     yield recap
-    recap._dist_cache.clear()
-    recap._solver_cache.clear()
+    winprob_scorer._dist_cache.clear()
+    winprob_scorer._solver_cache.clear()
 
 
 def _get(recap, monkeypatch, rows, game, **params):
@@ -175,9 +178,11 @@ def test_recap_api_ruleset_follows_kind_and_season(recap_module, monkeypatch) ->
 
 def test_recap_api_model_not_built_fails_closed(recap_module, monkeypatch) -> None:
     """D scope（生產無自身分布 artifact）：保留事件列，WP 全欄不可用。"""
+    from cpbl.models import winprob_scorer
+
     def raise_missing(span, kind):
         raise RuntimeError(f"run_dist 無 {span}/{kind}")
-    monkeypatch.setattr(recap_module, "_load_dist", raise_missing)
+    monkeypatch.setattr(winprob_scorer, "_load_dist", raise_missing)
     rows = _canonical_rows(REPEAT_BATTER_EVENTS)
     game = {"home_score": 0, "away_score": 1, "completed": True}
     body = _get(recap_module, monkeypatch, rows, game, kind_code="D").json()

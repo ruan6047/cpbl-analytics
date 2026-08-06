@@ -9,6 +9,7 @@
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { chartTooltip, useChartTheme } from "@/lib/chart-theme";
 import { Card } from "@/components/ui";
+import { displayWpPct, isTerminalWpPoint } from "@/lib/win-prob-display";
 
 export type WpPoint = { evt: string | null; inning: number | null; half: string | null;
   hitter: string | null; away: number; home: number; wp: number };
@@ -19,7 +20,10 @@ export function WinProbChart({ items, homeName, awayName, homeColor, onSelect }:
 }) {
   const ct = useChartTheme();
   if (!items || items.length < 4) return null;
-  const data = items.map((p, i) => ({ ...p, i, pct: Math.round(p.wp * 1000) / 10 }));
+  // 顯示夾層：比賽終結前不顯示 100%／0%（`lib/win-prob-display.ts` 是該規則的唯一擁有者）。
+  // 曲線點、activeDot 與 tooltip 都吃同一個 `pct` 欄位，故夾一次即全處一致。
+  // Y 軸刻度是座標尺規、不是任一點的勝率，維持 0–100 不夾。
+  const data = items.map((p, i) => ({ ...p, i, pct: displayWpPct(p.wp, isTerminalWpPoint(p)) }));
   // X 軸刻度：每局第一個打席
   const ticks: number[] = [];
   let lastKey = "";

@@ -22,29 +22,25 @@ run_dist artifact）與 models/winprob_val（規則參數化 DP：9 局門檻、
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON, _dicts
 from cpbl.db import conn
-from cpbl.models.winprob import _load_dist
-from cpbl.models.winprob_val import RuleSet, ruleset_for, we_solver_rules, wp_state_rules
+
+# 解算器已上抽 models/winprob_scorer（models 不得 import api，而 pa_facts 的關鍵打席
+# ΔWP 需要同一台機器）。此處以別名 re-export，本路由的既有語意與快取行為不變。
+from cpbl.models.winprob_scorer import (  # noqa: F401  （對外別名，勿刪）
+    DIST_SOURCE,
+    MODEL_SPAN,
+    Scorer,
+    _dist_cache,
+    _solver_cache,
+)
+from cpbl.models.winprob_scorer import get_scorer as _get_scorer
 
 router = APIRouter()
-
-MODEL_SPAN = "2018-2025"  # 生產 run_dist artifact 唯一 span（重建後重啟 API 生效）
-
-# 分布來源（對齊 winprob_val.TRAIN_PROXY 語意）：C/E（一軍季後）借一軍例行分布；
-# D（二軍例行）只可用自身分布——生產目前無 D artifact → fail closed（model_not_built），
-# 不得靜默借 A（spec §8.2「未驗證賽制不得借用一軍口徑而不揭露」）。
-DIST_SOURCE: dict[str, tuple[str, str]] = {
-    "A": ("A", "own"),
-    "C": ("A", "borrowed"),
-    "D": ("D", "own"),
-    "E": ("A", "borrowed"),
-}
 
 # ---------------------------------------------------------------------------
 # wp_reliability metadata（本卡唯一 owner；版本化）
@@ -130,51 +126,6 @@ def wp_reliability(kind_code: str) -> dict[str, Any]:
         "methodology": METHODOLOGY_ANCHOR,
         "evidence": _EVIDENCE,
     }
-
-
-# ---------------------------------------------------------------------------
-# 模型載入（表小、跨 request 重用；artifact 重建後重啟 API 生效，同 /winprob 慣例）
-# ---------------------------------------------------------------------------
-_dist_cache: dict[tuple[str, str], dict | None] = {}
-_solver_cache: dict[tuple[str, str, RuleSet], tuple] = {}
-
-Scorer = Callable[[int, str, int, str, int], float]  # (inning, vht, diff, bases, outs)
-
-
-def _get_dist(dist_kind: str) -> dict | None:
-    key = (MODEL_SPAN, dist_kind)
-    if key not in _dist_cache:
-        try:
-            _dist_cache[key] = _load_dist(MODEL_SPAN, dist_kind)
-        except RuntimeError:
-            _dist_cache[key] = None  # artifact 未建置 → fail closed
-    return _dist_cache[key]
-
-
-def _get_scorer(kind_code: str, season: int) -> tuple[Scorer | None, dict | None]:
-    """回傳 (scorer, model metadata)；無分布 artifact 時 (None, None)。"""
-    dist_kind, source = DIST_SOURCE[kind_code]
-    dist = _get_dist(dist_kind)
-    if dist is None:
-        return None, None
-    rules = ruleset_for(kind_code, season)
-    skey = (MODEL_SPAN, dist_kind, rules)
-    if skey not in _solver_cache:
-        _solver_cache[skey] = we_solver_rules(dist, rules)
-    we_top, we_bot = _solver_cache[skey]
-
-    def scorer(inning: int, vht: str, diff: int, bases: str, outs: int) -> float:
-        return wp_state_rules(dist, we_top, we_bot, rules, inning, vht, diff, bases, outs)
-
-    model = {
-        "model_span": MODEL_SPAN,
-        "model_kind": dist_kind,
-        # run_dist artifact（migration 049）無時戳欄位 → 誠實回 null，不假造建置時間
-        "model_built_at": None,
-        "ruleset": rules.tag,
-        "distribution_source": source,
-    }
-    return scorer, model
 
 
 # ---------------------------------------------------------------------------

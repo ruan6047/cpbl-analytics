@@ -6,12 +6,15 @@ import type { StatRow } from "@/lib/client";
 import type { WpPoint } from "@/components/win-prob-chart";
 import { Card, ENTITY_LINK, Eyebrow, PlayerLink } from "@/components/ui";
 import { contrastText, teamColor } from "@/lib/teams";
+import { displayWp, isTerminalWpPoint } from "@/lib/win-prob-display";
 
 const num = (v: StatRow[string]) => Number(v) || 0;
 
 type Moment = {
   evt: string; inning: number; half: string; hitter: string; pitcher: string;
   desc: string; before: number; after: number; delta: number; isScore: boolean;
+  /** `after` 是否為終場收斂點（該點豁免顯示夾層，可顯示 100%／0%）。 */
+  afterIsFinal: boolean;
 };
 
 /** 每打席 ΔWP（後點 − 前點，主隊視角）+ 該打席結果文（PA 末筆非更換事件的首行）。 */
@@ -40,6 +43,7 @@ export function buildMoments(wp: WpPoint[], log: StatRow[]): Moment[] {
       hitter: String(fin.hitter_name ?? ""), pitcher: String(fin.pitcher_name ?? ""),
       desc: String(fin.content ?? "").split(/[\r\n]/)[0],
       before: p.wp, after: wp[i + 1].wp, delta: wp[i + 1].wp - p.wp, isScore,
+      afterIsFinal: isTerminalWpPoint(wp[i + 1]),
     });
   }
   return out;
@@ -51,14 +55,19 @@ function MomentRow({ m, homeName, awayName, homeColor, awayColor, onJump }: {
   m: Moment; homeName: string; awayName: string; homeColor: string; awayColor: string;
   onJump: (evt: string) => void;
 }) {
-  const gain = m.delta > 0;                    // 主隊受益
+  const gain = m.delta > 0;                    // 主隊受益（歸屬用**原值**判定，不吃夾層）
   const team = gain ? homeName : awayName;
   const color = gain ? homeColor : awayColor;
+  // 顯示夾層：比賽終結前不顯示 100%／0%；只有最後一筆的 after（終場收斂點）豁免。
+  // 條寬與百分比都吃夾過的值，畫面上的位移量與標示的數字才會一致。
+  const shownBefore = displayWp(m.before);
+  const shownAfter = displayWp(m.after, m.afterIsFinal);
+  const shownDelta = shownAfter - shownBefore;
   // 雙色勝率條：左＝客隊(客色)、右＝主隊(主色)，交界＝主隊勝率(after)。
   // 「改變區間」(before→after 交界之間) 疊上受益隊的輔助色(亮版隊色)，一眼看出這一打席
   // 把 WP 推了多少、往哪隊——用色相相同但更亮的 tint 保持「同隊」語意又提高辨識度。
-  const lo = Math.min(1 - m.after, 1 - m.before);
-  const hi = Math.max(1 - m.after, 1 - m.before);
+  const lo = Math.min(1 - shownAfter, 1 - shownBefore);
+  const hi = Math.max(1 - shownAfter, 1 - shownBefore);
   const aux = `color-mix(in srgb, ${color} 55%, white)`;
   return (
     <button onClick={() => onJump(m.evt)}
@@ -69,13 +78,13 @@ function MomentRow({ m, homeName, awayName, homeColor, awayColor, onJump }: {
           <span className="ml-1 text-faint">vs {m.pitcher}</span>
         </span>
         <span className="shrink-0 font-mono text-xs font-semibold tabular-nums" style={{ color }}>
-          {team} +{Math.abs(Math.round(m.delta * 100))}%
+          {team} +{Math.abs(Math.round(shownDelta * 100))}%
         </span>
       </div>
       <div className="mt-0.5 truncate text-sm text-ink">{m.desc}</div>
       <div className="relative mt-1.5 flex h-2 overflow-hidden rounded-full">
-        <div style={{ width: pct(1 - m.after), background: awayColor }} />
-        <div style={{ width: pct(m.after), background: homeColor }} />
+        <div style={{ width: pct(1 - shownAfter), background: awayColor }} />
+        <div style={{ width: pct(shownAfter), background: homeColor }} />
         {/* 改變區間：受益隊輔助色（亮版）標出這一打席造成的 WP 位移 */}
         <div className="absolute inset-y-0 border-x border-white/70"
           style={{ left: pct(lo), width: pct(hi - lo), background: aux }} />
@@ -84,7 +93,9 @@ function MomentRow({ m, homeName, awayName, homeColor, awayColor, onJump }: {
   );
 }
 
-export type DecItem = { label: string; value: string; note?: string; pid?: string };
+// 決勝資訊項的型別統一由 `game-summary.ts` 出（原本在本檔宣告，重構後上移）。
+import type { DecItem } from "./game-summary";
+export type { DecItem };
 
 export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor, onJump, highlights, milestones, info, mvp, decisions }: {
   wp: WpPoint[]; log: StatRow[]; homeName: string; awayName: string;
