@@ -1,0 +1,544 @@
+{
+  "note": "全部輸入為已交付 artifact，全程唯讀；本腳本不重跑任何模型、不讀 DB。",
+  "inputs": {
+    "docs/research/game_recap_wp_val1_metrics.json": null,
+    "docs/research/game_recap_wp_val1_fix1_metrics.json": null,
+    "docs/research/game_recap_wp_cal1_metrics.json": null,
+    "docs/research/game_recap_wp_strength1_metrics.json": null
+  },
+  "mc": {
+    "reps": 20000,
+    "seed": 20260807
+  },
+  "val1_scopes": {
+    "A": {
+      "source_artifact": "game_recap_wp_val1_metrics.json",
+      "n_games": 1826,
+      "n_pa": 138949,
+      "observed_ece": 0.02604,
+      "brier": 0.15314,
+      "baseline_home_const_brier": 0.24524,
+      "beats_home_constant_baseline": true,
+      "significant_bins": [
+        1,
+        2,
+        3,
+        8,
+        9
+      ],
+      "verdict_status": "unsupported",
+      "verdict_reasons": [
+        "池化十分位 1 偏差 +0.0421 顯著且超過 ±0.03（n=8684）",
+        "池化十分位 2 偏差 +0.0534 顯著且超過 ±0.03（n=9267）",
+        "池化十分位 3 偏差 +0.0603 顯著且超過 ±0.03（n=10249）",
+        "池化十分位 8 偏差 -0.0432 顯著且超過 ±0.03（n=10093）"
+      ],
+      "null_ece": {
+        "n_bins": 10,
+        "analytic_mean": 0.009859331505113216,
+        "mc_mean": 0.00988770930348166,
+        "mc_p95": 0.014670191236049634,
+        "mc_p99": 0.017021222864349962,
+        "dev_se_min": 0.0049,
+        "dev_se_max": 0.017
+      },
+      "proxy_ece_gate": 0.05,
+      "gate_below_noise_floor": false,
+      "observed_ece_within_null_p95": false,
+      "seasons": [
+        {
+          "year": 2021,
+          "n_completed_games": 299,
+          "n_pa": 23000,
+          "brier": 0.15323,
+          "baseline_home_const_brier": null,
+          "dev_se_min": 0.007,
+          "dev_se_max": 0.0416
+        },
+        {
+          "year": 2022,
+          "n_completed_games": 300,
+          "n_pa": 22847,
+          "brier": 0.1474,
+          "baseline_home_const_brier": null,
+          "dev_se_min": 0.0086,
+          "dev_se_max": 0.0416
+        },
+        {
+          "year": 2023,
+          "n_completed_games": 298,
+          "n_pa": 22912,
+          "brier": 0.14745,
+          "baseline_home_const_brier": null,
+          "dev_se_min": 0.0109,
+          "dev_se_max": 0.0453
+        },
+        {
+          "year": 2024,
+          "n_completed_games": 360,
+          "n_pa": 27453,
+          "brier": 0.15388,
+          "baseline_home_const_brier": null,
+          "dev_se_min": 0.0064,
+          "dev_se_max": 0.0385
+        },
+        {
+          "year": 2025,
+          "n_completed_games": 359,
+          "n_pa": 27078,
+          "brier": 0.15448,
+          "baseline_home_const_brier": null,
+          "dev_se_min": 0.0088,
+          "dev_se_max": 0.0382
+        },
+        {
+          "year": 2026,
+          "n_completed_games": 210,
+          "n_pa": 15659,
+          "brier": 0.16612,
+          "baseline_home_const_brier": null,
+          "dev_se_min": 0.0169,
+          "dev_se_max": 0.0524
+        }
+      ]
+    },
+    "C": {
+      "source_artifact": "game_recap_wp_val1_metrics.json",
+      "n_games": 25,
+      "n_pa": 1930,
+      "observed_ece": 0.1097,
+      "brier": 0.15009,
+      "baseline_home_const_brier": 0.25678,
+      "beats_home_constant_baseline": true,
+      "significant_bins": [],
+      "verdict_status": "unsupported",
+      "verdict_reasons": [
+        "proxy 池化 ECE 0.1097 > 0.05，代理證據不足以掛警示上線"
+      ],
+      "null_ece": {
+        "n_bins": 10,
+        "analytic_mean": 0.07566971809978562,
+        "mc_mean": 0.07536638902606718,
+        "mc_p95": 0.11628759913928953,
+        "mc_p99": 0.136961302853645,
+        "dev_se_min": 0.0072,
+        "dev_se_max": 0.1367
+      },
+      "proxy_ece_gate": 0.05,
+      "gate_below_noise_floor": true,
+      "observed_ece_within_null_p95": true,
+      "seasons": [
+        {
+          "year": 2021,
+          "n_completed_games": 4,
+          "n_pa": 291,
+          "brier": 0.11378,
+          "baseline_home_const_brier": null,
+          "dev_se_min": 0.0,
+          "dev_se_max": 0.4121
+        },
+        {
+          "year": 2022,
+          "n_completed_games": 4,
+          "n_pa": 300,
+          "brier": 0.10126,
+          "baseline_home_const_brier": null,
+          "dev_se_min": 0.003,
+          "dev_se_max": 0.3748
+        },
+        {
+          "year": 2023,
+          "n_completed_games": 7,
+          "n_pa": 564,
+          "brier": 0.14333,
+          "baseline_home_const_brier": null,
+          "dev_se_min": 0.0013,
+          "dev_se_max": 0.3902
+        },
+        {
+          "year": 2024,
+          "n_completed_games": 5,
+          "n_pa": 393,
+          "brier": 0.16306,
+          "baseline_home_const_brier": null,
+          "dev_se_min": 0.0083,
+          "dev_se_max": 0.415
+        },
+        {
+          "year": 2025,
+          "n_completed_games": 5,
+          "n_pa": 382,
+          "brier": 0.21274,
+          "baseline_home_const_brier": null,
+          "dev_se_min": 0.0,
+          "dev_se_max": 0.4056
+        }
+      ]
+    },
+    "D": {
+      "source_artifact": "game_recap_wp_val1_metrics.json",
+      "n_games": 1151,
+      "n_pa": 87948,
+      "observed_ece": 0.019,
+      "brier": 0.1466,
+      "baseline_home_const_brier": 0.23325,
+      "beats_home_constant_baseline": true,
+      "significant_bins": [
+        2
+      ],
+      "verdict_status": "unsupported",
+      "verdict_reasons": [
+        "池化十分位 2 偏差 +0.0471 顯著且超過 ±0.03（n=6351）"
+      ],
+      "null_ece": {
+        "n_bins": 10,
+        "analytic_mean": 0.012517230009380471,
+        "mc_mean": 0.012505278985976167,
+        "mc_p95": 0.018348515182004897,
+        "mc_p99": 0.021106221633649908,
+        "dev_se_min": 0.0062,
+        "dev_se_max": 0.02
+      },
+      "proxy_ece_gate": 0.05,
+      "gate_below_noise_floor": false,
+      "observed_ece_within_null_p95": false,
+      "seasons": [
+        {
+          "year": 2021,
+          "n_completed_games": 169,
+          "n_pa": 12929,
+          "brier": 0.1403,
+          "baseline_home_const_brier": null,
+          "dev_se_min": 0.0076,
+          "dev_se_max": 0.0528
+        },
+        {
+          "year": 2022,
+          "n_completed_games": 172,
+          "n_pa": 13003,
+          "brier": 0.14269,
+          "baseline_home_const_brier": null,
+          "dev_se_min": 0.0044,
+          "dev_se_max": 0.0524
+        },
+        {
+          "year": 2023,
+          "n_completed_games": 236,
+          "n_pa": 17899,
+          "brier": 0.14316,
+          "baseline_home_const_brier": null,
+          "dev_se_min": 0.0148,
+          "dev_se_max": 0.0466
+        },
+        {
+          "year": 2024,
+          "n_completed_games": 220,
+          "n_pa": 16696,
+          "brier": 0.1342,
+          "baseline_home_const_brier": null,
+          "dev_se_min": 0.0059,
+          "dev_se_max": 0.0452
+        },
+        {
+          "year": 2025,
+          "n_completed_games": 204,
+          "n_pa": 15779,
+          "brier": 0.15943,
+          "baseline_home_const_brier": null,
+          "dev_se_min": 0.0086,
+          "dev_se_max": 0.0525
+        },
+        {
+          "year": 2026,
+          "n_completed_games": 150,
+          "n_pa": 11642,
+          "brier": 0.16366,
+          "baseline_home_const_brier": null,
+          "dev_se_min": 0.0217,
+          "dev_se_max": 0.0604
+        }
+      ]
+    },
+    "E": {
+      "source_artifact": "game_recap_wp_val1_fix1_metrics.json",
+      "n_games": 13,
+      "n_pa": 988,
+      "observed_ece": 0.08536,
+      "brier": 0.14928,
+      "baseline_home_const_brier": 0.23772,
+      "beats_home_constant_baseline": true,
+      "significant_bins": [],
+      "verdict_status": "unsupported",
+      "verdict_reasons": [
+        "E2025 Brier 0.28886 未勝過主場常數基準 0.25289",
+        "proxy 池化 ECE 0.08536 > 0.05，代理證據不足以掛警示上線"
+      ],
+      "null_ece": {
+        "n_bins": 10,
+        "analytic_mean": 0.12575589390039518,
+        "mc_mean": 0.12564463495121744,
+        "mc_p95": 0.18735406270752747,
+        "mc_p99": 0.21757983183913807,
+        "dev_se_min": 0.08,
+        "dev_se_max": 0.3062
+      },
+      "proxy_ece_gate": 0.05,
+      "gate_below_noise_floor": true,
+      "observed_ece_within_null_p95": true,
+      "seasons": [
+        {
+          "year": 2022,
+          "n_completed_games": 3,
+          "n_pa": 217,
+          "brier": 0.05309,
+          "baseline_home_const_brier": null,
+          "dev_se_min": 0.0002,
+          "dev_se_max": 0.0116
+        },
+        {
+          "year": 2023,
+          "n_completed_games": 3,
+          "n_pa": 221,
+          "brier": 0.11605,
+          "baseline_home_const_brier": null,
+          "dev_se_min": 0.0,
+          "dev_se_max": 0.3874
+        },
+        {
+          "year": 2024,
+          "n_completed_games": 3,
+          "n_pa": 232,
+          "brier": 0.07959,
+          "baseline_home_const_brier": null,
+          "dev_se_min": 0.0,
+          "dev_se_max": 0.0158
+        },
+        {
+          "year": 2025,
+          "n_completed_games": 4,
+          "n_pa": 318,
+          "brier": 0.28886,
+          "baseline_home_const_brier": null,
+          "dev_se_min": 0.0,
+          "dev_se_max": 0.4027
+        }
+      ]
+    }
+  },
+  "cal1_band_gate": {
+    "cal1_has_native_band_uncertainty": false,
+    "cal1_n_games_pooled": 1227,
+    "strength1_n_games_pooled": 1233,
+    "population_comparable_note": "CAL1 池化 2023–2026 A 共 1,227 場；STRENGTH1 同 scope 同期間 1,233 場（差 6 場＝CAL1 當時的 published PA build 缺口）。借用 SE 的前提是叢集數與分箱 n 幾乎相同，故 SE 量級可移植；此為量級判讀，不作為正式檢定。",
+    "thresholds": {
+      "band_dev_worsen_hard_pt": 0.02,
+      "strength1_band_dev_max": 0.03
+    },
+    "bands": [
+      {
+        "band": "1-3",
+        "borrowed_se_from_strength1_adj": 0.01284964008109582,
+        "families": {
+          "base": {
+            "n_pa": 31096,
+            "pred": 0.5336,
+            "actual": 0.5346,
+            "dev": -0.0010000000000000009,
+            "ci99_borrowed": [
+              -0.03409847946094308,
+              0.03209847946094308
+            ],
+            "ci99_contains_zero": true
+          },
+          "isotonic": {
+            "n_pa": 31096,
+            "pred": 0.5105,
+            "actual": 0.5346,
+            "dev": -0.02410000000000001,
+            "ci99_borrowed": [
+              -0.05719847946094309,
+              0.008998479460943072
+            ],
+            "ci99_contains_zero": true
+          },
+          "beta": {
+            "n_pa": 31096,
+            "pred": 0.5088,
+            "actual": 0.5346,
+            "dev": -0.025799999999999934,
+            "ci99_borrowed": [
+              -0.058898479460943017,
+              0.007298479460943148
+            ],
+            "ci99_contains_zero": true
+          }
+        },
+        "worsening_pt_beta_vs_base": 2.4799999999999933
+      },
+      {
+        "band": "4-6",
+        "borrowed_se_from_strength1_adj": 0.011058123694334796,
+        "families": {
+          "base": {
+            "n_pa": 31615,
+            "pred": 0.5366,
+            "actual": 0.5344,
+            "dev": 0.0021999999999999797,
+            "ci99_borrowed": [
+              -0.02628383905413601,
+              0.03068383905413597
+            ],
+            "ci99_contains_zero": true
+          },
+          "isotonic": {
+            "n_pa": 31615,
+            "pred": 0.5207,
+            "actual": 0.5344,
+            "dev": -0.013699999999999934,
+            "ci99_borrowed": [
+              -0.042183839054135926,
+              0.014783839054136057
+            ],
+            "ci99_contains_zero": true
+          },
+          "beta": {
+            "n_pa": 31615,
+            "pred": 0.5219,
+            "actual": 0.5344,
+            "dev": -0.012499999999999956,
+            "ci99_borrowed": [
+              -0.04098383905413595,
+              0.015983839054136036
+            ],
+            "ci99_contains_zero": true
+          }
+        },
+        "worsening_pt_beta_vs_base": 1.0299999999999976
+      },
+      {
+        "band": "7-9",
+        "borrowed_se_from_strength1_adj": 0.007617977409575949,
+        "families": {
+          "base": {
+            "n_pa": 29234,
+            "pred": 0.4907,
+            "actual": 0.4917,
+            "dev": -0.0010000000000000009,
+            "ci99_borrowed": [
+              -0.020622609445359274,
+              0.018622609445359272
+            ],
+            "ci99_contains_zero": true
+          },
+          "isotonic": {
+            "n_pa": 29234,
+            "pred": 0.482,
+            "actual": 0.4917,
+            "dev": -0.009700000000000042,
+            "ci99_borrowed": [
+              -0.029322609445359315,
+              0.009922609445359231
+            ],
+            "ci99_contains_zero": true
+          },
+          "beta": {
+            "n_pa": 29234,
+            "pred": 0.4829,
+            "actual": 0.4917,
+            "dev": -0.00880000000000003,
+            "ci99_borrowed": [
+              -0.028422609445359303,
+              0.010822609445359243
+            ],
+            "ci99_contains_zero": true
+          }
+        },
+        "worsening_pt_beta_vs_base": 0.7800000000000029
+      },
+      {
+        "band": "10+",
+        "borrowed_se_from_strength1_adj": 0.03941239656356138,
+        "families": {
+          "base": {
+            "n_pa": 1157,
+            "pred": 0.4576,
+            "actual": 0.4715,
+            "dev": -0.013899999999999968,
+            "ci99_borrowed": [
+              -0.11541960599151135,
+              0.08761960599151142
+            ],
+            "ci99_contains_zero": true
+          },
+          "isotonic": {
+            "n_pa": 1157,
+            "pred": 0.4316,
+            "actual": 0.4715,
+            "dev": -0.03989999999999999,
+            "ci99_borrowed": [
+              -0.14141960599151138,
+              0.061619605991511395
+            ],
+            "ci99_contains_zero": true
+          },
+          "beta": {
+            "n_pa": 1157,
+            "pred": 0.4314,
+            "actual": 0.4715,
+            "dev": -0.04009999999999997,
+            "ci99_borrowed": [
+              -0.14161960599151135,
+              0.06141960599151142
+            ],
+            "ci99_contains_zero": true
+          }
+        },
+        "worsening_pt_beta_vs_base": 2.62
+      }
+    ],
+    "cal1_verdict_reasons": [
+      "A2023 校準後 Brier 0.14747 劣於未校準 base 0.14745",
+      "A2026 coverage 0.9722 < 0.98",
+      "A2026 校準後 Brier 0.16687 劣於未校準 base 0.16612",
+      "局帶 1-3 |dev| 相對 base 惡化 +2.5pt > 2pt"
+    ]
+  },
+  "strength1": {
+    "verdict_reasons": [
+      "A2023 融合後 Brier 0.147897 劣於同代未融合 base 0.147453",
+      "A2025 融合後 Brier 0.155958 劣於同代未融合 base 0.154478"
+    ],
+    "pooled_brier_delta_diagnostic": {
+      "delta_brier": 9.5e-05,
+      "se": 0.000567,
+      "ci": [
+        -0.001367,
+        0.001646
+      ],
+      "n_games": 1233,
+      "note": "診斷用；硬門檻仍以點估計比較，本 CI 不進判定"
+    },
+    "seasons": [
+      {
+        "year": 2023,
+        "base_brier": 0.14745,
+        "adj_brier": null
+      },
+      {
+        "year": 2024,
+        "base_brier": 0.15388,
+        "adj_brier": null
+      },
+      {
+        "year": 2025,
+        "base_brier": 0.15448,
+        "adj_brier": null
+      },
+      {
+        "year": 2026,
+        "base_brier": 0.1666,
+        "adj_brier": null
+      }
+    ]
+  }
+}

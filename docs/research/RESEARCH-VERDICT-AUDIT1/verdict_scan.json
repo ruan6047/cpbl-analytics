@@ -1,0 +1,6083 @@
+{
+  "generated_at": "2026-08-06T20:43:57.764470+00:00",
+  "repo_head": "b853572e63565970c21f8521bc0448d1db1cc761",
+  "scan_root": "docs/research",
+  "scanned_file_count": 122,
+  "scanned_files": [
+    "docs/research/BUG-HELD-GAME-FRESHNESS1_REVIEW.md",
+    "docs/research/DATA-RULES-AUDIT1/C1-5_terminal_judgments.json",
+    "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+    "docs/research/DATA-RULES-AUDIT1/C11_convergence_matrix.json",
+    "docs/research/DATA-RULES-AUDIT1/C12_timezone_windows.json",
+    "docs/research/DATA-RULES-AUDIT1/C233_false_positive_set.json",
+    "docs/research/DATA-RULES-AUDIT1/C6_ibb_midcount.json",
+    "docs/research/DATA-RULES-AUDIT1/C7_walkoff_incomplete_pa.json",
+    "docs/research/DATA-RULES-AUDIT1/C8_third_out_interrupted_pa.json",
+    "docs/research/DATA-RULES-AUDIT1/C9_special_rulings.json",
+    "docs/research/DATA-RULES-AUDIT1/RECON_splits_vs_canonical.json",
+    "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+    "docs/research/DATA-TIE-REMEDY1/backfill.json",
+    "docs/research/DATA-TIE-REMEDY1/consumers.json",
+    "docs/research/DATA-TIE-REMEDY1/derived_impact.json",
+    "docs/research/DATA-TIE-REMEDY1/evidence_fetch.json",
+    "docs/research/DATA-TIE-REMEDY1/evidence_parsed.json",
+    "docs/research/DATA-TIE-REMEDY1/evidence_write.json",
+    "docs/research/DATA-TIE-REMEDY1/streak_impact.json",
+    "docs/research/DATA-TZ-BOUNDARY1/inventory.json",
+    "docs/research/DATA-TZ-BOUNDARY1/tz_window.json",
+    "docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit-before.md",
+    "docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit.md",
+    "docs/research/DEV-CLI-HELP-GUARD2/cli-help-audit-before.md",
+    "docs/research/DEV-CLI-HELP-GUARD2/cli-help-audit.md",
+    "docs/research/DEV-CLI-HELP-GUARD2/container-probe.md",
+    "docs/research/DISCOVERY-CPBL-RECORDS1_RESULTS.md",
+    "docs/research/DOC-GAME-RECAP1_REVIEW.md",
+    "docs/research/FIELDING_METRIC_DIRECTION.md",
+    "docs/research/GAME-RECAP-DATA1_RESULTS.md",
+    "docs/research/GAME-RECAP-DATA1_REVIEW.md",
+    "docs/research/GAME-RECAP-PA1-BUILD1_HANDOFF.md",
+    "docs/research/GAME-RECAP-PA1-BUILD1_QA.md",
+    "docs/research/GAME-RECAP-PA1-FIX1_PROD_RUNBOOK.md",
+    "docs/research/GAME-RECAP-PA1-FIX1_TAXONOMY_DIFF.md",
+    "docs/research/GAME-RECAP-PA1-TAXONOMY1_RESULTS.md",
+    "docs/research/GAME-RECAP-PA1-TAXONOMY1_REVIEW.md",
+    "docs/research/GAME-RECAP-PA1_REVIEW.md",
+    "docs/research/GAME-RECAP-STATUS-EXPAND1_REVIEW.md",
+    "docs/research/GAME-RECAP-STATUS1_API_REVIEW.md",
+    "docs/research/GAME-RECAP-STATUS1_RESULTS.md",
+    "docs/research/GAME-RECAP-STATUS1_REVIEW.md",
+    "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md",
+    "docs/research/GAME-RECAP-WP-STRENGTH1_PLAN_REVIEW.md",
+    "docs/research/GAME-RECAP-WP-STRENGTH1_PLAN_REVIEW_REQUEST.md",
+    "docs/research/GAME-RECAP-WP-STRENGTH1_RESEARCH.md",
+    "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+    "docs/research/GAME-RECAP-WP-VAL1-FIX1_ERRATA.md",
+    "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+    "docs/research/GAME_TM_SHADOW_OBSERVATION.md",
+    "docs/research/INGEST-GAME-TM-REFACTOR1-G4/dryrun_only_prod_pk.json",
+    "docs/research/INGEST-GAME-TM-REFACTOR1-G4/dryrun_summary.json",
+    "docs/research/INGEST-GAME-TM-REFACTOR1-G4/dryrun_text_diffs.json",
+    "docs/research/INGEST-GAME-TM-REFACTOR1-G4/equipped_invariants.json",
+    "docs/research/INGEST-GAME-TM-REFACTOR1-G4/gate_only_prod_pk.json",
+    "docs/research/INGEST-GAME-TM-REFACTOR1-G4/manifest.json",
+    "docs/research/INGEST-GAME-TM-REFACTOR1-G4/redline_attribution.json",
+    "docs/research/INGEST-GAME-TM-REFACTOR1-G4/request_volume.json",
+    "docs/research/INGEST-GAME-TM-REFACTOR1-G4/rollback_backtest.json",
+    "docs/research/INGEST-PLAYER-BIO-GAP1_DIAGNOSIS.md",
+    "docs/research/INGEST-PLAYER-BIO-GAP1_scrape_report.json",
+    "docs/research/INGEST-PLAYER-BIO-GAP2_scrape_report.json",
+    "docs/research/INGEST-SPLITS-IBB-GHOST1_COMPARE.json",
+    "docs/research/INGEST-SPLITS-IBB-GHOST1_GAMELOG.json",
+    "docs/research/INGEST-SPLITS-IBB-GHOST1_IMPACT.json",
+    "docs/research/INGEST-SPLITS-IBB-GHOST1_LABEL.json",
+    "docs/research/INGEST-SPLITS-IBB-GHOST1_OFFICIAL.json",
+    "docs/research/INGEST-SPLITS-IBB-GHOST1_RECALC1.json",
+    "docs/research/INGEST-SPLITS-IBB-GHOST1_RESULTS.md",
+    "docs/research/INGEST-SPLITS-IBB-GHOST1_SEATS.json",
+    "docs/research/INGEST-SPLITS-IBB-GHOST1_SELFCHECK.json",
+    "docs/research/INGEST-SPLITS-IMPORT-RESTATE1_DIRECTION.json",
+    "docs/research/INGEST-SPLITS-IMPORT-RESTATE1_PRECHECK.json",
+    "docs/research/INGEST-SPLITS-IMPORT-RESTATE1_REBUILD.json",
+    "docs/research/INGEST-SPLITS-IMPORT-RESTATE1_RECONCILE.json",
+    "docs/research/INGEST-SPLITS-IMPORT-RESTATE1_RESULTS.md",
+    "docs/research/INGEST-SPLITS-PA-SPLIT1_RESULTS.md",
+    "docs/research/INGEST-SPLITS-RECALC1_RECONCILE.json",
+    "docs/research/INIT-GAME-RECAP/spike-report.md",
+    "docs/research/INIT-GAME-RECAP_DISCOVERY-BRIEF.md",
+    "docs/research/LIVE_GAME_BACKEND1_OBSERVATION.md",
+    "docs/research/ML-OUTCOME-LEAK1_RESULTS.md",
+    "docs/research/ML-OUTCOME-SIMPLE-LEAK2_RESULTS.md",
+    "docs/research/ML-PITCHER-SCORELESS1_RESULTS.md",
+    "docs/research/ML-PITCHER-SCORELESS2_RESULTS.md",
+    "docs/research/ML-UMP1_RESULTS.md",
+    "docs/research/ML-UMP2_RESULTS.md",
+    "docs/research/ML-WP-BIO-PRIOR1_MEMO.md",
+    "docs/research/ML-WP-BIO-PRIOR1_SPEC.md",
+    "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+    "docs/research/ML_FIELD_TZ1_REVIEW.md",
+    "docs/research/ML_FIELD_TZ1_REVIEW_IT2.md",
+    "docs/research/ML_FIELD_TZ1_REVIEW_IT3.md",
+    "docs/research/OFFICIAL_DATA_GAP1_RESULTS.md",
+    "docs/research/OPS-BACKUP-EMPTY1_RESULTS.md",
+    "docs/research/OPS-CODE-BRANCH-PROTECT1_PLAN.md",
+    "docs/research/OPS-REMOTE-CRAWL1_PLAN.md",
+    "docs/research/OPS-STATE-PLANE-MIG1_field_mapping.md",
+    "docs/research/OPS-STATE-PLANE-MIG1_reconciliation.json",
+    "docs/research/OPS-STATE-PLANE-MIG1_reconciliation.md",
+    "docs/research/TEAM-STYLE1_RESULTS.md",
+    "docs/research/TEAM-STYLE2_RESULTS.md",
+    "docs/research/UI-FIELD-DIAGRAM1_REVIEW.md",
+    "docs/research/UX-ABILITY-FIELD1_PHASE1.md",
+    "docs/research/UX-PLAYER-FIELDVIZ1_RESEARCH.md",
+    "docs/research/UX-PLAYER-FIELDVIZ1_REVIEW.md",
+    "docs/research/UX-PLAYER-IA2_REVIEW.md",
+    "docs/research/UX-PLAYER-SECTIONS1_REVIEW.md",
+    "docs/research/WORKFLOW-REVIEW-2026-08-04.md",
+    "docs/research/game_recap_pa1_fix1_metrics.json",
+    "docs/research/game_recap_pa1_fix1_rebuild.json",
+    "docs/research/game_recap_wp_cal1_metrics.json",
+    "docs/research/game_recap_wp_strength1_metrics.json",
+    "docs/research/game_recap_wp_val1_fix1_metrics.json",
+    "docs/research/game_recap_wp_val1_metrics.json",
+    "docs/research/ingest_splits_pa_split1_metrics.json",
+    "docs/research/ingest_splits_pa_split1_player_delta.json",
+    "docs/research/ml_wp_bio_prior1_metrics.json",
+    "docs/research/ml_wp_bio_prior1_metrics_postfill.json",
+    "docs/research/team_style1_metrics.json",
+    "docs/research/team_style2_metrics.json",
+    "docs/research/team_style2_wiki_snapshot.json"
+  ],
+  "tier1_patterns": {
+    "no_go": "No[-\\s]?Go|NO[-\\s]?GO|NoGo|NOGO",
+    "unsupported": "unsupported|UNSUPPORTED",
+    "not_adopted": "不採用|不予採用|未採用|不採納|否決|駁回",
+    "not_passed": "未通過|不通過|未達標|未達門檻|不達標|沒有?通過",
+    "infeasible": "不可行|infeasible|INFEASIBLE|做不到|辦不到|無法實作",
+    "rejected_gate": "❌",
+    "not_supported_claim": "不支持|不支援(?!的)|無法支撐|不足以支撐|不成立",
+    "not_recommended": "不建議|建議不|勿採用|應放棄|予以封存",
+    "abandon": "放棄|封存|停止追查|終止追查|收攤",
+    "fail_word": "\\bFAIL\\b|\\bFAILED\\b|失敗",
+    "negative_verdict_zh": "結論[：:]\\s*(不|否|無)|判定[：:]\\s*(不|否|無)"
+  },
+  "tier2_patterns": {
+    "c1_drift": "漂移|drift|母體增長|隨時間變動|as-of|as of|快照時點|管線落後|落後\\s*\\d+\\s*場|尚未重建|尚未回填",
+    "c2_outlier": "離群|outlier|少數幾筆|個案|異常值|單一案例|逐筆查證|人工判讀|資料錯誤|資料缺失|覆蓋缺口|非隨機",
+    "c3_small_n": "小樣本|樣本不足|樣本數不足|樣本極小|n\\s*=\\s*[0-9]\\b|僅\\s*\\d+\\s*場|只有\\s*\\d+\\s*場|統計檢定力|power"
+  },
+  "population_size": 64,
+  "population": [
+    "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+    "docs/research/DATA-RULES-AUDIT1/C11_convergence_matrix.json",
+    "docs/research/DATA-RULES-AUDIT1/C9_special_rulings.json",
+    "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+    "docs/research/DATA-TIE-REMEDY1/consumers.json",
+    "docs/research/DATA-TIE-REMEDY1/streak_impact.json",
+    "docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit-before.md",
+    "docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit.md",
+    "docs/research/DEV-CLI-HELP-GUARD2/cli-help-audit-before.md",
+    "docs/research/DEV-CLI-HELP-GUARD2/cli-help-audit.md",
+    "docs/research/DISCOVERY-CPBL-RECORDS1_RESULTS.md",
+    "docs/research/DOC-GAME-RECAP1_REVIEW.md",
+    "docs/research/FIELDING_METRIC_DIRECTION.md",
+    "docs/research/GAME-RECAP-DATA1_RESULTS.md",
+    "docs/research/GAME-RECAP-DATA1_REVIEW.md",
+    "docs/research/GAME-RECAP-PA1-BUILD1_HANDOFF.md",
+    "docs/research/GAME-RECAP-PA1-BUILD1_QA.md",
+    "docs/research/GAME-RECAP-PA1-FIX1_PROD_RUNBOOK.md",
+    "docs/research/GAME-RECAP-PA1-TAXONOMY1_RESULTS.md",
+    "docs/research/GAME-RECAP-PA1_REVIEW.md",
+    "docs/research/GAME-RECAP-STATUS-EXPAND1_REVIEW.md",
+    "docs/research/GAME-RECAP-STATUS1_RESULTS.md",
+    "docs/research/GAME-RECAP-STATUS1_REVIEW.md",
+    "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md",
+    "docs/research/GAME-RECAP-WP-STRENGTH1_PLAN_REVIEW.md",
+    "docs/research/GAME-RECAP-WP-STRENGTH1_PLAN_REVIEW_REQUEST.md",
+    "docs/research/GAME-RECAP-WP-STRENGTH1_RESEARCH.md",
+    "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+    "docs/research/GAME-RECAP-WP-VAL1-FIX1_ERRATA.md",
+    "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+    "docs/research/INGEST-PLAYER-BIO-GAP1_DIAGNOSIS.md",
+    "docs/research/INGEST-SPLITS-IBB-GHOST1_IMPACT.json",
+    "docs/research/INGEST-SPLITS-IBB-GHOST1_RESULTS.md",
+    "docs/research/INIT-GAME-RECAP/spike-report.md",
+    "docs/research/INIT-GAME-RECAP_DISCOVERY-BRIEF.md",
+    "docs/research/LIVE_GAME_BACKEND1_OBSERVATION.md",
+    "docs/research/ML-OUTCOME-LEAK1_RESULTS.md",
+    "docs/research/ML-OUTCOME-SIMPLE-LEAK2_RESULTS.md",
+    "docs/research/ML-PITCHER-SCORELESS1_RESULTS.md",
+    "docs/research/ML-PITCHER-SCORELESS2_RESULTS.md",
+    "docs/research/ML-UMP1_RESULTS.md",
+    "docs/research/ML-UMP2_RESULTS.md",
+    "docs/research/ML-WP-BIO-PRIOR1_MEMO.md",
+    "docs/research/ML-WP-BIO-PRIOR1_SPEC.md",
+    "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+    "docs/research/ML_FIELD_TZ1_REVIEW.md",
+    "docs/research/ML_FIELD_TZ1_REVIEW_IT2.md",
+    "docs/research/ML_FIELD_TZ1_REVIEW_IT3.md",
+    "docs/research/OFFICIAL_DATA_GAP1_RESULTS.md",
+    "docs/research/OPS-BACKUP-EMPTY1_RESULTS.md",
+    "docs/research/OPS-CODE-BRANCH-PROTECT1_PLAN.md",
+    "docs/research/OPS-REMOTE-CRAWL1_PLAN.md",
+    "docs/research/OPS-STATE-PLANE-MIG1_field_mapping.md",
+    "docs/research/TEAM-STYLE1_RESULTS.md",
+    "docs/research/TEAM-STYLE2_RESULTS.md",
+    "docs/research/UX-ABILITY-FIELD1_PHASE1.md",
+    "docs/research/UX-PLAYER-FIELDVIZ1_RESEARCH.md",
+    "docs/research/WORKFLOW-REVIEW-2026-08-04.md",
+    "docs/research/game_recap_pa1_fix1_metrics.json",
+    "docs/research/game_recap_wp_cal1_metrics.json",
+    "docs/research/game_recap_wp_strength1_metrics.json",
+    "docs/research/game_recap_wp_val1_fix1_metrics.json",
+    "docs/research/game_recap_wp_val1_metrics.json",
+    "docs/research/team_style2_metrics.json"
+  ],
+  "per_file": {
+    "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json": {
+      "tier1_count": 52,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "fail_word"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/DATA-RULES-AUDIT1/C11_convergence_matrix.json": {
+      "tier1_count": 1,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "fail_word"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/DATA-RULES-AUDIT1/C12_timezone_windows.json": {
+      "tier1_count": 0,
+      "tier2_count": 1,
+      "tier1_categories": [],
+      "tier2_categories": [
+        "c1_drift"
+      ]
+    },
+    "docs/research/DATA-RULES-AUDIT1/C233_false_positive_set.json": {
+      "tier1_count": 0,
+      "tier2_count": 1,
+      "tier1_categories": [],
+      "tier2_categories": [
+        "c3_small_n"
+      ]
+    },
+    "docs/research/DATA-RULES-AUDIT1/C9_special_rulings.json": {
+      "tier1_count": 1,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "fail_word"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/DATA-RULES-AUDIT1_REPORT.md": {
+      "tier1_count": 20,
+      "tier2_count": 16,
+      "tier1_categories": [
+        "fail_word",
+        "rejected_gate",
+        "not_recommended"
+      ],
+      "tier2_categories": [
+        "c2_outlier",
+        "c3_small_n"
+      ]
+    },
+    "docs/research/DATA-TIE-REMEDY1/consumers.json": {
+      "tier1_count": 2,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "unsupported"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/DATA-TIE-REMEDY1/streak_impact.json": {
+      "tier1_count": 3,
+      "tier2_count": 2,
+      "tier1_categories": [
+        "not_adopted"
+      ],
+      "tier2_categories": [
+        "c2_outlier"
+      ]
+    },
+    "docs/research/DATA-TZ-BOUNDARY1/inventory.json": {
+      "tier1_count": 0,
+      "tier2_count": 8,
+      "tier1_categories": [],
+      "tier2_categories": [
+        "c2_outlier",
+        "c1_drift"
+      ]
+    },
+    "docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit-before.md": {
+      "tier1_count": 1,
+      "tier2_count": 1,
+      "tier1_categories": [
+        "not_supported_claim"
+      ],
+      "tier2_categories": [
+        "c1_drift"
+      ]
+    },
+    "docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit.md": {
+      "tier1_count": 1,
+      "tier2_count": 1,
+      "tier1_categories": [
+        "not_supported_claim"
+      ],
+      "tier2_categories": [
+        "c1_drift"
+      ]
+    },
+    "docs/research/DEV-CLI-HELP-GUARD2/cli-help-audit-before.md": {
+      "tier1_count": 1,
+      "tier2_count": 1,
+      "tier1_categories": [
+        "not_supported_claim"
+      ],
+      "tier2_categories": [
+        "c1_drift"
+      ]
+    },
+    "docs/research/DEV-CLI-HELP-GUARD2/cli-help-audit.md": {
+      "tier1_count": 1,
+      "tier2_count": 1,
+      "tier1_categories": [
+        "not_supported_claim"
+      ],
+      "tier2_categories": [
+        "c1_drift"
+      ]
+    },
+    "docs/research/DISCOVERY-CPBL-RECORDS1_RESULTS.md": {
+      "tier1_count": 12,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "no_go",
+        "not_supported_claim",
+        "not_recommended",
+        "fail_word"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/DOC-GAME-RECAP1_REVIEW.md": {
+      "tier1_count": 4,
+      "tier2_count": 2,
+      "tier1_categories": [
+        "abandon",
+        "unsupported",
+        "not_supported_claim",
+        "not_recommended"
+      ],
+      "tier2_categories": [
+        "c1_drift"
+      ]
+    },
+    "docs/research/FIELDING_METRIC_DIRECTION.md": {
+      "tier1_count": 3,
+      "tier2_count": 1,
+      "tier1_categories": [
+        "rejected_gate",
+        "not_adopted",
+        "not_recommended"
+      ],
+      "tier2_categories": [
+        "c3_small_n"
+      ]
+    },
+    "docs/research/GAME-RECAP-DATA1_RESULTS.md": {
+      "tier1_count": 9,
+      "tier2_count": 2,
+      "tier1_categories": [
+        "no_go",
+        "fail_word",
+        "not_adopted"
+      ],
+      "tier2_categories": [
+        "c1_drift"
+      ]
+    },
+    "docs/research/GAME-RECAP-DATA1_REVIEW.md": {
+      "tier1_count": 6,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "no_go",
+        "not_supported_claim"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/GAME-RECAP-PA1-BUILD1_HANDOFF.md": {
+      "tier1_count": 2,
+      "tier2_count": 4,
+      "tier1_categories": [
+        "fail_word"
+      ],
+      "tier2_categories": [
+        "c3_small_n",
+        "c1_drift"
+      ]
+    },
+    "docs/research/GAME-RECAP-PA1-BUILD1_QA.md": {
+      "tier1_count": 1,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "fail_word"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/GAME-RECAP-PA1-FIX1_PROD_RUNBOOK.md": {
+      "tier1_count": 2,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "not_recommended",
+        "abandon"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/GAME-RECAP-PA1-FIX1_TAXONOMY_DIFF.md": {
+      "tier1_count": 0,
+      "tier2_count": 1,
+      "tier1_categories": [],
+      "tier2_categories": [
+        "c1_drift"
+      ]
+    },
+    "docs/research/GAME-RECAP-PA1-TAXONOMY1_RESULTS.md": {
+      "tier1_count": 1,
+      "tier2_count": 1,
+      "tier1_categories": [
+        "fail_word"
+      ],
+      "tier2_categories": [
+        "c3_small_n"
+      ]
+    },
+    "docs/research/GAME-RECAP-PA1_REVIEW.md": {
+      "tier1_count": 5,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "no_go",
+        "fail_word",
+        "not_passed"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/GAME-RECAP-STATUS-EXPAND1_REVIEW.md": {
+      "tier1_count": 4,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "fail_word"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/GAME-RECAP-STATUS1_RESULTS.md": {
+      "tier1_count": 1,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "fail_word"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/GAME-RECAP-STATUS1_REVIEW.md": {
+      "tier1_count": 2,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "fail_word"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md": {
+      "tier1_count": 13,
+      "tier2_count": 5,
+      "tier1_categories": [
+        "no_go",
+        "unsupported",
+        "rejected_gate",
+        "fail_word"
+      ],
+      "tier2_categories": [
+        "c1_drift",
+        "c3_small_n"
+      ]
+    },
+    "docs/research/GAME-RECAP-WP-STRENGTH1_PLAN_REVIEW.md": {
+      "tier1_count": 2,
+      "tier2_count": 1,
+      "tier1_categories": [
+        "no_go",
+        "fail_word"
+      ],
+      "tier2_categories": [
+        "c3_small_n"
+      ]
+    },
+    "docs/research/GAME-RECAP-WP-STRENGTH1_PLAN_REVIEW_REQUEST.md": {
+      "tier1_count": 7,
+      "tier2_count": 1,
+      "tier1_categories": [
+        "not_recommended",
+        "no_go",
+        "infeasible",
+        "fail_word"
+      ],
+      "tier2_categories": [
+        "c1_drift"
+      ]
+    },
+    "docs/research/GAME-RECAP-WP-STRENGTH1_RESEARCH.md": {
+      "tier1_count": 8,
+      "tier2_count": 8,
+      "tier1_categories": [
+        "abandon",
+        "not_supported_claim",
+        "fail_word",
+        "no_go"
+      ],
+      "tier2_categories": [
+        "c3_small_n",
+        "c1_drift"
+      ]
+    },
+    "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md": {
+      "tier1_count": 20,
+      "tier2_count": 20,
+      "tier1_categories": [
+        "no_go",
+        "unsupported",
+        "rejected_gate",
+        "fail_word"
+      ],
+      "tier2_categories": [
+        "c3_small_n",
+        "c1_drift"
+      ]
+    },
+    "docs/research/GAME-RECAP-WP-VAL1-FIX1_ERRATA.md": {
+      "tier1_count": 3,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "unsupported",
+        "no_go"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md": {
+      "tier1_count": 17,
+      "tier2_count": 8,
+      "tier1_categories": [
+        "no_go",
+        "unsupported",
+        "fail_word",
+        "not_adopted"
+      ],
+      "tier2_categories": [
+        "c3_small_n",
+        "c1_drift"
+      ]
+    },
+    "docs/research/GAME_TM_SHADOW_OBSERVATION.md": {
+      "tier1_count": 0,
+      "tier2_count": 3,
+      "tier1_categories": [],
+      "tier2_categories": [
+        "c2_outlier"
+      ]
+    },
+    "docs/research/INGEST-PLAYER-BIO-GAP1_DIAGNOSIS.md": {
+      "tier1_count": 8,
+      "tier2_count": 1,
+      "tier1_categories": [
+        "not_supported_claim",
+        "fail_word",
+        "no_go"
+      ],
+      "tier2_categories": [
+        "c1_drift"
+      ]
+    },
+    "docs/research/INGEST-SPLITS-IBB-GHOST1_RESULTS.md": {
+      "tier1_count": 6,
+      "tier2_count": 2,
+      "tier1_categories": [
+        "fail_word",
+        "not_recommended",
+        "abandon"
+      ],
+      "tier2_categories": [
+        "c3_small_n"
+      ]
+    },
+    "docs/research/INGEST-SPLITS-PA-SPLIT1_RESULTS.md": {
+      "tier1_count": 0,
+      "tier2_count": 4,
+      "tier1_categories": [],
+      "tier2_categories": [
+        "c1_drift"
+      ]
+    },
+    "docs/research/INIT-GAME-RECAP/spike-report.md": {
+      "tier1_count": 2,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "not_supported_claim",
+        "rejected_gate"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/INIT-GAME-RECAP_DISCOVERY-BRIEF.md": {
+      "tier1_count": 2,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "not_supported_claim",
+        "fail_word"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/LIVE_GAME_BACKEND1_OBSERVATION.md": {
+      "tier1_count": 1,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "not_supported_claim"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/ML-OUTCOME-LEAK1_RESULTS.md": {
+      "tier1_count": 4,
+      "tier2_count": 4,
+      "tier1_categories": [
+        "not_supported_claim",
+        "fail_word"
+      ],
+      "tier2_categories": [
+        "c1_drift",
+        "c2_outlier",
+        "c3_small_n"
+      ]
+    },
+    "docs/research/ML-OUTCOME-SIMPLE-LEAK2_RESULTS.md": {
+      "tier1_count": 11,
+      "tier2_count": 5,
+      "tier1_categories": [
+        "fail_word",
+        "no_go",
+        "not_passed"
+      ],
+      "tier2_categories": [
+        "c3_small_n",
+        "c1_drift"
+      ]
+    },
+    "docs/research/ML-PITCHER-SCORELESS1_RESULTS.md": {
+      "tier1_count": 10,
+      "tier2_count": 1,
+      "tier1_categories": [
+        "infeasible",
+        "fail_word",
+        "not_supported_claim"
+      ],
+      "tier2_categories": [
+        "c3_small_n"
+      ]
+    },
+    "docs/research/ML-PITCHER-SCORELESS2_RESULTS.md": {
+      "tier1_count": 9,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "fail_word",
+        "abandon",
+        "not_supported_claim",
+        "no_go"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/ML-UMP1_RESULTS.md": {
+      "tier1_count": 1,
+      "tier2_count": 1,
+      "tier1_categories": [
+        "no_go"
+      ],
+      "tier2_categories": [
+        "c3_small_n"
+      ]
+    },
+    "docs/research/ML-UMP2_RESULTS.md": {
+      "tier1_count": 6,
+      "tier2_count": 1,
+      "tier1_categories": [
+        "no_go",
+        "fail_word"
+      ],
+      "tier2_categories": [
+        "c2_outlier"
+      ]
+    },
+    "docs/research/ML-WP-BIO-PRIOR1_MEMO.md": {
+      "tier1_count": 1,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "no_go"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/ML-WP-BIO-PRIOR1_SPEC.md": {
+      "tier1_count": 1,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "no_go"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/ML_FIELD_TZ1_FEASIBILITY.md": {
+      "tier1_count": 40,
+      "tier2_count": 18,
+      "tier1_categories": [
+        "infeasible",
+        "no_go",
+        "rejected_gate",
+        "fail_word",
+        "not_recommended",
+        "not_adopted",
+        "not_supported_claim"
+      ],
+      "tier2_categories": [
+        "c1_drift",
+        "c3_small_n"
+      ]
+    },
+    "docs/research/ML_FIELD_TZ1_REVIEW.md": {
+      "tier1_count": 12,
+      "tier2_count": 5,
+      "tier1_categories": [
+        "no_go",
+        "infeasible",
+        "fail_word",
+        "not_supported_claim",
+        "abandon"
+      ],
+      "tier2_categories": [
+        "c1_drift"
+      ]
+    },
+    "docs/research/ML_FIELD_TZ1_REVIEW_IT2.md": {
+      "tier1_count": 8,
+      "tier2_count": 6,
+      "tier1_categories": [
+        "no_go",
+        "fail_word",
+        "not_recommended"
+      ],
+      "tier2_categories": [
+        "c1_drift",
+        "c3_small_n"
+      ]
+    },
+    "docs/research/ML_FIELD_TZ1_REVIEW_IT3.md": {
+      "tier1_count": 10,
+      "tier2_count": 1,
+      "tier1_categories": [
+        "no_go",
+        "not_recommended",
+        "fail_word",
+        "not_adopted"
+      ],
+      "tier2_categories": [
+        "c1_drift"
+      ]
+    },
+    "docs/research/OFFICIAL_DATA_GAP1_RESULTS.md": {
+      "tier1_count": 3,
+      "tier2_count": 1,
+      "tier1_categories": [
+        "no_go"
+      ],
+      "tier2_categories": [
+        "c1_drift"
+      ]
+    },
+    "docs/research/OPS-BACKUP-EMPTY1_RESULTS.md": {
+      "tier1_count": 13,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "fail_word",
+        "not_supported_claim"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/OPS-CODE-BRANCH-PROTECT1_PLAN.md": {
+      "tier1_count": 18,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "not_supported_claim",
+        "fail_word",
+        "rejected_gate",
+        "not_passed"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/OPS-REMOTE-CRAWL1_PLAN.md": {
+      "tier1_count": 3,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "not_supported_claim",
+        "no_go"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/OPS-STATE-PLANE-MIG1_field_mapping.md": {
+      "tier1_count": 3,
+      "tier2_count": 1,
+      "tier1_categories": [
+        "abandon",
+        "not_recommended",
+        "not_supported_claim"
+      ],
+      "tier2_categories": [
+        "c1_drift"
+      ]
+    },
+    "docs/research/TEAM-STYLE1_RESULTS.md": {
+      "tier1_count": 17,
+      "tier2_count": 7,
+      "tier1_categories": [
+        "not_supported_claim",
+        "fail_word",
+        "not_recommended",
+        "rejected_gate"
+      ],
+      "tier2_categories": [
+        "c3_small_n",
+        "c2_outlier"
+      ]
+    },
+    "docs/research/TEAM-STYLE2_RESULTS.md": {
+      "tier1_count": 7,
+      "tier2_count": 5,
+      "tier1_categories": [
+        "no_go",
+        "not_supported_claim"
+      ],
+      "tier2_categories": [
+        "c3_small_n"
+      ]
+    },
+    "docs/research/UX-ABILITY-FIELD1_PHASE1.md": {
+      "tier1_count": 1,
+      "tier2_count": 3,
+      "tier1_categories": [
+        "abandon"
+      ],
+      "tier2_categories": [
+        "c3_small_n"
+      ]
+    },
+    "docs/research/UX-PLAYER-FIELDVIZ1_RESEARCH.md": {
+      "tier1_count": 6,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "rejected_gate",
+        "infeasible",
+        "not_adopted"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/WORKFLOW-REVIEW-2026-08-04.md": {
+      "tier1_count": 10,
+      "tier2_count": 1,
+      "tier1_categories": [
+        "not_adopted",
+        "abandon"
+      ],
+      "tier2_categories": [
+        "c2_outlier"
+      ]
+    },
+    "docs/research/game_recap_pa1_fix1_metrics.json": {
+      "tier1_count": 3,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "fail_word"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/game_recap_wp_cal1_metrics.json": {
+      "tier1_count": 1,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "unsupported"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/game_recap_wp_strength1_metrics.json": {
+      "tier1_count": 2,
+      "tier2_count": 1,
+      "tier1_categories": [
+        "no_go",
+        "unsupported"
+      ],
+      "tier2_categories": [
+        "c1_drift"
+      ]
+    },
+    "docs/research/game_recap_wp_val1_fix1_metrics.json": {
+      "tier1_count": 1,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "unsupported"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/game_recap_wp_val1_metrics.json": {
+      "tier1_count": 4,
+      "tier2_count": 0,
+      "tier1_categories": [
+        "unsupported"
+      ],
+      "tier2_categories": []
+    },
+    "docs/research/team_style1_metrics.json": {
+      "tier1_count": 0,
+      "tier2_count": 50,
+      "tier1_categories": [],
+      "tier2_categories": [
+        "c3_small_n"
+      ]
+    },
+    "docs/research/team_style2_metrics.json": {
+      "tier1_count": 1,
+      "tier2_count": 1,
+      "tier1_categories": [
+        "no_go"
+      ],
+      "tier2_categories": [
+        "c3_small_n"
+      ]
+    }
+  },
+  "json_structured_negative_verdicts": {
+    "docs/research/INGEST-SPLITS-IBB-GHOST1_IMPACT.json": [
+      {
+        "key": "has_result_row",
+        "value": "False",
+        "count": 2
+      }
+    ],
+    "docs/research/game_recap_wp_cal1_metrics.json": [
+      {
+        "key": "status",
+        "value": "unsupported",
+        "count": 1
+      }
+    ],
+    "docs/research/game_recap_wp_strength1_metrics.json": [
+      {
+        "key": "status",
+        "value": "unsupported",
+        "count": 1
+      }
+    ],
+    "docs/research/game_recap_wp_val1_fix1_metrics.json": [
+      {
+        "key": "status",
+        "value": "unsupported",
+        "count": 1
+      }
+    ],
+    "docs/research/game_recap_wp_val1_metrics.json": [
+      {
+        "key": "status",
+        "value": "unsupported",
+        "count": 4
+      }
+    ]
+  },
+  "hits": [
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 48,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 108,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 114,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 121,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 127,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 134,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 140,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 147,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 153,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 160,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 166,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 173,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 179,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 186,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 192,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 199,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 205,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 212,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 218,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 225,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 231,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 238,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 244,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 251,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 257,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 264,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 270,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 277,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 283,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 290,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 296,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 303,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 309,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \"擊出球(觸擊)， 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 316,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 322,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 329,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 335,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 342,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 348,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 355,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 361,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \"擊出球(觸擊)， 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 368,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 374,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \"擊出球(觸擊)， 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 381,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 387,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 394,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 400,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 407,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 413,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 420,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 426,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"content\": \" 界外球(觸擊) 打者出局-三振/第三好球觸擊失敗出局。 1人出局。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C10_bunt_and_dp.json",
+      "line": 482,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"action_name\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C11_convergence_matrix.json",
+      "line": 12,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"note\": \"抓取失敗：Page.goto: net::ERR_INTERNET_DISCONNECTED at https://www.cpbl.com.tw/schedule\\nCall log:\\n  - navigating to \\\"https://www.cpbl.com.tw/schedule\\\", waiting until \\\"networkidle\\\"\\n\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C12_timezone_windows.json",
+      "line": 194,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "\"text\": \"`CURRENT_DATE` 為界；直接沿用會讓這個欄位隨當下全表漂移（iteration 3 查核 F1）。\""
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C233_false_positive_set.json",
+      "line": 3,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "僅 34 場",
+      "snippet": "\"why_rejected\": \"present_status 不是完賽旗標：全庫 13,480 場為 1（含 192 場未來日期、475 場零比分），僅 34 場為 0。用它當完成證據會把「排定但未打／已取消／尚未入庫比分」的場次整批誤判為完成場。\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1/C9_special_rulings.json",
+      "line": 72,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"action_name\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 36,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "人工判讀",
+      "snippet": "映射驗證（對照實作實際行為，抽樣逐例）→ 判定三分（乾淨／缺陷／待人工判讀）**。"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 54,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "人工判讀",
+      "snippet": "判定用三分：**乾淨**（附證據）／**缺陷**（附修復提案，不修碼）／**待人工判讀**（交需求方）。"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 60,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "人工判讀",
+      "snippet": "| 8 | 第三出局中斷打席 | **乾淨**（7 例待人工判讀） | 1,746 個 truncated 島零例誤併（實質列跨局 = 0）；1,263/1,270 次局重打球數歸零 |"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 65,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "人工判讀",
+      "snippet": "| 1 | 裁定殘局計入 | **待人工判讀** | 105 場完成場 <9 局，需依規章 §38 四階梯逐類確認官方認定 |"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 68,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "人工判讀",
+      "snippet": "| 4 | 和局斷連 | **待人工判讀** | 我方註明「和局中斷連勝/連敗」；官方 `streak` 快照窗內無和局，**無 ground truth 可證偽** |"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 147,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "人工判讀",
+      "snippet": "### 候選 8｜第三出局（盜壘阻殺／牽制）中斷打席　→ **乾淨**（7 例待人工判讀）"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 177,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "人工判讀",
+      "snippet": "**判定：乾淨。** **7 例次局重打球數未歸零列入待人工判讀**（見 §4）。"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 235,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "1. **兩好球觸擊界外＝三振**：canonical `三振/第三好球觸擊失敗` **84 席**（2018–2026），"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 238,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "splits 層 `batting_action_name` 為 `三振`（觸擊樣本中 `三振/第三好球觸擊失敗` → `三振` 201 列）"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 269,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| `batting_gamelog`/`pitching_gamelog` | 當日窗 ∪ **全域「完成卻無 gamelog」補齊** | ❌ | ⚠️ **內容改判永不收斂**（只補「整場缺」，不補「已有但被改」） |"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 270,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| `game_livelog`/`game_detail`/`game_scoreboard` | **僅當日窗** | ❌ | ❌ **永不收斂** |"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 271,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| `game_plate_appearances` | 當日窗 ∪ 全域「無 published build」缺口 | ❌ | ⚠️ 隨 livelog；livelog 不變則不重建 |"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 273,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| SABR 衍生（`batter_traits`/`pitcher_traits`/`batter_re24`/`pitcher_re24`/`batter_wsb`/`team_der`/`catcher_runs`/`run_expectancy`/`fielding_innings`） | **不在每日鏈**（手動 CLI） | ❌ | ❌ **需人工重跑** |"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 357,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "人工判讀",
+      "snippet": "### 候選 1｜裁定殘局計入　→ **待人工判讀**"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 432,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "人工判讀",
+      "snippet": "### 候選 4｜和局斷連　→ **待人工判讀**"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 446,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "人工判讀",
+      "snippet": "**判定：待人工判讀。** 需求方定奪（§4-M2）。"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 458,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| **F** | 103 | 103 | 2005–2025 | **0** | **0** | ❌ |"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 518,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "僅 5 場",
+      "snippet": "> (2) **修法不可用 `present_status` 當完成證據**——實測會納入 288 場 0:0 而其中僅 5 場為真，"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 557,
+      "tier": 1,
+      "category": "not_recommended",
+      "matched": "不建議",
+      "snippet": "| **D7** | 12 | 🟢 | DB timezone=UTC，`api/routers/info.py:58` 的 `predictions_today` 在台北 00:00–08:00 指向前一日 | 該處改 `game_date = (now() AT TIME ZONE 'Asia/Taipei')::date`。**不建議**改 DB 全域 timezone——26 個 `range` 使用點目前行為正確且保守，全域改動的回歸面遠大於收益 |"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 578,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "僅 5 場",
+      "snippet": "**288 場中僅 5 場是已確認和局，283 場是偽陽性。** 窄母體（A、2018+、無 delay_kind）"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 588,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| 2026/A/241 | 2026-08-04 | 台鋼 vs 樂天 | ❌ 偽陽 |"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 589,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| 2026/A/242 | 2026-08-04 | 中信兄弟 vs 富邦 | ❌ 偽陽 |"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 590,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| 2026/A/243 | **2026-08-05** | 台鋼 vs 樂天 | ❌ 偽陽 |"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 591,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| 2026/A/244 | **2026-08-05** | 中信兄弟 vs 富邦 | ❌ 偽陽 |"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 592,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| 2026/A/245 | **2026-08-05** | 味全 vs 統一 | ❌ 偽陽 |"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 596,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "僅 34 場",
+      "snippet": "（全庫 13,480 場為 1，含 192 場未來日期、475 場零比分；僅 34 場為 0）。"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 631,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| 2026/D/119 | 2026-08-08 | 5:4 | ❌ 誤納 | ✅ 排除 |"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 632,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| 2026/D/97 | 2026-08-09 | 4:3 | ❌ 誤納 | ✅ 排除 |"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 633,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| 2026/D/118 | 2026-08-22 | 1:0 | ❌ 誤納 | ✅ 排除 |"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 634,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| 2026/D/117 | 2026-08-30 | 1:4 | ❌ 誤納 | ✅ 排除 |"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 635,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| 2026/D/165 | 2026-09-15 | 1:3 | ❌ 誤納 | ✅ 排除 |"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 675,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "人工判讀",
+      "snippet": "## 4. 待人工判讀清單（交需求方）"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 700,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "來源分別是 `三振/第三好球觸擊失敗` 與 `界外飛球接殺`，**不可合併處理**。"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 723,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "人工判讀",
+      "snippet": "是否適用 §38 取決於 M1 的領域知識。判定停在「待人工判讀」而非勉強給結論。"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 736,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "僅 5 場",
+      "snippet": "- **第 1 輪**：`present_status = 1` + 日期界線會納入 288 場 0:0 而其中僅 5 場為真。"
+    },
+    {
+      "path": "docs/research/DATA-RULES-AUDIT1_REPORT.md",
+      "line": 749,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "本卡 db_scope=read 未深入，但每日爬取鏈昨日失敗這件事本身應該有人看一眼。"
+    },
+    {
+      "path": "docs/research/DATA-TIE-REMEDY1/consumers.json",
+      "line": 47,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "\"src/cpbl/models/winprob_val.py\": \"**需求方 2026-08-05 裁定：保留舊判準**（Issue #90）。同 winprob_strength——全押主場基準線屬研究產物，且 WP-VAL1 全 scope 已判 unsupported。與該家族一併定案保留，非待辦。\""
+    },
+    {
+      "path": "docs/research/DATA-TIE-REMEDY1/consumers.json",
+      "line": 739,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "\"reviewed_not_switched\": \"**需求方 2026-08-05 裁定：保留舊判準**（Issue #90）。同 winprob_strength——全押主場基準線屬研究產物，且 WP-VAL1 全 scope 已判 unsupported。與該家族一併定案保留，非待辦。\","
+    },
+    {
+      "path": "docs/research/DATA-TIE-REMEDY1/streak_impact.json",
+      "line": 3,
+      "tier": 1,
+      "category": "not_adopted",
+      "matched": "否決",
+      "snippet": "\"verdict\": \"SKIP 語意已被否決——官方語意＝和局中斷連段（需求方二次裁定，Issue #90）。本檔為 skip 語意的**反證存證**，勿當成待套用的修正清單。\","
+    },
+    {
+      "path": "docs/research/DATA-TIE-REMEDY1/streak_impact.json",
+      "line": 22,
+      "tier": 1,
+      "category": "not_adopted",
+      "matched": "否決",
+      "snippet": "\"design\": \"2x2 因子：A=舊判準+官方中斷（本卡之前的生產狀態）／**C=新判準+官方中斷＝本卡終態**／D=舊判準+跳過（反事實）／B=新判準+跳過（反事實，skip 世界，已否決）\","
+    },
+    {
+      "path": "docs/research/DATA-TIE-REMEDY1/streak_impact.json",
+      "line": 51,
+      "tier": 1,
+      "category": "not_adopted",
+      "matched": "否決",
+      "snippet": "\"counterfactual_skip_meaning\": \"以下為**反事實**：若改用已否決的 skip 語意會偏離現況的清單。**非待辦、非待套用修正**，保留為翻案證據鏈的一環。\","
+    },
+    {
+      "path": "docs/research/DATA-TIE-REMEDY1/streak_impact.json",
+      "line": 63,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "人工判讀",
+      "snippet": "\"counterfactual_negative_delta_note\": \"skip 語意只會讓連段跨過和局而延長，故反事實值理應 >= 先前值。若此數非 0，該列標記為**待人工判讀**。\","
+    },
+    {
+      "path": "docs/research/DATA-TIE-REMEDY1/streak_impact.json",
+      "line": 105,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "個案",
+      "snippet": "\"headline_note\": \"兄弟象 2006 年 13 連敗（8/8–8/31）該段中間無和局，故兩種語意皆重現 13，**無法用來分辨語意**——這是本卡最初查證時的盲點。PM 後續改查「連段跨過和局」的個案（見各列 ties_spanned）才分出勝負：官方榜逐條與 break 相符。採 break 後保持者易主問題自動消解——興農 2012 回到 9，兄弟 2006 獨保 13。\","
+    },
+    {
+      "path": "docs/research/DATA-TZ-BOUNDARY1/inventory.json",
+      "line": 41,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "人工判讀",
+      "snippet": "\"待人工判讀\": 3,"
+    },
+    {
+      "path": "docs/research/DATA-TZ-BOUNDARY1/inventory.json",
+      "line": 67,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "人工判讀",
+      "snippet": "\"sensitivity\": \"待人工判讀\","
+    },
+    {
+      "path": "docs/research/DATA-TZ-BOUNDARY1/inventory.json",
+      "line": 76,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "人工判讀",
+      "snippet": "\"sensitivity\": \"待人工判讀\","
+    },
+    {
+      "path": "docs/research/DATA-TZ-BOUNDARY1/inventory.json",
+      "line": 85,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "人工判讀",
+      "snippet": "\"sensitivity\": \"待人工判讀\","
+    },
+    {
+      "path": "docs/research/DATA-TZ-BOUNDARY1/inventory.json",
+      "line": 501,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "人工判讀",
+      "snippet": "\"sensitivity\": \"待人工判讀\","
+    },
+    {
+      "path": "docs/research/DATA-TZ-BOUNDARY1/inventory.json",
+      "line": 555,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "人工判讀",
+      "snippet": "\"sensitivity\": \"待人工判讀\","
+    },
+    {
+      "path": "docs/research/DATA-TZ-BOUNDARY1/inventory.json",
+      "line": 1709,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "\"code\": \"`CURRENT_DATE` 為界；直接沿用會讓這個欄位隨當下全表漂移（iteration 3 查核 F1）。\""
+    },
+    {
+      "path": "docs/research/DATA-TZ-BOUNDARY1/inventory.json",
+      "line": 1860,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "人工判讀",
+      "snippet": "\"sensitivity\": \"待人工判讀\","
+    },
+    {
+      "path": "docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit-before.md",
+      "line": 27,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "宣稱不成立（查核 CLIHG1-R1-01）。繞過上列 Python 符號的路徑（ctypes、直接 syscall、"
+    },
+    {
+      "path": "docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit-before.md",
+      "line": 29,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "故此封鎖面對本盤點充分。清單與 `tests/test_cli_help_guard.py` 由測試綁定，不得單邊漂移。"
+    },
+    {
+      "path": "docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit.md",
+      "line": 27,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "宣稱不成立（查核 CLIHG1-R1-01）。繞過上列 Python 符號的路徑（ctypes、直接 syscall、"
+    },
+    {
+      "path": "docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit.md",
+      "line": 29,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "故此封鎖面對本盤點充分。清單與 `tests/test_cli_help_guard.py` 由測試綁定，不得單邊漂移。"
+    },
+    {
+      "path": "docs/research/DEV-CLI-HELP-GUARD2/cli-help-audit-before.md",
+      "line": 27,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "宣稱不成立（查核 CLIHG1-R1-01）。繞過上列 Python 符號的路徑（ctypes、直接 syscall、"
+    },
+    {
+      "path": "docs/research/DEV-CLI-HELP-GUARD2/cli-help-audit-before.md",
+      "line": 29,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "故此封鎖面對本盤點充分。清單與 `tests/test_cli_help_guard.py` 由測試綁定，不得單邊漂移。"
+    },
+    {
+      "path": "docs/research/DEV-CLI-HELP-GUARD2/cli-help-audit.md",
+      "line": 27,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "宣稱不成立（查核 CLIHG1-R1-01）。繞過上列 Python 符號的路徑（ctypes、直接 syscall、"
+    },
+    {
+      "path": "docs/research/DEV-CLI-HELP-GUARD2/cli-help-audit.md",
+      "line": 29,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "故此封鎖面對本盤點充分。清單與 `tests/test_cli_help_guard.py` 由測試綁定，不得單邊漂移。"
+    },
+    {
+      "path": "docs/research/DISCOVERY-CPBL-RECORDS1_RESULTS.md",
+      "line": 12,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "逐頁 Go/No-Go（詳見 §3）："
+    },
+    {
+      "path": "docs/research/DISCOVERY-CPBL-RECORDS1_RESULTS.md",
+      "line": 19,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "| `/stats/toplist` | **NO-GO（修正）** | **修正 spec 基線**：實測是當季 top-5 快照（h3「2026年 單項排行榜」），非生涯累計；深度低於既有 `/season/*-leaders`，純重複 |"
+    },
+    {
+      "path": "docs/research/DISCOVERY-CPBL-RECORDS1_RESULTS.md",
+      "line": 24,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "1. `/stats/toplist` 不是「生涯累計 Top 榜」，是當季 top-5，NO-GO 由「重複但可能有用」改為「純重複」。"
+    },
+    {
+      "path": "docs/research/DISCOVERY-CPBL-RECORDS1_RESULTS.md",
+      "line": 26,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "3. `/stats/mvp` 不是「單場 MVP 名單」，是「單月 MVP」award，預設 NO-GO **不成立**——與現有兩個資料源（`games.mvp_acnt`、`cpbl_awards`）均不重複；但規模小，不足以單獨開 T3/T4 ingest 卡，建議併入既有 `cpbl_awards` 擴充或列為低優先 backlog。"
+    },
+    {
+      "path": "docs/research/DISCOVERY-CPBL-RECORDS1_RESULTS.md",
+      "line": 26,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "3. `/stats/mvp` 不是「單場 MVP 名單」，是「單月 MVP」award，預設 NO-GO **不成立**——與現有兩個資料源（`games.mvp_acnt`、`cpbl_awards`）均不重複；但規模小，不足以單獨開 T3/T4 ingest 卡，建議併入既有 `cpbl_awards` 擴充或列為低優先 backlog。"
+    },
+    {
+      "path": "docs/research/DISCOVERY-CPBL-RECORDS1_RESULTS.md",
+      "line": 28,
+      "tier": 1,
+      "category": "not_recommended",
+      "matched": "不建議",
+      "snippet": "主站仍有 HiNet 挑戰成本；六頁皆屬**低頻／一次性**價值（無日更需求），**不建議**加入每日 Playwright refresh——與 spec 基線建議一致。"
+    },
+    {
+      "path": "docs/research/DISCOVERY-CPBL-RECORDS1_RESULTS.md",
+      "line": 69,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "### 3.4 `/stats/toplist` — 當季單項排行榜（**NO-GO，修正**）"
+    },
+    {
+      "path": "docs/research/DISCOVERY-CPBL-RECORDS1_RESULTS.md",
+      "line": 73,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "- spec 基線誤判為「生涯累計 Top 榜」（該描述更符合既有 `run_scrape_legends` 涵蓋的 7 榜 top10，走 `/team/apart?year=9999`，與本頁無關）。既有 `/api/v1/season/batting-leaders`／`pitching-leaders` 已提供**遠多於 top 5** 的當季排行，本頁純重複且更淺，**NO-GO**。"
+    },
+    {
+      "path": "docs/research/DISCOVERY-CPBL-RECORDS1_RESULTS.md",
+      "line": 86,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "- **與 spec 基線預設 NO-GO 的前提不成立**：`games.mvp_acnt` 是逐場 MVP，`cpbl_awards`"
+    },
+    {
+      "path": "docs/research/DISCOVERY-CPBL-RECORDS1_RESULTS.md",
+      "line": 86,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "- **與 spec 基線預設 NO-GO 的前提不成立**：`games.mvp_acnt` 是逐場 MVP，`cpbl_awards`"
+    },
+    {
+      "path": "docs/research/DISCOVERY-CPBL-RECORDS1_RESULTS.md",
+      "line": 128,
+      "tier": 1,
+      "category": "not_recommended",
+      "matched": "不建議",
+      "snippet": "ingest 模組）核對既有資料，發現差異才個別修；不建議常駐 CLI。"
+    },
+    {
+      "path": "docs/research/DISCOVERY-CPBL-RECORDS1_RESULTS.md",
+      "line": 146,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "- 反爬：任何後續 ingest 開發與驗證，一律遵守白天／低頻／單一 session／失敗冷卻 15–20"
+    },
+    {
+      "path": "docs/research/DOC-GAME-RECAP1_REVIEW.md",
+      "line": 3,
+      "tier": 1,
+      "category": "abandon",
+      "matched": "封存",
+      "snippet": "- 查核卡：[`DOC-GAME-RECAP1`](../archive/tasks/DOC-GAME-RECAP1.md)〔T3；⚪B2 權威文件；結案後封存〕"
+    },
+    {
+      "path": "docs/research/DOC-GAME-RECAP1_REVIEW.md",
+      "line": 7,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "- **結論：request-changes（外科式；核心紅線設計通過，阻擋項僅為現況盤點時效性漂移）**"
+    },
+    {
+      "path": "docs/research/DOC-GAME-RECAP1_REVIEW.md",
+      "line": 17,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "| 3 | WP/WPA、打席分組、逐球、freshness、賽制邊界皆有 fail-closed 與驗證要求 | ✅PASS | §8「無法重建打席 fail closed」「未驗證賽制標 unsupported」、§7 證據不足退 `unknown`、WP-VAL1 要求 walk-forward／Brier、PA1 要求紅燈測試 |"
+    },
+    {
+      "path": "docs/research/DOC-GAME-RECAP1_REVIEW.md",
+      "line": 44,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "### F1 — 現況盤點時效性漂移　`severity: Medium（阻擋 Design Gate）`"
+    },
+    {
+      "path": "docs/research/DOC-GAME-RECAP1_REVIEW.md",
+      "line": 72,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不支援",
+      "snippet": "- **fail-closed 完整**：§8「無法可靠重建的打席必須 fail closed：保留事件，但不回傳誤導性 WP／WPA」、「非一軍／季後賽…須明確標示不支援或使用代理模型，不得靜默套用」；§7「證據不足時 fail closed 為 unknown，不以日期猜測」。直接對應並要求修補已核實的 F3.3 風險。"
+    },
+    {
+      "path": "docs/research/DOC-GAME-RECAP1_REVIEW.md",
+      "line": 86,
+      "tier": 1,
+      "category": "not_recommended",
+      "matched": "不建議",
+      "snippet": "- **給需求方（ruan6047）／Coordinator**：F1 修正前不建議在 Design Gate 對 §3.2／§6.1 現況段簽核；核心紅線設計本查核已通過，可平行推進 `GAME-RECAP-DATA1` 執行（已 claim）。"
+    },
+    {
+      "path": "docs/research/FIELDING_METRIC_DIRECTION.md",
+      "line": 26,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| **Statcast OAA**（Baseball Savant） | 守備員**起始站位**（Hawk-Eye 逐球定位） | ❌ 永遠沒有 |"
+    },
+    {
+      "path": "docs/research/FIELDING_METRIC_DIRECTION.md",
+      "line": 27,
+      "tier": 1,
+      "category": "not_adopted",
+      "matched": "否決",
+      "snippet": "| **UZR / DRS**（BIS） | 落點分區座標＋人工計分 | ⚠️ 有落點但樣本不足（每人每區 12–21 球，已否決） |"
+    },
+    {
+      "path": "docs/research/FIELDING_METRIC_DIRECTION.md",
+      "line": 27,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "樣本不足",
+      "snippet": "| **UZR / DRS**（BIS） | 落點分區座標＋人工計分 | ⚠️ 有落點但樣本不足（每人每區 12–21 球，已否決） |"
+    },
+    {
+      "path": "docs/research/FIELDING_METRIC_DIRECTION.md",
+      "line": 86,
+      "tier": 1,
+      "category": "not_recommended",
+      "matched": "建議不",
+      "snippet": "原卡的 Phase 2（改分母）**建議不執行**，理由不是新分母錯，而是："
+    },
+    {
+      "path": "docs/research/GAME-RECAP-DATA1_RESULTS.md",
+      "line": 16,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "> [!danger] 結論：canonical PA：NO-GO"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-DATA1_RESULTS.md",
+      "line": 21,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "- 範圍：2018–2026，kind=A,C,D,E，as-of=2026-07-19。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-DATA1_RESULTS.md",
+      "line": 29,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "uv run python scripts/audit_game_recap_data.py --from-year 2018 --to-year 2026 --kind A --kind C --kind D --kind E --as-of 2026-07-19 --output docs/research/GAME-RECAP-DATA1_RESULTS.md"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-DATA1_RESULTS.md",
+      "line": 493,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| 三振/第三好球觸擊失敗 | 339 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-DATA1_RESULTS.md",
+      "line": 631,
+      "tier": 1,
+      "category": "not_adopted",
+      "matched": "不採用",
+      "snippet": "| request-time | 每個 consumer 容易重複近似邏輯；晚到事件造成同場不同結果 | 首請求重算、需 cache invalidation | 三層邏輯與快取失效成本高 | 不採用 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-DATA1_RESULTS.md",
+      "line": 661,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| 2026-07-06 06:57:34.272153+00:00 | recent-games | False | 0 | 0 | 抓取失敗：No module named 'playwright' | {\"error\": \"No module named 'playwright'\"} |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-DATA1_RESULTS.md",
+      "line": 663,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| 2026-07-03 19:59:35.756994+00:00 | recent-games | False | 0 | 0 | 抓取失敗：Page.goto: net::ERR_TOO_MANY_REDIRECTS at https://www.cpbl.com.tw/schedule Call log:   - navigating to \"https://www.cpbl.com.tw/schedule\", waiting until \"networkidle\" "
+    },
+    {
+      "path": "docs/research/GAME-RECAP-DATA1_RESULTS.md",
+      "line": 664,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| 2026-07-03 19:10:41.912243+00:00 | recent-games | False | 0 | 0 | 抓取失敗：/schedule 重試後仍缺必要內容（反爬挑戰未過或官網改版） | {\"error\": \"/schedule 重試後仍缺必要內容（反爬挑戰未過或官網改版）\"} |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-DATA1_RESULTS.md",
+      "line": 665,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| 2026-07-03 17:53:50.653516+00:00 | recent-games | False | 0 | 0 | 抓取失敗：/schedule 重試後仍缺必要內容（反爬挑戰未過或官網改版） | {\"error\": \"/schedule 重試後仍缺必要內容（反爬挑戰未過或官網改版）\"} |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-DATA1_RESULTS.md",
+      "line": 666,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| 2026-07-03 15:19:38.135564+00:00 | recent-games | False | 0 | 0 | 抓取失敗：Page.evaluate: TypeError: Failed to fetch     at eval (eval at evaluate (:302:30), <anonymous>:2:19)     at UtilityScript.evaluate (<anonymous>:309:18)     at UtilityS"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-DATA1_RESULTS.md",
+      "line": 667,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| 2026-07-03 15:17:36.427903+00:00 | recent-games | False | 0 | 0 | 抓取失敗：找不到 RequestVerificationToken（官網結構可能已改版） | {\"error\": \"找不到 RequestVerificationToken（官網結構可能已改版）\"} |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-DATA1_REVIEW.md",
+      "line": 7,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "- **結論：APPROVE（核心 NO-GO 判定誠實且有據；兩點非阻擋事項於 merge 前處理）**"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-DATA1_REVIEW.md",
+      "line": 18,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "| 4 | 定義 canonical `pa_id`／事件排序／前後狀態／freshness，判定現有欄位能否可靠產生 | ✅PASS | canonical 契約 7 類欄位表；明確判定「無官方 PA ID／不可變 pitch ID／row-level freshness／完成狀態來源」→ NO-GO，schema 缺口另開 expand 卡 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-DATA1_REVIEW.md",
+      "line": 20,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不支援",
+      "snippet": "| 6 | 標明支援／不支援賽季與賽制，提供 fail-closed，不以一軍模型靜默代替二軍／季後 | ✅PASS | 支援邊界表＋四條 fail-closed（0–0 不判完成、跨 scope 不套用、對應不唯一回 null、三種缺漏分開） |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-DATA1_REVIEW.md",
+      "line": 33,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "## 2. 三套現行分組「重現」核實（NO-GO 立論基礎 — 全部與程式一致）"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-DATA1_REVIEW.md",
+      "line": 35,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "> NO-GO 全靠「三套近似分組邊界不同」；逐一對到真實程式行號，重現忠實、無虛構。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-DATA1_REVIEW.md",
+      "line": 81,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "證據、分母、缺漏分類與建議三者一致，NO-GO 誠實有據。**建議需求方核可 Checkpoint 1**："
+    },
+    {
+      "path": "docs/research/GAME-RECAP-PA1-BUILD1_HANDOFF.md",
+      "line": 30,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "n=1",
+      "snippet": "> §5 的 taxonomy pin（`taxonomy_version=1.0.0`／`builder_version=pa-build-1.0.0`）"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-PA1-BUILD1_HANDOFF.md",
+      "line": 35,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "n=1",
+      "snippet": "實作每日批次 canonical PA builder，依 TAXONOMY1（taxonomy_version=1.0.0）把來源 revision"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-PA1-BUILD1_HANDOFF.md",
+      "line": 70,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "`scripts.pa_transition_taxonomy._island_starts` 有 conformance 測試釘住（無語意漂移）。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-PA1-BUILD1_HANDOFF.md",
+      "line": 122,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "0 失敗**。全部 published，每場恰一個 published build。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-PA1-BUILD1_HANDOFF.md",
+      "line": 169,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "已完成場）；單場失敗不阻斷（記錄後續跑）。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-PA1-BUILD1_HANDOFF.md",
+      "line": 217,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "n=1",
+      "snippet": "5. taxonomy pin：確認 `game_recap_builds.taxonomy_version=1.0.0`、`builder_version=pa-build-1.0.0`。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-PA1-BUILD1_QA.md",
+      "line": 25,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "- 失敗場次：0。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-PA1-FIX1_PROD_RUNBOOK.md",
+      "line": 123,
+      "tier": 1,
+      "category": "not_recommended",
+      "matched": "不建議",
+      "snippet": "但**不建議**：舊資料即是本卡修正的缺陷資料。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-PA1-FIX1_PROD_RUNBOOK.md",
+      "line": 128,
+      "tier": 1,
+      "category": "abandon",
+      "matched": "封存",
+      "snippet": "（終態事件→卡檔封存→Ledger 重建→lease／分支清理→對帳三件套）。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-PA1-FIX1_TAXONOMY_DIFF.md",
+      "line": 39,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "2. **五個觀測訊號（batter_out/hit/walk_hbp/reach_error/scored）的島級計數零漂移**"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-PA1-TAXONOMY1_RESULTS.md",
+      "line": 22,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "n=1",
+      "snippet": "- 範圍：2018–2026，kind=A,C,D,E；taxonomy_version=1.1.0。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-PA1-TAXONOMY1_RESULTS.md",
+      "line": 118,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| 三振/第三好球觸擊失敗 | 82 | pa_terminal | out | 1.000 | 0.000 | 0.000 | 0.000 | 0.000 | 3.915 | 三振:82 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-PA1_REVIEW.md",
+      "line": 23,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "- 日期：2026-07-19　方法：契約 vs spec §3.3／§6.3／§7／§8 逐項對帳＋所有引用表/欄位名回源程式碼查證＋三套近似分組 NO-GO 前提回源＋merge/衝突試算；未修改交付物、未改 schema／API／前端"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-PA1_REVIEW.md",
+      "line": 57,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "## 3. NO-GO 前提回源（三套近似分組確實邊界不一）"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-PA1_REVIEW.md",
+      "line": 67,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "三者皆以 `(batting_order/hitter)` 為鍵並跳過換人，故**同局同打者二度打擊（打線打回一輪）或打席中換投**會在三層產生不一致邊界——契約 NO-GO 立論成立，非虛構。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-PA1_REVIEW.md",
+      "line": 80,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| 無設備／官方未更新／缺漏／mapping 失敗四狀態分離 | §逐球 mapping 四分流 | ✅已定義 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-PA1_REVIEW.md",
+      "line": 81,
+      "tier": 1,
+      "category": "not_passed",
+      "matched": "未達門檻",
+      "snippet": "| 對帳率依年／球場／賽制輸出、未達門檻不開 UI | §發布門檻末段 | ✅已定義 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-STATUS-EXPAND1_REVIEW.md",
+      "line": 42,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| **3. 四大來源 outcome 互斥記錄** | ✅**PASS** | 在 `cpbl_gamelog.py` 的 `scrape_gamelogs()` 中，針對 `scoreboard` 與 `livelog` 連線失敗、JSON 損毀、抓取正常但內容為空、以及正常內容等，均互斥且分別記錄其 outcome 為 `available|missing|error`。在 `cpbl_advanced.py` 中亦同樣封裝了 `AdvancedScrapeResult"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-STATUS-EXPAND1_REVIEW.md",
+      "line": 48,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| **9. Fresh DB / 失敗重試安全性** | ✅**PASS** | 新增之雙表自帶 primary keys, index, check constraints，且 migration 與 ingest 寫入語句皆具備冪等處理，重跑與重試完全可靠。 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-STATUS-EXPAND1_REVIEW.md",
+      "line": 49,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| **10. 測試覆蓋度** | ✅**PASS** | `tests/test_game_source_revisions.py` 包含 9 個測試用例，全面覆蓋：重整 JSON keys 穩定度、遮蔽與截斷、0-0 完賽與 schedule entry 歷程、livelog 與 scoreboard 分開/解析失敗處理、Http failure 錯誤記錄、以及 advanced 數據 aggregate 屬性設定。 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-STATUS-EXPAND1_REVIEW.md",
+      "line": 67,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "*(註：唯一失敗之 `test_scheduled_checker_reports_running_state` 為已知與本分支無關的時間相依 baseline failure，已在乾淨 main 分支重現。)*"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-STATUS1_RESULTS.md",
+      "line": 65,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| 驗收 | 真實原始 payload 值域和 transition table；同一場 scoreboard 有／livelog 無可重現；失敗取得留下 source error；每個 API 判定皆能指向 revision；migration 冪等、寫入可續跑。 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-STATUS1_REVIEW.md",
+      "line": 82,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "- 當遇到抓取失敗時，它會記錄整批狀態 `ok = False`；當有賽程未完成時，它會在 `note` 寫入一條文字警示。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-STATUS1_REVIEW.md",
+      "line": 98,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "- 提案中明確考慮了「同一 payload 重跑不產生重複 revision」、支援 revision 去重、解決晚到資料、失敗重試、以及歷史未知資料的邊界。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md",
+      "line": 1,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "# GAME-RECAP-WP-CAL1 場中 WP 事後校準層 — 嵌套驗證與 Go/No-Go 報告"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md",
+      "line": 9,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "## 0. 結論（Go/No-Go）"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md",
+      "line": 11,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "**A scope（一軍例行）＋單調事後校準層：unsupported（No-Go）。`GAME-RECAP-WP-API1` 的 A 範圍維持阻塞。**"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md",
+      "line": 11,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "**A scope（一軍例行）＋單調事後校準層：unsupported（No-Go）。`GAME-RECAP-WP-API1` 的 A 範圍維持阻塞。**"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md",
+      "line": 17,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| 每季 Brier 不得劣於未校準 base | ❌ **2023 劣 +0.00002（雜訊尺度）、2026 劣 +0.00075（超出捨入雜訊）** |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md",
+      "line": 18,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| coverage ≥ 0.98 | ❌ **2026 = 0.9722**（PA build 落後 6 場，資料工程缺口非模型缺陷，見 §6） |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md",
+      "line": 18,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "落後 6 場",
+      "snippet": "| coverage ≥ 0.98 | ❌ **2026 = 0.9722**（PA build 落後 6 場，資料工程缺口非模型缺陷，見 §6） |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md",
+      "line": 19,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| 逐局帶（1-3/4-6/7-9）相對 base 不得系統性惡化 | ❌ **1-3 帶 \\|dev\\| 0.1pt → 2.6pt（惡化 +2.5pt > 2pt 硬性上限）**；4-6 帶 +1.0pt 揭露 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md",
+      "line": 22,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "> 池化分箱層級的 S 型偏差確實可被單調校準壓平（第一列 ✅）。No-Go 的決定性證據是**校準修正本身"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md",
+      "line": 27,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "三條硬性失敗中，即使剔除 2023 的雜訊尺度差距與 2026 的資料工程 coverage 缺口，1-3 帶系統性"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md",
+      "line": 90,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "硬性失敗（任一即 unsupported）："
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md",
+      "line": 90,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "硬性失敗（任一即 unsupported）："
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md",
+      "line": 101,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "n=1",
+      "snippet": "（base 0.1pt → 0.9pt，Brier 微改善 0.08515→0.08433）；10+ 帶（n=1,157，2024+ 突破僵局，"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md",
+      "line": 113,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "主場優勢漂移。校準器忠實學到「往下修」。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md",
+      "line": 114,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "2. **過時**：2023+ 驗證季的 base 模型窗已含 2021+ 資料，漂移已被 base 自我吸收——證據是"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md",
+      "line": 137,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "fail closed 如實計入硬性失敗，但即使補跑 build 後 coverage 回 1.0，§4 的失敗 2/4"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md",
+      "line": 138,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "仍獨立成立，不改變 No-Go 結論。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md",
+      "line": 148,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "小樣本",
+      "snippet": "注意逐局帶條件化會放大小樣本問題（10+ 帶單季 n=135–486）。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_PLAN_REVIEW.md",
+      "line": 30,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "- 影響：不影響規劃正確性或 Go/No-Go 判定；僅為實作階段的 API 工具套用提醒。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_PLAN_REVIEW.md",
+      "line": 49,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| C13 | PASS | 完整沿用 VAL1 v2 門檻，並將 1–3／4–6／7–9 局帶絕對偏差及相對 base 惡化（`>2pt` 或兩帶 `>1pt`）列為硬性失敗。 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_PLAN_REVIEW.md",
+      "line": 51,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "樣本不足",
+      "snippet": "| C15 | PASS | 附錄 A 證明 3／5 箱格數可用觀測 `≥99.70%`，未選理由誠實歸因於高維、硬分箱不連續與維護成本，而非偽稱樣本不足。 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_PLAN_REVIEW_REQUEST.md",
+      "line": 30,
+      "tier": 1,
+      "category": "not_recommended",
+      "matched": "建議不",
+      "snippet": "- `APPROVE`：沒有 P0–P2 阻擋 finding；P3／建議不得改變凍結模型或門檻。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_PLAN_REVIEW_REQUEST.md",
+      "line": 56,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "- 戰力條件化 `run_dist` 經樣本格數估算可行，但因硬分箱、每格七類分布與維護成本未選；不得在本卡 No-Go 後事後切換。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_PLAN_REVIEW_REQUEST.md",
+      "line": 86,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "- 2026 advanced shadow 不得參與任何選型或 Go/No-Go。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_PLAN_REVIEW_REQUEST.md",
+      "line": 112,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "| C12 | `full-only` 驗收與消融是否矛盾？ | 若 team-only 在 Y 顯著較佳，是否仍必須判 full No-Go；文件是否可能被執行者解讀為可事後切換 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_PLAN_REVIEW_REQUEST.md",
+      "line": 115,
+      "tier": 1,
+      "category": "infeasible",
+      "matched": "不可行",
+      "snippet": "| C15 | 條件化 `run_dist` 的淘汰理由是否誠實？ | 3/5 分箱格數其實可行；卡面是否正確表述為工程／資料效率決策，而非偽稱樣本不可行或文獻證明較差 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_PLAN_REVIEW_REQUEST.md",
+      "line": 132,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "| 公開 advanced | 官方公開 UI 目前只可核對 2026 | 只能推論「無法公開重建 2018–2025 as-of」，不得推論聯盟底層絕無歷史資料 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_PLAN_REVIEW_REQUEST.md",
+      "line": 158,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "FAIL",
+      "snippet": "- Spec baseline check：v1.3 == INIT-GAME-RECAP current <PASS/FAIL>"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_PLAN_REVIEW_REQUEST.md",
+      "line": 183,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "- `P0`：會造成資料洩漏、驗證季選型、錯誤 Go/No-Go 或破壞 production/statistical contract。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESEARCH.md",
+      "line": 5,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "小樣本",
+      "snippet": "- 範圍：場中勝率 [win probability, WP]、賽前隊伍／先發戰力、季中小樣本收縮、CPBL 可用資料"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESEARCH.md",
+      "line": 13,
+      "tier": 1,
+      "category": "abandon",
+      "matched": "封存",
+      "snippet": "2. Yang & Swartz 的兩階段貝葉斯 MLB 模型明確把隊伍勝率、打擊、先發 ERA 與主場組成相對戰力。FiveThirtyEight 的官方封存資料字典則可核對季前投影、均值回歸、先發 rolling game score 與先發 rating adjustment 欄位。這只支持「賽前 team strength＋starter」的架構方向；舊方法頁目前已轉址，休息、旅行、精確換算常數與效果量無法由現行官方頁直接核對，不作本卡證據。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESEARCH.md",
+      "line": 15,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不支持",
+      "snippet": "4. Brown 的季中**打擊率**研究顯示，在該資料與切分下，直接以目前打擊率預測未來通常最差，經驗貝葉斯 [empirical Bayes]／階層方法較佳。將此原理延伸至投手 K−BB／事件率是建模類比，不是該論文直接驗證；它不支持本卡任何固定 pseudo-count，收縮強度仍須只在內部訓練季選定。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESEARCH.md",
+      "line": 25,
+      "tier": 1,
+      "category": "abandon",
+      "matched": "封存",
+      "snippet": "| [FiveThirtyEight 官方資料 README](https://github.com/fivethirtyeight/data/blob/master/mlb-elo/README.md)／[資料欄位文件](https://fivethirtyeightdata.github.io/fivethirtyeightdata/reference/mlb_elo.html) | MLB rating 封存資料與字典 | 可核對季前 projections、跨季均值回"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESEARCH.md",
+      "line": 26,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "小樣本",
+      "snippet": "| [Brown (2008), In-season prediction of batting averages](https://arxiv.org/abs/0803.3697) | 同行評審統計研究；MLB 打者／投手的打擊率季中預測 | 在論文切分中，直接用目前平均的 naive predictor 整體最差；不同同質子群的最佳 shrinkage 方法不同 | 支持「小樣本率值應測試收縮」的原理，不直接證明投手 K−BB/FIP、前季 prior 或 `kappa`"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESEARCH.md",
+      "line": 29,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "| [以攻守表現與競賽制度預測中華職棒比賽勝負](https://www.airitilibrary.com/Article/Detail/19925530-202012-202102040005-202102040005-41-51) | 國內期刊；CPBL 第 30 年度 | 主客隊攻守、賽程與戰績的相對指標可進邏輯斯模型，但有效指標依球隊而異 | 全部 feature 定義成主隊相對客隊；以 pooled L2 模型控制維度，另揭露逐季漂移，不事後依單隊挑特徵 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESEARCH.md",
+      "line": 30,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "| [CPBL 官方進階數據指標介紹](https://stats.cpbl.com.tw/news/1vrRUWdz8zWv6bWMz0xiazeJUJl8q1c2lxg_uAg122hc)／[官方榜單](https://stats.cpbl.com.tw/rankings)／[官方上線公告](https://www.instagram.com/p/DX6ZjAJHxLh/) | CPBL 官方定義、公開 UI 與公告 | 指標定義可核對；排行榜公開年度目前僅 2026，平"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESEARCH.md",
+      "line": 40,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不支持",
+      "snippet": "| Brown 支持 shrinkage | **已驗證但限縮** | 支持 batting-average 小樣本借力，不支持投手事件率的固定 `kappa`；本卡只能把它當方法原理 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESEARCH.md",
+      "line": 40,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "小樣本",
+      "snippet": "| Brown 支持 shrinkage | **已驗證但限縮** | 支持 batting-average 小樣本借力，不支持投手事件率的固定 `kappa`；本卡只能把它當方法原理 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESEARCH.md",
+      "line": 42,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| CPBL 研究支持相對對戰指標 | **已驗證但不可外推** | 研究是中職 30 年（2019）四隊個別模型；三隊有有效指標、統一模型失敗，不能證明 pooled 2018–2026 係數穩定 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESEARCH.md",
+      "line": 43,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "| 官方 advanced 歷史只有 2026 | **改寫為可證明範圍** | 公開 UI 只暴露 2026且平台 2026 上線；不能宣稱底層資料絕對不存在，只能判定目前不可作歷史 as-of 回測 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESEARCH.md",
+      "line": 63,
+      "tier": 1,
+      "category": "abandon",
+      "matched": "封存",
+      "snippet": "6. **外部常數隔離**：FiveThirtyEight 的官方封存資料只支持 team rating＋starter 的架構參考；休息／旅行與數值效果量不作證據。CPBL 的係數、標準化統計、`lambda/kappa/gamma` 全部依卡面訓練窗口估計。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESEARCH.md",
+      "line": 64,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "7. **2026 advanced 閘門**：未來 ADV1 至少要有 as-of snapshot／逐球 pregame reconstruction、coverage policy、缺場機制分析及下一個前瞻留出期；未滿足前不得宣稱 advanced 特徵改善 WP。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESEARCH.md",
+      "line": 68,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "- **不重開校準窗變體**：上述來源支持加入賽前結構資訊，沒有推翻 CAL1 對 recency／衰減事後校準的 No-Go。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESEARCH.md",
+      "line": 70,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "- **不把官方 advanced 等同可回測資料**：指標存在不代表歷史 as-of snapshot 存在。2026 的資料豐富度只能提升前瞻研究價值，不能修補 2018–2025 的時間序列缺口。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESEARCH.md",
+      "line": 79,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "- 驗證報告新增三層固定消融，只作來源增量診斷，不改變 full model 的預註冊 Go/No-Go 身分。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 1,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "# GAME-RECAP-WP-STRENGTH1 場中 WP 戰力感知先驗 — 結果與 Go/No-Go"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 6,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "- 前置：[`WP-VAL1`](GAME-RECAP-WP-VAL1_RESULTS.md)（全 scope unsupported）→ [`WP-CAL1`](GAME-RECAP-WP-CAL1_RESULTS.md)（事後校準 No-Go）→ 本卡（VAL1 §7 路徑 2）"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 6,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "- 前置：[`WP-VAL1`](GAME-RECAP-WP-VAL1_RESULTS.md)（全 scope unsupported）→ [`WP-CAL1`](GAME-RECAP-WP-CAL1_RESULTS.md)（事後校準 No-Go）→ 本卡（VAL1 §7 路徑 2）"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 14,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "> **A scope（局面 WP ＋ 戰力感知先驗融合）＝ unsupported（No-Go）。**"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 14,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "> **A scope（局面 WP ＋ 戰力感知先驗融合）＝ unsupported（No-Go）。**"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 21,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| **融合後 Brier 不得劣於同代未融合 base** | ❌ **2023（+0.000444）**；**2025（+0.001479）** 劣於 base |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 42,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "小樣本",
+      "snippet": "| 7 | 基準、時期與小樣本 | 逐季／池化並排 base、CAL1、主場常數（§4）；2026 首列；p0、≤2017 prior、advanced shadow 只列診斷；10+ 帶與 n<1000 分箱只揭露 | §4／§7；`test_verdict_small_band_not_a_gate` |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 43,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "| 8 | 可重現（**經需求方 2026-07-27 sign-off 放寬為漂移偵測**） | DB 全程唯讀（只有 `SELECT`）；seed 固定 `20260725`；`--as-of` 界定完成場母體並貫穿 season metadata；`population_fingerprint` 涵蓋完成場內容／實際模型輸入／published build identity，`--expect-fingerprint` 不符即中止；部分重跑**強制**寫入 `不得作 G"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 51,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "> **人工謄寫數字後宣稱已對帳，在本卡連續三輪失敗**（iteration 1／2／3），故改為結構保證。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 63,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "> ⚠️ **進行中賽季的母體會隨入庫漂移**：`--as-of` 只鎖 `game_date` 界限，鎖不住入庫狀態。iteration 2 查核實測——同一個 `--as-of 2026-07-26` 在不同時點重跑得到 216 vs 219 場（那 3 場日期早在界限內，只是比分後來才入庫）。artifact 因此另存三層 `population_fingerprint`（完成場 sno／比分內容／**實際進入模型的 GameRow**／驗證季 published bu"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 83,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "（WP-CAL1 當時 2026 為 0.9722 而硬性失敗的 canonical PA build 缺口已由需求方補跑修復，"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 85,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "`n_irregular_games`、`pa_state_counts` 自 iteration 4 起一律由 `--as-of` 母體重算——原本取自"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 87,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "全表的內容（iteration 3 查核 F1）。實測：`--as-of 2026-06-30` 得 177 完成場、coverage 1.000000、"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 131,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| 2025 | 2018-2024 | 27,078 | 1.0000 | 0.248571 | 0.15357 | 0.154478 | **0.155958** | **+0.001479** ❌ | [−0.001809, +0.005377] |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 133,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| 2023 | 2018-2022 | 22,912 | 1.0000 | 0.241499 | 0.14792 | 0.147453 | **0.147897** | **+0.000444** ❌ | [−0.001560, +0.002625] |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 140,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "**四個 Δ 的 99% game-cluster CI 全部包含 0。** 兩個 ❌ 是硬門檻以點估計判定的結果，而點估計本身在雜訊尺度內。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 181,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| 4c | **任一季 Brier 劣於同代未融合 base** | ❌ **失敗** ×2 | A2023 融合後 Brier 0.147897 劣於同代未融合 base 0.147453；A2025 融合後 Brier 0.155958 劣於同代未融合 base 0.154478 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 181,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| 4c | **任一季 Brier 劣於同代未融合 base** | ❌ **失敗** ×2 | A2023 融合後 Brier 0.147897 劣於同代未融合 base 0.147453；A2025 融合後 Brier 0.155958 劣於同代未融合 base 0.154478 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 187,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "**任一硬門檻失敗即 No-Go**。本次失敗 1 條（4c） → **No-Go**。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 187,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "**任一硬門檻失敗即 No-Go**。本次失敗 1 條（4c） → **No-Go**。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 192,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "## §6 失敗機制（本卡的主要研究貢獻）"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 235,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "改為 leakage-safe 的賽前 as-of 值**，故此對照在該 merge 之後不再產生假性改善。上表已更新為"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 285,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| 失敗形態 | 修正**有力但方向錯**：池化分箱修平了，卻把 1-3 局帶從 −0.10pt 破壞到 −2.41pt（定案的 isotonic，超過 2pt 硬性上限） | 修正**方向對但沒有力**：局帶完好無損（最大惡化僅 +0.72pt），但四季中 2 季 Brier 反而變差 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 291,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "逐局帶硬門檻與「不得劣於同代 base」的門檻各自獨立生效——後者正是本次擋下 No-Go 的那一條。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 312,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "本卡的 No-Go 亦以 full 判定。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 321,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "**明確不進候選集合、超參選型或 Go/No-Go。**"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 324,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "> 本節不吃 `--as-of`，數字為 `observed_at = 2026-07-27T16:32:13+08:00` 的當下全表狀態；比對重跑輸出時須與 `generated_at` 一併排除。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 335,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "不構成任何賽前預測力證據。若要讓這些欄位可上線，後續卡至少須保存 as-of snapshot 或由逐球資料"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 354,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "4. **`GAME-RECAP-WP-STRENGTH-ADV1`**：僅在 2026+ advanced 有 as-of snapshot 或可由逐球重建"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 367,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "uv run python -m cpbl.models.winprob_strength --as-of 2026-07-27   # 全跑 ~50s，寫 canonical artifact"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 371,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "**`--as-of` 不是選用的**：不給就取今日，完成場母體會隨入庫漂移，artifact 標的 `data_as_of`"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 372,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "與內容便對不上（iteration 3 查核 F1）。要與本報告的數字對照，一律帶 `--as-of 2026-07-27`。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 377,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "uv run python -m cpbl.models.winprob_strength --seasons 2026 --as-of 2026-07-27 --out /private/tmp/scratch.json"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 380,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "要確認輸入是否已漂移，帶 `--expect-fingerprint` 指向已提交 artifact；不符即中止並逐項列出差異"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 381,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "（紅線 8 的漂移偵測；經需求方 2026-07-27 sign-off 由「逐位重現」放寬而來）："
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 384,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "uv run python -m cpbl.models.winprob_strength --as-of 2026-07-27 \\"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 390,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "uv run python -m cpbl.models.winprob_strength --diagnostics --as-of 2026-07-27"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 393,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "- 全程唯讀（模組內只有 `SELECT`）；bootstrap seed 固定 `20260725`。**相同 `--as-of` ＋相同輸入指紋"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 394,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "下逐位一致**；輸入若已漂移，`--expect-fingerprint` 會擋下而不是靜默給出不同數字。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md",
+      "line": 396,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "- `advanced_shadow_2026` 不吃 `--as-of`（標 `observed_at`），**逐位比對時須與 `generated_at` 一併排除**。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1-FIX1_ERRATA.md",
+      "line": 23,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "| **verdict** | **unsupported** | **unsupported** | — |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1-FIX1_ERRATA.md",
+      "line": 26,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "- **結論不變：E scope unsupported**——與缺陷版判定相同，本卡不改變 WP-VAL1 的任何 Go/No-Go 結論，僅修正語意標籤、proxy 母體與規則邊界的正確性。逐季 v1 點估計 ECE 全數改善（0.206/0.197/0.216/0.217 → 0.181/0.192/0.196/0.221）供稽核參考，不作支持證據。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1-FIX1_ERRATA.md",
+      "line": 26,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "- **結論不變：E scope unsupported**——與缺陷版判定相同，本卡不改變 WP-VAL1 的任何 Go/No-Go 結論，僅修正語意標籤、proxy 母體與規則邊界的正確性。逐季 v1 點估計 ECE 全數改善（0.206/0.197/0.216/0.217 → 0.181/0.192/0.196/0.221）供稽核參考，不作支持證據。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 1,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "# GAME-RECAP-WP-VAL1 場中 WP 時間外驗證與支援邊界 — Go/No-Go 報告"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 9,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "## 0. 結論（Go/No-Go）"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 13,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "| **A 一軍例行** | **unsupported** | 池化 walk-forward（2021–26，1,826 場 / 138,949 打席）十分位 1/2/3 偏差 **+4.2 / +5.3 / +6.0pt**、十分位 8 **−4.3pt**，99% game-cluster CI 全數排除 0 且超出 ±3pt 上限 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 14,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "| **C 一軍季後** | **unsupported** | 代理（A 分布）池化 ECE 0.110 > 0.05；全期僅 25 場，且主隊指定與種子強度混淆，代理證據不足以掛警示上線 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 14,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "僅 25 場",
+      "snippet": "| **C 一軍季後** | **unsupported** | 代理（A 分布）池化 ECE 0.110 > 0.05；全期僅 25 場，且主隊指定與種子強度混淆，代理證據不足以掛警示上線 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 15,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "| **D 二軍例行** | **unsupported** | 池化十分位 2 偏差 +4.7pt 顯著超界；主場優勢逐年不穩（訓練窗 0.53 → 近年 ~0.50） |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 16,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "| **E 二軍季後** | **unsupported** | E2025 Brier 0.289 輸給主場常數基準 0.250；池化 ECE 0.101；全期僅 13 場 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 16,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "僅 13 場",
+      "snippet": "| **E 二軍季後** | **unsupported** | E2025 Brier 0.289 輸給主場常數基準 0.250；池化 ECE 0.101；全期僅 13 場 |"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 20,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "> 註：Brier 全面大勝常數基準（A 池化 0.153 vs 0.245）——模型有真實資訊量，**問題不在辨別力而在校準**；unsupported 是「以現狀提供逐打席機率數字會系統性誤導 ±4–6pt」的結論，不是「方法無價值」。修復路徑見 §7。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 34,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "2. **低分箱 +4~6pt 偏差只在時間外出現**：主因是主場優勢漂移（訓練窗 2018–20 主隊勝率 0.562 → 2021 起 0.52–0.54）。池化同母體把「用當季資料評當季」的自我吸收平均進去，漂移被構造性抹掉。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 35,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "3. **逐季 in-sample Brier 樂觀偏差極小**（0.00002–0.0017）：run_dist/WE 是低變異估計器，「訓練集重用」不是主要問題——**逐季分布漂移與跨季池化平均**才是。這排除了「多留幾季 holdout 就好」的簡化想像：必須逐季 walk-forward。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 46,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "**訓練管線等價性對帳（match）**：記憶體快照機器以 2018–2025/A 窗口重建的分布與生產 `cpbl.run_dist` **48 個狀態逐列相等**（`counting_machine_check: match`）。因此 walk-forward 與生產結果的差異只能歸因於時間切分，不是實作漂移。解算器另以離線測試證明 legacy 規則下與生產 `_we_solver`/`wp_state` 逐值相等（`tests/test_winprob_val.py`"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 82,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "- **十分位 1–3（落後中的主隊被高估 +4~6pt）**：主場優勢漂移主導（時間外才可見，同母體僅 +1~2pt 不顯著）。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 88,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "逐季 ECE 0.023–0.052、maxdev 0.056–0.116（單季雜訊底線內外參半）；池化（1,151 場 / 87,948 打席）ECE 0.019，**十分位 2 偏差 +4.7pt 顯著超界** → unsupported。結構背景：二軍主隊勝率逐年滑向 0.50（2018–24 訓練窗 0.513–0.530 → 近年 ~0.50，且多場館中立性高），主場結構不穩定使跨年分布聚合失真。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 92,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "全期僅 25 場（1,930 打席）。池化 ECE 0.110 > 0.05 代理門檻 → unsupported。除樣本不足外有**已知系統性混淆**：季後主隊指定與種子強度掛鉤（挑戰賽高種子多主場＋讓一勝），中性隊伍＋主場優勢模型的失效方向可預期（2025 年 5 場主隊實際勝率權重僅 0.18，模型預測 ~0.44–0.49）。單季 n=4–7 場永遠不足以逐季驗證；解鎖需種子/戰力感知模型（§7）。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 92,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "僅 25 場",
+      "snippet": "全期僅 25 場（1,930 打席）。池化 ECE 0.110 > 0.05 代理門檻 → unsupported。除樣本不足外有**已知系統性混淆**：季後主隊指定與種子強度掛鉤（挑戰賽高種子多主場＋讓一勝），中性隊伍＋主場優勢模型的失效方向可預期（2025 年 5 場主隊實際勝率權重僅 0.18，模型預測 ~0.44–0.49）。單季 n=4–7 場永遠不足以逐季驗證；解鎖需種子/戰力感知模型（§7）。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 96,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "全期 13 場。E2025 Brier 0.289 **輸給**主場常數基準 0.250（硬性失敗）；2022/2024 主隊全勝（分箱 actual=1.0）凸顯樣本荒謬性。unsupported，短期無解鎖路徑。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 96,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "全期 13 場。E2025 Brier 0.289 **輸給**主場常數基準 0.250（硬性失敗）；2022/2024 主隊全勝（分箱 actual=1.0）凸顯樣本荒謬性。unsupported，短期無解鎖路徑。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 105,
+      "tier": 1,
+      "category": "not_adopted",
+      "matched": "否決",
+      "snippet": "| **突破僵局（A≥2024、D≥2025 第 10 局起）** | 規則參數化解算器：延長半局開局改用 (二壘,0出局) 分布；訓練窗無突破僵局樣本時以自然二壘有人狀態代理（`tiebreak_state_in_train` 全季=true） | 資料實證：A 2024/2025 延長局 0 出局首狀態壓倒性為 [\"2\"]（71/93 筆 vs 空壘 4/1），2023 為空壘（94）；canonical PA `non_pa`（tiebreak 佈局列）僅 2024+ "
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 111,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "## 5. Go/No-Go 門檻（v1 → v2 修訂與理由）"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 116,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "- 硬性失敗 → unsupported：任一季 coverage < 0.98；任一季 Brier 未勝主場常數基準；池化 walk-forward 十分位（n≥1000）|偏差| > 0.03 且 99% cluster CI 排除 0；proxy scope 池化 ECE > 0.05。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 116,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "- 硬性失敗 → unsupported：任一季 coverage < 0.98；任一季 Brier 未勝主場常數基準；池化 walk-forward 十分位（n≥1000）|偏差| > 0.03 且 99% cluster CI 排除 0；proxy scope 池化 ECE > 0.05。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 117,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "小樣本",
+      "snippet": "- proxy 上限：C/E（借分布）與全季小樣本 scope 最高 proxy_with_warning。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 120,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "v1 逐季點估計全數保留在 artifact 與本報告（§3 表）供稽核；**v2 並未放寬結論**——最終判定（全 unsupported）比 v1 更嚴謹且更有解釋力。修訂過程完整留痕，供跨家族查核者檢視「是否移動門檻遷就結果」：v2 的池化判準比 v1 的逐季點估計檢定力更高、更難靠雜訊過關。"
+    },
+    {
+      "path": "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
+      "line": 135,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "4. **D**：主場結構逐年重估（或以近年窗訓練）後重驗；**E**：無樣本路徑，建議長期 unsupported。"
+    },
+    {
+      "path": "docs/research/GAME_TM_SHADOW_OBSERVATION.md",
+      "line": 108,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "覆蓋缺口",
+      "snippet": "| 14 | 2026-08-03 | 3 | 9 | 9/9 | 0/0/0/0 | 337 | 235/236 已追平（0 差異，驗證 run_id=13 lag 如期消失）；game_sno 240 剛完賽（336 筆 `only_shadow_pk`，同一良性模式）＋**1 筆 `cell_mismatch`**：game_sno 235 pitcher_acnt 0000007293 pitch 3 的 `content` 文字正式表為「趁傳進壘」、shadow（單"
+    },
+    {
+      "path": "docs/research/GAME_TM_SHADOW_OBSERVATION.md",
+      "line": 174,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "資料錯誤",
+      "snippet": "已知邊界（如 `local_lag` 純屬時間差，非資料錯誤）。"
+    },
+    {
+      "path": "docs/research/GAME_TM_SHADOW_OBSERVATION.md",
+      "line": 196,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "覆蓋缺口",
+      "snippet": "無設備場館清單（花蓮／嘉義），疑為新場館 TrackMan 覆蓋缺口，待需求方決定是否另開卡。"
+    },
+    {
+      "path": "docs/research/INGEST-PLAYER-BIO-GAP1_DIAGNOSIS.md",
+      "line": 75,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "> **不成立**。canonical `_target_ids('current')` 取 `batting_current ∪"
+    },
+    {
+      "path": "docs/research/INGEST-PLAYER-BIO-GAP1_DIAGNOSIS.md",
+      "line": 177,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "後再等 5 分鐘緩衝。若當日每日鏈失敗 → **不要爬**（站台可能已在節流）。"
+    },
+    {
+      "path": "docs/research/INGEST-PLAYER-BIO-GAP1_DIAGNOSIS.md",
+      "line": 190,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "4. **正式 14 頁寫入 run**（單次；失敗勿連續重跑）："
+    },
+    {
+      "path": "docs/research/INGEST-PLAYER-BIO-GAP1_DIAGNOSIS.md",
+      "line": 211,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "**不得重判 `ML-WP-BIO-PRIOR1` 的 Go/No-Go**（該卡已 🏁 結案，紅線 3）。"
+    },
+    {
+      "path": "docs/research/INGEST-PLAYER-BIO-GAP1_DIAGNOSIS.md",
+      "line": 277,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "> no-op，卻變成失敗），違反卡面驗收條件「寫入冪等、可重跑」。"
+    },
+    {
+      "path": "docs/research/INGEST-PLAYER-BIO-GAP1_DIAGNOSIS.md",
+      "line": 304,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "還是 2026-07-27 之後的 DB 漂移。此重現證明母體與協定未漂移，補值後的差異可"
+    },
+    {
+      "path": "docs/research/INGEST-PLAYER-BIO-GAP1_DIAGNOSIS.md",
+      "line": 383,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "（`scrape` 依賴群組未安裝）而在**發出請求前**就失敗，站台請求數為 0。"
+    },
+    {
+      "path": "docs/research/INGEST-PLAYER-BIO-GAP1_DIAGNOSIS.md",
+      "line": 447,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "`UPDATE`（§4 取捨節）在結構上就碰不到其餘欄位——這是刻意的寫入邊界，不是失敗。"
+    },
+    {
+      "path": "docs/research/INGEST-PLAYER-BIO-GAP1_DIAGNOSIS.md",
+      "line": 508,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "「該特徵的機制假設在 2025 就不成立」與「n_val=359 的噪音」，硬給成因就是腦補。"
+    },
+    {
+      "path": "docs/research/INGEST-SPLITS-IBB-GHOST1_RESULTS.md",
+      "line": 29,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "# 官方實查（需 uv sync --group scrape；**單次嘗試**，失敗須冷卻 15–20 分鐘）"
+    },
+    {
+      "path": "docs/research/INGEST-SPLITS-IBB-GHOST1_RESULTS.md",
+      "line": 213,
+      "tier": 1,
+      "category": "not_recommended",
+      "matched": "不建議",
+      "snippet": "**方案 A（窄修，不建議單獨採用）**：把幽靈島規則從「整島無投球即丟」改成"
+    },
+    {
+      "path": "docs/research/INGEST-SPLITS-IBB-GHOST1_RESULTS.md",
+      "line": 250,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "只有 359 場",
+      "snippet": "`game_scoreboard` **各 0 列**。360 場中唯一一場（`batting_gamelog` 只有 359 場）。"
+    },
+    {
+      "path": "docs/research/INGEST-SPLITS-IBB-GHOST1_RESULTS.md",
+      "line": 251,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "只有 88 場",
+      "snippet": "官方季彙總把它算進去了：魔鷹 `batting_seasons` 為 89 場 382 PA，我方逐場只有 88 場 380 PA。"
+    },
+    {
+      "path": "docs/research/INGEST-SPLITS-IBB-GHOST1_RESULTS.md",
+      "line": 274,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "首次呼叫的失敗是本 worktree 未裝 `playwright`（`uv sync --group scrape` 後解決），"
+    },
+    {
+      "path": "docs/research/INGEST-SPLITS-IBB-GHOST1_RESULTS.md",
+      "line": 281,
+      "tier": 1,
+      "category": "abandon",
+      "matched": "封存",
+      "snippet": "失敗於 `找不到卡片檔 docs/tasks/DEV-CI-RED-OWNERSHIP1.md`。該卡已封存到"
+    },
+    {
+      "path": "docs/research/INGEST-SPLITS-IBB-GHOST1_RESULTS.md",
+      "line": 281,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "失敗於 `找不到卡片檔 docs/tasks/DEV-CI-RED-OWNERSHIP1.md`。該卡已封存到"
+    },
+    {
+      "path": "docs/research/INGEST-SPLITS-IBB-GHOST1_RESULTS.md",
+      "line": 285,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "**已實測為既有失敗**：把本卡全部改動 `git stash -u` 後、在乾淨的基底 `ba06493` 上"
+    },
+    {
+      "path": "docs/research/INGEST-SPLITS-PA-SPLIT1_RESULTS.md",
+      "line": 17,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "全量數字（2018–2026、kind A/C/D/E、4,284 場／1,336,639 事件，DB as-of 2026-07-30"
+    },
+    {
+      "path": "docs/research/INGEST-SPLITS-PA-SPLIT1_RESULTS.md",
+      "line": 18,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "每日增量後；scope 與組裝層列數繫於 DB as-of，見卡面 as-of 判讀原則；本文**所有數字**由"
+    },
+    {
+      "path": "docs/research/INGEST-SPLITS-PA-SPLIT1_RESULTS.md",
+      "line": 69,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "226,690／226,690 全等**（batting 133,432＋pitching 93,258，as-of 2026-07-30；"
+    },
+    {
+      "path": "docs/research/INGEST-SPLITS-PA-SPLIT1_RESULTS.md",
+      "line": 146,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "（守衛以名稱識別；REVIEW-020 FYI：as-of 歸因守衛插在輸出前段，本項執行時列第 15）。"
+    },
+    {
+      "path": "docs/research/INIT-GAME-RECAP/spike-report.md",
+      "line": 110,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "| **未歸類** | **0** | — | 歸類為 fail-closed：任何未歸類即結論不成立 |"
+    },
+    {
+      "path": "docs/research/INIT-GAME-RECAP/spike-report.md",
+      "line": 300,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| **昨日戰果一行的「結論」** | 無 | ❌ **缺**：勝敗投／MVP 只在 `/api/v1/games/calendar`（全季）與 `/live`（單場）；一句事實句與關鍵打席完全沒有 |"
+    },
+    {
+      "path": "docs/research/INIT-GAME-RECAP_DISCOVERY-BRIEF.md",
+      "line": 93,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "首步驗，不成立則退回分級渲染。已查實：TTL 48h（config:35，留存窗足）、"
+    },
+    {
+      "path": "docs/research/INIT-GAME-RECAP_DISCOVERY-BRIEF.md",
+      "line": 111,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "- 架構天生降級：隔日爬蟲失敗→snapshot 源續撐（TTL 48h）、冪等補爬自動切換；"
+    },
+    {
+      "path": "docs/research/LIVE_GAME_BACKEND1_OBSERVATION.md",
+      "line": 87,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不支援",
+      "snippet": "2. stats **不支援已驗證的賽前預告先發來源**，也未證明 T-60m lineup。現行 parser 已改為"
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-LEAK1_RESULTS.md",
+      "line": 16,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "改為**賽前 as-of**（機制參照 `models/winprob_strength.py` 已驗證的兩段式累積）："
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-LEAK1_RESULTS.md",
+      "line": 23,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "離群",
+      "snippet": "少了這層，只投 1–2 局的前一季紀錄會產生 ±50 的 ERA 離群值（實測 sd 2.035 → 0.971）。"
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-LEAK1_RESULTS.md",
+      "line": 41,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "n = 1",
+      "snippet": "### 2.1 `cpbl-train-outcome` 走查回測（test 2022–2026，pool n = 1,508）"
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-LEAK1_RESULTS.md",
+      "line": 93,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "卡面稱「`/predict` 面板…是目前唯一『已知錯誤仍在線上展示』的宣稱」。實測**不成立**："
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-LEAK1_RESULTS.md",
+      "line": 97,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "n = 1",
+      "snippet": "同一支比較腳本（test 2021–2025，n = 1,585）："
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-LEAK1_RESULTS.md",
+      "line": 115,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "`run_train_outcome_simple.main()` 在閘門失敗時**不更新 serving artifact**"
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-LEAK1_RESULTS.md",
+      "line": 123,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "**合併／部署前必須先由需求方裁定 `outcome_simple` 的處置**（重訓並接受閘門失敗、改選訊號、"
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-LEAK1_RESULTS.md",
+      "line": 135,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| `test_starter_running_state_excludes_the_game_itself_and_future_games` | 主隊先發第 1 場被打爆、第 2 場完美。第 1 場三欄 `== approx(0.0)`（雙方皆無本季分母 → 同一聯盟率）；第 2 場等於「只用第 1 場」獨立重算的值，且 `starter_era_diff > 0`。洩漏版兩場會看到同一個整季 ERA ⇒ 第一條斷言必然失敗。 |"
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-SIMPLE-LEAK2_RESULTS.md",
+      "line": 15,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "n = 1",
+      "snippet": "## §1 重訓結果（test 2021–2025，n = 1,585，全押主場基準 0.5281／Brier 0.24937）"
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-SIMPLE-LEAK2_RESULTS.md",
+      "line": 49,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "FAIL",
+      "snippet": "**若不動門檻**，第 5 項為 FAIL（1.3732 ∉ [0.8, 1.2]）、`deployable: false`、6/7。"
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-SIMPLE-LEAK2_RESULTS.md",
+      "line": 67,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "### 3.2 零假設模擬：固定區間在誠實模型下的偽失敗率 42%"
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-SIMPLE-LEAK2_RESULTS.md",
+      "line": 71,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| | 零假設下斜率 95% 區間 | `[0.8, 1.2]` 的偽失敗率 |"
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-SIMPLE-LEAK2_RESULTS.md",
+      "line": 81,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "2. **同一個區間套到誠實模型上，會誤判 41.8% 的完美校準模型為失敗**。一個型一誤差 42%"
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-SIMPLE-LEAK2_RESULTS.md",
+      "line": 100,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "小樣本",
+      "snippet": "共 149 個行事曆週，未套小樣本修正："
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-SIMPLE-LEAK2_RESULTS.md",
+      "line": 119,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "小樣本",
+      "snippet": "（比值 0.9983），與此處結論一致；數值小差來自 cluster 界定與小樣本修正的取捨不同。"
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-SIMPLE-LEAK2_RESULTS.md",
+      "line": 138,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "| 型一誤差 | 隨模型辨別力漂移（7.9% → 41.8%） | 條件零假設下名目 5%（見 §3.2 註） |"
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-SIMPLE-LEAK2_RESULTS.md",
+      "line": 146,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "FAIL",
+      "snippet": "FAIL（超出 1.489）。判準在看到結果之前就由原則決定，不含任何依觀測值挑選的自由度。"
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-SIMPLE-LEAK2_RESULTS.md",
+      "line": 165,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "擬合面與 serving 複雜度，不划算。** 與 GAME-RECAP-WP-CAL1 的事後校準 No-Go 判定同調。"
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-SIMPLE-LEAK2_RESULTS.md",
+      "line": 178,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "as-of",
+      "snippet": "「純上季值」，2018+ 才是真 as-of running state；訓練池 9,185 列中約 7,000 列屬前者。"
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-SIMPLE-LEAK2_RESULTS.md",
+      "line": 209,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "閘門失敗路徑（本次未觸發）也不再靜默，且**成因判別在後端做一次**：`pregame_serving.py`"
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-SIMPLE-LEAK2_RESULTS.md",
+      "line": 217,
+      "tier": 1,
+      "category": "not_passed",
+      "matched": "未通過",
+      "snippet": "| `gate_failed` | `serving_previous` | 版本不同、DB 記下 `deployable=false` | 最新回測未通過閘門**且已沿用上一版** |"
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-SIMPLE-LEAK2_RESULTS.md",
+      "line": 223,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "iteration 6 排成一條序，於是版本相同時吃掉了明確的閘門失敗）；版本相等且 `deployable`"
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-SIMPLE-LEAK2_RESULTS.md",
+      "line": 267,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| §3.1／§3.2／§3.4 的洩漏模型欄（logit sd、H0 區間、偽失敗率） | 腳本輸出欄位 `leaked`（由固化在腳本內的 reliability decile 還原） |"
+    },
+    {
+      "path": "docs/research/ML-OUTCOME-SIMPLE-LEAK2_RESULTS.md",
+      "line": 276,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "讀不到／版本相同但閘門失敗）只有測試覆蓋，未在真實環境發生過。本機與 prod 都沒有"
+    },
+    {
+      "path": "docs/research/ML-PITCHER-SCORELESS1_RESULTS.md",
+      "line": 78,
+      "tier": 1,
+      "category": "infeasible",
+      "matched": "做不到",
+      "snippet": "`pitch_cnt` 與 `main_event_no` 主序號都不是列的唯一鍵，做不到（§1.7d／§1.7e）。"
+    },
+    {
+      "path": "docs/research/ML-PITCHER-SCORELESS1_RESULTS.md",
+      "line": 139,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "### 已知失敗模式（照實回報）"
+    },
+    {
+      "path": "docs/research/ML-PITCHER-SCORELESS1_RESULTS.md",
+      "line": 244,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "FAIL",
+      "snippet": "| `int(runs or 0)` | **FAIL**（2 條測試） |"
+    },
+    {
+      "path": "docs/research/ML-PITCHER-SCORELESS1_RESULTS.md",
+      "line": 245,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "FAIL",
+      "snippet": "| `int(runs) if runs is not None else 0` | **FAIL**（2 條測試） |"
+    },
+    {
+      "path": "docs/research/ML-PITCHER-SCORELESS1_RESULTS.md",
+      "line": 494,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "僅 8 場",
+      "snippet": "| 保留賽（`delay_kind='保留'`） | 該場全部 | 橫跨 orig_date→game_date，兩種排序都可能造成高估；2018+ 僅 8 場，直接中斷最乾淨 |"
+    },
+    {
+      "path": "docs/research/ML-PITCHER-SCORELESS1_RESULTS.md",
+      "line": 513,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "> **以下全部是已被推翻或移除的做法**，保留是因為那七輪的失敗模式有留痕價值——每一輪都"
+    },
+    {
+      "path": "docs/research/ML-PITCHER-SCORELESS1_RESULTS.md",
+      "line": 514,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "> 是「以某個看得見的量設界，再證明資料完整」，而那條路在本資料集上不成立。"
+    },
+    {
+      "path": "docs/research/ML-PITCHER-SCORELESS1_RESULTS.md",
+      "line": 758,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "### 事件序號密度：前提查證後**不成立**"
+    },
+    {
+      "path": "docs/research/ML-PITCHER-SCORELESS1_RESULTS.md",
+      "line": 761,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "成立，隱藏的 P→O→P 就會在序號上留洞。**查證結果：前提不成立。**"
+    },
+    {
+      "path": "docs/research/ML-PITCHER-SCORELESS1_RESULTS.md",
+      "line": 772,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "攻擊面（換人列與比賽列同槽）。這與 `pitch_cnt` 的失敗是**同一個結構問題**——鍵不是"
+    },
+    {
+      "path": "docs/research/ML-PITCHER-SCORELESS1_RESULTS.md",
+      "line": 792,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "| **坎南 30.0** | **不成立**，strict 為 **27.0 局 / 4 場**。媒體口徑的 30 局裡有 3 局來自他 04-23 那場掉分後的乾淨局數，strict 不採計 |"
+    },
+    {
+      "path": "docs/research/ML-PITCHER-SCORELESS2_RESULTS.md",
+      "line": 4,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "- 前置：[`ML-PITCHER-SCORELESS1_RESULTS.md`](ML-PITCHER-SCORELESS1_RESULTS.md)（七輪失敗模式）"
+    },
+    {
+      "path": "docs/research/ML-PITCHER-SCORELESS2_RESULTS.md",
+      "line": 14,
+      "tier": 1,
+      "category": "abandon",
+      "matched": "收攤",
+      "snippet": "不存在「加個守衛就能保住一部分」的中間地帶。依卡面驗收條件，本卡以**結論 memo 收攤**。"
+    },
+    {
+      "path": "docs/research/ML-PITCHER-SCORELESS2_RESULTS.md",
+      "line": 74,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "不成立，措辭已改為「包含於／只有當」（見 `src/cpbl/models/scoreless_streak.py` 與"
+    },
+    {
+      "path": "docs/research/ML-PITCHER-SCORELESS2_RESULTS.md",
+      "line": 84,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "FAIL",
+      "snippet": "且經變異檢驗確認**條件是緊的**（把條件改成「`last_pitch + 1` 之後有得分局」即 FAIL，"
+    },
+    {
+      "path": "docs/research/ML-PITCHER-SCORELESS2_RESULTS.md",
+      "line": 92,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "## 3. 其他救法逐條評估（全部 No-Go）"
+    },
+    {
+      "path": "docs/research/ML-PITCHER-SCORELESS2_RESULTS.md",
+      "line": 97,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "- **鏡像做法：以「第一球投在第幾局」砍掉前綴容量** — 對稱地不成立。觀測到某局有"
+    },
+    {
+      "path": "docs/research/ML-PITCHER-SCORELESS2_RESULTS.md",
+      "line": 183,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "FAIL",
+      "snippet": "| M1 在 `pigeonhole_tail_outs` 重新引入「把視窗收到退場局」 | **FAIL**（2 條：反例測試 ＋ 窮舉上限測試） |"
+    },
+    {
+      "path": "docs/research/ML-PITCHER-SCORELESS2_RESULTS.md",
+      "line": 184,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "FAIL",
+      "snippet": "| M2 把定理測試的條件改成「`last_pitch + 1` 之後有得分局」 | **FAIL**（1 條）——證明定理的條件是**緊的**，測試不是空轉 |"
+    },
+    {
+      "path": "docs/research/ML-PITCHER-SCORELESS2_RESULTS.md",
+      "line": 217,
+      "tier": 1,
+      "category": "abandon",
+      "matched": "收攤",
+      "snippet": "我沒有這樣做——因為卡面驗收條件明訂「查證後無可行方向，交付結論 memo 並收攤」，"
+    },
+    {
+      "path": "docs/research/ML-UMP1_RESULTS.md",
+      "line": 24,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "| 固定代理帶的主審／球隊方向性產品 | **NO-GO** | 18/18 主審、6/6 球隊在 ±1/2/3/5cm 情境至少一次翻轉；2026 場次 coverage 僅 82.5% |"
+    },
+    {
+      "path": "docs/research/ML-UMP1_RESULTS.md",
+      "line": 89,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "n=7",
+      "snippet": "十分位 reliability 顯示候選模型在中低機率段偏高估、較高機率段偏低估；例如 0.3–0.4 bin 為預測 0.350／實際 0.283（n=7,764），0.7–0.8 bin 為預測 0.750／實際 0.790（n=7,594）。這與 calibration slope > 1 一致。"
+    },
+    {
+      "path": "docs/research/ML-UMP2_RESULTS.md",
+      "line": 10,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "**方向性產品繼續 NO-GO。**"
+    },
+    {
+      "path": "docs/research/ML-UMP2_RESULTS.md",
+      "line": 12,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "身高比例帶沒有消除 ML-UMP1 的根本不穩定性：在 v2 帶對稱 ±1/2/3/5cm 後，18/18 位主審與 6/6 隊仍會出現方向翻轉，嚴格零翻轉 gate 失敗。因此不能對外說「本場／本季判決差異偏向 X 隊」，即使不呈現分數也不行。"
+    },
+    {
+      "path": "docs/research/ML-UMP2_RESULTS.md",
+      "line": 27,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "非隨機",
+      "snippet": "| TrackMan 場次覆蓋 | 166 / 203（81.77%） | 仍有非隨機場地缺口 |"
+    },
+    {
+      "path": "docs/research/ML-UMP2_RESULTS.md",
+      "line": 40,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "FAIL",
+      "snippet": "| v2 ±1/2/3/5cm 主審翻轉 | 18 / 18 | 主 gate FAIL |"
+    },
+    {
+      "path": "docs/research/ML-UMP2_RESULTS.md",
+      "line": 41,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "FAIL",
+      "snippet": "| v2 ±1/2/3/5cm 球隊翻轉 | 6 / 6 | 主 gate FAIL |"
+    },
+    {
+      "path": "docs/research/ML-UMP2_RESULTS.md",
+      "line": 43,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| home/away 主審翻轉 | 0 / 18 | 非主要失敗來源 |"
+    },
+    {
+      "path": "docs/research/ML-UMP2_RESULTS.md",
+      "line": 47,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "2,000 次 bootstrap 中，17/18 主審的總 state-value 95% 區間不跨 0，6/6 隊的 for 與 against 區間也都不跨 0。這不能拯救方向性：區間衡量的是「給定 v2 定義」下的抽樣不確定性，而主 gate 失敗是代理帶邊界稍微改變就全面翻轉的定義不確定性。"
+    },
+    {
+      "path": "docs/research/ML-WP-BIO-PRIOR1_MEMO.md",
+      "line": 17,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "STRENGTH1 No-Go 根因是八項賽前特徵時間外無增量資訊；其執行期 scratch 曾見"
+    },
+    {
+      "path": "docs/research/ML-WP-BIO-PRIOR1_SPEC.md",
+      "line": 84,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "- 三項同時成立才過關；差一項即 No-Go，不得事後解釋或改協定重跑。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 14,
+      "tier": 1,
+      "category": "infeasible",
+      "matched": "不可行",
+      "snippet": "**內野逐守位 TZ 不可行；唯一實質可行的是「外野空中球」範圍指標，且不能取代能力卡守備軸。**"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 18,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "| **naive 期望值查表法 TZ**（Retrosheet 式：對「方向×軌跡」桶查期望出局率再扣分） | **NO-GO** | `content` 的「方向」是處理結果非落點，查表等於用結果預測結果（循環論證） |"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 19,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "| **迴歸式 TZ**（球員配對混合效應模型，內野） | **極高風險 → 實務 NO-GO** | 參數雖數學可識別，但隊內共線性 60–80% + 跨隊橋樑稀疏使估不準，且方向桶殘留**分類洩漏**無法消除（§2.3） |"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 20,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "| **外野空中球範圍指標**（合併高飛＋平飛，控制年份） | **條件式 GO（唯一實質可行，須另卡）** | 外野空中球全具名、無歸屬不對稱；惟須以年份吸收判定漂移，且填不滿內野、不能取代守備軸（§3、§6） |"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 22,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "> ⚠️ **結論經三輪校準**：iteration 1 過度悲觀（一律 NO-GO）；iteration 2 過度樂觀（迴歸式列為「條件式 GO／推薦」）；"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 24,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "> 降級為極高風險／實務 NO-GO；真正乾淨的只有外野空中球。詳 §2.3、§3、§6 與 §7 修訂紀錄。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 37,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| 內野守備**失敗**（滾過內野） | 13,828 | ❌ 幾乎沒有（5,000 筆中僅 10–17 筆） |"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 37,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| 內野守備**失敗**（滾過內野） | 13,828 | ❌ 幾乎沒有（5,000 筆中僅 10–17 筆） |"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 40,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "- naive 查表法把「失敗只知左／中／右側」當成單顆球歸屬——單顆確實欠定（左側同屬 3B/SS）。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 43,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "且更根本地，方向桶「左/中/右」的歸屬本身由守備成敗決定（成功記本守位、失敗滾去別區），"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 44,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "這種**分類洩漏** [classification leakage] 是任何迴歸都無法消除的物理偏差。故內野降級為實務 NO-GO。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 47,
+      "tier": 1,
+      "category": "not_recommended",
+      "matched": "不建議",
+      "snippet": "故**不建議以 TZ 取代現行守備軸**；零風險緩解仍是多季滾動標示（§6）。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 136,
+      "tier": 1,
+      "category": "not_adopted",
+      "matched": "否決",
+      "snippet": "## 2. 研究問題二：期望值模型怎麼建 —— **naive 查表法否決；內野迴歸式實務不可行，唯外野可行**"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 136,
+      "tier": 1,
+      "category": "infeasible",
+      "matched": "不可行",
+      "snippet": "## 2. 研究問題二：期望值模型怎麼建 —— **naive 查表法否決；內野迴歸式實務不可行，唯外野可行**"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 164,
+      "tier": 1,
+      "category": "not_adopted",
+      "matched": "否決",
+      "snippet": "### 2.2 歸屬不對稱（否決 naive 查表法的關鍵）"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 183,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "失敗端具名率 ≈ 0.2%。**在單顆球的層級，分母不可歸屬。**"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 188,
+      "tier": 1,
+      "category": "not_adopted",
+      "matched": "否決",
+      "snippet": "> 據以否決**所有** TZ 路線。這個推論**過強**（查核 Finding 1 指出）。「單顆球欠定」不等於"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 191,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "### 2.3 迴歸式 TZ：數學可識別，但實務估不準且殘留分類洩漏 →（內野）實務 NO-GO"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 202,
+      "tier": 1,
+      "category": "infeasible",
+      "matched": "不可行",
+      "snippet": "**這一步 iteration 2 說對了，但只到「可識別」為止。查核 iteration 2 的 Critical Finding 指出兩道實務關卡，使內野路線實質不可行：**"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 211,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "僅 8 場",
+      "snippet": "| 跨隊橋樑 | 多為 Lamigo→樂天代碼轉換（假轉隊）；真轉隊且足量者極少（杜家明兄弟僅 8 場） | 連結各隊子圖的「橋」極細，跨隊尺度校準不穩 |"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 223,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "- 游擊手**沒攔到**、滾過防線 → livelog 記 `擊出中外野滾地球`，落入「中間·失敗」分母。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 224,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "- 即：**成功的球留在本守位分母、失敗的球被推到別區（外野）分母**。collapse 只在「同一側內」合併，"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 225,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "但「哪一側」的界線會隨成敗漂移，反應變數與桶歸屬**仍不獨立**。這使攔截率被**系統性高估**，"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 229,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "> 查核 Critical Finding 正確指出上兩關卡。iteration 3 據以**降級為極高風險／實務 NO-GO**，"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 230,
+      "tier": 1,
+      "category": "not_recommended",
+      "matched": "不建議",
+      "snippet": "> 不建議在內野迴歸式 TZ 投入開發資源。iteration 2 只補了「可識別」半題，漏了「估得準」與「殘留洩漏」。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 233,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "不存在「成功記本位、失敗推別區」的分類洩漏，歸屬對稱。故可行路線收斂到外野，見 §6。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 253,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "### 3.1 有顯著漂移，且**部分類別另有語意判定漂移**（須分類別處理，非一律可直接合併）"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 270,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "平飛球占比腰斬、高飛球占比大增，會推升整體出局率。**但這不只是打法改變——下方證據顯示還混入了記錄員的分類判定漂移。**"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 272,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "**驗證（分類別）：高飛球穩定，平飛球嚴重漂移**"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 291,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "- **平飛球嚴重漂移**（11.45%→1.95%，單調崩塌）。這**不是外野守備變差 5 倍**，而是"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 295,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "> ⚠️ **iteration 1 更正（查核 Finding 2）**：初版只驗高飛球一個類別便宣稱「類別內無漂移、可直接合併」，"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 296,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "> 屬以偏概全。實測平飛球有嚴重語意判定漂移。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 300,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "> (2) 被移走的接殺平飛球**流進了高飛球桶**，使高飛球的「平坦」是「判定漂移稀釋 × 物理效應」抵消後的假象——"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 304,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "並以年份 fixed effect 吸收**（同時涵蓋球彈性改變與記錄員判定漂移），而非分桶各自校正。實測合併後仍有漂移："
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 310,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "合併後九季 **+8.2 個百分點**、且趨勢平滑——證明漂移是真實的環境／判定變化（非純分桶假象），"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 323,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "| 類別內出局率跨季 | 見 §3.1 | 高飛球穩定、**平飛球有判定漂移**（iteration 1 更正） |"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 370,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不足以支撐",
+      "snippet": "換算約 **±14 個守備機會／三年**。勉強可用，但精度遠不足以支撐單季排名或球員間細部比較——"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 372,
+      "tier": 1,
+      "category": "infeasible",
+      "matched": "不可行",
+      "snippet": "分類洩漏與共線性而實務不可行，非精度問題。）"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 378,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "| **內野分類洩漏（迴歸式仍不可解）** | 🔴 高 | §2.3：方向桶歸屬由守備成敗決定（成功記本位、失敗推別區），collapse 後仍不獨立，任何迴歸都無法消除→內野實務 NO-GO |"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 378,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| **內野分類洩漏（迴歸式仍不可解）** | 🔴 高 | §2.3：方向桶歸屬由守備成敗決定（成功記本位、失敗推別區），collapse 後仍不獨立，任何迴歸都無法消除→內野實務 NO-GO |"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 381,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "| **外野空中球判定漂移** | 🟡 中 | §3：合併出局率九季 49.5%→57.8%，須以年份 fixed effect 統一吸收（分桶校正不足） |"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 397,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "| ~~一~~ | ~~**內野迴歸式 TZ**（球員配對混合效應）~~ | **極高風險 → 實務 NO-GO** | ~~L~~ | 參數數學可識別但估不準（共線性 60–80%＋稀疏橋樑）＋方向桶分類洩漏無法消除（§2.3）；**不建議投入開發資源** |"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 397,
+      "tier": 1,
+      "category": "not_recommended",
+      "matched": "不建議",
+      "snippet": "| ~~一~~ | ~~**內野迴歸式 TZ**（球員配對混合效應）~~ | **極高風險 → 實務 NO-GO** | ~~L~~ | 參數數學可識別但估不準（共線性 60–80%＋稀疏橋樑）＋方向桶分類洩漏無法消除（§2.3）；**不建議投入開發資源** |"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 403,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "1. **naive 期望值查表法 TZ：NO-GO。** §2.1 循環論證 + §2.2 單顆球歸屬欠定，無座標下無有效控制手段。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 404,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "2. **內野迴歸式 TZ：極高風險 → 實務 NO-GO。** 配對變異使參數**數學可識別**（查核已實測網絡連通），"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 407,
+      "tier": 1,
+      "category": "not_recommended",
+      "matched": "不建議",
+      "snippet": "**不建議在內野迴歸式 TZ 投入開發資源。**"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 409,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "須合併高飛＋平飛以年份 fixed effect 統一吸收判定漂移（§3）。惟**內野仍無值**，故不能取代能力卡守備軸。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 423,
+      "tier": 1,
+      "category": "not_recommended",
+      "matched": "不建議",
+      "snippet": "故**不建議為此另開卡**；若日後實作 TZ，於該卡內一併處理即可。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 429,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "> **結論三輪演變**：iteration 1「一律 NO-GO」（過度悲觀）→ iteration 2「迴歸式條件式 GO」（過度樂觀）"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 430,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "> → iteration 3「內野實務 NO-GO、唯外野空中球條件式 GO」（校準）。每輪皆由跨家族查核推動。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 434,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "iteration 2 查核結論 APPROVE WITH FINDINGS，但實質建議「迴歸式 TZ 應降級為極高風險／NO-GO」。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 440,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "| New Finding 1(B)：分類洩漏 | Critical | §0、§2.3、§5.3、§6 | 補「方向桶歸屬由成敗決定、collapse 仍破不掉循環」——iteration 2 的漏洞，內野實務 NO-GO |"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 443,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "執行者**獨立複驗**合併外野空中球出局率（49.53%→57.76%，+8.2pt，確認漂移為真非分桶假象）後採納。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 444,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "核心結論由「兩層（含迴歸式條件式 GO）」收斂為「內野實務 NO-GO、唯外野空中球條件式 GO」。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 453,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "| Finding 1：NO-GO 推論過強 | Medium | §0、§2.2、§2.3（新增）、§6 | 結論由「一律 NO-GO」改為兩層：naive 查表法 NO-GO、迴歸式 TZ 條件式 GO。新增 §2.3 說明配對變異可識別性 |"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 454,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "| Finding 2：平飛球判定漂移 | Medium | §3.1、§4.1、§5.3 | 更正「類別內無漂移」的以偏概全；補平飛球出局率 11.45%→1.95% 實測，跨季合併改為須分類別、平飛球須年代校正 |"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 458,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "執行者對 Finding 1、2 **獨立複驗**（平飛球漂移親自重跑確認 11.45%→1.95% 單調崩塌）後採納。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_FEASIBILITY.md",
+      "line": 461,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "**iteration 1（Claude Opus 4.8）**：初版，五個研究問題全查證，結論「完整逐守位 TZ 一律 NO-GO」。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW.md",
+      "line": 3,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "> **查核結論**：**APPROVE WITH FINDINGS**（結論成立，但有關鍵統計推論缺陷與未察覺的資料漂移）"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW.md",
+      "line": 12,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "執行者結論主張 **「完整逐守位 Total Zone 在 CPBL 現有資料上不可行，建議 NO-GO」**。經查核者獨立取數重現與統計推論檢驗，**該 NO-GO 結論在「直接套用 Retrosheet 式的 naive 期望值查表法」上成立**，但執行者報告中提出的部分理論推論與前提存在關鍵缺陷（統計可識別性、未察覺的分類漂移）。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW.md",
+      "line": 12,
+      "tier": 1,
+      "category": "infeasible",
+      "matched": "不可行",
+      "snippet": "執行者結論主張 **「完整逐守位 Total Zone 在 CPBL 現有資料上不可行，建議 NO-GO」**。經查核者獨立取數重現與統計推論檢驗，**該 NO-GO 結論在「直接套用 Retrosheet 式的 naive 期望值查表法」上成立**，但執行者報告中提出的部分理論推論與前提存在關鍵缺陷（統計可識別性、未察覺的分類漂移）。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW.md",
+      "line": 12,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "執行者結論主張 **「完整逐守位 Total Zone 在 CPBL 現有資料上不可行，建議 NO-GO」**。經查核者獨立取數重現與統計推論檢驗，**該 NO-GO 結論在「直接套用 Retrosheet 式的 naive 期望值查表法」上成立**，但執行者報告中提出的部分理論推論與前提存在關鍵缺陷（統計可識別性、未察覺的分類漂移）。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW.md",
+      "line": 30,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| **失敗具名數** | 左: 10, 中: 10, 右: 17 | 左: 10, 中: 10, 右: 17 | ✅ 一致 | [SQL 3](#sql-3-內野守備失敗具名數對帳) |"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW.md",
+      "line": 38,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "### 3.1 Finding 1 (Medium - 統計理論)：§2.2「欠定方程組無解」之 NO-GO 推論過強"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW.md",
+      "line": 41,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "> **報告主張**：左側滾地球漏過去（失敗）時沒有具名處理者，而左側責任同屬三壘手與游擊手，此為「三個觀測值、四個未知數」的欠定方程組（Underdetermined system），故任何模型皆無解。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW.md",
+      "line": 43,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "**查核反駁**：**該推論在微觀單一球層面成立，但在宏觀統計估計上不成立。**"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW.md",
+      "line": 46,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "- 當我們將「左側滾地球是否穿透（失敗）」作為二元或多元反應變數 $Y_i \\in \\{0, 1\\}$，配對球員作為虛擬變數輸入時，這可藉由**多變量 Logistic 回歸**或**混合效應模型（Mixed-effects Model）**來識別個人能力："
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW.md",
+      "line": 49,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "- 因此，「欠定無解」只能說明無法用簡單的「期望值查表扣分法」實作，但**不能得出「任何模型都無解，故必須 NO-GO」**的結論。統計學的價值即在於透過配對變異分離責任。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW.md",
+      "line": 51,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "### 3.2 Finding 2 (Medium - 資料漂移)：§3.1「類別內部無漂移」為部分假象，平飛球有嚴重分類漂移"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW.md",
+      "line": 54,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "> **報告主張**：類別內部無漂移，記錄員判定標準九季穩定，條件化於擊球型態即可跨季合併。報告僅以「外野高飛球」作為證據。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW.md",
+      "line": 56,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "**查核發現**：**外野高飛球確實平坦，但「外野平飛球（Line Drive）」存在嚴重的分類與判定漂移。**"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW.md",
+      "line": 88,
+      "tier": 1,
+      "category": "infeasible",
+      "matched": "不可行",
+      "snippet": "需求方指出：**「若 TZ 也不可行，需要知道守備軸還剩哪些選項」**。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW.md",
+      "line": 92,
+      "tier": 1,
+      "category": "abandon",
+      "matched": "放棄",
+      "snippet": "- **做法**：放棄 naive 的 Retrosheet 期望值查表扣分法，改採**球員配對 Logistic 迴歸**。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW.md",
+      "line": 93,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "- **解決點**：將內野滾地球與外野滾地球 collapsed（合併成實體「擊向左側／中間／右側的滾地球」），以解決循環論證。對於失敗的穿透球（無具名），透過迴歸模型中當下守備陣容的 SS 與 3B 參數變異來自動分擔責任（解決歸屬不對稱）。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW.md",
+      "line": 161,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "### SQL 3: 內野守備失敗具名數對帳"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT2.md",
+      "line": 12,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "執行者於 Iteration 2 中採納了前一輪的 Findings，將結論由「一律 NO-GO」修訂為**兩層結論**："
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT2.md",
+      "line": 13,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "- **naive 期望值查表法 TZ**：維持 **NO-GO** 判定（同意，區域判定受處理結果污染，屬循環論證）。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT2.md",
+      "line": 19,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "3. **存在物理分類洩漏（Classification Leakage）**：由於缺乏客觀的擊球落點座標，物理方向桶（左側/中間/右側）的判定本身即為防守處理結果的副產品。這會導致成功的球被算作該守位的機會，而失敗的球被算作別處或外野的機會，產生系統性偏差（見 New Finding 1）。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT2.md",
+      "line": 20,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "4. **平飛球漂移校正不足**：平飛球與高飛球的語意界線漂移會污染高飛球桶，單純在平飛球模型中加入年份 fixed effect 在實務上是不夠的（見 New Finding 2）。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT2.md",
+      "line": 48,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "僅 8 場",
+      "snippet": "2. **跨隊轉隊橋樑極度稀疏**：17 名橋樑球員中，有許多只是因為 Lamigo (`AJK011`) 轉手給樂天 (`AJL011`) 時的球隊代碼轉換（如林承飛、梁家榮等），並非真實轉隊。真正發生跨隊流動且有足夠樣本的橋樑球員極少（如杜家明在兄弟僅 8 場、王勝偉在兄弟 142 場/富邦 161 場）。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT2.md",
+      "line": 55,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "- 若游擊手攔截失敗，球滾過二遊防線，livelog 會記為 `擊出中外野滾地球...`，從而被我們判定為「中間的失敗分母」。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT2.md",
+      "line": 56,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "- 這意味著：**擊球機會被歸類到哪個方向桶，取決於防守處理的結果**。防守成功的球被算作該守位的分母，而失敗的球被算作其他守位或外野的分母。這種「分母判定受結果污染」的現象，會系統性高估防守者的攔截率。這是不論採用何種迴歸模型都無法從根本上消除的物理偏差。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT2.md",
+      "line": 58,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "### 3.2 New Finding 2 (Medium - 資料漂移)：外野空中球分類漂移與年代校正的不足"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT2.md",
+      "line": 63,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "1. 報告稱「高飛球出局率穩定在 ~68%」，這其實是**語意分類判定漂移與物理效應（不彈球）抵消後的假象**。因為記錄員越來越多地將原本會被接殺的平飛球改記為「高飛球」，導致平飛球桶被嚴重稀釋（2026 年平飛球出局樣本九季合計僅剩 16 筆）。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT2.md",
+      "line": 65,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "3. **校正建議**：若要推進實作，不能只單獨在平飛球上做 fixed effect，而應將外野高飛球與平飛球合併為一個整體的 **「外野空中球」** 進行統一建模，並在該模型中控制年份效應（綜合吸收球的彈性改變與記錄員語意判定漂移）。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT2.md",
+      "line": 72,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "- **一致性確認**：報告的 §0、§2.2、§5.3、§6 已完全移除了 iteration 1 的絕對化 NO-GO 措辭。兩層結論之劃分在全文中邏輯自洽，無自相矛盾處。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT2.md",
+      "line": 74,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "- **不需另開卡判定**：同意 §6.3 的評估。代打/代跑造成的 1.37% 打席切界漂移與觸擊解析缺漏均不污染出局率與具名率，亦不影響既有 splits 統計，故不需另開卡處理。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT2.md",
+      "line": 83,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "1. **迴歸式 TZ 應降級為「極高風險／NO-GO」**：雖然配對變異在數學上可識別，但由於中職極度稀疏的跨隊轉隊橋樑與隊內高度共線性，加上分類桶本身的結果洩漏（Classification Leakage），「迴歸式 TZ」無法提供具備足夠精度且無偏的能力估計。不建議需求方在路線一（迴歸式 TZ）上投入開發資源。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT2.md",
+      "line": 83,
+      "tier": 1,
+      "category": "not_recommended",
+      "matched": "不建議",
+      "snippet": "1. **迴歸式 TZ 應降級為「極高風險／NO-GO」**：雖然配對變異在數學上可識別，但由於中職極度稀疏的跨隊轉隊橋樑與隊內高度共線性，加上分類桶本身的結果洩漏（Classification Leakage），「迴歸式 TZ」無法提供具備足夠精度且無偏的能力估計。不建議需求方在路線一（迴歸式 TZ）上投入開發資源。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT3.md",
+      "line": 15,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "1. **反映對齊與降級如實**：內野迴歸式 TZ 路線已從 iteration 2 的「條件式 GO／推薦」正式降級為 **「極高風險 → 實務 NO-GO」**，並在 §0 結論、§2.3 核心分析、§5.3 風險評估及 §6 判定與決策路徑中全面更新，標明「不建議投入開發資源」。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT3.md",
+      "line": 15,
+      "tier": 1,
+      "category": "not_recommended",
+      "matched": "不建議",
+      "snippet": "1. **反映對齊與降級如實**：內野迴歸式 TZ 路線已從 iteration 2 的「條件式 GO／推薦」正式降級為 **「極高風險 → 實務 NO-GO」**，並在 §0 結論、§2.3 核心分析、§5.3 風險評估及 §6 判定與決策路徑中全面更新，標明「不建議投入開發資源」。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT3.md",
+      "line": 17,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "3. **分類洩漏（Classification Leakage）完整採納**：報告詳細重述了「物理方向桶歸屬由守備成敗決定（成功記本位，失敗滾去外野）」所導致的物理偏差，說明該偏差在無客觀落點座標下任何迴歸均無法消除，論述扎實。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT3.md",
+      "line": 68,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "- **結論與表頭**：§0 的結論表格與 §6.1 路線一，已將「內野迴歸式 TZ」標記為 **「極高風險 → 實務 NO-GO」**，且在關鍵前提／限制中寫明 `不建議投入開發資源`。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT3.md",
+      "line": 68,
+      "tier": 1,
+      "category": "not_recommended",
+      "matched": "不建議",
+      "snippet": "- **結論與表頭**：§0 的結論表格與 §6.1 路線一，已將「內野迴歸式 TZ」標記為 **「極高風險 → 實務 NO-GO」**，且在關鍵前提／限制中寫明 `不建議投入開發資源`。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT3.md",
+      "line": 70,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "- **核心判定對齊**：§6.2 核心判定第 2 點寫道：`內野迴歸式 TZ：極高風險 → 實務 NO-GO ... 不建議在內野迴歸式 TZ 投入開發資源`。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT3.md",
+      "line": 70,
+      "tier": 1,
+      "category": "not_recommended",
+      "matched": "不建議",
+      "snippet": "- **核心判定對齊**：§6.2 核心判定第 2 點寫道：`內野迴歸式 TZ：極高風險 → 實務 NO-GO ... 不建議在內野迴歸式 TZ 投入開發資源`。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT3.md",
+      "line": 74,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "- §2.3 關卡二中，執行者用非常生動的例子（二遊間滾地球成功記 SS 左側、失敗記中外野中間，使成敗反向污染方向桶）清晰說明了 Classification Leakage 的本質。這證明 it2 Review 提及的 Critical Finding 已被完整融入，無淡化。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT3.md",
+      "line": 78,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "- **漂移驗證**：報告中正確認識到平飛球單獨出局率的暴跌（11.45%→1.95%）會伴隨其樣本退化而無法單獨精確估計，且移走的接殺球流入了高飛球桶，導致高飛球看似平坦的假象。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT3.md",
+      "line": 96,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "1. **內野守備指標**：在 CPBL 現有資料下（無獨立客觀擊球落點座標），內野**沒有**任何可信且精度足夠的個人守備價值指標（TZ naive 查表法與迴歸式配對法皆已被否決）。**內野路線確定 NO-GO，切勿投入任何開發資源**。"
+    },
+    {
+      "path": "docs/research/ML_FIELD_TZ1_REVIEW_IT3.md",
+      "line": 96,
+      "tier": 1,
+      "category": "not_adopted",
+      "matched": "否決",
+      "snippet": "1. **內野守備指標**：在 CPBL 現有資料下（無獨立客觀擊球落點座標），內野**沒有**任何可信且精度足夠的個人守備價值指標（TZ naive 查表法與迴歸式配對法皆已被否決）。**內野路線確定 NO-GO，切勿投入任何開發資源**。"
+    },
+    {
+      "path": "docs/research/OFFICIAL_DATA_GAP1_RESULTS.md",
+      "line": 36,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "drift",
+      "snippet": "承諾的永久 public contract；爬蟲仍須保留 schema drift fail-fast。"
+    },
+    {
+      "path": "docs/research/OFFICIAL_DATA_GAP1_RESULTS.md",
+      "line": 140,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "| `/stats/mvp` | MVP 彙總 | 與 `games.mvp_acnt` 重複，NO-GO |"
+    },
+    {
+      "path": "docs/research/OFFICIAL_DATA_GAP1_RESULTS.md",
+      "line": 155,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "| `ML-FIELD-OF1` | 結果分類代理可由物理落點候選模型取代 | 若落點 coverage／confidence 不足仍需原外野空中球 baseline | 不再把 OAA 列絕對非目標；OAA NO-GO 時回退 OF baseline |"
+    },
+    {
+      "path": "docs/research/OFFICIAL_DATA_GAP1_RESULTS.md",
+      "line": 158,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "| `ML-SIM2`／`UX-PA-SIM-MATCHUP1` | coarse pitch type leaderboard 提供 league／player prior；逐球可產 pitch mix | 官方只有 fastball／breakingball 兩類，不足以代表細分球種；模擬校準仍是紅線 | 可改善 prior/fallback，不解除遠期 NO-GO／校準門檻 |"
+    },
+    {
+      "path": "docs/research/OPS-BACKUP-EMPTY1_RESULTS.md",
+      "line": 14,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "1. **備份產不出來**——VPS cron 因憑證預設值錯誤連續 88 天產出 20-byte 空檔，且失敗無人接收。"
+    },
+    {
+      "path": "docs/research/OPS-BACKUP-EMPTY1_RESULTS.md",
+      "line": 15,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "2. **備份即使正確產出也還原不進去**——生產帶著一個標記為 `convalidated=t` 卻不成立的外鍵，"
+    },
+    {
+      "path": "docs/research/OPS-BACKUP-EMPTY1_RESULTS.md",
+      "line": 24,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "卡面已於 2026-07-29 更正過一次（原第 3 點「缺 pipefail」不成立）。本次執行再補兩項："
+    },
+    {
+      "path": "docs/research/OPS-BACKUP-EMPTY1_RESULTS.md",
+      "line": 62,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "**每一份都能通過 `gzip -t`**。這個失敗模式只有內容檢查抓得到。"
+    },
+    {
+      "path": "docs/research/OPS-BACKUP-EMPTY1_RESULTS.md",
+      "line": 70,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "`64` 參數錯、`66` 內容驗證失敗。與 `refresh-cpbl-prod.sh` 既有的 `65`（freshness 基準"
+    },
+    {
+      "path": "docs/research/OPS-BACKUP-EMPTY1_RESULTS.md",
+      "line": 71,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "取不到）區隔——執行中實際踩到過撞號，log 裡分不出是哪一段失敗。"
+    },
+    {
+      "path": "docs/research/OPS-BACKUP-EMPTY1_RESULTS.md",
+      "line": 80,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "不新增基礎設施。失敗使 `refresh-cpbl-prod.sh` 非零退出，狀態落入 `logs/last-status.json`"
+    },
+    {
+      "path": "docs/research/OPS-BACKUP-EMPTY1_RESULTS.md",
+      "line": 91,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "[a] pg_dump 連線失敗   → exit=23  產物數=0"
+    },
+    {
+      "path": "docs/research/OPS-BACKUP-EMPTY1_RESULTS.md",
+      "line": 93,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "stderr: 備份內容驗證失敗：CREATE TABLE 0 < 門檻 90"
+    },
+    {
+      "path": "docs/research/OPS-BACKUP-EMPTY1_RESULTS.md",
+      "line": 99,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "**情境 (b) 即 88 天缺陷的失敗模式**：pg_dump 未能產出內容但外層成功。舊機制在此情境"
+    },
+    {
+      "path": "docs/research/OPS-BACKUP-EMPTY1_RESULTS.md",
+      "line": 113,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "### 5.1 第一輪：失敗，並查出生產資料缺陷"
+    },
+    {
+      "path": "docs/research/OPS-BACKUP-EMPTY1_RESULTS.md",
+      "line": 134,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "故先假設是**備份漏列**（若成立則比還原失敗嚴重一個等級）。生產端實測排除："
+    },
+    {
+      "path": "docs/research/OPS-BACKUP-EMPTY1_RESULTS.md",
+      "line": 153,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "修後孤兒為 0、列數維持 1 和 11），不成立即 `RAISE` 回滾。"
+    },
+    {
+      "path": "docs/research/OPS-CODE-BRANCH-PROTECT1_PLAN.md",
+      "line": 58,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不支援",
+      "snippet": "語意，不是「不支援」。同時 rulesets endpoint 回 `200 []`（不是 403/404），代表 rulesets"
+    },
+    {
+      "path": "docs/research/OPS-CODE-BRANCH-PROTECT1_PLAN.md",
+      "line": 152,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "| T4 | 直推紅 commit（lint／test 失敗） | 直推流程下 CI 在 push **之後**才跑 | main 短暫紅、下游 submodule bump 帶壞碼 | 可逆（revert） |"
+    },
+    {
+      "path": "docs/research/OPS-CODE-BRANCH-PROTECT1_PLAN.md",
+      "line": 367,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| `update`（Restrict updates） | **致命**：等同鎖分支，PM 無 bypass 就完全推不上 main | T4–T6 | ❌ 排除 |"
+    },
+    {
+      "path": "docs/research/OPS-CODE-BRANCH-PROTECT1_PLAN.md",
+      "line": 368,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| `required_linear_history` | **致命**：📖「prevents collaborators from pushing merge commits」——`--no-ff` merge 是本專案的留痕載體（`18a6146` 實測雙親） | — | ❌ 排除 |"
+    },
+    {
+      "path": "docs/research/OPS-CODE-BRANCH-PROTECT1_PLAN.md",
+      "line": 369,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| `required_signatures` | **致命**：🔬 近 5 個 main commit 全部 `verified:false / reason:\"unsigned\"`，開啟即全面推不上去 | 不在威脅模型內 | ❌ 排除（要做得先另開卡設定 SSH 簽章） |"
+    },
+    {
+      "path": "docs/research/OPS-CODE-BRANCH-PROTECT1_PLAN.md",
+      "line": 372,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| `merge_queue` | 需 PR 流程為前提 | — | ❌ 不適用 |"
+    },
+    {
+      "path": "docs/research/OPS-CODE-BRANCH-PROTECT1_PLAN.md",
+      "line": 373,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| `required_deployments` | 本 repo 無 GitHub Environments | — | ❌ 不適用 |"
+    },
+    {
+      "path": "docs/research/OPS-CODE-BRANCH-PROTECT1_PLAN.md",
+      "line": 374,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| metadata restrictions | 平台不支援（§3.2） | 理論上 T5 | ❌ 不可用 |"
+    },
+    {
+      "path": "docs/research/OPS-CODE-BRANCH-PROTECT1_PLAN.md",
+      "line": 374,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不支援",
+      "snippet": "| metadata restrictions | 平台不支援（§3.2） | 理論上 T5 | ❌ 不可用 |"
+    },
+    {
+      "path": "docs/research/OPS-CODE-BRANCH-PROTECT1_PLAN.md",
+      "line": 394,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "- **紅 main 偵測**：`ci.yml` 的 main push job 失敗時自動開 Issue／通知。偵測不是預防，"
+    },
+    {
+      "path": "docs/research/OPS-CODE-BRANCH-PROTECT1_PLAN.md",
+      "line": 434,
+      "tier": 1,
+      "category": "not_passed",
+      "matched": "沒有通過",
+      "snippet": "commit 若沒有通過的 required check，push 被拒。"
+    },
+    {
+      "path": "docs/research/OPS-CODE-BRANCH-PROTECT1_PLAN.md",
+      "line": 577,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| B. 傳統 BP + `enforce_admins:false` | 實質為零（唯一操作者是 admin） | 零 | ❌ 假防線，比不設更危險（給人「有保護」的錯覺） |"
+    },
+    {
+      "path": "docs/research/OPS-CODE-BRANCH-PROTECT1_PLAN.md",
+      "line": 578,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| C. 傳統 BP + `enforce_admins:true` | 同 A | 零～致命（取決於勾了什麼），且無 bypass 名單、無 history、需 admin 才讀得到 | ❌ 全面劣於 A |"
+    },
+    {
+      "path": "docs/research/OPS-CODE-BRANCH-PROTECT1_PLAN.md",
+      "line": 579,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| D. ruleset 加 `update`（Lock branch） | T1–T6 全部 | 致命，main 完全推不動 | ❌ |"
+    },
+    {
+      "path": "docs/research/OPS-CODE-BRANCH-PROTECT1_PLAN.md",
+      "line": 580,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| E. A + `required_status_checks` 一次到位 | T1 T2 T4 | 直推死鎖（§7.1 結論 B） | ❌ 未經 Wave 2 實測不得採用 |"
+    },
+    {
+      "path": "docs/research/OPS-CODE-BRANCH-PROTECT1_PLAN.md",
+      "line": 581,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| F. A + `pull_request` 一次到位 | T1 T2 T5 T6 | 311 筆/7 天全部改道，且撞 canonical §0 | ❌ 要先解 B1／B2 例外路徑 |"
+    },
+    {
+      "path": "docs/research/OPS-CODE-BRANCH-PROTECT1_PLAN.md",
+      "line": 582,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| G. 只做本機 pre-push hook | T4（部分） | 低 | ❌ 不是 remote 防線，`--no-verify` 可繞；可作 A 的補充 |"
+    },
+    {
+      "path": "docs/research/OPS-CODE-BRANCH-PROTECT1_PLAN.md",
+      "line": 583,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| H. 什麼都不做 | — | — | ❌ 現況等於 T1 隨時可發生且不可逆 |"
+    },
+    {
+      "path": "docs/research/OPS-REMOTE-CRAWL1_PLAN.md",
+      "line": 13,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "| 假設 | 現有證據與來源 | 信心 | 不成立時的影響 |"
+    },
+    {
+      "path": "docs/research/OPS-REMOTE-CRAWL1_PLAN.md",
+      "line": 33,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "- 對 Discovery／Design 的影響：待證據矩陣完成後決定 GO／NO-GO 或補研究。"
+    },
+    {
+      "path": "docs/research/OPS-REMOTE-CRAWL1_PLAN.md",
+      "line": 39,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "NO-GO",
+      "snippet": "2. `OPS-REMOTE-ROUTE1`：三路線跨時窗 evidence matrix 與 Discovery GO／NO-GO。"
+    },
+    {
+      "path": "docs/research/OPS-STATE-PLANE-MIG1_field_mapping.md",
+      "line": 214,
+      "tier": 1,
+      "category": "abandon",
+      "matched": "放棄",
+      "snippet": "- **方案 A（推薦）**：`最後交接` 用 `TEXT` 存完整 ISO-8601 字串（`2026-08-04T20:17:57+08:00`），放棄"
+    },
+    {
+      "path": "docs/research/OPS-STATE-PLANE-MIG1_field_mapping.md",
+      "line": 220,
+      "tier": 1,
+      "category": "not_recommended",
+      "matched": "不建議",
+      "snippet": "對帳能力，**不建議**在需求方未明確承認「可犧牲同日排序」前預設此案。"
+    },
+    {
+      "path": "docs/research/OPS-STATE-PLANE-MIG1_field_mapping.md",
+      "line": 227,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "才出現的檔案路徑）都能寫。缺點：程式要靠字串切分比對交集，正則錯誤或格式漂移風險由腳本自行承擔。"
+    },
+    {
+      "path": "docs/research/OPS-STATE-PLANE-MIG1_field_mapping.md",
+      "line": 229,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不支援",
+      "snippet": "缺點：①`gh` CLI 不支援建立，`state_plane_migrate.py` 須直接打 `gh api graphql`，工具鏈少一層保護；"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 15,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "> 不改判準；若某軸資料不支撐，標記「不成立／不穩定」保留在報告裡，不刪除。"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 21,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "樣本極小",
+      "snippet": "| 賽別 | `kind_code = 'A'`（一軍例行賽） | 卡面指定主體；季後賽樣本極小且語境不同 |"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 42,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "| 3 | 長打火力（`power`） | 進攻多依賴長打的額外壘打 | ISO = (TB − H) / AB | batting_gamelog |"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 75,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "FAIL",
+      "snippet": "3. **Face validity 抽查（隊季先選定，凍結後才看結果；判準：該軸該季排名前 2 名＝PASS，否則 FAIL 照實報告）**："
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 77,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "- **2019 Lamigo 桃猿** → `power` 排名 ≤ 2（隊史著名重砲打線時期）。"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 165,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "| 長打火力（power） | +0.194 | 39 | **不穩定** |"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 177,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "| 長打火力（power） | +0.448 | 33 | 中度延續 |"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 193,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "| 守備效率 | 不穩定 (+0.022) | 無 (+0.069) | **不成立**：兩項檢定皆未達最低帶；DER 在 4–6 隊、半季樣本下噪音壓過隊間差異。軸保留在 artifact，但不建議單獨作為球隊頁標籤 |"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 193,
+      "tier": 1,
+      "category": "not_recommended",
+      "matched": "不建議",
+      "snippet": "| 守備效率 | 不穩定 (+0.022) | 無 (+0.069) | **不成立**：兩項檢定皆未達最低帶；DER 在 4–6 隊、半季樣本下噪音壓過隊間差異。軸保留在 artifact，但不建議單獨作為球隊頁標籤 |"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 205,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "FAIL",
+      "snippet": "| 2021 中信兄弟 | 先發吃局 第3、三振型投手 第3 | /5 隊 | 任一軸 ≤ 2 | **FAIL** |"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 208,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "FAIL",
+      "snippet": "- **2021 中信兄弟 FAIL 照實保留**：先發吃局、三振型投手皆為該季第 3（前二為統一、富邦）。"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 209,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "預註冊先驗（「洋投輪值宰制」的媒體敘事）在隊級佔比／比率上不成立——敘事聚焦王牌"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 237,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| AAA011 | 0.251/0.319/0.345 | 0.247/0.323/0.317 | 0.0278 | ❌ |"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 238,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| ACN011 | 0.255/0.327/0.341 | 0.274/0.331/0.387 | 0.0459 | ❌ |"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 239,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| ADD011 | 0.245/0.310/0.335 | 0.251/0.321/0.321 | 0.0144 | ❌ |"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 240,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| AEO011 | 0.240/0.310/0.337 | 0.194/0.262/0.254 | 0.0834 | ❌ |"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 241,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| AJL011 | 0.236/0.292/0.313 | 0.240/0.294/0.315 | 0.0039 | ❌ |"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 242,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| AKP011 | 0.261/0.333/0.347 | 0.296/0.361/0.397 | 0.0504 | ❌ |"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 252,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| AJL011 | 0.242/0.296/0.317 | 0.240/0.294/0.315 | 0.0024 | ❌ |"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 255,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "FAIL",
+      "snippet": "**QA 判讀（誠實紀錄）**：預註冊版 QA **FAIL**——失敗原因是 spec §0.5 對 baseline 口徑的"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 260,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "官網頁面更新時滯），已如實標記。診斷版為**事後補做、非預註冊**，僅用於定位失敗原因，"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 265,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "小樣本",
+      "snippet": "1. **小樣本 z**：每季僅 4–6 隊，季內 z 的分佈粗；同季 z 和為 0 造成 pooled 相關的"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 269,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "3. **守備效率軸不成立**（§2）：建議消費表面以 6 軸呈現或對 defense 加「噪音大」註記。"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE1_RESULTS.md",
+      "line": 273,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "覆蓋缺口",
+      "snippet": "覆蓋缺口），逐球覆蓋成熟後另立卡。"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE2_RESULTS.md",
+      "line": 25,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "| 軸與 z 值 | 直接讀同 artifact `team_seasons[].z`（7 軸：speed / smallball / power / discipline / starter_ip / pitch_k / defense），**不重算軸、不改 z、不改判讀帶** | 同上 |"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE2_RESULTS.md",
+      "line": 92,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "5. **結論判準（Go/No-Go，先寫死不得算完再定）**："
+    },
+    {
+      "path": "docs/research/TEAM-STYLE2_RESULTS.md",
+      "line": 95,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "- 兩條件任一不滿足 → **No-Go**：維持逐季呈現；教練分段僅可作為呈現選項"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE2_RESULTS.md",
+      "line": 97,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "- **|Δr| 點估計不得單獨作結論**；CI 含 0 即 No-Go，無論點估計多大。"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE2_RESULTS.md",
+      "line": 98,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "小樣本",
+      "snippet": "6. **小樣本誠實聲明**：偵察格式推估兩組約 20 / 11 對（實際以規則跑出為準；"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE2_RESULTS.md",
+      "line": 112,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "bootstrap 參數與剔除計數、Go/No-Go、DB QA 結果。"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE2_RESULTS.md",
+      "line": 227,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "| 長打火力（power） | +0.507 (n=20) | +0.368 (n=11) | +0.139 | [-0.454, +0.777] |"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE2_RESULTS.md",
+      "line": 239,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "**No-Go：任期分段不成立——維持逐季呈現；教練分段僅可作為呈現選項（事實分組），"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE2_RESULTS.md",
+      "line": 239,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不成立",
+      "snippet": "**No-Go：任期分段不成立——維持逐季呈現；教練分段僅可作為呈現選項（事實分組），"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE2_RESULTS.md",
+      "line": 254,
+      "tier": 1,
+      "category": "not_supported_claim",
+      "matched": "不支持",
+      "snippet": "低於換教練組（+0.264／+0.213）。即使 CI 皆含 0 無法作方向宣稱，資料**不支持**"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE2_RESULTS.md",
+      "line": 259,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "小樣本",
+      "snippet": "n=20/11 的小樣本下，這只是與假說方向一致的微弱訊號，不構成宣稱。"
+    },
+    {
+      "path": "docs/research/TEAM-STYLE2_RESULTS.md",
+      "line": 270,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "小樣本",
+      "snippet": "1. **小樣本**：兩組 20/11 對，池化 CI 寬 [-0.22, +0.38]；本結論是「未能證立差異」，"
+    },
+    {
+      "path": "docs/research/UX-ABILITY-FIELD1_PHASE1.md",
+      "line": 114,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "（[`ability.py`](../../src/cpbl/api/routers/ability.py) 之 `a[\"label\"], a[\"pr\"], a[\"grade\"] = \"指打\", power_pr, _grade(power_pr)`）。"
+    },
+    {
+      "path": "docs/research/UX-ABILITY-FIELD1_PHASE1.md",
+      "line": 127,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "小樣本",
+      "snippet": "2. **樣本仍薄。** 2026 球季進行中，母體 84 人中不少守備局數不高，PR 在小樣本下本就不穩；"
+    },
+    {
+      "path": "docs/research/UX-ABILITY-FIELD1_PHASE1.md",
+      "line": 137,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "小樣本",
+      "snippet": "- [ ] **方案 A：只改分母、維持現行門檻**（總評變動 19 人，三案最少）。承認小樣本雜訊仍在，並揭露本季／生涯口徑不同。"
+    },
+    {
+      "path": "docs/research/UX-ABILITY-FIELD1_PHASE1.md",
+      "line": 139,
+      "tier": 1,
+      "category": "abandon",
+      "matched": "放棄",
+      "snippet": "- [ ] ~~方案 C：改分母＋提高門檻~~ —— **執行者建議放棄**：無收斂效果，且會把 9 名真實守備者錯標為指打。"
+    },
+    {
+      "path": "docs/research/UX-PLAYER-FIELDVIZ1_RESEARCH.md",
+      "line": 27,
+      "tier": 1,
+      "category": "rejected_gate",
+      "matched": "❌",
+      "snippet": "| **MLB Statcast OAA**（Baseball Savant） | 以守備員**起始站位**＋落點＋滯空時間算 catch probability，再累加超越期望的出局數；另有 Directional OAA（360° 切六個 60° 扇形） | 逐球守備員定位（Hawk-Eye） | ❌ **無守備員站位** |"
+    },
+    {
+      "path": "docs/research/UX-PLAYER-FIELDVIZ1_RESEARCH.md",
+      "line": 32,
+      "tier": 1,
+      "category": "infeasible",
+      "matched": "做不到",
+      "snippet": "**關鍵區別**：OAA 需要起始站位，我們永遠做不到；UZR/DRS 的分區法不需要，是理論上唯一可行路線。"
+    },
+    {
+      "path": "docs/research/UX-PLAYER-FIELDVIZ1_RESEARCH.md",
+      "line": 63,
+      "tier": 1,
+      "category": "infeasible",
+      "matched": "不可行",
+      "snippet": "## 4. 為什麼球員級分區圖不可行（決定性數字）"
+    },
+    {
+      "path": "docs/research/UX-PLAYER-FIELDVIZ1_RESEARCH.md",
+      "line": 80,
+      "tier": 1,
+      "category": "not_adopted",
+      "matched": "否決",
+      "snippet": "- **分區熱區圖**：每區 12–21 球 → 一次守備機會就左右該區 5–8pp，純雜訊，**否決**。"
+    },
+    {
+      "path": "docs/research/UX-PLAYER-FIELDVIZ1_RESEARCH.md",
+      "line": 82,
+      "tier": 1,
+      "category": "not_adopted",
+      "matched": "否決",
+      "snippet": "→ 統計上**幾乎無法區分**球員好壞，**否決**（會產出「看起來有差、實際不可信」的排名）。"
+    },
+    {
+      "path": "docs/research/UX-PLAYER-FIELDVIZ1_RESEARCH.md",
+      "line": 128,
+      "tier": 1,
+      "category": "infeasible",
+      "matched": "不可行",
+      "snippet": "- [x] 接受 §1 判定（球員級守備範圍圖以現有資料不可行）——需求方 2026-07-20 確認"
+    },
+    {
+      "path": "docs/research/WORKFLOW-REVIEW-2026-08-04.md",
+      "line": 14,
+      "tier": 2,
+      "category": "c2_outlier",
+      "matched": "資料缺失",
+      "snippet": "6. 任務套娃：每張卡開自己的前置任務（例：bio 資料缺失生出多張卡）。"
+    },
+    {
+      "path": "docs/research/WORKFLOW-REVIEW-2026-08-04.md",
+      "line": 46,
+      "tier": 1,
+      "category": "not_adopted",
+      "matched": "否決",
+      "snippet": "6. **查核判準升級**：查核報告第一行必答「核心痛點是否已消失＋證據」，**具否決權**；驗收清單全過但痛點未消→REQUEST_CHANGES 並退回修 spec（清單與痛點脫節即 spec 缺陷）。"
+    },
+    {
+      "path": "docs/research/WORKFLOW-REVIEW-2026-08-04.md",
+      "line": 48,
+      "tier": 1,
+      "category": "abandon",
+      "matched": "放棄",
+      "snippet": "8. **worktree 註冊制**：放棄命名慣例、順應 harness——認領時祕書把「實際路徑＋分支」寫進卡；一卡一 worktree 靠註冊查重。`doctor` 對帳指令（派工前必跑）：孤兒 worktree、死路徑、submodule 未初始化、殘留 lease 一次列出；結案清理由祕書批次做。"
+    },
+    {
+      "path": "docs/research/WORKFLOW-REVIEW-2026-08-04.md",
+      "line": 73,
+      "tier": 1,
+      "category": "abandon",
+      "matched": "封存",
+      "snippet": "| `DEV-EVENT-REPAIR-ANCHOR1` | 🛑封存 | events.jsonl 退役後無物可偽；單寫入者威脅模型縮水 |"
+    },
+    {
+      "path": "docs/research/WORKFLOW-REVIEW-2026-08-04.md",
+      "line": 74,
+      "tier": 1,
+      "category": "abandon",
+      "matched": "封存",
+      "snippet": "| `OPS-CONTROL-PLANE-PR-GUARD1` | 🛑封存原 scope | control-plane 不在 git；若要程式碼 main 的 branch protection＋required checks，重切窄卡入遷移 Initiative |"
+    },
+    {
+      "path": "docs/research/WORKFLOW-REVIEW-2026-08-04.md",
+      "line": 75,
+      "tier": 1,
+      "category": "abandon",
+      "matched": "封存",
+      "snippet": "| `DEV-REVIEW-DEACCEPT-TRAIL1` | 🛑封存 | 概念（翻案留痕）併入審核契約的 Issues 移植 spec |"
+    },
+    {
+      "path": "docs/research/WORKFLOW-REVIEW-2026-08-04.md",
+      "line": 76,
+      "tier": 1,
+      "category": "abandon",
+      "matched": "封存",
+      "snippet": "| `DEV-REVIEW-PREFLIGHT-GATE1` | 🛑封存 | preflight 改為祕書派審前 CLI 檢查 |"
+    },
+    {
+      "path": "docs/research/WORKFLOW-REVIEW-2026-08-04.md",
+      "line": 77,
+      "tier": 1,
+      "category": "abandon",
+      "matched": "封存",
+      "snippet": "| `DEV-REVIEW-PREFLIGHT-SELFCHECK1` | 🛑封存 | 同上，併入祕書職責 |"
+    },
+    {
+      "path": "docs/research/WORKFLOW-REVIEW-2026-08-04.md",
+      "line": 78,
+      "tier": 1,
+      "category": "abandon",
+      "matched": "封存",
+      "snippet": "| `DEV-CI-RED-OWNERSHIP1` | 🛑封存 | 紅燈歸屬即祕書 doctor 職責 |"
+    },
+    {
+      "path": "docs/research/WORKFLOW-REVIEW-2026-08-04.md",
+      "line": 79,
+      "tier": 1,
+      "category": "abandon",
+      "matched": "封存",
+      "snippet": "| `DOC-CARD-SPEC-RULES1` | 內容併入 WF-22 卡面範本後封存 | 三規則仍有價值，載體隨 canonical 改版 |"
+    },
+    {
+      "path": "docs/research/WORKFLOW-REVIEW-2026-08-04.md",
+      "line": 99,
+      "tier": 1,
+      "category": "not_adopted",
+      "matched": "否決",
+      "snippet": "| 7 | 查核第一判準 | 痛點證據具否決權 |"
+    },
+    {
+      "path": "docs/research/game_recap_pa1_fix1_metrics.json",
+      "line": 992,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\""
+    },
+    {
+      "path": "docs/research/game_recap_pa1_fix1_metrics.json",
+      "line": 16784,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"三振/第三好球觸擊失敗\": 1,"
+    },
+    {
+      "path": "docs/research/game_recap_pa1_fix1_metrics.json",
+      "line": 18306,
+      "tier": 1,
+      "category": "fail_word",
+      "matched": "失敗",
+      "snippet": "\"result_action\": \"三振/第三好球觸擊失敗\","
+    },
+    {
+      "path": "docs/research/game_recap_wp_cal1_metrics.json",
+      "line": 4106,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "\"status\": \"unsupported\","
+    },
+    {
+      "path": "docs/research/game_recap_wp_strength1_metrics.json",
+      "line": 2820,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "\"note\": \"僅診斷／前瞻蒐集；不進候選集合、超參選型或 Go/No-Go（卡面紅線 3）\","
+    },
+    {
+      "path": "docs/research/game_recap_wp_strength1_metrics.json",
+      "line": 2918,
+      "tier": 2,
+      "category": "c1_drift",
+      "matched": "漂移",
+      "snippet": "\"note\": \"as_of 只鎖 game_date 界限；晚到入庫／比分修訂／PA 重新發布仍會改變輸入，故三層內容摘要（games／model inputs／published builds）供漂移偵測\","
+    },
+    {
+      "path": "docs/research/game_recap_wp_strength1_metrics.json",
+      "line": 3706,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "\"status\": \"unsupported\","
+    },
+    {
+      "path": "docs/research/game_recap_wp_val1_fix1_metrics.json",
+      "line": 958,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "\"status\": \"unsupported\","
+    },
+    {
+      "path": "docs/research/game_recap_wp_val1_metrics.json",
+      "line": 1647,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "\"status\": \"unsupported\","
+    },
+    {
+      "path": "docs/research/game_recap_wp_val1_metrics.json",
+      "line": 2996,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "\"status\": \"unsupported\","
+    },
+    {
+      "path": "docs/research/game_recap_wp_val1_metrics.json",
+      "line": 4585,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "\"status\": \"unsupported\","
+    },
+    {
+      "path": "docs/research/game_recap_wp_val1_metrics.json",
+      "line": 5570,
+      "tier": 1,
+      "category": "unsupported",
+      "matched": "unsupported",
+      "snippet": "\"status\": \"unsupported\","
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 29,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": \"長打火力\","
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 134,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -0.5899,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 158,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 0.4887,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 182,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -1.2548,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 206,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 1.356,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 230,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 0.5784,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 254,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -1.3326,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 278,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -0.5188,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 302,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 1.273,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 326,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 1.0765,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 350,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -0.7484,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 374,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -1.2193,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 398,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 0.8912,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 422,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -1.0337,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 446,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 0.8374,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 470,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -1.3671,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 494,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 0.5176,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 518,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 1.0458,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 542,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -1.1298,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 566,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 0.3355,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 590,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -1.1063,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 614,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 0.4114,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 638,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 1.4893,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 662,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 0.1722,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 686,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -0.4662,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 710,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -1.0421,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 734,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -0.5097,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 758,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 1.8459,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 782,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -0.1492,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 806,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 1.909,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 830,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -0.3668,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 854,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -1.4204,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 878,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 0.3144,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 902,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -0.287,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 926,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 0.418,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 950,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -0.3955,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 974,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 2.0423,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 998,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -0.4742,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 1022,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -0.7331,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 1046,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -0.8576,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 1070,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 0.8442,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 1094,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -0.3078,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 1118,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 0.2893,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 1142,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 1.3309,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 1166,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -1.7897,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 1190,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": -0.3669,"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 1208,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": {"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 1238,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": {"
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 1446,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\""
+    },
+    {
+      "path": "docs/research/team_style1_metrics.json",
+      "line": 1451,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": 1"
+    },
+    {
+      "path": "docs/research/team_style2_metrics.json",
+      "line": 1533,
+      "tier": 2,
+      "category": "c3_small_n",
+      "matched": "power",
+      "snippet": "\"power\": {"
+    },
+    {
+      "path": "docs/research/team_style2_metrics.json",
+      "line": 1604,
+      "tier": 1,
+      "category": "no_go",
+      "matched": "No-Go",
+      "snippet": "\"label\": \"No-Go：維持逐季呈現；教練分段僅作呈現選項（事實分組）\""
+    }
+  ]
+}
