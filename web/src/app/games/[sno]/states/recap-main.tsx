@@ -1,6 +1,10 @@
 "use client";
 
-// 賽後態主區塊：recap 五塊（①結論行 ②關鍵打席 ③得分半局鏈 ④兩隊表現行 ⑤跳入點）。
+// 賽後態主區塊：①結論行 ②關鍵打席 ③兩隊表現行 ④跳入點。
+//
+// 原五塊之「得分半局鏈」已於 2026-08-06 第五輪人工審移除：與②關鍵打席重複，且得分
+// 脈絡已由每列的得分 chip（比分變化）承載。後端 `facts.scoring_chain` 仍是事實流服務
+// 的輸出（#79 探索器等其他消費者），只是賽後態總覽不再呈現。
 //
 // 資料全部來自單一底層服務「單場打席事實流」（`/api/v1/games/{sno}/facts`），
 // 與 live 逐打席、linescore 展開共用同一份事實——不各自重建打席邏輯。
@@ -14,7 +18,6 @@ import { DataStateNotice } from "../parts/data-state-notice";
 import { ConclusionLine } from "../recap/conclusion-line";
 import { JumpLinks } from "../recap/jump-links";
 import { KeyPlays } from "../recap/key-plays";
-import { ScoringChain } from "../recap/scoring-chain";
 import { TeamLines } from "../recap/team-lines";
 import type { DecItem, Highlight, MvpLine } from "../game-summary";
 
@@ -45,11 +48,14 @@ export function RecapMain({ facts, decisions, mvp, highlights, milestones, info,
     <div className="space-y-4">
       <DataStateNotice state={facts.render_state} reason={facts.reason} />
       <ConclusionLine facts={facts} decisions={decisions} mvp={mvp} provisional={provisional} />
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {!simple && <KeyPlays plays={facts.key_plays} onJump={onJump} />}
-        <ScoringChain chain={facts.scoring_chain}
-          awayCode={facts.teams?.away.code ?? null} homeCode={facts.teams?.home.code ?? null}
-          onJump={onJump} />
+      {/* 簡版沒有關鍵打席 → 單欄，避免兩欄格線只剩一張半寬卡片的破面 */}
+      <div className={`grid grid-cols-1 gap-4 ${simple ? "" : "lg:grid-cols-2"}`}>
+        {!simple && (
+          <KeyPlays plays={facts.key_plays} selection={facts.key_play_selection}
+            homeName={facts.teams?.home.name ?? null} awayName={facts.teams?.away.name ?? null}
+            homeCode={facts.teams?.home.code ?? null} awayCode={facts.teams?.away.code ?? null}
+            onJump={onJump} />
+        )}
         <TeamLines highlights={highlights} milestones={milestones} info={info} />
       </div>
       <JumpLinks onPlayByPlay={onPlayByPlay} />
