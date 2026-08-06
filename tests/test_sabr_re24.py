@@ -20,7 +20,7 @@ import psycopg
 import pytest
 from psycopg_pool import PoolClosed, PoolTimeout
 
-from cpbl.ingest.pa_build import classify_island, is_non_pa_action, load_taxonomy
+from cpbl.ingest.pa_build import Taxonomy, classify_island, is_non_pa_action, load_taxonomy
 from cpbl.models.sabr import (
     RE24_CHARGED,
     RE24_DISPOSITIONS,
@@ -178,10 +178,19 @@ def test_every_play_has_exactly_one_disposition(taxonomy):
 # ===========================================================================
 # 真實資料窮舉（需要 DB；無 DB 時 skip）
 # ===========================================================================
-def _real_games(year: int = 2026, kind: str = "A") -> list[tuple[int, str, int]]:
+def _real_games(year: int | None = 2026, kind: str = "A") -> list[tuple[int, str, int]]:
+    """``year=None`` ＝ build_re24 實際跑得動的**全部** scope。
+
+    跑得動的只有 kind A：RE 矩陣只有 ``2018-2025/A``，其餘 kind 一律 RuntimeError
+    （已實測 C／D／E 皆然），所以「全庫 scope」＝ 2018–2026 × A 九個。
+    """
     from cpbl.db import conn
     with conn() as connection:
         cur = connection.cursor()
+        if year is None:
+            cur.execute("SELECT year, kind_code, game_sno FROM cpbl.game_livelog "
+                        "WHERE kind_code=%s GROUP BY 1,2,3 ORDER BY 1,3", (kind,))
+            return [(r[0], r[1], r[2]) for r in cur.fetchall()]
         cur.execute("SELECT DISTINCT game_sno FROM cpbl.game_livelog "
                     "WHERE year=%s AND kind_code=%s ORDER BY game_sno", (year, kind))
         return [(year, kind, r[0]) for r in cur.fetchall()]
@@ -195,6 +204,21 @@ def db_games() -> list[tuple[int, str, int]]:
         pytest.skip(f"無 DB：{type(exc).__name__}")
     if not games:
         pytest.skip("DB 無該季 livelog")
+    return games
+
+
+@pytest.fixture(scope="module")
+def db_games_all_scopes() -> list[tuple[int, str, int]]:
+    """全 scope（2018–2026/A）：中性重放要覆蓋整張表的母體，不只當季。
+
+    R1 指名的捨入邊緣落在 2019／2021／2024，只驗當季會漏掉。
+    """
+    try:
+        games = _real_games(year=None)
+    except (psycopg.Error, PoolClosed, PoolTimeout, OSError) as exc:
+        pytest.skip(f"無 DB：{type(exc).__name__}")
+    if not games:
+        pytest.skip("DB 無 livelog")
     return games
 
 
@@ -217,6 +241,212 @@ def real_plays(db_games, taxonomy) -> list[dict]:
                 play["game_sno"] = sno
             out.extend(plays)
     return out
+
+
+# ===========================================================================
+# golden replay：抽出的 re24_plays() 相對舊 inline 路徑必須是**中性重構**
+#
+# R1 查核提出「抽取改變累加順序，在 ±0.01 捨入邊緣翻位」。捨入邊緣翻位的前提是
+# 累加後的浮點值不同，所以這裡不比 rounded 值（那只能證明「這批資料剛好沒翻」），
+# 直接比**未捨入的累加浮點值是否逐位元相同**——bit 相同則捨入邊緣翻位在數學上
+# 不可能發生，對任何資料集都成立，而不只是對現在這份。
+# ===========================================================================
+def _golden_inline_game(events: list[dict], re_map: dict, bat: dict, pit: dict,
+                        totals: dict) -> None:
+    """`7db485d` 抽取前 inline 演算法的逐行轉錄（去掉 DB 與幽靈跑者判斷）。
+
+    刻意**不呼叫**任何被測程式碼的輔助函式以外的東西，累加器由呼叫端跨場共用，
+    以完整重現原本「一路累加到底」的浮點順序。
+    """
+    from cpbl.models.sabr import _OUTS_ANN, _bases_of
+    pv, ph = 0, 0
+    for e in events:
+        e["_pre_vs"], e["_pre_hs"] = pv, ph
+        pv = e["visiting_score"] if e.get("visiting_score") is not None else pv
+        ph = e["home_score"] if e.get("home_score") is not None else ph
+        e["_post_vs"], e["_post_hs"] = pv, ph
+    halves: dict[tuple, list[dict]] = {}
+    order: list[tuple] = []
+    for e in events:
+        k = (e["inning_seq"], str(e["visiting_home_type"]))
+        if k not in halves:
+            halves[k] = []
+            order.append(k)
+        halves[k].append(e)
+    for hk in order:
+        vht = hk[1]
+        pre_k = "_pre_vs" if vht == "1" else "_pre_hs"
+        post_k = "_post_vs" if vht == "1" else "_post_hs"
+        evs = [e for e in halves[hk] if not e.get("is_change_player") and e.get("hitter_acnt")]
+        if not evs:
+            continue
+        totals["halves"] += 1
+        totals["runs"] += halves[hk][-1][post_k] - halves[hk][0][pre_k]
+        pas: list[list[dict]] = []
+        for e in evs:
+            if pas and pas[-1][-1]["hitter_acnt"] == e["hitter_acnt"]:
+                pas[-1].append(e)
+            else:
+                pas.append([e])
+        for pi, pa in enumerate(pas):
+            first, final = pa[0], pa[-1]
+            s_state = (_bases_of(first), min(int(first.get("out_cnt") or 0), 2))
+            outs_f = int(first.get("out_cnt") or 0)
+            for e in pa[:-1]:
+                for m in _OUTS_ANN.findall(e.get("content") or ""):
+                    outs_f = max(outs_f, int(m))
+            runs_play = final[post_k] - final[pre_k]
+            mid_runs = final[pre_k] - first[pre_k]
+            if pi + 1 < len(pas):
+                nxt = pas[pi + 1][0]
+                re_after = re_map[(_bases_of(nxt), min(int(nxt.get("out_cnt") or 0), 2))]
+            else:
+                re_after = 0.0
+            truncated = outs_f >= 3 or not (final.get("action_name") or "").strip()
+            re_f = re_map[(_bases_of(final), min(outs_f, 2))]
+            totals["runner"] += re_f + mid_runs - re_map[s_state]
+            delta = re_after + runs_play - re_f
+            if truncated or runs_play < 0:
+                totals["runner"] += delta
+                continue
+            entry = bat.setdefault(final["hitter_acnt"], [0, 0.0])
+            entry[0] += 1
+            entry[1] += delta
+            if final.get("pitcher_acnt"):
+                p = pit.setdefault(final["pitcher_acnt"], [0, 0.0])
+                p[0] += 1
+                p[1] += delta
+
+
+def _neutralised(taxonomy: Taxonomy) -> Taxonomy:
+    """把 taxonomy 的 non_pa 角色全部拿掉——中性重放用（不 monkeypatch 生產模組）。"""
+    return Taxonomy(version=taxonomy.version,
+                    actions={name: {**entry, "role": "pa_terminal"}
+                             for name, entry in taxonomy.actions.items()})
+
+
+def _accumulate(plays: list[dict]) -> tuple[dict, dict]:
+    """完全照 build_re24 的累加方式吃 plays（打者桶／投手桶）。"""
+    bat: dict[str, list] = {}
+    pit: dict[str, list] = {}
+    for play in plays:
+        if play["disposition"] != RE24_CHARGED:
+            continue
+        entry = bat.setdefault(play["hitter_acnt"], [0, 0.0])
+        entry[0] += 1
+        entry[1] += play["delta"]
+        if play.get("pitcher_acnt"):
+            p = pit.setdefault(play["pitcher_acnt"], [0, 0.0])
+            p[0] += 1
+            p[1] += play["delta"]
+    return bat, pit
+
+
+def test_extraction_is_bit_identical_to_the_inline_path_on_synthetic_streams(taxonomy):
+    """合成事件流上的中性重放：逐位元相同（不必起 DB，永遠會跑）。"""
+    events = _tiebreak_half()
+    gold_bat, gold_pit, totals = {}, {}, {"halves": 0, "runs": 0, "runner": 0.0}
+    _golden_inline_game([dict(e) for e in events], RE_MAP, gold_bat, gold_pit, totals)
+    plays, new_totals = re24_plays(events, RE_MAP, _neutralised(taxonomy))
+    new_bat, new_pit = _accumulate(plays)
+    assert new_bat == gold_bat
+    assert new_pit == gold_pit
+    assert new_totals["halves"] == totals["halves"]
+    assert new_totals["runs"] == totals["runs"]
+    assert new_totals["runner_delta"] == totals["runner"]
+
+
+def test_extraction_is_bit_identical_to_the_inline_path_on_real_games(db_games_all_scopes, taxonomy):
+    """真實全季中性重放：**未捨入**的逐球員累加值必須逐位元相同。
+
+    比 rounded 輸出更強——bit 相同表示任何捨入邊緣都不可能翻位。
+    """
+    from cpbl.db import conn
+    from cpbl.models.sabr import _load_game, _load_re_matrix
+    neutral = _neutralised(taxonomy)
+    gold_bat, gold_pit, totals = {}, {}, {"halves": 0, "runs": 0, "runner": 0.0}
+    new_bat, new_pit = {}, {}
+    with conn() as connection:
+        cur = connection.cursor()
+        re_map = _load_re_matrix(cur, "2018-2025", "A")
+        if not re_map:
+            pytest.skip("DB 無 run_expectancy 矩陣")
+        for year, kind, sno in db_games_all_scopes:
+            events = _load_game(cur, year, kind, sno)
+            if not events:
+                continue
+            _golden_inline_game([dict(e) for e in events], re_map, gold_bat, gold_pit, totals)
+            plays, _t = re24_plays(events, re_map, neutral)
+            for play in plays:
+                if play["disposition"] != RE24_CHARGED:
+                    continue
+                entry = new_bat.setdefault(play["hitter_acnt"], [0, 0.0])
+                entry[0] += 1
+                entry[1] += play["delta"]
+                if play.get("pitcher_acnt"):
+                    p = new_pit.setdefault(play["pitcher_acnt"], [0, 0.0])
+                    p[0] += 1
+                    p[1] += play["delta"]
+    assert gold_bat, "golden 沒吃到任何打席，測試本身失效"
+    drift = {k: (gold_bat[k], new_bat.get(k)) for k in gold_bat if new_bat.get(k) != gold_bat[k]}
+    assert not drift, f"打者桶浮點漂移：{list(drift.items())[:5]}"
+    drift_p = {k: (gold_pit[k], new_pit.get(k)) for k in gold_pit if new_pit.get(k) != gold_pit[k]}
+    assert not drift_p, f"投手桶浮點漂移：{list(drift_p.items())[:5]}"
+    # 捨入後也必須相同（R1 指名的是 rounded 輸出，這裡把那一層也一併釘住）
+    assert {k: round(v[1], 2) for k, v in new_bat.items()} == \
+           {k: round(v[1], 2) for k, v in gold_bat.items()}
+
+
+def test_ghost_fix_is_the_only_difference_from_the_golden_path(db_games_all_scopes, taxonomy):
+    """可解釋性的測試化：golden 與**修好後**的差額，逐球員恰等於該球員的幽靈列總和。
+
+    這是 verify artifact 的「零未解釋差異」搬進回歸測試——不再只是報告裡的一句話。
+    """
+    from cpbl.db import conn
+    from cpbl.models.sabr import _load_game, _load_re_matrix
+    gold_bat, gold_pit, totals = {}, {}, {"halves": 0, "runs": 0, "runner": 0.0}
+    fixed_bat, fixed_pit = {}, {}
+    ghost_bat: dict[str, list] = {}
+    ghost_pit: dict[str, list] = {}
+    with conn() as connection:
+        cur = connection.cursor()
+        re_map = _load_re_matrix(cur, "2018-2025", "A")
+        if not re_map:
+            pytest.skip("DB 無 run_expectancy 矩陣")
+        for year, kind, sno in db_games_all_scopes:
+            events = _load_game(cur, year, kind, sno)
+            if not events:
+                continue
+            _golden_inline_game([dict(e) for e in events], re_map, gold_bat, gold_pit, totals)
+            plays, _t = re24_plays(events, re_map, taxonomy)     # 真 taxonomy＝修好後
+            for play in plays:
+                if play["disposition"] == RE24_NON_PA:
+                    g = ghost_bat.setdefault(play["hitter_acnt"], [0, 0.0])
+                    g[0] += 1
+                    g[1] += play["delta"]
+                    if play.get("pitcher_acnt"):
+                        gp = ghost_pit.setdefault(play["pitcher_acnt"], [0, 0.0])
+                        gp[0] += 1
+                        gp[1] += play["delta"]
+                    continue
+                if play["disposition"] != RE24_CHARGED:
+                    continue
+                entry = fixed_bat.setdefault(play["hitter_acnt"], [0, 0.0])
+                entry[0] += 1
+                entry[1] += play["delta"]
+                if play.get("pitcher_acnt"):
+                    p = fixed_pit.setdefault(play["pitcher_acnt"], [0, 0.0])
+                    p[0] += 1
+                    p[1] += play["delta"]
+    if not ghost_bat:
+        pytest.skip("該季無延長賽突破僵局列")
+    unexplained = []
+    for player, (pa, re24) in gold_bat.items():
+        got = fixed_bat.get(player, [0, 0.0])
+        ghost = ghost_bat.get(player, [0, 0.0])
+        if got[0] != pa - ghost[0] or round(got[1] - (re24 - ghost[1]), 6) != 0:
+            unexplained.append((player, pa, re24, got, ghost))
+    assert not unexplained, f"打者差異無法以幽靈列解釋：{unexplained[:5]}"
 
 
 def test_no_naive_pa_is_unclassified_on_real_games(real_plays):
