@@ -1,0 +1,727 @@
+{
+ "by_scope_year": [
+  {
+   "kind": "A",
+   "year": 2018,
+   "n_completed_games": 239,
+   "n_ready_scored": 18903,
+   "n_fixed_pas": 18903,
+   "n_legacy_pas": 18903,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 385,
+   "pct_changed": 2.0367,
+   "delta_hist": {
+    "-4": 1,
+    "-3": 4,
+    "-2": 33,
+    "-1": 177,
+    "0": 18518,
+    "1": 131,
+    "2": 29,
+    "3": 8,
+    "4": 2
+   }
+  },
+  {
+   "kind": "A",
+   "year": 2019,
+   "n_completed_games": 240,
+   "n_ready_scored": 18752,
+   "n_fixed_pas": 18752,
+   "n_legacy_pas": 18752,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 346,
+   "pct_changed": 1.8451,
+   "delta_hist": {
+    "-4": 2,
+    "-3": 5,
+    "-2": 47,
+    "-1": 135,
+    "0": 18406,
+    "1": 130,
+    "2": 24,
+    "3": 3
+   }
+  },
+  {
+   "kind": "A",
+   "year": 2020,
+   "n_completed_games": 240,
+   "n_ready_scored": 19328,
+   "n_fixed_pas": 19328,
+   "n_legacy_pas": 19328,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 387,
+   "pct_changed": 2.0023,
+   "delta_hist": {
+    "-4": 2,
+    "-3": 10,
+    "-2": 39,
+    "-1": 146,
+    "0": 18941,
+    "1": 140,
+    "2": 35,
+    "3": 14,
+    "4": 1
+   }
+  },
+  {
+   "kind": "A",
+   "year": 2021,
+   "n_completed_games": 299,
+   "n_ready_scored": 22996,
+   "n_fixed_pas": 22996,
+   "n_legacy_pas": 22996,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 367,
+   "pct_changed": 1.5959,
+   "delta_hist": {
+    "-3": 7,
+    "-2": 34,
+    "-1": 148,
+    "0": 22629,
+    "1": 144,
+    "2": 26,
+    "3": 8
+   }
+  },
+  {
+   "kind": "A",
+   "year": 2022,
+   "n_completed_games": 300,
+   "n_ready_scored": 22817,
+   "n_fixed_pas": 22817,
+   "n_legacy_pas": 22817,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 316,
+   "pct_changed": 1.3849,
+   "delta_hist": {
+    "-4": 1,
+    "-3": 3,
+    "-2": 23,
+    "-1": 135,
+    "0": 22501,
+    "1": 123,
+    "2": 28,
+    "3": 2,
+    "4": 1
+   }
+  },
+  {
+   "kind": "A",
+   "year": 2023,
+   "n_completed_games": 298,
+   "n_ready_scored": 22878,
+   "n_fixed_pas": 22878,
+   "n_legacy_pas": 22878,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 312,
+   "pct_changed": 1.3638,
+   "delta_hist": {
+    "-4": 1,
+    "-3": 8,
+    "-2": 30,
+    "-1": 114,
+    "0": 22566,
+    "1": 123,
+    "2": 33,
+    "3": 3
+   }
+  },
+  {
+   "kind": "A",
+   "year": 2024,
+   "n_completed_games": 360,
+   "n_ready_scored": 27421,
+   "n_fixed_pas": 27421,
+   "n_legacy_pas": 27421,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 375,
+   "pct_changed": 1.3676,
+   "delta_hist": {
+    "-3": 4,
+    "-2": 28,
+    "-1": 146,
+    "0": 27046,
+    "1": 166,
+    "2": 25,
+    "3": 5,
+    "4": 1
+   }
+  },
+  {
+   "kind": "A",
+   "year": 2025,
+   "n_completed_games": 359,
+   "n_ready_scored": 27036,
+   "n_fixed_pas": 27036,
+   "n_legacy_pas": 27036,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 343,
+   "pct_changed": 1.2687,
+   "delta_hist": {
+    "-3": 7,
+    "-2": 25,
+    "-1": 149,
+    "0": 26693,
+    "1": 127,
+    "2": 28,
+    "3": 6,
+    "4": 1
+   }
+  },
+  {
+   "kind": "A",
+   "year": 2026,
+   "n_completed_games": 239,
+   "n_ready_scored": 17843,
+   "n_fixed_pas": 17843,
+   "n_legacy_pas": 17843,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 223,
+   "pct_changed": 1.2498,
+   "delta_hist": {
+    "-3": 7,
+    "-2": 23,
+    "-1": 88,
+    "0": 17620,
+    "1": 81,
+    "2": 21,
+    "3": 2,
+    "4": 1
+   }
+  },
+  {
+   "kind": "C",
+   "year": 2018,
+   "n_completed_games": 5,
+   "n_ready_scored": 411,
+   "n_fixed_pas": 411,
+   "n_legacy_pas": 411,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 9,
+   "pct_changed": 2.1898,
+   "delta_hist": {
+    "-3": 1,
+    "-1": 5,
+    "0": 402,
+    "1": 2,
+    "2": 1
+   }
+  },
+  {
+   "kind": "C",
+   "year": 2019,
+   "n_completed_games": 5,
+   "n_ready_scored": 430,
+   "n_fixed_pas": 430,
+   "n_legacy_pas": 430,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 12,
+   "pct_changed": 2.7907,
+   "delta_hist": {
+    "-3": 1,
+    "-2": 1,
+    "-1": 1,
+    "0": 418,
+    "1": 4,
+    "2": 4,
+    "3": 1
+   }
+  },
+  {
+   "kind": "C",
+   "year": 2020,
+   "n_completed_games": 7,
+   "n_ready_scored": 526,
+   "n_fixed_pas": 526,
+   "n_legacy_pas": 526,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 6,
+   "pct_changed": 1.1407,
+   "delta_hist": {
+    "-1": 2,
+    "0": 520,
+    "1": 4
+   }
+  },
+  {
+   "kind": "C",
+   "year": 2021,
+   "n_completed_games": 4,
+   "n_ready_scored": 291,
+   "n_fixed_pas": 291,
+   "n_legacy_pas": 291,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 2,
+   "pct_changed": 0.6873,
+   "delta_hist": {
+    "-1": 1,
+    "0": 289,
+    "1": 1
+   }
+  },
+  {
+   "kind": "C",
+   "year": 2022,
+   "n_completed_games": 4,
+   "n_ready_scored": 299,
+   "n_fixed_pas": 299,
+   "n_legacy_pas": 299,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 1,
+   "pct_changed": 0.3344,
+   "delta_hist": {
+    "-1": 1,
+    "0": 298
+   }
+  },
+  {
+   "kind": "C",
+   "year": 2023,
+   "n_completed_games": 7,
+   "n_ready_scored": 563,
+   "n_fixed_pas": 563,
+   "n_legacy_pas": 563,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 4,
+   "pct_changed": 0.7105,
+   "delta_hist": {
+    "0": 559,
+    "1": 4
+   }
+  },
+  {
+   "kind": "C",
+   "year": 2024,
+   "n_completed_games": 5,
+   "n_ready_scored": 392,
+   "n_fixed_pas": 392,
+   "n_legacy_pas": 392,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 4,
+   "pct_changed": 1.0204,
+   "delta_hist": {
+    "-1": 3,
+    "0": 388,
+    "1": 1
+   }
+  },
+  {
+   "kind": "C",
+   "year": 2025,
+   "n_completed_games": 5,
+   "n_ready_scored": 382,
+   "n_fixed_pas": 382,
+   "n_legacy_pas": 382,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 4,
+   "pct_changed": 1.0471,
+   "delta_hist": {
+    "-2": 1,
+    "-1": 1,
+    "0": 378,
+    "1": 2
+   }
+  },
+  {
+   "kind": "D",
+   "year": 2018,
+   "n_completed_games": 124,
+   "n_ready_scored": 9535,
+   "n_fixed_pas": 9535,
+   "n_legacy_pas": 9535,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 180,
+   "pct_changed": 1.8878,
+   "delta_hist": {
+    "-4": 1,
+    "-3": 4,
+    "-2": 18,
+    "-1": 71,
+    "0": 9355,
+    "1": 64,
+    "2": 16,
+    "3": 4,
+    "4": 2
+   }
+  },
+  {
+   "kind": "D",
+   "year": 2019,
+   "n_completed_games": 153,
+   "n_ready_scored": 11698,
+   "n_fixed_pas": 11698,
+   "n_legacy_pas": 11698,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 208,
+   "pct_changed": 1.7781,
+   "delta_hist": {
+    "-4": 1,
+    "-3": 2,
+    "-2": 21,
+    "-1": 66,
+    "0": 11490,
+    "1": 95,
+    "2": 20,
+    "3": 3
+   }
+  },
+  {
+   "kind": "D",
+   "year": 2020,
+   "n_completed_games": 227,
+   "n_ready_scored": 18308,
+   "n_fixed_pas": 18308,
+   "n_legacy_pas": 18308,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 417,
+   "pct_changed": 2.2777,
+   "delta_hist": {
+    "-4": 2,
+    "-3": 13,
+    "-2": 42,
+    "-1": 148,
+    "0": 17891,
+    "1": 167,
+    "2": 32,
+    "3": 10,
+    "4": 3
+   }
+  },
+  {
+   "kind": "D",
+   "year": 2021,
+   "n_completed_games": 169,
+   "n_ready_scored": 12925,
+   "n_fixed_pas": 12925,
+   "n_legacy_pas": 12925,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 204,
+   "pct_changed": 1.5783,
+   "delta_hist": {
+    "-3": 2,
+    "-2": 20,
+    "-1": 79,
+    "0": 12721,
+    "1": 89,
+    "2": 11,
+    "3": 3
+   }
+  },
+  {
+   "kind": "D",
+   "year": 2022,
+   "n_completed_games": 172,
+   "n_ready_scored": 12978,
+   "n_fixed_pas": 12978,
+   "n_legacy_pas": 12978,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 246,
+   "pct_changed": 1.8955,
+   "delta_hist": {
+    "-4": 1,
+    "-2": 15,
+    "-1": 99,
+    "0": 12732,
+    "1": 103,
+    "2": 24,
+    "3": 4
+   }
+  },
+  {
+   "kind": "D",
+   "year": 2023,
+   "n_completed_games": 236,
+   "n_ready_scored": 17874,
+   "n_fixed_pas": 17874,
+   "n_legacy_pas": 17874,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 275,
+   "pct_changed": 1.5385,
+   "delta_hist": {
+    "-3": 1,
+    "-2": 22,
+    "-1": 107,
+    "0": 17599,
+    "1": 110,
+    "2": 29,
+    "3": 4,
+    "4": 2
+   }
+  },
+  {
+   "kind": "D",
+   "year": 2024,
+   "n_completed_games": 220,
+   "n_ready_scored": 16678,
+   "n_fixed_pas": 16678,
+   "n_legacy_pas": 16678,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 258,
+   "pct_changed": 1.5469,
+   "delta_hist": {
+    "-3": 2,
+    "-2": 23,
+    "-1": 98,
+    "0": 16420,
+    "1": 111,
+    "2": 20,
+    "3": 3,
+    "4": 1
+   }
+  },
+  {
+   "kind": "D",
+   "year": 2025,
+   "n_completed_games": 204,
+   "n_ready_scored": 15758,
+   "n_fixed_pas": 15758,
+   "n_legacy_pas": 15758,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 211,
+   "pct_changed": 1.339,
+   "delta_hist": {
+    "-4": 1,
+    "-3": 7,
+    "-2": 17,
+    "-1": 89,
+    "0": 15547,
+    "1": 79,
+    "2": 17,
+    "3": 1
+   }
+  },
+  {
+   "kind": "D",
+   "year": 2026,
+   "n_completed_games": 168,
+   "n_ready_scored": 13078,
+   "n_fixed_pas": 13078,
+   "n_legacy_pas": 13078,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 196,
+   "pct_changed": 1.4987,
+   "delta_hist": {
+    "-3": 1,
+    "-2": 12,
+    "-1": 77,
+    "0": 12882,
+    "1": 80,
+    "2": 21,
+    "3": 4,
+    "4": 1
+   }
+  },
+  {
+   "kind": "E",
+   "year": 2018,
+   "n_completed_games": 4,
+   "n_ready_scored": 317,
+   "n_fixed_pas": 317,
+   "n_legacy_pas": 317,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 2,
+   "pct_changed": 0.6309,
+   "delta_hist": {
+    "-1": 1,
+    "0": 315,
+    "1": 1
+   }
+  },
+  {
+   "kind": "E",
+   "year": 2022,
+   "n_completed_games": 3,
+   "n_ready_scored": 217,
+   "n_fixed_pas": 217,
+   "n_legacy_pas": 217,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 1,
+   "pct_changed": 0.4608,
+   "delta_hist": {
+    "-1": 1,
+    "0": 216
+   }
+  },
+  {
+   "kind": "E",
+   "year": 2023,
+   "n_completed_games": 3,
+   "n_ready_scored": 219,
+   "n_fixed_pas": 219,
+   "n_legacy_pas": 219,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 5,
+   "pct_changed": 2.2831,
+   "delta_hist": {
+    "-1": 1,
+    "0": 214,
+    "1": 3,
+    "2": 1
+   }
+  },
+  {
+   "kind": "E",
+   "year": 2024,
+   "n_completed_games": 3,
+   "n_ready_scored": 232,
+   "n_fixed_pas": 232,
+   "n_legacy_pas": 232,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 5,
+   "pct_changed": 2.1552,
+   "delta_hist": {
+    "-2": 1,
+    "-1": 4,
+    "0": 227
+   }
+  },
+  {
+   "kind": "E",
+   "year": 2025,
+   "n_completed_games": 4,
+   "n_ready_scored": 317,
+   "n_fixed_pas": 317,
+   "n_legacy_pas": 317,
+   "n_legacy_only": 0,
+   "n_unresolved": 0,
+   "n_changed": 7,
+   "pct_changed": 2.2082,
+   "delta_hist": {
+    "-1": 3,
+    "0": 310,
+    "1": 1,
+    "2": 3
+   }
+  }
+ ],
+ "by_scope": {
+  "A": {
+   "years": [
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024,
+    2025,
+    2026
+   ],
+   "n_ready_scored": 197974,
+   "n_changed": 3054,
+   "n_unresolved": 0,
+   "year_range": [
+    2018,
+    2026
+   ],
+   "pct_changed": 1.5426
+  },
+  "C": {
+   "years": [
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024,
+    2025
+   ],
+   "n_ready_scored": 3294,
+   "n_changed": 42,
+   "n_unresolved": 0,
+   "year_range": [
+    2018,
+    2025
+   ],
+   "pct_changed": 1.275
+  },
+  "D": {
+   "years": [
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024,
+    2025,
+    2026
+   ],
+   "n_ready_scored": 128832,
+   "n_changed": 2195,
+   "n_unresolved": 0,
+   "year_range": [
+    2018,
+    2026
+   ],
+   "pct_changed": 1.7038
+  },
+  "E": {
+   "years": [
+    2018,
+    2022,
+    2023,
+    2024,
+    2025
+   ],
+   "n_ready_scored": 1302,
+   "n_changed": 20,
+   "n_unresolved": 0,
+   "year_range": [
+    2018,
+    2025
+   ],
+   "pct_changed": 1.5361
+  }
+ },
+ "totals": {
+  "n_ready_scored": 331402,
+  "n_changed": 5311,
+  "n_unresolved": 0,
+  "pct_changed": 1.6026,
+  "delta_hist": {
+   "-4": 13,
+   "-3": 89,
+   "-2": 475,
+   "-1": 2096,
+   "0": 326091,
+   "1": 2086,
+   "2": 448,
+   "3": 88,
+   "4": 16
+  }
+ }
+}
