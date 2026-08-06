@@ -117,11 +117,15 @@ export function situationText(fact: Pick<PaFact, "inning" | "half" | "outs_befor
   return `${fact.inning ?? "—"} 局${halfLabel(fact.half)}　${fact.outs_before ?? "—"} 出局　${runners}`;
 }
 
-/** 打席前的分差文字（主隊視角絕對值），供關鍵打席的局面脈絡使用。 */
+/**
+ * 打席前的分差文字（主隊視角絕對值），供關鍵打席的局面脈絡使用。
+ *
+ * 平手**一律出數字**（`0–0`／`7–7`），不寫「平手」：與逐打席的 `marginTextOf` 同一條規則，
+ * 理由見該處註解（「平手」丟掉局面資訊，數字相等已自明）。
+ */
 export function marginText(fact: Pick<PaFact, "away_score_before" | "home_score_before">): string {
   const { away_score_before: away, home_score_before: home } = fact;
   if (away === null || home === null) return "";
-  if (away === home) return "平手";
   return `${Math.max(away, home)}–${Math.min(away, home)}`;
 }
 

@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import Link from "next/link";
 import type { StatRow } from "@/lib/client";
 import { ENTITY_LINK, ENTITY_LINK_TEXT, TeamLogo } from "@/components/ui";
 import { isCurrentTeam, teamColor, teamPageCode } from "@/lib/teams";
 import { PITCH_CALL, PA_KIND } from "@/lib/chart-theme";
 import type { WpPoint } from "@/components/win-prob-chart";
-import { buildPaGroups, type PaFact } from "@/lib/game-facts";
+import { buildPaGroups, wpSwingLabel, type PaFact } from "@/lib/game-facts";
+import { PlayCard, type PlayCardTeams } from "@/components/play-card";
+import { buildPaCardVM, paCardHitterName, paCardLabel, paScoreLineOf, type PaCardEvent } from "@/lib/pa-card";
+import { indexWpCurve, joinPaSwing } from "@/lib/pa-wp-join";
 import { displayWpPctInt } from "@/lib/win-prob-display";
-import { Re24Badge } from "@/components/re24-badge";
-import { RunsBadge, ScoreAfterBadge } from "@/components/runs-badge";
+import { PaScoreLine } from "@/components/pa-score-line";
 import {
   canShowPostgameConclusions, inningLabel, liveScorebarScores, phaseLabel, plateAppearancePitchCountLabel, trackingEmptyMessage,
   type LiveSnapshot,
@@ -405,13 +407,26 @@ function ScoreLine({ sb, game, snapshot, halves, curKey, onSelect, highlightSele
 }
 
 // ───────────────────────── 逐打席賽況（選定半局）─────────────────────────
-function PlayByPlay({ log, events, idx, setIdx, userAction, facts }: {
+// UX-GAME-PA1：逐打席改用**與關鍵打席同一個卡片元件**（`components/play-card.tsx`）。
+// 需求方上線首日回饋：「逐打席有辦法用類似關鍵打席的 UI 嗎…關鍵打席有一個逐打席缺少的
+// 狀態，就是該打席的壘包狀態跟即時勝率。（雖然右側也有即時勝率但跟打席位置有點遠，
+// 尤其是手機版上根本沒辦法一眼了解狀況。）」→ 每張卡自帶壘包＋出局＋分差＋該打席的
+// 勝率變化與勝率條，手機上不必再對照右側面板。
+//
+// 折疊：一次只展開一個打席（沿用原本「當前打席自動展開」的語意），**展開才渲染逐球列**
+// ——收合的打席不產生任何 DOM，長半局在手機上不需要虛擬化即可流暢。
+function PlayByPlay({ log, events, halfKey, idx, setIdx, userAction, facts, wp, teams }: {
   log: StatRow[]; events: number[]; idx: number; setIdx: (i: number) => void;
+  /** 目前半局（`{局}|{上下}`）；折疊狀態只在**換半局**時重置。 */
+  halfKey: string;
   userAction: MutableRefObject<boolean>;
-  /** canonical 打席（打席事實流）；缺席時分組退回既有近似切法，行為完全不變。 */
+  /** canonical 打席（打席事實流）；缺席時分組與局面脈絡退回既有近似切法，行為完全不變。 */
   facts?: PaFact[] | null;
+  /** 逐打席勝率曲線（與同頁曲線同一份 response）；缺席時卡片不顯示勝率。 */
+  wp?: WpPoint[];
+  teams: PlayCardTeams;
 }) {
-  const activeRef = useRef<HTMLButtonElement | null>(null);
+  const activeRef = useRef<HTMLLIElement | null>(null);
   // 只在使用者切半局／點打席時才把當前打席捲入視野。
   // 載入時 page 會 setIdx(終局)，但那不是使用者操作（userAction=false），
   // 不可捲動整頁——否則會把頂部記分條捲出視野、linescore 表頭卡進 sticky nav 下。
@@ -422,12 +437,17 @@ function PlayByPlay({ log, events, idx, setIdx, userAction, facts }: {
     activeRef.current?.scrollIntoView({ block: "nearest" });
   }, [idx, userAction]);
 
-  // 將本半局事件切成打席群組。收合時每個打席只顯示「結果行」（該打席末筆），點擊展開
-  // 該打席的逐球（含當前 idx 的打席自動展開）。
+  // 折疊狀態：null＝依當前 idx 推導（沿用舊行為，含外部跳轉進來的打席）；
+  // ""＝使用者手動全收合；其他＝該打席展開。**只在換半局時**回到推導模式。
   //
-  // **換底不換臉**：分組改由 `buildPaGroups` 統一產生——有 canonical 打席就用它
-  // （打席中途代打不再被切成兩段、記錄歸屬依規則 9.15(b)），沒有就逐位元退回原本的
-  // 「連續同打者」近似切法（`pa-groups.test.ts` 釘住兩者在無事實流時完全相同）。
+  // ⚠️ 重置條件不可用 `events` 陣列的識別：live 場每次輪詢都會產生新的 livelog 陣列，
+  // 依識別重置會讓使用者手動展開的打席每隔幾秒自己收合（實測撞到過）。半局字串是值比較，
+  // 輪詢不會改變它。
+  const [open, setOpen] = useState<string | null>(null);
+  useEffect(() => { setOpen(null); }, [halfKey]);
+
+  // 將本半局事件切成打席群組（**換底不換臉**：有 canonical 打席就用它，沒有就逐位元
+  // 退回原本的「連續同打者」近似切法，`pa-groups.test.ts` 釘住兩者相同）。
   const groups = buildPaGroups(log as unknown as Parameters<typeof buildPaGroups>[0], events, facts);
 
   // 逐列的「該事件進帳分數 ＋ 事件後比分」。livelog 的比分欄是**事件後**快照且可能為
@@ -445,66 +465,111 @@ function PlayByPlay({ log, events, idx, setIdx, userAction, facts }: {
     return out;
   }, [log]);
 
-  const lineBtn = (gi: number, showScore: boolean, extra?: React.ReactNode) => {
+  // 曲線索引：整場算一次，逐打席 join（避免每張卡重掃整條曲線）。
+  const wpIndex = useMemo(() => indexWpCurve(wp), [wp]);
+
+  const lineBtn = (gi: number, inCard = false) => {
     const ev = log[gi];
     const content = String(ev.content ?? "").split(/[\r\n]/)[0];
     const isScore = Boolean(ev.is_score);
     const isPitch = content.length <= 8;
     const active = gi === idx;
-    const s = runningScore[gi];
-    // 得分事件的敘述文字走**一般字級**（與其他結果行相同）——重要性由 RunsBadge 承載。
-    // 這一行原本沒給 size class，於是繼承 text-base 而比周圍列大一級，讀起來突兀
-    // （需求方 2026-08-06 第三輪人工審）。
+    // 得分事件的敘述文字走**一般字級**（與其他結果行相同）——重要性由清單級的 PaScoreLine 承載。
+    // 字級與色調分開算：選中態要能蓋掉色調而不動字級，否則 Tailwind 同屬性衝突的勝負
+    // 取決於 CSS 順序而非字串順序（會時靈時不靈）。
+    // 選中態＝中性 `ink/10` 淡底，**不用 accent 紅底也不加框線**（需求方回饋）；紅色系在
+    // 本站是 down／得分語意，當選取態會語意錯位。淡底而非 `bg-ink` 實底的理由：本列可能
+    // 帶得分 chip（accent 色），實底會讓 chip 對比不足。
+    const size = isPitch ? "text-xs" : "text-sm";
+    const tone = active ? "bg-ink/10 font-medium text-ink"
+      : isScore ? "text-accent" : isPitch ? "text-faint" : "text-ink";
     return (
-      <button key={gi} ref={active ? activeRef : undefined} onClick={() => setIdx(gi)}
-        className={`block w-full scroll-mt-16 rounded px-2 py-0.5 pl-5 text-left transition-colors hover:bg-surface-2 ${
-          active ? "bg-accent/10 ring-1 ring-accent/30" : ""} ${
-          isScore ? "text-sm text-accent" : isPitch ? "text-xs text-faint" : "text-sm text-ink"}`}>
+      <button key={gi} onClick={() => setIdx(gi)}
+        className={`block w-full scroll-mt-16 rounded px-2 py-0.5 text-left transition-colors hover:bg-surface-2 ${
+          inCard ? "pl-3" : "pl-5"} ${size} ${tone}`}>
         {content}
-        {/* 進帳分數留在事件列（事件層級的事實）；比分已上移到打席標題列，此處不重複 */}
-        {showScore && isScore && s && <RunsBadge runs={s.runs} />}
-        {extra}
       </button>
     );
   };
 
   return (
-    <div className="order-2 rounded-xl border border-line bg-surface p-4 lg:order-1">
+    <div className="order-1 rounded-xl border border-line bg-surface p-4">
       <div className="mb-2 flex items-baseline justify-between">
         <span className="text-sm font-semibold">逐打席</span>
         <span className="text-[10px] text-faint">點打席展開逐球</span>
       </div>
       {/* 內容過長時只捲動本區塊（不動整頁）*/}
-      <div className="max-h-[65vh] space-y-0.5 overflow-y-auto pr-1">
+      <ul className="max-h-[65vh] space-y-1 overflow-y-auto pr-1">
         {groups.map((g, gk) => {
-          if (g.kind === "sub") return lineBtn(g.gi, false);
+          if (g.kind === "sub") {
+            return <li key={gk} className="pt-0.5">{lineBtn(g.gi)}</li>;
+          }
+          const key = `pa-${gk}`;
+          const firstIdx = g.idxs[0];
           const outcomeIdx = g.idxs[g.idxs.length - 1];
-          const expanded = g.idxs.includes(idx);   // 當前打席自動展開
-          // 該打席若有得分事件，取最後一個得分事件的事件後比分（打席可能多次得分）
+          const active = g.idxs.includes(idx);
+          const expanded = open === null ? active : open === key;
+          // 該打席的進帳分數與最後一次得分後的比分（打席可能多次得分）
           const scoringIdxs = g.idxs.filter((gi) => log[gi].is_score && runningScore[gi]?.runs > 0);
+          const runs = scoringIdxs.reduce((sum, gi) => sum + (runningScore[gi]?.runs ?? 0), 0);
           const paScore = scoringIdxs.length
             ? runningScore[scoringIdxs[scoringIdxs.length - 1]] : null;
+          const vm = buildPaCardVM(
+            g.fact, log[firstIdx] as PaCardEvent, log[outcomeIdx] as PaCardEvent,
+            firstIdx > 0 ? runningScore[firstIdx - 1] : null,
+            paScore ? { away: paScore.away, home: paScore.home } : null, runs || null);
+          // 突破僵局的跑者佈局列是**非打席**（canonical `non_pa`）：它確實會推動勝率，
+          // 但那不是任何打者造成的，掛上勝率標示等於把佈局規則的效果歸因給該打席。
+          // 與 `/recap-wp` 對 non_pa 的處理一致（`non_pa_context`，WP 欄不可用）。
+          const isNonPa = g.fact?.state === "non_pa";
+          const swing = isNonPa ? null
+            : joinPaSwing(wpIndex, log[firstIdx]?.main_event_no as string,
+              log[outcomeIdx]?.main_event_no as string);
+          const swingLabel = wpSwingLabel(swing?.delta, teams.homeName, teams.awayName);
+          const label = paCardLabel(vm, paCardHitterName(g.fact, g.name),
+            swingLabel ? `，勝率推向${swingLabel.team} ${swingLabel.pt} 個百分點` : "");
+          // 得分打席的比分列：清單級（與「更換選手」列同層級），排在該打席卡之後。
+          const scoreLine = paScoreLineOf(vm);
           return (
-            <div key={gk}>
-              {/* 一列＝一個打席的完整資訊：打者・球數・投手・ΔRE24 同一視覺單元
-                  （需求方 2026-08-06：ΔRE24 不要跟打席訊息分開）。 */}
-              <div className="mt-2.5 text-sm font-medium text-ink">
-                ⚾ {g.name}
-                {g.idxs.length > 1 && <span className="ml-1 text-[10px] font-semibold text-muted">{plateAppearancePitchCountLabel(g.idxs.length)}</span>}
-                <span className="ml-2 text-xs text-faint">投：{g.pitcher}</span>
-                {/* 得分打席的比分上移到與打者名同層級、同字級放大（需求方 2026-08-06
-                    第五輪人工審）：比分是關鍵資訊，不該埋在事件敘述行的 chip 裡。
-                    值取該打席最後一個得分事件的**事件後**比分，不做加法。 */}
-                {paScore && <ScoreAfterBadge away={paScore.away} home={paScore.home} />}
-                {g.fact && g.fact.state === "ready" && <Re24Badge value={g.fact.delta_re24} />}
-              </div>
-              {expanded
-                ? g.idxs.map((gi) => lineBtn(gi, true))
-                : lineBtn(outcomeIdx, true)}
-            </div>
+            <Fragment key={key}>
+              <li ref={active ? activeRef : undefined}>
+                <PlayCard
+                  variant="pbp"
+                  inning={vm.inning} half={vm.half}
+                  outsBefore={vm.outsBefore} basesBefore={vm.basesBefore}
+                  margin={vm.margin} garbageTime={vm.garbageTime}
+                  hitterId={g.fact?.hitter?.player_id ?? g.hitter}
+                  hitterName={paCardHitterName(g.fact, g.name)}
+                  pitcherName={g.pitcher} resultAction={vm.resultAction}
+                  pitchCountLabel={g.idxs.length > 1
+                    ? plateAppearancePitchCountLabel(g.idxs.length) : null}
+                  deltaRe24={vm.deltaRe24}
+                  wp={swing}
+                  teams={teams}
+                  ariaLabel={label}
+                  active={active}
+                  expanded={expanded}
+                  onActivate={() => {
+                    if (expanded) { setOpen(""); return; }
+                    setOpen(key);
+                    setIdx(outcomeIdx);
+                  }}
+                >
+                  <div className="space-y-0.5">
+                    {g.idxs.map((gi) => lineBtn(gi, true))}
+                  </div>
+                </PlayCard>
+              </li>
+              {scoreLine && (
+                <li className="pt-0.5">
+                  <PaScoreLine {...scoreLine}
+                    awayName={teams.awayName} homeName={teams.homeName} className="ml-3" />
+                </li>
+              )}
+            </Fragment>
           );
         })}
-      </div>
+      </ul>
     </div>
   );
 }
@@ -715,6 +780,13 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
       .sort((a, b) => a.pitch_cnt - b.pitch_cnt);
   }, [data.tracking, e]);
 
+  // 隊名與隊色：逐打席卡與勝率條共用（隊色＝身分，走 lib/teams.ts）
+  const boardTeams: PlayCardTeams = {
+    homeName: String(game.home_team_name ?? ""), awayName: String(game.away_team_name ?? ""),
+    homeColor: teamColor(String(game.home_team_code ?? "")),
+    awayColor: teamColor(String(game.away_team_code ?? "")),
+  };
+
   if (!e) return <p className="text-sm text-faint">無賽況資料。</p>;
 
   return (
@@ -730,12 +802,16 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
       {view === "pbp" && (
       <div id="pbp-section" className="grid scroll-mt-16 gap-4 lg:grid-cols-[1fr_360px]">
         {/* 左：逐打席賽況（選定半局）*/}
-        <PlayByPlay log={log} events={curEvents} idx={idx} setIdx={selectIdx} userAction={userAction} facts={facts} />
+        <PlayByPlay log={log} events={curEvents} halfKey={curKey} idx={idx} setIdx={selectIdx}
+          userAction={userAction} facts={facts} wp={wp} teams={boardTeams} />
 
-        {/* 右：當前對戰 + 好球帶（sticky）。窄螢幕排到清單上方（order-1），避免長局把
-            當前打席/WP/好球帶擠到超長清單下方看不到；桌面維持右側（lg:order-2）。
-            當前事件內容不另設框——已在左側清單呈現，避免重複。 */}
-        <div className="order-1 space-y-2 lg:order-2 lg:sticky lg:top-3 lg:self-start">
+        {/* 右：當前對戰 + 好球帶（sticky）。
+            窄螢幕原本排到清單**上方**（order-1），理由是「避免長局把當前打席/WP/好球帶
+            擠到超長清單下方看不到」——UX-GAME-PA1 後這個理由消失了：每張打席卡自帶壘包、
+            出局、分差與該打席的勝率變化＋勝率條，清單本身即可一眼判讀，不必再上滑對照。
+            需求方原話「手機版上根本沒辦法一眼了解狀況」指的正是這段距離，故窄螢幕改為
+            清單優先（order-2），桌面維持右側不變（lg:order-2）。 */}
+        <div className="order-2 space-y-2 lg:sticky lg:top-3 lg:self-start">
           {curHomeWp != null && (
             <WpBar homeWp={curHomeWp}
               homeName={String(game.home_team_name ?? "")} awayName={String(game.away_team_name ?? "")}

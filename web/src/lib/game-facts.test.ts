@@ -156,8 +156,9 @@ test("situationText 給出圖示以外的文字替代（a11y）", () => {
     /滿壘/);
 });
 
-test("marginText 平手與領先分開表述", () => {
-  assert.equal(marginText({ away_score_before: 3, home_score_before: 3 }), "平手");
+test("marginText 一律出數字：平手也是比分（0–0 與 7–7 是不同局面）", () => {
+  assert.equal(marginText({ away_score_before: 3, home_score_before: 3 }), "3–3");
+  assert.equal(marginText({ away_score_before: 0, home_score_before: 0 }), "0–0");
   assert.equal(marginText({ away_score_before: 1, home_score_before: 5 }), "5–1");
   assert.equal(marginText({ away_score_before: null, home_score_before: 2 }), "");
 });
