@@ -1,0 +1,122 @@
+INFO cpbl.winprob_val training A 2018：240 場，18059 紀錄
+INFO cpbl.winprob_val training A 2019：240 場，17946 紀錄
+INFO cpbl.winprob_val training A 2020：240 場，18393 紀錄
+INFO cpbl.winprob_val training A 2021：300 場，21952 紀錄
+INFO cpbl.winprob_val training A 2022：300 場，21742 紀錄
+INFO cpbl.winprob_val training A 2023：300 場，21878 紀錄
+INFO cpbl.winprob_val training A 2024：360 場，26143 紀錄
+INFO cpbl.winprob_val training A 2025：360 場，25829 紀錄
+INFO cpbl.winprob_val training A 2026：240 場，17065 紀錄
+INFO cpbl.winprob_val training D 2018：124 場，9102 紀錄
+INFO cpbl.winprob_val training D 2019：152 場，11146 紀錄
+INFO cpbl.winprob_val training D 2020：227 場，17433 紀錄
+INFO cpbl.winprob_val training D 2021：169 場，12340 紀錄
+INFO cpbl.winprob_val training D 2022：172 場，12350 紀錄
+INFO cpbl.winprob_val training D 2023：236 場，17002 紀錄
+INFO cpbl.winprob_val training D 2024：220 場，15872 紀錄
+INFO cpbl.winprob_val training D 2025：204 場，15039 紀錄
+INFO cpbl.winprob_val training D 2026：175 場，12806 紀錄
+INFO cpbl.winprob_val A 2021 [2018-2020/A] wf Brier=0.1533 ECE=0.0310 n=22996（主場基準 0.2429）
+INFO cpbl.winprob_val A 2022 [2018-2021/A] wf Brier=0.1475 ECE=0.0466 n=22817（主場基準 0.2422）
+INFO cpbl.winprob_val A 2023 [2018-2022/A] wf Brier=0.1474 ECE=0.0298 n=22878（主場基準 0.2415）
+INFO cpbl.winprob_val A 2024 [2018-2023/A] wf Brier=0.1540 ECE=0.0384 n=27421（主場基準 0.2488）
+INFO cpbl.winprob_val A 2025 [2018-2024/A] wf Brier=0.1547 ECE=0.0267 n=27036（主場基準 0.2486）
+INFO cpbl.winprob_val A 2026 [2018-2025/A] wf Brier=0.1647 ECE=0.0198 n=17924（主場基準 0.2474）
+INFO cpbl.winprob_val C 2021 [2018-2021/A] wf Brier=0.1142 ECE=0.1379 n=291（主場基準 0.2536）
+INFO cpbl.winprob_val C 2022 [2018-2022/A] wf Brier=0.1008 ECE=0.1594 n=299（主場基準 0.2524）
+INFO cpbl.winprob_val C 2023 [2018-2023/A] wf Brier=0.1431 ECE=0.1532 n=563（主場基準 0.2458）
+INFO cpbl.winprob_val C 2024 [2018-2024/A] wf Brier=0.1637 ECE=0.1282 n=392（主場基準 0.2596）
+INFO cpbl.winprob_val C 2025 [2018-2025/A] wf Brier=0.2134 ECE=0.2686 n=382（主場基準 0.2758）
+INFO cpbl.winprob_val D 2021 [2018-2020/D] wf Brier=0.1405 ECE=0.0245 n=12925（主場基準 0.2216）
+INFO cpbl.winprob_val D 2022 [2018-2021/D] wf Brier=0.1429 ECE=0.0284 n=12978（主場基準 0.2279）
+INFO cpbl.winprob_val D 2023 [2018-2022/D] wf Brier=0.1433 ECE=0.0281 n=17874（主場基準 0.2347）
+INFO cpbl.winprob_val D 2024 [2018-2023/D] wf Brier=0.1344 ECE=0.0453 n=16678（主場基準 0.2237）
+INFO cpbl.winprob_val D 2025 [2018-2024/D] wf Brier=0.1595 ECE=0.0382 n=15758（主場基準 0.2485）
+INFO cpbl.winprob_val D 2026 [2018-2025/D] wf Brier=0.1585 ECE=0.0405 n=13236（主場基準 0.2439）
+INFO cpbl.winprob_val E 2022 [2018-2022/A] wf Brier=0.0531 ECE=0.1811 n=217（主場基準 0.2103）
+INFO cpbl.winprob_val E 2023 [2018-2023/A] wf Brier=0.1168 ECE=0.1916 n=219（主場基準 0.2670）
+INFO cpbl.winprob_val E 2024 [2018-2024/A] wf Brier=0.0796 ECE=0.1957 n=232（主場基準 0.2145）
+INFO cpbl.winprob_val E 2025 [2018-2025/A] wf Brier=0.2859 ECE=0.2166 n=317（主場基準 0.2530）
+INFO cpbl.winprob_val artifact → docs/research/ML-WP-VERDICT-ROBUST1/verdict_metrics.json
+
+=== scope A: unsupported ===
+  [硬性] 池化十分位 1 偏差 +0.0424 顯著且超過 ±0.03（n=8807 CI[0.011, 0.0709] p_one=0.000198[0.000101, 0.000389] reps=96000 v2seeds=12/12）
+  [硬性] 池化十分位 2 偏差 +0.0555 顯著且超過 ±0.03（n=9316 CI[0.0147, 0.0935] p_one=0.000271[0.000152, 0.000484] reps=96000 v2seeds=12/12）
+  [硬性] 池化十分位 3 偏差 +0.0612 顯著且超過 ±0.03（n=10381 CI[0.0178, 0.103] p_one=0.000135[6e-05, 0.000304] reps=96000 v2seeds=12/12）
+  [硬性] 池化十分位 8 偏差 -0.0447 顯著且超過 ±0.03（n=10249 CI[-0.0712, -0.0154] p_one=8.3e-05[3e-05, 0.00023] reps=96000 v2seeds=12/12）
+  [揭露] A2021 逐季顯著偏差分箱 [9]（99% 叢集 CI 排除 0，跨 seed 一致）
+  [揭露] A2022 逐季顯著偏差分箱 [4]（99% 叢集 CI 排除 0，跨 seed 一致）
+  [揭露] 池化十分位 4 偏差 +0.0377 超界但與 0 不可區分（n=13702 CI[-0.0053, 0.0801] p_one=0.012229[0.01121, 0.01334] reps=96000 v2seeds=0/12）
+  [揭露] 池化十分位 7 偏差 -0.0365 超界但與 0 不可區分（n=10508 CI[-0.0738, 0.0029] p_one=0.008365[0.007528, 0.009294] reps=96000 v2seeds=6/12）
+  [v1參考] A2021 ECE 0.03102（v1 點估計參考）
+  [v1參考] A2021 maxdev 0.0904（v1 點估計參考）
+  [v1參考] A2022 ECE 0.04659（v1 點估計參考）
+  [v1參考] A2022 maxdev 0.1109（v1 點估計參考）
+  [v1參考] A2023 ECE 0.02978（v1 點估計參考）
+  [v1參考] A2024 ECE 0.03841（v1 點估計參考）
+  [v1參考] A2024 maxdev 0.0734（v1 點估計參考）
+  [v1參考] A2025 ECE 0.02665（v1 點估計參考）
+  [v1參考] A2025 maxdev 0.0608（v1 點估計參考）
+  池化 walk-forward：n_pa=141072 n_games=1856 Brier=0.15327（主場基準 0.24536） ECE=0.0269 顯著分箱=[1, 2, 3, 8]
+  2021 [2018-2020/A|cap12,tie] n=22996 Brier=0.15332 ECE=0.03102 maxdev=0.0904 sig=[9] 主場基準=0.24295 同母體樂觀=0.00144
+  2022 [2018-2021/A|cap12,tie] n=22817 Brier=0.1475 ECE=0.04659 maxdev=0.1109 sig=[4] 主場基準=0.24221 同母體樂觀=0.00176
+  2023 [2018-2022/A|cap12,tie] n=22878 Brier=0.14745 ECE=0.02978 maxdev=0.0586 sig=[] 主場基準=0.24148 同母體樂觀=0.00034
+  2024 [2018-2023/A|cap12,tb10,tie] n=27421 Brier=0.15402 ECE=0.03841 maxdev=0.0734 sig=[] 主場基準=0.24876 同母體樂觀=0.00031
+  2025 [2018-2024/A|cap12,tb10,tie] n=27036 Brier=0.15471 ECE=0.02665 maxdev=0.0608 sig=[] 主場基準=0.24857 同母體樂觀=0.00027
+  2026 [2018-2025/A|cap12,tb10,tie] n=17924 Brier=0.16467 ECE=0.01977 maxdev=0.0448 sig=[] 主場基準=0.24741 同母體樂觀=6e-05
+
+=== scope C: insufficient_evidence ===
+  [測不了] C2024 Brier 0.16368 vs 主場常數基準 0.25965：差距與 0 不可區分（not_significant；Δ=-0.09597 CI[-0.1989, 0.0242] p_one=0.0245 reps=6000 v2seeds=0/12），該季無判別力
+  [測不了] C2025 Brier 0.21339 vs 主場常數基準 0.27579：差距與 0 不可區分（not_significant；Δ=-0.06239 CI[-0.1955, 0.1121] p_one=0.179333 reps=6000 v2seeds=0/12），該季無判別力
+  [測不了] proxy 池化 ECE 門檻 0.05 在此樣本量下不可達：完美校準零假設的期望 ECE 就有 0.07685（觀測 0.11001，H0 p95 0.1202）——該門檻不是判準，是雜訊產生器
+  [揭露] 本 scope 另受 proxy／小樣本上限限制，即使閘門判得動亦不得高於 proxy_with_warning
+  [v1參考] C2021 ECE 0.13791（v1 點估計參考）
+  [v1參考] C2022 ECE 0.15941（v1 點估計參考）
+  [v1參考] C2023 ECE 0.15317（v1 點估計參考）
+  [v1參考] C2024 ECE 0.12824（v1 點估計參考）
+  [v1參考] C2025 ECE 0.26861（v1 點估計參考）
+  池化 walk-forward：n_pa=1927 n_games=25 Brier=0.15027（主場基準 0.25676） ECE=0.11001 顯著分箱=[]
+  2021 [2018-2021/A|cap20,no-tie] n=291 Brier=0.11417 ECE=0.13791 maxdev=None sig=[] 主場基準=0.25365 同母體樂觀=0.00433
+  2022 [2018-2022/A|cap20,no-tie] n=299 Brier=0.10075 ECE=0.15941 maxdev=None sig=[] 主場基準=0.25241 同母體樂觀=0.00394
+  2023 [2018-2023/A|cap20,no-tie] n=563 Brier=0.14306 ECE=0.15317 maxdev=None sig=[] 主場基準=0.24577 同母體樂觀=0.00083
+  2024 [2018-2024/A|cap20,no-tie] n=392 Brier=0.16368 ECE=0.12824 maxdev=None sig=[] 主場基準=0.25965 同母體樂觀=3e-05
+  2025 [2018-2025/A|cap20,no-tie] n=382 Brier=0.21339 ECE=0.26861 maxdev=None sig=[] 主場基準=0.27579 同母體樂觀=0.00113
+
+=== scope D: unsupported ===
+  [硬性] 池化十分位 2 偏差 +0.0501 顯著且超過 ±0.03（n=6389 CI[0.0048, 0.0921] p_one=0.00225[0.001273, 0.003973] reps=12000 v2seeds=11/12）
+  [揭露] D2021 逐季顯著偏差分箱 [0]（99% 叢集 CI 排除 0，跨 seed 一致）
+  [揭露] D2022 逐季顯著偏差分箱 [9]（99% 叢集 CI 排除 0，跨 seed 一致）
+  [揭露] D2024 逐季顯著偏差分箱 [0]（99% 叢集 CI 排除 0，跨 seed 一致）
+  [揭露] 池化十分位 3 偏差 +0.0419 超界但與 0 不可區分（n=7401 CI[-0.012, 0.0929] p_one=0.0205[0.016964, 0.024755] reps=12000 v2seeds=0/12）
+  [揭露] 池化十分位 4 偏差 +0.0305 超界但與 0 不可區分（n=11081 CI[-0.0162, 0.0753] p_one=0.044667[0.039343, 0.050673] reps=12000 v2seeds=0/12）
+  [v1參考] D2021 maxdev 0.0952（v1 點估計參考）
+  [v1參考] D2022 ECE 0.0284（v1 點估計參考）
+  [v1參考] D2023 ECE 0.0281（v1 點估計參考）
+  [v1參考] D2023 maxdev 0.0662（v1 點估計參考）
+  [v1參考] D2024 ECE 0.04531（v1 點估計參考）
+  [v1參考] D2024 maxdev 0.0848（v1 點估計參考）
+  [v1參考] D2025 ECE 0.03816（v1 點估計參考）
+  [v1參考] D2025 maxdev 0.0839（v1 點估計參考）
+  [v1參考] D2026 ECE 0.04048（v1 點估計參考）
+  [v1參考] D2026 maxdev 0.0974（v1 點估計參考）
+  池化 walk-forward：n_pa=89449 n_games=1171 Brier=0.14629（主場基準 0.23356） ECE=0.01957 顯著分箱=[2]
+  2021 [2018-2020/D|cap9,tie] n=12925 Brier=0.14047 ECE=0.02454 maxdev=0.0952 sig=[0] 主場基準=0.22158 同母體樂觀=0.00058
+  2022 [2018-2021/D|cap9,tie] n=12978 Brier=0.14295 ECE=0.0284 maxdev=0.0571 sig=[9] 主場基準=0.22794 同母體樂觀=0.00039
+  2023 [2018-2022/D|cap9,tie] n=17874 Brier=0.14332 ECE=0.0281 maxdev=0.0662 sig=[] 主場基準=0.23475 同母體樂觀=0.00047
+  2024 [2018-2023/D|cap9,tie] n=16678 Brier=0.13439 ECE=0.04531 maxdev=0.0848 sig=[0] 主場基準=0.2237 同母體樂觀=0.00049
+  2025 [2018-2024/D|cap10,tb10,tie] n=15758 Brier=0.15952 ECE=0.03816 maxdev=0.0839 sig=[] 主場基準=0.24847 同母體樂觀=0.00039
+  2026 [2018-2025/D|cap10,tb10,tie] n=13236 Brier=0.15851 ECE=0.04048 maxdev=0.0974 sig=[] 主場基準=0.24386 同母體樂觀=7e-05
+
+=== scope E: insufficient_evidence ===
+  [測不了] E2025 Brier 0.28588 vs 主場常數基準 0.25301：差距與 0 不可區分（not_significant；Δ=+0.03287 CI[-0.1735, 0.1835] p_one=0.383167 reps=6000 v2seeds=0/12），該季無判別力
+  [測不了] proxy 池化 ECE 門檻 0.05 在此樣本量下不可達：完美校準零假設的期望 ECE 就有 0.12224（觀測 0.08548，H0 p95 0.18326）——該門檻不是判準，是雜訊產生器
+  [揭露] 本 scope 另受 proxy／小樣本上限限制，即使閘門判得動亦不得高於 proxy_with_warning
+  [v1參考] E2022 ECE 0.18111（v1 點估計參考）
+  [v1參考] E2023 ECE 0.19161（v1 點估計參考）
+  [v1參考] E2024 ECE 0.19574（v1 點估計參考）
+  [v1參考] E2025 ECE 0.21656（v1 點估計參考）
+  池化 walk-forward：n_pa=985 n_games=13 Brier=0.14842（主場基準 0.23764） ECE=0.08548 顯著分箱=[]
+  2022 [2018-2022/A|cap20,no-tie] n=217 Brier=0.05313 ECE=0.18111 maxdev=None sig=[] 主場基準=0.21031 同母體樂觀=-0.00143
+  2023 [2018-2023/A|cap20,no-tie] n=219 Brier=0.11682 ECE=0.19161 maxdev=None sig=[] 主場基準=0.26701 同母體樂觀=0.00311
+  2024 [2018-2024/A|cap20,no-tie] n=232 Brier=0.07957 ECE=0.19574 maxdev=None sig=[] 主場基準=0.21446 同母體樂觀=-0.00078
+  2025 [2018-2025/A|cap20,no-tie] n=317 Brier=0.28588 ECE=0.21656 maxdev=None sig=[] 主場基準=0.25301 同母體樂觀=-0.001
