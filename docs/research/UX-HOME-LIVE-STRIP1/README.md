@@ -33,8 +33,13 @@ cd .. && uv run python docs/research/UX-HOME-LIVE-STRIP1/bases_outs_extraction_p
 
 | | 來源 |
 |---|---|
-| 上抽前 | `git show a6331cc:web/src/components/game-board.tsx` 的私有 `BasesOuts` |
+| 上抽前 | `git show a6331cc:web/src/components/game-board.tsx` 的私有 `BasesOuts`；取不到時退回同目錄的凍結副本 `legacy-bases-outs.a6331cc.tsx` |
 | 上抽後 | 工作樹現況 `web/src/components/ui.tsx` 的共用 `BasesOuts` |
+
+需要凍結副本是因為本 repo 的 merge 會被 `pull --rebase` 線性化而**改寫 SHA**：本卡合併之後，
+只有 `main` 的人可能已經 `git show a6331cc` 不到了，那時腳本會變成無法重跑的擺設——正是它
+要修的那個 finding。git 仍是權威來源，**兩者都拿得到時腳本會斷言逐字相同**，所以凍結副本
+無法悄悄漂移；不一致時腳本拒絕作證（exit 1）而不是挑一個來用。
 
 以 `react-dom/server` 渲染成字串，窮舉 **8 種壘況 × 出局數 0–3 × 3 種尺寸 ＝ 96 組**逐位
 比對。呼叫點的 props 對應（`b1/b2/b3` → `bases.{first,second,third}`）也涵蓋在內：harness
@@ -53,6 +58,8 @@ cd .. && uv run python docs/research/UX-HOME-LIVE-STRIP1/bases_outs_extraction_p
 |---|---|
 | 菱形改回首頁舊比例（30→22） | (1) 96 組不一致、exit 1 |
 | 偷渡一個 `data-extra="x"` 屬性 | (1) 96 組不一致、exit 1 |
+| 竄改凍結副本（git 仍取得到） | 拒絕作證、exit 1 |
+| 在沒有 `a6331cc` 的 clone 上跑 | 走凍結副本、印出 note、exit 0 |
 | 未注入缺陷 | 兩項皆 0、exit 0 |
 
 ### 為什麼不掛進 pytest／npm test

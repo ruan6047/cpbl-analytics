@@ -71,12 +71,39 @@ def _extract(source: str, marker: str) -> str:
     return source[start:source.index("\n}\n", start) + 3]
 
 
-def _build_proof(root: Path) -> str:
-    legacy_file = subprocess.run(
+def _legacy_source(root: Path) -> str:
+    """上抽前的 `BasesOuts` 原始碼。
+
+    優先走 git（權威來源），取不到時退回同目錄的凍結副本。**兩者都拿得到時斷言逐字相同**
+    ——否則凍結副本可以悄悄漂移，取證就變成自說自話。
+
+    需要退路是因為本 repo 的 merge 會被 `pull --rebase` 線性化而改寫 SHA：本卡合併之後，
+    只有 `main` 的人可能已經 `git show {BEFORE}` 不到了，那時這支腳本就會變成無法重跑的
+    擺設——正是它要修的那個 finding。
+    """
+    frozen_path = Path(__file__).with_name(f"legacy-bases-outs.{BEFORE[:7]}.tsx")
+    frozen = _extract(frozen_path.read_text(encoding="utf-8"), "function BasesOuts(")
+
+    from_git = subprocess.run(
         ["git", "-C", str(root), "show", f"{BEFORE}:web/src/components/game-board.tsx"],
-        capture_output=True, text=True, check=True,
-    ).stdout
-    legacy = _extract(legacy_file, "function BasesOuts(").replace(
+        capture_output=True, text=True,
+    )
+    if from_git.returncode != 0:
+        print(f"  （note）{BEFORE[:7]} 已不在此 clone 的歷史中，改用凍結副本 "
+              f"{frozen_path.name}")
+        return frozen
+
+    live = _extract(from_git.stdout, "function BasesOuts(")
+    if live != frozen:
+        raise SystemExit(
+            f"凍結副本與 {BEFORE[:7]} 的 git 內容不一致——取證基準已被竄改，"
+            f"請還原 {frozen_path.name}"
+        )
+    return live
+
+
+def _build_proof(root: Path) -> str:
+    legacy = _legacy_source(root).replace(
         "function BasesOuts(", "function LegacyBasesOuts(", 1)
 
     shared_file = (root / "web/src/components/ui.tsx").read_text(encoding="utf-8")
