@@ -99,6 +99,46 @@ export function Card({ className = "", padding = "p-4", teamColor, hoverable = f
   );
 }
 
+/** 壘包與出局數（品字排列：二壘上中、三壘左下、一壘右下，下方兩顆出局圓點）。
+ *
+ *  **canonical 幾何取自賽況頁記分條**（`game-board.tsx` 原有的那一份），首頁今日賽事卡
+ *  改用同一份的小尺寸。兩處原本各有一套且**比例不同**（菱形 30/120＝25% vs 22/120＝18%、
+ *  出局點 r=9 vs 8、viewBox 116 vs 112），不是等比縮放——同一個概念在兩頁長得不一樣，
+ *  讀者得重學一次。統一由此出（UI_UX_SYSTEM §10.3／§10.4 registry）。
+ *
+ *  `outs` 容得下 null：首頁在非進行中的場次拿不到出局數，此時兩顆點皆不亮，
+ *  且替代文字說「出局數未知」——不得把未知講成 0 出局。 */
+export function BasesOuts({ bases, outs, size = 52 }: {
+  bases: { first: boolean; second: boolean; third: boolean };
+  outs: number | null;
+  size?: number;
+}) {
+  const o = Math.min(outs ?? 0, 2);
+  const base = (cx: number, cy: number, on: boolean) => (
+    <rect
+      x={cx - 15} y={cy - 15} width={30} height={30}
+      transform={`rotate(45 ${cx} ${cy})`} rx={4}
+      fill={on ? "var(--color-accent)" : "var(--color-line)"}
+      stroke="var(--color-surface)" strokeWidth={3}
+    />
+  );
+  const occupied = [bases.first && "一壘", bases.second && "二壘", bases.third && "三壘"]
+    .filter(Boolean).join("、") || "無人";
+  return (
+    // `role="img"` 是全站慣例（17 個 svg 中 10 個已有）：只掛 aria-label 而無 role 的
+    // `<svg>`，部分螢幕閱讀器不會把它當成一個有名字的圖形來播報。
+    <svg viewBox="0 0 120 116" width={size} height={size * 116 / 120}
+      aria-label={`壘上${occupied}，${outs == null ? "出局數未知" : `${o} 出局`}`}
+      role="img">
+      {base(60, 26, bases.second)}
+      {base(36, 50, bases.third)}
+      {base(84, 50, bases.first)}
+      <circle cx={48} cy={92} r={9} fill={o >= 1 ? "var(--color-accent)" : "var(--color-line)"} />
+      <circle cx={72} cy={92} r={9} fill={o >= 2 ? "var(--color-accent)" : "var(--color-line)"} />
+    </svg>
+  );
+}
+
 // 橫向排版：標籤在左、數值＋名次在右，一磚一列以節省縱向空間。
 export function StatTile({ label, value, accent, rank, rankTotal }: {
   label: string; value: string; accent?: boolean;

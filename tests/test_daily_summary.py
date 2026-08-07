@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi.testclient import TestClient
@@ -70,9 +71,48 @@ class _Conn:
         return False
 
 
-def _run(monkeypatch, script, *, artifact=None, query="") -> tuple[dict, _Cursor]:
+def _snapshot(sno: int, phase: str, *, away: int = 0, home: int = 0, inning: int | None = None,
+              half: str = "2", outs: int | None = None, bases: tuple[bool, bool, bool] = (),
+              events: int = 0, fetched_at: datetime | None = None,
+              freshness: str = "fresh", source_status: str = "ok",
+              decisions: dict | None = None, starts_at: str | None = None) -> dict:
+    """一份 canonical live snapshot（`live_cache.public_snapshot` 之後的公開形狀）。"""
+    first, second, third = (bases or (False, False, False))
+    log = [{"OutCnt": outs, "FirstBase": "王一" if first else None,
+            "SecondBase": "李二" if second else None, "ThirdBase": "張三" if third else None}]
+    return {
+        "game_id": f"2026-A-{sno}", "game_sno": sno, "kind_code": "A",
+        "phase": phase, "raw_status": phase.upper(),
+        "starts_at": starts_at or f"2026-08-07T18:{35 if sno % 2 else 5:02d}:00+08:00",
+        "inning": inning if inning is not None else 1,
+        "half": half,
+        "away": {"score": away}, "home": {"score": home},
+        "livelog": log if events else [],
+        "event_count": events,
+        "freshness": freshness,
+        "stale_after_seconds": 45 if phase == "live" else (None if phase == "final" else 1200),
+        "source_status": source_status,
+        "source": {"fetched_at": (fetched_at or datetime.now(UTC)).isoformat()},
+        "decisions": decisions,
+    }
+
+
+def _run(monkeypatch, script, *, artifact=None, query="", snapshots=None,
+         now=None, today_local=None) -> tuple[dict, _Cursor]:
     cursor = _Cursor(script)
     monkeypatch.setattr(daily, "conn", lambda: _Conn(cursor))
+    # 時鐘與容器本地日可注入：本機跑在台北時區，不注入就永遠測不到「容器 UTC、
+    # 台北凌晨」——而那正是唯一會出錯的情境。
+    if now is not None:
+        monkeypatch.setattr(daily, "_now", lambda: now)
+    if today_local is not None:
+        monkeypatch.setattr(daily, "_today_local", lambda: today_local)
+    # 契約測試一律與本機 Redis 隔離：`snapshots=None`＝未設定 REDIS_URL（本機／CI 預設），
+    # 要驗即時態就明著給一組假 snapshot。開發者本機恰好有 Redis 時測試不得跟著變。
+    monkeypatch.setattr(daily.settings, "redis_url",
+                        "redis://test/0" if snapshots is not None else None)
+    monkeypatch.setattr(daily, "get_public_live_snapshot",
+                        lambda season, kind, sno: (snapshots or {}).get(sno))
     monkeypatch.setattr(daily, "_pregame_source",
                         lambda: artifact or (None, {"status": "unavailable",
                                                     "reason": "測試未載入 artifact",
@@ -377,6 +417,380 @@ def test_home_payload_never_exposes_model_interval(monkeypatch):
     assert "interval" not in repr(body)
 
 
+# --- 契約：今日賽事三態（UX-HOME-LIVE-STRIP1）---------------------------------
+#
+# 十種情境的後端側；呈現端的擇一渲染、兩階降級與輪詢節奏在
+# `web/src/lib/daily-summary.test.ts`（同一份 payload 形狀）。
+
+
+def _today_script(games: list[tuple], *, latest=None, next_day=None) -> list:
+    """今天有場次的一組腳本；latest 預設昨天、next 預設今天。"""
+    return _script(
+        latest=latest if latest is not None else _TODAY - timedelta(days=1),
+        next_day=next_day if next_day is not None else _TODAY,
+        scoped=len(games) + 1,
+        games=[_game(90, _TODAY - timedelta(days=1), home=4, away=2), *games],
+    )
+
+
+def test_rest_day_has_no_today_block_at_all(monkeypatch):
+    """情境 1｜今天無場次：`today` 必須是 None，不得回空陣列。
+
+    空陣列會被呈現端讀成「有今日賽事區塊、只是沒有比賽」＝驗收條件禁止的空容器。
+    """
+    body, _ = _run(monkeypatch, _script(
+        latest=_TODAY - timedelta(days=1), next_day=_TODAY + timedelta(days=3), scoped=2,
+        games=[_game(1, _TODAY - timedelta(days=1), home=2, away=1),
+               _game(2, _TODAY + timedelta(days=3))],
+    ), snapshots={})
+
+    assert body["today"] is None
+
+
+def test_today_before_lineup_is_not_started(monkeypatch):
+    """情境 2｜賽前（未達 lineup）：`started` 為假，主位仍該留在上一個比賽日。"""
+    body, _ = _run(monkeypatch, _today_script([_game(247, _TODAY), _game(248, _TODAY)]),
+                   snapshots={247: _snapshot(247, "scheduled"),
+                              248: _snapshot(248, "probable_announced")})
+
+    assert body["today"]["started"] is False
+    assert [g["live"]["phase"] for g in body["today"]["games"]] == \
+        ["scheduled", "probable_announced"]
+
+
+def test_single_lineup_announcement_flips_the_day_boundary(monkeypatch):
+    """情境 3｜任一場 lineup_announced 觸發切換。**單邊打線公布即算**——worker 的
+    `_phase` 已把「任一隊 lineup availability ≠ not_announced」判為 lineup_announced，
+    這裡不再加第二套判準。"""
+    body, _ = _run(monkeypatch, _today_script([_game(247, _TODAY), _game(248, _TODAY)]),
+                   snapshots={247: _snapshot(247, "scheduled"),
+                              248: _snapshot(248, "lineup_announced")})
+
+    assert body["today"]["started"] is True
+
+
+def test_live_game_exposes_only_the_facts_the_card_shows(monkeypatch):
+    """情境 4｜單場 live：局數／比分／壘包／出局數／最後更新齊備，且**沒有任何 WP 欄位**、
+    沒有逐球與球數。"""
+    body, _ = _run(monkeypatch, _today_script([_game(247, _TODAY)]),
+                   snapshots={247: _snapshot(247, "live", away=3, home=4, inning=5,
+                                             half="2", outs=1, bases=(True, False, True),
+                                             events=180)})
+
+    live = body["today"]["games"][0]["live"]
+    assert (live["inning"], live["half"], live["outs"]) == (5, "2", 1)
+    assert live["bases"] == {"first": True, "second": False, "third": True}
+    assert (live["away_score"], live["home_score"]) == (3, 4)
+    assert live["fetched_at"] and live["freshness"] == "fresh"
+    assert live["stale_after_seconds"] == 45
+    assert live["interrupt"] == "none"
+    # **紅線**：本卡不得引入任何 WP／WPA／leverage 欄位（場中 WP 修復是另一張卡）。
+    for banned in ("wp", "wpa", "leverage", "win_prob", "ball_cnt", "strike_cnt", "livelog"):
+        assert banned not in live, f"live view 不得帶 {banned}"
+
+
+def test_three_concurrent_live_games_are_all_returned(monkeypatch):
+    """情境 5｜三場 live：聯盟結構上限就是 3，全部回傳，不截斷、不摺疊。"""
+    games = [_game(sno, _TODAY) for sno in (247, 248, 249)]
+    body, _ = _run(monkeypatch, _today_script(games), snapshots={
+        sno: _snapshot(sno, "live", away=1, home=2, inning=3, outs=0, events=60)
+        for sno in (247, 248, 249)
+    })
+
+    assert [g["game_sno"] for g in body["today"]["games"]] == [247, 248, 249]
+    assert body["today"]["live_source"] == {"status": "ok", "reason": None,
+                                            "snapshots": 3, "games": 3}
+
+
+def test_unstarted_game_placeholder_inning_is_never_reported(monkeypatch):
+    """**紅線**：worker 對未開打場次仍回 `inning=1`，只判 truthy 會讓首頁顯示「▲ 1 局」。"""
+    body, _ = _run(monkeypatch, _today_script([_game(247, _TODAY)]),
+                   snapshots={247: _snapshot(247, "lineup_announced", inning=1, events=0)})
+
+    live = body["today"]["games"][0]["live"]
+    assert live["inning"] is None and live["half"] is None
+    assert live["bases"] is None and live["outs"] is None
+
+
+def test_final_game_carries_official_decisions_the_same_night(monkeypatch):
+    """情境 9｜final 當晚：官方 MVP／勝投直接來自 snapshot `decisions`，不等隔日爬蟲。"""
+    decisions = {"winning_pitcher": {"player_id": "AAA", "name": "投手甲"},
+                 "losing_pitcher": None, "closer": None,
+                 "mvp": {"player_id": "BBB", "name": "打者乙", "yearly_count": 3}}
+    body, _ = _run(monkeypatch, _today_script([_game(247, _TODAY)]),
+                   snapshots={247: _snapshot(247, "final", away=2, home=6, inning=9,
+                                             events=300, freshness="final",
+                                             decisions=decisions)})
+
+    game = body["today"]["games"][0]
+    assert body["today"]["started"] is True
+    assert game["live"]["decisions"]["mvp"]["name"] == "打者乙"
+    assert (game["live"]["away_score"], game["live"]["home_score"]) == (2, 6)
+    # DB 仍是 0–0（隔日爬蟲才補），比分只能來自 snapshot——這正是 16 小時盲區的修法。
+    assert game["completed"] is False and game["home_score"] is None
+
+
+def test_started_games_lose_the_pregame_field_entirely(monkeypatch):
+    """**紅線**（fail closed）：已開打場次連 `pregame` 欄位都不存在，呈現端沒有素材
+    可以把賽前勝率畫回一場 5 局下的比賽旁邊。
+
+    同時釘住日界線與「已開打」是**兩個**判準：`lineup_announced` 會把主區塊移到今天，
+    但那一場仍是賽前態，賽前卡必須留著。"""
+    artifact = ({"trained_through": 2025, "signals": {"strength": "winrate_diff"}, "model": None},
+                {"status": "serving_current", "reason": None, "trained_through": 2025,
+                 "signals": {"strength": "winrate_diff"}, "degradation": None})
+    monkeypatch.setattr(daily, "_pregame_by_game", lambda *_: {})
+    body, _ = _run(monkeypatch, _today_script([_game(247, _TODAY), _game(248, _TODAY),
+                                              _game(249, _TODAY)]),
+                   artifact=artifact,
+                   snapshots={247: _snapshot(247, "live", inning=5, events=99),
+                              248: _snapshot(248, "lineup_announced"),
+                              249: _snapshot(249, "final", away=1, home=0, events=280)})
+
+    underway, upcoming, done = body["today"]["games"]
+    assert "pregame" not in underway
+    assert "pregame" not in done
+    assert upcoming["pregame"]["status"] == "no_features"
+    assert body["today"]["started"] is True
+
+
+def test_reserved_game_is_started_and_loses_its_pregame_probability(monkeypatch):
+    """裁定 1｜保留賽＝**已開賽後中止**（GLOSSARY：官網 GameResult=2），與延賽不同。
+
+    兩個後果：(a) 那是今天發生的事，日界線該切到今天；(b) 它已經開打，賽前機率必須跟
+    live／final 一樣被收掉——一場 3:2 中止的比賽旁邊掛賽前勝率是同一個誤導的另一種樣子。
+    """
+    artifact = ({"trained_through": 2025, "signals": {"strength": "winrate_diff"}, "model": None},
+                {"status": "serving_current", "reason": None, "trained_through": 2025,
+                 "signals": {"strength": "winrate_diff"}, "degradation": None})
+    monkeypatch.setattr(daily, "_pregame_by_game", lambda *_: {})
+    body, _ = _run(monkeypatch, _today_script([_game(247, _TODAY), _game(248, _TODAY)]),
+                   artifact=artifact,
+                   snapshots={247: _snapshot(247, "reserved", away=3, home=2, inning=5,
+                                             events=140),
+                              248: _snapshot(248, "postponed")})
+
+    reserved, postponed = body["today"]["games"]
+    assert body["today"]["started"] is True, "保留賽是今天發生的事，主區塊該切過來"
+    assert "pregame" not in reserved
+    assert (reserved["live"]["away_score"], reserved["live"]["home_score"]) == (3, 2)
+    # 延賽根本沒開打：不觸發日界線，賽前欄位照掛（呈現端自己不畫）。
+    assert postponed["live"]["phase"] == "postponed"
+    assert postponed["pregame"]["status"] == "no_features"
+
+
+def test_postponed_alone_does_not_move_the_main_block(monkeypatch):
+    """全場延賽的日子沒有任何新賽況可看，主位必須留在上一個比賽日。"""
+    body, _ = _run(monkeypatch, _today_script([_game(247, _TODAY), _game(248, _TODAY)]),
+                   snapshots={247: _snapshot(247, "postponed"),
+                              248: _snapshot(248, "postponed")})
+
+    assert body["today"]["started"] is False
+
+
+def test_worker_unavailable_degrades_silently_and_signals_the_maintainer(monkeypatch):
+    """情境 8｜worker 不可用：`started` 為假（訪客面因此退回純日期版面），
+    `live_source` 留給維護者訊號，且**不宣稱** Redis 或 worker 壞掉——API 這一側
+    分不出「Redis 不通」「worker 沒跑」「不在抓取窗口」，講死任何一個都超出證據。"""
+    body, _ = _run(monkeypatch, _today_script([_game(247, _TODAY), _game(248, _TODAY)]),
+                   snapshots={})
+
+    today = body["today"]
+    assert today["started"] is False
+    assert today["live_source"]["status"] == "unavailable"
+    assert today["live_source"]["snapshots"] == 0
+    assert today["live_source"]["games"] == 2
+    assert all(g["live"] is None for g in today["games"])
+
+
+def test_partial_snapshots_are_reported_as_partial_not_ok(monkeypatch):
+    body, _ = _run(monkeypatch, _today_script([_game(247, _TODAY), _game(248, _TODAY)]),
+                   snapshots={247: _snapshot(247, "live", inning=2, events=30)})
+
+    assert body["today"]["live_source"]["status"] == "partial"
+
+
+def test_live_source_disabled_when_redis_not_configured(monkeypatch):
+    """本機／CI 預設沒有 REDIS_URL。這與「有設定但拿不到資料」是不同的狀態，
+    判別碼不得共用（blueprint §8.1：不同語意不共用同一句空態）。"""
+    body, _ = _run(monkeypatch, _today_script([_game(247, _TODAY)]))
+
+    assert body["today"]["live_source"]["status"] == "disabled"
+    assert body["today"]["games"][0]["live"] is None
+
+
+def test_live_source_reason_never_leaks_implementation_vocabulary():
+    """**紅線**：`reason` 是訪客也收得到的 payload，不得出現元件名、環境變數名或成因
+    宣稱。要分辨「未啟用」與「啟用了但拿不到」看的是 `status` 這個機器可讀的判別碼。
+
+    窮舉四種輸入組合，而不是只抽驗異常那一支——上一版的斷言只蓋到 `unavailable`，
+    而洩漏實作字彙的其實是沒被蓋到的 `disabled` 分支。
+    """
+    banned = ("Redis", "REDIS", "redis", "worker", "Worker", "當機", "掛掉", "錯誤", "URL")
+    cases = [(False, 0, 3), (True, 3, 3), (True, 0, 3), (True, 1, 3), (True, 0, 0)]
+    reasons = [daily.live_source_status(*case)[1] for case in cases]
+
+    assert any(reason for reason in reasons), "至少要有一種情形給得出 reason，否則本測試空轉"
+    for reason in reasons:
+        for word in banned:
+            assert word not in (reason or ""), f"reason 洩漏實作字彙 {word}：{reason}"
+
+
+def test_today_query_is_scoped_to_the_requested_season():
+    """**回歸**：`as_of` 是外部給的日期，不像 latest／next 那樣自帶球季。
+
+    `latest_day`／`next_day` 是在 season 範圍內推導出來的，所以「只用日期查」隱含就選中
+    了正確的球季；`as_of` 沒有這個保護。少了 season 條件，`?season=2020` 會讓 today 區塊
+    裝進今天的 2026 場次，與同一份 response 的 `scope.season` 自相矛盾。
+
+    本測試釘的是查詢本身（腳本化 cursor 不會真的過濾），因為缺陷在 SQL 而不在後續邏輯。
+    """
+    import inspect
+
+    source = inspect.getsource(daily.daily_summary)
+    per_day = source[source.index("WHERE g.kind_code = ANY(%s) AND g.game_date = ANY(%s)"):]
+    per_day = per_day[:per_day.index("ORDER BY")]
+
+    assert "g.year = %s" in per_day, "逐日場次查詢必須帶 season 條件（as_of 不自帶球季）"
+
+
+def test_live_source_status_separates_no_games_from_unavailable(monkeypatch):
+    """裁決 B｜「今天沒有場次」與「今日即時來源不可用」必須是兩個可分辨的狀態。
+
+    後端這一側的分界是 `today` 本身：今天沒有排定場次時整塊為 None（呈現端據此說
+    「今日無賽程」），有場次卻一份快照都拿不到才是 `unavailable`。兩者在訪客面都會
+    退回純日期版面，長得一模一樣——分辨得靠這裡的結構差異，不能靠畫面。
+    """
+    rest_day, _ = _run(monkeypatch, _script(
+        latest=_TODAY - timedelta(days=1), next_day=_TODAY + timedelta(days=3), scoped=2,
+        games=[_game(1, _TODAY - timedelta(days=1), home=2, away=1),
+               _game(2, _TODAY + timedelta(days=3))],
+    ), snapshots={})
+    source_down, _ = _run(monkeypatch, _today_script([_game(247, _TODAY), _game(248, _TODAY)]),
+                          snapshots={})
+
+    assert rest_day["today"] is None
+    assert source_down["today"]["live_source"]["status"] == "unavailable"
+
+
+def test_db_completed_today_game_counts_as_started_without_any_snapshot(monkeypatch):
+    """情境 10 的另一半｜隔日爬蟲補完後 worker 早已不再供該場：DB 有比分即算已開始，
+    賽前機率同樣不得回來。"""
+    body, _ = _run(monkeypatch, _script(
+        latest=_TODAY, next_day=_TODAY + timedelta(days=1), scoped=2,
+        games=[_game(247, _TODAY, home=6, away=2), _game(250, _TODAY + timedelta(days=1))],
+    ), snapshots={})
+
+    game = body["today"]["games"][0]
+    assert body["today"]["started"] is True
+    assert game["completed"] is True and game["home_score"] == 6
+    assert "pregame" not in game
+
+
+def test_today_block_is_independent_of_latest_and_next_day(monkeypatch):
+    """情境 10｜跨日回退：今天的場次早已入庫（latest=今天、next=明天）時，
+    `today` 仍必須出現——它既不是「最近比賽日」也不是「下一批」。"""
+    body, _ = _run(monkeypatch, _script(
+        latest=_TODAY, next_day=_TODAY + timedelta(days=1), scoped=3,
+        games=[_game(247, _TODAY, home=3, away=1), _game(250, _TODAY + timedelta(days=1))],
+    ), snapshots={})
+
+    assert body["today"]["game_date"] == _TODAY.isoformat()
+    assert [g["game_sno"] for g in body["today"]["games"]] == [247]
+    assert body["next_slate"]["game_date"] == (_TODAY + timedelta(days=1)).isoformat()
+
+
+# --- 契約：今日區塊走台北日界（追加裁定 A）-----------------------------------
+
+def test_taipei_today_crosses_the_day_before_utc_does():
+    """純函式：台北比 UTC 早 8 小時，故 UTC 的 16:00 起就已經是台北的隔天。"""
+    assert daily.taipei_today(datetime(2026, 8, 7, 18, 0, tzinfo=UTC)) == date(2026, 8, 8)
+    assert daily.taipei_today(datetime(2026, 8, 7, 15, 59, tzinfo=UTC)) == date(2026, 8, 7)
+    # 台北 00:00 整（UTC 前一日 16:00）已算新的一天。
+    assert daily.taipei_today(datetime(2026, 8, 7, 16, 0, tzinfo=UTC)) == date(2026, 8, 8)
+
+
+def test_today_block_uses_taipei_day_when_container_clock_is_utc(monkeypatch):
+    """**回歸**（追加裁定 A）：容器 TZ 未設（生產實測落後台北 8 小時）時，台北凌晨
+    `date.today()` 會回前一天，於是首頁把**昨天**標成「今日賽事」。
+
+    情境：UTC 2026-08-07 18:00 ＝ 台北 2026-08-08 02:00。容器本地日還是 08-07，
+    但「今日賽事」必須是台北的 08-08。
+
+    同一份 response 裡 `as_of` 仍是容器本地日——那是刻意的，不是漏改：`as_of` 屬
+    upper bound 用法，DATA-TZ-BOUNDARY1 盤點後明確擱置到 REMEDY1 Phase 2
+    （見 `cpbl.completion` 模組註解與 `daily.taipei_today` 的說明）。
+    """
+    utc_now = datetime(2026, 8, 7, 18, 0, tzinfo=UTC)
+    container_day, taipei_day = date(2026, 8, 7), date(2026, 8, 8)
+    body, _ = _run(monkeypatch, _script(
+        latest=date(2026, 8, 6), next_day=taipei_day, scoped=3,
+        games=[_game(240, date(2026, 8, 6), home=4, away=2),
+               _game(246, container_day, home=1, away=0),   # UTC 的「今天」
+               _game(247, taipei_day), _game(248, taipei_day)],
+    ), snapshots={}, now=utc_now, today_local=container_day)
+
+    assert body["today"]["game_date"] == "2026-08-08", "今日區塊必須用台北日"
+    assert [g["game_sno"] for g in body["today"]["games"]] == [247, 248]
+    assert 246 not in [g["game_sno"] for g in body["today"]["games"]], \
+        "UTC 的『今天』（台北的昨天）不得被當成今日賽事"
+    # as_of 語意一字不改——兩個日界並存是本卡的刻意設計。
+    assert body["scope"]["as_of"] == "2026-08-07"
+
+
+def test_today_block_is_unchanged_when_container_runs_taipei(monkeypatch):
+    """對照組：容器本來就在台北時區時，兩個日界重合，行為與修改前完全相同。
+    這也是為什麼本機審不出上面那個缺陷。"""
+    taipei_now = datetime(2026, 8, 8, 2, 0, tzinfo=ZoneInfo("Asia/Taipei"))
+    same_day = date(2026, 8, 8)
+    body, _ = _run(monkeypatch, _script(
+        latest=date(2026, 8, 7), next_day=same_day, scoped=2,
+        games=[_game(240, date(2026, 8, 7), home=4, away=2), _game(247, same_day)],
+    ), snapshots={}, now=taipei_now, today_local=same_day)
+
+    assert body["today"]["game_date"] == body["scope"]["as_of"] == "2026-08-08"
+
+
+# --- 純函式：live view 與來源狀態 ---------------------------------------------
+
+def test_live_source_status_never_claims_health_it_cannot_observe():
+    assert daily.live_source_status(False, 0, 3)[0] == "disabled"
+    assert daily.live_source_status(True, 3, 3) == ("ok", None)
+    assert daily.live_source_status(True, 0, 3)[0] == "unavailable"
+    assert daily.live_source_status(True, 1, 3)[0] == "partial"
+    # 今天沒有場次時「零份快照」不是異常。
+    assert daily.live_source_status(True, 0, 0) == ("ok", None)
+
+
+def test_live_interrupt_is_two_staged_and_fails_closed():
+    """兩階降級的後端側。首屏只有這一格可用（呈現端在 SSR 不能碰瀏覽器時鐘）。"""
+    stage = lambda age: daily.live_interrupt("live", age, 45, "fresh", "ok")  # noqa: E731
+    assert stage(10) == "none"
+    assert stage(60) == "degraded"
+    assert stage(179) == "degraded"
+    assert stage(181) == "blackout"
+    # 無 fetched_at＝無從證明新鮮 → fail closed 收掉數字。
+    assert stage(None) == "blackout"
+    # 來源自陳錯誤即使很新也算一階。
+    assert daily.live_interrupt("live", 5, 45, "fresh", "error") == "degraded"
+    # final 是不可變快照，不因時間經過被誤標。
+    assert daily.live_interrupt("final", 86_400, None, "final", "ok") == "none"
+    # 賽前場次不套 3 分鐘黑幕（後端門檻 20 分鐘，卡上也沒有會變的數字）。
+    assert daily.live_interrupt("lineup_announced", 300, 1200, "fresh", "ok") == "none"
+
+
+def test_live_view_reads_bases_from_the_last_event_only_while_live():
+    log = [{"OutCnt": 0, "FirstBase": None, "SecondBase": None, "ThirdBase": None},
+           {"OutCnt": 2, "FirstBase": "王一", "SecondBase": None, "ThirdBase": "張三"}]
+    live = daily.live_view({**_snapshot(1, "live", inning=7, events=2), "livelog": log})
+
+    assert live["outs"] == 2
+    assert live["bases"] == {"first": True, "second": False, "third": True}
+
+    final = daily.live_view({**_snapshot(1, "final", inning=9, events=2), "livelog": log})
+    assert final["bases"] is None and final["outs"] is None
+
+
 # --- 契約：唯讀與查詢預算 -----------------------------------------------------
 
 def test_summary_is_read_only_and_within_query_budget(monkeypatch):
@@ -431,7 +845,8 @@ def test_live_latest_game_day_is_never_in_the_future(kind_code):
 def test_live_summary_matches_contract_shape():
     body = _live()
 
-    assert set(body) == {"scope", "latest_game_day", "next_slate", "freshness", "availability"}
+    assert set(body) == {"scope", "today", "latest_game_day", "next_slate",
+                         "freshness", "availability"}
     assert set(body["availability"]) == {"schedule", "results", "pregame_model"}
     for day in (body["latest_game_day"], body["next_slate"]):
         if day is not None:
