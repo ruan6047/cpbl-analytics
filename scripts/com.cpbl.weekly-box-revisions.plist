@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- macOS launchd 排程：每週一次 box 深度重抓（DATA-BOX-REVISION-SNAPSHOT1 深度層）。
+     目的：每日窗只看 [昨天,今天] 2 天，一場比賽被抓過一次後不會再被自動排程碰到；
+     每週把近 30 天已完成場的 box 重抓一次，讓賽後 30 天內的官方修正收斂進
+     cpbl.box_pitching_revisions 快照。與每日窗完全分開，不影響其 SLA。
+
+     時段選擇：**週一 14:10**。
+       · 週一＝中職固定休兵日，無新完成場，重跑不會與當日賽事資料競爭。
+       · 距 weekly-game-pitches.sh（週一 13:10）1 小時緩衝，降低撞期後其中一個
+         因忙碌鎖而整週被跳過的機率；兩者共用同一把 refresh lock、忙碌即跳過。
+       · 距每日 10:10 觸發點更遠，時間上不重疊。
+
+     安裝（⚠️ 屬部署步驟，須在本卡 merge 後、由需求方或部署者執行；
+           執行者交付碼與此檔，不自行 bootstrap 未合併分支的排程）：
+       ln -sf "$PWD/scripts/com.cpbl.weekly-box-revisions.plist" \
+         ~/Library/LaunchAgents/com.cpbl.weekly-box-revisions.plist
+       launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.cpbl.weekly-box-revisions.plist
+     立即測跑一次：launchctl kickstart -k gui/$(id -u)/com.cpbl.weekly-box-revisions
+     停用：launchctl bootout gui/$(id -u)/com.cpbl.weekly-box-revisions
+     狀態：logs/last-weekly-box-revisions.json（每日鏈不讀此檔，兩者狀態面互不影響） -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.cpbl.weekly-box-revisions</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/ruanruan/Dev/cpbl-analytics/scripts/weekly-box-revisions.sh</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/ruanruan/Dev/cpbl-analytics</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>/Users/ruanruan/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key><integer>1</integer>
+    <key>Hour</key><integer>14</integer>
+    <key>Minute</key><integer>10</integer>
+  </dict>
+  <key>RunAtLoad</key><false/>
+  <key>StandardOutPath</key><string>/Users/ruanruan/Dev/cpbl-analytics/logs/launchd-weekly-box-revisions.out.log</string>
+  <key>StandardErrorPath</key><string>/Users/ruanruan/Dev/cpbl-analytics/logs/launchd-weekly-box-revisions.err.log</string>
+</dict>
+</plist>

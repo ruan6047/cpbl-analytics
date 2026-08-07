@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from contextlib import contextmanager
+from datetime import date as dt_date
 from pathlib import Path
 
 import pytest
@@ -228,9 +229,13 @@ def test_report_answers_how_many_times_and_what_changed(db) -> None:
 
 
 def test_report_computes_days_since_game_against_real_game_date(db) -> None:
-    """接上真實 cpbl.games（唯讀 join）示範「賽後 N 天內改過幾次」算得出來。"""
-    import datetime as dt
+    """接上真實 cpbl.games（唯讀 join）示範「賽後 N 天內改過幾次」算得出來。
 
+    `expected_days` 刻意用 DB 端同一條「轉台北曆日再相減」算式重新算一次，而不是
+    Python `datetime.date.today()`——DB session 是 UTC、本機在台北 00:00–08:00
+    執行測試時兩者曆日會差一天（與 completion.py 記載的 D7 同一類問題），混用會
+    讓這個測試在台北凌晨變成間歇性失敗，不是本卡要驗的東西。
+    """
     record_box_pitching_revisions(
         REAL_GAME_YEAR, REAL_GAME_KIND, REAL_GAME_SNO,
         [{"PitcherAcnt": REAL_GAME_SENTINEL_ACNT, "InningPitchedCnt": 6, "InningPitchedDiv3Cnt": 0,
@@ -245,7 +250,11 @@ def test_report_computes_days_since_game_against_real_game_date(db) -> None:
     report = pitcher_er_revision_report(
         REAL_GAME_YEAR, REAL_GAME_KIND, REAL_GAME_SNO, pitcher_acnt=REAL_GAME_SENTINEL_ACNT,
     )
-    expected_days = (dt.date.today() - dt.date(2018, 3, 24)).days
+    with db() as c:
+        expected_days = c.execute(
+            "SELECT (now() AT TIME ZONE 'Asia/Taipei')::date - %s::date",
+            (dt_date(2018, 3, 24),),
+        ).fetchone()[0]
 
     assert len(report) == 2
     assert report[0]["days_since_game"] == expected_days

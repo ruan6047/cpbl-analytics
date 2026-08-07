@@ -321,3 +321,20 @@ def completed_snos(year: int, kind_code: str = KIND_REGULAR) -> list[int]:
             (year, kind_code),
         ).fetchall()
     return [r[0] for r in rows]
+
+
+def completed_snos_within_days(year: int, kind_code: str, days_back: int) -> list[int]:
+    """近 days_back 天內完成（比分>0 且 game_date 不晚於今天）的 game_sno。
+
+    給 DATA-BOX-REVISION-SNAPSHOT1 深度重抓層用：`completed_snos()` 是全季，
+    這支限定近 N 天，讓深度層的請求量不隨球季累積而線性成長。
+    """
+    with conn() as c:
+        rows = c.execute(
+            "SELECT game_sno FROM cpbl.games WHERE year = %s AND kind_code = %s "
+            "AND home_score + away_score > 0 AND game_date <= CURRENT_DATE "
+            "AND game_date >= CURRENT_DATE - (%s * INTERVAL '1 day') "
+            "ORDER BY game_sno",
+            (year, kind_code, days_back),
+        ).fetchall()
+    return [r[0] for r in rows]

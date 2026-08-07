@@ -145,6 +145,40 @@ docker compose exec -T db psql -U cpbl -d cpbl -c \
 （預設 `trigger=manual`）；若爬取已成功、只有 sync 失敗，修正 production 原因後應以
 `SKIP_SCRAPE=1 WITH_DETAIL=1 scripts/refresh-cpbl-prod.sh` 重試，**不可再次冷啟動 crawler**。
 
+### 官方 box 逐投手快照：每週深度重抓近 30 天（DATA-BOX-REVISION-SNAPSHOT1）
+
+`cpbl.box_pitching_revisions`（append-only、內容雜湊去重）記錄每次抓 box 時逐投手的
+outs／runs／earned_runs，讓「官方賽後修正判決」vs「livelog 漏記」從不可證偽變成可量測
+（源起 #107 ML-PITCHER-ER-REBUILD1 spec 基線 §7.6「假設(c)不可證偽」；該研究文件
+在其他分支進行中，本卡不碰）。每日窗只重抓 `[昨天,今天]`
+2 天，一場比賽被抓過一次後不會再被自動排程碰到；本排程每週把**近 30 天已完成場**的
+box 重抓一次，讓 30 天內的修正收斂進快照。**30 天是保守選擇、不是量測結果**——目前不知
+道官方改判的延遲分布（那正是本卡要累積出來的資料），累積出第一批 `days_since_game`
+分布後應回頭檢視這個窗要不要調整（見 `run_refresh_box_deep` 模組 docstring）。
+
+與每日窗完全分開，不改 `_incremental_detail` 的 2 天窗邏輯；獨立 CLI
+（`cpbl-refresh-box-deep`）+ 獨立 launchd job + 獨立狀態檔，落地方式比照上一節的
+逐球每週全季重跑：共用 refresh lock 且**忙碌即跳過**、失敗**不自動重試**（下週用同一個
+「近 30 天」窗從頭跑，不需要斷點續傳）、排在週一 14:10（距 weekly-game-pitches.sh 的
+13:10 一小時緩衝，降低撞期整週跳過的機率）。
+
+```bash
+ln -sf "$PWD/scripts/com.cpbl.weekly-box-revisions.plist" ~/Library/LaunchAgents/com.cpbl.weekly-box-revisions.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.cpbl.weekly-box-revisions.plist
+launchctl kickstart -k gui/$(id -u)/com.cpbl.weekly-box-revisions   # 立即測跑
+cat logs/last-weekly-box-revisions.json                              # 狀態（ok/skipped/failed）
+```
+
+實測成本（2026-08-08，本機真實跑 `cpbl-refresh-box-deep 2026 A 2` 與
+`... D 2`，非估算）：Playwright 瀏覽器啟動 ~7–9 秒（每次 CLI 呼叫各付一次）＋每場
+~1.4 秒（`--delay 1.2` 的請求間隔＋實際請求耗時），4 場 A 級耗時 14.2 秒、4 場 D 級
+11.1 秒；同窗重跑驗證冪等（79 列不變、`seen_count` 遞增）。今日量測近 30 天窗
+A=50 場、D=38 場，線性外推整週實跑約 **2–2.5 分鐘**（≈139 秒）——這是外推不是實測整窗，
+且會隨球季推進而變。
+
+**這個機制目前只能看見「近 30 天內」的修正**：30 天以外發生的官方改判不會被本快照觀測到
+（歷史場次亦無回溯快照，只有部署日起才開始累積）。
+
 ### 逐球 TrackMan：抓取維度 flag 與每週全季重跑（INGEST-GAME-TM-REFACTOR1-G4 Phase A）
 
 refresh 鏈的逐球抓取維度由 `CPBL_PITCH_INGEST` 控制（pydantic-settings）：
@@ -224,6 +258,7 @@ production 映像尚未部署，先停止同步並完成正常 main deploy，不
 | `cpbl-backfill-season <year>` | 官方 teamscore 回填某年 season 彙總(opendata 未涵蓋年) | 補新年度季彙總 |
 | `cpbl-scrape-games <from> <to>` | 逐場賽程/比分/先發/勝敗投(A 例行+C 總冠軍+E 季後) | 補當季比分（**逐打席的前提**） |
 | `cpbl-scrape-gamelog [year]` | 每場逐局比分 + 逐打席事件流(box/getlive) | 補賽況頁資料；需比分先就緒 |
+| `cpbl-refresh-box-deep [year] [kind] [days_back] [--delay]` | 深度重抓近 N 天（預設 30）已完成場的 box（等同對該窗重跑 `scrape_gamelogs`）；**只寫**逐投手 append-only 快照 `cpbl.box_pitching_revisions`（既有表照常冪等 UPSERT，非本卡新增行為） | DATA-BOX-REVISION-SNAPSHOT1 深度層：每日窗只看昨/今 2 天，一場抓過一次後不會再被自動排程碰到；每週跑一次收斂近 N 天內的官方賽後修正 |
 | `cpbl-scrape-stats <from> <to>` | 投打進階 + 團隊累計(ERA/WHIP/K9/OPS…) | 當季累計刷新 |
 | `cpbl-scrape-standings <year>` | 官方戰績(含上下半季/勝差/H2H/近十場) | 戰績刷新 |
 | `cpbl-scrape-pitches [delay]` | 逐球 TrackMan（**投手中心** logs API，全投手→自動涵蓋所有場次）；**現行每日 refresh 的唯一正式 writer** | 逐球刷新 |

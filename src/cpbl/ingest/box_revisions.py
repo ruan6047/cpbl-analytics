@@ -11,7 +11,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from typing import Any
 
 from cpbl.db import conn
@@ -81,10 +80,18 @@ def pitcher_er_revision_report(
     時為 None）。第一版（revision_no=1）的 changed_fields 恆為 {}（沒有前一版
     可比較，不代表「沒有被改過」）。
     """
+    # 天數差在 SQL 端算：game_date 是台灣賽程日曆日（無時區），DB session 是 UTC
+    # （`now()` 在台北 00:00–08:00 會落在前一個 UTC 曆日，與 completion.py 記載的
+    # 同一類日界問題——D7）。混用 Python `datetime.date()`（沿用 timestamptz 原始
+    # tzinfo）與台灣曆日會系統性算錯，故統一先把 fetched_at 轉到 Asia/Taipei 曆日
+    # 再相減，兩邊都在同一個時區基準上。
     query = """
         SELECT
             r.pitcher_acnt, r.fetched_at, r.inning_pitched_cnt, r.inning_pitched_div3,
-            r.runs, r.earned_runs, r.seen_count, g.game_date,
+            r.runs, r.earned_runs, r.seen_count,
+            CASE WHEN g.game_date IS NULL THEN NULL
+                 ELSE (r.fetched_at AT TIME ZONE 'Asia/Taipei')::date - g.game_date END
+                AS days_since_game,
             ROW_NUMBER() OVER (PARTITION BY r.pitcher_acnt ORDER BY r.fetched_at) AS revision_no,
             LAG(r.inning_pitched_cnt) OVER w AS prev_inning_pitched_cnt,
             LAG(r.inning_pitched_div3) OVER w AS prev_inning_pitched_div3,
@@ -103,7 +110,7 @@ def pitcher_er_revision_report(
 
     out: list[dict[str, Any]] = []
     for row in rows:
-        (acnt, fetched_at, ip_cnt, ip_div3, runs, er, seen_count, game_date, rev_no,
+        (acnt, fetched_at, ip_cnt, ip_div3, runs, er, seen_count, days_since_game, rev_no,
          prev_ip_cnt, prev_ip_div3, prev_runs, prev_er) = row
         changed: dict[str, tuple[Any, Any]] = {}
         if rev_no > 1:
@@ -113,9 +120,6 @@ def pitcher_er_revision_report(
                 changed["runs"] = (prev_runs, runs)
             if er != prev_er:
                 changed["earned_runs"] = (prev_er, er)
-        days_since_game = (
-            (fetched_at.date() if isinstance(fetched_at, datetime) else fetched_at) - game_date
-        ).days if game_date else None
         out.append({
             "pitcher_acnt": acnt,
             "revision_no": rev_no,
