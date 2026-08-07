@@ -1,0 +1,954 @@
+{
+  "as_of": "2026-08-07",
+  "endpoint": "https://stats.cpbl.com.tw/api/proxy/v1/games/{game_id}",
+  "evidence": "g4_saved=G4 Phase A 保存之官方回應全文（偏差樣本）；confirm=本卡單次確認請求之中性完成場",
+  "method": "把每份 payload 遞迴攤平成『鍵路徑 -> 型別』清單，再對每條路徑的**最後一段**套用關鍵字樣態（RESPONSIBLE_PATTERNS）。這是**關鍵字掃描**，不是逐條人工判讀。",
+  "claim_boundary": {
+    "supports": "在本語料的 11 份回應中，沒有任何鍵名命中 responsib|charg|inherit|earned|selfrun|duty|owner（EarnedRunCnt 除外，且其粒度為逐場逐投手）。",
+    "does_not_support": [
+      "不支持『回應裡不存在逐局責任資訊』這個更強的命題：本掃描抓不到(a) 不含上列字根的欄位命名，(b) 藏在值或結構而非鍵名的責任資訊。",
+      "不支持推廣到本語料以外的回應（11 場、kind A/D；非全季窮舉，未涵蓋 kind C/E）。",
+      "不支持推廣到本端點的其他回應形狀（未試 query 參數；見 RESULTS.md §6）。"
+    ],
+    "stronger_evidence_elsewhere": "逐局責任若存在只可能落在 InningScore[] 或 LiveLog[]，此二者的完整鍵集列於 granularity.json，可逐欄複核。"
+  },
+  "payload_count": 11,
+  "sources": [
+    {
+      "game_id": "2026-A-141",
+      "corpus": "g4_saved",
+      "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-141",
+      "fetched_at": "2026-08-05T07:54:12.839771+08:00",
+      "raw_sha256_recomputed": "4a6f82d3b9e0e54b36c2b887a8fda541b14aa90e8e331b05c05bf52d03e4a0e6",
+      "raw_sha256_anchor": "4a6f82d3b9e0e54b36c2b887a8fda541b14aa90e8e331b05c05bf52d03e4a0e6",
+      "raw_sha256_matches_anchor": true
+    },
+    {
+      "game_id": "2026-A-146",
+      "corpus": "g4_saved",
+      "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-146",
+      "fetched_at": "2026-08-05T07:54:15.487430+08:00",
+      "raw_sha256_recomputed": "15c01fcde161c89f85349d917982874ce97ff0f374257c6e857527d76966de80",
+      "raw_sha256_anchor": "15c01fcde161c89f85349d917982874ce97ff0f374257c6e857527d76966de80",
+      "raw_sha256_matches_anchor": true
+    },
+    {
+      "game_id": "2026-A-155",
+      "corpus": "g4_saved",
+      "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-155",
+      "fetched_at": "2026-08-05T07:54:21.050004+08:00",
+      "raw_sha256_recomputed": "005441a1c457bc1e7bdb72cd4e94ae393b8a0e3fd732c7f8894ed1b105505b79",
+      "raw_sha256_anchor": "005441a1c457bc1e7bdb72cd4e94ae393b8a0e3fd732c7f8894ed1b105505b79",
+      "raw_sha256_matches_anchor": true
+    },
+    {
+      "game_id": "2026-A-157",
+      "corpus": "g4_saved",
+      "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-157",
+      "fetched_at": "2026-08-05T07:54:22.178790+08:00",
+      "raw_sha256_recomputed": "9b0e48b63d4f73ef42988ac89fe4669a9250f6e5025de4140b84fb29df341c5c",
+      "raw_sha256_anchor": "9b0e48b63d4f73ef42988ac89fe4669a9250f6e5025de4140b84fb29df341c5c",
+      "raw_sha256_matches_anchor": true
+    },
+    {
+      "game_id": "2026-A-158",
+      "corpus": "g4_saved",
+      "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-158",
+      "fetched_at": "2026-08-05T07:54:22.724192+08:00",
+      "raw_sha256_recomputed": "5495a6812c26cabc9652cbaeb732aae897af1bd4dd89cd945da8f6acd6fa2371",
+      "raw_sha256_anchor": "5495a6812c26cabc9652cbaeb732aae897af1bd4dd89cd945da8f6acd6fa2371",
+      "raw_sha256_matches_anchor": true
+    },
+    {
+      "game_id": "2026-D-100",
+      "corpus": "g4_saved",
+      "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-100",
+      "fetched_at": "2026-08-05T07:56:01.611059+08:00",
+      "raw_sha256_recomputed": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898",
+      "raw_sha256_anchor": "52da7b57de6a5193a995e04808ce2d4db520dc300f3ae42fb7948bdf162e1898",
+      "raw_sha256_matches_anchor": true
+    },
+    {
+      "game_id": "2026-D-124",
+      "corpus": "g4_saved",
+      "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-124",
+      "fetched_at": "2026-08-05T07:56:09.733453+08:00",
+      "raw_sha256_recomputed": "4c88ffffc413e6834398c323b11063f31bf47c14cade0c3801e071764f60a248",
+      "raw_sha256_anchor": "4c88ffffc413e6834398c323b11063f31bf47c14cade0c3801e071764f60a248",
+      "raw_sha256_matches_anchor": true
+    },
+    {
+      "game_id": "2026-D-137",
+      "corpus": "g4_saved",
+      "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-137",
+      "fetched_at": "2026-08-05T07:56:15.176029+08:00",
+      "raw_sha256_recomputed": "dae70c35b1877b51365c7b2aeaa25b4acc0b8d0554068fa4edb0f18de57209af",
+      "raw_sha256_anchor": "dae70c35b1877b51365c7b2aeaa25b4acc0b8d0554068fa4edb0f18de57209af",
+      "raw_sha256_matches_anchor": true
+    },
+    {
+      "game_id": "2026-D-180",
+      "corpus": "g4_saved",
+      "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-180",
+      "fetched_at": "2026-08-05T07:56:34.298690+08:00",
+      "raw_sha256_recomputed": "d3ee5ffa74ed573b2e5d73eef96b5251f998b3a1e7e0460d944ad70a763cfbf8",
+      "raw_sha256_anchor": "d3ee5ffa74ed573b2e5d73eef96b5251f998b3a1e7e0460d944ad70a763cfbf8",
+      "raw_sha256_matches_anchor": true
+    },
+    {
+      "game_id": "2026-D-184",
+      "corpus": "g4_saved",
+      "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-D-184",
+      "fetched_at": "2026-08-05T07:56:36.346017+08:00",
+      "raw_sha256_recomputed": "1f9482e60986c66ec028c88f1d39a52d3e4f0ee4b9d8a52798f630e2c0c50493",
+      "raw_sha256_anchor": "1f9482e60986c66ec028c88f1d39a52d3e4f0ee4b9d8a52798f630e2c0c50493",
+      "raw_sha256_matches_anchor": true
+    },
+    {
+      "game_id": "2026-A-246",
+      "corpus": "confirm",
+      "endpoint_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-246",
+      "fetched_at": "2026-08-07T16:00:57.678608+08:00",
+      "raw_sha256_recomputed": "850b1024f28ed36d9f04d1ba4f724f6fa8e28be1e1c89cef1b60798967adfec2",
+      "raw_sha256_anchor": "850b1024f28ed36d9f04d1ba4f724f6fa8e28be1e1c89cef1b60798967adfec2",
+      "raw_sha256_matches_anchor": true
+    }
+  ],
+  "field_count": 262,
+  "fields": {
+    "$.Data": [
+      "dict"
+    ],
+    "$.Data.Game": [
+      "dict"
+    ],
+    "$.Data.Game.Closer": [
+      "NoneType",
+      "dict"
+    ],
+    "$.Data.Game.Closer.Acnt": [
+      "str"
+    ],
+    "$.Data.Game.Closer.Name": [
+      "str"
+    ],
+    "$.Data.Game.Field": [
+      "dict"
+    ],
+    "$.Data.Game.Field.Abbe": [
+      "str"
+    ],
+    "$.Data.Game.Field.No": [
+      "str"
+    ],
+    "$.Data.Game.GameId": [
+      "str"
+    ],
+    "$.Data.Game.GameSno": [
+      "int"
+    ],
+    "$.Data.Game.GameStatus": [
+      "str"
+    ],
+    "$.Data.Game.Home": [
+      "dict"
+    ],
+    "$.Data.Game.Home.AccumulationScore": [
+      "dict"
+    ],
+    "$.Data.Game.Home.AccumulationScore.L": [
+      "int"
+    ],
+    "$.Data.Game.Home.AccumulationScore.T": [
+      "int"
+    ],
+    "$.Data.Game.Home.AccumulationScore.W": [
+      "int"
+    ],
+    "$.Data.Game.Home.ErrorCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Hitters": [
+      "list"
+    ],
+    "$.Data.Game.Home.Hitters[]": [
+      "dict"
+    ],
+    "$.Data.Game.Home.Hitters[].Avg": [
+      "float",
+      "int"
+    ],
+    "$.Data.Game.Home.Hitters[].BasesONBallsCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Hitters[].DefendStation": [
+      "str"
+    ],
+    "$.Data.Game.Home.Hitters[].DoublePlayBatCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Hitters[].HitBYPitchCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Hitters[].HitCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Hitters[].HitterAcnt": [
+      "str"
+    ],
+    "$.Data.Game.Home.Hitters[].HitterName": [
+      "str"
+    ],
+    "$.Data.Game.Home.Hitters[].HittingCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Hitters[].HomeRunCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Hitters[].IntentionalBasesONBallsCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Hitters[].IsCurrent": [
+      "bool"
+    ],
+    "$.Data.Game.Home.Hitters[].Lineup": [
+      "int"
+    ],
+    "$.Data.Game.Home.Hitters[].OneBaseHitCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Hitters[].PlateAppearances": [
+      "int"
+    ],
+    "$.Data.Game.Home.Hitters[].Rboe": [
+      "int"
+    ],
+    "$.Data.Game.Home.Hitters[].RunBattedINCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Hitters[].SacrificeFlyCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Hitters[].SacrificeHitCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Hitters[].ScoreCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Hitters[].StealBaseFailCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Hitters[].StealBaseOKCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Hitters[].StrikeOutCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Hitters[].ThreeBaseHitCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Hitters[].TwoBaseHitCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.HittingCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.InningScore": [
+      "list"
+    ],
+    "$.Data.Game.Home.InningScore[]": [
+      "dict"
+    ],
+    "$.Data.Game.Home.InningScore[].Score": [
+      "str"
+    ],
+    "$.Data.Game.Home.InningScore[].Seq": [
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers": [
+      "list"
+    ],
+    "$.Data.Game.Home.Pitchers[]": [
+      "dict"
+    ],
+    "$.Data.Game.Home.Pitchers[].BalkCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers[].BasesONBallsCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers[].EarnedRunCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers[].Era": [
+      "float",
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers[].ErrorCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers[].HitBYPitchCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers[].HittingCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers[].HomeRunCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers[].InningPitchedCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers[].InningPitchedDiv3Cnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers[].IntentionalBasesONBallsCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers[].IsCurrent": [
+      "bool"
+    ],
+    "$.Data.Game.Home.Pitchers[].IsSaveFail": [
+      "str"
+    ],
+    "$.Data.Game.Home.Pitchers[].IsSaveOK": [
+      "str"
+    ],
+    "$.Data.Game.Home.Pitchers[].PitchCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers[].PitcherAcnt": [
+      "str"
+    ],
+    "$.Data.Game.Home.Pitchers[].PitcherName": [
+      "str"
+    ],
+    "$.Data.Game.Home.Pitchers[].PlateAppearances": [
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers[].ReliefPointCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers[].RoleType": [
+      "str"
+    ],
+    "$.Data.Game.Home.Pitchers[].RunCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers[].StrikeCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers[].StrikeOutCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers[].TotalL": [
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers[].TotalS": [
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers[].TotalW": [
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers[].Whip": [
+      "float",
+      "int"
+    ],
+    "$.Data.Game.Home.Pitchers[].WildPitchCnt": [
+      "int"
+    ],
+    "$.Data.Game.Home.Score": [
+      "int"
+    ],
+    "$.Data.Game.Home.Team": [
+      "dict"
+    ],
+    "$.Data.Game.Home.Team.BigLogoUrl": [
+      "str"
+    ],
+    "$.Data.Game.Home.Team.Code": [
+      "str"
+    ],
+    "$.Data.Game.Home.Team.Name": [
+      "str"
+    ],
+    "$.Data.Game.Home.Team.SmallLogoUrl": [
+      "str"
+    ],
+    "$.Data.Game.InningSeq": [
+      "int"
+    ],
+    "$.Data.Game.KindCode": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog": [
+      "list"
+    ],
+    "$.Data.Game.LiveLog[]": [
+      "dict"
+    ],
+    "$.Data.Game.LiveLog[].ActionName": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].BallCnt": [
+      "int"
+    ],
+    "$.Data.Game.LiveLog[].BattingActionName": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].BattingOrder": [
+      "int"
+    ],
+    "$.Data.Game.LiveLog[].CatcherAcnt": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].CatcherName": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].CatcherUniformNo": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].Content": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].DefendStationCode": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].FirstBase": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].GameSno": [
+      "int"
+    ],
+    "$.Data.Game.LiveLog[].HitterAcnt": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].HitterDefendStation": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].HitterImgPath": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].HitterLineup": [
+      "int"
+    ],
+    "$.Data.Game.LiveLog[].HitterName": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].HitterUniformNo": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].HomeScore": [
+      "int"
+    ],
+    "$.Data.Game.LiveLog[].InningSeq": [
+      "int"
+    ],
+    "$.Data.Game.LiveLog[].IsBall": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].IsChangePlayer": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].IsScoreCnt": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].IsSpecialEvent": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].IsStrike": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].KindCode": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].MainEventNo": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].OutCnt": [
+      "int"
+    ],
+    "$.Data.Game.LiveLog[].PitchCnt": [
+      "int"
+    ],
+    "$.Data.Game.LiveLog[].PitcherAcnt": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].PitcherImgPath": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].PitcherName": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].PitcherUniformNo": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].SecondBase": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].StrikeCnt": [
+      "int"
+    ],
+    "$.Data.Game.LiveLog[].ThirdBase": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].Trackman": [
+      "NoneType",
+      "dict"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Hit": [
+      "NoneType",
+      "dict"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Hit.LandingFlat": [
+      "NoneType",
+      "dict"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Hit.LandingFlat.Bearing": [
+      "float"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Hit.LandingFlat.Confidence": [
+      "NoneType",
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Hit.LandingFlat.Distance": [
+      "float"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Hit.LandingFlat.HangTime": [
+      "float"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Hit.Launch": [
+      "dict"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Hit.Launch.Angle": [
+      "float"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Hit.Launch.Direction": [
+      "float"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Hit.Launch.ExitSpeed": [
+      "float"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Hit.Launch.HitSpinRate": [
+      "float"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Pitch": [
+      "dict"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Pitch.Flight": [
+      "dict"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Pitch.Flight.PolyFit": [
+      "dict"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Pitch.Flight.PolyFit.PitchTrajectory": [
+      "dict"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Pitch.Flight.PolyFit.PitchTrajectory.X": [
+      "list"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Pitch.Flight.PolyFit.PitchTrajectory.X[]": [
+      "float"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Pitch.Flight.PolyFit.PitchTrajectory.Y": [
+      "list"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Pitch.Flight.PolyFit.PitchTrajectory.Y[]": [
+      "float"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Pitch.Flight.PolyFit.PitchTrajectory.Z": [
+      "list"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Pitch.Flight.PolyFit.PitchTrajectory.Z[]": [
+      "float",
+      "int"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Pitch.Location": [
+      "dict"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Pitch.Location.PlateLocHeight": [
+      "float"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Pitch.Location.PlateLocSide": [
+      "float"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Pitch.Location.ZoneSpeed": [
+      "float"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Pitch.Location.ZoneTime": [
+      "float"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Pitch.Release": [
+      "dict"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Pitch.Release.Extension": [
+      "float"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Pitch.Release.RelHeight": [
+      "float"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Pitch.Release.RelSide": [
+      "float"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Pitch.Release.RelSpeed": [
+      "float"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Pitch.Release.SpinRate": [
+      "float",
+      "int"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Play": [
+      "dict"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Play.PitchTag": [
+      "dict"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Play.PitchTag.AutoPitchType": [
+      "NoneType",
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Play.PitchTag.PitchCall": [
+      "NoneType",
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].Trackman.Play.PitchTag.TaggedPitchType": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].VisitingHomeType": [
+      "str"
+    ],
+    "$.Data.Game.LiveLog[].VisitingScore": [
+      "int"
+    ],
+    "$.Data.Game.LiveLog[].Year": [
+      "str"
+    ],
+    "$.Data.Game.LoserPitcher": [
+      "dict"
+    ],
+    "$.Data.Game.LoserPitcher.Acnt": [
+      "str"
+    ],
+    "$.Data.Game.LoserPitcher.Name": [
+      "str"
+    ],
+    "$.Data.Game.MVP": [
+      "NoneType",
+      "dict"
+    ],
+    "$.Data.Game.MVP.Acnt": [
+      "str"
+    ],
+    "$.Data.Game.MVP.Name": [
+      "str"
+    ],
+    "$.Data.Game.MVP.Team": [
+      "dict"
+    ],
+    "$.Data.Game.MVP.Team.BigLogoUrl": [
+      "str"
+    ],
+    "$.Data.Game.MVP.Team.Code": [
+      "str"
+    ],
+    "$.Data.Game.MVP.Team.Name": [
+      "str"
+    ],
+    "$.Data.Game.MVP.Team.SmallLogoUrl": [
+      "str"
+    ],
+    "$.Data.Game.MVP.YearlyCount": [
+      "int"
+    ],
+    "$.Data.Game.PreExeDate": [
+      "str"
+    ],
+    "$.Data.Game.Referee": [
+      "list"
+    ],
+    "$.Data.Game.Referee[]": [
+      "dict"
+    ],
+    "$.Data.Game.Referee[].Job": [
+      "str"
+    ],
+    "$.Data.Game.Referee[].Name": [
+      "str"
+    ],
+    "$.Data.Game.SkipTrackman": [
+      "bool"
+    ],
+    "$.Data.Game.Visiting": [
+      "dict"
+    ],
+    "$.Data.Game.Visiting.AccumulationScore": [
+      "dict"
+    ],
+    "$.Data.Game.Visiting.AccumulationScore.L": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.AccumulationScore.T": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.AccumulationScore.W": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.ErrorCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Hitters": [
+      "list"
+    ],
+    "$.Data.Game.Visiting.Hitters[]": [
+      "dict"
+    ],
+    "$.Data.Game.Visiting.Hitters[].Avg": [
+      "float",
+      "int"
+    ],
+    "$.Data.Game.Visiting.Hitters[].BasesONBallsCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Hitters[].DefendStation": [
+      "str"
+    ],
+    "$.Data.Game.Visiting.Hitters[].DoublePlayBatCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Hitters[].HitBYPitchCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Hitters[].HitCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Hitters[].HitterAcnt": [
+      "str"
+    ],
+    "$.Data.Game.Visiting.Hitters[].HitterName": [
+      "str"
+    ],
+    "$.Data.Game.Visiting.Hitters[].HittingCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Hitters[].HomeRunCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Hitters[].IntentionalBasesONBallsCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Hitters[].IsCurrent": [
+      "bool"
+    ],
+    "$.Data.Game.Visiting.Hitters[].Lineup": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Hitters[].OneBaseHitCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Hitters[].PlateAppearances": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Hitters[].Rboe": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Hitters[].RunBattedINCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Hitters[].SacrificeFlyCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Hitters[].SacrificeHitCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Hitters[].ScoreCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Hitters[].StealBaseFailCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Hitters[].StealBaseOKCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Hitters[].StrikeOutCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Hitters[].ThreeBaseHitCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Hitters[].TwoBaseHitCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.HittingCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.InningScore": [
+      "list"
+    ],
+    "$.Data.Game.Visiting.InningScore[]": [
+      "dict"
+    ],
+    "$.Data.Game.Visiting.InningScore[].Score": [
+      "str"
+    ],
+    "$.Data.Game.Visiting.InningScore[].Seq": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers": [
+      "list"
+    ],
+    "$.Data.Game.Visiting.Pitchers[]": [
+      "dict"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].BalkCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].BasesONBallsCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].EarnedRunCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].Era": [
+      "float",
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].ErrorCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].HitBYPitchCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].HittingCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].HomeRunCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].InningPitchedCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].InningPitchedDiv3Cnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].IntentionalBasesONBallsCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].IsCurrent": [
+      "bool"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].IsSaveFail": [
+      "str"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].IsSaveOK": [
+      "str"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].PitchCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].PitcherAcnt": [
+      "str"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].PitcherName": [
+      "str"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].PlateAppearances": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].ReliefPointCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].RoleType": [
+      "str"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].RunCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].StrikeCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].StrikeOutCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].TotalL": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].TotalS": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].TotalW": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].Whip": [
+      "float",
+      "int"
+    ],
+    "$.Data.Game.Visiting.Pitchers[].WildPitchCnt": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Score": [
+      "int"
+    ],
+    "$.Data.Game.Visiting.Team": [
+      "dict"
+    ],
+    "$.Data.Game.Visiting.Team.BigLogoUrl": [
+      "str"
+    ],
+    "$.Data.Game.Visiting.Team.Code": [
+      "str"
+    ],
+    "$.Data.Game.Visiting.Team.Name": [
+      "str"
+    ],
+    "$.Data.Game.Visiting.Team.SmallLogoUrl": [
+      "str"
+    ],
+    "$.Data.Game.VisitingHomeType": [
+      "int"
+    ],
+    "$.Data.Game.Week": [
+      "int"
+    ],
+    "$.Data.Game.WinningPitcher": [
+      "dict"
+    ],
+    "$.Data.Game.WinningPitcher.Acnt": [
+      "str"
+    ],
+    "$.Data.Game.WinningPitcher.Name": [
+      "str"
+    ]
+  },
+  "keys_mentioning_pitcher": [
+    "$.Data.Game.Home.Pitchers",
+    "$.Data.Game.Home.Pitchers[]",
+    "$.Data.Game.Home.Pitchers[].PitcherAcnt",
+    "$.Data.Game.Home.Pitchers[].PitcherName",
+    "$.Data.Game.LiveLog[].PitcherAcnt",
+    "$.Data.Game.LiveLog[].PitcherImgPath",
+    "$.Data.Game.LiveLog[].PitcherName",
+    "$.Data.Game.LiveLog[].PitcherUniformNo",
+    "$.Data.Game.LoserPitcher",
+    "$.Data.Game.Visiting.Pitchers",
+    "$.Data.Game.Visiting.Pitchers[]",
+    "$.Data.Game.Visiting.Pitchers[].PitcherAcnt",
+    "$.Data.Game.Visiting.Pitchers[].PitcherName",
+    "$.Data.Game.WinningPitcher"
+  ],
+  "keys_matching_responsibility_patterns": [
+    "$.Data.Game.Home.Pitchers[].EarnedRunCnt",
+    "$.Data.Game.Visiting.Pitchers[].EarnedRunCnt"
+  ],
+  "corpus_schema_comparison": {
+    "note": "g4_saved 是『有 TrackMan 差異才保存』的偏差樣本；confirm 是中性完成場。只在 g4_saved 出現的鍵若僅為情境性欄位（如無救援情境即無 Closer），不構成 schema 差異。",
+    "counts": {
+      "confirm": 260,
+      "g4_saved": 262
+    },
+    "only_in_confirm": [],
+    "only_in_g4_saved": [
+      "$.Data.Game.Closer.Acnt",
+      "$.Data.Game.Closer.Name"
+    ]
+  }
+}

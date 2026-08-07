@@ -1,0 +1,2152 @@
+{
+  "as_of": "2026-08-07",
+  "verdict_inputs": {
+    "_scope": "以下判定的作用域＝本語料 11 份**已觀測回應**（stats.cpbl 單場 API 預設回應，無 query 參數，kind A/D）。非『官方沒有此資料』，亦非『全季／全 kind 皆然』。",
+    "InningScore_carries_pitcher_attribution": false,
+    "LiveLog_carries_earned_run_marker": false,
+    "finest_pitcher_identity_granularity": "per-pitch (LiveLog[].PitcherAcnt + InningSeq)",
+    "finest_earned_run_granularity": "per-game per-pitcher (Pitchers[].EarnedRunCnt)",
+    "inning_level_earned_run_available_in_observed_responses": false,
+    "unearned_runs_observed_in_sample": 10,
+    "unearned_run_cases": [
+      {
+        "game_id": "2026-A-146",
+        "side": "Home",
+        "R": 10,
+        "ER": 9
+      },
+      {
+        "game_id": "2026-A-158",
+        "side": "Home",
+        "R": 5,
+        "ER": 4
+      },
+      {
+        "game_id": "2026-A-158",
+        "side": "Visiting",
+        "R": 6,
+        "ER": 5
+      },
+      {
+        "game_id": "2026-D-100",
+        "side": "Home",
+        "R": 8,
+        "ER": 7
+      },
+      {
+        "game_id": "2026-D-100",
+        "side": "Visiting",
+        "R": 6,
+        "ER": 4
+      },
+      {
+        "game_id": "2026-D-137",
+        "side": "Home",
+        "R": 4,
+        "ER": 3
+      },
+      {
+        "game_id": "2026-D-180",
+        "side": "Visiting",
+        "R": 3,
+        "ER": 2
+      },
+      {
+        "game_id": "2026-D-184",
+        "side": "Home",
+        "R": 7,
+        "ER": 6
+      },
+      {
+        "game_id": "2026-D-184",
+        "side": "Visiting",
+        "R": 5,
+        "ER": 3
+      },
+      {
+        "game_id": "2026-A-246",
+        "side": "Home",
+        "R": 8,
+        "ER": 7
+      }
+    ]
+  },
+  "evidence_strength": {
+    "weak_keyword_scan": "field_inventory.json 的鍵名關鍵字掃描——只能說『沒命中這些字根』，不能嚴格證明 absence（見 field_inventory.json.claim_boundary）。",
+    "strong_complete_key_sets": "逐局責任只可能落在 InningScore[] 或 LiveLog[]；此二者的**完整**鍵集列於 inning_level_containers，短到可逐欄讀完，複核者不需採信執行者的目視。",
+    "value_level_check_scope": "LiveLog 的**值面**另有 run_attribution.json 的重建失敗作為補充證據（值裡也重建不出官方歸屬）；其餘區塊的值面未逐一檢視。",
+    "inning_level_containers": {
+      "InningScore[]": [
+        "Score",
+        "Seq"
+      ],
+      "LiveLog[]": [
+        "ActionName",
+        "BallCnt",
+        "BattingActionName",
+        "BattingOrder",
+        "CatcherAcnt",
+        "CatcherName",
+        "CatcherUniformNo",
+        "Content",
+        "DefendStationCode",
+        "FirstBase",
+        "GameSno",
+        "HitterAcnt",
+        "HitterDefendStation",
+        "HitterImgPath",
+        "HitterLineup",
+        "HitterName",
+        "HitterUniformNo",
+        "HomeScore",
+        "InningSeq",
+        "IsBall",
+        "IsChangePlayer",
+        "IsScoreCnt",
+        "IsSpecialEvent",
+        "IsStrike",
+        "KindCode",
+        "MainEventNo",
+        "OutCnt",
+        "PitchCnt",
+        "PitcherAcnt",
+        "PitcherImgPath",
+        "PitcherName",
+        "PitcherUniformNo",
+        "SecondBase",
+        "StrikeCnt",
+        "ThirdBase",
+        "Trackman",
+        "VisitingHomeType",
+        "VisitingScore",
+        "Year"
+      ]
+    }
+  },
+  "zero_pitch_event_examples": [
+    {
+      "game_id": "2026-A-141",
+      "inning": 3,
+      "pitcher": "艾速特",
+      "content": "教練暫停",
+      "main_event_no": "0310018100"
+    },
+    {
+      "game_id": "2026-A-141",
+      "inning": 3,
+      "pitcher": "陳品宏",
+      "content": "投手牽制一壘跑者",
+      "main_event_no": "0320015000"
+    },
+    {
+      "game_id": "2026-A-141",
+      "inning": 3,
+      "pitcher": "陳品宏",
+      "content": "更換代打：王博玄=>高聖恩。",
+      "main_event_no": "0320017000"
+    },
+    {
+      "game_id": "2026-A-141",
+      "inning": 4,
+      "pitcher": "艾速特",
+      "content": "更換守備：高聖恩-=>右外野手。",
+      "main_event_no": "0410001000"
+    },
+    {
+      "game_id": "2026-A-141",
+      "inning": 4,
+      "pitcher": "艾速特",
+      "content": "投手牽制一壘跑者",
+      "main_event_no": "0410017000"
+    },
+    {
+      "game_id": "2026-A-141",
+      "inning": 6,
+      "pitcher": "艾速特",
+      "content": "更換選手：捕手-劉時豪=>捕手-陳致嘉。",
+      "main_event_no": "0610001000"
+    },
+    {
+      "game_id": "2026-A-141",
+      "inning": 7,
+      "pitcher": "艾速特",
+      "content": "更換選手：右外野手-高聖恩=>右外野手-顏清浤。\r\n更換選手：二壘手-曾昱磬=>二壘手-陳飛霖。\r\n更換投手：艾速特=>",
+      "main_event_no": "0710001000"
+    },
+    {
+      "game_id": "2026-A-141",
+      "inning": 7,
+      "pitcher": "李欣穎",
+      "content": "投手牽制一壘跑者",
+      "main_event_no": "0710011000"
+    }
+  ],
+  "per_game": [
+    {
+      "game_id": "2026-A-141",
+      "corpus": "g4_saved",
+      "kind_code": "A",
+      "sides": {
+        "Home": {
+          "pitcher_count": 3,
+          "sum_RunCnt": 3,
+          "sum_EarnedRunCnt": 3,
+          "opponent_final_score": 3,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000007053",
+              "role": "先發",
+              "IP": 6,
+              "IPdiv3": 0,
+              "R": 3,
+              "ER": 3,
+              "pitches": 95
+            },
+            {
+              "acnt": "0000006918",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 22
+            },
+            {
+              "acnt": "0000007580",
+              "role": "最後一任",
+              "IP": 2,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 19
+            }
+          ]
+        },
+        "Visiting": {
+          "pitcher_count": 4,
+          "sum_RunCnt": 1,
+          "sum_EarnedRunCnt": 1,
+          "opponent_final_score": 1,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000007299",
+              "role": "先發",
+              "IP": 6,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 87
+            },
+            {
+              "acnt": "0000005561",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 2,
+              "R": 1,
+              "ER": 1,
+              "pitches": 16
+            },
+            {
+              "acnt": "0000005790",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 1,
+              "R": 0,
+              "ER": 0,
+              "pitches": 11
+            },
+            {
+              "acnt": "0000006227",
+              "role": "最後一任",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 8
+            }
+          ]
+        }
+      },
+      "livelog_rows": 275,
+      "livelog_keys": [
+        "ActionName",
+        "BallCnt",
+        "BattingActionName",
+        "BattingOrder",
+        "CatcherAcnt",
+        "CatcherName",
+        "CatcherUniformNo",
+        "Content",
+        "DefendStationCode",
+        "FirstBase",
+        "GameSno",
+        "HitterAcnt",
+        "HitterDefendStation",
+        "HitterImgPath",
+        "HitterLineup",
+        "HitterName",
+        "HitterUniformNo",
+        "HomeScore",
+        "InningSeq",
+        "IsBall",
+        "IsChangePlayer",
+        "IsScoreCnt",
+        "IsSpecialEvent",
+        "IsStrike",
+        "KindCode",
+        "MainEventNo",
+        "OutCnt",
+        "PitchCnt",
+        "PitcherAcnt",
+        "PitcherImgPath",
+        "PitcherName",
+        "PitcherUniformNo",
+        "SecondBase",
+        "StrikeCnt",
+        "ThirdBase",
+        "Trackman",
+        "VisitingHomeType",
+        "VisitingScore",
+        "Year"
+      ],
+      "livelog_has_earned_run_marker": false,
+      "livelog_scoring_rows": 3,
+      "livelog_zero_pitch_rows": 15,
+      "game_level_decision_fields": [
+        "WinningPitcher",
+        "LoserPitcher",
+        "Closer"
+      ]
+    },
+    {
+      "game_id": "2026-A-146",
+      "corpus": "g4_saved",
+      "kind_code": "A",
+      "sides": {
+        "Home": {
+          "pitcher_count": 4,
+          "sum_RunCnt": 10,
+          "sum_EarnedRunCnt": 9,
+          "opponent_final_score": 10,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000006507",
+              "role": "先發",
+              "IP": 4,
+              "IPdiv3": 0,
+              "R": 7,
+              "ER": 7,
+              "pitches": 98
+            },
+            {
+              "acnt": "0000006833",
+              "role": "中繼",
+              "IP": 2,
+              "IPdiv3": 0,
+              "R": 3,
+              "ER": 2,
+              "pitches": 42
+            },
+            {
+              "acnt": "0000006921",
+              "role": "中繼",
+              "IP": 2,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 15
+            },
+            {
+              "acnt": "0000006918",
+              "role": "最後一任",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 8
+            }
+          ]
+        },
+        "Visiting": {
+          "pitcher_count": 2,
+          "sum_RunCnt": 2,
+          "sum_EarnedRunCnt": 2,
+          "opponent_final_score": 2,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000006555",
+              "role": "先發",
+              "IP": 6,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 73
+            },
+            {
+              "acnt": "0000000762",
+              "role": "最後一任",
+              "IP": 3,
+              "IPdiv3": 0,
+              "R": 2,
+              "ER": 2,
+              "pitches": 36
+            }
+          ]
+        }
+      },
+      "livelog_rows": 292,
+      "livelog_keys": [
+        "ActionName",
+        "BallCnt",
+        "BattingActionName",
+        "BattingOrder",
+        "CatcherAcnt",
+        "CatcherName",
+        "CatcherUniformNo",
+        "Content",
+        "DefendStationCode",
+        "FirstBase",
+        "GameSno",
+        "HitterAcnt",
+        "HitterDefendStation",
+        "HitterImgPath",
+        "HitterLineup",
+        "HitterName",
+        "HitterUniformNo",
+        "HomeScore",
+        "InningSeq",
+        "IsBall",
+        "IsChangePlayer",
+        "IsScoreCnt",
+        "IsSpecialEvent",
+        "IsStrike",
+        "KindCode",
+        "MainEventNo",
+        "OutCnt",
+        "PitchCnt",
+        "PitcherAcnt",
+        "PitcherImgPath",
+        "PitcherName",
+        "PitcherUniformNo",
+        "SecondBase",
+        "StrikeCnt",
+        "ThirdBase",
+        "Trackman",
+        "VisitingHomeType",
+        "VisitingScore",
+        "Year"
+      ],
+      "livelog_has_earned_run_marker": false,
+      "livelog_scoring_rows": 9,
+      "livelog_zero_pitch_rows": 19,
+      "game_level_decision_fields": [
+        "WinningPitcher",
+        "LoserPitcher",
+        "Closer"
+      ]
+    },
+    {
+      "game_id": "2026-A-155",
+      "corpus": "g4_saved",
+      "kind_code": "A",
+      "sides": {
+        "Home": {
+          "pitcher_count": 4,
+          "sum_RunCnt": 1,
+          "sum_EarnedRunCnt": 1,
+          "opponent_final_score": 1,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000007783",
+              "role": "先發",
+              "IP": 6,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 101
+            },
+            {
+              "acnt": "0000002347",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 25
+            },
+            {
+              "acnt": "0000006870",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 15
+            },
+            {
+              "acnt": "0000002280",
+              "role": "最後一任",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 1,
+              "ER": 1,
+              "pitches": 21
+            }
+          ]
+        },
+        "Visiting": {
+          "pitcher_count": 4,
+          "sum_RunCnt": 6,
+          "sum_EarnedRunCnt": 6,
+          "opponent_final_score": 6,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000006848",
+              "role": "先發",
+              "IP": 4,
+              "IPdiv3": 2,
+              "R": 5,
+              "ER": 5,
+              "pitches": 84
+            },
+            {
+              "acnt": "0000006127",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 1,
+              "R": 0,
+              "ER": 0,
+              "pitches": 19
+            },
+            {
+              "acnt": "0000007044",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 14
+            },
+            {
+              "acnt": "0000005315",
+              "role": "最後一任",
+              "IP": 2,
+              "IPdiv3": 0,
+              "R": 1,
+              "ER": 1,
+              "pitches": 26
+            }
+          ]
+        }
+      },
+      "livelog_rows": 324,
+      "livelog_keys": [
+        "ActionName",
+        "BallCnt",
+        "BattingActionName",
+        "BattingOrder",
+        "CatcherAcnt",
+        "CatcherName",
+        "CatcherUniformNo",
+        "Content",
+        "DefendStationCode",
+        "FirstBase",
+        "GameSno",
+        "HitterAcnt",
+        "HitterDefendStation",
+        "HitterImgPath",
+        "HitterLineup",
+        "HitterName",
+        "HitterUniformNo",
+        "HomeScore",
+        "InningSeq",
+        "IsBall",
+        "IsChangePlayer",
+        "IsScoreCnt",
+        "IsSpecialEvent",
+        "IsStrike",
+        "KindCode",
+        "MainEventNo",
+        "OutCnt",
+        "PitchCnt",
+        "PitcherAcnt",
+        "PitcherImgPath",
+        "PitcherName",
+        "PitcherUniformNo",
+        "SecondBase",
+        "StrikeCnt",
+        "ThirdBase",
+        "Trackman",
+        "VisitingHomeType",
+        "VisitingScore",
+        "Year"
+      ],
+      "livelog_has_earned_run_marker": false,
+      "livelog_scoring_rows": 5,
+      "livelog_zero_pitch_rows": 16,
+      "game_level_decision_fields": [
+        "WinningPitcher",
+        "LoserPitcher",
+        "Closer"
+      ]
+    },
+    {
+      "game_id": "2026-A-157",
+      "corpus": "g4_saved",
+      "kind_code": "A",
+      "sides": {
+        "Home": {
+          "pitcher_count": 4,
+          "sum_RunCnt": 1,
+          "sum_EarnedRunCnt": 1,
+          "opponent_final_score": 1,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000007779",
+              "role": "先發",
+              "IP": 7,
+              "IPdiv3": 0,
+              "R": 1,
+              "ER": 1,
+              "pitches": 90
+            },
+            {
+              "acnt": "0000005789",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 2,
+              "R": 0,
+              "ER": 0,
+              "pitches": 15
+            },
+            {
+              "acnt": "0000001821",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 1,
+              "R": 0,
+              "ER": 0,
+              "pitches": 5
+            },
+            {
+              "acnt": "0000005788",
+              "role": "最後一任",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 21
+            }
+          ]
+        },
+        "Visiting": {
+          "pitcher_count": 5,
+          "sum_RunCnt": 9,
+          "sum_EarnedRunCnt": 9,
+          "opponent_final_score": 9,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000007560",
+              "role": "先發",
+              "IP": 5,
+              "IPdiv3": 0,
+              "R": 4,
+              "ER": 4,
+              "pitches": 93
+            },
+            {
+              "acnt": "0000003506",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 2,
+              "R": 3,
+              "ER": 3,
+              "pitches": 18
+            },
+            {
+              "acnt": "0000001232",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 1,
+              "R": 0,
+              "ER": 0,
+              "pitches": 1
+            },
+            {
+              "acnt": "0000007279",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 2,
+              "ER": 2,
+              "pitches": 16
+            },
+            {
+              "acnt": "0000006923",
+              "role": "最後一任",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 23
+            }
+          ]
+        }
+      },
+      "livelog_rows": 308,
+      "livelog_keys": [
+        "ActionName",
+        "BallCnt",
+        "BattingActionName",
+        "BattingOrder",
+        "CatcherAcnt",
+        "CatcherName",
+        "CatcherUniformNo",
+        "Content",
+        "DefendStationCode",
+        "FirstBase",
+        "GameSno",
+        "HitterAcnt",
+        "HitterDefendStation",
+        "HitterImgPath",
+        "HitterLineup",
+        "HitterName",
+        "HitterUniformNo",
+        "HomeScore",
+        "InningSeq",
+        "IsBall",
+        "IsChangePlayer",
+        "IsScoreCnt",
+        "IsSpecialEvent",
+        "IsStrike",
+        "KindCode",
+        "MainEventNo",
+        "OutCnt",
+        "PitchCnt",
+        "PitcherAcnt",
+        "PitcherImgPath",
+        "PitcherName",
+        "PitcherUniformNo",
+        "SecondBase",
+        "StrikeCnt",
+        "ThirdBase",
+        "Trackman",
+        "VisitingHomeType",
+        "VisitingScore",
+        "Year"
+      ],
+      "livelog_has_earned_run_marker": false,
+      "livelog_scoring_rows": 7,
+      "livelog_zero_pitch_rows": 17,
+      "game_level_decision_fields": [
+        "WinningPitcher",
+        "LoserPitcher",
+        "Closer"
+      ]
+    },
+    {
+      "game_id": "2026-A-158",
+      "corpus": "g4_saved",
+      "kind_code": "A",
+      "sides": {
+        "Home": {
+          "pitcher_count": 9,
+          "sum_RunCnt": 5,
+          "sum_EarnedRunCnt": 4,
+          "opponent_final_score": 5,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000007783",
+              "role": "先發",
+              "IP": 2,
+              "IPdiv3": 2,
+              "R": 2,
+              "ER": 2,
+              "pitches": 58
+            },
+            {
+              "acnt": "0000002280",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 2,
+              "R": 0,
+              "ER": 0,
+              "pitches": 13
+            },
+            {
+              "acnt": "0000001524",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 2,
+              "R": 0,
+              "ER": 0,
+              "pitches": 16
+            },
+            {
+              "acnt": "0000005561",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 13
+            },
+            {
+              "acnt": "0000002347",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 2,
+              "R": 0,
+              "ER": 0,
+              "pitches": 15
+            },
+            {
+              "acnt": "0000003292",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 2,
+              "R": 1,
+              "ER": 1,
+              "pitches": 9
+            },
+            {
+              "acnt": "0000006870",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 2,
+              "R": 0,
+              "ER": 0,
+              "pitches": 10
+            },
+            {
+              "acnt": "0000006227",
+              "role": "中繼",
+              "IP": 2,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 20
+            },
+            {
+              "acnt": "0000005790",
+              "role": "最後一任",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 2,
+              "ER": 1,
+              "pitches": 20
+            }
+          ]
+        },
+        "Visiting": {
+          "pitcher_count": 7,
+          "sum_RunCnt": 6,
+          "sum_EarnedRunCnt": 5,
+          "opponent_final_score": 6,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000007778",
+              "role": "先發",
+              "IP": 5,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 93
+            },
+            {
+              "acnt": "0000007044",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 13
+            },
+            {
+              "acnt": "0000000998",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 24
+            },
+            {
+              "acnt": "0000006818",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 3,
+              "ER": 3,
+              "pitches": 22
+            },
+            {
+              "acnt": "0000004637",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 13
+            },
+            {
+              "acnt": "0000007292",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 12
+            },
+            {
+              "acnt": "0000007293",
+              "role": "最後一任",
+              "IP": 0,
+              "IPdiv3": 1,
+              "R": 3,
+              "ER": 2,
+              "pitches": 10
+            }
+          ]
+        }
+      },
+      "livelog_rows": 407,
+      "livelog_keys": [
+        "ActionName",
+        "BallCnt",
+        "BattingActionName",
+        "BattingOrder",
+        "CatcherAcnt",
+        "CatcherName",
+        "CatcherUniformNo",
+        "Content",
+        "DefendStationCode",
+        "FirstBase",
+        "GameSno",
+        "HitterAcnt",
+        "HitterDefendStation",
+        "HitterImgPath",
+        "HitterLineup",
+        "HitterName",
+        "HitterUniformNo",
+        "HomeScore",
+        "InningSeq",
+        "IsBall",
+        "IsChangePlayer",
+        "IsScoreCnt",
+        "IsSpecialEvent",
+        "IsStrike",
+        "KindCode",
+        "MainEventNo",
+        "OutCnt",
+        "PitchCnt",
+        "PitcherAcnt",
+        "PitcherImgPath",
+        "PitcherName",
+        "PitcherUniformNo",
+        "SecondBase",
+        "StrikeCnt",
+        "ThirdBase",
+        "Trackman",
+        "VisitingHomeType",
+        "VisitingScore",
+        "Year"
+      ],
+      "livelog_has_earned_run_marker": false,
+      "livelog_scoring_rows": 10,
+      "livelog_zero_pitch_rows": 37,
+      "game_level_decision_fields": [
+        "WinningPitcher",
+        "LoserPitcher",
+        "Closer"
+      ]
+    },
+    {
+      "game_id": "2026-D-100",
+      "corpus": "g4_saved",
+      "kind_code": "D",
+      "sides": {
+        "Home": {
+          "pitcher_count": 4,
+          "sum_RunCnt": 8,
+          "sum_EarnedRunCnt": 7,
+          "opponent_final_score": 8,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000006860",
+              "role": "先發",
+              "IP": 3,
+              "IPdiv3": 1,
+              "R": 6,
+              "ER": 5,
+              "pitches": 74
+            },
+            {
+              "acnt": "0000006954",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 2,
+              "R": 0,
+              "ER": 0,
+              "pitches": 23
+            },
+            {
+              "acnt": "0000007316",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 2,
+              "ER": 2,
+              "pitches": 26
+            },
+            {
+              "acnt": "0000004629",
+              "role": "最後一任",
+              "IP": 3,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 39
+            }
+          ]
+        },
+        "Visiting": {
+          "pitcher_count": 5,
+          "sum_RunCnt": 6,
+          "sum_EarnedRunCnt": 4,
+          "opponent_final_score": 6,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000007303",
+              "role": "先發",
+              "IP": 5,
+              "IPdiv3": 1,
+              "R": 5,
+              "ER": 3,
+              "pitches": 97
+            },
+            {
+              "acnt": "0000007628",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 2,
+              "R": 0,
+              "ER": 0,
+              "pitches": 21
+            },
+            {
+              "acnt": "0000002272",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 24
+            },
+            {
+              "acnt": "0000006917",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 1,
+              "R": 1,
+              "ER": 1,
+              "pitches": 22
+            },
+            {
+              "acnt": "0000007580",
+              "role": "最後一任",
+              "IP": 1,
+              "IPdiv3": 2,
+              "R": 0,
+              "ER": 0,
+              "pitches": 17
+            }
+          ]
+        }
+      },
+      "livelog_rows": 366,
+      "livelog_keys": [
+        "ActionName",
+        "BallCnt",
+        "BattingActionName",
+        "BattingOrder",
+        "CatcherAcnt",
+        "CatcherName",
+        "CatcherUniformNo",
+        "Content",
+        "DefendStationCode",
+        "FirstBase",
+        "GameSno",
+        "HitterAcnt",
+        "HitterDefendStation",
+        "HitterImgPath",
+        "HitterLineup",
+        "HitterName",
+        "HitterUniformNo",
+        "HomeScore",
+        "InningSeq",
+        "IsBall",
+        "IsChangePlayer",
+        "IsScoreCnt",
+        "IsSpecialEvent",
+        "IsStrike",
+        "KindCode",
+        "MainEventNo",
+        "OutCnt",
+        "PitchCnt",
+        "PitcherAcnt",
+        "PitcherImgPath",
+        "PitcherName",
+        "PitcherUniformNo",
+        "SecondBase",
+        "StrikeCnt",
+        "ThirdBase",
+        "Trackman",
+        "VisitingHomeType",
+        "VisitingScore",
+        "Year"
+      ],
+      "livelog_has_earned_run_marker": false,
+      "livelog_scoring_rows": 11,
+      "livelog_zero_pitch_rows": 20,
+      "game_level_decision_fields": [
+        "WinningPitcher",
+        "LoserPitcher",
+        "Closer"
+      ]
+    },
+    {
+      "game_id": "2026-D-124",
+      "corpus": "g4_saved",
+      "kind_code": "D",
+      "sides": {
+        "Home": {
+          "pitcher_count": 6,
+          "sum_RunCnt": 0,
+          "sum_EarnedRunCnt": 0,
+          "opponent_final_score": 0,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000002345",
+              "role": "先發",
+              "IP": 3,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 42
+            },
+            {
+              "acnt": "0000007626",
+              "role": "中繼",
+              "IP": 2,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 29
+            },
+            {
+              "acnt": "0000006867",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 9
+            },
+            {
+              "acnt": "0000006923",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 17
+            },
+            {
+              "acnt": "0000000776",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 12
+            },
+            {
+              "acnt": "0000007279",
+              "role": "最後一任",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 19
+            }
+          ]
+        },
+        "Visiting": {
+          "pitcher_count": 5,
+          "sum_RunCnt": 3,
+          "sum_EarnedRunCnt": 3,
+          "opponent_final_score": 3,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000007062",
+              "role": "先發",
+              "IP": 2,
+              "IPdiv3": 1,
+              "R": 2,
+              "ER": 2,
+              "pitches": 55
+            },
+            {
+              "acnt": "0000006954",
+              "role": "中繼",
+              "IP": 2,
+              "IPdiv3": 1,
+              "R": 1,
+              "ER": 1,
+              "pitches": 32
+            },
+            {
+              "acnt": "0000007316",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 1,
+              "R": 0,
+              "ER": 0,
+              "pitches": 24
+            },
+            {
+              "acnt": "0000005372",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 14
+            },
+            {
+              "acnt": "0000006855",
+              "role": "最後一任",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 15
+            }
+          ]
+        }
+      },
+      "livelog_rows": 288,
+      "livelog_keys": [
+        "ActionName",
+        "BallCnt",
+        "BattingActionName",
+        "BattingOrder",
+        "CatcherAcnt",
+        "CatcherName",
+        "CatcherUniformNo",
+        "Content",
+        "DefendStationCode",
+        "FirstBase",
+        "GameSno",
+        "HitterAcnt",
+        "HitterDefendStation",
+        "HitterImgPath",
+        "HitterLineup",
+        "HitterName",
+        "HitterUniformNo",
+        "HomeScore",
+        "InningSeq",
+        "IsBall",
+        "IsChangePlayer",
+        "IsScoreCnt",
+        "IsSpecialEvent",
+        "IsStrike",
+        "KindCode",
+        "MainEventNo",
+        "OutCnt",
+        "PitchCnt",
+        "PitcherAcnt",
+        "PitcherImgPath",
+        "PitcherName",
+        "PitcherUniformNo",
+        "SecondBase",
+        "StrikeCnt",
+        "ThirdBase",
+        "Trackman",
+        "VisitingHomeType",
+        "VisitingScore",
+        "Year"
+      ],
+      "livelog_has_earned_run_marker": false,
+      "livelog_scoring_rows": 3,
+      "livelog_zero_pitch_rows": 14,
+      "game_level_decision_fields": [
+        "WinningPitcher",
+        "LoserPitcher",
+        "Closer"
+      ]
+    },
+    {
+      "game_id": "2026-D-137",
+      "corpus": "g4_saved",
+      "kind_code": "D",
+      "sides": {
+        "Home": {
+          "pitcher_count": 5,
+          "sum_RunCnt": 4,
+          "sum_EarnedRunCnt": 3,
+          "opponent_final_score": 4,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000003608",
+              "role": "先發",
+              "IP": 4,
+              "IPdiv3": 0,
+              "R": 1,
+              "ER": 1,
+              "pitches": 62
+            },
+            {
+              "acnt": "0000006236",
+              "role": "中繼",
+              "IP": 4,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 49
+            },
+            {
+              "acnt": "0000000135",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 13
+            },
+            {
+              "acnt": "0000006878",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 2,
+              "R": 3,
+              "ER": 2,
+              "pitches": 24
+            },
+            {
+              "acnt": "0000006722",
+              "role": "最後一任",
+              "IP": 0,
+              "IPdiv3": 1,
+              "R": 0,
+              "ER": 0,
+              "pitches": 17
+            }
+          ]
+        },
+        "Visiting": {
+          "pitcher_count": 9,
+          "sum_RunCnt": 1,
+          "sum_EarnedRunCnt": 1,
+          "opponent_final_score": 1,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000007772",
+              "role": "先發",
+              "IP": 3,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 60
+            },
+            {
+              "acnt": "0000006855",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 2,
+              "R": 0,
+              "ER": 0,
+              "pitches": 27
+            },
+            {
+              "acnt": "0000007047",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 1,
+              "R": 0,
+              "ER": 0,
+              "pitches": 8
+            },
+            {
+              "acnt": "0000005372",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 1,
+              "ER": 1,
+              "pitches": 16
+            },
+            {
+              "acnt": "0000007316",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 10
+            },
+            {
+              "acnt": "0000007619",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 12
+            },
+            {
+              "acnt": "0000000779",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 18
+            },
+            {
+              "acnt": "0000007077",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 1,
+              "R": 0,
+              "ER": 0,
+              "pitches": 18
+            },
+            {
+              "acnt": "0000004629",
+              "role": "最後一任",
+              "IP": 0,
+              "IPdiv3": 2,
+              "R": 0,
+              "ER": 0,
+              "pitches": 5
+            }
+          ]
+        }
+      },
+      "livelog_rows": 377,
+      "livelog_keys": [
+        "ActionName",
+        "BallCnt",
+        "BattingActionName",
+        "BattingOrder",
+        "CatcherAcnt",
+        "CatcherName",
+        "CatcherUniformNo",
+        "Content",
+        "DefendStationCode",
+        "FirstBase",
+        "GameSno",
+        "HitterAcnt",
+        "HitterDefendStation",
+        "HitterImgPath",
+        "HitterLineup",
+        "HitterName",
+        "HitterUniformNo",
+        "HomeScore",
+        "InningSeq",
+        "IsBall",
+        "IsChangePlayer",
+        "IsScoreCnt",
+        "IsSpecialEvent",
+        "IsStrike",
+        "KindCode",
+        "MainEventNo",
+        "OutCnt",
+        "PitchCnt",
+        "PitcherAcnt",
+        "PitcherImgPath",
+        "PitcherName",
+        "PitcherUniformNo",
+        "SecondBase",
+        "StrikeCnt",
+        "ThirdBase",
+        "Trackman",
+        "VisitingHomeType",
+        "VisitingScore",
+        "Year"
+      ],
+      "livelog_has_earned_run_marker": false,
+      "livelog_scoring_rows": 5,
+      "livelog_zero_pitch_rows": 30,
+      "game_level_decision_fields": [
+        "WinningPitcher",
+        "LoserPitcher",
+        "Closer"
+      ]
+    },
+    {
+      "game_id": "2026-D-180",
+      "corpus": "g4_saved",
+      "kind_code": "D",
+      "sides": {
+        "Home": {
+          "pitcher_count": 7,
+          "sum_RunCnt": 2,
+          "sum_EarnedRunCnt": 2,
+          "opponent_final_score": 2,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000001260",
+              "role": "先發",
+              "IP": 5,
+              "IPdiv3": 0,
+              "R": 1,
+              "ER": 1,
+              "pitches": 62
+            },
+            {
+              "acnt": "0000006850",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 18
+            },
+            {
+              "acnt": "0000007061",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 11
+            },
+            {
+              "acnt": "0000002303",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 2,
+              "R": 1,
+              "ER": 1,
+              "pitches": 24
+            },
+            {
+              "acnt": "0000006740",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 1,
+              "R": 0,
+              "ER": 0,
+              "pitches": 11
+            },
+            {
+              "acnt": "0000002276",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 11
+            },
+            {
+              "acnt": "0000003620",
+              "role": "最後一任",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 10
+            }
+          ]
+        },
+        "Visiting": {
+          "pitcher_count": 5,
+          "sum_RunCnt": 3,
+          "sum_EarnedRunCnt": 2,
+          "opponent_final_score": 3,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000007560",
+              "role": "先發",
+              "IP": 6,
+              "IPdiv3": 0,
+              "R": 2,
+              "ER": 2,
+              "pitches": 91
+            },
+            {
+              "acnt": "0000007279",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 15
+            },
+            {
+              "acnt": "0000003506",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 16
+            },
+            {
+              "acnt": "0000004625",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 10
+            },
+            {
+              "acnt": "0000003334",
+              "role": "最後一任",
+              "IP": 0,
+              "IPdiv3": 1,
+              "R": 1,
+              "ER": 0,
+              "pitches": 19
+            }
+          ]
+        }
+      },
+      "livelog_rows": 119,
+      "livelog_keys": [
+        "ActionName",
+        "BallCnt",
+        "BattingActionName",
+        "BattingOrder",
+        "CatcherAcnt",
+        "CatcherName",
+        "CatcherUniformNo",
+        "Content",
+        "DefendStationCode",
+        "FirstBase",
+        "GameSno",
+        "HitterAcnt",
+        "HitterDefendStation",
+        "HitterImgPath",
+        "HitterLineup",
+        "HitterName",
+        "HitterUniformNo",
+        "HomeScore",
+        "InningSeq",
+        "IsBall",
+        "IsChangePlayer",
+        "IsScoreCnt",
+        "IsSpecialEvent",
+        "IsStrike",
+        "KindCode",
+        "MainEventNo",
+        "OutCnt",
+        "PitchCnt",
+        "PitcherAcnt",
+        "PitcherImgPath",
+        "PitcherName",
+        "PitcherUniformNo",
+        "SecondBase",
+        "StrikeCnt",
+        "ThirdBase",
+        "Trackman",
+        "VisitingHomeType",
+        "VisitingScore",
+        "Year"
+      ],
+      "livelog_has_earned_run_marker": false,
+      "livelog_scoring_rows": 3,
+      "livelog_zero_pitch_rows": 3,
+      "game_level_decision_fields": [
+        "WinningPitcher",
+        "LoserPitcher",
+        "Closer"
+      ]
+    },
+    {
+      "game_id": "2026-D-184",
+      "corpus": "g4_saved",
+      "kind_code": "D",
+      "sides": {
+        "Home": {
+          "pitcher_count": 8,
+          "sum_RunCnt": 7,
+          "sum_EarnedRunCnt": 6,
+          "opponent_final_score": 7,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000007303",
+              "role": "先發",
+              "IP": 0,
+              "IPdiv3": 1,
+              "R": 1,
+              "ER": 1,
+              "pitches": 25
+            },
+            {
+              "acnt": "0000002281",
+              "role": "中繼",
+              "IP": 4,
+              "IPdiv3": 0,
+              "R": 2,
+              "ER": 2,
+              "pitches": 62
+            },
+            {
+              "acnt": "0000007066",
+              "role": "中繼",
+              "IP": 2,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 20
+            },
+            {
+              "acnt": "0000007032",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 2,
+              "R": 0,
+              "ER": 0,
+              "pitches": 13
+            },
+            {
+              "acnt": "0000006917",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 2,
+              "R": 0,
+              "ER": 0,
+              "pitches": 10
+            },
+            {
+              "acnt": "0000006921",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 1,
+              "R": 0,
+              "ER": 0,
+              "pitches": 23
+            },
+            {
+              "acnt": "0000006920",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 0,
+              "R": 4,
+              "ER": 3,
+              "pitches": 18
+            },
+            {
+              "acnt": "0000006922",
+              "role": "最後一任",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 9
+            }
+          ]
+        },
+        "Visiting": {
+          "pitcher_count": 8,
+          "sum_RunCnt": 5,
+          "sum_EarnedRunCnt": 3,
+          "opponent_final_score": 5,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000006724",
+              "role": "先發",
+              "IP": 4,
+              "IPdiv3": 2,
+              "R": 1,
+              "ER": 1,
+              "pitches": 74
+            },
+            {
+              "acnt": "0000007055",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 1,
+              "R": 0,
+              "ER": 0,
+              "pitches": 10
+            },
+            {
+              "acnt": "0000005552",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 10
+            },
+            {
+              "acnt": "0000006750",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 27
+            },
+            {
+              "acnt": "0000006723",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 24
+            },
+            {
+              "acnt": "0000006878",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 2,
+              "R": 2,
+              "ER": 2,
+              "pitches": 19
+            },
+            {
+              "acnt": "0000006910",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 1,
+              "R": 0,
+              "ER": 0,
+              "pitches": 15
+            },
+            {
+              "acnt": "0000007311",
+              "role": "最後一任",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 2,
+              "ER": 0,
+              "pitches": 19
+            }
+          ]
+        }
+      },
+      "livelog_rows": 423,
+      "livelog_keys": [
+        "ActionName",
+        "BallCnt",
+        "BattingActionName",
+        "BattingOrder",
+        "CatcherAcnt",
+        "CatcherName",
+        "CatcherUniformNo",
+        "Content",
+        "DefendStationCode",
+        "FirstBase",
+        "GameSno",
+        "HitterAcnt",
+        "HitterDefendStation",
+        "HitterImgPath",
+        "HitterLineup",
+        "HitterName",
+        "HitterUniformNo",
+        "HomeScore",
+        "InningSeq",
+        "IsBall",
+        "IsChangePlayer",
+        "IsScoreCnt",
+        "IsSpecialEvent",
+        "IsStrike",
+        "KindCode",
+        "MainEventNo",
+        "OutCnt",
+        "PitchCnt",
+        "PitcherAcnt",
+        "PitcherImgPath",
+        "PitcherName",
+        "PitcherUniformNo",
+        "SecondBase",
+        "StrikeCnt",
+        "ThirdBase",
+        "Trackman",
+        "VisitingHomeType",
+        "VisitingScore",
+        "Year"
+      ],
+      "livelog_has_earned_run_marker": false,
+      "livelog_scoring_rows": 10,
+      "livelog_zero_pitch_rows": 33,
+      "game_level_decision_fields": [
+        "WinningPitcher",
+        "LoserPitcher",
+        "Closer"
+      ]
+    },
+    {
+      "game_id": "2026-A-246",
+      "corpus": "confirm",
+      "kind_code": "A",
+      "sides": {
+        "Home": {
+          "pitcher_count": 4,
+          "sum_RunCnt": 8,
+          "sum_EarnedRunCnt": 7,
+          "opponent_final_score": 8,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000005541",
+              "role": "先發",
+              "IP": 4,
+              "IPdiv3": 2,
+              "R": 6,
+              "ER": 5,
+              "pitches": 73
+            },
+            {
+              "acnt": "0000007081",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 1,
+              "R": 0,
+              "ER": 0,
+              "pitches": 24
+            },
+            {
+              "acnt": "0000007305",
+              "role": "中繼",
+              "IP": 2,
+              "IPdiv3": 1,
+              "R": 2,
+              "ER": 2,
+              "pitches": 38
+            },
+            {
+              "acnt": "0000006910",
+              "role": "最後一任",
+              "IP": 0,
+              "IPdiv3": 2,
+              "R": 0,
+              "ER": 0,
+              "pitches": 20
+            }
+          ]
+        },
+        "Visiting": {
+          "pitcher_count": 5,
+          "sum_RunCnt": 2,
+          "sum_EarnedRunCnt": 2,
+          "opponent_final_score": 2,
+          "InningScore_fields": [
+            "Score",
+            "Seq"
+          ],
+          "InningScore_has_pitcher": false,
+          "per_pitcher": [
+            {
+              "acnt": "0000007778",
+              "role": "先發",
+              "IP": 6,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 91
+            },
+            {
+              "acnt": "0000007292",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 12
+            },
+            {
+              "acnt": "0000003620",
+              "role": "中繼",
+              "IP": 1,
+              "IPdiv3": 0,
+              "R": 0,
+              "ER": 0,
+              "pitches": 13
+            },
+            {
+              "acnt": "0000000998",
+              "role": "中繼",
+              "IP": 0,
+              "IPdiv3": 2,
+              "R": 2,
+              "ER": 2,
+              "pitches": 22
+            },
+            {
+              "acnt": "0000003393",
+              "role": "最後一任",
+              "IP": 0,
+              "IPdiv3": 1,
+              "R": 0,
+              "ER": 0,
+              "pitches": 3
+            }
+          ]
+        }
+      },
+      "livelog_rows": 317,
+      "livelog_keys": [
+        "ActionName",
+        "BallCnt",
+        "BattingActionName",
+        "BattingOrder",
+        "CatcherAcnt",
+        "CatcherName",
+        "CatcherUniformNo",
+        "Content",
+        "DefendStationCode",
+        "FirstBase",
+        "GameSno",
+        "HitterAcnt",
+        "HitterDefendStation",
+        "HitterImgPath",
+        "HitterLineup",
+        "HitterName",
+        "HitterUniformNo",
+        "HomeScore",
+        "InningSeq",
+        "IsBall",
+        "IsChangePlayer",
+        "IsScoreCnt",
+        "IsSpecialEvent",
+        "IsStrike",
+        "KindCode",
+        "MainEventNo",
+        "OutCnt",
+        "PitchCnt",
+        "PitcherAcnt",
+        "PitcherImgPath",
+        "PitcherName",
+        "PitcherUniformNo",
+        "SecondBase",
+        "StrikeCnt",
+        "ThirdBase",
+        "Trackman",
+        "VisitingHomeType",
+        "VisitingScore",
+        "Year"
+      ],
+      "livelog_has_earned_run_marker": false,
+      "livelog_scoring_rows": 9,
+      "livelog_zero_pitch_rows": 17,
+      "game_level_decision_fields": [
+        "WinningPitcher",
+        "LoserPitcher",
+        "Closer"
+      ]
+    }
+  ]
+}

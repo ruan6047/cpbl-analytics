@@ -1,0 +1,17 @@
+{
+  "_note": "自 logs/last-status.json 擷取的關鍵欄位快照（該檔不進版控，故在此留存供查核複現）。tail 欄位為訓練輸出雜訊，已略去。",
+  "_source": "logs/last-status.json（開發機本機路徑，非版控）",
+  "_captured_for": "INGEST-SCORELESS-INNING-PITCHER1 §1 輔助敘述（時間無交疊）",
+  "schema_version": 1,
+  "started_at": "2026-08-07T10:16:38+0800",
+  "finished_at": "2026-08-07T13:15:40+0800",
+  "trigger": "launchd",
+  "state": "succeeded",
+  "ok": true,
+  "exit_code": 0,
+  "failed_phase": null,
+  "scrape_ok": true,
+  "sync_enabled": true,
+  "sync_attempted": true,
+  "sync_ok": true
+}

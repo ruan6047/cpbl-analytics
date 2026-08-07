@@ -1,0 +1,18 @@
+{
+  "card": "INGEST-SCORELESS-INNING-PITCHER1",
+  "policy": "單次確認，無重試；冪等腳本（payload 存在即不重打）",
+  "total_requests_issued_by_this_card": 1,
+  "requests": [
+    {
+      "seq": 1,
+      "url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-A-246",
+      "method": "GET",
+      "started_at": "2026-08-07T16:00:57.382384+08:00",
+      "finished_at": "2026-08-07T16:00:57.678608+08:00",
+      "http_status": 200,
+      "bytes": 498072,
+      "raw_sha256": "850b1024f28ed36d9f04d1ba4f724f6fa8e28be1e1c89cef1b60798967adfec2",
+      "retries": 0
+    }
+  ]
+}
