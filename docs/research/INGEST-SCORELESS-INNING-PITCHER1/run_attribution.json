@@ -1,7 +1,9 @@
 {
   "as_of": "2026-08-07",
   "question": "逐球 LiveLog 的『當下投手』能否重現官方逐投手失分歸屬？",
-  "method": "逐事件比分推進量歸給該事件的 PitcherAcnt，與 Pitchers[].RunCnt 對照；先過『來源完整性』閘門整場剔除，再以『同 side 淨差=0』守恆檢定確認殘餘不一致確為歸屬轉移而非缺資料",
+  "method": "逐事件比分推進量歸給該事件的 PitcherAcnt，與 Pitchers[].RunCnt 對照；先過『來源完整性』閘門整場剔除，再以『同 side 淨差=0』守恆檢定排除『憑空增減』型的來源異常。守恆是轉移型解釋的必要非充分條件，不指認轉移機制。",
+  "metric_name": "run_attribution_mismatch_rate_after_gates",
+  "metric_is_not": "任何特定規則（含 9.16）的效應量——本卡未逐筆核對跑者來源投手",
   "gate_1_source_completeness": {
     "rule": "兩訊號皆須通過：(a) LiveLog 末筆比分 == header 最終比分；(b) LiveLog 涵蓋局數 >= InningScore 宣告局數（抓截斷）",
     "per_game": [
@@ -217,7 +219,8 @@
     ]
   },
   "gate_2_conservation": {
-    "rule": "9.16 是歸屬轉移，故同一 game+side 內 sum(official - derived) 必為 0",
+    "rule": "任何轉移型解釋皆蘊含同一 game+side 內 sum(official - derived) = 0",
+    "logical_status": "必要非充分條件：排除『憑空增減』，但不指認轉移機制",
     "sides_with_mismatch": [
       {
         "game_id": "2026-A-155",
@@ -281,7 +284,8 @@
   "pitcher_rows": 105,
   "mismatch_count": 16,
   "mismatch_rate": 0.1524,
-  "interpretation": "在通過完整性閘門的場次中，全部不一致皆守恆（淨差 0），確為規則 9.16 繼承跑者歸屬——得分記給讓跑者上壘的投手，不是得分當下在投手丘上的人。連『失分』都重現不了，『自責分』更無從逐局推導。",
+  "interpretation": "在通過完整性閘門的場次中，全部不一致皆守恆（淨差 0），型態與『歸屬轉移』相容，已排除『憑空增減』型的來源異常。成立的命題是：逐球 PitcherAcnt 重現不了官方逐投手失分歸屬——連『失分』都如此，『自責分』更無從逐局推導。轉移的具體機制未指認；最可能的候選是規則 9.16 繼承跑者歸屬，但本卡未逐筆核對跑者來源投手，故不得將本數字當作 9.16 的效應量。",
+  "claim_boundary": "可宣稱：逐球歸屬 != 官方 RunCnt（不符率如上）。不可宣稱：該不符率是規則 9.16 或任何特定機制的效應量。",
   "mismatches": [
     {
       "game_id": "2026-A-155",

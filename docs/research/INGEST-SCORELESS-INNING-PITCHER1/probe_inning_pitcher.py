@@ -247,17 +247,22 @@ def _on_mound_runs(game: dict) -> dict[str, int]:
 def build_run_attribution(payloads) -> dict:
     """量測「逐球在場上的投手」能否重現官方失分歸屬——**先過來源完整性閘門**。
 
-    即使退一步只求**失分**（不求自責分），LiveLog 也重現不了官方 `RunCnt`：規則 9.16
-    把繼承跑者的得分記給**讓他上壘的那位投手**，不是得分當下在投手丘上的人。
+    即使退一步只求**失分**（不求自責分），LiveLog 的逐球 `PitcherAcnt` 也重現不了官方
+    `RunCnt`。本函式量測的是**不符率本身**，不宣稱其成因。
 
-    但「不一致」有**兩個**可能成因，必須先分離，否則會把來源缺資料誤算成規則效應
+    「不一致」至少有**兩類**成因，必須先分離，否則會把來源缺資料混進來充數
     （R1 查核命中處）：
 
-    1. **來源異常**：LiveLog 的 score 欄位本身沒記完，末筆比分 ≠ header 最終比分。
+    1. **來源異常**：LiveLog 本身沒記完（末筆比分 ≠ header 最終比分，或涵蓋局數不足）。
        此時整場的逐球歸屬都不可信（缺的分可能落在時間線任何位置，連「相符」的列也
        只是碰巧），故**整場剔除**，不只剔不一致的列。
-    2. **規則 9.16 繼承跑者**：分只是從一位投手**轉移**到另一位，故同一 game+side 內
-       官方與推導的**淨差必為 0**。守恆成立才可作為 9.16 的證據。
+    2. **歸屬轉移**：分只是從一位投手記到另一位，故同一 game+side 內官方與推導的
+       **淨差必為 0**。守恆成立才留作證據。
+
+    ⚠️ **守恆是轉移型解釋的必要條件，不是充分條件**（R2 查核命中處）：淨差 0 排除了
+    「憑空增減」，但**不能指認**是哪個機制造成轉移——兩個方向相反的解析誤差互相抵消
+    一樣會守恆。規則 9.16（繼承跑者記給讓他上壘的投手）是**最可能的候選解釋**，
+    但本函式**未逐筆核對跑者的來源投手**，故輸出一律稱 mismatch rate，不稱 9.16 效應量。
 
     兩道閘門皆由本函式**程式化判定**，不是硬編場次黑名單——換一批 payload 一樣會自動分流。
     """
@@ -327,8 +332,11 @@ def build_run_attribution(payloads) -> dict:
         "as_of": AS_OF,
         "question": "逐球 LiveLog 的『當下投手』能否重現官方逐投手失分歸屬？",
         "method": "逐事件比分推進量歸給該事件的 PitcherAcnt，與 Pitchers[].RunCnt 對照；"
-                  "先過『來源完整性』閘門整場剔除，再以『同 side 淨差=0』守恆檢定確認"
-                  "殘餘不一致確為歸屬轉移而非缺資料",
+                  "先過『來源完整性』閘門整場剔除，再以『同 side 淨差=0』守恆檢定排除"
+                  "『憑空增減』型的來源異常。守恆是轉移型解釋的必要非充分條件，"
+                  "不指認轉移機制。",
+        "metric_name": "run_attribution_mismatch_rate_after_gates",
+        "metric_is_not": "任何特定規則（含 9.16）的效應量——本卡未逐筆核對跑者來源投手",
         "gate_1_source_completeness": {
             "rule": "兩訊號皆須通過：(a) LiveLog 末筆比分 == header 最終比分；"
                     "(b) LiveLog 涵蓋局數 >= InningScore 宣告局數（抓截斷）",
@@ -339,7 +347,8 @@ def build_run_attribution(payloads) -> dict:
             "excluded_detail": excluded_detail,
         },
         "gate_2_conservation": {
-            "rule": "9.16 是歸屬轉移，故同一 game+side 內 sum(official - derived) 必為 0",
+            "rule": "任何轉移型解釋皆蘊含同一 game+side 內 sum(official - derived) = 0",
+            "logical_status": "必要非充分條件：排除『憑空增減』，但不指認轉移機制",
             "sides_with_mismatch": conservation,
             "all_conserved": all_conserved,
         },
@@ -347,12 +356,16 @@ def build_run_attribution(payloads) -> dict:
         "mismatch_count": len(mismatches),
         "mismatch_rate": round(len(mismatches) / rows, 4) if rows else None,
         "interpretation": (
-            "在通過完整性閘門的場次中，全部不一致皆守恆（淨差 0），確為規則 9.16 繼承跑者"
-            "歸屬——得分記給讓跑者上壘的投手，不是得分當下在投手丘上的人。"
-            "連『失分』都重現不了，『自責分』更無從逐局推導。"
+            "在通過完整性閘門的場次中，全部不一致皆守恆（淨差 0），型態與『歸屬轉移』相容，"
+            "已排除『憑空增減』型的來源異常。成立的命題是：逐球 PitcherAcnt 重現不了官方"
+            "逐投手失分歸屬——連『失分』都如此，『自責分』更無從逐局推導。"
+            "轉移的具體機制未指認；最可能的候選是規則 9.16 繼承跑者歸屬，"
+            "但本卡未逐筆核對跑者來源投手，故不得將本數字當作 9.16 的效應量。"
             if all_conserved else
-            "⚠️ 仍有不守恆的 side，成因未分離，不可直接當 9.16 證據——待人工判讀。"
+            "⚠️ 仍有不守恆的 side，來源異常未排除乾淨，本數字不可直接引用——待人工判讀。"
         ),
+        "claim_boundary": "可宣稱：逐球歸屬 != 官方 RunCnt（不符率如上）。"
+                          "不可宣稱：該不符率是規則 9.16 或任何特定機制的效應量。",
         "mismatches": mismatches,
     }
 
@@ -481,8 +494,9 @@ def main() -> None:
     print(f"符合『責任／自責』樣態的鍵：{inv['keys_matching_responsibility_patterns']}")
     print(f"InningScore 帶投手歸屬：{gran['verdict_inputs']['InningScore_carries_pitcher_attribution']}")
     print(f"LiveLog 帶自責分標記：{gran['verdict_inputs']['LiveLog_carries_earned_run_marker']}")
-    print(f"逐球投手重現官方失分歸屬：不一致 {attr['mismatch_count']}/{attr['pitcher_rows']} 列"
-          f"（{attr['mismatch_rate']}）")
+    print(f"run-attribution mismatch rate（過兩道閘門後）："
+          f"{attr['mismatch_count']}/{attr['pitcher_rows']} 列＝{attr['mismatch_rate']}"
+          f"　※不符率，非任何特定規則的效應量")
 
 
 if __name__ == "__main__":
