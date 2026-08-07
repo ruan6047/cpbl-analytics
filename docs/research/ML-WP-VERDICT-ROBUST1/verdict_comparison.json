@@ -1,0 +1,925 @@
+{
+  "note": "v2 與 v3 兩套判定跑在同一份 verdict_metrics.json 上，故兩者差異只能來自規則，不可能來自母體漂移。",
+  "thresholds": {
+    "ece_weighted_max": 0.025,
+    "decile_max_dev": 0.06,
+    "min_season_pa": 5000,
+    "min_coverage": 0.98,
+    "pooled_bin_dev_max": 0.03,
+    "proxy_pooled_ece_max": 0.05,
+    "boot_reps": 500,
+    "boot_ci": 0.99
+  },
+  "pre_score_source": "events",
+  "scopes": {
+    "A": {
+      "label": "一軍例行",
+      "n_games_pooled": 1856,
+      "n_pa_pooled": 141072,
+      "pooled_brier": 0.15327,
+      "baseline_home_const_brier": 0.24536,
+      "pooled_ece": 0.0269,
+      "null_ece": {
+        "analytic_mean": 0.00986,
+        "mc_mean": 0.00989,
+        "mc_p95": 0.01479,
+        "mc_reps": 20000,
+        "mc_seed": 20260807
+      },
+      "published_status": "unsupported",
+      "published_caveat": null,
+      "canonical_status": "unsupported",
+      "canonical_reasons": [
+        "池化十分位 1 偏差 +0.0424 顯著且超過 ±0.03（n=8800）",
+        "池化十分位 2 偏差 +0.0554 顯著且超過 ±0.03（n=9311）",
+        "池化十分位 3 偏差 +0.0612 顯著且超過 ±0.03（n=10381）",
+        "池化十分位 7 偏差 -0.0365 顯著且超過 ±0.03（n=10508）",
+        "池化十分位 8 偏差 -0.0447 顯著且超過 ±0.03（n=10249）"
+      ],
+      "today_v2_status": "unsupported",
+      "today_v2_reasons": [
+        "池化十分位 1 偏差 +0.0424 顯著且超過 ±0.03（n=8807）",
+        "池化十分位 2 偏差 +0.0555 顯著且超過 ±0.03（n=9316）",
+        "池化十分位 3 偏差 +0.0612 顯著且超過 ±0.03（n=10381）",
+        "池化十分位 8 偏差 -0.0447 顯著且超過 ±0.03（n=10249）"
+      ],
+      "today_v3_status": "unsupported",
+      "today_v3_reasons": [
+        "池化十分位 1 偏差 +0.0424 顯著且超過 ±0.03（n=8807 CI[0.011, 0.0709] p_one=0.000198[0.000101, 0.000389] reps=96000 v2seeds=12/12）",
+        "池化十分位 2 偏差 +0.0555 顯著且超過 ±0.03（n=9316 CI[0.0147, 0.0935] p_one=0.000271[0.000152, 0.000484] reps=96000 v2seeds=12/12）",
+        "池化十分位 3 偏差 +0.0612 顯著且超過 ±0.03（n=10381 CI[0.0178, 0.103] p_one=0.000135[6e-05, 0.000304] reps=96000 v2seeds=12/12）",
+        "池化十分位 8 偏差 -0.0447 顯著且超過 ±0.03（n=10249 CI[-0.0712, -0.0154] p_one=8.3e-05[3e-05, 0.00023] reps=96000 v2seeds=12/12）"
+      ],
+      "today_v3_insufficient": [],
+      "changed_by_rule": false,
+      "decisive_bins": [
+        {
+          "bin": 0,
+          "n": 15104,
+          "dev": 0.0065,
+          "over_threshold": false,
+          "v2_single_seed_ci": [
+            -0.0089,
+            0.0209
+          ],
+          "v2_significant": false,
+          "v2_seed_votes": "0/12",
+          "v3_pooled_ci": [
+            -0.0112,
+            0.0207
+          ],
+          "v3_p_one": 0.149615,
+          "v3_p_one_mc_ci": [
+            0.146194,
+            0.153101
+          ],
+          "v3_reps_total": 96000,
+          "v3_state": "not_significant",
+          "v3_hit_reps_cap": false
+        },
+        {
+          "bin": 1,
+          "n": 8807,
+          "dev": 0.0424,
+          "over_threshold": true,
+          "v2_single_seed_ci": [
+            0.0097,
+            0.0659
+          ],
+          "v2_significant": true,
+          "v2_seed_votes": "12/12",
+          "v3_pooled_ci": [
+            0.011,
+            0.0709
+          ],
+          "v3_p_one": 0.000198,
+          "v3_p_one_mc_ci": [
+            0.000101,
+            0.000389
+          ],
+          "v3_reps_total": 96000,
+          "v3_state": "significant",
+          "v3_hit_reps_cap": false
+        },
+        {
+          "bin": 2,
+          "n": 9316,
+          "dev": 0.0555,
+          "over_threshold": true,
+          "v2_single_seed_ci": [
+            0.0137,
+            0.0895
+          ],
+          "v2_significant": true,
+          "v2_seed_votes": "12/12",
+          "v3_pooled_ci": [
+            0.0147,
+            0.0935
+          ],
+          "v3_p_one": 0.000271,
+          "v3_p_one_mc_ci": [
+            0.000152,
+            0.000484
+          ],
+          "v3_reps_total": 96000,
+          "v3_state": "significant",
+          "v3_hit_reps_cap": false
+        },
+        {
+          "bin": 3,
+          "n": 10381,
+          "dev": 0.0612,
+          "over_threshold": true,
+          "v2_single_seed_ci": [
+            0.0268,
+            0.1021
+          ],
+          "v2_significant": true,
+          "v2_seed_votes": "12/12",
+          "v3_pooled_ci": [
+            0.0178,
+            0.103
+          ],
+          "v3_p_one": 0.000135,
+          "v3_p_one_mc_ci": [
+            6e-05,
+            0.000304
+          ],
+          "v3_reps_total": 96000,
+          "v3_state": "significant",
+          "v3_hit_reps_cap": false
+        },
+        {
+          "bin": 4,
+          "n": 13702,
+          "dev": 0.0377,
+          "over_threshold": true,
+          "v2_single_seed_ci": [
+            -0.0027,
+            0.0771
+          ],
+          "v2_significant": false,
+          "v2_seed_votes": "0/12",
+          "v3_pooled_ci": [
+            -0.0053,
+            0.0801
+          ],
+          "v3_p_one": 0.012229,
+          "v3_p_one_mc_ci": [
+            0.01121,
+            0.01334
+          ],
+          "v3_reps_total": 96000,
+          "v3_state": "not_significant",
+          "v3_hit_reps_cap": false
+        },
+        {
+          "bin": 5,
+          "n": 32587,
+          "dev": 0.0106,
+          "over_threshold": false,
+          "v2_single_seed_ci": [
+            -0.027,
+            0.0462
+          ],
+          "v2_significant": false,
+          "v2_seed_votes": "0/12",
+          "v3_pooled_ci": [
+            -0.0248,
+            0.0465
+          ],
+          "v3_p_one": 0.22425,
+          "v3_p_one_mc_ci": [
+            0.220238,
+            0.228314
+          ],
+          "v3_reps_total": 96000,
+          "v3_state": "not_significant",
+          "v3_hit_reps_cap": false
+        },
+        {
+          "bin": 6,
+          "n": 13345,
+          "dev": -0.0171,
+          "over_threshold": false,
+          "v2_single_seed_ci": [
+            -0.0575,
+            0.0215
+          ],
+          "v2_significant": false,
+          "v2_seed_votes": "0/12",
+          "v3_pooled_ci": [
+            -0.0559,
+            0.0232
+          ],
+          "v3_p_one": 0.130844,
+          "v3_p_one_mc_ci": [
+            0.127613,
+            0.134144
+          ],
+          "v3_reps_total": 96000,
+          "v3_state": "not_significant",
+          "v3_hit_reps_cap": false
+        },
+        {
+          "bin": 7,
+          "n": 10508,
+          "dev": -0.0365,
+          "over_threshold": true,
+          "v2_single_seed_ci": [
+            -0.0752,
+            0.0041
+          ],
+          "v2_significant": false,
+          "v2_seed_votes": "6/12",
+          "v3_pooled_ci": [
+            -0.0738,
+            0.0029
+          ],
+          "v3_p_one": 0.008365,
+          "v3_p_one_mc_ci": [
+            0.007528,
+            0.009294
+          ],
+          "v3_reps_total": 96000,
+          "v3_state": "not_significant",
+          "v3_hit_reps_cap": false
+        },
+        {
+          "bin": 8,
+          "n": 10249,
+          "dev": -0.0447,
+          "over_threshold": true,
+          "v2_single_seed_ci": [
+            -0.0687,
+            -0.0201
+          ],
+          "v2_significant": true,
+          "v2_seed_votes": "12/12",
+          "v3_pooled_ci": [
+            -0.0712,
+            -0.0154
+          ],
+          "v3_p_one": 8.3e-05,
+          "v3_p_one_mc_ci": [
+            3e-05,
+            0.00023
+          ],
+          "v3_reps_total": 96000,
+          "v3_state": "significant",
+          "v3_hit_reps_cap": false
+        },
+        {
+          "bin": 9,
+          "n": 17073,
+          "dev": -0.014,
+          "over_threshold": false,
+          "v2_single_seed_ci": [
+            -0.0244,
+            0.0001
+          ],
+          "v2_significant": false,
+          "v2_seed_votes": "8/12",
+          "v3_pooled_ci": [
+            -0.0248,
+            -0.0001
+          ],
+          "v3_p_one": 0.004802,
+          "v3_p_one_mc_ci": [
+            0.004178,
+            0.005519
+          ],
+          "v3_reps_total": 96000,
+          "v3_state": "undetermined",
+          "v3_hit_reps_cap": true
+        }
+      ],
+      "season_baseline_gate": [
+        {
+          "season": 2021,
+          "n_games": 299,
+          "brier": 0.15332,
+          "baseline": 0.24295,
+          "delta": -0.08963,
+          "delta_ci": [
+            -0.1063,
+            -0.0722
+          ],
+          "v2_fails": false,
+          "v3_state": "significant"
+        },
+        {
+          "season": 2022,
+          "n_games": 300,
+          "brier": 0.1475,
+          "baseline": 0.24221,
+          "delta": -0.09472,
+          "delta_ci": [
+            -0.1106,
+            -0.0779
+          ],
+          "v2_fails": false,
+          "v3_state": "significant"
+        },
+        {
+          "season": 2023,
+          "n_games": 298,
+          "brier": 0.14745,
+          "baseline": 0.24148,
+          "delta": -0.09403,
+          "delta_ci": [
+            -0.1102,
+            -0.0774
+          ],
+          "v2_fails": false,
+          "v3_state": "significant"
+        },
+        {
+          "season": 2024,
+          "n_games": 360,
+          "brier": 0.15402,
+          "baseline": 0.24876,
+          "delta": -0.09474,
+          "delta_ci": [
+            -0.1101,
+            -0.0779
+          ],
+          "v2_fails": false,
+          "v3_state": "significant"
+        },
+        {
+          "season": 2025,
+          "n_games": 359,
+          "brier": 0.15471,
+          "baseline": 0.24857,
+          "delta": -0.09386,
+          "delta_ci": [
+            -0.1086,
+            -0.0795
+          ],
+          "v2_fails": false,
+          "v3_state": "significant"
+        },
+        {
+          "season": 2026,
+          "n_games": 240,
+          "brier": 0.16467,
+          "baseline": 0.24741,
+          "delta": -0.08275,
+          "delta_ci": [
+            -0.1026,
+            -0.0619
+          ],
+          "v2_fails": false,
+          "v3_state": "significant"
+        }
+      ]
+    },
+    "C": {
+      "label": "一軍總冠軍賽",
+      "n_games_pooled": 25,
+      "n_pa_pooled": 1927,
+      "pooled_brier": 0.15027,
+      "baseline_home_const_brier": 0.25676,
+      "pooled_ece": 0.11001,
+      "null_ece": {
+        "analytic_mean": 0.07685,
+        "mc_mean": 0.07712,
+        "mc_p95": 0.1202,
+        "mc_reps": 20000,
+        "mc_seed": 20260807
+      },
+      "published_status": "unsupported",
+      "published_caveat": null,
+      "canonical_status": "unsupported",
+      "canonical_reasons": [
+        "proxy 池化 ECE 0.11001 > 0.05，代理證據不足以掛警示上線"
+      ],
+      "today_v2_status": "unsupported",
+      "today_v2_reasons": [
+        "proxy 池化 ECE 0.11001 > 0.05，代理證據不足以掛警示上線"
+      ],
+      "today_v3_status": "insufficient_evidence",
+      "today_v3_reasons": [],
+      "today_v3_insufficient": [
+        "C2024 Brier 0.16368 vs 主場常數基準 0.25965：差距與 0 不可區分（not_significant；Δ=-0.09597 CI[-0.1989, 0.0242] p_one=0.0245 reps=6000 v2seeds=0/12），該季無判別力",
+        "C2025 Brier 0.21339 vs 主場常數基準 0.27579：差距與 0 不可區分（not_significant；Δ=-0.06239 CI[-0.1955, 0.1121] p_one=0.179333 reps=6000 v2seeds=0/12），該季無判別力",
+        "proxy 池化 ECE 門檻 0.05 在此樣本量下不可達：完美校準零假設的期望 ECE 就有 0.07685（觀測 0.11001，H0 p95 0.1202）——該門檻不是判準，是雜訊產生器"
+      ],
+      "changed_by_rule": true,
+      "decisive_bins": [],
+      "season_baseline_gate": [
+        {
+          "season": 2021,
+          "n_games": 4,
+          "brier": 0.11417,
+          "baseline": 0.25365,
+          "delta": -0.13948,
+          "delta_ci": [
+            -0.1986,
+            -0.0706
+          ],
+          "v2_fails": false,
+          "v3_state": "significant"
+        },
+        {
+          "season": 2022,
+          "n_games": 4,
+          "brier": 0.10075,
+          "baseline": 0.25241,
+          "delta": -0.15165,
+          "delta_ci": [
+            -0.1929,
+            -0.1226
+          ],
+          "v2_fails": false,
+          "v3_state": "significant"
+        },
+        {
+          "season": 2023,
+          "n_games": 7,
+          "brier": 0.14306,
+          "baseline": 0.24577,
+          "delta": -0.10271,
+          "delta_ci": [
+            -0.1748,
+            -0.0424
+          ],
+          "v2_fails": false,
+          "v3_state": "significant"
+        },
+        {
+          "season": 2024,
+          "n_games": 5,
+          "brier": 0.16368,
+          "baseline": 0.25965,
+          "delta": -0.09597,
+          "delta_ci": [
+            -0.1989,
+            0.0242
+          ],
+          "v2_fails": false,
+          "v3_state": "not_significant"
+        },
+        {
+          "season": 2025,
+          "n_games": 5,
+          "brier": 0.21339,
+          "baseline": 0.27579,
+          "delta": -0.06239,
+          "delta_ci": [
+            -0.1955,
+            0.1121
+          ],
+          "v2_fails": false,
+          "v3_state": "not_significant"
+        }
+      ]
+    },
+    "D": {
+      "label": "二軍例行",
+      "n_games_pooled": 1171,
+      "n_pa_pooled": 89449,
+      "pooled_brier": 0.14629,
+      "baseline_home_const_brier": 0.23356,
+      "pooled_ece": 0.01957,
+      "null_ece": {
+        "analytic_mean": 0.01232,
+        "mc_mean": 0.01235,
+        "mc_p95": 0.01812,
+        "mc_reps": 20000,
+        "mc_seed": 20260807
+      },
+      "published_status": "unsupported",
+      "published_caveat": null,
+      "canonical_status": "supported",
+      "canonical_reasons": [],
+      "today_v2_status": "supported",
+      "today_v2_reasons": [],
+      "today_v3_status": "unsupported",
+      "today_v3_reasons": [
+        "池化十分位 2 偏差 +0.0501 顯著且超過 ±0.03（n=6389 CI[0.0048, 0.0921] p_one=0.00225[0.001273, 0.003973] reps=12000 v2seeds=11/12）"
+      ],
+      "today_v3_insufficient": [],
+      "changed_by_rule": true,
+      "decisive_bins": [
+        {
+          "bin": 0,
+          "n": 10464,
+          "dev": 0.0067,
+          "over_threshold": false,
+          "v2_single_seed_ci": [
+            -0.0136,
+            0.0213
+          ],
+          "v2_significant": false,
+          "v2_seed_votes": "0/12",
+          "v3_pooled_ci": [
+            -0.0144,
+            0.0228
+          ],
+          "v3_p_one": 0.179583,
+          "v3_p_one_mc_ci": [
+            0.169313,
+            0.190334
+          ],
+          "v3_reps_total": 12000,
+          "v3_state": "not_significant",
+          "v3_hit_reps_cap": false
+        },
+        {
+          "bin": 1,
+          "n": 6376,
+          "dev": 0.0237,
+          "over_threshold": false,
+          "v2_single_seed_ci": [
+            -0.0195,
+            0.0578
+          ],
+          "v2_significant": false,
+          "v2_seed_votes": "0/12",
+          "v3_pooled_ci": [
+            -0.0233,
+            0.0629
+          ],
+          "v3_p_one": 0.080667,
+          "v3_p_one_mc_ci": [
+            0.073519,
+            0.088443
+          ],
+          "v3_reps_total": 12000,
+          "v3_state": "not_significant",
+          "v3_hit_reps_cap": false
+        },
+        {
+          "bin": 2,
+          "n": 6389,
+          "dev": 0.0501,
+          "over_threshold": true,
+          "v2_single_seed_ci": [
+            -0.0005,
+            0.0967
+          ],
+          "v2_significant": false,
+          "v2_seed_votes": "11/12",
+          "v3_pooled_ci": [
+            0.0048,
+            0.0921
+          ],
+          "v3_p_one": 0.00225,
+          "v3_p_one_mc_ci": [
+            0.001273,
+            0.003973
+          ],
+          "v3_reps_total": 12000,
+          "v3_state": "significant",
+          "v3_hit_reps_cap": false
+        },
+        {
+          "bin": 3,
+          "n": 7401,
+          "dev": 0.0419,
+          "over_threshold": true,
+          "v2_single_seed_ci": [
+            -0.0194,
+            0.0917
+          ],
+          "v2_significant": false,
+          "v2_seed_votes": "0/12",
+          "v3_pooled_ci": [
+            -0.012,
+            0.0929
+          ],
+          "v3_p_one": 0.0205,
+          "v3_p_one_mc_ci": [
+            0.016964,
+            0.024755
+          ],
+          "v3_reps_total": 12000,
+          "v3_state": "not_significant",
+          "v3_hit_reps_cap": false
+        },
+        {
+          "bin": 4,
+          "n": 11081,
+          "dev": 0.0305,
+          "over_threshold": true,
+          "v2_single_seed_ci": [
+            -0.0201,
+            0.0739
+          ],
+          "v2_significant": false,
+          "v2_seed_votes": "0/12",
+          "v3_pooled_ci": [
+            -0.0162,
+            0.0753
+          ],
+          "v3_p_one": 0.044667,
+          "v3_p_one_mc_ci": [
+            0.039343,
+            0.050673
+          ],
+          "v3_reps_total": 12000,
+          "v3_state": "not_significant",
+          "v3_hit_reps_cap": false
+        },
+        {
+          "bin": 5,
+          "n": 17633,
+          "dev": 0.0146,
+          "over_threshold": false,
+          "v2_single_seed_ci": [
+            -0.0323,
+            0.0517
+          ],
+          "v2_significant": false,
+          "v2_seed_votes": "0/12",
+          "v3_pooled_ci": [
+            -0.0292,
+            0.0577
+          ],
+          "v3_p_one": 0.18975,
+          "v3_p_one_mc_ci": [
+            0.179246,
+            0.200719
+          ],
+          "v3_reps_total": 12000,
+          "v3_state": "not_significant",
+          "v3_hit_reps_cap": false
+        },
+        {
+          "bin": 6,
+          "n": 8108,
+          "dev": -0.0001,
+          "over_threshold": false,
+          "v2_single_seed_ci": [
+            -0.0474,
+            0.0459
+          ],
+          "v2_significant": false,
+          "v2_seed_votes": "0/12",
+          "v3_pooled_ci": [
+            -0.0491,
+            0.0514
+          ],
+          "v3_p_one": 0.48175,
+          "v3_p_one_mc_ci": [
+            0.468085,
+            0.495442
+          ],
+          "v3_reps_total": 12000,
+          "v3_state": "not_significant",
+          "v3_hit_reps_cap": false
+        },
+        {
+          "bin": 7,
+          "n": 6383,
+          "dev": -0.0153,
+          "over_threshold": false,
+          "v2_single_seed_ci": [
+            -0.0605,
+            0.0322
+          ],
+          "v2_significant": false,
+          "v2_seed_votes": "0/12",
+          "v3_pooled_ci": [
+            -0.065,
+            0.0372
+          ],
+          "v3_p_one": 0.222583,
+          "v3_p_one_mc_ci": [
+            0.211402,
+            0.234181
+          ],
+          "v3_reps_total": 12000,
+          "v3_state": "not_significant",
+          "v3_hit_reps_cap": false
+        },
+        {
+          "bin": 8,
+          "n": 6094,
+          "dev": -0.0212,
+          "over_threshold": false,
+          "v2_single_seed_ci": [
+            -0.0557,
+            0.0223
+          ],
+          "v2_significant": false,
+          "v2_seed_votes": "0/12",
+          "v3_pooled_ci": [
+            -0.0613,
+            0.0235
+          ],
+          "v3_p_one": 0.100833,
+          "v3_p_one_mc_ci": [
+            0.092884,
+            0.109381
+          ],
+          "v3_reps_total": 12000,
+          "v3_state": "not_significant",
+          "v3_hit_reps_cap": false
+        },
+        {
+          "bin": 9,
+          "n": 9520,
+          "dev": -0.008,
+          "over_threshold": false,
+          "v2_single_seed_ci": [
+            -0.0208,
+            0.0082
+          ],
+          "v2_significant": false,
+          "v2_seed_votes": "0/12",
+          "v3_pooled_ci": [
+            -0.0214,
+            0.0094
+          ],
+          "v3_p_one": 0.094583,
+          "v3_p_one_mc_ci": [
+            0.08687,
+            0.102904
+          ],
+          "v3_reps_total": 12000,
+          "v3_state": "not_significant",
+          "v3_hit_reps_cap": false
+        }
+      ],
+      "season_baseline_gate": [
+        {
+          "season": 2021,
+          "n_games": 169,
+          "brier": 0.14047,
+          "baseline": 0.22158,
+          "delta": -0.08111,
+          "delta_ci": [
+            -0.1025,
+            -0.0569
+          ],
+          "v2_fails": false,
+          "v3_state": "significant"
+        },
+        {
+          "season": 2022,
+          "n_games": 172,
+          "brier": 0.14295,
+          "baseline": 0.22794,
+          "delta": -0.08499,
+          "delta_ci": [
+            -0.1074,
+            -0.0605
+          ],
+          "v2_fails": false,
+          "v3_state": "significant"
+        },
+        {
+          "season": 2023,
+          "n_games": 236,
+          "brier": 0.14332,
+          "baseline": 0.23475,
+          "delta": -0.09143,
+          "delta_ci": [
+            -0.11,
+            -0.0716
+          ],
+          "v2_fails": false,
+          "v3_state": "significant"
+        },
+        {
+          "season": 2024,
+          "n_games": 220,
+          "brier": 0.13439,
+          "baseline": 0.2237,
+          "delta": -0.08931,
+          "delta_ci": [
+            -0.1083,
+            -0.0708
+          ],
+          "v2_fails": false,
+          "v3_state": "significant"
+        },
+        {
+          "season": 2025,
+          "n_games": 204,
+          "brier": 0.15952,
+          "baseline": 0.24847,
+          "delta": -0.08895,
+          "delta_ci": [
+            -0.1077,
+            -0.0688
+          ],
+          "v2_fails": false,
+          "v3_state": "significant"
+        },
+        {
+          "season": 2026,
+          "n_games": 170,
+          "brier": 0.15851,
+          "baseline": 0.24386,
+          "delta": -0.08535,
+          "delta_ci": [
+            -0.1107,
+            -0.0582
+          ],
+          "v2_fails": false,
+          "v3_state": "significant"
+        }
+      ]
+    },
+    "E": {
+      "label": "一軍季後挑戰賽",
+      "n_games_pooled": 13,
+      "n_pa_pooled": 985,
+      "pooled_brier": 0.14842,
+      "baseline_home_const_brier": 0.23764,
+      "pooled_ece": 0.08548,
+      "null_ece": {
+        "analytic_mean": 0.12224,
+        "mc_mean": 0.1225,
+        "mc_p95": 0.18326,
+        "mc_reps": 20000,
+        "mc_seed": 20260807
+      },
+      "published_status": "unsupported",
+      "published_caveat": "E scope 為 pre-FIX1 缺陷版，只作歷史記錄",
+      "canonical_status": "unsupported",
+      "canonical_reasons": [
+        "E2025 Brier 0.28588 未勝過主場常數基準 0.25301",
+        "proxy 池化 ECE 0.08548 > 0.05，代理證據不足以掛警示上線"
+      ],
+      "today_v2_status": "unsupported",
+      "today_v2_reasons": [
+        "E2025 Brier 0.28588 未勝過主場常數基準 0.25301",
+        "proxy 池化 ECE 0.08548 > 0.05，代理證據不足以掛警示上線"
+      ],
+      "today_v3_status": "insufficient_evidence",
+      "today_v3_reasons": [],
+      "today_v3_insufficient": [
+        "E2025 Brier 0.28588 vs 主場常數基準 0.25301：差距與 0 不可區分（not_significant；Δ=+0.03287 CI[-0.1735, 0.1835] p_one=0.383167 reps=6000 v2seeds=0/12），該季無判別力",
+        "proxy 池化 ECE 門檻 0.05 在此樣本量下不可達：完美校準零假設的期望 ECE 就有 0.12224（觀測 0.08548，H0 p95 0.18326）——該門檻不是判準，是雜訊產生器"
+      ],
+      "changed_by_rule": true,
+      "decisive_bins": [],
+      "season_baseline_gate": [
+        {
+          "season": 2022,
+          "n_games": 3,
+          "brier": 0.05313,
+          "baseline": 0.21031,
+          "delta": -0.15719,
+          "delta_ci": [
+            -0.176,
+            -0.1234
+          ],
+          "v2_fails": false,
+          "v3_state": "significant"
+        },
+        {
+          "season": 2023,
+          "n_games": 3,
+          "brier": 0.11682,
+          "baseline": 0.26701,
+          "delta": -0.15019,
+          "delta_ci": [
+            -0.2446,
+            -0.0579
+          ],
+          "v2_fails": false,
+          "v3_state": "significant"
+        },
+        {
+          "season": 2024,
+          "n_games": 3,
+          "brier": 0.07957,
+          "baseline": 0.21446,
+          "delta": -0.13489,
+          "delta_ci": [
+            -0.1917,
+            -0.0292
+          ],
+          "v2_fails": false,
+          "v3_state": "significant"
+        },
+        {
+          "season": 2025,
+          "n_games": 4,
+          "brier": 0.28588,
+          "baseline": 0.25301,
+          "delta": 0.03287,
+          "delta_ci": [
+            -0.1735,
+            0.1835
+          ],
+          "v2_fails": true,
+          "v3_state": "not_significant"
+        }
+      ]
+    }
+  },
+  "shippable_scopes": {
+    "v2": [
+      "D"
+    ],
+    "v3": []
+  },
+  "no_scope_gained_shipping_eligibility": true
+}
