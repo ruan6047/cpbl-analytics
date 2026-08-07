@@ -106,12 +106,12 @@ GAME_OVER_MARKERS = ("比賽結束",)
 #   team_opps      ：出局機會改團隊制（＝不給後援投手 9.16(i) 的重設）
 #   out_before_run ：5.08(a) 第三出局先於得分成立
 #   maxtaint       ：失誤半局內所有壘上跑者一律非自責
-# 以下兩個是**尚未採用的候選**（需求方 2026-08-07 裁定暫緩，僅供量測）：
+#   no_tb_owner  ：拿掉突破僵局跑者的歸屬修正（消融）
+# 以下是**尚未採用的候選**（需求方 2026-08-07 裁定暫緩，僅供量測）：
 #   walkoff_fix  ：再見判定改「末半局為下半且主隊獲勝」
-#   tb_owner     ：突破僵局跑者歸屬改為「面對該半局第一位打者」的投手
 MUTATIONS = (
     "full", "spec_literal", "no_shadow", "no_inherit", "zero_er", "no_hr_fix",
-    "team_opps", "out_before_run", "maxtaint", "walkoff_fix", "tb_owner",
+    "no_tb_owner", "team_opps", "out_before_run", "maxtaint", "walkoff_fix",
 )
 
 
@@ -321,6 +321,38 @@ def rebuild_game(
             # 突破僵局跑者：「視為守備失誤上壘」→ 非自責（7.01(b)(2)(C)）。
             # 該列本身的壘況欄是空的，跑者的棒次槽要向**下一個 island** 取。
             #
+            # === 責任歸屬（失分要記給誰）=========================================
+            # 結論：記給**實際投該半局**的投手，不是置人列上的 `pitcher_acnt`。
+            # 完整查證過程見 RESULTS.md §3.5。以下是摘要——**刻意記錄兩次失敗的
+            # 推導**，因為「規則文本查不到」正是這裡最重要的事實。
+            #
+            # 一、規則文本查證（皆核對原文）
+            #   1. 7.01(b)(2)(C) 原文限縮於「為符合規則 9.16 **自責分**的計算」，
+            #      未提失分歸屬。
+            #   2. 9.16 標題含「失分 Runs Allowed」，但**全條無失分歸屬通則**。
+            #      條內「失分」12 處：1 標題／2 處 9.16(a)原註例示／1 處 9.16(g)
+            #      本文／8 處 9.16(g) 原註例示。唯一規範性語句是 9.16(g) 本文
+            #      「該失分（無論自責分或非自責分）皆不為後援投手之責任」——但它
+            #      是**換投遺留跑壘員**的專款，突破僵局跑者不是任何投手讓他上壘的。
+            #   3. 聯盟規章第 37 條、裁判執法手冊補述 1.01 僅規定賽制與跑者位置，
+            #      無歸屬條款。
+            #
+            # 二、兩次推導嘗試皆不貼合
+            #   * 從一般歸屬原則外推 → 9.16 無通則可外推。
+            #   * 引 5.10(g) 的最少面對打席要求 → **實例證明套不上**：2025/D/30
+            #     官方 box 王奕凱 inning_pitched_cnt=1（＝3 個出局），他不是「未
+            #     面對任何打者」，而是**未在該半局投球**（他投的是九局下）。
+            #
+            # 三、官方行為的準確敘述（本實作依據的事實）
+            #   置人列是「首位打者之前」的偽事件，其 pitcher_acnt 沿用前一個同側
+            #   半局的投手。窮舉：259 個突破僵局半局，30 個置人列投手 ≠ 面對首打者
+            #   的投手，而這 30 個**全部**等於前一同側半局的投手（30/30 零例外）。
+            #
+            # 四、實證：三維對帳 +12 場一致、0 場相反（`--mutation no_tb_owner`）。
+            #
+            # ⚠️ 官方記錄員手冊不在本倉三份文件內。若日後取得，應回頭補依據。
+            # ===================================================================
+            #
             # **不得假設跑者在二壘。** 7.01(b)(2)(C) 只規定二壘，但**二軍曾試行
             # 一二壘版本**（需求方 2026-08-07 確認；實例 `2020/D/224` 十局上有兩個
             # 突破僵局 island，首位跑者置於**一壘**）。故改為從實際壘況欄推導：
@@ -332,11 +364,16 @@ def rebuild_game(
                     res.reason = "tiebreak_runner_unresolved"
                     res.detail = f"i{isl['inning']}{isl['half']} next_pre_slots={nxt}"
                     return res
+                # 突破僵局跑者的**責任投手**＝實際面對該半局第一位打者的投手，
+                # 不是置人列上的 `pitcher_acnt`。推導與證據見下方 §「責任歸屬」。
                 tb_owner = cur_pitcher
-                if mutation == "tb_owner" and gi + 1 < len(group):
-                    nxt_p = group[gi + 1]["pitchers"]
-                    if nxt_p:
-                        tb_owner = nxt_p[-1]
+                if mutation != "no_tb_owner":
+                    for later in group[gi + 1:]:
+                        if later["family"] == TIEBREAK_FAMILY:
+                            continue  # 一二壘變體會有連續兩個置人 island
+                        if later["pitchers"]:
+                            tb_owner = later["pitchers"][0]
+                            break
                 rebuilt: dict[int, Runner] = {}
                 for b, s in nxt.items():
                     prev = next((r for r in bases.values() if r.slot == s), None)
