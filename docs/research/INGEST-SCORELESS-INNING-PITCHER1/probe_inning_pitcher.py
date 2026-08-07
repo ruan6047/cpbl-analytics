@@ -230,44 +230,129 @@ def build_granularity(payloads) -> dict:
     }
 
 
+def _on_mound_runs(game: dict) -> dict[str, int]:
+    """逐事件比分推進量歸給該事件的 ``PitcherAcnt``。"""
+    on_mound: dict[str, int] = {}
+    pv = ph = 0
+    for e in game["LiveLog"]:
+        v = e.get("VisitingScore") or 0
+        h = e.get("HomeScore") or 0
+        delta = (v - pv) + (h - ph)
+        if delta > 0:
+            on_mound[e.get("PitcherAcnt")] = on_mound.get(e.get("PitcherAcnt"), 0) + delta
+        pv, ph = v, h
+    return on_mound
+
+
 def build_run_attribution(payloads) -> dict:
-    """量測「逐球在場上的投手」能否重現官方失分歸屬。
+    """量測「逐球在場上的投手」能否重現官方失分歸屬——**先過來源完整性閘門**。
 
     即使退一步只求**失分**（不求自責分），LiveLog 也重現不了官方 `RunCnt`：規則 9.16
-    把繼承跑者的得分記給**讓他上壘的那位投手**，不是得分當下在投手丘上的人。這裡逐場
-    比對「該投手在場上期間比分推進量」與官方 `Pitchers[].RunCnt`，不一致即為繼承跑者效應。
+    把繼承跑者的得分記給**讓他上壘的那位投手**，不是得分當下在投手丘上的人。
+
+    但「不一致」有**兩個**可能成因，必須先分離，否則會把來源缺資料誤算成規則效應
+    （R1 查核命中處）：
+
+    1. **來源異常**：LiveLog 的 score 欄位本身沒記完，末筆比分 ≠ header 最終比分。
+       此時整場的逐球歸屬都不可信（缺的分可能落在時間線任何位置，連「相符」的列也
+       只是碰巧），故**整場剔除**，不只剔不一致的列。
+    2. **規則 9.16 繼承跑者**：分只是從一位投手**轉移**到另一位，故同一 game+side 內
+       官方與推導的**淨差必為 0**。守恆成立才可作為 9.16 的證據。
+
+    兩道閘門皆由本函式**程式化判定**，不是硬編場次黑名單——換一批 payload 一樣會自動分流。
     """
-    rows, mismatches = 0, []
+    completeness, retained, excluded = [], [], []
     for gid, _, doc, _corpus in payloads:
         g = doc["Data"]["Game"]
-        on_mound: dict[str, int] = {}
-        pv = ph = 0
-        for e in g["LiveLog"]:
-            v = e.get("VisitingScore") or 0
-            h = e.get("HomeScore") or 0
-            delta = (v - pv) + (h - ph)
-            if delta > 0:
-                on_mound[e.get("PitcherAcnt")] = on_mound.get(e.get("PitcherAcnt"), 0) + delta
-            pv, ph = v, h
-        official = {
-            p["PitcherAcnt"]: (p.get("RunCnt") or 0)
-            for side in ("Home", "Visiting") for p in g[side]["Pitchers"]
-        }
-        for acnt in sorted(set(official) | set(on_mound)):
-            rows += 1
-            off_r, der_r = official.get(acnt, 0), on_mound.get(acnt, 0)
-            if off_r != der_r:
-                mismatches.append({"game_id": gid, "pitcher_acnt": acnt,
-                                   "official_RunCnt": off_r, "derived_on_mound_runs": der_r})
+        ll = g["LiveLog"]
+        last = ll[-1] if ll else {}
+        term = (last.get("VisitingScore") or 0, last.get("HomeScore") or 0)
+        final = (g["Visiting"]["Score"], g["Home"]["Score"])
+        score_ok = term == final
+        # 第二訊號：LiveLog 是否涵蓋到 InningScore 宣告的最後一局。只驗比分會漏掉
+        # 「截斷點落在最後一次得分之後」的情形——那種截斷比分對得上，局數對不上。
+        innings_declared = max(
+            len(g["Home"]["InningScore"]), len(g["Visiting"]["InningScore"])
+        )
+        innings_in_livelog = max((e.get("InningSeq") or 0) for e in ll) if ll else 0
+        innings_ok = innings_in_livelog >= innings_declared
+        ok = score_ok and innings_ok
+        completeness.append({
+            "game_id": gid, "livelog_rows": len(ll),
+            "livelog_terminal_score": list(term),
+            "header_final_score": list(final),
+            "runs_missing_from_livelog": (final[0] - term[0]) + (final[1] - term[1]),
+            "innings_declared_by_InningScore": innings_declared,
+            "innings_covered_by_livelog": innings_in_livelog,
+            "score_signal_ok": score_ok,
+            "inning_coverage_signal_ok": innings_ok,
+            "passes_completeness_gate": ok,
+        })
+        (retained if ok else excluded).append((gid, g))
+
+    rows, mismatches, conservation = 0, [], []
+    for gid, g in retained:
+        on_mound = _on_mound_runs(g)
+        for side in ("Home", "Visiting"):
+            official = {p["PitcherAcnt"]: (p.get("RunCnt") or 0) for p in g[side]["Pitchers"]}
+            net, n = 0, 0
+            for acnt in sorted(official):
+                rows += 1
+                off_r, der_r = official[acnt], on_mound.get(acnt, 0)
+                net += off_r - der_r
+                if off_r != der_r:
+                    n += 1
+                    mismatches.append({"game_id": gid, "side": side, "pitcher_acnt": acnt,
+                                       "official_RunCnt": off_r, "derived_on_mound_runs": der_r})
+            if n:
+                conservation.append({"game_id": gid, "side": side, "mismatch_rows": n,
+                                     "net_difference": net, "conserved": net == 0})
+
+    # 被剔除場次的原始數字（保留供查核者複核，不進主證）
+    excluded_detail = []
+    for gid, g in excluded:
+        on_mound = _on_mound_runs(g)
+        rows_x, mism_x = 0, 0
+        for side in ("Home", "Visiting"):
+            for p in g[side]["Pitchers"]:
+                rows_x += 1
+                if (p.get("RunCnt") or 0) != on_mound.get(p["PitcherAcnt"], 0):
+                    mism_x += 1
+        excluded_detail.append({"game_id": gid, "pitcher_rows": rows_x,
+                                "raw_mismatch_rows": mism_x,
+                                "reason": "LiveLog 不完整（比分訊號與/或局數涵蓋訊號未過）"})
+
+    all_conserved = all(c["conserved"] for c in conservation)
     return {
         "as_of": AS_OF,
         "question": "逐球 LiveLog 的『當下投手』能否重現官方逐投手失分歸屬？",
-        "method": "逐事件比分推進量歸給該事件的 PitcherAcnt，與 Pitchers[].RunCnt 對照",
+        "method": "逐事件比分推進量歸給該事件的 PitcherAcnt，與 Pitchers[].RunCnt 對照；"
+                  "先過『來源完整性』閘門整場剔除，再以『同 side 淨差=0』守恆檢定確認"
+                  "殘餘不一致確為歸屬轉移而非缺資料",
+        "gate_1_source_completeness": {
+            "rule": "兩訊號皆須通過：(a) LiveLog 末筆比分 == header 最終比分；"
+                    "(b) LiveLog 涵蓋局數 >= InningScore 宣告局數（抓截斷）",
+            "per_game": completeness,
+            "games_total": len(payloads),
+            "games_retained": len(retained),
+            "games_excluded": len(excluded),
+            "excluded_detail": excluded_detail,
+        },
+        "gate_2_conservation": {
+            "rule": "9.16 是歸屬轉移，故同一 game+side 內 sum(official - derived) 必為 0",
+            "sides_with_mismatch": conservation,
+            "all_conserved": all_conserved,
+        },
         "pitcher_rows": rows,
         "mismatch_count": len(mismatches),
         "mismatch_rate": round(len(mismatches) / rows, 4) if rows else None,
-        "interpretation": "不一致＝規則 9.16 繼承跑者歸屬（記給讓跑者上壘的投手）。"
-                          "連『失分』都重現不了，『自責分』更無從逐局推導。",
+        "interpretation": (
+            "在通過完整性閘門的場次中，全部不一致皆守恆（淨差 0），確為規則 9.16 繼承跑者"
+            "歸屬——得分記給讓跑者上壘的投手，不是得分當下在投手丘上的人。"
+            "連『失分』都重現不了，『自責分』更無從逐局推導。"
+            if all_conserved else
+            "⚠️ 仍有不守恆的 side，成因未分離，不可直接當 9.16 證據——待人工判讀。"
+        ),
         "mismatches": mismatches,
     }
 
@@ -320,7 +405,40 @@ def build_reconcile(payloads) -> dict:
                         mismatches.append({"game_id": gid, "pitcher_acnt": acnt,
                                            "field": f"{ak}/{dbk}", "api": av, "db": dv})
             games.append(gid)
+
+        # LiveLog 範圍跨來源比對：stats.cpbl payload vs cpbl.game_livelog（來源 www）。
+        # 用於佐證 §3.1 完整性閘門剔除的場次確實是「單場 API 殘缺」而非「該場本來就短」。
+        livelog_extent = []
+        for gid, _, doc, _c in payloads:
+            year, kind, sno = gid.split("-")
+            g = doc["Data"]["Game"]
+            ll = g["LiveLog"]
+            cur.execute(
+                "SELECT count(*), max(visiting_score), max(home_score), max(inning_seq) "
+                "FROM cpbl.game_livelog WHERE year=%s AND kind_code=%s AND game_sno=%s",
+                (int(year), kind, int(sno)),
+            )
+            n_db, v_db, h_db, inn_db = cur.fetchone()
+            livelog_extent.append({
+                "game_id": gid,
+                "api_livelog_rows": len(ll),
+                "db_livelog_rows": n_db,
+                "api_max_inning": max((e.get("InningSeq") or 0) for e in ll) if ll else 0,
+                "db_max_inning": inn_db,
+                "api_terminal_score": [ll[-1].get("VisitingScore") if ll else None,
+                                       ll[-1].get("HomeScore") if ll else None],
+                "db_max_score": [v_db, h_db],
+                "header_final_score": [g["Visiting"]["Score"], g["Home"]["Score"]],
+                "api_shorter_than_db": (n_db or 0) > len(ll),
+            })
     return {
+        "livelog_extent_cross_check": {
+            "purpose": "佐證完整性閘門剔除的場次是單場 API 殘缺，而非該場本來就短",
+            "source_b_note": "cpbl.game_livelog 來源為 www.cpbl /box/getlive，與單場 API 不同站台",
+            "games_where_api_shorter": [r["game_id"] for r in livelog_extent
+                                        if r["api_shorter_than_db"]],
+            "per_game": livelog_extent,
+        },
         "as_of": AS_OF,
         "source_a": "stats.cpbl.com.tw /api/proxy/v1/games/{id} → Data.Game.{Home,Visiting}.Pitchers[]",
         "source_b": "cpbl.pitching_gamelog（來源 www.cpbl.com.tw /box/getlive，獨立第二站台）",

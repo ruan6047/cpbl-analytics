@@ -1,116 +1,396 @@
 {
   "as_of": "2026-08-07",
   "question": "逐球 LiveLog 的『當下投手』能否重現官方逐投手失分歸屬？",
-  "method": "逐事件比分推進量歸給該事件的 PitcherAcnt，與 Pitchers[].RunCnt 對照",
-  "pitcher_rows": 117,
-  "mismatch_count": 18,
-  "mismatch_rate": 0.1538,
-  "interpretation": "不一致＝規則 9.16 繼承跑者歸屬（記給讓跑者上壘的投手）。連『失分』都重現不了，『自責分』更無從逐局推導。",
+  "method": "逐事件比分推進量歸給該事件的 PitcherAcnt，與 Pitchers[].RunCnt 對照；先過『來源完整性』閘門整場剔除，再以『同 side 淨差=0』守恆檢定確認殘餘不一致確為歸屬轉移而非缺資料",
+  "gate_1_source_completeness": {
+    "rule": "兩訊號皆須通過：(a) LiveLog 末筆比分 == header 最終比分；(b) LiveLog 涵蓋局數 >= InningScore 宣告局數（抓截斷）",
+    "per_game": [
+      {
+        "game_id": "2026-A-141",
+        "livelog_rows": 275,
+        "livelog_terminal_score": [
+          3,
+          1
+        ],
+        "header_final_score": [
+          3,
+          1
+        ],
+        "runs_missing_from_livelog": 0,
+        "innings_declared_by_InningScore": 9,
+        "innings_covered_by_livelog": 9,
+        "score_signal_ok": true,
+        "inning_coverage_signal_ok": true,
+        "passes_completeness_gate": true
+      },
+      {
+        "game_id": "2026-A-146",
+        "livelog_rows": 292,
+        "livelog_terminal_score": [
+          10,
+          2
+        ],
+        "header_final_score": [
+          10,
+          2
+        ],
+        "runs_missing_from_livelog": 0,
+        "innings_declared_by_InningScore": 9,
+        "innings_covered_by_livelog": 9,
+        "score_signal_ok": true,
+        "inning_coverage_signal_ok": true,
+        "passes_completeness_gate": true
+      },
+      {
+        "game_id": "2026-A-155",
+        "livelog_rows": 324,
+        "livelog_terminal_score": [
+          1,
+          6
+        ],
+        "header_final_score": [
+          1,
+          6
+        ],
+        "runs_missing_from_livelog": 0,
+        "innings_declared_by_InningScore": 9,
+        "innings_covered_by_livelog": 9,
+        "score_signal_ok": true,
+        "inning_coverage_signal_ok": true,
+        "passes_completeness_gate": true
+      },
+      {
+        "game_id": "2026-A-157",
+        "livelog_rows": 308,
+        "livelog_terminal_score": [
+          1,
+          9
+        ],
+        "header_final_score": [
+          1,
+          9
+        ],
+        "runs_missing_from_livelog": 0,
+        "innings_declared_by_InningScore": 9,
+        "innings_covered_by_livelog": 9,
+        "score_signal_ok": true,
+        "inning_coverage_signal_ok": true,
+        "passes_completeness_gate": true
+      },
+      {
+        "game_id": "2026-A-158",
+        "livelog_rows": 407,
+        "livelog_terminal_score": [
+          5,
+          6
+        ],
+        "header_final_score": [
+          5,
+          6
+        ],
+        "runs_missing_from_livelog": 0,
+        "innings_declared_by_InningScore": 11,
+        "innings_covered_by_livelog": 11,
+        "score_signal_ok": true,
+        "inning_coverage_signal_ok": true,
+        "passes_completeness_gate": true
+      },
+      {
+        "game_id": "2026-D-100",
+        "livelog_rows": 366,
+        "livelog_terminal_score": [
+          8,
+          6
+        ],
+        "header_final_score": [
+          8,
+          6
+        ],
+        "runs_missing_from_livelog": 0,
+        "innings_declared_by_InningScore": 9,
+        "innings_covered_by_livelog": 9,
+        "score_signal_ok": true,
+        "inning_coverage_signal_ok": true,
+        "passes_completeness_gate": true
+      },
+      {
+        "game_id": "2026-D-124",
+        "livelog_rows": 288,
+        "livelog_terminal_score": [
+          0,
+          3
+        ],
+        "header_final_score": [
+          0,
+          3
+        ],
+        "runs_missing_from_livelog": 0,
+        "innings_declared_by_InningScore": 9,
+        "innings_covered_by_livelog": 9,
+        "score_signal_ok": true,
+        "inning_coverage_signal_ok": true,
+        "passes_completeness_gate": true
+      },
+      {
+        "game_id": "2026-D-137",
+        "livelog_rows": 377,
+        "livelog_terminal_score": [
+          4,
+          1
+        ],
+        "header_final_score": [
+          4,
+          1
+        ],
+        "runs_missing_from_livelog": 0,
+        "innings_declared_by_InningScore": 10,
+        "innings_covered_by_livelog": 10,
+        "score_signal_ok": true,
+        "inning_coverage_signal_ok": true,
+        "passes_completeness_gate": true
+      },
+      {
+        "game_id": "2026-D-180",
+        "livelog_rows": 119,
+        "livelog_terminal_score": [
+          1,
+          2
+        ],
+        "header_final_score": [
+          2,
+          3
+        ],
+        "runs_missing_from_livelog": 2,
+        "innings_declared_by_InningScore": 10,
+        "innings_covered_by_livelog": 5,
+        "score_signal_ok": false,
+        "inning_coverage_signal_ok": false,
+        "passes_completeness_gate": false
+      },
+      {
+        "game_id": "2026-D-184",
+        "livelog_rows": 423,
+        "livelog_terminal_score": [
+          7,
+          5
+        ],
+        "header_final_score": [
+          7,
+          5
+        ],
+        "runs_missing_from_livelog": 0,
+        "innings_declared_by_InningScore": 10,
+        "innings_covered_by_livelog": 10,
+        "score_signal_ok": true,
+        "inning_coverage_signal_ok": true,
+        "passes_completeness_gate": true
+      },
+      {
+        "game_id": "2026-A-246",
+        "livelog_rows": 317,
+        "livelog_terminal_score": [
+          8,
+          2
+        ],
+        "header_final_score": [
+          8,
+          2
+        ],
+        "runs_missing_from_livelog": 0,
+        "innings_declared_by_InningScore": 9,
+        "innings_covered_by_livelog": 9,
+        "score_signal_ok": true,
+        "inning_coverage_signal_ok": true,
+        "passes_completeness_gate": true
+      }
+    ],
+    "games_total": 11,
+    "games_retained": 10,
+    "games_excluded": 1,
+    "excluded_detail": [
+      {
+        "game_id": "2026-D-180",
+        "pitcher_rows": 12,
+        "raw_mismatch_rows": 2,
+        "reason": "LiveLog 不完整（比分訊號與/或局數涵蓋訊號未過）"
+      }
+    ]
+  },
+  "gate_2_conservation": {
+    "rule": "9.16 是歸屬轉移，故同一 game+side 內 sum(official - derived) 必為 0",
+    "sides_with_mismatch": [
+      {
+        "game_id": "2026-A-155",
+        "side": "Visiting",
+        "mismatch_rows": 2,
+        "net_difference": 0,
+        "conserved": true
+      },
+      {
+        "game_id": "2026-D-100",
+        "side": "Home",
+        "mismatch_rows": 2,
+        "net_difference": 0,
+        "conserved": true
+      },
+      {
+        "game_id": "2026-D-100",
+        "side": "Visiting",
+        "mismatch_rows": 2,
+        "net_difference": 0,
+        "conserved": true
+      },
+      {
+        "game_id": "2026-D-124",
+        "side": "Visiting",
+        "mismatch_rows": 2,
+        "net_difference": 0,
+        "conserved": true
+      },
+      {
+        "game_id": "2026-D-137",
+        "side": "Home",
+        "mismatch_rows": 2,
+        "net_difference": 0,
+        "conserved": true
+      },
+      {
+        "game_id": "2026-D-184",
+        "side": "Home",
+        "mismatch_rows": 2,
+        "net_difference": 0,
+        "conserved": true
+      },
+      {
+        "game_id": "2026-D-184",
+        "side": "Visiting",
+        "mismatch_rows": 2,
+        "net_difference": 0,
+        "conserved": true
+      },
+      {
+        "game_id": "2026-A-246",
+        "side": "Home",
+        "mismatch_rows": 2,
+        "net_difference": 0,
+        "conserved": true
+      }
+    ],
+    "all_conserved": true
+  },
+  "pitcher_rows": 105,
+  "mismatch_count": 16,
+  "mismatch_rate": 0.1524,
+  "interpretation": "在通過完整性閘門的場次中，全部不一致皆守恆（淨差 0），確為規則 9.16 繼承跑者歸屬——得分記給讓跑者上壘的投手，不是得分當下在投手丘上的人。連『失分』都重現不了，『自責分』更無從逐局推導。",
   "mismatches": [
     {
       "game_id": "2026-A-155",
+      "side": "Visiting",
       "pitcher_acnt": "0000006127",
       "official_RunCnt": 0,
       "derived_on_mound_runs": 2
     },
     {
       "game_id": "2026-A-155",
+      "side": "Visiting",
       "pitcher_acnt": "0000006848",
       "official_RunCnt": 5,
       "derived_on_mound_runs": 3
     },
     {
       "game_id": "2026-D-100",
+      "side": "Home",
       "pitcher_acnt": "0000006860",
       "official_RunCnt": 6,
       "derived_on_mound_runs": 5
     },
     {
       "game_id": "2026-D-100",
+      "side": "Home",
       "pitcher_acnt": "0000006954",
       "official_RunCnt": 0,
       "derived_on_mound_runs": 1
     },
     {
       "game_id": "2026-D-100",
+      "side": "Visiting",
       "pitcher_acnt": "0000007303",
       "official_RunCnt": 5,
       "derived_on_mound_runs": 3
     },
     {
       "game_id": "2026-D-100",
+      "side": "Visiting",
       "pitcher_acnt": "0000007628",
       "official_RunCnt": 0,
       "derived_on_mound_runs": 2
     },
     {
       "game_id": "2026-D-124",
+      "side": "Visiting",
       "pitcher_acnt": "0000006954",
       "official_RunCnt": 1,
       "derived_on_mound_runs": 0
     },
     {
       "game_id": "2026-D-124",
+      "side": "Visiting",
       "pitcher_acnt": "0000007316",
       "official_RunCnt": 0,
       "derived_on_mound_runs": 1
     },
     {
       "game_id": "2026-D-137",
+      "side": "Home",
       "pitcher_acnt": "0000006722",
       "official_RunCnt": 0,
       "derived_on_mound_runs": 1
     },
     {
       "game_id": "2026-D-137",
+      "side": "Home",
       "pitcher_acnt": "0000006878",
       "official_RunCnt": 3,
       "derived_on_mound_runs": 2
     },
     {
-      "game_id": "2026-D-180",
-      "pitcher_acnt": "0000002303",
-      "official_RunCnt": 1,
-      "derived_on_mound_runs": 0
-    },
-    {
-      "game_id": "2026-D-180",
-      "pitcher_acnt": "0000003334",
-      "official_RunCnt": 1,
-      "derived_on_mound_runs": 0
-    },
-    {
       "game_id": "2026-D-184",
-      "pitcher_acnt": "0000006878",
-      "official_RunCnt": 2,
-      "derived_on_mound_runs": 1
-    },
-    {
-      "game_id": "2026-D-184",
-      "pitcher_acnt": "0000006910",
-      "official_RunCnt": 0,
-      "derived_on_mound_runs": 1
-    },
-    {
-      "game_id": "2026-D-184",
+      "side": "Home",
       "pitcher_acnt": "0000006920",
       "official_RunCnt": 4,
       "derived_on_mound_runs": 2
     },
     {
       "game_id": "2026-D-184",
+      "side": "Home",
       "pitcher_acnt": "0000006922",
       "official_RunCnt": 0,
       "derived_on_mound_runs": 2
     },
     {
-      "game_id": "2026-A-246",
+      "game_id": "2026-D-184",
+      "side": "Visiting",
+      "pitcher_acnt": "0000006878",
+      "official_RunCnt": 2,
+      "derived_on_mound_runs": 1
+    },
+    {
+      "game_id": "2026-D-184",
+      "side": "Visiting",
       "pitcher_acnt": "0000006910",
       "official_RunCnt": 0,
       "derived_on_mound_runs": 1
     },
     {
       "game_id": "2026-A-246",
+      "side": "Home",
+      "pitcher_acnt": "0000006910",
+      "official_RunCnt": 0,
+      "derived_on_mound_runs": 1
+    },
+    {
+      "game_id": "2026-A-246",
+      "side": "Home",
       "pitcher_acnt": "0000007305",
       "official_RunCnt": 2,
       "derived_on_mound_runs": 1

@@ -1,4 +1,233 @@
 {
+  "livelog_extent_cross_check": {
+    "purpose": "佐證完整性閘門剔除的場次是單場 API 殘缺，而非該場本來就短",
+    "source_b_note": "cpbl.game_livelog 來源為 www.cpbl /box/getlive，與單場 API 不同站台",
+    "games_where_api_shorter": [
+      "2026-D-180"
+    ],
+    "per_game": [
+      {
+        "game_id": "2026-A-141",
+        "api_livelog_rows": 275,
+        "db_livelog_rows": 274,
+        "api_max_inning": 9,
+        "db_max_inning": 9,
+        "api_terminal_score": [
+          3,
+          1
+        ],
+        "db_max_score": [
+          3,
+          1
+        ],
+        "header_final_score": [
+          3,
+          1
+        ],
+        "api_shorter_than_db": false
+      },
+      {
+        "game_id": "2026-A-146",
+        "api_livelog_rows": 292,
+        "db_livelog_rows": 291,
+        "api_max_inning": 9,
+        "db_max_inning": 9,
+        "api_terminal_score": [
+          10,
+          2
+        ],
+        "db_max_score": [
+          10,
+          2
+        ],
+        "header_final_score": [
+          10,
+          2
+        ],
+        "api_shorter_than_db": false
+      },
+      {
+        "game_id": "2026-A-155",
+        "api_livelog_rows": 324,
+        "db_livelog_rows": 323,
+        "api_max_inning": 9,
+        "db_max_inning": 9,
+        "api_terminal_score": [
+          1,
+          6
+        ],
+        "db_max_score": [
+          1,
+          6
+        ],
+        "header_final_score": [
+          1,
+          6
+        ],
+        "api_shorter_than_db": false
+      },
+      {
+        "game_id": "2026-A-157",
+        "api_livelog_rows": 308,
+        "db_livelog_rows": 307,
+        "api_max_inning": 9,
+        "db_max_inning": 9,
+        "api_terminal_score": [
+          1,
+          9
+        ],
+        "db_max_score": [
+          1,
+          9
+        ],
+        "header_final_score": [
+          1,
+          9
+        ],
+        "api_shorter_than_db": false
+      },
+      {
+        "game_id": "2026-A-158",
+        "api_livelog_rows": 407,
+        "db_livelog_rows": 406,
+        "api_max_inning": 11,
+        "db_max_inning": 11,
+        "api_terminal_score": [
+          5,
+          6
+        ],
+        "db_max_score": [
+          5,
+          6
+        ],
+        "header_final_score": [
+          5,
+          6
+        ],
+        "api_shorter_than_db": false
+      },
+      {
+        "game_id": "2026-D-100",
+        "api_livelog_rows": 366,
+        "db_livelog_rows": 365,
+        "api_max_inning": 9,
+        "db_max_inning": 9,
+        "api_terminal_score": [
+          8,
+          6
+        ],
+        "db_max_score": [
+          8,
+          6
+        ],
+        "header_final_score": [
+          8,
+          6
+        ],
+        "api_shorter_than_db": false
+      },
+      {
+        "game_id": "2026-D-124",
+        "api_livelog_rows": 288,
+        "db_livelog_rows": 287,
+        "api_max_inning": 9,
+        "db_max_inning": 9,
+        "api_terminal_score": [
+          0,
+          3
+        ],
+        "db_max_score": [
+          0,
+          3
+        ],
+        "header_final_score": [
+          0,
+          3
+        ],
+        "api_shorter_than_db": false
+      },
+      {
+        "game_id": "2026-D-137",
+        "api_livelog_rows": 377,
+        "db_livelog_rows": 376,
+        "api_max_inning": 10,
+        "db_max_inning": 10,
+        "api_terminal_score": [
+          4,
+          1
+        ],
+        "db_max_score": [
+          4,
+          1
+        ],
+        "header_final_score": [
+          4,
+          1
+        ],
+        "api_shorter_than_db": false
+      },
+      {
+        "game_id": "2026-D-180",
+        "api_livelog_rows": 119,
+        "db_livelog_rows": 328,
+        "api_max_inning": 5,
+        "db_max_inning": 10,
+        "api_terminal_score": [
+          1,
+          2
+        ],
+        "db_max_score": [
+          2,
+          3
+        ],
+        "header_final_score": [
+          2,
+          3
+        ],
+        "api_shorter_than_db": true
+      },
+      {
+        "game_id": "2026-D-184",
+        "api_livelog_rows": 423,
+        "db_livelog_rows": 422,
+        "api_max_inning": 10,
+        "db_max_inning": 10,
+        "api_terminal_score": [
+          7,
+          5
+        ],
+        "db_max_score": [
+          7,
+          5
+        ],
+        "header_final_score": [
+          7,
+          5
+        ],
+        "api_shorter_than_db": false
+      },
+      {
+        "game_id": "2026-A-246",
+        "api_livelog_rows": 317,
+        "db_livelog_rows": 316,
+        "api_max_inning": 9,
+        "db_max_inning": 9,
+        "api_terminal_score": [
+          8,
+          2
+        ],
+        "db_max_score": [
+          8,
+          2
+        ],
+        "header_final_score": [
+          8,
+          2
+        ],
+        "api_shorter_than_db": false
+      }
+    ]
+  },
   "as_of": "2026-08-07",
   "source_a": "stats.cpbl.com.tw /api/proxy/v1/games/{id} → Data.Game.{Home,Visiting}.Pitchers[]",
   "source_b": "cpbl.pitching_gamelog（來源 www.cpbl.com.tw /box/getlive，獨立第二站台）",
