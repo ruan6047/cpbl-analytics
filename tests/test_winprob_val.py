@@ -356,8 +356,13 @@ def test_models_layer_does_not_import_the_api_layer():
     """分層方向：`models` 不得 import `api`。
 
     以子行程從乾淨的 import 狀態載入 `cpbl.models.winprob_val`，斷言載入後
-    `sys.modules` 裡沒有任何 `cpbl.api.*`。上抽之前這條會紅（取樣路徑得延後 import
-    `api/routers/recap` 才拿得到解算），是本次上抽要證明的東西。
+    `sys.modules` 裡沒有任何 `cpbl.api.*`——證明上抽後 models 的 import 是**潔淨**的。
+
+    ⚠️ 這**不是**紅→綠的回歸證明：上抽前那個 `api` import 本來就寫在
+    `_resolve_pre_scores()` 函式內，單純載入模組同樣不會把 `cpbl.api.*` 放進
+    `sys.modules`，故本測試在上抽前也會綠（RESAMPLE1-R1-001，查核指出，已實測確認）。
+    它守的是**日後不回退**：若有人把 `pre_scores_from_events` 或其他 api 依賴改成
+    模組層 import，這裡會紅。
     """
     import subprocess
     import sys

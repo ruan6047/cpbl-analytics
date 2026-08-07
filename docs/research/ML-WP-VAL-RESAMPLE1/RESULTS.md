@@ -56,9 +56,12 @@ winprob_val`（`winprob_scorer` 已 import `winprob_val` 的 `RuleSet`／`we_sol
 - 延後 import 已改回正常的模組層 import；`winprob_val` 改為模組層 import
   `pa_facts.annotate_scores`（無循環：`pa_facts` 模組層只依賴 `ingest.pa_build`／`db`／
   `completion`，它對 `winprob_scorer` 的依賴本身就是函式內延後的）。
-- **`models → api` 的方向反轉已消除**，並由
+- **`models → api` 的方向反轉已消除**——原始碼層面：`winprob_val` 已無任何
+  `cpbl.api` import（模組層或函式內皆無）。
   `test_models_layer_does_not_import_the_api_layer` 以子行程斷言
-  「載入 `cpbl.models.winprob_val` 後 `sys.modules` 不含任何 `cpbl.api.*`」釘住。
+  「載入 `cpbl.models.winprob_val` 後 `sys.modules` 不含任何 `cpbl.api.*`」，
+  **證明上抽後 models 的 import 是潔淨的、並防止日後回退**。
+  ⚠️ 它**不是**紅→綠的回歸證明——見下方「證明力的界線」。
 
 **純搬家的證明**（行為零變化）：
 
@@ -77,6 +80,27 @@ winprob_val`（`winprob_scorer` 已 import `winprob_val` 的 `RuleSet`／`we_sol
    `test_pre_score_resolution_delegates_to_the_single_implementation`（取樣路徑必須真的
    呼叫那支共用純函式）。
 
+**證明力的界線（RESAMPLE1-R1-001，查核指出，已收回原宣稱）**：
+
+首版報告把 `test_models_layer_does_not_import_the_api_layer` 描述成「上抽前會紅」的
+紅→綠證明，**那是錯的**。上抽前那個 `from cpbl.api.routers.recap import ...` 本來就寫在
+`_resolve_pre_scores()` **函式內**，所以「單純載入模組」在上抽前同樣不會把 `cpbl.api.*`
+放進 `sys.modules`——該測試在上抽前也會綠。
+
+實測（以 `git archive 905a1f6 src` 取出上抽前的樹，用同一支 interpreter 載入）：
+
+```
+實際載入的檔案: …/old905/src/cpbl/models/winprob_val.py
+sys.modules 中的 cpbl.api.*: []
+```
+
+因此該測試的正確定位是「**證明上抽後 models 的 import 潔淨，並防止日後有人改成模組層
+import 而回退**」，不是「證明本次上抽修好了原本壞掉的東西」。方向反轉的消除由**原始碼
+本身**佐證（`winprob_val` 已無任何 `cpbl.api` import），而非由這支測試的紅→綠佐證。
+
+本專案紅線：**宣稱可防回歸的測試必須先跑紅**；沒跑紅就不得寫成紅→綠證據。上面第 1–3 項
+（函式主體逐字相同、指標逐位相同、`#96` 測試 178 passed）不受此更正影響，仍然成立。
+
 > ⚠️ 語意上更貼近的家其實是 `models/pa_facts`（就在 `annotate_scores` 隔壁，且與
 > `delta_re24` 同一族）。**`pa_facts.py` 不在本卡擴充後的寫入集**，故未寫入該檔；
 > 現址 `winprob_val` 沿用 `winprob_scorer` 的既有前例（生產 recap 已 import 該模組的
@@ -88,6 +112,13 @@ winprob_val`（`winprob_scorer` 已 import `winprob_val` 的 `RuleSet`／`we_sol
 ## §2 受影響打席母體（逐季，由指令輸出產生）
 
 腳本：`docs/research/ML-WP-VAL-RESAMPLE1/census.py`　artifact：`population_census.json`
+
+> 📌 **本節所有數字是 `2026-08-07` 當下的 as-of 快照**（需求方準則 1：母體隨比賽新增而
+> 變動是正常狀態，處置是標 as-of 而非凍結）。同日稍後重跑會拿到略大的母體——查核者
+> 現場重跑即得 2026/A 17,924／225、全期 331,641／5,314（本 artifact 為 17,843／223、
+> 331,402／5,311）。**比例與結論不受影響**；分支內 artifact 與本報告彼此自洽。
+> 若日後需要逐位重現，須固定 DB snapshot 而非只寫 `--as-of`（RESAMPLE1-R1-002，
+> 查核者建議，已入提案清單，不在本卡處理）。
 
 ```
 uv run python docs/research/ML-WP-VAL-RESAMPLE1/census.py
@@ -357,7 +388,8 @@ uv run pytest         # 1431 passed, 9 skipped
 - `test_scores_between_plate_appearances_are_still_carried` — 打席**之間**得分（盜壘／暴投）不得被吃掉
 - `test_unresolved_pre_score_fails_closed_and_is_counted` — fail closed 且獨立計數
 - `test_recap_reexports_the_same_pre_score_function_object` — re-export 必須是別名而非副本
-- `test_models_layer_does_not_import_the_api_layer` — 子行程斷言 `models` 不再拉進 `cpbl.api.*`
+- `test_models_layer_does_not_import_the_api_layer` — 子行程斷言載入 `models` 不會拉進
+  `cpbl.api.*`（潔淨性＋防回退；**非**紅→綠證明，見 §1.1「證明力的界線」）
 - `test_pre_score_resolution_delegates_to_the_single_implementation` — 釘住「只有一份實作」
 - `test_unknown_pre_score_source_is_rejected` — 來源參數白名單
 
