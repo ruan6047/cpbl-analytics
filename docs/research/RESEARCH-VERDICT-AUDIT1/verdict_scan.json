@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-08-06T20:43:57.764470+00:00",
-  "repo_head": "b853572e63565970c21f8521bc0448d1db1cc761",
   "scan_root": "docs/research",
+  "self_excluded_prefix": "docs/research/RESEARCH-VERDICT-AUDIT1",
+  "self_exclusion_note": "本卡自己的輸出目錄不進母體（R1 finding AUDIT1-R1-001）。排除前綴由 __file__ 導出，故未來的稽核卡住在自己的目錄、只排除自己，仍會掃到本卡的結論。",
   "scanned_file_count": 122,
   "scanned_files": [
     "docs/research/BUG-HELD-GAME-FRESHNESS1_REVIEW.md",

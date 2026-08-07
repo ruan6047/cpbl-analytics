@@ -13,6 +13,8 @@
   不構成否定判定，但會標記出「該檔的判定可能踩到準則 1/2/3」。
 - **JSON 另走結構化擷取**。研究 artifact 常把判定存在 `verdict` 欄，正則掃全文會
   漏掉巢狀結構，故對 `.json` 另做遞迴走訪，記錄 `verdict`-類鍵的實際值與路徑。
+- **自我排除**（R1 finding `AUDIT1-R1-001`）。本卡自己的輸出目錄不進掃描母體，
+  排除前綴由 `Path(__file__).parent` 導出而非寫死清單——見下方 `SELF_PREFIX` 的說明。
 
 輸出：
 - `verdict_scan.json` — 逐檔逐行命中明細（機器可讀，供 VERDICTS.md 引用）
@@ -22,22 +24,36 @@
 
 用法：
     uv run python docs/research/RESEARCH-VERDICT-AUDIT1/scan_verdicts.py
+    uv run python docs/research/RESEARCH-VERDICT-AUDIT1/scan_verdicts.py --check   # 不寫檔，只驗證
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import subprocess
 from collections import Counter
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+import audit_io
+
+SELF_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SELF_DIR.parents[2]
 SCAN_ROOT = REPO_ROOT / "docs" / "research"
-OUT_DIR = REPO_ROOT / "docs" / "research" / "RESEARCH-VERDICT-AUDIT1"
+OUT_DIR = SELF_DIR
 OUT_PATH = OUT_DIR / "verdict_scan.json"
+
+# 本卡自己的輸出目錄。掃描母體必須排除它，否則第一次 commit 之後重跑就會把自己的
+# VERDICTS.md／dispositions.json 掃成「帶否定判定的研究產物」——那些檔案裡滿是
+# `No-Go`／`unsupported`／`需重跑`，母體會從 64 膨脹到 70，`build_verdict_list.py`
+# 直接 FAIL。R1 查核在乾淨 worktree 順序重跑時抓到的就是這個。
+#
+# **排除的是「執行中這張卡自己的目錄」，不是「所有稽核卡的目錄」**：前綴由 `__file__`
+# 導出，所以未來的 AUDIT2 住在自己的目錄、只排除自己，**會**掃到 AUDIT1 的結論。
+# 盲區只有一個且是應該的——一張卡看不見自己的結論，自我稽核本來就不是稽核。
+SELF_PREFIX = str(SELF_DIR.relative_to(REPO_ROOT))
 
 # tier1：判定語彙。命中即進入重審母體。
 TIER1_PATTERNS: dict[str, str] = {
@@ -88,7 +104,12 @@ class Hit:
 
 def _iter_files() -> list[Path]:
     """列出掃描母體。用 git ls-files 而非 os.walk：確保只掃版控內的檔案，
-    避免把本卡自己的中間產物或 .gitignore 的雜物算進母體。"""
+    避免把 scratch 或 .gitignore 的雜物算進母體。本卡自己的目錄以 `SELF_PREFIX` 排除。
+
+    排除放在 git 清單**之後**而非之前，故結果與「本卡檔案是否已 tracked」無關：
+    commit 前 git 列 122 檔、self 0 檔；commit 後列 129 檔、self 7 檔——兩邊都是 122。
+    這是 `--check` 能在 commit 前後都通過的原因。
+    """
     out = subprocess.run(
         ["git", "-C", str(REPO_ROOT), "ls-files", "--", "docs/research"],
         capture_output=True,
@@ -97,6 +118,8 @@ def _iter_files() -> list[Path]:
     )
     paths = []
     for line in out.stdout.splitlines():
+        if line.startswith(SELF_PREFIX + "/"):
+            continue
         p = REPO_ROOT / line
         if p.suffix.lower() in SCAN_SUFFIXES and p.is_file():
             paths.append(p)
@@ -165,7 +188,15 @@ def _scan_json_structure(path: Path) -> list[dict[str, object]]:
     return found
 
 
-def main() -> None:
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument(
+        "--check",
+        action="store_true",
+        help="不寫檔；驗證交付的 verdict_scan.json 是否與本次重生成逐位相同，不符即 exit 1",
+    )
+    args = ap.parse_args()
+
     files = _iter_files()
     all_hits: list[Hit] = []
     json_verdicts: dict[str, list[dict[str, object]]] = {}
@@ -202,15 +233,14 @@ def main() -> None:
         set(k for k, v in per_file.items() if int(v["tier1_count"]) > 0) | set(json_verdicts)
     )
 
+    # 刻意不放 generated_at／repo_head：見 audit_io 模組 docstring。
     payload = {
-        "generated_at": datetime.now(UTC).isoformat(),
-        "repo_head": subprocess.run(
-            ["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip(),
         "scan_root": str(SCAN_ROOT.relative_to(REPO_ROOT)),
+        "self_excluded_prefix": SELF_PREFIX,
+        "self_exclusion_note": (
+            "本卡自己的輸出目錄不進母體（R1 finding AUDIT1-R1-001）。排除前綴由 __file__ 導出，"
+            "故未來的稽核卡住在自己的目錄、只排除自己，仍會掃到本卡的結論。"
+        ),
         "scanned_file_count": len(files),
         "scanned_files": [str(p.relative_to(REPO_ROOT)) for p in files],
         "tier1_patterns": TIER1_PATTERNS,
@@ -222,9 +252,11 @@ def main() -> None:
         "hits": [asdict(h) for h in all_hits],
     }
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    OUT_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    ok = audit_io.emit(
+        OUT_PATH, json.dumps(payload, ensure_ascii=False, indent=2), check=args.check
+    )
 
-    print(f"scanned files      : {len(files)}")
+    print(f"scanned files      : {len(files)}  (self-excluded prefix: {SELF_PREFIX}/)")
     print(f"total hits         : {len(all_hits)}  (tier1={sum(1 for h in all_hits if h.tier == 1)})")
     print(f"review population  : {len(population)} files with >=1 tier1 hit or negative json verdict")
     print(f"artifact           : {OUT_PATH.relative_to(REPO_ROOT)}")
@@ -233,7 +265,8 @@ def main() -> None:
     for rel in population:
         e = per_file.get(rel, {"tier1_count": 0, "tier2_count": 0})
         print(f"{e['tier1_count']:>6} {e['tier2_count']:>6}  {rel}")
+    return audit_io.finish(ok, check=args.check)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

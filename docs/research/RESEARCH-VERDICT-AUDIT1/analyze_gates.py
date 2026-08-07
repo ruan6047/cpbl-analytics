@@ -28,15 +28,18 @@
 
 用法：
     uv run python docs/research/RESEARCH-VERDICT-AUDIT1/analyze_gates.py
+    uv run python docs/research/RESEARCH-VERDICT-AUDIT1/analyze_gates.py --check
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import math
 from pathlib import Path
 from typing import Any
 
+import audit_io
 import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -88,7 +91,7 @@ def null_ece(deciles: list[dict[str, Any]], rng: np.random.Generator) -> dict[st
     }
 
 
-def _write_markdown(out: dict[str, Any]) -> None:
+def _write_markdown(out: dict[str, Any], *, check: bool) -> bool:
     """VERDICTS.md 引用的表格一律由此產生，杜絕人工謄寫（STRENGTH1 曾因謄寫連三輪查核失敗）。"""
     L: list[str] = ["<!-- 由 analyze_gates.py 產生，勿手改。 -->", ""]
     L += [
@@ -153,10 +156,18 @@ def _write_markdown(out: dict[str, Any]) -> None:
         f"借用 SE 的 STRENGTH1 池化 {out['cal1_band_gate']['strength1_n_games_pooled']:,} 場）。",
         "",
     ]
-    OUT_MD.write_text("\n".join(L) + "\n", encoding="utf-8")
+    return audit_io.emit(OUT_MD, "\n".join(L) + "\n", check=check)
 
 
-def main() -> None:
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument(
+        "--check",
+        action="store_true",
+        help="不寫檔；驗證交付的 gate_analysis.json／gate_tables.md 是否與本次重生成逐位相同",
+    )
+    args = ap.parse_args()
+
     rng = np.random.default_rng(MC_SEED)
     val1 = _load(VAL1)
     fix1 = _load(VAL1_FIX1)
@@ -284,8 +295,10 @@ def main() -> None:
         "seasons": st_seasons,
     }
 
-    OUT_PATH.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
-    _write_markdown(out)
+    ok = audit_io.emit(
+        OUT_PATH, json.dumps(out, ensure_ascii=False, indent=2), check=args.check
+    )
+    ok = _write_markdown(out, check=args.check) and ok
 
     # ---- stdout 摘要 ----
     print("=== VAL1 池化：ECE 雜訊底線 vs 0.05 proxy 門檻 ===")
@@ -324,7 +337,8 @@ def main() -> None:
             )
     print()
     print(f"artifact: {OUT_PATH.relative_to(REPO_ROOT)}")
+    return audit_io.finish(ok, check=args.check)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

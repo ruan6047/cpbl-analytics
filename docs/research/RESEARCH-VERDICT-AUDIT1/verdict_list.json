@@ -1,8 +1,6 @@
 {
-  "generated_at": "2026-08-06T20:43:57.902032+00:00",
-  "scan_generated_at": "2026-08-06T20:43:57.764470+00:00",
-  "repo_head": "b853572e63565970c21f8521bc0448d1db1cc761",
   "scanned_file_count": 122,
+  "self_excluded_prefix": "docs/research/RESEARCH-VERDICT-AUDIT1",
   "population_size": 64,
   "coverage_check": {
     "population": 64,

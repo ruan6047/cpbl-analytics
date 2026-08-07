@@ -1,6 +1,6 @@
 <!-- 本檔由 build_verdict_list.py 產生，勿手改；改處置請改 dispositions.json 後重跑。 -->
 
-掃描檔數 122／重審母體 64／處置覆蓋 64（missing 0、ghost 0）
+掃描檔數 122（已排除本卡自身輸出 `docs/research/RESEARCH-VERDICT-AUDIT1/`）／重審母體 64／處置覆蓋 64（missing 0、ghost 0）
 
 裁決分布（S＋F 類，即實際落裁決者）：維持 28、需改寫理由 3、需重跑 1
 

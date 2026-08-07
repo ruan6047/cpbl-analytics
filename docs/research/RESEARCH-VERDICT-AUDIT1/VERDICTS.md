@@ -6,6 +6,8 @@
 - **全程唯讀**：未讀 DB、未執行任何模型、未覆寫任何既有 artifact。全部輸入為已交付的
   `docs/research/` 檔案；輸出只落 `docs/research/RESEARCH-VERDICT-AUDIT1/`。
 - 重要輸入：`ML-WP-VAL-RESAMPLE1`（#98）的 `RESULTS.md`（讀 `origin/ai/opus-5/ML-WP-VAL-RESAMPLE1`，未動）。
+- **iteration 2**（R1 跨家族查核 REQUEST_CHANGES 後）。修的是**流程可重現性**，裁決內容未動——
+  R1 的 blocking finding 見 §1.1。
 
 ---
 
@@ -52,6 +54,42 @@ uv run python docs/research/RESEARCH-VERDICT-AUDIT1/build_verdict_list.py  # →
 **覆蓋是機器保證的**：`build_verdict_list.py` 對母體與處置表做**雙向**比對，
 missing 或 ghost 任一非空即 `exit 1`。首次執行就抓到一筆 ghost（`container-probe.md`
 不在母體卻被我列了處置），修正後才通過——這條檢查不是裝飾。
+
+### 1.1 R1 finding `AUDIT1-R1-001`：掃描器把自己的產物掃回母體（iteration 2 已修）
+
+iteration 1 的 `scan_verdicts.py` 用 `git ls-files docs/research` 取母體。我跑的時候本卡的輸出
+還是 untracked，所以沒被列進去；**commit 之後檔案變成 tracked，再跑就把自己掃回來了**——
+`VERDICTS.md`／`dispositions.json` 裡滿是 `No-Go`／`unsupported`／`需重跑`，母體從 64 膨脹到 70，
+`build_verdict_list.py` 直接 FAIL（missing 6）。查核者在乾淨 worktree 順序重跑時抓到。
+
+**一張以「窮舉可重現」為第一驗收條件的稽核卡，在乾淨環境重跑會失敗——這條必須修。**
+兩處修正：
+
+1. **自我排除，前綴由 `Path(__file__).parent` 導出**（不是寫死清單）。排除放在 git 清單
+   **之後**，故結果與「本卡檔案是否已 tracked」無關：commit 前 git 列 122 檔、self 0 檔；
+   commit 後列 129 檔、self 7 檔——**兩邊都是 122 / 64**。排除的前綴與理由寫進
+   `verdict_scan.json` 的 `self_excluded_prefix`／`self_exclusion_note`，查核者看得到排除了什麼。
+2. **artifact 內不再放 wall-clock 時戳與 `repo_head`，並為三支腳本加 `--check`。**
+   時戳會讓每次重跑都把 worktree 弄髒，於是「重跑後 worktree 髒了」不再是訊號——
+   R1 那個 bug 就是這樣被蓋掉的（`M verdict_scan.json` 看起來跟平常一樣，其實母體已經變了）。
+   拿掉之後重跑逐位相同、worktree 保持乾淨，**這個檢查才真的在檢查東西**。
+   provenance 改由交付 commit 承擔。
+
+#### 排除自身輸出會不會造成「稽核卡永遠看不見稽核卡」的盲區？
+
+**不會，因為排除的是「執行中這張卡自己的目錄」，不是「所有稽核卡的目錄」。** 前綴由 `__file__`
+導出，所以未來的 `RESEARCH-VERDICT-AUDIT2` 住在自己的目錄、只排除自己，**會**掃到本卡的
+`VERDICTS.md` 與 `dispositions.json`（那裡面 tier1 語彙密度極高，必然進它的母體）。
+
+剩下的唯一盲區是「一張卡看不見自己的結論」，而這是**應該的**：自我稽核不是稽核，那是查核者
+的工作——本卡的 R1 就是這樣被抓到的。若改成不排除，結果是每張稽核卡都會把自己的裁決當成
+待重審的否定判定，母體無限自我指涉，`build_verdict_list` 的覆蓋檢查永遠不可能收斂。
+
+真正的殘餘風險只有一個：**若未來有人把別張卡的產物寫進 `RESEARCH-VERDICT-AUDIT1/`**
+（違反一卡一目錄的資源宣告紀律），那份產物會被靜默排除。緩解是 `self_excluded_prefix`
+已寫進 artifact，查核者一眼看得到；而該行為本身違反既有紀律，不該由掃描器來擋。
+
+---
 
 逐檔處置表（class／裁決／理由，64 份全列）：[`verdict_list.md`](verdict_list.md)。分類法：
 
@@ -388,7 +426,8 @@ VAL1 的 C／D／E 與 STRENGTH1 **不需重跑**——改寫所需的數字都�
 
 ## §8 產物與重現
 
-全部可於交付 HEAD 重現，**皆唯讀**（不讀 DB、不跑模型、不覆寫既有 artifact）：
+全部可於交付 HEAD 重現，**皆唯讀**（不讀 DB、不跑模型、不覆寫既有 artifact）。
+三支腳本**必須依序**跑（後者吃前者的輸出）：
 
 ```bash
 uv run python docs/research/RESEARCH-VERDICT-AUDIT1/scan_verdicts.py        # 窮舉母體
@@ -396,10 +435,21 @@ uv run python docs/research/RESEARCH-VERDICT-AUDIT1/analyze_gates.py        # �
 uv run python docs/research/RESEARCH-VERDICT-AUDIT1/build_verdict_list.py   # 合成＋覆蓋硬檢查（不全即 exit 1）
 ```
 
+**查核者建議走 `--check`**：三支都支援，**不寫任何檔案**，只驗證交付內容是否確實出自腳本，
+不符即印出第一處差異並 exit 1。跑完 worktree 保證乾淨——這是 R1 之後才成立的性質（§1.1）：
+
+```bash
+for s in scan_verdicts analyze_gates build_verdict_list; do
+  uv run python docs/research/RESEARCH-VERDICT-AUDIT1/$s.py --check || break
+done
+git status --porcelain    # 應為空
+```
+
 | 檔案 | 內容 |
 |---|---|
-| `scan_verdicts.py` ／ `verdict_scan.json` | 122 檔全掃、638 筆命中、64 份重審母體與逐行位置 |
+| `scan_verdicts.py` ／ `verdict_scan.json` | 122 檔全掃（已排除本卡自身輸出）、638 筆命中、64 份重審母體與逐行位置 |
 | `analyze_gates.py` ／ `gate_analysis.json` ／ `gate_tables.md` | ECE 雜訊底線、C／E 逐季解析度、CAL1 局帶 CI（本報告表格由此產生） |
 | `dispositions.json` | 逐檔 class／裁決／理由——**本卡唯一的人工判斷面** |
 | `build_verdict_list.py` ／ `verdict_list.json` ／ `verdict_list.md` | 裁決清單與母體覆蓋的機器保證 |
+| `audit_io.py` | 三支腳本共用的輸出／`--check` 入口，以及「artifact 不放時戳」的理由 |
 | `VERDICTS.md` | 本報告 |

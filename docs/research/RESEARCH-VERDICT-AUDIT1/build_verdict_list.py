@@ -10,16 +10,19 @@
 
 用法：
     uv run python docs/research/RESEARCH-VERDICT-AUDIT1/build_verdict_list.py
+    uv run python docs/research/RESEARCH-VERDICT-AUDIT1/build_verdict_list.py --check
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from collections import Counter
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+import audit_io
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parents[2]
@@ -38,6 +41,14 @@ CLASS_LABEL = {
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument(
+        "--check",
+        action="store_true",
+        help="不寫檔；驗證交付的 verdict_list.{json,md} 是否與本次重生成逐位相同",
+    )
+    args = ap.parse_args()
+
     scan: dict[str, Any] = json.loads(SCAN.read_text(encoding="utf-8"))
     disp: dict[str, Any] = json.loads(DISPOSITIONS.read_text(encoding="utf-8"))["dispositions"]
 
@@ -84,11 +95,10 @@ def main() -> int:
     actionable = [r for r in rows if r["class"] in ("S", "F")]
     by_verdict_actionable = Counter(r["verdict"] for r in actionable)
 
+    # 刻意不放 generated_at：見 audit_io 模組 docstring。
     payload = {
-        "generated_at": datetime.now(UTC).isoformat(),
-        "scan_generated_at": scan["generated_at"],
-        "repo_head": scan["repo_head"],
         "scanned_file_count": scan["scanned_file_count"],
+        "self_excluded_prefix": scan["self_excluded_prefix"],
         "population_size": len(population),
         "coverage_check": {
             "population": len(population),
@@ -102,12 +112,14 @@ def main() -> int:
         "counts_by_verdict_actionable": dict(by_verdict_actionable),
         "rows": rows,
     }
-    OUT_JSON.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    ok = audit_io.emit(
+        OUT_JSON, json.dumps(payload, ensure_ascii=False, indent=2), check=args.check
+    )
 
     lines: list[str] = []
     lines.append("<!-- 本檔由 build_verdict_list.py 產生，勿手改；改處置請改 dispositions.json 後重跑。 -->")
     lines.append("")
-    lines.append(f"掃描檔數 {scan['scanned_file_count']}／重審母體 {len(population)}／處置覆蓋 {len(covered)}（missing 0、ghost 0）")
+    lines.append(f"掃描檔數 {scan['scanned_file_count']}（已排除本卡自身輸出 `{scan['self_excluded_prefix']}/`）／重審母體 {len(population)}／處置覆蓋 {len(covered)}（missing 0、ghost 0）")
     lines.append("")
     lines.append("裁決分布（S＋F 類，即實際落裁決者）：" + "、".join(
         f"{k} {v}" for k, v in sorted(by_verdict_actionable.items())
@@ -130,14 +142,15 @@ def main() -> int:
                 v += f"（繼承 {r['parent'].removeprefix('docs/research/')}）"
             lines.append(f"| `{name}` | {v} | {r['tier1_hits']} | {r['reason']} |")
         lines.append("")
-    OUT_MD.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    ok = audit_io.emit(OUT_MD, "\n".join(lines) + "\n", check=args.check) and ok
 
+    print(f"scanned files     : {scan['scanned_file_count']}  (self-excluded: {scan['self_excluded_prefix']}/)")
     print(f"population        : {len(population)}")
     print(f"dispositions      : {len(covered)}  (missing 0, ghosts 0)")
     print(f"counts by class   : {dict(by_class)}")
     print(f"verdicts (S+F)    : {dict(by_verdict_actionable)}")
     print(f"artifacts         : {OUT_JSON.relative_to(REPO_ROOT)}, {OUT_MD.relative_to(REPO_ROOT)}")
-    return 0
+    return audit_io.finish(ok, check=args.check)
 
 
 if __name__ == "__main__":
