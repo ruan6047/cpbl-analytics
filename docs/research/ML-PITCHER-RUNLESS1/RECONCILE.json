@@ -1,0 +1,143 @@
+{
+  "per_basis": [
+    {
+      "tier": "一軍例行賽 A",
+      "basis": "earned_runs",
+      "metric": "consecutive_earned_run_free_innings",
+      "kinds_counted": [
+        "A"
+      ],
+      "kinds_in_scope": [
+        "A",
+        "E",
+        "C"
+      ],
+      "pitchers": 392,
+      "appearances_total": 22521,
+      "appearances_counted": 467,
+      "appearances_counted_verified_er0": 467,
+      "tail_queries": 345,
+      "tail_credited": 25,
+      "tail_outs": 132,
+      "tail_lower_bound_verified": 25,
+      "tail_suffix_zero_runs_verified": 25,
+      "skipped_postseason": 7,
+      "skipped_postseason_verified_er0": 7,
+      "exceptions": [],
+      "basis_label": "自責分"
+    },
+    {
+      "tier": "一軍例行賽 A",
+      "basis": "runs",
+      "metric": "consecutive_run_free_innings",
+      "kinds_counted": [
+        "A"
+      ],
+      "kinds_in_scope": [
+        "A",
+        "E",
+        "C"
+      ],
+      "pitchers": 392,
+      "appearances_total": 22521,
+      "appearances_counted": 380,
+      "appearances_counted_verified_er0": 380,
+      "tail_queries": 346,
+      "tail_credited": 24,
+      "tail_outs": 126,
+      "tail_lower_bound_verified": 24,
+      "tail_suffix_zero_runs_verified": 24,
+      "skipped_postseason": 6,
+      "skipped_postseason_verified_er0": 6,
+      "exceptions": [],
+      "basis_label": "失分"
+    },
+    {
+      "tier": "二軍例行賽 D",
+      "basis": "earned_runs",
+      "metric": "consecutive_earned_run_free_innings",
+      "kinds_counted": [
+        "D"
+      ],
+      "kinds_in_scope": [
+        "D",
+        "F"
+      ],
+      "pitchers": 554,
+      "appearances_total": 17806,
+      "appearances_counted": 816,
+      "appearances_counted_verified_er0": 816,
+      "tail_queries": 491,
+      "tail_credited": 20,
+      "tail_outs": 161,
+      "tail_lower_bound_verified": 20,
+      "tail_suffix_zero_runs_verified": 20,
+      "skipped_postseason": 0,
+      "skipped_postseason_verified_er0": 0,
+      "exceptions": [],
+      "basis_label": "自責分"
+    },
+    {
+      "tier": "二軍例行賽 D",
+      "basis": "runs",
+      "metric": "consecutive_run_free_innings",
+      "kinds_counted": [
+        "D"
+      ],
+      "kinds_in_scope": [
+        "D",
+        "F"
+      ],
+      "pitchers": 554,
+      "appearances_total": 17806,
+      "appearances_counted": 683,
+      "appearances_counted_verified_er0": 683,
+      "tail_queries": 501,
+      "tail_credited": 23,
+      "tail_outs": 181,
+      "tail_lower_bound_verified": 23,
+      "tail_suffix_zero_runs_verified": 23,
+      "skipped_postseason": 0,
+      "skipped_postseason_verified_er0": 0,
+      "exceptions": [],
+      "basis_label": "失分"
+    }
+  ],
+  "cross_basis": [
+    {
+      "tier": "一軍例行賽 A",
+      "kinds_in_scope": [
+        "A",
+        "E",
+        "C"
+      ],
+      "appearances": 22521,
+      "x1_runs_ne_earned_runs": 2163,
+      "x1_appearances_with_runs": 9631,
+      "x1_unearned_only": 764,
+      "x1_earned_without_runs": 0,
+      "x2_inversion_risk_rows": 0,
+      "x2_runs_null": 0,
+      "x2_earned_runs_null": 0,
+      "x3_pitchers_compared": 392,
+      "exceptions": []
+    },
+    {
+      "tier": "二軍例行賽 D",
+      "kinds_in_scope": [
+        "D",
+        "F"
+      ],
+      "appearances": 17806,
+      "x1_runs_ne_earned_runs": 1682,
+      "x1_appearances_with_runs": 7313,
+      "x1_unearned_only": 675,
+      "x1_earned_without_runs": 0,
+      "x2_inversion_risk_rows": 0,
+      "x2_runs_null": 0,
+      "x2_earned_runs_null": 0,
+      "x3_pitchers_compared": 554,
+      "exceptions": []
+    }
+  ]
+}
