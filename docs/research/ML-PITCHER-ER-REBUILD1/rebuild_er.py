@@ -83,6 +83,9 @@ ERROR_MARKERS = ("失誤", "捕逸", "妨礙", "漏接")
 # 趁傳進壘 66／因<守位>失誤 …。**姓名與原因之間有空白**，早期版本的
 # `[^\s，。,]+?` 會整條匹配失敗而把該分誤記到打者身上（2026/A/72 六局上實例）。
 SCORE_RE = re.compile(r"([一二三])壘跑者\s*([^\s。，,]+)([^。]{0,30}?)回本壘得分")
+# 打者自身踏本壘的敘述＝全壘打（含場內全壘打）。跑者的分一律由 SCORE_RE 涵蓋，
+# 打者靠其後打席回本壘的情形也會在該打席以「N壘跑者…回本壘得分」出現。
+BATTER_SCORE_RE = re.compile(r"全壘打")
 # 進壘敘述（含得分）：用來逐跑者判定「這一次進壘是不是靠失誤」。**必須逐跑者**——
 # 同一 play 上常有人靠安打推進、有人靠失誤多跑一個壘，整個 island 一起判會過度
 # 保守（實測 er-1 從 11 漲到 23）。
@@ -107,11 +110,18 @@ GAME_OVER_MARKERS = ("比賽結束",)
 #   out_before_run ：5.08(a) 第三出局先於得分成立
 #   maxtaint       ：失誤半局內所有壘上跑者一律非自責
 #   no_tb_owner  ：拿掉突破僵局跑者的歸屬修正（消融）
+#   no_scoreboard_signal：拿掉記分板 error_cnt 的獨立失誤訊號（消融）
+#   no_unnarrated_check ：拿掉「分數增加但無得分敘述」的完整性檢查（消融）
+#   double_as_earned    ：把二壘安打當成「必然把污染跑者送回本壘」（反事實假設，
+#                         條文無明文；用來量這個灰帶往哪個方向偏）
 # 以下是**尚未採用的候選**（需求方 2026-08-07 裁定暫緩，僅供量測）：
 #   walkoff_fix  ：再見判定改「末半局為下半且主隊獲勝」
 MUTATIONS = (
     "full", "spec_literal", "no_shadow", "no_inherit", "zero_er", "no_hr_fix",
-    "no_tb_owner", "team_opps", "out_before_run", "maxtaint", "walkoff_fix",
+    "no_tb_owner", "no_scoreboard_signal", "no_unnarrated_check",
+    "double_as_earned",
+    "team_opps", "out_before_run",
+    "maxtaint", "walkoff_fix",
 )
 
 
@@ -166,7 +176,7 @@ def _forced_targets(shadow: dict[str, int], batter_reaches: bool) -> dict[str, i
     return targets
 
 
-def _natural_batter_base(action: str) -> int:
+def _natural_batter_base(action: str, double_as_earned: bool = False) -> int:
     """打者在「無失誤重建世界」裡應到達的壘（不含失誤造成的額外進壘）。
 
     9.16(d)：藉失誤進壘者，若判斷無該失誤即無法得分，其得分不記自責分。實例
@@ -179,7 +189,11 @@ def _natural_batter_base(action: str) -> int:
     if "三壘安打" in action:
         return 3
     if "二壘安打" in action:
-        return 2
+        # 條文對二壘安打**沒有明文**：9.16(d)【註 1】①③ 的門檻是「三壘安打以上」、
+        # ② 是「二壘以上」，兩者不同是因為**跑者在重建世界的壘位不同**，不是規則
+        # 有兩套門檻（見 RESULTS.md §3.7 的逐例走查）。回 2＝「打者推進 2 個壘」，
+        # 不等於「污染跑者必然得分」——壘位由跑者自己的 shadow base 決定。
+        return 4 if double_as_earned else 2
     return 1
 
 
@@ -196,7 +210,15 @@ def _batting_score(ev: dict[str, Any], half: str) -> int | None:
 def rebuild_game(
     year: int, kind: str, sno: int, events: list[dict[str, Any]], taxonomy: Any,
     trace: bool = False, mutation: str = "full",
+    official_errors: dict[tuple[int, str], int] | None = None,
 ) -> GameResult:
+    """`official_errors`：`{(inning_seq, livelog 半局別): 該半局守方失誤數}`。
+
+    來源 `cpbl.game_scoreboard.error_cnt`＝**該隊在該局所犯**的失誤數。
+    半局對應要**翻轉** `visiting_home_type`：記分板的客隊（`'1'`）守的是**下半局**
+    （livelog `'2'`）。此方向已用鑑別性檢定驗過——E>0 的半局裡，翻轉後有
+    99.0% 的半局在逐球敘述找得到失誤性字樣，不翻轉只有 9.2%。
+    """
     res = GameResult(year=year, kind_code=kind, game_sno=sno, ok=False)
     if not events:
         res.reason = "no_livelog"
@@ -256,6 +278,62 @@ def rebuild_game(
     if not summaries:
         res.reason = "no_usable_island"
         return res
+
+    # --- 得分敘述完整性（修正 3）---------------------------------------------
+    # livelog 偶爾記了分數卻沒記那個 play：分數欄跳了，但該 island 沒有任何得分
+    # 敘述。指標案例 `2021/A/208` 九局下——致勝分只出現在「比賽結束」列，前一列
+    # 是「壞球。」，逐球紀錄完全沒有那個 play。官方四個數字（樂天 E=0、豪勁 WP=1
+    # 已被前一個暴投用掉、味全 3 分但打點合計 2、豪勁 ER=0）同時成立的機制是
+    # 捕逸，但**逐球紀錄沒寫**。
+    #
+    # **不得猜那個 play 是什麼**（捕逸？失誤？妨礙？）——偵測到就整場排除。
+    # 這道檢查刻意放在記分板閘門之前：兩類成因可能重疊，先判這一類，
+    # 成因分類才不會重複計數。
+    if mutation != "no_unnarrated_check":
+        prev_by_half: dict[str, int] = {"1": 0, "2": 0}
+        for isl in summaries:
+            sc = isl["score"]
+            if sc is None:
+                continue
+            gained = sc - prev_by_half[isl["half"]]
+            prev_by_half[isl["half"]] = sc
+            if gained <= 0:
+                continue
+            narrated = len(SCORE_RE.findall(isl["text"])) + (
+                1 if BATTER_SCORE_RE.search(isl["text"]) else 0
+            )
+            if gained > narrated:
+                res.reason = "unnarrated_run"
+                res.detail = (
+                    f"i{isl['inning']}{isl['half']} 分數 +{gained}、"
+                    f"敘述可解釋 {narrated}（{isl['action']}）"
+                )
+                return res
+
+    # --- 記分板 error_cnt：獨立於逐球敘述的失誤訊號 ---------------------------
+    # 逐球敘述是本檔偵測失誤的唯一來源，而它會漏。官方逐局 E 提供第二個訊號：
+    # 「這個半局有 N 次失誤」。但**它給不出是哪一球**——所以不得用來猜歸屬，
+    # 只能用來否證「這半局沒有失誤」。官方說有、敘述看不到 ⇒ 我對這半局的
+    # 自責分判定沒有依據 ⇒ 整場 fail-closed。
+    #
+    # 這是把「默默算錯」換成「明講不知道」，通過率會下降，那是正確方向。
+    if official_errors and mutation != "no_scoreboard_signal":
+        seen_halves = {(isl["inning"], isl["half"]) for isl in summaries}
+        narrated = {
+            (isl["inning"], isl["half"])
+            for isl in summaries
+            if any(m in isl["text"] for m in ERROR_MARKERS)
+        }
+        for (inning, half), n_err in sorted(official_errors.items()):
+            if not n_err:
+                continue
+            if (inning, half) not in seen_halves or (inning, half) not in narrated:
+                res.reason = "official_error_unlocated"
+                res.detail = (
+                    f"i{inning}{half} 官方 E={n_err}，"
+                    f"{'該半局無 livelog' if (inning, half) not in seen_halves else '逐球敘述無失誤性字樣'}"
+                )
+                return res
 
     # --- 逐半局走訪 ---------------------------------------------------------
     outs: dict[str, int] = defaultdict(int)
@@ -438,14 +516,9 @@ def rebuild_game(
                 res.detail = f"i{isl['inning']}{isl['half']} {isl['action']} pre={isl['pre_slots']}"
                 return res
 
-            # 再見安打：livelog 以「比賽結束」取代該打席的敘述，得分跑者無文字可解析。
-            # 此時剩餘得分依「離本壘最近者先得分」指派給壘上跑者（棒球規則跑者不得
-            # 超越前位跑者，5.09(b)(9)），是唯一可行的指派。
-            if isl["game_over"] and island_runs > len(named_runners) and vanished:
-                for b in sorted(vanished, reverse=True):
-                    if len(named_runners) >= island_runs:
-                        break
-                    named_runners.append(vanished.pop(b))
+            # （iteration 4 移除）舊版在「比賽結束」列以「離本壘最近者先得分」指派
+            # 無敘述的再見得分。那是**猜測歸屬**，正是修正 3 要禁止的路徑——現在
+            # 這類場次一律由上方的得分敘述完整性檢查 fail-closed。
 
             batter_runs = island_runs - len(named_runners)
             if batter_runs not in (0, 1):
@@ -516,7 +589,10 @@ def rebuild_game(
             batter_shadow_base = batter_lands
             batter_name = _s(isl.get("hitter_name"))
             if batter_lands is not None and batter_name in tainted_names:
-                batter_shadow_base = min(batter_lands, _natural_batter_base(action))
+                batter_shadow_base = min(
+                    batter_lands,
+                    _natural_batter_base(action, mutation == "double_as_earned"),
+                )
 
             # 重建世界裡本 island 造成的出局：實際被刺殺的跑者 + 打者（實際出局，
             # 或實際藉失誤／妨礙上壘＝重建世界應出局）
@@ -788,13 +864,34 @@ def reconcile(
             official = {
                 r["pitcher_acnt"]: r for r in cur.fetchall()
             }
+            # 記分板逐局失誤：翻轉 visiting_home_type（守方 ↔ 半局），見 rebuild_game
+            cur.execute(
+                "SELECT inning_seq, visiting_home_type, error_cnt "
+                "FROM cpbl.game_scoreboard "
+                "WHERE year=%s AND kind_code=%s AND game_sno=%s",
+                (year, kind, sno),
+            )
+            official_errors: dict[tuple[int, str], int] = {}
+            for r in cur.fetchall():
+                if r["inning_seq"] is None or r["error_cnt"] is None:
+                    continue
+                half = "2" if _s(r["visiting_home_type"]) == "1" else "1"
+                # 變數名不得用 `key`——外層 `key = (year, kind)` 是 stats 的分組鍵，
+                # 覆寫它會讓其後所有 stats 寫入落到 (inning, half) 桶裡（實際踩過）
+                err_key = (int(r["inning_seq"]), half)
+                official_errors[err_key] = (
+                    official_errors.get(err_key, 0) + int(r["error_cnt"])
+                )
             if not official:
                 stats[key]["no_official"] += 1
                 reasons["no_official"] += 1
                 continue
 
             try:
-                res = rebuild_game(year, kind, sno, events, taxonomy, mutation=mutation)
+                res = rebuild_game(
+                    year, kind, sno, events, taxonomy, mutation=mutation,
+                    official_errors=official_errors,
+                )
             except Exception as exc:  # noqa: BLE001 - 研究腳本：任何例外皆 fail-closed
                 res = GameResult(year, kind, sno, ok=False, reason=f"exception:{type(exc).__name__}")
 
@@ -850,6 +947,12 @@ def reconcile(
                 if acnt not in official and res.outs[acnt]:
                     ok_outs = False
 
+            if sum(official_errors.values()) == 0 and any(
+                int(r["runs"] or 0) > int(r["earned_runs"] or 0) for r in official.values()
+            ):
+                stats[key]["zero_error_unearned_games"] += 1
+                if ok_outs and ok_er and ok_runs:
+                    stats[key]["zero_error_unearned_pass"] += 1
             stratum = "clean" if not res.notes else "error_tainted"
             stats[key][f"{stratum}_games"] += 1
             if ok_outs:
