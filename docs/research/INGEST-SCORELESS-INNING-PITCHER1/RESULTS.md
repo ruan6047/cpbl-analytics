@@ -8,7 +8,8 @@
   R1 修 §3.1 的證據純度與 §1 的可重現性；R2 修 §3.1 正文對該數字的**稱呼**；
   iteration 3 依需求方人工審回饋**新增最前面的「導讀」敘述層**；
   iteration 4 對**整份文件**做作用域校正——**未改動任何數字、判準或結論方向**，
-  見各節 iteration 標記）
+  見各節 iteration 標記。iteration 4 通過跨家族查核後另補 **§9 驗證紀錄**，
+  更正交付報告裡錯誤的 pytest 計數與一則錯誤的失敗診斷）
 - **iteration 4 的修正是同一個失效模式的全文清掃**（`claim-scope-exceeds-evidence-scope`）：
   R2 命中的「16/105 被稱作 9.16 效應量」只是**個案**，上一輪只改了那個數字的措辭，
   沒把失效模式套到全文。外部審閱因此又抓到三處**宣稱範圍大於證據範圍**，最直接的證據是
@@ -525,3 +526,53 @@ SCORELESS2 的撤回論證在資料面沒有被打穿。
 5. **F5（D-180 單場 API `LiveLog` 截斷）要不要交回 G4／#53 續作者複核？**
    那是 #53 未記載的缺陷維度，且與該場 945 筆 TrackMan 不一致可能同源（推測，未驗證）。
    本卡標記「待人工判讀」，不自行開卡、不改 #53 相關檔案。
+
+## 9. 驗證紀錄（含一則已更正的錯誤診斷）
+
+> 這一節是 iteration 4 **跨家族查核後補寫**的（finding `SCORELESS-PROBE-R3-1`，minor 非阻塞）。
+> 補寫的原因本身值得留著：驗證結果原本只存在於交付報告的一段文字裡，沒有落進版控，
+> 於是**數字與診斷都錯了也沒有東西可以對照**。
+
+**基準**：source_sha `10056d8`。`uv run ruff check` 全綠；
+`uv run pytest -q` ＝ **1468 passed / 1 failed / 10 skipped**（查核者於同一 sha 實測值）。
+
+> **更正一：計數**。執行者原報 `1454 passed / 1 failed / 9 skipped`，與查核者在同一 sha
+> 的實測不符。以查核者的實測值為準。
+>
+> **差額的成因已查出，記在這裡免得下一個人再撞**：兩邊**收集到的測試數就不同**
+> （執行者 worktree `--collect-only` ＝ 1464，查核者 ＝ 1479，差 15）。本 worktree 的
+> `.ai-workflow` submodule **未 checkout**（`git submodule status` 前綴為 `-`、目錄為空），
+> 該 submodule 內的 `wf_cli` 測試因此沒被收集；差額 15 個（14 passed ＋ 1 skipped）
+> 與此相符。**這是最可能的成因，不是已證成因**——要證成得把 submodule checkout 後重跑，
+> 本輪未做。無論如何，差額不落在本 repo 自身的測試上，本卡的驗證結論不受影響。
+
+**那 1 個 failed 與本卡無關，但原因不是我原先寫的那個**：
+`tests/test_completion_evidence.py::test_criterion_adds_exactly_the_evidenced_ties_over_the_legacy_one`。
+
+> **更正二：診斷**。執行者原本把它診斷為「本機 DB 新增了一場有證據的 0:0 和局
+> `(2026,'D',119)`，硬編的 `CONFIRMED_TIES` 因此過期」。**這個診斷是錯的——D/119 不是
+> 0:0 和局。** 直接查 DB（唯讀）：`game_date` **2026-08-08**、`orig_date` 2026-06-16、
+> 比分 **5:4**、`delay_kind='保留'`。
+
+**真正的成因是時區落差**：`completed_games_sql()` 用容器的 UTC `CURRENT_DATE`，
+`completed_games_sql_with_evidence()` 用台北日。本卡驗證當下實測
+`CURRENT_DATE = 2026-08-07` 而台北日 `= 2026-08-08`，D/119 的 `game_date` 正好是 08-08
+——**台北判準收得到、UTC 判準收不到**，於是它落進 `correct - legacy` 差集。
+台北 00:00–08:00 這 8 小時內兩者恆差一天，與是不是 0:0、是不是和局無關。
+
+**已由 #110 `DATA-TZ-COMPLETION-SKEW1` 認領**，本卡不處理（`src/cpbl/completion.py`
+與該測試不在本卡寫入授權內）。原本「與本卡無關」的判斷仍成立，依據不變：
+`git stash` 回乾淨 HEAD 後同一測試同樣失敗，本卡 diff 亦只落在
+`docs/research/INGEST-SCORELESS-INNING-PITCHER1/`。
+
+### 順帶記一則方法論教訓：我的「數字未動」自證方法不合格
+
+iteration 4 我用「比對新舊 `RESULTS.md` 的數值 token 出現次數」來自證沒改數字。查核者指出
+**這個方法本身不足**，核可實際依據的是 word diff 與 artifact 檢視，不是我那個檢查：
+
+- **偵測不到語意重繫**——同一個數字被搬去描述另一件事，token 計數完全看不出來。
+- **漏掉新增的 token**（`39`、以及 `6.1`／`6.3`／`6.7`／`8.1`／`8.2` 這些新增的交叉引用）。
+
+這與 §6 第 9 點是**同一把尺**：關鍵字／token 掃描抓不到不含該關鍵字的實例，
+所以它可以當**輔助**，不能當**證明**。上一輪我才剛把這條寫進報告去限縮 §3 的欄位掃描，
+轉頭就用同一種弱方法去自證交付——**限縮別人的宣稱容易，限縮自己的驗證故事難**。
