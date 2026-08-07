@@ -1,26 +1,38 @@
 #!/usr/bin/env python
-"""窮舉對帳：連續無自責分局數（ML-PITCHER-SCORELESS1）。
+"""窮舉對帳：連續無自責分局數（ML-PITCHER-SCORELESS1）＋連續無失分局數（ML-PITCHER-RUNLESS1）。
 
 本腳本**自動產生**交付文件裡的對帳數字——不是人工聲明。對全母體（`pitching_gamelog`
-2018+ 的每一位投手、每一個層級）重算連續紀錄，再逐項回頭比對原始資料，任一例外即
-exit 1。查核者可原樣重跑。
+2018+ 的每一位投手、每一個層級、**兩個口徑**）重算連續紀錄，再逐項回頭比對原始資料，
+任一例外即 exit 1。查核者可原樣重跑。
+
+**兩個口徑各自獨立跑完整套 R1–R10**，不共用結果、不互相推論：自責分口徑讀官方
+`earned_runs`、失分口徑讀官方 `runs`。另有三項**跨口徑**檢查（X1–X3），那三項是
+交付文件「兩者是不同紀錄」與「失分口徑恆 ≤ 自責分口徑」兩句話的證據來源。
 
 檢查項目（每項都以「重新查 DB」的方式獨立驗證，不重用計算時的記憶體物件）：
 
 | 代號 | 內容 | 對應紅線 |
 |---|---|---|
-| R1 | 凡被採計為「整場無自責分」的出賽，官方 `pitching_gamelog.earned_runs` 必為 0 | 紅線 3（字面） |
+| R1 | 凡被採計為「整場無（自責）失分」的出賽，官方 `pitching_gamelog.<判準欄位>` 必為 0 | 紅線 3（字面） |
 | R2 | 凡被採計的尾段，其「零得分後綴」涵蓋的每一局，官方 `game_scoreboard` 對手得分必為 0 | 紅線 2／3 |
 | R3 | 算術：`outs == strict_outs + tail_outs`；`tail_outs ≤ 該場官方出局數`；每個尾段半局 ≤ 3 出局 | 紅線 2 |
 | R4 | 連續性：被採計的出賽必須恰好是該投手出賽序列的**結尾連續段**（由原始行獨立重建） | 紅線 2 |
 | R5 | 保留賽（`delay_kind='保留'`）不得被採計 | 紅線 2 |
 | R6 | `boundary_limited` 為真 ⇔ 走完全部可得出賽未中斷（起算場＝資料中最早一場） | 紅線 4 |
-| R7 | 凡被**跳過**的季後賽出賽，賽別必在計入範圍之外**且**官方 ER 必為 0；且「起算場之後該投手在任何賽別的出賽都無自責分」 | 紅線 2（賽別範圍裁定） |
+| R7 | 凡被**跳過**的季後賽出賽，賽別必在計入範圍之外**且**官方判準值必為 0；且「起算場之後該投手在任何賽別的出賽都無（自責）失分」 | 紅線 2（賽別範圍裁定） |
 | R10 | **鴿籠下界獨立重算**：以 SQL 取官方逐局比分與官方局數，獨立算出 `官方出局數 − 3 × 前綴局數`，驗 `採計值 ≤ 獨立重算下界`；**逐局比分完整性以 raw SQL 判定**（`COUNT(*) = COUNT(score_cnt)` 無未知局、且 `SUM(score_cnt) = games` 官方終場對手得分），不沿用 runtime 的 NULL 處理；並驗**隊別配置**（同隊總出局數 ≤ 守備半局數 × 3、且 ≥ 本投手出局數，對手側取相反 `visiting_home_type`）。純算術、與 runtime 不共享任何推論前提 | 紅線 2 |
+
+跨口徑檢查（母體同上，**數字全部由本腳本輸出，交付文件不得人工計數**）：
+
+| 代號 | 內容 | 用途 |
+|---|---|---|
+| X1 | 官方 `runs != earned_runs` 的出賽筆數（逐層級） | 證明兩者是**不同的紀錄**，不是同一個數字換個講法 |
+| X2 | `runs IS NOT NULL AND earned_runs IS NULL` 的出賽筆數 | 這是**唯一**能讓「失分口徑 ≤ 自責分口徑」翻轉的資料形態；不假設它是 0，逐次量 |
+| X3 | 逐投手驗 `失分口徑 outs ≤ 自責分口徑 outs`（`outs` 與 `strict_outs` 各驗一次） | 上述大小關係的窮舉驗證；任一例外即 exit 1 |
 
 用法：
 
-    uv run python scripts/reconcile_scoreless_streak.py            # 全層級，人類可讀 + JSON
+    uv run python scripts/reconcile_scoreless_streak.py            # 全層級×全口徑，人類可讀 + JSON
     uv run python scripts/reconcile_scoreless_streak.py --json-out artifacts/x.json
 """
 
@@ -37,15 +49,21 @@ from cpbl.db import conn
 from cpbl.models.scoreless_streak import (
     BREAK_DATA_BOUNDARY,
     DATA_FROM_YEAR,
+    EARNED_RUN_BASIS,
+    RUN_BASIS,
     SUSPENDED,
+    Basis,
 )
 
 TIERS = {"一軍例行賽 A": "A", "二軍例行賽 D": "D"}
+BASES = {"自責分": EARNED_RUN_BASIS, "失分": RUN_BASIS}
 
-# R1：官方 ER 重查。以 (year,kind,sno,pitcher) 為鍵，不信任計算時的物件。
+# R1：官方判準值重查。以 (year,kind,sno,pitcher) 為鍵，不信任計算時的物件。
+# 兩個判準欄位一起取回，由 `basis.field` 選用——不在 SQL 裡拼欄位名。
 _ER_SQL = """
     SELECT p.year, p.kind_code, p.game_sno, p.pitcher_acnt,
            p.earned_runs,
+           p.runs,
            p.inning_pitched_cnt * 3 + p.inning_pitched_div3 AS outs
       FROM cpbl.pitching_gamelog p
       JOIN (SELECT (v->>0)::int AS year, v->>1 AS kind_code,
@@ -106,11 +124,19 @@ def _fetch(sql: str, params: dict) -> list[dict]:
 
 
 
-def reconcile(tier_label: str, kind_code: str) -> dict:
+def reconcile(tier_label: str, kind_code: str, basis: Basis = EARNED_RUN_BASIS,
+              results=None, by_player=None) -> dict:
+    """單一（層級 × 口徑）的完整 R1–R10 對帳。
+
+    `results`／`by_player` 可由呼叫端傳入以免重算（跨口徑檢查會共用同一份載入結果），
+    但**每個口徑的 results 一律各自以自己的 basis 算出**，不互相推導。
+    """
     kinds = kinds_of(kind_code)
     counted_kinds = (kind_code,)
-    by_player, _names = load_appearances(kinds)
-    results = compute_all(by_player, counted_kinds)
+    if by_player is None:
+        by_player, _names = load_appearances(kinds)
+    if results is None:
+        results = compute_all(by_player, counted_kinds, basis=basis)
 
     fails: list[dict] = []
 
@@ -169,13 +195,18 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
             skipped_keys.append([a.year, a.kind_code, a.game_sno, pid])
             stats["skipped_postseason"] += 1
         for a in suffix:
-            if a.earned_runs != 0:
-                fail("R7", pid, f"起算場之後仍有自責分出賽 {a.key} ER={a.earned_runs}")
+            if basis.charged(a) != 0:
+                fail("R7", pid, f"起算場之後仍有掉分出賽 {a.key} "
+                                f"{basis.field}={basis.charged(a)}")
 
         for a in res.counted:
             counted_keys.append([a.year, a.kind_code, a.game_sno, pid])
             stats["appearances_counted"] += 1
 
+        # 尾段**查詢**數（分母）：中斷在例行賽掉分場、因而問過尾段的人數。只報「採計數」
+        # 會讓採計率看起來無從判斷——而採計率低正是本方法要誠實揭露的成本。
+        if res.break_reason == basis.break_reason:
+            stats["tail_queries"] += 1
         if res.tail and res.tail.outs:
             y, k, sno = res.tail.key
             tail_games.add((y, k, sno))
@@ -186,28 +217,28 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
             if brk.outs is not None and res.tail.outs > brk.outs:
                 fail("R3", pid, f"尾段 {res.tail.outs} 出局數超過該場官方 {brk.outs}")
 
-    # ---- R1：整場採計的出賽，官方 ER 必為 0（重查 DB） ----
+    # ---- R1：整場採計的出賽，官方判準值必為 0（重查 DB） ----
     er_ok = 0
     for chunk in _chunks(counted_keys, 5000):
         for r in _fetch(_ER_SQL, {"keys": json.dumps(chunk)}):
-            if r["earned_runs"] != 0:
+            if r[basis.field] != 0:
                 fails.append({"check": "R1", "player_id": r["pitcher_acnt"],
                               "detail": f"{r['year']}/{r['kind_code']}/{r['game_sno']} "
-                                        f"官方 ER={r['earned_runs']} 卻被採計為無自責分"})
+                                        f"官方 {basis.field}={r[basis.field]} 卻被採計為零"})
             else:
                 er_ok += 1
     if er_ok != len(counted_keys):
         fails.append({"check": "R1", "player_id": "-",
                       "detail": f"重查回 {er_ok} 列，應為 {len(counted_keys)} 列（有出賽查不到）"})
 
-    # ---- R7：被跳過的季後賽出賽，官方 ER 必為 0（重查 DB） ----
+    # ---- R7：被跳過的季後賽出賽，官方判準值必為 0（重查 DB） ----
     skip_ok = 0
     for chunk in _chunks(skipped_keys, 5000):
         for r in _fetch(_ER_SQL, {"keys": json.dumps(chunk)}):
-            if r["earned_runs"] != 0 or r["kind_code"] in counted_kinds:
+            if r[basis.field] != 0 or r["kind_code"] in counted_kinds:
                 fails.append({"check": "R7", "player_id": r["pitcher_acnt"],
                               "detail": f"{r['year']}/{r['kind_code']}/{r['game_sno']} "
-                                        f"被跳過但 ER={r['earned_runs']}／賽別不符"})
+                                        f"被跳過但 {basis.field}={r[basis.field]}／賽別不符"})
             else:
                 skip_ok += 1
     if skip_ok != len(skipped_keys):
@@ -322,12 +353,15 @@ def reconcile(tier_label: str, kind_code: str) -> dict:
 
     return {
         "tier": tier_label,
+        "basis": basis.field,
+        "metric": basis.metric,
         "kinds_counted": list(counted_kinds),
         "kinds_in_scope": kinds,
         "pitchers": stats["pitchers"],
         "appearances_total": stats["appearances_total"],
         "appearances_counted": stats["appearances_counted"],
         "appearances_counted_verified_er0": er_ok,
+        "tail_queries": stats["tail_queries"],
         "tail_credited": stats["tail_credited"],
         "tail_outs": stats["tail_outs"],
         "tail_lower_bound_verified": lb_ok,
@@ -344,36 +378,129 @@ def _chunks(seq, n):
         yield seq[i:i + n]
 
 
+# X1／X2：直接在 SQL 端數，不經過任何 Python 正規化——這兩個數字是交付文件
+# 「兩者是不同紀錄」與「大小關係不會翻轉」兩句話的唯一證據來源。
+_CROSS_BASIS_SQL = """
+    SELECT count(*)                                                        AS appearances,
+           count(*) FILTER (WHERE p.runs IS DISTINCT FROM p.earned_runs)   AS runs_ne_er,
+           count(*) FILTER (WHERE p.runs > 0)                              AS with_runs,
+           count(*) FILTER (WHERE p.runs > 0 AND p.earned_runs = 0)        AS unearned_only,
+           count(*) FILTER (WHERE p.runs = 0 AND p.earned_runs > 0)        AS er_without_runs,
+           count(*) FILTER (WHERE p.runs IS NOT NULL
+                              AND p.earned_runs IS NULL)                   AS inversion_risk,
+           count(*) FILTER (WHERE p.runs IS NULL)                          AS runs_null,
+           count(*) FILTER (WHERE p.earned_runs IS NULL)                   AS er_null
+      FROM cpbl.pitching_gamelog p
+     WHERE p.kind_code = ANY(%(kinds)s) AND p.year >= %(from_year)s
+"""
+
+
+def cross_basis(tier_label: str, kind_code: str,
+                per_basis: dict[str, dict[str, tuple[int, int]]]) -> dict:
+    """X1–X3：兩個口徑之間的關係。`per_basis[basis_field][pid] = (outs, strict_outs)`。
+
+    X3 驗的是模組 docstring 那句「失分口徑的總出局數恆 ≤ 自責分口徑」。它的證明前提是
+    `runs = 0 ⇒ earned_runs = 0`（自責分是失分的子集）**且**兩個判準欄位不會一個有值
+    一個缺值——後者就是 X2 在量的東西。X2 > 0 時 X3 的例外**不是** bug，而是該資料形態
+    的直接後果，屆時必須逐筆看，不可自動放行；本檢查一律照實報例外。
+    """
+    kinds = kinds_of(kind_code)
+    counts = _fetch(_CROSS_BASIS_SQL, {"kinds": list(kinds), "from_year": DATA_FROM_YEAR})[0]
+    er = per_basis[EARNED_RUN_BASIS.field]
+    rn = per_basis[RUN_BASIS.field]
+
+    fails: list[dict] = []
+    compared = 0
+    if set(er) != set(rn):
+        fails.append({"check": "X3", "player_id": "-",
+                      "detail": f"兩口徑的投手母體不同（自責分 {len(er)}／失分 {len(rn)}）"})
+    for pid in sorted(set(er) & set(rn)):
+        (er_outs, er_strict), (rn_outs, rn_strict) = er[pid], rn[pid]
+        if rn_outs > er_outs:
+            fails.append({"check": "X3", "player_id": pid,
+                          "detail": f"失分口徑 outs={rn_outs} > 自責分口徑 {er_outs}"})
+        elif rn_strict > er_strict:
+            fails.append({"check": "X3", "player_id": pid,
+                          "detail": f"失分口徑 strict={rn_strict} > 自責分口徑 {er_strict}"})
+        else:
+            compared += 1
+
+    return {
+        "tier": tier_label,
+        "kinds_in_scope": kinds,
+        "appearances": counts["appearances"],
+        "x1_runs_ne_earned_runs": counts["runs_ne_er"],
+        "x1_appearances_with_runs": counts["with_runs"],
+        "x1_unearned_only": counts["unearned_only"],          # runs>0 且 ER=0
+        "x1_earned_without_runs": counts["er_without_runs"],  # runs=0 卻 ER>0（應為 0）
+        "x2_inversion_risk_rows": counts["inversion_risk"],
+        "x2_runs_null": counts["runs_null"],
+        "x2_earned_runs_null": counts["er_null"],
+        "x3_pitchers_compared": compared,
+        "exceptions": fails,
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--json-out")
     args = ap.parse_args()
 
-    reports = [reconcile(label, kind) for label, kind in TIERS.items()]
-    total_fail = sum(len(r["exceptions"]) for r in reports)
+    reports: list[dict] = []
+    cross: list[dict] = []
+    for label, kind in TIERS.items():
+        by_player, _names = load_appearances(kinds_of(kind))
+        per_basis: dict[str, dict[str, tuple[int, int]]] = {}
+        for basis_label, basis in BASES.items():
+            results = compute_all(by_player, (kind,), basis=basis)
+            per_basis[basis.field] = {pid: (r.outs, r.strict_outs)
+                                      for pid, r in results.items()}
+            rep = reconcile(label, kind, basis, results=results, by_player=by_player)
+            rep["basis_label"] = basis_label
+            reports.append(rep)
+        cross.append(cross_basis(label, kind, per_basis))
 
-    print("窮舉對帳：連續無自責分局數（ML-PITCHER-SCORELESS1）\n")
-    hdr = ("層級", "投手數", "出賽總數", "採計出賽", "R1 驗得 ER=0",
-           "尾段採計場次", "尾段出局數", "R10 驗得下界", "R2 驗得後綴零得分",
-           "跳過季後賽", "R7 驗得 ER=0", "例外")
+    total_fail = (sum(len(r["exceptions"]) for r in reports)
+                  + sum(len(c["exceptions"]) for c in cross))
+
+    print("窮舉對帳：連續無自責分局數（SCORELESS1）＋連續無失分局數（RUNLESS1）\n")
+    hdr = ("層級", "口徑", "投手數", "出賽總數", "採計出賽", "R1 驗得判準=0",
+           "尾段查詢", "尾段採計場次", "尾段出局數", "R10 驗得下界", "R2 驗得後綴零得分",
+           "跳過季後賽", "R7 驗得判準=0", "例外")
     print(" | ".join(hdr))
     print(" | ".join("---" for _ in hdr))
     for r in reports:
         print(" | ".join(str(x) for x in (
-            r["tier"], r["pitchers"], r["appearances_total"], r["appearances_counted"],
-            r["appearances_counted_verified_er0"], r["tail_credited"], r["tail_outs"],
+            r["tier"], r["basis_label"], r["pitchers"], r["appearances_total"],
+            r["appearances_counted"],
+            r["appearances_counted_verified_er0"], r["tail_queries"],
+            r["tail_credited"], r["tail_outs"],
             r["tail_lower_bound_verified"], r["tail_suffix_zero_runs_verified"],
             r["skipped_postseason"], r["skipped_postseason_verified_er0"],
             len(r["exceptions"]))))
+
+    print("\n跨口徑（X1 兩者確為不同紀錄／X2 大小關係翻轉風險／X3 逐人驗 失分 ≤ 自責分）\n")
+    xhdr = ("層級", "出賽總數", "X1 失分≠自責分", "其中 失分>0 且 自責分=0",
+            "失分=0 卻 自責分>0", "X2 翻轉風險列", "X2 runs NULL", "X2 ER NULL",
+            "X3 逐人比對通過", "例外")
+    print(" | ".join(xhdr))
+    print(" | ".join("---" for _ in xhdr))
+    for c in cross:
+        print(" | ".join(str(x) for x in (
+            c["tier"], c["appearances"], c["x1_runs_ne_earned_runs"],
+            c["x1_unearned_only"], c["x1_earned_without_runs"],
+            c["x2_inversion_risk_rows"], c["x2_runs_null"], c["x2_earned_runs_null"],
+            c["x3_pitchers_compared"], len(c["exceptions"]))))
     print()
-    for r in reports:
+    for r in [*reports, *cross]:
         for e in r["exceptions"][:50]:
             print(f"  [{e['check']}] {e['player_id']} {e['detail']}")
     print(f"\n總例外：{total_fail}（紅線要求 0）")
 
     if args.json_out:
         with open(args.json_out, "w", encoding="utf-8") as fh:
-            json.dump(reports, fh, ensure_ascii=False, indent=2)
+            json.dump({"per_basis": reports, "cross_basis": cross}, fh,
+                      ensure_ascii=False, indent=2)
         print(f"JSON → {args.json_out}")
     return 1 if total_fail else 0
 

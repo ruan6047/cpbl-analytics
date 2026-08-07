@@ -1,26 +1,60 @@
-"""投手「連續無**自責**分局數」——定位而非重建，輸出可證明不高估的下界。
+"""投手「連續無**自責**分局數」／「連續無**失**分局數」——定位而非重建，輸出可證明
+不高估的下界。
 
-**本模組不重建自責分。** 官方規則 9.16 讓自動重建不可行（9.16(a) 要求反事實重播與假想
-第三出局；規則本身兩處寫明「判斷有疑慮時應對投手有利」；9.16(g) 繼承跑者按**人數**而非
-按人歸屬）。因此 `cpbl.pitching_gamelog.earned_runs` 是官方紀錄員的值，就是權威——
-本模組只讀它，不推翻它、不補算它。搜尋本檔不會找到任何失誤／捕逸／出局機會的判斷。
+本模組支援**兩個口徑**（`Basis`），演算法完全共用，差別只在「回走時看哪一個官方欄位」：
+
+| 口徑 | 判準欄位 | 對外指標 |
+|---|---|---|
+| `EARNED_RUN_BASIS`（預設，既有） | `pitching_gamelog.earned_runs` | 連續無**自責**分局數 |
+| `RUN_BASIS`（ML-PITCHER-RUNLESS1 新增） | `pitching_gamelog.runs` | 連續無**失**分局數 |
+
+**兩個口徑都不重算官方欄位。** 自責分那條線受規則 9.16 的**主觀條款**支配——9.16(c)(d)
+要求反事實重播（「若無失誤是否仍能得分」）、9.16(f) 明文「判斷有疑慮時應對投手有利」
+——那是記錄員的判斷，不是可自動化的推導（`ML-PITCHER-ER-REBUILD1` 量到逐場落差中
+17.82pp 來自這三條，見該卡交付；本模組不依賴那份結果，只引為佐證）。
+
+**失分那條線並非完全不受 9.16 規範**：9.16(g) 本文即為失分歸屬的規範性條款——
+「在同一局中更換投手，在後援投手上場後壘上原有之跑壘員得分⋯⋯該失分（**無論自責分或
+非自責分**）皆不為後援投手之責任」（`docs/reference/棒球規則.txt` L6208-6211）。
+本模組**直接讀官方 `runs` 欄**，該歸屬已由聯盟記錄員套用完畢，我方一次判斷都不用做。
+真正繞開的是 9.16 的**主觀條款**（(c)(d) 的反事實重播與 (f) 的對投手有利），失分口徑
+完全不碰。搜尋本檔不會找到任何失誤／捕逸／出局機會／繼承跑者的判定。
 
 ## 名詞（紅線 5）
 
-本指標是「連續無**自責**分局數」，**不是**「連續無失分局數」。失誤造成的非自責失分
-**不會**中斷本指標（與 ERA 語意一致），這是刻意的；所有對外欄位與文案都必須帶上
-「自責」二字，`METRIC_NOTE` 是該說明的單一來源。
+**兩個指標不可互相冒名**。2026 一軍 2018+ 母體中「失分 ≠ 自責分」的出賽數以對帳腳本
+輸出為準（`scripts/reconcile_scoreless_streak.py` 的 X1），差額全部來自非自責失分：
+自責分口徑**不**中斷、失分口徑**會**中斷。每個口徑的對外文案由自己的 `Basis.metric_note`
+提供，那是該說明的單一來源；`METRIC_NOTE` 是自責分口徑的向後相容別名。
 
-## 演算法：只做兩件事
+## 演算法：只做兩件事（兩口徑共用）
 
-以投手的出賽（appearance）由新到舊回走：
+以投手的出賽（appearance）由新到舊回走，令 `charged` ＝ 該口徑的官方判準欄位：
 
-1. **出賽 `earned_runs = 0`** → 該次出賽官方認定零自責分，其**全部**官方出局數計入
+1. **出賽 `charged = 0`** → 該次出賽官方認定零（自責）失分，其**全部**官方出局數計入
    （`strict_outs`）。純官方欄位，零推論；由對帳 R1 全母體逐場驗證。
-2. **出賽 `earned_runs > 0`** → 連續紀錄在該次出賽內中斷。尾段改用**官方逐局比分**
+2. **出賽 `charged > 0`** → 連續紀錄在該次出賽內中斷。尾段改用**官方逐局比分**
    （`cpbl.game_scoreboard`）取鴿籠下界：以對手逐局得分界定「零得分後綴」，採計
    `官方出局數 − 3 × 前綴局數`（見 `pigeonhole_tail_outs`）。零得分的局不管誰投都是
    零失分，故此下界**與誰在投球無關**；證明不到就是 0。
+
+## 為什麼失分口徑「兩段一致」，而自責分口徑不是
+
+尾段判準（官方逐局零得分）本來就是**失分**口徑的證據。接在哪一段中段上，性質不同：
+
+| 口徑 | 中段證明的命題 | 尾段證明的命題 | 關係 |
+|---|---|---|---|
+| 自責分 | 該出賽官方 ER=0 | 該局零**得分** | 尾段命題**蘊含**中段所需（零得分 ⇒ 零自責分），但兩段的證據標準不同層 |
+| 失分 | 該出賽官方 R=0 | 該局零**得分** | **同一個量**，只是粒度不同（出賽 vs 局） |
+
+**這不是說自責分口徑會高估**——尾段的證明較強，混用的結果仍是自責分口徑的合法下界。
+差別在**證據標準是否齊一**：自責分口徑的尾段被要求證到「連非自責分都沒有」，比它自己
+的中段嚴格一層，於是「這條紀錄是用什麼證出來的」必須分兩段講；失分口徑下兩段講的是
+同一個量，敘述與對帳都少一層轉換。
+
+**口徑一致化不會提高尾段採計率**，也不宣稱如此：尾段採計率低的成因是鴿籠法要求零得分
+後綴一路開到比賽末端（先發退場後後援掉分就整段吃掉），兩個口徑受同一個限制。實際的
+採計場次與出局數由對帳腳本逐口徑輸出。
 
 **尾段完全不讀逐打席資料（`game_livelog`）。** 這是七輪查核換來的結論：任何「他在這個
 半局拿了幾個出局」的推論都需要證明 livelog 沒有隱藏列，而 `pitch_cnt` 與
@@ -32,26 +66,31 @@
 
 | 情境 | 處理 |
 |---|---|
-| 官方 ER 或局數缺值 | 中斷 |
-| 保留賽（`delay_kind='保留'`） | 中斷。該場橫跨 orig_date→game_date，任一種排序都可能把 ER 場排錯位置而高估；場次極少（2018+ 僅 8 場），直接中斷最乾淨 |
-| ER>0 的那場沒有 `game_scoreboard`、或投手主客別缺值 | 尾段 0 出局數 |
+| 官方判準值（ER 或 R）或局數缺值 | 中斷 |
+| 保留賽（`delay_kind='保留'`） | 中斷。該場橫跨 orig_date→game_date，任一種排序都可能把掉分的場排錯位置而高估；場次極少（2018+ 僅 8 場），直接中斷最乾淨 |
+| 判準值>0 的那場沒有 `game_scoreboard`、或投手主客別缺值 | 尾段 0 出局數 |
 | 零得分後綴太短，`官方出局數 − 3 × 前綴局數 ≤ 0` | 尾段 0 出局數（`no_provable_scoreless_suffix`）。**這是本方法的主要成本，見下** |
 | 出賽早於 `DATA_FROM_YEAR`（2018） | **截斷**並 `boundary_limited=True`（紅線 4）。取數層 SQL 也擋一次，兩層都 enforce——只在 payload 顯示年份不算執行 |
 | 走完所有可得出賽仍未中斷 | `boundary_limited=True`（`pitching_gamelog` 僅 2018+，不得沉默截斷） |
 
-## 方法邊界：尾段採計率低是本質代價，不是缺陷
+## 方法邊界：尾段採計率低是本質代價，不是缺陷——**且換口徑不會消除它**
 
-**多數中斷場採計不到尾段**——2026-07-28 全母體實測，一軍 343 個尾段查詢只有 **24 個
-（7%）** 採得到，二軍 489 個中 19 個。原因是官方逐局比分**只知道某局有沒有得分，不知道
-那分是誰掉的**：先發退場後、後援在後段掉分，就會把零得分後綴整個吃掉。
+**多數中斷場採計不到尾段**——2026-07-28 全母體實測（自責分口徑），一軍 343 個尾段查詢
+只有 **24 個（7%）** 採得到，二軍 489 個中 19 個。原因是官方逐局比分**只知道某局有沒有
+得分，不知道那分是誰掉的**：先發退場後、後援在後段掉分，就會把零得分後綴整個吃掉。
+失分口徑的對應數字由對帳腳本輸出（本檔不重述），**但成因與限制完全相同**。
 
 具體例子（黃子鵬 2026-07-26）：他第 1 局失分、之後投完第 6 局，真值是 5.0 局無自責分；
 但對手在**第 7 局對後援**又得分 ⇒ 最後得分局＝7 ⇒ `18 − 3×7 < 0` ⇒ 尾段採計 **0**。
 官方逐局比分無從區分第 7 局那分不是他的責任，**fail-closed 是正確處置**（紅線 2）。
 
+**「中途登板／中途退場且該局有得分時只能給下界」這個限制不因改用失分口徑而消失。**
+它的成因是官方逐場只記整場的量、不記事件時點，與判準用 ER 還是 R 無關；失分口徑改善的
+是**證據標準的齊一性**與**名詞對得上媒體**，不是鴿籠推論本身。
+
 要改善只有兩條路，都不在本卡範圍：拿到官方的「逐局責任投手」對照，或改變產品宣稱
-（例如改以「連續無自責分**出賽**」為主詞，局數退為附帶總計——`strict_outs` 就是該值，
-由對帳 R1 逐場窮舉驗證、零推論）。**不要為了提高採計率而放寬證據標準。**
+（例如改以「連續無自責分／無失分**出賽**」為主詞，局數退為附帶總計——`strict_outs`
+就是該值，由對帳 R1 逐場窮舉驗證、零推論）。**不要為了提高採計率而放寬證據標準。**
 
 ### 零得分後綴的右端**必須是比賽末端**（ML-PITCHER-SCORELESS2 的結論）
 
@@ -82,8 +121,8 @@
 
 | 季後賽出賽 | 處理 | 為什麼 |
 |---|---|---|
-| 官方 `earned_runs = 0` | **跳過**：局數不計入，也不中斷 | 它不屬於本紀錄的母體，沒有中斷它的理由 |
-| 官方 `earned_runs > 0` | **中斷**（`BREAK_POSTSEASON_EARNED_RUN`） | 見下 |
+| 官方判準值（該口徑的 ER 或 R）＝ 0 | **跳過**：局數不計入，也不中斷 | 它不屬於本紀錄的母體，沒有中斷它的理由 |
+| 官方判準值 > 0 | **中斷**（`Basis.postseason_break_reason`） | 見下 |
 
 **為什麼掉分要中斷、而不是一律跳過**（此為執行者裁定，理由留痕）：
 
@@ -93,21 +132,30 @@
 2. **可理解性**。一律跳過會產生「這條連續紀錄橫跨一場他被打爆的台灣大賽」的輸出，
    讀者無法接受，而本專案的產品價值在透明與教育。
 3. **不變式好講也好驗**。此規則下「起算場之後、該投手在**任何**一軍賽別的出賽都沒有
-   自責分」恆為真，是可窮舉驗證的強陳述（對帳 R7）。
+   （自責）失分」恆為真，是可窮舉驗證的強陳述（對帳 R7）。
 
 被跳過的出賽以 `StreakResult.skipped` 留存，並經 API 對外揭露（`skipped_postseason_*`），
 讓讀者知道紀錄中間發生過什麼——不做沉默跳過。
 
 ## 兩個值（兩種對帳基礎，皆為下界）
 
-- `strict_outs`：只由**官方 ER=0 的整場出賽**組成。宣稱的每一局，其所屬出賽的官方
-  `earned_runs` 必為 0 ——即卡面紅線 3 的**字面**對帳基礎（出賽層級的粒度）。
-- `outs`：`strict_outs` ＋ 中斷那場的尾段半局。尾段的每一個半局另以**半局層級**的
-  更強證明滿足紅線 3 的**意圖**：「整個半局、不分投手、零得分」⇒ 沒有任何分數存在
-  可被判給任何人 ⇒ 對本投手零自責分。這比「該場 ER=0」更緊（連非自責分都沒有），
-  並同時繞開自責／非自責分野與 9.16(g) 繼承跑者歸屬。
+- `strict_outs`：只由**官方判準值＝0 的整場出賽**組成。宣稱的每一局，其所屬出賽的官方
+  欄位（`earned_runs` 或 `runs`）必為 0 ——即卡面紅線 3 的**字面**對帳基礎（出賽層級）。
+- `outs`：`strict_outs` ＋ 中斷那場的尾段半局。尾段的每一個半局另以**半局層級**的證明
+  滿足紅線 3 的**意圖**：「整個半局、不分投手、零得分」⇒ 沒有任何分數存在可被判給
+  任何人 ⇒ 對本投手零失分、從而零自責分。在**失分**口徑下這與中段是同一個量的兩個
+  粒度；在**自責分**口徑下它比「該場 ER=0」更緊（連非自責分都沒有），並同時繞開
+  自責／非自責分野與 9.16(g) 繼承跑者歸屬。
 
 兩者各有獨立的窮舉對帳（`scripts/reconcile_scoreless_streak.py` 的 R1／R2），皆零例外。
+
+## 兩口徑的大小關係（可證且逐人驗證）
+
+`runs = 0 ⇒ earned_runs = 0`（自責分是失分的子集），故失分口徑的採計視窗必為自責分
+口徑視窗的**後綴**，且中斷場落在自責分視窗之內 ⇒ **失分口徑的總出局數恆 ≤ 自責分口徑**。
+唯一能翻轉這個關係的資料形態是「`runs` 非 NULL 而 `earned_runs` 為 NULL」（那會讓自責分
+口徑先中斷）；該形態的母體筆數由對帳腳本的 X2 逐次輸出，**不靠假設它是 0**。
+逐人比對由對帳腳本 X3 對全母體執行。
 """
 
 from __future__ import annotations
@@ -116,14 +164,6 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 
-METRIC = "consecutive_earned_run_free_innings"
-METRIC_LABEL = "連續無自責分局數（保守下界）"
-METRIC_NOTE = (
-    "本指標為「連續無**自責**分局數」，非「連續無失分局數」："
-    "失誤造成的非自責失分不中斷本指標（與 ERA 語意一致）。"
-    "自責分一律採官方紀錄（pitching_gamelog.earned_runs），本專案不重算。"
-    "所有不確定情境一律往「中斷」解讀，故本值為**下界**，不會高估。"
-)
 DATA_FROM_YEAR = 2018
 BOUNDARY_NOTE = (
     f"逐場 box 與逐打席 livelog 皆自 {DATA_FROM_YEAR} 年起有資料；"
@@ -135,18 +175,27 @@ SUSPENDED = "保留"
 # 回走中斷原因（對外原樣輸出，前端可直接對照）
 BREAK_EARNED_RUN = "earned_run_allowed"
 BREAK_POSTSEASON_EARNED_RUN = "postseason_earned_run_allowed"
+BREAK_RUN = "run_allowed"
+BREAK_POSTSEASON_RUN = "postseason_run_allowed"
 BREAK_SUSPENDED = "suspended_game_uncertain"
 BREAK_MISSING_LINE = "missing_official_line"
 BREAK_DATA_BOUNDARY = "data_boundary"
 BREAK_NONE = None
+
+# 判準欄位名（＝ `Appearance` 上的屬性名，也是 `pitching_gamelog` 的欄位名）
+FIELD_EARNED_RUNS = "earned_runs"
+FIELD_RUNS = "runs"
 
 
 @dataclass(frozen=True)
 class Appearance:
     """一次出賽的官方紀錄行（`cpbl.pitching_gamelog` ＋ `cpbl.games` 的場次脈絡）。
 
-    `earned_runs` 一律是官方值；`outs` 由官方 `inning_pitched_cnt*3 + inning_pitched_div3`
-    得出。本模組不修改、不重算這兩個欄位。
+    `earned_runs`／`runs` 一律是官方值；`outs` 由官方
+    `inning_pitched_cnt*3 + inning_pitched_div3` 得出。本模組不修改、不重算這些欄位。
+
+    `runs` 預設 `None` 是為了讓既有（自責分口徑）的呼叫端與測試不必改；但**失分口徑下
+    `None` 代表「不知道」，會直接觸發 `BREAK_MISSING_LINE`**，不會被當成 0。
     """
 
     year: int
@@ -160,10 +209,72 @@ class Appearance:
     team_code: str | None = None
     vht: str | None = None        # 該投手該場的主客別（'1'=客隊、'2'=主隊）
     opponent_score: int | None = None   # 官方終場對手得分（games），用來驗逐局比分完整
+    runs: int | None = None       # 官方失分（pitching_gamelog.runs），失分口徑的判準值
 
     @property
     def key(self) -> tuple[int, str, int]:
         return (self.year, self.kind_code, self.game_sno)
+
+
+@dataclass(frozen=True)
+class Basis:
+    """一個口徑：判準欄位 ＋ 對外名詞 ＋ 中斷原因碼。**口徑語意的單一來源。**
+
+    `field` 同時是 `Appearance` 的屬性名與 `pitching_gamelog` 的欄位名，取值一律走
+    `charged()`；不要在別處另寫 `a.earned_runs if ... else a.runs` 之類的分岔。
+    """
+
+    field: str
+    metric: str
+    metric_label: str
+    metric_note: str
+    strict_basis: str
+    break_reason: str
+    postseason_break_reason: str
+
+    def charged(self, a: Appearance) -> int | None:
+        """該次出賽官方判給這位投手的分數（本口徑的判準值）。`None` ＝ 未知，不是 0。"""
+        return a.earned_runs if self.field == FIELD_EARNED_RUNS else a.runs
+
+
+EARNED_RUN_BASIS = Basis(
+    field=FIELD_EARNED_RUNS,
+    metric="consecutive_earned_run_free_innings",
+    metric_label="連續無自責分局數（保守下界）",
+    metric_note=(
+        "本指標為「連續無**自責**分局數」，非「連續無失分局數」："
+        "失誤造成的非自責失分不中斷本指標（與 ERA 語意一致）。"
+        "自責分一律採官方紀錄（pitching_gamelog.earned_runs），本專案不重算。"
+        "所有不確定情境一律往「中斷」解讀，故本值為**下界**，不會高估。"
+    ),
+    strict_basis="官方 earned_runs=0 的整場出賽",
+    break_reason=BREAK_EARNED_RUN,
+    postseason_break_reason=BREAK_POSTSEASON_EARNED_RUN,
+)
+
+RUN_BASIS = Basis(
+    field=FIELD_RUNS,
+    metric="consecutive_run_free_innings",
+    metric_label="連續無失分局數（保守下界）",
+    metric_note=(
+        "本指標為「連續無**失**分局數」，非「連續無自責分局數」："
+        "失誤造成的非自責失分**會**中斷本指標（與媒體慣用的「無失分」一致）。"
+        "失分一律採官方紀錄（pitching_gamelog.runs）；9.16(g) 的繼承跑者歸屬已由聯盟"
+        "記錄員套用於該欄，本專案直接讀取、不重算，也不觸及 9.16(c)(d)(f) 的主觀判斷。"
+        "中段（整場官方失分=0）與尾段（官方逐局零得分）是同一個量的兩個粒度，口徑一致。"
+        "所有不確定情境一律往「中斷」解讀，故本值為**下界**，不會高估。"
+    ),
+    strict_basis="官方 runs=0 的整場出賽",
+    break_reason=BREAK_RUN,
+    postseason_break_reason=BREAK_POSTSEASON_RUN,
+)
+
+BASES = {EARNED_RUN_BASIS.field: EARNED_RUN_BASIS, RUN_BASIS.field: RUN_BASIS}
+
+# 向後相容別名：既有呼叫端／測試沿用自責分口徑的模組層常數。
+METRIC = EARNED_RUN_BASIS.metric
+METRIC_LABEL = EARNED_RUN_BASIS.metric_label
+METRIC_NOTE = EARNED_RUN_BASIS.metric_note
 
 
 
@@ -312,14 +423,19 @@ def compute_streak(
     tail_lookup=None,
     counted_kinds: Sequence[str] | None = None,
     data_from_year: int = DATA_FROM_YEAR,
+    basis: Basis = EARNED_RUN_BASIS,
 ) -> StreakResult:
-    """出賽（**舊→新**排序）→ 目前連續無自責分局數（下界）。
+    """出賽（**舊→新**排序）→ 目前連續無（自責）失分局數（下界）。
 
-    `tail_lookup(appearance) -> TailCredit | None`：ER>0 那一場的尾段採計；
-    給 None 或回 None 代表不採計尾段（等同「整場 ER=0 才計入」的更保守版本）。
+    `basis`：判準口徑。`EARNED_RUN_BASIS`（預設，向後相容）看官方 `earned_runs`；
+    `RUN_BASIS` 看官方 `runs`。**演算法一字不改**，只換讀哪個官方欄位與對外原因碼——
+    這正是「兩個口徑是同一套定位法的兩個判準」這句話的可執行形式。
 
-    `counted_kinds`：計入局數的賽別（例行賽）。之外的賽別（季後賽）ER=0 跳過、
-    ER>0 中斷——理由見模組 docstring「賽別範圍」。給 None 代表全部賽別都計入。
+    `tail_lookup(appearance) -> TailCredit | None`：判準值>0 那一場的尾段採計；
+    給 None 或回 None 代表不採計尾段（等同「整場判準值=0 才計入」的更保守版本）。
+
+    `counted_kinds`：計入局數的賽別（例行賽）。之外的賽別（季後賽）判準值=0 跳過、
+    >0 中斷——理由見模組 docstring「賽別範圍」。給 None 代表全部賽別都計入。
 
     `data_from_year`：**紅線 4 的實際執行點**。早於此年的出賽一律截斷並標示
     `boundary_limited`——`pitching_gamelog`／`game_livelog` 皆自 2018 年起才有資料，
@@ -340,21 +456,25 @@ def compute_streak(
             # 保留賽橫跨兩個日期，任一種排序都可能把它排在錯誤位置而導致高估 → 直接中斷。
             res.break_reason, res.break_key = BREAK_SUSPENDED, a.key
             break
-        if a.earned_runs is None or a.outs is None:
+        charged = basis.charged(a)
+        # 判準值缺值（DB NULL）＝「這場掉幾分不知道」，不是 0 → 中斷。失分口徑下
+        # `Appearance.runs` 的預設值也是 None，所以忘了餵 runs 會 fail-closed 中斷，
+        # 不會被靜默當成「零失分」而高估。
+        if charged is None or a.outs is None:
             res.break_reason, res.break_key = BREAK_MISSING_LINE, a.key
             break
         if counted_set is not None and a.kind_code not in counted_set:
-            # 季後賽不屬於本紀錄母體：乾淨就跳過（不計局數也不中斷），掉自責分則中斷。
-            if a.earned_runs == 0:
+            # 季後賽不屬於本紀錄母體：乾淨就跳過（不計局數也不中斷），掉分則中斷。
+            if charged == 0:
                 res.skipped.append(a)
                 continue
-            res.break_reason, res.break_key = BREAK_POSTSEASON_EARNED_RUN, a.key
+            res.break_reason, res.break_key = basis.postseason_break_reason, a.key
             break
-        if a.earned_runs == 0:
+        if charged == 0:
             res.strict_outs += a.outs
             res.counted.append(a)
             continue
-        res.break_reason, res.break_key = BREAK_EARNED_RUN, a.key
+        res.break_reason, res.break_key = basis.break_reason, a.key
         res.tail = tail_lookup(a) if tail_lookup else None
         break
     else:
