@@ -24,6 +24,7 @@ artifact，模型缺席時仍回傳賽程。首頁不放區間（模型敏感度
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Query
 
@@ -104,6 +105,39 @@ def _serialize(row: dict, as_of: date) -> dict:
         row["home_score"] = None
         row["away_score"] = None
     return row
+
+
+_TAIPEI = ZoneInfo("Asia/Taipei")
+
+
+def _now() -> datetime:
+    """現在（UTC-aware）。抽成函式**只為了讓時鐘可注入**——本機跑在台北時區，
+    不注入就測不出「容器 UTC、台北凌晨」那個唯一會出錯的情境。"""
+    return datetime.now(UTC)
+
+
+def _today_local() -> date:
+    """容器本地日。**語意刻意不動**：這是 `as_of`／`latest_day`／`next_slate` 的日界，
+    屬 DATA-TZ-BOUNDARY1 明確擱置、排在 REMEDY1 Phase 2 一起切換的範圍
+    （見 `cpbl.completion` 模組註解）。抽成函式同樣只為了可注入。"""
+    return date.today()
+
+
+def taipei_today(now: datetime) -> date:
+    """台北日界的「今天」。
+
+    **只給 `today` 區塊用**，刻意與同一支 response 裡的 `as_of` 走不同日界——這不是漏改：
+
+    - `as_of` 的用途是 upper bound（「最近比賽日」「下一批賽事」的日期界線）。容器 TZ 未設
+      而落後 8 小時時，那只是「晚 8 小時納入」，方向保守，故 DATA-TZ-BOUNDARY1 盤點後
+      明確不改，與判準一起排到 REMEDY1 Phase 2。
+    - 「今日賽事」不是 upper bound，**是一個標籤**。把昨天標成今日不是保守，是錯的：
+      台北 00:00–08:00 之間 `date.today()` 在 UTC 容器上會回前一天。
+
+    `cpbl.completion` 的 `completed_games_sql` docstring 已寫明「新程式碼請用
+    `TAIPEI_TODAY_SQL`」；此處是那條指示在 Python 側的對應物。
+    """
+    return now.astimezone(_TAIPEI).date()
 
 
 def _age_seconds(fetched_at: object, now: datetime) -> float | None:
@@ -307,7 +341,7 @@ def _attach_pregame(row: dict, pregame: dict, artifact: dict | None, meta: dict)
             "status": "no_features", "home_win_probability": None, "signals": None})
 
 
-def _today_block(rows: list[dict], as_of: date, pregame: dict,
+def _today_block(rows: list[dict], *, game_day: date, as_of: date, pregame: dict,
                  artifact: dict | None, meta: dict) -> dict:
     """今天的場次 ＋ 疊上 canonical live snapshot。
 
@@ -334,7 +368,9 @@ def _today_block(rows: list[dict], as_of: date, pregame: dict,
         games.append(game)
     status, reason = live_source_status(configured, snapshots, len(games))
     return {
-        "game_date": _iso(as_of),
+        # 台北日（`game_day`），不是同一份 response 裡那個容器本地的 `as_of`——見
+        # `taipei_today` 的說明，兩者用不同日界是刻意的。
+        "game_date": _iso(game_day),
         # 日界線判準；呈現端據此擇一渲染 today 或（最近比賽日＋下一批賽事）。
         "started": any(g["completed"] or (g["live"] or {}).get("phase") in LIVE_STARTED_PHASES
                        for g in games),
@@ -360,7 +396,10 @@ def daily_summary(
     freshness／serving 揭露因此永遠出自同一份 response，不會出現「兩個來源、不同新鮮度」。
     """
     kinds = kinds_of(kind_code)
-    as_of = date.today()
+    as_of = _today_local()
+    # 「今日賽事」單獨走台北日界；`as_of` 的語意一字不改（`taipei_today` 說明了為什麼
+    # 同一支 response 裡會有兩個「今天」，以及為什麼那不是漏改）。
+    game_day = taipei_today(_now())
     with conn() as c:
         cur = c.cursor()
         cur.execute(
@@ -384,7 +423,7 @@ def daily_summary(
         # as_of 一律入列：「今天有沒有比賽」是 today 區塊的前提，而它既不是最近比賽日
         # （今天還沒有結果）也未必是下一批（今天有場次早已入庫時 next_day 會跳到明天）。
         # 多帶一天不增加查詢次數，仍是同一支 `game_date = ANY(...)`。
-        days = sorted({d for d in (latest_day, next_day, as_of) if d is not None})
+        days = sorted({d for d in (latest_day, next_day, as_of, game_day) if d is not None})
         by_day: dict[date, list[dict]] = {d: [] for d in days}
         # season 條件不可省：`latest_day`／`next_day` 本來就是 season 範圍內推導出的日期，
         # 所以舊版只靠日期就隱含選中了正確的球季；但 `as_of` 是**外部給的**日期，它落在
@@ -428,14 +467,16 @@ def daily_summary(
     # 兩邊的候選合併成一次查詢，避免為了 today 再掃一遍 game_features。
     pregame_rows: dict[tuple[int, str, int], dict] = {
         (r["season"], r["kind_code"], r["game_sno"]): r
-        for r in (*by_day.get(next_day, []), *by_day.get(as_of, []))
+        for r in (*by_day.get(next_day, []), *by_day.get(game_day, []))
     }
     pregame = _pregame_by_game(artifact, list(pregame_rows.values())) if artifact else {}
     for row in next_games:
         _attach_pregame(row, pregame, artifact, pregame_meta)
 
-    today_rows = by_day.get(as_of, [])
-    today = _today_block(today_rows, as_of, pregame, artifact, pregame_meta) if today_rows else None
+    today_rows = by_day.get(game_day, [])
+    today = (_today_block(today_rows, game_day=game_day, as_of=as_of, pregame=pregame,
+                          artifact=artifact, meta=pregame_meta)
+             if today_rows else None)
 
     if scoped_games == 0:
         schedule_status = {"status": "source_missing", "reason": "範圍內無任何賽程列"}

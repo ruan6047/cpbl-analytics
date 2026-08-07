@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi.testclient import TestClient
@@ -96,9 +97,16 @@ def _snapshot(sno: int, phase: str, *, away: int = 0, home: int = 0, inning: int
     }
 
 
-def _run(monkeypatch, script, *, artifact=None, query="", snapshots=None) -> tuple[dict, _Cursor]:
+def _run(monkeypatch, script, *, artifact=None, query="", snapshots=None,
+         now=None, today_local=None) -> tuple[dict, _Cursor]:
     cursor = _Cursor(script)
     monkeypatch.setattr(daily, "conn", lambda: _Conn(cursor))
+    # 時鐘與容器本地日可注入：本機跑在台北時區，不注入就永遠測不到「容器 UTC、
+    # 台北凌晨」——而那正是唯一會出錯的情境。
+    if now is not None:
+        monkeypatch.setattr(daily, "_now", lambda: now)
+    if today_local is not None:
+        monkeypatch.setattr(daily, "_today_local", lambda: today_local)
     # 契約測試一律與本機 Redis 隔離：`snapshots=None`＝未設定 REDIS_URL（本機／CI 預設），
     # 要驗即時態就明著給一組假 snapshot。開發者本機恰好有 Redis 時測試不得跟著變。
     monkeypatch.setattr(daily.settings, "redis_url",
@@ -690,6 +698,57 @@ def test_today_block_is_independent_of_latest_and_next_day(monkeypatch):
     assert body["today"]["game_date"] == _TODAY.isoformat()
     assert [g["game_sno"] for g in body["today"]["games"]] == [247]
     assert body["next_slate"]["game_date"] == (_TODAY + timedelta(days=1)).isoformat()
+
+
+# --- 契約：今日區塊走台北日界（追加裁定 A）-----------------------------------
+
+def test_taipei_today_crosses_the_day_before_utc_does():
+    """純函式：台北比 UTC 早 8 小時，故 UTC 的 16:00 起就已經是台北的隔天。"""
+    assert daily.taipei_today(datetime(2026, 8, 7, 18, 0, tzinfo=UTC)) == date(2026, 8, 8)
+    assert daily.taipei_today(datetime(2026, 8, 7, 15, 59, tzinfo=UTC)) == date(2026, 8, 7)
+    # 台北 00:00 整（UTC 前一日 16:00）已算新的一天。
+    assert daily.taipei_today(datetime(2026, 8, 7, 16, 0, tzinfo=UTC)) == date(2026, 8, 8)
+
+
+def test_today_block_uses_taipei_day_when_container_clock_is_utc(monkeypatch):
+    """**回歸**（追加裁定 A）：容器 TZ 未設（生產實測落後台北 8 小時）時，台北凌晨
+    `date.today()` 會回前一天，於是首頁把**昨天**標成「今日賽事」。
+
+    情境：UTC 2026-08-07 18:00 ＝ 台北 2026-08-08 02:00。容器本地日還是 08-07，
+    但「今日賽事」必須是台北的 08-08。
+
+    同一份 response 裡 `as_of` 仍是容器本地日——那是刻意的，不是漏改：`as_of` 屬
+    upper bound 用法，DATA-TZ-BOUNDARY1 盤點後明確擱置到 REMEDY1 Phase 2
+    （見 `cpbl.completion` 模組註解與 `daily.taipei_today` 的說明）。
+    """
+    utc_now = datetime(2026, 8, 7, 18, 0, tzinfo=UTC)
+    container_day, taipei_day = date(2026, 8, 7), date(2026, 8, 8)
+    body, _ = _run(monkeypatch, _script(
+        latest=date(2026, 8, 6), next_day=taipei_day, scoped=3,
+        games=[_game(240, date(2026, 8, 6), home=4, away=2),
+               _game(246, container_day, home=1, away=0),   # UTC 的「今天」
+               _game(247, taipei_day), _game(248, taipei_day)],
+    ), snapshots={}, now=utc_now, today_local=container_day)
+
+    assert body["today"]["game_date"] == "2026-08-08", "今日區塊必須用台北日"
+    assert [g["game_sno"] for g in body["today"]["games"]] == [247, 248]
+    assert 246 not in [g["game_sno"] for g in body["today"]["games"]], \
+        "UTC 的『今天』（台北的昨天）不得被當成今日賽事"
+    # as_of 語意一字不改——兩個日界並存是本卡的刻意設計。
+    assert body["scope"]["as_of"] == "2026-08-07"
+
+
+def test_today_block_is_unchanged_when_container_runs_taipei(monkeypatch):
+    """對照組：容器本來就在台北時區時，兩個日界重合，行為與修改前完全相同。
+    這也是為什麼本機審不出上面那個缺陷。"""
+    taipei_now = datetime(2026, 8, 8, 2, 0, tzinfo=ZoneInfo("Asia/Taipei"))
+    same_day = date(2026, 8, 8)
+    body, _ = _run(monkeypatch, _script(
+        latest=date(2026, 8, 7), next_day=same_day, scoped=2,
+        games=[_game(240, date(2026, 8, 7), home=4, away=2), _game(247, same_day)],
+    ), snapshots={}, now=taipei_now, today_local=same_day)
+
+    assert body["today"]["game_date"] == body["scope"]["as_of"] == "2026-08-08"
 
 
 # --- 純函式：live view 與來源狀態 ---------------------------------------------

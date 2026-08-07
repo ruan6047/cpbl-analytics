@@ -125,8 +125,11 @@ export function BasesOuts({ bases, outs, size = 52 }: {
   const occupied = [bases.first && "一壘", bases.second && "二壘", bases.third && "三壘"]
     .filter(Boolean).join("、") || "無人";
   return (
+    // `role="img"` 是全站慣例（17 個 svg 中 10 個已有）：只掛 aria-label 而無 role 的
+    // `<svg>`，部分螢幕閱讀器不會把它當成一個有名字的圖形來播報。
     <svg viewBox="0 0 120 116" width={size} height={size * 116 / 120}
-      aria-label={`壘上${occupied}，${outs == null ? "出局數未知" : `${o} 出局`}`}>
+      aria-label={`壘上${occupied}，${outs == null ? "出局數未知" : `${o} 出局`}`}
+      role="img">
       {base(60, 26, bases.second)}
       {base(36, 50, bases.third)}
       {base(84, 50, bases.first)}
