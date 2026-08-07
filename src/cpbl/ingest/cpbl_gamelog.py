@@ -11,6 +11,7 @@ import re
 import time
 
 from cpbl.db import conn
+from cpbl.ingest.box_revisions import record_box_pitching_revisions
 from cpbl.ingest.cpbl_site import BASE, KIND_REGULAR
 from cpbl.ingest.game_source_revisions import record_source_revision
 
@@ -300,6 +301,9 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
                                       _bbox_rows(year, kind_code, sno, bb))
         out["pitching_box"] += _upsert("pitching_gamelog", _PBOX_COLS, 4,
                                        _pbox_rows(year, kind_code, sno, pp))
+        # DATA-BOX-REVISION-SNAPSHOT1：逐投手 append-only 快照，內容雜湊去重。
+        # 只存快照，不影響既有 pitching_gamelog UPSERT 或回傳值語意。
+        record_box_pitching_revisions(year, kind_code, sno, pp)
         wx = _weather_row(year, kind_code, sno, payload)
         if wx:
             out["weather"] = out.get("weather", 0) + _upsert("game_detail", _GD_WX_COLS, 3, [wx])
