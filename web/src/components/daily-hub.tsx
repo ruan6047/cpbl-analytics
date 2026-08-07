@@ -13,7 +13,7 @@ import {
   homePregameNotice,
   liveSourceSignal,
   refreshCopy,
-  refreshAgeText,
+  refreshAtText,
   shortDate,
   showTodaySlate,
   slateDistanceText,
@@ -108,6 +108,73 @@ function NextGame({ g, trainedThrough }: { g: DailyGame; trainedThrough: number 
   );
 }
 
+/** 下次向自家 API 拉取的倒數環。
+ *
+ *  **形狀由事實決定**：輪詢是整批一次請求（一支 dailySummary、三場一起回來），所以倒數
+ *  是**全域一個**，不是每張卡一個。它與卡上「最後更新 HH:mm」是兩種語意，不可互相取代：
+ *  卡上那個是 worker 抓到官方資料的時刻（逐場不同、逐場降級），這裡是前端下一次拉取。
+ *
+ *  **它不宣稱資料新不新**。請求失敗時倒數照樣重來——那是「下一次拉取」的計時，不是
+ *  「剛剛更新成功」的宣告；失敗看得出來是靠既有的兩階降級（卡片會隨 `fetched_at` 老化
+ *  標示更新中斷），不另造一套失敗訊號。
+ *
+ *  **每秒 tick 關在這個元件裡**：狀態不放在 DailyHub，否則整個 hub（含三張卡）會每秒
+ *  重繪一次。父層只給「這一輪何時開始」與「一輪多長」，兩者都只在輪詢發生時才變。 */
+function PollCountdown({ cycleMs, startedAt }: { cycleMs: number; startedAt: number }) {
+  const [remainingMs, setRemainingMs] = useState(cycleMs);
+
+  useEffect(() => {
+    const compute = () =>
+      setRemainingMs(Math.max(0, Math.min(cycleMs, cycleMs - (Date.now() - startedAt))));
+    compute();
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const stop = () => {
+      if (timer) clearInterval(timer);
+      timer = null;
+    };
+    const start = () => {
+      if (!timer) timer = setInterval(compute, 1000);
+    };
+    // 背景分頁：**凍住**而不是繼續空轉。回到前景看到一個「早就該更新了卻沒更新」的
+    // 倒數是騙人的——那段時間根本沒有排任何請求。刻意不在轉回前景時立刻 compute：
+    // 島會立即抓一次並更新 `startedAt`，讓 effect 帶著新的起點重跑。
+    const onVisibility = () => (document.visibilityState === "visible" ? start() : stop());
+    if (document.visibilityState === "visible") start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [cycleMs, startedAt]);
+
+  const seconds = Math.ceil(remainingMs / 1000);
+  const radius = 7;
+  const circumference = 2 * Math.PI * radius;
+  return (
+    <span
+      tabIndex={0}
+      // 靜態說明；**不掛 aria-live**——每秒播報一次倒數是災難。
+      title="距離下次更新"
+      aria-label="距離下次更新"
+      className="group inline-flex items-center gap-1 rounded text-[11px] text-faint"
+    >
+      <svg width={18} height={18} viewBox="0 0 18 18" aria-hidden="true">
+        <circle cx={9} cy={9} r={radius} fill="none" stroke="var(--color-line)" strokeWidth={2} />
+        <circle
+          cx={9} cy={9} r={radius} fill="none" stroke="var(--color-accent)" strokeWidth={2}
+          strokeLinecap="round" transform="rotate(-90 9 9)"
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference * (1 - remainingMs / cycleMs)}
+        />
+      </svg>
+      {/* 數字只在滑過／聚焦時出現：常駐一個每秒跳動的秒數會把注意力從比分上拉走。 */}
+      <span className="w-0 overflow-hidden tabular-nums opacity-0 transition-[width,opacity] group-hover:w-7 group-hover:opacity-100 group-focus:w-7 group-focus:opacity-100">
+        {seconds} 秒
+      </span>
+    </span>
+  );
+}
+
 /** 賽前機率的降級告示。**只收一份 summary**——告示描述的就是本頁顯示的那些機率，
  *  兩者必須來自同一個 response。開一個外部注入的 prop 就等於再開一次「兩個來源、
  *  不同新鮮度」的洞。 */
@@ -192,7 +259,7 @@ export default function DailyHub({ summary: initial }: { summary: DailySummary }
   // 明講，不能只寫進後端 log 或只在方法頁揭露（ML-OUTCOME-SIMPLE-LEAK2 紅線 5）。
   const notice = homePregameNotice(summary);
   const refresh = refreshCopy(freshness.last_refresh.status);
-  const ageText = refreshAgeText(freshness.last_refresh.hours_ago);
+  const refreshedAt = refreshAtText(freshness.last_refresh.at, freshness.as_of);
   const liveSource = liveSourceSignal(today);
 
   // 日界線：今天任一場走到打線公布或更後 → 主區塊整個換成「今日賽事」，舊的兩塊
@@ -200,6 +267,9 @@ export default function DailyHub({ summary: initial }: { summary: DailySummary }
   // 不是靠逐場去重（今天的場次同時也是 next_slate 的場次）。
   const showToday = showTodaySlate(summary);
   const todayHasPregame = today?.games.some((g) => todayCardKind(g) === "pregame") ?? false;
+  // 倒數的週期直接取輪詢實際用的那個值（live 20 秒／未定案無 live 60 秒），不另寫死常數；
+  // null＝今天不輪詢，此時**不渲染**倒數環——一個永遠不動的假倒數比沒有更糟。
+  const pollCycleMs = todayPollDelayMs(today);
 
   return (
     <section className="space-y-4">
@@ -211,10 +281,15 @@ export default function DailyHub({ summary: initial }: { summary: DailySummary }
               {TODAY_COPY.title} · {shortDate(today.game_date)}
             </Eyebrow>
             {/* 觸控目標 ≥44px（藍圖 §8.3）：負外距讓命中區長高但不改變標題列的視覺高度。 */}
-            <Link href="/games"
-              className="-my-3 inline-flex min-h-11 items-center text-xs text-accent hover:underline">
-              完整賽況 →
-            </Link>
+            <span className="flex items-center gap-2">
+              {pollCycleMs !== null && nowMs !== null && (
+                <PollCountdown cycleMs={pollCycleMs} startedAt={nowMs} />
+              )}
+              <Link href="/games"
+                className="-my-3 inline-flex min-h-11 items-center text-xs text-accent hover:underline">
+                完整賽況 →
+              </Link>
+            </span>
           </div>
           {notice && todayHasPregame && <PregameNotice text={notice} />}
           <TodaySlate slate={today} trainedThrough={trainedThrough} nowMs={nowMs} />
@@ -261,8 +336,15 @@ export default function DailyHub({ summary: initial }: { summary: DailySummary }
           <span className="font-medium text-ink">{shortDate(freshness.last_completed_game_date)}</span>
         </span>
         <StatusBadge tone={refresh.tone}>{refresh.label}</StatusBadge>
-        {ageText && <span className="text-faint">刷新於 {ageText}</span>}
-        <StatusBadge tone={liveSource.tone}>{liveSource.label}</StatusBadge>
+        {refreshedAt && <span className="text-faint">{refreshedAt}</span>}
+        {liveSource.display === "symbol" ? (
+          <span role="img" aria-label={liveSource.label} title={liveSource.label}
+            className="text-[11px] font-semibold text-muted">
+            {liveSource.symbol}
+          </span>
+        ) : (
+          <StatusBadge tone={liveSource.tone}>{liveSource.label}</StatusBadge>
+        )}
       </div>
 
       {/* 3. 下一批賽事。今日賽事區塊在位時整塊不渲染——今天的場次同時就是 next_slate，

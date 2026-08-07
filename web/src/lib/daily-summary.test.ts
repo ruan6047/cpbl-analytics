@@ -6,7 +6,9 @@ import {
   pregameServingNotice,
   homePregameNotice,
   refreshCopy,
-  refreshAgeText,
+  refreshAtText,
+  taipeiParts,
+  taipeiTime,
   shortDate,
   slateDistanceText,
   gameHref,
@@ -90,11 +92,33 @@ test("refreshCopy 未知值退回 unknown 文案", () => {
   assert.equal(refreshCopy("bogus" as RefreshStatus).label, REFRESH_COPY.unknown.label);
 });
 
-test("refreshAgeText 依時距分桶；null → null", () => {
-  assert.equal(refreshAgeText(null), null);
-  assert.equal(refreshAgeText(0.4), "1 小時內");
-  assert.equal(refreshAgeText(5), "5 小時前");
-  assert.equal(refreshAgeText(50), "2 天前");
+test("刷新時刻用絕對時間，不用「N 小時前」", () => {
+  // 排程是每日 10:10 一班，所以隔天清晨「20 小時前」是完全正常的狀態，卻與旁邊
+  // 「資料為最新」讀起來互相矛盾；而那個數字幾乎永遠很大，大到多少都不代表任何事。
+  // 維護者要回答的是「今天那班跑了沒」——是非題，不是時數。
+  assert.equal(refreshAtText("2026-08-07T02:12:00+00:00", "2026-08-07"), "今日 10:12 刷新");
+  assert.equal(refreshAtText("2026-08-06T02:12:00+00:00", "2026-08-07"), "昨日 10:12 刷新");
+  // 更早的日期不再用「N 天前」，直接給日期——落後多久由旁邊的 status 徽章負責表達。
+  assert.equal(refreshAtText("2026-08-05T02:12:00+00:00", "2026-08-07"), "08/05 10:12 刷新");
+  assert.equal(refreshAtText(null, "2026-08-07"), null);
+  assert.equal(refreshAtText("garbage", "2026-08-07"), null);
+});
+
+test("**紅線**：刷新時刻釘死台北時區，不吃執行環境時區", () => {
+  // 本專案容器沒設 TZ（python:slim 與 node 皆預設 UTC），瀏覽器是台北。用預設時區
+  // 格式化會讓 SSR 與 hydration 印出不同字串——LiveCard 曾為此改成掛載後才渲染。
+  const iso = "2026-08-07T02:12:00+00:00";     // ＝台北 10:12
+  assert.deepEqual(taipeiParts(iso), { date: "2026-08-07", time: "10:12" });
+  assert.equal(taipeiTime(iso), "10:12");
+
+  // 同一瞬間、不同寫法必須得到同一個台北時刻（證明吃的是瞬間而非字串上的時區）。
+  assert.equal(taipeiTime("2026-08-07T10:12:00+08:00"), "10:12");
+  assert.equal(taipeiTime("2026-08-06T22:12:00-04:00"), "10:12");
+
+  // 跨日界：UTC 前一天的深夜＝台北的隔天清晨，今日／昨日必須依台北曆日判定。
+  assert.equal(refreshAtText("2026-08-06T20:30:00+00:00", "2026-08-07"), "今日 04:30 刷新");
+  assert.equal(taipeiTime(null), null);
+  assert.equal(taipeiParts("garbage"), null);
 });
 
 // —— 一般 helper ——
@@ -594,17 +618,35 @@ test("裁決B｜「今天沒有場次」與「今日即時來源不可用」必�
   assert.equal(sourceDown.tone, "warn");
 });
 
-test("裁決B｜正常態也要明講——用「沒有訊號」表達正常會讓兩種空白同形", () => {
+test("裁定4｜正常態壓縮成符號，但語意不縮水（完整句仍在 aria-label／title）", () => {
   const allGood = liveSourceSignal(slate([game(247, { live: live() })]));
 
   assert.equal(allGood.kind, "ok");
-  assert.ok(allGood.label, "正常態必須有文案，不得回空字串或 null");
-  assert.equal(allGood.tone, "done");
+  assert.equal(allGood.display, "symbol");
+  assert.ok(allGood.symbol, "符號態必須給得出要畫的字元");
+  assert.ok(allGood.label, "完整語意不得消失——它要進 aria-label／title");
   // 四態一定回得出一格，呈現端因此可以恆常渲染，不必自己判斷要不要留位子。
   for (const t of [null, slate([game(247)]), slate([game(247, { live: live() })]),
                    slate([game(247, { live: live() }), game(248)])]) {
     assert.ok(liveSourceSignal(t).label);
   }
+});
+
+test("裁定4｜**只有**「一切正常」壓縮成符號；其餘三態維持完整文字", () => {
+  // 被壓縮的必須是「不需要行動」那一態。今日無賽程維持文字（它解釋版面為何是舊雙塊）、
+  // 兩個異常態維持完整文字＋警示色，否則要人去看即時管道的訊號會被縮成一個小圖示。
+  const byKind = Object.fromEntries([
+    liveSourceSignal(null),
+    liveSourceSignal(slate([game(247, { live: live() })])),
+    liveSourceSignal(slate([game(247, { live: live() }), game(248)])),
+    liveSourceSignal(slate([game(247), game(248), game(249)])),
+  ].map((x) => [x.kind, x]));
+
+  assert.equal(byKind.ok.display, "symbol");
+  assert.equal(byKind.no_games.display, "badge");
+  assert.equal(byKind.partial.display, "badge");
+  assert.equal(byKind.down.display, "badge");
+  assert.deepEqual([byKind.partial.tone, byKind.down.tone], ["warn", "warn"]);
 });
 
 test("裁決B｜四態文案兩兩不同（§8.1：不同語意不共用同一句）", () => {
@@ -617,14 +659,26 @@ test("裁決B｜四態文案兩兩不同（§8.1：不同語意不共用同一�
 
   assert.deepEqual(signals.map((x) => x.kind), ["no_games", "ok", "partial", "down"]);
   assert.equal(new Set(signals.map((x) => x.label)).size, 4, "四態文案不得共用");
+  // 裁定 4 之後 ok 改符號，但**守的東西不變**：兩種「不需要做事」與兩種「要做事」
+  // 在畫面上仍必須分得出來——前者一個是文字徽章一個是符號，後者兩句話不同且皆為警示色。
+  const [noGames, ok, partial, down] = signals;
+  assert.notEqual(noGames.display, ok.display);
+  assert.notEqual(partial.label, down.label);
+  for (const quiet of [noGames, ok]) {
+    assert.notEqual(quiet.tone, "warn", "不需要行動的兩態不得用警示色");
+  }
 });
 
 test("裁決B｜異常態要講得出幾場，維護者才知道規模", () => {
   const partial = liveSourceSignal(slate([game(247, { live: live() }), game(248), game(249)]));
   const down = liveSourceSignal(slate([game(247), game(248), game(249)]));
 
-  assert.match(partial.label, /3 場中 2 場/);
-  assert.match(down.label, /3 場/);
+  // 「無」講的是不存在（開賽前本來就沒比賽在進行）；實際狀況是**取不到**（裁定 2）。
+  assert.match(partial.label, /今日 3 場中 2 場無法取得即時賽況/);
+  assert.match(down.label, /今日 3 場無法取得即時賽況/);
+  for (const label of [partial.label, down.label]) {
+    assert.equal(/無即時賽況/.test(label), false, "不得回到「無」的說法");
+  }
 });
 
 test("**紅線**：訪客也看得到這一條，四態文案皆不得洩漏實作字彙", () => {
@@ -689,10 +743,32 @@ test("**紅線**：已開打場次一律不是賽前態（live／final／DB 已�
   assert.equal(todayCardKind(game(3, { completed: true })), "final");
 });
 
-test("延賽／保留：既不是賽前也不是賽中，不掛賽前機率", () => {
-  assert.equal(todayCardKind(game(1, { live: live({ phase: "postponed" }) })), "suspended");
-  assert.equal(todayCardKind(game(2, { live: live({ phase: "reserved" }) })), "suspended");
-  assert.equal(todayPollDelayMs(slate([game(1, { live: live({ phase: "postponed" }) })])), null);
+test("裁定1｜延賽與保留賽是兩態，不可併成一個 suspended", () => {
+  // GLOSSARY〈保留賽／delay_kind〉：官網 GameResult=1 是延賽（根本沒開打）、
+  // =2 是保留（**已開賽後中止，場上有比分**）。併成一態就只能二選一地對其中一種說謊。
+  assert.equal(todayCardKind(game(1, { live: live({ phase: "postponed" }) })), "postponed");
+  assert.equal(todayCardKind(game(2, { live: live({ phase: "reserved" }) })), "reserved");
+  // 兩者今天都不會再打完 → 皆為 settled，全場如此時零輪詢。
+  assert.equal(todayPollDelayMs(slate([game(1, { live: live({ phase: "postponed" }) }),
+                                       game(2, { live: live({ phase: "reserved" }) })])), null);
+});
+
+test("裁定1｜保留賽的比分不得被 DB 完成場判準吃成終場", () => {
+  // 保留賽在 cpbl.games 裡帶著比分，而 `_serialize` 的完成場判準（有比分且日期不在未來）
+  // 會把當天的保留賽算成 completed。若判定順序讓 `g.completed` 先講話，一場中止的比賽
+  // 就會被畫成終場——所以 snapshot phase 必須優先於 DB 比分。
+  const reserved = game(1, { completed: true, home_score: 2, away_score: 3,
+                             live: live({ phase: "reserved", away_score: 3, home_score: 2 }) });
+
+  assert.equal(todayCardKind(reserved), "reserved");
+  // 對照：沒有 snapshot 時 DB 比分才當後備（隔日爬蟲補完的情形）。
+  assert.equal(todayCardKind(game(2, { completed: true, live: null })), "final");
+});
+
+test("裁定1｜保留賽已開打，不得再掛賽前機率（後端不送 pregame 欄位）", () => {
+  // 前端這一側只能證明「保留賽不是 pregame 態」；欄位缺席由後端釘住
+  // （tests/test_daily_summary.py 的 LIVE_UNDERWAY_PHASES）。
+  assert.notEqual(todayCardKind(game(1, { live: live({ phase: "reserved" }) })), "pregame");
 });
 
 test("排序 deterministic：開賽時間 → game_sno；無開賽時間者排在後面", () => {

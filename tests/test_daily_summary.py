@@ -546,6 +546,40 @@ def test_started_games_lose_the_pregame_field_entirely(monkeypatch):
     assert body["today"]["started"] is True
 
 
+def test_reserved_game_is_started_and_loses_its_pregame_probability(monkeypatch):
+    """裁定 1｜保留賽＝**已開賽後中止**（GLOSSARY：官網 GameResult=2），與延賽不同。
+
+    兩個後果：(a) 那是今天發生的事，日界線該切到今天；(b) 它已經開打，賽前機率必須跟
+    live／final 一樣被收掉——一場 3:2 中止的比賽旁邊掛賽前勝率是同一個誤導的另一種樣子。
+    """
+    artifact = ({"trained_through": 2025, "signals": {"strength": "winrate_diff"}, "model": None},
+                {"status": "serving_current", "reason": None, "trained_through": 2025,
+                 "signals": {"strength": "winrate_diff"}, "degradation": None})
+    monkeypatch.setattr(daily, "_pregame_by_game", lambda *_: {})
+    body, _ = _run(monkeypatch, _today_script([_game(247, _TODAY), _game(248, _TODAY)]),
+                   artifact=artifact,
+                   snapshots={247: _snapshot(247, "reserved", away=3, home=2, inning=5,
+                                             events=140),
+                              248: _snapshot(248, "postponed")})
+
+    reserved, postponed = body["today"]["games"]
+    assert body["today"]["started"] is True, "保留賽是今天發生的事，主區塊該切過來"
+    assert "pregame" not in reserved
+    assert (reserved["live"]["away_score"], reserved["live"]["home_score"]) == (3, 2)
+    # 延賽根本沒開打：不觸發日界線，賽前欄位照掛（呈現端自己不畫）。
+    assert postponed["live"]["phase"] == "postponed"
+    assert postponed["pregame"]["status"] == "no_features"
+
+
+def test_postponed_alone_does_not_move_the_main_block(monkeypatch):
+    """全場延賽的日子沒有任何新賽況可看，主位必須留在上一個比賽日。"""
+    body, _ = _run(monkeypatch, _today_script([_game(247, _TODAY), _game(248, _TODAY)]),
+                   snapshots={247: _snapshot(247, "postponed"),
+                              248: _snapshot(248, "postponed")})
+
+    assert body["today"]["started"] is False
+
+
 def test_worker_unavailable_degrades_silently_and_signals_the_maintainer(monkeypatch):
     """情境 8｜worker 不可用：`started` 為假（訪客面因此退回純日期版面），
     `live_source` 留給維護者訊號，且**不宣稱** Redis 或 worker 壞掉——API 這一側

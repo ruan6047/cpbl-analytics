@@ -212,12 +212,54 @@ export function refreshCopy(status: RefreshStatus): { label: string; tone: Fresh
   return REFRESH_COPY[status] ?? REFRESH_COPY.unknown;
 }
 
-/** hours_ago → 白話相對時間（維護者辨識排程是否落後用）。 */
-export function refreshAgeText(hoursAgo: number | null): string | null {
-  if (hoursAgo == null) return null;
-  if (hoursAgo < 1) return "1 小時內";
-  if (hoursAgo < 24) return `${Math.round(hoursAgo)} 小時前`;
-  return `${Math.floor(hoursAgo / 24)} 天前`;
+/** 顯示用時區固定為台北。
+ *
+ *  **不吃執行環境時區**：本專案的容器沒有設 TZ（`python:3.12-slim-bookworm` 與 node 皆
+ *  預設 UTC），瀏覽器則是台北，用預設時區格式化會讓 SSR 與 hydration 印出不同字串。
+ *  釘死時區後兩邊必然一致，時刻也才是台灣讀者看得懂的那一個。 */
+const TAIPEI = "Asia/Taipei";
+
+/** ISO 時刻 → 台北的 `YYYY-MM-DD` 與 `HH:mm`；無法解析回 null。 */
+export function taipeiParts(iso: string | null): { date: string; time: string } | null {
+  if (!iso) return null;
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return null;
+  const at = new Date(ms);
+  return {
+    // en-CA 產出 `YYYY-MM-DD`，可直接與 API 的日期字串比對，不必自己拼。
+    date: new Intl.DateTimeFormat("en-CA", { timeZone: TAIPEI, year: "numeric",
+                                             month: "2-digit", day: "2-digit" }).format(at),
+    time: new Intl.DateTimeFormat("en-GB", { timeZone: TAIPEI, hour: "2-digit",
+                                             minute: "2-digit", hour12: false }).format(at),
+  };
+}
+
+/** 台北時刻 `HH:mm`（賽中卡的「最後更新」共用）。 */
+export const taipeiTime = (iso: string | null): string | null => taipeiParts(iso)?.time ?? null;
+
+/** `YYYY-MM-DD` 的前一天。純字串／UTC 算術，不碰執行環境時區。 */
+function previousDay(ymd: string): string | null {
+  const ms = Date.parse(`${ymd}T00:00:00Z`);
+  return Number.isFinite(ms) ? new Date(ms - 86_400_000).toISOString().slice(0, 10) : null;
+}
+
+/** 最近一次刷新 → 「今日 10:12 刷新」／「昨日 10:12 刷新」／「08/05 10:12 刷新」。
+ *
+ *  **刻意不用「N 小時前」**：排程是每日 10:10 一班，所以隔天清晨顯示「20 小時前」是完全
+ *  正常的狀態，卻與旁邊「資料為最新」的徽章讀起來互相矛盾；而那個數字幾乎永遠很大，
+ *  大到多少都不代表任何事。維護者要回答的是「今天那班跑了沒」——是非題，不是時數。
+ *
+ *  落後與否仍由 `refreshCopy` 的 status 徽章承載（後端 `STALE_AFTER_HOURS = 24`），
+ *  這一句永遠是中性灰字，只陳述時刻。
+ *
+ *  今日／昨日以 `freshness.as_of` 為基準（同一份 response 裡的日期），不用瀏覽器時鐘：
+ *  一來 SSR 與 hydration 必然一致，二來與頁面其他地方的日期推導同源。 */
+export function refreshAtText(at: string | null, asOf: string): string | null {
+  const parts = taipeiParts(at);
+  if (!parts) return null;
+  if (parts.date === asOf) return `今日 ${parts.time} 刷新`;
+  if (parts.date === previousDay(asOf)) return `昨日 ${parts.time} 刷新`;
+  return `${shortDate(parts.date)} ${parts.time} 刷新`;
 }
 
 // —— 一般顯示 helper ——
@@ -276,24 +318,39 @@ export const TODAY_COPY = {
   officialPending: "官方紀錄確認中",
   liveSourceNoGames: "今日無賽程",
   liveSourceOk: "即時賽況正常",
+  /** 保留賽＝已開賽後中止，比分照顯示；這一句負責防止它被讀成終場。 */
+  reservedNote: "保留・擇期續賽",
 } as const;
 
-export type TodayCardKind = "pregame" | "live" | "final" | "suspended";
+export type TodayCardKind = "pregame" | "live" | "final" | "postponed" | "reserved";
 
-/** 場次卡要渲染哪一態。DB 已有比分（隔日爬蟲補完）與 snapshot `final` 都算賽後。 */
+/** 場次卡要渲染哪一態。
+ *
+ *  **延賽與保留賽是兩件事，不可併成一態**（需求方 2026-08-07 人工審裁定 1）：
+ *  依 `docs/reference/GLOSSARY.md`〈保留賽／`delay_kind`〉，官網 `GameResult=1` 是延賽
+ *  （根本沒開打），`GameResult=2` 是**保留**——已開賽後中止，場上是有比分的。把保留賽
+ *  的比分藏起來比顯示出來更失真；狀態文字負責防止它被讀成終場。
+ *
+ *  判定順序＝**snapshot phase 優先於 DB 比分**。保留賽在 `cpbl.games` 裡帶著比分，而
+ *  `_serialize` 的完成場判準（有比分且日期不在未來）會把當天的保留賽算成 completed；
+ *  若先看 `g.completed`，一場中止的比賽會被畫成終場。DB 比分只在**沒有 snapshot 時**
+ *  當後備（隔日爬蟲補完、worker 早已不供該場的情形）。 */
 export function todayCardKind(g: TodayGame): TodayCardKind {
   const phase = g.live?.phase;
-  if (phase === "final" || g.completed) return "final";
+  if (phase === "postponed") return "postponed";
+  if (phase === "reserved") return "reserved";
   if (phase === "live") return "live";
-  // 延賽／保留：既不是賽前也不是賽中，不掛賽前機率（那場今天不會照原樣打）。
-  if (phase === "postponed" || phase === "reserved") return "suspended";
+  if (phase === "final" || g.completed) return "final";
   return "pregame";
 }
 
-/** 該場今天還會不會變。全部不會變時輪詢應完全停止。 */
+/** 該場今天還會不會變。全部不會變時輪詢應完全停止。
+ *
+ *  保留賽算 settled：依 GLOSSARY，保留賽的補賽掛在**另一個日期**（`orig_date` 記原開賽
+ *  日、`game_date` 指向未來的補賽時段），故同一天不會續打完。延賽同理。 */
 export function todayGameSettled(g: TodayGame): boolean {
   const kind = todayCardKind(g);
-  return kind === "final" || kind === "suspended";
+  return kind === "final" || kind === "postponed" || kind === "reserved";
 }
 
 /** 主區塊要不要換成「今日賽事」。今天沒有場次（`today` 為 null）時一律退回舊雙塊。 */
@@ -423,20 +480,39 @@ export function todayStatusText(live: TodayLive | null, interrupt: LiveInterrupt
  *  證據，而且訪客也看得到這一條。 */
 export type LiveSourceSignalKind = "no_games" | "ok" | "partial" | "down";
 
-export type LiveSourceSignal = { kind: LiveSourceSignalKind; label: string; tone: FreshnessTone };
+export type LiveSourceSignal = {
+  kind: LiveSourceSignalKind;
+  /** 完整語意；`display="symbol"` 時它只出現在 `aria-label`／`title`，不佔版面。 */
+  label: string;
+  tone: FreshnessTone;
+  /** `badge`＝完整文字徽章；`symbol`＝時間戳旁的小字符號（僅「一切正常」那一態）。 */
+  display: "badge" | "symbol";
+  /** `display="symbol"` 時要畫的字元。 */
+  symbol?: string;
+};
 
 export function liveSourceSignal(today: TodaySlate | null): LiveSourceSignal {
   if (!today || today.games.length === 0) {
-    // 正常狀態，不需要任何人做事——但必須明說，否則它與下面的 down 在畫面上同形。
-    return { kind: "no_games", label: TODAY_COPY.liveSourceNoGames, tone: "scheduled" };
+    // 正常狀態，不需要任何人做事——但**維持完整文字**：它同時解釋了版面為什麼是舊雙塊
+    // （需求方 2026-08-07 人工審裁定 4），這是讀者需要的資訊，不只是健康訊號。
+    return { kind: "no_games", label: TODAY_COPY.liveSourceNoGames, tone: "scheduled",
+             display: "badge" };
   }
   const { status, snapshots, games } = today.live_source;
+  // 文案是「無法取得」而非「無」：開賽前本來就沒有比賽在進行，「無」會被讀成那個意思；
+  // 實際狀況是**取不到資料**（裁定 2）。
   if (status === "unavailable" || status === "disabled") {
-    return { kind: "down", label: `今日 ${games} 場皆無即時賽況`, tone: "warn" };
+    return { kind: "down", label: `今日 ${games} 場無法取得即時賽況`, tone: "warn",
+             display: "badge" };
   }
   if (status === "partial") {
-    return { kind: "partial", label: `今日 ${games} 場中 ${games - snapshots} 場無即時賽況`,
-             tone: "warn" };
+    return { kind: "partial",
+             label: `今日 ${games} 場中 ${games - snapshots} 場無法取得即時賽況`,
+             tone: "warn", display: "badge" };
   }
-  return { kind: "ok", label: TODAY_COPY.liveSourceOk, tone: "done" };
+  // 一切正常：完整文字在每個比賽日都掛著太吵，壓縮成時間戳旁的符號。語意不縮水——
+  // 完整句子改由 aria-label／title 承載，螢幕閱讀器與滑鼠使用者都拿得到。
+  // **只有這一態壓縮**：被省下的是「不需要行動」那一格，兩個異常態維持完整文字＋警示色。
+  return { kind: "ok", label: TODAY_COPY.liveSourceOk, tone: "done",
+           display: "symbol", symbol: "✓" };
 }

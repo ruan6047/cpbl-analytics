@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import Link from "next/link";
 import type { StatRow } from "@/lib/client";
-import { ENTITY_LINK, ENTITY_LINK_TEXT, TeamLogo } from "@/components/ui";
+import { BasesOuts, ENTITY_LINK, ENTITY_LINK_TEXT, TeamLogo } from "@/components/ui";
 import { isCurrentTeam, teamColor, teamPageCode } from "@/lib/teams";
 import { PITCH_CALL, PA_KIND } from "@/lib/chart-theme";
 import type { WpPoint } from "@/components/win-prob-chart";
@@ -92,30 +92,6 @@ function Dots({ n, total, color }: { n: number; total: number; color: string }) 
 }
 
 // ───────────────────────── 壘包＋出局（緊湊版：菱形品字群 + 出局點）─────────────────────────
-function BasesOuts({ b1, b2, b3, outs, size = 52 }: {
-  b1: boolean; b2: boolean; b3: boolean; outs: number; size?: number;
-}) {
-  // 品字排列：二壘上中、三壘左下、一壘右下，菱形緊靠；下方兩顆出局圓點
-  const base = (cx: number, cy: number, on: boolean) => (
-    <rect
-      x={cx - 15} y={cy - 15} width={30} height={30}
-      transform={`rotate(45 ${cx} ${cy})`} rx={4}
-      fill={on ? "var(--color-accent)" : "var(--color-line)"}
-      stroke="var(--color-surface)" strokeWidth={3}
-    />
-  );
-  const o = Math.min(outs, 2);
-  return (
-    <svg viewBox="0 0 120 116" width={size} height={size * 116 / 120} aria-label={`壘上${[b1 && "一壘", b2 && "二壘", b3 && "三壘"].filter(Boolean).join("、") || "無人"}，${o} 出局`}>
-      {base(60, 26, b2)}
-      {base(36, 50, b3)}
-      {base(84, 50, b1)}
-      <circle cx={48} cy={92} r={9} fill={o >= 1 ? "var(--color-accent)" : "var(--color-line)"} />
-      <circle cx={72} cy={92} r={9} fill={o >= 2 ? "var(--color-accent)" : "var(--color-line)"} />
-    </svg>
-  );
-}
-
 // ───────────────────────── 頂部記分條 ─────────────────────────
 function ScoreBar({ game, e, records, snapshot, gameSno }: {
   game: StatRow; e: StatRow; records: Record<string, Rec>; snapshot: LiveSnapshot | null; gameSno: string;
@@ -185,8 +161,11 @@ function ScoreBar({ game, e, records, snapshot, gameSno }: {
           <div className="text-xs font-semibold tracking-wide text-accent">
             {half === "1" ? "▲ TOP" : "▼ BOT"} {num(e.inning_seq)}
           </div>
-          <BasesOuts b1={occupied(e.first_base)} b2={occupied(e.second_base)}
-            b3={occupied(e.third_base)} outs={num(e.out_cnt)} />
+          {/* 壘包與出局數：canonical 幾何已上抽至 ui.tsx（首頁今日賽事卡共用同一份）。 */}
+          <BasesOuts
+            bases={{ first: occupied(e.first_base), second: occupied(e.second_base),
+                     third: occupied(e.third_base) }}
+            outs={num(e.out_cnt)} />
           {/* 球數與出局同處（全站唯一顯示點） */}
           <div className="flex items-center gap-2.5">
             <span className="flex items-center gap-1"><span className="font-mono text-[10px] font-semibold text-muted">B</span>

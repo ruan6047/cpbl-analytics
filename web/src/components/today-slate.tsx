@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { Card, StatusBadge, TeamLogo, type StatusTone } from "@/components/ui";
+import { BasesOuts, Card, StatusBadge, TeamLogo, type StatusTone } from "@/components/ui";
 import { PregameCard } from "@/components/pregame-card";
 import {
   gameHref,
@@ -12,6 +12,7 @@ import {
   sortTodayGames,
   todayCardKind,
   todayInningLabel,
+  taipeiTime,
   todayStatusText,
   TODAY_COPY,
   type LiveInterrupt,
@@ -32,36 +33,6 @@ import {
 //          之類的判斷標示，不顯示逐球、球數、Recent Plays，不引入任何 WP 欄位。
 //   賽後 → 比分（勝方強調）＋一行官方事實（MVP／勝投，取自 snapshot `decisions`）＋
 //          復盤入口。零模型衍生；今晚結束的場次當晚即可見，不等隔日爬蟲。
-
-/** 壘包與出局數。單場頁記分條有一個 52px 的版本（`game-board.tsx` 的 `BasesOuts`），
- *  那個尺寸是為 hero 記分條調的；首頁一列三張卡需要這一階的密度。幾何（品字排列、
- *  二壘上中、下方兩顆出局點）刻意保持一致，讀者的辨識不必重學。 */
-function BasesOuts({ bases, outs }: {
-  bases: { first: boolean; second: boolean; third: boolean };
-  outs: number | null;
-}) {
-  const o = Math.min(Math.max(outs ?? 0, 0), 2);
-  const fill = (lit: boolean) => (lit ? "var(--color-accent)" : "var(--color-line)");
-  const diamond = (cx: number, cy: number, lit: boolean) => (
-    <rect
-      x={cx - 11} y={cy - 11} width={22} height={22}
-      transform={`rotate(45 ${cx} ${cy})`} rx={3}
-      fill={fill(lit)} stroke="var(--color-surface)" strokeWidth={3}
-    />
-  );
-  const occupied = [bases.first && "一壘", bases.second && "二壘", bases.third && "三壘"]
-    .filter(Boolean).join("、") || "無人";
-  return (
-    <svg viewBox="0 0 120 112" width={36} height={34} role="img"
-      aria-label={`壘上${occupied}，${outs == null ? "出局數未知" : `${o} 出局`}`}>
-      {diamond(60, 26, bases.second)}
-      {diamond(36, 50, bases.third)}
-      {diamond(84, 50, bases.first)}
-      <circle cx={48} cy={90} r={8} fill={fill(o >= 1)} />
-      <circle cx={72} cy={90} r={8} fill={fill(o >= 2)} />
-    </svg>
-  );
-}
 
 function TeamLine({ code, name, score, win, hide }: {
   code: string; name: string; score: number | null; win: boolean; hide: boolean;
@@ -131,11 +102,8 @@ function GameCard({ g, status, tone, aside, meta, below, footer, showScore, live
   );
 }
 
-function LiveCard({ g, live, interrupt, mounted }: {
+function LiveCard({ g, live, interrupt }: {
   g: TodayGame; live: TodayLive; interrupt: LiveInterrupt;
-  /** 掛載後才為真。`toLocaleTimeString` 吃執行環境時區——生產容器是 UTC、瀏覽器是
-   *  台北，SSR 與 hydration 會印出不同字串。時刻因此只在瀏覽器端渲染。 */
-  mounted: boolean;
 }) {
   const status = todayStatusText(live, interrupt);
   const inningText = todayInningLabel(live, "text");
@@ -154,7 +122,10 @@ function LiveCard({ g, live, interrupt, mounted }: {
     );
   }
 
-  const updated = mounted && live.fetched_at ? new Date(live.fetched_at) : null;
+  // 「最後更新」**逐場**顯示，不收攏成全域單一值：三場的 `fetched_at` 可以不同，
+  // 取最新的會遮蔽落單卡住的那一場，而兩階降級本來就是逐場判斷的。
+  // 時刻走釘死台北時區的 `taipeiTime`，SSR 與 hydration 必然一致（不必等掛載）。
+  const updated = taipeiTime(live.fetched_at);
   return (
     <GameCard
       g={g}
@@ -165,9 +136,7 @@ function LiveCard({ g, live, interrupt, mounted }: {
       footer="進入賽況 →"
       meta={updated && (
         <time className="shrink-0 text-[11px] text-faint" dateTime={live.fetched_at ?? undefined}>
-          最後更新 {updated.toLocaleTimeString("zh-TW", {
-            hour: "2-digit", minute: "2-digit", second: "2-digit",
-          })}
+          最後更新 {updated}
         </time>
       )}
       aside={
@@ -175,7 +144,7 @@ function LiveCard({ g, live, interrupt, mounted }: {
           <span className="text-[11px] font-semibold text-accent">
             {todayInningLabel(live, "glyph") ?? "等待賽況"}
           </span>
-          {live.bases && <BasesOuts bases={live.bases} outs={live.outs} />}
+          {live.bases && <BasesOuts bases={live.bases} outs={live.outs} size={38} />}
         </div>
       }
       below={
@@ -212,16 +181,24 @@ export function TodayGameCard({ g, trainedThrough, nowMs }: {
   const kind = todayCardKind(g);
 
   if (kind === "live" && g.live) {
-    return (
-      <LiveCard g={g} live={g.live} interrupt={liveInterrupt(g.live, nowMs)}
-        mounted={nowMs !== null} />
-    );
+    return <LiveCard g={g} live={g.live} interrupt={liveInterrupt(g.live, nowMs)} />;
   }
   if (kind === "final") return <FinalCard g={g} />;
-  if (kind === "suspended" && g.live) {
+  // 延賽：根本沒開打，沒有比分可顯示。
+  if (kind === "postponed" && g.live) {
     return (
       <GameCard g={g} status={todayStatusText(g.live, "none")} tone="warn"
         showScore={false} live={null} footer="賽事詳情 →" />
+    );
+  }
+  // 保留賽：**已開賽後中止，場上是有比分的**（GLOSSARY〈保留賽〉：官方 GameResult=2）。
+  // 藏起來比顯示更失真，故照顯中斷時比分；「保留・擇期續賽」那一行負責防止它被讀成
+  // 終場，也說明了為什麼這個比分不會再變。
+  if (kind === "reserved" && g.live) {
+    return (
+      <GameCard g={g} status={todayStatusText(g.live, "none")} tone="warn"
+        showScore live={g.live} footer="賽事詳情 →"
+        below={<p className="text-[11px] text-muted">{TODAY_COPY.reservedNote}</p>} />
     );
   }
   // 賽前態：維持現行 PregameCard。後端只在未開打的一軍場次帶 `pregame`；缺席時

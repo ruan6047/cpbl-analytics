@@ -50,11 +50,14 @@ PREGAME_KIND = "A"
 # 主區塊切換到「今日賽事」的判準（Design Gate 第 8 項）：當天任一場走到打線公布或更後。
 # 取 `lineup_announced` 而非 `live` 有兩個理由：打線公布時已經有新內容可看；而 `live`／
 # `final` 自帶保險——worker 漏接打線公布不會讓首頁整晚卡在昨天。
-# `postponed`／`reserved`／`unknown` **不算開始**：它們沒有新的賽況可看，主位應留在昨天。
-LIVE_STARTED_PHASES = frozenset({"lineup_announced", "live", "final"})
+# `postponed`（延賽，根本沒開打）與 `unknown` **不算開始**：沒有新的賽況可看，主位留在
+# 昨天。`reserved`（保留賽）相反——依 GLOSSARY 它是**已開賽後中止**、場上有比分，那是
+# 今天發生的事，主區塊該切過來。
+LIVE_STARTED_PHASES = frozenset({"lineup_announced", "live", "final", "reserved"})
 # 「已開打」＝不得再顯示賽前機率的判準。**與上面的日界線是兩件事**：打線公布只是有新
-# 內容可看，那一場仍然是賽前態、仍然該掛 PregameCard；真正開打（或已終場）才要收掉。
-LIVE_UNDERWAY_PHASES = frozenset({"live", "final"})
+# 內容可看，那一場仍然是賽前態、仍然該掛 PregameCard；真正開打（或已終場、或開打後被
+# 保留）才要收掉——一場 3:2 中止的比賽旁邊掛賽前勝率是同一個誤導的另一種樣子。
+LIVE_UNDERWAY_PHASES = frozenset({"live", "final", "reserved"})
 
 _GAME_COLUMNS = """
     g.year AS season, g.kind_code, g.game_sno, g.game_date, g.venue,
