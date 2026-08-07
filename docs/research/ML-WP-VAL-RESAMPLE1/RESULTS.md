@@ -1,0 +1,407 @@
+# ML-WP-VAL-RESAMPLE1：WP 評估取樣的打席前比分修正與結論重驗
+
+- 卡：`ruan6047/cpbl-analytics#98`（T3，`db_scope=read`）
+- 基準：`b853572e63565970c21f8521bc0448d1db1cc761`（`DATA-RECAP-WP-PRESTATE1` merge）
+- 資料截止：`2026-08-07`（本機 DB；`--as-of 2026-08-07`）
+- 全程唯讀，未寫任何 DB 表；未動 `web/`、`api/routers/`、`ingest/`。
+
+---
+
+## §0 結論（三選一：**需修正**）
+
+**舊 VAL1／STRENGTH1 的方向性結論全部仍成立；需要修正的是逐項對外數字。**
+
+- **VAL1 A scope**：`unsupported` 不變。S 型偏差不但沒被取樣污染撐出來，修正後**還略為放大**
+  （低分箱 +5.3→+5.5pt、高分箱 −4.3→−4.5pt）。「校準有偏、辨別力為真」的定性結論
+  （池化 Brier 0.153 vs 主場常數 0.245）在修正後**逐位不變**——`/methodology#key-plays`
+  用來支撐「序數用法站得住」的那句話不受影響。
+- **VAL1 C／E scope**：`unsupported` 不變，數字第三位小數內移動。
+- **VAL1 D scope**：判定由 `unsupported` 翻成 `supported`——但**這不是取樣修正造成的**。
+  今日資料 × 舊讀法的控制組**已經**翻成 `supported`（§3.3）。成因是母體增長 1,151→1,169 場
+  後，唯一支撐 `unsupported` 的池化十分位 2 的 99% bootstrap CI 下界由 +0.0059 掉到 −0.0029。
+  §5 的 seed 穩健度顯示該分箱的「顯著」本來就只有 7–8/12 個 seed 成立——**翻面是抽樣實現的
+  隨機性，不是偏差變小**。標記**待人工判讀**，交需求方裁決（§7-D1）。
+- **STRENGTH1**：`unsupported`（No-Go）**不翻轉**。失敗閘門（4c）、失敗季（2023／2025）、
+  超參選擇（k／λ/γ）在三路對照下逐項相同（§4）。
+
+---
+
+## §1 病灶與修法
+
+`winprob_val.load_eval_season()` 原本以 canonical `pre_state.away_score`／`home_score`
+之差當「打席前局面分差」。但 livelog 的比分欄是**事件後**快照，而 `pre_state` 是把
+**起始事件列**的比分欄原樣存下來——單一事件即結束的得分打席（首球全壘打等）起始列＝終結列，
+存到的已是得分**後**的比分（`DATA-RECAP-WP-PRESTATE1`／#96）。
+
+修法：改由 **`#96` 已落 main 的那支純函式** `cpbl.api.routers.recap.pre_scores_from_events()`
+以 `start_event_no` 對回 `pa_facts.annotate_scores()` 的事件流取「事件之前」的 running 比分。
+**沒有另刻第二份實作**——`tests/test_winprob_val.py::
+test_pre_score_resolution_delegates_to_the_single_recap_implementation` 以 spy 釘住這條依賴：
+若日後有人在 models 側自建解算，數值測試可能仍全綠，那支測試會紅。
+
+解不出打席前比分的 `ready` 打席 **fail closed 排除**並計入
+`pa_state_counts.ready_pre_score_unresolved`，不以受污染的 `pre_state` 值冒充。
+
+### 1.1 分層債——**已依需求方裁決於本卡上抽**
+
+原始狀況：`pre_scores_from_events()` 住在 `api/routers/recap.py`，而 `models` 不得 import
+`api`；更硬的是**模組層 import 會構成循環**：`winprob_val → recap → winprob_scorer →
+winprob_val`（`winprob_scorer` 已 import `winprob_val` 的 `RuleSet`／`we_solver_rules`／
+`wp_state_rules`）。首版交付因此用**函式內延後 import**，並把上抽列為裁決項。
+
+需求方裁定「本卡上抽」（#98，寫入集擴充納入 `src/cpbl/api/routers/recap.py`）後：
+
+- 該純函式移入 `models/winprob_val.py`，`api/routers/recap.py` 以別名 re-export
+  （`from cpbl.models.winprob_val import pre_scores_from_events`），既有 import 路徑不變。
+- 延後 import 已改回正常的模組層 import；`winprob_val` 改為模組層 import
+  `pa_facts.annotate_scores`（無循環：`pa_facts` 模組層只依賴 `ingest.pa_build`／`db`／
+  `completion`，它對 `winprob_scorer` 的依賴本身就是函式內延後的）。
+- **`models → api` 的方向反轉已消除**——原始碼層面：`winprob_val` 已無任何
+  `cpbl.api` import（模組層或函式內皆無）。
+  `test_models_layer_does_not_import_the_api_layer` 以子行程斷言
+  「載入 `cpbl.models.winprob_val` 後 `sys.modules` 不含任何 `cpbl.api.*`」，
+  **證明上抽後 models 的 import 是潔淨的、並防止日後回退**。
+  ⚠️ 它**不是**紅→綠的回歸證明——見下方「證明力的界線」。
+
+**純搬家的證明**（行為零變化）：
+
+1. 函式主體與基準 `b853572` 的原始碼**逐字相同**
+   （`git show b853572:src/cpbl/api/routers/recap.py` 取出後 diff 為空）。
+2. 上抽後重跑 `winprob_val --pre-score-source events`，與上抽前的
+   `val1_metrics_events.json` **逐位相同**（63,666 bytes 對 63,666 bytes；
+   唯一差異是 `counting_machine_check.mismatches` 這個 `set` 迭代序 + `[:20]` 截斷的
+   **樣本清單順序**，跨行程受 `PYTHONHASHSEED` 影響，與本次搬家無關）。
+3. `#96` 落地的測試（`test_recap_wp_pre_scores.py`／`test_recap_wp_boundaries.py`／
+   `test_recap_wp_contract.py`／`test_pa_facts.py`）全數不受影響，仍走
+   `from cpbl.api.routers.recap import pre_scores_from_events` 這條路徑。
+4. 原 spy 測試改守新位置且**守的東西不變**，並拆成兩支：
+   `test_recap_reexports_the_same_pre_score_function_object`（re-export 必須是**別名而非
+   副本**——若有人在 recap 側貼回一份實作，識別測試會紅而數值測試不會）與
+   `test_pre_score_resolution_delegates_to_the_single_implementation`（取樣路徑必須真的
+   呼叫那支共用純函式）。
+
+**證明力的界線（RESAMPLE1-R1-001，查核指出，已收回原宣稱）**：
+
+首版報告把 `test_models_layer_does_not_import_the_api_layer` 描述成「上抽前會紅」的
+紅→綠證明，**那是錯的**。上抽前那個 `from cpbl.api.routers.recap import ...` 本來就寫在
+`_resolve_pre_scores()` **函式內**，所以「單純載入模組」在上抽前同樣不會把 `cpbl.api.*`
+放進 `sys.modules`——該測試在上抽前也會綠。
+
+實測（以 `git archive 905a1f6 src` 取出上抽前的樹，用同一支 interpreter 載入）：
+
+```
+實際載入的檔案: …/old905/src/cpbl/models/winprob_val.py
+sys.modules 中的 cpbl.api.*: []
+```
+
+因此該測試的正確定位是「**證明上抽後 models 的 import 潔淨，並防止日後有人改成模組層
+import 而回退**」，不是「證明本次上抽修好了原本壞掉的東西」。方向反轉的消除由**原始碼
+本身**佐證（`winprob_val` 已無任何 `cpbl.api` import），而非由這支測試的紅→綠佐證。
+
+本專案紅線：**宣稱可防回歸的測試必須先跑紅**；沒跑紅就不得寫成紅→綠證據。上面第 1–3 項
+（函式主體逐字相同、指標逐位相同、`#96` 測試 178 passed）不受此更正影響，仍然成立。
+
+> ⚠️ 語意上更貼近的家其實是 `models/pa_facts`（就在 `annotate_scores` 隔壁，且與
+> `delta_re24` 同一族）。**`pa_facts.py` 不在本卡擴充後的寫入集**，故未寫入該檔；
+> 現址 `winprob_val` 沿用 `winprob_scorer` 的既有前例（生產 recap 已 import 該模組的
+> DP 解算器）。若需求方願意授權 `pa_facts.py`，再搬一次只是移動函式 + 調整 re-export，
+> 對呼叫端零影響——列為 §7-P2。
+
+---
+
+## §2 受影響打席母體（逐季，由指令輸出產生）
+
+腳本：`docs/research/ML-WP-VAL-RESAMPLE1/census.py`　artifact：`population_census.json`
+
+> 📌 **本節所有數字是 `2026-08-07` 當下的 as-of 快照**（需求方準則 1：母體隨比賽新增而
+> 變動是正常狀態，處置是標 as-of 而非凍結）。同日稍後重跑會拿到略大的母體——查核者
+> 現場重跑即得 2026/A 17,924／225、全期 331,641／5,314（本 artifact 為 17,843／223、
+> 331,402／5,311）。**比例與結論不受影響**；分支內 artifact 與本報告彼此自洽。
+> 若日後需要逐位重現，須固定 DB snapshot 而非只寫 `--as-of`（RESAMPLE1-R1-002，
+> 查核者建議，已入提案清單，不在本卡處理）。
+
+```
+uv run python docs/research/ML-WP-VAL-RESAMPLE1/census.py
+```
+
+同一支 `load_eval_season()` 各跑一次 `events`／`pre_state`，以 `(game_sno, pa_index)` 逐打席比對。
+
+| scope | ready 打席（全期） | 分差改變 | 比例 | 解不出（fail closed） |
+|---|---|---|---|---|
+| A 2018–2026 | 197,974 | 3,054 | 1.5426% | 0 |
+| C 2018–2025 | 3,294 | 42 | 1.2750% | 0 |
+| D 2018–2026 | 128,832 | 2,195 | 1.7038% | 0 |
+| E 2018–2025 | 1,302 | 20 | 1.5361% | 0 |
+| **全期合計** | **331,402** | **5,311** | **1.6026%** | **0** |
+
+（上表逐格取自 artifact 的 `by_scope`／`totals` 欄，非人工加總。）
+
+逐季明細見 artifact。三件事值得記：
+
+1. **2026/A 逐位重現派工包的量測**：ready 17,843、changed 223（1.2498%）、
+   Δ 分布 `{-3:7, -2:23, -1:88, 0:17620, 1:81, 2:21, 3:2, 4:1}`——與 #96 的獨立量測完全一致。
+2. **不得以單季推論全期**：受影響比例**逐年遞減**（A 2018 2.04% → A 2026 1.25%），
+   只跑 2026 會低估歷史季的污染程度約四成。
+3. **`ready_pre_score_unresolved` 全期為 0**：fail-closed 分支在真實資料上從未觸發
+   （其行為由 `tests/test_winprob_val.py` 的合成 fixture 覆蓋，不是未測路徑）。
+   因此 A/B 兩路的評分母體**完全相同**，Δ 指標可乾淨歸因於取樣修正本身。
+
+Δdiff（新 − 舊）全期分布高度對稱：`{-4:13, -3:89, -2:475, -1:2096, 0:326091, 1:2086, 2:448, 3:88, 4:16}`。
+負值＝主隊在該打席得分（舊讀法把這分算進了打席**前**），正值＝客隊得分。對稱性即
+「主客得分打席數相當」，符合預期。
+
+---
+
+## §3 VAL1 重跑：三路對照
+
+只有兩路是不夠的——canonical artifact 跑於 2026-07-2x，A 母體自那時起由 1,826 場長到 1,855 場。
+加跑「今日資料 × 舊讀法」當控制組後，母體漂移與取樣修正才切得開：
+
+- `canonical → pre_state` ＝ **母體漂移**（同一把尺、不同資料）
+- `pre_state → events` ＝ **取樣修正**（同一批資料、不同尺）
+
+腳本：`compare.py`　artifacts：`val1_metrics_events.json`／`val1_metrics_pre_state.json`／`val1_comparison.json`
+
+```
+uv run python -m cpbl.models.winprob_val --pre-score-source events    --out docs/research/ML-WP-VAL-RESAMPLE1/val1_metrics_events.json
+uv run python -m cpbl.models.winprob_val --pre-score-source pre_state --out docs/research/ML-WP-VAL-RESAMPLE1/val1_metrics_pre_state.json
+uv run python docs/research/ML-WP-VAL-RESAMPLE1/compare.py
+```
+
+### 3.1 A scope（一軍例行）——結論不變，偏差略為放大
+
+| | verdict | n_games | n_pa | 池化 Brier | 主場基準 | ECE | 顯著分箱 |
+|---|---|---|---|---|---|---|---|
+| canonical | unsupported | 1,826 | 138,949 | 0.15314 | 0.245 | 0.02604 | 1,2,3,8,9 |
+| 今日 × 舊讀法 | unsupported | 1,855 | 140,991 | 0.15317 | 0.24534 | 0.02639 | 1,2,3,8,9 |
+| 今日 × 修正 | unsupported | 1,855 | 140,991 | **0.15330** | 0.24534 | 0.02681 | 1,2,3,**7**,8,9 |
+
+池化十分位偏差（pred − actual，百分點，未捨入值見 artifact）：
+
+| 十分位 | canonical | 今日×舊 | 今日×修正 | Δ取樣修正 |
+|---|---|---|---|---|
+| 1 | +4.21 | +4.23 | +4.24 | +0.01 |
+| 2 | +5.34 | +5.41 | **+5.54** | +0.13 |
+| 3 | +6.03 | +6.01 | **+6.12** | +0.11 |
+| 7 | −3.45 | −3.52 | −3.65 | −0.13 |
+| 8 | −4.32 | −4.41 | **−4.47** | −0.06 |
+| 9 | −1.40 | −1.39 | −1.40 | −0.01 |
+
+**判讀**：取樣污染**不是**偏差的來源，修正後偏差反而各方向加大 0.1pt 上下。這方向是可預期的
+——舊讀法把得分打席的分差朝「得分方領先」偏移，等於把該打席的 WP 預測往實際賽果方向拉，
+系統性地**低估**了模型的失準。
+
+- 「低十分位高估 +4.2~+6.0pt」→ 應更新為 **+4.2~+6.1pt**（逐分箱 +4.2／+5.5／+6.1）。
+- 「十分位 8 低估 −4.3pt」→ 應更新為 **−4.5pt**。
+- 「99% game-cluster CI 全數排除 0」→ **仍成立**（分箱 1/2/3/8/9），且 §5 顯示 2/3/8 對 seed 完全穩健。
+- 「池化 Brier 0.153 vs 主場常數基準 0.245」→ **逐位不變**（0.15330 vs 0.24534）。
+- 十分位 7 在修正後首次跨進顯著——**不得當作新發現**，見 §5。
+
+### 3.2 C／E scope（季後）——結論不變
+
+| scope | | verdict | 池化 ECE | 關鍵數字 |
+|---|---|---|---|---|
+| C | canonical | unsupported | 0.10970 | 全期 25 場 |
+| C | 今日×舊 | unsupported | 0.10922 | |
+| C | 今日×修正 | unsupported | **0.11001** | |
+| E | 已發布（FIX1 errata） | unsupported | 0.08536 | E2025 Brier 0.28886 vs 0.25289 |
+| E | 今日×舊 | unsupported | 0.08539 | E2025 0.28741 vs 0.25301 |
+| E | 今日×修正 | unsupported | **0.08548** | E2025 **0.28588** vs 0.25301 |
+
+> 📌 **本節的 C／E 判定理由已被需求方裁決點名**（#98 留言 `5208856434`，統計結果解讀
+> 三準則之準則 3）：VAL1 挑單一小樣本季（C2025 五場、E2025 四場）當失敗證據，而**池化
+> 結果模型其實贏基準**（C 25 場 0.150 vs 0.257、E 13 場 0.148 vs 0.238）。上表照原判定
+> 邏輯呈現以維持與舊結論的可比性，**但那個 `unsupported` 標籤的正當性另案重審**
+> （C1 文案卡與 #99 `RESEARCH-VERDICT-AUDIT1`）。本卡不改判定邏輯。
+
+> ⚠️ E 的 canonical 比較基準**不能用** `docs/research/game_recap_wp_val1_metrics.json`：
+> 該 artifact 是 **pre-FIX1** 版（E 仍借 D 分布、ruleset `cap15`，池化 ECE 0.10054），
+> FIX1 修正後的正確值只存在於 `GAME-RECAP-WP-VAL1-FIX1_ERRATA.md` 的表格。
+> 這是範圍外發現（§6-F1）。上表 E 的「已發布」列取自 errata。
+
+### 3.3 D scope（二軍例行）——判定翻面，但**不是本卡造成的**
+
+| | verdict | n_games | n_pa | 十分位 2 偏差 | 十分位 2 的 99% CI |
+|---|---|---|---|---|---|
+| canonical | **unsupported** | 1,151 | 87,948 | +4.71pt | [+0.0059, +0.0935] ← 排除 0 |
+| 今日 × 舊讀法 | **supported** | 1,169 | 89,291 | +4.93pt | [−0.0029, +0.0937] ← 含 0 |
+| 今日 × 修正 | **supported** | 1,169 | 89,291 | +4.90pt | [−0.0034, +0.0932] ← 含 0 |
+
+點估計幾乎沒動（+4.71 → +4.93 → +4.90pt），翻面的是 **CI 下界**。取樣修正這一步
+（舊 → 修正）**完全沒有改變判定**。因此：
+
+> **D 的 `unsupported` 之所以不再重現，是母體增長 18 場後 bootstrap 重抽實現改變所致，
+> 不是取樣修正、也不是偏差真的消失。**
+
+§5 進一步顯示這個分箱的顯著性本來就是擲硬幣（7–8/12 個 seed）。**標記待人工判讀**，
+不自行主張 D 應改標 `supported`。
+
+---
+
+## §4 STRENGTH1 重跑：No-Go 不翻轉
+
+```
+uv run python -m cpbl.models.winprob_strength --pre-score-source events    --as-of 2026-08-07 --out docs/research/ML-WP-VAL-RESAMPLE1/strength1_metrics_events.json
+uv run python -m cpbl.models.winprob_strength --pre-score-source pre_state --as-of 2026-08-07 --out docs/research/ML-WP-VAL-RESAMPLE1/strength1_metrics_pre_state.json
+```
+
+| | verdict | 失敗閘門 | 池化 base Brier | 池化 adj Brier | n_pa |
+|---|---|---|---|---|---|
+| canonical（2026-07-27） | unsupported | 4c | 0.15467065 | 0.15476557 | 93,574 |
+| 今日 × 舊讀法 | unsupported | 4c | 0.15454880 | 0.15457075 | 95,178 |
+| 今日 × 修正 | unsupported | **4c** | 0.15469154 | 0.15471551 | 95,178 |
+
+三路的硬性失敗理由**逐字相同**：`A2023 融合後 Brier 劣於同代未融合 base`、
+`A2025 融合後 Brier 劣於同代未融合 base`。四季的超參選擇（k／λ／γ）在 A/B 之間
+**完全一致**，coverage 皆 1.0。
+
+**結論：STRENGTH1 的 No-Go 不因取樣修正而翻轉。** 該卡「戰力先驗無法治本」的定案維持有效。
+
+---
+
+## §5 邊界分箱對 bootstrap seed 的穩健度（新增診斷）
+
+VAL1 的硬性判定是「|dev| 超界 **且** 99% CI 排除 0」。CI 由固定 seed（20260725）的整場重抽算出。
+本卡在兩處撞到「點估計沒動、CI 端點跨過 0」的邊界（A 十分位 7、D 十分位 2），故量了 12 個 seed。
+
+腳本：`bin_stability.py`　artifact：`bin_stability.json`
+
+| scope／分箱 | n | dev | 舊讀法顯著 seed 數 | 修正後顯著 seed 數 |
+|---|---|---|---|---|
+| A bin2 | 9,311 | +5.5pt | 12/12 | **12/12** |
+| A bin3 | 10,381 | +6.1pt | 12/12 | **12/12** |
+| A bin8 | 10,249 | −4.5pt | 12/12 | **12/12** |
+| A bin7 | 10,508 | −3.6pt | 1/12 | **5/12** ← 邊界 |
+| D bin1 | 6,345 | +2.3pt | 0/12 | 0/12 |
+| D bin2 | 6,351 | +4.9pt | 8/12 | **7/12** ← 邊界 |
+| D bin3 | 7,391 | +4.2pt | 0/12 | 0/12 |
+
+**判讀**：
+
+- VAL1 A scope 的核心宣稱（低分箱高估、十分位 8 低估）**對 seed 完全穩健**，12/12 成立。
+- **A 十分位 7 的新「顯著」是雜訊**（5/12）——不得寫進對外文案當新發現。
+- **D 十分位 2 的顯著性是擲硬幣**（7–8/12）。canonical 那次抽到成立的實現、今天抽到不成立的
+  實現。「D 由 unsupported 翻 supported」因此**不是證據等級的變化**。
+- 更一般的問題（範圍外，§6-F2）：`verdict_for()` 以**單一 seed 的 CI 是否含 0** 當硬性判定，
+  在邊界分箱上等於讓判定吃 seed 的運氣。這是方法層缺陷，不在本卡修。
+
+---
+
+## §6 範圍外發現（只列出，不處置）
+
+- **F1｜`docs/research/game_recap_wp_val1_metrics.json` 是 pre-FIX1 版**。E scope 仍是
+  「借 D 分布、ruleset cap15、池化 ECE 0.10054」的缺陷版；FIX1 的修正只寫進 errata，
+  artifact 從未重生成。任何人拿這份 artifact 當 E 的事實來源都會讀到已被推翻的數字。
+- **F2｜Go/No-Go 對 bootstrap seed 敏感**（§5）。硬性判定用單一 seed 的 CI 含不含 0，
+  邊界分箱的判定因此不可重現。可選修法：多 seed 取多數決、或改回報 CI 而非二元顯著。
+  本卡不動 `verdict_for()`（會改變已發布卡的判定語意）。
+- **F3｜對外文案裡的母體數字會持續漂移**。「1,826 場／138,949 打席」隨賽季進行每天變動，
+  目前寫死在 `web/src/lib/methodology-content.ts`。要嘛標 as-of 日期，要嘛改由 artifact 供給。
+- **F4｜`winprob_val` 與 `winprob_strength` 有第二處判準複製**：
+  `_pa_state_counts_as_of()` 手抄了上游的 fail-closed 判準（本卡已同步更新並由既有 parity
+  測試釘住）。這種「複製判準 + 測試釘住」的模式已經是第二次出現，長期應把 as-of 界限下推到
+  `load_eval_season()` 本身。
+- **F5（第二輪新增，要緊）｜生產 `run_dist` artifact 已與今日 DB 不一致**。
+  `verify_counting_machine()` 是 VAL1 不變量 2 的實體（「等價 ⇒ 本 harness 的訓練管線與
+  已上線 `build_run_dist` 同語意」）。canonical artifact 記錄 `status: "match"`，
+  **今日重跑為 `MISMATCH`：48 個狀態中 31 個不符，最大單格絕對差 0.00169**。
+  兩路 A/B 皆為 MISMATCH，故與取樣修正無關——應是 2018–2025 的歷史資料在 artifact 建置後
+  又有增補（見記憶 `historical-minor-data`：全史 games 已回填本機）。
+  影響面：生產 `/recap-wp` 的 scorer 仍跑在那份舊 `cpbl.run_dist` 上。
+  **不在本卡處置**（唯讀，且 artifact 重生成已歸 C1 卡），但重生成時必須把 `cpbl.run_dist`
+  一起納入，否則 harness 與生產會持續分岔。這也是「準則 1 標 as-of」在**模型 artifact**
+  層面的對應問題：目前沒有任何機制會在分布過期時出聲。
+
+---
+
+## §7 待需求方裁決
+
+### P1｜`pre_scores_from_events()` 是否上抽到 `models/`
+
+> **需求方裁定（2026-08-07）：本卡上抽。** 已於本卡執行完畢，實作與純搬家證明見 §1.1；
+> 寫入集同步擴充納入 `src/cpbl/api/routers/recap.py`。本項結案。
+
+### P2｜是否再把該函式搬到 `models/pa_facts`（新增，承 P1）
+
+P1 已解掉方向反轉與循環，但落點是 `winprob_val`；語意上更貼近的家是 `pa_facts`
+（`annotate_scores` 隔壁）。`pa_facts.py` 不在本卡寫入集故未動。若要收乾淨，授權該檔即可，
+是純移動＋調整 re-export，對呼叫端零影響。**低優先**。
+
+### D1｜D scope 的 `wp_reliability` 要怎麼寫
+
+> **需求方裁定（2026-08-07）：採 (a)——維持 `unsupported`，理由改寫為「幅度超界且顯著性
+> 隨重抽擺盪」。文案改寫本身移交另一張卡，本卡不動 `WP_RELIABILITY_SCOPES` 的文字。**
+
+原始選項留存供稽核：
+(a) 維持 `unsupported`，把理由改寫成「偏差 +4.9pt 幅度超界，顯著性隨重抽實現擺盪」；
+(b) 依現行機械判定翻成 `supported`——**不建議**，等於讓對外可信度標籤吃 seed 的運氣；
+(c) 先修 F2 的判定方法，再重跑定案。
+
+### C1｜對外文案要改哪些字（**只列出，未改**）
+
+> **需求方裁定（2026-08-07）：全部移交另一張文案卡**（含 `WP_RELIABILITY_SCOPES` 的
+> A／D／E 文字、`web/` 方法頁、artifact 重生成）。本卡雖已把 `recap.py` 納入寫入集，
+> 但**只做 P1 的 re-export，一個字的對外文案都沒有改**。下表原樣保留給文案卡當輸入。
+
+| 位置 | 現行文字 | 修正後應為 | 成因 |
+|---|---|---|---|
+| `src/cpbl/api/routers/recap.py` `WP_RELIABILITY_SCOPES["A"].validation` | 「2021–2026 池化 1,826 場／138,949 打席」 | 1,855 場／140,991 打席（2026-08-07） | 母體漂移 |
+| 同上 | 「低十分位…高估 +4.2~+6.0pt、十分位 8…低估 −4.3pt」 | +4.2~+6.1pt／−4.5pt | **取樣修正**＋漂移 |
+| 同上 `["A"].known_bias` | 「極端分箱已知偏差 ±4–6pt；池化 Brier 0.153 vs 0.245」 | **不需改**（Brier 逐位不變、±4–6pt 仍涵蓋） | — |
+| 同上 `["C"].validation` | 「代理池化 ECE 0.110 > 0.05、全期僅 25 場」 | 0.110（0.11001）、25 場 — **不需改** | — |
+| 同上 `["D"].validation` | 「池化十分位 2 偏差 +4.7pt 顯著超界」 | 見 §7-D1，**待裁決** | 母體漂移＋seed |
+| 同上 `["E"].validation` | 「池化 ECE 0.085 > 0.05、E2025 Brier 0.289 輸給主場常數基準 0.253」 | ECE 0.085（0.08548）不需改；E2025 Brier **0.286** vs 0.253 | 取樣修正＋漂移 |
+| `web/src/lib/methodology-content.ts:92`（`winprob-validation`） | 「一軍例行賽池化共 1,826 場、138,949 個打席」 | 1,855 場／140,991 打席（2026-08-07） | 母體漂移 |
+| `web/src/lib/methodology-content.ts:101` | 「十分位 1／2／3 被高估 +4.2／+5.3／+6.0…（十分位 8）被低估 −4.3」 | +4.2／**+5.5**／**+6.1**／**−4.5** | **取樣修正**＋漂移 |
+| `web/src/lib/methodology-content.ts:99` | 「主場常數基準…池化 Brier 0.245」 | **不需改** | — |
+| `web/src/lib/methodology-content.ts:131`（`key-plays`） | 「池化 Brier 0.153 對主場常數基準 0.245」 | **不需改**——#80 WPA 三階修訂所依據的「校準有偏、辨別力為真」在修正後逐位成立 | — |
+
+> `web/` 與 `api/routers/recap.py` 皆不在本卡寫入集（`web/` 另由 #81 持有），一字未動。
+
+---
+
+## §8 驗證
+
+```
+uv run ruff check     # All checks passed!
+uv run pytest         # 1431 passed, 9 skipped
+```
+
+計數對帳（同一台機器連續量測，排除環境噪音）：
+
+| 狀態 | passed | skipped | 合計 | 來源 |
+|---|---|---|---|---|
+| main 基準 `b853572` | 1422 | 10 | 1432 | 派工包所述（未由本卡重量測） |
+| 首版交付 `e788f94`（取樣修正，+6 測試） | 1429 | 9 | 1438 | 本次重量測 |
+| 本版（P1 上抽，+2 測試） | **1431** | 9 | 1440 | 本次重量測 |
+
+> 首版交付當下讀到的是「1428 passed / 10 skipped」，與上表第二列**同為合計 1438**——
+> 差異在 `tests/test_cli_help_guard.py` 的 LightGBM 護欄探針會依 import 狀態在
+> skip／pass 之間浮動（macOS host 缺 `libomp`），屬環境噪音，非本卡引入。
+> 後兩列由同一台機器連續量測（`git stash` 切換工作樹狀態）取得；
+> 第一列沿用派工包數字，本卡未回頭重跑基準 commit。
+
+本卡新增測試（`tests/test_winprob_val.py`）：
+
+- `test_eval_sample_uses_pre_pa_scores_not_the_polluted_snapshot` — 病灶最小重現（首球全壘打）
+- `test_legacy_pre_state_source_reproduces_the_contaminated_diff` — 對照組必須仍能重現污染值
+- `test_scores_between_plate_appearances_are_still_carried` — 打席**之間**得分（盜壘／暴投）不得被吃掉
+- `test_unresolved_pre_score_fails_closed_and_is_counted` — fail closed 且獨立計數
+- `test_recap_reexports_the_same_pre_score_function_object` — re-export 必須是別名而非副本
+- `test_models_layer_does_not_import_the_api_layer` — 子行程斷言載入 `models` 不會拉進
+  `cpbl.api.*`（潔淨性＋防回退；**非**紅→綠證明，見 §1.1「證明力的界線」）
+- `test_pre_score_resolution_delegates_to_the_single_implementation` — 釘住「只有一份實作」
+- `test_unknown_pre_score_source_is_rejected` — 來源參數白名單
+
+`tests/test_winprob_strength.py` 的兩支 as-of parity 測試已擴充涵蓋新的
+`ready_pre_score_unresolved` 分支，維持「上游判準與 as-of 重算逐鍵相同」的釘子。
+
+## §9 產物清單（皆可於交付 HEAD 重現）
+
+| 檔案 | 內容 |
+|---|---|
+| `census.py` / `population_census.json` | 逐季受影響打席母體 |
+| `compare.py` / `val1_comparison.json` | VAL1 三路對照（含未捨入 Δ） |
+| `bin_stability.py` / `bin_stability.json` | 邊界分箱的 seed 穩健度 |
+| `val1_metrics_events.json` / `val1_metrics_pre_state.json` | VAL1 兩路完整 artifact |
+| `strength1_metrics_events.json` / `strength1_metrics_pre_state.json` | STRENGTH1 兩路完整 artifact |

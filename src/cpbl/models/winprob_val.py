@@ -23,6 +23,14 @@ state='ready'），以 walk-forward（訓練 2018..Y-1 → 驗證季 Y）檢驗 
      該局空壘開局實證）；樣本極小（每季 3–5 場），僅 pooled 描述。
 4. fail closed：state != 'ready' 的打席不評分且逐季回報排除數；完成場無
    published build 列入 coverage 缺口；縮短賽／宵禁和局／保留賽另做敏感度。
+5. **局面分差只能取打席前比分**（ML-WP-VAL-RESAMPLE1，2026-08-07）：原實作直接讀
+   canonical `pre_state.away_score`／`home_score`，但那是**起始事件列的比分欄原值**，
+   而 livelog 的比分欄是事件**後**快照——單一事件即結束的得分打席（首球全壘打等）
+   起始列＝終結列，存到的已是得分**後**的比分（DATA-RECAP-WP-PRESTATE1／#96）。
+   改由 `recap.pre_scores_from_events()`（同一支純函式，不另刻）以 `start_event_no`
+   對回 `pa_facts.annotate_scores()` 的事件流取「事件之前」的 running 比分；解不出
+   來的 ready 打席 fail closed 排除並計入 `ready_pre_score_unresolved`。
+   `--pre-score-source pre_state` 保留舊讀法**僅供 A/B 對照**，產出不得作為對外數字。
 
 執行（host 即可，無 LightGBM 相依）：
     uv run python -m cpbl.models.winprob_val            # 全部 scope
@@ -42,6 +50,10 @@ from functools import cache
 from pathlib import Path
 
 from cpbl.db import conn
+
+# 打席前比分的 running 比分標註器。models 內部依賴，無循環：
+# pa_facts 只在模組層 import ingest/db/completion（winprob_scorer 是它的函式內延後 import）。
+from cpbl.models.pa_facts import annotate_scores
 
 log = logging.getLogger("cpbl.winprob_val")
 
@@ -305,14 +317,85 @@ def wp_state_rules(dist: dict, we_top, we_bot, rules: RuleSet, inning: int,
     return w + 0.5 * t
 
 
+# ───────────────────────── 打席前比分（跨消費者共用的唯一實作）─────────────────────────
+def pre_scores_from_events(pa_rows: list[dict], events: list[dict]) -> dict[int, tuple[int, int]]:
+    """``pa_index`` → 該打席**開始之前**的 ``(away, home)``（純函式）。
+
+    唯一正確的打席前比分來源：以 ``start_event_no`` 對回事件流，取
+    :func:`cpbl.models.pa_facts.annotate_scores` 標上的「事件**之前**」running 比分。
+    **不可讀 ``pre_state.away_score``／``home_score``**——那是起始事件列的比分欄原值，
+    而 livelog 的比分欄是事件**後**快照（DATA-RECAP-WP-PRESTATE1／#96）。
+
+    對不回事件流的打席**不進 map**（fail closed，由呼叫端標 ``pre_score_unresolved``），
+    不以 ``pre_state`` 的值冒充。
+
+    **住在這裡的理由**（ML-WP-VAL-RESAMPLE1 上抽；原本住 ``api/routers/recap.py``）：
+    消費者有兩個——``api/routers/recap``（``/recap-wp`` 生產路徑）與本模組的驗證
+    harness——而 ``models`` 不得 import ``api``；留在 api 側還會構成
+    ``winprob_val → recap → winprob_scorer → winprob_val`` 迴圈。同一條紅線只能有一份
+    實作（本卡的病灶正是同一語意有兩份讀法），故上抽到 models 由兩邊共用，
+    ``recap`` 以別名 re-export 保持既有 import 路徑相容（同 ``winprob_scorer`` 前例）。
+
+    ⚠️ 語意上更貼近的家其實是 ``models/pa_facts``（就在 ``annotate_scores`` 隔壁），
+    但該檔不在本卡寫入集；若日後獲授權，搬過去只是移動函式 + 調整 re-export。
+    """
+    ordered = annotate_scores(events)
+    by_event_no = {str(e["main_event_no"]): e for e in ordered}
+    scores: dict[int, tuple[int, int]] = {}
+    for row in pa_rows:
+        start = row.get("start_event_no")
+        event = by_event_no.get(str(start)) if start is not None else None
+        if event is None:
+            continue
+        scores[row["pa_index"]] = (event["_pre_away"], event["_pre_home"])
+    return scores
+
+
 # ───────────────────────── 驗證資料：canonical PA + 賽果 ─────────────────────────
-def load_eval_season(cur, kind: str, year: int) -> dict:
+PRE_SCORE_SOURCES = ("events", "pre_state")
+
+
+def _resolve_pre_scores(cur, kind: str, year: int,
+                        pa_rows_by_game: dict[int, list[dict]]) -> dict[tuple[int, int], tuple[int, int]]:
+    """``(game_sno, pa_index)`` → 該打席**開始之前**的 ``(away, home)``。
+
+    語意與紅線見 :func:`pre_scores_from_events`；此處只負責取事件流與逐場分組。
+    """
+    cur.execute(
+        "SELECT game_sno, main_event_no, visiting_score, home_score "
+        "FROM cpbl.game_livelog WHERE year=%s AND kind_code=%s", (year, kind))
+    events_by_game: dict[int, list[dict]] = defaultdict(list)
+    for sno, event_no, visiting, home in cur.fetchall():
+        events_by_game[sno].append({"main_event_no": event_no,
+                                    "visiting_score": visiting, "home_score": home})
+    resolved: dict[tuple[int, int], tuple[int, int]] = {}
+    for sno, rows in pa_rows_by_game.items():
+        # 全場逐事件都要餵進去：annotate_scores 是 running 比分，只取打席起始列
+        # 會漏掉打席**之間**造成得分的事件（盜壘／暴投）。
+        for index, score in pre_scores_from_events(rows, events_by_game.get(sno, [])).items():
+            resolved[(sno, index)] = score
+    return resolved
+
+
+def load_eval_season(cur, kind: str, year: int, *,
+                     pre_score_source: str = "events") -> dict:
     """驗證季資料：published build 的 canonical PA + games 賽果 + 場況分類。
 
     fail closed：只評 state='ready'；其餘逐 state 計數回報。
     irregular（敏感度切片）：縮短賽（<9 局）、未達和局上限的和局（宵禁/雙重賽
     首場）、保留賽（delay_kind 非空）。
+
+    ``pre_score_source``（ML-WP-VAL-RESAMPLE1）：
+    * ``"events"``（預設，唯一正確）：局面分差取**打席前**比分，由事件流解出。
+      解不出來的 ready 打席 fail closed 排除並計入 ``ready_pre_score_unresolved``。
+    * ``"pre_state"``：**已知受污染的舊讀法**，只保留給 A/B 對照用。canonical
+      ``pre_state.away_score``／``home_score`` 是起始事件列的比分欄原值，而 livelog
+      的比分欄是事件**後**快照——單一事件即結束的得分打席（首球全壘打等）起始列
+      ＝終結列，存到的已是得分**後**的比分（DATA-RECAP-WP-PRESTATE1）。**不得用於
+      任何對外數字**。
     """
+    if pre_score_source not in PRE_SCORE_SOURCES:
+        raise ValueError(f"pre_score_source 必須是 {PRE_SCORE_SOURCES} 之一：{pre_score_source}")
     cur.execute(
         "SELECT g.game_sno, g.home_score, g.away_score, g.delay_kind, mx.max_inn "
         "FROM cpbl.games g "
@@ -332,15 +415,25 @@ def load_eval_season(cur, kind: str, year: int) -> dict:
                      or delay is not None)
         games[sno] = {"outcome": outcome, "irregular": irregular}
     cur.execute(
-        "SELECT pa.game_sno, pa.state, pa.pre_state "
+        "SELECT pa.game_sno, pa.state, pa.pre_state, pa.pa_index, pa.start_event_no "
         "FROM cpbl.game_plate_appearances pa "
         "JOIN cpbl.game_recap_builds b ON b.build_id = pa.build_id "
         "  AND b.state = 'published' "
         "WHERE pa.year=%s AND pa.kind_code=%s", (year, kind))
+    # 先物化：打席前比分要以「整場事件流」解，必須先看過全季所有列才能逐場分組。
+    # 之後的計數／建樣本迴圈**沿用同一份 fetch 順序**——叢集 bootstrap 以
+    # `list(by_game.values())` 抽樣，順序變動會改變抽出的重抽樣本（紅線：重放
+    # harness 必須忠實既有累加順序）。
+    fetched = list(cur.fetchall())
+    pa_rows_by_game: dict[int, list[dict]] = defaultdict(list)
+    for sno, _state, _pre, pa_index, start_event_no in fetched:
+        pa_rows_by_game[sno].append({"pa_index": pa_index, "start_event_no": start_event_no})
+    pre_scores = (_resolve_pre_scores(cur, kind, year, pa_rows_by_game)
+                  if pre_score_source == "events" else {})
     pas: list[dict] = []
     state_counts: Counter = Counter()
     built_games: set[int] = set()
-    for sno, state, pre in cur.fetchall():
+    for sno, state, pre, pa_index, _start_event_no in fetched:
         built_games.add(sno)
         state_counts[state] += 1
         if state != "ready" or sno not in games:
@@ -349,15 +442,29 @@ def load_eval_season(cur, kind: str, year: int) -> dict:
                                             "home_score", "away_score")):
             # fail closed：pre_state 關鍵欄位缺值（僅 2018–2020 livelog 早年
             # out_cnt 缺值，2021+ 為 0）→ 不評分、獨立計數回報
+            #
+            # 判準刻意**不動**（含已不再用於 diff 的 home_score/away_score）：本卡要量的
+            # 是「同一批打席換一把尺」的差異，改動母體會把取樣修正與母體變動混在一起。
             state_counts["ready_incomplete_state"] += 1
             continue
+        if pre_score_source == "events":
+            resolved = pre_scores.get((sno, pa_index))
+            if resolved is None:
+                # fail closed：打席起始事件對不回事件流 → 不評分，不以受污染的
+                # pre_state 值冒充（同 recap 的 pre_score_unresolved 語意）
+                state_counts["ready_pre_score_unresolved"] += 1
+                continue
+            away_score, home_score = resolved
+        else:
+            away_score, home_score = int(pre["away_score"]), int(pre["home_score"])
         bs = pre.get("bases") or []
         pas.append({
             "game_sno": sno,
+            "pa_index": pa_index,            # A/B 對照與逐打席稽核的對齊鍵
             "game_key": (year, kind, sno),   # 跨季池化時的叢集鍵
             "inning": int(pre["inning"]),
             "vht": str(pre["half"]),
-            "diff": int(pre["home_score"]) - int(pre["away_score"]),
+            "diff": int(home_score) - int(away_score),
             "bases": (("1" if "1" in bs else "_") + ("2" if "2" in bs else "_")
                       + ("3" if "3" in bs else "_")),
             "outs": int(pre["outs"]),
@@ -369,6 +476,7 @@ def load_eval_season(cur, kind: str, year: int) -> dict:
     return {
         "year": year, "kind": kind, "rules": rules,
         "games": games, "pas": pas,
+        "pre_score_source": pre_score_source,
         "n_completed_games": n_completed,
         "n_built_games": len(built_games & set(games)),
         "coverage": round(coverage, 4),
@@ -536,8 +644,10 @@ def verify_counting_machine(cur, per_year_a: dict[int, Counter]) -> dict:
 
 
 # ───────────────────────── 驗證主流程 ─────────────────────────
-def run_validation(kinds: list[str], out_path: Path) -> dict:
-    result: dict = {"thresholds": THRESHOLDS, "scopes": {}}
+def run_validation(kinds: list[str], out_path: Path, *,
+                   pre_score_source: str = "events") -> dict:
+    result: dict = {"thresholds": THRESHOLDS, "pre_score_source": pre_score_source,
+                    "scopes": {}}
     with conn() as c:
         cur = c.cursor()
         # 訓練計數（A、D 各一次；C/E 皆一軍季後 → proxy 均借 A 分布，FIX1 修正）
@@ -560,7 +670,8 @@ def run_validation(kinds: list[str], out_path: Path) -> dict:
             pooled_scored: list = []
             pooled_baseline_num = 0.0
             for y in eval_years:
-                season = load_eval_season(cur, kind, y)
+                season = load_eval_season(cur, kind, y,
+                                          pre_score_source=pre_score_source)
                 if not season["pas"]:
                     continue
                 rules = season["rules"]
@@ -698,9 +809,14 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="GAME-RECAP-WP-VAL1 時間外驗證（唯讀）")
     ap.add_argument("--kinds", default="A,C,D,E")
     ap.add_argument("--out", default="docs/research/game_recap_wp_val1_metrics.json")
+    ap.add_argument("--pre-score-source", default="events", choices=list(PRE_SCORE_SOURCES),
+                    help="局面分差的打席前比分來源。events＝事件流（預設，唯一正確）；"
+                         "pre_state＝已知受污染的舊讀法，只給 ML-WP-VAL-RESAMPLE1 的 A/B "
+                         "對照用，產出不得作為對外數字")
     args = ap.parse_args()
     kinds = [k.strip().upper() for k in args.kinds.split(",") if k.strip()]
-    result = run_validation(kinds, Path(args.out))
+    result = run_validation(kinds, Path(args.out),
+                            pre_score_source=args.pre_score_source)
     for kind, scope in result["scopes"].items():
         v = scope["verdict"]
         pooled = scope["pooled_walk_forward"]

@@ -1,0 +1,1306 @@
+{
+ "seeds": [
+  20260725,
+  1,
+  2,
+  3,
+  5,
+  8,
+  13,
+  21,
+  34,
+  55,
+  89,
+  144
+ ],
+ "boot_reps": 500,
+ "boot_ci": 0.99,
+ "scopes": {
+  "A": {
+   "events": {
+    "2": {
+     "n": 9311,
+     "dev": 0.05538112264582523,
+     "ci_by_seed": {
+      "20260725": {
+       "ci": [
+        0.0144,
+        0.0906
+       ],
+       "significant": true
+      },
+      "1": {
+       "ci": [
+        0.0109,
+        0.0886
+       ],
+       "significant": true
+      },
+      "2": {
+       "ci": [
+        0.0052,
+        0.0918
+       ],
+       "significant": true
+      },
+      "3": {
+       "ci": [
+        0.0114,
+        0.094
+       ],
+       "significant": true
+      },
+      "5": {
+       "ci": [
+        0.0197,
+        0.0919
+       ],
+       "significant": true
+      },
+      "8": {
+       "ci": [
+        0.0125,
+        0.0926
+       ],
+       "significant": true
+      },
+      "13": {
+       "ci": [
+        0.0136,
+        0.0903
+       ],
+       "significant": true
+      },
+      "21": {
+       "ci": [
+        0.0142,
+        0.0888
+       ],
+       "significant": true
+      },
+      "34": {
+       "ci": [
+        0.0156,
+        0.0912
+       ],
+       "significant": true
+      },
+      "55": {
+       "ci": [
+        0.0152,
+        0.0965
+       ],
+       "significant": true
+      },
+      "89": {
+       "ci": [
+        0.0223,
+        0.0909
+       ],
+       "significant": true
+      },
+      "144": {
+       "ci": [
+        0.0142,
+        0.0894
+       ],
+       "significant": true
+      }
+     },
+     "n_seeds_significant": 12
+    },
+    "3": {
+     "n": 10381,
+     "dev": 0.061221848887402064,
+     "ci_by_seed": {
+      "20260725": {
+       "ci": [
+        0.0135,
+        0.0994
+       ],
+       "significant": true
+      },
+      "1": {
+       "ci": [
+        0.0193,
+        0.0989
+       ],
+       "significant": true
+      },
+      "2": {
+       "ci": [
+        0.0096,
+        0.1027
+       ],
+       "significant": true
+      },
+      "3": {
+       "ci": [
+        0.0171,
+        0.1045
+       ],
+       "significant": true
+      },
+      "5": {
+       "ci": [
+        0.0105,
+        0.0992
+       ],
+       "significant": true
+      },
+      "8": {
+       "ci": [
+        0.0202,
+        0.0994
+       ],
+       "significant": true
+      },
+      "13": {
+       "ci": [
+        0.0192,
+        0.0988
+       ],
+       "significant": true
+      },
+      "21": {
+       "ci": [
+        0.0231,
+        0.0945
+       ],
+       "significant": true
+      },
+      "34": {
+       "ci": [
+        0.0199,
+        0.097
+       ],
+       "significant": true
+      },
+      "55": {
+       "ci": [
+        0.0208,
+        0.1069
+       ],
+       "significant": true
+      },
+      "89": {
+       "ci": [
+        0.022,
+        0.1031
+       ],
+       "significant": true
+      },
+      "144": {
+       "ci": [
+        0.0125,
+        0.1014
+       ],
+       "significant": true
+      }
+     },
+     "n_seeds_significant": 12
+    },
+    "7": {
+     "n": 10508,
+     "dev": -0.03643377035090911,
+     "ci_by_seed": {
+      "20260725": {
+       "ci": [
+        -0.0715,
+        -0.0009
+       ],
+       "significant": true
+      },
+      "1": {
+       "ci": [
+        -0.0769,
+        0.0027
+       ],
+       "significant": false
+      },
+      "2": {
+       "ci": [
+        -0.071,
+        -0.0026
+       ],
+       "significant": true
+      },
+      "3": {
+       "ci": [
+        -0.0766,
+        -0.0007
+       ],
+       "significant": true
+      },
+      "5": {
+       "ci": [
+        -0.0713,
+        0.0042
+       ],
+       "significant": false
+      },
+      "8": {
+       "ci": [
+        -0.0755,
+        0.0028
+       ],
+       "significant": false
+      },
+      "13": {
+       "ci": [
+        -0.0764,
+        0.0051
+       ],
+       "significant": false
+      },
+      "21": {
+       "ci": [
+        -0.0743,
+        -0.0007
+       ],
+       "significant": true
+      },
+      "34": {
+       "ci": [
+        -0.0755,
+        0.0044
+       ],
+       "significant": false
+      },
+      "55": {
+       "ci": [
+        -0.0755,
+        0.0019
+       ],
+       "significant": false
+      },
+      "89": {
+       "ci": [
+        -0.0803,
+        0.0022
+       ],
+       "significant": false
+      },
+      "144": {
+       "ci": [
+        -0.0724,
+        -0.0024
+       ],
+       "significant": true
+      }
+     },
+     "n_seeds_significant": 5
+    },
+    "8": {
+     "n": 10249,
+     "dev": -0.04467760623579453,
+     "ci_by_seed": {
+      "20260725": {
+       "ci": [
+        -0.0711,
+        -0.0137
+       ],
+       "significant": true
+      },
+      "1": {
+       "ci": [
+        -0.074,
+        -0.0179
+       ],
+       "significant": true
+      },
+      "2": {
+       "ci": [
+        -0.0669,
+        -0.02
+       ],
+       "significant": true
+      },
+      "3": {
+       "ci": [
+        -0.0714,
+        -0.0205
+       ],
+       "significant": true
+      },
+      "5": {
+       "ci": [
+        -0.0722,
+        -0.0155
+       ],
+       "significant": true
+      },
+      "8": {
+       "ci": [
+        -0.0725,
+        -0.0176
+       ],
+       "significant": true
+      },
+      "13": {
+       "ci": [
+        -0.0701,
+        -0.018
+       ],
+       "significant": true
+      },
+      "21": {
+       "ci": [
+        -0.0733,
+        -0.0133
+       ],
+       "significant": true
+      },
+      "34": {
+       "ci": [
+        -0.0701,
+        -0.0058
+       ],
+       "significant": true
+      },
+      "55": {
+       "ci": [
+        -0.073,
+        -0.015
+       ],
+       "significant": true
+      },
+      "89": {
+       "ci": [
+        -0.0727,
+        -0.0194
+       ],
+       "significant": true
+      },
+      "144": {
+       "ci": [
+        -0.0708,
+        -0.0193
+       ],
+       "significant": true
+      }
+     },
+     "n_seeds_significant": 12
+    }
+   },
+   "pre_state": {
+    "2": {
+     "n": 9354,
+     "dev": 0.05414923395799259,
+     "ci_by_seed": {
+      "20260725": {
+       "ci": [
+        0.014,
+        0.089
+       ],
+       "significant": true
+      },
+      "1": {
+       "ci": [
+        0.0095,
+        0.0873
+       ],
+       "significant": true
+      },
+      "2": {
+       "ci": [
+        0.0039,
+        0.0903
+       ],
+       "significant": true
+      },
+      "3": {
+       "ci": [
+        0.0104,
+        0.0922
+       ],
+       "significant": true
+      },
+      "5": {
+       "ci": [
+        0.0183,
+        0.0892
+       ],
+       "significant": true
+      },
+      "8": {
+       "ci": [
+        0.0115,
+        0.0906
+       ],
+       "significant": true
+      },
+      "13": {
+       "ci": [
+        0.0137,
+        0.0894
+       ],
+       "significant": true
+      },
+      "21": {
+       "ci": [
+        0.0134,
+        0.0888
+       ],
+       "significant": true
+      },
+      "34": {
+       "ci": [
+        0.0138,
+        0.0904
+       ],
+       "significant": true
+      },
+      "55": {
+       "ci": [
+        0.0141,
+        0.0948
+       ],
+       "significant": true
+      },
+      "89": {
+       "ci": [
+        0.0198,
+        0.0903
+       ],
+       "significant": true
+      },
+      "144": {
+       "ci": [
+        0.0142,
+        0.0872
+       ],
+       "significant": true
+      }
+     },
+     "n_seeds_significant": 12
+    },
+    "3": {
+     "n": 10380,
+     "dev": 0.060011171601213886,
+     "ci_by_seed": {
+      "20260725": {
+       "ci": [
+        0.0116,
+        0.098
+       ],
+       "significant": true
+      },
+      "1": {
+       "ci": [
+        0.0189,
+        0.0978
+       ],
+       "significant": true
+      },
+      "2": {
+       "ci": [
+        0.0083,
+        0.102
+       ],
+       "significant": true
+      },
+      "3": {
+       "ci": [
+        0.0169,
+        0.104
+       ],
+       "significant": true
+      },
+      "5": {
+       "ci": [
+        0.0089,
+        0.0988
+       ],
+       "significant": true
+      },
+      "8": {
+       "ci": [
+        0.0185,
+        0.0972
+       ],
+       "significant": true
+      },
+      "13": {
+       "ci": [
+        0.018,
+        0.098
+       ],
+       "significant": true
+      },
+      "21": {
+       "ci": [
+        0.0224,
+        0.093
+       ],
+       "significant": true
+      },
+      "34": {
+       "ci": [
+        0.0186,
+        0.0955
+       ],
+       "significant": true
+      },
+      "55": {
+       "ci": [
+        0.0193,
+        0.1062
+       ],
+       "significant": true
+      },
+      "89": {
+       "ci": [
+        0.0199,
+        0.1016
+       ],
+       "significant": true
+      },
+      "144": {
+       "ci": [
+        0.0114,
+        0.0999
+       ],
+       "significant": true
+      }
+     },
+     "n_seeds_significant": 12
+    },
+    "7": {
+     "n": 10582,
+     "dev": -0.035163716213066576,
+     "ci_by_seed": {
+      "20260725": {
+       "ci": [
+        -0.0705,
+        0.0003
+       ],
+       "significant": false
+      },
+      "1": {
+       "ci": [
+        -0.0749,
+        0.0032
+       ],
+       "significant": false
+      },
+      "2": {
+       "ci": [
+        -0.071,
+        -0.001
+       ],
+       "significant": true
+      },
+      "3": {
+       "ci": [
+        -0.0748,
+        0.0005
+       ],
+       "significant": false
+      },
+      "5": {
+       "ci": [
+        -0.0698,
+        0.0047
+       ],
+       "significant": false
+      },
+      "8": {
+       "ci": [
+        -0.0735,
+        0.0042
+       ],
+       "significant": false
+      },
+      "13": {
+       "ci": [
+        -0.0746,
+        0.0059
+       ],
+       "significant": false
+      },
+      "21": {
+       "ci": [
+        -0.072,
+        0.0005
+       ],
+       "significant": false
+      },
+      "34": {
+       "ci": [
+        -0.0742,
+        0.0041
+       ],
+       "significant": false
+      },
+      "55": {
+       "ci": [
+        -0.0741,
+        0.0036
+       ],
+       "significant": false
+      },
+      "89": {
+       "ci": [
+        -0.0774,
+        0.0017
+       ],
+       "significant": false
+      },
+      "144": {
+       "ci": [
+        -0.0712,
+        0.0007
+       ],
+       "significant": false
+      }
+     },
+     "n_seeds_significant": 1
+    },
+    "8": {
+     "n": 10264,
+     "dev": -0.04404050497540257,
+     "ci_by_seed": {
+      "20260725": {
+       "ci": [
+        -0.0696,
+        -0.013
+       ],
+       "significant": true
+      },
+      "1": {
+       "ci": [
+        -0.0736,
+        -0.0171
+       ],
+       "significant": true
+      },
+      "2": {
+       "ci": [
+        -0.0656,
+        -0.0197
+       ],
+       "significant": true
+      },
+      "3": {
+       "ci": [
+        -0.0701,
+        -0.0195
+       ],
+       "significant": true
+      },
+      "5": {
+       "ci": [
+        -0.0715,
+        -0.0144
+       ],
+       "significant": true
+      },
+      "8": {
+       "ci": [
+        -0.0717,
+        -0.0177
+       ],
+       "significant": true
+      },
+      "13": {
+       "ci": [
+        -0.0695,
+        -0.0173
+       ],
+       "significant": true
+      },
+      "21": {
+       "ci": [
+        -0.0727,
+        -0.0131
+       ],
+       "significant": true
+      },
+      "34": {
+       "ci": [
+        -0.0695,
+        -0.0063
+       ],
+       "significant": true
+      },
+      "55": {
+       "ci": [
+        -0.0726,
+        -0.014
+       ],
+       "significant": true
+      },
+      "89": {
+       "ci": [
+        -0.0715,
+        -0.019
+       ],
+       "significant": true
+      },
+      "144": {
+       "ci": [
+        -0.0703,
+        -0.0185
+       ],
+       "significant": true
+      }
+     },
+     "n_seeds_significant": 12
+    }
+   }
+  },
+  "D": {
+   "events": {
+    "1": {
+     "n": 6345,
+     "dev": 0.023067195141894037,
+     "ci_by_seed": {
+      "20260725": {
+       "ci": [
+        -0.0324,
+        0.0634
+       ],
+       "significant": false
+      },
+      "1": {
+       "ci": [
+        -0.0264,
+        0.06
+       ],
+       "significant": false
+      },
+      "2": {
+       "ci": [
+        -0.0204,
+        0.0644
+       ],
+       "significant": false
+      },
+      "3": {
+       "ci": [
+        -0.0222,
+        0.0611
+       ],
+       "significant": false
+      },
+      "5": {
+       "ci": [
+        -0.0284,
+        0.054
+       ],
+       "significant": false
+      },
+      "8": {
+       "ci": [
+        -0.0239,
+        0.0644
+       ],
+       "significant": false
+      },
+      "13": {
+       "ci": [
+        -0.0231,
+        0.0569
+       ],
+       "significant": false
+      },
+      "21": {
+       "ci": [
+        -0.0184,
+        0.0648
+       ],
+       "significant": false
+      },
+      "34": {
+       "ci": [
+        -0.0201,
+        0.0645
+       ],
+       "significant": false
+      },
+      "55": {
+       "ci": [
+        -0.0238,
+        0.0569
+       ],
+       "significant": false
+      },
+      "89": {
+       "ci": [
+        -0.0244,
+        0.0596
+       ],
+       "significant": false
+      },
+      "144": {
+       "ci": [
+        -0.0185,
+        0.0628
+       ],
+       "significant": false
+      }
+     },
+     "n_seeds_significant": 0
+    },
+    "2": {
+     "n": 6351,
+     "dev": 0.048946760513340154,
+     "ci_by_seed": {
+      "20260725": {
+       "ci": [
+        -0.0034,
+        0.0932
+       ],
+       "significant": false
+      },
+      "1": {
+       "ci": [
+        -0.0015,
+        0.0929
+       ],
+       "significant": false
+      },
+      "2": {
+       "ci": [
+        0.008,
+        0.0946
+       ],
+       "significant": true
+      },
+      "3": {
+       "ci": [
+        0.0027,
+        0.0889
+       ],
+       "significant": true
+      },
+      "5": {
+       "ci": [
+        0.0091,
+        0.0868
+       ],
+       "significant": true
+      },
+      "8": {
+       "ci": [
+        0.0076,
+        0.0925
+       ],
+       "significant": true
+      },
+      "13": {
+       "ci": [
+        -0.002,
+        0.0878
+       ],
+       "significant": false
+      },
+      "21": {
+       "ci": [
+        0.002,
+        0.0925
+       ],
+       "significant": true
+      },
+      "34": {
+       "ci": [
+        -0.0008,
+        0.0941
+       ],
+       "significant": false
+      },
+      "55": {
+       "ci": [
+        -0.0079,
+        0.0865
+       ],
+       "significant": false
+      },
+      "89": {
+       "ci": [
+        0.0027,
+        0.0949
+       ],
+       "significant": true
+      },
+      "144": {
+       "ci": [
+        0.0037,
+        0.0885
+       ],
+       "significant": true
+      }
+     },
+     "n_seeds_significant": 7
+    },
+    "3": {
+     "n": 7391,
+     "dev": 0.04151310645516265,
+     "ci_by_seed": {
+      "20260725": {
+       "ci": [
+        -0.0055,
+        0.095
+       ],
+       "significant": false
+      },
+      "1": {
+       "ci": [
+        -0.0066,
+        0.0914
+       ],
+       "significant": false
+      },
+      "2": {
+       "ci": [
+        -0.0071,
+        0.0953
+       ],
+       "significant": false
+      },
+      "3": {
+       "ci": [
+        -0.0151,
+        0.0902
+       ],
+       "significant": false
+      },
+      "5": {
+       "ci": [
+        -0.0047,
+        0.086
+       ],
+       "significant": false
+      },
+      "8": {
+       "ci": [
+        -0.0062,
+        0.0908
+       ],
+       "significant": false
+      },
+      "13": {
+       "ci": [
+        -0.0101,
+        0.087
+       ],
+       "significant": false
+      },
+      "21": {
+       "ci": [
+        -0.0076,
+        0.0907
+       ],
+       "significant": false
+      },
+      "34": {
+       "ci": [
+        -0.0095,
+        0.0906
+       ],
+       "significant": false
+      },
+      "55": {
+       "ci": [
+        -0.0102,
+        0.092
+       ],
+       "significant": false
+      },
+      "89": {
+       "ci": [
+        -0.0084,
+        0.0953
+       ],
+       "significant": false
+      },
+      "144": {
+       "ci": [
+        -0.0156,
+        0.0835
+       ],
+       "significant": false
+      }
+     },
+     "n_seeds_significant": 0
+    }
+   },
+   "pre_state": {
+    "1": {
+     "n": 6348,
+     "dev": 0.022473997291137388,
+     "ci_by_seed": {
+      "20260725": {
+       "ci": [
+        -0.0328,
+        0.063
+       ],
+       "significant": false
+      },
+      "1": {
+       "ci": [
+        -0.0266,
+        0.059
+       ],
+       "significant": false
+      },
+      "2": {
+       "ci": [
+        -0.0217,
+        0.0639
+       ],
+       "significant": false
+      },
+      "3": {
+       "ci": [
+        -0.0225,
+        0.0606
+       ],
+       "significant": false
+      },
+      "5": {
+       "ci": [
+        -0.0279,
+        0.0536
+       ],
+       "significant": false
+      },
+      "8": {
+       "ci": [
+        -0.0234,
+        0.0641
+       ],
+       "significant": false
+      },
+      "13": {
+       "ci": [
+        -0.023,
+        0.0559
+       ],
+       "significant": false
+      },
+      "21": {
+       "ci": [
+        -0.0198,
+        0.064
+       ],
+       "significant": false
+      },
+      "34": {
+       "ci": [
+        -0.0215,
+        0.0636
+       ],
+       "significant": false
+      },
+      "55": {
+       "ci": [
+        -0.0244,
+        0.0563
+       ],
+       "significant": false
+      },
+      "89": {
+       "ci": [
+        -0.0239,
+        0.0603
+       ],
+       "significant": false
+      },
+      "144": {
+       "ci": [
+        -0.019,
+        0.0612
+       ],
+       "significant": false
+      }
+     },
+     "n_seeds_significant": 0
+    },
+    "2": {
+     "n": 6429,
+     "dev": 0.04929673431175807,
+     "ci_by_seed": {
+      "20260725": {
+       "ci": [
+        -0.0029,
+        0.0937
+       ],
+       "significant": false
+      },
+      "1": {
+       "ci": [
+        -0.0016,
+        0.0935
+       ],
+       "significant": false
+      },
+      "2": {
+       "ci": [
+        0.0093,
+        0.0932
+       ],
+       "significant": true
+      },
+      "3": {
+       "ci": [
+        0.0025,
+        0.0886
+       ],
+       "significant": true
+      },
+      "5": {
+       "ci": [
+        0.0091,
+        0.0868
+       ],
+       "significant": true
+      },
+      "8": {
+       "ci": [
+        0.0077,
+        0.0928
+       ],
+       "significant": true
+      },
+      "13": {
+       "ci": [
+        -0.0026,
+        0.0885
+       ],
+       "significant": false
+      },
+      "21": {
+       "ci": [
+        0.0036,
+        0.0939
+       ],
+       "significant": true
+      },
+      "34": {
+       "ci": [
+        0.0004,
+        0.0938
+       ],
+       "significant": true
+      },
+      "55": {
+       "ci": [
+        -0.0072,
+        0.0865
+       ],
+       "significant": false
+      },
+      "89": {
+       "ci": [
+        0.0041,
+        0.0963
+       ],
+       "significant": true
+      },
+      "144": {
+       "ci": [
+        0.0036,
+        0.0891
+       ],
+       "significant": true
+      }
+     },
+     "n_seeds_significant": 8
+    },
+    "3": {
+     "n": 7389,
+     "dev": 0.038931544995575385,
+     "ci_by_seed": {
+      "20260725": {
+       "ci": [
+        -0.0077,
+        0.094
+       ],
+       "significant": false
+      },
+      "1": {
+       "ci": [
+        -0.0086,
+        0.0863
+       ],
+       "significant": false
+      },
+      "2": {
+       "ci": [
+        -0.01,
+        0.0925
+       ],
+       "significant": false
+      },
+      "3": {
+       "ci": [
+        -0.018,
+        0.0884
+       ],
+       "significant": false
+      },
+      "5": {
+       "ci": [
+        -0.0064,
+        0.083
+       ],
+       "significant": false
+      },
+      "8": {
+       "ci": [
+        -0.0101,
+        0.0884
+       ],
+       "significant": false
+      },
+      "13": {
+       "ci": [
+        -0.0138,
+        0.0855
+       ],
+       "significant": false
+      },
+      "21": {
+       "ci": [
+        -0.0108,
+        0.0871
+       ],
+       "significant": false
+      },
+      "34": {
+       "ci": [
+        -0.0117,
+        0.0871
+       ],
+       "significant": false
+      },
+      "55": {
+       "ci": [
+        -0.0128,
+        0.0896
+       ],
+       "significant": false
+      },
+      "89": {
+       "ci": [
+        -0.0116,
+        0.0931
+       ],
+       "significant": false
+      },
+      "144": {
+       "ci": [
+        -0.0174,
+        0.0806
+       ],
+       "significant": false
+      }
+     },
+     "n_seeds_significant": 0
+    }
+   }
+  }
+ }
+}

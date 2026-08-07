@@ -26,7 +26,10 @@ run_dist artifact）與 models/winprob_val（規則參數化 DP：9 局門檻、
   錨點正是這個被污染的 pre_state）。修法比照 `models/pa_facts.delta_re24`：
   以 `start_event_no` 對回 `annotate_scores()` 標好的事件流，取該事件**之前**
   的 running 比分。**病灶在讀取端**——canonical PA 忠實存下來源欄位，語意由
-  消費端負責，故本卡不動 DB（`db_scope=read`）。
+  消費端負責，故本卡不動 DB（`db_scope=read`）。該純函式
+  （`pre_scores_from_events`）已於 ML-WP-VAL-RESAMPLE1 上抽至
+  `models/winprob_val`，本模組以別名 re-export；消費者不只本路由，還有
+  WP 評估 harness，而 models 不得 import api。
 """
 
 from __future__ import annotations
@@ -38,10 +41,6 @@ from fastapi import APIRouter, HTTPException, Query
 from cpbl.api.helpers import DEFAULT_SEASON, _dicts
 from cpbl.db import conn
 
-# 打席前比分的解算與 `models/pa_facts` 共用同一支純函式（同一條紅線只能有一份實作，
-# 否則兩個消費者會再度漂移——本卡的病灶就是 recap 自己讀 pre_state 造成的分歧）。
-from cpbl.models.pa_facts import annotate_scores
-
 # 解算器已上抽 models/winprob_scorer（models 不得 import api，而 pa_facts 的關鍵打席
 # ΔWP 需要同一台機器）。此處以別名 re-export，本路由的既有語意與快取行為不變。
 from cpbl.models.winprob_scorer import (  # noqa: F401  （對外別名，勿刪）
@@ -52,6 +51,12 @@ from cpbl.models.winprob_scorer import (  # noqa: F401  （對外別名，勿刪
     _solver_cache,
 )
 from cpbl.models.winprob_scorer import get_scorer as _get_scorer
+
+# 打席前比分的純函式同樣已上抽 models（ML-WP-VAL-RESAMPLE1）：消費者除本路由外還有
+# models/winprob_val 的驗證 harness，而 models 不得 import api；留在此處還會構成
+# winprob_val → recap → winprob_scorer → winprob_val 迴圈。同一條紅線只能有一份實作
+# ——本卡的病灶就是同一語意有兩份讀法。此處以別名 re-export，既有 import 路徑不變。
+from cpbl.models.winprob_val import pre_scores_from_events  # noqa: F401  （對外別名，勿刪）
 
 router = APIRouter()
 
@@ -157,29 +162,6 @@ def _score_pre(scorer: Scorer, pre: dict) -> float:
              + ("3" if "3" in bs else "_"))
     return scorer(int(pre["inning"]), str(pre["half"]),
                   int(pre["home_score"]) - int(pre["away_score"]), bases, int(pre["outs"]))
-
-
-def pre_scores_from_events(pa_rows: list[dict], events: list[dict]) -> dict[int, tuple[int, int]]:
-    """``pa_index`` → 該打席**開始之前**的 ``(away, home)``（純函式）。
-
-    唯一正確的打席前比分來源：以 ``start_event_no`` 對回事件流，取
-    :func:`cpbl.models.pa_facts.annotate_scores` 標上的「事件**之前**」running 比分。
-    **不可讀 ``pre_state.away_score``／``home_score``**——那是起始事件列的比分欄原值，
-    而 livelog 的比分欄是事件**後**快照（見模組 docstring 的紅線）。
-
-    對不回事件流的打席**不進 map**（fail closed，由呼叫端標 ``pre_score_unresolved``），
-    不以 ``pre_state`` 的值冒充。
-    """
-    ordered = annotate_scores(events)
-    by_event_no = {str(e["main_event_no"]): e for e in ordered}
-    scores: dict[int, tuple[int, int]] = {}
-    for row in pa_rows:
-        start = row.get("start_event_no")
-        event = by_event_no.get(str(start)) if start is not None else None
-        if event is None:
-            continue
-        scores[row["pa_index"]] = (event["_pre_away"], event["_pre_home"])
-    return scores
 
 
 def _pre_view(row: dict, pre_scores: dict[int, tuple[int, int]]) -> dict | None:
