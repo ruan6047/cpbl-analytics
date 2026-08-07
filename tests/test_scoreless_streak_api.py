@@ -219,21 +219,27 @@ def test_row_mapper_keeps_none_for_every_null_row():
 
 
 # --------------------------------------------------------------------------
-# ML-PITCHER-RUNLESS1：失分口徑端點 ＋ 既有端點的「不得改變」守衛
+# ML-PITCHER-RUNLESS1：兩支端點的 payload 形狀凍結（並列裁決後兩支對稱）
 # --------------------------------------------------------------------------
 
 RUN_PATH = "/api/v1/records/run-free-streak"
 
-# 自責分口徑 payload 的**凍結 key 集合**（ML-PITCHER-RUNLESS1 之前的形狀）。
-# 卡面驗證明文「既有 earned-run-free-streak 端點行為不得改變（除非裁決為取代）」——
-# 加一個 key 也是改變。這份清單把那條紅線變成可執行的斷言，而不是交付文件裡的一句話。
-# 需求方裁決為「取代」或同意回填新欄位時，連同這份清單一起改，不得只改實作。
-FROZEN_ER_TOP_LEVEL_KEYS = {
-    "metric", "metric_label", "note", "season", "kind_code", "kinds_counted",
-    "kinds_in_scope", "scope_note", "tail_basis_note", "team", "data_from_year",
-    "as_of", "items",
+# **兩個口徑共用的凍結 key 集合。**
+#
+# iteration 1 的版本只凍結自責分口徑，因為當時卡面寫「既有端點行為不得改變」，兩個揭露
+# 欄位只掛在失分口徑上。需求方 2026-08-08 裁決為**並列、失分為預設呈現面**，並定案把
+# `basis_field`／`lower_bound_note` **回填到自責分端點**——理由是並列的前提就是兩支對外
+# 語意對稱。回填**刻意破壞了既有 payload 的相容性**（對做嚴格 key 比對的消費者而言，
+# 多一個 key 就是破壞），所以這份清單跟著改；改清單是留痕，不是繞過守衛。
+#
+# 斷言仍是**雙向**且**兩支都驗**：key 集合必須與清單**完全相等**，少一個或多一個都 fail。
+# 未來要動 payload 形狀，必須連同這份清單一起改——不得只改實作讓測試自動跟著鬆。
+FROZEN_TOP_LEVEL_KEYS = {
+    "metric", "metric_label", "note", "basis_field", "lower_bound_note",
+    "season", "kind_code", "kinds_counted", "kinds_in_scope", "scope_note",
+    "tail_basis_note", "team", "data_from_year", "as_of", "items",
 }
-FROZEN_ER_ITEM_KEYS = {
+FROZEN_ITEM_KEYS = {
     "player_id", "player_name", "team_code", "outs", "innings", "strict_outs",
     "strict_innings", "basis", "strict_basis", "appearances_counted",
     "tail_suffix_from_inning", "tail_reason", "tail_outs", "start", "through",
@@ -241,18 +247,39 @@ FROZEN_ER_ITEM_KEYS = {
     "break_game", "skipped_postseason_appearances", "skipped_postseason_games",
 }
 
+# iteration 1 的自責分 payload 形狀（回填前）。留著是為了讓「這次破壞了什麼」可被斷言，
+# 而不是只存在於交付文件的敘述裡——差集由測試算出來，不是人工列的。
+PRE_BACKFILL_ER_TOP_LEVEL_KEYS = FROZEN_TOP_LEVEL_KEYS - {"basis_field", "lower_bound_note"}
 
-def test_earned_run_payload_shape_is_frozen():
-    """**既有端點不得改變**：頂層與 item 的 key 集合必須與凍結清單完全相同。
 
-    只驗「沒有少 key」不夠——本卡新增的兩個揭露欄位如果不小心也掛到自責分口徑上，
-    那就是在需求方裁決之前擅自改了已上線端點的契約。故兩個方向都驗。
+@pytest.mark.parametrize("path", [PATH, RUN_PATH])
+def test_payload_shape_is_frozen_for_both_bases(path):
+    """**兩支端點**的頂層與 item key 集合都必須與凍結清單完全相同（雙向）。
+
+    只驗「沒有少 key」不夠：多一個 key 對嚴格比對的消費者同樣是破壞，而且會讓兩支
+    端點悄悄不對稱——並列裁決要的正是對稱。故兩個方向都驗，且兩支都驗。
     """
-    d = _get(f"{PATH}?limit=5")
+    d = _get(f"{path}?limit=5")
 
-    assert set(d) == FROZEN_ER_TOP_LEVEL_KEYS
+    assert set(d) == FROZEN_TOP_LEVEL_KEYS
     for i in d["items"]:
-        assert set(i) == FROZEN_ER_ITEM_KEYS
+        assert set(i) == FROZEN_ITEM_KEYS
+
+
+def test_backfill_is_recorded_as_a_deliberate_breaking_change():
+    """把「本次刻意破壞自責分端點相容性」釘成斷言，而不是只寫在交付文件裡。
+
+    交付文件會過期、也可能被讀成「向後相容的新增欄位」。這條測試讓破壞的**範圍**
+    （恰好兩個 key、且只多不少）可被機器複核：若哪天有人以為可以悄悄再加第三個欄位，
+    上面的凍結斷言會擋下來，而這一條說明為什麼那需要另一次裁決。
+    """
+    d = _get(f"{PATH}?limit=1")
+    added = set(d) - PRE_BACKFILL_ER_TOP_LEVEL_KEYS
+    removed = PRE_BACKFILL_ER_TOP_LEVEL_KEYS - set(d)
+
+    assert added == {"basis_field", "lower_bound_note"}, "破壞範圍與裁決不符"
+    assert removed == set(), "回填不得移除任何既有欄位——那會是第二種破壞"
+    assert d["basis_field"] == "earned_runs"
 
 
 def test_run_free_metric_wording_says_run_not_earned_run():
@@ -266,23 +293,31 @@ def test_run_free_metric_wording_says_run_not_earned_run():
     assert d["data_from_year"] == DATA_FROM_YEAR
 
 
-def test_run_free_payload_discloses_the_lower_bound_limit():
-    """誠實揭露：中途登板／退場的下界限制**不因換口徑而消失**，payload 要自己講。"""
-    d = _get(f"{RUN_PATH}?limit=1")
+@pytest.mark.parametrize("path", [PATH, RUN_PATH])
+def test_payload_discloses_the_lower_bound_limit(path):
+    """誠實揭露：中途登板／退場的下界限制**不因換口徑而消失**，兩支 payload 都要自己講。"""
+    d = _get(f"{path}?limit=1")
 
     assert "下界" in d["lower_bound_note"]
     assert "換口徑不會" in d["lower_bound_note"] or "無關" in d["lower_bound_note"]
 
 
-def test_run_free_shares_the_item_shape_with_earned_run():
-    """兩支端點的 item 形狀相同，前端可用同一個元件消費（差異只在頂層 metadata）。"""
+def test_both_endpoints_are_shape_symmetric():
+    """並列裁決的可執行形式：兩支端點的 key 集合**完全相同**，差異只在值。
+
+    回填之前失分口徑多帶兩個揭露欄位，讀者無從判斷自責分那支的判準與下界性質——
+    這條斷言把「對稱」釘死，任何一支單方面增減欄位都會 fail。
+    """
     er = _get(f"{PATH}?limit=5")
     run = _get(f"{RUN_PATH}?limit=5")
     if not er["items"] or not run["items"]:
         pytest.skip("本季無資料")
 
-    assert set(run["items"][0]) == set(er["items"][0])
-    assert set(run) - set(er) == {"basis_field", "lower_bound_note"}
+    assert set(run) == set(er)                          # 頂層對稱
+    assert set(run["items"][0]) == set(er["items"][0])  # item 對稱
+    # 對稱的是形狀不是內容：判準欄位與指標名必須不同，否則兩支端點就是同一個東西。
+    assert (er["basis_field"], run["basis_field"]) == ("earned_runs", "runs")
+    assert er["metric"] != run["metric"]
 
 
 def test_run_free_kind_code_domain_rejects_non_regular_season():

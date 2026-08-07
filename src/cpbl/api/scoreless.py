@@ -303,19 +303,20 @@ def streak_payload(
 
     as_of = max((a.game_date for apps in by_player.values() for a in apps if a.game_date),
                 default=None)
-    # 新增的揭露欄位**只掛在新口徑上**。卡面驗證明文「既有 earned-run-free-streak 端點
-    # 行為不得改變（除非裁決為取代）」，而「加一個 key」也是改變——即使是相加的。
-    # 這兩個 key 是否回填到自責分口徑，等需求方對「並列 vs 取代」裁決後再一起決定；
-    # 自責分口徑的 key 集合由 `tests/test_scoreless_streak_api.py` 的凍結清單釘住。
-    extra = {} if basis is EARNED_RUN_BASIS else {
-        "basis_field": basis.field,          # 判準的官方欄位名，供前端／稽核直接對照
-        "lower_bound_note": LOWER_BOUND_NOTE,
-    }
+    # 揭露欄位**兩個口徑都掛**（需求方裁決 2026-08-08：並列，失分為預設呈現面）。
+    # iteration 1 曾只掛在失分口徑上，理由是卡面「既有端點行為不得改變」；裁決既定為
+    # 並列，前提就變成**兩支對外語意必須對稱**——只有一支帶 `basis_field`／
+    # `lower_bound_note`，讀者無從判斷另一支的判準欄位與下界性質。
+    #
+    # 這是**刻意的相容性破壞**，不是「向後相容的新增欄位」：對做嚴格 key 比對的消費者
+    # 而言，多一個 key 就是破壞。目前 `web/` 兩支端點皆零消費者，破壞面僅止於 API 契約
+    # 本身。兩支的 key 集合由 `tests/test_scoreless_streak_api.py` 的雙向凍結斷言釘住。
     return {
         "metric": basis.metric,
         "metric_label": basis.metric_label,
         "note": basis.metric_note,
-        **extra,
+        "basis_field": basis.field,          # 判準的官方欄位名，供前端／稽核直接對照
+        "lower_bound_note": LOWER_BOUND_NOTE,
         "season": season,
         "kind_code": kind_code,
         "kinds_counted": list(counted_kinds),   # 計入局數的賽別（例行賽）
