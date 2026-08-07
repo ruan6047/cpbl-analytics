@@ -1,0 +1,119 @@
+{
+  "as_of": "2026-08-07",
+  "question": "逐球 LiveLog 的『當下投手』能否重現官方逐投手失分歸屬？",
+  "method": "逐事件比分推進量歸給該事件的 PitcherAcnt，與 Pitchers[].RunCnt 對照",
+  "pitcher_rows": 117,
+  "mismatch_count": 18,
+  "mismatch_rate": 0.1538,
+  "interpretation": "不一致＝規則 9.16 繼承跑者歸屬（記給讓跑者上壘的投手）。連『失分』都重現不了，『自責分』更無從逐局推導。",
+  "mismatches": [
+    {
+      "game_id": "2026-A-155",
+      "pitcher_acnt": "0000006127",
+      "official_RunCnt": 0,
+      "derived_on_mound_runs": 2
+    },
+    {
+      "game_id": "2026-A-155",
+      "pitcher_acnt": "0000006848",
+      "official_RunCnt": 5,
+      "derived_on_mound_runs": 3
+    },
+    {
+      "game_id": "2026-D-100",
+      "pitcher_acnt": "0000006860",
+      "official_RunCnt": 6,
+      "derived_on_mound_runs": 5
+    },
+    {
+      "game_id": "2026-D-100",
+      "pitcher_acnt": "0000006954",
+      "official_RunCnt": 0,
+      "derived_on_mound_runs": 1
+    },
+    {
+      "game_id": "2026-D-100",
+      "pitcher_acnt": "0000007303",
+      "official_RunCnt": 5,
+      "derived_on_mound_runs": 3
+    },
+    {
+      "game_id": "2026-D-100",
+      "pitcher_acnt": "0000007628",
+      "official_RunCnt": 0,
+      "derived_on_mound_runs": 2
+    },
+    {
+      "game_id": "2026-D-124",
+      "pitcher_acnt": "0000006954",
+      "official_RunCnt": 1,
+      "derived_on_mound_runs": 0
+    },
+    {
+      "game_id": "2026-D-124",
+      "pitcher_acnt": "0000007316",
+      "official_RunCnt": 0,
+      "derived_on_mound_runs": 1
+    },
+    {
+      "game_id": "2026-D-137",
+      "pitcher_acnt": "0000006722",
+      "official_RunCnt": 0,
+      "derived_on_mound_runs": 1
+    },
+    {
+      "game_id": "2026-D-137",
+      "pitcher_acnt": "0000006878",
+      "official_RunCnt": 3,
+      "derived_on_mound_runs": 2
+    },
+    {
+      "game_id": "2026-D-180",
+      "pitcher_acnt": "0000002303",
+      "official_RunCnt": 1,
+      "derived_on_mound_runs": 0
+    },
+    {
+      "game_id": "2026-D-180",
+      "pitcher_acnt": "0000003334",
+      "official_RunCnt": 1,
+      "derived_on_mound_runs": 0
+    },
+    {
+      "game_id": "2026-D-184",
+      "pitcher_acnt": "0000006878",
+      "official_RunCnt": 2,
+      "derived_on_mound_runs": 1
+    },
+    {
+      "game_id": "2026-D-184",
+      "pitcher_acnt": "0000006910",
+      "official_RunCnt": 0,
+      "derived_on_mound_runs": 1
+    },
+    {
+      "game_id": "2026-D-184",
+      "pitcher_acnt": "0000006920",
+      "official_RunCnt": 4,
+      "derived_on_mound_runs": 2
+    },
+    {
+      "game_id": "2026-D-184",
+      "pitcher_acnt": "0000006922",
+      "official_RunCnt": 0,
+      "derived_on_mound_runs": 2
+    },
+    {
+      "game_id": "2026-A-246",
+      "pitcher_acnt": "0000006910",
+      "official_RunCnt": 0,
+      "derived_on_mound_runs": 1
+    },
+    {
+      "game_id": "2026-A-246",
+      "pitcher_acnt": "0000007305",
+      "official_RunCnt": 2,
+      "derived_on_mound_runs": 1
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "as_of": "2026-08-07",
+  "source_a": "stats.cpbl.com.tw /api/proxy/v1/games/{id} → Data.Game.{Home,Visiting}.Pitchers[]",
+  "source_b": "cpbl.pitching_gamelog（來源 www.cpbl.com.tw /box/getlive，獨立第二站台）",
+  "games": [
+    "2026-A-141",
+    "2026-A-146",
+    "2026-A-155",
+    "2026-A-157",
+    "2026-A-158",
+    "2026-D-100",
+    "2026-D-124",
+    "2026-D-137",
+    "2026-D-180",
+    "2026-D-184",
+    "2026-A-246"
+  ],
+  "pitcher_rows_compared": 117,
+  "fields_compared_per_row": 15,
+  "cells_compared": 1755,
+  "pk_set_differences": [],
+  "cell_mismatch_count": 0,
+  "cell_mismatches": []
+}
