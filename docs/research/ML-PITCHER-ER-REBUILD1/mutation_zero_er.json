@@ -1,11 +1,11 @@
 {
   "by_year_kind": {
     "2018/A": {
-      "appearance_pass": 1113,
-      "appearance_pass_er0": 1113,
+      "all_pass": 2,
+      "appearance_pass": 1112,
+      "appearance_pass_er0": 1112,
       "appearances": 2063,
       "appearances_er0": 1126,
-      "both_pass": 2,
       "cause_attribution_boundary": 2,
       "cause_earned_rule_boundary": 221,
       "cause_source_gap": 13,
@@ -15,7 +15,9 @@
       "error_tainted_games": 204,
       "games": 240,
       "outs_pass": 225,
-      "rebuild_failed": 2
+      "rebuild_failed": 2,
+      "runs_pass": 235,
+      "two_dim_pass": 2
     },
     "2018/D": {
       "appearance_pass": 703,
@@ -28,14 +30,15 @@
       "error_tainted_games": 103,
       "games": 124,
       "outs_pass": 106,
-      "rebuild_failed": 2
+      "rebuild_failed": 2,
+      "runs_pass": 122
     },
     "2019/A": {
-      "appearance_pass": 1086,
-      "appearance_pass_er0": 1086,
+      "all_pass": 1,
+      "appearance_pass": 1081,
+      "appearance_pass_er0": 1081,
       "appearances": 2067,
       "appearances_er0": 1127,
-      "both_pass": 1,
       "cause_attribution_boundary": 4,
       "cause_earned_rule_boundary": 211,
       "cause_source_gap": 16,
@@ -45,31 +48,35 @@
       "error_tainted_games": 196,
       "games": 240,
       "outs_pass": 216,
-      "rebuild_failed": 8
+      "rebuild_failed": 8,
+      "runs_pass": 227,
+      "two_dim_pass": 1
     },
     "2019/D": {
-      "appearance_pass": 827,
-      "appearance_pass_er0": 827,
+      "all_pass": 1,
+      "appearance_pass": 828,
+      "appearance_pass_er0": 828,
       "appearances": 1510,
       "appearances_er0": 903,
-      "both_pass": 1,
-      "cause_attribution_boundary": 3,
+      "cause_attribution_boundary": 4,
       "cause_earned_rule_boundary": 129,
       "cause_source_gap": 7,
-      "clean_games": 20,
+      "clean_games": 21,
       "er_pass": 1,
       "error_tainted_er_pass": 1,
       "error_tainted_games": 120,
       "games": 152,
       "outs_pass": 133,
-      "rebuild_failed": 12
+      "rebuild_failed": 11,
+      "runs_pass": 137,
+      "two_dim_pass": 1
     },
     "2020/A": {
+      "all_pass": 1,
       "appearance_pass": 1002,
       "appearance_pass_er0": 1002,
       "appearances": 1969,
       "appearances_er0": 1045,
-      "both_pass": 1,
       "cause_earned_rule_boundary": 213,
       "cause_source_gap": 16,
       "clean_games": 34,
@@ -78,28 +85,31 @@
       "error_tainted_games": 196,
       "games": 240,
       "outs_pass": 214,
-      "rebuild_failed": 10
+      "rebuild_failed": 10,
+      "runs_pass": 230,
+      "two_dim_pass": 1
     },
     "2020/D": {
-      "appearance_pass": 1185,
-      "appearance_pass_er0": 1185,
+      "appearance_pass": 1196,
+      "appearance_pass_er0": 1196,
       "appearances": 2459,
       "appearances_er0": 1334,
       "cause_attribution_boundary": 3,
       "cause_earned_rule_boundary": 183,
-      "cause_source_gap": 18,
-      "clean_games": 27,
-      "error_tainted_games": 177,
+      "cause_source_gap": 20,
+      "clean_games": 28,
+      "error_tainted_games": 178,
       "games": 227,
       "outs_pass": 186,
-      "rebuild_failed": 23
+      "rebuild_failed": 21,
+      "runs_pass": 203
     },
     "2021/A": {
-      "appearance_pass": 1519,
-      "appearance_pass_er0": 1519,
+      "all_pass": 2,
+      "appearance_pass": 1518,
+      "appearance_pass_er0": 1518,
       "appearances": 2560,
       "appearances_er0": 1576,
-      "both_pass": 2,
       "cause_attribution_boundary": 2,
       "cause_earned_rule_boundary": 279,
       "cause_source_gap": 4,
@@ -109,11 +119,13 @@
       "error_tainted_games": 235,
       "games": 300,
       "outs_pass": 283,
-      "rebuild_failed": 13
+      "rebuild_failed": 13,
+      "runs_pass": 285,
+      "two_dim_pass": 2
     },
     "2021/D": {
-      "appearance_pass": 1211,
-      "appearance_pass_er0": 1211,
+      "appearance_pass": 1210,
+      "appearance_pass_er0": 1210,
       "appearances": 1897,
       "appearances_er0": 1246,
       "cause_attribution_boundary": 1,
@@ -123,14 +135,15 @@
       "error_tainted_games": 147,
       "games": 169,
       "outs_pass": 158,
-      "rebuild_failed": 4
+      "rebuild_failed": 4,
+      "runs_pass": 163
     },
     "2022/A": {
-      "appearance_pass": 1498,
-      "appearance_pass_er0": 1498,
+      "all_pass": 1,
+      "appearance_pass": 1495,
+      "appearance_pass_er0": 1495,
       "appearances": 2454,
       "appearances_er0": 1542,
-      "both_pass": 1,
       "cause_attribution_boundary": 2,
       "cause_earned_rule_boundary": 287,
       "cause_source_gap": 1,
@@ -140,7 +153,9 @@
       "error_tainted_games": 247,
       "games": 300,
       "outs_pass": 290,
-      "rebuild_failed": 9
+      "rebuild_failed": 9,
+      "runs_pass": 289,
+      "two_dim_pass": 1
     },
     "2022/D": {
       "appearance_pass": 1177,
@@ -154,14 +169,15 @@
       "error_tainted_games": 145,
       "games": 172,
       "outs_pass": 159,
-      "rebuild_failed": 9
+      "rebuild_failed": 9,
+      "runs_pass": 163
     },
     "2023/A": {
-      "appearance_pass": 1537,
-      "appearance_pass_er0": 1537,
+      "all_pass": 1,
+      "appearance_pass": 1536,
+      "appearance_pass_er0": 1536,
       "appearances": 2604,
       "appearances_er0": 1634,
-      "both_pass": 1,
       "cause_attribution_boundary": 2,
       "cause_earned_rule_boundary": 276,
       "cause_source_gap": 4,
@@ -171,11 +187,13 @@
       "error_tainted_games": 225,
       "games": 300,
       "outs_pass": 279,
-      "rebuild_failed": 17
+      "rebuild_failed": 17,
+      "runs_pass": 281,
+      "two_dim_pass": 1
     },
     "2023/D": {
-      "appearance_pass": 1615,
-      "appearance_pass_er0": 1615,
+      "appearance_pass": 1613,
+      "appearance_pass_er0": 1613,
       "appearances": 2520,
       "appearances_er0": 1670,
       "cause_attribution_boundary": 4,
@@ -185,14 +203,15 @@
       "error_tainted_games": 207,
       "games": 236,
       "outs_pass": 222,
-      "rebuild_failed": 6
+      "rebuild_failed": 6,
+      "runs_pass": 226
     },
     "2024/A": {
-      "appearance_pass": 1864,
-      "appearance_pass_er0": 1864,
+      "all_pass": 2,
+      "appearance_pass": 1854,
+      "appearance_pass_er0": 1854,
       "appearances": 3100,
       "appearances_er0": 1927,
-      "both_pass": 2,
       "cause_attribution_boundary": 6,
       "cause_earned_rule_boundary": 338,
       "cause_source_gap": 3,
@@ -203,14 +222,16 @@
       "error_tainted_games": 272,
       "games": 360,
       "outs_pass": 346,
-      "rebuild_failed": 11
+      "rebuild_failed": 11,
+      "runs_pass": 343,
+      "two_dim_pass": 2
     },
     "2024/D": {
+      "all_pass": 1,
       "appearance_pass": 1425,
       "appearance_pass_er0": 1425,
       "appearances": 2244,
       "appearances_er0": 1498,
-      "both_pass": 1,
       "cause_earned_rule_boundary": 199,
       "cause_source_gap": 11,
       "clean_games": 29,
@@ -219,14 +240,16 @@
       "error_tainted_games": 182,
       "games": 220,
       "outs_pass": 200,
-      "rebuild_failed": 9
+      "rebuild_failed": 9,
+      "runs_pass": 211,
+      "two_dim_pass": 1
     },
     "2025/A": {
-      "appearance_pass": 1918,
-      "appearance_pass_er0": 1918,
+      "all_pass": 7,
+      "appearance_pass": 1914,
+      "appearance_pass_er0": 1914,
       "appearances": 3117,
       "appearances_er0": 2004,
-      "both_pass": 7,
       "cause_attribution_boundary": 5,
       "cause_earned_rule_boundary": 325,
       "cause_source_gap": 7,
@@ -237,11 +260,13 @@
       "error_tainted_games": 260,
       "games": 360,
       "outs_pass": 337,
-      "rebuild_failed": 16
+      "rebuild_failed": 16,
+      "runs_pass": 338,
+      "two_dim_pass": 7
     },
     "2025/D": {
-      "appearance_pass": 1412,
-      "appearance_pass_er0": 1412,
+      "appearance_pass": 1403,
+      "appearance_pass_er0": 1403,
       "appearances": 2259,
       "appearances_er0": 1450,
       "cause_attribution_boundary": 6,
@@ -251,14 +276,15 @@
       "error_tainted_games": 172,
       "games": 204,
       "outs_pass": 190,
-      "rebuild_failed": 4
+      "rebuild_failed": 4,
+      "runs_pass": 194
     },
     "2026/A": {
-      "appearance_pass": 1328,
-      "appearance_pass_er0": 1328,
+      "all_pass": 3,
+      "appearance_pass": 1326,
+      "appearance_pass_er0": 1326,
       "appearances": 2068,
       "appearances_er0": 1377,
-      "both_pass": 3,
       "cause_attribution_boundary": 4,
       "cause_earned_rule_boundary": 222,
       "cause_source_gap": 5,
@@ -268,11 +294,13 @@
       "error_tainted_games": 182,
       "games": 240,
       "outs_pass": 228,
-      "rebuild_failed": 6
+      "rebuild_failed": 6,
+      "runs_pass": 231,
+      "two_dim_pass": 3
     },
     "2026/D": {
-      "appearance_pass": 1047,
-      "appearance_pass_er0": 1047,
+      "appearance_pass": 1046,
+      "appearance_pass_er0": 1046,
       "appearances": 1779,
       "appearances_er0": 1107,
       "cause_attribution_boundary": 1,
@@ -282,7 +310,8 @@
       "error_tainted_games": 142,
       "games": 175,
       "outs_pass": 157,
-      "rebuild_failed": 9
+      "rebuild_failed": 9,
+      "runs_pass": 165
     }
   },
   "data_asof": {
@@ -291,30 +320,31 @@
     "max_game_date": "2026-10-03"
   },
   "diff_histogram": {
-    "er-1": 6079,
+    "er-1": 6085,
     "er-10": 10,
     "er-11": 4,
-    "er-2": 3692,
-    "er-3": 2255,
-    "er-4": 1244,
+    "er-2": 3696,
+    "er-3": 2258,
+    "er-4": 1245,
     "er-5": 661,
     "er-6": 353,
-    "er-7": 162,
+    "er-7": 163,
     "er-8": 79,
     "er-9": 28,
-    "outs+1": 46,
-    "outs+2": 56,
+    "outs+1": 48,
+    "outs+2": 57,
     "outs+3": 32,
-    "outs-1": 27,
-    "outs-2": 1
+    "outs-1": 28,
+    "outs-2": 1,
+    "runs+1": 52,
+    "runs-1": 53
   },
   "fail_examples": {
     "ledger_desync": [
-      "2019/D/109",
-      "2020/D/217",
-      "2020/D/224",
       "2024/A/59",
-      "2024/A/297"
+      "2024/A/297",
+      "2026/A/158",
+      "2026/D/107"
     ],
     "mismatch:attribution_boundary": [
       "2018/A/45",
@@ -371,10 +401,10 @@
     ]
   },
   "fail_reasons": {
-    "ledger_desync": 7,
-    "mismatch:attribution_boundary": 46,
+    "ledger_desync": 4,
+    "mismatch:attribution_boundary": 47,
     "mismatch:earned_rule_boundary": 3863,
-    "mismatch:source_gap": 158,
+    "mismatch:source_gap": 160,
     "multiple_new_runners": 4,
     "run_count_mismatch": 97,
     "scorer_unresolved": 61,
@@ -400,26 +430,30 @@
     ]
   },
   "totals": {
-    "appearance_pass": 23467,
-    "appearance_pass_er0": 23467,
-    "appearance_pass_rate": 0.5897,
-    "appearance_pass_rate_er0": 0.957,
+    "all_pass": 22,
+    "all_pass_rate": 0.0052,
+    "appearance_pass": 23439,
+    "appearance_pass_er0": 23439,
+    "appearance_pass_rate": 0.589,
+    "appearance_pass_rate_er0": 0.9558,
     "appearances": 39794,
     "appearances_er0": 24522,
-    "both_pass": 22,
-    "both_pass_rate": 0.0052,
-    "cause_attribution_boundary": 46,
+    "cause_attribution_boundary": 47,
     "cause_earned_rule_boundary": 3863,
-    "cause_source_gap": 158,
+    "cause_source_gap": 160,
     "clean_er_pass": 2,
-    "clean_games": 677,
+    "clean_games": 679,
     "er_pass": 25,
     "er_pass_rate": 0.0059,
     "error_tainted_er_pass": 23,
-    "error_tainted_games": 3412,
+    "error_tainted_games": 3413,
     "games": 4259,
     "outs_pass": 3929,
     "outs_pass_rate": 0.9225,
-    "rebuild_failed": 170
+    "rebuild_failed": 167,
+    "runs_pass": 4043,
+    "runs_pass_rate": 0.9493,
+    "two_dim_pass": 22,
+    "two_dim_pass_rate_AUDIT_ONLY": 0.0052
   }
 }

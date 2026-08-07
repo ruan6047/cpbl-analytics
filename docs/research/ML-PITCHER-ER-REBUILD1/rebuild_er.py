@@ -1,7 +1,10 @@
 """ML-PITCHER-ER-REBUILD1：從 `cpbl.game_livelog` 逐事件重建每位投手每場的
-自責分（earned runs）與出局數（outs），並與官方 `cpbl.pitching_gamelog` **兩維對帳**。
+自責分（earned runs）、失分（runs）與出局數（outs），並與官方 `cpbl.pitching_gamelog`
+**三維對帳**。
 
 本卡是**可行性評估**：唯一要回答的問題是「逐場對帳通過率是多少」。
+對帳維度於 iteration 2 由兩維（ER＋outs）擴為三維（＋runs）：實測有 15 場
+逐投手失分與官方不符、卻因 ER 與 outs 剛好都吻合而通過兩維對帳。
 故本檔只讀 DB、只寫 JSON 到本目錄，不改任何既有模組、不寫任何表。
 
 證明策略（與 ML-PITCHER-SCORELESS1 前七輪不同）
@@ -98,7 +101,18 @@ GAME_OVER_MARKERS = ("比賽結束",)
 #   no_inherit   ：full 拿掉 9.16(g) 的遺留跑者責任轉移
 #   zero_er      ：**虛無對照**——自責分一律回 0。若 ER=0 出賽的通過率在此模式下
 #                  仍然很高，代表該分層量到的其實只是出局數維度，不是自責分能力。
-MUTATIONS = ("full", "spec_literal", "no_shadow", "no_inherit", "zero_er")
+#   no_hr_fix    ：拿掉全壘打修正（消融，證明該修正的貢獻）
+# 以下三個是**已被實測否證**的假設，保留以便重現否證證據，預設不啟用：
+#   team_opps      ：出局機會改團隊制（＝不給後援投手 9.16(i) 的重設）
+#   out_before_run ：5.08(a) 第三出局先於得分成立
+#   maxtaint       ：失誤半局內所有壘上跑者一律非自責
+# 以下兩個是**尚未採用的候選**（需求方 2026-08-07 裁定暫緩，僅供量測）：
+#   walkoff_fix  ：再見判定改「末半局為下半且主隊獲勝」
+#   tb_owner     ：突破僵局跑者歸屬改為「面對該半局第一位打者」的投手
+MUTATIONS = (
+    "full", "spec_literal", "no_shadow", "no_inherit", "zero_er", "no_hr_fix",
+    "team_opps", "out_before_run", "maxtaint", "walkoff_fix", "tb_owner",
+)
 
 
 @dataclass
@@ -268,6 +282,7 @@ def rebuild_game(
         # 9.16(a)／9.16(d)：以「無失誤重建的半局」判定自責分。shadow 是重建世界裡
         # 仍在壘上的跑者（slot → 壘號）；在重建世界裡踏上本壘者，其得分才是自責分。
         shadow: dict[str, int] = {}
+        team_opps = 0
         # 9.16(i)：後援投手不得享有出場前的出局機會 → 每位投手自己的重建出局計數
         out_opps: dict[str, int] = {}
 
@@ -278,7 +293,7 @@ def rebuild_game(
                 res.reason = "island_without_pitcher"
                 return res
             for p in pitchers:
-                out_opps.setdefault(p, 0)
+                out_opps.setdefault(p, team_opps if mutation == "team_opps" else 0)
 
             score = isl["score"]
             if score is None:
@@ -303,18 +318,35 @@ def rebuild_game(
                 res.detail = f"i{isl['inning']}{isl['half']} {isl['action']} pre={isl['pre_slots']}"
                 return res
 
-            # 突破僵局跑者（7.01(b)(2)(C)）：置於二壘、「視為守備失誤上壘」→ 非自責。
+            # 突破僵局跑者：「視為守備失誤上壘」→ 非自責（7.01(b)(2)(C)）。
             # 該列本身的壘況欄是空的，跑者的棒次槽要向**下一個 island** 取。
+            #
+            # **不得假設跑者在二壘。** 7.01(b)(2)(C) 只規定二壘，但**二軍曾試行
+            # 一二壘版本**（需求方 2026-08-07 確認；實例 `2020/D/224` 十局上有兩個
+            # 突破僵局 island，首位跑者置於**一壘**）。故改為從實際壘況欄推導：
+            # 下一個 island 壘上出現、而目前帳本沒有的棒次槽，就是被放上去的跑者。
             if isl["family"] == TIEBREAK_FAMILY:
                 nxt = group[gi + 1]["pre_slots"] if gi + 1 < len(group) else {}
-                tb_slot = nxt.get(2)
-                if tb_slot:
-                    bases[2] = Runner(
-                        slot=tb_slot,
+                if not nxt:
+                    # 靜默丟棄是隱患：取不到壘況就不可能正確歸屬這位跑者的得分
+                    res.reason = "tiebreak_runner_unresolved"
+                    res.detail = f"i{isl['inning']}{isl['half']} next_pre_slots={nxt}"
+                    return res
+                tb_owner = cur_pitcher
+                if mutation == "tb_owner" and gi + 1 < len(group):
+                    nxt_p = group[gi + 1]["pitchers"]
+                    if nxt_p:
+                        tb_owner = nxt_p[-1]
+                rebuilt: dict[int, Runner] = {}
+                for b, s in nxt.items():
+                    prev = next((r for r in bases.values() if r.slot == s), None)
+                    rebuilt[b] = prev or Runner(
+                        slot=s,
                         name=_s(isl.get("hitter_name")),
-                        owner=cur_pitcher,
+                        owner=tb_owner,
                         earned_ok=False,
                     )
+                bases = rebuilt
                 continue
 
             # 半局最後一個 island 沒有「下一個 island 的壘況」可讀 —— 此時壘上未
@@ -487,6 +519,16 @@ def rebuild_game(
                 if (batter_in_shadow and batter_shadow_base and batter_shadow_base < 4)
                 else 0
             )
+            if mutation != "no_hr_fix" and batter_in_shadow and batter_shadow_base == 4:
+                # 打者自己踏上本壘（全壘打）→ 他前方的每一位跑者必然得分，與失誤
+                # 無關。9.16(d)【註 1】① 明文：「但不是一壘安打，若以三壘安打以上之
+                # 長打得分時為自責分」。
+                #
+                # 舊版此處退回 0（條件寫 `batter_shadow_base < 4`），使失誤／捕逸
+                # 污染把前方跑者壓在原壘 → 全壘打送回來的分被誤判非自責。
+                # 實例 `2018/A/1` 二局上：王峻杰二壘安打、捕逸上三壘、王勝偉全壘打，
+                # 官方記自責分而舊版不記。修正後 5 場翻正、0 場退步。
+                natural = 4
             slot_names = {r.slot: r.name for r in bases.values()}
             for slot, pb, nb in moves:
                 if slot not in shadow:
@@ -506,6 +548,10 @@ def rebuild_game(
                 for r in vanished.values():
                     shadow.pop(r.slot, None)
 
+            if mutation == "maxtaint" and any(m in isl["text"] for m in ERROR_MARKERS):
+                for _r in list(bases.values()):
+                    shadow.pop(_r.slot, None)
+                scored_shadow -= {r.slot for r in bases.values()}
             scored_shadow -= tainted_scorers
             batter_key = batter_slot or "__BATTER__"
             if batter_in_shadow and batter_shadow_base == 4:
@@ -518,7 +564,12 @@ def rebuild_game(
                     earned = fallback_ok
                 else:
                     earned = slot is not None and slot in scored_shadow
-                if earned and out_opps.get(owner, 0) < 3:
+                limit = out_opps.get(owner, 0)
+                if mutation == "out_before_run" and (
+                    batter_lands is None or not batter_earned_ok
+                ):
+                    limit += 1
+                if earned and limit < 3:
                     er[owner] += 1
 
             for r in named_runners:
@@ -549,6 +600,7 @@ def rebuild_game(
                 )
 
             # --- 累加重建出局機會（9.16(a)【註 1】、9.16(i)）--------------------
+            team_opps += sh_outs
             if sh_outs:
                 for p in list(out_opps):
                     out_opps[p] += sh_outs
@@ -584,7 +636,10 @@ def rebuild_game(
 
     # --- 比賽最後一個出局：livelog 的「比賽結束」列不帶「N人出局」敘述 ---------
     # （實測：全庫 4,100 個半局達 2 出局卻無 3 出局敘述，末列皆為「比賽結束」）
-    walk_off = last_half == "2" and last_island_runs > 0
+    if mutation == "walkoff_fix":
+        walk_off = last_half == "2" and prev_score["2"] > prev_score["1"]
+    else:
+        walk_off = last_half == "2" and last_island_runs > 0
     if not walk_off and last_post_outs < 3 and last_pitcher_of_game:
         outs[last_pitcher_of_game] += 3 - last_post_outs
 
@@ -720,6 +775,7 @@ def reconcile(
 
             ok_outs = True
             ok_er = True
+            ok_runs = True
             for acnt, row in official.items():
                 off_outs = None
                 if row["inning_pitched_cnt"] is not None and row["inning_pitched_div3"] is not None:
@@ -736,8 +792,19 @@ def reconcile(
                     ok_er = False
                     if off_er is not None:
                         diff_hist[f"er{got_er - int(off_er):+d}"] += 1
+                # 第三維：失分。兩維（ER＋outs）擋不住失分歸屬錯誤——實測有 15 場
+                # 逐投手 runs 與官方不符、但 ER 與 outs 剛好都吻合而通過兩維對帳
+                # （ML-PITCHER-ER-REBUILD1 iteration 2 發現）。runs 是官方既有欄位，
+                # 加入零成本且嚴格更強。
+                off_runs = row["runs"]
+                got_runs = res.runs.get(acnt, 0)
+                runs_ok_here = off_runs is not None and got_runs == int(off_runs)
+                if not runs_ok_here:
+                    ok_runs = False
+                    if off_runs is not None:
+                        diff_hist[f"runs{got_runs - int(off_runs):+d}"] += 1
                 # 逐出賽（pitcher×game）通過率：下游消費的粒度就是出賽
-                if er_ok_here and off_outs is not None and got_outs == off_outs:
+                if er_ok_here and runs_ok_here and off_outs is not None and got_outs == off_outs:
                     stats[key]["appearance_pass"] += 1
                     if int(off_er) == 0:
                         stats[key]["appearance_pass_er0"] += 1
@@ -753,8 +820,13 @@ def reconcile(
             if ok_er:
                 stats[key]["er_pass"] += 1
                 stats[key][f"{stratum}_er_pass"] += 1
+            if ok_runs:
+                stats[key]["runs_pass"] += 1
+            # 舊的兩維基準保留為稽核值，供「第三維買到／揭穿了什麼」的對照
             if ok_outs and ok_er:
-                stats[key]["both_pass"] += 1
+                stats[key]["two_dim_pass"] += 1
+            if ok_outs and ok_er and ok_runs:
+                stats[key]["all_pass"] += 1
             else:
                 cause = _classify(res, official)
                 stats[key][f"cause_{cause}"] += 1
@@ -800,9 +872,15 @@ def reconcile(
             tot[kk] += vv
     out["totals"] = dict(tot)
     if tot["games"]:
-        out["totals"]["both_pass_rate"] = round(tot["both_pass"] / tot["games"], 4)
+        out["totals"]["all_pass_rate"] = round(tot["all_pass"] / tot["games"], 4)
         out["totals"]["outs_pass_rate"] = round(tot["outs_pass"] / tot["games"], 4)
+        out["totals"]["runs_pass_rate"] = round(tot["runs_pass"] / tot["games"], 4)
         out["totals"]["er_pass_rate"] = round(tot["er_pass"] / tot["games"], 4)
+        # 稽核值：舊的兩維基準（ER＋outs）。**不是本卡的通過率**，只用來顯示
+        # 第三維揭穿了多少「其實歸屬錯了卻被判通過」的場次。
+        out["totals"]["two_dim_pass_rate_AUDIT_ONLY"] = round(
+            tot["two_dim_pass"] / tot["games"], 4
+        )
     if tot["appearances"]:
         out["totals"]["appearance_pass_rate"] = round(
             tot["appearance_pass"] / tot["appearances"], 4
