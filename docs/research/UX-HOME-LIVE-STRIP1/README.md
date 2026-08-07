@@ -17,7 +17,7 @@ cd .. && uv run python docs/research/UX-HOME-LIVE-STRIP1/bases_outs_extraction_p
 預期輸出（exit code 0）：
 
 ```
-基準 a6331cc（上抽前）vs 工作樹現況
+基準 866c96c（上抽前）vs 工作樹現況
   逐位對照組合數                 : 96
   (1) 剝掉預期新增後不一致       : 0   ← 零視覺變化
   (2) 預期屬性計數異常           : 0   ← 恰好新增一個 a11y 屬性
@@ -33,11 +33,11 @@ cd .. && uv run python docs/research/UX-HOME-LIVE-STRIP1/bases_outs_extraction_p
 
 | | 來源 |
 |---|---|
-| 上抽前 | `git show a6331cc:web/src/components/game-board.tsx` 的私有 `BasesOuts`；取不到時退回同目錄的凍結副本 `legacy-bases-outs.a6331cc.tsx` |
+| 上抽前 | `git show 866c96c:web/src/components/game-board.tsx` 的私有 `BasesOuts`；取不到時退回同目錄的凍結副本 `legacy-bases-outs.866c96c.tsx` |
 | 上抽後 | 工作樹現況 `web/src/components/ui.tsx` 的共用 `BasesOuts` |
 
 需要凍結副本是因為本 repo 的 merge 會被 `pull --rebase` 線性化而**改寫 SHA**：本卡合併之後，
-只有 `main` 的人可能已經 `git show a6331cc` 不到了，那時腳本會變成無法重跑的擺設——正是它
+只有 `main` 的人可能已經 `git show 866c96c` 不到了，那時腳本會變成無法重跑的擺設——正是它
 要修的那個 finding。git 仍是權威來源，**兩者都拿得到時腳本會斷言逐字相同**，所以凍結副本
 無法悄悄漂移；不一致時腳本拒絕作證（exit 1）而不是挑一個來用。
 
@@ -59,7 +59,7 @@ cd .. && uv run python docs/research/UX-HOME-LIVE-STRIP1/bases_outs_extraction_p
 | 菱形改回首頁舊比例（30→22） | (1) 96 組不一致、exit 1 |
 | 偷渡一個 `data-extra="x"` 屬性 | (1) 96 組不一致、exit 1 |
 | 竄改凍結副本（git 仍取得到） | 拒絕作證、exit 1 |
-| 在沒有 `a6331cc` 的 clone 上跑 | 走凍結副本、印出 note、exit 0 |
+| 在沒有 `866c96c` 的 clone 上跑 | 走凍結副本、印出 note、exit 0 |
 | 未注入缺陷 | 兩項皆 0、exit 0 |
 
 ### 為什麼不掛進 pytest／npm test

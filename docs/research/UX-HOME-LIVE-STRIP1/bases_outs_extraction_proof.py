@@ -54,7 +54,10 @@ import tempfile
 from pathlib import Path
 
 # 上抽前的最後一個 commit。基準釘死：這支腳本要回答的是「相對於那一版有沒有變」。
-BEFORE = "a6331ccff39fe062b2b44e1f6f4542307b8453bd"
+# ⚠️ 分支被 rebase 時這個 SHA 會失效（本卡實際發生過一次）——改釘 rebase 後的等價
+# commit，並確認 `git show <新 SHA>:web/src/components/game-board.tsx` 與同目錄的
+# 凍結副本逐字相同（腳本本身會斷言這件事）。
+BEFORE = "866c96c7213abe270b42f429cbba413e6b7283ca"
 
 
 def _repo_root() -> Path:

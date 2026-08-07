@@ -1,8 +1,8 @@
-// 上抽前的 BasesOuts，逐字取自 a6331ccff39fe062b2b44e1f6f4542307b8453bd 的
+// 上抽前的 BasesOuts，逐字取自 866c96c7213abe270b42f429cbba413e6b7283ca 的
 // web/src/components/game-board.tsx。**這是取證基準的凍結副本，勿編輯。**
 //
 // 為什麼要凍結一份：本 repo 的 merge 會被 `pull --rebase` 線性化而改寫 SHA，
-// 分支合併後 `git show a6331cc:...` 對只有 main 的人可能已經取不到。取證腳本仍以
+// 分支合併後 `git show 866c96c:...` 對只有 main 的人可能已經取不到。取證腳本仍以
 // git 為優先來源，兩者都拿得到時會斷言逐字相同——所以這份副本無法悄悄漂移。
 function BasesOuts({ b1, b2, b3, outs, size = 52 }: {
   b1: boolean; b2: boolean; b3: boolean; outs: number; size?: number;
