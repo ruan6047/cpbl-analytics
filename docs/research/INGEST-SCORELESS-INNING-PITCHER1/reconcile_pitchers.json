@@ -231,6 +231,13 @@
   "as_of": "2026-08-07",
   "source_a": "stats.cpbl.com.tw /api/proxy/v1/games/{id} → Data.Game.{Home,Visiting}.Pitchers[]",
   "source_b": "cpbl.pitching_gamelog（來源 www.cpbl.com.tw /box/getlive，獨立第二站台）",
+  "claim_boundary": {
+    "supports": "在 Pitchers[] 的上列 15 個欄位上，單場 API 與已入庫的 pitching_gamelog 零差異——就**逐局責任投手／自責分拆分**這件事而言，此區塊沒有新的可撈。",
+    "does_not_support": [
+      "不支持『整份 payload 沒有任何新的可撈』：本節只比對 Pitchers[] 的 15 個欄位，同一份回應的 LiveLog[]、Trackman 等區塊**不在本節作用域內**（其價值另由 G4／#53 一系列卡評估，非本卡結論）。",
+      "不支持涵蓋 Pitchers[] 的其餘欄位（Era／Whip 等衍生欄、TotalW/L/S 等球季累計欄）——那些未比對，但皆非逐局責任欄位，故不影響本卡的問題。"
+    ]
+  },
   "games": [
     "2026-A-141",
     "2026-A-146",

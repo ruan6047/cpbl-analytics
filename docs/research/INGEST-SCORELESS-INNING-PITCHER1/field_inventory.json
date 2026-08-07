@@ -2,6 +2,16 @@
   "as_of": "2026-08-07",
   "endpoint": "https://stats.cpbl.com.tw/api/proxy/v1/games/{game_id}",
   "evidence": "g4_saved=G4 Phase A 保存之官方回應全文（偏差樣本）；confirm=本卡單次確認請求之中性完成場",
+  "method": "把每份 payload 遞迴攤平成『鍵路徑 -> 型別』清單，再對每條路徑的**最後一段**套用關鍵字樣態（RESPONSIBLE_PATTERNS）。這是**關鍵字掃描**，不是逐條人工判讀。",
+  "claim_boundary": {
+    "supports": "在本語料的 11 份回應中，沒有任何鍵名命中 responsib|charg|inherit|earned|selfrun|duty|owner（EarnedRunCnt 除外，且其粒度為逐場逐投手）。",
+    "does_not_support": [
+      "不支持『回應裡不存在逐局責任資訊』這個更強的命題：本掃描抓不到(a) 不含上列字根的欄位命名，(b) 藏在值或結構而非鍵名的責任資訊。",
+      "不支持推廣到本語料以外的回應（11 場、kind A/D；非全季窮舉，未涵蓋 kind C/E）。",
+      "不支持推廣到本端點的其他回應形狀（未試 query 參數；見 RESULTS.md §6）。"
+    ],
+    "stronger_evidence_elsewhere": "逐局責任若存在只可能落在 InningScore[] 或 LiveLog[]，此二者的完整鍵集列於 granularity.json，可逐欄複核。"
+  },
   "payload_count": 11,
   "sources": [
     {

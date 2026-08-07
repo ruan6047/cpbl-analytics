@@ -34,7 +34,16 @@ G4_DIR = pathlib.Path("docs/research/INGEST-GAME-TM-REFACTOR1-G4")
 AS_OF = "2026-08-07"  # 顯式 as-of，非產生時間（避免每次重跑髒 worktree）
 ENDPOINT = "https://stats.cpbl.com.tw/api/proxy/v1/games/{game_id}"
 
-# 逐局責任投手若存在，最可能長成的欄位名樣態（用於窮舉否證，而非只憑肉眼掃）
+# 逐局責任投手若存在，最可能長成的欄位名樣態。
+#
+# ⚠️ **這是關鍵字掃描，不是 absence 的嚴格否證**（PM-2 命中處）：它掃的是**鍵名的最後一段**，
+# 因此下列兩種情形掃不到——(a) 欄位命名不含這些字根（例如 `Attribution`、`Credit`、`RA`）；
+# (b) 責任資訊藏在**值或結構**而不在鍵名（例如某個既有欄位的值域裡編碼了責任投手）。
+# 掃描結果只能宣稱「**沒有命中這些字根的鍵**」，不能宣稱「回應裡不存在責任資訊」。
+#
+# 較強的證據另有其物，見 `build_granularity` 的 `evidence_strength` 欄：逐局責任若存在，
+# 只可能落在 `InningScore[]` 或 `LiveLog[]`，而這兩者的**完整鍵集**已逐欄列於本卡 artifact
+# （分別為 2 個與 39 個鍵），任何人可直接讀完並自行判斷，不必採信執行者的目視。
 RESPONSIBLE_PATTERNS = re.compile(
     r"responsib|charg|inherit|earned|selfrun|duty|owner", re.IGNORECASE
 )
@@ -119,6 +128,20 @@ def build_inventory(payloads) -> dict:
         "as_of": AS_OF,
         "endpoint": ENDPOINT,
         "evidence": "g4_saved=G4 Phase A 保存之官方回應全文（偏差樣本）；confirm=本卡單次確認請求之中性完成場",
+        "method": "把每份 payload 遞迴攤平成『鍵路徑 -> 型別』清單，再對每條路徑的**最後一段**"
+                  "套用關鍵字樣態（RESPONSIBLE_PATTERNS）。這是**關鍵字掃描**，不是逐條人工判讀。",
+        "claim_boundary": {
+            "supports": "在本語料的 11 份回應中，沒有任何鍵名命中 responsib|charg|inherit|earned|"
+                        "selfrun|duty|owner（EarnedRunCnt 除外，且其粒度為逐場逐投手）。",
+            "does_not_support": [
+                "不支持『回應裡不存在逐局責任資訊』這個更強的命題：本掃描抓不到"
+                "(a) 不含上列字根的欄位命名，(b) 藏在值或結構而非鍵名的責任資訊。",
+                "不支持推廣到本語料以外的回應（11 場、kind A/D；非全季窮舉，未涵蓋 kind C/E）。",
+                "不支持推廣到本端點的其他回應形狀（未試 query 參數；見 RESULTS.md §6）。",
+            ],
+            "stronger_evidence_elsewhere": "逐局責任若存在只可能落在 InningScore[] 或 LiveLog[]，"
+                                           "此二者的完整鍵集列於 granularity.json，可逐欄複核。",
+        },
         "payload_count": len(payloads),
         "sources": sources,
         "field_count": len(flat),
@@ -214,16 +237,36 @@ def build_granularity(payloads) -> dict:
         for r in per_game for side, s in r["sides"].items()
         if s["sum_RunCnt"] != s["sum_EarnedRunCnt"]
     ]
+    # 逐局責任若存在，只可能落在這兩個容器；它們的完整鍵集在此逐欄列出，供人直接讀完複核。
+    # 這是本卡對「逐局層缺席」最強的一條證據——強度來自「鍵集是完整列出的、且短到讀得完」，
+    # 不是來自關鍵字掃描（見 RESPONSIBLE_PATTERNS 上方註解）。
+    inning_containers = {}
+    for row in per_game:
+        for s in row["sides"].values():
+            inning_containers.setdefault("InningScore[]", set()).update(s["InningScore_fields"])
+        inning_containers.setdefault("LiveLog[]", set()).update(row["livelog_keys"])
     return {
         "as_of": AS_OF,
         "verdict_inputs": {
+            "_scope": "以下判定的作用域＝本語料 11 份**已觀測回應**（stats.cpbl 單場 API 預設回應，"
+                      "無 query 參數，kind A/D）。非『官方沒有此資料』，亦非『全季／全 kind 皆然』。",
             "InningScore_carries_pitcher_attribution": any_inning_pitcher,
             "LiveLog_carries_earned_run_marker": any_livelog_er,
             "finest_pitcher_identity_granularity": "per-pitch (LiveLog[].PitcherAcnt + InningSeq)",
             "finest_earned_run_granularity": "per-game per-pitcher (Pitchers[].EarnedRunCnt)",
-            "inning_level_earned_run_available": False,
+            "inning_level_earned_run_available_in_observed_responses": False,
             "unearned_runs_observed_in_sample": len(r_ne_er),
             "unearned_run_cases": r_ne_er,
+        },
+        "evidence_strength": {
+            "weak_keyword_scan": "field_inventory.json 的鍵名關鍵字掃描——只能說『沒命中這些字根』，"
+                                 "不能嚴格證明 absence（見 field_inventory.json.claim_boundary）。",
+            "strong_complete_key_sets": "逐局責任只可能落在 InningScore[] 或 LiveLog[]；"
+                                        "此二者的**完整**鍵集列於 inning_level_containers，"
+                                        "短到可逐欄讀完，複核者不需採信執行者的目視。",
+            "value_level_check_scope": "LiveLog 的**值面**另有 run_attribution.json 的重建失敗作為"
+                                       "補充證據（值裡也重建不出官方歸屬）；其餘區塊的值面未逐一檢視。",
+            "inning_level_containers": {k: sorted(v) for k, v in sorted(inning_containers.items())},
         },
         "zero_pitch_event_examples": zero_pitch_examples,
         "per_game": per_game,
@@ -455,6 +498,17 @@ def build_reconcile(payloads) -> dict:
         "as_of": AS_OF,
         "source_a": "stats.cpbl.com.tw /api/proxy/v1/games/{id} → Data.Game.{Home,Visiting}.Pitchers[]",
         "source_b": "cpbl.pitching_gamelog（來源 www.cpbl.com.tw /box/getlive，獨立第二站台）",
+        "claim_boundary": {
+            "supports": "在 Pitchers[] 的上列 15 個欄位上，單場 API 與已入庫的 pitching_gamelog "
+                        "零差異——就**逐局責任投手／自責分拆分**這件事而言，此區塊沒有新的可撈。",
+            "does_not_support": [
+                "不支持『整份 payload 沒有任何新的可撈』：本節只比對 Pitchers[] 的 15 個欄位，"
+                "同一份回應的 LiveLog[]、Trackman 等區塊**不在本節作用域內**"
+                "（其價值另由 G4／#53 一系列卡評估，非本卡結論）。",
+                "不支持涵蓋 Pitchers[] 的其餘欄位（Era／Whip 等衍生欄、TotalW/L/S 等球季累計欄）"
+                "——那些未比對，但皆非逐局責任欄位，故不影響本卡的問題。",
+            ],
+        },
         "games": games,
         "pitcher_rows_compared": rows_checked,
         "fields_compared_per_row": len(cmp_fields),

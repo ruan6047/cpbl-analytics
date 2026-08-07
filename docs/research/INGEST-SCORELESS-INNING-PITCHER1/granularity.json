@@ -1,11 +1,12 @@
 {
   "as_of": "2026-08-07",
   "verdict_inputs": {
+    "_scope": "以下判定的作用域＝本語料 11 份**已觀測回應**（stats.cpbl 單場 API 預設回應，無 query 參數，kind A/D）。非『官方沒有此資料』，亦非『全季／全 kind 皆然』。",
     "InningScore_carries_pitcher_attribution": false,
     "LiveLog_carries_earned_run_marker": false,
     "finest_pitcher_identity_granularity": "per-pitch (LiveLog[].PitcherAcnt + InningSeq)",
     "finest_earned_run_granularity": "per-game per-pitcher (Pitchers[].EarnedRunCnt)",
-    "inning_level_earned_run_available": false,
+    "inning_level_earned_run_available_in_observed_responses": false,
     "unearned_runs_observed_in_sample": 10,
     "unearned_run_cases": [
       {
@@ -69,6 +70,58 @@
         "ER": 7
       }
     ]
+  },
+  "evidence_strength": {
+    "weak_keyword_scan": "field_inventory.json 的鍵名關鍵字掃描——只能說『沒命中這些字根』，不能嚴格證明 absence（見 field_inventory.json.claim_boundary）。",
+    "strong_complete_key_sets": "逐局責任只可能落在 InningScore[] 或 LiveLog[]；此二者的**完整**鍵集列於 inning_level_containers，短到可逐欄讀完，複核者不需採信執行者的目視。",
+    "value_level_check_scope": "LiveLog 的**值面**另有 run_attribution.json 的重建失敗作為補充證據（值裡也重建不出官方歸屬）；其餘區塊的值面未逐一檢視。",
+    "inning_level_containers": {
+      "InningScore[]": [
+        "Score",
+        "Seq"
+      ],
+      "LiveLog[]": [
+        "ActionName",
+        "BallCnt",
+        "BattingActionName",
+        "BattingOrder",
+        "CatcherAcnt",
+        "CatcherName",
+        "CatcherUniformNo",
+        "Content",
+        "DefendStationCode",
+        "FirstBase",
+        "GameSno",
+        "HitterAcnt",
+        "HitterDefendStation",
+        "HitterImgPath",
+        "HitterLineup",
+        "HitterName",
+        "HitterUniformNo",
+        "HomeScore",
+        "InningSeq",
+        "IsBall",
+        "IsChangePlayer",
+        "IsScoreCnt",
+        "IsSpecialEvent",
+        "IsStrike",
+        "KindCode",
+        "MainEventNo",
+        "OutCnt",
+        "PitchCnt",
+        "PitcherAcnt",
+        "PitcherImgPath",
+        "PitcherName",
+        "PitcherUniformNo",
+        "SecondBase",
+        "StrikeCnt",
+        "ThirdBase",
+        "Trackman",
+        "VisitingHomeType",
+        "VisitingScore",
+        "Year"
+      ]
+    }
   },
   "zero_pitch_event_examples": [
     {
