@@ -83,10 +83,28 @@ v2 只有 `supported` / `proxy_with_warning` / `unsupported` 三值，於是：
 本來就該進判定。但 v2 的翻面來自**另一種**隨機性：同一批比賽、只是重抽的骰子不同。
 那是純實作雜訊，多抽幾次就能壓下去，**不該有資格決定 Go/No-Go**。
 
-v3 因此改判**等價但估得準**的量。百分位法下「99% CI 排除 0」⟺ 單尾機率
-`p_one = P(重抽的 dev 跨過 0)` 小於 `α_one = (1−ci)/2 = 0.005`。`p_one` 是所有重抽的**平均**，
-不是極端分位數，其 Monte Carlo 誤差就是標準的二項誤差，可以直接量出來：對 `p̂` 配一個
-Wilson 區間（`z = 3`，**計算容忍度**，不是統計顯著水準），再拿整條區間與 `α_one` 比。
+v3 因此改判**母體語意等價、但估得準**的量：單尾機率
+`p_one = P(重抽的 dev 跨過 0)` 與 `α_one = (1−ci)/2 = 0.005` 的比較。`p_one` 是所有重抽的
+**平均**，不是極端分位數，其 Monte Carlo 誤差就是標準的二項誤差，可以直接量出來：
+對 `p̂` 配一個 Wilson 區間（`z = 3`，**計算容忍度**，不是統計顯著水準），再拿整條區間與
+`α_one` 比。
+
+> **「99% CI 排除 0」與「`p_one < α_one`」的關係要講精確（ROBUST1-R1-01 修正）。**
+> 兩者在**精確算術下等價**：CI 排除 0 ⟺ `k ≤ floor(α_one·(n−1))`，
+> `p_one < α_one` ⟺ `k ≤ ceil(α_one·n) − 1`，兩式對所有整數 `n` 相同
+> （以 `Fraction` 窮舉 `n = 2..300,000`，反例 **0** 個；由
+> `test_tail_probability_and_percentile_ci_agree_exactly_but_not_in_floating_point` 釘住）。
+> **但它不是實作層的精確恆等**，本實作有兩處有限樣本偏離，方向都是「更難判顯著」：
+>
+> 1. `α_one` 由 `(1 − ci)/2` 以二進位浮點算出，`0.99 → 0.0050000000000000044 ≠ 1/200`。
+>    `k` 正好落在 `α_one·n` 邊界時兩式分岔——實測 `n=6,000` 的 `k=30`、`n=12,000` 的 `k=60`：
+>    `p_one < α_one` 為真，而百分位 CI **不**排除 0。
+> 2. `_percentile_ci()` 回傳前把端點捨入到小數第 4 位，真實下界若是微小正值（如 `3e-5`）
+>    會被讀成 `0.0`，於是「排除 0」判否。
+>
+> 判定實際採用的是**Wilson 區間對 `α_one` 的比較**，不是上面任一個式子，故這兩處偏離
+> 不影響本卡任何判定（三態機制在邊界只會更保守）。之所以要改這句話：它是判定機制的
+> **核心語意**，後人會拿它當恆等式繼續往上推導。
 
 | Wilson 區間相對 α_one 的位置 | 判 |
 |---|---|
@@ -255,7 +273,9 @@ v2 的兩條硬性理由**兩條都失效**：
 ## §4 驗證
 
 - `uv run ruff check`：PASS
-- `uv run pytest`：**1468 passed, 10 skipped**（基準 1454/10，+14 為新增測試）
+- `uv run pytest`：**1470 passed, 9 skipped**（基準 1454/10）。+15 為新增測試；另有 1 筆由
+  skip 轉 pass，是環境造成的（`requires CARD_ID-isolated PostgreSQL` 一類的條件 skip，
+  本機 DB 起著時會實跑），**collected 總數兩邊皆 1,479，未新增或移除任何既有測試**。
 - `uv run python -m cpbl.models.winprob_val --out docs/research/ML-WP-VERDICT-ROBUST1/verdict_metrics.json`
   ——全 scope 重跑約 21 秒；stdout 完整表格留在 [`verdict_run_stdout.txt`](verdict_run_stdout.txt)。
   **`--out` 一律導向本卡目錄**；預設路徑 `docs/research/game_recap_wp_val1_metrics.json` 是
@@ -278,6 +298,25 @@ worktree 弄髒，「重跑後 worktree 髒了」就不再是訊號），provena
 （母體逐日增長，統計紅線 #9），同日稍後重跑場數會略大；查核者重跑要看的是**判定與決策軌跡
 是否一致**，不是位元相同。`compare_verdicts.py --check` 才是「分析由腳本產生、非人工謄寫」
 的那道保證。
+
+---
+
+## §4.1 更正：`1f50742` 的 commit message 敘述（ROBUST1-R1-01）
+
+`1f50742` 的 commit message 寫「百分位法下『CI 排除 0』⟺ p_one < α_one」，把一個
+**母體語意的等價**寫成了實作層的精確恆等。該 commit 已推出去，**不改寫歷史**，
+更正記在這裡：
+
+> 正確敘述：兩者在**精確算術下**等價（`Fraction` 窮舉 n=2..300,000，反例 0 個），
+> 但實作層在邊界有兩處有限樣本偏離——`α_one` 的二進位浮點表示，以及 `_percentile_ci()`
+> 端點捨入到小數第 4 位。偏離方向都是「更難判顯著」，判定實際採用的是 Wilson 區間
+> 對 `α_one` 的比較，故不影響任何結論。詳見 §2.1 的引用區塊。
+
+**這是同一家族的第三次**（`#98` 宣稱某測試「上抽前會紅」而實際不會；ai-workflow `#10`
+把裁決的「延伸而非取代」寫成新的互斥引用規則；本卡把近似寫成恆等）。三次的**碼都是對的**，
+錯的都是描述證據的那句話。本卡的處置除了改字，還把該敘述**變成可執行的斷言**
+（`test_tail_probability_and_percentile_ci_agree_exactly_but_not_in_floating_point`
+同時釘住「精確算術下等價」與「浮點/捨入下的兩個已知偏離」），讓下一個人改壞它時會紅。
 
 ---
 

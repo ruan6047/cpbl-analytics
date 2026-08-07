@@ -525,6 +525,57 @@ def test_bin_significance_is_deterministic_and_reports_seed_agreement():
                 next(k for k in a if a[k] is info)]["ci"]
 
 
+def test_tail_probability_and_percentile_ci_agree_exactly_but_not_in_floating_point():
+    """「CI 排除 0 ⟺ p_one < α_one」是**母體語意等價**，不是實作層的精確恆等。
+
+    ROBUST1-R1-01：原本的註解與報告把它寫成恆等式。碼沒錯（判定走的是 Wilson 區間
+    對 α_one 的比較，不是這兩式），錯的是描述證據的那句話——而它是本機制的核心語意，
+    後人會拿它當恆等式往上推導。這支測試把正確敘述變成可執行的斷言。
+
+    釘住三件事：
+
+    1. **精確算術下等價**：CI 排除 0 ⟺ ``k <= floor(α(n-1))``；``p_one < α`` ⟺
+       ``k <= ceil(α·n) - 1``。兩式對所有整數 n 相同。
+    2. **浮點偏離**：``α_one = (1 - 0.99)/2`` 是 0.0050000000000000044 ≠ 1/200，
+       k 正好落在邊界時兩式分岔。
+    3. **捨入偏離**：``_percentile_ci`` 端點捨入到小數 4 位，微小正下界會被讀成 0。
+
+    後兩者方向都是**更難判顯著**（保守），故不會放寬任何門檻。
+    """
+    import math
+    from fractions import Fraction
+
+    import numpy as np
+
+    from cpbl.models.winprob_val import _percentile_ci
+
+    ci = THRESHOLDS["boot_ci"]
+    alpha_exact = Fraction(1, 200)
+    assert alpha_exact == Fraction(1 - Fraction(99, 100), 2)
+    # 1｜精確算術下窮舉：兩式可容忍的最大 k 完全相同
+    assert not [n for n in range(2, 300_001)
+                if math.floor(alpha_exact * (n - 1))
+                != math.ceil(alpha_exact * n) - 1]
+
+    # 2｜實作用的 α_one 不是 1/200，邊界 k 因此分岔（已知反例，非精確恆等的證據）
+    alpha_one = (1 - ci) / 2
+    assert alpha_one != float(alpha_exact)
+
+    def ci_excludes_zero(n, k):
+        a = np.concatenate([np.full(k, -0.05), np.full(n - k, 0.05)])
+        lo, hi = _percentile_ci(a, ci)
+        return lo > 0 or hi < 0
+
+    for n, k in ((6000, 30), (12000, 60)):
+        assert (k / n) < alpha_one          # 尾機率式說「顯著」
+        assert not ci_excludes_zero(n, k)   # 百分位 CI 說「不排除 0」→ 兩式不一致
+        assert ci_excludes_zero(n, k - 1)   # 差一個次序統計量就一致
+
+    # 3｜捨入偏離：真實下界 3e-5 > 0，捨入到 4 位後被讀成 0
+    tiny = np.concatenate([np.full(29, -0.05), np.full(6000 - 29, 3e-5)])
+    assert _percentile_ci(tiny, ci) == [0.0, 0.0]
+
+
 def test_seed_ladder_extends_the_registered_set_deterministically():
     from cpbl.models.winprob_val import seed_ladder
 
