@@ -20,16 +20,16 @@
         "player_id": "0000001524",
         "player_name": "劉昱言",
         "er_rank": 1,
-        "er_innings": 21.1,
-        "er_strict_innings": 21.1,
+        "er_innings": 21.2,
+        "er_strict_innings": 21.2,
         "er_tail_outs": 0,
-        "er_appearances": 22,
+        "er_appearances": 23,
         "er_break": "earned_run_allowed",
         "run_rank": 1,
-        "run_innings": 21.1,
-        "run_strict_innings": 21.1,
+        "run_innings": 21.2,
+        "run_strict_innings": 21.2,
         "run_tail_outs": 0,
-        "run_appearances": 22,
+        "run_appearances": 23,
         "run_break": "run_allowed",
         "outs_delta": 0,
         "same_value": true
@@ -136,6 +136,31 @@
       },
       {
         "run_break_game": {
+          "game_date": "2026-05-05",
+          "opponent": "台鋼雄鷹二軍",
+          "runs": 1,
+          "earned_runs": 0,
+          "unearned_only": true
+        },
+        "player_id": "0000000938",
+        "player_name": "張瑞麟",
+        "er_rank": 6,
+        "er_innings": 11.2,
+        "er_strict_innings": 11.2,
+        "er_tail_outs": 0,
+        "er_appearances": 11,
+        "er_break": "earned_run_allowed",
+        "run_rank": 21,
+        "run_innings": 5.2,
+        "run_strict_innings": 5.2,
+        "run_tail_outs": 0,
+        "run_appearances": 6,
+        "run_break": "run_allowed",
+        "outs_delta": -18,
+        "same_value": false
+      },
+      {
+        "run_break_game": {
           "game_date": "2025-05-24",
           "opponent": "台鋼雄鷹二軍",
           "runs": 3,
@@ -144,7 +169,7 @@
         },
         "player_id": "0000006555",
         "player_name": "梅賽鍶",
-        "er_rank": 6,
+        "er_rank": 7,
         "er_innings": 11.0,
         "er_strict_innings": 11.0,
         "er_tail_outs": 0,
@@ -158,31 +183,6 @@
         "run_break": "run_allowed",
         "outs_delta": 0,
         "same_value": true
-      },
-      {
-        "run_break_game": {
-          "game_date": "2026-05-05",
-          "opponent": "台鋼雄鷹二軍",
-          "runs": 1,
-          "earned_runs": 0,
-          "unearned_only": true
-        },
-        "player_id": "0000000938",
-        "player_name": "張瑞麟",
-        "er_rank": 7,
-        "er_innings": 10.2,
-        "er_strict_innings": 10.2,
-        "er_tail_outs": 0,
-        "er_appearances": 10,
-        "er_break": "earned_run_allowed",
-        "run_rank": 28,
-        "run_innings": 4.2,
-        "run_strict_innings": 4.2,
-        "run_tail_outs": 0,
-        "run_appearances": 5,
-        "run_break": "run_allowed",
-        "outs_delta": -18,
-        "same_value": false
       },
       {
         "run_break_game": {
@@ -294,7 +294,7 @@
         "er_tail_outs": 0,
         "er_appearances": 8,
         "er_break": "earned_run_allowed",
-        "run_rank": 36,
+        "run_rank": 37,
         "run_innings": 3.1,
         "run_strict_innings": 3.1,
         "run_tail_outs": 0,
@@ -378,7 +378,19 @@
         "outs_delta": 0,
         "same_value": true
       }
-    ]
+    ],
+    "fingerprint": {
+      "data_asof": "2026-08-07",
+      "latest_game_date_any": "2026-09-15",
+      "pitchers": 556,
+      "appearances": 17824,
+      "appearance_digest": "36e8e58816df92976d66e6a577f46368",
+      "scoreboard_rows": 29812,
+      "scoreboard_digest": "866d6ff57580a33575158f0e08c2315f"
+    },
+    "union_size": 15,
+    "checkpoints_matched_er": 2,
+    "checkpoints_matched_run": 3
   },
   "media_checkpoints": [
     {

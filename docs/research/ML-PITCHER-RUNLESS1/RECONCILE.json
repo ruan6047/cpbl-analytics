@@ -13,18 +13,28 @@
         "C"
       ],
       "pitchers": 392,
-      "appearances_total": 22521,
-      "appearances_counted": 467,
-      "appearances_counted_verified_er0": 467,
+      "appearances_total": 22540,
+      "appearances_counted": 475,
+      "appearances_counted_verified_er0": 475,
       "tail_queries": 345,
       "tail_credited": 25,
-      "tail_outs": 132,
+      "tail_outs": 162,
       "tail_lower_bound_verified": 25,
       "tail_suffix_zero_runs_verified": 25,
       "skipped_postseason": 7,
       "skipped_postseason_verified_er0": 7,
       "exceptions": [],
-      "basis_label": "自責分"
+      "basis_label": "自責分",
+      "fingerprint": {
+        "data_asof": "2026-08-07",
+        "latest_game_date_any": "2026-08-07",
+        "pitchers": 392,
+        "appearances": 22540,
+        "appearance_digest": "90e01a437f8012e11e44c20adb7541f3",
+        "scoreboard_rows": 48173,
+        "scoreboard_digest": "858abf01175fb716eeef2bbfda4a150e"
+      },
+      "exception_count": 0
     },
     {
       "tier": "一軍例行賽 A",
@@ -39,18 +49,28 @@
         "C"
       ],
       "pitchers": 392,
-      "appearances_total": 22521,
-      "appearances_counted": 380,
-      "appearances_counted_verified_er0": 380,
+      "appearances_total": 22540,
+      "appearances_counted": 391,
+      "appearances_counted_verified_er0": 391,
       "tail_queries": 346,
       "tail_credited": 24,
-      "tail_outs": 126,
+      "tail_outs": 156,
       "tail_lower_bound_verified": 24,
       "tail_suffix_zero_runs_verified": 24,
       "skipped_postseason": 6,
       "skipped_postseason_verified_er0": 6,
       "exceptions": [],
-      "basis_label": "失分"
+      "basis_label": "失分",
+      "fingerprint": {
+        "data_asof": "2026-08-07",
+        "latest_game_date_any": "2026-08-07",
+        "pitchers": 392,
+        "appearances": 22540,
+        "appearance_digest": "90e01a437f8012e11e44c20adb7541f3",
+        "scoreboard_rows": 48173,
+        "scoreboard_digest": "858abf01175fb716eeef2bbfda4a150e"
+      },
+      "exception_count": 0
     },
     {
       "tier": "二軍例行賽 D",
@@ -63,19 +83,29 @@
         "D",
         "F"
       ],
-      "pitchers": 554,
-      "appearances_total": 17806,
-      "appearances_counted": 816,
-      "appearances_counted_verified_er0": 816,
-      "tail_queries": 491,
-      "tail_credited": 20,
-      "tail_outs": 161,
-      "tail_lower_bound_verified": 20,
-      "tail_suffix_zero_runs_verified": 20,
+      "pitchers": 556,
+      "appearances_total": 17824,
+      "appearances_counted": 820,
+      "appearances_counted_verified_er0": 820,
+      "tail_queries": 492,
+      "tail_credited": 19,
+      "tail_outs": 160,
+      "tail_lower_bound_verified": 19,
+      "tail_suffix_zero_runs_verified": 19,
       "skipped_postseason": 0,
       "skipped_postseason_verified_er0": 0,
       "exceptions": [],
-      "basis_label": "自責分"
+      "basis_label": "自責分",
+      "fingerprint": {
+        "data_asof": "2026-08-07",
+        "latest_game_date_any": "2026-09-15",
+        "pitchers": 556,
+        "appearances": 17824,
+        "appearance_digest": "36e8e58816df92976d66e6a577f46368",
+        "scoreboard_rows": 29812,
+        "scoreboard_digest": "866d6ff57580a33575158f0e08c2315f"
+      },
+      "exception_count": 0
     },
     {
       "tier": "二軍例行賽 D",
@@ -88,19 +118,29 @@
         "D",
         "F"
       ],
-      "pitchers": 554,
-      "appearances_total": 17806,
-      "appearances_counted": 683,
-      "appearances_counted_verified_er0": 683,
-      "tail_queries": 501,
-      "tail_credited": 23,
-      "tail_outs": 181,
-      "tail_lower_bound_verified": 23,
-      "tail_suffix_zero_runs_verified": 23,
+      "pitchers": 556,
+      "appearances_total": 17824,
+      "appearances_counted": 687,
+      "appearances_counted_verified_er0": 687,
+      "tail_queries": 502,
+      "tail_credited": 22,
+      "tail_outs": 180,
+      "tail_lower_bound_verified": 22,
+      "tail_suffix_zero_runs_verified": 22,
       "skipped_postseason": 0,
       "skipped_postseason_verified_er0": 0,
       "exceptions": [],
-      "basis_label": "失分"
+      "basis_label": "失分",
+      "fingerprint": {
+        "data_asof": "2026-08-07",
+        "latest_game_date_any": "2026-09-15",
+        "pitchers": 556,
+        "appearances": 17824,
+        "appearance_digest": "36e8e58816df92976d66e6a577f46368",
+        "scoreboard_rows": 29812,
+        "scoreboard_digest": "866d6ff57580a33575158f0e08c2315f"
+      },
+      "exception_count": 0
     }
   ],
   "cross_basis": [
@@ -111,16 +151,26 @@
         "E",
         "C"
       ],
-      "appearances": 22521,
-      "x1_runs_ne_earned_runs": 2163,
-      "x1_appearances_with_runs": 9631,
-      "x1_unearned_only": 764,
+      "appearances": 22540,
+      "x1_runs_ne_earned_runs": 2165,
+      "x1_appearances_with_runs": 9637,
+      "x1_unearned_only": 765,
       "x1_earned_without_runs": 0,
       "x2_inversion_risk_rows": 0,
       "x2_runs_null": 0,
       "x2_earned_runs_null": 0,
       "x3_pitchers_compared": 392,
-      "exceptions": []
+      "exceptions": [],
+      "fingerprint": {
+        "data_asof": "2026-08-07",
+        "latest_game_date_any": "2026-08-07",
+        "pitchers": 392,
+        "appearances": 22540,
+        "appearance_digest": "90e01a437f8012e11e44c20adb7541f3",
+        "scoreboard_rows": 48173,
+        "scoreboard_digest": "858abf01175fb716eeef2bbfda4a150e"
+      },
+      "exception_count": 0
     },
     {
       "tier": "二軍例行賽 D",
@@ -128,16 +178,26 @@
         "D",
         "F"
       ],
-      "appearances": 17806,
+      "appearances": 17824,
       "x1_runs_ne_earned_runs": 1682,
-      "x1_appearances_with_runs": 7313,
+      "x1_appearances_with_runs": 7321,
       "x1_unearned_only": 675,
       "x1_earned_without_runs": 0,
       "x2_inversion_risk_rows": 0,
       "x2_runs_null": 0,
       "x2_earned_runs_null": 0,
-      "x3_pitchers_compared": 554,
-      "exceptions": []
+      "x3_pitchers_compared": 556,
+      "exceptions": [],
+      "fingerprint": {
+        "data_asof": "2026-08-07",
+        "latest_game_date_any": "2026-09-15",
+        "pitchers": 556,
+        "appearances": 17824,
+        "appearance_digest": "36e8e58816df92976d66e6a577f46368",
+        "scoreboard_rows": 29812,
+        "scoreboard_digest": "866d6ff57580a33575158f0e08c2315f"
+      },
+      "exception_count": 0
     }
   ]
 }
