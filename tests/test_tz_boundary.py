@@ -162,7 +162,7 @@ def test_in_progress_years_lower_bound_uses_taipei_day() -> None:
 
 
 def test_legacy_chain_helper_deliberately_keeps_utc_default() -> None:
-    """舊 helper 的預設值刻意留 UTC——呼叫端在 G4 凍結的 refresh 鏈上。
+    """舊 helper 的預設值刻意留 UTC——鏈端切換待 #53 G4 Phase B 後另卡授權。
 
     這是**明確決定**而非遺漏：它是上界用法（保守），Phase 2 才隨判準一起切。
     """

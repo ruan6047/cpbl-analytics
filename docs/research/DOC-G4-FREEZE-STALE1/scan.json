@@ -1,0 +1,323 @@
+{
+  "generated_at": "2026-08-09T00:22:28+08:00",
+  "scope": "所有 Git 追蹤檔案，排除本 artifact 目錄以避免自指。",
+  "patterns": [
+    "G4.{0,120}(凍結|收窗後|觀測窗)|(凍結|收窗後).{0,120}G4|G4.*freeze|freeze.*G4"
+  ],
+  "total_hits": 42,
+  "by_disposition": {
+    "active_data_exception": 2,
+    "active_scope_exclusion": 3,
+    "historical_artifact": 24,
+    "historical_task_record": 2,
+    "needs_pm_followup": 1,
+    "resolved_gate3_fact": 2,
+    "resolved_gate3_with_phase_b_dependency": 2,
+    "task_context": 6
+  },
+  "needs_pm_followup": [
+    {
+      "file": "tests/test_box_revisions_deep_layer.py",
+      "line": 113,
+      "text": "（G4 觀測凍結、且卡面要求「深度層與每日窗分開，不要把每日窗撐大」）。",
+      "disposition": "needs_pm_followup",
+      "rationale": "未能自動歸入歷史紀錄、Gate 3 已解除事實、Phase B 依賴或資料例外。"
+    }
+  ],
+  "hits": [
+    {
+      "file": "docs/AI_WORKFLOW.md",
+      "line": 26,
+      "text": "11. **派工包六條**：範圍外發現回報 PM 禁 spawn_task／不停等背景通知／禁 `gh pr update-branch`／詭異數據人工判讀＋新聞佐證四約束（僅定性、官方數值權威、URL＋日期、第三方泛化）／trailer 連續單一區塊／CLI 探索紅線（[`dispatch-package.md`](../.ai-workflow/templates/dispatch-package.md)）。**本專案當前仍有副作用的 CLI 入口：`cpbl-refresh-recent`（連 `--help` 都會觸發每日鏈）；此限制仍在，但 Gate 3 已於 2026-08-03 提前收窗並解除 G4 凍結，修正 `--help` 行為的前置條件已滿足**（[`INGEST-GAME-TM-REFACTOR1-G4.md`](tasks/INGEST-GAME-TM-REFACTOR1-G4.md) L21、L362）。",
+      "disposition": "resolved_gate3_fact",
+      "rationale": "明示 Gate 3 已收窗並解除觀測凍結。"
+    },
+    {
+      "file": "docs/design/GAME-PAGE-THREE-STATES.md",
+      "line": 16,
+      "text": "- 紅線沿用（2026-08-06 修訂）：WP 機率**水平值**不作敘事宣稱，**\\|ΔWP\\| 序數選取與變化量顯示為可**（brief 非目標欄兩次修訂；守門條件見 §4.2）；正式文案**禁球迷暱稱**（暱稱僅限賽況頁焦點區既有用法）；`/api/info` 契約不動；每日鏈與 G4 凍結檔不動；API 唯讀。",
+      "disposition": "active_scope_exclusion",
+      "rationale": "不動逐球 writer 的範圍約束仍由 #53 資源佔用支撐；術語待其 owner 收斂。"
+    },
+    {
+      "file": "docs/design/GAME-PAGE-THREE-STATES.md",
+      "line": 205,
+      "text": "- **不動** `pa_build.py`（G4 凍結期外仍屬 canonical builder，本卡只 import 其純函式）。",
+      "disposition": "active_scope_exclusion",
+      "rationale": "不動逐球 writer 的範圍約束仍由 #53 資源佔用支撐；術語待其 owner 收斂。"
+    },
+    {
+      "file": "docs/research/DEV-CLI-HELP-GUARD1/audit_cli_help.py",
+      "line": 65,
+      "text": "# 這些檔案由 INGEST-GAME-TM-REFACTOR1-G4 觀測凍結，本卡只盤點不修改。",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 audit 的當時寫入邊界與產出，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/DEV-CLI-HELP-GUARD1/audit_cli_help.py",
+      "line": 397,
+      "text": "\"🧊 ＝ INGEST-GAME-TM-REFACTOR1-G4 觀測凍結檔，本卡只盤點不修改。\",",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 audit 的當時寫入邊界與產出，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/DEV-CLI-HELP-GUARD1/audit_cli_help.py",
+      "line": 404,
+      "text": "\"DEV-CLI-HELP-GUARD1 的寫入集只有 `src/cpbl/ingest/`（扣掉兩個 G4 凍結檔）、\",",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 audit 的當時寫入邊界與產出，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/DEV-CLI-HELP-GUARD1/audit_cli_help.py",
+      "line": 408,
+      "text": "\"- 🧊 `cpbl-refresh-recent` — G4 觀測凍結檔，明文排除（`git diff` 零 diff 為驗收條件）。\",",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 audit 的當時寫入邊界與產出，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/DEV-CLI-HELP-GUARD1/audit_cli_help.py",
+      "line": 422,
+      "text": "+ (\"　**（G4 凍結檔，本卡不修）**\" if e.frozen else \"\"))",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 audit 的當時寫入邊界與產出，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit-before.md",
+      "line": 86,
+      "text": "🧊 ＝ INGEST-GAME-TM-REFACTOR1-G4 觀測凍結檔，本卡只盤點不修改。",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 audit 的當時寫入邊界與產出，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit-before.md",
+      "line": 93,
+      "text": "DEV-CLI-HELP-GUARD1 的寫入集只有 `src/cpbl/ingest/`（扣掉兩個 G4 凍結檔）、",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 audit 的當時寫入邊界與產出，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit-before.md",
+      "line": 97,
+      "text": "- 🧊 `cpbl-refresh-recent` — G4 觀測凍結檔，明文排除（`git diff` 零 diff 為驗收條件）。",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 audit 的當時寫入邊界與產出，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit-before.md",
+      "line": 112,
+      "text": "- `cpbl-refresh-recent` — 主流程觸及 cpbl.db.migrate　**（G4 凍結檔，本卡不修）**",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 audit 的當時寫入邊界與產出，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit.md",
+      "line": 86,
+      "text": "🧊 ＝ INGEST-GAME-TM-REFACTOR1-G4 觀測凍結檔，本卡只盤點不修改。",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 audit 的當時寫入邊界與產出，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit.md",
+      "line": 93,
+      "text": "DEV-CLI-HELP-GUARD1 的寫入集只有 `src/cpbl/ingest/`（扣掉兩個 G4 凍結檔）、",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 audit 的當時寫入邊界與產出，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit.md",
+      "line": 97,
+      "text": "- 🧊 `cpbl-refresh-recent` — G4 觀測凍結檔，明文排除（`git diff` 零 diff 為驗收條件）。",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 audit 的當時寫入邊界與產出，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit.md",
+      "line": 110,
+      "text": "- `cpbl-refresh-recent` — 主流程觸及 cpbl.db.migrate　**（G4 凍結檔，本卡不修）**",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 audit 的當時寫入邊界與產出，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/DEV-CLI-HELP-GUARD2/cli-help-audit-before.md",
+      "line": 86,
+      "text": "🧊 ＝ INGEST-GAME-TM-REFACTOR1-G4 觀測凍結檔，本卡只盤點不修改。",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 audit 的當時寫入邊界與產出，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/DEV-CLI-HELP-GUARD2/cli-help-audit-before.md",
+      "line": 93,
+      "text": "DEV-CLI-HELP-GUARD1 的寫入集只有 `src/cpbl/ingest/`（扣掉兩個 G4 凍結檔）、",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 audit 的當時寫入邊界與產出，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/DEV-CLI-HELP-GUARD2/cli-help-audit-before.md",
+      "line": 97,
+      "text": "- 🧊 `cpbl-refresh-recent` — G4 觀測凍結檔，明文排除（`git diff` 零 diff 為驗收條件）。",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 audit 的當時寫入邊界與產出，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/DEV-CLI-HELP-GUARD2/cli-help-audit-before.md",
+      "line": 110,
+      "text": "- `cpbl-refresh-recent` — 主流程觸及 cpbl.db.migrate　**（G4 凍結檔，本卡不修）**",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 audit 的當時寫入邊界與產出，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/DEV-CLI-HELP-GUARD2/cli-help-audit.md",
+      "line": 86,
+      "text": "🧊 ＝ INGEST-GAME-TM-REFACTOR1-G4 觀測凍結檔，本卡只盤點不修改。",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 audit 的當時寫入邊界與產出，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/DEV-CLI-HELP-GUARD2/cli-help-audit.md",
+      "line": 93,
+      "text": "DEV-CLI-HELP-GUARD1 的寫入集只有 `src/cpbl/ingest/`（扣掉兩個 G4 凍結檔）、",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 audit 的當時寫入邊界與產出，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/DEV-CLI-HELP-GUARD2/cli-help-audit.md",
+      "line": 97,
+      "text": "- 🧊 `cpbl-refresh-recent` — G4 觀測凍結檔，明文排除（`git diff` 零 diff 為驗收條件）。",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 audit 的當時寫入邊界與產出，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/DEV-CLI-HELP-GUARD2/cli-help-audit.md",
+      "line": 107,
+      "text": "- `cpbl-refresh-recent` — 主流程觸及 cpbl.db.migrate　**（G4 凍結檔，本卡不修）**",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 audit 的當時寫入邊界與產出，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/INIT-GAME-RECAP/spike-report.md",
+      "line": 146,
+      "text": "→ **PASS**。單場 recap 完全可在 request 內算完，無需物化表、無需進每日鏈（G4 凍結無涉）。",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 research／spike 的當時範圍說明，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/INIT-GAME-RECAP_DISCOVERY-BRIEF.md",
+      "line": 50,
+      "text": "- **全即時算、每日鏈零改動**（G4 凍結不受影響）：PA 序列 × `run_expectancy` 矩陣查表",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 research／spike 的當時範圍說明，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/research/INIT-GAME-RECAP_DISCOVERY-BRIEF.md",
+      "line": 64,
+      "text": "DB writer、零鏈改動＝G4 凍結無涉。原分級渲染降級為極端 fallback（snapshot",
+      "disposition": "historical_artifact",
+      "rationale": "已結案 research／spike 的當時範圍說明，不改寫歷史證據。"
+    },
+    {
+      "file": "docs/tasks/DATA-RE24-GHOST-RUNNER1.md",
+      "line": 18,
+      "text": "- [ ] 回歸：未歸類=0 釘成測試（spike 建議）；G4 凍結檔零 diff",
+      "disposition": "historical_task_record",
+      "rationale": "已結案卡的當時驗收或資源邊界，保留歷史紀錄。"
+    },
+    {
+      "file": "docs/tasks/DATA-TZ-BOUNDARY1.md",
+      "line": 19,
+      "text": "- [ ] 鏈端（`src/cpbl/ingest/`）用點：#113 已將 `run_refresh_recent.py` 的完成場判準改為共用 `completed_games_sql()`，故不再是「只記錄不改」；但該 helper 預設仍為 UTC，且 `cpbl_pitch_tracking.py` 仍有原始 `CURRENT_DATE` 用點。兩者的 Asia/Taipei 日界切換**明確依賴 #53 G4 Phase B 完成後**的另行授權鏈端實作卡；Gate 3 已於 2026-08-03 提前收窗並解除凍結，不能再以 Gate 3 觀測凍結作為延後理由（[`INGEST-GAME-TM-REFACTOR1-G4.md`](INGEST-GAME-TM-REFACTOR1-G4.md) L21、L362）。",
+      "disposition": "resolved_gate3_with_phase_b_dependency",
+      "rationale": "Gate 3 觀測凍結已解除；鏈端後續仍依賴尚未完成的 #53 G4 Phase B。"
+    },
+    {
+      "file": "docs/tasks/DEV-CLI-HELP-GUARD1.md",
+      "line": 21,
+      "text": "- [ ] G4 凍結檔零 diff：run_refresh_recent.py、cpbl_pitch_tracking.py（在資源宣告 ingest/ 內但明文排除）",
+      "disposition": "historical_task_record",
+      "rationale": "已結案卡的當時驗收或資源邊界，保留歷史紀錄。"
+    },
+    {
+      "file": "docs/tasks/DOC-G4-FREEZE-STALE1.md",
+      "line": 1,
+      "text": "# DOC-G4-FREEZE-STALE1 修正 G4 觀測凍結過期陳述與可重跑掃描　〔T2〕",
+      "disposition": "task_context",
+      "rationale": "本卡問題與驗收的描述，不是現行凍結宣稱。"
+    },
+    {
+      "file": "docs/tasks/DOC-G4-FREEZE-STALE1.md",
+      "line": 6,
+      "text": "- DB：db_scope=none　資源：`scripts/data_tz_boundary1.py`、`src/cpbl/completion.py`、`tests/test_tz_boundary.py`、`tests/test_cli_help_guard.py`、`docs/tasks/DEV-CLI-HELP-GUARD2.md`、`docs/tasks/DATA-TZ-BOUNDARY1.md`、`docs/research/DOC-G4-FREEZE-STALE1/`",
+      "disposition": "task_context",
+      "rationale": "本卡問題與驗收的描述，不是現行凍結宣稱。"
+    },
+    {
+      "file": "docs/tasks/DOC-G4-FREEZE-STALE1.md",
+      "line": 9,
+      "text": "current-state 見對應 GitHub Issue／Project item（卡ID：DOC-G4-FREEZE-STALE1），不重複於此檔。",
+      "disposition": "task_context",
+      "rationale": "本卡問題與驗收的描述，不是現行凍結宣稱。"
+    },
+    {
+      "file": "docs/tasks/DOC-G4-FREEZE-STALE1.md",
+      "line": 13,
+      "text": "- **痛點**：docs/AI_WORKFLOW.md:26 寫「G4 凍結中，收窗後修」、docs/tasks/DATA-TZ-BOUNDARY1.md:19 寫「鏈端只記錄不改——G4 觀測凍結」，但權威來源 docs/tasks/INGEST-GAME-TM-REFACTOR1-G4.md L21/L362 明載 Gate 3 已於 2026-08-03（第 9 天、run_id=14）依需求方裁示提前收窗、凍結範圍解除。文件與權威來源互相矛盾，讀者無從判斷哪一份為準；#113 的執行者即因此在動鏈端碼時缺少對齊依據，由查核者以 DATA-INCOMPLETE-BOX-INGEST1-R1-02 指出",
+      "disposition": "task_context",
+      "rationale": "本卡問題與驗收的描述，不是現行凍結宣稱。"
+    },
+    {
+      "file": "docs/tasks/DOC-G4-FREEZE-STALE1.md",
+      "line": 20,
+      "text": "- [ ] 全庫掃一次同類過期陳述：grep 「G4」「凍結」「收窗後」等詞，把命中結果逐條判定為仍有效／已過期，artifact 由指令輸出產生而非人工列舉",
+      "disposition": "task_context",
+      "rationale": "本卡問題與驗收的描述，不是現行凍結宣稱。"
+    },
+    {
+      "file": "docs/tasks/DOC-G4-FREEZE-STALE1.md",
+      "line": 23,
+      "text": "- [ ] 全庫掃描 artifact 與可重跑指令落在 `docs/research/DOC-G4-FREEZE-STALE1/`，每個命中都帶判定與理由",
+      "disposition": "task_context",
+      "rationale": "本卡問題與驗收的描述，不是現行凍結宣稱。"
+    },
+    {
+      "file": "docs/tasks/INGEST-LIVE-RECONCILE1.md",
+      "line": 36,
+      "text": "1. Gate 3 觀測窗已於 2026-08-03 收窗、凍結解除，本條的觀測隔離義務**已履行完畢**。改寫正式 `pitch_tracking` writer 的權責自此歸 `INGEST-GAME-TM-REFACTOR1-G4`：本卡在該卡完成 cutover 並取得 production sign-off 前，仍不得改動逐球正式 writer，亦不得把 provisional 資料併入其對帳母體。〔writer 單一權責〕",
+      "disposition": "resolved_gate3_fact",
+      "rationale": "明示 Gate 3 已收窗並解除觀測凍結。"
+    },
+    {
+      "file": "scripts/data_tz_boundary1.py",
+      "line": 38,
+      "text": "# 鏈端時區切換須待 #53 G4 Phase B 後另卡授權；不是已解除的 Gate 3 觀測凍結。",
+      "disposition": "resolved_gate3_with_phase_b_dependency",
+      "rationale": "Gate 3 觀測凍結已解除；鏈端後續仍依賴尚未完成的 #53 G4 Phase B。"
+    },
+    {
+      "file": "scripts/g4_gate_report.py",
+      "line": 1,
+      "text": "\"\"\"INGEST-GAME-TM-REFACTOR1-G4 Phase A：gate 判定與凍結例外後的紅線 1 複判（唯讀）。",
+      "disposition": "active_data_exception",
+      "rationale": "需求方 2026-08-05 裁定的資料例外清單，非 Gate 3 觀測凍結。"
+    },
+    {
+      "file": "src/cpbl/ingest/cpbl_pitch_tracking.py",
+      "line": 45,
+      "text": "# ── 凍結例外清單（INGEST-GAME-TM-REFACTOR1-G4 紅線 1；需求方 2026-08-05 裁定）────────",
+      "disposition": "active_data_exception",
+      "rationale": "需求方 2026-08-05 裁定的資料例外清單，非 Gate 3 觀測凍結。"
+    },
+    {
+      "file": "src/cpbl/models/pa_facts.py",
+      "line": 37,
+      "text": "紅線：唯讀（不寫任何表）；不改 ``pa_build``／每日鏈／G4 凍結檔。",
+      "disposition": "active_scope_exclusion",
+      "rationale": "不動逐球 writer 的範圍約束仍由 #53 資源佔用支撐；術語待其 owner 收斂。"
+    },
+    {
+      "file": "tests/test_box_revisions_deep_layer.py",
+      "line": 113,
+      "text": "（G4 觀測凍結、且卡面要求「深度層與每日窗分開，不要把每日窗撐大」）。",
+      "disposition": "needs_pm_followup",
+      "rationale": "未能自動歸入歷史紀錄、Gate 3 已解除事實、Phase B 依賴或資料例外。"
+    }
+  ]
+}
