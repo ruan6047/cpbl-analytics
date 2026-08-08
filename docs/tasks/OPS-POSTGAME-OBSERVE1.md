@@ -9,7 +9,7 @@
 - 範圍：唯讀觀測，於此簡述。
 - Discovery：—（T2）
 - Design：Design Gate N/A（只量測既有官方資料的可用時間，不改產品、排程或寫入行為）
-- owner、worktree、iteration、最後交接、阻塞與交付／部署 current-state 見 [`../TASKS.md`](../TASKS.md) Ledger；歷史寫入 adapter event log。
+- owner、worktree、iteration、最後交接、阻塞與交付／部署 current-state 見 GitHub Issue＋[Project #4](https://github.com/users/ruan6047/projects/4)；歷史交接留在 Issue timeline 的結構化 comment。
 
 ## 背景
 

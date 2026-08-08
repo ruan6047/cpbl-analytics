@@ -6,7 +6,7 @@
 - 部署：是（shadow only）　環境：獲核可的遠端路線　Design Gate：N/A；內部維運 worker
 - 計畫：[`../../ops-remote-crawler-rollout.md`](../../ops-remote-crawler-rollout.md) Phase 3
 - 依賴：`OPS-REMOTE-ROUTE1` 明確 GO＋需求方 sign-off；無 GO 不得 claim。
-- owner、worktree、iteration、最後交接與狀態見 [`../TASKS.md`](../TASKS.md) Ledger。
+- owner、worktree、iteration、最後交接與交付／部署 current-state 見 GitHub Issue＋[Project #4](https://github.com/users/ruan6047/projects/4)；歷史交接留在 Issue timeline 的結構化 comment。
 - **前提查證（2026-07-27）**：www 對 VPS 仍 404（當日實測）、stats 域全開；本機 launchd 每日爬連日全綠。**本鏈降為可用性保險**（防本機長期離線），且解除本機依賴的候選正解已變：stats 域自有賽程與單場 API（含 LiveLog），若 TM Gate3（~8/7）與 live observer 證據支持來源遷移，應評估開「stats 域 VPS 爬蟲」新卡取代本鏈——8/7 後由需求方裁定，屆時重評本鏈存廢。
 
 ## 驗收

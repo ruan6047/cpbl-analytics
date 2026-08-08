@@ -9,7 +9,7 @@
 - 範圍：`scripts/backup-prod-db.sh` 的**外掛層**（異地推送與演練），視 Discovery 結論可能新增演練腳本、排程設定與告警去向
 - Discovery：**本卡第一項交付是「現行備份的故障域到底有幾個、異地目標選什麼」的判斷**，不是直接寫推送腳本
 - Design：Design Gate N/A——無使用者可見介面
-- owner、worktree、iteration、最後交接、阻塞與交付／部署 current-state 見 [`../TASKS.md`](../TASKS.md) Ledger；歷史寫入 adapter event log。
+- owner、worktree、iteration、最後交接、阻塞與交付／部署 current-state 見 GitHub Issue＋[Project #4](https://github.com/users/ruan6047/projects/4)；歷史交接留在 Issue timeline 的結構化 comment。
 
 ## 問題陳述
 

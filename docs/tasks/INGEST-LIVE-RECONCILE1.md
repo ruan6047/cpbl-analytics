@@ -10,7 +10,7 @@
 - 範圍：將官方 LIVE 視為 provisional 基底，讓每日正式爬取可依來源版本校正，而非讓 Redis 快照直接覆寫賽後權威資料。
 - Discovery：`docs/research/GAME_TM_SHADOW_OBSERVATION.md` §4–5（現行正式 writer 與單場 API 的 14 天 shadow 證據）；需補本卡來源版本／衝突矩陣。
 - Design：待需求方核可（provisional 欄位範圍、promotion／correction 優先序、使用者可見的 provisional 標示、保留期與回滾）。
-- owner、worktree、iteration、最後交接、阻塞與交付／部署 current-state 見 [`../TASKS.md`](../TASKS.md) Ledger；歷史寫入 adapter event log。
+- owner、worktree、iteration、最後交接、阻塞與交付／部署 current-state 見 GitHub Issue＋[Project #4](https://github.com/users/ruan6047/projects/4)；歷史交接留在 Issue timeline 的結構化 comment。
 
 ## 背景
 

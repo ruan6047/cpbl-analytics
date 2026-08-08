@@ -9,7 +9,7 @@
 - 範圍：[`../research/GAME_TM_SHADOW_OBSERVATION.md`](../research/GAME_TM_SHADOW_OBSERVATION.md) §5 條件 4（Gate 4 cutover），承接同文件條件 1–3 已達成之觀測結論。
 - Discovery：[`../research/GAME_TM_SHADOW_OBSERVATION.md`](../research/GAME_TM_SHADOW_OBSERVATION.md) §2–5（Gate 3 shadow 對帳基準、9 天觀測與晉升條件）
 - Design：N/A —— 純技術資料管線切換，無使用者可見變更；逐球 UI 與 provisional 標示屬 `INGEST-LIVE-RECONCILE1` 範圍。
-- owner、worktree、iteration、最後交接、阻塞與交付／部署 current-state 見 [`../TASKS.md`](../TASKS.md) Ledger；歷史寫入 adapter event log。
+- owner、worktree、iteration、最後交接、阻塞與交付／部署 current-state 見 GitHub Issue＋[Project #4](https://github.com/users/ruan6047/projects/4)；歷史交接留在 Issue timeline 的結構化 comment。
 
 ## 背景
 

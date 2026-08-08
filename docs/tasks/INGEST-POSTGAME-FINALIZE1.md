@@ -9,7 +9,7 @@
 - 範圍：依 [`OPS-POSTGAME-OBSERVE1`](OPS-POSTGAME-OBSERVE1.md) 的核可結果實作；不得先行假設延遲門檻。
 - Discovery：`docs/research/OPS-POSTGAME-OBSERVE1_RESULTS.md`（完成後引用其實測 p50／p95、例外與建議節點）
 - Design：待需求方核可（觸發條件、重試節點／上限、終止條件、suspended／和局策略與 production 同步範圍）
-- owner、worktree、iteration、最後交接、阻塞與交付／部署 current-state 見 [`../TASKS.md`](../TASKS.md) Ledger；歷史寫入 adapter event log。
+- owner、worktree、iteration、最後交接、阻塞與交付／部署 current-state 見 GitHub Issue＋[Project #4](https://github.com/users/ruan6047/projects/4)；歷史交接留在 Issue timeline 的結構化 comment。
 
 ## 背景
 
