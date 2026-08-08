@@ -273,7 +273,7 @@ def streak_payload(
     limit: int = 10,
     basis: Basis = EARNED_RUN_BASIS,
 ) -> dict:
-    """連續無（自責）失分局數（下界）。`player_id` 指定時回單人，否則回該季母體排行。
+    """連續無（自責）失分出賽。`appearances_counted` 是零推論主值；局數是輔助下界。
 
     `basis` 決定判準與對外名詞（`EARNED_RUN_BASIS` 預設／`RUN_BASIS`）。payload 形狀
     兩者完全相同，前端可用同一個元件消費；差異全在 `metric`／`metric_label`／`note`／
@@ -282,7 +282,7 @@ def streak_payload(
     `season`／`team` 只篩**母體**（誰進榜、算哪一隊），不裁切連續紀錄本身——紀錄可回溯到
     更早球季，資料邊界見 `DATA_FROM_YEAR`。
 
-    `kind_code` 是**計入局數**的例行賽賽別；同層的季後賽仍需載入（乾淨跳過、掉分中斷，
+    `kind_code` 是**計入出賽**的例行賽賽別；同層的季後賽仍需載入（乾淨跳過、掉分中斷，
     見 `scoreless_streak` 模組 docstring），故查詢範圍為 `kinds_of(kind_code)`。
     """
     kinds = kinds_of(kind_code)
@@ -302,8 +302,11 @@ def streak_payload(
     items = [build_item(pid, names.get(pid), by_player[pid], res, basis)
              for pid, res in results.items()]
     if player_id is None:
-        items = [i for i in items if i["outs"] > 0]
-    items.sort(key=lambda i: (-i["outs"], -i["strict_outs"], i["player_id"]))
+        items = [i for i in items if i["appearances_counted"] > 0]
+    # 主標已改為零推論的出賽數，排行必須用同一個值；`outs`／`innings` 是含鴿籠尾段的
+    # 輔助下界，不能繼續反過來決定榜單。後兩項只在同出賽數時提供穩定的次序。
+    items.sort(key=lambda i: (-i["appearances_counted"], -i["strict_outs"],
+                              -i["outs"], i["player_id"]))
     if player_id is None:
         items = items[:limit]
 
@@ -325,7 +328,7 @@ def streak_payload(
         "lower_bound_note": LOWER_BOUND_NOTE,
         "season": season,
         "kind_code": kind_code,
-        "kinds_counted": list(counted_kinds),   # 計入局數的賽別（例行賽）
+        "kinds_counted": list(counted_kinds),   # 計入出賽的賽別（例行賽）
         "kinds_in_scope": kinds,                # 一併載入、可中斷紀錄的賽別（含季後賽）
         "scope_note": SCOPE_NOTE,
         "tail_basis_note": TAIL_BASIS_NOTE,

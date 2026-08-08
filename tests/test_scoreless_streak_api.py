@@ -1,10 +1,12 @@
-"""連續無自責分局數的 API 契約（需本機 DB；無 DB 時 skip）。
+"""連續無自責分出賽的 API 契約（需本機 DB；無 DB 時 skip）。
 
 純函式的保守性紅線在 `tests/test_scoreless_streak.py`；本檔只釘 API 對外契約：
 名詞（紅線 5）、下界關係、資料邊界標示（紅線 4），以及真實資料上的 R1 抽驗。
 """
 
 from __future__ import annotations
+
+from types import SimpleNamespace
 
 import pytest
 
@@ -28,12 +30,13 @@ def _get(path: str):
 
 
 def test_metric_wording_says_earned_run():
-    """**紅線 5**：對外文案必須明確是「無自責分」，不可被讀成「無失分」。"""
+    """主標是零推論的無自責分出賽，不可被讀成無失分或局數下界。"""
     d = _get(f"{PATH}?limit=5")
 
-    assert "自責" in d["metric_label"]
+    assert d["metric_label"] == "連續無自責分出賽"
     assert "自責" in d["note"] and "無失分" in d["note"]      # 明講兩者不同
-    assert d["metric"] == "consecutive_earned_run_free_innings"
+    assert "零推論" in d["note"]
+    assert d["metric"] == "consecutive_earned_run_free_appearances"
     assert d["data_from_year"] == DATA_FROM_YEAR
 
 
@@ -251,6 +254,61 @@ FROZEN_ITEM_KEYS = {
 # 而不是只存在於交付文件的敘述裡——差集由測試算出來，不是人工列的。
 PRE_BACKFILL_ER_TOP_LEVEL_KEYS = FROZEN_TOP_LEVEL_KEYS - {"basis_field", "lower_bound_note"}
 
+# ML-PITCHER-SCORELESS-CLAIM1 前的公開主指標。這次沒有增減 key，卻把兩支已存在端點
+# 從「局數下界」改成「零推論出賽數」；因此相容性破壞在值語意，不可被 key 集合不變掩蓋。
+PRE_CLAIM_METRICS = {
+    PATH: "consecutive_earned_run_free_innings",
+    RUN_PATH: "consecutive_run_free_innings",
+}
+CLAIM_METRICS = {
+    PATH: "consecutive_earned_run_free_appearances",
+    RUN_PATH: "consecutive_run_free_appearances",
+}
+
+
+def test_claim_changes_only_declared_metric_semantics_for_both_bases():
+    """這是刻意的相容性破壞：主值改為出賽，payload key 形狀則維持不變。"""
+    from cpbl.models.scoreless_streak import EARNED_RUN_BASIS, RUN_BASIS
+
+    actual = {PATH: EARNED_RUN_BASIS.metric, RUN_PATH: RUN_BASIS.metric}
+    changed = {path: (PRE_CLAIM_METRICS[path], value)
+               for path, value in actual.items() if value != PRE_CLAIM_METRICS[path]}
+
+    assert changed == {path: (PRE_CLAIM_METRICS[path], CLAIM_METRICS[path])
+                       for path in (PATH, RUN_PATH)}
+    assert EARNED_RUN_BASIS.metric_label == "連續無自責分出賽"
+    assert RUN_BASIS.metric_label == "連續無失分出賽"
+    assert "零推論" in EARNED_RUN_BASIS.metric_note
+    assert "零推論" in RUN_BASIS.metric_note
+
+
+def test_ranking_and_membership_follow_zero_inference_appearances(monkeypatch):
+    """尾段局數再長也不能壓過或納入零推論出賽榜。"""
+    from cpbl.api import scoreless
+
+    apps = {
+        "tail_only": [SimpleNamespace(year=2026, team_code="T", game_date=None)],
+        "one_clean": [SimpleNamespace(year=2026, team_code="T", game_date=None)],
+        "two_clean": [SimpleNamespace(year=2026, team_code="T", game_date=None)],
+    }
+    rows = {
+        "tail_only": {"player_id": "tail_only", "appearances_counted": 0,
+                      "strict_outs": 0, "outs": 99},
+        "one_clean": {"player_id": "one_clean", "appearances_counted": 1,
+                      "strict_outs": 3, "outs": 3},
+        "two_clean": {"player_id": "two_clean", "appearances_counted": 2,
+                      "strict_outs": 4, "outs": 4},
+    }
+    monkeypatch.setattr(scoreless, "kinds_of", lambda _kind: ("A",))
+    monkeypatch.setattr(scoreless, "load_appearances", lambda *_args: (apps, {}))
+    monkeypatch.setattr(scoreless, "compute_all", lambda by_player, *_args, **_kwargs:
+                        {pid: object() for pid in by_player})
+    monkeypatch.setattr(scoreless, "build_item", lambda pid, *_args: rows[pid])
+
+    payload = scoreless.streak_payload(season=2026)
+
+    assert [item["player_id"] for item in payload["items"]] == ["two_clean", "one_clean"]
+
 
 @pytest.mark.parametrize("path", [PATH, RUN_PATH])
 def test_payload_shape_is_frozen_for_both_bases(path):
@@ -283,12 +341,13 @@ def test_backfill_is_recorded_as_a_deliberate_breaking_change():
 
 
 def test_run_free_metric_wording_says_run_not_earned_run():
-    """**紅線 5 的鏡像**：失分口徑的文案必須明講它不是「無自責分」。"""
+    """失分口徑同樣以零推論出賽為主標，不可只改自責分端點。"""
     d = _get(f"{RUN_PATH}?limit=5")
 
-    assert d["metric"] == "consecutive_run_free_innings"
-    assert "無失分" in d["metric_label"]
+    assert d["metric"] == "consecutive_run_free_appearances"
+    assert d["metric_label"] == "連續無失分出賽"
     assert "失分" in d["note"] and "自責" in d["note"]      # 明講兩者不同
+    assert "零推論" in d["note"]
     assert d["basis_field"] == "runs"
     assert d["data_from_year"] == DATA_FROM_YEAR
 
