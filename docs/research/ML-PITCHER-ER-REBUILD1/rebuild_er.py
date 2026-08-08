@@ -16,6 +16,29 @@
 規則依據一律標出處，見同目錄 RESULTS.md §1（9.16 逐條核對）。
 PA 切界／半局出局數／outcome 分類**沿用 canonical `cpbl.ingest.pa_build`**，
 不另寫一套（避免語意漂移；GLOSSARY「island」「PA 的 outs」）。
+
+`--check` 的語意：**分辨「我算錯了」與「母體長大了」**，不是凍結數字
+--------------------------------------------------------------------
+母體每天長大（官網爬蟲排程 10:10 補前一日），這是**正常狀態不是缺陷**——
+canonical `templates/statistical-redline.md` 第 9 條：「母體隨資料新增而變動是正常
+狀態，不是缺陷：處置為**標注 as-of**，**不設法凍結數字**，也不得把漂移讀成錯誤。」
+
+iteration 1–6 的 `--check` 只做全文字比對，不符即 `MISMATCH` 退出 1。它因此把
+**兩件性質完全不同的事**壓成同一個紅燈：
+
+* **母體漂移**（input drift）：新比賽入庫，數字跟著變。**這是正常的**，報告數字
+  本來就該隨母體走。R1 跨家族查核的紅燈就是這一類（4,259→4,264→4,261）。
+* **重建邏輯改變**：來源指紋一模一樣，數字卻不同 ⇒ 真的算錯了或被改壞了。
+
+現在 `--check` 先比 `data_asof` 的來源指紋，再判定屬於哪一類，並**列出漂移量**：
+
+    exit 0  REPRODUCED   指紋與數字都相同
+    exit 2  INPUT_DRIFT  來源指紋已變（列出各來源與各主要數字的變動量）
+    exit 1  LOGIC_MISMATCH  來源指紋相同、數字卻不同 ⇒ 真正的退步，必須查
+
+`--as-of` 是**驗證工具，不是報告數字的凍結**：它把母體限定在 `game_date <= as_of`，
+讓兩次不同時間的執行可以在同一母體上對照，用來回答「數字變動是不是純粹來自新增
+比賽」。**產生 artifact 的預設路徑不帶界線**——報告數字照實隨母體走並標注 as-of。
 """
 
 from __future__ import annotations
@@ -83,9 +106,10 @@ ERROR_MARKERS = ("失誤", "捕逸", "妨礙", "漏接")
 # 趁傳進壘 66／因<守位>失誤 …。**姓名與原因之間有空白**，早期版本的
 # `[^\s，。,]+?` 會整條匹配失敗而把該分誤記到打者身上（2026/A/72 六局上實例）。
 SCORE_RE = re.compile(r"([一二三])壘跑者\s*([^\s。，,]+)([^。]{0,30}?)回本壘得分")
-# 打者自身踏本壘的敘述＝全壘打（含場內全壘打）。跑者的分一律由 SCORE_RE 涵蓋，
-# 打者靠其後打席回本壘的情形也會在該打席以「N壘跑者…回本壘得分」出現。
-BATTER_SCORE_RE = re.compile(r"全壘打")
+# 打者自身踏本壘＝全壘打（含場內全壘打），由 island 的 taxonomy 分類判定
+# （`"全壘打" in action`），**不用文字比對**——文字會被「全壘打牆前接殺」之類的
+# 敘述誤命中。跑者的分一律由 SCORE_RE 涵蓋，打者靠其後打席回本壘的情形也會在
+# 該打席以「N壘跑者…回本壘得分」出現。
 # 進壘敘述（含得分）：用來逐跑者判定「這一次進壘是不是靠失誤」。**必須逐跑者**——
 # 同一 play 上常有人靠安打推進、有人靠失誤多跑一個壘，整個 island 一起判會過度
 # 保守（實測 er-1 從 11 漲到 23）。
@@ -257,8 +281,11 @@ def rebuild_game(
                 "hitter_name": _s(last.get("hitter_name")) or _s(first.get("hitter_name")),
                 "text": "\n".join(_s(e.get("content")) for e in ordered),
                 # 得分欄取 island 內**所有**列的最大值（含公告列）：實測得分事件列
-                # 本身有時尚未反映該分，要到同 island 的下一列才更新
-                # （`2026/A/81` 三局下犧牲飛球）。比分單調，取 max 安全。
+                # 本身有時尚未反映該分，要到下一列才更新。比分單調，取 max 安全。
+                #
+                # ⚠️ 取 max **只涵蓋 island 內部的延後**。延後會跨 island（見下方
+                # 「延後比分的跨 island 對齊」），此處不可能靠 max 解決——指標案例
+                # `2026/A/81` 三局下的犧牲飛球 island 只有**一列**，island 內無下一列。
                 "score": max(
                     (
                         v
@@ -267,6 +294,8 @@ def rebuild_game(
                     ),
                     default=None,
                 ),
+                # 該 island 實際被歸屬的得分數，由下方「得分歸屬與完整性」填入
+                "runs": 0,
                 "game_over": any(
                     m in _s(e.get("content")) for e in ordered for m in GAME_OVER_MARKERS
                 ),
@@ -279,36 +308,77 @@ def rebuild_game(
         res.reason = "no_usable_island"
         return res
 
-    # --- 得分敘述完整性（修正 3）---------------------------------------------
-    # livelog 偶爾記了分數卻沒記那個 play：分數欄跳了，但該 island 沒有任何得分
-    # 敘述。指標案例 `2021/A/208` 九局下——致勝分只出現在「比賽結束」列，前一列
-    # 是「壞球。」，逐球紀錄完全沒有那個 play。官方四個數字（樂天 E=0、豪勁 WP=1
-    # 已被前一個暴投用掉、味全 3 分但打點合計 2、豪勁 ER=0）同時成立的機制是
-    # 捕逸，但**逐球紀錄沒寫**。
+    # --- 得分歸屬與完整性：敘述定「哪一個 play」、比分欄定「共幾分」（R1-001）---
+    # livelog 的比分欄**落後於敘述**：得分敘述已寫在某一列，比分欄要到其後某一列
+    # 才更新，而**延後會跨 island**。iteration 1–6 直接用 `本 island 比分 −
+    # 前一 island 比分` 當作該 island 的得分數，等於假設「更新落在同一個 island」。
+    # 指標案例 `2026/A/81` 三局下打穿該假設：
     #
-    # **不得猜那個 play 是什麼**（捕逸？失誤？妨礙？）——偵測到就整場排除。
-    # 這道檢查刻意放在記分板閘門之前：兩類成因可能重疊，先判這一類，
-    # 成因分類才不會重複計數。
-    if mutation != "no_unnarrated_check":
-        prev_by_half: dict[str, int] = {"1": 0, "2": 0}
-        for isl in summaries:
+    #   0320019000（劉基鴻，**單列 island**）犧牲飛球，content 已寫
+    #                「三壘跑者郭天信回本壘得分」，home_score 仍為 2
+    #   0320021000（朱育賢，下一個 island 的首列）無任何得分敘述，home_score 變 3
+    #
+    # 後果是雙重的：完整性檢查在朱育賢那個 island 看到「分數 +1、敘述 0」判
+    # `unnarrated_run` 整場排除；就算放行，主迴圈在劉基鴻那個 island 也會得到
+    # `island_runs=0` 卻有 1 位具名跑者，落入 `run_count_mismatch`。
+    #
+    # 修法是**改分工**，不是改門檻：
+    #   * **哪一個 play 得分** → 由敘述決定（具名跑者 ＋ 打者自己踏本壘＝全壘打）。
+    #     全壘打以 island 的 taxonomy 分類判定，不用文字比對——文字比對會被
+    #     「全壘打牆前接殺」之類的敘述誤命中。
+    #   * **總共幾分** → 仍由比分欄決定，但改成**逐側累計對帳**而非逐 island 相減。
+    #
+    # 比分欄只會落後不會超前，故不變量是：任一時點「比分已累計的分」不得超過
+    # 「敘述已交代的分」。`deferred` ＝ 敘述已交代但比分尚未反映的分：
+    #   deferred < 0 ⇒ 有一分進了比分卻沒人描述 ⇒ `unnarrated_run`（原閘門，
+    #                  指標案例 `2021/A/208` 九局下仍照樣被擋）
+    #   終局 deferred > 0 ⇒ 敘述交代的分比分數欄多 ⇒ `narrated_run_not_scored`
+    # 兩者都 fail-closed。**不得猜那個 play 是什麼**（捕逸？失誤？妨礙？）。
+    def _narrated(isl: dict[str, Any]) -> int:
+        return len(SCORE_RE.findall(isl["text"])) + (
+            1 if "全壘打" in (isl["action"] or "") else 0
+        )
+
+    by_side: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for isl in summaries:
+        by_side[isl["half"]].append(isl)
+    final_score: dict[str, int] = {"1": 0, "2": 0}
+    for side, side_islands in by_side.items():
+        prev_sc = 0
+        deferred = 0
+        for isl in side_islands:
             sc = isl["score"]
             if sc is None:
-                continue
-            gained = sc - prev_by_half[isl["half"]]
-            prev_by_half[isl["half"]] = sc
-            if gained <= 0:
-                continue
-            narrated = len(SCORE_RE.findall(isl["text"])) + (
-                1 if BATTER_SCORE_RE.search(isl["text"]) else 0
-            )
-            if gained > narrated:
+                res.reason = "null_score"
+                res.detail = (
+                    f"i{isl['inning']}/{isl['half']} {isl['action']} "
+                    f"pre={isl['pre_slots']}"
+                )
+                return res
+            gained = sc - prev_sc
+            prev_sc = sc
+            if gained < 0:
+                res.reason = "score_decreased"
+                res.detail = (
+                    f"i{isl['inning']}/{isl['half']} {isl['action']} "
+                    f"pre={isl['pre_slots']}"
+                )
+                return res
+            narrated = _narrated(isl)
+            isl["runs"] = narrated
+            deferred += narrated - gained
+            if deferred < 0 and mutation != "no_unnarrated_check":
                 res.reason = "unnarrated_run"
                 res.detail = (
-                    f"i{isl['inning']}{isl['half']} 分數 +{gained}、"
+                    f"i{isl['inning']}/{isl['half']} 分數 +{gained}、"
                     f"敘述可解釋 {narrated}（{isl['action']}）"
                 )
                 return res
+        final_score[side] = prev_sc
+        if deferred > 0 and mutation != "no_unnarrated_check":
+            res.reason = "narrated_run_not_scored"
+            res.detail = f"half={side} 敘述比比分欄多 {deferred} 分"
+            return res
 
     # --- 記分板 error_cnt：獨立於逐球敘述的失誤訊號 ---------------------------
     # 逐球敘述是本檔偵測失誤的唯一來源，而它會漏。官方逐局 E 提供第二個訊號：
@@ -340,7 +410,6 @@ def rebuild_game(
     runs: dict[str, int] = defaultdict(int)
     er: dict[str, int] = defaultdict(int)
 
-    prev_score: dict[str, int] = {"1": 0, "2": 0}
     idx = 0
     n = len(summaries)
     last_pitcher_of_game: str | None = None
@@ -373,27 +442,21 @@ def rebuild_game(
             for p in pitchers:
                 out_opps.setdefault(p, team_opps if mutation == "team_opps" else 0)
 
-            score = isl["score"]
-            if score is None:
-                res.reason = "null_score"
-                res.detail = f"i{isl['inning']}{isl['half']} {isl['action']} pre={isl['pre_slots']}"
-                return res
-            island_runs = score - prev_score[half]
-            prev_score[half] = score
-            if island_runs < 0:
-                res.reason = "score_decreased"
-                res.detail = f"i{isl['inning']}{isl['half']} {isl['action']} pre={isl['pre_slots']}"
-                return res
+            # 得分數來自上方的逐側累計對帳（敘述定 play、比分欄定總數），
+            # 不再用「本 island 比分 − 前一 island 比分」——那個相減假設比分欄的
+            # 更新不會跨 island，`2026/A/81` 三局下證明它會（見上方 R1-001）。
+            # `null_score`／`score_decreased` 已在該處先行 fail-closed。
+            island_runs = isl["runs"]
 
             pre_outs, post_outs = isl["pre_outs"], isl["post_outs"]
             if pre_outs is None or post_outs is None:
                 res.reason = "null_outs"
-                res.detail = f"i{isl['inning']}{isl['half']} {isl['action']} pre={isl['pre_slots']}"
+                res.detail = f"i{isl['inning']}/{isl['half']} {isl['action']} pre={isl['pre_slots']}"
                 return res
             island_outs = post_outs - pre_outs
             if island_outs < 0:
                 res.reason = "outs_decreased"
-                res.detail = f"i{isl['inning']}{isl['half']} {isl['action']} pre={isl['pre_slots']}"
+                res.detail = f"i{isl['inning']}/{isl['half']} {isl['action']} pre={isl['pre_slots']}"
                 return res
 
             # 突破僵局跑者：「視為守備失誤上壘」→ 非自責（7.01(b)(2)(C)）。
@@ -440,7 +503,7 @@ def rebuild_game(
                 if not nxt:
                     # 靜默丟棄是隱患：取不到壘況就不可能正確歸屬這位跑者的得分
                     res.reason = "tiebreak_runner_unresolved"
-                    res.detail = f"i{isl['inning']}{isl['half']} next_pre_slots={nxt}"
+                    res.detail = f"i{isl['inning']}/{isl['half']} next_pre_slots={nxt}"
                     return res
                 # 突破僵局跑者的**責任投手**＝實際面對該半局第一位打者的投手，
                 # 不是置人列上的 `pitcher_acnt`。推導與證據見下方 §「責任歸屬」。
@@ -477,13 +540,13 @@ def rebuild_game(
             ):
                 # 帳本重同步：以 livelog 觀測為準，但標記為不可證
                 res.reason = "ledger_desync"
-                res.detail = f"i{isl['inning']}{isl['half']} {isl['action']} pre={isl['pre_slots']}"
+                res.detail = f"i{isl['inning']}/{isl['half']} {isl['action']} pre={isl['pre_slots']}"
                 return res
 
             new_slots = set(next_slots.values()) - set(pre_slots.values())
             if len(new_slots) > 1:
                 res.reason = "multiple_new_runners"
-                res.detail = f"i{isl['inning']}{isl['half']} {isl['action']} pre={isl['pre_slots']}"
+                res.detail = f"i{isl['inning']}/{isl['half']} {isl['action']} pre={isl['pre_slots']}"
                 return res
             batter_slot = next(iter(new_slots)) if new_slots else None
             vanished = {b: r for b, r in bases.items() if r.slot not in set(next_slots.values())}
@@ -513,7 +576,7 @@ def rebuild_game(
                     tainted_scorers.add(r.slot)
             if unresolved:
                 res.reason = "scorer_unresolved"
-                res.detail = f"i{isl['inning']}{isl['half']} {isl['action']} pre={isl['pre_slots']}"
+                res.detail = f"i{isl['inning']}/{isl['half']} {isl['action']} pre={isl['pre_slots']}"
                 return res
 
             # （iteration 4 移除）舊版在「比賽結束」列以「離本壘最近者先得分」指派
@@ -523,12 +586,12 @@ def rebuild_game(
             batter_runs = island_runs - len(named_runners)
             if batter_runs not in (0, 1):
                 res.reason = "run_count_mismatch"
-                res.detail = f"i{isl['inning']}{isl['half']} {isl['action']} pre={isl['pre_slots']}"
+                res.detail = f"i{isl['inning']}/{isl['half']} {isl['action']} pre={isl['pre_slots']}"
                 return res
             # 打者若已站上壘包就不可能同時得分 → 代表有一分沒被敘述涵蓋，fail-closed
             if batter_runs and batter_slot is not None:
                 res.reason = "unnamed_runner_score"
-                res.detail = f"i{isl['inning']}{isl['half']} {isl['action']} pre={isl['pre_slots']}"
+                res.detail = f"i{isl['inning']}/{isl['half']} {isl['action']} pre={isl['pre_slots']}"
                 return res
 
             # --- 打者的上壘手段與責任歸屬 ---------------------------------------
@@ -704,7 +767,7 @@ def rebuild_game(
 
             if trace:
                 print(
-                    f"  i{isl['inning']}{half} pre{pre_slots} nxt{next_slots} "
+                    f"  i{isl['inning']}/{half} pre{pre_slots} nxt{next_slots} "
                     f"fam={fam}/{action} outs{pre_outs}->{post_outs} R+{island_runs} "
                     f"tainted={tainted} sh_outs={sh_outs} opp={dict(out_opps)} "
                     f"shadow={shadow} scored_sh={scored_shadow} "
@@ -750,7 +813,7 @@ def rebuild_game(
     # --- 比賽最後一個出局：livelog 的「比賽結束」列不帶「N人出局」敘述 ---------
     # （實測：全庫 4,100 個半局達 2 出局卻無 3 出局敘述，末列皆為「比賽結束」）
     if mutation == "walkoff_fix":
-        walk_off = last_half == "2" and prev_score["2"] > prev_score["1"]
+        walk_off = last_half == "2" and final_score["2"] > final_score["1"]
     else:
         walk_off = last_half == "2" and last_island_runs > 0
     if not walk_off and last_post_outs < 3 and last_pitcher_of_game:
@@ -820,9 +883,41 @@ def _classify(res: GameResult, official: dict[str, dict[str, Any]]) -> str:
     return "unknown"
 
 
+def _assert_bindable(conn: Any, years: list[int], kinds: list[str]) -> None:
+    """`--as-of` 專用的 fail-closed 前置檢查。
+
+    以 `games.game_date` 為界時，**任何無法定日期的 livelog 場次都會被靜默排除** ——
+    那會讓「界線只釘一半」變成看不見的母體縮水。故先證明界線覆蓋全母體再繼續
+    （實測目前兩者皆為 0）。不給 `--as-of` 時不做界線，也就不需要這道檢查。
+    """
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT count(*) FILTER (WHERE g.game_sno IS NULL) AS orphan, "
+        "       count(*) FILTER (WHERE g.game_sno IS NOT NULL "
+        "                        AND g.game_date IS NULL) AS undated "
+        "FROM (SELECT DISTINCT year, kind_code, game_sno FROM cpbl.game_livelog "
+        "      WHERE year = ANY(%s) AND kind_code = ANY(%s)) l "
+        "LEFT JOIN cpbl.games g USING (year, kind_code, game_sno)",
+        (years, kinds),
+    )
+    row = cur.fetchone() or {}
+    if row.get("orphan") or row.get("undated"):
+        raise SystemExit(
+            f"as_of 界線無法覆蓋全母體：{row.get('orphan')} 場 livelog 無 games 列、"
+            f"{row.get('undated')} 場 game_date 為 NULL。"
+            "這些場次會被日期界線靜默排除，等同界線只釘一半 —— 先修資料再重跑。"
+        )
+
+
 def reconcile(
-    years: list[int], kinds: list[str], limit: int | None, mutation: str = "full"
+    years: list[int], kinds: list[str], limit: int | None, mutation: str = "full",
+    as_of: str | None = None,
 ) -> dict[str, Any]:
+    """`as_of=None`（預設）＝**不設界線**，母體就是當下 DB 的全部 scope。
+
+    報告數字照實隨母體走。`as_of` 只在需要「兩次執行對照同一母體」時給
+    （驗證工具，見 module docstring）。
+    """
     taxonomy = load_taxonomy()
     stats: dict[tuple[int, str], dict[str, int]] = defaultdict(
         lambda: defaultdict(int)
@@ -833,15 +928,34 @@ def reconcile(
 
     with psycopg.connect(DSN, row_factory=dict_row) as conn:
         cur = conn.cursor()
-        cur.execute(
-            """
-            SELECT DISTINCT l.year, l.kind_code, l.game_sno
-            FROM cpbl.game_livelog l
-            WHERE l.year = ANY(%s) AND l.kind_code = ANY(%s)
-            ORDER BY 1, 2, 3
-            """,
-            (years, kinds),
-        )
+        if as_of is None:
+            cur.execute(
+                """
+                SELECT DISTINCT l.year, l.kind_code, l.game_sno
+                FROM cpbl.game_livelog l
+                WHERE l.year = ANY(%s) AND l.kind_code = ANY(%s)
+                ORDER BY 1, 2, 3
+                """,
+                (years, kinds),
+            )
+        else:
+            # 給了界線才 join `games`。**一條界線同時釘住所有下游來源**：livelog／
+            # pitching_gamelog／game_scoreboard 都是以界內場次逐場取值，界外場次
+            # 連查都不會查到，故不存在「只釘一半」的漏洞。
+            _assert_bindable(conn, years, kinds)
+            cur.execute(
+                """
+                SELECT DISTINCT l.year, l.kind_code, l.game_sno
+                FROM cpbl.game_livelog l
+                JOIN cpbl.games g
+                  ON g.year = l.year AND g.kind_code = l.kind_code
+                 AND g.game_sno = l.game_sno
+                WHERE l.year = ANY(%s) AND l.kind_code = ANY(%s)
+                  AND g.game_date <= %s::date
+                ORDER BY 1, 2, 3
+                """,
+                (years, kinds, as_of),
+            )
         games = [(r["year"], r["kind_code"], r["game_sno"]) for r in cur.fetchall()]
         if limit:
             games = games[:limit]
@@ -967,35 +1081,74 @@ def reconcile(
                 stats[key]["two_dim_pass"] += 1
             if ok_outs and ok_er and ok_runs:
                 stats[key]["all_pass"] += 1
+                # 分層的**三維**通過數。舊版只輸出分層的自責分維通過數，害 §4.3
+                # 得靠報告外的一次性計算補值 —— 那種數字無法被 `--check` 驗。
+                stats[key][f"{stratum}_all_pass"] += 1
             else:
                 cause = _classify(res, official)
                 stats[key][f"cause_{cause}"] += 1
+                # 分層 × 成因：clean 分層剩下的落差究竟是自責分判斷還是來源缺漏，
+                # 是 §4.3 唯一的論據，必須由 artifact 自己產生。
+                stats[key][f"{stratum}_cause_{cause}"] += 1
                 reasons[f"mismatch:{cause}"] += 1
                 if len(examples[f"mismatch:{cause}"]) < 8:
                     examples[f"mismatch:{cause}"].append(gid)
 
     # as-of 用**資料本身**表述，不用 wall-clock（wall-clock 會讓每次重跑都髒
-    # worktree，使「worktree 髒了」失去訊號功能——RESEARCH-VERDICT-AUDIT1 R1 教訓）
+    # worktree，使「worktree 髒了」失去訊號功能——RESEARCH-VERDICT-AUDIT1 R1 教訓）。
+    #
+    # 這一區塊是**來源指紋**：`--check` 用它分辨「母體漂移」與「重建邏輯改變」。
+    # 三個被消費的來源都要記——只記 livelog 的話，官方 box 或記分板被補寫時
+    # 指紋不動，漂移就會被誤判成邏輯退步。
+    bound = "" if as_of is None else " AND g.game_date <= %(as_of)s::date"
+    params = {"years": years, "kinds": kinds, "as_of": as_of}
     with psycopg.connect(DSN, row_factory=dict_row) as conn:
         c2 = conn.cursor()
-        c2.execute(
+
+        def rows_of(table: str) -> int:
+            c2.execute(  # noqa: S608 - table 為本函式內的字面值白名單、bound 為字面值
+                f"SELECT count(*) n FROM cpbl.{table} t "
+                "JOIN cpbl.games g ON g.year = t.year AND g.kind_code = t.kind_code "
+                "AND g.game_sno = t.game_sno "
+                "WHERE t.year = ANY(%(years)s) AND t.kind_code = ANY(%(kinds)s)" + bound,
+                params,
+            )
+            return int((c2.fetchone() or {}).get("n") or 0)
+
+        c2.execute(  # noqa: S608 - bound 為字面值
             "SELECT max(g.game_date)::text d, count(*) n FROM cpbl.games g "
-            "WHERE g.year = ANY(%s) AND g.kind_code = ANY(%s)",
-            (years, kinds),
+            "WHERE g.year = ANY(%(years)s) AND g.kind_code = ANY(%(kinds)s)" + bound,
+            params,
         )
         gmeta = c2.fetchone() or {}
-        c2.execute(
-            "SELECT count(*) n FROM cpbl.game_livelog WHERE year = ANY(%s) "
-            "AND kind_code = ANY(%s)",
-            (years, kinds),
+        c2.execute(  # noqa: S608 - bound 為字面值
+            "SELECT max(g.game_date)::text d FROM cpbl.games g "
+            "WHERE g.year = ANY(%(years)s) AND g.kind_code = ANY(%(kinds)s)"
+            " AND EXISTS (SELECT 1 FROM cpbl.game_livelog l WHERE l.year = g.year"
+            " AND l.kind_code = g.kind_code AND l.game_sno = g.game_sno)" + bound,
+            params,
         )
-        lmeta = c2.fetchone() or {}
+        pmeta = c2.fetchone() or {}
+        counts = {t: rows_of(t) for t in
+                  ("game_livelog", "pitching_gamelog", "game_scoreboard")}
 
     out: dict[str, Any] = {
         "data_asof": {
+            # 母體界線。**None＝未設界線**（預設；報告數字隨母體走，不凍結）。
+            "as_of": as_of,
+            # scope 內最大比賽日。**這不是母體界線**——實測它是球季賽程末日
+            # （2026-10-03，比執行日晚兩個月），只描述 `games` 排到哪一天。
             "max_game_date": gmeta.get("d"),
+            # 母體（有 livelog 的場次）裡的最大比賽日。**仍不是可靠界線**：保留賽
+            # 改期後帶的是未來日期卻已有部分 livelog（實測 `2026/D/165` 排 09-15），
+            # 故此值會超前執行日，不可直接當 `--as-of` 用。只作為漂移指紋。
+            "max_population_game_date": pmeta.get("d"),
+            # 實際被對帳的場次數（＝有 livelog 的場次）。母體漂移最直接的訊號。
+            "population_games": len(games),
             "games_rows": gmeta.get("n"),
-            "livelog_rows": lmeta.get("n"),
+            "livelog_rows": counts["game_livelog"],
+            "pitching_gamelog_rows": counts["pitching_gamelog"],
+            "scoreboard_rows": counts["game_scoreboard"],
         },
         "scope": {"years": years, "kinds": kinds, "limit": limit, "mutation": mutation},
         "by_year_kind": {
@@ -1032,6 +1185,78 @@ def reconcile(
     return out
 
 
+# `--check` 報告漂移量時要看的主要數字（來源指紋以外的部分）
+HEADLINE_KEYS = (
+    "games", "all_pass", "all_pass_rate", "appearances", "appearance_pass",
+    "appearance_pass_rate", "er_pass_rate", "runs_pass_rate", "outs_pass_rate",
+)
+
+
+def _diff_line(name: str, old: Any, new: Any) -> str:
+    if isinstance(old, (int, float)) and isinstance(new, (int, float)):
+        return f"  {name}: {old} → {new}（{new - old:+g}）"
+    return f"  {name}: {old!r} → {new!r}"
+
+
+def run_check(path: Path, result: dict[str, Any], text: str) -> int:
+    """比對重跑結果與既有 artifact，並**分辨兩種不符**。
+
+    退出碼：0＝REPRODUCED／2＝INPUT_DRIFT／1＝LOGIC_MISMATCH。
+
+    母體隨新比賽入庫而變動是正常狀態（canonical `statistical-redline.md` 第 9 條），
+    不得讀成錯誤 —— 故漂移走 exit 2 並列出漂移量，與真正的邏輯退步（exit 1）分開。
+    """
+    if not path.exists():
+        print(f"LOGIC_MISMATCH: 找不到 artifact {path}", file=sys.stderr)
+        return 1
+    prev_text = path.read_text(encoding="utf-8")
+    if prev_text == text:
+        print("REPRODUCED: 來源指紋與所有數字皆與 artifact 相同")
+        return 0
+
+    try:
+        prev = json.loads(prev_text)
+    except json.JSONDecodeError:
+        print("LOGIC_MISMATCH: 既有 artifact 不是合法 JSON", file=sys.stderr)
+        return 1
+
+    old_asof, new_asof = prev.get("data_asof", {}), result["data_asof"]
+    drift = {
+        k: (old_asof.get(k), new_asof.get(k))
+        for k in sorted(set(old_asof) | set(new_asof))
+        if old_asof.get(k) != new_asof.get(k)
+    }
+    old_tot, new_tot = prev.get("totals", {}), result["totals"]
+    moved = [
+        _diff_line(k, old_tot.get(k), new_tot.get(k))
+        for k in HEADLINE_KEYS
+        if old_tot.get(k) != new_tot.get(k)
+    ]
+
+    if drift:
+        print("INPUT_DRIFT: 來源資料已變動，artifact 的數字對應的是較舊的母體。")
+        print("這是正常狀態不是缺陷（母體隨新比賽入庫而長大）；重生 artifact 即可。")
+        print("來源指紋變動：")
+        for k, (o, n) in drift.items():
+            print(_diff_line(k, o, n))
+        print("主要數字變動：" if moved else "主要數字未變動。")
+        for line in moved:
+            print(line)
+        print(
+            "若要排除漂移做對照，**兩次執行都加同一個** --as-of YYYY-MM-DD（驗證工具）。"
+            "注意保留賽改期後帶未來日期，日期界線不等於當時的母體，只能近似。"
+        )
+        return 2
+
+    print(
+        "LOGIC_MISMATCH: 來源指紋完全相同、數字卻不同 ⇒ 重建邏輯已改變，必須查。",
+        file=sys.stderr,
+    )
+    for line in moved:
+        print(line, file=sys.stderr)
+    return 1
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--years", default="2018-2026")
@@ -1039,6 +1264,11 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--out", default=str(Path(__file__).with_name("reconciliation.json")))
     ap.add_argument("--check", action="store_true", help="只比對既有輸出，不覆寫")
+    ap.add_argument(
+        "--as-of", dest="as_of", default=None, metavar="YYYY-MM-DD",
+        help="**驗證工具**：把母體限定在 game_date <= 此日，讓兩次不同時間的執行"
+             "可在同一母體上對照。預設不設界線，報告數字照實隨母體走。",
+    )
     ap.add_argument("--mutation", default="full", choices=MUTATIONS)
     args = ap.parse_args()
 
@@ -1046,16 +1276,11 @@ def main() -> int:
     years = list(range(int(lo), int(hi or lo) + 1))
     kinds = args.kinds.split(",")
 
-    result = reconcile(years, kinds, args.limit, args.mutation)
+    result = reconcile(years, kinds, args.limit, args.mutation, as_of=args.as_of)
     text = json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     path = Path(args.out)
     if args.check:
-        prev = path.read_text(encoding="utf-8") if path.exists() else ""
-        if prev != text:
-            print("MISMATCH: 重跑結果與既有 artifact 不同", file=sys.stderr)
-            return 1
-        print("OK: artifact 可重現")
-        return 0
+        return run_check(path, result, text)
     path.write_text(text, encoding="utf-8")
     print(json.dumps(result["totals"], ensure_ascii=False, indent=2))
     print(json.dumps(result["fail_reasons"], ensure_ascii=False, indent=2))

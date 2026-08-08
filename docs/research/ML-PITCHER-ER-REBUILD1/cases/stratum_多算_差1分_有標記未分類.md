@@ -1,6 +1,6 @@
-# 多算｜差1分｜有標記未分類（21 場，佔 2.8%）
+# 多算｜差1分｜有標記未分類（21 場，佔 2.7%）
 
-> 產生自 `rebuild_er.py` blob `633d188944b26eaa7591a934484c0ec07cf28397`；產生時 repo HEAD `fc1bd2dd9efbbfc3ff3a3edddd634156a5ca2259`（HEAD 僅供追溯，重跑會變，內容由 blob 決定）。
+> 產生自 `rebuild_er.py` blob `ea61ea74cebb4ba219ea0cd229b752b8e3f2d812`；產生時 repo HEAD `117e31302b1adf60d082dead4e429fe9e1fec96e`（HEAD 僅供追溯，重跑會變，內容由 blob 決定）。
 > 由 `cases/build_cases.py` 產生，勿手改。
 
 
