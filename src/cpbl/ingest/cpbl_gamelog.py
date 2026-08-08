@@ -313,11 +313,22 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
 
 
 def completed_snos(year: int, kind_code: str = KIND_REGULAR) -> list[int]:
-    """本季已完成（比分>0）場次的 game_sno。"""
+    """本季已完成場次的 game_sno。供 `cpbl-scrape-gamelog <year>` 全季回填用。
+
+    completed 判定沿用專案慣例（見記憶 completed-game-judgment，比照
+    `cpbl_pitch_tracking.completed_game_snos` 的寫法）：需同時 score>0 與
+    game_date <= CURRENT_DATE，避免保留賽掛未來日卻帶著中止時的比分被誤判成
+    已完成（DATA-BOX-REVISION-SNAPSHOT1 iteration 3：本函式先前漏了日期界線，
+    是這條慣例目前已知的漏網者，回填時會把還沒續打完的保留賽也排進清單去抓
+    box——不是每日鏈的問題，`_completed_snos` 另一支已經有窗）。
+
+    方向刻意用 UTC／`CURRENT_DATE`，不轉台北時區：與 `cpbl_pitch_tracking.py`
+    現行寫法一致；是否統一改台北日界是 REMEDY1 Phase 2 的範圍，這裡不搶著改。
+    """
     with conn() as c:
         rows = c.execute(
             "SELECT game_sno FROM cpbl.games WHERE year = %s AND kind_code = %s "
-            "AND home_score + away_score > 0 ORDER BY game_sno",
+            "AND home_score + away_score > 0 AND game_date <= CURRENT_DATE ORDER BY game_sno",
             (year, kind_code),
         ).fetchall()
     return [r[0] for r in rows]
