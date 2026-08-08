@@ -26,6 +26,7 @@ import argparse
 import sys
 from datetime import date
 
+from cpbl.completion import completed_games_sql
 from cpbl.db import conn
 from cpbl.ingest._cli import cli_parser
 
@@ -38,9 +39,9 @@ WEEK = 7          # 「上週/近幾天」窗口（中職週一固定休兵，�
 def _rows(year: int, kind: str) -> list[dict]:
     with conn() as c:
         cur = c.execute(
-            """
+            f"""
             SELECT g.game_sno, g.game_date, g.venue,
-                   (g.home_score + g.away_score > 0) AS completed,
+                   ({completed_games_sql()}) AS completed,
                    (SELECT count(*) FROM cpbl.game_livelog ll
                       WHERE ll.year=g.year AND ll.kind_code=g.kind_code AND ll.game_sno=g.game_sno
                         AND (ll.is_ball OR ll.is_strike)) AS pitches,

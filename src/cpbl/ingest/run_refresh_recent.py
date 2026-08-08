@@ -117,7 +117,7 @@ def _lagging_pitch_games(year: int, kind_code: str, days_back: int = 3) -> set[i
     """
     with conn() as c:
         rows = c.execute(
-            """
+            f"""
             WITH cov AS (
               SELECT gm.venue, gm.game_sno, gm.game_date,
                 (SELECT count(*) FROM cpbl.game_livelog ll WHERE ll.year=gm.year
@@ -126,7 +126,7 @@ def _lagging_pitch_games(year: int, kind_code: str, days_back: int = 3) -> set[i
                 (SELECT count(*) FROM cpbl.pitch_tracking pt WHERE pt.year=gm.year
                    AND pt.kind_code=gm.kind_code AND pt.game_sno=gm.game_sno) AS tracked
               FROM cpbl.games gm
-              WHERE gm.year=%s AND gm.kind_code=%s AND gm.home_score+gm.away_score>0),
+              WHERE gm.year=%s AND gm.kind_code=%s AND {completed_games_sql()}),
             r AS (SELECT *, row_number() OVER (PARTITION BY venue
                     ORDER BY game_date DESC, game_sno DESC) rn FROM cov),
             equipped AS (
@@ -197,9 +197,9 @@ def _missing_gamelog_snos(year: int, kind_code: str = "A") -> list[int]:
     """本季已完成但無 gamelog 的場（延賽補賽/漏跑 → 每日補齊,避免只靠近兩日窗口留 gap）。"""
     with conn() as c:
         rows = c.execute(
-            """
+            f"""
             SELECT g.game_sno FROM cpbl.games g
-            WHERE g.year = %s AND g.kind_code = %s AND g.home_score + g.away_score > 0
+            WHERE g.year = %s AND g.kind_code = %s AND {completed_games_sql()}
               AND NOT EXISTS (SELECT 1 FROM cpbl.batting_gamelog b
                               WHERE b.year = g.year AND b.kind_code = g.kind_code AND b.game_sno = g.game_sno)
             ORDER BY g.game_sno
