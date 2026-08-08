@@ -35,8 +35,8 @@ OUT_DIR = "docs/research/DATA-TZ-BOUNDARY1"
 # 本卡授權可改的寫入集（與 DEV-CLI-HELP-GUARD1 互斥）
 IN_SCOPE_PREFIXES = (
     "src/cpbl/api/", "src/cpbl/models/", "src/cpbl/features/", "src/cpbl/completion.py")
-# G4 觀測凍結＋平行卡佔用：只記錄不改
-CHAIN_FROZEN_PREFIX = "src/cpbl/ingest/"
+# 鏈端時區切換須待 #53 G4 Phase B 後另卡授權；不是已解除的 Gate 3 觀測凍結。
+CHAIN_DEFERRED_PREFIX = "src/cpbl/ingest/"
 
 # **自指檔案**：本卡的掃描器與其測試自身就含 CURRENT_DATE 字樣（偵測樣式／SQL 形態
 # 斷言），走 git ls-files 必然掃到自己。它們**不是 runtime SQL**，但也不能偷偷排除
@@ -139,8 +139,8 @@ def _classify(line: str) -> str:
 def _zone(path: str) -> str:
     if path in SELF_REFERENCE_FILES:
         return "tooling_self_reference"
-    if path.startswith(CHAIN_FROZEN_PREFIX):
-        return "chain_frozen"
+    if path.startswith(CHAIN_DEFERRED_PREFIX):
+        return "chain_deferred_pending_phase_b"
     if path.startswith(IN_SCOPE_PREFIXES):
         return "in_scope"
     if path.startswith("migrations/"):
@@ -231,11 +231,12 @@ def cmd_inventory(args: argparse.Namespace) -> dict:
         "sensitive_total": len(sensitive),
         "sensitive_in_scope": sorted(
             f"{h['file']}:{h['line']}" for h in sensitive if h["zone"] == "in_scope"),
-        "sensitive_chain_frozen_record_only": sorted(
-            f"{h['file']}:{h['line']}" for h in sensitive if h["zone"] == "chain_frozen"),
+        "sensitive_chain_deferred_pending_phase_b": sorted(
+            f"{h['file']}:{h['line']}" for h in sensitive
+            if h["zone"] == "chain_deferred_pending_phase_b"),
         "sensitive_outside_write_set": sorted(
             f"{h['file']}:{h['line']}" for h in sensitive
-            if h["zone"] not in ("in_scope", "chain_frozen")),
+            if h["zone"] not in ("in_scope", "chain_deferred_pending_phase_b")),
         "needs_human_review": [h for h in executable
                                if h["category"] == "unclassified"],
         "hits": hits,

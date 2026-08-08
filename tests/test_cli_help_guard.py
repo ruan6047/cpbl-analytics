@@ -16,8 +16,8 @@
    `scripts/refresh-cpbl-prod.sh`）與各模組 docstring 裡的既有指令形式，逐一驗證解析結果
    與改版前語意相同。這層是本卡「不得為了加護欄而弄壞排程」的紅線。
 
-排除：`run_refresh_recent` 與 `cpbl_pitch_tracking` 由 INGEST-GAME-TM-REFACTOR1-G4
-觀測凍結，本卡明文不改，故不納入斷言範圍（它們的現況記錄在
+排除：`run_refresh_recent` 與 `cpbl_pitch_tracking` 由 #53 的 INGEST-GAME-TM-REFACTOR1-G4
+Phase B 資源佔用，本卡明文不改，故不納入斷言範圍（它們的現況記錄在
 `docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit.md`）。
 """
 
@@ -33,7 +33,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# G4 觀測凍結：本卡只盤點不修改。
+# #53 的 G4 Phase B 資源佔用：本卡只盤點，不把 CLI 護欄改動併入逐球 writer。
 FROZEN_MODULES = {
     "cpbl.ingest.run_refresh_recent",
     "cpbl.ingest.cpbl_pitch_tracking",
@@ -153,7 +153,7 @@ def test_entry_discovery_actually_found_the_clis() -> None:
             "cpbl-build-features", "cpbl-build-sabr", "cpbl-classify-pitches",
             "cpbl-train-outcome", "cpbl-train-outcome-simple", "cpbl-train-pa-sim",
             "cpbl-train", "cpbl-train-pitching"} <= ids
-    assert "cpbl-refresh-recent" not in ids  # G4 凍結，明文排除
+    assert "cpbl-refresh-recent" not in ids  # 仍有 CLI 副作用，且其 writer 由 #53 佔用
 
 
 def test_only_declared_modules_are_unimportable_in_this_environment() -> None:
