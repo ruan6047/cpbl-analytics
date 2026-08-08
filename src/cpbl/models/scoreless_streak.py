@@ -1,12 +1,14 @@
-"""投手「連續無**自責**分局數」／「連續無**失**分局數」——定位而非重建，輸出可證明
-不高估的下界。
+"""投手「連續無**自責**分出賽」／「連續無**失**分出賽」——定位而非重建。
+
+主值是只採官方判準值為 0 的整場出賽，因而零推論。局數仍保留為輔助下界，尾段會用
+鴿籠原理；改變主標不是解決尾段的粒度限制。
 
 本模組支援**兩個口徑**（`Basis`），演算法完全共用，差別只在「回走時看哪一個官方欄位」：
 
 | 口徑 | 判準欄位 | 對外指標 |
 |---|---|---|
-| `EARNED_RUN_BASIS`（預設，既有） | `pitching_gamelog.earned_runs` | 連續無**自責**分局數 |
-| `RUN_BASIS`（ML-PITCHER-RUNLESS1 新增） | `pitching_gamelog.runs` | 連續無**失**分局數 |
+| `EARNED_RUN_BASIS`（預設，既有） | `pitching_gamelog.earned_runs` | 連續無**自責**分出賽 |
+| `RUN_BASIS`（ML-PITCHER-RUNLESS1 新增） | `pitching_gamelog.runs` | 連續無**失**分出賽 |
 
 **兩個口徑都不重算官方欄位。** 自責分那條線受規則 9.16 的**主觀條款**支配——9.16(c)(d)
 要求反事實重播（「若無失誤是否仍能得分」）、9.16(f) 明文「判斷有疑慮時應對投手有利」
@@ -137,10 +139,11 @@
 被跳過的出賽以 `StreakResult.skipped` 留存，並經 API 對外揭露（`skipped_postseason_*`），
 讓讀者知道紀錄中間發生過什麼——不做沉默跳過。
 
-## 兩個值（兩種對帳基礎，皆為下界）
+## 主值與輔助值（兩種對帳基礎）
 
-- `strict_outs`：只由**官方判準值＝0 的整場出賽**組成。宣稱的每一局，其所屬出賽的官方
-  欄位（`earned_runs` 或 `runs`）必為 0 ——即卡面紅線 3 的**字面**對帳基礎（出賽層級）。
+- `appearances_counted`：只計**官方判準值＝0 的整場出賽**。這是零推論的主值；每一場的
+  官方欄位（`earned_runs` 或 `runs`）必為 0 ——即卡面紅線 3 的**字面**對帳基礎。
+- `strict_outs`：上述零推論出賽的官方出局數合計，供需要局數的消費者稽核。
 - `outs`：`strict_outs` ＋ 中斷那場的尾段半局。尾段的每一個半局另以**半局層級**的證明
   滿足紅線 3 的**意圖**：「整個半局、不分投手、零得分」⇒ 沒有任何分數存在可被判給
   任何人 ⇒ 對本投手零失分、從而零自責分。在**失分**口徑下這與中段是同一個量的兩個
@@ -239,13 +242,14 @@ class Basis:
 
 EARNED_RUN_BASIS = Basis(
     field=FIELD_EARNED_RUNS,
-    metric="consecutive_earned_run_free_innings",
-    metric_label="連續無自責分局數（保守下界）",
+    metric="consecutive_earned_run_free_appearances",
+    metric_label="連續無自責分出賽",
     metric_note=(
-        "本指標為「連續無**自責**分局數」，非「連續無失分局數」："
+        "本指標為「連續無**自責**分出賽」，非「連續無失分出賽」："
         "失誤造成的非自責失分不中斷本指標（與 ERA 語意一致）。"
         "自責分一律採官方紀錄（pitching_gamelog.earned_runs），本專案不重算。"
-        "所有不確定情境一律往「中斷」解讀，故本值為**下界**，不會高估。"
+        "主值只計官方 earned_runs=0 的整場出賽，**零推論**。"
+        "局數輔助欄位仍含鴿籠下界；這是改變主標，不是消除中途登板／退場的粒度限制。"
     ),
     strict_basis="官方 earned_runs=0 的整場出賽",
     break_reason=BREAK_EARNED_RUN,
@@ -254,15 +258,15 @@ EARNED_RUN_BASIS = Basis(
 
 RUN_BASIS = Basis(
     field=FIELD_RUNS,
-    metric="consecutive_run_free_innings",
-    metric_label="連續無失分局數（保守下界）",
+    metric="consecutive_run_free_appearances",
+    metric_label="連續無失分出賽",
     metric_note=(
-        "本指標為「連續無**失**分局數」，非「連續無自責分局數」："
+        "本指標為「連續無**失**分出賽」，非「連續無自責分出賽」："
         "失誤造成的非自責失分**會**中斷本指標（與媒體慣用的「無失分」一致）。"
         "失分一律採官方紀錄（pitching_gamelog.runs）；9.16(g) 的繼承跑者歸屬已由聯盟"
         "記錄員套用於該欄，本專案直接讀取、不重算，也不觸及 9.16(c)(d)(f) 的主觀判斷。"
-        "中段（整場官方失分=0）與尾段（官方逐局零得分）是同一個量的兩個粒度，口徑一致。"
-        "所有不確定情境一律往「中斷」解讀，故本值為**下界**，不會高估。"
+        "主值只計官方 runs=0 的整場出賽，**零推論**。"
+        "局數輔助欄位仍含鴿籠下界；這是改變主標，不是消除中途登板／退場的粒度限制。"
     ),
     strict_basis="官方 runs=0 的整場出賽",
     break_reason=BREAK_RUN,

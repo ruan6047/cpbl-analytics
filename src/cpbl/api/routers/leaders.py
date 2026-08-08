@@ -359,13 +359,14 @@ def earned_run_free_streak(
     team: str | None = Query(None),
     limit: int = Query(10, ge=1, le=100),
 ) -> dict:
-    """投手**連續無自責分局數**（保守下界）——注意：不是「連續無失分」。
+    """投手**連續無自責分出賽**（零推論）——注意：不是「連續無失分」。
 
     失誤造成的非自責失分不中斷本指標（與 ERA 語意一致）；自責分一律採官方
     `pitching_gamelog.earned_runs`，本專案**不重建自責分**（規則 9.16 讓自動重建不可行）。
-    所有不確定情境一律往「中斷」解讀，故回傳值為下界，永不高估。口徑與保守性規則的
-    單一來源是 `cpbl.models.scoreless_streak` 的 docstring；回應本身帶 `note` 與
-    `boundary_note` 供前端原樣呈現。
+    主值 `appearances_counted` 只計官方自責分為 0 的整場出賽。局數 `outs`／`innings` 降為
+    輔助下界，尾段仍有鴿籠推論；這是改變宣稱，不是解決中途登板／退場的粒度限制。口徑與
+    保守性規則的單一來源是 `cpbl.models.scoreless_streak` 的 docstring；回應本身帶 `note`
+    與 `boundary_note` 供前端原樣呈現。
 
     `season`／`team` 只篩母體（誰進榜、算哪一隊），連續紀錄本身可回溯到更早球季。
     """
@@ -382,16 +383,16 @@ def run_free_streak(
     team: str | None = Query(None),
     limit: int = Query(10, ge=1, le=100),
 ) -> dict:
-    """投手**連續無失分局數**（保守下界）——媒體慣用的那個口徑。
+    """投手**連續無失分出賽**（零推論）——媒體慣用的那個口徑。
 
     與 `/api/v1/records/earned-run-free-streak` **是兩個不同的紀錄**：失誤造成的非自責
     失分會中斷本指標、不中斷那一個。失分一律採官方 `pitching_gamelog.runs`；9.16(g) 的
     繼承跑者歸屬已由聯盟記錄員套用於該欄，本專案直接讀取、不重算，也不觸及 9.16(c)(d)(f)
     的主觀判斷（反事實重播與「有疑慮時對投手有利」）。
 
-    口徑上比自責分那支**更內部一致**：中段判準（整場官方失分＝0）與尾段判準（官方逐局
-    零得分）是同一個量的兩個粒度。但**下界性質不變**——中途登板／中途退場且該場後段有
-    得分時仍只能給鴿籠下界（多半為 0），見 payload 的 `lower_bound_note`。
+    主值 `appearances_counted` 只計官方失分為 0 的整場出賽。局數 `outs`／`innings` 降為
+    輔助下界；中途登板／中途退場且該場後段有得分時仍只能給鴿籠下界（多半為 0），見
+    payload 的 `lower_bound_note`。這是改變宣稱，不是解決該粒度限制。
 
     `season`／`team` 只篩母體，連續紀錄本身可回溯到更早球季。
     """
