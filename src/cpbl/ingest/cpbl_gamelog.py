@@ -11,6 +11,7 @@ import re
 import time
 
 from cpbl.db import conn
+from cpbl.ingest.box_revisions import record_box_pitching_revisions
 from cpbl.ingest.cpbl_site import BASE, KIND_REGULAR
 from cpbl.ingest.game_source_revisions import record_source_revision
 
@@ -300,6 +301,9 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
                                       _bbox_rows(year, kind_code, sno, bb))
         out["pitching_box"] += _upsert("pitching_gamelog", _PBOX_COLS, 4,
                                        _pbox_rows(year, kind_code, sno, pp))
+        # DATA-BOX-REVISION-SNAPSHOT1：逐投手 append-only 快照，內容雜湊去重。
+        # 只存快照，不影響既有 pitching_gamelog UPSERT 或回傳值語意。
+        record_box_pitching_revisions(year, kind_code, sno, pp)
         wx = _weather_row(year, kind_code, sno, payload)
         if wx:
             out["weather"] = out.get("weather", 0) + _upsert("game_detail", _GD_WX_COLS, 3, [wx])
@@ -309,11 +313,39 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
 
 
 def completed_snos(year: int, kind_code: str = KIND_REGULAR) -> list[int]:
-    """本季已完成（比分>0）場次的 game_sno。"""
+    """本季已完成場次的 game_sno。供 `cpbl-scrape-gamelog <year>` 全季回填用。
+
+    completed 判定沿用專案慣例（見記憶 completed-game-judgment，比照
+    `cpbl_pitch_tracking.completed_game_snos` 的寫法）：需同時 score>0 與
+    game_date <= CURRENT_DATE，避免保留賽掛未來日卻帶著中止時的比分被誤判成
+    已完成（DATA-BOX-REVISION-SNAPSHOT1 iteration 3：本函式先前漏了日期界線，
+    是這條慣例目前已知的漏網者，回填時會把還沒續打完的保留賽也排進清單去抓
+    box——不是每日鏈的問題，`_completed_snos` 另一支已經有窗）。
+
+    方向刻意用 UTC／`CURRENT_DATE`，不轉台北時區：與 `cpbl_pitch_tracking.py`
+    現行寫法一致；是否統一改台北日界是 REMEDY1 Phase 2 的範圍，這裡不搶著改。
+    """
     with conn() as c:
         rows = c.execute(
             "SELECT game_sno FROM cpbl.games WHERE year = %s AND kind_code = %s "
-            "AND home_score + away_score > 0 ORDER BY game_sno",
+            "AND home_score + away_score > 0 AND game_date <= CURRENT_DATE ORDER BY game_sno",
             (year, kind_code),
+        ).fetchall()
+    return [r[0] for r in rows]
+
+
+def completed_snos_within_days(year: int, kind_code: str, days_back: int) -> list[int]:
+    """近 days_back 天內完成（比分>0 且 game_date 不晚於今天）的 game_sno。
+
+    給 DATA-BOX-REVISION-SNAPSHOT1 深度重抓層用：`completed_snos()` 是全季，
+    這支限定近 N 天，讓深度層的請求量不隨球季累積而線性成長。
+    """
+    with conn() as c:
+        rows = c.execute(
+            "SELECT game_sno FROM cpbl.games WHERE year = %s AND kind_code = %s "
+            "AND home_score + away_score > 0 AND game_date <= CURRENT_DATE "
+            "AND game_date >= CURRENT_DATE - (%s * INTERVAL '1 day') "
+            "ORDER BY game_sno",
+            (year, kind_code, days_back),
         ).fetchall()
     return [r[0] for r in rows]
