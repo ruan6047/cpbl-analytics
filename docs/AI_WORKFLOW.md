@@ -23,6 +23,6 @@
 8. **卡範圍與鏈式停損**：一根問題一張卡（卡內多個窄寫入授權）；每卡必填「服務的原始目標」，鏈深硬上限＝原始目標下 2 層，全域問題脫鏈獨立卡（canonical §2.11–2.12／§3.2–3.3）。
 9. **三級閘門**：Initiative／不可逆 T4 同步 grilling；T3 核心痛點三問批註放行；T2+ 前提逐條附實查證據（canonical §3.1）。
 10. **資源與 worktree**：派工前寫入集交集檢查（`file:`／`db:` 宣告；**merge 後 file 資源即釋放**、`📦已合併` 仍佔活卡）；worktree 註冊制＋doctor 對帳（canonical §4.4–4.5）。
-11. **派工包六條**：範圍外發現回報 PM 禁 spawn_task／不停等背景通知／禁 `gh pr update-branch`／詭異數據人工判讀＋新聞佐證四約束（僅定性、官方數值權威、URL＋日期、第三方泛化）／trailer 連續單一區塊／CLI 探索紅線（[`dispatch-package.md`](../.ai-workflow/templates/dispatch-package.md)）。**本專案當前仍有副作用的 CLI 入口：`cpbl-refresh-recent`（連 `--help` 都會觸發每日鏈；G4 凍結中，收窗後修）**。
+11. **派工包六條**：範圍外發現回報 PM 禁 spawn_task／不停等背景通知／禁 `gh pr update-branch`／詭異數據人工判讀＋新聞佐證四約束（僅定性、官方數值權威、URL＋日期、第三方泛化）／trailer 連續單一區塊／CLI 探索紅線（[`dispatch-package.md`](../.ai-workflow/templates/dispatch-package.md)）。**本專案當前仍有副作用的 CLI 入口：`cpbl-refresh-recent`（連 `--help` 都會觸發每日鏈）；此限制仍在，但 Gate 3 已於 2026-08-03 提前收窗並解除 G4 凍結，修正 `--help` 行為的前置條件已滿足**（[`INGEST-GAME-TM-REFACTOR1-G4.md`](tasks/INGEST-GAME-TM-REFACTOR1-G4.md) L21、L362）。
 
 決策（開卡／派工／merge／結案）＝需求方本人；機械寫入、派工包組裝與查核詞產製＝PM 祕書 session（canonical §1.1，Coordinator 職責由該 session 承擔）。同一卡的執行者不得兼任查核者：一般卡查核以新 context／session 為獨立即可，紅線卡須換模型家族或人工審核。

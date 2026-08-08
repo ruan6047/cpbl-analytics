@@ -16,7 +16,7 @@
 
 - [ ] 全庫 SQL 盤點 CURRENT_DATE/CURRENT_TIMESTAMP/now() 日期界線用點（artifact 由指令產生），逐點分類：語意敏感／無害／鏈端凍結
 - [ ] 語意敏感點改 (now() AT TIME ZONE 'Asia/Taipei')::date（沿 completion.py helper 模式）；C12 精確等值用點修復＋回歸
-- [ ] 鏈端（src/cpbl/ingest/）用點只記錄不改——G4 觀測凍結，併 REMEDY1 Phase 2 處理
+- [ ] 鏈端（`src/cpbl/ingest/`）用點：#113 已將 `run_refresh_recent.py` 的完成場判準改為共用 `completed_games_sql()`，故不再是「只記錄不改」；但該 helper 預設仍為 UTC，且 `cpbl_pitch_tracking.py` 仍有原始 `CURRENT_DATE` 用點。兩者的 Asia/Taipei 日界切換須以另行授權的鏈端實作卡處理；Gate 3 已於 2026-08-03 提前收窗並解除 G4 凍結，不能再以凍結作為延後理由（[`INGEST-GAME-TM-REFACTOR1-G4.md`](INGEST-GAME-TM-REFACTOR1-G4.md) L21、L362）。
 - [ ] 回歸：晨間窗口語意測試不依賴牆鐘（注入時間或斷言 SQL 形態＋DB 端雙時區日期差驗證）
 - [ ] uv run ruff check＋uv run pytest 全綠
 
