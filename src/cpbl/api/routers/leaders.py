@@ -6,7 +6,7 @@ from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON, _ip_disp
 from cpbl.api.rows import _batting_rows, _pitching_rows, _primary_positions
-from cpbl.api.scoreless import streak_payload
+from cpbl.api.scoreless import RUN_BASIS, streak_payload
 from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
 from cpbl.franchises import franchise_of
@@ -371,6 +371,32 @@ def earned_run_free_streak(
     """
     return streak_payload(season=season, kind_code=kind_code, player_id=player_id,
                           team=team, limit=limit)
+
+
+@router.get("/api/v1/records/run-free-streak")
+def run_free_streak(
+    season: int = Query(DEFAULT_SEASON),
+    # 值域與自責分口徑同理鎖在例行賽（見上方端點註解）。
+    kind_code: str = Query("A", pattern="^(A|D)$"),
+    player_id: str | None = Query(None),
+    team: str | None = Query(None),
+    limit: int = Query(10, ge=1, le=100),
+) -> dict:
+    """投手**連續無失分局數**（保守下界）——媒體慣用的那個口徑。
+
+    與 `/api/v1/records/earned-run-free-streak` **是兩個不同的紀錄**：失誤造成的非自責
+    失分會中斷本指標、不中斷那一個。失分一律採官方 `pitching_gamelog.runs`；9.16(g) 的
+    繼承跑者歸屬已由聯盟記錄員套用於該欄，本專案直接讀取、不重算，也不觸及 9.16(c)(d)(f)
+    的主觀判斷（反事實重播與「有疑慮時對投手有利」）。
+
+    口徑上比自責分那支**更內部一致**：中段判準（整場官方失分＝0）與尾段判準（官方逐局
+    零得分）是同一個量的兩個粒度。但**下界性質不變**——中途登板／中途退場且該場後段有
+    得分時仍只能給鴿籠下界（多半為 0），見 payload 的 `lower_bound_note`。
+
+    `season`／`team` 只篩母體，連續紀錄本身可回溯到更早球季。
+    """
+    return streak_payload(season=season, kind_code=kind_code, player_id=player_id,
+                          team=team, limit=limit, basis=RUN_BASIS)
 
 
 @router.get("/api/v1/records/team")

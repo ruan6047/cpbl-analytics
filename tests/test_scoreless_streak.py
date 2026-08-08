@@ -16,7 +16,11 @@ from cpbl.models.scoreless_streak import (
     BREAK_EARNED_RUN,
     BREAK_MISSING_LINE,
     BREAK_POSTSEASON_EARNED_RUN,
+    BREAK_POSTSEASON_RUN,
+    BREAK_RUN,
     BREAK_SUSPENDED,
+    EARNED_RUN_BASIS,
+    RUN_BASIS,
     SUSPENDED,
     Appearance,
     compute_streak,
@@ -30,6 +34,8 @@ OTHER = "P2"
 
 
 def app(day: int, er: int | None, outs: int | None = 3, kind: str = "A", **kw) -> Appearance:
+    """預設 `runs` 跟著 `er` 走（自責分口徑的既有測試不受影響）；要測兩者不同時明給 runs。"""
+    kw.setdefault("runs", er)
     return Appearance(year=2026, kind_code=kind, game_sno=day, game_date=date(2026, 5, day),
                       earned_runs=er, outs=outs, **kw)
 
@@ -75,11 +81,14 @@ def test_earned_run_appearance_breaks_the_streak():
 
 
 def test_unearned_run_does_not_break():
-    """非自責失分**不**中斷（紅線 5 的語意：這是無自責分，不是無失分）。
+    """非自責失分**不**中斷自責分口徑（紅線 5 的語意：這是無自責分，不是無失分）。
 
     ER 一律讀官方欄位；本模組沒有、也不得有任何判定某分是否自責的邏輯。
+
+    **這一條必須真的構造出非自責失分**（`runs=1, earned_runs=0`）才有鑑別力——原版
+    三場全 0 的寫法在任何口徑下都不中斷，通過與否跟「非自責失分是否中斷」無關。
     """
-    res = compute_streak([app(1, 0), app(2, 0), app(3, 0)])
+    res = compute_streak([app(1, 0), app(2, 0, runs=1), app(3, 0)])
 
     assert res.strict_outs == 9
     assert res.boundary_limited is True
@@ -428,6 +437,140 @@ def test_a_last_pitch_narrowing_gains_only_where_the_counterexample_applies():
                             f"runs={runs} outs={official_outs} last_pitch={last_pitch}："
                             "有增益卻無反例適用條件，本卡的撤回理由需重新檢視")
     assert gains, "測試參數必須涵蓋到有增益的組態，否則此測試沒有鑑別力"
+
+
+# --------------------------------------------------------------------------
+# ML-PITCHER-RUNLESS1：失分口徑（`RUN_BASIS`）
+# --------------------------------------------------------------------------
+
+def test_run_basis_breaks_on_an_unearned_run_and_earned_run_basis_does_not():
+    """**兩個口徑是兩個紀錄**，同一組出賽必須給出不同答案，否則新端點沒有存在理由。
+
+    2026-06-11 呂彥青那場正是這個形態：`runs=1, earned_runs=0`（失誤造成的非自責失分）。
+    自責分口徑不中斷（與 ERA 語意一致）、失分口徑中斷（與媒體「無失分」一致）。
+    """
+    apps = [app(1, 0), app(2, 0, runs=1), app(3, 0)]
+
+    er = compute_streak(apps, basis=EARNED_RUN_BASIS)
+    run = compute_streak(apps, basis=RUN_BASIS)
+
+    assert (er.strict_outs, er.break_reason) == (9, None)
+    assert (run.strict_outs, run.break_reason) == (3, BREAK_RUN)
+    assert run.break_key == (2026, "A", 2)
+
+
+def test_run_basis_missing_runs_fails_closed_instead_of_folding_to_zero():
+    """`runs=None` ＝「這場掉幾分不知道」，**不是 0 分** → `BREAK_MISSING_LINE`。
+
+    `Appearance.runs` 的預設值就是 `None`，所以「忘了餵 runs」與「DB 是 NULL」走同一條
+    fail-closed 路徑；若哪天有人把它折成 0，這條會轉綠成「多算一段」＝ 高估。
+    """
+    missing = Appearance(year=2026, kind_code="A", game_sno=2, game_date=date(2026, 5, 2),
+                         earned_runs=0, outs=3, runs=None)
+    apps = [app(1, 0), missing, app(3, 0)]
+
+    res = compute_streak(apps, basis=RUN_BASIS)
+
+    assert res.strict_outs == 3
+    assert res.break_reason == BREAK_MISSING_LINE
+    # 同一組資料在自責分口徑下不中斷——證明 fail-closed 是 basis 選出來的欄位在管，
+    # 不是碰巧兩個口徑都缺值。
+    assert compute_streak(apps, basis=EARNED_RUN_BASIS).strict_outs == 9
+
+
+def test_each_basis_has_its_own_break_reason_codes():
+    """中斷原因碼不得共用：前端要能分辨「掉自責分」與「掉失分」。"""
+    er_post = compute_streak([app(1, 0), app(2, 1, kind="C"), app(3, 0)],
+                             counted_kinds=("A",), basis=EARNED_RUN_BASIS)
+    run_post = compute_streak([app(1, 0), app(2, 1, kind="C"), app(3, 0)],
+                              counted_kinds=("A",), basis=RUN_BASIS)
+
+    assert er_post.break_reason == BREAK_POSTSEASON_EARNED_RUN
+    assert run_post.break_reason == BREAK_POSTSEASON_RUN
+    assert BREAK_RUN != BREAK_EARNED_RUN
+
+
+def test_run_basis_skips_a_clean_postseason_appearance_by_its_own_criterion():
+    """季後賽 `runs=0` 才跳過；`runs>0, ER=0` 在失分口徑要中斷，不得沿用 ER 的判準。"""
+    apps = [app(1, 0), app(2, 0, kind="E", runs=1), app(3, 0)]
+
+    er = compute_streak(apps, counted_kinds=("A",), basis=EARNED_RUN_BASIS)
+    run = compute_streak(apps, counted_kinds=("A",), basis=RUN_BASIS)
+
+    assert [a.key for a in er.skipped] == [(2026, "E", 2)] and er.strict_outs == 6
+    assert run.skipped == [] and run.strict_outs == 3
+    assert run.break_reason == BREAK_POSTSEASON_RUN
+
+
+def test_basis_charged_reads_the_field_it_names():
+    a = app(1, 0, runs=2)
+
+    assert EARNED_RUN_BASIS.charged(a) == 0
+    assert RUN_BASIS.charged(a) == 2
+    assert (EARNED_RUN_BASIS.field, RUN_BASIS.field) == ("earned_runs", "runs")
+
+
+def test_run_basis_never_exceeds_earned_run_basis():
+    """**窮舉小型組態**釘住模組 docstring 那句「失分口徑恆 ≤ 自責分口徑」。
+
+    證明前提是 `runs = 0 ⇒ earned_runs = 0`（自責分是失分的子集），所以合法組態只有
+    `(R,ER) ∈ {(0,0), (1,0), (1,1), (2,1)}`——`(0,1)` 這種「零失分卻有自責分」在規則上
+    不存在，全母體實測也是 0 筆（對帳腳本 X1 的 `失分=0 卻 自責分>0` 欄）。
+
+    這裡窮舉的是**回走邏輯**（含季後賽跳過／中斷），不含尾段；尾段的部分由 X3 在真實
+    資料上逐人驗（尾段可能落在不同場次，純靠型別推不出來）。
+    """
+    combos = [(0, 0), (1, 0), (1, 1), (2, 1)]
+    checked = 0
+    for n in range(1, 5):
+        for seq in product(combos, repeat=n):
+            for kinds in product(("A", "C"), repeat=n):
+                apps = [app(i + 1, er, kind=k, runs=r)
+                        for i, ((r, er), k) in enumerate(zip(seq, kinds, strict=True))]
+                er_res = compute_streak(apps, counted_kinds=("A",), basis=EARNED_RUN_BASIS)
+                run_res = compute_streak(apps, counted_kinds=("A",), basis=RUN_BASIS)
+                assert run_res.strict_outs <= er_res.strict_outs, (
+                    f"seq={seq} kinds={kinds}：失分口徑 {run_res.strict_outs} "
+                    f"> 自責分口徑 {er_res.strict_outs}")
+                checked += 1
+    assert checked > 1000, "組態數太少，此測試沒有鑑別力"
+
+
+def test_the_ordering_flips_when_earned_runs_is_unknown_but_runs_is_not():
+    """大小關係**唯一**的翻轉路徑：`earned_runs` 缺值而 `runs` 有值。
+
+    這不是缺陷，是「未知一律中斷」的正確結果——但它是模組 docstring 那句「恆 ≤」的
+    前提條件，必須有一條測試把它釘出來，否則那句話會被讀成無條件成立。
+    對帳腳本的 X2 就是在量這種列在真實資料裡有幾筆（不假設它是 0）。
+    """
+    weird = Appearance(year=2026, kind_code="A", game_sno=2, game_date=date(2026, 5, 2),
+                       earned_runs=None, outs=3, runs=0)
+    apps = [app(1, 0), weird, app(3, 0)]
+
+    er = compute_streak(apps, basis=EARNED_RUN_BASIS)
+    run = compute_streak(apps, basis=RUN_BASIS)
+
+    assert er.strict_outs == 3 and er.break_reason == BREAK_MISSING_LINE
+    assert run.strict_outs == 9 > er.strict_outs
+
+
+def test_tail_is_shared_verbatim_by_both_bases():
+    """尾段是**同一個函式、同一組官方事實**，兩口徑一字不差——這正是「口徑一致」的來源。
+
+    自責分口徑下尾段證的是「零得分 ⇒ 零自責分」（跨口徑的蘊含）；失分口徑下證的是
+    「零得分 ⇒ 零失分」（同一個量的另一個粒度）。數值相同，敘述層數不同。
+    """
+    opp = dict(enumerate([0, 2, 0, 1, 0, 0, 0, 0, 0], start=1))
+    apps = [app(1, 3, outs=21, runs=3), app(2, 0), app(3, 0)]
+    def lookup(a):
+        return tail_credit(a.key, opp, a.outs, 3)
+
+    er = compute_streak(apps, tail_lookup=lookup, basis=EARNED_RUN_BASIS)
+    run = compute_streak(apps, tail_lookup=lookup, basis=RUN_BASIS)
+
+    assert er.tail is not None and run.tail is not None
+    assert er.tail.outs == run.tail.outs == 9
+    assert er.outs == run.outs == 15
 
 
 # --------------------------------------------------------------------------

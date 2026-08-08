@@ -1,26 +1,31 @@
-"""「連續無**自責**分局數」的取數層：把 DB 行餵給純函式 `cpbl.models.scoreless_streak`。
+"""「連續無**自責**分局數」／「連續無**失**分局數」的取數層：把 DB 行餵給純函式
+`cpbl.models.scoreless_streak`。
 
 分工：本檔只負責 SQL 與 payload 組裝；**演算法、保守性判斷、名詞紅線全在
 `cpbl.models.scoreless_streak`**（該檔 docstring 是語意單一來源，勿在此另立口徑）。
 
-自責分一律讀官方 `cpbl.pitching_gamelog.earned_runs`，本層不做任何自責分判定。
+兩個口徑共用同一條取數與組裝路徑，差別只有 `Basis`（判準欄位＋對外名詞）。自責分讀
+官方 `earned_runs`、失分讀官方 `runs`，本層對兩者都不做任何判定或補算。
 """
 
 from __future__ import annotations
 
+import dataclasses
+import hashlib
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from datetime import date
 
 from cpbl.api.helpers import _dicts, kinds_of
 from cpbl.db import conn
 from cpbl.models.scoreless_streak import (
     BOUNDARY_NOTE,
-    BREAK_EARNED_RUN,
     DATA_FROM_YEAR,
-    METRIC,
-    METRIC_LABEL,
-    METRIC_NOTE,
+    EARNED_RUN_BASIS,
+    RUN_BASIS,
+    SUSPENDED,
     Appearance,
+    Basis,
     StreakResult,
     TailCredit,
     compute_streak,
@@ -28,15 +33,33 @@ from cpbl.models.scoreless_streak import (
     tail_credit,
 )
 
-BASIS_STRICT = "官方 earned_runs=0 的整場出賽"
-BASIS_EXTENDED = (
-    f"{BASIS_STRICT} ＋ 中斷場的零得分後綴（鴿籠下界：官方逐局比分 ＋ 官方局數，"
-    "不讀逐打席資料、不假設任何事件完整性）"
-)
+__all__ = [
+    "EARNED_RUN_BASIS",
+    "RUN_BASIS",
+    "classify_artifact_drift",
+    "compute_all",
+    "load_appearances",
+    "load_opponent_runs",
+    "map_opponent_runs",
+    "population_fingerprint",
+    "streak_payload",
+    "tail_lookup_factory",
+]
+
+
+def _extended_basis(basis: Basis) -> str:
+    return (f"{basis.strict_basis} ＋ 中斷場的零得分後綴（鴿籠下界：官方逐局比分 ＋ "
+            "官方局數，不讀逐打席資料、不假設任何事件完整性）")
 TAIL_BASIS_NOTE = (
     "尾段以官方逐局比分界定「零得分後綴」，再用鴿籠原理取下界："
     "他在後綴的出局數 ≥ 官方總出局數 − 3 × 前綴局數。零得分的局不管誰投都是零失分，"
     "故此下界與投手更替、再入賽、牽制出局皆無關，也不需要逐打席資料完整。"
+)
+# 兩個口徑共用的下界揭露：換口徑**不會**讓這個限制消失。
+LOWER_BOUND_NOTE = (
+    "中途登板／中途退場、且該場後段仍有得分時，官方逐場資料只記整場的量、不記事件時點，"
+    "因此該場只能給鴿籠下界（多半為 0）——**此限制與判準用自責分或失分無關，換口徑不會"
+    "消除它**。要消除只有取得官方的「逐局責任投手」對照。"
 )
 SCOPE_NOTE = (
     "只計例行賽局數（與媒體／MLB／NPB 慣例一致，季後賽另計）。"
@@ -51,6 +74,7 @@ _APPEARANCES_SQL = """
            p.year, p.kind_code, p.game_sno,
            g.game_date,
            p.earned_runs,
+           p.runs,
            p.inning_pitched_cnt * 3 + p.inning_pitched_div3 AS outs,
            g.delay_kind,
            p.visiting_home_type                             AS vht,
@@ -88,6 +112,8 @@ def _appearance(row: dict) -> Appearance:
         game_date=row["game_date"], earned_runs=row["earned_runs"], outs=row["outs"],
         delay_kind=row["delay_kind"], opponent=row["opponent"], team_code=row["team_code"],
         vht=row["vht"], opponent_score=row["opponent_score"],
+        # NULL 原樣保留：失分口徑下 None 會走 BREAK_MISSING_LINE，不折成 0。
+        runs=row["runs"],
     )
 
 
@@ -182,24 +208,27 @@ def load_appearances(
 def compute_all(
     by_player: dict[str, list[Appearance]],
     counted_kinds: Sequence[str] | None = None,
+    basis: Basis = EARNED_RUN_BASIS,
 ) -> dict[str, StreakResult]:
     """兩趟：先不採計尾段找出中斷場，批次抓那些場的**對手逐局得分**，再重算含尾段的值。
 
     尾段只需要官方逐局比分與官方局數，**完全不讀 livelog**（見 `pigeonhole_tail_outs`）。
+    中斷場的判定走 `basis.break_reason`，兩個口徑不共用中斷原因碼。
     """
-    first = {pid: compute_streak(apps, counted_kinds=counted_kinds)
+    first = {pid: compute_streak(apps, counted_kinds=counted_kinds, basis=basis)
              for pid, apps in by_player.items()}
     keys = [r.break_key for r in first.values()
-            if r.break_reason == BREAK_EARNED_RUN and r.break_key]
+            if r.break_reason == basis.break_reason and r.break_key]
     runs = load_opponent_runs(keys)
     lookup = tail_lookup_factory(runs)
     return {
-        pid: compute_streak(apps, lookup, counted_kinds)
+        pid: compute_streak(apps, lookup, counted_kinds, basis=basis)
         for pid, apps in by_player.items()
     }
 
+
 def build_item(player_id: str, name: str | None, apps: Sequence[Appearance],
-               res: StreakResult) -> dict:
+               res: StreakResult, basis: Basis = EARNED_RUN_BASIS) -> dict:
     counted = res.counted  # 新→舊
     start: Appearance | None = counted[-1] if counted else None
     through: Appearance | None = counted[0] if counted else None
@@ -216,8 +245,8 @@ def build_item(player_id: str, name: str | None, apps: Sequence[Appearance],
         "innings": outs_to_innings(res.outs),
         "strict_outs": res.strict_outs,
         "strict_innings": outs_to_innings(res.strict_outs),
-        "basis": BASIS_EXTENDED,
-        "strict_basis": BASIS_STRICT,
+        "basis": _extended_basis(basis),
+        "strict_basis": basis.strict_basis,
         "appearances_counted": len(counted),
         "tail_suffix_from_inning": res.tail.suffix_from_inning if res.tail else None,
         "tail_reason": res.tail.reason if res.tail else None,
@@ -242,8 +271,13 @@ def streak_payload(
     player_id: str | None = None,
     team: str | None = None,
     limit: int = 10,
+    basis: Basis = EARNED_RUN_BASIS,
 ) -> dict:
-    """連續無自責分局數（下界）。`player_id` 指定時回單人，否則回該季母體排行。
+    """連續無（自責）失分局數（下界）。`player_id` 指定時回單人，否則回該季母體排行。
+
+    `basis` 決定判準與對外名詞（`EARNED_RUN_BASIS` 預設／`RUN_BASIS`）。payload 形狀
+    兩者完全相同，前端可用同一個元件消費；差異全在 `metric`／`metric_label`／`note`／
+    `basis`／`break_reason`。
 
     `season`／`team` 只篩**母體**（誰進榜、算哪一隊），不裁切連續紀錄本身——紀錄可回溯到
     更早球季，資料邊界見 `DATA_FROM_YEAR`。
@@ -264,8 +298,8 @@ def streak_payload(
                 if next((a.team_code for a in reversed(apps) if a.year == season), None) == team
             }
 
-    results = compute_all(by_player, counted_kinds)
-    items = [build_item(pid, names.get(pid), by_player[pid], res)
+    results = compute_all(by_player, counted_kinds, basis=basis)
+    items = [build_item(pid, names.get(pid), by_player[pid], res, basis)
              for pid, res in results.items()]
     if player_id is None:
         items = [i for i in items if i["outs"] > 0]
@@ -275,10 +309,20 @@ def streak_payload(
 
     as_of = max((a.game_date for apps in by_player.values() for a in apps if a.game_date),
                 default=None)
+    # 揭露欄位**兩個口徑都掛**（需求方裁決 2026-08-08：並列，失分為預設呈現面）。
+    # iteration 1 曾只掛在失分口徑上，理由是卡面「既有端點行為不得改變」；裁決既定為
+    # 並列，前提就變成**兩支對外語意必須對稱**——只有一支帶 `basis_field`／
+    # `lower_bound_note`，讀者無從判斷另一支的判準欄位與下界性質。
+    #
+    # 這是**刻意的相容性破壞**，不是「向後相容的新增欄位」：對做嚴格 key 比對的消費者
+    # 而言，多一個 key 就是破壞。目前 `web/` 兩支端點皆零消費者，破壞面僅止於 API 契約
+    # 本身。兩支的 key 集合由 `tests/test_scoreless_streak_api.py` 的雙向凍結斷言釘住。
     return {
-        "metric": METRIC,
-        "metric_label": METRIC_LABEL,
-        "note": METRIC_NOTE,
+        "metric": basis.metric,
+        "metric_label": basis.metric_label,
+        "note": basis.metric_note,
+        "basis_field": basis.field,          # 判準的官方欄位名，供前端／稽核直接對照
+        "lower_bound_note": LOWER_BOUND_NOTE,
         "season": season,
         "kind_code": kind_code,
         "kinds_counted": list(counted_kinds),   # 計入局數的賽別（例行賽）
@@ -289,4 +333,206 @@ def streak_payload(
         "data_from_year": DATA_FROM_YEAR,
         "as_of": str(as_of) if as_of else None,
         "items": items,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 輸入指紋與漂移分類（ML-PITCHER-RUNLESS1 iteration 3）
+#
+# 為什麼放在取數層：指紋要指的是**演算法實際吃到的那份輸入**。若另寫一支平行 SQL 去
+# 算指紋，那支 SQL 會和 `load_appearances`／`load_opponent_runs` 各自演化，指紋就會
+# 慢慢不再代表輸入——所以出賽側的指紋直接由已載入的 `Appearance` 物件算出。
+#
+# 解決的問題：本紀錄的母體**每天都會長大**（新比賽入庫），所以「artifact 的數字重跑後
+# 不一樣」是常態，不是缺陷（canonical `templates/statistical-redline.md` 第 9 條：
+# 母體隨資料新增而變動是正常狀態，處置為標注 as-of，**不設法凍結數字**）。
+# 但「不凍結」不等於「無從查證」——需要能區分兩件事：
+#
+#   輸入變了 → 輸出跟著變      = input drift，預期行為，報漂移量即可
+#   輸入沒變 → 輸出卻不一樣    = 演算法／環境出問題，這才該紅
+#
+# 指紋涵蓋演算法讀到的**全部**兩張表：`pitching_gamelog`（＋ join 進來的 `games` 欄位）
+# 與 `game_scoreboard`。除此之外本模組不讀任何資料，所以「指紋相同 ⇒ 輸入相同」在本
+# 演算法的範圍內成立。**不涵蓋**程式碼版本——指紋相同而數字不同時，程式碼變更同樣是
+# 候選原因，分類器只負責指出「不是資料造成的」，不負責指出是什麼造成的。
+# ---------------------------------------------------------------------------
+
+# 逐局比分側的指紋：**原始列**（不做 `max(score_cnt)` 聚合），比載入層更嚴格。
+# `score_cnt` 的 NULL 用 '?' 表示而非 0——未知在指紋裡也要有自己的名字。
+_SCOREBOARD_DIGEST_SQL = """
+    SELECT count(*) AS rows_total,
+           md5(coalesce(string_agg(t, E'\\n' ORDER BY t), '')) AS digest
+      FROM (SELECT s.year || '/' || s.kind_code || '/' || s.game_sno || '/'
+                   || coalesce(s.visiting_home_type, '-') || '/' || s.inning_seq
+                   || '/' || coalesce(s.score_cnt::text, '?') AS t
+              FROM cpbl.game_scoreboard s
+              JOIN cpbl.games g USING (year, kind_code, game_sno)
+             WHERE s.kind_code = ANY(%(kinds)s) AND s.year >= %(from_year)s
+               -- cutoff 必須和出賽側用同一條界線：只濾一邊會讓「重建的舊快照」帶著
+               -- 新的逐局比分，指紋因此不代表任何真實存在過的輸入狀態。
+               AND (%(cutoff)s::date IS NULL OR g.game_date <= %(cutoff)s::date)) x
+"""
+
+
+#: 出賽側指紋涵蓋的欄位——**由 `Appearance` 的型別導出，不是手寫清單**。
+#:
+#: iteration 3 的版本是手寫的 12 個欄位，漏了 `opponent`：查核者只把對手由甲隊改成乙隊，
+#: 指紋不動，於是「不同的輸入 ＋ 不同的 artifact」被判成 `identical`。補上 `opponent`
+#: 不能解決這件事——下一個人往 `Appearance` 加一個欄位，同一個洞會再開一次。
+#:
+#: 治法是讓涵蓋範圍**不再依賴任何人記得更新**：欄位清單由 `dataclasses.fields()` 在
+#: import 時算出，新增欄位自動納入。`tests/test_scoreless_streak_api.py` 另有一條
+#: **對每一個欄位逐一變異**的測試（同樣走 `fields()` 迴圈），新增欄位若沒進指紋，
+#: 那條測試會自己失敗——守衛與被守衛的東西共用同一個來源，不會各自漂移。
+_APPEARANCE_FIELDS = tuple(sorted(f.name for f in dataclasses.fields(Appearance)))
+
+
+def _digest(lines: Sequence[str]) -> str:
+    """排序後串接再雜湊，與載入順序無關。md5 為內容比對用途，非安全用途。"""
+    return hashlib.md5("\n".join(sorted(lines)).encode()).hexdigest()   # noqa: S324
+
+
+def _appearance_digest(by_player: Mapping[str, Sequence[Appearance]]) -> str:
+    """已載入出賽母體的內容指紋，涵蓋 `Appearance` 的**每一個**欄位。
+
+    逐列以 JSON 序列化再雜湊。選 JSON 而不是 `"|".join(str(...))` 的理由：
+    後者把 `None`／`0`／字串 `"0"`／`"None"` 壓成難以區分的形狀，而且值裡若出現分隔字元
+    就會產生歧義（不同的輸入拼出同一行）。JSON 對 `null`、數字、字串各有不同的表示，
+    **未知在指紋裡有自己的名字**，這正是指紋要防的事。
+    """
+    return _digest([
+        json.dumps([pid, *(getattr(a, f) for f in _APPEARANCE_FIELDS)],
+                   ensure_ascii=False, default=str)
+        for pid, apps in by_player.items() for a in apps
+    ])
+
+
+def _name_digest(names: Mapping[str, str] | None) -> str:
+    """球員姓名的內容指紋。
+
+    姓名不參與演算法，但**會寫進 artifact**（`player_name`），而且會過期後被改名同步
+    覆寫（見記憶 `player-name-authority`）。凡是會改變 artifact 的輸入都要在指紋裡，
+    否則「改名了」會被判成 `identical`——那正是本輪 `opponent` 漏掉的同一型錯誤。
+    """
+    if names is None:
+        return ""
+    return _digest([json.dumps([pid, n], ensure_ascii=False) for pid, n in names.items()])
+
+
+def population_fingerprint(
+    by_player: Mapping[str, Sequence[Appearance]], kinds: Sequence[str],
+    cutoff: date | None = None, names: Mapping[str, str] | None = None,
+) -> dict:
+    """→ 這次執行實際吃到的輸入的可比對描述（含 as-of、規模與內容指紋）。
+
+    輸入通道有三條，**每一條都有自己的 `*_digest`**：`Appearance`（走
+    `_APPEARANCE_FIELDS`，由型別導出）、`names`（`player_name`，會寫進 artifact）、
+    `game_scoreboard`（原始列）。`classify_artifact_drift` 比對的是**所有以 `_digest`
+    結尾的鍵**，不是寫死的兩個名字——日後多一條輸入通道，只要它帶 `_digest` 後綴就
+    自動納入比對。
+
+    `data_asof` 是母體中最新的一場比賽日期，**不是 wall-clock**——artifact 因此不含
+    執行時間，逐次比對才有意義（卡面驗證：artifact 不含 wall-clock 時戳）。
+
+    **`data_asof` 排除保留賽**：保留賽的 `game_date` 是**改期後的未來日期**，而比分卻
+    已經記上（實例 2026/D/165：`orig_date` 07-17、`game_date` 09-15、比分 1:3）。直接取
+    `max(game_date)` 會讓 as-of 標成 2026-09-15，讀起來像「資料到九月」，實際上只到八月
+    ——那是**把排程日期誤讀成資料新鮮度**。保留賽本來就一律中斷、不採計（見
+    `compute_streak`），拿它當新鮮度指標更沒有理由。
+    原始最大值仍以 `latest_game_date_any` 揭露，不做沉默捨棄。
+
+    **排除只影響 as-of 這個標籤，不影響指紋**：`appearance_digest` 涵蓋每一列（含保留賽），
+    所以保留賽被改期或補上比分仍會被偵測為輸入變動。
+    """
+    rows = _fetch_scoreboard_digest(kinds, cutoff)
+    dates = [a.game_date for apps in by_player.values() for a in apps if a.game_date]
+    played = [a.game_date for apps in by_player.values() for a in apps
+              if a.game_date and a.delay_kind != SUSPENDED]
+    return {
+        "data_asof": str(max(played)) if played else None,
+        "latest_game_date_any": str(max(dates)) if dates else None,
+        "pitchers": len(by_player),
+        "appearances": sum(len(apps) for apps in by_player.values()),
+        "appearance_fields": list(_APPEARANCE_FIELDS),   # 指紋涵蓋範圍，隨型別自動長
+        "appearance_digest": _appearance_digest(by_player),
+        "name_digest": _name_digest(names),
+        "scoreboard_rows": rows["rows_total"],
+        "scoreboard_digest": rows["digest"],
+    }
+
+
+def _fetch_scoreboard_digest(kinds: Sequence[str], cutoff: date | None = None) -> dict:
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(_SCOREBOARD_DIGEST_SQL,
+                    {"kinds": list(kinds), "from_year": DATA_FROM_YEAR, "cutoff": cutoff})
+        return _dicts(cur)[0]
+
+
+#: `classify_artifact_drift` 的三種判定。
+DRIFT_IDENTICAL = "identical"          # 輸入與輸出都相同
+DRIFT_INPUT = "input_drift"            # 輸入變了（預期；**不是缺陷**）
+DRIFT_MISMATCH = "mismatch_same_input" # 輸入沒變、輸出卻變了（**這才該紅**）
+
+
+def classify_artifact_drift(
+    previous: Mapping | None, current: Mapping, tracked: Sequence[str],
+) -> dict:
+    """比對「artifact 裡記的那次執行」與「這次執行」，把差異歸因到輸入或輸出。
+
+    `previous`／`current` 各需含 `fingerprint`（`population_fingerprint` 的輸出）與
+    `tracked` 列出的統計欄位。回傳 `verdict` ＋ 逐欄位的 `before/after/delta`。
+
+    **判定規則**（刻意只有這三種，不做「差得不多所以算過」之類的模糊帶）：
+
+    - 指紋不同 → `input_drift`。母體長大或既有場次被修訂都會落在這裡，兩者都是資料
+      面的正常事件。此時輸出數字不同**不構成失敗**，只報漂移量。
+    - 指紋相同、追蹤欄位全同 → `identical`。
+    - 指紋相同、追蹤欄位有差 → `mismatch_same_input`。同一份輸入給出不同輸出，
+      資料面已被指紋排除，剩下的候選是程式碼或執行環境——**呼叫端應視為失敗**。
+
+    `previous` 為 None（artifact 是舊格式、沒有指紋）時回 `verdict=None` 並說明原因，
+    **不猜**：無從比對就明講無從比對，不要用「看起來差不多」放行。
+
+    **比對哪些指紋不是寫死的**：取兩邊 fingerprint 中所有以 `_digest` 結尾的鍵**聯集**，
+    逐一比較。日後多一條輸入通道只要帶 `_digest` 後綴就自動納入；而「舊 artifact 少了
+    某個 digest 鍵」會因為聯集取值不同而算成輸入變動——**無法證明輸入相同時偏向
+    `input_drift`，不偏向 `identical`**，因為後者是會讓缺陷靜默通過的那一邊。
+    """
+    if not previous or "fingerprint" not in previous:
+        return {"verdict": None,
+                "reason": "artifact 未帶 fingerprint（舊格式），本次無從分類，"
+                          "請以本次輸出重新產生 artifact 後再比"}
+    before, after = previous["fingerprint"], current["fingerprint"]
+    digest_keys = sorted({k for k in (*before, *after) if k.endswith("_digest")})
+    digest_changed = {k.removesuffix("_digest"): before.get(k) != after.get(k)
+                      for k in digest_keys}
+    input_changed = any(digest_changed.values())
+    fields = [
+        {"field": k, "before": previous.get(k), "after": current.get(k),
+         "delta": (current.get(k) - previous.get(k))
+         if isinstance(previous.get(k), int) and isinstance(current.get(k), int) else None}
+        for k in tracked
+    ]
+    changed = [f for f in fields if f["before"] != f["after"]]
+    verdict = (DRIFT_INPUT if input_changed
+               else DRIFT_MISMATCH if changed else DRIFT_IDENTICAL)
+    return {
+        "verdict": verdict,
+        "data_asof_before": before.get("data_asof"),
+        "data_asof_after": after.get("data_asof"),
+        "input_delta": {
+            k: {"before": before.get(k), "after": after.get(k),
+                "delta": (after.get(k) - before.get(k))
+                if isinstance(before.get(k), int) and isinstance(after.get(k), int)
+                else None}
+            for k in ("pitchers", "appearances", "scoreboard_rows")
+        },
+        "digest_changed": digest_changed,
+        # 指紋涵蓋的出賽欄位；兩次執行不同代表 `Appearance` 的形狀變了（多／少欄位），
+        # 那本身就是「artifact 的可比性」需要知道的事，故一併揭露而非藏起來。
+        "appearance_fields_before": before.get("appearance_fields"),
+        "appearance_fields_after": after.get("appearance_fields"),
+        "fields": fields,
+        "changed_fields": changed,
     }
