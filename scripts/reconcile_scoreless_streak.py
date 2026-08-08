@@ -30,10 +30,34 @@
 | X2 | `runs IS NOT NULL AND earned_runs IS NULL` 的出賽筆數 | 這是**唯一**能讓「失分口徑 ≤ 自責分口徑」翻轉的資料形態；不假設它是 0，逐次量 |
 | X3 | 逐投手驗 `失分口徑 outs ≤ 自責分口徑 outs`（`outs` 與 `strict_outs` 各驗一次） | 上述大小關係的窮舉驗證；任一例外即 exit 1 |
 
+## 母體會長大：artifact 的數字重跑後不一樣是**常態，不是缺陷**
+
+本紀錄的母體每天都會增加（新比賽入庫），既有場次也可能被官方修訂。canonical
+`templates/statistical-redline.md` 第 9 條：母體隨資料新增而變動是正常狀態，處置為
+**標注 as-of**、**不設法凍結數字**，也不得把漂移讀成錯誤。
+
+但「不凍結」不等於「無從查證」。每次執行都會輸出 `fingerprint`（as-of ＋ 母體規模 ＋
+演算法實際吃到的兩張表的內容指紋，見 `cpbl.api.scoreless.population_fingerprint`），
+`--compare-to` 會據此把差異歸因：
+
+| 判定 | 條件 | 意義 | exit |
+|---|---|---|---|
+| `identical` | 指紋相同、追蹤欄位相同 | 同一份輸入、同一份輸出 | 0 |
+| `input_drift` | **指紋不同** | 母體長大或既有場次被修訂——**預期行為**，只報漂移量 | 0 |
+| `mismatch_same_input` | 指紋相同、追蹤欄位**不同** | 同一份輸入卻給出不同輸出，資料面已被排除 ⇒ **該查程式碼／環境** | **1** |
+
 用法：
 
     uv run python scripts/reconcile_scoreless_streak.py            # 全層級×全口徑，人類可讀 + JSON
     uv run python scripts/reconcile_scoreless_streak.py --json-out artifacts/x.json
+
+    # 與既有 artifact 比對，把差異歸因到「輸入變了」或「輸出算錯了」
+    uv run python scripts/reconcile_scoreless_streak.py \
+        --compare-to docs/research/ML-PITCHER-RUNLESS1/RECONCILE.json
+
+    # 稽核用：重建某個資料截點的快照（例如要復現一份較舊的 artifact 是怎麼來的）
+    uv run python scripts/reconcile_scoreless_streak.py --data-asof-cutoff 2026-07-31 \
+        --json-out /tmp/prev.json
 """
 
 from __future__ import annotations
@@ -42,9 +66,17 @@ import argparse
 import json
 import sys
 from collections import defaultdict
+from datetime import date
 
 from cpbl.api.helpers import _dicts, kinds_of
-from cpbl.api.scoreless import compute_all, load_appearances
+from cpbl.api.scoreless import (
+    DRIFT_INPUT,
+    DRIFT_MISMATCH,
+    classify_artifact_drift,
+    compute_all,
+    load_appearances,
+    population_fingerprint,
+)
 from cpbl.db import conn
 from cpbl.models.scoreless_streak import (
     BREAK_DATA_BOUNDARY,
@@ -391,12 +423,17 @@ _CROSS_BASIS_SQL = """
            count(*) FILTER (WHERE p.runs IS NULL)                          AS runs_null,
            count(*) FILTER (WHERE p.earned_runs IS NULL)                   AS er_null
       FROM cpbl.pitching_gamelog p
+      JOIN cpbl.games g USING (year, kind_code, game_sno)
      WHERE p.kind_code = ANY(%(kinds)s) AND p.year >= %(from_year)s
+       -- cutoff 為 NULL 時不設限；有值時與 by_player 的過濾用同一條界線，
+       -- 否則 X1/X2 會是全母體、per-basis 卻是快照，兩張表對不起來。
+       AND (%(cutoff)s::date IS NULL OR g.game_date <= %(cutoff)s::date)
 """
 
 
 def cross_basis(tier_label: str, kind_code: str,
-                per_basis: dict[str, dict[str, tuple[int, int]]]) -> dict:
+                per_basis: dict[str, dict[str, tuple[int, int]]],
+                cutoff: date | None = None) -> dict:
     """X1–X3：兩個口徑之間的關係。`per_basis[basis_field][pid] = (outs, strict_outs)`。
 
     X3 驗的是模組 docstring 那句「失分口徑的總出局數恆 ≤ 自責分口徑」。它的證明前提是
@@ -405,7 +442,9 @@ def cross_basis(tier_label: str, kind_code: str,
     的直接後果，屆時必須逐筆看，不可自動放行；本檢查一律照實報例外。
     """
     kinds = kinds_of(kind_code)
-    counts = _fetch(_CROSS_BASIS_SQL, {"kinds": list(kinds), "from_year": DATA_FROM_YEAR})[0]
+    counts = _fetch(_CROSS_BASIS_SQL, {"kinds": list(kinds),
+                                      "from_year": DATA_FROM_YEAR,
+                                      "cutoff": cutoff})[0]
     er = per_basis[EARNED_RUN_BASIS.field]
     rn = per_basis[RUN_BASIS.field]
 
@@ -441,15 +480,82 @@ def cross_basis(tier_label: str, kind_code: str,
     }
 
 
+# `--compare-to` 追蹤的欄位：**輸出**面的統計量。輸入面走 fingerprint，兩者分開，
+# 才有辦法回答「是輸入變了還是輸出算錯了」。
+TRACKED_PER_BASIS = ("pitchers", "appearances_total", "appearances_counted",
+                     "tail_queries", "tail_credited", "tail_outs",
+                     "skipped_postseason", "exception_count")
+TRACKED_CROSS = ("appearances", "x1_runs_ne_earned_runs", "x1_unearned_only",
+                 "x2_inversion_risk_rows", "x3_pitchers_compared", "exception_count")
+
+
+def _drift_rows(previous: dict | None, current: dict) -> list[dict]:
+    """把 artifact 與本次執行逐列配對後分類。previous 為 None ⇒ 全部回「無從分類」。"""
+    prev_basis = {(r["tier"], r["basis"]): r
+                  for r in (previous or {}).get("per_basis", [])}
+    prev_cross = {c["tier"]: c for c in (previous or {}).get("cross_basis", [])}
+    rows = []
+    for r in current["per_basis"]:
+        rows.append({"scope": f"{r['tier']}／{r['basis_label']}",
+                     **classify_artifact_drift(prev_basis.get((r["tier"], r["basis"])),
+                                               r, TRACKED_PER_BASIS)})
+    for c in current["cross_basis"]:
+        rows.append({"scope": f"{c['tier']}／跨口徑",
+                     **classify_artifact_drift(prev_cross.get(c["tier"]), c,
+                                               TRACKED_CROSS)})
+    return rows
+
+
+def _print_drift(path: str, rows: list[dict]) -> None:
+    print(f"\n輸入漂移偵測（對照 artifact：{path}）\n")
+    print("**母體長大或既有場次被修訂造成的數字變動不是缺陷**（canonical statistical-redline "
+          "第 9 條：標注 as-of、不凍結數字）。只有「指紋相同卻算出不同結果」才是問題。\n")
+    hdr = ("範圍", "artifact as-of", "本次 as-of", "出賽數 Δ", "投手數 Δ",
+           "逐局比分列 Δ", "指紋變動", "輸出變動欄位", "判定")
+    print(" | ".join(hdr))
+    print(" | ".join("---" for _ in hdr))
+    for r in rows:
+        if r["verdict"] is None:
+            print(" | ".join((r["scope"], "-", "-", "-", "-", "-", "-", "-",
+                              f"無從分類（{r['reason']}）")))
+            continue
+        d = r["input_delta"]
+        dig = ("出賽" if r["digest_changed"]["appearance"] else "") + \
+              ("＋逐局比分" if r["digest_changed"]["scoreboard"] else "")
+        changed = ", ".join(f"{f['field']} {f['before']}→{f['after']}"
+                            for f in r["changed_fields"]) or "（無）"
+        print(" | ".join((
+            r["scope"], str(r["data_asof_before"]), str(r["data_asof_after"]),
+            f"{d['appearances']['before']}→{d['appearances']['after']}"
+            f"（{d['appearances']['delta']:+d})" if d["appearances"]["delta"] is not None
+            else "-",
+            f"{d['pitchers']['delta']:+d}" if d["pitchers"]["delta"] is not None else "-",
+            f"{d['scoreboard_rows']['delta']:+d}"
+            if d["scoreboard_rows"]["delta"] is not None else "-",
+            dig or "（無）", changed, r["verdict"])))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--json-out")
+    ap.add_argument("--compare-to", metavar="ARTIFACT.json",
+                    help="與既有 artifact 比對，把差異歸因到 input drift 或算錯")
+    ap.add_argument("--data-asof-cutoff", metavar="YYYY-MM-DD",
+                    help="稽核用：只採計此日期（含）以前的出賽，重建較舊的資料快照。"
+                         "**不影響正式輸出**，正式 artifact 一律不帶 cutoff")
     args = ap.parse_args()
+
+    cutoff = date.fromisoformat(args.data_asof_cutoff) if args.data_asof_cutoff else None
 
     reports: list[dict] = []
     cross: list[dict] = []
     for label, kind in TIERS.items():
         by_player, _names = load_appearances(kinds_of(kind))
+        if cutoff is not None:
+            by_player = {pid: [a for a in apps if a.game_date and a.game_date <= cutoff]
+                         for pid, apps in by_player.items()}
+            by_player = {pid: apps for pid, apps in by_player.items() if apps}
+        fingerprint = population_fingerprint(by_player, kinds_of(kind), cutoff)
         per_basis: dict[str, dict[str, tuple[int, int]]] = {}
         for basis_label, basis in BASES.items():
             results = compute_all(by_player, (kind,), basis=basis)
@@ -457,13 +563,24 @@ def main() -> int:
                                       for pid, r in results.items()}
             rep = reconcile(label, kind, basis, results=results, by_player=by_player)
             rep["basis_label"] = basis_label
+            rep["fingerprint"] = fingerprint
+            rep["exception_count"] = len(rep["exceptions"])
             reports.append(rep)
-        cross.append(cross_basis(label, kind, per_basis))
+        c = cross_basis(label, kind, per_basis, cutoff)
+        c["fingerprint"] = fingerprint
+        c["exception_count"] = len(c["exceptions"])
+        cross.append(c)
 
     total_fail = (sum(len(r["exceptions"]) for r in reports)
                   + sum(len(c["exceptions"]) for c in cross))
 
-    print("窮舉對帳：連續無自責分局數（SCORELESS1）＋連續無失分局數（RUNLESS1）\n")
+    current = {"per_basis": reports, "cross_basis": cross}
+    asofs = sorted({r["fingerprint"]["data_asof"] for r in reports
+                    if r["fingerprint"]["data_asof"]})
+    print("窮舉對帳：連續無自責分局數（SCORELESS1）＋連續無失分局數（RUNLESS1）")
+    print(f"資料 as-of：{'／'.join(asofs) or '（無資料）'}"
+          f"{f'（cutoff {cutoff}）' if cutoff else ''}"
+          "　— 母體隨新比賽成長，數字逐日變動屬正常，比對請用 --compare-to\n")
     hdr = ("層級", "口徑", "投手數", "出賽總數", "採計出賽", "R1 驗得判準=0",
            "尾段查詢", "尾段採計場次", "尾段出局數", "R10 驗得下界", "R2 驗得後綴零得分",
            "跳過季後賽", "R7 驗得判準=0", "例外")
@@ -497,12 +614,27 @@ def main() -> int:
             print(f"  [{e['check']}] {e['player_id']} {e['detail']}")
     print(f"\n總例外：{total_fail}（紅線要求 0）")
 
+    mismatches = 0
+    if args.compare_to:
+        with open(args.compare_to, encoding="utf-8") as fh:
+            previous = json.load(fh)
+        rows = _drift_rows(previous, current)
+        _print_drift(args.compare_to, rows)
+        mismatches = sum(1 for r in rows if r["verdict"] == DRIFT_MISMATCH)
+        drifted = sum(1 for r in rows if r["verdict"] == DRIFT_INPUT)
+        unknown = sum(1 for r in rows if r["verdict"] is None)
+        print(f"\ninput_drift {drifted} 列（預期，不計入失敗）／"
+              f"mismatch_same_input {mismatches} 列（**要求 0**）／無從分類 {unknown} 列")
+        if drifted and not mismatches:
+            print("→ 差異全數歸因於輸入變動。處置是**更新 artifact 並標注 as-of**，"
+                  "不是把數字凍住，也不該讀成缺陷。")
+        current["drift_vs"] = {"artifact": args.compare_to, "rows": rows}
+
     if args.json_out:
         with open(args.json_out, "w", encoding="utf-8") as fh:
-            json.dump({"per_basis": reports, "cross_basis": cross}, fh,
-                      ensure_ascii=False, indent=2)
+            json.dump(current, fh, ensure_ascii=False, indent=2)
         print(f"JSON → {args.json_out}")
-    return 1 if total_fail else 0
+    return 1 if (total_fail or mismatches) else 0
 
 
 if __name__ == "__main__":

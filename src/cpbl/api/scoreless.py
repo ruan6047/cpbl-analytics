@@ -10,8 +10,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from datetime import date
 
 from cpbl.api.helpers import _dicts, kinds_of
 from cpbl.db import conn
@@ -20,6 +22,7 @@ from cpbl.models.scoreless_streak import (
     DATA_FROM_YEAR,
     EARNED_RUN_BASIS,
     RUN_BASIS,
+    SUSPENDED,
     Appearance,
     Basis,
     StreakResult,
@@ -32,10 +35,12 @@ from cpbl.models.scoreless_streak import (
 __all__ = [
     "EARNED_RUN_BASIS",
     "RUN_BASIS",
+    "classify_artifact_drift",
     "compute_all",
     "load_appearances",
     "load_opponent_runs",
     "map_opponent_runs",
+    "population_fingerprint",
     "streak_payload",
     "tail_lookup_factory",
 ]
@@ -327,4 +332,160 @@ def streak_payload(
         "data_from_year": DATA_FROM_YEAR,
         "as_of": str(as_of) if as_of else None,
         "items": items,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 輸入指紋與漂移分類（ML-PITCHER-RUNLESS1 iteration 3）
+#
+# 為什麼放在取數層：指紋要指的是**演算法實際吃到的那份輸入**。若另寫一支平行 SQL 去
+# 算指紋，那支 SQL 會和 `load_appearances`／`load_opponent_runs` 各自演化，指紋就會
+# 慢慢不再代表輸入——所以出賽側的指紋直接由已載入的 `Appearance` 物件算出。
+#
+# 解決的問題：本紀錄的母體**每天都會長大**（新比賽入庫），所以「artifact 的數字重跑後
+# 不一樣」是常態，不是缺陷（canonical `templates/statistical-redline.md` 第 9 條：
+# 母體隨資料新增而變動是正常狀態，處置為標注 as-of，**不設法凍結數字**）。
+# 但「不凍結」不等於「無從查證」——需要能區分兩件事：
+#
+#   輸入變了 → 輸出跟著變      = input drift，預期行為，報漂移量即可
+#   輸入沒變 → 輸出卻不一樣    = 演算法／環境出問題，這才該紅
+#
+# 指紋涵蓋演算法讀到的**全部**兩張表：`pitching_gamelog`（＋ join 進來的 `games` 欄位）
+# 與 `game_scoreboard`。除此之外本模組不讀任何資料，所以「指紋相同 ⇒ 輸入相同」在本
+# 演算法的範圍內成立。**不涵蓋**程式碼版本——指紋相同而數字不同時，程式碼變更同樣是
+# 候選原因，分類器只負責指出「不是資料造成的」，不負責指出是什麼造成的。
+# ---------------------------------------------------------------------------
+
+# 逐局比分側的指紋：**原始列**（不做 `max(score_cnt)` 聚合），比載入層更嚴格。
+# `score_cnt` 的 NULL 用 '?' 表示而非 0——未知在指紋裡也要有自己的名字。
+_SCOREBOARD_DIGEST_SQL = """
+    SELECT count(*) AS rows_total,
+           md5(coalesce(string_agg(t, E'\\n' ORDER BY t), '')) AS digest
+      FROM (SELECT s.year || '/' || s.kind_code || '/' || s.game_sno || '/'
+                   || coalesce(s.visiting_home_type, '-') || '/' || s.inning_seq
+                   || '/' || coalesce(s.score_cnt::text, '?') AS t
+              FROM cpbl.game_scoreboard s
+              JOIN cpbl.games g USING (year, kind_code, game_sno)
+             WHERE s.kind_code = ANY(%(kinds)s) AND s.year >= %(from_year)s
+               -- cutoff 必須和出賽側用同一條界線：只濾一邊會讓「重建的舊快照」帶著
+               -- 新的逐局比分，指紋因此不代表任何真實存在過的輸入狀態。
+               AND (%(cutoff)s::date IS NULL OR g.game_date <= %(cutoff)s::date)) x
+"""
+
+
+def _appearance_digest(by_player: Mapping[str, Sequence[Appearance]]) -> str:
+    """已載入出賽母體的內容指紋。排序後串接再雜湊，與載入順序無關。
+
+    納入演算法會讀到的每一個欄位；`None` 一律寫成 `?`，不折成 0——把未知折成已知會讓
+    兩份不同的輸入拿到同一個指紋，那正是指紋要防的事。
+    """
+    lines = sorted(
+        "|".join(str(v) if v is not None else "?" for v in (
+            pid, a.year, a.kind_code, a.game_sno, a.game_date, a.earned_runs, a.runs,
+            a.outs, a.delay_kind, a.vht, a.opponent_score, a.team_code))
+        for pid, apps in by_player.items() for a in apps
+    )
+    return hashlib.md5("\n".join(lines).encode()).hexdigest()   # noqa: S324 — 非安全用途
+
+
+def population_fingerprint(
+    by_player: Mapping[str, Sequence[Appearance]], kinds: Sequence[str],
+    cutoff: date | None = None,
+) -> dict:
+    """→ 這次執行實際吃到的輸入的可比對描述（含 as-of、規模與內容指紋）。
+
+    `data_asof` 是母體中最新的一場比賽日期，**不是 wall-clock**——artifact 因此不含
+    執行時間，逐次比對才有意義（卡面驗證：artifact 不含 wall-clock 時戳）。
+
+    **`data_asof` 排除保留賽**：保留賽的 `game_date` 是**改期後的未來日期**，而比分卻
+    已經記上（實例 2026/D/165：`orig_date` 07-17、`game_date` 09-15、比分 1:3）。直接取
+    `max(game_date)` 會讓 as-of 標成 2026-09-15，讀起來像「資料到九月」，實際上只到八月
+    ——那是**把排程日期誤讀成資料新鮮度**。保留賽本來就一律中斷、不採計（見
+    `compute_streak`），拿它當新鮮度指標更沒有理由。
+    原始最大值仍以 `latest_game_date_any` 揭露，不做沉默捨棄。
+
+    **排除只影響 as-of 這個標籤，不影響指紋**：`appearance_digest` 涵蓋每一列（含保留賽），
+    所以保留賽被改期或補上比分仍會被偵測為輸入變動。
+    """
+    rows = _fetch_scoreboard_digest(kinds, cutoff)
+    dates = [a.game_date for apps in by_player.values() for a in apps if a.game_date]
+    played = [a.game_date for apps in by_player.values() for a in apps
+              if a.game_date and a.delay_kind != SUSPENDED]
+    return {
+        "data_asof": str(max(played)) if played else None,
+        "latest_game_date_any": str(max(dates)) if dates else None,
+        "pitchers": len(by_player),
+        "appearances": sum(len(apps) for apps in by_player.values()),
+        "appearance_digest": _appearance_digest(by_player),
+        "scoreboard_rows": rows["rows_total"],
+        "scoreboard_digest": rows["digest"],
+    }
+
+
+def _fetch_scoreboard_digest(kinds: Sequence[str], cutoff: date | None = None) -> dict:
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(_SCOREBOARD_DIGEST_SQL,
+                    {"kinds": list(kinds), "from_year": DATA_FROM_YEAR, "cutoff": cutoff})
+        return _dicts(cur)[0]
+
+
+#: `classify_artifact_drift` 的三種判定。
+DRIFT_IDENTICAL = "identical"          # 輸入與輸出都相同
+DRIFT_INPUT = "input_drift"            # 輸入變了（預期；**不是缺陷**）
+DRIFT_MISMATCH = "mismatch_same_input" # 輸入沒變、輸出卻變了（**這才該紅**）
+
+
+def classify_artifact_drift(
+    previous: Mapping | None, current: Mapping, tracked: Sequence[str],
+) -> dict:
+    """比對「artifact 裡記的那次執行」與「這次執行」，把差異歸因到輸入或輸出。
+
+    `previous`／`current` 各需含 `fingerprint`（`population_fingerprint` 的輸出）與
+    `tracked` 列出的統計欄位。回傳 `verdict` ＋ 逐欄位的 `before/after/delta`。
+
+    **判定規則**（刻意只有這三種，不做「差得不多所以算過」之類的模糊帶）：
+
+    - 指紋不同 → `input_drift`。母體長大或既有場次被修訂都會落在這裡，兩者都是資料
+      面的正常事件。此時輸出數字不同**不構成失敗**，只報漂移量。
+    - 指紋相同、追蹤欄位全同 → `identical`。
+    - 指紋相同、追蹤欄位有差 → `mismatch_same_input`。同一份輸入給出不同輸出，
+      資料面已被指紋排除，剩下的候選是程式碼或執行環境——**呼叫端應視為失敗**。
+
+    `previous` 為 None（artifact 是舊格式、沒有指紋）時回 `verdict=None` 並說明原因，
+    **不猜**：無從比對就明講無從比對，不要用「看起來差不多」放行。
+    """
+    if not previous or "fingerprint" not in previous:
+        return {"verdict": None,
+                "reason": "artifact 未帶 fingerprint（舊格式），本次無從分類，"
+                          "請以本次輸出重新產生 artifact 後再比"}
+    before, after = previous["fingerprint"], current["fingerprint"]
+    input_changed = any(before.get(k) != after.get(k)
+                        for k in ("appearance_digest", "scoreboard_digest"))
+    fields = [
+        {"field": k, "before": previous.get(k), "after": current.get(k),
+         "delta": (current.get(k) - previous.get(k))
+         if isinstance(previous.get(k), int) and isinstance(current.get(k), int) else None}
+        for k in tracked
+    ]
+    changed = [f for f in fields if f["before"] != f["after"]]
+    verdict = (DRIFT_INPUT if input_changed
+               else DRIFT_MISMATCH if changed else DRIFT_IDENTICAL)
+    return {
+        "verdict": verdict,
+        "data_asof_before": before.get("data_asof"),
+        "data_asof_after": after.get("data_asof"),
+        "input_delta": {
+            k: {"before": before.get(k), "after": after.get(k),
+                "delta": (after.get(k) - before.get(k))
+                if isinstance(before.get(k), int) and isinstance(after.get(k), int)
+                else None}
+            for k in ("pitchers", "appearances", "scoreboard_rows")
+        },
+        "digest_changed": {
+            "appearance": before.get("appearance_digest") != after.get("appearance_digest"),
+            "scoreboard": before.get("scoreboard_digest") != after.get("scoreboard_digest"),
+        },
+        "fields": fields,
+        "changed_fields": changed,
     }

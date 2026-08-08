@@ -15,10 +15,19 @@
 
 `--as-of` 是資料截點，不是「今天」；本腳本不輸出 wall-clock 時戳，artifact 可逐次比對。
 
+## 母體會長大：數字逐日變動是常態
+
+聯集人數、母體人數都會隨新比賽增加而變動——canonical `templates/statistical-redline.md`
+第 9 條：**標注 as-of、不設法凍結數字**。`--compare-to` 與對帳腳本用同一套判定
+（`identical` / `input_drift` / `mismatch_same_input`，見
+`cpbl.api.scoreless.classify_artifact_drift`），只有「指紋相同卻算出不同結果」才 exit 1。
+
 用法：
 
     uv run python scripts/compare_runless_vs_er_streak.py
     uv run python scripts/compare_runless_vs_er_streak.py --json-out artifacts/runless-compare.json
+    uv run python scripts/compare_runless_vs_er_streak.py \
+        --compare-to docs/research/ML-PITCHER-RUNLESS1/COMPARE_A.json
 """
 
 from __future__ import annotations
@@ -29,7 +38,15 @@ import sys
 from datetime import date
 
 from cpbl.api.helpers import kinds_of
-from cpbl.api.scoreless import build_item, compute_all, load_appearances
+from cpbl.api.scoreless import (
+    DRIFT_INPUT,
+    DRIFT_MISMATCH,
+    build_item,
+    classify_artifact_drift,
+    compute_all,
+    load_appearances,
+    population_fingerprint,
+)
 from cpbl.models.scoreless_streak import EARNED_RUN_BASIS, RUN_BASIS, Basis
 
 # 檢查點。`expected_innings` 是**外部／既有的數字**，不是本次算出來的；對不上時照實
@@ -164,18 +181,33 @@ def media_checks() -> list[dict]:
     return out
 
 
+# `--compare-to` 追蹤的輸出面統計量（輸入面走 fingerprint，兩者刻意分開）。
+TRACKED = ("er_pool", "run_pool", "union_size", "identical_in_union",
+           "differing_in_union", "differing_broken_by_unearned_only",
+           "checkpoints_matched_er", "checkpoints_matched_run")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=2026)
     ap.add_argument("--kind", default="A")
     ap.add_argument("--top", type=int, default=12)
     ap.add_argument("--json-out")
+    ap.add_argument("--compare-to", metavar="ARTIFACT.json",
+                    help="與既有 artifact 比對，把差異歸因到 input drift 或算錯")
     args = ap.parse_args()
 
     diff = leaderboard_diff(args.season, args.kind, args.top)
     checks = media_checks()
+    by_player, _names = load_appearances(kinds_of(args.kind))
+    diff["fingerprint"] = population_fingerprint(by_player, kinds_of(args.kind))
+    diff["union_size"] = len(diff["rows"])
+    diff["checkpoints_matched_er"] = sum(1 for c in checks if c["er_match"])
+    diff["checkpoints_matched_run"] = sum(1 for c in checks if c["run_match"])
 
-    print(f"逐人對照：{args.season} {args.kind}（兩口徑前 {args.top} 名的**聯集**；"
+    print(f"逐人對照：{args.season} {args.kind}"
+          f"（資料 as-of {diff['fingerprint']['data_asof']}；"
+          f"兩口徑前 {args.top} 名的**聯集**；"
           f"母體 自責分 {diff['er_pool']} 人／失分 {diff['run_pool']} 人）\n")
     hdr = ("投手", "自責分 名次", "自責分 局數", "自責分 場次",
            "失分 名次", "失分 局數", "失分 場次", "差額(outs)",
@@ -208,12 +240,39 @@ def main() -> int:
             c["er_innings"], "✓" if c["er_match"] else "✗",
             c["run_innings"], "✓" if c["run_match"] else "✗")))
 
+    current = {"leaderboard_diff": diff, "media_checkpoints": checks}
+
+    mismatches = 0
+    if args.compare_to:
+        with open(args.compare_to, encoding="utf-8") as fh:
+            previous = json.load(fh)
+        row = classify_artifact_drift(previous.get("leaderboard_diff"), diff, TRACKED)
+        print(f"\n輸入漂移偵測（對照 artifact：{args.compare_to}）")
+        print("**母體長大造成的數字變動不是缺陷**（statistical-redline 第 9 條："
+              "標注 as-of、不凍結數字）。\n")
+        if row["verdict"] is None:
+            print(f"  無從分類：{row['reason']}")
+        else:
+            d = row["input_delta"]
+            print(f"  as-of {row['data_asof_before']} → {row['data_asof_after']}；"
+                  f"出賽數 {d['appearances']['before']}→{d['appearances']['after']}"
+                  f"（{d['appearances']['delta']:+d}）、"
+                  f"投手數 {d['pitchers']['delta']:+d}、"
+                  f"逐局比分列 {d['scoreboard_rows']['delta']:+d}")
+            for f in row["changed_fields"]:
+                print(f"    輸出 {f['field']}：{f['before']} → {f['after']}")
+            print(f"  判定：{row['verdict']}")
+            if row["verdict"] == DRIFT_INPUT:
+                print("  → 差異歸因於輸入變動；處置是更新 artifact 並標注 as-of，"
+                      "不是把數字凍住。")
+        mismatches = 1 if row["verdict"] == DRIFT_MISMATCH else 0
+        current["drift_vs"] = {"artifact": args.compare_to, "row": row}
+
     if args.json_out:
         with open(args.json_out, "w", encoding="utf-8") as fh:
-            json.dump({"leaderboard_diff": diff, "media_checkpoints": checks},
-                      fh, ensure_ascii=False, indent=2)
+            json.dump(current, fh, ensure_ascii=False, indent=2)
         print(f"\nJSON → {args.json_out}")
-    return 0
+    return 1 if mismatches else 0
 
 
 if __name__ == "__main__":
