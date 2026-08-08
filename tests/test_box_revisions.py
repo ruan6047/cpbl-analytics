@@ -75,14 +75,16 @@ def test_dedup_fix_migration_actually_removes_the_constraint_on_real_db(db) -> N
 
 
 def test_record_box_pitching_revisions_skips_rows_without_pitcher_acnt() -> None:
-    """自 072 起寫入是逐列 `execute`（不再是單次 `executemany`）——因為每列的
-    「要不要插入」要各自比對自己 PK 的最近一列，不能再靠一次 batched INSERT
-    ON CONFLICT 完成（見 record_box_pitching_revisions docstring）。"""
-    recorded: list[dict] = []
+    """自 072 起寫入是逐列 `execute`（不再是單次 `executemany`），且每列先取
+    advisory lock 再寫（BOX-REVISION-R2-001）——每個有效列對應 2 次 `execute`
+    呼叫（lock、upsert），不能再靠一次 batched INSERT ON CONFLICT 完成
+    （見 record_box_pitching_revisions docstring）。"""
+    recorded: list[tuple[str, dict]] = []
 
     class Cursor:
-        def execute(self, _sql, params):
-            recorded.append(dict(params))
+        def execute(self, sql, params):
+            kind = "lock" if "pg_advisory_xact_lock" in sql else "upsert"
+            recorded.append((kind, dict(params)))
 
     class Connection:
         def cursor(self):
@@ -106,8 +108,14 @@ def test_record_box_pitching_revisions_skips_rows_without_pitcher_acnt() -> None
         mod.conn = orig_conn
 
     assert n == 1
-    assert len(recorded) == 1
-    assert recorded[0]["pitcher_acnt"] == "0000000001"
+    upserts = [p for kind, p in recorded if kind == "upsert"]
+    locks = [p for kind, p in recorded if kind == "lock"]
+    assert len(upserts) == 1
+    assert upserts[0]["pitcher_acnt"] == "0000000001"
+    # 每個有效列一定先鎖再寫，且鎖用同一個 PK 組出來的 key。
+    assert len(locks) == 1
+    assert locks[0]["lock_key"] == "box_pitching_revisions:2026:A:1:0000000001"
+    assert recorded[0][0] == "lock", "必須先取鎖再寫，順序不能反"
 
 
 def test_gamelog_records_box_pitching_revisions_alongside_upsert(
@@ -278,6 +286,62 @@ def test_reverted_correction_a_to_b_to_a_keeps_all_three_revisions(db) -> None:
     assert report[0]["changed_fields"] == {}
     assert report[1]["changed_fields"]["earned_runs"] == (3, 2)
     assert report[2]["changed_fields"]["earned_runs"] == (2, 3)
+
+
+def test_concurrent_writes_to_same_pk_do_not_create_duplicate_versions(db) -> None:
+    """BOX-REVISION-R2-001 回歸測試（交易級 probe）：兩個交易「同時」對同一
+    (year, kind_code, game_sno, pitcher_acnt) 寫入同一份新內容，advisory lock
+    序列化後只能產生 1 筆新版本，不是 2 筆重複版本。
+
+    重現查核詞點名的競態：
+        交易 A：讀最近列 = X，touched 空 → INSERT X
+        交易 B：讀最近列 = X，touched 空 → INSERT X     ← 重複版本（未修好前）
+    用 `threading.Barrier` 讓兩條真實執行緒（各自從連線池借一條連線，模擬兩個
+    獨立行程/交易）盡量同時呼叫 `record_box_pitching_revisions`，斷言最終只有
+    1 筆新版本而非 2 筆——如果 advisory lock 沒生效，這裡在多次重跑下會間歇性
+    看到 3 列（原本 1 列 + 兩個交易各自插入 1 列）而不是穩定的 2 列。
+    """
+    import threading
+
+    # 先寫一個「舊版本」當最近一列，兩個交易都要把它改成同一個新值 ER=1。
+    record_box_pitching_revisions(
+        SENTINEL_YEAR, SENTINEL_KIND, SENTINEL_SNO,
+        [_pitcher_row(ip_cnt=6, ip_div3=0, runs=4, er=4)],
+    )
+
+    barrier = threading.Barrier(2)
+    errors: list[BaseException] = []
+
+    def _write() -> None:
+        try:
+            barrier.wait(timeout=5)
+            record_box_pitching_revisions(
+                SENTINEL_YEAR, SENTINEL_KIND, SENTINEL_SNO,
+                [_pitcher_row(ip_cnt=6, ip_div3=0, runs=4, er=1)],
+            )
+        except BaseException as exc:  # noqa: BLE001 — 蒐集例外供斷言，不吞掉
+            errors.append(exc)
+
+    threads = [threading.Thread(target=_write) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=10)
+
+    assert not errors, f"併發寫入不應拋例外（含 deadlock）：{errors}"
+
+    with db() as c:
+        rows = c.execute(
+            "SELECT earned_runs FROM cpbl.box_pitching_revisions "
+            "WHERE year=%s AND kind_code=%s AND game_sno=%s AND pitcher_acnt=%s "
+            "ORDER BY fetched_at, id",
+            (SENTINEL_YEAR, SENTINEL_KIND, SENTINEL_SNO, SENTINEL_ACNT),
+        ).fetchall()
+
+    assert [r[0] for r in rows] == [4, 1], (
+        f"應該恰好 2 筆（原本的 4、新的 1），實際 {[r[0] for r in rows]}——"
+        "多於 2 筆代表 advisory lock 沒有擋住併發重複寫入"
+    )
 
 
 def test_report_answers_how_many_times_and_what_changed(db) -> None:

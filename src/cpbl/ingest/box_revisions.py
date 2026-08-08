@@ -32,6 +32,14 @@ def _i(v: Any) -> int | None:
         return None
 
 
+_ADVISORY_LOCK_SQL = "SELECT pg_advisory_xact_lock(hashtextextended(%(lock_key)s, 0))"
+"""BOX-REVISION-R2-001：對 (year,kind_code,game_sno,pitcher_acnt) 取 xact-scoped
+advisory lock，序列化「讀最近列→決定 INSERT/UPDATE」這段非原子操作。用 advisory
+lock（不是 `SELECT ... FOR UPDATE`）刻意迴避「第一次寫入該 PK 時還沒有列可鎖」的
+邊界——advisory lock 鎖的是一個任意 key，不需要先有列存在；`SELECT ... FOR
+UPDATE` 就需要額外處理「這是第一列」的分支。鎖在交易結束（`with conn()` 區塊
+結束）才釋放，不是每列處理完就放——同一次呼叫內的所有列共用同一個交易。"""
+
 _UPSERT_LATEST_ONLY_SQL = """
     WITH latest AS (
         SELECT id, content_hash FROM cpbl.box_pitching_revisions
@@ -74,13 +82,29 @@ def record_box_pitching_revisions(
     冪等**不再由 DB UNIQUE 約束提供**（071 的全域 UNIQUE(...,content_hash) 已在
     072 拿掉），改由本函式的寫入語句保證：`INSERT ... WHERE NOT EXISTS(該 PK
     最近一列 content_hash 相同)`，配合前面的 `UPDATE ... RETURNING` 判斷「要不要
-    插入」。**併發假設**：本函式目前只有兩個呼叫端——每日 refresh 鏈的
-    `scrape_gamelogs`（2 天窗）與週排程深度重抓（都受同一把
-    `/private/tmp/cpbl-analytics-refresh.lock` 互斥、忙碌即跳過），對同一
-    (year, kind_code, game_sno, pitcher_acnt) 不會有兩個行程同時寫入；若未來
-    出現真正並行寫入同一 PK 的呼叫端，這裡的「先 SELECT 最近一列、再決定
-    INSERT/UPDATE」不是原子的（兩個並發交易可能都讀到同一個「最近一列」、都判定
-    要插入），需要額外的鎖或序列化保證，目前刻意不處理。
+    插入」。
+
+    **原子性（BOX-REVISION-R2-001 修正）**：「讀最近列→決定 INSERT/UPDATE」這段
+    本身不是原子的，UNIQUE 約束拿掉後也沒有 DB 端的隱含互斥。改為每列處理前先
+    對該 PK 取 `pg_advisory_xact_lock`（見 `_ADVISORY_LOCK_SQL`），把「讀最近列
+    →決定→寫入」序列化：兩個交易同時寫同一 PK 時，後到的會卡在鎖上，等先到的
+    交易 commit（連同它的寫入結果一起可見）才能繼續，讀到的「最近列」保證是
+    先到交易寫完之後的狀態，不會出現兩筆重複版本。**不依賴呼叫端有沒有上
+    process 級的 lock**——這是刻意的設計選擇：R1-001 修完後的第一版本卡的
+    docstring 曾宣稱「只有兩個呼叫端、都有 refresh.lock 互斥」，結果查核在
+    `run_scrape_gamelog.py`（手動 `cpbl-scrape-gamelog <year>` CLI）找到第三個
+    完全沒鎖的呼叫端——**呼叫端盤點錯過一次就是它會再錯的證明**，正確性不該
+    建立在「記得幫每個新呼叫端上鎖」這個人工紀律上，改放進寫入層本身。
+
+    完整呼叫端盤點（僅供除錯脈絡參考，不是正確性保證的一部分）：
+    `cpbl_gamelog.scrape_gamelogs` 目前有 3 個呼叫點都在
+    `run_refresh_recent.py`（`_farm_detail`／`_incremental_detail`／main() 內
+    補缺 gamelog 迴圈，三者同一 process、受 `scrape-daily.sh` 的
+    `/private/tmp/cpbl-analytics-refresh.lock` 保護）、1 個在
+    `run_refresh_box_deep.py`（週深度重抓，受 `weekly-box-revisions.sh` 的同一把
+    lock 保護）、1 個在 `run_scrape_gamelog.py`（手動 `cpbl-scrape-gamelog <year>`
+    CLI，**沒有 lock**）。上面這份清單只是現況記錄，不是本函式冪等的依據——下次
+    有人加第四個呼叫端，就算又忘記上鎖，advisory lock 一樣會保護正確性。
 
     回傳實際處理的列數（INSERT 或 UPDATE 各算一次），不是新增列數——新增與否由
     每列自己的 WHERE NOT EXISTS 判斷決定，呼叫端不需要也不應該用回傳值反推。
@@ -101,12 +125,20 @@ def record_box_pitching_revisions(
             "runs": _i(r.get("RunCnt")), "earned_runs": _i(r.get("EarnedRunCnt")),
             "content_hash": content_hash,
             "raw_payload": json.dumps(safe_payload, ensure_ascii=False),
+            "lock_key": f"box_pitching_revisions:{year}:{kind_code}:{game_sno}:{acnt}",
         })
     if not params:
         return 0
     with conn() as c:
         cur = c.cursor()
         for p in params:
+            # 先鎖再讀再寫：見上面 docstring「原子性」段落。同一交易內鎖到交易
+            # 結束才放，不同 PK 的鎖彼此獨立不互擋；殘留風險是兩個交易若以不同
+            # 順序處理同一場的多個投手，理論上有 deadlock 可能——實務上一場的
+            # PitchingJson 列順序來自同一官方 API 回應結構，不同呼叫端讀到的順序
+            # 一致，機率極低。Postgres 偵測到 deadlock 會讓其中一個交易報錯（本
+            # 函式目前不重試），屬已知、刻意不處理的殘留風險，不是本次修法範圍。
+            cur.execute(_ADVISORY_LOCK_SQL, p)
             cur.execute(_UPSERT_LATEST_ONLY_SQL, p)
     return len(params)
 
@@ -128,6 +160,16 @@ def pitcher_er_revision_report(
     回傳 ``{"revisions": [...], "caveat": ZERO_OBSERVATION_CAVEAT}``——限制文字
     隨資料一起回傳，消費者不必回頭翻 Runbook 才知道「查不到修正」不等於「沒有
     修正」（BOX-REVISION-R1-002：查核明確要求數字與限制不能分開放）。
+
+    ⚠️ **BOX-REVISION-R2-002：這是破壞性回傳契約變更（breaking return-contract
+    change）**，不是單純加欄位——本函式原本回傳 ``list[dict]``，這裡改成
+    ``dict[str, Any]``（多一層 ``{"revisions": ..., "caveat": ...}``）。舊呼叫
+    方式 ``for r in pitcher_er_revision_report(...)`` 或 ``report[0]`` 在新版
+    會直接對 dict 疊代／索引，語意錯誤但不一定馬上報錯（dict 疊代給的是 key
+    字串，容易被誤用而不炸開）。截至本卡（DATA-BOX-REVISION-SNAPSHOT1）交付
+    當下，repo 內唯一消費者是 `tests/test_box_revisions.py`（已同步改讀
+    ``result["revisions"]``），無其他 API／CLI 呼叫端。未來任何新 consumer
+    請讀 ``result["revisions"]``，不要假設回傳值本身就是 list。
 
     ``revisions`` 依 pitcher_acnt、fetched_at 排序的版本序列；每列附上與「前一版」
     的 diff（changed_fields）與距離比賽日的天數（days_since_game，game_date 缺值

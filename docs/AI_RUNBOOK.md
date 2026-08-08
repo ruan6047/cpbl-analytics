@@ -187,11 +187,33 @@ A=50 場、D=38 場，線性外推整週實跑約 **2–2.5 分鐘**（≈139 �
 +seen_count，B→A 這次真實發生的改判會直接從快照消失，`pitcher_er_revision_report()`
 答不出「改過幾次」。已改為「只與該 (year, kind_code, game_sno, pitcher_acnt) 最近
 一次觀測比較」，冪等改由 `record_box_pitching_revisions()` 的寫入邏輯保證（INSERT
-... WHERE NOT EXISTS 最近一列同 hash），不再由 DB UNIQUE 約束提供；併發假設（單
-執行緒、受同一把 refresh lock 互斥）寫在該函式 docstring。既有 79 筆快照（修法
-前寫入）逐一查過：每個 (year,kind_code,game_sno,pitcher_acnt) 都只有 1 列，尚未
-出現過第 2 版，更談不上 A→B→A——這批資料只累積了不到一天，改判需要時間發生，
-故確認沒有已經遺失的回改事件。
+... WHERE NOT EXISTS 最近一列同 hash）。既有 79 筆快照（修法前寫入）逐一查過：
+每個 (year,kind_code,game_sno,pitcher_acnt) 都只有 1 列，尚未出現過第 2 版，
+更談不上 A→B→A——這批資料只累積了不到一天，改判需要時間發生，故確認沒有已經
+遺失的回改事件。
+
+**BOX-REVISION-R2-001（跨家族查核 2026-08-08，已修）**：R1-001 修完後的第一版
+docstring 曾宣稱「只有兩個呼叫端、都受同一把 refresh lock 互斥保護」——這句話
+是錯的，查核在 `run_scrape_gamelog.py`（手動 `cpbl-scrape-gamelog <year>` CLI）
+找到第三個完全沒鎖的呼叫端。完整盤點：`cpbl_gamelog.scrape_gamelogs` 有 3 個
+呼叫點在 `run_refresh_recent.py`（同一 process，受 `scrape-daily.sh` 的
+`/private/tmp/cpbl-analytics-refresh.lock` 保護）、1 個在 `run_refresh_box_deep.py`
+（週深度重抓，受 `weekly-box-revisions.sh` 的同一把 lock 保護）、1 個在
+`run_scrape_gamelog.py`（手動全季回填 CLI，**沒有 lock**）。「讀最近列→決定
+INSERT/UPDATE」本身不是原子操作，UNIQUE 約束拿掉後這段完全依賴呼叫端自律——
+而呼叫端盤點剛剛才錯過一次，不該把正確性建立在「記得幫每個新呼叫端上鎖」這件
+事上。已改為在 `record_box_pitching_revisions()` 內對每個 PK 取
+`pg_advisory_xact_lock`（雜湊 `year:kind_code:game_sno:pitcher_acnt` 當 key），
+把整段序列化——用 advisory lock 而非 `SELECT ... FOR UPDATE`，是為了不用另外
+處理「這個 PK 第一次寫入、還沒有列可鎖」的邊界（advisory lock 鎖的是任意 key，
+不需要先有列存在）。正確性因此不再依賴呼叫端盤點是否完整；下次有人加第四個
+呼叫端，就算又忘記上鎖，advisory lock 一樣會保護。
+
+**BOX-REVISION-R2-002（跨家族查核 2026-08-08，non-blocking，已揭露）**：
+`pitcher_er_revision_report()` 的回傳型別從 `list[dict]` 改成 `dict[str, Any]`
+（`{"revisions": [...], "caveat": ...}`）——這是**破壞性回傳契約變更**，不是「單純
+新增 caveat 欄位」。截至本卡交付當下，repo 內唯一消費者是測試檔（已同步）；未來
+新 consumer 須讀 `result["revisions"]`。
 
 > **零觀測不代表官方沒有改判**（BOX-REVISION-R1-002）：這份資料只涵蓋（1）部署本
 > 功能之後才抓到的場次（2018–2026 既有歷史場次無回溯快照）且（2）目前抓取窗口內
