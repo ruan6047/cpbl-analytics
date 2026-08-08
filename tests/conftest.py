@@ -28,6 +28,9 @@ test_daily_summary.py、test_coaches_history.py、test_scoreless_streak_api.py�
 
 from __future__ import annotations
 
+import subprocess
+from pathlib import Path
+
 import psycopg
 from psycopg_pool import ConnectionPool
 
@@ -43,9 +46,36 @@ _PROBE_CONNECT_TIMEOUT_SECONDS = 2
 _UNREACHABLE_DSN = "postgresql://x:x@127.0.0.1:1/x"
 
 
+def _git_output(*args: str) -> str | None:
+    try:
+        return subprocess.run(
+            ["git", *args],
+            cwd=Path.cwd(),
+            capture_output=True,
+            check=True,
+            text=True,
+        ).stdout.strip() or None
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def _location_header() -> list[str]:
+    head = _git_output("rev-parse", "--short", "HEAD") or "unavailable"
+    branch = _git_output("branch", "--show-current") or "detached"
+    return [
+        f"pytest location: cwd={Path.cwd()}",
+        f"pytest location: git_head={head}",
+        f"pytest location: git_branch={branch}",
+    ]
+
+
+def pytest_report_header(config) -> list[str]:  # noqa: ANN001 — pytest hook 簽名固定
+    del config
+    return _location_header()
+
+
 def pytest_sessionstart(session) -> None:  # noqa: ANN001 — pytest hook 簽名固定
     """整個 session 只探測一次；DB 不可達就讓全域池「預先壞掉」以避免逐測試等待。"""
-    del session  # 不需要用到，hook 簽名要求收下這個參數
     try:
         with psycopg.connect(
             settings.database_url, connect_timeout=_PROBE_CONNECT_TIMEOUT_SECONDS
@@ -53,3 +83,9 @@ def pytest_sessionstart(session) -> None:  # noqa: ANN001 — pytest hook 簽名
             pass
     except Exception:  # noqa: BLE001 — 探測階段任何失敗都視為「無 DB」，交由各測試既有 skip 邏輯處理
         db._pool = ConnectionPool(_UNREACHABLE_DSN, open=False)
+
+    if getattr(session.config.option, "quiet", 0):
+        reporter = session.config.pluginmanager.get_plugin("terminalreporter")
+        if reporter is not None:
+            for line in _location_header():
+                reporter.write_line(line)

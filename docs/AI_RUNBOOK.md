@@ -16,6 +16,13 @@
 
 ## 2. 環境與服務
 
+### pytest 證據位置
+
+每次 `pytest` 都會輸出 `pytest location` 三行：絕對 cwd、Git HEAD 短 SHA 與分支名。
+預設模式使用 pytest 標頭；`-q` 會隱藏 pytest 的標頭，故改由 terminal reporter 輸出相同內容。
+審閱測試證據時，以 cwd 與 SHA 判讀實際受測 worktree；**不可用收集數或 `.ai-workflow`
+submodule 狀態推斷測試位置**。非 Git 目錄時，HEAD 會顯示 `unavailable`，分支顯示 `detached`。
+
 | 場景 | DB | API | Web |
 |---|---|---|---|
 | **本機** | docker compose `db`（PG 17，**port 5433**） | `uvicorn cpbl.api.main:app --port 4001` | `web/` Next.js `:3000`（**兩個** env：`API_URL` 給 SSR、`NEXT_PUBLIC_API_URL` 給瀏覽器；預設皆 `:4001`） |
