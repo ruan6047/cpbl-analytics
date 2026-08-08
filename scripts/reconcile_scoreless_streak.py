@@ -482,6 +482,10 @@ def cross_basis(tier_label: str, kind_code: str,
 
 # `--compare-to` 追蹤的欄位：**輸出**面的統計量。輸入面走 fingerprint，兩者分開，
 # 才有辦法回答「是輸入變了還是輸出算錯了」。
+#: digest 鍵 → 人類可讀名稱。**查不到就原樣印鍵名**，所以漏加對照只會讓標籤醜一點，
+#: 不會讓變動消失——預設行為偏向「顯示」而不是「靜默」。
+_DIGEST_LABELS = {"appearance": "出賽", "name": "球員姓名", "scoreboard": "逐局比分"}
+
 TRACKED_PER_BASIS = ("pitchers", "appearances_total", "appearances_counted",
                      "tail_queries", "tail_credited", "tail_outs",
                      "skipped_postseason", "exception_count")
@@ -520,8 +524,15 @@ def _print_drift(path: str, rows: list[dict]) -> None:
                               f"無從分類（{r['reason']}）")))
             continue
         d = r["input_delta"]
-        dig = ("出賽" if r["digest_changed"]["appearance"] else "") + \
-              ("＋逐局比分" if r["digest_changed"]["scoreboard"] else "")
+        # **不得寫死 digest 名稱**——這裡曾經硬編 appearance/scoreboard 兩個名字，
+        # 於是新增的 name_digest 變動了卻不顯示。輸出層漏顯示與指紋漏欄位是同一種病：
+        # 手工列的清單不會跟著長。改為列出所有判定為變動的 digest。
+        dig = "＋".join(_DIGEST_LABELS.get(k, k)
+                        for k, moved in sorted(r["digest_changed"].items()) if moved)
+        if r["appearance_fields_before"] != r["appearance_fields_after"]:
+            # 同一份資料、指紋定義卻換了（欄位增減）——輸出層必須講出來，否則讀者會
+            # 把它誤讀成「資料變了」。
+            dig += "（指紋定義變更）"
         changed = ", ".join(f"{f['field']} {f['before']}→{f['after']}"
                             for f in r["changed_fields"]) or "（無）"
         print(" | ".join((
@@ -550,12 +561,13 @@ def main() -> int:
     reports: list[dict] = []
     cross: list[dict] = []
     for label, kind in TIERS.items():
-        by_player, _names = load_appearances(kinds_of(kind))
+        by_player, names = load_appearances(kinds_of(kind))
         if cutoff is not None:
             by_player = {pid: [a for a in apps if a.game_date and a.game_date <= cutoff]
                          for pid, apps in by_player.items()}
             by_player = {pid: apps for pid, apps in by_player.items() if apps}
-        fingerprint = population_fingerprint(by_player, kinds_of(kind), cutoff)
+        fingerprint = population_fingerprint(by_player, kinds_of(kind), cutoff,
+                                             names=names)
         per_basis: dict[str, dict[str, tuple[int, int]]] = {}
         for basis_label, basis in BASES.items():
             results = compute_all(by_player, (kind,), basis=basis)

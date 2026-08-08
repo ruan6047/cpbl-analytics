@@ -199,8 +199,9 @@ def main() -> int:
 
     diff = leaderboard_diff(args.season, args.kind, args.top)
     checks = media_checks()
-    by_player, _names = load_appearances(kinds_of(args.kind))
-    diff["fingerprint"] = population_fingerprint(by_player, kinds_of(args.kind))
+    by_player, names = load_appearances(kinds_of(args.kind))
+    diff["fingerprint"] = population_fingerprint(by_player, kinds_of(args.kind),
+                                                 names=names)
     diff["union_size"] = len(diff["rows"])
     diff["checkpoints_matched_er"] = sum(1 for c in checks if c["er_match"])
     diff["checkpoints_matched_run"] = sum(1 for c in checks if c["run_match"])

@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 from collections.abc import Mapping, Sequence
@@ -373,26 +374,62 @@ _SCOREBOARD_DIGEST_SQL = """
 """
 
 
-def _appearance_digest(by_player: Mapping[str, Sequence[Appearance]]) -> str:
-    """已載入出賽母體的內容指紋。排序後串接再雜湊，與載入順序無關。
+#: 出賽側指紋涵蓋的欄位——**由 `Appearance` 的型別導出，不是手寫清單**。
+#:
+#: iteration 3 的版本是手寫的 12 個欄位，漏了 `opponent`：查核者只把對手由甲隊改成乙隊，
+#: 指紋不動，於是「不同的輸入 ＋ 不同的 artifact」被判成 `identical`。補上 `opponent`
+#: 不能解決這件事——下一個人往 `Appearance` 加一個欄位，同一個洞會再開一次。
+#:
+#: 治法是讓涵蓋範圍**不再依賴任何人記得更新**：欄位清單由 `dataclasses.fields()` 在
+#: import 時算出，新增欄位自動納入。`tests/test_scoreless_streak_api.py` 另有一條
+#: **對每一個欄位逐一變異**的測試（同樣走 `fields()` 迴圈），新增欄位若沒進指紋，
+#: 那條測試會自己失敗——守衛與被守衛的東西共用同一個來源，不會各自漂移。
+_APPEARANCE_FIELDS = tuple(sorted(f.name for f in dataclasses.fields(Appearance)))
 
-    納入演算法會讀到的每一個欄位；`None` 一律寫成 `?`，不折成 0——把未知折成已知會讓
-    兩份不同的輸入拿到同一個指紋，那正是指紋要防的事。
+
+def _digest(lines: Sequence[str]) -> str:
+    """排序後串接再雜湊，與載入順序無關。md5 為內容比對用途，非安全用途。"""
+    return hashlib.md5("\n".join(sorted(lines)).encode()).hexdigest()   # noqa: S324
+
+
+def _appearance_digest(by_player: Mapping[str, Sequence[Appearance]]) -> str:
+    """已載入出賽母體的內容指紋，涵蓋 `Appearance` 的**每一個**欄位。
+
+    逐列以 JSON 序列化再雜湊。選 JSON 而不是 `"|".join(str(...))` 的理由：
+    後者把 `None`／`0`／字串 `"0"`／`"None"` 壓成難以區分的形狀，而且值裡若出現分隔字元
+    就會產生歧義（不同的輸入拼出同一行）。JSON 對 `null`、數字、字串各有不同的表示，
+    **未知在指紋裡有自己的名字**，這正是指紋要防的事。
     """
-    lines = sorted(
-        "|".join(str(v) if v is not None else "?" for v in (
-            pid, a.year, a.kind_code, a.game_sno, a.game_date, a.earned_runs, a.runs,
-            a.outs, a.delay_kind, a.vht, a.opponent_score, a.team_code))
+    return _digest([
+        json.dumps([pid, *(getattr(a, f) for f in _APPEARANCE_FIELDS)],
+                   ensure_ascii=False, default=str)
         for pid, apps in by_player.items() for a in apps
-    )
-    return hashlib.md5("\n".join(lines).encode()).hexdigest()   # noqa: S324 — 非安全用途
+    ])
+
+
+def _name_digest(names: Mapping[str, str] | None) -> str:
+    """球員姓名的內容指紋。
+
+    姓名不參與演算法，但**會寫進 artifact**（`player_name`），而且會過期後被改名同步
+    覆寫（見記憶 `player-name-authority`）。凡是會改變 artifact 的輸入都要在指紋裡，
+    否則「改名了」會被判成 `identical`——那正是本輪 `opponent` 漏掉的同一型錯誤。
+    """
+    if names is None:
+        return ""
+    return _digest([json.dumps([pid, n], ensure_ascii=False) for pid, n in names.items()])
 
 
 def population_fingerprint(
     by_player: Mapping[str, Sequence[Appearance]], kinds: Sequence[str],
-    cutoff: date | None = None,
+    cutoff: date | None = None, names: Mapping[str, str] | None = None,
 ) -> dict:
     """→ 這次執行實際吃到的輸入的可比對描述（含 as-of、規模與內容指紋）。
+
+    輸入通道有三條，**每一條都有自己的 `*_digest`**：`Appearance`（走
+    `_APPEARANCE_FIELDS`，由型別導出）、`names`（`player_name`，會寫進 artifact）、
+    `game_scoreboard`（原始列）。`classify_artifact_drift` 比對的是**所有以 `_digest`
+    結尾的鍵**，不是寫死的兩個名字——日後多一條輸入通道，只要它帶 `_digest` 後綴就
+    自動納入比對。
 
     `data_asof` 是母體中最新的一場比賽日期，**不是 wall-clock**——artifact 因此不含
     執行時間，逐次比對才有意義（卡面驗證：artifact 不含 wall-clock 時戳）。
@@ -416,7 +453,9 @@ def population_fingerprint(
         "latest_game_date_any": str(max(dates)) if dates else None,
         "pitchers": len(by_player),
         "appearances": sum(len(apps) for apps in by_player.values()),
+        "appearance_fields": list(_APPEARANCE_FIELDS),   # 指紋涵蓋範圍，隨型別自動長
         "appearance_digest": _appearance_digest(by_player),
+        "name_digest": _name_digest(names),
         "scoreboard_rows": rows["rows_total"],
         "scoreboard_digest": rows["digest"],
     }
@@ -454,14 +493,21 @@ def classify_artifact_drift(
 
     `previous` 為 None（artifact 是舊格式、沒有指紋）時回 `verdict=None` 並說明原因，
     **不猜**：無從比對就明講無從比對，不要用「看起來差不多」放行。
+
+    **比對哪些指紋不是寫死的**：取兩邊 fingerprint 中所有以 `_digest` 結尾的鍵**聯集**，
+    逐一比較。日後多一條輸入通道只要帶 `_digest` 後綴就自動納入；而「舊 artifact 少了
+    某個 digest 鍵」會因為聯集取值不同而算成輸入變動——**無法證明輸入相同時偏向
+    `input_drift`，不偏向 `identical`**，因為後者是會讓缺陷靜默通過的那一邊。
     """
     if not previous or "fingerprint" not in previous:
         return {"verdict": None,
                 "reason": "artifact 未帶 fingerprint（舊格式），本次無從分類，"
                           "請以本次輸出重新產生 artifact 後再比"}
     before, after = previous["fingerprint"], current["fingerprint"]
-    input_changed = any(before.get(k) != after.get(k)
-                        for k in ("appearance_digest", "scoreboard_digest"))
+    digest_keys = sorted({k for k in (*before, *after) if k.endswith("_digest")})
+    digest_changed = {k.removesuffix("_digest"): before.get(k) != after.get(k)
+                      for k in digest_keys}
+    input_changed = any(digest_changed.values())
     fields = [
         {"field": k, "before": previous.get(k), "after": current.get(k),
          "delta": (current.get(k) - previous.get(k))
@@ -482,10 +528,11 @@ def classify_artifact_drift(
                 else None}
             for k in ("pitchers", "appearances", "scoreboard_rows")
         },
-        "digest_changed": {
-            "appearance": before.get("appearance_digest") != after.get("appearance_digest"),
-            "scoreboard": before.get("scoreboard_digest") != after.get("scoreboard_digest"),
-        },
+        "digest_changed": digest_changed,
+        # 指紋涵蓋的出賽欄位；兩次執行不同代表 `Appearance` 的形狀變了（多／少欄位），
+        # 那本身就是「artifact 的可比性」需要知道的事，故一併揭露而非藏起來。
+        "appearance_fields_before": before.get("appearance_fields"),
+        "appearance_fields_after": after.get("appearance_fields"),
         "fields": fields,
         "changed_fields": changed,
     }
