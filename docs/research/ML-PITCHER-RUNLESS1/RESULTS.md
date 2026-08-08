@@ -9,11 +9,16 @@
 - 對照腳本：`scripts/compare_runless_vs_er_streak.py`（逐人對照 ＋ 檢查點）
 - **本檔所有數字都由上面兩支腳本輸出**，原始輸出留在同目錄的 `RECONCILE.txt`／
   `COMPARE_A.txt`／`COMPARE_D.txt` 與對應 `.json`。本檔不含任何人工計數。
-  **四份 artifact 都帶 `fingerprint`**（as-of ＋ 母體規模 ＋ 輸入內容指紋），重跑時用
-  `--compare-to` 比對即可分辨「輸入變了」與「算錯了」，見 §2.2。
+  **四份 artifact 都帶 `fingerprint`**（as-of ＋ 母體規模 ＋ **三條輸入通道各自的內容
+  指紋**），重跑時用 `--compare-to` 比對即可分辨「輸入變了」與「算錯了」，見 §2.2。
 - iteration 2（2026-08-08）：需求方裁決並列 ＋ 揭露欄位回填自責分端點。變更集中在
   §0／§5，其餘各節的結論**未受影響**（回填只動 payload metadata，見 §5.5）。
 - **iteration 3（2026-08-08）：全部數字重跑並標注 as-of ＋ 新增輸入漂移偵測**（§2.2）。
+- **iteration 4（2026-08-08）：指紋涵蓋範圍改由型別導出**（§2.2）。查核 R2 抓到 iteration 3
+  的指紋手寫欄位、漏了 `opponent`——只改對手隊名指紋不動，不同的輸入被判成 `identical`。
+  本輪的修正不是補欄位，是讓涵蓋範圍不再依賴任何人記得更新。**四份 artifact 的統計數字
+  一個都沒變**（`RECONCILE.txt`／`COMPARE_*.txt` 逐位元相同，只有 `.json` 多了指紋欄位），
+  證明這是純守衛修正。
 
 ---
 
@@ -169,12 +174,56 @@ iteration 2 交付時（as-of 2026-08-06）一軍出賽總數是 22,521、二軍
 **問題**：母體每天長大，所以「重跑數字不一樣」永遠會發生。若把它一律當成 artifact 過期
 去追著更新，那是跑步機；若一律當成通過，守衛就等於沒有。
 
-**做法**：每次執行輸出 `fingerprint` —— as-of ＋ 母體規模 ＋ **演算法實際吃到的兩張表的
-內容指紋**（`pitching_gamelog`＋join 進來的 `games` 欄位、以及 `game_scoreboard` 原始列）。
-本模組除這兩張表外不讀任何資料，所以「指紋相同 ⇒ 輸入相同」在本演算法範圍內成立。
+**做法**：每次執行輸出 `fingerprint` —— as-of ＋ 母體規模 ＋ **每一條輸入通道各自的
+內容指紋**。本模組讀的輸入只有三條，各有一個 `*_digest`：
+
+| 通道 | digest | 來源 |
+|---|---|---|
+| 出賽 | `appearance_digest` | `pitching_gamelog` ＋ join 進來的 `games` 欄位（即 `Appearance`） |
+| 球員姓名 | `name_digest` | `pitching_gamelog.pitcher_name`；不參與演算法，但**會寫進 artifact** |
+| 逐局比分 | `scoreboard_digest` | `game_scoreboard` 原始列（不做 `max()` 聚合，比載入層更嚴格） |
+
 出賽側的指紋**直接由已載入的 `Appearance` 物件算出**，不另寫平行 SQL——平行 SQL 會和
-載入層各自演化，指紋就會慢慢不再代表輸入。`None` 一律寫成 `?` 不折成 0
-（測試 `test_digest_does_not_fold_unknown_into_zero`）。
+載入層各自演化，指紋就會慢慢不再代表輸入。逐列以 JSON 序列化再雜湊，`null`／`0`／
+字串 `"0"` 各有不同表示（測試 `test_digest_does_not_fold_unknown_into_zero`）。
+
+### 涵蓋範圍為什麼不會再過期（iteration 4 的核心修正）
+
+iteration 3 的指紋是**手寫的 12 個欄位、漏了 `opponent`**。查核者只把對手由甲隊改成
+乙隊，指紋不動 → 不同的輸入、不同的 artifact 被判成 `identical`。**補上 `opponent`
+不算修好**：下一個人往 `Appearance` 加欄位，同一個洞會再開一次。
+
+三處原本各自維護一份手工清單，本輪全部改成由來源導出：
+
+| 位置 | iteration 3（手寫） | iteration 4（導出） | 新增東西時 |
+|---|---|---|---|
+| 指紋涵蓋的出賽欄位 | 12 個欄位的 tuple | `dataclasses.fields(Appearance)` | **自動納入** |
+| 分類器比對哪些指紋 | 寫死 `appearance`／`scoreboard` 兩個名字 | 兩邊 fingerprint 中**所有 `_digest` 結尾的鍵**取聯集 | **自動納入** |
+| 漂移報表顯示哪些指紋 | 寫死同樣兩個名字 | 逐一列出判定為變動的 digest，**查不到人類標籤就印鍵名** | **自動顯示** |
+
+第三列是本輪自己踩到的：修完前兩處後 `name_digest` 確實變動了，報表卻不顯示——**輸出層
+漏顯示與指紋漏欄位是同一種病**。預設行為因此改成偏向「顯示」而非「靜默」。
+
+**守衛與被守衛的東西共用同一個來源**：回歸測試
+`test_every_appearance_field_moves_the_digest` 以
+`@pytest.mark.parametrize` 走同一個 `dataclasses.fields(Appearance)` 迴圈，逐欄位變異
+並要求指紋跟著變。新增欄位時它會自動多出一個參數化案例；欄位若沒進指紋，該案例就以
+欄位名失敗。**這不是「我記得更新清單」，是型別變了測試自己就變。**
+
+另有 `test_every_artifact_item_key_is_traceable_to_a_digested_input`：artifact 的每個
+item 欄位都必須能歸到「`Appearance` 欄位／`player_name`／演算法衍生值」三類之一，
+未分類的新欄位會失敗。**這條不宣稱涵蓋完整，它宣稱的是「未分類的欄位不會靜默通過」。**
+
+### 殘留風險（照實列）
+
+- **指紋不涵蓋程式碼版本**：`mismatch_same_input` 只證「不是資料造成的」，不指出是什麼
+  造成的（程式碼變更與執行環境都是候選）。刻意的範圍限制，不要讀成根因判定。
+- **新增的輸入通道若不叫 `*_digest`**，分類器不會納入。命名約定寫在
+  `population_fingerprint` 的 docstring，並由
+  `test_classifier_compares_every_digest_key_not_a_hardcoded_pair` 釘住行為，
+  但**這一條靠約定，不是靠型別**——這是本輪剩下的最弱環節。
+- `_DERIVED_ITEM_KEYS` 仍是人工分類清單。它的失效方向是**fail-closed**（未分類即失敗），
+  但分類本身若被錯填（把真正來自新資料源的欄位塞進衍生值），測試不會發現。
 
 ```bash
 uv run python scripts/reconcile_scoreless_streak.py \
@@ -183,36 +232,53 @@ uv run python scripts/reconcile_scoreless_streak.py \
 
 | 判定 | 條件 | 意義 | exit |
 |---|---|---|---|
-| `identical` | 指紋相同、追蹤欄位相同 | 同一份輸入、同一份輸出 | 0 |
-| `input_drift` | **指紋不同** | 母體長大或既有場次被修訂——**預期行為**，只報漂移量 | 0 |
-| `mismatch_same_input` | 指紋相同、追蹤欄位**不同** | 同一份輸入卻給出不同輸出 | **1** |
+| `identical` | **所有** digest 相同、追蹤欄位相同 | 同一份輸入、同一份輸出 | 0 |
+| `input_drift` | **任一** digest 不同 | 母體長大、既有場次被修訂、或指紋定義本身改了——只報漂移量 | 0 |
+| `mismatch_same_input` | 所有 digest 相同、追蹤欄位**不同** | 同一份輸入卻給出不同輸出 | **1** |
 
-**指紋不涵蓋程式碼版本**：`mismatch_same_input` 只證「不是資料造成的」，不指出是什麼
-造成的（程式碼變更與執行環境都是候選）。這是刻意的範圍限制，不要讀成根因判定。
+舊 artifact 少了某個 digest 鍵時**偏 `input_drift` 而非 `identical`**：無法證明輸入相同
+就不要說相同，`identical` 是會讓缺陷靜默通過的那一邊。
 
-#### 示範輸出（三種判定都跑過，不是設計說明）
+#### 示範輸出（四種情境都實跑，不是設計說明）
 
-`--data-asof-cutoff` 可重建較舊的資料截點，用來復現一份舊 artifact 是怎麼來的
-（**稽核用；正式 artifact 一律不帶 cutoff**）。以 2026-07-31 為截點重建再與現況比：
+`--data-asof-cutoff` 可重建較舊的資料截點（**稽核用；正式 artifact 一律不帶 cutoff**）。
+以 2026-07-31 為截點重建再與現況比：
 
 ```
 範圍 | artifact as-of | 本次 as-of | 出賽數 Δ | 投手數 Δ | 逐局比分列 Δ | 指紋變動 | 輸出變動欄位 | 判定
-一軍例行賽 A／自責分 | 2026-07-31 | 2026-08-07 | 22420→22540（+120) | +0 | +274 | 出賽＋逐局比分 | appearances_total 22420→22540, appearances_counted 448→475, tail_queries 344→345, tail_credited 24→25, tail_outs 117→162 | input_drift
-二軍例行賽 D／失分 | 2026-07-31 | 2026-08-07 | 17687→17824（+137) | +2 | +234 | 出賽＋逐局比分 | pitchers 554→556, appearances_total 17687→17824, appearances_counted 697→687, tail_queries 514→502, tail_credited 23→22, tail_outs 181→180 | input_drift
-一軍例行賽 A／跨口徑 | 2026-07-31 | 2026-08-07 | 22420→22540（+120) | +0 | +274 | 出賽＋逐局比分 | appearances 22420→22540, x1_runs_ne_earned_runs 2155→2165, x1_unearned_only 761→765 | input_drift
+一軍例行賽 A／自責分 | 2026-07-31 | 2026-08-07 | 22420→22540（+120) | +0 | +274 | 出賽＋球員姓名＋逐局比分 | appearances_total 22420→22540, appearances_counted 448→475, tail_queries 344→345, tail_credited 24→25, tail_outs 117→162 | input_drift
 
 input_drift 6 列（預期，不計入失敗）／mismatch_same_input 0 列（**要求 0**）／無從分類 0 列
 → 差異全數歸因於輸入變動。處置是**更新 artifact 並標注 as-of**，不是把數字凍住，也不該讀成缺陷。
 ```
 
-三種判定的實測 exit code（`echo $?` 直接取，不經 pipe）：
+指紋**定義**改變（而非資料改變）時報表會講出來——拿 iteration 3 的舊 artifact 比：
+
+```
+一軍例行賽 A／自責分 | 2026-08-07 | 2026-08-07 | 22540→22540（+0) | +0 | +0 | 出賽＋球員姓名（指紋定義變更） | （無） | input_drift
+```
+
+as-of 相同、母體規模相同、輸出欄位無變動，只有指紋動了 ＋ 明示「指紋定義變更」——
+讀者不會把它誤讀成資料變了。
+
+實測 exit code（`echo $?` 直接取，不經 pipe）：
 
 | 情境 | 產生方式 | 判定 | exit |
 |---|---|---|---|
-| 與同一次執行的輸出比 | `--compare-to /tmp/now.json` | `identical` × 6 列 | **0** |
+| 與同一次執行的輸出比 | `--compare-to`（剛產生的 artifact） | `identical` × 6 列 | **0** |
 | 與 07-31 截點重建的快照比 | `--data-asof-cutoff 2026-07-31` | `input_drift` × 6 列 | **0** |
 | 把 artifact 的 `tail_outs` +7、指紋不動 | 手動改一個數字 | `mismatch_same_input` × 1 列（`tail_outs 169→162`） | **1** |
-| 與 iteration 2 的舊 artifact 比（無指紋） | 直接比舊檔 | 全數「無從分類」並說明原因 | 0 |
+| 與 iteration 2 的舊 artifact 比（完全無指紋） | 直接比舊檔 | 全數「無從分類」並說明原因 | 0 |
+
+#### 守衛本身的變異檢驗
+
+| 注入的變異 | 結果 |
+|---|---|
+| 把指紋退回 iteration 3 的手寫清單（漏 `opponent`） | **2 條 FAIL**：`…moves_the_digest[opponent]` 與 `test_opponent_change_is_classified_as_input_drift` |
+| 往 `Appearance` 新增一個欄位（`venue`）而不補 fixture | **全部參數化案例 FAIL**，訊息指名欄位：``AssertionError: `Appearance` 新增了欄位但這個 fixture 沒給值：['venue']`` |
+
+第二列是重點：**新增欄位會讓守衛主動要求作者處理**，不會靜默沿用舊涵蓋範圍。
+
 
 最後一列刻意**不當成通過也不當成失敗**：無從比對就明講無從比對，不用「看起來差不多」
 放行。分類邏輯本身由 `tests/test_scoreless_streak_api.py` 的 7 條測試釘住（含漂移量

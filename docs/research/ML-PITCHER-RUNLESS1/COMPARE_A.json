@@ -390,7 +390,22 @@
       "latest_game_date_any": "2026-08-07",
       "pitchers": 392,
       "appearances": 22540,
-      "appearance_digest": "90e01a437f8012e11e44c20adb7541f3",
+      "appearance_fields": [
+        "delay_kind",
+        "earned_runs",
+        "game_date",
+        "game_sno",
+        "kind_code",
+        "opponent",
+        "opponent_score",
+        "outs",
+        "runs",
+        "team_code",
+        "vht",
+        "year"
+      ],
+      "appearance_digest": "989ca3c58cf5144b5fe140b5a64b28f1",
+      "name_digest": "cc577e69ea229abbf4e4991ba2cc409d",
       "scoreboard_rows": 48173,
       "scoreboard_digest": "858abf01175fb716eeef2bbfda4a150e"
     },
