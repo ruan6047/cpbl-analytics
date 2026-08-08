@@ -20,9 +20,19 @@ from datetime import date
 import pytest
 
 from cpbl.completion import (
+    TAIPEI_TODAY_SQL,
+    UTC_TODAY_SQL,
+    completed_games_sql,
     completed_games_sql_with_evidence,
     is_completed_game,
 )
+
+# 兩個日界都拿來當參數跑：本檔任何「判準對判準」的比較都必須**明示同一個 as_of**，
+# 否則量到的是「判準差 ＋ 日界差」的混合（DATA-TZ-COMPLETION-SKEW1）。
+_AS_OF_CHOICES = [
+    pytest.param(UTC_TODAY_SQL, id="as_of=UTC"),
+    pytest.param(TAIPEI_TODAY_SQL, id="as_of=Taipei"),
+]
 
 # 5 場已證實 0:0 和局（官方 box 直接取證：game_detail=final、滿規章 §38 五局門檻）
 CONFIRMED_TIES = [(2018, "A", 124), (2021, "A", 256), (2023, "A", 119),
@@ -74,7 +84,7 @@ def test_sql_builder_refuses_empty_alias() -> None:
 # （漏括號變體兩邊都是 13014，但總數 12955/13009、13263/13322 各有差異），
 # 集合恆等式則兩邊完全一致。
 
-_TAIPEI_TODAY = "(now() AT TIME ZONE 'Asia/Taipei')::date"
+_TAIPEI_TODAY = TAIPEI_TODAY_SQL
 _EVIDENCE_EXISTS = (
     "EXISTS (SELECT 1 FROM cpbl.game_completion_evidence e "
     "WHERE e.year = games.year AND e.kind_code = games.kind_code "
@@ -109,15 +119,57 @@ def _game_set(cond: str) -> set[tuple]:
         pytest.skip(f"需本機 DB：{exc}")
 
 
-def test_criterion_adds_exactly_the_evidenced_ties_over_the_legacy_one() -> None:
-    """真判準相對舊判準，**只**多收那 5 場有證據的 0:0，且不漏掉任何舊有場次。"""
-    from cpbl.completion import completed_games_sql
+@pytest.mark.parametrize("as_of", _AS_OF_CHOICES)
+def test_criterion_adds_exactly_the_evidenced_ties_over_the_legacy_one(as_of: str) -> None:
+    """真判準相對舊判準，**只**多收那 5 場有證據的 0:0，且不漏掉任何舊有場次。
 
-    correct = _game_set(completed_games_sql_with_evidence("games"))
-    legacy = _game_set(completed_games_sql())
+    ⚠️ 兩邊必須**明示同一個 as_of**。原版讓兩支 helper 各自吃預設值（舊＝UTC、
+    新＝台北），於是台北 00:00–08:00 那 8 小時量到的是「判準差 ＋ 日界差」：
+    2026/D/119（保留賽，續賽日 08-08、帶中止比分 5:4）會混進差集，被誤讀成
+    「第 6 場 0:0 和局」。它不是和局，把它加進 `CONFIRMED_TIES` 等於把時區假象
+    硬編成已證實事實，而且窗外又會反過來紅（DATA-TZ-COMPLETION-SKEW1）。
+
+    改為對**兩個日界各跑一次**：判準差與日界無關，這條在任意時刻都成立。
+    """
+    correct = _game_set(completed_games_sql_with_evidence("games", as_of))
+    legacy = _game_set(completed_games_sql(as_of))
 
     assert correct - legacy == set(CONFIRMED_TIES), "多收的不是那 5 場和局"
     assert legacy - correct == set(), "新判準漏掉了舊判準已收的場次"
+
+
+def test_as_of_choice_moves_only_games_dated_in_the_day_boundary_gap() -> None:
+    """固定判準、只換 as_of：母體差**只能**由日界間隙解釋，不得動到判準。
+
+    這條把「日界」獨立成一個可觀測的軸，補上原版把它與判準混在一起的缺口。
+    **任意時刻可重複**：窗外兩個日界同日 → 間隙為空 → 差集必為空；窗內間隙＝
+    台北今日 → 差集必落在其中。兩種情境用的是同一組斷言，不看牆鐘。
+    """
+    tpe = _game_set(completed_games_sql_with_evidence("games", TAIPEI_TODAY_SQL))
+    utc = _game_set(completed_games_sql_with_evidence("games", UTC_TODAY_SQL))
+
+    assert utc <= tpe, "台北日界較晚，只可能多收；反向少收代表 as_of 不是單純的上界"
+
+    gap = _game_set(
+        f"games.game_date > {UTC_TODAY_SQL} AND games.game_date <= {TAIPEI_TODAY_SQL}")
+    assert tpe - utc <= gap, "as_of 差集出現日界間隙以外的場次 → 判準本身也被動到了"
+
+    # 日界只搬動「日期」這個維度：差集裡不該出現無證據的 0:0（那是判準的事）。
+    unevidenced_scoreless = _game_set(
+        f"games.home_score + games.away_score = 0 AND NOT {_EVIDENCE_EXISTS}")
+    assert (tpe - utc) & unevidenced_scoreless == set(), (
+        "換 as_of 竟納入無證據的 0:0 → 日界與判準的分離已失效")
+
+
+def test_the_two_helpers_deliberately_default_to_different_day_boundaries() -> None:
+    """釘住「預設日界不同」這個**已知且待裁決**的現況（SKEW1）。
+
+    不是在祝福這個落差，而是讓它不能被無聲改掉：哪天有人統一了預設值，這條會紅，
+    強迫該次變更是明示的決定並同步更新 `docs`／`test_tz_boundary` 的對應守衛。
+    """
+    assert UTC_TODAY_SQL in completed_games_sql()
+    assert TAIPEI_TODAY_SQL in completed_games_sql_with_evidence("g")
+    assert UTC_TODAY_SQL != TAIPEI_TODAY_SQL
 
 
 def test_missing_parentheses_variant_leaks_future_dated_games() -> None:
@@ -178,6 +230,30 @@ def test_r1_five_confirmed_ties_are_completed() -> None:
         assert rows[0][0] is True, f"{year}/{kind}/{sno} 未被判為完成場"
 
 
+def test_confirmed_ties_list_still_matches_the_evidence_table() -> None:
+    """`CONFIRMED_TIES` 的漂移警報：證據表裡的 0:0 必須恰好是這 5 場。
+
+    為什麼清單維持**硬編**而不改成由證據表推導：它的價值正在於是一份**外部**斷言
+    （官方 box 逐場取證：game_detail=final、滿規章 §38 五局門檻）。改成從
+    `game_completion_evidence` 推導，主判準測試就會變成「判準納入了證據表說要納入的」
+    ——恆真的同義反覆，鑑別力歸零。與本檔既有的官方連段黃金樣本同一個道理。
+
+    但硬編清單會過期，所以另外**單獨**拿它跟證據表對帳：任何一方變動都在這裡響，
+    而且逼人回去做外部查證，而不是順手把新場次補進清單。
+    """
+    rows = _rows("""
+        SELECT g.year, g.kind_code, g.game_sno FROM cpbl.games g
+        WHERE g.home_score = 0 AND g.away_score = 0
+          AND EXISTS (SELECT 1 FROM cpbl.game_completion_evidence e
+                      WHERE e.year=g.year AND e.kind_code=g.kind_code
+                        AND e.game_sno=g.game_sno)
+        ORDER BY g.year, g.kind_code, g.game_sno
+    """)
+    assert [tuple(r) for r in rows] == CONFIRMED_TIES, (
+        "證據表的 0:0 集合已與硬編清單分歧——需外部查證後才可更動清單，"
+        "不得為了讓測試變綠而直接補入")
+
+
 def test_r2_official_tie_reconciliation_has_no_remainder() -> None:
     """回歸 2：官方 standings 和局數對帳完全解釋（2018–2024 殘留為 0）。
 
@@ -210,17 +286,18 @@ def test_r3_scoreless_false_positive_set_is_not_admitted_wholesale() -> None:
     偽陽母體＝0:0 且日期已過且 ``present_status=1``（AUDIT1 實測 288 場，
     其中僅 5 場為真；``present_status`` 對完賽毫無鑑別力）。
     """
-    cond = completed_games_sql_with_evidence("g")
-    total = _rows("""
+    # 母體的日界必須與 `cond` 用的是同一個，否則窗內比的是兩個不同的「今天」。
+    cond = completed_games_sql_with_evidence("g", TAIPEI_TODAY_SQL)
+    total = _rows(f"""
         SELECT count(*) FROM cpbl.games g
-        WHERE g.home_score + g.away_score = 0 AND g.game_date <= CURRENT_DATE
+        WHERE g.home_score + g.away_score = 0 AND g.game_date <= {TAIPEI_TODAY_SQL}
           AND g.present_status = 1
     """)[0][0]
     assert total > 100, f"偽陽母體只有 {total} 場，樣本過小則本測試失去意義"
 
     admitted = _rows(f"""
         SELECT g.year, g.kind_code, g.game_sno FROM cpbl.games g
-        WHERE g.home_score + g.away_score = 0 AND g.game_date <= CURRENT_DATE
+        WHERE g.home_score + g.away_score = 0 AND g.game_date <= {TAIPEI_TODAY_SQL}
           AND g.present_status = 1 AND ({cond})
         ORDER BY g.year, g.game_sno
     """)

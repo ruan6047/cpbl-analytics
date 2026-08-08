@@ -20,6 +20,24 @@
 （爬蟲用同一判準選目標，故從未抓過它們，缺口自我隱蔽）。故判準**必須引入外部證據**，
 證據來源見 ``cpbl.game_completion_evidence``（migration 070）。
 
+**日界落差（DATA-TZ-COMPLETION-SKEW1，待需求方裁決）**：兩支 helper 的預設 ``as_of``
+目前**不同**——舊判準用 :data:`UTC_TODAY_SQL`、新判準用 :data:`TAIPEI_TODAY_SQL`。
+DB 跑 UTC，故台北 00:00–08:00 這 8 小時兩者相差一天。這**不是**遺漏：
+
+* 兩者都是 ``game_date <= as_of`` 的**上界**用法。UTC 落後只會「晚 8 小時納入」，
+  方向保守，DATA-TZ-BOUNDARY1 盤點後明確擱置、排在 REMEDY1 Phase 2 隨判準一起切。
+* 舊判準的呼叫端全在每日 refresh 鏈（``run_refresh_recent``）上，該鏈為 G4 觀測凍結檔；
+  改日界＝改爬取母體。且鏈的排程是 10:10 CST，落在窗外，**排程情境下不觸發此落差**。
+
+實測落差面（2026-08-08 00:45 CST 窗內，唯讀全庫）：同一判準換 as_of，母體差**恰 1 場**
+——``2026/D/119``（保留賽，原訂 06-16、續賽日 08-08，帶中止比分 5:4）。這不是巧合而是
+結構性的：台北日 T 當天 00:00–08:00 時，**排在 T 的一般場次尚未開打**（0:0 無證據，
+兩種 as_of 都不納入），唯一會被日界翻轉的就是**改期後帶著中止比分的保留賽**。
+
+⚠️ 因此 ``completed_games_sql(...)`` 與 ``completed_games_sql_with_evidence(...)``
+**不可在同一個比較中混用預設值**——那會把「判準差」與「日界差」混淆成同一個量。
+要比判準就把同一個 ``as_of`` 明示傳給兩邊（見 ``tests/test_completion_evidence.py``）。
+
 ⚠️ **括號是語意的一部分，不是排版**：日期界線必須包在最外層、``OR`` 子句必須加括號。
 寫成尾隨的 ``AND`` 會因 SQL 的 ``AND`` 優先於 ``OR`` 而解析成
 ``score > 0 OR (evidence AND date)``——正比分的場次會完全繞過日期界線，實測誤納 5 場
@@ -33,6 +51,11 @@ from datetime import date
 # DB timezone 為 UTC，``CURRENT_DATE`` 在台北 00:00–08:00 會指向前一日。
 # 完成場的「今天」必須以台北日界為準（DATA-RULES-AUDIT1 D7）。
 TAIPEI_TODAY_SQL = "(now() AT TIME ZONE 'Asia/Taipei')::date"
+
+# UTC 日界。**命名而非裸字面**：兩支 helper 的預設日界目前**刻意不同**（見下方
+# 「日界落差」一節），把兩邊都寫成具名常數，任何一次變更都必須是明示的選擇，
+# 而不是改到一個看起來無害的字串（DATA-TZ-COMPLETION-SKEW1）。
+UTC_TODAY_SQL = "CURRENT_DATE"
 
 # 證據子查詢的別名：取不易與外層查詢碰撞的名字（外層常用 g/e/b/l）。
 _EVIDENCE_ALIAS = "gce_"
@@ -51,7 +74,7 @@ def is_completed(
     return (home_score or 0) + (away_score or 0) > 0 and game_date <= as_of
 
 
-def completed_games_sql(as_of_sql: str = "CURRENT_DATE") -> str:
+def completed_games_sql(as_of_sql: str = UTC_TODAY_SQL) -> str:
     """回傳與 :func:`is_completed` 等價、可嵌入 ``cpbl.games`` 查詢的 SQL 條件（**舊判準**）。
 
     ⚠️ 預設值刻意仍是 UTC 的 ``CURRENT_DATE``（DATA-TZ-BOUNDARY1 盤點後**明確不改**）：
