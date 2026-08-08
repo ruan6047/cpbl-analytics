@@ -15,6 +15,9 @@ from cpbl.ingest.box_revisions import (
 )
 
 _MIGRATION = Path(__file__).parents[1] / "migrations" / "071_box_pitching_revisions.sql"
+_DEDUP_FIX_MIGRATION = (
+    Path(__file__).parents[1] / "migrations" / "072_box_pitching_revisions_latest_only_dedup.sql"
+)
 
 SENTINEL_YEAR = 2099
 SENTINEL_KIND = "A"
@@ -40,12 +43,46 @@ def test_migration_is_additive_and_scoped_to_new_table() -> None:
     assert "ALTER TABLE cpbl.game_source_revisions" not in sql
 
 
+def test_dedup_fix_migration_drops_the_global_unique_without_touching_071() -> None:
+    """BOX-REVISION-R1-001：071 是既存 migration，紅線不得修改，修法必須是新檔案。"""
+    sql = _DEDUP_FIX_MIGRATION.read_text(encoding="utf-8")
+
+    assert "DROP CONSTRAINT IF EXISTS" in sql
+    assert "box_pitching_revisions_year_kind_code_game_sno_pitcher_acnt_key" in sql
+    # 只拿掉全域內容去重的約束，不動主鍵、不動任何欄位、不刪表。
+    assert "DROP TABLE" not in sql.upper()
+    assert "DROP COLUMN" not in sql.upper()
+    assert "PRIMARY KEY" not in sql
+    # 071 本身內容不可被本檔改動（本測試只讀 071，改動會被 git diff 攔截，這裡
+    # 額外斷言 071 仍保有原本的 UNIQUE 字面——證明「新開一支」而非回頭改舊檔）。
+    original_071 = _MIGRATION.read_text(encoding="utf-8")
+    assert "UNIQUE (year, kind_code, game_sno, pitcher_acnt, content_hash)" in original_071
+
+
+def test_dedup_fix_migration_actually_removes_the_constraint_on_real_db(db) -> None:
+    """不只看 migration 檔案字面，實測套用後約束真的不在了（072 已在本卡跑過
+    `db.migrate()`，這裡是唯讀查詢確認結果，不重跑 migration 避免測試互相干擾）。
+    """
+    with db() as c:
+        rows = c.execute(
+            "SELECT conname FROM pg_constraint WHERE conrelid = 'cpbl.box_pitching_revisions'::regclass "
+            "AND contype = 'u'"
+        ).fetchall()
+    names = {r[0] for r in rows}
+    assert "box_pitching_revisions_year_kind_code_game_sno_pitcher_acnt_key" not in names, (
+        "全域內容去重的 UNIQUE 約束仍在——072 migration 沒有真的套用到這個 DB"
+    )
+
+
 def test_record_box_pitching_revisions_skips_rows_without_pitcher_acnt() -> None:
-    recorded: list[list[tuple]] = []
+    """自 072 起寫入是逐列 `execute`（不再是單次 `executemany`）——因為每列的
+    「要不要插入」要各自比對自己 PK 的最近一列，不能再靠一次 batched INSERT
+    ON CONFLICT 完成（見 record_box_pitching_revisions docstring）。"""
+    recorded: list[dict] = []
 
     class Cursor:
-        def executemany(self, _sql, records):
-            recorded.append(list(records))
+        def execute(self, _sql, params):
+            recorded.append(dict(params))
 
     class Connection:
         def cursor(self):
@@ -69,8 +106,8 @@ def test_record_box_pitching_revisions_skips_rows_without_pitcher_acnt() -> None
         mod.conn = orig_conn
 
     assert n == 1
-    assert len(recorded[0]) == 1
-    assert recorded[0][0][3] == "0000000001"
+    assert len(recorded) == 1
+    assert recorded[0]["pitcher_acnt"] == "0000000001"
 
 
 def test_gamelog_records_box_pitching_revisions_alongside_upsert(
@@ -197,6 +234,52 @@ def test_changed_earned_runs_creates_new_revision_and_keeps_old_row(db) -> None:
     assert [r[0] for r in rows] == [2, 1], "舊版本應保留，新版本以新列 append"
 
 
+def test_reverted_correction_a_to_b_to_a_keeps_all_three_revisions(db) -> None:
+    """BOX-REVISION-R1-001 回歸測試：A→B→A 的回改（聯盟推翻後又推翻回來，或抓取
+    瞬間看到中間態）第三次觀測不能因為內容等於第一次而被誤判成「沒變」。
+
+    071 原本的全域 UNIQUE(...,content_hash) 會讓第三次觀測撞回第一列的 hash，
+    只累加 seen_count、不新增列——B→A 這次真實發生的改判會從快照裡消失。
+    072 拿掉那個全域約束、改成只比較「該 (場,投手) 最近一次觀測」，第三次觀測
+    與最近一列（B）不同，必須新增第三列。
+    """
+    record_box_pitching_revisions(  # 第 1 次觀測：ER=3（A）
+        SENTINEL_YEAR, SENTINEL_KIND, SENTINEL_SNO,
+        [_pitcher_row(ip_cnt=6, ip_div3=0, runs=3, er=3)],
+    )
+    record_box_pitching_revisions(  # 第 2 次觀測：官方改判 ER=2（B）
+        SENTINEL_YEAR, SENTINEL_KIND, SENTINEL_SNO,
+        [_pitcher_row(ip_cnt=6, ip_div3=0, runs=3, er=2)],
+    )
+    record_box_pitching_revisions(  # 第 3 次觀測：官方又改回 ER=3（回到 A 的內容）
+        SENTINEL_YEAR, SENTINEL_KIND, SENTINEL_SNO,
+        [_pitcher_row(ip_cnt=6, ip_div3=0, runs=3, er=3)],
+    )
+
+    with db() as c:
+        rows = c.execute(
+            "SELECT earned_runs FROM cpbl.box_pitching_revisions "
+            "WHERE year=%s AND kind_code=%s AND game_sno=%s AND pitcher_acnt=%s "
+            "ORDER BY fetched_at, id",
+            (SENTINEL_YEAR, SENTINEL_KIND, SENTINEL_SNO, SENTINEL_ACNT),
+        ).fetchall()
+
+    # 核心斷言：3 次觀測必須是 3 列，不能因為第 3 次內容等於第 1 次而被去重成 2 列。
+    assert [r[0] for r in rows] == [3, 2, 3], (
+        "A→B→A 的第三次觀測遺失——退回 BOX-REVISION-R1-001 修好之前的全域內容去重"
+    )
+
+    result = pitcher_er_revision_report(SENTINEL_YEAR, SENTINEL_KIND, SENTINEL_SNO)
+    report = result["revisions"]
+    assert [r["earned_runs"] for r in report] == [3, 2, 3]
+    assert [r["revision_no"] for r in report] == [1, 2, 3]
+    # 查核者明確要求：不能只驗「有 3 筆」，要驗第三筆 diff 的方向正確
+    # （是 B→A 也就是 (2, 3)，不是隨便什麼非空 tuple、也不是 (3, 3) 這種假陽性）。
+    assert report[0]["changed_fields"] == {}
+    assert report[1]["changed_fields"]["earned_runs"] == (3, 2)
+    assert report[2]["changed_fields"]["earned_runs"] == (2, 3)
+
+
 def test_report_answers_how_many_times_and_what_changed(db) -> None:
     """驗收條件的核心：能回答「某場 ER 被改過幾次、每次改了什麼」。"""
     record_box_pitching_revisions(
@@ -212,7 +295,12 @@ def test_report_answers_how_many_times_and_what_changed(db) -> None:
         [_pitcher_row(ip_cnt=6, ip_div3=0, runs=3, er=2)],
     )
 
-    report = pitcher_er_revision_report(SENTINEL_YEAR, SENTINEL_KIND, SENTINEL_SNO)
+    result = pitcher_er_revision_report(SENTINEL_YEAR, SENTINEL_KIND, SENTINEL_SNO)
+    report = result["revisions"]
+
+    # BOX-REVISION-R1-002：限制文字必須隨資料一起回傳，不能只活在 Runbook 裡。
+    assert result["caveat"], "caveat 不可為空——消費者拿到數字時必須同時拿到限制"
+    assert "零觀測不代表" in result["caveat"]
 
     assert [r["earned_runs"] for r in report] == [3, 2]
     assert report[0]["revision_no"] == 1
@@ -249,7 +337,7 @@ def test_report_computes_days_since_game_against_real_game_date(db) -> None:
 
     report = pitcher_er_revision_report(
         REAL_GAME_YEAR, REAL_GAME_KIND, REAL_GAME_SNO, pitcher_acnt=REAL_GAME_SENTINEL_ACNT,
-    )
+    )["revisions"]
     with db() as c:
         expected_days = c.execute(
             "SELECT (now() AT TIME ZONE 'Asia/Taipei')::date - %s::date",

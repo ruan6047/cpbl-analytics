@@ -147,7 +147,8 @@ docker compose exec -T db psql -U cpbl -d cpbl -c \
 
 ### 官方 box 逐投手快照：每週深度重抓近 30 天（DATA-BOX-REVISION-SNAPSHOT1）
 
-`cpbl.box_pitching_revisions`（append-only、內容雜湊去重）記錄每次抓 box 時逐投手的
+`cpbl.box_pitching_revisions`（append-only、與**該場該投手最近一次觀測**比較的內容
+雜湊去重——**不是全域去重**，見下方 BOX-REVISION-R1-001）記錄每次抓 box 時逐投手的
 outs／runs／earned_runs，讓「官方賽後修正判決」vs「livelog 漏記」從不可證偽變成可量測
 （源起 #107 ML-PITCHER-ER-REBUILD1 spec 基線 §7.6「假設(c)不可證偽」；該研究文件
 在其他分支進行中，本卡不碰）。每日窗只重抓 `[昨天,今天]`
@@ -178,6 +179,27 @@ A=50 場、D=38 場，線性外推整週實跑約 **2–2.5 分鐘**（≈139 �
 
 **這個機制目前只能看見「近 30 天內」的修正**：30 天以外發生的官方改判不會被本快照觀測到
 （歷史場次亦無回溯快照，只有部署日起才開始累積）。
+
+**BOX-REVISION-R1-001（跨家族查核 2026-08-08，已修，migration 072）**：071 原本的
+`UNIQUE(year, kind_code, game_sno, pitcher_acnt, content_hash)` 是**全域**內容去重，
+不是「與最近一次觀測比較」。後果是 A→B→A 這種回改（聯盟推翻後又推翻回來，或抓取
+瞬間看到中間態）——第三次觀測的 content_hash 會撞回第一次那列，只被當成「重複」
++seen_count，B→A 這次真實發生的改判會直接從快照消失，`pitcher_er_revision_report()`
+答不出「改過幾次」。已改為「只與該 (year, kind_code, game_sno, pitcher_acnt) 最近
+一次觀測比較」，冪等改由 `record_box_pitching_revisions()` 的寫入邏輯保證（INSERT
+... WHERE NOT EXISTS 最近一列同 hash），不再由 DB UNIQUE 約束提供；併發假設（單
+執行緒、受同一把 refresh lock 互斥）寫在該函式 docstring。既有 79 筆快照（修法
+前寫入）逐一查過：每個 (year,kind_code,game_sno,pitcher_acnt) 都只有 1 列，尚未
+出現過第 2 版，更談不上 A→B→A——這批資料只累積了不到一天，改判需要時間發生，
+故確認沒有已經遺失的回改事件。
+
+> **零觀測不代表官方沒有改判**（BOX-REVISION-R1-002）：這份資料只涵蓋（1）部署本
+> 功能之後才抓到的場次（2018–2026 既有歷史場次無回溯快照）且（2）目前抓取窗口內
+> （每日近 2 天、週深度重抓近 30 天）實際觀測到的版本。官方改判的真實發生率未知，
+> 30 天以外或部署前發生的修正即使真的存在也不會出現在這裡——**查不到修正只代表
+> 「這個窗口沒看到」，不能當作「沒有發生過」的證據**。這句話同時寫進
+> `pitcher_er_revision_report()` 的回傳值（`caveat` 欄位），讀數字的人不必回頭
+> 翻這份文件才知道限制在哪。
 
 ### 逐球 TrackMan：抓取維度 flag 與每週全季重跑（INGEST-GAME-TM-REFACTOR1-G4 Phase A）
 
