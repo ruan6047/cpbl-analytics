@@ -1,0 +1,1590 @@
+{
+  "baseline": {
+    "all_pass": 2984,
+    "all_pass_rate": 0.6998,
+    "games": 4264
+  },
+  "data_asof": {
+    "as_of": null,
+    "coverage_asof": "2026-08-07",
+    "coverage_asof_basis": "max(games.game_date) over 母體，排除 delay_kind='保留'（保留賽的 game_date 是續賽改期日、非資料涵蓋日）；延賽不排除（改期日整場重打）。母體與來源指紋不受此排除影響。",
+    "games_rows": 4616,
+    "held_population_games": 7,
+    "held_population_max_game_date": "2026-09-15",
+    "held_population_max_orig_date": "2026-07-17",
+    "held_population_without_orig_date": 0,
+    "livelog_rows": 1329900,
+    "max_game_date": "2026-10-03",
+    "max_population_game_date": "2026-09-15",
+    "pitching_gamelog_rows": 39845,
+    "population_games": 4264,
+    "scoreboard_rows": 76901
+  },
+  "denominator_invariant": {
+    "all_pass": 2984,
+    "fail_reasons_sum": 1280,
+    "games": 4264,
+    "holds": true,
+    "meaning": "被 fail-closed 擋下的場次**留在分母裡當失敗**，不從母體移除。故任何閘門只能壓低通過率、不可能抬高；「排太多」的後果是低報而非高報，「排太少」才會高報。"
+  },
+  "gates": {
+    "ledger_desync": {
+      "ablation": null,
+      "blocked": 1,
+      "blocked_share_of_population": 0.0002,
+      "delta_upper_bound": 1,
+      "delta_upper_bound_share": 0.0002,
+      "kind": "gate",
+      "why_no_ablation": "同型：帳本重建的壘上棒次槽與 livelog 觀測的壘況不一致。消融要能繼續，必須以觀測壘況重建帳本並替憑空出現的跑者指定**責任投手與上壘手段**（earned_ok），兩者都是 9.16 的核心判定、都只能猜。這是補猜測不是移除檢查。故給確定上界：Δ ≤ 被擋場數。"
+    },
+    "mismatch:attribution_boundary": {
+      "ablation": null,
+      "blocked": 30,
+      "blocked_share_of_population": 0.007,
+      "delta_upper_bound": 0,
+      "delta_upper_bound_share": 0.0,
+      "kind": "mismatch_classification",
+      "why_no_ablation": "同上，不是閘門而是對帳失敗的成因分類（淨差為 0 但逐投手歸屬不同）。Δ 恆為 0。"
+    },
+    "mismatch:earned_rule_boundary": {
+      "ablation": null,
+      "blocked": 783,
+      "blocked_share_of_population": 0.1836,
+      "delta_upper_bound": 0,
+      "delta_upper_bound_share": 0.0,
+      "kind": "mismatch_classification",
+      "why_no_ablation": "同上，不是閘門。這是本卡真正的殘差：失分與出局全對、只有自責分不同，即 9.16 的記錄員判斷邊界。Δ 恆為 0。"
+    },
+    "mismatch:source_gap": {
+      "ablation": null,
+      "blocked": 141,
+      "blocked_share_of_population": 0.0331,
+      "delta_upper_bound": 0,
+      "delta_upper_bound_share": 0.0,
+      "kind": "mismatch_classification",
+      "why_no_ablation": "不是 fail-closed 閘門。`mismatch:*` 是**對帳失敗後**的成因分類：重建已完整跑完、三維與官方比對不符，場次留在分母裡當失敗（見分母不變量）。沒有可以「拿掉」的檢查——拿掉標籤不會讓任何一場變成通過，Δ 恆為 0。成因為某一側 runs 或 outs 淨差不為 0，屬來源資料缺漏。"
+    },
+    "multiple_new_runners": {
+      "ablation": null,
+      "blocked": 4,
+      "blocked_share_of_population": 0.0009,
+      "delta_upper_bound": 4,
+      "delta_upper_bound_share": 0.0009,
+      "kind": "gate",
+      "why_no_ablation": "拿掉它不是「移除檢查」而是「補一個猜測」。該閘門觸發於：下一個 island 的壘況比本 island 多出**一個以上**新棒次槽，即無法判斷哪一位是打者、哪一位是本來就在壘上而帳本漏掉的人。任何消融實作都必須先指定「哪一個新槽是打者」，那正是 fail-closed 要禁止的歸屬猜測；若改成不指定（batter_slot=None），多出來的跑者會在下一個 island 觸發 ledger_desync，Δ 由建構方式決定而非由資料決定，是**沒有鑑別力的假消融**。故給確定上界：Δ ≤ 被擋場數。"
+    },
+    "narrated_run_not_scored": {
+      "ablation": "no_narrated_run_not_scored",
+      "artifact": "mutation_no_narrated_run_not_scored.json",
+      "blocked": 10,
+      "blocked_share_of_population": 0.0023,
+      "delta_pass": 0,
+      "fate_of_blocked_games": {
+        "mismatch:source_gap": 1,
+        "official_error_unlocated": 1,
+        "scorer_unresolved": 8
+      },
+      "kind": "gate",
+      "verdict": "Δ=0"
+    },
+    "official_error_unlocated": {
+      "ablation": "no_scoreboard_signal",
+      "artifact": "mutation_no_scoreboard_signal.json",
+      "blocked": 29,
+      "blocked_share_of_population": 0.0068,
+      "delta_pass": 11,
+      "fate_of_blocked_games": {
+        "mismatch:attribution_boundary": 1,
+        "mismatch:earned_rule_boundary": 16,
+        "mismatch:source_gap": 1,
+        "pass": 11
+      },
+      "kind": "gate",
+      "verdict": "Δ=+11（須逐案說明）"
+    },
+    "scorer_unresolved": {
+      "ablation": "no_scorer_unresolved",
+      "artifact": "mutation_no_scorer_unresolved.json",
+      "blocked": 50,
+      "blocked_share_of_population": 0.0117,
+      "delta_pass": 22,
+      "fate_of_blocked_games": {
+        "mismatch:attribution_boundary": 1,
+        "mismatch:earned_rule_boundary": 13,
+        "pass": 22,
+        "run_count_mismatch": 1,
+        "unnamed_runner_score": 13
+      },
+      "kind": "gate",
+      "verdict": "Δ=+22（須逐案說明）"
+    },
+    "unnarrated_run": {
+      "ablation": "no_unnarrated_run",
+      "artifact": "mutation_no_unnarrated_run.json",
+      "blocked": 232,
+      "blocked_share_of_population": 0.0544,
+      "delta_pass": 0,
+      "fate_of_blocked_games": {
+        "ledger_desync": 3,
+        "mismatch:source_gap": 216,
+        "official_error_unlocated": 10,
+        "scorer_unresolved": 3
+      },
+      "kind": "gate",
+      "verdict": "Δ=0"
+    }
+  },
+  "official_error_unlocated_cases": {
+    "cases": [
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2018/A/124",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "12/2",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2018/A/145",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "8/2",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_irrelevant",
+        "game": "2018/A/177",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "8/1",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "mismatch:earned_rule_boundary"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2018/A/212",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "2/1",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_possible",
+        "game": "2018/A/213",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "1/2",
+            "half_runs": 1,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2018/A/73",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "5/2",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_possible",
+        "game": "2018/A/92",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "6/1",
+            "half_runs": 1,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2018/D/105",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "8/2",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2018/D/120",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "9/2",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "mismatch:source_gap",
+        "class": "er_irrelevant",
+        "game": "2018/D/142",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "6/1",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "mismatch:source_gap"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_irrelevant",
+        "game": "2018/D/25",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "9/1",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "mismatch:earned_rule_boundary"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2018/D/39",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "4/2",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_possible",
+        "game": "2019/A/125",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "6/2",
+            "half_runs": 5,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2019/A/160",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "5/2",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_possible",
+        "game": "2019/A/170",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "5/2",
+            "half_runs": 6,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_possible",
+        "game": "2019/A/215",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "8/2",
+            "half_runs": 1,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_irrelevant",
+        "game": "2019/A/224",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "7/1",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "mismatch:earned_rule_boundary"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_irrelevant",
+        "game": "2019/A/33",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "12/2",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "mismatch:earned_rule_boundary"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2019/A/62",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "1/1",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_possible",
+        "game": "2019/A/68",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "3/2",
+            "half_runs": 1,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2019/A/73",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "4/2",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2019/A/84",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "2/2",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_possible",
+        "game": "2019/D/1",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "6/2",
+            "half_runs": 1,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_possible",
+        "game": "2019/D/111",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "2/2",
+            "half_runs": 2,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2019/D/146",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "6/1",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_possible",
+        "game": "2019/D/26",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "2/1",
+            "half_runs": 1,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_possible",
+        "game": "2019/D/34",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "4/1",
+            "half_runs": 1,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "multiple_new_runners",
+        "class": "er_irrelevant",
+        "game": "2019/D/56",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "9/1",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "multiple_new_runners"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2019/D/83",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "3/2",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2020/A/106",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "5/2",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_possible",
+        "game": "2020/A/112",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "6/1",
+            "half_runs": 5,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_possible",
+        "game": "2020/A/154",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "8/1",
+            "half_runs": 1,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "mismatch:source_gap",
+        "class": "er_possible",
+        "game": "2020/A/187",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "9/2",
+            "half_runs": 3,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_irrelevant",
+        "game": "2020/A/19",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "6/1",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "mismatch:earned_rule_boundary"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2020/A/214",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "4/2",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_possible",
+        "game": "2020/A/218",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "10/1",
+            "half_runs": 2,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_possible",
+        "game": "2020/A/221",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "6/2",
+            "half_runs": 2,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2020/A/222",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "4/1",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_possible",
+        "game": "2020/A/236",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "7/2",
+            "half_runs": 3,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_possible",
+        "game": "2020/A/29",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "1/2",
+            "half_runs": 1,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2020/A/55",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "4/2",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_possible",
+        "game": "2020/A/9",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "7/2",
+            "half_runs": 3,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "mismatch:source_gap",
+        "class": "er_irrelevant",
+        "game": "2020/D/102",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "6/1",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "mismatch:source_gap"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_possible",
+        "game": "2020/D/103",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "4/2",
+            "half_runs": 1,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "mismatch:attribution_boundary",
+        "class": "er_possible",
+        "game": "2020/D/107",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "7/1",
+            "half_runs": 2,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_irrelevant",
+        "game": "2020/D/108",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "2/2",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "mismatch:earned_rule_boundary"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_possible",
+        "game": "2020/D/204",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "5/1",
+            "half_runs": 2,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2020/D/205",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "5/1",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "mismatch:source_gap",
+        "class": "er_irrelevant",
+        "game": "2020/D/217",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "5/1",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "mismatch:source_gap"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2020/D/48",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "6/1",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_possible",
+        "game": "2020/D/71",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "9/1",
+            "half_runs": 1,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2020/D/86",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "2/1",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2021/A/2",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "5/1",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_possible",
+        "game": "2021/A/53",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "2/2",
+            "half_runs": 2,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_possible",
+        "game": "2021/A/69",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "8/2",
+            "half_runs": 2,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2021/D/24",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "5/1",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_possible",
+        "game": "2021/D/46",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "3/1",
+            "half_runs": 1,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_possible",
+        "game": "2021/D/6",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "2/2",
+            "half_runs": 1,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_irrelevant",
+        "game": "2021/D/61",
+        "halves": [
+          {
+            "class": "er_irrelevant",
+            "half": "2/1",
+            "half_runs": 0,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "pass"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_possible",
+        "game": "2022/A/285",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "2/1",
+            "half_runs": 6,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "class": "er_possible",
+        "game": "2022/A/52",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "7/1",
+            "half_runs": 4,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      },
+      {
+        "ablated_status": "pass",
+        "class": "er_possible",
+        "game": "2026/A/235",
+        "halves": [
+          {
+            "class": "er_possible",
+            "half": "10/1",
+            "half_runs": 1,
+            "missing_livelog": false,
+            "official_E": 1
+          }
+        ],
+        "narrowed_status": "official_error_unlocated"
+      }
+    ],
+    "classification_rule": "官方記分板說有失誤、逐球敘述沒寫的那個半局，若該半局攻方得分為 0，則 9.16 的失誤效果（(b) 失誤致得分非自責、(d) 無失誤重建、漏接第三出局後該半局續打）沒有任何分可以作用；本檔的帳本也逐半局重置，故該場三維判定不受這個看不見的失誤影響 ⇒ er_irrelevant。該半局有得分 ⇒ er_possible（判不了）；記分板無該局列 ⇒ runs_unknown（fail-closed 併入判不了）。一場有多個未定位失誤時取最嚴格者。",
+    "crosstab_class_x_ablated_outcome_over_wide_blocked": {
+      "er_irrelevant×fail": 10,
+      "er_irrelevant×pass": 23,
+      "er_possible×fail": 18,
+      "er_possible×pass": 11
+    },
+    "half_inning_mapping_check": {
+      "claim": "visiting_home_type='1' 的逐局 score_cnt 加總 == games.away_score",
+      "games_compared": 4265,
+      "matched": 4265,
+      "mismatched": 0
+    },
+    "narrowing": {
+      "delta_from_narrowing": 23,
+      "fate_of_narrowed_away": {
+        "mismatch:earned_rule_boundary": 6,
+        "mismatch:source_gap": 3,
+        "multiple_new_runners": 1,
+        "pass": 23
+      },
+      "narrowed_all_pass": 2984,
+      "narrowed_all_pass_rate": 0.6998,
+      "narrowed_away_all_er_irrelevant": true,
+      "narrowed_away_games": 33,
+      "narrowed_blocked": 29,
+      "wide_all_pass": 2961,
+      "wide_all_pass_rate": 0.6944,
+      "wide_blocked": 62,
+      "wide_gate_mutation": "wide_official_error_gate"
+    },
+    "residual_delta_after_narrowing": {
+      "blocked": 29,
+      "delta_pass": 11,
+      "gate": "official_error_unlocated（窄化後）",
+      "why_still_unjudgeable": "窄化後剩下的都是「未定位失誤所在半局有得分」。那些分的自責／非自責取決於失誤發生在哪一球，而**那正是缺的資訊**：逐球敘述沒寫，記分板只給半局計數。我方重建把該半局所有進壘一律當無失誤 ⇒ 預設判為自責。官方若剛好也全記自責，三維就會吻合 —— 但那證明的是「總數對這個未知不敏感」，不是「我們判對了」。能分辨兩者的證據就是缺的那一項，故通過不可作為判定能力的證據，維持 fail-closed。"
+    }
+  },
+  "scope": {
+    "kinds": [
+      "A",
+      "D"
+    ],
+    "limit": null,
+    "mutation": "full",
+    "years": [
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025,
+      2026
+    ]
+  },
+  "scorer_unresolved_detail": {
+    "blocked": 50,
+    "cases": [
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "batter_reached_base": false,
+        "game": "2018/A/161",
+        "half": "2",
+        "inning": 6,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2018/A/200",
+        "half": "2",
+        "inning": 5,
+        "pitchers_in_half": 2,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2018/D/4",
+        "half": "2",
+        "inning": 6,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "unnamed_runner_score",
+        "batter_reached_base": true,
+        "game": "2018/D/52",
+        "half": "2",
+        "inning": 8,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "unnamed_runner_score",
+        "batter_reached_base": true,
+        "game": "2019/A/217",
+        "half": "2",
+        "inning": 6,
+        "pitchers_in_half": 2,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2019/D/120",
+        "half": "1",
+        "inning": 7,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2019/D/69",
+        "half": "2",
+        "inning": 1,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "mismatch:attribution_boundary",
+        "batter_reached_base": false,
+        "game": "2019/D/70",
+        "half": "1",
+        "inning": 2,
+        "pitchers_in_half": 3,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2020/A/100",
+        "half": "1",
+        "inning": 6,
+        "pitchers_in_half": 2,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2020/A/44",
+        "half": "2",
+        "inning": 5,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "batter_reached_base": false,
+        "game": "2020/A/81",
+        "half": "2",
+        "inning": 6,
+        "pitchers_in_half": 4,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2020/D/161",
+        "half": "2",
+        "inning": 4,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "batter_reached_base": false,
+        "game": "2020/D/203",
+        "half": "1",
+        "inning": 1,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2020/D/37",
+        "half": "1",
+        "inning": 7,
+        "pitchers_in_half": 2,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "batter_reached_base": false,
+        "game": "2020/D/47",
+        "half": "1",
+        "inning": 7,
+        "pitchers_in_half": 2,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "batter_reached_base": false,
+        "game": "2020/D/5",
+        "half": "1",
+        "inning": 8,
+        "pitchers_in_half": 2,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2020/D/96",
+        "half": "2",
+        "inning": 9,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2021/A/273",
+        "half": "2",
+        "inning": 4,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "unnamed_runner_score",
+        "batter_reached_base": true,
+        "game": "2021/A/292",
+        "half": "1",
+        "inning": 9,
+        "pitchers_in_half": 2,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "run_count_mismatch",
+        "batter_reached_base": false,
+        "game": "2021/D/14",
+        "half": "2",
+        "inning": 1,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2021/D/161",
+        "half": "2",
+        "inning": 5,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2022/A/213",
+        "half": "2",
+        "inning": 7,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "unnamed_runner_score",
+        "batter_reached_base": true,
+        "game": "2022/A/289",
+        "half": "1",
+        "inning": 8,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2022/A/64",
+        "half": "1",
+        "inning": 1,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "batter_reached_base": false,
+        "game": "2022/D/101",
+        "half": "1",
+        "inning": 8,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2022/D/167",
+        "half": "1",
+        "inning": 4,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "unnamed_runner_score",
+        "batter_reached_base": true,
+        "game": "2022/D/187",
+        "half": "1",
+        "inning": 7,
+        "pitchers_in_half": 2,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2022/D/196",
+        "half": "1",
+        "inning": 8,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "unnamed_runner_score",
+        "batter_reached_base": true,
+        "game": "2022/D/92",
+        "half": "1",
+        "inning": 8,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "unnamed_runner_score",
+        "batter_reached_base": true,
+        "game": "2023/A/108",
+        "half": "1",
+        "inning": 8,
+        "pitchers_in_half": 2,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "batter_reached_base": false,
+        "game": "2023/A/124",
+        "half": "2",
+        "inning": 5,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "unnamed_runner_score",
+        "batter_reached_base": true,
+        "game": "2023/D/139",
+        "half": "1",
+        "inning": 3,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2023/D/178",
+        "half": "2",
+        "inning": 7,
+        "pitchers_in_half": 2,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2023/D/205",
+        "half": "1",
+        "inning": 8,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2024/A/279",
+        "half": "2",
+        "inning": 4,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "batter_reached_base": false,
+        "game": "2024/A/80",
+        "half": "1",
+        "inning": 8,
+        "pitchers_in_half": 2,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "unnamed_runner_score",
+        "batter_reached_base": true,
+        "game": "2024/D/146",
+        "half": "1",
+        "inning": 8,
+        "pitchers_in_half": 2,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "unnamed_runner_score",
+        "batter_reached_base": true,
+        "game": "2024/D/173",
+        "half": "2",
+        "inning": 9,
+        "pitchers_in_half": 2,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2024/D/88",
+        "half": "1",
+        "inning": 8,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2025/A/101",
+        "half": "1",
+        "inning": 9,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2025/A/246",
+        "half": "1",
+        "inning": 8,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "batter_reached_base": false,
+        "game": "2025/A/331",
+        "half": "2",
+        "inning": 5,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "batter_reached_base": false,
+        "game": "2025/A/83",
+        "half": "1",
+        "inning": 8,
+        "pitchers_in_half": 2,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "unnamed_runner_score",
+        "batter_reached_base": true,
+        "game": "2025/D/203",
+        "half": "2",
+        "inning": 6,
+        "pitchers_in_half": 2,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "unnamed_runner_score",
+        "batter_reached_base": true,
+        "game": "2025/D/218",
+        "half": "2",
+        "inning": 7,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "unnamed_runner_score",
+        "batter_reached_base": true,
+        "game": "2025/D/70",
+        "half": "1",
+        "inning": 5,
+        "pitchers_in_half": 2,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "pass",
+        "batter_reached_base": false,
+        "game": "2026/D/142",
+        "half": "1",
+        "inning": 5,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "batter_reached_base": false,
+        "game": "2026/D/151",
+        "half": "2",
+        "inning": 2,
+        "pitchers_in_half": 1,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "batter_reached_base": false,
+        "game": "2026/D/152",
+        "half": "2",
+        "inning": 4,
+        "pitchers_in_half": 3,
+        "unresolved": 1
+      },
+      {
+        "ablated_status": "mismatch:earned_rule_boundary",
+        "batter_reached_base": false,
+        "game": "2026/D/155",
+        "half": "1",
+        "inning": 1,
+        "pitchers_in_half": 2,
+        "unresolved": 1
+      }
+    ],
+    "delta_pass": 22,
+    "pass_cases_pitchers_in_half": {
+      "1": 18,
+      "2": 4
+    },
+    "pass_cases_single_pitcher_half": 18,
+    "substituted_attribution": "當下投手 ＋ 打者的上壘手段（敘述明文否定：得分者是壘上跑者，不是打者）",
+    "why_pass_is_not_evidence": "該半局只有一位投手時，逐投手 runs 對「得分的是哪一位跑者」毫無鑑別力——代換再怎麼錯，runs 維都會吻合。剩下的鑑別力只在 ER，而 ER 要看的正是那位無法定位的跑者當初怎麼上壘，那份資訊就是缺的那一項。故通過只能說明總數對代換不敏感，不能作為「判得出來」的證據。"
+  }
+}

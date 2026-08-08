@@ -135,7 +135,15 @@ GAME_OVER_MARKERS = ("比賽結束",)
 #   maxtaint       ：失誤半局內所有壘上跑者一律非自責
 #   no_tb_owner  ：拿掉突破僵局跑者的歸屬修正（消融）
 #   no_scoreboard_signal：拿掉記分板 error_cnt 的獨立失誤訊號（消融）
-#   no_unnarrated_check ：拿掉「分數增加但無得分敘述」的完整性檢查（消融）
+#   no_unnarrated_check ：拿掉得分完整性檢查的**兩道**閘門（歷史消融，iteration 6
+#                         為 +77、iteration 7 修正後為 +0，是「修正 vs 放寬」的基準案例）
+# 逐閘門消融（iteration 8 補齊；每道 fail-closed 閘門一個，Δ 才歸得了因）：
+#   no_unnarrated_run        ：只拿掉 deferred<0 的 `unnarrated_run`
+#   no_narrated_run_not_scored：只拿掉 deferred>0 的 `narrated_run_not_scored`
+#   no_scorer_unresolved     ：只拿掉「得分敘述指名的跑者對不到帳本」的閘門
+#   wide_official_error_gate ：還原 `official_error_unlocated` **窄化前**的行為
+#                              （不看該半局是否得分，一律整場排除）。窄化本身
+#                              也要能被消融，否則「修正」與「放寬」分不開。
 #   double_as_earned    ：把二壘安打當成「必然把污染跑者送回本壘」（反事實假設，
 #                         條文無明文；用來量這個灰帶往哪個方向偏）
 # 以下是**尚未採用的候選**（需求方 2026-08-07 裁定暫緩，僅供量測）：
@@ -143,10 +151,21 @@ GAME_OVER_MARKERS = ("比賽結束",)
 MUTATIONS = (
     "full", "spec_literal", "no_shadow", "no_inherit", "zero_er", "no_hr_fix",
     "no_tb_owner", "no_scoreboard_signal", "no_unnarrated_check",
+    "no_unnarrated_run", "no_narrated_run_not_scored", "no_scorer_unresolved",
+    "wide_official_error_gate",
     "double_as_earned",
     "team_opps", "out_before_run",
     "maxtaint", "walkoff_fix",
 )
+
+# 逐閘門消融的對照表：`fail_reasons` 的閘門名 → 對應 mutation。
+# 沒有對應 mutation 的閘門在 `gate_ablation.py` 以「為何不需要消融」逐道交代。
+GATE_ABLATIONS: dict[str, str] = {
+    "unnarrated_run": "no_unnarrated_run",
+    "narrated_run_not_scored": "no_narrated_run_not_scored",
+    "official_error_unlocated": "no_scoreboard_signal",
+    "scorer_unresolved": "no_scorer_unresolved",
+}
 
 
 @dataclass
@@ -172,6 +191,8 @@ class GameResult:
     er: dict[str, int] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
     detail: str | None = None
+    # 閘門的結構化附註（供 `gate_ablation.py` 逐案分析用；不進 artifact JSON）
+    gate_info: dict[str, Any] = field(default_factory=dict)
 
 
 def _s(v: Any) -> str:
@@ -235,8 +256,10 @@ def rebuild_game(
     year: int, kind: str, sno: int, events: list[dict[str, Any]], taxonomy: Any,
     trace: bool = False, mutation: str = "full",
     official_errors: dict[tuple[int, str], int] | None = None,
+    official_half_runs: dict[tuple[int, str], int] | None = None,
 ) -> GameResult:
     """`official_errors`：`{(inning_seq, livelog 半局別): 該半局守方失誤數}`。
+    `official_half_runs`：`{(inning_seq, livelog 半局別): 該半局攻方得分}`（官方記分板）。
 
     來源 `cpbl.game_scoreboard.error_cnt`＝**該隊在該局所犯**的失誤數。
     半局對應要**翻轉** `visiting_home_type`：記分板的客隊（`'1'`）守的是**下半局**
@@ -367,7 +390,9 @@ def rebuild_game(
             narrated = _narrated(isl)
             isl["runs"] = narrated
             deferred += narrated - gained
-            if deferred < 0 and mutation != "no_unnarrated_check":
+            if deferred < 0 and mutation not in (
+                "no_unnarrated_check", "no_unnarrated_run"
+            ):
                 res.reason = "unnarrated_run"
                 res.detail = (
                     f"i{isl['inning']}/{isl['half']} 分數 +{gained}、"
@@ -375,7 +400,9 @@ def rebuild_game(
                 )
                 return res
         final_score[side] = prev_sc
-        if deferred > 0 and mutation != "no_unnarrated_check":
+        if deferred > 0 and mutation not in (
+            "no_unnarrated_check", "no_narrated_run_not_scored"
+        ):
             res.reason = "narrated_run_not_scored"
             res.detail = f"half={side} 敘述比比分欄多 {deferred} 分"
             return res
@@ -394,16 +421,49 @@ def rebuild_game(
             for isl in summaries
             if any(m in isl["text"] for m in ERROR_MARKERS)
         }
+        # **窄化（iteration 8）**：9.16 的失誤效果全部侷限在**同一個半局內** ——
+        # (b) 失誤所致得分非自責、(d) 以無失誤重建該半局、漏接第三出局後該半局的
+        # 續打得分非自責。本檔的帳本（`bases`／`shadow`／`out_opps`）也是逐半局重置。
+        # 故官方說有失誤的那個半局若**攻方一分未得**，這個看不見的失誤對三個對帳
+        # 維度都不可能有影響：ER 沒有分可以被判、runs 不因失誤改變、outs 取自逐球
+        # 實際發生的出局。此時整場 fail-closed 是**排太多**，不是保守。
+        #
+        # 得分數取自官方記分板 `score_cnt`（獨立於逐球敘述的第二來源；半局別對照
+        # 由 `gate_ablation.py` 的 `half_inning_mapping_check` 全母體驗過）。
+        # 取不到該半局得分時**不窄化**（fail-closed 方向不變）。
+        # 窄化本身可消融：`--mutation wide_official_error_gate` 還原窄化前的行為。
+        unlocated: list[dict[str, Any]] = []
+        er_irrelevant: list[dict[str, Any]] = []
         for (inning, half), n_err in sorted(official_errors.items()):
             if not n_err:
                 continue
             if (inning, half) not in seen_halves or (inning, half) not in narrated:
-                res.reason = "official_error_unlocated"
-                res.detail = (
-                    f"i{inning}{half} 官方 E={n_err}，"
-                    f"{'該半局無 livelog' if (inning, half) not in seen_halves else '逐球敘述無失誤性字樣'}"
+                rec = {
+                    "inning": inning,
+                    "half": half,
+                    "n_err": n_err,
+                    "missing_livelog": (inning, half) not in seen_halves,
+                }
+                half_runs = (
+                    None if official_half_runs is None
+                    else official_half_runs.get((inning, half))
                 )
-                return res
+                if half_runs == 0 and mutation != "wide_official_error_gate":
+                    er_irrelevant.append(rec)
+                    continue
+                rec["half_runs"] = half_runs
+                unlocated.append(rec)
+        if er_irrelevant:
+            res.gate_info["er_irrelevant_unlocated"] = er_irrelevant
+        if unlocated:
+            first = unlocated[0]
+            res.reason = "official_error_unlocated"
+            res.detail = (
+                f"i{first['inning']}{first['half']} 官方 E={first['n_err']}，"
+                f"{'該半局無 livelog' if first['missing_livelog'] else '逐球敘述無失誤性字樣'}"
+            )
+            res.gate_info["unlocated"] = unlocated
+            return res
 
     # --- 逐半局走訪 ---------------------------------------------------------
     outs: dict[str, int] = defaultdict(int)
@@ -574,9 +634,20 @@ def rebuild_game(
                 # 9.16(d)：藉失誤／捕逸／妨礙進壘而得分 → 該分不記自責分
                 if any(m in why for m in ERROR_MARKERS):
                     tainted_scorers.add(r.slot)
-            if unresolved:
+            if unresolved and mutation != "no_scorer_unresolved":
                 res.reason = "scorer_unresolved"
                 res.detail = f"i{isl['inning']}/{isl['half']} {isl['action']} pre={isl['pre_slots']}"
+                # 消融時這一分會落到「打者」那條路徑（見 RESULTS.md §5.3）：
+                # 記給**當下投手**、用**打者的上壘手段**判自責。該半局若只有一位
+                # 投手，逐投手 runs 對這個代換完全不敏感——那正是「通過不等於判對」。
+                res.gate_info["unresolved_scorer"] = {
+                    "inning": isl["inning"], "half": isl["half"],
+                    "unresolved": unresolved,
+                    "pitchers_in_half": len(
+                        {p for g in group for p in g["pitchers"]}
+                    ),
+                    "batter_reached_base": batter_slot is not None,
+                }
                 return res
 
             # （iteration 4 移除）舊版在「比賽結束」列以「離本壘最近者先得分」指派
@@ -911,12 +982,16 @@ def _assert_bindable(conn: Any, years: list[int], kinds: list[str]) -> None:
 
 def reconcile(
     years: list[int], kinds: list[str], limit: int | None, mutation: str = "full",
-    as_of: str | None = None,
+    as_of: str | None = None, per_game: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """`as_of=None`（預設）＝**不設界線**，母體就是當下 DB 的全部 scope。
 
     報告數字照實隨母體走。`as_of` 只在需要「兩次執行對照同一母體」時給
     （驗證工具，見 module docstring）。
+
+    `per_game`：給定時逐場填入 `{gid: {"status": ..., "gate_info": ...}}`。
+    `status` ＝ `pass`／閘門名／`mismatch:<cause>`／`no_official`。**只供
+    `gate_ablation.py` 做逐閘門 Δ 與去向分析**，不影響回傳的 artifact 內容。
     """
     taxonomy = load_taxonomy()
     stats: dict[tuple[int, str], dict[str, int]] = defaultdict(
@@ -980,36 +1055,53 @@ def reconcile(
             }
             # 記分板逐局失誤：翻轉 visiting_home_type（守方 ↔ 半局），見 rebuild_game
             cur.execute(
-                "SELECT inning_seq, visiting_home_type, error_cnt "
+                "SELECT inning_seq, visiting_home_type, error_cnt, score_cnt "
                 "FROM cpbl.game_scoreboard "
                 "WHERE year=%s AND kind_code=%s AND game_sno=%s",
                 (year, kind, sno),
             )
             official_errors: dict[tuple[int, str], int] = {}
+            official_half_runs: dict[tuple[int, str], int] = {}
             for r in cur.fetchall():
-                if r["inning_seq"] is None or r["error_cnt"] is None:
+                if r["inning_seq"] is None:
                     continue
-                half = "2" if _s(r["visiting_home_type"]) == "1" else "1"
                 # 變數名不得用 `key`——外層 `key = (year, kind)` 是 stats 的分組鍵，
                 # 覆寫它會讓其後所有 stats 寫入落到 (inning, half) 桶裡（實際踩過）
-                err_key = (int(r["inning_seq"]), half)
-                official_errors[err_key] = (
-                    official_errors.get(err_key, 0) + int(r["error_cnt"])
-                )
+                if r["error_cnt"] is not None:
+                    # 失誤是**守方**犯的 → 半局別要翻轉
+                    err_key = (int(r["inning_seq"]), "2"
+                               if _s(r["visiting_home_type"]) == "1" else "1")
+                    official_errors[err_key] = (
+                        official_errors.get(err_key, 0) + int(r["error_cnt"])
+                    )
+                if r["score_cnt"] is not None:
+                    # 得分是**攻方**的 → 半局別**不翻**（客隊 vht='1' 打上半局）
+                    run_key = (int(r["inning_seq"]), "1"
+                               if _s(r["visiting_home_type"]) == "1" else "2")
+                    official_half_runs[run_key] = (
+                        official_half_runs.get(run_key, 0) + int(r["score_cnt"])
+                    )
             if not official:
                 stats[key]["no_official"] += 1
                 reasons["no_official"] += 1
+                if per_game is not None:
+                    per_game[f"{year}/{kind}/{sno}"] = {"status": "no_official"}
                 continue
 
             try:
                 res = rebuild_game(
                     year, kind, sno, events, taxonomy, mutation=mutation,
                     official_errors=official_errors,
+                    official_half_runs=official_half_runs,
                 )
             except Exception as exc:  # noqa: BLE001 - 研究腳本：任何例外皆 fail-closed
                 res = GameResult(year, kind, sno, ok=False, reason=f"exception:{type(exc).__name__}")
 
             gid = f"{year}/{kind}/{sno}"
+            # 窄化揭露：這些場次有「官方說有失誤、敘述看不到」的半局，但該半局
+            # 一分未得，故不再整場排除。數字進 artifact 讓 `--check` 看得到。
+            if res.gate_info.get("er_irrelevant_unlocated"):
+                stats[key]["oeu_narrowed_games"] += 1
             stats[key]["appearances"] += len(official)
             stats[key]["appearances_er0"] += sum(
                 1 for r in official.values() if (r["earned_runs"] or 0) == 0
@@ -1019,6 +1111,11 @@ def reconcile(
                 reasons[res.reason or "unknown"] += 1
                 if len(examples[res.reason or "unknown"]) < 5:
                     examples[res.reason or "unknown"].append(gid)
+                if per_game is not None:
+                    per_game[gid] = {
+                        "status": res.reason or "unknown",
+                        "gate_info": res.gate_info,
+                    }
                 continue
 
             ok_outs = True
@@ -1084,6 +1181,8 @@ def reconcile(
                 # 分層的**三維**通過數。舊版只輸出分層的自責分維通過數，害 §4.3
                 # 得靠報告外的一次性計算補值 —— 那種數字無法被 `--check` 驗。
                 stats[key][f"{stratum}_all_pass"] += 1
+                if per_game is not None:
+                    per_game[gid] = {"status": "pass"}
             else:
                 cause = _classify(res, official)
                 stats[key][f"cause_{cause}"] += 1
@@ -1093,6 +1192,8 @@ def reconcile(
                 reasons[f"mismatch:{cause}"] += 1
                 if len(examples[f"mismatch:{cause}"]) < 8:
                     examples[f"mismatch:{cause}"].append(gid)
+                if per_game is not None:
+                    per_game[gid] = {"status": f"mismatch:{cause}"}
 
     # as-of 用**資料本身**表述，不用 wall-clock（wall-clock 會讓每次重跑都髒
     # worktree，使「worktree 髒了」失去訊號功能——RESEARCH-VERDICT-AUDIT1 R1 教訓）。
@@ -1129,6 +1230,36 @@ def reconcile(
             params,
         )
         pmeta = c2.fetchone() or {}
+        # --- 資料涵蓋日（coverage as-of）：把保留賽的改期日排除在外 -------------
+        # `max_population_game_date` 是**污染值**：保留賽 [suspended game] 的
+        # `game_date` 是**續賽的改期日**（未來），而它已經有 orig_date 當天那段的
+        # livelog 與比分（實測 `2026/D/165` 排 09-15、7/17 打了 1:3）。拿它當
+        # 「資料涵蓋到哪一天」會讀成「資料到九月」。
+        #
+        # 處置與 #106 同型：**算 coverage as-of 時排除保留賽**，但
+        #   (1) 原始污染值仍以 `max_population_game_date` 揭露，不沉默捨棄；
+        #   (2) 保留賽的場數與其原定日另立欄位揭露；
+        #   (3) **母體與來源指紋一列都不動**（population_games / *_rows 仍涵蓋保留賽）——
+        #       排除只影響 as-of 的顯示值。
+        # 延賽 [postponed]（`delay_kind='延賽'`）不排除：它在改期日**整場重打**，
+        # game_date 就是資料實際發生的日子；排除它反而會低估涵蓋日。
+        c2.execute(  # noqa: S608 - bound 為字面值
+            "SELECT (max(g.game_date) FILTER "
+            "         (WHERE g.delay_kind IS DISTINCT FROM '保留'))::text AS cov, "
+            "       count(*) FILTER (WHERE g.delay_kind = '保留') AS held, "
+            "       count(*) FILTER (WHERE g.delay_kind = '保留' "
+            "                        AND g.orig_date IS NULL) AS held_no_orig, "
+            "       (max(g.game_date) FILTER (WHERE g.delay_kind = '保留'))::text "
+            "         AS held_max_game_date, "
+            "       (max(g.orig_date) FILTER (WHERE g.delay_kind = '保留'))::text "
+            "         AS held_max_orig_date "
+            "FROM cpbl.games g "
+            "WHERE g.year = ANY(%(years)s) AND g.kind_code = ANY(%(kinds)s)"
+            " AND EXISTS (SELECT 1 FROM cpbl.game_livelog l WHERE l.year = g.year"
+            " AND l.kind_code = g.kind_code AND l.game_sno = g.game_sno)" + bound,
+            params,
+        )
+        cmeta = c2.fetchone() or {}
         counts = {t: rows_of(t) for t in
                   ("game_livelog", "pitching_gamelog", "game_scoreboard")}
 
@@ -1139,11 +1270,26 @@ def reconcile(
             # scope 內最大比賽日。**這不是母體界線**——實測它是球季賽程末日
             # （2026-10-03，比執行日晚兩個月），只描述 `games` 排到哪一天。
             "max_game_date": gmeta.get("d"),
-            # 母體（有 livelog 的場次）裡的最大比賽日。**仍不是可靠界線**：保留賽
-            # 改期後帶的是未來日期卻已有部分 livelog（實測 `2026/D/165` 排 09-15），
-            # 故此值會超前執行日，不可直接當 `--as-of` 用。只作為漂移指紋。
+            # 母體（有 livelog 的場次）裡的最大比賽日。**這是污染值、不是涵蓋日**：
+            # 保留賽改期後帶未來日期卻已有部分 livelog（實測 `2026/D/165` 排 09-15）。
+            # 保留在此**只作為漂移指紋與原始值揭露**；要引用「資料涵蓋到哪一天」
+            # 一律用下面的 `coverage_asof`。
             "max_population_game_date": pmeta.get("d"),
-            # 實際被對帳的場次數（＝有 livelog 的場次）。母體漂移最直接的訊號。
+            # **報告要標的 as-of**：母體裡最大比賽日，排除保留賽（其 game_date 是
+            # 改期日）。母體本身不受影響，見上方查詢註解。
+            "coverage_asof": cmeta.get("cov"),
+            "coverage_asof_basis": (
+                "max(games.game_date) over 母體，排除 delay_kind='保留'"
+                "（保留賽的 game_date 是續賽改期日、非資料涵蓋日）；"
+                "延賽不排除（改期日整場重打）。母體與來源指紋不受此排除影響。"
+            ),
+            # 被排除者的原始值揭露（不沉默捨棄）
+            "held_population_games": cmeta.get("held"),
+            "held_population_max_game_date": cmeta.get("held_max_game_date"),
+            "held_population_max_orig_date": cmeta.get("held_max_orig_date"),
+            "held_population_without_orig_date": cmeta.get("held_no_orig"),
+            # 實際被對帳的場次數（＝有 livelog 的場次，**含保留賽**）。
+            # 母體漂移最直接的訊號。
             "population_games": len(games),
             "games_rows": gmeta.get("n"),
             "livelog_rows": counts["game_livelog"],

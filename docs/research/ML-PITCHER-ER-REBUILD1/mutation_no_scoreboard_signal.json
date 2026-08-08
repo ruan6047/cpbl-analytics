@@ -493,7 +493,13 @@
   },
   "data_asof": {
     "as_of": null,
+    "coverage_asof": "2026-08-07",
+    "coverage_asof_basis": "max(games.game_date) over 母體，排除 delay_kind='保留'（保留賽的 game_date 是續賽改期日、非資料涵蓋日）；延賽不排除（改期日整場重打）。母體與來源指紋不受此排除影響。",
     "games_rows": 4616,
+    "held_population_games": 7,
+    "held_population_max_game_date": "2026-09-15",
+    "held_population_max_orig_date": "2026-07-17",
+    "held_population_without_orig_date": 0,
     "livelog_rows": 1329900,
     "max_game_date": "2026-10-03",
     "max_population_game_date": "2026-09-15",
