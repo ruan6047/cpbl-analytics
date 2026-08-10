@@ -12,6 +12,8 @@ import {
   shortDate,
   slateDistanceText,
   gameHref,
+  latestGameStatus,
+  LATEST_DAY_COPY,
   REFRESH_COPY,
   dailySummaryQuery,
   liveAgeSeconds,
@@ -800,6 +802,37 @@ test("**紅線**：本區塊不得出現任何 WP／WPA／leverage 欄位", () =
   const keys = Object.keys(live());
   for (const banned of ["wp", "wpa", "leverage", "win_prob", "home_win_probability"]) {
     assert.equal(keys.some((k) => k.includes(banned)), false, `live view 不得帶 ${banned}`);
+  }
+});
+
+// —— 最近比賽日的逐場狀態（需求方 2026-08-10 裁定：承認混合日）——
+
+test("裁定｜完成場不掛狀態徽章：正常賽果卡維持既有版面", () => {
+  assert.equal(latestGameStatus(game(1, { completed: true, home_score: 10, away_score: 2 })), null);
+});
+
+test("裁定｜同日延賽（補賽日未定）必須標得出狀態，不得是一張空白賽後卡", () => {
+  // 2026-08-09 實況：三場打一場、兩場延賽且 game_date 仍是原定日（orig_date 相同）。
+  // 舊版對這兩場只畫出隊名 ＋「賽後復盤 →」，沒有比分也沒有任何狀態文字。
+  const postponed = game(2, { completed: false, delay_kind: "延賽", orig_date: "2026-08-09" });
+
+  assert.deepEqual(latestGameStatus(postponed), { label: "延賽", tone: "warn" });
+});
+
+test("裁定｜延賽與保留沿用 delay_kind 原字，兩態不合併（同 /games 月曆語彙）", () => {
+  assert.equal(latestGameStatus(game(3, { delay_kind: "延賽" }))?.label, "延賽");
+  assert.equal(latestGameStatus(game(4, { delay_kind: "保留" }))?.label, "保留");
+});
+
+test("**紅線**：無 delay_kind 的未完成場只能講事實，不得宣稱成因", () => {
+  // `cpbl.games` 分不出「刷新落後」與「延賽未更新新日期」（API 端同樣 fail closed 標
+  // unknown）。「未開打」與「待更新」各是一種成因宣稱，兩種都超出證據。
+  const status = latestGameStatus(game(5, { completed: false, delay_kind: null }));
+
+  assert.equal(status?.label, LATEST_DAY_COPY.noResult);
+  assert.equal(status?.tone, "warn");
+  for (const banned of ["未開打", "更新", "延賽", "取消"]) {
+    assert.equal(status?.label.includes(banned), false, `文案不得出現成因宣稱「${banned}」`);
   }
 });
 

@@ -244,6 +244,39 @@ def test_unresolved_past_game_is_flagged_unknown_not_silently_dropped(monkeypatc
     assert [g["game_sno"] for g in body["latest_game_day"]["games"]] == [1]
 
 
+def test_latest_game_day_keeps_same_day_postponed_games_without_a_makeup_date(monkeypatch):
+    """局部因雨延賽：同一天一場打完、兩場延賽而**補賽日尚未公布**。
+
+    官網的流程是先宣告延賽、補賽日之後才公布；在那段空窗裡場次仍掛在原定日
+    （`game_date == orig_date`，實測 2026-08-09 sno 254／255）。那一天於是既是最近比賽日
+    （有一場賽果）又帶著兩場沒打的比賽——這是本卡 spec 當初只涵蓋「已改期」那一半所
+    留下的缺口（改期後的延賽屬下一批賽事，見上一個測試）。
+
+    **兩場必須留在 `latest_game_day`**（需求方 2026-08-10 裁定）：它們的日期不在 `as_of`
+    之後，進不了 `next_slate`；而 `freshness.unresolved_games` 是維護者訊號、首頁不渲染。
+    濾掉等於首頁宣稱那天只有一場比賽。比分仍為 null，狀態由呈現端依 `delay_kind` 標示。
+    """
+    day = _TODAY - timedelta(days=1)
+    body, _ = _run(monkeypatch, _script(
+        latest=day, next_day=_TODAY + timedelta(days=1), scoped=4,
+        games=[_game(1, day, home=10, away=2),
+               _game(2, day, delay="延賽", orig=day),
+               _game(3, day, delay="延賽", orig=day),
+               _game(4, _TODAY + timedelta(days=1))],
+        unresolved=[_game(2, day, delay="延賽", orig=day),
+                    _game(3, day, delay="延賽", orig=day)],
+    ))
+
+    games = body["latest_game_day"]["games"]
+    assert [g["game_sno"] for g in games] == [1, 2, 3]
+    assert [g["completed"] for g in games] == [True, False, False]
+    for postponed in games[1:]:
+        assert postponed["delay_kind"] == "延賽"
+        assert postponed["home_score"] is None and postponed["away_score"] is None
+    # 未改期的延賽也不得混進下一批賽事——那會讓它取得賽前機率欄位。
+    assert [g["game_sno"] for g in body["next_slate"]["games"]] == [4]
+
+
 def test_refresh_log_missing_table_degrades_to_source_error(monkeypatch):
     """refresh_log 尚未 migrate：freshness 顯示 source_error，賽事資料照常回傳。"""
     body, _ = _run(monkeypatch, _script(
@@ -853,14 +886,28 @@ def test_live_summary_matches_contract_shape():
             assert day["games"], "有比賽日就必須有場次，不得回空陣列"
 
 
-def test_live_latest_game_day_only_contains_finished_games():
+def test_live_latest_game_day_games_are_either_results_or_scoreless():
+    """最近比賽日**可以**含未完成場次（局部因雨延賽、補賽日未定時仍掛原定日），但每一
+    場都必須落在兩種形狀之一，不得有第三種：
+
+    - 完成場：雙方比分都在（那才是「最近比賽日」成立的理由，故至少要有一場）；
+    - 未完成場：比分一律 null，且日期不在未來。
+
+    舊版斷言「每一場都 completed」在本機 DB 遇到局部延賽日必紅（2026-08-09），而那個
+    形狀是真實且合法的資料，不是缺陷。
+    """
     body = _live()
     if body["latest_game_day"] is None:
         pytest.skip("本機 DB 無已完成場次")
 
-    for game in body["latest_game_day"]["games"]:
-        assert game["completed"] is True
-        assert game["home_score"] is not None and game["away_score"] is not None
+    games = body["latest_game_day"]["games"]
+    assert any(g["completed"] for g in games), "最近比賽日至少要有一場賽果，否則它不該是最近比賽日"
+    for game in games:
+        if game["completed"]:
+            assert game["home_score"] is not None and game["away_score"] is not None
+        else:
+            assert game["home_score"] is None and game["away_score"] is None
+            assert game["game_date"] <= body["scope"]["as_of"]
 
 
 def test_live_next_slate_is_not_in_the_past():

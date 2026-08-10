@@ -283,6 +283,33 @@ export function gameHref(g: Pick<DailyGame, "game_sno" | "kind_code" | "season">
   return `/games/${g.game_sno}?kind=${g.kind_code}&year=${g.season}`;
 }
 
+// —— 最近比賽日的逐場狀態 ——
+//
+// **一個比賽日可以同時有賽果與未完成場次**（需求方 2026-08-10 裁定）：局部因雨延賽時，
+// 官網先宣告延賽、補賽日之後才公布，在那段空窗裡場次的 `game_date` 仍是原定日
+// （`game_date == orig_date`，如 2026-08-09 三場打一場延兩場）。那一天既是最近比賽日，
+// 又帶著兩場沒打的比賽。
+//
+// 這些場次**沒有第二個呈現面**：日期不在 `as_of` 之後所以進不了 `next_slate`，而
+// `freshness.unresolved_games` 是維護者訊號、首頁不渲染它。所以標狀態是唯一選項——
+// 把它們濾掉等於首頁宣稱那天只有一場比賽，連「刷新落後」都會一起被靜默吃掉。
+
+export const LATEST_DAY_COPY = {
+  /** 未完成、又沒有官方延賽／保留註記時的中性說法。**不寫「未開打」也不寫「待更新」**：
+   *  `cpbl.games` 分不出刷新落後與延賽未更新新日期（API 端同樣 fail closed 標 `unknown`），
+   *  兩種寫法都是超出證據的成因宣稱；「尚無賽果」只陳述觀察到的事實。 */
+  noResult: "尚無賽果",
+} as const;
+
+/** 最近比賽日單場的狀態徽章。**完成場回 null**——正常賽果卡不掛徽章，維持既有版面。
+ *
+ *  有註記時直接用 `delay_kind` 原字（延賽／保留），與 `/games` 月曆的 `statusOf` 同一套
+ *  語彙；延賽與保留是兩件事，此處同樣不併態（GLOSSARY〈保留賽／`delay_kind`〉）。 */
+export function latestGameStatus(g: DailyGame): { label: string; tone: StatusTone } | null {
+  if (g.completed) return null;
+  return { label: g.delay_kind ?? LATEST_DAY_COPY.noResult, tone: "warn" };
+}
+
 // —— 今日賽事三態（UX-HOME-LIVE-STRIP1）——
 //
 // 首頁在比賽日整天失準的根因是**缺乏 phase 意識**：`cpbl.games` 沒有開賽時間欄、live

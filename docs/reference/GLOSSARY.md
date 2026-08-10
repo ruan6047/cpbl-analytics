@@ -26,7 +26,9 @@ DB 實證（2026-07-26，本機 `cpbl.games` 全史 GROUP BY；場次數／起�
 
 同一 `sno` 的排程歷程推導：官網 `GameResult` `2`＝**保留**（已開賽中止，優先判定）、`1`＝**延賽**；`orig_date` 保留取該場開賽日、延賽取最早原定日（可能多次延期）。同 sno 多筆排程 entry 依 PK 聚合，主記錄取完成場。
 
-- SSoT：`src/cpbl/ingest/cpbl_site.py` `_delay_info`（含 docstring）。
+**延賽宣告與補賽日公布是兩個時點**：官網先宣告延賽、補賽日之後才公布，在那段空窗裡場次仍掛原定日，DB 表現為 `game_date == orig_date` 且 0–0（實測 2026-08-09 A#254／255；對照已改期的 A#251／252 原定 08-08→10-04）。因此「延賽場一定已經改到未來日期」是**錯的前提**——局部因雨延賽時，同一天可以既有賽果也有未開打場次，該日仍是合法的「最近比賽日」。
+
+- SSoT：`src/cpbl/ingest/cpbl_site.py` `_delay_info`（含 docstring）；混合日的呈現決定見 `web/src/lib/daily-summary.ts` `latestGameStatus`。
 
 ### 完成場判定
 

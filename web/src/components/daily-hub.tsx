@@ -11,6 +11,7 @@ import {
   dailySummaryQuery,
   resolvePregameFromDaily,
   homePregameNotice,
+  latestGameStatus,
   liveSourceSignal,
   refreshCopy,
   refreshAtText,
@@ -65,10 +66,16 @@ function TeamRow({
   );
 }
 
-// 完賽場次：比分 + 勝方強調 + 進入復盤。未完成場次比分為 null 時只顯示對戰與狀態文字。
-function CompletedGame({ g }: { g: DailyGame }) {
+// 最近比賽日單場。完賽＝比分 + 勝方強調 + 進入復盤。
+//
+// **同一天可以既有賽果也有未完成場次**：局部因雨延賽時補賽日未定，那些場次的
+// `game_date` 仍是原定日（見 `latestGameStatus` 的說明）。它們必須掛狀態徽章並收掉
+// 「賽後復盤」——一場沒打的比賽沒有復盤可看，而一張沒有比分、沒有狀態、卻寫著
+// 「賽後復盤 →」的卡片正是舊版首頁在 2026-08-09 畫出來的東西。
+function LatestDayGame({ g }: { g: DailyGame }) {
   const homeWin = g.completed && (g.home_score ?? 0) > (g.away_score ?? 0);
   const awayWin = g.completed && (g.away_score ?? 0) > (g.home_score ?? 0);
+  const status = latestGameStatus(g);
   return (
     <Link
       href={gameHref(g)}
@@ -78,9 +85,12 @@ function CompletedGame({ g }: { g: DailyGame }) {
         <TeamRow code={g.away_team_code} name={g.away_team_name} score={g.away_score} win={awayWin} />
         <TeamRow code={g.home_team_code} name={g.home_team_name} score={g.home_score} win={homeWin} />
       </div>
-      <div className="mt-1.5 flex items-center justify-between text-[11px] text-faint">
-        <span className="truncate">{g.venue ?? "—"}</span>
-        <span className="shrink-0 text-accent">賽後復盤 →</span>
+      <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-faint">
+        <span className="flex min-w-0 items-center gap-1.5">
+          {status && <StatusBadge tone={status.tone}>{status.label}</StatusBadge>}
+          <span className="truncate">{g.venue ?? "—"}</span>
+        </span>
+        <span className="shrink-0 text-accent">{g.completed ? "賽後復盤 →" : "賽事詳情 →"}</span>
       </div>
     </Link>
   );
@@ -310,7 +320,7 @@ export default function DailyHub({ summary: initial }: { summary: DailySummary }
           {latest_game_day && latest_game_day.games.length > 0 ? (
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               {latest_game_day.games.map((g) => (
-                <CompletedGame key={`${g.kind_code}-${g.game_sno}`} g={g} />
+                <LatestDayGame key={`${g.kind_code}-${g.game_sno}`} g={g} />
               ))}
             </div>
           ) : (

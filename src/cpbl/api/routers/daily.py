@@ -459,6 +459,12 @@ def daily_summary(
         unresolved = _dicts(cur)
         last_refresh = _last_refresh(cur)
 
+    # `latest_game_day` 給的是**那一天所有排定場次**，不是「賽果集合」——同一天可以既有
+    # 賽果也有未開打場次：延賽宣告與補賽日公布是兩個時點，空窗期內場次仍掛原定日
+    # （`game_date == orig_date`，GLOSSARY〈保留賽／delay_kind〉），局部因雨延賽時那一天
+    # 仍有比賽打完。那些場次進不了 `next_slate`（日期不在 as_of 之後），而
+    # `unresolved_games` 是維護者訊號、呈現端不渲染，所以此處濾掉＝首頁宣稱那天只有一場
+    # 比賽（需求方 2026-08-10 裁定保留）。比分照樣是 null，狀態由呈現端依 `delay_kind` 標。
     latest_games = [_serialize(row, as_of) for row in by_day.get(latest_day, [])]
     next_games = [_serialize(row, as_of) for row in by_day.get(next_day, [])]
 
