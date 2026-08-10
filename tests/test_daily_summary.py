@@ -20,6 +20,8 @@ _GAME_COLS = ["season", "kind_code", "game_sno", "game_date", "venue",
               "away_team_code", "away_team_name", "away_score",
               "home_team_code", "home_team_name", "home_score",
               "has_score", "delay_kind", "orig_date"]
+_REVISION_COLS = ["year", "kind_code", "game_sno", "raw_present_status", "raw_game_result",
+                  "raw_game_date", "fetched_at", "last_seen_at"]
 _TODAY = date.today()
 
 
@@ -126,19 +128,31 @@ def _run(monkeypatch, script, *, artifact=None, query="", snapshots=None,
     return response.json(), cursor
 
 
+def _revision(sno: int, present: int, result: str | None, day: date, *, kind: str = "A") -> tuple:
+    """一列 cpbl.game_schedule_status_revisions（官網排程歷程）。"""
+    seen = datetime.now(UTC)
+    return (2026, kind, sno, present, result, day, seen, seen)
+
+
 def _script(*, latest: date | None, next_day: date | None, scoped: int, games: list[tuple],
-            unresolved: list[tuple] | None = None, refresh=("ok",)) -> list:
+            unresolved: list[tuple] | None = None, revisions: list[tuple] | None = None,
+            refresh=("ok",)) -> list:
     refresh_rows: object
     if refresh == ("ok",):
         refresh_rows = [(datetime.now(UTC) - timedelta(hours=2), True, "recent-games")]
     else:
         refresh_rows = refresh
-    return [
+    script = [
         (["latest", "next", "scoped"], [(latest, next_day, scoped)]),
         (_GAME_COLS, games),
         (_GAME_COLS, unresolved or []),
-        (["refreshed_at", "ok", "scope"], refresh_rows),
     ]
+    # 官方排程狀態只在**有**未定案場次時才查（`_unresolved_statuses` 的 early return），
+    # 腳本必須跟著條件走，否則多一格會把 refresh_log 那一輪吃掉。
+    if unresolved:
+        script.append((_REVISION_COLS, revisions or []))
+    script.append((["refreshed_at", "ok", "scope"], refresh_rows))
+    return script
 
 
 # --- 純函式：refresh 狀態字彙 -------------------------------------------------
@@ -242,6 +256,55 @@ def test_unresolved_past_game_is_flagged_unknown_not_silently_dropped(monkeypatc
     assert unresolved[0]["status"] == "unknown"
     assert unresolved[0]["home_score"] is None
     assert [g["game_sno"] for g in body["latest_game_day"]["games"]] == [1]
+
+
+def test_unresolved_status_separates_refresh_lag_from_an_official_postponement(monkeypatch):
+    """`unresolved_games[].status` 改引用官方排程狀態後，才第一次分得開兩件事。
+
+    `cpbl.games` 對兩者都只看得到 0–0：官方說延賽（沒有人需要做事）與官方說**打完了、
+    我們卻還是 0–0**（真的刷新落後，要人去看）。原本硬編 unknown 等於把唯一要行動的
+    那一格藏在雜訊裡。
+    """
+    lag_day = _TODAY - timedelta(days=3)
+    postponed_day = _TODAY - timedelta(days=2)
+    body, _ = _run(monkeypatch, _script(
+        latest=_TODAY - timedelta(days=1), next_day=_TODAY + timedelta(days=1), scoped=4,
+        games=[_game(1, _TODAY - timedelta(days=1), home=4, away=2),
+               _game(2, _TODAY + timedelta(days=1))],
+        unresolved=[_game(3, lag_day), _game(4, postponed_day, delay="延賽", orig=postponed_day)],
+        # 官網那一側：#3 已標記打完（我們卻沒有比分）、#4 現行列宣告延賽。
+        revisions=[_revision(3, 1, "0", lag_day),
+                   _revision(4, 1, "1", postponed_day)],
+    ))
+
+    status = {g["game_sno"]: g["status"] for g in body["freshness"]["unresolved_games"]}
+    assert status == {3: "final", 4: "postponed"}
+
+
+def test_unresolved_status_falls_back_to_unknown_without_official_evidence(monkeypatch):
+    """**紅線**：官方排程狀態讀不到（尚未爬到該場、或表缺席）時退回 unknown。
+    沒有證據就不宣稱——這是硬編 unknown 時代唯一正確的那一半，不得在改動中弄丟。"""
+    stale_day = _TODAY - timedelta(days=3)
+    body, _ = _run(monkeypatch, _script(
+        latest=_TODAY - timedelta(days=1), next_day=_TODAY + timedelta(days=1), scoped=3,
+        games=[_game(1, _TODAY - timedelta(days=1), home=4, away=2),
+               _game(2, _TODAY + timedelta(days=1))],
+        unresolved=[_game(3, stale_day)],
+        revisions=[],
+    ))
+
+    assert [g["status"] for g in body["freshness"]["unresolved_games"]] == ["unknown"]
+
+
+def test_official_status_is_not_queried_when_nothing_is_unresolved(monkeypatch):
+    """常態（0 筆未定案）不得多花一次查詢：首頁的查詢預算是這支端點存在的理由。"""
+    _, cursor = _run(monkeypatch, _script(
+        latest=_TODAY - timedelta(days=1), next_day=_TODAY + timedelta(days=1), scoped=2,
+        games=[_game(1, _TODAY - timedelta(days=1), home=4, away=2),
+               _game(2, _TODAY + timedelta(days=1))],
+    ))
+
+    assert not any("game_schedule_status_revisions" in q for q in cursor.queries)
 
 
 def test_latest_game_day_keeps_same_day_postponed_games_without_a_makeup_date(monkeypatch):

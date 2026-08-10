@@ -61,6 +61,47 @@ def test_rescheduled_game_prefers_active_official_entry() -> None:
     assert result["official_game_status"]["status"] == "final"
 
 
+def test_current_entry_declared_postponed_is_not_unknown() -> None:
+    """官網宣告延賽後、補賽日公布前，該列仍是**現行列**（`PresentStatus=1`），所以原本
+    只認 `(0,'1')` 的規則永遠命中不到——全庫 600 場實測 0 場走那條，反而是 `(1,'1')`
+    的 A#14／254／255 落到 unknown（皆 `games.delay_kind='延賽'` 且無比分）。"""
+    result = _build_game_status([_schedule(1, "1", date(2026, 8, 9))], {})
+
+    assert result["official_game_status"]["status"] == "postponed"
+    # 從未開打 → 沒有逐球資料可言。
+    assert result["play_by_play_availability"]["status"] == "not_applicable"
+
+
+def test_current_entry_declared_held_is_reserved_not_unknown() -> None:
+    """`(1,'2')`＝現行列保留中、等續賽（D#117／118／164／165，補賽日皆在未來）。
+    字彙沿用 canonical phase 的 `reserved`，與 live worker 的 `RESERVED` 同一個字。"""
+    result = _build_game_status([_schedule(1, "2", date(2026, 8, 30))], {})
+
+    assert result["official_game_status"]["status"] == "reserved"
+
+
+def test_reserved_game_is_never_marked_not_applicable_for_play_by_play() -> None:
+    """**紅線**：保留賽是已開賽後中止，逐球已經記到中止那一刻（D#117 實測 9 局
+    scoreboard ＋ 154 筆 livelog）。把它併進 not_applicable 等於宣稱一場打過的比賽
+    「不適用逐球資料」——延賽與保留在這一格同樣不可合併。"""
+    result = _build_game_status(
+        [_schedule(1, "2", date(2026, 8, 30))],
+        {"livelog": _source("livelog", "available")},
+    )
+
+    assert result["play_by_play_availability"]["status"] == "available"
+
+
+def test_resumed_held_game_takes_the_latest_observation_on_the_same_date() -> None:
+    """續賽完成時官網是在**同一個日期**上把 `GameResult` 由 2 改成 0（D#97／119 實測）。
+    只比 `raw_game_date` 會取到舊值，故同日必須再比觀測時間。"""
+    earlier = _schedule(1, "2", date(2026, 8, 9))
+    later = {**_schedule(1, "0", date(2026, 8, 9)),
+             "last_seen_at": datetime(2026, 8, 10, 2, 10, tzinfo=UTC)}
+
+    assert _build_game_status([earlier, later], {})["official_game_status"]["status"] == "final"
+
+
 def test_unobserved_cancel_and_held_game_fail_closed() -> None:
     held = _build_game_status([_schedule(0, "2", date(2026, 6, 7))], {})
     unobserved = _build_game_status([_schedule(0, "3", date(2026, 6, 8))], {})

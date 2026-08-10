@@ -30,6 +30,14 @@ DB 實證（2026-07-26，本機 `cpbl.games` 全史 GROUP BY；場次數／起�
 
 - SSoT：`src/cpbl/ingest/cpbl_site.py` `_delay_info`（含 docstring）；混合日的呈現決定見 `web/src/lib/daily-summary.ts` `latestGameStatus`。
 
+### `PresentStatus`（官網排程列）
+
+**不是「已開打」**（`cpbl_site.py` `_primary_entry` 的註解用詞較鬆，易被沿用成錯誤前提）。同一 `sno` 每個排定日期各一列，`1`＝該列是**現行**那一筆、`0`＝已被改期取代的舊列。故一場宣告延賽但補賽日未定的比賽仍是 `PresentStatus=1`（它還沒被任何新列取代），與「打過沒有」無關。
+
+DB 實證（2026-08-10 全庫 600 場）：`(PresentStatus, GameResult)` 六種組合 → `final` 421／`scheduled` 172／`postponed` 3／`reserved` 4；`PresentStatus=0` 的舊列**從未被選中**（每場都同時有現行列）。
+
+- SSoT：`src/cpbl/api/helpers.py` `official_status`（含逐組合證據）；canonical phase 字彙與 live worker 的 `_STATUS_PHASE` 同一組，勿在任一側另立。
+
 ### 完成場判定
 
 `home_score + away_score > 0 AND game_date <= CURRENT_DATE`。**缺日期界線會誤判**：保留賽會掛未來補賽日卻已帶比分。
