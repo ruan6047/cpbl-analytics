@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter
 
 from cpbl.api.helpers import DEFAULT_SEASON
+from cpbl.api.unresolved import pending_result_count
 from cpbl.completion import TAIPEI_TODAY_SQL, completed_games_sql_with_evidence
 from cpbl.config import settings
 from cpbl.db import conn
@@ -75,6 +76,14 @@ def info() -> dict:
             metrics["last_refresh"] = last_refresh.isoformat() if last_refresh else None
         except Exception:  # noqa: BLE001
             metrics["last_refresh"] = None
+        try:  # 維護者訊號：官方說打完了、本站卻仍是 0–0 的場次數（近 30 天，全層級）
+            # **健康態恆為 0**，這是它值得佔一格的唯一理由。延賽與保留不計入——它們在
+            # 首頁的最近比賽日卡上已有徽章，混進來只會讓這個數字長期非零而沒人再看它
+            # （判定與取捨見 `cpbl.api.unresolved.pending_result_count`）。
+            with conn() as c:
+                metrics["results_pending"] = pending_result_count(c.cursor())
+        except Exception:  # noqa: BLE001 — 表缺席／權限問題時整格缺席，不宣稱 0
+            pass
         try:  # 賽事預測走查回測準確率（活的 ML 系統指標：模型 vs 全押主場）
             bt = _scalar("SELECT cv_metrics FROM cpbl.model_versions WHERE task='outcome' "
                          "ORDER BY trained_at DESC LIMIT 1")

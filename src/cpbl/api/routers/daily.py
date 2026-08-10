@@ -28,9 +28,10 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Query
 
-from cpbl.api.helpers import _dicts, kinds_of, official_status
+from cpbl.api.helpers import _dicts, kinds_of
 from cpbl.api.live_cache import get_public_live_snapshot
 from cpbl.api.pregame_serving import serving_state
+from cpbl.api.unresolved import UNRESOLVED_WINDOW_DAYS, statuses_for
 from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.config import settings
 from cpbl.db import conn
@@ -44,8 +45,6 @@ _DONE_AS_OF = completed_games_sql_with_evidence("games", "%(as_of)s")
 
 # 超過此時數未成功 refresh 視為 stale（排程為每日一次；OPS-REFRESH1 擁有排程本身）。
 STALE_AFTER_HOURS = 24
-# 只把近期的未定案場次當成刷新落後訊號；更早的 0–0 屬歷史資料問題，不在本契約範圍。
-UNRESOLVED_WINDOW_DAYS = 30
 # 賽前模型（outcome_simple／game_features）只涵蓋一軍例行賽。
 PREGAME_KIND = "A"
 # 主區塊切換到「今日賽事」的判準（Design Gate 第 8 項）：當天任一場走到打線公布或更後。
@@ -283,45 +282,6 @@ def _last_refresh(cursor) -> dict:
             "status": status, "reason": None}
 
 
-def _unresolved_statuses(cursor, rows: list[dict]) -> dict[tuple[int, str, int], str]:
-    """未定案場次 → 官方排程狀態（`helpers.official_status`，與單場狀態端點同一份判定）。
-
-    這一格取代了原本硬編的 `"unknown"`，也結清 API-DAILY-SUMMARY1 登記的串接義務。**值得
-    多這一次查詢的理由是它真的分得開三件事**——`cpbl.games` 一律只看得到 0–0：
-
-    - `postponed`／`reserved`：官方已宣告延賽／保留，資料沒有落後，沒有人需要做事；
-    - `scheduled`：官方那邊也還沒有結果（開賽前、或官網自己還沒更新）；
-    - `final`：**官方說打完了、我們卻還是 0–0**——這才是真的刷新落後，是唯一要人去看的一格。
-
-    `rows` 為空時完全不查（休兵日與絕大多數日子的常態就是 0 筆），所以首頁的查詢數只在
-    真的有未定案場次時才 +1。表尚未 migrate／權限不足時整批退回 unknown，不讓首頁掛掉
-    （同 `_last_refresh` 的立場：缺證據就別宣稱）。
-    """
-    if not rows:
-        return {}
-    years = [r["season"] for r in rows]
-    kinds = [r["kind_code"] for r in rows]
-    snos = [r["game_sno"] for r in rows]
-    try:
-        cursor.execute(
-            """
-            SELECT year, kind_code, game_sno, raw_present_status, raw_game_result,
-                   raw_game_date, fetched_at, last_seen_at
-            FROM cpbl.game_schedule_status_revisions
-            WHERE (year, kind_code, game_sno)
-                  IN (SELECT * FROM unnest(%s::int[], %s::text[], %s::int[]))
-            """,
-            (years, kinds, snos),
-        )
-        revisions = _dicts(cursor)
-    except Exception:  # noqa: BLE001 — 缺表／權限問題退回 unknown，與硬編時的行為相同
-        return {}
-    by_game: dict[tuple[int, str, int], list[dict]] = {}
-    for row in revisions:
-        by_game.setdefault((row["year"], row["kind_code"], row["game_sno"]), []).append(row)
-    return {key: official_status(group)[0] for key, group in by_game.items()}
-
-
 def _pregame_source() -> tuple[dict | None, dict]:
     """載入 outcome_simple artifact → (artifact, availability meta)。缺席不阻塞賽程。
 
@@ -428,7 +388,7 @@ def daily_summary(
 
     以 4 次唯讀查詢（日期界線、相關日的場次、未定案場次、refresh_log）取代首頁的十餘組
     請求；模型可用時再加 1 次 game_features 查詢，**有**未定案場次時再加 1 次官方排程狀態
-    （常態是 0 筆故不查，見 `_unresolved_statuses`）。今日場次另加最多 3 次 Redis GET（唯讀
+    （常態是 0 筆故不查，見 `unresolved.statuses_for`）。今日場次另加最多 3 次 Redis GET（唯讀
     canonical snapshot，Redis 不可用時整段退化為 None）。DB 失效時讓錯誤上浮（500）
     而非回空陣列——空白會被讀成「今天沒比賽」。
 
@@ -497,7 +457,7 @@ def daily_summary(
             (kinds, season, season, as_of, as_of.fromordinal(as_of.toordinal() - UNRESOLVED_WINDOW_DAYS)),
         )
         unresolved = _dicts(cur)
-        unresolved_status = _unresolved_statuses(cur, unresolved)
+        unresolved_status = statuses_for(cur, unresolved)
         last_refresh = _last_refresh(cur)
 
     # `latest_game_day` 給的是**那一天所有排定場次**，不是「賽果集合」——同一天可以既有
@@ -553,7 +513,7 @@ def daily_summary(
             "last_completed_game_date": _iso(latest_day),
             "last_refresh": last_refresh,
             # 過去日期卻仍無比分。`cpbl.games` 只看得到 0–0，分不出刷新落後與延賽未更新
-            # 新日期，所以 status 改引用**官方排程狀態**（`_unresolved_statuses`，與單場
+            # 新日期，所以 status 改引用**官方排程狀態**（`unresolved.statuses_for`，與單場
             # 狀態端點共用同一份判定）——這是 API-DAILY-SUMMARY1 當初登記、等 STATUS1
             # 凍結後要結清的串接義務。官方狀態也讀不出來時才退回 unknown（fail closed）。
             "unresolved_games": [
