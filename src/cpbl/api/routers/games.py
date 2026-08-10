@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import date
 from functools import lru_cache
 from typing import Any
 
 from fastapi import APIRouter, Query
 
-from cpbl.api.helpers import DEFAULT_SEASON, _batted_result, _dicts, kinds_of
+from cpbl.api.helpers import (
+    DEFAULT_SEASON,
+    _batted_result,
+    _dicts,
+    kinds_of,
+    official_status,
+)
 from cpbl.api.live_cache import get_public_live_snapshot, status_snapshot
 from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
@@ -18,30 +23,6 @@ router = APIRouter()
 
 # 完成場判準（證據感知）：0:0 真和局需外部證據（DATA-TIE-REMEDY1）。
 _DONE = completed_games_sql_with_evidence("games")
-
-
-def _official_status(schedule_rows: list[dict[str, Any]]) -> tuple[str, dict[str, Any] | None]:
-    """以官網已觀測 raw vocabulary 判定；未證實的值一律 unknown。"""
-    if not schedule_rows:
-        return "unknown", None
-    active = [row for row in schedule_rows if row.get("raw_present_status") == 1]
-    pool = active or schedule_rows
-    selected = max(
-        pool,
-        key=lambda row: (
-            row.get("raw_game_date") or date.min,
-            row.get("last_seen_at") or row.get("fetched_at"),
-        ),
-    )
-    present = selected.get("raw_present_status")
-    result = str(selected.get("raw_game_result") or "")
-    if present == 1 and result == "0":
-        return "final", selected
-    if present == 1 and result == "":
-        return "scheduled", selected
-    if present == 0 and result == "1":
-        return "postponed", selected
-    return "unknown", selected
 
 
 def _source_view(row: dict[str, Any] | None) -> dict[str, Any]:
@@ -63,11 +44,19 @@ def _build_game_status(
     schedule_rows: list[dict[str, Any]],
     source_rows: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
-    official, selected = _official_status(schedule_rows)
+    official, selected = official_status(schedule_rows)
     scoreboard = source_rows.get("scoreboard")
     livelog = source_rows.get("livelog")
     advanced = source_rows.get("advanced")
 
+    # **`reserved`（保留）刻意不在這一組**：它是已開賽後中止，逐球已經記到中止那一刻
+    # （`cpbl.game_livelog` 實證 D#117 154 筆／D#165 85 筆／D#118 61 筆，D#164 為 0），把它
+    # 併進來等於宣稱一場打過的比賽「不適用逐球資料」。只有從未開打的狀態才是 `not_applicable`。
+    #
+    # 這一格讀的是 `game_source_revisions`（爬取軌跡），不是資料表本身；那四場目前都還沒有
+    # livelog 軌跡列，所以實測皆落在 `source_missing`。那**正是要的結果**——`source_missing`
+    # 說的是「我們沒有」，`not_applicable` 說的是「本來就不會有」，對保留賽只有前者為真。
+    # 追平軌跡覆蓋不屬本卡（本卡 db_scope=read）。
     if official in {"scheduled", "postponed", "cancelled"}:
         play_by_play = "not_applicable"
     elif livelog and livelog.get("outcome") == "available":
