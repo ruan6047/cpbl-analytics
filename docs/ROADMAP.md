@@ -33,7 +33,9 @@
 不是偏好，是這專案已經付出的代價：
 
 - **目標 1**：分項重算誤把代打切成新打席，**83 筆／82 場**錯誤存在於線上，靠窮舉對帳才抓到（`PA-SPLIT1`）
-- **目標 2**：逐球設備覆蓋告警**響了兩個半月無人讀**；`weekly-game-pitches` 排程交付後**從未掛上**；`D/97` 續賽後 PA 衍生表**沒有跟著重建**而沒有任何一步發現
+- **目標 2**：逐球設備覆蓋告警**響了兩個半月無人讀**；2026-08-10 每日鏈與週跑 box 深度重抓**同日雙雙失敗、三天無人知**（#132）；`D/97` 續賽後 PA 衍生表**沒有跟著重建**而沒有任何一步發現
+
+> ⚠️ 本檔前一版在此列了「`weekly-game-pitches` 排程交付後從未掛上」。**那是錯的**——`INGEST-GAME-TM-REFACTOR1-G4`（#53）載明週跑 plist 不安裝是 Phase A 的**刻意邊界**。該誤述源自 `OPS-DORMANT-SCHEDULE-AUDIT1`（#115）的假前提，該卡已於 2026-08-13 依 §2.6 停止。**論據換成實測案例，不是補一句免責。**
 - 目標 3、4 至今**沒有造成過一次事故**
 
 ### 開卡前的三個檢查
@@ -165,9 +167,55 @@ WIP 上限 = 1／線，全專案上限因此為 5。
 
 ---
 
+## 2.6 卡片不成立時的處置（2026-08-13 需求方裁定）
+
+§2.3 規定執行者發現前提不成立要**停下回報**。本節規定**回報之後怎麼辦**。
+
+**分辨自己在哪一種**，因為處置相反：
+
+| 情況 | 狀態 | 實作（分支／worktree） | 報告的地位 |
+|---|---|---|---|
+| **錯誤開卡**——前提本來就假 | 🛑已停止 | **刪除** | **唯一倖存者** |
+| **不可執行**——前提為真但做不到 | 🏁完成 | 保留並 merge | **交付物本身** |
+| **前提已被別卡解掉** | 🛑已停止 | 保留 | 交付物 |
+| **暫停**——等外部條件 | ⏸阻塞 | 保留 | — |
+| **退回修正** | ↩退回 | 保留 | — |
+
+**只有「錯誤開卡」刪實作。** 需求方裁定原文：**「知道要修正的點就是該卡成果」**——除了錯誤開卡之外，發現本身就是產出，刪掉等於把成果丟了。
+
+### 不可執行不是失敗
+
+`ML-PITCHER-ER-REBUILD1`（#107）跑了 8 輪、4 次跨家族查核，結論是**自責分逐場重建不可行**，狀態是 🏁**完成**。交付物是一條否證鏈：兩個更忠於條文的修法實作後仍更差、且都沒修好自己的指標案例，全部撤回——**失敗的修正寫進報告而非默默撤回，因為兩者合起來才構成證據**。`INGEST-SCORELESS-INNING-PITCHER1`（#103）關閉 stats.cpbl 路線同理。
+
+這類卡**不得標記為取消或停止**，也不得刪除實作。
+
+### 錯誤開卡的刪除順序是硬性的
+
+碼刪掉之後**報告是唯一倖存者**，所以順序不能反：
+
+1. 報告寫進 **`docs/tasks/<CARD_ID>.md`**（該檔開卡時已在 main），接在原規格後加一節「取消報告」
+2. **報告 merge 進 main**
+3. **才**刪 worktree ＋ 本地分支 ＋ **遠端分支**
+
+**遠端分支一定要刪**（需求方 2026-08-13 明示）——只刪本地等於沒刪，分支還在 origin 上，下一個人 clone 就會看到一條指向已取消卡片的分支。
+
+**報告不得只放 Issue 留言**——分支刪掉後它是唯一的東西，而留言 grep 不到、與規格分離。
+
+報告至少要有：**前提為什麼不成立（附實查證據，不是「後來發現不行」）／試過什麼、到哪一步失敗／歸屬（前提假記 planner）／真問題是否另開，且新卡前提須為實測**。
+
+實例：`OPS-DORMANT-SCHEDULE-AUDIT1`（#115）於 2026-08-13 停止，因其「排程交付後從未掛上」的前提為假——`INGEST-GAME-TM-REFACTOR1-G4`（#53）早已載明週跑 plist 不安裝是 Phase A 的刻意邊界。真問題改由 `OPS-SCHEDULE-FAILURE-BLIND1`（#132）承接，前提為實測而非推測。
+
+### ⚠️ 與既有守衛衝突，且該守衛是需求方自己裁的
+
+`ai-workflow/cli/src/wf_cli/cleanup.py` 的授權分流：**證明為「其餘」（分支未 merge）時什麼都不授權**，依據是「禁止靜默刪除工作內容」，裁定原文為**「噪音比不可逆的資料遺失便宜」**。
+
+取消的卡正落在那一格。因此本節是一次**明示覆寫**，不是新增規則。
+
+**過渡做法**：刪除由 PM 手動執行，並在 `handoff` 的 evidence 逐次寫明「報告已落 main `<sha>`，據此授權刪除」——把繞過留痕。長期正解是 `wfcli` 增一種「報告已在 main」的證明類型，屬 ai-workflow 側，未排程。
+
 ## 3. 現行排程
 
-> **as-of `2026-08-13`。本表是快照，不是即時視圖**——狀態、逾時天數、卡片數都以產生當下為準，重生指令見下。狀態的事實來源永遠是 Issue／Project。
+> **as-of `2026-08-13`（需求方裁定將 31 張未執行卡轉入 `💡需求` 之後）。本表是快照，不是即時視圖**——狀態、逾時天數、卡片數都以產生當下為準，重生指令見下。狀態的事實來源永遠是 Issue／Project。
 >
 > **本表的「線別」是藍圖分派，不是 Project 欄位；兩者可不同步**（見 §2.5）。
 >
@@ -181,70 +229,71 @@ gh project item-list 4 --owner ruan6047 --format json --limit 300 | python3 scri
 
 > 該腳本尚未建立（超出本卡宣告的寫入集 `file:docs/ROADMAP.md`）。本節表格由等價的 inline 指令產出，**逐張歸屬經斷言檢查：40 張全數歸屬、0 未歸屬、無重複**。腳本化列為後續事項。
 
-### L1 資料正確性（8 張）
+### L1 資料正確性（9 張）
 
 | 卡 | # | tier | 狀態 | 去留 |
 |---|---|---|---|---|
+| `DATA-BOX-DEEP-SILENT-FAIL1` | #131 | T4 | 📥Backlog | |
 | `DATA-BOX-REVISION-SNAPSHOT1` | #109 | T2 | ⏸阻塞 | |
-| `DATA-RE24-PROD-REBUILD1` | #119 | T4 | 🚧進行中 **（認領 5 天，逾 §2.2）** | |
-| `DEV-VERIFY-TM-ASSERTS1` | #50 | T2 | 📥Backlog | |
-| `INGEST-GAME-TM-REFACTOR1-G4` | #53 | T4 | 🔍待查核 **（8 天無人接）** | |
-| `INGEST-LIVE-RECONCILE1` | #54 | T4 | 📥Backlog | |
-| `INGEST-POSTGAME-FINALIZE1` | #57 | T3 | 📥Backlog | |
-| `INIT-OFFICIAL-DATA1` | #61 | T4 | 📥Backlog | |
-| `MATCHUP-DATA2` | #63 | T4 | 📥Backlog | |
+| `DATA-RE24-PROD-REBUILD1` | #119 | T4 | 🚧進行中 | **認領 5 天零事件，逾 §2.2** |
+| `DEV-VERIFY-TM-ASSERTS1` | #50 | T2 | 💡需求 | |
+| `INGEST-GAME-TM-REFACTOR1-G4` | #53 | T4 | 🔍待查核 ⚠️ | **看板失真**：Phase A 已於 2026-08-05 查核 APPROVE、merge `eaf2154`、已在生產，但該 APPROVE 從未經 `wfcli` 寫入狀態面。剩餘為 Phase B（卡面明寫需求方親手） |
+| `INGEST-LIVE-RECONCILE1` | #54 | T4 | 💡需求 | |
+| `INGEST-POSTGAME-FINALIZE1` | #57 | T3 | 💡需求 | |
+| `INIT-OFFICIAL-DATA1` | #61 | T4 | 💡需求 | |
+| `MATCHUP-DATA2` | #63 | T4 | 💡需求 | |
 
 ### L2 每日鏈可靠性（9 張）
 
 | 卡 | # | tier | 狀態 | 去留 |
 |---|---|---|---|---|
-| `API-INFO-UNRESOLVED-GAMES1` | #127 | T3 | 📥Backlog | |
-| `LIVE-WORKER-RESCHEDULE-FILTER1` | #118 | T2 | ✅通過（未結案） | |
-| `OPS-BACKUP-DR1` | #71 | T3 | 📥Backlog | |
-| `OPS-DORMANT-SCHEDULE-AUDIT1` | #115 | T2 | 📥Backlog | |
-| `OPS-POSTGAME-OBSERVE1` | #73 | T2 | 📥Backlog | |
-| `OPS-REMOTE-CUTOVER1` | #74 | T4 | 📥Backlog | |
-| `OPS-REMOTE-PROBE1` | #75 | T3 | 📥Backlog | |
-| `OPS-REMOTE-ROUTE1` | #76 | T3 | 📥Backlog | |
-| `OPS-REMOTE-WORKER1` | #77 | T4 | 📥Backlog | |
+| `API-INFO-UNRESOLVED-GAMES1` | #127 | T3 | 💡需求 | |
+| `LIVE-WORKER-RESCHEDULE-FILTER1` | #118 | T2 | ✅通過 | |
+| `OPS-BACKUP-DR1` | #71 | T3 | 💡需求 | |
+| `OPS-POSTGAME-OBSERVE1` | #73 | T2 | 💡需求 | |
+| `OPS-REMOTE-CUTOVER1` | #74 | T4 | 💡需求 | |
+| `OPS-REMOTE-PROBE1` | #75 | T3 | 💡需求 | |
+| `OPS-REMOTE-ROUTE1` | #76 | T3 | 💡需求 | |
+| `OPS-REMOTE-WORKER1` | #77 | T4 | 💡需求 | |
+| `OPS-SCHEDULE-FAILURE-BLIND1` | #132 | T2 | 📥Backlog | |
 
 ### L3 產品／UX（7 張）
 
 | 卡 | # | tier | 狀態 | 去留 |
 |---|---|---|---|---|
-| `DAILY-MIXED-DAY-UX1` | #126 | T3 | 📥Backlog | |
-| `INIT-GAME-RECAP` | #60 | T4 | 📥Backlog | |
-| `INIT-PRODUCT-UX` | #62 | T3 | 📥Backlog | |
-| `UX-GAME-PA1` | #79 | T3 | 🔍待查核 **（6 天，等部署驗證）** | |
-| `UX-HOME-LIVE-STRIP1` | #81 | T3 | ✅通過（未結案） | |
-| `UX-TEAM-FIELD-HIST1` | #82 | T3 | 📥Backlog | |
-| `UX-WINPROB-CURVE-MIGRATE1` | #97 | T3 | 📥Backlog | |
+| `DAILY-MIXED-DAY-UX1` | #126 | T3 | 💡需求 | |
+| `INIT-GAME-RECAP` | #60 | T4 | 💡需求 | |
+| `INIT-PRODUCT-UX` | #62 | T3 | 💡需求 | |
+| `UX-GAME-PA1` | #79 | T3 | 🔍待查核 | |
+| `UX-HOME-LIVE-STRIP1` | #81 | T3 | ✅通過 | |
+| `UX-TEAM-FIELD-HIST1` | #82 | T3 | 💡需求 | |
+| `UX-WINPROB-CURVE-MIGRATE1` | #97 | T3 | 💡需求 | |
 
 ### L4 ML／研究（12 張）
 
 | 卡 | # | tier | 狀態 | 去留 |
 |---|---|---|---|---|
-| `ML-FIELD-LINEUP1` | #64 | T4 | 📥Backlog | |
-| `ML-FIELD-OAA-VAL1` | #65 | T4 | 📥Backlog | |
-| `ML-FIELD-OF1` | #66 | T4 | 💡需求（Design Gate） | |
-| `ML-PA-SIM-CONTEXT1` | #67 | T4 | 📥Backlog | |
-| `ML-PA-SIM-TEAM1` | #68 | T4 | 📥Backlog | |
-| `ML-PT3` | #69 | T4 | 📥Backlog | |
-| `ML-SIM2` | #70 | T4 | 📥Backlog | |
-| `ML-WP-ASOF-PUSHDOWN1` | #102 | T2 | 📥Backlog | |
-| `ML-WP-CAL1-RERUN1` | #104 | T3 | 📥Backlog | |
-| `ML-WP-ROLLWIN1` | #95 | T4 | 📥Backlog | |
-| `RESEARCH-REASON-RESTATE1` | #105 | T2 | 📥Backlog | |
-| `WP-DISCLOSURE-SYNC1` | #100 | T3 | 📥Backlog | |
+| `ML-FIELD-LINEUP1` | #64 | T4 | 💡需求 | |
+| `ML-FIELD-OAA-VAL1` | #65 | T4 | 💡需求 | |
+| `ML-FIELD-OF1` | #66 | T4 | 💡需求 | |
+| `ML-PA-SIM-CONTEXT1` | #67 | T4 | 💡需求 | |
+| `ML-PA-SIM-TEAM1` | #68 | T4 | 💡需求 | |
+| `ML-PT3` | #69 | T4 | 💡需求 | |
+| `ML-SIM2` | #70 | T4 | 💡需求 | |
+| `ML-WP-ASOF-PUSHDOWN1` | #102 | T2 | 💡需求 | |
+| `ML-WP-CAL1-RERUN1` | #104 | T3 | 💡需求 | |
+| `ML-WP-ROLLWIN1` | #95 | T4 | 💡需求 | |
+| `RESEARCH-REASON-RESTATE1` | #105 | T2 | 💡需求 | |
+| `WP-DISCLOSURE-SYNC1` | #100 | T3 | 💡需求 | |
 
 ### L5 開發／文件基礎（4 張）
 
 | 卡 | # | tier | 狀態 | 去留 |
 |---|---|---|---|---|
-| `DEV-CI-LOCALE-UNDECLARED1` | #129 | T1 | 📥Backlog | |
-| `DOC-CPBL-ROADMAP1` | #130 | T2 | 🚧進行中（本卡） | |
-| `DOC-G4-FREEZE-STALE1` | #120 | T1 | ✅通過（未結案） | |
-| `DOC-LIVELOG-SEMANTICS-GAP1` | #108 | T1 | 📥Backlog | |
+| `DEV-CI-LOCALE-UNDECLARED1` | #129 | T1 | 💡需求 | |
+| `DOC-CPBL-ROADMAP1` | #130 | T2 | 🔍待查核 | |
+| `DOC-G4-FREEZE-STALE1` | #120 | T1 | ✅通過 | |
+| `DOC-LIVELOG-SEMANTICS-GAP1` | #108 | T1 | 💡需求 | |
 
 ### 尚未開卡的已知問題
 
@@ -270,13 +319,15 @@ CPBL 的補充：**收到 finding 後開卡前，先執行 §2.4 的母卡目標
 
 **四件裡只有兩件接得住。** 誠實記錄，因為宣稱全部接得住會讓讀者高估這份文件。
 
-### ✅ 接得住：`weekly-game-pitches` 排程交付後從未掛上
+### ✅ 接得住：2026-08-10 兩個排程同日失敗，三天無人知
 
-**病灶**：卡片交付了 `.plist` 與腳本並宣告完成，但沒有人確認它真的被 `launchctl` 載入。`launchctl list | grep cpbl` 只有 `com.cpbl.scrape-daily`。
+> **本格換過案例。** 前一版寫的是「`weekly-game-pitches` 排程交付後從未掛上」，**那件事沒有發生**——未安裝是 #53 Phase A 的刻意邊界。用一件沒發生的事證明判準有效，比沒有這一格更糟，故換成實測案例。
 
-**哪一條接住**：§1 L2「每一個步驟『沒跑到』時都會被發現，**且該偵測機制本身被驗證過會響**」。交付一個排程而不驗證它在跑，在 L2 的算完狀態下不成立。
+**病灶**：2026-08-10 當日每日鏈 `refresh` 硬失敗（`overall exit=1`），週跑 box 深度重抓失敗（`LastExitStatus=256`）。兩者都寫了狀態檔與 log，**但沒有任何一處會主動顯示**。三天後 2026-08-13 是 PM 為了別的事翻 `launchctl list` 才看到。
 
-**限制**：需要有人套用 L2 的判準。本檔沒有機械執行者。
+**哪一條接住**：§0 目標 2 的判準「壞了**會被發現**；靠人記得看不算」。這個狀態連「靠人記得看」都沒有——沒有人被指派去看。L2 的算完狀態同樣不成立（「該偵測機制本身被驗證過會響」）。
+
+**限制**：判準能否定達成宣稱，不能產生訊號。已開 `OPS-SCHEDULE-FAILURE-BLIND1`（#132）。
 
 ### ✅ 接得住：逐球設備覆蓋告警響了兩個半月無人讀
 
