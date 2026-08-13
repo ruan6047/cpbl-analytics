@@ -31,22 +31,58 @@ def _source(source: str, outcome: str, *, complete: bool | None = None) -> dict:
 
 
 def test_official_status_uses_raw_schedule_vocabulary_not_score() -> None:
-    final_zero_zero = _build_game_status(
-        [_schedule(1, "0", date(2026, 7, 19))],
-        {},
-    )
-    scheduled = _build_game_status(
-        [_schedule(1, "", date(2026, 9, 22))],
-        {},
-    )
-    postponed = _build_game_status(
-        [_schedule(0, "1", date(2026, 4, 4))],
-        {},
-    )
+    """被選中列的四種已觀測組合各自對應一個 canonical phase。
+
+    fixture 對應 2026-08-10 本機 `cpbl.game_schedule_status_revisions` 全庫 600 場的選列
+    結果：`(1,'0')` 421 場／`(1,'')` 172 場／`(1,'1')` 3 場／`(1,'2')` 4 場，合計 600，
+    沒有第五種。判準是官網 raw 詞彙而非比分——`(1,'0')` 的 0–0 仍是 final。
+    """
+    final_zero_zero = _build_game_status([_schedule(1, "0", date(2026, 7, 19))], {})
+    scheduled = _build_game_status([_schedule(1, "", date(2026, 9, 22))], {})
+    postponed = _build_game_status([_schedule(1, "1", date(2026, 8, 9))], {})
+    reserved = _build_game_status([_schedule(1, "2", date(2026, 8, 30))], {})
 
     assert final_zero_zero["official_game_status"]["status"] == "final"
     assert scheduled["official_game_status"]["status"] == "scheduled"
     assert postponed["official_game_status"]["status"] == "postponed"
+    assert reserved["official_game_status"]["status"] == "reserved"
+
+
+def test_current_entry_declared_postponed_is_not_unknown() -> None:
+    """**本卡痛點的迴歸釘子**：官網宣告延賽後、補賽日公布前，該列仍是**現行列**
+    （`PresentStatus=1`；A#254／255 實測 `game_date == orig_date`），所以原本只認
+    `(0,'1')` 的規則永遠命中不到，真正的延賽場全落到 unknown。實測 3 場（A#14／254／
+    255）皆 `delay_kind='延賽'` 且無比分。"""
+    result = _build_game_status([_schedule(1, "1", date(2026, 8, 9))], {})
+
+    assert result["official_game_status"]["status"] == "postponed"
+    # 從未開打 → 沒有逐球資料可言。
+    assert result["play_by_play_availability"]["status"] == "not_applicable"
+
+
+def test_current_entry_declared_held_is_reserved_not_postponed() -> None:
+    """`(1,'2')`＝現行列保留中、等續賽（D#117／118／164／165，補賽日皆在未來）。兩態**不
+    合併**：延賽從未開打、保留是已開賽後中止，字彙沿用 canonical phase 的 `reserved`，
+    與 live worker `_STATUS_PHASE` 的 `RESERVED` 同一個字。"""
+    result = _build_game_status([_schedule(1, "2", date(2026, 8, 30))], {})
+
+    assert result["official_game_status"]["status"] == "reserved"
+
+
+def test_reserved_game_is_never_marked_not_applicable_for_play_by_play() -> None:
+    """**紅線**：保留賽是已開賽後中止，逐球已經記到中止那一刻（`cpbl.game_livelog` 實證
+    D#117 154 筆／D#165 85 筆／D#118 61 筆）。把它併進 `not_applicable` 等於宣稱一場打過的
+    比賽「不適用逐球資料」。
+
+    釘的是**規則**不是現況：那四場目前都還沒有 livelog 爬取軌跡列，實測落在
+    `source_missing`（誠實——「我們沒有」而非「本來就不會有」）。有軌跡時必須是 available。
+    """
+    result = _build_game_status(
+        [_schedule(1, "2", date(2026, 8, 30))],
+        {"livelog": _source("livelog", "available")},
+    )
+
+    assert result["play_by_play_availability"]["status"] == "available"
 
 
 def test_rescheduled_game_prefers_active_official_entry() -> None:
@@ -61,12 +97,40 @@ def test_rescheduled_game_prefers_active_official_entry() -> None:
     assert result["official_game_status"]["status"] == "final"
 
 
-def test_unobserved_cancel_and_held_game_fail_closed() -> None:
+def test_resumed_held_game_takes_the_latest_observation_on_the_same_date() -> None:
+    """續賽完成時官網是在**同一個日期**上把 `GameResult` 由 `2` 改成 `0`（D#97@08-09、
+    D#119@08-08 實測皆有同日兩列、僅 `last_seen_at` 不同）。只比 `raw_game_date` 會取到
+    舊值，把一場已打完的比賽讀成 reserved，故同日必須再比觀測時間。"""
+    earlier = _schedule(1, "2", date(2026, 8, 9))
+    later = {**_schedule(1, "0", date(2026, 8, 9)),
+             "last_seen_at": datetime(2026, 8, 10, 2, 10, tzinfo=UTC)}
+
+    assert _build_game_status([earlier, later], {})["official_game_status"]["status"] == "final"
+
+
+def test_superseded_entries_are_never_mapped_even_when_they_look_familiar() -> None:
+    """**fail closed**：`PresentStatus=0` 的舊列一律 unknown，包含看起來眼熟的 `(0,'1')`。
+
+    有 present=0 列的 57 場**全部**同時有現行列（2026-08-10 全庫實測），所以舊列從來不會
+    被選中——為它寫規則等於映射一個無法被任何觀測驗證的狀態。`(0,'3')` 是連 raw 表都沒
+    出現過的值，同樣 unknown。
+    """
+    superseded_postponed = _build_game_status([_schedule(0, "1", date(2026, 4, 4))], {})
     held = _build_game_status([_schedule(0, "2", date(2026, 6, 7))], {})
     unobserved = _build_game_status([_schedule(0, "3", date(2026, 6, 8))], {})
 
+    assert superseded_postponed["official_game_status"]["status"] == "unknown"
     assert held["official_game_status"]["status"] == "unknown"
     assert unobserved["official_game_status"]["status"] == "unknown"
+
+
+def test_missing_schedule_rows_are_unknown_without_a_selected_entry() -> None:
+    """完全沒有排程列時不得猜測，且 `raw` 必須是 None 而非半空的殼。"""
+    result = _build_game_status([], {})
+
+    assert result["official_game_status"]["status"] == "unknown"
+    assert result["official_game_status"]["raw"] is None
+    assert result["official_game_status"]["observed_at"] is None
 
 
 def test_final_scoreboard_without_livelog_is_pending_refresh() -> None:
@@ -108,7 +172,7 @@ def test_scheduled_and_postponed_games_are_not_applicable() -> None:
         {},
     )
     postponed = _build_game_status(
-        [_schedule(0, "1", date(2026, 4, 4))],
+        [_schedule(1, "1", date(2026, 8, 9))],
         {},
     )
 

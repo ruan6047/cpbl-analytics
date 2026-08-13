@@ -20,7 +20,18 @@ _GAME_COLS = ["season", "kind_code", "game_sno", "game_date", "venue",
               "away_team_code", "away_team_name", "away_score",
               "home_team_code", "home_team_name", "home_score",
               "has_score", "delay_kind", "orig_date"]
+# cpbl.game_schedule_status_revisions 的查詢欄位（未定案場次的官方狀態）。
+_REVISION_COLS = ["year", "kind_code", "game_sno", "raw_present_status", "raw_game_result",
+                  "raw_game_date", "fetched_at", "last_seen_at"]
 _TODAY = date.today()
+
+
+def _revision(sno: int, present: int, result: str, day: date, *, kind: str = "A",
+              seen: datetime | None = None) -> tuple:
+    """一列 cpbl.game_schedule_status_revisions。"""
+    return (2026, kind, sno, present, result, day,
+            seen or datetime(2026, 7, 20, 2, 10, tzinfo=UTC),
+            seen or datetime(2026, 7, 20, 2, 10, tzinfo=UTC))
 
 
 def _game(sno: int, day: date, *, home: int | None = None, away: int | None = None,
@@ -127,18 +138,24 @@ def _run(monkeypatch, script, *, artifact=None, query="", snapshots=None,
 
 
 def _script(*, latest: date | None, next_day: date | None, scoped: int, games: list[tuple],
-            unresolved: list[tuple] | None = None, refresh=("ok",)) -> list:
+            unresolved: list[tuple] | None = None, revisions: list[tuple] | object = None,
+            refresh=("ok",)) -> list:
     refresh_rows: object
     if refresh == ("ok",):
         refresh_rows = [(datetime.now(UTC) - timedelta(hours=2), True, "recent-games")]
     else:
         refresh_rows = refresh
-    return [
+    script = [
         (["latest", "next", "scoped"], [(latest, next_day, scoped)]),
         (_GAME_COLS, games),
         (_GAME_COLS, unresolved or []),
-        (["refreshed_at", "ok", "scope"], refresh_rows),
     ]
+    # 官方狀態查詢**只在有未定案場次時才發生**（見 `_unresolved_statuses`）；沒有未定案場次
+    # 卻在腳本裡放這一輪，會讓後面的 refresh_log 讀到錯的那一組，測試就測不到它想測的東西。
+    if unresolved:
+        script.append((_REVISION_COLS, revisions if revisions is not None else []))
+    script.append((["refreshed_at", "ok", "scope"], refresh_rows))
+    return script
 
 
 # --- 純函式：refresh 狀態字彙 -------------------------------------------------
@@ -226,22 +243,91 @@ def test_future_dated_game_with_a_score_is_never_the_latest_game_day(monkeypatch
     assert held["delay_kind"] == "保留"
 
 
-def test_unresolved_past_game_is_flagged_unknown_not_silently_dropped(monkeypatch):
-    """刷新落後／延賽未更新：過去日期仍 0–0 → 列為 unknown 的 fail-fast 訊號，
-    且不得混進最近比賽日的賽果。"""
+def _unresolved_body(monkeypatch, revisions, *, delay: str | None = "延賽"):
+    """一場過去日期仍 0–0 的未定案場次（A#3），官方排程列由呼叫端指定。"""
     stale_day = _TODAY - timedelta(days=3)
-    body, _ = _run(monkeypatch, _script(
+    body, cursor = _run(monkeypatch, _script(
         latest=_TODAY - timedelta(days=1), next_day=_TODAY + timedelta(days=1), scoped=3,
         games=[_game(1, _TODAY - timedelta(days=1), home=4, away=2),
                _game(2, _TODAY + timedelta(days=1))],
-        unresolved=[_game(3, stale_day, delay="延賽")],
+        unresolved=[_game(3, stale_day, delay=delay)],
+        revisions=revisions,
     ))
+    return body, cursor, stale_day
+
+
+def test_unresolved_past_game_is_not_silently_dropped(monkeypatch):
+    """過去日期仍 0–0 → 必須列為 fail-fast 訊號，且不得混進最近比賽日的賽果。"""
+    body, _, _ = _unresolved_body(monkeypatch, [])
 
     unresolved = body["freshness"]["unresolved_games"]
     assert len(unresolved) == 1
-    assert unresolved[0]["status"] == "unknown"
     assert unresolved[0]["home_score"] is None
     assert [g["game_sno"] for g in body["latest_game_day"]["games"]] == [1]
+
+
+def test_unresolved_game_reports_the_official_status_not_a_hardcoded_unknown(monkeypatch):
+    """**本卡的串接義務**：`cpbl.games` 只看得到 0–0，分不出「官方已宣告延賽」與「我們刷新
+    落後」。這一格改讀官方排程狀態後才分得開——A#254／255（2026-08-09 實測 `(1,'1')`、
+    `delay_kind='延賽'`）是 postponed，沒有人需要做事。"""
+    stale_day = _TODAY - timedelta(days=3)
+    body, _, _ = _unresolved_body(
+        monkeypatch, [_revision(3, 1, "1", stale_day)])
+
+    assert body["freshness"]["unresolved_games"][0]["status"] == "postponed"
+
+
+def test_officially_final_but_still_zero_zero_is_the_one_that_needs_a_human(monkeypatch):
+    """`final`＝官方說打完了、我們卻還是 0–0，這是唯一真的刷新落後的一格。它必須與
+    postponed／reserved 分開，否則長期非零、然後沒有人再看它。"""
+    stale_day = _TODAY - timedelta(days=3)
+    body, _, _ = _unresolved_body(
+        monkeypatch, [_revision(3, 1, "0", stale_day)], delay=None)
+
+    assert body["freshness"]["unresolved_games"][0]["status"] == "final"
+
+
+def test_unresolved_status_falls_closed_when_official_rows_are_absent(monkeypatch):
+    """查得到表但那一場沒有排程列 → unknown，不猜。"""
+    body, _, _ = _unresolved_body(monkeypatch, [])
+
+    assert body["freshness"]["unresolved_games"][0]["status"] == "unknown"
+
+
+def test_unresolved_status_survives_a_missing_revisions_table(monkeypatch):
+    """表尚未 migrate／權限不足時整批退回 unknown，首頁照常回 200——同 `_last_refresh`
+    的立場：缺證據就別宣稱，但也別讓首頁掛掉。"""
+    body, _, _ = _unresolved_body(monkeypatch, RuntimeError("relation does not exist"))
+
+    assert body["freshness"]["unresolved_games"][0]["status"] == "unknown"
+
+
+def test_official_status_is_not_queried_when_nothing_is_unresolved(monkeypatch):
+    """常態（0 筆未定案）不得多花一次查詢。腳本裡沒有那一輪，多查就會讀到 refresh_log
+    的那一組而使 `last_refresh` 失真——這個斷言直接檢查送出的 SQL。"""
+    _, cursor = _run(monkeypatch, _script(
+        latest=_TODAY - timedelta(days=1), next_day=_TODAY + timedelta(days=1), scoped=2,
+        games=[_game(1, _TODAY - timedelta(days=1), home=4, away=2)],
+    ))
+
+    assert not [q for q in cursor.queries if "game_schedule_status_revisions" in q]
+
+
+def test_daily_and_game_status_share_one_official_verdict(monkeypatch):
+    """daily 與 games 必須用**同一份**判定。同一組排程列餵進兩條路徑，結論不得分歧——
+    分歧就等於同一場比賽在首頁與單場頁有兩種官方狀態。"""
+    from cpbl.api.routers.games import _build_game_status
+
+    stale_day = _TODAY - timedelta(days=3)
+    for present, result in ((1, "0"), (1, ""), (1, "1"), (1, "2"), (0, "1"), (0, "9")):
+        rows = [_revision(3, present, result, stale_day)]
+        body, _, _ = _unresolved_body(monkeypatch, rows)
+        from_daily = body["freshness"]["unresolved_games"][0]["status"]
+        from_games = _build_game_status(
+            [dict(zip(_REVISION_COLS, rows[0], strict=True))], {},
+        )["official_game_status"]["status"]
+
+        assert from_daily == from_games, f"({present}, {result!r}) 兩側判定分歧"
 
 
 def test_refresh_log_missing_table_degrades_to_source_error(monkeypatch):

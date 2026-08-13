@@ -28,6 +28,23 @@ DB 實證（2026-07-26，本機 `cpbl.games` 全史 GROUP BY；場次數／起�
 
 - SSoT：`src/cpbl/ingest/cpbl_site.py` `_delay_info`（含 docstring）。
 
+### `PresentStatus`／官方比賽狀態
+
+`PresentStatus` **不是「已開打」**（`cpbl_site.py` `_primary_entry` 的註解用詞較鬆，易被沿用成錯誤前提）。同一 `sno` 每個排定日期各一列，`1`＝該列是**現行**那一筆、`0`＝已被改期取代的舊列。因此一場已宣告延賽、補賽日尚未公布的比賽仍是 `PresentStatus=1`（它還沒被任何新列取代），與「打過沒有」無關——**「延賽場一定已經改到未來日期」是錯的前提**。
+
+官方狀態＝(`PresentStatus`, `GameResult`) → canonical phase，且**只認已觀測為「被選中列」的組合**（選列規則：現行列優先 → 最新 `raw_game_date` → 同日取最後觀測，第三個鍵不可省，保留賽續賽是在**同一日期**上把 `GameResult` 由 `2` 改成 `0`）。DB 實證（2026-08-10 本機 `cpbl.game_schedule_status_revisions`，600 場／797 列）：
+
+| 被選中列 | phase | 場數 | 對 `cpbl.games` 交叉驗證 |
+|---|---|---|---|
+| `(1,'0')` | `final` | 421 | 全部有比分、無一排在未來 |
+| `(1,'')` | `scheduled` | 172 | 全部無比分、日期皆在未來 |
+| `(1,'1')` | `postponed` | 3 | 皆 `delay_kind='延賽'`、無比分（A#14／254／255） |
+| `(1,'2')` | `reserved` | 4 | 皆 `delay_kind='保留'`、補賽日在未來（D#117／118／164／165） |
+
+`PresentStatus=0` 的舊列**一律 `unknown`**：有 present=0 列的 57 場全部同時有現行列，舊列從來不會被選中，映射它等於宣稱一個無法被任何觀測驗證的狀態（fail closed）。`postponed`（從未開打）與 `reserved`（已開賽後中止、逐球通常已記到中止那一刻）**不可合併**，尤其在逐球可用性上。
+
+- SSoT：`src/cpbl/api/helpers.py` `official_status`（含逐組合證據與可重跑查詢）；`/games/{sno}/status` 與 `/daily/summary` 的 `unresolved_games[].status` 共用這一份，勿在任一側重寫。canonical phase 字彙與 live worker `_STATUS_PHASE` 同一組（`final`／`scheduled`／`postponed`／`reserved`／`live`），勿另立。
+
 ### 完成場判定
 
 `home_score + away_score > 0 AND game_date <= CURRENT_DATE`。**缺日期界線會誤判**：保留賽會掛未來補賽日卻已帶比分。
