@@ -8,6 +8,13 @@ on:
 jobs:
   api:
     runs-on: ubuntu-latest
+    # runner 的時區釘死 UTC，**刻意不是 Asia/Taipei**（docs/TIME_SEMANTICS_CONTRACT.md §6
+    # 明文禁止）：生產容器就是 UTC，把 CI 設成台北等於讓 CI 永遠無法重現 UTC 容器缺陷，
+    # 而 #81 的首頁「今日賽事」缺陷正是靠手動構造 UTC 情境才抓到的。
+    # 釘 UTC 之後，任何再度依賴容器本地日的測試會**每次**紅，而不是一天紅 8 小時——
+    # 確定性失敗遠比 1/3 機率的假 flaky 便宜（TIME-TEST-CLOCK-INJECT1 痛點）。
+    env:
+      TZ: UTC
     steps:
       - uses: actions/checkout@v4
         with:

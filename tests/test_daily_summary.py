@@ -23,7 +23,17 @@ _GAME_COLS = ["season", "kind_code", "game_sno", "game_date", "venue",
 # cpbl.game_schedule_status_revisions 的查詢欄位（未定案場次的官方狀態）。
 _REVISION_COLS = ["year", "kind_code", "game_sno", "raw_present_status", "raw_game_result",
                   "raw_game_date", "fetched_at", "last_seen_at"]
-_TODAY = date.today()
+# 測試基準時鐘。**刻意是固定常數，不得取牆鐘**：受測碼有兩個日界——`_today_local()`＝
+# 容器本地日（`as_of` 用）、`taipei_today(_now())`＝台北日（`today` 區塊用）。舊版這裡寫
+# `date.today()`，等於讓假資料綁在「跑測試那台機器的時區」上：本機在台北時兩個日界重合、
+# 永遠綠，UTC runner 在台北 00:00–08:00 兩者差一天、必定紅（一天紅 8 小時，見 #124 痛點）。
+# 固定常數之後，測試在任何時區、任何牆鐘時刻都給同一個答案。
+#
+# 取 2026-08-07 14:00+08（＝UTC 06:00）：季中有比賽的日子，且**刻意落在台北日界窗外**，
+# 讓「一般情境」與「日界窗內」分屬兩組明示的 case（窗內由 `now=`／`today_local=` 明著注入，
+# 見 test_today_block_uses_taipei_day_when_container_clock_is_utc）。
+_TODAY = date(2026, 8, 7)
+_NOW = datetime(2026, 8, 7, 6, 0, tzinfo=UTC)
 
 
 def _revision(sno: int, present: int, result: str, day: date, *, kind: str = "A",
@@ -103,21 +113,29 @@ def _snapshot(sno: int, phase: str, *, away: int = 0, home: int = 0, inning: int
         "freshness": freshness,
         "stale_after_seconds": 45 if phase == "live" else (None if phase == "final" else 1200),
         "source_status": source_status,
+        # **刻意用真實牆鐘、不是 `_NOW`**：snapshot 的年齡由 `live_view` 拿
+        # `now or datetime.now(UTC)` 去減（daily.py:214），而 `_today_block` 呼叫它時沒有
+        # 傳 now（daily.py:399）——也就是這一格讀的是真實時鐘，且**不經過可注入的
+        # `_now()`**。本卡不得改 src/，所以測試這邊必須跟著它錨在同一個時鐘，否則
+        # 固定基準日會被算成 6 天前 → interrupt 變 blackout。
+        # 這不會把時區缺陷帶回來：`datetime.now(UTC)` 是 aware UTC，量的是「相對年齡」，
+        # 與容器 TZ 無關（本卡要殺的是 `date.today()` 那種**本地日**依賴）。
+        # live_view 讀不到注入時鐘一事已寫進交付報告，交 PM 併入時間語意契約後續批次。
         "source": {"fetched_at": (fetched_at or datetime.now(UTC)).isoformat()},
         "decisions": decisions,
     }
 
 
 def _run(monkeypatch, script, *, artifact=None, query="", snapshots=None,
-         now=None, today_local=None) -> tuple[dict, _Cursor]:
+         now=_NOW, today_local=_TODAY) -> tuple[dict, _Cursor]:
     cursor = _Cursor(script)
     monkeypatch.setattr(daily, "conn", lambda: _Conn(cursor))
-    # 時鐘與容器本地日可注入：本機跑在台北時區，不注入就永遠測不到「容器 UTC、
-    # 台北凌晨」——而那正是唯一會出錯的情境。
-    if now is not None:
-        monkeypatch.setattr(daily, "_now", lambda: now)
-    if today_local is not None:
-        monkeypatch.setattr(daily, "_today_local", lambda: today_local)
+    # 時鐘與容器本地日**一律注入**（預設 `_NOW`／`_TODAY`），不是「有給才注入」：
+    # 受測碼讀兩個不同日界，任何一個漏注入就等於把該日界綁回跑測試那台機器的時區，
+    # 於是同一份程式在台北綠、在 UTC runner 的台北凌晨紅。要測日界窗內就明著把
+    # `now=`／`today_local=` 傳成分岔的一組（見 test_today_block_uses_taipei_day_...）。
+    monkeypatch.setattr(daily, "_now", lambda: now)
+    monkeypatch.setattr(daily, "_today_local", lambda: today_local)
     # 契約測試一律與本機 Redis 隔離：`snapshots=None`＝未設定 REDIS_URL（本機／CI 預設），
     # 要驗即時態就明著給一組假 snapshot。開發者本機恰好有 Redis 時測試不得跟著變。
     monkeypatch.setattr(daily.settings, "redis_url",
@@ -142,7 +160,9 @@ def _script(*, latest: date | None, next_day: date | None, scoped: int, games: l
             refresh=("ok",)) -> list:
     refresh_rows: object
     if refresh == ("ok",):
-        refresh_rows = [(datetime.now(UTC) - timedelta(hours=2), True, "recent-games")]
+        # 相對**注入的**基準時刻，不是牆鐘：freshness 由受測碼拿 `_now()` 去減，
+        # 兩邊必須錨在同一個時刻，否則固定基準日會被真實牆鐘算成 stale。
+        refresh_rows = [(_NOW - timedelta(hours=2), True, "recent-games")]
     else:
         refresh_rows = refresh
     script = [
@@ -162,20 +182,18 @@ def _script(*, latest: date | None, next_day: date | None, scoped: int, games: l
 
 def test_refresh_status_without_any_log_is_unknown_not_fresh():
     """**紅線**：沒有刷新紀錄＝沒有證據，必須 fail closed 為 unknown，不得預設新鮮。"""
-    assert refresh_status(None, None, datetime.now(UTC)) == ("unknown", None)
+    assert refresh_status(None, None, _NOW) == ("unknown", None)
 
 
 def test_refresh_status_marks_failed_run_even_when_recent():
-    now = datetime.now(UTC)
-    status, hours = refresh_status(now - timedelta(hours=1), False, now)
+    status, hours = refresh_status(_NOW - timedelta(hours=1), False, _NOW)
     assert status == "failed"
     assert hours == 1.0
 
 
 def test_refresh_status_flips_to_stale_after_threshold():
-    now = datetime.now(UTC)
-    assert refresh_status(now - timedelta(hours=23), True, now)[0] == "fresh"
-    assert refresh_status(now - timedelta(hours=25), True, now)[0] == "stale"
+    assert refresh_status(_NOW - timedelta(hours=23), True, _NOW)[0] == "fresh"
+    assert refresh_status(_NOW - timedelta(hours=25), True, _NOW)[0] == "stale"
 
 
 # --- 契約：語意紅線 -----------------------------------------------------------
