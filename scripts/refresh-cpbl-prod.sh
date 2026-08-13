@@ -135,6 +135,42 @@ sync_pa_build() {
   echo "    ✓ canonical PA build（TRUNCATE + 全量重灌：source_revisions/builds/plate_appearances/pa_events/pitch_mappings 原子同步）"
 }
 
+# 官方狀態觀測軌跡兩表（`game_schedule_status_revisions`／`game_source_revisions`）。
+#
+# 為何不能用通用 sync_table：兩表的 PK 是 GENERATED ALWAYS identity `id`，而 sync_table
+# 的 `SELECT *` 會把本機 id 一起帶過去（identity 欄需 OVERRIDING SYSTEM VALUE，否則直接
+# 報錯）；就算補上該關鍵字，id 在本機與 prod 各自獨立編號，拿 id 當衝突鍵等於用一個
+# 兩機不共通的值判「是不是同一列」——那正是 game_recap_source_revisions 事故的根因
+# （見 sync_pa_build 上方註解）。故這裡**不搬 id**：以顯式欄位清單插入、讓 prod 自己
+# 配號，衝突鍵改用各表真正的內容唯一鍵（migration 061 的 UNIQUE CONSTRAINT）。
+#
+# 為何也不比照 sync_pa_build 用 TRUNCATE 全量重灌：那五表是可由 livelog 重算的 derived
+# 產物，這兩表是「我們在哪個時點觀測到官網說什麼」的軌跡本身（fetched_at 首見、
+# last_seen_at 末見、seen_count 觀測次數），且沒有 FK 網要求原子重建。增量 upsert 足夠，
+# 不必每天把 prod 的軌跡列整批重寫。
+#
+# prod 端無獨立 writer：唯二寫入者是 `record_schedule_revisions`／`record_source_revision`，
+# 呼叫點全在 ingest（cpbl_site／cpbl_gamelog／run_refresh_recent），而爬蟲只能本機跑
+# （VPS IP 被官網擋），故本機值為權威、可整欄鏡像。
+#
+# 已知且刻意接受的副作用：`_stage` 的 `pg_dump --data-only -t` 會一併輸出該表 identity
+# 序列的 `setval`，那一行落在**目標端真實序列**上（不是暫存表），所以 prod 的序列會被推到
+# 本機的當前值、之後 prod 自行配的 id 從那裡續號。無害——prod 對這兩表從不自行 INSERT，
+# 且本函式的正確性完全不依賴 id（衝突鍵是內容唯一鍵）。自測實測：scratch 端 id 由
+# 16830／17388 起編，與本機的 1..16788／1..17387 各自獨立，內容逐列雜湊一致。
+sync_revision_table() {  # $1=表 $2=內容唯一鍵 其餘=欄位（**不含** identity 欄 id）
+  local t="$1" pk="$2"; shift 2
+  local cols; cols="$(printf '%s,' "$@")"; cols="${cols%,}"
+  {
+    _stage "$t" _rev_stg
+    echo "INSERT INTO cpbl.${t} (${cols}) SELECT ${cols} FROM _rev_stg \
+          ON CONFLICT (${pk}) DO UPDATE SET $(_excl "$@");"
+  } | ssh -o BatchMode=yes "$VPS" \
+        "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql \
+          -v ON_ERROR_STOP=1 -q --single-transaction -U \"\$DB_USER\" -d \"\$DB_NAME\""
+  echo "    ✓ ${t}"
+}
+
 cd "$REPO_DIR"
 # SKIP_SCRAPE=1：本機 DB 已是最新時，跳過重爬、直接把現有資料同步到 prod。
 if [ -n "${SKIP_SCRAPE:-}" ]; then
@@ -184,6 +220,17 @@ sync_table games "year,kind_code,game_season_code,game_sno" \
   game_date present_status venue home_team_code home_team_name away_team_code away_team_name \
   home_score away_score home_starter_id away_starter_id winning_pitcher_id losing_pitcher_id closer_id mvp_id \
   delay_kind orig_date
+# 官方狀態觀測軌跡：`/api/v1/games/{sno}/status` 與首頁 unresolved_games 的官方狀態判定
+# （helpers.official_status）讀的就是 game_schedule_status_revisions；不同步過來，prod
+# 對每一場都只能 fail closed 回 unknown，延賽／保留賽在線上永遠看不出來。
+sync_revision_table game_schedule_status_revisions \
+  "year,kind_code,game_season_code,game_sno,payload_hash" \
+  year kind_code game_season_code game_sno raw_present_status raw_game_result \
+  raw_game_date raw_pre_exe_date payload_hash raw_payload fetched_at last_seen_at seen_count
+sync_revision_table game_source_revisions \
+  "year,kind_code,game_sno,source,source_version" \
+  year kind_code game_sno source source_version outcome row_count error_code detail \
+  fetched_at last_seen_at seen_count
 sync_table pitching_current "year,player_id" name team_code era ip g gs w l whip k9 fip era_plus sv hld \
   so cg sho pa np h hr bb ibb hbp wp bk r er go ao goao
 sync_table batting_current "year,player_id" name team_code pa avg obp slg ops hr ops_plus k_pct bb_pct \
