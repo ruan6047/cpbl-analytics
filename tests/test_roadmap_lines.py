@@ -101,8 +101,8 @@ def test_closed_statuses_are_excluded_and_other_repos_ignored():
 
 def test_active_card_without_card_id_fails_closed():
     payload = {"items": [{"repository": "https://github.com/ruan6047/cpbl-analytics",
-                          "交付狀態": "💡需求", "content": {"number": 7}}]}
-    with pytest.raises(rl.CheckFailed, match="缺卡ID"):
+                          "交付狀態": "💡需求", "級別": "T2", "content": {"number": 7}}]}
+    with pytest.raises(rl.CheckFailed, match="缺必填欄位"):
         rl.active_cards(payload)
 
 
@@ -205,7 +205,7 @@ def test_schema_version_is_emitted_and_bumped():
     """解析規則改了而版本沒動，兩次執行的輸出就無法區分——那正是 R1-03 的病。"""
     result = rl.assign([{"card_id": "DATA-A1", "tier": "T2", "status": "💡需求", "number": 1}])
     assert result["schema_version"] == rl.SCHEMA_VERSION
-    assert rl.SCHEMA_VERSION == "cpbl-roadmap-lines/v6"
+    assert rl.SCHEMA_VERSION == "cpbl-roadmap-lines/v7"
 
 
 # --- v6：自審補上的三層檢查 ---
@@ -274,3 +274,60 @@ def test_ambiguous_suffix_fails_closed_when_exact_name_is_unavailable():
             "�別": "T2", "content": {"number": 1}}
     with pytest.raises(rl.CheckFailed, match="命中 2 個 key"):
         rl.active_cards({"items": [item]})
+
+
+# --- VERIFIER1-R3-001：必填 Project 欄位缺一即 fail closed ---
+
+_REPO = "https://github.com/ruan6047/cpbl-analytics"
+
+
+def test_missing_status_fails_closed_instead_of_becoming_an_active_card():
+    """v6 收為 status='' 並一路通過 render→reconcile——不完整的 payload 被偽裝成排程。
+
+    活卡的判定本身依賴 status；取不到時**無從判斷它是不是活卡**，
+    不能以「空字串不在終態集合」推論它是活的。
+    """
+    payload = {"items": [{"repository": _REPO, "卡ID": "DATA-A1", "級別": "T2",
+                          "content": {"number": 1}}]}
+    with pytest.raises(rl.CheckFailed, match="取不到交付狀態"):
+        rl.active_cards(payload)
+
+
+@pytest.mark.parametrize("item,missing", [
+    ({"卡ID": "DATA-A1", "交付狀態": "💡需求", "級別": "T2"}, "content.number"),
+    ({"卡ID": "DATA-A1", "交付狀態": "💡需求", "content": {"number": 1}}, "級別"),
+], ids=["缺 content.number", "缺 級別"])
+def test_missing_required_fields_fail_closed(item, missing):
+    with pytest.raises(rl.CheckFailed, match="缺必填欄位"):
+        rl.active_cards({"items": [{"repository": _REPO, **item}]})
+
+
+def test_round_trip_no_longer_launders_an_incomplete_payload():
+    """round-trip 回歸：缺欄位的 payload 不得走完 active_cards → render → reconcile。
+
+    v6 兩條路徑都能走完並回報「一致」——那是本卡最該防的形狀：
+    **對帳通過而它比對的東西本身是假的。**
+    """
+    for broken in (
+        {"repository": _REPO, "卡ID": "DATA-A1", "級別": "T2", "content": {"number": 1}},
+        {"repository": _REPO, "卡ID": "DATA-A1", "交付狀態": "💡需求", "級別": "T2"},
+    ):
+        with pytest.raises(rl.CheckFailed):
+            res = rl.assign(rl.active_cards({"items": [broken]}))
+            rl.reconcile(res, rl.render(res))
+
+
+def test_unknown_status_is_not_silently_rendered_as_dash():
+    """v6 對不認得的狀態靜默導成「—」，於是產生一列看起來正常的表格。"""
+    with pytest.raises(rl.CheckFailed, match="不在已知詞彙表"):
+        rl.gate_of("DATA-A1", "🆕沒見過的狀態")
+
+
+def test_closed_statuses_are_still_excluded_before_the_required_check():
+    """終態卡不必有完整欄位——它們本來就不進排程表，不該因缺欄位而讓整份失敗。"""
+    payload = {"items": [
+        {"repository": _REPO, "交付狀態": "🏁完成"},
+        {"repository": _REPO, "卡ID": "DATA-A1", "交付狀態": "💡需求", "級別": "T2",
+         "content": {"number": 1}},
+    ]}
+    assert [c["card_id"] for c in rl.active_cards(payload)] == ["DATA-A1"]

@@ -50,7 +50,7 @@ import re
 import sys
 from pathlib import Path
 
-SCHEMA_VERSION = "cpbl-roadmap-lines/v6"
+SCHEMA_VERSION = "cpbl-roadmap-lines/v7"
 
 #: 五條任務線。key 為線代號，value 為對外名稱（須與 ROADMAP §1／§3 的標題一致）。
 LINES: dict[str, str] = {
@@ -192,27 +192,41 @@ def _field(item: dict, name: str, suffix: str) -> str:
 
 
 def active_cards(payload: dict) -> list[dict]:
-    """自 `gh project item-list --format json` 的輸出取出本 repo 的活卡。"""
+    """自 `gh project item-list --format json` 的輸出取出本 repo 的活卡。
+
+    **必填欄位缺一即 fail closed**（`VERIFIER1-R3-001`）：`v6` 對缺欄位一律以空值
+    帶過——缺交付狀態的 item 會被收為 `status=''` 並一路通過 `render` → `reconcile`，
+    缺 `content.number` 則產生 `#None` 同樣通過。**兩條都能把不完整的 Project payload
+    偽裝成一份可對帳的排程**，而對帳的全部意義就是「這份表反映現況」。
+
+    活卡的判定本身依賴 `status`；`status` 取不到時**無從判斷它是不是活卡**，
+    因此不能以「空字串不在 CLOSED_STATUSES」推論它是活的。
+    """
     out = []
     for item in payload.get("items", []):
         repo = (item.get("repository") or "").rsplit("/", 1)[-1]
         if repo != REPO_SLUG:
             continue
+        number = (item.get("content") or {}).get("number")
         status = _field(item, *_FIELD_KEYS["status"])
+        if not status:
+            raise CheckFailed(
+                f"item（content.number={number}）取不到交付狀態——無從判斷它是不是活卡，"
+                "fail closed（不得以「空字串不在終態集合」推論它是活的）"
+            )
         if status in CLOSED_STATUSES:
             continue
         card_id = _field(item, *_FIELD_KEYS["card_id"])
-        if not card_id:
+        tier = _field(item, *_FIELD_KEYS["tier"])
+        missing = [name for name, value in
+                   (("卡ID", card_id), ("級別", tier), ("content.number", number))
+                   if value in (None, "")]
+        if missing:
             raise CheckFailed(
-                f"活卡缺卡ID 欄位：{item.get('content', {}).get('number')}——"
-                "無卡 ID 即無法歸屬，fail closed"
+                f"活卡缺必填欄位 {missing}（卡ID={card_id!r}、content.number={number!r}）"
+                "——不完整的 payload 不得被當成可對帳的排程，fail closed"
             )
-        out.append({
-            "card_id": card_id,
-            "tier": _field(item, *_FIELD_KEYS["tier"]),
-            "status": status,
-            "number": item.get("content", {}).get("number"),
-        })
+        out.append({"card_id": card_id, "tier": tier, "status": status, "number": number})
     return out
 
 
@@ -336,8 +350,20 @@ def block_version(text: str) -> str:
 
 
 def gate_of(card_id: str, status: str) -> str:
-    """該卡的「下一個必要 Gate／阻塞條件」——逐卡覆寫優先，否則由狀態導出。"""
-    return GATE_OVERRIDES.get(card_id) or GATE_BY_STATUS.get(status, "—")
+    """該卡的「下一個必要 Gate／阻塞條件」——逐卡覆寫優先，否則由狀態導出。
+
+    **未知狀態 fail closed**（`VERIFIER1-R3-001`）：`v6` 靜默導成 `"—"`，於是一個
+    本檔不認得的狀態會產生一列看起來正常的表格。狀態詞彙表變更時應該要有人知道。
+    """
+    override = GATE_OVERRIDES.get(card_id)
+    if override:
+        return override
+    if status not in GATE_BY_STATUS:
+        raise CheckFailed(
+            f"卡 {card_id} 的交付狀態 {status!r} 不在已知詞彙表中，無法導出 Gate——"
+            f"fail closed（已知：{sorted(GATE_BY_STATUS)}）"
+        )
+    return GATE_BY_STATUS[status]
 
 
 def reconcile(result: dict, roadmap_text: str) -> None:
