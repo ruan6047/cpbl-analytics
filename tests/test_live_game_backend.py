@@ -425,6 +425,61 @@ def test_worker_caches_only_observation_window_and_never_overwrites_on_error() -
     assert cache.released == 1
 
 
+def test_worker_does_not_cache_when_detail_reschedules_today_candidate_outside_window() -> None:
+    now = datetime(2026, 8, 8, 8, 0, tzinfo=UTC)
+    cache = _Cache()
+    schedule = _schedule("2026-A-226", "SCHEDULED", "2026-08-08T18:35:00")
+    detail = _game("SCHEDULED")
+    detail["PreExeDate"] = "2026-10-04T18:35:00"
+
+    worker = LiveGameWorker(
+        cache=cache,
+        fetch_schedule=lambda *_: [schedule],
+        fetch_game=lambda _game_id: detail,
+    )
+
+    result = worker.run_cycle(now)
+
+    assert result["selected"] == 1
+    assert result["cached"] == 0
+    assert result["errors"] == 0
+    assert result["phases"] == {}
+    assert result["games"] == []
+    assert cache.items == {}
+
+
+def test_worker_keeps_max_games_limit_after_detail_window_validation() -> None:
+    now = datetime(2026, 8, 8, 8, 0, tzinfo=UTC)
+    cache = _Cache()
+    fetched: list[str] = []
+    rows = [
+        _schedule("2026-A-226", "SCHEDULED", "2026-08-08T18:35:00"),
+        _schedule("2026-A-227", "SCHEDULED", "2026-08-08T18:35:00"),
+    ]
+
+    def fetch_game(game_id: str) -> dict:
+        fetched.append(game_id)
+        game = _game("SCHEDULED")
+        game["GameId"] = game_id
+        game["GameSno"] = int(game_id.rsplit("-", 1)[1])
+        game["PreExeDate"] = "2026-08-08T18:35:00"
+        return game
+
+    worker = LiveGameWorker(
+        cache=cache,
+        fetch_schedule=lambda *_: rows,
+        fetch_game=fetch_game,
+        max_games_per_cycle=1,
+    )
+
+    result = worker.run_cycle(now)
+
+    assert result["selected"] == 1
+    assert result["cached"] == 1
+    assert fetched == ["2026-A-226"]
+    assert set(cache.items) == {(2026, "A", 226)}
+
+
 def test_worker_updates_snapshot_and_preserves_first_observed() -> None:
     now = datetime(2026, 7, 28, 8, 0, tzinfo=UTC)
     cache = _Cache()

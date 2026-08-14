@@ -397,15 +397,18 @@ def _identity(row: dict) -> tuple[int, str, int] | None:
 
 
 def _select_candidates(rows: list[dict], now: datetime) -> list[dict]:
-    local_now = now.astimezone(_TAIPEI)
-    lower, upper = local_now - timedelta(hours=8), local_now + timedelta(hours=30)
     latest: dict[tuple[int, str, int], dict] = {}
     for row in sorted(rows, key=lambda item: str(item.get("PreExeDate") or "")):
         identity, starts = _identity(row), _starts_at(row)
-        if identity is None or starts is None or not lower <= starts <= upper:
+        if identity is None or starts is None or not _within_observation_window(starts, now):
             continue
         latest[identity] = row
     return list(latest.values())
+
+
+def _within_observation_window(starts_at: datetime, now: datetime) -> bool:
+    local_now = now.astimezone(_TAIPEI)
+    return local_now - timedelta(hours=8) <= starts_at <= local_now + timedelta(hours=30)
 
 
 def poll_interval_seconds(*, now: datetime, phases: set[str],
@@ -477,11 +480,8 @@ class LiveGameWorker:
             starts: list[datetime] = []
             for row in selected:
                 identity = _identity(row)
-                starts_at = _starts_at(row)
                 if identity is None:
                     continue
-                if starts_at is not None:
-                    starts.append(starts_at.astimezone(now.tzinfo))
                 year, kind, sno = identity
                 game_id = f"{year}-{kind}-{sno}"
                 try:
@@ -491,6 +491,12 @@ class LiveGameWorker:
                         phases["final"] += 1
                         continue
                     raw_game = self.fetch_game(game_id)
+                    detail_starts_at = _starts_at(raw_game)
+                    if (
+                        detail_starts_at is None
+                        or not _within_observation_window(detail_starts_at, now)
+                    ):
+                        continue
                     snapshot = build_snapshot(
                         raw_game,
                         fetched_at=now,
@@ -505,6 +511,7 @@ class LiveGameWorker:
                     )
                     errors += 1
                     continue
+                starts.append(detail_starts_at.astimezone(now.tzinfo))
                 cached += 1
                 phases[snapshot["phase"]] += 1
                 game_summaries.append({
