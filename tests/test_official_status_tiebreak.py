@@ -7,12 +7,18 @@
 本卡的服務目標是「同一筆事實在本機與生產必須得到相同答案，且該相同性要有結構理由」。
 「目前兩機一致」不是理由，所以這裡沒有任何一條測試長成「等於某個實測值」。
 
-⚠️ **這一組不是每一條都釘得住本卡的修法**，實測分兩類（對修法前的實作逐條跑過）：
+⚠️ **這一組不是每一條都釘得住本卡的修法**，實測分兩類。**有兩個基線**，別混著讀：
+基線 A＝本卡開工前（`origin/main`）；基線 B＝R1 查核的 `708da2a`（第一輪修法之後）。
 
-- **迴歸釘**（修法前紅、修法後綠）：`…does_not_depend_on_the_order…`（修法前 3 種排列
-  給 3 種答案）、`…survives_rows_with_no_observation_timestamps`（修法前 `TypeError`），
-  以及本檔第二、三節的全部結構斷言（修法前那些常數根本不存在）。
-- **特性測試**（修法前也綠）：`…superseded_row_never_wins…`、`…falls_back_to_the_whole_pool`、
+- **迴歸釘**（基線 A 紅、現在綠）：`…does_not_depend_on_the_order…`（基線 A 的 3 種排列
+  給 3 種答案）、`…survives_rows_with_no_observation_timestamps`（基線 A `TypeError`），
+  以及本檔第二、三節的全部結構斷言（基線 A 那些常數根本不存在）。
+- **迴歸釘**（基線 B 紅、現在綠）：`…sql_and_python_pick_the_same_row…`。16 個參數組合中
+  `older_0-newer_None`、`older_2-newer_None` 兩組在 `708da2a` 實測失敗——那版第一鍵是
+  `(raw_present_status = 1) DESC NULLS LAST`，SQL 把 `NULL` 排在 `0` 之後、Python 的
+  `None == 1` 卻與 `0` 打平，於是兩端選到不同的列。**這條是本檔唯一驗到「SQL 與 Python
+  真的是同一份規則」的測試**，其餘結構斷言只驗常數的形狀。
+- **特性測試**（兩個基線都綠）：`…superseded_row_never_wins…`、`…falls_back_to_the_whole_pool`、
   `…content_hash_only_breaks_ties…`。它們釘的不是新行為，而是**這次重寫不准動到的舊語意**
   （現行列優先、無現行列時退回全池、業務鍵壓過雜湊）——把 `active or pool` 的分支改寫成
   排序鍵時，這三條是唯一擋得住語意漂移的東西。不要把它們當成修法有效的證據。
@@ -68,9 +74,9 @@ def test_selection_does_not_depend_on_the_order_rows_were_handed_in() -> None:
 
 
 def test_a_superseded_row_never_wins_however_the_rows_arrive() -> None:
-    """2026/D/165 的形狀：作廢列（`PresentStatus=0`）在生產端的純 SQL 序裡排第一，
-    全表掃描的 heap 序也把它排第一。這裡把它做成**對抗版**——作廢列在後續每一個鍵上
-    都贏（日期更新、觀測更晚、雜湊更大），唯一能擋下它的就是「現行列優先」這一條。"""
+    """2026/D/165 的形狀：作廢列（`PresentStatus=0`）在該表的 UNIQUE 鍵序裡排第一（它的
+    `payload_hash` 字典序較小）。這裡把它做成**對抗版**——作廢列在後續每一個鍵上都贏
+    （日期更新、觀測更晚、雜湊更大），唯一能擋下它的就是「現行列優先」這一條。"""
     current = _row(present=1, day=date(2026, 7, 17), payload_hash="0" * 64,
                    seen=datetime(2026, 8, 1, tzinfo=UTC))
     superseded = _row(present=0, day=date(2026, 9, 15), payload_hash="f" * 64,
@@ -172,8 +178,9 @@ def _sql_literals(module) -> list[tuple[str, set[str]]]:
 @pytest.mark.parametrize("module", [games, daily], ids=["games", "daily"])
 def test_no_revision_read_path_picks_a_row_by_its_own_rule(module) -> None:
     """每一支讀 revision 表的查詢都必須內插共用常數。**特別是不得沒有 `ORDER BY`**——
-    `daily.py` 原本就是那樣，而無序讀取連同一台機器都不保證（實測：同一場 D/165，走
-    索引時第一列是現行列，全表掃描時第一列是已作廢的 `PresentStatus=0` 列）。"""
+    `daily.py` 原本就是那樣，而無序查詢沒有順序契約：順序是執行計畫的副產物。實測同一場
+    D/165，UNIQUE 鍵序（`…, payload_hash`）第一列是已作廢的 `PresentStatus=0` 列，heap 序
+    與 `idx_…_latest` 則是現行列——同一張表、同一份資料，兩種順序。"""
     checked = 0
     for text, names in _sql_literals(module):
         for table, rule in _TABLE_RULE.items():
@@ -183,6 +190,73 @@ def test_no_revision_read_path_picks_a_row_by_its_own_rule(module) -> None:
             assert rule in names, f"{module.__name__} 有一支讀 {table} 的查詢沒有套用 {rule}"
             assert "id DESC" not in text, f"{module.__name__} 仍以 id 收尾（{table}）"
     assert checked >= 1, f"{module.__name__} 找不到任何 revision 讀路徑——測試自己失效了"
+
+
+_STATUS_VALUES = [None, 0, 1, 2]
+
+
+def _sql_pick(cur, rows: list[dict]) -> str:
+    """把 rows 餵成 `VALUES`，套用**受測的那一份** `ORDER BY`，回傳第一列的 tag。
+
+    刻意不碰 `cpbl.game_schedule_status_revisions` 本表：要驗的是排序規則對 NULL 的語意，
+    而本表 `raw_present_status` 目前恰好沒有 NULL。拿本表跑只會證明「今天的資料沒踩到」。
+    """
+    row_sql = ("(%s::text, %s::int, %s::text, %s::date, %s::text, "
+               "%s::timestamptz, %s::timestamptz)")
+    params: list = []
+    for r in rows:
+        params += [r["tag"], r["raw_present_status"], r["raw_game_result"], r["raw_game_date"],
+                   r["payload_hash"], r["fetched_at"], r["last_seen_at"]]
+    cur.execute(
+        f"""SELECT tag FROM (VALUES {", ".join([row_sql] * len(rows))})
+              t(tag, raw_present_status, raw_game_result, raw_game_date,
+                payload_hash, fetched_at, last_seen_at)
+            ORDER BY {OFFICIAL_SCHEDULE_ORDER_BY}""",
+        params,
+    )
+    return cur.fetchone()[0]
+
+
+@pytest.mark.parametrize("newer_status", _STATUS_VALUES, ids=lambda v: f"newer_{v}")
+@pytest.mark.parametrize("older_status", _STATUS_VALUES, ids=lambda v: f"older_{v}")
+def test_sql_and_python_pick_the_same_row_for_every_present_status(
+    newer_status, older_status,
+) -> None:
+    """**本卡的第二個核心不變量：一份規則，兩端同一個答案。**
+
+    `_SCHEDULE_SELECTION_KEYS` 宣稱 SQL 片段與 Python 排序鍵是同一份規則，但那個宣稱在
+    nullable 邊界曾經不成立——`raw_present_status` 在 migration 061 是 nullable，而 SQL 的
+    `NULL = 1` 是 `NULL`（被 `NULLS LAST` 排到 `0` 之後），Python 的 `None == 1` 卻是
+    `False`（與 `0` 打平）。於是 `NULL + 新日期` vs `0 + 舊日期` 兩端會選到不同的列。
+
+    這裡窮舉 `{None, 0, 1, 2}` 的所有有序配對（含未來值 `2`），一邊給新日期、一邊給舊日期，
+    讓第一個鍵的判定必然可觀察：第一鍵分得開就由它決定，打平才輪到日期。SQL 的第一列必須
+    等於 Python `official_status()` 選中的列。
+
+    需本機 DB——**刻意不用 Python 模擬 SQL 的 NULL 排序**：那等於拿我對 PostgreSQL 的想像
+    去驗我自己寫的 SQL，正是本卡 R1 第二個 finding 的錯誤形狀。
+    """
+    psycopg = pytest.importorskip("psycopg")
+    from cpbl.config import settings
+
+    newer = dict(_row(present=newer_status, day=date(2026, 9, 15), payload_hash="0" * 64),
+                 tag="NEWER")
+    older = dict(_row(present=older_status, day=date(2026, 7, 17), payload_hash="f" * 64),
+                 tag="OLDER")
+
+    try:
+        with psycopg.connect(settings.database_url, connect_timeout=2) as c:
+            picked_by_sql = _sql_pick(c.cursor(), [newer, older])
+            c.rollback()
+    except Exception as exc:  # noqa: BLE001 — 無 DB 時跳過，與 tests/ 既有慣例一致
+        pytest.skip(f"需本機 DB：{exc}")
+
+    picked_by_python = official_status([newer, older])[1]["tag"]
+
+    assert picked_by_sql == picked_by_python, (
+        f"present_status newer={newer_status} older={older_status}："
+        f"SQL 選 {picked_by_sql}、Python 選 {picked_by_python}"
+    )
 
 
 def test_all_three_known_read_paths_are_covered() -> None:
