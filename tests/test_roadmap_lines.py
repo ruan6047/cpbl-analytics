@@ -205,7 +205,7 @@ def test_schema_version_is_emitted_and_bumped():
     """解析規則改了而版本沒動，兩次執行的輸出就無法區分——那正是 R1-03 的病。"""
     result = rl.assign([{"card_id": "DATA-A1", "tier": "T2", "status": "💡需求", "number": 1}])
     assert result["schema_version"] == rl.SCHEMA_VERSION
-    assert rl.SCHEMA_VERSION == "cpbl-roadmap-lines/v7"
+    assert rl.SCHEMA_VERSION.startswith("cpbl-roadmap-lines/v")
 
 
 # --- v6：自審補上的三層檢查 ---
@@ -331,3 +331,35 @@ def test_closed_statuses_are_still_excluded_before_the_required_check():
          "content": {"number": 1}},
     ]}
     assert [c["card_id"] for c in rl.active_cards(payload)] == ["DATA-A1"]
+
+
+# --- VERIFIER1-CONV-001：覆寫不得成為跳過驗證的快速路徑 ---
+
+_OVERRIDDEN = next(iter(rl.GATE_OVERRIDES))   # 取一張確實在覆寫表裡的卡
+
+
+def test_override_card_with_unknown_status_still_fails_closed():
+    """v7 先回傳覆寫才驗狀態，於是覆寫卡帶未知狀態可完全繞過驗證。
+
+    覆寫決定的是**輸出什麼文字**，不該決定**要不要驗證輸入**。
+    """
+    with pytest.raises(rl.CheckFailed, match="不在已知詞彙表"):
+        rl.gate_of(_OVERRIDDEN, "🆕未知狀態")
+
+
+def test_override_still_wins_for_known_statuses():
+    """收窄不得矯枉過正：狀態合法時覆寫仍優先於狀態導出。"""
+    assert rl.gate_of(_OVERRIDDEN, "🔍待查核") == rl.GATE_OVERRIDES[_OVERRIDDEN]
+
+
+def test_override_card_unknown_status_round_trip_is_blocked():
+    """端到端回歸：查核者實測此路徑 `override_unknown_round_trip=UNEXPECTED_PASS`。"""
+    payload = {"items": [{"repository": _REPO, "卡ID": _OVERRIDDEN, "級別": "T4",
+                          "交付狀態": "🆕未知狀態", "content": {"number": 53}}]}
+    with pytest.raises(rl.CheckFailed):
+        res = rl.assign(rl.active_cards(payload))
+        rl.reconcile(res, rl.render(res))
+
+
+def test_schema_version_bumped_for_validation_order():
+    assert rl.SCHEMA_VERSION == "cpbl-roadmap-lines/v8"

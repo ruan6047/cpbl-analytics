@@ -50,7 +50,7 @@ import re
 import sys
 from pathlib import Path
 
-SCHEMA_VERSION = "cpbl-roadmap-lines/v7"
+SCHEMA_VERSION = "cpbl-roadmap-lines/v8"
 
 #: 五條任務線。key 為線代號，value 為對外名稱（須與 ROADMAP §1／§3 的標題一致）。
 LINES: dict[str, str] = {
@@ -352,18 +352,22 @@ def block_version(text: str) -> str:
 def gate_of(card_id: str, status: str) -> str:
     """該卡的「下一個必要 Gate／阻塞條件」——逐卡覆寫優先，否則由狀態導出。
 
+    **驗證在覆寫之前**（`VERIFIER1-CONV-001`）：`v7` 先回傳 `GATE_OVERRIDES` 才檢查
+    狀態詞彙，於是**覆寫成了跳過驗證的快速路徑**——一張在覆寫表裡的卡帶著本檔不認得
+    的狀態，可以走完 `active_cards → render → reconcile` 而完全不被發現。
+
+    覆寫決定的是**輸出什麼文字**，不該決定**要不要驗證輸入**。順序反過來，例外就
+    變成旁路——而例外清單裡的卡往往正是最需要盯的那幾張（阻塞、閘門、逾時）。
+
     **未知狀態 fail closed**（`VERIFIER1-R3-001`）：`v6` 靜默導成 `"—"`，於是一個
     本檔不認得的狀態會產生一列看起來正常的表格。狀態詞彙表變更時應該要有人知道。
     """
-    override = GATE_OVERRIDES.get(card_id)
-    if override:
-        return override
     if status not in GATE_BY_STATUS:
         raise CheckFailed(
-            f"卡 {card_id} 的交付狀態 {status!r} 不在已知詞彙表中，無法導出 Gate——"
-            f"fail closed（已知：{sorted(GATE_BY_STATUS)}）"
+            f"卡 {card_id} 的交付狀態 {status!r} 不在已知詞彙表中——fail closed"
+            f"（已知：{sorted(GATE_BY_STATUS)}）"
         )
-    return GATE_BY_STATUS[status]
+    return GATE_OVERRIDES.get(card_id) or GATE_BY_STATUS[status]
 
 
 def reconcile(result: dict, roadmap_text: str) -> None:
