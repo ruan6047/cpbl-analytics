@@ -327,7 +327,8 @@ def test_position_exceptions_are_not_stale() -> None:
         default = {"standing": "scripts/", "ci_guard": "scripts/ci/"}.get(cls)
         if cls == "oneshot":
             default = f"docs/research/{si.ONESHOT_HOME.get(rel, si._card_of(rel))}/"
-        if default == str(Path(rel).parent) + "/":
+        current = str(Path(rel).parent) + "/"
+        if default and (current == default or current.startswith(default)):
             stale.append(f"{rel}（位置已相符）")
     assert not stale, f"位置例外已過期：{stale}"
 
@@ -540,6 +541,70 @@ def test_counts_reconcile_across_three_surfaces() -> None:
     assert len(research) == 19, "本輪零搬入"
     assert len(cli) == 47, "CLI 不變"
     assert len(scripts) + len(research) + len(cli) == 116, "115（基準）＋ 1（產生器）"
+
+
+def test_invariant_proof_enumerates_every_entry(capsys: pytest.CaptureFixture) -> None:
+    """驗收條件 2 的證明：逐支印出 (path, class, expected, ok)，**由 git ls-files 窮舉**。
+
+    以 `uv run pytest tests/test_script_inventory.py -s -k proof` 取全文輸出。
+    「窮舉」的證據力來自清單是機械產生的，不是人工列舉——報告裡不會出現
+    任何「全部／全數」而背後只有人工聲明的句子。
+    """
+    entries = si.build_entries()
+    lines = ["", "=" * 100,
+             "DEV-SCRIPT-INVENTORY1 不變式證明（逐支窮舉，來源：git ls-files ＋ pyproject）",
+             "=" * 100]
+
+    for surface, title in (("scripts", "scripts/**"),
+                           ("research", "docs/research/**/*.py"),
+                           ("cli", "pyproject [project.scripts]")):
+        rows = [e for e in entries if e.surface == surface]
+        lines.append(f"\n--- {title}（{len(rows)}）---")
+        lines.append(f"{'ok':>3} {'class':<16}{'marker':<16}{'writes':<7}{'help':<8}"
+                     f"{'位置 → 應在':<44}入口")
+        for e in sorted(rows, key=lambda x: x.ident):
+            placed = e.surface == "cli" or si.position_ok(e.ident, e.cls)
+            debt = e.ident in si.position_debt()
+            marked = e.surface != "scripts" or e.marker == e.cls
+            ok = bool(e.cls) and (placed or debt) and marked
+            loc = "—" if surface == "cli" else (
+                e.location if placed else f"{e.location} → {e.expected} ⚠️債")
+            lines.append(
+                f"{'✅' if ok else '❌':>3} {e.cls:<16}{(e.marker or '—'):<16}"
+                f"{('寫' if e.writes else '唯讀'):<7}{e.help_state:<8}{loc:<44}{e.ident}")
+
+    debt = si.position_debt()
+    lines += [
+        "", "-" * 100,
+        f"計數對帳：scripts/** {sum(1 for e in entries if e.surface == 'scripts')}"
+        f" ＋ docs/research/**/*.py {sum(1 for e in entries if e.surface == 'research')}"
+        f" ＋ CLI {sum(1 for e in entries if e.surface == 'cli')} ＝ {len(entries)}",
+        "（基準 33c7c3f 為 49＋19＋47＝115；本輪零搬動、零刪除，"
+        "唯一增量是本卡新增的 scripts/script_inventory.py）",
+        f"未分類：{sum(1 for e in entries if not e.cls)}　"
+        f"標記缺漏：{sum(1 for e in entries if e.surface == 'scripts' and not e.marker)}　"
+        f"標記不符：{sum(1 for e in entries if e.surface == 'scripts' and e.marker != e.cls)}",
+        f"位置債：{len(debt)}（凍結表 {len(FROZEN_POSITION_DEBT)}，新增 "
+        f"{len(set(debt) - FROZEN_POSITION_DEBT)}）",
+        f"寫入面：兩判準皆適用 {sum(1 for e in entries if e.writes_ast is not None)}"
+        f"（不一致 {sum(1 for e in entries if e.writes_ast is not None and e.writes_ast != e.writes_sql)}"
+        f"，未裁定 {len(si.undecided_disagreements())}，過期 {len(si.stale_adjudications())}）；"
+        f"單一判準 {sum(1 for e in entries if e.writes_ast is None)}",
+        f"判定為寫入型：{sum(1 for e in entries if e.writes)}　"
+        f"其中 --help 不安全：{len(si.write_capable_unsafe(entries))}"
+        f"（全部具名於 allowlist：{all(e.ident in si.HELP_SAFETY_ALLOWLIST for e in si.write_capable_unsafe(entries))}）",
+        f"引用完整性：強制面壞路徑 {len(si.broken_enforced_refs())}"
+        f"（凍結例外 {len(FROZEN_BROKEN_REFS)}，未預期 "
+        f"{len(set(si.broken_enforced_refs()) - set(FROZEN_BROKEN_REFS))}）",
+        "=" * 100,
+    ]
+    with capsys.disabled():
+        print("\n".join(lines))
+
+    assert all(e.cls for e in entries)
+    assert not set(debt) - FROZEN_POSITION_DEBT
+    assert not si.undecided_disagreements()
+    assert not set(si.broken_enforced_refs()) - set(FROZEN_BROKEN_REFS)
 
 
 def test_no_script_was_deleted_this_round() -> None:

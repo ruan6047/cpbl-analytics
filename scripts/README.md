@@ -158,13 +158,13 @@
 
 ## 引用完整性（不變式 3）
 
-全庫 `scripts/<name>.<ext>` 字面路徑共 **877** 處。**只有 `enforced` 那一面強制**——其餘的過期是歷史事實不是缺陷：
+全庫 `scripts/<name>.<ext>` 字面路徑共 **878** 處。**只有 `enforced` 那一面強制**——其餘的過期是歷史事實不是缺陷：
 
 | 面別 | 處數 | 強制？ | 為什麼 |
 |---|---:|---|---|
 | `scan` | 206 | 回報 | 掃描器產物 JSON 是當時的快照 |
 | `sealed` | 198 | 回報 | `docs/control-plane/**` 已於 `8271d7c` 封存唯讀，**永遠改不了** |
-| `self` | 176 | 不適用 | 掃描器自身的說明範例 |
+| `self` | 177 | 不適用 | 掃描器自身的說明範例 |
 | `historical` | 144 | 回報 | `docs/archive/**` 與卡片交付產物＝凍結證據，**本卡射程外** |
 | `enforced` | 133 | ✅ 強制 | `scripts/`、`src/`、活契約與設計文件——壞了就是現在的缺陷 |
 | `fixture` | 20 | 不適用 | `tests/**` 的合成路徑；真實路徑壞掉 pytest 自己會紅（更強的機制） |
@@ -260,7 +260,7 @@
 
 | 入口 | 分類 | 位置 | 應在 | 寫入 | runnable | 卡 | purpose_declared | purpose_verified |
 |---|---|---|---|---|---|---|---|---|
-| `audit_cli_help.py` | CI 繫結守衛 | `docs/research/DEV-CLI-HELP-GUARD1/` | ⚠️ `scripts/ci/` | 唯讀 | ✅ --help 安全 | DEV-CLI-HELP-GUARD1 | DEV-CLI-HELP-GUARD1 盤點工具：掃描 pyproject `[project.scripts]` 全部入口的 --help 行為。 | ⚠️ 未查證 |
+| `audit_cli_help.py` | CI 繫結守衛 | `docs/research/DEV-CLI-HELP-GUARD1/` | ✅ | 唯讀 | ✅ --help 安全 | DEV-CLI-HELP-GUARD1 | DEV-CLI-HELP-GUARD1 盤點工具：掃描 pyproject `[project.scripts]` 全部入口的 --help 行為。 | ⚠️ 未查證 |
 | `scan_g4_freeze.py` | 一次性產物 | `docs/research/DOC-G4-FREEZE-STALE1/` | ✅ | 唯讀 | ✅ --help 安全 | DOC-G4-FREEZE-STALE1 | DOC-G4-FREEZE-STALE1：全庫 G4 觀測凍結陳述盤點（唯讀）。 | ⚠️ 未查證 |
 | `sync_deep_tm_prod.py` | 一次性產物 | `docs/research/INGEST-DEEP-TM-BACKFILL1/` | ✅ | **寫** | ⚠️ --help 不安全（具名例外） | INGEST-DEEP-TM-BACKFILL1 | Sync 12 deep TrackMan fields from local DB to production DB for INGEST-DEEP-TM-BACKFILL1. | ⚠️ 未查證 |
 | `confirm_live_schema.py` | 一次性產物 | `docs/research/INGEST-SCORELESS-INNING-PITCHER1/` | ✅ | 唯讀 | ⚠️ --help 不安全 | INGEST-SCORELESS-INNING-PITCHER1 | 單次確認請求：對一場「未落在 G4 保存樣本內」的完成場重取 schema。 | ⚠️ 未查證 |
@@ -278,7 +278,7 @@
 | `build_verdict_list.py` | 一次性產物 | `docs/research/RESEARCH-VERDICT-AUDIT1/` | ✅ | 唯讀 | ✅ --help 安全 | RESEARCH-VERDICT-AUDIT1 | RESEARCH-VERDICT-AUDIT1 §3 — 把窮舉母體與逐檔處置合成裁決清單，並硬性檢查覆蓋。 | ⚠️ 未查證 |
 | `scan_verdicts.py` | 一次性產物 | `docs/research/RESEARCH-VERDICT-AUDIT1/` | ✅ | 唯讀 | ✅ --help 安全 | RESEARCH-VERDICT-AUDIT1 | RESEARCH-VERDICT-AUDIT1 §1 — 否定判定的指令窮舉掃描。 | ⚠️ 未查證 |
 | `bases_outs_extraction_proof.py` | 一次性產物 | `docs/research/UX-HOME-LIVE-STRIP1/` | ✅ | 唯讀 | ⚠️ --help 不安全 | UX-HOME-LIVE-STRIP1 | UX-HOME-LIVE-STRIP1 取證工具：證明壘包圖上抽為共用元件後，賽況頁的渲染輸出沒有變。 | ⚠️ 未查證 |
-| `scan_time_semantics.py` | 常設工具 | `docs/research/TIME-SEMANTICS-CONTRACT1/` | ⚠️ `scripts/` | 唯讀 | ✅ --help 安全 | TIME-SEMANTICS-CONTRACT1 | TIME-SEMANTICS-CONTRACT1：時間語意用點盤點（**唯讀**，artifact 由本腳本產生）。 | ⚠️ 未查證 |
+| `scan_time_semantics.py` | 常設工具 | `docs/research/TIME-SEMANTICS-CONTRACT1/` | ✅ | 唯讀 | ✅ --help 安全 | TIME-SEMANTICS-CONTRACT1 | TIME-SEMANTICS-CONTRACT1：時間語意用點盤點（**唯讀**，artifact 由本腳本產生）。 | ⚠️ 未查證 |
 
 ## 清冊：`pyproject [project.scripts]`（47）
 
@@ -366,6 +366,8 @@
 
 | 入口 | 理由 |
 |---|---|
+| `docs/research/DEV-CLI-HELP-GUARD1/audit_cli_help.py` | 推導判 CI 繫結（`tests/test_cli_help_guard.py::test_seal_surface_matches_audit_tool` 以硬編路徑載入它防兩份 seal 漂移），但它是 DEV-CLI-HELP-GUARD1 的**交付產物**、已住在自己卡的目錄裡。搬它要同時改 `tests/test_cli_help_guard.py` 的路徑常數與 `docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit.md`——後者射程外 |
+| `docs/research/TIME-SEMANTICS-CONTRACT1/scan_time_semantics.py` | ⚠️ **本卡掃出來的既有不一致**：`docs/TIME_SEMANTICS_CONTRACT.md:243` 給了重跑指令（`uv run python docs/research/…/scan_time_semantics.py --verify`），依推導規則屬常設工具，卻住在 research 卡目錄。判準與位置真的不符，但它是 TIME-SEMANTICS-CONTRACT1 的交付產物，搬它要改活契約——射程外。列為交付報告的待裁項 |
 | `scripts/data_rules_audit1.py` | scripts/data_tie_remedy1.py 的 FROZEN_FILES 以**字面路徑**硬編它，而 CI 只 import `_streaks_for` 碰不到 `is_frozen`——搬走會讓守衛靜默回 False。凍結理由是「必須能重現當初的數字」，動它會讓歷史證據不可重現 |
 | `scripts/g4_phase_a_metrics.py` | 同上：FROZEN_FILES 字面路徑成員判定，凍結理由是「判準一換觀測就不可比」 |
 | `scripts/verify_deep_tm_backfill.py` | 需求方裁定 3：它是活卡 DEV-VERIFY-TM-ASSERTS1（T2、Backlog）的射程本體，搬它等於改另一張活卡的資源路徑。例外具名可讀，勝過偷改別卡 |
@@ -375,5 +377,5 @@
 - **「未找到消費者」不等於「沒有消費者」**：本清冊的觀測面只有 **git 追蹤檔案**。本機執行歷史、需求方手動操作、封存前的口頭流程都不在裡面。用詞一律「未找到」。
 - **本輪零刪除**。已用盡的只標記，刪除是需求方的獨立裁定。
 - 位置不變式證明的是「位置與分類一致」，**不是「分類是對的」**。分類含具名人工改判，機器只驗一致性不驗真假。
-- **分段路徑**（`"scripts/" + name` 這類靜態解析不了的組裝）共 46 處，引用完整性檢查涵蓋不到，逐處列出：`docs/research/TIME-SEMANTICS-CONTRACT1/scan_time_semantics.py:149`、`scripts/data_rules_audit1.py:761`、`scripts/data_tie_remedy1.py:322`、`scripts/script_inventory.py:68`、`scripts/script_inventory.py:302`、`scripts/script_inventory.py:306`、`scripts/script_inventory.py:829`、`scripts/script_inventory.py:953`、`scripts/script_inventory.py:1402`、`tests/test_backup_prod_db.py:16`、`tests/test_backup_prod_db.py:186`、`tests/test_backup_prod_db.py:196`、`tests/test_backup_prod_db.py:203`、`tests/test_bio_gap2_backfill.py:19`、`tests/test_bio_gap_backfill.py:27`、`tests/test_prod_sync_revision_seq.py:33`、`tests/test_prod_sync_revision_seq.py:183`、`tests/test_prod_sync_revision_seq.py:184`、`tests/test_prod_sync_revision_seq.py:185`、`tests/test_prod_sync_revision_seq.py:216`、`tests/test_refresh_pitch_ingest.py:26`、`tests/test_refresh_remote_train.py:20`、`tests/test_review_prompt.py:7`、`tests/test_roadmap_lines.py:28`、`tests/test_scrape_daily.py:32`、`tests/test_scrape_daily.py:33`、`tests/test_scrape_daily.py:115`、`tests/test_scrape_daily.py:132`、`tests/test_scrape_daily.py:156`、`tests/test_scrape_daily.py:310`、`tests/test_script_inventory.py:243`、`tests/test_script_inventory.py:281`、`tests/test_script_inventory.py:327`、`tests/test_script_inventory.py:340`、`tests/test_script_inventory.py:348`、`tests/test_script_inventory.py:356`、`tests/test_script_inventory.py:368`、`tests/test_script_inventory.py:421`、`tests/test_script_inventory.py:479`、`tests/test_script_inventory.py:484`、`tests/test_script_inventory.py:485`、`tests/test_script_inventory.py:486`、`tests/test_state_plane_migrate.py:16`、`tests/test_task_card_sections.py:8`、`tests/test_verify_refresh_info.py:27`、`tests/test_workflow_ledger.py:5`
+- **分段路徑**（`"scripts/" + name` 這類靜態解析不了的組裝）共 47 處，引用完整性檢查涵蓋不到，逐處列出：`docs/research/TIME-SEMANTICS-CONTRACT1/scan_time_semantics.py:149`、`scripts/data_rules_audit1.py:761`、`scripts/data_tie_remedy1.py:322`、`scripts/script_inventory.py:68`、`scripts/script_inventory.py:302`、`scripts/script_inventory.py:306`、`scripts/script_inventory.py:837`、`scripts/script_inventory.py:975`、`scripts/script_inventory.py:1424`、`tests/test_backup_prod_db.py:16`、`tests/test_backup_prod_db.py:186`、`tests/test_backup_prod_db.py:196`、`tests/test_backup_prod_db.py:203`、`tests/test_bio_gap2_backfill.py:19`、`tests/test_bio_gap_backfill.py:27`、`tests/test_prod_sync_revision_seq.py:33`、`tests/test_prod_sync_revision_seq.py:183`、`tests/test_prod_sync_revision_seq.py:184`、`tests/test_prod_sync_revision_seq.py:185`、`tests/test_prod_sync_revision_seq.py:216`、`tests/test_refresh_pitch_ingest.py:26`、`tests/test_refresh_remote_train.py:20`、`tests/test_review_prompt.py:7`、`tests/test_roadmap_lines.py:28`、`tests/test_scrape_daily.py:32`、`tests/test_scrape_daily.py:33`、`tests/test_scrape_daily.py:115`、`tests/test_scrape_daily.py:132`、`tests/test_scrape_daily.py:156`、`tests/test_scrape_daily.py:310`、`tests/test_script_inventory.py:243`、`tests/test_script_inventory.py:281`、`tests/test_script_inventory.py:327`、`tests/test_script_inventory.py:341`、`tests/test_script_inventory.py:349`、`tests/test_script_inventory.py:357`、`tests/test_script_inventory.py:369`、`tests/test_script_inventory.py:422`、`tests/test_script_inventory.py:480`、`tests/test_script_inventory.py:485`、`tests/test_script_inventory.py:486`、`tests/test_script_inventory.py:487`、`tests/test_script_inventory.py:558`、`tests/test_state_plane_migrate.py:16`、`tests/test_task_card_sections.py:8`、`tests/test_verify_refresh_info.py:27`、`tests/test_workflow_ledger.py:5`
 

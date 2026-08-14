@@ -671,6 +671,16 @@ POSITION_EXCEPTIONS: dict[str, str] = {
         "凍結理由是「必須能重現當初的數字」，動它會讓歷史證據不可重現"),
     "scripts/g4_phase_a_metrics.py": (
         "同上：FROZEN_FILES 字面路徑成員判定，凍結理由是「判準一換觀測就不可比」"),
+    "docs/research/DEV-CLI-HELP-GUARD1/audit_cli_help.py": (
+        "推導判 CI 繫結（`tests/test_cli_help_guard.py::test_seal_surface_matches_audit_tool` "
+        "以硬編路徑載入它防兩份 seal 漂移），但它是 DEV-CLI-HELP-GUARD1 的**交付產物**、"
+        "已住在自己卡的目錄裡。搬它要同時改 `tests/test_cli_help_guard.py` 的路徑常數與 "
+        "`docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit.md`——後者射程外"),
+    "docs/research/TIME-SEMANTICS-CONTRACT1/scan_time_semantics.py": (
+        "⚠️ **本卡掃出來的既有不一致**：`docs/TIME_SEMANTICS_CONTRACT.md:243` 給了重跑指令"
+        "（`uv run python docs/research/…/scan_time_semantics.py --verify`），依推導規則屬常設工具，"
+        "卻住在 research 卡目錄。判準與位置真的不符，但它是 TIME-SEMANTICS-CONTRACT1 的交付產物，"
+        "搬它要改活契約——射程外。列為交付報告的待裁項"),
 }
 
 # 一次性產物的歸屬卡（決定 `docs/research/<CARD-ID>/` 的目標目錄）。
@@ -783,13 +793,11 @@ def position_debt() -> dict[str, list[str]]:
     """回傳 {路徑: [射程外的活引用位置]}。"""
     refs = literal_path_refs()
     debt: dict[str, list[str]] = {}
-    for rel in _git_ls(SCRIPTS_GLOB):
+    for rel in _git_ls(SCRIPTS_GLOB) + _git_ls(RESEARCH_GLOB):
         if Path(rel).name in NON_ENTRY_BASENAMES or rel in POSITION_EXCEPTIONS:
             continue
         cls, _ = classify(rel)
-        expected = expected_location(rel, cls)
-        current = str(Path(rel).parent) + "/"
-        if not expected or expected == current:
+        if position_ok(rel, cls):
             continue
         blockers = sorted({
             loc for loc in refs.get(rel, ())
@@ -912,6 +920,20 @@ def expected_location(rel: str, cls: str) -> str:
         return str(Path(rel).parent) + "/"
     home = ONESHOT_HOME.get(rel) or _card_of(rel)
     return f"docs/research/{home}/" if home else ""
+
+
+def position_ok(rel: str, cls: str) -> bool:
+    """位置是否符合分類。
+
+    ⚠️ 一次性產物用**前綴**比對而非相等：`docs/research/<CARD>/cases/build_cases.py`
+    在卡目錄底下再分一層子目錄，仍然是「住在自己卡的目錄裡」。初版用相等比對，
+    把它判成位置不符——**偵測器自己的規則產生的假陽性**。
+    """
+    expected = expected_location(rel, cls)
+    if not expected:
+        return False
+    current = str(Path(rel).parent) + "/"
+    return current == expected or current.startswith(expected)
 
 
 # ==================================================== `--help` 靜態安全性
