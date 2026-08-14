@@ -30,7 +30,7 @@ import re
 import sys
 from pathlib import Path
 
-SCHEMA_VERSION = "cpbl-roadmap-lines/v2"
+SCHEMA_VERSION = "cpbl-roadmap-lines/v3"
 
 #: 五條任務線。key 為線代號，value 為對外名稱（須與 ROADMAP §1／§3 的標題一致）。
 LINES: dict[str, str] = {
@@ -116,6 +116,16 @@ _CARD_ROW = re.compile(r"^\|\s*`([A-Z0-9][A-Z0-9-]*)`\s*\|")
 _SECTION3_HEADING = re.compile(r"^##\s+3\.\s")
 _SAME_LEVEL_HEADING = re.compile(r"^##\s")
 
+#: 圍籬式程式碼區塊的起訖（``` 或 ~~~，允許前導空白與資訊字串）。
+#: `VERIFIER1-R1-001`：前一版對全檔逐行套 regex，於是**程式碼區塊裡的假 `## 3.`**
+#: 會被當成節標題。圍籬內的一切都是文件內容的展示，不是文件結構。
+_FENCE = re.compile(r"^\s*(```|~~~)")
+
+#: 「看起來像卡片列但不在標準位置」——縮排、引言符號（`>`）、或兩者。
+#: `VERIFIER1-R1-002`：這些形狀原本被**靜默忽略**，方向與 fail-closed 相反。
+#: 現改為偵測到即失敗：解析器不該猜一列被引用的表格是資料還是示範。
+_CARD_ROW_LOOSE = re.compile(r"^[ \t>]*\|\s*`([A-Z0-9][A-Z0-9-]*)`\s*\|")
+
 
 class CheckFailed(Exception):
     """歸屬或對帳失敗。訊息即失敗原因，呼叫端直接印出後 exit 1。"""
@@ -197,31 +207,81 @@ def assign(cards: list[dict]) -> dict:
     }
 
 
+def _outside_fences(lines: list[str]) -> list[tuple[int, str]]:
+    """回傳 (原始行號, 內容) 且**排除圍籬式程式碼區塊內的行**。
+
+    圍籬內的 `## 3.` 或表格列是文件在展示自己的格式，不是文件結構；
+    把它們當結構讀會讓「文件裡寫了一段範例」變成「解析器認錯了節」。
+    """
+    out: list[tuple[int, str]] = []
+    fence: str | None = None
+    for i, ln in enumerate(lines):
+        m = _FENCE.match(ln)
+        if m:
+            token = m.group(1)
+            if fence is None:
+                fence = token
+            elif token == fence:
+                fence = None
+            continue
+        if fence is None:
+            out.append((i, ln))
+    return out
+
+
 def section3_lines(text: str) -> list[str]:
     """截出 §3「現行排程」的內容行：自其標題之後，至下一個同級 `##` 標題之前。
 
-    找不到 §3 標題即 **fail closed**——回空集會讓「§3 不見了」與「§3 是空的」
-    無法區分，而前者是嚴重得多的狀態。
+    **只看圍籬外的行**（`_outside_fences`）。找不到 §3 標題、或找到**不只一個**，
+    一律 **fail closed**：
+
+    - 找不到 → 回空集會讓「§3 不見了」與「§3 是空的」無法區分，前者嚴重得多。
+    - 不只一個 → 前一版靜默採第一段。「有兩個 §3」本身就是文件出了問題，
+      而**猜哪一個才是真的**不是解析器該做的事。
     """
-    lines = text.splitlines()
-    start = next((i for i, ln in enumerate(lines) if _SECTION3_HEADING.match(ln)), None)
-    if start is None:
+    raw = text.splitlines()
+    visible = _outside_fences(raw)
+    heads = [n for n, ln in enumerate(visible) if _SECTION3_HEADING.match(ln[1])]
+    if not heads:
         raise CheckFailed(
-            "在 ROADMAP 中找不到 §3 節標題（預期形如 `## 3. 現行排程`）——"
-            "無法界定解析範圍，fail closed"
+            "在 ROADMAP 中找不到 §3 節標題（預期形如 `## 3. 現行排程`，且不在程式碼區塊內）"
+            "——無法界定解析範圍，fail closed"
         )
-    end = next((i for i in range(start + 1, len(lines))
-                if _SAME_LEVEL_HEADING.match(lines[i])), len(lines))
-    return lines[start + 1:end]
+    if len(heads) > 1:
+        raise CheckFailed(
+            f"ROADMAP 中有 {len(heads)} 個 §3 節標題（原始行號 "
+            f"{[visible[n][0] + 1 for n in heads]}）——解析器不猜哪一個為準，fail closed"
+        )
+    start = heads[0]
+    end = next((n for n in range(start + 1, len(visible))
+                if _SAME_LEVEL_HEADING.match(visible[n][1])), len(visible))
+    return [ln for _, ln in visible[start + 1:end]]
 
 
 def cards_in_roadmap(text: str) -> list[str]:
     """自 ROADMAP **§3 區間內**的表格列抽出卡 ID。
 
-    兩層限縮：先截 §3 區間（`section3_lines`），再於區間內錨定行首 `|`。
-    §3 以外的表格列與任何位置的行內 code 都不會誤中。
+    三層限縮：排除圍籬內容 → 截 §3 區間 → 區間內**嚴格**錨定行首 `|`。
+    §3 以外的表格列、程式碼區塊內的一切、任何位置的行內 code 都不會誤中。
+
+    區間內若出現**縮排或帶引言符號**的卡片列（寬鬆命中但嚴格不命中），
+    **fail closed** 而不是忽略——那正是 `VERIFIER1-R1-002`。要在 §3 內放
+    示範用的表格列，請放進程式碼區塊（圍籬內已整段排除）。
     """
-    return [m.group(1) for line in section3_lines(text) if (m := _CARD_ROW.match(line))]
+    ids: list[str] = []
+    for line in section3_lines(text):
+        strict = _CARD_ROW.match(line)
+        if strict:
+            ids.append(strict.group(1))
+            continue
+        loose = _CARD_ROW_LOOSE.match(line)
+        if loose:
+            raise CheckFailed(
+                f"§3 內出現縮排或帶引言符號的卡片列，解析器不猜它是資料還是示範，"
+                f"fail closed：{line.strip()!r}（卡 ID {loose.group(1)}）。"
+                "示範用的表格列請放進程式碼區塊。"
+            )
+    return ids
 
 
 def reconcile(result: dict, roadmap_text: str) -> None:

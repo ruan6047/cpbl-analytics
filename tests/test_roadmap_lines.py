@@ -162,4 +162,73 @@ def test_reconcile_ignores_rows_outside_section3():
 
 def test_schema_version_bumped_for_the_parsing_change():
     """解析規則變了，版本必須跟著動——否則兩次執行的輸出無法區分。"""
-    assert rl.SCHEMA_VERSION == "cpbl-roadmap-lines/v2"
+    assert rl.SCHEMA_VERSION.startswith("cpbl-roadmap-lines/v")
+
+
+# --- VERIFIER1-R1-001／R1-002：邊界要 markdown-aware，且不得靜默忽略 ---
+
+_FENCE_DOC = """# 藍圖
+
+## 2. 說明
+
+以下是 §3 的格式示範，不是真的節：
+
+```markdown
+## 3. 現行排程
+
+| `DATA-FENCED1` | #1 |
+```
+
+## 3. 現行排程
+
+| `DATA-REAL1` | #2 |
+
+## 4. 下一節
+"""
+
+
+def test_fenced_fake_section3_is_not_taken_as_the_heading():
+    """程式碼區塊裡的假 `## 3.` 是文件在展示格式，不是文件結構。"""
+    assert rl.cards_in_roadmap(_FENCE_DOC) == ["DATA-REAL1"]
+
+
+def test_fenced_card_rows_inside_section3_are_excluded():
+    """§3 內的圍籬區塊整段排除——那是示範，不是排程列。"""
+    doc = _s3("```", "| `DATA-FENCED2` | #9 |", "```", "| `DATA-REAL2` | #2 |")
+    assert rl.cards_in_roadmap(doc) == ["DATA-REAL2"]
+
+
+def test_tilde_fence_is_recognised():
+    """~~~ 與 ``` 同為合法圍籬。"""
+    doc = _s3("~~~", "| `DATA-FENCED3` | #9 |", "~~~", "| `DATA-REAL3` | #3 |")
+    assert rl.cards_in_roadmap(doc) == ["DATA-REAL3"]
+
+
+def test_duplicate_section3_fails_closed():
+    """有兩個 §3 本身就是文件出了問題；猜哪個為準不是解析器該做的事。"""
+    doc = ("## 3. 現行排程\n| `DATA-A1` | #1 |\n\n"
+           "## 4. 中間\n\n"
+           "## 3. 又一個現行排程\n| `DATA-B1` | #2 |\n")
+    with pytest.raises(rl.CheckFailed, match="個 §3 節標題"):
+        rl.cards_in_roadmap(doc)
+
+
+@pytest.mark.parametrize("row", [
+    "  | `DATA-INDENT1` | #1 |",
+    "> | `DATA-QUOTED1` | #1 |",
+    ">   | `DATA-BOTH1` | #1 |",
+    "\t| `DATA-TAB1` | #1 |",
+])
+def test_indented_or_quoted_card_rows_fail_closed(row):
+    """R1-002：這些形狀原本被靜默忽略——與 fail-closed 相反。現改為失敗。"""
+    with pytest.raises(rl.CheckFailed, match="縮排或帶引言符號"):
+        rl.cards_in_roadmap(_s3(row))
+
+
+def test_plain_prose_mentioning_a_card_id_still_does_not_trigger():
+    """收窄不得矯枉過正：內文提到卡 ID 仍不是表格列，也不該 fail closed。"""
+    assert rl.cards_in_roadmap(_s3("本節說明 `DATA-MENTION1` 的處置。")) == []
+
+
+def test_schema_version_bumped_for_markdown_awareness():
+    assert rl.SCHEMA_VERSION == "cpbl-roadmap-lines/v3"
