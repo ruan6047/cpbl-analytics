@@ -3,10 +3,44 @@
 - 需求：ruan6047　規劃：Claude Fable 5@Claude Code (PM)
 - 執行：待指派　查核：待指派
 - Initiative：—　spec 基線：scripts/refresh-cpbl-prod.sh 的 sync_revision_table() 與其上方「已知且刻意接受的副作用」註解 @ 9e4b4ea；實測證據見本卡留言
-- DB：db_scope=schema
+- DB：db_scope=schema（完整宣告見下方「資料庫宣告」）
 - 服務的原始目標：本機爬到的資料要能可靠地到達生產，且失效時不得每日靜默復發
 - owner、worktree、iteration、交付／部署狀態、最後交接、資源宣告與 Log
   current-state 見對應 GitHub Issue／Project item（卡ID：OPS-PROD-SYNC-SEQ-COLLISION1），不重複於此檔。
+
+## 資料庫宣告
+
+依 [`DATABASE_CONTRACT.md`](../DATABASE_CONTRACT.md) §3 必填：
+
+```yaml
+db_scope: schema
+db_namespace: unassigned
+db_resources:
+  - db:production:cpbl
+  - db:production:table:game_source_revisions
+  - db:production:table:game_schedule_status_revisions
+  - db:local:cpbl
+migration_phase: none
+```
+
+詞彙選擇與理由（規劃期 Discovery 認定，交 Design Gate 裁定）：
+
+- `db_namespace: unassigned`——契約 §2 明載 production「不建立開發 namespace」，故實作階段
+  唯一可能值是 `shared-lease`；但本輪為唯讀 Discovery、尚未核發任何 `db:*` lease，比照
+  `DATA-INCOMPLETE-BOX-INGEST1` 的既有處置填 `unassigned`，避免以欄位錯誤宣稱「已可寫入
+  共享資料庫」。實作卡取得 lease 時才改 `shared-lease`。
+- `db_resources` 列的是本卡**會碰到**的資源，不代表已持有 lease。真正被競用的物件是兩張表的
+  identity 序列 `cpbl.game_source_revisions_id_seq`／`cpbl.game_schedule_status_revisions_id_seq`；
+  契約的 resource 詞彙只有 `db:<env>:table:<name>`、沒有 sequence token，故以其擁有者表代表，
+  此缺口一併提報 Design Gate。
+- `migration_phase: none`——本卡不新增／不修改任何 `migrations/*.sql`，不佔 migration lane；
+  `refresh-cpbl-prod.sh` 步驟 3/4 會在 prod 執行 `migrate()`，但那是既有流程、非本卡產出。
+- `db_scope` 沿用開卡時的 `schema`（欄位開卡後不可改，`ai-workflow#12`）。實際語意是「改寫
+  production 兩張表的列與序列狀態，無 DDL」，介於 `write` 與 `schema` 之間；沿用 `schema` 的
+  副作用是 merge 前必須停下請示（Runbook §7.1），對 T4 production 卡屬合宜的加嚴。
+- 生產寫入紀律：卡面紅線 5 與本宣告一致——任何 prod 寫入須需求方逐次明示；本輪只執行
+  `SELECT`。修法若採「payload 內自我修正序列」路線，可在不另外人工寫 prod 的前提下自癒
+  （見交付報告的修法比較）。
 
 ## 核心痛點
 
