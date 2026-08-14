@@ -28,7 +28,12 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Query
 
-from cpbl.api.helpers import _dicts, kinds_of, official_status
+from cpbl.api.helpers import (
+    OFFICIAL_SCHEDULE_ORDER_BY,
+    _dicts,
+    kinds_of,
+    official_status,
+)
 from cpbl.api.live_cache import get_public_live_snapshot
 from cpbl.api.pregame_serving import serving_state
 from cpbl.completion import completed_games_sql_with_evidence
@@ -303,13 +308,18 @@ def _unresolved_statuses(cursor, rows: list[dict]) -> dict[tuple[int, str, int],
     kinds = [r["kind_code"] for r in rows]
     snos = [r["game_sno"] for r in rows]
     try:
+        # `ORDER BY` 不是為了呈現順序，是判定的一部分：本查詢原本**完全沒有排序**，走 heap
+        # 序，連同一台機器都不保證；而 `official_status` 打平時取迭代順序的第一項，等於把
+        # 判定交給儲存層。改用與單場狀態端點**同一個** `OFFICIAL_SCHEDULE_ORDER_BY`
+        # （`DATA-OFFICIAL-STATUS-TIEBREAK1`）。分區欄前置，讓每一場的組內順序即為該規則。
         cursor.execute(
-            """
+            f"""
             SELECT year, kind_code, game_sno, raw_present_status, raw_game_result,
-                   raw_game_date, fetched_at, last_seen_at
+                   raw_game_date, payload_hash, fetched_at, last_seen_at
             FROM cpbl.game_schedule_status_revisions
             WHERE (year, kind_code, game_sno)
                   IN (SELECT * FROM unnest(%s::int[], %s::text[], %s::int[]))
+            ORDER BY year, kind_code, game_sno, {OFFICIAL_SCHEDULE_ORDER_BY}
             """,
             (years, kinds, snos),
         )

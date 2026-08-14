@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date as _date
 from typing import Any
 
@@ -118,27 +119,86 @@ _OFFICIAL_STATUS_BY_RAW: dict[tuple[Any, str], str] = {
 }
 
 
+# ---------------------------------------------------------------------------
+# 選列規則（`DATA-OFFICIAL-STATUS-TIEBREAK1`）
+#
+# **一份規則，兩種轉譯。** 下面這張表是唯一的書面來源：SQL 片段與 Python 排序鍵由同一組
+# `(sql, key)` 產生，改一邊就等於改另一邊，不可能只改到其中一側。
+#
+# 為什麼要這麼做：原本三條讀路徑用三套規則——`games` 單場排程列 `ORDER BY last_seen_at,
+# fetched_at, id`、`games` 來源軌跡 `DISTINCT ON (source) … id`、`daily` 未定案批次**完全
+# 沒有 `ORDER BY`**。前兩者的最終決勝鍵 `id` 是**兩機各自配號**的（生產端由
+# `refresh-cpbl-prod.sh::sync_revision_table` 顯式欄位插入、不搬 `id`），所以同一筆事實在
+# 本機與生產可以選到不同的列——2026/D/119 已實測發生。`daily` 更弱：無序讀取連**同一台
+# 機器**都不保證，而它與 `games` 共用 `official_status`，Python `max()` 打平時取迭代順序的
+# 第一項，「餵進去的順序」因此本身就是判定的一部分。
+#
+# 新規則的最終錨是 `payload_hash`／`source_version`：兩者都是 `canonical_source_version()`
+# 對整筆 raw entry 算的 SHA-256，且是各表 UNIQUE 鍵的成員。`payload_hash` 涵蓋
+# `GameSeasonCode`，故雜湊相同即 season code 相同，**在讀取分區 `(year, kind_code,
+# game_sno)` 內唯一是構造保證、不是觀測結果**。它由本機算出後整欄鏡像到生產，兩機同值。
+# 代價是「雜湊比較大的那一筆」沒有業務意義——所以它只在前面所有業務鍵都打平時才生效。
+_SCHEDULE_SELECTION_KEYS: tuple[tuple[str, Callable[[dict[str, Any]], Any]], ...] = (
+    # 現行列優先。**刻意寫 `= 1` 而不是 `raw_present_status DESC`**：判定要的是「這一列是
+    # 現行的那一筆」，不是「狀態碼比較大的那一筆」。今天值域只有 {0,1} 兩者同義，但官網若
+    # 有天吐出 2，`DESC` 會讓它蓋過現行列，`= 1` 不會。
+    ("(raw_present_status = 1) DESC NULLS LAST", lambda row: row.get("raw_present_status") == 1),
+    ("raw_game_date DESC NULLS LAST", lambda row: row.get("raw_game_date")),
+    # 同日再取最後觀測到的一筆。**不是贅語**——保留賽續賽完成時官網是在**同一個日期**上把
+    # `GameResult` 由 `2` 改成 `0`（D#97@08-09、D#119@08-08 實測皆有同日兩列、僅
+    # `last_seen_at` 不同），只比日期會取到舊值、把一場已打完的比賽讀成 `reserved`。
+    ("COALESCE(last_seen_at, fetched_at) DESC",
+     lambda row: row.get("last_seen_at") or row.get("fetched_at")),
+    ("fetched_at DESC", lambda row: row.get("fetched_at")),
+    ("payload_hash DESC", lambda row: row.get("payload_hash")),
+)
+
+#: `cpbl.game_schedule_status_revisions` 的選列規則（SQL 轉譯）。`games` 與 `daily` 兩條
+#: 讀路徑都必須用它——「三條讀路徑共用一份規則」的那一份指的就是這個常數。
+OFFICIAL_SCHEDULE_ORDER_BY = ", ".join(sql for sql, _ in _SCHEDULE_SELECTION_KEYS)
+
+#: `cpbl.game_source_revisions` 的選列規則（SQL）。該表沒有 `raw_present_status`／
+#: `raw_game_date`，最終錨是 `source_version`（同為 `canonical_source_version()` 的 SHA-256
+#: 與 UNIQUE 鍵成員）。這條路徑的選列**全在 SQL**（`DISTINCT ON`），故無 Python 對應鍵。
+SOURCE_REVISION_ORDER_BY = (
+    "COALESCE(last_seen_at, fetched_at) DESC, fetched_at DESC, source_version DESC"
+)
+
+
+def _nulls_last(value: Any) -> tuple[bool, Any]:
+    """`max()` 用的排序元素：`None` 一律排最後，對應 SQL 的 `DESC NULLS LAST`。
+
+    兩個 `None` 相比時 tuple 先比 `False == False`、再比 `None == None`，皆相等即進到下一
+    個鍵，不會對 `None` 做 `<`。`last_seen_at`／`fetched_at` 在 migration 061 是
+    `NOT NULL`，但那條保證來自 schema、程式端原本沒有註記，缺值時會與 `datetime` 相比而
+    `TypeError`；這裡把它變成有定義的順序，不改任何現存資料的答案。
+    """
+    return (value is not None, value)
+
+
 def official_status(schedule_rows: list[dict[str, Any]]) -> tuple[str, dict[str, Any] | None]:
     """官方排程列 → (canonical 狀態, 依據的那一列)；未觀測過的組合一律 `unknown`。
 
-    選列規則：現行列（`PresentStatus=1`）優先，再取最新 `raw_game_date`、同日再取最後觀測到
-    的一筆。**第三個鍵不是贅語**——保留賽續賽完成時，官網是在**同一個日期**上把 `GameResult`
-    由 `2` 改成 `0`（D#97@08-09、D#119@08-08 實測皆有同日兩列、僅 `last_seen_at` 不同），
-    只比日期會取到舊值、把一場已打完的比賽讀成 `reserved`。
+    選列規則見 `_SCHEDULE_SELECTION_KEYS`——**與呼叫端 SQL 的 `ORDER BY` 是同一份**。
+
+    **為什麼下推到 SQL 之後這一層仍然保留**：本函式的簽章收的是 `list[dict]`，收不到「這串
+    列已經排好序」這個前提。改成取 `rows[0]` 會讓正確性依賴一個型別表達不出來的不變式，而
+    `daily.py` 當初正是這樣掉進無 `ORDER BY` 的狀態的——那種錯誤會靜默地給出錯答案，不會
+    炸。2026/D/165 是實證：生產端純 SQL 序的第一列是 `PresentStatus=0` 的已作廢舊列，擋下
+    它的是這一層而不是決勝鍵。所以這一層**保留為防呆**，但從 `max()`（打平時取迭代順序的
+    第一項）升級為與 SQL 同構的**全序**，兩層各自都不再倚賴對方的順序。
+
+    ⚠️ 最終錨 `payload_hash` 缺席時（呼叫端沒投影該欄）全序退化為原本的業務鍵，完全打平時
+    仍會落回迭代順序。三條讀路徑都投影了該欄；新增呼叫端請一併投影。
 
     `games`（單場狀態端點）與 `daily`（首頁未定案場次）兩 router 共用同一份判定；勿在任一側
     重寫，兩邊講不同的話就等於同一場比賽有兩種官方狀態。
     """
     if not schedule_rows:
         return "unknown", None
-    active = [row for row in schedule_rows if row.get("raw_present_status") == 1]
-    pool = active or schedule_rows
     selected = max(
-        pool,
-        key=lambda row: (
-            row.get("raw_game_date") or _date.min,
-            row.get("last_seen_at") or row.get("fetched_at"),
-        ),
+        schedule_rows,
+        key=lambda row: tuple(_nulls_last(key(row)) for _, key in _SCHEDULE_SELECTION_KEYS),
     )
     key = (selected.get("raw_present_status"), str(selected.get("raw_game_result") or ""))
     return _OFFICIAL_STATUS_BY_RAW.get(key, "unknown"), selected
