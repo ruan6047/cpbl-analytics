@@ -50,7 +50,7 @@ import re
 import sys
 from pathlib import Path
 
-SCHEMA_VERSION = "cpbl-roadmap-lines/v5"
+SCHEMA_VERSION = "cpbl-roadmap-lines/v6"
 
 #: 五條任務線。key 為線代號，value 為對外名稱（須與 ROADMAP §1／§3 的標題一致）。
 LINES: dict[str, str] = {
@@ -139,6 +139,18 @@ _CARD_ROW_LOOSE = re.compile(r"^[ \t>]*\|\s*`([A-Z0-9][A-Z0-9-]*)`\s*\|")
 MARKER_BEGIN = "<!-- roadmap-lines:begin -->"
 MARKER_END = "<!-- roadmap-lines:end -->"
 
+#: 區塊內的版本註解。`--check` **會驗證它與 SCHEMA_VERSION 相同**。
+#: 自審發現：`v5` 把版本寫進區塊卻從不比對，於是 v1 產生的區塊照樣通過 v5 的檢查——
+#: 而本檔 docstring 正好寫著「版本沒動等於兩次輸出無法區分」。宣稱與實作對不上。
+_VERSION_COMMENT = re.compile(r"^<!--\s*(cpbl-roadmap-lines/v\d+)\s*[；;]")
+
+#: 卡片列的欄位契約。前四欄由指令產生、**逐欄比對**；`去留` 由需求方手填、**放行**。
+#: 自審發現：`v5` 只比對卡 ID，於是 tier 竄改 T2→T4、狀態改 🏁完成 都靜默通過，
+#: 而 §3 宣稱「本表由指令產生」。只守一維而宣稱守全表，是同一族的宣稱過度。
+MACHINE_COLUMNS = ("卡", "#", "tier", "狀態", "下一個必要 Gate／阻塞條件")
+HUMAN_COLUMNS = ("去留",)
+_EXPECTED_CELLS = len(MACHINE_COLUMNS) + len(HUMAN_COLUMNS)
+
 
 class CheckFailed(Exception):
     """歸屬或對帳失敗。訊息即失敗原因，呼叫端直接印出後 exit 1。"""
@@ -154,12 +166,29 @@ def line_of(card_id: str) -> str | None:
     return None
 
 
-def _field(item: dict, suffix: str) -> str:
-    """Project 欄位名在 JSON 中可能帶前綴雜訊，故以後綴比對取值。"""
-    for key, value in item.items():
-        if key.endswith(suffix):
-            return str(value)
-    return ""
+#: Project 欄位的正式名稱 → 退而求其次的後綴。
+#: **為什麼需要後綴**：`gh project item-list --format json` 回來的 key 前綴會壞掉
+#: （實測為 `'\ufffd\ufffd\ufffdID'`、`'\ufffd\ufffd\ufffd付狀態'`——欄名開頭的 emoji 被打爛），
+#: 精確比對取不到值。**但後綴比對可被遮蔽**：任何新欄位只要同後綴就可能搶先命中
+#: （自審實測：加一個「外部ID」欄，卡 ID 會取到它）。故**先精確、後後綴**。
+_FIELD_KEYS: dict[str, tuple[str, str]] = {
+    "card_id": ("卡ID", "ID"),
+    "tier": ("級別", "別"),
+    "status": ("交付狀態", "付狀態"),
+}
+
+
+def _field(item: dict, name: str, suffix: str) -> str:
+    """取 Project 欄位值：先以正式名精確比對，取不到才退回後綴比對。"""
+    if name in item:
+        return str(item[name])
+    hits = [str(v) for k, v in item.items() if k.endswith(suffix)]
+    if len(hits) > 1:
+        raise CheckFailed(
+            f"欄位後綴 {suffix!r} 命中 {len(hits)} 個 key，無法判定哪一個是 {name}——"
+            "fail closed（精確名稱取不到時才會走到後綴，而後綴可被同尾欄位遮蔽）"
+        )
+    return hits[0] if hits else ""
 
 
 def active_cards(payload: dict) -> list[dict]:
@@ -169,10 +198,10 @@ def active_cards(payload: dict) -> list[dict]:
         repo = (item.get("repository") or "").rsplit("/", 1)[-1]
         if repo != REPO_SLUG:
             continue
-        status = _field(item, "付狀態")
+        status = _field(item, *_FIELD_KEYS["status"])
         if status in CLOSED_STATUSES:
             continue
-        card_id = _field(item, "ID")
+        card_id = _field(item, *_FIELD_KEYS["card_id"])
         if not card_id:
             raise CheckFailed(
                 f"活卡缺卡ID 欄位：{item.get('content', {}).get('number')}——"
@@ -180,7 +209,7 @@ def active_cards(payload: dict) -> list[dict]:
             )
         out.append({
             "card_id": card_id,
-            "tier": _field(item, "別"),
+            "tier": _field(item, *_FIELD_KEYS["tier"]),
             "status": status,
             "number": item.get("content", {}).get("number"),
         })
@@ -250,20 +279,35 @@ def schedule_block_lines(text: str) -> list[str]:
     return lines[begins[0] + 1:ends[0]]
 
 
-def cards_in_roadmap(text: str) -> list[str]:
-    """自 ROADMAP 的**排程區塊內**抽出卡 ID。
+def _cells(line: str) -> list[str]:
+    """把一列 markdown 表格拆成儲存格（去掉頭尾的 `|`，各格去空白）。"""
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+def rows_in_roadmap(text: str) -> list[list[str]]:
+    """自排程區塊抽出卡片列的**逐欄內容**。
 
     兩層：marker 界定區塊 → 區塊內嚴格錨定行首 `|`。區塊外的一切
     （其他章節的表格、程式碼區塊、行內 code）都不會誤中，**且不需要理解 markdown**。
 
-    區塊內若出現縮排或帶引言符號的卡片列，**fail closed** 而非忽略——
-    區塊由指令產生，出現那種形狀代表有人手改過而且改壞了。
+    區塊內的兩種形狀 **fail closed** 而非忽略——區塊由指令產生，出現它們代表有人
+    手改過而且改壞了：
+
+    - 縮排或帶引言符號的卡片列（`VERIFIER1-R1-002`）
+    - 欄數不符 `_EXPECTED_CELLS` 的卡片列（否則逐欄比對會靜默略過該列）
     """
-    ids: list[str] = []
+    rows: list[list[str]] = []
     for line in schedule_block_lines(text):
         strict = _CARD_ROW.match(line)
         if strict:
-            ids.append(strict.group(1))
+            cells = _cells(line)
+            if len(cells) != _EXPECTED_CELLS:
+                raise CheckFailed(
+                    f"排程區塊內卡片列欄數為 {len(cells)}，預期 {_EXPECTED_CELLS}"
+                    f"（{'／'.join(MACHINE_COLUMNS + HUMAN_COLUMNS)}）——"
+                    f"fail closed：{line.strip()!r}"
+                )
+            rows.append(cells)
             continue
         loose = _CARD_ROW_LOOSE.match(line)
         if loose:
@@ -271,24 +315,80 @@ def cards_in_roadmap(text: str) -> list[str]:
                 f"排程區塊內出現縮排或帶引言符號的卡片列，fail closed："
                 f"{line.strip()!r}（卡 ID {loose.group(1)}）"
             )
-    return ids
+    return rows
+
+
+def cards_in_roadmap(text: str) -> list[str]:
+    """自排程區塊抽出卡 ID（`rows_in_roadmap` 的第一欄，去掉反引號）。"""
+    return [r[0].strip("`") for r in rows_in_roadmap(text)]
+
+
+def block_version(text: str) -> str:
+    """讀排程區塊內的版本註解。缺少即 fail closed——區塊必須自陳由哪一版產生。"""
+    for line in schedule_block_lines(text):
+        m = _VERSION_COMMENT.match(line.strip())
+        if m:
+            return m.group(1)
+    raise CheckFailed(
+        f"排程區塊內找不到版本註解（預期形如 `<!-- {SCHEMA_VERSION}；… -->`）——"
+        "無從判斷區塊由哪一版產生，fail closed"
+    )
+
+
+def gate_of(card_id: str, status: str) -> str:
+    """該卡的「下一個必要 Gate／阻塞條件」——逐卡覆寫優先，否則由狀態導出。"""
+    return GATE_OVERRIDES.get(card_id) or GATE_BY_STATUS.get(status, "—")
 
 
 def reconcile(result: dict, roadmap_text: str) -> None:
-    """比對 Project 活卡與 ROADMAP 排程區塊。雙向差集皆須為空。"""
-    listed = cards_in_roadmap(roadmap_text)
+    """比對 Project 活卡與 ROADMAP 排程區塊。
+
+    三層檢查，任一不成立即失敗：
+
+    1. **版本**：區塊自陳的版本須與 `SCHEMA_VERSION` 相同。不同代表區塊過期，
+       其內容由不同的判定規則產生，比對結果無意義。
+    2. **集合**：雙向差集皆須為空，且無重複。
+    3. **逐欄**：`MACHINE_COLUMNS` 每一欄都須與由 Project 現值導出的期望相同。
+       `HUMAN_COLUMNS`（`去留`）由需求方手填，**放行不比對**。
+
+    第 3 層是自審補上的：`v5` 只做第 2 層，於是 tier 竄改、狀態改成 🏁完成 都靜默
+    通過，而 §3 宣稱「本表由指令產生」。**只守一維而宣稱守全表**是同一族的宣稱過度。
+    """
+    found = block_version(roadmap_text)
+    if found != SCHEMA_VERSION:
+        raise CheckFailed(
+            f"排程區塊由 {found} 產生，目前為 {SCHEMA_VERSION}——判定規則已變更，"
+            "請重跑產生指令後再對帳"
+        )
+
+    rows = rows_in_roadmap(roadmap_text)
+    listed = [r[0].strip("`") for r in rows]
     dupes = [cid for cid, n in collections.Counter(listed).items() if n > 1]
     if dupes:
         raise CheckFailed(f"排程區塊內卡 ID 重複：{sorted(dupes)}")
 
-    project_ids = {c["card_id"] for c in result["cards"]}
-    listed_ids = set(listed)
-    only_project = sorted(project_ids - listed_ids)
-    only_roadmap = sorted(listed_ids - project_ids)
+    by_id = {c["card_id"]: c for c in result["cards"]}
+    only_project = sorted(set(by_id) - set(listed))
+    only_roadmap = sorted(set(listed) - set(by_id))
     if only_project or only_roadmap:
         raise CheckFailed(
             "排程區塊與 Project 活卡對不上——"
             f"只在 Project：{only_project}；只在 ROADMAP：{only_roadmap}"
+        )
+
+    drifted: list[str] = []
+    for row in rows:
+        cid = row[0].strip("`")
+        card = by_id[cid]
+        expected = [f"`{cid}`", f"#{card['number']}", card["tier"], card["status"],
+                    gate_of(cid, card["status"])]
+        for name, want, got in zip(MACHINE_COLUMNS, expected, row, strict=False):
+            if want != got:
+                drifted.append(f"{cid} 的「{name}」：區塊 {got!r} vs 現值 {want!r}")
+    if drifted:
+        raise CheckFailed(
+            "排程區塊的機器產生欄與 Project 現值不符（`去留` 欄不在比對範圍）——\n  "
+            + "\n  ".join(drifted)
         )
 
 
@@ -299,12 +399,13 @@ def render(result: dict) -> str:
     for code, name in sorted(LINES.items()):
         rows = [c for c in result["cards"] if c["line"] == code]
         lines.append(f"### {code} {name}（{len(rows)} 張）\n")
-        lines.append("| 卡 | # | tier | 狀態 | 下一個必要 Gate／阻塞條件 | 去留 |")
-        lines.append("|---|---|---|---|---|---|")
+        cols = MACHINE_COLUMNS + HUMAN_COLUMNS
+        lines.append("| " + " | ".join(cols) + " |")
+        lines.append("|" + "---|" * len(cols))
         for c in rows:
-            gate = GATE_OVERRIDES.get(c["card_id"]) or GATE_BY_STATUS.get(c["status"], "—")
             lines.append(
-                f"| `{c['card_id']}` | #{c['number']} | {c['tier']} | {c['status']} | {gate} | |"
+                f"| `{c['card_id']}` | #{c['number']} | {c['tier']} | {c['status']} "
+                f"| {gate_of(c['card_id'], c['status'])} | |"
             )
         lines.append("")
     lines.append(MARKER_END)

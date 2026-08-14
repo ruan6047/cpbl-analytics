@@ -25,6 +25,13 @@ rl = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(rl)
 
 
+def _row(cid: str, num: int = 1, tier: str = "T2", status: str = "💡需求",
+         gate: str | None = None, keep: str = "") -> str:
+    """產生一列符合欄位契約的卡片列（六欄）。`gate` 省略時由 `gate_of` 導出。"""
+    g = rl.gate_of(cid, status) if gate is None else gate
+    return f"| `{cid}` | #{num} | {tier} | {status} | {g} | {keep} |"
+
+
 def _blk(*rows: str) -> str:
     """把行包進最小的排程區塊。前後刻意放會干擾 markdown 結構解析的內容——
     這些在 v4 以前都會出事，v5 之後應完全無害。"""
@@ -32,8 +39,12 @@ def _blk(*rows: str) -> str:
                     "## 3. 假的節", "| `DATA-FENCED1` | #9 |", "````", "",
                     "> | `DATA-QUOTED1` | #9 |", "  | `DATA-INDENT1` | #9 |", ""]
     noise_after = ["", "## 3. 又一個節標題", "", "| `DATA-AFTER1` | #9 |", ""]
-    return "\n".join(noise_before + [rl.MARKER_BEGIN] + list(rows)
+    version = f"<!-- {rl.SCHEMA_VERSION}；活卡 0；每線 {{}} -->"
+    return "\n".join(noise_before + [rl.MARKER_BEGIN, version] + list(rows)
                      + [rl.MARKER_END] + noise_after)
+
+
+_VER = f"<!-- {rl.SCHEMA_VERSION}；活卡 0；每線 {{}} -->"
 
 
 def _item(card_id: str, status: str = "💡需求", tier: str = "T2", number: int = 1,
@@ -102,13 +113,13 @@ def test_only_rows_inside_the_marker_block_are_read():
 
     這一條同時涵蓋 v1–v4 那四輪各自修掉的邊界情形：`_blk()` 的雜訊區就是那些形狀。
     """
-    assert rl.cards_in_roadmap(_blk("| `DATA-REAL1` | #1 |")) == ["DATA-REAL1"]
+    assert rl.cards_in_roadmap(_blk(_row("DATA-REAL1"))) == ["DATA-REAL1"]
 
 
 @pytest.mark.parametrize("text", [
     "（沒有任何 marker）",
-    rl.MARKER_BEGIN + "\n| `DATA-A1` | #1 |",
-    "| `DATA-A1` | #1 |\n" + rl.MARKER_END,
+    rl.MARKER_BEGIN + "\n" + _VER + "\n" + _row("DATA-A1"),
+    _row("DATA-A1") + "\n" + rl.MARKER_END,
     rl.MARKER_BEGIN + "\n" + rl.MARKER_BEGIN + "\n" + rl.MARKER_END,
     rl.MARKER_BEGIN + "\n" + rl.MARKER_END + "\n" + rl.MARKER_END,
 ], ids=["兩個都缺", "缺 end", "缺 begin", "begin 兩個", "end 兩個"])
@@ -120,7 +131,7 @@ def test_marker_pairing_fails_closed(text):
 
 def test_reversed_markers_fail_closed():
     with pytest.raises(rl.CheckFailed, match="順序顛倒"):
-        rl.cards_in_roadmap(rl.MARKER_END + "\n| `DATA-A1` | #1 |\n" + rl.MARKER_BEGIN)
+        rl.cards_in_roadmap(rl.MARKER_END + "\n" + _row("DATA-A1") + "\n" + rl.MARKER_BEGIN)
 
 
 def test_marker_match_is_whole_line_not_substring():
@@ -131,7 +142,7 @@ def test_marker_match_is_whole_line_not_substring():
     的教訓：marker 的管轄要看形狀（是否整行），不是看字串有沒有出現。
     """
     text = ("本節說明 " + rl.MARKER_BEGIN + " 這個標記的用途。\n"
-            + rl.MARKER_BEGIN + "\n| `DATA-A1` | #1 |\n" + rl.MARKER_END)
+            + rl.MARKER_BEGIN + "\n" + _VER + "\n" + _row("DATA-A1") + "\n" + rl.MARKER_END)
     assert rl.cards_in_roadmap(text) == ["DATA-A1"]
 
 
@@ -153,7 +164,7 @@ def test_prose_and_table_headers_inside_the_block_do_not_trigger():
     assert rl.cards_in_roadmap(_blk(
         "| 卡 | # | tier |", "|---|---|---|",
         "本區塊由指令產生，勿手改；`DATA-MENTION1` 只是內文提及。",
-        "| `DATA-REAL2` | #1 |",
+        _row("DATA-REAL2"),
     )) == ["DATA-REAL2"]
 
 
@@ -162,19 +173,18 @@ def test_prose_and_table_headers_inside_the_block_do_not_trigger():
 def test_reconcile_detects_both_directions():
     result = rl.assign([{"card_id": "DATA-A1", "tier": "T2", "status": "💡需求", "number": 1}])
 
-    rl.reconcile(result, _blk("| `DATA-A1` | #1 | T2 | 💡需求 | | |"))
+    rl.reconcile(result, _blk(_row("DATA-A1")))
 
     with pytest.raises(rl.CheckFailed, match="只在 Project"):
         rl.reconcile(result, _blk("（區塊是空的）"))
     with pytest.raises(rl.CheckFailed, match="只在 ROADMAP"):
-        rl.reconcile(result, _blk("| `DATA-A1` | #1 | T2 | 💡需求 | | |",
-                                  "| `DATA-GHOST1` | #2 | T2 | 💡需求 | | |"))
+        rl.reconcile(result, _blk(_row("DATA-A1"), _row("DATA-GHOST1", 2)))
 
 
 def test_duplicate_row_inside_the_block_fails():
     result = rl.assign([{"card_id": "DATA-A1", "tier": "T2", "status": "💡需求", "number": 1}])
     with pytest.raises(rl.CheckFailed, match="區塊內卡 ID 重複"):
-        rl.reconcile(result, _blk("| `DATA-A1` | #1 |", "| `DATA-A1` | #1 |"))
+        rl.reconcile(result, _blk(_row("DATA-A1"), _row("DATA-A1")))
 
 
 # --- 產出 ---
@@ -195,4 +205,72 @@ def test_schema_version_is_emitted_and_bumped():
     """解析規則改了而版本沒動，兩次執行的輸出就無法區分——那正是 R1-03 的病。"""
     result = rl.assign([{"card_id": "DATA-A1", "tier": "T2", "status": "💡需求", "number": 1}])
     assert result["schema_version"] == rl.SCHEMA_VERSION
-    assert rl.SCHEMA_VERSION == "cpbl-roadmap-lines/v5"
+    assert rl.SCHEMA_VERSION == "cpbl-roadmap-lines/v6"
+
+
+# --- v6：自審補上的三層檢查 ---
+
+def _res(*cards):
+    return rl.assign([{"card_id": c, "tier": "T2", "status": "💡需求", "number": i + 1}
+                      for i, c in enumerate(cards)])
+
+
+def test_block_version_must_match_current():
+    """v5 把版本寫進區塊卻從不比對，於是 v1 產生的區塊照樣通過 v5 的檢查。"""
+    res = _res("DATA-A1")
+    blk = rl.render(res)
+    rl.reconcile(res, blk)                                   # 基準
+    stale = blk.replace(rl.SCHEMA_VERSION, "cpbl-roadmap-lines/v1")
+    with pytest.raises(rl.CheckFailed, match="判定規則已變更"):
+        rl.reconcile(res, stale)
+
+
+def test_missing_version_comment_fails_closed():
+    """區塊必須自陳由哪一版產生——缺了就無從判斷比對結果有沒有意義。"""
+    res = _res("DATA-A1")
+    blk = "\n".join(ln for ln in rl.render(res).splitlines()
+                    if not ln.startswith("<!-- cpbl-roadmap-lines/"))
+    with pytest.raises(rl.CheckFailed, match="找不到版本註解"):
+        rl.reconcile(res, blk)
+
+
+@pytest.mark.parametrize("old,new,col", [
+    ("| T2 |", "| T4 |", "tier"),
+    ("💡需求", "🏁完成", "狀態"),
+    ("| #1 |", "| #99 |", "#"),
+])
+def test_machine_columns_drift_is_caught(old, new, col):
+    """v5 只比對卡 ID，於是這三種竄改全部靜默通過，而 §3 宣稱「本表由指令產生」。"""
+    res = _res("DATA-A1")
+    with pytest.raises(rl.CheckFailed, match="機器產生欄與 Project 現值不符"):
+        rl.reconcile(res, rl.render(res).replace(old, new, 1))
+
+
+def test_human_column_is_passed_through():
+    """`去留` 由需求方手填，比對必須放行——否則每次重跑都會洗掉裁決。"""
+    res = _res("DATA-A1")
+    filled = rl.render(res).replace("| |", "| 繼續，需求方 2026-08-14 |")
+    rl.reconcile(res, filled)
+
+
+def test_wrong_cell_count_fails_closed():
+    """欄數不符即失敗——否則逐欄比對會靜默略過該列，又回到只守一維。"""
+    with pytest.raises(rl.CheckFailed, match="欄數為"):
+        rl.cards_in_roadmap(_blk("| `DATA-A1` | #1 |"))
+
+
+def test_exact_field_name_wins_over_suffix():
+    """後綴比對可被同尾欄位遮蔽（實測：加「外部ID」會搶走卡 ID）。故先精確。"""
+    item = {"repository": "https://github.com/ruan6047/cpbl-analytics",
+            "交付狀態": "💡需求", "外部ID": "WRONG-ID", "卡ID": "DATA-A1",
+            "級別": "T2", "content": {"number": 1}}
+    assert rl.active_cards({"items": [item]})[0]["card_id"] == "DATA-A1"
+
+
+def test_ambiguous_suffix_fails_closed_when_exact_name_is_unavailable():
+    """`gh` 回來的 key 前綴會壞掉，精確名取不到；此時多個同尾 key 一律失敗。"""
+    item = {"repository": "https://github.com/ruan6047/cpbl-analytics",
+            "�付狀態": "💡需求", "外部ID": "WRONG-ID", "�ID": "DATA-A1",
+            "�別": "T2", "content": {"number": 1}}
+    with pytest.raises(rl.CheckFailed, match="命中 2 個 key"):
+        rl.active_cards({"items": [item]})
