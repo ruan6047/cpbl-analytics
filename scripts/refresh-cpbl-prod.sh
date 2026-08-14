@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
 # CPBL 線上資料手動更新（不掛 cron，避免浪費資源；要更新時自己跑）。
 #
 # 為什麼要在本機跑：CPBL 官網（HiNetCDN）對海外 IP 封鎖資料路徑，VPS 爬不到，

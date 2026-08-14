@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
 # 每週一次的 box 深度重抓（DATA-BOX-REVISION-SNAPSHOT1 深度層）。
 #
 # 為什麼要這一支：每日 refresh（scrape-daily.sh → cpbl-refresh-recent）只重抓

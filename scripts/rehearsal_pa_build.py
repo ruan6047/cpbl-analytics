@@ -1,3 +1,4 @@
+# LIFECYCLE: oneshot · 卡片一次性產物——不要跑；刪除須需求方裁定（GAME-RECAP-PA1-BUILD1）
 """GAME-RECAP-PA1-BUILD1 production rehearsal：DB 層 reconciliation / atomic swap / 冪等。
 
 在本機 dev DB 用一個**合成場**（year=2099，絕不與真實資料衝突）演練 builder 的

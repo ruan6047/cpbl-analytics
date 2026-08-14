@@ -1,3 +1,4 @@
+# LIFECYCLE: ci_guard · CI 繫結守衛——不必手動跑，CI 會跑；刪了 CI 會紅
 """GAME-RECAP-DATA1：賽事復盤資料覆蓋與 canonical 打席契約唯讀稽核。"""
 
 from __future__ import annotations

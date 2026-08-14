@@ -1,3 +1,4 @@
+# LIFECYCLE: oneshot · 卡片一次性產物——不要跑；刪除須需求方裁定（INGEST-GAME-TM-REFACTOR1-G4）
 """INGEST-GAME-TM-REFACTOR1-G4 Phase A：唯讀量測三件套（全部產 artifact，不得人工轉述）。
 
 **唯讀**：全檔只下 SELECT，不寫任何表、不爬網。

@@ -1,3 +1,4 @@
+# LIFECYCLE: oneshot · 卡片一次性產物——不要跑；刪除須需求方裁定（DATA-TZ-BOUNDARY1）
 """DATA-TZ-BOUNDARY1：日期界線時區用點盤點（**唯讀**，artifact 由本腳本產生）。
 
     uv run python scripts/data_tz_boundary1.py inventory

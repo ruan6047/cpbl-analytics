@@ -1,3 +1,4 @@
+# LIFECYCLE: oneshot · 卡片一次性產物——不要跑；刪除須需求方裁定（DATA-RULES-AUDIT1）
 """DATA-RULES-AUDIT1：規章→資料判讀的偽陽偽陰審計（**唯讀**）。
 
 每個候選一個 subcommand，輸出 JSON artifact 供報告引用。**所有宣稱由本腳本產生**，

@@ -1,3 +1,4 @@
+# LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
 """GAME-RECAP-PA1-TAXONOMY1：canonical PA 狀態機 transition taxonomy 唯讀稽核。
 
 本腳本**不**物化 PA、不寫資料庫、不改 schema。它只做三件事：

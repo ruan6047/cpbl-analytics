@@ -1,3 +1,4 @@
+# LIFECYCLE: oneshot · 卡片一次性產物——不要跑；刪除須需求方裁定（INGEST-GAME-TM-REFACTOR1-G4）
 """INGEST-GAME-TM-REFACTOR1-G4 Phase A：gate 判定與凍結例外後的紅線 1 複判（唯讀）。
 
 回應第 1 輪跨家族查核（GPT-5.6@Codex）三 finding 的需求方 2026-08-05 裁定：

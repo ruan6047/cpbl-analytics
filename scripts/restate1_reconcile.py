@@ -1,3 +1,4 @@
+# LIFECYCLE: oneshot · 卡片一次性產物——不要跑；刪除須需求方裁定（INGEST-SPLITS-IMPORT-RESTATE1）
 """INGEST-SPLITS-IMPORT-RESTATE1：分項重建的前後快照與變動歸因對帳。
 
 為什麼要獨立腳本而不是臨時 SQL：卡面驗收要求「查核者獨立重現變動歸因對帳，不採信

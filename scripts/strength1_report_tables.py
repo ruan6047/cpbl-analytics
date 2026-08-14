@@ -1,3 +1,4 @@
+# LIFECYCLE: ci_guard · CI 繫結守衛——不必手動跑，CI 會跑；刪了 CI 會紅
 """由 canonical artifact 產生 GAME-RECAP-WP-STRENGTH1 報告的數字區塊。
 
 **為什麼存在**：本卡四輪跨家族查核中三次是執行者「過度宣稱」——人工謄寫數字、抽樣核對

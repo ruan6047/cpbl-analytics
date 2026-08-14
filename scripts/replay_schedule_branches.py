@@ -1,3 +1,4 @@
+# LIFECYCLE: oneshot · 卡片一次性產物——不要跑；刪除須需求方裁定（INGEST-GAME-TM-REFACTOR1-G4）
 """Gate 3 條件 3 補證：對歷史賽程回放既有分類邏輯，證明延期/保留賽分支在真實資料上跑過。
 
 唯讀：只打官方 schedule API，不寫任何 DB、不改任何凍結範圍內的邏輯。

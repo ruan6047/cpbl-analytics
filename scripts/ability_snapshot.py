@@ -1,3 +1,4 @@
+# LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
 """能力值卡回歸快照：跨年代抽驗球員的各軸 PR/總評/組成 dump 成 JSON。
 
 用法（改前後各跑一次再 diff，或 main 與分支 worktree 各跑一次）：

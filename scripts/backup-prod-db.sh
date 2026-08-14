@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
 # 備份並驗證整個 production 資料庫（alpha_db：cpbl schema ＋ 主站 public schema）；
 # stdout 只輸出備份路徑。任何 production migration/upsert 前都應先跑這支。
 #

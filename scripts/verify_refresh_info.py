@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
 """Fail unless /api/info exposes a recent successful refresh marker."""
 
 from __future__ import annotations

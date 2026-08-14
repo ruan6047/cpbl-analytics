@@ -1,3 +1,4 @@
+# LIFECYCLE: ci_guard · CI 繫結守衛——不必手動跑，CI 會跑；刪了 CI 會紅
 """ML-WP-BIO-PRIOR1：WP 賽前先驗 bio 方向研究 spike（唯讀；協定見預註冊 spec）。
 
 協定唯一來源：`docs/research/ML-WP-BIO-PRIOR1_SPEC.md`（先於本檔 commit 凍結）。

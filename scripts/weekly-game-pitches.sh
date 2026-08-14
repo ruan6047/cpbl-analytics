@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
 # 每週一次的逐球全季重跑（INGEST-GAME-TM-REFACTOR1-G4 Phase A）。
 #
 # 為什麼要這一支：單場 API 是「當下」的官方值，官方可在任何時點做賽後修正（實測到

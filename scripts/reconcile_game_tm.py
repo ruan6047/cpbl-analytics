@@ -1,3 +1,4 @@
+# LIFECYCLE: oneshot · 卡片一次性產物——不要跑；刪除須需求方裁定（INGEST-GAME-TM-REFACTOR1）
 """INGEST-GAME-TM-REFACTOR1 Gate 2：單場 API vs 逐投手 logs 逐列等價對帳（唯讀，不寫 DB）。
 
 對至少 N 場已完成賽，分別以兩條 fetch path 解析逐球 TrackMan，於隔離記憶體 artifact 比對：

@@ -1,3 +1,4 @@
+# LIFECYCLE: oneshot · 卡片一次性產物——不要跑；刪除須需求方裁定（GAME-RECAP-PA1-FIX1）
 """GAME-RECAP-PA1-FIX1 對帳：修正前後的打席切分與出局數，全母體窮舉。
 
 唯讀（`SET TRANSACTION READ ONLY`），不寫任何表。產出 JSON artifact 供查核者重跑對照——

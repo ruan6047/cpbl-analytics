@@ -1,3 +1,4 @@
+# LIFECYCLE: oneshot · 卡片一次性產物——不要跑；刪除須需求方裁定（TEAM-STYLE1）
 """TEAM-STYLE1 球隊球風向量計算（唯讀；描述性）。
 
 依 docs/research/TEAM-STYLE1_RESULTS.md §0 預註冊規格計算 7 個描述性風格軸：

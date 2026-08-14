@@ -1,3 +1,4 @@
+# LIFECYCLE: oneshot · 卡片一次性產物——不要跑；刪除須需求方裁定（ML-OUTCOME-LEAK1）
 """ML-OUTCOME-LEAK1 一次性留痕：跑走查回測但**不寫入** model_versions。
 
 用途：以同一份程式碼路徑，在「修正前（含洩漏）」與「修正後（賽前 as-of）」兩份

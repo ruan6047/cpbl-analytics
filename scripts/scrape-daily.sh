@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
 # 每日本機自動爬取（由 launchd 觸發，免手動 CLI）。
 #
 # 為什麼在本機跑：CPBL 官網（HiNetCDN）封海外 IP，VPS 爬不到，只有台灣 IP（此 Mac）

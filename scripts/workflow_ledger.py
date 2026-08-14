@@ -1,3 +1,4 @@
+# LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
 """由 append-only control-plane events 產生活卡 Ledger。"""
 
 import argparse
