@@ -8,6 +8,13 @@
 > 巢狀圍籬、重複節標題等 markdown 邊界情形。`v5` 改用 marker 界定後**那層機制不存在了**，
 > 對應的測試一併移除——它們保護的不變量（歧義即失敗）由本檔的 marker 成對性測試承接。
 > 移除的是對已刪機制的斷言，不是放寬對現存行為的要求。
+
+> **v9 的移除**：`GATE_OVERRIDES` 整張表刪除，故 `test_override_still_wins_for_known_statuses`
+> （斷言「覆寫優先於狀態導出」）一併移除——它斷言的是**被刻意刪掉的行為**，留著只能靠
+> 放寬來通過。`test_override_card_with_unknown_status_still_fails_closed` 則**不是移除而是
+> 擴大**：`CONV-001` 的不變量（未知狀態 fail closed）從「覆寫表裡那一張卡也擋」變成
+> 「每一張卡都擋」，見 `test_unknown_status_fails_closed_for_every_card`。端到端那條保留
+> 且仍以 `#53`（當初被實測繞過的那張）為對象，另補上 `match` 以免它因無關原因假通過。
 """
 
 from __future__ import annotations
@@ -333,33 +340,69 @@ def test_closed_statuses_are_still_excluded_before_the_required_check():
     assert [c["card_id"] for c in rl.active_cards(payload)] == ["DATA-A1"]
 
 
-# --- VERIFIER1-CONV-001：覆寫不得成為跳過驗證的快速路徑 ---
+# --- v9（DEV-ROADMAP-GATE-DERIVED1）：Gate 欄純由狀態導出，無逐卡例外 ---
 
-_OVERRIDDEN = next(iter(rl.GATE_OVERRIDES))   # 取一張確實在覆寫表裡的卡
+#: `v8` 的 `GATE_OVERRIDES` 曾收錄的五張卡。移除後它們**不得**再有專屬 Gate 文字。
+#: 列舉出來是為了讓回歸釘在具體對象上——尤其 `INGEST-GAME-TM-REFACTOR1-G4`
+#: 正是 `CONV-001` 當初被實測繞過的那一張。
+_FORMERLY_OVERRIDDEN = (
+    "INGEST-GAME-TM-REFACTOR1-G4",
+    "DATA-RE24-PROD-REBUILD1",
+    "DATA-BOX-DEEP-SILENT-FAIL1",
+    "DATA-BOX-REVISION-SNAPSHOT1",
+    "UX-GAME-PA1",
+)
 
 
-def test_override_card_with_unknown_status_still_fails_closed():
-    """v7 先回傳覆寫才驗狀態，於是覆寫卡帶未知狀態可完全繞過驗證。
+def test_no_per_card_gate_exception_table_exists():
+    """逐卡覆寫表不得回來。
 
-    覆寫決定的是**輸出什麼文字**，不該決定**要不要驗證輸入**。
+    它沒有真實性來源也沒有到期機制：`DATA-BOX-DEEP-SILENT-FAIL1` 那條寫於
+    2026-08-14 上午、**同日下午即被 #131 的 Discovery 推翻**，而消費區塊的 ROADMAP
+    正文已承認該例被推翻——同一份文件因此有兩套互相矛盾的權威敘述。
+    """
+    assert not hasattr(rl, "GATE_OVERRIDES")
+
+
+def test_gate_texts_do_not_point_back_at_a_per_card_table():
+    """`v8` 的 `⏸阻塞` 寫「見逐卡覆寫」。留著那句等於用文案把混血欄位接回來。"""
+    assert not [s for s, text in rl.GATE_BY_STATUS.items() if "覆寫" in text]
+
+
+@pytest.mark.parametrize("card_id", _FORMERLY_OVERRIDDEN)
+@pytest.mark.parametrize("status", sorted(rl.GATE_BY_STATUS))
+def test_gate_is_purely_derived_from_status(card_id, status):
+    """同一狀態的任兩張卡，Gate 欄必須逐字相同——卡的身分不得影響輸出。"""
+    assert rl.gate_of(card_id, status) == rl.GATE_BY_STATUS[status]
+    assert rl.gate_of(card_id, status) == rl.gate_of("DATA-ANY-OTHER1", status)
+
+
+@pytest.mark.parametrize("card_id", (*_FORMERLY_OVERRIDDEN, "DATA-PLAIN1"))
+def test_unknown_status_fails_closed_for_every_card(card_id):
+    """`CONV-001` 的不變量。
+
+    `v7` 先回傳覆寫才驗狀態，於是覆寫表裡的卡帶著未知狀態可完全繞過驗證；`v8` 把
+    驗證移到覆寫之前，`v9` 移除覆寫後該旁路在結構上不存在。**檢查本身仍須在**——
+    這條測試釘的是那個檢查，不是那張表；對曾在表裡與從未在表裡的卡一律要求擋下。
     """
     with pytest.raises(rl.CheckFailed, match="不在已知詞彙表"):
-        rl.gate_of(_OVERRIDDEN, "🆕未知狀態")
+        rl.gate_of(card_id, "🆕未知狀態")
 
 
-def test_override_still_wins_for_known_statuses():
-    """收窄不得矯枉過正：狀態合法時覆寫仍優先於狀態導出。"""
-    assert rl.gate_of(_OVERRIDDEN, "🔍待查核") == rl.GATE_OVERRIDES[_OVERRIDDEN]
+def test_unknown_status_round_trip_is_blocked():
+    """端到端回歸：查核者曾實測此路徑 `override_unknown_round_trip=UNEXPECTED_PASS`。
 
-
-def test_override_card_unknown_status_round_trip_is_blocked():
-    """端到端回歸：查核者實測此路徑 `override_unknown_round_trip=UNEXPECTED_PASS`。"""
-    payload = {"items": [{"repository": _REPO, "卡ID": _OVERRIDDEN, "級別": "T4",
-                          "交付狀態": "🆕未知狀態", "content": {"number": 53}}]}
-    with pytest.raises(rl.CheckFailed):
+    仍以 `#53`（當初被繞過的那張）為對象。`match` 是刻意的——不加會讓這條測試在
+    任何 `CheckFailed` 下通過，包含與本不變量無關的原因。
+    """
+    payload = {"items": [{"repository": _REPO, "卡ID": "INGEST-GAME-TM-REFACTOR1-G4",
+                          "級別": "T4", "交付狀態": "🆕未知狀態",
+                          "content": {"number": 53}}]}
+    with pytest.raises(rl.CheckFailed, match="不在已知詞彙表"):
         res = rl.assign(rl.active_cards(payload))
         rl.reconcile(res, rl.render(res))
 
 
-def test_schema_version_bumped_for_validation_order():
-    assert rl.SCHEMA_VERSION == "cpbl-roadmap-lines/v8"
+def test_schema_version_bumped_for_gate_derivation():
+    """Gate 欄文字改了，既有區塊必須失配並被要求重生——版本沒動就做不到。"""
+    assert rl.SCHEMA_VERSION == "cpbl-roadmap-lines/v9"

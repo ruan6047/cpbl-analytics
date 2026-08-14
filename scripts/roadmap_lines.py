@@ -35,10 +35,35 @@ marker 是 HTML 註解，**不受縮排、引言、圍籬影響**，定位是字
 **這也解除了對文件作者的四條隱形禁令**（不得縮排、不得引用、不得有第二個 `## 3.`、
 示範須放圍籬）。那些禁令從未寫在 ROADMAP 裡，只寫在本檔的 docstring。
 
+## 為什麼 Gate 欄不接受逐卡覆寫
+
+`v7`–`v8` 有一張 `GATE_OVERRIDES`：逐卡硬編的 Gate 說明文字，且**優先於狀態導出**。
+那讓 Gate 欄成為混血欄位——一半機器導出、一半人手寫——而人寫的那半**沒有真實性
+來源、也沒有到期機制**。
+
+實證（`DEV-ROADMAP-GATE-DERIVED1`）：`DATA-BOX-DEEP-SILENT-FAIL1` 那條覆寫寫於
+2026-08-14 上午、**同日下午即過期**——它引用的「7 場在 08-17 後掉出重抓窗」被 #131
+的規劃階段 Discovery 推翻（`days_back` 是 CLI 位置參數，不是物理限制）。而消費本區塊
+的 ROADMAP 正文已正確承認該例被推翻，於是同一份文件出現兩套互相矛盾的權威敘述。
+文件的擁有者修不掉它（文字住在本檔），手改區塊又會讓 `--check` 失配。
+
+**「加一個到期檢查」不是解法**：到期檢查需要一個可機械驗證的真實性來源，而 Gate
+說明文字的來源是需求方與規劃者的判斷。`v9` 因此把整張表移除——Gate 欄**只承載
+由交付狀態導得出來的東西**，狀態導不出來的（阻塞對象、閘門理由、部署等待）
+屬於各張卡自己的狀態，歸位到各自的 Issue（`GATE_BY_STATUS` 的文案因此指向卡片，
+而非指向本檔的另一張表）。
+
+同一理由下，`GATE_BY_STATUS` 的任何值都不得回指本檔的逐卡例外——那會把剛拆掉的
+混血欄位用文案再接回去。測試對此有斷言。
+
 ## 版本化
 
 `SCHEMA_VERSION` 隨判定規則變動遞增，並寫進輸出。判定規則改了而版本沒動，
 等於讓兩次執行的輸出無法區分——那正是 R1-03 的病。
+
+- `v9`：移除 `GATE_OVERRIDES`，Gate 欄純由狀態導出；`⏸阻塞` 文案改為指向卡片。
+  **五張卡的 Gate 欄文字因此改變**，既有區塊會失配——這正是版本比對該擋下的事，
+  消費端須重跑產生指令重生區塊。
 """
 
 from __future__ import annotations
@@ -50,7 +75,7 @@ import re
 import sys
 from pathlib import Path
 
-SCHEMA_VERSION = "cpbl-roadmap-lines/v8"
+SCHEMA_VERSION = "cpbl-roadmap-lines/v9"
 
 #: 五條任務線。key 為線代號，value 為對外名稱（須與 ROADMAP §1／§3 的標題一致）。
 LINES: dict[str, str] = {
@@ -89,7 +114,15 @@ EXPLICIT_RULES: dict[str, str] = {
     "RESEARCH-REASON-RESTATE1": "L4",
 }
 
-#: 狀態 → 下一個必要 Gate／阻塞條件（基線 5）。由狀態導出，避免人工逐列填寫而過期。
+#: 狀態 → 下一個必要 Gate／阻塞條件（基線 5）。**這是 Gate 欄的唯一來源**。
+#:
+#: 每一條都必須是「對任何處於該狀態的卡都成立」的敘述。**不得寫進逐卡事實**
+#: （阻塞的具體對象、閘門理由、在等哪一次部署），那些是各張卡自己的狀態，
+#: 屬於各自的 Issue；寫進來就會過期而且沒有人會發現（`v8` 的 `GATE_OVERRIDES`
+#: 即為此而移除，見模組 docstring）。
+#:
+#: 同理，**值裡不得回指本檔的逐卡例外表**——`v8` 的 `⏸阻塞` 寫「見逐卡覆寫」，
+#: 那條交叉引用是把混血欄位用文案接回來。測試 `test_gate_texts_do_not_point_back_at_a_per_card_table` 釘住此點。
 GATE_BY_STATUS: dict[str, str] = {
     "💡需求": "規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog",
     "🧭規劃中": "完成規劃產物並取得需求方核可",
@@ -100,27 +133,8 @@ GATE_BY_STATUS: dict[str, str] = {
     "🔍待查核": "查核者進場並寫入裁決",
     "↩退回": "依 finding 修正後重新送審",
     "✅通過": "需求方授權 merge → 結案（cleanup ＋ 終態寫入）",
-    "⏸阻塞": "解除阻塞條件（見逐卡覆寫）",
+    "⏸阻塞": "解除阻塞條件（阻塞對象與解阻後的處置見該卡 Issue 的 handoff 事由）",
     "🚨已升級": "需求方裁定升級去向",
-}
-
-#: 逐卡覆寫。**只有「從狀態導不出來」的才列**——例如阻塞的具體對象、
-#: 或需求方已明示的排序位置。列在這裡的每一條都要能指出依據。
-GATE_OVERRIDES: dict[str, str] = {
-    "INGEST-GAME-TM-REFACTOR1-G4":
-        "**L1 閘門**。Phase A 碼已上線（`eaf2154`，在生產 `d31cf4d`），但 Phase A → Phase B "
-        "的四項放行條件**沒有量測工具**（`g4_phase_a_metrics.py` 只有 equipped／requests／"
-        "rollback），故四項一項都判不了。另：第 2 輪 APPROVE 從未經 `wfcli` 寫入狀態面。"
-        "Phase B 完成前佔用 L1 WIP（基線 6）",
-    "DATA-RE24-PROD-REBUILD1":
-        "等 `INGEST-GAME-TM-REFACTOR1-G4`（#53）結案。解阻後須**重新驗證前提並啟動新 "
-        "iteration**，不得沿用 2026-08-08 的認領（基線 6）",
-    "DATA-BOX-DEEP-SILENT-FAIL1":
-        "規劃階段先做**唯讀查證**（31 場是否真的都未進快照／7 這個數字重算）。"
-        "⏰ **2026-08-17 14:10** 週跑後 7 場掉出 `days_back=30` 窗；基線 5 的排序判準"
-        "**無時效／可逆性維度**，是否插隊須需求方於 Design Gate 明示",
-    "DATA-BOX-REVISION-SNAPSHOT1": "等需求方手動部署",
-    "UX-GAME-PA1": "碼已 merge（`f9f2399`），等生產部署驗證後結案",
 }
 
 #: 不計入「活卡」的交付狀態。終態與已合併不佔排程表。
@@ -350,24 +364,26 @@ def block_version(text: str) -> str:
 
 
 def gate_of(card_id: str, status: str) -> str:
-    """該卡的「下一個必要 Gate／阻塞條件」——逐卡覆寫優先，否則由狀態導出。
-
-    **驗證在覆寫之前**（`VERIFIER1-CONV-001`）：`v7` 先回傳 `GATE_OVERRIDES` 才檢查
-    狀態詞彙，於是**覆寫成了跳過驗證的快速路徑**——一張在覆寫表裡的卡帶著本檔不認得
-    的狀態，可以走完 `active_cards → render → reconcile` 而完全不被發現。
-
-    覆寫決定的是**輸出什麼文字**，不該決定**要不要驗證輸入**。順序反過來，例外就
-    變成旁路——而例外清單裡的卡往往正是最需要盯的那幾張（阻塞、閘門、逾時）。
+    """該卡的「下一個必要 Gate／阻塞條件」——**純由交付狀態導出，無逐卡例外**。
 
     **未知狀態 fail closed**（`VERIFIER1-R3-001`）：`v6` 靜默導成 `"—"`，於是一個
     本檔不認得的狀態會產生一列看起來正常的表格。狀態詞彙表變更時應該要有人知道。
+
+    **驗證先於產生文字**（`VERIFIER1-CONV-001`）：`v7` 先回傳 `GATE_OVERRIDES` 才檢查
+    狀態詞彙，於是**覆寫成了跳過驗證的快速路徑**——一張在覆寫表裡的卡帶著本檔不認得
+    的狀態，可以走完 `active_cards → render → reconcile` 而完全不被發現。`v8` 把驗證
+    移到覆寫之前修掉了它；`v9` 移除覆寫後**那條旁路在結構上不再存在**（沒有任何分支
+    能在檢查之前回傳）。下面的檢查仍是該不變量的唯一守門，**不得改為在查表命中時略過**。
+
+    `card_id` 不參與文字產生，只用於失敗訊息——這正是本函式的契約：**卡的身分不影響
+    Gate 欄的內容**。保留參數是為了讓 fail-closed 訊息指得出是哪一張卡。
     """
     if status not in GATE_BY_STATUS:
         raise CheckFailed(
             f"卡 {card_id} 的交付狀態 {status!r} 不在已知詞彙表中——fail closed"
             f"（已知：{sorted(GATE_BY_STATUS)}）"
         )
-    return GATE_OVERRIDES.get(card_id) or GATE_BY_STATUS[status]
+    return GATE_BY_STATUS[status]
 
 
 def reconcile(result: dict, roadmap_text: str) -> None:
