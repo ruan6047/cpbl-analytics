@@ -1,4 +1,4 @@
-"""CPBL 藍圖 §3 的任務線歸屬驗證器（唯讀，fail-closed）。
+"""CPBL 藍圖排程區塊的任務線歸屬驗證器（唯讀，fail-closed）。
 
 回應 `DOC-CPBL-ROADMAP1` R1 finding `CPBL-ROADMAP1-R1-03`：前一版 ROADMAP 在 §3 附了
 一行 `python3 scripts/roadmap_lines.py`，**而那個腳本不存在**，卻在驗收裡宣稱清單可重現。
@@ -15,6 +15,26 @@
 永遠沒人看到；**多算一張**只是噪音。因此任何未歸屬、重複、或與 ROADMAP 表對不上的
 情形一律 `exit 1`，不提供「忽略」開關。
 
+## 為什麼用 marker 界定而不是找節標題
+
+`v1`–`v4` 靠 markdown 結構定位 §3，於是連續三輪查核各找到一個新的邊界情形：
+程式碼區塊裡的假 `## 3.`、重複的 `## 3.`、縮排／引言的表格列、四反引號圍籬被三反引號
+提前關閉。**那個清單沒有盡頭**——CommonMark 的邊界情形有幾十頁，而這裡並不需要一個
+markdown 解析器。
+
+`v5` 改用 marker 界定，沿用本專案 Issue body 的 `resource-claims` 既有慣例：
+
+    <!-- roadmap-lines:begin -->
+    ...表格...
+    <!-- roadmap-lines:end -->
+
+marker 是 HTML 註解，**不受縮排、引言、圍籬影響**，定位是字面比對而非結構推導。
+因此 `_FENCE`／`_outside_fences()`／節標題偵測／重複標題偵測**整層移除**——
+它們保護的不變量（歧義即失敗）改由 marker 的成對性檢查承接。
+
+**這也解除了對文件作者的四條隱形禁令**（不得縮排、不得引用、不得有第二個 `## 3.`、
+示範須放圍籬）。那些禁令從未寫在 ROADMAP 裡，只寫在本檔的 docstring。
+
 ## 版本化
 
 `SCHEMA_VERSION` 隨判定規則變動遞增，並寫進輸出。判定規則改了而版本沒動，
@@ -30,7 +50,7 @@ import re
 import sys
 from pathlib import Path
 
-SCHEMA_VERSION = "cpbl-roadmap-lines/v4"
+SCHEMA_VERSION = "cpbl-roadmap-lines/v5"
 
 #: 五條任務線。key 為線代號，value 為對外名稱（須與 ROADMAP §1／§3 的標題一致）。
 LINES: dict[str, str] = {
@@ -110,26 +130,14 @@ REPO_SLUG = "cpbl-analytics"
 
 _CARD_ROW = re.compile(r"^\|\s*`([A-Z0-9][A-Z0-9-]*)`\s*\|")
 
-#: §3 的節標題與同級標題。解析**只在這個區間內**進行——`DEV-ROADMAP-VERIFIER1`
-#: 的 R2-002：前一版對全檔逐行套 `_CARD_ROW`，於是 §3 以外任何合法格式的卡 ID
-#: 表格列都會造成假失敗（實測在 §0 前插一列即 exit 1）。
-_SECTION3_HEADING = re.compile(r"^##\s+3\.\s")
-_SAME_LEVEL_HEADING = re.compile(r"^##\s")
-
-#: 圍籬式程式碼區塊的起訖（三個以上的 ` 或 ~，允許前導空白與資訊字串）。
-#: `VERIFIER1-R1-001`：前一版對全檔逐行套 regex，於是**程式碼區塊裡的假 `## 3.`**
-#: 會被當成節標題。圍籬內的一切都是文件內容的展示，不是文件結構。
-#:
-#: `VERIFIER1-R2-001`：**長度必須保留**。前一版只抓前三個字元，於是四反引號開的
-#: 圍籬會被後續的三反引號提前關閉——而巢狀展示 markdown 時（外層四、內層三）
-#: 正是這個形狀。CommonMark §4.5：closing fence 的字元須與 opening 相同，
-#: **且長度不得短於 opening**。
-_FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
-
 #: 「看起來像卡片列但不在標準位置」——縮排、引言符號（`>`）、或兩者。
 #: `VERIFIER1-R1-002`：這些形狀原本被**靜默忽略**，方向與 fail-closed 相反。
-#: 現改為偵測到即失敗：解析器不該猜一列被引用的表格是資料還是示範。
+#: 保留為區塊內的防呆（marker 之後這類寫法已極不可能，但忽略仍是錯的方向）。
 _CARD_ROW_LOOSE = re.compile(r"^[ \t>]*\|\s*`([A-Z0-9][A-Z0-9-]*)`\s*\|")
+
+#: 排程區塊的界定 marker。沿用 Issue body `resource-claims` 的既有慣例。
+MARKER_BEGIN = "<!-- roadmap-lines:begin -->"
+MARKER_END = "<!-- roadmap-lines:end -->"
 
 
 class CheckFailed(Exception):
@@ -212,74 +220,47 @@ def assign(cards: list[dict]) -> dict:
     }
 
 
-def _outside_fences(lines: list[str]) -> list[tuple[int, str]]:
-    """回傳 (原始行號, 內容) 且**排除圍籬式程式碼區塊內的行**。
+def schedule_block_lines(text: str) -> list[str]:
+    """截出排程區塊：`MARKER_BEGIN` 與 `MARKER_END` 之間的行（不含 marker 本身）。
 
-    圍籬內的 `## 3.` 或表格列是文件在展示自己的格式，不是文件結構；
-    把它們當結構讀會讓「文件裡寫了一段範例」變成「解析器認錯了節」。
+    以下情形一律 **fail closed**，因為每一種都代表文件本身出了問題，
+    而**猜哪一個才是對的不是解析器該做的事**：
+
+    - 缺任一 marker——回空集會讓「區塊不見了」與「區塊是空的」無法區分，前者嚴重得多
+    - marker 不成對或數量不為 1
+    - `end` 出現在 `begin` 之前
+
+    marker 比對是**整行去空白後的字面相等**，不做部分比對——避免內文提到 marker
+    字串時被誤認（同 `review-marker-literal-quarantines-card` 的教訓）。
     """
-    out: list[tuple[int, str]] = []
-    fence: str | None = None          # 開啟中的圍籬 delimiter 原文（含長度）
-    for i, ln in enumerate(lines):
-        m = _FENCE.match(ln)
-        if m:
-            token = m.group(1)
-            if fence is None:
-                fence = token
-                continue
-            # CommonMark §4.5：同字元且**長度不短於** opening 才關得掉。
-            # 長度較短者只是圍籬內的一行內容，不是結束標記。
-            if token[0] == fence[0] and len(token) >= len(fence):
-                fence = None
-                continue
-            # 落到這裡＝圍籬內的較短 delimiter，視為內容，不輸出（仍在圍籬中）
-            continue
-        if fence is None:
-            out.append((i, ln))
-    return out
+    lines = text.splitlines()
+    begins = [i for i, ln in enumerate(lines) if ln.strip() == MARKER_BEGIN]
+    ends = [i for i, ln in enumerate(lines) if ln.strip() == MARKER_END]
 
-
-def section3_lines(text: str) -> list[str]:
-    """截出 §3「現行排程」的內容行：自其標題之後，至下一個同級 `##` 標題之前。
-
-    **只看圍籬外的行**（`_outside_fences`）。找不到 §3 標題、或找到**不只一個**，
-    一律 **fail closed**：
-
-    - 找不到 → 回空集會讓「§3 不見了」與「§3 是空的」無法區分，前者嚴重得多。
-    - 不只一個 → 前一版靜默採第一段。「有兩個 §3」本身就是文件出了問題，
-      而**猜哪一個才是真的**不是解析器該做的事。
-    """
-    raw = text.splitlines()
-    visible = _outside_fences(raw)
-    heads = [n for n, ln in enumerate(visible) if _SECTION3_HEADING.match(ln[1])]
-    if not heads:
+    if len(begins) != 1 or len(ends) != 1:
         raise CheckFailed(
-            "在 ROADMAP 中找不到 §3 節標題（預期形如 `## 3. 現行排程`，且不在程式碼區塊內）"
-            "——無法界定解析範圍，fail closed"
+            f"排程區塊 marker 數量不正確（begin {len(begins)} 個、end {len(ends)} 個，"
+            f"各須恰好 1 個）——預期 {MARKER_BEGIN} 與 {MARKER_END}，fail closed"
         )
-    if len(heads) > 1:
+    if ends[0] < begins[0]:
         raise CheckFailed(
-            f"ROADMAP 中有 {len(heads)} 個 §3 節標題（原始行號 "
-            f"{[visible[n][0] + 1 for n in heads]}）——解析器不猜哪一個為準，fail closed"
+            f"排程區塊 marker 順序顛倒（end 在第 {ends[0] + 1} 行、"
+            f"begin 在第 {begins[0] + 1} 行）——fail closed"
         )
-    start = heads[0]
-    end = next((n for n in range(start + 1, len(visible))
-                if _SAME_LEVEL_HEADING.match(visible[n][1])), len(visible))
-    return [ln for _, ln in visible[start + 1:end]]
+    return lines[begins[0] + 1:ends[0]]
 
 
 def cards_in_roadmap(text: str) -> list[str]:
-    """自 ROADMAP **§3 區間內**的表格列抽出卡 ID。
+    """自 ROADMAP 的**排程區塊內**抽出卡 ID。
 
-    三層限縮：排除圍籬內容 → 截 §3 區間 → 區間內**嚴格**錨定行首 `|`。
-    §3 以外的表格列、程式碼區塊內的一切、任何位置的行內 code 都不會誤中。
+    兩層：marker 界定區塊 → 區塊內嚴格錨定行首 `|`。區塊外的一切
+    （其他章節的表格、程式碼區塊、行內 code）都不會誤中，**且不需要理解 markdown**。
 
-    區間內若出現**縮排或帶引言符號**的卡片列（寬鬆命中但嚴格不命中），
-    **fail closed** 而不是忽略——那正是 `VERIFIER1-R1-002`。要在 §3 內放
-    示範用的表格列，請放進程式碼區塊（圍籬內已整段排除）。
+    區塊內若出現縮排或帶引言符號的卡片列，**fail closed** 而非忽略——
+    區塊由指令產生，出現那種形狀代表有人手改過而且改壞了。
     """
     ids: list[str] = []
-    for line in section3_lines(text):
+    for line in schedule_block_lines(text):
         strict = _CARD_ROW.match(line)
         if strict:
             ids.append(strict.group(1))
@@ -287,19 +268,18 @@ def cards_in_roadmap(text: str) -> list[str]:
         loose = _CARD_ROW_LOOSE.match(line)
         if loose:
             raise CheckFailed(
-                f"§3 內出現縮排或帶引言符號的卡片列，解析器不猜它是資料還是示範，"
-                f"fail closed：{line.strip()!r}（卡 ID {loose.group(1)}）。"
-                "示範用的表格列請放進程式碼區塊。"
+                f"排程區塊內出現縮排或帶引言符號的卡片列，fail closed："
+                f"{line.strip()!r}（卡 ID {loose.group(1)}）"
             )
     return ids
 
 
 def reconcile(result: dict, roadmap_text: str) -> None:
-    """比對 Project 活卡與 ROADMAP §3 表列。雙向差集皆須為空。"""
+    """比對 Project 活卡與 ROADMAP 排程區塊。雙向差集皆須為空。"""
     listed = cards_in_roadmap(roadmap_text)
     dupes = [cid for cid, n in collections.Counter(listed).items() if n > 1]
     if dupes:
-        raise CheckFailed(f"ROADMAP §3 表內卡 ID 重複：{sorted(dupes)}")
+        raise CheckFailed(f"排程區塊內卡 ID 重複：{sorted(dupes)}")
 
     project_ids = {c["card_id"] for c in result["cards"]}
     listed_ids = set(listed)
@@ -307,15 +287,15 @@ def reconcile(result: dict, roadmap_text: str) -> None:
     only_roadmap = sorted(listed_ids - project_ids)
     if only_project or only_roadmap:
         raise CheckFailed(
-            "ROADMAP §3 與 Project 活卡對不上——"
+            "排程區塊與 Project 活卡對不上——"
             f"只在 Project：{only_project}；只在 ROADMAP：{only_roadmap}"
         )
 
 
 def render(result: dict) -> str:
-    lines = [f"schema_version: {result['schema_version']}",
-             f"活卡總數: {result['active_total']}",
-             f"每線: {result['per_line']}", ""]
+    lines = [f"{MARKER_BEGIN}", "",
+             f"<!-- {result['schema_version']}；活卡 {result['active_total']}；"
+             f"每線 {result['per_line']} -->", ""]
     for code, name in sorted(LINES.items()):
         rows = [c for c in result["cards"] if c["line"] == code]
         lines.append(f"### {code} {name}（{len(rows)} 張）\n")
@@ -327,13 +307,14 @@ def render(result: dict) -> str:
                 f"| `{c['card_id']}` | #{c['number']} | {c['tier']} | {c['status']} | {gate} | |"
             )
         lines.append("")
+    lines.append(MARKER_END)
     return "\n".join(lines)
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="CPBL 藍圖 §3 的任務線歸屬驗證器（唯讀，fail-closed）")
+    ap = argparse.ArgumentParser(description="CPBL 藍圖排程區塊的任務線歸屬驗證器（唯讀，fail-closed）")
     ap.add_argument("--check", type=Path, default=None,
-                    help="ROADMAP.md 路徑；有給則額外對帳 §3 表列與 Project 活卡")
+                    help="ROADMAP.md 路徑；有給則額外對帳排程區塊與 Project 活卡")
     ap.add_argument("--json", action="store_true", help="輸出 JSON 而非 Markdown 表")
     args = ap.parse_args()
 

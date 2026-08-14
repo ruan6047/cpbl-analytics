@@ -1,8 +1,13 @@
 """`scripts/roadmap_lines.py` 的行為斷言（不需 DB、不需網路）。
 
-釘住的是 fail-closed 性質本身：**未歸屬、重複、與 ROADMAP 對不上** 三種情形一律失敗。
-R1-03 的病是「宣稱可重現而工具不存在」，這裡的反面是「工具存在但預設放行」——
-同樣沒有守住任何東西，故每一條 fail 路徑都要有測試。
+釘住的是 **fail-closed 性質本身**：未歸屬、重複、marker 不成對、區塊內出現非標準
+卡片列——四種情形一律失敗。`R1-03` 的病是「宣稱可重現而工具不存在」，這裡的反面是
+「工具存在但預設放行」，同樣沒有守住任何東西，故每一條 fail 路徑都要有測試。
+
+> **v5 的測試重整**：`v1`–`v4` 靠 markdown 結構定位 §3，故有一組測試在釘圍籬長度、
+> 巢狀圍籬、重複節標題等 markdown 邊界情形。`v5` 改用 marker 界定後**那層機制不存在了**，
+> 對應的測試一併移除——它們保護的不變量（歧義即失敗）由本檔的 marker 成對性測試承接。
+> 移除的是對已刪機制的斷言，不是放寬對現存行為的要求。
 """
 
 from __future__ import annotations
@@ -20,26 +25,38 @@ rl = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(rl)
 
 
+def _blk(*rows: str) -> str:
+    """把行包進最小的排程區塊。前後刻意放會干擾 markdown 結構解析的內容——
+    這些在 v4 以前都會出事，v5 之後應完全無害。"""
+    noise_before = ["# 藍圖", "", "## 3. 現行排程", "", "````markdown", "```",
+                    "## 3. 假的節", "| `DATA-FENCED1` | #9 |", "````", "",
+                    "> | `DATA-QUOTED1` | #9 |", "  | `DATA-INDENT1` | #9 |", ""]
+    noise_after = ["", "## 3. 又一個節標題", "", "| `DATA-AFTER1` | #9 |", ""]
+    return "\n".join(noise_before + [rl.MARKER_BEGIN] + list(rows)
+                     + [rl.MARKER_END] + noise_after)
+
+
 def _item(card_id: str, status: str = "💡需求", tier: str = "T2", number: int = 1,
           repo: str = "https://github.com/ruan6047/cpbl-analytics") -> dict:
     return {"repository": repo, "卡ID": card_id, "交付狀態": status,
             "級別": tier, "content": {"number": number}}
 
 
+# --- 歸屬規則 ---
+
 def test_every_line_code_has_a_display_name():
-    """線代號與對外名稱必須一一對應，否則 §3 標題會對不上。"""
     assert set(rl.LINES) == {"L1", "L2", "L3", "L4", "L5"}
     assert all(name for name in rl.LINES.values())
 
 
-def test_explicit_rules_only_point_at_defined_lines():
+def test_rules_only_point_at_defined_lines():
     """人工分類表會過期；至少釘住它不會指向不存在的線。"""
     assert set(rl.EXPLICIT_RULES.values()) <= set(rl.LINES)
     assert {line for _, line in rl.PREFIX_RULES} <= set(rl.LINES)
 
 
 def test_explicit_rule_wins_over_prefix():
-    """MATCHUP-DATA2 以 DATA- 起頭但實際屬 L1；DEV-VERIFY-TM-ASSERTS1 亦然（前綴會判 L5）。"""
+    """DEV-VERIFY-TM-ASSERTS1 屬 L1，但前綴會判 L5。"""
     assert rl.line_of("DEV-VERIFY-TM-ASSERTS1") == "L1"
     assert rl.line_of("DEV-CI-LOCALE-UNDECLARED1") == "L5"
 
@@ -62,7 +79,7 @@ def test_duplicate_card_id_fails():
 
 def test_closed_statuses_are_excluded_and_other_repos_ignored():
     payload = {"items": [
-        _item("DATA-ACTIVE1", status="💡需求"),
+        _item("DATA-ACTIVE1"),
         _item("DATA-DONE1", status="🏁完成"),
         _item("DATA-STOPPED1", status="🛑已停止"),
         _item("DATA-MERGED1", status="📦已合併"),
@@ -78,189 +95,104 @@ def test_active_card_without_card_id_fails_closed():
         rl.active_cards(payload)
 
 
-def _s3(*rows: str) -> str:
-    """把表格列包進最小的 §3 區間——解析已限定在該區間內（R2-002）。"""
-    return "## 3. 現行排程\n\n" + "\n".join(rows) + "\n\n## 4. 下一節\n"
+# --- marker 界定（v5 取代 markdown 結構解析） ---
 
+def test_only_rows_inside_the_marker_block_are_read():
+    """區塊外的一切都不該被讀到——包含圍籬內的假節、引言列、縮排列、後續章節的表格。
+
+    這一條同時涵蓋 v1–v4 那四輪各自修掉的邊界情形：`_blk()` 的雜訊區就是那些形狀。
+    """
+    assert rl.cards_in_roadmap(_blk("| `DATA-REAL1` | #1 |")) == ["DATA-REAL1"]
+
+
+@pytest.mark.parametrize("text", [
+    "（沒有任何 marker）",
+    rl.MARKER_BEGIN + "\n| `DATA-A1` | #1 |",
+    "| `DATA-A1` | #1 |\n" + rl.MARKER_END,
+    rl.MARKER_BEGIN + "\n" + rl.MARKER_BEGIN + "\n" + rl.MARKER_END,
+    rl.MARKER_BEGIN + "\n" + rl.MARKER_END + "\n" + rl.MARKER_END,
+], ids=["兩個都缺", "缺 end", "缺 begin", "begin 兩個", "end 兩個"])
+def test_marker_pairing_fails_closed(text):
+    """marker 不成對即失敗——回空集會讓「區塊不見了」與「區塊是空的」無法區分。"""
+    with pytest.raises(rl.CheckFailed, match="marker 數量不正確"):
+        rl.cards_in_roadmap(text)
+
+
+def test_reversed_markers_fail_closed():
+    with pytest.raises(rl.CheckFailed, match="順序顛倒"):
+        rl.cards_in_roadmap(rl.MARKER_END + "\n| `DATA-A1` | #1 |\n" + rl.MARKER_BEGIN)
+
+
+def test_marker_match_is_whole_line_not_substring():
+    """內文提到 marker 字串**不得**被當成 marker，因此該行被正常忽略、解析成功。
+
+    比對是整行去空白後的字面相等。若改成部分比對，一句解釋 marker 用途的散文就會
+    讓 begin 變成兩個而整份文件失敗——同 `review-marker-literal-quarantines-card`
+    的教訓：marker 的管轄要看形狀（是否整行），不是看字串有沒有出現。
+    """
+    text = ("本節說明 " + rl.MARKER_BEGIN + " 這個標記的用途。\n"
+            + rl.MARKER_BEGIN + "\n| `DATA-A1` | #1 |\n" + rl.MARKER_END)
+    assert rl.cards_in_roadmap(text) == ["DATA-A1"]
+
+
+@pytest.mark.parametrize("row", [
+    "  | `DATA-INDENT2` | #1 |",
+    "> | `DATA-QUOTED2` | #1 |",
+    ">   | `DATA-BOTH2` | #1 |",
+    "\t| `DATA-TAB2` | #1 |",
+])
+def test_indented_or_quoted_rows_inside_the_block_fail_closed(row):
+    """`R1-002`：靜默忽略的方向與 fail-closed 相反。區塊由指令產生，
+    出現這種形狀代表有人手改過而且改壞了。"""
+    with pytest.raises(rl.CheckFailed, match="縮排或帶引言符號"):
+        rl.cards_in_roadmap(_blk(row))
+
+
+def test_prose_and_table_headers_inside_the_block_do_not_trigger():
+    """收窄不得矯枉過正：表頭、分隔列、內文提及卡 ID 都不是卡片列，也不該失敗。"""
+    assert rl.cards_in_roadmap(_blk(
+        "| 卡 | # | tier |", "|---|---|---|",
+        "本區塊由指令產生，勿手改；`DATA-MENTION1` 只是內文提及。",
+        "| `DATA-REAL2` | #1 |",
+    )) == ["DATA-REAL2"]
+
+
+# --- 對帳 ---
 
 def test_reconcile_detects_both_directions():
     result = rl.assign([{"card_id": "DATA-A1", "tier": "T2", "status": "💡需求", "number": 1}])
 
-    rl.reconcile(result, _s3("| `DATA-A1` | #1 | T2 | 💡需求 | | |"))
+    rl.reconcile(result, _blk("| `DATA-A1` | #1 | T2 | 💡需求 | | |"))
 
     with pytest.raises(rl.CheckFailed, match="只在 Project"):
-        rl.reconcile(result, _s3("（表是空的）"))
+        rl.reconcile(result, _blk("（區塊是空的）"))
     with pytest.raises(rl.CheckFailed, match="只在 ROADMAP"):
-        rl.reconcile(result, _s3("| `DATA-A1` | #1 | T2 | 💡需求 | | |",
-                                 "| `DATA-GHOST1` | #2 | T2 | 💡需求 | | |"))
+        rl.reconcile(result, _blk("| `DATA-A1` | #1 | T2 | 💡需求 | | |",
+                                  "| `DATA-GHOST1` | #2 | T2 | 💡需求 | | |"))
 
 
-def test_card_ids_are_read_only_from_table_rows():
-    """行內 code（例如內文提到 `DATA-X1`）不得被誤讀成表格列。"""
-    text = _s3("內文提到 `DATA-GHOST1` 但那不是表格列。",
-               "| `DATA-A1` | #1 | T2 | 💡需求 | | |")
-    assert rl.cards_in_roadmap(text) == ["DATA-A1"]
+def test_duplicate_row_inside_the_block_fails():
+    result = rl.assign([{"card_id": "DATA-A1", "tier": "T2", "status": "💡需求", "number": 1}])
+    with pytest.raises(rl.CheckFailed, match="區塊內卡 ID 重複"):
+        rl.reconcile(result, _blk("| `DATA-A1` | #1 |", "| `DATA-A1` | #1 |"))
 
 
-def test_schema_version_is_emitted():
-    """判定規則改了而版本沒動，兩次輸出就無法區分——那正是 R1-03 的病。"""
+# --- 產出 ---
+
+def test_render_is_wrapped_in_markers_and_round_trips():
+    """`render()` 的輸出必須能被 `cards_in_roadmap()` 讀回來——產生端與消費端同一份契約。"""
+    result = rl.assign([
+        {"card_id": "DATA-A1", "tier": "T2", "status": "💡需求", "number": 1},
+        {"card_id": "UX-B1", "tier": "T3", "status": "🔍待查核", "number": 2},
+    ])
+    out = rl.render(result)
+    assert out.splitlines()[0].strip() == rl.MARKER_BEGIN
+    assert out.splitlines()[-1].strip() == rl.MARKER_END
+    assert sorted(rl.cards_in_roadmap(out)) == ["DATA-A1", "UX-B1"]
+
+
+def test_schema_version_is_emitted_and_bumped():
+    """解析規則改了而版本沒動，兩次執行的輸出就無法區分——那正是 R1-03 的病。"""
     result = rl.assign([{"card_id": "DATA-A1", "tier": "T2", "status": "💡需求", "number": 1}])
     assert result["schema_version"] == rl.SCHEMA_VERSION
-    assert rl.SCHEMA_VERSION.startswith("cpbl-roadmap-lines/")
-
-
-# --- R2-002：解析必須限定在 §3 區間內 ---
-
-_DOC = """# 藍圖
-
-## 0. 目標排序
-
-| `DATA-OUTSIDE1` | 這一列在 §3 之外 |
-
-## 3. 現行排程
-
-### L1
-
-| 卡 | # |
-|---|---|
-| `DATA-INSIDE1` | #1 |
-
-## 4. 驗收政策
-
-| `DATA-AFTER1` | 這一列在 §3 之後 |
-"""
-
-
-def test_only_section3_rows_are_read():
-    """§3 以外的合法卡 ID 表格列必須被忽略——前一版對全檔套 regex，實測會假失敗。"""
-    assert rl.cards_in_roadmap(_DOC) == ["DATA-INSIDE1"]
-
-
-def test_section3_slice_stops_at_next_same_level_heading():
-    """區間止於下一個 `##`，不吃到 §4。"""
-    body = "\n".join(rl.section3_lines(_DOC))
-    assert "DATA-INSIDE1" in body
-    assert "DATA-AFTER1" not in body and "DATA-OUTSIDE1" not in body
-
-
-def test_subheadings_inside_section3_do_not_end_the_slice():
-    """§3 內的 `###` 小節（L1～L5）不得被當成區間結束。"""
-    assert "### L1" in "\n".join(rl.section3_lines(_DOC))
-
-
-def test_missing_section3_fails_closed():
-    """找不到 §3 標題要失敗，不得靜默回空集——空集會讓「§3 不見了」與「§3 是空的」無法區分。"""
-    with pytest.raises(rl.CheckFailed, match="找不到 §3 節標題"):
-        rl.cards_in_roadmap("# 藍圖\n\n## 4. 驗收政策\n\n| `DATA-X1` | #1 |")
-
-
-def test_reconcile_ignores_rows_outside_section3():
-    """端到端：§3 外的幽靈列不得造成 only-in-ROADMAP 假失敗。"""
-    result = rl.assign([{"card_id": "DATA-INSIDE1", "tier": "T2", "status": "💡需求", "number": 1}])
-    rl.reconcile(result, _DOC)
-
-
-def test_schema_version_bumped_for_the_parsing_change():
-    """解析規則變了，版本必須跟著動——否則兩次執行的輸出無法區分。"""
-    assert rl.SCHEMA_VERSION.startswith("cpbl-roadmap-lines/v")
-
-
-# --- VERIFIER1-R1-001／R1-002：邊界要 markdown-aware，且不得靜默忽略 ---
-
-_FENCE_DOC = """# 藍圖
-
-## 2. 說明
-
-以下是 §3 的格式示範，不是真的節：
-
-```markdown
-## 3. 現行排程
-
-| `DATA-FENCED1` | #1 |
-```
-
-## 3. 現行排程
-
-| `DATA-REAL1` | #2 |
-
-## 4. 下一節
-"""
-
-
-def test_fenced_fake_section3_is_not_taken_as_the_heading():
-    """程式碼區塊裡的假 `## 3.` 是文件在展示格式，不是文件結構。"""
-    assert rl.cards_in_roadmap(_FENCE_DOC) == ["DATA-REAL1"]
-
-
-def test_fenced_card_rows_inside_section3_are_excluded():
-    """§3 內的圍籬區塊整段排除——那是示範，不是排程列。"""
-    doc = _s3("```", "| `DATA-FENCED2` | #9 |", "```", "| `DATA-REAL2` | #2 |")
-    assert rl.cards_in_roadmap(doc) == ["DATA-REAL2"]
-
-
-def test_tilde_fence_is_recognised():
-    """~~~ 與 ``` 同為合法圍籬。"""
-    doc = _s3("~~~", "| `DATA-FENCED3` | #9 |", "~~~", "| `DATA-REAL3` | #3 |")
-    assert rl.cards_in_roadmap(doc) == ["DATA-REAL3"]
-
-
-def test_duplicate_section3_fails_closed():
-    """有兩個 §3 本身就是文件出了問題；猜哪個為準不是解析器該做的事。"""
-    doc = ("## 3. 現行排程\n| `DATA-A1` | #1 |\n\n"
-           "## 4. 中間\n\n"
-           "## 3. 又一個現行排程\n| `DATA-B1` | #2 |\n")
-    with pytest.raises(rl.CheckFailed, match="個 §3 節標題"):
-        rl.cards_in_roadmap(doc)
-
-
-@pytest.mark.parametrize("row", [
-    "  | `DATA-INDENT1` | #1 |",
-    "> | `DATA-QUOTED1` | #1 |",
-    ">   | `DATA-BOTH1` | #1 |",
-    "\t| `DATA-TAB1` | #1 |",
-])
-def test_indented_or_quoted_card_rows_fail_closed(row):
-    """R1-002：這些形狀原本被靜默忽略——與 fail-closed 相反。現改為失敗。"""
-    with pytest.raises(rl.CheckFailed, match="縮排或帶引言符號"):
-        rl.cards_in_roadmap(_s3(row))
-
-
-def test_plain_prose_mentioning_a_card_id_still_does_not_trigger():
-    """收窄不得矯枉過正：內文提到卡 ID 仍不是表格列，也不該 fail closed。"""
-    assert rl.cards_in_roadmap(_s3("本節說明 `DATA-MENTION1` 的處置。")) == []
-
-
-def test_schema_version_bumped_for_markdown_awareness():
-    assert rl.SCHEMA_VERSION.startswith("cpbl-roadmap-lines/v")
-
-
-# --- VERIFIER1-R2-001：圍籬 delimiter 長度必須保留（CommonMark §4.5） ---
-
-def test_longer_fence_is_not_closed_by_a_shorter_one():
-    """四反引號開的圍籬不得被三反引號關掉——巢狀展示 markdown 時正是這個形狀。"""
-    doc = _s3("````markdown", "```", "## 3. 假的節", "| `DATA-FOUR1` | #9 |", "````",
-              "| `DATA-REAL9` | #1 |")
-    assert rl.cards_in_roadmap(doc) == ["DATA-REAL9"]
-
-
-def test_longer_closing_fence_does_close():
-    """closing 長於 opening 是合法的（CommonMark 只要求不短於）。"""
-    doc = _s3("```", "| `DATA-IN1` | #9 |", "`````", "| `DATA-REAL10` | #1 |")
-    assert rl.cards_in_roadmap(doc) == ["DATA-REAL10"]
-
-
-def test_tilde_does_not_close_a_backtick_fence():
-    """字元必須相同——~~~ 關不掉 ``` 開的圍籬。"""
-    doc = _s3("```", "~~~", "| `DATA-IN2` | #9 |", "```", "| `DATA-REAL11` | #1 |")
-    assert rl.cards_in_roadmap(doc) == ["DATA-REAL11"]
-
-
-def test_nested_fake_section3_inside_longer_fence_is_ignored():
-    """R2-001 的原始重現：四反引號內的假 §3 不得造成「有兩個 §3」誤判。"""
-    doc = ("## 3. 現行排程\n\n````markdown\n```\n## 3. 假的節\n````\n\n"
-           "| `DATA-REAL12` | #1 |\n\n## 4. 下一節\n")
-    assert rl.cards_in_roadmap(doc) == ["DATA-REAL12"]
-
-
-def test_schema_version_bumped_for_fence_length():
-    assert rl.SCHEMA_VERSION == "cpbl-roadmap-lines/v4"
+    assert rl.SCHEMA_VERSION == "cpbl-roadmap-lines/v5"
