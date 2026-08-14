@@ -231,4 +231,36 @@ def test_plain_prose_mentioning_a_card_id_still_does_not_trigger():
 
 
 def test_schema_version_bumped_for_markdown_awareness():
-    assert rl.SCHEMA_VERSION == "cpbl-roadmap-lines/v3"
+    assert rl.SCHEMA_VERSION.startswith("cpbl-roadmap-lines/v")
+
+
+# --- VERIFIER1-R2-001：圍籬 delimiter 長度必須保留（CommonMark §4.5） ---
+
+def test_longer_fence_is_not_closed_by_a_shorter_one():
+    """四反引號開的圍籬不得被三反引號關掉——巢狀展示 markdown 時正是這個形狀。"""
+    doc = _s3("````markdown", "```", "## 3. 假的節", "| `DATA-FOUR1` | #9 |", "````",
+              "| `DATA-REAL9` | #1 |")
+    assert rl.cards_in_roadmap(doc) == ["DATA-REAL9"]
+
+
+def test_longer_closing_fence_does_close():
+    """closing 長於 opening 是合法的（CommonMark 只要求不短於）。"""
+    doc = _s3("```", "| `DATA-IN1` | #9 |", "`````", "| `DATA-REAL10` | #1 |")
+    assert rl.cards_in_roadmap(doc) == ["DATA-REAL10"]
+
+
+def test_tilde_does_not_close_a_backtick_fence():
+    """字元必須相同——~~~ 關不掉 ``` 開的圍籬。"""
+    doc = _s3("```", "~~~", "| `DATA-IN2` | #9 |", "```", "| `DATA-REAL11` | #1 |")
+    assert rl.cards_in_roadmap(doc) == ["DATA-REAL11"]
+
+
+def test_nested_fake_section3_inside_longer_fence_is_ignored():
+    """R2-001 的原始重現：四反引號內的假 §3 不得造成「有兩個 §3」誤判。"""
+    doc = ("## 3. 現行排程\n\n````markdown\n```\n## 3. 假的節\n````\n\n"
+           "| `DATA-REAL12` | #1 |\n\n## 4. 下一節\n")
+    assert rl.cards_in_roadmap(doc) == ["DATA-REAL12"]
+
+
+def test_schema_version_bumped_for_fence_length():
+    assert rl.SCHEMA_VERSION == "cpbl-roadmap-lines/v4"

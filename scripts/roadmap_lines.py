@@ -30,7 +30,7 @@ import re
 import sys
 from pathlib import Path
 
-SCHEMA_VERSION = "cpbl-roadmap-lines/v3"
+SCHEMA_VERSION = "cpbl-roadmap-lines/v4"
 
 #: 五條任務線。key 為線代號，value 為對外名稱（須與 ROADMAP §1／§3 的標題一致）。
 LINES: dict[str, str] = {
@@ -116,10 +116,15 @@ _CARD_ROW = re.compile(r"^\|\s*`([A-Z0-9][A-Z0-9-]*)`\s*\|")
 _SECTION3_HEADING = re.compile(r"^##\s+3\.\s")
 _SAME_LEVEL_HEADING = re.compile(r"^##\s")
 
-#: 圍籬式程式碼區塊的起訖（``` 或 ~~~，允許前導空白與資訊字串）。
+#: 圍籬式程式碼區塊的起訖（三個以上的 ` 或 ~，允許前導空白與資訊字串）。
 #: `VERIFIER1-R1-001`：前一版對全檔逐行套 regex，於是**程式碼區塊裡的假 `## 3.`**
 #: 會被當成節標題。圍籬內的一切都是文件內容的展示，不是文件結構。
-_FENCE = re.compile(r"^\s*(```|~~~)")
+#:
+#: `VERIFIER1-R2-001`：**長度必須保留**。前一版只抓前三個字元，於是四反引號開的
+#: 圍籬會被後續的三反引號提前關閉——而巢狀展示 markdown 時（外層四、內層三）
+#: 正是這個形狀。CommonMark §4.5：closing fence 的字元須與 opening 相同，
+#: **且長度不得短於 opening**。
+_FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
 
 #: 「看起來像卡片列但不在標準位置」——縮排、引言符號（`>`）、或兩者。
 #: `VERIFIER1-R1-002`：這些形狀原本被**靜默忽略**，方向與 fail-closed 相反。
@@ -214,15 +219,20 @@ def _outside_fences(lines: list[str]) -> list[tuple[int, str]]:
     把它們當結構讀會讓「文件裡寫了一段範例」變成「解析器認錯了節」。
     """
     out: list[tuple[int, str]] = []
-    fence: str | None = None
+    fence: str | None = None          # 開啟中的圍籬 delimiter 原文（含長度）
     for i, ln in enumerate(lines):
         m = _FENCE.match(ln)
         if m:
             token = m.group(1)
             if fence is None:
                 fence = token
-            elif token == fence:
+                continue
+            # CommonMark §4.5：同字元且**長度不短於** opening 才關得掉。
+            # 長度較短者只是圍籬內的一行內容，不是結束標記。
+            if token[0] == fence[0] and len(token) >= len(fence):
                 fence = None
+                continue
+            # 落到這裡＝圍籬內的較短 delimiter，視為內容，不輸出（仍在圍籬中）
             continue
         if fence is None:
             out.append((i, ln))
