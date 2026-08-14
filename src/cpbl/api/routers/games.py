@@ -9,6 +9,8 @@ from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import (
     DEFAULT_SEASON,
+    OFFICIAL_SCHEDULE_ORDER_BY,
+    SOURCE_REVISION_ORDER_BY,
     _batted_result,
     _dicts,
     kinds_of,
@@ -129,24 +131,27 @@ def game_status(
     """單場官方 raw 狀態與各來源 freshness；證據不足時 fail closed。"""
     with conn() as c:
         cur = c.cursor()
+        # 選列規則兩處都取自 `helpers`，不在此重寫（`DATA-OFFICIAL-STATUS-TIEBREAK1`）：
+        # 舊版最終決勝鍵是 `id`，而 `id` 兩機各自配號，同一筆事實可以選到不同的列。
+        # 排程列**全數**回傳（不是只回冠位）——`refreshed_at` 取的是所有列的 `max`。
         cur.execute(
-            """
+            f"""
             SELECT raw_present_status, raw_game_result, raw_game_date, raw_pre_exe_date,
-                   fetched_at, last_seen_at
+                   payload_hash, fetched_at, last_seen_at
             FROM cpbl.game_schedule_status_revisions
             WHERE year=%s AND kind_code=%s AND game_sno=%s
-            ORDER BY last_seen_at DESC, fetched_at DESC, id DESC
+            ORDER BY {OFFICIAL_SCHEDULE_ORDER_BY}
             """,
             (season, kind_code, game_sno),
         )
         schedule_rows = _dicts(cur)
         cur.execute(
-            """
+            f"""
             SELECT DISTINCT ON (source)
                    source, outcome, row_count, error_code, detail, fetched_at, last_seen_at
             FROM cpbl.game_source_revisions
             WHERE year=%s AND kind_code=%s AND game_sno=%s
-            ORDER BY source, last_seen_at DESC, fetched_at DESC, id DESC
+            ORDER BY source, {SOURCE_REVISION_ORDER_BY}
             """,
             (season, kind_code, game_sno),
         )

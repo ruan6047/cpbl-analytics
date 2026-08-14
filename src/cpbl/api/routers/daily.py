@@ -28,7 +28,12 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Query
 
-from cpbl.api.helpers import _dicts, kinds_of, official_status
+from cpbl.api.helpers import (
+    OFFICIAL_SCHEDULE_ORDER_BY,
+    _dicts,
+    kinds_of,
+    official_status,
+)
 from cpbl.api.live_cache import get_public_live_snapshot
 from cpbl.api.pregame_serving import serving_state
 from cpbl.completion import completed_games_sql_with_evidence
@@ -303,13 +308,22 @@ def _unresolved_statuses(cursor, rows: list[dict]) -> dict[tuple[int, str, int],
     kinds = [r["kind_code"] for r in rows]
     snos = [r["game_sno"] for r in rows]
     try:
+        # `ORDER BY` 不是為了呈現順序，是判定的一部分：本查詢原本**完全沒有排序**，而無序
+        # 查詢沒有任何順序契約——順序是執行計畫的副產物，而計畫會隨投影欄位、統計值、索引
+        # 而變（本卡自己就動了投影：多取 `payload_hash`）。同一張表實測即有兩種索引序對
+        # 2026/D/165 給出不同的第一列：UNIQUE 鍵序（`…, payload_hash`）先回 `PresentStatus=0`
+        # 的作廢列，heap 序與 `idx_…_latest` 則先回現行列。`official_status` 打平時取迭代順序
+        # 的第一項，等於把判定交給儲存層。改用與單場狀態端點**同一個**
+        # `OFFICIAL_SCHEDULE_ORDER_BY`（`DATA-OFFICIAL-STATUS-TIEBREAK1`）。分區欄前置，讓每
+        # 一場的組內順序即為該規則。
         cursor.execute(
-            """
+            f"""
             SELECT year, kind_code, game_sno, raw_present_status, raw_game_result,
-                   raw_game_date, fetched_at, last_seen_at
+                   raw_game_date, payload_hash, fetched_at, last_seen_at
             FROM cpbl.game_schedule_status_revisions
             WHERE (year, kind_code, game_sno)
                   IN (SELECT * FROM unnest(%s::int[], %s::text[], %s::int[]))
+            ORDER BY year, kind_code, game_sno, {OFFICIAL_SCHEDULE_ORDER_BY}
             """,
             (years, kinds, snos),
         )

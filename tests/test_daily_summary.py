@@ -21,8 +21,10 @@ _GAME_COLS = ["season", "kind_code", "game_sno", "game_date", "venue",
               "home_team_code", "home_team_name", "home_score",
               "has_score", "delay_kind", "orig_date"]
 # cpbl.game_schedule_status_revisions 的查詢欄位（未定案場次的官方狀態）。
+# `payload_hash` 是選列規則的最終決勝鍵（DATA-OFFICIAL-STATUS-TIEBREAK1）；假 cursor 的
+# description 必須跟著真實投影走，否則這裡餵出來的列會少一個判定用得到的欄位。
 _REVISION_COLS = ["year", "kind_code", "game_sno", "raw_present_status", "raw_game_result",
-                  "raw_game_date", "fetched_at", "last_seen_at"]
+                  "raw_game_date", "payload_hash", "fetched_at", "last_seen_at"]
 # 測試基準時鐘。**刻意是固定常數，不得取牆鐘**：受測碼有兩個日界——`_today_local()`＝
 # 容器本地日（`as_of` 用）、`taipei_today(_now())`＝台北日（`today` 區塊用）。舊版這裡寫
 # `date.today()`，等於讓假資料綁在「跑測試那台機器的時區」上：本機在台北時兩個日界重合、
@@ -37,11 +39,16 @@ _NOW = datetime(2026, 8, 7, 6, 0, tzinfo=UTC)
 
 
 def _revision(sno: int, present: int, result: str, day: date, *, kind: str = "A",
-              seen: datetime | None = None) -> tuple:
-    """一列 cpbl.game_schedule_status_revisions。"""
+              seen: datetime | None = None, payload_hash: str | None = None) -> tuple:
+    """一列 cpbl.game_schedule_status_revisions。
+
+    `payload_hash` 預設由該列內容決定：真實資料裡它就是整筆 raw entry 的 SHA-256，同內容
+    同雜湊、異內容異雜湊。寫死成同一個常數會讓「打平時靠雜湊收尾」這件事在測試裡失真。
+    """
+    stamp = seen or datetime(2026, 7, 20, 2, 10, tzinfo=UTC)
     return (2026, kind, sno, present, result, day,
-            seen or datetime(2026, 7, 20, 2, 10, tzinfo=UTC),
-            seen or datetime(2026, 7, 20, 2, 10, tzinfo=UTC))
+            payload_hash or f"{abs(hash((kind, sno, present, result, day))):064x}"[:64],
+            stamp, stamp)
 
 
 def _game(sno: int, day: date, *, home: int | None = None, away: int | None = None,
