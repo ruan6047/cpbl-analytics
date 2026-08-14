@@ -519,7 +519,7 @@ def test_d2_corrective_setval_survives_an_empty_target() -> None:
         ), "靜默 no-op：序列必須原封不動"
 
         # 形態二：COALESCE(...,0) 撞 MINVALUE，這個才報錯。
-        with pytest.raises(psycopg.errors.ObjectNotInPrerequisiteState):
+        with pytest.raises(psycopg.errors.NumericValueOutOfRange, match="out of bounds"):
             with connection.transaction():
                 connection.execute(
                     "SELECT setval(pg_get_serial_sequence('seqtest.rev','id'),"
@@ -544,14 +544,27 @@ def test_d3_fixed_point_regression_of_the_2026_08_14_collision() -> None:
     """D3：定點回歸（fault injection）——`prod_max > local last_value` ＋期間有新列。
 
     這正是原自測漏掉的那一格：首灌（目標為空）是唯一構造上不可能觸發的情境。
-    舊行為（把目標序列 setval 到本機 last_value）必須紅；矯正行為（setval 到目標自己的
-    `max(id)`）必須綠，且新列的 id 全部高於目標端原有的 max。
+
+    **落點也一起驗**。舊行為是否炸，取決於真插入的列落在批次的哪個位置（`pg_dump` 的
+    heap 順序，每日重排）：落在地雷區才撞，落在其後就僥倖存活。2026-08-14 兩張表同時
+    暴露、只有一張炸，差別就在這裡。故本測試跑兩種落點：
+
+    - 新列在批次**前段** → 舊行為**必炸**（定點重現 08-14 的 gsr）
+    - 新列在批次**尾端** → 舊行為**僥倖存活**（重現同日 gssr 的存活；證明「這次沒炸」
+      從來不是修好了）
+
+    而矯正行為在**兩種落點下都綠**——地雷區恆為 0 是構造保證，與落點無關。
     """
     import psycopg
 
-    local_last_value, prod_max = 150, 200  # 地雷區 = 50
+    local_last_value, prod_max, existing_from = 150, 200, 100  # 地雷區 = 50
+    upsert = (
+        "INSERT INTO seqtest.dst (content_key) SELECT content_key FROM seqtest.src ORDER BY seq"
+        " ON CONFLICT (content_key) DO UPDATE SET seen_count = seqtest.dst.seen_count + 1"
+    )
 
-    with _scratch_connection() as connection:
+    def _build(connection, *, new_rows_first: bool) -> None:
+        connection.execute("DROP TABLE IF EXISTS seqtest.dst, seqtest.src")
         connection.execute(
             "CREATE TABLE seqtest.dst ("
             "  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,"
@@ -560,24 +573,28 @@ def test_d3_fixed_point_regression_of_the_2026_08_14_collision() -> None:
         # 目標端既有列 id 100..200：模擬 prod 首灌後自行配號留下的連續區塊。
         connection.execute(
             "INSERT INTO seqtest.dst (id, content_key) OVERRIDING SYSTEM VALUE"
-            " SELECT g, 'k' || g FROM generate_series(100, %s) g",
-            (prod_max,),
+            " SELECT g, 'k' || g FROM generate_series(%s::int, %s::int) g",
+            (existing_from, prod_max),
         )
-        # 來源端（本機）：共有列 ＋ 3 列新列（真插入）。
-        connection.execute("CREATE TABLE seqtest.src (content_key text PRIMARY KEY)")
+        # 來源端（本機）：共有列 ＋ 3 列新列（真插入）。`seq` 明確固定批次內的列序，
+        # 取代 heap 順序——真實情境靠運氣，測試要能指定。
+        connection.execute("CREATE TABLE seqtest.src (seq int PRIMARY KEY, content_key text)")
+        offset = 0 if new_rows_first else prod_max
         connection.execute(
-            "INSERT INTO seqtest.src SELECT 'k' || g FROM generate_series(100, %s) g",
-            (prod_max,),
+            "INSERT INTO seqtest.src VALUES (%s,'new-a'), (%s,'new-b'), (%s,'new-c')",
+            (offset + 1, offset + 2, offset + 3),
         )
-        connection.execute("INSERT INTO seqtest.src VALUES ('new-a'), ('new-b'), ('new-c')")
+        shift = 3 if new_rows_first else 0
+        connection.execute(
+            "INSERT INTO seqtest.src SELECT g + %s::int, 'k' || g"
+            " FROM generate_series(%s::int, %s::int) g",
+            (shift, existing_from, prod_max),
+        )
         connection.commit()
 
-        upsert = (
-            "INSERT INTO seqtest.dst (content_key) SELECT content_key FROM seqtest.src"
-            " ON CONFLICT (content_key) DO UPDATE SET seen_count = seqtest.dst.seen_count + 1"
-        )
-
-        # 舊行為：dump 的 setval 把目標序列拉到本機 last_value → 真插入撞既有 id。
+    with _scratch_connection() as connection:
+        # (a) 新列在前段：舊行為必炸——定點重現 2026-08-14 的 game_source_revisions。
+        _build(connection, new_rows_first=True)
         with pytest.raises(psycopg.errors.UniqueViolation):
             with connection.transaction():
                 connection.execute(
@@ -594,10 +611,32 @@ def test_d3_fixed_point_regression_of_the_2026_08_14_collision() -> None:
                 " (SELECT count(*) FROM seqtest.dst) > 0)"
             )
             connection.execute(upsert)
-
         total, highest = connection.execute("SELECT count(*), max(id) FROM seqtest.dst").fetchone()
-        assert total == (prod_max - 100 + 1) + 3
+        assert total == (prod_max - existing_from + 1) + 3
         assert highest > prod_max, "新列的 id 必須全部高於目標端原有的 max(id)"
+
+        # (b) 新列在尾端：舊行為**僥倖存活**——「這次沒炸」不構成任何證據。
+        _build(connection, new_rows_first=False)
+        with connection.transaction():
+            connection.execute(
+                "SELECT setval(pg_get_serial_sequence('seqtest.dst','id'), %s, true)",
+                (local_last_value,),
+            )
+            connection.execute(upsert)
+        assert connection.execute("SELECT count(*) FROM seqtest.dst").fetchone()[0] == (
+            prod_max - existing_from + 1
+        ) + 3, "舊行為在此落點下存活——差別只在落點，不在修法"
+
+        # 而矯正行為在這個落點下同樣綠（地雷區恆為 0 與落點無關）。
+        _build(connection, new_rows_first=False)
+        with connection.transaction():
+            connection.execute(
+                "SELECT setval(pg_get_serial_sequence('seqtest.dst','id'),"
+                " GREATEST(COALESCE((SELECT max(id) FROM seqtest.dst), 0), 1),"
+                " (SELECT count(*) FROM seqtest.dst) > 0)"
+            )
+            connection.execute(upsert)
+        assert connection.execute("SELECT max(id) FROM seqtest.dst").fetchone()[0] > prod_max
 
         connection.execute("DROP SCHEMA seqtest CASCADE")
         connection.commit()
