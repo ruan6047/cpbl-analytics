@@ -4,8 +4,8 @@
 
 * :func:`completed_games_sql` / :func:`is_completed`——**舊判準**（比分自證）。
   每日 refresh 鏈（``run_refresh_recent``、``cpbl_pitch_tracking``、``cpbl_gamelog``
-  的目標場清單）**本階段仍用它**：G4 觀測期進行中，換判準會改變爬取母體而污染觀測。
-  Phase 2（G4 Phase B 之後）再切換。
+  的目標場清單）**本階段仍用它**：#53 的 G4 Phase B 尚未完成，且其資源宣告佔用鏈端
+  writer；換判準會改變爬取母體。Phase 2（G4 Phase B 之後）再切換。
 * :func:`completed_games_sql_with_evidence` / :func:`is_completed_game`——**新判準**
   （比分 **OR** 外部證據），供非鏈消費端（API／features／models）。
 
@@ -26,8 +26,9 @@ DB 跑 UTC，故台北 00:00–08:00 這 8 小時兩者相差一天。這**不�
 
 * 兩者都是 ``game_date <= as_of`` 的**上界**用法。UTC 落後只會「晚 8 小時納入」，
   方向保守，DATA-TZ-BOUNDARY1 盤點後明確擱置、排在 REMEDY1 Phase 2 隨判準一起切。
-* 舊判準的呼叫端全在每日 refresh 鏈（``run_refresh_recent``）上，該鏈為 G4 觀測凍結檔；
-  改日界＝改爬取母體。且鏈的排程是 10:10 CST，落在窗外，**排程情境下不觸發此落差**。
+* 舊判準的呼叫端全在每日 refresh 鏈（``run_refresh_recent``）上，現由 #53 的 G4 Phase B
+  資源宣告佔用；改日界＝改爬取母體。且鏈的排程是 10:10 CST，落在窗外，**排程情境下不觸發
+  此落差**。
 
 實測落差面（2026-08-08 00:45 CST 窗內，唯讀全庫）：同一判準換 as_of，母體差**恰 1 場**
 ——``2026/D/119``（保留賽，原訂 06-16、續賽日 08-08，帶中止比分 5:4）。這不是巧合而是
@@ -78,8 +79,8 @@ def completed_games_sql(as_of_sql: str = UTC_TODAY_SQL) -> str:
     """回傳與 :func:`is_completed` 等價、可嵌入 ``cpbl.games`` 查詢的 SQL 條件（**舊判準**）。
 
     ⚠️ 預設值刻意仍是 UTC 的 ``CURRENT_DATE``（DATA-TZ-BOUNDARY1 盤點後**明確不改**）：
-    本函式現存的呼叫端都在每日 refresh 鏈上，G4 觀測期內換日界會改變爬取母體而污染
-    觀測。此處是 ``upper_bound`` 用法，UTC 落後只會「晚 8 小時納入」，方向保守、
+    本函式現存的呼叫端都在每日 refresh 鏈上；#53 的 G4 Phase B 尚未完成，換日界會改變
+    爬取母體。此處是 ``upper_bound`` 用法，UTC 落後只會「晚 8 小時納入」，方向保守、
     不會誤納未來場，因此擱置無資料正確性風險。與判準本身一起在 REMEDY1 Phase 2
     （G4 Phase B 後）切換。新程式碼請用 :data:`TAIPEI_TODAY_SQL`。
     """
