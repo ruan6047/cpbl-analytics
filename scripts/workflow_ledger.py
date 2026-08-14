@@ -704,7 +704,46 @@ def render_live(events: Iterable[dict[str, object]], generated_at: str) -> str:
     ])
 
 
+#: `docs/TASKS.md` 於此 commit 被封存為唯讀（2026-08-04 cutover 的終筆）。
+#: 橫幅是手工加上去的，**`render_ledger()` 不會產生它**——所以 `--write` 會把它刪掉。
+_ARCHIVE_MARKER = "已於 2026-08-04 cutover 封存"
+
+_ARCHIVED_MESSAGE = """\
+docs/TASKS.md 已於 2026-08-04 cutover 封存唯讀，本腳本已停用。
+
+現行任務狀態的唯一事實來源是 GitHub Issues ＋ user Project #4；
+狀態寫入一律經 ai-workflow 的 `wfcli`（見 docs/AI_RUNBOOK.md §7.1）。
+
+  gh project item-list 4 --owner ruan6047
+
+為什麼要擋：本腳本的 `render_ledger()` 不產生封存橫幅（該橫幅是 e202d48
+手工加上去的），因此 `--write` 會把它刪除，並還原「本表即當前狀態」與整張
+活卡表——而重建來源 docs/control-plane/events.jsonl 同樣已封存，產出的是
+一份過期投影卻標著「當前狀態」。且 `--check` 因橫幅永遠不匹配而必定失敗，
+其失敗訊息又指向 `--write`，形成一條把讀者導向破壞性指令的路徑。
+
+需求方 2026-08-15 裁定停用（DEV-SCRIPT-INVENTORY1 #141）。歷史行為在 git
+歷史裡仍可讀取。
+"""
+
+
+def _refuse_if_archived() -> None:
+    """封存後拒絕執行——見 `_ARCHIVED_MESSAGE`。
+
+    **偵測而非硬編日期**：讀 `docs/TASKS.md` 找封存標記，找不到才放行。
+    若日後該檔被解封（橫幅移除），本守衛自動失效而不需改碼；反之橫幅還在
+    就一定擋得住，不依賴任何人記得更新常數。
+    """
+    try:
+        text = LEDGER_PATH.read_text(encoding="utf-8")
+    except OSError:
+        return
+    if _ARCHIVE_MARKER in text:
+        raise SystemExit(_ARCHIVED_MESSAGE)
+
+
 def main() -> None:
+    _refuse_if_archived()
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--write", action="store_true")
