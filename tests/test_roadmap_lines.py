@@ -78,20 +78,27 @@ def test_active_card_without_card_id_fails_closed():
         rl.active_cards(payload)
 
 
+def _s3(*rows: str) -> str:
+    """把表格列包進最小的 §3 區間——解析已限定在該區間內（R2-002）。"""
+    return "## 3. 現行排程\n\n" + "\n".join(rows) + "\n\n## 4. 下一節\n"
+
+
 def test_reconcile_detects_both_directions():
     result = rl.assign([{"card_id": "DATA-A1", "tier": "T2", "status": "💡需求", "number": 1}])
 
-    rl.reconcile(result, "| `DATA-A1` | #1 | T2 | 💡需求 | | |")
+    rl.reconcile(result, _s3("| `DATA-A1` | #1 | T2 | 💡需求 | | |"))
 
     with pytest.raises(rl.CheckFailed, match="只在 Project"):
-        rl.reconcile(result, "（表是空的）")
+        rl.reconcile(result, _s3("（表是空的）"))
     with pytest.raises(rl.CheckFailed, match="只在 ROADMAP"):
-        rl.reconcile(result, "| `DATA-A1` | #1 | T2 | 💡需求 | | |\n| `DATA-GHOST1` | #2 | T2 | 💡需求 | | |")
+        rl.reconcile(result, _s3("| `DATA-A1` | #1 | T2 | 💡需求 | | |",
+                                 "| `DATA-GHOST1` | #2 | T2 | 💡需求 | | |"))
 
 
 def test_card_ids_are_read_only_from_table_rows():
     """行內 code（例如內文提到 `DATA-X1`）不得被誤讀成表格列。"""
-    text = "內文提到 `DATA-GHOST1` 但那不是表格列。\n| `DATA-A1` | #1 | T2 | 💡需求 | | |"
+    text = _s3("內文提到 `DATA-GHOST1` 但那不是表格列。",
+               "| `DATA-A1` | #1 | T2 | 💡需求 | | |")
     assert rl.cards_in_roadmap(text) == ["DATA-A1"]
 
 
@@ -100,3 +107,59 @@ def test_schema_version_is_emitted():
     result = rl.assign([{"card_id": "DATA-A1", "tier": "T2", "status": "💡需求", "number": 1}])
     assert result["schema_version"] == rl.SCHEMA_VERSION
     assert rl.SCHEMA_VERSION.startswith("cpbl-roadmap-lines/")
+
+
+# --- R2-002：解析必須限定在 §3 區間內 ---
+
+_DOC = """# 藍圖
+
+## 0. 目標排序
+
+| `DATA-OUTSIDE1` | 這一列在 §3 之外 |
+
+## 3. 現行排程
+
+### L1
+
+| 卡 | # |
+|---|---|
+| `DATA-INSIDE1` | #1 |
+
+## 4. 驗收政策
+
+| `DATA-AFTER1` | 這一列在 §3 之後 |
+"""
+
+
+def test_only_section3_rows_are_read():
+    """§3 以外的合法卡 ID 表格列必須被忽略——前一版對全檔套 regex，實測會假失敗。"""
+    assert rl.cards_in_roadmap(_DOC) == ["DATA-INSIDE1"]
+
+
+def test_section3_slice_stops_at_next_same_level_heading():
+    """區間止於下一個 `##`，不吃到 §4。"""
+    body = "\n".join(rl.section3_lines(_DOC))
+    assert "DATA-INSIDE1" in body
+    assert "DATA-AFTER1" not in body and "DATA-OUTSIDE1" not in body
+
+
+def test_subheadings_inside_section3_do_not_end_the_slice():
+    """§3 內的 `###` 小節（L1～L5）不得被當成區間結束。"""
+    assert "### L1" in "\n".join(rl.section3_lines(_DOC))
+
+
+def test_missing_section3_fails_closed():
+    """找不到 §3 標題要失敗，不得靜默回空集——空集會讓「§3 不見了」與「§3 是空的」無法區分。"""
+    with pytest.raises(rl.CheckFailed, match="找不到 §3 節標題"):
+        rl.cards_in_roadmap("# 藍圖\n\n## 4. 驗收政策\n\n| `DATA-X1` | #1 |")
+
+
+def test_reconcile_ignores_rows_outside_section3():
+    """端到端：§3 外的幽靈列不得造成 only-in-ROADMAP 假失敗。"""
+    result = rl.assign([{"card_id": "DATA-INSIDE1", "tier": "T2", "status": "💡需求", "number": 1}])
+    rl.reconcile(result, _DOC)
+
+
+def test_schema_version_bumped_for_the_parsing_change():
+    """解析規則變了，版本必須跟著動——否則兩次執行的輸出無法區分。"""
+    assert rl.SCHEMA_VERSION == "cpbl-roadmap-lines/v2"

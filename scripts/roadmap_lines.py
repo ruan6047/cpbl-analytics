@@ -30,7 +30,7 @@ import re
 import sys
 from pathlib import Path
 
-SCHEMA_VERSION = "cpbl-roadmap-lines/v1"
+SCHEMA_VERSION = "cpbl-roadmap-lines/v2"
 
 #: 五條任務線。key 為線代號，value 為對外名稱（須與 ROADMAP §1／§3 的標題一致）。
 LINES: dict[str, str] = {
@@ -109,6 +109,12 @@ CLOSED_STATUSES = frozenset({"🏁完成", "🛑已停止", "📦已合併"})
 REPO_SLUG = "cpbl-analytics"
 
 _CARD_ROW = re.compile(r"^\|\s*`([A-Z0-9][A-Z0-9-]*)`\s*\|")
+
+#: §3 的節標題與同級標題。解析**只在這個區間內**進行——`DEV-ROADMAP-VERIFIER1`
+#: 的 R2-002：前一版對全檔逐行套 `_CARD_ROW`，於是 §3 以外任何合法格式的卡 ID
+#: 表格列都會造成假失敗（實測在 §0 前插一列即 exit 1）。
+_SECTION3_HEADING = re.compile(r"^##\s+3\.\s")
+_SAME_LEVEL_HEADING = re.compile(r"^##\s")
 
 
 class CheckFailed(Exception):
@@ -191,9 +197,31 @@ def assign(cards: list[dict]) -> dict:
     }
 
 
+def section3_lines(text: str) -> list[str]:
+    """截出 §3「現行排程」的內容行：自其標題之後，至下一個同級 `##` 標題之前。
+
+    找不到 §3 標題即 **fail closed**——回空集會讓「§3 不見了」與「§3 是空的」
+    無法區分，而前者是嚴重得多的狀態。
+    """
+    lines = text.splitlines()
+    start = next((i for i, ln in enumerate(lines) if _SECTION3_HEADING.match(ln)), None)
+    if start is None:
+        raise CheckFailed(
+            "在 ROADMAP 中找不到 §3 節標題（預期形如 `## 3. 現行排程`）——"
+            "無法界定解析範圍，fail closed"
+        )
+    end = next((i for i in range(start + 1, len(lines))
+                if _SAME_LEVEL_HEADING.match(lines[i])), len(lines))
+    return lines[start + 1:end]
+
+
 def cards_in_roadmap(text: str) -> list[str]:
-    """自 ROADMAP §3 的表格列抽出卡 ID。表格外的行內 code 不會誤中（錨定行首 `|`）。"""
-    return [m.group(1) for line in text.splitlines() if (m := _CARD_ROW.match(line))]
+    """自 ROADMAP **§3 區間內**的表格列抽出卡 ID。
+
+    兩層限縮：先截 §3 區間（`section3_lines`），再於區間內錨定行首 `|`。
+    §3 以外的表格列與任何位置的行內 code 都不會誤中。
+    """
+    return [m.group(1) for line in section3_lines(text) if (m := _CARD_ROW.match(line))]
 
 
 def reconcile(result: dict, roadmap_text: str) -> None:
