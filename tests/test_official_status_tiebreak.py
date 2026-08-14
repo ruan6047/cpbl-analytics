@@ -217,10 +217,34 @@ def _sql_pick(cur, rows: list[dict]) -> str:
     return cur.fetchone()[0]
 
 
+@pytest.fixture(scope="module")
+def sql_cursor():
+    """整個 module 只連一次 DB。
+
+    **不是效能潔癖**：本檔有 16 個參數化組合，每個各自 `psycopg.connect()` 的話，CI 無 DB
+    時就是 16 × `connect_timeout` 的乾等——`tests/conftest.py` 整支就是為了消滅這個形狀
+    （DEV-CI-PYTEST-SLOW1）而存在，別在這裡把它加回來。連不上時本 fixture 直接 skip，
+    16 個組合共用同一次判定。刻意用原生連線而非 `cpbl.db.pool()`：conftest 在無 DB 時會把
+    全域池換成未開啟的池，那條路徑是給讀真實表的測試用的，這裡只需要一個 SQL 求值器。
+    """
+    psycopg = pytest.importorskip("psycopg")
+    from cpbl.config import settings
+
+    try:
+        conn = psycopg.connect(settings.database_url, connect_timeout=2)
+    except Exception as exc:  # noqa: BLE001 — 無 DB 時跳過，與 tests/ 既有慣例一致
+        pytest.skip(f"需本機 DB：{exc}")
+    try:
+        yield conn.cursor()
+    finally:
+        conn.rollback()
+        conn.close()
+
+
 @pytest.mark.parametrize("newer_status", _STATUS_VALUES, ids=lambda v: f"newer_{v}")
 @pytest.mark.parametrize("older_status", _STATUS_VALUES, ids=lambda v: f"older_{v}")
 def test_sql_and_python_pick_the_same_row_for_every_present_status(
-    newer_status, older_status,
+    sql_cursor, newer_status, older_status,
 ) -> None:
     """**本卡的第二個核心不變量：一份規則，兩端同一個答案。**
 
@@ -236,21 +260,12 @@ def test_sql_and_python_pick_the_same_row_for_every_present_status(
     需本機 DB——**刻意不用 Python 模擬 SQL 的 NULL 排序**：那等於拿我對 PostgreSQL 的想像
     去驗我自己寫的 SQL，正是本卡 R1 第二個 finding 的錯誤形狀。
     """
-    psycopg = pytest.importorskip("psycopg")
-    from cpbl.config import settings
-
     newer = dict(_row(present=newer_status, day=date(2026, 9, 15), payload_hash="0" * 64),
                  tag="NEWER")
     older = dict(_row(present=older_status, day=date(2026, 7, 17), payload_hash="f" * 64),
                  tag="OLDER")
 
-    try:
-        with psycopg.connect(settings.database_url, connect_timeout=2) as c:
-            picked_by_sql = _sql_pick(c.cursor(), [newer, older])
-            c.rollback()
-    except Exception as exc:  # noqa: BLE001 — 無 DB 時跳過，與 tests/ 既有慣例一致
-        pytest.skip(f"需本機 DB：{exc}")
-
+    picked_by_sql = _sql_pick(sql_cursor, [newer, older])
     picked_by_python = official_status([newer, older])[1]["tag"]
 
     assert picked_by_sql == picked_by_python, (
