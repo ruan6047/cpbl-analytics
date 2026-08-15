@@ -351,6 +351,33 @@ def test_invariant_4_predicate_is_path_sensitive_not_import_closure() -> None:
         "精確度不能是靠什麼都判不到換來的")
 
 
+def test_closure_method_is_measurably_less_precise(capsys: pytest.CaptureFixture) -> None:
+    """「呼叫圖比閉包精確」必須是**現算的**，不是清冊裡一個會過期的數字。
+
+    ⚠️ 這條同時是誠實度的守衛：如果哪天呼叫圖法變成閉包法的超集（＝退回去了），
+    下面的方向性斷言會紅。
+    """
+    # ⚠️ 兩邊都限 `.py`：閉包法結構性只適用於 Python（`.sh` 沒有 import 圖），
+    # 拿 `.sh` 進來比會製造一個假的「呼叫圖多判」——實測 `refresh-cpbl-prod.sh`
+    # 真的有 `curl`（:555、:569），那是 shell 那一格的判準，不是本對照的母體。
+    entries = [e for e in si.build_entries() if si._entry_module(e).endswith(".py")]
+    closure = set(si.closure_http_hits(entries))
+    graph = {e.ident for e in entries
+             if "http" in si.entry_effects(si._entry_module(e), e.writes)}
+
+    with capsys.disabled():
+        print(f"\n閉包法 {len(closure)} 支 / 呼叫圖法 {len(graph)} 支 / "
+              f"閉包法多判 {len(closure - graph)} 支")
+
+    assert closure - graph, "閉包法沒有多判任何一支——精確度差額的前提破了"
+    assert "scripts/check_splits_pa_split1_results.py" in closure - graph, (
+        "只 import `APART_COMBOS` 常數的腳本不再是閉包法的誤判——"
+        "回歸案例的前提變了，請重新檢視這條的意義")
+    assert not graph - closure, (
+        f"呼叫圖判到而閉包法沒判到：{sorted(graph - closure)}——"
+        "閉包法應是超集，出現反例表示其中一法寫錯了")
+
+
 def test_invariant_4_predicate_follows_reexported_sinks() -> None:
     """再匯出鏈：`b` 只是 `from a import f`，`b.f` 仍然帶著 `a.f` 的出口。
 

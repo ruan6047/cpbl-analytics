@@ -171,10 +171,14 @@ MUTATING_SHELL_RE = re.compile(
 #
 # ⚠️ **為什麼不掃 import 閉包**（W2 的射程，也是本函式改版前對 `.py` 用的射程）：
 # `httpx` 在 `cpbl.*` 的相依圖裡到處都是，掃閉包會把「只 import 了一個常數」的
-# 唯讀腳本判成打網路的。實測：閉包法對 HTTP 命中 20 支、其中
-# `check_splits_pa_split1_results.py`（只 import `APART_COMBOS` 這個 list 常數）是
-# 純誤判；呼叫圖法不命中它。**誤判要靠 allowlist 消化，而每多一條 allowlist 就離
-# `GATE_OVERRIDES` 近一步**——所以這裡要的是精確，不是寬。
+# 唯讀腳本判成打網路的。最刺眼的一支是 `check_splits_pa_split1_results.py`：它從
+# `cpbl.ingest.cpbl_player_detail` 只 import 了 `APART_COMBOS` 這個 list 常數，
+# 閉包法照樣判它打網路，呼叫圖法不命中。**誤判要靠 allowlist 消化，而每多一條
+# allowlist 就離 `GATE_OVERRIDES` 近一步**——所以這裡要的是精確，不是寬。
+#
+# ⚠️ 兩法的差額**不寫死成數字**：數字會過期，而過期的數字就是下一個 `GATE_OVERRIDES`。
+# 差額由 `tests/test_script_inventory.py::test_closure_method_is_measurably_less_precise`
+# 每次 CI 現算並斷言，該測試同時印出當下的兩邊命中數。
 #
 # (a) 具名函式庫綁定：呼叫的**點名路徑**（經 import 還原）落在這些前綴下即是出口。
 SINK_MODULES: dict[str, tuple[str, ...]] = {
@@ -1486,6 +1490,38 @@ def high_consequence(rel: str, writes: bool) -> tuple[bool, str]:
     return True, "、".join(EFFECT_LABELS[e] for e in ordered)
 
 
+@cache
+def _cli_modules() -> dict[str, str]:
+    cfg = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    return {name: rel for name, target in cfg["project"]["scripts"].items()
+            if (rel := _cli_entry_module(target))}
+
+
+def _entry_module(e: Entry) -> str:
+    """入口 → 它的原始碼檔（CLI 走 pyproject 的 target 模組）。"""
+    return _cli_modules().get(e.ident, "") if e.surface == "cli" else e.ident
+
+
+# ⚠️ **對照組，不是判準。** 這是「把 HTTP 塞進 W2 的射程」那個修法會得到的結果，
+# 留在這裡是為了讓「呼叫圖比較精確」這句話有一次現算的實測，而不是一個會過期的數字。
+CLOSURE_HTTP_RE = re.compile(
+    r"httpx|requests\.(get|post|put|delete)|urllib\.request|urlopen|aiohttp|playwright"
+    r"|(?<![\w-])(curl|wget)(?![\w-])")
+
+
+def closure_http_hits(entries: list[Entry]) -> list[str]:
+    """對照組：改用 import 閉包掃 HTTP 會命中哪些入口（含已被寫入型涵蓋的）。"""
+    hits = []
+    for e in entries:
+        rel = _entry_module(e)
+        if not rel or not rel.endswith(".py"):
+            continue
+        closure = (p for p in _import_closure(rel) if p not in SELF_REFERENCE)
+        if any(CLOSURE_HTTP_RE.search(_read(p)) for p in closure):
+            hits.append(e.ident)
+    return sorted(hits)
+
+
 def high_consequence_unsafe(entries: list[Entry]) -> list[Entry]:
     """不變式 4 的違反者：**高後果**且 `--help` 不安全。
 
@@ -1777,11 +1813,28 @@ def render() -> str:
       "所以第二次的修法不是再加一條，是把「出口是什麼」與「碰不碰得到」拆開。")
     a("")
     a("> [!important] **為什麼不掃 import 閉包**（W2 的射程，也是本判準改版前對 `.py` 用的射程）。")
+    # 兩邊都限 `.py`：閉包法結構性只適用於 Python，`.sh` 走的是另一格判準。
+    py_entries = [e for e in entries if _entry_module(e).endswith(".py")]
+    closure = set(closure_http_hits(py_entries))
+    graph_http = {e.ident for e in py_entries
+                  if "http" in entry_effects(_entry_module(e), e.writes)}
     a("> `httpx` 在 `cpbl.*` 相依圖裡到處都是，掃閉包會把只 import 了一個常數的唯讀腳本"
-      "判成打網路的。實測：閉包法對 HTTP 命中 20 支，其中 "
-      "`check_splits_pa_split1_results.py`（只 import `APART_COMBOS` 這個 list 常數）是純誤判；"
-      "呼叫圖法不命中它。**誤判要靠 allowlist 消化，而每多一條 allowlist "
+      "判成打網路的。**現算的差額**（每次重生清冊時重新量，不寫死；母體限 `.py` 入口 "
+      f"{len(py_entries)} 支，`.sh` 沒有 import 圖故不在本對照內）："
+      f"閉包法命中 **{len(closure)}** 支、呼叫圖法 **{len(graph_http)}** 支，"
+      f"閉包法多出來的 **{len(closure - graph_http)}** 支即誤判面。")
+    a("> 最刺眼的一支是 `check_splits_pa_split1_results.py`——它從 "
+      "`cpbl.ingest.cpbl_player_detail` **只 import 了 `APART_COMBOS` 這個 list 常數**，"
+      "閉包法照樣判它打網路。**誤判要靠 allowlist 消化，而每多一條 allowlist "
       "就離 `roadmap_lines.py` 的 `GATE_OVERRIDES` 近一步**——這裡要的是精確，不是寬。")
+    a("")
+    a("閉包法多判、呼叫圖法不判的 "
+      f"{len(closure - graph_http)} 支：" + "、".join(f"`{i}`" for i in sorted(closure - graph_http)))
+    a("")
+    a("反向（呼叫圖判、閉包法不判）"
+      f"{len(graph_http - closure)} 支"
+      + ("：" + "、".join(f"`{i}`" for i in sorted(graph_http - closure)) if graph_http - closure
+         else "——閉包法是呼叫圖法的**超集**，故精確度差額全在誤判方向。"))
     a("")
     a("> [!note] **限度**（逐條實測，不是宣稱）：")
     a("> - 出口若經由**型別靜態解析不了的值**抵達（`client.get(...)` 的 `client` 是傳進來的參數、"
