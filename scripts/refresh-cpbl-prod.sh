@@ -6,12 +6,76 @@
 # 只有台灣 IP（你的 Mac）能爬。故流程＝本機爬 → 非破壞性 upsert 同步到 prod →
 # VPS 重建賽果特徵（build-features 只讀 DB，VPS 可跑）。
 #
-# 用法：./scripts/refresh-cpbl-prod.sh
+# 用法：./scripts/refresh-cpbl-prod.sh --help                        # 只印用法，不碰任何東西
+#       ./scripts/refresh-cpbl-prod.sh
 #       WITH_DETAIL=1 ./scripts/refresh-cpbl-prod.sh                 # 連同選手細項（耗時逾 1 小時）
 #       SKIP_SCRAPE=1 WITH_DETAIL=1 ./scripts/refresh-cpbl-prod.sh   # 本機已最新：只同步不重爬
 #
 # 可用環境變數覆蓋：LOCAL_DB / VPS / DEPLOY_PATH / WITH_DETAIL / SKIP_SCRAPE
 set -euo pipefail
+
+# ============================================================== argv 守衛
+# 這一段必須留在檔案最前面、任何副作用之前——往下移就等於沒有。
+#
+# 為什麼：本腳本「探索動作即造成損害」。沒有守衛時 `--help` 不會被任何人接住，
+# 直接落進下方主流程：爬官網 → 備份並 upsert **production** 資料庫 → VPS 重跑訓練。
+# 同一類事故 2026-08-05 已經發生過一次（`cpbl-scrape-pitches --help` 觸發真實爬蟲
+# 並寫進 DB，見 tests/test_cli_help_guard.py 檔頭），那次修的是 Python CLI 這一面；
+# 這一支的破壞半徑更大——那邊是一支爬蟲，這邊是整條生產同步鏈。
+#
+# 想知道它在做什麼的人應該拿到答案，所以 `--help` 印用法並 exit 0，不是 exit 1。
+# 未知參數則拒絕（exit 64＝EX_USAGE，與 scrape-daily.sh／backup-prod-db.sh 同碼）：
+# 本腳本從不吃位置參數，收到就代表呼叫端誤會了介面，靜默忽略只會讓誤會延續。
+usage() {
+  cat <<'EOF'
+scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四步鏈）
+
+在做什麼
+  1/4  本機（台灣 IP）爬官網最新資料，然後重建賽事預測特徵 game_features
+  2/4  備份 production 整庫（cpbl schema ＋ 主站 public）；備份驗證不過即中止
+  3/4  對 production 套 migration，再逐表非破壞性 upsert 同步
+  4/4  VPS 重跑賽事預測回測與 serving 模型，最後驗證線上 /api/info freshness
+
+會寫什麼（⚠️ 高後果，且沒有 dry-run）
+  · production PostgreSQL：逐表 upsert；game_features 與 PA build 家族為整表重建
+  · production 主機檔案系統：資料庫備份檔、模型 artifact
+  · 本機 PostgreSQL：cpbl-scrape-* 與 cpbl-build-features 的寫入
+  不要拿這一支來「跑跑看會發生什麼」——它沒有唯讀模式。
+
+怎麼呼叫（不接受位置參數，設定一律走環境變數）
+  ./scripts/refresh-cpbl-prod.sh                              # 完整鏈：爬 → 同步 → 回測
+  WITH_DETAIL=1 ./scripts/refresh-cpbl-prod.sh                # 連同選手細項（耗時逾 1 小時）
+  SKIP_SCRAPE=1 WITH_DETAIL=1 ./scripts/refresh-cpbl-prod.sh  # 本機已最新：只同步不重爬
+                                                              # ↑ 每日鏈 scrape-daily.sh 走這條
+
+環境變數
+  LOCAL_DB      本機 PostgreSQL 容器名（預設 cpbl-analytics-db-1）
+  VPS           production 主機的 ssh 目標
+  DEPLOY_PATH   production 主機上的部署目錄
+  API_INFO_URL  freshness 驗證要打的端點
+  WITH_DETAIL   非空＝連同選手細項（投打對決 / 對戰各隊 / 分項）
+  SKIP_SCRAPE   非空＝跳過爬取，直接同步本機現有資料
+
+離開碼
+  0 成功 · 64 參數錯 · 65 取不到本機 freshness 基準 · 67 同步 payload 驗證失敗
+
+背景：docs/AI_RUNBOOK.md（本機爬 → 同步生產）
+EOF
+}
+
+if [ "$#" -gt 0 ]; then
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf '未知參數：%s\n' "$1" >&2
+      printf '本腳本不接受位置參數，設定一律走環境變數；用法請打 --help。\n' >&2
+      exit 64
+      ;;
+  esac
+fi
 
 LOCAL_DB="${LOCAL_DB:-cpbl-analytics-db-1}"
 VPS="${VPS:-root@45.76.100.29}"

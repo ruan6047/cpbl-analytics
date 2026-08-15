@@ -624,16 +624,17 @@ HELP_SAFETY_ALLOWLIST: dict[str, str] = {
         "`COPY` ＋ `UPDATE cpbl.pitch_tracking`；`VPS` 是裸常數不可覆蓋、無 dry-run、無備份。"
         "已於 `dac8d8e` 移出 `scripts/`（＝瀏覽者不會再誤觸），"
         "但**檔案本身的行為沒變**。去向：修行為需另卡，母卡 INGEST-DEEP-TM-BACKFILL1 已封存"),
-    # --- 排程用的 shell：launchd 以固定參數呼叫，但人手打 `--help` 會直接開跑 ---
-    "scripts/refresh-cpbl-prod.sh": (
-        "無 argv 守衛，`./scripts/refresh-cpbl-prod.sh --help` 會直接開始同步生產。"
-        "去向：本卡不改排程腳本行為（那是改一批常設維運工具，不是盤點）"),
-    "scripts/scrape-daily.sh": (
-        "`ARGS=\"${1:-}\"` 把 `--help` 當成模式字串吞掉，然後跑完整每日爬取。去向：同上"),
+    # --- 排程用的 shell ---
+    # `refresh-cpbl-prod.sh`／`scrape-daily.sh`／`weekly-game-pitches.sh` 原本在這張表上，
+    # 需求方推翻「具名放行」的裁定改為提前處置：它們與 `sync_deep_tm_prod.py` 同級——
+    # 探索動作即造成損害——而破壞半徑更大（前者 DROP 一張表，`refresh-cpbl-prod.sh` 是
+    # 整條生產同步鏈）。三支已加 argv 守衛並由 `tests/test_shell_help_guard.py` 逐支釘住，
+    # 故從本表撤除（`test_invariant_4_allowlist_has_no_stale_entries` 會擋住殘留條目）。
     "scripts/weekly-box-revisions.sh": (
-        "無 argv 守衛，會直接跑 `cpbl-refresh-recent` ＋ `cpbl-refresh-box-deep`。去向：同上"),
-    "scripts/weekly-game-pitches.sh": (
-        "無 argv 守衛，會直接跑 `cpbl-scrape-game-pitches`。去向：同上"),
+        "無 argv 守衛，會直接跑 `cpbl-refresh-box-deep`（Playwright 打官網 + 寫本機 DB）。"
+        "⚠️ **與同批三支同性質，本卡射程外**：它是 `#132` 的資源（該卡同時持有 "
+        "`scripts/refresh_status.py` 與 `src/cpbl/api/routers/info.py`），本卡改它等於"
+        "動另一張活卡的檔案。去向：`#132` 收工後比照同批三支補上守衛"),
 }
 
 # 分類的人工改判：機械推導錯的逐支列出＋理由。
@@ -951,10 +952,14 @@ def help_safety(rel: str) -> tuple[str, str]:
     if rel.endswith(".plist"):
         return "n/a", "plist 是排程宣告，不是可打指令的入口"
     if rel.endswith(".sh"):
-        # ⚠️ shell 沒有 argparse，但「打錯參數會不會照跑」的問題完全一樣：
-        # `scrape-daily.sh --help` 會把 `--help` 當成 `$1` 吞掉並跑完整每日爬取。
+        # ⚠️ shell 沒有 argparse，但「打錯參數會不會照跑」的問題完全一樣：無守衛時
+        # `weekly-box-revisions.sh --help` 會直接開始對官網打整季請求並寫本機 DB。
+        #
+        # ⚠️ **這一條只看得到守衛在不在，看不到它在哪**：正則對整份檔案掃描，
+        # 守衛被移到副作用之後仍會判 safe。位置這件事由
+        # `tests/test_shell_help_guard.py` 以假樁執行 ＋ 位置斷言證明，不在這裡。
         if SHELL_ARGV_GUARD_RE.search(_read(rel)):
-            return "safe", "有明示的 argv 守衛（getopts／case $1／usage）"
+            return "safe", "有明示的 argv 守衛（getopts／case $1／usage）；零副作用由 tests/test_shell_help_guard.py 以假樁證明"
         return "unsafe", "無 argv 守衛：未知參數會被吞掉或忽略，主流程照跑"
     src = _read(rel)
     if "argparse" not in src or "parse_args" not in src:
@@ -1405,8 +1410,13 @@ def render() -> str:
     # ---- 不變式 4
     a("## 寫入型必須 `--help` 安全（不變式 4）")
     a("")
-    a("判定為寫入型的入口，argv 必須在主流程前被解析。**既有不合格者具名列入 allowlist**"
-      "——本輪只加不變式、不改既有腳本行為（那會讓本卡從盤點變成改一批腳本）。")
+    a("判定為寫入型的入口，argv 必須在主流程前被解析。**既有不合格者具名列入 allowlist**。")
+    a("")
+    a("原則上本卡只加不變式、不改既有腳本行為（那會讓本卡從盤點變成改一批腳本），"
+      "但需求方對**排程 shell** 推翻了這個處置：`refresh-cpbl-prod.sh`／`scrape-daily.sh`／"
+      "`weekly-game-pitches.sh` 與 `sync_deep_tm_prod.py` **同級**——探索動作即造成損害——"
+      "而破壞半徑更大（後者 DROP 一張表，`refresh-cpbl-prod.sh` 是整條生產同步鏈）。"
+      "三支已加 argv 守衛並從下表撤除，證明見 `tests/test_shell_help_guard.py`。")
     a("")
     a("| 入口 | 理由與去向 |")
     a("|---|---|")
@@ -1415,9 +1425,13 @@ def render() -> str:
     a("")
     a("> [!note] 判準沿用 `tests/test_cli_help_guard.py`，不另立一套。")
     a("> CLI 側該檔以**執行期密封探針**證明（所有 I/O 出口 stub 化後才呼叫 `main()`）；")
-    a("> `scripts/` 側因本卡紅線**不得執行任何腳本**，改以**靜態**近似："
+    a("> `.py` 的 `scripts/` 側因本卡紅線**不得執行任何腳本**，改以**靜態**近似："
       "「有 argparse 且入口在主流程前呼叫 `parse_args`」。")
     a("> **限度**：靜態判準證明不了「parse_args 之後才有副作用」，只證明 argv 有被解析。")
+    a("> shell 側的靜態判準更弱——整檔正則只看得到守衛在不在、看不到它在哪。"
+      "已加守衛的三支因此另由 `tests/test_shell_help_guard.py` 以**副本 ＋ 假樁**"
+      "逐支證明 `--help` 零外部呼叫、零檔案產出，並釘住「守衛之前不得有副作用」；"
+      "該檔的 `test_every_safe_shell_is_covered_here` 使「清冊判 safe 卻沒人證明」直接 CI 紅。")
     a("")
 
     # ---- 逐支清冊

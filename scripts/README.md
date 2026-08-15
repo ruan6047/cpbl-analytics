@@ -158,16 +158,16 @@
 
 ## 引用完整性（不變式 3）
 
-全庫 `scripts/<name>.<ext>` 字面路徑共 **878** 處。**只有 `enforced` 那一面強制**——其餘的過期是歷史事實不是缺陷：
+全庫 `scripts/<name>.<ext>` 字面路徑共 **895** 處。**只有 `enforced` 那一面強制**——其餘的過期是歷史事實不是缺陷：
 
 | 面別 | 處數 | 強制？ | 為什麼 |
 |---|---:|---|---|
 | `scan` | 206 | 回報 | 掃描器產物 JSON 是當時的快照 |
 | `sealed` | 198 | 回報 | `docs/control-plane/**` 已於 `8271d7c` 封存唯讀，**永遠改不了** |
-| `self` | 177 | 不適用 | 掃描器自身的說明範例 |
+| `self` | 173 | 不適用 | 掃描器自身的說明範例 |
+| `enforced` | 144 | ✅ 強制 | `scripts/`、`src/`、活契約與設計文件——壞了就是現在的缺陷 |
 | `historical` | 144 | 回報 | `docs/archive/**` 與卡片交付產物＝凍結證據，**本卡射程外** |
-| `enforced` | 133 | ✅ 強制 | `scripts/`、`src/`、活契約與設計文件——壞了就是現在的缺陷 |
-| `fixture` | 20 | 不適用 | `tests/**` 的合成路徑；真實路徑壞掉 pytest 自己會紅（更強的機制） |
+| `fixture` | 30 | 不適用 | `tests/**` 的合成路徑；真實路徑壞掉 pytest 自己會紅（更強的機制） |
 
 **壞路徑——⚠️ **強制面**（1）**：
 
@@ -183,23 +183,23 @@
 
 ## 寫入型必須 `--help` 安全（不變式 4）
 
-判定為寫入型的入口，argv 必須在主流程前被解析。**既有不合格者具名列入 allowlist**——本輪只加不變式、不改既有腳本行為（那會讓本卡從盤點變成改一批腳本）。
+判定為寫入型的入口，argv 必須在主流程前被解析。**既有不合格者具名列入 allowlist**。
+
+原則上本卡只加不變式、不改既有腳本行為（那會讓本卡從盤點變成改一批腳本），但需求方對**排程 shell** 推翻了這個處置：`refresh-cpbl-prod.sh`／`scrape-daily.sh`／`weekly-game-pitches.sh` 與 `sync_deep_tm_prod.py` **同級**——探索動作即造成損害——而破壞半徑更大（後者 DROP 一張表，`refresh-cpbl-prod.sh` 是整條生產同步鏈）。三支已加 argv 守衛並從下表撤除，證明見 `tests/test_shell_help_guard.py`。
 
 | 入口 | 理由與去向 |
 |---|---|
 | `cpbl-refresh-recent` | #53 INGEST-GAME-TM-REFACTOR1-G4 Phase B 凍結資源，DEV-CLI-HELP-GUARD1／2 明文不改。`--help` 主流程觸及 cpbl.db.migrate，且它是每日鏈 scrape-daily.sh 的主要寫入者。去向：#53 Phase B 解凍後併入 test_cli_help_guard.py 的斷言範圍 |
 | `docs/research/INGEST-DEEP-TM-BACKFILL1/sync_deep_tm_prod.py` | ⚠️ **本輪射程內最危險的一支**：完全不看 argv，任何參數都直接 ssh 進生產跑 `COPY` ＋ `UPDATE cpbl.pitch_tracking`；`VPS` 是裸常數不可覆蓋、無 dry-run、無備份。已於 `dac8d8e` 移出 `scripts/`（＝瀏覽者不會再誤觸），但**檔案本身的行為沒變**。去向：修行為需另卡，母卡 INGEST-DEEP-TM-BACKFILL1 已封存 |
-| `scripts/refresh-cpbl-prod.sh` | 無 argv 守衛，`./scripts/refresh-cpbl-prod.sh --help` 會直接開始同步生產。去向：本卡不改排程腳本行為（那是改一批常設維運工具，不是盤點） |
 | `scripts/rehearsal_backfill.py` | 完全不看 argv：任何旗標（含 --help）都直接 DROP/CREATE pitch_tracking_rehearsal。去向：本卡只標記；修行為需另卡，且該卡母卡 INGEST-DEEP-TM-BACKFILL1 已封存 |
 | `scripts/rehearsal_pa_build.py` | 完全不看 argv，寫合成 year=2099 列。去向：同上，PA-DAILY 若啟動時一併處理 |
-| `scripts/scrape-daily.sh` | `ARGS="${1:-}"` 把 `--help` 當成模式字串吞掉，然後跑完整每日爬取。去向：同上 |
-| `scripts/weekly-box-revisions.sh` | 無 argv 守衛，會直接跑 `cpbl-refresh-recent` ＋ `cpbl-refresh-box-deep`。去向：同上 |
-| `scripts/weekly-game-pitches.sh` | 無 argv 守衛，會直接跑 `cpbl-scrape-game-pitches`。去向：同上 |
+| `scripts/weekly-box-revisions.sh` | 無 argv 守衛，會直接跑 `cpbl-refresh-box-deep`（Playwright 打官網 + 寫本機 DB）。⚠️ **與同批三支同性質，本卡射程外**：它是 `#132` 的資源（該卡同時持有 `scripts/refresh_status.py` 與 `src/cpbl/api/routers/info.py`），本卡改它等於動另一張活卡的檔案。去向：`#132` 收工後比照同批三支補上守衛 |
 
 > [!note] 判準沿用 `tests/test_cli_help_guard.py`，不另立一套。
 > CLI 側該檔以**執行期密封探針**證明（所有 I/O 出口 stub 化後才呼叫 `main()`）；
-> `scripts/` 側因本卡紅線**不得執行任何腳本**，改以**靜態**近似：「有 argparse 且入口在主流程前呼叫 `parse_args`」。
+> `.py` 的 `scripts/` 側因本卡紅線**不得執行任何腳本**，改以**靜態**近似：「有 argparse 且入口在主流程前呼叫 `parse_args`」。
 > **限度**：靜態判準證明不了「parse_args 之後才有副作用」，只證明 argv 有被解析。
+> shell 側的靜態判準更弱——整檔正則只看得到守衛在不在、看不到它在哪。已加守衛的三支因此另由 `tests/test_shell_help_guard.py` 以**副本 ＋ 假樁**逐支證明 `--help` 零外部呼叫、零檔案產出，並釘住「守衛之前不得有副作用」；該檔的 `test_every_safe_shell_is_covered_here` 使「清冊判 safe 卻沒人證明」直接 CI 紅。
 
 ## 清冊：`scripts/**`（50）
 
@@ -244,16 +244,16 @@
 | `com.cpbl.weekly-game-pitches.plist` | 常設工具 | `scripts/` | ✅ | 唯讀 | — | — | — | ⚠️ 未查證 |
 | `pa_transition_taxonomy.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | GAME-RECAP-PA1-TAXONOMY1 | GAME-RECAP-PA1-TAXONOMY1：canonical PA 狀態機 transition taxonomy 唯讀稽核。 | canonical taxonomy 的產生器（唯讀）；產物勿手改，改了要重跑 |
 | `reconcile_scoreless_streak.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | ML-PITCHER-SCORELESS1 | 窮舉對帳：連續無自責分局數（ML-PITCHER-SCORELESS1）＋連續無失分局數（ML-PITCHER-RUNLESS1）。 | 窮舉對帳；AI_RUNBOOK:380 寫「改動演算法後必跑」，義務靠人記得 |
-| `refresh-cpbl-prod.sh` | 常設工具 | `scripts/` | ✅ | **寫** | ⚠️ --help 不安全（具名例外） | — | CPBL 線上資料手動更新（不掛 cron，避免浪費資源；要更新時自己跑）。 | 本機爬完同步生產的主鏈；讀碼確認會呼叫 backup-prod-db.sh 與 verify_refresh_info.py |
+| `refresh-cpbl-prod.sh` | 常設工具 | `scripts/` | ✅ | **寫** | ✅ --help 安全 | — | CPBL 線上資料手動更新（不掛 cron，避免浪費資源；要更新時自己跑）。 | 本機爬完同步生產的主鏈；讀碼確認會呼叫 backup-prod-db.sh 與 verify_refresh_info.py |
 | `refresh_status.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | — | Write and inspect machine-readable daily refresh status files. | 每日鏈的狀態記錄輔助，唯讀 JSON 檔 |
 | `review_gate_inventory.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | DEV-REVIEW-PROMPT-GUARD1 | 多關卡（multi-gate）查核要求的可重現盤點——**含分類與計數**。 | ⚠️ REVIEW_GATE_CONTRACT 宣告「納管＋測試」但實測無測試載入，宣告未落實 |
 | `review_prompt.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ⚠️ --help 不安全 | DEV-BASELINE-GUARD-DECL1 | 審核提示詞產生器：從 control-plane 最新 handoff event + 卡片檔自動生成查核提示詞。 | 查核提示詞產生器；AI_RUNBOOK:433 逐字給指令，18 commits |
 | `roadmap_lines.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | DOC-CPBL-ROADMAP1 | CPBL 藍圖排程區塊的任務線歸屬驗證器（唯讀，fail-closed）。 | ROADMAP §1 線別歸屬的機械判定者，fail closed |
-| `scrape-daily.sh` | 常設工具 | `scripts/` | ✅ | **寫** | ⚠️ --help 不安全（具名例外） | YYYYMMDD-HHMM | 每日本機自動爬取（由 launchd 觸發，免手動 CLI）。 | launchd 每日 10:10 觸發，呼叫 refresh-cpbl-prod.sh 並用 refresh_status.py 記狀態 |
+| `scrape-daily.sh` | 常設工具 | `scripts/` | ✅ | **寫** | ✅ --help 安全 | YYYYMMDD-HHMM | 每日本機自動爬取（由 launchd 觸發，免手動 CLI）。 | launchd 每日 10:10 觸發，呼叫 refresh-cpbl-prod.sh 並用 refresh_status.py 記狀態 |
 | `script_inventory.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | DEV-SCRIPT-INVENTORY1 | DEV-SCRIPT-INVENTORY1：可執行入口清冊的**產生器**。 | ⚠️ 未查證 |
 | `verify_refresh_info.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | — | Fail unless /api/info exposes a recent successful refresh marker. | 同步後打 /api/info 驗證，唯讀 |
 | `weekly-box-revisions.sh` | 常設工具 | `scripts/` | ✅ | **寫** | ⚠️ --help 不安全（具名例外） | DATA-BOX-REVISION-SNAPSHOT1 | 每週一次的 box 深度重抓（DATA-BOX-REVISION-SNAPSHOT1 深度層）。 | ⚠️ 未查證 |
-| `weekly-game-pitches.sh` | 常設工具 | `scripts/` | ✅ | **寫** | ⚠️ --help 不安全（具名例外） | INGEST-GAME-TM-REFACTOR1-G4 | 每週一次的逐球全季重跑（INGEST-GAME-TM-REFACTOR1-G4 Phase A）。 | ⚠️ 未查證 |
+| `weekly-game-pitches.sh` | 常設工具 | `scripts/` | ✅ | **寫** | ✅ --help 安全 | INGEST-GAME-TM-REFACTOR1-G4 | 每週一次的逐球全季重跑（INGEST-GAME-TM-REFACTOR1-G4 Phase A）。 | ⚠️ 未查證 |
 | `workflow_ledger.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | — | 由 append-only control-plane events 產生活卡 Ledger。 | ⚠️ 已於 33c7c3f 加拒絕執行守衛——TASKS.md 已封存，--write 會覆寫封存產物 |
 
 ## 清冊：`docs/research/**/*.py`（19）
@@ -377,5 +377,5 @@
 - **「未找到消費者」不等於「沒有消費者」**：本清冊的觀測面只有 **git 追蹤檔案**。本機執行歷史、需求方手動操作、封存前的口頭流程都不在裡面。用詞一律「未找到」。
 - **本輪零刪除**。已用盡的只標記，刪除是需求方的獨立裁定。
 - 位置不變式證明的是「位置與分類一致」，**不是「分類是對的」**。分類含具名人工改判，機器只驗一致性不驗真假。
-- **分段路徑**（`"scripts/" + name` 這類靜態解析不了的組裝）共 47 處，引用完整性檢查涵蓋不到，逐處列出：`docs/research/TIME-SEMANTICS-CONTRACT1/scan_time_semantics.py:149`、`scripts/data_rules_audit1.py:761`、`scripts/data_tie_remedy1.py:322`、`scripts/script_inventory.py:68`、`scripts/script_inventory.py:302`、`scripts/script_inventory.py:306`、`scripts/script_inventory.py:837`、`scripts/script_inventory.py:975`、`scripts/script_inventory.py:1424`、`tests/test_backup_prod_db.py:16`、`tests/test_backup_prod_db.py:186`、`tests/test_backup_prod_db.py:196`、`tests/test_backup_prod_db.py:203`、`tests/test_bio_gap2_backfill.py:19`、`tests/test_bio_gap_backfill.py:27`、`tests/test_prod_sync_revision_seq.py:33`、`tests/test_prod_sync_revision_seq.py:183`、`tests/test_prod_sync_revision_seq.py:184`、`tests/test_prod_sync_revision_seq.py:185`、`tests/test_prod_sync_revision_seq.py:216`、`tests/test_refresh_pitch_ingest.py:26`、`tests/test_refresh_remote_train.py:20`、`tests/test_review_prompt.py:7`、`tests/test_roadmap_lines.py:28`、`tests/test_scrape_daily.py:32`、`tests/test_scrape_daily.py:33`、`tests/test_scrape_daily.py:115`、`tests/test_scrape_daily.py:132`、`tests/test_scrape_daily.py:156`、`tests/test_scrape_daily.py:310`、`tests/test_script_inventory.py:243`、`tests/test_script_inventory.py:281`、`tests/test_script_inventory.py:327`、`tests/test_script_inventory.py:341`、`tests/test_script_inventory.py:349`、`tests/test_script_inventory.py:357`、`tests/test_script_inventory.py:369`、`tests/test_script_inventory.py:422`、`tests/test_script_inventory.py:480`、`tests/test_script_inventory.py:485`、`tests/test_script_inventory.py:486`、`tests/test_script_inventory.py:487`、`tests/test_script_inventory.py:558`、`tests/test_state_plane_migrate.py:16`、`tests/test_task_card_sections.py:8`、`tests/test_verify_refresh_info.py:27`、`tests/test_workflow_ledger.py:5`
+- **分段路徑**（`"scripts/" + name` 這類靜態解析不了的組裝）共 49 處，引用完整性檢查涵蓋不到，逐處列出：`docs/research/TIME-SEMANTICS-CONTRACT1/scan_time_semantics.py:149`、`scripts/data_rules_audit1.py:761`、`scripts/data_tie_remedy1.py:322`、`scripts/script_inventory.py:68`、`scripts/script_inventory.py:302`、`scripts/script_inventory.py:306`、`scripts/script_inventory.py:838`、`scripts/script_inventory.py:980`、`scripts/script_inventory.py:1438`、`tests/test_backup_prod_db.py:16`、`tests/test_backup_prod_db.py:186`、`tests/test_backup_prod_db.py:196`、`tests/test_backup_prod_db.py:203`、`tests/test_bio_gap2_backfill.py:19`、`tests/test_bio_gap_backfill.py:27`、`tests/test_prod_sync_revision_seq.py:33`、`tests/test_prod_sync_revision_seq.py:183`、`tests/test_prod_sync_revision_seq.py:184`、`tests/test_prod_sync_revision_seq.py:185`、`tests/test_prod_sync_revision_seq.py:216`、`tests/test_refresh_pitch_ingest.py:26`、`tests/test_refresh_remote_train.py:20`、`tests/test_review_prompt.py:7`、`tests/test_roadmap_lines.py:28`、`tests/test_scrape_daily.py:32`、`tests/test_scrape_daily.py:33`、`tests/test_scrape_daily.py:115`、`tests/test_scrape_daily.py:132`、`tests/test_scrape_daily.py:156`、`tests/test_scrape_daily.py:310`、`tests/test_script_inventory.py:243`、`tests/test_script_inventory.py:281`、`tests/test_script_inventory.py:327`、`tests/test_script_inventory.py:341`、`tests/test_script_inventory.py:349`、`tests/test_script_inventory.py:357`、`tests/test_script_inventory.py:369`、`tests/test_script_inventory.py:422`、`tests/test_script_inventory.py:480`、`tests/test_script_inventory.py:485`、`tests/test_script_inventory.py:486`、`tests/test_script_inventory.py:487`、`tests/test_script_inventory.py:558`、`tests/test_shell_help_guard.py:289`、`tests/test_shell_help_guard.py:361`、`tests/test_state_plane_migrate.py:16`、`tests/test_task_card_sections.py:8`、`tests/test_verify_refresh_info.py:27`、`tests/test_workflow_ledger.py:5`
 

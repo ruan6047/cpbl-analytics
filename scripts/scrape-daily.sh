@@ -14,9 +14,62 @@
 # 失敗時 ok=false 且非零退出。AI 接手流程：讀 last-status.json → 失敗則 tail log +
 # 查 `SELECT * FROM cpbl.refresh_log WHERE ok=false ORDER BY refreshed_at DESC LIMIT 1`。
 #
-# 用法：scripts/scrape-daily.sh          # 完整增量（games+累計+對戰+分項+逐球…）
+# 用法：scripts/scrape-daily.sh --help   # 只印用法，不碰任何東西
+#       scripts/scrape-daily.sh          # 完整增量（games+累計+對戰+分項+逐球…）
 #       scripts/scrape-daily.sh fast     # 只更新 games+累計，跳過耗時細項
 set -uo pipefail
+
+# ============================================================== argv 守衛
+# 這一段必須留在檔案最前面、任何副作用之前——往下移就等於沒有。
+#
+# 未知參數本檔早已拒絕（下方「參數只接受 fast」，exit 64），缺的是 `--help`：
+# 打它只會拿到一句「參數只接受 fast」，那是拒絕不是答案。想知道這支在做什麼的人
+# 應該拿到用法並 exit 0。守衛擺在 REFRESH_TRIGGER 檢查之前，`--help` 才不會因為
+# 環境變數沒設對而變成另一種拒絕。
+usage() {
+  cat <<'EOF'
+scripts/scrape-daily.sh — 每日本機自動爬取，成功後同步 production（launchd 觸發）
+
+在做什麼
+  1. 取 refresh lock（同一把鎖與 weekly-* 排程互斥），確認本機 DB 容器在
+  2. 跑 cpbl-refresh-recent 做增量爬取
+  3. 爬取成功且 SYNC_PROD≠0 時，以 SKIP_SCRAPE=1 WITH_DETAIL=1 呼叫
+     scripts/refresh-cpbl-prod.sh 同步到 production
+  4. 把分相結果寫進狀態檔，供 AI／人接手診斷
+
+會寫什麼（⚠️ 高後果，且沒有 dry-run）
+  · 本機 PostgreSQL：cpbl-refresh-recent 的增量寫入
+  · production PostgreSQL：由步驟 3 的同步鏈寫入（SYNC_PROD=0 可關閉）
+  · 本機檔案系統：logs/refresh-YYYYMMDD-HHMMSS.log（只留最近 30 份）、
+    logs/last-status.json、logs/last-launchd-status.json
+
+怎麼呼叫
+  scripts/scrape-daily.sh          # 完整增量（games+累計+對戰+分項+逐球…）
+  scripts/scrape-daily.sh fast     # 只更新 games+累計，跳過耗時細項
+  SYNC_PROD=0 scripts/scrape-daily.sh   # 只爬本機，不同步 production
+  位置參數只接受 fast；其餘一律 exit 64。launchd 以無參數呼叫。
+
+環境變數
+  REFRESH_TRIGGER   manual（預設）或 launchd；其他值一律 exit 64
+  SYNC_PROD         0＝爬完不同步 production（預設 1）
+  REFRESH_LOCK_DIR  互斥鎖目錄（預設 /private/tmp/cpbl-analytics-refresh.lock）
+
+離開碼
+  0 成功 · 64 參數錯 · 70 狀態檔寫入失敗 · 75 鎖被佔用 · 127 本機 DB 容器沒開
+  其餘＝爬取或同步階段的原始離開碼
+
+背景：docs/AI_RUNBOOK.md（每日排程與失敗快篩）
+EOF
+}
+
+if [ "$#" -gt 0 ]; then
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+  esac
+fi
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_DIR"
@@ -33,7 +86,8 @@ if [ "$TRIGGER" != "manual" ] && [ "$TRIGGER" != "launchd" ]; then
   exit 64
 fi
 if [ -n "$ARGS" ] && [ "$ARGS" != "fast" ]; then
-  echo "參數只接受 fast" >&2
+  printf '未知參數：%s\n' "$ARGS" >&2
+  printf '位置參數只接受 fast；用法請打 --help。\n' >&2
   exit 64
 fi
 
