@@ -11,12 +11,20 @@
 #   · 不取 refresh lock、不碰 docker、不連本機 DB、不觸發任何爬蟲。只讀 JSON／plist、
 #     跑唯讀的 launchctl print、對生產 /api/info 發一次 HTTPS GET。
 #
-# 三層備援（第一層可能被權限靜默吃掉，所以不能只有它）：
-#   1. osascript 通知——讀者＝需求方，在自己螢幕上。⚠️ osascript 回 0 不是通知彈出的
-#      證據：通知權限未授予時它一樣回 0 而訊息被丟棄。
-#   2. logs/schedule-alert.json 持久產物（條件解除時自動刪除）。
+# 四個面，而**真正的讀者是第 2 個**（順序不代表重要性）：
+#   1. osascript 通知——⚠️ **在這台機器上實測是死的**：專注模式把它 suppressed，畫面上
+#      不會出現（量測見 scripts/schedule_watch.py 的 notify() 區段）。仍然保留，因為
+#      它免費、且使用者若哪天改了專注模式白名單就會自動復活；但**投遞判定會誠實記錄
+#      它沒送達**，不會讓任何人誤以為有人被通知到。
+#   2. logs/schedule-alert.json 持久產物（條件解除時自動刪除）＋ **tests/conftest.py 會把
+#      它印在每次 `uv run pytest` 的 header 最前面**。這是唯一有機械保證的讀者：
+#      CLAUDE.md 明訂 push 前必跑 pytest，所以不需要有人記得去翻檔案。
 #   3. **非零退出碼**——讓 launchctl print 的 last exit status 那一面也留下痕跡，
 #      而那正是 2026-08-10 那次失敗唯一被人看到的面。
+#   4. stderr 警告（落 logs/launchd-schedule-watchdog.err.log）：通知沒送達時明說。
+#
+# ⚠️ 這整套誠實地只算**目標 3**（可稽核痕跡），不是目標 2（主動送達）：它仍然要等人
+# 來跑 pytest。要真的「叫人」需要推播管道，那會改變本專案的告警模型，屬需求方裁量。
 #
 # 產物：logs/launchd-schedule-watchdog.{out,err}.log（plist 導向）
 #       logs/schedule-watchdog/last-run.json、logs/schedule-alert.json
@@ -45,7 +53,8 @@ scripts/schedule-watchdog.sh — 排程缺席／失敗偵測器的 launchd 入�
 會寫什麼：logs/schedule-watchdog/last-run.json（每次執行）
           logs/schedule-history/com.cpbl.schedule-watchdog.jsonl（append-only）
           logs/schedule-alert.json（有異常時；恢復正常時自動刪除）
-          有異常時另彈一則 macOS 通知
+          有異常時另試彈一則 macOS 通知，並記錄它到底有沒有送達
+          （本機實測被專注模式擋掉；真正會被讀到的是 pytest header 上的那一行）
 
 怎麼呼叫：scripts/schedule-watchdog.sh                # 排程與手動皆走這支
           排程由 launchd 觸發（com.cpbl.schedule-watchdog，每日 21:10 ＋ RunAtLoad）

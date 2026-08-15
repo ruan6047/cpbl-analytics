@@ -608,3 +608,243 @@ def test_replay_shows_what_the_old_last_status_surface_lost(tmp_path: Path) -> N
     assert report["exit_code"] == sw.EXIT_MISSING
     assert report["jobs"][0]["streak"] == 1
     assert [c["role"] for c in report["jobs"][0]["cycles"]] == ["F1"]
+
+
+# ==================================================== 通知投遞：發了不等於送到
+#
+# 跨家族查核（GPT-5@Codex）判 REQUEST_CHANGES 的唯一阻擋：R1 的通知層「`osascript`
+# 回 0」不是證據，而查核者補上了另一半——**確認沒有出現**。實測根因見
+# `scripts/schedule_watch.py` 的 `notify()` 區段（專注模式 `outcome: suppressed`）。
+#
+# 以下這一組的重點是**投遞判定不得說謊**：測不到就是測不到，永遠不准因為 rc=0
+# 就宣稱送達。這正是 R1 犯的錯，所以每一條都配一個負控制。
+
+
+class _FakeProc:
+    def __init__(self, returncode: int, stdout: bytes = b"") -> None:
+        self.returncode = returncode
+        self.stdout = stdout
+
+
+_MUTED_LINE = (
+    '2026-08-15 13:51:43.383 Df NotificationCenter[734:1aec] [com.apple.unc:application] '
+    'DA39-A3EE (com.apple.ScriptEditor2) muted by DND suppression: delay')
+_PRESENT_LINE = (
+    '2026-08-15 13:51:43.380 Df usernoted[682:3ffc382] [com.apple.unc:application] '
+    'Presenting <NotificationRecord app:"com.apple.ScriptEditor2" ...> as banner')
+
+
+def _patch_run(monkeypatch, osascript_rc: int, log_rc: int, log_out: bytes):
+    """把 `osascript` 與 `/usr/bin/log` 兩支外部指令都換成假樁。
+
+    ⚠️ 這一檔不得真的彈通知、也不得真的查系統日誌：前者會干擾使用者，後者讓測試
+    結果隨當下的專注模式漂移（今天綠明天紅，而且紅得沒有道理）。
+    """
+    calls = []
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        if argv[0] == "osascript":
+            return _FakeProc(osascript_rc)
+        if argv[0] == "/usr/bin/log":
+            return _FakeProc(log_rc, log_out)
+        raise AssertionError(f"未預期的外部指令：{argv}")
+
+    monkeypatch.setattr(sw.subprocess, "run", fake_run)
+    return calls
+
+
+def test_notification_suppressed_by_focus_is_reported_as_not_delivered(monkeypatch) -> None:
+    """本卡的核心事實：rc=0 且系統說要當 banner，但專注模式擋掉 ⇒ 判定 suppressed。"""
+    _patch_run(monkeypatch, 0, 0, (_PRESENT_LINE + "\n" + _MUTED_LINE).encode())
+
+    verdict = sw.notify("t", "m")
+
+    assert verdict["osascript_rc"] == 0, "前提：osascript 自己是成功的"
+    assert verdict["delivered"] == sw.DELIVERY_SUPPRESSED
+    assert "專注模式" in verdict["reason"]
+    assert "muted by DND suppression" in verdict["evidence"]
+
+
+def test_presenting_alone_is_not_enough_when_a_mute_line_follows(monkeypatch) -> None:
+    """負控制：`Presenting` 在**問 DND 之前**就印了，故它單獨不算數。
+
+    把判定順序反過來寫（先看 Presenting 就回 presented）會讓上面那條變綠而這條變紅。
+    """
+    _patch_run(monkeypatch, 0, 0, (_MUTED_LINE + "\n" + _PRESENT_LINE).encode())
+
+    assert sw.notify("t", "m")["delivered"] == sw.DELIVERY_SUPPRESSED, (
+        "有 muted 行時無論順序都不得判 presented")
+
+
+def test_presented_only_when_no_mute_line_exists(monkeypatch) -> None:
+    """正控制：沒有攔截紀錄時才可以說「呈現了」——否則上面兩條會是恆真的。"""
+    _patch_run(monkeypatch, 0, 0, _PRESENT_LINE.encode())
+
+    assert sw.notify("t", "m")["delivered"] == sw.DELIVERY_PRESENTED
+
+
+@pytest.mark.parametrize(
+    ("log_rc", "log_out", "why"),
+    [(1, b"", "/usr/bin/log 非零退出"),
+     (0, b"", "查得到但沒有本則通知的紀錄"),
+     (0, b"2026-08-15 13:51:43 something about another app\n", "全是別人的紀錄")],
+)
+def test_unverifiable_delivery_never_claims_success(
+    monkeypatch, log_rc: int, log_out: bytes, why: str,
+) -> None:
+    """**fail closed**：查不到就是 unverified，不准退化成 presented。
+
+    R1 就是在這裡說謊的（rc=0 ⇒ 當成送到了），所以這條是本組最重要的一條。
+    """
+    _patch_run(monkeypatch, 0, log_rc, log_out)
+
+    verdict = sw.notify("t", "m")
+
+    assert verdict["delivered"] == sw.DELIVERY_UNVERIFIED, why
+    assert verdict["delivered"] != sw.DELIVERY_PRESENTED
+
+
+def test_osascript_failure_is_not_silently_swallowed(monkeypatch) -> None:
+    _patch_run(monkeypatch, 3, 0, b"")
+
+    verdict = sw.notify("t", "m")
+
+    assert verdict["osascript_rc"] == 3
+    assert verdict["delivered"] == sw.DELIVERY_UNVERIFIED
+
+
+def test_delivery_probe_uses_absolute_log_path_not_the_shell_builtin(monkeypatch) -> None:
+    """`log` 在 zsh 是內建指令（`type log` → `log is a shell builtin`）。
+
+    本卡 R1 的探查寫成裸 `log show`，被 shell 吃掉並回「too many arguments」，於是得到
+    **假陰性**——看起來像「系統沒有紀錄」，其實是查詢從來沒跑。釘住絕對路徑。
+    """
+    calls = _patch_run(monkeypatch, 0, 0, _MUTED_LINE.encode())
+
+    sw.notify("t", "m")
+
+    log_calls = [c for c in calls if "log" in c[0]]
+    assert log_calls, "根本沒有查證投遞"
+    assert log_calls[0][0] == "/usr/bin/log", f"用了會被 shell 攔截的寫法：{log_calls[0][0]}"
+
+
+def test_alert_artifact_tells_the_reader_nobody_was_notified(tmp_path: Path,
+                                                             monkeypatch) -> None:
+    """讀到 alert 的人必須立刻知道「沒有人被推播通知到」，而不是預設有人看到了。
+
+    這是驗收條件 2「必須指名誰會看到」在產物上的落點：`reader` 指名誰／何時／怎麼看，
+    且**誠實標為目標 3**——推播那條路在本機是死的，不得包裝成目標 2。
+    """
+    _patch_run(monkeypatch, 0, 0, _MUTED_LINE.encode())
+    repo = tmp_path / "repo"
+    (repo / "logs").mkdir(parents=True)
+    report = {"exit_code": sw.EXIT_FAILED, "verdict": "FAILED", "message": "假的失敗"}
+
+    sw.write_notify_artifacts(repo, report)
+
+    alert = json.loads((repo / "logs" / "schedule-alert.json").read_text(encoding="utf-8"))
+    assert alert["notification"]["delivered"] == sw.DELIVERY_SUPPRESSED
+    assert alert["reader"]["goal"] == 3, "不得宣稱達成目標 2"
+    assert alert["reader"]["who"] and alert["reader"]["when"] and alert["reader"]["how"]
+    assert "不另設推播管道" in alert["reader"]["push_channel"]
+
+
+def test_healthy_run_sends_no_notification_and_removes_the_alert(tmp_path: Path,
+                                                                 monkeypatch) -> None:
+    """負控制：正常時不得彈通知，且要把上一輪的 alert 收掉（『檔案在』才是訊號）。"""
+    def explode(argv, **kwargs):
+        raise AssertionError(f"正常路徑不該呼叫任何外部指令：{argv}")
+
+    monkeypatch.setattr(sw.subprocess, "run", explode)
+    repo = tmp_path / "repo"
+    (repo / "logs").mkdir(parents=True)
+    stale = repo / "logs" / "schedule-alert.json"
+    stale.write_text("{}", encoding="utf-8")
+
+    sw.write_notify_artifacts(repo, {"exit_code": sw.EXIT_OK, "verdict": "OK", "message": ""})
+
+    assert not stale.exists(), "條件解除後 alert 必須自動消失"
+
+
+# ============================================ 讀者投遞：pytest header 是唯一有保證的那個
+#
+# 卡面驗收條件 2 要求指名「誰會看到」。推播已實測是死的（見上一組），所以讀者落在
+# `tests/conftest.py` 的 `pytest_report_header`——CLAUDE.md 明訂 push 前必跑 pytest，
+# 故這個表面**不需要任何人記得**就會被執行。下面這組證明它真的會出現、也真的會消失。
+
+
+def _conftest():
+    spec = importlib.util.spec_from_file_location(
+        "_cpbl_conftest", ROOT / "tests" / "conftest.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_no_alert_file_means_a_completely_silent_header(monkeypatch) -> None:
+    """負控制：沒有告警時 header 必須一個字都不多印。
+
+    這條若不存在，下面那條就可能只是「永遠都在喊」而不是「壞了才喊」。
+    """
+    conf = _conftest()
+    monkeypatch.setattr(conf, "_SCHEDULE_ALERT", ROOT / "logs" / "does-not-exist.json")
+
+    assert conf._schedule_alert_header() == []
+
+
+def test_alert_file_surfaces_in_the_header_with_the_delivery_truth(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    """正控制：告警在，header 就要印出訊息、檔案位置，**以及推播沒送達這件事**。"""
+    conf = _conftest()
+    alert = tmp_path / "schedule-alert.json"
+    alert.write_text(json.dumps({
+        "observed_at": "2026-08-15T21:10:00+0800",
+        "verdict": "FAILED", "message": "每日鏈失敗",
+        "notification": {"delivered": sw.DELIVERY_SUPPRESSED},
+    }, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(conf, "_SCHEDULE_ALERT", alert)
+
+    lines = conf._schedule_alert_header()
+
+    assert any("每日鏈失敗" in ln for ln in lines), "訊息本身沒印出來"
+    assert any(str(alert) in ln for ln in lines), "沒告訴讀者去哪看"
+    assert any("沒有送達" in ln for ln in lines), (
+        "沒有說推播失敗——讀者會誤以為已經有人被通知到，那正是本卡要消滅的形狀")
+
+
+def test_header_does_not_claim_delivery_failure_when_it_actually_presented(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    """負控制：真的送達時就不該再喊「沒有送達」，否則那行字會變成雜訊。"""
+    conf = _conftest()
+    alert = tmp_path / "schedule-alert.json"
+    alert.write_text(json.dumps({
+        "observed_at": "x", "message": "m",
+        "notification": {"delivered": sw.DELIVERY_PRESENTED},
+    }, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(conf, "_SCHEDULE_ALERT", alert)
+
+    assert not any("沒有送達" in ln for ln in conf._schedule_alert_header())
+
+
+def test_corrupt_alert_file_degrades_to_a_line_and_never_breaks_pytest(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    """觀測器不得把被觀測的東西弄掛：壞掉的 alert 只降級成一行提示，不是例外。"""
+    conf = _conftest()
+    alert = tmp_path / "schedule-alert.json"
+    alert.write_text("{ this is not json", encoding="utf-8")
+    monkeypatch.setattr(conf, "_SCHEDULE_ALERT", alert)
+
+    lines = conf._schedule_alert_header()
+
+    assert len(lines) == 1 and "讀不開" in lines[0]
+
+
+def test_reader_contract_is_honest_about_being_goal_three() -> None:
+    """`READER_CONTRACT` 是寫進產物給人看的宣稱，**不得**把目標 3 包裝成目標 2。"""
+    assert sw.READER_CONTRACT["goal"] == 3
+    assert "pytest" in sw.READER_CONTRACT["when"]
+    assert sw.READER_CONTRACT["push_channel"].startswith("無")

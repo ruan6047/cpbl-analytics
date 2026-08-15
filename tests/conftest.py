@@ -28,6 +28,7 @@ test_daily_summary.py、test_coaches_history.py、test_scoreless_streak_api.py�
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -69,9 +70,48 @@ def _location_header() -> list[str]:
     ]
 
 
+# ---------------------------------------------- 排程告警的讀者（#132／OPS-SCHEDULE-FAILURE-BLIND1）
+#
+# 為什麼放在**這裡**：本專案不設推播管道（見 scripts/backup-prod-db.sh 檔頭），而
+# 實測證明 macOS 通知這條路在本機是死的——專注模式把 osascript 通知全部 suppressed
+# （量測見 scripts/schedule_watch.py 的 notify() 區段）。所以「誰會看到」必須落在一個
+# **本來就會被執行**的表面上，而不是期待有人記得去翻檔案。
+#
+# `uv run pytest` 是本專案唯一被 CLAUDE.md 明訂為 push 前必跑的東西，且這個 header
+# 連 `-q` 都會印（見 pytest_sessionstart）。因此讀者＝任何要動這個 repo 的人或 AI，
+# 時機＝每次驗證迴圈——不需要新的紀律，也不需要任何人記得。
+#
+# ⚠️ 這是**目標 3（可稽核痕跡）不是目標 2（主動送達）**：它仍然要等人來跑 pytest。
+# 刻意**不**做成 fail：排程壞掉不該擋住無關的程式碼工作（本專案已在「暫時服務截止」
+# 那次吃過連坐的虧）。它只是讓訊號出現在眼前。
+_SCHEDULE_ALERT = Path(__file__).resolve().parents[1] / "logs" / "schedule-alert.json"
+
+
+def _schedule_alert_header() -> list[str]:
+    """`logs/schedule-alert.json` 存在＝有未處理的排程異常。不存在就完全安靜。
+
+    ⚠️ 任何讀取失敗都只降級成一行提示，絕不讓 pytest 因為它而爆——觀測器把被觀測的
+    東西弄掛是本末倒置（與 schedule_watch.py 的歷史寫入同一條原則）。
+    """
+    try:
+        if not _SCHEDULE_ALERT.exists():
+            return []
+        payload = json.loads(_SCHEDULE_ALERT.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return [f"⚠️ 排程告警：{_SCHEDULE_ALERT} 存在但讀不開——請直接看檔案"]
+    lines = [f"⚠️ 排程告警未處理（{payload.get('observed_at', '時間不明')}）："
+             f"{payload.get('message') or payload.get('verdict') or '詳見檔案'}",
+             f"⚠️ 排程告警：詳見 {_SCHEDULE_ALERT}（修好後本檔會自動消失）"]
+    delivered = (payload.get("notification") or {}).get("delivered")
+    if delivered and delivered != "presented":
+        lines.append(f"⚠️ 排程告警：當時的推播**沒有送達**（{delivered}）——"
+                     "所以除了這裡，沒有別人被通知到")
+    return lines
+
+
 def pytest_report_header(config) -> list[str]:  # noqa: ANN001 — pytest hook 簽名固定
     del config
-    return _location_header()
+    return _location_header() + _schedule_alert_header()
 
 
 def pytest_sessionstart(session) -> None:  # noqa: ANN001 — pytest hook 簽名固定
@@ -87,5 +127,5 @@ def pytest_sessionstart(session) -> None:  # noqa: ANN001 — pytest hook 簽名
     if getattr(session.config.option, "quiet", 0):
         reporter = session.config.pluginmanager.get_plugin("terminalreporter")
         if reporter is not None:
-            for line in _location_header():
+            for line in _location_header() + _schedule_alert_header():
                 reporter.write_line(line)

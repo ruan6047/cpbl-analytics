@@ -605,18 +605,116 @@ def build_message(report: dict) -> str:
     return "；".join(parts) if parts else "排程一切正常"
 
 
-def notify(title: str, message: str) -> bool:
-    """⚠️ `osascript` 回 0 **不是**通知彈出的證據——通知權限未授予時它一樣回 0 而訊息
-    被靜默丟棄。因此呼叫端另有兩個不依賴權限的備援：持久產物 `logs/schedule-alert.json`
-    ＋ 非零退出碼（讓 `launchctl print` 那一面也留下痕跡）。"""
+# =============================================== 通知投遞：發了不等於送到
+#
+# R1 只做到「`osascript` 回 0」，並自承那不是證據。跨家族查核補上了缺的另一半——
+# **確認沒有出現**：注入異常後立即檢查通知中心與桌面，都沒有可見通知。
+#
+# 以下是量出來的原因（每一條都有實測輸出，不是讀文件推斷）：
+#
+# 1. `osascript` 送出的通知歸屬 app 是 **Script Editor**，不是本專案的任何東西：
+#      usernoted: Connection com.apple.ScriptEditor2 with path: /usr/bin/osascript
+# 2. `usernoted` **接受了**它，還說要當 banner 顯示——這就是 rc=0 且日誌看起來成功的原因：
+#      usernoted: … successfully processed by pipeline, scheduled for delivery.
+#      usernoted: Presenting … as banner (["badge", "sound", "alert"])
+# 3. 然後 `NotificationCenter` 去問 `donotdisturbd`，被**專注模式擋掉**：
+#      donotdisturbd: Event was resolved: … outcome: suppressed; reason: mode configuration type
+#      NotificationCenter: DA39-A3EE (com.apple.ScriptEditor2) muted by DND suppression: delay
+#
+# 那個模式的設定是 `applicationConfigurationType: Exclusive` 且
+# `allowedApplicationIdentifiers: {}`（**空的**）——沒有任何 app 能突破——加上
+# `minimumBreakthroughUrgency: essential`，而 AppleScript 的 `display notification`
+# **沒有辦法標記 urgency**（那需要 Time Sensitive／Critical Alerts 授權的真 app bundle）。
+# 所以這不是本 repo 改得動的東西：修法是使用者在系統設定裡改專注模式白名單。
+#
+# 24 小時實測分佈（`log show --last 24h --predicate 'process == "donotdisturbd"'`）：
+#   suppressed 103 次、allowed 11 次；11 次 allowed **全部**落在 23:45–05:19（睡覺時段），
+#   白天清醒時段（含 21:21、21:37，正是本 watchdog 21:10 的槽）**無一例外全部 suppressed**。
+#
+# 結論：在這台機器的現行設定下，推播通知**結構上沒有讀者**。既然如此，偵測器至少
+# 必須**知道自己被靜音了**並說出來——否則它只是換一種形式的「沒有讀者的告警」，
+# 也就是本卡一開始要消滅的東西。
+
+NOTIFY_BUNDLE_ID = "com.apple.ScriptEditor2"   # osascript 的歸屬 app（實測，見上）
+
+# 投遞判定。`delivered` 只有三種值，且**永遠不會因為測不到就寫 True**（fail closed）。
+DELIVERY_PRESENTED = "presented"          # 系統紀錄顯示真的呈現了
+DELIVERY_SUPPRESSED = "suppressed"        # 專注模式／勿擾擋掉——有寫入，但沒有人看到
+DELIVERY_UNVERIFIED = "unverified"        # 查不到系統紀錄：**不代表送到了**
+
+
+def _delivery_probe(since: datetime, timeout: float = 20.0) -> dict:
+    """問 macOS 統一日誌：剛剛那則通知到底有沒有被呈現。
+
+    ⚠️ 這裡刻意**不**用 `osascript` 的退出碼當任何依據——它在被靜音時一樣回 0。
+    唯一採信的是 `donotdisturbd`／`NotificationCenter` 的解析結果。
+
+    ⚠️ `log` 在 zsh 是**內建指令**（實測：`type log` → `log is a shell builtin`），
+    直接寫 `log show` 會被 shell 吃掉並回「too many arguments」而看起來像沒有紀錄。
+    本卡 R1 的探查就是這樣得到假陰性的，故此處硬寫絕對路徑 `/usr/bin/log`。
+    """
+    verdict = {"delivered": DELIVERY_UNVERIFIED, "reason": "", "evidence": ""}
+    started = since.strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        proc = subprocess.run(
+            ["/usr/bin/log", "show", "--start", started, "--style", "compact",
+             "--predicate",
+             'process == "donotdisturbd" OR process == "NotificationCenter"'],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            timeout=timeout, check=False)
+    except (OSError, subprocess.SubprocessError):
+        verdict["reason"] = "無法執行 /usr/bin/log，投遞與否不可知"
+        return verdict
+    if proc.returncode != 0:
+        verdict["reason"] = f"/usr/bin/log 非零退出（{proc.returncode}），投遞與否不可知"
+        return verdict
+
+    text = proc.stdout.decode("utf-8", errors="replace")
+    ours = [ln for ln in text.splitlines() if NOTIFY_BUNDLE_ID in ln]
+    muted = [ln for ln in ours if "muted by DND suppression" in ln]
+    if muted:
+        verdict["delivered"] = DELIVERY_SUPPRESSED
+        verdict["reason"] = "專注模式／勿擾擋下：系統有收到，但畫面上沒有出現"
+        verdict["evidence"] = muted[0].strip()[:400]
+        return verdict
+    presented = [ln for ln in ours if "Presenting" in ln]
+    if presented:
+        # ⚠️ `usernoted` 的 "Presenting" 發生在**問 DND 之前**，所以它單獨不算數；
+        # 只有在同時找不到 muted 行時才採信。上面的順序就是這個意思。
+        verdict["delivered"] = DELIVERY_PRESENTED
+        verdict["reason"] = "系統紀錄顯示已呈現，且未見專注模式攔截"
+        verdict["evidence"] = presented[0].strip()[:400]
+        return verdict
+    verdict["reason"] = "統一日誌裡找不到這則通知的處理紀錄，投遞與否不可知"
+    return verdict
+
+
+def notify(title: str, message: str, *, verify: bool = True) -> dict:
+    """彈通知**並回報它到底有沒有被看到**。回傳投遞判定 dict。
+
+    ⚠️ `osascript` 回 0 **不是**通知彈出的證據——被專注模式靜音時它一樣回 0。
+    因此呼叫端另有兩個不依賴權限的備援：持久產物 `logs/schedule-alert.json`
+    ＋ 非零退出碼（讓 `launchctl print` 那一面也留下痕跡）。
+    """
+    verdict: dict = {"attempted": True, "osascript_rc": None,
+                     "delivered": DELIVERY_UNVERIFIED, "reason": "", "evidence": ""}
     script = (f'display notification {json.dumps(message, ensure_ascii=False)} '
               f'with title {json.dumps(title, ensure_ascii=False)}')
+    # 取送出前一秒當查詢起點：`log show --start` 的解析度是秒，取「現在」會漏掉同秒事件。
+    since = datetime.now() - timedelta(seconds=1)
     try:
         proc = subprocess.run(["osascript", "-e", script], stdout=subprocess.DEVNULL,
-                              stderr=subprocess.DEVNULL, check=False)
-    except (OSError, subprocess.SubprocessError):
-        return False
-    return proc.returncode == 0
+                              stderr=subprocess.DEVNULL, timeout=20, check=False)
+    except (OSError, subprocess.SubprocessError) as error:
+        verdict["reason"] = f"osascript 無法執行：{error}"
+        return verdict
+    verdict["osascript_rc"] = proc.returncode
+    if proc.returncode != 0:
+        verdict["reason"] = f"osascript 非零退出（{proc.returncode}）"
+        return verdict
+    if verify:
+        verdict.update(_delivery_probe(since))
+    return verdict
 
 
 # --------------------------------------------------------------------- 主流程
@@ -749,10 +847,40 @@ def current_trigger() -> str:
     return "launchd" if os.environ.get(TRIGGER_ENV) == "launchd" else "manual"
 
 
+# 誰會看到、什麼時候看到——卡面驗收條件 2 要求指名，而**這一段就是那個指名**。
+#
+# ⚠️ 誠實標定：這是**目標 3（留下可稽核的痕跡）**，不是目標 2（主動送到人面前）。
+# 推播那條路在這台機器上量到是死的（見 notify() 上方的專注模式實測），而修法在系統
+# 設定裡、不在本 repo，故本卡不宣稱達成目標 2。
+READER_CONTRACT = {
+    "goal": 3,
+    "goal_note": "目標 3（可稽核痕跡）。**不是**目標 2：它仍然要等人來跑 pytest，"
+                 "不會主動送到人面前。推播那條路在本機實測是死的——專注模式把 "
+                 "osascript 通知全部 suppressed，詳見本檔 notify() 區段的量測。",
+    "who": "任何要動這個 repo 的人或 AI——不需要指派，也不需要誰記得",
+    "when": "每次跑 `uv run pytest`。CLAUDE.md 明訂 push 前必跑，而 "
+            "tests/conftest.py 的 pytest_report_header 會把本告警印在最前面（`-q` 也印）",
+    "how": "logs/schedule-alert.json 存在＝有未處理的排程異常；條件解除時本檔自動刪除，"
+           "故『檔案在』本身就是訊號。pytest header 會把訊息與『推播有沒有送達』一起印出來",
+    "push_channel": "無。本專案的告警模型是機器可讀狀態檔供人／AI 每日查，"
+                    "不另設推播管道（見 scripts/backup-prod-db.sh 檔頭）。"
+                    "要改成真的會叫人的推播，屬需求方裁量，不由執行者自行引入。",
+}
+
+
 def write_notify_artifacts(repo: Path, report: dict) -> None:
-    """三層備援：通知（可能被權限吃掉）→ 持久產物 → 非零退出碼。"""
+    """三層備援：通知（在本機被專注模式靜音）→ 持久產物 → 非零退出碼。
+
+    ⚠️ 通知**先送再寫檔**，因為投遞判定要一起寫進產物；osascript 與日誌查詢都有
+    timeout，故不會因為通知那一層卡住而讓產物寫不出來。
+    """
     stamp = datetime.now(TAIPEI).strftime("%Y-%m-%dT%H:%M:%S%z")
     trigger = current_trigger()
+    delivery: dict = {"attempted": False,
+                      "delivered": DELIVERY_UNVERIFIED,
+                      "reason": "本次無異常，未送出通知"}
+    if report["exit_code"] != EXIT_OK:
+        delivery = notify("CPBL 排程異常", report["message"])
     run_dir = repo / "logs" / "schedule-watchdog"
     try:
         run_dir.mkdir(parents=True, exist_ok=True)
@@ -762,6 +890,7 @@ def write_notify_artifacts(repo: Path, report: dict) -> None:
                         "trigger": trigger, "ppid": os.getppid(),
                         # 留存但**不當判準**（見 TRIGGER_ENV 的註解：子行程一律看到 "0"）
                         "xpc_service_name": os.environ.get("XPC_SERVICE_NAME"),
+                        "notification": delivery, "reader": READER_CONTRACT,
                         "report": report}, ensure_ascii=False, indent=2),
             encoding="utf-8")
         history = repo / "logs" / "schedule-history" / "com.cpbl.schedule-watchdog.jsonl"
@@ -780,12 +909,20 @@ def write_notify_artifacts(repo: Path, report: dict) -> None:
         else:
             alert.write_text(json.dumps(
                 {"observed_at": stamp, "verdict": report["verdict"],
-                 "message": report["message"], "report": report},
+                 "message": report["message"],
+                 # ⚠️ 這兩個欄位是本檔的重點：讀到這份 alert 的人必須立刻知道
+                 # 「有沒有人被通知到」，而不是預設『既然有告警就有人看到了』。
+                 "notification": delivery, "reader": READER_CONTRACT,
+                 "report": report},
                 ensure_ascii=False, indent=2), encoding="utf-8")
     except OSError as error:
         print(f"WARN 無法寫入 watchdog 產物：{error}", file=sys.stderr)
-    if report["exit_code"] != EXIT_OK:
-        notify("CPBL 排程異常", report["message"])
+    if delivery.get("attempted") and delivery.get("delivered") != DELIVERY_PRESENTED:
+        # 靜音本身要在 stderr 留痕：launchd 會把它收進
+        # logs/launchd-schedule-watchdog.err.log，那是第三個不依賴權限的面。
+        print(f"WARN 通知未確認送達（{delivery.get('delivered')}）："
+              f"{delivery.get('reason')}　→ 讀者請改看 logs/schedule-alert.json",
+              file=sys.stderr)
 
 
 if __name__ == "__main__":
