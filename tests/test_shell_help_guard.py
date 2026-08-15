@@ -48,8 +48,14 @@ from scripts import script_inventory as si
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# 本卡處置的三支。`weekly-box-revisions.sh` 見檔頭說明（#132 資源，射程外）。
+# 本卡處置的四支。`weekly-box-revisions.sh` 見檔頭說明（#132 資源，射程外）。
+#
+# `backup-prod-db.sh` 是後補的第四支，而它**不是**從 allowlist 撤下來的——它從來
+# 沒進過那張表：舊判準問「寫不寫 DB」，而它 `pg_dump` 對 DB 唯讀。實測 `--help`
+# 會 ssh 進生產跑整庫 dump，然後 exit 0、產出備份、`rm -f` 掉輪替視窗最舊的那份
+# （7 份視窗實測：08-08 消失、08-15 補進來）。判準已一併加寬為「高後果」。
 GUARDED_SHELLS = (
+    "scripts/backup-prod-db.sh",
     "scripts/refresh-cpbl-prod.sh",
     "scripts/scrape-daily.sh",
     "scripts/weekly-game-pitches.sh",
@@ -142,6 +148,12 @@ def _run(harness: dict, argv: list[str], **extra_env: str) -> tuple[subprocess.C
         "DEPLOY_PATH": "/nonexistent/stub-deploy",
         "API_INFO_URL": "http://127.0.0.1:1/api/info",
         "REFRESH_LOCK_DIR": str(harness["repo"].parent / "lock"),
+        # ⚠️ fail-safe，不是裝飾：`backup-prod-db.sh` 的 BACKUP_DIR 預設是
+        # `$HOME/Library/Application Support/cpbl-analytics/backups`——**真實的輪替
+        # 視窗**。負控制會在拿掉守衛的情況下跑主流程，指到假 repo 裡才不會有任何
+        # 一條路徑通往真的備份目錄。指進 repo 內另有好處：產物落在 `_files_created`
+        # 看得到的範圍。
+        "BACKUP_DIR": str(harness["repo"] / "backups"),
         **extra_env,
     }
     result = subprocess.run(
@@ -218,13 +230,15 @@ def test_negative_control_removing_the_guard_kills_the_answer(
 
 @pytest.mark.parametrize(
     "script_rel",
-    ["scripts/refresh-cpbl-prod.sh", "scripts/weekly-game-pitches.sh"],
+    ["scripts/backup-prod-db.sh",
+     "scripts/refresh-cpbl-prod.sh",
+     "scripts/weekly-game-pitches.sh"],
     ids=lambda s: Path(s).name,
 )
 def test_negative_control_unguarded_help_really_reaches_the_main_flow(
     script_rel: str, tmp_path: Path,
 ) -> None:
-    """守衛拿掉後 `--help` 真的會落進主流程——即這兩支修的是實害，不是體感。
+    """守衛拿掉後 `--help` 真的會落進主流程——即這三支修的是實害，不是體感。
 
     `scrape-daily.sh` 不在這條的參數化裡：它自 `a0b6cfd`（2026-07-17）起就有
     `參數只接受 fast` 的檢查，`--help` 一直是 exit 64 而非「跑完整每日爬取」。

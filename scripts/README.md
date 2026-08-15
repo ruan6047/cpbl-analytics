@@ -158,16 +158,16 @@
 
 ## 引用完整性（不變式 3）
 
-全庫 `scripts/<name>.<ext>` 字面路徑共 **895** 處。**只有 `enforced` 那一面強制**——其餘的過期是歷史事實不是缺陷：
+全庫 `scripts/<name>.<ext>` 字面路徑共 **901** 處。**只有 `enforced` 那一面強制**——其餘的過期是歷史事實不是缺陷：
 
 | 面別 | 處數 | 強制？ | 為什麼 |
 |---|---:|---|---|
 | `scan` | 206 | 回報 | 掃描器產物 JSON 是當時的快照 |
 | `sealed` | 198 | 回報 | `docs/control-plane/**` 已於 `8271d7c` 封存唯讀，**永遠改不了** |
-| `self` | 173 | 不適用 | 掃描器自身的說明範例 |
-| `enforced` | 144 | ✅ 強制 | `scripts/`、`src/`、活契約與設計文件——壞了就是現在的缺陷 |
+| `self` | 176 | 不適用 | 掃描器自身的說明範例 |
+| `enforced` | 145 | ✅ 強制 | `scripts/`、`src/`、活契約與設計文件——壞了就是現在的缺陷 |
 | `historical` | 144 | 回報 | `docs/archive/**` 與卡片交付產物＝凍結證據，**本卡射程外** |
-| `fixture` | 30 | 不適用 | `tests/**` 的合成路徑；真實路徑壞掉 pytest 自己會紅（更強的機制） |
+| `fixture` | 32 | 不適用 | `tests/**` 的合成路徑；真實路徑壞掉 pytest 自己會紅（更強的機制） |
 
 **壞路徑——⚠️ **強制面**（1）**：
 
@@ -181,11 +181,17 @@
 > [!important] 這條不變式是被 `scripts/data_tie_remedy1.py` 的 `FROZEN_FILES` 逼出來的——它以**字面路徑**硬編兩支一次性產物，而 CI 只 import `_streaks_for` 碰不到 `is_frozen`。搬走那兩支會讓守衛靜默回 `False`，零訊號。
 > **現在搬走它們會讓 CI 紅**，這就是那個缺陷的修法。
 
-## 寫入型必須 `--help` 安全（不變式 4）
+## 高後果必須 `--help` 安全（不變式 4）
 
-判定為寫入型的入口，argv 必須在主流程前被解析。**既有不合格者具名列入 allowlist**。
+判定為**高後果**的入口，argv 必須在主流程前被解析。**既有不合格者具名列入 allowlist**。
 
-原則上本卡只加不變式、不改既有腳本行為（那會讓本卡從盤點變成改一批腳本），但需求方對**排程 shell** 推翻了這個處置：`refresh-cpbl-prod.sh`／`scrape-daily.sh`／`weekly-game-pitches.sh` 與 `sync_deep_tm_prod.py` **同級**——探索動作即造成損害——而破壞半徑更大（後者 DROP 一張表，`refresh-cpbl-prod.sh` 是整條生產同步鏈）。三支已加 argv 守衛並從下表撤除，證明見 `tests/test_shell_help_guard.py`。
+高後果 **55** 支（其中非寫入型 **2** 支）：寫 DB **或**接觸遠端／生產主機 **或**不可逆刪檔，三者任一即是。
+
+> [!warning] **判準原本問「寫不寫 DB」，而它漏掉了 `backup-prod-db.sh`。**
+> 那一支 `pg_dump` 對 DB 唯讀，於是 `writes=False`，不變式**根本不看它**——但實測它的 `--help` 會 ssh 進生產跑整庫 dump，然後 exit 0、產出一份備份、`rm -f` 掉輪替視窗裡最舊的那份。連打七次，整個保留視窗就塌成同一天的七份副本。
+> 本表逐支印著「⚠️ --help 不安全」，**卻沒有任何強制路徑**——印得出警告不等於擋得住。判準已加寬為「探索動作會不會造成損害」。
+
+原則上本卡只加不變式、不改既有腳本行為（那會讓本卡從盤點變成改一批腳本），但需求方對**排程 shell** 推翻了這個處置：`refresh-cpbl-prod.sh`／`scrape-daily.sh`／`weekly-game-pitches.sh` 與 `sync_deep_tm_prod.py` **同級**——探索動作即造成損害——而破壞半徑更大（後者 DROP 一張表，`refresh-cpbl-prod.sh` 是整條生產同步鏈）。`backup-prod-db.sh` 是判準加寬後補上的第四支。四支皆已加 argv 守衛並不列下表，證明見 `tests/test_shell_help_guard.py`。
 
 | 入口 | 理由與去向 |
 |---|---|
@@ -193,6 +199,7 @@
 | `docs/research/INGEST-DEEP-TM-BACKFILL1/sync_deep_tm_prod.py` | ⚠️ **本輪射程內最危險的一支**：完全不看 argv，任何參數都直接 ssh 進生產跑 `COPY` ＋ `UPDATE cpbl.pitch_tracking`；`VPS` 是裸常數不可覆蓋、無 dry-run、無備份。已於 `dac8d8e` 移出 `scripts/`（＝瀏覽者不會再誤觸），但**檔案本身的行為沒變**。去向：修行為需另卡，母卡 INGEST-DEEP-TM-BACKFILL1 已封存 |
 | `scripts/rehearsal_backfill.py` | 完全不看 argv：任何旗標（含 --help）都直接 DROP/CREATE pitch_tracking_rehearsal。去向：本卡只標記；修行為需另卡，且該卡母卡 INGEST-DEEP-TM-BACKFILL1 已封存 |
 | `scripts/rehearsal_pa_build.py` | 完全不看 argv，寫合成 year=2099 列。去向：同上，PA-DAILY 若啟動時一併處理 |
+| `scripts/verify_deep_tm_backfill.py` | 判準加寬為「高後果」後**新納入射程**（對 DB 唯讀，但 `VPS` 是裸常數、任何參數都直接 ssh 進生產跑 psql）。傷害低於同批（唯讀 SELECT），且檔頭`LIFECYCLE: oneshot` 明寫「不要跑」。去向：修行為需另卡，母卡 INGEST-DEEP-TM-BACKFILL1 已封存，與 sync_deep_tm_prod.py 同批處理 |
 | `scripts/weekly-box-revisions.sh` | 無 argv 守衛，會直接跑 `cpbl-refresh-box-deep`（Playwright 打官網 + 寫本機 DB）。⚠️ **與同批三支同性質，本卡射程外**：它是 `#132` 的資源（該卡同時持有 `scripts/refresh_status.py` 與 `src/cpbl/api/routers/info.py`），本卡改它等於動另一張活卡的檔案。去向：`#132` 收工後比照同批三支補上守衛 |
 
 > [!note] 判準沿用 `tests/test_cli_help_guard.py`，不另立一套。
@@ -233,12 +240,12 @@
 | `report_pa_rebuild_fix1.py` | 一次性產物 | `scripts/` | ⚠️ `docs/research/GAME-RECAP-PA1-FIX1/` | 唯讀 | ✅ --help 安全 | GAME-RECAP-PA1-FIX1 | GAME-RECAP-PA1-FIX1 全庫重建驗收報告：對 DB 實際狀態窮舉（非 dry-run）。 | ⚠️ 未查證 |
 | `restate1_reconcile.py` | 一次性產物 | `scripts/` | ⚠️ `docs/research/INGEST-SPLITS-IMPORT-RESTATE1/` | **寫** | ✅ --help 安全 | INGEST-SPLITS-IMPORT-RESTATE1 | INGEST-SPLITS-IMPORT-RESTATE1：分項重建的前後快照與變動歸因對帳。 | ⚠️ 未查證 |
 | `team_style_vectors.py` | 一次性產物 | `scripts/` | ⚠️ `docs/research/TEAM-STYLE1/` | 唯讀 | ✅ --help 安全 | TEAM-STYLE1 | TEAM-STYLE1 球隊球風向量計算（唯讀；描述性）。 | ⚠️ 未查證 |
-| `verify_deep_tm_backfill.py` | 一次性產物 | `scripts/` | ✅ | 唯讀 | ⚠️ --help 不安全 | INGEST-DEEP-TM-BACKFILL1 | Verification script for INGEST-DEEP-TM-BACKFILL1. | ⚠️ 未查證 |
+| `verify_deep_tm_backfill.py` | 一次性產物 | `scripts/` | ✅ | 唯讀 | ⚠️ --help 不安全（具名例外） | INGEST-DEEP-TM-BACKFILL1 | Verification script for INGEST-DEEP-TM-BACKFILL1. | ⚠️ 未查證 |
 | `verify_pa_build_fix1.py` | 一次性產物 | `scripts/` | ⚠️ `docs/research/GAME-RECAP-PA1-FIX1/` | 唯讀 | ✅ --help 安全 | GAME-RECAP-PA1-FIX1 | GAME-RECAP-PA1-FIX1 對帳：修正前後的打席切分與出局數，全母體窮舉。 | ⚠️ 未查證 |
 | `verify_splits_pa_split1.py` | 一次性產物 | `scripts/` | ⚠️ `docs/research/INGEST-SPLITS-PA-SPLIT1/` | 唯讀 | ✅ --help 安全 | INGEST-SPLITS-PA-SPLIT1 | INGEST-SPLITS-PA-SPLIT1 查證（iteration 3）：`splits_calc` 重複計打席的範圍與選手層級影響。 | ⚠️ 未查證 |
 | `capture_player_ia_fixtures.py` | 待產品裁定 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | UX-PLAYER-IA1 | 擷取球員頁 IA prototype 用的真實 fixture（UX-PLAYER-IA1）。 | ⚠️ 未查證 |
 | `ability_snapshot.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ⚠️ --help 不安全 | ABILITY-2 | 能力值卡回歸快照：跨年代抽驗球員的各軸 PR/總評/組成 dump 成 JSON。 | 能力值卡回歸抽驗；docstring 明寫改前後各跑一次再 diff |
-| `backup-prod-db.sh` | 常設工具 | `scripts/` | ✅ | 唯讀 | ⚠️ --help 不安全 | OPS-BACKUP-EMPTY1 | 備份並驗證整個 production 資料庫（alpha_db：cpbl schema ＋ 主站 public schema）； stdout 只輸出備份路徑。 | 備整庫並驗內容門檻（OPS-BACKUP-EMPTY1 的產物，已是常設） |
+| `backup-prod-db.sh` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | OPS-BACKUP-EMPTY1 | 備份並驗證整個 production 資料庫（alpha_db：cpbl schema ＋ 主站 public schema）； stdout 只輸出備份路徑。 | 備整庫並驗內容門檻（OPS-BACKUP-EMPTY1 的產物，已是常設） |
 | `com.cpbl.scrape-daily.plist` | 常設工具 | `scripts/` | ✅ | 唯讀 | — | — | — | ⚠️ 未查證 |
 | `com.cpbl.weekly-box-revisions.plist` | 常設工具 | `scripts/` | ✅ | 唯讀 | — | — | — | ⚠️ 未查證 |
 | `com.cpbl.weekly-game-pitches.plist` | 常設工具 | `scripts/` | ✅ | 唯讀 | — | — | — | ⚠️ 未查證 |
@@ -377,5 +384,5 @@
 - **「未找到消費者」不等於「沒有消費者」**：本清冊的觀測面只有 **git 追蹤檔案**。本機執行歷史、需求方手動操作、封存前的口頭流程都不在裡面。用詞一律「未找到」。
 - **本輪零刪除**。已用盡的只標記，刪除是需求方的獨立裁定。
 - 位置不變式證明的是「位置與分類一致」，**不是「分類是對的」**。分類含具名人工改判，機器只驗一致性不驗真假。
-- **分段路徑**（`"scripts/" + name` 這類靜態解析不了的組裝）共 49 處，引用完整性檢查涵蓋不到，逐處列出：`docs/research/TIME-SEMANTICS-CONTRACT1/scan_time_semantics.py:149`、`scripts/data_rules_audit1.py:761`、`scripts/data_tie_remedy1.py:322`、`scripts/script_inventory.py:68`、`scripts/script_inventory.py:302`、`scripts/script_inventory.py:306`、`scripts/script_inventory.py:838`、`scripts/script_inventory.py:980`、`scripts/script_inventory.py:1438`、`tests/test_backup_prod_db.py:16`、`tests/test_backup_prod_db.py:186`、`tests/test_backup_prod_db.py:196`、`tests/test_backup_prod_db.py:203`、`tests/test_bio_gap2_backfill.py:19`、`tests/test_bio_gap_backfill.py:27`、`tests/test_prod_sync_revision_seq.py:33`、`tests/test_prod_sync_revision_seq.py:183`、`tests/test_prod_sync_revision_seq.py:184`、`tests/test_prod_sync_revision_seq.py:185`、`tests/test_prod_sync_revision_seq.py:216`、`tests/test_refresh_pitch_ingest.py:26`、`tests/test_refresh_remote_train.py:20`、`tests/test_review_prompt.py:7`、`tests/test_roadmap_lines.py:28`、`tests/test_scrape_daily.py:32`、`tests/test_scrape_daily.py:33`、`tests/test_scrape_daily.py:115`、`tests/test_scrape_daily.py:132`、`tests/test_scrape_daily.py:156`、`tests/test_scrape_daily.py:310`、`tests/test_script_inventory.py:243`、`tests/test_script_inventory.py:281`、`tests/test_script_inventory.py:327`、`tests/test_script_inventory.py:341`、`tests/test_script_inventory.py:349`、`tests/test_script_inventory.py:357`、`tests/test_script_inventory.py:369`、`tests/test_script_inventory.py:422`、`tests/test_script_inventory.py:480`、`tests/test_script_inventory.py:485`、`tests/test_script_inventory.py:486`、`tests/test_script_inventory.py:487`、`tests/test_script_inventory.py:558`、`tests/test_shell_help_guard.py:289`、`tests/test_shell_help_guard.py:361`、`tests/test_state_plane_migrate.py:16`、`tests/test_task_card_sections.py:8`、`tests/test_verify_refresh_info.py:27`、`tests/test_workflow_ledger.py:5`
+- **分段路徑**（`"scripts/" + name` 這類靜態解析不了的組裝）共 49 處，引用完整性檢查涵蓋不到，逐處列出：`docs/research/TIME-SEMANTICS-CONTRACT1/scan_time_semantics.py:149`、`scripts/data_rules_audit1.py:761`、`scripts/data_tie_remedy1.py:322`、`scripts/script_inventory.py:71`、`scripts/script_inventory.py:324`、`scripts/script_inventory.py:328`、`scripts/script_inventory.py:870`、`scripts/script_inventory.py:1012`、`scripts/script_inventory.py:1521`、`tests/test_backup_prod_db.py:16`、`tests/test_backup_prod_db.py:186`、`tests/test_backup_prod_db.py:196`、`tests/test_backup_prod_db.py:203`、`tests/test_bio_gap2_backfill.py:19`、`tests/test_bio_gap_backfill.py:27`、`tests/test_prod_sync_revision_seq.py:33`、`tests/test_prod_sync_revision_seq.py:183`、`tests/test_prod_sync_revision_seq.py:184`、`tests/test_prod_sync_revision_seq.py:185`、`tests/test_prod_sync_revision_seq.py:216`、`tests/test_refresh_pitch_ingest.py:26`、`tests/test_refresh_remote_train.py:20`、`tests/test_review_prompt.py:7`、`tests/test_roadmap_lines.py:28`、`tests/test_scrape_daily.py:32`、`tests/test_scrape_daily.py:33`、`tests/test_scrape_daily.py:115`、`tests/test_scrape_daily.py:132`、`tests/test_scrape_daily.py:156`、`tests/test_scrape_daily.py:310`、`tests/test_script_inventory.py:243`、`tests/test_script_inventory.py:321`、`tests/test_script_inventory.py:367`、`tests/test_script_inventory.py:381`、`tests/test_script_inventory.py:389`、`tests/test_script_inventory.py:397`、`tests/test_script_inventory.py:409`、`tests/test_script_inventory.py:462`、`tests/test_script_inventory.py:520`、`tests/test_script_inventory.py:525`、`tests/test_script_inventory.py:526`、`tests/test_script_inventory.py:527`、`tests/test_script_inventory.py:598`、`tests/test_shell_help_guard.py:303`、`tests/test_shell_help_guard.py:375`、`tests/test_state_plane_migrate.py:16`、`tests/test_task_card_sections.py:8`、`tests/test_verify_refresh_info.py:27`、`tests/test_workflow_ledger.py:5`
 

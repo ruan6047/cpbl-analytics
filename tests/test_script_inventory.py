@@ -245,26 +245,66 @@ def test_invariant_3_unresolvable_split_paths_are_reported_not_hidden() -> None:
         assert "分段路徑" in rendered, "有分段路徑組裝點，但清冊沒有揭露"
 
 
-# ========================================== 不變式 4：寫入型必須 --help 安全
+# ======================================== 不變式 4：高後果必須 --help 安全
+#
+# ⚠️ 判準原本寫成「**寫入型**必須 `--help` 安全」，而 `backup-prod-db.sh` 從那個形狀
+# 的縫隙掉出去：它對 DB 唯讀（`pg_dump`），所以 `writes=False`，不變式根本不看它——
+# 但它的 `--help` 會 ssh 進生產跑整庫 dump，然後 exit 0、產出備份、`rm -f` 掉輪替
+# 視窗裡最舊的那份。**清冊逐支印著「⚠️ --help 不安全」，卻沒有任何強制路徑。**
+#
+# 判準已改問「探索動作會不會造成損害」＝寫 DB **或**接觸遠端生產 **或**不可逆刪檔。
+# 下方 `test_invariant_4_predicate_is_not_dbwrite_only` 就是釘住這個縫隙不再打開。
 
 
-def test_invariant_4_write_capable_entries_are_help_safe_or_allowlisted() -> None:
-    """判定為寫入型的入口，argv 必須在主流程前被解析；例外必須具名。"""
+def test_invariant_4_high_consequence_entries_are_help_safe_or_allowlisted() -> None:
+    """高後果入口，argv 必須在主流程前被解析；例外必須具名。"""
     violators = [
-        e.ident for e in si.write_capable_unsafe(si.build_entries())
+        e.ident for e in si.high_consequence_unsafe(si.build_entries())
         if e.ident not in si.HELP_SAFETY_ALLOWLIST
     ]
     assert not violators, (
-        f"以下入口會寫但 `--help` 不安全，且未具名例外：{violators}\n"
+        f"以下入口高後果但 `--help` 不安全，且未具名例外：{violators}\n"
         "判準沿用 tests/test_cli_help_guard.py：argv 必須在主流程前被解析。\n"
         "既有不合格者請列入 script_inventory.HELP_SAFETY_ALLOWLIST 並寫明理由與去向。")
 
 
 def test_invariant_4_allowlist_has_no_stale_entries() -> None:
-    """腳本修好了、或不再判定為寫入型 → allowlist 條目要撤掉。"""
-    violators = {e.ident for e in si.write_capable_unsafe(si.build_entries())}
+    """腳本修好了、或不再判定為高後果 → allowlist 條目要撤掉。"""
+    violators = {e.ident for e in si.high_consequence_unsafe(si.build_entries())}
     stale = sorted(set(si.HELP_SAFETY_ALLOWLIST) - violators)
     assert not stale, f"allowlist 條目已過期：{stale}——請刪除"
+
+
+def test_invariant_4_predicate_is_not_dbwrite_only() -> None:
+    """回歸：**對 DB 唯讀但探索即造成損害**的入口必須進得了不變式 4 的射程。
+
+    負控制就是舊判準本身——`writes and help_state == unsafe`。以 `backup-prod-db.sh`
+    的真實形狀（唯讀 DB ＋ ssh 生產 ＋ rm -f 輪替 ＋ 無守衛）構造合成入口：舊判準
+    看不到它，新判準要抓到。抓不到就表示縫隙又打開了。
+    """
+    src = (
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'ssh -o BatchMode=yes "$VPS" "docker exec prod_pg pg_dump -U u -d d" | gzip -c > "$P"\n'
+        'rm -f "$OLDEST"\n'
+    )
+    assert not si.MUTATING_SQL_RE.search(src) and not si.MUTATING_SHELL_RE.search(src), (
+        "構造失敗：這份合成腳本被判成寫入型，就證明不了舊判準的縫隙")
+    assert si.REMOTE_REACH_RE.search(src), "遠端接觸沒被偵測到"
+    assert si.IRREVERSIBLE_FS_RE.search(src), "不可逆刪檔沒被偵測到"
+
+
+def test_invariant_4_backup_prod_db_is_in_scope_and_now_guarded() -> None:
+    """`backup-prod-db.sh`：本次加寬的成因，兩件事都要成立才算修好。
+
+    (1) 進得了射程——否則加寬是空的；(2) `--help` 已安全——否則守衛沒加上。
+    只驗其中一件都會讓另一半悄悄退化。
+    """
+    entry = next(e for e in si.build_entries() if e.ident == "scripts/backup-prod-db.sh")
+    assert not entry.writes, "前提變了：它現在被判成寫入型，本測試的意義要重新檢視"
+    assert entry.high_consequence, "唯讀 DB 但 ssh 生產＋rm -f 輪替，必須算高後果"
+    assert entry.help_state == "safe", "argv 守衛不見了"
+    assert entry.ident not in si.HELP_SAFETY_ALLOWLIST, "已加守衛就不該再具名放行"
 
 
 def test_invariant_4_reuses_cli_help_guard_criteria_not_a_second_copy() -> None:
@@ -591,8 +631,10 @@ def test_invariant_proof_enumerates_every_entry(capsys: pytest.CaptureFixture) -
         f"，未裁定 {len(si.undecided_disagreements())}，過期 {len(si.stale_adjudications())}）；"
         f"單一判準 {sum(1 for e in entries if e.writes_ast is None)}",
         f"判定為寫入型：{sum(1 for e in entries if e.writes)}　"
-        f"其中 --help 不安全：{len(si.write_capable_unsafe(entries))}"
-        f"（全部具名於 allowlist：{all(e.ident in si.HELP_SAFETY_ALLOWLIST for e in si.write_capable_unsafe(entries))}）",
+        f"高後果（含非寫入型 {sum(1 for e in entries if e.high_consequence and not e.writes)}）："
+        f"{sum(1 for e in entries if e.high_consequence)}　"
+        f"其中 --help 不安全：{len(si.high_consequence_unsafe(entries))}"
+        f"（全部具名於 allowlist：{all(e.ident in si.HELP_SAFETY_ALLOWLIST for e in si.high_consequence_unsafe(entries))}）",
         f"引用完整性：強制面壞路徑 {len(si.broken_enforced_refs())}"
         f"（凍結例外 {len(FROZEN_BROKEN_REFS)}，未預期 "
         f"{len(set(si.broken_enforced_refs()) - set(FROZEN_BROKEN_REFS))}）",

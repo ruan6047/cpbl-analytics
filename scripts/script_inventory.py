@@ -26,8 +26,11 @@
    並附「為什麼本輪搬不動」；**該集合只能縮不能長**——新增的不符即 CI 紅。
 3. **引用完整性**：**活檔案**裡的 `scripts/<name>.<ext>` 字面路徑必須指向存在的檔案。
    封存面（`docs/control-plane/**`、掃描器產物 JSON）只回報不強制，限度明載於清冊。
-4. **寫入型必須 `--help` 安全**：判定為寫入型的入口，其 argv 必須在主流程前被解析；
-   既有不合格者具名列入 `HELP_SAFETY_ALLOWLIST` 並附理由。
+4. **高後果必須 `--help` 安全**：判定為高後果（寫 DB **或**接觸遠端生產 **或**不可逆
+   刪檔）的入口，其 argv 必須在主流程前被解析；既有不合格者具名列入
+   `HELP_SAFETY_ALLOWLIST` 並附理由。
+   ⚠️ 這條原本只問「寫不寫 DB」，而 `backup-prod-db.sh` 從那個形狀掉出去——見
+   `high_consequence()` 的說明。
 
 ## ⚠️ 為什麼不變式 2 是「棘輪」而不是「硬不變式」
 
@@ -134,6 +137,25 @@ MUTATING_SHELL_RE = re.compile(
     r"\b(pg_restore|createdb|dropdb"
     r"|cpbl-(scrape|backfill|refresh|build|ingest|train|anchor|classify|reconcile|live)[a-z-]*)",
 )
+
+# ============================================ 高後果：不變式 4 的真正判準
+#
+# ⚠️ **這一段是 `backup-prod-db.sh` 逼出來的。** 不變式 4 原本問的是「這支會不會
+# 寫 DB」，而 `backup-prod-db.sh` 對 DB 唯讀（`pg_dump`）——於是清冊逐支印著
+# 「⚠️ --help 不安全」，不變式卻**看不到它**：一行沒有任何強制路徑的警告。
+#
+# 實測它的 `--help` 會做什麼（副本 ＋ 假樁）：送出對生產的整庫 `pg_dump`，然後
+# **exit 0、產出一份備份、`rm -f` 掉輪替視窗裡最舊的那份**。連打七次，整個保留
+# 視窗就塌成同一天的七份副本——傷害不比寫 DB 小，只是不經過 DB。
+#
+# 所以判準改問「**探索動作會不會造成損害**」，三條任一成立即是高後果：
+#   (a) 寫 DB（原判準，W1／W2 交叉複算）
+#   (b) 接觸遠端／生產主機
+#   (c) 不可逆刪檔
+# (b)(c) 刻意寫寬——誤判的方向是「要求多加一個守衛」，不是「放過一支危險的」。
+# 誤判者具名進 `HELP_SAFETY_ALLOWLIST` 並附理由，與既有慣例同一條路。
+REMOTE_REACH_RE = re.compile(r"(\bssh\b|\bscp\b|\brsync\b[^\n]*:|docker\s+exec\s+prod)")
+IRREVERSIBLE_FS_RE = re.compile(r"\brm\s+-[a-z]*[rf]")
 
 # 掃描器自身：本檔與偵測器的原始碼裡就寫著 SQL 動詞的**正則樣式**，會被自己的
 # 字面掃描命中。repo 內已有先例（TIME-SEMANTICS-CONTRACT1 的掃描器同樣自我排除）。
@@ -619,6 +641,11 @@ HELP_SAFETY_ALLOWLIST: dict[str, str] = {
         "去向：本卡只標記；修行為需另卡，且該卡母卡 INGEST-DEEP-TM-BACKFILL1 已封存"),
     "scripts/rehearsal_pa_build.py": (
         "完全不看 argv，寫合成 year=2099 列。去向：同上，PA-DAILY 若啟動時一併處理"),
+    "scripts/verify_deep_tm_backfill.py": (
+        "判準加寬為「高後果」後**新納入射程**（對 DB 唯讀，但 `VPS` 是裸常數、"
+        "任何參數都直接 ssh 進生產跑 psql）。傷害低於同批（唯讀 SELECT），且檔頭"
+        "`LIFECYCLE: oneshot` 明寫「不要跑」。去向：修行為需另卡，"
+        "母卡 INGEST-DEEP-TM-BACKFILL1 已封存，與 sync_deep_tm_prod.py 同批處理"),
     "docs/research/INGEST-DEEP-TM-BACKFILL1/sync_deep_tm_prod.py": (
         "⚠️ **本輪射程內最危險的一支**：完全不看 argv，任何參數都直接 ssh 進生產跑 "
         "`COPY` ＋ `UPDATE cpbl.pitch_tracking`；`VPS` 是裸常數不可覆蓋、無 dry-run、無備份。"
@@ -630,6 +657,11 @@ HELP_SAFETY_ALLOWLIST: dict[str, str] = {
     # 探索動作即造成損害——而破壞半徑更大（前者 DROP 一張表，`refresh-cpbl-prod.sh` 是
     # 整條生產同步鏈）。三支已加 argv 守衛並由 `tests/test_shell_help_guard.py` 逐支釘住，
     # 故從本表撤除（`test_invariant_4_allowlist_has_no_stale_entries` 會擋住殘留條目）。
+    #
+    # `backup-prod-db.sh` 是**第四支**，但它從來沒進過這張表——因為舊判準（「寫入型」
+    # ＝寫 DB）看不到它。實測它的 `--help` 會 ssh 進生產跑整庫 dump，然後 exit 0、
+    # 產出備份、`rm -f` 掉輪替視窗最舊的那份。**清冊印得出警告，不變式卻擋不住**，
+    # 這正是判準加寬為「高後果」的成因；該支已加守衛，同樣不列本表。
     "scripts/weekly-box-revisions.sh": (
         "無 argv 守衛，會直接跑 `cpbl-refresh-box-deep`（Playwright 打官網 + 寫本機 DB）。"
         "⚠️ **與同批三支同性質，本卡射程外**：它是 `#132` 的資源（該卡同時持有 "
@@ -1028,6 +1060,8 @@ class Entry:
     writes_sql: bool
     writes: bool
     writes_note: str
+    high_consequence: bool       # 探索動作即造成損害＝不變式 4 的射程
+    high_consequence_note: str
     help_state: str
     help_note: str
     refs_live: tuple[str, ...]
@@ -1062,6 +1096,7 @@ def build_entries() -> list[Entry]:
         w1 = writes_ast(rel) if rel.endswith(".py") else None
         w2 = writes_sql(rel)
         verdict, note = _adjudicate(rel, w1, w2)
+        hc, hcnote = high_consequence(rel, verdict)
         state, hnote = help_safety(rel)
         entries.append(Entry(
             ident=rel,
@@ -1077,6 +1112,8 @@ def build_entries() -> list[Entry]:
             writes_sql=w2,
             writes=verdict,
             writes_note=note,
+            high_consequence=hc,
+            high_consequence_note=hcnote,
             help_state=state,
             help_note=hnote,
             refs_live=livedoc_commands().get(rel, ()),
@@ -1091,6 +1128,7 @@ def build_entries() -> list[Entry]:
         w1 = writes_ast(rel) if rel else False
         w2 = writes_sql(rel) if rel else False
         verdict, note = _adjudicate(name, w1, w2)
+        hc, hcnote = high_consequence(rel or "", verdict)
         state, hnote = _cli_help_state(target)
         entries.append(Entry(
             ident=name,
@@ -1106,6 +1144,8 @@ def build_entries() -> list[Entry]:
             writes_sql=w2,
             writes=verdict,
             writes_note=note,
+            high_consequence=hc,
+            high_consequence_note=hcnote,
             help_state=state,
             help_note=hnote,
             refs_live=(),
@@ -1169,9 +1209,40 @@ def _cli_help_state(target: str) -> tuple[str, str]:
     return "unknown", "不在 test_cli_help_guard.py 的涵蓋套件內"
 
 
-def write_capable_unsafe(entries: list[Entry]) -> list[Entry]:
-    """不變式 3 的違反者：判定為寫入型且 `--help` 不安全。"""
-    return [e for e in entries if e.writes and e.help_state == "unsafe"]
+def high_consequence(rel: str, writes: bool) -> tuple[bool, str]:
+    """`--help` 走進主流程會不會造成損害。回傳 (判定, 理由)。
+
+    寫 DB 只是三條路之一。**`backup-prod-db.sh` 對 DB 唯讀卻會 `rm -f` 掉最舊的
+    備份**——只問「寫不寫 DB」的判準看不到它，那正是本函式存在的理由。
+    """
+    if writes:
+        return True, "寫入型（W1／W2 判定）"
+    if not rel or rel in SELF_REFERENCE:
+        return False, ""
+    if rel.endswith(".sh"):
+        paths = [rel]
+    elif rel.endswith(".py"):
+        # 掃 import 閉包而非單檔，與 W2 同一個射程：CLI 的傷害面是它整包相依，
+        # 只讀進入點那一個檔會**低估**——而低估正是這條判準原本失敗的方式。
+        paths = [p for p in _import_closure(rel) if p not in SELF_REFERENCE]
+    else:
+        return False, ""  # .plist 是排程宣告，不是可打的入口
+    reasons = []
+    if any(REMOTE_REACH_RE.search(_read(p)) for p in paths):
+        reasons.append("接觸遠端／生產主機")
+    if any(IRREVERSIBLE_FS_RE.search(_read(p)) for p in paths):
+        reasons.append("不可逆刪檔（rm -f／-rf）")
+    return bool(reasons), "、".join(reasons)
+
+
+def high_consequence_unsafe(entries: list[Entry]) -> list[Entry]:
+    """不變式 4 的違反者：**高後果**且 `--help` 不安全。
+
+    ⚠️ 判準原本是「寫入型且 `--help` 不安全」。`backup-prod-db.sh` 從那個形狀的
+    縫隙掉出去：清冊逐支印著「⚠️ --help 不安全」，不變式卻不看它，因為它對 DB
+    唯讀。**印得出警告不等於擋得住**——判準已加寬為高後果，理由見 `high_consequence`。
+    """
+    return [e for e in entries if e.high_consequence and e.help_state == "unsafe"]
 
 
 # ================================================================== 渲染
@@ -1408,15 +1479,27 @@ def render() -> str:
     a("")
 
     # ---- 不變式 4
-    a("## 寫入型必須 `--help` 安全（不變式 4）")
+    a("## 高後果必須 `--help` 安全（不變式 4）")
     a("")
-    a("判定為寫入型的入口，argv 必須在主流程前被解析。**既有不合格者具名列入 allowlist**。")
+    a("判定為**高後果**的入口，argv 必須在主流程前被解析。**既有不合格者具名列入 allowlist**。")
+    a("")
+    a(f"高後果 **{sum(1 for e in entries if e.high_consequence)}** 支"
+      f"（其中非寫入型 **{sum(1 for e in entries if e.high_consequence and not e.writes)}** 支）："
+      "寫 DB **或**接觸遠端／生產主機 **或**不可逆刪檔，三者任一即是。")
+    a("")
+    a("> [!warning] **判準原本問「寫不寫 DB」，而它漏掉了 `backup-prod-db.sh`。**")
+    a("> 那一支 `pg_dump` 對 DB 唯讀，於是 `writes=False`，不變式**根本不看它**——"
+      "但實測它的 `--help` 會 ssh 進生產跑整庫 dump，然後 exit 0、產出一份備份、"
+      "`rm -f` 掉輪替視窗裡最舊的那份。連打七次，整個保留視窗就塌成同一天的七份副本。")
+    a("> 本表逐支印著「⚠️ --help 不安全」，**卻沒有任何強制路徑**——"
+      "印得出警告不等於擋得住。判準已加寬為「探索動作會不會造成損害」。")
     a("")
     a("原則上本卡只加不變式、不改既有腳本行為（那會讓本卡從盤點變成改一批腳本），"
       "但需求方對**排程 shell** 推翻了這個處置：`refresh-cpbl-prod.sh`／`scrape-daily.sh`／"
       "`weekly-game-pitches.sh` 與 `sync_deep_tm_prod.py` **同級**——探索動作即造成損害——"
       "而破壞半徑更大（後者 DROP 一張表，`refresh-cpbl-prod.sh` 是整條生產同步鏈）。"
-      "三支已加 argv 守衛並從下表撤除，證明見 `tests/test_shell_help_guard.py`。")
+      "`backup-prod-db.sh` 是判準加寬後補上的第四支。"
+      "四支皆已加 argv 守衛並不列下表，證明見 `tests/test_shell_help_guard.py`。")
     a("")
     a("| 入口 | 理由與去向 |")
     a("|---|---|")
