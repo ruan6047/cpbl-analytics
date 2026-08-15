@@ -813,26 +813,33 @@ HELP_SAFETY_ALLOWLIST: dict[str, str] = {
         "打生產 `/api/info`）。傷害低於同批（唯讀 SELECT），且檔頭"
         "`LIFECYCLE: oneshot` 明寫「不要跑」。去向：修行為需另卡，"
         "母卡 INGEST-DEEP-TM-BACKFILL1 已封存，與 sync_deep_tm_prod.py 同批處理"),
-    # --- R2-001 修法後新納入射程的兩支：都是**真陽性**，不是判準誤判 ---
-    "docs/research/INGEST-SCORELESS-INNING-PITCHER1/confirm_live_schema.py": (
-        "⚠️ **`DEV-SCRIPT-INVENTORY1-R2-001` 的成因檔**。完全不看 argv："
-        "`gid = sys.argv[1] if len(sys.argv) > 1 else …`，於是 `--help` 直接變成 game ID "
-        "拼進 `stats.cpbl.com.tw/api/proxy/v1/games/--help` 發出真實 GET；"
-        "若某個 argv 意外回 200，`log_path.write_text` 會覆寫該卡凍結的 `request_log.json`"
-        "——而那份 artifact 逐字宣稱「本卡總共發出 1 次請求」。"
-        "**選具名放行而非加守衛**，判準是「誰被預期會打這個指令」：它是 "
-        "`docs/research/<CARD>/` 下的一次性產物、母卡 INGEST-SCORELESS-INNING-PITCHER1 已結案、"
-        "檔頭與位置都寫著不要跑——與上一輪 `verify_deep_tm_backfill.py` 同一條判準。"
-        "反向理由也量過：加守衛會讓 `docs/research/TIME-SEMANTICS-CONTRACT1/inventory.json:84,96` "
-        "記錄的行號（43／48）失準，且守衛擋不住真正的覆寫路徑（傳合法 gid 一樣會覆寫）。"
-        "去向：與同批 research 一次性產物一起處理"),
-    "scripts/replay_schedule_branches.py": (
-        "改用呼叫圖後新納入射程：完全無 argparse，`main()` 進去就 "
-        "`with _client() as client:` 對官方賽程 API 打六個月（3~8 月）。"
-        "⚠️ 它自己的 docstring 寫「唯讀：只打官方 schedule API」——**判準與作者的宣告一致**，"
-        "不是誤判。傷害是本批最小的一支：零 DB 寫入、零檔案產出，只有對外請求。"
-        "與上一支同判準（`LIFECYCLE: oneshot`，母卡 INGEST-GAME-TM-REFACTOR1-G4）故具名放行。"
-        "去向：位置債清償（搬進 `docs/research/INGEST-GAME-TM-REFACTOR1-G4/`）時一併補守衛"),
+    # --- ⚠️ `confirm_live_schema.py` 與 `replay_schedule_branches.py` 曾在這張表上 ---
+    #
+    # 本輪 `R2-001` 修法把它們新納入射程後，執行者主張具名放行，判準是
+    # 「一次性產物本來就沒人該跑，所以守衛買到的是對一個已被禁止的動作的保護」。
+    # **需求方推翻**，三條理由都成立：
+    #
+    #   1. `--help` 不是「跑它」，是「想知道它是什麼」——那個前提不成立。本 repo 已有
+    #      兩次 `--help` 觸發真實爬蟲的事故（`cpbl-scrape-pitches --help` 2026-08-05、
+    #      `refresh-cpbl-prod.sh --help` 本週），這會是同形狀的第三次。
+    #   2. 「標記＋位置就是防線」正是 `OPS-BACKUP-EMPTY1` 的教訓在修的病：
+    #      **檢查看得見的標記，而非該成立的性質**（86 份 20-byte 空檔全部通過 `gzip -t`）。
+    #      一行「不要跑」的註解是標記，守衛才是性質——而本輪的主要成果正是把判準從
+    #      「命名危險」改成「問呼叫圖」，同一輪不該在隔壁主張註解可以當防線。
+    #   3. 加守衛的代價有界（兩個過期行號，且實測不觸發任何檢查——見下），
+    #      爬蟲節流升級的代價是整條每日鏈的可用性，且已經發生過。
+    #
+    # 兩支已改用 `argparse`（`.py` 走靜態判準看得見的那條路，不是 shell 的控制流），
+    # 用法涵蓋「在做什麼／會寫什麼／怎麼呼叫」三段，故從本表撤除
+    # （`test_invariant_4_allowlist_has_no_stale_entries` 會擋住殘留條目）。
+    #
+    # ⚠️ 唯一被推翻**不成立**的是執行者的成本論證：他主張加守衛會讓
+    # `docs/research/TIME-SEMANTICS-CONTRACT1/inventory.json:84,96` 記的行號失準而付出代價。
+    # 行號確實會失準（43/48 → 62/67），但實測**不觸發任何檢查**：引用完整性只認
+    # `scripts/<name>.<ext>` 字面路徑，`docs/research/` 下的路徑根本不在觀測面內
+    # （`literal_path_refs()` 對 `confirm_live_schema.py` 零命中），而該 JSON 的
+    # `_ref_surface` 是 `scan`＝快照，本來就明載「過期是歷史事實不是缺陷」。
+    # 成本比他當時估的更小，結論因此更清楚。
     "docs/research/INGEST-DEEP-TM-BACKFILL1/sync_deep_tm_prod.py": (
         "⚠️ **本輪射程內最危險的一支**：完全不看 argv，任何參數都直接 ssh 進生產跑 "
         "`COPY` ＋ `UPDATE cpbl.pitch_tracking`；`VPS` 是裸常數不可覆蓋、無 dry-run、無備份。"
@@ -1874,14 +1881,42 @@ def render() -> str:
       "`backup-prod-db.sh` 是判準加寬後補上的第四支。"
       "四支皆已加 argv 守衛並不列下表，證明見 `tests/test_shell_help_guard.py`。")
     a("")
-    a("`R2-001` 修法後新納入射程的兩支（`confirm_live_schema.py`、`replay_schedule_branches.py`）"
-      "**選了具名放行而非加守衛**。判準是「**誰被預期會打這個指令**」："
-      "常設工具是人被預期會去打的，所以 `--help` 是合理輸入、守衛必須存在；"
-      "一次性產物是**沒有人應該去跑**的（檔頭 `LIFECYCLE: oneshot` ＋ 位置就是那道防線），"
-      "替它加守衛買到的是「防住一個本來就被禁止的動作」，代價是動到凍結證據。"
-      "這與上一輪對 `verify_deep_tm_backfill.py`（放行）與 `backup-prod-db.sh`（加守衛）"
-      "用的是同一條判準，只是把「是不是常設工具」講成它背後的理由。"
-      "⚠️ **兩支都是真陽性，不是判準誤判**——放行記錄的是殘留風險，不是判準的破口。")
+    a("### 一次性產物也要守衛（需求方裁定 2026-08-15：加守衛，不要留紀錄）")
+    a("")
+    a("`R2-001` 修法後新納入射程的兩支（`confirm_live_schema.py`、"
+      "`replay_schedule_branches.py`）**已加 argv 守衛，不列下表**。")
+    a("")
+    a("執行者原本主張具名放行，理由是「一次性產物本來就沒人該跑，所以守衛買到的是"
+      "對一個已被禁止的動作的保護」。**需求方推翻，三條理由：**")
+    a("")
+    a("1. **`--help` 不是「跑它」，是「想知道它是什麼」**——那個前提不成立。"
+      "本 repo 已有兩次 `--help` 觸發真實爬蟲的事故"
+      "（`cpbl-scrape-pitches --help` 2026-08-05、`refresh-cpbl-prod.sh --help` 2026-08 本週），"
+      "這會是同形狀的第三次。`replay_schedule_branches.py --help` 抓的是六個月賽程，"
+      "直接踩到 `CLAUDE.md` 爬蟲紅線第 2 條（連續冷啟動會讓節流升級）。")
+    a("2. **「標記＋位置就是防線」正是本 repo 反覆在修的那個病。** "
+      "`OPS-BACKUP-EMPTY1` 的教訓逐字是「檢查看得見的標記，而非該成立的性質」"
+      "（86 份 20-byte 空檔每一份都通過 `gzip -t`）。"
+      "一行寫著「不要跑」的註解是**標記**，守衛才是**性質**——"
+      "而本輪的主要成果正是把不變式 4 的判準從「命名危險」改成「問呼叫圖」，"
+      "同一輪不該在隔壁段落主張註解可以當防線。")
+    a("3. **成本有界而傷害沒有。** 執行者當時舉的成本是"
+      "「加守衛會讓 `docs/research/TIME-SEMANTICS-CONTRACT1/inventory.json:84,96` 記的行號失準」"
+      "——行號確實移動了（43／48 → 80／85），但**實測不觸發任何檢查**："
+      "引用完整性只認 `scripts/<name>.<ext>` 字面路徑，`docs/research/` 下的路徑"
+      "不在觀測面內（該檔對 `confirm_live_schema.py` 零命中），"
+      "而該 JSON 的引用面別是 `scan`＝快照，本表上方已明載「過期是歷史事實不是缺陷」。"
+      "相對地，爬蟲節流升級的代價是整條每日鏈的可用性，且已經發生過。")
+    a("")
+    a("⚠️ 執行者有一點沒被推翻、也確實成立：**守衛擋不住真正的覆寫路徑**"
+      "——帶一個合法 gid 跑 `confirm_live_schema.py`，一樣會覆寫 `request_log.json`。"
+      "那是另一個威脅模型（刻意 vs 意外），守衛關掉的是會發生的那一個。"
+      "剩下那條由檔頭標記與位置承擔，並已寫進該支的 `--help` 用法「會寫什麼」段。")
+    a("")
+    a("兩支的守衛走 `.py` 的判準（`argparse` 在主流程前 `parse_args`），不是 shell 的控制流；"
+      "用法涵蓋「在做什麼／會寫什麼／怎麼呼叫」三段。"
+      "執行期零請求由 `tests/test_script_inventory.py` 以**副本 ＋ 假 httpx 留痕**逐支證明，"
+      "負控制（改回修法前的形狀）實測 `--help` 會走到 `httpx.Client()` ＋ `.get`。")
     a("")
     a("| 入口 | 理由與去向 |")
     a("|---|---|")

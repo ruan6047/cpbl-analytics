@@ -28,8 +28,10 @@
 from __future__ import annotations
 
 import ast
+import json
 import re
 import subprocess
+import sys
 import tomllib
 from pathlib import Path
 
@@ -429,6 +431,157 @@ def test_writes_ast_is_a_projection_of_the_same_engine() -> None:
         if si.writes_ast(rel) != ("db_write" in si.reachable_effects(rel))
     ]
     assert not mismatched, f"W1 與可達性引擎不一致：{mismatched}"
+
+
+# ============================ 一次性產物的 `--help` 守衛：執行期零請求證明
+#
+# 需求方裁定（2026-08-15）：**加守衛，不要留紀錄。** 執行者原本主張具名放行，理由是
+# 「一次性產物本來就沒人該跑」；被推翻的關鍵是 `--help` 不是「跑它」而是「想知道它
+# 是什麼」，而本 repo 已有兩次 `--help` 觸發真實爬蟲的事故。
+#
+# 判準沿用 `.py` 那條（argparse 在主流程前 `parse_args`），但靜態判準只證明 argv 有被
+# 解析、證明不了「解析之前沒有副作用」。這裡補上執行期證明，形狀沿用
+# `tests/test_shell_help_guard.py`：**副本 ＋ 假樁**，本卡紅線「不得執行版控樹上的
+# 腳本」照舊——跑的一律是 `tmp_path` 裡 `shutil.copy2` 出來的副本。
+
+# 路徑 → (守衛那一行, 改回修法前的形狀)
+ONESHOT_HELP_GUARDS = {
+    "docs/research/INGEST-SCORELESS-INNING-PITCHER1/confirm_live_schema.py": (
+        "    gid = _parser().parse_args().gid",
+        '    import sys as _s\n    gid = _s.argv[1] if len(_s.argv) > 1 else "2026-A-246"',
+    ),
+    "scripts/replay_schedule_branches.py": (
+        "    _parser().parse_args()\n",
+        "",
+    ),
+}
+
+# 假 httpx：import 鏈實際只用到 `Client` 與 `HTTPError`（實測 grep 全鏈）。
+# 建構即留痕、`get` 留痕後立刻 SystemExit——「有沒有走到網路出口」是唯一要證明的事。
+_HTTPX_STUB = '''\
+import json, os, pathlib
+
+_LOG = pathlib.Path(os.environ["HTTPX_CALL_LOG"])
+
+
+class HTTPError(Exception):
+    pass
+
+
+class HTTPStatusError(HTTPError):
+    pass
+
+
+class RequestError(HTTPError):
+    pass
+
+
+def _record(what):
+    entries = json.loads(_LOG.read_text()) if _LOG.exists() else []
+    entries.append(what)
+    _LOG.write_text(json.dumps(entries))
+
+
+class Client:
+    def __init__(self, *a, **k):
+        _record("httpx.Client()")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def get(self, *a, **k):
+        _record("httpx.Client.get")
+        raise SystemExit(97)
+
+
+def get(*a, **k):
+    _record("httpx.get")
+    raise SystemExit(97)
+'''
+
+
+def _oneshot_harness(tmp_path: Path, rel: str, *, drop_guard: bool) -> dict:
+    """把腳本**複製**進 tmp，httpx 換成留痕假樁。絕不執行版控樹上的檔案。"""
+    work = tmp_path / "work"
+    stub_dir = tmp_path / "stub"
+    work.mkdir()
+    stub_dir.mkdir()
+    (stub_dir / "httpx.py").write_text(_HTTPX_STUB, encoding="utf-8")
+
+    source = (REPO_ROOT / rel).read_text(encoding="utf-8")
+    guard, replacement = ONESHOT_HELP_GUARDS[rel]
+    if drop_guard:
+        assert guard in source, f"{rel} 的守衛那一行找不到——負控制會變成空斷言"
+        source = source.replace(guard, replacement, 1)
+    script = work / Path(rel).name
+    script.write_text(source, encoding="utf-8")
+
+    return {"work": work, "script": script, "stub": stub_dir,
+            "log": tmp_path / "httpx-calls.json"}
+
+
+def _run_oneshot(harness: dict, argv: list[str]) -> tuple[subprocess.CompletedProcess, list[str]]:
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(harness["work"].parent / "home"),
+        "PYTHONPATH": str(harness["stub"]),
+        "HTTPX_CALL_LOG": str(harness["log"]),
+    }
+    result = subprocess.run(
+        [sys.executable, str(harness["script"]), *argv],
+        cwd=harness["work"], env=env, text=True, capture_output=True,
+        stdin=subprocess.DEVNULL, check=False,
+    )
+    calls = json.loads(harness["log"].read_text()) if harness["log"].exists() else []
+    return result, calls
+
+
+def _created(work: Path, script: Path) -> list[str]:
+    return sorted(str(p.relative_to(work)) for p in work.rglob("*") if p != script)
+
+
+@pytest.mark.parametrize("rel", sorted(ONESHOT_HELP_GUARDS), ids=lambda s: Path(s).name)
+def test_oneshot_help_answers_and_issues_no_request(rel: str, tmp_path: Path) -> None:
+    """`--help` 要 exit 0、回答三段用法，且**一個請求都不發、一個檔案都不產出**。"""
+    harness = _oneshot_harness(tmp_path, rel, drop_guard=False)
+    result, calls = _run_oneshot(harness, ["--help"])
+
+    assert result.returncode == 0, f"stderr={result.stderr}"
+    assert not calls, f"--help 發出了請求：{calls}"
+    assert not _created(harness["work"], harness["script"]), _created(
+        harness["work"], harness["script"])
+    for section in ("在做什麼", "會寫什麼", "怎麼呼叫"):
+        assert section in result.stdout, f"用法缺少「{section}」段：拒絕不是答案"
+
+
+@pytest.mark.parametrize("rel", sorted(ONESHOT_HELP_GUARDS), ids=lambda s: Path(s).name)
+def test_oneshot_unknown_flag_is_refused_not_ignored(rel: str, tmp_path: Path) -> None:
+    """未知旗標要被拒絕（argparse 的 EX_USAGE=2），而不是被當成資料吞下去。"""
+    harness = _oneshot_harness(tmp_path, rel, drop_guard=False)
+    result, calls = _run_oneshot(harness, ["--dry-run"])
+
+    assert result.returncode == 2, f"stdout={result.stdout} stderr={result.stderr}"
+    assert not calls, f"未知旗標仍然走到網路出口：{calls}"
+    assert "--dry-run" in result.stderr
+
+
+@pytest.mark.parametrize("rel", sorted(ONESHOT_HELP_GUARDS), ids=lambda s: Path(s).name)
+def test_negative_control_unguarded_help_really_reaches_the_network(
+    rel: str, tmp_path: Path,
+) -> None:
+    """負控制：把守衛改回修法前的形狀，`--help` 必須真的走到 HTTP 出口。
+
+    這條證明修的是**實害**而不是體感——假樁留痕就是那一次請求的證據。
+    """
+    harness = _oneshot_harness(tmp_path, rel, drop_guard=True)
+    _, calls = _run_oneshot(harness, ["--help"])
+
+    assert calls, (
+        "拿掉守衛後 `--help` 沒有碰到網路——那代表假樁面沒有涵蓋這支的出口，證據力是假的")
+    assert any("httpx" in c for c in calls), calls
 
 
 def test_invariant_4_backup_prod_db_is_in_scope_and_now_guarded() -> None:
