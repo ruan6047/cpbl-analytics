@@ -10,8 +10,10 @@
        · 每日鏈 10:10 起跑、實測耗時 4–287 分鐘（最壞觀測結束約 14:57）。21:10 距起跑
          11 小時，遠在觀測上界之外，故當前週期幾乎必然已是終態，「當天就報出來」是
          常態路徑而不是備援。回放 2026-08-10：鏈 11:50:37 寫入 failed → 當晚告警。
-       · 在清醒時段。沒有讀者的告警等於沒有告警（docs/ROADMAP.md §0 目標 2 的判準），
-         凌晨的通知不算數。
+       · 在清醒時段。⚠️ 這一條原本的理由是「凌晨彈通知沒人看」，但推播其實在本機被
+         專注模式全數擋掉（實測見 scripts/schedule_watch.py 的 notify() 區段），故理由
+         改為：讀者是 pytest header 上的那一行，而 21:10 讓 logs/schedule-alert.json 在
+         當晚就寫好，隔天任何人一開工跑驗證迴圈就會看到，不必多等一個週期。
        · 正確性其實與時點無關——判定對象是「上一個應該完成的週期」不是「現在」。
          時點只影響延遲與讀者在不在螢幕前。
 
@@ -30,8 +32,9 @@
        ln -sf "$PWD/scripts/com.cpbl.schedule-watchdog.plist" \
          ~/Library/LaunchAgents/com.cpbl.schedule-watchdog.plist
        launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.cpbl.schedule-watchdog.plist
-     安裝時務必確認 scripts/schedule-registry.json 的 history_from 是**實際安裝日**，
-     否則首次執行會把安裝前的空窗報成 MISSING。
+     安裝日不需要有人手動填進登記表：首次執行會自己把當下寫進
+     logs/schedule-watchdog/deployed-at.json（部署錨點，寫一次後永不覆寫），判定下界取
+     max(effective_from, history_from, 錨點)，故安裝前的空窗不會被報成 MISSING。
      立即測跑一次：launchctl kickstart -k gui/$(id -u)/com.cpbl.schedule-watchdog
      停用：launchctl bootout gui/$(id -u)/com.cpbl.schedule-watchdog
      看判定細節（不通知、不留產物）：直接跑 scripts/schedule_watch.py，旗標見

@@ -73,11 +73,22 @@ def _job(label: str, cadence: dict, *, effective_from="2026-08-01", history_from
     }
 
 
-def _build_repo(tmp_path: Path, jobs: list) -> tuple[Path, dict]:
+def _build_repo(tmp_path: Path, jobs: list, *, anchor: str = "2026-01-01") -> tuple[Path, dict]:
+    """假 repo。`anchor` 預設落在很早的過去＝「這套機制早就部署好了」。
+
+    ⚠️ 必須明寫，不能讓它由第一次執行自己產生：那樣錨點會等於 `now`，判定下界把所有
+    被測週期都擋掉，於是每一條缺席／失敗測試都變成恆真的空斷言。錨點自己的行為另有
+    專門的一組測試（見檔尾「部署錨點」節）。
+    """
     repo = tmp_path / "repo"
     (repo / "scripts").mkdir(parents=True, exist_ok=True)
     for job in jobs:
         _write_plist(repo / job["plist"], job["label"], job["cadence"])
+    if anchor is not None:
+        path = repo / sw.ANCHOR_PATH
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"anchor_date": anchor, "anchor_at": f"{anchor}T00:00:00+08:00"}),
+                        encoding="utf-8")
     return repo, {"schema_version": 1, "jobs": jobs}
 
 
@@ -848,3 +859,86 @@ def test_reader_contract_is_honest_about_being_goal_three() -> None:
     assert sw.READER_CONTRACT["goal"] == 3
     assert "pytest" in sw.READER_CONTRACT["when"]
     assert sw.READER_CONTRACT["push_channel"].startswith("無")
+
+
+# ================================================================== 部署錨點
+#
+# R1 把登記表的 `history_from` 填成**交付日**，並自承那是最弱的一環：部署是 merge
+# 之後才發生的另一件事，中間差幾天，那幾天的週期就會被判成一片 MISSING。原本的補救
+# 是註解裡寫「部署者記得改成實際安裝日」——但本卡的整個立論就是「靠人記得不算數」，
+# 對自己的部署程序當然也一樣。
+#
+# 改法：把宣告換成量測。下面這組證明錨點真的擋掉了那場誤報洪水，且不會反過來把真
+# 缺席也吃掉。
+
+
+def _repo_without_anchor(tmp_path: Path):
+    return _build_repo(tmp_path, [_job("com.cpbl.scrape-daily", DAILY,
+                                       effective_from="2026-08-01",
+                                       history_from="2026-08-01")], anchor=None)
+
+
+def test_anchor_is_created_on_first_run_and_then_never_moves(tmp_path: Path) -> None:
+    repo, _ = _repo_without_anchor(tmp_path)
+    first = datetime(2026, 8, 15, 21, 10, tzinfo=TAIPEI)
+
+    assert sw.deployment_anchor(repo, first) == first.date()
+    # 隔天再跑：錨點必須還是第一天，否則判定面會隨時間往前漂、永遠判不到東西
+    later = datetime(2026, 8, 20, 21, 10, tzinfo=TAIPEI)
+    assert sw.deployment_anchor(repo, later) == first.date()
+
+
+def test_deploying_late_does_not_produce_a_flood_of_false_missing(tmp_path: Path) -> None:
+    """**R1 的病灶本體**：登記表宣告 08-01 生效，但機制其實 08-15 才裝上。
+
+    沒有錨點時，08-01→08-15 這 14 個週期全都沒有歷史 ⇒ 一片 MISSING ⇒ 部署當天噴一
+    整串誤報，然後偵測器被關掉（#115 就是死於這個形狀）。
+    """
+    repo, registry = _repo_without_anchor(tmp_path)
+    now = "2026-08-15T21:10:00+0800"
+
+    # 錨點尚未建立 → 第一次執行當場建立成今天 → 不指控任何過去週期
+    report = _evaluate(repo, registry, now)
+    assert report["exit_code"] == 0, f"部署當天不得誤報：{report['message']}"
+    assert report["deployment_anchor"] == "2026-08-15"
+
+    # 負控制：把錨點挪到宣告日，同一份資料就會噴出 MISSING——證明上面那條不是恆真
+    (repo / sw.ANCHOR_PATH).write_text(
+        json.dumps({"anchor_date": "2026-08-01"}), encoding="utf-8")
+    flooded = _evaluate(repo, registry, now)
+    assert flooded["exit_code"] == sw.EXIT_MISSING
+    assert flooded["jobs"][0]["streak"] > 1, "沒有錨點時本來就該是一整串誤報"
+
+
+def test_anchor_still_lets_real_absence_through_afterwards(tmp_path: Path) -> None:
+    """錨點只擋部署前，不得把部署**之後**的真缺席也吃掉——否則就是換一種形式的失明。"""
+    repo, registry = _build_repo(
+        tmp_path, [_job("com.cpbl.scrape-daily", DAILY,
+                        effective_from="2026-08-01", history_from="2026-08-01")],
+        anchor="2026-08-15")
+
+    report = _evaluate(repo, registry, "2026-08-18T21:10:00+0800")
+
+    assert report["exit_code"] == sw.EXIT_MISSING, "錨點之後的缺席仍然要報"
+
+
+def test_corrupt_anchor_is_rebuilt_as_now_not_treated_as_absent(tmp_path: Path) -> None:
+    """錨點檔壞掉不得讓判定面突然放寬（那會在最不該的時候噴誤報）。"""
+    repo, _ = _repo_without_anchor(tmp_path)
+    (repo / sw.ANCHOR_PATH).parent.mkdir(parents=True, exist_ok=True)
+    (repo / sw.ANCHOR_PATH).write_text("{ not json", encoding="utf-8")
+    now = datetime(2026, 8, 15, 21, 10, tzinfo=TAIPEI)
+
+    assert sw.deployment_anchor(repo, now) == now.date()
+
+
+def test_floor_takes_the_latest_of_all_three_bounds() -> None:
+    """下界＝max(effective_from, history_from, anchor)，三者任一為 None ⇒ 不判。"""
+    job = {"effective_from": "2026-08-01", "history_from": "2026-08-05"}
+    from datetime import date as _date
+
+    assert sw._floor(job, _date(2026, 8, 10)) == _date(2026, 8, 10)   # anchor 最晚
+    assert sw._floor(job, _date(2026, 8, 2)) == _date(2026, 8, 5)     # history 最晚
+    assert sw._floor(job, None) is None                               # 錨點拿不到 ⇒ 不判
+    assert sw._floor({"effective_from": None, "history_from": "2026-08-05"},
+                     _date(2026, 8, 10)) is None

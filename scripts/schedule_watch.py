@@ -265,16 +265,63 @@ def verdict_for_cycle(record: dict | None) -> str:
     return "INCOMPLETE"  # 停在 running 而後繼週期已觸發 ⇒ 那次執行死掉了
 
 
-def _floor(job: dict) -> date | None:
-    """只判 `f >= max(effective_from, history_from)` 的週期。任一為 null ⇒ 不判。"""
+ANCHOR_PATH = Path("logs") / "schedule-watchdog" / "deployed-at.json"
+
+
+def deployment_anchor(repo: Path, now: datetime) -> date | None:
+    """本機**實際**部署日：第一次執行時自己寫下，之後永不覆寫。
+
+    ⚠️ 這一支存在的理由是登記表的 `history_from` 只能是**授權時的猜測**。R1 把它填成
+    交付日 2026-08-15，但部署是 merge 之後才發生的另一件事——中間差幾天，那幾天的週期
+    就會被判成一片 MISSING（方向是誤報，而誤報的下場是偵測器被關掉，#115 正是死於此）。
+    登記表註解原本要求「部署者記得改成實際安裝日」，那是**靠人記得**——本卡的整個立論
+    就是靠人記得不算數，對自己的部署程序當然也一樣。
+
+    改法：把宣告換成量測。第一次跑就把當下寫進 `logs/schedule-watchdog/deployed-at.json`
+    （`logs/` 不進版控，故它天然是「這台機器的」事實），判定下界取
+    `max(effective_from, history_from, anchor)`。
+
+    Fail-safe：
+    · 檔案不存在（首次執行，或有人清了 logs/）⇒ **當場建立**，於是最多只跳過當前這一個
+      週期，不會有誤報洪水；代價是那一個週期不判，方向是漏報，比誤報安全。
+    · 建立後永不覆寫 ⇒ 錨點不會隨時間往前漂，昨天判得到的今天一樣判得到。
+    · 寫不進去（唯讀 logs/）⇒ 回 None，呼叫端據此不判——fail closed，不硬猜。
+    """
+    path = repo / ANCHOR_PATH
+    try:
+        if path.exists():
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            return date.fromisoformat(payload["anchor_date"])
+    except (OSError, ValueError, KeyError, TypeError):
+        # 錨點檔壞掉：不當作「沒有錨點」（那會讓判定面突然放寬），改為重建成**現在**。
+        # 方向同樣是漏報優先。
+        pass
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({
+            "anchor_date": now.date().isoformat(),
+            "anchor_at": now.isoformat(),
+            "why": "本機第一次執行 schedule_watch.py 的時刻＝這套機制實際生效日。"
+                   "判定下界取 max(effective_from, history_from, 本錨點)，"
+                   "使部署前的空窗不會被報成 MISSING。本檔寫一次後永不覆寫。",
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError as error:
+        print(f"WARN 無法建立部署錨點（{error}）：本輪不判定任何週期", file=sys.stderr)
+        return None
+    return now.date()
+
+
+def _floor(job: dict, anchor: date | None = None) -> date | None:
+    """只判 `f >= max(effective_from, history_from, anchor)` 的週期。任一為 null ⇒ 不判。"""
     effective = job.get("effective_from")
     history = job.get("history_from")
-    if not effective or not history:
+    if not effective or not history or anchor is None:
         return None
-    return max(date.fromisoformat(effective), date.fromisoformat(history))
+    return max(date.fromisoformat(effective), date.fromisoformat(history), anchor)
 
 
-def evaluate_job(job: dict, now: datetime, repo: Path, lookback: int) -> dict:
+def evaluate_job(job: dict, now: datetime, repo: Path, lookback: int,
+                 anchor: date | None = None) -> dict:
     cadence = job["cadence"]
     history_file = repo / job["history_path"]
     records, corrupt = load_history(history_file)
@@ -290,7 +337,7 @@ def evaluate_job(job: dict, now: datetime, repo: Path, lookback: int) -> dict:
         "streak": 0,
     }
 
-    floor_day = _floor(job)
+    floor_day = _floor(job, anchor)
     f0 = previous_fire(cadence, now)
     if f0 is None or floor_day is None:
         result["note"] = "尚無可判定的週期（effective_from／history_from 未填或未到）"
@@ -741,13 +788,17 @@ def evaluate(registry: dict, repo: Path, now: datetime, api_url: str, api_timeou
         report["message"] = build_message(report)
         return report
 
+    # 部署錨點只算一次，且要在任何判定之前——它是所有 job 的共同下界。
+    anchor = deployment_anchor(repo, now)
+    report["deployment_anchor"] = anchor.isoformat() if anchor else None
+
     watchdog_job = None
     for job in registry["jobs"]:
         if job["label"] == "com.cpbl.schedule-watchdog":
             watchdog_job = job
         if not job["expected_installed"]:
             continue  # 刻意不安裝的 job 不判缺席（#115 死於把刻意邊界報成故障）
-        report["jobs"].append(evaluate_job(job, now, repo, lookback))
+        report["jobs"].append(evaluate_job(job, now, repo, lookback, anchor))
 
     report["global_findings"].extend(
         runatload_findings(repo, watchdog_job, now, boot_probe=boot_probe))

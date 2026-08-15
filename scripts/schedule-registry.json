@@ -17,12 +17,19 @@
     "plistlib 解析 plist 逐欄比對，不一致即 REGISTRY_INVALID。",
     "",
     "effective_from = job 生效日（第一次真的被排程觸發的那天）。",
-    "history_from   = 歷史寫入器生效日（本卡部署日）。兩者必須分開：本卡部署前所有週期",
-    "                 都不可能有歷史，不分開的話部署當天會把整段既有歷史報成一片 MISSING。",
-    "                 判定條件是 f >= max(effective_from, history_from)。",
-    "⚠️ 部署者注意：若實際安裝日晚於下方 history_from，必須把 history_from 改成實際安裝日，",
-    "   否則首次執行會把安裝前的空窗報成 MISSING（方向是誤報不是漏報，訊息會附上 ",
-    "   history_from 供一眼診斷，但仍應更正）。history_from 落在未來一律 REGISTRY_INVALID。"
+    "history_from   = 歷史寫入器生效日。兩者必須分開：本卡部署前所有週期都不可能有歷史，",
+    "                 不分開的話部署當天會把整段既有歷史報成一片 MISSING。",
+    "",
+    "判定下界 = max(effective_from, history_from, **部署錨點**)。",
+    "部署錨點是 logs/schedule-watchdog/deployed-at.json，由 schedule_watch.py 第一次執行時",
+    "自己寫下、之後永不覆寫（logs/ 不進版控，故它天然是『這台機器的』事實）。",
+    "",
+    "⚠️ 為什麼要錨點：下方 history_from 是**授權時的猜測**（填的是交付日），而部署是 merge",
+    "   之後才發生的另一件事。R1 原本在這裡寫『部署者記得把它改成實際安裝日』——但本卡的",
+    "   整個立論就是『靠人記得不算數』，對自己的部署程序當然也一樣。錨點把那個宣告換成",
+    "   量測：就算 history_from 填早了，部署前的空窗也不會被報成 MISSING。",
+    "   因此下方的日期填得保守（早）是安全的，填得晚才會漏判。",
+    "history_from 落在未來一律 REGISTRY_INVALID。"
   ],
   "jobs": [
     {
@@ -36,7 +43,7 @@
       "status_path": "logs/last-launchd-status.json",
       "history_path": "logs/schedule-history/com.cpbl.scrape-daily.jsonl",
       "history_from": "2026-08-15",
-      "history_from_evidence": "#132 交付日；歷史由 scripts/refresh_status.py 的 start/finish 自動 append"
+      "history_from_evidence": "#132 交付日（保守下界的宣告，非量測）。實際生效日以 logs/schedule-watchdog/deployed-at.json 的部署錨點為準——見 _readme。歷史由 scripts/refresh_status.py 的 start/finish 自動 append"
     },
     {
       "label": "com.cpbl.weekly-box-revisions",
@@ -71,7 +78,7 @@
       "effective_from": "2026-08-15",
       "effective_from_evidence": "#132 交付的偵測器本身。RunAtLoad=true 使它在每次登入／開機時也跑一次，故實際執行次數多於 cadence——cadence 只用來算『上一個應該完成的週期』，多跑不影響判定。",
       "expected_installed": true,
-      "expected_installed_reason": "#132 的讀者路徑：唯一會主動把排程失敗彈到需求方螢幕上的東西。⚠️ 安裝屬部署步驟，須在本卡 merge 後執行。",
+      "expected_installed_reason": "#132 的偵測器本身：唯一會回頭判定『上一個週期跑了沒』的東西。⚠️ 它**不是**推播管道——osascript 通知在本機實測被專注模式全部 suppressed（見 scripts/schedule_watch.py 的 notify() 區段量測），真正會被讀到的是它寫的 logs/schedule-alert.json 經由 tests/conftest.py 印在每次 pytest header 上。⚠️ 安裝屬部署步驟，須在本卡 merge 後執行。",
       "status_path": "logs/schedule-watchdog/last-run.json",
       "history_path": "logs/schedule-history/com.cpbl.schedule-watchdog.jsonl",
       "history_from": "2026-08-15",
