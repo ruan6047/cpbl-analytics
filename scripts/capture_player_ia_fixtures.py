@@ -1,3 +1,4 @@
+# LIFECYCLE: product_pending · 待產品裁定——位置與去留都還沒定案，先不要動（UX-PLAYER-IA1）
 """擷取球員頁 IA prototype 用的真實 fixture（UX-PLAYER-IA1）。
 
 從本機 API 抓 5 位代表性球員（打者/投手/雙棲/二軍 tracking 缺漏/退役）的

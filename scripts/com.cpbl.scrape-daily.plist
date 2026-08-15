@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪 -->
 <!-- macOS launchd 排程：每日 10:10 跑本機增量爬取（免手動 CLI）。
      時段紅線：勿排深夜/凌晨——官網 HiNet 挑戰於深夜進入加嚴狀態（對新訪客
      直接重定向迴圈硬封鎖，見 docs/CPBL_SITE_MAP.md §2「深度封鎖狀態」），

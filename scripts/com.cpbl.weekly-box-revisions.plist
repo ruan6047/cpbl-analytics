@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪 -->
 <!-- macOS launchd 排程：每週一次 box 深度重抓（DATA-BOX-REVISION-SNAPSHOT1 深度層）。
      目的：每日窗只看 [昨天,今天] 2 天，一場比賽被抓過一次後不會再被自動排程碰到；
      每週把近 30 天已完成場的 box 重抓一次，讓賽後 30 天內的官方修正收斂進

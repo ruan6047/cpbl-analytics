@@ -1,3 +1,4 @@
+# LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
 """審核提示詞產生器：從 control-plane 最新 handoff event + 卡片檔自動生成查核提示詞。
 
 用法（**在帶有 main 的 checkout 執行**，見下）：

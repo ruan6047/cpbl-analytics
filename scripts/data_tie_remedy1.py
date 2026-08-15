@@ -1,3 +1,4 @@
+# LIFECYCLE: ci_guard · CI 繫結守衛——不必手動跑，CI 會跑；刪了 CI 會紅
 """DATA-TIE-REMEDY1：5 場 0:0 隱形和局的取證、補爬與影響評估。
 
 每個階段一個 subcommand，輸出 JSON artifact 供交付報告引用。**所有宣稱由本腳本產生**，

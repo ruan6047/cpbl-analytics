@@ -16,19 +16,56 @@
 
 from __future__ import annotations
 
+import argparse
 import datetime as _dt
 import gzip
 import hashlib
 import json
 import pathlib
-import sys
 
 BASE = "https://stats.cpbl.com.tw"
 OUTDIR = pathlib.Path("docs/research/INGEST-SCORELESS-INNING-PITCHER1")
 
+USAGE = """\
+confirm_live_schema.py — 對一場完成場向官方取一次 schema（本卡的單次確認請求）
+
+在做什麼
+  對 stats.cpbl.com.tw 的 /api/proxy/v1/games/<gid> 直連取一次 payload，
+  落檔成 payloads/<gid>.json.gz，並把逐筆請求紀錄寫進 request_log.json。
+  冪等：payloads/<gid>.json.gz 已存在就直接讀檔、不發任何請求。
+
+會寫什麼（⚠️ 沒有 dry-run）
+  · 對 stats.cpbl.com.tw 發出一次**真實** HTTP GET
+  · 本目錄：payloads/<gid>.json.gz（新的 gid ＝ 新的請求 ＋ 新的檔案）
+  · 本目錄：**覆寫 request_log.json** ——⚠️ 那份 artifact 逐字宣稱
+    「本卡總共發出 1 次請求」（total_requests_issued_by_this_card: 1）。
+    用一個新的 gid 跑它，那句宣稱就不再為真，而檔案看起來仍然完全正常。
+
+怎麼呼叫
+  uv run python docs/research/INGEST-SCORELESS-INNING-PITCHER1/confirm_live_schema.py 2026-A-246
+
+⚠️ 母卡 INGEST-SCORELESS-INNING-PITCHER1 已結案，本檔是凍結的一次性產物。
+   除非你正在重現該卡的數字，否則**不要跑它**。
+"""
+
+
+def _parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="confirm_live_schema",
+        description=USAGE,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument(
+        "gid", nargs="?", default="2026-A-246",
+        help="game ID，例如 2026-A-246（省略＝本卡當初取的那一場）")
+    return p
+
 
 def main() -> None:
-    gid = sys.argv[1] if len(sys.argv) > 1 else "2026-A-246"
+    # ⚠️ argv 必須在任何 I/O 之前解析。改版前是
+    # `gid = sys.argv[1] if len(sys.argv) > 1 else "2026-A-246"`：
+    # `--help` 會直接變成 game ID 拼進 URL，對官方發出一次真實請求。
+    gid = _parser().parse_args().gid
     OUTDIR.joinpath("payloads").mkdir(parents=True, exist_ok=True)
     dest = OUTDIR / f"payloads/{gid}.json.gz"
     log_path = OUTDIR / "request_log.json"

@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
 """窮舉對帳：連續無自責分局數（ML-PITCHER-SCORELESS1）＋連續無失分局數（ML-PITCHER-RUNLESS1）。
 
 本腳本**自動產生**交付文件裡的對帳數字——不是人工聲明。對全母體（`pitching_gamelog`

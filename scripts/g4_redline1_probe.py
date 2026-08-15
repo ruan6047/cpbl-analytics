@@ -1,3 +1,4 @@
+# LIFECYCLE: oneshot · 卡片一次性產物——不要跑；刪除須需求方裁定（INGEST-GAME-TM-REFACTOR1-G4）
 """INGEST-GAME-TM-REFACTOR1-G4 Phase A：紅線 1／3 的歸因探針（唯讀，產 artifact）。
 
 dry-run 若出現物理欄位不一致（紅線 1）或 `only_prod_pk`（紅線 3），本腳本回答

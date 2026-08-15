@@ -1,3 +1,4 @@
+# LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
 """CPBL 藍圖排程區塊的任務線歸屬驗證器（唯讀，fail-closed）。
 
 回應 `DOC-CPBL-ROADMAP1` R1 finding `CPBL-ROADMAP1-R1-03`：前一版 ROADMAP 在 §3 附了

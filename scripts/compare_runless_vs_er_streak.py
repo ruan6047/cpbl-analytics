@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# LIFECYCLE: oneshot · 卡片一次性產物——不要跑；刪除須需求方裁定（ML-PITCHER-RUNLESS1）
 """ML-PITCHER-RUNLESS1：失分口徑 vs 自責分口徑的**逐人對照**與**媒體數字檢查點**。
 
 交付文件（`docs/research/ML-PITCHER-RUNLESS1/RESULTS.md`）的兩張表由本腳本產生——

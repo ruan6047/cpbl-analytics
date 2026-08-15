@@ -1,3 +1,4 @@
+# LIFECYCLE: oneshot · 卡片一次性產物——不要跑；刪除須需求方裁定（INGEST-SPLITS-RECALC1）
 """INGEST-SPLITS-RECALC1 重建對帳：diff 必須逐格等於已查核的預期 delta。
 
 模式：

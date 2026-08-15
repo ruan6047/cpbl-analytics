@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# LIFECYCLE: oneshot · 卡片一次性產物——不要跑；刪除須需求方裁定（ML-PITCHER-SCORELESS1）
 """窮舉「把缺值折成有效值」的寫法（ML-PITCHER-SCORELESS1 紅線 2 的守衛）。
 
 ## 為什麼是 AST 而不是 grep

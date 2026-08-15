@@ -1,3 +1,4 @@
+# LIFECYCLE: ci_guard · CI 繫結守衛——不必手動跑，CI 會跑；刪了 CI 會紅
 """OPS-STATE-PLANE-MIG1 Task 2：一次性遷移 Ledger 活卡至 GitHub Issues + Projects v2。
 
 **一次性腳本**（`WF-22-CLI1` 之後的常駐版是獨立卡，本檔不會被那張卡沿用邏輯以外的部分取代）。

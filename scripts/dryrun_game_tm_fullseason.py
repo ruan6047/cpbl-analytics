@@ -1,3 +1,4 @@
+# LIFECYCLE: ci_guard · CI 繫結守衛——不必手動跑，CI 會跑；刪了 CI 會紅
 """INGEST-GAME-TM-REFACTOR1-G4 Phase A：全季唯讀 dry-run 對帳（單場 API vs 正式表存量）。
 
 **唯讀紅線**：本腳本對 `cpbl.pitch_tracking` 只下 SELECT，全檔無 INSERT／UPDATE／DELETE。

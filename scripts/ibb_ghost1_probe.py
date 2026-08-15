@@ -1,3 +1,4 @@
+# LIFECYCLE: oneshot · 卡片一次性產物——不要跑；刪除須需求方裁定（INGEST-SPLITS-IBB-GHOST1）
 """INGEST-SPLITS-IBB-GHOST1 探針：零投球「故四」幽靈島的官方語意查證。
 
 子指令：

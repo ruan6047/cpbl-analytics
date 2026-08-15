@@ -1,3 +1,4 @@
+# LIFECYCLE: ci_guard · CI 繫結守衛——不必手動跑，CI 會跑；刪了 CI 會紅
 """INGEST-PLAYER-BIO-GAP1：補齊 players 缺 country／birthday 的一次性 bio 重爬。
 
 為什麼要獨立腳本而不是直接跑 `cpbl-scrape-bio`：

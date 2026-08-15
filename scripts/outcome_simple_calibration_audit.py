@@ -1,3 +1,4 @@
+# LIFECYCLE: oneshot · 卡片一次性產物——不要跑；刪除須需求方裁定（ML-OUTCOME-SIMPLE-LEAK2）
 """ML-OUTCOME-SIMPLE-LEAK2 留痕：校準斜率閘門重校的全部依據，**不寫入** DB／artifact。
 
 產出四段證據（對應研究報告 docs/research/ML-OUTCOME-SIMPLE-LEAK2_RESULTS.md）：

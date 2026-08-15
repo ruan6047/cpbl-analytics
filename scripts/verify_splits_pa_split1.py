@@ -1,3 +1,4 @@
+# LIFECYCLE: oneshot · 卡片一次性產物——不要跑；刪除須需求方裁定（INGEST-SPLITS-PA-SPLIT1）
 """INGEST-SPLITS-PA-SPLIT1 查證（iteration 3）：`splits_calc` 重複計打席的範圍與選手層級影響。
 
 **唯讀**（`SET TRANSACTION READ ONLY`；並記錄四張分項表執行前後筆數與 max(updated_at)

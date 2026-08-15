@@ -1,3 +1,4 @@
+# LIFECYCLE: ci_guard · CI 繫結守衛——不必手動跑，CI 會跑；刪了 CI 會紅
 """TEAM-STYLE2 換教練混雜效應檢定（唯讀；描述性）。
 
 依 docs/research/TEAM-STYLE2_RESULTS.md §0 預註冊規格：

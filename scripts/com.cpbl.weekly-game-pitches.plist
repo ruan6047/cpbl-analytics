@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪 -->
 <!-- macOS launchd 排程：每週一次逐球全季重跑（INGEST-GAME-TM-REFACTOR1-G4 Phase A）。
      目的：官方可在任何時點做賽後修正，每日增量只看近幾天窗口不會回頭；每週全季重跑
      使任何時點的修正最遲七天內收斂。

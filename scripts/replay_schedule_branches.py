@@ -1,9 +1,11 @@
+# LIFECYCLE: oneshot · 卡片一次性產物——不要跑；刪除須需求方裁定（INGEST-GAME-TM-REFACTOR1-G4）
 """Gate 3 條件 3 補證：對歷史賽程回放既有分類邏輯，證明延期/保留賽分支在真實資料上跑過。
 
 唯讀：只打官方 schedule API，不寫任何 DB、不改任何凍結範圍內的邏輯。
 只 import 既有函式（parse_schedule_row / classify_schedule / dedupe_latest_per_game）。
 """
 
+import argparse
 import collections
 
 from cpbl.ingest.game_tm_shadow import (
@@ -18,8 +20,41 @@ YEAR = 2026
 KIND = "A"
 MONTHS = range(3, 9)  # 3~8 月：本季至今
 
+USAGE = """\
+replay_schedule_branches.py — 對歷史賽程回放既有分類邏輯（Gate 3 條件 3 補證）
+
+在做什麼
+  抓 2026 年 3~8 月的官方賽程，套既有的 parse_schedule_row / classify_schedule /
+  dedupe_latest_per_game，印出去重前後的狀態分布，證明延期／保留賽分支在真實資料上跑過。
+
+會寫什麼（⚠️ 沒有 dry-run，也沒有離線模式）
+  · **對官方賽程 API 抓六個月**（3~8 月，每月一次請求）——這是它唯一的資料來源，
+    沒有快取、沒有 fixture，每跑一次就是六次對外請求
+  · 不寫 DB、不落任何檔案；產物只有 stdout
+
+  ⚠️ 爬蟲紅線（CLAUDE.md）：連續冷啟動會讓官網節流升級，症狀會惡化。
+     失敗後請先冷卻 15–20 分鐘再單次重試，不要連續重跑。
+
+怎麼呼叫（不接受任何參數，年份與月份是碼內常數）
+  uv run python scripts/replay_schedule_branches.py
+
+⚠️ 母卡 INGEST-GAME-TM-REFACTOR1-G4 的 Gate 1-3 已 merge，本檔是凍結的一次性產物。
+   除非你正在重現該 Gate 的數字，否則**不要跑它**。
+"""
+
+
+def _parser() -> argparse.ArgumentParser:
+    return argparse.ArgumentParser(
+        prog="replay_schedule_branches",
+        description=USAGE,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
 
 def main() -> None:
+    # ⚠️ argv 必須在任何 I/O 之前解析。改版前本檔完全不看 argv，
+    # `--help` 會直接落進下面的 `_client()`，對官方賽程 API 抓滿六個月。
+    _parser().parse_args()
     all_rows = []
     with _client() as client:
         for m in MONTHS:

@@ -1,3 +1,4 @@
+# LIFECYCLE: oneshot · 卡片一次性產物——不要跑；刪除須需求方裁定（INGEST-SPLITS-PA-SPLIT1）
 """RESULTS 引用數字 ↔ artifact 一致性檢查（REVIEW-008 F1 的防再犯守衛）。
 
 iteration 2 的教訓：RESULTS 的排行榜數字取自較早一輪的中間輸出，與最終 artifact

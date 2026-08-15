@@ -1,3 +1,4 @@
+# LIFECYCLE: oneshot · 卡片一次性產物——不要跑；刪除須需求方裁定（INGEST-DEEP-TM-BACKFILL1）
 """Verification script for INGEST-DEEP-TM-BACKFILL1."""
 
 import json

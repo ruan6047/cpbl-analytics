@@ -1,3 +1,4 @@
+# LIFECYCLE: ci_guard · CI 繫結守衛——不必手動跑，CI 會跑；刪了 CI 會紅
 """INGEST-PLAYER-BIO-GAP2：補齊 14 人的 handedness 與 batch 2 其餘 bio 欄。
 
 延續 `backfill_player_bio_gap1.py` 的作法（釘死名單＋原始 HTML 存證＋窄寫入），
