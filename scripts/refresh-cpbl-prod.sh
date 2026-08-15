@@ -69,12 +69,14 @@ if [ "$#" -gt 0 ]; then
       usage
       exit 0
       ;;
-    *)
-      printf '未知參數：%s\n' "$1" >&2
-      printf '本腳本不接受位置參數，設定一律走環境變數；用法請打 --help。\n' >&2
-      exit 64
-      ;;
   esac
+fi
+
+# 位置參數契約（逐支不同，刻意不與守衛共用）：本腳本一個位置參數都不收。
+if [ "$#" -gt 0 ]; then
+  printf '未知參數：%s\n' "$1" >&2
+  printf '本腳本不接受位置參數，設定一律走環境變數；用法請打 --help。\n' >&2
+  exit 64
 fi
 
 LOCAL_DB="${LOCAL_DB:-cpbl-analytics-db-1}"

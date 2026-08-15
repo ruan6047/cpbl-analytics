@@ -394,6 +394,104 @@ def test_fast_mode_is_still_the_only_accepted_positional(tmp_path: Path) -> None
     assert not harness["sync_call"].exists()
 
 
+# ============================================ 守衛控制流：四份必須逐字相同
+#
+# ⚠️ 這一節是量出來的。四支的守衛由同一個執行者在同一天寫出（`4956546`、`3833638`），
+# **幾小時內就漂成三個變體**：兩支一種、`weekly-game-pitches.sh` 拒絕訊息不同、
+# `scrape-daily.sh` 沒有 `*)` 分支。不是「未來會漂」，是已經漂了。
+#
+# 修法是把兩件事拆開（見 `script_inventory.SHELL_GUARD_CANONICAL` 的說明）：
+# **`--help` 守衛**逐字相同、**位置參數契約**逐支不同。後者本來就該不同——
+# 「不接受位置參數」vs「只接受 fast」、補救是環境變數 vs `YEAR=`，都是各腳本的事實。
+
+
+def test_guard_control_flow_is_byte_identical_across_scripts() -> None:
+    """四支的守衛控制流必須與 canonical 逐字相同——不是「看起來一樣」。"""
+    flows = {rel: si.shell_guard_control_flow(rel) for rel in GUARDED_SHELLS}
+    drifted = {rel: flow for rel, flow in flows.items() if flow != si.SHELL_GUARD_CANONICAL}
+    assert not drifted, (
+        "守衛控制流已漂離 canonical：\n"
+        + "\n".join(f"--- {rel} ---\n{flow}" for rel, flow in drifted.items())
+        + f"\n--- canonical ---\n{si.SHELL_GUARD_CANONICAL}")
+    assert len(set(flows.values())) == 1, "四份之間互不相同"
+
+
+@pytest.mark.parametrize("script_rel", GUARDED_SHELLS, ids=lambda s: Path(s).name)
+def test_negative_control_drifting_one_guard_is_caught(script_rel: str) -> None:
+    """負控制：把控制流改壞，判準必須立刻不認它——**逐支**都要，不是抽驗一支。
+
+    只證明「現況一致」不算數：一致有可能是巧合，也有可能是判準根本沒在看。
+    這裡在**字串副本**上做四種真實會發生的漂移，每一種都必須被抓到。
+    """
+    source = (ROOT / script_rel).read_text(encoding="utf-8")
+    assert si.guard_control_flow(source) == si.SHELL_GUARD_CANONICAL, "前提就不成立"
+
+    drifts = {
+        "把 exit 0 改成 exit 64（--help 變成拒絕而不是答案）":
+            source.replace("      usage\n      exit 0\n", "      usage\n      exit 64\n", 1),
+        "多認一個旗標（分支集合被偷偷擴張）":
+            source.replace("    -h|--help)\n", "    -h|--help|-\\?)\n", 1),
+        "把 if 條件改寬": source.replace('if [ "$#" -gt 0 ]; then',
+                                    'if [ "$#" -ge 0 ]; then', 1),
+        "縮排從 4 變 2（純空白的漂移也算漂移）":
+            source.replace("    -h|--help)\n", "  -h|--help)\n", 1),
+    }
+    for label, mutated in drifts.items():
+        assert mutated != source, f"變異沒有真的改到東西：{label}"
+        assert si.guard_control_flow(mutated) != si.SHELL_GUARD_CANONICAL, (
+            f"控制流被改壞卻沒被抓到：{label}")
+
+
+@pytest.mark.parametrize("script_rel", GUARDED_SHELLS, ids=lambda s: Path(s).name)
+def test_usage_content_is_not_shared_and_is_script_specific(script_rel: str) -> None:
+    """反向要求：`usage` 內容**應該**逐支不同，共用才是錯的。
+
+    三段（在做什麼／會寫什麼／怎麼呼叫）必須都在、且提到自己的路徑。
+    """
+    source = (ROOT / script_rel).read_text(encoding="utf-8")
+    body = _USAGE_BODY_RE.search(source)
+    assert body, "抽不到 usage() 本體"
+    text = body.group(0)
+
+    for section in USAGE_SECTIONS:
+        assert section in text, f"{script_rel} 的用法缺少「{section}」段"
+    assert script_rel in text, f"{script_rel} 的用法沒有提到自己"
+
+
+def test_usage_bodies_are_pairwise_distinct() -> None:
+    """四份用法不得有任何兩份相同——「會寫什麼」是各腳本特有的事實。"""
+    bodies = {}
+    for rel in GUARDED_SHELLS:
+        match = _USAGE_BODY_RE.search((ROOT / rel).read_text(encoding="utf-8"))
+        assert match
+        bodies[rel] = match.group(0)
+    assert len(set(bodies.values())) == len(bodies), "有兩支的用法內容一模一樣"
+
+
+def test_positional_contract_stays_out_of_the_shared_guard() -> None:
+    """位置參數契約必須在守衛**之後**，否則共用的東西就不再是純控制流。
+
+    `scrape-daily.sh` 收 `fast`，另外三支一個都不收——把這個差異塞回守衛裡，
+    守衛就會再度分岔。這條釘住那個誘惑。
+    """
+    for rel in GUARDED_SHELLS:
+        flow = si.shell_guard_control_flow(rel)
+        assert "exit 64" not in flow, f"{rel} 把拒絕邏輯放回守衛裡了"
+        assert "fast" not in flow, f"{rel} 把位置參數的值寫進守衛了"
+
+
+def test_guard_is_inline_not_sourced() -> None:
+    """守衛不得靠 `source` 取得：那一行跑在守衛之前，檔案不見時會死在印出用法之前。"""
+    for rel in GUARDED_SHELLS:
+        lines = (ROOT / rel).read_text(encoding="utf-8").splitlines()
+        guard_open = next(i for i, ln in enumerate(lines)
+                          if ln == 'if [ "$#" -gt 0 ]; then')
+        before = [ln for ln in lines[:guard_open]
+                  if ln.strip() and not ln.lstrip().startswith("#")]
+        sourced = [ln for ln in before if re.match(r"\s*(\.|source)\s+", ln)]
+        assert not sourced, f"{rel} 在守衛之前 source 了東西：{sourced}"
+
+
 # ================================================== 與盤點清冊同一條判準，不另立
 
 

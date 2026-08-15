@@ -30,6 +30,7 @@ from __future__ import annotations
 import ast
 import re
 import subprocess
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -368,11 +369,14 @@ def test_writes_ast_is_a_projection_of_the_same_engine() -> None:
     `writes_ast` 必須逐支等於 `reachable_effects(...) ∋ db_write`，
     否則就是又有了第二份實作。
     """
-    targets = sorted({
-        e.ident for e in si.build_entries()
-        if e.surface != "cli" and e.ident.endswith(".py")
-    })
-    assert len(targets) > 50, f"觀測面只有 {len(targets)} 支，這條會退化成恆真"
+    cfg = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    targets = sorted(
+        {e.ident for e in si.build_entries()
+         if e.surface != "cli" and e.ident.endswith(".py")}
+        | {rel for rel in (si._cli_entry_module(t)
+                           for t in cfg["project"]["scripts"].values()) if rel}
+    )
+    assert len(targets) > 90, f"觀測面只有 {len(targets)} 支，這條會退化成恆真"
     mismatched = [
         rel for rel in targets
         if si.writes_ast(rel) != ("db_write" in si.reachable_effects(rel))

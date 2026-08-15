@@ -1137,7 +1137,84 @@ def position_ok(rel: str, cls: str) -> bool:
 # 側因本卡紅線不得執行任何腳本，改以**靜態**近似——限度誠實寫在清冊裡。
 
 
-SHELL_ARGV_GUARD_RE = re.compile(r"(getopts|--help\)|-h\s*\||usage\(\)|\bcase\s+\"?\$\{?1)")
+# =========================================== shell 的 argv 守衛：canonical 控制流
+#
+# ⚠️ **這一段是量出來的，不是設計出來的。** 四支排程 shell 的守衛由同一個執行者
+# 在同一天寫出（`4956546`、`3833638`），幾小時內就漂成**三個變體**：
+#   · `backup-prod-db.sh` / `refresh-cpbl-prod.sh`：help 分支 ＋ `*)` 拒絕分支
+#   · `weekly-game-pitches.sh`：同上，但拒絕訊息的第二行不同
+#   · `scrape-daily.sh`：只有 help 分支（它有合法的位置參數 `fast`）
+#
+# 這與 `R2-001` 是同一種病的兩面：**名字承諾了一致性，實作沒有給**。
+#
+# 修法不是「四份寫一樣然後記得對齊」，是把兩件本來就不同性質的事拆開：
+#
+#   1. **`--help` 守衛**（控制流）——四支必須逐字相同。它只做一件事：認出 `-h/--help`、
+#      印用法、exit 0。這是不變式 4 的錨點，也是靜態斷言 `if [ "$#" -gt 0 ]; then`
+#      找的那一行。
+#   2. **位置參數契約**（逐支不同）——「本腳本不接受位置參數」vs「只接受 fast」是
+#      各腳本特有的事實，補救訊息（走環境變數 vs 用 `YEAR=`）也是。這一段**應該**
+#      不一樣，共用反而是錯的；它排在守衛之後，各自負責。
+#
+# `scrape-daily.sh` 本來就是這個形狀（守衛只認 help，`fast` 由下方自己的檢查處理），
+# 所以統一的方向是把另外三支的 `*)` 分支從守衛裡搬出來，而不是把 `fast` 塞進守衛。
+#
+# ⚠️ **刻意不做成 sourced library**（`. scripts/lib/argv_guard.sh`）：`source` 那一行
+# 跑在守衛之前，函式庫路徑錯或檔案不見時腳本會死在印出用法之前——那正是守衛要防的
+# 失敗模式。守衛必須實體留在檔案最前面、零執行期相依。
+#
+# ⚠️ 一致性由**本函式**保證，不是由一條額外的測試保證：`help_safety()` 現在只有在
+# 控制流與 canonical 逐字相同時才給 `safe`。漂掉的守衛會失去 `safe`，於是掉進
+# 不變式 4 的射程、需要具名放行——CI 直接紅。形狀沿用 `#138` 的
+# `_SCHEDULE_SELECTION_KEYS`（一份來源、多個消費者派生），而不是靠人記得對齊。
+SHELL_USAGE_SLOT = "<<<USAGE>>>"
+
+SHELL_GUARD_CANONICAL = f"""usage() {{
+  cat <<'EOF'
+{SHELL_USAGE_SLOT}
+EOF
+}}
+
+if [ "$#" -gt 0 ]; then
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+  esac
+fi"""
+
+_GUARD_OPEN = 'if [ "$#" -gt 0 ]; then'
+
+
+def guard_control_flow(source: str) -> str | None:
+    """抽出 shell 的守衛區段並把 usage 內容換成 slot。抽不出來回 None。
+
+    回傳值就是要與 `SHELL_GUARD_CANONICAL` 逐字比對的東西：`usage()` 的**框架**
+    （`cat <<'EOF'` … `EOF`）算控制流，heredoc 的**內容**不算。
+
+    ⚠️ 收字串而不是路徑，是為了讓負控制能在**副本**上改壞控制流再問一次
+    ——不然「改壞就會紅」只能用宣稱的。
+    """
+    lines = source.splitlines()
+    try:
+        start = next(i for i, ln in enumerate(lines) if ln == "usage() {")
+        guard = next(i for i, ln in enumerate(lines) if i > start and ln == _GUARD_OPEN)
+        end = next(i for i, ln in enumerate(lines) if i > guard and ln == "fi")
+    except StopIteration:
+        return None
+
+    block = lines[start:end + 1]
+    try:
+        body_start = block.index("  cat <<'EOF'") + 1
+        body_end = block.index("EOF", body_start)
+    except ValueError:
+        return None
+    return "\n".join(block[:body_start] + [SHELL_USAGE_SLOT] + block[body_end:])
+
+
+def shell_guard_control_flow(rel: str) -> str | None:
+    return guard_control_flow(_read(rel))
 
 
 def help_safety(rel: str) -> tuple[str, str]:
@@ -1148,12 +1225,18 @@ def help_safety(rel: str) -> tuple[str, str]:
         # ⚠️ shell 沒有 argparse，但「打錯參數會不會照跑」的問題完全一樣：無守衛時
         # `weekly-box-revisions.sh --help` 會直接開始對官網打整季請求並寫本機 DB。
         #
-        # ⚠️ **這一條只看得到守衛在不在，看不到它在哪**：正則對整份檔案掃描，
-        # 守衛被移到副作用之後仍會判 safe。位置這件事由
+        # ⚠️ **這一條只看得到守衛長什麼樣，看不到它在哪**：位置由
         # `tests/test_shell_help_guard.py` 以假樁執行 ＋ 位置斷言證明，不在這裡。
-        if SHELL_ARGV_GUARD_RE.search(_read(rel)):
-            return "safe", "有明示的 argv 守衛（getopts／case $1／usage）；零副作用由 tests/test_shell_help_guard.py 以假樁證明"
-        return "unsafe", "無 argv 守衛：未知參數會被吞掉或忽略，主流程照跑"
+        flow = shell_guard_control_flow(rel)
+        if flow is None:
+            return "unsafe", "無 argv 守衛：未知參數會被吞掉或忽略，主流程照跑"
+        if flow != SHELL_GUARD_CANONICAL:
+            return "unsafe", (
+                "有守衛但控制流與 canonical 不符（script_inventory.SHELL_GUARD_CANONICAL）；"
+                "逐字比對見 tests/test_shell_help_guard.py")
+        return "safe", (
+            "argv 守衛控制流與 canonical 逐字相同；"
+            "零副作用由 tests/test_shell_help_guard.py 以假樁證明")
     src = _read(rel)
     if "argparse" not in src or "parse_args" not in src:
         return "unsafe", "無 argparse：任何旗標（含 --help）都會落進主流程"
@@ -1707,7 +1790,7 @@ def render() -> str:
     a("> - 跨模組只解析 `cpbl.*`；第三方套件內部的呼叫圖不展開。")
     a("> - `import cpbl.x`（不點名符號）退回整個模組效果的聯集，精確度降回閉包等級。")
     a("> - `.sh`／`.plist` 沒有 Python AST，退回對整份檔案跑同一張表的 payload 正則——"
-      "**看得到守衛在不在，看不到它在哪**，與 W1 對 shell 不適用是同一個結構性事實。")
+      "**看得到出口在不在，看不到入口碰不碰得到**，與 W1 對 shell 不適用是同一個結構性事實。")
     a("")
     a("原則上本卡只加不變式、不改既有腳本行為（那會讓本卡從盤點變成改一批腳本），"
       "但需求方對**排程 shell** 推翻了這個處置：`refresh-cpbl-prod.sh`／`scrape-daily.sh`／"
@@ -1735,9 +1818,48 @@ def render() -> str:
     a("> `.py` 的 `scripts/` 側因本卡紅線**不得執行任何腳本**，改以**靜態**近似："
       "「有 argparse 且入口在主流程前呼叫 `parse_args`」。")
     a("> **限度**：靜態判準證明不了「parse_args 之後才有副作用」，只證明 argv 有被解析。")
-    a("> shell 側的靜態判準更弱——整檔正則只看得到守衛在不在、看不到它在哪。"
-      "已加守衛的三支因此另由 `tests/test_shell_help_guard.py` 以**副本 ＋ 假樁**"
-      "逐支證明 `--help` 零外部呼叫、零檔案產出，並釘住「守衛之前不得有副作用」；"
+    a("")
+    a("### shell 的守衛：一份 canonical 控制流，四份 inline 逐字相同")
+    a("")
+    a("shell 沒有 argparse，判準原本是一條寬鬆正則（「有 `getopts`／`case $1`／`usage` "
+      "就算 safe」）。**那條正則量不到一致性**，而一致性正是這裡出事的地方："
+      "四支的守衛由同一個執行者在同一天寫出（`4956546`、`3833638`），"
+      "**幾小時內就漂成三個變體**——兩支一種、`weekly-game-pitches.sh` 拒絕訊息不同、"
+      "`scrape-daily.sh` 少一個分支。這與不變式 4 的兩次失敗是同一種病："
+      "**名字承諾了一致性，實作沒有給**。")
+    a("")
+    a("修法是把兩件本來就不同性質的事拆開：")
+    a("")
+    a("| | 誰負責 | 要不要一致 |")
+    a("|---|---|---|")
+    a("| **`--help` 守衛**（控制流） | `script_inventory.SHELL_GUARD_CANONICAL` |"
+      " ✅ 四份與 canonical **逐字相同**，不符即 CI 紅 |")
+    a("| **位置參數契約**（拒絕與補救訊息） | 各腳本自己，排在守衛之後 |"
+      " ❌ **應該**逐支不同——「不接受位置參數」vs「只接受 `fast`」、"
+      "補救是環境變數 vs `YEAR=`，共用反而是錯的 |")
+    a("| **`usage` 內容** | 各腳本自己 | ❌ 同上，且 `test_usage_bodies_are_pairwise_distinct`"
+      " 釘住四份互不相同 |")
+    a("")
+    a("一致性由 `help_safety()` 本身保證，不是靠一條額外的測試："
+      "**控制流與 canonical 不逐字相同就拿不到 `safe`**，於是掉進不變式 4 的射程、"
+      "需要具名放行——CI 直接紅。形狀沿用 `#138` 的 `_SCHEDULE_SELECTION_KEYS`"
+      "（一份來源、多個消費者派生），不是靠人記得對齊。")
+    a("")
+    a("> [!warning] **刻意不做成 sourced library**（`. scripts/lib/argv_guard.sh`）。")
+    a("> `source` 那一行跑在守衛之前：函式庫路徑錯或檔案不見時，腳本會**死在印出用法之前**，"
+      "而那正是守衛要防的失敗模式；它也會破壞「守衛必須是第一件事」的靜態錨點。"
+      "守衛必須實體留在檔案最前面、零執行期相依，"
+      "由 `test_guard_is_inline_not_sourced` 釘住。")
+    a("")
+    a("> [!note] **失效面**：canonical 只涵蓋「這個 repo 現行的那一種寫法」。"
+      "`getopts` 風格的守衛在新判準下會被判 `unsafe`——這是刻意的取捨"
+      "（一種寫法換來可逐字比對），代價是未來若真的需要第二種形狀，"
+      "得先擴充 canonical 而不是各寫各的。"
+      "另外，逐字比對證明的是**四份一樣**，不是**這一份是對的**；"
+      "「對不對」由本節下方那組執行期證明（副本 ＋ 假樁）負責。")
+    a("")
+    a("四支的 `--help` 零外部呼叫、零檔案產出，由 `tests/test_shell_help_guard.py` 以"
+      "**副本 ＋ 假樁**逐支證明，並釘住「守衛之前不得有副作用」；"
       "該檔的 `test_every_safe_shell_is_covered_here` 使「清冊判 safe 卻沒人證明」直接 CI 紅。")
     a("")
 

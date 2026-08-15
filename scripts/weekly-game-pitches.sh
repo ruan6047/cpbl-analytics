@@ -69,12 +69,15 @@ if [ "$#" -gt 0 ]; then
       usage
       exit 0
       ;;
-    *)
-      printf '未知參數：%s\n' "$1" >&2
-      printf '本腳本不接受位置參數，年份請用 YEAR=；用法請打 --help。\n' >&2
-      exit 64
-      ;;
   esac
+fi
+
+# 位置參數契約（逐支不同，刻意不與守衛共用）：本腳本一個位置參數都不收，
+# 而補救方式是 `YEAR=` 而不是別的環境變數——這一句必須逐支為真，不可共用。
+if [ "$#" -gt 0 ]; then
+  printf '未知參數：%s\n' "$1" >&2
+  printf '本腳本不接受位置參數，年份請用 YEAR=；用法請打 --help。\n' >&2
+  exit 64
 fi
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"

@@ -158,13 +158,13 @@
 
 ## 引用完整性（不變式 3）
 
-全庫 `scripts/<name>.<ext>` 字面路徑共 **905** 處。**只有 `enforced` 那一面強制**——其餘的過期是歷史事實不是缺陷：
+全庫 `scripts/<name>.<ext>` 字面路徑共 **908** 處。**只有 `enforced` 那一面強制**——其餘的過期是歷史事實不是缺陷：
 
 | 面別 | 處數 | 強制？ | 為什麼 |
 |---|---:|---|---|
 | `scan` | 206 | 回報 | 掃描器產物 JSON 是當時的快照 |
 | `sealed` | 198 | 回報 | `docs/control-plane/**` 已於 `8271d7c` 封存唯讀，**永遠改不了** |
-| `self` | 180 | 不適用 | 掃描器自身的說明範例 |
+| `self` | 183 | 不適用 | 掃描器自身的說明範例 |
 | `enforced` | 145 | ✅ 強制 | `scripts/`、`src/`、活契約與設計文件——壞了就是現在的缺陷 |
 | `historical` | 144 | 回報 | `docs/archive/**` 與卡片交付產物＝凍結證據，**本卡射程外** |
 | `fixture` | 32 | 不適用 | `tests/**` 的合成路徑；真實路徑壞掉 pytest 自己會紅（更強的機制） |
@@ -213,7 +213,7 @@
 > - 出口若經由**型別靜態解析不了的值**抵達（`client.get(...)` 的 `client` 是傳進來的參數、`getattr` 呼叫、callback），呼叫圖看不到。本 repo 的慣用法是 `_client()` 先建再傳，建構點落在呼叫路徑上，故實測未產生假陰性——但這是**慣用法的性質，不是判準的保證**。
 > - 跨模組只解析 `cpbl.*`；第三方套件內部的呼叫圖不展開。
 > - `import cpbl.x`（不點名符號）退回整個模組效果的聯集，精確度降回閉包等級。
-> - `.sh`／`.plist` 沒有 Python AST，退回對整份檔案跑同一張表的 payload 正則——**看得到守衛在不在，看不到它在哪**，與 W1 對 shell 不適用是同一個結構性事實。
+> - `.sh`／`.plist` 沒有 Python AST，退回對整份檔案跑同一張表的 payload 正則——**看得到出口在不在，看不到入口碰不碰得到**，與 W1 對 shell 不適用是同一個結構性事實。
 
 原則上本卡只加不變式、不改既有腳本行為（那會讓本卡從盤點變成改一批腳本），但需求方對**排程 shell** 推翻了這個處置：`refresh-cpbl-prod.sh`／`scrape-daily.sh`／`weekly-game-pitches.sh` 與 `sync_deep_tm_prod.py` **同級**——探索動作即造成損害——而破壞半徑更大（後者 DROP 一張表，`refresh-cpbl-prod.sh` 是整條生產同步鏈）。`backup-prod-db.sh` 是判準加寬後補上的第四支。四支皆已加 argv 守衛並不列下表，證明見 `tests/test_shell_help_guard.py`。
 
@@ -234,7 +234,27 @@
 > CLI 側該檔以**執行期密封探針**證明（所有 I/O 出口 stub 化後才呼叫 `main()`）；
 > `.py` 的 `scripts/` 側因本卡紅線**不得執行任何腳本**，改以**靜態**近似：「有 argparse 且入口在主流程前呼叫 `parse_args`」。
 > **限度**：靜態判準證明不了「parse_args 之後才有副作用」，只證明 argv 有被解析。
-> shell 側的靜態判準更弱——整檔正則只看得到守衛在不在、看不到它在哪。已加守衛的三支因此另由 `tests/test_shell_help_guard.py` 以**副本 ＋ 假樁**逐支證明 `--help` 零外部呼叫、零檔案產出，並釘住「守衛之前不得有副作用」；該檔的 `test_every_safe_shell_is_covered_here` 使「清冊判 safe 卻沒人證明」直接 CI 紅。
+
+### shell 的守衛：一份 canonical 控制流，四份 inline 逐字相同
+
+shell 沒有 argparse，判準原本是一條寬鬆正則（「有 `getopts`／`case $1`／`usage` 就算 safe」）。**那條正則量不到一致性**，而一致性正是這裡出事的地方：四支的守衛由同一個執行者在同一天寫出（`4956546`、`3833638`），**幾小時內就漂成三個變體**——兩支一種、`weekly-game-pitches.sh` 拒絕訊息不同、`scrape-daily.sh` 少一個分支。這與不變式 4 的兩次失敗是同一種病：**名字承諾了一致性，實作沒有給**。
+
+修法是把兩件本來就不同性質的事拆開：
+
+| | 誰負責 | 要不要一致 |
+|---|---|---|
+| **`--help` 守衛**（控制流） | `script_inventory.SHELL_GUARD_CANONICAL` | ✅ 四份與 canonical **逐字相同**，不符即 CI 紅 |
+| **位置參數契約**（拒絕與補救訊息） | 各腳本自己，排在守衛之後 | ❌ **應該**逐支不同——「不接受位置參數」vs「只接受 `fast`」、補救是環境變數 vs `YEAR=`，共用反而是錯的 |
+| **`usage` 內容** | 各腳本自己 | ❌ 同上，且 `test_usage_bodies_are_pairwise_distinct` 釘住四份互不相同 |
+
+一致性由 `help_safety()` 本身保證，不是靠一條額外的測試：**控制流與 canonical 不逐字相同就拿不到 `safe`**，於是掉進不變式 4 的射程、需要具名放行——CI 直接紅。形狀沿用 `#138` 的 `_SCHEDULE_SELECTION_KEYS`（一份來源、多個消費者派生），不是靠人記得對齊。
+
+> [!warning] **刻意不做成 sourced library**（`. scripts/lib/argv_guard.sh`）。
+> `source` 那一行跑在守衛之前：函式庫路徑錯或檔案不見時，腳本會**死在印出用法之前**，而那正是守衛要防的失敗模式；它也會破壞「守衛必須是第一件事」的靜態錨點。守衛必須實體留在檔案最前面、零執行期相依，由 `test_guard_is_inline_not_sourced` 釘住。
+
+> [!note] **失效面**：canonical 只涵蓋「這個 repo 現行的那一種寫法」。`getopts` 風格的守衛在新判準下會被判 `unsafe`——這是刻意的取捨（一種寫法換來可逐字比對），代價是未來若真的需要第二種形狀，得先擴充 canonical 而不是各寫各的。另外，逐字比對證明的是**四份一樣**，不是**這一份是對的**；「對不對」由本節下方那組執行期證明（副本 ＋ 假樁）負責。
+
+四支的 `--help` 零外部呼叫、零檔案產出，由 `tests/test_shell_help_guard.py` 以**副本 ＋ 假樁**逐支證明，並釘住「守衛之前不得有副作用」；該檔的 `test_every_safe_shell_is_covered_here` 使「清冊判 safe 卻沒人證明」直接 CI 紅。
 
 ## 清冊：`scripts/**`（50）
 
@@ -412,5 +432,5 @@
 - **「未找到消費者」不等於「沒有消費者」**：本清冊的觀測面只有 **git 追蹤檔案**。本機執行歷史、需求方手動操作、封存前的口頭流程都不在裡面。用詞一律「未找到」。
 - **本輪零刪除**。已用盡的只標記，刪除是需求方的獨立裁定。
 - 位置不變式證明的是「位置與分類一致」，**不是「分類是對的」**。分類含具名人工改判，機器只驗一致性不驗真假。
-- **分段路徑**（`"scripts/" + name` 這類靜態解析不了的組裝）共 49 處，引用完整性檢查涵蓋不到，逐處列出：`docs/research/TIME-SEMANTICS-CONTRACT1/scan_time_semantics.py:149`、`scripts/data_rules_audit1.py:761`、`scripts/data_tie_remedy1.py:322`、`scripts/script_inventory.py:72`、`scripts/script_inventory.py:383`、`scripts/script_inventory.py:387`、`scripts/script_inventory.py:1031`、`scripts/script_inventory.py:1173`、`scripts/script_inventory.py:1745`、`tests/test_backup_prod_db.py:16`、`tests/test_backup_prod_db.py:186`、`tests/test_backup_prod_db.py:196`、`tests/test_backup_prod_db.py:203`、`tests/test_bio_gap2_backfill.py:19`、`tests/test_bio_gap_backfill.py:27`、`tests/test_prod_sync_revision_seq.py:33`、`tests/test_prod_sync_revision_seq.py:183`、`tests/test_prod_sync_revision_seq.py:184`、`tests/test_prod_sync_revision_seq.py:185`、`tests/test_prod_sync_revision_seq.py:216`、`tests/test_refresh_pitch_ingest.py:26`、`tests/test_refresh_remote_train.py:20`、`tests/test_review_prompt.py:7`、`tests/test_roadmap_lines.py:28`、`tests/test_scrape_daily.py:32`、`tests/test_scrape_daily.py:33`、`tests/test_scrape_daily.py:115`、`tests/test_scrape_daily.py:132`、`tests/test_scrape_daily.py:156`、`tests/test_scrape_daily.py:310`、`tests/test_script_inventory.py:243`、`tests/test_script_inventory.py:407`、`tests/test_script_inventory.py:453`、`tests/test_script_inventory.py:467`、`tests/test_script_inventory.py:475`、`tests/test_script_inventory.py:483`、`tests/test_script_inventory.py:495`、`tests/test_script_inventory.py:548`、`tests/test_script_inventory.py:606`、`tests/test_script_inventory.py:611`、`tests/test_script_inventory.py:612`、`tests/test_script_inventory.py:613`、`tests/test_script_inventory.py:684`、`tests/test_shell_help_guard.py:303`、`tests/test_shell_help_guard.py:375`、`tests/test_state_plane_migrate.py:16`、`tests/test_task_card_sections.py:8`、`tests/test_verify_refresh_info.py:27`、`tests/test_workflow_ledger.py:5`
+- **分段路徑**（`"scripts/" + name` 這類靜態解析不了的組裝）共 49 處，引用完整性檢查涵蓋不到，逐處列出：`docs/research/TIME-SEMANTICS-CONTRACT1/scan_time_semantics.py:149`、`scripts/data_rules_audit1.py:761`、`scripts/data_tie_remedy1.py:322`、`scripts/script_inventory.py:72`、`scripts/script_inventory.py:383`、`scripts/script_inventory.py:387`、`scripts/script_inventory.py:1031`、`scripts/script_inventory.py:1256`、`scripts/script_inventory.py:1867`、`tests/test_backup_prod_db.py:16`、`tests/test_backup_prod_db.py:186`、`tests/test_backup_prod_db.py:196`、`tests/test_backup_prod_db.py:203`、`tests/test_bio_gap2_backfill.py:19`、`tests/test_bio_gap_backfill.py:27`、`tests/test_prod_sync_revision_seq.py:33`、`tests/test_prod_sync_revision_seq.py:183`、`tests/test_prod_sync_revision_seq.py:184`、`tests/test_prod_sync_revision_seq.py:185`、`tests/test_prod_sync_revision_seq.py:216`、`tests/test_refresh_pitch_ingest.py:26`、`tests/test_refresh_remote_train.py:20`、`tests/test_review_prompt.py:7`、`tests/test_roadmap_lines.py:28`、`tests/test_scrape_daily.py:32`、`tests/test_scrape_daily.py:33`、`tests/test_scrape_daily.py:115`、`tests/test_scrape_daily.py:132`、`tests/test_scrape_daily.py:156`、`tests/test_scrape_daily.py:310`、`tests/test_script_inventory.py:244`、`tests/test_script_inventory.py:411`、`tests/test_script_inventory.py:457`、`tests/test_script_inventory.py:471`、`tests/test_script_inventory.py:479`、`tests/test_script_inventory.py:487`、`tests/test_script_inventory.py:499`、`tests/test_script_inventory.py:552`、`tests/test_script_inventory.py:610`、`tests/test_script_inventory.py:615`、`tests/test_script_inventory.py:616`、`tests/test_script_inventory.py:617`、`tests/test_script_inventory.py:688`、`tests/test_shell_help_guard.py:303`、`tests/test_shell_help_guard.py:375`、`tests/test_state_plane_migrate.py:16`、`tests/test_task_card_sections.py:8`、`tests/test_verify_refresh_info.py:27`、`tests/test_workflow_ledger.py:5`
 
