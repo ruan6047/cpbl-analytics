@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
 # 排程偵測器的 launchd 入口（OPS-SCHEDULE-FAILURE-BLIND1／#132）。
 #
 # 為什麼要這一層薄 wrapper：plist 直接叫 python 也行，但那樣就沒有地方放「用 /usr/bin/python3
@@ -22,8 +23,19 @@
 #       logs/schedule-history/com.cpbl.schedule-watchdog.jsonl
 set -uo pipefail
 
+# ============================================================== argv 守衛
+# 守衛擺在任何副作用之前（本檔會寫產物、會彈通知、會發 HTTPS 請求）。
+#
+# ⚠️ 下方守衛的**控制流逐字等於** script_inventory.SHELL_GUARD_CANONICAL，不是巧合也不是
+# 抄的：`#141` 量到四支排程 shell 的守衛在幾小時內漂成三個變體，於是把形狀收斂成一份
+# canonical，並讓 `help_safety()` 以逐字比對判定。本檔原本寫成第四個變體（單一 `case`
+# 兼管 help 與拒絕），清冊因此判它「無 argv 守衛」——**那是假的，它有守衛**，但一個
+# 產生出來的清冊寫錯自己專案的事實，比沒有清冊更糟。改成 canonical 是為了讓判定成立。
+#
+# ⚠️ `usage()` 與 `if [ "$#" -gt 0 ]` 之間**不得插入任何一行**（含註解）：逐字比對的
+# 抽取範圍是這兩者之間的整段，註解也會被算進控制流。說明只能放在這裡。
 usage() {
-  cat <<'EOU'
+  cat <<'EOF'
 scripts/schedule-watchdog.sh — 排程缺席／失敗偵測器的 launchd 入口
 
 在做什麼：依 scripts/schedule-registry.json 宣告的節奏，回頭判定每個 launchd job 的
@@ -42,15 +54,25 @@ scripts/schedule-watchdog.sh — 排程缺席／失敗偵測器的 launchd 入�
 退出碼：0 正常｜2 缺席或應裝未裝｜3 失敗｜4 跑到一半死掉｜5 連續被跳過
         ｜6 登記表不可信或歷史毀損｜7 取不到生產訊號｜8 生產同步停擺
         ｜9 RunAtLoad 未兌現｜64 參數錯誤
-EOU
+EOF
 }
 
-# argv 守衛擺在任何副作用之前（本檔會寫產物、會彈通知、會發 HTTPS 請求）。
-case "${1:-}" in
-  --help|-h) usage; exit 0 ;;
-  "") ;;
-  *) echo "未知參數：$1（本檔不吃參數；--help 看用法）" >&2; exit 64 ;;
-esac
+if [ "$#" -gt 0 ]; then
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+  esac
+fi
+
+# 位置參數契約（逐支不同，刻意不與守衛共用）：本檔一個位置參數都不收，且**沒有**
+# 環境變數補救管道——判定行為的唯一旋鈕是 scripts/schedule-registry.json。
+if [ "$#" -gt 0 ]; then
+  printf '未知參數：%s\n' "$1" >&2
+  printf '本腳本不接受任何參數；判定細節請直接跑 scripts/schedule_watch.py（見 --help）。\n' >&2
+  exit 64
+fi
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_DIR"

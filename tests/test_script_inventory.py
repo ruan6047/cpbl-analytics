@@ -861,16 +861,25 @@ def test_regression_5_real_repo_card_ids_are_intact() -> None:
 
 
 def test_counts_reconcile_across_three_surfaces() -> None:
-    """三面計數對帳。本輪零搬動，唯一的增量是本卡新增的產生器。"""
+    """三面計數對帳。本輪零搬動，增量全部具名。
+
+    ⚠️ 這幾個數字是**閘門不是紀錄**：任何人新增 `scripts/` 入口都會撞紅這條，
+    然後被迫在這裡寫下「多的那支是誰、為什麼」。所以改數字時必須同時改註解，
+    不得只把數字調大——那等於把閘門拆了。
+    """
     entries = si.build_entries()
     scripts = [e for e in entries if e.surface == "scripts"]
     research = [e for e in entries if e.surface == "research"]
     cli = [e for e in entries if e.surface == "cli"]
 
-    assert len(scripts) == 50, "49（基準 33c7c3f）＋ 1（本卡新增 script_inventory.py）"
+    assert len(scripts) == 53, (
+        "49（基準 33c7c3f）＋ 1（DEV-SCRIPT-INVENTORY1 的 script_inventory.py）"
+        "＋ 3（OPS-SCHEDULE-FAILURE-BLIND1／#132：schedule_watch.py、"
+        "schedule-watchdog.sh、com.cpbl.schedule-watchdog.plist）。"
+        "同卡的 schedule-registry.json 是純資料不是入口，見 NON_ENTRY_BASENAMES")
     assert len(research) == 19, "本輪零搬入"
     assert len(cli) == 47, "CLI 不變"
-    assert len(scripts) + len(research) + len(cli) == 116, "115（基準）＋ 1（產生器）"
+    assert len(scripts) + len(research) + len(cli) == 119, "116＋3（#132）"
 
 
 def test_invariant_proof_enumerates_every_entry(capsys: pytest.CaptureFixture) -> None:

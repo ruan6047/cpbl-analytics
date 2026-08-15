@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪 -->
 <!-- macOS launchd 排程：排程缺席／失敗偵測器（OPS-SCHEDULE-FAILURE-BLIND1／#132）。
 
      這是本專案唯一會「主動冒出來」的排程健康訊號。其餘四個面（cpbl.refresh_log、

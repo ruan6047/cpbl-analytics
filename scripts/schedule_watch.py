@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
 """排程缺席／失敗偵測器（OPS-SCHEDULE-FAILURE-BLIND1／#132）。
 
 問題陳述（需求方 2026-08-15 裁定）：**失敗有痕跡但無讀者，且無登記表可判缺席。**
