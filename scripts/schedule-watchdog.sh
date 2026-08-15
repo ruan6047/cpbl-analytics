@@ -55,6 +55,16 @@ esac
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_DIR"
 
+# 執行身分只能在**這一層**算：launchd 直接 spawn 的是本 bash（PPID=1、父行程
+# /sbin/launchd），而 macOS 會把子行程的 XPC_SERVICE_NAME 一律重設為 "0"，所以
+# python 那邊自己讀環境變數必然判錯（"0" 在 Python 是 truthy，會恆判 launchd）。
+# 實測見 scripts/weekly-box-revisions.sh 的同段註解與 #132 交付報告。
+if [ "${PPID:-0}" = "1" ]; then
+  export SCHEDULE_WATCH_TRIGGER=launchd
+else
+  export SCHEDULE_WATCH_TRIGGER=manual
+fi
+
 # 明確釘住系統 python：PATH 上若有 pyenv／venv 的 python3，隔離就白做了。
 PYTHON="/usr/bin/python3"
 [ -x "$PYTHON" ] || PYTHON="$(command -v python3)"

@@ -76,10 +76,22 @@ DAYS_BACK="${DAYS_BACK:-30}"
 LOCK_DIR="${REFRESH_LOCK_DIR:-/private/tmp/cpbl-analytics-refresh.lock}"
 STARTED_AT="$(date '+%Y-%m-%dT%H:%M:%S%z')"
 LABEL="com.cpbl.weekly-box-revisions"
-# 本檔的 plist 不設 REFRESH_TRIGGER（且 plist 不在 #132 射程內，一個位元不改），故改用
-# launchd 生成的 XPC_SERVICE_NAME 判執行身分。缺席偵測只採計 launchd 觸發的執行——
-# 手動補跑不算「排程有跑」，否則手動救火會把壞掉的排程蓋成健康。
-if [ -n "${XPC_SERVICE_NAME:-}" ] && [ "${XPC_SERVICE_NAME:-}" != "0" ]; then
+# 本檔的 plist 不設 REFRESH_TRIGGER（且 plist 不在 #132 射程內，一個位元不改），故以
+# **父行程**判執行身分。缺席偵測只採計 launchd 觸發的執行——手動補跑不算「排程有跑」，
+# 否則手動救火會把壞掉的排程蓋成健康。
+#
+# 實測（2026-08-15，launchd 三次／互動 shell 兩次，見 #132 交付報告）：
+#   launchd 觸發   → PPID=1、父行程 /sbin/launchd
+#   互動 shell 觸發 → PPID=登入 shell 的 pid
+#
+# ⚠️ **不要改用 XPC_SERVICE_NAME**。macOS 只讓 launchd 直接 spawn 的那一個行程看到
+# job label，它 fork 出來的子行程一律被重設為字串 "0"（同一次執行裡 bash 讀到
+# dev.cpbl132.id2a，而 /usr/bin/env 與 python3 都讀到 "0"）。這個變數在 bash 這一層
+# 剛好可用、傳下去就失真，是個會在改版時安靜壞掉的判準。
+#
+# 判不出來時一律記 manual（fail closed）：誤記成 launchd 會讓手動跑冒充排程跑而靜默，
+# 誤記成 manual 只會多報一次缺席——吵，但看得見。
+if [ "${PPID:-0}" = "1" ]; then
   TRIGGER="launchd"
 else
   TRIGGER="manual"

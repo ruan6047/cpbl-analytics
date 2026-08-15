@@ -111,6 +111,15 @@ EXIT_BY_VERDICT = {
 
 TERMINAL_STATES = ("succeeded", "failed", "skipped")
 DEFAULT_API_URL = "https://cpbl.ruan-ruan.com/api/info"
+USER_AGENT = "cpbl-schedule-watchdog/1.0 (+OPS-SCHEDULE-FAILURE-BLIND1)"
+# 執行身分由 wrapper 在 bash 層算好後傳進來。
+#
+# ⚠️ **不可在 Python 這一層讀 `XPC_SERVICE_NAME`**：macOS 只讓 launchd **直接** spawn
+# 的那一個行程看到 job label，它的子行程一律被重設為字串 `"0"`。實測 2026-08-15：
+# 同一次 launchd 執行裡，bash 自己讀到 `dev.cpbl132.id2a`，而它 fork 出來的
+# `/usr/bin/env` 與 `python3` 都讀到 `"0"`。`"0"` 在 Python 是 truthy，於是
+# `if os.environ.get("XPC_SERVICE_NAME")` 會**恆為真**——手動跑也會被記成排程跑。
+TRIGGER_ENV = "SCHEDULE_WATCH_TRIGGER"
 DEFAULT_LOOKBACK_CYCLES = 60
 # 開機後多久內沒有本偵測器的執行紀錄，就算 RunAtLoad 沒兌現。launchd 在登入態載入
 # LaunchAgent 有排隊延遲，30 分鐘是寬鬆側的取捨，不是量測結果。
@@ -462,8 +471,13 @@ def probe_production(api_url: str, timeout: float) -> dict:
     到下次開機／下次排程執行（需求方 2026-08-15 裁定二，明確接受此代價）。"""
     if api_url in ("", "none"):
         return {"state": "disabled"}
+    # ⚠️ **必須帶自訂 User-Agent。** 實測 2026-08-15：urllib 預設的 `Python-urllib/3.9`
+    # 打 https://cpbl.ruan-ruan.com/api/info 被邊緣擋成 **403**，同一時刻 curl 回 200。
+    # 沒有這一行，偵測器每天都會報 B_UNREACHABLE——一個永遠在叫的告警會被關掉，
+    # 而那正是本卡在修的病。這個缺陷只有真的打一次生產才看得到，讀碼看不出來。
+    request = urllib.request.Request(api_url, headers={"User-Agent": USER_AGENT})
     try:
-        with urllib.request.urlopen(api_url, timeout=timeout) as response:  # noqa: S310
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
             body = json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, OSError, ValueError, json.JSONDecodeError) as error:
         return {"state": "unreachable", "error": f"{type(error).__name__}: {error}"}
@@ -724,17 +738,28 @@ def main(argv: list[str] | None = None) -> int:
     return int(report["exit_code"])
 
 
+def current_trigger() -> str:
+    """執行身分：由 wrapper 在 bash 層以 `$PPID == 1` 判定後經環境變數傳進來。
+
+    不確定時一律回 `manual`（fail closed）。方向是刻意的：把手動跑誤記成排程跑會讓
+    手動救火把壞掉的排程蓋成健康（fail open，靜默）；反過來只會多報一次缺席（吵，
+    但看得見）。
+    """
+    return "launchd" if os.environ.get(TRIGGER_ENV) == "launchd" else "manual"
+
+
 def write_notify_artifacts(repo: Path, report: dict) -> None:
     """三層備援：通知（可能被權限吃掉）→ 持久產物 → 非零退出碼。"""
     stamp = datetime.now(TAIPEI).strftime("%Y-%m-%dT%H:%M:%S%z")
+    trigger = current_trigger()
     run_dir = repo / "logs" / "schedule-watchdog"
     try:
         run_dir.mkdir(parents=True, exist_ok=True)
         (run_dir / "last-run.json").write_text(
             json.dumps({"observed_at": stamp, "verdict": report["verdict"],
                         "exit_code": report["exit_code"], "message": report["message"],
-                        "trigger": "launchd" if os.environ.get("XPC_SERVICE_NAME") else "manual",
-                        "ppid": os.getppid(),
+                        "trigger": trigger, "ppid": os.getppid(),
+                        # 留存但**不當判準**（見 TRIGGER_ENV 的註解：子行程一律看到 "0"）
                         "xpc_service_name": os.environ.get("XPC_SERVICE_NAME"),
                         "report": report}, ensure_ascii=False, indent=2),
             encoding="utf-8")
@@ -743,8 +768,7 @@ def write_notify_artifacts(repo: Path, report: dict) -> None:
         with history.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps({
                 "schema_version": 1, "label": "com.cpbl.schedule-watchdog",
-                "state": "succeeded", "exit_code": report["exit_code"],
-                "trigger": "launchd" if os.environ.get("XPC_SERVICE_NAME") else "manual",
+                "state": "succeeded", "exit_code": report["exit_code"], "trigger": trigger,
                 "started_at": stamp, "finished_at": stamp, "observed_at": stamp,
                 "failed_phase": None, "log": None, "note": report["verdict"],
             }, ensure_ascii=False, sort_keys=True) + "\n")

@@ -262,16 +262,26 @@ def test_missing_local_database_is_a_failure_not_a_skip(tmp_path: Path) -> None:
     assert [r["state"] for r in history] == ["running", "failed"]
 
 
-def test_launchd_trigger_is_detected_without_touching_the_plist(tmp_path: Path) -> None:
-    """本檔的 plist 不在 #132 射程內（一個位元不改），故執行身分改用 launchd 自己
-    設的 `XPC_SERVICE_NAME` 判定。"""
-    _, _, history = _run_weekly(
-        tmp_path / "as-launchd",
-        trigger_env={"XPC_SERVICE_NAME": "com.cpbl.weekly-box-revisions"})
-    assert {r["trigger"] for r in history} == {"launchd"}
+def test_non_launchd_invocation_is_recorded_as_manual(tmp_path: Path) -> None:
+    """判不出 launchd 就記 manual（fail closed）。
 
-    _, _, history = _run_weekly(tmp_path / "as-manual")
+    ⚠️ **launchd 那一側無法在 pytest 內模擬**——判準是 `$PPID == 1`，而 pytest 起的
+    子行程父親永遠是 pytest。那一側以真實 launchd 實測取證（#132 交付報告：三次
+    launchd 執行皆 `PPID=1`、父行程 `/sbin/launchd`，包含一次直接對本檔的假 repo
+    複本 bootstrap）。這裡守住的是另一半：**一般呼叫不得被誤記成排程**——誤記成
+    launchd 會讓手動救火冒充排程跑而靜默，那是 fail open。
+
+    ⚠️ 環境變數 `XPC_SERVICE_NAME` 刻意**不是**判準：macOS 只讓 launchd 直接 spawn 的
+    行程看到 job label，子行程一律被重設為 `"0"`。本 case 塞一個像 launchd 的值進去，
+    斷言它**不會**改變判定，擋住有人日後「順手改回」那個看似合理但會安靜壞掉的判準。
+    """
+    _, _, history = _run_weekly(tmp_path / "plain")
     assert {r["trigger"] for r in history} == {"manual"}
+
+    _, _, decoy = _run_weekly(
+        tmp_path / "decoy",
+        trigger_env={"XPC_SERVICE_NAME": "com.cpbl.weekly-box-revisions"})
+    assert {r["trigger"] for r in decoy} == {"manual"}
 
 
 @pytest.mark.parametrize("flag", ["--help", "-h"])
