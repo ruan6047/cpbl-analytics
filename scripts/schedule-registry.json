@@ -69,7 +69,20 @@
       "status_path": "logs/last-weekly-pitches.json",
       "history_path": "logs/schedule-history/com.cpbl.weekly-game-pitches.jsonl",
       "history_from": null,
-      "history_from_evidence": "尚未安裝；且該 wrapper 的歷史寫入未在 #132 射程內（scripts/weekly-game-pitches.sh 不在本卡 resource-claims，見交付報告『射程缺口』）"
+      "history_from_evidence": "尚未安裝；且該 wrapper 的歷史寫入未在 #132 射程內（scripts/weekly-game-pitches.sh 不在本卡 resource-claims，見交付報告『射程缺口』）",
+      "cutover_blockers": [
+        "⚠️ 這兩項必須在 #53 cutover **之前**處理，否則裝上去的那天就是一支帶著已知缺陷的排程：",
+        "1. 跳過被記成成功：scripts/weekly-game-pitches.sh:103-106 拿不到 refresh lock 時",
+        "   `write_status \"skipped\" 0` 然後 `exit 0`。launchd 只看得到 exit 0＝成功，於是",
+        "   『每週都被跳過、整季一次都沒跑』與『每週都正常跑完』在觀測上完全相同。",
+        "   同型缺陷在 scripts/weekly-box-revisions.sh 已於本卡修掉（改 exit 75 並區分",
+        "   stale lock），可直接照抄那一段；本卡未動本檔是因為它不在 resource-claims。",
+        "   ⚠️ 現況是**休眠**而非已發生：launchctl print gui/501/com.cpbl.weekly-game-pitches",
+        "   → exit 113（未安裝），故它目前一次都沒跑過，不會產生假成功。",
+        "2. 完全沒有歷史寫入：本檔 grep `history-append|schedule-history` 命中 0 次，",
+        "   故即使裝上，schedule_watch.py 也判不了它的缺席（history_from 只能是 null）。",
+        "   cutover 時需比照 weekly-box-revisions.sh 接上 refresh_status.py history-append。"
+      ]
     },
     {
       "label": "com.cpbl.schedule-watchdog",
