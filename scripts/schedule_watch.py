@@ -576,15 +576,19 @@ def last_boot_times(limit: int = 20) -> list[datetime]:
 
 
 def runatload_findings(repo: Path, watchdog_job: dict | None, now: datetime,
-                       boot_probe=None) -> list[dict]:
+                       boot_probe=None, anchor: date | None = None) -> list[dict]:
     """**會自己舉手的可證偽預測**：`RunAtLoad` 若沒兌現，開機後就不會有本偵測器的紀錄。
 
     bootout/bootstrap 只證明「load 時會啟動」；一次真正的冷開機本卡沒有觀測到（實測
-    本機已連續開機近 30 天，無自然實驗）。這個不變量把那個推導換成下次開機自動驗證。
+    本機已連續開機近 30 天，無自然實驗）。這個不變量把那個變成下次開機自動驗證。
+
+    ⚠️ 下界必須與 `_floor()` 用同一組界線，含**部署錨點**：偵測器裝上之前的每一次開機
+    當然都沒有它的紀錄，拿宣告日當下界會把那些開機全部報成「RunAtLoad 未兌現」。
+    這與 `history_from` 那個病灶是同一個，只是換一個出口——修一個不修另一個等於沒修。
     """
-    if not watchdog_job or not watchdog_job.get("history_from"):
+    if not watchdog_job or not watchdog_job.get("history_from") or anchor is None:
         return []
-    floor_day = date.fromisoformat(watchdog_job["history_from"])
+    floor_day = max(date.fromisoformat(watchdog_job["history_from"]), anchor)
     records, _ = load_history(repo / watchdog_job["history_path"])
     runs = sorted(parse_timestamp(r["started_at"]) for r in records)
     findings = []
@@ -801,7 +805,7 @@ def evaluate(registry: dict, repo: Path, now: datetime, api_url: str, api_timeou
         report["jobs"].append(evaluate_job(job, now, repo, lookback, anchor))
 
     report["global_findings"].extend(
-        runatload_findings(repo, watchdog_job, now, boot_probe=boot_probe))
+        runatload_findings(repo, watchdog_job, now, boot_probe=boot_probe, anchor=anchor))
 
     production = probe_production(api_url, api_timeout)
     report["production"] = production

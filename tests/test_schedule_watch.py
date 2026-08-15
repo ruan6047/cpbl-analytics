@@ -942,3 +942,28 @@ def test_floor_takes_the_latest_of_all_three_bounds() -> None:
     assert sw._floor(job, None) is None                               # 錨點拿不到 ⇒ 不判
     assert sw._floor({"effective_from": None, "history_from": "2026-08-05"},
                      _date(2026, 8, 10)) is None
+
+
+def test_boots_before_the_deployment_anchor_are_not_runatload_failures(tmp_path: Path) -> None:
+    """RunAtLoad 檢查必須與 `_floor()` 用同一組界線，**含部署錨點**。
+
+    偵測器裝上之前的每一次開機當然都沒有它的紀錄——拿宣告日當下界，那些開機會全部
+    被報成「RunAtLoad 未兌現」。這與 history_from 那個病灶是同一個，只是換一個出口；
+    修一個不修另一個等於沒修，所以這裡單獨釘一條。
+    """
+    job = _job("com.cpbl.schedule-watchdog", {"kind": "daily", "hour": 21, "minute": 10},
+               effective_from="2026-08-01", history_from="2026-08-01")
+    repo, registry = _build_repo(tmp_path, [job], anchor="2026-08-15")
+    _write_history(repo, "com.cpbl.schedule-watchdog", [
+        _record("2026-08-16T21:10:00+0800", "succeeded", exit_code=0),
+    ])
+    before = datetime(2026, 8, 10, 8, 0, tzinfo=TAIPEI)   # 部署前開機，當然沒有紀錄
+    after = datetime(2026, 8, 16, 8, 0, tzinfo=TAIPEI)    # 部署後開機，也沒有紀錄
+
+    only_before = _evaluate(repo, registry, "2026-08-16T21:10:00+0800", boots=[before])
+    assert "RUNATLOAD_NOT_HONORED" not in _verdicts(only_before), (
+        "部署前的開機被報成 RunAtLoad 未兌現＝誤報洪水的另一個出口")
+
+    # 負控制：錨點**之後**的同一種開機仍然要被抓——否則上一句只是把檢查關掉了
+    with_after = _evaluate(repo, registry, "2026-08-16T21:10:00+0800", boots=[after])
+    assert "RUNATLOAD_NOT_HONORED" in _verdicts(with_after)
