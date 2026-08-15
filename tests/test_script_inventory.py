@@ -390,6 +390,26 @@ def test_invariant_4_predicate_follows_reexported_sinks() -> None:
         "再匯出的符號丟失了效果——呼叫圖會在轉手處斷掉")
 
 
+def test_invariant_4_predicate_counts_class_methods_as_the_class() -> None:
+    """類別的出口記在 `Class.method` 底下，而 import 綁的是**裸類別名**。
+
+    實測抓到的假陰性：`cpbl-live-worker` 從 `cpbl.ingest.live_game_worker` import
+    `StatsLiveSource`，而 `httpx.Client(...)` 在 `StatsLiveSource.__init__:175` 裡。
+    只比對裸名 → 判成不打網路，而它其實會。
+    """
+    symbols = si._module_effects("cpbl.ingest.live_game_worker")
+    assert "http" in symbols.get("StatsLiveSource.__init__", frozenset()), "前提變了"
+    assert "http" in si._effects_of_symbol(symbols, "StatsLiveSource"), (
+        "裸類別名拿不到方法的效果——建構式裡的出口會整個消失")
+
+    entry = next(e for e in si.build_entries() if e.ident == "cpbl-live-worker")
+    assert entry.high_consequence and "網路" in entry.high_consequence_note
+
+    # 負控制：只比對裸名（修法前的形狀）看不到它
+    assert "StatsLiveSource" not in symbols, (
+        "負控制失效——裸名本來就不該是 key，否則證明不了這個縫隙存在過")
+
+
 def test_writes_ast_is_a_projection_of_the_same_engine() -> None:
     """W1 與不變式 4 不得再各自演化——這正是 `R2-001` 的成因。
 

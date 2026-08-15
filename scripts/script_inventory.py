@@ -580,6 +580,22 @@ def _graph_of(rel: str) -> _ModuleGraph:
     return _build_graph(_read(rel))
 
 
+def _effects_of_symbol(symbols: dict[str, frozenset[str]] | dict[str, set[str]],
+                       sym: str) -> set[str]:
+    """符號 → 效果，且**類別要算上它的方法**。
+
+    ⚠️ 實測抓到的假陰性：`from cpbl.ingest.live_game_worker import StatsLiveSource`
+    綁的是裸類別名，而效果記在 `StatsLiveSource.__init__`（`httpx.Client(...)` 在
+    建構式裡）。只比對裸名 → `cpbl-live-worker` 被判成不打網路，而它其實會。
+    """
+    found = set(symbols.get(sym, ()))
+    prefix = sym + "."
+    for key, effs in symbols.items():
+        if key.startswith(prefix):
+            found |= set(effs)
+    return found
+
+
 def _external_effects(graph: _ModuleGraph) -> dict[str, set[str]]:
     """本地名 → 它從 `cpbl.*` 帶進來的效果。"""
     external: dict[str, set[str]] = {}
@@ -589,11 +605,14 @@ def _external_effects(graph: _ModuleGraph) -> dict[str, set[str]]:
             continue
         symbols = _module_effects(mod)
         if sym == "*":
-            # `import cpbl.x`：拿不到用了哪個符號，退回整個模組的聯集（保守）
+            # `import cpbl.x`：拿不到用了哪個符號，退回整個模組的聯集（保守，
+            # 精確度降回閉包等級）。實測全庫只有 1 處走這條。
             for effs in symbols.values():
                 external.setdefault(local, set()).update(effs)
-        elif sym in symbols:
-            external.setdefault(local, set()).update(symbols[sym])
+        else:
+            effs = _effects_of_symbol(symbols, sym)
+            if effs:
+                external.setdefault(local, set()).update(effs)
     return external
 
 
@@ -606,7 +625,8 @@ def _propagate(graph: _ModuleGraph, external: dict[str, set[str]]) -> dict[str, 
         for fn, called in graph.calls.items():
             acc = set(effects.get(fn, set()))
             for name in called:
-                acc |= effects.get(name, set())
+                # 本檔內建構一個類別：`Foo()` 的效果記在 `Foo.__init__` 底下
+                acc |= _effects_of_symbol(effects, name)
                 acc |= external.get(name, set())
             if acc != effects.get(fn, set()):
                 effects[fn] = acc
@@ -630,8 +650,10 @@ def _module_effects(module: str, _depth: int = 0) -> dict[str, frozenset[str]]:
         if sym == "*":
             for effs in symbols.values():
                 external.setdefault(local, set()).update(effs)
-        elif sym in symbols:
-            external.setdefault(local, set()).update(symbols[sym])
+        else:
+            effs = _effects_of_symbol(symbols, sym)
+            if effs:
+                external.setdefault(local, set()).update(effs)
 
     effects = _propagate(graph, external)
     # ⚠️ **再匯出**：`game_tm_shadow` 只是 `from cpbl.ingest.cpbl_pitch_tracking import _client`，
