@@ -294,6 +294,92 @@ def test_invariant_4_predicate_is_not_dbwrite_only() -> None:
     assert si.IRREVERSIBLE_FS_RE.search(src), "不可逆刪檔沒被偵測到"
 
 
+def test_invariant_4_predicate_sees_http_not_just_ssh() -> None:
+    """回歸 `DEV-SCRIPT-INVENTORY1-R2-001`：**HTTP 出口**必須進得了不變式 4 的射程。
+
+    成因：判準**名為**「接觸遠端」，**實作**只認 SSH（`REMOTE_REACH_RE`）。
+    `confirm_live_schema.py` 完全不看 argv，`--help` 直接被當成 game ID 拼進 URL 對
+    `stats.cpbl.com.tw` 發真實 GET——判準看不到它。
+
+    負控制＝**修法前的判準本身**：`REMOTE_REACH_RE` ∪ `IRREVERSIBLE_FS_RE` 對這份
+    合成入口一條都不命中。舊判準看不到、新判準要抓到；抓不到就是縫隙又打開了。
+    """
+    src = (
+        "import httpx\n"
+        "import sys\n"
+        "def main() -> None:\n"
+        "    gid = sys.argv[1] if len(sys.argv) > 1 else 'X'\n"
+        "    with httpx.Client() as c:\n"
+        "        c.get('https://example.invalid/' + gid)\n"
+        "main()\n"
+    )
+    # 負控制：舊判準的兩條正則對整份原始碼都不命中
+    assert not si.REMOTE_REACH_RE.search(src), "負控制失效——舊判準本來就不該命中 HTTP"
+    assert not si.IRREVERSIBLE_FS_RE.search(src), "負控制失效"
+    assert not si.MUTATING_SQL_RE.search(src), "構造失敗：被判成寫入型就證明不了縫隙"
+
+    graph = si._build_graph(src)
+    effects = si._propagate(graph, {})
+    assert "http" in effects.get("main", set()), "新判準沒抓到 httpx 出口"
+
+    # 正控制：把 httpx 換成純計算，同一條路徑必須判成無出口
+    benign = src.replace("import httpx\n", "").replace(
+        "    with httpx.Client() as c:\n        c.get('https://example.invalid/' + gid)\n",
+        "    print(gid)\n")
+    assert not si._propagate(si._build_graph(benign), {}).get("main"), (
+        "正控制失效——無出口的入口不該有效果，否則上面那條退化成恆真")
+
+
+def test_invariant_4_predicate_is_path_sensitive_not_import_closure() -> None:
+    """精確度回歸：**import 一個常數**不等於碰得到那個模組的出口。
+
+    這條擋的是「為了看見 HTTP 而改掃 import 閉包」那個修法：`httpx` 在 `cpbl.*`
+    相依圖裡到處都是，閉包法會把 `check_splits_pa_split1_results.py`（只 import
+    `APART_COMBOS` 這個 list 常數）判成打網路的，然後需要 allowlist 消化誤判——
+    而每多一條 allowlist 就離 `GATE_OVERRIDES` 近一步。
+    """
+    entry = next(e for e in si.build_entries()
+                 if e.ident == "scripts/check_splits_pa_split1_results.py")
+    assert not entry.high_consequence, (
+        "只 import 常數的唯讀腳本被判成高後果——判準退回 import 閉包了")
+
+    # 正控制：同一個模組的**函式**若真的可達出口，必須抓得到。
+    reached = si.reachable_effects("scripts/replay_schedule_branches.py")
+    assert "http" in reached, (
+        "`with _client() as client:` 打賽程 API 沒被偵測到——"
+        "精確度不能是靠什麼都判不到換來的")
+
+
+def test_invariant_4_predicate_follows_reexported_sinks() -> None:
+    """再匯出鏈：`b` 只是 `from a import f`，`b.f` 仍然帶著 `a.f` 的出口。
+
+    實測抓到的假陰性：`game_tm_shadow` 自己一行 `httpx` 呼叫都沒有，
+    但它 `from cpbl.ingest.cpbl_pitch_tracking import _client`，
+    而 `replay_schedule_branches.py` 呼叫的正是這個再匯出的 `_client`。
+    """
+    symbols = si._module_effects("cpbl.ingest.game_tm_shadow")
+    assert "http" in symbols.get("_client", frozenset()), (
+        "再匯出的符號丟失了效果——呼叫圖會在轉手處斷掉")
+
+
+def test_writes_ast_is_a_projection_of_the_same_engine() -> None:
+    """W1 與不變式 4 不得再各自演化——這正是 `R2-001` 的成因。
+
+    `writes_ast` 必須逐支等於 `reachable_effects(...) ∋ db_write`，
+    否則就是又有了第二份實作。
+    """
+    targets = sorted({
+        e.ident for e in si.build_entries()
+        if e.surface != "cli" and e.ident.endswith(".py")
+    })
+    assert len(targets) > 50, f"觀測面只有 {len(targets)} 支，這條會退化成恆真"
+    mismatched = [
+        rel for rel in targets
+        if si.writes_ast(rel) != ("db_write" in si.reachable_effects(rel))
+    ]
+    assert not mismatched, f"W1 與可達性引擎不一致：{mismatched}"
+
+
 def test_invariant_4_backup_prod_db_is_in_scope_and_now_guarded() -> None:
     """`backup-prod-db.sh`：本次加寬的成因，兩件事都要成立才算修好。
 

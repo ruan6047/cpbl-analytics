@@ -26,11 +26,12 @@
    並附「為什麼本輪搬不動」；**該集合只能縮不能長**——新增的不符即 CI 紅。
 3. **引用完整性**：**活檔案**裡的 `scripts/<name>.<ext>` 字面路徑必須指向存在的檔案。
    封存面（`docs/control-plane/**`、掃描器產物 JSON）只回報不強制，限度明載於清冊。
-4. **高後果必須 `--help` 安全**：判定為高後果（寫 DB **或**接觸遠端生產 **或**不可逆
-   刪檔）的入口，其 argv 必須在主流程前被解析；既有不合格者具名列入
-   `HELP_SAFETY_ALLOWLIST` 並附理由。
-   ⚠️ 這條原本只問「寫不寫 DB」，而 `backup-prod-db.sh` 從那個形狀掉出去——見
-   `high_consequence()` 的說明。
+4. **高後果必須 `--help` 安全**：判定為高後果的入口，其 argv 必須在主流程前被解析；
+   既有不合格者具名列入 `HELP_SAFETY_ALLOWLIST` 並附理由。
+   ⚠️ 這條被改過兩次，兩次都是「判準的**名字**承諾了一致性、**實作**沒有給」：
+   先是只問「寫不寫 DB」而漏掉 `backup-prod-db.sh`，接著是名為「接觸遠端」卻只認 SSH
+   而漏掉 HTTP（`R2-001`）。現在判準不再認得任何特定的危險名字，改問
+   「入口的**呼叫路徑**抵不抵得到出口目錄裡的任一條出口」——見 `SINK_MODULES` 那一段。
 
 ## ⚠️ 為什麼不變式 2 是「棘輪」而不是「硬不變式」
 
@@ -138,24 +139,82 @@ MUTATING_SHELL_RE = re.compile(
     r"|cpbl-(scrape|backfill|refresh|build|ingest|train|anchor|classify|reconcile|live)[a-z-]*)",
 )
 
-# ============================================ 高後果：不變式 4 的真正判準
+# ================================================ 出口目錄：不變式 4 的判準
 #
-# ⚠️ **這一段是 `backup-prod-db.sh` 逼出來的。** 不變式 4 原本問的是「這支會不會
-# 寫 DB」，而 `backup-prod-db.sh` 對 DB 唯讀（`pg_dump`）——於是清冊逐支印著
-# 「⚠️ --help 不安全」，不變式卻**看不到它**：一行沒有任何強制路徑的警告。
+# ⚠️ **這一段被改過兩次，兩次都是同一種病。**
 #
-# 實測它的 `--help` 會做什麼（副本 ＋ 假樁）：送出對生產的整庫 `pg_dump`，然後
-# **exit 0、產出一份備份、`rm -f` 掉輪替視窗裡最舊的那份**。連打七次，整個保留
-# 視窗就塌成同一天的七份副本——傷害不比寫 DB 小，只是不經過 DB。
+# 第一次：判準問「這支會不會寫 DB」，`backup-prod-db.sh` 從縫隙掉出去——它對 DB
+# 唯讀（`pg_dump`），但 `--help` 會 ssh 進生產跑整庫 dump、exit 0、`rm -f` 掉輪替
+# 視窗最舊的那份。於是判準加寬成「寫 DB **或** ssh **或** rm -f」。
 #
-# 所以判準改問「**探索動作會不會造成損害**」，三條任一成立即是高後果：
-#   (a) 寫 DB（原判準，W1／W2 交叉複算）
-#   (b) 接觸遠端／生產主機
-#   (c) 不可逆刪檔
-# (b)(c) 刻意寫寬——誤判的方向是「要求多加一個守衛」，不是「放過一支危險的」。
-# 誤判者具名進 `HELP_SAFETY_ALLOWLIST` 並附理由，與既有慣例同一條路。
+# 第二次（`DEV-SCRIPT-INVENTORY1-R2-001`）：加寬後的判準**名字**叫「接觸遠端」，
+# **實作**只認 SSH——`confirm_live_schema.py` 的 `--help` 會把 `--help` 當成 game ID
+# 拼進 URL 對 `stats.cpbl.com.tw` 發真實請求，還可能覆寫該卡凍結的 `request_log.json`
+# （那份 artifact 逐字宣稱「本卡總共發出 1 次請求」），而判準看不到它。
+#
+# **第二次不能再用「加一條正則」修**，否則下一輪就是「高後果 ＋ HTTP ＋ 下一個」。
+# 判準改成兩件事分開：
+#
+#   1. **出口是什麼**——由下面這張表定義。損害的定義是「這個行程對**外部世界**
+#      造成的改變」，而一個 Python 行程能影響外部世界的通道是可窮舉的：DB driver、
+#      網路、檔案系統的破壞性操作、以及把前三者外包出去的 shell。表裡每一條出口
+#      只有兩種形狀：
+#        (a) `SINK_MODULES`：**具名函式庫綁定**——import 了它、呼叫它，本身就是效果
+#        (b) `RUNNER_PAYLOAD`：**泛用執行器的參數**——`subprocess`／`os.system` 本身
+#            無害，效果由參數內容決定
+#      寫 DB 從來就是 (b) 的一個實例（`cursor.execute(<寫入 SQL>)`），HTTP 是 (a) 的
+#      一個實例。**新增一條出口＝在這張表加一列，不是再寫一套掃描。**
+#
+#   2. **入口碰不碰得到那個出口**——由 `reachable_effects()` 回答，而它就是 W1
+#      （`writes_ast`）用的同一台 AST 呼叫圖引擎。`writes_ast` 現在是
+#      `reachable_effects(rel) ∋ "db_write"` 的別名，兩者不可能再各自演化。
+#
+# ⚠️ **為什麼不掃 import 閉包**（W2 的射程，也是本函式改版前對 `.py` 用的射程）：
+# `httpx` 在 `cpbl.*` 的相依圖裡到處都是，掃閉包會把「只 import 了一個常數」的
+# 唯讀腳本判成打網路的。實測：閉包法對 HTTP 命中 20 支、其中
+# `check_splits_pa_split1_results.py`（只 import `APART_COMBOS` 這個 list 常數）是
+# 純誤判；呼叫圖法不命中它。**誤判要靠 allowlist 消化，而每多一條 allowlist 就離
+# `GATE_OVERRIDES` 近一步**——所以這裡要的是精確，不是寬。
+#
+# (a) 具名函式庫綁定：呼叫的**點名路徑**（經 import 還原）落在這些前綴下即是出口。
+SINK_MODULES: dict[str, tuple[str, ...]] = {
+    "http": (
+        "httpx", "requests", "urllib.request", "urllib3", "aiohttp",
+        "websockets", "playwright", "socket.socket", "socket.create_connection",
+    ),
+    "remote": ("paramiko", "fabric"),
+    "fs_delete": ("shutil.rmtree", "os.remove", "os.unlink", "os.rmdir", "os.removedirs"),
+}
+
+# (b) 泛用執行器：`subprocess.run(...)`／`os.system(...)` 這類——效果由**參數內容**決定。
+RUNNER_NAMES = frozenset({"run", "call", "check_call", "check_output", "Popen", "system", "popen"})
+
+# ⚠️ 這三條正則**只在執行器的參數上**跑，不對整份檔案跑。差別是決定性的：
+# 對整檔跑會讓 docstring 裡寫著 `rm -rf` 的說明變成「這支會刪檔」。
 REMOTE_REACH_RE = re.compile(r"(\bssh\b|\bscp\b|\brsync\b[^\n]*:|docker\s+exec\s+prod)")
 IRREVERSIBLE_FS_RE = re.compile(r"\brm\s+-[a-z]*[rf]")
+HTTP_CLI_RE = re.compile(r"(?<![\w-])(curl|wget)(?![\w-])")
+
+RUNNER_PAYLOAD: dict[str, re.Pattern[str]] = {
+    "remote": REMOTE_REACH_RE,
+    "fs_delete": IRREVERSIBLE_FS_RE,
+    "http": HTTP_CLI_RE,
+}
+
+# `db_write` 的出口是 `cursor.execute(<寫入 SQL>)`——形狀同 (b)，只是執行器是 DB
+# cursor、payload 正則是 `MUTATING_SQL_RE`。列在這裡是為了讓「出口目錄」真的是**一張**表。
+EXECUTOR_PAYLOAD: dict[str, re.Pattern[str]] = {"db_write": MUTATING_SQL_RE}
+
+# 不變式 4 的射程＝這些效果任一可達。`db_write` 走 W1／W2 交叉複算的**裁定結果**
+# （見 `_adjudicate`），不在這裡重算——否則人工裁定會被靜默繞過。
+HIGH_CONSEQUENCE_EFFECTS = ("db_write", "http", "remote", "fs_delete")
+
+EFFECT_LABELS = {
+    "db_write": "寫 DB",
+    "http": "對外發出網路請求",
+    "remote": "接觸遠端／生產主機",
+    "fs_delete": "不可逆刪檔（rm -f／-rf／rmtree）",
+}
 
 # 掃描器自身：本檔與偵測器的原始碼裡就寫著 SQL 動詞的**正則樣式**，會被自己的
 # 字面掃描命中。repo 內已有先例（TIME-SEMANTICS-CONTRACT1 的掃描器同樣自我排除）。
@@ -356,9 +415,13 @@ def ci_bindings() -> dict[str, tuple[str, ...]]:
 
 @dataclass
 class _ModuleGraph:
-    """單一 Python 檔的函式呼叫圖與直接寫入點。"""
+    """單一 Python 檔的函式呼叫圖與**直接**出口點。
 
-    mutating: set[str] = field(default_factory=set)      # 本檔內直接含寫入 SQL 的函式
+    `effects` 取代了舊的 `mutating: set[str]`：同一張圖現在承載所有出口，
+    而不是只承載「寫 DB」這一種。`"<module>"` 這個 key 代表模組層（含 `__main__` 區塊）。
+    """
+
+    effects: dict[str, set[str]] = field(default_factory=dict)  # 函式 → 直接命中的效果
     calls: dict[str, set[str]] = field(default_factory=dict)   # 函式 → 呼叫的本地名稱
     imports: dict[str, str] = field(default_factory=dict)      # 本地名 → `模組:符號`
     module_calls: set[str] = field(default_factory=set)        # 模組層（含 __main__ 區塊）
@@ -380,6 +443,41 @@ def _call_name(node: ast.Call) -> str | None:
     if isinstance(func, ast.Attribute):
         return func.attr
     return None
+
+
+def _dotted_call(func: ast.expr) -> list[str] | None:
+    """`a.b.c(...)` → `['a','b','c']`；被呼叫的不是點名路徑（例如 `f()()`）回 None。"""
+    parts: list[str] = []
+    node: ast.expr = func
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if not isinstance(node, ast.Name):
+        return None
+    parts.append(node.id)
+    return list(reversed(parts))
+
+
+def _resolve_dotted(parts: list[str], imports: dict[str, str]) -> str:
+    """把點名路徑經 import 還原成完整模組路徑。
+
+    `import httpx` ＋ `httpx.Client(...)` → `httpx.Client`；
+    `from urllib.request import urlopen` ＋ `urlopen(...)` → `urllib.request.urlopen`。
+    """
+    origin = imports.get(parts[0])
+    if origin is None:
+        return ".".join(parts)
+    mod, sym = origin.split(":", 1)
+    base = mod if sym == "*" else f"{mod}.{sym}"
+    return ".".join([base, *parts[1:]])
+
+
+def _sink_effects(dotted: str) -> set[str]:
+    """規則 (a)：還原後的點名路徑落在具名函式庫前綴下 → 該效果。"""
+    return {
+        effect for effect, prefixes in SINK_MODULES.items()
+        if any(dotted == p or dotted.startswith(p + ".") for p in prefixes)
+    }
 
 
 def _build_graph(src: str, consts: dict[str, str] | None = None) -> _ModuleGraph:
@@ -407,6 +505,26 @@ def _build_graph(src: str, consts: dict[str, str] | None = None) -> _ModuleGraph
 
     def scan(body: list[ast.stmt], owner: str) -> None:
         bucket = graph.calls.setdefault(owner, set()) if owner else graph.module_calls
+        # ⚠️ payload 要看得到**函式區域**的組裝，不能只看模組層常數：
+        # `ssh_cmd = ["ssh", ..., VPS]` 這個 repo 裡兩支 ssh 腳本都是這個形狀，
+        # 只看模組層常數會漏掉它們。實測納入區域常數對 `db_write` 的判定零影響。
+        local_sql: dict[str, str] = dict(const_sql)
+        for node in body:
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.Assign):
+                    text = _sql_from_node(sub.value)
+                    for target in sub.targets:
+                        if isinstance(target, ast.Name):
+                            local_sql[target.id] = local_sql.get(target.id, "") + "\n" + text
+
+        def payload(call: ast.Call, first_only: bool) -> str:
+            args = call.args[:1] if first_only else list(call.args)
+            text = "\n".join(_sql_from_node(a) for a in args)
+            for a in args:
+                if isinstance(a, ast.Name):
+                    text += "\n" + local_sql.get(a.id, "")
+            return text
+
         for node in body:
             for sub in ast.walk(node):
                 if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef)) and sub is not node:
@@ -416,16 +534,19 @@ def _build_graph(src: str, consts: dict[str, str] | None = None) -> _ModuleGraph
                 name = _call_name(sub)
                 if name:
                     bucket.add(name)
-                if name in EXECUTE_ATTRS and sub.args:
-                    arg = sub.args[0]
-                    text = _sql_from_node(arg)
-                    if isinstance(arg, ast.Name):
-                        text += "\n" + const_sql.get(arg.id, "")
-                    if MUTATING_SQL_RE.search(text):
-                        if owner:
-                            graph.mutating.add(owner)
-                        else:
-                            graph.mutating.add("<module>")
+
+                found: set[str] = set()
+                parts = _dotted_call(sub.func)
+                if parts:                                   # 規則 (a)：具名函式庫綁定
+                    found |= _sink_effects(_resolve_dotted(parts, graph.imports))
+                if name in EXECUTE_ATTRS and sub.args:      # 規則 (b)：DB cursor payload
+                    text = payload(sub, first_only=True)
+                    found |= {e for e, rx in EXECUTOR_PAYLOAD.items() if rx.search(text)}
+                if name in RUNNER_NAMES:                    # 規則 (b)：泛用執行器 payload
+                    text = payload(sub, first_only=False)
+                    found |= {e for e, rx in RUNNER_PAYLOAD.items() if rx.search(text)}
+                if found:
+                    graph.effects.setdefault(owner or "<module>", set()).update(found)
 
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -455,74 +576,84 @@ def _graph_of(rel: str) -> _ModuleGraph:
     return _build_graph(_read(rel))
 
 
-@cache
-def _module_is_mutating(module: str, symbol: str) -> bool:
-    """`cpbl.*` 模組的某符號（或整個模組）是否可達寫入 SQL。"""
-    return bool(_mutating_symbols(module) and (symbol == "*" or symbol in _mutating_symbols(module)))
+def _external_effects(graph: _ModuleGraph) -> dict[str, set[str]]:
+    """本地名 → 它從 `cpbl.*` 帶進來的效果。"""
+    external: dict[str, set[str]] = {}
+    for local, origin in graph.imports.items():
+        mod, sym = origin.split(":", 1)
+        if not mod.startswith("cpbl"):
+            continue
+        symbols = _module_effects(mod)
+        if sym == "*":
+            # `import cpbl.x`：拿不到用了哪個符號，退回整個模組的聯集（保守）
+            for effs in symbols.values():
+                external.setdefault(local, set()).update(effs)
+        elif sym in symbols:
+            external.setdefault(local, set()).update(symbols[sym])
+    return external
+
+
+def _propagate(graph: _ModuleGraph, external: dict[str, set[str]]) -> dict[str, set[str]]:
+    """沿呼叫圖把效果往呼叫者傳，直到不動點。"""
+    effects = {fn: set(effs) for fn, effs in graph.effects.items()}
+    changed = True
+    while changed:
+        changed = False
+        for fn, called in graph.calls.items():
+            acc = set(effects.get(fn, set()))
+            for name in called:
+                acc |= effects.get(name, set())
+                acc |= external.get(name, set())
+            if acc != effects.get(fn, set()):
+                effects[fn] = acc
+                changed = True
+    return effects
 
 
 @cache
-def _mutating_symbols(module: str, _depth: int = 0) -> frozenset[str]:
-    """模組內傳遞可達寫入 SQL 的函式名集合。"""
+def _module_effects(module: str, _depth: int = 0) -> dict[str, frozenset[str]]:
+    """`cpbl.*` 模組的符號 → 它可達的效果集合。"""
     rel = _src_module_path(module)
     if rel is None or _depth > 6:
-        return frozenset()
+        return {}
     graph = _graph_of(rel)
-    mutating = set(graph.mutating)
-
-    # 跨模組：呼叫了其他 cpbl 模組的寫入函式
-    external: set[str] = set()
+    external: dict[str, set[str]] = {}
     for local, origin in graph.imports.items():
         mod, sym = origin.split(":", 1)
         if not mod.startswith("cpbl"):
             continue
+        symbols = _module_effects(mod, _depth + 1)
         if sym == "*":
-            continue
-        if _mutating_symbols(mod, _depth + 1) and sym in _mutating_symbols(mod, _depth + 1):
-            external.add(local)
+            for effs in symbols.values():
+                external.setdefault(local, set()).update(effs)
+        elif sym in symbols:
+            external.setdefault(local, set()).update(symbols[sym])
 
-    changed = True
-    while changed:
-        changed = False
-        for fn, called in graph.calls.items():
-            if fn in mutating:
-                continue
-            if called & mutating or called & external:
-                mutating.add(fn)
-                changed = True
-    return frozenset(mutating)
+    effects = _propagate(graph, external)
+    # ⚠️ **再匯出**：`game_tm_shadow` 只是 `from cpbl.ingest.cpbl_pitch_tracking import _client`，
+    # 自己一行 httpx 都沒有，但 `game_tm_shadow._client` 確實會建連線。不補這一步，
+    # `replay_schedule_branches.py`（`with _client() as client:` 打六個月賽程 API）
+    # 會被判成零效果——實測抓到的假陰性。
+    for local, effs in external.items():
+        effects.setdefault(local, set()).update(effs)
+    return {fn: frozenset(effs) for fn, effs in effects.items() if effs}
 
 
-def writes_ast(rel: str, entry_fns: tuple[str, ...] = ("main",)) -> bool:
-    """W1：從入口函式出發，AST 呼叫圖是否可達寫入 SQL。"""
+def reachable_effects(rel: str, entry_fns: tuple[str, ...] = ("main",)) -> frozenset[str]:
+    """入口的**呼叫路徑**可達哪些出口。不變式 4 與 W1 共用的唯一一台引擎。
+
+    ⚠️ 與 import 閉包（W2 的射程）的差別是決定性的：閉包問「相依圖裡有沒有」，
+    這裡問「這個入口跑起來碰不碰得到」。`httpx` 在 `cpbl.*` 相依圖裡到處都是，
+    閉包法會把只 import 了一個常數的唯讀腳本判成打網路的。
+    """
     graph = _graph_of(rel)
-    mutating = set(graph.mutating)
+    external = _external_effects(graph)
+    effects = _propagate(graph, external)
 
-    external: set[str] = set()
-    for local, origin in graph.imports.items():
-        mod, sym = origin.split(":", 1)
-        if not mod.startswith("cpbl"):
-            continue
-        if sym == "*":
-            if _mutating_symbols(mod):
-                external.add(local)
-        elif sym in _mutating_symbols(mod):
-            external.add(local)
-
-    changed = True
-    while changed:
-        changed = False
-        for fn, called in graph.calls.items():
-            if fn in mutating:
-                continue
-            if called & mutating or called & external:
-                mutating.add(fn)
-                changed = True
-
-    if "<module>" in mutating or graph.module_calls & (mutating | external):
-        return True
+    found = set(effects.get("<module>", set()))
     reach = set(graph.module_calls)
     for fn in entry_fns:
+        found |= effects.get(fn, set())
         reach |= graph.calls.get(fn, set())
     seen: set[str] = set()
     while reach:
@@ -530,10 +661,19 @@ def writes_ast(rel: str, entry_fns: tuple[str, ...] = ("main",)) -> bool:
         if name in seen:
             continue
         seen.add(name)
-        if name in mutating or name in external:
-            return True
+        found |= effects.get(name, set())
+        found |= external.get(name, set())
         reach |= graph.calls.get(name, set())
-    return False
+    return frozenset(found)
+
+
+def writes_ast(rel: str, entry_fns: tuple[str, ...] = ("main",)) -> bool:
+    """W1：從入口函式出發，AST 呼叫圖是否可達寫入 SQL。
+
+    ⚠️ 這現在只是 `reachable_effects` 的一個投影。刻意不留第二份實作——
+    「判準的名字承諾了一致性、實作沒有給」正是 `R2-001` 的成因。
+    """
+    return "db_write" in reachable_effects(rel, entry_fns)
 
 
 # ================================================ 寫入面 W2：正則 SQL 掃描
@@ -643,9 +783,30 @@ HELP_SAFETY_ALLOWLIST: dict[str, str] = {
         "完全不看 argv，寫合成 year=2099 列。去向：同上，PA-DAILY 若啟動時一併處理"),
     "scripts/verify_deep_tm_backfill.py": (
         "判準加寬為「高後果」後**新納入射程**（對 DB 唯讀，但 `VPS` 是裸常數、"
-        "任何參數都直接 ssh 進生產跑 psql）。傷害低於同批（唯讀 SELECT），且檔頭"
+        "任何參數都直接 ssh 進生產跑 psql；改用呼叫圖後另見 `urllib.request.urlopen` "
+        "打生產 `/api/info`）。傷害低於同批（唯讀 SELECT），且檔頭"
         "`LIFECYCLE: oneshot` 明寫「不要跑」。去向：修行為需另卡，"
         "母卡 INGEST-DEEP-TM-BACKFILL1 已封存，與 sync_deep_tm_prod.py 同批處理"),
+    # --- R2-001 修法後新納入射程的兩支：都是**真陽性**，不是判準誤判 ---
+    "docs/research/INGEST-SCORELESS-INNING-PITCHER1/confirm_live_schema.py": (
+        "⚠️ **`DEV-SCRIPT-INVENTORY1-R2-001` 的成因檔**。完全不看 argv："
+        "`gid = sys.argv[1] if len(sys.argv) > 1 else …`，於是 `--help` 直接變成 game ID "
+        "拼進 `stats.cpbl.com.tw/api/proxy/v1/games/--help` 發出真實 GET；"
+        "若某個 argv 意外回 200，`log_path.write_text` 會覆寫該卡凍結的 `request_log.json`"
+        "——而那份 artifact 逐字宣稱「本卡總共發出 1 次請求」。"
+        "**選具名放行而非加守衛**，判準是「誰被預期會打這個指令」：它是 "
+        "`docs/research/<CARD>/` 下的一次性產物、母卡 INGEST-SCORELESS-INNING-PITCHER1 已結案、"
+        "檔頭與位置都寫著不要跑——與上一輪 `verify_deep_tm_backfill.py` 同一條判準。"
+        "反向理由也量過：加守衛會讓 `docs/research/TIME-SEMANTICS-CONTRACT1/inventory.json:84,96` "
+        "記錄的行號（43／48）失準，且守衛擋不住真正的覆寫路徑（傳合法 gid 一樣會覆寫）。"
+        "去向：與同批 research 一次性產物一起處理"),
+    "scripts/replay_schedule_branches.py": (
+        "改用呼叫圖後新納入射程：完全無 argparse，`main()` 進去就 "
+        "`with _client() as client:` 對官方賽程 API 打六個月（3~8 月）。"
+        "⚠️ 它自己的 docstring 寫「唯讀：只打官方 schedule API」——**判準與作者的宣告一致**，"
+        "不是誤判。傷害是本批最小的一支：零 DB 寫入、零檔案產出，只有對外請求。"
+        "與上一支同判準（`LIFECYCLE: oneshot`，母卡 INGEST-GAME-TM-REFACTOR1-G4）故具名放行。"
+        "去向：位置債清償（搬進 `docs/research/INGEST-GAME-TM-REFACTOR1-G4/`）時一併補守衛"),
     "docs/research/INGEST-DEEP-TM-BACKFILL1/sync_deep_tm_prod.py": (
         "⚠️ **本輪射程內最危險的一支**：完全不看 argv，任何參數都直接 ssh 進生產跑 "
         "`COPY` ＋ `UPDATE cpbl.pitch_tracking`；`VPS` 是裸常數不可覆蓋、無 dry-run、無備份。"
@@ -1209,30 +1370,37 @@ def _cli_help_state(target: str) -> tuple[str, str]:
     return "unknown", "不在 test_cli_help_guard.py 的涵蓋套件內"
 
 
+def entry_effects(rel: str, writes: bool) -> frozenset[str]:
+    """入口可達的出口集合。`db_write` 一律採 `writes`（W1／W2 交叉複算的裁定結果）。
+
+    ⚠️ `.sh`／`.plist` 沒有 Python AST，呼叫圖引擎結構性不適用——退回對整份檔案跑
+    同一張表的 payload 正則。**這一格的精確度比 `.py` 差**（守衛放在副作用之後仍
+    會被看見），限度與 W1 對 shell 不適用是同一個結構性事實，明載於清冊。
+    """
+    found: set[str] = {"db_write"} if writes else set()
+    if not rel or rel in SELF_REFERENCE:
+        return frozenset(found)
+    if rel.endswith(".sh"):
+        text = _read(rel)
+        found |= {e for e, rx in RUNNER_PAYLOAD.items() if rx.search(text)}
+    elif rel.endswith(".py"):
+        found |= reachable_effects(rel) - {"db_write"}
+    # .plist 是排程宣告，不是可打的入口
+    return frozenset(found)
+
+
 def high_consequence(rel: str, writes: bool) -> tuple[bool, str]:
     """`--help` 走進主流程會不會造成損害。回傳 (判定, 理由)。
 
-    寫 DB 只是三條路之一。**`backup-prod-db.sh` 對 DB 唯讀卻會 `rm -f` 掉最舊的
-    備份**——只問「寫不寫 DB」的判準看不到它，那正是本函式存在的理由。
+    判準 ＝「入口的呼叫路徑抵不抵得到 `HIGH_CONSEQUENCE_EFFECTS` 裡的任一出口」。
+    出口是什麼由 `SINK_MODULES`／`RUNNER_PAYLOAD` 這張表定義，可達不可達由
+    `reachable_effects()` 回答——**判準本身不再認得任何一個特定的危險名字**。
     """
-    if writes:
-        return True, "寫入型（W1／W2 判定）"
-    if not rel or rel in SELF_REFERENCE:
+    effects = entry_effects(rel, writes) & set(HIGH_CONSEQUENCE_EFFECTS)
+    if not effects:
         return False, ""
-    if rel.endswith(".sh"):
-        paths = [rel]
-    elif rel.endswith(".py"):
-        # 掃 import 閉包而非單檔，與 W2 同一個射程：CLI 的傷害面是它整包相依，
-        # 只讀進入點那一個檔會**低估**——而低估正是這條判準原本失敗的方式。
-        paths = [p for p in _import_closure(rel) if p not in SELF_REFERENCE]
-    else:
-        return False, ""  # .plist 是排程宣告，不是可打的入口
-    reasons = []
-    if any(REMOTE_REACH_RE.search(_read(p)) for p in paths):
-        reasons.append("接觸遠端／生產主機")
-    if any(IRREVERSIBLE_FS_RE.search(_read(p)) for p in paths):
-        reasons.append("不可逆刪檔（rm -f／-rf）")
-    return bool(reasons), "、".join(reasons)
+    ordered = [e for e in HIGH_CONSEQUENCE_EFFECTS if e in effects]
+    return True, "、".join(EFFECT_LABELS[e] for e in ordered)
 
 
 def high_consequence_unsafe(entries: list[Entry]) -> list[Entry]:
@@ -1484,15 +1652,62 @@ def render() -> str:
     a("判定為**高後果**的入口，argv 必須在主流程前被解析。**既有不合格者具名列入 allowlist**。")
     a("")
     a(f"高後果 **{sum(1 for e in entries if e.high_consequence)}** 支"
-      f"（其中非寫入型 **{sum(1 for e in entries if e.high_consequence and not e.writes)}** 支）："
-      "寫 DB **或**接觸遠端／生產主機 **或**不可逆刪檔，三者任一即是。")
+      f"（其中非寫入型 **{sum(1 for e in entries if e.high_consequence and not e.writes)}** 支）。")
     a("")
-    a("> [!warning] **判準原本問「寫不寫 DB」，而它漏掉了 `backup-prod-db.sh`。**")
-    a("> 那一支 `pg_dump` 對 DB 唯讀，於是 `writes=False`，不變式**根本不看它**——"
-      "但實測它的 `--help` 會 ssh 進生產跑整庫 dump，然後 exit 0、產出一份備份、"
-      "`rm -f` 掉輪替視窗裡最舊的那份。連打七次，整個保留視窗就塌成同一天的七份副本。")
-    a("> 本表逐支印著「⚠️ --help 不安全」，**卻沒有任何強制路徑**——"
-      "印得出警告不等於擋得住。判準已加寬為「探索動作會不會造成損害」。")
+    a("### 判準的形狀：出口目錄 ＋ 一台可達性引擎")
+    a("")
+    a("判準**不認得任何一個特定的危險名字**，它問兩件事：")
+    a("")
+    a("1. **什麼算出口** —— 由 `script_inventory.py` 的 `SINK_MODULES`／`RUNNER_PAYLOAD` "
+      "**一張表**定義。損害＝這個行程對外部世界造成的改變，而通道是可窮舉的："
+      "DB driver、網路、破壞性檔案操作、以及把前三者外包出去的 shell。"
+      "每條出口只有兩種形狀：**(a) 具名函式庫綁定**（import 了它、呼叫它就是那個效果）與 "
+      "**(b) 泛用執行器的參數**（`subprocess`／`os.system`／`cursor.execute` 本身無害，"
+      "效果由參數內容決定）。寫 DB 一直都是 (b) 的一個實例，HTTP 是 (a) 的一個實例。")
+    a("2. **這個入口碰不碰得到** —— 由 `reachable_effects()` 沿 AST 呼叫圖回答，"
+      "而它就是 W1（`writes_ast`）用的**同一台引擎**；`writes_ast` 現在只是 "
+      "`reachable_effects(rel) ∋ db_write` 的別名。")
+    a("")
+    a("| 效果 | 判準形狀 | 判定依據 |")
+    a("|---|---|---|")
+    for key in HIGH_CONSEQUENCE_EFFECTS:
+        mods = SINK_MODULES.get(key, ())
+        rx = RUNNER_PAYLOAD.get(key)
+        shape = []
+        if mods:
+            shape.append("(a) 函式庫綁定：" + "、".join(f"`{m}`" for m in mods))
+        if rx:
+            shape.append(f"(b) 執行器參數：`{rx.pattern}`")
+        if key == "db_write":
+            shape.append("W1／W2 交叉複算的**裁定結果**（見寫入面那節），不在此重算")
+        a(f"| `{key}`（{EFFECT_LABELS[key]}） | {'；'.join(shape)} | "
+          f"呼叫路徑可達即成立 |")
+    a("")
+    a("> [!warning] **這條判準被改過兩次，兩次都是同一種病。**")
+    a("> 第一次：只問「寫不寫 DB」，`backup-prod-db.sh` 掉出去——它 `pg_dump` 對 DB 唯讀，"
+      "於是 `writes=False`、不變式根本不看它，但實測 `--help` 會 ssh 進生產跑整庫 dump、"
+      "exit 0、產出備份、`rm -f` 掉輪替視窗最舊的那份。")
+    a("> 第二次（`DEV-SCRIPT-INVENTORY1-R2-001`）：加寬後判準**名為**「接觸遠端」、"
+      "**實作只認 SSH**，於是 `confirm_live_schema.py` 掉出去——它的 `--help` 會被當成 "
+      "game ID 拼進 URL 對 `stats.cpbl.com.tw` 發真實請求。")
+    a("> **兩次都不是「少寫了一條正則」，是「判準的名字承諾了一致性、實作沒有給」。**"
+      "所以第二次的修法不是再加一條，是把「出口是什麼」與「碰不碰得到」拆開。")
+    a("")
+    a("> [!important] **為什麼不掃 import 閉包**（W2 的射程，也是本判準改版前對 `.py` 用的射程）。")
+    a("> `httpx` 在 `cpbl.*` 相依圖裡到處都是，掃閉包會把只 import 了一個常數的唯讀腳本"
+      "判成打網路的。實測：閉包法對 HTTP 命中 20 支，其中 "
+      "`check_splits_pa_split1_results.py`（只 import `APART_COMBOS` 這個 list 常數）是純誤判；"
+      "呼叫圖法不命中它。**誤判要靠 allowlist 消化，而每多一條 allowlist "
+      "就離 `roadmap_lines.py` 的 `GATE_OVERRIDES` 近一步**——這裡要的是精確，不是寬。")
+    a("")
+    a("> [!note] **限度**（逐條實測，不是宣稱）：")
+    a("> - 出口若經由**型別靜態解析不了的值**抵達（`client.get(...)` 的 `client` 是傳進來的參數、"
+      "`getattr` 呼叫、callback），呼叫圖看不到。本 repo 的慣用法是 `_client()` 先建再傳，"
+      "建構點落在呼叫路徑上，故實測未產生假陰性——但這是**慣用法的性質，不是判準的保證**。")
+    a("> - 跨模組只解析 `cpbl.*`；第三方套件內部的呼叫圖不展開。")
+    a("> - `import cpbl.x`（不點名符號）退回整個模組效果的聯集，精確度降回閉包等級。")
+    a("> - `.sh`／`.plist` 沒有 Python AST，退回對整份檔案跑同一張表的 payload 正則——"
+      "**看得到守衛在不在，看不到它在哪**，與 W1 對 shell 不適用是同一個結構性事實。")
     a("")
     a("原則上本卡只加不變式、不改既有腳本行為（那會讓本卡從盤點變成改一批腳本），"
       "但需求方對**排程 shell** 推翻了這個處置：`refresh-cpbl-prod.sh`／`scrape-daily.sh`／"
@@ -1500,6 +1715,15 @@ def render() -> str:
       "而破壞半徑更大（後者 DROP 一張表，`refresh-cpbl-prod.sh` 是整條生產同步鏈）。"
       "`backup-prod-db.sh` 是判準加寬後補上的第四支。"
       "四支皆已加 argv 守衛並不列下表，證明見 `tests/test_shell_help_guard.py`。")
+    a("")
+    a("`R2-001` 修法後新納入射程的兩支（`confirm_live_schema.py`、`replay_schedule_branches.py`）"
+      "**選了具名放行而非加守衛**。判準是「**誰被預期會打這個指令**」："
+      "常設工具是人被預期會去打的，所以 `--help` 是合理輸入、守衛必須存在；"
+      "一次性產物是**沒有人應該去跑**的（檔頭 `LIFECYCLE: oneshot` ＋ 位置就是那道防線），"
+      "替它加守衛買到的是「防住一個本來就被禁止的動作」，代價是動到凍結證據。"
+      "這與上一輪對 `verify_deep_tm_backfill.py`（放行）與 `backup-prod-db.sh`（加守衛）"
+      "用的是同一條判準，只是把「是不是常設工具」講成它背後的理由。"
+      "⚠️ **兩支都是真陽性，不是判準誤判**——放行記錄的是殘留風險，不是判準的破口。")
     a("")
     a("| 入口 | 理由與去向 |")
     a("|---|---|")
