@@ -19,7 +19,7 @@ from cpbl.api.routers.daily import refresh_status
 _GAME_COLS = ["season", "kind_code", "game_sno", "game_date", "venue",
               "away_team_code", "away_team_name", "away_score",
               "home_team_code", "home_team_name", "home_score",
-              "has_score", "delay_kind", "orig_date"]
+              "has_evidence", "delay_kind", "orig_date"]
 # cpbl.game_schedule_status_revisions 的查詢欄位（未定案場次的官方狀態）。
 # `payload_hash` 是選列規則的最終決勝鍵（DATA-OFFICIAL-STATUS-TIEBREAK1）；假 cursor 的
 # description 必須跟著真實投影走，否則這裡餵出來的列會少一個判定用得到的欄位。
@@ -52,10 +52,19 @@ def _revision(sno: int, present: int, result: str, day: date, *, kind: str = "A"
 
 
 def _game(sno: int, day: date, *, home: int | None = None, away: int | None = None,
-          kind: str = "A", delay: str | None = None, orig: date | None = None) -> tuple:
-    """一列 cpbl.games。home 給值＝DB 裡有比分（未必等於已完成，見保留賽測試）。"""
+          kind: str = "A", delay: str | None = None, orig: date | None = None,
+          evidence: bool = False) -> tuple:
+    """一列 cpbl.games（投影同 `daily._GAME_COLUMNS`）。
+
+    比分不給＝DB 裡的 0–0 佔位。**完成與否由受測碼自己用 `is_completed_game` 算**，
+    所以這裡不再餵「已完成」旗標——舊版第 12 欄是 `has_score`（`home is not None`），
+    等於測試自己先替受測碼下了一半的判定；現在餵的是 `has_evidence`，是判準的**輸入
+    事實**（`cpbl.game_completion_evidence` 有沒有這一場），不是結論。
+
+    `evidence=True` ＋ 不給比分＝**真和局**：0:0 但有官方 box 取證。全庫 5 場。
+    """
     return (2026, kind, sno, day, "洲際", "ADD011", "統一7-ELEVEn獅", away or 0,
-            "ACN011", "中信兄弟", home or 0, home is not None, delay, orig)
+            "ACN011", "中信兄弟", home or 0, evidence, delay, orig)
 
 
 class _Cursor:
@@ -289,6 +298,65 @@ def test_unresolved_past_game_is_not_silently_dropped(monkeypatch):
     assert len(unresolved) == 1
     assert unresolved[0]["home_score"] is None
     assert [g["game_sno"] for g in body["latest_game_day"]["games"]] == [1]
+
+
+def test_unresolved_never_contains_a_game_it_also_calls_completed(monkeypatch):
+    """`unresolved_games` 與 `completed` 不得自相矛盾（DAILY-MIXED-DAY-UX1 第 8 項的連帶）。
+
+    未定案查詢的 SQL 側只撈得到「比分為 0」的候選——它便宜、但**不是判準**。真和局
+    （0:0 有取證）會落進這個候選集，若不再過濾一次，同一列會既是「仍無賽果」又是
+    `completed: true`。這裡餵兩場過去日期的 0:0，只有一場有證據，斷言它被濾掉。
+
+    這一格今天在真實資料上是空的（5 場真和局最近一場 2025-08-01，落在 30 天窗外），
+    所以只有腳本化 cursor 測得到——真跑本機 DB 會恆綠而測不出東西。
+    """
+    stale_day = _TODAY - timedelta(days=3)
+    body, _ = _run(monkeypatch, _script(
+        latest=_TODAY - timedelta(days=1), next_day=None, scoped=3,
+        games=[_game(1, _TODAY - timedelta(days=1), home=4, away=2)],
+        unresolved=[_game(8, stale_day, evidence=True),   # 真和局：0:0 但有取證
+                    _game(9, stale_day)],                 # 真的沒有賽果
+        revisions=[],
+    ))
+
+    unresolved = body["freshness"]["unresolved_games"]
+    assert [g["game_sno"] for g in unresolved] == [9]
+    assert all(g["completed"] is False for g in unresolved), \
+        "被列為未定案的場次不得同時宣稱已完成"
+
+
+def test_evidence_backed_tie_is_a_result_not_a_pending_game(monkeypatch):
+    """0:0 有取證＝真和局：算完成場、比分照送 0，**不得**被清成 null。
+
+    這是第 8 項的痛點在端點層的樣子——改判準之前，這一場會與旁邊的延賽場長得一模一樣
+    （`completed: false`、比分 null），於是前端把一場打完的和局畫成「無賽果紀錄」。
+    """
+    day = _TODAY - timedelta(days=1)
+    body, _ = _run(monkeypatch, _script(
+        latest=day, next_day=None, scoped=2,
+        games=[_game(1, day, home=4, away=2), _game(2, day, evidence=True)],
+    ))
+
+    tie = next(g for g in body["latest_game_day"]["games"] if g["game_sno"] == 2)
+    assert tie["completed"] is True
+    assert (tie["home_score"], tie["away_score"]) == (0, 0)
+
+
+def test_scoreless_game_without_evidence_stays_pending(monkeypatch):
+    """0:0 **無**證據＝隔離為待判讀：不算完成場，比分必須是 null。
+
+    與上一條成對——少了這一條，把 `has_evidence` 直接當 `completed` 用（或索性讓
+    0:0 一律完成）也會過。全庫 288 場 0:0 中只有 5 場為真，多數路徑是這一條。
+    """
+    day = _TODAY - timedelta(days=1)
+    body, _ = _run(monkeypatch, _script(
+        latest=day, next_day=None, scoped=2,
+        games=[_game(1, day, home=4, away=2), _game(2, day)],
+    ))
+
+    pending = next(g for g in body["latest_game_day"]["games"] if g["game_sno"] == 2)
+    assert pending["completed"] is False
+    assert pending["home_score"] is None and pending["away_score"] is None
 
 
 def test_unresolved_game_reports_the_official_status_not_a_hardcoded_unknown(monkeypatch):
@@ -964,14 +1032,125 @@ def test_live_summary_matches_contract_shape():
             assert day["games"], "有比賽日就必須有場次，不得回空陣列"
 
 
-def test_live_latest_game_day_only_contains_finished_games():
+def test_live_latest_game_day_is_a_day_not_a_result_list():
+    """（原名 ``test_live_latest_game_day_only_contains_finished_games``；
+    DAILY-MIXED-DAY-UX1 隨混合日的產品裁定改寫斷言，**未動 API 行為**。）
+
+    舊斷言要求 ``latest_game_day`` 每一場都 ``completed``。那從來就不是這支端點的契約——
+    ``latest_day`` 取 ``max(game_date) WHERE completed``（**日期**），接著把**那一天的
+    全部場次**送出（`daily_summary` 的 ``by_day.get(latest_day)``）。同一天既有完賽又有
+    延賽時，未完成場本來就會在列表裡；舊斷言之所以長期是綠的，只是因為在 2026-08-09
+    之前碰巧沒遇上混合日，不是因為程式保證了那件事。
+
+    所以這不是把標準放寬：**是把一條沒有實作根據的斷言，換成實作真正保證的那三條。**
+    真正該被守住的是語意紅線（未完成場不得以 0–0 冒充賽果），下面第三條就是它，
+    而舊斷言反而測不到——它在遇到未完成場時直接失敗，根本走不到比分那一步。
+    """
     body = _live()
     if body["latest_game_day"] is None:
         pytest.skip("本機 DB 無已完成場次")
 
-    for game in body["latest_game_day"]["games"]:
-        assert game["completed"] is True
-        assert game["home_score"] is not None and game["away_score"] is not None
+    day = body["latest_game_day"]
+    for game in day["games"]:
+        # 1. 這一天的場次全部屬於這一天（列表是「一天」不是「一批結果」）。
+        assert game["game_date"] == day["game_date"]
+        # 2. 有賽果就必須兩隊比分俱全，不得只有一半。
+        if game["completed"]:
+            assert game["home_score"] is not None and game["away_score"] is not None
+        else:
+            # 3. **語意紅線**：沒有賽果的場次比分必須是 null，不得送 0 讓前端讀成 0–0。
+            assert game["home_score"] is None and game["away_score"] is None
+
+    # 4. 這一天必須落在 as_of 之內（保留賽帶比分卻排未來，見上面那條紅線測試）。
+    assert day["game_date"] <= body["scope"]["as_of"]
+
+
+def test_completed_matches_the_canonical_predicate_for_every_game():
+    """**本卡的判準**（DAILY-MIXED-DAY-UX1 Design Gate 第 8 項）：`daily.py` 對**全庫每一場**
+    的 `completed` 判定，必須逐場等於 `cpbl.completion` 的證據感知判準。
+
+    為什麼要跑全庫而不是抽樣：這條測試防的不是「判準選錯了」——那由 `_completed` 直接
+    呼叫 `is_completed_game` 保證——而是 `_EVIDENCE_EXISTS` 那段相關子查詢**關聯錯了**。
+    該 helper 的 docstring 記錄過這個 footgun：未限定的欄名會解析到內層表、EXISTS 恆真，
+    症狀是「每一場 0:0 都變完成場」（實測 318 場而非 5 場）。這種錯只有把兩邊放在同一份
+    全庫結果上逐列比對才看得見；抽樣抽到的多半是正比分場次，兩種寫法怎麼錯都一樣。
+
+    比對的右手邊刻意是 **SQL** 版 `completed_games_sql_with_evidence` 而不是再呼叫一次
+    `is_completed_game`——後者會與受測碼共用同一個 Python 判準與同一份 `has_evidence`，
+    等於拿自己驗自己。
+    """
+    from cpbl.api.helpers import _dicts
+    from cpbl.completion import completed_games_sql_with_evidence
+    from cpbl.db import conn
+
+    as_of = daily._today_local()
+    try:
+        with conn() as c:
+            cur = c.cursor()
+            cur.execute(
+                f"""
+                SELECT {daily._GAME_COLUMNS},
+                       -- NULL 折成 FALSE：`home_score` 可為 NULL（schema 允許），此時 SQL
+                       -- 條件整體為 NULL 而 `is_completed_game` 走 `(x or 0)` 得 False。
+                       -- WHERE 子句對 NULL 的行為本來就是「不符合」，所以折成 FALSE 才是
+                       -- 兩邊真正的同語意，不是為了讓測試變綠。
+                       COALESCE({completed_games_sql_with_evidence("g", "%(as_of)s")}, false)
+                           AS canonical
+                FROM cpbl.games g
+                """,
+                {"as_of": as_of},
+            )
+            rows = _dicts(cur)
+    except Exception as exc:  # noqa: BLE001 — 無 DB 時跳過（CI 無 Postgres）
+        pytest.skip(f"需本機 DB：{exc}")
+
+    assert len(rows) > 1000, f"全庫對帳只讀到 {len(rows)} 列，樣本不足以稱為全庫"
+    mismatches = [
+        (r["season"], r["kind_code"], r["game_sno"], r["game_date"],
+         r["home_score"], r["away_score"], got, r["canonical"])
+        for r in rows
+        if (got := daily._serialize(r, as_of)["completed"]) is not r["canonical"]
+    ]
+    assert mismatches == [], (
+        f"daily.py 與 cpbl.completion 判定不一致 {len(mismatches)} 場："
+        f"{mismatches[:10]}")
+
+
+def test_evidence_backed_scoreless_ties_are_completed_games():
+    """真和局（0:0 且有官方 box 取證）必須判為完成場——**這是第 8 項要改對的那一格**。
+
+    不寫死那 5 場的清單：清單會隨取證增加而變，而測試要釘的是「有證據的 0:0 算完成」
+    這條規則。改以「證據表裡的 0:0 場次」為母體，逐場斷言。母體為空時 fail 而不是 skip
+    ——`cpbl.completion` 的 docstring 明說全庫有 5 場，一場都撈不到代表環境不對，
+    靜默跳過會讓這條測試變成裝飾。
+    """
+    from cpbl.api.helpers import _dicts
+    from cpbl.db import conn
+
+    as_of = daily._today_local()
+    try:
+        with conn() as c:
+            cur = c.cursor()
+            cur.execute(
+                f"""
+                SELECT {daily._GAME_COLUMNS}
+                FROM cpbl.games g
+                WHERE g.home_score + g.away_score = 0 AND g.game_date <= %(as_of)s
+                  AND {daily._EVIDENCE_EXISTS}
+                ORDER BY g.year, g.kind_code, g.game_sno
+                """,
+                {"as_of": as_of},
+            )
+            ties = _dicts(cur)
+    except Exception as exc:  # noqa: BLE001 — 無 DB 時跳過（CI 無 Postgres）
+        pytest.skip(f"需本機 DB：{exc}")
+
+    assert ties, "證據表裡沒有任何 0:0 場次——環境與 cpbl.completion 記載不符"
+    for row in ties:
+        game = daily._serialize(dict(row), as_of)
+        assert game["completed"] is True, f"{game['season']}/{game['kind_code']}/{game['game_sno']}"
+        # 判定為完成的和局，比分照送 0——那是真正的賽果，不是「還沒有結果」的佔位。
+        assert game["home_score"] == 0 and game["away_score"] == 0
 
 
 def test_live_next_slate_is_not_in_the_past():

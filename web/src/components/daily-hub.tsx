@@ -20,6 +20,11 @@ import {
   todayCardKind,
   todayPollDelayMs,
   gameHref,
+  latestGameStatus,
+  latestGameDateNote,
+  latestDayPendingCount,
+  LATEST_STATUS_COPY,
+  LATEST_FOOTER_COPY,
   TODAY_COPY,
   type DailySummary,
   type DailyGame,
@@ -80,10 +85,55 @@ function CompletedGame({ g }: { g: DailyGame }) {
       </div>
       <div className="mt-1.5 flex items-center justify-between text-[11px] text-faint">
         <span className="truncate">{g.venue ?? "—"}</span>
-        <span className="shrink-0 text-accent">賽後復盤 →</span>
+        <span className="shrink-0 text-accent">{LATEST_FOOTER_COPY.final}</span>
       </div>
     </Link>
   );
+}
+
+/** 最近比賽日裡**沒有賽果**的那些場次（DAILY-MIXED-DAY-UX1）。
+ *
+ *  與 `CompletedGame` 分成兩個元件而不是在裡面加 if：兩者的**語意**不同，一個是賽果、
+ *  一個是排程狀態，共用一個元件會讓「不小心把比分欄接上」變成一次手滑的距離。
+ *
+ *  三件事刻意不做：不畫比分欄（後端已送 null，前端更不得回填 0）、不連到單場頁
+ *  （見 `LATEST_FOOTER_COPY.pending`）、不解釋成因（沒有任何欄位存得下理由）。
+ *
+ *  **0:0 真和局不走這裡**：它是賽果不是待判讀，後端送 `completed: true` ＋ 0:0，
+ *  因此由 `CompletedGame` 承接並照常給賽後入口（Design Gate 第 8 項）。 */
+function PendingGame({ g }: { g: DailyGame }) {
+  const status = latestGameStatus(g);
+  // `final` 由 `CompletedGame` 承接；這裡收斂型別，順便讓將來多一個態時編譯器會叫。
+  const copy = status === "final" ? null : LATEST_STATUS_COPY[status];
+  const dateNote = latestGameDateNote(g);
+  return (
+    <div
+      data-testid="latest-pending-game"
+      data-status={status}
+      className="block rounded-lg border border-dashed border-line bg-surface-2/60 px-3 py-2.5"
+    >
+      <div className="grid grid-cols-1 gap-1">
+        <TeamRow code={g.away_team_code} name={g.away_team_name} score={null} win={false} />
+        <TeamRow code={g.home_team_code} name={g.home_team_name} score={null} win={false} />
+      </div>
+      <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-faint">
+        <span className="truncate">
+          {g.venue ?? "—"}
+          {dateNote && <span className="ml-1.5">{dateNote}</span>}
+        </span>
+        {copy && (
+          <span className="shrink-0">
+            <StatusBadge tone={copy.tone}>{copy.label}</StatusBadge>
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** 最近比賽日的單場路由：有賽果走賽後卡，沒有的走排程狀態卡。 */
+function LatestGame({ g }: { g: DailyGame }) {
+  return g.completed ? <CompletedGame g={g} /> : <PendingGame g={g} />;
 }
 
 // 下一批賽事：對戰 + 賽前卡（點機率＋1 主訊號），可進入賽事頁。
@@ -270,6 +320,8 @@ export default function DailyHub({ summary: initial }: { summary: DailySummary }
   // 倒數的週期直接取輪詢實際用的那個值（live 20 秒／未定案無 live 60 秒），不另寫死常數；
   // null＝今天不輪詢，此時**不渲染**倒數環——一個永遠不動的假倒數比沒有更糟。
   const pollCycleMs = todayPollDelayMs(today);
+  // 最近比賽日有幾場沒有賽果。0＝全部完成（常態），>0＝混合日。
+  const pendingCount = latestDayPendingCount(latest_game_day?.games ?? []);
 
   return (
     <section className="space-y-4">
@@ -307,10 +359,17 @@ export default function DailyHub({ summary: initial }: { summary: DailySummary }
               完整賽況 →
             </Link>
           </div>
+          {/* 混合日的**區塊層**提示：逐張卡上的徽章解釋單場，這一句解釋整天。沒有它的話，
+              讀者要自己數才知道「這一天不只這幾場」。全部完成時不渲染——常態不製造噪音。 */}
+          {pendingCount > 0 && latest_game_day && (
+            <p data-testid="latest-pending-note" className="mb-2 text-[11px] text-muted">
+              這一天共 {latest_game_day.games.length} 場，其中 {pendingCount} 場尚無賽果
+            </p>
+          )}
           {latest_game_day && latest_game_day.games.length > 0 ? (
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               {latest_game_day.games.map((g) => (
-                <CompletedGame key={`${g.kind_code}-${g.game_sno}`} g={g} />
+                <LatestGame key={`${g.kind_code}-${g.game_sno}`} g={g} />
               ))}
             </div>
           ) : (
