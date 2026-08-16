@@ -742,11 +742,31 @@ _THREAD_RE = re.compile(r'\b(?:usernoted|NotificationCenter)\[\d+:([0-9a-f]+)\]'
 _UUID_RE = re.compile(r'uuid:"([0-9A-F]+)"')
 _LINE_TS_RE = re.compile(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)')
 
-# ⚠️ 結果行**無法**用 uuid 關聯：它們只帶 `ident`，而 osascript 的 ident 恆為
-# `DA39-A3EE`（空字串的 SHA-1 前綴 da39a3ee…）——**每一則 osascript 通知都一樣**，
-# 因此不具鑑別力。這是 macOS 日誌的限制，不是本檔可以修的東西。
-# 能做到的最強關聯：用 uuid 圈出本次通知在日誌上的**時間跨距**，結果行必須落在那個
-# 跨距內（毫秒級）。若跨距內出現一個以上的通知 uuid，就**不猜**，一律 unverified。
+# =============================== 已知限制：裁決行在此平台上無法被歸屬到某一則通知
+#
+# 這一段是**窮盡查證後的結論**，不是還沒找到。查過的面（全部實測，2026-08-16）：
+#
+# | 候選欄位                   | 結果                                                  |
+# |---------------------------|-------------------------------------------------------|
+# | `uuid:"…"`                | 裁決行**沒有**這個欄位                                  |
+# | `ident`                   | osascript 恆為 `DA39-A3EE`（空字串的 SHA-1 前綴），每則都一樣 |
+# | `activityIdentifier`      | 空（0）——這條路徑沒有使用 os_log activity              |
+# | `parentActivityIdentifier`| 空（0）                                                |
+# | `creatorActivityID`       | 空（0）                                                |
+# | `traceID`                 | 兩則**不同**通知量到同一個值 ⇒ 是 callsite id 不是事件 id |
+# | `threadID`                | 裁決行與該通知的 uuid 行**不同執行緒**                   |
+#
+# 查詢方式也窮盡過：`log show` 與 `log stream` 都試（欄位差異只有
+# `creatorActivityID` vs `messageType`/`source`，都與關聯無關）、`--info --debug`
+# 兩個層級都開、`--style ndjson` 取完整欄位。
+#
+# **決定性證據是 Apple 自己的 format string**：
+#     `Resolved interruption suppression for %{public}s as %{public}s`
+# 只有兩個代入位——ident 與行為。**通知 id 根本沒有被寫進這行日誌**，所以任何解析方式
+# 都不可能還原它。這不是本檔能修的東西。
+#
+# 因此本檔**不做時間窗猜測**（那是把猜測寫成程式碼）。改為：只有在裁決**被唯一決定**時
+# 才作答，否則一律 `unverified`。判準見 `_delivery_probe` 的兩道閘。
 _CONSTANT_IDENT = "DA39-A3EE"
 
 # NotificationCenter 對「這則要不要打擾使用者」的裁決。三態實測對照：
@@ -837,49 +857,65 @@ def _delivery_probe(since: datetime, pid: int, timeout: float = 20.0,
                               "window": [corr["first"].isoformat(),
                                          corr["last"].isoformat()]}
 
-    # 結果行只帶恆定的 ident，只能用時間跨距圈。跨距外的一律不採信。
+    # ============================ 兩道閘：裁決必須被**唯一決定**，否則不作答
     #
-    # ⚠️ 過濾條件是「bundle **或** ident」，不能只用 bundle：實測
+    # 裁決行無法被歸屬到某一則通知（見上方「已知限制」表）。因此本檔**不做任何排序或
+    # 時間窗猜測**——多條裁決同時存在時「挑哪一條」沒有事實依據，挑了就是把猜測寫成
+    # 程式碼。改為只在「答案被唯一決定」時才回答：
+    #
+    #   閘一 · 唯一通知：整段查詢結果裡只能有本次通知一個 uuid。有別的通知在
+    #          ⇒ 裁決行可能屬於它 ⇒ 不作答。
+    #   閘二 · 裁決一致：所有裁決行必須指向同一個結論。互相矛盾 ⇒ 不作答。
+    #
+    # 兩道閘都過時，歸屬是**由排除法所迫**（窗內只有一則通知、裁決只有一種），
+    # 那是邏輯不是啟發式。過不了就是 unverified——`presented` 因此不是永遠不可達，
+    # 但也不會在有疑義時被宣稱。
+    #
+    # ⚠️ 掃描面是「bundle **或** ident」，不能只用 bundle：實測
     # `Resolved interruption suppression for DA39-A3EE as none` **整行不含 bundle id**，
     # 只認 bundle 會把裁決行整批濾掉，於是永遠落到「沒有裁決行」→ unverified。
-    # （這正是本輪第一版寫錯的地方，被自己的端到端探針當場抓到。）
-    lo = corr["first"] - timedelta(seconds=1)
-    hi = corr["last"] + timedelta(seconds=1)
-    in_window = []
-    for line in lines:
-        t = _ts(line)
-        if t and lo <= t <= hi and (app in line or _CONSTANT_IDENT in line):
-            in_window.append(line)
+    relevant = [ln for ln in lines if app in ln or _CONSTANT_IDENT in ln]
 
-    # 跨距內若出現別的通知 uuid ⇒ 結果行歸屬有歧義 ⇒ 不猜（fail closed）
-    others = {u for line in in_window for u in _UUID_RE.findall(line)} - {corr["uuid"]}
+    others = {u for ln in relevant for u in _UUID_RE.findall(ln)} - {corr["uuid"]}
     if others:
-        verdict["reason"] = (f"時間跨距內另有通知（uuid {sorted(others)}），"
-                             "結果行只帶恆定 ident 故無法歸屬——不猜，判為查不到")
+        verdict["reason"] = (
+            f"查詢視窗內另有 {len(others)} 則通知（uuid {sorted(others)}）。"
+            "裁決行不帶通知 id（Apple 的 format string 只有 ident 與行為兩個代入位），"
+            "故無法判斷裁決屬於哪一則——**不猜**，判為無法驗證")
         return verdict
 
-    muted = [ln for ln in in_window if _MUTED_RE.search(ln)]
-    if muted:
-        m = _MUTED_RE.search(muted[0])
-        cause = (m.group(1) or "").strip()
-        detail = m.group(2) or m.group(3) or ""
-        verdict["delivered"] = DELIVERY_SUPPRESSED
-        verdict["reason"] = (f"被「{cause}」擋下（{detail}）："
-                             "系統收到了，但**確定沒有**出現在畫面上")
-        verdict["evidence"] = muted[0].strip()[:400]
-        return verdict
+    # 收集所有裁決，逐條化約成結論；**不看順序**。
+    findings = []
+    for ln in relevant:
+        m = _MUTED_RE.search(ln)
+        if m:
+            cause = (m.group(1) or "").strip()
+            detail = m.group(2) or m.group(3) or ""
+            findings.append((DELIVERY_SUPPRESSED, f"被「{cause}」擋下（{detail}）", ln))
+            continue
+        r = _RESOLUTION_RE.search(ln)
+        if r:
+            behavior = r.group(1)
+            state = (DELIVERY_PRESENTED if behavior == _NOT_SUPPRESSED
+                     else DELIVERY_SUPPRESSED)
+            findings.append((state, f"系統裁決 as {behavior}", ln))
 
-    resolutions = [ln for ln in in_window if _RESOLUTION_RE.search(ln)]
-    if resolutions:
-        behavior = _RESOLUTION_RE.search(resolutions[0]).group(1)
-        if behavior == _NOT_SUPPRESSED:
-            verdict["delivered"] = DELIVERY_PRESENTED
-            verdict["reason"] = "系統裁決為不抑制（as none），已呈現在畫面上"
-        else:
-            verdict["delivered"] = DELIVERY_SUPPRESSED
-            verdict["reason"] = (f"系統裁決為抑制（as {behavior}）："
-                                 "**確定沒有**出現在畫面上")
-        verdict["evidence"] = resolutions[0].strip()[:400]
+    states = {state for state, _, _ in findings}
+    if len(states) > 1:
+        verdict["reason"] = (
+            f"視窗內的裁決彼此矛盾（{sorted(states)}），而裁決行無法歸屬到特定通知——"
+            "**不以順序或距離挑一條**，判為無法驗證")
+        return verdict
+    if findings:
+        state, why, line = findings[0]
+        verdict["delivered"] = state
+        verdict["reason"] = (
+            f"{why}：**確定沒有**出現在畫面上" if state == DELIVERY_SUPPRESSED
+            else f"{why}（未被抑制），已呈現在畫面上")
+        verdict["evidence"] = line.strip()[:400]
+        verdict["correlation"]["attribution"] = (
+            "由排除法所迫：查詢視窗內只有本次通知一個 uuid，且所有裁決行結論一致。"
+            "裁決行本身不帶通知 id——見 schedule_watch.py 的「已知限制」表")
         return verdict
 
     verdict["reason"] = ("關聯到了本次通知，但日誌裡沒有它的打擾裁決行——"

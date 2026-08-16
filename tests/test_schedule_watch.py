@@ -755,7 +755,8 @@ def test_unrelated_notification_from_the_same_bundle_is_not_attributed_to_us(
 
     assert verdict["delivered"] == sw.DELIVERY_UNVERIFIED, (
         "跨距內有別則通知時仍作答＝把無關事件歸給本次通知")
-    assert "無法歸屬" in verdict["reason"] or "另有通知" in verdict["reason"]
+    assert "另有 1 則通知" in verdict["reason"]
+    assert "不猜" in verdict["reason"]
 
 
 def test_missing_peer_line_means_unverified_not_a_guess(monkeypatch) -> None:
@@ -1222,3 +1223,71 @@ def test_anchor_floor_behaves_across_the_day_boundary(tmp_path: Path) -> None:
     (repo / "logs" / "schedule-history" / "com.cpbl.schedule-watchdog.jsonl").unlink()
     naked = _evaluate(repo, registry, "2026-08-16T21:10:00+0800")
     assert naked["exit_code"] == sw.EXIT_MISSING
+
+
+def test_conflicting_verdicts_are_refused_not_resolved_by_order(monkeypatch) -> None:
+    """**閘二**：多條裁決指向不同結論時，不得用順序或距離挑一條。
+
+    跨家族查核在 R4 指出的正是這一點：「多條裁決同時落在窗內時，你用哪一條決定了
+    goal_observed，而順序本身沒有依據」。裁決行無法歸屬到特定通知（見
+    schedule_watch.py 的「已知限制」表），所以唯一誠實的動作是拒答。
+    """
+    conflicting = [_muted_line("DND suppression: delay"), _resolution_line("none")]
+    _patch_notify(monkeypatch, pid=4242,
+                  log_out=_log(4242, "D1DCEC63", tail_lines=conflicting))
+
+    verdict = sw.notify("t", "m")
+
+    assert verdict["delivered"] == sw.DELIVERY_UNVERIFIED
+    assert "矛盾" in verdict["reason"]
+    assert verdict["goal_observed"] is None
+
+    # 反序：**同樣**要拒答。若實作是「挑第一條」，兩者之一會變成 presented 或 suppressed。
+    _patch_notify(monkeypatch, pid=4242,
+                  log_out=_log(4242, "D1DCEC63", tail_lines=list(reversed(conflicting))))
+    assert sw.notify("t", "m")["delivered"] == sw.DELIVERY_UNVERIFIED
+
+
+def test_agreeing_verdicts_still_answer(monkeypatch) -> None:
+    """負控制：閘二只擋**矛盾**，一致的多條裁決仍要作答，否則閘二等於把功能關掉。"""
+    agreeing = [_muted_line("DND suppression: delay"), _resolution_line("delay")]
+    _patch_notify(monkeypatch, pid=4242,
+                  log_out=_log(4242, "F983C9FB", tail_lines=agreeing))
+
+    verdict = sw.notify("t", "m")
+
+    assert verdict["delivered"] == sw.DELIVERY_SUPPRESSED
+    assert verdict["goal_observed"] == 3
+
+
+def test_attribution_basis_is_recorded_in_the_artifact(monkeypatch) -> None:
+    """作答時必須寫下**為什麼可以作答**——歸屬是由排除法所迫，不是有識別碼。"""
+    _patch_notify(monkeypatch, pid=4242,
+                  log_out=_log(4242, "D1DCEC63", tail_lines=[_resolution_line("none")]))
+
+    basis = sw.notify("t", "m")["correlation"]["attribution"]
+
+    assert "排除法" in basis
+    assert "不帶通知 id" in basis
+
+
+def test_correlation_failure_reason_states_what_actually_failed(monkeypatch) -> None:
+    """關聯失敗的**說明**必須為真，不只是判定為真。
+
+    ⚠️ R4 我把「`thread=None` 改成 `thread=""`」判成等價變異，理由是兩者都走 fail-closed、
+    `delivered` 與 `correlation` 都一樣。**那個推理有洞**：我只比對了判定，沒有比對
+    `reason` 字串。變異版會印「找到連線（thread ）但該執行緒上沒有通知 uuid」——
+    它**根本沒找到連線**，那句話是假的。
+
+    在一張「把 rc=0 講成送達」「把查不到講成沒送到」各犯一次的卡上，讓診斷訊息說謊
+    是同一族的錯。故 reason 也要被釘住：找不到連線就要說找不到連線。
+    """
+    # peer 行的 pid 對不上 ⇒ 連線根本沒找到
+    _patch_notify(monkeypatch, pid=4242,
+                  log_out=_log(9999, "D1DCEC63", tail_lines=[_resolution_line("none")]))
+
+    reason = sw.notify("t", "m")["reason"]
+
+    assert "找不到" in reason and "連線" in reason, f"沒有據實說明失敗原因：{reason}"
+    assert "找到連線" not in reason.replace("找不到", ""), (
+        "宣稱找到了連線——但 pid 對不上，實際上沒找到")
