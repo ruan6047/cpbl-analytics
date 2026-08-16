@@ -160,12 +160,27 @@ def collect(start: str, end: str, start_dt: datetime, end_dt: datetime,
     #   · 非零樣本 ⇒ 照常輸出，但**強制標上取樣時刻**，並在頁首寫明數字只在該時刻成立。
     #     這是需求方授權的處置：「若本質上不可固定，就不要寫成宣稱，改為『於某明確時刻
     #     量得』並附取樣指令」。
-    if not any(_ts(ln) for ln in lines):
+    # ⚠️ 零樣本的判準必須是「**有沒有通知**」，不是「有沒有日誌行」。
+    #
+    # 這裡本來寫 `if not any(_ts(ln) for ln in lines)`——而 `lines` 是 predicate 的結果，
+    # 裡面絕大多數是 `NotificationCenter`／`usernoted` 的**背景雜訊**，與通知投遞無關。
+    # 實測 2026-08-16 14:00–15:00：predicate 命中 772 列，`Delivering` **0 則**，於是
+    # 舊判準認為「視窗有資料」而放行，輸出 `通知則數: 0` 且 rc=0。
+    #
+    # 那正是我自己在上一段推翻過的推理，只是換了位置：拿 A population（那兩個 process
+    # 的任何日誌）的存在，去證明 B population（通知紀錄）沒有被回收。**背景日誌還在，
+    # 完全不代表通知紀錄還在**——回收是逐 process 獨立的，而且同一個 process 內不同
+    # subsystem 的資料量差幾個數量級，被回收的順序也不會一致。
+    #
+    # 故判準改為數 `Delivering`：零通知一律拒答，不看背景日誌多寡。
+    if not any("Delivering " in ln for ln in lines):
+        noise = sum(1 for ln in lines if _ts(ln))
         sys.exit(
-            f"⚠️ 拒絕輸出：視窗 {start} → {end} 內沒有任何通知紀錄。\n"
+            f"⚠️ 拒絕輸出：視窗 {start} → {end} 內**沒有任何通知投遞紀錄**"
+            f"（predicate 命中 {noise} 列，但全是背景日誌，`Delivering` 0 則）。\n"
             "   「這段時間真的沒有通知」與「這段時間的通知紀錄已被回收」在此平台上\n"
-            "   **無法分辨**——回收是逐 process 獨立的，拿別的 process 還有沒有資料\n"
-            "   去推論通知紀錄在不在並不成立（實測見本檔原始碼註解）。\n"
+            "   **無法分辨**，而背景日誌還在**不能**用來證明通知紀錄還在——回收是逐\n"
+            "   process 獨立的（實測見本檔原始碼註解）。\n"
             "   故不輸出零樣本統計。請改用一個較近、確定還有通知的視窗。")
 
     return lines, argv, True
