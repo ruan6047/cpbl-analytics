@@ -675,68 +675,101 @@ def build_message(report: dict) -> str:
 # 那個模式的設定是 `applicationConfigurationType: Exclusive` 且
 # `allowedApplicationIdentifiers: {}`（**空的**）——沒有任何 app 能突破——加上
 # `minimumBreakthroughUrgency: essential`，而 AppleScript 的 `display notification`
-# **沒有辦法標記 urgency**（那需要 Time Sensitive／Critical Alerts 授權的真 app bundle）。
-# 所以這不是本 repo 改得動的東西：修法是使用者在系統設定裡改專注模式白名單。
+# **沒有辦法標記 urgency**。所以那不是本 repo 改得動的東西：修法在系統設定裡。
 #
-# 24 小時實測分佈（`log show --last 24h --predicate 'process == "donotdisturbd"'`）：
-#   suppressed 103 次、allowed 11 次；11 次 allowed **全部**落在 23:45–05:19（睡覺時段），
-#   白天清醒時段（含 21:21、21:37，正是本 watchdog 21:10 的槽）**無一例外全部 suppressed**。
+# ⚠️ **以上是 2026-08-15 的狀態，已經不是現況。** 2026-08-16 需求方裁定「調整專注模式」
+# 並當場關閉——那個模式是**非刻意**開啟的（需求方原話：「這個是我沒設定到」）。同日
+# 10:14 實測本函式回傳 `presented`，證據為 `usernoted: Presenting … ScriptEditor2` ＋
+# `donotdisturbd: outcome: allowed; reason: disabled; activeModeUUID: (null)`。
 #
-# 結論：在這台機器的現行設定下，推播通知**結構上沒有讀者**。既然如此，偵測器至少
-# 必須**知道自己被靜音了**並說出來——否則它只是換一種形式的「沒有讀者的告警」，
-# 也就是本卡一開始要消滅的東西。
+# ⚠️ **R2 報告的「suppressed 103／allowed 11」是錯的量測，勿再引用。** 那個數字來自
+# `process == "donotdisturbd"` 的 `outcome:` 行，但那些行的 client 全是
+# `com.apple.nc.donotdisturb.user-toggles.preload`——**推測性的預載解析，不是通知投遞**
+# （48 小時內 1960 筆 preload 解析 vs 只有 56 則真實通知）。按「usernoted 的 Delivering
+# ＋ 同 bundle 的抑制訊號」重算，48 小時是 **suppressed 44／未抑制 12**；而 osascript 的
+# 歸屬 app `ScriptEditor2` 在該窗內 **14 則全部被抑制、零例外**——結論方向不變，
+# 但支撐它的數字換過了。
+#
+# 教訓（本卡第三次踩到同一個形狀）：**先確認你數的是不是你以為的那個東西。**
+# R1 數到「查不到」其實是 zsh 內建 `log` 吃掉了查詢；R2 數到「103/11」其實數的是預載
+# 解析；R2 的 predicate 又把自己要找的那一行濾掉。三次都是「量測面與待答問題不對齊」。
+#
+# 現在的設計不再賭任何一種環境狀態：**每次執行都重新量一次投遞結果**，並依量測回報
+# 該次達到的目標層級（見 READER_CONTRACT）。推播若再被擋下，下一次執行就會自己說出來。
 
 NOTIFY_BUNDLE_ID = "com.apple.ScriptEditor2"   # osascript 的歸屬 app（實測，見上）
 
-# 投遞判定。`delivered` 只有三種值，且**永遠不會因為測不到就寫 True**（fail closed）。
+# 投遞判定。三態的語意**互不重疊**，措辭也必須逐一分開——把「查不到」講成「沒送到」
+# 是在宣稱自己沒有的確定性，與 R1 把「rc=0」講成「送到了」是同一個錯，只是換一邊。
 DELIVERY_PRESENTED = "presented"          # 系統紀錄顯示真的呈現了
-DELIVERY_SUPPRESSED = "suppressed"        # 專注模式／勿擾擋掉——有寫入，但沒有人看到
-DELIVERY_UNVERIFIED = "unverified"        # 查不到系統紀錄：**不代表送到了**
+DELIVERY_SUPPRESSED = "suppressed"        # 專注模式／勿擾擋掉——確定沒有出現在畫面上
+DELIVERY_UNVERIFIED = "unverified"        # 查不到紀錄：**既不代表送到，也不代表沒送到**
+
+# 查詢面。⚠️ `usernoted` **必須**在裡面：`Presenting` 那一行是它發的（實測，見上方
+# 註解引用的日誌）。R2 的 predicate 漏了它，於是 `Presenting` 永遠找不到、
+# `DELIVERY_PRESENTED` 結構上不可達，輸出只可能是 suppressed 或 unverified——
+# 一個永遠不會回傳的分支等於沒有寫。跨家族查核在 R2 抓到這一條。
+_LOG_PREDICATE = ('process == "donotdisturbd" OR process == "NotificationCenter" '
+                  'OR process == "usernoted"')
+
+# 抑制的兩種訊號，**兩種都要看**。實測（2026-08-15 13:23:29 的 ScriptEditor2 那則）：
+# 有的通知被抑制時只有 donotdisturbd 的 `outcome: suppressed`，**不會**印
+# NotificationCenter 的 `muted by DND suppression`。只認後者的話，那一則會落進
+# 「沒有攔截紀錄」而被判成 presented——把加了 usernoted 之後最危險的偽陽性放進來。
+_SUPPRESSION_MARKERS = ("muted by DND suppression", "outcome: suppressed")
 
 
-def _delivery_probe(since: datetime, timeout: float = 20.0) -> dict:
+def _delivery_probe(since: datetime, timeout: float = 20.0,
+                    bundle_id: str | None = None) -> dict:
     """問 macOS 統一日誌：剛剛那則通知到底有沒有被呈現。
 
     ⚠️ 這裡刻意**不**用 `osascript` 的退出碼當任何依據——它在被靜音時一樣回 0。
-    唯一採信的是 `donotdisturbd`／`NotificationCenter` 的解析結果。
+    唯一採信的是 `usernoted`／`NotificationCenter`／`donotdisturbd` 的紀錄。
 
     ⚠️ `log` 在 zsh 是**內建指令**（實測：`type log` → `log is a shell builtin`），
     直接寫 `log show` 會被 shell 吃掉並回「too many arguments」而看起來像沒有紀錄。
     本卡 R1 的探查就是這樣得到假陰性的，故此處硬寫絕對路徑 `/usr/bin/log`。
+
+    `bundle_id` 可覆寫，是為了讓「presented 真的判得出來」可以拿**別的 app 的真實
+    通知**取證——本機的專注模式讓 Script Editor 永遠拿不到 presented，而用假造的
+    日誌行自證等於沒證（見 tests 的可達性那一組）。
     """
+    app = bundle_id or NOTIFY_BUNDLE_ID
     verdict = {"delivered": DELIVERY_UNVERIFIED, "reason": "", "evidence": ""}
     started = since.strftime("%Y-%m-%d %H:%M:%S")
     try:
         proc = subprocess.run(
             ["/usr/bin/log", "show", "--start", started, "--style", "compact",
-             "--predicate",
-             'process == "donotdisturbd" OR process == "NotificationCenter"'],
+             "--predicate", _LOG_PREDICATE],
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             timeout=timeout, check=False)
     except (OSError, subprocess.SubprocessError):
-        verdict["reason"] = "無法執行 /usr/bin/log，投遞與否不可知"
+        verdict["reason"] = "無法執行 /usr/bin/log，因此查不到紀錄——送到與否皆無法判定"
         return verdict
     if proc.returncode != 0:
-        verdict["reason"] = f"/usr/bin/log 非零退出（{proc.returncode}），投遞與否不可知"
+        verdict["reason"] = (f"/usr/bin/log 非零退出（{proc.returncode}），"
+                             "因此查不到紀錄——送到與否皆無法判定")
         return verdict
 
     text = proc.stdout.decode("utf-8", errors="replace")
-    ours = [ln for ln in text.splitlines() if NOTIFY_BUNDLE_ID in ln]
-    muted = [ln for ln in ours if "muted by DND suppression" in ln]
-    if muted:
+    ours = [ln for ln in text.splitlines() if app in ln]
+    suppressed = [ln for ln in ours
+                  if any(marker in ln for marker in _SUPPRESSION_MARKERS)]
+    if suppressed:
         verdict["delivered"] = DELIVERY_SUPPRESSED
-        verdict["reason"] = "專注模式／勿擾擋下：系統有收到，但畫面上沒有出現"
-        verdict["evidence"] = muted[0].strip()[:400]
+        verdict["reason"] = "專注模式／勿擾擋下：系統收到了，但**確定沒有**出現在畫面上"
+        verdict["evidence"] = suppressed[0].strip()[:400]
         return verdict
     presented = [ln for ln in ours if "Presenting" in ln]
     if presented:
         # ⚠️ `usernoted` 的 "Presenting" 發生在**問 DND 之前**，所以它單獨不算數；
-        # 只有在同時找不到 muted 行時才採信。上面的順序就是這個意思。
+        # 只有在上面兩種抑制訊號都找不到時才採信。順序就是這個意思。
         verdict["delivered"] = DELIVERY_PRESENTED
-        verdict["reason"] = "系統紀錄顯示已呈現，且未見專注模式攔截"
+        verdict["reason"] = "系統紀錄顯示已呈現，且未見任何專注模式攔截"
         verdict["evidence"] = presented[0].strip()[:400]
         return verdict
-    verdict["reason"] = "統一日誌裡找不到這則通知的處理紀錄，投遞與否不可知"
+    verdict["reason"] = ("統一日誌裡找不到這則通知的處理紀錄——"
+                         "**既不代表送到，也不代表沒送到**，只代表查不到")
     return verdict
 
 
@@ -762,9 +795,12 @@ def notify(title: str, message: str, *, verify: bool = True) -> dict:
     verdict["osascript_rc"] = proc.returncode
     if proc.returncode != 0:
         verdict["reason"] = f"osascript 非零退出（{proc.returncode}）"
+        verdict["goal_observed"] = _GOAL_BY_DELIVERY[verdict["delivered"]]
         return verdict
     if verify:
         verdict.update(_delivery_probe(since))
+    # 目標層級由**量測**推導，不是寫死的宣稱（見 READER_CONTRACT 上方三條理由）。
+    verdict["goal_observed"] = _GOAL_BY_DELIVERY[verdict["delivered"]]
     return verdict
 
 
@@ -907,19 +943,53 @@ def current_trigger() -> str:
 # ⚠️ 誠實標定：這是**目標 3（留下可稽核的痕跡）**，不是目標 2（主動送到人面前）。
 # 推播那條路在這台機器上量到是死的（見 notify() 上方的專注模式實測），而修法在系統
 # 設定裡、不在本 repo，故本卡不宣稱達成目標 2。
+# ⚠️ 目標層級**不是常數，是每次執行量出來的**——這是本輪最重要的設計決定。
+#
+# 2026-08-16 需求方裁定「調整專注模式」並當場關閉（原話：「這個是我沒設定到」——它是
+# **非刻意**設定）。於是推播復活：同日 10:14 實測 `usernoted: Presenting` ＋
+# `donotdisturbd: outcome: allowed; reason: disabled`，需求方並口述「有看到」。
+#
+# 那要不要因此宣告達成目標 2？**floor 維持 3，observed 才是 2**，理由三條：
+#
+# 1. **一次成功不是常態證據。** 那則探針是在需求方**正在螢幕前、而且正在等它**的
+#    情況下被看到的；真正的告警在 21:10 無預警發出，橫幅數秒後自動消失。用一次
+#    attended 的成功去推論 unattended 的夜晚，正是本卡在別處禁止的推論形狀。
+# 2. **這條通道靠一個使用者設定，而它已經無聲退化過一次。** 那個專注模式不是刻意
+#    開的，卻擋掉了所有通知且無人察覺——那正是本卡要消滅的失效形狀。可以被無聲撤銷
+#    的保證不是保證。
+# 3. **「人看到了」永遠是人證，碼判不到。** `Presenting` 只證明系統把它畫出來，
+#    不證明有人讀了。與 R1 不肯把 `rc=0` 當送達是同一把尺，這裡不放掉。
+#
+# 所以：`goal_floor` 是不依賴任何使用者設定就成立的保證（稽核痕跡 ＋ pytest header）；
+# `goal_observed` 由**本次實測的投遞判定**推導。推播若再度被擋，下一次執行就會自己
+# 說出來——這正是把「無聲退化」換成「有聲退化」，而那才是本卡真正買到的東西。
+
+# 投遞判定 → 該次實際達到的目標層級。
+_GOAL_BY_DELIVERY = {
+    DELIVERY_PRESENTED: 2,     # 系統確實把它畫到螢幕上了（≠ 有人讀了，見上）
+    DELIVERY_SUPPRESSED: 3,    # 確定沒出現，只剩稽核痕跡
+    DELIVERY_UNVERIFIED: None, # 查不到：不宣稱任何層級
+}
+
 READER_CONTRACT = {
-    "goal": 3,
-    "goal_note": "目標 3（可稽核痕跡）。**不是**目標 2：它仍然要等人來跑 pytest，"
-                 "不會主動送到人面前。推播那條路在本機實測是死的——專注模式把 "
-                 "osascript 通知全部 suppressed，詳見本檔 notify() 區段的量測。",
-    "who": "任何要動這個 repo 的人或 AI——不需要指派，也不需要誰記得",
-    "when": "每次跑 `uv run pytest`。CLAUDE.md 明訂 push 前必跑，而 "
-            "tests/conftest.py 的 pytest_report_header 會把本告警印在最前面（`-q` 也印）",
-    "how": "logs/schedule-alert.json 存在＝有未處理的排程異常；條件解除時本檔自動刪除，"
-           "故『檔案在』本身就是訊號。pytest header 會把訊息與『推播有沒有送達』一起印出來",
-    "push_channel": "無。本專案的告警模型是機器可讀狀態檔供人／AI 每日查，"
-                    "不另設推播管道（見 scripts/backup-prod-db.sh 檔頭）。"
-                    "要改成真的會叫人的推播，屬需求方裁量，不由執行者自行引入。",
+    "goal_floor": 3,
+    "goal_floor_note": "不依賴任何使用者設定就成立的部分：logs/schedule-alert.json ＋ "
+                       "tests/conftest.py 印在每次 pytest header 的那幾行。這一層永遠為真。",
+    "goal_observed_note": "本次執行**實測**達到的層級，見 notification.goal_observed："
+                          "2＝系統確實呈現在螢幕上；3＝被專注模式擋下只剩痕跡；"
+                          "null＝查不到紀錄，不宣稱。",
+    "who": "需求方（螢幕上的通知）＋ 任何要動這個 repo 的人或 AI（pytest header）",
+    "when": "通知：異常發生當晚 21:10 即時；header：每次跑 `uv run pytest`（CLAUDE.md "
+            "明訂 push 前必跑，`-q` 也印）。兩者都不需要有人記得去翻檔案。",
+    "how": "logs/schedule-alert.json 存在＝有未處理的排程異常；條件解除時自動刪除，"
+           "故『檔案在』本身就是訊號。header 會把訊息與『這次推播到底有沒有出現』一起印。",
+    "push_channel": "macOS 通知（osascript → Script Editor）。2026-08-16 需求方關閉非刻意"
+                    "開啟的專注模式後復活。⚠️ 它靠使用者設定，可被無聲撤銷，故每次執行"
+                    "都會重新量一次而不是假設它還活著。要引入 email／Slack／webhook 等"
+                    "其他推播管道會改變本專案的告警模型，屬需求方裁量。",
+    "what_code_can_never_prove": "『有人讀了』。系統紀錄最多到『已呈現』（Presenting）；"
+                                 "2026-08-16 那次是需求方口述的**人證**，不可重跑、"
+                                 "不在任何日誌裡、也不可能被測試涵蓋。",
 }
 
 
@@ -972,12 +1042,18 @@ def write_notify_artifacts(repo: Path, report: dict) -> None:
                 ensure_ascii=False, indent=2), encoding="utf-8")
     except OSError as error:
         print(f"WARN 無法寫入 watchdog 產物：{error}", file=sys.stderr)
-    if delivery.get("attempted") and delivery.get("delivered") != DELIVERY_PRESENTED:
+    if delivery.get("attempted") and delivery.get("delivered") == DELIVERY_SUPPRESSED:
+        # ⚠️ 這裡只認 `suppressed`。R2 寫的是 `!= PRESENTED`，於是 `unverified` 也被
+        # 印成「沒有送達」——把「查不到」渲染成「確定沒送到」，與 R1 把 rc=0 渲染成
+        # 「送到了」是同一個錯，只是換一邊。三態必須講三種話。
         # 靜音本身要在 stderr 留痕：launchd 會把它收進
-        # logs/launchd-schedule-watchdog.err.log，那是第三個不依賴權限的面。
-        print(f"WARN 通知未確認送達（{delivery.get('delivered')}）："
-              f"{delivery.get('reason')}　→ 讀者請改看 logs/schedule-alert.json",
+        # logs/launchd-schedule-watchdog.err.log，那是不依賴通知權限的那一面。
+        print("WARN 通知被專注模式擋下，**確定沒有**出現在螢幕上　"
+              "→ 讀者請改看 logs/schedule-alert.json（pytest header 也會印）",
               file=sys.stderr)
+    elif delivery.get("attempted") and delivery.get("delivered") == DELIVERY_UNVERIFIED:
+        print("WARN 通知已送出，但查不到系統紀錄——**既不代表送到，也不代表沒送到**。"
+              "　保險起見請看 logs/schedule-alert.json", file=sys.stderr)
 
 
 if __name__ == "__main__":

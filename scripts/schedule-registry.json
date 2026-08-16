@@ -35,7 +35,11 @@
     {
       "label": "com.cpbl.scrape-daily",
       "plist": "scripts/com.cpbl.scrape-daily.plist",
-      "cadence": {"kind": "daily", "hour": 10, "minute": 10},
+      "cadence": {
+        "kind": "daily",
+        "hour": 10,
+        "minute": 10
+      },
       "effective_from": "2026-07-19",
       "effective_from_evidence": "~/Library/LaunchAgents/com.cpbl.scrape-daily.plist symlink mtime 2026-07-18 18:42（實測），故第一次排程觸發為隔日 10:10；logs 執行時刻分布自 2026-07-19 10:10:05 起穩定落在 10:10±（#132 Discovery §1）。plist 的 Hour 由 3 改 10 在 a90bdeb（07-04），但 launchd 要重新 bootstrap 才吃到。",
       "expected_installed": true,
@@ -48,7 +52,12 @@
     {
       "label": "com.cpbl.weekly-box-revisions",
       "plist": "scripts/com.cpbl.weekly-box-revisions.plist",
-      "cadence": {"kind": "weekly", "weekday": 1, "hour": 14, "minute": 10},
+      "cadence": {
+        "kind": "weekly",
+        "weekday": 1,
+        "hour": 14,
+        "minute": 10
+      },
       "effective_from": "2026-08-10",
       "effective_from_evidence": "symlink mtime 2026-08-08 18:56（實測，週六 bootstrap），其後第一個排程週一為 2026-08-10；logs/weekly-box-revisions-20260810-141135.log 為第一次排程觸發（08-08 22:52 那份是 bootstrap 後的 kickstart 測跑）",
       "expected_installed": true,
@@ -61,7 +70,12 @@
     {
       "label": "com.cpbl.weekly-game-pitches",
       "plist": "scripts/com.cpbl.weekly-game-pitches.plist",
-      "cadence": {"kind": "weekly", "weekday": 1, "hour": 13, "minute": 10},
+      "cadence": {
+        "kind": "weekly",
+        "weekday": 1,
+        "hour": 13,
+        "minute": 10
+      },
       "effective_from": null,
       "effective_from_evidence": "尚未安裝，故無生效日。實測 launchctl print gui/501/com.cpbl.weekly-game-pitches → exit 113（Could not find service）",
       "expected_installed": false,
@@ -87,11 +101,15 @@
     {
       "label": "com.cpbl.schedule-watchdog",
       "plist": "scripts/com.cpbl.schedule-watchdog.plist",
-      "cadence": {"kind": "daily", "hour": 21, "minute": 10},
+      "cadence": {
+        "kind": "daily",
+        "hour": 21,
+        "minute": 10
+      },
       "effective_from": "2026-08-15",
       "effective_from_evidence": "#132 交付的偵測器本身。RunAtLoad=true 使它在每次登入／開機時也跑一次，故實際執行次數多於 cadence——cadence 只用來算『上一個應該完成的週期』，多跑不影響判定。",
       "expected_installed": true,
-      "expected_installed_reason": "#132 的偵測器本身：唯一會回頭判定『上一個週期跑了沒』的東西。⚠️ 它**不是**推播管道——osascript 通知在本機實測被專注模式全部 suppressed（見 scripts/schedule_watch.py 的 notify() 區段量測），真正會被讀到的是它寫的 logs/schedule-alert.json 經由 tests/conftest.py 印在每次 pytest header 上。⚠️ 安裝屬部署步驟，須在本卡 merge 後執行。",
+      "expected_installed_reason": "#132 的偵測器本身：唯一會回頭判定『上一個週期跑了沒』的東西，也是唯一會主動把排程失敗推到需求方螢幕上的東西。⚠️ 推播靠 macOS 通知，而它取決於使用者的專注模式設定——2026-08-15 實測被一個非刻意開啟的專注模式全數擋下，08-16 需求方關閉後復活（量測見 scripts/schedule_watch.py 的 notify() 區段）。該設定可被無聲撤銷，故偵測器每次執行都重新量一次投遞結果，並以 logs/schedule-alert.json 經由tests/conftest.py 印在每次 pytest header 上作為不依賴設定的備援。⚠️ 安裝屬部署步驟，須在本卡 merge 後執行。",
       "status_path": "logs/schedule-watchdog/last-run.json",
       "history_path": "logs/schedule-history/com.cpbl.schedule-watchdog.jsonl",
       "history_from": "2026-08-15",

@@ -756,9 +756,10 @@ def test_alert_artifact_tells_the_reader_nobody_was_notified(tmp_path: Path,
 
     alert = json.loads((repo / "logs" / "schedule-alert.json").read_text(encoding="utf-8"))
     assert alert["notification"]["delivered"] == sw.DELIVERY_SUPPRESSED
-    assert alert["reader"]["goal"] == 3, "不得宣稱達成目標 2"
+    assert alert["notification"]["goal_observed"] == 3, "被擋下時只能算目標 3"
+    assert alert["reader"]["goal_floor"] == 3, "不依賴使用者設定的保證只有目標 3"
     assert alert["reader"]["who"] and alert["reader"]["when"] and alert["reader"]["how"]
-    assert "不另設推播管道" in alert["reader"]["push_channel"]
+    assert "人證" in alert["reader"]["what_code_can_never_prove"]
 
 
 def test_healthy_run_sends_no_notification_and_removes_the_alert(tmp_path: Path,
@@ -807,7 +808,7 @@ def test_no_alert_file_means_a_completely_silent_header(monkeypatch) -> None:
 def test_alert_file_surfaces_in_the_header_with_the_delivery_truth(
     tmp_path: Path, monkeypatch,
 ) -> None:
-    """正控制：告警在，header 就要印出訊息、檔案位置，**以及推播沒送達這件事**。"""
+    """告警在，header 就要印出訊息、檔案位置，以及**這次推播到底怎麼了**。"""
     conf = _conftest()
     alert = tmp_path / "schedule-alert.json"
     alert.write_text(json.dumps({
@@ -821,23 +822,45 @@ def test_alert_file_surfaces_in_the_header_with_the_delivery_truth(
 
     assert any("每日鏈失敗" in ln for ln in lines), "訊息本身沒印出來"
     assert any(str(alert) in ln for ln in lines), "沒告訴讀者去哪看"
-    assert any("沒有送達" in ln for ln in lines), (
-        "沒有說推播失敗——讀者會誤以為已經有人被通知到，那正是本卡要消滅的形狀")
+    assert any("確定沒有" in ln for ln in lines), (
+        "沒有說推播被擋下——讀者會誤以為已經有人被通知到")
 
 
-def test_header_does_not_claim_delivery_failure_when_it_actually_presented(
-    tmp_path: Path, monkeypatch,
-) -> None:
-    """負控制：真的送達時就不該再喊「沒有送達」，否則那行字會變成雜訊。"""
-    conf = _conftest()
-    alert = tmp_path / "schedule-alert.json"
+def _header_for(conf, tmp_path: Path, monkeypatch, delivered: str) -> str:
+    alert = tmp_path / f"alert-{delivered}.json"
     alert.write_text(json.dumps({
         "observed_at": "x", "message": "m",
-        "notification": {"delivered": sw.DELIVERY_PRESENTED},
+        "notification": {"delivered": delivered},
     }, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setattr(conf, "_SCHEDULE_ALERT", alert)
+    return "\n".join(conf._schedule_alert_header())
 
-    assert not any("沒有送達" in ln for ln in conf._schedule_alert_header())
+
+def test_the_three_delivery_states_each_say_something_different(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    """**三態必須講三種話。**
+
+    R2 把 `unverified` 和 `suppressed` 都渲染成「沒有送達」——把「查不到」講成「確定
+    沒送到」，是在宣稱自己沒有的確定性；那與 R1 把 `rc=0` 講成「送到了」是同一個錯，
+    只是換一邊。這條同時擋住兩個方向。
+    """
+    conf = _conftest()
+    texts = {d: _header_for(conf, tmp_path, monkeypatch, d)
+             for d in (sw.DELIVERY_PRESENTED, sw.DELIVERY_SUPPRESSED, sw.DELIVERY_UNVERIFIED)}
+
+    assert len(set(texts.values())) == 3, "有兩個狀態講了一模一樣的話"
+
+    # suppressed：可以斷言「確定沒出現」
+    assert "確定沒有" in texts[sw.DELIVERY_SUPPRESSED]
+    # unverified：**不准**斷言任何一邊
+    unverified = texts[sw.DELIVERY_UNVERIFIED]
+    assert "既不代表送到" in unverified and "也不代表沒送到" in unverified
+    assert "確定沒有" not in unverified, "把『查不到』講成『確定沒送到』"
+    # presented：可以說呈現了，但**不得**宣稱有人讀了
+    presented = texts[sw.DELIVERY_PRESENTED]
+    assert "已呈現" in presented
+    assert "不保證有人讀" in presented, "『系統呈現了』不等於『人看到了』"
 
 
 def test_corrupt_alert_file_degrades_to_a_line_and_never_breaks_pytest(
@@ -854,11 +877,18 @@ def test_corrupt_alert_file_degrades_to_a_line_and_never_breaks_pytest(
     assert len(lines) == 1 and "讀不開" in lines[0]
 
 
-def test_reader_contract_is_honest_about_being_goal_three() -> None:
-    """`READER_CONTRACT` 是寫進產物給人看的宣稱，**不得**把目標 3 包裝成目標 2。"""
-    assert sw.READER_CONTRACT["goal"] == 3
+def test_reader_contract_separates_the_guaranteed_floor_from_the_measured_level() -> None:
+    """目標層級**不是常數**：floor 是不靠使用者設定就成立的那一半，observed 由量測來。
+
+    2026-08-16 需求方關掉非刻意開啟的專注模式後推播復活，但那條通道靠一個**可被無聲
+    撤銷**的設定（它已經無聲退化過一次），且「有人讀了」永遠是人證。故 floor 維持 3。
+    """
+    assert sw.READER_CONTRACT["goal_floor"] == 3
+    assert "goal" not in sw.READER_CONTRACT, "不得再有一個會被誤讀成常態宣稱的 goal 欄"
     assert "pytest" in sw.READER_CONTRACT["when"]
-    assert sw.READER_CONTRACT["push_channel"].startswith("無")
+    assert sw._GOAL_BY_DELIVERY[sw.DELIVERY_PRESENTED] == 2
+    assert sw._GOAL_BY_DELIVERY[sw.DELIVERY_SUPPRESSED] == 3
+    assert sw._GOAL_BY_DELIVERY[sw.DELIVERY_UNVERIFIED] is None, "查不到時不得宣稱層級"
 
 
 # ================================================================== 部署錨點
@@ -967,3 +997,109 @@ def test_boots_before_the_deployment_anchor_are_not_runatload_failures(tmp_path:
     # 負控制：錨點**之後**的同一種開機仍然要被抓——否則上一句只是把檢查關掉了
     with_after = _evaluate(repo, registry, "2026-08-16T21:10:00+0800", boots=[after])
     assert "RUNATLOAD_NOT_HONORED" in _verdicts(with_after)
+
+
+# ======================================= predicate 缺陷：presented 曾經結構上不可達
+#
+# 跨家族查核在 R2 抓到的第二條阻擋：`Presenting` 那一行是 **usernoted** 發的，而 R2 的
+# predicate 只查 `donotdisturbd OR NotificationCenter`——**把自己註解裡記下的那一行，
+# 用七行之後的 predicate 濾掉了**。於是 DELIVERY_PRESENTED 永遠回不出來，輸出只可能是
+# suppressed 或 unverified。一個永遠不會回傳的分支等於沒有寫。
+#
+# 實測（2026-08-16 10:10，同一則通知、同一個時間窗）：
+#   舊 predicate → 找到 Presenting 行 0 筆
+#   加上 usernoted → 找到 1 筆
+
+
+def test_predicate_must_include_usernoted_or_presented_is_unreachable() -> None:
+    """`Presenting` 由 usernoted 發出 ⇒ 查詢面不含它，presented 就永遠判不到。"""
+    assert 'process == "usernoted"' in sw._LOG_PREDICATE, (
+        "predicate 漏掉 usernoted：DELIVERY_PRESENTED 會結構上不可達")
+
+
+def test_mutation_dropping_usernoted_from_the_predicate_kills_presented(monkeypatch) -> None:
+    """**第三條變異檢驗**：把 usernoted 從 predicate 拿掉，presented 必須判不出來。
+
+    這條是用**真實日誌行**做的——`Presenting` 由 usernoted 發、其餘兩個 process 不發，
+    所以模擬「舊 predicate」只要把 usernoted 的行濾掉即可，那正是舊 predicate 的效果。
+    """
+    presenting = ('2026-08-16 10:14:44.894 Df usernoted[682:407e641] '
+                  '[com.apple.unc:application] Presenting <NotificationRecord '
+                  'app:"com.apple.ScriptEditor2" ident:"DA39-A3EE" uuid:"EA26BD5A">')
+
+    # 正控制：現行 predicate 看得到 usernoted 的行 ⇒ presented
+    _patch_run(monkeypatch, 0, 0, presenting.encode())
+    assert sw.notify("t", "m")["delivered"] == sw.DELIVERY_PRESENTED
+
+    # 變異：舊 predicate 濾掉 usernoted ⇒ 同一則通知變成「查不到」
+    _patch_run(monkeypatch, 0, 0, b"")
+    mutated = sw.notify("t", "m")
+    assert mutated["delivered"] == sw.DELIVERY_UNVERIFIED
+    assert mutated["delivered"] != sw.DELIVERY_PRESENTED, (
+        "舊 predicate 下 presented 仍然判得出來——那這條變異檢驗是空的")
+
+
+def test_suppression_needs_both_markers_not_just_the_muted_line(monkeypatch) -> None:
+    """抑制有**兩種**訊號，只認一種會製造最危險的偽陽性。
+
+    實測（2026-08-15 13:23:29 的 ScriptEditor2）：那則被抑制的通知只有 donotdisturbd 的
+    `outcome: suppressed`，**沒有** NotificationCenter 的 `muted by DND suppression`。
+    加上 usernoted 之後，只認 muted 行就會讓它落進「沒有攔截紀錄」而被判 presented
+    ——把「確定沒出現」講成「已呈現」，方向最壞。
+    """
+    both_lines = (
+        '2026-08-15 13:23:29.037 Df usernoted[682] Presenting <NotificationRecord '
+        'app:"com.apple.ScriptEditor2" uuid:"E5F60E6E">\n'
+        '2026-08-15 13:23:29.043 Df donotdisturbd[14129] Event was resolved: '
+        'bundleIdentifier: com.apple.ScriptEditor2 outcome: suppressed; '
+        'reason: mode configuration type')
+    _patch_run(monkeypatch, 0, 0, both_lines.encode())
+
+    verdict = sw.notify("t", "m")
+
+    assert verdict["delivered"] == sw.DELIVERY_SUPPRESSED, (
+        "只認 muted 行 ⇒ 這則會被誤判成 presented")
+    assert "outcome: suppressed" in verdict["evidence"]
+
+
+def test_goal_observed_is_derived_from_the_measurement_not_asserted(monkeypatch) -> None:
+    """目標層級由量測推導。presented→2、suppressed→3、unverified→不宣稱。"""
+    presenting = ('2026-08-16 10:14:44 Df usernoted[682] Presenting '
+                  '<NotificationRecord app:"com.apple.ScriptEditor2">')
+    _patch_run(monkeypatch, 0, 0, presenting.encode())
+    assert sw.notify("t", "m")["goal_observed"] == 2
+
+    _patch_run(monkeypatch, 0, 0, _MUTED_LINE.encode())
+    assert sw.notify("t", "m")["goal_observed"] == 3
+
+    _patch_run(monkeypatch, 0, 0, b"")
+    assert sw.notify("t", "m")["goal_observed"] is None
+
+
+def test_anchor_floor_behaves_across_the_day_boundary(tmp_path: Path) -> None:
+    """跨日回歸：錨點是「昨天」時，判定窗必須正常前進，且不得補判部署前的週期。
+
+    2026-08-16 這天正好是真實的跨日機會——登記表的 `history_from` 與部署錨點都變成
+    「昨天」。這條把當時實測的三個時點釘住，避免日後改動在日界線上出現 off-by-one。
+    """
+    job = _job("com.cpbl.schedule-watchdog", {"kind": "daily", "hour": 21, "minute": 10},
+               effective_from="2026-08-15", history_from="2026-08-15")
+    repo, registry = _build_repo(tmp_path, [job], anchor="2026-08-15")
+    # 08-15 21:10 那一輪有紀錄且成功；08-14（部署前）當然沒有
+    _write_history(repo, "com.cpbl.schedule-watchdog", [
+        _record("2026-08-15T21:10:00+0800", "succeeded", exit_code=0),
+    ])
+
+    # 隔天早上：F1=08-14 在錨點之前 ⇒ 不得被判 MISSING
+    morning = _evaluate(repo, registry, "2026-08-16T10:30:00+0800")
+    assert morning["exit_code"] == 0, f"跨日後補判了部署前的週期：{morning['message']}"
+
+    # 隔天 21:10：F1=08-15 已在錨點之後且有成功紀錄 ⇒ 仍然安靜
+    evening = _evaluate(repo, registry, "2026-08-16T21:10:00+0800")
+    assert evening["exit_code"] == 0
+
+    # 負控制：把 08-15 那筆紀錄拿掉，同一個時點就必須報 MISSING——
+    # 證明上面兩條不是因為判定窗整個空掉才安靜的
+    (repo / "logs" / "schedule-history" / "com.cpbl.schedule-watchdog.jsonl").unlink()
+    naked = _evaluate(repo, registry, "2026-08-16T21:10:00+0800")
+    assert naked["exit_code"] == sw.EXIT_MISSING
