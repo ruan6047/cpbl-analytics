@@ -25,9 +25,15 @@ import {
   todayInningLabel,
   todayPollDelayMs,
   todayStatusText,
+  latestGameStatus,
+  latestGameDateNote,
+  latestDayPendingCount,
+  LATEST_STATUS_COPY,
+  LATEST_FOOTER_COPY,
   TODAY_COPY,
   TODAY_POLL_LIVE_MS,
   TODAY_POLL_PREGAME_MS,
+  type DailyGame,
   type DailyGamePregame,
   type DailySummary,
   type RefreshStatus,
@@ -811,4 +817,129 @@ test("phaseTone 走 StatusBadge 四語彙，不發明第五種狀態色", () => 
   assert.equal(phaseTone("unknown"), "warn");
   assert.equal(phaseTone("scheduled"), "scheduled");
   assert.equal(phaseTone("lineup_announced"), "scheduled");
+});
+
+// —— 最近比賽日的混合日（DAILY-MIXED-DAY-UX1，需求方 Design Gate 2026-08-16）——
+//
+// 場次資料全部照抄本機 DB 實查列，不自己編：混合日取 2026-08-09（A#253 完賽＋A#254／255
+// 延賽）、無註記取 2025-09-24（D#143 完賽＋D#108 無註記且無取證）。
+//
+// ⚠️ 2023-08-01 的 A#175 **不能再當「未完成」的例子**：它是全庫 5 場經官方 box 取證的
+// 0:0 真和局之一，後端改用 `is_completed_game` 之後回的是 `completed: true` ＋ 0:0 比分
+// （Design Gate 第 8 項）。提案階段拿它當 fixture 是錯的，這一輪換掉。
+
+const latestGame = (over: Partial<DailyGame> = {}): DailyGame => ({
+  season: 2026, kind_code: "A", game_sno: 253, game_date: "2026-08-09", venue: "澄清湖",
+  away_team_code: "B", away_team_name: "中信兄弟", away_score: 10,
+  home_team_code: "T", home_team_name: "台鋼雄鷹", home_score: 2,
+  completed: true, delay_kind: null, orig_date: null, ...over,
+});
+
+test("混合日：完賽場與延賽場分流，不把未完成場算成賽後卡", () => {
+  // 2026-08-09 A 的三場，逐欄照抄 /api/v1/daily/summary 實測回應。
+  const games = [
+    latestGame(),
+    latestGame({ game_sno: 254, away_team_name: "味全龍", home_team_name: "樂天桃猿",
+                 away_score: null, home_score: null, completed: false,
+                 delay_kind: "延賽", orig_date: "2026-08-09" }),
+    latestGame({ game_sno: 255, away_team_name: "統一7-ELEVEn獅", home_team_name: "富邦悍將",
+                 away_score: null, home_score: null, completed: false,
+                 delay_kind: "延賽", orig_date: "2026-08-09" }),
+  ];
+  assert.deepEqual(games.map(latestGameStatus), ["final", "postponed", "postponed"]);
+  assert.equal(latestDayPendingCount(games), 2);
+});
+
+test("全未完成日：計數不得假設至少一場完賽", () => {
+  // 純函式的下界：`latestDayPendingCount` 不得靠「總場數 − 1」之類的假設。
+  // 註：`latest_game_day` 取 `max(game_date) WHERE completed`，所以真實 API 回應裡這一天
+  // **必然**至少有一場完賽；這裡測的是函式本身，不是宣稱那個日子存在。
+  const games = [latestGame({ season: 2025, kind_code: "D", game_sno: 108,
+                              game_date: "2025-09-24", venue: "斗六",
+                              away_team_name: "富邦悍將二軍", home_team_name: "味全龍二軍",
+                              away_score: null, home_score: null, completed: false })];
+  assert.equal(latestDayPendingCount(games), 1);
+  assert.equal(games.filter((g) => latestGameStatus(g) === "final").length, 0);
+});
+
+test("無註記情境：沒有 delay_kind 時走中性態，不得落到延賽或保留", () => {
+  // 2025-09-24 D#108（0:0、無 delay_kind、無完賽取證）＋ 同日 D#143 完賽 10:3＝真實混合日。
+  const g = latestGame({ season: 2025, kind_code: "D", game_sno: 108,
+                         game_date: "2025-09-24", venue: "斗六",
+                         away_team_name: "富邦悍將二軍", home_team_name: "味全龍二軍",
+                         away_score: null, home_score: null, completed: false });
+  assert.equal(latestGameStatus(g), "unrecorded");
+  // 空字串與空白同樣是「沒有註記」——DB 實查確有空字串而非 NULL 的列。
+  assert.equal(latestGameStatus({ ...g, delay_kind: "" }), "unrecorded");
+  assert.equal(latestGameStatus({ ...g, delay_kind: "  " }), "unrecorded");
+});
+
+test("**取證的 0:0 真和局是賽果不是未完成**：後端送 completed 時走賽後卡", () => {
+  // 2023-08-01 A#175：全庫 5 場經官方 box 取證的 0:0 和局之一。後端改判準後
+  // （Design Gate 第 8 項）它帶 `completed: true` ＋ 0:0 比分抵達前端。
+  const tie = latestGame({ season: 2023, game_sno: 175, game_date: "2023-08-01",
+                           away_team_name: "味全龍", home_team_name: "統一7-ELEVEn獅",
+                           away_score: 0, home_score: 0, completed: true });
+  assert.equal(latestGameStatus(tie), "final");
+  assert.equal(latestDayPendingCount([tie]), 0);
+  // 賽後入口照給——和局也是賽果，不得因為 0:0 就退化成沒有連結的狀態卡。
+  assert.equal(LATEST_FOOTER_COPY.final, "賽後復盤 →");
+});
+
+test("**紅線**：delay_kind 是歷史標記，已完成場不得被標成延賽", () => {
+  // 2026-06-27 A#15：04-04 延到 06-27 後 2:9 打完，delay_kind 仍留著（全庫 41 場同型）。
+  const played = latestGame({ game_sno: 15, game_date: "2026-06-27", away_score: 2, home_score: 9,
+                              completed: true, delay_kind: "延賽", orig_date: "2026-04-04" });
+  assert.equal(latestGameStatus(played), "final");
+  assert.equal(latestDayPendingCount([played]), 0);
+});
+
+test("保留賽與延賽是兩態，文案不得共用", () => {
+  const reserved = latestGame({ away_score: null, home_score: null, completed: false,
+                                delay_kind: "保留", orig_date: "2026-06-14" });
+  assert.equal(latestGameStatus(reserved), "reserved");
+  assert.notEqual(LATEST_STATUS_COPY.reserved.label, LATEST_STATUS_COPY.postponed.label);
+});
+
+test("三句徽章文案＝需求方 Design Gate 裁定的字面，改動必須是刻意的", () => {
+  // 這一條不是在測邏輯，是把裁定釘在版本控制裡：三句都是需求方逐條裁的，其中
+  // 「保留比賽」還推翻過一版自創說法（「保留・擇期續賽」）。沒有這條，任何人都能
+  // 順手把官方詞彙改回自撰註解而沒有任何東西轉紅。
+  assert.equal(LATEST_STATUS_COPY.postponed.label, "延賽");
+  assert.equal(LATEST_STATUS_COPY.reserved.label, "保留比賽");
+  assert.equal(LATEST_STATUS_COPY.unrecorded.label, "無賽果紀錄");
+  // 「無賽果紀錄」描述的是**我們的紀錄**，不宣稱有人正在確認——所以它的色調是中性的
+  // scheduled 而不是要人行動的 warn；官方給了狀態的那兩態才是 warn。
+  assert.equal(LATEST_STATUS_COPY.unrecorded.tone, "scheduled");
+  assert.equal(LATEST_STATUS_COPY.postponed.tone, "warn");
+  assert.equal(LATEST_STATUS_COPY.reserved.tone, "warn");
+});
+
+test("**紅線**：三句狀態文案都不得宣稱停賽原因或「未開打」", () => {
+  const banned = ["雨", "颱", "天候", "未開打", "取消", "停電", "因"];
+  for (const [key, { label }] of Object.entries(LATEST_STATUS_COPY)) {
+    for (const word of banned) {
+      assert.equal(label.includes(word), false, `${key} 文案不得出現未經證實的「${word}」`);
+    }
+  }
+});
+
+test("原定日期只在確實不同時才講；相同代表尚未排補賽日，不得無中生有", () => {
+  const notRescheduled = latestGame({ game_sno: 254, completed: false, away_score: null,
+                                      home_score: null, delay_kind: "延賽",
+                                      orig_date: "2026-08-09" });
+  assert.equal(latestGameDateNote(notRescheduled), null);
+  const rescheduled = latestGame({ game_sno: 14, game_date: "2026-06-27", completed: false,
+                                   away_score: null, home_score: null, delay_kind: "延賽",
+                                   orig_date: "2026-04-04" });
+  assert.equal(latestGameDateNote(rescheduled), "原定 04/04");
+  // 已完成場不加註記——那是賽後卡，排程歷程不是它要講的事。
+  assert.equal(latestGameDateNote(latestGame({ orig_date: "2026-04-04" })), null);
+});
+
+test("未完成場不給賽後入口：目前單場頁對延賽場是空的且標題寫 0：0", () => {
+  // Design Gate 第 4 項：本卡不連結；title 缺陷（`entity-metadata.ts` 用 `score != null`
+  // 而不是「打完了」）另開 UX-GAME-META-COMPLETED1（#148），本卡不修。
+  assert.equal(LATEST_FOOTER_COPY.pending, null);
+  assert.equal(LATEST_FOOTER_COPY.final, "賽後復盤 →");
 });

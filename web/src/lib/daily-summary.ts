@@ -283,6 +283,110 @@ export function gameHref(g: Pick<DailyGame, "game_sno" | "kind_code" | "season">
   return `/games/${g.game_sno}?kind=${g.kind_code}&year=${g.season}`;
 }
 
+// —— 最近比賽日的混合日呈現（DAILY-MIXED-DAY-UX1，需求方 Design Gate 2026-08-16 全數裁定）——
+//
+// 痛點：`latest_game_day` 是「最近**有**完成場的那一天的**全部**場次」，不是「完成場清單」
+// ——後端 `latest_day` 取 `max(game_date) WHERE completed`，接著把那一天的場次整批送出。
+// 同一天同時有完賽與延賽時（2026-08-09 A#253 完賽＋A#254／255 延賽，本機 DB 實查），
+// 未完成場帶著 `completed=false`、`home_score=null` 進到賽後卡，於是畫面上出現一張沒有
+// 比分卻寫著「賽後復盤」的空卡。
+//
+// 紅線（卡面第 2 條）：**不得把未證實的原因說成事實**。可用的證據只有官方 `delay_kind`
+// 兩個值（`延賽`／`保留`，對應官網 GameResult 1／2，見 GLOSSARY〈保留賽／delay_kind〉）
+// 與 `orig_date`。**全庫沒有任何欄位記載延賽的原因**——本機實查 `cpbl` schema 下
+// 所有 reason／note／weather 類欄位，唯一相關的 `game_detail.weather_desc` 是該場的天氣
+// 描述而非停賽理由，且延賽場根本沒有 `game_detail` 列。故文案一律只講狀態，不講成因；
+// 「因雨延賽」這種寫法沒有證據支撐，不得出現。
+//
+// **為什麼只有兩種未完成態，不是三種**：混合日的未完成場拆桶（2026-08-16 本機全庫實測，
+// 同日同 kind_code 定義混合日）＝無註記且無取證 62 筆（1993-08-29～2025-09-24）、0:0 但
+// 有官方 box 取證 4 筆、官方註記延賽 3 筆，合計 69。第三桶那 4 筆在後端改用
+// `is_completed_game` 之後直接變成完成場離開這個集合（Design Gate 第 8 項），剩下正好是
+// 「官方給了狀態」與「官方什麼都沒給」兩桶。所以兩種徽章是資料形狀決定的，不是版面偏好。
+
+/** 最近比賽日單場的呈現態。`final` 以外皆為「這一天排了但沒有結果」。 */
+export type LatestGameStatus = "final" | "postponed" | "reserved" | "unrecorded";
+
+/** 官方 `delay_kind` 的兩個值（本機全庫實查：僅 `延賽` 59 筆、`保留` 8 筆，無第三種）。 */
+const DELAY_POSTPONED = "延賽";
+const DELAY_RESERVED = "保留";
+
+/** 單場 → 呈現態。
+ *
+ *  **`completed` 必須先判，不可只看 `delay_kind`**：`delay_kind` 是排程歷程的**歷史標記**，
+ *  補賽打完後仍留在該列——本機實查全庫 41 場**已完成**場次帶著 `delay_kind`（例：2026-06-27
+ *  A#15 由 04-04 延到 06-27，最終 2:9 打完，`delay_kind` 仍是 `延賽`）。先看 `delay_kind`
+ *  會把 41 場有比分的終場誤標成延賽。
+ *
+ *  `unrecorded`＝這一天排了這場、日期已過、我們手上沒有賽果，**且官方也沒有給狀態註記**。
+ *  它是混合日未完成場的**多數**而非邊角：本機實查混合日的未完成場 69 筆中 62 筆無註記
+ *  且無取證（1993–2025，以二軍為主），有 `延賽` 註記的只有 3 筆；另 4 筆是 0:0 真和局，
+ *  在後端改判準之後已經是 `completed`，不再進到這個函式的未完成分支。 */
+export function latestGameStatus(g: Pick<DailyGame, "completed" | "delay_kind">): LatestGameStatus {
+  if (g.completed) return "final";
+  const kind = g.delay_kind?.trim();
+  if (kind === DELAY_POSTPONED) return "postponed";
+  if (kind === DELAY_RESERVED) return "reserved";
+  return "unrecorded";
+}
+
+/** 未完成場的狀態徽章文案。**改文案只需要動這一張表**。
+ *  三句話由需求方 Design Gate（2026-08-16）逐條裁定，`daily-summary.test.ts` 釘住字面。
+ *
+ *  三句話都只描述**狀態**或**我們的紀錄**，沒有一句宣稱成因：
+ *  - `postponed`／`reserved` 是官方直接給的狀態，照搬不加工；
+ *  - `unrecorded` 講的是「我們的紀錄裡沒有賽果」，這是可證的；講「未開打」則不可證
+ *    ——沒有註記的場次我們分不出它是沒打、打了沒爬到、還是官網自己沒更新。 */
+export const LATEST_STATUS_COPY: Record<
+  Exclude<LatestGameStatus, "final">,
+  { label: string; tone: FreshnessTone }
+> = {
+  // 官方與球迷都用「延賽」，`delay_kind` 的原字也是它（`聯盟規章.txt` 出現 19 次，本機
+  // 實測）。與 `lib/live-game.ts` 的 canonical `phaseLabel` 用詞不同一事由對照表維持，
+  // 不靠把兩邊改成同一個詞來解決——那會讓官方詞彙遷就內部字彙。
+  postponed: { label: "延賽", tone: "warn" },
+  // 「保留比賽」是**規則書用詞**，不是自創解釋：本機實測 `docs/reference/棒球規則.txt`
+  // 20 次、`聯盟規章.txt` 9 次、`裁判執法手冊規則補述.txt` 9 次。曾提過的「保留・擇期
+  // 續賽」把規則詞加上自撰註解，被需求方否決——官方詞彙優先。
+  reserved: { label: "保留比賽", tone: "warn" },
+  // 刻意**不用** canonical 的「狀態確認中」：那句話隱含「有人正在確認」，而這 62 筆最早
+  // 回到 1993 年，沒有任何確認程序在跑。改成陳述我們的紀錄狀態，不暗示任何進行中的動作。
+  unrecorded: { label: "無賽果紀錄", tone: "scheduled" },
+};
+
+/** 未完成場的補充事實：這一場原定在別的日子（Design Gate 第 6 項：留）。
+ *
+ *  只在 `orig_date` 與 `game_date` **不同**時才出現，因為相同代表「延賽且尚未排定補賽日」
+ *  （本機實查：A#254／255 兩筆 `orig_date === game_date`），此時講任何日期都是無中生有。
+ *  刻意**不寫**「補賽日期未定」——我們能證明的只有「我們的資料裡沒有新日期」，不是
+ *  「官方尚未公布」。這個保守作法在 Design Gate 上被明確採納。 */
+export function latestGameDateNote(
+  g: Pick<DailyGame, "completed" | "orig_date" | "game_date">,
+): string | null {
+  if (g.completed || !g.orig_date || g.orig_date === g.game_date) return null;
+  return `原定 ${shortDate(g.orig_date)}`;
+}
+
+/** 卡片右下角的入口文案。已完成場一字不動（驗收條件：賽後入口不得退化）。 */
+export const LATEST_FOOTER_COPY = {
+  final: "賽後復盤 →",
+  /** 未完成場**不給連結**（Design Gate 第 4 項）：`/games/254` 目前的 SSR 內容是空的，且
+   *  document title 直接寫「味全龍 vs 樂天桃猿 0：0」——把使用者送過去等於把「空白賽後卡」
+   *  換成「宣稱 0：0 的空白頁」，痛點沒有解決只是換了位置。
+   *
+   *  **不連結只是治標，而治本不在本卡射程**：title 的根因是 `lib/entity-metadata.ts` 用
+   *  `score != null` 而不是「這場打完了」判定要不要印比分，延賽場在 DB 是 0/0 不是 NULL。
+   *  賽況月曆一樣會連過去、搜尋引擎一樣索引得到。修法是「metadata 端點回傳 `completed`、
+   *  TS 消費它」而**不是**在 TypeScript 裡再抄一次完成場判準（那會是第三份副本）——
+   *  已另開 `UX-GAME-META-COMPLETED1`（#148）承接。 */
+  pending: null,
+} as const;
+
+/** 這一天有幾場沒有賽果。0＝全部完成（今日的常態），等於總場數＝一場都沒有結果。 */
+export function latestDayPendingCount(games: DailyGame[]): number {
+  return games.filter((g) => !g.completed).length;
+}
+
 // —— 今日賽事三態（UX-HOME-LIVE-STRIP1）——
 //
 // 首頁在比賽日整天失準的根因是**缺乏 phase 意識**：`cpbl.games` 沒有開賽時間欄、live
