@@ -36,7 +36,7 @@ from cpbl.api.helpers import (
 )
 from cpbl.api.live_cache import get_public_live_snapshot
 from cpbl.api.pregame_serving import serving_state
-from cpbl.completion import completed_games_sql_with_evidence
+from cpbl.completion import completed_games_sql_with_evidence, is_completed_game
 from cpbl.config import settings
 from cpbl.db import conn
 from cpbl.models.outcome_simple import ORIENT, load_outcome_rows
@@ -65,11 +65,28 @@ LIVE_STARTED_PHASES = frozenset({"lineup_announced", "live", "final", "reserved"
 # 保留）才要收掉——一場 3:2 中止的比賽旁邊掛賽前勝率是同一個誤導的另一種樣子。
 LIVE_UNDERWAY_PHASES = frozenset({"live", "final", "reserved"})
 
-_GAME_COLUMNS = """
+# 逐場的完賽**證據**（不是判準本身）。判準只有一份，在 `cpbl.completion.is_completed_game`；
+# 這裡取的是它的第五個參數。分開的理由是這兩件事的性質不同：判準是規則，證據是事實查詢。
+#
+# ⚠️ 外層欄位一律加 `g.` 限定詞——相關子查詢 [correlated subquery] 內的未限定欄名會優先解析
+# 到**內層**表，寫成 `WHERE gce_.year = year` 會變成恆真的 `gce_.year = gce_.year`，EXISTS
+# 退化成「證據表有沒有任何一列」，於是每一場 0:0 都被判完成。這不是假想：
+# `completed_games_sql_with_evidence` 的 docstring 記著它被踩過一次，本卡把限定詞拿掉重跑
+# 全庫對帳同樣中彈（2026-08-16 本機實測 315 場判定翻轉＝日期已過的 320 場 0:0 扣掉真正
+# 有證據的 5 場）。這一段與那支 helper 是同一組 join key 的兩份寫法，**由全庫等價性測試
+# 釘住**（`test_daily_summary.py::test_completed_matches_the_canonical_predicate_for_every_game`），
+# 不靠人眼比對。
+_EVIDENCE_EXISTS = """
+    EXISTS (SELECT 1 FROM cpbl.game_completion_evidence gce_
+             WHERE gce_.year = g.year AND gce_.kind_code = g.kind_code
+               AND gce_.game_sno = g.game_sno)
+"""
+
+_GAME_COLUMNS = f"""
     g.year AS season, g.kind_code, g.game_sno, g.game_date, g.venue,
     g.away_team_code, g.away_team_name, g.away_score,
     g.home_team_code, g.home_team_name, g.home_score,
-    g.home_score + g.away_score > 0 AS has_score,
+    {_EVIDENCE_EXISTS} AS has_evidence,
     g.delay_kind, g.orig_date
 """
 
@@ -92,18 +109,38 @@ def _iso(value: date | datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
 
 
-def _serialize(row: dict, as_of: date) -> dict:
-    """一場比賽算「已完成」＝有比分**且**日期不在未來。
+def _completed(row: dict, as_of: date) -> bool:
+    """本端點的完賽判定＝`cpbl.completion.is_completed_game`，**不再自己寫一份**。
 
-    比分不是充分條件：二軍保留賽（`delay_kind='保留'`，全史 4 筆）在 cpbl.games 裡
-    帶著比分但 game_date 指向未來的補賽時段，只看比分會讓「最近比賽日」跳到未來。
-    日期不在未來是可證明的判準，官方保留賽語意留給 GAME-RECAP-STATUS1 定案。
+    改動理由（DAILY-MIXED-DAY-UX1 Design Gate 第 8 項）：同一支端點原本並存兩套判準——
+    挑「哪一天是最近比賽日」用證據感知的 `_DONE_AS_OF`，判「那天每一場完成了沒」卻用
+    手搓的 `home_score + away_score > 0`。後者漏掉了證據那一支，於是**真和局**
+    （0:0 且有官方 box 取證）被判成未完成：那一天會被選為最近比賽日（前者納入了它），
+    進到列表卻標成「沒有賽果」。
+
+    這不是放寬語意而是讓實作追上它早已文件化的語意——`is_completed_game` 的 docstring
+    逐字寫著 0:0 無證據者隔離為待判讀、有證據者為完成場。全庫實測差異恰 5 場
+    （2018/A/124、2021/A/256、2023/A/119、2023/A/175、2025/A/233），與該模組 docstring
+    記載的數字一致。等價性由 `tests/test_daily_summary.py` 的全庫對帳測試釘住。
+    """
+    return is_completed_game(row["home_score"], row["away_score"],
+                             row["game_date"], as_of, bool(row["has_evidence"]))
+
+
+def _serialize(row: dict, as_of: date) -> dict:
+    """一列 games → API 形狀。完賽判定見 `_completed`（單一判準）。
+
+    日期界線是判準的一部分而不是額外條件：二軍保留賽（`delay_kind='保留'`）在 cpbl.games
+    裡帶著中止比分但 game_date 指向未來的補賽時段，`is_completed_game` 的
+    `game_date > as_of → False` 就是擋這件事的那一格，否則「最近比賽日」會跳到未來。
 
     未完成場次的比分一律 null：DB 的 0–0 是「還沒有結果」的佔位，照原樣送出去等於
-    邀請前端把它讀成一場 0 比 0 的比賽（§5.1 語意紅線）。
+    邀請前端把它讀成一場 0 比 0 的比賽（§5.1 語意紅線）。**反過來說，判定為完成的
+    0:0 真和局比分照送 0**——那是它真正的賽果，不是佔位。
     """
     row = dict(row)
-    row["completed"] = bool(row.pop("has_score")) and row["game_date"] <= as_of
+    row["completed"] = _completed(row, as_of)
+    row.pop("has_evidence")
     row["game_date"] = _iso(row["game_date"])
     row["orig_date"] = _iso(row["orig_date"])
     if not row["completed"]:
@@ -510,7 +547,12 @@ def daily_summary(
             """,
             (kinds, season, season, as_of, as_of.fromordinal(as_of.toordinal() - UNRESOLVED_WINDOW_DAYS)),
         )
-        unresolved = _dicts(cur)
+        # SQL 側只能便宜地撈「比分為 0」的候選；「哪些其實已完成」由**同一個** `_completed`
+        # 決定，不在 WHERE 再寫一次判準。少了這一行，一場近期的 0:0 真和局會同時出現在
+        # `unresolved_games`（＝仍無賽果）與 `completed: true`（＝有賽果）——自相矛盾的一列。
+        # 本機今日實測命中 0 筆（那 5 場真和局最近一場是 2025-08-01，落在 30 天窗外），
+        # 所以這一行現在防的是未來，不是現況。
+        unresolved = [row for row in _dicts(cur) if not _completed(row, as_of)]
         unresolved_status = _unresolved_statuses(cur, unresolved)
         last_refresh = _last_refresh(cur)
 
