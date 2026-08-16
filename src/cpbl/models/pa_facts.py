@@ -415,9 +415,19 @@ def key_plays(facts: list[dict], *, wp_by_index: dict[int, dict[str, Any]] | Non
     ``wp_after_terminal``（後三者供勝率條視覺化）：``plate_appearances``（逐打席頁籤）
     **不帶任何 WP 欄位**，顯示面差異靠資料本身守住，不靠前端自律。
 
-    垃圾時間（分差 ≥7）在 |ΔWP| 路徑下**天然被壓到選不上**（大比分領先時任何打席的勝率
-    擺動都接近 0），故不再需要呈現層降飽和；``garbage_time`` 旗標仍隨事實流保留，供
-    其他消費者使用。
+    垃圾時間（分差 ≥7）在 |ΔWP| 路徑下選不上，故不再需要呈現層降飽和；``garbage_time``
+    旗標仍隨事實流保留，供其他消費者使用。
+
+    ⚠️ 機制是**飽和＋被同場前 5 名擠掉**，不是「垃圾時間的擺動都低於門檻」——後者不成立：
+    實測有少數垃圾時間打席的 |ΔWP| 達到 ``min_wp_abs``，只是同場非垃圾時間打席的擺動更大，
+    取前 ``limit`` 名時把它們排掉了。因此「0 命中」**依賴 ``KEY_PLAY_MIN_WP_ABS`` 目前的
+    值**：門檻若調低到那些例外之下，垃圾時間打席就會入選，這段推論與呈現層的決定都要
+    重新檢查。
+
+    分布數字（兩組的中位數／p99／最大值、達門檻個數、母體與 as-of）**刻意不抄在這裡**：
+    抄一份就多一份沒人守、會隨球季推進漂掉的副本。要看數字請讀
+    ``docs/research/WP-DISCLOSURE-SYNC1/keyplay_garbage_time.json``（附 ``--check`` 可重跑）；
+    ``tests/test_recap_wp_contract.py`` 會斷言這段註解沒有把那些數字複製回來。
     """
     if wp_by_index:
         scored = [f for f in facts

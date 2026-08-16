@@ -1,0 +1,71 @@
+{
+ "card": "WP-DISCLOSURE-SYNC1",
+ "measurement": "key-play selection vs garbage-time plate appearances",
+ "population": {
+  "definition": "2026 一軍例行賽（kind A）全部完成場：home_score+away_score > 0 且 game_date <= CURRENT_DATE",
+  "as_of": "2026-08-17",
+  "n_games_completed": 259,
+  "n_games_evaluated": 259,
+  "n_games_without_plate_appearances": 0,
+  "n_games_wp_degraded": 0
+ },
+ "key_play_limit": {
+  "limit": 5,
+  "n_games_below_limit": 1,
+  "game_snos": [
+   112
+  ]
+ },
+ "garbage_time_definition": "打席前分差 ≥7（pa_facts._is_garbage_time）",
+ "key_play_min_wp_abs": 0.03,
+ "swing_distribution": {
+  "garbage_time": {
+   "n_plate_appearances": 978,
+   "max": 0.0332,
+   "p99": 0.0172,
+   "median": 0.0003,
+   "n_at_or_above_threshold": 2
+  },
+  "non_garbage_time": {
+   "n_plate_appearances": 18406,
+   "max": 0.7055,
+   "p99": 0.2082,
+   "median": 0.0245,
+   "n_at_or_above_threshold": 7290
+  }
+ },
+ "results": {
+  "delta_wp": {
+   "n_games_hit": 0,
+   "game_snos": []
+  },
+  "delta_re24": {
+   "n_games_hit": 22,
+   "game_snos": [
+    29,
+    30,
+    34,
+    36,
+    54,
+    82,
+    92,
+    96,
+    140,
+    146,
+    161,
+    174,
+    185,
+    202,
+    208,
+    213,
+    230,
+    241,
+    244,
+    265,
+    266,
+    269
+   ]
+  }
+ },
+ "reproduce": "uv run python docs/research/WP-DISCLOSURE-SYNC1/keyplay_garbage_time.py --check"
+}

@@ -7,7 +7,9 @@ run_dist artifact）與 models/winprob_val（規則參數化 DP：9 局門檻、
 2024+ 一軍突破僵局、季後無和局；VAL1 已證與生產解算器 legacy 規則下逐值相等）。
 
 誠實紅線（本卡 2026-07-27 定位：canonical → 參考資訊＋揭露）：
-* 所有 scope 的時間外驗證結論皆 unsupported（WP-VAL1），事後校準修復 No-Go
+* 沒有任何 scope 通過時間外驗證（WP-VAL1）：A／D 是 unsupported（測了，不準），
+  C／E 是 insufficient_evidence（測不了，對外說「樣本不足」）——兩者處置相同，
+  都不上線。事後校準修復 No-Go
   （WP-CAL1，修正不具時間平穩性）→ WP/WPA 一律以「參考資訊」語意提供，
   response 附版本化 `wp_reliability` metadata 揭露驗證結論、分布來源與已知偏差，
   不宣稱 canonical、不暗示個人歸因具權威性。
@@ -63,12 +65,61 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 # wp_reliability metadata（本卡唯一 owner；版本化）
 # 事實來源（僅引已 merge 報告，不得美化）：
+#   docs/research/ML-WP-VERDICT-ROBUST1/RESULTS.md（v3 判定規則；本區塊數字的來源）
+#   docs/research/ML-WP-VAL-RESAMPLE1/RESULTS.md（#98 打席前比分取樣修正）
 #   docs/research/GAME-RECAP-WP-VAL1_RESULTS.md（含 FIX1 errata 修正 E scope）
 #   docs/research/GAME-RECAP-WP-CAL1_RESULTS.md
+#
+# WP-DISCLOSURE-SYNC1（schema 1.1.0）：本區塊的每個數字都必須逐位對應
+# WP_EVIDENCE_ARTIFACT（as-of 2026-08-07），由 tests/test_recap_wp_contract.py 的
+# 比對器**由 artifact 現算**核對——不是人工宣稱。數字漂移時測試會紅而不是靜默失真，
+# 本卡治的就是「揭露面與它自己指名的證據來源對不上」這個病。
+#
+# ⚠️ 舊路徑 docs/research/game_recap_wp_val1_metrics.json 已標 superseded，不得再引用：
+#    它的 E scope 是 pre-FIX1、打席前比分走受污染的讀法、verdict 是 v2 規則。
 # ---------------------------------------------------------------------------
-WP_RELIABILITY_SCHEMA_VERSION = "1.0.0"
+WP_RELIABILITY_SCHEMA_VERSION = "1.1.0"
 METHODOLOGY_ANCHOR = "/methodology#winprob"
+
+# 揭露面的證據 artifact 與其資料界限。刻意不在 import 時去讀該檔——API 是唯讀線上路徑，
+# 不該依賴 research 檔存在；由測試負責釘住兩邊一致。
+WP_EVIDENCE_ARTIFACT = "docs/research/ML-WP-VERDICT-ROBUST1/verdict_metrics.json"
+WP_EVIDENCE_AS_OF = "2026-08-07"
+
+# 兩種 status（1.1.0 新增第二種）。機器 token 沿用 models/winprob_val 的 v3 判定詞彙
+# （VERDICT_INSUFFICIENT = "insufficient_evidence"，ML-WP-VERDICT-ROBUST1 已 merge）：
+#   unsupported          ＝ 測了，不準（有解析得出來的失敗閘門）
+#   insufficient_evidence＝ 測不了（傘型 token，涵蓋下列三種來源）
+# ⚠️ 兩者的**處置相同**（都不上線、都只作參考資訊），差別只在理由；
+#    「測不了」不是通過，也不得被讀成通過。
+STATUS_UNSUPPORTED = "unsupported"
+STATUS_INSUFFICIENT = "insufficient_evidence"
+
+# 「測不了」的對外中文說法**不只一種**——這正是本卡在治的分辨力問題再往下一層。
+# insufficient_evidence 是傘型 token，底下吃三種來源，而它們的補救方式完全不同：
+#   無可評樣本 / 門檻在此樣本量下不可達  → 「樣本不足」  ：**加資料**才會變
+#   決定性統計量在重抽預算上限內判不動    → 「判定未收斂」：**加算力**才會變
+# 把後者也說成「樣本不足」會誤導讀者以為是資料不夠——那筆資料其實有近萬個打席，
+# 卡住的是 bootstrap 解析不出顯著性。壓成同一個詞就是本卡開卡的原因（只是換一層）。
+#
+# key＝(gate, decision)，直接對應 winprob_val._gate() 的機器欄位，不解析中文字串。
+# ⚠️ fail-closed：artifact 出現未映射的 (gate, decision) 即測試紅（見比對器）——
+#    新來源必須有人決定它叫什麼，不得靜默沿用「樣本不足」。
+LABEL_INSUFFICIENT_SAMPLE = "樣本不足"
+LABEL_UNDETERMINED = "判定未收斂"
+INSUFFICIENT_SOURCE_LABELS = {
+    ("evaluable_sample", "undetermined"): LABEL_INSUFFICIENT_SAMPLE,
+    ("season_brier_vs_baseline", "undetermined"): LABEL_INSUFFICIENT_SAMPLE,
+    ("proxy_pooled_ece", "unreachable"): LABEL_INSUFFICIENT_SAMPLE,
+    ("proxy_pooled_ece", "undetermined"): LABEL_INSUFFICIENT_SAMPLE,
+    ("pooled_bin_dev", "undetermined"): LABEL_UNDETERMINED,
+}
+
+STATUS_LABELS = {STATUS_UNSUPPORTED: "未通過驗證"}  # insufficient 的說法逐 scope 決定
+
 _EVIDENCE = [
+    "docs/research/ML-WP-VERDICT-ROBUST1/RESULTS.md",
+    "docs/research/ML-WP-VAL-RESAMPLE1/RESULTS.md",
     "docs/research/GAME-RECAP-WP-VAL1_RESULTS.md",
     "docs/research/GAME-RECAP-WP-VAL1-FIX1_ERRATA.md",
     "docs/research/GAME-RECAP-WP-CAL1_RESULTS.md",
@@ -77,16 +128,20 @@ _EVIDENCE = [
 WP_RELIABILITY_SCOPES: dict[str, dict[str, Any]] = {
     "A": {
         "scope_label": "一軍例行賽",
-        "status": "unsupported",
+        "status": STATUS_UNSUPPORTED,
+        "status_label": STATUS_LABELS[STATUS_UNSUPPORTED],
         "distribution_source": "own",
         "borrowed_from": None,
         "validation": (
-            "時間外 walk-forward 驗證（2021–2026 池化 1,826 場／138,949 打席）unsupported："
-            "低十分位（落後中的主隊）系統性高估 +4.2~+6.0pt、十分位 8（領先中的主隊）"
-            "低估 −4.3pt，99% game-cluster CI 全數排除 0（VAL1 §0/§3.1）"
+            "時間外 walk-forward 驗證（2021–2026 池化 1,856 場／141,072 打席，"
+            "資料 as-of 2026-08-07）unsupported："
+            "低十分位（落後中的主隊）系統性高估 +4.2~+6.1pt、十分位 8（領先中的主隊）"
+            "低估 −4.5pt，99% game-cluster CI 全數排除 0"
+            "（VAL1 §0/§3.1；數字經 ML-WP-VAL-RESAMPLE1 取樣修正、"
+            "ML-WP-VERDICT-ROBUST1 v3 判定規則後重算）"
         ),
         "known_bias": (
-            "極端分箱已知偏差 ±4–6pt；辨別力真實（池化 Brier 0.153 vs 主場常數基準 0.245），"
+            "極端分箱已知偏差約 ±4–6pt；辨別力真實（池化 Brier 0.153 vs 主場常數基準 0.245），"
             "失準在校準而非資訊量（VAL1 §0 註）"
         ),
         "remediation": (
@@ -96,37 +151,47 @@ WP_RELIABILITY_SCOPES: dict[str, dict[str, Any]] = {
     },
     "C": {
         "scope_label": "一軍總冠軍賽",
-        "status": "unsupported",
+        "status": STATUS_INSUFFICIENT,
+        "status_label": LABEL_INSUFFICIENT_SAMPLE,
         "distribution_source": "borrowed",
         "borrowed_from": "A",
         "validation": (
-            "分布借自一軍例行（A），未獨立驗證：代理池化 ECE 0.110 > 0.05、全期僅 25 場；"
-            "季後主隊指定與種子強度掛鉤，中性隊伍＋主場優勢假設方向性失效（VAL1 §3.3）"
+            "分布借自一軍例行（A），全期僅 25 場——樣本量不足以判定，"
+            "**不是**測出模型不準：池化結果模型其實勝過基準（Brier 0.150 vs 主場常數基準 "
+            "0.257）。代理池化 ECE 0.110 > 0.05 這道閘門在 25 場的樣本量下不可達，"
+            "故判「樣本不足」而非 unsupported（#98 準則 3；VAL1 §3.3、RESAMPLE1 §3.2）"
         ),
         "known_bias": (
-            "已知系統性混淆：2025 年 5 場主隊實際勝率權重僅 0.18，模型預測 ~0.44–0.49"
-            "（VAL1 §3.3）"
+            "季後主隊指定與種子強度掛鉤，中性隊伍＋主場優勢假設有結構性風險；"
+            "但逐季僅 4–7 場，單季落差（如 2025 年 5 場）已由樣本數解釋，"
+            "**不作為失敗證據**（#98 準則 3）"
         ),
     },
     "D": {
         "scope_label": "二軍例行賽",
-        "status": "unsupported",
+        "status": STATUS_UNSUPPORTED,
+        "status_label": STATUS_LABELS[STATUS_UNSUPPORTED],
         "distribution_source": "own",
         "borrowed_from": None,
         "validation": (
-            "自身分布 walk-forward 驗證 unsupported：池化十分位 2 偏差 +4.7pt 顯著超界；"
-            "二軍主場結構逐年不穩（主隊勝率滑向 ~0.50）使跨年分布聚合失真（VAL1 §3.2）"
+            "自身分布 walk-forward 驗證 unsupported：池化十分位 2 偏差 +5.0pt 超出 ±3pt "
+            "上限且顯著（12,000 次 game-cluster 重抽，p_one=0.0023）；二軍主場結構逐年"
+            "不穩（主隊勝率滑向 ~0.50）使跨年分布聚合失真（VAL1 §3.2、ROBUST1 §6-P2）"
         ),
         "known_bias": "主場優勢逐年漂移；生產目前無 D 分布 artifact，本 API 回 model_not_built",
     },
     "E": {
         "scope_label": "一軍季後挑戰賽",
-        "status": "unsupported",
+        "status": STATUS_INSUFFICIENT,
+        "status_label": LABEL_INSUFFICIENT_SAMPLE,
         "distribution_source": "borrowed",
         "borrowed_from": "A",
         "validation": (
-            "分布借自一軍例行（A），未獨立驗證：池化 ECE 0.085 > 0.05、"
-            "E2025 Brier 0.289 輸給主場常數基準 0.253、全期僅 13 場（VAL1-FIX1 §2）"
+            "分布借自一軍例行（A），全期僅 13 場——樣本量不足以判定，"
+            "**不是**測出模型不準：池化結果模型其實勝過基準（Brier 0.148 vs 主場常數基準 "
+            "0.238）。池化 ECE 0.085 > 0.05 與 E2025 單季 Brier 0.286 輸給基準 0.253 "
+            "兩道閘門，在每季 3–5 場的樣本量下不具證據等級"
+            "（#98 準則 3；VAL1-FIX1 §2、RESAMPLE1 §3.2）"
         ),
         "known_bias": "樣本極小（單季 3–5 場），統計檢定力永遠不足以逐季驗證（VAL1 §3.3 同理）",
     },
@@ -135,12 +200,22 @@ WP_RELIABILITY_SCOPES: dict[str, dict[str, Any]] = {
 
 def wp_reliability(kind_code: str) -> dict[str, Any]:
     """該 scope 的版本化 reliability 揭露；未來任一 scope 通過重新驗證，
-    僅翻升該 scope 的 status（consumer 無 breaking change）。"""
+    僅翻升該 scope 的 status（consumer 無 breaking change）。
+
+    1.1.0 起 status 有兩種值，且 ``status_label`` 一併回傳對外中文說法。
+    ``insufficient_evidence`` 是傘型 token，對外說法逐 scope 決定（「樣本不足」或
+    「判定未收斂」，見 :data:`INSUFFICIENT_SOURCE_LABELS`）；它與 ``unsupported`` 的
+    **處置相同**（都不上線），差別只在理由：前者是測不了，後者是測了不準。
+    ``evidence_artifact``／``evidence_as_of`` 是這些數字的來源與資料界限，
+    consumer 顯示時應一併標注。
+    """
     return {
         "schema_version": WP_RELIABILITY_SCHEMA_VERSION,
         "semantics": "reference",  # 參考資訊，非 canonical 歸因
         "scope": kind_code,
         **WP_RELIABILITY_SCOPES[kind_code],
+        "evidence_artifact": WP_EVIDENCE_ARTIFACT,
+        "evidence_as_of": WP_EVIDENCE_AS_OF,
         "methodology": METHODOLOGY_ANCHOR,
         "evidence": _EVIDENCE,
     }
@@ -341,9 +416,9 @@ def game_recap_wp(
     """逐打席 WP／WPA（參考資訊）：只消費 GAME-RECAP-PA1 canonical 打席。
 
     每個可靠打席回傳 pa_id、home_wp_before/after、wpa（主隊視角）與受益隊；
-    不可靠打席 fail closed（保留事件列、WP 欄不可用並附原因）。全 scope 驗證
-    結論 unsupported → response 附版本化 wp_reliability 揭露，前端顯示須標
-    「參考」並連 /methodology（UX 卡職責）。
+    不可靠打席 fail closed（保留事件列、WP 欄不可用並附原因）。無任何 scope 通過
+    時間外驗證（A／D unsupported、C／E 樣本不足）→ response 附版本化 wp_reliability
+    揭露，前端顯示須標「參考」並連 /methodology（UX 卡職責）。
 
     ``away_score_before``／``home_score_before`` 取自 livelog 事件流的打席前快照，
     與 ``/api/v1/games/{sno}/facts`` 的 ``plate_appearances`` 逐打席一致

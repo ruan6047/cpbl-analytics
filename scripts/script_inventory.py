@@ -769,6 +769,10 @@ WRITE_ADJUDICATION: dict[str, tuple[bool, str]] = {
     "docs/research/ML-WP-VAL-RESAMPLE1/bin_stability.py": (False, "唯讀重抽樣分析"),
     "docs/research/ML-WP-VAL-RESAMPLE1/census.py": (False, "唯讀普查"),
     "docs/research/ML-WP-VERDICT-ROBUST1/budget_trace.py": (False, "唯讀預算追蹤"),
+    "docs/research/WP-DISCLOSURE-SYNC1/keyplay_garbage_time.py": (
+        False, "唯讀量測：SELECT cpbl.games 與已 published 的打席，算兩種關鍵打席選法"
+               "各自選中垃圾時間打席的場次數與 |ΔWP| 分布；唯一寫入是同目錄的 JSON "
+               "artifact，不碰 DB"),
     "cpbl-verify-splits": (False, "唯讀驗證入口"),
     "cpbl-research-umpire-impact": (False, "唯讀研究，產物落檔案"),
     "scripts/ability_snapshot.py": (
