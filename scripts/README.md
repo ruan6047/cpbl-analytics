@@ -88,11 +88,11 @@
 ## 計數對帳
 
 - `scripts/**`：**53**
-- `docs/research/**/*.py`：**19**
+- `docs/research/**/*.py`：**20**
 - `pyproject [project.scripts]`：**47**
-- **三面總和：119**
+- **三面總和：120**
 
-檔案面分類分佈：CI 繫結守衛 10、一次性產物 39、待產品裁定 1、常設工具 22
+檔案面分類分佈：CI 繫結守衛 10、一次性產物 40、待產品裁定 1、常設工具 22
 
 ## 寫入面：兩套獨立判準交叉複算
 
@@ -101,7 +101,7 @@
 
 **不取聯集也不取交集**：聯集會把「只是 import 了一個含寫入函式的模組」誤判成寫入者；交集會漏掉「呼叫 `build_splits()` 但自己一行 SQL 都沒有」的真寫入者。不一致者逐支人工裁定，出現**未裁定的新不一致**即 CI 紅，**裁定條目過期**（兩判準已一致）也會 CI 紅——後者是刻意的，`roadmap_lines.py` 的 `GATE_OVERRIDES` 被 `#137` 判為缺陷的理由正是「沒有到期來源」。
 
-- 兩判準皆適用：**109** 支，其中不一致 **28** 支（全部已裁定）
+- 兩判準皆適用：**110** 支，其中不一致 **28** 支（全部已裁定）
 - **只有一套判準：10** 支（`.sh`／`.plist` 沒有 Python AST，W1 結構性不適用）——**這一格沒有交叉複算**，不假裝有
 - 判定為寫入型：**53** 支（`scripts/**` 10、`docs/research/` 1、CLI 42）
 
@@ -168,8 +168,8 @@
 | `sealed` | 198 | 回報 | `docs/control-plane/**` 已於 `8271d7c` 封存唯讀，**永遠改不了** |
 | `self` | 189 | 不適用 | 掃描器自身的說明範例 |
 | `enforced` | 172 | ✅ 強制 | `scripts/`、`src/`、活契約與設計文件——壞了就是現在的缺陷 |
-| `historical` | 144 | 回報 | `docs/archive/**` 與卡片交付產物＝凍結證據，**本卡射程外** |
-| `fixture` | 37 | 不適用 | `tests/**` 的合成路徑；真實路徑壞掉 pytest 自己會紅（更強的機制） |
+| `historical` | 145 | 回報 | `docs/archive/**` 與卡片交付產物＝凍結證據，**本卡射程外** |
+| `fixture` | 36 | 不適用 | `tests/**` 的合成路徑；真實路徑壞掉 pytest 自己會紅（更強的機制） |
 
 **壞路徑——⚠️ **強制面**（1）**：
 
@@ -209,7 +209,7 @@
 > **兩次都不是「少寫了一條正則」，是「判準的名字承諾了一致性、實作沒有給」。**所以第二次的修法不是再加一條，是把「出口是什麼」與「碰不碰得到」拆開。
 
 > [!important] **為什麼不掃 import 閉包**（W2 的射程，也是本判準改版前對 `.py` 用的射程）。
-> `httpx` 在 `cpbl.*` 相依圖裡到處都是，掃閉包會把只 import 了一個常數的唯讀腳本判成打網路的。**現算的差額**（每次重生清冊時重新量，不寫死；母體限 `.py` 入口 109 支，`.sh` 沒有 import 圖故不在本對照內）：閉包法命中 **50** 支、呼叫圖法 **42** 支，閉包法多出來的 **8** 支即誤判面。
+> `httpx` 在 `cpbl.*` 相依圖裡到處都是，掃閉包會把只 import 了一個常數的唯讀腳本判成打網路的。**現算的差額**（每次重生清冊時重新量，不寫死；母體限 `.py` 入口 110 支，`.sh` 沒有 import 圖故不在本對照內）：閉包法命中 **50** 支、呼叫圖法 **42** 支，閉包法多出來的 **8** 支即誤判面。
 > 最刺眼的一支是 `check_splits_pa_split1_results.py`——它從 `cpbl.ingest.cpbl_player_detail` **只 import 了 `APART_COMBOS` 這個 list 常數**，閉包法照樣判它打網路。**誤判要靠 allowlist 消化，而每多一條 allowlist 就離 `roadmap_lines.py` 的 `GATE_OVERRIDES` 近一步**——這裡要的是精確，不是寬。
 
 閉包法多判、呼叫圖法不判的 8 支：`cpbl-classify-pitches-v2`、`docs/research/DEV-CLI-HELP-GUARD1/audit_cli_help.py`、`scripts/check_splits_pa_split1_results.py`、`scripts/data_tie_remedy1.py`、`scripts/g4_gate_report.py`、`scripts/g4_phase_a_metrics.py`、`scripts/ibb_ghost1_probe.py`、`scripts/verify_splits_pa_split1.py`
@@ -331,7 +331,7 @@ shell 沒有 argparse，判準原本是一條寬鬆正則（「有 `getopts`／`
 | `weekly-game-pitches.sh` | 常設工具 | `scripts/` | ✅ | **寫** | ✅ --help 安全 | INGEST-GAME-TM-REFACTOR1-G4 | 每週一次的逐球全季重跑（INGEST-GAME-TM-REFACTOR1-G4 Phase A）。 | ⚠️ 未查證 |
 | `workflow_ledger.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | — | 由 append-only control-plane events 產生活卡 Ledger。 | ⚠️ 已於 33c7c3f 加拒絕執行守衛——TASKS.md 已封存，--write 會覆寫封存產物 |
 
-## 清冊：`docs/research/**/*.py`（19）
+## 清冊：`docs/research/**/*.py`（20）
 
 | 入口 | 分類 | 位置 | 應在 | 寫入 | runnable | 卡 | purpose_declared | purpose_verified |
 |---|---|---|---|---|---|---|---|---|
@@ -348,6 +348,7 @@ shell 沒有 argparse，判準原本是一條寬鬆正則（「有 `getopts`／`
 | `compare.py` | 一次性產物 | `docs/research/ML-WP-VAL-RESAMPLE1/` | ✅ | 唯讀 | ✅ --help 安全 | ML-WP-VAL-RESAMPLE1 | ML-WP-VAL-RESAMPLE1：VAL1 指標的三路對照（canonical / 今日舊讀法 / 今日修正）。 | ⚠️ 未查證 |
 | `budget_trace.py` | 一次性產物 | `docs/research/ML-WP-VERDICT-ROBUST1/` | ✅ | 唯讀 | ✅ --help 安全 | ML-WP-VERDICT-ROBUST1 | ML-WP-VERDICT-ROBUST1 §A — 邊界分箱在 v2 與 v3 兩種讀法下的可重現性實測。 | ⚠️ 未查證 |
 | `compare_verdicts.py` | 一次性產物 | `docs/research/ML-WP-VERDICT-ROBUST1/` | ✅ | 唯讀 | ✅ --help 安全 | ML-WP-VERDICT-ROBUST1 | ML-WP-VERDICT-ROBUST1 §C — 同一份資料、同一份指標，只換判定規則的逐 scope 對照。 | ⚠️ 未查證 |
+| `measure_notification_delivery.py` | 一次性產物 | `docs/research/OPS-SCHEDULE-FAILURE-BLIND1/` | ✅ | 唯讀 | ✅ --help 安全 | OPS-SCHEDULE-FAILURE-BLIND1 | macOS 通知投遞的可重建量測（OPS-SCHEDULE-FAILURE-BLIND1／#132）。 | ⚠️ 未查證 |
 | `analyze_gates.py` | 一次性產物 | `docs/research/RESEARCH-VERDICT-AUDIT1/` | ✅ | 唯讀 | ✅ --help 安全 | RESEARCH-VERDICT-AUDIT1 | RESEARCH-VERDICT-AUDIT1 §2 — 對否定判定的決定性閘門做「雜訊底線」重算。 | ⚠️ 未查證 |
 | `audit_io.py` | 一次性產物 | `docs/research/RESEARCH-VERDICT-AUDIT1/` | ✅ | 唯讀 | ⚠️ --help 不安全 | RESEARCH-VERDICT-AUDIT1 | 本卡三支腳本共用的輸出／驗證入口。 | ⚠️ 未查證 |
 | `build_verdict_list.py` | 一次性產物 | `docs/research/RESEARCH-VERDICT-AUDIT1/` | ✅ | 唯讀 | ✅ --help 安全 | RESEARCH-VERDICT-AUDIT1 | RESEARCH-VERDICT-AUDIT1 §3 — 把窮舉母體與逐檔處置合成裁決清單，並硬性檢查覆蓋。 | ⚠️ 未查證 |
@@ -452,5 +453,5 @@ shell 沒有 argparse，判準原本是一條寬鬆正則（「有 `getopts`／`
 - **「未找到消費者」不等於「沒有消費者」**：本清冊的觀測面只有 **git 追蹤檔案**。本機執行歷史、需求方手動操作、封存前的口頭流程都不在裡面。用詞一律「未找到」。
 - **本輪零刪除**。已用盡的只標記，刪除是需求方的獨立裁定。
 - 位置不變式證明的是「位置與分類一致」，**不是「分類是對的」**。分類含具名人工改判，機器只驗一致性不驗真假。
-- **分段路徑**（`"scripts/" + name` 這類靜態解析不了的組裝）共 56 處，引用完整性檢查涵蓋不到，逐處列出：`docs/research/TIME-SEMANTICS-CONTRACT1/scan_time_semantics.py:149`、`scripts/data_rules_audit1.py:761`、`scripts/data_tie_remedy1.py:322`、`scripts/script_inventory.py:72`、`scripts/script_inventory.py:396`、`scripts/script_inventory.py:400`、`scripts/script_inventory.py:1073`、`scripts/script_inventory.py:1298`、`scripts/script_inventory.py:1986`、`tests/test_backup_prod_db.py:16`、`tests/test_backup_prod_db.py:186`、`tests/test_backup_prod_db.py:196`、`tests/test_backup_prod_db.py:203`、`tests/test_bio_gap2_backfill.py:19`、`tests/test_bio_gap_backfill.py:27`、`tests/test_prod_sync_revision_seq.py:33`、`tests/test_prod_sync_revision_seq.py:183`、`tests/test_prod_sync_revision_seq.py:184`、`tests/test_prod_sync_revision_seq.py:185`、`tests/test_prod_sync_revision_seq.py:216`、`tests/test_refresh_pitch_ingest.py:26`、`tests/test_refresh_remote_train.py:20`、`tests/test_refresh_status.py:29`、`tests/test_refresh_status.py:30`、`tests/test_refresh_status.py:31`、`tests/test_review_prompt.py:7`、`tests/test_roadmap_lines.py:28`、`tests/test_schedule_watch.py:22`、`tests/test_schedule_watch.py:23`、`tests/test_schedule_watch.py:291`、`tests/test_schedule_watch.py:364`、`tests/test_scrape_daily.py:32`、`tests/test_scrape_daily.py:33`、`tests/test_scrape_daily.py:115`、`tests/test_scrape_daily.py:132`、`tests/test_scrape_daily.py:156`、`tests/test_scrape_daily.py:310`、`tests/test_script_inventory.py:246`、`tests/test_script_inventory.py:611`、`tests/test_script_inventory.py:657`、`tests/test_script_inventory.py:671`、`tests/test_script_inventory.py:679`、`tests/test_script_inventory.py:687`、`tests/test_script_inventory.py:699`、`tests/test_script_inventory.py:752`、`tests/test_script_inventory.py:810`、`tests/test_script_inventory.py:815`、`tests/test_script_inventory.py:816`、`tests/test_script_inventory.py:817`、`tests/test_script_inventory.py:897`、`tests/test_shell_help_guard.py:311`、`tests/test_shell_help_guard.py:383`、`tests/test_state_plane_migrate.py:16`、`tests/test_task_card_sections.py:8`、`tests/test_verify_refresh_info.py:27`、`tests/test_workflow_ledger.py:5`
+- **分段路徑**（`"scripts/" + name` 這類靜態解析不了的組裝）共 56 處，引用完整性檢查涵蓋不到，逐處列出：`docs/research/TIME-SEMANTICS-CONTRACT1/scan_time_semantics.py:149`、`scripts/data_rules_audit1.py:761`、`scripts/data_tie_remedy1.py:322`、`scripts/script_inventory.py:72`、`scripts/script_inventory.py:396`、`scripts/script_inventory.py:400`、`scripts/script_inventory.py:1073`、`scripts/script_inventory.py:1298`、`scripts/script_inventory.py:1986`、`tests/test_backup_prod_db.py:16`、`tests/test_backup_prod_db.py:186`、`tests/test_backup_prod_db.py:196`、`tests/test_backup_prod_db.py:203`、`tests/test_bio_gap2_backfill.py:19`、`tests/test_bio_gap_backfill.py:27`、`tests/test_prod_sync_revision_seq.py:33`、`tests/test_prod_sync_revision_seq.py:183`、`tests/test_prod_sync_revision_seq.py:184`、`tests/test_prod_sync_revision_seq.py:185`、`tests/test_prod_sync_revision_seq.py:216`、`tests/test_refresh_pitch_ingest.py:26`、`tests/test_refresh_remote_train.py:20`、`tests/test_refresh_status.py:29`、`tests/test_refresh_status.py:30`、`tests/test_refresh_status.py:31`、`tests/test_review_prompt.py:7`、`tests/test_roadmap_lines.py:28`、`tests/test_schedule_watch.py:22`、`tests/test_schedule_watch.py:23`、`tests/test_schedule_watch.py:291`、`tests/test_schedule_watch.py:364`、`tests/test_scrape_daily.py:32`、`tests/test_scrape_daily.py:33`、`tests/test_scrape_daily.py:115`、`tests/test_scrape_daily.py:132`、`tests/test_scrape_daily.py:156`、`tests/test_scrape_daily.py:310`、`tests/test_script_inventory.py:246`、`tests/test_script_inventory.py:611`、`tests/test_script_inventory.py:657`、`tests/test_script_inventory.py:671`、`tests/test_script_inventory.py:679`、`tests/test_script_inventory.py:687`、`tests/test_script_inventory.py:699`、`tests/test_script_inventory.py:752`、`tests/test_script_inventory.py:810`、`tests/test_script_inventory.py:815`、`tests/test_script_inventory.py:816`、`tests/test_script_inventory.py:817`、`tests/test_script_inventory.py:900`、`tests/test_shell_help_guard.py:311`、`tests/test_shell_help_guard.py:383`、`tests/test_state_plane_migrate.py:16`、`tests/test_task_card_sections.py:8`、`tests/test_verify_refresh_info.py:27`、`tests/test_workflow_ledger.py:5`
 

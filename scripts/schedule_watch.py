@@ -679,23 +679,35 @@ def build_message(report: dict) -> str:
 #
 # ⚠️ **以上是 2026-08-15 的狀態，已經不是現況。** 2026-08-16 需求方裁定「調整專注模式」
 # 並當場關閉——那個模式是**非刻意**開啟的（需求方原話：「這個是我沒設定到」）。同日
-# 10:14 實測本函式回傳 `presented`，證據為 `usernoted: Presenting … ScriptEditor2` ＋
-# `donotdisturbd: outcome: allowed; reason: disabled; activeModeUUID: (null)`。
+# 11:58:18 實測本函式回傳 `presented`，證據是**關聯到本次通知**的裁決行：
+#   osascript pid=70631 → usernoted `daemon_client.peer[70631]` → uuid `D1DCEC63`
+#   → `NotificationCenter … Resolved interruption suppression for DA39-A3EE as none`
+# （跨距 11:58:18.485–.505，20 毫秒）。
 #
-# ⚠️ **R2 報告的「suppressed 103／allowed 11」是錯的量測，勿再引用。** 那個數字來自
-# `process == "donotdisturbd"` 的 `outcome:` 行，但那些行的 client 全是
-# `com.apple.nc.donotdisturb.user-toggles.preload`——**推測性的預載解析，不是通知投遞**
-# （48 小時內 1960 筆 preload 解析 vs 只有 56 則真實通知）。按「usernoted 的 Delivering
-# ＋ 同 bundle 的抑制訊號」重算，48 小時是 **suppressed 44／未抑制 12**；而 osascript 的
-# 歸屬 app `ScriptEditor2` 在該窗內 **14 則全部被抑制、零例外**——結論方向不變，
-# 但支撐它的數字換過了。
+# ⚠️ **本卡先前所有的彙總數字全部撤回，勿再引用任何一個：**
+#   · R2 的「suppressed 103／allowed 11」——數的是 `donotdisturbd` 的**預載解析**
+#     （client 全是 `com.apple.nc.donotdisturb.user-toggles.preload`），不是通知投遞。
+#   · R3 的「44/12、1960/56」——對象修對了，但視窗寫成**「最近 48 小時」這種相對量**，
+#     換個時刻重跑就是別的數字（跨家族查核固定視窗重算得 37/12、1982/49）。
+#     一句在不同時刻有不同真值的宣稱，沒有辦法被任何人對帳。
 #
-# 教訓（本卡第三次踩到同一個形狀）：**先確認你數的是不是你以為的那個東西。**
-# R1 數到「查不到」其實是 zsh 內建 `log` 吃掉了查詢；R2 數到「103/11」其實數的是預載
-# 解析；R2 的 predicate 又把自己要找的那一行濾掉。三次都是「量測面與待答問題不對齊」。
+# 取而代之：彙總數字一律由
+# `docs/research/OPS-SCHEDULE-FAILURE-BLIND1/measure_notification_delivery.py` 產生，
+# 它**只吃絕對時間戳**、把 `log show` 指令原樣印出來、且對同一視窗重跑逐位相同。
+# 引用時必須連同視窗一起寫（「於 X–Y 量得」），不得寫成無時間限定的宣稱——`log show`
+# 讀的是會回收的環形緩衝，那種宣稱本質上不可能永遠為真。
 #
-# 現在的設計不再賭任何一種環境狀態：**每次執行都重新量一次投遞結果**，並依量測回報
-# 該次達到的目標層級（見 READER_CONTRACT）。推播若再被擋下，下一次執行就會自己說出來。
+# 教訓（本卡第四次踩到同一個形狀）：**先確認你數的是不是你以為的那個東西，
+# 而且確認別人重跑會得到同一個數字。**
+#   R1：數到「查不到」其實是 zsh 內建 `log` 吃掉了查詢
+#   R2：數到「103/11」其實數的是預載解析；predicate 又濾掉自己要找的那一行
+#   R3：對象修對了但邊界沒釘住，於是同一句宣稱有兩個值
+#   R3：把「同 bundle ＋ 時間相近」當成關聯，於是無關事件會被歸給本次通知
+# 前三次是「量測面與待答問題不對齊」，第四次是「量測沒有可重建的邊界與歸屬」。
+#
+# 現在的設計不再賭任何一種環境狀態，也不再依賴任何彙總統計：**每次執行都用本次通知
+# 自己的 uuid 重新量一次投遞結果**（見 `_correlate`），並依量測回報該次達到的目標層級
+# （見 READER_CONTRACT）。推播若再被擋下，下一次執行就會自己說出來。
 
 NOTIFY_BUNDLE_ID = "com.apple.ScriptEditor2"   # osascript 的歸屬 app（實測，見上）
 
@@ -705,37 +717,101 @@ DELIVERY_PRESENTED = "presented"          # 系統紀錄顯示真的呈現了
 DELIVERY_SUPPRESSED = "suppressed"        # 專注模式／勿擾擋掉——確定沒有出現在畫面上
 DELIVERY_UNVERIFIED = "unverified"        # 查不到紀錄：**既不代表送到，也不代表沒送到**
 
-# 查詢面。⚠️ `usernoted` **必須**在裡面：`Presenting` 那一行是它發的（實測，見上方
-# 註解引用的日誌）。R2 的 predicate 漏了它，於是 `Presenting` 永遠找不到、
-# `DELIVERY_PRESENTED` 結構上不可達，輸出只可能是 suppressed 或 unverified——
-# 一個永遠不會回傳的分支等於沒有寫。跨家族查核在 R2 抓到這一條。
-_LOG_PREDICATE = ('process == "donotdisturbd" OR process == "NotificationCenter" '
-                  'OR process == "usernoted"')
+# 查詢面。⚠️ `usernoted` **必須**在裡面：`Presenting` 與帶 uuid 的 `Record` 都是它發的。
+# R2 的 predicate 漏了它，於是 `DELIVERY_PRESENTED` 結構上不可達——一個永遠不會回傳的
+# 分支等於沒有寫。跨家族查核在 R2 抓到這一條。
+#
+# ⚠️ `donotdisturbd` **刻意不在裡面**。R3 把它的 `outcome: suppressed` 當抑制訊號，但
+# 實測它的每一行都**沒有辦法對應到某一則通知**：
+#     uuid 欄位     → 0/2 行有（它根本不印通知 uuid）
+#     identifier    → 空字串 `''`
+#     UUID:         → 那是「這次解析」自己的 id，不是通知的
+#     clientIdentifier → `com.apple.nc.donotdisturb.user-toggles.preload`（預載，非投遞）
+# 只剩 bundleIdentifier 可比對，而同一個 bundle 在同一秒內可以有大量**與本次通知無關**
+# 的預載解析（48 小時 1982 筆解析 vs 49 則真實通知）。拿它當訊號＝把無關事件歸給本次
+# 通知，會產生錯誤的 goal_observed。跨家族查核在 R3 抓到這一條，判定為正確性問題。
+_LOG_PREDICATE = 'process == "NotificationCenter" OR process == "usernoted"'
 
-# 抑制的兩種訊號，**兩種都要看**。實測（2026-08-15 13:23:29 的 ScriptEditor2 那則）：
-# 有的通知被抑制時只有 donotdisturbd 的 `outcome: suppressed`，**不會**印
-# NotificationCenter 的 `muted by DND suppression`。只認後者的話，那一則會落進
-# 「沒有攔截紀錄」而被判成 presented——把加了 usernoted 之後最危險的偽陽性放進來。
-_SUPPRESSION_MARKERS = ("muted by DND suppression", "outcome: suppressed")
+# 事件關聯 [event correlation] 的錨點鏈。每一步都可獨立驗證：
+#   1. 我們自己 spawn osascript ⇒ **PID 是我們給的**，不是猜的
+#   2. usernoted 印 `…daemon_client.peer[<PID>]` ⇒ 拿到處理本次連線的**執行緒**
+#   3. 該執行緒上的 `uuid:"XXXXXXXX"` 就是本次通知的 uuid ⇒ 唯一
+#   4. 帶該 uuid 的行 ⇒ **確定**是本次通知的
+_PEER_RE = re.compile(r'daemon_client\.peer\[(\d+)\]')
+_THREAD_RE = re.compile(r'\b(?:usernoted|NotificationCenter)\[\d+:([0-9a-f]+)\]')
+_UUID_RE = re.compile(r'uuid:"([0-9A-F]+)"')
+_LINE_TS_RE = re.compile(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)')
+
+# ⚠️ 結果行**無法**用 uuid 關聯：它們只帶 `ident`，而 osascript 的 ident 恆為
+# `DA39-A3EE`（空字串的 SHA-1 前綴 da39a3ee…）——**每一則 osascript 通知都一樣**，
+# 因此不具鑑別力。這是 macOS 日誌的限制，不是本檔可以修的東西。
+# 能做到的最強關聯：用 uuid 圈出本次通知在日誌上的**時間跨距**，結果行必須落在那個
+# 跨距內（毫秒級）。若跨距內出現一個以上的通知 uuid，就**不猜**，一律 unverified。
+_CONSTANT_IDENT = "DA39-A3EE"
+
+# NotificationCenter 對「這則要不要打擾使用者」的裁決。三態實測對照：
+#   presented      → `Resolved interruption suppression for DA39-A3EE as none`
+#   DND 擋下       → `… as delay` ＋ `… muted by DND suppression: delay`
+#   螢幕分享時擋下 → `… as delay` ＋ `… muted by display state (displayShared)`
+# ⚠️ `Presenting` 由 usernoted 在**問 DND 之前**就印，三種情況**都會**出現，
+# 故它只能當「系統有受理」，**不能**當「有出現在畫面上」。R3 靠「有 Presenting 且
+# 沒有抑制訊號」反推，在此改為直接讀裁決本身。
+_RESOLUTION_RE = re.compile(r'Resolved interruption suppression for \S+ as (\w+)')
+_MUTED_RE = re.compile(r'muted by ([A-Za-z ]+?)(?::\s*(\S+)|\s*\(([^)]*)\))')
+_NOT_SUPPRESSED = "none"
 
 
-def _delivery_probe(since: datetime, timeout: float = 20.0,
-                    bundle_id: str | None = None) -> dict:
-    """問 macOS 統一日誌：剛剛那則通知到底有沒有被呈現。
+def _ts(line: str):
+    m = _LINE_TS_RE.match(line)
+    return datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S.%f") if m else None
 
-    ⚠️ 這裡刻意**不**用 `osascript` 的退出碼當任何依據——它在被靜音時一樣回 0。
-    唯一採信的是 `usernoted`／`NotificationCenter`／`donotdisturbd` 的紀錄。
+
+def _correlate(lines: list, pid: int) -> dict:
+    """從 osascript PID 追到本次通知的 uuid 與它在日誌上的時間跨距。
+
+    回傳 `{"uuid":…, "first":…, "last":…}`；關聯不上時回傳 `{"error": 說明}`。
+    """
+    thread = None
+    for line in lines:
+        m = _PEER_RE.search(line)
+        if m and int(m.group(1)) == pid:
+            t = _THREAD_RE.search(line)
+            if t:
+                thread = t.group(1)
+                break
+    if thread is None:
+        return {"error": f"日誌裡找不到 osascript(pid={pid}) 的 usernoted 連線"}
+
+    uuids = {u for line in lines if _THREAD_RE.search(line)
+             and _THREAD_RE.search(line).group(1) == thread
+             for u in _UUID_RE.findall(line)}
+    if not uuids:
+        return {"error": f"找到連線（thread {thread}）但該執行緒上沒有通知 uuid"}
+    if len(uuids) > 1:
+        # 同一執行緒同時處理多則 ⇒ 分不出哪一則是我們的 ⇒ 不猜
+        return {"error": f"連線執行緒上有多個 uuid（{sorted(uuids)}），無法唯一關聯"}
+
+    uuid = uuids.pop()
+    stamps = [_ts(line) for line in lines if uuid in line]
+    stamps = [t for t in stamps if t]
+    if not stamps:
+        return {"error": f"uuid {uuid} 沒有可解析的時間戳"}
+    return {"uuid": uuid, "first": min(stamps), "last": max(stamps)}
+
+
+def _delivery_probe(since: datetime, pid: int, timeout: float = 20.0,
+                    bundle_id: str = None) -> dict:
+    """問 macOS 統一日誌：**我們剛剛送的那一則**到底有沒有出現在畫面上。
+
+    ⚠️ 不用 `osascript` 的退出碼當任何依據——它在被靜音時一樣回 0。
 
     ⚠️ `log` 在 zsh 是**內建指令**（實測：`type log` → `log is a shell builtin`），
-    直接寫 `log show` 會被 shell 吃掉並回「too many arguments」而看起來像沒有紀錄。
+    裸寫 `log show` 會被 shell 吃掉並回「too many arguments」而看起來像沒有紀錄。
     本卡 R1 的探查就是這樣得到假陰性的，故此處硬寫絕對路徑 `/usr/bin/log`。
-
-    `bundle_id` 可覆寫，是為了讓「presented 真的判得出來」可以拿**別的 app 的真實
-    通知**取證——本機的專注模式讓 Script Editor 永遠拿不到 presented，而用假造的
-    日誌行自證等於沒證（見 tests 的可達性那一組）。
     """
     app = bundle_id or NOTIFY_BUNDLE_ID
-    verdict = {"delivered": DELIVERY_UNVERIFIED, "reason": "", "evidence": ""}
+    verdict = {"delivered": DELIVERY_UNVERIFIED, "reason": "", "evidence": "",
+               "correlation": None}
     started = since.strftime("%Y-%m-%d %H:%M:%S")
     try:
         proc = subprocess.run(
@@ -751,24 +827,62 @@ def _delivery_probe(since: datetime, timeout: float = 20.0,
                              "因此查不到紀錄——送到與否皆無法判定")
         return verdict
 
-    text = proc.stdout.decode("utf-8", errors="replace")
-    ours = [ln for ln in text.splitlines() if app in ln]
-    suppressed = [ln for ln in ours
-                  if any(marker in ln for marker in _SUPPRESSION_MARKERS)]
-    if suppressed:
+    lines = proc.stdout.decode("utf-8", errors="replace").splitlines()
+    corr = _correlate(lines, pid)
+    if "error" in corr:
+        verdict["reason"] = (f"無法把日誌關聯到本次通知（{corr['error']}）——"
+                             "**既不代表送到，也不代表沒送到**，只代表關聯不上")
+        return verdict
+    verdict["correlation"] = {"uuid": corr["uuid"], "osascript_pid": pid,
+                              "window": [corr["first"].isoformat(),
+                                         corr["last"].isoformat()]}
+
+    # 結果行只帶恆定的 ident，只能用時間跨距圈。跨距外的一律不採信。
+    #
+    # ⚠️ 過濾條件是「bundle **或** ident」，不能只用 bundle：實測
+    # `Resolved interruption suppression for DA39-A3EE as none` **整行不含 bundle id**，
+    # 只認 bundle 會把裁決行整批濾掉，於是永遠落到「沒有裁決行」→ unverified。
+    # （這正是本輪第一版寫錯的地方，被自己的端到端探針當場抓到。）
+    lo = corr["first"] - timedelta(seconds=1)
+    hi = corr["last"] + timedelta(seconds=1)
+    in_window = []
+    for line in lines:
+        t = _ts(line)
+        if t and lo <= t <= hi and (app in line or _CONSTANT_IDENT in line):
+            in_window.append(line)
+
+    # 跨距內若出現別的通知 uuid ⇒ 結果行歸屬有歧義 ⇒ 不猜（fail closed）
+    others = {u for line in in_window for u in _UUID_RE.findall(line)} - {corr["uuid"]}
+    if others:
+        verdict["reason"] = (f"時間跨距內另有通知（uuid {sorted(others)}），"
+                             "結果行只帶恆定 ident 故無法歸屬——不猜，判為查不到")
+        return verdict
+
+    muted = [ln for ln in in_window if _MUTED_RE.search(ln)]
+    if muted:
+        m = _MUTED_RE.search(muted[0])
+        cause = (m.group(1) or "").strip()
+        detail = m.group(2) or m.group(3) or ""
         verdict["delivered"] = DELIVERY_SUPPRESSED
-        verdict["reason"] = "專注模式／勿擾擋下：系統收到了，但**確定沒有**出現在畫面上"
-        verdict["evidence"] = suppressed[0].strip()[:400]
+        verdict["reason"] = (f"被「{cause}」擋下（{detail}）："
+                             "系統收到了，但**確定沒有**出現在畫面上")
+        verdict["evidence"] = muted[0].strip()[:400]
         return verdict
-    presented = [ln for ln in ours if "Presenting" in ln]
-    if presented:
-        # ⚠️ `usernoted` 的 "Presenting" 發生在**問 DND 之前**，所以它單獨不算數；
-        # 只有在上面兩種抑制訊號都找不到時才採信。順序就是這個意思。
-        verdict["delivered"] = DELIVERY_PRESENTED
-        verdict["reason"] = "系統紀錄顯示已呈現，且未見任何專注模式攔截"
-        verdict["evidence"] = presented[0].strip()[:400]
+
+    resolutions = [ln for ln in in_window if _RESOLUTION_RE.search(ln)]
+    if resolutions:
+        behavior = _RESOLUTION_RE.search(resolutions[0]).group(1)
+        if behavior == _NOT_SUPPRESSED:
+            verdict["delivered"] = DELIVERY_PRESENTED
+            verdict["reason"] = "系統裁決為不抑制（as none），已呈現在畫面上"
+        else:
+            verdict["delivered"] = DELIVERY_SUPPRESSED
+            verdict["reason"] = (f"系統裁決為抑制（as {behavior}）："
+                                 "**確定沒有**出現在畫面上")
+        verdict["evidence"] = resolutions[0].strip()[:400]
         return verdict
-    verdict["reason"] = ("統一日誌裡找不到這則通知的處理紀錄——"
+
+    verdict["reason"] = ("關聯到了本次通知，但日誌裡沒有它的打擾裁決行——"
                          "**既不代表送到，也不代表沒送到**，只代表查不到")
     return verdict
 
@@ -781,16 +895,28 @@ def notify(title: str, message: str, *, verify: bool = True) -> dict:
     ＋ 非零退出碼（讓 `launchctl print` 那一面也留下痕跡）。
     """
     verdict: dict = {"attempted": True, "osascript_rc": None,
-                     "delivered": DELIVERY_UNVERIFIED, "reason": "", "evidence": ""}
+                     "delivered": DELIVERY_UNVERIFIED, "reason": "", "evidence": "",
+                     "correlation": None}
     script = (f'display notification {json.dumps(message, ensure_ascii=False)} '
               f'with title {json.dumps(title, ensure_ascii=False)}')
     # 取送出前一秒當查詢起點：`log show --start` 的解析度是秒，取「現在」會漏掉同秒事件。
     since = datetime.now() - timedelta(seconds=1)
     try:
-        proc = subprocess.run(["osascript", "-e", script], stdout=subprocess.DEVNULL,
-                              stderr=subprocess.DEVNULL, timeout=20, check=False)
+        # ⚠️ 用 Popen 而不是 run，是為了拿到 **PID**——那是把日誌關聯回「我們這一則」
+        # 的唯一硬錨點（usernoted 會印 `daemon_client.peer[<PID>]`）。用 run 拿不到 pid，
+        # 就只剩「同 bundle ＋ 時間相近」可比對，而那正是 R3 被判錯誤歸屬的原因。
+        proc = subprocess.Popen(["osascript", "-e", script], stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL)
     except (OSError, subprocess.SubprocessError) as error:
         verdict["reason"] = f"osascript 無法執行：{error}"
+        return verdict
+    pid = proc.pid
+    try:
+        proc.wait(timeout=20)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        verdict["reason"] = "osascript 逾時未結束"
+        verdict["goal_observed"] = _GOAL_BY_DELIVERY[verdict["delivered"]]
         return verdict
     verdict["osascript_rc"] = proc.returncode
     if proc.returncode != 0:
@@ -798,7 +924,7 @@ def notify(title: str, message: str, *, verify: bool = True) -> dict:
         verdict["goal_observed"] = _GOAL_BY_DELIVERY[verdict["delivered"]]
         return verdict
     if verify:
-        verdict.update(_delivery_probe(since))
+        verdict.update(_delivery_probe(since, pid))
     # 目標層級由**量測**推導，不是寫死的宣稱（見 READER_CONTRACT 上方三條理由）。
     verdict["goal_observed"] = _GOAL_BY_DELIVERY[verdict["delivered"]]
     return verdict

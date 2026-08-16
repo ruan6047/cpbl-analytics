@@ -877,9 +877,12 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "＋ 3（OPS-SCHEDULE-FAILURE-BLIND1／#132：schedule_watch.py、"
         "schedule-watchdog.sh、com.cpbl.schedule-watchdog.plist）。"
         "同卡的 schedule-registry.json 是純資料不是入口，見 NON_ENTRY_BASENAMES")
-    assert len(research) == 19, "本輪零搬入"
+    assert len(research) == 20, (
+        "19（基準）＋ 1（OPS-SCHEDULE-FAILURE-BLIND1／#132："
+        "docs/research/OPS-SCHEDULE-FAILURE-BLIND1/measure_notification_delivery.py，"
+        "通知投遞的可重建量測工具。住在自己卡的目錄裡，符合 oneshot 的位置規則）")
     assert len(cli) == 47, "CLI 不變"
-    assert len(scripts) + len(research) + len(cli) == 119, "116＋3（#132）"
+    assert len(scripts) + len(research) + len(cli) == 120, "119＋1（#132 的量測工具）"
 
 
 def test_invariant_proof_enumerates_every_entry(capsys: pytest.CaptureFixture) -> None:
