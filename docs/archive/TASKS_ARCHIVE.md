@@ -106,6 +106,7 @@
 | OPS-REMOTE-CRAWL1 | 遠端無人值守 crawler Discovery umbrella | 🏁完成 | —不適用 | [`tasks/OPS-REMOTE-CRAWL1.md`](tasks/OPS-REMOTE-CRAWL1.md)（GPT-5@Codex 跨家族獨立查核 iteration 2 APPROVE；merge 20172d3；Discovery Gate：PROBE1／ROUTE1 GO、WORKER1／CUTOVER1 HOLD 待需求方 sign-off） |
 | GAME-RECAP-DATA1 | 賽事復盤資料覆蓋與 canonical 契約稽核 | 🏁完成 | —不適用 | [`tasks/GAME-RECAP-DATA1.md`](tasks/GAME-RECAP-DATA1.md)（Claude Opus 跨家族獨立查核 APPROVE→需求方核可 Checkpoint 1；canonical PA NO-GO；merge 95eb5e3） |
 | DATA-EDITORIAL1 | Google Sheet 編輯資料管道 | ⏸擱置（已合併） | ⏸未部署 | [`tasks/DATA-EDITORIAL1.md`](tasks/DATA-EDITORIAL1.md)（T4 跨家族查核 APPROVE；merge 1bdf5c6；依需求方 2026-07-19 封存，恢復前須重新規劃與 production sign-off） |
+| OPS-SCHEDULE-FAILURE-BLIND1 | 排程失敗沒有任何觀測面，兩個排程同日失敗三天無人知 | 🏁完成 | —不適用 | [`tasks/OPS-SCHEDULE-FAILURE-BLIND1.md`](tasks/OPS-SCHEDULE-FAILURE-BLIND1.md)（⚠️ 該檔僅 26 行、是 cutover 前的 stub；卡面實體為 [Issue #132](https://github.com/ruan6047/cpbl-analytics/issues/132) 的 165 行 body。R7 執行者與 PM 各有一次因搜該 stub 而把「08-10 21:10 即報 FAILED——當晚就報」這條**存在的**時效依據判成不存在） |
 | Legacy pre-WF-12 | 2026-07-15 前的 Ledger 與所有卡片明細 | 已封存 | 依原始紀錄 | [`TASKS_PRE_WF12.md`](TASKS_PRE_WF12.md) |
 
 > 已完成（🏁）與封存（📥）的卡片移到此處，讓 [`../TASKS.md`](../TASKS.md) 只留活卡（省 AI 讀取算力）。
