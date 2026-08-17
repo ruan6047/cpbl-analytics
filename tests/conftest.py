@@ -102,18 +102,18 @@ def _schedule_alert_header() -> list[str]:
     lines = [f"⚠️ 排程告警未處理（{payload.get('observed_at', '時間不明')}）："
              f"{payload.get('message') or payload.get('verdict') or '詳見檔案'}",
              f"⚠️ 排程告警：詳見 {_SCHEDULE_ALERT}（修好後本檔會自動消失）"]
-    # ⚠️ 三態講三種話。R2 這裡寫 `!= "presented"`，於是「查不到」被印成「沒有送達」
-    # ——那是在宣稱自己沒有的確定性。查不到就說查不到。
-    delivered = (payload.get("notification") or {}).get("delivered")
-    if delivered == "suppressed":
-        lines.append("⚠️ 排程告警：當時的推播被專注模式擋下，**確定沒有**出現在螢幕上"
-                     "——所以除了這裡，沒有別人被通知到")
-    elif delivered == "unverified":
-        lines.append("⚠️ 排程告警：當時的推播查不到系統紀錄——**既不代表送到，"
+    # ⚠️ 三態講三種話，而且**不得把「管道通」講成「有人看到」**。
+    # 本卡在「rc=0 講成送達」上栽過一次；`push_channel` 量的是管道能力，不是投遞結果。
+    channel = ((payload.get("notification") or {}).get("push_channel") or {}).get("state")
+    if channel == "blocked":
+        lines.append("⚠️ 排程告警：當時推播管道被專注模式擋住，這則告警**確定沒有**"
+                     "出現在螢幕上——所以除了這裡，沒有別人被通知到")
+    elif channel == "unknown":
+        lines.append("⚠️ 排程告警：當時量不到專注模式狀態——**既不代表送到，"
                      "也不代表沒送到**，請自行確認需求方是否已知情")
-    elif delivered == "presented":
-        lines.append("ℹ️ 排程告警：當時的推播**已呈現在螢幕上**（系統紀錄）——"
-                     "但那不保證有人讀了，這一行仍然是備援")
+    elif channel == "open":
+        lines.append("ℹ️ 排程告警：當時推播管道沒有被擋（**這不代表有人看到**，"
+                     "只代表沒有東西擋著）——這一行仍然是備援")
     return lines
 
 

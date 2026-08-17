@@ -711,74 +711,54 @@ def build_message(report: dict) -> str:
 
 NOTIFY_BUNDLE_ID = "com.apple.ScriptEditor2"   # osascript 的歸屬 app（實測，見上）
 
-# 投遞判定。三態的語意**互不重疊**，措辭也必須逐一分開——把「查不到」講成「沒送到」
-# 是在宣稱自己沒有的確定性，與 R1 把「rc=0」講成「送到了」是同一個錯，只是換一邊。
-DELIVERY_PRESENTED = "presented"          # 系統紀錄顯示真的呈現了
-DELIVERY_SUPPRESSED = "suppressed"        # 專注模式／勿擾擋掉——確定沒有出現在畫面上
-DELIVERY_UNVERIFIED = "unverified"        # 查不到紀錄：**既不代表送到，也不代表沒送到**
+# ============================== 量的是「管道能力」，不是「這一則送達了」
+#
+# ⚠️ **這個區分是本檔的紅線，因為本卡已經在同一個地方栽過一次**：R1 把 `osascript rc=0`
+# 講成「送達了」。以下欄位**永遠不宣稱某一則通知被看到**——它回答的是一個全域問題：
+#
+#     「以現在的系統狀態，這個 app 的通知**有沒有能力**出現在畫面上？」
+#
+# 為什麼改問這一題（需求方 2026-08-17 裁定）：2026-08-15 真正發生的事是**一個非刻意
+# 開啟的專注模式擋掉了全部通知、而且無人察覺**。那是管道層級的故障，全域狀態直接回答
+# 它，且**不需要把日誌行歸屬到某一則通知**——而那個歸屬已被證明在此平台上做不到
+# （見下方「已知限制」）。
+#
+# 為什麼這樣問是嚴謹的：對**固定 app、固定 urgency**（osascript 無法設定 urgency）而言，
+# 系統的裁決是全域模式狀態的函數。實測 2026-08-16 09:00–10:00（模式啟用中）該小時的
+# 222 筆裁決，**逐 app 的 outcome 完全一致**：
+#     com.apple.ScriptEditor2        → suppressed（無例外）
+#     com.anthropic.claudefordesktop → suppressed（無例外）
+#     com.apple.MobileSMS / Passbook / openai.codex / MacVirt → 同上
+# 所以「本 app 的裁決」是良定義的，不必知道是哪一則通知觸發的。
+PUSH_CHANNEL_OPEN = "open"        # 全域狀態下，本 app 的通知不會被抑制
+PUSH_CHANNEL_BLOCKED = "blocked"  # 全域狀態下，本 app 的通知**會**被抑制
+PUSH_CHANNEL_UNKNOWN = "unknown"  # 讀不到，或視窗內裁決不一致（模式中途改變）
 
-# 查詢面。⚠️ `usernoted` **必須**在裡面：`Presenting` 與帶 uuid 的 `Record` 都是它發的。
-# R2 的 predicate 漏了它，於是 `DELIVERY_PRESENTED` 結構上不可達——一個永遠不會回傳的
-# 分支等於沒有寫。跨家族查核在 R2 抓到這一條。
-#
-# ⚠️ `donotdisturbd` **刻意不在裡面**。R3 把它的 `outcome: suppressed` 當抑制訊號，但
-# 實測它的每一行都**沒有辦法對應到某一則通知**：
-#     uuid 欄位     → 0/2 行有（它根本不印通知 uuid）
-#     identifier    → 空字串 `''`
-#     UUID:         → 那是「這次解析」自己的 id，不是通知的
-#     clientIdentifier → `com.apple.nc.donotdisturb.user-toggles.preload`（預載，非投遞）
-# 只剩 bundleIdentifier 可比對，而同一個 bundle 在同一秒內可以有大量**與本次通知無關**
-# 的預載解析（48 小時 1982 筆解析 vs 49 則真實通知）。拿它當訊號＝把無關事件歸給本次
-# 通知，會產生錯誤的 goal_observed。跨家族查核在 R3 抓到這一條，判定為正確性問題。
-_LOG_PREDICATE = 'process == "NotificationCenter" OR process == "usernoted"'
+# 只查 donotdisturbd：裁決與全域模式狀態都在它這裡。
+# ⚠️ R4／R5 曾把 donotdisturbd 整個排除，理由寫成「它構造上沒有識別碼、無法關聯」。
+# **那個理由太強、已更正**：它的 eventDetails 帶 `bundleIdentifier`，而本檔要的正是
+# 「這個 app 會怎樣」而不是「這一則會怎樣」——後者才需要識別碼。排除它是當時設計的
+# 副作用，不是它真的沒東西可用。
+_DND_PREDICATE = 'process == "donotdisturbd"'
+_RESOLVED_MARK = "Event was resolved"
+_BUNDLE_RE = re.compile(r"bundleIdentifier: ([A-Za-z0-9._-]+)")
+_OUTCOME_RE = re.compile(r"outcome: (\w+)")
+_DND_REASON_RE = re.compile(r"reason: ([a-z ]+);")
+_ACTIVE_MODE_RE = re.compile(r"activeModeUUID: \(?([0-9A-Fa-f-]+|null)\)?")
+_LINE_TS_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)")
 
-# 事件關聯 [event correlation] 的錨點鏈。每一步都可獨立驗證：
-#   1. 我們自己 spawn osascript ⇒ **PID 是我們給的**，不是猜的
-#   2. usernoted 印 `…daemon_client.peer[<PID>]` ⇒ 拿到處理本次連線的**執行緒**
-#   3. 該執行緒上的 `uuid:"XXXXXXXX"` 就是本次通知的 uuid ⇒ 唯一
-#   4. 帶該 uuid 的行 ⇒ **確定**是本次通知的
-_PEER_RE = re.compile(r'daemon_client\.peer\[(\d+)\]')
-_THREAD_RE = re.compile(r'\b(?:usernoted|NotificationCenter)\[\d+:([0-9a-f]+)\]')
-_UUID_RE = re.compile(r'uuid:"([0-9A-F]+)"')
-_LINE_TS_RE = re.compile(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)')
-
-# =============================== 已知限制：裁決行在此平台上無法被歸屬到某一則通知
+# ============================== 已知限制：某一則通知**無法**被歸屬到它自己的裁決
 #
-# 這一段是**窮盡查證後的結論**，不是還沒找到。查過的面（全部實測，2026-08-16）：
+# 這是窮盡查證後的結論（2026-08-16 全部實測），保留在此以免日後有人再試一次：
+#   `uuid`／`activityIdentifier`／`parentActivityIdentifier`／`creatorActivityID` 在
+#   NotificationCenter 的裁決行上全部缺席或為 0；`traceID` 兩則不同通知量到同值（是
+#   callsite id）；`ident` 對 osascript 恆為 `DA39-A3EE`。`log show` 與 `log stream`、
+#   `--info --debug`、`--style ndjson` 都試過。
 #
-# | 候選欄位                   | 結果                                                  |
-# |---------------------------|-------------------------------------------------------|
-# | `uuid:"…"`                | 裁決行**沒有**這個欄位                                  |
-# | `ident`                   | osascript 恆為 `DA39-A3EE`（空字串的 SHA-1 前綴），每則都一樣 |
-# | `activityIdentifier`      | 空（0）——這條路徑沒有使用 os_log activity              |
-# | `parentActivityIdentifier`| 空（0）                                                |
-# | `creatorActivityID`       | 空（0）                                                |
-# | `traceID`                 | 兩則**不同**通知量到同一個值 ⇒ 是 callsite id 不是事件 id |
-# | `threadID`                | 裁決行與該通知的 uuid 行**不同執行緒**                   |
-#
-# 查詢方式也窮盡過：`log show` 與 `log stream` 都試（欄位差異只有
-# `creatorActivityID` vs `messageType`/`source`，都與關聯無關）、`--info --debug`
-# 兩個層級都開、`--style ndjson` 取完整欄位。
-#
-# **決定性證據是 Apple 自己的 format string**：
-#     `Resolved interruption suppression for %{public}s as %{public}s`
-# 只有兩個代入位——ident 與行為。**通知 id 根本沒有被寫進這行日誌**，所以任何解析方式
-# 都不可能還原它。這不是本檔能修的東西。
-#
-# 因此本檔**不做時間窗猜測**（那是把猜測寫成程式碼）。改為：只有在裁決**被唯一決定**時
-# 才作答，否則一律 `unverified`。判準見 `_delivery_probe` 的兩道閘。
-_CONSTANT_IDENT = "DA39-A3EE"
-
-# NotificationCenter 對「這則要不要打擾使用者」的裁決。三態實測對照：
-#   presented      → `Resolved interruption suppression for DA39-A3EE as none`
-#   DND 擋下       → `… as delay` ＋ `… muted by DND suppression: delay`
-#   螢幕分享時擋下 → `… as delay` ＋ `… muted by display state (displayShared)`
-# ⚠️ `Presenting` 由 usernoted 在**問 DND 之前**就印，三種情況**都會**出現，
-# 故它只能當「系統有受理」，**不能**當「有出現在畫面上」。R3 靠「有 Presenting 且
-# 沒有抑制訊號」反推，在此改為直接讀裁決本身。
-_RESOLUTION_RE = re.compile(r'Resolved interruption suppression for \S+ as (\w+)')
-_MUTED_RE = re.compile(r'muted by ([A-Za-z ]+?)(?::\s*(\S+)|\s*\(([^)]*)\))')
-_NOT_SUPPRESSED = "none"
+# ⚠️ 但「完全沒有識別碼」是**錯的**，已更正：`donotdisturbd` 的 eventDetails 帶
+# `title:`／`body:` 的**內容衍生雜湊**（實測：同內容同雜湊、異內容異雜湊各一次），
+# 故若日後真的需要 per-notification 歸屬，可用唯一內容取得。需求方 2026-08-17 裁定
+# **先不做**：全域狀態已足以回答「管道死了沒」，且不必假設雜湊穩定。
 
 
 def _ts(line: str):
@@ -786,183 +766,95 @@ def _ts(line: str):
     return datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S.%f") if m else None
 
 
-def _correlate(lines: list, pid: int) -> dict:
-    """從 osascript PID 追到本次通知的 uuid 與它在日誌上的時間跨距。
+def probe_push_channel(since: datetime, timeout: float = 20.0,
+                       bundle_id: str = None) -> dict:
+    """讀全域專注模式狀態，判定本 app 的推播管道**有沒有能力**送達。
 
-    回傳 `{"uuid":…, "first":…, "last":…}`；關聯不上時回傳 `{"error": 說明}`。
-    """
-    thread = None
-    for line in lines:
-        m = _PEER_RE.search(line)
-        if m and int(m.group(1)) == pid:
-            t = _THREAD_RE.search(line)
-            if t:
-                thread = t.group(1)
-                break
-    if thread is None:
-        return {"error": f"日誌裡找不到 osascript(pid={pid}) 的 usernoted 連線"}
+    ⚠️ 回傳的 `state` **不是**投遞結果。`open` 只代表「此刻沒有東西擋著這個 app」，
+    不代表剛才那一則有人看到——後者在此平台上量不到（見上方「已知限制」）。
 
-    uuids = {u for line in lines if _THREAD_RE.search(line)
-             and _THREAD_RE.search(line).group(1) == thread
-             for u in _UUID_RE.findall(line)}
-    if not uuids:
-        return {"error": f"找到連線（thread {thread}）但該執行緒上沒有通知 uuid"}
-    if len(uuids) > 1:
-        # 同一執行緒同時處理多則 ⇒ 分不出哪一則是我們的 ⇒ 不猜
-        return {"error": f"連線執行緒上有多個 uuid（{sorted(uuids)}），無法唯一關聯"}
-
-    uuid = uuids.pop()
-    stamps = [_ts(line) for line in lines if uuid in line]
-    stamps = [t for t in stamps if t]
-    if not stamps:
-        return {"error": f"uuid {uuid} 沒有可解析的時間戳"}
-    return {"uuid": uuid, "first": min(stamps), "last": max(stamps)}
-
-
-def _delivery_probe(since: datetime, pid: int, timeout: float = 20.0,
-                    bundle_id: str = None) -> dict:
-    """問 macOS 統一日誌：**我們剛剛送的那一則**到底有沒有出現在畫面上。
-
-    ⚠️ 不用 `osascript` 的退出碼當任何依據——它在被靜音時一樣回 0。
-
-    ⚠️ `log` 在 zsh 是**內建指令**（實測：`type log` → `log is a shell builtin`），
-    裸寫 `log show` 會被 shell 吃掉並回「too many arguments」而看起來像沒有紀錄。
-    本卡 R1 的探查就是這樣得到假陰性的，故此處硬寫絕對路徑 `/usr/bin/log`。
+    ⚠️ `log` 在 zsh 是**內建指令**（`type log` → `log is a shell builtin`），裸寫
+    `log show` 會被 shell 吃掉並回「too many arguments」而看起來像沒有紀錄。R1 的假陰性
+    就是這樣來的，故硬寫絕對路徑。
     """
     app = bundle_id or NOTIFY_BUNDLE_ID
-    verdict = {"delivered": DELIVERY_UNVERIFIED, "reason": "", "evidence": "",
-               "correlation": None}
-    started = since.strftime("%Y-%m-%d %H:%M:%S")
+    verdict = {"state": PUSH_CHANNEL_UNKNOWN, "reason": "", "evidence": "",
+               "active_mode": None, "measures": "管道能力，不是本則通知的投遞結果"}
     try:
         proc = subprocess.run(
-            ["/usr/bin/log", "show", "--start", started, "--style", "compact",
-             "--predicate", _LOG_PREDICATE],
+            ["/usr/bin/log", "show", "--start", since.strftime("%Y-%m-%d %H:%M:%S"),
+             "--style", "compact", "--predicate", _DND_PREDICATE],
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             timeout=timeout, check=False)
     except (OSError, subprocess.SubprocessError):
-        verdict["reason"] = "無法執行 /usr/bin/log，因此查不到紀錄——送到與否皆無法判定"
+        verdict["reason"] = "無法執行 /usr/bin/log，全域專注模式狀態不可知"
         return verdict
     if proc.returncode != 0:
         verdict["reason"] = (f"/usr/bin/log 非零退出（{proc.returncode}），"
-                             "因此查不到紀錄——送到與否皆無法判定")
+                             "全域專注模式狀態不可知")
         return verdict
 
-    lines = proc.stdout.decode("utf-8", errors="replace").splitlines()
-    corr = _correlate(lines, pid)
-    if "error" in corr:
-        verdict["reason"] = (f"無法把日誌關聯到本次通知（{corr['error']}）——"
-                             "**既不代表送到，也不代表沒送到**，只代表關聯不上")
-        return verdict
-    verdict["correlation"] = {"uuid": corr["uuid"], "osascript_pid": pid,
-                              "window": [corr["first"].isoformat(),
-                                         corr["last"].isoformat()]}
-
-    # ============================ 兩道閘：裁決必須被**唯一決定**，否則不作答
-    #
-    # 裁決行無法被歸屬到某一則通知（見上方「已知限制」表）。因此本檔**不做任何排序或
-    # 時間窗猜測**——多條裁決同時存在時「挑哪一條」沒有事實依據，挑了就是把猜測寫成
-    # 程式碼。改為只在「答案被唯一決定」時才回答：
-    #
-    #   閘一 · 唯一通知：整段查詢結果裡只能有本次通知一個 uuid。有別的通知在
-    #          ⇒ 裁決行可能屬於它 ⇒ 不作答。
-    #   閘二 · 裁決一致：所有裁決行必須指向同一個結論。互相矛盾 ⇒ 不作答。
-    #
-    # 兩道閘都過時，歸屬是**由排除法所迫**（窗內只有一則通知、裁決只有一種），
-    # 那是邏輯不是啟發式。過不了就是 unverified——`presented` 因此不是永遠不可達，
-    # 但也不會在有疑義時被宣稱。
-    #
-    # ⚠️ 掃描面是「bundle **或** ident」，不能只用 bundle：實測
-    # `Resolved interruption suppression for DA39-A3EE as none` **整行不含 bundle id**，
-    # 只認 bundle 會把裁決行整批濾掉，於是永遠落到「沒有裁決行」→ unverified。
-    relevant = [ln for ln in lines if app in ln or _CONSTANT_IDENT in ln]
-
-    others = {u for ln in relevant for u in _UUID_RE.findall(ln)} - {corr["uuid"]}
-    if others:
-        verdict["reason"] = (
-            f"查詢視窗內另有 {len(others)} 則通知（uuid {sorted(others)}）。"
-            "裁決行不帶通知 id（Apple 的 format string 只有 ident 與行為兩個代入位），"
-            "故無法判斷裁決屬於哪一則——**不猜**，判為無法驗證")
+    ours = [ln for ln in proc.stdout.decode("utf-8", errors="replace").splitlines()
+            if _RESOLVED_MARK in ln and app in (_BUNDLE_RE.findall(ln) or [])]
+    if not ours:
+        verdict["reason"] = (f"視窗內沒有 {app} 的裁決紀錄——**不推論**管道是通的，"
+                             "只代表這次沒量到")
         return verdict
 
-    # 收集所有裁決，逐條化約成結論；**不看順序**。
-    findings = []
-    for ln in relevant:
-        m = _MUTED_RE.search(ln)
-        if m:
-            cause = (m.group(1) or "").strip()
-            detail = m.group(2) or m.group(3) or ""
-            findings.append((DELIVERY_SUPPRESSED, f"被「{cause}」擋下（{detail}）", ln))
-            continue
-        r = _RESOLUTION_RE.search(ln)
-        if r:
-            behavior = r.group(1)
-            state = (DELIVERY_PRESENTED if behavior == _NOT_SUPPRESSED
-                     else DELIVERY_SUPPRESSED)
-            findings.append((state, f"系統裁決 as {behavior}", ln))
-
-    states = {state for state, _, _ in findings}
-    if len(states) > 1:
-        verdict["reason"] = (
-            f"視窗內的裁決彼此矛盾（{sorted(states)}），而裁決行無法歸屬到特定通知——"
-            "**不以順序或距離挑一條**，判為無法驗證")
-        return verdict
-    if findings:
-        state, why, line = findings[0]
-        verdict["delivered"] = state
-        verdict["reason"] = (
-            f"{why}：**確定沒有**出現在畫面上" if state == DELIVERY_SUPPRESSED
-            else f"{why}（未被抑制），已呈現在畫面上")
-        verdict["evidence"] = line.strip()[:400]
-        verdict["correlation"]["attribution"] = (
-            "由排除法所迫：查詢視窗內只有本次通知一個 uuid，且所有裁決行結論一致。"
-            "裁決行本身不帶通知 id——見 schedule_watch.py 的「已知限制」表")
+    outcomes = {m.group(1) for ln in ours if (m := _OUTCOME_RE.search(ln))}
+    if len(outcomes) != 1:
+        # 模式在視窗中途被改動 ⇒ 沒有單一的「當時狀態」可講 ⇒ 不猜
+        verdict["reason"] = (f"視窗內同一個 app 出現不一致的裁決（{sorted(outcomes)}），"
+                             "表示專注模式中途改變——不取其一，判為不可知")
         return verdict
 
-    verdict["reason"] = ("關聯到了本次通知，但日誌裡沒有它的打擾裁決行——"
-                         "**既不代表送到，也不代表沒送到**，只代表查不到")
+    line = ours[0]
+    modes = {m.group(1) for ln in ours if (m := _ACTIVE_MODE_RE.search(ln))}
+    verdict["active_mode"] = sorted(modes)[0] if len(modes) == 1 else sorted(modes) or None
+    reason = (m.group(1).strip() if (m := _DND_REASON_RE.search(line)) else "")
+    verdict["evidence"] = line.strip()[:400]
+    if outcomes == {"allowed"}:
+        verdict["state"] = PUSH_CHANNEL_OPEN
+        verdict["reason"] = (f"系統對 {app} 的裁決是 allowed（reason: {reason}）："
+                             "此刻沒有專注模式擋著這個 app 的通知")
+    else:
+        verdict["state"] = PUSH_CHANNEL_BLOCKED
+        verdict["reason"] = (f"系統對 {app} 的裁決是 {sorted(outcomes)[0]}"
+                             f"（reason: {reason}，模式 {verdict['active_mode']}）："
+                             "推播管道**現在送不到**這個 app 的通知")
     return verdict
 
 
 def notify(title: str, message: str, *, verify: bool = True) -> dict:
-    """彈通知**並回報它到底有沒有被看到**。回傳投遞判定 dict。
+    """彈通知，並量一次**推播管道有沒有能力送達**。
 
     ⚠️ `osascript` 回 0 **不是**通知彈出的證據——被專注模式靜音時它一樣回 0。
-    因此呼叫端另有兩個不依賴權限的備援：持久產物 `logs/schedule-alert.json`
-    ＋ 非零退出碼（讓 `launchctl print` 那一面也留下痕跡）。
+    ⚠️ 而 `push_channel.state == "open"` 也**不是**送達的證據，它只是管道沒被擋。
+    真正不依賴任何使用者設定的讀者是 `logs/schedule-alert.json` ＋ pytest header。
     """
-    verdict: dict = {"attempted": True, "osascript_rc": None,
-                     "delivered": DELIVERY_UNVERIFIED, "reason": "", "evidence": "",
-                     "correlation": None}
+    verdict: dict = {"attempted": True, "osascript_rc": None, "push_channel": None}
     script = (f'display notification {json.dumps(message, ensure_ascii=False)} '
               f'with title {json.dumps(title, ensure_ascii=False)}')
     # 取送出前一秒當查詢起點：`log show --start` 的解析度是秒，取「現在」會漏掉同秒事件。
     since = datetime.now() - timedelta(seconds=1)
     try:
-        # ⚠️ 用 Popen 而不是 run，是為了拿到 **PID**——那是把日誌關聯回「我們這一則」
-        # 的唯一硬錨點（usernoted 會印 `daemon_client.peer[<PID>]`）。用 run 拿不到 pid，
-        # 就只剩「同 bundle ＋ 時間相近」可比對，而那正是 R3 被判錯誤歸屬的原因。
-        proc = subprocess.Popen(["osascript", "-e", script], stdout=subprocess.DEVNULL,
-                                stderr=subprocess.DEVNULL)
+        proc = subprocess.run(["osascript", "-e", script], stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL, timeout=20, check=False)
     except (OSError, subprocess.SubprocessError) as error:
-        verdict["reason"] = f"osascript 無法執行：{error}"
-        return verdict
-    pid = proc.pid
-    try:
-        proc.wait(timeout=20)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        verdict["reason"] = "osascript 逾時未結束"
-        verdict["goal_observed"] = _GOAL_BY_DELIVERY[verdict["delivered"]]
+        verdict["push_channel"] = {"state": PUSH_CHANNEL_UNKNOWN,
+                                   "reason": f"osascript 無法執行：{error}",
+                                   "evidence": "", "active_mode": None,
+                                   "measures": "管道能力，不是本則通知的投遞結果"}
+        verdict["goal_observed"] = _GOAL_BY_CHANNEL[PUSH_CHANNEL_UNKNOWN]
         return verdict
     verdict["osascript_rc"] = proc.returncode
-    if proc.returncode != 0:
-        verdict["reason"] = f"osascript 非零退出（{proc.returncode}）"
-        verdict["goal_observed"] = _GOAL_BY_DELIVERY[verdict["delivered"]]
-        return verdict
     if verify:
-        verdict.update(_delivery_probe(since, pid))
-    # 目標層級由**量測**推導，不是寫死的宣稱（見 READER_CONTRACT 上方三條理由）。
-    verdict["goal_observed"] = _GOAL_BY_DELIVERY[verdict["delivered"]]
+        verdict["push_channel"] = probe_push_channel(since)
+    else:
+        verdict["push_channel"] = {"state": PUSH_CHANNEL_UNKNOWN, "reason": "未查證",
+                                   "evidence": "", "active_mode": None,
+                                   "measures": "管道能力，不是本則通知的投遞結果"}
+    verdict["goal_observed"] = _GOAL_BY_CHANNEL[verdict["push_channel"]["state"]]
     return verdict
 
 
@@ -1126,20 +1018,35 @@ def current_trigger() -> str:
 # `goal_observed` 由**本次實測的投遞判定**推導。推播若再度被擋，下一次執行就會自己
 # 說出來——這正是把「無聲退化」換成「有聲退化」，而那才是本卡真正買到的東西。
 
-# 投遞判定 → 該次實際達到的目標層級。
-_GOAL_BY_DELIVERY = {
-    DELIVERY_PRESENTED: 2,     # 系統確實把它畫到螢幕上了（≠ 有人讀了，見上）
-    DELIVERY_SUPPRESSED: 3,    # 確定沒出現，只剩稽核痕跡
-    DELIVERY_UNVERIFIED: None, # 查不到：不宣稱任何層級
+# 管道能力 → 該次可以誠實宣稱的目標層級。
+#
+# ⚠️ **本欄只會降級，永遠不會宣稱達成目標 2。** 這是刻意的：
+#   · 管道被擋 ⇒ 那一則**確定**沒出現在畫面上 ⇒ 該次只達到目標 3。這個推論是**健全的**，
+#     因為抑制是全域的、與是哪一則無關。
+#   · 管道是通的 ⇒ 只代表**沒有東西擋著**，**不代表**那一則有人看到。宣稱 2 就是把
+#     「管道能力」講成「投遞結果」——與 R1 把 `rc=0` 講成送達是同一個錯，只是換一個
+#     欄位重演。所以這裡回 None（不宣稱），而不是 2。
+#
+# 換句話說：這個訊號能證明「壞了」，不能證明「好了」。那正是本卡要的——2026-08-15
+# 的故障是「壞了而無人察覺」，不是「好了但沒人相信」。
+_GOAL_BY_CHANNEL = {
+    PUSH_CHANNEL_BLOCKED: 3,    # 確定沒出現在畫面上 ⇒ 只剩稽核痕跡
+    PUSH_CHANNEL_OPEN: None,    # 沒被擋 ≠ 有人看到 ⇒ 不宣稱
+    PUSH_CHANNEL_UNKNOWN: None, # 量不到 ⇒ 不宣稱
 }
 
 READER_CONTRACT = {
     "goal_floor": 3,
     "goal_floor_note": "不依賴任何使用者設定就成立的部分：logs/schedule-alert.json ＋ "
                        "tests/conftest.py 印在每次 pytest header 的那幾行。這一層永遠為真。",
-    "goal_observed_note": "本次執行**實測**達到的層級，見 notification.goal_observed："
-                          "2＝系統確實呈現在螢幕上；3＝被專注模式擋下只剩痕跡；"
-                          "null＝查不到紀錄，不宣稱。",
+    "goal_observed_note": "本次執行可以誠實宣稱的層級，見 notification.goal_observed："
+                          "3＝推播管道被專注模式擋住，那一則確定沒出現在畫面上；"
+                          "null＝管道沒被擋、或量不到。**本欄永遠不會是 2**——"
+                          "「管道通」不等於「有人看到」，而後者在此平台上量不到。",
+    "push_channel_note": "notification.push_channel 量的是**管道能力**（這個 app 的通知"
+                         "此刻有沒有能力出現在畫面上），不是本則通知的投遞結果。"
+                         "open／blocked／unknown 三態；判準是全域專注模式對本 app 的裁決，"
+                         "不需要把日誌歸屬到某一則通知。",
     "who": "需求方（螢幕上的通知）＋ 任何要動這個 repo 的人或 AI（pytest header）",
     "when": "通知：異常發生當晚 21:10 即時；header：每次跑 `uv run pytest`（CLAUDE.md "
             "明訂 push 前必跑，`-q` 也印）。兩者都不需要有人記得去翻檔案。",
@@ -1149,7 +1056,7 @@ READER_CONTRACT = {
                     "開啟的專注模式後復活。⚠️ 它靠使用者設定，可被無聲撤銷，故每次執行"
                     "都會重新量一次而不是假設它還活著。要引入 email／Slack／webhook 等"
                     "其他推播管道會改變本專案的告警模型，屬需求方裁量。",
-    "what_code_can_never_prove": "『有人讀了』。系統紀錄最多到『已呈現』（Presenting）；"
+    "what_code_can_never_prove": "『這一則有人看到了』。系統紀錄可以證明管道被擋（壞了），但無法證明某一則通知被呈現給人看——通知 id 沒有被寫進裁決行。"
                                  "2026-08-16 那次是需求方口述的**人證**，不可重跑、"
                                  "不在任何日誌裡、也不可能被測試涵蓋。",
 }
@@ -1163,9 +1070,11 @@ def write_notify_artifacts(repo: Path, report: dict) -> None:
     """
     stamp = datetime.now(TAIPEI).strftime("%Y-%m-%dT%H:%M:%S%z")
     trigger = current_trigger()
-    delivery: dict = {"attempted": False,
-                      "delivered": DELIVERY_UNVERIFIED,
-                      "reason": "本次無異常，未送出通知"}
+    delivery: dict = {"attempted": False, "goal_observed": None,
+                      "push_channel": {"state": PUSH_CHANNEL_UNKNOWN,
+                                       "reason": "本次無異常，未送出通知",
+                                       "evidence": "", "active_mode": None,
+                                       "measures": "管道能力，不是本則通知的投遞結果"}}
     if report["exit_code"] != EXIT_OK:
         delivery = notify("CPBL 排程異常", report["message"])
     run_dir = repo / "logs" / "schedule-watchdog"
@@ -1204,17 +1113,16 @@ def write_notify_artifacts(repo: Path, report: dict) -> None:
                 ensure_ascii=False, indent=2), encoding="utf-8")
     except OSError as error:
         print(f"WARN 無法寫入 watchdog 產物：{error}", file=sys.stderr)
-    if delivery.get("attempted") and delivery.get("delivered") == DELIVERY_SUPPRESSED:
-        # ⚠️ 這裡只認 `suppressed`。R2 寫的是 `!= PRESENTED`，於是 `unverified` 也被
-        # 印成「沒有送達」——把「查不到」渲染成「確定沒送到」，與 R1 把 rc=0 渲染成
-        # 「送到了」是同一個錯，只是換一邊。三態必須講三種話。
-        # 靜音本身要在 stderr 留痕：launchd 會把它收進
-        # logs/launchd-schedule-watchdog.err.log，那是不依賴通知權限的那一面。
-        print("WARN 通知被專注模式擋下，**確定沒有**出現在螢幕上　"
-              "→ 讀者請改看 logs/schedule-alert.json（pytest header 也會印）",
+    channel = (delivery.get("push_channel") or {}).get("state")
+    if delivery.get("attempted") and channel == PUSH_CHANNEL_BLOCKED:
+        # 管道被擋是**可以斷言**的：抑制是全域的，與是哪一則無關。
+        # 落 logs/launchd-schedule-watchdog.err.log，那是不依賴通知權限的那一面。
+        print("WARN 推播管道被專注模式擋住，這則告警**確定沒有**出現在螢幕上　"
+              "→ 讀者請看 logs/schedule-alert.json（pytest header 也會印）",
               file=sys.stderr)
-    elif delivery.get("attempted") and delivery.get("delivered") == DELIVERY_UNVERIFIED:
-        print("WARN 通知已送出，但查不到系統紀錄——**既不代表送到，也不代表沒送到**。"
+    elif delivery.get("attempted") and channel == PUSH_CHANNEL_UNKNOWN:
+        # ⚠️ 措辭必須與上面不同：量不到就是量不到，**不得**講成「沒送到」。
+        print("WARN 通知已送出，但量不到專注模式狀態——**既不代表送到，也不代表沒送到**。"
               "　保險起見請看 logs/schedule-alert.json", file=sys.stderr)
 
 

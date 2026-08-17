@@ -622,16 +622,20 @@ def test_replay_shows_what_the_old_last_status_surface_lost(tmp_path: Path) -> N
 
 
 
-# ==================================================== 通知投遞：發了不等於送到
+
+# ============================ 推播管道能力：量的是「送得到嗎」，不是「送到了嗎」
 #
-# 這一組的重點是**投遞判定不得說謊**，而「不說謊」在本卡被打穿過四次：
-#   R1：把 `osascript rc=0` 當成送達
-#   R2：predicate 濾掉 `Presenting`，presented 結構上不可達
-#   R3：把「查不到」渲染成「確定沒送到」
-#   R3：用「同 bundle ＋ 時間相近」當關聯，會把無關事件歸給本次通知
+# 需求方 2026-08-17 裁定改採全域專注模式狀態。這一組的重點有兩個：
+#   1. **不得把「管道通」講成「有人看到」**——本卡在「rc=0 講成送達」上已經栽過一次，
+#      新欄位不准重演。故 `goal_observed` **永遠不會是 2**。
+#   2. fixture 一律用**真實擷取的日誌行**（tests/fixtures/*.log），不自己編格式。
 #
-# 因此每一條都配負控制，且 fixture 一律沿用**實際擷取到的日誌行形狀**（欄位、大小寫、
-# 括號都照抄），否則測試會對著一個現實裡不存在的格式變綠。
+# ⚠️ 誠實聲明：`blocked` 那一半**無法在本機現場製造**——那需要開啟需求方的專注模式，
+# 而修改使用者設定是明令禁止的。改用 2026-08-16 09:00–10:00（該模式當時確實啟用）
+# 擷取下來的**真實** donotdisturbd 行當 fixture。那比假樁強，但**弱於一次現場切換**，
+# 這個限制寫在這裡而不是藏起來。
+
+FIXTURES = ROOT / "tests" / "fixtures"
 
 
 class _FakeProc:
@@ -640,223 +644,120 @@ class _FakeProc:
         self.stdout = stdout
 
 
-class _FakePopen:
-    """`notify()` 用 Popen 是為了拿 **PID**——那是關聯回「我們這一則」的唯一硬錨點。"""
-
-    def __init__(self, pid: int, returncode: int) -> None:
-        self.pid = pid
-        self.returncode = returncode
-
-    def wait(self, timeout=None):  # noqa: ANN001, ANN201 — 只需與 Popen 介面相容
-        return self.returncode
-
-    def kill(self) -> None:
-        pass
+def _fixture(name: str) -> bytes:
+    return (FIXTURES / name).read_bytes()
 
 
-# 真實日誌行形狀（2026-08-16 11:58:18 那次探針原樣擷取，只把 pid／uuid 參數化）。
-_TS = "2026-08-16 11:58:18"
-_APP = "com.apple.ScriptEditor2"
-
-
-def _peer_line(pid: int, thread: str = "412f811") -> str:
-    return (f"{_TS}.480 Df usernoted[682:{thread}] [com.apple.xpc:connection] "
-            f"[0x8dcca6400] activating connection: mach=false listener=false peer=true "
-            f"name=com.apple.usernoted.daemon_client.peer[{pid}].0x8dcca6400")
-
-
-def _record_line(uuid: str, thread: str = "412f811") -> str:
-    return (f"{_TS}.485 Df usernoted[682:{thread}] [com.apple.unc:application] "
-            f'Delivering <NotificationRecord app:"{_APP}" ident:"DA39-A3EE" req:"" '
-            f'uuid:"{uuid}" source:"FDEF2B8D">')
-
-
-def _presenting_line(uuid: str, thread: str = "412f811") -> str:
-    return (f"{_TS}.490 Df usernoted[682:{thread}] [com.apple.unc:application] "
-            f'Presenting <NotificationRecord app:"{_APP}" ident:"DA39-A3EE" '
-            f'uuid:"{uuid}"> as banner (["badge", "sound", "alert"])')
-
-
-def _resolution_line(behavior: str) -> str:
-    # ⚠️ 這一行**整行不含 bundle id**——只有恆定的 ident。本輪第一版用 bundle 過濾，
-    # 於是把裁決行整批濾掉、永遠判 unverified，被端到端探針當場抓到。
-    return (f"{_TS}.495 Df NotificationCenter[734:41464c9] [com.apple.unc:application] "
-            f"Resolved interruption suppression for DA39-A3EE as {behavior}")
-
-
-def _muted_line(cause: str) -> str:
-    return (f"{_TS}.494 Df NotificationCenter[734:1aec] [com.apple.unc:application] "
-            f"DA39-A3EE ({_APP}) muted by {cause}")
-
-
-_MUTED_LINE = _muted_line("DND suppression: delay")
-
-
-def _log(pid: int, uuid: str, *, tail_lines=()) -> bytes:
-    body = [_peer_line(pid), _record_line(uuid), _presenting_line(uuid), *tail_lines]
-    return "\n".join(body).encode()
-
-
-def _patch_notify(monkeypatch, *, pid: int = 4242, osascript_rc: int = 0,
-                  log_rc: int = 0, log_out: bytes = b""):
-    """把 `osascript`（Popen）與 `/usr/bin/log`（run）都換成假樁。
+def _patch_notify(monkeypatch, *, osascript_rc: int = 0, log_rc: int = 0,
+                  log_out: bytes = b""):
+    """`osascript` 與 `/usr/bin/log` 都換成假樁。
 
     ⚠️ 本檔不得真的彈通知、也不得真的查系統日誌：前者干擾使用者，後者讓測試結果隨
     當下的專注模式漂移（今天綠明天紅，而且紅得沒有道理）。
     """
     calls = []
 
-    def fake_popen(argv, **kwargs):
-        calls.append(argv)
-        assert argv[0] == "osascript", f"未預期的 Popen：{argv}"
-        return _FakePopen(pid, osascript_rc)
-
     def fake_run(argv, **kwargs):
         calls.append(argv)
-        assert argv[0] == "/usr/bin/log", f"未預期的 run：{argv}"
-        return _FakeProc(log_rc, log_out)
+        if argv[0] == "osascript":
+            return _FakeProc(osascript_rc)
+        if argv[0] == "/usr/bin/log":
+            return _FakeProc(log_rc, log_out)
+        raise AssertionError(f"未預期的外部指令：{argv}")
 
-    monkeypatch.setattr(sw.subprocess, "Popen", fake_popen)
     monkeypatch.setattr(sw.subprocess, "run", fake_run)
     return calls
 
 
-# ------------------------------------------------------------ 事件關聯 [event correlation]
+def test_focus_mode_active_is_reported_as_blocked(monkeypatch) -> None:
+    """真實 fixture：專注模式啟用中，本 app 的裁決是 suppressed ⇒ 管道 blocked。"""
+    _patch_notify(monkeypatch, log_out=_fixture("dnd_blocked_scripteditor.log"))
+
+    verdict = sw.notify("t", "m")
+    channel = verdict["push_channel"]
+
+    assert channel["state"] == sw.PUSH_CHANNEL_BLOCKED
+    assert channel["active_mode"] and channel["active_mode"] != "null"
+    assert verdict["goal_observed"] == 3, "管道被擋 ⇒ 那一則確定沒出現 ⇒ 目標 3"
 
 
-def test_verdict_is_correlated_to_this_notification_by_uuid(monkeypatch) -> None:
-    """關聯鏈：我們給的 PID → usernoted 的 peer 行 → 該執行緒的 uuid → 帶該 uuid 的行。"""
-    _patch_notify(monkeypatch, pid=4242,
-                  log_out=_log(4242, "D1DCEC63", tail_lines=[_resolution_line("none")]))
+def test_no_focus_mode_is_reported_as_open(monkeypatch) -> None:
+    """真實 fixture：無專注模式，裁決是 allowed ⇒ 管道 open。"""
+    _patch_notify(monkeypatch, log_out=_fixture("dnd_open_scripteditor.log"))
 
     verdict = sw.notify("t", "m")
 
-    assert verdict["delivered"] == sw.DELIVERY_PRESENTED
-    assert verdict["correlation"]["uuid"] == "D1DCEC63"
-    assert verdict["correlation"]["osascript_pid"] == 4242
+    assert verdict["push_channel"]["state"] == sw.PUSH_CHANNEL_OPEN
 
 
-def test_unrelated_notification_from_the_same_bundle_is_not_attributed_to_us(
-    monkeypatch,
-) -> None:
-    """**R3 被判錯誤歸屬的那條**：同 bundle 的無關事件不得算到本次通知頭上。
+def test_open_channel_never_claims_goal_two(monkeypatch) -> None:
+    """**本組最重要的一條。**
 
-    這裡故意讓時間跨距內出現第二則通知的 uuid。R3 的「同 bundle ＋ 時間窗」會把它的
-    抑制訊號吃下來並判 suppressed；現在必須因為歸屬有歧義而**拒絕作答**。
+    「管道沒被擋」不等於「有人看到了」。宣稱目標 2 就是把管道能力講成投遞結果——
+    與 R1 把 `rc=0` 講成送達是同一個錯，只是換一個欄位重演。故 open ⇒ 不宣稱。
     """
-    other = (f"{_TS}.492 Df NotificationCenter[734:1aec] [com.apple.unc:dnd] "
-             f'record <NotificationRecord app:"{_APP}" ident:"DA39-A3EE" '
-             f'uuid:"BEEFCAFE">')
-    _patch_notify(monkeypatch, pid=4242,
-                  log_out=_log(4242, "D1DCEC63",
-                               tail_lines=[other, _muted_line("DND suppression: delay")]))
+    _patch_notify(monkeypatch, log_out=_fixture("dnd_open_scripteditor.log"))
 
     verdict = sw.notify("t", "m")
 
-    assert verdict["delivered"] == sw.DELIVERY_UNVERIFIED, (
-        "跨距內有別則通知時仍作答＝把無關事件歸給本次通知")
-    assert "另有 1 則通知" in verdict["reason"]
-    assert "不猜" in verdict["reason"]
+    assert verdict["push_channel"]["state"] == sw.PUSH_CHANNEL_OPEN
+    assert verdict["goal_observed"] is None, "管道通 ≠ 有人看到，不得宣稱目標 2"
+    assert sw._GOAL_BY_CHANNEL[sw.PUSH_CHANNEL_OPEN] is None
+    assert 2 not in sw._GOAL_BY_CHANNEL.values(), "本訊號永遠不得產生目標 2"
 
 
-def test_missing_peer_line_means_unverified_not_a_guess(monkeypatch) -> None:
-    """關聯不上就是關聯不上——不准退回「同 bundle 猜一個」。"""
-    _patch_notify(monkeypatch, pid=4242,
-                  log_out=_log(9999, "D1DCEC63", tail_lines=[_resolution_line("none")]))
+def test_the_field_says_what_it_measures(monkeypatch) -> None:
+    """欄位要自己講清楚量的是什麼——讀者不該需要翻原始碼才知道它不是投遞結果。"""
+    _patch_notify(monkeypatch, log_out=_fixture("dnd_open_scripteditor.log"))
 
-    verdict = sw.notify("t", "m")
+    channel = sw.notify("t", "m")["push_channel"]
 
-    assert verdict["delivered"] == sw.DELIVERY_UNVERIFIED
-    assert verdict["correlation"] is None
-
-
-def test_donotdisturbd_is_not_in_the_predicate_because_it_cannot_be_correlated() -> None:
-    """`donotdisturbd` 的行沒有任何欄位對得回某一則通知（實測：uuid 欄位 0/2 行有、
-    `identifier` 是空字串、`UUID:` 是解析自己的 id、`clientIdentifier` 是預載客戶端）。
-    只剩 bundle 可比，而那正是 R3 錯誤歸屬的來源，故整個排除。"""
-    assert "donotdisturbd" not in sw._LOG_PREDICATE
-    assert 'process == "usernoted"' in sw._LOG_PREDICATE
-    assert 'process == "NotificationCenter"' in sw._LOG_PREDICATE
+    assert "管道能力" in channel["measures"]
+    assert "不是本則通知的投遞結果" in channel["measures"]
 
 
-# ------------------------------------------------------------------ 三態判定
-
-
-def test_focus_suppression_is_reported_as_definitely_not_shown(monkeypatch) -> None:
-    _patch_notify(monkeypatch, pid=4242,
-                  log_out=_log(4242, "F983C9FB",
-                               tail_lines=[_muted_line("DND suppression: delay"),
-                                           _resolution_line("delay")]))
+def test_mode_change_mid_window_is_unknown_not_a_pick(monkeypatch) -> None:
+    """視窗內同一 app 出現不一致的裁決 ⇒ 模式中途改變 ⇒ 不取其一。"""
+    mixed = _fixture("dnd_blocked_scripteditor.log") + _fixture("dnd_open_scripteditor.log")
+    _patch_notify(monkeypatch, log_out=mixed)
 
     verdict = sw.notify("t", "m")
 
-    assert verdict["delivered"] == sw.DELIVERY_SUPPRESSED
-    assert verdict["goal_observed"] == 3
+    assert verdict["push_channel"]["state"] == sw.PUSH_CHANNEL_UNKNOWN
+    assert "中途改變" in verdict["push_channel"]["reason"]
+    assert verdict["goal_observed"] is None
 
 
-def test_display_state_mute_is_also_suppression_not_presented(monkeypatch) -> None:
-    """實測 2026-08-15 13:23:29：抑制原因是 `muted by display state (displayShared)`，
-    **不是** DND。R3 只認 `muted by DND suppression` ＋ donotdisturbd 的 `outcome:`，
-    會把這一則judge 錯邊。原因字串必須照實帶出來，不得一律寫成「專注模式」。"""
-    _patch_notify(monkeypatch, pid=4242,
-                  log_out=_log(4242, "B2B7584D",
-                               tail_lines=[_muted_line("display state (displayShared)"),
-                                           _resolution_line("delay")]))
+def test_other_apps_resolutions_are_not_read_as_ours(monkeypatch) -> None:
+    """裁決要按 bundleIdentifier 挑。別的 app 被擋不代表我們被擋。"""
+    other = _fixture("dnd_blocked_scripteditor.log").replace(
+        b"com.apple.ScriptEditor2", b"com.some.other.app")
+    _patch_notify(monkeypatch, log_out=other)
 
     verdict = sw.notify("t", "m")
 
-    assert verdict["delivered"] == sw.DELIVERY_SUPPRESSED
-    assert "display state" in verdict["reason"]
+    assert verdict["push_channel"]["state"] == sw.PUSH_CHANNEL_UNKNOWN
+    assert "沒有" in verdict["push_channel"]["reason"]
 
 
-def test_presenting_alone_never_means_shown(monkeypatch) -> None:
-    """**負控制**：`Presenting` 由 usernoted 在問 DND **之前**就印，三種結局都會出現。
-
-    只有 `Resolved interruption suppression … as none` 才是「沒被擋」的裁決。
-    """
-    _patch_notify(monkeypatch, pid=4242, log_out=_log(4242, "D1DCEC63"))   # 無裁決行
-
-    verdict = sw.notify("t", "m")
-
-    assert verdict["delivered"] == sw.DELIVERY_UNVERIFIED, (
-        "只有 Presenting 就判 presented ⇒ 被 DND 擋下的那些也會被判成送達")
-
-
-@pytest.mark.parametrize(
-    ("log_rc", "log_out", "why"),
-    [(1, b"", "/usr/bin/log 非零退出"),
-     (0, b"", "查得到但沒有本則通知的紀錄")],
-)
-def test_unverifiable_delivery_never_claims_success(
+@pytest.mark.parametrize(("log_rc", "log_out", "why"),
+                         [(1, b"", "/usr/bin/log 非零退出"),
+                          (0, b"", "查得到但沒有本 app 的裁決")])
+def test_unreadable_state_is_unknown_and_claims_nothing(
     monkeypatch, log_rc: int, log_out: bytes, why: str,
 ) -> None:
-    """**fail closed**：查不到就是 unverified，不准退化成 presented。"""
+    """**fail closed**：量不到就是 unknown，不准退化成 open。"""
     _patch_notify(monkeypatch, log_rc=log_rc, log_out=log_out)
 
     verdict = sw.notify("t", "m")
 
-    assert verdict["delivered"] == sw.DELIVERY_UNVERIFIED, why
+    assert verdict["push_channel"]["state"] == sw.PUSH_CHANNEL_UNKNOWN, why
     assert verdict["goal_observed"] is None
 
 
-def test_osascript_failure_is_not_silently_swallowed(monkeypatch) -> None:
-    _patch_notify(monkeypatch, osascript_rc=3)
-
-    verdict = sw.notify("t", "m")
-
-    assert verdict["osascript_rc"] == 3
-    assert verdict["delivered"] == sw.DELIVERY_UNVERIFIED
-
-
-def test_delivery_probe_uses_absolute_log_path_not_the_shell_builtin(monkeypatch) -> None:
-    """`log` 在 zsh 是內建指令（`type log` → `log is a shell builtin`）。
-
-    R1 的探查寫成裸 `log show`，被 shell 吃掉並回「too many arguments」，於是得到
-    **假陰性**——看起來像「系統沒有紀錄」，其實是查詢從來沒跑。釘住絕對路徑。
-    """
-    calls = _patch_notify(monkeypatch, pid=4242,
-                          log_out=_log(4242, "D1DCEC63",
-                                       tail_lines=[_resolution_line("none")]))
+def test_probe_uses_absolute_log_path_not_the_shell_builtin(monkeypatch) -> None:
+    """`log` 在 zsh 是內建指令；裸寫 `log show` 會被 shell 吃掉並看起來像沒有紀錄。"""
+    calls = _patch_notify(monkeypatch, log_out=_fixture("dnd_open_scripteditor.log"))
 
     sw.notify("t", "m")
 
@@ -864,39 +765,20 @@ def test_delivery_probe_uses_absolute_log_path_not_the_shell_builtin(monkeypatch
     assert log_calls and log_calls[0][0] == "/usr/bin/log"
 
 
-def test_goal_observed_is_derived_from_the_measurement_not_asserted(monkeypatch) -> None:
-    """目標層級由量測推導。presented→2、suppressed→3、unverified→不宣稱。"""
-    _patch_notify(monkeypatch, pid=1, log_out=_log(1, "AAAA1111",
-                                                   tail_lines=[_resolution_line("none")]))
-    assert sw.notify("t", "m")["goal_observed"] == 2
-
-    _patch_notify(monkeypatch, pid=2, log_out=_log(2, "BBBB2222",
-                                                   tail_lines=[_muted_line("DND suppression: delay")]))
-    assert sw.notify("t", "m")["goal_observed"] == 3
-
-    _patch_notify(monkeypatch, pid=3, log_out=b"")
-    assert sw.notify("t", "m")["goal_observed"] is None
-
-
-def test_alert_artifact_tells_the_reader_what_happened_to_the_push(
-    tmp_path: Path, monkeypatch,
-) -> None:
-    """讀到 alert 的人必須立刻知道推播的下場，而不是預設有人被通知到了。"""
-    _patch_notify(monkeypatch, pid=4242,
-                  log_out=_log(4242, "F983C9FB",
-                               tail_lines=[_muted_line("DND suppression: delay")]))
+def test_alert_artifact_carries_the_channel_state(tmp_path: Path, monkeypatch) -> None:
+    """讀到 alert 的人必須立刻知道推播管道當時是不是死的。"""
+    _patch_notify(monkeypatch, log_out=_fixture("dnd_blocked_scripteditor.log"))
     repo = tmp_path / "repo"
     (repo / "logs").mkdir(parents=True)
-    report = {"exit_code": sw.EXIT_FAILED, "verdict": "FAILED", "message": "假的失敗"}
 
-    sw.write_notify_artifacts(repo, report)
+    sw.write_notify_artifacts(repo, {"exit_code": sw.EXIT_FAILED,
+                                     "verdict": "FAILED", "message": "假的失敗"})
 
     alert = json.loads((repo / "logs" / "schedule-alert.json").read_text(encoding="utf-8"))
-    assert alert["notification"]["delivered"] == sw.DELIVERY_SUPPRESSED
+    assert alert["notification"]["push_channel"]["state"] == sw.PUSH_CHANNEL_BLOCKED
     assert alert["notification"]["goal_observed"] == 3
-    assert alert["notification"]["correlation"]["uuid"] == "F983C9FB"
     assert alert["reader"]["goal_floor"] == 3
-    assert "人證" in alert["reader"]["what_code_can_never_prove"]
+    assert "永遠不會是 2" in alert["reader"]["goal_observed_note"]
 
 
 def test_healthy_run_sends_no_notification_and_removes_the_alert(tmp_path: Path,
@@ -906,7 +788,6 @@ def test_healthy_run_sends_no_notification_and_removes_the_alert(tmp_path: Path,
         raise AssertionError("正常路徑不該呼叫任何外部指令")
 
     monkeypatch.setattr(sw.subprocess, "run", explode)
-    monkeypatch.setattr(sw.subprocess, "Popen", explode)
     repo = tmp_path / "repo"
     (repo / "logs").mkdir(parents=True)
     stale = repo / "logs" / "schedule-alert.json"
@@ -943,62 +824,49 @@ def test_no_alert_file_means_a_completely_silent_header(monkeypatch) -> None:
     assert conf._schedule_alert_header() == []
 
 
-def test_alert_file_surfaces_in_the_header_with_the_delivery_truth(
+def test_alert_file_surfaces_in_the_header_with_the_channel_truth(
     tmp_path: Path, monkeypatch,
 ) -> None:
-    """告警在，header 就要印出訊息、檔案位置，以及**這次推播到底怎麼了**。"""
+    """告警在，header 要印出訊息、檔案位置，以及**當時推播管道的狀態**。"""
     conf = _conftest()
     alert = tmp_path / "schedule-alert.json"
     alert.write_text(json.dumps({
         "observed_at": "2026-08-15T21:10:00+0800",
         "verdict": "FAILED", "message": "每日鏈失敗",
-        "notification": {"delivered": sw.DELIVERY_SUPPRESSED},
+        "notification": {"push_channel": {"state": "blocked"}},
     }, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setattr(conf, "_SCHEDULE_ALERT", alert)
 
     lines = conf._schedule_alert_header()
 
-    assert any("每日鏈失敗" in ln for ln in lines), "訊息本身沒印出來"
-    assert any(str(alert) in ln for ln in lines), "沒告訴讀者去哪看"
-    assert any("確定沒有" in ln for ln in lines), (
-        "沒有說推播被擋下——讀者會誤以為已經有人被通知到")
+    assert any("每日鏈失敗" in ln for ln in lines)
+    assert any(str(alert) in ln for ln in lines)
+    assert any("確定沒有" in ln for ln in lines)
 
 
-def _header_for(conf, tmp_path: Path, monkeypatch, delivered: str) -> str:
-    alert = tmp_path / f"alert-{delivered}.json"
+def _header_for(conf, tmp_path: Path, monkeypatch, state: str) -> str:
+    alert = tmp_path / f"alert-{state}.json"
     alert.write_text(json.dumps({
         "observed_at": "x", "message": "m",
-        "notification": {"delivered": delivered},
+        "notification": {"push_channel": {"state": state}},
     }, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setattr(conf, "_SCHEDULE_ALERT", alert)
     return "\n".join(conf._schedule_alert_header())
 
 
-def test_the_three_delivery_states_each_say_something_different(
+def test_the_three_channel_states_each_say_something_different(
     tmp_path: Path, monkeypatch,
 ) -> None:
-    """**三態必須講三種話。**
-
-    R2 把 `unverified` 和 `suppressed` 都渲染成「沒有送達」——把「查不到」講成「確定
-    沒送到」，是在宣稱自己沒有的確定性；那與 R1 把 `rc=0` 講成「送到了」是同一個錯，
-    只是換一邊。這條同時擋住兩個方向。
-    """
+    """三態講三種話，且 `open` **不得**被講成「有人看到」。"""
     conf = _conftest()
-    texts = {d: _header_for(conf, tmp_path, monkeypatch, d)
-             for d in (sw.DELIVERY_PRESENTED, sw.DELIVERY_SUPPRESSED, sw.DELIVERY_UNVERIFIED)}
+    texts = {st: _header_for(conf, tmp_path, monkeypatch, st)
+             for st in ("open", "blocked", "unknown")}
 
     assert len(set(texts.values())) == 3, "有兩個狀態講了一模一樣的話"
-
-    # suppressed：可以斷言「確定沒出現」
-    assert "確定沒有" in texts[sw.DELIVERY_SUPPRESSED]
-    # unverified：**不准**斷言任何一邊
-    unverified = texts[sw.DELIVERY_UNVERIFIED]
-    assert "既不代表送到" in unverified and "也不代表沒送到" in unverified
-    assert "確定沒有" not in unverified, "把『查不到』講成『確定沒送到』"
-    # presented：可以說呈現了，但**不得**宣稱有人讀了
-    presented = texts[sw.DELIVERY_PRESENTED]
-    assert "已呈現" in presented
-    assert "不保證有人讀" in presented, "『系統呈現了』不等於『人看到了』"
+    assert "確定沒有" in texts["blocked"]
+    assert "既不代表送到" in texts["unknown"] and "也不代表沒送到" in texts["unknown"]
+    assert "確定沒有" not in texts["unknown"], "把『量不到』講成『確定沒送到』"
+    assert "這不代表有人看到" in texts["open"], "把『管道通』講成『有人看到』"
 
 
 def test_corrupt_alert_file_degrades_to_a_line_and_never_breaks_pytest(
@@ -1015,18 +883,16 @@ def test_corrupt_alert_file_degrades_to_a_line_and_never_breaks_pytest(
     assert len(lines) == 1 and "讀不開" in lines[0]
 
 
-def test_reader_contract_separates_the_guaranteed_floor_from_the_measured_level() -> None:
-    """目標層級**不是常數**：floor 是不靠使用者設定就成立的那一半，observed 由量測來。
-
-    2026-08-16 需求方關掉非刻意開啟的專注模式後推播復活，但那條通道靠一個**可被無聲
-    撤銷**的設定（它已經無聲退化過一次），且「有人讀了」永遠是人證。故 floor 維持 3。
-    """
+def test_reader_contract_separates_the_guaranteed_floor_from_the_channel_measurement() -> None:
+    """floor 是不靠使用者設定就成立的那一半；管道狀態是量出來的，且**永遠不宣稱目標 2**。"""
     assert sw.READER_CONTRACT["goal_floor"] == 3
     assert "goal" not in sw.READER_CONTRACT, "不得再有一個會被誤讀成常態宣稱的 goal 欄"
     assert "pytest" in sw.READER_CONTRACT["when"]
-    assert sw._GOAL_BY_DELIVERY[sw.DELIVERY_PRESENTED] == 2
-    assert sw._GOAL_BY_DELIVERY[sw.DELIVERY_SUPPRESSED] == 3
-    assert sw._GOAL_BY_DELIVERY[sw.DELIVERY_UNVERIFIED] is None, "查不到時不得宣稱層級"
+    assert "永遠不會是 2" in sw.READER_CONTRACT["goal_observed_note"]
+    assert "管道能力" in sw.READER_CONTRACT["push_channel_note"]
+    assert sw._GOAL_BY_CHANNEL[sw.PUSH_CHANNEL_BLOCKED] == 3
+    assert sw._GOAL_BY_CHANNEL[sw.PUSH_CHANNEL_OPEN] is None
+    assert sw._GOAL_BY_CHANNEL[sw.PUSH_CHANNEL_UNKNOWN] is None
 
 
 # ================================================================== 部署錨點
@@ -1138,156 +1004,3 @@ def test_boots_before_the_deployment_anchor_are_not_runatload_failures(tmp_path:
 
 
 
-# ======================================= predicate 缺陷：presented 曾經結構上不可達
-#
-# 跨家族查核在 R2 抓到：`Presenting` 是 **usernoted** 發的，而 R2 的 predicate 只查
-# `donotdisturbd OR NotificationCenter`——**把自己註解裡記下的那一行，用七行之後的
-# predicate 濾掉了**。實測（同一則通知、同一時間窗）：舊 predicate 找到 0 筆，
-# 加上 usernoted 找到 1 筆。
-
-
-def test_predicate_must_include_usernoted_or_presented_is_unreachable() -> None:
-    """`Presenting` 與帶 uuid 的 `Record` 都由 usernoted 發出；沒有它就無法關聯，
-    presented 也永遠判不到。"""
-    assert 'process == "usernoted"' in sw._LOG_PREDICATE
-
-
-def test_mutation_dropping_usernoted_from_the_predicate_kills_the_verdict(
-    monkeypatch,
-) -> None:
-    """**變異檢驗**：把 usernoted 的行從查詢結果拿掉，presented 必須消失。
-
-    舊 predicate 的效果就是「看不到 usernoted 的行」，故直接濾掉即可模擬。
-    ⚠️ 連 peer 行也會一起不見 ⇒ 連關聯都建立不起來，判定退回 unverified。
-    """
-    full = _log(4242, "D1DCEC63", tail_lines=[_resolution_line("none")])
-
-    _patch_notify(monkeypatch, pid=4242, log_out=full)
-    assert sw.notify("t", "m")["delivered"] == sw.DELIVERY_PRESENTED
-
-    without_usernoted = "\n".join(
-        ln for ln in full.decode().splitlines() if "usernoted[" not in ln).encode()
-    _patch_notify(monkeypatch, pid=4242, log_out=without_usernoted)
-    mutated = sw.notify("t", "m")
-
-    assert mutated["delivered"] == sw.DELIVERY_UNVERIFIED
-    assert mutated["delivered"] != sw.DELIVERY_PRESENTED, (
-        "舊 predicate 下仍判得出 presented ⇒ 這條變異檢驗是空的")
-
-
-def test_mutation_ignoring_the_muted_line_would_flip_suppressed_to_presented(
-    monkeypatch,
-) -> None:
-    """`muted by …` 必須優先於裁決行讀。
-
-    實測 2026-08-15 13:23:29：`muted by display state (displayShared)` 與
-    `Resolved … as delay` 同時出現；若只讀裁決行也還好，但若把 muted 行忽略、
-    又剛好裁決行缺席（本 case），就會退回 unverified 而不是誤判 presented——
-    這條釘住「muted 行本身足以定案」。
-    """
-    _patch_notify(monkeypatch, pid=4242,
-                  log_out=_log(4242, "B2B7584D",
-                               tail_lines=[_muted_line("display state (displayShared)")]))
-    assert sw.notify("t", "m")["delivered"] == sw.DELIVERY_SUPPRESSED
-
-    # 負控制：拿掉 muted 行、也沒有裁決行 ⇒ 只剩 Presenting ⇒ 必須是 unverified
-    _patch_notify(monkeypatch, pid=4242, log_out=_log(4242, "B2B7584D"))
-    assert sw.notify("t", "m")["delivered"] == sw.DELIVERY_UNVERIFIED
-
-
-
-def test_anchor_floor_behaves_across_the_day_boundary(tmp_path: Path) -> None:
-    """跨日回歸：錨點是「昨天」時，判定窗必須正常前進，且不得補判部署前的週期。
-
-    2026-08-16 這天正好是真實的跨日機會——登記表的 `history_from` 與部署錨點都變成
-    「昨天」。這條把當時實測的三個時點釘住，避免日後改動在日界線上出現 off-by-one。
-    """
-    job = _job("com.cpbl.schedule-watchdog", {"kind": "daily", "hour": 21, "minute": 10},
-               effective_from="2026-08-15", history_from="2026-08-15")
-    repo, registry = _build_repo(tmp_path, [job], anchor="2026-08-15")
-    # 08-15 21:10 那一輪有紀錄且成功；08-14（部署前）當然沒有
-    _write_history(repo, "com.cpbl.schedule-watchdog", [
-        _record("2026-08-15T21:10:00+0800", "succeeded", exit_code=0),
-    ])
-
-    # 隔天早上：F1=08-14 在錨點之前 ⇒ 不得被判 MISSING
-    morning = _evaluate(repo, registry, "2026-08-16T10:30:00+0800")
-    assert morning["exit_code"] == 0, f"跨日後補判了部署前的週期：{morning['message']}"
-
-    # 隔天 21:10：F1=08-15 已在錨點之後且有成功紀錄 ⇒ 仍然安靜
-    evening = _evaluate(repo, registry, "2026-08-16T21:10:00+0800")
-    assert evening["exit_code"] == 0
-
-    # 負控制：把 08-15 那筆紀錄拿掉，同一個時點就必須報 MISSING——
-    # 證明上面兩條不是因為判定窗整個空掉才安靜的
-    (repo / "logs" / "schedule-history" / "com.cpbl.schedule-watchdog.jsonl").unlink()
-    naked = _evaluate(repo, registry, "2026-08-16T21:10:00+0800")
-    assert naked["exit_code"] == sw.EXIT_MISSING
-
-
-def test_conflicting_verdicts_are_refused_not_resolved_by_order(monkeypatch) -> None:
-    """**閘二**：多條裁決指向不同結論時，不得用順序或距離挑一條。
-
-    跨家族查核在 R4 指出的正是這一點：「多條裁決同時落在窗內時，你用哪一條決定了
-    goal_observed，而順序本身沒有依據」。裁決行無法歸屬到特定通知（見
-    schedule_watch.py 的「已知限制」表），所以唯一誠實的動作是拒答。
-    """
-    conflicting = [_muted_line("DND suppression: delay"), _resolution_line("none")]
-    _patch_notify(monkeypatch, pid=4242,
-                  log_out=_log(4242, "D1DCEC63", tail_lines=conflicting))
-
-    verdict = sw.notify("t", "m")
-
-    assert verdict["delivered"] == sw.DELIVERY_UNVERIFIED
-    assert "矛盾" in verdict["reason"]
-    assert verdict["goal_observed"] is None
-
-    # 反序：**同樣**要拒答。若實作是「挑第一條」，兩者之一會變成 presented 或 suppressed。
-    _patch_notify(monkeypatch, pid=4242,
-                  log_out=_log(4242, "D1DCEC63", tail_lines=list(reversed(conflicting))))
-    assert sw.notify("t", "m")["delivered"] == sw.DELIVERY_UNVERIFIED
-
-
-def test_agreeing_verdicts_still_answer(monkeypatch) -> None:
-    """負控制：閘二只擋**矛盾**，一致的多條裁決仍要作答，否則閘二等於把功能關掉。"""
-    agreeing = [_muted_line("DND suppression: delay"), _resolution_line("delay")]
-    _patch_notify(monkeypatch, pid=4242,
-                  log_out=_log(4242, "F983C9FB", tail_lines=agreeing))
-
-    verdict = sw.notify("t", "m")
-
-    assert verdict["delivered"] == sw.DELIVERY_SUPPRESSED
-    assert verdict["goal_observed"] == 3
-
-
-def test_attribution_basis_is_recorded_in_the_artifact(monkeypatch) -> None:
-    """作答時必須寫下**為什麼可以作答**——歸屬是由排除法所迫，不是有識別碼。"""
-    _patch_notify(monkeypatch, pid=4242,
-                  log_out=_log(4242, "D1DCEC63", tail_lines=[_resolution_line("none")]))
-
-    basis = sw.notify("t", "m")["correlation"]["attribution"]
-
-    assert "排除法" in basis
-    assert "不帶通知 id" in basis
-
-
-def test_correlation_failure_reason_states_what_actually_failed(monkeypatch) -> None:
-    """關聯失敗的**說明**必須為真，不只是判定為真。
-
-    ⚠️ R4 我把「`thread=None` 改成 `thread=""`」判成等價變異，理由是兩者都走 fail-closed、
-    `delivered` 與 `correlation` 都一樣。**那個推理有洞**：我只比對了判定，沒有比對
-    `reason` 字串。變異版會印「找到連線（thread ）但該執行緒上沒有通知 uuid」——
-    它**根本沒找到連線**，那句話是假的。
-
-    在一張「把 rc=0 講成送達」「把查不到講成沒送到」各犯一次的卡上，讓診斷訊息說謊
-    是同一族的錯。故 reason 也要被釘住：找不到連線就要說找不到連線。
-    """
-    # peer 行的 pid 對不上 ⇒ 連線根本沒找到
-    _patch_notify(monkeypatch, pid=4242,
-                  log_out=_log(9999, "D1DCEC63", tail_lines=[_resolution_line("none")]))
-
-    reason = sw.notify("t", "m")["reason"]
-
-    assert "找不到" in reason and "連線" in reason, f"沒有據實說明失敗原因：{reason}"
-    assert "找到連線" not in reason.replace("找不到", ""), (
-        "宣稱找到了連線——但 pid 對不上，實際上沒找到")
