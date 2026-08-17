@@ -54,9 +54,17 @@ ROOT = Path(__file__).resolve().parents[1]
 # 沒進過那張表：舊判準問「寫不寫 DB」，而它 `pg_dump` 對 DB 唯讀。實測 `--help`
 # 會 ssh 進生產跑整庫 dump，然後 exit 0、產出備份、`rm -f` 掉輪替視窗最舊的那份
 # （7 份視窗實測：08-08 消失、08-15 補進來）。判準已一併加寬為「高後果」。
+#
+# `schedule-watchdog.sh` 是 `#132`（OPS-SCHEDULE-FAILURE-BLIND1）新增的第五支，加進來的
+# 理由不是「順手」，而是 `test_every_safe_shell_is_covered_here` 的 fail-closed 要求：
+# 它的守衛控制流與 canonical 逐字相同 ⇒ 清冊判 `safe` ⇒ 本檔就必須證明那個 safe 是真的。
+# 它與前四支的**危害等級不同**（唯讀偵測器，不寫 DB、不爬官網），故不在
+# `test_negative_control_unguarded_help_really_reaches_the_main_flow` 的參數化裡——
+# 拿掉守衛後它落進的主流程只是跑一支唯讀 python，那條要證的「實害」在它身上不成立。
 GUARDED_SHELLS = (
     "scripts/backup-prod-db.sh",
     "scripts/refresh-cpbl-prod.sh",
+    "scripts/schedule-watchdog.sh",
     "scripts/scrape-daily.sh",
     "scripts/weekly-game-pitches.sh",
 )

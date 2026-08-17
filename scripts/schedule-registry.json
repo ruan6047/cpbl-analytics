@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "_readme": [
+    "排程登記表（OPS-SCHEDULE-FAILURE-BLIND1／#132）：宣告『哪些 launchd job 應該被安裝、",
+    "應該多久跑一次、從哪一天起算』。scripts/schedule_watch.py 只判定登記在此的 job。",
+    "",
+    "為什麼非有不可：從機器的角度，『刻意不安裝』與『壞掉沒安裝』的觀測結果完全相同——",
+    "com.cpbl.weekly-game-pitches 的 plist 於 4203f59 併入 main 至今從未安裝，那是 #53 ",
+    "Phase A 的刻意邊界，但 launchctl／狀態檔／log 三處皆空，機器分不出來。沒有這份宣告，",
+    "缺席偵測器部署當天就會把刻意邊界報成故障，然後被關掉（#115 正是死於這個形狀）。",
+    "",
+    "Fail closed 的方向是『對登記表告警』而非『對 job 告警』：磁碟上有 com.cpbl.*.plist ",
+    "或 launchctl 裡有 com.cpbl.* 而此表沒有 → REGISTRY_INCOMPLETE，優先序最高，且此時",
+    "其餘 job 的判定一律不宣稱。",
+    "",
+    "cadence 與 plist 的 StartCalendarInterval 重複，會漂移，因此 schedule_watch.py 必用",
+    "plistlib 解析 plist 逐欄比對，不一致即 REGISTRY_INVALID。",
+    "",
+    "effective_from = job 生效日（第一次真的被排程觸發的那天）。",
+    "history_from   = 歷史寫入器生效日。兩者必須分開：本卡部署前所有週期都不可能有歷史，",
+    "                 不分開的話部署當天會把整段既有歷史報成一片 MISSING。",
+    "",
+    "判定下界 = max(effective_from, history_from, **部署錨點**)。",
+    "部署錨點是 logs/schedule-watchdog/deployed-at.json，由 schedule_watch.py 第一次執行時",
+    "自己寫下、之後永不覆寫（logs/ 不進版控，故它天然是『這台機器的』事實）。",
+    "",
+    "⚠️ 為什麼要錨點：下方 history_from 是**授權時的猜測**（填的是交付日），而部署是 merge",
+    "   之後才發生的另一件事。R1 原本在這裡寫『部署者記得把它改成實際安裝日』——但本卡的",
+    "   整個立論就是『靠人記得不算數』，對自己的部署程序當然也一樣。錨點把那個宣告換成",
+    "   量測：就算 history_from 填早了，部署前的空窗也不會被報成 MISSING。",
+    "   因此下方的日期填得保守（早）是安全的，填得晚才會漏判。",
+    "history_from 落在未來一律 REGISTRY_INVALID。"
+  ],
+  "jobs": [
+    {
+      "label": "com.cpbl.scrape-daily",
+      "plist": "scripts/com.cpbl.scrape-daily.plist",
+      "cadence": {
+        "kind": "daily",
+        "hour": 10,
+        "minute": 10
+      },
+      "effective_from": "2026-07-19",
+      "effective_from_evidence": "~/Library/LaunchAgents/com.cpbl.scrape-daily.plist symlink mtime 2026-07-18 18:42（實測），故第一次排程觸發為隔日 10:10；logs 執行時刻分布自 2026-07-19 10:10:05 起穩定落在 10:10±（#132 Discovery §1）。plist 的 Hour 由 3 改 10 在 a90bdeb（07-04），但 launchd 要重新 bootstrap 才吃到。",
+      "expected_installed": true,
+      "expected_installed_reason": "OPS-REFRESH1 已部署，是每日爬取＋生產同步鏈的唯一觸發器",
+      "status_path": "logs/last-launchd-status.json",
+      "history_path": "logs/schedule-history/com.cpbl.scrape-daily.jsonl",
+      "history_from": "2026-08-15",
+      "history_from_evidence": "#132 交付日（保守下界的宣告，非量測）。實際生效日以 logs/schedule-watchdog/deployed-at.json 的部署錨點為準——見 _readme。歷史由 scripts/refresh_status.py 的 start/finish 自動 append"
+    },
+    {
+      "label": "com.cpbl.weekly-box-revisions",
+      "plist": "scripts/com.cpbl.weekly-box-revisions.plist",
+      "cadence": {
+        "kind": "weekly",
+        "weekday": 1,
+        "hour": 14,
+        "minute": 10
+      },
+      "effective_from": "2026-08-10",
+      "effective_from_evidence": "symlink mtime 2026-08-08 18:56（實測，週六 bootstrap），其後第一個排程週一為 2026-08-10；logs/weekly-box-revisions-20260810-141135.log 為第一次排程觸發（08-08 22:52 那份是 bootstrap 後的 kickstart 測跑）",
+      "expected_installed": true,
+      "expected_installed_reason": "DATA-BOX-REVISION-SNAPSHOT1 深度層已部署",
+      "status_path": "logs/last-weekly-box-revisions.json",
+      "history_path": "logs/schedule-history/com.cpbl.weekly-box-revisions.jsonl",
+      "history_from": "2026-08-15",
+      "history_from_evidence": "#132 交付日；歷史由 scripts/weekly-box-revisions.sh 的 write_status 呼叫 refresh_status.py history-append 寫入"
+    },
+    {
+      "label": "com.cpbl.weekly-game-pitches",
+      "plist": "scripts/com.cpbl.weekly-game-pitches.plist",
+      "cadence": {
+        "kind": "weekly",
+        "weekday": 1,
+        "hour": 13,
+        "minute": 10
+      },
+      "effective_from": null,
+      "effective_from_evidence": "尚未安裝，故無生效日。實測 launchctl print gui/501/com.cpbl.weekly-game-pitches → exit 113（Could not find service）",
+      "expected_installed": false,
+      "expected_installed_reason": "#53 INGEST-GAME-TM-REFACTOR1-G4 Phase A 的刻意邊界：交付碼與 plist 但不安裝，cutover 未發生（docs/ROADMAP.md §0 已載明；#115 死於誤把此邊界當缺陷）。若日後 cutover，同時填 effective_from／history_from 並把 expected_installed 改 true。",
+      "status_path": "logs/last-weekly-pitches.json",
+      "history_path": "logs/schedule-history/com.cpbl.weekly-game-pitches.jsonl",
+      "history_from": null,
+      "history_from_evidence": "尚未安裝；且該 wrapper 的歷史寫入未在 #132 射程內（scripts/weekly-game-pitches.sh 不在本卡 resource-claims，見交付報告『射程缺口』）",
+      "cutover_blockers": [
+        "⚠️ 這兩項必須在 #53 cutover **之前**處理，否則裝上去的那天就是一支帶著已知缺陷的排程：",
+        "1. 跳過被記成成功：scripts/weekly-game-pitches.sh:103-106 拿不到 refresh lock 時",
+        "   `write_status \"skipped\" 0` 然後 `exit 0`。launchd 只看得到 exit 0＝成功，於是",
+        "   『每週都被跳過、整季一次都沒跑』與『每週都正常跑完』在觀測上完全相同。",
+        "   同型缺陷在 scripts/weekly-box-revisions.sh 已於本卡修掉（改 exit 75 並區分",
+        "   stale lock），可直接照抄那一段；本卡未動本檔是因為它不在 resource-claims。",
+        "   ⚠️ 現況是**休眠**而非已發生：launchctl print gui/501/com.cpbl.weekly-game-pitches",
+        "   → exit 113（未安裝），故它目前一次都沒跑過，不會產生假成功。",
+        "2. 完全沒有歷史寫入：本檔 grep `history-append|schedule-history` 命中 0 次，",
+        "   故即使裝上，schedule_watch.py 也判不了它的缺席（history_from 只能是 null）。",
+        "   cutover 時需比照 weekly-box-revisions.sh 接上 refresh_status.py history-append。"
+      ]
+    },
+    {
+      "label": "com.cpbl.schedule-watchdog",
+      "plist": "scripts/com.cpbl.schedule-watchdog.plist",
+      "cadence": {
+        "kind": "daily",
+        "hour": 21,
+        "minute": 10
+      },
+      "effective_from": "2026-08-15",
+      "effective_from_evidence": "#132 交付的偵測器本身。RunAtLoad=true 使它在每次登入／開機時也跑一次，故實際執行次數多於 cadence——cadence 只用來算『上一個應該完成的週期』，多跑不影響判定。",
+      "expected_installed": true,
+      "expected_installed_reason": "#132 的偵測器本身：唯一會回頭判定『上一個週期跑了沒』的東西，也是唯一會主動把排程失敗推到需求方螢幕上的東西。⚠️ 推播靠 macOS 通知，而它取決於使用者的專注模式設定——2026-08-15 實測被一個非刻意開啟的專注模式全數擋下，08-16 需求方關閉後復活（量測見 scripts/schedule_watch.py 的 notify() 區段）。該設定可被無聲撤銷，故偵測器每次執行都重新量一次投遞結果，並以 logs/schedule-alert.json 經由tests/conftest.py 印在每次 pytest header 上作為不依賴設定的備援。⚠️ 安裝屬部署步驟，須在本卡 merge 後執行。",
+      "status_path": "logs/schedule-watchdog/last-run.json",
+      "history_path": "logs/schedule-history/com.cpbl.schedule-watchdog.jsonl",
+      "history_from": "2026-08-15",
+      "history_from_evidence": "偵測器每次執行寫自己一列，供『開機了但偵測器沒跑』的自證不變量使用"
+    }
+  ]
+}

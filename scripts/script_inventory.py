@@ -76,8 +76,17 @@ README_PATH = ROOT / "scripts" / "README.md"
 SCRIPTS_GLOB = "scripts/**"
 RESEARCH_GLOB = "docs/**/*.py"
 
-# 本產生器與其產物不算「入口」：README.md 不可執行。
-NON_ENTRY_BASENAMES = {"README.md"}
+# 不是「可執行入口」的檔案——具名列出，不用「副檔名不是 .py/.sh 就跳過」這種概括規則
+# （概括會靜默吞掉未來真的該被盤點的入口；具名例外壞掉時看得見）。
+#
+# · README.md：本產生器自己的產物，不可執行。
+# · schedule-registry.json：`schedule_watch.py` 讀的**純資料**（排程節奏宣告）。它沒有
+#   shebang、不可執行，而且 JSON 語法上就放不下 `LIFECYCLE:` 註解——留在盤點面裡的話，
+#   不變式 1（檔頭標記）在它身上**永遠不可能為真**。它被 CI 繫結（測試載入它）故推導
+#   會判 `ci_guard` 並要求搬到 `scripts/ci/`，但那個結論的前提是「它是入口」，而它不是。
+#   它必須與消費它的 `schedule_watch.py` 同目錄：後者刻意走系統 `/usr/bin/python3`、
+#   不經 venv（見該檔隔離說明），所以拿不到套件資源，只能用相對路徑讀檔。
+NON_ENTRY_BASENAMES = {"README.md", "schedule-registry.json"}
 
 # --------------------------------------------------------------- 引用面分層
 #

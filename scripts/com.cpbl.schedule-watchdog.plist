@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪 -->
+<!-- macOS launchd 排程：排程缺席／失敗偵測器（OPS-SCHEDULE-FAILURE-BLIND1／#132）。
+
+     這是本專案唯一會「主動冒出來」的排程健康訊號。其餘四個面（cpbl.refresh_log、
+     logs/last-*.json、logs/*.log、launchctl list）都在寫，但沒有任何程式讀——
+     2026-08-10 兩個排程同日失敗，三天後才被人為了別的事翻 launchctl list 碰到。
+
+     時刻選擇：**每日 21:10**，三個理由：
+       · 每日鏈 10:10 起跑、實測耗時 4–287 分鐘（最壞觀測結束約 14:57）。21:10 距起跑
+         11 小時，遠在觀測上界之外，故當前週期幾乎必然已是終態，「當天就報出來」是
+         常態路徑而不是備援。回放 2026-08-10：鏈 11:50:37 寫入 failed → 當晚告警。
+       · 在清醒時段。通知是主要讀者，而橫幅只會出現數秒——凌晨發等於沒發。
+         21:10 同時讓 logs/schedule-alert.json 在當晚就寫好，隔天任何人一開工跑
+         驗證迴圈（pytest header）就會看到，不必多等一個週期。
+       · 正確性其實與時點無關——判定對象是「上一個應該完成的週期」不是「現在」。
+         時點只影響延遲與讀者在不在螢幕前。
+
+     ⚠️ RunAtLoad=true 只掛這一支，**三支工作 job 的 plist 一個位元都不准改**：
+       · com.cpbl.scrape-daily 若掛上 RunAtLoad，會在每次登入／開機當下冷啟動爬蟲、
+         時間點完全不受控且包含深夜——直接違反 CLAUDE.md 爬蟲紅線第 2 條（HiNet 挑戰
+         對連續冷啟動會升級節流，深夜更是硬封鎖窗）。
+       · man launchd.plist 說 RunAtLoad "should be avoided"，理由是臆測性啟動拖累開機
+         與登入。本檔是純本機讀檔 ＋ 一次 HTTPS GET，數百毫秒等級，那句警告咬不到；
+         對一個典型 4–30 分鐘、實測最長 287 分鐘的爬蟲＋同步鏈則完全成立。
+     RunAtLoad 在這裡買到的是：關機期間錯過的觸發，在下次開機時補上。
+     （StartCalendarInterval 的補跑保證只涵蓋 wake from sleep，man page 對關機沉默。）
+
+     安裝（⚠️ 屬部署步驟，須在本卡 merge 後、由需求方或部署者執行；
+           執行者交付碼與此檔，不自行 bootstrap 未合併分支的排程）：
+       ln -sf "$PWD/scripts/com.cpbl.schedule-watchdog.plist" \
+         ~/Library/LaunchAgents/com.cpbl.schedule-watchdog.plist
+       launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.cpbl.schedule-watchdog.plist
+     安裝日不需要有人手動填進登記表：首次執行會自己把當下寫進
+     logs/schedule-watchdog/deployed-at.json（部署錨點，寫一次後永不覆寫），判定下界取
+     max(effective_from, history_from, 錨點)，故安裝前的空窗不會被報成 MISSING。
+     立即測跑一次：launchctl kickstart -k gui/$(id -u)/com.cpbl.schedule-watchdog
+     停用：launchctl bootout gui/$(id -u)/com.cpbl.schedule-watchdog
+     看判定細節（不通知、不留產物）：直接跑 scripts/schedule_watch.py，旗標見
+     scripts/schedule-watchdog.sh 的 usage。
+     ⚠️ XML 註解內不得出現連續兩個減號，故此處不寫旗標原文——plutil -lint 對這件事
+     是寬鬆的（實測放行），plistlib 才會拒收；本卡的登記表校驗走 plistlib，是較嚴的那把尺。 -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.cpbl.schedule-watchdog</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/ruanruan/Dev/cpbl-analytics/scripts/schedule-watchdog.sh</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/ruanruan/Dev/cpbl-analytics</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>21</integer>
+    <key>Minute</key><integer>10</integer>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>StandardOutPath</key><string>/Users/ruanruan/Dev/cpbl-analytics/logs/launchd-schedule-watchdog.out.log</string>
+  <key>StandardErrorPath</key><string>/Users/ruanruan/Dev/cpbl-analytics/logs/launchd-schedule-watchdog.err.log</string>
+</dict>
+</plist>
