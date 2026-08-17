@@ -1,4 +1,16 @@
 {
+ "superseded_by": "docs/research/ML-WP-VERDICT-ROBUST1/verdict_metrics.json",
+ "superseded_note": {
+  "by_card": "WP-DISCLOSURE-SYNC1",
+  "marked_on": "2026-08-16",
+  "measurements_unchanged": true,
+  "why": [
+   "本檔是 GAME-RECAP-WP-VAL1（驗證日 2026-07-25）的交付 artifact，**量測本體一位未改**——本卡只加上本區塊兩個鍵，不動 thresholds／scopes／counting_machine_check。",
+   "⚠️ 已知缺陷，不得再當事實來源：(1) E scope 是 **pre-FIX1** 版（借 D 分布、ruleset cap15），正確值見 GAME-RECAP-WP-VAL1-FIX1_ERRATA.md；(2) 打席前比分走已知受污染的 pre_state 讀法，修正見 ML-WP-VAL-RESAMPLE1；(3) verdict 由 v2 判定規則產生，把「測不了」與「測了，不準」壓成同一個 unsupported，修正見 ML-WP-VERDICT-ROBUST1。",
+   "對外揭露（/methodology#winprob-validation 與 API 的 wp_reliability）自 WP-DISCLOSURE-SYNC1 起改為逐位對應 superseded_by 指向的 v3 artifact（as-of 2026-08-07），不再引用本檔。",
+   "保留本檔而不覆寫：它是已查核交付的凍結證據，覆寫會讓留痕重建不出來。歷史引用（VAL1_RESULTS §0、CAL1 §查核錨點、FIX1 errata）指向的仍是這些數字。"
+  ]
+ },
  "thresholds": {
   "ece_weighted_max": 0.025,
   "decile_max_dev": 0.06,

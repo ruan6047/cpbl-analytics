@@ -238,16 +238,42 @@ def test_no_model_fails_closed_for_all_rows() -> None:
 # wp_reliability metadata：與 research 報告事實一致（本卡唯一 owner）
 # ---------------------------------------------------------------------------
 def test_wp_reliability_structure_and_semantics() -> None:
+    # WP-DISCLOSURE-SYNC1：1.1.0 起 status 有三種值。C／E 由 unsupported 改標
+    # insufficient_evidence（對外「樣本不足」）——「測不了」與「測了，不準」是兩件事。
+    expected_status = {"A": "unsupported", "D": "unsupported",
+                       "C": "insufficient_evidence", "E": "insufficient_evidence"}
     for kind in ("A", "C", "D", "E"):
         rel = recap.wp_reliability(kind)
-        assert rel["schema_version"] == "1.0.0"
+        assert rel["schema_version"] == "1.1.0"
         assert rel["semantics"] == "reference"
         assert rel["scope"] == kind
-        assert rel["status"] == "unsupported"  # VAL1：全 scope unsupported
+        assert rel["status"] == expected_status[kind]
         assert rel["methodology"] == "/methodology#winprob"
+        assert rel["evidence_as_of"] == recap.WP_EVIDENCE_AS_OF
         # 只引已 merge 報告；STRENGTH1 未 merge，不得引用
         assert rel["evidence"], "evidence 不可為空"
         assert not any("STRENGTH" in e for e in rel["evidence"])
+
+
+def test_insufficient_evidence_is_not_a_pass() -> None:
+    """「樣本不足」不是通過——它與 unsupported 的**處置相同**，只有理由不同。
+
+    這條是本卡的核心紅線：改標的目的是分辨「測不了」與「測了，不準」，
+    不是替季後賽的 WP 開一條上線後門。任何把 C／E 讀成「已驗證」的實作在此必紅。
+    """
+    assert recap.STATUS_INSUFFICIENT == "insufficient_evidence"  # 沿用 winprob_val v3 詞彙
+    # 傘型 token 底下有兩種對外說法，且都不是「通過」
+    assert set(recap.INSUFFICIENT_SOURCE_LABELS.values()) == {"樣本不足", "判定未收斂"}
+    used = {s["status"] for s in recap.WP_RELIABILITY_SCOPES.values()}
+    assert used == {"unsupported", "insufficient_evidence"}
+    assert "supported" not in used
+    for kind in ("C", "E"):
+        rel = recap.wp_reliability(kind)
+        assert rel["status_label"] == "樣本不足"
+        # 語意必須寫明「不是測出不準」，否則改標會被讀成模型變好了
+        assert "不是" in rel["validation"]
+    # 參考資訊語意不因改標而升級
+    assert all(recap.wp_reliability(k)["semantics"] == "reference" for k in "ACDE")
 
 
 def test_wp_reliability_distribution_sources_match_val1() -> None:
@@ -261,12 +287,18 @@ def test_wp_reliability_distribution_sources_match_val1() -> None:
 
 
 def test_wp_reliability_facts_not_embellished() -> None:
-    """關鍵數字釘住報告值（VAL1 §0/§3、FIX1 §2、CAL1 §0/§5）。"""
+    """關鍵數字釘住報告值（VAL1 §0/§3、FIX1 §2、RESAMPLE1 §3、CAL1 §0/§5）。
+
+    ⚠️ 這裡**只留非數值的語意釘子**。所有會隨 artifact 漂移的數字（母體、偏差、分箱、
+    Brier、ECE）一律交給 tests/test_recap_wp_contract.py 的比對器**由 artifact 現算**——
+    在這裡再寫一份期望值就是同一份清單的又一次搬家，漂移時只會兩邊一起過期。
+    唯一例外是 known_bias 的「±4–6pt」：它是需求方明訂不得更動的**約數摘要**
+    （+6.12pt 嚴格已超過字面 6），本來就不參與逐位比對，故只能用字面釘住。
+    """
     scopes = recap.WP_RELIABILITY_SCOPES
-    assert "±4–6pt" in scopes["A"]["known_bias"]
-    assert "0.153" in scopes["A"]["known_bias"] and "0.245" in scopes["A"]["known_bias"]
+    assert "±4–6pt" in scopes["A"]["known_bias"]  # 約數摘要，刻意不入逐位比對
     assert "時間平穩" in scopes["A"]["remediation"]  # CAL1 No-Go 機制
-    assert "0.110" in scopes["C"]["validation"] and "25 場" in scopes["C"]["validation"]
-    assert "+4.7pt" in scopes["D"]["validation"]
-    assert "0.289" in scopes["E"]["validation"] and "13 場" in scopes["E"]["validation"]
+    assert "樣本量不足以判定" in scopes["C"]["validation"]  # 「測不了」語意，非「測了不準」
+    assert "顯著" in scopes["D"]["validation"]  # ROBUST1 §6-P2：不得再寫「隨重抽擺盪」
+    assert "擺盪" not in scopes["D"]["validation"]
     assert scopes["E"]["scope_label"] == "一軍季後挑戰賽"  # FIX1 修正後語意
