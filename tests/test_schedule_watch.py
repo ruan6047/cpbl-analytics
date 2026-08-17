@@ -679,8 +679,8 @@ def test_focus_mode_active_is_reported_as_blocked(monkeypatch) -> None:
     assert channel["state"] == sw.PUSH_CHANNEL_BLOCKED
     assert channel["active_mode"] and channel["active_mode"] != "null"
     assert "delay" in channel.get("suppression_type", ""), "應記錄抑制型態"
-    assert "延後" in channel["reason"], "不得寫成「確定沒出現」——delay 是延後"
-    assert "goal_observed" not in verdict, "本卡不再往目標層級推"
+    assert "設計時點沒有送到" in channel["reason"]
+    assert verdict["on_time"]["state"] == sw.ON_TIME_MISSED
 
 
 def test_no_focus_mode_is_reported_as_open(monkeypatch) -> None:
@@ -843,7 +843,7 @@ def test_alert_file_surfaces_in_the_header_with_the_channel_truth(
 
     assert any("每日鏈失敗" in ln for ln in lines)
     assert any(str(alert) in ln for ln in lines)
-    assert any("沒有即時" in ln for ln in lines)
+    assert any("當晚沒有送到" in ln for ln in lines)
 
 
 def _header_for(conf, tmp_path: Path, monkeypatch, state: str) -> str:
@@ -866,9 +866,9 @@ def test_the_three_channel_states_each_say_something_different(
              for st in ("open", "blocked", "unknown")}
 
     assert len(set(texts.values())) == 3, "有兩個狀態講了一模一樣的話"
-    assert "沒有即時" in texts["blocked"]
+    assert "當晚沒有送到" in texts["blocked"]
     assert "既不代表送到" in texts["unknown"] and "也不代表沒送到" in texts["unknown"]
-    assert "沒有即時" not in texts["unknown"], "把『量不到』講成『沒送到』"
+    assert "當晚沒有送到" not in texts["unknown"], "把『量不到』講成『沒送到』"
     assert "這不代表有人看到" in texts["open"], "把『管道通』講成『有人看到』"
 
 
@@ -1058,3 +1058,76 @@ def test_command_failure_appears_in_the_reader_summary(tmp_path: Path,
     assert "完全沒有送出" in text
     # 且不得同時把管道狀態的話也講出來——那會讓讀者以為送出了只是被擋
     assert "被專注模式擋住" not in text
+
+
+# ================================ 時效軸與抑制型態（R7 兩個錯的修正）
+
+
+def test_on_time_axis_cites_the_card_not_a_paraphrase(monkeypatch) -> None:
+    """時效依據必須逐字引用卡面，不得引用 PM 或查核者的轉述。
+
+    ⚠️ R7 判定「沒有時效依據」是錯的——我只搜了 docs/（ROADMAP、AI_RUNBOOK、卡片 .md），
+    而依據寫在**卡面本身**（GitHub Issue body），那份 .md 只是 26 行的 stub。
+    """
+    assert "#132 卡面" in sw.TIMELINESS_BASIS
+    assert "21:10" in sw.TIMELINESS_BASIS and "當晚就報" in sw.TIMELINESS_BASIS
+
+    _patch_notify(monkeypatch, log_out=_fixture("dnd_blocked_scripteditor.log"))
+    assert sw.notify("t", "m")["on_time"]["basis"] == sw.TIMELINESS_BASIS
+
+
+def test_blocked_means_missed_the_design_moment_not_never_appears(monkeypatch) -> None:
+    """軸是「設計時點有沒有送到」，**不是**「最終有沒有出現」。
+
+    後者要看未來、量不到；前者當下就答得出來。兩者混為一談正是 R6/R7 各自的錯。
+    """
+    _patch_notify(monkeypatch, log_out=_fixture("dnd_blocked_scripteditor.log"))
+
+    on_time = sw.notify("t", "m")["on_time"]
+
+    assert on_time["state"] == sw.ON_TIME_MISSED
+    assert "當晚沒有送到" in on_time["why"]
+    assert "另一回事" in on_time["why"], "必須明說『之後會不會補送』是另一個問題"
+
+
+def test_open_channel_is_not_blocked_but_never_claims_someone_saw_it(monkeypatch) -> None:
+    """負控制：管道通只給 `not_blocked`，不得升格成「有人看到」。"""
+    _patch_notify(monkeypatch, log_out=_fixture("dnd_open_scripteditor.log"))
+
+    on_time = sw.notify("t", "m")["on_time"]
+
+    assert on_time["state"] == sw.ON_TIME_NOT_BLOCKED
+    assert "不等於" in on_time["why"] and "有人看到" in on_time["why"]
+
+
+def test_command_failure_also_misses_the_design_moment(monkeypatch) -> None:
+    _patch_notify(monkeypatch, osascript_rc=3,
+                  log_out=_fixture("dnd_open_scripteditor.log"))
+
+    assert sw.notify("t", "m")["on_time"]["state"] == sw.ON_TIME_MISSED
+
+
+@pytest.mark.parametrize(("kind", "expect_redelivery", "must_say"),
+                         [("delay delivery", True, "補送"),
+                          ("silence", False, "不保證補送"),
+                          ("some future type", False, "可能永遠不會出現")])
+def test_suppression_types_are_worded_separately(kind: str, expect_redelivery: bool,
+                                                 must_say: str) -> None:
+    """**R7 的錯**：只看 fixture 就把所有抑制講成 `delay delivery` 會補送。
+
+    實測值域窮舉（2026-08-17）：none 7830、delay delivery 996、silence 4、空 94。
+    `silence` 只有 4 筆且全為 presentation mode，**不足以判斷會不會補送**，故不宣稱。
+    未知型態一律 fail closed 走最嚴重語意——對告警系統而言，讓讀者低估嚴重性不可接受。
+    """
+    note, known = sw.suppression_semantics(kind)
+
+    assert known is expect_redelivery
+    assert must_say in note
+
+
+def test_unknown_suppression_type_fails_closed_to_the_worst_case() -> None:
+    """列舉法證不了完整性，所以預設值必須是最嚴重的那一支。"""
+    note, known = sw.suppression_semantics("")
+    assert known is False and "可能永遠不會出現" in note
+    assert sw.suppression_semantics("silence")[1] is False
+    assert sw.suppression_semantics("delay delivery")[1] is True

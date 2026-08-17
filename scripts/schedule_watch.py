@@ -746,6 +746,60 @@ _OUTCOME_RE = re.compile(r"outcome: (\w+)")
 _DND_REASON_RE = re.compile(r"reason: ([a-z ]+);")
 _ACTIVE_MODE_RE = re.compile(r"activeModeUUID: \(?([0-9A-Fa-f-]+|null)\)?")
 _SUPPRESSION_TYPE_RE = re.compile(r"interruptionSuppression: ([a-z ]+?);")
+
+# ================================ 抑制型態：逐型態分流，未知型態一律走最嚴重的那支
+#
+# ⚠️ R7 只看了 fixture 就宣稱「抑制型態是 `delay delivery`，會補送」。**錯了**——
+# 跨家族查核指出還有 `silence`，實測確認。取得方式：對可得的最寬日誌窗做值域窮舉
+#   /usr/bin/log show --start "2026-08-16 00:00:00" \
+#     --predicate 'process == "donotdisturbd" OR process == "NotificationCenter"'
+#   → grep -o 'interruptionSuppression: [a-zA-Z ]*' | sort | uniq -c
+# 觀測到（2026-08-17 量）：none 7830、delay delivery 996、**silence 4**、空字串 94。
+#
+# ⚠️ **這是「已觀測」不是「完整」。** 列舉法無法證明沒有第四種——DoNotDisturb.framework
+# 的二進位在 dyld shared cache 裡，磁碟上沒有檔案可 strings，我沒有辦法取得 enum 全集。
+# 因此未知型態**一律 fail closed 走最嚴重的語意**（可能永遠不出現）：對告警系統而言，
+# 把「可能永遠看不到」講成「會延後補送」是讓讀者低估，那個方向不可接受。
+#
+# 各型態的證據強度差很多，措辭必須照實反映：
+#   · delay delivery：**強**。2026-08-16 10:12:40 使用者關閉專注模式的同一秒，
+#     14 則 ScriptEditor2 被 `Re-add … visibility: [history, alert, lockscreen,
+#     allowsScreenWake]`，確實補送了。
+#   · silence：**弱**。只有 4 筆，全是 com.apple.Passbook 且 resolutionReason 是
+#     `presentation mode`（螢幕分享／簡報，不是專注模式）。**無法**從這 4 筆判斷它會不會
+#     補送，故不宣稱會補送。
+_SUPPRESSION_SEMANTICS = {
+    "delay delivery": ("會在抑制條件解除時補送（實測 2026-08-16 10:12:40 有 14 則被 Re-add），"
+                       "但延後多久取決於對方何時解除，不可預測", True),
+    "silence": ("靜音處理。**不保證補送**——本機只觀測到 4 筆（全為 presentation mode），"
+                "不足以判斷它會不會再出現", False),
+}
+_SUPPRESSION_UNKNOWN = ("未知的抑制型態。**保守假設它可能永遠不會出現在畫面上**"
+                        "（未知型態一律走最嚴重語意）", False)
+
+
+def suppression_semantics(kind: str):
+    """回傳 (說明, 是否已知會補送)。未知型態 fail closed 走最嚴重的那支。"""
+    return _SUPPRESSION_SEMANTICS.get((kind or "").strip(), _SUPPRESSION_UNKNOWN)
+
+
+# ================================ 時效軸：本告警的設計目的是**當晚 21:10 送達**
+#
+# 依據（逐字引用卡面，非任何人的轉述）——`#132` 卡面【08-10 回放】段：
+#   「08-10 21:10 即報 FAILED（連續第 1 天）——**當晚就報，不是三天後**」
+# 對應卡面驗證項「以 2026-08-10 的真實失敗回放：失敗會在何時、以什麼形式、被誰看到」。
+#
+# ⚠️ R7 判定「沒有時效依據」是錯的：我只搜了 docs/（ROADMAP、AI_RUNBOOK、卡片 .md），
+# 而依據寫在**卡面本身**（GitHub Issue body，165 行），那 26 行的 .md 只是 stub。
+#
+# 所以軸不是「有沒有出現過」（那要看未來、量不到），而是**有沒有在設計時點送達**。
+# 這一題當下就答得出來：管道被抑制 ⇒ 21:10 那一刻沒有送到 ⇒ 沒有達成設計目的。
+# 至於它稍後會不會補送，是另一個問題，且不影響「當晚沒送到」這個事實。
+TIMELINESS_BASIS = ("#132 卡面【08-10 回放】：「08-10 21:10 即報 FAILED（連續第 1 天）"
+                    "——當晚就報，不是三天後」")
+ON_TIME_MISSED = "missed"            # 設計時點沒送到
+ON_TIME_NOT_BLOCKED = "not_blocked"  # 設計時點沒有東西擋著
+ON_TIME_UNKNOWN = "unknown"          # 量不到
 _LINE_TS_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)")
 
 # ============================== 已知限制：某一則通知**無法**被歸屬到它自己的裁決
@@ -820,18 +874,38 @@ def probe_push_channel(since: datetime, timeout: float = 20.0,
                              "此刻沒有專注模式擋著這個 app 的通知")
     else:
         kind = (m.group(1).strip() if (m := _SUPPRESSION_TYPE_RE.search(line)) else "")
-        verdict["suppression_type"] = kind
+        note, known_redelivery = suppression_semantics(kind)
+        verdict["suppression_type"] = kind or "（未記錄）"
+        verdict["redelivery_known"] = known_redelivery
         verdict["state"] = PUSH_CHANNEL_BLOCKED
-        # ⚠️ 措辭不得寫成「確定沒出現」。實測 macOS 的抑制型態是 `delay delivery`——
-        # 它**延後**而不是丟棄：2026-08-16 10:12:40 使用者關閉專注模式的同一秒，
-        # 14 則 ScriptEditor2 通知被 `Re-add … visibility: [history, alert, lockscreen,
-        # allowsScreenWake]`，也就是**最終出現了**（延後約 20 小時）。
+        # ⚠️ 措辭逐型態分流，且**不得**一律講成「會補送」（R7 的錯）也不得一律講成
+        # 「確定沒出現」（R6 的錯）。未知型態走最嚴重的那支，見 suppression_semantics。
         verdict["reason"] = (
             f"系統對 {app} 的裁決是 {sorted(outcomes)[0]}"
-            f"（reason: {reason}，型態 {kind or '不明'}，模式 {verdict['active_mode']}）："
-            "推播**現在送不到**。⚠️ `delay delivery` 是延後不是丟棄——它會在使用者關閉"
-            "專注模式時補送，延後多久取決於對方何時關，**不可預測也不保證在有用的時間內**")
+            f"（reason: {reason}，型態 {verdict['suppression_type']}，"
+            f"模式 {verdict['active_mode']}）：**設計時點沒有送到**。{note}")
     return verdict
+
+
+def _on_time(verdict: dict) -> dict:
+    """把管道狀態換算成時效軸：**設計時點（當晚 21:10）有沒有送到**。
+
+    ⚠️ 這一軸只斷言「當下有沒有送到」，不斷言「最終會不會出現」——後者要看未來，
+    量不到。兩者是不同的問題，`blocked` 對前者是確定的、對後者是不可知的。
+    """
+    if verdict.get("command_failed"):
+        return {"state": ON_TIME_MISSED, "basis": TIMELINESS_BASIS,
+                "why": "通知指令自己就失敗了，根本沒有送出"}
+    state = (verdict.get("push_channel") or {}).get("state")
+    if state == PUSH_CHANNEL_BLOCKED:
+        return {"state": ON_TIME_MISSED, "basis": TIMELINESS_BASIS,
+                "why": "推播在設計時點被抑制，當晚沒有送到（之後會不會補送是另一回事）"}
+    if state == PUSH_CHANNEL_OPEN:
+        return {"state": ON_TIME_NOT_BLOCKED, "basis": TIMELINESS_BASIS,
+                "why": "設計時點沒有東西擋著。⚠️ 這**不等於**有人看到——"
+                       "某一則有沒有被看到在此平台上量不到"}
+    return {"state": ON_TIME_UNKNOWN, "basis": TIMELINESS_BASIS,
+            "why": "量不到管道狀態，故不知道當晚有沒有送到"}
 
 
 def notify(title: str, message: str, *, verify: bool = True) -> dict:
@@ -860,6 +934,7 @@ def notify(title: str, message: str, *, verify: bool = True) -> dict:
                                    "reason": f"osascript 無法執行：{error}",
                                    "evidence": "", "active_mode": None,
                                    "measures": "管道能力，不是本則通知的投遞結果"}
+        verdict["on_time"] = _on_time(verdict)
         return verdict
     verdict["osascript_rc"] = proc.returncode
     if proc.returncode != 0:
@@ -870,6 +945,7 @@ def notify(title: str, message: str, *, verify: bool = True) -> dict:
                                    "reason": verdict["command_error"],
                                    "evidence": "", "active_mode": None,
                                    "measures": "管道能力，不是本則通知的投遞結果"}
+        verdict["on_time"] = _on_time(verdict)
         return verdict
     if verify:
         verdict["push_channel"] = probe_push_channel(since)
@@ -877,6 +953,7 @@ def notify(title: str, message: str, *, verify: bool = True) -> dict:
         verdict["push_channel"] = {"state": PUSH_CHANNEL_UNKNOWN, "reason": "未查證",
                                    "evidence": "", "active_mode": None,
                                    "measures": "管道能力，不是本則通知的投遞結果"}
+    verdict["on_time"] = _on_time(verdict)
     return verdict
 
 
@@ -1047,15 +1124,15 @@ READER_CONTRACT = {
     "push_channel_note": "notification.push_channel 量的是**管道能力**（這個 app 的通知"
                          "此刻有沒有能力出現在畫面上），不是本則通知的投遞結果。"
                          "open／blocked／unknown 三態；判準是全域專注模式對本 app 的裁決，"
-                         "不需要把日誌歸屬到某一則通知。⚠️ blocked 的實際型態是 "
-                         "`delay delivery`＝延後補送，不是丟棄。",
+                         "不需要把日誌歸屬到某一則通知。⚠️ blocked 的語意**逐抑制型態不同**："
+                         "`delay delivery` 實測會補送、`silence` 不保證、未知型態一律"
+                         "保守假設可能永遠不出現。見 suppression_semantics()。",
     "no_per_notification_claim": "本卡**不宣稱**任何一則通知是否被看到，也不再有 "
                                  "goal_observed 欄位。兩個理由：(1) 通知 id 沒有被寫進"
                                  "裁決行，某一則的結果在此平台上量不到；(2) 就算量到被"
-                                 "抑制也推不出『沒出現』——`delay delivery` 是延後，實測"
-                                 "使用者關閉專注模式時 14 則會被 Re-add 補送。"
-                                 "而『延後多久算失效』本專案沒有任何文件訂過界線，"
-                                 "自己訂一條就是把猜測寫成判準。",
+                                 "抑制也推不出『最終沒出現』——`delay delivery` 實測會補送。"
+                                 "本卡改為只斷言**設計時點有沒有送到**（見 notification.on_time），"
+                                 "依據是卡面【08-10 回放】要求當晚 21:10 即報。",
     "who": "需求方（螢幕上的通知）＋ 任何要動這個 repo 的人或 AI（pytest header）",
     "when": "通知：異常發生當晚 21:10 即時；header：每次跑 `uv run pytest`（CLAUDE.md "
             "明訂 push 前必跑，`-q` 也印）。兩者都不需要有人記得去翻檔案。",
@@ -1131,8 +1208,11 @@ def write_notify_artifacts(repo: Path, report: dict) -> None:
     elif delivery.get("attempted") and channel == PUSH_CHANNEL_BLOCKED:
         # 管道被擋是**可以斷言**的：抑制是全域的，與是哪一則無關。
         # 落 logs/launchd-schedule-watchdog.err.log，那是不依賴通知權限的那一面。
-        print("WARN 推播管道被專注模式擋住，這則告警**確定沒有**出現在螢幕上　"
-              "→ 讀者請看 logs/schedule-alert.json（pytest header 也會印）",
+        chan = delivery.get("push_channel") or {}
+        kind = chan.get("suppression_type") or "（未記錄）"
+        note, _ = suppression_semantics(kind)
+        print(f"WARN 推播在設計時點被抑制（型態 {kind}），這則告警**當晚沒有送到**。{note}"
+              "　→ 讀者請看 logs/schedule-alert.json（pytest header 也會印）",
               file=sys.stderr)
     elif delivery.get("attempted") and channel == PUSH_CHANNEL_UNKNOWN:
         # ⚠️ 措辭必須與上面不同：量不到就是量不到，**不得**講成「沒送到」。

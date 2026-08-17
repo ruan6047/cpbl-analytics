@@ -113,9 +113,10 @@ def _schedule_alert_header() -> list[str]:
             "——這則告警完全沒有送出，只有這裡看得到"]
     channel = (notification.get("push_channel") or {}).get("state")
     if channel == "blocked":
-        lines.append("⚠️ 排程告警：當時推播管道被專注模式擋住，這則告警**沒有即時**"
-                     "出現在螢幕上（`delay delivery` 會在對方關閉專注模式時補送，"
-                     "延後多久不可預測）——別預設有人已經知道了")
+        kind = (notification.get("push_channel") or {}).get("suppression_type") or "（未記錄）"
+        lines.append(f"⚠️ 排程告警：當時推播被抑制（型態 {kind}），這則告警**當晚沒有送到**"
+                     "——別預設有人已經知道了；之後會不會補送依型態而異，"
+                     "未知型態一律當作可能永遠不會出現")
     elif channel == "unknown":
         lines.append("⚠️ 排程告警：當時量不到專注模式狀態——**既不代表送到，"
                      "也不代表沒送到**，請自行確認需求方是否已知情")
