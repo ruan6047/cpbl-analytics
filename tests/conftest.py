@@ -104,10 +104,18 @@ def _schedule_alert_header() -> list[str]:
              f"⚠️ 排程告警：詳見 {_SCHEDULE_ALERT}（修好後本檔會自動消失）"]
     # ⚠️ 三態講三種話，而且**不得把「管道通」講成「有人看到」**。
     # 本卡在「rc=0 講成送達」上栽過一次；`push_channel` 量的是管道能力，不是投遞結果。
-    channel = ((payload.get("notification") or {}).get("push_channel") or {}).get("state")
+    notification = payload.get("notification") or {}
+    # ⚠️ 指令失敗優先於管道狀態：「沒送出」與「送了但被擋」是兩件事，讀者摘要必須分得開。
+    # R6 誤刪這個守衛後，osascript 非零退出只剩 JSON 裡一個數字，摘要完全不提。
+    if notification.get("command_failed"):
+        return lines + [
+            f"⚠️ 排程告警：通知指令**失敗**（{notification.get('command_error') or '原因未記錄'}）"
+            "——這則告警完全沒有送出，只有這裡看得到"]
+    channel = (notification.get("push_channel") or {}).get("state")
     if channel == "blocked":
-        lines.append("⚠️ 排程告警：當時推播管道被專注模式擋住，這則告警**確定沒有**"
-                     "出現在螢幕上——所以除了這裡，沒有別人被通知到")
+        lines.append("⚠️ 排程告警：當時推播管道被專注模式擋住，這則告警**沒有即時**"
+                     "出現在螢幕上（`delay delivery` 會在對方關閉專注模式時補送，"
+                     "延後多久不可預測）——別預設有人已經知道了")
     elif channel == "unknown":
         lines.append("⚠️ 排程告警：當時量不到專注模式狀態——**既不代表送到，"
                      "也不代表沒送到**，請自行確認需求方是否已知情")

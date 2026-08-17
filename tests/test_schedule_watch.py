@@ -678,7 +678,9 @@ def test_focus_mode_active_is_reported_as_blocked(monkeypatch) -> None:
 
     assert channel["state"] == sw.PUSH_CHANNEL_BLOCKED
     assert channel["active_mode"] and channel["active_mode"] != "null"
-    assert verdict["goal_observed"] == 3, "管道被擋 ⇒ 那一則確定沒出現 ⇒ 目標 3"
+    assert "delay" in channel.get("suppression_type", ""), "應記錄抑制型態"
+    assert "延後" in channel["reason"], "不得寫成「確定沒出現」——delay 是延後"
+    assert "goal_observed" not in verdict, "本卡不再往目標層級推"
 
 
 def test_no_focus_mode_is_reported_as_open(monkeypatch) -> None:
@@ -690,20 +692,22 @@ def test_no_focus_mode_is_reported_as_open(monkeypatch) -> None:
     assert verdict["push_channel"]["state"] == sw.PUSH_CHANNEL_OPEN
 
 
-def test_open_channel_never_claims_goal_two(monkeypatch) -> None:
+def test_channel_state_never_becomes_a_goal_claim(monkeypatch) -> None:
     """**本組最重要的一條。**
 
-    「管道沒被擋」不等於「有人看到了」。宣稱目標 2 就是把管道能力講成投遞結果——
-    與 R1 把 `rc=0` 講成送達是同一個錯，只是換一個欄位重演。故 open ⇒ 不宣稱。
+    管道能力不得被推成目標層級。R6 曾用 `blocked → goal 3`，理由是「抑制是全域的 ⇒
+    那一則確定沒出現」——**那個推論已被實測推翻**：`delay delivery` 是延後不是丟棄，
+    2026-08-16 10:12:40 使用者關閉專注模式時 14 則 ScriptEditor2 通知被 `Re-add` 補送。
+    而「延後多久算失效」本專案沒有任何文件訂過界線，自己訂一條就是把猜測寫成判準。
+    故本卡**不再有 goal_observed**。
     """
     _patch_notify(monkeypatch, log_out=_fixture("dnd_open_scripteditor.log"))
+    assert "goal_observed" not in sw.notify("t", "m")
 
-    verdict = sw.notify("t", "m")
+    _patch_notify(monkeypatch, log_out=_fixture("dnd_blocked_scripteditor.log"))
+    assert "goal_observed" not in sw.notify("t", "m")
 
-    assert verdict["push_channel"]["state"] == sw.PUSH_CHANNEL_OPEN
-    assert verdict["goal_observed"] is None, "管道通 ≠ 有人看到，不得宣稱目標 2"
-    assert sw._GOAL_BY_CHANNEL[sw.PUSH_CHANNEL_OPEN] is None
-    assert 2 not in sw._GOAL_BY_CHANNEL.values(), "本訊號永遠不得產生目標 2"
+    assert not hasattr(sw, "_GOAL_BY_CHANNEL"), "不得留下把管道狀態映射成目標的表"
 
 
 def test_the_field_says_what_it_measures(monkeypatch) -> None:
@@ -725,7 +729,6 @@ def test_mode_change_mid_window_is_unknown_not_a_pick(monkeypatch) -> None:
 
     assert verdict["push_channel"]["state"] == sw.PUSH_CHANNEL_UNKNOWN
     assert "中途改變" in verdict["push_channel"]["reason"]
-    assert verdict["goal_observed"] is None
 
 
 def test_other_apps_resolutions_are_not_read_as_ours(monkeypatch) -> None:
@@ -752,7 +755,6 @@ def test_unreadable_state_is_unknown_and_claims_nothing(
     verdict = sw.notify("t", "m")
 
     assert verdict["push_channel"]["state"] == sw.PUSH_CHANNEL_UNKNOWN, why
-    assert verdict["goal_observed"] is None
 
 
 def test_probe_uses_absolute_log_path_not_the_shell_builtin(monkeypatch) -> None:
@@ -776,9 +778,8 @@ def test_alert_artifact_carries_the_channel_state(tmp_path: Path, monkeypatch) -
 
     alert = json.loads((repo / "logs" / "schedule-alert.json").read_text(encoding="utf-8"))
     assert alert["notification"]["push_channel"]["state"] == sw.PUSH_CHANNEL_BLOCKED
-    assert alert["notification"]["goal_observed"] == 3
     assert alert["reader"]["goal_floor"] == 3
-    assert "永遠不會是 2" in alert["reader"]["goal_observed_note"]
+    assert "不宣稱" in alert["reader"]["no_per_notification_claim"]
 
 
 def test_healthy_run_sends_no_notification_and_removes_the_alert(tmp_path: Path,
@@ -833,7 +834,8 @@ def test_alert_file_surfaces_in_the_header_with_the_channel_truth(
     alert.write_text(json.dumps({
         "observed_at": "2026-08-15T21:10:00+0800",
         "verdict": "FAILED", "message": "每日鏈失敗",
-        "notification": {"push_channel": {"state": "blocked"}},
+        "notification": {"command_failed": False,
+                         "push_channel": {"state": "blocked"}},
     }, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setattr(conf, "_SCHEDULE_ALERT", alert)
 
@@ -841,14 +843,15 @@ def test_alert_file_surfaces_in_the_header_with_the_channel_truth(
 
     assert any("每日鏈失敗" in ln for ln in lines)
     assert any(str(alert) in ln for ln in lines)
-    assert any("確定沒有" in ln for ln in lines)
+    assert any("沒有即時" in ln for ln in lines)
 
 
 def _header_for(conf, tmp_path: Path, monkeypatch, state: str) -> str:
     alert = tmp_path / f"alert-{state}.json"
     alert.write_text(json.dumps({
         "observed_at": "x", "message": "m",
-        "notification": {"push_channel": {"state": state}},
+        "notification": {"command_failed": False,
+                         "push_channel": {"state": state}},
     }, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setattr(conf, "_SCHEDULE_ALERT", alert)
     return "\n".join(conf._schedule_alert_header())
@@ -863,9 +866,9 @@ def test_the_three_channel_states_each_say_something_different(
              for st in ("open", "blocked", "unknown")}
 
     assert len(set(texts.values())) == 3, "有兩個狀態講了一模一樣的話"
-    assert "確定沒有" in texts["blocked"]
+    assert "沒有即時" in texts["blocked"]
     assert "既不代表送到" in texts["unknown"] and "也不代表沒送到" in texts["unknown"]
-    assert "確定沒有" not in texts["unknown"], "把『量不到』講成『確定沒送到』"
+    assert "沒有即時" not in texts["unknown"], "把『量不到』講成『沒送到』"
     assert "這不代表有人看到" in texts["open"], "把『管道通』講成『有人看到』"
 
 
@@ -888,11 +891,9 @@ def test_reader_contract_separates_the_guaranteed_floor_from_the_channel_measure
     assert sw.READER_CONTRACT["goal_floor"] == 3
     assert "goal" not in sw.READER_CONTRACT, "不得再有一個會被誤讀成常態宣稱的 goal 欄"
     assert "pytest" in sw.READER_CONTRACT["when"]
-    assert "永遠不會是 2" in sw.READER_CONTRACT["goal_observed_note"]
     assert "管道能力" in sw.READER_CONTRACT["push_channel_note"]
-    assert sw._GOAL_BY_CHANNEL[sw.PUSH_CHANNEL_BLOCKED] == 3
-    assert sw._GOAL_BY_CHANNEL[sw.PUSH_CHANNEL_OPEN] is None
-    assert sw._GOAL_BY_CHANNEL[sw.PUSH_CHANNEL_UNKNOWN] is None
+    assert "delay delivery" in sw.READER_CONTRACT["no_per_notification_claim"]
+    assert "goal_observed" not in sw.READER_CONTRACT
 
 
 # ================================================================== 部署錨點
@@ -1004,3 +1005,56 @@ def test_boots_before_the_deployment_anchor_are_not_runatload_failures(tmp_path:
 
 
 
+
+
+# ============================ 通知指令自己失敗（R6 誤刪的守衛）
+#
+# 「rc=0 講成送達」是本卡最原始的痛點；它的**反面**是 rc≠0 卻沒有人看到。R6 移除關聯
+# 機制時把 osascript 非零退出的守衛一起刪了，於是指令失敗只剩 JSON 裡一個數字，
+# 讀者摘要完全不提。這一組把兩面都釘住。
+
+
+def test_osascript_nonzero_exit_is_flagged_not_buried(monkeypatch) -> None:
+    _patch_notify(monkeypatch, osascript_rc=3,
+                  log_out=_fixture("dnd_open_scripteditor.log"))
+
+    verdict = sw.notify("t", "m")
+
+    assert verdict["osascript_rc"] == 3
+    assert verdict["command_failed"] is True
+    assert "非零退出" in verdict["command_error"]
+    assert verdict["push_channel"]["state"] == sw.PUSH_CHANNEL_UNKNOWN, (
+        "指令沒送出時不得回報管道 open——那會讓讀者以為通知發出去了")
+
+
+def test_successful_command_is_not_flagged_as_failed(monkeypatch) -> None:
+    """負控制：正常送出時不得誤報失敗，否則上一條會是恆真的。"""
+    _patch_notify(monkeypatch, osascript_rc=0,
+                  log_out=_fixture("dnd_open_scripteditor.log"))
+
+    verdict = sw.notify("t", "m")
+
+    assert verdict["command_failed"] is False
+    assert verdict["push_channel"]["state"] == sw.PUSH_CHANNEL_OPEN
+
+
+def test_command_failure_appears_in_the_reader_summary(tmp_path: Path,
+                                                       monkeypatch) -> None:
+    """**阻擋二的重點**：指令失敗必須出現在讀者摘要，不能只躺在 JSON 裡。"""
+    conf = _conftest()
+    alert = tmp_path / "schedule-alert.json"
+    alert.write_text(json.dumps({
+        "observed_at": "x", "message": "每日鏈失敗",
+        "notification": {"command_failed": True,
+                         "command_error": "osascript 非零退出（3）：通知沒有送出",
+                         "push_channel": {"state": "unknown"}},
+    }, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(conf, "_SCHEDULE_ALERT", alert)
+
+    text = "\n".join(conf._schedule_alert_header())
+
+    assert "通知指令**失敗**" in text
+    assert "非零退出（3）" in text
+    assert "完全沒有送出" in text
+    # 且不得同時把管道狀態的話也講出來——那會讓讀者以為送出了只是被擋
+    assert "被專注模式擋住" not in text

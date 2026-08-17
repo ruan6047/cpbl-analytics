@@ -745,6 +745,7 @@ _BUNDLE_RE = re.compile(r"bundleIdentifier: ([A-Za-z0-9._-]+)")
 _OUTCOME_RE = re.compile(r"outcome: (\w+)")
 _DND_REASON_RE = re.compile(r"reason: ([a-z ]+);")
 _ACTIVE_MODE_RE = re.compile(r"activeModeUUID: \(?([0-9A-Fa-f-]+|null)\)?")
+_SUPPRESSION_TYPE_RE = re.compile(r"interruptionSuppression: ([a-z ]+?);")
 _LINE_TS_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)")
 
 # ============================== 已知限制：某一則通知**無法**被歸屬到它自己的裁決
@@ -818,10 +819,18 @@ def probe_push_channel(since: datetime, timeout: float = 20.0,
         verdict["reason"] = (f"系統對 {app} 的裁決是 allowed（reason: {reason}）："
                              "此刻沒有專注模式擋著這個 app 的通知")
     else:
+        kind = (m.group(1).strip() if (m := _SUPPRESSION_TYPE_RE.search(line)) else "")
+        verdict["suppression_type"] = kind
         verdict["state"] = PUSH_CHANNEL_BLOCKED
-        verdict["reason"] = (f"系統對 {app} 的裁決是 {sorted(outcomes)[0]}"
-                             f"（reason: {reason}，模式 {verdict['active_mode']}）："
-                             "推播管道**現在送不到**這個 app 的通知")
+        # ⚠️ 措辭不得寫成「確定沒出現」。實測 macOS 的抑制型態是 `delay delivery`——
+        # 它**延後**而不是丟棄：2026-08-16 10:12:40 使用者關閉專注模式的同一秒，
+        # 14 則 ScriptEditor2 通知被 `Re-add … visibility: [history, alert, lockscreen,
+        # allowsScreenWake]`，也就是**最終出現了**（延後約 20 小時）。
+        verdict["reason"] = (
+            f"系統對 {app} 的裁決是 {sorted(outcomes)[0]}"
+            f"（reason: {reason}，型態 {kind or '不明'}，模式 {verdict['active_mode']}）："
+            "推播**現在送不到**。⚠️ `delay delivery` 是延後不是丟棄——它會在使用者關閉"
+            "專注模式時補送，延後多久取決於對方何時關，**不可預測也不保證在有用的時間內**")
     return verdict
 
 
@@ -832,7 +841,11 @@ def notify(title: str, message: str, *, verify: bool = True) -> dict:
     ⚠️ 而 `push_channel.state == "open"` 也**不是**送達的證據，它只是管道沒被擋。
     真正不依賴任何使用者設定的讀者是 `logs/schedule-alert.json` ＋ pytest header。
     """
-    verdict: dict = {"attempted": True, "osascript_rc": None, "push_channel": None}
+    # ⚠️ `command_failed` 是**獨立於管道狀態**的一面：通知指令自己就沒跑成功。
+    # R6 移除關聯機制時把這個守衛一起刪掉了，於是 osascript 非零退出只剩 JSON 裡一個
+    # 數字、讀者摘要完全不提——那正是本卡最原始痛點的反面（rc≠0 卻沒有人看到）。
+    verdict: dict = {"attempted": True, "osascript_rc": None, "push_channel": None,
+                     "command_failed": False, "command_error": ""}
     script = (f'display notification {json.dumps(message, ensure_ascii=False)} '
               f'with title {json.dumps(title, ensure_ascii=False)}')
     # 取送出前一秒當查詢起點：`log show --start` 的解析度是秒，取「現在」會漏掉同秒事件。
@@ -841,20 +854,29 @@ def notify(title: str, message: str, *, verify: bool = True) -> dict:
         proc = subprocess.run(["osascript", "-e", script], stdout=subprocess.DEVNULL,
                               stderr=subprocess.DEVNULL, timeout=20, check=False)
     except (OSError, subprocess.SubprocessError) as error:
+        verdict["command_failed"] = True
+        verdict["command_error"] = f"osascript 無法執行：{error}"
         verdict["push_channel"] = {"state": PUSH_CHANNEL_UNKNOWN,
                                    "reason": f"osascript 無法執行：{error}",
                                    "evidence": "", "active_mode": None,
                                    "measures": "管道能力，不是本則通知的投遞結果"}
-        verdict["goal_observed"] = _GOAL_BY_CHANNEL[PUSH_CHANNEL_UNKNOWN]
         return verdict
     verdict["osascript_rc"] = proc.returncode
+    if proc.returncode != 0:
+        # 指令本身失敗 ⇒ 根本沒有送出，管道狀態再好也沒有意義。
+        verdict["command_failed"] = True
+        verdict["command_error"] = f"osascript 非零退出（{proc.returncode}）：通知沒有送出"
+        verdict["push_channel"] = {"state": PUSH_CHANNEL_UNKNOWN,
+                                   "reason": verdict["command_error"],
+                                   "evidence": "", "active_mode": None,
+                                   "measures": "管道能力，不是本則通知的投遞結果"}
+        return verdict
     if verify:
         verdict["push_channel"] = probe_push_channel(since)
     else:
         verdict["push_channel"] = {"state": PUSH_CHANNEL_UNKNOWN, "reason": "未查證",
                                    "evidence": "", "active_mode": None,
                                    "measures": "管道能力，不是本則通知的投遞結果"}
-    verdict["goal_observed"] = _GOAL_BY_CHANNEL[verdict["push_channel"]["state"]]
     return verdict
 
 
@@ -1011,42 +1033,29 @@ def current_trigger() -> str:
 # 2. **這條通道靠一個使用者設定，而它已經無聲退化過一次。** 那個專注模式不是刻意
 #    開的，卻擋掉了所有通知且無人察覺——那正是本卡要消滅的失效形狀。可以被無聲撤銷
 #    的保證不是保證。
-# 3. **「人看到了」永遠是人證，碼判不到。** `Presenting` 只證明系統把它畫出來，
-#    不證明有人讀了。與 R1 不肯把 `rc=0` 當送達是同一把尺，這裡不放掉。
+# 3. **「人看到了」永遠是人證，碼判不到。** 與 R1 不肯把 `rc=0` 當送達是同一把尺。
 #
-# 所以：`goal_floor` 是不依賴任何使用者設定就成立的保證（稽核痕跡 ＋ pytest header）；
-# `goal_observed` 由**本次實測的投遞判定**推導。推播若再度被擋，下一次執行就會自己
-# 說出來——這正是把「無聲退化」換成「有聲退化」，而那才是本卡真正買到的東西。
-
-# 管道能力 → 該次可以誠實宣稱的目標層級。
-#
-# ⚠️ **本欄只會降級，永遠不會宣稱達成目標 2。** 這是刻意的：
-#   · 管道被擋 ⇒ 那一則**確定**沒出現在畫面上 ⇒ 該次只達到目標 3。這個推論是**健全的**，
-#     因為抑制是全域的、與是哪一則無關。
-#   · 管道是通的 ⇒ 只代表**沒有東西擋著**，**不代表**那一則有人看到。宣稱 2 就是把
-#     「管道能力」講成「投遞結果」——與 R1 把 `rc=0` 講成送達是同一個錯，只是換一個
-#     欄位重演。所以這裡回 None（不宣稱），而不是 2。
-#
-# 換句話說：這個訊號能證明「壞了」，不能證明「好了」。那正是本卡要的——2026-08-15
-# 的故障是「壞了而無人察覺」，不是「好了但沒人相信」。
-_GOAL_BY_CHANNEL = {
-    PUSH_CHANNEL_BLOCKED: 3,    # 確定沒出現在畫面上 ⇒ 只剩稽核痕跡
-    PUSH_CHANNEL_OPEN: None,    # 沒被擋 ≠ 有人看到 ⇒ 不宣稱
-    PUSH_CHANNEL_UNKNOWN: None, # 量不到 ⇒ 不宣稱
-}
+# 所以：`goal_floor` 是不依賴任何使用者設定就成立的保證（稽核痕跡 ＋ pytest header），
+# 而 `push_channel` 只回報**管道能力**、不往目標層級推（見 no_per_notification_claim）。
+# 推播若被擋，下一次執行就會自己說出來——把「無聲退化」換成「有聲退化」，那是本卡
+# 真正買到的東西；至於「那一則到底有沒有被看到」，本卡誠實地不回答。
 
 READER_CONTRACT = {
     "goal_floor": 3,
     "goal_floor_note": "不依賴任何使用者設定就成立的部分：logs/schedule-alert.json ＋ "
                        "tests/conftest.py 印在每次 pytest header 的那幾行。這一層永遠為真。",
-    "goal_observed_note": "本次執行可以誠實宣稱的層級，見 notification.goal_observed："
-                          "3＝推播管道被專注模式擋住，那一則確定沒出現在畫面上；"
-                          "null＝管道沒被擋、或量不到。**本欄永遠不會是 2**——"
-                          "「管道通」不等於「有人看到」，而後者在此平台上量不到。",
     "push_channel_note": "notification.push_channel 量的是**管道能力**（這個 app 的通知"
                          "此刻有沒有能力出現在畫面上），不是本則通知的投遞結果。"
                          "open／blocked／unknown 三態；判準是全域專注模式對本 app 的裁決，"
-                         "不需要把日誌歸屬到某一則通知。",
+                         "不需要把日誌歸屬到某一則通知。⚠️ blocked 的實際型態是 "
+                         "`delay delivery`＝延後補送，不是丟棄。",
+    "no_per_notification_claim": "本卡**不宣稱**任何一則通知是否被看到，也不再有 "
+                                 "goal_observed 欄位。兩個理由：(1) 通知 id 沒有被寫進"
+                                 "裁決行，某一則的結果在此平台上量不到；(2) 就算量到被"
+                                 "抑制也推不出『沒出現』——`delay delivery` 是延後，實測"
+                                 "使用者關閉專注模式時 14 則會被 Re-add 補送。"
+                                 "而『延後多久算失效』本專案沒有任何文件訂過界線，"
+                                 "自己訂一條就是把猜測寫成判準。",
     "who": "需求方（螢幕上的通知）＋ 任何要動這個 repo 的人或 AI（pytest header）",
     "when": "通知：異常發生當晚 21:10 即時；header：每次跑 `uv run pytest`（CLAUDE.md "
             "明訂 push 前必跑，`-q` 也印）。兩者都不需要有人記得去翻檔案。",
@@ -1070,7 +1079,7 @@ def write_notify_artifacts(repo: Path, report: dict) -> None:
     """
     stamp = datetime.now(TAIPEI).strftime("%Y-%m-%dT%H:%M:%S%z")
     trigger = current_trigger()
-    delivery: dict = {"attempted": False, "goal_observed": None,
+    delivery: dict = {"attempted": False,
                       "push_channel": {"state": PUSH_CHANNEL_UNKNOWN,
                                        "reason": "本次無異常，未送出通知",
                                        "evidence": "", "active_mode": None,
@@ -1114,7 +1123,12 @@ def write_notify_artifacts(repo: Path, report: dict) -> None:
     except OSError as error:
         print(f"WARN 無法寫入 watchdog 產物：{error}", file=sys.stderr)
     channel = (delivery.get("push_channel") or {}).get("state")
-    if delivery.get("attempted") and channel == PUSH_CHANNEL_BLOCKED:
+    if delivery.get("attempted") and delivery.get("command_failed"):
+        # 最優先：連送都沒送出去，與「送了但被擋」是兩件事，讀者摘要必須分得開。
+        print(f"WARN 通知指令失敗：{delivery.get('command_error')}　"
+              "→ 這則告警**完全沒有**送出，讀者請看 logs/schedule-alert.json",
+              file=sys.stderr)
+    elif delivery.get("attempted") and channel == PUSH_CHANNEL_BLOCKED:
         # 管道被擋是**可以斷言**的：抑制是全域的，與是哪一則無關。
         # 落 logs/launchd-schedule-watchdog.err.log，那是不依賴通知權限的那一面。
         print("WARN 推播管道被專注模式擋住，這則告警**確定沒有**出現在螢幕上　"
