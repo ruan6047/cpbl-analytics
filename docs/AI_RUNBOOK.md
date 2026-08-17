@@ -430,8 +430,21 @@ uv run python scripts/workflow_ledger.py --check
 uv run python scripts/workflow_ledger.py --live   # 稽核：union main 與所有 ai/* 分支頂端 event log；與 TASKS.md 不一致＝有事件違規漏留在分支
 
 # 交付後要查核：從最新 handoff event + 卡片驗收條件自動產生查核提示詞（不必向執行者索取）
+# ⚠️ 2026-08-17 起【僅服務 2026-08-04 cutover 之前的卡】——見下方警示，新卡跑它會得到錯誤答案
 uv run python scripts/review_prompt.py <CARD_ID> | pbcopy
 ```
+
+> ⚠️ **`review_prompt.py` 對 cutover 後的卡失效，而且是靜默的。** 它讀 `docs/control-plane/events.jsonl`，
+> 而該檔已於 2026-08-04（`8271d7c`）宣告封存唯讀；此後的 handoff 由 `wfcli` 寫進 GitHub Issue，
+> **不進那個檔**。對新卡執行它會回報「尚未交付查核——查無任何 handoff event」，**那是工具讀錯地方，
+> 不是卡沒交付**。實測：`ML-UMP2`（cutover 前）正常運作並正確拒絕；`WP-DISCLOSURE-SYNC1` 與
+> `OPS-SCHEDULE-FAILURE-BLIND1`（cutover 後）皆誤報查無 handoff。
+>
+> **新卡的派審詞目前只能手寫。** 這不是慣例而是缺口——根治見
+> [`ai-workflow#66 WF-DISPATCH-FROM-HANDOFF1`](https://github.com/ruan6047/ai-workflow/issues/66)
+> （核心痛點即「handoff 與手寫派審詞雙來源必然漂移」）。本註記只是止血。
+>
+> ⚠️ 這個缺口從 cutover 到 2026-08-17 無人發現，因為期間沒有人跑過這支被指定「就是給你跑的」工具。
 
 - 遠端 event 的 `state_version` 由 1 單調遞增；handoff、review、merge、release 必填 source SHA 與 evidence。`occurred_at` 取寫入當下系統時鐘（先 `date`，禁估算／沿用——WF-18）。逾期前可由 owner 續約；回收前 Coordinator 必須檢查 worktree 的未提交變更，禁止靜默刪除工作內容。
 - **release 必以終態落地**（WF-18）：免部署卡 release 即 `🏁完成`、需部署卡 `✅已驗證` 後才 release；結案五步（終態事件→封存→Ledger→lease／分支清理→對帳）見 canonical [`worktree-lifecycle.md`](../.ai-workflow/templates/worktree-lifecycle.md)，代 Coordinator 結案的查核者同樣適用。
