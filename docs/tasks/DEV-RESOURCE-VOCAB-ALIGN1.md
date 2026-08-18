@@ -24,7 +24,7 @@
 
 ## 驗證
 
-- [ ] 交付後逐檔驗 occurrence：DATABASE_CONTRACT.md 與 AI_RUNBOOK.md 的 db:<env>:cpbl 為 0、db:<env>:schema 分別為 6 與 2。輸出為腳本自動產生非人工聲明
+- [ ] 交付後逐檔驗 occurrence：DATABASE_CONTRACT.md 的 db:<env>:cpbl 為 0；db:<env>:schema **12 處替換母體為 6、全檔為 7，其中 §3 警語 1 處**（該處是驗收條 4 明定寫入的 db:local:schema 字面，屬安全警語不得為湊 6 而刪）；AI_RUNBOOK.md 的 cpbl 為 0、schema 為 2。輸出為腳本自動產生非人工聲明
 - [ ] ROADMAP.md:283 逐位元不變（射程排除的證明）
 - [ ] DATABASE_CONTRACT §2 表格列數與 §3 db_resources yaml 區塊前後對照，證明未因替換而減少
-- [ ] 查核者在合併結果上跑封存區 diff（$BASE = 派工時釘住的 merge-base）並貼出輸出，期望為空。⚠️ 不得用 HEAD 當基線、不得由交付者在交付當下跑，兩者 commit 後皆恆綠
+- [ ] 查核者在合併結果上跑 `git diff --stat $(git merge-base origin/main HEAD) -- docs/control-plane/ docs/TASKS.md docs/archive/ docs/research/` 並貼出輸出（期望為空）。⚠️ 不得用 HEAD 當基線、不得由交付者在交付當下跑，兩者 commit 後皆恆綠
