@@ -27,4 +27,4 @@
 - [ ] 交付後逐檔驗 occurrence：DATABASE_CONTRACT.md 的 db:<env>:cpbl 為 0；db:<env>:schema **12 處替換母體為 6、全檔為 7，其中 §3 警語 1 處**（該處是驗收條 4 明定寫入的 db:local:schema 字面，屬安全警語不得為湊 6 而刪）；AI_RUNBOOK.md 的 cpbl 為 0、schema 為 2。輸出為腳本自動產生非人工聲明
 - [ ] ROADMAP.md:283 逐位元不變（射程排除的證明）
 - [ ] DATABASE_CONTRACT §2 表格列數與 §3 db_resources yaml 區塊前後對照，證明未因替換而減少
-- [ ] 查核者在合併結果上跑 `git diff --stat $(git merge-base origin/main HEAD) -- docs/control-plane/ docs/TASKS.md docs/archive/ docs/research/` 並貼出輸出（期望為空）。⚠️ 不得用 HEAD 當基線、不得由交付者在交付當下跑，兩者 commit 後皆恆綠
+- [ ] 查核者在合併結果上跑 `git diff --stat 4acb0dc675cebcdb26bc36075b0e4d6572bc421e -- docs/control-plane/ docs/TASKS.md docs/archive/ docs/research/` 並貼出輸出（期望為空）。⚠️ 基線固定為派工時釘住的 4acb0dc，**不可從已合併的 origin/main 與 HEAD 動態推導**：`$(git merge-base origin/main HEAD)` 在合併後即 merge commit、自身 diff 恆空（R2-01）；`HEAD` 在 commit 後恆綠（R1 前已實測）。兩者都是假綠路徑。不得由交付者在交付當下跑
