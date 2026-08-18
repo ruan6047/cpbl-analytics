@@ -17,9 +17,9 @@
 
 | 環境 | 用途 | 每卡隔離方式 | 寫入權限 | Migration lane／lock |
 |---|---|---|---|---|
-| local | 開發與爬蟲 | 讀取可共用；寫入卡以 `CARD_ID` 建獨立 DB，或取得 `db:local:cpbl` lease | 卡片執行者（經 Coordinator claim） | `db:local:cpbl` |
-| test | 自動測試 | 優先以 `CARD_ID` DATABASE_URL 指向獨立 DB；無法隔離時序列化 | CI／卡片執行者 | `db:test:cpbl` |
-| production | 服務 | 不建立開發 namespace | 受保護部署 runner only | `db:production:cpbl` |
+| local | 開發與爬蟲 | 讀取可共用；寫入卡以 `CARD_ID` 建獨立 DB，或取得 `db:local:schema` lease | 卡片執行者（經 Coordinator claim） | `db:local:schema` |
+| test | 自動測試 | 優先以 `CARD_ID` DATABASE_URL 指向獨立 DB；無法隔離時序列化 | CI／卡片執行者 | `db:test:schema` |
+| production | 服務 | 不建立開發 namespace | 受保護部署 runner only | `db:production:schema` |
 
 ## 3. 任務宣告與鎖定
 
@@ -29,12 +29,13 @@
 db_scope: none | read | write | schema | data-migration
 db_namespace: <CARD_ID 專屬 database/schema，或 shared-lease>
 db_resources:
-  - db:<environment>:cpbl
+  - db:<environment>:schema
   - db:<environment>:table:<table-name>
 migration_phase: none | expand | migrate | contract
 ```
 
 - `schema` 與 `data-migration` 為資料正確性紅線；同一 `<environment, schema>` 僅一個 migration writer。
+- ⚠️ 詞彙對齊（2026-08-19，DEV-RESOURCE-VOCAB-ALIGN1）後仍不成立的部分：(a) 上一條「同一 `<environment, schema>` 僅一個 migration writer」機械上並未被保證——wfcli 的 `find_conflicts` 是完全字串比對，`db:local:schema` **不支配** `db:local:table:X`，各持其一的兩張卡不會被判衝突；(b) 詞彙合法（grammar 可收）不代表互斥機制已具階層語意。順帶記錄替換副作用：舊詞彙的第三段直接寫 schema 名（`cpbl`），帶有「哪個 schema」的資訊；新詞彙的第三段是固定字 `schema`，沒有——本專案僅 `cpbl` 一個 schema 故今日等價，但本條規則已失去指名 schema 的能力。
 - Coordinator 先追加 control-plane lifecycle event，再以 Runbook §7.1 local lock 取得 `db:*` resource lease；共用 local DB 只在明載 owner、清理方式與 lease 時允許寫入。
 - schema 卡按 lane 順序 merge；不得平行建立互相依賴的 migration。資料 migration 必須冪等、可續跑、批次化，並預先列出對帳與復原方案。
 
@@ -43,7 +44,7 @@ migration_phase: none | expand | migrate | contract
 | 階段 | 命令／workflow | 成功條件 | 失敗處理 |
 |---|---|---|---|
 | Fresh DB rehearsal | `docker compose up -d db` 後 `uv run cpbl-backfill` | migrations 可重跑、相關測試與資料對帳通過 | 停止 merge；保留輸出並依卡片復原方案處理 |
-| Local shared DB | Coordinator 取得 `db:local:cpbl` lock 後執行 | migration ID、前後 schema／筆數對帳記入卡片 | 依 migration 的可逆性回復；不可逆操作先人工 sign-off |
+| Local shared DB | Coordinator 取得 `db:local:schema` lock 後執行 | migration ID、前後 schema／筆數對帳記入卡片 | 依 migration 的可逆性回復；不可逆操作先人工 sign-off |
 | Production | main 部署鏈在 `prod_cpbl_api` 執行 migrate | source SHA、migration ID、時間、健康檢查與 API smoke test 均記錄 | 依 Runbook §3 先前備份還原 `cpbl` schema；停止後續部署 |
 
 ## 5. 回滾與緊急處理

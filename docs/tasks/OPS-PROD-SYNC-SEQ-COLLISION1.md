@@ -16,10 +16,10 @@
 db_scope: schema
 db_namespace: unassigned
 db_resources:
-  - db:production:cpbl
+  - db:production:schema
   - db:production:table:game_source_revisions
   - db:production:table:game_schedule_status_revisions
-  - db:local:cpbl
+  - db:local:schema
 migration_phase: none
 ```
 
