@@ -23,6 +23,7 @@ import {
   sortTodayGames,
   todayCardKind,
   todayInningLabel,
+  todayGameSettled,
   todayPollDelayMs,
   todayStatusText,
   latestGameStatus,
@@ -942,4 +943,80 @@ test("未完成場不給賽後入口：目前單場頁對延賽場是空的且�
   // 而不是「打完了」）另開 UX-GAME-META-COMPLETED1（#148），本卡不修。
   assert.equal(LATEST_FOOTER_COPY.pending, null);
   assert.equal(LATEST_FOOTER_COPY.final, "賽後復盤 →");
+});
+
+// —— 今日賽事區塊的混合日（DAILY-MIXED-DAY-UX1 第二輪，需求方 Design Gate 2026-08-19）——
+//
+// 第一輪修的是「最近比賽日」那一塊（上一節）。2026-08-19 的真實混合日暴露出**今日賽事**
+// 這一塊有同形的兩個缺陷，需求方當晚親眼看過本機畫面後裁定：
+//   1. 延賽場次零標示——DB 已有 `delay_kind=延賽`，卡片一個字都沒用上，看起來像「還沒
+//      開打、剛好沒有預測模型」；
+//   2. freshness 條寫「今日 3 場無法取得即時賽況」，而同畫面兩張卡明白標著「比賽結束」
+//      並顯示終局比分——假敘述，且就印在推翻它的證據旁邊。
+//
+// fixture 逐欄照抄當晚 `GET /api/v1/daily/summary`（本機 DB 於 22:57 刷新後）的實測回應：
+//   A#273 台鋼雄鷹 8:6 統一獅  completed=true   live=null
+//   A#274 樂天桃猿 vs 富邦悍將 completed=false  live=null  delay_kind=延賽  orig=2026-08-19
+//   A#275 中信兄弟 6:2 味全龍  completed=true   live=null
+//   live_source = { status: "disabled", snapshots: 0, games: 3 }
+//
+// ⚠️ 三場**都沒有 live snapshot**（本機沒開即時來源）。舊版 `todayCardKind` 只認
+// `live.phase`，於是延賽場一路落到 `pregame`——這正是缺陷 1 的機制。
+
+const aug19 = (over: Partial<TodayGame> = {}): TodayGame => ({
+  season: 2026, kind_code: "A", game_sno: 273, game_date: "2026-08-19", venue: "澄清湖",
+  away_team_code: "ADD011", away_team_name: "統一7-ELEVEn獅", away_score: 6,
+  home_team_code: "AJL011", home_team_name: "台鋼雄鷹", home_score: 8,
+  completed: true, delay_kind: null, orig_date: null, live: null, ...over,
+} as TodayGame);
+
+/** 當晚三場，順序照 API 回應。 */
+const aug19Slate = (): TodaySlate => slate([
+  aug19(),
+  aug19({ game_sno: 274, away_team_name: "富邦悍將", home_team_name: "樂天桃猿",
+          away_score: null, home_score: null, completed: false,
+          delay_kind: "延賽", orig_date: "2026-08-19" }),
+  aug19({ game_sno: 275, away_team_name: "中信兄弟", home_team_name: "味全龍",
+          away_score: 6, home_score: 2 }),
+], { game_date: "2026-08-19", started: true,
+     live_source: { status: "disabled", reason: "即時來源未啟用", snapshots: 0, games: 3 } });
+
+test("混合日｜今日賽事：延賽場靠官方 delay_kind 認出來，不再落到賽前態", () => {
+  const s = aug19Slate();
+  // 缺陷 1：舊版三場全是 ["final", "pregame", "final"]——延賽場與「還沒開打」同形。
+  assert.deepEqual(s.games.map(todayCardKind), ["final", "postponed", "final"]);
+  // 徽章文字只能是官方原文；`LATEST_STATUS_COPY` 與這裡是同一組詞彙。
+  assert.equal(LATEST_STATUS_COPY.postponed.label, "延賽");
+  // 三場都不會再變 → 完全停止輪詢（延賽場今天不會續打，見 `todayGameSettled`）。
+  assert.equal(s.games.every(todayGameSettled), true);
+  assert.equal(todayPollDelayMs(s), null);
+});
+
+test("無註記情境｜沒有 delay_kind 就不得生出狀態，空字串與空白也不算", () => {
+  // 2025-09-24 D#108 那一類：日期已過、沒有比分、官方什麼都沒給。畫面上寧可是賽前態，
+  // 也不得憑空生一個「延賽」——我們分不出它是沒打、打了沒爬到、還是官網沒更新。
+  const bare = game(108, { game_date: "2025-09-24", kind_code: "D" });
+  assert.equal(todayCardKind(bare), "pregame");
+  assert.equal(todayCardKind({ ...bare, delay_kind: "" }), "pregame");
+  assert.equal(todayCardKind({ ...bare, delay_kind: "   " }), "pregame");
+  // 未知的第三種值同樣不得被當成狀態（值域實查只有「延賽」「保留」兩個）。
+  assert.equal(todayCardKind({ ...bare, delay_kind: "改期" }), "pregame");
+});
+
+test("**紅線**：delay_kind 是歷史標記，補賽打完那天不得把終場誤標成延賽", () => {
+  // 本機實查 41 場**已完成**場次帶著 delay_kind，例：2026-06-27 A#15 由 04-04 延來、
+  // 最終 2:9 打完，`delay_kind` 仍是「延賽」。判定順序（completed 先）就是防這個。
+  const madeUp = aug19({ game_sno: 15, game_date: "2026-06-27", orig_date: "2026-04-04",
+                         away_score: 9, home_score: 2, completed: true, delay_kind: "延賽" });
+  assert.equal(todayCardKind(madeUp), "final");
+  // snapshot 仍然優先於 DB：worker 說在打，就是在打。
+  assert.equal(todayCardKind({ ...madeUp, live: live({ phase: "live" }) }), "live");
+});
+
+test("保留賽：官方 GameResult=2 走自己那一態，不與延賽併桶", () => {
+  const reserved = aug19({ game_sno: 164, completed: false, away_score: null, home_score: null,
+                           delay_kind: "保留" });
+  assert.equal(todayCardKind(reserved), "reserved");
+  assert.equal(todayGameSettled(reserved), true);
+  assert.notEqual(LATEST_STATUS_COPY.reserved.label, LATEST_STATUS_COPY.postponed.label);
 });

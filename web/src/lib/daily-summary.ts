@@ -445,6 +445,21 @@ export function todayCardKind(g: TodayGame): TodayCardKind {
   if (phase === "reserved") return "reserved";
   if (phase === "live") return "live";
   if (phase === "final" || g.completed) return "final";
+  // 沒有 snapshot、也沒有賽果時，官方 `delay_kind` 是手上唯一還在的事實。2026-08-19 的
+  // A#274 正是這一格（`live` 為 null、`completed` 為 false、`delay_kind` 為「延賽」）：
+  // 舊版直接落到 `pregame`，於是一場官方已宣布延賽的比賽被畫成「還沒開打」，而畫面上
+  // 唯一的說明文字是賽前卡的「模型尚未建置」——等於拿模型狀態充當缺分的原因。
+  //
+  // **必須排在 `completed` 之後**：`delay_kind` 是排程歷程的歷史標記，補賽打完後仍留在
+  // 該列（`latestGameStatus` 的 docstring 記錄本機實查 41 場**已完成**場次帶著它）。先看
+  // 它會把補賽日當天已經打完的那一場誤標成延賽。
+  //
+  // 徽章一律只用 `delay_kind` 原文，**不解釋成因**：`delay_kind` 由同 `game_sno` 的排程
+  // 歷程推得（`ingest/cpbl_site.py`），官方給的是代碼不是理由；`cpbl.games` 上沒有任何
+  // reason／note 欄位，延賽場連 `game_detail` 列都沒有。寫「因雨」是無中生有。
+  const delay = g.delay_kind?.trim();
+  if (delay === DELAY_POSTPONED) return "postponed";
+  if (delay === DELAY_RESERVED) return "reserved";
   return "pregame";
 }
 
