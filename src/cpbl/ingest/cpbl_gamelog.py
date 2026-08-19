@@ -61,7 +61,7 @@ def reconcile_line(result: dict) -> str:
     return (
         f"kind={result.get('kind_code')} target={result.get('target')} "
         f"ok={result.get('games')} failed={len(result.get('failed') or [])} "
-        f"failed_snos={result.get('failed')} degraded_snos={result.get('degraded')}"
+        f"failed_snos={result.get('failed')}"
     )
 
 
@@ -257,8 +257,7 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
     """抓指定場次的賽況並 UPSERT。回傳含對帳欄的結果字典。
 
     回傳鍵：`target`（宣告要抓的場數，＝`len(snos)`）、`games`（成功場數）、
-    `failed`（失敗場號清單）、`failures`（逐場 {sno, error_code}）、`degraded`
-    （抓到了但某個內嵌來源 JSON 壞掉的場號）、以及各表寫入列數。
+    `failed`（失敗場號清單）、`failures`（逐場 {sno, error_code}）、以及各表寫入列數。
     **`target == games + len(failed)` 恆成立**（迴圈每一輪不是計成功就是記失敗）。
 
     失敗語意（DATA-BOX-DEEP-SILENT-FAIL1，Q4 裁定＝乙／Q2 裁定＝甲）：
@@ -268,17 +267,21 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
     - 要容忍的呼叫端必須**明確** `allow_partial=True`，並在該處寫下理由。
     - 兩種模式都會先印出對帳行（有失敗時是 WARNING），故失敗場號一律可列舉。
 
-    `degraded` 不計入 `failed`：那些場次的 getlive 請求成功、其餘來源照常寫入，
-    壞掉的單一來源已由 `record_source_revision` 以 `invalid_source_json` 留痕
-    （`cpbl.game_source_revisions`）。列在回傳值裡是為了不讓它被對帳行藏起來，
-    **不是**把它從分母移除。
+    四個內嵌來源（Scoreboard／LiveLog／Batting／Pitching）任一 JSON 壞掉即算**那一場
+    失敗**（`invalid_source_json`），與請求失敗同級。第一版曾把它降級成不計入 `failed`
+    的 `degraded`，於是 `ScoreboardJson='{broken'` 仍然 exit 0——本卡要消滅的靜默缺口
+    等於留了一個（2026-08-19 跨家族查核 R1-01 退件）。
+
+    ⚠️ 判失敗**不丟資料**：已解析成功的來源照常 UPSERT（冪等，下次重抓自然收斂），
+    壞掉的那個寫 0 列。把整場寫入一起放棄會讓「scoreboard 壞掉」連帶弄丟同一場完好的
+    livelog——那是拿資料換一個比較整齊的語意。
 
     取 token 階段失敗（`_token()` 拋 RuntimeError）不走這條路：那是整批一場都沒抓，
     例外原樣往上拋、`allow_partial` 不吃它——2026-08-10 的 kind=A 就是這個形狀，
     它本來就已經硬失敗 exit 1，本卡不放寬它。
     """
     out: dict = {"kind_code": kind_code, "target": len(snos), "games": 0,
-                 "failed": [], "failures": [], "degraded": [],
+                 "failed": [], "failures": [],
                  "scoreboard": 0, "livelog": 0, "batting_box": 0, "pitching_box": 0}
     if not snos:
         return out
@@ -355,12 +358,30 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
                 )
                 return [], True
 
+        def _box_rows(key: str) -> tuple[list[dict], bool]:
+            """`BattingJson`／`PitchingJson`：壞 JSON 不得逸出成未捕捉例外。
+
+            這兩行原本在逐場 `try` 之外，壞掉會拋 `JSONDecodeError` 炸掉整批——後面
+            每一場一場都不會抓，對帳行與 `GamelogScrapeIncomplete` 都不會產生，每日鏈
+            拿到的是 exit 1 而不是 69，於是**單場壞資料擋掉整天的生產同步**，正是 Q3
+            裁定要避免的事（2026-08-19 跨家族查核 R1-02 退件）。
+
+            這兩個來源不寫 `game_source_revisions`：該表現行只記 scoreboard／livelog
+            兩個 source，擴充它的值域是另一件事，不在本卡射程。失敗訊號走 `_fail()`。
+            """
+            try:
+                rows = json.loads(payload.get(key) or "[]")
+                if not isinstance(rows, list):
+                    raise ValueError("box payload is not an array")
+                return rows, False
+            except (json.JSONDecodeError, TypeError, ValueError):
+                log.warning("來源 JSON 壞掉 sno=%s key=%s", sno, key)
+                return [], True
+
         sb, sb_error = _source_rows("scoreboard", "ScoreboardJson")
         ll, ll_error = _source_rows("livelog", "LiveLogJson")
-        if sb_error or ll_error:
-            out["degraded"].append(sno)
-        bb = json.loads(payload.get("BattingJson") or "[]")
-        pp = json.loads(payload.get("PitchingJson") or "[]")
+        bb, bb_error = _box_rows("BattingJson")
+        pp, pp_error = _box_rows("PitchingJson")
         out["scoreboard"] += _upsert("game_scoreboard", _SB_COLS, 5,
                                      _scoreboard_rows(year, kind_code, sno, sb))
         out["livelog"] += _upsert("game_livelog", _LL_COLS, 4,
@@ -387,6 +408,11 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
         wx = _weather_row(year, kind_code, sno, payload)
         if wx:
             out["weather"] = out.get("weather", 0) + _upsert("game_detail", _GD_WX_COLS, 3, [wx])
+        if sb_error or ll_error or bb_error or pp_error:
+            # 放在 UPSERT 之後：解析成功的來源已經寫進去了（見 docstring 的取捨），
+            # 但這一場沒抓齊，故計入 failed 而**不**計入 games——對帳恆等式照樣閉合。
+            _fail(sno, "invalid_source_json")
+            continue
         out["games"] += 1
         log.info("sno=%s scoreboard=%d livelog=%d box(打%d投%d)", sno, len(sb), len(ll), len(bb), len(pp))
     log.log(logging.WARNING if out["failed"] else logging.INFO,

@@ -172,6 +172,16 @@ def test_gamelog_records_source_error_instead_of_treating_http_failure_as_missin
 def test_gamelog_keeps_each_embedded_source_json_outcome_independent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """兩個內嵌來源的 outcome 各自獨立：scoreboard 壞掉不得把 livelog 一起標成 error。
+
+    ⚠️ 2026-08-19 起多包一層 `pytest.raises`，理由與上一個測試同一條，但成因是第二輪
+    的查核裁定（R1-01）：內嵌來源 JSON 壞掉＝那一場沒抓齊＝逐場失敗，`scrape_gamelogs`
+    預設就此拋 `GamelogScrapeIncomplete`。先前它只被降級成不計入失敗的 `degraded`，
+    整批照樣 exit 0——那正是本卡要消滅的靜默缺口。
+
+    **斷言一字未改**：per-source 的 outcome 記錄發生在拋出之前，「scoreboard=error
+    ／livelog=missing」這組期待仍完整成立，本測試驗的獨立性不受影響。
+    """
     payload = {
         "ScoreboardJson": "{broken",
         "LiveLogJson": "[]",
@@ -189,7 +199,8 @@ def test_gamelog_keeps_each_embedded_source_json_outcome_independent(
         lambda **kwargs: revisions.append(kwargs),
     )
 
-    cpbl_gamelog.scrape_gamelogs(2026, [9], "A", delay=0)
+    with pytest.raises(cpbl_gamelog.GamelogScrapeIncomplete):
+        cpbl_gamelog.scrape_gamelogs(2026, [9], "A", delay=0)
 
     by_source = {revision["source"]: revision for revision in revisions}
     assert by_source["scoreboard"]["outcome"] == "error"

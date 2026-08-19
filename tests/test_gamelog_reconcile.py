@@ -147,17 +147,72 @@ def test_invalid_response_json_counts_as_a_failed_game(injected) -> None:
     ]
 
 
-def test_degraded_source_json_is_listed_but_not_counted_as_failure(injected) -> None:
-    """單一內嵌來源壞掉≠那一場沒抓到：其餘來源照常寫入，故不計入 failed，
-    但必須出現在 degraded，不得被對帳藏起來（紅線 2：不得從分母移除）。"""
+def test_broken_embedded_source_json_counts_as_a_failed_game(injected) -> None:
+    """內嵌來源 JSON 壞掉＝那一場沒抓齊＝失敗（R1-01，2026-08-19 跨家族查核）。
+
+    第一版把它列進 `degraded` 而不計入 `failed`，於是 `ScoreboardJson='{broken'`
+    重放得到 `games=1, failed=[], exit 0`——**本卡要消滅的靜默缺口原封不動地留了一個**。
+    查核裁定逐字：「應算逐場失敗，不只是 degraded。」
+    """
     injected([], body=json.dumps({
         "ScoreboardJson": "{broken", "LiveLogJson": "[]",
         "BattingJson": "[]", "PitchingJson": "[]",
     }))
 
-    out = cpbl_gamelog.scrape_gamelogs(2026, [188], "D", delay=0)
+    with pytest.raises(cpbl_gamelog.GamelogScrapeIncomplete) as excinfo:
+        cpbl_gamelog.scrape_gamelogs(2026, [188], "D", delay=0)
 
-    assert out["failed"] == [] and out["degraded"] == [188] and out["games"] == 1
+    result = excinfo.value.result
+    assert result["failures"] == [{"sno": 188, "error_code": "invalid_source_json"}]
+    assert result["games"] == 0
+    assert result["target"] == result["games"] + len(result["failed"])
+
+
+def test_broken_source_json_still_writes_the_sources_that_did_parse(injected, monkeypatch) -> None:
+    """判失敗**不等於**丟掉已經解析成功的資料：壞的來源寫 0 列，好的來源照常 UPSERT。
+
+    這條釘的是取捨本身。把整場的寫入一起放棄會讓「scoreboard 壞掉」連帶弄丟同一場
+    完好的 livelog——那是拿資料去換一個比較整齊的語意，不划算；冪等 UPSERT 讓下次
+    重抓自然收斂，先寫進去沒有代價。
+    """
+    upserts: list[tuple[str, int]] = []
+    injected([], body=json.dumps({
+        "ScoreboardJson": "{broken",
+        "LiveLogJson": json.dumps([{"MainEventNo": "0001", "InningSeq": 1}]),
+        "BattingJson": "[]", "PitchingJson": "[]",
+    }))
+    monkeypatch.setattr(cpbl_gamelog, "_upsert",
+                        lambda table, _c, _pk, rows: upserts.append((table, len(rows))) or len(rows))
+
+    with pytest.raises(cpbl_gamelog.GamelogScrapeIncomplete):
+        cpbl_gamelog.scrape_gamelogs(2026, [188], "D", delay=0)
+
+    written = dict(upserts)
+    assert written["game_scoreboard"] == 0, "壞掉的來源不得硬湊出列"
+    assert written["game_livelog"] == 1, "同一場解析成功的來源仍要寫進去"
+
+
+def test_broken_box_json_is_a_counted_failure_not_an_uncaught_crash(injected) -> None:
+    """`BattingJson`／`PitchingJson` 也必須納入逐場保護（R1-02，同一輪查核）。
+
+    第一版把這兩行留在逐場 `try` 之外：`PitchingJson='{broken'` 會拋
+    `JSONDecodeError` 炸掉整批，後面每一場一場都不會抓，且對帳行與
+    `GamelogScrapeIncomplete` 都不會產生。查核裁定逐字：「它違反 Q3：單場失敗仍會擋
+    整天同步。」——因為每日鏈拿到的是未知例外（exit 1）而不是 69。
+
+    故本測試同時釘住兩件事：不得逸出 `JSONDecodeError`，且該場要計進失敗、
+    **後續場次照抓**（`allow_partial` 下 189 仍要成功）。
+    """
+    broken = json.dumps({
+        "ScoreboardJson": "[]", "LiveLogJson": "[]",
+        "BattingJson": "[]", "PitchingJson": "{broken",
+    })
+    injected([], body=broken)
+
+    out = cpbl_gamelog.scrape_gamelogs(2026, [188], "D", delay=0, allow_partial=True)
+
+    assert out["failures"] == [{"sno": 188, "error_code": "invalid_source_json"}]
+    assert out["games"] == 0 and out["target"] == 1
 
 
 # ----------------------------------------------------------------- 2. 失敗訊號
@@ -208,7 +263,7 @@ def test_token_failure_still_hard_fails_regardless_of_tolerance(monkeypatch) -> 
 def test_daily_chain_records_tolerated_gap_and_keeps_result(monkeypatch) -> None:
     monkeypatch.setattr(run_refresh_recent, "_GAMELOG_GAPS", [])
     result = {"kind_code": "D", "target": 3, "games": 2, "failed": [51],
-              "failures": [{"sno": 51, "error_code": "request_error"}], "degraded": []}
+              "failures": [{"sno": 51, "error_code": "request_error"}]}
 
     returned = run_refresh_recent._tolerate_gamelog_gap(result, "測試理由")
 
@@ -242,7 +297,7 @@ def test_daily_chain_exits_69_after_finishing_every_other_step(monkeypatch) -> N
         calls.append(f"gamelog:{kind_code}")
         return {"kind_code": kind_code, "target": len(snos), "games": 0,
                 "failed": list(snos), "failures": [{"sno": s, "error_code": "request_error"}
-                                                   for s in snos], "degraded": []}
+                                                   for s in snos]}
 
     for name, value in (
         ("migrate", lambda: None),
