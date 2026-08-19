@@ -463,6 +463,22 @@ export function todayCardKind(g: TodayGame): TodayCardKind {
   return "pregame";
 }
 
+/** 今日賽事卡的狀態徽章文案；`null`＝這一態不由徽章表承載（賽前／賽中／賽後各有自己的）。
+ *
+ *  **與最近比賽日共用同一張 `LATEST_STATUS_COPY`**：同一場延賽在首頁的兩個區塊裡不得
+ *  是兩個詞。刻意**不走** `lib/live-game.ts` 的 canonical `phaseLabel`——它對 `postponed`
+ *  回的是「延期」，而需求方在 2026-08-16 Design Gate 明確裁定用官方原文「延賽」
+ *  （`delay_kind` 的原字、官方與球迷都這樣講）。canonical 詞彙遷就官方詞彙，不是反過來。
+ *
+ *  **詞不隨來源改變**：不管這一態是 worker snapshot 給的還是 DB `delay_kind` 推的，
+ *  讀者看到的都是同一個字。徽章只講狀態，一律**不講成因**（沒有任何欄位存得下理由）。 */
+export function todayStatusCopy(g: TodayGame): { label: string; tone: FreshnessTone } | null {
+  const kind = todayCardKind(g);
+  if (kind === "postponed") return LATEST_STATUS_COPY.postponed;
+  if (kind === "reserved") return LATEST_STATUS_COPY.reserved;
+  return null;
+}
+
 /** 該場今天還會不會變。全部不會變時輪詢應完全停止。
  *
  *  保留賽算 settled：依 GLOSSARY，保留賽的補賽掛在**另一個日期**（`orig_date` 記原開賽

@@ -12,6 +12,7 @@ import {
   sortTodayGames,
   todayCardKind,
   todayInningLabel,
+  todayStatusCopy,
   taipeiTime,
   todayStatusText,
   TODAY_COPY,
@@ -179,24 +180,37 @@ export function TodayGameCard({ g, trainedThrough, nowMs }: {
   g: TodayGame; trainedThrough: number | null; nowMs: number | null;
 }) {
   const kind = todayCardKind(g);
+  // 徽章文案與最近比賽日共用同一張表（`todayStatusCopy` → `LATEST_STATUS_COPY`），
+  // 不用 `phaseLabel`：canonical 的「延期」在 2026-08-16 Design Gate 被需求方推翻，
+  // 官方原文「延賽」勝出，而同一場比賽在首頁兩個區塊不得是兩個詞。
+  const statusCopy = todayStatusCopy(g);
 
   if (kind === "live" && g.live) {
     return <LiveCard g={g} live={g.live} interrupt={liveInterrupt(g.live, nowMs)} />;
   }
   if (kind === "final") return <FinalCard g={g} />;
   // 延賽：根本沒開打，沒有比分可顯示。
-  if (kind === "postponed" && g.live) {
+  //
+  // **不再要求有 live snapshot**（原本是 `kind === "postponed" && g.live`）：worker 只在
+  // 開賽時段供 snapshot，本機與每日多數時段一場都沒有，而官方 `delay_kind` 早就在 DB 裡。
+  // 2026-08-19 的 A#274 正是這個漏洞——`delay_kind=延賽` 躺在資料裡，卡片卻落到賽前態，
+  // 標頭只有 `08/19`、比分兩個破折號，唯一的說明文字是賽前卡的「模型尚未建置」，
+  // 等於拿模型狀態充當缺分的原因。`todayCardKind` 已補上 DB 後備，這裡把守衛跟上。
+  if (kind === "postponed" && statusCopy) {
     return (
-      <GameCard g={g} status={todayStatusText(g.live, "none")} tone="warn"
+      <GameCard g={g} status={statusCopy.label} tone={statusCopy.tone}
         showScore={false} live={null} footer="賽事詳情 →" />
     );
   }
   // 保留賽：**已開賽後中止，場上是有比分的**（GLOSSARY〈保留賽〉：官方 GameResult=2）。
   // 藏起來比顯示更失真，故照顯中斷時比分；「保留・擇期續賽」那一行負責防止它被讀成
   // 終場，也說明了為什麼這個比分不會再變。
-  if (kind === "reserved" && g.live) {
+  //
+  // 同樣拿掉 `&& g.live`。沒有 snapshot 時 `GameCard` 自己會退回 DB 的 `g.*_score`
+  // （`live?.away_score ?? g.away_score`），兩邊都沒有就照顯破折號——不回填 0。
+  if (kind === "reserved" && statusCopy) {
     return (
-      <GameCard g={g} status={todayStatusText(g.live, "none")} tone="warn"
+      <GameCard g={g} status={statusCopy.label} tone={statusCopy.tone}
         showScore live={g.live} footer="賽事詳情 →"
         below={<p className="text-[11px] text-muted">{TODAY_COPY.reservedNote}</p>} />
     );

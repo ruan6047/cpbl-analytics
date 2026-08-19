@@ -25,6 +25,7 @@ import {
   todayInningLabel,
   todayGameSettled,
   todayPollDelayMs,
+  todayStatusCopy,
   todayStatusText,
   latestGameStatus,
   latestGameDateNote,
@@ -1064,6 +1065,64 @@ test("**紅線**：今日賽事的狀態文案同樣不得宣稱停賽原因", (
   for (const label of labels) {
     for (const word of banned) {
       assert.equal(label.includes(word), false, `文案不得出現未經證實的「${word}」：${label}`);
+    }
+  }
+});
+
+// —— 今日賽事卡的徽章文案（DAILY-MIXED-DAY-UX1 第二輪；view 層守衛拿掉 `&& g.live` 後）——
+
+test("延賽徽章走官方原文，不走 canonical 的「延期」", () => {
+  const postponed = aug19({ game_sno: 274, completed: false, away_score: null,
+                            home_score: null, delay_kind: "延賽", orig_date: "2026-08-19" });
+  const copy = todayStatusCopy(postponed);
+
+  assert.equal(copy?.label, "延賽");
+  // 需求方 2026-08-16 推翻 `lib/live-game.ts` 的「延期」；官方原文勝出。
+  assert.equal(copy?.label.includes("延期"), false);
+  // 與最近比賽日**同一張表**：改一邊另一邊必須跟著動，否則同一場比賽在首頁兩個
+  // 區塊會是兩個詞。
+  assert.equal(copy?.label, LATEST_STATUS_COPY.postponed.label);
+  assert.equal(copy?.tone, LATEST_STATUS_COPY.postponed.tone);
+});
+
+test("詞不隨來源改變：snapshot 說延賽與 DB delay_kind 說延賽，畫面同一個字", () => {
+  const fromDb = aug19({ game_sno: 274, completed: false, away_score: null,
+                         home_score: null, delay_kind: "延賽" });
+  const fromWorker = aug19({ game_sno: 274, completed: false, away_score: null,
+                             home_score: null, live: live({ phase: "postponed" }) });
+
+  assert.equal(todayCardKind(fromDb), "postponed");
+  assert.equal(todayCardKind(fromWorker), "postponed");
+  assert.equal(todayStatusCopy(fromDb)?.label, todayStatusCopy(fromWorker)?.label);
+});
+
+test("保留賽用規則書用詞，且與延賽分得出來", () => {
+  const reserved = aug19({ game_sno: 164, completed: false, away_score: null,
+                           home_score: null, delay_kind: "保留" });
+  assert.equal(todayStatusCopy(reserved)?.label, "保留比賽");
+  assert.notEqual(todayStatusCopy(reserved)?.label, todayStatusCopy(
+    aug19({ game_sno: 274, completed: false, away_score: null, home_score: null,
+            delay_kind: "延賽" }))?.label);
+});
+
+test("只有延賽／保留兩態由徽章表承載；其餘三態不得被塞一個狀態字", () => {
+  // 賽後／賽中／賽前各有自己的呈現（比分、局況、賽前卡），硬塞徽章會變成兩套語彙。
+  assert.equal(todayStatusCopy(aug19()), null, "完賽場不走徽章表");
+  assert.equal(todayStatusCopy(aug19({ live: live({ phase: "live" }) })), null);
+  assert.equal(todayStatusCopy(game(247)), null, "無註記的賽前場不得生出狀態");
+  assert.equal(todayStatusCopy(game(247, { delay_kind: "" })), null);
+  // 補賽打完那天：`delay_kind` 還留著，但那是終場，不得掛延賽徽章。
+  assert.equal(todayStatusCopy(aug19({ game_sno: 15, completed: true,
+                                       delay_kind: "延賽" })), null);
+});
+
+test("**紅線**：今日賽事的徽章文案不得宣稱停賽原因", () => {
+  const banned = ["雨", "颱", "天候", "未開打", "取消", "停電", "因"];
+  for (const kind of ["延賽", "保留"]) {
+    const label = todayStatusCopy(aug19({ completed: false, away_score: null,
+                                          home_score: null, delay_kind: kind }))!.label;
+    for (const word of banned) {
+      assert.equal(label.includes(word), false, `${kind} 徽章不得出現未經證實的「${word}」`);
     }
   }
 });
