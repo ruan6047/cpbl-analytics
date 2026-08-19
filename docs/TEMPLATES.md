@@ -13,7 +13,9 @@
 
 純技術 T3/T4 必在卡片記錄 Design Gate `N/A` 的理由；既有卡不回填此格式，僅在新的 lifecycle event 後採用。
 
-自 WF-17（2026-07-26）起，新卡採 canonical tasks-card 的**標準章節**「驗收條件」「驗證」（查核提示詞產生器與章節 lint 以此錨定，禁改寫為「目標與驗收」等變體），並在「執行／查核」行標注**路由建議**（引用 [`MODEL_ROUTING.md`](MODEL_ROUTING.md) 的 L1–L4 層級與理由，不引用模型名）；存量卡沿慣例不回填。
+自 WF-17（2026-07-26）起，新卡採 canonical tasks-card 的**標準章節**「驗收條件」「驗證」（查核提示詞產生器與章節 lint 以此錨定，禁改寫為「目標與驗收」等變體），並在「執行／查核」行標注**路由建議**（引用 [`MODEL_ROUTING.md`](MODEL_ROUTING.md) 的能力層級與理由，不引用模型名）；存量卡沿慣例不回填。
+
+⚠️ **卡面的層級欄位須逐字填 CLI 封閉語彙的三個值之一：`經濟型`｜`主力型`｜`高階型`。**`L1`–`L4` 是 `MODEL_ROUTING.md` 表格的**文件層編號**，不是卡面可填的值——實測把 `L3`、`L3 高階型`、`L4`、`L4 特殊型` 任一寫進合規卡面，`compare_capability_to_card` 一律回 `outcome='ambiguous'`（等同沒有可信基線）。`L4` 這一層在 CLI 中不存在，其去向待需求方裁定，見 [`MODEL_ROUTING.md`](MODEL_ROUTING.md) 表下的待裁定註記。
 
 ## 卡面 `review_independence`（查核獨立性要求）
 
