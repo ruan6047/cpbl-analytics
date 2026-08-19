@@ -7,7 +7,7 @@
     "prebuild": "node scripts/guard-build.mjs",
     "build": "next build",
     "build:check": "NEXT_DIST_DIR=.next-check next build; code=$?; git checkout -- next-env.d.ts 2>/dev/null || true; exit $code",
-    "test": "node --no-warnings --experimental-strip-types --test 'src/**/*.test.ts'",
+    "test": "node --no-warnings --experimental-strip-types --import ./test/tsx-loader.mjs --test 'src/**/*.test.ts' 'src/**/*.test.tsx'",
     "start": "next start",
     "lint": "next lint"
   },
