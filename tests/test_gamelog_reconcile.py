@@ -27,6 +27,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import psycopg
 import pytest
 
 from cpbl.ingest import cpbl_gamelog, run_refresh_recent
@@ -106,6 +107,10 @@ def test_replay_20260810_reports_target_and_every_failed_sno(injected, caplog) -
     assert out["failed"] == list(REPLAY_20260810_D_FAILED)
     # 母體恆等式：舊版只有 games=8，看不出分母；新版三者必須閉合。
     assert out["target"] == out["games"] + len(out["failed"])
+    # ⚠️ 「每條路徑都有呼叫 _fail()」不等於恆等式成立——路徑也可能呼叫**兩次**。
+    # 2026-08-19 實測過：428 之後重取 token 若失敗，同一場會被記兩次
+    # （failed_snos=[97, 97, 188, 188]、target=2 卻 failed=4）。故要連重複一起釘。
+    assert len(out["failed"]) == len(set(out["failed"])), "同一場不得被計入失敗兩次"
     reconcile = [r.getMessage() for r in caplog.records if "reconcile:" in str(r.msg)]
     assert reconcile, "有失敗時必須留下一行對帳（WARNING 級）"
     assert "target=39" in reconcile[0] and "ok=8" in reconcile[0] and "failed=31" in reconcile[0]
@@ -213,6 +218,130 @@ def test_broken_box_json_is_a_counted_failure_not_an_uncaught_crash(injected) ->
 
     assert out["failures"] == [{"sno": 188, "error_code": "invalid_source_json"}]
     assert out["games"] == 0 and out["target"] == 1
+
+
+# --------------------------------------- 1b. 迴圈體的構造性保證（形狀，不是實例）
+
+# 「合法 JSON、內容形狀不對」的 payload。這些**不是**要窮舉壞法——窮舉是開放集合，
+# 同族已經失守四次（主路徑、查核 R1 兩條、PM 自審一條）。它們是**抽樣**：每個都落在
+# 迴圈體的不同位置（第一個 row transform／最後一個 row transform），用來檢驗
+# 「任何未預期例外都是那一場失敗」這條構造性保證，而不是檢驗個別型別檢查。
+_MALFORMED_PAYLOADS = {
+    "scoreboard_ints": {"ScoreboardJson": "[1,2,3]", "LiveLogJson": "[]",
+                        "BattingJson": "[]", "PitchingJson": "[]"},
+    "scoreboard_strings": {"ScoreboardJson": '["abc"]', "LiveLogJson": "[]",
+                           "BattingJson": "[]", "PitchingJson": "[]"},
+    "livelog_nested_list": {"ScoreboardJson": "[]", "LiveLogJson": "[[]]",
+                            "BattingJson": "[]", "PitchingJson": "[]"},
+    "pitching_ints": {"ScoreboardJson": "[]", "LiveLogJson": "[]",
+                      "BattingJson": "[]", "PitchingJson": "[1]"},
+    "batting_ints": {"ScoreboardJson": "[]", "LiveLogJson": "[]",
+                     "BattingJson": "[1]", "PitchingJson": "[]"},
+}
+
+
+@pytest.mark.parametrize("shape", sorted(_MALFORMED_PAYLOADS))
+def test_wellformed_json_with_wrong_content_is_one_games_failure(injected, shape) -> None:
+    """合法 JSON、合法 list、元素不是 dict —— 通過所有型別檢查，卻在 row transform
+    的 `r.get(...)` 炸掉（PM 自審 2026-08-19 發現的第四條同族路徑）。
+
+    症狀與 R1-02 完全相同：未捕捉例外逸出 ⇒ 整批中止、後續場次一場未抓、無對帳行、
+    每日鏈拿到 exit 1 而不是 69。要求是**那一場失敗、後面照抓**。
+    """
+    injected([], body=json.dumps(_MALFORMED_PAYLOADS[shape]))
+
+    out = cpbl_gamelog.scrape_gamelogs(2026, [188, 189], "D", delay=0, allow_partial=True)
+
+    assert out["failed"] == [188, 189], "壞內容不得中止整批"
+    assert out["target"] == out["games"] + len(out["failed"])
+    assert {f["error_code"] for f in out["failures"]} == {"unexpected_error"}
+
+
+def test_unexpected_exception_anywhere_in_the_loop_body_is_that_games_failure(
+    injected, monkeypatch,
+) -> None:
+    """保證的是**區域**不是**位置**：把例外注在迴圈體尾端（快照寫入）而不是 row
+    transform，結論必須一樣。
+
+    這條與上一條的差別是刻意的——上一條證明已知的壞 payload 被接住，這條證明接住它們
+    的不是某個型別檢查，而是整個迴圈體被包住了。
+    """
+    injected([])
+
+    def _boom(*_args, **_kwargs):
+        raise KeyError("injected failure at the tail of the loop body")
+
+    monkeypatch.setattr(cpbl_gamelog, "record_box_pitching_revisions", _boom)
+
+    out = cpbl_gamelog.scrape_gamelogs(2026, [188, 189], "D", delay=0, allow_partial=True)
+
+    assert out["failed"] == [188, 189] and out["games"] == 0
+
+
+def test_token_renewal_failure_stays_a_batch_failure(injected, monkeypatch) -> None:
+    """迴圈內重取 token 失敗＝整批性失敗，**不得**被降級成單場失敗。
+
+    428 之後會重取 token；若那次重取也失敗，代表官網／挑戰整個掛了，不是某一場的事。
+    Q 裁定明確不放寬取 token 階段的硬失敗，故這裡必須是原例外往上拋，
+    而不是 `GamelogScrapeIncomplete`。
+    """
+    injected([97], http_status=428)
+    calls = {"n": 0}
+    session = cpbl_gamelog  # noqa: F841
+
+    class _TokenDiesOnRenewal:
+        def page_html(self, _path, require=None) -> str:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return '<input name="__RequestVerificationToken" value="replay-token">'
+            return "<html>challenge</html>"
+
+        def post(self, *_args, **_kwargs) -> tuple[int, str]:
+            return 428, "challenge"
+
+    monkeypatch.setattr("cpbl.ingest._browser.session", lambda: _TokenDiesOnRenewal())
+
+    with pytest.raises(RuntimeError) as excinfo:
+        cpbl_gamelog.scrape_gamelogs(2026, [97, 188], "D", delay=0, allow_partial=True)
+
+    assert not isinstance(excinfo.value, cpbl_gamelog.GamelogScrapeIncomplete)
+    assert "token" in str(excinfo.value)
+
+
+def test_database_outage_is_a_batch_failure_not_a_pile_of_game_failures(
+    injected, monkeypatch,
+) -> None:
+    """DB 連線層失敗（含連線池 timeout）必須原樣往上拋。
+
+    若把它記成「每一場都失敗」，每日鏈會拿到 69 ⇒ **本機 DB 掛著卻照樣同步生產**，
+    那是拿一個誠實的退出碼去換一個錯誤的下游動作。psycopg 的
+    `OperationalError` 是驅動自己的分類（`PoolTimeout`／`PoolClosed` 都繼承它），
+    不是我們列舉出來的症狀清單。
+    """
+    injected([])
+
+    def _db_down(*_args, **_kwargs):
+        raise psycopg.OperationalError("connection to server failed")
+
+    monkeypatch.setattr(cpbl_gamelog, "_upsert", _db_down)
+
+    with pytest.raises(psycopg.OperationalError):
+        cpbl_gamelog.scrape_gamelogs(2026, [188, 189], "D", delay=0, allow_partial=True)
+
+
+def test_row_level_database_error_is_only_that_games_failure(injected, monkeypatch) -> None:
+    """負控制：資料造成的 DB 錯誤（DataError／IntegrityError）是那一列的問題，
+    不是整庫的問題，故仍算單場失敗、後續照抓。這條與上一條的分界就是驅動的類別階層。"""
+    injected([])
+
+    def _bad_row(*_args, **_kwargs):
+        raise psycopg.DataError("value too long for type character varying(8)")
+
+    monkeypatch.setattr(cpbl_gamelog, "_upsert", _bad_row)
+
+    out = cpbl_gamelog.scrape_gamelogs(2026, [188, 189], "D", delay=0, allow_partial=True)
+
+    assert out["failed"] == [188, 189] and out["games"] == 0
 
 
 # ----------------------------------------------------------------- 2. 失敗訊號

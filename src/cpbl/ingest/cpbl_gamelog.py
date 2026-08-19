@@ -10,6 +10,8 @@ import logging
 import re
 import time
 
+import psycopg
+
 from cpbl.db import conn
 from cpbl.ingest.box_revisions import record_box_pitching_revisions
 from cpbl.ingest.cpbl_site import BASE, KIND_REGULAR
@@ -301,49 +303,62 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
         out["failed"].append(sno)
         out["failures"].append({"sno": sno, "error_code": error_code})
 
-    token = _token()
-    for sno in snos:
-        time.sleep(delay)
+    class _GameFailed(Exception):
+        """單場失敗的內部訊號（**已知**成因）。`error_code` 進 `out["failures"]`。"""
+
+        def __init__(self, error_code: str, *, renew_token: bool = False,
+                     detail: str = "") -> None:
+            self.error_code = error_code
+            self.renew_token = renew_token
+            self.detail = detail or error_code
+            super().__init__(self.detail)
+
+    def _scrape_one(sno: int) -> None:
+        """抓一場並寫入。**正常返回＝那一場抓到了；任何其他離開方式都是那一場失敗。**
+
+        這個函式存在的理由是控制流，不是整潔：它讓「一場可以在不被計入的情況下結束」
+        變成**構造上不可能**——呼叫端只有兩個分支（返回／例外），不需要知道函式體內
+        有幾個 `continue`、幾個型別檢查、將來又多了什麼步驟。
+
+        為什麼不繼續補型別檢查（2026-08-19 PM 自審裁定）：同一族已經失守四次——原始
+        缺陷、查核 R1 的兩條（`invalid_source_json`、box JSON 未保護）、PM 自審的第四條
+        （`'[1,2,3]'` 是合法 JSON、合法 list，通過所有檢查後在 `r.get()` 炸掉）。逐個補
+        是在追一個**開放集合**：下一個 payload 形狀還會有第五條。改成包住整個函式體是
+        **封閉集合**：不論函式體將來長成什麼樣，離開方式永遠只有那兩種。
+        """
         try:
             status, text = s.post(
                 box_path, "/box/getlive",
                 {"GameSno": str(sno), "KindCode": kind_code, "Year": str(year)},
                 headers={"RequestVerificationToken": token},
             )
-            if status != 200:
-                for source in ("scoreboard", "livelog"):
-                    record_source_revision(
-                        year=year, kind_code=kind_code, game_sno=sno, source=source,
-                        outcome="error", row_count=0, error_code=f"http_{status}",
-                        detail={"phase": "getlive", "http_status": status},
-                    )
-                log.warning("getlive 失敗 sno=%s: http_%s", sno, status)
-                _fail(sno, f"http_{status}")
-                token = _token()
-                continue
-            try:
-                payload = json.loads(text)
-            except (json.JSONDecodeError, ValueError):
-                for source in ("scoreboard", "livelog"):
-                    record_source_revision(
-                        year=year, kind_code=kind_code, game_sno=sno, source=source,
-                        outcome="error", row_count=0, error_code="invalid_response_json",
-                        detail={"phase": "getlive"},
-                    )
-                log.warning("getlive 失敗 sno=%s: invalid_response_json", sno)
-                _fail(sno, "invalid_response_json")
-                token = _token()
-                continue
-        except Exception as e:  # noqa: BLE001 — 單場失敗記錄後續抓，結尾一併對帳
-            log.warning("getlive 失敗 sno=%s: %s", sno, e)
-            _fail(sno, "request_error")
+        except Exception as e:  # noqa: BLE001 — 請求層失敗＝這一場沒抓到
             for source in ("scoreboard", "livelog"):
                 record_source_revision(
                     year=year, kind_code=kind_code, game_sno=sno, source=source,
                     outcome="error", row_count=0, error_code="request_error",
                     detail={"phase": "getlive", "exception_type": type(e).__name__},
                 )
-            continue
+            raise _GameFailed("request_error", detail=str(e)) from e
+        if status != 200:
+            for source in ("scoreboard", "livelog"):
+                record_source_revision(
+                    year=year, kind_code=kind_code, game_sno=sno, source=source,
+                    outcome="error", row_count=0, error_code=f"http_{status}",
+                    detail={"phase": "getlive", "http_status": status},
+                )
+            raise _GameFailed(f"http_{status}", renew_token=True)
+        try:
+            payload = json.loads(text)
+        except (json.JSONDecodeError, ValueError) as e:
+            for source in ("scoreboard", "livelog"):
+                record_source_revision(
+                    year=year, kind_code=kind_code, game_sno=sno, source=source,
+                    outcome="error", row_count=0, error_code="invalid_response_json",
+                    detail={"phase": "getlive"},
+                )
+            raise _GameFailed("invalid_response_json", renew_token=True) from e
+
         def _source_rows(source: str, key: str) -> tuple[list[dict], bool]:
             try:
                 rows = json.loads(payload.get(key) or "[]")
@@ -410,11 +425,43 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
             out["weather"] = out.get("weather", 0) + _upsert("game_detail", _GD_WX_COLS, 3, [wx])
         if sb_error or ll_error or bb_error or pp_error:
             # 放在 UPSERT 之後：解析成功的來源已經寫進去了（見 docstring 的取捨），
-            # 但這一場沒抓齊，故計入 failed 而**不**計入 games——對帳恆等式照樣閉合。
-            _fail(sno, "invalid_source_json")
+            # 但這一場沒抓齊。
+            raise _GameFailed("invalid_source_json")
+        log.info("sno=%s scoreboard=%d livelog=%d box(打%d投%d)",
+                 sno, len(sb), len(ll), len(bb), len(pp))
+
+    token = _token()
+    for sno in snos:
+        time.sleep(delay)
+        try:
+            _scrape_one(sno)
+        except _GameFailed as failure:
+            log.warning("getlive 失敗 sno=%s: %s", sno, failure.detail)
+            _fail(sno, failure.error_code)
+            if failure.renew_token:
+                # ⚠️ 這一行**刻意**放在 except 區塊裡：重取 token 失敗＝整批性失敗
+                #（官網／挑戰整個掛了，不是某一場的事），例外會直接往上拋而不被下面的
+                # 攔截器降級成單場失敗。放回 try 裡曾造成同一場被 _fail() 記兩次、
+                # target == games + len(failed) 不成立（2026-08-19 修正）。
+                token = _token()
+            continue
+        except psycopg.OperationalError:
+            # 連線層失敗（含 psycopg_pool 的 PoolTimeout／PoolClosed，兩者都繼承
+            # OperationalError）＝整庫的問題，不是某一場的問題。若記成「每一場都失敗」，
+            # 每日鏈會拿到 69 ⇒ 本機 DB 掛著卻照樣同步生產：用一個誠實的退出碼換一個
+            # 錯誤的下游動作。分界用驅動自己的類別階層，不是我們列舉的症狀。
+            raise
+        except Exception as e:  # noqa: BLE001 — 構造性保證：未預期例外＝那一場失敗
+            # ⚠️ 這裡也會吞掉「程式自己的 bug」（TypeError／KeyError…），這是**明知的
+            # 取捨**：執行期分不出「資料造成的例外」與「碼寫錯的例外」，硬要分就又回到
+            # 開放集合。代價由三件事補償——error_code 是獨立的 unexpected_error、
+            # log.exception 留完整 traceback、整批仍非零退出（每日鏈 69、其餘拋例外）。
+            # 換句話說碼有 bug 時的症狀是「每一場都 unexpected_error ＋ 滿 log 的
+            # traceback」，比原本「一個 traceback 之後整批消失」更容易看見。
+            log.exception("未預期例外，記為單場失敗 sno=%s（%s）", sno, type(e).__name__)
+            _fail(sno, "unexpected_error")
             continue
         out["games"] += 1
-        log.info("sno=%s scoreboard=%d livelog=%d box(打%d投%d)", sno, len(sb), len(ll), len(bb), len(pp))
     log.log(logging.WARNING if out["failed"] else logging.INFO,
             "reconcile: %s", reconcile_line(out))
     if out["failed"] and not allow_partial:
