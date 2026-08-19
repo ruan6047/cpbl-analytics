@@ -135,6 +135,20 @@ def test_gamelog_records_scoreboard_available_and_livelog_missing(
 def test_gamelog_records_source_error_instead_of_treating_http_failure_as_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """HTTP 非 200 要記成 `error`（含 error_code）而不是 `missing`——「官網說沒有」與
+    「我們沒問到」是兩件事，混在一起之後就再也分不開。
+
+    ⚠️ 2026-08-19 起本測試多包一層 `pytest.raises`，原因**不是**斷言放寬，而是被測
+    契約改了（DATA-BOX-DEEP-SILENT-FAIL1，#131）：舊契約下逐場失敗只記 `log.warning`
+    後續抓、整批照樣返回，所以這裡直接呼叫就會正常回來；新契約下「那一場沒抓到」
+    一律是失敗，`scrape_gamelogs` 預設即拋 `GamelogScrapeIncomplete`（要容忍的呼叫端
+    必須明寫 `allow_partial=True`）。舊寫法在新契約下**必然**因未捕捉的例外而紅，
+    與本測試真正要驗的東西無關。
+
+    本測試的斷言一字未改：`record_source_revision` 的寫入發生在拋出之前，故
+    `error`／`http_428` 那組期待仍然完整成立。這裡刻意**不**傳 `allow_partial=True`
+    來繞過例外——那會讓本測試變成在驗一條沒有任何生產呼叫端在走的路徑。
+    """
     revisions: list[dict] = []
     session = _BrowserSession([(428, "challenge")])
     monkeypatch.setattr("cpbl.ingest._browser.session", lambda: session)
@@ -146,7 +160,8 @@ def test_gamelog_records_source_error_instead_of_treating_http_failure_as_missin
         raising=False,
     )
 
-    cpbl_gamelog.scrape_gamelogs(2026, [8], "A", delay=0)
+    with pytest.raises(cpbl_gamelog.GamelogScrapeIncomplete):
+        cpbl_gamelog.scrape_gamelogs(2026, [8], "A", delay=0)
 
     assert {(row["source"], row["outcome"], row["error_code"]) for row in revisions} == {
         ("scoreboard", "error", "http_428"),
