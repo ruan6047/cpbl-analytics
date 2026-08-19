@@ -20,11 +20,16 @@
 用資料回頭調整的參數，不是這次的定論。
 
 冪等；單一 kind 失敗不影響另一 kind（呼叫方逐 kind 呼叫、自行決定是否繼續）。
-不做任何自動重試——單次執行內某場請求失敗只記錄並跳到下一場（既有
-`scrape_gamelogs` 行為），不會對同一場連續重試；整支 CLI 若中途失敗直接非零
-退出，**不在程式內重跑**，下週排程會用同一個「近 30 天」窗從頭跑一次，任何這週
-沒抓到的場次下週會自然涵蓋（窗是相對「今天」算的，不是記錄「上次抓到哪」的
-斷點續傳，所以不需要額外的重試/續傳邏輯）。
+不做任何自動重試——單次執行內某場請求失敗只記錄並跳到下一場，不會對同一場連續
+重試；但**整輪結束時只要有任何一場沒抓到就非零退出**（`scrape_gamelogs` 預設拋
+`GamelogScrapeIncomplete`，本 CLI 不傳 `allow_partial`，故例外原樣往上）。
+**不在程式內重跑**，下週排程會用同一個「近 30 天」窗從頭跑一次，任何這週沒抓到
+的場次下週會自然涵蓋（窗是相對「今天」算的，不是記錄「上次抓到哪」的斷點續傳，
+所以不需要額外的重試/續傳邏輯）。
+
+⚠️ 2026-08-10 以前這裡是**靜默成功**：39 場宣告、8 場成功、31 場失敗，`done:
+{'games': 8}` 之後 exit 0，`weekly-box-revisions.sh` 於是把整週記成 ok
+（DATA-BOX-DEEP-SILENT-FAIL1）。現在同一情境會拋例外並非零退出，wrapper 記 failed。
 """
 
 from __future__ import annotations
@@ -59,6 +64,8 @@ def main() -> None:
     migrate()
     snos = completed_snos_within_days(year, kind, args.days_back)
     log.info("深度重抓 box：year=%s kind=%s days_back=%s → %d 場", year, kind, args.days_back, len(snos))
+    # 不傳 allow_partial：任何一場沒抓到就讓 GamelogScrapeIncomplete 往上拋（非零退出）。
+    # 週跑沒有「不擋下游」的需求——它不觸發生產同步，硬失敗就是最誠實的收場。
     out = scrape_gamelogs(year, snos, kind, delay=args.delay)
     log.info("done: %s", out)
 

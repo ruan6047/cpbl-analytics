@@ -21,6 +21,49 @@ BOX_PAGE = f"{BASE}/box"
 LIVE_ENDPOINT = f"{BASE}/box/getlive"
 _HIDDEN_RE = re.compile(r'name="__RequestVerificationToken"[^>]*value="([^"]+)"')
 
+# 每日鏈（`run_refresh_recent`）在容忍逐場失敗時的專用退出碼——DATA-BOX-DEEP-SILENT-FAIL1
+# Q3 裁定＝甲-2：逐場失敗必須看得見，但**不得擋住當天的生產同步**（擋同步只是把
+# 「靜默失敗」換成「生產靜默落後」，兩者一樣沒人在看）。故需要一個與 0（完全成功）
+# 和 1（硬失敗）都可區分的碼，讓 `scripts/scrape-daily.sh` 能只對它放行 SYNC 分支。
+#
+# 為什麼是 69：同一條鏈上的退出碼命名空間（$CODE／$SYNC_CODE／$OVERALL_CODE）已用掉
+# 64（EX_USAGE）、65（`backup-prod-db.sh` 內容門檻）、66（備份/同步）、70（狀態檔寫入）、
+# 75（鎖被佔用）、127（DB 容器沒開）、1／2（Python 硬失敗／argparse）。69＝EX_UNAVAILABLE
+# （「服務不可用」）語意最貼近「官網部分場次這次抓不到」，且該命名空間內未被用過。
+# ⚠️ `scripts/scrape-daily.sh` 對這個值有一份字面複本（shell 讀不到 Python 常數），
+# 兩邊一致由 `tests/test_gamelog_reconcile.py` 機械比對，不靠人記得同步改。
+EXIT_INCOMPLETE_SCRAPE = 69
+
+
+class GamelogScrapeIncomplete(RuntimeError):
+    """`scrape_gamelogs` 有逐場失敗且呼叫端未明示容忍時拋出。
+
+    為什麼是例外而不是「回傳值多一個欄位」（DATA-BOX-DEEP-SILENT-FAIL1 Q4 裁定＝乙）：
+    回傳值把正確性押在「每個呼叫端都記得檢查、以後新增的第七個也記得」這條人工紀律
+    上，而 `run_refresh_recent.py` 的補缺迴圈今天就已經完全丟棄回傳值——沒有任何機械
+    檢查會發現。`box_revisions.py` 的鎖已為同一問題寫過原則：正確性要放進寫入層本身。
+
+    `result` 帶著該次執行的完整對帳（target／games／failed／failures），供容忍的
+    呼叫端與 log 列舉失敗場號；不得只給計數。
+    """
+
+    def __init__(self, result: dict) -> None:
+        self.result = result
+        super().__init__(reconcile_line(result))
+
+
+def reconcile_line(result: dict) -> str:
+    """把一次 `scrape_gamelogs` 的結果攤成一行可 grep 的對帳字串。
+
+    對帳的母體是函式自己第一行宣告的 `target`，不是成功數——本卡的缺陷正是
+    「`done: {'games': 8}` 看在人眼裡無從判斷 8 是目標還是 39 分之 8」。
+    """
+    return (
+        f"kind={result.get('kind_code')} target={result.get('target')} "
+        f"ok={result.get('games')} failed={len(result.get('failed') or [])} "
+        f"failed_snos={result.get('failed')} degraded_snos={result.get('degraded')}"
+    )
+
 
 def _i(v) -> int | None:
     try:
@@ -210,9 +253,33 @@ def _upsert(table: str, cols: str, n_pk: int, records: list[tuple]) -> int:
 
 
 def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
-                    delay: float = 0.7) -> dict:
-    """抓指定場次的賽況並 UPSERT。回傳 {games, scoreboard, livelog}。"""
-    out = {"games": 0, "scoreboard": 0, "livelog": 0, "batting_box": 0, "pitching_box": 0}
+                    delay: float = 0.7, *, allow_partial: bool = False) -> dict:
+    """抓指定場次的賽況並 UPSERT。回傳含對帳欄的結果字典。
+
+    回傳鍵：`target`（宣告要抓的場數，＝`len(snos)`）、`games`（成功場數）、
+    `failed`（失敗場號清單）、`failures`（逐場 {sno, error_code}）、`degraded`
+    （抓到了但某個內嵌來源 JSON 壞掉的場號）、以及各表寫入列數。
+    **`target == games + len(failed)` 恆成立**（迴圈每一輪不是計成功就是記失敗）。
+
+    失敗語意（DATA-BOX-DEEP-SILENT-FAIL1，Q4 裁定＝乙／Q2 裁定＝甲）：
+
+    - **預設拋 `GamelogScrapeIncomplete`**：有任何一場失敗就拋，不設容忍門檻、
+      不分入口。呼叫端什麼都不做時得到的是硬失敗，不是靜默成功。
+    - 要容忍的呼叫端必須**明確** `allow_partial=True`，並在該處寫下理由。
+    - 兩種模式都會先印出對帳行（有失敗時是 WARNING），故失敗場號一律可列舉。
+
+    `degraded` 不計入 `failed`：那些場次的 getlive 請求成功、其餘來源照常寫入，
+    壞掉的單一來源已由 `record_source_revision` 以 `invalid_source_json` 留痕
+    （`cpbl.game_source_revisions`）。列在回傳值裡是為了不讓它被對帳行藏起來，
+    **不是**把它從分母移除。
+
+    取 token 階段失敗（`_token()` 拋 RuntimeError）不走這條路：那是整批一場都沒抓，
+    例外原樣往上拋、`allow_partial` 不吃它——2026-08-10 的 kind=A 就是這個形狀，
+    它本來就已經硬失敗 exit 1，本卡不放寬它。
+    """
+    out: dict = {"kind_code": kind_code, "target": len(snos), "games": 0,
+                 "failed": [], "failures": [], "degraded": [],
+                 "scoreboard": 0, "livelog": 0, "batting_box": 0, "pitching_box": 0}
     if not snos:
         return out
     from cpbl.ingest._browser import session
@@ -224,6 +291,12 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
         if not m:
             raise RuntimeError("box 頁找不到 token（官網可能改版）")
         return m.group(1)
+
+    def _fail(sno: int, error_code: str) -> None:
+        """記一場失敗。**唯一**的失敗登記入口——迴圈裡每個 `continue` 都要先過它，
+        否則 `target == games + len(failed)` 就不再成立，對帳又會變成裝飾。"""
+        out["failed"].append(sno)
+        out["failures"].append({"sno": sno, "error_code": error_code})
 
     token = _token()
     for sno in snos:
@@ -241,6 +314,8 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
                         outcome="error", row_count=0, error_code=f"http_{status}",
                         detail={"phase": "getlive", "http_status": status},
                     )
+                log.warning("getlive 失敗 sno=%s: http_%s", sno, status)
+                _fail(sno, f"http_{status}")
                 token = _token()
                 continue
             try:
@@ -252,10 +327,13 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
                         outcome="error", row_count=0, error_code="invalid_response_json",
                         detail={"phase": "getlive"},
                     )
+                log.warning("getlive 失敗 sno=%s: invalid_response_json", sno)
+                _fail(sno, "invalid_response_json")
                 token = _token()
                 continue
-        except Exception as e:  # noqa: BLE001 — 單場失敗略過續抓
+        except Exception as e:  # noqa: BLE001 — 單場失敗記錄後續抓，結尾一併對帳
             log.warning("getlive 失敗 sno=%s: %s", sno, e)
+            _fail(sno, "request_error")
             for source in ("scoreboard", "livelog"):
                 record_source_revision(
                     year=year, kind_code=kind_code, game_sno=sno, source=source,
@@ -279,6 +357,8 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
 
         sb, sb_error = _source_rows("scoreboard", "ScoreboardJson")
         ll, ll_error = _source_rows("livelog", "LiveLogJson")
+        if sb_error or ll_error:
+            out["degraded"].append(sno)
         bb = json.loads(payload.get("BattingJson") or "[]")
         pp = json.loads(payload.get("PitchingJson") or "[]")
         out["scoreboard"] += _upsert("game_scoreboard", _SB_COLS, 5,
@@ -309,6 +389,10 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
             out["weather"] = out.get("weather", 0) + _upsert("game_detail", _GD_WX_COLS, 3, [wx])
         out["games"] += 1
         log.info("sno=%s scoreboard=%d livelog=%d box(打%d投%d)", sno, len(sb), len(ll), len(bb), len(pp))
+    log.log(logging.WARNING if out["failed"] else logging.INFO,
+            "reconcile: %s", reconcile_line(out))
+    if out["failed"] and not allow_partial:
+        raise GamelogScrapeIncomplete(out)
     return out
 
 

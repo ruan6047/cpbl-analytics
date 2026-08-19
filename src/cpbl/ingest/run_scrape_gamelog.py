@@ -30,6 +30,8 @@ def main() -> None:
     migrate()
     snos = completed_snos(year)
     logging.getLogger("cpbl.gamelog").info("回填 %d 場已完成賽事的賽況 …", len(snos))
+    # 不傳 allow_partial：全季回填有任何一場沒抓到就非零退出（例外往上拋）。
+    # 這支是人手動跑的回填，沒有需要被保護的下游；「跑完了但少幾場」必須是紅的。
     out = scrape_gamelogs(year, snos)
     logging.getLogger("cpbl.gamelog").info("done: %s", out)
 

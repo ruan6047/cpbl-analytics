@@ -10,6 +10,13 @@
 若昨天有賽程卻未全部完成，於 note 警示（可能延賽或資料缺漏）。
 抓取失敗也會記一列（ok=false）並以非零結束碼退出，避免「無聲缺漏」。
 
+結束碼（DATA-BOX-DEEP-SILENT-FAIL1）：
+- 0：完全成功。
+- `EXIT_INCOMPLETE_SCRAPE`（69）：**逐場 gamelog 有失敗、其餘步驟照常完成**。
+  refresh_log 記 ok=false 並在 note 列出失敗場號；`scripts/scrape-daily.sh` 對這個碼
+  仍會執行生產同步（Q3 裁定＝甲-2：擋同步只是把「靜默失敗」換成「生產靜默落後」）。
+- 1：硬失敗（含取 token 階段失敗＝整批一場都沒抓），同步不執行。
+
     uv run cpbl-refresh-recent          # 含增量對戰/分項
     uv run cpbl-refresh-recent fast     # 只更新 games+累計，跳過對戰/分項
 """
@@ -28,7 +35,12 @@ from cpbl.db import conn, migrate
 from cpbl.ingest.championships import build_championships
 from cpbl.ingest.cpbl_advanced import AdvancedScrapeResult, scrape_advanced_result
 from cpbl.ingest.cpbl_fighting import YEAR_CAREER, scrape_matchups
-from cpbl.ingest.cpbl_gamelog import scrape_game_details, scrape_gamelogs
+from cpbl.ingest.cpbl_gamelog import (
+    EXIT_INCOMPLETE_SCRAPE,
+    reconcile_line,
+    scrape_game_details,
+    scrape_gamelogs,
+)
 from cpbl.ingest.cpbl_pitch_tracking import is_frozen, scrape_game_pitches, scrape_pitches
 from cpbl.ingest.cpbl_site import lineup_acnts, scrape_games
 from cpbl.ingest.cpbl_standings import scrape_standings
@@ -377,6 +389,40 @@ def _day_opponents(year: int, snos: list[int], kind_code: str = "A") -> dict[str
     return out
 
 
+_GAMELOG_GAPS: list[dict] = []
+"""本次執行中被容忍（`allow_partial=True`）的逐場 gamelog 落差。
+
+單一 CLI 程序內的累積器：`scrape_gamelogs` 的失敗在每日鏈裡不能就地中止（見
+`_tolerate_gamelog_gap` 的理由），但也絕不能就地消失——落差累積到這裡，由 `main()`
+在所有步驟跑完後轉成 refresh_log 的 ok=false／note 與退出碼 69。
+"""
+
+
+def _tolerate_gamelog_gap(result: dict, why: str) -> dict:
+    """登記一次「已容忍的逐場失敗」，回傳原結果不變。
+
+    ⚠️ 呼叫端必須在自己那一行寫 `allow_partial=True` 與理由字串，本函式**不**代為
+    放寬任何東西——它只負責讓落差有地方去。少叫一次的後果不是靜默成功而是漏報，
+    故三個呼叫點都必須成對出現（`scrape_gamelogs(..., allow_partial=True)` ＋ 本函式）。
+    """
+    if result.get("failed"):
+        log.warning("已容忍的 gamelog 落差（%s）：%s", why, reconcile_line(result))
+        _GAMELOG_GAPS.append({"why": why, "reconcile": reconcile_line(result),
+                              "kind_code": result.get("kind_code"),
+                              "failed": list(result["failed"]),
+                              "failures": list(result.get("failures") or [])})
+    return result
+
+
+def _gamelog_gap_note(gaps: list[dict]) -> str | None:
+    """落差清單 → refresh_log 的 note 字串（無落差回 None）。純函式，供測試釘住。"""
+    if not gaps:
+        return None
+    parts = [f"{g.get('kind_code')}:{g['failed']}" for g in gaps]
+    total = sum(len(g["failed"]) for g in gaps)
+    return f"gamelog 逐場失敗 {total} 場（未抓到）：{'；'.join(parts)}"
+
+
 def _farm_detail(year: int, days: list[date], delay: float = 1.2) -> dict:
     """二軍(D)增量：當日完成二軍場的 賽況(gamelog/box) + 投打對決 + 分項 + 逐球。
 
@@ -393,7 +439,13 @@ def _farm_detail(year: int, days: list[date], delay: float = 1.2) -> dict:
         # 聯集語意不變：day_snos 為空 → 目標＝lagging 集合，仍是單次送出。
         return {"skipped": "近兩日無二軍完成場",
                 "pitches": _refresh_pitches(year, "D", [], [], delay)}
-    gamelog = scrape_gamelogs(year, d_snos, "D")
+    # allow_partial=True 的理由：二軍當日窗抓不到某一場，不該連帶讓後面的分項重算、
+    # PA build、逐球自癒與生產同步全部停擺——那是把一場的缺漏放大成整天的缺漏。
+    # 落差交給 `_tolerate_gamelog_gap` 累積，main() 以退出碼 69 ＋ refresh_log
+    # ok=false 回報（Q3 裁定＝甲-2：看得見，但不擋下游）。
+    gamelog = _tolerate_gamelog_gap(
+        scrape_gamelogs(year, d_snos, "D", allow_partial=True), "二軍當日窗 gamelog"
+    )
     scrape_game_details(year, d_snos, "D")  # 觀眾/裁判/時長
     batters, pitchers = lineup_acnts(year, d_snos, "D")
     rb, rp = sorted(batters), sorted(pitchers)
@@ -428,7 +480,11 @@ def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict
         return {"skipped": "近兩日無一軍完成場",
                 "pitches": _refresh_pitches(year, "A", [], [], delay), "farm": farm}
     # 賽況（逐局比分 + 逐打席事件）：當日完成場
-    gamelog = scrape_gamelogs(year, snos)
+    # allow_partial=True 的理由：同 `_farm_detail`——一軍當日窗單場失敗不得中止其餘
+    # 增量步驟。落差累積後由 main() 以退出碼 69 回報，不在此就地拋出。
+    gamelog = _tolerate_gamelog_gap(
+        scrape_gamelogs(year, snos, allow_partial=True), "一軍當日窗 gamelog"
+    )
     scrape_game_details(year, snos, "A")  # 觀眾/裁判/時長
     # 當日出賽者全抓，不過濾現役名單（比照二軍 _farm_detail，完整涵蓋；避免當日被下放/
     # 釋出的投手被漏掉。近 14 天實測過濾未漏人，但保守起見取消此潛在漏洞）。
@@ -497,6 +553,7 @@ def _log_refresh(scope: str, frm: date, to: date, total: int, completed: int,
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
     skip_detail = len(sys.argv) > 1 and sys.argv[1] == "fast"
+    _GAMELOG_GAPS.clear()   # 一次執行一份帳（模組級累積器，同程序內重複呼叫不得互相污染）
     today = date.today()
     yesterday = today - timedelta(days=1)
     year = today.year
@@ -518,7 +575,14 @@ def main() -> None:
             miss = _missing_gamelog_snos(year, kc)
             if miss:
                 log.info("補齊缺 gamelog 場 kind=%s：%s", kc, miss)
-                scrape_gamelogs(year, miss, kc)
+                # allow_partial=True 的理由：補缺迴圈是「順手收斂歷史缺口」，它抓不到
+                # 的場次下次執行仍會被同一支查詢挑出來重試；就地拋出只會讓當天其餘
+                # 步驟一起停。⚠️ 這裡原本完全丟棄回傳值——本卡要修的正是它：現在落差
+                # 必須經 `_tolerate_gamelog_gap` 進帳，才會出現在退出碼與 refresh_log。
+                _tolerate_gamelog_gap(
+                    scrape_gamelogs(year, miss, kc, allow_partial=True),
+                    f"補齊缺 gamelog 場 kind={kc}",
+                )
                 scrape_game_details(year, miss, kc)
         # canonical PA build（INGEST-PA-DAILY1）：gamelog 寫入後對當日窗＋全域缺口逐場
         # build，使「完成場皆有 published build」恆成立。fail-closed：build 失敗（含
@@ -548,18 +612,32 @@ def main() -> None:
         note = f"昨日({yesterday}) {y_done}/{y_total} 完成，請確認是否延賽或資料缺漏"
         log.warning(note)
 
+    # 被容忍的逐場 gamelog 落差在這裡結清：refresh_log 的 ok 必須誠實（有沒抓到的場
+    # 就不是成功的一次刷新），note 列出失敗場號，退出碼另用 69 讓下游可分辨。
+    gap_note = _gamelog_gap_note(_GAMELOG_GAPS)
+    if gap_note:
+        note = gap_note if note is None else f"{note}；{gap_note}"
+        log.error(gap_note)
+
     total = sum(t for _, t, _ in recent)
     completed = sum(comp for _, _, comp in recent)
     detail = {
         "games": games, "games_farm": games_farm, "stats": stats, "transactions": trans,
         "splits_built": splits_built, "incremental_detail": detail_inc, "pa_build": pa_build_result,
+        "gamelog_gaps": _GAMELOG_GAPS,
         "recent": [{"date": d.isoformat(), "total": t, "completed": comp} for d, t, comp in recent],
     }
-    _log_refresh("recent-games", yesterday, today, total, completed, detail, ok=True, note=note)
+    _log_refresh("recent-games", yesterday, today, total, completed, detail,
+                 ok=not _GAMELOG_GAPS, note=note)
 
     log.info("刷新完成 | 近兩日場次 %s | games=%s stats=%s | 增量對戰/分項=%s | PA build=%s",
              {d.isoformat(): f"{comp}/{t}" for d, t, comp in recent}, games, stats, detail_inc,
              pa_build_result)
+
+    if _GAMELOG_GAPS:
+        # 所有步驟都跑完了才退出：69 的語意是「有逐場失敗但其餘完成」，
+        # `scripts/scrape-daily.sh` 據此仍會同步生產。
+        sys.exit(EXIT_INCOMPLETE_SCRAPE)
 
 
 if __name__ == "__main__":

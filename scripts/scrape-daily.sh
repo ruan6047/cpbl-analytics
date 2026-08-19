@@ -55,7 +55,8 @@ scripts/scrape-daily.sh — 每日本機自動爬取，成功後同步 productio
   REFRESH_LOCK_DIR  互斥鎖目錄（預設 /private/tmp/cpbl-analytics-refresh.lock）
 
 離開碼
-  0 成功 · 64 參數錯 · 70 狀態檔寫入失敗 · 75 鎖被佔用 · 127 本機 DB 容器沒開
+  0 成功 · 64 參數錯 · 69 逐場 gamelog 有失敗但其餘完成（仍會同步 production）
+  70 狀態檔寫入失敗 · 75 鎖被佔用 · 127 本機 DB 容器沒開
   其餘＝爬取或同步階段的原始離開碼
 
 背景：docs/AI_RUNBOOK.md（每日排程與失敗快篩）
@@ -153,9 +154,19 @@ echo "[$(date '+%F %T')] scrape exit=${CODE}" | tee -a "$LOG"
 
 # 本機爬成功後自動同步生產（SKIP_SCRAPE：資料已在本機，只 upsert 到 prod + VPS 重建特徵）。
 # 關閉：SYNC_PROD=0 scripts/scrape-daily.sh
+#
+# 69＝`cpbl-refresh-recent` 的「逐場 gamelog 有失敗、其餘步驟照常完成」
+# （`src/cpbl/ingest/cpbl_gamelog.py::EXIT_INCOMPLETE_SCRAPE`；shell 讀不到 Python 常數，
+# 這裡是字面複本，一致性由 tests/test_gamelog_reconcile.py 機械比對）。
+#
+# 為什麼 69 仍要同步（DATA-BOX-DEEP-SILENT-FAIL1 Q3 裁定＝甲-2）：擋同步只是把「靜默
+# 失敗」換成「生產靜默落後」，兩者一樣沒人在看，而且那天其餘所有更新（賽程/累計/分項/
+# PA build）都是好的。專案在 PA build 已對同一形狀裁過不擋。失敗本身不會因此消失：
+# 退出碼是 69 不是 0，狀態檔記 state=failed／failed_phase=scrape／exit_code=69，
+# refresh_log 記 ok=false 並在 note 列出失敗場號。
 SYNC_ATTEMPTED=0
 SYNC_CODE=0
-if [ "$CODE" -eq 0 ] && [ "$SYNC_ENABLED" -eq 1 ]; then
+if { [ "$CODE" -eq 0 ] || [ "$CODE" -eq 69 ]; } && [ "$SYNC_ENABLED" -eq 1 ]; then
   SYNC_ATTEMPTED=1
   echo "[$(date '+%F %T')] sync prod (SKIP_SCRAPE=1 WITH_DETAIL=1)" | tee -a "$LOG"
   SKIP_SCRAPE=1 WITH_DETAIL=1 bash "$REPO_DIR/scripts/refresh-cpbl-prod.sh" >>"$LOG" 2>&1
@@ -167,6 +178,10 @@ if [ "$CODE" -eq 0 ] && [ "$SYNC_ENABLED" -eq 1 ]; then
   fi
 fi
 
+# CODE=69 時 overall 維持 69（不被 SYNC_CODE 覆寫）：狀態檔的 exit_code 由
+# refresh_status.py 依 --scrape-code 判為 69／failed_phase=scrape，overall 跟著它才不會
+# 出現「離開碼說 A、狀態檔說 B」。同步若也失敗，其碼記在狀態檔 sync_exit_code 與 log；
+# 兩種情況 launchd 看到的都是非零。
 OVERALL_CODE="$CODE"
 if [ "$CODE" -eq 0 ] && [ "$SYNC_ATTEMPTED" -eq 1 ] && [ "$SYNC_CODE" -ne 0 ]; then
   OVERALL_CODE="$SYNC_CODE"

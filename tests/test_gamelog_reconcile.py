@@ -1,0 +1,389 @@
+"""`scrape_gamelogs` 的母體對帳與失敗訊號契約（DATA-BOX-DEEP-SILENT-FAIL1，#131）。
+
+被修的形狀：逐場抓取失敗被吞成 `log.warning` 後續抓，結尾只印成功數、不對帳函式
+第一行自己宣告的目標場數，整批仍 `exit 0`。2026-08-10 週跑 kind=D 宣告 39 場、
+成功 8 場、失敗 31 場，`done: {'games': 8}` 看在人眼裡無從判斷 8 是目標還是 39 分之 8。
+
+三條各自獨立、少一條就漏掉一種復發方式：
+
+1. **對帳**：回傳與 log 必須同時給出 target／ok／failed／失敗場號（計數不夠——
+   卡面紅線 1 要求可列舉）。
+2. **訊號**：預設拋例外，容忍者必須明寫 `allow_partial=True`（Q4 裁定＝乙）。
+   選例外而非回傳欄位的理由見 `GamelogScrapeIncomplete` docstring。
+3. **下游**：每日鏈的部分失敗用獨立退出碼 69，`scrape-daily.sh` 對它**仍執行**
+   生產同步（Q3 裁定＝甲-2）。這條用真的跑一次 shell 副本來證，不讀碼宣稱。
+
+回放資料是真的：`logs/weekly-box-revisions-20260810-141135.log` 的 kind=D 逐行
+（31 個失敗場號、8 個成功場號、順序照 log）。失敗以**注入**重現，不打官網。
+"""
+
+from __future__ import annotations
+
+import inspect
+import json
+import os
+import re
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from cpbl.ingest import cpbl_gamelog, run_refresh_recent
+
+ROOT = Path(__file__).resolve().parents[1]
+
+# 2026-08-10 週跑 kind=D 的逐場結果（log 逐行抽出，順序即迴圈順序）。
+REPLAY_20260810_D_FAILED = (
+    51, 97, 102, 108, 119, 158, 159, 160, 161, 162, 163, 166, 167, 168, 169, 170,
+    171, 172, 173, 174, 176, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187,
+)
+REPLAY_20260810_D_OK = (188, 189, 190, 191, 192, 193, 194, 195)
+REPLAY_20260810_D_TARGET = 39   # log 首行「深度重抓 box：… kind=D … → 39 場」
+
+_OK_PAYLOAD = json.dumps({
+    "ScoreboardJson": json.dumps([{"TeamNo": "A", "InningSeq": 1}]),
+    "LiveLogJson": "[]",
+    "BattingJson": "[]",
+    "PitchingJson": "[]",
+})
+
+
+class _InjectedSession:
+    """假 browser session：指定場號拋例外（重現 08-10 的 ERR_INTERNET_DISCONNECTED），
+    其餘回 200。刻意**不**連任何網路。"""
+
+    def __init__(self, fail_snos: set[int], *, http_status: int | None = None,
+                 body: str | None = None) -> None:
+        self.fail_snos = fail_snos
+        self.http_status = http_status
+        self.body = body
+
+    def page_html(self, _path: str, require=None) -> str:
+        return '<input name="__RequestVerificationToken" value="replay-token">'
+
+    def post(self, _box_path, _endpoint, form, **_kwargs) -> tuple[int, str]:
+        sno = int(form["GameSno"])
+        if sno in self.fail_snos:
+            if self.http_status is not None:
+                return self.http_status, "challenge"
+            raise RuntimeError(
+                "Page.goto: net::ERR_INTERNET_DISCONNECTED at https://www.cpbl.com.tw/box"
+            )
+        return 200, self.body if self.body is not None else _OK_PAYLOAD
+
+
+@pytest.fixture
+def injected(monkeypatch: pytest.MonkeyPatch):
+    """把 session／DB 寫入／快照全部換掉，只留 scrape_gamelogs 自己的控制流。"""
+
+    def _install(fail_snos, **kwargs) -> None:
+        session = _InjectedSession(set(fail_snos), **kwargs)
+        monkeypatch.setattr("cpbl.ingest._browser.session", lambda: session)
+        monkeypatch.setattr(cpbl_gamelog.time, "sleep", lambda _delay: None)
+        monkeypatch.setattr(cpbl_gamelog, "_upsert", lambda _t, _c, _pk, rows: len(rows))
+        monkeypatch.setattr(cpbl_gamelog, "record_source_revision", lambda **_kw: None)
+        monkeypatch.setattr(cpbl_gamelog, "record_box_pitching_revisions",
+                            lambda *_a, **_kw: None)
+
+    return _install
+
+
+# ----------------------------------------------------------------- 1. 對帳
+
+
+def test_replay_20260810_reports_target_and_every_failed_sno(injected, caplog) -> None:
+    """08-10 情境回放：容忍模式下必須自陳 39/8/31 並列出 31 個失敗場號。"""
+    injected(REPLAY_20260810_D_FAILED)
+    snos = sorted(REPLAY_20260810_D_FAILED + REPLAY_20260810_D_OK)
+    assert len(snos) == REPLAY_20260810_D_TARGET
+
+    with caplog.at_level("WARNING", logger="cpbl.gamelog"):
+        out = cpbl_gamelog.scrape_gamelogs(2026, snos, "D", delay=0, allow_partial=True)
+
+    assert out["target"] == REPLAY_20260810_D_TARGET
+    assert out["games"] == len(REPLAY_20260810_D_OK)
+    assert out["failed"] == list(REPLAY_20260810_D_FAILED)
+    # 母體恆等式：舊版只有 games=8，看不出分母；新版三者必須閉合。
+    assert out["target"] == out["games"] + len(out["failed"])
+    reconcile = [r.getMessage() for r in caplog.records if "reconcile:" in str(r.msg)]
+    assert reconcile, "有失敗時必須留下一行對帳（WARNING 級）"
+    assert "target=39" in reconcile[0] and "ok=8" in reconcile[0] and "failed=31" in reconcile[0]
+    assert "51" in reconcile[0] and "187" in reconcile[0], "失敗場號要可列舉，不是只給計數"
+
+
+def test_full_success_reconciles_to_zero_failures(injected) -> None:
+    injected([])
+    out = cpbl_gamelog.scrape_gamelogs(2026, [188, 189], "D", delay=0)
+
+    assert (out["target"], out["games"], out["failed"]) == (2, 2, [])
+
+
+def test_empty_target_is_not_a_failure(injected) -> None:
+    injected([])
+    out = cpbl_gamelog.scrape_gamelogs(2026, [], "D", delay=0)
+
+    assert out["target"] == 0 and out["failed"] == []
+
+
+def test_http_non_200_counts_as_a_failed_game(injected) -> None:
+    """428（HiNet 挑戰）與請求例外是同一件事：那一場沒抓到。"""
+    injected([97], http_status=428)
+
+    with pytest.raises(cpbl_gamelog.GamelogScrapeIncomplete) as excinfo:
+        cpbl_gamelog.scrape_gamelogs(2026, [97, 188], "D", delay=0)
+
+    assert excinfo.value.result["failures"] == [{"sno": 97, "error_code": "http_428"}]
+
+
+def test_invalid_response_json_counts_as_a_failed_game(injected) -> None:
+    injected([], body="<html>challenge</html>")
+
+    with pytest.raises(cpbl_gamelog.GamelogScrapeIncomplete) as excinfo:
+        cpbl_gamelog.scrape_gamelogs(2026, [188], "D", delay=0)
+
+    assert excinfo.value.result["failures"] == [
+        {"sno": 188, "error_code": "invalid_response_json"}
+    ]
+
+
+def test_degraded_source_json_is_listed_but_not_counted_as_failure(injected) -> None:
+    """單一內嵌來源壞掉≠那一場沒抓到：其餘來源照常寫入，故不計入 failed，
+    但必須出現在 degraded，不得被對帳藏起來（紅線 2：不得從分母移除）。"""
+    injected([], body=json.dumps({
+        "ScoreboardJson": "{broken", "LiveLogJson": "[]",
+        "BattingJson": "[]", "PitchingJson": "[]",
+    }))
+
+    out = cpbl_gamelog.scrape_gamelogs(2026, [188], "D", delay=0)
+
+    assert out["failed"] == [] and out["degraded"] == [188] and out["games"] == 1
+
+
+# ----------------------------------------------------------------- 2. 失敗訊號
+
+
+def test_any_failure_raises_when_caller_did_not_opt_in(injected) -> None:
+    """預設即硬失敗——呼叫端什麼都不做時拿到的不能是靜默成功。"""
+    injected(REPLAY_20260810_D_FAILED)
+    snos = sorted(REPLAY_20260810_D_FAILED + REPLAY_20260810_D_OK)
+
+    with pytest.raises(cpbl_gamelog.GamelogScrapeIncomplete) as excinfo:
+        cpbl_gamelog.scrape_gamelogs(2026, snos, "D", delay=0)
+
+    # 例外訊息本身就是對帳行：traceback 最後一行即可回答「幾分之幾、哪幾場」。
+    message = str(excinfo.value)
+    assert "target=39" in message and "ok=8" in message and "failed=31" in message
+    assert excinfo.value.result["failed"] == list(REPLAY_20260810_D_FAILED)
+
+
+def test_tolerance_is_keyword_only_and_defaults_to_off() -> None:
+    """契約釘死：`allow_partial` 只能具名傳、預設 False。
+
+    位置參數會讓「第 5 個位置剛好是個真值」變成意外容忍；預設 True 則等於沒改。
+    """
+    parameter = inspect.signature(cpbl_gamelog.scrape_gamelogs).parameters["allow_partial"]
+
+    assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
+    assert parameter.default is False
+
+
+def test_token_failure_still_hard_fails_regardless_of_tolerance(monkeypatch) -> None:
+    """取 token 階段失敗＝整批一場都沒抓（08-10 的 kind=A），`allow_partial` 不吃它。"""
+    class _NoToken:
+        def page_html(self, _path, require=None) -> str:
+            return "<html>challenge</html>"
+
+    monkeypatch.setattr("cpbl.ingest._browser.session", lambda: _NoToken())
+
+    with pytest.raises(RuntimeError) as excinfo:
+        cpbl_gamelog.scrape_gamelogs(2026, [188], "D", delay=0, allow_partial=True)
+
+    assert not isinstance(excinfo.value, cpbl_gamelog.GamelogScrapeIncomplete)
+
+
+# --------------------------------------------------- 3. 每日鏈：容忍後仍要有帳
+
+
+def test_daily_chain_records_tolerated_gap_and_keeps_result(monkeypatch) -> None:
+    monkeypatch.setattr(run_refresh_recent, "_GAMELOG_GAPS", [])
+    result = {"kind_code": "D", "target": 3, "games": 2, "failed": [51],
+              "failures": [{"sno": 51, "error_code": "request_error"}], "degraded": []}
+
+    returned = run_refresh_recent._tolerate_gamelog_gap(result, "測試理由")
+
+    assert returned is result
+    assert run_refresh_recent._GAMELOG_GAPS[0]["failed"] == [51]
+    assert run_refresh_recent._GAMELOG_GAPS[0]["why"] == "測試理由"
+
+
+def test_daily_chain_note_lists_failed_snos_and_is_none_when_clean() -> None:
+    assert run_refresh_recent._gamelog_gap_note([]) is None
+    note = run_refresh_recent._gamelog_gap_note(
+        [{"kind_code": "A", "failed": [7]}, {"kind_code": "D", "failed": [51, 97]}]
+    )
+    assert "3 場" in note and "[7]" in note and "[51, 97]" in note
+
+
+def test_daily_chain_exits_69_after_finishing_every_other_step(monkeypatch) -> None:
+    """端到端（`fast` 路徑）：補缺迴圈抓不到一場時——
+
+    1. 後續步驟（PA build／分項重算／名稱同步）仍然全部跑完；
+    2. refresh_log 記 ok=False 且 note 帶失敗場號；
+    3. 程序以 69 退出（不是 0、也不是 1）。
+    """
+    calls: list[str] = []
+    logged: dict = {}
+    monkeypatch.setattr(run_refresh_recent, "_GAMELOG_GAPS", [])
+    monkeypatch.setattr(run_refresh_recent.sys, "argv", ["cpbl-refresh-recent", "fast"])
+
+    def _fake_scrape_gamelogs(year, snos, kind_code="A", delay=0.7, *, allow_partial=False):
+        assert allow_partial is True, "每日鏈的呼叫端必須明示容忍，否則就地拋例外"
+        calls.append(f"gamelog:{kind_code}")
+        return {"kind_code": kind_code, "target": len(snos), "games": 0,
+                "failed": list(snos), "failures": [{"sno": s, "error_code": "request_error"}
+                                                   for s in snos], "degraded": []}
+
+    for name, value in (
+        ("migrate", lambda: None),
+        ("scrape_games", lambda *a, **k: 0),
+        ("scrape_all", lambda *a, **k: {}),
+        ("scrape_standings", lambda *a, **k: 0),
+        ("scrape_transactions", lambda *a, **k: 0),
+        ("build_championships", lambda *a, **k: 0),
+        ("scrape_game_details", lambda *a, **k: 0),
+        ("build_splits", lambda *a, **k: {}),
+        ("build_career", lambda *a, **k: 0),
+        ("_sync_player_names", lambda: 0),
+        ("_recent_counts", lambda *a, **k: []),
+        ("_missing_gamelog_snos", lambda _year, kc: [51] if kc == "D" else []),
+        ("scrape_gamelogs", _fake_scrape_gamelogs),
+    ):
+        monkeypatch.setattr(run_refresh_recent, name, value)
+
+    def _fake_pa_build(*_a, **_k):
+        calls.append("pa_build")
+        return {"games": 0, "actions": {}, "build_states": {}, "errors": []}
+
+    def _fake_log_refresh(_scope, _frm, _to, _total, _completed, detail, ok, note):
+        logged.update(ok=ok, note=note, detail=detail)
+
+    monkeypatch.setattr(run_refresh_recent, "_pa_build_step", _fake_pa_build)
+    monkeypatch.setattr(run_refresh_recent, "_log_refresh", _fake_log_refresh)
+
+    with pytest.raises(SystemExit) as excinfo:
+        run_refresh_recent.main()
+
+    assert excinfo.value.code == cpbl_gamelog.EXIT_INCOMPLETE_SCRAPE == 69
+    assert "pa_build" in calls, "逐場失敗不得中止後續步驟"
+    assert logged["ok"] is False
+    assert "[51]" in logged["note"]
+    assert logged["detail"]["gamelog_gaps"][0]["failed"] == [51]
+
+
+def test_daily_chain_exits_zero_when_nothing_failed(monkeypatch) -> None:
+    """負控制：同一條路徑在零失敗時必須正常結束（69 不是隨便亮的）。"""
+    monkeypatch.setattr(run_refresh_recent, "_GAMELOG_GAPS", [])
+    monkeypatch.setattr(run_refresh_recent.sys, "argv", ["cpbl-refresh-recent", "fast"])
+    logged: dict = {}
+    for name, value in (
+        ("migrate", lambda: None),
+        ("scrape_games", lambda *a, **k: 0),
+        ("scrape_all", lambda *a, **k: {}),
+        ("scrape_standings", lambda *a, **k: 0),
+        ("scrape_transactions", lambda *a, **k: 0),
+        ("build_championships", lambda *a, **k: 0),
+        ("scrape_game_details", lambda *a, **k: 0),
+        ("build_splits", lambda *a, **k: {}),
+        ("build_career", lambda *a, **k: 0),
+        ("_sync_player_names", lambda: 0),
+        ("_recent_counts", lambda *a, **k: []),
+        ("_missing_gamelog_snos", lambda _year, _kc: []),
+        ("_pa_build_step", lambda *a, **k: {"games": 0, "actions": {}, "build_states": {},
+                                            "errors": []}),
+        ("_log_refresh", lambda *a, **k: logged.update(ok=k.get("ok"))),
+    ):
+        monkeypatch.setattr(run_refresh_recent, name, value)
+
+    run_refresh_recent.main()   # 不得拋 SystemExit
+
+    assert logged["ok"] is True
+
+
+# ------------------------------------------- 4. scrape-daily.sh：69 仍要同步
+
+
+def _run_daily(tmp_path: Path, *, uv_exit: int) -> tuple[subprocess.CompletedProcess[str], dict]:
+    """跑 `scrape-daily.sh` 的**副本**，外部指令換成假樁（形狀沿用 test_scrape_daily.py）。
+
+    `uv` 的退出碼＝`cpbl-refresh-recent` 的退出碼，正是本測試要注入的變因。
+    """
+    repo = tmp_path / "repo"
+    scripts = repo / "scripts"
+    fake_bin = tmp_path / "bin"
+    scripts.mkdir(parents=True)
+    fake_bin.mkdir()
+    shutil.copy2(ROOT / "scripts" / "scrape-daily.sh", scripts / "scrape-daily.sh")
+    shutil.copy2(ROOT / "scripts" / "refresh_status.py", scripts / "refresh_status.py")
+
+    for name, body in (
+        ("docker", "#!/bin/sh\nprintf 'cpbl-analytics-db-1\\n'\n"),
+        ("uv", f"#!/bin/sh\nexit {uv_exit}\n"),
+    ):
+        path = fake_bin / name
+        path.write_text(body, encoding="utf-8")
+        path.chmod(0o755)
+    sync_marker = tmp_path / "sync-ran"
+    sync = scripts / "refresh-cpbl-prod.sh"
+    sync.write_text(f"#!/bin/sh\n: > {sync_marker}\nexit 0\n", encoding="utf-8")
+    sync.chmod(0o755)
+
+    env = os.environ.copy()
+    env.update({
+        "PATH": f"{fake_bin}:/usr/bin:/bin",
+        "REFRESH_TRIGGER": "manual",
+        "REFRESH_LOCK_DIR": str(tmp_path / "refresh.lock"),
+        "SYNC_PROD": "1",
+    })
+    result = subprocess.run(["/bin/bash", str(scripts / "scrape-daily.sh")],
+                            cwd=repo, env=env, text=True, capture_output=True, check=False)
+    status_path = repo / "logs" / "last-status.json"
+    status = json.loads(status_path.read_text(encoding="utf-8")) if status_path.exists() else {}
+    status["_sync_ran"] = sync_marker.exists()
+    return result, status
+
+
+def test_partial_scrape_still_syncs_production_and_stays_nonzero(tmp_path: Path) -> None:
+    """Q3 裁定＝甲-2：69 之下 SYNC 分支必須真的被走到（由假樁留下的檔案作證），
+    同時整體退出碼仍非零、狀態檔仍記 failed——不擋下游 ≠ 假裝沒事。"""
+    result, status = _run_daily(tmp_path, uv_exit=cpbl_gamelog.EXIT_INCOMPLETE_SCRAPE)
+
+    assert status["_sync_ran"] is True
+    assert status["sync_attempted"] is True and status["sync_ok"] is True
+    assert result.returncode == cpbl_gamelog.EXIT_INCOMPLETE_SCRAPE
+    assert status["state"] == "failed" and status["failed_phase"] == "scrape"
+    assert status["exit_code"] == cpbl_gamelog.EXIT_INCOMPLETE_SCRAPE
+
+
+def test_hard_scrape_failure_still_blocks_sync(tmp_path: Path) -> None:
+    """負控制：放行的只有 69 這一個碼。硬失敗照舊不同步——若這條也綠，
+    上一條證明的就不是「69 被特別放行」而是「什麼碼都放行」。
+
+    ⚠️ 注入碼刻意用 9 而不是 1：實作過程中 `scrape-daily.sh` 曾因 `set -u` 撞到未初始化
+    的變數而自己 `exit 1`，本測試若也用 1 就會在腳本壞掉時照樣變綠（實際發生過）。
+    """
+    result, status = _run_daily(tmp_path, uv_exit=9)
+
+    assert status["_sync_ran"] is False
+    assert status["sync_attempted"] is False
+    assert result.returncode == 9
+    assert "unbound variable" not in result.stderr
+
+
+def test_shell_and_python_agree_on_the_partial_exit_code() -> None:
+    """shell 讀不到 Python 常數，只能存字面複本——這裡機械比對，不靠人記得同步改。"""
+    source = (ROOT / "scripts" / "scrape-daily.sh").read_text(encoding="utf-8")
+    match = re.search(r'\[ "\$CODE" -eq (\d+) \]; \} && \[ "\$SYNC_ENABLED"', source)
+
+    assert match, "找不到 scrape-daily.sh 放行同步的退出碼判斷（條件被改寫過？）"
+    assert int(match.group(1)) == cpbl_gamelog.EXIT_INCOMPLETE_SCRAPE

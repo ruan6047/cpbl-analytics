@@ -496,6 +496,11 @@ def cmd_backfill(args: argparse.Namespace) -> dict:
         rec: dict[str, Any] = {"game": gid, "before": before}
         print(f"[{_now_iso()}] backfill {gid} …", flush=True)
         try:
+            # 不傳 allow_partial（DATA-BOX-DEEP-SILENT-FAIL1）：這場沒抓到時
+            # `scrape_gamelogs` 會拋 GamelogScrapeIncomplete，正好落進下面既有的
+            # 「失敗即中止整輪」。⚠️ 改動前的行為是它回 games=0 而本迴圈記 ok=True，
+            # 再被下面的 `degraded` 判定誤標成「官方無逐場資料」——抓取失敗與官方
+            # 真的沒資料是兩件事，現在才分得開。
             got = scrape_gamelogs(year, [sno], kind)
             det = scrape_game_details(year, [sno], kind)
         except Exception as e:  # noqa: BLE001 — 失敗即中止整輪，冷卻後單次重試
