@@ -34,13 +34,119 @@
 ### 入口文件指向清單（機械抽取，非人工聲明）
 
 下表由 `CLAUDE.md` 機械抽取全部文件指向並逐一驗存在性，是該卡驗收條 3 的可稽核產物。
-**重跑方式**：對 `CLAUDE.md` 抽 markdown link 與反引號路徑，存在性以 `git ls-files` 判定
-（**不可用檔案系統**——`.venv/`、`data/`、`artifacts/` 等禁 commit 目錄會被本機工具生成，
-用 `os.path.exists` 會把它們誤判為實存）。
 
-<!-- 由 CLAUDE.md 機械抽取（markdown link ＋ 反引號路徑）；共 25 個指向：
-     16 個 git 已追蹤，9 個不在本 repo 且已逐一查證非壞路由。
-     存在性以 git ls-files 判定，不用檔案系統——.venv/ 等禁 commit 目錄會被本機工具生成。 -->
+**重跑方式＝跑下面這支腳本，散文描述不是規格。**
+理由是實證：三方曾照同一段散文說明各自重跑，因為各自補上不同的隱含過濾，得出
+**25／34／95** 三個數字。過濾與正規化規則只要用散文寫就必然漏項，故一律以程式碼表達。
+把下列區塊存成 `audit.py`（或以 heredoc 餵給 `python3`），**於 repo 根目錄執行**：
+
+```python
+"""入口路由稽核：抽出 CLAUDE.md 的全部文件指向並驗存在性。
+
+於 repo 根目錄執行：python3 audit.py
+本腳本即規格——三方曾照散文描述各自補上不同的隱含過濾，得出 25／34／95 三個數字，
+故過濾規則一律以程式碼表達，不另寫散文。
+"""
+import re
+import subprocess
+import pathlib
+
+# 裸檔名 → 實際路徑的正規化表。CLAUDE.md 為了可讀性寫 `models/train.py` 這種
+# 相對於 src/cpbl/ 的短路徑，甚至只寫 `train.py`；比對存在性前必須還原。
+CODE_PREFIXES = {
+    "features/": "src/cpbl/",
+    "models/": "src/cpbl/",
+    "ingest/": "src/cpbl/",
+    "train.py": "src/cpbl/models/",
+    "_browser.py": "src/cpbl/ingest/",
+}
+
+# 不在本 repo 但已逐一查證「非壞路由」者的歸類理由。
+NOTES = {
+    ".ai-workflow/AI_WORKFLOW.md": "submodule 內容；主 checkout 實存（本 worktree 未 init）",
+    "discovery-brief.md": "canonical `templates/` 內容；主 checkout 實存",
+    "docs/SUB_PROJECT_GUIDE.md": "CLAUDE.md 明標「主站」；PersonalWebsite repo 內實存",
+    "apps/subprojects/cpbl-analytics/": "主站掛載路徑，非本 repo",
+    ".venv/": "禁 commit 清單（git 未追蹤；uv 會在本機生成）",
+    "data/": "禁 commit 清單（git 未追蹤）",
+    "artifacts/": "禁 commit 清單（git 未追蹤）",
+    "00X_description.sql": "migration 檔名慣例，非實檔",
+    "https://github.com/users/ruan6047/projects/4": "外部 URL（本卡新增）",
+}
+
+
+def extract(md: str) -> dict[str, set[int]]:
+    """兩條、且只有兩條收錄規則。
+
+    1. markdown 連結目標 `[文字](目標)` —— 全收，含外部 URL。理由：連結是作者
+       明示的「請去讀這個」，外部 URL 也該驗它還在不在。
+    2. 行內反引號片段 `` `x` `` —— **只收**副檔名為 .md／.py／.sql 或以 / 結尾者。
+       理由：反引號在本檔同時用於路徑、指令、API 路徑、環境變數、欄位名、型別名。
+       只有前述形狀是「文件指向」；`/api/info`、`/predict`、`.env`、`.python-version`、
+       `github.com/ldkrsi/cpbl-opendata` 因此**不收**——它們不是本 repo 的檔案路徑。
+
+    fenced code block（``` 圍起來的區塊）**不會**貢獻任何指向：那些行本身不含
+    行內反引號，規則 2 掃不到，規則 1 也不匹配。這是規則的推論，不是額外過濾。
+    """
+    refs: dict[str, set[int]] = {}
+    for lineno, line in enumerate(md.splitlines(), 1):
+        for m in re.finditer(r"\[[^\]]*\]\(([^)]+)\)", line):
+            refs.setdefault(m.group(1), set()).add(lineno)
+        for m in re.finditer(r"`([^`]+)`", line):
+            token = m.group(1)
+            if re.search(r"\.(md|py|sql)$", token) or token.endswith("/"):
+                refs.setdefault(token, set()).add(lineno)
+    return refs
+
+
+def tracked(path: str) -> bool:
+    """存在性一律問 git，**不可用檔案系統**——.venv/、data/、artifacts/ 等禁 commit
+    目錄會被本機工具生成，os.path.exists 會把它們誤判為實存。"""
+    out = subprocess.run(["git", "ls-files", "--", path], capture_output=True, text=True)
+    return bool(out.stdout.strip())
+
+
+def resolve(token: str) -> str | None:
+    if tracked(token):
+        return token
+    for prefix, base in CODE_PREFIXES.items():
+        if token.startswith(prefix) and tracked(base + token):
+            return base + token
+    return None
+
+
+def main() -> None:
+    refs = extract(pathlib.Path("CLAUDE.md").read_text(encoding="utf-8"))
+    rows, n_ok, n_out = [], 0, 0
+    for token in sorted(refs):
+        lines = ",".join(str(n) for n in sorted(refs[token]))
+        target = resolve(token)
+        if target:
+            date = subprocess.run(
+                ["git", "log", "-1", "--format=%ad", "--date=short", "--", target],
+                capture_output=True, text=True).stdout.strip()
+            extra = "" if target == token else f"解析為 `{target}`；"
+            rows.append(f"| `{token}` | {lines} | ✅ git 已追蹤 | {extra}最後改動 {date} |")
+            n_ok += 1
+        else:
+            rows.append(f"| `{token}` | {lines} | — 不在本 repo | {NOTES.get(token, '⚠️ 未歸類')} |")
+            n_out += 1
+    print("| 指向 | CLAUDE.md 行 | 存在性 | 備註 |")
+    print("|---|---|---|---|")
+    print("\n".join(rows))
+    print()
+    print(f"共 {len(refs)} 個指向：{n_ok} 個 git 已追蹤，{n_out} 個不在本 repo")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+**預期輸出的末行**（可證偽；下一個人跑不出這行就是本節壞了）：
+
+```
+共 25 個指向：16 個 git 已追蹤，9 個不在本 repo
+```
 
 | 指向 | CLAUDE.md 行 | 存在性 | 備註 |
 |---|---|---|---|
@@ -70,11 +176,7 @@
 | `models/outcome_gbm.py` | 96 | ✅ git 已追蹤 | 解析為 `src/cpbl/models/outcome_gbm.py`；最後改動 2026-08-05 |
 | `train.py` | 132 | ✅ git 已追蹤 | 解析為 `src/cpbl/models/train.py`；最後改動 2026-08-05 |
 
-**核對深度（誠實界定）**：本表證明的是**存在性**與**最後改動時間**。
-「CLAUDE.md 對每份文件的描述是否仍為真」只做到**章節層級**核對——即確認被描述的主題
-確實構成該檔的章節（例：`AI_RUNBOOK.md` 確有指令速查／資料流／同步／API 與 web 地圖／
-陷阱各章），**未逐條核對其內容與現實相符**。逐條核對等同重驗整份 Runbook，不在本卡射程。
-本輪唯一被判為**假**並已修正的描述是「活卡 Ledger 見 `TASKS.md`」（該檔已於 2026-08-04 封存）。
+共 25 個指向：16 個 git 已追蹤，9 個不在本 repo
 
 ### 本卡明確「不做」的四項與理由
 
