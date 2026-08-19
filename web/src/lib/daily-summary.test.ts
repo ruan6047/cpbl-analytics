@@ -992,6 +992,30 @@ test("混合日｜今日賽事：延賽場靠官方 delay_kind 認出來，不�
   assert.equal(todayPollDelayMs(s), null);
 });
 
+test("混合日｜freshness 條不得宣稱拿不到那兩場已經印在畫面上的賽果", () => {
+  const signal = liveSourceSignal(aug19Slate());
+
+  // 缺陷 2 的字面回歸：這句話當晚與同畫面兩張「比賽結束」卡直接矛盾。
+  assert.equal(signal.label.includes("今日 3 場無法取得即時賽況"), false);
+  assert.equal(/無法取得/.test(signal.label), false, "一場都不缺時不得說取不到");
+  assert.equal(signal.kind, "settled");
+  // 不需要任何人做事 → 不得用警示色（與「即時管道真的斷了」必須分得出來）。
+  assert.equal(signal.tone, "done");
+  assert.equal(signal.display, "badge");
+  assert.equal(signal.label, "今日 3 場皆已有官方狀態");
+  // **不得**改寫成「皆已完賽」之類：其中一場是延賽，並沒有完賽。
+  assert.equal(/完賽|結束|完成/.test(signal.label), false);
+});
+
+test("全未完成日｜三場皆無 snapshot 亦無註記：維持警示，且數字仍是全部三場", () => {
+  const s = slate([game(247), game(248), game(249)]);
+  assert.equal(s.games.every((g) => todayCardKind(g) === "pregame"), true);
+  const signal = liveSourceSignal(s);
+  assert.equal(signal.kind, "down");
+  assert.equal(signal.tone, "warn");
+  assert.equal(signal.label, "今日 3 場無法取得即時賽況");
+});
+
 test("無註記情境｜沒有 delay_kind 就不得生出狀態，空字串與空白也不算", () => {
   // 2025-09-24 D#108 那一類：日期已過、沒有比分、官方什麼都沒給。畫面上寧可是賽前態，
   // 也不得憑空生一個「延賽」——我們分不出它是沒打、打了沒爬到、還是官網沒更新。
@@ -1019,4 +1043,27 @@ test("保留賽：官方 GameResult=2 走自己那一態，不與延賽併桶", 
   assert.equal(todayCardKind(reserved), "reserved");
   assert.equal(todayGameSettled(reserved), true);
   assert.notEqual(LATEST_STATUS_COPY.reserved.label, LATEST_STATUS_COPY.postponed.label);
+});
+
+test("footer 分母是「畫面上缺幾場」而不是「今天有幾場」", () => {
+  // 兩場完賽 ＋ 一場既無 snapshot 也無官方註記 → 只有那一場是真的缺。
+  const s = slate([aug19(), aug19({ game_sno: 275, away_score: 6, home_score: 2 }),
+                   aug19({ game_sno: 274, completed: false, away_score: null,
+                           home_score: null })],
+                  { live_source: { status: "disabled", reason: null, snapshots: 0, games: 3 } });
+  const signal = liveSourceSignal(s);
+  assert.equal(signal.kind, "down");
+  assert.equal(signal.label, "今日 1 場無法取得即時賽況");
+  assert.equal(signal.label.includes("3 場無法取得"), false);
+});
+
+test("**紅線**：今日賽事的狀態文案同樣不得宣稱停賽原因", () => {
+  const banned = ["雨", "颱", "天候", "未開打", "取消", "停電", "因"];
+  const labels = [liveSourceSignal(aug19Slate()).label,
+                  liveSourceSignal(slate([game(247), game(248), game(249)])).label];
+  for (const label of labels) {
+    for (const word of banned) {
+      assert.equal(label.includes(word), false, `文案不得出現未經證實的「${word}」：${label}`);
+    }
+  }
 });

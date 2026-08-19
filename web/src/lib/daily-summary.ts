@@ -597,7 +597,7 @@ export function todayStatusText(live: TodayLive | null, interrupt: LiveInterrupt
  *  文案只描述**觀察到的事實**（今天有幾場、其中幾場拿得到即時資料），不診斷成因——
  *  API 這一側分不出「即時管道不通」「上游沒跑」「不在抓取窗口」，講死任何一個都超出
  *  證據，而且訪客也看得到這一條。 */
-export type LiveSourceSignalKind = "no_games" | "ok" | "partial" | "down";
+export type LiveSourceSignalKind = "no_games" | "ok" | "partial" | "down" | "settled";
 
 export type LiveSourceSignal = {
   kind: LiveSourceSignalKind;
@@ -610,6 +610,20 @@ export type LiveSourceSignal = {
   symbol?: string;
 };
 
+/** 今天還有幾場**畫面上真的在等即時資料**。
+ *
+ *  已有賽果（`final`）、或官方已給終止狀態（`postponed`／`reserved`）的場次不算：那些
+ *  卡片不因即時來源斷線而少掉任何一塊內容，即時管道此刻對它們沒有影響。
+ *
+ *  這個分母就是 2026-08-19 那句假敘述的修法（需求方當晚裁定「footer 那句要改掉」）。
+ *  當晚 freshness 條寫著「今日 3 場無法取得即時賽況」，而同一排卡片裡有兩張明白標著
+ *  「比賽結束」並顯示終局比分——那句話**就印在推翻它的證據旁邊**。成因是舊版拿
+ *  `live_source.games`（今天排了幾場）當分母，但那個數字回答的是「今天有幾場比賽」，
+ *  不是「畫面上缺了幾場」；而每天傍晚場次打完、live worker 收工之後，兩者必然分岔。 */
+function awaitingLiveCount(today: TodaySlate): number {
+  return today.games.filter((g) => !todayGameSettled(g) && !g.live).length;
+}
+
 export function liveSourceSignal(today: TodaySlate | null): LiveSourceSignal {
   if (!today || today.games.length === 0) {
     // 正常狀態，不需要任何人做事——但**維持完整文字**：它同時解釋了版面為什麼是舊雙塊
@@ -617,16 +631,25 @@ export function liveSourceSignal(today: TodaySlate | null): LiveSourceSignal {
     return { kind: "no_games", label: TODAY_COPY.liveSourceNoGames, tone: "scheduled",
              display: "badge" };
   }
-  const { status, snapshots, games } = today.live_source;
+  const { status, games } = today.live_source;
+  const awaiting = awaitingLiveCount(today);
+  // 一場都不缺 → 這一格**不得喊警示**。此時即時管道接不接得上對畫面沒有差別，而場次
+  // 全部打完之後這是每天的常態；照舊喊警示等於天天對維護者狼來了一次。
+  // 文案只講得出來的那件事：每一場**都拿得到官方狀態**（終局比分，或官方的延賽／保留
+  // 註記）。刻意**不寫**「皆已完賽」——延賽場並沒有完賽，那會是另一句假敘述。
+  if (awaiting === 0 && status !== "ok") {
+    return { kind: "settled", label: `今日 ${games} 場皆已有官方狀態`, tone: "done",
+             display: "badge" };
+  }
   // 文案是「無法取得」而非「無」：開賽前本來就沒有比賽在進行，「無」會被讀成那個意思；
-  // 實際狀況是**取不到資料**（裁定 2）。
+  // 實際狀況是**取不到資料**（裁定 2）。數字一律是 `awaiting` 而非總場數——見上。
   if (status === "unavailable" || status === "disabled") {
-    return { kind: "down", label: `今日 ${games} 場無法取得即時賽況`, tone: "warn",
+    return { kind: "down", label: `今日 ${awaiting} 場無法取得即時賽況`, tone: "warn",
              display: "badge" };
   }
   if (status === "partial") {
     return { kind: "partial",
-             label: `今日 ${games} 場中 ${games - snapshots} 場無法取得即時賽況`,
+             label: `今日 ${games} 場中 ${awaiting} 場無法取得即時賽況`,
              tone: "warn", display: "badge" };
   }
   // 一切正常：完整文字在每個比賽日都掛著太吵，壓縮成時間戳旁的符號。語意不縮水——
