@@ -15,6 +15,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 from cpbl.ingest import cpbl_standings as cs
@@ -131,26 +133,30 @@ def test_upsert_refuses_to_write_on_mismatch(monkeypatch: pytest.MonkeyPatch) ->
         cs.upsert_standings(_records(2024, 0, G2026))
 
 
+class _FakeConn:
+    """記錄 executemany 收到的列；用來斷言「有沒有真的寫下去」。"""
+
+    def __init__(self, sink: list[list[tuple]]) -> None:
+        self._sink = sink
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_a):
+        return False
+
+    def cursor(self):
+        return self
+
+    def executemany(self, _sql, rows):  # noqa: ANN001
+        self._sink.append(list(rows))
+
+
 def test_upsert_writes_when_reconciled(monkeypatch: pytest.MonkeyPatch) -> None:
     """孿生斷言：對帳過就照常寫（否則上一條可能只是「永遠拒寫」）。"""
     written: list[list[tuple]] = []
-
-    class _Cur:
-        def executemany(self, _sql, rows):  # noqa: ANN001
-            written.append(list(rows))
-
-    class _Conn:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *_a):
-            return False
-
-        def cursor(self):
-            return _Cur()
-
     monkeypatch.setattr(cs, "_local_expectation", lambda *a, **k: (SCHEDULED, G2026))
-    monkeypatch.setattr(cs, "conn", lambda: _Conn())
+    monkeypatch.setattr(cs, "conn", lambda: _FakeConn(written))
     assert cs.upsert_standings(_records(2026, 0, G2026)) == 6
     assert len(written) == 1 and len(written[0]) == 6
 
@@ -166,14 +172,46 @@ def test_upsert_rejects_mixed_year_batches(monkeypatch: pytest.MonkeyPatch) -> N
 # ══════════════════════════════════════════ scrape_standings 的兩種失敗 ═══════════
 
 
-def test_scrape_propagates_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
-    """對帳失敗必須外拋——不得被 per-SeasonCode 的 except 降級成 warning。"""
+def test_scrape_records_mismatch_without_aborting(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
+) -> None:
+    """⭐ 岔路 1 裁定：對帳失敗**不連坐**（不外拋），但**必須看得見**。
+
+    看得見的三個面：拒寫（`out` 不含該 sc）、`_FAILURES` 進帳、`log.error`（不是 warning）。
+    ⚠️ 只驗「沒拋」是不夠的——那正好是被裁定否決的「降級成沒人讀的 warning」。
+    """
     monkeypatch.setattr(cs, "fetch_standings",
                         lambda year, sc, kind="A": _records(year, sc, G2026))
     monkeypatch.setattr(cs, "_local_expectation", lambda *a, **k: (SCHEDULED, G2024))
     monkeypatch.setattr(cs, "conn", _no_db)
-    with pytest.raises(cs.StandingsYearMismatch):
-        cs.scrape_standings(2024)
+    with caplog.at_level(logging.DEBUG, logger="cpbl.standings"):
+        assert cs.scrape_standings(2024) == {}          # 一列都沒寫
+    failures = cs.standings_failures()
+    assert [f["season_code"] for f in failures] == [0, 1, 2]
+    assert {f["kind"] for f in failures} == {"year_mismatch"}
+    levels = {r.levelno for r in caplog.records if "對帳失敗" in r.getMessage()}
+    assert levels == {logging.ERROR}, f"對帳失敗必須是 ERROR，實際 {levels}"
+
+
+def test_scrape_clears_the_ledger_between_runs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """一次執行一份帳：上一輪的失敗不得被讀成這一輪的。"""
+    monkeypatch.setattr(cs, "fetch_standings",
+                        lambda year, sc, kind="A": _records(year, sc, G2026))
+    monkeypatch.setattr(cs, "_local_expectation", lambda *a, **k: (SCHEDULED, G2024))
+    monkeypatch.setattr(cs, "conn", _no_db)
+    cs.scrape_standings(2024)
+    assert cs.standings_failures()
+    monkeypatch.setattr(cs, "_local_expectation", lambda *a, **k: (SCHEDULED, G2026))
+    monkeypatch.setattr(cs, "conn", lambda: _FakeConn([]))
+    assert cs.scrape_standings(2026) == {0: 6, 1: 6, 2: 6}
+    assert cs.standings_failures() == []
+
+
+def test_reset_clears_a_stale_ledger() -> None:
+    """替身取代 scrape 時沒人清帳——呼叫端要能自己清（每日鏈就是這樣用）。"""
+    cs._FAILURES.append({"season_code": 0, "kind": "year_mismatch", "error": "舊帳"})
+    cs.reset_standings_failures()
+    assert cs.standings_failures() == []
 
 
 def test_scrape_still_tolerates_transient_fetch_failure(
@@ -189,16 +227,23 @@ def test_scrape_still_tolerates_transient_fetch_failure(
 
     monkeypatch.setattr(cs, "fetch_standings", _boom)
     monkeypatch.setattr(cs, "conn", _no_db)
-    assert cs.scrape_standings(2026) == {}
+    with caplog.at_level(logging.DEBUG, logger="cpbl.standings"):
+        assert cs.scrape_standings(2026) == {}
+    assert {f["kind"] for f in cs.standings_failures()} == {"fetch"}
+    levels = {r.levelno for r in caplog.records if "略過" in r.getMessage()}
+    assert levels == {logging.WARNING}, "抓取失敗＝什麼都沒拿到，不該與對帳失敗同級"
 
 
 def test_scrape_verifies_even_when_response_is_empty(monkeypatch: pytest.MonkeyPatch) -> None:
-    """空回應也要驗：本地有完成場卻拿到空表 → 拋，不得靜靜當成「0 隊」。"""
+    """⭐ 岔路 2 裁定：本地有完成場卻拿到空表＝硬失敗，不得靜靜當成「0 隊」。
+
+    但依岔路 1，硬失敗走的是進帳而不是外拋。
+    """
     monkeypatch.setattr(cs, "fetch_standings", lambda *a, **k: [])
     monkeypatch.setattr(cs, "_local_expectation", lambda *a, **k: (SCHEDULED, G2026))
     monkeypatch.setattr(cs, "conn", _no_db)
-    with pytest.raises(cs.StandingsYearMismatch):
-        cs.scrape_standings(2026)
+    assert cs.scrape_standings(2026) == {}
+    assert [f["kind"] for f in cs.standings_failures()] == ["year_mismatch"] * 3
 
 
 # ══════════════════════════════════════════ 真實 DB：判準本身站不站得住 ═══════════
@@ -235,11 +280,17 @@ def test_real_db_rejects_current_season_stamped_as_2024(season_code: int) -> Non
 
 
 def test_cli_exits_nonzero_on_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
-    """`cpbl-scrape-standings <非當季年份>` 必須失敗——驗收條件的機器化版本。"""
+    """`cpbl-scrape-standings <非當季年份>` 必須以非 0 退出——驗收條件的機器化版本。
+
+    ⚠️ 退出碼是唯一不依賴「有人讀 log」的訊號；裁定要求不連坐每日鏈，但沒有放寬這一條。
+    """
     from cpbl.ingest import run_scrape_standings as cli
 
     monkeypatch.setattr(cli, "migrate", lambda: None)
-    monkeypatch.setattr(cli, "scrape_standings", _raise_mismatch)
+    monkeypatch.setattr(cs, "fetch_standings",
+                        lambda year, sc, kind="A": _records(year, sc, G2026))
+    monkeypatch.setattr(cs, "_local_expectation", lambda *a, **k: (SCHEDULED, G2024))
+    monkeypatch.setattr(cs, "conn", _no_db)
     monkeypatch.setattr("sys.argv", ["cpbl-scrape-standings", "2024"])
     with pytest.raises(SystemExit) as e:
         cli.main()
@@ -251,10 +302,237 @@ def test_cli_exits_zero_when_reconciled(monkeypatch: pytest.MonkeyPatch) -> None
     from cpbl.ingest import run_scrape_standings as cli
 
     monkeypatch.setattr(cli, "migrate", lambda: None)
-    monkeypatch.setattr(cli, "scrape_standings", lambda year: {0: 6, 1: 6, 2: 6})
+    monkeypatch.setattr(cs, "fetch_standings",
+                        lambda year, sc, kind="A": _records(year, sc, G2026))
+    monkeypatch.setattr(cs, "_local_expectation", lambda *a, **k: (SCHEDULED, G2026))
+    monkeypatch.setattr(cs, "conn", lambda: _FakeConn([]))
     monkeypatch.setattr("sys.argv", ["cpbl-scrape-standings", "2026"])
     cli.main()  # 不得拋 SystemExit
 
 
-def _raise_mismatch(year: int, kind_code: str = "A"):
-    raise cs.StandingsYearMismatch(f"{year} 對不上")
+def test_cli_history_flag_routes_to_the_history_page(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`--history` 必須真的改走 history 路徑，不是只多一個沒接線的旗標。"""
+    from cpbl.ingest import run_scrape_standings as cli
+
+    called: list[str] = []
+    monkeypatch.setattr(cli, "migrate", lambda: None)
+    monkeypatch.setattr(cli, "scrape_standings", lambda y: called.append("season") or {})
+    monkeypatch.setattr(cli, "scrape_history_standings", lambda y: called.append("history") or {})
+    monkeypatch.setattr(cli, "standings_failures", list)
+    monkeypatch.setattr("sys.argv", ["cpbl-scrape-standings", "2025", "--history"])
+    cli.main()
+    assert called == ["history"]
+
+
+# ══════════════════════════════════════ /standings/history（2025 補救來源）═══════
+
+# 真實回應片段：2026-08-20 14:06 唯讀探查 `/standings/history` 預設渲染（Year=2025）的
+# 「全年戰績」表，原樣保留只壓縮空白。⚠️ 刻意不手工精簡成 2、3 隊——手工樣本會缺欄位
+# 而走到另一條路徑，那正是本專案踩過的坑（記憶 `verification-sample-must-be-a-passing-one`）。
+_HISTORY_FULL_SEASON_2025 = (
+    "<table><tbody><tr><th class=\"sticky\"><div class=\"sticky_wrap\"><div class=\"rank\">排名</"
+    "div><div class=\"team-w-trophy\">球隊</div></div></th><th class=\"num\">出賽數</th><th class="
+    "\"num\">勝-和-敗</th><th class=\"num\">勝率</th><th class=\"num\">勝差</th><th class=\"num\">統一7-EL"
+    "EVEn獅</th><th class=\"num\">中信兄弟</th><th class=\"num\">樂天桃猿</th><th class=\"num\">台鋼雄鷹</th"
+    "><th class=\"num\">味全龍</th><th class=\"num\">富邦悍將</th><th class=\"num\">主場戰績</th><th class"
+    "=\"num\">客場戰績</th></tr><tr><td class=\"sticky\"><div class=\"sticky_wrap\"><div class=\"ran"
+    "k\">1</div><div class=\"team-w-trophy\"><a href=\"/team?TeamNo=ACN011\">中信兄弟</a></div></d"
+    "iv></td><td class=\"num\">120</td><td class=\"num\">70-0-50</td><td class=\"num\">0.583</t"
+    "d><td class=\"num\">-</td><td class=\"num\">16-0-8</td><td class=\"num\">&nbsp;</td><td cl"
+    "ass=\"num\">14-0-10</td><td class=\"num\">10-0-14</td><td class=\"num\">13-0-11</td><td cl"
+    "ass=\"num\">17-0-7</td><td class=\"num\">36-0-24</td><td class=\"num\">34-0-26</td></tr><t"
+    "r><td class=\"sticky\"><div class=\"sticky_wrap\"><div class=\"rank\">2</div><div class=\"t"
+    "eam-w-trophy\"><a href=\"/team?TeamNo=ADD011\">統一7-ELEVEn獅</a></div></div></td><td clas"
+    "s=\"num\">120</td><td class=\"num\">66-0-54</td><td class=\"num\">0.55</td><td class=\"num\""
+    ">4</td><td class=\"num\">&nbsp;</td><td class=\"num\">8-0-16</td><td class=\"num\">12-0-12"
+    "</td><td class=\"num\">15-0-9</td><td class=\"num\">14-0-10</td><td class=\"num\">17-0-7</"
+    "td><td class=\"num\">35-0-25</td><td class=\"num\">31-0-29</td></tr><tr><td class=\"stick"
+    "y\"><div class=\"sticky_wrap\"><div class=\"rank\">3</div><div class=\"team-w-trophy\"><a h"
+    "ref=\"/team?TeamNo=AJL011\">樂天桃猿</a></div></div></td><td class=\"num\">120</td><td class"
+    "=\"num\">62-1-57</td><td class=\"num\">0.521</td><td class=\"num\">7.5</td><td class=\"num\""
+    ">12-0-12</td><td class=\"num\">10-0-14</td><td class=\"num\">&nbsp;</td><td class=\"num\">"
+    "11-1-12</td><td class=\"num\">12-0-12</td><td class=\"num\">17-0-7</td><td class=\"num\">3"
+    "3-1-26</td><td class=\"num\">29-0-31</td></tr><tr><td class=\"sticky\"><div class=\"stick"
+    "y_wrap\"><div class=\"rank\">4</div><div class=\"team-w-trophy\"><a href=\"/team?TeamNo=AK"
+    "P011\">台鋼雄鷹</a></div></div></td><td class=\"num\">120</td><td class=\"num\">59-2-59</td><"
+    "td class=\"num\">0.5</td><td class=\"num\">10</td><td class=\"num\">9-0-15</td><td class=\""
+    "num\">14-0-10</td><td class=\"num\">12-1-11</td><td class=\"num\">&nbsp;</td><td class=\"n"
+    "um\">12-1-11</td><td class=\"num\">12-0-12</td><td class=\"num\">33-1-26</td><td class=\"n"
+    "um\">26-1-33</td></tr><tr><td class=\"sticky\"><div class=\"sticky_wrap\"><div class=\"ran"
+    "k\">5</div><div class=\"team-w-trophy\"><a href=\"/team?TeamNo=AAA011\">味全龍</a></div></di"
+    "v></td><td class=\"num\">120</td><td class=\"num\">55-1-64</td><td class=\"num\">0.462</td"
+    "><td class=\"num\">14.5</td><td class=\"num\">10-0-14</td><td class=\"num\">11-0-13</td><t"
+    "d class=\"num\">12-0-12</td><td class=\"num\">11-1-12</td><td class=\"num\">&nbsp;</td><td"
+    " class=\"num\">11-0-13</td><td class=\"num\">30-0-30</td><td class=\"num\">25-1-34</td></t"
+    "r><tr><td class=\"sticky\"><div class=\"sticky_wrap\"><div class=\"rank\">6</div><div clas"
+    "s=\"team-w-trophy\"><a href=\"/team?TeamNo=AEO011\">富邦悍將</a></div></div></td><td class=\""
+    "num\">120</td><td class=\"num\">46-0-74</td><td class=\"num\">0.383</td><td class=\"num\">2"
+    "4</td><td class=\"num\">7-0-17</td><td class=\"num\">7-0-17</td><td class=\"num\">7-0-17</"
+    "td><td class=\"num\">12-0-12</td><td class=\"num\">13-0-11</td><td class=\"num\">&nbsp;</t"
+    "d><td class=\"num\">28-0-32</td><td class=\"num\">18-0-42</td></tr></tbody></table>"
+)
+
+_HISTORY_HTML_2025 = "<!--上半季戰績--><table></table><!--下半季戰績--><table></table>" \
+                     "<!--全年戰績-->" + _HISTORY_FULL_SEASON_2025
+
+# 官方 2025 全年戰績 golden（與本地 cpbl.games 推導 18/18 相符，PM 已獨立複算）
+OFFICIAL_2025_FULL = {"ACN011": (120, 70, 0, 50), "ADD011": (120, 66, 0, 54),
+                       "AJL011": (120, 62, 1, 57), "AKP011": (120, 59, 2, 59),
+                       "AAA011": (120, 55, 1, 64), "AEO011": (120, 46, 0, 74)}
+
+
+def test_history_table_is_anchored_on_the_section_comment() -> None:
+    """三張表用 HTML 註解錨定，不是用出現順序——順序是排版，改版會靜靜錯位。"""
+    assert cs._history_table(_HISTORY_HTML_2025, "<!--全年戰績-->") is not None
+    assert cs._history_table(_HISTORY_HTML_2025, "<!--季後賽戰績-->") is None
+
+
+def test_history_parser_reads_the_real_response() -> None:
+    """真實回應片段 → 逐隊 (g,w,t,l) 必須等於官方 golden。"""
+    table = cs._history_table(_HISTORY_HTML_2025, "<!--全年戰績-->")
+    records = cs._parse_history_table(table, 2025, "A", 0)
+    got = {r[cs._IDX_TEAM]: (r[cs._IDX_G], r[cs._IDX_W], r[cs._IDX_T], r[cs._IDX_L])
+            for r in records}
+    assert got == OFFICIAL_2025_FULL
+
+
+def test_history_parser_writes_null_for_the_three_missing_columns() -> None:
+    """需求方裁定：`elim`／`streak`／`last10` 寫 NULL，不保留現值（錯值比缺值危險）。"""
+    table = cs._history_table(_HISTORY_HTML_2025, "<!--全年戰績-->")
+    for r in cs._parse_history_table(table, 2025, "A", 0):
+        assert r[12] is None, "elim 必須是 NULL"
+        assert r[15] is None, "streak 必須是 NULL"
+        assert r[16] is None, "last10 必須是 NULL"
+        assert r[13] and r[14], "主客場戰績本頁有，不該一併變 NULL"
+
+
+def test_history_h2h_uses_the_header_order_not_a_fixed_constant() -> None:
+    """H2H 欄序由表頭實抽：球隊數逐年不同（2022 只有 5 隊），寫死會整排錯位。"""
+    import json
+    table = cs._history_table(_HISTORY_HTML_2025, "<!--全年戰績-->")
+    by_team = {r[cs._IDX_TEAM]: json.loads(r[17]) for r in cs._parse_history_table(table, 2025, "A", 0)}
+    assert by_team["ACN011"]["ADD011"] == "16-0-8"   # 中信 vs 統一（表頭第一欄）
+    assert "ACN011" not in by_team["ACN011"], "自己對自己那格是 &nbsp;，不得入 h2h"
+
+
+def test_history_scrape_still_reconciles_before_writing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """⚠️ history 頁遵守 Year **不等於**豁免對帳：官網哪天改壞了照樣要拒寫。"""
+    table = cs._history_table(_HISTORY_HTML_2025, "<!--全年戰績-->")
+    records = cs._parse_history_table(table, 2025, "A", 0)
+    monkeypatch.setattr(cs, "fetch_history_standings", lambda *a, **k: {0: records})
+    monkeypatch.setattr(cs, "_local_expectation", lambda *a, **k: (SCHEDULED, G2026))  # 對不上
+    monkeypatch.setattr(cs, "conn", _no_db)
+    assert cs.scrape_history_standings(2025) == {}
+    assert [f["kind"] for f in cs.standings_failures()] == ["year_mismatch"]
+
+
+def test_history_scrape_writes_when_it_reconciles(monkeypatch: pytest.MonkeyPatch) -> None:
+    """孿生斷言：對得上就寫，且失敗帳是空的。"""
+    table = cs._history_table(_HISTORY_HTML_2025, "<!--全年戰績-->")
+    records = cs._parse_history_table(table, 2025, "A", 0)
+    written: list[list[tuple]] = []
+    monkeypatch.setattr(cs, "fetch_history_standings", lambda *a, **k: {0: records})
+    monkeypatch.setattr(cs, "_local_expectation", lambda *a, **k: (SCHEDULED, OFFICIAL_2025_FULL))
+    monkeypatch.setattr(cs, "conn", lambda: _FakeConn(written))
+    assert cs.scrape_history_standings(2025) == {0: 6}
+    assert cs.standings_failures() == []
+    assert len(written[0]) == 6
+
+
+# ══════════════════════════════════ 每日鏈：看得見，但不連坐 ═══════════════════
+
+
+def _stub_daily_chain(monkeypatch: pytest.MonkeyPatch, standings_result, failures,
+                      calls: list[str], logged: dict) -> None:
+    """把 run_refresh_recent 的每一步換成替身，只留下「戰績失敗怎麼傳遞」這條線。"""
+    from cpbl.ingest import run_refresh_recent as rr
+
+    monkeypatch.setattr(rr, "_GAMELOG_GAPS", [])
+    monkeypatch.setattr(rr.sys, "argv", ["cpbl-refresh-recent", "fast"])
+    for name, value in (
+        ("migrate", lambda: None),
+        ("scrape_games", lambda *a, **k: 0),
+        ("scrape_all", lambda *a, **k: {}),
+        ("scrape_standings", lambda *a, **k: standings_result),
+        ("standings_failures", lambda: list(failures)),
+        ("reset_standings_failures", lambda: None),
+        ("scrape_transactions", lambda *a, **k: 0),
+        ("build_championships", lambda *a, **k: 0),
+        ("scrape_game_details", lambda *a, **k: 0),
+        ("build_splits", lambda *a, **k: {}),
+        ("build_career", lambda *a, **k: 0),
+        ("_sync_player_names", lambda: 0),
+        ("_recent_counts", lambda *a, **k: []),
+        ("_missing_gamelog_snos", lambda _year, _kc: []),
+        ("_pa_build_step", lambda *a, **k: calls.append("pa_build") or {
+            "games": 0, "actions": {}, "build_states": {}, "errors": []}),
+        ("_log_refresh", lambda _s, _f, _t, _tot, _c, detail, ok, note:
+            logged.update(ok=ok, note=note, detail=detail)),
+    ):
+        monkeypatch.setattr(rr, name, value)
+
+
+def test_daily_chain_reports_standings_failure_without_stopping(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """⭐ 岔路 1 的每日鏈端：失敗要進 refresh_log 與退出碼，但**後續步驟照跑**。
+
+    ⚠️ 「不連坐」與「看得見」是一組的，缺任何一半這個裁定就沒被實作到：
+    只有不連坐＝生產靜默落後；只有看得見卻中止＝連坐無關的步驟。
+    """
+    from cpbl.ingest import cpbl_gamelog
+    from cpbl.ingest import run_refresh_recent as rr
+
+    calls: list[str] = []
+    logged: dict = {}
+    failures = [{"season_code": 0, "kind": "year_mismatch", "error": "對不上"}]
+    _stub_daily_chain(monkeypatch, {1: 6, 2: 6}, failures, calls, logged)
+
+    with pytest.raises(SystemExit) as e:
+        rr.main()
+
+    assert e.value.code == cpbl_gamelog.EXIT_INCOMPLETE_SCRAPE == 69
+    assert "pa_build" in calls, "戰績對帳失敗不得中止後續步驟"
+    assert logged["ok"] is False, "有 SeasonCode 沒寫進去就不是成功的刷新"
+    assert "sc=0" in logged["note"] and "year_mismatch" in logged["note"]
+    assert logged["detail"]["standings_failures"] == failures
+    assert logged["detail"]["standings"] == {1: 6, 2: 6}
+
+
+def test_daily_chain_exits_zero_when_standings_are_clean(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """負控制：零失敗時必須正常結束、ok=True（69 不是隨便亮的）。"""
+    from cpbl.ingest import run_refresh_recent as rr
+
+    calls: list[str] = []
+    logged: dict = {}
+    _stub_daily_chain(monkeypatch, {0: 6, 1: 6, 2: 6}, [], calls, logged)
+
+    rr.main()  # 不得拋 SystemExit
+
+    assert logged["ok"] is True
+    assert logged["detail"]["standings_failures"] == []
+
+
+def test_history_sections_map_by_comment_not_by_document_order() -> None:
+    """⚠️ 區塊 → season_code 的對應必須由註解決定。
+
+    這條擋的是「改成照出現順序」這種**不會報錯、只會靜靜錯位**的退化：把真表放在
+    最後、以及把真表放到最前（區塊順序打亂），兩種排法都必須得到同一個 season_code。
+    """
+    tail_first = cs.split_history_sections(_HISTORY_HTML_2025, 2025, "A")
+    shuffled = ("<!--全年戰績-->" + _HISTORY_FULL_SEASON_2025
+                + "<!--上半季戰績--><table></table><!--下半季戰績--><table></table>")
+    head_first = cs.split_history_sections(shuffled, 2025, "A")
+    for result in (tail_first, head_first):
+        got = {r[cs._IDX_TEAM]: (r[cs._IDX_G], r[cs._IDX_W], r[cs._IDX_T], r[cs._IDX_L])
+               for r in result[0]}
+        assert got == OFFICIAL_2025_FULL, "全年那張表必須落在 season_code=0"
+        assert result[1] == [] and result[2] == [], "兩個半季區塊在本樣本是空表"
+
+
+def test_history_missing_section_fails_closed() -> None:
+    """官網改版把註解拿掉 → 直接炸，不得靜靜少寫一個 season_code。"""
+    with pytest.raises(RuntimeError, match="找不到區塊"):
+        cs.split_history_sections("<!--全年戰績--><table></table>", 2025, "A")

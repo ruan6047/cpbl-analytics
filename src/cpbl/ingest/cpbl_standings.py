@@ -30,9 +30,40 @@ from cpbl.db import conn
 
 log = logging.getLogger("cpbl.standings")
 
+# 一次執行一份帳：本次 scrape 的失敗清單，呼叫端用 :func:`standings_failures` 讀。
+# ⚠️ 為什麼是模組級累積器而不是回傳值：`scrape_standings` 的回傳型別
+# `{season_code: 隊數}` 已被既有呼叫端與其測試替身依賴（`tests/test_gamelog_reconcile.py`
+# 以 `lambda *a, **k: 0` 替身），改型別會在本卡宣告外的檔案造成連鎖改動。
+# 與 `run_refresh_recent._GAMELOG_GAPS` 同一模式：失敗要進帳、要被退出碼與
+# `refresh_log` 看見，但不得靠改變回傳型別去達成。
+_FAILURES: list[dict] = []
+
+
+def reset_standings_failures() -> None:
+    """清帳。⚠️ 呼叫端在一次執行的開頭要先清一次——`scrape_standings` 自己也會清，
+    但那在它被測試替身取代時不會發生，於是上一次的失敗會被讀成這一次的
+    （與 `run_refresh_recent._GAMELOG_GAPS.clear()` 同一理由與同一位置）。
+    """
+    _FAILURES.clear()
+
+
+def standings_failures() -> list[dict]:
+    """最近一次 scrape 的失敗清單；每筆 `{season_code, kind, error}`。
+
+    `kind` 值域：`fetch`＝抓取／解析失敗（什麼都沒拿到，不會寫錯資料）；
+    `year_mismatch`＝對帳失敗（拿到別的球季或空表，**已拒寫**）。
+    """
+    return list(_FAILURES)
+
 BASE = "https://www.cpbl.com.tw"
 PAGE = f"{BASE}/standings/season"
 ACTION = f"{BASE}/standings/seasonaction"
+HISTORY_PAGE = "/standings/history"
+HISTORY_ACTION = "/standings/historyaction"
+# history 頁一次給三張表，各自由前置的 HTML 註解標示。⚠️ 用註解錨定而不是用出現順序：
+# 順序是官網排版，改版就會錯位且不會報錯；註解是語意標記，改掉會直接找不到 → fail closed。
+HISTORY_SECTIONS = (("<!--上半季戰績-->", 1), ("<!--下半季戰績-->", 2), ("<!--全年戰績-->", 0))
+_TEAMNO_RE = re.compile(r"TeamNo=([A-Z0-9]+)")
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 _TOKEN_RE = re.compile(r"RequestVerificationToken:\s*'([^']+)'")
 
@@ -91,6 +122,113 @@ def fetch_standings(year: int, season_code: int, kind_code: str = "A") -> list[t
             _clean(tds[14]) or None, _clean(tds[15]) or None, json.dumps(h2h, ensure_ascii=False),
         ))
     return records
+
+
+def _history_table(html: str, tag: str) -> str | None:
+    """取出 `tag` 註解之後的第一張表；找不到回 None（由呼叫端 fail closed）。"""
+    at = html.find(tag)
+    if at < 0:
+        return None
+    m = re.search(r"<table.*?</table>", html[at:], re.S)
+    return m.group(0) if m else None
+
+
+def _parse_history_table(table: str, year: int, kind_code: str, season_code: int) -> list[tuple]:
+    """解析 history 頁單張戰績表 → records（欄位順序同 `_COLS`）。
+
+    ⚠️ 本頁**沒有** `elim`／`streak`／`last10` 三欄，一律填 None。需求方 2026-08-20 裁定
+    「缺欄寫 NULL、不保留現值」——那三欄現存的是別的球季的值，**錯值比缺值危險**
+    （已知受害者：`data_rules_audit1` 拿 `streak` 當和局斷連的 ground truth）。
+    ⚠️ 這裡刻意不寫該檔的完整路徑：`scripts/README.md` 是由 `script_inventory` 掃描
+    `scripts/<name>.<ext>` 字面路徑產生的清冊，多一處字面就得重新產生那份清冊，
+    而它不在本卡的資源宣告內。名字足以定位，路徑留給後續卡一併補。
+
+    H2H 的欄位順序**由表頭實抽**，不用固定常數：球隊數逐年不同（2022 只有 5 隊），
+    寫死順序在歷史年份會整排錯位。
+    """
+    rows = re.findall(r"<tr>(.*?)</tr>", table, re.S)
+    if not rows:
+        return []
+    ths = [_clean(x) for x in re.findall(r"<th[^>]*>(.*?)</th>", rows[0], re.S)]
+    h2h_names = ths[5:-2]  # 排名球隊/出賽數/勝-和-敗/勝率/勝差 … 主場戰績/客場戰績
+    h2h_codes = [NAME_CODE.get(n) for n in h2h_names]
+    out: list[tuple] = []
+    for tr in rows[1:]:
+        tds = re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)
+        if len(tds) != 5 + len(h2h_codes) + 2:
+            continue
+        code_m = _TEAMNO_RE.search(tds[0])
+        if not code_m:
+            continue
+        code = code_m.group(1)
+        rank_m = re.search(r'rank">(\d+)', tds[0])
+        g = _clean(tds[1])
+        w, t, l = _wtl(_clean(tds[2]))
+        wp = _clean(tds[3])
+        gb_raw = _clean(tds[4])
+        h2h = {c: _clean(tds[5 + i]) for i, c in enumerate(h2h_codes)
+               if c and c != code and re.match(r"\d+-\d+-\d+", _clean(tds[5 + i]))}
+        # 退路的隊名要去掉開頭的名次數字（第一格是「排名＋隊名」兩個 div）。
+        # ⚠️ NAME_CODE 只有現役六隊，歷史年份（兄弟象、LamiGo…）走的就是這條退路。
+        name = next((n for n, c in NAME_CODE.items() if c == code),
+                    re.sub(r"^\d+", "", _clean(tds[0])) or None)
+        out.append((
+            year, kind_code, season_code, code, name,
+            int(rank_m.group(1)) if rank_m else None, int(g) if g.isdigit() else None,
+            w, t, l, float(wp) if re.match(r"[0-9.]+$", wp) else None,
+            0.0 if gb_raw in ("-", "") else (float(gb_raw) if re.match(r"[0-9.]+$", gb_raw) else None),
+            None, _clean(tds[-2]) or None, _clean(tds[-1]) or None, None, None,
+            json.dumps(h2h, ensure_ascii=False),
+        ))
+    return out
+
+
+def split_history_sections(html: str, year: int,
+                           kind_code: str = "A") -> dict[int, list[tuple]]:
+    """把 history 頁的三個區塊各自解析成 records，key＝`season_code`。
+
+    ⚠️ 區塊與 `season_code` 的對應**由 HTML 註解決定，不由出現順序決定**。抽成獨立純
+    函式的理由是可測性：走網路的 `fetch_history_standings` 沒辦法用測試釘住「換成
+    看順序也會過」這種退化。
+    """
+    out: dict[int, list[tuple]] = {}
+    for tag, sc in HISTORY_SECTIONS:
+        table = _history_table(html, tag)
+        if table is None:
+            raise RuntimeError(f"standings/history 找不到區塊 {tag}（官網可能改版）")
+        out[sc] = _parse_history_table(table, year, kind_code, sc)
+    return out
+
+
+def fetch_history_standings(year: int, kind_code: str = "A") -> dict[int, list[tuple]]:
+    """由 `/standings/history` 抓**已完賽球季**的官方戰績，一次拿到三個 season_code。
+
+    ⭐ 與 `seasonaction` 的關鍵差別：**本頁遵守 `Year`**（2026-08-20 實測 `Year=2024`／
+    `Year=2022` 各自回正確年份，且與 opendata `cpbl.standings` 逐隊吻合）。但這**不構成
+    豁免**——寫入仍走 `upsert_standings` 的同一道對帳，官網哪天改壞了照樣拒寫。
+
+    ⚠️ token 走 **form body**（hidden input），不是 header：本頁的 AJAX 是
+    `form.serialize()`，與 `seasonaction` 用 header 的型態不同（誤用型態的症狀見
+    `docs/CPBL_SITE_MAP.md` §5「用錯 token 型態」）。此處兩種都帶，以實測可行為準。
+    """
+    from cpbl.ingest._browser import session
+    s = session()
+    page = s.page_html(HISTORY_PAGE)
+    hidden = re.search(r'name="__RequestVerificationToken"[^>]*value="([^"]+)"', page)
+    inline = _TOKEN_RE.search(page)
+    if not hidden and not inline:
+        raise RuntimeError("standings/history 找不到 RequestVerificationToken（官網可能改版）")
+    form = {"Year": str(year), "Kindcode": kind_code, "IndexOfPages": "1", "ExecAction": ""}
+    if hidden:
+        form["__RequestVerificationToken"] = hidden.group(1)
+    status, html = s.post(
+        HISTORY_PAGE, HISTORY_ACTION, form,
+        headers={"RequestVerificationToken": inline.group(1)} if inline else {},
+    )
+    if status != 200:
+        raise RuntimeError(f"standings/history HTTP {status}（反爬挑戰未過？）")
+    return split_history_sections(html, year, kind_code)
+
 
 
 _COLS = ("year,kind_code,season_code,team_code,team_name,rank,g,w,t,l,win_pct,gb,elim,"
@@ -231,30 +369,68 @@ def upsert_standings(records: list[tuple]) -> int:
     return len(records)
 
 
-def scrape_standings(year: int, kind_code: str = "A") -> dict:
-    """抓全年(0)+上半(1)+下半(2)。回傳 {season_code: 隊數}。
+def _write_verified(year: int, season_code: int, kind_code: str,
+                    records: list[tuple], out: dict, label: str) -> None:
+    """對帳→寫入；對帳失敗**拒寫並進帳**，不外拋。
 
-    ⚠️ 兩種失敗刻意不同命：
-    - **抓取／解析失敗**（token、428、逾時）＝什麼都沒拿到，不會產生錯資料 →
-      維持既有行為，記 warning 並略過該 SeasonCode。
-    - **對帳失敗** :class:`StandingsYearMismatch` ＝拿到的是別的球季 → **外拋**。
-      這是資料正確性違規，吞掉它就等於把硬失敗降級成沒人讀的 warning。
+    ⚠️ 不外拋 ≠ 降級成 warning（需求方 2026-08-20 岔路 1 裁定）：外拋會讓
+    `run_refresh_recent` 的整段爬取中止，連帶 transactions／championships／PA build／
+    splits 重算／改名同步全部不跑——那只是把「靜默失敗」換成「生產靜默落後」，
+    兩者一樣沒人在看（與 `DATA-BOX-DEEP-SILENT-FAIL1` #131 的 Q3 同一判準）。
+    所以失敗改走 `log.error` ＋ `_FAILURES` 進帳，由退出碼與 `refresh_log` 呈現。
     """
-    out = {}
+    try:
+        if not records:
+            verify_year(year, season_code, kind_code, {})  # 空回應也要驗：本地有完成場就是異常
+            out[season_code] = 0
+            log.info("%s %s SeasonCode=%s: 官網無資料（本地該半季亦無完成場）",
+                     label, year, season_code)
+            return
+        n = upsert_standings(records)
+    except StandingsYearMismatch as e:
+        log.error("%s %s SeasonCode=%s 對帳失敗，未寫入任何資料：%s", label, year, season_code, e)
+        _FAILURES.append({"season_code": season_code, "kind": "year_mismatch", "error": str(e)})
+        return
+    out[season_code] = n
+    log.info("%s %s SeasonCode=%s: %d 隊", label, year, season_code, n)
+
+
+def scrape_standings(year: int, kind_code: str = "A") -> dict:
+    """抓當季全年(0)+上半(1)+下半(2)。回傳 {season_code: 隊數}（失敗的 sc 不在其中）。
+
+    ⚠️ 兩種失敗都不外拋、但都必須看得見——讀 :func:`standings_failures`：
+    - **抓取／解析失敗**（token、428、逾時）＝什麼都沒拿到，不會產生錯資料 → `log.warning`。
+    - **對帳失敗**＝拿到別的球季或空表 → **拒寫** ＋ `log.error` ＋ 進帳。
+    """
+    _FAILURES.clear()
+    out: dict[int, int] = {}
     for sc in (0, 1, 2):
-        # ⚠️ try 只包 fetch，這是結構性的、不是排版：對帳與寫入刻意留在 try 之外，
-        # StandingsYearMismatch 才不可能被這個 except 降級成 warning。
         try:
             records = fetch_standings(year, sc, kind_code)
         except Exception as e:  # noqa: BLE001
             log.warning("SeasonCode=%s 略過：%s", sc, e)
+            _FAILURES.append({"season_code": sc, "kind": "fetch", "error": str(e)})
             continue
-        if not records:
-            verify_year(year, sc, kind_code, {})  # 空回應也要驗：本地有完成場就是異常
-            out[sc] = 0
-            log.info("standings %s SeasonCode=%s: 官網無資料（本地該半季亦無完成場）", year, sc)
-            continue
-        n = upsert_standings(records)
-        out[sc] = n
-        log.info("standings %s SeasonCode=%s: %d 隊", year, sc, n)
+        _write_verified(year, sc, kind_code, records, out, label="standings")
+    return out
+
+
+def scrape_history_standings(year: int, kind_code: str = "A") -> dict:
+    """已完賽球季的官方戰績 → `team_standings`（三個 season_code 一次寫）。
+
+    ⚠️ 這是 `year=2025` 污染列的補救路徑（需求方 2026-08-20 裁定 UPSERT 覆蓋、不刪除：
+    `sync_table()` 是純 UPSERT 無 DELETE，刪本機只會讓生產那批凍結成永遠不更新的假
+    資料；UPSERT 則會經現有同步鏈自動修好生產）。對帳與失敗處理與 `scrape_standings`
+    同一套——本函式不對任何一列豁免。
+    """
+    _FAILURES.clear()
+    out: dict[int, int] = {}
+    try:
+        sections = fetch_history_standings(year, kind_code)
+    except Exception as e:  # noqa: BLE001
+        log.warning("history %s 抓取失敗：%s", year, e)
+        _FAILURES.append({"season_code": None, "kind": "fetch", "error": str(e)})
+        return out
+    for sc, records in sorted(sections.items()):
+        _write_verified(year, sc, kind_code, records, out, label="history")
     return out

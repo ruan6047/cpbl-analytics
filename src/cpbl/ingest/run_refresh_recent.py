@@ -43,7 +43,11 @@ from cpbl.ingest.cpbl_gamelog import (
 )
 from cpbl.ingest.cpbl_pitch_tracking import is_frozen, scrape_game_pitches, scrape_pitches
 from cpbl.ingest.cpbl_site import lineup_acnts, scrape_games
-from cpbl.ingest.cpbl_standings import scrape_standings
+from cpbl.ingest.cpbl_standings import (
+    reset_standings_failures,
+    scrape_standings,
+    standings_failures,
+)
 from cpbl.ingest.cpbl_stats import scrape_all
 from cpbl.ingest.cpbl_transactions import scrape_transactions
 from cpbl.ingest.game_source_revisions import record_source_revision
@@ -562,6 +566,9 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
     skip_detail = len(sys.argv) > 1 and sys.argv[1] == "fast"
     _GAMELOG_GAPS.clear()   # 一次執行一份帳（模組級累積器，同程序內重複呼叫不得互相污染）
+    reset_standings_failures()   # 同上；官方戰績的失敗帳
+    standings: dict = {}
+    standings_failed: list[dict] = []
     today = date.today()
     yesterday = today - timedelta(days=1)
     year = today.year
@@ -574,7 +581,13 @@ def main() -> None:
         games = scrape_games(year, year)              # 一軍例行賽賽程/結果
         games_farm = scrape_games(year, year, "D")    # 二軍賽程/結果（供二軍成績卡/逐球/戰績）
         stats = scrape_all(year, year, year)          # 投打/團隊 + 守備一軍(A)+二軍(D)
-        scrape_standings(year)  # 官方球隊戰績（含和局/勝差/上下半季），輕量每次更新
+        # 官方球隊戰績（含和局/勝差/上下半季），輕量每次更新。
+        # ⚠️ 對帳失敗（拿到別的球季／空表）刻意**不外拋**：外拋會讓底下 transactions／
+        # championships／PA build／splits 重算／改名同步全部不跑，只是把靜默失敗換成
+        # 生產靜默落後（DATA-STANDINGS-YEAR-IGNORED1 岔路 1 裁定，與 #131 Q3 同判準）。
+        # 但它也**不得只留一行 log**——落進 refresh_log 的 detail 與 ok、並反映在退出碼。
+        standings = scrape_standings(year)
+        standings_failed = standings_failures()
         trans = scrape_transactions([year])  # 升降一/二軍事件（輕量；供一/二軍選手判定）
         build_championships()  # 由更新後 games 重建年度總冠軍成員（純 SQL、賽季末才會變）
         detail_inc = {} if skip_detail else _incremental_detail(year, [yesterday, today])
@@ -627,24 +640,34 @@ def main() -> None:
         note = gap_note if note is None else f"{note}；{gap_note}"
         log.error(gap_note)
 
+    # 官方戰績對帳失敗同樣要結清：ok 必須誠實（有 SeasonCode 沒寫進去就不是成功的刷新），
+    # note 說明是哪幾個、什麼原因；退出碼沿用 69（有部分失敗但其餘完成，下游仍會同步）。
+    if standings_failed:
+        std_note = ("官方戰績未寫入："
+                    + "；".join(f"sc={f['season_code']}({f['kind']})" for f in standings_failed))
+        note = std_note if note is None else f"{note}；{std_note}"
+        log.error(std_note)
+
     total = sum(t for _, t, _ in recent)
     completed = sum(comp for _, _, comp in recent)
     detail = {
         "games": games, "games_farm": games_farm, "stats": stats, "transactions": trans,
+        "standings": standings, "standings_failures": standings_failed,
         "splits_built": splits_built, "incremental_detail": detail_inc, "pa_build": pa_build_result,
         "gamelog_gaps": _GAMELOG_GAPS,
         "recent": [{"date": d.isoformat(), "total": t, "completed": comp} for d, t, comp in recent],
     }
     _log_refresh("recent-games", yesterday, today, total, completed, detail,
-                 ok=not _GAMELOG_GAPS, note=note)
+                 ok=not (_GAMELOG_GAPS or standings_failed), note=note)
 
     log.info("刷新完成 | 近兩日場次 %s | games=%s stats=%s | 增量對戰/分項=%s | PA build=%s",
              {d.isoformat(): f"{comp}/{t}" for d, t, comp in recent}, games, stats, detail_inc,
              pa_build_result)
 
-    if _GAMELOG_GAPS:
-        # 所有步驟都跑完了才退出：69 的語意是「有逐場失敗但其餘完成」，
-        # `scripts/scrape-daily.sh` 據此仍會同步生產。
+    if _GAMELOG_GAPS or standings_failed:
+        # 所有步驟都跑完了才退出：69 的語意是「有部分失敗但其餘完成」，
+        # `scripts/scrape-daily.sh` 據此仍會同步生產。官方戰績對帳失敗沿用同一語意——
+        # 拒寫的那幾列本來就沒進 DB，擋掉整條同步只會讓其餘已更新的資料一起落後。
         sys.exit(EXIT_INCOMPLETE_SCRAPE)
 
 
