@@ -262,6 +262,29 @@ def _pa_build_targets(year: int, kinds: list[str], days: list[date]) -> list[tup
       reconciliation（不覆寫已發布 pa_id，見 pa_build 模組契約）。
     - 全域缺口：完成場中尚無 published build 者，不限當日窗——涵蓋補齊缺 gamelog
       等其餘來源造成的延遲完成場（如 build 曾停擺累積的歷史缺口）。
+    - ⭐ **過期偵測**（DATA-PA-REBUILD-GAP1 Q1）：已有 published build，但該場
+      **最新** livelog revision 的 ``row_count`` ≠ 現行 ``game_livelog`` 列數 → 重選。
+
+    ⚠️ 為什麼需要第三條：前兩條的聯集**看不見「已 published 但已過期」**。續賽／官方
+    改判讓 livelog 在窗**之後**才長大時，該場有 published build（第二條不亮）、
+    ``game_date`` 早已離開窗（第一條不亮）——於是永久孤兒。實例：`2026/D/97` 於
+    2026-08-09 續賽打完（livelog 115→333 列），published 停在 115 列的來源達 12 天。
+
+    ⚠️ **必須取最新 revision**：`2026/D/119` 有兩筆 livelog revision（177／315），
+    拿舊的比會把已處理的場次誤報成漂移。
+
+    ⚠️ 這條**抓得到增長、抓不到原地修改**：列數不變的官方改判（同列改內容）在
+    ``row_count`` 上看不出來。該盲區的承接卡是 `#109 DATA-BOX-REVISION-SNAPSHOT1`。
+
+    ⚠️ 它是**一次性觸發器不是持續告警**：`build_game` 的順序是「先 upsert revision →
+    再判等價 → 再 reconcile」，build 一跑 ``row_count`` 就被更新、條件從此不命中。
+    「重建完但沒收尾」由 :func:`_pa_build_coverage` 的 ``reconciliation_outstanding``／
+    ``oldest_days`` 承接，不是由這條承接。
+
+    ⚠️ **窗為什麼保留**（效能不是理由——全庫重算 manifest 僅 13.5 秒）：窗現在不再是
+    新鮮度機制（那已由第三條承擔），它只剩一個第三條做不到的職責——涵蓋
+    ``row_count`` 看不見的兩類同日漂移：(a) tracking-only 變動（TrackMan 晚發布補資料，
+    livelog 列數不變），(b) 同列數的原地修改。比賽剛結束那兩天正是這兩類最常發生的時候。
     """
     if not kinds:
         return []
@@ -278,6 +301,22 @@ def _pa_build_targets(year: int, kinds: list[str], days: list[date]) -> list[tup
                   WHERE b.year = g.year AND b.kind_code = g.kind_code AND b.game_sno = g.game_sno
                     AND b.state = 'published'
                 )
+                OR EXISTS (
+                  SELECT 1
+                  FROM (
+                    SELECT r.row_count
+                    FROM cpbl.game_recap_source_revisions r
+                    WHERE r.year = g.year AND r.kind_code = g.kind_code
+                      AND r.game_sno = g.game_sno AND r.source_kind = 'livelog'
+                    ORDER BY r.id DESC
+                    LIMIT 1
+                  ) latest
+                  WHERE latest.row_count IS DISTINCT FROM (
+                    SELECT count(*) FROM cpbl.game_livelog l
+                    WHERE l.year = g.year AND l.kind_code = g.kind_code
+                      AND l.game_sno = g.game_sno
+                  )
+                )
               )
             ORDER BY g.kind_code, g.game_sno
             """,
@@ -287,7 +326,20 @@ def _pa_build_targets(year: int, kinds: list[str], days: list[date]) -> list[tup
 
 
 def _pa_build_coverage(year: int, kinds: list[str]) -> dict[str, dict[str, int]]:
-    """完成場 vs published build 對帳（依 kind_code 分列），供 refresh_log 留痕與示警。"""
+    """完成場 vs published build 對帳（依 kind_code 分列），供 refresh_log 留痕與示警。
+
+    ⚠️ ``gap`` 數的是「有沒有 published build」——它**看不見過期**，也看不見
+    「重建了但卡在 reconciliation」。實證：2026-08-20 10:18 的 refresh_log 寫
+    ``coverage.D.gap=0``，同一時刻 `2026/D/119` 有一筆 12 天未解的
+    ``reconciliation_required``。故本函式另出兩個欄位（DATA-PA-REBUILD-GAP1 Q3）：
+
+    * ``reconciliation_outstanding``：**以場計**（非以 build 計）——`2019/A/173` 有兩筆
+      reconciliation build 但只是一件待辦事項，以 build 計會誇大成 2。
+    * ``oldest_days``：最久那一件卡了幾天（無待辦時為 0）。⚠️ 只有計數不會推動任何人：
+      `D/119` 的計數從 08-09 起就是 1，一直是 1；**會逼人動手的是天數**。
+
+    「誰會去讀那行 log」不在本卡射程（屬 `#132`／watchdog）。
+    """
     if not kinds:
         return {}
     with conn() as c:
@@ -297,14 +349,30 @@ def _pa_build_coverage(year: int, kinds: list[str]) -> dict[str, dict[str, int]]
                    count(*) FILTER (WHERE EXISTS (
                        SELECT 1 FROM cpbl.game_recap_builds b
                        WHERE b.year = g.year AND b.kind_code = g.kind_code AND b.game_sno = g.game_sno
-                         AND b.state = 'published')) AS published
+                         AND b.state = 'published')) AS published,
+                   count(*) FILTER (WHERE rq.oldest IS NOT NULL) AS reconciliation_outstanding,
+                   COALESCE(
+                     MAX(FLOOR(EXTRACT(EPOCH FROM (now() - rq.oldest)) / 86400)), 0
+                   ) AS oldest_days
             FROM cpbl.games g
+            LEFT JOIN LATERAL (
+              SELECT MIN(b2.built_at) AS oldest
+              FROM cpbl.game_recap_builds b2
+              WHERE b2.year = g.year AND b2.kind_code = g.kind_code
+                AND b2.game_sno = g.game_sno AND b2.state = 'reconciliation_required'
+            ) rq ON TRUE
             WHERE g.year = %s AND g.kind_code = ANY(%s) AND {completed_games_sql()}
             GROUP BY g.kind_code
             """,
             (year, kinds),
         ).fetchall()
-    return {r[0]: {"completed": r[1], "published": r[2], "gap": r[1] - r[2]} for r in rows}
+    return {
+        r[0]: {
+            "completed": r[1], "published": r[2], "gap": r[1] - r[2],
+            "reconciliation_outstanding": r[3], "oldest_days": int(r[4]),
+        }
+        for r in rows
+    }
 
 
 def _build_pa_daily(year: int, days: list[date], *, include_farm: bool) -> dict[str, Any]:
@@ -338,9 +406,14 @@ def _pa_build_step(year: int, days: list[date], *, include_farm: bool) -> dict[s
     """
     try:
         result = _build_pa_daily(year, days, include_farm=include_farm)
-        gap_total = sum(v["gap"] for v in result["coverage"].values())
-        if result["errors"] or gap_total:
-            log.warning("PA build 完成但仍有缺口／錯誤：%s", result)
+        cov = result["coverage"].values()
+        gap_total = sum(v["gap"] for v in cov)
+        # ⚠️ 待收尾的 reconciliation 也算「還沒好」。舊版只看 gap，於是 08-20 那行 log
+        # 寫「published 覆蓋恆真」而 D/119 正卡在第 11 天——這是本卡機制事實 (E)。
+        # `.get` 而非 `[]`：coverage 的形狀是本卡才擴充的，呼叫端/測試給舊形狀不該炸。
+        outstanding_total = sum(v.get("reconciliation_outstanding", 0) for v in cov)
+        if result["errors"] or gap_total or outstanding_total:
+            log.warning("PA build 完成但仍有缺口／待收尾／錯誤：%s", result)
         else:
             log.info("PA build 完成，完成場 published 覆蓋恆真：%s", result)
         return result

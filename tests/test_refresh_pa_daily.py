@@ -119,14 +119,18 @@ def test_pa_build_targets_query_unions_day_window_and_global_gap(
 
 
 def test_pa_build_coverage_computes_gap_per_kind(monkeypatch: pytest.MonkeyPatch) -> None:
-    fake_conn, _ = _fake_conn_factory([("A", 234, 229), ("D", 164, 155)])
+    # DATA-PA-REBUILD-GAP1 Q3：查詢多回 reconciliation_outstanding／oldest_days 兩欄，
+    # 兩者的行為守衛在 tests/test_pa_accept_reconciliation.py，此處只釘 gap 的算法不變。
+    fake_conn, _ = _fake_conn_factory([("A", 234, 229, 0, 0), ("D", 164, 155, 0, 0)])
     monkeypatch.setattr(rr, "conn", fake_conn)
 
     coverage = rr._pa_build_coverage(2026, ["A", "D"])
 
     assert coverage == {
-        "A": {"completed": 234, "published": 229, "gap": 5},
-        "D": {"completed": 164, "published": 155, "gap": 9},
+        "A": {"completed": 234, "published": 229, "gap": 5,
+              "reconciliation_outstanding": 0, "oldest_days": 0},
+        "D": {"completed": 164, "published": 155, "gap": 9,
+              "reconciliation_outstanding": 0, "oldest_days": 0},
     }
 
 
