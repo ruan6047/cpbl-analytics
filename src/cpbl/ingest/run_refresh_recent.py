@@ -12,9 +12,14 @@
 
 結束碼（DATA-BOX-DEEP-SILENT-FAIL1）：
 - 0：完全成功。
-- `EXIT_INCOMPLETE_SCRAPE`（69）：**逐場 gamelog 有失敗、其餘步驟照常完成**。
-  refresh_log 記 ok=false 並在 note 列出失敗場號；`scripts/scrape-daily.sh` 對這個碼
-  仍會執行生產同步（Q3 裁定＝甲-2：擋同步只是把「靜默失敗」換成「生產靜默落後」）。
+- `EXIT_INCOMPLETE_SCRAPE`（69）：**有部分步驟失敗、其餘步驟照常完成**。
+  值班判讀要看 note 才知道是哪一種——69 現在有**兩個來源**：
+  1. 逐場 gamelog 有失敗 → note 列出失敗場號、detail.gamelog_gaps。
+  2. 官方球隊戰績對帳失敗（拿到別的球季／空表，已拒寫）→ note 列出
+     `官方戰績未寫入：sc=N(kind)`、detail.standings_failures
+     （DATA-STANDINGS-YEAR-IGNORED1 岔路 1 裁定沿用同一語意與同一個碼）。
+  兩者都記 refresh_log ok=false；`scripts/scrape-daily.sh` 對這個碼仍會執行生產同步
+  （Q3 裁定＝甲-2：擋同步只是把「靜默失敗」換成「生產靜默落後」）。
 - 1：硬失敗（含取 token 階段失敗＝整批一場都沒抓），同步不執行。
 
     uv run cpbl-refresh-recent          # 含增量對戰/分項

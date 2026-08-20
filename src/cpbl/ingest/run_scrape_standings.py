@@ -13,6 +13,11 @@
 ⭐ `--history` 走的是 `/standings/history`，該頁**遵守 `Year`**（2026-08-20 實測），是已完賽
 球季的正確來源。⚠️ 它**不豁免對帳**：一樣要通過同一道 `cpbl.games` 對帳才寫得進去。
 該頁沒有 `elim`／`streak`／`last10` 三欄，一律寫 NULL（需求方裁定：錯值比缺值危險）。
+
+⚠️ `--history` 只接受 `cpbl_standings.HISTORY_SUPPORTED` 內的年份（目前只有 `2025/A`）。
+那個限制在**寫入路徑**上，不在這支 CLI 的參數檢查——擋 CLI 擋不住其他呼叫端。理由：
+`(g,w,t,l)` 對帳對歷史年份也會通過，攔不住 `team_name`／H2H 身分解析不出來的欄位品質
+問題，而 `/api/v1/standings` 又優先採用這張表。
 """
 
 from __future__ import annotations

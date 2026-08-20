@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import logging
+import pathlib
 
 import pytest
 
@@ -536,3 +537,156 @@ def test_history_missing_section_fails_closed() -> None:
     """官網改版把註解拿掉 → 直接炸，不得靜靜少寫一個 season_code。"""
     with pytest.raises(RuntimeError, match="找不到區塊"):
         cs.split_history_sections("<!--全年戰績--><table></table>", 2025, "A")
+
+
+# ═══════════════════════ R1-01：history 的寫入路徑限制在已驗證範圍 ══════════════
+#
+# 查核者的判定：`--history` 開了一個新的污染面。`NAME_CODE` 只認現役六隊，歷史年份的
+# `team_name` 會退化、H2H 對手會被靜默省略，而 `(g,w,t,l)` 對帳**攔不住欄位品質問題**
+# ——那四個數字對歷史年份也會對得上（2018–2024 實測零差異）。而 `/api/v1/standings`
+# 又優先採用這張表。故限制必須落在**寫入路徑**，不能只擋 CLI。
+
+
+def _history_records(year: int = 2025) -> list[tuple]:
+    table = cs._history_table(_HISTORY_HTML_2025, "<!--全年戰績-->")
+    return cs._parse_history_table(table, year, "A", 0)
+
+
+def test_supported_scope_is_exactly_what_was_verified() -> None:
+    """允許清單就是實測過的那一格；放寬它是決定，不是筆誤。"""
+    assert cs.HISTORY_SUPPORTED == frozenset({(2025, "A")})
+
+
+@pytest.mark.parametrize("year,kind", [(2024, "A"), (2013, "A"), (2026, "A"), (2025, "D")])
+def test_parser_refuses_unverified_scope(year: int, kind: str) -> None:
+    """⭐ 最深的一道：**所有** history records 都經過 parser，範圍外造不出任何一列。
+
+    這條擋的正是「只擋 CLI」——任何 import 這個模組的呼叫端都繞不過。
+    """
+    table = cs._history_table(_HISTORY_HTML_2025, "<!--全年戰績-->")
+    with pytest.raises(cs.HistoryScopeUnsupported):
+        cs._parse_history_table(table, year, kind, 0)
+
+
+def _block_browser(monkeypatch: pytest.MonkeyPatch) -> None:
+    """任何情況都不得從測試裡打到官網。
+
+    ⚠️ 這不是防禦性裝飾：跑變異檢驗時把允許清單短路掉，這幾條測試就會一路走到
+    `fetch_history_standings` 的真實 Playwright session——**守衛壞掉的那一刻，
+    驗證守衛的測試自己會去爬官網**。實際發生過一次（M-B，本輪）。
+    """
+    def _no_session():  # pragma: no cover - 只有守衛失效時才會被呼叫
+        raise AssertionError("測試不得開瀏覽器：守衛應該在碰到網路之前就擋下來")
+
+    monkeypatch.setattr("cpbl.ingest._browser.session", _no_session)
+
+
+def test_fetch_refuses_unverified_scope_before_touching_the_network(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """不為一個必定被拒的請求去打官網（爬蟲紅線：每一次冷啟動都是成本）。"""
+    _block_browser(monkeypatch)
+    with pytest.raises(cs.HistoryScopeUnsupported):
+        cs.fetch_history_standings(2013, "A")
+
+
+def test_scrape_history_refuses_unverified_scope_into_the_ledger(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CLI 那一層要拿得到失敗帳（→ 退出碼），而不是吃到一個未處理的例外。"""
+    _block_browser(monkeypatch)
+    monkeypatch.setattr(cs, "conn", _no_db)
+    assert cs.scrape_history_standings(2024) == {}
+    assert [f["kind"] for f in cs.standings_failures()] == ["scope_unsupported"]
+
+
+def test_scrape_history_accepts_the_verified_scope(monkeypatch: pytest.MonkeyPatch) -> None:
+    """孿生斷言：2025/A 仍然走得通（否則上面幾條可能只是「永遠拒絕」）。"""
+    written: list[list[tuple]] = []
+    monkeypatch.setattr(cs, "fetch_history_standings", lambda *a, **k: {0: _history_records()})
+    monkeypatch.setattr(cs, "_local_expectation", lambda *a, **k: (SCHEDULED, OFFICIAL_2025_FULL))
+    monkeypatch.setattr(cs, "conn", lambda: _FakeConn(written))
+    assert cs.scrape_history_standings(2025) == {0: 6}
+    assert cs.standings_failures() == []
+
+
+def test_cli_history_flag_cannot_bypass_the_scope(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`--history` 帶未驗證年份 → 非 0 退出、一列未寫。"""
+    from cpbl.ingest import run_scrape_standings as cli
+
+    _block_browser(monkeypatch)
+    monkeypatch.setattr(cli, "migrate", lambda: None)
+    monkeypatch.setattr(cs, "conn", _no_db)
+    monkeypatch.setattr("sys.argv", ["cpbl-scrape-standings", "2024", "--history"])
+    with pytest.raises(SystemExit) as e:
+        cli.main()
+    assert e.value.code == 1
+
+
+# ── 第二道：範圍內但身分解析不出來（官網改隊名／擴編）→ 拒寫，不靜默省略 ──
+
+
+def test_unmappable_h2h_header_is_rejected_not_silently_dropped() -> None:
+    """⚠️ 靜默省略會讓 h2h 少一個對手卻仍通過 (g,w,t,l) 對帳——數字對、內容缺。"""
+    mangled = _HISTORY_FULL_SEASON_2025.replace(
+        '<th class="num">樂天桃猿</th>', '<th class="num">LamiGo桃猿</th>', 1)
+    with pytest.raises(cs.HistoryIdentityUnresolved, match="H2H 表頭"):
+        cs._parse_history_table(mangled, 2025, "A", 0)
+
+
+def test_unmappable_team_code_is_rejected_not_degraded() -> None:
+    """舊版會退回「第一格文字去掉名次數字」，寫出**數字對、名字錯**的列。改成拒寫。"""
+    mangled = _HISTORY_FULL_SEASON_2025.replace("TeamNo=ACN011", "TeamNo=AJK011", 1)
+    with pytest.raises(cs.HistoryIdentityUnresolved, match="NAME_CODE"):
+        cs._parse_history_table(mangled, 2025, "A", 0)
+
+
+def test_identity_failure_lands_in_the_ledger(monkeypatch: pytest.MonkeyPatch) -> None:
+    """身分解析失敗要與抓取失敗分開記帳，值班才知道該修哪一種。"""
+    def _boom(*_a, **_k):
+        raise cs.HistoryIdentityUnresolved("隊名對不上")
+
+    monkeypatch.setattr(cs, "fetch_history_standings", _boom)
+    monkeypatch.setattr(cs, "conn", _no_db)
+    assert cs.scrape_history_standings(2025) == {}
+    assert [f["kind"] for f in cs.standings_failures()] == ["identity_unresolved"]
+
+
+# ═══════════════════════ R1-02：退出碼 69 的契約文字不得過期 ════════════════════
+
+
+def test_exit_code_69_contract_names_both_sources() -> None:
+    """69 現在有兩個來源，模組 docstring 必須兩個都講（R1-02）。
+
+    讀的是 **import 進來的模組**的 docstring（`inspect.getdoc`），不是檔案文字——
+    測的正是值班從 `pydoc`／原始碼頂端會看到的那段。
+
+    ⚠️ 這條測的是**文件與行為一致**，不是文件存在：
+    `test_daily_chain_reports_standings_failure_without_stopping` 已證行為確實會亮 69。
+
+    ⚠️⚠️ **`scrape-daily.sh`（在 `scripts/` 下）的同一段文字已一併更新，但沒有機器守衛**：
+    要在測試裡讀它就得引用它的路徑，而 `script_inventory` 對「字面」與「分段組裝」兩種
+    形式都會計入 → 那份自動產生的清冊必須重新產生，而它不在本卡的資源宣告內。
+    這是**已知缺口不是疏漏**，補法見交付報告。（連這行註解寫出完整路徑都會被計入。）
+    """
+    import inspect
+
+    from cpbl.ingest import run_refresh_recent as rr
+
+    doc = inspect.getdoc(rr) or ""
+    start = doc.index("結束碼")
+    region = doc[start:doc.index("uv run cpbl-refresh-recent", start)]
+    assert "69" in region, "找錯區塊了"
+    assert "gamelog" in region, "69 的說明應保留 gamelog 這個來源"
+    assert "戰績" in region, "69 的說明未提到官方戰績對帳失敗這個來源"
+
+
+def test_exit_code_69_contract_is_not_the_stale_wording() -> None:
+    """孿生斷言：舊的「只代表 gamelog」措辭必須整檔消失，不只是被新句子稀釋。"""
+    import inspect
+
+    from cpbl.ingest import run_refresh_recent as rr
+
+    source = pathlib.Path(inspect.getsourcefile(rr)).read_text(encoding="utf-8")
+    for stale in ("逐場 gamelog 有失敗但其餘完成", "逐場 gamelog 有失敗、其餘步驟照常完成"):
+        assert stale not in source, f"仍宣稱 69 只代表 gamelog 失敗（{stale}）"

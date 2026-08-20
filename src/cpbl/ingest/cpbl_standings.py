@@ -64,6 +64,18 @@ HISTORY_ACTION = "/standings/historyaction"
 # 順序是官網排版，改版就會錯位且不會報錯；註解是語意標記，改掉會直接找不到 → fail closed。
 HISTORY_SECTIONS = (("<!--上半季戰績-->", 1), ("<!--下半季戰績-->", 2), ("<!--全年戰績-->", 0))
 _TEAMNO_RE = re.compile(r"TeamNo=([A-Z0-9]+)")
+
+# history 路徑**實際驗證過**的範圍。⚠️ 這是寫入路徑的限制，不是 CLI 參數檢查——
+# 擋 CLI 擋不住任何 import 這個模組的呼叫端（R1-01）。
+#
+# 為什麼需要它：對帳判準是 `(g, w, t, l)` 四元組，那四個數字對歷史年份**也會對得上**
+# （2018–2024 實測零差異），所以守衛**攔不住欄位品質問題**——`NAME_CODE` 只有現役六隊，
+# 更早的隊伍（兄弟象、LamiGo…）會讓 `team_name` 與 H2H 對手身分解析不出來，而
+# `/api/v1/standings` 又優先採用這張表。數字對、名字錯，是比數字錯更難發現的污染。
+#
+# 要支援其他年份就把它加進來——**但前提是先補歷史隊名／H2H 身分解析與其測試**，
+# 不是單純放寬這個集合。
+HISTORY_SUPPORTED: frozenset[tuple[int, str]] = frozenset({(2025, "A")})
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 _TOKEN_RE = re.compile(r"RequestVerificationToken:\s*'([^']+)'")
 
@@ -124,6 +136,22 @@ def fetch_standings(year: int, season_code: int, kind_code: str = "A") -> list[t
     return records
 
 
+def require_history_scope(year: int, kind_code: str) -> None:
+    """不在 `HISTORY_SUPPORTED` 內就拒絕。三個入口各自呼叫，理由不同：
+
+    - :func:`scrape_history_standings`：讓失敗進帳、CLI 退出碼呈現，且不動網路。
+    - :func:`fetch_history_standings`：不為一個必定被拒的請求去打官網（爬蟲紅線）。
+    - :func:`_parse_history_table`：**所有** history records 都得經過這裡，
+      任何呼叫端都造不出範圍外的列——這一道才是「寫入路徑限制」本身。
+    """
+    if (year, kind_code) not in HISTORY_SUPPORTED:
+        raise HistoryScopeUnsupported(
+            f"/standings/history 目前只驗證過 {sorted(HISTORY_SUPPORTED)}，"
+            f"不接受 ({year}, {kind_code!r}) → 拒絕解析與寫入。"
+            "⚠️ (g,w,t,l) 對帳攔不住欄位品質問題：歷史年份的數字會對得上，但 team_name "
+            "與 H2H 對手身分解析不出來。要支援請先補身分解析與測試，不是只放寬這個集合。")
+
+
 def _history_table(html: str, tag: str) -> str | None:
     """取出 `tag` 註解之後的第一張表；找不到回 None（由呼叫端 fail closed）。"""
     at = html.find(tag)
@@ -146,12 +174,19 @@ def _parse_history_table(table: str, year: int, kind_code: str, season_code: int
     H2H 的欄位順序**由表頭實抽**，不用固定常數：球隊數逐年不同（2022 只有 5 隊），
     寫死順序在歷史年份會整排錯位。
     """
+    require_history_scope(year, kind_code)
     rows = re.findall(r"<tr>(.*?)</tr>", table, re.S)
     if not rows:
         return []
     ths = [_clean(x) for x in re.findall(r"<th[^>]*>(.*?)</th>", rows[0], re.S)]
     h2h_names = ths[5:-2]  # 排名球隊/出賽數/勝-和-敗/勝率/勝差 … 主場戰績/客場戰績
-    h2h_codes = [NAME_CODE.get(n) for n in h2h_names]
+    unknown = [n for n in h2h_names if n not in NAME_CODE]
+    if unknown:
+        raise HistoryIdentityUnresolved(
+            f"{year} SeasonCode={season_code}：H2H 表頭有無法對應 team_code 的隊名 {unknown}"
+            f"（NAME_CODE 只認現役六隊）→ 拒寫。⚠️ 靜默略過會讓 h2h 少對手卻仍通過 "
+            "(g,w,t,l) 對帳。")
+    h2h_codes = [NAME_CODE[n] for n in h2h_names]
     out: list[tuple] = []
     for tr in rows[1:]:
         tds = re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)
@@ -168,10 +203,13 @@ def _parse_history_table(table: str, year: int, kind_code: str, season_code: int
         gb_raw = _clean(tds[4])
         h2h = {c: _clean(tds[5 + i]) for i, c in enumerate(h2h_codes)
                if c and c != code and re.match(r"\d+-\d+-\d+", _clean(tds[5 + i]))}
-        # 退路的隊名要去掉開頭的名次數字（第一格是「排名＋隊名」兩個 div）。
-        # ⚠️ NAME_CODE 只有現役六隊，歷史年份（兄弟象、LamiGo…）走的就是這條退路。
-        name = next((n for n, c in NAME_CODE.items() if c == code),
-                    re.sub(r"^\d+", "", _clean(tds[0])) or None)
+        name = next((n for n, c in NAME_CODE.items() if c == code), None)
+        if name is None:
+            # ⚠️ 舊版在這裡退回「第一格文字去掉名次數字」。那條退路寫得出東西，但寫出來的
+            # 是**數字對、名字錯**的列——(g,w,t,l) 對帳對它完全無感。改成拒寫。
+            raise HistoryIdentityUnresolved(
+                f"{year} SeasonCode={season_code}：team_code {code} 不在 NAME_CODE 內，"
+                "無法解析隊名 → 拒寫（要支援歷史隊伍請先補身分解析與測試）")
         out.append((
             year, kind_code, season_code, code, name,
             int(rank_m.group(1)) if rank_m else None, int(g) if g.isdigit() else None,
@@ -211,6 +249,7 @@ def fetch_history_standings(year: int, kind_code: str = "A") -> dict[int, list[t
     `form.serialize()`，與 `seasonaction` 用 header 的型態不同（誤用型態的症狀見
     `docs/CPBL_SITE_MAP.md` §5「用錯 token 型態」）。此處兩種都帶，以實測可行為準。
     """
+    require_history_scope(year, kind_code)
     from cpbl.ingest._browser import session
     s = session()
     page = s.page_html(HISTORY_PAGE)
@@ -237,6 +276,20 @@ _COLS = ("year,kind_code,season_code,team_code,team_name,rank,g,w,t,l,win_pct,gb
 # records 元組的欄位位置（與 _COLS 同序）——對帳只用得到這幾個
 _IDX_YEAR, _IDX_KIND, _IDX_SC, _IDX_TEAM = 0, 1, 2, 3
 _IDX_G, _IDX_W, _IDX_T, _IDX_L = 6, 7, 8, 9
+
+
+class HistoryScopeUnsupported(RuntimeError):
+    """要求的 (year, kind_code) 不在 `HISTORY_SUPPORTED` 內 → 拒絕解析、拒絕寫入。"""
+
+
+class HistoryIdentityUnresolved(RuntimeError):
+    """history 表出現無法解析身分的球隊 → 拒寫。
+
+    ⚠️ 這是與 `HISTORY_SUPPORTED` **各自獨立**的第二道：允許清單擋的是「還沒驗證過的
+    範圍」，這一道擋的是「範圍內但實際回應長得不一樣」（官網改隊名、擴編新球團）。
+    少了它，放寬允許清單的人會以為自己只是多加一個年份，實際上是把靜默省略的 H2H
+    與退化的 `team_name` 一起放進來。
+    """
 
 
 class StandingsYearMismatch(RuntimeError):
@@ -426,7 +479,17 @@ def scrape_history_standings(year: int, kind_code: str = "A") -> dict:
     _FAILURES.clear()
     out: dict[int, int] = {}
     try:
+        require_history_scope(year, kind_code)
+    except HistoryScopeUnsupported as e:
+        log.error("history %s(%s) 超出已驗證範圍，未抓取也未寫入：%s", year, kind_code, e)
+        _FAILURES.append({"season_code": None, "kind": "scope_unsupported", "error": str(e)})
+        return out
+    try:
         sections = fetch_history_standings(year, kind_code)
+    except HistoryIdentityUnresolved as e:
+        log.error("history %s 身分解析失敗，未寫入任何資料：%s", year, e)
+        _FAILURES.append({"season_code": None, "kind": "identity_unresolved", "error": str(e)})
+        return out
     except Exception as e:  # noqa: BLE001
         log.warning("history %s 抓取失敗：%s", year, e)
         _FAILURES.append({"season_code": None, "kind": "fetch", "error": str(e)})
