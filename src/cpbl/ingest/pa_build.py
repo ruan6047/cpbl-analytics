@@ -966,8 +966,10 @@ def reconciliation_accept_rejections(
     * ``invariant_violations`` 非空 → 一律拒絕，**任何理由都不能覆寫**（Q6 機器閘門）。
       這是「資料本身錯了」的判定，強於「有人決定接受」。
     * ``outstanding_builds`` 為 0 → 拒絕：接受路徑只能**收尾既有的**
-      reconciliation，不能被拿來對任意場次強制發布。傳 ``None`` 代表呼叫端此刻
-      不查（`build_game` 內層即如此——它不重複查 DB，由外層 pre-flight 負責）。
+      reconciliation，不能被拿來對任意場次強制發布。
+      ⚠️ ``None`` 是「此刻不知道」＝**這一道不評估**，它不是安全預設值。寫入路徑
+      （:func:`build_game`）一律傳實際筆數；iteration 1 的缺陷正是那裡傳了 ``None``，
+      使「有東西可收尾」在寫入原語上從未被檢查過。
     """
     reasons: list[str] = []
     if (year, kind, game) not in ACCEPTED_RECONCILIATIONS:
@@ -997,8 +999,10 @@ def require_reconciliation_accepted(
     """閘門本身。**寫入路徑限制**，不是 CLI 參數檢查。
 
     `cpbl_standings._parse_history_table` 的教訓：擋 CLI 擋不住任何 import 這個模組的
-    呼叫端。故本函式在 :func:`build_game` 內層（真正會寫 published 的地方）也被呼叫一次，
-    任何直接 `build_game(..., accept_reconciliation=True)` 的呼叫端都繞不過。
+    呼叫端。⚠️ 但「在寫入原語裡呼叫閘門」還不夠——iteration 1 查核實證：閘門若只拿到
+    一半輸入（`outstanding_builds=None`、歷史 invariant 由 wrapper 查），呼叫端照樣繞得過，
+    只是把 CLI 換成 wrapper 而已。故 :func:`build_game` 自己查 ``outstanding_reconciliations``
+    並彙整歷史 invariant，三個輸入全部在寫入原語內取得。
     """
     reasons = reconciliation_accept_rejections(
         year, kind, game,
@@ -1294,7 +1298,9 @@ def build_game(
     ``accept_reconciliation``（DATA-PA-REBUILD-GAP1 Q2／Q6）＝收尾路徑。**預設 False，
     批次／每日鏈一律走預設**——`build_scope` 連這個參數都沒有，構造上遞不進來。
     為 True 時：
-      1. 先過 :func:`require_reconciliation_accepted`（碼內封閉清單）——在**任何寫入之前**；
+      1. 先過 :func:`require_reconciliation_accepted`，且三道閘門的**輸入在這裡就備齊**
+         （清單 ＋ 該場既有 ``reconciliation_required`` 的筆數與歷史 invariant）——
+         全部在**任何寫入之前**，包含第一個 ``upsert_source_revision``；
       2. 跳過 ``_existing_equivalent_build`` 短路（同來源的 reconciliation build 已存在，
          不跳過就會 noop 而永遠收不掉）；
       3. reconcile 判定為 ``reconcile`` 且**不變式為空**時才覆寫成 publish，
@@ -1302,9 +1308,27 @@ def build_game(
     ⚠️ 不變式違反永遠勝出：違反時 rec 已被強制為 ``reconcile``，此處**不覆寫**，
     且閘門會再拒一次。
     """
+    outstanding_count: int | None = None
     if accept_reconciliation:
-        # 寫入路徑限制的第一道，刻意放在 fetch 之前：不在清單內的場次連讀都不必讀。
-        require_reconciliation_accepted(year, kind, game)
+        # ⭐ 閘門的**輸入**必須在寫入原語內自己取得，不能靠 wrapper 餵。
+        # iteration 1 查核以兩個密封 cursor 實證：首道閘門只傳 year/kind/game
+        # （`outstanding_builds=None` ＝ 明示略過該檢查）、歷史 invariant 只在 wrapper 查，
+        # 於是直接 `build_game(..., accept_reconciliation=True)` 可在 0 筆待收尾時寫入，
+        # 也可完全不讀歷史 invariant 就 accept_publish。閘門邏輯是對的，位置錯了——
+        # 那正是 `cpbl_standings._parse_history_table`「擋 CLI 擋不住 import 呼叫端」
+        # 的同一個形狀，只是把 CLI 換成 wrapper。
+        # 這兩個 SELECT 刻意放在 `_fetch_events` 之前：讀無副作用，而它們的結果決定
+        # 要不要往下走到第一個寫入（`upsert_source_revision`）。
+        outstanding = outstanding_reconciliations(cur, year, kind, game)
+        outstanding_count = len(outstanding)
+        historical_violations: list[Any] = []
+        for b in outstanding:
+            historical_violations.extend(b["invariant_violations"] or [])
+        require_reconciliation_accepted(
+            year, kind, game,
+            invariant_violations=historical_violations,
+            outstanding_builds=outstanding_count,
+        )
     taxonomy = taxonomy or load_taxonomy()
     events = _fetch_events(cur, year, kind, game)
     if not events:
@@ -1386,9 +1410,14 @@ def build_game(
         )
     # 受控接受：**必須在不變式區塊之後**——違反時 rec 已被強制為 reconcile，
     # 此處的閘門帶著剛算出的 violations 再拒一次，接受清單覆寫不了它。
+    # ⚠️ 三個輸入全帶：`violations` 是本次重算的（歷史的已在函式開頭那道擋過），
+    # `outstanding_count` 沿用開頭同一交易內查到的值——第二道是完整複查，不是半道。
     accepted = False
     if accept_reconciliation and rec.action == "reconcile":
-        require_reconciliation_accepted(year, kind, game, invariant_violations=violations)
+        require_reconciliation_accepted(
+            year, kind, game,
+            invariant_violations=violations, outstanding_builds=outstanding_count,
+        )
         rec = ReconcileResult(
             action="publish", changed_pa_ids=rec.changed_pa_ids,
             added_pa_ids=rec.added_pa_ids, removed_pa_ids=rec.removed_pa_ids,
@@ -1550,9 +1579,15 @@ def outstanding_reconciliations(cur: Any, year: int, kind: str, game: int) -> li
 def accept_reconciliation(year: int, kind: str, game: int) -> dict[str, Any]:
     """收尾單場 ``reconciliation_required``：受控接受 → 重建並 republish（Q2／Q6）。
 
-    交易邊界由本函式持有：**任何閘門拒絕都不留下寫入**（pre-flight 在寫入前拒；
-    build 期間的拒絕 rollback）。成功時回傳一律帶 ``downstream_stale``——
-    Q4 要求接受路徑**不得靜默完成**，否則就是用同一個方式製造本缺陷的上層版本。
+    交易邊界由本函式持有：**任何閘門拒絕都不留下寫入**（閘門在 :func:`build_game`
+    的第一個寫入之前就拒；拒絕與 build 期間的任何例外一律 rollback）。成功時回傳一律帶
+    ``downstream_stale``——Q4 要求接受路徑**不得靜默完成**，否則就是用同一個方式製造
+    本缺陷的上層版本。
+
+    ⚠️ **閘門刻意不在這裡複製一份**：本函式只是 CLI 的便利外殼，把閘門放在這裡等於
+    只擋走這條路的人（iteration 1 查核實證：直接 import `build_game` 可全部繞過）。
+    唯一權威在寫入原語內。這裡的 `outstanding` 查詢**只為回報 ``resolved_builds``**，
+    不參與判定——兩份判定會漂移，一份不會。
     """
     from psycopg.rows import dict_row
 
@@ -1561,17 +1596,6 @@ def accept_reconciliation(year: int, kind: str, game: int) -> dict[str, Any]:
     with conn() as c:
         cur = c.cursor(row_factory=dict_row)
         outstanding = outstanding_reconciliations(cur, year, kind, game)
-        # pre-flight：三道閘門在**任何寫入之前**一次評估完，不短路 → 一次看到全部理由。
-        violations: list[Any] = []
-        for b in outstanding:
-            violations.extend(b["invariant_violations"] or [])
-        reasons = reconciliation_accept_rejections(
-            year, kind, game,
-            invariant_violations=violations, outstanding_builds=len(outstanding),
-        )
-        if reasons:
-            c.rollback()  # 只讀過，沒東西可回；明寫以宣告「拒絕＝零副作用」
-            raise ReconciliationAcceptRejected(year, kind, game, reasons)
 
         try:
             res = build_game(cur, year, kind, game, accept_reconciliation=True)

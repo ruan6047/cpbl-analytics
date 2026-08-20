@@ -100,26 +100,192 @@ def test_rejects_when_nothing_is_outstanding() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 閘門在**寫入路徑**：任何 import 本模組的呼叫端都繞不過 CLI
+# 閘門在**寫入原語**：直接 import `build_game` 的呼叫端一樣繞不過
+#
+# ⚠️ iteration 1 的教訓（查核 R1-001）：閘門「有被呼叫」不等於「擋得住」。當時
+# `build_game` 的首道閘門只傳 year/kind/game（`outstanding_builds=None` ＝ 明示略過），
+# 歷史 invariant 只在 `accept_reconciliation` wrapper 裡查——於是直接呼叫寫入原語，
+# 兩道有效檢查全部落空。**故守衛必須打寫入原語本人，而且要數寫入語句**：
+# 只驗「有拋例外」不足以分辨「擋住了」與「擋錯地方」。
 # ---------------------------------------------------------------------------
-class _ExplodingCursor:
-    """任何 DB 存取都算失敗——用來證明拒絕發生在讀寫之前。"""
+# 2026/D/119 的**真實** livelog 列（逐欄自本機 DB 取出，欄位集＝`pa_build._EVENT_COLS`）。
+# ⚠️ 用真實列不是排場：隨手構造的列會缺欄位而走到另一條路徑，讓探針看起來過了卻沒
+# 推到寫入語句——那樣「零寫入」就變成零資訊。
+REAL_LIVELOG_ROWS_2026_D_119: list[dict[str, Any]] = [
+    {"year": 2026, "kind_code": "D", "game_sno": 119, "main_event_no": "0110001000",
+     "inning_seq": 1, "visiting_home_type": "1", "batting_order": 1, "out_cnt": 0,
+     "ball_cnt": 0, "strike_cnt": 1, "pitch_cnt": 1, "content": "好球沒揮棒。",
+     "action_name": "一壘安打 ", "batting_action_name": "一安",
+     "hitter_acnt": "0000007610", "pitcher_acnt": "0000007570",
+     "first_base": None, "second_base": None, "third_base": None,
+     "is_strike": True, "is_ball": False, "is_score": False,
+     "is_change_player": False, "is_special_event": False,
+     "visiting_score": 0, "home_score": 0},
+    {"year": 2026, "kind_code": "D", "game_sno": 119, "main_event_no": "0110003000",
+     "inning_seq": 1, "visiting_home_type": "1", "batting_order": 1, "out_cnt": 0,
+     "ball_cnt": 0, "strike_cnt": 2, "pitch_cnt": 3,
+     "content": "擊出左外野平飛球，一壘安打 。",
+     "action_name": "一壘安打 ", "batting_action_name": "一安",
+     "hitter_acnt": "0000007610", "pitcher_acnt": "0000007570",
+     "first_base": None, "second_base": None, "third_base": None,
+     "is_strike": True, "is_ball": False, "is_score": False,
+     "is_change_player": False, "is_special_event": False,
+     "visiting_score": 0, "home_score": 0},
+]
 
-    def execute(self, *_a: Any, **_k: Any) -> None:
-        raise AssertionError("閘門必須在任何 DB 存取之前拒絕")
+# 既有 published build 的一個 PA（pa_id 與上面兩列產生的不同 → reconcile 而非首建
+# publish，接受路徑才會真的被引動）。
+PUBLISHED_PA_ROW: dict[str, Any] = {
+    "pa_id": "00000000-0000-5000-8000-000000000001",
+    "hitter_acnt": "0000009999", "end_hitter_acnt": "0000009999",
+    "start_pitcher_acnt": "0000007570", "end_pitcher_acnt": "0000007570",
+    "result_action": "三振", "start_event_no": "0110900000",
+    "end_event_no": "0110900000", "member_fps": ["deadbeef"],
+}
 
-    def fetchone(self) -> None:
-        raise AssertionError("閘門必須在任何 DB 存取之前拒絕")
 
-    def fetchall(self) -> None:
-        raise AssertionError("閘門必須在任何 DB 存取之前拒絕")
+class _WriteCountingCursor:
+    """密封 cursor：餵得動整條 build 路徑，並**逐句記錄寫入語句**。
+
+    路由以 SQL 片段比對，回應足以讓 `build_game` 一路走到 INSERT／UPDATE；
+    `mutations` 為 0 才代表「拒絕發生在任何寫入之前」。
+    """
+
+    def __init__(self, outstanding: list[dict[str, Any]],
+                 published_pas: list[dict[str, Any]] | None = None) -> None:
+        self.outstanding = outstanding
+        self.published_pas = published_pas or []
+        self.statements: list[str] = []
+        self.mutations: list[str] = []
+        self.rowcount = 0  # `build_game` 的 accept 收尾 log 會讀它
+        self._pending: tuple[str, Any] = ("one", None)
+        self._pa_row_id = 0
+
+    @staticmethod
+    def _norm(sql: str) -> str:
+        return " ".join(sql.split())
+
+    def _record(self, sql: str) -> str:
+        norm = self._norm(sql)
+        self.statements.append(norm)
+        if norm.split(" ", 1)[0].upper() in {"INSERT", "UPDATE", "DELETE"}:
+            self.mutations.append(norm)
+        return norm
+
+    def execute(self, sql: str, _params: Any = None) -> _WriteCountingCursor:
+        norm = self._record(sql)
+        if "state='reconciliation_required'" in norm:
+            self._pending = ("all", self.outstanding)
+        elif "FROM cpbl.game_livelog" in norm:
+            self._pending = ("all", REAL_LIVELOG_ROWS_2026_D_119)
+        elif "FROM cpbl.pitch_tracking" in norm:
+            self._pending = ("all", [])
+        elif "INSERT INTO cpbl.game_recap_source_revisions" in norm:
+            self._pending = ("one", {"id": 9001})
+        elif "INSERT INTO cpbl.game_plate_appearances" in norm:
+            self._pa_row_id += 1
+            self._pending = ("one", {"pa_row_id": self._pa_row_id})
+        elif "FROM cpbl.game_plate_appearances pa" in norm:
+            self._pending = ("all", self.published_pas)
+        else:
+            self._pending = ("one", None)
+        return self
+
+    def executemany(self, sql: str, _seq: Any) -> None:
+        self._record(sql)
+
+    def fetchone(self) -> Any:
+        kind, value = self._pending
+        return value if kind == "one" else (value[0] if value else None)
+
+    def fetchall(self) -> list[Any]:
+        kind, value = self._pending
+        return value if kind == "all" else ([value] if value else [])
 
 
-def test_build_game_refuses_unlisted_game_before_touching_db() -> None:
+def _iteration1_gate(year: int, kind: str, game: int, **_dropped: Any) -> None:
+    """**逐字復刻 iteration 1 的閘門行為**：只看清單，丟掉兩個資料相依的輸入。
+
+    用途是變異檢驗——證明 `_WriteCountingCursor` 真的看得見寫入。若下面兩條
+    「零寫入」守衛在這個壞閘門下**依然**是零寫入，那它們就沒有在證明任何事。
+    """
+    reasons = pb.reconciliation_accept_rejections(year, kind, game)
+    if reasons:
+        raise pb.ReconciliationAcceptRejected(year, kind, game, reasons)
+
+
+def test_build_game_refuses_unlisted_game_without_writing() -> None:
     """⭐ 最深的一道：擋 CLI 擋不住 import 本模組的呼叫端，故 `build_game` 自己要擋。"""
+    cur = _WriteCountingCursor(outstanding=[])
     with pytest.raises(pb.ReconciliationAcceptRejected) as exc:
-        pb.build_game(_ExplodingCursor(), 2026, "D", 118, accept_reconciliation=True)
+        pb.build_game(cur, 2026, "D", 118, accept_reconciliation=True)
     assert any(r.startswith(pb.REJECT_NOT_ALLOWLISTED) for r in exc.value.reasons)
+    assert cur.mutations == []
+
+
+def test_build_game_refuses_allowlisted_game_with_nothing_outstanding() -> None:
+    """⭐ R1-001 之一：清單內、但**沒有東西可收尾** → 寫入原語自己必須拒絕。
+
+    iteration 1 這裡回 `published` 並抵達 3 個寫入語句——接受路徑被拿來對任意
+    allowlisted 場次強制發布。閘門邏輯本來就對，錯的是它沒拿到 `outstanding_builds`。
+    """
+    cur = _WriteCountingCursor(outstanding=[])
+    with pytest.raises(pb.ReconciliationAcceptRejected) as exc:
+        pb.build_game(cur, 2026, "D", 119, accept_reconciliation=True)
+
+    assert [r.split(":")[0] for r in exc.value.reasons] == [pb.REJECT_NOTHING_OUTSTANDING]
+    assert cur.mutations == [], f"拒絕前不得有任何寫入，實際抵達：{cur.mutations}"
+    # 讀是允許的：那兩個 SELECT 正是閘門的輸入來源，且它們必須在第一個寫入之前。
+    assert any("state='reconciliation_required'" in s for s in cur.statements)
+
+
+def test_build_game_refuses_historical_invariant_even_when_rebuild_is_clean() -> None:
+    """⭐ R1-001 之二：**歷史** `validation_summary` 的不變式必須擋得住。
+
+    本次重算完全乾淨（兩列真實 livelog 不可能違反半局出局數），所以第二道閘門
+    什麼也抓不到——唯一能擋的是待收尾 build 上記著的歷史 invariant。iteration 1
+    在這個情境下完成 `accept_publish`、抵達 4 個寫入語句，log 還印「resolved 0
+    outstanding build」。
+    """
+    cur = _WriteCountingCursor(
+        outstanding=[{
+            "build_id": "11111111-1111-4111-8111-111111111111",
+            "livelog_revision_id": 9001, "built_at": None,
+            "invariant_violations": REAL_INVARIANT_2019_A_173,
+        }],
+        published_pas=[PUBLISHED_PA_ROW],
+    )
+    with pytest.raises(pb.ReconciliationAcceptRejected) as exc:
+        pb.build_game(cur, 2026, "D", 119, accept_reconciliation=True)
+
+    assert [r.split(":")[0] for r in exc.value.reasons] == [pb.REJECT_INVARIANT]
+    assert cur.mutations == [], f"拒絕前不得有任何寫入，實際抵達：{cur.mutations}"
+
+
+@pytest.mark.parametrize("outstanding,published_pas", [
+    ([], None),
+    ([{"build_id": "11111111-1111-4111-8111-111111111111",
+       "livelog_revision_id": 9001, "built_at": None,
+       "invariant_violations": REAL_INVARIANT_2019_A_173}], [PUBLISHED_PA_ROW]),
+])
+def test_write_counting_probe_is_not_vacuous(
+    monkeypatch: pytest.MonkeyPatch,
+    outstanding: list[dict[str, Any]],
+    published_pas: list[dict[str, Any]] | None,
+) -> None:
+    """⭐ 變異檢驗：把閘門換回 iteration 1 的版本，同一支探針**必須**看到寫入。
+
+    先講什麼結果會推翻上面兩條守衛：若這條也是零寫入，代表探針根本推不到寫入語句，
+    那「`mutations == []`」證明的只是探針自己短命，不是閘門擋住了。
+    """
+    monkeypatch.setattr(pb, "require_reconciliation_accepted", _iteration1_gate)
+    cur = _WriteCountingCursor(outstanding=outstanding, published_pas=published_pas)
+
+    pb.build_game(cur, 2026, "D", 119, accept_reconciliation=True)
+
+    assert cur.mutations, "探針推不到寫入語句 → 零寫入斷言是零資訊"
+    assert any(s.startswith("INSERT INTO cpbl.game_recap_source_revisions")
+               for s in cur.mutations)
 
 
 def test_build_game_default_does_not_engage_accept_path() -> None:
