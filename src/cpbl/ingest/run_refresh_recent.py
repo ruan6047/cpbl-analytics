@@ -29,7 +29,7 @@ import sys
 from datetime import date, timedelta
 from typing import Any
 
-from cpbl.completion import completed_games_sql
+from cpbl.completion import TAIPEI_TODAY_SQL, completed_games_sql
 from cpbl.config import settings
 from cpbl.db import conn, migrate
 from cpbl.ingest.championships import build_championships
@@ -97,10 +97,14 @@ def _record_advanced_revisions(
 
 def _completed_snos(year: int, days: list[date], kind_code: str = "A") -> list[int]:
     # 一/二軍 game_sno 為各自序列，必須依 kind 過濾（否則 D 的 sno 會混入 A 流程重爬錯場）
+    # ⚠️ 日界**明示傳台北**，不可用 completed_games_sql() 的預設（UTC 的 CURRENT_DATE）：
+    # `days` 是 `date.today()` 算出來的**台北日**，混用 UTC 日界會在台北 00:00–08:00
+    # 這 8 小時把「今天」整個排除掉——那是改動前不存在的行為（改動前根本沒有日界）。
+    # info.py 既有註解正警告同一個陷阱。日界落差本身見 DATA-TZ-COMPLETION-SKEW1（#110）。
     with conn() as c:
         rows = c.execute(
             "SELECT game_sno FROM cpbl.games WHERE year = %s AND kind_code = %s AND game_date = ANY(%s) "
-            f"AND {completed_games_sql()} ORDER BY game_sno",
+            f"AND {completed_games_sql(TAIPEI_TODAY_SQL)} ORDER BY game_sno",
             (year, kind_code, days),
         ).fetchall()
     return [r[0] for r in rows]
@@ -522,12 +526,16 @@ def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict
 
 
 def _recent_counts(year: int, days: list[date]) -> list[tuple[date, int, int]]:
-    """回傳 [(日期, 總場次, 已完成場次)]（含未開打）。"""
+    """回傳 [(日期, 總場次, 已完成場次)]（含未開打）。
+
+    ⚠️ FILTER 內的日界同樣**明示傳台北**（理由見 `_completed_snos`）。外層 `count(*)`
+    刻意不加任何條件——回傳的是「含未開打」的總場次，動它會改變 refresh_log 的語意。
+    """
     with conn() as c:
         rows = c.execute(
             f"""
             SELECT game_date, count(*),
-                   count(*) FILTER (WHERE {completed_games_sql()})
+                   count(*) FILTER (WHERE {completed_games_sql(TAIPEI_TODAY_SQL)})
             FROM cpbl.games
             WHERE year = %s AND game_date = ANY(%s)
             GROUP BY game_date ORDER BY game_date
