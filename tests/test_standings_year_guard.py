@@ -655,30 +655,51 @@ def test_identity_failure_lands_in_the_ledger(monkeypatch: pytest.MonkeyPatch) -
 # ═══════════════════════ R1-02：退出碼 69 的契約文字不得過期 ════════════════════
 
 
-def test_exit_code_69_contract_names_both_sources() -> None:
-    """69 現在有兩個來源，模組 docstring 必須兩個都講（R1-02）。
+# 唯一一處 shell 路徑引用，兩條測試共用。⚠️ `script_inventory` 對字面路徑與逐段組裝
+# 兩種形式都會計入，所以引用一次就要重新產生那份自動清冊——那是需求方 2026-08-20
+# 授權擴充宣告後才做得到的事，不是隨手加的一行。
+# ⚠️ 這幾行註解刻意不引用組裝形式的程式碼片段：`split_path_sites()` 的正則不分辨
+# 程式碼與註解，寫出來會讓清冊多記一個並不存在的組裝點（實測命中，已修）。
+_SCRAPE_DAILY = pathlib.Path(__file__).resolve().parents[1] / "scripts/scrape-daily.sh"
 
-    讀的是 **import 進來的模組**的 docstring（`inspect.getdoc`），不是檔案文字——
-    測的正是值班從 `pydoc`／原始碼頂端會看到的那段。
 
-    ⚠️ 這條測的是**文件與行為一致**，不是文件存在：
-    `test_daily_chain_reports_standings_failure_without_stopping` 已證行為確實會亮 69。
+def _exit_code_69_contract_regions() -> dict[str, str]:
+    """兩處**值班真的會讀到**的 69 說明：模組 docstring 與 `--help` 的離開碼段。
 
-    ⚠️⚠️ **`scrape-daily.sh`（在 `scripts/` 下）的同一段文字已一併更新，但沒有機器守衛**：
-    要在測試裡讀它就得引用它的路徑，而 `script_inventory` 對「字面」與「分段組裝」兩種
-    形式都會計入 → 那份自動產生的清冊必須重新產生，而它不在本卡的資源宣告內。
-    這是**已知缺口不是疏漏**，補法見交付報告。（連這行註解寫出完整路徑都會被計入。）
+    Python 那邊讀 **import 進來的模組**的 docstring（不是檔案文字），測的正是
+    `pydoc`／原始碼頂端看到的那段；shell 那邊取 `--help` heredoc 裡的離開碼區塊。
+
+    ⚠️ 刻意不對整檔 grep：整檔一定找得到「戰績」（這兩支本來就在處理戰績），
+    那樣的斷言不管文字有沒有更新都會通過——零資訊。
     """
     import inspect
 
     from cpbl.ingest import run_refresh_recent as rr
 
     doc = inspect.getdoc(rr) or ""
-    start = doc.index("結束碼")
-    region = doc[start:doc.index("uv run cpbl-refresh-recent", start)]
-    assert "69" in region, "找錯區塊了"
-    assert "gamelog" in region, "69 的說明應保留 gamelog 這個來源"
-    assert "戰績" in region, "69 的說明未提到官方戰績對帳失敗這個來源"
+    py_start = doc.index("結束碼")
+    sh = _SCRAPE_DAILY.read_text(encoding="utf-8")
+    sh_start = sh.index("離開碼")
+    return {
+        "run_refresh_recent 模組 docstring":
+            doc[py_start:doc.index("uv run cpbl-refresh-recent", py_start)],
+        f"{_SCRAPE_DAILY.name} --help 離開碼段":
+            sh[sh_start:sh.index("背景：", sh_start)],
+    }
+
+
+def test_exit_code_69_contract_names_both_sources() -> None:
+    """69 現在有兩個來源，**兩處**契約文字都必須兩個都講（R1-02）。
+
+    ⚠️ 這條測的是**文件與行為一致**，不是文件存在：
+    `test_daily_chain_reports_standings_failure_without_stopping` 已證行為確實會亮 69。
+    """
+    regions = _exit_code_69_contract_regions()
+    assert len(regions) == 2, "兩處都要驗——只驗 Python 那半正是 R1 之後留下的缺口"
+    for where, region in regions.items():
+        assert "69" in region, f"{where}：找錯區塊了"
+        assert "gamelog" in region, f"{where}：69 的說明應保留 gamelog 這個來源"
+        assert "戰績" in region, f"{where}：69 的說明未提到官方戰績對帳失敗這個來源"
 
 
 def test_exit_code_69_contract_is_not_the_stale_wording() -> None:
@@ -687,6 +708,8 @@ def test_exit_code_69_contract_is_not_the_stale_wording() -> None:
 
     from cpbl.ingest import run_refresh_recent as rr
 
-    source = pathlib.Path(inspect.getsourcefile(rr)).read_text(encoding="utf-8")
-    for stale in ("逐場 gamelog 有失敗但其餘完成", "逐場 gamelog 有失敗、其餘步驟照常完成"):
-        assert stale not in source, f"仍宣稱 69 只代表 gamelog 失敗（{stale}）"
+    targets = (pathlib.Path(inspect.getsourcefile(rr)), _SCRAPE_DAILY)
+    for target in targets:
+        text = target.read_text(encoding="utf-8")
+        for stale in ("逐場 gamelog 有失敗但其餘完成", "逐場 gamelog 有失敗、其餘步驟照常完成"):
+            assert stale not in text, f"{target.name}：仍宣稱 69 只代表 gamelog 失敗（{stale}）"
