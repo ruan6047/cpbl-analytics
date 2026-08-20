@@ -18,7 +18,9 @@
 **什麼結果會推翻這個守衛**（先講出來再寫，見 vacuous-check-and-vacuous-evidence）：
 
 * 在 ``src/`` 任何一支檔案新寫一行 ``home_score + away_score > 0`` 而
-  :func:`scan_violations` 不回報它 → 守衛無效。
+  :func:`scan_violations` 不回報它 → 守衛無效。**開發過程實際發生過一次**：初版逐行
+  掃描漏掉「把條件拆成兩行字串字面」的寫法，改成以 ast 讀字串字面（相鄰字面已由
+  parser 合併）才補上，見 :func:`test_condition_split_across_source_lines_is_caught`。
 * 把 ``src/`` 的手寫條件全部改成 helper 呼叫後守衛仍紅 → 守衛誤傷。
 * allowlist 裡放著一個已經不存在的項目而測試仍綠 → allowlist 變成永久逃生門。
 
@@ -127,14 +129,50 @@ ALLOWLIST: dict[str, Allowed] = {
 # ---------------------------------------------------------------------------
 # 掃描
 # ---------------------------------------------------------------------------
-def _non_code_lines(source: str) -> set[int]:
-    """回傳「註解 ＋ docstring」佔用的行號集合。
+def _docstring_ids(tree: ast.AST) -> set[int]:
+    """module/class/function 的 docstring 節點 id。
 
-    這是**位置性**規則（tokenize 給註解、ast 給 docstring 的既定位置），不是語意猜測：
-    SQL 一律活在一般字串字面裡，docstring 與註解不會被送進 DB。排除它們是為了不讓
-    「解釋這個反模式的散文」變成假警報——`api/routers/daily.py` 的 `_completed`
-    docstring 逐字寫著它**不再**自己寫一份，那正是我們要的行為，不該被守衛罵。
+    這是**位置性**規則（ast 的既定位置），不是語意猜測：SQL 一律活在一般字串字面裡，
+    docstring 不會被送進 DB。排除它是為了不讓「解釋這個反模式的散文」變成假警報——
+    `api/routers/daily.py` 的 `_completed` docstring 逐字寫著它**不再**自己寫一份，
+    那正是我們要的行為，不該被守衛罵。
     """
+    holders = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+    ids: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, holders):
+            continue
+        body = getattr(node, "body", None)
+        if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) \
+                and isinstance(body[0].value.value, str):
+            ids.add(id(body[0].value))
+    return ids
+
+
+def _string_nodes(tree: ast.AST, skip_ids: set[int]) -> list[tuple[ast.AST, str]]:
+    """回傳 (節點, 文字)：**相鄰字串字面已由 parser 合併成單一節點**。
+
+    這是「跨行拆寫」擋得住的關鍵——`"AND home_score + "` 接 `"away_score > 0"` 在原始碼
+    是兩行、逐行掃描抓不到（實測會漏），但 ast 看到的是同一個 Constant。
+    f-string 的 `{...}` 以 NUL 佔位，避免把被運算式隔開的兩段誤黏成一個條件。
+    """
+    out: list[tuple[ast.AST, str]] = []
+    # f-string 的內層 Constant 由 JoinedStr 整段代表，不可再各自算一次（會重複計數）
+    inner = {id(v) for n in ast.walk(tree) if isinstance(n, ast.JoinedStr) for v in n.values}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            if id(node) not in skip_ids and id(node) not in inner:
+                out.append((node, node.value))
+        elif isinstance(node, ast.JoinedStr):
+            parts = []
+            for v in node.values:
+                parts.append(v.value if isinstance(v, ast.Constant)
+                             and isinstance(v.value, str) else "\x00")
+            out.append((node, "".join(parts)))
+    return out
+
+
+def _comment_lines(source: str) -> set[int]:
     skip: set[int] = set()
     try:
         for tok in tokenize.generate_tokens(io.StringIO(source).readline):
@@ -142,39 +180,48 @@ def _non_code_lines(source: str) -> set[int]:
                 skip.update(range(tok.start[0], tok.end[0] + 1))
     except (tokenize.TokenError, IndentationError, SyntaxError):
         pass
-
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
-        return skip
-    holders = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
-    for node in ast.walk(tree):
-        if not isinstance(node, holders):
-            continue
-        body = getattr(node, "body", None)
-        if not body:
-            continue
-        first = body[0]
-        if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) \
-                and isinstance(first.value.value, str):
-            skip.update(range(first.lineno, (first.end_lineno or first.lineno) + 1))
     return skip
 
 
 def scan_file(path: Path) -> list[Violation]:
+    """掃一支檔案，兩趟。
+
+    第一趟掃**字串字面**（走 ast，相鄰字面已合併，故跨行拆寫照樣抓）；第二趟逐行掃
+    **其餘程式碼**，接住 Python 端的 `(home_score or 0) + (away_score or 0) > 0` 這類寫法。
+    第二趟跳過第一趟已涵蓋的字串行與註解／docstring，避免同一處被數兩次——allowlist
+    是**精確筆數**比對，重複計數會讓它整個失準。
+    """
     source = path.read_text(encoding="utf-8")
-    skip = _non_code_lines(source)
     try:
         rel = path.relative_to(REPO_ROOT).as_posix()
     except ValueError:   # tmp_path 等 repo 外的樣本（可證偽性自測用）
         rel = path.as_posix()
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+
     out: list[Violation] = []
+    covered: set[int] = set()
+    for node, text in _string_nodes(tree, _docstring_ids(tree)):
+        lo = getattr(node, "lineno", 1)
+        hi = getattr(node, "end_lineno", lo) or lo
+        covered.update(range(lo, hi + 1))
+        for m in FAMILY_RE.finditer(text):
+            out.append(Violation(rel, lo, " ".join(m.group(0).split())))
+
+    skip = covered | _comment_lines(source)
+    for node in ast.walk(tree):   # docstring 的行範圍（其節點已被 skip_ids 排除）
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) \
+                and isinstance(node.value.value, str):
+            skip.update(range(node.lineno, (node.end_lineno or node.lineno) + 1))
+
     for lineno, line in enumerate(source.splitlines(), 1):
         if lineno in skip:
             continue
         for m in FAMILY_RE.finditer(line):
-            out.append(Violation(rel, lineno, m.group(0).strip()))
-    return out
+            out.append(Violation(rel, lineno, " ".join(m.group(0).split())))
+    return sorted(out, key=lambda v: (v.lineno, v.text))
 
 
 def scan_violations(root: Path = SRC_ROOT) -> list[Violation]:
@@ -248,6 +295,16 @@ _INJECTION_SAMPLES = [
     "done = (home_score or 0) + (away_score or 0) > 0",
 ]
 
+# 跨行拆寫：逐行掃描抓不到（開發過程實測**確實漏掉**），靠 ast 把相鄰字串字面合併才擋得住。
+_SPLIT_SAMPLES = [
+    'def q(c):\n    c.execute(\n        "SELECT 1 FROM cpbl.games WHERE year=%s "\n'
+    '        "AND home_score + "\n        "away_score > 0")\n',
+    'def q(c):\n    c.execute(\n        "SELECT 1 FROM cpbl.games "\n'
+    '        "WHERE home_score + away_score "\n        "> 0")\n',
+    'def q(c):\n    c.execute(\n        f"SELECT 1 FROM cpbl.games WHERE year={y} "\n'
+    '        "AND home_score + away_score > 0")\n',
+]
+
 
 def test_injected_condition_is_caught(tmp_path: Path) -> None:
     """注入一處新的手寫條件 → 必須被抓到（本測試的核心：守衛有能力失敗）。"""
@@ -255,6 +312,15 @@ def test_injected_condition_is_caught(tmp_path: Path) -> None:
         f = tmp_path / f"injected_{i}.py"
         f.write_text(f"def q():\n    {snippet}\n", encoding="utf-8")
         assert scan_file(f), f"未抓到注入樣本：{snippet}"
+
+
+def test_condition_split_across_source_lines_is_caught(tmp_path: Path) -> None:
+    """把條件拆成好幾行字串字面照樣要被抓到，而且**只算一處**（不得重複計數）。"""
+    for i, snippet in enumerate(_SPLIT_SAMPLES):
+        f = tmp_path / f"split_{i}.py"
+        f.write_text(snippet, encoding="utf-8")
+        hits = scan_file(f)
+        assert len(hits) == 1, f"跨行樣本 {i} 命中 {len(hits)} 次（應為 1）：{hits}"
 
 
 _INNOCENT_SAMPLES = [
