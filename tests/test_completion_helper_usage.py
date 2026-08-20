@@ -28,10 +28,17 @@
 :func:`test_helper_call_sites_are_not_caught`、
 :func:`test_allowlist_counts_are_exact`（**精確相等**，不是「≤」）釘住。
 
-⚠️ **allowlist 的構造性限制**：以「檔案 → 允許筆數 ＋ 承接卡號」記錄，且比對是**精確
-相等**。少一筆（有人清掉了）會紅，逼 allowlist 縮小；多一筆（有人新寫）也會紅。
-每一項都必須帶卡號，沒有卡號的項目在 :func:`test_allowlist_entries_carry_a_card`
-就被擋下——一個什麼都放行、或放行了卻沒人負責清掉的 allowlist 等於沒有守衛。
+⚠️ **allowlist 的構造性限制**：以「檔案 → 精確筆數 ＋ 標記」記錄，比對是**精確相等**。
+少一筆（有人清掉了）會紅，逼 allowlist 一起縮小；多一筆（有人新寫）也會紅。
+
+標記分兩種，**不是同一件事**（:data:`PENDING` / :data:`REVIEWED`）：確實是完成判定、
+待遷移的必須指名承接卡；逐處讀過、**不是**完成判定的（例如「還沒開打」「即將到來」的
+候選撈取）標成已審視且**不得**帶卡號。少了後面這一種，承接卡做完之後那幾處還會留在
+allowlist 裡，被下一個人誤讀成「遷移沒做完」——標記本身就是交接資訊。
+
+⚠️ 承接卡的資源宣告必須真的涵蓋該檔案。曾誤填 ``#90 DATA-TIE-REMEDY1``：它的資源宣告
+只有 ``db:local:table:game_completion_evidence``、一個 ``.py`` 都沒有，結案時不會碰任何
+一處，allowlist 於是**永不縮小**——一個指向不會來的人的卡號，和沒有卡號是同一件事。
 """
 
 from __future__ import annotations
@@ -74,11 +81,19 @@ class Violation:
     text: str          # 命中的運算式原文
 
 
+# allowlist 的兩種標記。⚠️ 缺了「已審視」這一種的話，承接卡做完後那幾處還會留在
+# allowlist 裡，會被下一個人誤讀成「遷移沒做完」——標記本身就是交接資訊。
+PENDING = "pending-migration"          # 是完成判定、待遷移；**必須**帶承接卡號
+REVIEWED = "reviewed-not-a-defect"     # 逐處讀過、不是完成判定；**不得**帶卡號（沒有人要來改它）
+STATUSES = (PENDING, REVIEWED)
+
+
 @dataclass(frozen=True)
 class Allowed:
     count: int
-    card: str          # 承接卡號，格式 ``#<issue>``
-    note: str = ""
+    status: str        # PENDING | REVIEWED
+    card: str = ""     # PENDING 必填 ``#<issue>``；REVIEWED 必須留空
+    note: str = ""     # 一律必填：PENDING 寫遷移方向，REVIEWED 寫「為什麼不是缺陷」
 
 
 # ---------------------------------------------------------------------------
@@ -87,42 +102,56 @@ class Allowed:
 # ⚠️ 這裡**只能**放「已經存在、且已有承接卡負責清掉」的手寫條件。新寫的一律修掉，
 # 不要往這裡加。每一項的 count 是**精確**筆數，比對不相等即紅。
 # ---------------------------------------------------------------------------
-# ⚠️ **承接卡歸屬待 PM 裁定**：DEV-COMPLETION-CONDITION-GUARD1（#153）派工時指定
-# 「B 群 7 處必須進 allowlist、每項填卡號」，但派工包同時載明**承接卡尚未開立**。
-# 本檔一律先歸屬 **#90 DATA-TIE-REMEDY1**（OPEN）——那是 `cpbl.completion` 模組 docstring
-# 自己指名的兩代判準切換負責卡（鏈端 Phase 2、非鏈端切新判準），不是隨手填的佔位；
-# PM 開出承接卡後請整批換號。
+# ⚠️ 這裡**只能**放「已經存在」的手寫條件，且必須擇一標記：
 #
-# ⚠️ 另：實際掃描結果**遠多於派工包所列的 B 群 7 處**——A 群修掉後仍有 17 檔 22 處。
-# 差額來自判準改為「字面存在性」（乙案）：原盤點的「9 處無界線候選」是舊啟發式的產物，
-# 另外 13 處（自帶手寫日期界線者）在乙案下同樣是手寫條件，同樣違規。詳見交付報告。
-_CARD = "#90"
+# * PENDING —— 確實是完成判定、待遷移，**必須**指名承接卡。卡的資源宣告要真的涵蓋
+#   這支檔案，否則卡結案時不會碰它，allowlist 就永遠縮不掉。
+#   （曾誤填 #90 DATA-TIE-REMEDY1：它的資源宣告只有
+#   `db:local:table:game_completion_evidence`，一個 .py 都沒有 → 永不縮小。）
+# * REVIEWED —— 逐處讀過、**不是**完成判定（例如「還沒開打」「即將到來」的候選撈取），
+#   沒有承接卡也不該有。note 必須寫清楚為什麼。
+#
+# 新寫的一律修掉，不要往這裡加。count 是**精確**筆數，比對不相等即紅。
+
+# 非鏈端：應改用證據感知的新判準 completed_games_sql_with_evidence(alias)
+_NONCHAIN = "#156"      # DATA-COMPLETION-MIGRATE-NONCHAIN1
+# 每日 refresh 鏈：沿用舊判準，等 #53 G4 Phase B 之後的 Phase 2 才切
+_CHAIN = "#157"         # DATA-COMPLETION-MIGRATE-CHAIN1（阻塞於 #53）
 
 ALLOWLIST: dict[str, Allowed] = {
-    # --- B 群（派工包點名的 7 處；非 refresh 鏈，應改用新判準 with_evidence） ---
-    "src/cpbl/api/routers/people.py": Allowed(1, _CARD, "B群；ORDER BY game_date DESC LIMIT 15，假完成場直接佔第一名"),
-    "src/cpbl/api/routers/teams.py": Allowed(1, _CARD, "B群"),
-    "src/cpbl/api/routers/venues.py": Allowed(1, _CARD, "B群"),
-    "src/cpbl/models/pa_sim.py": Allowed(1, _CARD, "B群"),
-    "src/cpbl/models/pitch_type.py": Allowed(1, _CARD, "B群"),
-    "src/cpbl/models/special_records.py": Allowed(1, _CARD, "B群；同檔另有 _DONE 已走 with_evidence"),
-    "src/cpbl/models/winprob.py": Allowed(1, _CARD, "B群"),
+    # --- 非鏈端待遷移（#156）：12 檔 16 處 ---
+    "src/cpbl/api/routers/people.py": Allowed(
+        1, PENDING, _NONCHAIN, "ORDER BY game_date DESC LIMIT 15，假完成場會直接佔第一名（已知最嚴重）"),
+    "src/cpbl/api/routers/teams.py": Allowed(1, PENDING, _NONCHAIN, "同檔 _DONE 已走 with_evidence，此處漏網"),
+    "src/cpbl/api/routers/venues.py": Allowed(1, PENDING, _NONCHAIN, "球場別彙總"),
+    "src/cpbl/api/routers/recap.py": Allowed(
+        1, PENDING, _NONCHAIN, "coalesce() 包裝的變體，2026-08-19 機械盤點的正則掃不到"),
+    "src/cpbl/api/team_focus.py": Allowed(1, PENDING, _NONCHAIN, "自帶手寫日界，乙案下仍是手寫條件"),
+    "src/cpbl/api/team_hotzone.py": Allowed(
+        1, PENDING, _NONCHAIN, "自帶手寫日界；同檔另有 with_evidence 呼叫端，兩套並存"),
+    "src/cpbl/models/pa_sim.py": Allowed(1, PENDING, _NONCHAIN, "打席模擬取樣母體"),
+    "src/cpbl/models/pitch_type.py": Allowed(1, PENDING, _NONCHAIN, "球種分類取樣母體"),
+    "src/cpbl/models/special_records.py": Allowed(
+        1, PENDING, _NONCHAIN, "同檔 _DONE 已走 with_evidence，此處漏網"),
+    "src/cpbl/models/winprob.py": Allowed(1, PENDING, _NONCHAIN, "勝率模型取樣母體"),
+    "src/cpbl/models/winprob_strength.py": Allowed(4, PENDING, _NONCHAIN, "自帶手寫日界，4 處"),
+    "src/cpbl/models/winprob_val.py": Allowed(2, PENDING, _NONCHAIN, "自帶手寫日界，2 處"),
 
-    # --- 每日 refresh 鏈（自帶手寫日期界線；依 completion.py docstring 屬 Phase 2 才切） ---
-    "src/cpbl/ingest/cpbl_gamelog.py": Allowed(2, _CARD, "refresh 鏈目標場清單；等 #53 G4 Phase B"),
-    "src/cpbl/ingest/cpbl_pitch_tracking.py": Allowed(1, _CARD, "refresh 鏈目標場清單；等 #53 G4 Phase B"),
+    # --- 每日 refresh 鏈待遷移（#157，阻塞於 #53 G4 Phase B）：2 檔 3 處 ---
+    "src/cpbl/ingest/cpbl_gamelog.py": Allowed(2, PENDING, _CHAIN, "鏈端目標場清單；換判準＝換爬取母體"),
+    "src/cpbl/ingest/cpbl_pitch_tracking.py": Allowed(1, PENDING, _CHAIN, "鏈端目標場清單；換判準＝換爬取母體"),
 
-    # --- 非鏈端、但不在派工包盤點內（乙案下才浮現） ---
-    "src/cpbl/api/routers/recap.py": Allowed(1, _CARD, "coalesce() 包裝的變體，原盤點正則掃不到"),
-    "src/cpbl/api/team_focus.py": Allowed(1, _CARD, "自帶手寫日界，乙案下仍違規"),
-    "src/cpbl/api/team_hotzone.py": Allowed(1, _CARD, "自帶手寫日界；同檔另有 with_evidence 呼叫端"),
-    "src/cpbl/models/winprob_strength.py": Allowed(4, _CARD, "自帶手寫日界，乙案下仍違規"),
-    "src/cpbl/models/winprob_val.py": Allowed(2, _CARD, "自帶手寫日界，乙案下仍違規"),
-
-    # --- 補集寫法（`= 0`＝「未開打」）：同一判準的另一面 ---
-    "src/cpbl/api/routers/daily.py": Allowed(1, _CARD, "= 0 補集；同檔完成判定本身已走 is_completed_game"),
-    "src/cpbl/api/routers/info.py": Allowed(1, _CARD, "= 0 補集"),
-    "src/cpbl/models/matchup.py": Allowed(1, _CARD, "= 0 補集"),
+    # --- 已審視、不是完成判定：3 檔 3 處（無承接卡，也不該有） ---
+    "src/cpbl/api/routers/daily.py": Allowed(
+        1, REVIEWED, "",
+        "`= 0` 只是 SQL 側便宜撈出的『比分為 0』候選；『其實已完成的是哪些』由同一支端點的 "
+        "_completed（走 is_completed_game）判定，是刻意的兩段式設計，緊鄰註解自述"),
+    "src/cpbl/api/routers/info.py": Allowed(
+        1, REVIEWED, "",
+        "指標語意是『今天排了幾場還沒打』，不是完成判定；且已刻意用 TAIPEI_TODAY_SQL"),
+    "src/cpbl/models/matchup.py": Allowed(
+        1, REVIEWED, "",
+        "`= 0 AND game_date >= today`＝『即將到來的比賽』，語意是未來場不是完成場"),
 }
 
 
@@ -278,11 +307,46 @@ def test_allowlist_counts_are_exact() -> None:
     )
 
 
-def test_allowlist_entries_carry_a_card() -> None:
-    """allowlist 每一項都必須帶承接卡號——沒有卡號＝沒有人負責清掉＝永久逃生門。"""
-    bad = {p: a.card for p, a in ALLOWLIST.items() if not re.fullmatch(r"#\d+", a.card or "")}
-    assert not bad, f"allowlist 項目缺少或格式錯誤的卡號（需 #<issue>）：{bad}"
-    assert all(a.count > 0 for a in ALLOWLIST.values()), "allowlist 不得有 count<=0 的空項目"
+def test_allowlist_entries_are_marked_and_attributed() -> None:
+    """每一項都必須擇一標記；PENDING 必須帶卡號，REVIEWED 必須沒有卡號。
+
+    兩邊都要擋：沒有卡號的 PENDING ＝ 沒有人負責清掉＝永久逃生門；帶了卡號的 REVIEWED
+    ＝ 假裝有人要來改，承接卡結案時它還在，會被誤讀成遷移沒做完。
+    """
+    problems: list[str] = []
+    for path, a in sorted(ALLOWLIST.items()):
+        if a.status not in STATUSES:
+            problems.append(f"{path}: status={a.status!r} 不在 {STATUSES}")
+        if a.count <= 0:
+            problems.append(f"{path}: count={a.count} 不得 <= 0")
+        if not a.note.strip():
+            problems.append(f"{path}: note 不得留空（PENDING 寫遷移方向，REVIEWED 寫為什麼不是缺陷）")
+        if a.status == PENDING and not re.fullmatch(r"#\d+", a.card or ""):
+            problems.append(f"{path}: PENDING 需要 #<issue> 格式的承接卡號，實得 {a.card!r}")
+        if a.status == REVIEWED and a.card:
+            problems.append(f"{path}: REVIEWED 不得帶卡號（沒有人要來改它），實得 {a.card!r}")
+    assert not problems, "allowlist 標記/歸屬有問題：\n  " + "\n  ".join(problems)
+
+
+def bucket_summary() -> dict[str, tuple[int, int]]:
+    """回傳 {桶名: (檔數, 筆數)}，桶名為卡號或 REVIEWED——供交接時逐桶對帳。"""
+    out: dict[str, list[int]] = {}
+    for a in ALLOWLIST.values():
+        key = a.card if a.status == PENDING else REVIEWED
+        acc = out.setdefault(key, [0, 0])
+        acc[0] += 1
+        acc[1] += a.count
+    return {k: (v[0], v[1]) for k, v in sorted(out.items())}
+
+
+def test_bucket_totals_match_the_scan() -> None:
+    """分桶加總必須等於實際掃描總數——桶內數字對、加總對不上一樣是帳錯了。"""
+    files = sum(f for f, _ in bucket_summary().values())
+    sites = sum(n for _, n in bucket_summary().values())
+    found = scan_violations()
+    assert (files, sites) == (len(ALLOWLIST), len(found)), (
+        f"分桶加總 {files} 檔 {sites} 處 != 實際 {len(ALLOWLIST)} 檔 {len(found)} 處"
+    )
 
 
 # --- 可證偽性：守衛自己會不會失敗 -----------------------------------------
@@ -364,6 +428,11 @@ def test_guard_runs_against_this_worktree() -> None:
 if __name__ == "__main__":
     found = scan_violations()
     print(render(found))
-    print(f"TOTAL {len(found)}")
+    print(f"TOTAL {len(found)} 處 / {len(group_by_file(found))} 檔")
     for path, n in sorted(group_by_file(found).items()):
-        print(f"{n:3d}  {path}")
+        a = ALLOWLIST.get(path)
+        tag = "未列入 allowlist" if a is None else (a.card if a.status == PENDING else REVIEWED)
+        print(f"{n:3d}  {path:48s} {tag}")
+    print("\n分桶：")
+    for key, (f, n) in bucket_summary().items():
+        print(f"  {key:22s} {f:3d} 檔 {n:3d} 處")
