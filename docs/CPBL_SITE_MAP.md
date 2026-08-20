@@ -110,7 +110,13 @@
 
 ## 4b. 未爬資源盤點（擴充時查這裡，不用重新逆向）
 
-> 2026-07-04 實測盤點。標註「已爬 ✅ / 未爬 ⬜」與擴充提示。
+> 2026-07-04 實測盤點。標註「已爬 ✅ / 未爬 ⬜ / △ 部分或間接」與擴充提示。
+>
+> ⚠️ **本節兩張表的 ✅／⬜ 受機械對帳**（`tests/test_sitemap_reconcile.py`，DEV-SITEMAP-RECONCILE1）：
+> 標記必須與 `src/cpbl/ingest/*.py` 的 **module docstring 宣告**一致，改錯會讓 `uv run pytest` 轉紅。
+> 手動查看用 `uv run python tests/test_sitemap_reconcile.py`。
+> ⚠️ **對帳只驗「有沒有在爬」，不驗「爬回來的對不對」**——標 ✅ 不代表該端點回傳的資料正確
+> （反例見下方 `/standings/season` 一列與 `#154`）。
 
 ### 進階站 stats.cpbl.com.tw（httpx 直連，全站無挑戰）
 
@@ -130,7 +136,7 @@
 | `/api/proxy/v1/leaderboards/exit-velocity` | ✅ `cpbl_advanced` | 擊球初速排行 |
 | `/api/proxy/v1/leaderboards/batted-ball` | ✅ `cpbl_advanced` | 擊球型態排行 |
 | `/api/proxy/v1/leaderboards/pitch-tracking` | △ 已抓但資料契約待修 | 一位球員多列 `PitchType=fastball|breakingball`；現行 acnt merge 會覆寫，見 `OFFICIAL_DATA_GAP1_RESULTS.md` |
-| `/api/proxy/v1/leaderboards/summary` | ⬜ | 官方聯盟 BattedBall／ExitVelocity／PrTable／分球種 PitchTracking 基準；參數 `gameKind`＋`year` |
+| `/api/proxy/v1/leaderboards/summary` | ✅ `cpbl_advanced`（→ `advanced_league_summary`） | 官方聯盟 BattedBall／ExitVelocity／PrTable／分球種 PitchTracking 基準；參數 `gameKind`＋`year` |
 | `/api/proxy/v1/home?TeamRecordsYear=` | ⬜（低價值聚合） | 首頁賽程、戰績與排行榜整包；多與既有來源重複，不建議另存一份 |
 | `/api/proxy/v1/players/autocomplete` | ⬜ | 選手搜尋（低價值） |
 
@@ -146,20 +152,20 @@ robots.txt/sitemap.xml 被挑戰擋（307）；以下是 `/schedule` 頁導覽�
 | 路由 | 內容 | 狀態 / 擴充提示 |
 |---|---|---|
 | `/schedule`、`/box` | 賽程、單場 box/逐打席 | ✅ `cpbl_site`、`cpbl_gamelog` |
-| `/standings/season` | 當季戰績 | ✅ `cpbl_standings` |
+| `/standings/season` | 當季戰績 | ✅ `cpbl_standings`。⚠️ **端點回傳錯誤資料**：POST `/standings/seasonaction` **忽略 `Year` 參數恆回當季**，爬蟲把請求年份直接蓋章寫入，已污染 `team_standings` 的 2025 共 12 列（見 `#154`）。⚠️ 此類缺陷**機械對帳看不出來**（它有爬、docstring 也宣告了） |
 | `/standings/history` | **歷年戰績總表** | ⬜ 歷年季彙總已從 opendata/teamscore 取得；此頁可交叉驗證 |
 | `/standings/special` | **官方特殊紀錄**（連勝、單月…） | ⬜ 我們的特殊戰績是自算（記憶 `special-records-feature`）；此頁可對帳 |
 | `/stats/recordall` | 當季投打成績總表 | ✅ `cpbl_stats` |
 | `/stats/yearaward` | 年度獎項 | ✅ `cpbl_awards` |
 | `/stats/toplist` | **生涯累計 Top 榜** | ⬜ legends 爬蟲已覆蓋 7 榜 top10；全量在此頁 |
-| `/stats/hr` | **全壘打大事紀**（逐轟紀錄） | ⬜ 未爬；可做全壘打里程碑功能 |
+| `/stats/hr` | **全壘打大事紀**（逐轟紀錄） | ✅ `cpbl_home_runs`（低頻 audit ingest，`cpbl-scrape-home-runs`；不在每日 refresh 內） |
 | `/stats/mvp` | **單場 MVP 名單** | ⬜ games.mvp_acnt 已有每場 MVP；此頁是彙總視角 |
 | `/player`（index） | 現役選手總名單 | △ 名單由 teamscore 取得；此頁有分隊瀏覽 |
 | `/player/trans` | 升降/異動 | ✅ `cpbl_transactions` |
 | `/team/*`（person/apart/fighting/teamscore/index） | 選手頁系 | ✅ 多模組（見 §4） |
 | `/field` | **球場介紹**（座位/外野距離/草皮） | ✅ `cpbl_field`（2026-07-04：24 座全入 venue_dim，含歷史/二軍場；`/field/cont?SId=` 內頁 label/desc 對；官網亞太主左中右填反已防呆） |
 | `/teamhistory` | **球隊沿革**（隊史/更名） | ⬜ team_dim 硬編歷史；此頁可校驗 |
-| `/sitenav` 文件區（棒球規則/規則補述/聯盟規章 PDF） | 官方規則文件 | ✅ 已建檔 `docs/reference/RULES_REFERENCE.md`（2026-07-04；含全文 txt 可 grep + 資料語意對照） |
+| `/sitenav` 文件區（棒球規則/規則補述/聯盟規章 PDF） | 官方規則文件 | ✅ 已建檔 `docs/reference/RULES_REFERENCE.md`（2026-07-04；含全文 txt 可 grep + 資料語意對照）。⚠️ 此列的 ✅ 是**一次性人工下載建檔**，無 ingest 模組、無排程，故在對帳中列為豁免（`EXEMPT_ROWS`） |
 | `/news`、`/about/*`、`/contactus`、`/xmdoc` | 新聞/關於/文件 | 非數據，不爬 |
 
 > 二軍無獨立專區：賽程/成績走同 endpoint 的 `kindCode=D`；季後/總冠軍賽同理（E/C）。
