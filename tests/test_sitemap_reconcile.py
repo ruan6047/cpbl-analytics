@@ -26,6 +26,14 @@ docstring 則是字面、且是人寫給人看的宣告。``{a,b,c}`` 展開語�
 （見 issue #154）——**本檔看不出來，也不宣稱看得出來**。那是當天被同一份文件騙的第三次，
 而它不在本卡射程。
 
+## 一個判準邊界：docstring 裡也可能提到「自家 API」
+
+`#154` 之後 `run_scrape_standings.py` 的 docstring 出現「而 `/api/v1/standings` 又優先採用
+這張表」——那是**散文引用我們自己的 FastAPI 路由**，不是宣告在爬官網。抽取器分不出兩者，
+故以 `SELF_REFERENCED_API_ROUTES`（逐字封閉清單 + 純 equality，且每筆都要能對上真實路由表）
+排除。⚠️ 刻意**不用**「`/api/v1/` 開頭一律排除」：stats 站真的有 `/api/proxy/v1/...`。
+理由與殘留風險寫在該常數上方。
+
 ## 直接執行可產生 artifact
 
     python tests/test_sitemap_reconcile.py     # 印出完整對帳表，不一致則 exit 1
@@ -35,7 +43,9 @@ from __future__ import annotations
 
 import ast
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 import pytest
@@ -116,6 +126,41 @@ EXEMPT_ROWS: dict[str, str] = {
 VALID_MARKERS = ("✅", "⬜", "△")
 
 # ---------------------------------------------------------------------------
+# 封閉清單：docstring 裡的**自家 FastAPI 路由**散文引用
+# ---------------------------------------------------------------------------
+# `#154` 之後 `run_scrape_standings.py` 的 docstring 出現這一句：
+#     「而 `/api/v1/standings` 又優先採用這張表」
+# 那是**散文引用我們自己的 API**，不是宣告在爬官網端點。端點抽取器分不出這兩者，於是
+# `/api/v1/standings` 被報成 uncovered——誤報。
+#
+# ⚠️ **刻意不用「`/api/v1/` 開頭一律排除」這種開放式規則。** 兩個理由：
+#   (1) 開放集合換開放集合，正是本卡 R1／R2 被打穿兩次的形狀；
+#   (2) 本專案的 `stats.cpbl.com.tw` 真的有 `/api/proxy/v1/...` 端點（§4b 裡多列），
+#       「`/api` 開頭排除」會直接把它們吃掉。
+#
+# 所以規則是：**逐字釘死的封閉集合 + 純 equality**。
+#   - 只有與清單成員**完全相同**的字串會被濾掉。`/api/v1/standings/history`、
+#     `/api/proxy/v1/leaderboards/summary` 這種「長得像」的一律不受影響
+#     （逐字黃金值見 SELF_REFERENCE_GOLDEN）。
+#   - 每一筆的理由不是靠註解自稱，而是**機械可證**：它必須真的是
+#     `cpbl.api.main.app` 註冊的路由（見 test_self_referenced_routes_are_really_our_own）。
+#     所以沒有人能把 `/standings/history` 塞進這個清單來讓真漂移閉嘴——它不是我們的路由。
+#   - 新增一筆必須改這個檔案，會出現在 code review 的 diff 裡。
+#
+# ⭐ 「若日後真的有官網端點長得像 `/api/v1/...` 會怎樣？」
+#   完全相同的字串才會被濾掉，而清單成員被斷言**不得出現在 §4b**
+#   （test_self_reference_filter_does_not_swallow_official_endpoints）。若官網哪天真的推出
+#   一個路徑與我們自家路由逐字相同的端點並被寫進 §4b，那條斷言會轉紅、逼人做決定，不會靜默。
+#   ⚠️ **保證不了的部分要誠實說**：若該碰撞端點**從未被寫進 §4b**，這個排除確實會讓它靜默。
+#   目前清單只有 1 筆，波及面就是那一個逐字字串。
+SELF_REFERENCED_API_ROUTES: dict[str, str] = {
+    "/api/v1/standings": "我們自己的 FastAPI 路由（`cpbl.api.routers`）。"
+    "`run_scrape_standings.py` 的 docstring 提到它是在說明「這張表的下游消費者是誰」，"
+    "不是宣告在爬官網——官網沒有這個端點。",
+}
+
+
+# ---------------------------------------------------------------------------
 # 封閉清單：頁面路由 → 它的 AJAX 資料端點
 # ---------------------------------------------------------------------------
 # 官網把頁面 `R` 的資料端點命名為 `R + "action"`（中間沒有 `/`），所以「子路徑」那條規則
@@ -180,12 +225,42 @@ def extract_declared_endpoints(docstring: str) -> set[str]:
     return found
 
 
+def declared_official_endpoints(
+    docstring: str,
+    self_routes: Mapping[str, str] = SELF_REFERENCED_API_ROUTES,
+) -> set[str]:
+    """抽出 docstring 宣告的**官網**端點：抽取結果減去自家 FastAPI 路由的散文引用。
+
+    `self_routes` 開成參數是為了讓變異檢驗能把排除拿掉再跑一次（見
+    test_self_reference_exclusion_is_falsifiable），不是給呼叫端自訂用的。
+    純 equality 成員檢查，無前綴語意——理由見 `SELF_REFERENCED_API_ROUTES` 的註解。
+    """
+    return {ep for ep in extract_declared_endpoints(docstring) if ep not in self_routes}
+
+
+@lru_cache(maxsize=1)
+def own_api_route_paths() -> frozenset[str]:
+    """本專案 FastAPI app 實際註冊的路由路徑。
+
+    ⭐ 用途是**證明** `SELF_REFERENCED_API_ROUTES` 每一筆的理由為真，不是拿來當排除規則
+    （那會變成一個會自己長大的集合）。排除本身走逐字封閉清單。
+    """
+    from fastapi.routing import APIRoute
+
+    from cpbl.api.main import app
+
+    return frozenset(r.path for r in app.routes if isinstance(r, APIRoute))
+
+
 def _module_docstring_of(name: str, ingest_dir: Path = INGEST_DIR) -> str:
     source = (ingest_dir / name).read_text(encoding="utf-8")
     return ast.get_docstring(ast.parse(source)) or ""
 
 
-def collect_declarations(ingest_dir: Path = INGEST_DIR) -> dict[str, set[str]]:
+def collect_declarations(
+    ingest_dir: Path = INGEST_DIR,
+    self_routes: Mapping[str, str] = SELF_REFERENCED_API_ROUTES,
+) -> dict[str, set[str]]:
     """掃 `src/cpbl/ingest/*.py` 全部模組 → {端點: {宣告它的模組檔名}}。
 
     ⚠️ **預設納入、明列排除**，不是白名單。新增一支爬蟲不需要註冊到任何清單就會被掃到；
@@ -196,7 +271,7 @@ def collect_declarations(ingest_dir: Path = INGEST_DIR) -> dict[str, set[str]]:
         if path.name == "__init__.py" or path.name in EXCLUDED_MODULES:
             continue
         docstring = ast.get_docstring(ast.parse(path.read_text(encoding="utf-8"))) or ""
-        for endpoint in extract_declared_endpoints(docstring):
+        for endpoint in declared_official_endpoints(docstring, self_routes):
             declared.setdefault(endpoint, set()).add(path.name)
     return declared
 
@@ -430,7 +505,7 @@ def check_excluded_modules(ingest_dir: Path = INGEST_DIR) -> list[Finding]:
         if not path.exists():
             continue
         docstring = ast.get_docstring(ast.parse(path.read_text(encoding="utf-8"))) or ""
-        endpoints = extract_declared_endpoints(docstring)
+        endpoints = declared_official_endpoints(docstring)
         if endpoints:
             findings.append(
                 Finding("excluded_module_regressed", name, "", tuple(sorted(endpoints)))
@@ -551,6 +626,143 @@ def test_excluded_modules_declare_no_official_endpoint():
     assert len(present) == 6, f"排除清單與現實不符，只找到 {present}"
 
 
+# ---- #154 回歸：自家 API 路由的散文引用不是官網端點宣告 ----
+
+
+def test_self_referenced_routes_are_really_our_own():
+    """⭐ 排除清單的理由必須**機械可證**：每一筆都得真的是本專案 FastAPI app 註冊的路由。
+
+    這條是整個排除機制的正當性來源。有了它，「把礙事的端點塞進排除清單讓守衛閉嘴」這條路
+    是走不通的——`/standings/history`、`/api/proxy/v1/leaderboards/summary` 都不是我們的路由，
+    塞進去這條就紅。
+    """
+    routes = own_api_route_paths()
+
+    # 非空轉：路由表確實抓到了東西（`tests/test_route_snapshot.py` 目前釘 78 個端點）
+    assert len(routes) >= 70, f"FastAPI 路由表只抓到 {len(routes)} 條，抓法可能失效了"
+
+    # ⚠️ 正當性檢查放在「封閉集合釘死」之前：否則有人往清單塞東西時，先炸的是後者，
+    #    前者永遠跑不到——那會讓這條最重要的斷言在實務上不可達。
+    for endpoint, reason in SELF_REFERENCED_API_ROUTES.items():
+        assert endpoint in routes, (
+            f"{endpoint} 不是本專案 FastAPI 的路由，不能以「自家 API 散文引用」為由排除。"
+            f"（宣稱的理由：{reason}）"
+        )
+    assert set(SELF_REFERENCED_API_ROUTES) == {"/api/v1/standings"}, (
+        "新增排除必須是有意識的 diff，不可默默長出來"
+    )
+
+    # 反向非空轉：官網端點不會碰巧落在自家路由表裡，所以上面那條斷言有鑑別力
+    for official in ("/standings/history", "/api/proxy/v1/leaderboards/summary", "/stats/hr"):
+        assert official not in routes
+
+
+# 逐字黃金值：排除是**純 equality**，不是前綴／家族規則。
+SELF_REFERENCE_GOLDEN: tuple[tuple[str, bool], ...] = (
+    ("/api/v1/standings", True),  # 清單成員本身
+    ("/api/v1/standings/history", False),  # 子路徑：假想的官網端點，不得被順手排掉
+    ("/api/v1/standings-trend", False),  # 相鄰字串
+    ("/api/v1/standing", False),  # 前綴
+    ("/api/proxy/v1/standings", False),  # stats 站真實前綴形狀
+    ("/api/proxy/v1/leaderboards/summary", False),  # §4b 真實在爬的 stats 站端點
+    ("/api/proxy/v1/players/logs", False),
+    ("/api/v1/games/calendar", False),  # 也是自家路由，但沒釘進清單 → 不排除（封閉集合的意思）
+)
+
+
+@pytest.mark.parametrize(("endpoint", "excluded"), SELF_REFERENCE_GOLDEN)
+def test_self_reference_exclusion_is_exact_match_only(endpoint: str, excluded: bool):
+    """`/api/v1/` 開頭一律排除是錯的：stats 站真有 `/api/proxy/v1/...`。這裡把界線釘死。"""
+    docstring = f"散文提到 {endpoint} 這個路徑。"
+    kept = declared_official_endpoints(docstring)
+    assert endpoint in extract_declared_endpoints(docstring), (
+        f"{endpoint} 連抽取都沒抽到，這條樣本驗不到排除行為"
+    )
+    assert (endpoint not in kept) is excluded
+
+
+def test_self_reference_filter_does_not_swallow_official_endpoints(site_map_text):
+    """⭐ 證明排除不會順手吃掉真的官網端點——三個獨立角度。"""
+    rows = parse_site_map_rows(site_map_text)
+    row_endpoints = {r.endpoint for r in rows}
+
+    # (1) 清單成員不得出現在 §4b。官網若哪天真的推出同名端點並被建檔，這條會紅、逼人決定。
+    collision = set(SELF_REFERENCED_API_ROUTES) & row_endpoints
+    assert not collision, (
+        f"{sorted(collision)} 同時是自家路由與 §4b 的官網端點列——排除理由已失效，"
+        "必須人工判定要留哪一邊，不可繼續靜默排除。"
+    )
+
+    # (2) 全樹掃描：排除實際拿掉的，恰好就是釘死的那一組（不多不少）。
+    #     多 → 排除溢出；少 → 清單裡有死碼。
+    raw: set[str] = set()
+    kept: set[str] = set()
+    for path in sorted(INGEST_DIR.glob("*.py")):
+        if path.name == "__init__.py" or path.name in EXCLUDED_MODULES:
+            continue
+        docstring = ast.get_docstring(ast.parse(path.read_text(encoding="utf-8"))) or ""
+        raw |= extract_declared_endpoints(docstring)
+        kept |= declared_official_endpoints(docstring)
+    assert raw - kept == set(SELF_REFERENCED_API_ROUTES), (
+        f"排除的實際作用範圍是 {sorted(raw - kept)}，與釘死的清單不符"
+    )
+
+    # (3) §4b 有列、且真的有人在爬的端點，一個都沒被濾掉
+    still_declared = collect_declarations()
+    for row in rows:
+        if row.marker == "✅" and row.endpoint not in EXEMPT_ROWS:
+            assert declaring_modules(row.endpoint, still_declared), (
+                f"{row.endpoint} 標 ✅ 卻在套用排除後失去宣告，排除溢出了"
+            )
+
+
+def test_self_reference_exclusion_is_falsifiable(site_map_text):
+    """⭐ 變異檢驗：把排除拿掉 → 誤報回來（紅）；放回去 → 綠。
+
+    「0 命中」不是證據。這條先證明沒有排除時 `/api/v1/standings` 確實會被報成 uncovered，
+    再證明有排除時它消失、且**其他 uncovered 訊號沒有一起被消音**。
+    """
+    rows = parse_site_map_rows(site_map_text)
+
+    # 變異組：排除清空
+    without = collect_declarations(self_routes={})
+    assert without["/api/v1/standings"] == {"run_scrape_standings.py"}
+    assert "/api/v1/standings" in uncovered_declarations(rows, without), (
+        "拿掉排除後誤報沒有回來，代表這個排除是零資訊的"
+    )
+
+    # 對照組：排除生效
+    with_exclusion = collect_declarations()
+    assert "/api/v1/standings" not in with_exclusion
+    assert not uncovered_declarations(rows, with_exclusion)
+
+    # 排除只動了那一個端點：其餘宣告完全相同
+    assert set(without) - set(with_exclusion) == {"/api/v1/standings"}
+    assert not set(with_exclusion) - set(without)
+
+    # 排除沒有讓 uncovered 這條路整體閉嘴：合成一個沒建檔的官網端點仍必須被報出來
+    probe = dict(with_exclusion)
+    probe["/stats/hrarchive"] = {"probe.py"}
+    assert "/stats/hrarchive" in uncovered_declarations(rows, probe)
+
+
+def test_standings_history_drift_caught_by_154_is_pinned(site_map_text, declared):
+    """⭐ 本守衛第一次接觸現實就抓到的真漂移（`#154` 新增 `--history` 而 §4b 還標 ⬜）。
+
+    修法是改文件不是加 allowlist，所以這裡用雙向變異釘住：文件改回 ⬜ → under_claim 轉紅。
+    """
+    target = "/standings/history"
+    assert declared[target] == {"run_scrape_standings.py"}
+    assert not reconcile(parse_site_map_rows(site_map_text), declared)
+
+    mutated = set_marker(site_map_text, target, "⬜")
+    findings = reconcile(parse_site_map_rows(mutated), declared)
+    assert [(f.kind, f.endpoint) for f in findings] == [("under_claim", target)]
+    assert findings[0].modules == ("run_scrape_standings.py",)
+
+    assert not reconcile(parse_site_map_rows(set_marker(mutated, target, "✅")), declared)
+
+
 def test_every_declared_endpoint_is_covered_by_site_map(site_map_text, declared):
     """反向：有人在爬、但 §4b 連一列都沒有 → 文件漏列。"""
     rows = parse_site_map_rows(site_map_text)
@@ -602,7 +814,11 @@ def test_regression_samples_2026_08_20(site_map_text, declared):
     assert "cpbl_home_runs.py" in dict((f.endpoint, f.modules) for f in findings)["/stats/hr"]
 
     # (c) 文件標 ⬜ 且 docstring 也無 → 不得誤報
-    for endpoint in ("/standings/special", "/stats/toplist", "/standings/history"):
+    # ⚠️ 卡面的 (c) 原本含 `/standings/history`，但 `#154`（2026-08-20 下午合併）新增了
+    # `--history` 路徑，那個前提已經不成立——本守衛第一次跑在含 `#154` 的 main 上就把它報成
+    # under_claim，文件已隨之改標 ✅。它現在的位置在
+    # test_standings_history_drift_caught_by_154_is_pinned，不是這裡。
+    for endpoint in ("/standings/special", "/stats/toplist", "/stats/mvp"):
         assert endpoint not in {f.endpoint for f in findings}
 
     # 恰好兩筆：多報就是誤報，少報就是漏抓
@@ -923,6 +1139,8 @@ def main() -> int:
     print(f"# 文件列 {len(rows)}／docstring 宣告端點 {len(decl)}"
           f"／掃描模組目錄 {INGEST_DIR.relative_to(REPO_ROOT)}")
     print(f"# 排除模組 {len(EXCLUDED_MODULES)} 支（斷言為空）")
+    print(f"# 自家 API 路由散文引用排除 {len(SELF_REFERENCED_API_ROUTES)} 筆："
+          f"{'、'.join(sorted(SELF_REFERENCED_API_ROUTES))}")
     print("#" + "-" * 100)
     print(f"{'標記':<4} {'端點':<46} {'判定':<12} 宣告模組")
     for row in rows:

@@ -153,7 +153,7 @@ robots.txt/sitemap.xml 被挑戰擋（307）；以下是 `/schedule` 頁導覽�
 |---|---|---|
 | `/schedule`、`/box` | 賽程、單場 box/逐打席 | ✅ `cpbl_site`、`cpbl_gamelog` |
 | `/standings/season` | 當季戰績 | ✅ `cpbl_standings`。⚠️ **端點回傳錯誤資料**：POST `/standings/seasonaction` **忽略 `Year` 參數恆回當季**，爬蟲把請求年份直接蓋章寫入，已污染 `team_standings` 的 2025 共 12 列（見 `#154`）。⚠️ 此類缺陷**機械對帳看不出來**（它有爬、docstring 也宣告了） |
-| `/standings/history` | **歷年戰績總表** | ⬜ 歷年季彙總已從 opendata/teamscore 取得；此頁可交叉驗證 |
+| `/standings/history` | **歷年戰績總表** | ✅ `cpbl_standings`（`cpbl-scrape-standings <year> --history`，`#154` 新增；該頁**遵守 `Year`**，是已完賽球季的正確來源，不像 `/standings/seasonaction`）。⚠️ 只接受 `cpbl_standings.HISTORY_SUPPORTED` 內的 `(year, kind_code)`（目前只有 `2025/A`）；該限制在**寫入路徑**（`_parse_history_table`）不在 CLI 參數，擋 CLI 擋不住其他呼叫端。⚠️ 該頁**沒有 `elim`／`streak`／`last10` 三欄**，一律寫 NULL（需求方裁定：錯值比缺值危險） |
 | `/standings/special` | **官方特殊紀錄**（連勝、單月…） | ⬜ 我們的特殊戰績是自算（記憶 `special-records-feature`）；此頁可對帳 |
 | `/stats/recordall` | 當季投打成績總表 | ✅ `cpbl_stats` |
 | `/stats/yearaward` | 年度獎項 | ✅ `cpbl_awards` |
