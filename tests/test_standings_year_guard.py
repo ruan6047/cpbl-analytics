@@ -713,3 +713,47 @@ def test_exit_code_69_contract_is_not_the_stale_wording() -> None:
         text = target.read_text(encoding="utf-8")
         for stale in ("逐場 gamelog 有失敗但其餘完成", "逐場 gamelog 有失敗、其餘步驟照常完成"):
             assert stale not in text, f"{target.name}：仍宣稱 69 只代表 gamelog 失敗（{stale}）"
+
+
+# ═══════════════════ R2-02：ledger 沒有型別，schema 說明就是它的契約 ═══════════════
+
+
+def test_failure_kinds_documents_every_kind_the_module_can_emit() -> None:
+    """程式碼實際寫進帳的 `kind` 必須與 `FAILURE_KINDS` 完全一致。
+
+    ⚠️ 這個 ledger 是 `list[dict]`，沒有 enum 也沒有型別可以擋。R2-02 抓到的正是這個
+    漂移：新增了 `scope_unsupported` 與 `identity_unresolved`，schema 說明卻還停在兩種。
+    改成從**原始碼實抽**而不是人工維護一份清單——人工清單會再漂一次。
+    """
+    import ast
+    import inspect
+
+    source = pathlib.Path(inspect.getsourcefile(cs)).read_text(encoding="utf-8")
+    emitted = set()
+    for node in ast.walk(ast.parse(source)):
+        # 只認 `_FAILURES.append({... "kind": "<literal>" ...})` 這個形狀
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "append"
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "_FAILURES"):
+            continue
+        for arg in node.args:
+            if not isinstance(arg, ast.Dict):
+                continue
+            for key, value in zip(arg.keys, arg.values, strict=True):
+                if (isinstance(key, ast.Constant) and key.value == "kind"
+                        and isinstance(value, ast.Constant)):
+                    emitted.add(value.value)
+
+    assert emitted, "沒有從原始碼抽到任何 kind——形狀變了，這條測試已經失效"
+    assert emitted == set(cs.FAILURE_KINDS), (
+        f"FAILURE_KINDS 與實際寫入的 kind 不一致：只在程式碼裡 {sorted(emitted - set(cs.FAILURE_KINDS))}／"
+        f"只在文件裡 {sorted(set(cs.FAILURE_KINDS) - emitted)}")
+
+
+def test_failure_kinds_entries_are_actually_explained() -> None:
+    """孿生斷言：值域列全了但解釋留白等於沒列——每一種都要說「發生什麼、寫了沒」。"""
+    for kind, text in cs.FAILURE_KINDS.items():
+        assert len(text) >= 20, f"{kind}：說明太短，看不出語意"
+        assert ("拒寫" in text or "未寫入" in text or "不會寫錯" in text), (
+            f"{kind}：沒說清楚「有沒有寫進去」——那是值班唯一真正要判斷的事")

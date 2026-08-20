@@ -47,11 +47,26 @@ def reset_standings_failures() -> None:
     _FAILURES.clear()
 
 
+#: `_FAILURES` 每筆的 `kind` 值域。⚠️ 這個帳沒有型別，這裡就是它唯一的 schema 說明——
+#: 新增一種失敗就必須同時加進這裡，否則消費端（CLI 退出碼訊息、`refresh_log.note`／
+#: `detail.standings_failures`、值班判讀）會看到一個沒有人解釋過的字串。
+FAILURE_KINDS: dict[str, str] = {
+    "fetch": "抓取／解析失敗（token、428、逾時）＝什麼都沒拿到，不會寫錯資料 → log.warning",
+    "year_mismatch": "對帳失敗：回應的 (g,w,t,l) 對不上本地 games 推導的該年戰績，"
+                     "或本地已有完成場卻拿到空表 → 已拒寫，log.error",
+    "scope_unsupported": "要求的 (year, kind_code) 不在 HISTORY_SUPPORTED 內 → "
+                         "未抓取也未寫入（連官網都不打），log.error",
+    "identity_unresolved": "history 表出現無法對應 NAME_CODE 的球隊或 H2H 表頭 → "
+                           "已拒寫，log.error",
+}
+
+
 def standings_failures() -> list[dict]:
     """最近一次 scrape 的失敗清單；每筆 `{season_code, kind, error}`。
 
-    `kind` 值域：`fetch`＝抓取／解析失敗（什麼都沒拿到，不會寫錯資料）；
-    `year_mismatch`＝對帳失敗（拿到別的球季或空表，**已拒寫**）。
+    `season_code` 為 `None` 代表失敗發生在「還沒分半季」的階段（範圍檢查、整頁抓取、
+    身分解析）。`kind` 的完整值域與語意見 :data:`FAILURE_KINDS`——**四種都在那裡**，
+    不要只照這段散文推論。
     """
     return list(_FAILURES)
 
