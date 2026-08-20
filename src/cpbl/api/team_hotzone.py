@@ -50,7 +50,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from cpbl.completion import completed_games_sql_with_evidence
+from cpbl.completion import UTC_TODAY_SQL, completed_games_sql_with_evidence
 from cpbl.db import conn
 
 WINDOW_DAYS = 14
@@ -64,6 +64,11 @@ _SWING_CALLS = ("InPlay", "FoulBallNotFieldable", "FoulBallFieldable", "StrikeSw
 
 _BAT_TEAM_EXPR = "CASE bg.visiting_home_type WHEN '2' THEN g.home_team_code ELSE g.away_team_code END"
 _PIT_TEAM_EXPR = "CASE pg.visiting_home_type WHEN '2' THEN g.home_team_code ELSE g.away_team_code END"
+
+# 完成場判準（證據感知）的 `g` 別名版，供 `_coverage` 的子查詢使用。
+# ⚠️ 日界明示沿用該處原本的 UTC `CURRENT_DATE`——與上方 `_last_completed_game_date`
+# 走 helper 台北預設的落差是既有狀態，屬 DATA-TZ-COMPLETION-SKEW1 的射程，本卡不動。
+_DONE_G_UTC = completed_games_sql_with_evidence("g", UTC_TODAY_SQL)
 
 
 def _last_completed_game_date(cur, code: str, season: int) -> date | None:
@@ -80,7 +85,7 @@ def _last_completed_game_date(cur, code: str, season: int) -> date | None:
 def _coverage(cur, code: str, season: int, start: date, end: date) -> dict:
     """窗口內該隊完賽場數 vs. 其中整場零逐球紀錄場數（球場設備覆蓋缺口）。"""
     cur.execute(
-        """
+        f"""
         SELECT count(*) AS games_in_window,
                count(*) FILTER (WHERE tracked = 0) AS untracked_games
         FROM (
@@ -88,7 +93,7 @@ def _coverage(cur, code: str, season: int, start: date, end: date) -> dict:
                    (SELECT count(*) FROM cpbl.pitch_tracking pt
                       WHERE pt.year=g.year AND pt.kind_code=g.kind_code AND pt.game_sno=g.game_sno) AS tracked
             FROM cpbl.games g
-            WHERE g.year=%s AND g.kind_code='A' AND g.home_score+g.away_score>0 AND g.game_date<=CURRENT_DATE
+            WHERE g.year=%s AND g.kind_code='A' AND {_DONE_G_UTC}
               AND g.game_date BETWEEN %s AND %s
               AND (g.home_team_code=%s OR g.away_team_code=%s)
         ) q

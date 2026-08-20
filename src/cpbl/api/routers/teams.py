@@ -20,6 +20,9 @@ router = APIRouter()
 
 # 完成場判準（證據感知）：隊史勝敗和統計含 0:0 真和局，需外部證據（DATA-TIE-REMEDY1）。
 _DONE = completed_games_sql_with_evidence("games")
+# 同一判準的 `g` 別名版：`_VENUES_DIM_SQL` 的子查詢給 games 取了別名 g，
+# 限定詞必須跟著換，否則相關子查詢的欄名會解析到證據表自身而使 EXISTS 恆真。
+_DONE_G = completed_games_sql_with_evidence("g")
 
 
 @router.get("/api/v1/teams")
@@ -379,7 +382,7 @@ _VENUES_DIM_SQL = f"""
                 FROM cpbl.games g
                 LEFT JOIN cpbl.game_detail d USING (year, kind_code, game_sno)
                 WHERE g.year = %s AND g.kind_code = 'A'
-                  AND g.home_score + g.away_score > 0
+                  AND {_DONE_G}
                 GROUP BY {_NORM_VENUE}
             ) s ON s.venue = v.venue
             LEFT JOIN (

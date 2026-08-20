@@ -22,6 +22,7 @@ import logging
 from collections import defaultdict
 from functools import cache
 
+from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
 
 log = logging.getLogger("cpbl.winprob")
@@ -232,7 +233,7 @@ def validate_calibration(from_year: int, to_year: int, span: str, kind: str = "A
         cur.execute(
             "SELECT g.year, g.game_sno, g.home_score, g.away_score FROM cpbl.games g "
             "WHERE g.year BETWEEN %s AND %s AND g.kind_code=%s "
-            "AND g.home_score + g.away_score > 0", (from_year, to_year, kind))
+            f"AND {completed_games_sql_with_evidence('g')}", (from_year, to_year, kind))
         games = cur.fetchall()
         for gy, sno, hs, aw in games:
             outcome = 1.0 if hs > aw else (0.0 if hs < aw else 0.5)

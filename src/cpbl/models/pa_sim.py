@@ -11,6 +11,7 @@ from pathlib import Path
 
 import joblib
 
+from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
 from cpbl.ingest.splits_calc import PA_OUTCOME
 
@@ -416,7 +417,10 @@ def load_pa_dataset(from_year: int, to_year: int, kind: str = "A") -> PADataset:
     """串流讀取已完成賽事，重建可供走查的逐打席 snapshot 與逐年稽核。"""
     if from_year > to_year:
         raise ValueError("from_year 不可大於 to_year")
-    sql = """
+    # 完成場判準走 canonical helper（證據感知）：別名 `g`；原本手寫的 `score > 0`
+    # 既漏掉 0:0 真和局，也沒有日期界線（helper 一併補上）。
+    done = completed_games_sql_with_evidence("g")
+    sql = f"""
         SELECT l.year, l.game_sno, g.game_date,
                l.main_event_no::bigint AS event_no,
                l.inning_seq AS inning, l.visiting_home_type AS half,
@@ -429,7 +433,7 @@ def load_pa_dataset(from_year: int, to_year: int, kind: str = "A") -> PADataset:
         JOIN cpbl.games g ON g.year=l.year AND g.kind_code=l.kind_code
                          AND g.game_sno=l.game_sno
         WHERE l.year BETWEEN %s AND %s AND l.kind_code=%s
-          AND g.home_score + g.away_score > 0
+          AND {done}
         ORDER BY l.year, l.game_sno, l.main_event_no::bigint
     """
     snapshots: list[PASnapshot] = []

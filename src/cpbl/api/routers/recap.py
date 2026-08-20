@@ -41,6 +41,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON, _dicts
+from cpbl.completion import UTC_TODAY_SQL, completed_games_sql_with_evidence
 from cpbl.db import conn
 
 # 解算器已上抽 models/winprob_scorer（models 不得 import api，而 pa_facts 的關鍵打席
@@ -61,6 +62,12 @@ from cpbl.models.winprob_scorer import get_scorer as _get_scorer
 from cpbl.models.winprob_val import pre_scores_from_events  # noqa: F401  （對外別名，勿刪）
 
 router = APIRouter()
+
+# 完成場判準（證據感知）：0:0 真和局需外部完賽證據（DATA-TIE-REMEDY1）。
+# 別名用預設的 "games"（本查詢未給 cpbl.games 取別名，PostgreSQL 允許以表名當限定詞）。
+# ⚠️ 日界**明示沿用原本的 UTC `CURRENT_DATE`**，不取 helper 的台北預設：換日界是
+# DATA-TZ-COMPLETION-SKEW1 的射程（待需求方裁決），本卡只換判準不動日界。
+_DONE = completed_games_sql_with_evidence("games", UTC_TODAY_SQL)
 
 # ---------------------------------------------------------------------------
 # wp_reliability metadata（本卡唯一 owner；版本化）
@@ -363,8 +370,7 @@ def _load_game_row(season: int, kind_code: str, game_sno: int) -> dict | None:
         cur = c.cursor()
         cur.execute(
             "SELECT home_score, away_score, "
-            "(coalesce(home_score,0) + coalesce(away_score,0) > 0 "
-            " AND game_date <= CURRENT_DATE) AS completed "
+            f"{_DONE} AS completed "
             "FROM cpbl.games WHERE year=%s AND kind_code=%s AND game_sno=%s",
             (season, kind_code, game_sno))
         row = cur.fetchone()

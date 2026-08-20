@@ -11,6 +11,13 @@
 
 from __future__ import annotations
 
+from cpbl.completion import UTC_TODAY_SQL, completed_games_sql_with_evidence
+
+# 完成場判準（證據感知）：0:0 真和局需外部完賽證據（DATA-TIE-REMEDY1）。別名 `g`＝
+# 下方 JOIN 給 cpbl.games 的別名；限定詞是正確性要求（未限定會使 EXISTS 恆真）。
+# ⚠️ 日界明示沿用原本的 UTC `CURRENT_DATE`：換日界屬 DATA-TZ-COMPLETION-SKEW1。
+_DONE_G = completed_games_sql_with_evidence("g", UTC_TODAY_SQL)
+
 _TEAM_CODE_EXPR = "CASE bg.visiting_home_type WHEN '2' THEN g.home_team_code ELSE g.away_team_code END"
 
 
@@ -20,7 +27,7 @@ def _current_hit_streak(cur, code: str, season: int, hitter_acnt: str) -> int:
         "SELECT bg.at_bats, bg.hits FROM cpbl.batting_gamelog bg "
         "JOIN cpbl.games g ON g.year=bg.year AND g.kind_code=bg.kind_code AND g.game_sno=bg.game_sno "
         "WHERE bg.year=%s AND bg.kind_code='A' AND bg.hitter_acnt=%s "
-        f"AND g.home_score+g.away_score>0 AND g.game_date<=CURRENT_DATE AND {_TEAM_CODE_EXPR}=%s "
+        f"AND {_DONE_G} AND {_TEAM_CODE_EXPR}=%s "
         "ORDER BY g.game_date DESC, g.game_sno DESC",
         (season, hitter_acnt, code),
     )

@@ -63,6 +63,7 @@ from dataclasses import asdict, dataclass, field, replace
 from datetime import date, datetime
 from pathlib import Path
 
+from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
 from cpbl.models.winprob_cal import BANDS, REGULATION_BANDS, band_of, band_summary
 from cpbl.models.winprob_val import (
@@ -90,6 +91,15 @@ LAST_YEAR = 2026
 VAL_FIRST, VAL_LAST = 2023, 2026  # 驗證季；2026 為鎖箱 holdout（報告首列）
 EPS = 1e-6                       # logit_clip 與機率夾擠；只供數值計算
 SEED = 20260725                  # bootstrap 固定 seed（紅線 8）
+
+# 完成場判準（證據感知；DATA-TIE-REMEDY1）＝「日期界線 AND（比分 > 0 OR 官方完賽證據）」。
+# ⚠️ `as_of` 一律由呼叫端以 bind 參數傳入（`%s`），**不吃 helper 的預設日界**——本模組的
+# 可重現性建立在「同一個 as_of 決定母體」之上（iteration 2 查核 F2）。helper 產出的
+# 條件把日期界線放在最前面，且整段只含這一個 `%s`，故原本的參數順序不變。
+# 別名：外層給 cpbl.games 取了 `g` 的用 `_DONE_G`，未取別名的用表名 `games` 當限定詞；
+# 限定詞是正確性要求——未限定的欄名會解析到證據表自身而使 EXISTS 恆真。
+_DONE_G_ASOF = completed_games_sql_with_evidence("g", "%s")
+_DONE_ASOF = completed_games_sql_with_evidence("games", "%s")
 
 # 凍結特徵清單（卡面；方向皆「正值有利主隊」）。執行不得臨時增刪。
 FEATURE_KEYS: tuple[str, ...] = (
@@ -275,7 +285,7 @@ def load_game_rows(cur, first_year: int = CORE_FIRST,
         "JOIN cpbl.game_features f ON f.year=g.year AND f.kind_code=g.kind_code "
         "  AND f.game_season_code=g.game_season_code AND f.game_sno=g.game_sno "
         "WHERE g.kind_code=%s AND g.year BETWEEN %s AND %s "
-        "  AND g.home_score + g.away_score > 0 AND g.game_date <= %s "
+        f"  AND {_DONE_G_ASOF} "
         "ORDER BY g.game_date, g.game_sno",
         (KIND, first_year, last_year, as_of or date.today()))
     games = cur.fetchall()
@@ -752,7 +762,7 @@ def home_rate_exact(cur, kind: str, y0: int, y1: int, as_of: date) -> float:
         "SELECT avg(CASE WHEN home_score>away_score THEN 1.0 "
         "WHEN home_score<away_score THEN 0.0 ELSE 0.5 END) FROM cpbl.games "
         "WHERE year BETWEEN %s AND %s AND kind_code=%s "
-        "AND home_score+away_score>0 AND game_date<=%s", (y0, y1, kind, as_of))
+        f"AND {_DONE_ASOF}", (y0, y1, kind, as_of))
     v = cur.fetchone()[0]
     return float(v) if v is not None else 0.5
 
@@ -928,7 +938,7 @@ def population_fingerprint(cur, as_of: date, rows: Sequence[GameRow],
         "       md5(string_agg(game_sno || ':' || home_score || '-' || away_score "
         "                      || ':' || coalesce(delay_kind, ''), ',' ORDER BY game_sno)) "
         "FROM cpbl.games WHERE kind_code=%s AND year BETWEEN %s AND %s "
-        "AND home_score + away_score > 0 AND game_date <= %s GROUP BY year ORDER BY year",
+        f"AND {_DONE_ASOF} GROUP BY year ORDER BY year",
         (KIND, CORE_FIRST, LAST_YEAR, as_of))
     per_year = {int(y): {"n_completed": int(n), "sno_md5": h, "games_md5": g}
                 for y, n, h, g in cur.fetchall()}
@@ -1060,7 +1070,7 @@ def build_season_pack(cur, per_year, year: int, span_end: int,
     # 部分重跑無法逐位重現（iteration 2 查核 F2）。
     cur.execute(
         "SELECT game_sno FROM cpbl.games WHERE year=%s AND kind_code=%s "
-        "AND home_score + away_score > 0 AND game_date <= %s", (year, KIND, as_of))
+        f"AND {_DONE_ASOF}", (year, KIND, as_of))
     as_of_snos = {r[0] for r in cur.fetchall()}
     dist = dist_from_counts(per_year, CORE_FIRST, span_end)
     scored_all = score_pas(dist, season["rules"], season["pas"])

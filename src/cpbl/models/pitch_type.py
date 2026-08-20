@@ -20,6 +20,7 @@ import logging
 import numpy as np
 from sklearn.cluster import KMeans
 
+from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
 
 log = logging.getLogger("cpbl.pitch_type")
@@ -125,9 +126,11 @@ def _complete_games(year: int, kind_code: str) -> set[int]:
     pitches＝該場 livelog 的好壞球數（實投球數）；tracked＝pitch_tracking 筆數。無設備場
     (tracked≈0)、發布延遲/部分缺漏場(覆蓋率不足)皆不列入 → 其球不分類、等發布齊下輪再補。
     """
+    # 完成場判準走 canonical helper（證據感知）：別名 `g`。
+    done = completed_games_sql_with_evidence("g")
     with conn() as c:
         rows = c.execute(
-            """
+            f"""
             SELECT g.game_sno,
               (SELECT count(*) FROM cpbl.game_livelog ll
                  WHERE ll.year=g.year AND ll.kind_code=g.kind_code AND ll.game_sno=g.game_sno
@@ -135,7 +138,7 @@ def _complete_games(year: int, kind_code: str) -> set[int]:
               (SELECT count(*) FROM cpbl.pitch_tracking pt
                  WHERE pt.year=g.year AND pt.kind_code=g.kind_code AND pt.game_sno=g.game_sno) AS tracked
             FROM cpbl.games g
-            WHERE g.year=%s AND g.kind_code=%s AND g.home_score + g.away_score > 0
+            WHERE g.year=%s AND g.kind_code=%s AND {done}
             """,
             (year, kind_code),
         ).fetchall()

@@ -22,6 +22,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON
+from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
 from cpbl.ingest.splits_calc import VENUE_OFFICIAL
 
@@ -34,6 +35,11 @@ MIN_VENUE_PA = 100           # 打者生涯在該球場最低 PA
 MIN_VENUE_OUTS = 90          # 投手生涯在該球場最低出局數（=30 IP）
 
 FACTOR_STATS = ("r", "hr", "xbh", "h", "bb", "so")
+
+# 完成場判準（證據感知）：0:0 真和局需外部完賽證據（DATA-TIE-REMEDY1）。
+# 別名 `g`＝下方 SQL 給 cpbl.games 的別名；限定詞是正確性要求不是風格
+# （未限定的欄名會解析到證據表自身，EXISTS 退化為恆真）。
+_DONE_G = completed_games_sql_with_evidence("g")
 
 # games.venue 歷史別名 → 現行短名（同座球場；splits 端對映見 splits_calc）
 _NORM_VENUE = ("CASE g.venue WHEN '桃園' THEN '樂天桃園' "
@@ -61,7 +67,7 @@ WITH gt AS (
           AND b.game_sno = g.game_sno AND b.visiting_home_type = t.vht
     ) bg ON true
     WHERE g.kind_code = 'A' AND g.year BETWEEN %(fy)s AND %(ty)s
-      AND g.home_score + g.away_score > 0
+      AND {_DONE_G}
 ),
 tv AS (
     SELECT year, team, venue, count(*) AS n,

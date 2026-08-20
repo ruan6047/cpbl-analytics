@@ -62,6 +62,7 @@ from pathlib import Path
 
 import numpy as np
 
+from cpbl.completion import UTC_TODAY_SQL, completed_games_sql_with_evidence
 from cpbl.db import conn
 
 # 打席前比分的 running 比分標註器。models 內部依賴，無循環：
@@ -446,6 +447,9 @@ def load_eval_season(cur, kind: str, year: int, *,
     """
     if pre_score_source not in PRE_SCORE_SOURCES:
         raise ValueError(f"pre_score_source 必須是 {PRE_SCORE_SOURCES} 之一：{pre_score_source}")
+    # 完成場判準走 canonical helper（證據感知）：別名 `g`。⚠️ 日界**明示沿用原本的 UTC
+    # `CURRENT_DATE`**，不取 helper 的台北預設——`winprob_strength` 的 as-of 重算邏輯逐字
+    # 記著「上游以 CURRENT_DATE 為界」並據此補償；換日界屬 DATA-TZ-COMPLETION-SKEW1。
     cur.execute(
         "SELECT g.game_sno, g.home_score, g.away_score, g.delay_kind, mx.max_inn "
         "FROM cpbl.games g "
@@ -453,7 +457,7 @@ def load_eval_season(cur, kind: str, year: int, *,
         "           FROM cpbl.game_livelog GROUP BY 1,2,3) mx "
         "  ON mx.year=g.year AND mx.kind_code=g.kind_code AND mx.game_sno=g.game_sno "
         "WHERE g.year=%s AND g.kind_code=%s "
-        "AND g.home_score + g.away_score > 0 AND g.game_date <= CURRENT_DATE",
+        f"AND {completed_games_sql_with_evidence('g', UTC_TODAY_SQL)}",
         (year, kind))
     rules = ruleset_for(kind, year)
     games: dict[int, dict] = {}
@@ -944,11 +948,12 @@ def brier_constant(scored: Sequence[tuple[float, float, bool, object]], p: float
 
 def home_rate_from_games(cur, kind: str, y0: int, y1: int) -> float:
     """訓練窗聯盟主隊勝率（和=0.5）；作「全押主場」常數基準（leakage-safe）。"""
+    # 完成場判準走 canonical helper；別名用表名 `games`。日界同樣明示沿用 UTC（見上）。
     cur.execute(
         "SELECT avg(CASE WHEN home_score>away_score THEN 1.0 "
         "WHEN home_score<away_score THEN 0.0 ELSE 0.5 END) FROM cpbl.games "
         "WHERE year BETWEEN %s AND %s AND kind_code=%s "
-        "AND home_score+away_score>0 AND game_date<=CURRENT_DATE", (y0, y1, kind))
+        f"AND {completed_games_sql_with_evidence('games', UTC_TODAY_SQL)}", (y0, y1, kind))
     v = cur.fetchone()[0]
     return round(float(v), 4) if v is not None else 0.5
 

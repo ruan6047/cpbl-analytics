@@ -29,6 +29,9 @@ from cpbl.venues import is_artificial, is_indoor
 
 # 完成場判準（證據感知）：0:0 真和局需外部完賽證據才算完成場（DATA-TIE-REMEDY1）。
 _DONE = completed_games_sql_with_evidence("games")
+# 同一判準的 `g` 別名版：`team_situational()` 的查詢給 games 取了別名 g。
+# 別名必須跟著外層走——未限定的欄名會解析到證據表自身，EXISTS 退化成恆真。
+_DONE_G = completed_games_sql_with_evidence("g")
 
 LEAD_MARGIN = 3       # 順風/逆風門檻
 BLOWOUT_MARGIN = 5    # 大勝/大敗門檻
@@ -121,7 +124,7 @@ def team_situational(season: int, kind_code: str = "A") -> dict[str, dict]:
             "FROM cpbl.games g "
             "LEFT JOIN cpbl.players ph ON ph.id = g.home_starter_id "
             "LEFT JOIN cpbl.players pa ON pa.id = g.away_starter_id "
-            "WHERE g.year=%s AND g.kind_code=%s AND g.home_score+g.away_score>0",
+            f"WHERE g.year=%s AND g.kind_code=%s AND {_DONE_G}",
             (season, kind_code),
         ).fetchall()
         sb = c.execute(

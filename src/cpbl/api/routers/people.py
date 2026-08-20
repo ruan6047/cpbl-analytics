@@ -12,9 +12,14 @@ from fastapi import APIRouter, Query
 from cpbl.api.helpers import DEFAULT_SEASON, _dicts
 from cpbl.api.routers.umpires import _CALLED, HALF_W, Z_BOT, Z_TOP
 from cpbl.api.rows import _MANAGER_ERAS_SQL
+from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
 
 router = APIRouter()
+
+# 完成場判準（證據感知）：外層 games 的別名是 `g`，限定詞是正確性要求——
+# 相關子查詢內未限定的欄名會解析到證據表自身而使 EXISTS 恆真。
+_DONE_G = completed_games_sql_with_evidence("g")
 
 
 @router.get("/api/v1/people/coach/{name}")
@@ -103,8 +108,11 @@ def umpire_profile(name: str, season: int = Query(DEFAULT_SEASON),
         )
         distribution = _dicts(cur)[0]
         # 近期主審場（含比分；有無 TrackMan 由前端以 called>0 判斷 → 這裡直接附 called 數）
+        # ⚠️ 完成場判準走 canonical helper：這裡是 `ORDER BY game_date DESC LIMIT 15`，
+        # 手寫的 `score > 0` 既漏掉 0:0 真和局、又缺日期界線（帶中止比分的未來日保留賽
+        # 會直接佔第一名，而非被稀釋進彙總）。
         cur.execute(
-            """
+            f"""
             SELECT g.game_sno, g.game_date, g.venue,
                    g.away_team_name, g.away_team_code, g.away_score,
                    g.home_team_name, g.home_team_code, g.home_score,
@@ -116,7 +124,7 @@ def umpire_profile(name: str, season: int = Query(DEFAULT_SEASON),
             JOIN cpbl.games g ON g.year = d.year AND g.kind_code = d.kind_code
                              AND g.game_sno = d.game_sno
             WHERE d.year = %(season)s AND d.kind_code = %(kind)s AND d.head_umpire = %(n)s
-              AND g.home_score + g.away_score > 0
+              AND {_DONE_G}
             ORDER BY g.game_date DESC LIMIT 15
             """,
             {"n": name, "season": season, "kind": kind_code},
