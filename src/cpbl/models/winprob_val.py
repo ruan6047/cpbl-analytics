@@ -62,7 +62,7 @@ from pathlib import Path
 
 import numpy as np
 
-from cpbl.completion import UTC_TODAY_SQL, completed_games_sql_with_evidence
+from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
 
 # 打席前比分的 running 比分標註器。models 內部依賴，無循環：
@@ -447,9 +447,11 @@ def load_eval_season(cur, kind: str, year: int, *,
     """
     if pre_score_source not in PRE_SCORE_SOURCES:
         raise ValueError(f"pre_score_source 必須是 {PRE_SCORE_SOURCES} 之一：{pre_score_source}")
-    # 完成場判準走 canonical helper（證據感知）：別名 `g`。⚠️ 日界**明示沿用原本的 UTC
-    # `CURRENT_DATE`**，不取 helper 的台北預設——`winprob_strength` 的 as-of 重算邏輯逐字
-    # 記著「上游以 CURRENT_DATE 為界」並據此補償；換日界屬 DATA-TZ-COMPLETION-SKEW1。
+    # 完成場判準走 canonical helper（證據感知）：別名 `g`，日界吃 helper 的**台北預設**。
+    # 原本這裡明示傳 UTC 的 `CURRENT_DATE`，理由只是「沿用當時的預設、等需求方裁決」；
+    # 裁決已於 2026-08-21 下達（業務日期一律台北，DATA-TZ-BOUNDARY-SUCCESSION1）。
+    # `winprob_strength` 不受影響：它不是補償這裡的日界值，而是以 bind 的 `as_of` 重新
+    # 界定自己的母體（見該檔 `_scored_pas_as_of` 註解），所以上游界線換成台北仍成立。
     cur.execute(
         "SELECT g.game_sno, g.home_score, g.away_score, g.delay_kind, mx.max_inn "
         "FROM cpbl.games g "
@@ -457,7 +459,7 @@ def load_eval_season(cur, kind: str, year: int, *,
         "           FROM cpbl.game_livelog GROUP BY 1,2,3) mx "
         "  ON mx.year=g.year AND mx.kind_code=g.kind_code AND mx.game_sno=g.game_sno "
         "WHERE g.year=%s AND g.kind_code=%s "
-        f"AND {completed_games_sql_with_evidence('g', UTC_TODAY_SQL)}",
+        f"AND {completed_games_sql_with_evidence('g')}",
         (year, kind))
     rules = ruleset_for(kind, year)
     games: dict[int, dict] = {}
@@ -948,12 +950,12 @@ def brier_constant(scored: Sequence[tuple[float, float, bool, object]], p: float
 
 def home_rate_from_games(cur, kind: str, y0: int, y1: int) -> float:
     """訓練窗聯盟主隊勝率（和=0.5）；作「全押主場」常數基準（leakage-safe）。"""
-    # 完成場判準走 canonical helper；別名用表名 `games`。日界同樣明示沿用 UTC（見上）。
+    # 完成場判準走 canonical helper；別名用表名 `games`。日界同樣吃台北預設（見上）。
     cur.execute(
         "SELECT avg(CASE WHEN home_score>away_score THEN 1.0 "
         "WHEN home_score<away_score THEN 0.0 ELSE 0.5 END) FROM cpbl.games "
         "WHERE year BETWEEN %s AND %s AND kind_code=%s "
-        f"AND {completed_games_sql_with_evidence('games', UTC_TODAY_SQL)}", (y0, y1, kind))
+        f"AND {completed_games_sql_with_evidence('games')}", (y0, y1, kind))
     v = cur.fetchone()[0]
     return round(float(v), 4) if v is not None else 0.5
 

@@ -11,12 +11,13 @@
 
 from __future__ import annotations
 
-from cpbl.completion import UTC_TODAY_SQL, completed_games_sql_with_evidence
+from cpbl.completion import completed_games_sql_with_evidence
 
 # 完成場判準（證據感知）：0:0 真和局需外部完賽證據（DATA-TIE-REMEDY1）。別名 `g`＝
 # 下方 JOIN 給 cpbl.games 的別名；限定詞是正確性要求（未限定會使 EXISTS 恆真）。
-# ⚠️ 日界明示沿用原本的 UTC `CURRENT_DATE`：換日界屬 DATA-TZ-COMPLETION-SKEW1。
-_DONE_G = completed_games_sql_with_evidence("g", UTC_TODAY_SQL)
+# 日界吃 helper 的台北預設。原本明示傳 UTC 只是「沿用當時的預設、等需求方裁決」，
+# 裁決已於 2026-08-21 下達（業務日期一律台北，DATA-TZ-BOUNDARY-SUCCESSION1）。
+_DONE_G = completed_games_sql_with_evidence("g")
 
 _TEAM_CODE_EXPR = "CASE bg.visiting_home_type WHEN '2' THEN g.home_team_code ELSE g.away_team_code END"
 

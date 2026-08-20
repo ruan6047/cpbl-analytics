@@ -15,7 +15,12 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/src /app/src
 COPY --from=builder /app/migrations /app/migrations
-ENV PATH="/app/.venv/bin:$PATH" PORT=4001 ARTIFACT_DIR=/app/artifacts
+# TZ：容器本地日＝台北日。`date.today()`（如 daily.py 的 `_today_local`）吃的就是這個。
+# 未設時容器是 UTC，台北 00:00–08:00 這 8 小時整支 API 的「今天」會指到昨天
+# （2026-08-21 生產實測 /api/v1/daily/summary 的 next_slate.game_date=2026-08-20）。
+# ⚠️ 基底映像已含 tzdata（/usr/share/zoneinfo/Asia/Taipei），不需 apt install。
+# ⚠️ DB session timezone 另由 `cpbl.db` 的 pool `configure` 明示，不靠這個 env。
+ENV PATH="/app/.venv/bin:$PATH" PORT=4001 ARTIFACT_DIR=/app/artifacts TZ=Asia/Taipei
 RUN mkdir -p /app/artifacts /evidence && chown app:app /app/artifacts /evidence
 USER app
 EXPOSE 4001

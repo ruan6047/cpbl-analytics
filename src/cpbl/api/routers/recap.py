@@ -41,7 +41,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON, _dicts
-from cpbl.completion import UTC_TODAY_SQL, completed_games_sql_with_evidence
+from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
 
 # 解算器已上抽 models/winprob_scorer（models 不得 import api，而 pa_facts 的關鍵打席
@@ -65,9 +65,9 @@ router = APIRouter()
 
 # 完成場判準（證據感知）：0:0 真和局需外部完賽證據（DATA-TIE-REMEDY1）。
 # 別名用預設的 "games"（本查詢未給 cpbl.games 取別名，PostgreSQL 允許以表名當限定詞）。
-# ⚠️ 日界**明示沿用原本的 UTC `CURRENT_DATE`**，不取 helper 的台北預設：換日界是
-# DATA-TZ-COMPLETION-SKEW1 的射程（待需求方裁決），本卡只換判準不動日界。
-_DONE = completed_games_sql_with_evidence("games", UTC_TODAY_SQL)
+# 日界吃 helper 的台北預設。原本明示傳 UTC 只是「沿用當時的預設、等需求方裁決」，
+# 裁決已於 2026-08-21 下達（業務日期一律台北，DATA-TZ-BOUNDARY-SUCCESSION1）。
+_DONE = completed_games_sql_with_evidence("games")
 
 # ---------------------------------------------------------------------------
 # wp_reliability metadata（本卡唯一 owner；版本化）

@@ -12,6 +12,9 @@ services:
 
   db:
     image: postgres:17-alpine
+    # ⚠️ **刻意不設 TZ**：生產的 `prod_pg` 是主站 PersonalWebsite 與 cpbl 共用的單一
+    # `alpha_db`，server-wide timezone 不歸本專案管、也不能改。本機跟著留 UTC 才是
+    # 忠實鏡像；台北日界由 `cpbl.db` 的 pool `configure` 逐連線 `SET TIME ZONE` 提供。
     environment:
       POSTGRES_USER: cpbl
       POSTGRES_PASSWORD: cpbl
@@ -37,6 +40,9 @@ services:
       DATABASE_URL: postgresql://cpbl:cpbl@db:5432/cpbl
       REDIS_URL: redis://redis:6379/0
       PORT: "4001"
+      # 與 Dockerfile 的 `ENV TZ` 同值。明寫一次是為了讓「開發＝生產」在 compose 這一層
+      # 也看得見；生產站沿用映像內的 ENV（主站 compose 跨 repo，不在本卡射程）。
+      TZ: Asia/Taipei
     ports:
       - "4001:4001"
     volumes:
@@ -54,6 +60,7 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
       LIVE_GAME_WORKER_ENABLED: "true"
+      TZ: Asia/Taipei
 
   web:
     build: ./web

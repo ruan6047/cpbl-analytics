@@ -1,7 +1,13 @@
 """DATA-TZ-BOUNDARY1：日期界線時區語意回歸（AUDIT1 C12 殘項）。
 
-DB ``SHOW timezone`` = UTC，而 game_date 與球季作息全是台北日。台北 00:00–07:59
-這段 ``CURRENT_DATE`` 仍停在前一日 → 日期界線偏移一天。
+⚠️ **2026-08-21 前提變更（DATA-TZ-BOUNDARY-SUCCESSION1）**：DB session timezone 已由
+``cpbl.db`` 的 pool ``configure`` 明示為 ``Asia/Taipei``，容器 ``TZ`` 亦已在 Dockerfile
+設為 ``Asia/Taipei``。本檔下半的 DB 絆線因此改成斷言**新的**前提。上半的純邏輯測試
+不受影響——它們證的是「兩個時區的日界會差一天、且方向不對稱」，那是**時區本身的性質**，
+與哪一邊被選中無關，所以在新前提下仍然是有效的說明文件。
+
+歷史前提（改動前）：DB ``SHOW timezone`` = UTC，而 game_date 與球季作息全是台北日。
+台北 00:00–07:59 這段 ``CURRENT_DATE`` 仍停在前一日 → 日期界線偏移一天。
 
 **方向決定嚴重度**（本卡實測補正 AUDIT1「range 一律無害」的說法）：
 
@@ -165,6 +171,11 @@ def test_legacy_chain_helper_deliberately_keeps_utc_default() -> None:
     """舊 helper 的預設值刻意留 UTC——鏈端切換待 #53 G4 Phase B 後另卡授權。
 
     這是**明確決定**而非遺漏：它是上界用法（保守），Phase 2 才隨判準一起切。
+
+    ⚠️ **本測試釘的是字面，不是行為**，別把它讀成「鏈端仍走 UTC 日界」：session timezone
+    自 SUCCESSION1 起為 ``Asia/Taipei``，所以這個 ``CURRENT_DATE`` 經 ``cpbl.db.conn()``
+    求值時已等於台北日。留著字面是為了讓「有沒有人動過那個預設」這件事**看得見**——
+    授權在 ``#53 G4 Phase B``。
     """
     from cpbl.completion import completed_games_sql
 
@@ -178,9 +189,15 @@ def test_legacy_chain_helper_deliberately_keeps_utc_default() -> None:
 
 
 def test_db_confirms_dual_timezone_day_divergence_window_exists() -> None:
-    """DB 端以**定值時刻**證明日界差窗口存在（不依賴執行當下）。"""
+    """DB 端以**定值時刻**證明日界差窗口存在（不依賴執行當下）。
+
+    ⚠️ 這條斷言原本是 ``tz.upper() == "UTC"``——那是 DATA-TZ-BOUNDARY1 時期的前提絆線。
+    SUCCESSION1（2026-08-21）把 session timezone 明示為 ``Asia/Taipei``，所以絆線改成
+    斷言**新的**前提。它仍是絆線而不是裝飾：任何人把 pool 改回 UTC（或讓 `configure`
+    失效）都會在這裡響，而不是在某支業務查詢裡靜靜地少一天。
+    """
     try:
-        from cpbl.db import conn
+        from cpbl.db import SESSION_TIMEZONE, conn
 
         with conn() as c, c.cursor() as cur:
             cur.execute("SHOW timezone")
@@ -195,7 +212,48 @@ def test_db_confirms_dual_timezone_day_divergence_window_exists() -> None:
     except Exception as exc:  # noqa: BLE001 — 無 DB 時跳過（CI 無 Postgres）
         pytest.skip(f"需本機 DB：{exc}")
 
-    assert tz.upper() == "UTC", f"DB timezone 已非 UTC（{tz}），本卡前提需重新評估"
+    assert tz == SESSION_TIMEZONE == "Asia/Taipei", (
+        f"DB session timezone 已非 Asia/Taipei（{tz}）——業務日期一律台北是"
+        "DATA-TZ-BOUNDARY-SUCCESSION1 的前提，改動它等於改動全站日界"
+    )
     (morning_utc, morning_tpe), (evening_utc, evening_tpe) = rows
     assert morning_utc != morning_tpe, "台北凌晨應與 UTC 不同日"
     assert evening_utc == evening_tpe, "台北晚間應與 UTC 同日"
+
+
+def test_session_timezone_is_not_left_to_the_environment() -> None:
+    """session timezone 必須贏過 ``PGTZ``——這是本卡最容易被悄悄還原的一點。
+
+    實測（2026-08-21）：``PGTZ`` 會**蓋掉** startup packet 裡的 ``-c timezone=``，
+    所以「寫進連線字串」其實仍是靠環境變數。本測試在行程內把 ``PGTZ`` 設成一個明顯
+    錯誤的時區、丟掉既有 pool 再重連——若有人改用 ``options=``／連線字串參數，這裡會紅。
+    """
+    import os
+
+    try:
+        import cpbl.db as dbmod
+        from cpbl.db import conn
+    except Exception as exc:  # noqa: BLE001
+        pytest.skip(f"需本機 DB：{exc}")
+
+    old_pool, old_pgtz = dbmod._pool, os.environ.get("PGTZ")
+    dbmod._pool = None
+    os.environ["PGTZ"] = "America/New_York"
+    try:
+        with conn() as c, c.cursor() as cur:
+            cur.execute("SHOW timezone")
+            tz = cur.fetchone()[0]
+    except Exception as exc:  # noqa: BLE001
+        pytest.skip(f"需本機 DB：{exc}")
+    finally:
+        if dbmod._pool is not None:
+            dbmod._pool.close()
+        dbmod._pool = old_pool
+        if old_pgtz is None:
+            os.environ.pop("PGTZ", None)
+        else:
+            os.environ["PGTZ"] = old_pgtz
+
+    assert tz == "Asia/Taipei", (
+        f"PGTZ 蓋掉了 session timezone（得到 {tz}）——連線層的台北日界不得可被環境變數改寫"
+    )
