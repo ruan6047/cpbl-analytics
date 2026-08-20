@@ -160,23 +160,29 @@ def completed_games_sql_with_evidence(
 
 
 if __name__ == "__main__":
-    # stdout 是 shell 契約：refresh-cpbl-prod.sh 以 $(python -m cpbl.completion)
-    # 直接內插進 SQL，輸出必須恰為一行、不得帶表別名前綴。
+    # stdout 是 shell 契約：refresh-cpbl-prod.sh 以 $(python -m cpbl.completion …)
+    # 直接內插進 SQL，輸出必須恰為一行。
     #
-    # ⚠️ **已知未修：同步閘門與 /api/info 用兩套判準做精確相等比對**
-    # （DATA-TZ-BOUNDARY-SUCCESSION1 驗收 (3c)，本卡**未**修，見交付報告）。
-    #   * 閘門（refresh-cpbl-prod.sh:386）吃**預設分支**＝舊判準 ＋ ``CURRENT_DATE``，
-    #     且在 ``docker exec psql``——那是 **pool 之外**的 session，仍是 UTC。
-    #     pool 的 ``configure`` 管不到它，所以這一處**不能靠 session timezone 解決**；
-    #     修法必須讓產生的 SQL 文字自帶時區（本檔的 :data:`TAIPEI_TODAY_SQL` 即是）。
-    #   * ``/api/info``（info.py:52／:88）吃 ``completed_games_sql_with_evidence("games")``
-    #     ＝新判準 ＋ 台北。
-    #   兩者被 verify_refresh_info.py 拿去做**精確相等**比對，不等就擋同步。
-    # 2026-08-21 02:5x 實測兩側皆 454、尚未分歧；分歧條件是「窗內有當日完成場」或
-    # 「該季存在經取證的 0:0」。修這一處必須同時改
+    # ⚠️ **同步閘門必須走 ``--with-evidence``**（DATA-TZ-BOUNDARY-SUCCESSION1 (3c)，已修）。
+    # 原本閘門吃**預設分支**（舊判準 ＋ ``CURRENT_DATE``）而 ``/api/info``（info.py:52／:88）
+    # 吃 ``completed_games_sql_with_evidence("games")``（新判準 ＋ 台北），兩者被
+    # ``verify_refresh_info.py`` 拿去做**精確相等**比對，不等就擋同步——擋在**備份已完成、
+    # 正要 upsert** 的位置。錯配有兩層，兩層都已收斂到同一支 helper：
+    #   * **判準層**：舊判準漏判經取證的 0:0 真和局。本機實測分類差**恰 5 場**
+    #     （2018/A/124、2021/A/256、2023/A/119、2023/A/175、2025/A/233）。
+    #   * **日界層**：閘門在 ``docker exec psql`` 求值——那是 **pool 之外**的 session，
+    #     ``cpbl.db`` 的 ``configure`` 管不到它，其 ``CURRENT_DATE`` 仍是 UTC
+    #     （2026-08-20 20:2x UTC 實測：該 session ``SHOW timezone`` = UTC、
+    #     ``CURRENT_DATE`` = 2026-08-20，而台北已是 08-21）。所以這一處**不能靠 session
+    #     timezone 解決**，修法必須讓產生的 SQL **文字**自帶時區——:data:`TAIPEI_TODAY_SQL`
+    #     即是，而它正是 ``completed_games_sql_with_evidence`` 的預設 as_of。
+    # ⚠️ ``--with-evidence`` 的輸出**帶 ``g.`` 別名前綴**（相關子查詢的正確性要求，見
+    # :func:`completed_games_sql_with_evidence` 的說明），故呼叫端的查詢來源必須寫成
+    # ``FROM cpbl.games g``。回歸釘在
     # ``tests/test_backup_prod_db.py::test_refresh_uses_shared_completed_game_contract``
-    # （它逐字釘住 ``COMPLETED_GAMES_SQL="$(uv run python -m cpbl.completion)"``），
-    # 而該檔不在本卡資源宣告內，故留給後續卡。
+    # 與 ``::test_refresh_gate_and_info_metric_share_one_criterion``（後者逐字比對兩側，
+    # 只准差在別名）。⚠️ 預設分支**沒有**改：它仍是舊判準 ＋ ``CURRENT_DATE``，
+    # 授權在 ``#53 G4 Phase B``。
     import sys
 
     if "--with-evidence" in sys.argv[1:]:

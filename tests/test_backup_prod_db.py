@@ -193,10 +193,58 @@ def test_refresh_progress_uses_consistent_four_step_labels() -> None:
 
 
 def test_refresh_uses_shared_completed_game_contract() -> None:
+    """同步閘門必須與 `/api/info` 用**同一支** helper（DATA-TZ-BOUNDARY-SUCCESSION1 (3c)）。
+
+    ⚠️ 這條釘的是「兩邊同源」不只是「有引用 contract」：閘門取到的值會被
+    `verify_refresh_info.py` 拿去跟 `/api/info` 做**精確相等**比對，不等就擋同步——
+    而擋住的位置在**備份已完成、正要 upsert** 之後。用不同判準＝資料對了也會被擋。
+    """
     script = (ROOT / "scripts" / "refresh-cpbl-prod.sh").read_text(encoding="utf-8")
 
-    assert 'COMPLETED_GAMES_SQL="$(uv run python -m cpbl.completion)"' in script
+    assert 'COMPLETED_GAMES_SQL="$(uv run python -m cpbl.completion --with-evidence)"' in script
     assert "FILTER (WHERE ${COMPLETED_GAMES_SQL})" in script
+    # --with-evidence 產出的條件帶 `g.` 限定詞（相關子查詢的正確性要求），
+    # 故查詢來源必須別名化，否則整段 SQL 語法錯誤。
+    #
+    # ⚠️ **必須在 freshness 查詢本體內找，不能全檔 `in`**：本檔上方的說明註解也寫著
+    # 「FROM cpbl.games g」，全檔比對會被註解餵飽——實測把 SQL 的別名拿掉後，
+    # `"FROM cpbl.games g" in script` 仍然通過。那是零資訊的檢查。
+    assert "FROM cpbl.games g" in _freshness_query(script)
+
+
+def _freshness_query(script: str) -> str:
+    """抓出 `LOCAL_FRESHNESS=...` 那一段賦值（不含註解），供斷言在其內部比對。"""
+    start = script.index('LOCAL_FRESHNESS="$(docker exec')
+    end = script.index("\nIFS=", start)
+    return script[start:end]
+
+
+def test_refresh_gate_and_info_metric_share_one_criterion() -> None:
+    """閘門與 `/api/info` 的判準逐字同源：只准差在別名，as_of 與判準本體必須完全一致。
+
+    ⚠️ 不要用「本機兩側今天都是 454」當通過依據——那是巧合。本機實測兩套判準的
+    分類差為 **5 場**經取證的 0:0 真和局（2018/A/124、2021/A/256、2023/A/119、
+    2023/A/175、2025/A/233），只是它們都不在本季、今天剛好不影響計數。
+    """
+    import subprocess
+    import sys
+
+    from cpbl.completion import TAIPEI_TODAY_SQL, completed_games_sql_with_evidence
+
+    gate_sql = subprocess.run(  # noqa: S603 — 固定引數、無使用者輸入
+        [sys.executable, "-m", "cpbl.completion", "--with-evidence"],
+        capture_output=True, text=True, check=True, cwd=ROOT,
+    ).stdout.strip()
+    info_sql = completed_games_sql_with_evidence("games")
+
+    # 別名以外逐字相同 → 判準本體與 as_of 都同源
+    assert gate_sql == info_sql.replace("games.", "g."), (
+        f"閘門與 /api/info 判準已分歧：\n  gate={gate_sql}\n  info={info_sql}"
+    )
+    # as_of 自帶時區：閘門在 `docker exec psql`（連線池之外）求值，
+    # `cpbl.db` 的 configure 管不到那個 session，靠 session timezone 會失效。
+    assert TAIPEI_TODAY_SQL in gate_sql
+    assert "CURRENT_DATE" not in gate_sql
 
 
 def test_refresh_calls_the_whole_database_backup_script() -> None:

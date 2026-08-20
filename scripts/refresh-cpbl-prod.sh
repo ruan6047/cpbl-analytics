@@ -383,11 +383,33 @@ uv run cpbl-build-features 2>&1 | tail -1
 
 # 記住本機真實賽事 freshness；同步後 API 必須回報相同值，不能只靠腳本自寫 marker。
 # 由 Python contract 產生 SQL，避免同步 gate 與 API 各自複製 completed 語意。
-COMPLETED_GAMES_SQL="$(uv run python -m cpbl.completion)"
+#
+# ⚠️ **必須是 --with-evidence，且不得省略**（DATA-TZ-BOUNDARY-SUCCESSION1 (3c)）：本值會被
+# verify_refresh_info.py 拿去跟 /api/info 的 last_game_date／season_games_completed 做
+# **精確相等**比對，不等就擋同步。/api/info（api/routers/info.py）用的是
+# completed_games_sql_with_evidence，所以閘門也必須用同一支 helper——否則比的是兩套判準，
+# 一分歧就是「資料明明對、同步卻被擋」，而且擋在**已經備份完、正要 upsert** 的位置。
+# 兩套判準的差在本機實測為 5 場（2018/A/124、2021/A/256、2023/A/119、2023/A/175、
+# 2025/A/233 這 5 場經取證的 0:0 真和局），舊判準全部漏判。
+#
+# ⚠️ **日界也必須自帶時區**：這段 SQL 文字在 `docker exec psql` 裡求值——那是**連線池之外**
+# 的 session，`cpbl.db` 的 `configure` 管不到它，其 `CURRENT_DATE` 仍是 UTC（2026-08-20
+# 20:2x UTC 實測：該 session `SHOW timezone` = UTC、`CURRENT_DATE` = 2026-08-20，而台北
+# 已是 08-21）。helper 的預設 as_of 是 `(now() AT TIME ZONE 'Asia/Taipei')::date`，
+# 不依賴執行它的 session，這正是這裡需要的性質。
+#
+# ⚠️ `FROM cpbl.games g` 的別名不是排版：--with-evidence 產出的條件帶 `g.` 限定詞
+# （相關子查詢內未限定的欄名會解析到內層證據表，見 completion.py 的說明），沒有別名
+# 這段 SQL 直接語法錯誤。回歸釘在 tests/test_backup_prod_db.py。
+# ⚠️ 外層的 `max(game_date)`／`year` 刻意**不加**限定詞：FROM 只有一張表、無歧義，
+# 而 tests/test_prod_sync_revision_seq.py 的假 docker 樁以字面 `max(game_date)` 認這支
+# 查詢（認不出就回空字串 → 腳本 exit 65）。加了限定詞會讓那 13 條測試全紅，
+# 而那個檔不在本卡資源宣告內。
+COMPLETED_GAMES_SQL="$(uv run python -m cpbl.completion --with-evidence)"
 LOCAL_FRESHNESS="$(docker exec "$LOCAL_DB" psql -U cpbl -d cpbl -At -F '|' -c \
   "SELECT COALESCE(max(game_date) FILTER (WHERE ${COMPLETED_GAMES_SQL})::text, ''), \
           count(*) FILTER (WHERE year = ${YEAR} AND ${COMPLETED_GAMES_SQL}) \
-   FROM cpbl.games")"
+   FROM cpbl.games g")"
 IFS='|' read -r EXPECTED_LAST_GAME_DATE EXPECTED_COMPLETED <<< "$LOCAL_FRESHNESS"
 if [ -z "$EXPECTED_LAST_GAME_DATE" ] || ! [[ "$EXPECTED_COMPLETED" =~ ^[0-9]+$ ]]; then
   echo "FATAL: 無法取得本機 freshness 基準：${LOCAL_FRESHNESS}" >&2

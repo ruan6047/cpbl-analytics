@@ -427,15 +427,45 @@ PR #122 的 CI 正在被連坐，且批次 1 是整份契約裡唯一有現成�
 - **`src/cpbl/completion.py` 的模組註解**仍是完成場判準的推導來源；其中「日界落差」
   一節已就地標註哪一段是歷史前提。
 
+### 同步閘門的判準錯配（已修）
+
+`scripts/refresh-cpbl-prod.sh` 原本以 `python -m cpbl.completion` 的**預設分支**
+（舊判準 ＋ `CURRENT_DATE`）取本機 freshness 基準，而 `/api/info` 用的是
+`completed_games_sql_with_evidence`（新判準 ＋ 台北日）。兩者被 `verify_refresh_info.py`
+拿去做**精確相等**比對，不等就擋同步——擋在**備份已完成、正要 upsert** 的位置。錯配有兩層：
+
+- **判準層**：舊判準漏判經取證的 0:0 真和局。本機唯讀實測，兩套判準的分類差
+  **恰 5 場**：`2018/A/124`、`2021/A/256`、`2023/A/119`、`2023/A/175`、`2025/A/233`。
+- **日界層**：閘門在 `docker exec psql` 求值——那是**連線池之外**的 session，
+  `cpbl.db` 的 `_configure` 管不到它。2026-08-20 20:2x UTC 實測該 session
+  `SHOW timezone` = `UTC`、`CURRENT_DATE` = `2026-08-20`，而台北已是 `08-21`。
+  ⚠️ 所以這一處**不能靠 session timezone 解決**，修法必須讓產生的 SQL **文字自帶時區**。
+
+修法：閘門改呼叫 `python -m cpbl.completion --with-evidence`，與 `/api/info` 收斂到
+**同一支 helper、同一個 as_of**（`(now() AT TIME ZONE 'Asia/Taipei')::date`），
+查詢來源同步別名化為 `FROM cpbl.games g`（`--with-evidence` 的輸出帶 `g.` 限定詞，
+那是相關子查詢的正確性要求）。⚠️ **預設分支未動**——它仍是舊判準 ＋ `CURRENT_DATE`，
+授權在 `#53 G4 Phase B`。回歸釘在 `tests/test_backup_prod_db.py` 的
+`test_refresh_uses_shared_completed_game_contract` 與
+`test_refresh_gate_and_info_metric_share_one_criterion`（後者逐字比對兩側，只准差在別名）。
+
+⚠️ **不要用「本機兩側今天都是 454」當通過依據**——2026-08-20 20:2x UTC 實測兩側確實
+同為 `454`／`max_date=2026-08-19`，但那是巧合（那 5 場都不在本季、當日窗內無完成場），
+不是契約一致。契約一致是由「同源」證的，不是由數字相等證的。
+
+⚠️ **殘留的競態沒有被消除，只是被搬走了**：閘門讀**本機** DB 的時刻 T1 早於 API 被輪詢的
+時刻 T2（中間夾著備份與整庫 upsert，實測約 11 分鐘）。若 T1、T2 跨過日界，兩側仍會不等。
+修正前有**兩個**翻轉點（閘門在台北 08:00、API 在台北 00:00），修正後收斂成**一個**
+（台北 00:00）。排程是 10:10 CST，距唯一翻轉點約 10 小時，比修正前距 08:00 的 2 小時餘裕大。
+這是餘裕變大，不是保證。
+
 ### 已知未修（本卡明說不收）
 
-- **同步閘門與 `/api/info` 的判準錯配**：`scripts/refresh-cpbl-prod.sh:386` 取的是
-  舊判準 ＋ `CURRENT_DATE`，且在 `docker exec psql`——**pool 之外**的 session，不受
-  `_configure` 管轄，仍是 UTC；而 `/api/info` 用新判準 ＋ 台北。兩者被拿去做**精確相等**
-  比對。2026-08-21 02:5x 實測兩側皆 454、尚未分歧。修法必須讓產生的 SQL **文字自帶時區**
-  （不能靠 session）。詳見 `completion.py` 的 `__main__` 註解。
 - **保留賽的交互作用**：保留賽有比分且排未來日期，`<= 今天` 是唯一擋住它們的東西。
-  日界改台北後，它們從台北 08:00 才被納入變成 **02:00 就被納入**（早 8 小時）。
+  日界改台北後，它們從台北 08:00 才被納入變成 **台北 00:00 就被納入**（早 8 小時）。
+  ⚠️ 卡面驗收 (7) 寫的是「變成 02:00 就被納入」，那與同句的「早 8 小時」自相矛盾：
+  UTC 日界的 `CURRENT_DATE` 在 UTC 00:00＝台北 08:00 翻轉，早 8 小時就是台北 00:00。
+  差距量（8 小時）與方向（提早）與卡面一致，只有那個時刻寫錯，此處以算術為準。
   這是既有缺陷的**時點位移**，不是新缺陷，屬 `#113`／`#134`，本卡不修。
 - **舊 helper `completed_games_sql()` 的 UTC 預設字面**未改，授權在 `#53 G4 Phase B`。
   ⚠️ 但**行為已隨 session 改變**：經 `cpbl.db.conn()` 求值時該 `CURRENT_DATE` 已是台北日。
