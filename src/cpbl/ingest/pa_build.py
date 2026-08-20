@@ -59,6 +59,11 @@ Pitch = dict[str, Any]
 # 版本紀律（iteration 5 查核 Critical 的教訓）：**任何 build 行為變更必須進位**——
 # 等價 noop 檢查以 builder_version 判定「同邏輯」，版本不動就會把不同邏輯產的 build
 # 當等價而跳過必要的 side effect（如同源降級）。1.2.0 期間曾違反此紀律。
+# ⚠️ 判準（不是放寬，是把「build 行為」講清楚，免得每次都要重新吵）：**會改變預設路徑
+# 的等價判定或其必要 side effect** 的改動才在射程內——PA 推導、fingerprint、reconcile
+# 決策、noop 短路與降級。顯式政策操作（`accept_reconciliation`，本就刻意繞過
+# `_existing_equivalent_build`）不改變預設路徑的等價語意，不在射程內；
+# ⚠️ 拿不準時進位，代價只是重跑一輪，判錯的代價是靜默跳過 side effect。
 BUILDER_VERSION = "pa-build-1.3.0"  # FIX1：合併/outs/不變式/9.15(b) + per-build 映射鍵 + 同源降級
 EVENT_ORDER_VERSION = "evord-1.0"  # main_event_no::bigint 嚴格全序
 # 固定 UUIDv5 namespace（勿更動：更動會使全部 pa_id 漂移）。
