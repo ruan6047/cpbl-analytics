@@ -100,7 +100,7 @@ def _completed_snos(year: int, days: list[date], kind_code: str = "A") -> list[i
     with conn() as c:
         rows = c.execute(
             "SELECT game_sno FROM cpbl.games WHERE year = %s AND kind_code = %s AND game_date = ANY(%s) "
-            "AND home_score + away_score > 0 ORDER BY game_sno",
+            f"AND {completed_games_sql()} ORDER BY game_sno",
             (year, kind_code, days),
         ).fetchall()
     return [r[0] for r in rows]
@@ -525,9 +525,9 @@ def _recent_counts(year: int, days: list[date]) -> list[tuple[date, int, int]]:
     """回傳 [(日期, 總場次, 已完成場次)]（含未開打）。"""
     with conn() as c:
         rows = c.execute(
-            """
+            f"""
             SELECT game_date, count(*),
-                   count(*) FILTER (WHERE home_score + away_score > 0)
+                   count(*) FILTER (WHERE {completed_games_sql()})
             FROM cpbl.games
             WHERE year = %s AND game_date = ANY(%s)
             GROUP BY game_date ORDER BY game_date
