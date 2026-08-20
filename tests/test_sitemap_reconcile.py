@@ -9,9 +9,13 @@
 ## 判準（需求方 2026-08-20 四輪研究後裁定，不得自行改設計）
 
 **掃 module docstring 宣告的端點，不是掃程式碼字串。**
-掃字面行不通且會重現本卡要修的錯：`cpbl_advanced.py` 的 URL 是
-``f"{BASE}/api/proxy/v1/leaderboards/{lb}"``，端點由變數組成，掃字面找不到
-``leaderboards/summary``——而「以為 summary 未爬」正是當天犯的錯之一。
+掃字面行不通：`cpbl_advanced.py` 的 URL 是 ``f"{BASE}/api/proxy/v1/leaderboards/{lb}"``，
+端點由變數組成。真正掃字面必漏的是 ``exit-velocity`` 與 ``batted-ball``——它們只在
+run-manifest 的 ``"leaderboards/pr-table+exit-velocity+batted-ball"`` 這種 `+` 串接標籤裡
+出現，子字串比對不會命中。⚠️ 反倒是 ``leaderboards/summary``（當天判錯的那一個）另有一個
+run-manifest 標籤 ``"leaderboards/summary"``，naive grep 會**歪打正著**命中——所以它不是
+「掃字面會漏」的好例子，卡面拿它舉例並不精確（結論不變，例子換掉）。見
+test_literal_grep_would_miss_endpoints_that_docstring_declares。
 docstring 則是字面、且是人寫給人看的宣告。``{a,b,c}`` 展開語法是既有慣例
 （`cpbl_advanced`／`cpbl_home_runs` 皆如此），故解析器必須支援。
 
@@ -110,6 +114,22 @@ EXEMPT_ROWS: dict[str, str] = {
 }
 
 VALID_MARKERS = ("✅", "⬜", "△")
+
+# ---------------------------------------------------------------------------
+# 封閉清單：頁面路由 → 它的 AJAX 資料端點
+# ---------------------------------------------------------------------------
+# 官網把頁面 `R` 的資料端點命名為 `R + "action"`（中間沒有 `/`），所以「子路徑」那條規則
+# 接不到，必須另外列。⚠️ **刻意寫成字面清單而不是 ``R + "action"`` 這條開放式規則**：
+# 開放式規則會讓任何未來端點只要恰好長成 `R` 加某段字就自動命中，那正是被打穿的那個形狀。
+# 端點抽取那邊用封閉集合是同一個理由。新增一條必須改這個檔案，會出現在 diff 裡。
+# 見 test_ajax_action_routes_are_pinned_and_shaped。
+AJAX_ACTION_ROUTES: dict[str, tuple[str, ...]] = {
+    "/standings/season": ("/standings/seasonaction",),
+    "/stats/recordall": ("/stats/recordallaction",),
+    # 冗餘但誠實：cpbl_awards.py 同時宣告 `/stats/yearaward`（規則 2 已命中）與其 action 端點。
+    # 列在這裡是為了讓「這一列靠什麼命中」在碼裡看得見，而不是靠另一條宣告碰巧存在。
+    "/stats/yearaward": ("/stats/yearawardaction",),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -281,20 +301,41 @@ class Finding:
         return f"[{self.kind}] {self.endpoint} {mods}"
 
 
-def declaring_modules(endpoint: str, declared: dict[str, set[str]]) -> tuple[str, ...]:
-    """哪些模組宣告了這個文件列所代表的端點。
+def endpoint_matches_row(declared_ep: str, row_endpoint: str) -> bool:
+    """宣告端點 E 是否命中 §4b 的文件列 R。**四條規則，每條都有語意邊界。**
 
-    比對規則是**單向前綴**：宣告端點 E 命中文件列 R ⟺ ``E.startswith(R)``。
-    §4b 主站表列的是**頁面路由**，docstring 宣告的常是該頁底下的 AJAX 端點，故需要前綴：
-    `/box` ← `/box/getlive`、`/standings/season` ← `/standings/seasonaction`、
-    `/stats/recordall` ← `/stats/recordallaction`、`/team/*` ← `/team/index`。
-    反向（R.startswith(E)）**刻意不做**：`cpbl_stats` 宣告了家族層級的 `/stats`，反向比對
+    ⚠️ 前一版是無邊界的 ``E.startswith(R)``，被查核者一發打穿：把 `cpbl_home_runs` 的
+    docstring 從 `/stats/hr` 改成**另一個端點** `/stats/hrarchive`，文件仍標 ✅ 卻全綠
+    ——那是本卡明文禁止的「構造上不會紅的對帳」。字串前綴不是路徑前綴。
+
+    1. **萬用字元列**：`R` 以 `*` 結尾（§4b 只有 `/team/*`、`/about/*`）→ 比對到 `/` 邊界。
+    2. **完全相同**：`E == R`。
+    3. **子路徑**：``E.startswith(R + "/")``——邊界是 `/`，故 `/stats/hrarchive` 不會命中
+       `/stats/hr`，而 `/box/getlive` 仍命中 `/box`。
+    4. **AJAX action 對應**：官網把頁面路由 `R` 的資料端點命名為 `R + "action"`，中間**沒有
+       `/`**，規則 3 接不到。這類用 `AJAX_ACTION_ROUTES` 的**明列封閉清單**接，不用開放式
+       ``R + "action"`` 規則——否則只是把一個開放集合換成另一個開放集合。
+
+    反向（`R` 在 `E` 底下）**刻意不做**：`cpbl_stats` 宣告了家族層級的 `/stats`，反向比對
     會讓 `/stats/toplist`、`/stats/mvp` 這些真的沒爬的列全部誤報成已爬。
     """
-    prefix = endpoint.rstrip("*")
+    if row_endpoint.endswith("*"):
+        base = row_endpoint.rstrip("*")
+        if not base.endswith("/"):
+            base += "/"
+        return declared_ep == base.rstrip("/") or declared_ep.startswith(base)
+    if declared_ep == row_endpoint:
+        return True
+    if declared_ep.startswith(row_endpoint + "/"):
+        return True
+    return declared_ep in AJAX_ACTION_ROUTES.get(row_endpoint, ())
+
+
+def declaring_modules(endpoint: str, declared: dict[str, set[str]]) -> tuple[str, ...]:
+    """哪些模組宣告了這個文件列所代表的端點（比對規則見 `endpoint_matches_row`）。"""
     hit: set[str] = set()
     for declared_ep, modules in declared.items():
-        if declared_ep == endpoint or declared_ep.startswith(prefix):
+        if endpoint_matches_row(declared_ep, endpoint):
             hit |= modules
     return tuple(sorted(hit))
 
@@ -333,15 +374,22 @@ def check_excluded_modules(ingest_dir: Path = INGEST_DIR) -> list[Finding]:
 def uncovered_declarations(rows: list[DocRow], declared: dict[str, set[str]]) -> dict[str, tuple]:
     """宣告了官網端點、但 §4b 完全沒有對應列的情形（新增爬蟲忘了更新文件）。
 
-    這裡用**雙向**家族比對（E 在 R 底下，或 R 在 E 底下），因為問的是「文件有沒有涵蓋到
+    這裡用**雙向**家族比對（E 命中 R，或 R 落在 E 底下），因為問的是「文件有沒有涵蓋到
     這個端點所屬的頁面」，跟 ``declaring_modules`` 問的「這一列有沒有人在爬」不是同一個問題。
+    ⚠️ 兩個方向都走 `/` 邊界，不用裸 ``startswith``：`cpbl_stats` 宣告家族層級的 `/stats`
+    要算被 `/stats/recordall` 這列涵蓋（反向），但 `/stats/hrarchive` **不算**被 `/stats/hr`
+    涵蓋——它是另一個端點，§4b 沒有它的列就該報出來。
     """
-    route_prefixes = [r.endpoint.rstrip("*") for r in rows]
+
+    def _row_is_under(row_endpoint: str, endpoint: str) -> bool:
+        base = row_endpoint.rstrip("*").rstrip("/")
+        return base == endpoint or base.startswith(endpoint + "/")
+
     out: dict[str, tuple] = {}
     for endpoint, modules in sorted(declared.items()):
         covered = any(
-            endpoint.startswith(prefix) or prefix.startswith(endpoint)
-            for prefix in route_prefixes
+            endpoint_matches_row(endpoint, row.endpoint) or _row_is_under(row.endpoint, endpoint)
+            for row in rows
         )
         if not covered:
             out[endpoint] = tuple(sorted(modules))
@@ -538,6 +586,123 @@ def test_mutation_uncrawled_endpoint_marked_crawled_turns_red(site_map_text, dec
 
     restored = set_marker(mutated, target, "⬜")
     assert not reconcile(parse_site_map_rows(restored), declared)
+
+
+# ---- R1-001 回歸：前綴比對必須有語意邊界 ----
+
+
+def test_endpoint_match_has_path_boundary():
+    """`/stats/hrarchive` 是**另一個端點**，不得命中 `/stats/hr`。
+
+    這是查核者 R1 打穿舊實作的那一發：舊規則 ``E.startswith(R)`` 沒有邊界，把 docstring
+    宣告換成 `/stats/hrarchive` 之後文件的 ✅ 仍然全綠。字串前綴不是路徑前綴。
+    """
+    assert not endpoint_matches_row("/stats/hrarchive", "/stats/hr")
+    assert not declaring_modules("/stats/hr", {"/stats/hrarchive": {"cpbl_home_runs.py"}})
+
+    # 同族的其他無邊界誤命中一併釘住
+    for declared_ep, row in (
+        ("/stats/hrx", "/stats/hr"),
+        ("/standings/seasonal", "/standings/season"),
+        ("/boxscore", "/box"),
+        ("/fieldnotes", "/field"),
+        ("/teamhistoryx", "/teamhistory"),
+        ("/player/transfer2", "/player/trans"),
+    ):
+        assert not endpoint_matches_row(declared_ep, row), f"{declared_ep} 不該命中 {row}"
+
+
+def test_legitimate_correspondences_do_not_regress():
+    """收緊邊界不得讓合法對應退化——三種規則各自舉證。"""
+    # 規則 2：完全相同
+    assert endpoint_matches_row("/stats/hr", "/stats/hr")
+    # 規則 3：`/` 邊界的子路徑
+    assert endpoint_matches_row("/box/getlive", "/box")
+    assert endpoint_matches_row("/schedule/getgamedatas", "/schedule")
+    assert endpoint_matches_row("/field/cont", "/field")
+    # 規則 4：明列的 AJAX action
+    assert endpoint_matches_row("/standings/seasonaction", "/standings/season")
+    assert endpoint_matches_row("/stats/recordallaction", "/stats/recordall")
+    # 規則 1：萬用字元列
+    assert endpoint_matches_row("/team/index", "/team/*")
+    assert endpoint_matches_row("/team/getfightingoptsaction", "/team/*")
+    assert not endpoint_matches_row("/teamhistory", "/team/*"), "萬用字元同樣要走 `/` 邊界"
+
+    # 端到端：真實文件 + 真實 docstring，這幾列必須仍然由預期模組命中
+    decl = collect_declarations()
+    for row, module in (
+        ("/box", "cpbl_gamelog.py"),
+        ("/standings/season", "cpbl_standings.py"),
+        ("/stats/recordall", "cpbl_stats.py"),
+        ("/team/*", "cpbl_roster.py"),
+        ("/field", "cpbl_field.py"),
+    ):
+        assert module in declaring_modules(row, decl), f"{row} 對 {module} 的對應退化了"
+
+
+def test_ajax_action_routes_are_pinned_and_shaped(site_map_text):
+    """AJAX 對應是封閉清單，且只能是 `R + "action"` 這個形狀，不能拿來對映任意端點。"""
+    rows = {r.endpoint for r in parse_site_map_rows(site_map_text)}
+    assert set(AJAX_ACTION_ROUTES) == {
+        "/standings/season",
+        "/stats/recordall",
+        "/stats/yearaward",
+    }, "新增 AJAX 對應必須是有意識的 diff，不可默默長出來"
+    for route, actions in AJAX_ACTION_ROUTES.items():
+        assert route in rows, f"{route} 已不在 §4b，這條對應是死碼"
+        for action in actions:
+            assert action == route + "action", f"{action} 不是 {route} 的 action 端點"
+
+
+def _copy_ingest_tree(dst: Path) -> Path:
+    dst.mkdir(parents=True, exist_ok=True)
+    for path in INGEST_DIR.glob("*.py"):
+        (dst / path.name).write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+    return dst
+
+
+def _rewrite_docstring(path: Path, old: str, new: str) -> None:
+    """只改 module docstring 內的字串，不動程式碼——複製查核者那一發的形狀。"""
+    source = path.read_text(encoding="utf-8")
+    docstring = ast.get_docstring(ast.parse(source)) or ""
+    assert old in docstring, f"{path.name} 的 docstring 沒有 {old}，變異樣本失效"
+    start = source.index(docstring)
+    path.write_text(
+        source[:start] + docstring.replace(old, new) + source[start + len(docstring) :],
+        encoding="utf-8",
+    )
+
+
+def test_mutation_docstring_swapped_to_a_different_endpoint_turns_red(site_map_text, tmp_path):
+    """⭐ 查核者 R1 的那一發：docstring 宣告改成 `/stats/hrarchive` → 對帳**必須轉紅**。
+
+    在 `src/` 的複本上做（本卡資源宣告只有文件與本測試檔，不得改動 ingest 原始碼）。
+    對照組＝未變異的同一份複本必須是綠的，證明轉紅來自變異本身而不是複製這個動作。
+    """
+    rows = parse_site_map_rows(site_map_text)
+
+    # 對照組：原封不動的複本 → 綠
+    control = _copy_ingest_tree(tmp_path / "control")
+    control_decl = collect_declarations(control)
+    assert not reconcile(rows, control_decl)
+    assert not uncovered_declarations(rows, control_decl)
+
+    # 變異組：兩支模組的 docstring 從 /stats/hr 換成另一個端點 /stats/hrarchive
+    mutant = _copy_ingest_tree(tmp_path / "mutant")
+    for name in ("cpbl_home_runs.py", "run_scrape_home_runs.py"):
+        _rewrite_docstring(mutant / name, "/stats/hr", "/stats/hrarchive")
+
+    mutant_decl = collect_declarations(mutant)
+    # 先證明變異真的落地了（否則下面的斷言在驗一個沒發生的事）
+    assert "/stats/hr" not in mutant_decl
+    assert mutant_decl["/stats/hrarchive"] == {"cpbl_home_runs.py", "run_scrape_home_runs.py"}
+
+    findings = reconcile(rows, mutant_decl)
+    assert [(f.kind, f.endpoint) for f in findings] == [("over_claim", "/stats/hr")], (
+        "文件仍標 ✅ 而沒有任何模組宣告 /stats/hr，對帳必須轉紅"
+    )
+    # 第二個獨立訊號：/stats/hrarchive 在 §4b 沒有列
+    assert "/stats/hrarchive" in uncovered_declarations(rows, mutant_decl)
 
 
 # ---------------------------------------------------------------------------
