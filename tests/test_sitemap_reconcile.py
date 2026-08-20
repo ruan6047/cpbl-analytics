@@ -301,34 +301,101 @@ class Finding:
         return f"[{self.kind}] {self.endpoint} {mods}"
 
 
+def _is_strict_subpath(child: str, parent: str) -> bool:
+    """`child` 是否為 `parent` 的**嚴格**子路徑：邊界是 `/`，且不含 `parent` 自己。
+
+    ⚠️ **這是整份對帳裡唯一允許出現路徑前綴比對的地方。**R1/R2 兩輪都栽在同一個形狀：
+    邊界規則寫在 docstring 裡，實作卻在別處各寫一份、然後其中一份漏掉邊界。把邊界收斂成
+    單一原語之後，「還有沒有第三個地方沒邊界」就不再需要靠人逐條讀——由
+    `scan_unbounded_prefix_matches` 機械掃描回答（見
+    test_no_path_prefix_logic_bypasses_the_boundary_primitive）。
+    """
+    return child.startswith(parent.rstrip("/") + "/")
+
+
+def _wildcard_base(row_endpoint: str) -> str | None:
+    """萬用字元列 → 它的 base（`/team/*` → `/team`）；不是萬用字元列則回 `None`。
+
+    ⚠️ base **不等於**該列自己代表的端點：`/team/*` 代表的是 `/team` 底下的子頁，
+    **不包含裸 `/team`**。R2 打穿的就是這一點——舊實作把 base 當成一個可以直接 equality
+    命中的端點，於是「只剩裸 `/team` 宣告」時 `/team/*` 的 ✅ 仍然假綠。
+    """
+    if not row_endpoint.endswith("*"):
+        return None
+    return row_endpoint.rstrip("*").rstrip("/")
+
+
 def endpoint_matches_row(declared_ep: str, row_endpoint: str) -> bool:
     """宣告端點 E 是否命中 §4b 的文件列 R。**四條規則，每條都有語意邊界。**
 
-    ⚠️ 前一版是無邊界的 ``E.startswith(R)``，被查核者一發打穿：把 `cpbl_home_runs` 的
+    ⚠️ 最早的版本是無邊界的 ``E.startswith(R)``，被查核者一發打穿：把 `cpbl_home_runs` 的
     docstring 從 `/stats/hr` 改成**另一個端點** `/stats/hrarchive`，文件仍標 ✅ 卻全綠
     ——那是本卡明文禁止的「構造上不會紅的對帳」。字串前綴不是路徑前綴。
 
-    1. **萬用字元列**：`R` 以 `*` 結尾（§4b 只有 `/team/*`、`/about/*`）→ 比對到 `/` 邊界。
+    1. **萬用字元列**：`R` 以 `*` 結尾（§4b 只有 `/team/*`、`/about/*`）→ E 必須是 base 的
+       **嚴格**子路徑。⚠️ R2 回歸：舊版這條額外允許 ``E == base``，於是裸 `/team` 命中
+       `/team/*`。萬用字元代表「底下的子頁」，裸 base 不是子頁——它跟 `/teamhistory`
+       一樣，是另一個端點。
     2. **完全相同**：`E == R`。
-    3. **子路徑**：``E.startswith(R + "/")``——邊界是 `/`，故 `/stats/hrarchive` 不會命中
+    3. **子路徑**：E 是 R 的嚴格子路徑——邊界是 `/`，故 `/stats/hrarchive` 不會命中
        `/stats/hr`，而 `/box/getlive` 仍命中 `/box`。
     4. **AJAX action 對應**：官網把頁面路由 `R` 的資料端點命名為 `R + "action"`，中間**沒有
-       `/`**，規則 3 接不到。這類用 `AJAX_ACTION_ROUTES` 的**明列封閉清單**接，不用開放式
-       ``R + "action"`` 規則——否則只是把一個開放集合換成另一個開放集合。
+       `/`**，規則 3 接不到。這類用 `AJAX_ACTION_ROUTES` 的**明列封閉清單**接（純 equality
+       成員檢查，無前綴語意），不用開放式 ``R + "action"`` 規則——否則只是把一個開放集合
+       換成另一個開放集合。
 
     反向（`R` 在 `E` 底下）**刻意不做**：`cpbl_stats` 宣告了家族層級的 `/stats`，反向比對
     會讓 `/stats/toplist`、`/stats/mvp` 這些真的沒爬的列全部誤報成已爬。
     """
-    if row_endpoint.endswith("*"):
-        base = row_endpoint.rstrip("*")
-        if not base.endswith("/"):
-            base += "/"
-        return declared_ep == base.rstrip("/") or declared_ep.startswith(base)
+    base = _wildcard_base(row_endpoint)
+    if base is not None:
+        return _is_strict_subpath(declared_ep, base)  # 規則 1
     if declared_ep == row_endpoint:
-        return True
-    if declared_ep.startswith(row_endpoint + "/"):
-        return True
-    return declared_ep in AJAX_ACTION_ROUTES.get(row_endpoint, ())
+        return True  # 規則 2
+    if _is_strict_subpath(declared_ep, row_endpoint):
+        return True  # 規則 3
+    return declared_ep in AJAX_ACTION_ROUTES.get(row_endpoint, ())  # 規則 4
+
+
+# 允許出現字串前綴比對的**封閉清單**（函式名逐字釘死，`test_*` 不在管轄內）。
+# 新增一筆必須改這個檔案，會出現在 code review 的 diff 裡。
+PREFIX_MATCH_ALLOWLIST: dict[str, str] = {
+    "_is_strict_subpath": "唯一的路徑邊界原語，`/` 邊界就實作在這裡",
+    "parse_site_map_rows": "比對的是 markdown 表格結構（`|`、`## 4b.` 標題），不是路徑",
+}
+
+
+def scan_unbounded_prefix_matches(source: str) -> list[str]:
+    """掃出對帳邏輯裡所有繞過 `_is_strict_subpath` 的前綴比對。
+
+    ⭐ **為什麼需要這一支**：R1 與 R2 是同一個 finding_id、同一個 root_cause——邊界規則寫在
+    docstring 裡，實作卻散在多處各寫一份，補完一處還有一處。同族連兩輪代表問題不在那一行，
+    而在形狀：「有沒有第三個地方沒邊界」這個問題本來要靠人逐條讀規則敘述去比對，人讀漏了兩次。
+    這支把它換成封閉集合的機械掃描——前綴比對只准出現在允許清單裡的函式，其餘一律報出來。
+
+    只掃 `startswith`／`removeprefix`（前綴語意）；`endswith`（`_wildcard_base` 判 `*` 標記）
+    與 `rstrip`（正規化）不是前綴比對，不在管轄內。
+    """
+    offenders: list[str] = []
+
+    def visit(node: ast.AST, fn: str | None) -> None:
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
+                visit(child, child.name)
+                continue
+            if (
+                isinstance(child, ast.Call)
+                and isinstance(child.func, ast.Attribute)
+                and child.func.attr in ("startswith", "removeprefix")
+                and fn is not None
+                and fn[:5] != "test_"  # 刻意不用 startswith，否則本函式會掃到自己
+                and fn not in PREFIX_MATCH_ALLOWLIST
+            ):
+                offenders.append(f"{fn}:{child.lineno} .{child.func.attr}()")
+            visit(child, fn)
+
+    visit(ast.parse(source), None)
+    return sorted(offenders)
 
 
 def declaring_modules(endpoint: str, declared: dict[str, set[str]]) -> tuple[str, ...]:
@@ -376,14 +443,21 @@ def uncovered_declarations(rows: list[DocRow], declared: dict[str, set[str]]) ->
 
     這裡用**雙向**家族比對（E 命中 R，或 R 落在 E 底下），因為問的是「文件有沒有涵蓋到
     這個端點所屬的頁面」，跟 ``declaring_modules`` 問的「這一列有沒有人在爬」不是同一個問題。
-    ⚠️ 兩個方向都走 `/` 邊界，不用裸 ``startswith``：`cpbl_stats` 宣告家族層級的 `/stats`
-    要算被 `/stats/recordall` 這列涵蓋（反向），但 `/stats/hrarchive` **不算**被 `/stats/hr`
-    涵蓋——它是另一個端點，§4b 沒有它的列就該報出來。
+    ⚠️ 兩個方向都走 `/` 邊界（一律經 `_is_strict_subpath`）：`cpbl_stats` 宣告家族層級的
+    `/stats` 要算被 `/stats/recordall` 這列涵蓋（反向），但 `/stats/hrarchive` **不算**被
+    `/stats/hr` 涵蓋——它是另一個端點，§4b 沒有它的列就該報出來。
     """
 
     def _row_is_under(row_endpoint: str, endpoint: str) -> bool:
-        base = row_endpoint.rstrip("*").rstrip("/")
-        return base == endpoint or base.startswith(endpoint + "/")
+        """文件列 R 是否落在宣告端點 E 這個家族底下（＝ E 至少被文件涵蓋到）。"""
+        base = _wildcard_base(row_endpoint)
+        if base is not None:
+            # ⚠️ R2 回歸的反向面：舊實作把 `/team/*` 折成裸 `/team` 再做 equality，於是
+            # 裸 `/team` 宣告被萬用字元列吸收，**兩個方向同時靜音**。萬用字元列只涵蓋
+            # base 底下的子頁，故只有 E 是 base 的嚴格祖先才算涵蓋；E == base 不算。
+            return _is_strict_subpath(base, endpoint)
+        base = row_endpoint.rstrip("/")
+        return base == endpoint or _is_strict_subpath(base, endpoint)
 
     out: dict[str, tuple] = {}
     for endpoint, modules in sorted(declared.items()):
@@ -638,6 +712,136 @@ def test_legitimate_correspondences_do_not_regress():
         ("/field", "cpbl_field.py"),
     ):
         assert module in declaring_modules(row, decl), f"{row} 對 {module} 的對應退化了"
+
+
+# ---- R2-001 回歸：萬用字元列不得吸收它自己的裸 base ----
+
+
+def test_wildcard_row_does_not_match_its_bare_base():
+    """裸 `/team` 不得命中 `/team/*`：萬用字元代表**底下的子頁**，不代表 base 自己。
+
+    ⚠️ 這是 R1 同一個 root_cause 的第二處：規則 1 的敘述說「比對到 `/` 邊界」，實作卻多了
+    一條 ``E == base`` 的裸 equality。查核者以合成資料打穿——`declared={"/team": ...}`、
+    `row="/team/*"` 時對帳全綠。裸 base 跟 `/teamhistory` 一樣是**另一個端點**。
+    """
+    for base, row in (("/team", "/team/*"), ("/about", "/about/*")):
+        assert not endpoint_matches_row(base, row), f"裸 {base} 不該命中 {row}"
+        assert not declaring_modules(row, {base: {"probe.py"}})
+
+    # 收緊不得矯枉過正：子頁仍必須命中
+    for child, row in (("/team/index", "/team/*"), ("/about/company", "/about/*")):
+        assert endpoint_matches_row(child, row), f"{child} 必須仍命中 {row}"
+
+
+def test_bare_base_declaration_is_not_absorbed_by_the_wildcard_row(site_map_text):
+    """端到端重演查核者 R2 的那一發，並要求**兩個獨立訊號**。
+
+    只剩裸 `/team` 宣告時：(1) `/team/*` 的 ✅ 沒有任何模組撐著 → over_claim；
+    (2) `/team` 這個宣告在 §4b 找不到對應列 → uncovered。R2 之前兩個訊號同時靜音。
+    """
+    rows = parse_site_map_rows(site_map_text)
+    probe = {"/team": {"probe.py"}}
+
+    assert ("over_claim", "/team/*") in [(f.kind, f.endpoint) for f in reconcile(rows, probe)]
+    assert uncovered_declarations(rows, probe)["/team"] == ("probe.py",)
+
+    # 對照組：真正的子頁宣告仍被涵蓋，證明上面兩發不是「什麼都報」
+    covered = {"/team/index": {"probe.py"}}
+    assert not uncovered_declarations(rows, covered)
+    assert ("over_claim", "/team/*") not in [(f.kind, f.endpoint) for f in reconcile(rows, covered)]
+
+
+# ---- 四條規則逐條對照自己的敘述：封閉的逐字黃金值 ----
+
+RULE_BOUNDARY_GOLDEN: tuple[tuple[int, str, str, bool], ...] = (
+    # 規則 1：萬用字元列＝base 的嚴格子路徑
+    (1, "/team/index", "/team/*", True),
+    (1, "/team/getfightingoptsaction", "/team/*", True),
+    (1, "/team", "/team/*", False),  # 裸 base（R2 打穿的那一發）
+    (1, "/teamhistory", "/team/*", False),
+    (1, "/team2/index", "/team/*", False),
+    (1, "/team-action", "/team/*", False),
+    (1, "/about/company", "/about/*", True),
+    (1, "/about", "/about/*", False),
+    (1, "/aboutus", "/about/*", False),
+    # 規則 2：完全相同
+    (2, "/stats/hr", "/stats/hr", True),
+    (2, "/field", "/field", True),
+    # 規則 3：嚴格子路徑
+    (3, "/box/getlive", "/box", True),
+    (3, "/field/cont", "/field", True),
+    (3, "/stats/hrarchive", "/stats/hr", False),  # 查核者 R1 打穿的那一發
+    (3, "/boxscore", "/box", False),
+    (3, "/fieldnotes", "/field", False),
+    (3, "/standings/seasonal", "/standings/season", False),
+    # 規則 4：封閉的 AJAX 清單，純 equality 成員檢查
+    (4, "/standings/seasonaction", "/standings/season", True),
+    (4, "/stats/recordallaction", "/stats/recordall", True),
+    (4, "/standings/seasonaction2", "/standings/season", False),
+    (4, "/stats/hraction", "/stats/hr", False),  # /stats/hr 不在 AJAX 清單裡
+)
+
+
+@pytest.mark.parametrize(("rule", "declared_ep", "row", "expected"), RULE_BOUNDARY_GOLDEN)
+def test_every_rule_boundary_is_pinned_by_golden_values(rule, declared_ep, row, expected):
+    """四條規則各自的邊界，正反例都釘成逐字黃金值。
+
+    PM 在 R2 要求「把四條規則逐條對照它們自己的敘述檢查一遍」。人工逐條讀已經漏了兩次，
+    所以這裡改成封閉的黃金值表：每條規則都要有**越界為 False** 的樣本，光靠合法對應
+    全 True 是可以被無邊界實作矇混過去的。
+    """
+    assert endpoint_matches_row(declared_ep, row) is expected, (
+        f"規則 {rule}：{declared_ep} vs {row} 應為 {expected}"
+    )
+
+
+def test_golden_table_covers_all_four_rules_in_both_directions():
+    """黃金值表本身不得退化成只有正例（那樣就驗不到邊界）。"""
+    by_rule: dict[int, set[bool]] = {}
+    for rule, _, _, expected in RULE_BOUNDARY_GOLDEN:
+        by_rule.setdefault(rule, set()).add(expected)
+    assert set(by_rule) == {1, 2, 3, 4}, "四條規則都要有樣本"
+    for rule in (1, 3, 4):
+        assert by_rule[rule] == {True, False}, f"規則 {rule} 缺少越界（False）樣本"
+    # 規則 2 是 equality，沒有「越界」可言，只驗它有正例
+    assert by_rule[2] == {True}
+
+
+# ---- 形狀守衛：邊界只准實作一次 ----
+
+
+def test_no_path_prefix_logic_bypasses_the_boundary_primitive():
+    """整份對帳裡，前綴比對只准出現在 `PREFIX_MATCH_ALLOWLIST` 列出的函式。
+
+    R1／R2 是同一個 root_cause 連兩輪：邊界寫在敘述裡、實作散在多處，補一處還有一處。
+    這條把「還有沒有第三個地方」從人工逐條讀改成機械掃描。
+    """
+    offenders = scan_unbounded_prefix_matches(Path(__file__).read_text(encoding="utf-8"))
+    assert not offenders, (
+        "下列函式繞過 `_is_strict_subpath` 自己做前綴比對，"
+        f"邊界會再次分岔：{offenders}。確有必要請寫進 PREFIX_MATCH_ALLOWLIST 並附理由。"
+    )
+
+
+def test_shape_guard_actually_catches_a_reintroduced_unbounded_match():
+    """證明上一條不是空轉：把 R1 的無邊界實作塞回去 → 形狀守衛必須抓到。
+
+    ⚠️ 「0 命中」本身不是證據——本專案已有「構造上不會失敗的檢查」的前例。所以這裡用
+    變異證明：先斷言變異真的落地（源碼確實多了一個 startswith），再斷言守衛報出它。
+    """
+    source = Path(__file__).read_text(encoding="utf-8")
+    mutated = source.replace(
+        "    if declared_ep == row_endpoint:\n        return True  # 規則 2",
+        "    if declared_ep.startswith(row_endpoint):\n        return True  # 規則 2（變異）",
+    )
+    assert mutated != source, "變異樣本失效，`endpoint_matches_row` 的規則 2 已改寫"
+
+    offenders = scan_unbounded_prefix_matches(mutated)
+    assert any(o.startswith("endpoint_matches_row:") for o in offenders), (
+        f"守衛沒抓到重新引入的無邊界比對，它是零資訊的：{offenders}"
+    )
+    # 同一份源碼未變異時是乾淨的 → 轉紅來自變異本身，不是來自「掃描這個動作」
+    assert not scan_unbounded_prefix_matches(source)
 
 
 def test_ajax_action_routes_are_pinned_and_shaped(site_map_text):
