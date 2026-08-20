@@ -904,6 +904,153 @@ def apply_reconciliation_states(new_pas: list[PlateAppearance], result: Reconcil
 
 
 # ===========================================================================
+# 受控接受路徑：碼內封閉清單 ＋ 不變式硬拒（DATA-PA-REBUILD-GAP1 Q2／Q6）
+# ===========================================================================
+# 為什麼需要它：``reconcile()`` 對任一 changed／added／removed 一律產出
+# ``reconciliation_required`` 且**不動舊 published**——那是正確的 fail closed（來源漂移
+# 不得靜默覆寫），但收尾路徑在本卡之前**完全不存在**：`2026/D/119` 於 2026-08-09 走完
+# 全程後卡了 12 天，舊 published 持續服務殘缺資料。於是「衍生資料必須跟著重建」在構造
+# 上到不了。本節開的門就是那個收尾路徑。
+#
+# ⚠️ 開這扇門是**安全性決定**，由需求方於 2026-08-21 Design Gate 裁定（Q2 乙／Q6 丙），
+# 不是實作者可自行放寬的範圍。門的鎖法刻意選「碼內封閉清單」而非「執行時自由文字理由」：
+#   * 全庫 12,913 筆 build 中 `reconcile` 只有 3 筆——review 成本可忽略，
+#     「續賽是常態、每次開卡會發散」的前提經量測為假。
+#   * 自由文字擋不住敷衍；清單要進 commit、要過查核，代價落在對的地方。
+#   * 比照本 repo 既有先例：`cpbl_standings.HISTORY_SUPPORTED`、`#131` 的 `allow_partial`。
+#
+# ⚠️ 加一場進這個集合＝一次 commit ＋ 一次查核。**不得**改成讀環境變數／CLI 自由參數；
+# 那會把「需要人看過」退化成「需要人打字」。
+ACCEPTED_RECONCILIATIONS: frozenset[tuple[int, str, int]] = frozenset({
+    # 2026/D/119：2026-07-24 因雨保留（livelog 177 列、box_pa 39），2026-08-09 續賽打完
+    # （livelog 315 列、官方 box PA 72）。08-09 的 build 產出
+    # `added=33 changed=1 removed=0`、invariant=0——`added` 是續賽後才發生的打席，
+    # 那個 `changed` 是中斷點當下未完成的打席被續完。屬「來源本來就該長大」的續賽，
+    # 非改判、非污染。舊 published 仍指向 177 列的殘缺來源。
+    (2026, "D", 119),
+    # 2026/D/97：2026-07-19 因雨保留（livelog 115 列、box_pa 31），2026-08-09 續賽打完
+    # （livelog 333 列、官方 box PA 82）。窗 [game_date, game_date+1] 早已過期，
+    # 續賽後從未被重選，published 停在 115 列的來源達 12 天。同上，屬續賽增長。
+    (2026, "D", 97),
+    # 2026/A/209：2026-07-15、2:3 完成（非保留賽）。最新 revision 381 列 vs 現行 382 列，
+    # 官方 box PA 88 與現行 published 的 box_pa 88 相同——差的一列不改變打席集合。
+    # 收進清單的理由是**讓 published 指回現行來源**，使偵測器歸零、狀態自洽；
+    # 它同時證明本缺陷不只發生在續賽（Design Gate 更正 1）。
+    (2026, "A", 209),
+})
+
+REJECT_NOT_ALLOWLISTED = "not_in_allowlist"
+REJECT_INVARIANT = "invariant_violations"
+REJECT_NOTHING_OUTSTANDING = "no_outstanding_reconciliation"
+
+
+class ReconciliationAcceptRejected(RuntimeError):
+    """接受路徑被閘門拒絕。``reasons`` 逐條列出，**不短路**——一次看到全部問題。"""
+
+    def __init__(self, year: int, kind: str, game: int, reasons: list[str]) -> None:
+        self.year, self.kind_code, self.game_sno = year, kind, game
+        self.reasons = reasons
+        super().__init__(f"拒絕接受 {year}/{kind}/{game}：" + "；".join(reasons))
+
+
+def reconciliation_accept_rejections(
+    year: int, kind: str, game: int, *,
+    invariant_violations: Any = None,
+    outstanding_builds: int | None = None,
+) -> list[str]:
+    """回傳所有**不通過**的閘門理由（空 list ＝ 可接受）。純函式，不碰 DB。
+
+    刻意**不短路**：三道閘門各自獨立評估，一次回報全部理由。`2019/A/173` 同時踩到
+    「不在清單」與「不變式非空」兩條，短路會讓其中一條永遠沒被證明過。
+
+    * ``invariant_violations`` 非空 → 一律拒絕，**任何理由都不能覆寫**（Q6 機器閘門）。
+      這是「資料本身錯了」的判定，強於「有人決定接受」。
+    * ``outstanding_builds`` 為 0 → 拒絕：接受路徑只能**收尾既有的**
+      reconciliation，不能被拿來對任意場次強制發布。傳 ``None`` 代表呼叫端此刻
+      不查（`build_game` 內層即如此——它不重複查 DB，由外層 pre-flight 負責）。
+    """
+    reasons: list[str] = []
+    if (year, kind, game) not in ACCEPTED_RECONCILIATIONS:
+        reasons.append(
+            f"{REJECT_NOT_ALLOWLISTED}: ({year}, {kind!r}, {game}) 不在 "
+            f"ACCEPTED_RECONCILIATIONS（目前 {len(ACCEPTED_RECONCILIATIONS)} 場）。"
+            "要接受請把該場加進碼內清單並附理由註解，經 commit ＋ 查核。"
+        )
+    if invariant_violations:
+        reasons.append(
+            f"{REJECT_INVARIANT}: {invariant_violations!r} —— 不變式違反代表資料本身錯了，"
+            "接受清單不能覆寫它。"
+        )
+    if outstanding_builds == 0:
+        reasons.append(
+            f"{REJECT_NOTHING_OUTSTANDING}: 該場無 reconciliation_required build，"
+            "接受路徑只收尾既有 reconciliation，不對任意場次強制發布。"
+        )
+    return reasons
+
+
+def require_reconciliation_accepted(
+    year: int, kind: str, game: int, *,
+    invariant_violations: Any = None,
+    outstanding_builds: int | None = None,
+) -> None:
+    """閘門本身。**寫入路徑限制**，不是 CLI 參數檢查。
+
+    `cpbl_standings._parse_history_table` 的教訓：擋 CLI 擋不住任何 import 這個模組的
+    呼叫端。故本函式在 :func:`build_game` 內層（真正會寫 published 的地方）也被呼叫一次，
+    任何直接 `build_game(..., accept_reconciliation=True)` 的呼叫端都繞不過。
+    """
+    reasons = reconciliation_accept_rejections(
+        year, kind, game,
+        invariant_violations=invariant_violations, outstanding_builds=outstanding_builds,
+    )
+    if reasons:
+        raise ReconciliationAcceptRejected(year, kind, game, reasons)
+
+
+# 接受重建後**必然過期**的季級物化表（Q4：本卡不重算，但接受路徑不得靜默完成）。
+# ⚠️ 語意校正：這兩張表由 `models.sabr.build_re24` 直接讀 `game_livelog` 產生，
+# **不是**從 `game_plate_appearances` 派生——所以它們早在 livelog 變動當下就過期了，
+# 不是被本次接受弄髒的。列出它們的理由不變：整季 DELETE+INSERT、`run_refresh_recent`
+# **完全沒有呼叫它**，於是沒有任何東西會讓它跟上。重算的正確性有 `#119` 自己的驗收，
+# 塞進本卡會互相污染。
+PA_DOWNSTREAM_TABLES: tuple[dict[str, Any], ...] = (
+    {"table": "cpbl.batter_re24", "producer": "cpbl.models.sabr.build_re24",
+     "grain": "season", "rebuild": "整季 DELETE+INSERT", "owner_card": "#119",
+     "wired_into_daily_refresh": False},
+    {"table": "cpbl.pitcher_re24", "producer": "cpbl.models.sabr.build_re24",
+     "grain": "season", "rebuild": "整季 DELETE+INSERT", "owner_card": "#119",
+     "wired_into_daily_refresh": False},
+    # span 級（多年）矩陣：單場變動對它的影響量級極小，但它同樣讀 livelog、同樣不在
+    # 每日鏈上。列出而非省略——過度回報是安全方向，漏報不是。
+    {"table": "cpbl.run_expectancy", "producer": "cpbl.models.sabr.build_run_expectancy",
+     "grain": "span", "rebuild": "span UPSERT（cpbl-build-sabr）", "owner_card": "#119",
+     "wired_into_daily_refresh": False},
+)
+
+
+def downstream_staleness(cur: Any, year: int, kind: str) -> list[dict[str, Any]]:
+    """列出接受後過期的下游物化表現況（唯讀）。**不重算**，只讓過期可見。"""
+    out: list[dict[str, Any]] = []
+    for spec in PA_DOWNSTREAM_TABLES:
+        entry = dict(spec)
+        if entry["grain"] == "season":
+            cur.execute(
+                f"SELECT count(*) AS n FROM {entry['table']} WHERE year=%s AND kind_code=%s",  # noqa: S608 — 表名來自本模組常數，非外部輸入
+                (year, kind),
+            )
+            entry["rows_for_scope"] = int(cur.fetchone()["n"])
+            entry["scope"] = f"{year}/{kind}"
+        else:
+            cur.execute(f"SELECT count(*) AS n FROM {entry['table']} WHERE kind_code=%s", (kind,))  # noqa: S608 — 同上
+            entry["rows_for_scope"] = int(cur.fetchone()["n"])
+            entry["scope"] = f"kind={kind}（span 級）"
+        entry["stale"] = True
+        out.append(entry)
+    return out
+
+
+# ===========================================================================
 # DB 層：fetch / source manifest / atomic publish / build_game / backfill
 # ===========================================================================
 PARSER_VERSION = "pa-build-read-1.0"  # builder 讀取/物化契約版本（非重新解析原始 HTML）
@@ -1135,12 +1282,29 @@ def _pa_summary(pas: list[PlateAppearance], plan: PitchPlan, taxonomy: Taxonomy)
     }
 
 
-def build_game(cur: Any, year: int, kind: str, game: int, *, taxonomy: Taxonomy | None = None) -> GameBuildResult:
+def build_game(
+    cur: Any, year: int, kind: str, game: int, *, taxonomy: Taxonomy | None = None,
+    accept_reconciliation: bool = False,
+) -> GameBuildResult:
     """物化單場 canonical PA build（冪等；atomic publish / reconciliation）。
 
     呼叫者提供 cursor（row_factory=dict_row）並負責交易邊界；本函式在單一交易內
     完成 revision upsert、PA/event/mapping 寫入與 publish/reconcile 決策。
+
+    ``accept_reconciliation``（DATA-PA-REBUILD-GAP1 Q2／Q6）＝收尾路徑。**預設 False，
+    批次／每日鏈一律走預設**——`build_scope` 連這個參數都沒有，構造上遞不進來。
+    為 True 時：
+      1. 先過 :func:`require_reconciliation_accepted`（碼內封閉清單）——在**任何寫入之前**；
+      2. 跳過 ``_existing_equivalent_build`` 短路（同來源的 reconciliation build 已存在，
+         不跳過就會 noop 而永遠收不掉）；
+      3. reconcile 判定為 ``reconcile`` 且**不變式為空**時才覆寫成 publish，
+         並把該場既有的 ``reconciliation_required`` build 一併轉 ``superseded``。
+    ⚠️ 不變式違反永遠勝出：違反時 rec 已被強制為 ``reconcile``，此處**不覆寫**，
+    且閘門會再拒一次。
     """
+    if accept_reconciliation:
+        # 寫入路徑限制的第一道，刻意放在 fetch 之前：不在清單內的場次連讀都不必讀。
+        require_reconciliation_accepted(year, kind, game)
     taxonomy = taxonomy or load_taxonomy()
     events = _fetch_events(cur, year, kind, game)
     if not events:
@@ -1161,7 +1325,9 @@ def build_game(cur: Any, year: int, kind: str, game: int, *, taxonomy: Taxonomy 
             sha256=tk_sha, row_count=tk_rows, max_source_key=tk_max,
         )
 
-    existing = _existing_equivalent_build(
+    # 接受路徑必須跳過等價短路：待收尾的 reconciliation build 正是「同 livelog_rev、
+    # 同 builder、同 taxonomy」的那一筆，不跳過就會 noop，門開了也永遠收不掉（機制事實 F）。
+    existing = None if accept_reconciliation else _existing_equivalent_build(
         cur, year=year, kind=kind, game=game, livelog_rev=livelog_rev, tracking_rev=tracking_rev
     )
     if existing:  # 同一來源重跑 → 完全相同，冪等 no-op（含不一致狀態的自癒修復）
@@ -1218,6 +1384,17 @@ def build_game(cur: Any, year: int, kind: str, game: int, *, taxonomy: Taxonomy 
             " (demote_same_source_published=%s): %s",
             MAX_OUT_PA_PER_HALF_INNING, year, kind, game, demote_published, violations,
         )
+    # 受控接受：**必須在不變式區塊之後**——違反時 rec 已被強制為 reconcile，
+    # 此處的閘門帶著剛算出的 violations 再拒一次，接受清單覆寫不了它。
+    accepted = False
+    if accept_reconciliation and rec.action == "reconcile":
+        require_reconciliation_accepted(year, kind, game, invariant_violations=violations)
+        rec = ReconcileResult(
+            action="publish", changed_pa_ids=rec.changed_pa_ids,
+            added_pa_ids=rec.added_pa_ids, removed_pa_ids=rec.removed_pa_ids,
+        )
+        accepted = True
+
     apply_reconciliation_states(pas, rec)
 
     build_id = str(uuid.uuid4())
@@ -1226,6 +1403,9 @@ def build_game(cur: Any, year: int, kind: str, game: int, *, taxonomy: Taxonomy 
         "action": rec.action, "changed": rec.changed_pa_ids,
         "added": rec.added_pa_ids, "removed": rec.removed_pa_ids,
         "builder_upgrade": rec.builder_upgrade,
+        # 留痕：這筆 publish 是「乾淨等價」還是「有人按照清單決定接受漂移」，
+        # 兩者在 published 視圖裡長得一樣，只有這個旗標分得出來。
+        "accepted_reconciliation": accepted,
     }
     summary["invariant_violations"] = violations
     summary["published_demoted_same_source"] = demote_published
@@ -1252,6 +1432,22 @@ def build_game(cur: Any, year: int, kind: str, game: int, *, taxonomy: Taxonomy 
         cur.execute("UPDATE cpbl.game_recap_builds SET state='published' WHERE build_id=%s",
                     (build_id,))
         build_state = "published"
+        if accepted:
+            # 收尾：該場既有的 reconciliation_required 一併降級，否則
+            # `_pa_build_coverage` 的 reconciliation_outstanding 永遠不會歸零——
+            # 「重建了但沒收掉」正是本卡要消滅的狀態。列保留供稽核，不刪。
+            cur.execute(
+                "UPDATE cpbl.game_recap_builds SET state='superseded' "
+                "WHERE year=%s AND kind_code=%s AND game_sno=%s "
+                "  AND state='reconciliation_required' AND build_id <> %s",
+                (year, kind, game, build_id),
+            )
+            log.warning(
+                "accepted reconciliation for %s/%s/%s: build=%s livelog_rev=%s "
+                "(changed=%d added=%d removed=%d，resolved %d outstanding build)",
+                year, kind, game, build_id, livelog_rev, len(rec.changed_pa_ids),
+                len(rec.added_pa_ids), len(rec.removed_pa_ids), cur.rowcount,
+            )
     else:
         cur.execute(
             "UPDATE cpbl.game_recap_builds SET state='reconciliation_required' WHERE build_id=%s",
@@ -1265,7 +1461,11 @@ def build_game(cur: Any, year: int, kind: str, game: int, *, taxonomy: Taxonomy 
             )
         build_state = "reconciliation_required"
 
-    return GameBuildResult(year, kind, game, build_id, rec.action, build_state, summary)
+    # action 自描述：published 視圖看不出「乾淨等價」與「受控接受」的差別，回傳值要看得出。
+    return GameBuildResult(
+        year, kind, game, build_id, "accept_publish" if accepted else rec.action,
+        build_state, summary,
+    )
 
 
 def _write_pas(
@@ -1329,6 +1529,78 @@ def _write_pas(
             """,
             map_rows,
         )
+
+
+def outstanding_reconciliations(cur: Any, year: int, kind: str, game: int) -> list[dict[str, Any]]:
+    """該場**未收尾**的 reconciliation_required build（唯讀），連 invariant 一併取出。"""
+    cur.execute(
+        """
+        SELECT build_id, livelog_revision_id, built_at,
+               COALESCE(validation_summary->'invariant_violations', '[]'::jsonb)
+                   AS invariant_violations
+        FROM cpbl.game_recap_builds
+        WHERE year=%s AND kind_code=%s AND game_sno=%s AND state='reconciliation_required'
+        ORDER BY built_at
+        """,
+        (year, kind, game),
+    )
+    return [dict(r) for r in cur.fetchall()]
+
+
+def accept_reconciliation(year: int, kind: str, game: int) -> dict[str, Any]:
+    """收尾單場 ``reconciliation_required``：受控接受 → 重建並 republish（Q2／Q6）。
+
+    交易邊界由本函式持有：**任何閘門拒絕都不留下寫入**（pre-flight 在寫入前拒；
+    build 期間的拒絕 rollback）。成功時回傳一律帶 ``downstream_stale``——
+    Q4 要求接受路徑**不得靜默完成**，否則就是用同一個方式製造本缺陷的上層版本。
+    """
+    from psycopg.rows import dict_row
+
+    from cpbl.db import conn
+
+    with conn() as c:
+        cur = c.cursor(row_factory=dict_row)
+        outstanding = outstanding_reconciliations(cur, year, kind, game)
+        # pre-flight：三道閘門在**任何寫入之前**一次評估完，不短路 → 一次看到全部理由。
+        violations: list[Any] = []
+        for b in outstanding:
+            violations.extend(b["invariant_violations"] or [])
+        reasons = reconciliation_accept_rejections(
+            year, kind, game,
+            invariant_violations=violations, outstanding_builds=len(outstanding),
+        )
+        if reasons:
+            c.rollback()  # 只讀過，沒東西可回；明寫以宣告「拒絕＝零副作用」
+            raise ReconciliationAcceptRejected(year, kind, game, reasons)
+
+        try:
+            res = build_game(cur, year, kind, game, accept_reconciliation=True)
+        except Exception:
+            c.rollback()
+            raise
+        if res.build_state != "published":
+            c.rollback()
+            raise ReconciliationAcceptRejected(
+                year, kind, game,
+                [f"build_did_not_publish: action={res.action} state={res.build_state}"],
+            )
+        stale = downstream_staleness(cur, year, kind)
+        c.commit()
+
+    log.warning(
+        "接受後下游物化表已過期（本卡不重算，見 #119）：%s",
+        [f"{s['table']}@{s['scope']}({s['rows_for_scope']} 列)" for s in stale],
+    )
+    return {
+        "game": f"{year}/{kind}/{game}",
+        "build_id": res.build_id,
+        "action": res.action,
+        "build_state": res.build_state,
+        "resolved_builds": [str(b["build_id"]) for b in outstanding],
+        "reconcile": res.summary.get("reconcile", {}),
+        "box_pa": res.summary.get("box_pa"),
+        "downstream_stale": stale,
+    }
 
 
 # ===========================================================================
