@@ -113,30 +113,13 @@ class Allowed:
 #
 # 新寫的一律修掉，不要往這裡加。count 是**精確**筆數，比對不相等即紅。
 
-# 非鏈端：應改用證據感知的新判準 completed_games_sql_with_evidence(alias)
-_NONCHAIN = "#156"      # DATA-COMPLETION-MIGRATE-NONCHAIN1
+# ⚠️ 非鏈端（原 `_NONCHAIN = "#156"`，12 檔 16 處）已於 #156 全數遷移完畢，整桶移除。
+# 常數一併刪掉而不是留著空著——留下一個沒有任何項目引用的卡號，下一個人得回頭查 issue
+# 才知道那是「做完了」還是「漏填了」。allowlist 只記**還存在**的手寫條件。
 # 每日 refresh 鏈：沿用舊判準，等 #53 G4 Phase B 之後的 Phase 2 才切
 _CHAIN = "#157"         # DATA-COMPLETION-MIGRATE-CHAIN1（阻塞於 #53）
 
 ALLOWLIST: dict[str, Allowed] = {
-    # --- 非鏈端待遷移（#156）：12 檔 16 處 ---
-    "src/cpbl/api/routers/people.py": Allowed(
-        1, PENDING, _NONCHAIN, "ORDER BY game_date DESC LIMIT 15，假完成場會直接佔第一名（已知最嚴重）"),
-    "src/cpbl/api/routers/teams.py": Allowed(1, PENDING, _NONCHAIN, "同檔 _DONE 已走 with_evidence，此處漏網"),
-    "src/cpbl/api/routers/venues.py": Allowed(1, PENDING, _NONCHAIN, "球場別彙總"),
-    "src/cpbl/api/routers/recap.py": Allowed(
-        1, PENDING, _NONCHAIN, "coalesce() 包裝的變體，2026-08-19 機械盤點的正則掃不到"),
-    "src/cpbl/api/team_focus.py": Allowed(1, PENDING, _NONCHAIN, "自帶手寫日界，乙案下仍是手寫條件"),
-    "src/cpbl/api/team_hotzone.py": Allowed(
-        1, PENDING, _NONCHAIN, "自帶手寫日界；同檔另有 with_evidence 呼叫端，兩套並存"),
-    "src/cpbl/models/pa_sim.py": Allowed(1, PENDING, _NONCHAIN, "打席模擬取樣母體"),
-    "src/cpbl/models/pitch_type.py": Allowed(1, PENDING, _NONCHAIN, "球種分類取樣母體"),
-    "src/cpbl/models/special_records.py": Allowed(
-        1, PENDING, _NONCHAIN, "同檔 _DONE 已走 with_evidence，此處漏網"),
-    "src/cpbl/models/winprob.py": Allowed(1, PENDING, _NONCHAIN, "勝率模型取樣母體"),
-    "src/cpbl/models/winprob_strength.py": Allowed(4, PENDING, _NONCHAIN, "自帶手寫日界，4 處"),
-    "src/cpbl/models/winprob_val.py": Allowed(2, PENDING, _NONCHAIN, "自帶手寫日界，2 處"),
-
     # --- 每日 refresh 鏈待遷移（#157，阻塞於 #53 G4 Phase B）：2 檔 3 處 ---
     "src/cpbl/ingest/cpbl_gamelog.py": Allowed(2, PENDING, _CHAIN, "鏈端目標場清單；換判準＝換爬取母體"),
     "src/cpbl/ingest/cpbl_pitch_tracking.py": Allowed(1, PENDING, _CHAIN, "鏈端目標場清單；換判準＝換爬取母體"),
