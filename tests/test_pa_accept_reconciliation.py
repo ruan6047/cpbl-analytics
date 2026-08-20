@@ -7,13 +7,20 @@
 
 外加過期偵測（Q1）與遙測（Q3）的形狀守衛。CI 無真實 Postgres，故一律用 fake cursor／
 monkeypatch，不打真實 DB（比照 tests/test_refresh_pa_daily.py 既有作法）。
+
+⭐ 例外：檔尾 C1–C5 是**並行**守衛（iteration 2 查核 R2-001）。「兩個交易能不能越過
+彼此」由 Postgres 的鎖與可見性語意決定，fake cursor 在構造上量不到——那正是 R2 報告把
+它標成「未驗」的原因，而「人工單發 CLI」是理由不是證明。故 C1–C5 用**兩條真連線**打
+一個拋棄式資料庫，預設 skip（見該節說明）。
 """
 
 from __future__ import annotations
 
 import inspect
+import os
 from contextlib import contextmanager
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -489,3 +496,343 @@ def test_step_tolerates_legacy_coverage_shape_without_new_keys(
 
     assert "error" not in result
     assert any("覆蓋恆真" in r.message for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# R2-001：同場序列化——鎖的**位置**與收尾的**作用域**（無 DB，CI 必跑）
+# ---------------------------------------------------------------------------
+def test_game_lock_key_is_stable_and_per_game() -> None:
+    """同場跨行程同一把、不同場不同把；值本身釘死，改了要進 diff（會使跨版本互不互斥）。"""
+    assert pb.game_lock_key(2026, "D", 119) == -6109938732155617607
+    assert pb.game_lock_key(2026, "D", 97) == -4508149334657502290
+    keys = {pb.game_lock_key(y, k, g)
+            for y in (2025, 2026) for k in ("A", "D") for g in range(1, 200)}
+    assert len(keys) == 2 * 2 * 199, "鍵碰撞會讓無關的兩場互相等待"
+    assert all(-(2 ** 63) <= k < 2 ** 63 for k in keys), "必須落在 bigint 範圍內"
+
+
+@pytest.mark.parametrize("accept", [False, True])
+def test_game_lock_is_the_very_first_statement_on_both_paths(accept: bool) -> None:
+    """⭐ 鎖的位置是承重的：它必須早於 `outstanding_reconciliations`（接受判定的輸入）
+    與 `_fetch_events`（來源讀取）。晚一句，判定與重建就仍建立在鎖外的快照上。
+
+    兩條路徑都驗——查核者找到的交錯是「accept vs **正常** build」，只鎖其中一條等於沒鎖。
+    """
+    cur = _WriteCountingCursor(outstanding=[], published_pas=[PUBLISHED_PA_ROW])
+    try:
+        pb.build_game(cur, 2026, "D", 119, accept_reconciliation=accept)
+    except pb.ReconciliationAcceptRejected:
+        pass
+    assert cur.statements[0] == "SELECT pg_advisory_xact_lock(%s)", (
+        f"第一句不是取鎖，而是 {cur.statements[0]!r}"
+    )
+
+
+def test_accept_closeout_is_scoped_to_build_ids_not_to_the_game() -> None:
+    """收尾 UPDATE 不得再用 year/kind/game 場次級條件——那會收掉沒審過的列。"""
+    src = inspect.getsource(pb.build_game)
+    closeout = src[src.index("if accepted:"):]
+    assert "build_id = ANY(%s::uuid[])" in closeout
+    assert "AND state='reconciliation_required'" in closeout
+    assert "game_sno=%s" not in closeout.split("log.warning", 1)[0], (
+        "收尾條件裡不得再出現場次級欄位"
+    )
+
+
+def test_accept_wrapper_reports_the_reviewed_set_from_the_write_primitive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``resolved_builds`` 必須由 `build_game`（鎖內）回傳，wrapper 不得自己再查一次。
+
+    wrapper 的查詢發生在**取鎖之前**，回報的集合可能與實際收尾的那一組不同——
+    「兩份判定會漂移」在 iteration 1 已經以閘門輸入的形態發生過一次。
+    """
+    assert "outstanding_reconciliations(" not in inspect.getsource(pb.accept_reconciliation)
+
+    class _Conn:
+        def cursor(self, **_k: Any) -> Any:
+            return object()
+
+        def commit(self) -> None:
+            return None
+
+        def rollback(self) -> None:
+            return None
+
+    @contextmanager
+    def _fake_conn():
+        yield _Conn()
+
+    monkeypatch.setattr("cpbl.db.conn", _fake_conn)
+    monkeypatch.setattr(pb, "downstream_staleness", lambda *_a, **_k: [])
+    monkeypatch.setattr(pb, "build_game", lambda *_a, **_k: pb.GameBuildResult(
+        2026, "D", 119, "new", "accept_publish", "published",
+        summary={"reconcile": {}, "box_pa": 1}, resolved_builds=["reviewed-1", "reviewed-2"],
+    ))
+
+    assert pb.accept_reconciliation(2026, "D", 119)["resolved_builds"] == [
+        "reviewed-1", "reviewed-2"
+    ]
+
+
+def test_build_scope_commits_once_per_game() -> None:
+    """鎖是交易級的，`build_scope` 的逐場 commit 因此不是效能選擇，是這把鎖的前提：
+    一個交易累積多場的鎖，兩個取鎖順序相反的呼叫端就能互鎖。"""
+    src = inspect.getsource(pb.build_scope)
+    loop = src[src.index("for i, (year, kind, game) in enumerate(games):"):]
+    body = loop[:loop.index("if (i + 1) % log_every")]
+    assert "c.commit()" in body, "逐場 commit 消失 → 鎖會在單一交易內累積"
+
+
+# ===========================================================================
+# C1–C5：兩連線交錯（需拋棄式資料庫，預設 skip）
+# ===========================================================================
+# 為什麼非得打真 DB：R2-001 講的是「READ COMMITTED 下每個 statement 各取一次 snapshot，
+# 於是交易 A 查完集合 S 之後、收尾之前，交易 B 提交的新列 A 看得見」。這是 Postgres 的
+# 語意，不是本專案的程式碼分支——monkeypatch 出來的 cursor 沒有交易、沒有鎖、沒有可見性，
+# 量到的只會是我自己寫的假象。R2 報告把這條標「未驗」正是因為當時只有 fake cursor。
+#
+# 一次性準備（資料庫本身拋棄式；schema 由測試自己重建，不依賴既有內容）：
+#   createdb -h localhost -p 5433 -U cpbl cpbl_pa_lock1
+#   PA_BUILD_LOCK_TEST_DATABASE_URL=postgresql://cpbl:...@localhost:5433/cpbl_pa_lock1 \
+#     uv run pytest tests/test_pa_accept_reconciliation.py -q
+#
+# ⚠️ 每個測試都 `DROP SCHEMA cpbl CASCADE` 重來，所以**不得**指向開發或生產資料庫；
+# 名稱斷言（`_EXPECTED_LOCK_DB_NAME`）是機器層的防呆。
+_LOCK_DB_URL_ENV = "PA_BUILD_LOCK_TEST_DATABASE_URL"
+_EXPECTED_LOCK_DB_NAME = "cpbl_pa_lock1"
+_MIGRATIONS = Path(__file__).resolve().parents[1] / "migrations"
+
+# 阻塞斷言的等待上限。撞不到鎖時測試會等滿這段時間才判 FAIL；取得鎖時 0 等待。
+_LOCK_TIMEOUT = "250ms"
+
+requires_lock_db = pytest.mark.skipif(
+    not os.getenv(_LOCK_DB_URL_ENV),
+    reason=f"requires a throwaway PostgreSQL via {_LOCK_DB_URL_ENV}",
+)
+
+# 續賽後才發生的第三列：欄位集**逐欄沿用**上面那兩列真實 livelog（同一場、同一次爬取），
+# 只改事件序／打序／打者／結果。⚠️ 隨手構造的列會缺欄位而走到另一條路徑，讓情境看起來
+# 建好了卻沒踩到 reconcile——故 `_seed_published_plus_outstanding` 對兩次 build 的
+# action 各下一條 assert，樣本漂掉會當場紅燈而不是靜默變成零資訊。
+CONTINUATION_ROW_2026_D_119: dict[str, Any] = {
+    **REAL_LIVELOG_ROWS_2026_D_119[-1],
+    "main_event_no": "0120001000", "batting_order": 2, "pitch_cnt": 4, "strike_cnt": 1,
+    "content": "擊出中外野飛球，接殺出局。", "action_name": "中飛 ",
+    "batting_action_name": "中飛", "hitter_acnt": "0000007611",
+}
+
+
+def _fresh_schema(url: str) -> None:
+    """把拋棄式資料庫的 `cpbl` schema 重建成**真實 DDL**：直接跑 `migrations/*.sql`。
+
+    刻意不手寫精簡版 schema——手寫的會和生產漂移，而這裡要驗的正是與生產同一套約束下
+    的鎖行為（partial unique index、FK、state CHECK 全部在場）。
+    """
+    import psycopg
+
+    assert url.rsplit("/", 1)[-1] == _EXPECTED_LOCK_DB_NAME, "只在專用拋棄式資料庫上跑"
+    with psycopg.connect(url) as setup:
+        setup.execute("DROP SCHEMA IF EXISTS cpbl CASCADE")
+        setup.execute("CREATE SCHEMA cpbl")
+        for sql_file in sorted(_MIGRATIONS.glob("*.sql")):
+            setup.execute(sql_file.read_text(encoding="utf-8"))
+        setup.commit()
+
+
+@pytest.fixture
+def lock_db() -> str:
+    url = os.environ[_LOCK_DB_URL_ENV]
+    _fresh_schema(url)
+    return url
+
+
+def _insert_livelog(cur: Any, rows: list[dict[str, Any]]) -> None:
+    for row in rows:
+        cols = list(row)
+        cur.execute(
+            f"INSERT INTO cpbl.game_livelog ({','.join(cols)}) "  # noqa: S608 — 欄名來自本檔常數
+            f"VALUES ({','.join(['%s'] * len(cols))}) ON CONFLICT DO NOTHING",
+            [row[c] for c in cols],
+        )
+
+
+def _seed_published_plus_outstanding(cur: Any, connection: Any) -> None:
+    """用**真實 builder** 造出「舊 published ＋ 一筆待收尾」——本缺陷的真實現場形狀。
+
+    不手工 INSERT build 列：手工列的 `validation_summary`／fingerprint 不是 builder 產的，
+    接受路徑會走到不同分支。兩條 assert 釘住情境確實成立。
+    """
+    _insert_livelog(cur, REAL_LIVELOG_ROWS_2026_D_119)
+    connection.commit()
+    first = pb.build_game(cur, 2026, "D", 119)
+    connection.commit()
+    assert first.action == "publish", f"情境沒建起來：首建 action={first.action}"
+
+    _insert_livelog(cur, [CONTINUATION_ROW_2026_D_119])   # 續賽：來源長大
+    connection.commit()
+    second = pb.build_game(cur, 2026, "D", 119)
+    connection.commit()
+    assert second.action == "reconcile", f"情境沒建起來：續建 action={second.action}"
+
+
+@contextmanager
+def _two_connections(url: str):
+    """A／B 兩條真連線；B 設 `lock_timeout`，撞到鎖時以 `LockNotAvailable` 現形而非乾等。"""
+    import psycopg
+
+    with psycopg.connect(url) as a, psycopg.connect(url) as b:
+        from psycopg.rows import dict_row
+
+        cur_a, cur_b = a.cursor(row_factory=dict_row), b.cursor(row_factory=dict_row)
+        cur_b.execute(f"SET lock_timeout = '{_LOCK_TIMEOUT}'")
+        yield a, cur_a, b, cur_b
+        a.rollback()
+        b.rollback()
+
+
+@requires_lock_db
+def test_c1_normal_build_blocks_a_concurrent_accept_on_the_same_game(lock_db: str) -> None:
+    """⭐ 查核者找到的交錯，方向一：正常 `build_game` 在途 → 同場 accept 進不來。
+
+    ⚠️ **A 這一側刻意不寫任何列**（該場無 livelog → `skip_no_events`，測試自己驗
+    `game_recap_builds` 仍為空），因為這條測試要隔離的是 advisory lock。第一版讓 A 跑
+    一個有資料的 build，結果它在拿掉鎖的變異版本下**依然**紅不了——B 撞到的是 A 未提交
+    列的 row lock 與 `uq_game_recap_builds_one_published` 這個 partial unique index，
+    不是我要驗的東西。同一支 `LockNotAvailable` 可以由三種不同機制產生，不隔離就分不出來。
+
+    修好後的失敗形態是 `LockNotAvailable`——**不是** `ReconciliationAcceptRejected`
+    （那代表 B 已走到閘門，也就是鎖沒攔住；C4 拿掉鎖後看到的正是後者）。
+    """
+    import psycopg
+
+    with _two_connections(lock_db) as (a, cur_a, _b, cur_b):
+        assert pb.build_game(cur_a, 2026, "D", 119).action == "skip_no_events"
+        cur_a.execute("SELECT count(*) AS n FROM cpbl.game_recap_builds")
+        assert cur_a.fetchone()["n"] == 0, "A 若寫了列，B 可能是撞 row lock 而非 advisory lock"
+
+        with pytest.raises(psycopg.errors.LockNotAvailable):
+            pb.build_game(cur_b, 2026, "D", 119, accept_reconciliation=True)
+
+
+@requires_lock_db
+def test_c2_accept_blocks_a_concurrent_normal_build_from_its_first_statement(
+    lock_db: str,
+) -> None:
+    """⭐ 方向二：accept 交易一開始就持鎖 → 同場正常 build 插不進來。
+
+    這條釘住「鎖在閘門**之前**」：A 的 accept 被閘門拒絕（該場無待收尾），交易並未
+    rollback，鎖仍在——若鎖擺在閘門之後，A 這條路徑根本沒拿到鎖，B 會直接通過。
+    """
+    import psycopg
+
+    with _two_connections(lock_db) as (_a, cur_a, _b, cur_b):
+        with pytest.raises(pb.ReconciliationAcceptRejected):
+            pb.build_game(cur_a, 2026, "D", 97, accept_reconciliation=True)
+
+        with pytest.raises(psycopg.errors.LockNotAvailable):
+            pb.build_game(cur_b, 2026, "D", 97)
+
+
+@requires_lock_db
+def test_c3_lock_is_per_game_so_other_games_are_not_serialized(lock_db: str) -> None:
+    """對照組：鎖必須是**逐場**的。少了這條，「一把全域鎖」也會讓 C1／C2 全綠，
+    而那會把每日回填串成單線。B 打不同場時走到閘門被拒＝它確實通過了取鎖那一句。"""
+    with _two_connections(lock_db) as (_a, cur_a, _b, cur_b):
+        assert pb.build_game(cur_a, 2026, "D", 119).action == "skip_no_events"  # A 持 119 的鎖
+
+        with pytest.raises(pb.ReconciliationAcceptRejected) as exc:
+            pb.build_game(cur_b, 2026, "D", 97, accept_reconciliation=True)
+        assert [r.split(":")[0] for r in exc.value.reasons] == [pb.REJECT_NOTHING_OUTSTANDING]
+
+
+@requires_lock_db
+def test_c4_lock_probe_is_not_vacuous_without_it_the_accept_walks_straight_in(
+    lock_db: str, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """⭐ 變異檢驗：先講什麼結果會推翻 C1——把取鎖換成 no-op。
+
+    若 C1 的 `LockNotAvailable` 其實來自別的東西（例如某張表的 row lock），那拿掉
+    advisory lock 之後它應該照樣阻塞。這裡證明它不會：沒有鎖，B 一路走到閘門。
+    """
+    monkeypatch.setattr(pb, "lock_game_for_build", lambda *_a, **_k: 0)
+
+    with _two_connections(lock_db) as (_a, cur_a, _b, cur_b):
+        assert pb.build_game(cur_a, 2026, "D", 119).action == "skip_no_events"
+
+        # 與 C1 逐字相同的第二步。差別只有「有沒有鎖」這一個變因。
+        with pytest.raises(pb.ReconciliationAcceptRejected) as exc:
+            pb.build_game(cur_b, 2026, "D", 119, accept_reconciliation=True)
+        assert [r.split(":")[0] for r in exc.value.reasons] == [pb.REJECT_NOTHING_OUTSTANDING]
+
+
+@requires_lock_db
+def test_c5_closeout_spares_a_build_that_appeared_after_the_reviewed_set_was_taken(
+    lock_db: str, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """⭐ 第二道：即使有寫入端**不走這把鎖**（有人手打原生 SQL），收尾也只准動審過的那組。
+
+    交錯精確重現在查核者指的那一點——`outstanding_reconciliations` 回來之後、收尾之前，
+    另一條連線提交一筆新的 `reconciliation_required`。
+
+    先講什麼結果會推翻它：舊的場次級收尾條件
+    （`WHERE year/kind_code/game_sno AND state='reconciliation_required'`）會連注入的那筆
+    一起 supersede。測試末尾把那個舊條件當**查詢**跑一次，證明它此刻確實命中注入列——
+    所以「注入列還活著」不是因為沒東西可收，而是因為收尾換了作用域。
+    """
+    import psycopg
+    from psycopg.rows import dict_row
+
+    with psycopg.connect(lock_db) as a, psycopg.connect(lock_db) as intruder:
+        cur_a = a.cursor(row_factory=dict_row)
+        _seed_published_plus_outstanding(cur_a, a)
+
+        injected: dict[str, str] = {}
+        real_query = pb.outstanding_reconciliations
+
+        def _query_then_inject(cur: Any, year: int, kind: str, game: int) -> list[dict[str, Any]]:
+            reviewed = real_query(cur, year, kind, game)
+            if not injected:
+                cur_i = intruder.cursor(row_factory=dict_row)
+                cur_i.execute(
+                    "INSERT INTO cpbl.game_recap_builds (build_id, year, kind_code, game_sno,"
+                    " livelog_revision_id, builder_version, taxonomy_version, state,"
+                    " validation_summary)"
+                    " VALUES (gen_random_uuid(), %s, %s, %s, %s, 'intruder', 'intruder',"
+                    " 'reconciliation_required', '{}'::jsonb) RETURNING build_id",
+                    (year, kind, game, reviewed[0]["livelog_revision_id"]),
+                )
+                injected["build_id"] = str(cur_i.fetchone()["build_id"])
+                intruder.commit()
+            return reviewed
+
+        monkeypatch.setattr(pb, "outstanding_reconciliations", _query_then_inject)
+        result = pb.build_game(cur_a, 2026, "D", 119, accept_reconciliation=True)
+        a.commit()
+
+        assert result.action == "accept_publish"
+        assert injected, "注入沒有發生 → 這條測試什麼也沒證明"
+        assert injected["build_id"] not in result.resolved_builds
+
+        cur_a.execute("SELECT state FROM cpbl.game_recap_builds WHERE build_id = %s",
+                      (injected["build_id"],))
+        assert cur_a.fetchone()["state"] == "reconciliation_required", (
+            "未經審核的 build 被順手 supersede 了"
+        )
+
+        # 正向：審過的那組**確實**被收掉。少了這一半，上面那條可能只是「收尾根本沒跑」。
+        cur_a.execute(
+            "SELECT build_id, state FROM cpbl.game_recap_builds WHERE build_id = ANY(%s::uuid[])",
+            (result.resolved_builds,),
+        )
+        reviewed_states = {r["state"] for r in cur_a.fetchall()}
+        assert result.resolved_builds and reviewed_states == {"superseded"}
+
+        # 舊條件此刻的命中數＝1（就是注入列）→ 未修版本會把它一起收掉。
+        cur_a.execute(
+            "SELECT count(*) AS n FROM cpbl.game_recap_builds"
+            " WHERE year=2026 AND kind_code='D' AND game_sno=119"
+            "   AND state='reconciliation_required'"
+        )
+        assert cur_a.fetchone()["n"] == 1, "舊的場次級條件若已經零命中，這條變異檢驗是空的"
+        a.rollback()

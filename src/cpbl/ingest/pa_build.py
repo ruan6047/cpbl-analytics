@@ -36,6 +36,7 @@ membership 與 ordered pitch mapping，寫入 EXPAND1（migration 066）建的�
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -1263,6 +1264,9 @@ class GameBuildResult:
     action: str  # publish | reconcile | noop | skip_no_events
     build_state: str | None
     summary: dict[str, Any] = field(default_factory=dict)
+    # 接受路徑實際收尾掉的 build（**鎖內查核過的那一組**，不是收尾時符合場次條件的任意列）。
+    # 由寫入原語回傳而非由 wrapper 自己再查一次：兩份查詢會漂移，一份不會（R2-001）。
+    resolved_builds: list[str] = field(default_factory=list)
 
 
 def _pa_summary(pas: list[PlateAppearance], plan: PitchPlan, taxonomy: Taxonomy) -> dict[str, Any]:
@@ -1291,6 +1295,57 @@ def _pa_summary(pas: list[PlateAppearance], plan: PitchPlan, taxonomy: Taxonomy)
     }
 
 
+# ===========================================================================
+# 同場序列化：以 (year, kind, game) 為鍵的 transaction-scoped advisory lock
+# ===========================================================================
+# 為什麼需要它（iteration 2 查核 R2-001）：接受路徑的**判定**與**收尾**之間有一段窗。
+# 本專案跑在 READ COMMITTED（本機 PG 17.9 實測 `current_setting('transaction_isolation')`
+# ＝ `read committed`），該層級下**每個 statement 各取一次 snapshot**，看得見交易開始後
+# 才提交的列。於是這個交錯完全合法：
+#
+#   T1(accept)  查 outstanding → 得到集合 S，據 S 過 allowlist／invariant 閘門
+#   T2(normal)  同一場的普通 `build_game` → INSERT 一筆新的 reconciliation_required
+#               build N → COMMIT
+#   T1(accept)  收尾 UPDATE（原為 year/kind/game/state 的**場次級**條件）→ **看得見 N**
+#               → 把從未經任何閘門審核的 N 一併 supersede
+#
+# 後果有兩層：(1) N 沒有人看過就被收掉，偵測器歸零但審核從未發生；(2) 若 N 建自**更新後**
+# 的 livelog，T1 發布的會是**較舊**的輸入，而較新的那筆被標成 superseded。
+#
+# ⚠️ 為什麼 `SELECT … FOR UPDATE` 不夠：row lock 只鎖得住**查詢當下已存在**的列，
+# 擋不住另一交易**新增**一列——而這裡要防的正是新增。要鎖的是「這一場」這個尚未具體化
+# 的集合。Postgres 沒有可用的 predicate lock（除非整條路徑升到 SERIALIZABLE，那會讓
+# 每日回填必須處理序列化失敗重試，代價與新風險都大於一把鎖），故用 advisory lock。
+#
+# ⚠️ 為什麼是 **xact**（交易級）而非 session 級：鎖隨 commit/rollback 自動釋放，
+# 呼叫端不可能忘記解鎖，也不會因為連線池把殘留的鎖帶給下一個借用者。
+#
+# ⚠️ 呼叫端契約：**一個交易只處理一場**（`build_scope` 逐場 commit）。若有人在單一交易
+# 內連跑多場，鎖會累積，兩個取鎖順序相反的呼叫端就能互鎖。所以「逐場 commit」不是效能
+# 選擇，是這把鎖的前提；`tests/test_pa_accept_reconciliation.py` 有守衛釘住它。
+PA_BUILD_LOCK_NAMESPACE = "cpbl.pa_build.game"
+
+
+def game_lock_key(year: int, kind: str, game: int) -> int:
+    """(year, kind, game) → 穩定的 signed 64-bit advisory lock key。
+
+    ⚠️ 鍵刻意在**應用層**算而不是交給 `hashtext()`：值在 Python 端可預測，守衛才驗得到
+    「不同場拿到不同鍵、同場跨行程拿到同一把」，而不是只比對 SQL 字串。碰撞的後果只是
+    兩場多餘地互相等待（正確性不受影響）；64-bit 空間對全庫 ~1.3 萬場約 5e-12。
+    """
+    digest = hashlib.blake2b(
+        f"{PA_BUILD_LOCK_NAMESPACE}:{year}/{kind}/{game}".encode(), digest_size=8
+    ).digest()
+    return int.from_bytes(digest, "big", signed=True)
+
+
+def lock_game_for_build(cur: Any, year: int, kind: str, game: int) -> int:
+    """取得該場的交易級 advisory lock（阻塞至取得）。回傳實際使用的鍵，供留痕與守衛。"""
+    key = game_lock_key(year, kind, game)
+    cur.execute("SELECT pg_advisory_xact_lock(%s)", (key,))
+    return key
+
+
 def build_game(
     cur: Any, year: int, kind: str, game: int, *, taxonomy: Taxonomy | None = None,
     accept_reconciliation: bool = False,
@@ -1299,6 +1354,10 @@ def build_game(
 
     呼叫者提供 cursor（row_factory=dict_row）並負責交易邊界；本函式在單一交易內
     完成 revision upsert、PA/event/mapping 寫入與 publish/reconcile 決策。
+
+    ⚠️ **第一件事是鎖住這一場**（`pg_advisory_xact_lock`，見上方小節）：正常與接受路徑
+    共用同一個入口，於是同場的兩個 build 交易在構造上不可能越過彼此。呼叫端契約：一個
+    交易只跑一場（`build_scope` 逐場 commit），否則鎖會累積而有互鎖風險。
 
     ``accept_reconciliation``（DATA-PA-REBUILD-GAP1 Q2／Q6）＝收尾路徑。**預設 False，
     批次／每日鏈一律走預設**——`build_scope` 連這個參數都沒有，構造上遞不進來。
@@ -1309,11 +1368,22 @@ def build_game(
       2. 跳過 ``_existing_equivalent_build`` 短路（同來源的 reconciliation build 已存在，
          不跳過就會 noop 而永遠收不掉）；
       3. reconcile 判定為 ``reconcile`` 且**不變式為空**時才覆寫成 publish，
-         並把該場既有的 ``reconciliation_required`` build 一併轉 ``superseded``。
+         並把**步驟 1 在鎖內實際查核過的那一組** ``reconciliation_required`` build
+         轉 ``superseded``（以 ``build_id`` 列舉，不是場次級條件——見 R2-001），
+         同一組由 ``resolved_builds`` 回傳。
     ⚠️ 不變式違反永遠勝出：違反時 rec 已被強制為 ``reconcile``，此處**不覆寫**，
     且閘門會再拒一次。
     """
+    # ⭐ R2-001：**任何判定或讀取之前**先鎖住這一場。正常與接受路徑都必經這一行，
+    # 於是同場的兩個 build 交易不可能越過彼此。位置是承重的——鎖必須早於
+    # `outstanding_reconciliations`（接受判定的輸入）與 `_fetch_events`（來源讀取），
+    # 否則判定與重建仍建立在鎖外看到的快照上，窗只是變窄而沒有關掉。
+    lock_game_for_build(cur, year, kind, game)
+
     outstanding_count: int | None = None
+    # 鎖內實際受審的 build 集合。收尾只准動這一組（見下方 accept 收尾），於是即使有
+    # 不走這把鎖的寫入端（手打原生 SQL）新增了列，也不會被順手 supersede 掉。
+    reviewed_build_ids: list[str] = []
     if accept_reconciliation:
         # ⭐ 閘門的**輸入**必須在寫入原語內自己取得，不能靠 wrapper 餵。
         # iteration 1 查核以兩個密封 cursor 實證：首道閘門只傳 year/kind/game
@@ -1326,6 +1396,7 @@ def build_game(
         # 要不要往下走到第一個寫入（`upsert_source_revision`）。
         outstanding = outstanding_reconciliations(cur, year, kind, game)
         outstanding_count = len(outstanding)
+        reviewed_build_ids = [str(b["build_id"]) for b in outstanding]
         historical_violations: list[Any] = []
         for b in outstanding:
             historical_violations.extend(b["invariant_violations"] or [])
@@ -1440,6 +1511,9 @@ def build_game(
         # 留痕：這筆 publish 是「乾淨等價」還是「有人按照清單決定接受漂移」，
         # 兩者在 published 視圖裡長得一樣，只有這個旗標分得出來。
         "accepted_reconciliation": accepted,
+        # 收尾對象逐筆入庫：事後要能回答「當初到底審了哪幾筆」，而不是重跑一次場次
+        # 級查詢去猜（那個查詢的答案會隨時間改變）。
+        "resolved_builds": reviewed_build_ids if accepted else [],
     }
     summary["invariant_violations"] = violations
     summary["published_demoted_same_source"] = demote_published
@@ -1467,20 +1541,24 @@ def build_game(
                     (build_id,))
         build_state = "published"
         if accepted:
-            # 收尾：該場既有的 reconciliation_required 一併降級，否則
+            # 收尾：把**鎖內查核過的那一組** reconciliation_required 降級，否則
             # `_pa_build_coverage` 的 reconciliation_outstanding 永遠不會歸零——
             # 「重建了但沒收掉」正是本卡要消滅的狀態。列保留供稽核，不刪。
+            # ⚠️ 條件是 `build_id = ANY(:reviewed)` 而**不是** year/kind/game 場次級條件
+            # （R2-001）：場次級條件會連上「這個交易從未看過、更未經閘門審核」的列一起
+            # 收掉。鎖已讓另一條 `build_game` 不可能在這中間插入新列；這裡的列舉是第二道
+            # ——它連不走這把鎖的寫入端都擋得住，而鎖擋不住。
             cur.execute(
                 "UPDATE cpbl.game_recap_builds SET state='superseded' "
-                "WHERE year=%s AND kind_code=%s AND game_sno=%s "
-                "  AND state='reconciliation_required' AND build_id <> %s",
-                (year, kind, game, build_id),
+                "WHERE build_id = ANY(%s::uuid[]) AND state='reconciliation_required'",
+                (reviewed_build_ids,),
             )
             log.warning(
                 "accepted reconciliation for %s/%s/%s: build=%s livelog_rev=%s "
-                "(changed=%d added=%d removed=%d，resolved %d outstanding build)",
+                "(changed=%d added=%d removed=%d，resolved %d/%d reviewed build)",
                 year, kind, game, build_id, livelog_rev, len(rec.changed_pa_ids),
-                len(rec.added_pa_ids), len(rec.removed_pa_ids), cur.rowcount,
+                len(rec.added_pa_ids), len(rec.removed_pa_ids),
+                cur.rowcount, len(reviewed_build_ids),
             )
     else:
         cur.execute(
@@ -1498,7 +1576,7 @@ def build_game(
     # action 自描述：published 視圖看不出「乾淨等價」與「受控接受」的差別，回傳值要看得出。
     return GameBuildResult(
         year, kind, game, build_id, "accept_publish" if accepted else rec.action,
-        build_state, summary,
+        build_state, summary, resolved_builds=reviewed_build_ids if accepted else [],
     )
 
 
@@ -1591,8 +1669,9 @@ def accept_reconciliation(year: int, kind: str, game: int) -> dict[str, Any]:
 
     ⚠️ **閘門刻意不在這裡複製一份**：本函式只是 CLI 的便利外殼，把閘門放在這裡等於
     只擋走這條路的人（iteration 1 查核實證：直接 import `build_game` 可全部繞過）。
-    唯一權威在寫入原語內。這裡的 `outstanding` 查詢**只為回報 ``resolved_builds``**，
-    不參與判定——兩份判定會漂移，一份不會。
+    唯一權威在寫入原語內。``resolved_builds`` 同理**由 :func:`build_game` 回傳**，
+    本函式不自己查一次：wrapper 的查詢發生在**取得該場 advisory lock 之前**，回報的集合
+    可能與鎖內實際收尾的那一組不同——兩份查詢會漂移，一份不會（R2-001）。
     """
     from psycopg.rows import dict_row
 
@@ -1600,7 +1679,6 @@ def accept_reconciliation(year: int, kind: str, game: int) -> dict[str, Any]:
 
     with conn() as c:
         cur = c.cursor(row_factory=dict_row)
-        outstanding = outstanding_reconciliations(cur, year, kind, game)
 
         try:
             res = build_game(cur, year, kind, game, accept_reconciliation=True)
@@ -1625,7 +1703,7 @@ def accept_reconciliation(year: int, kind: str, game: int) -> dict[str, Any]:
         "build_id": res.build_id,
         "action": res.action,
         "build_state": res.build_state,
-        "resolved_builds": [str(b["build_id"]) for b in outstanding],
+        "resolved_builds": res.resolved_builds,
         "reconcile": res.summary.get("reconcile", {}),
         "box_pa": res.summary.get("box_pa"),
         "downstream_stale": stale,
