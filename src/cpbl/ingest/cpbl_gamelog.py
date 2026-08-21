@@ -12,6 +12,7 @@ import time
 
 import psycopg
 
+from cpbl.completion import completed_games_sql
 from cpbl.db import conn
 from cpbl.ingest.box_revisions import record_box_pitching_revisions
 from cpbl.ingest.cpbl_site import BASE, KIND_REGULAR
@@ -472,20 +473,23 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
 def completed_snos(year: int, kind_code: str = KIND_REGULAR) -> list[int]:
     """本季已完成場次的 game_sno。供 `cpbl-scrape-gamelog <year>` 全季回填用。
 
-    completed 判定沿用專案慣例（見記憶 completed-game-judgment，比照
-    `cpbl_pitch_tracking.completed_game_snos` 的寫法）：需同時 score>0 與
-    game_date <= CURRENT_DATE，避免保留賽掛未來日卻帶著中止時的比分被誤判成
-    已完成（DATA-BOX-REVISION-SNAPSHOT1 iteration 3：本函式先前漏了日期界線，
+    completed 判定走 canonical helper `cpbl.completion.completed_games_sql()`（**舊判準**：
+    比分自證＋日期界線），取代先前手寫的同一串條件——語意一字不改，產生的 SQL 逐字相同
+    （DATA-COMPLETION-MIGRATE-CHAIN1）。日期界線的用途不變：避免保留賽掛未來日卻帶著中止時
+    的比分被誤判成已完成（DATA-BOX-REVISION-SNAPSHOT1 iteration 3：本函式先前漏了日期界線，
     是這條慣例目前已知的漏網者，回填時會把還沒續打完的保留賽也排進清單去抓
     box——不是每日鏈的問題，`_completed_snos` 另一支已經有窗）。
 
-    方向刻意用 UTC／`CURRENT_DATE`，不轉台北時區：與 `cpbl_pitch_tracking.py`
-    現行寫法一致；是否統一改台北日界是 REMEDY1 Phase 2 的範圍，這裡不搶著改。
+    方向刻意不轉台北時區：這個選擇**現在由 helper 的預設承載**——不傳 `as_of_sql` 即
+    `completion.UTC_TODAY_SQL`（`CURRENT_DATE`），本檔不再自留一份複本。⚠️ 那個預設是
+    刻意凍結的，切換授權在 `#53` G4 Phase B（釘在
+    `tests/test_tz_boundary.py::test_legacy_chain_helper_deliberately_keeps_utc_default`）；
+    是否統一改台北日界仍是 REMEDY1 Phase 2 的範圍，這裡不搶著改。
     """
     with conn() as c:
         rows = c.execute(
             "SELECT game_sno FROM cpbl.games WHERE year = %s AND kind_code = %s "
-            "AND home_score + away_score > 0 AND game_date <= CURRENT_DATE ORDER BY game_sno",
+            f"AND {completed_games_sql()} ORDER BY game_sno",
             (year, kind_code),
         ).fetchall()
     return [r[0] for r in rows]
@@ -496,11 +500,14 @@ def completed_snos_within_days(year: int, kind_code: str, days_back: int) -> lis
 
     給 DATA-BOX-REVISION-SNAPSHOT1 深度重抓層用：`completed_snos()` 是全季，
     這支限定近 N 天，讓深度層的請求量不隨球季累積而線性成長。
+
+    完成判定與 `completed_snos()` 走同一支 helper（日界同樣由 helper 預設承載）；
+    下方那條 `game_date >= …` 是本函式自己的**回看窗**，不是完成判定的一部分。
     """
     with conn() as c:
         rows = c.execute(
             "SELECT game_sno FROM cpbl.games WHERE year = %s AND kind_code = %s "
-            "AND home_score + away_score > 0 AND game_date <= CURRENT_DATE "
+            f"AND {completed_games_sql()} "
             "AND game_date >= CURRENT_DATE - (%s * INTERVAL '1 day') "
             "ORDER BY game_sno",
             (year, kind_code, days_back),

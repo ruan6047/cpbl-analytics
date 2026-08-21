@@ -32,6 +32,7 @@ import time
 
 import httpx
 
+from cpbl.completion import completed_games_sql
 from cpbl.db import conn
 
 log = logging.getLogger("cpbl.pitch")
@@ -296,11 +297,14 @@ def completed_game_snos(year: int, kind_code: str, since_days: int | None = None
     """該 year/kind 已完成場的 game_sno（比分>0 且日期不晚於今日）。供單場路徑回填/對帳。
 
     since_days 給定時只取近 N 天（refresh 窗口式增量用）；否則整季。
-    completed 判定沿用專案慣例（見記憶 completed-game-judgment）：需同時 score>0 與
-    game_date <= CURRENT_DATE，避免保留賽掛未來日卻有比分被誤判。
+    completed 判定走 canonical helper `cpbl.completion.completed_games_sql()`（**舊判準**：
+    比分自證＋日期界線），取代先前手寫的同一串條件——語意一字不改，產生的 SQL 逐字相同
+    （DATA-COMPLETION-MIGRATE-CHAIN1）。日期界線的用途不變：避免保留賽掛未來日卻有比分被誤判。
+    日界用 helper 的預設（`completion.UTC_TODAY_SQL` ＝ `CURRENT_DATE`），本檔不再自留複本；
+    ⚠️ 該預設刻意凍結、切換授權在 `#53` G4 Phase B，見 `cpbl.completion` 模組說明。
     """
     sql = ("SELECT game_sno FROM cpbl.games WHERE year=%s AND kind_code=%s "
-           "AND home_score + away_score > 0 AND game_date <= CURRENT_DATE")
+           f"AND {completed_games_sql()}")
     params: list = [year, kind_code]
     if since_days is not None:
         sql += " AND game_date >= (CURRENT_DATE - %s::int)"
