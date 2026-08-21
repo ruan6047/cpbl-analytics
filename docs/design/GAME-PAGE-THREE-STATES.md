@@ -5,6 +5,7 @@
 > 設計系統：[`docs/design/UI_UX_SYSTEM.md`](UI_UX_SYSTEM.md)（canonical；本檔只引用節次，不複述 token 數值）
 > spike 證據：[`docs/research/INIT-GAME-RECAP/spike-report.md`](../research/INIT-GAME-RECAP/spike-report.md)
 > 狀態：**待需求方人工審**。本檔是**結構規格**（元件層級 + 欄位 + 資料源 + 狀態機），不是像素稿。
+> 版本：v0.3（2026-08-21，Claude Opus 5@Claude Code）——`UX-GAME-COMPLETED-SCOREBAR1`（[#160](https://github.com/ruan6047/cpbl-analytics/issues/160)）Design Gate：新增 §1.1.1「賽後態記分條逐欄位定稿」。**本次只動 §1.1 的賽後欄**，其餘章節未變更。
 > 版本：v0.2（2026-08-06，Claude Opus 5@Claude Code）——第五輪人工審裁決：②關鍵打席改 |ΔWP| 選取＋直接顯示擺動量、③得分半局鏈移除、Δ 符號 tooltip、`/methodology#key-plays` 新段
 
 ---
@@ -35,11 +36,74 @@
 | 欄位 | 賽前 | 賽中 | 賽後 |
 |---|---|---|---|
 | 兩隊識別 | `TeamBadge` + 隊名 + 本季戰績 | 同左 | 同左 |
-| 中央 | 開賽時間（`starts_at`） | 比分 + `▲/▼ N 局` + 壘包圖 + 球數 | 終場比分 |
+| 中央 | 開賽時間（`starts_at`） | 比分 + `▲/▼ N 局` + 壘包圖 + 球數 | **終場比分**（逐欄位定稿見 §1.1.1） |
 | 副行 | 先發投手（雙方） | 當前投打 | **勝敗投／救援／MVP**（見 §5 暫定規則） |
 | 右側 | `StatusBadge scheduled` | `StatusBadge live` + 更新秒數 | `StatusBadge done` + 資料來源標記 |
 
 > 局數文案沿用既有 `lib/live-game.ts` 的 `inningLabel()`／`hasStartedPlay()`——**未開打場次 worker 會回 `inning=1` 佔位**，不可只判 truthy（該檔已有的紅線註解）。
+
+### 1.1.1 賽後態記分條逐欄位定稿
+
+> 狀態：**待需求方核可**（`UX-GAME-COMPLETED-SCOREBAR1` Design Gate；核可留言 URL 待填入本行，見 [#160](https://github.com/ruan6047/cpbl-analytics/issues/160) Log）。⚠️ 未核可前不得進實作段。本檔其餘章節仍為 §0 所述之「待需求方人工審」。
+> 裁定來源：[需求方 2026-08-21 裁定](https://github.com/ruan6047/cpbl-analytics/issues/160#issuecomment-5367339034)——該裁定只答「孰先」半題，本節的逐欄位定稿是新內容，須另行核可。
+
+#### 裁定與孰先
+
+**完賽態頁首記分條不顯示 `TOP/BOT`、壘包與球數，只呈現終場比分。**
+
+三份文字的孰先在 2026-08-21 已裁定：`docs/tasks/UX-GAME-RECAP1.md:19` 的**驗收條**（`#80`，經跨家族查核 APPROVE 並合併，逐字「完賽頁首…不得顯示成正在進行的 `TOP/BOT`、壘包或球數」）與本檔 §1.1 的**設計規格**（「賽後＝終場比分」）同向且勝出；`CLAUDE.md` `## Roadmap` 段那句「賽況頁 ESPN 風格狀態板：頂部記分條 + 壘包/球數」是由 `8241dce8`「align CLAUDE.md and README with **current shipped state**」加入的**進度描述**（記分條本身是 16 分鐘後的 `f31d13205` 才建立），不構成推翻驗收條的依據，並須同步限定為賽中態。
+
+#### 現況的具體傷害（2026-08-21 本機實測，`/games/276`，2026-08-20 中信兄弟 4：3 味全龍）
+
+該場末筆 livelog 為 `inning_seq=9`、`visiting_home_type='2'`、`out_cnt=2`、`ball_cnt=2`、`strike_cnt=2`、`second_base='9'`、`content='比賽結束'`。因 `out_cnt` 語意是**打席前**計數，畫面呈現的是「最後一個出局發生之前」的局面：
+
+- 可讀文字：`▼ BOT 9`、`B ●●○`、`S ●●`
+- 螢幕閱讀器：`<svg aria-label="壘上二壘，2 出局">`——**比賽結束後仍被念成正在進行的局面**
+- 375 px 版面：中央區塊佔 108 px，兩側隊伍欄各只剩 70.5 px，隊名「中信兄弟」被壓成 18.5 px 寬 × 80 px 高（**每行一字**）
+
+#### 逐欄位定稿
+
+⚠️ 本節描述的是**現行 `web/src/components/game-board.tsx` 的 `ScoreBar`**，不是 §9.2 目標元件樹裡尚未抽出的 `<GameScorebar>`。§1.1 表的「副行／右側」兩格在現行 `ScoreBar` **未實作**（勝敗投／救援／MVP 實作於 `<RecapMain>` 的 §4.1 結論行；`StatusBadge` 位於區位 A 的標題列），故那兩格在此標記為**非本卡**，維持 §1.1 表所載的未來目標。
+
+| 格 | 欄位與內容 | 資料源 | 空 | 不可用 | 錯誤 |
+|---|---|---|---|---|---|
+| **G0 狀態列**（§1.1 表未涵蓋，記分條第 1 列） | `phaseLabel`「比賽結束」＋`inningLabel(glyph)`＋日期／賽事編號／球場＋最後更新＋`sr-only aria-live` | `snapshot`；**整列以 `{snapshot && …}` 閘門**，歷史場（`live_snapshot === null`）只剩日期／編號／球場 | 局數不成立 → `inningLabel` 回 `null` → 顯示「等待賽況」 | 無 snapshot → 整段狀態文字不渲染 | `source_status==="error"`／`freshness==="stale"` 由**頁面層** `Notice` 承載，不入記分條 |
+| **G1／G5 兩隊識別**（左＝客、右＝主）**不變** | `TeamLogo`(40, decorative) ＋ 隊名 ＋ `{w}-{l}` 本季戰績 | `game.away_team_name`／`home_team_name`；`data.records[teamCode]` | 戰績缺 → 該行留空字串（不寫 `0-0`） | 非現役 franchise（`isCurrentTeam` 為 false）→ 退化為純文字、不連結 | 不適用 |
+| **G2／G4 終場比分**（左客、右主）**不變** | `font-mono text-4xl font-bold tabular-nums` 兩個大數字 | `liveScorebarScores(game, e)`：優先 `game.away_score`／`home_score`，缺值才降階到當前事件的 `visiting_score`／`home_score` | 賽後態**構造上不會為空**——`canShowPostgameConclusions` 要求 `away+home > 0` 才成立 | 同左 | 不適用 |
+| **G3 中央 ⭐本卡唯一變更** | **賽後＋總覽**：只一行 `終場`（`text-xs font-semibold tracking-wide`，**`text-muted`**）。**不渲染** `▲/▼ N 局`、**不渲染** `<BasesOuts>`、**不渲染** B/S `Dots`。<br>**賽後＋逐打席**：維持賽中形狀（選中打席的 `▲/▼ N 局`＋壘包＋球數）——見下方「兩個頁籤共用同一元素」 | 無資料依賴（純態標籤）。態＝`canShowPostgameConclusions(live_snapshot, away+home) && view === "overview"` | 不適用 | 不適用 | 不適用 |
+
+#### 為什麼中央格是「終場」而不是留白
+
+實測 `/games/276` 的 G0 狀態列只有「2026-08-20　賽事編號 276　大巨蛋」——**歷史場沒有 snapshot，「比賽結束」那段整個不渲染**。若中央格留白，整條記分條將沒有任何文字說明那兩個大數字是**終場**比分而非即時比分。`終場` 二字同時是 §1.1 表「賽後＝終場比分」的最小忠實實作。
+
+色票用 `text-muted` 而非現行的 `text-accent`：accent 在本記分條是「進行中」的訊號色（G0 的 `phase === "live"` 用 `text-accent` ＋脈動圓點），完賽態沿用會把「已結束」畫成「進行中」。
+
+#### 兩個頁籤共用同一元素（誤傷防線）
+
+`ScoreBar` 在 DOM 上位於 `{tabs}` **之前**（`game-board.tsx:773` vs `:775`），賽後戰報與逐打席**共用同一個元素**。逐打席頁籤裡，中央區塊是「選中打席的局面」，是該頁籤的核心資訊，**不得一併移除**。因此態閘門必須是 `completed && view === "overview"`（與 `game-live-page.tsx:212` 既有的 `plainLinescore` 同一條件），**不是裸 `completed`**。
+
+⚠️ 態判定不得寫成 `snapshot?.phase === "final"`：`canShowPostgameConclusions` 的定義是 `scoreTotal > 0 && (snapshot === null || snapshot.phase === "final")`，**歷史場 `snapshot === null` 時兩者分歧**（`completed` 為 true、`phase==="final"` 為 false）。`/games/276` 本機實測正是 `live_snapshot: None`，寫成 phase 判定會讓這張卡對絕大多數場次完全失效。
+
+#### 版面
+
+| | 現況 | 定稿後 |
+|---|---|---|
+| 桌機（1280 px） | 記分條 169.3 px 高；中央格 108 × 85.3 px | 中央格降為一行 `text-xs`（約 16 px 高）；記分條約 100 px 高。grid 樣板 `grid-cols-[1fr_auto_auto_auto_1fr] gap-4 px-5 py-4` **不變** |
+| 375 px | 記分條 327 × 196 px；grid 欄寬 `70.5 / 21.2 / 108 / 21.2 / 69.8`；隊名每行一字 | 中央格釋出約 80 px 給兩側 `1fr` 欄，隊名可單行排列；`documentElement.scrollWidth` 維持 375（§10「375 px 無整頁水平捲動」） |
+
+⚠️ **對 §1 區位 B「版面高度與欄位骨架不變（避免態切換時 CLS）」的刻意偏離**：本定稿**不維持賽中／賽後等高**。理由有二——(a) 高度變化只發生在「使用者正看著直播、比賽剛結束」的那一次輪詢，且該次同時伴隨主區塊由總覽整體置換為賽後戰報，記分條保持等高並不能讓版面穩定；(b) 為等高而在賽後保留 85 px 空白，會讓上述 375 px 隊名壓字問題原封不動。⇒ 取捨為「賽後版面正確」優先於「態切換零 CLS」。
+
+#### 無障礙
+
+移除 `<BasesOuts>` 即移除其 `aria-label="壘上…，N 出局"`——那是本痛點的螢幕閱讀器受害面（實測完賽場仍念「壘上二壘，2 出局」）。`終場` 是可讀文字，不需額外 `aria-*`。共用元件 `ui.tsx` 的 `BasesOuts` 幾何與文案**不得改動**（首頁今日賽事卡是另一個消費者）。
+
+#### 明確排除（非本節、非本卡）
+
+- **G0 狀態列的 `▼ 9 局` 不動**：該列在有 snapshot 的完賽場會顯示「比賽結束　▼ 9 局」。此處半局符號的語意是「比賽在第 9 局下**結束**」，是完賽事實（等同記分板慣例的 `F/9`／延長賽 `F/10`），與中央格「正在進行中的 BOT 9」語意不同。⚠️ 若需求方認為該列也須拿掉半局符號，請於核可時指明。
+- **延長賽／提前結束的局數不另顯示**：中央格只寫 `終場`，不加「N 局」。裁定與 §1.1 表均未要求，屬新增資訊。
+- **賽前態**：`GameBoard`（含 `ScoreBar`）只在 `data.livelog.length > 0` 時渲染（`game-live-page.tsx:281`），賽前場走另一條分支，故 §1.1 表的賽前中央格「開賽時間」與現行 `ScoreBar` 無關。
+- **`WpBar`**（`game-board.tsx:794`）無 live／completed 閘門一事屬另案（需求方 2026-08-21 裁定第 3 節，統計揭露紅線 3）。
+- **`out_cnt` 的資料語意**不改，不新增衍生欄位。
 
 ---
 
