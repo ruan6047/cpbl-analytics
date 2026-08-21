@@ -113,17 +113,16 @@ class Allowed:
 #
 # 新寫的一律修掉，不要往這裡加。count 是**精確**筆數，比對不相等即紅。
 
-# ⚠️ 非鏈端（原 `_NONCHAIN = "#156"`，12 檔 16 處）已於 #156 全數遷移完畢，整桶移除。
+# ⚠️ 兩個 PENDING 桶都已整桶移除，allowlist 現在只剩 REVIEWED 一桶：
+#   * 非鏈端（原 `_NONCHAIN = "#156"`，12 檔 16 處）已於 #156 全數遷移完畢。
+#   * 每日 refresh 鏈（原 `_CHAIN = "#157"`，2 檔 3 處）已於 #157 全數改吃 helper。
+#     ⚠️ #157 是「接線」不是「換判準」：三處改吃 `completed_games_sql()` 的**預設**
+#     `as_of`，產生的 SQL 與原手寫字面逐字相同；是否改吃證據感知的
+#     `completed_games_sql_with_evidence` 屬 #53 G4 Phase B 之後的 #90 Phase 2，本卡未代決。
 # 常數一併刪掉而不是留著空著——留下一個沒有任何項目引用的卡號，下一個人得回頭查 issue
 # 才知道那是「做完了」還是「漏填了」。allowlist 只記**還存在**的手寫條件。
-# 每日 refresh 鏈：沿用舊判準，等 #53 G4 Phase B 之後的 Phase 2 才切
-_CHAIN = "#157"         # DATA-COMPLETION-MIGRATE-CHAIN1（阻塞於 #53）
 
 ALLOWLIST: dict[str, Allowed] = {
-    # --- 每日 refresh 鏈待遷移（#157，阻塞於 #53 G4 Phase B）：2 檔 3 處 ---
-    "src/cpbl/ingest/cpbl_gamelog.py": Allowed(2, PENDING, _CHAIN, "鏈端目標場清單；換判準＝換爬取母體"),
-    "src/cpbl/ingest/cpbl_pitch_tracking.py": Allowed(1, PENDING, _CHAIN, "鏈端目標場清單；換判準＝換爬取母體"),
-
     # --- 已審視、不是完成判定：3 檔 3 處（無承接卡，也不該有） ---
     "src/cpbl/api/routers/daily.py": Allowed(
         1, REVIEWED, "",
