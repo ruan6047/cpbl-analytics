@@ -332,37 +332,60 @@ grammar 拒收、且環境名有四種寫法，致 **`#136` 自己的資源宣�
 - **T4／Initiative 必須進行逐題 `grilling`**（`AI_WORKFLOW.md` §3.1：同步對抗式質詢真對話，**brief 不得代替對話**）
 - **全專案規劃 WIP ＝ 1**。規劃是需求方的頻寬，不是執行者的——同時開兩場質詢等於兩場都做不深
 
-#### `🧭規劃中` 不存在——過渡做法與它的代價
+#### `🧭規劃中` 已經存在，但沒有人用——能力補上了，代價還在
 
-**`🧭規劃中` 不是「WF 尚未支援」，是它在機械面根本沒有。** 實測寫入時 `wfcli` 逐字回：
+⚠️ **本節在 2026-08-21 之前逐字寫著「`🧭規劃中` 不是『WF 尚未支援』，是它在機械面根本沒有」，
+並附一段 `wfcli` 的錯誤訊息當證據。那句話已經是假的。** `ai-workflow#102`（`ae8f741`，
+2026-08-18）補上了 `💡需求`／`🔬研究中`／`🧭規劃中` 三個授權前階段。兩處機械面各自可重跑：
 
+```bash
+# 1) 狀態面：Project #4「交付狀態」的選項
+gh project field-list 4 --owner ruan6047 --format json | python3 -c \
+  "import sys,json;print([o['name'] for f in json.load(sys.stdin)['fields'] if f['name']=='交付狀態' for o in f['options']])"
+# 2026-08-21 實得：['💡需求','🔬研究中','🧭規劃中','📥Backlog','⏳待執行','🔨執行中','🚧進行中',
+#                  '🔍待查核','✅通過','📦已合併','🏁完成','↩退回','⏸阻塞','🚨已升級','🛑已停止']
+
+# 2) writer：wfcli 的 STAGE_STATUS（handoff_cmd.py:87-93）
+git -C ~/Dev/ai-workflow show ae8f741:cli/src/wf_cli/commands/handoff_cmd.py | sed -n '87,93p'
+# 2026-08-21 實得：STAGE_STATUS = {"requirement": "💡需求", "research": "🔬研究中",
+#                  "planning": "🧭規劃中", "implementation": "🔨執行中", "review": "🔍待查核"}
 ```
-[wfcli] 錯誤：欄位 '交付狀態' 沒有選項 '🧭規劃中'；現有選項：
-['↩退回','⏳待執行','⏸阻塞','✅通過','🏁完成','💡需求','📥Backlog',
- '📦已合併','🔍待查核','🔨執行中','🚧進行中','🚨已升級','🛑已停止']
-```
 
-上面那張狀態圖與 §2.1 的表**照寫不誤**，是因為它們描述的是**目標形狀**；
-但本檔在別處寫著「禁止把歷史的 `not-asserted` 補成已通過」，**自己就不能宣稱一個不存在的能力**。
-過渡做法與其代價：
+> ⚠️ **本 repo 的 `.ai-workflow` submodule 指標仍釘在 `f207d2e`，那個 SHA 的 `STAGE_STATUS`
+> 只有 `implementation`／`review`。** 能力在 `wfcli` 的**安裝來源**（`~/Dev/ai-workflow`，
+> 其 `origin/main` 已含 `ae8f741`）上有，在本 repo 釘住的那一份上沒有——
+> 兩者對不上時以實際被執行的那一份為準。submodule bump 屬另一張卡，不在本節射程。
 
-- 卡停在 **`💡需求`**，規劃進度只能寫進 Issue 留言
-- **代價是實質的**：規劃 Gate 已過、Plan 未完成的卡**沒有狀態可表達**，
+**⛔ 代價沒有因此消失，只是原因換了**——從「**機械面做不到**」換成「**能力已存在而流程未採用**」：
+
+- **現況分布實測**（2026-08-21，`gh project item-list 4 --owner ruan6047 --format json --limit 300`，
+  全 **175** 個 item）：`🧭規劃中` **0 張**、`🔬研究中` **0 張**。而能力上線後這三天內，
+  至少 `#161`（08-21 20:25 CST）與 `#162`（08-21 22:16 CST）兩張卡的 Log 逐字記著
+  「規劃 Gate 通過」——**規劃確實在發生，只是沒有走那個狀態**（`#161` 現況 `📥Backlog`、
+  `#162` 現況 `🔨執行中`）。⚠️ 本檔沒有 Project 欄位值的變更歷史，**不能斷言那兩張卡
+  「從未」短暫停在 `🧭規劃中`**；能斷言的只有「現況分布為 0」與「兩張卡的規劃期不是
+  以該狀態被記錄下來的」。
+- **原本那段代價的原文照樣成立**：規劃 Gate 已過、Plan 未完成的卡**沒有狀態可表達**，
   在板上與從未動過的卡**完全同形**——`💡需求` 的卡在 §3 拿到的 Gate 欄**逐字相同**，
   無論它已完成 Discovery 與 Design 或從未被碰過。**§3 因此看不出規劃中的卡**。
-  實例是 `OPS-PROD-SYNC-SEQ-COLLISION1`（#136）：本檔 iteration 2 送審時它
-  Discovery 與 Design Gate 皆已完成、Plan 草案在途，而板上與 Gate 欄與從未動過的卡無異。
-  ⚠️ **它已於 iteration 3 重生區塊時轉為 `🚧進行中`，其後於 2026-08-14 結案轉 `🏁完成`
-  （終態卡離開 §3 區塊，故現行區塊裡查不到它），因此不再是活的實例**——
-  **這個代價本身沒有因此消失**，只是下一張規劃中的卡還沒出現在板上
+  舊實例 `OPS-PROD-SYNC-SEQ-COLLISION1`（#136）已於 2026-08-14 結案轉 `🏁完成` 而離開
+  §3 區塊，**但代價本身沒有隨它消失**——`#161`／`#162` 是同一形狀的新實例。
+- **過渡做法（卡停在 `💡需求`，規劃進度只能寫進 Issue 留言）今日仍是實際做法**，
+  但它**不再有機械面的藉口**。要改的是流程：規劃期實際走 `handoff --next-stage planning`，
+  且不要用 `--status`（該旗標的說明逐字是「覆寫依 next-stage 推導出的交付狀態」）把它蓋掉。
+  ⚠️ `wfcli open` 仍預設寫 `📥Backlog`（`cli/src/wf_cli/card.py:295` 逐字
+  `delivery_status: str = "📥Backlog"`）且 `open` **沒有 `--status` 旗標**，所以新卡落點
+  仍須事後以 `handoff` 更正——那是另一個缺陷，不是本節的。
 - **無法核對 Gate 證據時標 `not-asserted`**，**不得默認通過**；`not-asserted` 是永久紀錄，
   **WF 恢復後不得補寫成已通過**（基線 9）
 
-> ⚠️ **`planning-started`／`cpbl-planning/v1`／`gate_evidence` 目前都只是本檔（與卡面留言）裡的詞。**
-> 本 repo 全庫 grep：`planning-started` 只出現在本檔，`gate_evidence` 只出現在
-> `docs/tasks/DEV-RESOURCE-VOCAB-ALIGN1.md`（即記錄此問題的那張卡）——**沒有 schema 檔、
-> 沒有 writer、沒有儲存位置**。所以上面第三點的 `not-asserted` **標在哪裡目前沒有答案**。
-> 詞彙與文件的窮舉對齊由 `DEV-RESOURCE-VOCAB-ALIGN1`（#139）處理，**本檔只負責不再宣稱自己有那個能力**。
+> ⚠️ **`planning-started`／`cpbl-planning/v1`／`gate_evidence` 至今仍只是本檔裡的詞。**
+> 2026-08-21 重跑 `git grep -n "gate_evidence\|planning-started\|cpbl-planning"`：三個 token
+> **全庫只命中 `docs/ROADMAP.md` 自己**（`:281`、本註、§7 那一列）——**沒有 schema 檔、
+> 沒有 writer、沒有儲存位置**。所以上面 `not-asserted` **標在哪裡目前仍然沒有答案**。
+> ⚠️ 本註前一版寫「`gate_evidence` 只出現在 `docs/tasks/DEV-RESOURCE-VOCAB-ALIGN1.md`」，
+> **該句同時已過期**：該檔今日不含此 token，而 `DEV-RESOURCE-VOCAB-ALIGN1`（#139）
+> 已於 2026-08-18 CLOSED。**這個能力缺口沒有因為那張卡結案而被補上。**
 
 ### 2.1 執行 WIP（基線 2）
 
@@ -370,7 +393,7 @@ grammar 拒收、且環境名有四種寫法，致 **`#136` 自己的資源宣�
 
 | 佔實作 WIP | 不佔 |
 |---|---|
-| `⏳待執行`、`🔨執行中`（舊制 `🚧進行中`）、`↩退回`、`🔍待查核`、`🚨已升級` | `💡需求`、`🧭規劃中`（**尚不存在**，見 §2.0）、`📥Backlog`、`⏸阻塞`、`✅通過`、各終態 |
+| `⏳待執行`、`🔨執行中`（舊制 `🚧進行中`）、`↩退回`、`🔍待查核`、`🚨已升級` | `💡需求`、`🧭規劃中`（**選項已存在但零使用**，見 §2.0）、`📥Backlog`、`⏸阻塞`、`✅通過`、各終態 |
 
 **`🔍待查核` 佔額度**——查核也是進行中，而且卡在查核比卡在實作更容易被忽略。
 
@@ -560,7 +583,7 @@ grammar 拒收、且環境名有四種寫法，致 **`#136` 自己的資源宣�
 
 ## 3. 現行排程
 
-> **as-of `2026-08-14`。本表是快照，不是即時視圖。** 狀態的事實來源永遠是 Issue／Project。
+> **as-of `2026-08-21`。本表是快照，不是即時視圖。** 狀態的事實來源永遠是 Issue／Project。
 >
 > **下面的區塊由指令產生，非人工列舉。** 重生與對帳：
 >
@@ -691,14 +714,35 @@ grammar 拒收、且環境名有四種寫法，致 **`#136` 自己的資源宣�
 `DEV-ROADMAP-GATE-DERIVED1`（#137）把整張表移除，註記歸位到這裡：**本檔是本卡的宣告資源，
 與必須保持一致的敘述同一個擁有者**。
 
-- **`#53`／`#119`**：見上一節（L1 閘門與阻塞對象）
+- **`#53`／`#119`**：見上一節（L1 閘門與阻塞對象）。
+  ⚠️ **上一節關於 `#53` 的兩句已被需求方 2026-08-15 的裁定取代**——「Phase B 完成前
+  **佔用該線 WIP**」與「**板上仍是 `🔍待查核`**」兩句今日皆不成立：#53 當日由 `🔍待查核`
+  改 `⏸阻塞`（依 §2.1 該狀態**不佔**實作 WIP），理由是狀態詞描述錯了阻塞的性質——
+  真正的阻塞是 Phase A → Phase B 的四項放行條件**沒有量測工具**，不是「等查核者進場」
+  （留痕：#53 Issue Log `2026-08-15T00:29:39+08:00`；上一節的其餘敘述——四項放行條件
+  判不了、Phase A 的碼已在生產——**仍然成立**）。
+  `#119` 不變：`⏸阻塞`、保留 worktree、解阻對象仍是 #53。
 - **`#131`**：原註記要求「規劃階段先做唯讀查證（31 場是否真的都未進快照／7 這個數字重算）」
   並附一條 `⏰ 2026-08-17` 時效。**兩者都已作廢**——查證已由 #131 的 Discovery 完成，
   而時效所依據的前提已被同一份 Discovery 推翻（見上上節）。**這條就是移除逐卡覆寫的實證**：
-  它寫於 2026-08-14 上午、同日下午即過期，而消費它的正文已經改對，區塊卻改不掉
+  它寫於 2026-08-14 上午、同日下午即過期，而消費它的正文已經改對，區塊卻改不掉。
+  ⚠️ **本卡已於 2026-08-19 CLOSED（`🏁完成`）**，終態故已離開 §3 區塊；本條自此只是歷史留痕。
 - **`#109`**：等需求方完成兩項手動部署（生產端手動跑 migration 071／072、
-  `com.cpbl.weekly-box-revisions` launchd bootstrap）
-- **`#79`**：碼已 merge（`f9f2399`），等生產部署驗證後結案
+  `com.cpbl.weekly-box-revisions` launchd bootstrap）。
+  ⚠️ **launchd 那一項早已完成**：2026-08-21 重跑 `launchctl list | grep weekly-box-revisions`
+  得三欄 `-`／`0`／`com.cpbl.weekly-box-revisions`（已載入；上次結束碼由 2026-08-14 R1 查核者
+  觀察到的 `1` 轉為 `0`）。
+  ⛔ **生產端 migration 071／072 是否已套用，本檔未查證**——查證須連生產，屬需求方動作。
+- **`#79`**：⛔ **它不是在等驗證後結案，它是被裁定為永遠不會結案的假活卡。**
+  需求方 2026-08-18 裁定**不補走部署狀態**
+  （[裁定留言](https://github.com/ruan6047/cpbl-analytics/issues/79#issuecomment-5327710893)）：
+  碼已隨某一次主站 submodule bump 進生產（`f9f2399` 是主站現行指標 `d5e60c5` 的祖先，
+  `git merge-base --is-ancestor` 為真），但板上部署狀態仍是 `⏸未部署`，而
+  `handoff --next-stage release` 的閘門要求需部署卡在 `✅已驗證` 前不得 release。
+  **走完中間那幾步等於在留痕裡造沒發生過的事件序，需求方寧可留下可見的不一致。**
+  後果：本卡持續以 `📦已合併` ＋ Issue OPEN 停在看板上（canonical §4.4 逐字的「假活卡」），
+  且因 `📦已合併` ∈ `CLOSED_STATUSES` 而**不在 §3 區塊內**——看板上有、排程表上沒有。
+  ⚠️ 該裁定的射程僅為「碼在不在生產」，**沒有驗證該功能在生產上是否正常運作**。
 
 > ⚠️ **搬家不會讓它們自己更新。** 移除逐卡覆寫解決的是「文件擁有者修不掉它」，
 > **不是「它不會過期」**。實證就在上面這份清單裡：`#109` 的兩項手動步驟中，
@@ -709,51 +753,45 @@ grammar 拒收、且環境名有四種寫法，致 **`#136` 自己的資源宣�
 
 <!-- roadmap-lines:begin -->
 
-<!-- cpbl-roadmap-lines/v9；活卡 43；每線 {'L1': 12, 'L2': 9, 'L3': 6, 'L4': 12, 'L5': 4} -->
+<!-- cpbl-roadmap-lines/v9；活卡 37；每線 {'L1': 8, 'L2': 7, 'L3': 6, 'L4': 11, 'L5': 5} -->
 
-### L1 資料正確性（12 張）
+### L1 資料正確性（8 張）
 
 | 卡 | # | tier | 狀態 | 下一個必要 Gate／阻塞條件 | 去留 |
 |---|---|---|---|---|---|
-| `DATA-BOX-DEEP-SILENT-FAIL1` | #131 | T4 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 | `DATA-BOX-REVISION-SNAPSHOT1` | #109 | T2 | ⏸阻塞 | 解除阻塞條件（阻塞對象與解阻後的處置見該卡 Issue 的 handoff 事由） | |
-| `DATA-OFFICIAL-STATUS-TIEBREAK1` | #138 | T3 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
-| `DATA-PA-REBUILD-GAP1` | #134 | T4 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 | `DATA-RE24-PROD-REBUILD1` | #119 | T4 | ⏸阻塞 | 解除阻塞條件（阻塞對象與解阻後的處置見該卡 Issue 的 handoff 事由） | |
-| `DATA-REVISION-HASH-NOISE1` | #135 | T4 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 | `DEV-VERIFY-TM-ASSERTS1` | #50 | T2 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
-| `INGEST-GAME-TM-REFACTOR1-G4` | #53 | T4 | 🔍待查核 | 查核者進場並寫入裁決 | |
+| `INGEST-GAME-TM-REFACTOR1-G4` | #53 | T4 | ⏸阻塞 | 解除阻塞條件（阻塞對象與解阻後的處置見該卡 Issue 的 handoff 事由） | |
 | `INGEST-LIVE-RECONCILE1` | #54 | T4 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 | `INGEST-POSTGAME-FINALIZE1` | #57 | T3 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 | `INIT-OFFICIAL-DATA1` | #61 | T4 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 | `MATCHUP-DATA2` | #63 | T4 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 
-### L2 每日鏈可靠性（9 張）
+### L2 每日鏈可靠性（7 張）
 
 | 卡 | # | tier | 狀態 | 下一個必要 Gate／阻塞條件 | 去留 |
 |---|---|---|---|---|---|
 | `API-INFO-UNRESOLVED-GAMES1` | #127 | T3 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
-| `LIVE-WORKER-RESCHEDULE-FILTER1` | #118 | T2 | ✅通過 | 需求方授權 merge → 結案（cleanup ＋ 終態寫入） | |
 | `OPS-BACKUP-DR1` | #71 | T3 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 | `OPS-POSTGAME-OBSERVE1` | #73 | T2 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 | `OPS-REMOTE-CUTOVER1` | #74 | T4 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 | `OPS-REMOTE-PROBE1` | #75 | T3 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 | `OPS-REMOTE-ROUTE1` | #76 | T3 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 | `OPS-REMOTE-WORKER1` | #77 | T4 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
-| `OPS-SCHEDULE-FAILURE-BLIND1` | #132 | T2 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 
 ### L3 產品／UX（6 張）
 
 | 卡 | # | tier | 狀態 | 下一個必要 Gate／阻塞條件 | 去留 |
 |---|---|---|---|---|---|
-| `DAILY-MIXED-DAY-UX1` | #126 | T3 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 | `INIT-GAME-RECAP` | #60 | T4 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 | `INIT-PRODUCT-UX` | #62 | T3 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
-| `UX-GAME-PA1` | #79 | T3 | 🔍待查核 | 查核者進場並寫入裁決 | |
+| `UX-COMPLETED-JUDGMENT-DATE-BOUNDARY1` | #161 | T4 | 📥Backlog | 認領（線 WIP 須有空位） | |
+| `UX-GAME-META-COMPLETED1` | #148 | T2 | 📥Backlog | 認領（線 WIP 須有空位） | |
 | `UX-TEAM-FIELD-HIST1` | #82 | T3 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 | `UX-WINPROB-CURVE-MIGRATE1` | #97 | T3 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 
-### L4 ML／研究（12 張）
+### L4 ML／研究（11 張）
 
 | 卡 | # | tier | 狀態 | 下一個必要 Gate／阻塞條件 | 去留 |
 |---|---|---|---|---|---|
@@ -768,16 +806,16 @@ grammar 拒收、且環境名有四種寫法，致 **`#136` 自己的資源宣�
 | `ML-WP-CAL1-RERUN1` | #104 | T3 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 | `ML-WP-ROLLWIN1` | #95 | T4 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 | `RESEARCH-REASON-RESTATE1` | #105 | T2 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
-| `WP-DISCLOSURE-SYNC1` | #100 | T3 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 
-### L5 開發／文件基礎（4 張）
+### L5 開發／文件基礎（5 張）
 
 | 卡 | # | tier | 狀態 | 下一個必要 Gate／阻塞條件 | 去留 |
 |---|---|---|---|---|---|
 | `DEV-CI-LOCALE-UNDECLARED1` | #129 | T1 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
-| `DEV-RESOURCE-VOCAB-ALIGN1` | #139 | T2 | ⏸阻塞 | 解除阻塞條件（阻塞對象與解阻後的處置見該卡 Issue 的 handoff 事由） | |
-| `DOC-CPBL-ROADMAP1` | #130 | T2 | ↩退回 | 依 finding 修正後重新送審 | |
+| `DEV-ROADMAP-LINES-SILENT-ZERO1` | #143 | T2 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
+| `DEV-WP-DISCLOSURE-SOURCE1` | #147 | T3 | 📥Backlog | 認領（線 WIP 須有空位） | |
 | `DOC-LIVELOG-SEMANTICS-GAP1` | #108 | T1 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
+| `DOC-ROADMAP-STALE-SYNC1` | #162 | T2 | 🔨執行中 | 交付並 handoff 送審 | |
 
 <!-- roadmap-lines:end -->
 
@@ -842,7 +880,7 @@ CPBL 的補充：**收到 finding 後開卡前，先執行 §2.4 的母卡目標
 
 §0 目標 2 寫著「**靠人記得看不算**」。而本節底下的每一條，執行者都是人。**這份文件在管別人時要求機械執行者，管自己時只有紀律。**
 
-**同樣的自承適用於 §2.0 的規劃 Gate、§2.1 的 WIP 上限、§2.2 的三日時鐘、§2.4 的母卡目標、§2.7 的 checklist**——它們全部沒有機械執行者。唯一有守衛的是 §3 的歸屬對帳（`roadmap_lines.py`，fail closed）與 §2.6 的清理證明（四項缺一不可，但由人工核對）。
+**同樣的自承適用於 §2.0 的規劃 Gate、§2.1 的 WIP 上限、§2.2 的三日時鐘、§2.4 的母卡目標、§2.7 的 checklist**——它們全部沒有機械執行者。唯一有**守衛腳本**的是 §3 的歸屬對帳（`roadmap_lines.py`，fail closed）與 §2.6 的清理證明（四項缺一不可，但由人工核對）。⚠️ **有腳本不等於有執行者**：`roadmap_lines.py` 自己確實 fail-closed，但**沒有任何東西會去跑它**——2026-08-14 至 08-21 的七天內觸發點發生 11 次、實跑 0 次（實測見下節）。**這一條同樣屬於「管別人時要求機械執行者，管自己時只有紀律」。**
 
 **需求方 2026-08-14 裁定新增的三條規則同樣沒有機械執行者**，比照上列誠實標注：
 
@@ -953,9 +991,29 @@ CPBL 的補充：**收到 finding 後開卡前，先執行 §2.4 的母卡目標
 | `wfcli open`（已機械強制填「服務的原始目標」） | 走 §2.7 的 `open` checklist；確認線別並寫入 `initiative` |
 | `wfcli assign` | 走 §2.7 的 `assign` checklist |
 | §2.2 逾時重新檢視觸發 | 更新 §3 該列；補記舊卡的線別與母卡目標（§2.5） |
-| 卡片結案（`handoff --next-stage release`） | 重跑 §3 的產生指令 |
+| 卡片結案（`handoff --next-stage release`） | 重跑 §3 的產生指令。⚠️ **這一列目前沒有執行者**，見下方實測註 |
 | 引用的外部文件改版 | 見下節 |
 | 新事故被引用 | 在 [`incidents/INCIDENTS.md`](incidents/INCIDENTS.md) 建錨點 |
+
+> ⛔ **「卡片結案 → 重跑 §3 的產生指令」這一列，實測是空的。**
+> 觀測窗釘死在兩個 SHA 之間：`c62e327`（2026-08-14 18:03 CST，本檔在此之前最後一次被改）
+> 到 `f632759`（2026-08-21，`DOC-ROADMAP-STALE-SYNC1` #162 的基線）。**這七天內重跑 0 次**：
+>
+> ```bash
+> git log c62e327..f632759 --oneline -- docs/ROADMAP.md   # → 空輸出（釘死區間，不隨時間變）
+> ```
+>
+> 而同一窗內該觸發點至少發生 **11 次**——區塊裡原有的 43 張活卡有 11 張進入終態、離開活卡集合
+> （`DAILY-MIXED-DAY-UX1`、`DATA-BOX-DEEP-SILENT-FAIL1`、`DATA-OFFICIAL-STATUS-TIEBREAK1`、
+> `DATA-PA-REBUILD-GAP1`、`DATA-REVISION-HASH-NOISE1`、`DEV-RESOURCE-VOCAB-ALIGN1`、
+> `DOC-CPBL-ROADMAP1`、`LIVE-WORKER-RESCHEDULE-FILTER1`、`OPS-SCHEDULE-FAILURE-BLIND1`、
+> `UX-GAME-PA1`、`WP-DISCLOSURE-SYNC1`），另有 5 張新卡進入。**區塊因此漂移了七天。**
+>
+> 依 §0 目標 2 逐字的「**靠人記得看不算**」，本檔**不宣稱這一列已經在運作**。
+> ⚠️ **`DOC-ROADMAP-STALE-SYNC1`（#162）只重生了一次區塊，沒有替它建立機械執行者**
+> ——該卡的寫入集只有本檔一個檔，建 CI job／git hook／launchd 需要動別的檔，屬另一張卡。
+> **所以重生至今仍然靠人記得，而上面那組數字就是「靠人記得」的實測結果；
+> 下一次漂移不會有任何東西發出訊號。**
 
 ### 引用的維護
 
@@ -990,12 +1048,12 @@ CPBL 在 WF 暫停期間**可獨立運作**，但必須讓 WF 恢復後接得回
 
 | 能力 | invariant | 現行人工過渡 | WF 原生接管條件 | 回滾 |
 |---|---|---|---|---|
-| **規劃 Gate**（§2.0） | 未過 Gate 不得進 Backlog／認領 | ⚠️ **僅 Issue 留言**。`planning-started`／`cpbl-planning/v1`／`gate_evidence` **全無實作**（§2.0），故「無證據標 `not-asserted`」目前**無處可標** | `wfcli` **新增** `🧭規劃中` 選項（現行選項表無此值）且 `open` 不預設 Backlog | 停用 WF 檢查，回到人工 checklist；已寫入的留言保留 |
+| **規劃 Gate**（§2.0） | 未過 Gate 不得進 Backlog／認領 | ⚠️ **僅 Issue 留言**。`planning-started`／`cpbl-planning/v1`／`gate_evidence` **全無實作**（§2.0），故「無證據標 `not-asserted`」目前**無處可標** | ~~`wfcli` **新增** `🧭規劃中` 選項~~ **已於 `ae8f741`（`ai-workflow#102`，2026-08-18）完成**（§2.0 附兩條可重跑取證）；剩下的接管條件只有 `open` 不預設 Backlog——`open` 至今沒有 `--status` 旗標 | 停用 WF 檢查，回到人工 checklist；已寫入的留言保留 |
 | **執行 WIP**（§2.1） | 每線同時 ≤1 張佔額度 | PM 於 `assign` 前人工數（§2.7） | `assign` 依線別與狀態集合機械擋下 | 同上 |
 | **三日時鐘**（§2.2） | 單一 iteration 逾 3 日觸發重審 | 人工比對 Log 最後認領／退回時間 | `doctor` 能列出逾時卡 | 同上 |
 | **L4 停損**（§1） | 無可觀察停止條件不得認領 | PM 於 `assign` 前檢查卡面 | `open`／`assign` 有停損必填欄 | 同上 |
 | **`cancelled_with_report`**（§2.6） | 四項證明缺一不可才授權刪除 | 人工逐項寫進 handoff evidence | `cleanup.py` 增此 proof kind | **不回滾**：分支已刪不可逆，故過渡期寧可不刪 |
-| **§3 歸屬對帳** | 未歸屬／重複／雙向差集非空即失敗 | **已機械化**（`roadmap_lines.py`，fail closed） | 併入 `doctor` | 保留腳本 |
+| **§3 歸屬對帳** | 未歸屬／重複／雙向差集非空即失敗 | **腳本存在且 fail-closed**（`roadmap_lines.py`），**但沒有自動觸發者**——要有人手動跑。⛔ **不得讀成「已機械化」**（實測見 §6〈維護動作掛在已經會發生的事件上〉） | 併入 `doctor`，**且由 `doctor` 擔任觸發者**（只併不觸發等於換個地方沒人跑） | 保留腳本 |
 
 > **本檔引用 WF 的能力契約，不複製其實作細節。** `cleanup.py` 的 proof-kind authority matrix
 > 見 `ai-workflow` `71df157`；本檔只承接它的**形狀**（證明決定授權、留痕由實際結果產生、
