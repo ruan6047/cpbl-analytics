@@ -93,8 +93,10 @@ function Dots({ n, total, color }: { n: number; total: number; color: string }) 
 
 // ───────────────────────── 壘包＋出局（緊湊版：菱形品字群 + 出局點）─────────────────────────
 // ───────────────────────── 頂部記分條 ─────────────────────────
-function ScoreBar({ game, e, records, snapshot, gameSno }: {
+function ScoreBar({ game, e, records, snapshot, gameSno, plain }: {
   game: StatRow; e: StatRow; records: Record<string, Rec>; snapshot: LiveSnapshot | null; gameSno: string;
+  /** true＝完賽態總覽：中央格只寫「終場」，不畫 ▲/▼ N 局、壘包與球數（設計定稿 §1.1.1）。 */
+  plain: boolean;
 }) {
   const ac = String(game.away_team_code ?? "");
   const hc = String(game.home_team_code ?? "");
@@ -157,22 +159,37 @@ function ScoreBar({ game, e, records, snapshot, gameSno }: {
       <div className="grid grid-cols-[1fr_auto_auto_auto_1fr] items-center gap-4 px-5 py-4">
         {side(ac, game.away_team_name, ar, false)}
         <div className="font-mono text-4xl font-bold tabular-nums">{score.away}</div>
-        <div className="flex flex-col items-center gap-0.5 px-2">
-          <div className="text-xs font-semibold tracking-wide text-accent">
-            {half === "1" ? "▲ TOP" : "▼ BOT"} {num(e.inning_seq)}
-          </div>
-          {/* 壘包與出局數：canonical 幾何已上抽至 ui.tsx（首頁今日賽事卡共用同一份）。 */}
-          <BasesOuts
-            bases={{ first: occupied(e.first_base), second: occupied(e.second_base),
-                     third: occupied(e.third_base) }}
-            outs={num(e.out_cnt)} />
-          {/* 球數與出局同處（全站唯一顯示點） */}
-          <div className="flex items-center gap-2.5">
-            <span className="flex items-center gap-1"><span className="font-mono text-[10px] font-semibold text-muted">B</span>
-              <Dots n={num(e.ball_cnt)} total={3} color={PITCH_CALL.ball} /></span>
-            <span className="flex items-center gap-1"><span className="font-mono text-[10px] font-semibold text-muted">S</span>
-              <Dots n={num(e.strike_cnt)} total={2} color={PITCH_CALL.foul} /></span>
-          </div>
+        {/* 完賽態不掛 px-2：那 16 px 是留給壘包圖與球數燈的呼吸空間，「終場」兩個字
+            不需要，而 375 px 下的欄寬已經緊到會把隊名壓成每行一字。 */}
+        <div className={`flex flex-col items-center gap-0.5${plain ? "" : " px-2"}`}>
+          {plain ? (
+            // 完賽態總覽（§1.1.1）：比賽結束後這格若照舊吃當前事件，畫面會陳述一件假的事——
+            // `out_cnt` 是**打席前**計數，所以印出來的是「最後一個出局發生之前」的局面，且
+            // `<BasesOuts>` 的 aria-label 會被螢幕閱讀器照著念。
+            // ⚠️ 不留白：歷史存檔場沒有 snapshot，上方狀態列的「比賽結束」整段不渲染，
+            //    留白會讓兩側那兩個大數字看起來像即時比分。
+            // ⚠️ 用 text-muted 不用 text-accent：accent 在本記分條是「進行中」的訊號色
+            //    （狀態列 phase === "live" 就是 text-accent ＋脈動圓點）。
+            <div className="whitespace-nowrap text-xs font-semibold tracking-wide text-muted">終場</div>
+          ) : (
+            <>
+              <div className="text-xs font-semibold tracking-wide text-accent">
+                {half === "1" ? "▲ TOP" : "▼ BOT"} {num(e.inning_seq)}
+              </div>
+              {/* 壘包與出局數：canonical 幾何已上抽至 ui.tsx（首頁今日賽事卡共用同一份）。 */}
+              <BasesOuts
+                bases={{ first: occupied(e.first_base), second: occupied(e.second_base),
+                         third: occupied(e.third_base) }}
+                outs={num(e.out_cnt)} />
+              {/* 球數與出局同處（全站唯一顯示點） */}
+              <div className="flex items-center gap-2.5">
+                <span className="flex items-center gap-1"><span className="font-mono text-[10px] font-semibold text-muted">B</span>
+                  <Dots n={num(e.ball_cnt)} total={3} color={PITCH_CALL.ball} /></span>
+                <span className="flex items-center gap-1"><span className="font-mono text-[10px] font-semibold text-muted">S</span>
+                  <Dots n={num(e.strike_cnt)} total={2} color={PITCH_CALL.foul} /></span>
+              </div>
+            </>
+          )}
         </div>
         <div className="font-mono text-4xl font-bold tabular-nums">{score.home}</div>
         {side(hc, game.home_team_name, hr, true)}
@@ -660,6 +677,22 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
   const e = log[idx] ?? log[total - 1];
   const halves = useMemo(() => buildHalves(log), [log]);
 
+  // 完賽態頁首記分條只呈現終場比分（設計定稿 §1.1.1；#160）。條件與頁面層
+  // `game-live-page.tsx:212` 的 `plainLinescore` 逐字相同，刻意不另立第二套完賽語意。
+  // ⚠️ 不可簡化成 `data.live_snapshot?.phase === "final"`：`canShowPostgameConclusions` 的
+  //    定義是 `scoreTotal > 0 && (snapshot === null || phase === "final")`，歷史存檔場
+  //    snapshot 為 null 時**兩者分歧**（前者 true、後者 false）。生產實測 2024 A/100 與
+  //    A/200 皆無 snapshot 卻有真實比分，整個歷史存檔都走那一支——寫成 phase 判定等於
+  //    對絕大多數場次完全失效。
+  // ⚠️ `view === "overview"` 不可省：ScoreBar 渲染於主頁籤（`tabs` prop）之前，賽後戰報
+  //    與逐打席**共用同一個元素**，而逐打席要的正是選中打席的局面。
+  // ⚠️ 本註解刻意不寫出 tabs 的 JSX 字面：`lib/live-game.test.ts:111` 以
+  //    `indexOf("<ScoreBar") < indexOf(...)` 的**原始碼字串**位置守 Hero 在頁籤上方，
+  //    在此處提早出現該字面會讓那條守衛誤判。
+  const plainScorebar = view === "overview"
+    && canShowPostgameConclusions(data.live_snapshot ?? null,
+                                  num(game.away_score) + num(game.home_score));
+
   // 目前選定的半局（由所選事件決定）+ 該半局事件索引
   const curKey = e ? `${num(e.inning_seq)}|${String(e.visiting_home_type)}` : "";
   const curEvents = useMemo(() => {
@@ -770,7 +803,8 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
 
   return (
     <div className="space-y-4">
-      <ScoreBar game={game} e={e} records={data.records} snapshot={data.live_snapshot ?? null} gameSno={gameSno} />
+      <ScoreBar game={game} e={e} records={data.records} snapshot={data.live_snapshot ?? null} gameSno={gameSno}
+        plain={plainScorebar} />
 
       {tabs}
 
