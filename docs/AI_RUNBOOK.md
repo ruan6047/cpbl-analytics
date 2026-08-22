@@ -521,14 +521,24 @@ git merge --ff-only <branch> && git push origin main   # 4. 直推（分支頭�
 gh pr close <N>                                        # 5. 關掉那張 PR
 ```
 
-**⚠️ 為什麼不用 GitHub 的 merge 按鈕**：那條路可行（ruleset 評估的是 PR head 而非 merge 結果），
-但它產生的 merge commit **trailer 完全沒有守衛**——`tests/test_commit_trailers.py` 的 `_base_ref`
+**⚠️ 為什麼不用 GitHub 的 merge 按鈕**：⛔ **那條路在本 repo 從未實測過**——判斷它可行的
+依據是姊妹 repo `ai-workflow` 於 2026-08-22 在同型 ruleset 下的三次 PR merge 全部成功，
+且其 merge commit 上只有 1 個 check（來自 merge 之後的 main push）⇒ 推得 ruleset 評估的是
+PR head 而非 merge 結果。**那是推論，不是本 repo 的觀測。**
+
+不採用它的理由與可行性無關，而是：它產生的 merge commit **trailer 完全沒有守衛**——`tests/test_commit_trailers.py` 的 `_base_ref`
 優先取本地 `main`，故 main push 的 CI run 上 `rev-list main..HEAD` 為空、**什麼都不檢**。
 ⇒ merge 按鈕把「trailer 完整」押在人的記性上；ff-only 直推則不新增 commit，分支上那些
 commit 的 trailer 在分支頭的 CI run 上受檢。
 
 **⛔ 本機 `--no-ff` merge 後直推已不可行**（本 repo 2026-08-10～08-17 做過 14 次）：那個 merge commit
-是新 SHA、沒有任何 check，實測被拒。
+是新 SHA、沒有任何 check。實測（2026-08-22，雙親 merge commit）遠端逐字回：
+
+```
+remote: error: GH013: Repository rule violations found for refs/heads/main.
+remote: - 2 of 2 required status checks are expected.
+ ! [remote rejected]   HEAD -> main (push declined due to repository rule violations)
+```
 
 **⚠️ PR 被自動標記為 merged 不代表有人按了 merge 按鈕**：直推使 head 成為 base 的祖先時，
 GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commits/<sha>/pulls` 與 commit 的雙親數。
