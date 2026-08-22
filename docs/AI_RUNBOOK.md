@@ -507,7 +507,7 @@ strict 的條件本來就成立。⇒ **它只在走 PR merge 時才有作用，
 | 情形 | 遠端回應 |
 |---|---|
 | 該 commit 上沒有 check | `- 2 of 2 required status checks are expected.` → 拒絕 |
-| 有 check 但紅 | `- Required status check "api" is failing.` → 拒絕 |
+| 有 check 但紅 | `- Required status check "api" is failing.` → 拒絕（SHA `451a86de5bea425a438de4214a40157bb61662e5`，[run 32569531859](https://github.com/ruan6047/cpbl-analytics/actions/runs/32569531859)；該 SHA 的 check-runs 至今仍是 `api = failure`） |
 | 兩個都綠 | 推得上去 |
 
 **⚠️ 分支頭的 check 名字不是 required 的名字。** `ci.yml` 的 name 表達式讓分支 push 產出的是
@@ -517,25 +517,42 @@ main push 產生**。⇒ **不開 PR 就永遠拿不到 required 的名字。**
 #### 合併程序（需求方 2026-08-22 裁定採此案）
 
 ```bash
-git push origin <branch>                    # 1. 產生 api (branch head) / web (branch head)
-gh pr create --base main --head <branch>    # 2. pull_request run 把 api / web 掛上「分支頭 SHA」
-                                            #    （實測：merge ref 的 check-runs 是空的）
-# 3. 等兩個都綠
-gh api repos/ruan6047/cpbl-analytics/commits/<branch head sha>/check-runs \
-  --jq '.check_runs[] | select(.name=="api" or .name=="web") | "\(.name)=\(.conclusion)"'
-git merge --ff-only <branch> && git push origin main   # 4. 直推（分支頭已帶兩個綠 check）
-gh pr close <N>                                        # 5. 關掉那張 PR
-```
+# 1. 分支 push → 產生 api (branch head) / web (branch head)
+git push origin <branch>
 
+# 2. 開 PR → pull_request run 把 api / web 掛上「分支頭 SHA」
+#    （實測：merge ref 的 check-runs 是空的，所以掛的是分支頭不是 merge ref）
+gh pr create --base main --head <branch>
+
+# 3. 等兩個 required 都綠（⚠️ 看的是不帶後綴的那兩個）
+gh api repos/ruan6047/cpbl-analytics/commits/$(git rev-parse <branch>)/check-runs \
+  --jq '.check_runs[] | select(.name=="api" or .name=="web") | "\(.name)=\(.conclusion)"'
+
+# 4. ⚠️ 切到「已同步的 main」再快進——⛔ 少了這兩行，第 5 行會是 no-op、
+#    push 只會推本地既有 main，而分支根本沒被合併
+git checkout main
+git fetch origin && git merge --ff-only origin/main
+git merge --ff-only <branch>
+git push origin main
+
+# 5. ⚠️ 通常不需要：直推使 head 成為 base 的祖先後，GitHub 會自動把 PR 標成 merged
+#    （PR 168 即為實例）。⛔ 只有在確認第 4 步真的推上去、而 PR 仍為 open 時才關它。
+gh pr view <N> --json state --jq '.state'   # 先看，MERGED 就別動
+gh pr close <N>                             # 僅在仍為 OPEN 時
+```
 **⚠️ 為什麼不用 GitHub 的 merge 按鈕**：⛔ **那條路在本 repo 從未實測過**——判斷它可行的
 依據是姊妹 repo `ai-workflow` 於 2026-08-22 在同型 ruleset 下的三次 PR merge 全部成功，
 且其 merge commit 上只有 1 個 check（來自 merge 之後的 main push）⇒ 推得 ruleset 評估的是
 PR head 而非 merge 結果。**那是推論，不是本 repo 的觀測。**
 
-不採用它的理由與可行性無關，而是：它產生的 merge commit **trailer 完全沒有守衛**——`tests/test_commit_trailers.py` 的 `_base_ref`
-優先取本地 `main`，故 main push 的 CI run 上 `rev-list main..HEAD` 為空、**什麼都不檢**。
-⇒ merge 按鈕把「trailer 完整」押在人的記性上；ff-only 直推則不新增 commit，分支上那些
-commit 的 trailer 在分支頭的 CI run 上受檢。
+**不採用它是需求方 2026-08-22 的政策選擇，⛔ 不是因為它被證明比較差。** 已證的只有一件事：
+`tests/test_commit_trailers.py` 的 `_base_ref` 優先取本地 `main`，故 main push 的 CI run 上
+`rev-list main..HEAD` 為空、什麼都不檢 ⇒ **GitHub 產生的那個 merge commit 不受該守衛檢查**。
+
+⚠️ **那不等於「走 merge 按鈕比較不安全」**——PR 內人為寫的那些 commit 照樣受檢（`pull_request`
+run 只排除 synthetic merge）。⛔ 未被證明的是「merge commit 自身缺 trailer 會造成什麼後果」。
+政策選擇的理由是：ff-only 直推**不新增任何 commit**，所以不存在一筆沒人檢查的 commit；
+merge 按鈕則會新增一筆，其 trailer 完整性只能靠人。**這是偏好，不是安全性判決。**
 
 **⛔ 本機 `--no-ff` merge 後直推已不可行**（本 repo 2026-08-10～08-17 做過 14 次）：那個 merge commit
 是新 SHA、沒有任何 check。實測（2026-08-22，雙親 merge commit）遠端逐字回：
