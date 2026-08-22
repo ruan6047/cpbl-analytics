@@ -1,12 +1,58 @@
 name: CI
 
 on:
+  # push 刻意不過濾分支（2026-08-22，OPS-CPBL-MERGE-GATE1 第一段）。
+  # 原本是 `push: branches: [main]`。實查最近 400 次 run：380 次 push **全部**在 main，
+  # 非 main 分支的 push run 一次都沒有；feature 分支唯一的 CI 訊號來自 pull_request
+  # （400 次裡只有 20 次），沒開 PR 就完全沒有回饋。
+  #
+  # 這一步必須先做，才談得上把 CI 設為 required status check：required 是拿
+  # 「該 commit 上有沒有這個名字的 check」來判定的。分支上根本不跑就永遠拿不到那個
+  # 名字，PR 會無限期停在 pending——閘門不但擋不住壞碼，還會把所有好碼一起鎖死。
+  #
+  #   - push          → 測「分支頭」，給執行者自己的即時回饋。非 main 分支的 push run
+  #                     會被改名為 `api (branch head)` / `web (branch head)`
+  #                     （見下方 job name），所以它在構造上不可能成為 required check。
+  #   - pull_request  → GitHub 取出的是 refs/pull/N/merge，也就是**合併結果**，不是分支頭。
+  #                     cpbl 的 main 一 merge 就等於生產（主站 submodule bump 上線
+  #                     cpbl.ruan-ruan.com），main 不是緩衝區；分支頭綠不等於合併後綠，
+  #                     所以閘門要建在這一支上。兩者互補，故刻意都留。
+  #
+  # 代價：PR 開著時同一個 head SHA 會跑兩份 run（push 一份、pull_request 一份），
+  # CI 額度加倍。本檔刻意**不加** concurrency 取消來省額度：cancelled 不是 success，
+  # 一旦成為 required check 就無法通過；要省額度得先證明取消規則不會動到最新 SHA
+  # 的那一份，那屬後續議題，不在本次改動範圍。
   push:
-    branches: [main]
   pull_request:
 
 jobs:
   api:
+    # ⚠️ 這個 name 就是 check 的名字，也就是 ruleset 的 required status check 要比對的
+    # 字串。一旦被設為 required，**改名或拆成多個 job 會讓所有 PR 永遠停在 pending**。
+    # 改名前先改 ruleset。
+    #
+    # 為什麼要用表達式而不是固定字串：上面把 push 放開到所有分支之後，PR 開著時
+    # 同一個 head SHA 會**同時**收到「分支頭 push run」與「PR merge ref run」兩個 check。
+    # 若兩者同名，同一個 SHA 上就會出現兩個同名、但測的是不同棵樹、結論可能相反的
+    # check；哪一個算數是平台內部行為，而兩者完成時間只差幾十秒，實質是擲硬幣——
+    # 閘門不能建在擲硬幣上。
+    #
+    # cpbl 自己**還沒**撞到這個形狀，正是因為 feature 分支本來就不跑 push。
+    # 換句話說：**放開 push 的那一刻才製造出這個碰撞**，所以這兩處改動必須同時落地，
+    # 不能只做上面那一半。（姊妹 repo ai-workflow 已實測過同一形狀：同一個 head SHA
+    # 上兩個都叫 tests 的 check，success 與 failure 完成時間相差 27 秒。此處引用它作為
+    # 「這個危害是真的」的證據，不是 cpbl 的事故紀錄。）
+    #
+    # 解法是讓它在構造上不可能發生：required 的名字只由「合併結果」與 main 產生，
+    # 分支頭那一支改叫 `api (branch head)`，永遠只是參考。GitHub 的 required context
+    # 是精確字串比對，帶括號後綴的名字**滿足不了** `api`。
+    #
+    # 為什麼 required 沿用既有的 `api`／`web` 而不另取新名：這兩個字串是目前 400 次
+    # run 上實際產生的 check 名（job id 的預設值）。ruleset 填的是「已被觀測到存在」
+    # 的值，而不是規格上的期望值——填錯字串的失敗模式是無聲的無限 pending，
+    # 沿用實測值可以直接照抄輸出，不必賭。
+    name: ${{ (github.event_name == 'pull_request' || github.ref == 'refs/heads/main')
+              && 'api' || 'api (branch head)' }}
     runs-on: ubuntu-latest
     # runner 的時區釘死 UTC，**刻意不是 Asia/Taipei**（docs/TIME_SEMANTICS_CONTRACT.md §6
     # 明文禁止）：生產容器就是 UTC，把 CI 設成台北等於讓 CI 永遠無法重現 UTC 容器缺陷，
@@ -32,6 +78,11 @@ jobs:
         run: uv run pytest -q
 
   web:
+    # 與上方 api 同一套機制與同樣的紅線，理由不重複，見 api job 的註解。
+    # 兩個 job 各有自己的一組名字：required 是 `api` 與 `web` 兩個 context，
+    # 分支頭那一支則是 `api (branch head)` 與 `web (branch head)`。
+    name: ${{ (github.event_name == 'pull_request' || github.ref == 'refs/heads/main')
+              && 'web' || 'web (branch head)' }}
     runs-on: ubuntu-latest
     defaults:
       run:
