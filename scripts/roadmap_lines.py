@@ -119,6 +119,27 @@ continue`），而 `items` 路徑對「活卡缺卡ID」是 fail closed 的（`V
 
   併帶後果：`reconcile()` 第 1 層會讓**所有 `v9` 產生的區塊失配**，消費端須重跑
   產生指令重生區塊。ROADMAP §3 已於本卡重生（所憑的 as-of 快照在該節逐字指名）。
+- `v11`：`GATE_BY_STATUS` 補上 `🔬研究中`；`⏳待執行`／`🚧進行中` 就地標記為
+  **廢止但仍須讀得懂**的歷史值並保留（`DEV-ROADMAP-GATE-RESEARCH-STATUS1`）。
+
+  **為什麼這算判定規則變動**：本節開頭的政策寫的是「隨**判定規則**變動遞增」。
+  `gate_of()` 是判定函式，`GATE_BY_STATUS` 的**鍵集就是它的定義域**——「哪些交付
+  狀態讀得懂、哪些一律 fail closed」正是一條判定規則。加一個鍵把
+  `gate_of(_, "🔬研究中")` 由 `raise CheckFailed` 改成回傳字串，**同一份輸入在新舊
+  兩版產生不同結果**（實測：改動前 `render()` 以 `CheckFailed` 中止、`--check`
+  exit 1；改動後 exit 0 並多導出一列）。那正是版本存在的目的：讓兩次執行的輸出
+  可區分。
+
+  ⛔ **不得以「今天板上 0 張、故區塊逐位元組不變」當不遞增的理由。** `#143`
+  `R1-001` 已判過這個形狀：區塊不變是必要不變量（否則封存快照的離線重現失效），
+  不是充分理由。`v10` 擴的是「哪一種 payload 讀得懂」，`v11` 擴的是「哪一種交付
+  狀態讀得懂」——**同一個軸：讀者的定義域**；差別只在 `v10` 順帶動了 `--json` 的
+  欄位。**「有沒有動介面契約」不是本檔政策的判準**，拿它當判準等於把 `#143` 剛
+  移除的那條例外換個說法裝回來。
+
+  併帶後果同 `v9`／`v10`：`reconcile()` 第 1 層會讓所有 `v10` 產生的區塊失配，
+  消費端須重跑產生指令。ROADMAP §3 已於本卡重生——**所憑快照與 `v10` 那次是同一
+  份**，故卡片列逐位元組不變，只有版本註解那一行改變。
 """
 
 from __future__ import annotations
@@ -130,7 +151,7 @@ import re
 import sys
 from pathlib import Path
 
-SCHEMA_VERSION = "cpbl-roadmap-lines/v10"
+SCHEMA_VERSION = "cpbl-roadmap-lines/v11"
 
 #: 五條任務線。key 為線代號，value 為對外名稱（須與 ROADMAP §1／§3 的標題一致）。
 LINES: dict[str, str] = {
@@ -178,10 +199,29 @@ EXPLICIT_RULES: dict[str, str] = {
 #:
 #: 同理，**值裡不得回指本檔的逐卡例外表**——`v8` 的 `⏸阻塞` 寫「見逐卡覆寫」，
 #: 那條交叉引用是把混血欄位用文案接回來。測試 `test_gate_texts_do_not_point_back_at_a_per_card_table` 釘住此點。
+#:
+#: **鍵集的定義域是「產生端的欄位 schema」，不是「今天板上出現過的值」**
+#: （`DEV-ROADMAP-GATE-RESEARCH-STATUS1`）。本表 ∪ `CLOSED_STATUSES` 必須**恰好等於**
+#: Project `交付狀態` single-select 的選項集，即 `wfcli` 的凍結欄位 schema
+#: （`ai-workflow` `cli/src/wf_cli/project.py` 的 `FIELD_SPECS["交付狀態"]`）那 15 個值。
+#: `gate_of()` 是 fail-closed 的**讀者**：讀者的封閉集少一個值，寫得出該值的看板就會讓
+#: `active_cards → render → reconcile` 整條路徑失敗。因此**「板上目前 0 張」不是刪鍵的
+#: 理由**——那是拿實例當形狀用。測試以逐字黃金值釘住這個等式。
 GATE_BY_STATUS: dict[str, str] = {
     "💡需求": "規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog",
+    #: canonical 序列 `💡需求 → 🔬研究中 → 🧭規劃中` 的中段（Discovery 進行中）。
+    #: ⚠️ **`v10` 以前缺這一鍵**：任一活卡進 `🔬研究中`，`gate_of()` 即 fail closed，
+    #: 整條 `active_cards → render → reconcile` 中止、§3 區塊重生不了。它不是理論值
+    #: ——`wfcli` 有寫入它的動詞（`handoff --next-stage research` → `STAGE_STATUS`），
+    #: 且 Project 的 `交付狀態` 欄從 `ai-workflow#102`（`ae8f741`）起就有這個選項。
+    "🔬研究中": "Discovery Gate：問題、證據與成功條件成文，需求方確認後才進 Design",
     "🧭規劃中": "完成規劃產物並取得需求方核可",
     "📥Backlog": "認領（線 WIP 須有空位）",
+    #: ⚠️ `⏳待執行` 與 `🚧進行中` 是 canonical 明列的**廢止歷史值**（逐字：「向後相容，
+    #: 已寫的卡留著，新寫入不得用」）。**保留是刻意的裁斷，不是忘了刪**——廢止約束的是
+    #: **寫入端**，本檔是**讀取端**；只要凍結欄位 schema 還留著這兩個選項，看板就寫得出
+    #: 它們。兩者皆**不在** `CLOSED_STATUSES`，故帶該值的卡是活卡、必定走到 `gate_of()`，
+    #: 刪鍵即等於替一條 canonical 仍認可的值裝上 fail closed。
     "⏳待執行": "執行者進場",
     "🔨執行中": "交付並 handoff 送審",
     "🚧進行中": "交付並 handoff 送審",
