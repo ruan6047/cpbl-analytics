@@ -491,6 +491,48 @@ EDITORIAL_TEST_DATABASE_URL=postgresql://cpbl:cpbl@localhost:5433/cpbl_data_edit
 
 **術語**：kind_code、island、幽靈島、GO/FO、保留賽等跨檔語意見 [`reference/GLOSSARY.md`](reference/GLOSSARY.md)，勿依單檔註解腦補。
 
+### 7.2.1 合併到 main（required check 已生效，2026-08-22）
+
+main 有 ruleset `main must be green`（id `21194141`），required context 是 **`api` 與 `web` 兩個**。
+`bypass_actors` 為空、`current_user_can_bypass` 為 never——**沒有人可以繞過，包含需求方**。
+
+**⛔ 沒有那兩個綠 check 的 commit 推不上 main。** 三個方向皆實測（2026-08-22）：
+
+| 情形 | 遠端回應 |
+|---|---|
+| 該 commit 上沒有 check | `- 2 of 2 required status checks are expected.` → 拒絕 |
+| 有 check 但紅 | `- Required status check "api" is failing.` → 拒絕 |
+| 兩個都綠 | 推得上去 |
+
+**⚠️ 分支頭的 check 名字不是 required 的名字。** `ci.yml` 的 name 表達式讓分支 push 產出的是
+`api (branch head)` / `web (branch head)`；不帶後綴的 `api` / `web` **只由 `pull_request` 事件與
+main push 產生**。⇒ **不開 PR 就永遠拿不到 required 的名字。**
+
+#### 合併程序（需求方 2026-08-22 裁定採此案）
+
+```bash
+git push origin <branch>                    # 1. 產生 api (branch head) / web (branch head)
+gh pr create --base main --head <branch>    # 2. pull_request run 把 api / web 掛上「分支頭 SHA」
+                                            #    （實測：merge ref 的 check-runs 是空的）
+# 3. 等兩個都綠
+gh api repos/ruan6047/cpbl-analytics/commits/<branch head sha>/check-runs \
+  --jq '.check_runs[] | select(.name=="api" or .name=="web") | "\(.name)=\(.conclusion)"'
+git merge --ff-only <branch> && git push origin main   # 4. 直推（分支頭已帶兩個綠 check）
+gh pr close <N>                                        # 5. 關掉那張 PR
+```
+
+**⚠️ 為什麼不用 GitHub 的 merge 按鈕**：那條路可行（ruleset 評估的是 PR head 而非 merge 結果），
+但它產生的 merge commit **trailer 完全沒有守衛**——`tests/test_commit_trailers.py` 的 `_base_ref`
+優先取本地 `main`，故 main push 的 CI run 上 `rev-list main..HEAD` 為空、**什麼都不檢**。
+⇒ merge 按鈕把「trailer 完整」押在人的記性上；ff-only 直推則不新增 commit，分支上那些
+commit 的 trailer 在分支頭的 CI run 上受檢。
+
+**⛔ 本機 `--no-ff` merge 後直推已不可行**（本 repo 2026-08-10～08-17 做過 14 次）：那個 merge commit
+是新 SHA、沒有任何 check，實測被拒。
+
+**⚠️ PR 被自動標記為 merged 不代表有人按了 merge 按鈕**：直推使 head 成為 base 的祖先時，
+GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commits/<sha>/pulls` 與 commit 的雙親數。
+
 ### 7.3 部署 = push-to-deploy（在主站操作）
 1. 本 repo：commit + push（CI 只跑 lint + tsc，**不部署**）。
 2. 主站 `~/Dev/PersonalWebsite`：`apps/subprojects/cpbl-analytics` checkout 到新 commit → `git add` 該 submodule → commit（**只動 submodule 一行**，勿夾帶主站其他未提交變更，VPS 是 `git reset --hard origin/main`）→ push。
