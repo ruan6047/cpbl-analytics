@@ -559,10 +559,17 @@ git push origin "$BRANCH:main"
 #     此時到「持有 main 的那個 worktree」快進。⛔ 不要假設它是主 checkout——那是
 #     未經驗證的前提，若該處在別的分支，merge 會把 origin/main 併進錯的分支。
 if ! git fetch -q origin main:main 2>/dev/null; then
-  # ⛔ 不可用 $2：porcelain 對含空白的路徑原樣輸出，$2 只會取到第一段
-  #    （實測 '…/main worktree' 被截成 '…/main'，git -C 隨即 rc=128）
-  MAINWT=$(git worktree list --porcelain \
-           | awk '/^worktree /{w=substr($0,10)} /^branch refs\/heads\/main$/{print w; exit}')
+  # ⛔ 這裡不能用逐行解析。porcelain 對路徑是原樣輸出：含空白時 awk $2 只取第一段，
+  #    含換行時整筆紀錄會被拆成兩行、任何以行為單位的取法都拿不到完整路徑。
+  #    實測含換行的 holder 路徑：逐行版取到 '…/holder/main'、git -C 隨即 rc=128。
+  #    ⇒ 用 --porcelain -z（每筆屬性以 NUL 結尾）＋ read -r -d '' 逐筆讀。
+  MAINWT=""; w=""
+  while IFS= read -r -d '' rec; do
+    case "$rec" in
+      "worktree "*)            w=${rec#worktree } ;;
+      "branch refs/heads/main") MAINWT=$w; break ;;
+    esac
+  done < <(git worktree list --porcelain -z)
   [ -n "$MAINWT" ] || { echo "⛔ 找不到持有 main 的 worktree，人工處理"; exit 1; }
   git -C "$MAINWT" merge --ff-only origin/main
 fi
