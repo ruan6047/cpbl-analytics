@@ -523,6 +523,8 @@ main push 產生**。⇒ **不開 PR 就永遠拿不到 required 的名字。**
 記憶寫的、不是實跑序列。下面每一步都已逐一實測，證據見本節末。
 
 ```bash
+set -euo pipefail   # ⛔ 少了它，第 1、2 步失敗後仍會往下跑，第 3 步就對「過期 SHA」判綠
+
 REPO=ruan6047/cpbl-analytics
 BRANCH="<branch>"   # ⚠️ 佔位符必須留引號，否則 < 會被當成重導向
 # ⛔ 這裡刻意沒有 PR=<N>：PR 編號由分支反查，見第 5 步
@@ -532,7 +534,9 @@ git push origin "$BRANCH"
 
 # 2. 開 PR → pull_request run 把 api / web 掛上「分支頭 SHA」
 #    （實測：merge ref 的 check-runs 是空的，所以掛的是分支頭不是 merge ref）
-gh pr create --base main --head "$BRANCH"
+#    ⚠️ --fill 不可省：非互動下逐字得
+#    `must provide --title and --body (or --fill ...) when not running interactively`
+gh pr create --base main --head "$BRANCH" --fill
 
 # 3. ⭐ 機械驗證兩個 required 都綠——⛔ 不是印出來讓人讀
 SHA=$(git rev-parse "$BRANCH")
@@ -543,8 +547,23 @@ GREEN=$(gh api "repos/$REPO/commits/$SHA/check-runs" --jq '
 if [ "$GREEN" != "true" ]; then echo "⛔ required check 未全綠，停"; exit 1; fi
 
 # 4. ⭐ refspec push——不需 checkout main，多 worktree 下照樣成立。
-#    非 fast-forward 時 git 自己會拒絕（`! [rejected] ... (non-fast-forward)`）
+#    非 fast-forward 時 git 自己會拒絕（`! [rejected] ... (non-fast-forward)`）；
+#    ⚠️ 被拒代表 main 已前進，先 `git rebase origin/main` 再從第 1 步重跑（SHA 會變）
 git push origin "$BRANCH:main"
+
+# 4b. ⭐ 把本地 main 追上——⛔ 少了這步，wfcli 的收尾守衛會擋掉 release。
+#     refspec push 本質上「不」更新本地 main ref（那正是它不需 checkout 的代價），
+#     而 merge_verified_local 比對的就是本地 main，會判 diverged 並以 rc=5 拒絕。
+#     兩條路互補、實測皆 rc=0：main 沒被 checkout 時直接更新 ref；被佔用時 git 會
+#     逐字拒絕（`refusing to fetch into branch 'refs/heads/main' checked out at …`），
+#     此時到「持有 main 的那個 worktree」快進。⛔ 不要假設它是主 checkout——那是
+#     未經驗證的前提，若該處在別的分支，merge 會把 origin/main 併進錯的分支。
+if ! git fetch -q origin main:main 2>/dev/null; then
+  MAINWT=$(git worktree list --porcelain \
+           | awk '/^worktree /{w=$2} /^branch refs\/heads\/main$/{print w; exit}')
+  [ -n "$MAINWT" ] || { echo "⛔ 找不到持有 main 的 worktree，人工處理"; exit 1; }
+  git -C "$MAINWT" merge --ff-only origin/main
+fi
 
 # 5. ⭐ 兩層綁定後才關 PR。⛔ 不接受人工填入的 PR 編號——填錯的那張若剛好也是
 #    OPEN，第一層條件仍成立，就會關掉一張無關的 PR。編號一律由分支反查。
