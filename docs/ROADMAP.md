@@ -586,14 +586,18 @@ git -C ~/Dev/ai-workflow show ae8f741:cli/src/wf_cli/commands/handoff_cmd.py | s
 
 ## 3. 現行排程
 
-> **as-of `2026-08-21`（區塊產生日）。本表是快照，不是即時視圖。**
+> **as-of `2026-08-22T01:59:00+08:00`（區塊所憑快照的取樣時刻）。本表是快照，不是即時視圖。**
 > 狀態的事實來源永遠是 Issue／Project。
 >
-> **下面的區塊由指令產生，非人工列舉。** 產生它所憑的看板狀態已隨卡存檔為
+> **下面的區塊由指令產生，非人工列舉**，且**直接產自隨卡存檔的那份快照**
 > [`research/DOC-ROADMAP-STALE-SYNC1_snapshot.json`](research/DOC-ROADMAP-STALE-SYNC1_snapshot.json)
-> ——`gh project item-list` 的**逐字輸出、未經加工**，取樣於 `2026-08-22T01:59:00+08:00`
-> （晚於區塊產生日的重新取樣；它 render 出來與本區塊**逐位元組相同**，故足以重現產生結果）。
-> **用它可獨立重現本區塊的 `exit 0`**，不需連 GitHub：
+> ——`gh project item-list` 的**逐字輸出、未經加工**，取樣時刻即上面的 as-of。
+> （`DEV-ROADMAP-LINES-SILENT-ZERO1` 遞增 `SCHEMA_VERSION` 至 `v10` 後依此重生；
+> 相對於 `v9` 的區塊，**只有版本註解那一行改變**，卡片列逐位元組相同。）
+> **為什麼用這一份**：repo 內只有這一份存檔的看板快照，且驗證器的兩條路徑不等價
+> ——`items` 路徑對「活卡缺卡ID」是 fail closed 的，`wfcli snapshot` 的 `cards` 在上游
+> 就丟掉沒有卡ID的 item，故同樣通過時 `items` 路徑的宣稱**強一階**（見腳本 docstring）。
+> **用它可離線重現本區塊的 `exit 0`**，不需連 GitHub：
 >
 > ```bash
 > uv run python scripts/roadmap_lines.py --check docs/ROADMAP.md \
@@ -780,7 +784,7 @@ git -C ~/Dev/ai-workflow show ae8f741:cli/src/wf_cli/commands/handoff_cmd.py | s
 
 <!-- roadmap-lines:begin -->
 
-<!-- cpbl-roadmap-lines/v9；活卡 37；每線 {'L1': 8, 'L2': 7, 'L3': 6, 'L4': 11, 'L5': 5} -->
+<!-- cpbl-roadmap-lines/v10；活卡 37；每線 {'L1': 8, 'L2': 7, 'L3': 6, 'L4': 11, 'L5': 5} -->
 
 ### L1 資料正確性（8 張）
 

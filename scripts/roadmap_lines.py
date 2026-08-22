@@ -103,14 +103,22 @@ continue`），而 `items` 路徑對「活卡缺卡ID」是 fail closed 的（`V
 - `v9`：移除 `GATE_OVERRIDES`，Gate 欄純由狀態導出；`⏸阻塞` 文案改為指向卡片。
   **五張卡的 Gate 欄文字因此改變**，既有區塊會失配——這正是版本比對該擋下的事，
   消費端須重跑產生指令重生區塊。
-- `v9`（**刻意不遞增**）：新增接受 `wfcli snapshot` 的 `cards` schema、缺容器鍵時
-  fail closed。判準是**區塊內容會不會變**：本次改的是**輸入的接受面**，對任何原本
-  就能讀的 `items` payload，產生的區塊**逐位元組不變**（歸屬規則、欄位契約、Gate
-  文字全未動），沒有任何既存區塊因此過期。而 `SCHEMA_VERSION` 的機械作用只有一個
-  ——`reconcile()` 第 1 層用它讓**過期的區塊**失配；遞增只會強迫重生一份與現況完全
-  相同的區塊，換不到任何資訊。上面那句「版本沒動就無法區分」在這裡也不成立：舊行為
-  與新行為對同一份 `cards` payload 的差別是「`exit 0` ＋空表」vs「`exit 1` ＋ stderr
-  指名 schema」，本來就分得出來，不需要靠版本號。
+- `v10`：新增**來源辨識**（`detect_source`）、接受 `wfcli snapshot` 的 `cards` schema
+  並定義其欄位映射、缺容器鍵時 fail closed、`--json` 露出 `source_schema`。
+  **產生的區塊內容不變**——對任何原本就讀得懂的 `items` payload，`render()` 的輸出
+  逐位元組相同（歸屬規則、欄位契約、Gate 文字全未動），故重生 §3 區塊時**只有版本
+  註解那一行改變**。
+
+  ⚠️ **「區塊內容不變」不是不遞增的理由**（`DEV-ROADMAP-LINES-SILENT-ZERO1` `R1-001`）。
+  本節開頭的政策寫的是「**判定規則**變動遞增」，而本次動的正是判定規則與介面契約
+  本身：哪一種 payload 讀得懂、哪個欄位對應哪個語意、`--json` 多了一個欄位。
+  區塊逐位元組相同是這次改動的**必要不變量**（若區塊隨來源而異，`--check` 就綁死了
+  產生當時用的來源，封存 artifact 的離線重現會失效），**不是遞增與否的判準**——
+  必要條件不能當充分理由用。本卡 iteration 1 曾以它為由掛一條「`v9` 刻意不遞增」的
+  例外，那條例外與同一節開頭的政策直接互相矛盾，已隨本次遞增移除。
+
+  併帶後果：`reconcile()` 第 1 層會讓**所有 `v9` 產生的區塊失配**，消費端須重跑
+  產生指令重生區塊。ROADMAP §3 已於本卡重生（所憑的 as-of 快照在該節逐字指名）。
 """
 
 from __future__ import annotations
@@ -122,7 +130,7 @@ import re
 import sys
 from pathlib import Path
 
-SCHEMA_VERSION = "cpbl-roadmap-lines/v9"
+SCHEMA_VERSION = "cpbl-roadmap-lines/v10"
 
 #: 五條任務線。key 為線代號，value 為對外名稱（須與 ROADMAP §1／§3 的標題一致）。
 LINES: dict[str, str] = {

@@ -403,9 +403,15 @@ def test_unknown_status_round_trip_is_blocked():
         rl.reconcile(res, rl.render(res))
 
 
-def test_schema_version_bumped_for_gate_derivation():
-    """Gate 欄文字改了，既有區塊必須失配並被要求重生——版本沒動就做不到。"""
-    assert rl.SCHEMA_VERSION == "cpbl-roadmap-lines/v9"
+def test_schema_version_is_pinned_to_the_current_ruleset():
+    """判定規則每動一次就要遞增，且**逐字釘住**——不釘就沒有東西擋下「忘了 bump」。
+
+    `v9` 是 Gate 欄改由狀態導出（五張卡的文字因此改變）；`v10` 是來源辨識、`cards`
+    欄位映射與 `--json.source_schema`。**`v10` 那次區塊內容逐位元組不變**，本卡
+    iteration 1 據此掛了「刻意不遞增」的例外，`R1-001` 判該例外與檔頭政策矛盾：
+    區塊不變是必要不變量（否則離線重現失效），不是不遞增的充分理由。
+    """
+    assert rl.SCHEMA_VERSION == "cpbl-roadmap-lines/v10"
 
 
 # --- DEV-ROADMAP-LINES-SILENT-ZERO1：容器鍵辨識——「讀不到活卡」≠「真的零活卡」 ---
@@ -571,11 +577,16 @@ def test_both_schemas_produce_the_same_assignment_for_the_same_board():
 
 
 def test_rendered_block_is_identical_across_both_input_schemas():
-    """**不遞增 `SCHEMA_VERSION` 的理由釘在這裡**：區塊內容不隨輸入來源而異。
+    """區塊內容不隨輸入來源而異——**這是離線重現的必要條件，不是不遞增的理由**。
 
-    若區塊會因來源而異，(1)「判定規則改了」才成立、非遞增不可，且 (2) `--check`
-    會綁死產生當時用的來源，封存 artifact 的離線重現失效。這條證明兩者皆非——
-    本次改的只是**輸入的接受面**，既存區塊沒有一份因此過期。
+    若區塊會因來源而異，`--check` 就綁死了產生當時用的來源，封存 artifact 的離線
+    重現會失效（ROADMAP §3 正是靠這一點用存檔快照重現 `exit 0`）。這條釘住的是
+    那個不變量本身。
+
+    ⚠️ **`R1-001` 推翻的是拿它當「不遞增 `SCHEMA_VERSION`」的理由**：必要條件不
+    等於充分理由，遞增與否看的是判定規則有沒有動（來源辨識、欄位映射、`--json`
+    多一個欄位，三者都是），不是輸出長不長得一樣。版本現況見
+    `test_schema_version_is_pinned_to_the_current_ruleset`。
     """
     gh = {"items": [_item("DATA-A1", number=1),
                     _item("UX-B1", status="🔍待查核", tier="T3", number=2)]}
@@ -631,3 +642,21 @@ def test_main_reports_which_path_it_took(monkeypatch, capsys, payload, schema, k
     assert code == 0
     assert schema in err and key in err
     assert f'"source_schema": "{schema}"' in out
+
+
+# --- R1-001：遞增了就必須有東西承載它 ---
+#
+# `SCHEMA_VERSION` 的機械作用只有一個——`reconcile()` 第 1 層讓**自陳舊版的區塊**失配。
+# 遞增而不重生已出貨的區塊，全庫唯一那份區塊就會停在舊版；而 `--check` 不在 CI 裡跑
+# （它要一份看板快照），沒有人會發現。下面這條把「已出貨的區塊自陳版本 == 現行版本」
+# 變成 pytest 斷言，讓遞增這個動作**有東西承載**。
+#
+# ⚠️ 它**不**對帳卡片列——那需要一份 as-of 快照當基準，而快照會過期。§3 的離線重現
+# 指令（用隨卡存檔的快照跑 `--check`）仍是人工步驟，ROADMAP §6 已記著「重生至今仍然
+# 靠人記得，沒有替它建立機械執行者」，那是另一張卡的射程。
+
+
+def test_shipped_roadmap_block_declares_the_current_schema_version():
+    """`docs/ROADMAP.md` 的排程區塊必須自陳現行版本——遞增後忘了重生即紅。"""
+    roadmap = Path(__file__).resolve().parents[1] / "docs" / "ROADMAP.md"
+    assert rl.block_version(roadmap.read_text(encoding="utf-8")) == rl.SCHEMA_VERSION
