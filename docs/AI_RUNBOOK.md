@@ -525,7 +525,7 @@ main push 產生**。⇒ **不開 PR 就永遠拿不到 required 的名字。**
 ```bash
 REPO=ruan6047/cpbl-analytics
 BRANCH="<branch>"   # ⚠️ 佔位符必須留引號，否則 < 會被當成重導向
-PR="<N>"
+# ⛔ 這裡刻意沒有 PR=<N>：PR 編號由分支反查，見第 5 步
 
 # 1. 分支 push → 產生 api (branch head) / web (branch head)
 git push origin "$BRANCH"
@@ -546,21 +546,43 @@ if [ "$GREEN" != "true" ]; then echo "⛔ required check 未全綠，停"; exit 
 #    非 fast-forward 時 git 自己會拒絕（`! [rejected] ... (non-fast-forward)`）
 git push origin "$BRANCH:main"
 
-# 5. ⭐ 真正的 shell 條件：先證 main 確實含分支 HEAD，才談關 PR
+# 5. ⭐ 兩層綁定後才關 PR。⛔ 不接受人工填入的 PR 編號——填錯的那張若剛好也是
+#    OPEN，第一層條件仍成立，就會關掉一張無關的 PR。編號一律由分支反查。
 git fetch -q origin
-if git merge-base --is-ancestor "$SHA" origin/main; then
-  STATE=$(gh pr view "$PR" --repo "$REPO" --json state --jq '.state')
-  if [ "$STATE" = "OPEN" ]; then gh pr close "$PR" --repo "$REPO"
-  else echo "PR 已是 $STATE（直推使 head 成為 base 的祖先後 GitHub 會自動標 merged），不動"; fi
-else
-  echo "⛔ main 未包含 $SHA — 合併沒成功，⛔ 絕對不要關 PR"
+if ! git merge-base --is-ancestor "$SHA" origin/main; then
+  echo "⛔ main 未包含 $SHA — 合併沒成功，⛔ 絕對不要關 PR"; exit 1
 fi
+PRJ=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open \
+        --json number,headRefName,headRefOid)
+case "$(echo "$PRJ" | jq 'length')" in
+  0) echo "本分支無 open PR（直推使 head 成為 base 祖先後 GitHub 會自動標 merged），不動"
+     exit 0 ;;
+  1) : ;;
+  *) echo "⛔ 本分支有多張 open PR，人工判斷，停"; exit 1 ;;
+esac
+BIND=$(echo "$PRJ" | jq -r --arg b "$BRANCH" --arg s "$SHA" \
+         '.[0] | (.headRefName == $b and .headRefOid == $s)')
+if [ "$BIND" != "true" ]; then
+  echo "⛔ 該 PR 的 head 與 $BRANCH@$SHA 不符，停"; exit 1
+fi
+gh pr close "$(echo "$PRJ" | jq -r '.[0].number')" --repo "$REPO"
 ```
+
+⚠️ **第 3 步的保守方向是刻意的**：判準要求**同名的每一筆** check-run 都 success。
+若 API 同時保留舊的 failure 與 re-run 後的 success，判準會回 `false`——**即使 GitHub
+自己可能已依最新一筆放行**。⛔ 這不修：判準寧可多擋一次讓人回頭看，也不要因為選錯
+「哪一筆才算數」而放行一次不該過的合併。要通過就把失敗那筆 re-run 到綠、或推一個新
+commit。⚠️ 本 repo 的歷史裡**沒有**同名 check 一紅一綠並存的實例，⇒ 該情境是依
+API 語意推的，**未實測**。
 
 ⚠️ **第 3 步為什麼不能寫 `length == 2`**：一個 commit 若同時經過分支 push 與 main push，
 `api`／`web` **各會出現兩次**——實測 `113f029a` 上 `total_count = 6`（`api` ×2、`web` ×2、
 `api (branch head)`、`web (branch head)`）。`length == 2` 會**否決一個完全綠的 commit**。
 判準必須是「兩個名字都在 **且** 全部 success」，⛔ 不是「剛好兩筆」。
+
+⚠️ **第 5 步為什麼不留 `PR=<N>` 這個輸入**：留著它、再加一道「比對 headRefName」的檢查，
+擋得住的只是「檢查有跑」；填錯的那張若剛好也是 OPEN，第一層 `--is-ancestor` 條件**照樣成立**。
+⇒ 把編號改成由 `--head "$BRANCH"` 反查，**填錯這件事在構造上就不存在了**。
 
 **逐步實測證據**（2026-08-22，皆以 `git rev-parse` 取得的真實 SHA）：
 
@@ -572,6 +594,9 @@ fi
 | 第 4 步 refspec push（feature worktree，main 被主 checkout 佔用） | `git push --dry-run origin HEAD:main` | `113f029a..31e97938  HEAD -> main` |
 | 第 5 步條件 vs 未合併 SHA | `31e97938…` | 判「未合併」⇒ 不關 PR |
 | 第 5 步條件 vs 已合併 SHA | `113f029a…` | 判「已合併」⇒ 才允許關 PR |
+| 第 5 步綁定 vs 分支對＋SHA 對 | `ai/opus-5/OPS-CPBL-MERGE-GATE1` @ `8bd77018…` | `BIND=true` ⇒ 才會關 PR #170 |
+| 第 5 步綁定 vs 分支對＋SHA 錯 | 同分支 @ 舊交付 `31e97938…` | `BIND=false` ⇒ ⛔ 停，不關 |
+| 第 5 步綁定 vs 分支無 open PR | `ai/opus-5/DOC-ROADMAP-OPEN-DEFAULT-STALE1` | `length=0` ⇒ `exit 0`，不關 |
 
 ⚠️ **未驗到**：第 4 步的 `--dry-run` **不證明 ruleset 會放行**。ruleset 對 refspec push 的
 三個方向已於前次探針實測（無 check → 拒、紅 → 拒、綠 → 過），但那三次與本表的
