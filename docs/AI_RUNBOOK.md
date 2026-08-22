@@ -496,6 +496,12 @@ EDITORIAL_TEST_DATABASE_URL=postgresql://cpbl:cpbl@localhost:5433/cpbl_data_edit
 main 有 ruleset `main must be green`（id `21194141`），required context 是 **`api` 與 `web` 兩個**。
 `bypass_actors` 為空、`current_user_can_bypass` 為 never——**沒有人可以繞過，包含需求方**。
 
+⚠️ 該 ruleset 另帶 `strict_required_status_checks_policy: true`（要求分支與 base 同步），
+但**在下面這條 ff-only 程序上它構造上碰不到**：分支若落後，`git push` 會先被 git 自己以
+`non-fast-forward` 擋下（實測 2026-08-22，`remote:` 的規則訊息完全沒出現）；分支若不落後，
+strict 的條件本來就成立。⇒ **它只在走 PR merge 時才有作用，而本程序不走那條。**
+⛔ 不要把它讀成「本流程多了一道保護」。
+
 **⛔ 沒有那兩個綠 check 的 commit 推不上 main。** 三個方向皆實測（2026-08-22）：
 
 | 情形 | 遠端回應 |
