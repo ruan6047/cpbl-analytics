@@ -57,6 +57,44 @@ marker 是 HTML 註解，**不受縮排、引言、圍籬影響**，定位是字
 同一理由下，`GATE_BY_STATUS` 的任何值都不得回指本檔的逐卡例外——那會把剛拆掉的
 混血欄位用文案再接回去。測試對此有斷言。
 
+## 為什麼接受兩種輸入 schema——而且**不是** fallback
+
+`v9` 只讀 `payload.get("items", [])`，也就是 `gh project item-list --format json`
+的形狀。但官方認可的狀態面匯出 `wfcli snapshot` 吐的是 `{generated_at, schema, cards}`。
+鍵名不符時 `.get("items", [])` 回空陣列，於是本工具**靜默回報零活卡並 `exit 0`**
+（`DEV-ROADMAP-LINES-SILENT-ZERO1`）。那是本檔最該防的形狀的極致版：不只是
+「對帳通過而它比對的東西是假的」，是**連比對對象都沒讀到卻宣稱一致**。
+
+實害已經發生過：`#162` R2 要附 as-of 快照當證據時，因為本工具只吃 `items`，
+執行者把 `gh project item-list` 的逐字輸出存進 repo——同一份看板（實測 181 items）
+`gh` 輸出 2.58 MB（幾乎全是 Issue body），`wfcli snapshot` 只有 0.19 MB。
+
+因此本檔**同時接受兩種 schema**，以**容器鍵的存在與否**辨識：
+
+| 容器鍵 | 產生者 | 欄位風格 |
+|---|---|---|
+| `items` | `gh project item-list --format json` | Project 欄名（中文；emoji 前綴實測會壞） |
+| `cards` | `wfcli snapshot --out-dir` 的 `snapshot.json` | `SnapshotRow` 的 snake_case |
+
+**辨識是互斥判定，不是 fallback**：兩個鍵都在、或都不在，一律失敗並印出實際收到的
+最上層鍵與自陳 schema。⛔ **不得寫成「試著讀 `items`，讀不到就讀 `cards`」**——
+那只是把本節在修的病換個位置：安靜地換一條路，讀者無從得知走了哪條。走了哪一條
+會印在 stderr，並寫進 `--json` 的 `source_schema`。
+
+**判準是容器鍵在不在，不是取到的清單空不空**：`{"items": []}` 是「看板上真的沒有
+活卡」，缺容器鍵是「這份 payload 根本不是本工具讀得懂的東西」。前者 `exit 0`、
+後者 `exit 1`——**兩者必須可區分**，把後者也算成 0 正是本卡在修的病。
+
+### 兩條路徑不等價，而這個不等價本檔補救不了
+
+`wfcli snapshot` 的 `build_rows` 在**上游**就丟掉沒有卡ID的 item（`if not card_id:
+continue`），而 `items` 路徑對「活卡缺卡ID」是 fail closed 的（`VERIFIER1-R3-001`）。
+也就是說 `cards` 路徑通過的對帳是**弱一階**的宣稱：它證明不了「看板上沒有漏填
+卡ID的活卡」。`source_schema` 之所以要露出來，就是為了讓讀者判斷手上這次通過是哪一階。
+
+`cards` schema **沒有 `repository` 欄**，repo 只能從 `issue_url` 取；取不出來一律
+失敗而非跳過——跳過會讓卡從排程表消失，正是本檔開頭說的那個不對稱失效方向。
+
 ## 版本化
 
 `SCHEMA_VERSION` 隨判定規則變動遞增，並寫進輸出。判定規則改了而版本沒動，
@@ -65,6 +103,14 @@ marker 是 HTML 註解，**不受縮排、引言、圍籬影響**，定位是字
 - `v9`：移除 `GATE_OVERRIDES`，Gate 欄純由狀態導出；`⏸阻塞` 文案改為指向卡片。
   **五張卡的 Gate 欄文字因此改變**，既有區塊會失配——這正是版本比對該擋下的事，
   消費端須重跑產生指令重生區塊。
+- `v9`（**刻意不遞增**）：新增接受 `wfcli snapshot` 的 `cards` schema、缺容器鍵時
+  fail closed。判準是**區塊內容會不會變**：本次改的是**輸入的接受面**，對任何原本
+  就能讀的 `items` payload，產生的區塊**逐位元組不變**（歸屬規則、欄位契約、Gate
+  文字全未動），沒有任何既存區塊因此過期。而 `SCHEMA_VERSION` 的機械作用只有一個
+  ——`reconcile()` 第 1 層用它讓**過期的區塊**失配；遞增只會強迫重生一份與現況完全
+  相同的區塊，換不到任何資訊。上面那句「版本沒動就無法區分」在這裡也不成立：舊行為
+  與新行為對同一份 `cards` payload 的差別是「`exit 0` ＋空表」vs「`exit 1` ＋ stderr
+  指名 schema」，本來就分得出來，不需要靠版本號。
 """
 
 from __future__ import annotations
@@ -143,6 +189,21 @@ CLOSED_STATUSES = frozenset({"🏁完成", "🛑已停止", "📦已合併"})
 
 REPO_SLUG = "cpbl-analytics"
 
+#: 被接受的輸入 schema：**容器鍵** → 該 schema 的名稱。辨識以「容器鍵在不在」為準，
+#: **不看取到的清單空不空**（見模組 docstring）。新增一種來源就在這裡加一個鍵，
+#: 並在 `active_cards` 加一條 `elif`——**不得**改成試讀失敗就換下一個。
+SOURCE_SCHEMAS: dict[str, str] = {
+    "items": "gh-project-item-list",
+    "cards": "wf-cli/state-snapshot/v1",
+}
+
+#: `wfcli snapshot` 在 payload 裡自陳的 schema。**逐字比對**：用 v1 的欄名去讀 v2 的
+#: payload，與讀錯 schema 沒有兩樣——欄位還在不代表語意沒變。
+WF_SNAPSHOT_SCHEMA = "wf-cli/state-snapshot/v1"
+
+#: `wfcli snapshot` 的 `issue_url`。該 schema 沒有 `repository` 欄，repo 只能從這裡取。
+_ISSUE_URL = re.compile(r"^https://github\.com/[^/]+/([^/]+)/issues/\d+$")
+
 _CARD_ROW = re.compile(r"^\|\s*`([A-Z0-9][A-Z0-9-]*)`\s*\|")
 
 #: 「看起來像卡片列但不在標準位置」——縮排、引言符號（`>`）、或兩者。
@@ -206,8 +267,50 @@ def _field(item: dict, name: str, suffix: str) -> str:
     return hits[0] if hits else ""
 
 
+def _known_schemas_text() -> str:
+    return "、".join(f"{key!r}（{name}）" for key, name in SOURCE_SCHEMAS.items())
+
+
+def _self_declared(payload: dict) -> str:
+    """payload 自陳的 schema（沒有就回空字串）——只用於失敗訊息的「收到的是什麼」。"""
+    declared = payload.get("schema")
+    return f"、自陳 schema 為 {declared!r}" if declared is not None else ""
+
+
+def detect_source(payload: object) -> tuple[str, str]:
+    """辨識輸入屬於哪一種 schema，回 `(容器鍵, schema 名稱)`。
+
+    **判準是容器鍵的存在與否**（`DEV-ROADMAP-LINES-SILENT-ZERO1`）：
+    `{"items": []}` 與 `{"cards": []}` 是「看板上真的沒有活卡」，該 `exit 0`；
+    缺容器鍵是「讀不到活卡」，該 `exit 1`。**把後者也算成 `active_total=0`**
+    正是本函式存在的理由——`v9` 的 `payload.get("items", [])` 讓那兩件事看起來一樣。
+
+    兩個容器鍵同時出現一律失敗：**辨識是互斥判定，不做 fallback**。試讀失敗就換
+    下一個 schema，等於安靜地換一條路而讀者無從得知走了哪條——與本函式在修的病同族。
+    """
+    if not isinstance(payload, dict):
+        raise CheckFailed(
+            f"輸入的最上層不是 JSON object 而是 {type(payload).__name__}——"
+            f"預期 {_known_schemas_text()}，fail closed"
+        )
+    present = [key for key in SOURCE_SCHEMAS if key in payload]
+    if len(present) == 1:
+        return present[0], SOURCE_SCHEMAS[present[0]]
+    if present:
+        raise CheckFailed(
+            f"輸入同時含 {present} 兩個容器鍵，無法判定是哪一種 schema——"
+            "fail closed（辨識是互斥判定，不以優先序挑一個讀）"
+        )
+    raise CheckFailed(
+        "輸入不含任何已知的容器鍵，讀不到活卡——"
+        f"收到的最上層鍵為 {sorted(str(k) for k in payload)}{_self_declared(payload)}；"
+        f"預期 {_known_schemas_text()}。fail closed："
+        "**不得回報 active_total=0**，那會讓「真的零活卡」與「讀不到活卡」無法區分"
+    )
+
+
 def active_cards(payload: dict) -> list[dict]:
-    """自 `gh project item-list --format json` 的輸出取出本 repo 的活卡。
+    """自狀態面匯出取出本 repo 的活卡。接受兩種 schema，見模組 docstring。
 
     **必填欄位缺一即 fail closed**（`VERIFIER1-R3-001`）：`v6` 對缺欄位一律以空值
     帶過——缺交付狀態的 item 會被收為 `status=''` 並一路通過 `render` → `reconcile`，
@@ -215,10 +318,25 @@ def active_cards(payload: dict) -> list[dict]:
     偽裝成一份可對帳的排程**，而對帳的全部意義就是「這份表反映現況」。
 
     活卡的判定本身依賴 `status`；`status` 取不到時**無從判斷它是不是活卡**，
-    因此不能以「空字串不在 CLOSED_STATUSES」推論它是活的。
+    因此不能以「空字串不在 CLOSED_STATUSES」推論它是活的。兩條路徑都要守住這條。
     """
+    key, _schema = detect_source(payload)
+    container = payload[key]
+    if not isinstance(container, list):
+        raise CheckFailed(
+            f"容器鍵 {key!r} 的值不是陣列而是 {type(container).__name__}——fail closed"
+        )
+    if key == "items":
+        return _active_from_gh_items(container)
+    return _active_from_wf_cards(container, payload)
+
+
+def _active_from_gh_items(items: list) -> list[dict]:
+    """`gh project item-list --format json` 的 `items`。"""
     out = []
-    for item in payload.get("items", []):
+    for item in items:
+        if not isinstance(item, dict):
+            raise CheckFailed(f"`items` 內出現非 object 的元素（{type(item).__name__}）——fail closed")
         repo = (item.get("repository") or "").rsplit("/", 1)[-1]
         if repo != REPO_SLUG:
             continue
@@ -239,6 +357,68 @@ def active_cards(payload: dict) -> list[dict]:
         if missing:
             raise CheckFailed(
                 f"活卡缺必填欄位 {missing}（卡ID={card_id!r}、content.number={number!r}）"
+                "——不完整的 payload 不得被當成可對帳的排程，fail closed"
+            )
+        out.append({"card_id": card_id, "tier": tier, "status": status, "number": number})
+    return out
+
+
+def _active_from_wf_cards(cards: list, payload: dict) -> list[dict]:
+    """`wfcli snapshot` 的 `snapshot.json` 的 `cards`（`SnapshotRow` 逐欄 asdict）。
+
+    欄位對應：`card_id`／`tier`／`delivery_status`／`issue_number`，repo 取自
+    `issue_url`（該 schema **沒有 `repository` 欄**）。不變量與 `items` 路徑逐條對齊：
+    取不到狀態、活卡缺必填欄位、判不出 repo 一律失敗。
+
+    唯一刻意放行的是 `content_type == "DraftIssue"`：draft 不屬於任何 repo，
+    與 `items` 路徑「沒有 `repository` 於是不等於 `REPO_SLUG`」的處置一致。
+    **沒有 `issue_url` 又不是 draft 則失敗**——否則把一份 `items` 形狀的資料塞進
+    `cards` 會被整批靜默跳過，那又是一次靜默零。
+    """
+    declared = payload.get("schema")
+    if declared != WF_SNAPSHOT_SCHEMA:
+        raise CheckFailed(
+            f"`cards` payload 自陳 schema 為 {declared!r}，本檔只讀 {WF_SNAPSHOT_SCHEMA!r}"
+            "——欄位語意可能已變更，fail closed（欄名還在不代表意思沒變）"
+        )
+    out = []
+    for row in cards:
+        if not isinstance(row, dict):
+            raise CheckFailed(f"`cards` 內出現非 object 的元素（{type(row).__name__}）——fail closed")
+        card_id = row.get("card_id") or ""
+        url = row.get("issue_url")
+        if not url:
+            if row.get("content_type") == "DraftIssue":
+                continue
+            raise CheckFailed(
+                f"card（card_id={card_id!r}）沒有 issue_url，而 content_type="
+                f"{row.get('content_type')!r} 不是 DraftIssue——無從判斷它屬於哪個 repo，"
+                "fail closed（跳過會讓卡從排程表消失，那是不對稱的失效方向）"
+            )
+        matched = _ISSUE_URL.match(str(url))
+        if matched is None:
+            raise CheckFailed(
+                f"card（card_id={card_id!r}）的 issue_url {url!r} 解析不出 repo——"
+                "無從判斷它是不是本 repo 的卡，fail closed"
+            )
+        if matched.group(1) != REPO_SLUG:
+            continue
+        status = row.get("delivery_status") or ""
+        if not status:
+            raise CheckFailed(
+                f"card（card_id={card_id!r}）取不到 delivery_status——無從判斷它是不是活卡，"
+                "fail closed（不得以「空字串不在終態集合」推論它是活的）"
+            )
+        if status in CLOSED_STATUSES:
+            continue
+        tier = row.get("tier") or ""
+        number = row.get("issue_number")
+        missing = [name for name, value in
+                   (("card_id", card_id), ("tier", tier), ("issue_number", number))
+                   if value in (None, "")]
+        if missing:
+            raise CheckFailed(
+                f"活卡缺必填欄位 {missing}（card_id={card_id!r}、issue_number={number!r}）"
                 "——不完整的 payload 不得被當成可對帳的排程，fail closed"
             )
         out.append({"card_id": card_id, "tier": tier, "status": status, "number": number})
@@ -473,13 +653,21 @@ def main() -> int:
         return 1
 
     try:
+        source_key, source_schema = detect_source(payload)
         result = assign(active_cards(payload))
+        #: 走了哪一條路徑必須看得見——`--json` 的消費端與 stderr 的讀者都要能判斷
+        #: 這次通過是哪一階（`cards` 路徑弱一階，見模組 docstring）。
+        #: **刻意不進 `render()`**：區塊內容若隨輸入來源而異，同一份看板就會產生兩種
+        #: 區塊，`--check` 便綁死了產生當時用的來源，封存 artifact 的離線重現會失效。
+        result["source_schema"] = source_schema
         if args.check is not None:
             reconcile(result, args.check.read_text(encoding="utf-8"))
     except CheckFailed as exc:
         print(f"[roadmap-lines] FAIL：{exc}", file=sys.stderr)
         return 1
 
+    print(f"[roadmap-lines] 輸入 schema：{source_schema}（容器鍵 {source_key!r}）；"
+          f"活卡 {result['active_total']}", file=sys.stderr)
     print(json.dumps(result, ensure_ascii=False, indent=2) if args.json else render(result))
     return 0
 

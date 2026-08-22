@@ -406,3 +406,228 @@ def test_unknown_status_round_trip_is_blocked():
 def test_schema_version_bumped_for_gate_derivation():
     """Gate 欄文字改了，既有區塊必須失配並被要求重生——版本沒動就做不到。"""
     assert rl.SCHEMA_VERSION == "cpbl-roadmap-lines/v9"
+
+
+# --- DEV-ROADMAP-LINES-SILENT-ZERO1：容器鍵辨識——「讀不到活卡」≠「真的零活卡」 ---
+#
+# `v9` 讀 `payload.get("items", [])`。官方認可的狀態面匯出 `wfcli snapshot` 吐的是
+# `{generated_at, schema, cards}`；鍵名不符時 `.get` 回空陣列，於是工具**靜默回報
+# `active_total=0` 並 exit 0**。下面每一條釘的都是這兩件事必須可區分。
+#
+# 本段刻意全部附加在檔尾：`scripts/README.md` 的〈分段路徑〉清冊逐字記著本檔的
+# `:28`，在該行之前增刪任何一行都會讓 `script_inventory.py --write` 改寫那份清冊，
+# 而它不在本卡宣告的寫入集內。同理，本段需要的 `io`／`json` 一律在函式內 import。
+
+_WF = rl.WF_SNAPSHOT_SCHEMA
+
+
+def _wf_card(card_id: str, status: str = "💡需求", tier: str = "T2", number: int = 1,
+             repo: str = "cpbl-analytics", **over) -> dict:
+    """一列 `wfcli snapshot` 的 `SnapshotRow`（只列本檔會讀的欄位）。"""
+    row = {"card_id": card_id, "tier": tier, "delivery_status": status,
+           "issue_number": number, "content_type": "Issue",
+           "issue_url": f"https://github.com/ruan6047/{repo}/issues/{number}"}
+    row.update(over)
+    return row
+
+
+def _wf(*rows: dict) -> dict:
+    return {"generated_at": "2026-08-22T13:14:59+08:00", "schema": _WF, "cards": list(rows)}
+
+
+def test_wf_snapshot_payload_is_no_longer_silently_zero():
+    """病灶本身：`payload.get("items", [])` 對 `cards` payload 回空陣列並一路成功。"""
+    assert [c["card_id"] for c in rl.active_cards(_wf(_wf_card("DATA-A1")))] == ["DATA-A1"]
+
+
+@pytest.mark.parametrize("payload", [
+    {},
+    {"foo": []},
+    {"schema": "wf-cli/state-snapshot/v1"},
+    {"totalCount": 181},
+], ids=["空 object", "無關鍵", "只有 schema 沒有容器鍵", "只有 totalCount"])
+def test_missing_container_key_fails_closed(payload):
+    """驗收 1：缺容器鍵一律失敗，⛔ 不得回報 active_total=0。"""
+    with pytest.raises(rl.CheckFailed, match="不含任何已知的容器鍵"):
+        rl.active_cards(payload)
+
+
+def test_failure_message_names_what_schema_it_received():
+    """驗收 1 的後半：必須**指名收到的是什麼**——最上層鍵與 payload 自陳的 schema。"""
+    with pytest.raises(rl.CheckFailed) as exc:
+        rl.active_cards({"rows": [], "schema": "wf-cli/state-snapshot/v2"})
+    msg = str(exc.value)
+    assert "'rows'" in msg and "'schema'" in msg
+    assert "'wf-cli/state-snapshot/v2'" in msg
+    assert "items" in msg and "cards" in msg          # 也要指出預期的是什麼
+
+
+@pytest.mark.parametrize("payload", [{"items": []}, {"schema": _WF, "cards": []}],
+                         ids=["items 空陣列", "cards 空陣列"])
+def test_empty_container_is_a_real_zero_not_a_failure(payload):
+    """驗收 2：判準是**容器鍵在不在**，不是取到的清單空不空。"""
+    assert rl.active_cards(payload) == []
+
+
+def test_real_zero_and_unreadable_are_distinguishable():
+    """驗收 2 的正反面並排：真的零活卡通過，讀不到活卡失敗。"""
+    assert rl.assign(rl.active_cards({"items": []}))["active_total"] == 0
+    with pytest.raises(rl.CheckFailed):
+        rl.active_cards({"itemz": []})
+
+
+def test_both_container_keys_fail_closed_instead_of_picking_one():
+    """驗收 3：辨識是互斥判定。以優先序挑一個讀＝安靜地換一條路，正是本卡在修的病。"""
+    with pytest.raises(rl.CheckFailed, match="同時含"):
+        rl.active_cards({"items": [], "schema": _WF, "cards": [_wf_card("DATA-A1")]})
+
+
+def test_detect_source_is_the_single_discriminator():
+    """驗收 3：辨識方式明確且可獨立呼叫——不是散在讀取路徑裡的 try/except。"""
+    assert rl.detect_source({"items": []}) == ("items", "gh-project-item-list")
+    assert rl.detect_source({"schema": _WF, "cards": []}) == ("cards", _WF)
+
+
+def test_unhandled_source_key_cannot_fall_through_to_another_adapter():
+    """`active_cards` 的 else 分支是 `cards`：只在 `SOURCE_SCHEMAS` 加鍵而不加分派，
+    新來源會被當成 wfcli snapshot 讀。釘住這個封閉集合，讓那種改法先在測試上紅。"""
+    assert set(rl.SOURCE_SCHEMAS) == {"items", "cards"}
+
+
+@pytest.mark.parametrize("declared", [None, "wf-cli/state-snapshot/v2", ""],
+                         ids=["沒有自陳", "另一個版本", "空字串"])
+def test_wf_snapshot_of_another_version_fails_closed(declared):
+    """欄名還在不代表語意沒變——用 v1 的欄名讀 v2 與讀錯 schema 沒有兩樣。"""
+    payload = {"cards": [_wf_card("DATA-A1")]}
+    if declared is not None:
+        payload["schema"] = declared
+    with pytest.raises(rl.CheckFailed, match="自陳 schema"):
+        rl.active_cards(payload)
+
+
+@pytest.mark.parametrize("over,pat", [
+    ({"delivery_status": None}, "取不到 delivery_status"),
+    ({"tier": None}, "缺必填欄位"),
+    ({"issue_number": None}, "缺必填欄位"),
+    ({"card_id": None}, "缺必填欄位"),
+], ids=["缺狀態", "缺 tier", "缺 issue_number", "缺 card_id"])
+def test_wf_snapshot_missing_required_fields_fail_closed(over, pat):
+    """`items` 路徑的 `VERIFIER1-R3-001` 不變量逐條搬到 `cards` 路徑。"""
+    row = _wf_card("DATA-A1")
+    row.update(over)                                  # 事後覆寫：`card_id` 與位置參數同名
+    with pytest.raises(rl.CheckFailed, match=pat):
+        rl.active_cards(_wf(row))
+
+
+def test_wf_snapshot_other_repo_and_closed_statuses_are_excluded():
+    assert [c["card_id"] for c in rl.active_cards(_wf(
+        _wf_card("DATA-ACTIVE1", number=1),
+        _wf_card("DATA-DONE1", status="🏁完成", number=2),
+        _wf_card("WF-OTHER1", number=3, repo="ai-workflow"),
+    ))] == ["DATA-ACTIVE1"]
+
+
+def test_wf_snapshot_draft_issue_is_skipped_like_an_item_without_repository():
+    """draft 不屬於任何 repo；`items` 路徑也因為沒有 `repository` 而跳過。**未經實測資料
+    驗證**——實測的 181 張卡全是 `content_type="Issue"`，此分支只有本測試走過。"""
+    assert rl.active_cards(_wf(_wf_card("DATA-DRAFT1", content_type="DraftIssue",
+                                        issue_url=None, issue_number=None))) == []
+
+
+@pytest.mark.parametrize("over,pat", [
+    ({"issue_url": None, "content_type": "Issue"}, "不是 DraftIssue"),
+    ({"issue_url": "https://example.com/whatever"}, "解析不出 repo"),
+], ids=["非 draft 卻沒有 issue_url", "issue_url 解析不出 repo"])
+def test_wf_snapshot_unidentifiable_repo_fails_closed(over, pat):
+    """判不出 repo 就跳過＝讓卡從排程表消失，正是本檔開頭說的不對稱失效方向。"""
+    with pytest.raises(rl.CheckFailed, match=pat):
+        rl.active_cards(_wf(_wf_card("DATA-A1", **over)))
+
+
+def test_gh_shaped_rows_inside_cards_are_not_silently_dropped():
+    """把 `items` 形狀的列塞進 `cards` 不得整批靜默跳過——那又是一次靜默零。"""
+    with pytest.raises(rl.CheckFailed):
+        rl.active_cards({"schema": _WF, "cards": [_item("DATA-A1")]})
+
+
+@pytest.mark.parametrize("payload", [[], "items", 0, None], ids=["陣列", "字串", "數字", "null"])
+def test_non_object_payload_fails_closed(payload):
+    with pytest.raises(rl.CheckFailed, match="最上層不是 JSON object"):
+        rl.active_cards(payload)
+
+
+def test_container_value_must_be_a_list():
+    with pytest.raises(rl.CheckFailed, match="不是陣列"):
+        rl.active_cards({"items": {"nope": 1}})
+
+
+def test_both_schemas_produce_the_same_assignment_for_the_same_board():
+    """同一份看板的兩種匯出必須導出同一份排程——否則「換來源」就是換結果。"""
+    gh = {"items": [_item("DATA-A1", number=1),
+                    _item("UX-B1", status="🔍待查核", tier="T3", number=2)]}
+    wf = _wf(_wf_card("DATA-A1", number=1),
+             _wf_card("UX-B1", status="🔍待查核", tier="T3", number=2))
+    assert rl.assign(rl.active_cards(gh)) == rl.assign(rl.active_cards(wf))
+
+
+def test_rendered_block_is_identical_across_both_input_schemas():
+    """**不遞增 `SCHEMA_VERSION` 的理由釘在這裡**：區塊內容不隨輸入來源而異。
+
+    若區塊會因來源而異，(1)「判定規則改了」才成立、非遞增不可，且 (2) `--check`
+    會綁死產生當時用的來源，封存 artifact 的離線重現失效。這條證明兩者皆非——
+    本次改的只是**輸入的接受面**，既存區塊沒有一份因此過期。
+    """
+    gh = {"items": [_item("DATA-A1", number=1),
+                    _item("UX-B1", status="🔍待查核", tier="T3", number=2)]}
+    wf = _wf(_wf_card("DATA-A1", number=1),
+             _wf_card("UX-B1", status="🔍待查核", tier="T3", number=2))
+    block = rl.render(rl.assign(rl.active_cards(gh)))
+    assert block == rl.render(rl.assign(rl.active_cards(wf)))
+    rl.reconcile(rl.assign(rl.active_cards(wf)), block)      # 跨來源對帳仍成立
+
+
+def test_source_schema_never_leaks_into_the_block():
+    """`source_schema` 只進 `--json` 與 stderr，不進區塊——理由同上一條。"""
+    res = rl.assign(rl.active_cards(_wf(_wf_card("DATA-A1"))))
+    res["source_schema"] = _WF
+    assert "source_schema" not in rl.render(res)
+
+
+def _main(monkeypatch, capsys, payload, *argv: str):
+    """跑 `main()`，回 `(exit code, stdout, stderr)`。`io`／`json` 在函式內 import 的
+    理由見本段開頭（檔頭增行會改寫不在寫入集內的 `scripts/README.md`）。"""
+    import io
+    import json as _json
+    text = payload if isinstance(payload, str) else _json.dumps(payload, ensure_ascii=False)
+    monkeypatch.setattr(rl.sys, "stdin", io.StringIO(text))
+    monkeypatch.setattr(rl.sys, "argv", ["roadmap_lines.py", *argv])
+    code = rl.main()
+    cap = capsys.readouterr()
+    return code, cap.out, cap.err
+
+
+def test_main_exits_nonzero_and_names_the_schema_instead_of_reporting_zero(monkeypatch, capsys):
+    """驗收 1 的端到端形式：**非零退出**＋指名收到的是什麼，且 stdout 沒有假的零。"""
+    code, out, err = _main(monkeypatch, capsys, '{"rows": [], "schema": "nope/v1"}', "--json")
+    assert code == 1
+    assert "active_total" not in out
+    assert "'nope/v1'" in err and "'rows'" in err
+
+
+def test_main_still_exits_zero_on_a_genuinely_empty_board(monkeypatch, capsys):
+    """驗收 2 的端到端形式：真的零活卡仍是 exit 0，不被上一條連坐。"""
+    code, out, err = _main(monkeypatch, capsys, '{"items": []}', "--json")
+    assert code == 0
+    assert '"active_total": 0' in out
+
+
+@pytest.mark.parametrize("payload,schema,key", [
+    ({"items": [_item("DATA-A1")]}, "gh-project-item-list", "'items'"),
+    (_wf(_wf_card("DATA-A1")), _WF, "'cards'"),
+], ids=["gh 路徑", "wfcli snapshot 路徑"])
+def test_main_reports_which_path_it_took(monkeypatch, capsys, payload, schema, key):
+    """禁 fallback 的理由是「讀者無從得知走了哪條」，所以走了哪條必須說出來。"""
+    code, out, err = _main(monkeypatch, capsys, payload, "--json")
+    assert code == 0
+    assert schema in err and key in err
+    assert f'"source_schema": "{schema}"' in out
