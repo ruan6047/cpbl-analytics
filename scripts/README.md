@@ -161,23 +161,20 @@
 
 ## 引用完整性（不變式 3）
 
-全庫 `scripts/<name>.<ext>` 字面路徑共 **1112** 處。**只有 `enforced` 那一面強制**——其餘的過期是歷史事實不是缺陷：
+全庫 `scripts/<name>.<ext>` 字面路徑共 **1113** 處。**只有 `enforced` 那一面強制**——其餘的過期是歷史事實不是缺陷：
 
 | 面別 | 處數 | 強制？ | 為什麼 |
 |---|---:|---|---|
 | `scan` | 363 | 回報 | 掃描器產物 JSON 是當時的快照 |
 | `sealed` | 198 | 回報 | `docs/control-plane/**` 已於 `8271d7c` 封存唯讀，**永遠改不了** |
-| `self` | 189 | 不適用 | 掃描器自身的說明範例 |
-| `enforced` | 178 | ✅ 強制 | `scripts/`、`src/`、活契約與設計文件——壞了就是現在的缺陷 |
-| `historical` | 147 | 回報 | `docs/archive/**` 與卡片交付產物＝凍結證據，**本卡射程外** |
+| `self` | 190 | 不適用 | 掃描器自身的說明範例 |
+| `enforced` | 173 | ✅ 強制 | `scripts/`、`src/`、活契約與設計文件——壞了就是現在的缺陷 |
+| `historical` | 152 | 回報 | `docs/archive/**` 與卡片交付產物＝凍結證據，**本卡射程外** |
 | `fixture` | 37 | 不適用 | `tests/**` 的合成路徑；真實路徑壞掉 pytest 自己會紅（更強的機制） |
 
-**壞路徑——⚠️ **強制面**（1）**：
+**壞路徑——歷史面（僅回報）（3）**：
 
-- `docs/REVIEW_GATE_CONTRACT.md:284 → scripts/review_gate_preflight.py`
-
-**壞路徑——歷史面（僅回報）（2）**：
-
+- `docs/archive/REVIEW_GATE_CONTRACT.md:284 → scripts/review_gate_preflight.py`
 - `docs/archive/tasks/INGEST-DEEP-TM-BACKFILL1.md:49 → scripts/backup-cpbl-prod.sh`
 - `docs/research/GAME-RECAP-PA1-BUILD1_HANDOFF.md:179 → scripts/backup-cpbl-prod.sh`
 
@@ -455,5 +452,5 @@ shell 沒有 argparse，判準原本是一條寬鬆正則（「有 `getopts`／`
 - **「未找到消費者」不等於「沒有消費者」**：本清冊的觀測面只有 **git 追蹤檔案**。本機執行歷史、需求方手動操作、封存前的口頭流程都不在裡面。用詞一律「未找到」。
 - **本輪零刪除**。已用盡的只標記，刪除是需求方的獨立裁定。
 - 位置不變式證明的是「位置與分類一致」，**不是「分類是對的」**。分類含具名人工改判，機器只驗一致性不驗真假。
-- **分段路徑**（`"scripts/" + name` 這類靜態解析不了的組裝）共 59 處，引用完整性檢查涵蓋不到，逐處列出：`docs/research/TIME-SEMANTICS-CONTRACT1/scan_time_semantics.py:149`、`scripts/data_rules_audit1.py:761`、`scripts/data_tie_remedy1.py:322`、`scripts/script_inventory.py:72`、`scripts/script_inventory.py:396`、`scripts/script_inventory.py:400`、`scripts/script_inventory.py:1077`、`scripts/script_inventory.py:1302`、`scripts/script_inventory.py:1990`、`tests/test_backup_prod_db.py:16`、`tests/test_backup_prod_db.py:186`、`tests/test_backup_prod_db.py:202`、`tests/test_backup_prod_db.py:251`、`tests/test_bio_gap2_backfill.py:19`、`tests/test_bio_gap_backfill.py:27`、`tests/test_gamelog_reconcile.py:510`、`tests/test_gamelog_reconcile.py:511`、`tests/test_gamelog_reconcile.py:569`、`tests/test_prod_sync_revision_seq.py:33`、`tests/test_prod_sync_revision_seq.py:183`、`tests/test_prod_sync_revision_seq.py:184`、`tests/test_prod_sync_revision_seq.py:185`、`tests/test_prod_sync_revision_seq.py:216`、`tests/test_refresh_pitch_ingest.py:26`、`tests/test_refresh_remote_train.py:20`、`tests/test_refresh_status.py:29`、`tests/test_refresh_status.py:30`、`tests/test_refresh_status.py:31`、`tests/test_review_prompt.py:7`、`tests/test_roadmap_lines.py:28`、`tests/test_schedule_watch.py:22`、`tests/test_schedule_watch.py:23`、`tests/test_schedule_watch.py:291`、`tests/test_schedule_watch.py:364`、`tests/test_scrape_daily.py:32`、`tests/test_scrape_daily.py:33`、`tests/test_scrape_daily.py:115`、`tests/test_scrape_daily.py:132`、`tests/test_scrape_daily.py:156`、`tests/test_scrape_daily.py:310`、`tests/test_script_inventory.py:246`、`tests/test_script_inventory.py:611`、`tests/test_script_inventory.py:657`、`tests/test_script_inventory.py:671`、`tests/test_script_inventory.py:679`、`tests/test_script_inventory.py:687`、`tests/test_script_inventory.py:699`、`tests/test_script_inventory.py:752`、`tests/test_script_inventory.py:810`、`tests/test_script_inventory.py:815`、`tests/test_script_inventory.py:816`、`tests/test_script_inventory.py:817`、`tests/test_script_inventory.py:905`、`tests/test_shell_help_guard.py:311`、`tests/test_shell_help_guard.py:383`、`tests/test_state_plane_migrate.py:16`、`tests/test_task_card_sections.py:8`、`tests/test_verify_refresh_info.py:27`、`tests/test_workflow_ledger.py:5`
+- **分段路徑**（`"scripts/" + name` 這類靜態解析不了的組裝）共 59 處，引用完整性檢查涵蓋不到，逐處列出：`docs/research/TIME-SEMANTICS-CONTRACT1/scan_time_semantics.py:149`、`scripts/data_rules_audit1.py:761`、`scripts/data_tie_remedy1.py:322`、`scripts/script_inventory.py:72`、`scripts/script_inventory.py:396`、`scripts/script_inventory.py:400`、`scripts/script_inventory.py:1077`、`scripts/script_inventory.py:1302`、`scripts/script_inventory.py:1990`、`tests/test_backup_prod_db.py:16`、`tests/test_backup_prod_db.py:186`、`tests/test_backup_prod_db.py:202`、`tests/test_backup_prod_db.py:251`、`tests/test_bio_gap2_backfill.py:19`、`tests/test_bio_gap_backfill.py:27`、`tests/test_gamelog_reconcile.py:510`、`tests/test_gamelog_reconcile.py:511`、`tests/test_gamelog_reconcile.py:569`、`tests/test_prod_sync_revision_seq.py:33`、`tests/test_prod_sync_revision_seq.py:183`、`tests/test_prod_sync_revision_seq.py:184`、`tests/test_prod_sync_revision_seq.py:185`、`tests/test_prod_sync_revision_seq.py:216`、`tests/test_refresh_pitch_ingest.py:26`、`tests/test_refresh_remote_train.py:20`、`tests/test_refresh_status.py:29`、`tests/test_refresh_status.py:30`、`tests/test_refresh_status.py:31`、`tests/test_review_prompt.py:7`、`tests/test_roadmap_lines.py:28`、`tests/test_schedule_watch.py:22`、`tests/test_schedule_watch.py:23`、`tests/test_schedule_watch.py:291`、`tests/test_schedule_watch.py:364`、`tests/test_scrape_daily.py:32`、`tests/test_scrape_daily.py:33`、`tests/test_scrape_daily.py:115`、`tests/test_scrape_daily.py:132`、`tests/test_scrape_daily.py:156`、`tests/test_scrape_daily.py:310`、`tests/test_script_inventory.py:249`、`tests/test_script_inventory.py:614`、`tests/test_script_inventory.py:660`、`tests/test_script_inventory.py:674`、`tests/test_script_inventory.py:682`、`tests/test_script_inventory.py:690`、`tests/test_script_inventory.py:702`、`tests/test_script_inventory.py:755`、`tests/test_script_inventory.py:813`、`tests/test_script_inventory.py:818`、`tests/test_script_inventory.py:819`、`tests/test_script_inventory.py:820`、`tests/test_script_inventory.py:908`、`tests/test_shell_help_guard.py:311`、`tests/test_shell_help_guard.py:383`、`tests/test_state_plane_migrate.py:16`、`tests/test_task_card_sections.py:8`、`tests/test_verify_refresh_info.py:27`、`tests/test_workflow_ledger.py:5`
 

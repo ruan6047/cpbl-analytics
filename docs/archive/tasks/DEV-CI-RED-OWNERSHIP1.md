@@ -6,7 +6,7 @@
 - Initiative：—　spec 基線：—
 - DB：`db_scope: none`
 - 部署：否　環境：—　PR：—　Merge SHA：—
-- 範圍：`docs/CONTROL_PLANE_CONTRACT.md`、`docs/REVIEW_GATE_CONTRACT.md`，視 Discovery 結論可能加 `scripts/review_prompt.py`、`scripts/workflow_ledger.py` 與對應測試
+- 範圍：`docs/CONTROL_PLANE_CONTRACT.md`、`docs/archive/REVIEW_GATE_CONTRACT.md`，視 Discovery 結論可能加 `scripts/review_prompt.py`、`scripts/workflow_ledger.py` 與對應測試
 - Discovery：**本卡第一項交付是「該不該用工具擋、以及擋在哪一關」的判斷**，不是直接改碼。
 - Design：Design Gate N/A——無使用者可見介面。
 

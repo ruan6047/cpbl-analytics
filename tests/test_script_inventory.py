@@ -208,11 +208,14 @@ def test_invariant_3_literal_paths_in_live_files_resolve() -> None:
 # ⚠️ 本卡射程外、但確實壞掉的字面路徑。**具名 ＋ 理由**，不放寬判準。
 # 這些是本卡順手掃出來的既有缺陷，不是本卡造成的；修它們要碰 `docs/`，
 # 而需求方裁定 4 已把 `docs/` 移出射程。
-FROZEN_BROKEN_REFS = {
-    "docs/REVIEW_GATE_CONTRACT.md:284 → scripts/review_gate_preflight.py":
-        "活契約指向一支從未存在（或已改名）的腳本。⚠️ 這是本卡掃出來的既有缺陷，"
-        "修它要改 docs/REVIEW_GATE_CONTRACT.md——射程外，列為交付報告的待裁項。",
-}
+#
+# 目前為空：唯一一筆（`REVIEW_GATE_CONTRACT.md:284 → scripts/review_gate_preflight.py`）
+# 已由 DOC-REVIEW-GATE-ARCHIVE1 消解——該行是被否決的設計替代方案（§9 稽核表「另立
+# `scripts/review_gate_preflight.py`」→ 處置「併入 `review_prompt.py --preflight`」），
+# 那支腳本**刻意不存在**，措辭沒有錯。契約本身也是死的（等一張 🛑已停止 的卡才生效），
+# 故整份 `git mv` 進 `docs/archive/`，落到 `historical` 面＝只回報不強制。
+# ⚠️ 空集合不代表判準失效：`test_reference_integrity_surface_is_not_empty` 是它的正控制。
+FROZEN_BROKEN_REFS: dict[str, str] = {}
 
 
 def test_frozen_broken_refs_have_not_been_silently_fixed() -> None:

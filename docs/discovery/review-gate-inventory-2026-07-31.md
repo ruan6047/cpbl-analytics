@@ -15,7 +15,7 @@
 >
 > **基準：`37431a0`（WF-21 審核契約採用後的 origin/main）。** 先前版本以 `063d12d` 產生，
 > 分類與命中數不變，母體／事件數依新基準更新。契約對應章節見
-> [`../REVIEW_GATE_CONTRACT.md`](../REVIEW_GATE_CONTRACT.md) §6，與 WF-21 的衝突見 §9。
+> [`../archive/REVIEW_GATE_CONTRACT.md`](../archive/REVIEW_GATE_CONTRACT.md) §6，與 WF-21 的衝突見 §9。
 
 ---
 
