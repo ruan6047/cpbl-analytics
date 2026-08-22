@@ -516,30 +516,67 @@ main push 產生**。⇒ **不開 PR 就永遠拿不到 required 的名字。**
 
 #### 合併程序（需求方 2026-08-22 裁定採此案）
 
+⚠️ **本程序全程不 `checkout main`**，因為本專案是多 worktree 實況、主 checkout 已佔用
+`main`——在 feature worktree 執行 `git checkout main` 逐字得
+`fatal: 'main' is already used by worktree at '/Users/ruanruan/Dev/cpbl-analytics'`。
+⛔ **早期版本寫的 `checkout main` + `merge --ff-only` 在本 repo 從來就跑不起來**，那是憑
+記憶寫的、不是實跑序列。下面每一步都已逐一實測，證據見本節末。
+
 ```bash
+REPO=ruan6047/cpbl-analytics
+BRANCH="<branch>"   # ⚠️ 佔位符必須留引號，否則 < 會被當成重導向
+PR="<N>"
+
 # 1. 分支 push → 產生 api (branch head) / web (branch head)
-git push origin <branch>
+git push origin "$BRANCH"
 
 # 2. 開 PR → pull_request run 把 api / web 掛上「分支頭 SHA」
 #    （實測：merge ref 的 check-runs 是空的，所以掛的是分支頭不是 merge ref）
-gh pr create --base main --head <branch>
+gh pr create --base main --head "$BRANCH"
 
-# 3. 等兩個 required 都綠（⚠️ 看的是不帶後綴的那兩個）
-gh api repos/ruan6047/cpbl-analytics/commits/$(git rev-parse <branch>)/check-runs \
-  --jq '.check_runs[] | select(.name=="api" or .name=="web") | "\(.name)=\(.conclusion)"'
+# 3. ⭐ 機械驗證兩個 required 都綠——⛔ 不是印出來讓人讀
+SHA=$(git rev-parse "$BRANCH")
+GREEN=$(gh api "repos/$REPO/commits/$SHA/check-runs" --jq '
+  [.check_runs[] | select(.name=="api" or .name=="web")] as $r
+  | (($r | map(.name) | unique) == ["api","web"])
+    and ($r | map(.conclusion == "success") | all)')
+if [ "$GREEN" != "true" ]; then echo "⛔ required check 未全綠，停"; exit 1; fi
 
-# 4. ⚠️ 切到「已同步的 main」再快進——⛔ 少了這兩行，第 5 行會是 no-op、
-#    push 只會推本地既有 main，而分支根本沒被合併
-git checkout main
-git fetch origin && git merge --ff-only origin/main
-git merge --ff-only <branch>
-git push origin main
+# 4. ⭐ refspec push——不需 checkout main，多 worktree 下照樣成立。
+#    非 fast-forward 時 git 自己會拒絕（`! [rejected] ... (non-fast-forward)`）
+git push origin "$BRANCH:main"
 
-# 5. ⚠️ 通常不需要：直推使 head 成為 base 的祖先後，GitHub 會自動把 PR 標成 merged
-#    （PR 168 即為實例）。⛔ 只有在確認第 4 步真的推上去、而 PR 仍為 open 時才關它。
-gh pr view <N> --json state --jq '.state'   # 先看，MERGED 就別動
-gh pr close <N>                             # 僅在仍為 OPEN 時
+# 5. ⭐ 真正的 shell 條件：先證 main 確實含分支 HEAD，才談關 PR
+git fetch -q origin
+if git merge-base --is-ancestor "$SHA" origin/main; then
+  STATE=$(gh pr view "$PR" --repo "$REPO" --json state --jq '.state')
+  if [ "$STATE" = "OPEN" ]; then gh pr close "$PR" --repo "$REPO"
+  else echo "PR 已是 $STATE（直推使 head 成為 base 的祖先後 GitHub 會自動標 merged），不動"; fi
+else
+  echo "⛔ main 未包含 $SHA — 合併沒成功，⛔ 絕對不要關 PR"
+fi
 ```
+
+⚠️ **第 3 步為什麼不能寫 `length == 2`**：一個 commit 若同時經過分支 push 與 main push，
+`api`／`web` **各會出現兩次**——實測 `113f029a` 上 `total_count = 6`（`api` ×2、`web` ×2、
+`api (branch head)`、`web (branch head)`）。`length == 2` 會**否決一個完全綠的 commit**。
+判準必須是「兩個名字都在 **且** 全部 success」，⛔ 不是「剛好兩筆」。
+
+**逐步實測證據**（2026-08-22，皆以 `git rev-parse` 取得的真實 SHA）：
+
+| 測項 | 輸入 | 實得 |
+|---|---|---|
+| 第 3 步判準 vs 全綠 | `113f029a12928097e3d56a85e172daf9c830ed89` | `true` |
+| 第 3 步判準 vs 紅 | `451a86de5bea425a438de4214a40157bb61662e5` | `false` |
+| 第 3 步判準 vs 無 check | `1c3bc2ecf9ed2ac8837bec2226eb455a3ab06ce2`（`total_count=0`） | `false` |
+| 第 4 步 refspec push（feature worktree，main 被主 checkout 佔用） | `git push --dry-run origin HEAD:main` | `113f029a..31e97938  HEAD -> main` |
+| 第 5 步條件 vs 未合併 SHA | `31e97938…` | 判「未合併」⇒ 不關 PR |
+| 第 5 步條件 vs 已合併 SHA | `113f029a…` | 判「已合併」⇒ 才允許關 PR |
+
+⚠️ **未驗到**：第 4 步的 `--dry-run` **不證明 ruleset 會放行**。ruleset 對 refspec push 的
+三個方向已於前次探針實測（無 check → 拒、紅 → 拒、綠 → 過），但那三次與本表的
+`--dry-run` 是**不同次執行**，⛔ 本表不宣稱它們是同一次取證。
+
 **⚠️ 為什麼不用 GitHub 的 merge 按鈕**：⛔ **那條路在本 repo 從未實測過**——判斷它可行的
 依據是姊妹 repo `ai-workflow` 於 2026-08-22 在同型 ruleset 下的三次 PR merge 全部成功，
 且其 merge commit 上只有 1 個 check（來自 merge 之後的 main push）⇒ 推得 ruleset 評估的是
