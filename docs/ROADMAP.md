@@ -373,9 +373,11 @@ git -C ~/Dev/ai-workflow show ae8f741:cli/src/wf_cli/commands/handoff_cmd.py | s
 - **過渡做法（卡停在 `💡需求`，規劃進度只能寫進 Issue 留言）今日仍是實際做法**，
   但它**不再有機械面的藉口**。要改的是流程：規劃期實際走 `handoff --next-stage planning`，
   且不要用 `--status`（該旗標的說明逐字是「覆寫依 next-stage 推導出的交付狀態」）把它蓋掉。
-  ⚠️ `wfcli open` 仍預設寫 `📥Backlog`（`cli/src/wf_cli/card.py:295` 逐字
-  `delivery_status: str = "📥Backlog"`）且 `open` **沒有 `--status` 旗標**，所以新卡落點
-  仍須事後以 `handoff` 更正——那是另一個缺陷，不是本節的。
+  ⚠️ **本段原載的機械藉口已於 2026-08-21 消失**：`wfcli open` 的預設落點已由 `📥Backlog`
+  改為 `💡需求`（`ai-workflow` `1531666283f2e1b55e92e103f2f13f8fd2fc131e`，
+  `cli/src/wf_cli/card.py:295` 現值逐字 `delivery_status: str = "💡需求"`），⇒ **新卡落點
+  本身已正確，不再須事後以 `handoff` 更正**。`open` 至今仍**沒有 `--status` 旗標**
+  （`open_cmd.py` 對 `"--status"` 零命中），但那已不構成落點問題。
 - **無法核對 Gate 證據時標 `not-asserted`**，**不得默認通過**；`not-asserted` 是永久紀錄，
   **WF 恢復後不得補寫成已通過**（基線 9）
 
@@ -1081,7 +1083,7 @@ CPBL 在 WF 暫停期間**可獨立運作**，但必須讓 WF 恢復後接得回
 
 | 能力 | invariant | 現行人工過渡 | WF 原生接管條件 | 回滾 |
 |---|---|---|---|---|
-| **規劃 Gate**（§2.0） | 未過 Gate 不得進 Backlog／認領 | ⚠️ **僅 Issue 留言**。`planning-started`／`cpbl-planning/v1`／`gate_evidence` **全無實作**（§2.0），故「無證據標 `not-asserted`」目前**無處可標** | ~~`wfcli` **新增** `🧭規劃中` 選項~~ **已於 `ae8f741`（`ai-workflow#102`，2026-08-18）完成**（§2.0 附兩條可重跑取證）；剩下的接管條件只有 `open` 不預設 Backlog——`open` 至今沒有 `--status` 旗標 | 停用 WF 檢查，回到人工 checklist；已寫入的留言保留 |
+| **規劃 Gate**（§2.0） | 未過 Gate 不得進 Backlog／認領 | ⚠️ **僅 Issue 留言**。`planning-started`／`cpbl-planning/v1`／`gate_evidence` **全無實作**（§2.0），故「無證據標 `not-asserted`」目前**無處可標** | ~~`wfcli` **新增** `🧭規劃中` 選項~~ **已於 `ae8f741`（`ai-workflow#102`，2026-08-18）完成**（§2.0 附兩條可重跑取證）；~~剩下的接管條件只有 `open` 不預設 Backlog~~ **亦已於 `1531666`（`ai-workflow#118`，2026-08-21）完成**（`card.py:295` 現值 `"💡需求"`）。⇒ **本列原載的兩項接管條件現皆已達成**，且 `handoff --next-stage backlog` 已對 **T2 以上**課「當下交付狀態必須是 `🧭規劃中`」的前提檢查（`handoff_cmd.py:189/196/488`，`ai-workflow#120`）。⛔ **但「接管」仍不完整，三個已知洞**：`T0`／`T1` 依 `BACKLOG_GATE_EXEMPT_TIERS` 豁免；`handoff --status` 逐字是「覆寫依 next-stage 推導出的交付狀態」（`handoff_cmd.py:397`）；`assign` 於 `assign_cmd.py:255` **無條件**覆寫交付狀態、其 `:227` 只讀**其他**卡的終態。⇒ 原列把接管條件寫成「只剩 `open` 不預設 Backlog」是**不完整的清單**，非僅過期 | 停用 WF 檢查，回到人工 checklist；已寫入的留言保留 |
 | **執行 WIP**（§2.1） | 每線同時 ≤1 張佔額度 | PM 於 `assign` 前人工數（§2.7） | `assign` 依線別與狀態集合機械擋下 | 同上 |
 | **三日時鐘**（§2.2） | 單一 iteration 逾 3 日觸發重審 | 人工比對 Log 最後認領／退回時間 | `doctor` 能列出逾時卡 | 同上 |
 | **L4 停損**（§1） | 無可觀察停止條件不得認領 | PM 於 `assign` 前檢查卡面 | `open`／`assign` 有停損必填欄 | 同上 |
