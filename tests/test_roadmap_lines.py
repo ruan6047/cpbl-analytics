@@ -407,11 +407,13 @@ def test_schema_version_is_pinned_to_the_current_ruleset():
     """判定規則每動一次就要遞增，且**逐字釘住**——不釘就沒有東西擋下「忘了 bump」。
 
     `v9` 是 Gate 欄改由狀態導出（五張卡的文字因此改變）；`v10` 是來源辨識、`cards`
-    欄位映射與 `--json.source_schema`。**`v10` 那次區塊內容逐位元組不變**，本卡
-    iteration 1 據此掛了「刻意不遞增」的例外，`R1-001` 判該例外與檔頭政策矛盾：
-    區塊不變是必要不變量（否則離線重現失效），不是不遞增的充分理由。
+    欄位映射與 `--json.source_schema`；`v11` 是 `GATE_BY_STATUS` 補 `🔬研究中`
+    （`gate_of()` 的定義域改變）。**`v10` 與 `v11` 兩次區塊內容都逐位元組不變**，
+    `DEV-ROADMAP-LINES-SILENT-ZERO1` iteration 1 曾據此掛「刻意不遞增」的例外，
+    `R1-001` 判該例外與檔頭政策矛盾：區塊不變是必要不變量（否則離線重現失效），
+    不是不遞增的充分理由。`v11` 沿用同一裁定。
     """
-    assert rl.SCHEMA_VERSION == "cpbl-roadmap-lines/v10"
+    assert rl.SCHEMA_VERSION == "cpbl-roadmap-lines/v11"
 
 
 # --- DEV-ROADMAP-LINES-SILENT-ZERO1：容器鍵辨識——「讀不到活卡」≠「真的零活卡」 ---
@@ -660,3 +662,74 @@ def test_shipped_roadmap_block_declares_the_current_schema_version():
     """`docs/ROADMAP.md` 的排程區塊必須自陳現行版本——遞增後忘了重生即紅。"""
     roadmap = Path(__file__).resolve().parents[1] / "docs" / "ROADMAP.md"
     assert rl.block_version(roadmap.read_text(encoding="utf-8")) == rl.SCHEMA_VERSION
+
+
+# --- DEV-ROADMAP-GATE-RESEARCH-STATUS1：已知詞彙＝產生端的欄位 schema，不是板上現況 ---
+#
+# 本檔原本只釘「未知狀態 fail closed」，**沒有任何東西釘「哪些狀態算已知」**。詞彙表
+# 因此可以與產生端脫節而沒有人發現：`v10` 的 `GATE_BY_STATUS` 留著兩個 canonical 已
+# 廢止的值，缺的反而是現行值 `🔬研究中`。而 `gate_of()` 對未知狀態 fail closed ⇒
+# 任一活卡進 `🔬研究中`，`active_cards → render → reconcile` 整條路徑中止、§3 重生不了。
+#
+# 修法是把**開放集合換成封閉集合＋逐字黃金值**（同族守衛連三輪失手後的既有跳出法）：
+# 本檔讀的是 Project 的 `交付狀態` 欄，其值域由 `wfcli` 的凍結欄位 schema 定義，故黃金
+# 值直接鏡射那 15 個選項。⛔ **「板上今天有幾張帶某個值」不是判準**——那是實例不是形狀。
+
+#: Project #4 `交付狀態` single-select 的選項集，**逐字**。2026-08-22 兩處獨立取樣一致：
+#:   1. `gh project field-list 4 --owner ruan6047 --format json`（實得恰 15 個）
+#:   2. `ai-workflow` `cli/src/wf_cli/project.py` 的 `FIELD_SPECS["交付狀態"]` @ `251e211`
+#:      （該處註解逐字稱之為「凍結欄位 schema」）
+#: ⚠️ **這是鏡射不是判斷**：值域要變，先改 `wfcli` 的 schema 與 canonical，再改這裡。
+_PROJECT_DELIVERY_STATUS_OPTIONS = (
+    "💡需求", "🔬研究中", "🧭規劃中", "📥Backlog", "⏳待執行", "🔨執行中", "🚧進行中",
+    "🔍待查核", "✅通過", "📦已合併", "🏁完成",
+    "↩退回", "⏸阻塞", "🚨已升級", "🛑已停止",
+)
+
+#: canonical `AI_WORKFLOW.md` §0 逐字列為「**廢止的歷史值**（向後相容，已寫的卡留著，
+#: 新寫入不得用）」。**廢止約束的是寫入端，本檔是讀取端**，故必須照樣讀得懂。
+_DEPRECATED_BUT_STILL_READABLE = ("⏳待執行", "🚧進行中")
+
+
+def test_known_vocabulary_is_exactly_the_project_field_option_set():
+    """已知詞彙須**恰好**等於產生端的選項集——少一個 fail closed，多一個是無效條目。
+
+    雙向都要判：只查「黃金值都被涵蓋」會放過本檔自己編出來的多餘鍵，只查「鍵都在
+    黃金值裡」會放過這次的缺漏。
+    """
+    known = set(rl.GATE_BY_STATUS) | set(rl.CLOSED_STATUSES)
+    golden = set(_PROJECT_DELIVERY_STATUS_OPTIONS)
+    assert known - golden == set(), "詞彙表有產生端寫不出來的值"
+    assert golden - known == set(), "產生端寫得出來的值讀不懂——會 fail closed"
+
+
+def test_no_status_is_both_active_and_closed():
+    """一個狀態不能同時算活卡與終態，否則活卡判定與 Gate 導出會互相矛盾。"""
+    assert set(rl.GATE_BY_STATUS).isdisjoint(rl.CLOSED_STATUSES)
+
+
+def test_research_status_is_a_distinct_stage_from_its_neighbours():
+    """`💡需求`／`🔬研究中`／`🧭規劃中` 是 canonical 序列上的三個階段。
+
+    Gate 欄若對三者給同一句話，§3 就分不出「還沒開始」與「Discovery 進行中」——
+    那正是本檔 ROADMAP 消費端已記載的既有痛點，不該由本表再製造一次。
+    """
+    gates = {s: rl.GATE_BY_STATUS[s] for s in ("💡需求", "🔬研究中", "🧭規劃中")}
+    assert all(gates.values()), "Gate 文字不得為空"
+    assert len(set(gates.values())) == 3
+
+
+@pytest.mark.parametrize("status", ("🔬研究中", *_DEPRECATED_BUT_STILL_READABLE))
+def test_status_round_trips_end_to_end(status):
+    """變異對照的 pytest 形式：帶該狀態的活卡須走完 `active_cards → render → reconcile`。
+
+    `v10` 下 `🔬研究中` 這一組會在 `render()` 內以 `CheckFailed` 中止（`--check` exit 1）。
+    兩個廢止值這一組釘的是**不得默默刪鍵**：它們都不在 `CLOSED_STATUSES`，故帶該值的
+    卡是**活卡**、必定走到 `gate_of()`，刪鍵即等於替 canonical 仍認可的值裝上 fail closed。
+    """
+    assert status not in rl.CLOSED_STATUSES
+    payload = {"items": [_item("DATA-VOCAB1", status=status, number=1)]}
+    result = rl.assign(rl.active_cards(payload))
+    block = rl.render(result)
+    rl.reconcile(result, block)
+    assert f"| {status} | {rl.GATE_BY_STATUS[status]} |" in block
