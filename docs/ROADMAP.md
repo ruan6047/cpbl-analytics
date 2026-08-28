@@ -788,13 +788,12 @@ git -C ~/Dev/ai-workflow show ae8f741:cli/src/wf_cli/commands/handoff_cmd.py | s
 
 <!-- roadmap-lines:begin -->
 
-<!-- cpbl-roadmap-lines/v11；活卡 37；每線 {'L1': 8, 'L2': 7, 'L3': 6, 'L4': 11, 'L5': 5} -->
+<!-- cpbl-roadmap-lines/v11；活卡 35；每線 {'L1': 7, 'L2': 7, 'L3': 6, 'L4': 11, 'L5': 4} -->
 
-### L1 資料正確性（8 張）
+### L1 資料正確性（7 張）
 
 | 卡 | # | tier | 狀態 | 下一個必要 Gate／阻塞條件 | 去留 |
 |---|---|---|---|---|---|
-| `DATA-BOX-REVISION-SNAPSHOT1` | #109 | T2 | ⏸阻塞 | 解除阻塞條件（阻塞對象與解阻後的處置見該卡 Issue 的 handoff 事由） | |
 | `DATA-RE24-PROD-REBUILD1` | #119 | T4 | ⏸阻塞 | 解除阻塞條件（阻塞對象與解阻後的處置見該卡 Issue 的 handoff 事由） | |
 | `DEV-VERIFY-TM-ASSERTS1` | #50 | T2 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 | `INGEST-GAME-TM-REFACTOR1-G4` | #53 | T4 | ⏸阻塞 | 解除阻塞條件（阻塞對象與解阻後的處置見該卡 Issue 的 handoff 事由） | |
@@ -842,15 +841,14 @@ git -C ~/Dev/ai-workflow show ae8f741:cli/src/wf_cli/commands/handoff_cmd.py | s
 | `ML-WP-ROLLWIN1` | #95 | T4 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 | `RESEARCH-REASON-RESTATE1` | #105 | T2 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 
-### L5 開發／文件基礎（5 張）
+### L5 開發／文件基礎（4 張）
 
 | 卡 | # | tier | 狀態 | 下一個必要 Gate／阻塞條件 | 去留 |
 |---|---|---|---|---|---|
 | `DEV-CI-LOCALE-UNDECLARED1` | #129 | T1 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
-| `DEV-ROADMAP-LINES-SILENT-ZERO1` | #143 | T2 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
 | `DEV-WP-DISCLOSURE-SOURCE1` | #147 | T3 | 📥Backlog | 認領（線 WIP 須有空位） | |
 | `DOC-LIVELOG-SEMANTICS-GAP1` | #108 | T1 | 💡需求 | 規劃 Gate：Discovery → Design → Plan，需求方核可後才進 Backlog | |
-| `DOC-ROADMAP-STALE-SYNC1` | #162 | T2 | 🔨執行中 | 交付並 handoff 送審 | |
+| `DOC-ROADMAP-LINES-REGEN1` | #174 | T1 | 🔨執行中 | 交付並 handoff 送審 | |
 
 <!-- roadmap-lines:end -->
 
