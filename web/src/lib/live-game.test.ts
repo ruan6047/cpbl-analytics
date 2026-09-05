@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   applyLiveSnapshot,
   canShowPostgameConclusions,
+  delayKindLabel,
   hasStartedPlay,
   inningLabel,
   isTopHalf,
@@ -13,6 +14,7 @@ import {
   plateAppearancePitchCountLabel,
   resolveStatusSnapshot,
   shouldFetchLivePayload,
+  taipeiToday,
   officialLivePitchCall,
   trackingEmptyMessage,
   trackingPendingMessage,
@@ -131,12 +133,30 @@ test("收合打席把總球數放在投打名稱後，而非結果行後", () =>
   assert.ok(resultAt > countAt, "球數必須排在官方結果之前（不落到結果行後）");
 });
 
-test("live 即使已有比分也不得啟用賽後結論，只有 final 或歷史無 snapshot 場可啟用", () => {
-  assert.equal(canShowPostgameConclusions(snapshot({ phase: "live" }), 2), false);
-  assert.equal(canShowPostgameConclusions(snapshot({ phase: "reserved" }), 2), false);
-  assert.equal(canShowPostgameConclusions(snapshot({ phase: "final" }), 2), true);
-  assert.equal(canShowPostgameConclusions(null, 2), true);
-  assert.equal(canShowPostgameConclusions(null, 0), false);
+test("賽後結論必須同時通過台北日期界線，且不以 delay_kind 判斷", () => {
+  // 舊斷言：只要 snapshot=final 或 null 且有比分即完成，會把未來續賽日的中止比分誤說成終場。
+  // 新斷言：除了既有 snapshot 規則，game_date 也必須不晚於明示的 as_of；已過日的
+  // delay_kind 場仍保留完成資格，不能把歷史標記當作判準。
+  const asOf = "2026-09-05";
+  assert.equal(canShowPostgameConclusions(snapshot({ phase: "live" }), 2, "2026-09-04", asOf), false);
+  assert.equal(canShowPostgameConclusions(snapshot({ phase: "reserved" }), 2, "2026-09-04", asOf), false);
+  assert.equal(canShowPostgameConclusions(snapshot({ phase: "final" }), 2, "2026-09-04", asOf), true);
+  assert.equal(canShowPostgameConclusions(null, 2, "2026-09-04", asOf), true);
+  assert.equal(canShowPostgameConclusions(null, 0, "2026-09-04", asOf), false);
+  assert.equal(canShowPostgameConclusions(null, 2, "2026-09-15", asOf), false);
+  assert.equal(canShowPostgameConclusions(null, 2, null, asOf), false);
+});
+
+test("保留與延賽中央格沿用既有詞彙，未知值不自行命名", () => {
+  assert.equal(delayKindLabel("保留"), "保留比賽");
+  assert.equal(delayKindLabel("延賽"), "延期");
+  assert.equal(delayKindLabel("改期"), null);
+  assert.equal(delayKindLabel(null), null);
+});
+
+test("完成場日期界線固定使用 Asia/Taipei，而非執行環境時區", () => {
+  // UTC 09/04 16:30 已是台北 09/05；此處若退回瀏覽器／Node 本地時區會依環境漂移。
+  assert.equal(taipeiToday(new Date("2026-09-04T16:30:00Z")), "2026-09-05");
 });
 
 test("status 200 但 snapshot null 時保留 last-known-good 並標示來源中斷", () => {

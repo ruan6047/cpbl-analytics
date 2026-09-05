@@ -14,7 +14,7 @@ import { indexWpCurve, joinPaSwing } from "@/lib/pa-wp-join";
 import { displayWpPctInt } from "@/lib/win-prob-display";
 import { PaScoreLine } from "@/components/pa-score-line";
 import {
-  canShowPostgameConclusions, inningLabel, liveScorebarScores, phaseLabel, plateAppearancePitchCountLabel, trackingEmptyMessage,
+  canShowPostgameConclusions, delayKindLabel, inningLabel, liveScorebarScores, phaseLabel, plateAppearancePitchCountLabel, trackingEmptyMessage,
   type LiveSnapshot,
 } from "@/lib/live-game";
 
@@ -93,10 +93,12 @@ function Dots({ n, total, color }: { n: number; total: number; color: string }) 
 
 // ───────────────────────── 壘包＋出局（緊湊版：菱形品字群 + 出局點）─────────────────────────
 // ───────────────────────── 頂部記分條 ─────────────────────────
-function ScoreBar({ game, e, records, snapshot, gameSno, plain }: {
+function ScoreBar({ game, e, records, snapshot, gameSno, plain, interruptionLabel }: {
   game: StatRow; e: StatRow; records: Record<string, Rec>; snapshot: LiveSnapshot | null; gameSno: string;
   /** true＝完賽態總覽：中央格只寫「終場」，不畫 ▲/▼ N 局、壘包與球數（設計定稿 §1.1.1）。 */
   plain: boolean;
+  /** 未完成但帶中止比分的保留／延賽場，中央格必須說明比分不是即時或終場。 */
+  interruptionLabel: string | null;
 }) {
   const ac = String(game.away_team_code ?? "");
   const hc = String(game.home_team_code ?? "");
@@ -171,6 +173,8 @@ function ScoreBar({ game, e, records, snapshot, gameSno, plain }: {
             // ⚠️ 用 text-muted 不用 text-accent：accent 在本記分條是「進行中」的訊號色
             //    （狀態列 phase === "live" 就是 text-accent ＋脈動圓點）。
             <div className="whitespace-nowrap text-xs font-semibold tracking-wide text-muted">終場</div>
+          ) : interruptionLabel ? (
+            <div className="whitespace-nowrap text-xs font-semibold tracking-wide text-muted">{interruptionLabel}</div>
           ) : (
             <>
               <div className="text-xs font-semibold tracking-wide text-accent">
@@ -319,7 +323,9 @@ function ScoreLine({ sb, game, snapshot, halves, curKey, onSelect, highlightSele
   // 主隊末局 Ｘ：主隊獲勝時，末局若未打（領先免打）標「Ｘ」，若打了（再見得分）標「{分}Ｘ」。僅主列(half 2)末局。
   // 「有無打末局」以 livelog 半局為準——scoreboard 對未打局仍有 phantom 0 列，不可信；無 livelog(歷史場)則不套用。
   const maxInn = innings.length ? innings[innings.length - 1] : 0;
-  const homeWon = canShowPostgameConclusions(snapshot, num(game.home_score) + num(game.away_score))
+  const homeWon = canShowPostgameConclusions(
+    snapshot, num(game.home_score) + num(game.away_score), game.game_date,
+  )
     && num(game.home_score) > num(game.away_score);
   const homeBattedFinal = halfBy.has(`${maxInn}|2`);
   const cellNode = (rows: StatRow[], inn: number, half: string) => {
@@ -691,7 +697,8 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
   //    在此處提早出現該字面會讓那條守衛誤判。
   const plainScorebar = view === "overview"
     && canShowPostgameConclusions(data.live_snapshot ?? null,
-                                  num(game.away_score) + num(game.home_score));
+                                  num(game.away_score) + num(game.home_score), game.game_date);
+  const interruptionLabel = plainScorebar ? null : delayKindLabel(game.delay_kind);
 
   // 目前選定的半局（由所選事件決定）+ 該半局事件索引
   const curKey = e ? `${num(e.inning_seq)}|${String(e.visiting_home_type)}` : "";
@@ -804,7 +811,7 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
   return (
     <div className="space-y-4">
       <ScoreBar game={game} e={e} records={data.records} snapshot={data.live_snapshot ?? null} gameSno={gameSno}
-        plain={plainScorebar} />
+        plain={plainScorebar} interruptionLabel={interruptionLabel} />
 
       {tabs}
 

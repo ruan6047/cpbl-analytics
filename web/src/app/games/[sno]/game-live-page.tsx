@@ -201,7 +201,7 @@ export default function GameLivePage() {
   const hs = num(g.home_score);
   const aw = num(g.away_score);
   // 頁面層完賽觸發（既有語意，形式化進 spec）；資料層由後端 facts 的 render_state 表達。
-  const completed = canShowPostgameConclusions(liveSnapshot, hs + aw);
+  const completed = canShowPostgameConclusions(liveSnapshot, hs + aw, g.game_date);
   // 賽後主區塊只在事實流可用時置換；否則沿用既有總覽（不留白、不硬切）
   const showRecap = completed && isRecapReady(facts);
   // 導航模型（2026-08-06 需求方人工審定案）：

@@ -104,12 +104,37 @@ const PHASE_LABEL: Record<CanonicalPhase, string> = {
 
 export const phaseLabel = (phase: CanonicalPhase) => PHASE_LABEL[phase];
 
+/** 官方 delay_kind 沿用 canonical phase 的既有詞彙；未知值不自行發明狀態。 */
+export function delayKindLabel(delayKind: unknown): string | null {
+  if (delayKind === "保留") return phaseLabel("reserved");
+  if (delayKind === "延賽") return phaseLabel("postponed");
+  return null;
+}
+
+/**
+ * 以 Asia/Taipei 取得日曆日，避免使用者所在瀏覽器時區使完成場判準跨日飄移。
+ * API 的 game_date 是 ISO 日期（YYYY-MM-DD），可作同一日曆系統的字串比較。
+ */
+export function taipeiToday(now: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(now);
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value;
+  return `${value("year")}-${value("month")}-${value("day")}`;
+}
+
 export const isTopHalf = (half: LiveSnapshot["half"]): boolean => half === "top" || String(half) === "1";
 
 export const canShowPostgameConclusions = (
   snapshot: LiveSnapshot | null,
   scoreTotal: number,
-): boolean => scoreTotal > 0 && (snapshot === null || snapshot.phase === "final");
+  gameDate: unknown,
+  asOf: string = taipeiToday(),
+): boolean => typeof gameDate === "string"
+  && /^\d{4}-\d{2}-\d{2}$/.test(gameDate)
+  && gameDate <= asOf
+  && scoreTotal > 0
+  && (snapshot === null || snapshot.phase === "final");
 
 /** 局數是否為真值。worker 對未開打場次仍回 `inning=1／half=1` 佔位（生產實測
  *  SCHEDULED 場 inning=1、event_count=0；FINISHED 場 inning=9、half=2 為真值），

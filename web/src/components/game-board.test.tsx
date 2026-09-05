@@ -101,12 +101,16 @@ function scorebar(node: ReactElement): string {
 function board(over: {
   view: "overview" | "pbp"; idx: number;
   snapshot?: LiveSnapshot | null; awayScore: number; homeScore: number;
+  gameDate?: string; delayKind?: string | null;
 }): string {
   return scorebar(
     <GameBoard
       data={data({
         live_snapshot: over.snapshot ?? null,
-        game: { ...GAME, away_score: over.awayScore, home_score: over.homeScore } as unknown as StatRow,
+        game: {
+          ...GAME, away_score: over.awayScore, home_score: over.homeScore,
+          game_date: over.gameDate ?? GAME.game_date, delay_kind: over.delayKind ?? null,
+        } as unknown as StatRow,
       })}
       idx={over.idx} setIdx={() => {}} view={over.view} gameSno="276"
       tabs={<hr id="tabs-sentinel" />} />,
@@ -173,6 +177,15 @@ function assertSituationShown(html: string, label: string, half: "▲ TOP" | "�
   assert.ok(!cell.includes("終場"), `${label}：中央格不得顯示「終場」`);
 }
 
+function assertInterrupted(html: string, label: string) {
+  const cell = centerCell(html);
+  assert.equal(text(cell), label, `中央格必須明示「${label}」而非局面或終場`);
+  assert.ok(!cell.includes("▲") && !cell.includes("▼"), "中斷場不得宣稱正在進行");
+  assert.equal(countDots(cell), 0, "中斷場不得顯示球數燈");
+  assert.ok(!cell.includes("終場"), "中斷場不得宣稱終場");
+  assert.ok(!cell.includes('aria-label="壘上'), "中斷場不得留下壘包／出局語意");
+}
+
 // ───────── (a) 完賽側：三樣都不得出現 ─────────
 
 test("完賽（歷史存檔場，無 snapshot）＋總覽：記分條只呈現終場比分", () => {
@@ -210,4 +223,18 @@ test("完賽＋逐打席：選中打席的局面仍然顯示（ScoreBar 與賽�
 test("完賽＋逐打席（當日場 snapshot=final）：局面同樣不得被關掉", () => {
   const html = board({ ...FINAL_PBP, snapshot: snapshot("final", 9, "2") });
   assertSituationShown(html, "完賽・逐打席・snapshot=final", "▼ BOT", "9");
+});
+
+test("未來日期且帶中止比分的保留／延賽場：中央格顯示既有標籤，不說終場或賽中", () => {
+  // 構造的 game_date 永遠比執行時台北日晚一天，避免把過期的受害母體當作今日事實；
+  // 其餘欄位沿用上方從真實 live payload 抄錄的局面。
+  const tomorrowInTaipei = new Date(Date.now() + 86_400_000).toLocaleDateString("en-CA", { timeZone: "Asia/Taipei" });
+  assertInterrupted(
+    board({ ...FINAL_OVERVIEW, snapshot: null, gameDate: tomorrowInTaipei, delayKind: "保留" }),
+    "保留比賽",
+  );
+  assertInterrupted(
+    board({ ...FINAL_OVERVIEW, snapshot: null, gameDate: tomorrowInTaipei, delayKind: "延賽" }),
+    "延期",
+  );
 });

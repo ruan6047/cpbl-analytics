@@ -5,6 +5,7 @@
 > 設計系統：[`docs/design/UI_UX_SYSTEM.md`](UI_UX_SYSTEM.md)（canonical；本檔只引用節次，不複述 token 數值）
 > spike 證據：[`docs/research/INIT-GAME-RECAP/spike-report.md`](../research/INIT-GAME-RECAP/spike-report.md)
 > 狀態：**待需求方人工審**。本檔是**結構規格**（元件層級 + 欄位 + 資料源 + 狀態機），不是像素稿。
+> 版本：v0.4（2026-09-05，GPT-5@Codex）——`UX-COMPLETED-JUDGMENT-DATE-BOUNDARY1`（[#161](https://github.com/ruan6047/cpbl-analytics/issues/161)）實作：完成場判準加台北日期界線，並新增 §1.1.2 中斷比分態。
 > 版本：v0.3（2026-08-21，Claude Opus 5@Claude Code）——`UX-GAME-COMPLETED-SCOREBAR1`（[#160](https://github.com/ruan6047/cpbl-analytics/issues/160)）Design Gate：新增 §1.1.1「賽後態記分條逐欄位定稿」。**本次只動 §1.1 的賽後欄**，其餘章節未變更。
 > 版本：v0.2（2026-08-06，Claude Opus 5@Claude Code）——第五輪人工審裁決：②關鍵打席改 |ΔWP| 選取＋直接顯示擺動量、③得分半局鏈移除、Δ 符號 tooltip、`/methodology#key-plays` 新段
 
@@ -109,6 +110,20 @@ grid 樣板 `grid-cols-[1fr_auto_auto_auto_1fr] gap-4 px-5 py-4` **不變**；�
 #### 無障礙
 
 移除 `<BasesOuts>` 即移除其 `aria-label="壘上…，N 出局"`——那是本痛點的螢幕閱讀器受害面（實測完賽場仍念「壘上二壘，2 出局」）。`終場` 是可讀文字，不需額外 `aria-*`。共用元件 `ui.tsx` 的 `BasesOuts` 幾何與文案**不得改動**（首頁今日賽事卡是另一個消費者）。
+
+### 1.1.2 帶中止比分、排定於未來的保留／延賽場
+
+> 狀態：**需求方已於 #161 Design Gate 裁定，2026-09-05 實作。**
+
+完成場的必要條件是 `scoreTotal > 0 && game_date <= today`，再套用既有的
+`live_snapshot` final／歷史無 snapshot 判準；`delay_kind` **不是**完成判準，因為已完成的補賽仍會保留該歷史標記。
+
+- `today` 固定以 `Asia/Taipei` 的日曆日計算，不採瀏覽器本地時區；這與後端
+  `src/cpbl/completion.py:120-128` 的「先判 `game_date > as_of`」方向一致。
+- 尚未跨過日期界線、卻已有中止比分時，G3 中央格不得顯示「終場」、`TOP/BOT`、壘包或球數。
+  `delay_kind="保留"` 顯示既有詞彙「保留比賽」；`delay_kind="延賽"` 顯示既有
+  canonical phase 詞彙「延期」。兩者皆沿用 `text-muted` 與 `whitespace-nowrap`。
+- 未知或缺漏的 `delay_kind` 不新增猜測性標籤；缺 `game_date` 時也 fail closed，不宣稱完賽。
 
 #### 明確排除（非本節、非本卡）
 
