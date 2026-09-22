@@ -367,7 +367,7 @@ export default function DailyHub({ summary: initial }: { summary: DailySummary }
             </p>
           )}
           {latest_game_day && latest_game_day.games.length > 0 ? (
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
               {latest_game_day.games.map((g) => (
                 <LatestGame key={`${g.kind_code}-${g.game_sno}`} g={g} />
               ))}
@@ -421,7 +421,7 @@ export default function DailyHub({ summary: initial }: { summary: DailySummary }
           </div>
           {notice && <PregameNotice text={notice} />}
           {next_slate && next_slate.games.length > 0 ? (
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
               {next_slate.games.map((g) => (
                 <NextGame key={`${g.kind_code}-${g.game_sno}`} g={g} trainedThrough={trainedThrough} />
               ))}

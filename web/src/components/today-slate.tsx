@@ -239,7 +239,7 @@ export default function TodaySlate({ slate, trainedThrough, nowMs }: {
   nowMs: number | null;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
       {sortTodayGames(slate.games).map((g) => (
         <TodayGameCard key={`${g.kind_code}-${g.game_sno}`} g={g}
           trainedThrough={trainedThrough} nowMs={nowMs} />
