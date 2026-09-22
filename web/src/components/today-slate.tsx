@@ -41,7 +41,7 @@ function TeamLine({ code, name, score, win, hide }: {
   return (
     <div className="flex items-center gap-2">
       <TeamLogo code={code} name={name} size={22} decorative />
-      <span className={`truncate text-sm ${win ? "font-semibold text-ink" : "text-muted"}`}>{name}</span>
+      <span className={`min-w-0 break-words text-sm leading-tight ${win ? "font-semibold text-ink" : "text-muted"}`}>{name}</span>
       <span className="ml-auto min-w-6 shrink-0 text-right font-mono text-lg tabular-nums">
         {hide || score == null
           ? <span className="text-faint">—</span>
