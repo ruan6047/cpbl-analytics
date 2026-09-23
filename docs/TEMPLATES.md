@@ -1,6 +1,6 @@
 # 協作文件範本索引
 
-專案不複製 canonical 範本，以免與 `.ai-workflow` 演進分叉；新卡直接以 submodule 的下列範本建立，實例與 event 仍留在本專案 `docs/`。
+專案不複製 canonical 範本，以免與 `.ai-workflow` 演進分叉；**僅既有舊卡**（Project #4）以 submodule 的下列範本建立，新卡不適用（新卡見 [`AI_WORKFLOW.md`](AI_WORKFLOW.md) 卡別分流），實例與 event 仍留在本專案 `docs/`。
 
 - 一般任務卡：[`../.ai-workflow/templates/tasks-card.md`](../.ai-workflow/templates/tasks-card.md)
 - 快線／慢線 bug 卡：[`../.ai-workflow/templates/bug-card.md`](../.ai-workflow/templates/bug-card.md)
@@ -13,7 +13,9 @@
 
 純技術 T3/T4 必在卡片記錄 Design Gate `N/A` 的理由；既有卡不回填此格式，僅在新的 lifecycle event 後採用。
 
-自 WF-17（2026-07-26）起，新卡採 canonical tasks-card 的**標準章節**「驗收條件」「驗證」（查核提示詞產生器與章節 lint 以此錨定，禁改寫為「目標與驗收」等變體），並在「執行／查核」行標注**路由建議**（引用 [`MODEL_ROUTING.md`](MODEL_ROUTING.md) 的能力層級與理由，不引用模型名）；存量卡沿慣例不回填。
+> **適用範圍**：本檔全部內容（範本、章節錨定、層級欄位、`review_independence`）**只適用 Project #4 既有舊卡**。vNext 新卡（Project #10）採 `wfx` 隨附規則 `wfx/rules/core/github.md` 規定的五章節，不使用本檔範本與欄位。下文「新卡」皆指當時（舊流程）的新開舊卡。
+
+自 WF-17（2026-07-26）起，舊流程新卡採 canonical tasks-card 的**標準章節**「驗收條件」「驗證」（查核提示詞產生器與章節 lint 以此錨定，禁改寫為「目標與驗收」等變體），並在「執行／查核」行標注**路由建議**（引用 [`MODEL_ROUTING.md`](MODEL_ROUTING.md) 的能力層級與理由，不引用模型名）；存量卡沿慣例不回填。
 
 ⚠️ **卡面的層級欄位須逐字填 CLI 封閉語彙的三個值之一：`經濟型`｜`主力型`｜`高階型`。**`L1`–`L4` 是 `MODEL_ROUTING.md` 表格的**文件層編號**，不是卡面可填的值——實測把 `L3`、`L3 高階型`、`L4`、`L4 特殊型` 任一寫進合規卡面，`compare_capability_to_card` 一律回 `outcome='ambiguous'`（等同沒有可信基線）。`L4` 不是第四個能力層級，而是文件層的風險判準（需求方 2026-08-19 裁定）：規劃時判為 L4 者，**卡面填 `高階型`、理由欄註明「統計／ML 正確性」**，見 [`MODEL_ROUTING.md`](MODEL_ROUTING.md)。
 
@@ -33,7 +35,7 @@
 
 **清單語意**：單一元素＝單一關卡；清單長度＝關卡數；**順序即關卡先後**。「兩者皆須」寫成兩個元素（`[cross_family, human]`），不要自造 `cross_family_and_human` 這種合成值。**「兩者皆須但不限順序」不支援**——掃描 119 張卡出現 0 次，需要時另行提案，不得私下用寫法暗示。
 
-**填寫規則**：新卡**必填**；**Initiative 卡豁免**（不會被派查核，全庫 860 筆事件中 `INIT-*` 的 review 事件為 0 筆）；**封存卡一律不動**（其〈查核〉欄多已被覆寫成實際查核者與結論，回填等於改寫歷史紀錄）。
+**填寫規則**：舊流程（Project #4）新卡**必填**，vNext 新卡不適用；**Initiative 卡豁免**（不會被派查核，全庫 860 筆事件中 `INIT-*` 的 review 事件為 0 筆）；**封存卡一律不動**（其〈查核〉欄多已被覆寫成實際查核者與結論，回填等於改寫歷史紀錄）。
 
 **活卡按需回填程序**（Q2 定案，本次不做批次回填）：某張活卡**將被產生查核提示詞時**才補這一行，且由**需求方逐張裁定**值，執行者不得代為推定。卡面語意不明時（例：`UX-TEAM-STYLE1` 的〈查核〉欄只寫一般查核，驗證段卻要求先人工審，兩者矛盾）標為**待需求方裁定並暫不填**——**嚴禁為了讓工具有東西可讀而猜值**。〈Design〉欄宣告的人工 Design Gate 是否也納入這個清單，屬另一張卡的範圍，本欄目前只表達〈查核〉方向的關卡。
 
