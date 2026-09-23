@@ -1,6 +1,6 @@
 # AI 協作工作流（cpbl-analytics 採用）
 
-> **卡別分流（需求方裁定）**：**新卡**一律開在 GitHub Issues＋[user Project #10「cpbl-analytics vNext 任務看板」](https://github.com/users/ruan6047/projects/10)（`.wf/config.json`），開卡／關卡由 PM 以 `gh` 執行；獨立安裝的 `wfx` 只提供 `brief`／`facts`／`write`（`write` 須依 `facts` 基準寫入），⛔ 不開卡／關卡（`wfx` 為獨立 Python 3.14 環境；安裝見 [`AI_RUNBOOK.md`](AI_RUNBOOK.md) §7.1）；新卡規則以已安裝 `wfx` 隨附規則（套件內 `wfx/rules/`）為準。**既有舊卡**留在 Project #4、不遷移。本檔以下凡提到 `wfcli`／Project #4 的機械流程，**只適用既有舊卡**，不得用來開新卡。
+> **⚠️ 本檔是舊制度歷史資料，不是新任務入口。** 新任務入口見 [`../AGENTS.md`](../AGENTS.md)／[`../CLAUDE.md`](../CLAUDE.md) 開頭：Issue＋[user Project #10](https://github.com/users/ruan6047/projects/10)、已安裝 `wfx brief`（自動注入 `.wf/*.md`；`wfx` 安裝見 [`AI_RUNBOOK.md`](AI_RUNBOOK.md) §7.1）。Project #4 舊卡已**凍結**：停止舊流程派工與 `wfcli` 寫入，後續逐張研究、承接或判定無需續做後才關閉；`.ai-workflow` submodule 由 #193 後續退役。以下全文（含 `wfcli`／Project #4／claim／lease／Ledger／T 級）保留供歷史查閱，⛔ 不得據以派工、寫入或處理新卡。
 
 > **2026-08-04 新治理全面生效（WF-22 Wave 0/1/2 完結）**：作業狀態唯一事實來源＝
 > **GitHub Issues＋user Project #4「cpbl-analytics 任務看板」**；唯一狀態寫入通道＝

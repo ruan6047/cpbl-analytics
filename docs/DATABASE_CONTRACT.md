@@ -1,6 +1,8 @@
 # Database Contract — cpbl-analytics
 
-> 本檔是本專案資料庫操作的事實來源；通用不變量見 canonical [`AI_WORKFLOW.md`](../.ai-workflow/AI_WORKFLOW.md) §4.2。不得記錄 secret、連線字串或 production 憑證。
+> 本檔是本專案資料庫**技術操作事實**的來源；不得記錄 secret、連線字串或 production 憑證。新任務（Project #10）的流程以安裝版 vNext 規則（`wfx brief`）為準；舊 canonical [`AI_WORKFLOW.md`](../.ai-workflow/AI_WORKFLOW.md) §4.2 只是歷史來源。
+>
+> **過渡註記（#193 待正式修訂）**：本檔的 DB 技術與安全邊界（環境隔離、冪等 migration、production migration 僅由部署鏈執行、生產操作前先備份等）新任務仍須遵守；`docs/tasks/<CARD_ID>.md` 宣告、Coordinator claim／lease、`wfcli` 等舊卡機制不適用新任務，共享 DB 改依 vNext 規則取得資源租用。
 
 ## 1. 技術與責任邊界
 

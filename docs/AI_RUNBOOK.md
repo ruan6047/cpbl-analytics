@@ -415,9 +415,8 @@ host 缺 `libomp.dylib`。**勿 `brew install libomp` 污染 host**；需 LightG
 
 ### 7.1 多 AI 控制平面（remote coordination + local resource lock）
 
-完整契約見 [`CONTROL_PLANE_CONTRACT.md`](CONTROL_PLANE_CONTRACT.md)。本機 Coordinator 為 **ruan6047**；未經使用者明確指派，AI 不得自行派工、認領或釋放其他卡。
-
-- **卡別分流**：**新卡**一律開在 GitHub Issues＋[user Project #10「cpbl-analytics vNext 任務看板」](https://github.com/users/ruan6047/projects/10)（`.wf/config.json`），開卡／關卡由 PM 以 `gh` 執行；獨立安裝的 `wfx` 只提供 `brief`／`facts`／`write`（`write` 須依 `facts` 基準寫入），⛔ 不開卡／關卡；**既有舊卡**留在 Project #4、不遷移。本節以下的 `wfcli`／Project #4／lease 流程**只適用既有舊卡**，不得用來開新卡。
+- **新任務入口**：GitHub Issue＋[user Project #10「cpbl-analytics vNext 任務看板」](https://github.com/users/ruan6047/projects/10)（`.wf/config.json`）；開卡／關卡由 PM 以 `gh` 執行。取當下規則（自動注入 `.wf/*.md`）：`<wfx-venv>/bin/wfx --project-root <本 repo 工作樹根目錄> brief --task <Issue號> --role <角色> --stage <階段>`（角色／階段用規則值域）。`wfx` 只提供 `brief`／`facts`／`write`（`write` 須依 `facts` 基準寫入），⛔ 不開卡／關卡。改動共享資源（本機 DB、服務、排程、既有 worktree）須依 vNext 規則取得資源租用。
+- **舊卡凍結**：Project #4 舊卡已凍結——停止舊流程派工與 `wfcli` 寫入，後續逐張研究、承接或判定無需續做後才關閉。本節下方「⛔ 歷史唯讀」標記以下的 `wfcli`／Project #4／claim／lease 程序只供歷史查閱，⛔ 不得執行。
 - **`wfx` 安裝（獨立環境）**：`wfx` 是 wheel `ai-workflow-vnext`（採用驗證版本 0.1.0，`requires-python >=3.14`），裝進**獨立的 Python 3.14 venv**；本專案 `uv` 環境維持 Python 3.12（`.python-version`），⛔ 不把 `wfx` 裝進本專案 `.venv`。⛔ 不以 `PYTHONPATH` 指向來源樹或來源樹 egg-info 充當安裝——必須是 `pip install` 該 wheel。安裝步驟以 wheel 內附的 `wfx/docs/ADOPTION.md` §1 為準：
 
   ```bash
@@ -425,6 +424,8 @@ host 缺 `libomp.dylib`。**勿 `brew install libomp` 污染 host**；需 LightG
   <wfx-venv>/bin/python -m pip install ai_workflow_vnext-<版本>-py3-none-any.whl
   <wfx-venv>/bin/wfx --project-root <本 repo> facts --adopt   # 採用檢查
   ```
+
+> **⛔ 歷史唯讀（至 §7.2 前）**：以下為 Project #4 舊流程程序（`wfcli`、claim／lease、Ledger、`review_prompt.py`，契約見 [`CONTROL_PLANE_CONTRACT.md`](CONTROL_PLANE_CONTRACT.md)），已隨舊卡凍結停用，只供歷史查閱。舊制度的 Coordinator 規則（本機 Coordinator 為 ruan6047；未經使用者明確指派，AI 不得自行派工、認領或釋放其他卡）僅適用舊卡；vNext 下 PM 已獲授權管理流程與選卡。
 
 - **Remote coordination（既有舊卡）**：舊卡 current-state 的唯一事實來源是 GitHub Issues＋[user Project #4「cpbl-analytics 任務看板」](https://github.com/users/ruan6047/projects/4)；Issue timeline 的結構化 comment 是 lifecycle 留痕。狀態寫入只可經 PM 祕書的 `wfcli`，不得直接改 GitHub UI。[`control-plane/events.jsonl`](control-plane/events.jsonl) 與 [`TASKS.md`](TASKS.md) 已於 cutover 封存唯讀，僅供歷史稽核。
 - **lifecycle 寫入與分支（cutover 後）**：claim／handoff／review／merge／release 由 `wfcli` 寫入 Issue／Project，不跟執行分支走；執行分支不得改動 `docs/control-plane/**` 或封存的 `docs/TASKS.md`。merge 時這些路徑衝突以 main 為準；push 前使用 `git pull --ff-only`。
