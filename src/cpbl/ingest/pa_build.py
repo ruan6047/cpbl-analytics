@@ -943,6 +943,35 @@ ACCEPTED_RECONCILIATIONS: frozenset[tuple[int, str, int]] = frozenset({
     # 收進清單的理由是**讓 published 指回現行來源**，使偵測器歸零、狀態自洽；
     # 它同時證明本缺陷不只發生在續賽（Design Gate 更正 1）。
     (2026, "A", 209),
+    # --- 2026-09-23 應需求方要求處理待收尾對帳而提出；是否接受以本 commit 的查核為準 ---
+    # 五場證據逐場取自本機 DB（現行 published build 對照最新 reconciliation_required build）。
+    # 共同形狀：removed=0、invariant_violations=[]、changed＝中斷當下未打完的 1–2 個打席、
+    # added＝之後才發生的打席；最新 reconciliation build 的 livelog 列數＝現行 game_livelog。
+    #
+    # 2026/A/304：2026-09-07 澄清湖（games.delay_kind='延賽'，但對帳成因不是續賽）。
+    # published build 建於 2026-09-07 20:10:52，落在當晚 19:50–20:22 的手動 refresh 內；
+    # 當時來源只有 livelog 140 列、box_pa 35（完整為 331 列），即比賽尚未打完——
+    # `completion.completed_games_sql` 只看「比分>0 且日期未過」，打到一半的場次因而
+    # 被當成完成場發布。09-08 每日鏈拿到完整來源（livelog 331 列、官方 box PA 83）→
+    # added=48 changed=2 removed=0、invariant=0。屬「賽中快照被發布」，非改判、非污染。
+    (2026, "A", 304),
+    # 2026/A/306：2026-09-07 樂天桃園，成因同 A/304——同一次手動 refresh 於 20:10:52 發布
+    # （livelog 134 列、box_pa 39）；09-08 完整來源 livelog 244 列、官方 box PA 67 →
+    # added=27 changed=1 removed=0、invariant=0。
+    (2026, "A", 306),
+    # 2026/D/117：保留賽（delay_kind='保留'）。published build 建於 2026-07-29、指向中斷前
+    # 來源（livelog 154 列、box_pa 41）；2026-09-19 斗六續賽打完，09-20 build：livelog 320 列、
+    # 官方 box PA 86 → added=45 changed=1 removed=0、invariant=0。續賽增長，同 D/119。
+    (2026, "D", 117),
+    # 2026/D/118：保留賽。published build 建於 2026-07-29、指向中斷前來源（livelog 61 列、
+    # box_pa 17）；2026-09-22 園區續賽打完，09-23 build：livelog 258 列、官方 box PA 70 →
+    # added=53 changed=1 removed=0、invariant=0。續賽增長。
+    (2026, "D", 118),
+    # 2026/D/165：保留賽，2026-09-15 斗六續賽打完。現行 published 是 2026-09-20 手動
+    # `cpbl-build-pa --game` 所建，但仍指向中斷前來源（livelog 85 列、box_pa 20）；
+    # 09-22 每日鏈拿到續賽後來源（livelog 283 列、官方 box PA 75）→ added=54 changed=1
+    # removed=0、invariant=0。續賽增長。
+    (2026, "D", 165),
 })
 
 REJECT_NOT_ALLOWLISTED = "not_in_allowlist"

@@ -35,18 +35,20 @@ REAL_INVARIANT_2019_A_173: list[dict[str, Any]] = [{"half": "1", "inning": 1, "o
 
 
 # ---------------------------------------------------------------------------
-# 閘門 1：碼內封閉清單就是實測過、且已 commit 過查核的那三場
+# 閘門 1：碼內封閉清單就是實測過、且已 commit 過查核的那八場
 # ---------------------------------------------------------------------------
 def test_allowlist_is_exactly_what_was_reviewed() -> None:
     """放寬這個集合是決定，不是筆誤——多一場就會讓這條紅燈，逼它進 diff。"""
     assert pb.ACCEPTED_RECONCILIATIONS == frozenset({
         (2026, "D", 119), (2026, "D", 97), (2026, "A", 209),
+        (2026, "A", 304), (2026, "A", 306),
+        (2026, "D", 117), (2026, "D", 118), (2026, "D", 165),
     })
 
 
 @pytest.mark.parametrize("year,kind,game", [
     (2019, "A", 173),   # 真實的危險樣本：不變式違反
-    (2026, "D", 118),   # 下一場續賽：時效壓力最大的那場，也不得憑「很急」通過
+    (2026, "D", 215),   # 不在清單即拒，與急迫性無關（此格原為 D/118；D/118 已改列入清單，理由見其註解）
     (2026, "A", 1),
     (2025, "D", 119),   # 只差年份
 ])
@@ -225,7 +227,7 @@ def test_build_game_refuses_unlisted_game_without_writing() -> None:
     """⭐ 最深的一道：擋 CLI 擋不住 import 本模組的呼叫端，故 `build_game` 自己要擋。"""
     cur = _WriteCountingCursor(outstanding=[])
     with pytest.raises(pb.ReconciliationAcceptRejected) as exc:
-        pb.build_game(cur, 2026, "D", 118, accept_reconciliation=True)
+        pb.build_game(cur, 2026, "D", 215, accept_reconciliation=True)
     assert any(r.startswith(pb.REJECT_NOT_ALLOWLISTED) for r in exc.value.reasons)
     assert cur.mutations == []
 
