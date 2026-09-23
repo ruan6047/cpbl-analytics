@@ -314,6 +314,10 @@ def test_sync_sql_error_propagates_to_daily_failed_phase(tmp_path: Path) -> None
         """#!/bin/bash
 if [ "$1" = "ps" ]; then
   echo cpbl-analytics-db-1
+elif [[ "$*" == *information_schema.columns* ]]; then
+  # sync_table 的欄位漂移守衛（2026-09-23）查本機 schema；回空＝守衛放行。本測試驗的是
+  # SQL 錯誤沿 sync 相傳遞（exit 42），守衛本身見 tests/test_sync_table_column_guard.py。
+  :
 elif [[ "$*" == *" psql "* ]]; then
   echo '2026-07-16|3'
 elif [[ "$*" == *" pg_dump "* ]]; then

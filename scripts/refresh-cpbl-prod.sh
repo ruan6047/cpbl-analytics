@@ -90,6 +90,23 @@ PREV="$((YEAR - 1))"
 # 非破壞性同步一張表（bash 3.2 相容，不用關聯陣列）：$1=表 $2=conflict鍵 其餘=upsert欄位
 sync_table() {
   local t="$1" pk="$2"; shift 2
+  # ⛔ 欄位清單漂移守衛（2026-09-23）。下面的 upsert 是 `ON CONFLICT DO UPDATE SET <清單>`：
+  # 清單外的欄在生產端「只插不更」——新列帶上、既有列永遠停在首次插入值，而同步照樣
+  # exit 0、freshness 照樣通過。pitch_tracking 曾因 migration 加欄後沒人補清單漏了 19 欄
+  # （本機重跑球種推算、生產仍是 NULL）。故寫入前比對本機 schema：本機有、清單（PK＋
+  # 更新欄）沒有的欄 → 大聲失敗、不送任何資料。
+  # 查不到欄位（表名打錯／連不上本機 DB）時此處不判：緊接著的 pg_dump 會以非零結束，
+  # 在 `set -euo pipefail` 下整條同步中止（2026-09-23 以 bash 3.2.57 實測）。
+  local allowed missing
+  allowed="$(printf '%s\n' ${pk//,/ } "$@")"
+  missing="$(docker exec "$LOCAL_DB" psql -U cpbl -d cpbl -Atc \
+      "SELECT column_name FROM information_schema.columns WHERE table_schema='cpbl' AND table_name='${t}' ORDER BY ordinal_position" \
+    | grep -vxF -f <(printf '%s\n' "$allowed") || true)"
+  if [ -n "$missing" ]; then
+    echo "⛔ sync_table ${t}：本機有欄位不在同步清單（生產會只插不更）：$(echo $missing)" >&2
+    echo "   補進本檔該表的 sync_table 清單後再跑。" >&2
+    return 1
+  fi
   local set_clause=""
   local c
   for c in "$@"; do set_clause="${set_clause}${c}=EXCLUDED.${c},"; done
@@ -447,8 +464,8 @@ sync_table fielding_current "year,kind_code,player_id,pos" name team_code g tc p
 sync_table team_current "year,team_code" name bat_avg bat_obp bat_slg bat_ops bat_hr pit_era pit_whip
 sync_table coaches "year,team_code,name" pos uniform_no
 # 維基/官網參考資料（一次抓+手動刷新；非每日爬）：本機灌好後鏡像到 prod
-sync_table managers "team_code,era_name,name,from_year" to_year g w l t win_pct postseason championships source
-sync_table overseas "player_id,league,from_year" team source
+sync_table managers "team_code,era_name,name,from_year" to_year g w l t win_pct postseason championships source needs_review
+sync_table overseas "player_id,league,from_year" team source needs_review
 sync_table player_awards "player_id,year,category,award" source
 # 維基個人頁補充（所屬球隊/教練/行政、國際賽獎牌、獎項）：一次抓+手動刷新
 sync_table wiki_tenures "player_id,phase,seq" team_raw role from_year to_year source needs_review
@@ -481,7 +498,7 @@ sync_table batter_traits "year,kind_code,player_id" \
   pa p_pa go fo dir_left dir_center dir_right two_strike_pa two_strike_k two_strike_hit
 sync_table pitcher_traits "year,kind_code,player_id" bf p_pa go fo two_strike_pa two_strike_k
 sync_table team_standings "year,kind_code,season_code,team_code" \
-  team_name rank g w t l win_pct gb elim home_record away_record streak last10 h2h
+  team_name rank g w t l win_pct gb elim home_record away_record streak last10 h2h updated_at
 
 # 賽事預測特徵：完整鏡像（先 TRUNCATE 清掉 prod 舊版＝早期未過濾 kind 混入的二軍/季後列），
 # 再把本機全史 kind A 特徵灌入。derived 資料，安全可重建。
@@ -492,30 +509,30 @@ sync_table game_features "year,kind_code,game_season_code,game_sno" \
   winrate_diff prior_winpct_diff runs_scored_diff runs_allowed_diff recent_form_diff rest_days_diff \
   h2h_home home_field starter_era_diff starter_whip_diff starter_k9_diff \
   prior_team_ops_diff prior_team_slg_diff prior_team_era_diff prior_team_whip_diff \
-  team_ops_now_diff team_avg_now_diff team_sb_now_diff team_wp_now_diff team_err_now_diff
+  team_ops_now_diff team_avg_now_diff team_sb_now_diff team_wp_now_diff team_err_now_diff run_diff_diff
 
 if [ -n "${WITH_DETAIL:-}" ]; then
   sync_table batter_pitcher_matchups "year,kind_code,hitter_acnt,pitcher_acnt" \
     hitter_name pitcher_name hitter_team_no pitcher_team_no plate_appearances at_bats hits rbi \
     singles doubles triples home_runs total_bases avg obp slg ops sac_hit sac_fly bb ibb hbp so \
-    ground_out fly_out goao strike_pct ball_pct swing_pct first_pitch_swing_pct whiff_pct gb_pct ld_pct fb_pct
+    ground_out fly_out goao strike_pct ball_pct swing_pct first_pitch_swing_pct whiff_pct gb_pct ld_pct fb_pct updated_at
   sync_table batting_vs_team "year,kind_code,acnt,fight_team_code" \
     fight_team_name team_no total_games plate_appearances at_bats hits rbi runs singles doubles triples \
-    home_runs total_bases gidp sac_hit sac_fly bb ibb hbp so sb_ok sb_fail sb_pct avg obp slg ta ops
+    home_runs total_bases gidp sac_hit sac_fly bb ibb hbp so sb_ok sb_fail sb_pct avg obp slg ta ops updated_at
   sync_table pitching_vs_team "year,kind_code,acnt,fight_team_code" \
     fight_team_name team_no total_games starts closes complete_games shutouts wins loses save_ok save_fail \
     holds inning_pitched_cnt inning_pitched_div3 whip era plate_appearances pitch_cnt hits home_runs bb ibb \
-    hbp so wild_pitch balk runs earned_runs
+    hbp so wild_pitch balk runs earned_runs updated_at
   sync_table batting_splits "year,kind_code,acnt,item_group_code,item_index,item_name" \
     item_note plate_appearances at_bats hits rbi singles doubles triples home_runs total_bases \
-    sac_hit sac_fly bb ibb hbp so ground_outs fly_outs goao avg obp slg ops
+    sac_hit sac_fly bb ibb hbp so ground_outs fly_outs goao avg obp slg ops updated_at
   sync_table pitching_splits "year,kind_code,acnt,item_group_code,item_index,item_name" \
     item_note wins loses starts complete_games shutouts save_ok inning_pitched_cnt \
     inning_pitched_div3 plate_appearances pitch_cnt strikes balls hits home_runs sac_hit sac_fly bb ibb \
-    hbp so wild_pitch balk runs earned_runs
+    hbp so wild_pitch balk runs earned_runs updated_at
   sync_table game_detail "year,kind_code,game_sno" \
     attendance game_time head_umpire first_umpire second_umpire third_umpire left_umpire right_umpire \
-    weather_code weather_desc winning_type attendance_backend
+    weather_code weather_desc winning_type attendance_backend updated_at
   sync_table game_scoreboard "year,kind_code,game_sno,team_no,inning_seq" \
     visiting_home_type team_name score_cnt hitting_cnt error_cnt
   sync_table game_livelog "year,kind_code,game_sno,main_event_no" \
