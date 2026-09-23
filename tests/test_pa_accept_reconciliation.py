@@ -417,7 +417,7 @@ def _fake_conn_factory(rows: list[tuple]):
 
 
 def test_targets_query_carries_stale_revision_branch(monkeypatch: pytest.MonkeyPatch) -> None:
-    fake_conn, holder = _fake_conn_factory([(2026, "D", 97)])
+    fake_conn, holder = _fake_conn_factory([(2026, "D", 97, False)])  # 第 4 欄＝same_day
     monkeypatch.setattr(rr, "conn", fake_conn)
 
     assert rr._pa_build_targets(2026, ["D"], [date(2026, 8, 20), date(2026, 8, 21)]) == [

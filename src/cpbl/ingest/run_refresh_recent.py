@@ -34,6 +34,7 @@ import sys
 from datetime import date, timedelta
 from typing import Any
 
+from cpbl.api.helpers import OFFICIAL_SCHEDULE_ORDER_BY, official_status
 from cpbl.completion import TAIPEI_TODAY_SQL, completed_games_sql
 from cpbl.config import settings
 from cpbl.db import conn, migrate
@@ -285,13 +286,27 @@ def _pa_build_targets(year: int, kinds: list[str], days: list[date]) -> list[tup
     新鮮度機制（那已由第三條承擔），它只剩一個第三條做不到的職責——涵蓋
     ``row_count`` 看不見的兩類同日漂移：(a) tracking-only 變動（TrackMan 晚發布補資料，
     livelog 列數不變），(b) 同列數的原地修改。比賽剛結束那兩天正是這兩類最常發生的時候。
+
+    ⭐ **當日場只收官方 ``final``**（2026-09-23）：``completed_games_sql`` 只看「比分>0 且
+    日期未過」，比賽進行中跑 refresh 會把打到一半的場次當成完成場、建 build 並 publish。
+    實例：2026-09-07 20:10:52 的手動 refresh 發布了 `2026/A/304`、`2026/A/306` 的半場
+    build（livelog 140／134 列，完整為 331／244 列），隔天變成 reconciliation_required，
+    只能走 pa_build 的受控接受清單收尾（#183）。故 ``game_date``＝台北今日的場，須官方
+    canonical 狀態（:func:`cpbl.api.helpers.official_status`）為 ``final`` 才建；否則留給
+    下一輪——隔天它已是「昨日」、仍落在當日窗內，照常會被選到。非當日場不受影響。
+
+    ⚠️ 刻意只動本函式、不改 ``completed_games_sql``：後者的切換授權在 #53 G4 Phase B
+    （見其 docstring），且其他呼叫端（逐球落後場、kind 判定）對賽中資料是冪等 UPSERT、
+    下一輪自動覆蓋；只有 PA build 的 published 是「不覆寫、改走對帳」，賽中發布才會卡住。
+    ⛔ 本條**不**處理保留賽中斷後、官方尚未改期前的那幾天（phase=reserved、日期已過）：
+    那段的部分 build 照舊會發布、續賽後走對帳，這是 DATA-PA-REBUILD-GAP1 既有的設計。
     """
     if not kinds:
         return []
     with conn() as c:
         rows = c.execute(
             f"""
-            SELECT g.year, g.kind_code, g.game_sno
+            SELECT g.year, g.kind_code, g.game_sno, (g.game_date = {TAIPEI_TODAY_SQL}) AS same_day
             FROM cpbl.games g
             WHERE g.year = %s AND g.kind_code = ANY(%s) AND {completed_games_sql()}
               AND (
@@ -322,7 +337,61 @@ def _pa_build_targets(year: int, kinds: list[str], days: list[date]) -> list[tup
             """,
             (year, kinds, days),
         ).fetchall()
-    return [(r[0], r[1], r[2]) for r in rows]
+        same_day = [(r[0], r[1], r[2]) for r in rows if r[3]]
+        phases = _official_phases(c, same_day) if same_day else {}
+    kept, dropped = _drop_unfinished_same_day(
+        [(r[0], r[1], r[2], bool(r[3])) for r in rows], phases)
+    if dropped:
+        log.info("PA build 略過當日官方狀態未定案的場次（避免賽中發布半場 build）：%s",
+                 {f"{y}/{k}/{g}": phases.get((y, k, g), "unknown") for y, k, g in dropped})
+    return kept
+
+
+# 官方排程列的投影欄位：與 `api/routers/games.py` 單場狀態端點同一組。`official_status` 的
+# 全序會用到 raw_present_status／raw_game_date／last_seen_at／fetched_at／payload_hash，
+# 少投影任一欄就會退化成業務鍵打平、改由迭代順序決定（見其 docstring）。
+_SCHEDULE_COLS = ("raw_present_status", "raw_game_result", "raw_game_date", "raw_pre_exe_date",
+                  "payload_hash", "fetched_at", "last_seen_at")
+
+
+def _official_phases(c: Any, games: list[tuple[int, str, int]]) -> dict[tuple[int, str, int], str]:
+    """逐場取官方 canonical 狀態（``final``／``scheduled``／``postponed``／``reserved``／``unknown``）。
+
+    判定一律交給 :func:`cpbl.api.helpers.official_status`——GLOSSARY 指定它是唯一來源、
+    禁止另寫一套；這裡只負責依同一份 ``OFFICIAL_SCHEDULE_ORDER_BY`` 把排程列撈出來。
+    查無排程列 → ``unknown``（fail closed：當日場因此不建，隔天照常補上）。
+    """
+    out: dict[tuple[int, str, int], str] = {}
+    for year, kind, sno in games:
+        rows = c.execute(
+            f"SELECT {', '.join(_SCHEDULE_COLS)} FROM cpbl.game_schedule_status_revisions "
+            f"WHERE year = %s AND kind_code = %s AND game_sno = %s "
+            f"ORDER BY {OFFICIAL_SCHEDULE_ORDER_BY}",
+            (year, kind, sno),
+        ).fetchall()
+        out[(year, kind, sno)] = official_status(
+            [dict(zip(_SCHEDULE_COLS, r, strict=True)) for r in rows])[0]
+    return out
+
+
+def _drop_unfinished_same_day(
+    rows: list[tuple[int, str, int, bool]],
+    phases: dict[tuple[int, str, int], str],
+) -> tuple[list[tuple[int, str, int]], list[tuple[int, str, int]]]:
+    """純函式：當日場只留官方 ``final``，非當日場原樣保留。回傳 ``(保留, 剔除)``。
+
+    ⚠️ 「不在 ``phases`` 裡」等同非 final（fail closed）：寧可今天少建一場、明天補上，
+    也不要把一場打到一半的比賽發布成不可覆寫的 build。
+    """
+    kept: list[tuple[int, str, int]] = []
+    dropped: list[tuple[int, str, int]] = []
+    for year, kind, sno, same_day in rows:
+        key = (year, kind, sno)
+        if same_day and phases.get(key) != "final":
+            dropped.append(key)
+        else:
+            kept.append(key)
+    return kept, dropped
 
 
 def _pa_build_coverage(year: int, kinds: list[str]) -> dict[str, dict[str, int]]:

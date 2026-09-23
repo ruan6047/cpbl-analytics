@@ -105,7 +105,7 @@ def test_pa_build_targets_query_unions_day_window_and_global_gap(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """驗證組出的 SQL 同時帶「當日窗」與「無 published build」兩個條件（OR 聯集）。"""
-    fake_conn, holder = _fake_conn_factory([(2026, "A", 228)])
+    fake_conn, holder = _fake_conn_factory([(2026, "A", 228, False)])
     monkeypatch.setattr(rr, "conn", fake_conn)
     days = [date(2026, 8, 4), date(2026, 8, 5)]
 
@@ -116,6 +116,83 @@ def test_pa_build_targets_query_unions_day_window_and_global_gap(
     assert "game_date = ANY(%s)" in sql
     assert "game_recap_builds" in sql and "state = 'published'" in sql
     assert holder.cursor.params == (2026, ["A"], days)
+
+
+# ---------------------------------------------------------------------------
+# 當日場只收官方 final（2026-09-23；實例：09-07 20:10 賽中 refresh 發布 A/304、A/306 半場 build）
+# ---------------------------------------------------------------------------
+class _ScriptedConnection:
+    """第一次 execute 回 targets，之後每次回 schedule 列（逐場查官方狀態）。記下每次的 SQL。"""
+
+    def __init__(self, targets: list[tuple], schedule: dict[int, list[tuple]]) -> None:
+        self._targets = targets
+        self._schedule = schedule
+        self.calls: list[tuple[str, tuple | None]] = []
+
+    def execute(self, sql: str, params: tuple | None = None) -> _FakeCursor:
+        self.calls.append((sql, params))
+        if len(self.calls) == 1:
+            return _FakeCursor(self._targets)
+        assert params is not None
+        return _FakeCursor(self._schedule.get(params[2], []))
+
+
+def _scripted(monkeypatch: pytest.MonkeyPatch, targets: list[tuple],
+              schedule: dict[int, list[tuple]]) -> _ScriptedConnection:
+    holder = _ScriptedConnection(targets, schedule)
+
+    @contextmanager
+    def fake_conn():
+        yield holder
+
+    monkeypatch.setattr(rr, "conn", fake_conn)
+    return holder
+
+
+# 取自 `_OFFICIAL_STATUS_BY_RAW`：(PresentStatus, GameResult)。欄位順序＝`rr._SCHEDULE_COLS`。
+def _sched(present: int, result: str) -> tuple:
+    return (present, result, date(2026, 9, 7), None, f"h{present}{result}",
+            "2026-09-07T20:00:00+08:00", "2026-09-07T20:05:00+08:00")
+
+
+def test_drop_unfinished_same_day_keeps_only_official_final() -> None:
+    rows = [(2026, "A", 1, True), (2026, "A", 2, True), (2026, "A", 3, True),
+            (2026, "A", 4, False)]
+    phases = {(2026, "A", 1): "final", (2026, "A", 2): "scheduled"}  # 3 查無 → 視同非 final
+
+    kept, dropped = rr._drop_unfinished_same_day(rows, phases)
+
+    assert kept == [(2026, "A", 1), (2026, "A", 4)]      # 非當日場不看狀態
+    assert dropped == [(2026, "A", 2), (2026, "A", 3)]
+
+
+@pytest.mark.parametrize("schedule,expected", [
+    ([_sched(1, "0")], [(2026, "A", 304)]),   # final → 建
+    ([_sched(1, "")], []),                    # scheduled（賽中還沒寫結果）→ 不建
+    ([_sched(1, "2")], []),                   # reserved（保留賽當日）→ 不建
+    ([], []),                                 # 查無排程列 → unknown → 不建（fail closed）
+])
+def test_same_day_game_is_built_only_when_officially_final(
+    monkeypatch: pytest.MonkeyPatch, schedule: list[tuple], expected: list[tuple],
+) -> None:
+    holder = _scripted(monkeypatch, [(2026, "A", 304, True)], {304: schedule})
+
+    assert rr._pa_build_targets(2026, ["A"], [date(2026, 9, 6), date(2026, 9, 7)]) == expected
+    target_sql, _ = holder.calls[0]
+    assert f"(g.game_date = {rr.TAIPEI_TODAY_SQL}) AS same_day" in target_sql
+    status_sql, params = holder.calls[1]
+    assert "game_schedule_status_revisions" in status_sql
+    assert rr.OFFICIAL_SCHEDULE_ORDER_BY in status_sql      # 選列規則只有一份，不得另寫
+    assert params == (2026, "A", 304)
+
+
+def test_past_games_do_not_query_official_status(monkeypatch: pytest.MonkeyPatch) -> None:
+    """非當日場行為不變：不查排程列（歷史場多半沒有狀態修訂，查了會全變 unknown）。"""
+    holder = _scripted(monkeypatch, [(2026, "A", 300, False), (2026, "D", 90, False)], {})
+
+    assert rr._pa_build_targets(2026, ["A", "D"], [date(2026, 9, 6), date(2026, 9, 7)]) == [
+        (2026, "A", 300), (2026, "D", 90)]
+    assert len(holder.calls) == 1
 
 
 def test_pa_build_coverage_computes_gap_per_kind(monkeypatch: pytest.MonkeyPatch) -> None:
