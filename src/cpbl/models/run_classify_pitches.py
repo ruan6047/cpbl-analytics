@@ -4,7 +4,8 @@
     uv run cpbl-classify-pitches 2026 D        # 2026 二軍
     uv run cpbl-classify-pitches 2025 A        # 指定年份
 
-逐投手 GMM（BIC 選 k）+ 規則命名；樣本 < 150 退回 tagged 二元。見 models/pitch_type.py。
+逐投手 KMeans（固定 4 群）+ 規則命名；分群樣本一二軍合算（A／D），合算後 < 150 退回 tagged 二元。
+見 models/pitch_type.py。
 需先跑過補收軌跡的爬蟲（cpbl-scrape-pitches）才有 ivb/hb 特徵。純 sklearn，不需 LightGBM/容器。
 """
 

@@ -2,8 +2,16 @@
 
 背景：源頭 `auto_pitch_type` 98.5% 全標 breakingball（壞資料）；`tagged_pitch_type` 只有
 二元 fastball/breakingball。本模組改用 logs API 軌跡導出的 4 維特徵
-`(rel_speed, ivb_cm, hb_cm, spin_rate)`，逐投手標準化後 GMM（BIC 選 k）分群，再以
-教科書規則命名叢集。完整背景/座標軸/公式/驗收見 docs/PITCH_TYPE_PLAN.md。
+`(rel_speed, ivb_cm, hb_cm, spin_rate)`，逐投手標準化後 KMeans 固定 4 群（為何不自動選 k
+見 `_cluster`），再以教科書規則命名叢集。完整背景/座標軸/公式/驗收見 docs/PITCH_TYPE_PLAN.md。
+
+**一二軍合算分群樣本**（2026-09-23，需求方裁定）：同一投手的分群樣本＝一軍＋二軍完整場的
+球（`POOL_KINDS`），寫回仍各歸各的 kind。依據（2026 年實測，一二軍各 ≥30 顆 tagged
+fastball 的 78 位投手，一軍均值−二軍均值）：IVB 中位 +0.49 cm、HB +0.24 cm、轉速
+−16.77 rpm，皆遠小於同投手一軍內 SD（5.46 cm／5.71 cm／85.79 rpm）；球速一軍系統性快
++0.97 km/h（約同投手 SD 1.96 的一半，遠小於四縫與卡特的聯盟中位差 6.7 km/h）。分開算時
+一軍 57 位投手不足 MIN_N 只能退回二元，其中 45 位（一軍 3,201 球）合算後可分群。
+⛔ 合算的只有「分群樣本」：v2 的聯盟錨點與命名規則仍逐 kind 計算，不受此影響。
 
 紅線：
 - **誠實標註**：所有顯示處標「推算」（前端負責）。
@@ -85,15 +93,16 @@ def _name_cluster(speed: float, ivb: float, hb_norm: float, spin: float,
     return "變化球"                                            # 對不上→不硬命名
 
 
-def _classify_pitcher(rows: list[dict]) -> dict[tuple[int, int], str]:
-    """回傳 {(game_sno, pitch_cnt): pitch_type_pred}。rows 為單一投手該 year/kind 全球。"""
+def _classify_pitcher(rows: list[dict]) -> dict[tuple[str, int, int], str]:
+    """回傳 {(kind_code, game_sno, pitch_cnt): pitch_type_pred}。rows 為單一投手的分群樣本
+    （可跨 kind，見 `_pooled_rows`）；key 必含 kind，否則一二軍同號的 game_sno 會互相覆蓋。"""
     # 特徵齊全者才進 GMM；其餘退回 tagged 弱標籤
     feat_rows = [r for r in rows if all(r[c] is not None for c in _FEATURES)]
     out: dict[tuple[int, int], str] = {}
     for r in rows:
         tz = _TAGGED_ZH.get(r["tagged_pitch_type"])
         if tz:
-            out[(r["game_sno"], r["pitch_cnt"])] = tz  # 先鋪 fallback，下方 GMM 覆蓋
+            out[(r["kind_code"], r["game_sno"], r["pitch_cnt"])] = tz  # 先鋪 fallback，下方分群覆蓋
 
     if len(feat_rows) < MIN_N:
         return out  # 樣本不足：只用 tagged fallback
@@ -116,7 +125,7 @@ def _classify_pitcher(rows: list[dict]) -> dict[tuple[int, int], str]:
                                         is_fastest=(c == fastest), is_slowest=(c == slowest))
 
     for r, lab in zip(feat_rows, labels, strict=True):
-        out[(r["game_sno"], r["pitch_cnt"])] = cluster_name[lab]
+        out[(r["kind_code"], r["game_sno"], r["pitch_cnt"])] = cluster_name[lab]
     return out
 
 
@@ -158,8 +167,30 @@ def _load(year: int, kind_code: str) -> dict[str, list[dict]]:
             d = dict(zip(cols.split(","), row, strict=True))
             for k in ("rel_speed", "ivb_cm", "hb_cm", "spin_rate", "rel_side"):
                 d[k] = float(d[k]) if d[k] is not None else None
+            d["kind_code"] = kind_code   # 合算時辨識來源：一二軍的 game_sno 會重號
             by_pitcher.setdefault(d["pitcher_acnt"], []).append(d)
     return by_pitcher
+
+
+# 分群樣本合算的 kind 組。**順序即樣本順序**：不論這次分的是哪個 kind，同一投手的合算
+# 樣本都依此順序串接，KMeans 輸入逐位相同 ⇒ 一二軍兩次執行對同一投手給出同一組叢集。
+# 若改成「目標 kind 在前」，兩次輸入順序不同，KMeans 可能收斂到不同解，同一投手一二軍
+# 標籤就會對不上。
+POOL_KINDS: tuple[str, ...] = ("A", "D")
+
+
+def _pool_for(kind_code: str) -> tuple[str, ...]:
+    """kind 的分群樣本來源。一軍／二軍例行賽合算；其餘 kind（季後賽等）維持只用自己。"""
+    return POOL_KINDS if kind_code in POOL_KINDS else (kind_code,)
+
+
+def _pooled_rows(acnt: str, loaded: dict[str, dict[str, list[dict]]],
+                 complete: dict[str, set[int]], pool: tuple[str, ...]) -> list[dict]:
+    """單一投手的合算樣本：依 ``pool`` 順序串接各 kind 的**完整場**逐球（純函式）。"""
+    out: list[dict] = []
+    for k in pool:
+        out += [r for r in loaded.get(k, {}).get(acnt, []) if r["game_sno"] in complete.get(k, set())]
+    return out
 
 
 def _write(year: int, kind_code: str, preds: list[tuple[int, str, int, str]]) -> int:
@@ -195,26 +226,34 @@ def classify(year: int, kind_code: str = "A") -> dict:
 
     只分「整場 TrackMan 完整」的場（見 _complete_games）：覆蓋不足場的球一律不分、pred 留
     NULL，等官方發布齊下輪 classify 再補。分群/命名皆逐投手跨整季，但樣本僅取完整場。
+    分群樣本依 `_pool_for` 一二軍合算，寫回只寫本次的 kind（見模組 docstring）。
     """
-    complete = _complete_games(year, kind_code)
-    by_pitcher = _load(year, kind_code)
+    pool = _pool_for(kind_code)
+    complete = {k: _complete_games(year, k) for k in pool}
+    loaded = {k: _load(year, k) for k in pool}
+    by_pitcher = loaded[kind_code]
     preds: list[tuple[int, str, int, str]] = []
-    n_gmm = n_fallback = skipped = 0
+    n_gmm = n_fallback = skipped = n_pooled = 0
     for acnt, rows in by_pitcher.items():
-        crows = [r for r in rows if r["game_sno"] in complete]  # 只留完整場的球
-        skipped += len(rows) - len(crows)
-        if not crows:
+        own = [r for r in rows if r["game_sno"] in complete[kind_code]]  # 只留完整場的球
+        skipped += len(rows) - len(own)
+        if not own:
             continue
-        feat_n = sum(1 for r in crows if all(r[c] is not None for c in _FEATURES))
-        result = _classify_pitcher(crows)
+        sample = _pooled_rows(acnt, loaded, complete, pool)
+        if len(sample) > len(own):
+            n_pooled += 1
+        feat_n = sum(1 for r in sample if all(r[c] is not None for c in _FEATURES))
+        result = _classify_pitcher(sample)
         if feat_n >= MIN_N:
             n_gmm += 1
         else:
             n_fallback += 1
-        for (g, pc), pred in result.items():
-            preds.append((g, acnt, pc, pred))
+        for (k, g, pc), pred in result.items():
+            if k == kind_code:
+                preds.append((g, acnt, pc, pred))
     written = _write(year, kind_code, preds)
-    summary = {"pitchers": len(by_pitcher), "complete_games": len(complete),
+    summary = {"pitchers": len(by_pitcher), "complete_games": len(complete[kind_code]),
+               "pool": list(pool), "pooled_pitchers": n_pooled,
                "gmm": n_gmm, "fallback": n_fallback, "labeled": len(preds),
                "skipped_incomplete": skipped, "written": written}
     log.info("classify %d/%s → %s", year, kind_code, summary)

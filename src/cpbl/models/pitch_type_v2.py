@@ -242,10 +242,14 @@ def recluster_v2(year: int, kind_code: str = "A") -> dict:
     小群（<MIN_GROUP_N）先併入最近質心（z 空間歐氏距離）再命名，不丟球。
     聯盟 FF 錨沿用 v1「速球」群（v1 欄不動，錨穩定）。fallback（<MIN_N 樣本
     投手）沿 classify_v2 的 v1 群組標籤路徑，此處不動其結果。
+
+    分群樣本與 v1 同樣一二軍合算（`pitch_type._pool_for`／`_pooled_rows`，依據見 v1 模組
+    docstring），MIN_N 以合算後的球數判定；寫回只寫本次的 kind。⛔ 錨點（`cpbl_anchor`）
+    仍只用本次 kind 的 v1 速球群計算——那是統計對齊規則，不隨樣本合算而改。
     """
     from sklearn.cluster import KMeans
 
-    from cpbl.models.pitch_type import MIN_N, _complete_games, _load
+    from cpbl.models.pitch_type import MIN_N, _complete_games, _load, _pool_for, _pooled_rows
 
     x_mlb, y_mlb, mlb_anchor, _ = _load_mlb()
     clf = make_pipeline(
@@ -268,14 +272,16 @@ def recluster_v2(year: int, kind_code: str = "A") -> dict:
     sc_ivb, sc_hb = mlb_anchor[0] / cpbl_anchor[0], mlb_anchor[1] / cpbl_anchor[1]
 
     feats = ("rel_speed", "ivb_cm", "hb_cm", "spin_rate")   # 群內含 spin（同系統無跨域偏差）
-    complete = _complete_games(year, kind_code)
+    pool = _pool_for(kind_code)
+    complete = {k: _complete_games(year, k) for k in pool}
+    loaded = {k: _load(year, k) for k in pool}
     preds: list[tuple[int, str, int, str]] = []
     n_re = 0
-    for acnt, rows in _load(year, kind_code).items():
-        crows = [r for r in rows if r["game_sno"] in complete
-                 and all(r[c] is not None for c in feats)]
-        if len(crows) < MIN_N:
-            continue    # fallback 投手：保留 classify_v2 的群組標籤
+    for acnt in loaded[kind_code]:
+        crows = [r for r in _pooled_rows(acnt, loaded, complete, pool)
+                 if all(r[c] is not None for c in feats)]
+        if len(crows) < MIN_N or not any(r["kind_code"] == kind_code for r in crows):
+            continue    # fallback 投手（或本 kind 無完整場球）：保留 classify_v2 的群組標籤
         n_re += 1
         x = np.array([[r[c] for c in feats] for r in crows], dtype=float)
         mu, sd = x.mean(axis=0), x.std(axis=0)
@@ -300,7 +306,8 @@ def recluster_v2(year: int, kind_code: str = "A") -> dict:
         name = {c: _name(clf, np.array([m[0] / top, m[1] * sc_ivb, m[2] * rh * sc_hb]))
                 for c, m in cent.items()}
         for r, c in zip(crows, lab, strict=True):
-            preds.append((r["game_sno"], acnt, r["pitch_cnt"], name[c]))
+            if r["kind_code"] == kind_code:   # 合算分群、只寫本次 kind
+                preds.append((r["game_sno"], acnt, r["pitch_cnt"], name[c]))
 
     # 寫回（沿 v1 _write 的 temp-table 模式；只清重分群投手涵蓋的球）
     with conn() as c:
