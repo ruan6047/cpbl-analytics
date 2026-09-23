@@ -238,14 +238,16 @@ def game_live(
     """單場賽況：賽事資訊 + 逐局比分 + 逐打席事件流 + 雙方 box score + 關鍵球員。"""
     with conn() as c:
         cur = c.cursor()
+        # closer_id 回的是官方救援成功投手（旗標優先、再退 games.closer_id 欄；見
+        # pitcher_decisions.official_closer_sql）——該欄單獨讀會漏（2026-A-99／229／313）。
         cur.execute(
-            """
+            f"""
             SELECT year, kind_code, game_sno, game_date, venue,
                    away_team_name, away_team_code, away_score,
                    home_team_name, home_team_code, home_score,
                    home_starter_id, away_starter_id, winning_pitcher_id,
-                   losing_pitcher_id, closer_id, mvp_id, delay_kind, orig_date,
-                   present_status
+                   losing_pitcher_id, {pitcher_decisions.official_closer_sql("games")} AS closer_id,
+                   mvp_id, delay_kind, orig_date, present_status
             FROM cpbl.games WHERE year = %s AND kind_code = %s AND game_sno = %s
             """,
             (season, kind_code, game_sno),
@@ -357,10 +359,8 @@ def game_live(
                     "FROM cpbl.game_detail "
                     "WHERE year=%s AND kind_code=%s AND game_sno=%s", (season, kind_code, game_sno))
         gd = _dicts(cur)
-    # 投手角色：W/L/HLD 官方（game_result/relief_point）、SV 依規則 9.19 自 livelog 推算
-    # （2026 全季驗證與官方季累計 SV 一致率 63/64 投手；官方逐場救援其實另有 games.closer_id
-    # 與 pitching_game_flags.is_save_ok，尚未改用）。救援失敗：有官方旗標的場次用官方
-    # （pitcher_decisions.blown_for_game，需求方 2026-09-23 裁定），否則推算。
+    # 投手角色：W/L/HLD 官方（game_result/relief_point）；救援成功與救援失敗皆官方優先、
+    # 該場沒有官方來源才推算（pitcher_decisions.official_saves／blown_for_game，需求方 2026-09-23 裁定）。
     decisions = pitcher_decisions.game_decisions(season, kind_code, game_sno)
     decision_counts = None
     if g and kind_code == "A":
@@ -383,7 +383,8 @@ def _decision_counts(season: int, game_sno: int, gdate,
                      win_pid, lose_pid, closer_pid, mvp_pid,
                      hold_acnts: list[str]) -> dict | None:
     """決勝資訊的本季累計次數（box score 慣例：含本場、(game_date,game_sno) ≤ 本場，leakage-safe）。
-    勝/敗/救援/MVP 直接數 games 表對應 id 欄（closer_id 唯救援場才落庫，與逐場 SV 判定一致）；
+    勝/敗/MVP 直接數 games 表對應 id 欄；救援數官方救援成功投手（`official_closer_sql`：旗標優先、
+    再退 closer_id 欄——該欄單獨數會漏場）；
     中繼無 game_result 旗標，改數 pitching_gamelog.relief_point>0（中繼點）。僅 kind A 有意義。"""
     if not gdate:
         return None
@@ -401,7 +402,8 @@ def _decision_counts(season: int, game_sno: int, gdate,
         base = "SELECT count(*) FROM cpbl.games WHERE year=%(y)s AND kind_code='A' AND "
         win = _games_cnt(base + f"winning_pitcher_id=%(pid)s AND {_le}", win_pid)
         loss = _games_cnt(base + f"losing_pitcher_id=%(pid)s AND {_le}", lose_pid)
-        save = _games_cnt(base + f"closer_id=%(pid)s AND {_le}", closer_pid)
+        save = _games_cnt(
+            base + f"{pitcher_decisions.official_closer_sql('games')}=%(pid)s AND {_le}", closer_pid)
         mvp = _games_cnt(base + f"mvp_id=%(pid)s AND {_le}", mvp_pid)
         holds: dict[str, int] = {}
         for acnt in hold_acnts:
@@ -504,23 +506,30 @@ _MILESTONE_G = 500  # 出賽場次關卡
 @lru_cache(maxsize=4)
 def _season_decisions(season: int, kind_code: str) -> dict[str, list[tuple[str, int, str]]]:
     """{pitcher_acnt: [(game_date, game_sno, 'W'|'L'|'SV'|'HLD'), ...]} 全季逐場 decisions（快取，
-    只在 process 內首次請求該季/kind 時算一次；SV 需逐場 livelog 重建，量體才需快取）。"""
+    只在 process 內首次請求該季/kind 時算一次；沒有官方救援來源的場次 SV 需逐場 livelog 重建，
+    量體才需快取）。SV 與單場頁同一順序（`pitcher_decisions.official_saves`）。"""
     from collections import defaultdict
     out: dict[str, list] = defaultdict(list)
     with conn() as c:
         cur = c.cursor()
-        cur.execute("SELECT game_sno, game_date, home_score, away_score FROM cpbl.games "
+        cur.execute("SELECT game_sno, game_date, home_score, away_score, closer_id FROM cpbl.games "
                     f"WHERE year=%s AND kind_code=%s AND {_DONE} "
                     "ORDER BY game_date, game_sno", (season, kind_code))
         games = cur.fetchall()
-        for sno, gdate, hs, aws in games:
+        flags: dict[int, list[tuple[str, bool | None]]] = defaultdict(list)
+        cur.execute("SELECT game_sno, pitcher_acnt, is_save_ok FROM cpbl.pitching_game_flags "
+                    "WHERE year=%s AND kind_code=%s", (season, kind_code))
+        for sno, acnt, ok in cur.fetchall():
+            flags[sno].append((acnt, ok))
+        for sno, gdate, hs, aws, closer in games:
             cur.execute("SELECT * FROM cpbl.game_livelog WHERE year=%s AND kind_code=%s AND game_sno=%s",
                         (season, kind_code, sno))
             livelog = _dicts(cur)
             cur.execute("SELECT * FROM cpbl.pitching_gamelog WHERE year=%s AND kind_code=%s AND game_sno=%s",
                         (season, kind_code, sno))
             pitching = _dicts(cur)
-            for acnt, d in pitcher_decisions.decide(livelog, pitching, hs, aws).items():
+            saves = pitcher_decisions.official_saves(flags.get(sno, []), closer)
+            for acnt, d in pitcher_decisions.decide(livelog, pitching, hs, aws, saves=saves).items():
                 out[acnt].append((str(gdate), sno, d))
     return dict(out)
 

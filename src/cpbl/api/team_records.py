@@ -85,6 +85,7 @@ from cpbl.api.routers.players import (
 from cpbl.api.team_focus import _current_hit_streak
 from cpbl.db import conn
 from cpbl.franchises import franchise_prefixes
+from cpbl.models.pitcher_decisions import official_closer_sql
 
 # 里程碑階梯與門檻（卡面表格 2026-07-28 定版，勿逕自改動數值；label/stat 對齊
 # canonical 生涯欄位）。near＝「取單場達成 ≥N 發生率仍 ≥5% 的最大 N」的實測結果
@@ -294,17 +295,16 @@ def _franchise_current_season_pitching(cur, prefixes: list[str], season: int) ->
     目前只到 2025（無 2026 列），該 helper 完全沒有 gamelog 補本季的機制（跟打擊
     helper 不同），本季一律回 0，不只是跨隊誤記的問題。
 
-    w／sv 用官方 `games.winning_pitcher_id`／`closer_id`（`splits_calc.py` 的
-    `save_ok` 判定同一來源，是官網逐場直接寫入的欄位，不是規則 9.19 推算——
-    `cpbl.models.pitcher_decisions` 那套推算是給沒有這兩欄的資料路徑用的，
-    這裡不需要）；hld 用官方 `pitching_gamelog.relief_point`；三振／局數
+    w 用官方 `games.winning_pitcher_id`；sv 用官方救援成功投手 `official_closer_sql`
+    （旗標 is_save_ok 優先、再退 `games.closer_id`，與 `splits_calc.py` 的 `save_ok` 同一來源；
+    closer_id 單獨用會漏場，不是規則 9.19 推算）；hld 用官方 `pitching_gamelog.relief_point`；三振／局數
     直接加總欄位，局數換算沿用全站慣例 `outs = cnt*3 + div3`。
     """
     cur.execute(
         f"SELECT pg.pitcher_acnt, sum(pg.so), "
         f"sum(pg.inning_pitched_cnt)*3 + sum(pg.inning_pitched_div3) AS outs, "
         f"count(*) FILTER (WHERE g.winning_pitcher_id = pg.pitcher_acnt) AS w, "
-        f"count(*) FILTER (WHERE g.closer_id = pg.pitcher_acnt) AS sv, "
+        f"count(*) FILTER (WHERE {official_closer_sql('g')} = pg.pitcher_acnt) AS sv, "
         f"count(*) FILTER (WHERE pg.relief_point > 0) AS hld "
         f"FROM cpbl.pitching_gamelog pg JOIN cpbl.games g "
         f"ON g.year=pg.year AND g.kind_code=pg.kind_code AND g.game_sno=pg.game_sno "

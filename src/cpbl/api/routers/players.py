@@ -35,6 +35,7 @@ from cpbl.models.matchup_insights import (
     sensitivity_report,
     woba_line,
 )
+from cpbl.models.pitcher_decisions import official_closer_sql
 
 router = APIRouter()
 
@@ -276,9 +277,8 @@ def _career_pitching_per_year(cur, player_id: str) -> dict[int, list]:
 
     `pitching_gamelog` 沒有直接的 w/l/sv/hld 欄位（跟 `pitching_seasons` 不同），
     需從其他官方欄位換算：w/l 用 `game_result`（'勝'/'敗'，官方逐場欄位，非推算）；
-    sv 用 `games.closer_id`（官網逐場直接寫入，UX-TEAM-RECORDS1 隊史彙總已驗證
-    這個來源正確，不用 `cpbl.models.pitcher_decisions` 的規則 9.19 推算——那套是
-    給沒有 closer_id 這個欄位的資料路徑用的）；hld 用官方 `relief_point`；
+    sv 用官方救援成功投手 `official_closer_sql`（旗標 is_save_ok 優先、再退 `games.closer_id`；
+    closer_id 單獨用會漏場，2025 就漏 3 場——該年沒有旗標，這 3 場仍會少算）；hld 用官方 `relief_point`；
     gs 用 `role_type='先發'`；so/局數/被安打/保送/自責分直接加總欄位。
     """
     cur.execute(
@@ -291,7 +291,7 @@ def _career_pitching_per_year(cur, player_id: str) -> dict[int, list]:
         "count(*) FILTER (WHERE pg.role_type='先發'), "
         "count(*) FILTER (WHERE pg.game_result='勝'), "
         "count(*) FILTER (WHERE pg.game_result='敗'), "
-        "count(*) FILTER (WHERE g.closer_id=pg.pitcher_acnt), "
+        f"count(*) FILTER (WHERE {official_closer_sql('g')}=pg.pitcher_acnt), "
         "count(*) FILTER (WHERE pg.relief_point>0), "
         "sum(pg.inning_pitched_cnt)+sum(pg.inning_pitched_div3)/3.0 AS rip, "
         "sum(pg.so), sum(pg.hits), sum(pg.bb), sum(pg.earned_runs) "

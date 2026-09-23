@@ -1,16 +1,23 @@
-"""逐場投手角色判定：W/L 官方、HLD 官方（relief_point）、SV 依棒球規則 9.19 推算。
+"""逐場投手角色判定：W/L 官方、HLD 官方（relief_point）、SV 官方優先、無官方才依規則 9.19 推算。
 
-官方逐場資料沒有 save 旗標（pitching_gamelog.game_result 僅勝/敗/和），
-故 SV 照規則 9.19（docs/reference/棒球規則.txt p.182）四要件自 livelog 重建：
+SV 來源（需求方 2026-09-23 裁定「救援成功也改用官方」，見 `official_saves`）：
+  1. `pitching_game_flags.is_save_ok`（stats.cpbl 單場 API，2026 起）；
+  2. `games.closer_id`（官網逐場欄位）；
+  3. 兩者皆無 ⇒ 照規則 9.19（docs/reference/棒球規則.txt p.182）四要件自 livelog 重建：
   (a) 勝隊最後一任投手；(b) 非勝利投手；(c) 至少 1/3 局；(d) 下列其一：
     (1) 登板時領先 ≤3 分且至少投滿 1 局；
     (2) 登板時追平分在壘上/打擊區/準備區（lead ≤ 壘上跑者數 + 2）；
     (3) 至少投 3 局。
 登板狀態取該投手於 livelog 的第一筆事件：分數只在得分事件當下更新、
 壘包為該打席進行中狀態（含繼承跑者），故首筆事件即登板時的 lead/跑者。
+⚠️ 已知誤判：首筆事件本身就是得分事件時，lead 會少算那一分（2023-A-189 登板領先 4 分被讀成
+3 分 ⇒ 誤記救援；官方季累計該投手 2 次、推算 3 次）。有官方來源的場次不受影響。
 
-2026 全季驗證：SV 對官方季累計 100%（見驗證紀錄）；HLD 直接用官方
-relief_point。前端顯示 SV 仍標「推算」以示與官方逐場欄位的差異。
+對官方季累計（逐投手）的驗證，2026-09-23：
+  - is_save_ok：2026 一軍 177 次、逐投手全對；
+  - closer_id：只會漏、不會多——2024 漏 5、2025 漏 3、2026 漏 3（A-99／229／313），
+    2018–2026 從未出現「closer_id 有值但與真實救援者不同」；
+  - 推算：2018–2025 一軍只錯 2023-A-189 一場（多 1）；2026 逐場與 is_save_ok 全同（A 330 場、D 232 場）。
 """
 
 from __future__ import annotations
@@ -40,8 +47,13 @@ def _entry_states(livelog: list[dict]) -> dict[str, dict]:
 
 
 def decide(livelog: list[dict], pitching: list[dict],
-           home_score: int, away_score: int) -> dict[str, str]:
-    """回傳 {pitcher_acnt: 'W'|'L'|'SV'|'HLD'}。和局或資料不足時盡量降級（W/L/HLD 仍可標）。"""
+           home_score: int, away_score: int,
+           saves: set[str] | None = None) -> dict[str, str]:
+    """回傳 {pitcher_acnt: 'W'|'L'|'SV'|'HLD'}。和局或資料不足時盡量降級（W/L/HLD 仍可標）。
+
+    saves：官方救援成功投手（`official_saves` 的回傳）。None＝該場沒有官方來源，SV 才依規則
+    9.19 推算；空集合＝官方判定本場無人救援成功，⛔ 不得再推算（推算會誤記，見模組說明）。
+    """
     out: dict[str, str] = {}
     for r in pitching:
         acnt = r["pitcher_acnt"]
@@ -51,8 +63,20 @@ def decide(livelog: list[dict], pitching: list[dict],
             out[acnt] = "L"
         elif r.get("relief_point"):
             out[acnt] = "HLD"
+    if saves is None:
+        saves = _inferred_saves(livelog, pitching, home_score, away_score, out)
+    for acnt in saves:
+        # 規則 9.19(b) 勝投不得記救援；官方資料（2026 A/D 全季）無此組合，故只防呆不並存。
+        if out.get(acnt) not in ("W", "L"):
+            out[acnt] = "SV"
+    return out
+
+
+def _inferred_saves(livelog: list[dict], pitching: list[dict], home_score: int,
+                    away_score: int, base: dict[str, str]) -> set[str]:
+    """規則 9.19 推算的救援成功投手（0 或 1 人）。base＝已標好的 W/L/HLD。"""
     if home_score == away_score or not livelog:
-        return out
+        return set()
     win_home = home_score > away_score
     entry = _entry_states(livelog)
     # 勝隊最後一任 = 勝隊投手中登板順序最大者
@@ -60,11 +84,11 @@ def decide(livelog: list[dict], pitching: list[dict],
                if str(r["visiting_home_type"]) == ("2" if win_home else "1")
                and r["pitcher_acnt"] in entry]
     if len(winners) < 2:  # 先發完投 → 無救援
-        return out
+        return set()
     last = max(winners, key=lambda r: entry[r["pitcher_acnt"]]["order"])
     acnt = last["pitcher_acnt"]
-    if out.get(acnt) in ("W", "L"):
-        return out
+    if base.get(acnt) in ("W", "L"):
+        return set()
     thirds = (last.get("inning_pitched_cnt") or 0) * 3 + (last.get("inning_pitched_div3") or 0)
     st = entry[acnt]
     if thirds >= 1 and (
@@ -72,8 +96,39 @@ def decide(livelog: list[dict], pitching: list[dict],
         or (0 < st["lead"] <= st["runners"] + 2)               # (d2) 追平分已上壘/在打擊區/準備區
         or thirds >= 9                                          # (d3) 投滿 3 局
     ):
-        out[acnt] = "SV"
-    return out
+        return {acnt}
+    return set()
+
+
+def official_saves(flags: list[tuple[str, bool | None]],
+                   closer_id: str | None) -> set[str] | None:
+    """官方救援成功投手（純函式）。flags＝該場 `[(pitcher_acnt, is_save_ok), ...]`。
+
+    順序：is_save_ok 有人 → 那些人；否則 closer_id 有值 → 它；否則該場有旗標列 → 空集合
+    （官方判定無人救援成功）；兩個官方來源都沒有 → None，交給呼叫端推算。
+    ⚠️ closer_id 為空 ⛔ 不代表無人救援：它只會漏不會錯（模組說明的驗證），故空值不能當「官方說沒有」。
+    「有旗標」與 `blown_for_game` 同一判準：該場有任何列即算。
+    """
+    ok = {acnt for acnt, flag in flags if flag is True}
+    if ok:
+        return ok
+    if closer_id:
+        return {closer_id}
+    return set() if flags else None
+
+
+def official_closer_sql(g: str) -> str:
+    """SQL 運算式：games 別名 `g` 那場的官方救援成功投手 acnt，無則 NULL。
+
+    與 `official_saves` 同一順序的 SQL 版（is_save_ok → closer_id），給只能在 SQL 裡數救援的
+    消費端（splits、隊史彙總、球員生涯、單場頁累計次數與救援欄、戰報）。⛔ 新消費端不得直接讀
+    `games.closer_id`：它 2024–2026 共漏 11 場（模組說明）。SQL 版沒有推算這一層，兩個官方
+    來源都沒有時就是 NULL（與改版前只讀 closer_id 時相同）。規則上一場至多一位救援成功，
+    `min()` 只是讓多列時仍有確定結果（官方資料至今無多列）。
+    """
+    return (f"coalesce((SELECT min(sgf.pitcher_acnt) FROM cpbl.pitching_game_flags sgf "
+            f"WHERE sgf.year={g}.year AND sgf.kind_code={g}.kind_code "
+            f"AND sgf.game_sno={g}.game_sno AND sgf.is_save_ok), {g}.closer_id)")
 
 
 def _save_situation(lead: int, runners: int) -> bool:
@@ -125,11 +180,11 @@ def blown(livelog: list[dict], pitching: list[dict]) -> dict[str, str]:
 
 
 def game_decisions(year: int, kind_code: str, game_sno: int) -> dict[str, str]:
-    """自 DB 撈單場資料並判定（API 用）。"""
+    """自 DB 撈單場資料並判定（API 用）。SV 與救援失敗皆官方優先（`official_saves`／`blown_for_game`）。"""
     with conn() as c:
         cur = c.cursor()
         cur.execute(
-            "SELECT home_score, away_score FROM cpbl.games "
+            "SELECT home_score, away_score, closer_id FROM cpbl.games "
             "WHERE year=%s AND kind_code=%s AND game_sno=%s", (year, kind_code, game_sno))
         g = cur.fetchone()
         if not g or g[0] is None:
@@ -147,11 +202,12 @@ def game_decisions(year: int, kind_code: str, game_sno: int) -> dict[str, str]:
         cols = [d[0] for d in cur.description]
         pitching = [dict(zip(cols, r, strict=True)) for r in cur.fetchall()]
         cur.execute(
-            "SELECT pitcher_acnt, is_save_fail FROM cpbl.pitching_game_flags "
+            "SELECT pitcher_acnt, is_save_ok, is_save_fail FROM cpbl.pitching_game_flags "
             "WHERE year=%s AND kind_code=%s AND game_sno=%s", (year, kind_code, game_sno))
         flags = cur.fetchall()
-    dec = decide(livelog, pitching, g[0], g[1])
-    return merge_blown(dec, blown_for_game(flags, livelog, pitching))
+    saves = official_saves([(a, ok) for a, ok, _ in flags], g[2])
+    dec = decide(livelog, pitching, g[0], g[1], saves=saves)
+    return merge_blown(dec, blown_for_game([(a, fail) for a, _, fail in flags], livelog, pitching))
 
 
 def official_blown(flags: list[tuple[str, bool | None]]) -> dict[str, str]:

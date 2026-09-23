@@ -63,6 +63,7 @@ from cpbl.ingest.pa_build import (
     load_taxonomy,
     plate_appearances,
 )
+from cpbl.models.pitcher_decisions import official_closer_sql
 
 # RE 矩陣 span：與 sabr.build_re24／winprob 生產 artifact 同一 span，勿各自挑。
 RE_SPAN = "2018-2025"
@@ -768,7 +769,7 @@ def load_game(cur: Any, season: int, kind_code: str, game_sno: int) -> dict | No
         "SELECT g.year, g.kind_code, g.game_sno, g.game_date, g.venue, g.delay_kind, "
         "g.home_team_code, g.home_team_name, g.home_score, "
         "g.away_team_code, g.away_team_name, g.away_score, "
-        "g.winning_pitcher_id, g.losing_pitcher_id, g.closer_id, g.mvp_id, "
+        f"g.winning_pitcher_id, g.losing_pitcher_id, {official_closer_sql('g')} AS closer_id, g.mvp_id, "
         f"{completed_games_sql_with_evidence('g')} AS completed "
         "FROM cpbl.games g WHERE g.year=%s AND g.kind_code=%s AND g.game_sno=%s",
         (season, kind_code, game_sno))

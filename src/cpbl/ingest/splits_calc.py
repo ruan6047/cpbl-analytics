@@ -27,6 +27,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from cpbl.db import conn
 from cpbl.imports import classify
 from cpbl.ingest.splits_pa_merge import merge_plan
+from cpbl.models.pitcher_decisions import official_closer_sql
 
 _RBI = re.compile(r"(\d+)分打點")
 
@@ -205,15 +206,16 @@ def calc_batting_t1(year: int, kind: str, cutoff: dict[str, date]) -> tuple[Tabl
 
 
 def calc_pitching_t1(year: int, kind: str, cutoff: dict[str, date]) -> tuple[Table, Table]:
-    """回傳 (splits 家族 1/4/9/10, vs各隊)。save_ok 由 games.closer_id 判定。
+    """回傳 (splits 家族 1/4/9/10, vs各隊)。save_ok 由官方救援成功投手判定（`official_closer_sql`：
+    旗標 is_save_ok 優先、再退 games.closer_id——該欄單獨用會漏 2026-A-99／229／313）。
 
     IP 一律以「總出局數」進 Counter 的 inning_pitched_div3（寫回時再拆 整數局/餘出局）。
     gamelog 存 (整數局 cnt, 餘出局 div3) 兩欄，必須 cnt*3+div3 合成——只取 div3 會把
     局數砍到剩零頭（2026-07-13 實測：全投手 vs-team/主客/先發後援/月份/球場 IP 全錯）。
     """
-    sql = """
+    sql = f"""
         SELECT pg.pitcher_acnt, pg.visiting_home_type, g.game_date, g.venue,
-               g.home_team_name, g.away_team_name, g.closer_id,
+               g.home_team_name, g.away_team_name, {official_closer_sql("g")} AS closer_id,
                pg.role_type, pg.game_result, pg.is_complete_game, pg.is_shutout,
                pg.relief_point,
                (pg.inning_pitched_cnt * 3 + pg.inning_pitched_div3) AS ip_outs,
