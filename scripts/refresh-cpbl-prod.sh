@@ -526,11 +526,18 @@ if [ -n "${WITH_DETAIL:-}" ]; then
   # 進階快照：父子表 + gating pointer 原子同步（見檔首 sync_advanced_snapshot）。
   # 取代舊 sync_table advanced_stats（RECONCILE1 後 FK 失敗 + gating 濾除既有列）。
   sync_advanced_snapshot
+  # ⚠️ 欄位清單必須涵蓋所有非 PK 欄。sync_table 是 `INSERT … ON CONFLICT DO UPDATE SET <清單>`：
+  # 漏列的欄只在生產端「首次插入」時帶上，之後永不更新。2026-09-23 實測：本清單寫於
+  # 2026-06-17（5fe07703），其後 migration 新增的 19 欄（軌跡、球種推算、落點）全漏——
+  # 7/08 後插入生產的逐球，pitch_type_pred／_v2 在生產上一律 NULL，本機重跑推算也帶不上去。
   sync_table pitch_tracking "year,kind_code,game_sno,pitcher_acnt,pitch_cnt" \
     pitcher_name hitter_acnt hitter_name inning_seq ball_cnt strike_cnt out_cnt batting_order content \
     pitch_call auto_pitch_type tagged_pitch_type rel_speed spin_rate rel_side rel_height extension \
     zone_speed plate_loc_side plate_loc_height hit_exit_speed hit_launch_angle hit_direction \
-    hit_distance hit_hang_time
+    hit_distance hit_hang_time \
+    traj_accel_y traj_accel_z zone_time ivb_cm hb_cm pitch_type_pred pitch_type_pred_v2 \
+    hit_landing_bearing hit_landing_confidence hit_spin_rate \
+    traj_x0 traj_x1 traj_x2 traj_y0 traj_y1 traj_y2 traj_z0 traj_z1 traj_z2
   sync_table batting_gamelog "year,kind_code,game_sno,hitter_acnt" \
     hitter_name visiting_home_type uniform_no role_type plate_appearances at_bats hits rbi runs \
     singles doubles triples home_runs grand_slam total_bases gidp sac_hit sac_fly bb ibb hbp so sb cs \
