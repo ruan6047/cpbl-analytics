@@ -121,25 +121,34 @@
 ### 進階站 stats.cpbl.com.tw（httpx 直連，全站無挑戰）
 
 站台路由（首頁 nav 實測）：`/players`、`/players/{acnt}`、`/rankings`、`/schedule`、
-`/schedule/{year}-{kind}-{sno}`（單場頁）、`/news/{google-docs-id}`。
+`/schedule/{year}-{kind}-{sno}`（單場頁）、`/news/{google-docs-id}`。2026-09-23 重抽另見
+`/contact-us`、`/legal/privacy`（靜態頁，無資料）。
 
-**已觀測 API 面**（2026-07-22 重新掃描 30 個 `_next` JS chunks；fetch wrapper 統一打
+**已觀測 API 面**（2026-07-22 重新掃描 30 個 `_next` JS chunks；2026-09-23 再掃首頁／排行／選手／
+賽程／單場共 6 頁的 39 個 chunks，唯一新增的是下表 `/v1/games/schedule/{date}`；fetch wrapper 統一打
 `/api/proxy` + 路徑）。這是站台當刻 client 使用介面，不宣稱官方永久 public contract：
 
 | 端點 | 狀態 | 內容 / 已驗證事實 |
 |---|---|---|
 | `/api/proxy/v1/players/logs` | ✅ 已爬（`cpbl_pitch_tracking`） | 逐球 TrackMan；支援 kindCode A/C/D/E |
 | `/api/proxy/v1/players/{acnt}` | ⬜ | 只回 bio（Basic：身高體重／異動 Rmk／守位）；個人進階彙總改由 leaderboard JSON API 取得，不再依賴 player page RSC |
-| `/api/proxy/v1/games/{year}-{kind}-{sno}` | ✅ 完賽逐球已落地（`cpbl_pitch_tracking.scrape_game_pitches`，Gate 1-2）；`LIVE-GAME-BACKEND1` live shadow 進行中 | 單場物件 `Data.Game`：隊伍／狀態／投手線／`LiveLog[]`；`LiveLog[]` 每筆與 logs 逐球同 schema。2026-A-99 完賽逐球實測與逐投手 logs **逐列等價**（32 場 8992 列 0 差異）；Gate 3 bootstrap（2026-07-24，近 5 天窗口 6 場、1184 列）對正式 `pitch_tracking` 亦 0 差異。2026-07-26 三場 `START` 實測 `LiveLog` 可隨賽況增加，stats 一度領先 www 2 事件並於約 10 秒後追平；三場賽中非空 TrackMan 均為 0。完賽後 A-223 已有 249 球，A-224／225 仍為 0，故 `final + 0` 仍只可判 pending。2026-A-226～228 的 T-30h／T-90m／T-60m／T-30m 觀測未出現獨立 probable starter key；兩隊 `Pitchers[]` 皆只在 `START` 後非空並帶 box 統計，不得由 `RoleType=先發` 倒推為預告先發。⚠️ 對帳兩表時 `real`(float4) 欄位與 shadow 全精度 float64 值須先做 float4 round-trip再比對，否則儲存精度截斷會讓每列都假陽性不一致。 |
+| `/api/proxy/v1/games/{year}-{kind}-{sno}` | ✅ 完賽逐球已落地（`cpbl_pitch_tracking.scrape_game_pitches`，Gate 1-2）；`LIVE-GAME-BACKEND1` live shadow 進行中 | 單場物件 `Data.Game`：隊伍／狀態／投手線／`LiveLog[]`；`LiveLog[]` 每筆與 logs 逐球同 schema。2026-A-99 完賽逐球實測與逐投手 logs **逐列等價**（32 場 8992 列 0 差異）；Gate 3 bootstrap（2026-07-24，近 5 天窗口 6 場、1184 列）對正式 `pitch_tracking` 亦 0 差異。2026-07-26 三場 `START` 實測 `LiveLog` 可隨賽況增加，stats 一度領先 www 2 事件並於約 10 秒後追平；三場賽中非空 TrackMan 均為 0（⚠️ **已過時**：2026-09-07 20:07:49 賽中實抓 A-304 140 球、A-306 141 球，與當時 LiveLog 140／134 列同步——賽中 TrackMan 可用，見記憶 pitch-tracking-venue-coverage）。完賽後 A-223 已有 249 球，A-224／225 仍為 0，故 `final + 0` 仍只可判 pending。2026-A-226～228 的 T-30h／T-90m／T-60m／T-30m 觀測未出現獨立 probable starter key；兩隊 `Pitchers[]` 皆只在 `START` 後非空並帶 box 統計，不得由 `RoleType=先發` 倒推為預告先發。 2026-09-23 實抽 `Data.Game` 頂層：`GameId`／`SkipTrackman`／`GameStatus`／`Visiting`・`Home`（`Team`、`Score`、`AccumulationScore`、`HittingCnt`、`ErrorCnt`、`Hitters[]`、`Pitchers[]`、`InningScore[]`）／`Field`／`KindCode`／`GameSno`／`PreExeDate`／`Week`／`InningSeq`／`VisitingHomeType`／`LiveLog[]`／`WinningPitcher`／`LoserPitcher`／`Closer`／`MVP`／`Referee[]`。`Pitchers[]` 每人帶 `IsSaveOK`／`IsSaveFail`（字串 `'0'`／`'1'`，⚠️ 以 truthy 判斷會全部成立）、`RoleType`（先發／中繼／最後一任）、`ReliefPointCnt`；近 20 場（A-324～343）救援成功 6 次、失敗 5 次。⚠️ 對帳兩表時 `real`(float4) 欄位與 shadow 全精度 float64 值須先做 float4 round-trip再比對，否則儲存精度截斷會讓每列都假陽性不一致。 |
 | `/api/proxy/v1/games/schedule` | ✅ Gate 3 shadow、隔離 live observer 與 live worker 使用 | `kindCode`＋`year`＋`month`；回 `Data.Games[]`，單筆含 `GameId`（`"{year}-{kind}-{sno}"`）、`GameStatus`、`SkipTrackman`、`KindCode`、`GameSno`、`PreExeDate`、`Visiting/Home.Score`、`Field.Abbe`、勝敗投／裁判等。`SkipTrackman=true` 只可作單向 skip 證據，false 不保證資料完整。**`GameStatus` 已實測值域：`FINISHED`／`SCHEDULED`／`POSTPONED`（延期）／`RESERVED`（保留賽）／`START`（進行中；2026-07-26 三場一軍例行賽）**；`START` 必須依 raw status 判定，0-0 仍可能已開賽。`RESERVED` 與 `SCHEDULED` 皆 `Score` 恆 0-0、`WinningPitcher=null`，**不能用比分分辨，只能看 `GameStatus`**。⚠️ **同一 `GameSno` 可能在月回應內出現多筆**（延期/保留賽改期各留一筆歷史記錄，`PreExeDate` 不同；實測 `2026-A-151`：`POSTPONED@06-09`→`RESERVED@06-25`→`FINISHED@06-28` 三筆並存），需以最新 `PreExeDate` 者為現況判定，不可用 `{GameSno: row}` 直接覆寫（覆寫順序取決於 API 回傳序，可能讓 FINISHED 被舊記錄蓋掉）。 |
+| `/api/proxy/v1/games/schedule/{YYYY-MM-DD}` | ⬜（與月賽程重疊，低價值） | 2026-09-23 新發現：單日賽程，一次回當日一二軍全部場次（2026-09-22 → 5 場），單筆欄位同月賽程並多 `Week`／`InningSeq`／`VisitingHomeType`。路徑參數只接受 `YYYY-MM-DD`，帶 `GameId` 或 `YYYYMMDD` 回 404。 |
 | `/api/proxy/v1/leaderboards/pr-table` | ✅ `cpbl_advanced` | 官方 PR 排行榜（各進階指標全聯盟百分位表） |
 | `/api/proxy/v1/leaderboards/exit-velocity` | ✅ `cpbl_advanced` | 擊球初速排行 |
 | `/api/proxy/v1/leaderboards/batted-ball` | ✅ `cpbl_advanced` | 擊球型態排行 |
-| `/api/proxy/v1/leaderboards/pitch-tracking` | △ 已抓但資料契約待修 | 一位球員多列 `PitchType=fastball|breakingball`；現行 acnt merge 會覆寫，見 `OFFICIAL_DATA_GAP1_RESULTS.md` |
+| `/api/proxy/v1/leaderboards/pitch-tracking` | △ 已抓但資料契約待修 | 一位球員多列 `PitchType=fastball|breakingball`；現行 acnt merge 會覆寫，見 `OFFICIAL_DATA_GAP1_RESULTS.md`。⚠️ **2026-09-23 實測**：帶 `searchType=pitcher` 回 **0 列**，不帶 `searchType` 回 336 列（投手 × fastball／breakingball），此端點實為投手專屬、不分 searchType。7/23 入庫的 `role=batting` 285 列與 `role=pitching` **逐列相同且 acnt 全為投手**＝錯標。全量快照（本表與 `advanced_league_summary` 唯一寫入路徑）**無任何排程**，兩表停在 2026-07-23；兩表在 API／模型／前端**零讀取端**。需求方 2026-09-23 裁定暫不修，網站要用時再處理。 |
 | `/api/proxy/v1/leaderboards/summary` | ✅ `cpbl_advanced`（→ `advanced_league_summary`） | 官方聯盟 BattedBall／ExitVelocity／PrTable／分球種 PitchTracking 基準；參數 `gameKind`＋`year` |
 | `/api/proxy/v1/home?TeamRecordsYear=` | ⬜（低價值聚合） | 首頁賽程、戰績與排行榜整包；多與既有來源重複，不建議另存一份 |
 | `/api/proxy/v1/players/autocomplete` | ⬜ | 選手搜尋（低價值） |
 
+- **2026-09-23 排行頁實抽參數組**（前端 chunk 內的組裝函式，非腦補）：`searchType`、`gameKind`、`year`、
+  `month`、`teamCode`、`opponentTeamCode`、`defendStationCode`、`batSide`、`pitchHand`、`fieldAbbe`、
+  `pitchType`、`playerAcnt`（`minEvents` 為前端本地過濾）。實測 `pitchHand=L|R`、`month`、`opponentTeamCode`
+  皆回不同數值（郭天信 0000005549：全季 468 PA／wOBA .322、對左投 121 PA／.226、對右投 355 PA／.353；
+  ⚠️ 對左＋對右＝476 ≠ 全季 468，差 8 原因未查）。`fieldAbbe` 以中文「大巨蛋」查回 0 人，正確值域未知。
+  **這些分項維度目前全未入庫。**
 - leaderboards 現行 ingest 的基本查詢參數已確認為 `searchType=batter|pitcher`、`gameKind`、
   `year`；頁面其他守位篩選仍須以 DevTools 實測，不得由 chunk 字串腦補。
 - `/rankings` 頁仍可能內嵌 RSC 資料，但正式 ingest 應走已確認的 JSON API；RSC 僅作改版診斷／交叉驗證，避免維護兩份 parser。

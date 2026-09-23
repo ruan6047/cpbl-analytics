@@ -18,6 +18,8 @@
 - 三場 stats 單場 endpoint 均 HTTP 200；單請求約 42–125 ms。
 - production VPS 對 stats A-223 單場 endpoint HTTP 200、約 174 ms；同機 `www /box` HTTP 404。
 - 結論：stats 適合作 production live 主來源；賽中 TrackMan 不可用，`SkipTrackman=false` 亦不得映射 available。
+  - ⚠️ **2026-09-23 更正（「賽中 TrackMan 不可用」只對上表 07 月三場成立，不可外推）**：2026-09-07 20:07:49 賽中實抓
+    A-304 140 球、A-306 141 球，與當時 LiveLog 140／134 列同步。現況以 `docs/CPBL_SITE_MAP.md` §4b 單場列為準。
 
 ### 實作後 one-shot shadow（20:06）
 
