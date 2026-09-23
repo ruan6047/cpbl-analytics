@@ -972,6 +972,16 @@ ACCEPTED_RECONCILIATIONS: frozenset[tuple[int, str, int]] = frozenset({
     # 09-22 每日鏈拿到續賽後來源（livelog 283 列、官方 box PA 75）→ added=54 changed=1
     # removed=0、invariant=0。續賽增長。
     (2026, "D", 165),
+    # --- 2026-09-23 同日追加：重建 8/25–9/05 共 33 場過期 build 時浮現的原地修正 ---
+    # 2026/A/312：2026-09-05 洲際、8:0 完成（非保留／延賽）。published build 建於
+    # 2026-09-07 20:10:52（livelog 288 列、box_pa 73）；2026-09-23 重建時 livelog 仍為 288 列
+    # 但內容已變（新 revision）→ added=0 changed=1 removed=0、invariant=0。唯一變動的是
+    # 一局下 pa_index 9（打者 0000004636 對投手 0000006497，兩出局二壘有人）：
+    # result_action「接球失誤」→「一壘安打 內野安打」、outcome_family reach_on_error→hit。
+    # 官方 box（batting_gamelog）該打者本場 4 打數 2 安打（2 支一壘安打），與新來源的兩支
+    # 安打（pa 9、pa 60）一致、與舊 published 的一支不一致——屬官方賽後改判的原地修正，
+    # 列數不變故 `_pa_build_targets` 的過期偵測看不到；同 A/209「讓 published 指回現行來源」。
+    (2026, "A", 312),
 })
 
 REJECT_NOT_ALLOWLISTED = "not_in_allowlist"
