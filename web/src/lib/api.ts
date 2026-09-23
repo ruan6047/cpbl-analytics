@@ -485,8 +485,11 @@ export const api = {
     }>(`/api/v1/teams/${code}/players`, 600),
   specialRecords: (season?: number) =>
     get<SpecialRecordsResponse>(`/api/v1/special-records${season ? `?season=${season}` : ""}`, 120),
-  standingsTrend: (season?: number, kind = "A") =>
-    get<StandingsTrendResponse>(`/api/v1/standings-trend?kind_code=${kind}${season ? `&season=${season}` : ""}`, 120),
+  standingsTrend: (season?: number, kind = "A", seasonCode = 0) =>
+    get<StandingsTrendResponse>(
+      `/api/v1/standings-trend?kind_code=${kind}${season ? `&season=${season}` : ""}${seasonCode === 1 || seasonCode === 2 ? `&season_code=${seasonCode}` : ""}`,
+      120,
+    ),
   postseasonSummary: (season?: number, kind = "A") =>
     get<PostseasonSummaryResponse>(`/api/v1/postseason-summary?kind_code=${kind}${season ? `&season=${season}` : ""}`, 120),
   gamesRecent: (limit = 60, year?: number, kind = "A") =>
