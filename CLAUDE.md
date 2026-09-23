@@ -212,6 +212,7 @@ URL（`http://cpbl-analytics:4001/api/info`）。
 2. **一個邏輯變更一個 commit**。
 3. **嚴禁 commit**：`.env`、`data/`、`artifacts/`、`.venv/`、credentials。
 4. push 前確認 `uv run ruff check`＋`uv run pytest`＋`cd web && npm test` 通過（路由快照：新端點同步加 EXPECTED）、`cpbl-train` 回測未退化。
+5. **主 checkout（`~/Dev/cpbl-analytics`）必須停在 `main`**：launchd 的每日爬蟲、每週排程與 watchdog 都直接從主 checkout 跑，它停在哪個分支、排程就跑哪個分支的碼。分支工作一律開 worktree（`git worktree add`），⛔ 不要在主 checkout `git switch`／`checkout` 到別的分支。實例：2026-09-22 16:49:05 主 checkout 被切到 `codex/vnext-card3-home-grid`，09-23 10:10 的每日爬蟲就在該分支上執行，直到 09-23 17:15:58 才切回 `main`。
 
 ---
 
