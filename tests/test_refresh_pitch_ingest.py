@@ -169,10 +169,10 @@ def test_empty_livelog_writes_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
         raise AssertionError("回空時不得開啟 DB 連線")
 
     monkeypatch.setattr(pt, "conn", boom)
-    monkeypatch.setattr(pt, "_fetch_game_livelog", lambda c, y, k, s: [])
+    monkeypatch.setattr(pt, "_fetch_game", lambda c, y, k, s: {})
     monkeypatch.setattr(pt.time, "sleep", lambda s: None)
     out = pt.scrape_game_pitches([(2026, "A", 1)], delay=0)
-    assert out == {"games": 1, "pitches": 0, "skipped_frozen": 0}
+    assert out == {"games": 1, "pitches": 0, "skipped_frozen": 0, "pitcher_flags": 0}
 
 
 def test_ingest_module_has_no_delete_statement() -> None:
@@ -252,10 +252,10 @@ def test_game_path_skips_frozen_without_requesting(monkeypatch: pytest.MonkeyPat
 
     def fake_fetch(client, year, kind, sno):
         fetched.append((year, kind, sno))
-        return [{"Year": year, "KindCode": kind, "GameSno": sno, "PitchCnt": 1,
-                 "PitcherAcnt": "p1", "Trackman": {"Play": {}, "Pitch": {}}}]
+        return {"LiveLog": [{"Year": year, "KindCode": kind, "GameSno": sno, "PitchCnt": 1,
+                             "PitcherAcnt": "p1", "Trackman": {"Play": {}, "Pitch": {}}}]}
 
-    monkeypatch.setattr(pt, "_fetch_game_livelog", fake_fetch)
+    monkeypatch.setattr(pt, "_fetch_game", fake_fetch)
     monkeypatch.setattr(pt.time, "sleep", lambda s: None)
     out = pt.scrape_game_pitches([FROZEN, NOT_FROZEN], delay=0)
 

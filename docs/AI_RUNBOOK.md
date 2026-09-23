@@ -706,7 +706,8 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
 
 - season/ML：`*_seasons`、`projections`、`model_versions`。
 - 歷史冠軍：`championships`（1990–2025 逐年官方來源＋franchise）→ `championship_members`（離線重建成員）。
-- 逐場：`games`、`game_scoreboard`、`game_livelog`、`batting_gamelog`、`pitching_gamelog`、`game_features`。
+- 逐場：`games`、`game_scoreboard`、`game_livelog`、`batting_gamelog`、`pitching_gamelog`、`game_features`、
+  `pitching_game_flags`（migration 073：stats.cpbl 單場 API 逐投手官方旗標，救援成功／失敗等）。
 - 當季累計：`batting_current`、`pitching_current`、`team_current`、`fielding_current`。**口徑不一致**：`team_current`＝當前半季，batting/pitching＝全年（fielding 已排除半季）——見 §8 陷阱與 [`reference/GLOSSARY.md`](reference/GLOSSARY.md)。
 - 對戰/分項：`matchups`、`vs_team_splits`、`batting_splits`、`pitching_splits`。
 - 進階：`advanced_stats`、`pitch_tracking`、`team_standings`、`refresh_log`。

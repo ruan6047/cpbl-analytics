@@ -555,6 +555,11 @@ if [ -n "${WITH_DETAIL:-}" ]; then
     traj_accel_y traj_accel_z zone_time ivb_cm hb_cm pitch_type_pred pitch_type_pred_v2 \
     hit_landing_bearing hit_landing_confidence hit_spin_rate \
     traj_x0 traj_x1 traj_x2 traj_y0 traj_y1 traj_y2 traj_z0 traj_z1 traj_z2
+  # 逐場逐投手官方旗標（migration 073；救援成功／失敗等，與逐球同一個單場請求寫入）。
+  # ⚠️ 表由 073 建立：生產端的 migration 用已部署的 prod_cpbl_api 映像執行，主站未部署
+  # 含 073 的映像前，這一行會因生產端無此表而失敗——依 Runbook 先部署再同步。
+  sync_table pitching_game_flags "year,kind_code,game_sno,pitcher_acnt" \
+    is_save_ok is_save_fail role_type relief_point source_fetched_at
   sync_table batting_gamelog "year,kind_code,game_sno,hitter_acnt" \
     hitter_name visiting_home_type uniform_no role_type plate_appearances at_bats hits rbi runs \
     singles doubles triples home_runs grand_slam total_bases gidp sac_hit sac_fly bb ibb hbp so sb cs \

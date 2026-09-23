@@ -82,10 +82,14 @@ def _save_situation(lead: int, runners: int) -> bool:
 
 
 def blown(livelog: list[dict], pitching: list[dict]) -> dict[str, str]:
-    """中繼/救援失敗 [Blown Hold/Save]（推算，官方無旗標）：登板時處救援情境、
+    """中繼/救援失敗 [Blown Hold/Save]（推算）：登板時處救援情境、
     在位期間把領先葬送（該隊領先一度 ≤0＝被追平/反超）者。回 {acnt: 'BS'|'BH'}。
 
     BS(救援失敗)＝該場最後一任投手（有救援資格者搞砸）；BH(中繼失敗)＝中途接手者。
+
+    ⚠️ 2026-09-23 起官方逐場旗標已入庫（`cpbl.pitching_game_flags.is_save_fail`，
+    migration 073），且判定與本推算不同：2026-A-341 官方給 3 位救援失敗，其中 2 位是中繼
+    角色，本函式只會把 BS 記給最後一任。改用官方值與否待需求方裁定，本函式行為未動。
     領先歸屬：投手所屬隊＝守備方（vht='1' 客隊打擊時投手為主隊）。
     """
     if not livelog:

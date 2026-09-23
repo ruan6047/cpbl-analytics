@@ -3,12 +3,15 @@
 **兩條 fetch path、共用同一 pure parser（`_record` / `parse_pitches`）**：
 
 1. 逐投手 logs（`scrape_pitches`）：`/api/proxy/v1/players/logs`，依 kindCode
-   server-side 過濾整季逐球。現行 refresh 正式路徑用此路（唯一正式 writer）。
+   server-side 過濾整季逐球。現為回滾路徑（`CPBL_PITCH_INGEST=pitcher`）；refresh
+   預設走 2（`game`，見 docs/AI_RUNBOOK.md 逐球 TrackMan 一節）。
 2. 逐比賽單場（`scrape_game_pitches`，INGEST-GAME-TM-REFACTOR1）：
    `/api/proxy/v1/games/{year}-{kind}-{sno}`，解析 `Data.Game.LiveLog[]`。
    實測（2026-A-99）確認 LiveLog[] 每筆與 logs API 逐球**同 schema**（同欄位名
    Year/KindCode/GameSno/PitchCnt/PitcherAcnt/…/Trackman{Play,Pitch,Hit}），故
    `_record` 逐字沿用、不需欄位重映射。一場一請求，避免逐投手全季 logs 的名冊異動漏損。
+   同一個請求另解析 `Visiting／Home.Pitchers[]` 的逐投手官方旗標（救援成功／失敗、
+   RoleType、ReliefPointCnt）→ `cpbl.pitching_game_flags`（migration 073）。
 
 兩路皆為官方 JSON（httpx 直連、無挑戰），支援 kindCode A/C/D/E（一軍/一軍季後/
 二軍/二軍季後）。
@@ -29,6 +32,7 @@ from __future__ import annotations
 import datetime as _dt
 import logging
 import time
+from typing import Any
 
 import httpx
 
@@ -134,16 +138,72 @@ def _fetch_logs(client: httpx.Client, acnt: str, year: int, kind_code: str) -> l
     return (r.json().get("Data") or {}).get("Logs") or []
 
 
+def _fetch_game(client: httpx.Client, year: int, kind_code: str, game_sno: int) -> dict:
+    """單場 API 的 `Data.Game` 整包（`LiveLog[]` 逐事件＋雙方 `Pitchers[]` 等）。
+
+    未開打／端點結構變回空 dict，由呼叫端當 0 球、0 投手處理（不視為錯誤）。
+    """
+    r = client.get(f"{GAMES_EP}/{year}-{kind_code}-{game_sno}")
+    r.raise_for_status()
+    return (r.json().get("Data") or {}).get("Game") or {}
+
+
 def _fetch_game_livelog(client: httpx.Client, year: int, kind_code: str, game_sno: int) -> list[dict]:
     """單場 API 的 `Data.Game.LiveLog[]`（逐事件；含逐球 Trackman、換投/牽制等非投球事件）。
 
     LiveLog 每筆與 logs API 逐球同 schema，故可直接餵給共用 parser。無 LiveLog（未開打／
     端點結構變）回空列，由呼叫端當 0 球處理（不視為錯誤）。
     """
-    r = client.get(f"{GAMES_EP}/{year}-{kind_code}-{game_sno}")
-    r.raise_for_status()
-    game = ((r.json().get("Data") or {}).get("Game") or {})
-    return game.get("LiveLog") or []
+    return _fetch_game(client, year, kind_code, game_sno).get("LiveLog") or []
+
+
+# ---------- 逐場逐投手官方旗標（migration 073）----------
+_FLAG_COLS = "year,kind_code,game_sno,pitcher_acnt,is_save_ok,is_save_fail,role_type,relief_point"
+
+
+def _flag(v: Any) -> bool | None:
+    """官方旗標是字串 '0'／'1'。⚠️ 直接 truthy 判斷會把 '0' 也當成真；其餘值回 None，不猜。"""
+    if v in ("1", 1) and not isinstance(v, bool):
+        return True
+    if v in ("0", 0) and not isinstance(v, bool):
+        return False
+    return None
+
+
+def parse_pitcher_flags(game: dict, year: int, kind_code: str, game_sno: int) -> list[tuple]:
+    """單場 `Data.Game.{Visiting,Home}.Pitchers[]` → 逐投手官方旗標列（純函式）。
+
+    為什麼要收：救援失敗原本由 `models.pitcher_decisions.blown()` 推算，而官方判定不同——
+    2026-A-341 官方給 3 位救援失敗，其中 2 位是「中繼」角色（推算只記給最後一任）。
+    `IsSaveOK` 與既有 `games.closer_id` 同源，一併收以便對帳。缺 `PitcherAcnt` 的列略過。
+    """
+    rows: list[tuple] = []
+    for side in ("Visiting", "Home"):
+        for p in ((game.get(side) or {}).get("Pitchers") or []):
+            acnt = p.get("PitcherAcnt")
+            if not acnt:
+                continue
+            rp = p.get("ReliefPointCnt")
+            rows.append((year, kind_code, game_sno, acnt,
+                         _flag(p.get("IsSaveOK")), _flag(p.get("IsSaveFail")), p.get("RoleType"),
+                         rp if isinstance(rp, int) and not isinstance(rp, bool) else None))
+    return rows
+
+
+def _upsert_pitcher_flags(rows: list[tuple]) -> int:
+    """逐投手旗標冪等 UPSERT。空列不開 DB 連線（與逐球 `_upsert` 同語意）。"""
+    if not rows:
+        return 0
+    cols = _FLAG_COLS.split(",")
+    ph = "(" + ",".join(["%s"] * len(cols)) + ")"
+    updates = ", ".join(f"{c}=EXCLUDED.{c}" for c in cols[4:]) + ", source_fetched_at=now()"
+    with conn() as c:
+        c.cursor().executemany(
+            f"INSERT INTO cpbl.pitching_game_flags ({_FLAG_COLS}) VALUES {ph} "
+            f"ON CONFLICT (year, kind_code, game_sno, pitcher_acnt) DO UPDATE SET {updates}",
+            rows,
+        )
+    return len(rows)
 
 
 def _record(p: dict, kind_default: str) -> tuple | None:
@@ -260,7 +320,7 @@ def scrape_game_pitches(games: list[tuple[int, str, int]], delay: float = 1.0) -
     改名／註銷造成的 acnt 對帳漏損。無 Trackman 設備球場之球 Trackman=null → 不收（既有語意）。
     """
     client = _client()
-    out = {"games": 0, "pitches": 0, "skipped_frozen": 0}
+    out = {"games": 0, "pitches": 0, "skipped_frozen": 0, "pitcher_flags": 0}
     try:
         for idx, (year, kind_code, sno) in enumerate(games, 1):
             if is_frozen(year, kind_code, sno):
@@ -271,11 +331,14 @@ def scrape_game_pitches(games: list[tuple[int, str, int]], delay: float = 1.0) -
                 continue
             time.sleep(delay)
             try:
-                livelog = _fetch_game_livelog(client, year, kind_code, sno)
+                game = _fetch_game(client, year, kind_code, sno)
             except (httpx.HTTPError, ValueError) as e:
                 log.warning("[%d/%d] %d-%s-%s API 失敗：%s", idx, len(games), year, kind_code, sno, e)
                 continue
-            n = _upsert(parse_pitches(livelog, kind_code))
+            n = _upsert(parse_pitches(game.get("LiveLog") or [], kind_code))
+            # 同一個請求順手收逐投手官方旗標（救援成功／失敗等），不多打 API。
+            out["pitcher_flags"] += _upsert_pitcher_flags(
+                parse_pitcher_flags(game, year, kind_code, sno))
             out["games"] += 1
             out["pitches"] += n
             log.info("[%d/%d] %d-%s-%s → %d 球（累計 %d）",
