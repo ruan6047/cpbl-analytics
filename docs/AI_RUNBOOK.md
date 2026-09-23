@@ -115,7 +115,8 @@ docker compose exec redis redis-cli DEL cpbl:live:kill
 ### 本機每日爬取（launchd 每日 10:10；手動為 fallback）
 
 launchd 在使用者登入態每日 **10:10** 觸發 `scripts/scrape-daily.sh`；腳本先寫
-`state=running`，本機爬成功後才備份並同步 production。**時段紅線**：勿改到深夜／凌晨，
+`state=running`，本機爬成功後才備份並同步 production。每日鏈（非 `fast`）另會整季重算
+球種推算（v1＋v2，一二軍；2026-09-23 起），失敗記為退出碼 69（其餘照跑、仍會同步）。**時段紅線**：勿改到深夜／凌晨，
 官網挑戰深夜加嚴會硬封鎖新訪客（SITE_MAP §2）。OrbStack 與本機 DB 必須已啟動；否則
 狀態會是 `failed_phase=scrape`、`exit=127`，不會嘗試 production sync。
 

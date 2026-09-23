@@ -5,6 +5,8 @@
 - 累計數據：投手/打者/守備/團隊（受近期比賽影響的季累計值）
 - 增量對戰/分項：只更新「昨天/今天有上場」選手的 matchups / vs-team / splits
   （由 box score 抓當日上場 acnt，省去全名單重爬；off day 或無完成場次則略過）
+- 球種推算：v1 → v2 → v2 重分群，一軍／二軍各一輪（整季重算；分群樣本一二軍合算，
+  見 models/pitch_type.py）。`fast` 模式不跑。
 
 每次執行於 cpbl.refresh_log 記一列（時間、區間、完成場次、各表更新數）。
 若昨天有賽程卻未全部完成，於 note 警示（可能延賽或資料缺漏）。
@@ -13,12 +15,14 @@
 結束碼（DATA-BOX-DEEP-SILENT-FAIL1）：
 - 0：完全成功。
 - `EXIT_INCOMPLETE_SCRAPE`（69）：**有部分步驟失敗、其餘步驟照常完成**。
-  值班判讀要看 note 才知道是哪一種——69 現在有**兩個來源**：
+  值班判讀要看 note 才知道是哪一種——69 現在有**三個來源**：
   1. 逐場 gamelog 有失敗 → note 列出失敗場號、detail.gamelog_gaps。
   2. 官方球隊戰績對帳失敗（拿到別的球季／空表，已拒寫）→ note 列出
      `官方戰績未寫入：sc=N(kind)`、detail.standings_failures
      （DATA-STANDINGS-YEAR-IGNORED1 岔路 1 裁定沿用同一語意與同一個碼）。
-  兩者都記 refresh_log ok=false；`scripts/scrape-daily.sh` 對這個碼仍會執行生產同步
+  3. 球種推算失敗（2026-09-23 接進每日鏈）→ note 列出 `球種推算失敗：kind/階段`、
+     detail.pitch_type.errors；失敗那段保留上一輪標籤，其餘 kind／階段照跑。
+  三者都記 refresh_log ok=false；`scripts/scrape-daily.sh` 對這個碼仍會執行生產同步
   （Q3 裁定＝甲-2：擋同步只是把「靜默失敗」換成「生產靜默落後」）。
 - 1：硬失敗（含取 token 階段失敗＝整批一場都沒抓），同步不執行。
 
@@ -491,6 +495,39 @@ def _pa_build_step(year: int, days: list[date], *, include_farm: bool) -> dict[s
         return {"error": str(exc)}
 
 
+def _pitch_type_step(year: int) -> dict[str, Any]:
+    """球種推算：一軍、二軍各跑 v1 → v2 → v2 重分群（2026-09-23 接進每日鏈）。
+
+    為什麼放進每日鏈：推算原本不在任何排程裡，07-08 之後所有場館的新球全是 NULL，網站
+    只能退回「速球／變化球」，兩個半月無人發現。
+
+    fail closed：推算是衍生資料，例外只記錄、不外拋——不得擋住爬取與生產同步。但失敗
+    **不得靜默**：main() 會把 ``errors`` 轉成 refresh_log ok=false 與退出碼 69。逐 kind
+    各自 try，一軍失敗不影響二軍；每段寫入各自是一個交易，失敗的那段保留上一輪標籤。
+    順序不可調換：v2 讀 v1 剛寫入的標籤。
+
+    ⚠️ v2 以相對路徑讀 ``data/mlb/``（Savant CSV，不進版控）。每日鏈由 scrape-daily.sh 在
+    主 checkout 根目錄執行，讀得到；在別處執行會以 FileNotFoundError 記為失敗。
+    ⚠️ 每次整季重算（逐投手分群），舊球標籤可能隨新樣本變動——這是設計，不是漂移。
+    """
+    from cpbl.models.pitch_type import classify
+    from cpbl.models.pitch_type_v2 import classify_v2, recluster_v2
+
+    out: dict[str, Any] = {"errors": []}
+    for kind in ("A", "D"):
+        stage = "v1"
+        try:
+            out[f"{kind}_v1"] = classify(year, kind)
+            stage = "v2"
+            out[f"{kind}_v2"] = classify_v2(year, kind)
+            stage = "v2_recluster"
+            out[f"{kind}_v2_recluster"] = recluster_v2(year, kind)
+        except Exception as exc:  # noqa: BLE001 — fail-closed：由 main() 轉成 69，不擋主流程
+            log.exception("球種推算失敗 kind=%s stage=%s", kind, stage)
+            out["errors"].append({"kind": kind, "stage": stage, "error": str(exc)})
+    return out
+
+
 def _sync_player_names() -> int:
     """以「最近一場逐場登錄名」更新 players.name（處理球員改名，如 象魔力→魔力藍）。
     gamelog 名為官方當場登錄名、最乾淨；current 表名帶 #/◎/* roster 標記故不用。
@@ -724,6 +761,7 @@ def main() -> None:
     # PA build 失敗必須 fail-closed（不得擋住爬取/同步），故結果初始化在 try 外、
     # 呼叫本身包一層獨立 try/except，例外不外拋。
     pa_build_result: dict[str, Any] = {"games": 0, "actions": {}, "build_states": {}, "errors": []}
+    pitch_type_result: dict[str, Any] = {"skipped": True, "errors": []}
     try:
         games = scrape_games(year, year)              # 一軍例行賽賽程/結果
         games_farm = scrape_games(year, year, "D")    # 二軍賽程/結果（供二軍成績卡/逐球/戰績）
@@ -756,6 +794,9 @@ def main() -> None:
         # build，使「完成場皆有 published build」恆成立。fail-closed：build 失敗（含
         # reconciliation_required）只記錄，不擋其餘 refresh 步驟（見 _pa_build_step）。
         pa_build_result = _pa_build_step(year, [yesterday, today], include_farm=True)
+        # 球種推算（fail-closed，見 _pitch_type_step）。放在逐球增量之後，才涵蓋今天補進的球。
+        if not skip_detail:
+            pitch_type_result = _pitch_type_step(year)
         # 分項＋vs各隊全面重算寫回：本季=gamelog/livelog 重算、生涯=base+本季
         # （apart/vs-team 爬蟲全停，見 splits_calc / anchor_career）
         splits_built = build_splits(year, ("A", "D"))
@@ -795,23 +836,31 @@ def main() -> None:
         note = std_note if note is None else f"{note}；{std_note}"
         log.error(std_note)
 
+    # 球種推算失敗同樣結清成 ok=false＋69：它在 07-08 後停了兩個半月無人發現，靠的正是
+    # 「沒有任何東西會亮」。失敗那段保留上一輪標籤，擋同步只會讓其餘資料一起落後。
+    pitch_type_failed = pitch_type_result.get("errors") or []
+    if pitch_type_failed:
+        pt_note = "球種推算失敗：" + "；".join(f"{e['kind']}/{e['stage']}" for e in pitch_type_failed)
+        note = pt_note if note is None else f"{note}；{pt_note}"
+        log.error(pt_note)
+
     total = sum(t for _, t, _ in recent)
     completed = sum(comp for _, _, comp in recent)
     detail = {
         "games": games, "games_farm": games_farm, "stats": stats, "transactions": trans,
         "standings": standings, "standings_failures": standings_failed,
         "splits_built": splits_built, "incremental_detail": detail_inc, "pa_build": pa_build_result,
-        "gamelog_gaps": _GAMELOG_GAPS,
+        "pitch_type": pitch_type_result, "gamelog_gaps": _GAMELOG_GAPS,
         "recent": [{"date": d.isoformat(), "total": t, "completed": comp} for d, t, comp in recent],
     }
     _log_refresh("recent-games", yesterday, today, total, completed, detail,
-                 ok=not (_GAMELOG_GAPS or standings_failed), note=note)
+                 ok=not (_GAMELOG_GAPS or standings_failed or pitch_type_failed), note=note)
 
     log.info("刷新完成 | 近兩日場次 %s | games=%s stats=%s | 增量對戰/分項=%s | PA build=%s",
              {d.isoformat(): f"{comp}/{t}" for d, t, comp in recent}, games, stats, detail_inc,
              pa_build_result)
 
-    if _GAMELOG_GAPS or standings_failed:
+    if _GAMELOG_GAPS or standings_failed or pitch_type_failed:
         # 所有步驟都跑完了才退出：69 的語意是「有部分失敗但其餘完成」，
         # `scripts/scrape-daily.sh` 據此仍會同步生產。官方戰績對帳失敗沿用同一語意——
         # 拒寫的那幾列本來就沒進 DB，擋掉整條同步只會讓其餘已更新的資料一起落後。

@@ -56,8 +56,9 @@ scripts/scrape-daily.sh — 每日本機自動爬取，成功後同步 productio
 
 離開碼
   0 成功 · 64 參數錯 · 69 有部分步驟失敗但其餘完成（仍會同步 production）
-     69 有兩個來源，看 refresh_log 的 note 分辨：逐場 gamelog 失敗（列出場號）／
-     官方球隊戰績對帳失敗（列出 sc=N(kind)，該幾列已拒寫）
+     69 有三個來源，看 refresh_log 的 note 分辨：逐場 gamelog 失敗（列出場號）／
+     官方球隊戰績對帳失敗（列出 sc=N(kind)，該幾列已拒寫）／
+     球種推算失敗（列出 kind/階段，該段保留上一輪標籤）
   70 狀態檔寫入失敗 · 75 鎖被佔用 · 127 本機 DB 容器沒開
   其餘＝爬取或同步階段的原始離開碼
 

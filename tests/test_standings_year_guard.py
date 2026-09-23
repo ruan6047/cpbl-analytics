@@ -688,8 +688,8 @@ def _exit_code_69_contract_regions() -> dict[str, str]:
     }
 
 
-def test_exit_code_69_contract_names_both_sources() -> None:
-    """69 現在有兩個來源，**兩處**契約文字都必須兩個都講（R1-02）。
+def test_exit_code_69_contract_names_every_source() -> None:
+    """69 現在有三個來源（2026-09-23 加入球種推算），**兩處**契約文字都必須三個都講（R1-02）。
 
     ⚠️ 這條測的是**文件與行為一致**，不是文件存在：
     `test_daily_chain_reports_standings_failure_without_stopping` 已證行為確實會亮 69。
@@ -700,6 +700,7 @@ def test_exit_code_69_contract_names_both_sources() -> None:
         assert "69" in region, f"{where}：找錯區塊了"
         assert "gamelog" in region, f"{where}：69 的說明應保留 gamelog 這個來源"
         assert "戰績" in region, f"{where}：69 的說明未提到官方戰績對帳失敗這個來源"
+        assert "球種" in region, f"{where}：69 的說明未提到球種推算失敗這個來源"
 
 
 def test_exit_code_69_contract_is_not_the_stale_wording() -> None:
@@ -711,7 +712,8 @@ def test_exit_code_69_contract_is_not_the_stale_wording() -> None:
     targets = (pathlib.Path(inspect.getsourcefile(rr)), _SCRAPE_DAILY)
     for target in targets:
         text = target.read_text(encoding="utf-8")
-        for stale in ("逐場 gamelog 有失敗但其餘完成", "逐場 gamelog 有失敗、其餘步驟照常完成"):
+        for stale in ("逐場 gamelog 有失敗但其餘完成", "逐場 gamelog 有失敗、其餘步驟照常完成",
+                      "69 現在有**兩個來源**", "69 有兩個來源"):
             assert stale not in text, f"{target.name}：仍宣稱 69 只代表 gamelog 失敗（{stale}）"
 
 
