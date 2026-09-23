@@ -1,17 +1,21 @@
 # AI 協作工作流（cpbl-analytics 採用）
 
+> **卡別分流（需求方裁定）**：**新卡**一律開在 GitHub Issues＋[user Project #10「cpbl-analytics vNext 任務看板」](https://github.com/users/ruan6047/projects/10)（`.wf/config.json`），開卡／關卡由 PM 以 `gh` 執行；獨立安裝的 `wfx` 只提供 `brief`／`facts`／`write`（`write` 須依 `facts` 基準寫入），⛔ 不開卡／關卡（`wfx` 為獨立 Python 3.14 環境；安裝見 [`AI_RUNBOOK.md`](AI_RUNBOOK.md) §7.1）；新卡規則以已安裝 `wfx` 隨附規則（套件內 `wfx/rules/`）為準。**既有舊卡**留在 Project #4、不遷移。本檔以下凡提到 `wfcli`／Project #4 的機械流程，**只適用既有舊卡**，不得用來開新卡。
+
 > **2026-08-04 新治理全面生效（WF-22 Wave 0/1/2 完結）**：作業狀態唯一事實來源＝
 > **GitHub Issues＋user Project #4「cpbl-analytics 任務看板」**；唯一狀態寫入通道＝
 > ai-workflow repo 的 **`wfcli`**（`cli/`）。`docs/control-plane/events.jsonl` 與
 > `docs/TASKS.md` 投影**已封存唯讀**（終筆 `8271d7c`）——不得再追加事件或重建 Ledger。
 > 決策（開卡／派工／merge／結案）＝需求方本人；機械寫入＝PM 祕書 session 專責。
-> **canonical v2（2026-08-05）為唯一權威正文**；
+> **canonical v2（2026-08-05）為既有舊卡的唯一權威正文**；
 > [`research/WORKFLOW-REVIEW-2026-08-04.md`](research/WORKFLOW-REVIEW-2026-08-04.md) 為決議沿革紀錄。
 
-> **完整規則見 canonical（submodule）：[`../.ai-workflow/AI_WORKFLOW.md`](../.ai-workflow/AI_WORKFLOW.md)**（唯一權威來源；規則改動在 [ruan6047/ai-workflow](https://github.com/ruan6047/ai-workflow)）。既有專案升級依 [`../.ai-workflow/MIGRATION.md`](../.ai-workflow/MIGRATION.md)。
-> 本專案任務看板見 **GitHub Issues＋[user Project #4「cpbl-analytics 任務看板」](https://github.com/users/ruan6047/projects/4)**（[`TASKS.md`](TASKS.md) 為 2026-08-04 cutover 的封存快照，唯讀、不再是投影），控制平面見 [`CONTROL_PLANE_CONTRACT.md`](CONTROL_PLANE_CONTRACT.md)，新卡範本索引見 [`TEMPLATES.md`](TEMPLATES.md)，資料庫與部署操作分別見 [`DATABASE_CONTRACT.md`](DATABASE_CONTRACT.md) 與 [`AI_RUNBOOK.md`](AI_RUNBOOK.md) §7。模型選擇見 [`MODEL_ROUTING.md`](MODEL_ROUTING.md)。
+> **完整規則見 canonical（submodule）：[`../.ai-workflow/AI_WORKFLOW.md`](../.ai-workflow/AI_WORKFLOW.md)**（既有舊卡的唯一權威來源，新卡不適用；規則改動在 [ruan6047/ai-workflow](https://github.com/ruan6047/ai-workflow)）。既有專案升級依 [`../.ai-workflow/MIGRATION.md`](../.ai-workflow/MIGRATION.md)。
+> 既有舊卡的任務看板見 **GitHub Issues＋[user Project #4「cpbl-analytics 任務看板」](https://github.com/users/ruan6047/projects/4)**（新卡見上方卡別分流；[`TASKS.md`](TASKS.md) 為 2026-08-04 cutover 的封存快照，唯讀、不再是投影），控制平面見 [`CONTROL_PLANE_CONTRACT.md`](CONTROL_PLANE_CONTRACT.md)，舊流程（Project #4）範本索引見 [`TEMPLATES.md`](TEMPLATES.md)，資料庫與部署操作分別見 [`DATABASE_CONTRACT.md`](DATABASE_CONTRACT.md) 與 [`AI_RUNBOOK.md`](AI_RUNBOOK.md) §7。模型選擇見 [`MODEL_ROUTING.md`](MODEL_ROUTING.md)。
 
 ## 核心鐵律（速查）
+
+> **適用範圍**：以下鐵律中的 T0–T4 分級、狀態值（`🏁完成`／`🚨已升級` 等）、查核值（`APPROVE | REQUEST_CHANGES`、`review_independence`、event／Ledger）**只適用 Project #4 既有舊卡**，不得套用於 vNext 新卡；新卡依 `wfx` 隨附規則。
 
 1. **變更分級 + 部署閘門**：依 canonical T0–T4 按風險、範圍、可逆性選閘門；T2 以上程式碼（A 類）每卡開分支，每卡／卡族有獨立 worktree；只有已審核合併至 `main` 的提交可部署。
 2. **實作／審核分離**：同一張卡的執行與查核須由不同經手者；查核發現缺陷以 PR review／event 留 finding，原執行者在原分支修正，查核者不得改 source branch。卡面／baseline／SHA／依賴等 preflight 失敗不建立 review、不增加 iteration；第三個可計數實質退回先進 escalation checkpoint，只有重複根因、舊 finding 未修或需求方裁定才轉 `🚨已升級`（canonical [`review-escalation.md`](../.ai-workflow/templates/review-escalation.md)）。有效但不計數的 review 仍可閉合 finding；同 attempt finding 衝突須以 `review-correction` 裁決，epoch 切換須有需求方明示授權。查核結論統一用 `APPROVE | REQUEST_CHANGES`（`core_pain_resolved` 與 `self_run` 必填——**無 `self_run` 的 APPROVE 無效**，canonical §5.2）；舊的自由文字 `REJECT` 不得用於 WF-21 baseline 後新事件。**查核第一判準＝核心痛點是否消失，具否決權**（canonical §5.1）。
