@@ -23,12 +23,12 @@
 ## 工作樹與共用資源
 
 - 主 checkout `~/Dev/cpbl-analytics` 必須停在 `main`：本機排程直接從它執行，它停在哪個分支排程就跑哪個分支的碼。分支工作一律開獨立 worktree。
-- 本機 DB、服務、排程與既有 worktree 都是多個 session 共用；`Resource` 欄只記當前占用狀態，不是鎖；占用或 owner 不明時先請 PM 協調，⛔ 不清除、不重設、不覆蓋別人的未提交變更。舊卡的本機 lease 鎖不適用新卡。
+- 本機 DB、服務、排程與既有 worktree 都是多個 session 共用；`Resource` 欄只記當前占用狀態，不是鎖；占用或 owner 不明時先請 PM 協調，⛔ 不清除、不重設、不覆蓋別人的未提交變更。舊卡的本機 lease 鎖不沿用新卡，但改動共享資源仍依 vNext 的資源租用（`rules/core/github.md` §6）。
 
 ## DB 寫入與 migration
 
 - `docs/DATABASE_CONTRACT.md` 的技術邊界仍有效；其中 `docs/tasks/<CARD_ID>.md` 宣告、Coordinator claim、lease 等舊卡機制不適用新卡，該檔尚未依新框架修訂。
-- migration 只新增、不改既有檔，且須冪等；破壞性 DDL 或大量資料轉換須獨立卡與需求方 sign-off。
+- migration 只新增、不改既有檔，且須冪等；破壞性 DDL 或大量資料轉換須獨立卡，並於既有階段確認（`rules/core/flow.md`）取得需求方授權，不另設關卡。
 - production migration 只由 main 部署鏈在 `prod_cpbl_api` 內執行；結構或資料操作前須先有已驗證備份，⛔ 不臨時手改 production DB。
 
 ## 部署與資料刷新
