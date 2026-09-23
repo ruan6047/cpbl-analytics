@@ -358,7 +358,9 @@ def game_live(
                     "WHERE year=%s AND kind_code=%s AND game_sno=%s", (season, kind_code, game_sno))
         gd = _dicts(cur)
     # 投手角色：W/L/HLD 官方（game_result/relief_point）、SV 依規則 9.19 自 livelog 推算
-    # （官方逐場無 save 旗標；2026 全季驗證與官方季累計 SV 一致率 63/64 投手）
+    # （2026 全季驗證與官方季累計 SV 一致率 63/64 投手；官方逐場救援其實另有 games.closer_id
+    # 與 pitching_game_flags.is_save_ok，尚未改用）。救援失敗：有官方旗標的場次用官方
+    # （pitcher_decisions.blown_for_game，需求方 2026-09-23 裁定），否則推算。
     decisions = pitcher_decisions.game_decisions(season, kind_code, game_sno)
     decision_counts = None
     if g and kind_code == "A":

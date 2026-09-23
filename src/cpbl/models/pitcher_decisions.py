@@ -87,9 +87,9 @@ def blown(livelog: list[dict], pitching: list[dict]) -> dict[str, str]:
 
     BS(救援失敗)＝該場最後一任投手（有救援資格者搞砸）；BH(中繼失敗)＝中途接手者。
 
-    ⚠️ 2026-09-23 起官方逐場旗標已入庫（`cpbl.pitching_game_flags.is_save_fail`，
-    migration 073），且判定與本推算不同：2026-A-341 官方給 3 位救援失敗，其中 2 位是中繼
-    角色，本函式只會把 BS 記給最後一任。改用官方值與否待需求方裁定，本函式行為未動。
+    ⚠️ 有官方逐場旗標的場次**不再使用本推算**（需求方 2026-09-23 裁定，見 `blown_for_game`）：
+    官方判定與本推算不同——2026-A-341 官方給 3 位救援失敗，其中 2 位是中繼角色，本函式只會把
+    BS 記給最後一任。本函式保留給沒有官方旗標的場次（季後賽、凍結場、往年）。
     領先歸屬：投手所屬隊＝守備方（vht='1' 客隊打擊時投手為主隊）。
     """
     if not livelog:
@@ -146,9 +146,42 @@ def game_decisions(year: int, kind_code: str, game_sno: int) -> dict[str, str]:
             "WHERE year=%s AND kind_code=%s AND game_sno=%s", (year, kind_code, game_sno))
         cols = [d[0] for d in cur.description]
         pitching = [dict(zip(cols, r, strict=True)) for r in cur.fetchall()]
+        cur.execute(
+            "SELECT pitcher_acnt, is_save_fail FROM cpbl.pitching_game_flags "
+            "WHERE year=%s AND kind_code=%s AND game_sno=%s", (year, kind_code, game_sno))
+        flags = cur.fetchall()
     dec = decide(livelog, pitching, g[0], g[1])
-    # 併入中繼/救援失敗：與 W/L 並存（搞砸又吞敗＝'L·BS'），與 SV/HLD 互斥
-    for acnt, bl in blown(livelog, pitching).items():
-        base = dec.get(acnt)
-        dec[acnt] = f"{base}·{bl}" if base in ("L",) else bl
-    return dec
+    return merge_blown(dec, blown_for_game(flags, livelog, pitching))
+
+
+def official_blown(flags: list[tuple[str, bool | None]]) -> dict[str, str]:
+    """官方逐場旗標 `[(pitcher_acnt, is_save_fail), ...]` → `{acnt: 'BS'}`（純函式）。
+
+    官方沒有「中繼失敗」分類：救援情境中把領先弄丟的後援一律記救援失敗，不分登板順序。
+    故有官方旗標的場次只標 BS、不標 BH——同一件事不能同時被官方記 BS、又被推算記 BH。
+    """
+    return {acnt: "BS" for acnt, fail in flags if fail is True}
+
+
+def blown_for_game(flags: list[tuple[str, bool | None]], livelog: list[dict],
+                   pitching: list[dict]) -> dict[str, str]:
+    """救援／中繼失敗的單一入口：該場有官方旗標就用官方，沒有才推算（需求方 2026-09-23 裁定）。
+
+    「有官方旗標」以該場在 `pitching_game_flags` 有任何列為準（整場都是 0 也算有，代表官方
+    判定本場無人救援失敗）。沒有列的場次＝季後賽、凍結場、往年等，退回 `blown()` 推算。
+    單場頁（`game_decisions`）與 splits（`splits_calc._blown_saves`）共用本函式，兩處不得各自判定。
+    """
+    return official_blown(flags) if flags else blown(livelog, pitching)
+
+
+def merge_blown(dec: dict[str, str], bl: dict[str, str]) -> dict[str, str]:
+    """救援／中繼失敗併入勝負標記：與 W／L 並存（'W·BS'、'L·BS'），與 SV／HLD 互斥。
+
+    ⚠️ 原本只有 L 會並存，W 會被整個蓋成 'BS'——搞砸領先後球隊再超前拿下勝投的投手，勝投
+    因此消失。官方旗標下這種情形常見，故一併修正。前端以「·」切開逐個顯示（box-tabs.tsx）。
+    """
+    out = dict(dec)
+    for acnt, tag in bl.items():
+        base = out.get(acnt)
+        out[acnt] = f"{base}·{tag}" if base in ("W", "L") else tag
+    return out

@@ -572,8 +572,11 @@ def _bat_rates(c: Counter) -> dict:
 
 
 def _blown_saves(year: int, kind: str) -> Counter:
-    """(acnt, 對手隊名) → 救援失敗 BS 次數。批次撈 livelog/gamelog 按場呼叫 blown()。"""
-    from cpbl.models.pitcher_decisions import blown
+    """(acnt, 對手隊名) → 救援失敗 BS 次數。有官方逐場旗標的場次用官方，否則推算。
+
+    判定走 `pitcher_decisions.blown_for_game`（與單場頁同一個入口，需求方 2026-09-23 裁定）。
+    """
+    from cpbl.models.pitcher_decisions import blown_for_game
     out: Counter = Counter()
     with conn() as c:
         cur = c.cursor()
@@ -595,6 +598,11 @@ def _blown_saves(year: int, kind: str) -> Counter:
         pg_by_game: dict[int, list[dict]] = {}
         for r in cur.fetchall():
             pg_by_game.setdefault(r[0], []).append(dict(zip(pcols, r, strict=True)))
+        flags_by_game: dict[int, list[tuple]] = {}
+        for sno, acnt, fail in c.execute(
+                "SELECT game_sno, pitcher_acnt, is_save_fail FROM cpbl.pitching_game_flags "
+                "WHERE year=%s AND kind_code=%s", (year, kind)).fetchall():
+            flags_by_game.setdefault(sno, []).append((acnt, fail))
         opp = {}
         for sno, hn, an in c.execute(
                 "SELECT game_sno, home_team_name, away_team_name FROM cpbl.games "
@@ -604,8 +612,10 @@ def _blown_saves(year: int, kind: str) -> Counter:
     for sno, pgs in pg_by_game.items():
         for p in pgs:
             side_of[(sno, p["pitcher_acnt"])] = str(p["visiting_home_type"])
-    for sno, ll in ll_by_game.items():
-        for acnt, tag in blown(ll, pg_by_game.get(sno, [])).items():
+    for sno in sorted(set(ll_by_game) | set(flags_by_game)):
+        tags = blown_for_game(flags_by_game.get(sno, []), ll_by_game.get(sno, []),
+                              pg_by_game.get(sno, []))
+        for acnt, tag in tags.items():
             if tag != "BS":
                 continue
             # 對手：pitching_gamelog vht 為投手自隊側，客隊投手(1)的對手=主隊名
