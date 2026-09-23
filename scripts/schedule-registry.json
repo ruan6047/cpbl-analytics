@@ -5,7 +5,7 @@
     "應該多久跑一次、從哪一天起算』。scripts/schedule_watch.py 只判定登記在此的 job。",
     "",
     "為什麼非有不可：從機器的角度，『刻意不安裝』與『壞掉沒安裝』的觀測結果完全相同——",
-    "com.cpbl.weekly-game-pitches 的 plist 於 4203f59 併入 main 至今從未安裝，那是 #53 ",
+    "com.cpbl.weekly-game-pitches 的 plist 於 4203f59 併入 main 後到 2026-09-20 都沒安裝，那是 #53 ",
     "Phase A 的刻意邊界，但 launchctl／狀態檔／log 三處皆空，機器分不出來。沒有這份宣告，",
     "缺席偵測器部署當天就會把刻意邊界報成故障，然後被關掉（#115 正是死於這個形狀）。",
     "",
@@ -76,27 +76,14 @@
         "hour": 13,
         "minute": 10
       },
-      "effective_from": null,
-      "effective_from_evidence": "尚未安裝，故無生效日。實測 launchctl print gui/501/com.cpbl.weekly-game-pitches → exit 113（Could not find service）",
-      "expected_installed": false,
-      "expected_installed_reason": "#53 INGEST-GAME-TM-REFACTOR1-G4 Phase A 的刻意邊界：交付碼與 plist 但不安裝，cutover 未發生（docs/ROADMAP.md §0 已載明；#115 死於誤把此邊界當缺陷）。若日後 cutover，同時填 effective_from／history_from 並把 expected_installed 改 true。",
+      "effective_from": "2026-09-21",
+      "effective_from_evidence": "symlink mtime 2026-09-20 13:44（實測，週日 bootstrap），其後第一個排程週一為 2026-09-21；logs/weekly-game-pitches-20260921-131003.log 為第一次排程觸發（13:10:03 開始、13:22:19 結束、exit 0；A 327 場／74,033 球、D 230 場／40,773 球）",
+      "expected_installed": true,
+      "expected_installed_reason": "需求方 2026-09-23 決定保留安裝。09-20 由 Claude 以「漏裝」的錯誤前提安裝（未先讀本表），09-22 watchdog 報 REGISTRY_CONFLICT；但 09-21 首跑補回 8/25–9/05 共 33 場晚發布的逐球（9,464 球），需求方據此保留。#53 Phase A「交付碼與 plist 但不安裝」的邊界至此結束；原列的兩個 cutover blocker（拿不到鎖時 exit 0、沒有歷史寫入）已於同一 PR 修掉。",
       "status_path": "logs/last-weekly-pitches.json",
       "history_path": "logs/schedule-history/com.cpbl.weekly-game-pitches.jsonl",
-      "history_from": null,
-      "history_from_evidence": "尚未安裝；且該 wrapper 的歷史寫入未在 #132 射程內（scripts/weekly-game-pitches.sh 不在本卡 resource-claims，見交付報告『射程缺口』）",
-      "cutover_blockers": [
-        "⚠️ 這兩項必須在 #53 cutover **之前**處理，否則裝上去的那天就是一支帶著已知缺陷的排程：",
-        "1. 跳過被記成成功：scripts/weekly-game-pitches.sh:103-106 拿不到 refresh lock 時",
-        "   `write_status \"skipped\" 0` 然後 `exit 0`。launchd 只看得到 exit 0＝成功，於是",
-        "   『每週都被跳過、整季一次都沒跑』與『每週都正常跑完』在觀測上完全相同。",
-        "   同型缺陷在 scripts/weekly-box-revisions.sh 已於本卡修掉（改 exit 75 並區分",
-        "   stale lock），可直接照抄那一段；本卡未動本檔是因為它不在 resource-claims。",
-        "   ⚠️ 現況是**休眠**而非已發生：launchctl print gui/501/com.cpbl.weekly-game-pitches",
-        "   → exit 113（未安裝），故它目前一次都沒跑過，不會產生假成功。",
-        "2. 完全沒有歷史寫入：本檔 grep `history-append|schedule-history` 命中 0 次，",
-        "   故即使裝上，schedule_watch.py 也判不了它的缺席（history_from 只能是 null）。",
-        "   cutover 時需比照 weekly-box-revisions.sh 接上 refresh_status.py history-append。"
-      ]
+      "history_from": "2026-09-23",
+      "history_from_evidence": "交付日；歷史由 scripts/weekly-game-pitches.sh 的 write_status 呼叫 refresh_status.py history-append 寫入（照抄 weekly-box-revisions.sh）。填早是安全的：判定下界另受部署錨點保護，見 _readme"
     },
     {
       "label": "com.cpbl.schedule-watchdog",

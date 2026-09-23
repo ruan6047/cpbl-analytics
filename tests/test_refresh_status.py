@@ -28,6 +28,7 @@ import pytest
 ROOT = Path(__file__).parents[1]
 STATUS_HELPER = ROOT / "scripts" / "refresh_status.py"
 WEEKLY_BOX = ROOT / "scripts" / "weekly-box-revisions.sh"
+WEEKLY_PITCHES = ROOT / "scripts" / "weekly-game-pitches.sh"
 REGISTRY = ROOT / "scripts" / "schedule-registry.json"
 SYSTEM_PYTHON = "/usr/bin/python3" if Path("/usr/bin/python3").exists() else sys.executable
 
@@ -303,3 +304,102 @@ def test_unknown_argument_exits_64_without_running(tmp_path: Path) -> None:
     assert result.returncode == 64
     assert status == {} and history == []
     assert not (tmp_path / "repo" / "logs").exists()
+
+
+# ------------------------------------------------------- weekly-game-pitches.sh
+# schedule-registry.json 對本 job 列的兩個 cutover blocker（2026-09-23 修）：
+#   1. 拿不到鎖 `write_status "skipped" 0` + `exit 0` ⇒ launchd 看到的跳過與成功無法分辨
+#   2. 完全沒有歷史寫入 ⇒ schedule_watch.py 判不了它的缺席
+# 兩條都是照抄 weekly-box-revisions.sh 已修好的段落，故斷言與上方同一組。
+
+def _run_weekly_pitches(
+    tmp_path: Path,
+    *,
+    uv_exit: int = 0,
+    docker_running: bool = True,
+    lock_pid: int | None = None,
+    lock_without_pid: bool = False,
+) -> tuple[subprocess.CompletedProcess, dict, list[dict]]:
+    repo = tmp_path / "repo"
+    scripts = repo / "scripts"
+    fake_bin = tmp_path / "bin"
+    scripts.mkdir(parents=True, exist_ok=True)
+    fake_bin.mkdir(exist_ok=True)
+    shutil.copy2(WEEKLY_PITCHES, scripts / "weekly-game-pitches.sh")
+    shutil.copy2(STATUS_HELPER, scripts / "refresh_status.py")
+
+    docker_output = "cpbl-analytics-db-1\n" if docker_running else ""
+    _executable(fake_bin / "docker", f"#!/bin/sh\nprintf '{docker_output}'\n")
+    _executable(fake_bin / "uv", f"#!/bin/sh\nexit {uv_exit}\n")
+
+    lock_dir = tmp_path / "refresh.lock"
+    if lock_pid is not None or lock_without_pid:
+        lock_dir.mkdir()
+        if lock_pid is not None:
+            (lock_dir / "pid").write_text(str(lock_pid), encoding="utf-8")
+
+    env = os.environ.copy()
+    env.update({"PATH": f"{fake_bin}:/usr/bin:/bin", "REFRESH_LOCK_DIR": str(lock_dir)})
+    env.pop("XPC_SERVICE_NAME", None)
+    result = subprocess.run(
+        ["/bin/bash", str(scripts / "weekly-game-pitches.sh")],
+        cwd=repo, env=env, text=True, capture_output=True, check=False,
+    )
+    status_path = repo / "logs" / "last-weekly-pitches.json"
+    status = json.loads(status_path.read_text(encoding="utf-8")) if status_path.exists() else {}
+    return result, status, _history(repo, "com.cpbl.weekly-game-pitches")
+
+
+def test_weekly_pitches_lock_busy_is_not_reported_as_success(tmp_path: Path) -> None:
+    """blocker 1。⚠️ exit code 與歷史兩面一起斷言：舊版狀態檔的 result 欄本來就寫
+    `skipped`，只有 launchd 看得到的 exit code 那一面把「該跑沒跑」偽裝成成功。"""
+    result, status, history = _run_weekly_pitches(tmp_path, lock_pid=os.getpid())
+
+    assert result.returncode == 75            # ← 舊版是 0
+    assert status["result"] == "skipped" and status["exit_code"] == 75
+    assert [r["state"] for r in history] == ["skipped"]
+    assert history[0]["exit_code"] == 75
+
+
+def test_weekly_pitches_lock_without_pid_is_not_reclaimed(tmp_path: Path) -> None:
+    result, status, _ = _run_weekly_pitches(tmp_path, lock_without_pid=True)
+
+    assert result.returncode == 75
+    assert status["result"] == "skipped"
+    assert (tmp_path / "refresh.lock").exists()      # 鎖沒被搶走
+
+
+def test_weekly_pitches_stale_lock_is_reclaimed(tmp_path: Path) -> None:
+    result, status, history = _run_weekly_pitches(tmp_path, lock_pid=999_999)
+
+    assert result.returncode == 0
+    assert status["result"] == "ok"
+    assert "回收 stale lock" in result.stdout
+    assert [r["state"] for r in history] == ["running", "succeeded"]
+
+
+def test_weekly_pitches_success_writes_running_then_succeeded(tmp_path: Path) -> None:
+    """blocker 2：舊版一列歷史都不寫（`history-append` 在該檔命中 0 次）。"""
+    result, status, history = _run_weekly_pitches(tmp_path)
+
+    assert result.returncode == 0
+    assert status["result"] == "ok"
+    assert [r["state"] for r in history] == ["running", "succeeded"]
+    assert {r["trigger"] for r in history} == {"manual"}   # pytest 起的行程 PPID≠1
+
+
+def test_weekly_pitches_failure_propagates_and_is_recorded(tmp_path: Path) -> None:
+    result, status, history = _run_weekly_pitches(tmp_path, uv_exit=9)
+
+    assert result.returncode == 9
+    assert status["result"] == "failed" and status["exit_code"] == 9
+    assert [r["state"] for r in history] == ["running", "failed"]
+    assert history[-1]["exit_code"] == 9
+
+
+def test_weekly_pitches_missing_database_is_a_failure(tmp_path: Path) -> None:
+    result, status, history = _run_weekly_pitches(tmp_path, docker_running=False)
+
+    assert result.returncode == 127
+    assert status["result"] == "failed"
+    assert [r["state"] for r in history] == ["running", "failed"]

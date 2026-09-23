@@ -14,7 +14,8 @@
 #   3. 排在週一（中職固定休兵、無新完成場）且遠離每日 10:10 觸發點，讓重疊在時間上
 #      也不成立——即使 Mac 睡醒後 launchd 補跑錯過的每日 job，本檔也會因忙碌而跳過。
 #
-# 產物：logs/weekly-game-pitches-YYYYMMDD-HHMM.log、logs/last-weekly-pitches.json
+# 產物：logs/weekly-game-pitches-YYYYMMDD-HHMM.log、logs/last-weekly-pitches.json、
+#       logs/schedule-history/com.cpbl.weekly-game-pitches.jsonl（append-only 歷史）
 #
 # 用法：scripts/weekly-game-pitches.sh --help     # 只印用法，不碰任何東西
 #       scripts/weekly-game-pitches.sh            # 全季 A + D
@@ -33,7 +34,8 @@ usage() {
 scripts/weekly-game-pitches.sh — 每週一次的全季逐球重跑（launchd 週一 13:10）
 
 在做什麼
-  1. 忙碌即跳過：拿不到 refresh lock 就直接 exit 0（每日鏈優先，絕不等待、不搶佔）
+  1. 忙碌即跳過：拿不到 refresh lock 就 exit 75（**不是成功**；每日鏈優先，絕不等待、
+     不搶佔）。持有者已死的 stale lock 會回收後照跑
   2. 確認本機 DB 容器在
   3. 對 kind A 與 D 各跑一次 cpbl-scrape-game-pitches <YEAR> <KIND>
      （單一 kind 失敗不中止另一 kind，整體仍記為失敗）
@@ -45,7 +47,8 @@ scripts/weekly-game-pitches.sh — 每週一次的全季逐球重跑（launchd �
 會寫什麼（⚠️ 高後果，且沒有 dry-run）
   · 本機 PostgreSQL：cpbl-scrape-game-pitches 對逐球資料的寫入
   · 本機檔案系統：logs/weekly-game-pitches-YYYYMMDD-HHMMSS.log（只留最近 12 份）、
-    logs/last-weekly-pitches.json
+    logs/last-weekly-pitches.json、
+    logs/schedule-history/com.cpbl.weekly-game-pitches.jsonl（供 schedule_watch.py 判缺席）
   · 對 stats.cpbl.com.tw 發出整季份量的請求
 
 怎麼呼叫（不接受位置參數，設定一律走環境變數）
@@ -57,7 +60,8 @@ scripts/weekly-game-pitches.sh — 每週一次的全季逐球重跑（launchd �
   REFRESH_LOCK_DIR  互斥鎖目錄（預設 /private/tmp/cpbl-analytics-refresh.lock）
 
 離開碼
-  0 成功或忙碌跳過 · 64 參數錯 · 127 本機 DB 容器沒開 · 其餘＝爬取的原始離開碼
+  0 成功 · 75 refresh lock 忙碌而跳過（不是成功）· 64 參數錯 · 127 本機 DB 容器沒開
+  · 其餘＝爬取的原始離開碼
 
 背景：docs/AI_RUNBOOK.md（每週全季重跑）
 EOF
@@ -91,19 +95,72 @@ mkdir -p logs
 TS="$(date +%Y%m%d-%H%M%S)"
 LOG="logs/weekly-game-pitches-${TS}.log"
 STATUS="logs/last-weekly-pitches.json"
+LABEL="com.cpbl.weekly-game-pitches"
+# 執行身分以**父行程**判定，理由與實測見 scripts/weekly-box-revisions.sh 同段（#132）：
+# launchd 觸發時 PPID=1；XPC_SERVICE_NAME 在子行程會被重設為 "0"，⛔ 不可當判準。
+# 判不出來一律記 manual（fail closed）——誤記成 launchd 會讓手動補跑冒充排程跑。
+if [ "${PPID:-0}" = "1" ]; then
+  TRIGGER="launchd"
+else
+  TRIGGER="manual"
+fi
+
+# result（人讀的既有詞彙）→ state（schedule_watch.py 的判定詞彙）。
+# 為什麼要寫歷史：沒有它，schedule_watch.py 判不了本 job 的缺席（登記表 history_from
+# 只能是 null）——這是 schedule-registry.json 對本 job 列的第 2 個 cutover blocker。
+history_append() {  # $1=state $2=exit_code $3=note
+  set -- "$1" "$2" "$3"
+  if [ "$1" = "running" ]; then   # running 不帶 finished_at／exit_code，否則語意是假的
+    python3 "$REPO_DIR/scripts/refresh_status.py" history-append \
+      --history-label "$LABEL" --state running --trigger "$TRIGGER" \
+      --started-at "$STARTED_AT" --log "$LOG" --note "$3" || true
+  else
+    python3 "$REPO_DIR/scripts/refresh_status.py" history-append \
+      --history-label "$LABEL" --state "$1" --trigger "$TRIGGER" \
+      --started-at "$STARTED_AT" --finished-at "$(date '+%Y-%m-%dT%H:%M:%S%z')" \
+      --exit-code "$2" --log "$LOG" --note "$3" || true
+  fi
+}
 
 write_status() {  # $1=result $2=exit_code $3=note
   cat > "$STATUS" <<EOJ
 {"result":"$1","exit_code":$2,"note":"$3","year":$YEAR,
  "started_at":"$STARTED_AT","finished_at":"$(date '+%Y-%m-%dT%H:%M:%S%z')","log":"$LOG"}
 EOJ
+  case "$1" in
+    ok) history_append "succeeded" "$2" "$3" ;;
+    skipped) history_append "skipped" "$2" "$3" ;;
+    *) history_append "failed" "$2" "$3" ;;
+  esac
 }
 
 # 忙碌即跳過：每日 refresh 優先，本檔絕不等待、絕不搶佔既有 lock。
+#
+# ⚠️ 退出碼是 75 不是 0：舊版寫 `skipped` 卻 `exit 0`，launchd 記到的 LastExitStatus
+# 與成功無法分辨——「每週都被跳過、整季一次都沒跑」與「每週都正常跑完」在觀測上完全
+# 相同（schedule-registry.json 對本 job 列的第 1 個 cutover blocker）。照抄
+# scripts/weekly-box-revisions.sh 已修好的那一段：75＝EX_TEMPFAIL，語意不變。
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  echo "[$(date '+%F %T')] 每日 refresh 進行中，本週重跑跳過（下週再收斂）" | tee "$LOG"
-  write_status "skipped" 0 "refresh lock busy"
-  exit 0
+  LOCK_PID="$(cat "$LOCK_DIR/pid" 2>/dev/null || true)"
+  if [ -z "$LOCK_PID" ]; then
+    # 可能是另一個程序剛 mkdir、尚未寫入 pid；不可把它誤判成 stale 後刪除。
+    echo "[$(date '+%F %T')] refresh lock 存在但無 pid，保守跳過（下週再收斂）" | tee "$LOG"
+    write_status "skipped" 75 "refresh lock busy (no pid)"
+    exit 75
+  fi
+  if kill -0 "$LOCK_PID" 2>/dev/null; then
+    echo "[$(date '+%F %T')] 其他 refresh 進行中（pid=${LOCK_PID}），本週重跑跳過（下週再收斂）" | tee "$LOG"
+    write_status "skipped" 75 "refresh lock busy"
+    exit 75
+  fi
+  # stale lock 回收：持有者已死。沒有這段，鎖目錄一旦被留下就會永久跳過、永久沒訊號。
+  echo "[$(date '+%F %T')] 回收 stale lock（前持有者 pid=${LOCK_PID} 已不存在）" | tee "$LOG"
+  rm -f "$LOCK_DIR/pid" 2>/dev/null
+  if ! rmdir "$LOCK_DIR" 2>/dev/null || ! mkdir "$LOCK_DIR" 2>/dev/null; then
+    echo "[$(date '+%F %T')] stale lock 回收失敗，跳過（下週再收斂）" | tee -a "$LOG"
+    write_status "skipped" 75 "stale lock reclaim failed"
+    exit 75
+  fi
 fi
 printf '%s\n' "$$" > "$LOCK_DIR/pid"
 release_lock() {
@@ -115,6 +172,9 @@ release_lock() {
 trap release_lock EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM HUP
+
+# 取得鎖之後立刻留下 running 一列：讓「開跑後死掉」與「從未開跑」在歷史上可分辨。
+history_append "running" 0 "acquired refresh lock"
 
 echo "[$(date '+%F %T')] start: 全季逐球重跑 year=${YEAR} kinds=A,D" | tee "$LOG"
 

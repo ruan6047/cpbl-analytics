@@ -254,6 +254,12 @@ refresh 鏈的逐球抓取維度由 `CPBL_PITCH_INGEST` 控制（pydantic-settin
 排程失敗**不得中斷每日 refresh**，落地方式三層：獨立 launchd job 與狀態檔（每日鏈不讀）、
 共用 refresh lock 且**忙碌即跳過**（不等待不搶佔）、排在週一休兵日且遠離 10:10。
 
+**安裝現況**（2026-09-23）：**已安裝並運行**——2026-09-20 裝上、09-21 首次排程觸發；需求方
+09-23 決定保留，`scripts/schedule-registry.json` 的 `expected_installed` 已改為 `true`（原本是
+#53 Phase A「交付碼與 plist 但不安裝」的刻意邊界）。忙碌跳過時 **exit 75**（不是 0，launchd
+才分得出跳過與成功）；每次執行寫 `logs/schedule-history/com.cpbl.weekly-game-pitches.jsonl`，
+供 `schedule_watch.py` 判缺席。
+
 ```bash
 ln -sf "$PWD/scripts/com.cpbl.weekly-game-pitches.plist" ~/Library/LaunchAgents/com.cpbl.weekly-game-pitches.plist
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.cpbl.weekly-game-pitches.plist
