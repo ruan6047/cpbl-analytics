@@ -590,6 +590,19 @@ remote_train() {
     "output=\$(${command} 2>&1); rc=\$?; printf '%s\n' \"\$output\" | grep -v httpx | tail -${lines}; exit \$rc"
 }
 
+# 取線上 /api/info（下方兩道 freshness 檢查共用）。
+# ⚠️ 重試是刻意的（2026-09-23）：這兩道檢查緊接在上面兩次 VPS 訓練之後，而 VPS 只有
+# 1 vCPU／950MB RAM——cpbl API 平時約八成在 swap（swap 104MB、常駐 23MB），同步與訓練期間
+# swap-in 約 800–1,150 頁/s（sar 10 分鐘平均），部署時可達 9,814 頁/s。重工作後的第一個請求
+# 得等換頁回來：09-23 22:07:57（CST）#190 部署後那次同步，10 秒內一個位元組都沒收到，
+# 整條同步以失敗結束，而資料其實早已寫完。平常容器內量 /api/info 只要 0.05s。
+# 只重試暫時性錯誤（curl --retry 的定義：逾時、HTTP 408／429／500／502／503／504）；
+# 拿到回應後的內容比對失敗（verify_refresh_info.py）不重試、照樣讓同步失敗——
+# ⛔ 重試只吸收主機暫時卡住，不得拿來蓋過資料不一致。最壞耗時 4×20s＋3×15s＝125s。
+fetch_api_info() {
+  curl -fsS --retry 3 --retry-delay 15 --max-time 20 "$API_INFO_URL"
+}
+
 echo "==> 4/4 VPS 跑賽事預測回測（LightGBM 需 libgomp；prod_cpbl_api 容器內有）"
 # game_features 已由本機鏡像（全史），VPS 不需再 build-features；直接以鏡像資料跑
 # 走查回測並把 model_versions(task='outcome') 持久化，供 /api/info 與 /predict 面板展示。
@@ -603,7 +616,7 @@ echo "    + 重訓 outcome_simple（賽前勝率 serving 模型；閘門未過�
 remote_train "docker exec prod_cpbl_api cpbl-train-outcome-simple" 7
 
 echo "    + 對帳 production 真實資料 freshness"
-curl -fsS --max-time 10 "$API_INFO_URL" \
+fetch_api_info \
   | python3 "$REPO_DIR/scripts/verify_refresh_info.py" --data-only \
       --expected-last-game-date "$EXPECTED_LAST_GAME_DATE" \
       --expected-season-games-completed "$EXPECTED_COMPLETED"
@@ -617,7 +630,7 @@ ssh -o BatchMode=yes "$VPS" \
     'local-to-production sync completed')\""
 
 echo "    + 驗證 production API freshness"
-curl -fsS --max-time 10 "$API_INFO_URL" \
+fetch_api_info \
   | python3 "$REPO_DIR/scripts/verify_refresh_info.py" --max-age-minutes 15 \
       --expected-last-game-date "$EXPECTED_LAST_GAME_DATE" \
       --expected-season-games-completed "$EXPECTED_COMPLETED"

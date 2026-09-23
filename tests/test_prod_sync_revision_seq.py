@@ -176,7 +176,13 @@ def _build_harness(tmp_path: Path) -> dict:
         "  *cpbl.completion*) echo 'home_score + away_score > 0' ;;\n"
         '  *) echo "stub uv $*" ;;\nesac\n',
     )
-    _write_exec(fake_bin / "curl", "#!/bin/sh\necho '{}'\n")
+    # curl 樁順手記下 argv（`test_refresh_info_retry.py` 驗兩道 /api/info 檢查的重試旗標）。
+    _write_exec(
+        fake_bin / "curl",
+        '#!/bin/sh\nmkdir -p "$STUB_LOG_DIR/curl"\n'
+        "printf '%s\\n' \"$@\" > \"$STUB_LOG_DIR/curl/$$.args\"\n"
+        "echo '{}'\n",
+    )
     _write_exec(fake_bin / "python3", "#!/bin/sh\ncat > /dev/null\nexit 0\n")
 
     # 腳本以絕對路徑（$REPO_DIR/scripts/…）呼叫的兩支，樁在假 repo 內。
