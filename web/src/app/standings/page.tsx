@@ -549,7 +549,7 @@ export default async function Standings({ searchParams }: { searchParams: Promis
     api.officialStandings(effSeg, useOfficial ? undefined : selectedYear, kind),
     !isMinor ? api.standings(selectedYear) : Promise.resolve({ standings: [] }),
     needAdvanced ? api.specialRecords(selectedYear) : Promise.resolve(null),
-    api.standingsTrend(useOfficial ? undefined : selectedYear, kind),
+    api.standingsTrend(useOfficial ? undefined : selectedYear, kind, effSeg),
     needPlayoffData ? api.officialStandings(1, selectedYear, kind) : Promise.resolve(null),
     needPlayoffData ? api.officialStandings(2, selectedYear, kind) : Promise.resolve(null),
     needPlayoffData ? api.officialStandings(0, selectedYear, kind) : Promise.resolve(null),

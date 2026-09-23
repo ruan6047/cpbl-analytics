@@ -393,15 +393,22 @@ def official_standings(
 def standings_trend(
     season: int = Query(DEFAULT_SEASON),
     kind_code: str = Query("A"),
+    season_code: int = Query(0),
 ) -> dict:
-    """各隊逐日累積戰績走勢（勝-敗差，即高於 .500 的場數）。未出賽日沿用前值。"""
+    """各隊逐日累積戰績走勢（勝-敗差，即高於 .500 的場數）。未出賽日沿用前值。
+
+    season_code 1/2 只納入該半季比賽（下半季自首場重新累計）；0 完全不篩，
+    不可寫成 `= '0'`——2006 二軍全年含半季碼 1/2 的比賽。
+    """
+    seg_sql = " AND game_season_code=%s" if season_code in (1, 2) else ""
+    params: tuple = (season, kind_code, str(season_code)) if season_code in (1, 2) else (season, kind_code)
     with conn() as c:
         games = c.execute(
             "SELECT game_date, home_team_code, away_team_code, home_score, away_score, "
             "home_team_name, away_team_name "
-            f"FROM cpbl.games WHERE year=%s AND kind_code=%s AND {_DONE} "
+            f"FROM cpbl.games WHERE year=%s AND kind_code=%s AND {_DONE}{seg_sql} "
             "ORDER BY game_date, game_sno",
-            (season, kind_code),
+            params,
         ).fetchall()
     by_date: dict = {}
     teams: set[str] = set()
