@@ -107,15 +107,29 @@ sync_table() {
     echo "   補進本檔該表的 sync_table 清單後再跑。" >&2
     return 1
   fi
-  local set_clause=""
+  local set_clause="" tgt_row="" new_row=""
   local c
-  for c in "$@"; do set_clause="${set_clause}${c}=EXCLUDED.${c},"; done
+  for c in "$@"; do
+    set_clause="${set_clause}${c}=EXCLUDED.${c},"
+    tgt_row="${tgt_row}tgt.${c},"
+    new_row="${new_row}EXCLUDED.${c},"
+  done
   set_clause="${set_clause%,}"
+  # 只改真的變了的列（2026-09-24）。原本每次同步把送過去的每一列都 UPDATE 一次——
+  # 每次約 2,177,577 列（game_livelog 全史 1,392,649 列），生產端 game_livelog 累計
+  # n_tup_upd 86,791,479 對 n_tup_ins 68,228、HOT 只佔 7%：幾乎全是「值沒變的重寫」，
+  # 每一列都留下 dead tuple、改寫索引、產生 WAL，再觸發 autovacuum，在 1 vCPU／950MB 的
+  # VPS 上直接變成大量換頁（見 fetch_api_info 的說明）。
+  # 比較範圍＝SET 的欄（PK 由 ON CONFLICT 對齊），與 SET 同一份清單產生，不會各自漂移。
+  # IS DISTINCT FROM 把 NULL 對 NULL 視為相同。⛔ 前提：同步表不可有沒有等號運算子的型別
+  # （json、幾何型別）——2026-09-24 查過 45 張同步表皆無；新增這類欄位前先改用 jsonb。
+  # 最終資料與改前相同（沒變的列本來就是寫回同值），只是不再產生無效寫入。
   {
     echo "CREATE TEMP TABLE _stg (LIKE cpbl.${t} INCLUDING DEFAULTS) ON COMMIT DROP;"
     docker exec "$LOCAL_DB" pg_dump -U cpbl -d cpbl --data-only -t "cpbl.${t}" \
       | sed -e "s/^COPY cpbl\.${t} /COPY _stg /" -e '/^\\restrict /d' -e '/^\\unrestrict /d'
-    echo "INSERT INTO cpbl.${t} SELECT * FROM _stg ON CONFLICT (${pk}) DO UPDATE SET ${set_clause};"
+    echo "INSERT INTO cpbl.${t} AS tgt SELECT * FROM _stg ON CONFLICT (${pk}) DO UPDATE SET ${set_clause}" \
+      "WHERE ROW(${tgt_row%,}) IS DISTINCT FROM ROW(${new_row%,});"
   } | ssh -o BatchMode=yes "$VPS" \
         "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql \
           -v ON_ERROR_STOP=1 -q --single-transaction -U \"\$DB_USER\" -d \"\$DB_NAME\""

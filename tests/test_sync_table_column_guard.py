@@ -67,7 +67,9 @@ def test_complete_list_is_synced(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     assert payload is not None
-    assert "ON CONFLICT (id) DO UPDATE SET a=EXCLUDED.a,b=EXCLUDED.b;" in payload
+    assert ("INSERT INTO cpbl.t AS tgt SELECT * FROM _stg ON CONFLICT (id) DO UPDATE SET "
+            "a=EXCLUDED.a,b=EXCLUDED.b WHERE ROW(tgt.a,tgt.b) IS DISTINCT FROM "
+            "ROW(EXCLUDED.a,EXCLUDED.b);") in payload
 
 
 def test_missing_column_fails_before_any_payload_is_sent(tmp_path: Path) -> None:
