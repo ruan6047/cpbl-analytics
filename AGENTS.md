@@ -77,7 +77,7 @@ cpbl-analytics/
 │   │   └── matchup.py            # 賽事預測（主：單場對戰卡 + 定向預設權重）
 │   └── api/                      # FastAPI：main.py 組裝 + routers/ 領域分群 + helpers/rows 共用
 ├── web/                          # 獨立 Next.js 15 前端（App Router + Tailwind v4 + recharts）
-├── migrations/                   # 001…022（season/ML 表 + games/game_features/current 系列 + advanced_stats/pitch_tracking/game_log/standings…）
+├── migrations/                   # NNN_*.sql（season/ML 表 + games/game_features/current 系列 + advanced_stats/pitch_tracking/game_log/standings…）
 ├── Dockerfile                    # uv build → python slim runtime（裝 libgomp1）
 └── docker-compose.yml            # 本地：自帶 PG（port 5433）+ api
 ```
@@ -105,7 +105,7 @@ npm run build:check                                                             
 > 賽事預測的**互動探索器**不需離線訓練：API request 時依使用者選的特徵子集即時 fit
 > （見 `models/matchup.py`，預設權重=各變因單獨標準化係數、定向後正=有利主隊）。
 > 另有**離線走查回測**（`cpbl-train-outcome`→`models/outcome_gbm.py`）跑全特徵
-> LightGBM/邏輯回歸 vs 全押主場，寫 `model_versions(task='outcome')` 供 `/predict` 面板
+> LightGBM/邏輯回歸 vs 全押主場，寫 `model_versions(task='outcome')` 供 `/methodology#pregame` 回測面板
 > 與 `/api/info` 展示；需 LightGBM 故在容器內跑。成績預測（打擊 projection）有 `cpbl-train`。
 > current 系列表（pitching/batting/team）與 games 一樣要定期重跑爬蟲（上線掛 cron）。
 
@@ -129,7 +129,7 @@ docker compose run --rm api cpbl-train     # 容器內已有 libgomp1，LightGBM
 
 1. **不使用 ORM**：所有 SQL 直接寫在模組內，用 psycopg3 參數化（`%s`），嚴禁字串拼接 SQL。
 2. **連線**：一律走 `cpbl.db.conn()` context manager（自動 commit/rollback），不要自開連線。
-3. **Migration**：新增放 `migrations/`，檔名 `00X_description.sql`，內容必須 `IF NOT EXISTS`（migrate() 會每次全跑，需冪等）。不要改動已存在的 migration。
+3. **Migration**：新增放 `migrations/`，檔名 `NNN_description.sql`（三碼流水號，接續現有最大號），內容必須 `IF NOT EXISTS`（migrate() 會每次全跑，需冪等）。不要改動已存在的 migration。
 4. **Schema**：所有表在 `cpbl` schema 下。ID 與 `cpbl-opendata` 對齊（player_id 為 10 碼字串），確保未來逐場資料能以相同 ID 疊加。
 
 ### Ingest（回填）
@@ -207,11 +207,11 @@ URL（`http://cpbl-analytics:4001/api/info`）。
 - **Phase 1（已完成）**：opendata 回填 + 打擊成績預測（Marcel vs LightGBM）+ `/api/info` + 投影查詢。
 - **Phase 1.5（已完成）**：官網逐場爬蟲（games 表，含比分/先發投手）；獨立 Next.js 前端（投影排行 + 球員逐年圖表）。
 - **Phase 2（已完成）**：**賽事預測** — game_features（leakage-safe）+ 即時 fit 特徵子集探索器（`/predict` 頁 + `/api/v1/outcome/*`）+ 今日賽事勝率預測。
-- **Phase 2.6（已完成）**：賽事預測重構 — game_features 改全史 kind A（1145→9350 完成場，修正混二軍/季後）+ 新增 leakage-safe 特徵（上季戰力 `prior_winpct_diff`、休息天數 `rest_days_diff`）+ 離線 LightGBM 走查回測對照（2022–26，~62% vs 全押主場 ~53%，`/predict` 模型回測面板）。
+- **Phase 2.6（已完成）**：賽事預測重構 — game_features 改全史 kind A（1145→9350 完成場，修正混二軍/季後）+ 新增 leakage-safe 特徵（上季戰力 `prior_winpct_diff`、休息天數 `rest_days_diff`）+ 離線 LightGBM 走查回測對照（2022–26，`/methodology#pregame` 回測面板；原宣稱 ~62% 含約 6–7 個百分點前視洩漏，見 [`docs/research/ML-OUTCOME-LEAK1_RESULTS.md`](docs/research/ML-OUTCOME-LEAK1_RESULTS.md)，勿當賽前預測力引用）。
 - **Phase 2.5（已完成）**：官方進階數據 — `advanced_stats`（彙總進階 + 官方 PR）+ `pitch_tracking`（逐球 TrackMan）+ 好球帶紀律 `/discipline`；逐場 box score / 逐打席 livelog（`game_log`、賽況頁）。
-- **前端改版（進行中）**：日間 Navy+白設計系統；P1/P2（球員頁旗艦）完成；P3 各頁視覺化升級進行中（含賽況頁 **ESPN 風格狀態板**：頂部記分條 + 壘包/球數 + 逐球好球帶 + Recent Plays）。
+- **前端改版（進行中）**：日間 Navy+白設計系統；P1/P2（球員頁旗艦）完成；P3 各頁視覺化升級進行中（含賽況頁**賽中態**的 **ESPN 風格狀態板**：頂部記分條 + 壘包/球數 + 逐球好球帶 + Recent Plays）。⚠️ 完賽態**總覽頁籤**的頁首記分條只呈現終場比分，不顯示 TOP/BOT、壘包與球數；完賽態逐打席頁籤與總覽共用同一記分條元素，須保留選中打席的局數、壘包與球數（需求方 2026-08-21 裁定，[#160](https://github.com/ruan6047/cpbl-analytics/issues/160)；逐欄位定稿見 [`docs/design/GAME-PAGE-THREE-STATES.md`](docs/design/GAME-PAGE-THREE-STATES.md) §1.1.1）。本行是 Roadmap 進度描述，**不是視覺方向的裁定依據**。
 - **上線（已完成）**：submodule + compose + nginx 接主站，**已上線 https://cpbl.ruan-ruan.com**（前端走 cpbl 子網域；`cpbl-refresh-recent` 每日增量）。
-- **後續**：投手成績預測；計數型成績（需上場時間模型）；`/api/info` 併入賽果模型指標。
+- **後續**：計數型成績（需上場時間模型）。其餘排序以 [`docs/ROADMAP.md`](docs/ROADMAP.md) 為準。
 
 ---
 
@@ -222,14 +222,15 @@ URL（`http://cpbl-analytics:4001/api/info`）。
    - scope：`ingest` `features` `models` `api` `infra`（可省略）
 2. **一個邏輯變更一個 commit**。
 3. **嚴禁 commit**：`.env`、`data/`、`artifacts/`、`.venv/`、credentials。
-4. push 前確認 `uv run ruff check`＋`uv run pytest` 通過（路由快照：新端點同步加 EXPECTED）、`cpbl-train` 回測未退化。
-5. **主 checkout（`~/Dev/cpbl-analytics`）必須停在 `main`**：launchd 的每日爬蟲、每週排程與 watchdog 都直接從主 checkout 跑，它停在哪個分支、排程就跑哪個分支的碼。分支工作一律開 worktree（`git worktree add`），⛔ 不要在主 checkout `git switch`／`checkout` 到別的分支。實例：2026-09-22 16:49:05 主 checkout 被切到 `codex/vnext-card3-home-grid`，09-23 10:10 的每日爬蟲就在該分支上執行，直到 09-23 17:15:58 才切回 `main`。
+4. push 前確認 `uv run ruff check`＋`uv run pytest`＋`cd web && npm test` 通過（路由快照：新端點同步加 EXPECTED）、`cpbl-train` 回測未退化。
+5. **主 checkout（`~/Dev/cpbl-analytics`）必須停在 `main`**：launchd 的每日爬蟲、每週排程與 watchdog 都直接從主 checkout 跑，它停在哪個分支、排程就跑哪個分支的碼。分支工作一律開 worktree（`git worktree add`），⛔ 不要在主 checkout `git switch`／`checkout` 到別的分支。
 
 ---
 
 ## 給 AI 的工作備忘
 
 - 條件不足強制反問，**嚴禁腦補**資料欄位 / 官網結構（先用 gh/WebFetch 查證）。
+- 跨檔術語（kind_code、island、幽靈島、GO/FO、保留賽、完成場判定…）先查 [`docs/reference/GLOSSARY.md`](docs/reference/GLOSSARY.md)，勿依單檔註解各自解讀。
 - 觀點或前提有誤直接指出（例：有人要求用 opendata 做賽果預測 → 必須指出資料粒度不符）。
-- 改完跑驗證：`uv run ruff check` + `uv run pytest` + 容器內 `cpbl-train` 看回測對照表。
+- 改完跑驗證：`uv run ruff check` + `uv run pytest` + `cd web && npm test` + 容器內 `cpbl-train` 看回測對照表；DB 契約測試與完整程序見 `docs/AI_RUNBOOK.md` §7.2。
 - 涉及 LightGBM/原生相依，預設容器內執行，不在 macOS host 裝 build 依賴。
