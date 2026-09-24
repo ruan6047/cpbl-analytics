@@ -105,7 +105,7 @@ npm run build:check                                                             
 > 賽事預測的**互動探索器**不需離線訓練：API request 時依使用者選的特徵子集即時 fit
 > （見 `models/matchup.py`，預設權重=各變因單獨標準化係數、定向後正=有利主隊）。
 > 另有**離線走查回測**（`cpbl-train-outcome`→`models/outcome_gbm.py`）跑全特徵
-> LightGBM/邏輯回歸 vs 全押主場，寫 `model_versions(task='outcome')` 供 `/predict` 面板
+> LightGBM/邏輯回歸 vs 全押主場，寫 `model_versions(task='outcome')` 供 `/methodology#pregame` 回測面板
 > 與 `/api/info` 展示；需 LightGBM 故在容器內跑。成績預測（打擊 projection）有 `cpbl-train`。
 > current 系列表（pitching/batting/team）與 games 一樣要定期重跑爬蟲（上線掛 cron）。
 
