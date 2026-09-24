@@ -64,7 +64,21 @@ def _trackman_snapshot(raw: Any) -> dict[str, Any] | None:
         "hit_distance": landing.get("Distance"),
         "hit_hang_time": landing.get("HangTime"),
     }
-    return snapshot if any(value is not None for value in snapshot.values()) else None
+    if not any(value is not None for value in snapshot.values()):
+        return None
+    # 賽中推算球種的輸入（需求方 2026-09-24）：仍是官方直接值，worker 本身不推算；由 API 以
+    # `cpbl.models.pitch_type_live` 推算後把軌跡三欄拿掉再回前端。刻意不納入上面的「可呈現」
+    # 判定——只有這幾欄的球不能讓 UI 以為有逐球資料。
+    flight = pitch.get("Flight") if isinstance(pitch.get("Flight"), dict) else {}
+    polyfit = flight.get("PolyFit") if isinstance(flight.get("PolyFit"), dict) else {}
+    traj = polyfit.get("PitchTrajectory") if isinstance(polyfit.get("PitchTrajectory"), dict) else {}
+    snapshot.update({
+        "spin_rate": release.get("SpinRate"),
+        "zone_time": location.get("ZoneTime"),
+        "traj_y": traj.get("Y") if isinstance(traj.get("Y"), list) else None,
+        "traj_z": traj.get("Z") if isinstance(traj.get("Z"), list) else None,
+    })
+    return snapshot
 
 
 class SnapshotCache(Protocol):

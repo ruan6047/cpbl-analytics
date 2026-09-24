@@ -199,7 +199,43 @@ def test_live_snapshot_keeps_trackman_with_its_official_event_key() -> None:
         "rel_speed": 150.4, "plate_loc_side": -0.12, "plate_loc_height": 0.84,
         "exit_speed": 166.2, "launch_angle": 24.5, "hit_spin_rate": 1234.0,
         "hit_distance": 98.1, "hit_hang_time": 3.2,
+        # 推算球種的官方輸入（本樣本沒帶 → None，缺值不補）
+        "spin_rate": None, "zone_time": None, "traj_y": None, "traj_z": None,
     }
+
+
+def test_live_snapshot_carries_official_pitch_type_inputs() -> None:
+    """推算球種所需的轉速／ZoneTime／軌跡係數原值照搬，worker 不推算。"""
+    tracked = [{
+        "MainEventNo": "7", "PitchCnt": 1, "PitcherAcnt": "p1",
+        "Trackman": {
+            "Play": {"PitchTag": {"TaggedPitchType": "fastball"}},
+            "Pitch": {
+                "Release": {"RelSpeed": 141.7, "SpinRate": 2326.1},
+                "Location": {"PlateLocSide": 0.1, "PlateLocHeight": 0.8, "ZoneTime": 0.43},
+                "Flight": {"PolyFit": {"PitchTrajectory": {
+                    "X": [1.0, 2.0, 3.0], "Y": [1.89, 0.53, -3.9], "Z": [0.4, -0.2, 1.1]}}},
+            },
+        },
+    }]
+    pitch = build_snapshot(_game("START", livelog=tracked), fetched_at=T0)["livelog"][0]["trackman"]
+    assert pitch["spin_rate"] == 2326.1
+    assert pitch["zone_time"] == 0.43
+    assert pitch["traj_y"] == [1.89, 0.53, -3.9]
+    assert pitch["traj_z"] == [0.4, -0.2, 1.1]
+    assert "pitch_type_est" not in pitch     # 推算在 API，不在 worker
+
+
+def test_pitch_type_inputs_alone_do_not_make_a_usable_pitch() -> None:
+    """只有推算輸入、沒有任何可呈現欄的球不得讓 UI 以為有逐球資料。"""
+    tracked = [{
+        "MainEventNo": "8", "PitchCnt": 1, "PitcherAcnt": "p1",
+        "Trackman": {"Pitch": {"Release": {"SpinRate": 2300.0},
+                               "Location": {"ZoneTime": 0.4}}},
+    }]
+    snapshot = build_snapshot(_game("START", livelog=tracked), fetched_at=T0)
+    assert snapshot["livelog"][0]["trackman"] is None
+    assert snapshot["tracking_count"] == 0
 
 
 def test_live_snapshot_keeps_official_ball_strike_flags_from_real_fixture() -> None:

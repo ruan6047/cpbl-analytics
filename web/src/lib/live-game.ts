@@ -38,6 +38,8 @@ export type LiveTrackman = {
   rel_speed: number | null; plate_loc_side: number | null; plate_loc_height: number | null;
   exit_speed: number | null; launch_angle: number | null; hit_spin_rate: number | null;
   hit_distance: number | null; hit_hang_time: number | null;
+  /** API 賽中推算的細分球種（cpbl.models.pitch_type_live）；樣本不足或輸入缺欄為 null。舊快照不帶此欄。 */
+  pitch_type_est?: string | null; spin_rate?: number | null;
 };
 
 export type LiveSnapshot = {
@@ -434,8 +436,9 @@ export function liveTracking(snapshot: LiveSnapshot): StatRow[] {
       main_event_nos: group.map((member) => String(member.MainEventNo ?? "")),
       pitcher_acnt: String(event.PitcherAcnt ?? ""), hitter_acnt: String(event.HitterAcnt ?? ""),
       inning_seq: Number(event.InningSeq ?? 0), pitch_cnt: Number(event.PitchCnt ?? 0),
-      // T3 僅允許官方 TaggedPitchType；自家即時模型屬另一張 T4 卡。
-      pitch_type_pred: null,
+      // 自家即時模型（UX-LIVE-TRACKMAN1 Design Gate 列為後續卡，需求方 2026-09-24 裁定做）：
+      // API 推算的 pitch_type_est。null 時好球帶元件整打席退回官網分類（不混用來源）。
+      pitch_type_pred: trackman.pitch_type_est ?? null,
       ...trackman,
       pitch_call: officialLivePitchCall(event, trackman.pitch_call),
     }];

@@ -342,6 +342,19 @@ test("真實官方 TrackMan fixture 在 live snapshot 產生逐球列；空、pa
   }
 });
 
+test("API 推算的 pitch_type_est 帶進逐球 pitch_type_pred；缺值與舊快照維持 null（好球帶整打席退回官網分類）", () => {
+  const snapshot = realLiveSnapshot();
+  const rows = (snapshot as unknown as { livelog: { trackman?: Record<string, unknown> | null }[] }).livelog;
+  let i = 0;
+  for (const row of rows) if (row.trackman) row.trackman.pitch_type_est = i++ < 5 ? "四縫" : null;
+  const tracking = applyLiveSnapshot(response(snapshot)).tracking as { pitch_type_pred: string | null }[];
+  assert.deepEqual(tracking.slice(0, 5).map((pitch) => pitch.pitch_type_pred), ["四縫", "四縫", "四縫", "四縫", "四縫"]);
+  assert.ok(tracking.slice(5).every((pitch) => pitch.pitch_type_pred === null));
+
+  const old = applyLiveSnapshot(response(realLiveSnapshot())).tracking as { pitch_type_pred: string | null }[];
+  assert.ok(old.length > 0 && old.every((pitch) => pitch.pitch_type_pred === null), "舊快照不得產生推算球種");
+});
+
 test("官方 live 判決不完整時 fail-closed，不猜測好壞球", () => {
   assert.equal(officialLivePitchCall({ IsBall: "1", IsStrike: "0", Content: "壞球。" }, null), "BallCalled");
   assert.equal(officialLivePitchCall({ IsBall: "0", IsStrike: "1", Content: "好球沒揮棒。" }, null), "StrikeCalled");
