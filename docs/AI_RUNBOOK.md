@@ -655,14 +655,13 @@ API 語意推的，**未實測**。
 且其 merge commit 上只有 1 個 check（來自 merge 之後的 main push）⇒ 推得 ruleset 評估的是
 PR head 而非 merge 結果。**那是推論，不是本 repo 的觀測。**
 
-**不採用它是需求方 2026-08-22 的政策選擇，⛔ 不是因為它被證明比較差。** 已證的只有一件事：
-`tests/test_commit_trailers.py` 的 `_base_ref` 優先取本地 `main`，故 main push 的 CI run 上
-`rev-list main..HEAD` 為空、什麼都不檢 ⇒ **GitHub 產生的那個 merge commit 不受該守衛檢查**。
+**不採用它是需求方 2026-08-22 的政策選擇，⛔ 不是因為它被證明比較差。** 政策至今未變更；
+是否改用 merge 按鈕須由需求方另行裁定。
 
-⚠️ **那不等於「走 merge 按鈕比較不安全」**——PR 內人為寫的那些 commit 照樣受檢（`pull_request`
-run 只排除 synthetic merge）。⛔ 未被證明的是「merge commit 自身缺 trailer 會造成什麼後果」。
-政策選擇的理由是：ff-only 直推**不新增任何 commit**，所以不存在一筆沒人檢查的 commit；
-merge 按鈕則會新增一筆，其 trailer 完整性只能靠人。**這是偏好，不是安全性判決。**
+> **舊制歷史（#193 起已無現行檢查支撐）**：當時的理由建立在舊制 commit trailer 守衛
+> `tests/test_commit_trailers.py`——它只檢 `main..HEAD`，故 GitHub 產生的 merge commit 不受檢；
+> ff-only 直推不新增 commit，merge 按鈕則會新增一筆只能靠人檢查 trailer 的 commit（當時即註明
+> 「這是偏好，不是安全性判決」）。該守衛屬舊流程，已於 #193 自 active test suite 移除，⛔ 不再是現行檢查。
 
 **⛔ 本機 `--no-ff` merge 後直推已不可行**（本 repo 2026-08-10～08-17 做過 14 次）：那個 merge commit
 是新 SHA、沒有任何 check。實測（2026-08-22，雙親 merge commit）遠端逐字回：
