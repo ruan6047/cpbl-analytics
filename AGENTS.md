@@ -209,7 +209,7 @@ URL（`http://cpbl-analytics:4001/api/info`）。
 - **Phase 2（已完成）**：**賽事預測** — game_features（leakage-safe）+ 即時 fit 特徵子集探索器（`/predict` 頁 + `/api/v1/outcome/*`）+ 今日賽事勝率預測。
 - **Phase 2.6（已完成）**：賽事預測重構 — game_features 改全史 kind A（1145→9350 完成場，修正混二軍/季後）+ 新增 leakage-safe 特徵（上季戰力 `prior_winpct_diff`、休息天數 `rest_days_diff`）+ 離線 LightGBM 走查回測對照（2022–26，`/methodology#pregame` 回測面板；原宣稱 ~62% 含約 6–7 個百分點前視洩漏，見 [`docs/research/ML-OUTCOME-LEAK1_RESULTS.md`](docs/research/ML-OUTCOME-LEAK1_RESULTS.md)，勿當賽前預測力引用）。
 - **Phase 2.5（已完成）**：官方進階數據 — `advanced_stats`（彙總進階 + 官方 PR）+ `pitch_tracking`（逐球 TrackMan）+ 好球帶紀律 `/discipline`；逐場 box score / 逐打席 livelog（`game_log`、賽況頁）。
-- **前端改版（進行中）**：日間 Navy+白設計系統；P1/P2（球員頁旗艦）完成；P3 各頁視覺化升級進行中（含賽況頁**賽中態**的 **ESPN 風格狀態板**：頂部記分條 + 壘包/球數 + 逐球好球帶 + Recent Plays）。⚠️ 壘包/球數**僅限賽中態**：完賽態**總覽頁籤**的頁首記分條只呈現終場比分，不顯示 TOP/BOT、壘包與球數；逐打席頁籤共用同一記分條元素，須保留選中打席的局面（需求方 2026-08-21 裁定，[#160](https://github.com/ruan6047/cpbl-analytics/issues/160)；逐欄位定稿見 [`docs/design/GAME-PAGE-THREE-STATES.md`](docs/design/GAME-PAGE-THREE-STATES.md) §1.1.1）。本行是 Roadmap 進度描述，**不是視覺方向的裁定依據**。
+- **前端改版（進行中）**：日間 Navy+白設計系統；P1/P2（球員頁旗艦）完成；P3 各頁視覺化升級進行中（含賽況頁**賽中態**的 **ESPN 風格狀態板**：頂部記分條 + 壘包/球數 + 逐球好球帶 + Recent Plays）。⚠️ 完賽態**總覽頁籤**的頁首記分條只呈現終場比分，不顯示 TOP/BOT、壘包與球數；完賽態逐打席頁籤與總覽共用同一記分條元素，須保留選中打席的局數、壘包與球數（需求方 2026-08-21 裁定，[#160](https://github.com/ruan6047/cpbl-analytics/issues/160)；逐欄位定稿見 [`docs/design/GAME-PAGE-THREE-STATES.md`](docs/design/GAME-PAGE-THREE-STATES.md) §1.1.1）。本行是 Roadmap 進度描述，**不是視覺方向的裁定依據**。
 - **上線（已完成）**：submodule + compose + nginx 接主站，**已上線 https://cpbl.ruan-ruan.com**（前端走 cpbl 子網域；`cpbl-refresh-recent` 每日增量）。
 - **後續**：計數型成績（需上場時間模型）。其餘排序以 [`docs/ROADMAP.md`](docs/ROADMAP.md) 為準。
 
