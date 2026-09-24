@@ -1,23 +1,31 @@
-"""#201 生涯對戰對手隊別：逐打席證據判定＋清單／篩選／洞察／單組一致（fake DB）。
+"""#201 生涯對戰對手隊別：逐打席證據＋≤2017 官方逐年列判定，清單／篩選／洞察／單組一致。
 
 樣本數字取自本機 DB 真實配對（published build、state='ready'，2026-09-24 唯讀查核）：
 林立 0000002286 的對手清單中，官方對戰表把以下投手標成現任隊 AJL011（自家樂天）。
+≤2017 證據一律讀真實資源檔（``matchup_pre2018_rows.v1.json``），不 mock；只有
+資源檔沒有的情境（同年轉隊 split_unverified）才另以 monkeypatch 注入。
+代號 ``00000090xx`` 為合成對手，只用來覆蓋首批／非首批與各狀態的組合。
 """
 
 from __future__ import annotations
 
+import json
 from contextlib import contextmanager
 
 import pytest
 from fastapi.testclient import TestClient
 
+from cpbl.api import matchup_teams
 from cpbl.api.main import app
 from cpbl.api.matchup_teams import (
     CONFIRMED,
     PARTIAL,
+    SPLIT_UNVERIFIED,
     UNKNOWN,
+    add_pre2018_evidence,
     classify_team_evidence,
     matches_team,
+    pre2018_rows,
 )
 from cpbl.api.routers import players as players_module
 
@@ -40,10 +48,50 @@ from cpbl.api.routers import players as players_module
         # 官方 0 PA 不得因任何證據被宣稱。
         (0, {"AEO011": 1}, ([], UNKNOWN)),
         (None, None, ([], UNKNOWN)),
+        # 2017 前同年轉隊（拆分語意未證實）：打席計入總數，但不宣稱隊別、不得判已確認。
+        (10, {"AEO011": 6, SPLIT_UNVERIFIED: 4}, (["AEO011"], PARTIAL)),
+        (4, {SPLIT_UNVERIFIED: 4}, ([], UNKNOWN)),
+        (9, {"AEO011": 6, SPLIT_UNVERIFIED: 4}, ([], UNKNOWN)),
     ],
 )
 def test_classify_team_evidence(official, evidence, expected):
     assert classify_team_evidence(official, evidence) == expected
+
+
+def test_pre2018_resource_is_pre2018_only_and_holds_lin_li_row():
+    rows = pre2018_rows()
+    # 林立 × 陳鴻文 2017 例行賽：林立 Lamigo（AJK011）、陳鴻文中信（ACN011）5 PA。
+    assert rows[("A", "0000002286", "0000003606")] == (("AJK011", "ACN011", 5, False),)
+    manifest = json.loads(matchup_teams._PRE2018_RESOURCE.read_text())["manifest"]
+    assert sum(len(v) for v in rows.values()) == manifest["rows"] == 1506
+    assert manifest["requests_failed"] == 0 and manifest["target_years_failed"] == []
+
+
+@pytest.mark.parametrize(
+    ("pair", "official", "evidence_2018", "expected"),
+    [
+        # 補入 2016／2017 共 3 PA 後 5 > 官方 4：保守為未知，不改官方統計。
+        (("0000001291", "0000000152"), 4, {"AJK011": 1, "AJL011": 1}, ([], UNKNOWN)),
+        # 補入 2017 共 2 PA 後 56 > 官方 55。
+        (("0000001318", "0000002348"), 55, {"ADD011": 43, "AKP011": 11}, ([], UNKNOWN)),
+        # 補入 3 PA 後 15 < 官方 16：已證實 Lamigo／樂天，其餘未知。
+        (("0000002661", "0000000128"), 16, {"AJK011": 5, "AJL011": 7}, (["AJL011"], PARTIAL)),
+        # 林立 × 陳鴻文：富邦 36 ＋ 2017 中信 5 ＝ 官方 41 → 已確認兩隊。
+        (("0000002286", "0000003606"), 41, {"AEO011": 36}, (["ACN011", "AEO011"], CONFIRMED)),
+    ],
+)
+def test_real_pre2018_rows_merge_with_2018_evidence(pair, official, evidence_2018, expected):
+    hitter, pitcher = pair
+    evidence = {pitcher: dict(evidence_2018)}
+    add_pre2018_evidence(evidence, hitter, "batting", "A", [pitcher])
+    assert classify_team_evidence(official, evidence[pitcher]) == expected
+
+
+def test_pre2018_pitching_view_uses_hitter_team():
+    # 陳鴻文視角：林立 2018 後 Lamigo 13＋樂天 23，2017 Lamigo 5 → 同一 franchise 單隊。
+    evidence = {"0000002286": {"AJK011": 13, "AJL011": 23}}
+    add_pre2018_evidence(evidence, "0000003606", "pitching", "A", ["0000002286"])
+    assert classify_team_evidence(41, evidence["0000002286"]) == (["AJL011"], CONFIRMED)
 
 
 def test_matches_team_expands_historical_codes():
@@ -77,32 +125,45 @@ def _row(opp_id, name, pa, hits, team="AJL011", year=9999):
     return tuple(values[c] for c in _COLUMNS)
 
 
-# 官方生涯列：四人都被標成 AJL011（爬取當時的現任隊）。
+# 官方生涯列：官方隊號是爬取當時的現任隊（真實值）。
 _LIN_LI_ROWS = [
     _row("0000000779", "陳柏豪", 19, 5),
     _row("0000003606", "陳鴻文", 41, 9),
-    _row("0000000777", "楊達翔", 2, 1),
+    _row("0000000777", "楊達翔", 2, 1, team="AKP011"),
     _row("0000007053", "艾士特", 41, 12, team="AKP011"),
+    _row("0000009001", "合成非首批", 10, 3),
+    _row("0000009002", "合成無證據", 5, 1),
+    _row("0000009003", "合成部分可證", 10, 2),
 ]
-# 逐打席證據 (opp_id, 交手時隊號, PA)。
+# 2018 起逐打席證據 (opp_id, 交手時隊號, PA)；≤2017 另由真實資源檔併入
+# （陳鴻文 2017 中信 5、楊達翔 2017 中信 2）。
 _LIN_LI_EVIDENCE = [
     ("0000000779", "ACN011", 19),
     ("0000003606", "AEO011", 36),
     ("0000007053", "ACN011", 21),
     ("0000007053", "AKP011", 20),
+    ("0000009001", "ACN011", 10),  # 非首批：有證據也不得套用
+    ("0000009003", "AEO011", 4),
 ]
+# 首批：對手投手 2024–2026 A/D 有出賽（合成 9001 除外）。
+_FIRST_BATCH = {"0000000779", "0000003606", "0000000777", "0000007053",
+                "0000009002", "0000009003"}
 _TEAM_NAMES = [("ACN", "中信兄弟"), ("AEO", "富邦悍將"), ("AJL", "樂天桃猿"), ("AKP", "台鋼雄鷹")]
 
 
 class _Cursor:
     def __init__(self, state):
         self._rows, self._evidence, self._log = state["rows"], state["evidence"], state["log"]
+        self._first = state["first_batch"]
         self._result = []
         self.description = [(c,) for c in state.get("columns", _COLUMNS)]
 
     def execute(self, sql, params=None):
         self._log.append((sql, params))
-        if "game_plate_appearances" in sql:
+        if "UNION SELECT hitter_acnt FROM cpbl.batting_gamelog" in sql:
+            assert (params["y0"], params["y1"], params["kinds"]) == (2024, 2026, ["A", "D"])
+            self._result = [(i,) for i in params["ids"] if i in self._first]
+        elif "game_plate_appearances" in sql:
             opp = params.get("opp") if isinstance(params, dict) else None
             key = "batting" if "batting_gamelog" in sql else "pitching"
             self._result = [e for e in self._evidence.get(key, []) if opp in (None, e[0])]
@@ -127,7 +188,8 @@ class _Cursor:
 
 @pytest.fixture
 def fake_db(monkeypatch):
-    state = {"rows": _LIN_LI_ROWS, "evidence": {"batting": _LIN_LI_EVIDENCE}, "log": []}
+    state = {"rows": _LIN_LI_ROWS, "evidence": {"batting": _LIN_LI_EVIDENCE},
+             "first_batch": set(_FIRST_BATCH), "log": []}
 
     class _Conn:
         def cursor(self):
@@ -156,36 +218,68 @@ def test_career_list_labels_only_evidenced_teams(fake_db):
     assert chen_bh["opp_team_code"] == chen_bh["opp_franchise"] == "ACN011"
     assert chen_bh["opp_team"] == "中信兄弟"
 
+    # 林立 × 陳鴻文：富邦 36（2018 後）＋中信 5（2017，資源檔）＝官方 41。
     chen_hw = items["0000003606"]
-    assert (chen_hw["opp_team_status"], chen_hw["opp_franchises"]) == (PARTIAL, ["AEO011"])
+    assert (chen_hw["opp_team_status"], chen_hw["opp_franchises"]) == (
+        CONFIRMED, ["ACN011", "AEO011"])
+    # 楊達翔：2018 後 0，2017 中信 2 ＝ 官方 2 → 單隊已確認，舊欄位改為交手隊。
     yang = items["0000000777"]
-    assert (yang["opp_team_status"], yang["opp_franchises"]) == (UNKNOWN, [])
+    assert (yang["opp_team_status"], yang["opp_franchises"]) == (CONFIRMED, ["ACN011"])
+    assert yang["opp_team_code"] == yang["opp_franchise"] == "ACN011"
     aster = items["0000007053"]
     assert (aster["opp_team_status"], aster["opp_franchises"]) == (
         CONFIRMED, ["ACN011", "AKP011"])
-    # 非「已確認單隊」一律不帶舊隊號欄位，舊讀取端不會再顯示錯隊。
-    for item in (chen_hw, yang, aster):
+    none = items["0000009002"]
+    assert (none["opp_team_status"], none["opp_franchises"]) == (UNKNOWN, [])
+    part = items["0000009003"]
+    assert (part["opp_team_status"], part["opp_franchises"]) == (PARTIAL, ["AEO011"])
+    # 首批非「已確認單隊」一律不帶舊隊號欄位，舊讀取端不會再顯示錯隊。
+    for item in (chen_hw, aster, none, part):
         assert item["opp_team_code"] is None
         assert item["opp_franchise"] is None
         assert item["opp_team"] is None
     # 統計欄仍是官方對戰表，一人一列。
-    assert [items[k]["plate_appearances"] for k in items] == [41, 41, 19, 2]
+    assert sorted(i["plate_appearances"] for i in items.values()) == [2, 5, 10, 10, 19, 41, 41]
     assert items["0000003606"]["hits"] == 9 and items["0000003606"]["avg"] == round(9 / 41, 4)
 
 
-def test_career_team_filter_uses_evidence_not_current_team(fake_db):
+def test_career_list_non_first_batch_keeps_official_team(fake_db):
+    # 非首批：即使 2018 後證據是中信，仍照現行官方隊號顯示，不帶證據欄。
+    item = _list(TestClient(app))["0000009001"]
+    assert "opp_team_status" not in item and "opp_franchises" not in item
+    assert item["opp_team_code"] == item["opp_franchise"] == "AJL011"
+    assert item["opp_team"] == "樂天桃猿"
+
+
+def test_career_team_filter_first_batch_by_evidence_rest_by_official(fake_db):
     client = TestClient(app)
-    # 四人官方隊號都是 AJL011／AKP011，但沒有一人有以樂天交手的證據。
-    assert _list(client, opponent_team="AJL011") == {}
-    # 部分可證：已證實的富邦納入，未知的楊達翔不進任何隊。
-    assert set(_list(client, opponent_team="AEO011")) == {"0000003606"}
-    # 多隊列在每一個已證實的隊下都出現，同一列總計。
-    assert set(_list(client, opponent_team="ACN011")) == {"0000000779", "0000007053"}
+    # 中信：首批有中信證據者（含只靠 2017 資源的陳鴻文／楊達翔）；非首批 9001 不因證據進來。
+    assert set(_list(client, opponent_team="ACN011")) == {
+        "0000000779", "0000003606", "0000000777", "0000007053"}
+    # 富邦：陳鴻文 2018 後 36、9003 部分可證；未知的 9002 不進任何隊。
+    assert set(_list(client, opponent_team="AEO011")) == {"0000003606", "0000009003"}
+    # 樂天：首批無人有樂天交手證據；非首批 9001 照官方隊號納入（現行行為不變）。
+    assert set(_list(client, opponent_team="AJL011")) == {"0000009001"}
+    # 歷史隊碼依 franchise 展開：Lamigo 篩選＝樂天。
+    assert set(_list(client, opponent_team="AJK011")) == {"0000009001"}
     akp = _list(client, opponent_team="AKP011")
+    # 楊達翔官方隊號是 AKP011，但他是首批、證據只有中信 → 不列入台鋼。
     assert set(akp) == {"0000007053"} and akp["0000007053"]["plate_appearances"] == 41
-    # 生涯篩選不再把隊號塞進 SQL（否則會先被現任隊號錯篩）。
+    # 生涯篩選不把隊號塞進 SQL（否則首批會先被現任隊號錯篩）。
     list_params = [p for s, p in fake_db["log"] if "FROM cpbl.batter_pitcher_matchups m" in s]
     assert list_params and all(not any(isinstance(x, list) for x in p) for p in list_params)
+
+
+def test_career_all_non_first_batch_matches_pre_201_behaviour(fake_db):
+    fake_db["first_batch"] = set()
+    client = TestClient(app)
+    items = _list(client)
+    assert all("opp_team_status" not in i for i in items.values())
+    assert {k: i["opp_franchise"] for k, i in items.items()} == {
+        k: ("AKP011" if k in ("0000000777", "0000007053") else "AJL011") for k in items}
+    assert set(_list(client, opponent_team="AKP011")) == {"0000000777", "0000007053"}
+    # 沒有首批就不查逐打席證據。
+    assert not any("game_plate_appearances" in sql for sql, _ in fake_db["log"])
 
 
 def test_season_scope_keeps_official_team_behaviour(fake_db):
@@ -195,16 +289,44 @@ def test_season_scope_keeps_official_team_behaviour(fake_db):
     assert all("opp_team_status" not in item for item in items.values())
     assert items["0000000779"]["opp_franchise"] == "AJL011"
     assert set(_list(client, scope="season", opponent_team="AJL011")) == {
-        "0000000779", "0000003606", "0000000777"}
+        "0000000779", "0000003606", "0000009001", "0000009002", "0000009003"}
     assert not any("game_plate_appearances" in sql for sql, _ in fake_db["log"])
+    assert not any("batting_gamelog" in sql for sql, _ in fake_db["log"])
 
 
-def test_pitching_role_reads_opponent_batting_team(fake_db):
-    fake_db["evidence"] = {"pitching": [("0000000779", "ACN011", 19)]}
-    items = _list(TestClient(app), role="pitching")
-    assert items["0000000779"]["opp_team_status"] == CONFIRMED
+def test_pitching_role_first_batch_follows_subject_pitcher(fake_db):
+    # 陳鴻文視角：對手林立 2018 後 Lamigo 13＋樂天 23，2017 Lamigo 5（資源）＝官方 41。
+    fake_db["rows"] = [_row("0000002286", "林立", 41, 9)]
+    fake_db["evidence"] = {"pitching": [("0000002286", "AJK011", 13),
+                                        ("0000002286", "AJL011", 23)]}
+    fake_db["first_batch"] = {"0000003606"}
+    client = TestClient(app)
+
+    def pitching(**params):
+        res = client.get("/api/v1/players/0000003606/matchups",
+                         params={"scope": "career", "role": "pitching", **params})
+        assert res.status_code == 200
+        return {item["opp_id"]: item for item in res.json()["items"]}
+
+    lin = pitching()["0000002286"]
+    assert (lin["opp_team_status"], lin["opp_franchises"]) == (CONFIRMED, ["AJL011"])
+    assert set(pitching(opponent_team="AJL011")) == {"0000002286"}
     evidence_sql = [s for s, _ in fake_db["log"] if "game_plate_appearances" in s]
     assert evidence_sql and all("pitching_gamelog" in s for s in evidence_sql)
+
+    # 主角投手不是首批：整份清單維持官方隊號。
+    fake_db["first_batch"] = set()
+    lin = pitching()["0000002286"]
+    assert "opp_team_status" not in lin and lin["opp_franchise"] == "AJL011"
+
+
+def _pair(client, pitcher="0000003606"):
+    res = client.get(
+        "/api/v1/matchups",
+        params={"hitter": "0000002286", "pitcher": pitcher, "scope": "career"},
+    )
+    assert res.status_code == 200
+    return res.json()["items"][0]
 
 
 def test_pair_detail_career_adds_evidence_for_both_sides(fake_db):
@@ -218,18 +340,22 @@ def test_pair_detail_career_adds_evidence_for_both_sides(fake_db):
     )]
     fake_db["evidence"] = {
         "batting": [("0000003606", "AEO011", 36)],
-        "pitching": [("0000002286", "AJL011", 36)],
+        "pitching": [("0000002286", "AJK011", 13), ("0000002286", "AJL011", 23)],
     }
-    res = TestClient(app).get(
-        "/api/v1/matchups",
-        params={"hitter": "0000002286", "pitcher": "0000003606", "scope": "career"},
-    )
-    assert res.status_code == 200
-    item = res.json()["items"][0]
-    assert (item["pitcher_team_status"], item["pitcher_franchises"]) == (PARTIAL, ["AEO011"])
-    assert (item["hitter_team_status"], item["hitter_franchises"]) == (PARTIAL, ["AJL011"])
-    # 既有隊號欄位不變（前端主角側照舊）。
+    client = TestClient(app)
+    item = _pair(client)
+    # 與兩個清單視角同一判定：打者視角看陳鴻文＝中信＋富邦；投手視角看林立＝樂天。
+    assert (item["pitcher_team_status"], item["pitcher_franchises"]) == (
+        CONFIRMED, ["ACN011", "AEO011"])
+    assert (item["hitter_team_status"], item["hitter_franchises"]) == (CONFIRMED, ["AJL011"])
+    # 既有隊號欄位與統計不變（前端主角側照舊）。
     assert item["pitcher_team_code"] == "AJL011" and item["plate_appearances"] == 41
+
+    # 非首批投手：兩側都不帶證據欄，前端照舊顯示官方隊號。
+    fake_db["first_batch"] = set()
+    item = _pair(client)
+    assert not any(key.endswith(("_team_status", "_franchises")) for key in item)
+    assert item["pitcher_franchise"] == "AJL011" and item["plate_appearances"] == 41
 
 
 def test_career_insights_filter_uses_same_evidence(fake_db, monkeypatch):
@@ -250,8 +376,22 @@ def test_career_insights_filter_uses_same_evidence(fake_db, monkeypatch):
         assert res.status_code == 200
         return res.json()
 
-    assert sample("AJL011")["query_sample"]["opponents"] == 0
-    assert sample("AEO011")["query_sample"]["opponents"] == 1
-    assert sample("ACN011")["query_sample"]["opponents"] == 2
+    # 與清單篩選同集合：樂天只剩非首批 9001、中信 4 人、富邦 2 人。
+    assert sample("AJL011")["query_sample"]["opponents"] == 1
+    assert sample("ACN011")["query_sample"]["opponents"] == 4
+    assert sample("AEO011")["query_sample"]["opponents"] == 2
     # 覆蓋率仍以全部對手評估，不受隊別判定影響。
-    assert sample("AJL011")["coverage"]["sampled_opportunities"] == 103
+    assert sample("AJL011")["coverage"]["sampled_opportunities"] == 128
+
+
+def test_split_unverified_pre2018_row_never_confirms(fake_db, monkeypatch):
+    # 資源檔目前 0 列 split_unverified；以注入列驗證：打席計入、隊別不宣稱、不判已確認。
+    monkeypatch.setattr(matchup_teams, "pre2018_rows", lambda: {
+        ("A", "0000002286", "0000009002"): (("AJK011", "AEO011", 3, True),
+                                           ("AJK011", "ACN011", 2, False)),
+    })
+    items = _list(TestClient(app))
+    assert (items["0000009002"]["opp_team_status"], items["0000009002"]["opp_franchises"]) == (
+        PARTIAL, ["ACN011"])
+    assert set(_list(TestClient(app), opponent_team="AEO011")) == {
+        "0000003606", "0000009003"}

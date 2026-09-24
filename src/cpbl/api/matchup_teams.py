@@ -10,19 +10,36 @@
 - 0 < 證據 < 官方 → ``partial``（已證實的隊＋其餘未知；2017 前交手、缺 build 等）
 - 證據＝0、官方＝0、或證據 > 官方 → ``unknown``（對不上官方就不宣稱任何隊）
 
-⛔ 只用於 career scope：本季／區間仍沿用官方隊號（#201 明列的限制，不在本卡修正）。
+2017 前沒有逐打席紀錄：首批配對另併入官方逐年對戰列（一次性收集的唯讀資源
+``resources/matchup_pre2018_rows.v1.json``，只含 ≤2017，與 2018 起證據不重疊）。
+該年打者或投手季表多隊（``split_unverified``）時官方拆分語意未證實：計入打席總數
+（仍會觸發「多於官方」），但不宣稱隊別、也不得判 ``confirmed``。
+
+⛔ 只用於 career scope 的**首批**配對（投手在 2024–2026 任一季 A/D 有任何出賽；
+   #201 需求方裁定）。非首批與本季／區間都沿用官方隊號（#201 明列的限制）。
 ⛔ 不回推 2017 前的季表隊別：那是推論，不是交手證據。
 統計欄一律不動，仍取官方對戰表。
 """
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable, Mapping
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 from cpbl.franchises import franchise_of, franchise_prefixes
 
 CONFIRMED, PARTIAL, UNKNOWN = "confirmed", "partial", "unknown"
+# 證據 dict 中「有打席但隊別拆分未證實」的保留鍵（不是隊號）。
+SPLIT_UNVERIFIED = "split_unverified"
+# 首批：投手在這些年度、賽別有任何實際出賽（投球或打擊 gamelog 皆算）。
+FIRST_BATCH_YEARS = (2024, 2026)
+FIRST_BATCH_KINDS = ("A", "D")
+
+_PRE2018_RESOURCE = Path(__file__).resolve().parent.parent / "resources" / \
+    "matchup_pre2018_rows.v1.json"
 
 # role → (主角 gamelog 表, gamelog 主角欄, PA 主角欄, PA 對手欄, 上半局時對手所屬隊欄)
 # pre_state.half='1'＝上半局客隊進攻：打者視角的對手（投手）屬守備方＝主隊；
@@ -89,6 +106,57 @@ def load_team_evidence(
     return evidence
 
 
+@lru_cache(maxsize=1)
+def pre2018_rows() -> dict[tuple[str, str, str], tuple[tuple[str, str, int, bool], ...]]:
+    """``{(kind, hitter, pitcher): ((打者隊, 投手隊, PA, split_unverified), ...)}``（≤2017）。"""
+    data = json.loads(_PRE2018_RESOURCE.read_text(encoding="utf-8"))
+    idx = {name: i for i, name in enumerate(data["columns"])}
+    out: dict[tuple[str, str, str], list[tuple[str, str, int, bool]]] = {}
+    for r in data["rows"]:
+        if r[idx["year"]] > 2017:  # 與 2018 起逐打席證據重疊會重複計數
+            raise ValueError(f"pre2018 資源含 {r[idx['year']]} 年列")
+        out.setdefault((r[idx["kind"]], r[idx["hitter"]], r[idx["pitcher"]]), []).append((
+            r[idx["hitter_team"]], r[idx["pitcher_team"]], int(r[idx["pa"]]),
+            bool(r[idx["split_unverified"]]),
+        ))
+    return {key: tuple(rows) for key, rows in out.items()}
+
+
+def load_first_batch_pitchers(cur: Any, pitcher_ids: Iterable[str]) -> set[str]:
+    """``pitcher_ids`` 中屬首批者：2024–2026 任一季 A/D 有任何出賽（投球或打擊）。"""
+    ids = sorted(set(pitcher_ids))
+    if not ids:
+        return set()
+    params = {"ids": ids, "y0": FIRST_BATCH_YEARS[0], "y1": FIRST_BATCH_YEARS[1],
+              "kinds": list(FIRST_BATCH_KINDS)}
+    cur.execute(
+        "SELECT pitcher_acnt FROM cpbl.pitching_gamelog WHERE pitcher_acnt=ANY(%(ids)s) "
+        "AND year BETWEEN %(y0)s AND %(y1)s AND kind_code=ANY(%(kinds)s) "
+        "UNION SELECT hitter_acnt FROM cpbl.batting_gamelog WHERE hitter_acnt=ANY(%(ids)s) "
+        "AND year BETWEEN %(y0)s AND %(y1)s AND kind_code=ANY(%(kinds)s)",
+        params,
+    )
+    return {row[0] for row in cur.fetchall()}
+
+
+def add_pre2018_evidence(
+    evidence: dict[str, dict[str, int]],
+    player_id: str,
+    role: str,
+    kind_code: str,
+    opponent_ids: Iterable[str],
+) -> None:
+    """就地把首批對手的 ≤2017 官方逐年列併入 ``load_team_evidence`` 的結果。"""
+    rows = pre2018_rows()
+    for opp in opponent_ids:
+        key = (kind_code, player_id, opp) if role == "batting" else (kind_code, opp, player_id)
+        for hitter_team, pitcher_team, pa, split in rows.get(key, ()):
+            team = SPLIT_UNVERIFIED if split else (
+                pitcher_team if role == "batting" else hitter_team)
+            teams = evidence.setdefault(opp, {})
+            teams[team] = teams.get(team, 0) + pa
+
+
 def classify_team_evidence(
     official_pa: int | None,
     evidence: Mapping[str, int] | None,
@@ -96,11 +164,34 @@ def classify_team_evidence(
     """依官方打席數與證據判定 ``(已證實 franchise 清單, 狀態)``。"""
     official = official_pa or 0
     teams = {code: n for code, n in (evidence or {}).items() if n > 0}
-    recorded = sum(teams.values())
-    if official <= 0 or recorded <= 0 or recorded > official:
+    unverified = teams.pop(SPLIT_UNVERIFIED, 0)
+    recorded = sum(teams.values()) + unverified
+    if official <= 0 or not teams or recorded > official:
         return [], UNKNOWN
     franchises = sorted({franchise_of(code) for code in teams})
-    return franchises, CONFIRMED if recorded == official else PARTIAL
+    return franchises, CONFIRMED if recorded == official and not unverified else PARTIAL
+
+
+def career_team_evidence(
+    cur: Any,
+    player_id: str,
+    role: str,
+    kind_code: str,
+    opponent_ids: Iterable[str],
+    opponent_id: str | None = None,
+) -> tuple[set[str], dict[str, dict[str, int]]]:
+    """``(首批對手集合, 首批對手的交手隊別證據)``；非首批對手不在結果內＝維持官方隊號。"""
+    opponents = set(opponent_ids)
+    if role == "batting":
+        first = load_first_batch_pitchers(cur, opponents)
+    else:
+        first = opponents if load_first_batch_pitchers(cur, [player_id]) else set()
+    if not first:
+        return set(), {}
+    evidence = load_team_evidence(cur, player_id, role, kind_code, opponent_id)
+    evidence = {opp: teams for opp, teams in evidence.items() if opp in first}
+    add_pre2018_evidence(evidence, player_id, role, kind_code, first)
+    return first, evidence
 
 
 def annotate_career_opponent_teams(
@@ -108,7 +199,7 @@ def annotate_career_opponent_teams(
     evidence: Mapping[str, Mapping[str, int]],
     team_names: Mapping[str, str],
 ) -> None:
-    """就地為生涯對手列加上 ``opp_franchises``／``opp_team_status``。
+    """就地為生涯對手列（呼叫端只傳首批）加上 ``opp_franchises``／``opp_team_status``。
 
     舊欄位 ``opp_team_code``／``opp_franchise``／``opp_team`` 只在「已確認且恰一隊」時
     帶值（改為該交手隊），其餘清成 null——任何只讀舊欄位的畫面都不會再顯示錯隊。
@@ -129,6 +220,16 @@ def matches_team(franchises: Iterable[str], team_code: str) -> bool:
     """已證實隊別中是否含篩選隊（接受歷史隊碼，依 franchise 展開）。"""
     allowed = franchise_prefixes(team_code)
     return any(code[:3] in allowed for code in franchises)
+
+
+def row_matches_team(item: Mapping[str, Any], team_code: str) -> bool:
+    """生涯對手列的隊伍篩選：首批（有 ``opp_team_status``）依證據，非首批依官方隊號。
+
+    非首批與原 SQL 條件 ``left(opp_team_no, 3)=ANY(franchise_prefixes)`` 等價。
+    """
+    if "opp_team_status" in item:
+        return matches_team(item["opp_franchises"], team_code)
+    return (item.get("opp_team_code") or "")[:3] in franchise_prefixes(team_code)
 
 
 def load_team_names(cur: Any) -> dict[str, str]:

@@ -10,7 +10,7 @@ export type SortKey = "plate_appearances" | "avg" | "ops" | "home_runs" | "so";
 /** 生涯對手交手隊別的可信度（#201）：逐打席證據對上官方打席＝confirmed。 */
 export type TeamStatus = "confirmed" | "partial" | "unknown";
 
-/** 僅 scope=career 時由 API 帶出；本季／區間沒有這兩欄，沿用官方隊號。 */
+/** 僅 scope=career 且首批配對時由 API 帶出；非首批與本季／區間沒有這兩欄，沿用官方隊號。 */
 type OpponentTeamEvidence = {
   opp_franchises?: string[];
   opp_team_status?: TeamStatus;
@@ -101,7 +101,7 @@ export type PairRow = Omit<
   pitcher_team_code: string | null;
   hitter_franchise: string | null;
   pitcher_franchise: string | null;
-  /** 僅 scope=career：雙方各自的逐打席交手隊別判定（#201）。 */
+  /** 僅 scope=career 且首批（投手 2024–2026 一／二軍有出賽）：雙方各自的交手隊別判定（#201）。 */
   hitter_franchises?: string[];
   hitter_team_status?: TeamStatus;
   pitcher_franchises?: string[];
