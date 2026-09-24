@@ -14,6 +14,6 @@
 - **備份可還原性**：現有備份在主要環境故障時能否實際還原，是否需要再次演練才能確認？來源：[舊 #71](https://github.com/ruan6047/cpbl-analytics/issues/71)。
 - **持續整合環境一致性**：不同檢查環境的日期與時區行為是否一致，是否存在尚未證實的誤判風險？來源：[舊 #129](https://github.com/ruan6047/cpbl-analytics/issues/129)。
 - **歷史守備位置**：球迷是否需要在球隊歷史賽季頁看見可信的球員守備位置，缺資料時如何理解？來源：[舊 #82](https://github.com/ruan6047/cpbl-analytics/issues/82)。
-- **研究結論與證據一致**：供決策引用的勝率研究報告，是否仍把「樣本不足以判定」寫成「證據不支持」？若要引用，先依現行判定修正理由與用語；舊卡列出的份數、分類和數字不可直接沿用。來源：[舊 #105](https://github.com/ruan6047/cpbl-analytics/issues/105)、[已完成 #101](https://github.com/ruan6047/cpbl-analytics/issues/101)。
-- **逐球欄位語意**：使用 `game_livelog` 的開發者是否仍會被壘包欄位註解及未記載的時點例外誤導？先核對現行詞彙表與資料，再補仍缺的說明；已記載的出局數語意不重做。來源：[舊 #108](https://github.com/ruan6047/cpbl-analytics/issues/108)。
+- **研究結論與證據一致**：供決策引用的勝率研究報告，是否仍把「樣本不足以判定」寫成「證據不支持」，或以點估計的差異過度解讀融合模型的失敗理由？若要引用，先依現行判定與不確定性證據修正理由；舊卡列出的份數、分類和數字不可直接沿用。來源：[舊 #105](https://github.com/ruan6047/cpbl-analytics/issues/105)、[已完成 #101](https://github.com/ruan6047/cpbl-analytics/issues/101)。
+- **逐球欄位語意**：使用 `game_livelog` 的開發者是否仍會被壘包欄位註解、未記載的時點或特殊規則壘況例外誤導？先核對現行詞彙表與資料，再補仍缺的說明；已記載的出局數語意不重做。來源：[舊 #108](https://github.com/ruan6047/cpbl-analytics/issues/108)。
 - **對外勝率數字可對帳**：方法頁與 API 公開的勝率數字，是否都能與權威證據逐項比對，避免修正證據後仍留下舊數字？現有測試只涵蓋列入清單的數字，新增資料包或即時讀取不是預設方案。來源：[舊 #147](https://github.com/ruan6047/cpbl-analytics/issues/147)、[已完成 #100](https://github.com/ruan6047/cpbl-analytics/issues/100)。
