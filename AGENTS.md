@@ -1,8 +1,17 @@
 # AGENTS.md — cpbl-analytics 專案 AI 運行準則
 
-> **任務入口**：新任務一律是 GitHub Issue＋[user Project #10「cpbl-analytics vNext 任務看板」](https://github.com/users/ruan6047/projects/10)（`.wf/config.json`）；開卡／關卡由 PM 以 `gh` 執行。取當下規則（自動注入 `.wf/*.md`）：
-> `<wfx-venv>/bin/wfx --project-root <本 repo 工作樹根目錄> brief --task <Issue號> --role <角色> --stage <階段>`（角色／階段用規則值域；`wfx` 裝在獨立 Python 3.14 環境，見 [`docs/AI_RUNBOOK.md`](docs/AI_RUNBOOK.md) §7.1）。改動共享資源（本機 DB、服務、排程、既有 worktree）須依 vNext 規則取得資源租用。模型分工見 [`.wf/model-policy.md`](.wf/model-policy.md)。
-> **舊制度凍結**：[user Project #4](https://github.com/users/ruan6047/projects/4) 舊卡仍在但已凍結——停止舊流程派工與 `wfcli` 寫入，逐張研究、承接或判定無需續做後才關閉。[`docs/AI_WORKFLOW.md`](docs/AI_WORKFLOW.md)、`.ai-workflow/`、[`docs/CONTROL_PLANE_CONTRACT.md`](docs/CONTROL_PLANE_CONTRACT.md)、[`docs/MODEL_ROUTING.md`](docs/MODEL_ROUTING.md)、[`docs/TASKS.md`](docs/TASKS.md) 只作歷史查閱，不以其治理處理新任務。
+> **任務入口（先做這件事）**：新任務一律是 GitHub Issue＋[user Project #10「cpbl-analytics vNext 任務看板」](https://github.com/users/ruan6047/projects/10)（`.wf/config.json`），流程規則來自 ai-workflow vNext 的已安裝 `wfx`；開卡／關卡由 PM 以 `gh` 執行，`wfx` 只提供 `brief`／`facts`／`write`。接到任務先在本 repo 工作樹內取當下規則（框架規則＋自動注入 `.wf/*.md` 專案注意事項＋該卡 Issue 與留言）：
+>
+> ```bash
+> WFX=<wfx-venv>/bin/wfx   # 獨立 Python 3.14 venv，安裝見 docs/AI_RUNBOOK.md §7.1
+> "$WFX" --project-root "$(git rev-parse --show-toplevel)" brief --task <Issue號> --role <角色> --stage <階段>
+> # 例：執行者接 #193 → brief --task 193 --role 執行者 --stage 執行
+> # 角色：需求方／PM／研究者／規劃者／執行者／審核者；階段：需求／規劃／執行／審核／結案
+> ```
+>
+> 改動共享資源（本機 DB、服務、排程、既有 worktree）須依 vNext 規則取得資源租用。模型分工見 [`.wf/model-policy.md`](.wf/model-policy.md)。
+>
+> **舊制度凍結**：[user Project #4](https://github.com/users/ruan6047/projects/4) 舊卡仍在但已凍結——停止舊流程派工與 `wfcli` 寫入，逐張研究、承接或判定無需續做後才關閉。舊流程（T 級、舊狀態值、claim／lease、Ledger、`wfcli`）⛔ 不用於新卡；[`docs/AI_WORKFLOW.md`](docs/AI_WORKFLOW.md)、[`docs/CONTROL_PLANE_CONTRACT.md`](docs/CONTROL_PLANE_CONTRACT.md)、[`docs/MODEL_ROUTING.md`](docs/MODEL_ROUTING.md)、[`docs/TASKS.md`](docs/TASKS.md) 只作歷史查閱。舊 `.ai-workflow` 子模組已退役，舊規則原文見 [ai-workflow @ `f207d2e`](https://github.com/ruan6047/ai-workflow/tree/f207d2ecf80556d6b90beeb0438bf648288a5fd9)。
 > **CPBL 操作事實讀 [`docs/AI_RUNBOOK.md`](docs/AI_RUNBOOK.md)**（指令、資料流、同步、API/web、陷阱）；操作事實衝突時以現實＋Runbook 為準並回頭修正，但流程治理一律以 vNext 規則為準，Runbook 內舊治理段不得覆蓋。DB 技術邊界見 [`docs/DATABASE_CONTRACT.md`](docs/DATABASE_CONTRACT.md)。
 > **開新卡前先讀 [`docs/ROADMAP.md`](docs/ROADMAP.md)**：目標排序、開卡前檢查與降級清單的**唯一依據**——講不出這張卡服務哪一個目標就不該開。
 

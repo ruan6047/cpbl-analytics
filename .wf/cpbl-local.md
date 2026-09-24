@@ -1,6 +1,6 @@
 # CPBL 專案注意事項
 
-本檔只列 CPBL 專有、每張卡都適用的決策邊界。操作事實見 `docs/AI_RUNBOOK.md`、`docs/DATABASE_CONTRACT.md`，模型分工見 `.wf/model-policy.md`。`CLAUDE.md`／`AGENTS.md` 仍混有舊治理（#193 待修）：其中的舊流程不適用新卡，只取操作安全部分。
+本檔只列 CPBL 專有、每張卡都適用的決策邊界。操作事實見 `docs/AI_RUNBOOK.md`、`docs/DATABASE_CONTRACT.md`，模型分工見 `.wf/model-policy.md`；`CLAUDE.md`／`AGENTS.md` 的程式與產品準則照常適用。
 
 ## 專案速覽
 
@@ -12,22 +12,18 @@
 ## 任務框架
 
 - CPBL 新任務採用 ai-workflow vNext 已安裝 `wfx` 套件隨附的規則（套件內 `wfx/rules/`）；`wfx` 只提供 `brief`／`facts`／`write`，開卡／關卡由 PM 以 `gh` 執行。`.wf/` 是本專案補充層，只補 CPBL 專有邊界，不取代框架核心規則。
-- 舊 `.ai-workflow` submodule 的 canonical 規則（T 級、狀態值、claim／lease、Ledger、`wfcli`）只屬 Project #4 舊卡，⛔ 不帶入新卡。
-
-## 任務入口
-
 - 新卡一律開在 GitHub Issues＋user Project #10「cpbl-analytics vNext 任務看板」（`.wf/config.json`）。
-- Project #4 舊卡凍結，停止舊流程派工與 `wfcli` 寫入，待逐張轉換、關閉；⛔ 不用 Project #4 或 `wfcli` 開新卡，新卡不沿用舊流程（分級、狀態值、claim／lease、Ledger）。`.ai-workflow` submodule 本注意事項工作包暫不移除，後續依 #193 切換。
-- `docs/TASKS.md` 已封存唯讀，⛔ 不當活卡狀態讀寫。
+- Project #4 舊卡凍結：停止舊流程派工與 `wfcli` 寫入，逐張研究、承接或判定無需續做後才關閉。舊流程（T 級、舊狀態值、claim／lease、Ledger、`wfcli`）⛔ 不帶入新卡；`docs/AI_WORKFLOW.md`、`docs/CONTROL_PLANE_CONTRACT.md`、`docs/TASKS.md` 只作歷史查閱，⛔ 不當活卡狀態讀寫。
 
 ## 工作樹與共用資源
 
 - 主 checkout `~/Dev/cpbl-analytics` 必須停在 `main`：本機排程直接從它執行，它停在哪個分支排程就跑哪個分支的碼。分支工作一律開獨立 worktree。
-- 本機 DB、服務、排程與既有 worktree 都是多個 session 共用；`Resource` 欄只記當前占用狀態，不是鎖；占用或 owner 不明時先請 PM 協調，⛔ 不清除、不重設、不覆蓋別人的未提交變更。舊卡的本機 lease 鎖不沿用新卡，但改動共享資源仍依 vNext 的資源租用（`rules/core/github.md` §6）。
+- 本機 DB、服務、排程與既有 worktree 都是多個 session 共用；改動前依 vNext 資源租用（`rules/core/github.md` §6）。`Resource` 欄只記當前占用狀態，不是鎖；占用或 owner 不明時先請 PM 協調，⛔ 不清除、不重設、不覆蓋別人的未提交變更。
 
 ## DB 寫入與 migration
 
-- `docs/DATABASE_CONTRACT.md` 的技術邊界仍有效；其中 `docs/tasks/<CARD_ID>.md` 宣告、Coordinator claim、lease 等舊卡機制不適用新卡，該檔尚未依新框架修訂。
+- DB 技術邊界以 `docs/DATABASE_CONTRACT.md` 為準。
+- 同一環境的 `cpbl` schema 同時只有一個 migration writer；schema migration 與 data migration ⛔ 不並行，互相依賴的 migration 依序合併。
 - migration 只新增、不改既有檔，且須冪等；破壞性 DDL 或大量資料轉換須獨立卡，並於既有階段確認（`rules/core/flow.md`）取得需求方授權，不另設關卡。
 - production migration 只由 main 部署鏈在 `prod_cpbl_api` 內執行；結構或資料操作前須先有已驗證備份，⛔ 不臨時手改 production DB。
 

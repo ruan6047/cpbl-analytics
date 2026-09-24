@@ -6,9 +6,9 @@
 > **L5 的卡是明訂例外**：它答的不是「哪個目標」，而是**形式 A 解除的阻塞**或
 > **形式 B 已發生的事故**；兩者都指不出來時答案是「急迫度最低且不得認領」（§1 L5）。
 >
-> **卡別分流（需求方裁定）**：§0 目標排序與開卡前檢查照舊適用於新卡；但新卡一律開在
-> [user Project #10](https://github.com/users/ruan6047/projects/10)、開卡／關卡由 PM 以 `gh` 執行、`wfx` 只提供 `brief`／`facts`／`write`（見 [`AI_RUNBOOK.md`](AI_RUNBOOK.md) §7.1）。
-> 本檔凡提到 `wfcli`／Project #4 的機械流程與 checklist 動詞（§2.0、§2.5、§2.7、§6 維護表等）**只描述既有舊卡**，不得用來開新卡。
+> **新卡怎麼用本檔**：§0 目標排序、開卡前三個檢查與 §1 任務線的目標定義，照舊是新卡「該不該開、服務哪個目標」的依據。
+> 新卡一律開在 [user Project #10](https://github.com/users/ruan6047/projects/10)，流程（階段、狀態、確認、審核、資源租用）一律以已安裝 `wfx` 的 vNext 規則為準（入口見 [`../AGENTS.md`](../AGENTS.md) 開頭、安裝見 [`AI_RUNBOOK.md`](AI_RUNBOOK.md) §7.1）。
+> 本檔的流程機制——T 級、舊狀態值（`💡需求`、`📥Backlog`…）、規劃 Gate、認領、WIP、時鐘、`wfcli`、`initiative` 欄與 §3 排程區塊——**只描述已凍結的 Project #4 舊卡**，⛔ 不用於新卡。
 >
 > **iteration 1 基線**：本版依 `DOC-CPBL-ROADMAP1` R1 跨家族查核＋需求方共同設計的
 > **十項修訂基線**改寫，權威來源為 [#130 的 R1 共同設計附錄](https://github.com/ruan6047/cpbl-analytics/issues/130#issuecomment-5284078990)。
@@ -21,7 +21,7 @@
 | [`PRODUCT_UX_BLUEPRINT.md`](PRODUCT_UX_BLUEPRINT.md) v0.2 **@ `6dab17b`** | **產品長什麼樣**：目標使用者、資訊架構、頁面決策 | 本檔不覆蓋、不複述。L3 的終點定義**引用**它的六項核心決策 |
 | [`AI_RUNBOOK.md`](AI_RUNBOOK.md) | **怎麼操作**：指令、資料流、同步、陷阱 | 無交集 |
 | `ai-workflow/docs/ROADMAP.md` **@ `52839f0`** | ai-workflow **自己**的目標與卡片分級 | 本檔 §4／§5 引用其對應節次，不複述 |
-| `.ai-workflow/AI_WORKFLOW.md` **@ `71df157`** | 跨專案流程通則（階段、三級規劃閘門 §3.1、鏈式停損 §3.3） | 本檔在其之下，不牴觸；§2 是 CPBL 的**接線與加嚴**，不是替代 |
+| 舊 `.ai-workflow/AI_WORKFLOW.md` **@ `71df157`**（子模組已退役） | 舊制度的跨專案流程通則（階段、三級規劃閘門 §3.1、鏈式停損 §3.3） | 只適用 Project #4 舊卡；新卡流程以 vNext 規則為準 |
 | [`incidents/INCIDENTS.md`](incidents/INCIDENTS.md) | 被本檔引用的事故錨點（時間、SHA-256、退出碼） | 本檔以 `INC-` 編號引用，**不複述細節** |
 
 **複述會漂移。** 需要那些文件的內容時引用節次，不要把數字或條文抄過來。
@@ -63,7 +63,7 @@
 > 兩者都答不出來時，答案是**急迫度最低且不得認領**，**不是「無法判定」**。
 > 第 2／3 問以目標分支，L5 的卡兩支都不觸發。
 
-**這三問不是 Gate 本身。** Gate 是 §2.0 的規劃生命週期，通則見 `AI_WORKFLOW.md` §3.1。
+**這三問不是 Gate 本身。** 舊卡的 Gate 是 §2.0 的規劃生命週期（通則見舊 `AI_WORKFLOW.md` §3.1）；新卡的需求與規劃確認依 vNext 規則。
 三問只是「該不該進入規劃」的前置篩子。
 
 ---

@@ -20,8 +20,8 @@
 
 每次 `pytest` 都會輸出 `pytest location` 三行：絕對 cwd、Git HEAD 短 SHA 與分支名。
 預設模式使用 pytest 標頭；`-q` 會隱藏 pytest 的標頭，故改由 terminal reporter 輸出相同內容。
-審閱測試證據時，以 cwd 與 SHA 判讀實際受測 worktree；**不可用收集數或 `.ai-workflow`
-submodule 狀態推斷測試位置**。非 Git 目錄時，HEAD 會顯示 `unavailable`，分支顯示 `detached`。
+審閱測試證據時，以 cwd 與 SHA 判讀實際受測 worktree；**不可用收集數或子模組狀態
+推斷測試位置**。非 Git 目錄時，HEAD 會顯示 `unavailable`，分支顯示 `detached`。
 
 | 場景 | DB | API | Web |
 |---|---|---|---|
@@ -415,7 +415,7 @@ host 缺 `libomp.dylib`。**勿 `brew install libomp` 污染 host**；需 LightG
 
 ### 7.1 多 AI 控制平面（remote coordination + local resource lock）
 
-- **新任務入口**：GitHub Issue＋[user Project #10「cpbl-analytics vNext 任務看板」](https://github.com/users/ruan6047/projects/10)（`.wf/config.json`）；開卡／關卡由 PM 以 `gh` 執行。取當下規則（自動注入 `.wf/*.md`）：`<wfx-venv>/bin/wfx --project-root <本 repo 工作樹根目錄> brief --task <Issue號> --role <角色> --stage <階段>`（角色／階段用規則值域）。`wfx` 只提供 `brief`／`facts`／`write`（`write` 須依 `facts` 基準寫入），⛔ 不開卡／關卡。改動共享資源（本機 DB、服務、排程、既有 worktree）須依 vNext 規則取得資源租用。
+- **新任務入口**：GitHub Issue＋[user Project #10「cpbl-analytics vNext 任務看板」](https://github.com/users/ruan6047/projects/10)（`.wf/config.json`）；開卡／關卡由 PM 以 `gh` 執行。在本 repo 工作樹內取當下規則（自動注入 `.wf/*.md`）：`<wfx-venv>/bin/wfx --project-root "$(git rev-parse --show-toplevel)" brief --task <Issue號> --role <角色> --stage <階段>`（角色／階段用 `wfx/rules/core/values.md` 值域，例：`--task 193 --role 執行者 --stage 執行`）。`wfx` 只提供 `brief`／`facts`／`write`（`write` 須依 `facts` 基準寫入），⛔ 不開卡／關卡。改動共享資源（本機 DB、服務、排程、既有 worktree）須依 vNext 規則取得資源租用。
 - **舊卡凍結**：Project #4 舊卡已凍結——停止舊流程派工與 `wfcli` 寫入，後續逐張研究、承接或判定無需續做後才關閉。本節下方「⛔ 歷史唯讀」標記以下的 `wfcli`／Project #4／claim／lease 程序只供歷史查閱，⛔ 不得執行。
 - **`wfx` 安裝（獨立環境）**：`wfx` 是 wheel `ai-workflow-vnext`（採用驗證版本 0.1.0，`requires-python >=3.14`），裝進**獨立的 Python 3.14 venv**；本專案 `uv` 環境維持 Python 3.12（`.python-version`），⛔ 不把 `wfx` 裝進本專案 `.venv`。⛔ 不以 `PYTHONPATH` 指向來源樹或來源樹 egg-info 充當安裝——必須是 `pip install` 該 wheel。安裝步驟以 wheel 內附的 `wfx/docs/ADOPTION.md` §1 為準：
 
@@ -464,7 +464,7 @@ uv run python scripts/review_prompt.py <CARD_ID> | pbcopy
 > ⚠️ 這個缺口從 cutover 到 2026-08-17 無人發現，因為期間沒有人跑過這支被指定「就是給你跑的」工具。
 
 - 遠端 event 的 `state_version` 由 1 單調遞增；handoff、review、merge、release 必填 source SHA 與 evidence。`occurred_at` 取寫入當下系統時鐘（先 `date`，禁估算／沿用——WF-18）。逾期前可由 owner 續約；回收前 Coordinator 必須檢查 worktree 的未提交變更，禁止靜默刪除工作內容。
-- **release 必以終態落地**（WF-18）：免部署卡 release 即 `🏁完成`、需部署卡 `✅已驗證` 後才 release；結案五步（終態事件→封存→Ledger→lease／分支清理→對帳）見 canonical [`worktree-lifecycle.md`](../.ai-workflow/templates/worktree-lifecycle.md)，代 Coordinator 結案的查核者同樣適用。
+- **release 必以終態落地**（WF-18）：免部署卡 release 即 `🏁完成`、需部署卡 `✅已驗證` 後才 release；結案五步（終態事件→封存→Ledger→lease／分支清理→對帳）見舊 canonical [`worktree-lifecycle.md` @ `f207d2e`](https://github.com/ruan6047/ai-workflow/blob/f207d2ecf80556d6b90beeb0438bf648288a5fd9/templates/worktree-lifecycle.md)，代 Coordinator 結案的查核者同樣適用。
 - **查核通過即 merge**（2026-07-25 起）：APPROVE 且零阻塞 finding 時 Coordinator 直接 merge，不再逐卡請示；merge 後把 merge_sha 與後續待辦回傳原執行者，由執行者向需求方確認部署。例外（blocking finding、需 rebase 重驗、`db_scope` 為 schema／data-migration、卡面要求 sign-off）仍須停下請示。全文見 [`CONTROL_PLANE_CONTRACT.md`](CONTROL_PLANE_CONTRACT.md)「交付→查核→合併慣例」。
 - 同一卡族（原卡及 `<CARD_ID>-FIX<n>`）共用一個 worktree。merge 者在卡族全數結案後依序移除 worktree、刪本地分支、刪遠端分支。
 - 對 DB 的 claim 另依 [`DATABASE_CONTRACT.md`](DATABASE_CONTRACT.md) 取得資源 lease；schema 與 data migration 不可並行。
@@ -482,7 +482,7 @@ cd web && npm test                # 前端契約測試（node:test + strip-types
 ```
 
 - **路由快照**：新增 API 端點須同步更新 `tests/test_route_snapshot.py` 的 EXPECTED。
-- **bug 卡（T2 快線）**：修復測試必須先對缺陷版本**跑紅**再轉綠，紅證據記入交付（canonical §2 第 6 點；`bug-workflow.md`）。統計／ML 卡「先跑紅」不適用，改依卡面「紅線（違反即退回）」區塊驗證（canonical `statistical-redline.md`）。
+- **bug 修復**：修復測試必須先對缺陷版本**跑紅**再轉綠，紅證據記入交付。統計／ML 變更「先跑紅」不適用，改依規劃寫明的紅線（違反即退回）驗證。
 - **新 worktree**：先 `cd web && npm install`，否則 tsc／npm test 全紅是缺 node_modules 假象非缺陷；後端 `uv run` 會自動建 venv。
 - **CI**（`.github/workflows/ci.yml`）：api job 跑 ruff＋pytest，web job 跑 tsc＋npm test；CI 不部署（部署見 §7.3）。
 
