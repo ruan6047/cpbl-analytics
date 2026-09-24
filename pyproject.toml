@@ -97,9 +97,9 @@ pythonpath = ["."]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-# .ai-workflow 是獨立 repo 的 submodule（github.com/ruan6047/ai-workflow），有自己的
-# lint 設定與 CI。不排除的話 repo 根目錄 `ruff check` 會掃進去，產生 5 個不屬於本 repo、
-# 本 repo 也無權修的 findings（wf_cli 測試的 I001），把「lint 全綠」這個訊號洗成雜訊。
+# .ai-workflow 是已退役的舊子模組（github.com/ruan6047/ai-workflow，#193 移除 gitlink）。
+# 既有 checkout／worktree 仍可能留著該目錄；不排除的話 repo 根目錄 `ruff check` 會掃進去，
+# 產生不屬於本 repo、本 repo 也無權修的 findings（wf_cli 測試的 I001），把「lint 全綠」洗成雜訊。
 extend-exclude = [".ai-workflow"]
 
 [tool.ruff.lint]

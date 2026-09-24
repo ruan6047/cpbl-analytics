@@ -509,7 +509,7 @@ def test_scrape_transactions_rejects_half_given_range(monkeypatch: pytest.Monkey
 
 
 def test_ruff_excludes_ai_workflow_submodule() -> None:
-    """`.ai-workflow` 是獨立 repo 的 submodule，掃進來會產生本 repo 無權修的假 findings。"""
+    """`.ai-workflow` 是已退役的舊子模組，既有 checkout 仍可能留著該目錄；掃進來會產生本 repo 無權修的假 findings。"""
     cfg = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     excluded = cfg["tool"]["ruff"].get("extend-exclude", []) + cfg["tool"]["ruff"].get("exclude", [])
     assert ".ai-workflow" in excluded
