@@ -33,6 +33,7 @@ import OpponentsTable from "./opponents-table";
 import PairCard from "./pair-card";
 import PaSimPanel from "./pa-sim-panel";
 import SearchCombobox, { type ComboHit } from "./search-combobox";
+import { rowFranchises } from "./team-affiliation";
 import { MainTabs } from "@/components/hierarchical-tabs";
 
 const YEARS = Array.from({ length: CURRENT_YEAR - MIN_YEAR + 1 }, (_, i) => CURRENT_YEAR - i);
@@ -146,7 +147,8 @@ export default function MatchupExplorer({
       .then((d) => {
         if (stale) return;
         const codes = new Set<string>();
-        for (const r of d.items) if (r.opp_franchise) codes.add(r.opp_franchise);
+        // 生涯取逐打席已證實的交手隊別（#201），與清單篩選同一集合。
+        for (const r of d.items) for (const code of rowFranchises(r)) codes.add(code);
         setFaced({ key: scopeKey, codes: [...codes] });
       })
       .catch(() => {
@@ -434,7 +436,7 @@ export default function MatchupExplorer({
               {pairErr && <ErrorState>對決資料載入失敗，請重試。</ErrorState>}
               {!pair && !pairErr && <TableSkeleton rows={4} cols={4} />}
               {/* 對決卡自身分 A/C/E 段呈現，範圍標籤只帶資料範圍不帶賽事類型 */}
-              {pair && <PairCard data={pair} role={role} scopeLabel={scopeLabel} />}
+              {pair && <PairCard data={pair} role={role} scopeLabel={scopeLabel} kind={kind} />}
             </div>
           )}
 

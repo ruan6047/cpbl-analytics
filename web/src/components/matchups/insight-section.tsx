@@ -4,7 +4,7 @@
 // fail-closed 四狀態是常態版面（藍圖 §5.9），各有獨立結構與文案；
 // 統計判定全由 API 完成，此處只讀 API 明示欄位（T4 紅線）。
 import { useId } from "react";
-import { Card, Eyebrow, TeamLogo } from "@/components/ui";
+import { Card, Eyebrow } from "@/components/ui";
 import type { InsightItem, InsightsResponse, Role } from "./api";
 import {
   INSIGHT_COPY,
@@ -13,6 +13,7 @@ import {
   fmtDelta,
   subjectDelta,
 } from "./insight-state";
+import OpponentTeamMark from "./opponent-team-mark";
 
 const fmt3 = (v: number | null | undefined) =>
   v == null ? "—" : v.toFixed(3).replace(/^0\./, ".");
@@ -59,7 +60,12 @@ function CandidateCard({
     <li>
       <Card padding="p-3" className="h-full">
         <div className="flex items-center gap-2">
-          <TeamLogo code={item.opp_franchise ?? item.opp_team_code} size={20} decorative />
+          <OpponentTeamMark
+            status={item.opp_team_status}
+            franchises={item.opp_franchises}
+            fallbackCode={item.opp_franchise ?? item.opp_team_code}
+            size={20}
+          />
           <button
             type="button"
             onClick={() => onPick(item.opp_id, item.opp_name)}

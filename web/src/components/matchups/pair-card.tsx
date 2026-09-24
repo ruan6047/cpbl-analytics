@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Card, EmptyState, ENTITY_LINK, StatGrid, TeamLogo } from "@/components/ui";
 import { KIND_LABEL } from "@/lib/client";
 import type { Kind, PairDetail, PairRow, Role, YearCoverage } from "./api";
+import OpponentTeamMark from "./opponent-team-mark";
 
 const fmt3 = (v: number | null) => (v == null ? "—" : v.toFixed(3).replace(/^0\./, "."));
 const fmtPct = (v: number | null) => (v == null ? "—" : `${v.toFixed(1)}%`);
@@ -74,20 +75,48 @@ export default function PairCard({
   data,
   role,
   scopeLabel,
+  kind,
 }: {
   data: PairDetail;
   role: Role;
   scopeLabel: string;
+  /** 對手清單目前的賽事類型：頁首隊別取同一賽事類型的列，與清單標示一致。 */
+  kind?: Kind;
 }) {
   const rows = KIND_ORDER.map((k) => data.items.find((r) => r.kind_code === k)).filter(
     (r): r is PairRow => !!r,
   );
-  const any = rows[0] ?? data.items[0];
+  const any = rows.find((r) => r.kind_code === kind) ?? rows[0] ?? data.items[0];
+  // 主角側照舊；對手側與清單同一判定（生涯才有逐打席證據欄，#201）。
+  const hitterLogo = <TeamLogo code={any?.hitter_franchise ?? any?.hitter_team_code} size={20} decorative />;
+  const pitcherLogo = <TeamLogo code={any?.pitcher_franchise ?? any?.pitcher_team_code} size={20} decorative />;
+  const hitterMark =
+    role === "pitching" ? (
+      <OpponentTeamMark
+        status={any?.hitter_team_status}
+        franchises={any?.hitter_franchises}
+        fallbackCode={any?.hitter_franchise ?? any?.hitter_team_code}
+        size={20}
+      />
+    ) : (
+      hitterLogo
+    );
+  const pitcherMark =
+    role === "batting" ? (
+      <OpponentTeamMark
+        status={any?.pitcher_team_status}
+        franchises={any?.pitcher_franchises}
+        fallbackCode={any?.pitcher_franchise ?? any?.pitcher_team_code}
+        size={20}
+      />
+    ) : (
+      pitcherLogo
+    );
   return (
     <Card padding="p-4">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="inline-flex items-center gap-1.5 text-base font-bold text-ink">
-          <TeamLogo code={any?.hitter_franchise ?? any?.hitter_team_code} size={20} decorative />
+          {hitterMark}
           <Link href={`/players/${data.hitter}`} className={ENTITY_LINK}>
             {any?.hitter_name ?? data.hitter}
           </Link>
@@ -95,7 +124,7 @@ export default function PairCard({
         </span>
         <span className="text-faint">vs</span>
         <span className="inline-flex items-center gap-1.5 text-base font-bold text-ink">
-          <TeamLogo code={any?.pitcher_franchise ?? any?.pitcher_team_code} size={20} decorative />
+          {pitcherMark}
           <Link href={`/players/${data.pitcher}`} className={ENTITY_LINK}>
             {any?.pitcher_name ?? data.pitcher}
           </Link>
