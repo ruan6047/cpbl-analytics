@@ -789,6 +789,10 @@ WRITE_ADJUDICATION: dict[str, tuple[bool, str]] = {
                "不寫任何表」；檔內 `cur.execute` 全是 SELECT"),
     "docs/research/ML-WP-VERDICT-ROBUST1/compare_verdicts.py": (
         False, "同一份資料同一份指標、只換判定規則的對照，不落表"),
+    "docs/research/ISSUE-201/collect_matchup_pre2018.py": (
+        False, "W2 命中的是 import 閉包 cpbl_fighting.py 的 INSERT；本檔只 import 其 "
+               "`_token_in`，DB 連線強制 default_transaction_read_only、SQL 全是 SELECT，"
+               "產物落 --workdir 與 src/cpbl/resources/ 的 JSON"),
     # --- ⚠️ W1 是、W2 否是**沒有**的；反過來這一支是 W1 的結構性盲點 ---
     "docs/research/INGEST-DEEP-TM-BACKFILL1/sync_deep_tm_prod.py": (
         True,

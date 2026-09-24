@@ -28,7 +28,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlencode, urlparse
 
-RESOURCE = Path(__file__).resolve().parents[1] / "src/cpbl/resources/matchup_pre2018_rows.v1.json"
+RESOURCE = Path(__file__).resolve().parents[3] / "src/cpbl/resources/matchup_pre2018_rows.v1.json"
 SCORE_PATH = "/team/getfightingscore"
 POST_CAP_DEFAULT = 696  # 全卡 700 − T1 已送 4
 MAX_CONSEC_FAIL = 2
