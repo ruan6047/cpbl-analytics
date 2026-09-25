@@ -591,7 +591,8 @@ const SY = (h: number) => 200 - ((h - 0.2) / 1.3) * 200;
 const ZONE = { l: -0.23, r: 0.23, b: 0.46, t: 1.05 }; // 名義好球帶
 
 /** 完賽後 DB 尚無逐球、改顯示賽中擷取逐球時的揭露（#210）：來源、N／M 球、缺球打席 x／y，
- *  以及本打席缺幾球。官方完賽當下會清空逐球、隔日才重新發布，這段期間顯示的不是完整資料。 */
+ *  以及本打席缺幾球。文案只陳述「DB 尚無正式逐球、此為賽中擷取」，⛔ 不斷言官方目前的發布狀態
+ *  （顯示期間官方可能已重新發布、只是尚未入庫）。 */
 function LiveCaptureNote({ capture, eventNo }: { capture: LiveCaptureCoverage; eventNo: string }) {
   const missing = capture.missing_by_event[eventNo] ?? 0;
   return (
@@ -599,7 +600,7 @@ function LiveCaptureNote({ capture, eventNo }: { capture: LiveCaptureCoverage; e
       <span className="font-semibold text-ink">賽中擷取</span>
       ・已取得 {capture.captured}／{capture.pitches} 球・缺球打席 {capture.incomplete_pas}／{capture.pas}
       {missing > 0 && <span className="font-semibold text-ink">・本打席缺 {missing} 球</span>}
-      <span className="block text-faint">官方完賽後逐球尚未重新發布，此為比賽中擷取；正式逐球入庫後改用正式資料。</span>
+      <span className="block text-faint">本場正式逐球尚未入庫，此為比賽中擷取、可能不完整；正式逐球入庫後改用正式資料。</span>
     </p>
   );
 }

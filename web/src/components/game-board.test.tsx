@@ -236,7 +236,10 @@ test("完賽＋DB 無逐球：逐球面板揭露賽中擷取、N／M 球、缺�
   const html = carriedBoard({ eventNo: "0310012000" });
   assert.match(html, /賽中擷取 ・已取得 273／274 球・缺球打席 1／\d+/);
   assert.match(html, /本打席缺 1 球/);
+  assert.match(html, /本場正式逐球尚未入庫，此為比賽中擷取/);
   assert.match(html, /正式逐球入庫後改用正式資料/);
+  // 不得斷言官方目前的發布狀態（顯示期間官方可能已重新發布、只是尚未入庫）。
+  assert.doesNotMatch(html, /尚未重新發布/);
   // 沿用快照沒有推算時整打席退回官網分類（既有 PA 來源鎖定）。
   assert.match(html, /球種：官網分類/);
 });
