@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import GameBoard, { type Live } from "./game-board.tsx";
 import type { StatRow } from "@/lib/client.ts";
-import type { LiveSnapshot } from "@/lib/live-game.ts";
+import { applyLiveSnapshot, type LiveApiResponse, type LiveSnapshot } from "@/lib/live-game.ts";
 
 // 頂部記分條的**態**渲染測試（`UX-GAME-COMPLETED-SCOREBAR1` / #160）。
 //
@@ -210,4 +211,44 @@ test("完賽＋逐打席：選中打席的局面仍然顯示（ScoreBar 與賽�
 test("完賽＋逐打席（當日場 snapshot=final）：局面同樣不得被關掉", () => {
   const html = board({ ...FINAL_PBP, snapshot: snapshot("final", 9, "2") });
   assertSituationShown(html, "完賽・逐打席・snapshot=final", "▼ BOT", "9");
+});
+
+// ───────── #210：完賽後賽中擷取逐球的揭露（真實 A-227 worker 產出） ─────────
+
+function carriedBoard(over: { dbTracking?: boolean; estimate?: "all" | "none"; eventNo: string }): string {
+  const snap = JSON.parse(readFileSync(
+    new URL("../lib/__fixtures__/live_snapshot_2026-A-227_final_carryover.json", import.meta.url), "utf8",
+  )) as LiveSnapshot & { livelog: { trackman?: Record<string, unknown> | null }[] };
+  if (over.estimate === "all") for (const row of snap.livelog) if (row.trackman) row.trackman.pitch_type_est = "四縫";
+  const applied = applyLiveSnapshot({
+    ...data(), game: null, livelog: [], live_snapshot: { ...snap, freshness: "final", source_status: "ok" },
+    has_tracking: Boolean(over.dbTracking),
+    tracking: over.dbTracking ? [{ main_event_no: over.eventNo, pitch_cnt: 1, pitch_call: "BallCalled" }] : [],
+  } as unknown as LiveApiResponse) as unknown as Live;
+  const idx = applied.livelog.findIndex((row) => row.main_event_no === over.eventNo);
+  assert.ok(idx >= 0, `fixture 必須含事件 ${over.eventNo}`);
+  return text(renderToStaticMarkup(
+    <GameBoard data={applied} idx={idx} setIdx={() => {}} view="pbp" gameSno="227" tabs={null} />,
+  ));
+}
+
+test("完賽＋DB 無逐球：逐球面板揭露賽中擷取、N／M 球、缺球打席 x／y 與本打席缺球", () => {
+  const html = carriedBoard({ eventNo: "0310012000" });
+  assert.match(html, /賽中擷取 ・已取得 273／274 球・缺球打席 1／\d+/);
+  assert.match(html, /本打席缺 1 球/);
+  assert.match(html, /正式逐球入庫後改用正式資料/);
+  // 沿用快照沒有推算時整打席退回官網分類（既有 PA 來源鎖定）。
+  assert.match(html, /球種：官網分類/);
+});
+
+test("完賽＋DB 無逐球：整打席都有推算才標「球種：推算」；完整打席不標缺球", () => {
+  const html = carriedBoard({ eventNo: "0110001000", estimate: "all" });
+  assert.match(html, /球種：推算/);
+  assert.match(html, /賽中擷取/);
+  assert.doesNotMatch(html, /本打席缺/);
+});
+
+test("完賽＋DB 有逐球：不出現賽中擷取揭露", () => {
+  const html = carriedBoard({ eventNo: "0110001000", dbTracking: true });
+  assert.doesNotMatch(html, /賽中擷取/);
 });

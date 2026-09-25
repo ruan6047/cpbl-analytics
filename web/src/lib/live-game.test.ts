@@ -7,6 +7,7 @@ import {
   hasStartedPlay,
   inningLabel,
   isTopHalf,
+  liveCaptureCoverage,
   lineupMessage,
   liveScorebarScores,
   nextPollDelay,
@@ -487,4 +488,67 @@ test("spray chart 與 umpire tab 的完賽空狀態都改走 trackingEmptyMessag
   for (const src of [boxTabs, board]) {
     assert.doesNotMatch(src, /未設置 TrackMan|未設置 TrackMan 的球場/);
   }
+});
+
+// ── #210：完賽後 DB 尚無逐球時，改顯示賽中擷取的逐球 ──
+// fixture 是 worker 對 A-227 真實轉換（最後 START → 第一份 FINISHED）的實際產出：
+// 273 顆沿用逐球、291 列（含與最後一球同事件鍵的「比賽結束」）。
+const carriedFinal = (): LiveSnapshot => ({
+  ...(JSON.parse(readFileSync(
+    new URL("./__fixtures__/live_snapshot_2026-A-227_final_carryover.json", import.meta.url), "utf8",
+  )) as LiveSnapshot),
+  freshness: "final", source_status: "ok", poll_after_seconds: null, stale_after_seconds: null,
+});
+const dbTracking = [{ main_event_no: "0110001000", pitch_cnt: 1, pitch_type_pred: "四縫" }];
+
+test("四態①：完賽＋DB 無逐球＋快照有賽中擷取 → 顯示擷取逐球並揭露 N／M 與缺球打席 x／y", () => {
+  const snap = carriedFinal();
+  const applied = applyLiveSnapshot(response(snap));
+  assert.equal(applied.tracking.length, 273);
+  // has_tracking 維持 DB 值：分析頁籤的落點圖與主審判決分布不得吃到賽中擷取。
+  assert.equal(applied.has_tracking, false);
+  const capture = applied.live_capture;
+  assert.ok(capture, "必須帶出覆蓋揭露");
+  assert.equal(capture.captured, 273);
+  // 290 列中投球事件 274（牽制／暫停／換人不算），同鍵「比賽結束」列不得重算成第 275 球。
+  assert.equal(capture.pitches, 274);
+  assert.equal(capture.incomplete_pas, 1);
+  assert.ok(capture.pas > 1 && capture.pas < capture.pitches);
+  // 唯一缺球的是 3 局上「擊出左外野平飛球」那一球：整個打席的事件都標缺 1 球。
+  assert.equal(capture.missing_by_event["0310012000"], 1);
+  assert.equal(Object.values(capture.missing_by_event).every((n) => n === 1), true);
+  assert.equal(capture.captured_at, snap.tracking_carryover?.from_fetched_at);
+  assert.deepEqual(liveCaptureCoverage(snap), capture);
+});
+
+test("四態②：完賽＋DB 有任何逐球 → 維持 DB 優先，不顯示賽中擷取", () => {
+  const applied = applyLiveSnapshot({ ...response(carriedFinal()), has_tracking: true, tracking: dbTracking });
+  assert.deepEqual(applied.tracking, dbTracking);
+  assert.equal(applied.has_tracking, true);
+  assert.equal(applied.live_capture, null);
+});
+
+test("四態③：賽中 → 照舊使用快照逐球，不出現完賽擷取揭露", () => {
+  const before = applyLiveSnapshot(response(realLiveSnapshot()));
+  assert.equal(before.has_tracking, true);
+  assert.ok(before.tracking.length > 0);
+  assert.equal(before.live_capture, null);
+  // 賽中即使 DB 已有資料也不改來源（既有行為）。
+  const withDb = applyLiveSnapshot({ ...response(realLiveSnapshot()), has_tracking: true, tracking: dbTracking });
+  assert.deepEqual(withDb.tracking, before.tracking);
+});
+
+test("四態④：完賽＋無可用來源 → 維持既有空狀態，不補造逐球", () => {
+  const noSource = realSnapshot({ phase: "final", skip_trackman: false });
+  const applied = applyLiveSnapshot(response(noSource));
+  assert.deepEqual(applied.tracking, []);
+  assert.equal(applied.has_tracking, false);
+  assert.equal(applied.live_capture, null);
+  assert.equal(
+    trackingEmptyMessage(noSource, "暫不呈現好球帶、球種與球速"),
+    "本場逐球追蹤資料尚未發布，暫不呈現好球帶、球種與球速。",
+  );
+  // 快照有逐球但不是沿用來的（官方 final 自帶）→ 不在本卡射程，維持只用 DB。
+  const officialFinal = { ...carriedFinal(), tracking_carryover: undefined };
+  assert.deepEqual(applyLiveSnapshot(response(officialFinal)).tracking, []);
 });

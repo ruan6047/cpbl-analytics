@@ -15,7 +15,7 @@ import { displayWpPctInt } from "@/lib/win-prob-display";
 import { PaScoreLine } from "@/components/pa-score-line";
 import {
   canShowPostgameConclusions, inningLabel, liveScorebarScores, phaseLabel, plateAppearancePitchCountLabel, trackingEmptyMessage,
-  type LiveSnapshot,
+  type LiveCaptureCoverage, type LiveSnapshot,
 } from "@/lib/live-game";
 
 type Rec = { w: number; l: number; form: string };
@@ -47,6 +47,7 @@ export type Live = {
   tracking: TrackRow[];
   spray?: { hitter_acnt: string; dir: number; dist: number; ev: number | null; la: number | null; result: string }[];
   live_snapshot?: LiveSnapshot | null;
+  live_capture?: LiveCaptureCoverage | null;
 };
 
 const occupied = (v: StatRow[string]) => v !== null && v !== undefined && String(v) !== "";
@@ -589,7 +590,21 @@ const SX = (s: number) => ((s + 0.6) / 1.2) * 200;
 const SY = (h: number) => 200 - ((h - 0.2) / 1.3) * 200;
 const ZONE = { l: -0.23, r: 0.23, b: 0.46, t: 1.05 }; // 名義好球帶
 
-function StrikeZone({ pitches }: { pitches: TrackRow[] }) {
+/** 完賽後 DB 尚無逐球、改顯示賽中擷取逐球時的揭露（#210）：來源、N／M 球、缺球打席 x／y，
+ *  以及本打席缺幾球。官方完賽當下會清空逐球、隔日才重新發布，這段期間顯示的不是完整資料。 */
+function LiveCaptureNote({ capture, eventNo }: { capture: LiveCaptureCoverage; eventNo: string }) {
+  const missing = capture.missing_by_event[eventNo] ?? 0;
+  return (
+    <p className="mt-2 border-t border-line pt-1.5 text-[11px] leading-relaxed text-muted" data-testid="live-capture-note">
+      <span className="font-semibold text-ink">賽中擷取</span>
+      ・已取得 {capture.captured}／{capture.pitches} 球・缺球打席 {capture.incomplete_pas}／{capture.pas}
+      {missing > 0 && <span className="font-semibold text-ink">・本打席缺 {missing} 球</span>}
+      <span className="block text-faint">官方完賽後逐球尚未重新發布，此為比賽中擷取；正式逐球入庫後改用正式資料。</span>
+    </p>
+  );
+}
+
+function StrikeZone({ pitches, footer }: { pitches: TrackRow[]; footer?: ReactNode }) {
   const [expanded, setExpanded] = useState<number | null>(null);
   // PA 來源鎖定：任一球沒有模型結果就整個 PA 降階官網分類，禁止混用兩種來源。
   const useModel = pitches.length > 0 && pitches.every((pitch) => Boolean(pitch.pitch_type_pred));
@@ -645,6 +660,7 @@ function StrikeZone({ pitches }: { pitches: TrackRow[] }) {
           })}
         </ol>
       </div>
+      {footer}
     </div>
   );
 }
@@ -833,12 +849,15 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
           )}
           <Matchup e={e} game={game} batterAvg={data.batter_avg} uniforms={uniforms} pcount={pcount}
             pstats={pstats} batterToday={batterToday} onJump={selectIdx} />
-          {data.has_tracking ? (
+          {data.has_tracking || data.live_capture ? (
             paPitches.length > 0 ? (
-              <StrikeZone pitches={paPitches} />
+              <StrikeZone pitches={paPitches} footer={data.live_capture
+                && <LiveCaptureNote capture={data.live_capture} eventNo={String(e.main_event_no ?? "")} />} />
             ) : (
               <div className="rounded-xl border border-dashed border-line bg-surface-2/50 px-4 py-3 text-xs text-muted">
                 此事件無對應逐球進壘資料（換人/局間或來源未收錄該打席）。
+                {data.live_capture
+                  && <LiveCaptureNote capture={data.live_capture} eventNo={String(e.main_event_no ?? "")} />}
               </div>
             )
           ) : (

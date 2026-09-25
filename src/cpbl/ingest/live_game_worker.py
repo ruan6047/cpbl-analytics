@@ -81,6 +81,39 @@ def _trackman_snapshot(raw: Any) -> dict[str, Any] | None:
     return snapshot
 
 
+# 賽中→完賽沿用逐球時，事件鍵以外必須逐欄吻合的身分欄位（#210）。
+_CARRYOVER_IDENTITY = ("InningSeq", "VisitingHomeType", "HitterAcnt", "PitcherAcnt", "PitchCnt")
+
+
+def _carry_live_trackman(livelog: list[dict], previous: dict) -> int:
+    """官方第一份 final 完全沒有 TrackMan 時，沿用上一份 live 快照已取得的逐球（in-place）。
+
+    實測（A-227）官方 FINISHED 當下 LiveLog 的 Trackman 全數清空，隔日才重新發布；worker
+    又在 final 後停抓，逐球在空窗內整段消失。只沿用 previous 裡事件鍵與身分欄位都吻合的
+    球，每筆 live 球最多對一列——完賽 payload 會多一列與最後一球同事件鍵的「比賽結束」，
+    該列不得再掛同一顆球。回傳沿用筆數；呼叫端負責只在 live→final 且 final 無逐球時呼叫。
+    """
+    pending: dict[str, list[dict]] = {}
+    for row in previous.get("livelog") or []:
+        if isinstance(row, dict) and row.get("trackman") is not None:
+            pending.setdefault(str(row.get("MainEventNo")), []).append(row)
+    carried = 0
+    for row in livelog:
+        candidates = pending.get(str(row.get("MainEventNo")))
+        if not candidates:
+            continue
+        match = next((
+            candidate for candidate in candidates
+            if all(candidate.get(key) == row.get(key) for key in _CARRYOVER_IDENTITY)
+        ), None)
+        if match is None:
+            continue
+        candidates.remove(match)
+        row["trackman"] = dict(match["trackman"])
+        carried += 1
+    return carried
+
+
 class SnapshotCache(Protocol):
     def is_killed(self) -> bool: ...
 
@@ -334,6 +367,18 @@ def build_snapshot(raw_game: dict[str, Any], *, fetched_at: datetime,
     # 只有可呈現的官方直接值才算可用；空 Trackman 物件不能把 UI 誤導成有逐球資料。
     tracked = sum(1 for row in livelog if row["trackman"] is not None)
     phase = _phase(raw_status, away, home)
+    # final 只要有任何一顆官方逐球就完全採 final，不與 live 混用（#210 方案 A）。
+    carryover = None
+    if phase == "final" and not tracked and (previous or {}).get("phase") == "live":
+        carried = _carry_live_trackman(livelog, previous)
+        if carried:
+            tracked = carried
+            previous_source = previous.get("source") or {}
+            carryover = {
+                "carried": carried,
+                "from_fetched_at": previous_source.get("fetched_at"),
+                "from_version": previous_source.get("version"),
+            }
     previous_count = int((previous or {}).get("event_count") or 0)
     if (
         (previous or {}).get("phase") in {"live", "final"}
@@ -350,7 +395,7 @@ def build_snapshot(raw_game: dict[str, Any], *, fetched_at: datetime,
         tracking = "unknown"
 
     canonical = json.dumps(raw_game, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    return {
+    snapshot = {
         "game_id": raw_game.get("GameId"),
         "game_sno": raw_game.get("GameSno"),
         "kind_code": raw_game.get("KindCode"),
@@ -386,6 +431,10 @@ def build_snapshot(raw_game: dict[str, Any], *, fetched_at: datetime,
             "version": hashlib.sha256(canonical.encode()).hexdigest(),
         },
     }
+    # 只在實際沿用時出現：前端靠它標「賽中擷取」，一般快照形狀不變。
+    if carryover:
+        snapshot["tracking_carryover"] = carryover
+    return snapshot
 
 
 def _starts_at(row: dict) -> datetime | None:
