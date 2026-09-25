@@ -3,9 +3,9 @@
 > **任務入口（先做這件事）**：新任務一律是 GitHub Issue＋[user Project #10「cpbl-analytics vNext 任務看板」](https://github.com/users/ruan6047/projects/10)（`.wf/config.json`），流程規則來自 ai-workflow vNext 的已安裝 `wfx`；開卡／關卡由 PM 以 `gh` 執行，`wfx` 只提供 `brief`／`facts`／`write`。接到任務先在本 repo 工作樹內取當下規則（框架規則＋自動注入 `.wf/*.md` 專案注意事項＋該卡 Issue 與留言）：
 >
 > ```bash
-> # 前提：wfx 在 PATH——先啟用已安裝 wfx 的獨立 Python 3.14 venv（source 該 venv 的 bin/activate），
-> # 或把該 venv 的 bin 加進 PATH；尚未安裝見 docs/AI_RUNBOOK.md §7.1。⛔ 不裝進本專案 .venv。
-> wfx --project-root "$(git rev-parse --show-toplevel)" brief --task 193 --role 執行者 --stage 執行
+> # 直接用獨立 Python 3.14 venv 的 console script，不依賴 PATH；venv 不在 ~/.venvs/wfx 就換成你的位置
+> # （已啟用 venv 時可寫成 wfx …）。該檔不存在＝未安裝或安裝不完整，依 docs/AI_RUNBOOK.md §7.1 排查（python -m wfx 只作診斷）。⛔ 不裝進本專案 .venv。
+> "$HOME/.venvs/wfx/bin/wfx" --project-root "$(git rev-parse --show-toplevel)" brief --task 193 --role 執行者 --stage 執行
 > # 上例＝執行者接 #193；換成你的 Issue 號、角色與階段
 > # 角色：需求方／PM／研究者／規劃者／執行者／審核者；階段：需求／規劃／執行／審核／結案
 > ```
