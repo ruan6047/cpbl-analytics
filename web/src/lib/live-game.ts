@@ -68,6 +68,26 @@ export type LiveSnapshot = {
   umpires?: { job: string; name: string }[];
   // 官方權威旗標：true = 該球場不配置 TrackMan。undefined = 舊 snapshot 未帶。
   skip_trackman?: boolean | null;
+  /** 完賽快照的逐球沿用自最後一份賽中快照時才出現（#210）；官方 final 自帶逐球時不會有。 */
+  tracking_carryover?: {
+    carried: number; from_fetched_at: string | null; from_version?: string | null;
+  } | null;
+};
+
+/** 完賽後 DB 尚無逐球、改顯示賽中擷取逐球時的覆蓋揭露（#210）。 */
+export type LiveCaptureCoverage = {
+  /** 已取得 TrackMan 的球數 N。 */
+  captured: number;
+  /** LiveLog 中的投球事件數 M（同事件鍵只算一次，「比賽結束」列不重算）。 */
+  pitches: number;
+  /** 至少缺一球的打席數 x。 */
+  incomplete_pas: number;
+  /** 有投球事件的打席數 y。 */
+  pas: number;
+  /** 缺球打席內每個事件鍵 → 該打席缺幾球；供逐球面板就地標示。 */
+  missing_by_event: Record<string, number>;
+  /** 沿用來源：最後一份賽中快照的擷取時間。 */
+  captured_at: string | null;
 };
 
 export type LiveApiResponse = {
@@ -86,6 +106,9 @@ export type LiveApiResponse = {
   tracking: unknown[];
   spray?: unknown[];
   live_snapshot: LiveSnapshot | null;
+  /** 僅在完賽＋DB 無逐球＋快照有賽中擷取逐球時存在；此時 `tracking` 來自快照、
+   *  `has_tracking` 仍是 DB 值，分析與主審頁籤因此維持只用 DB。 */
+  live_capture?: LiveCaptureCoverage | null;
 };
 
 export type GameStatusResponse = {
@@ -163,6 +186,9 @@ export const trackingEmptyMessage = (
   if (snapshot && snapshot.phase !== "final") {
     return `賽中逐球追蹤尚在整理，${what}；完賽資料補齊後再顯示。`;
   }
+  // carried 賽中快照是不可變的 final：它只證明擷取當下沒有官方逐球，顯示期間官方可能已發布、
+  // 只是 DB 尚未入庫，⛔ 故此處只陳述本頁資料庫的狀態，不斷言官方目前的發布狀態。
+  if (snapshot?.tracking_carryover) return `本場正式逐球追蹤尚未入庫，${what}。`;
   if (availability === "expected") return `本場逐球追蹤資料尚未發布，${what}。`;
   return `本場無逐球追蹤資料，${what}。`;
 };
@@ -395,8 +421,23 @@ export function applyLiveSnapshot(response: LiveApiResponse): LiveApiResponse {
     batter_avg: { ...response.batter_avg, ...batterAvg },
     people: { ...response.people, ...decisionPeople },
     decisions,
-    tracking: snapshot.phase === "final" ? response.tracking : liveTracking(snapshot),
-    has_tracking: snapshot.phase === "final" ? response.has_tracking : liveTracking(snapshot).length > 0,
+    ...trackingSource(response, snapshot),
+  };
+}
+
+/** 逐球來源：DB 有任何逐球一律優先；賽中用快照；完賽 DB 無逐球時才用賽中擷取的沿用逐球。
+ *  沿用時 `has_tracking` 刻意保留 DB 值——分析頁籤的落點圖與主審判決分布只吃 DB。 */
+function trackingSource(response: LiveApiResponse, snapshot: LiveSnapshot) {
+  if (snapshot.phase !== "final") {
+    const tracking = liveTracking(snapshot);
+    return { tracking, has_tracking: tracking.length > 0, live_capture: null };
+  }
+  const captured = response.has_tracking || !snapshot.tracking_carryover ? [] : liveTracking(snapshot);
+  if (captured.length === 0) {
+    return { tracking: response.tracking, has_tracking: response.has_tracking, live_capture: null };
+  }
+  return {
+    tracking: captured, has_tracking: response.has_tracking, live_capture: liveCaptureCoverage(snapshot),
   };
 }
 
@@ -416,8 +457,7 @@ export function officialLivePitchCall(event: Record<string, unknown>, trackmanCa
   return null;
 }
 
-/** live TrackMan 與官方 MainEventNo 綁定，避免同局同投打重複對戰時誤配。 */
-export function liveTracking(snapshot: LiveSnapshot): StatRow[] {
+function plateAppearanceGroups(snapshot: LiveSnapshot): LiveSnapshot["livelog"][] {
   const groups: LiveSnapshot["livelog"][] = [];
   for (const event of snapshot.livelog) {
     const previous = groups.at(-1);
@@ -428,6 +468,43 @@ export function liveTracking(snapshot: LiveSnapshot): StatRow[] {
       && String(previous[0].VisitingHomeType ?? "") === String(event.VisitingHomeType ?? "");
     if (samePa) previous.push(event); else groups.push([event]);
   }
+  return groups;
+}
+
+/** 賽中擷取逐球的覆蓋：N／M 球與缺球打席 x／y。
+ *
+ *  投球事件＝有 TrackMan，或官方判決欄位／文字足以判出一球（與 officialLivePitchCall 同一判準；
+ *  牽制、暫停、換人皆不算）。同一事件鍵只算一次：完賽 payload 在最後一球後多一列同鍵的
+ *  「比賽結束」，重算會把 M 灌大一球。A-227 實測 290 列中投球 274、TrackMan 273。 */
+export function liveCaptureCoverage(snapshot: LiveSnapshot): LiveCaptureCoverage {
+  const seen = new Set<string>();
+  let captured = 0, pitches = 0, pas = 0, incompletePas = 0;
+  const missingByEvent: Record<string, number> = {};
+  for (const group of plateAppearanceGroups(snapshot)) {
+    let groupPitches = 0, groupCaptured = 0;
+    for (const event of group) {
+      const key = String(event.MainEventNo ?? "");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (event.trackman) groupCaptured++;
+      if (event.trackman || officialLivePitchCall(event, null)) groupPitches++;
+    }
+    if (groupPitches === 0) continue;
+    pas++; pitches += groupPitches; captured += groupCaptured;
+    if (groupCaptured < groupPitches) {
+      incompletePas++;
+      for (const event of group) missingByEvent[String(event.MainEventNo ?? "")] = groupPitches - groupCaptured;
+    }
+  }
+  return {
+    captured, pitches, incomplete_pas: incompletePas, pas, missing_by_event: missingByEvent,
+    captured_at: snapshot.tracking_carryover?.from_fetched_at ?? null,
+  };
+}
+
+/** live TrackMan 與官方 MainEventNo 綁定，避免同局同投打重複對戰時誤配。 */
+export function liveTracking(snapshot: LiveSnapshot): StatRow[] {
+  const groups = plateAppearanceGroups(snapshot);
   return groups.flatMap((group) => group.flatMap((event) => {
     const trackman = event.trackman;
     if (!trackman) return [];
