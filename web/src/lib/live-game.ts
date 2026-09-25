@@ -186,6 +186,9 @@ export const trackingEmptyMessage = (
   if (snapshot && snapshot.phase !== "final") {
     return `賽中逐球追蹤尚在整理，${what}；完賽資料補齊後再顯示。`;
   }
+  // carried 賽中快照是不可變的 final：它只證明擷取當下沒有官方逐球，顯示期間官方可能已發布、
+  // 只是 DB 尚未入庫，⛔ 故此處只陳述本頁資料庫的狀態，不斷言官方目前的發布狀態。
+  if (snapshot?.tracking_carryover) return `本場正式逐球追蹤尚未入庫，${what}。`;
   if (availability === "expected") return `本場逐球追蹤資料尚未發布，${what}。`;
   return `本場無逐球追蹤資料，${what}。`;
 };

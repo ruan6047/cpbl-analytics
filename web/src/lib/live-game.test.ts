@@ -472,6 +472,21 @@ test("完賽空狀態依 skip_trackman 三態分流，false/null 不得宣稱未
   }
 });
 
+// #210 退回：完賽＋DB 無逐球＋carried 賽中快照時，分析／主審頁籤不得把「DB 未入庫」說成官方尚未發布。
+test("carried 完賽快照的空狀態只陳述未入庫，不斷言官方發布狀態", () => {
+  const carried = JSON.parse(readFileSync(
+    new URL("./__fixtures__/live_snapshot_2026-A-227_final_carryover.json", import.meta.url), "utf8",
+  )) as LiveSnapshot;
+  assert.equal(carried.phase, "final");
+  assert.equal(carried.skip_trackman, false);
+  assert.ok(carried.tracking_carryover);
+  for (const what of ["無擊球落點圖", "無主審判決分布"]) {
+    const msg = trackingEmptyMessage(carried, what);
+    assert.equal(msg, `本場正式逐球追蹤尚未入庫，${what}。`);
+    assert.doesNotMatch(msg, /發布/);
+  }
+});
+
 test("賽中三態：skip_trackman=true 仍講未配置，其餘走整理中文案", () => {
   assert.match(trackingEmptyMessage(snapshot({ skip_trackman: true }), "X"), /未配置/);
   assert.match(trackingEmptyMessage(snapshot({ skip_trackman: false }), "X"), /賽中逐球追蹤尚在整理/);
