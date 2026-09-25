@@ -528,8 +528,8 @@ def test_naive_three_key_double_binds_but_canonical_does_not() -> None:
 def test_taxonomy_loads_from_packaged_data() -> None:
     # load_taxonomy 解析到的路徑必須存在且可載入（含全 action）
     tax = load_taxonomy()
-    assert tax.version == "1.1.0"
-    assert len(tax.actions) >= 55  # v1.0.0 收錄 58 個 action，FIX1 未增刪 action
+    assert tax.version == "1.2.0"
+    assert len(tax.actions) >= 55  # v1.0.0 收錄 58 個 action，FIX1 未增刪，1.2.0 增 1（#207）
 
 
 def test_packaged_taxonomy_is_byte_identical_to_canonical_docs() -> None:
@@ -850,7 +850,7 @@ def test_generator_static_blocks_match_committed_taxonomy_json() -> None:
 def test_committed_taxonomy_declares_the_fix1_semantics() -> None:
     """committed JSON 必須實際帶有 FIX1 的語意欄位（防再度退回 v1.0 形狀）。"""
     tax_doc = load_taxonomy()
-    assert tax_doc.version == "1.1.0"
+    assert tax_doc.version == "1.2.0"
     import json as _json
 
     from cpbl.ingest import pa_build

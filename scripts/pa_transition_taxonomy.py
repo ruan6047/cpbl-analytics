@@ -56,7 +56,7 @@ except ModuleNotFoundError:  # pragma: no cover - script 直跑路徑
 
 Event = dict[str, Any]
 
-TAXONOMY_VERSION = "1.1.0"  # FIX1：island 切界加代打續打席條款 + 9.15(b) 歸屬 + 出局不變式
+TAXONOMY_VERSION = "1.2.0"  # #207：新增 action 犧牲飛球上壘-趁傳（minor）；1.1.0＝FIX1 切界/9.15(b)/出局不變式
 
 # ---------------------------------------------------------------------------
 # 版本化 transition taxonomy
@@ -133,6 +133,7 @@ TERMINAL_TAXONOMY: dict[str, dict[str, str]] = {
     "趁傳": {"role": "pa_terminal", "outcome_family": "fielders_choice"},
     "犧牲短打上壘-野選": {"role": "pa_terminal", "outcome_family": "fielders_choice"},
     "雙殺打上壘-趁傳": {"role": "pa_terminal", "outcome_family": "fielders_choice"},
+    "犧牲飛球上壘-趁傳": {"role": "pa_terminal", "outcome_family": "fielders_choice"},  # 2026/A/347
     # --- 犧牲 sacrifice ---
     "犧牲飛球": {"role": "pa_terminal", "outcome_family": "sacrifice"},
     "犧牲界外飛球": {"role": "pa_terminal", "outcome_family": "sacrifice"},
