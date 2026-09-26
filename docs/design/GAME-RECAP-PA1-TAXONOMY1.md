@@ -2,7 +2,7 @@
 title: "GAME-RECAP-PA1-TAXONOMY1 canonical PA 狀態機 transition taxonomy"
 card_id: GAME-RECAP-PA1-TAXONOMY1
 status: awaiting-independent-review
-taxonomy_version: 1.2.0
+taxonomy_version: 1.3.0
 date: 2026-07-24
 tags:
   - cpbl
@@ -23,7 +23,7 @@ links:
 
 > [!info] 三份交付物
 > 1. 本檔＝**規範文本**（狀態機、轉換 taxonomy、fail-closed、紅燈斷言）。
-> 2. [`pa_transition_taxonomy.v1.json`](pa_transition_taxonomy.v1.json)＝**builder 可直接消費**的版本化輸出（`taxonomy_version=1.2.0`）。
+> 2. [`pa_transition_taxonomy.v1.json`](pa_transition_taxonomy.v1.json)＝**builder 可直接消費**的版本化輸出（`taxonomy_version=1.3.0`）。
 > 3. [`../research/GAME-RECAP-PA1-TAXONOMY1_RESULTS.md`](../research/GAME-RECAP-PA1-TAXONOMY1_RESULTS.md)＝**自動產生的完整值域＋客觀效果證據**，供 reviewer 以原始事件複核。
 >
 > 三者皆由 `scripts/pa_transition_taxonomy.py`（唯讀）一鍵重跑產生。
@@ -178,7 +178,7 @@ canonical builder 對每一 livelog 事件列（嚴格全序 `main_event_no::big
 - builder 讀 [`pa_transition_taxonomy.v1.json`](pa_transition_taxonomy.v1.json) 的 `actions[]`：`action_name → {role, outcome_family}`。
 - `island_rule`、`island_classes`、`fail_closed` 三段是 builder 必須實作的規則常數。
 - **版本化**：`taxonomy_version` 遵循 semver。新增 action 值（官網新增賽況用語）＝ minor；改變既有 action 的 `role/outcome_family` 語意＝ major，並須重跑證據 + 重新查核。builder 必須 pin `taxonomy_version` 並在 build record 留痕。
-- **未來覆蓋守門**：現行重產報告（[`GAME-RECAP-PA1-TAXONOMY1_RESULTS.md`](../research/GAME-RECAP-PA1-TAXONOMY1_RESULTS.md)）有 1 筆 `unknown_action`（2026/D/183，另由 #208 追查）；builder 不得假設未登錄 action 不存在——遇未登錄 action 一律 fail closed 並告警，等 taxonomy bump。
+- **未來覆蓋守門**：1.3.0（#208）逐字登錄 2026/D/183 的 `野手接球自踩壘包 二壘` 為打者出局（「二壘」指壘包或野手未證實，不據此推定守備細節），現行數字以重產報告（[`GAME-RECAP-PA1-TAXONOMY1_RESULTS.md`](../research/GAME-RECAP-PA1-TAXONOMY1_RESULTS.md)）為準；builder 不得假設未登錄 action 不存在——遇未登錄 action 一律 fail closed 並告警，等 taxonomy bump。
 
 ## 10. 重跑
 
