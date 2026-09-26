@@ -36,7 +36,7 @@ from cpbl.api.helpers import (
 )
 from cpbl.api.live_cache import get_public_live_snapshot
 from cpbl.api.pregame_serving import serving_state
-from cpbl.completion import completed_games_sql_with_evidence, is_completed_game
+from cpbl.completion import completed_games_sql_with_evidence, is_completed_game, official_final_sql
 from cpbl.config import settings
 from cpbl.db import conn
 from cpbl.models.outcome_simple import ORIENT, load_outcome_rows
@@ -87,6 +87,7 @@ _GAME_COLUMNS = f"""
     g.away_team_code, g.away_team_name, g.away_score,
     g.home_team_code, g.home_team_name, g.home_score,
     {_EVIDENCE_EXISTS} AS has_evidence,
+    {official_final_sql("g")} AS official_final,
     g.delay_kind, g.orig_date
 """
 
@@ -124,7 +125,8 @@ def _completed(row: dict, as_of: date) -> bool:
     記載的數字一致。等價性由 `tests/test_daily_summary.py` 的全庫對帳測試釘住。
     """
     return is_completed_game(row["home_score"], row["away_score"],
-                             row["game_date"], as_of, bool(row["has_evidence"]))
+                             row["game_date"], as_of, bool(row["has_evidence"]),
+                             official_final=bool(row["official_final"]))
 
 
 def _serialize(row: dict, as_of: date) -> dict:
@@ -141,6 +143,7 @@ def _serialize(row: dict, as_of: date) -> dict:
     row = dict(row)
     row["completed"] = _completed(row, as_of)
     row.pop("has_evidence")
+    row.pop("official_final")
     row["game_date"] = _iso(row["game_date"])
     row["orig_date"] = _iso(row["orig_date"])
     if not row["completed"]:

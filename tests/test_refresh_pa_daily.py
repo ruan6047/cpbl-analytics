@@ -90,15 +90,14 @@ def test_pa_build_coverage_short_circuits_on_empty_kinds_without_touching_db(
 def test_active_kinds_uses_canonical_completed_predicate_not_hand_rolled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """GLOSSARY「完成場判定」SSoT：一律引用 completion.completed_games_sql，不得手寫條件。"""
+    """GLOSSARY「完成場判定」SSoT：一律引用 completion 的每日鏈判準，不得手寫條件（#213）。"""
     fake_conn, holder = _fake_conn_factory([("A",), ("C",)])
     monkeypatch.setattr(rr, "conn", fake_conn)
 
     result = rr._active_kinds(2026, ("A", "C", "E"))
 
     assert result == ["A", "C"]
-    assert rr.completed_games_sql() in holder.cursor.sql
-    assert "CURRENT_DATE" in holder.cursor.sql  # 保留賽保護：不得只憑 score>0 判完成
+    assert rr.daily_chain_completed_games_sql() in holder.cursor.sql
 
 
 def test_pa_build_targets_query_unions_day_window_and_global_gap(

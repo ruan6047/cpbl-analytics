@@ -50,6 +50,7 @@ DB 實證（2026-07-26，本機 `cpbl.games` 全史 GROUP BY；場次數／起�
 `home_score + away_score > 0 AND game_date <= CURRENT_DATE`。**缺日期界線會誤判**：保留賽會掛未來補賽日卻已帶比分。
 
 - SSoT：`src/cpbl/completion.py` `completed_games_sql`（各處查詢一律引用此函式，勿手寫條件）。
+- 每日 refresh 鏈（#213）：`daily_chain_completed_games_sql`——2026 起只認官方排程 final（`official_final_sql`，與 `official_status` 同選列規則）或完賽證據，**比分不作依據**，故 0:0 完賽（2026/D/234）會入、賽中已得分場與保留賽不入；API／同步閘門的 `completed_games_sql_with_evidence` 另收「0:0 且官方 final」。
 
 ## 逐打席（livelog / canonical PA）
 

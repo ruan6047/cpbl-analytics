@@ -19,7 +19,7 @@ from cpbl.api.routers.daily import refresh_status
 _GAME_COLS = ["season", "kind_code", "game_sno", "game_date", "venue",
               "away_team_code", "away_team_name", "away_score",
               "home_team_code", "home_team_name", "home_score",
-              "has_evidence", "delay_kind", "orig_date"]
+              "has_evidence", "official_final", "delay_kind", "orig_date"]
 # cpbl.game_schedule_status_revisions 的查詢欄位（未定案場次的官方狀態）。
 # `payload_hash` 是選列規則的最終決勝鍵（DATA-OFFICIAL-STATUS-TIEBREAK1）；假 cursor 的
 # description 必須跟著真實投影走，否則這裡餵出來的列會少一個判定用得到的欄位。
@@ -53,7 +53,7 @@ def _revision(sno: int, present: int, result: str, day: date, *, kind: str = "A"
 
 def _game(sno: int, day: date, *, home: int | None = None, away: int | None = None,
           kind: str = "A", delay: str | None = None, orig: date | None = None,
-          evidence: bool = False) -> tuple:
+          evidence: bool = False, official_final: bool = False) -> tuple:
     """一列 cpbl.games（投影同 `daily._GAME_COLUMNS`）。
 
     比分不給＝DB 裡的 0–0 佔位。**完成與否由受測碼自己用 `is_completed_game` 算**，
@@ -62,9 +62,10 @@ def _game(sno: int, day: date, *, home: int | None = None, away: int | None = No
     事實**（`cpbl.game_completion_evidence` 有沒有這一場），不是結論。
 
     `evidence=True` ＋ 不給比分＝**真和局**：0:0 但有官方 box 取證。全庫 5 場。
+    `official_final=True` ＋ 不給比分＝官方排程 final 的 0:0（#213，如 2026/D/234）。
     """
     return (2026, kind, sno, day, "洲際", "ADD011", "統一7-ELEVEn獅", away or 0,
-            "ACN011", "中信兄弟", home or 0, evidence, delay, orig)
+            "ACN011", "中信兄弟", home or 0, evidence, official_final, delay, orig)
 
 
 class _Cursor:
@@ -342,6 +343,23 @@ def test_evidence_backed_tie_is_a_result_not_a_pending_game(monkeypatch):
     assert (tie["home_score"], tie["away_score"]) == (0, 0)
 
 
+def test_official_final_scoreless_game_is_a_result(monkeypatch):
+    """#213：0:0 且官方排程 final（2026/D/234 形狀，無證據列）＝完成場、比分照送 0；
+    同日 0:0 非 final 者仍待判讀。對齊 `_DONE_AS_OF` 的官方 final 分支，免得該日被選為
+    最近比賽日、場次卻標成無賽果。"""
+    day = _TODAY - timedelta(days=1)
+    body, _ = _run(monkeypatch, _script(
+        latest=day, next_day=None, scoped=2,
+        games=[_game(234, day, kind="D", official_final=True), _game(9, day, kind="D")],
+    ))
+
+    games = {g["game_sno"]: g for g in body["latest_game_day"]["games"]}
+    assert games[234]["completed"] is True
+    assert (games[234]["home_score"], games[234]["away_score"]) == (0, 0)
+    assert "official_final" not in games[234]
+    assert games[9]["completed"] is False
+
+
 def test_scoreless_game_without_evidence_stays_pending(monkeypatch):
     """0:0 **無**證據＝隔離為待判讀：不算完成場，比分必須是 null。
 
@@ -403,7 +421,13 @@ def test_official_status_is_not_queried_when_nothing_is_unresolved(monkeypatch):
         games=[_game(1, _TODAY - timedelta(days=1), home=4, away=2)],
     ))
 
-    assert not [q for q in cursor.queries if "game_schedule_status_revisions" in q]
+    # 完成場判準本身含官方 final 子查詢（#213），那不是另一次查詢，先剔除再檢查。
+    from cpbl.completion import official_final_sql
+
+    def _strip(q: str) -> str:
+        return q.replace(official_final_sql("games"), "").replace(official_final_sql("g"), "")
+
+    assert not [q for q in cursor.queries if "game_schedule_status_revisions" in _strip(q)]
 
 
 def test_daily_and_game_status_share_one_official_verdict(monkeypatch):
