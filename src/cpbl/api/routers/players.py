@@ -9,6 +9,13 @@ from fastapi import APIRouter, HTTPException, Query
 
 from cpbl import imports
 from cpbl.api.helpers import DEFAULT_SEASON, _dicts, _real_ip, _round
+from cpbl.api.matchup_teams import (
+    annotate_career_opponent_teams,
+    career_team_evidence,
+    classify_team_evidence,
+    load_team_names,
+    row_matches_team,
+)
 from cpbl.api.matchups import (
     CAREER_YEAR,
     MatchupScope,
@@ -683,6 +690,24 @@ def matchups(
                 names.get(hitter), None, item.get("hitter_name"))
             item["pitcher_name"] = display_name(
                 names.get(pitcher), None, item.get("pitcher_name"))
+        if selected.name == "career":
+            # #201：生涯列的隊號是爬取當時的所屬隊，首批配對另附證據判定的交手隊別。
+            # 雙方各自判定（API 不知哪側是主角），既有隊號欄位不動；前端只換對手側標示。
+            # 首批與否只看投手，兩側一致；非首批不帶證據欄＝前端沿用官方隊號。
+            for item in items:
+                kind = item["kind_code"]
+                pa = item.get("plate_appearances")
+                for side, role_, subject, opponent in (
+                    ("pitcher", "batting", hitter, pitcher),
+                    ("hitter", "pitching", pitcher, hitter),
+                ):
+                    first, evidence = career_team_evidence(
+                        cur, subject, role_, kind, [opponent], opponent)
+                    if opponent not in first:
+                        continue
+                    franchises, status = classify_team_evidence(pa, evidence.get(opponent))
+                    item[f"{side}_franchises"] = franchises
+                    item[f"{side}_team_status"] = status
         cur.execute(
             "SELECT DISTINCT year FROM cpbl.batter_pitcher_matchups "
             "WHERE hitter_acnt=%s AND pitcher_acnt=%s ORDER BY year",
@@ -961,6 +986,7 @@ def player_matchups(
 ) -> dict:
     """查詢球員對戰；可限定資料範圍、歷史 franchise、對手、排序與筆數。"""
     selected = _scope_or_422(scope, season, from_year, to_year)
+    career = selected.name == "career"
     self_col, opp_col = ("hitter_acnt", "pitcher") if role == "batting" else ("pitcher_acnt", "hitter")
     with conn() as c:
         cur = c.cursor()
@@ -978,7 +1004,8 @@ def player_matchups(
         if opponent_id:
             sql += f" AND m.{opp_col}_acnt=%s"  # noqa: S608 — opp_col 由 role 白名單決定
             params.append(opponent_id)
-        if opponent_team:
+        if opponent_team and not career:
+            # 本季／區間仍依官方隊號篩選（#201 明列不在本卡修正的範圍）。
             sql += f" AND left(m.{opp_col}_team_no, 3)=ANY(%s)"  # noqa: S608
             params.append(sorted(franchise_prefixes(opponent_team)))
         cur.execute(sql, params)
@@ -989,6 +1016,16 @@ def player_matchups(
             _display_name_map(cur, {item["opp_id"] for item in items}, season),
             [("opp_id", "opp_name")],
         )
+        if career:
+            # 生涯列隊號是對手現任／末任隊，不是交手隊別（#201）：首批對手改以證據
+            # 判定，篩選只納入已證實曾以該隊交手者；非首批維持官方隊號。統計欄不動。
+            first, evidence = career_team_evidence(
+                cur, player_id, role, kind_code, {i["opp_id"] for i in items}, opponent_id)
+            if first:
+                annotate_career_opponent_teams(
+                    [i for i in items if i["opp_id"] in first], evidence, load_team_names(cur))
+            if opponent_team:
+                items = [i for i in items if row_matches_team(i, opponent_team)]
         cur.execute(  # noqa: S608 — self_col 由 role 白名單決定
             f"SELECT DISTINCT year FROM cpbl.batter_pitcher_matchups "
             f"WHERE {self_col}=%s AND kind_code=%s ORDER BY year",
@@ -996,7 +1033,8 @@ def player_matchups(
         )
         years = [row[0] for row in cur.fetchall()]
     for item in items:
-        item["opp_franchise"] = franchise_of(item["opp_team_code"])
+        if "opp_team_status" not in item:  # 本季／區間與非首批：官方隊號
+            item["opp_franchise"] = franchise_of(item["opp_team_code"])
     try:
         items = sort_matchup_items(items, sort, order)
     except ValueError as exc:
@@ -1083,6 +1121,11 @@ def player_matchup_insights(
         rows = _dicts(cur)
         # 洞察卡的對手名同樣走現用名（候選卡與對手清單不得顯示不同名字）。
         name_map = _display_name_map(cur, {row["opp_id"] for row in rows}, season)
+        first: set[str] = set()
+        if selected.name == "career" and rows:
+            first, team_evidence = career_team_evidence(
+                cur, player_id, role, kind_code, {row["opp_id"] for row in rows})
+            team_names = load_team_names(cur) if first else {}
 
     overlay_display_names(rows, name_map, [("opp_id", "opp_name")])
     items = aggregate_matchup_rows(rows)
@@ -1090,11 +1133,17 @@ def player_matchup_insights(
         return _empty_insights(player_id, role, kind_code, selected,
                                opponent_team, "該球員在此範圍沒有對戰紀錄")
 
-    # 對手隸屬 franchise（跨年可能有多個歷史隊碼，全記）供隊伍篩選。
     opp_prefixes: dict[str, set[str]] = {}
+    if first:
+        # 生涯首批：與對手清單同一判定（#201），只以已證實的交手隊別篩選與標示。
+        first_items = [item for item in items if item["opp_id"] in first]
+        annotate_career_opponent_teams(first_items, team_evidence, team_names)
+        for item in first_items:
+            opp_prefixes[item["opp_id"]] = {code[:3] for code in item["opp_franchises"]}
+    # 其餘對手隸屬 franchise（跨年可能有多個歷史隊碼，全記）供隊伍篩選。
     for row in rows:
         code = (row.get("opp_team_code") or "")[:3]
-        if code:
+        if code and row["opp_id"] not in first:
             opp_prefixes.setdefault(row["opp_id"], set()).add(code)
 
     # 覆蓋率（全 scope）：對戰爬蟲只含本季登錄打者，投手 baseline 尤其不完整。
@@ -1250,6 +1299,11 @@ def _insight_item(candidate: InsightCandidate, display: dict[str, dict]) -> dict
         "opp_team_code": meta.get("opp_team_code"),
         "opp_franchise": franchise_of(meta.get("opp_team_code"))
         if meta.get("opp_team_code") else None,
+        **{
+            key: meta[key]
+            for key in ("opp_franchises", "opp_team_status")
+            if key in meta
+        },
         "plate_appearances": meta.get("plate_appearances"),
         "opportunities": candidate.opportunities,
         "avg": meta.get("avg"),

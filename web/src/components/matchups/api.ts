@@ -7,6 +7,14 @@ export type Role = "batting" | "pitching";
 export type Kind = "A" | "C" | "E";
 export type Scope = "career" | "season" | "range";
 export type SortKey = "plate_appearances" | "avg" | "ops" | "home_runs" | "so";
+/** 生涯對手交手隊別的可信度（#201）：逐打席證據對上官方打席＝confirmed。 */
+export type TeamStatus = "confirmed" | "partial" | "unknown";
+
+/** 僅 scope=career 且首批配對時由 API 帶出；非首批與本季／區間沒有這兩欄，沿用官方隊號。 */
+type OpponentTeamEvidence = {
+  opp_franchises?: string[];
+  opp_team_status?: TeamStatus;
+};
 
 /** 對戰資料的年度涵蓋（來自對戰爬蟲）：官網僅提供本季年度列＋生涯彙總列。 */
 export type YearCoverage = { career: boolean; annual_years: number[] };
@@ -19,7 +27,7 @@ export type RosterHit = {
   franchise: string | null;
 };
 
-export type MatchupRow = {
+export type MatchupRow = OpponentTeamEvidence & {
   opp_id: string;
   opp_name: string | null;
   opp_team_code: string | null;
@@ -78,7 +86,13 @@ export type MatchupList = {
 
 export type PairRow = Omit<
   MatchupRow,
-  "opp_id" | "opp_name" | "opp_team_code" | "opp_team" | "opp_franchise"
+  | "opp_id"
+  | "opp_name"
+  | "opp_team_code"
+  | "opp_team"
+  | "opp_franchise"
+  | "opp_franchises"
+  | "opp_team_status"
 > & {
   kind_code: Kind;
   hitter_name: string | null;
@@ -87,6 +101,11 @@ export type PairRow = Omit<
   pitcher_team_code: string | null;
   hitter_franchise: string | null;
   pitcher_franchise: string | null;
+  /** 僅 scope=career 且首批（投手 2024–2026 一／二軍有出賽）：雙方各自的交手隊別判定（#201）。 */
+  hitter_franchises?: string[];
+  hitter_team_status?: TeamStatus;
+  pitcher_franchises?: string[];
+  pitcher_team_status?: TeamStatus;
 };
 
 export type PairDetail = {
@@ -102,7 +121,7 @@ export type PairDetail = {
 
 // ---- ML-MATCHUP1 洞察契約 ----
 
-export type InsightItem = {
+export type InsightItem = OpponentTeamEvidence & {
   opp_id: string;
   opp_name: string | null;
   opp_team_code: string | null;

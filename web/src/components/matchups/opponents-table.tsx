@@ -2,8 +2,8 @@
 
 // 對手清單（基礎實績 hero）：緊湊欄位、server-side 排序（截斷時客端排序會誤導
 // top-N，故排序一律重新查詢）、點列進單組對決。取代舊版 14 欄寬表。
-import { TeamLogo } from "@/components/ui";
 import type { MatchupRow, Role, SortKey } from "./api";
+import OpponentTeamMark from "./opponent-team-mark";
 
 const fmt3 = (v: number | null) => (v == null ? "—" : v.toFixed(3).replace(/^0\./, "."));
 
@@ -70,7 +70,11 @@ export default function OpponentsTable({
                   onClick={() => onPick(r)}
                   className="flex items-center gap-2 text-left font-medium text-ink hover:underline"
                 >
-                  <TeamLogo code={r.opp_franchise ?? r.opp_team_code} size={18} decorative />
+                  <OpponentTeamMark
+                    status={r.opp_team_status}
+                    franchises={r.opp_franchises}
+                    fallbackCode={r.opp_franchise ?? r.opp_team_code}
+                  />
                   {r.opp_name ?? r.opp_id}
                 </button>
               </td>

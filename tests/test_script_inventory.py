@@ -880,17 +880,20 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "＋ 3（OPS-SCHEDULE-FAILURE-BLIND1／#132：schedule_watch.py、"
         "schedule-watchdog.sh、com.cpbl.schedule-watchdog.plist）。"
         "同卡的 schedule-registry.json 是純資料不是入口，見 NON_ENTRY_BASENAMES")
-    assert len(research) == 21, (
+    assert len(research) == 22, (
         "19（基準）＋ 1（OPS-SCHEDULE-FAILURE-BLIND1／#132："
         "docs/research/OPS-SCHEDULE-FAILURE-BLIND1/measure_notification_delivery.py，"
         "通知投遞的可重建量測工具。住在自己卡的目錄裡，符合 oneshot 的位置規則）"
         "＋ 1（WP-DISCLOSURE-SYNC1／#100："
         "docs/research/WP-DISCLOSURE-SYNC1/keyplay_garbage_time.py，"
         "關鍵打席選法 × 垃圾時間的完整母體重測，取代原本樣本未留存、不可重跑的抽驗。"
-        "住在自己卡的目錄裡，符合 oneshot 的位置規則）")
+        "住在自己卡的目錄裡，符合 oneshot 的位置規則）"
+        "＋ 1（#201：docs/research/ISSUE-201/collect_matchup_pre2018.py，"
+        "≤2017 官方逐年對戰列的一次性收集與重建工具。住在自己卡的目錄裡，"
+        "符合 oneshot 的位置規則）")
     assert len(cli) == 47, "CLI 不變"
-    assert len(scripts) + len(research) + len(cli) == 121, (
-        "119＋1（#132 的量測工具）＋1（#100 的重測工具）")
+    assert len(scripts) + len(research) + len(cli) == 122, (
+        "119＋1（#132 的量測工具）＋1（#100 的重測工具）＋1（#201 的收集工具）")
 
 
 def test_invariant_proof_enumerates_every_entry(capsys: pytest.CaptureFixture) -> None:
