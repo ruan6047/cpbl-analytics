@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 from contextlib import contextmanager
+from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
@@ -20,9 +21,11 @@ from cpbl.api.main import app
 from cpbl.api.matchup_teams import (
     CONFIRMED,
     PARTIAL,
+    PRIOR_PITCHER_WALK_COUNTS,
     SPLIT_UNVERIFIED,
     UNKNOWN,
     add_pre2018_evidence,
+    charged_walk_pitcher,
     classify_team_evidence,
     matches_team,
     pre2018_rows,
@@ -155,12 +158,19 @@ class _Cursor:
     def __init__(self, state):
         self._rows, self._evidence, self._log = state["rows"], state["evidence"], state["log"]
         self._first = state["first_batch"]
+        self._mid_walk = state.get("mid_walk", {})
         self._result = []
         self.description = [(c,) for c in state.get("columns", _COLUMNS)]
 
     def execute(self, sql, params=None):
         self._log.append((sql, params))
-        if "UNION SELECT hitter_acnt FROM cpbl.batting_gamelog" in sql:
+        if "game_pa_events" in sql:
+            opp = params.get("opp")
+            key = "batting" if "batting_gamelog" in sql else "pitching"
+            rows = self._mid_walk.get(key, [])
+            self._result = [r for r in rows if opp is None or opp in (
+                r[2:4] if key == "batting" else r[1:2])]
+        elif "UNION SELECT hitter_acnt FROM cpbl.batting_gamelog" in sql:
             assert (params["y0"], params["y1"], params["kinds"]) == (2024, 2026, ["A", "D"])
             self._result = [(i,) for i in params["ids"] if i in self._first]
         elif "game_plate_appearances" in sql:
@@ -395,3 +405,163 @@ def test_split_unverified_pre2018_row_never_confirms(fake_db, monkeypatch):
         PARTIAL, ["ACN011"])
     assert set(_list(TestClient(app), opponent_team="AEO011")) == {
         "0000003606", "0000009003"}
+
+
+# ───────────────────── 打席中換投後四壞（規則 9.16(h)(1)） ─────────────────────
+
+_PRIOR, _RELIEF = "0000007580", "0000005285"
+
+
+def _mid_walk_events(ball, strike, *, change_ball=None, change_flag=True, relief=_RELIEF):
+    """2026/A/328 真實形狀：前任投一球後換投（換投事件帶當下球數、pitch_cnt 0），接手投完四壞。"""
+    change_ball = ball if change_ball is None else change_ball
+    return [
+        (_PRIOR, ball, strike, False),
+        (relief, change_ball, strike, change_flag),
+        (relief, 4, strike, False),
+    ]
+
+
+@pytest.mark.parametrize("ball", range(4))
+@pytest.mark.parametrize("strike", range(3))
+def test_charged_walk_pitcher_rule_table(ball, strike):
+    # 2-0／2-1／3-0／3-1／3-2 歸前任；其餘（含 0-0、1-0、1-1、2-2）歸接手。
+    expected = _PRIOR if (ball, strike) in {(2, 0), (2, 1), (3, 0), (3, 1), (3, 2)} else _RELIEF
+    assert charged_walk_pitcher(_PRIOR, _RELIEF, _mid_walk_events(ball, strike)) == expected
+
+
+def test_prior_pitcher_counts_match_rule_text():
+    assert PRIOR_PITCHER_WALK_COUNTS == {(2, 0), (2, 1), (3, 0), (3, 1), (3, 2)}
+
+
+@pytest.mark.parametrize("events", [
+    # 換投事件球數缺失
+    [(_PRIOR, 2, 0, False), (_RELIEF, None, 0, True), (_RELIEF, 4, 0, False)],
+    # 換投事件球數與前任最後一球不符
+    _mid_walk_events(2, 0, change_ball=1),
+    # 接手第一筆不是換人事件（找不到換投事件）
+    _mid_walk_events(2, 0, change_flag=False),
+    # 打席中超過兩位投手
+    [*_mid_walk_events(2, 0), ("0000009999", 4, 0, True)],
+    # 事件缺投手
+    [(_PRIOR, 2, 0, False), (None, 2, 0, True), (_RELIEF, 4, 0, False)],
+    # 投手順序往返
+    [(_PRIOR, 2, 0, False), (_RELIEF, 2, 0, True), (_PRIOR, 3, 0, True)],
+])
+def test_charged_walk_pitcher_unresolved(events):
+    assert charged_walk_pitcher(_PRIOR, _RELIEF, events) is None
+
+
+def _mid_walk_row(events, *, hitter="0000002286", team="ACN011", game=date(2026, 5, 1),
+                  cutoff=date(2026, 7, 14)):
+    return [(1, hitter, _PRIOR, _RELIEF, team, game, cutoff, cutoff, *e) for e in events]
+
+
+def _pitchers_case(fake_db, events, **kwargs):
+    """林立 vs 前任（官方 5、其餘證據 4）與接手（官方 3、其餘證據 3），外加一筆換投四壞。"""
+    fake_db["rows"] = [_row(_PRIOR, "前任", 5, 1, team="ACN011"),
+                       _row(_RELIEF, "接手", 3, 1, team="ACN011")]
+    fake_db["evidence"] = {"batting": [(_PRIOR, "ACN011", 4), (_RELIEF, "ACN011", 3)]}
+    fake_db["first_batch"] = {_PRIOR, _RELIEF}
+    fake_db["mid_walk"] = {"batting": _mid_walk_row(events, **kwargs)}
+    items = _list(TestClient(app))
+    return {k: (i["opp_team_status"], i["opp_franchises"]) for k, i in items.items()}
+
+
+def test_mid_pa_walk_follows_count_at_change(fake_db):
+    # 2-1 換投 → 前任：兩位投手都與官方打席數閉合。
+    assert _pitchers_case(fake_db, _mid_walk_events(2, 1)) == {
+        _PRIOR: (CONFIRMED, ["ACN011"]), _RELIEF: (CONFIRMED, ["ACN011"])}
+    # 1-0 換投 → 接手：前任缺 1、接手多 1，都不宣稱已確認。
+    assert _pitchers_case(fake_db, _mid_walk_events(1, 0)) == {
+        _PRIOR: (PARTIAL, ["ACN011"]), _RELIEF: (UNKNOWN, [])}
+
+
+def test_mid_pa_walk_after_official_snapshot_is_ignored(fake_db):
+    # 與主 SQL 同一截止：官方生涯列爬取日當天及之後的比賽不算證據。
+    assert _pitchers_case(fake_db, _mid_walk_events(2, 1), game=date(2026, 7, 14)) == {
+        _PRIOR: (PARTIAL, ["ACN011"]), _RELIEF: (CONFIRMED, ["ACN011"])}
+
+
+def test_mid_pa_walk_unresolved_never_confirms_either_pitcher(fake_db):
+    # 無法判定時不歸給任何一方：前任恰好湊滿官方數也不得判已確認；
+    # 接手即使其他證據已閉合，也因這筆未歸屬打席降為未確認（不互相抵銷）。
+    events = _mid_walk_events(2, 1, change_ball=1)
+    assert _pitchers_case(fake_db, events) == {
+        _PRIOR: (PARTIAL, ["ACN011"]), _RELIEF: (UNKNOWN, [])}
+
+
+def test_mid_pa_walk_does_not_mask_stale_snapshot(fake_db):
+    # 0000005510×0000005285 形狀：接手側其他證據已比官方多 1（#215 舊快照），
+    # 1-0 換投四壞仍歸接手 → 維持未知，不因任何歸屬手段被抵銷成已確認。
+    fake_db["rows"] = [_row(_RELIEF, "接手", 4, 1, team="ACN011")]
+    fake_db["evidence"] = {"batting": [(_RELIEF, "ACN011", 4)]}
+    fake_db["first_batch"] = {_RELIEF}
+    fake_db["mid_walk"] = {"batting": _mid_walk_row(_mid_walk_events(1, 0))}
+    item = _list(TestClient(app))[_RELIEF]
+    assert (item["opp_team_status"], item["opp_franchises"]) == (UNKNOWN, [])
+
+
+def test_mid_pa_walk_pitching_view_credits_prior_pitcher(fake_db):
+    # 前任投手視角：2-1 換投四壞歸自己 → 林立打席數補回、閉合；接手視角不計。
+    fake_db["rows"] = [_row("0000002286", "林立", 5, 1, team="AJL011")]
+    fake_db["first_batch"] = {_PRIOR, _RELIEF}
+    fake_db["mid_walk"] = {"pitching": _mid_walk_row(_mid_walk_events(2, 1), team="AJL011")}
+    client = TestClient(app)
+
+    def lin_li(pitcher, evidence_pa):
+        fake_db["evidence"] = {"pitching": [("0000002286", "AJL011", evidence_pa)]}
+        res = client.get(f"/api/v1/players/{pitcher}/matchups",
+                         params={"scope": "career", "role": "pitching"})
+        item = res.json()["items"][0]
+        return item["opp_team_status"], item["opp_franchises"]
+
+    assert lin_li(_PRIOR, 4) == (CONFIRMED, ["AJL011"])
+    assert lin_li(_RELIEF, 5) == (CONFIRMED, ["AJL011"])
+
+
+# ───────────────────── 林立三筆非首批例外（需求方裁定） ─────────────────────
+
+_EXTRA_ROWS = [
+    _row("0000004621", "紐維拉", 23, 5),
+    _row("0000004770", "索沙", 40, 8),
+    _row("0000005085", "包林傑", 20, 4),
+    _row("0000009001", "合成非首批", 10, 3),
+]
+# 本機真實證據（2018 起，2026-09-26 唯讀）：與官方打席數相等。
+_EXTRA_EVIDENCE = [("0000004621", "ACN011", 23), ("0000004770", "AEO011", 40),
+                   ("0000005085", "AEO011", 20), ("0000009001", "ACN011", 10)]
+
+
+def test_lin_li_extra_pairs_labeled_and_filtered_by_evidence(fake_db):
+    fake_db["rows"] = _EXTRA_ROWS
+    fake_db["evidence"] = {"batting": _EXTRA_EVIDENCE}
+    fake_db["first_batch"] = set()  # 三人皆非首批
+    client = TestClient(app)
+    items = _list(client)
+    assert {k: (i.get("opp_team_status"), i["opp_team"]) for k, i in items.items()} == {
+        "0000004621": (CONFIRMED, "中信兄弟"),
+        "0000004770": (CONFIRMED, "富邦悍將"),
+        "0000005085": (CONFIRMED, "富邦悍將"),
+        "0000009001": (None, "樂天桃猿"),  # 其他非首批不擴張：仍是官方隊號
+    }
+    assert set(_list(client, opponent_team="AJL011")) == {"0000009001"}
+    assert set(_list(client, opponent_team="ACN011")) == {"0000004621"}
+    assert set(_list(client, opponent_team="AEO011")) == {"0000004770", "0000005085"}
+    assert [items[k]["plate_appearances"] for k in ("0000004621", "0000004770")] == [23, 40]
+
+
+def test_lin_li_extra_pairs_pitching_view(fake_db):
+    # 包林傑視角（非首批）：林立列依證據＝樂天；其他打者不擴張，仍官方隊號。
+    fake_db["rows"] = [_row("0000002286", "林立", 20, 4),
+                       _row("0000000362", "合成他人", 18, 5, team="AEO011")]
+    fake_db["evidence"] = {"pitching": [("0000002286", "AJK011", 20),
+                                        ("0000000362", "AJL011", 18)]}
+    fake_db["first_batch"] = set()
+    res = TestClient(app).get("/api/v1/players/0000005085/matchups",
+                              params={"scope": "career", "role": "pitching"})
+    items = {i["opp_id"]: i for i in res.json()["items"]}
+    lin = items["0000002286"]
+    assert (lin["opp_team_status"], lin["opp_franchises"]) == (CONFIRMED, ["AJL011"])
+    other = items["0000000362"]
+    assert "opp_team_status" not in other and other["opp_franchise"] == "AEO011"

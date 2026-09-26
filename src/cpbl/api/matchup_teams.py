@@ -15,8 +15,14 @@
 該年打者或投手季表多隊（``split_unverified``）時官方拆分語意未證實：計入打席總數
 （仍會觸發「多於官方」），但不宣稱隊別、也不得判 ``confirmed``。
 
+打席中換投後以四壞收尾：依規則 9.16(h)(1)，換投當下球數為 2-0／2-1／3-0／3-1／3-2
+歸前任投手，其餘歸接手投手。換投事件球數缺失、與前任最後一球不符或不止兩位投手時
+無法判定：兩位候選投手各記一筆 ``split_unverified``（未歸屬者因此多於官方），兩邊都
+不得判 ``confirmed``。⛔ 不以官網打席數差額反推歸屬。
+
 ⛔ 只用於 career scope 的**首批**配對（投手在 2024–2026 任一季 A/D 有任何出賽；
-   #201 需求方裁定）。非首批與本季／區間都沿用官方隊號（#201 明列的限制）。
+   #201 需求方裁定；另含 ``EXTRA_PAIRS`` 明列的林立三筆）。非首批與本季／區間都沿用
+   官方隊號（#201 明列的限制）。
 ⛔ 不回推 2017 前的季表隊別：那是推論，不是交手證據。
 統計欄一律不動，仍取官方對戰表。
 """
@@ -32,8 +38,14 @@ from typing import Any
 from cpbl.franchises import franchise_of, franchise_prefixes
 
 CONFIRMED, PARTIAL, UNKNOWN = "confirmed", "partial", "unknown"
-# 證據 dict 中「有打席但隊別拆分未證實」的保留鍵（不是隊號）。
+# 證據 dict 中「有打席但隊別拆分或投手歸屬未證實」的保留鍵（不是隊號）。
 SPLIT_UNVERIFIED = "split_unverified"
+# 規則 9.16(h)(1)：換投當下為這些 (壞球, 好球) 且打者獲四壞 → 記前任投手。
+PRIOR_PITCHER_WALK_COUNTS = frozenset({(2, 0), (2, 1), (3, 0), (3, 1), (3, 2)})
+# #201 需求方 2026-09-24 裁定：林立清單三筆非首批錯標（紐維拉／索沙／包林傑）納入；
+# (打者, 投手)。⛔ 不據此擴大其他非首批配對。
+EXTRA_PAIRS = frozenset({("0000002286", "0000004621"), ("0000002286", "0000004770"),
+                         ("0000002286", "0000005085")})
 # 首批：投手在這些年度、賽別有任何實際出賽（投球或打擊 gamelog 皆算）。
 FIRST_BATCH_YEARS = (2024, 2026)
 FIRST_BATCH_KINDS = ("A", "D")
@@ -50,6 +62,11 @@ _ROLE_SQL = {
     "pitching": ("pitching_gamelog", "pitcher_acnt", "end_pitcher_acnt", "hitter_acnt",
                  "away_team_code", "home_team_code"),
 }
+
+
+# 打席中換投且以四壞收尾：投手歸屬依換投當下球數判定（charged_walk_pitcher）。
+_MID_WALK = ("COALESCE(pa.outcome_family='walk' "
+             "AND pa.start_pitcher_acnt<>pa.end_pitcher_acnt, false)")
 
 
 def _evidence_sql(role: str, with_opponent: bool) -> str:
@@ -74,6 +91,7 @@ def _evidence_sql(role: str, with_opponent: bool) -> str:
             JOIN cpbl.games gm
               ON gm.year=pa.year AND gm.kind_code=pa.kind_code AND gm.game_sno=pa.game_sno
             WHERE pa.state='ready' AND pa.{self_col}=%(pid)s{opp_filter}
+              AND NOT {_MID_WALK}
         )
         SELECT pa.opp_id, pa.team_code, count(*)
         FROM pa
@@ -85,6 +103,102 @@ def _evidence_sql(role: str, with_opponent: bool) -> str:
           AND pa.team_code IS NOT NULL
         GROUP BY pa.opp_id, pa.team_code
     """  # noqa: S608
+
+
+def _mid_walk_sql(role: str, with_opponent: bool) -> str:
+    """主角相關的打席中換投四壞，逐事件列出（依打席、事件序排序）。"""
+    gamelog, gl_col, _, _, top_team, bottom_team = _ROLE_SQL[role]
+    if role == "batting":
+        who = "pa.hitter_acnt=%(pid)s" + (
+            " AND %(opp)s IN (pa.start_pitcher_acnt, pa.end_pitcher_acnt)"
+            if with_opponent else "")
+    else:
+        who = "%(pid)s IN (pa.start_pitcher_acnt, pa.end_pitcher_acnt)" + (
+            " AND pa.hitter_acnt=%(opp)s" if with_opponent else "")
+    cutoff = """(SELECT (m.updated_at AT TIME ZONE 'Asia/Taipei')::date
+                  FROM cpbl.batter_pitcher_matchups m
+                  WHERE m.kind_code=%(kind)s AND m.year=9999
+                    AND m.hitter_acnt=pa.hitter_acnt AND m.pitcher_acnt=pa.{})"""
+    return f"""
+        WITH g AS (
+            SELECT DISTINCT year, game_sno FROM cpbl.{gamelog}
+            WHERE {gl_col}=%(pid)s AND kind_code=%(kind)s
+        ), w AS (
+            SELECT pa.pa_row_id, pa.hitter_acnt, pa.start_pitcher_acnt,
+                   pa.end_pitcher_acnt, gm.game_date,
+                   CASE WHEN pa.pre_state->>'half'='1' THEN gm.{top_team}
+                        ELSE gm.{bottom_team} END AS team_code,
+                   {cutoff.format("start_pitcher_acnt")} AS start_cutoff,
+                   {cutoff.format("end_pitcher_acnt")} AS end_cutoff
+            FROM g
+            JOIN cpbl.game_plate_appearances pa
+              ON pa.year=g.year AND pa.kind_code=%(kind)s AND pa.game_sno=g.game_sno
+            JOIN cpbl.game_recap_builds b
+              ON b.build_id=pa.build_id AND b.state='published'
+            JOIN cpbl.games gm
+              ON gm.year=pa.year AND gm.kind_code=pa.kind_code AND gm.game_sno=pa.game_sno
+            WHERE pa.state='ready' AND {who} AND {_MID_WALK}
+        )
+        SELECT w.pa_row_id, w.hitter_acnt, w.start_pitcher_acnt, w.end_pitcher_acnt,
+               w.team_code, w.game_date, w.start_cutoff, w.end_cutoff,
+               l.pitcher_acnt, l.ball_cnt, l.strike_cnt, l.is_change_player
+        FROM w
+        JOIN cpbl.game_pa_events e ON e.pa_row_id=w.pa_row_id
+        LEFT JOIN cpbl.game_livelog l
+          ON l.year=e.year AND l.kind_code=e.kind_code AND l.game_sno=e.game_sno
+         AND l.main_event_no=e.event_no
+        ORDER BY w.pa_row_id, e.event_position
+    """  # noqa: S608
+
+
+def charged_walk_pitcher(
+    start: str,
+    end: str,
+    events: Iterable[tuple[str | None, int | None, int | None, bool | None]],
+) -> str | None:
+    """打席中換投後四壞的負責投手（規則 9.16(h)(1)）；無法可靠判定回 None。
+
+    ``events``：該打席依序的 ``(投手, 壞球, 好球, 是否換人事件)``。換投當下球數取
+    接手投手第一筆事件（須是換人事件），且須等於前任最後一筆事件的球數。
+    """
+    seq = list(events)
+    pitchers = [e[0] for e in seq]
+    if start == end or not seq or pitchers[0] != start or set(pitchers) != {start, end}:
+        return None  # 缺投手、超過兩位投手或順序不從前任開始
+    first_end = pitchers.index(end)
+    if end in pitchers[:first_end] or start in pitchers[first_end:]:
+        return None
+    _, ball, strike, is_change = seq[first_end]
+    _, prev_ball, prev_strike, _ = seq[first_end - 1]
+    if not is_change or ball is None or strike is None or (ball, strike) != (
+            prev_ball, prev_strike):
+        return None
+    return start if (ball, strike) in PRIOR_PITCHER_WALK_COUNTS else end
+
+
+def _add_mid_walk_evidence(
+    evidence: dict[str, dict[str, int]],
+    rows: Iterable[tuple[Any, ...]],
+    player_id: str,
+    role: str,
+) -> None:
+    """就地把 ``_mid_walk_sql`` 的打席依歸屬投手併入證據（同主 SQL 的爬取日截止）。"""
+    pas: dict[Any, list[tuple[Any, ...]]] = {}
+    for row in rows:
+        pas.setdefault(row[0], []).append(row)
+    for events in pas.values():
+        _, hitter, start, end, team, game_date, start_cutoff, end_cutoff = events[0][:8]
+        charged = charged_walk_pitcher(start, end, [e[8:] for e in events])
+        cutoffs = {start: start_cutoff, end: end_cutoff}
+        for pitcher in (start, end) if charged is None else (charged,):
+            cutoff = cutoffs[pitcher]
+            if team is None or cutoff is None or game_date >= cutoff:
+                continue
+            if role == "pitching" and pitcher != player_id:
+                continue
+            key = SPLIT_UNVERIFIED if charged is None else team
+            teams = evidence.setdefault(pitcher if role == "batting" else hitter, {})
+            teams[key] = teams.get(key, 0) + 1
 
 
 def load_team_evidence(
@@ -103,6 +217,8 @@ def load_team_evidence(
     for opp_id, team_code, count in cur.fetchall():
         teams = evidence.setdefault(opp_id, {})
         teams[team_code] = teams.get(team_code, 0) + int(count)
+    cur.execute(_mid_walk_sql(role, opponent_id is not None), params)
+    _add_mid_walk_evidence(evidence, cur.fetchall(), player_id, role)
     return evidence
 
 
@@ -180,12 +296,17 @@ def career_team_evidence(
     opponent_ids: Iterable[str],
     opponent_id: str | None = None,
 ) -> tuple[set[str], dict[str, dict[str, int]]]:
-    """``(首批對手集合, 首批對手的交手隊別證據)``；非首批對手不在結果內＝維持官方隊號。"""
+    """``(首批對手集合, 首批對手的交手隊別證據)``；非首批對手不在結果內＝維持官方隊號。
+
+    首批另含 ``EXTRA_PAIRS`` 明列的配對（打者／投手兩個視角）。
+    """
     opponents = set(opponent_ids)
     if role == "batting":
         first = load_first_batch_pitchers(cur, opponents)
+        first |= {p for h, p in EXTRA_PAIRS if h == player_id and p in opponents}
     else:
         first = opponents if load_first_batch_pitchers(cur, [player_id]) else set()
+        first |= {h for h, p in EXTRA_PAIRS if p == player_id and h in opponents}
     if not first:
         return set(), {}
     evidence = load_team_evidence(cur, player_id, role, kind_code, opponent_id)
