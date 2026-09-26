@@ -199,7 +199,43 @@ def test_live_snapshot_keeps_trackman_with_its_official_event_key() -> None:
         "rel_speed": 150.4, "plate_loc_side": -0.12, "plate_loc_height": 0.84,
         "exit_speed": 166.2, "launch_angle": 24.5, "hit_spin_rate": 1234.0,
         "hit_distance": 98.1, "hit_hang_time": 3.2,
+        # 推算球種的官方輸入（本樣本沒帶 → None，缺值不補）
+        "spin_rate": None, "zone_time": None, "traj_y": None, "traj_z": None,
     }
+
+
+def test_live_snapshot_carries_official_pitch_type_inputs() -> None:
+    """推算球種所需的轉速／ZoneTime／軌跡係數原值照搬，worker 不推算。"""
+    tracked = [{
+        "MainEventNo": "7", "PitchCnt": 1, "PitcherAcnt": "p1",
+        "Trackman": {
+            "Play": {"PitchTag": {"TaggedPitchType": "fastball"}},
+            "Pitch": {
+                "Release": {"RelSpeed": 141.7, "SpinRate": 2326.1},
+                "Location": {"PlateLocSide": 0.1, "PlateLocHeight": 0.8, "ZoneTime": 0.43},
+                "Flight": {"PolyFit": {"PitchTrajectory": {
+                    "X": [1.0, 2.0, 3.0], "Y": [1.89, 0.53, -3.9], "Z": [0.4, -0.2, 1.1]}}},
+            },
+        },
+    }]
+    pitch = build_snapshot(_game("START", livelog=tracked), fetched_at=T0)["livelog"][0]["trackman"]
+    assert pitch["spin_rate"] == 2326.1
+    assert pitch["zone_time"] == 0.43
+    assert pitch["traj_y"] == [1.89, 0.53, -3.9]
+    assert pitch["traj_z"] == [0.4, -0.2, 1.1]
+    assert "pitch_type_est" not in pitch     # 推算在 API，不在 worker
+
+
+def test_pitch_type_inputs_alone_do_not_make_a_usable_pitch() -> None:
+    """只有推算輸入、沒有任何可呈現欄的球不得讓 UI 以為有逐球資料。"""
+    tracked = [{
+        "MainEventNo": "8", "PitchCnt": 1, "PitcherAcnt": "p1",
+        "Trackman": {"Pitch": {"Release": {"SpinRate": 2300.0},
+                               "Location": {"ZoneTime": 0.4}}},
+    }]
+    snapshot = build_snapshot(_game("START", livelog=tracked), fetched_at=T0)
+    assert snapshot["livelog"][0]["trackman"] is None
+    assert snapshot["tracking_count"] == 0
 
 
 def test_live_snapshot_keeps_official_ball_strike_flags_from_real_fixture() -> None:
@@ -688,3 +724,111 @@ def test_cached_snapshot_is_json_not_pickle() -> None:
 
     raw = client.values["test:live:2026:A:226"]
     assert json.loads(raw)["raw_status"] == "START"
+
+
+# ── #210：完賽當下官方清空 TrackMan 時沿用賽中已取得的逐球 ──
+# fixture 是 VPS 證據 volume 的 A-227 真實轉換：最後一份 START（273 顆 TrackMan）與
+# 14 秒後第一份 FINISHED（291 列、TrackMan 全數為 None，多一列同事件鍵的「比賽結束」）。
+_A227 = Path(__file__).parent / "fixtures" / "stats_game_2026-A-227_live_to_final.json"
+_A227_LIVE_AT = datetime(2026, 7, 28, 13, 19, 41, tzinfo=UTC)
+_A227_FINAL_AT = datetime(2026, 7, 28, 13, 19, 55, tzinfo=UTC)
+
+
+def _a227() -> tuple[dict, dict]:
+    raw = json.loads(_A227.read_text())
+    return raw["live"], raw["final"]
+
+
+def test_first_final_without_trackman_carries_live_pitches_from_real_transition() -> None:
+    live_raw, final_raw = _a227()
+    live = build_snapshot(live_raw, fetched_at=_A227_LIVE_AT)
+    final = build_snapshot(final_raw, fetched_at=_A227_FINAL_AT, previous=live)
+
+    assert live["tracking_count"] == 273
+    assert final["phase"] == "final"
+    assert final["event_count"] == 291
+    assert final["tracking_count"] == 273
+    assert final["tracking_availability"] == "available"
+    assert final["tracking_carryover"] == {
+        "carried": 273,
+        "from_fetched_at": live["source"]["fetched_at"],
+        "from_version": live["source"]["version"],
+    }
+    live_by_key = {row["MainEventNo"]: row["trackman"] for row in live["livelog"]}
+    for row in final["livelog"]:
+        if row["trackman"] is not None:
+            assert row["trackman"] == live_by_key[row["MainEventNo"]]
+    # 最後一球與「比賽結束」共用事件鍵：球只掛在實際打擊那一列。
+    last = [row for row in final["livelog"] if row["MainEventNo"] == "0910034000"]
+    assert [row["Content"] for row in last][1] == "比賽結束"
+    assert [row["trackman"] is not None for row in last] == [True, False]
+
+
+def test_carryover_skips_rows_whose_identity_does_not_match() -> None:
+    live_raw, final_raw = _a227()
+    live = build_snapshot(live_raw, fetched_at=_A227_LIVE_AT)
+    tracked_keys = [row["MainEventNo"] for row in live["livelog"] if row["trackman"]]
+    target = tracked_keys[10]
+    for row in final_raw["LiveLog"]:
+        if row["MainEventNo"] == target:
+            row["PitcherAcnt"] = "0000000000"
+
+    final = build_snapshot(final_raw, fetched_at=_A227_FINAL_AT, previous=live)
+
+    assert final["tracking_count"] == 272
+    assert final["tracking_carryover"]["carried"] == 272
+    assert next(r for r in final["livelog"] if r["MainEventNo"] == target)["trackman"] is None
+
+
+def test_final_with_any_official_trackman_is_not_mixed_with_live() -> None:
+    live_raw, final_raw = _a227()
+    live = build_snapshot(live_raw, fetched_at=_A227_LIVE_AT)
+    official = next(row for row in live_raw["LiveLog"] if row["Trackman"])
+    final_raw["LiveLog"][0]["Trackman"] = official["Trackman"]
+
+    final = build_snapshot(final_raw, fetched_at=_A227_FINAL_AT, previous=live)
+
+    assert final["tracking_count"] == 1
+    assert "tracking_carryover" not in final
+
+
+def test_live_to_live_never_carries_previous_trackman() -> None:
+    live_raw, _ = _a227()
+    previous = build_snapshot(live_raw, fetched_at=_A227_LIVE_AT)
+    next_raw = json.loads(json.dumps(live_raw))
+    for row in next_raw["LiveLog"]:
+        row["Trackman"] = None
+
+    current = build_snapshot(next_raw, fetched_at=_A227_FINAL_AT, previous=previous)
+
+    assert current["phase"] == "live"
+    assert current["tracking_count"] == 0
+    assert all(row["trackman"] is None for row in current["livelog"])
+    assert "tracking_carryover" not in current
+    # 正常 live 快照形狀不因本卡改變。
+    assert "tracking_carryover" not in previous
+
+
+def test_worker_carries_live_pitches_into_first_final_then_stops_fetching() -> None:
+    live_raw, final_raw = _a227()
+    cache = _Cache()
+    cache.set_snapshot(build_snapshot(live_raw, fetched_at=_A227_LIVE_AT))
+    fetched: list[str] = []
+    worker = LiveGameWorker(
+        cache=cache,
+        fetch_schedule=lambda *_: [
+            _schedule("2026-A-227", "FINISHED", "2026-07-28T18:35:00"),
+        ],
+        fetch_game=lambda game_id: fetched.append(game_id) or json.loads(json.dumps(final_raw)),
+    )
+
+    first = worker.run_cycle(_A227_FINAL_AT)
+    cached = cache.get_snapshot(2026, "A", 227)
+    second = worker.run_cycle(_A227_FINAL_AT)
+
+    assert first["games"][0]["tracking_count"] == 273
+    assert cached["phase"] == "final"
+    assert cached["tracking_carryover"]["carried"] == 273
+    assert fetched == ["2026-A-227"]
+    assert second["skipped_final"] == 1
+    assert cache.get_snapshot(2026, "A", 227) is cached

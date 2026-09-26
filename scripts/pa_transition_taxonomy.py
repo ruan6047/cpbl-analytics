@@ -56,7 +56,7 @@ except ModuleNotFoundError:  # pragma: no cover - script 直跑路徑
 
 Event = dict[str, Any]
 
-TAXONOMY_VERSION = "1.1.0"  # FIX1：island 切界加代打續打席條款 + 9.15(b) 歸屬 + 出局不變式
+TAXONOMY_VERSION = "1.3.0"  # #208：新增 action 野手接球自踩壘包 二壘（minor）；1.2.0＝#207 犧牲飛球上壘-趁傳；1.1.0＝FIX1 切界/9.15(b)/出局不變式
 
 # ---------------------------------------------------------------------------
 # 版本化 transition taxonomy
@@ -77,6 +77,8 @@ TERMINAL_TAXONOMY: dict[str, dict[str, str]] = {
     "刺殺": {"role": "pa_terminal", "outcome_family": "out"},
     "界外飛球接殺": {"role": "pa_terminal", "outcome_family": "out"},
     "野手接球自踩壘包 一壘": {"role": "pa_terminal", "outcome_family": "out"},
+    # 2026/D/183：只登錄此精確原詞為打者出局；「二壘」指壘包或野手未證實，⛔ 不據此推定守備細節
+    "野手接球自踩壘包 二壘": {"role": "pa_terminal", "outcome_family": "out"},
     "雙殺打 刺殺": {"role": "pa_terminal", "outcome_family": "out"},
     "野手接球觸殺": {"role": "pa_terminal", "outcome_family": "out"},
     "內野高飛球": {"role": "pa_terminal", "outcome_family": "out"},
@@ -133,6 +135,7 @@ TERMINAL_TAXONOMY: dict[str, dict[str, str]] = {
     "趁傳": {"role": "pa_terminal", "outcome_family": "fielders_choice"},
     "犧牲短打上壘-野選": {"role": "pa_terminal", "outcome_family": "fielders_choice"},
     "雙殺打上壘-趁傳": {"role": "pa_terminal", "outcome_family": "fielders_choice"},
+    "犧牲飛球上壘-趁傳": {"role": "pa_terminal", "outcome_family": "fielders_choice"},  # 2026/A/347
     # --- 犧牲 sacrifice ---
     "犧牲飛球": {"role": "pa_terminal", "outcome_family": "sacrifice"},
     "犧牲界外飛球": {"role": "pa_terminal", "outcome_family": "sacrifice"},

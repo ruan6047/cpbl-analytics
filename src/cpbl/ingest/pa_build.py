@@ -1,7 +1,7 @@
 """GAME-RECAP-PA1-BUILD1：canonical 打席 [plate appearance / PA] 批次 builder。
 
 依 [[GAME-RECAP-PA1_CONTRACT]] 與 TAXONOMY1（消費 ``docs/design/pa_transition_taxonomy.v1.json``，
-taxonomy_version=1.1.0）把來源 revision 物化為 deterministic、持久化的 ``pa_id``、event
+載入其版本化 taxonomy）把來源 revision 物化為 deterministic、持久化的 ``pa_id``、event
 membership 與 ordered pitch mapping，寫入 EXPAND1（migration 066）建的表。
 
 設計（供跨家族查核者複核）:

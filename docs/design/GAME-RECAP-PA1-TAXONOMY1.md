@@ -2,7 +2,7 @@
 title: "GAME-RECAP-PA1-TAXONOMY1 canonical PA 狀態機 transition taxonomy"
 card_id: GAME-RECAP-PA1-TAXONOMY1
 status: awaiting-independent-review
-taxonomy_version: 1.1.0
+taxonomy_version: 1.3.0
 date: 2026-07-24
 tags:
   - cpbl
@@ -23,7 +23,7 @@ links:
 
 > [!info] 三份交付物
 > 1. 本檔＝**規範文本**（狀態機、轉換 taxonomy、fail-closed、紅燈斷言）。
-> 2. [`pa_transition_taxonomy.v1.json`](pa_transition_taxonomy.v1.json)＝**builder 可直接消費**的版本化輸出（`taxonomy_version=1.1.0`）。
+> 2. [`pa_transition_taxonomy.v1.json`](pa_transition_taxonomy.v1.json)＝**builder 可直接消費**的版本化輸出（`taxonomy_version=1.3.0`）。
 > 3. [`../research/GAME-RECAP-PA1-TAXONOMY1_RESULTS.md`](../research/GAME-RECAP-PA1-TAXONOMY1_RESULTS.md)＝**自動產生的完整值域＋客觀效果證據**，供 reviewer 以原始事件複核。
 >
 > 三者皆由 `scripts/pa_transition_taxonomy.py`（唯讀）一鍵重跑產生。
@@ -100,7 +100,7 @@ canonical builder 對每一 livelog 事件列（嚴格全序 `main_event_no::big
    `hitter_acnt`＝記錄歸屬（**9.15(a) 定義的三振**，含 (a)(3) 不死三振，由代打者完成時
    記「被判第 2 好球者」；其他結果含四壞記代打者），`end_hitter_acnt`＝實際完成者。
 
-## 4. Island 分類（fail-closed 分區，全史實證乾淨）
+## 4. Island 分類（fail-closed 分區與全史分類結果）
 
 > 本節表格數字為 **v1.0 稽核當時**的快照；v1.1 起 island 分組含代打續打席條款且資料持續增長，**現行數字以重生成的 [`GAME-RECAP-PA1-TAXONOMY1_RESULTS.md`](../research/GAME-RECAP-PA1-TAXONOMY1_RESULTS.md) 為準**。
 
@@ -112,7 +112,7 @@ canonical builder 對每一 livelog 事件列（嚴格全序 `main_event_no::big
 | `truncated_fragment` | 空 action 但**有投球** | 1,737 | 打者被跑壘/局終出局截斷，**非** PA |
 | `non_pa_tiebreak` | `突破僵局上壘` | 245 | 延長賽跑者放置，**非** PA |
 | `non_pa_running_fragment` | 空 action 且**無投球** | 3 | 純跑壘/暫停殘列 |
-| `unknown_action` | 非空 action 但未登錄 | **0** | fail-closed（目前 100% 覆蓋，無漏） |
+| `unknown_action` | 非空 action 但未登錄 | **0** | fail-closed（v1.0 當時快照：0 筆未登錄；現行數字以 [`GAME-RECAP-PA1-TAXONOMY1_RESULTS.md`](../research/GAME-RECAP-PA1-TAXONOMY1_RESULTS.md) 為準） |
 
 > **無投球 award 的關鍵邊界**：`故意四壞球`（599 島，avg_pitch=1.85）與部分 `妨礙打擊` 是**零或極少投球的完成 PA**。以「有無投球」判 PA 會**錯殺**它們——故 `completed_pa` 的判準是「終結 action ∈ taxonomy」，不是「有投球」。
 
@@ -127,7 +127,7 @@ canonical builder 對每一 livelog 事件列（嚴格全序 `main_event_no::big
 | `walk` | 四壞球、故意四壞球、裁定四壞球 | `walk_hbp_rate` 0.98–1.00 |
 | `hbp` | 觸身死球 | `walk_hbp_rate` 1.00 |
 | `reach_on_error` | 接球失誤、傳球失誤、雙殺打上壘-失誤、犧牲*上壘-失誤 | `reach_error_rate` 1.00 |
-| `fielders_choice` | 野手選擇、趁傳、犧牲短打上壘-野選、雙殺打上壘-趁傳 | `reach_error_rate` 高、`batter_out_rate` 0 |
+| `fielders_choice` | 野手選擇、趁傳、犧牲短打上壘-野選、犧牲飛球上壘-趁傳、雙殺打上壘-趁傳 | `reach_error_rate` 高、`batter_out_rate` 0 |
 | `sacrifice` | 犧牲飛球、犧牲界外飛球、犧牲短打* | `batter_out_rate` 0.99–1.00（打者出局、跑者進壘/得分） |
 | `interference` | 妨礙打擊（打者獲上壘） | `batter_out_rate` 0、`hit/walk` 0 |
 | `uncaught_third_strike` | 不死三振 暴投/捕逸/趁傳/傳球失誤/接球失誤 | 打者可上壘可出局，**語意混合** → 獨立家族，交由計數 delta 定案 |
@@ -178,7 +178,7 @@ canonical builder 對每一 livelog 事件列（嚴格全序 `main_event_no::big
 - builder 讀 [`pa_transition_taxonomy.v1.json`](pa_transition_taxonomy.v1.json) 的 `actions[]`：`action_name → {role, outcome_family}`。
 - `island_rule`、`island_classes`、`fail_closed` 三段是 builder 必須實作的規則常數。
 - **版本化**：`taxonomy_version` 遵循 semver。新增 action 值（官網新增賽況用語）＝ minor；改變既有 action 的 `role/outcome_family` 語意＝ major，並須重跑證據 + 重新查核。builder 必須 pin `taxonomy_version` 並在 build record 留痕。
-- **未來覆蓋守門**：`unknown_action` 目前為 0，但 builder 不得假設恆為 0——遇未登錄 action 一律 fail closed 並告警，等 taxonomy bump。
+- **未來覆蓋守門**：1.3.0（#208）逐字登錄 2026/D/183 的 `野手接球自踩壘包 二壘` 為打者出局（「二壘」指壘包或野手未證實，不據此推定守備細節），現行數字以重產報告（[`GAME-RECAP-PA1-TAXONOMY1_RESULTS.md`](../research/GAME-RECAP-PA1-TAXONOMY1_RESULTS.md)）為準；builder 不得假設未登錄 action 不存在——遇未登錄 action 一律 fail closed 並告警，等 taxonomy bump。
 
 ## 10. 重跑
 

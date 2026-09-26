@@ -18,7 +18,7 @@ from cpbl.ingest.splits_calc import PA_OUTCOME
 OUTCOMES = ("K", "BB_HBP", "1B", "XBH", "HR", "BIP_OUT", "OTHER_REACH")
 _REACH_ACTIONS = {
     "一失", "二失", "三失", "游失", "投失", "捕失", "中失", "左失", "右失",
-    "失", "雙誤", "野選", "礙打", "犧短誤", "犧飛誤",
+    "失", "雙誤", "野選", "礙打", "犧短誤", "犧飛誤", "犧飛趁",
 }
 
 

@@ -19,7 +19,7 @@ from cpbl.api.helpers import (
 from cpbl.api.live_cache import get_public_live_snapshot, status_snapshot
 from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
-from cpbl.models import matchup, pitcher_decisions
+from cpbl.models import matchup, pitch_type_live, pitcher_decisions
 
 router = APIRouter()
 
@@ -370,7 +370,9 @@ def game_live(
             season, game_sno, gg.get("game_date"),
             gg.get("winning_pitcher_id"), gg.get("losing_pitcher_id"),
             gg.get("closer_id"), gg.get("mvp_id"), hold_acnts)
-    live_snapshot = get_public_live_snapshot(season, kind_code, game_sno)
+    # 賽中逐球補推算球種 `trackman.pitch_type_est`（models/pitch_type_live；前端標「推算」）。
+    live_snapshot = pitch_type_live.annotate(
+        get_public_live_snapshot(season, kind_code, game_sno), season)
     return {"game": g[0] if g else None, "scoreboard": scoreboard, "livelog": livelog,
             "batting": batting, "pitching": pitching, "people": people,
             "records": records, "batter_avg": batter_avg, "detail": gd[0] if gd else None,
