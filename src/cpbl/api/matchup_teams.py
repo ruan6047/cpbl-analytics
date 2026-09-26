@@ -17,8 +17,8 @@
 
 打席中換投後以四壞收尾：依規則 9.16(h)(1)，換投當下球數為 2-0／2-1／3-0／3-1／3-2
 歸前任投手，其餘歸接手投手。換投事件球數缺失、與前任最後一球不符或不止兩位投手時
-無法判定：兩位候選投手各記一筆 ``split_unverified``（未歸屬者因此多於官方），兩邊都
-不得判 ``confirmed``。⛔ 不以官網打席數差額反推歸屬。
+無法判定：打席內每位投手（含中間投手）各記一筆 ``split_unverified``（未歸屬者因此多於
+官方），都不得判 ``confirmed``。⛔ 不以官網打席數差額反推歸屬。
 
 ⛔ 只用於 career scope 的**首批**配對（投手在 2024–2026 任一季 A/D 有任何出賽；
    #201 需求方裁定；另含 ``EXTRA_PAIRS`` 明列的林立三筆）。非首批與本季／區間都沿用
@@ -106,19 +106,27 @@ def _evidence_sql(role: str, with_opponent: bool) -> str:
 
 
 def _mid_walk_sql(role: str, with_opponent: bool) -> str:
-    """主角相關的打席中換投四壞，逐事件列出（依打席、事件序排序）。"""
+    """主角相關的打席中換投四壞，逐事件列出（依打席、事件序排序）。
+
+    投手可能只出現在中間事件（打席內三位以上投手），故除起始／終結投手外也比對事件投手。
+    """
     gamelog, gl_col, _, _, top_team, bottom_team = _ROLE_SQL[role]
+    involved = """(%({0})s IN (pa.start_pitcher_acnt, pa.end_pitcher_acnt) OR EXISTS (
+                SELECT 1 FROM cpbl.game_pa_events e2
+                JOIN cpbl.game_livelog l2
+                  ON l2.year=e2.year AND l2.kind_code=e2.kind_code
+                 AND l2.game_sno=e2.game_sno AND l2.main_event_no=e2.event_no
+                WHERE e2.pa_row_id=pa.pa_row_id AND l2.pitcher_acnt=%({0})s))"""
     if role == "batting":
         who = "pa.hitter_acnt=%(pid)s" + (
-            " AND %(opp)s IN (pa.start_pitcher_acnt, pa.end_pitcher_acnt)"
-            if with_opponent else "")
+            " AND " + involved.format("opp") if with_opponent else "")
     else:
-        who = "%(pid)s IN (pa.start_pitcher_acnt, pa.end_pitcher_acnt)" + (
+        who = involved.format("pid") + (
             " AND pa.hitter_acnt=%(opp)s" if with_opponent else "")
     cutoff = """(SELECT (m.updated_at AT TIME ZONE 'Asia/Taipei')::date
                   FROM cpbl.batter_pitcher_matchups m
                   WHERE m.kind_code=%(kind)s AND m.year=9999
-                    AND m.hitter_acnt=pa.hitter_acnt AND m.pitcher_acnt=pa.{})"""
+                    AND m.hitter_acnt={}.hitter_acnt AND m.pitcher_acnt={})"""
     return f"""
         WITH g AS (
             SELECT DISTINCT year, game_sno FROM cpbl.{gamelog}
@@ -128,8 +136,8 @@ def _mid_walk_sql(role: str, with_opponent: bool) -> str:
                    pa.end_pitcher_acnt, gm.game_date,
                    CASE WHEN pa.pre_state->>'half'='1' THEN gm.{top_team}
                         ELSE gm.{bottom_team} END AS team_code,
-                   {cutoff.format("start_pitcher_acnt")} AS start_cutoff,
-                   {cutoff.format("end_pitcher_acnt")} AS end_cutoff
+                   {cutoff.format("pa", "pa.start_pitcher_acnt")} AS start_cutoff,
+                   {cutoff.format("pa", "pa.end_pitcher_acnt")} AS end_cutoff
             FROM g
             JOIN cpbl.game_plate_appearances pa
               ON pa.year=g.year AND pa.kind_code=%(kind)s AND pa.game_sno=g.game_sno
@@ -141,7 +149,8 @@ def _mid_walk_sql(role: str, with_opponent: bool) -> str:
         )
         SELECT w.pa_row_id, w.hitter_acnt, w.start_pitcher_acnt, w.end_pitcher_acnt,
                w.team_code, w.game_date, w.start_cutoff, w.end_cutoff,
-               l.pitcher_acnt, l.ball_cnt, l.strike_cnt, l.is_change_player
+               l.pitcher_acnt, l.ball_cnt, l.strike_cnt, l.is_change_player,
+               {cutoff.format("w", "l.pitcher_acnt")} AS event_cutoff
         FROM w
         JOIN cpbl.game_pa_events e ON e.pa_row_id=w.pa_row_id
         LEFT JOIN cpbl.game_livelog l
@@ -188,9 +197,12 @@ def _add_mid_walk_evidence(
         pas.setdefault(row[0], []).append(row)
     for events in pas.values():
         _, hitter, start, end, team, game_date, start_cutoff, end_cutoff = events[0][:8]
-        charged = charged_walk_pitcher(start, end, [e[8:] for e in events])
+        charged = charged_walk_pitcher(start, end, [e[8:12] for e in events])
         cutoffs = {start: start_cutoff, end: end_cutoff}
-        for pitcher in (start, end) if charged is None else (charged,):
+        for e in events:  # 中間投手（三位以上）只出現在事件列
+            if e[8] is not None:
+                cutoffs.setdefault(e[8], e[12])
+        for pitcher in cutoffs if charged is None else (charged,):
             cutoff = cutoffs[pitcher]
             if team is None or cutoff is None or game_date >= cutoff:
                 continue

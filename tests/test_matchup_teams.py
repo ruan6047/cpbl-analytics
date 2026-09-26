@@ -454,7 +454,8 @@ def test_charged_walk_pitcher_unresolved(events):
 
 def _mid_walk_row(events, *, hitter="0000002286", team="ACN011", game=date(2026, 5, 1),
                   cutoff=date(2026, 7, 14)):
-    return [(1, hitter, _PRIOR, _RELIEF, team, game, cutoff, cutoff, *e) for e in events]
+    return [(1, hitter, _PRIOR, _RELIEF, team, game, cutoff, cutoff, *e, cutoff)
+            for e in events]
 
 
 def _pitchers_case(fake_db, events, **kwargs):
@@ -489,6 +490,44 @@ def test_mid_pa_walk_unresolved_never_confirms_either_pitcher(fake_db):
     events = _mid_walk_events(2, 1, change_ball=1)
     assert _pitchers_case(fake_db, events) == {
         _PRIOR: (PARTIAL, ["ACN011"]), _RELIEF: (UNKNOWN, [])}
+
+
+_MIDDLE = "0000009010"
+# 打席內三位投手：前任 2-0 換中間投手，中間投手 3-0 再換接手，接手投完四壞。
+_THREE_PITCHER_EVENTS = [
+    (_PRIOR, 2, 0, False),
+    (_MIDDLE, 2, 0, True),
+    (_MIDDLE, 3, 0, False),
+    (_RELIEF, 3, 0, True),
+    (_RELIEF, 4, 0, False),
+]
+
+
+def test_mid_pa_walk_three_pitchers_keeps_middle_pitcher_unconfirmed(fake_db):
+    # 審核重現：中間投手其他證據 1 PA 恰等於官方 1 PA；打席內超過兩位投手時無法
+    # 歸屬，中間投手也須記一筆未歸屬打席（多於官方 → 未知），不得判已確認。
+    fake_db["rows"] = [_row(_PRIOR, "前任", 5, 1, team="ACN011"),
+                       _row(_MIDDLE, "中間", 1, 0, team="ACN011"),
+                       _row(_RELIEF, "接手", 3, 1, team="ACN011")]
+    fake_db["evidence"] = {"batting": [(_PRIOR, "ACN011", 4), (_MIDDLE, "ACN011", 1),
+                                       (_RELIEF, "ACN011", 3)]}
+    fake_db["first_batch"] = {_PRIOR, _MIDDLE, _RELIEF}
+    fake_db["mid_walk"] = {"batting": _mid_walk_row(_THREE_PITCHER_EVENTS)}
+    items = _list(TestClient(app))
+    assert {k: (i["opp_team_status"], i["opp_franchises"]) for k, i in items.items()} == {
+        _PRIOR: (PARTIAL, ["ACN011"]), _MIDDLE: (UNKNOWN, []), _RELIEF: (UNKNOWN, [])}
+
+
+def test_mid_pa_walk_three_pitchers_pitching_view_of_middle_pitcher(fake_db):
+    # 中間投手視角：林立其他證據 1 PA＝官方 1 PA，這筆未歸屬打席同樣使其不得判已確認。
+    fake_db["rows"] = [_row("0000002286", "林立", 1, 0, team="AJL011")]
+    fake_db["evidence"] = {"pitching": [("0000002286", "AJL011", 1)]}
+    fake_db["first_batch"] = {_MIDDLE}
+    fake_db["mid_walk"] = {"pitching": _mid_walk_row(_THREE_PITCHER_EVENTS, team="AJL011")}
+    res = TestClient(app).get(f"/api/v1/players/{_MIDDLE}/matchups",
+                              params={"scope": "career", "role": "pitching"})
+    item = res.json()["items"][0]
+    assert (item["opp_team_status"], item["opp_franchises"]) == (UNKNOWN, [])
 
 
 def test_mid_pa_walk_does_not_mask_stale_snapshot(fake_db):
