@@ -6,6 +6,7 @@ from contextlib import contextmanager
 
 import pytest
 
+from cpbl.completion import TAIPEI_TODAY_SQL
 from cpbl.ingest import run_check_coverage as coverage
 from cpbl.ingest import run_refresh_recent as refresh
 
@@ -49,8 +50,9 @@ def test_refresh_queries_exclude_future_scored_games(query, args, monkeypatch) -
 
     query(*args)
 
-    assert "game_date <= CURRENT_DATE" in cursor.sql
-    assert "home_score + away_score > 0" in cursor.sql
+    # #213：每日鏈 2026+ 走 daily_chain 判準（台北日界＋官方 final／證據，比分不作依據）。
+    assert f"game_date <= {TAIPEI_TODAY_SQL}" in cursor.sql
+    assert "game_schedule_status_revisions" in cursor.sql
 
 
 def test_coverage_completed_flag_excludes_future_scored_games(monkeypatch) -> None:

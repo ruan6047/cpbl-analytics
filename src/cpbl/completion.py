@@ -3,9 +3,9 @@
 **兩代判準並存中**（DATA-TIE-REMEDY1，兩段式切換）：
 
 * :func:`completed_games_sql` / :func:`is_completed`——**舊判準**（比分自證）。
-  每日 refresh 鏈（``run_refresh_recent``、``cpbl_pitch_tracking``、``cpbl_gamelog``
-  的目標場清單）**本階段仍用它**：#53 的 G4 Phase B 尚未完成，且其資源宣告佔用鏈端
-  writer；換判準會改變爬取母體。Phase 2（G4 Phase B 之後）再切換。
+  手動回填 CLI（``cpbl_pitch_tracking``、``cpbl_gamelog`` 的目標場清單）與覆蓋檢查仍用它。
+* :func:`daily_chain_completed_games_sql`——每日 refresh 鏈（``run_refresh_recent``）的
+  選場（#213）：2026 起只認官方 final／完賽證據，比分不作依據；更早球季仍走舊判準。
 * :func:`completed_games_sql_with_evidence` / :func:`is_completed_game`——**新判準**
   （比分 **OR** 外部證據），供非鏈消費端（API／features／models）。
 
@@ -76,6 +76,18 @@ UTC_TODAY_SQL = "CURRENT_DATE"
 
 # 證據子查詢的別名：取不易與外層查詢碰撞的名字（外層常用 g/e/b/l）。
 _EVIDENCE_ALIAS = "gce_"
+_SCHEDULE_ALIAS = "gss_"
+
+# ⛔ 必須與 ``cpbl.api.helpers.OFFICIAL_SCHEDULE_ORDER_BY`` 逐字相同（官方排程選列規則）。
+# 抄一份是因為 models 層經本模組載入時不得 import ``cpbl.api``（分層守衛見
+# ``tests/test_winprob_val.py``）；兩邊相等由 ``tests/test_daily_chain_completion.py`` 釘住。
+_OFFICIAL_SCHEDULE_ORDER_BY = (
+    "COALESCE(raw_present_status = 1, FALSE) DESC, raw_game_date DESC NULLS LAST, "
+    "COALESCE(last_seen_at, fetched_at) DESC, fetched_at DESC, payload_hash DESC"
+)
+
+# 每日鏈改用「官方 final／核准證據」選場的起始球季（#213）。更早球季沿用舊判準、不批量改動。
+DAILY_CHAIN_FINAL_FROM_YEAR = 2026
 
 
 def is_completed(
@@ -95,7 +107,8 @@ def completed_games_sql(as_of_sql: str = UTC_TODAY_SQL) -> str:
     """回傳與 :func:`is_completed` 等價、可嵌入 ``cpbl.games`` 查詢的 SQL 條件（**舊判準**）。
 
     ⚠️ **預設值刻意原封不動**（DATA-TZ-BOUNDARY-SUCCESSION1 2026-08-21 再次確認）：本函式
-    現存的呼叫端都在每日 refresh 鏈上（``run_refresh_recent``、``run_check_coverage``），
+    現存的呼叫端是 ``run_check_coverage`` 與手動回填 CLI（每日鏈自 #213 改走
+    :func:`daily_chain_completed_games_sql`），
     切換授權在 ``#53 G4 Phase B``，不歸本函式的任何一次改動決定。實測依據：把這個預設改成
     台北後全套 **6 failed**，其中三條落在 ``_lagging_pitch_games``／``_pa_build_targets``／
     ``_active_kinds``——那是**改預設會讓別的檔案行為改變、而那個檔案的 diff 裡一行都看不到**
@@ -116,16 +129,20 @@ def is_completed_game(
     game_date: date,
     as_of: date,
     has_evidence: bool = False,
+    official_final: bool = False,
 ) -> bool:
-    """**新判準**：日期界線 **AND**（比分 > 0 **OR** 有外部完賽證據）。
+    """**新判準**：日期界線 **AND**（比分 > 0 **OR** 有外部完賽證據 **OR** 0:0 且官方 final）。
 
-    ``has_evidence`` 來自 ``cpbl.game_completion_evidence``（官方 box 取證或需求方核准）。
-    0:0 且**無**證據者一律回 ``False``——既不納入完成場，也不代表「這場沒打」，
+    ``has_evidence`` 來自 ``cpbl.game_completion_evidence``（官方 box 取證或需求方核准）；
+    ``official_final`` 為官方排程現行列標示 final（:func:`official_final_sql`，#213）。
+    0:0 且兩者皆無者一律回 ``False``——既不納入完成場，也不代表「這場沒打」，
     而是**隔離為待判讀**（全庫 288 場 0:0 中僅 5 場經證實為和局）。
     """
     if game_date > as_of:
         return False
-    return (home_score or 0) + (away_score or 0) > 0 or has_evidence
+    # 0:0 分支要求兩邊比分都**不是 None**：SQL 端 ``NULL + NULL = 0`` 為 NULL、不成立。
+    return ((home_score or 0) + (away_score or 0) > 0 or has_evidence
+            or (official_final and home_score == 0 and away_score == 0))
 
 
 def completed_games_sql_with_evidence(
@@ -145,17 +162,74 @@ def completed_games_sql_with_evidence(
 
     產出的條件**自帶最外層括號**，可直接以 ``AND`` 串接進任何 ``WHERE``，
     不受呼叫端既有 ``OR`` 影響。
+
+    ⭐ 0:0 另有「官方 final」分支（#213）：2026/D/234 官方標示五局 0:0 完賽卻無證據列；
+    只收 0:0 的那一支，帶比分場的判定不變。
     """
-    if not alias:
-        raise ValueError("alias 不可為空：相關子查詢需要限定詞才能正確關聯外層 games")
-    p = f"{alias}."
-    e = _EVIDENCE_ALIAS
+    p = f"{_require_alias(alias)}."
     return (
         f"({p}game_date <= {as_of_sql} AND ("
-        f"{p}home_score + {p}away_score > 0 OR EXISTS ("
-        f"SELECT 1 FROM cpbl.game_completion_evidence {e} "
+        f"{p}home_score + {p}away_score > 0 OR {_evidence_exists_sql(alias)} OR ("
+        f"{p}home_score + {p}away_score = 0 AND {official_final_sql(alias)})))"
+    )
+
+
+def _require_alias(alias: str) -> str:
+    if not alias:
+        raise ValueError("alias 不可為空：相關子查詢需要限定詞才能正確關聯外層 games")
+    return alias
+
+
+def _evidence_exists_sql(alias: str) -> str:
+    p = f"{_require_alias(alias)}."
+    e = _EVIDENCE_ALIAS
+    return (
+        f"EXISTS (SELECT 1 FROM cpbl.game_completion_evidence {e} "
         f"WHERE {e}.year = {p}year AND {e}.kind_code = {p}kind_code "
-        f"AND {e}.game_sno = {p}game_sno)))"
+        f"AND {e}.game_sno = {p}game_sno)"
+    )
+
+
+def official_final_sql(alias: str = "games") -> str:
+    """外層 ``cpbl.games`` 那一場的官方排程**被選中列**是否為 ``final``（相關子查詢）。
+
+    與 :func:`cpbl.api.helpers.official_status` 同一套選列規則（``_OFFICIAL_SCHEDULE_ORDER_BY``）
+    與同一個 raw 組合 ``(PresentStatus=1, GameResult='0')``——⛔ 勿另寫一套，兩邊講不同的話
+    就等於同一場比賽有兩種官方狀態。ORDER BY 的欄名未限定，只解析得到內層排程表。
+    查無排程列 → 不成立（fail closed，與 ``official_status`` 的 ``unknown`` 同向）。
+    """
+    p = f"{_require_alias(alias)}."
+    s = _SCHEDULE_ALIAS
+    return (
+        f"EXISTS (SELECT 1 FROM (SELECT {s}.raw_present_status, {s}.raw_game_result "
+        f"FROM cpbl.game_schedule_status_revisions {s} "
+        f"WHERE {s}.year = {p}year AND {s}.kind_code = {p}kind_code "
+        f"AND {s}.game_sno = {p}game_sno "
+        f"ORDER BY {_OFFICIAL_SCHEDULE_ORDER_BY} LIMIT 1) {s}sel "
+        f"WHERE {s}sel.raw_present_status = 1 AND {s}sel.raw_game_result = '0')"
+    )
+
+
+def daily_chain_completed_games_sql(
+    alias: str = "games",
+    as_of_sql: str = TAIPEI_TODAY_SQL,
+) -> str:
+    """每日 refresh 鏈（``run_refresh_recent``）的選場條件（#213）。
+
+    * ``year >= DAILY_CHAIN_FINAL_FROM_YEAR``：日期界線 **AND**（官方 final **OR** 完賽證據）。
+      ⛔ **比分不作完賽依據**——賽中已得分場、帶中止比分的保留賽（``reserved``）、官方尚未
+      定案的昨日場都不納入；0:0 且官方 final（2026/D/234）則納入。
+    * 更早球季：原樣走舊判準（比分自證），不批量改動歷史。
+
+    代價（規劃已接受）：官方 final 晚於隔天才出現時，整季缺口掃描（gamelog／PA build）
+    會追上，只掃當日窗的對戰增量可能漏補。
+    """
+    p = f"{_require_alias(alias)}."
+    return (
+        f"(CASE WHEN {p}year >= {DAILY_CHAIN_FINAL_FROM_YEAR} "
+        f"THEN {p}game_date <= {as_of_sql} AND ("
+        f"{official_final_sql(alias)} OR {_evidence_exists_sql(alias)}) "
+        f"ELSE {p}home_score + {p}away_score > 0 AND {p}game_date <= {as_of_sql} END)"
     )
 
 

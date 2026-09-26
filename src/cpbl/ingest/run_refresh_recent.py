@@ -39,7 +39,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from cpbl.api.helpers import OFFICIAL_SCHEDULE_ORDER_BY, official_status
-from cpbl.completion import TAIPEI_TODAY_SQL, completed_games_sql
+from cpbl.completion import TAIPEI_TODAY_SQL, daily_chain_completed_games_sql
 from cpbl.config import settings
 from cpbl.db import conn, migrate
 from cpbl.ingest.championships import build_championships
@@ -111,14 +111,14 @@ def _record_advanced_revisions(
 
 def _completed_snos(year: int, days: list[date], kind_code: str = "A") -> list[int]:
     # 一/二軍 game_sno 為各自序列，必須依 kind 過濾（否則 D 的 sno 會混入 A 流程重爬錯場）
-    # ⚠️ 日界**明示傳台北**，不可用 completed_games_sql() 的預設（UTC 的 CURRENT_DATE）：
-    # `days` 是 `date.today()` 算出來的**台北日**，混用 UTC 日界會在台北 00:00–08:00
+    # ⚠️ 日界**必須是台北**（daily_chain_completed_games_sql 的預設即是），不可用 UTC 的
+    # CURRENT_DATE：`days` 是 `date.today()` 算出來的**台北日**，混用 UTC 日界會在台北 00:00–08:00
     # 這 8 小時把「今天」整個排除掉——那是改動前不存在的行為（改動前根本沒有日界）。
     # info.py 既有註解正警告同一個陷阱。日界落差本身見 DATA-TZ-COMPLETION-SKEW1（#110）。
     with conn() as c:
         rows = c.execute(
             "SELECT game_sno FROM cpbl.games WHERE year = %s AND kind_code = %s AND game_date = ANY(%s) "
-            f"AND {completed_games_sql(TAIPEI_TODAY_SQL)} ORDER BY game_sno",
+            f"AND {daily_chain_completed_games_sql()} ORDER BY game_sno",
             (year, kind_code, days),
         ).fetchall()
     return [r[0] for r in rows]
@@ -156,7 +156,7 @@ def _lagging_pitch_games(year: int, kind_code: str, days_back: int = 3) -> set[i
                 (SELECT count(*) FROM cpbl.pitch_tracking pt WHERE pt.year=gm.year
                    AND pt.kind_code=gm.kind_code AND pt.game_sno=gm.game_sno) AS tracked
               FROM cpbl.games gm
-              WHERE gm.year=%s AND gm.kind_code=%s AND {completed_games_sql()}),
+              WHERE gm.year=%s AND gm.kind_code=%s AND {daily_chain_completed_games_sql('gm')}),
             r AS (SELECT *, row_number() OVER (PARTITION BY venue
                     ORDER BY game_date DESC, game_sno DESC) rn FROM cov),
             equipped AS (
@@ -229,7 +229,7 @@ def _missing_gamelog_snos(year: int, kind_code: str = "A") -> list[int]:
         rows = c.execute(
             f"""
             SELECT g.game_sno FROM cpbl.games g
-            WHERE g.year = %s AND g.kind_code = %s AND {completed_games_sql()}
+            WHERE g.year = %s AND g.kind_code = %s AND {daily_chain_completed_games_sql('g')}
               AND NOT EXISTS (SELECT 1 FROM cpbl.batting_gamelog b
                               WHERE b.year = g.year AND b.kind_code = g.kind_code AND b.game_sno = g.game_sno)
             ORDER BY g.game_sno
@@ -251,7 +251,7 @@ def _active_kinds(year: int, candidate_kinds: tuple[str, ...]) -> list[str]:
         rows = c.execute(
             f"""
             SELECT DISTINCT kind_code FROM cpbl.games
-            WHERE year = %s AND kind_code = ANY(%s) AND {completed_games_sql()}
+            WHERE year = %s AND kind_code = ANY(%s) AND {daily_chain_completed_games_sql()}
             """,
             (year, list(candidate_kinds)),
         ).fetchall()
@@ -304,6 +304,10 @@ def _pa_build_targets(year: int, kinds: list[str], days: list[date]) -> list[tup
     下一輪自動覆蓋；只有 PA build 的 published 是「不覆寫、改走對帳」，賽中發布才會卡住。
     ⛔ 本條**不**處理保留賽中斷後、官方尚未改期前的那幾天（phase=reserved、日期已過）：
     那段的部分 build 照舊會發布、續賽後走對帳，這是 DATA-PA-REBUILD-GAP1 既有的設計。
+
+    #213 起 2026+ 的選場本身已改走 ``daily_chain_completed_games_sql``（只認官方 final／
+    完賽證據），當日賽中場與 reserved 場在 SQL 層就不會被選；上面的當日 final 過濾保留為
+    第二層 fail-closed，也仍承接 2025 以前（舊判準）的呼叫。
     """
     if not kinds:
         return []
@@ -312,7 +316,7 @@ def _pa_build_targets(year: int, kinds: list[str], days: list[date]) -> list[tup
             f"""
             SELECT g.year, g.kind_code, g.game_sno, (g.game_date = {TAIPEI_TODAY_SQL}) AS same_day
             FROM cpbl.games g
-            WHERE g.year = %s AND g.kind_code = ANY(%s) AND {completed_games_sql()}
+            WHERE g.year = %s AND g.kind_code = ANY(%s) AND {daily_chain_completed_games_sql('g')}
               AND (
                 g.game_date = ANY(%s)
                 OR NOT EXISTS (
@@ -434,7 +438,7 @@ def _pa_build_coverage(year: int, kinds: list[str]) -> dict[str, dict[str, int]]
               WHERE b2.year = g.year AND b2.kind_code = g.kind_code
                 AND b2.game_sno = g.game_sno AND b2.state = 'reconciliation_required'
             ) rq ON TRUE
-            WHERE g.year = %s AND g.kind_code = ANY(%s) AND {completed_games_sql()}
+            WHERE g.year = %s AND g.kind_code = ANY(%s) AND {daily_chain_completed_games_sql('g')}
             GROUP BY g.kind_code
             """,
             (year, kinds),
@@ -723,7 +727,7 @@ def _recent_counts(year: int, days: list[date]) -> list[tuple[date, int, int]]:
         rows = c.execute(
             f"""
             SELECT game_date, count(*),
-                   count(*) FILTER (WHERE {completed_games_sql(TAIPEI_TODAY_SQL)})
+                   count(*) FILTER (WHERE {daily_chain_completed_games_sql()})
             FROM cpbl.games
             WHERE year = %s AND game_date = ANY(%s)
             GROUP BY game_date ORDER BY game_date

@@ -25,6 +25,7 @@ from cpbl.completion import (
     completed_games_sql,
     completed_games_sql_with_evidence,
     is_completed_game,
+    official_final_sql,
 )
 
 # 兩個日界都拿來當參數跑：本檔任何「判準對判準」的比較都必須**明示同一個 as_of**，
@@ -37,6 +38,9 @@ _AS_OF_CHOICES = [
 # 5 場已證實 0:0 和局（官方 box 直接取證：game_detail=final、滿規章 §38 五局門檻）
 CONFIRMED_TIES = [(2018, "A", 124), (2021, "A", 256), (2023, "A", 119),
                   (2023, "A", 175), (2025, "A", 233)]
+# 官方排程現行列 final 的 0:0（#213；官網 getlive GameStatus=3、五局 0:0，見 #203 研究）。
+# 無證據列，靠 `official_final_sql` 分支納入。與 CONFIRMED_TIES 同為外部斷言、刻意硬編。
+OFFICIAL_FINAL_SCORELESS = [(2026, "D", 234)]
 
 _TODAY = date(2026, 7, 19)
 
@@ -134,7 +138,8 @@ def test_criterion_adds_exactly_the_evidenced_ties_over_the_legacy_one(as_of: st
     correct = _game_set(completed_games_sql_with_evidence("games", as_of))
     legacy = _game_set(completed_games_sql(as_of))
 
-    assert correct - legacy == set(CONFIRMED_TIES), "多收的不是那 5 場和局"
+    assert correct - legacy == set(CONFIRMED_TIES + OFFICIAL_FINAL_SCORELESS), (
+        "多收的不是那 5 場和局＋官方 final 的 0:0")
     assert legacy - correct == set(), "新判準漏掉了舊判準已收的場次"
 
 
@@ -197,7 +202,8 @@ def test_uncorrelated_subquery_variant_swallows_unevidenced_scoreless_games() ->
     swallowed = _game_set(_VARIANT_UNCORRELATED) - correct
     unevidenced_scoreless = _game_set(
         f"games.game_date <= {_TAIPEI_TODAY} "
-        f"AND games.home_score + games.away_score = 0 AND NOT {_EVIDENCE_EXISTS}")
+        f"AND games.home_score + games.away_score = 0 AND NOT {_EVIDENCE_EXISTS} "
+        f"AND NOT {official_final_sql('games')}")
 
     assert swallowed == unevidenced_scoreless, "恆真變體吞下的不是無證據的 0:0"
     assert len(swallowed) > 100, (
@@ -301,8 +307,8 @@ def test_r3_scoreless_false_positive_set_is_not_admitted_wholesale() -> None:
           AND g.present_status = 1 AND ({cond})
         ORDER BY g.year, g.game_sno
     """)
-    assert [tuple(r) for r in admitted] == CONFIRMED_TIES, (
-        f"0:0 母體 {total} 場中被納入的不是恰好那 5 場，而是 {admitted}")
+    assert [tuple(r) for r in admitted] == CONFIRMED_TIES + OFFICIAL_FINAL_SCORELESS, (
+        f"0:0 母體 {total} 場中被納入的不是恰好那 5＋1 場，而是 {admitted}")
 
 
 # ────────────────────────────────── 連段語意：和局中斷（官方，二次裁定定案）
