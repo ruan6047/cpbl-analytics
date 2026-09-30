@@ -128,22 +128,27 @@ a:focus-visible, button:focus-visible, [role="tab"]:focus-visible, input:focus-v
 .block { background: var(--card); padding: 16px 18px; border-radius: var(--r-panel); }
 
 /* ── 比分（全站唯一一個元件）：icon 分數 : 分數 icon。勝方＝粗黑；敗方＝細、淡。兩側同字級，基線與格線不動。
-   「終場／客主」由所在區塊標題說一次（元件級），完整句子寫在 aria-label；隊名只在寬度允許時出現 ── */
+   「終場／客主」由所在區塊標題說一次（元件級），完整句子寫在 aria-label ── */
 .score { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto minmax(0, 1fr) auto; align-items: center; column-gap: 8px; }
 .score .ti { --s: 30px; font-size: 14px; }
 .score .n { font: 500 24px/1 var(--wide); font-stretch: 72%; color: var(--faint); min-width: 1.3em; }
 .score .n.a { text-align: right; grid-column: 3; } .score .n.h { text-align: left; grid-column: 5; }
 .score .n.w { font-weight: 900; color: var(--ink); }
 .score .colon { grid-column: 4; font: 700 16px/1 var(--wide); color: var(--faint); }
-.score .nm { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 隊名一律完整顯示：不截斷、不加省略號；空間不夠時自然換行（CJK 不在詞中斷開） */
+.score .nm { font-size: 13px; line-height: 1.3; color: var(--muted); word-break: keep-all; text-wrap: balance; }
 .score .nm.a { grid-column: 2; } .score .nm.h { grid-column: 6; text-align: right; }
 .score .nm.w { color: var(--ink); font-weight: 700; }
 .score .ti.a { grid-column: 1; } .score .ti.h { grid-column: 7; }
 .score.tie .n, .score.tie .nm { color: var(--ink); font-weight: 700; }
-/* 兩層式（窄欄）：第一層 icon 分數 : 分數 icon；第二層隊名貼在自己的 icon 下。分數與冒號欄寬固定，多列時沿同一條隱形格線對齊 */
-.score.stack { grid-template-columns: auto minmax(0, 1fr) 34px auto 34px minmax(0, 1fr) auto; row-gap: 4px; }
-.score.stack .nm { grid-row: 2; }
-.score.stack .nm.a { grid-column: 1 / 4; text-align: left; } .score.stack .nm.h { grid-column: 5 / 8; text-align: right; }
+/* 兩層式（窄欄）：每隊 icon＋隊名收成一組，置中在自己那半邊；比分夾在正中。
+   全卡只有一條中軸：兩半等寬（1fr），分數欄與冒號欄固定寬，多列沿同一條隱形格線對齊 */
+.score.stack { grid-template-columns: minmax(0, 1fr) 26px auto 26px minmax(0, 1fr); column-gap: 6px; row-gap: 5px; }
+.score.stack .ti.a { grid-column: 1; justify-self: center; } .score.stack .ti.h { grid-column: 5; justify-self: center; }
+.score.stack .n { min-width: 0; }
+.score.stack .n.a { grid-column: 2; } .score.stack .colon { grid-column: 3; } .score.stack .n.h { grid-column: 4; }
+.score.stack .nm { grid-row: 2; text-align: center; }
+.score.stack .nm.a { grid-column: 1; } .score.stack .nm.h { grid-column: 5; }
 
 /* ── 資料表：表頭色塊帶＋欄位對齊＋留白；不畫列間線、不疊雙線 ── */
 table.data { border-collapse: separate; border-spacing: 0; width: 100%; background: var(--card); font-size: 13px; border-radius: var(--r-panel); overflow: hidden; }

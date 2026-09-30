@@ -58,12 +58,14 @@
   .xrow .why { font-size: 12px; color: var(--muted); }
   .xrow.empty { padding-right: 14px; }
 
-  /* 賽果：序號列（場次・球場）＋比分元件兩層式（隊名貼在自己的 icon 下）。資料皆為 DailyGame 既有欄位。 */
+  /* 賽果：比分元件兩層式（每隊 icon＋隊名一組）＋下方序號列（場次・球場）。資料皆為 DailyGame 既有欄位。 */
   .rlist { list-style: none; margin: 0; padding: 0; }
   .rlist li { display: grid; }
   .rlist a { display: grid; align-content: center; gap: 6px; padding: 10px 14px; background: var(--card); color: inherit; text-decoration: none; border-radius: var(--r-panel); transition: background-color .15s var(--ease); }
   .rlist a:hover { background: var(--card-2); }
-  .rlist .serial { justify-content: center; }
+  /* 序號／球場＝比分下方的說明，不再壓在最上方搶先被讀；字距收緊、分隔點兩側等距 */
+  .rlist .serial { justify-content: center; gap: 0; letter-spacing: .04em; font-size: 11.5px; font-weight: 500; margin-top: 3px; }
+  .rlist .serial span + span::before { content: "·"; margin: 0 6px; }
 
   .tscroll { overflow-x: auto; border-radius: var(--r-panel); }
   .stand td.rk { color: var(--muted); width: 2.5em; }
@@ -165,16 +167,16 @@
       <h3 class="sr" id="res-h">09/28 賽果，左客右主</h3>
       <ol class="rlist">
         <li><a href="live.html" aria-label="No.358 洲際，終場：台鋼雄鷹（客）10 比 19 中信兄弟（主），中信兄弟勝。開啟單場賽況">
-          <span class="serial" aria-hidden="true"><span>No.358</span><span>洲際</span></span>
           <span class="score stack" aria-hidden="true"><span class="ti a" style="--team:#15543C">T</span><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><span class="ti h warm" style="--team:#C8A24A">B</span><span class="nm a">台鋼雄鷹</span><span class="nm h w">中信兄弟</span></span>
+          <span class="serial" aria-hidden="true"><span>No.358</span><span>洲際</span></span>
         </a></li>
         <li><a href="#" aria-label="No.359 樂天桃園，終場：統一7-ELEVEn獅（客）7 比 4 樂天桃猿（主），統一7-ELEVEn獅勝">
-          <span class="serial" aria-hidden="true"><span>No.359</span><span>樂天桃園</span></span>
           <span class="score stack" aria-hidden="true"><span class="ti a warm" style="--team:#E35A13">L</span><span class="n a w">7</span><span class="colon">:</span><span class="n h">4</span><span class="ti h" style="--team:#8E1537">R</span><span class="nm a w">統一7-ELEVEn獅</span><span class="nm h">樂天桃猿</span></span>
+          <span class="serial" aria-hidden="true"><span>No.359</span><span>樂天桃園</span></span>
         </a></li>
         <li><a href="#" aria-label="No.360 新莊，終場：味全龍（客）4 比 2 富邦悍將（主），味全龍勝">
-          <span class="serial" aria-hidden="true"><span>No.360</span><span>新莊</span></span>
           <span class="score stack" aria-hidden="true"><span class="ti a" style="--team:#C8102E">W</span><span class="n a w">4</span><span class="colon">:</span><span class="n h">2</span><span class="ti h" style="--team:#2A4B9B">G</span><span class="nm a w">味全龍</span><span class="nm h">富邦悍將</span></span>
+          <span class="serial" aria-hidden="true"><span>No.360</span><span>新莊</span></span>
         </a></li>
       </ol>
     </section>
