@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>共用元件與局部示意｜郵戳提案 #218</title>
+<script src="proposal.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=LXGW+WenKai+TC&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="postmark.css">
+<style>
+  .lead { max-width: 60em; margin: 0 0 6px; color: var(--muted); font-size: 13.5px; }
+  .toc { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; margin: 8px 0 0; }
+  .toc a { color: var(--mark); text-decoration: none; }
+  .row { display: grid; grid-template-columns: 15em minmax(0, 1fr); gap: 20px; padding: 18px 0; }
+  .row + .row { border-top: 0; }
+  .row > .rule h2 { margin: 0 0 6px; font: 700 16px/1.3 var(--tc); letter-spacing: .04em; }
+  .row > .rule p { margin: 0 0 6px; font-size: 13px; color: var(--muted); }
+  .row > .rule p b { color: var(--ink); }
+  .demo { background: var(--card); border-radius: var(--r-panel); padding: 16px 18px; display: flex; flex-wrap: wrap; gap: 18px 26px; align-items: center; }
+  .demo.col { display: grid; gap: 12px; align-items: stretch; }
+  .demo .cap { font-size: 12px; color: var(--muted); display: block; margin-top: 6px; text-align: center; }
+  .demo figure { margin: 0; display: grid; justify-items: center; }
+  .demo .post { --pb: var(--card); }
+  .scorebox { width: 280px; background: var(--card-2); padding: 11px 14px; border-radius: var(--r-panel); }
+  .scorebox.wide { width: 420px; max-width: calc(100vw - 64px); }
+  .scorebox + .cap { text-align: left; }
+  .swatches { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 18px; font-size: 13px; }
+  .swatches div { display: flex; align-items: center; gap: 8px; }
+  .swatches small { color: var(--muted); }
+  .motion { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .motion > div { background: var(--card-2); border-radius: var(--r-panel); padding: 12px 14px; display: grid; gap: 8px; align-content: start; font-size: 13px; }
+  .motion .stage { position: relative; height: 70px; display: grid; place-items: center; }
+  .motion .stage .post { position: relative; --pb: var(--card-2); }
+  .motion .hoverdemo { background: var(--card); padding: 10px 12px; border-radius: var(--r-panel); transition: background-color .15s var(--ease); cursor: default; }
+  .motion .hoverdemo:hover { background: var(--band); }
+  .scroll { overflow-x: auto; }
+  table.data.emo { min-width: 760px; }
+  table.data.emo th, table.data.emo td { text-align: left; white-space: normal; vertical-align: top; }
+  table.data.emo td:nth-child(3) { font-weight: 700; white-space: nowrap; }
+  table.data.emo code { font-size: 12px; }
+
+  /* 局部示意 */
+  .sketch { display: grid; gap: 10px; }
+  .cal { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .cal .day { background: var(--card-2); border-radius: var(--r-panel); padding: 10px 12px; display: grid; gap: 6px; align-content: start; min-height: 132px; }
+  .cal .day .dt { display: flex; justify-content: space-between; align-items: baseline; font: 800 18px/1 var(--wide); font-stretch: 80%; }
+  .cal .day .dt small { font: 500 12px var(--tc); color: var(--muted); }
+  .cal .g { display: grid; grid-template-columns: auto auto 1.4em 10px 1.4em auto; justify-content: start; align-items: center; column-gap: 6px; font: 500 15px/1 var(--wide); font-stretch: 80%; color: var(--faint); }
+  .cal .g .w { color: var(--ink); font-weight: 900; }
+  .cal .g .ti { --s: 18px; font-size: 10px; }
+  .cal .g .x { font: 500 12px var(--tc); color: var(--muted); }
+  .cal .g .num { text-align: center; }
+  .cal .day.today { background: var(--stub); }
+  .cal .gt { display: flex; align-items: center; gap: 4px; font: 700 13px var(--wide); font-stretch: 85%; }
+  .cal .gt .ti { --s: 18px; font-size: 10px; }
+  .cal .gt .t, .cal .gt .st { margin-left: 6px; }
+  .teamhead { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; background: var(--card-2); padding: 12px 14px; border-radius: var(--r-panel); }
+  .teamhead h3 { margin: 0; font: 900 20px/1.2 var(--tc); }
+  .teamhead .rec { display: flex; gap: 16px; font-size: 13px; color: var(--muted); }
+  .teamhead .rec b { color: var(--ink); font: 800 18px var(--wide); font-stretch: 80%; margin-right: 3px; }
+  .teamhead .rank { font: 900 34px/1 var(--wide); font-stretch: 62%; }
+  .teamhead .rank small { font: 700 13px var(--tc); margin-left: 2px; }
+  .pair { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; align-items: center; background: var(--card-2); padding: 12px 14px; border-radius: var(--r-panel); }
+  .pair .p { display: grid; gap: 2px; } .pair .p b { font-size: 15px; } .pair .p small { color: var(--muted); font-size: 12px; }
+  .pair .p.r { text-align: right; }
+  .pair .vs { font: 700 12px var(--wide); letter-spacing: .14em; color: var(--muted); }
+  .dist { display: flex; height: 22px; border-radius: 3px; overflow: hidden; font: 700 11px/22px var(--tc); }
+  .dist span { padding: 0 6px; white-space: nowrap; overflow: hidden; }
+  .dist .h { background: var(--mark); color: var(--mark-ink); } .dist .bb { background: var(--band); color: var(--ink); } .dist .k { background: var(--card); color: var(--ink); box-shadow: inset 0 0 0 1px var(--rule-2); } .dist .o { background: var(--card-2); color: var(--muted); }
+
+  @media (max-width: 860px) {
+    .row { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    .motion, .swatches { grid-template-columns: minmax(0, 1fr); }
+    .cal { grid-template-columns: minmax(0, 1fr); }
+    .cal .day { min-height: 0; }
+  }
+</style>
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <a class="brand" href="index.html" aria-label="Ruan's CPBL Lab 提案入口"><span class="punch"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M8 8h48v24L32 56 8 32z M36 21a4.4 4.4 0 1 0 8.8 0 4.4 4.4 0 1 0-8.8 0z M16 28.5Q23 44 39 36.5L37.4 33.3Q24.8 39.2 19.3 27.2Z"/></svg></span><span class="word">Ruan's CPBL Lab<small>中職數據實驗室</small></span></a>
+  <nav class="nav" aria-label="提案"><a href="index.html">提案入口</a><a href="priority.html">資訊優先序</a><a href="components.html" aria-current="page">共用元件</a></nav>
+  <button class="iconbtn" type="button" data-theme-toggle aria-label="深色模式" style="margin-left:auto"><svg class="theme-ico-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><svg class="theme-ico-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></svg></button>
+</div></header>
+
+<main class="wrap">
+  <div class="sh"><h1>共用元件與局部示意</h1><span class="cue">一個元件一條規則；樣式寫在 postmark.css</span></div>
+  <p class="lead">基準是 palette.html 1「郵戳」：暖灰手札紙、墨藍字、石油藍郵戳。資料清晰優先，裝飾只放在不擋資料的位置。票券、郵戳、隊伍 icon 直角；控制項、標籤與資訊底版 3–4px 小圓角。分區用色塊與留白，少畫線。</p>
+  <nav class="toc" aria-label="本頁目錄"><a href="#postmark">郵戳</a><a href="#serial">序號列</a><a href="#heading">區塊標題</a><a href="#status">狀態章／身分標籤</a><a href="#score">比分</a><a href="#table">表格</a><a href="#tabs">頁籤</a><a href="#icon">隊伍 icon</a><a href="#motion">動態</a><a href="#emoji">emoji／圖示</a><a href="#schedule">賽程</a><a href="#standings">戰績</a><a href="#team">球隊</a><a href="#matchups">對戰</a></nav>
+
+  <section class="row" id="postmark">
+    <div class="rule"><h2>郵戳</h2><p><b>日期＋球場。</b>日期一定有來源（game_date）；球場缺值只蓋日期，戳的大小不變。開打時間不進郵戳，放序號列。</p><p>只蓋在賽事票根與賽況頁頂；不蓋在比分、勝率、隊名上。選手頁不蓋。</p></div>
+    <div class="demo">
+      <figure><span class="post lg static" aria-hidden="true"><span class="y">2026</span><b>09.30</b><span>樂天桃園</span></span><figcaption class="cap">大 76px・首頁票根</figcaption></figure>
+      <figure><span class="post static" aria-hidden="true"><span class="y">2026</span><b>09.30</b><span>新莊</span></span><figcaption class="cap">中 64px・賽程／例外小票</figcaption></figure>
+      <figure><span class="post sm static" aria-hidden="true"><span class="y">2026</span><b>09.28</b><span>洲際</span></span><figcaption class="cap">小 52px・賽況頁頂</figcaption></figure>
+      <figure><span class="post static" aria-hidden="true"><span class="y">2026</span><b>09.30</b></span><figcaption class="cap">球場缺值：只蓋日期</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="row" id="serial">
+    <div class="rule"><h2>序號列</h2><p>場次、開打時間、補賽等並列，用「・」分隔。開打時間只來自即時快照，<b>缺值就不出現</b>，不補「--:--」。選手頁用同一元件列隊名、守位、投打。</p></div>
+    <div class="demo col">
+      <div class="serial"><b>No.254</b><span class="t">18:35</span><span>補賽・原訂 08/09</span></div>
+      <div class="serial"><b>No.256</b><span>補賽</span></div>
+      <div class="serial"><span>中信兄弟</span><span>左外野</span><span>右投右打</span></div>
+      <span class="note">第二列示意開打時間缺值；No.256 為樣式示意。</span>
+    </div>
+  </section>
+
+  <section class="row" id="heading">
+    <div class="rule"><h2>區塊標題</h2><p>全站<b>只有一套</b>：20px 主標（頁內第一層）、16px 次標；右側一條註記或一個資料時間。不加眉標、不加編號、不畫右延長線。</p></div>
+    <div class="demo col">
+      <div class="sh" style="margin:0"><h3>今日賽事<span class="d">09/30<small>（三）</small></span></h3><span class="meta"><span class="fresh">資料同步 09/30 02:46</span></span></div>
+      <div class="sh s" style="margin:0"><h3>本季成績</h3><span class="cue">一軍</span></div>
+    </div>
+  </section>
+
+  <section class="row" id="status">
+    <div class="rule"><h2>狀態章與身分標籤</h2><p><b>狀態章</b>＝比賽狀態，粗體、必含文字；只有「進行中」用石油藍實底，延賽／保留用紅字。<b>身分標籤</b>＝選手身分與分類，細字淡底，不與狀態章混用。</p><p><b>依賴標記</b>（斜紋小方塊）＝這個呈現需要後續資料支援。</p></div>
+    <div class="demo">
+      <span class="st">賽前</span><span class="st live is-updating">比賽進行中</span><span class="st">終場</span><span class="st hold">延賽</span><span class="st hold">保留</span>
+      <span class="tag">一軍選手</span><span class="tag">強打型</span><span class="tag">總冠軍 ×2</span>
+      <span class="dep">需後續資料支援</span><span class="st sample">樣式示意</span>
+    </div>
+  </section>
+
+  <section class="row" id="score">
+    <div class="rule"><h2>比分</h2><p>全站<b>一個元件</b>：icon 分數 : 分數 icon，左客右主。勝方粗黑、大一階；敗方細、淡。不只靠顏色：字重與字級同時變。</p><p>「終場」「左客右主」由區塊標題說一次；逐列不加終／勝／主客。隊名只在寬度夠時出現（≥360px），窄欄靠 icon＋aria-label。和局兩側同重。</p></div>
+    <div class="demo">
+      <figure><div class="scorebox" aria-label="台鋼雄鷹 10 比 19 中信兄弟，中信兄弟勝"><span class="score" aria-hidden="true"><span class="ti a" style="--team:#15543C">T</span><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><span class="ti h warm" style="--team:#C8A24A">B</span></span></div><figcaption class="cap">窄欄（首頁右欄 3fr）</figcaption></figure>
+      <figure><div class="scorebox wide" aria-label="台鋼雄鷹 10 比 19 中信兄弟，中信兄弟勝"><span class="score" aria-hidden="true"><span class="ti a" style="--team:#15543C">T</span><span class="nm a">台鋼雄鷹</span><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><span class="nm h w">中信兄弟</span><span class="ti h warm" style="--team:#C8A24A">B</span></span></div><figcaption class="cap">寬欄（手機全寬、賽程）</figcaption></figure>
+      <figure><div class="scorebox" aria-label="和局示意 3 比 3"><span class="score tie" aria-hidden="true"><span class="ti a" style="--team:#2A4B9B">G</span><span class="n a">3</span><span class="colon">:</span><span class="n h">3</span><span class="ti h" style="--team:#8E1537">R</span></span></div><figcaption class="cap">和局（樣式示意）</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="row" id="table">
+    <div class="rule"><h2>資料表</h2><p>表頭一條色塊帶；列間不畫線、不疊雙線、不畫分組線與重點框。靠右對齊數字、留白分列、滑過整列換色塊。主指標加粗；目前列淡石油藍；逐局比分的 R 格石油藍實底。</p></div>
+    <div class="demo col">
+      <div class="scroll"><table class="data">
+        <thead><tr><th class="l">年度</th><th class="l">球隊</th><th>出賽</th><th>打席</th><th>打擊率</th><th>上壘率</th><th>長打率</th><th>OPS</th></tr></thead>
+        <tbody>
+          <tr class="cur"><td class="l">2026</td><td class="l"><span class="team"><span class="ti warm" style="--team:#C8A24A">B</span>中信兄弟</span></td><td>65</td><td>231</td><td>.285</td><td>.359</td><td>.435</td><td class="key">.794</td></tr>
+        </tbody>
+      </table></div>
+      <span class="note">選手逐年表只示意本季一列（數值同選手頁）；其他年度本稿未取得。</span>
+    </div>
+  </section>
+
+  <section class="row" id="tabs">
+    <div class="rule"><h2>頁籤</h2><p><b>一級頁籤</b>＝色塊帶，選中＝卡面色塊＋粗體＋上緣石油藍，下接同色 tabpanel（現站單場頁缺 tabpanel，提案補上）。左右方向鍵切換。<b>二級</b>＝分段切換（本季／生涯、一軍／二軍）。</p></div>
+    <div class="demo col">
+      <div>
+        <div class="tabs" role="tablist" aria-label="頁籤示意"><button role="tab" id="dt1" aria-controls="dp1" aria-selected="true" tabindex="0">比賽總覽</button><button role="tab" id="dt2" aria-controls="dp2" aria-selected="false" tabindex="-1">逐打席</button><button role="tab" id="dt3" aria-controls="dp3" aria-selected="false" tabindex="-1">分析</button></div>
+        <div role="tabpanel" id="dp1" aria-labelledby="dt1" tabindex="0" style="background:var(--card-2)">比賽總覽內容</div>
+        <div role="tabpanel" id="dp2" aria-labelledby="dt2" tabindex="0" style="background:var(--card-2)" hidden>逐打席內容</div>
+        <div role="tabpanel" id="dp3" aria-labelledby="dt3" tabindex="0" style="background:var(--card-2)" hidden>分析內容</div>
+      </div>
+      <div class="seg" role="group" aria-label="範圍示意"><button aria-pressed="true">本季</button><button aria-pressed="false">生涯</button></div>
+    </div>
+  </section>
+
+  <section class="row" id="icon">
+    <div class="rule"><h2>隊伍 icon</h2><p>隊色＋字母小郵票，<b>非官方隊徽、非 #217 素材</b>。字母對底色須 ≥4.5:1：兄弟、統一改深字，其餘白字。深色模式加 1px 內框。</p></div>
+    <div class="demo">
+      <div class="swatches">
+        <div><span class="ti lg" style="--team:#C8102E">W</span>味全龍 <small>白字 5.88:1</small></div>
+        <div><span class="ti lg warm" style="--team:#C8A24A">B</span>中信兄弟 <small>深字 7.67:1</small></div>
+        <div><span class="ti lg warm" style="--team:#E35A13">L</span>統一獅 <small>深字 5.05:1（白字僅 3.66）</small></div>
+        <div><span class="ti lg" style="--team:#2A4B9B">G</span>富邦悍將 <small>白字 8.15:1</small></div>
+        <div><span class="ti lg" style="--team:#8E1537">R</span>樂天桃猿 <small>白字 9.08:1</small></div>
+        <div><span class="ti lg" style="--team:#15543C">T</span>台鋼雄鷹 <small>白字 8.88:1</small></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="row" id="motion">
+    <div class="rule"><h2>必要動態</h2><p>動態只表達狀態變化，150–320ms、減少動態偏好時全部關閉。不做進場編排、不做裝飾動畫。</p></div>
+    <div class="motion">
+      <div><b>更新中</b><div class="stage"><span class="fresh is-updating">資料更新中</span></div><span class="note">賽中與同步中：狀態點緩慢明滅；更新完成即停，數字直接換、不跳動計數。</span></div>
+      <div><b>結果揭露</b><div class="stage"><span class="post sm reveal" id="rv" aria-hidden="true"><span class="y">2026</span><b>09.30</b><span>澄清湖</span></span></div><button class="iconbtn" type="button" id="rvbtn" style="justify-self:start">重播落章</button><span class="note">轉為終場時，票根郵戳落章一次（0.32s）；比分本身不動。</span></div>
+      <div><b>互動回饋</b><div class="stage" style="place-items:stretch"><div class="hoverdemo">滑過卡片或列：換一階色塊</div></div><span class="note">可點的票券、賽果列、表格列在滑過時換色塊（150ms）；焦點一律 2px 石油藍外框。</span></div>
+    </div>
+  </section>
+
+  <section class="row" id="emoji">
+    <div class="rule"><h2>emoji／圖示／資訊底版</h2><p>原則：<b>資訊用文字章或色塊，不用 emoji</b>；必要圖形用同一筆畫的 SVG。#217 圖稿仍待該卡批准，本表只是去留建議。</p></div>
+    <div class="scroll">
+    <table class="data emo">
+      <thead><tr><th>類別</th><th>現站例子</th><th>處置</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr><td>MVP ⭐</td><td>賽程格 <code>games/page.tsx:167</code></td><td>改造</td><td>改成「MVP」文字標籤＋姓名；星號與評分易混。</td></tr>
+        <tr><td>延賽 ☔</td><td>賽程格 <code>:181</code>、單場 <code>:257</code></td><td>改造</td><td>改成紅字狀態章「延賽」；雨傘不能區分延賽與保留。</td></tr>
+        <tr><td>冠軍／榮譽 🏆👑🏅</td><td>戰績、球隊、選手頁首、人物</td><td>改造</td><td>改成身分標籤「總冠軍 ×2」；emoji 是最明顯的範本感來源。</td></tr>
+        <tr><td>警示 ⚠ ⚠️</td><td>單場資料狀態、方法說明、選手季表</td><td>改造</td><td>改成文字狀態章或「限制」附註。</td></tr>
+        <tr><td>天氣 🌧️⛅☁️☀️🌡️</td><td><code>game-summary.ts:443</code></td><td>改造</td><td>若保留天氣，改成一組自繪 SVG 或純文字；#217 決定圖稿。</td></tr>
+        <tr><td>半局 ▲▼、排序 ↑↓↕、清除 ✕、來源 ✓</td><td>首頁、排行、對戰</td><td>保留（改 SVG）</td><td>功能性指示，保留意義、改成同筆畫 SVG。</td></tr>
+        <tr><td>圖表標記 ★ ◆ ●</td><td>擊球落點、逐球、球隊近況</td><td>保留</td><td>是資料標記不是裝飾；在圖內改用 SVG 形狀並附圖例。</td></tr>
+        <tr><td>旅外 ✈</td><td>選手頁首 <code>hero.tsx:207</code></td><td>移除</td><td>改成身分標籤「旅外」。</td></tr>
+        <tr><td>隊伍 logo</td><td>TeamLogo</td><td>待 #217</td><td>本提案一律用隊色＋字母佔位。</td></tr>
+        <tr><td>資訊底版</td><td>—</td><td>採用</td><td>卡面、淺色塊、帶狀表頭取代框線；票根色塊只給賽事票券。</td></tr>
+        <tr><td>少量圖形</td><td>—</td><td>採用</td><td>郵戳、撕線票根、手札註記（每區最多一句客觀敘述）；不加照片。</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <div class="sh" style="margin-top:34px"><h2>其餘頁型局部示意</h2><span class="st sample">局部示意</span></div>
+
+  <section class="row" id="schedule">
+    <div class="rule"><h2>賽程</h2><p>月曆格用同一比分元件縮小版；延賽用狀態章不用 ☔；今天那格用票根色塊。一格三場也能掃讀。</p></div>
+    <div class="sketch">
+      <div class="cal">
+        <div class="day"><div class="dt">09/28<small>週一</small></div>
+          <div class="g"><span class="ti" style="--team:#15543C">T</span><span class="x">台鋼</span><span class="num">10</span><span>:</span><span class="num w">19</span><span class="ti warm" style="--team:#C8A24A">B</span></div>
+          <div class="g"><span class="ti warm" style="--team:#E35A13">L</span><span class="x">統一</span><span class="num w">7</span><span>:</span><span class="num">4</span><span class="ti" style="--team:#8E1537">R</span></div>
+          <div class="g"><span class="ti" style="--team:#C8102E">W</span><span class="x">味全</span><span class="num w">4</span><span>:</span><span class="num">2</span><span class="ti" style="--team:#2A4B9B">G</span></div>
+        </div>
+        <div class="day today"><div class="dt">09/30<small>今天</small></div>
+          <div class="gt"><span class="ti" style="--team:#C8102E">W</span><span class="ti" style="--team:#8E1537">R</span><span class="t">18:35</span></div>
+          <div class="gt"><span class="ti warm" style="--team:#E35A13">L</span><span class="ti" style="--team:#2A4B9B">G</span><span class="t">18:35</span></div>
+          <div class="gt"><span class="ti warm" style="--team:#C8A24A">B</span><span class="ti" style="--team:#15543C">T</span><span class="t">18:35</span></div>
+        </div>
+        <div class="day"><div class="dt">某日<small>樣式示意</small></div>
+          <div class="gt"><span class="ti" style="--team:#2A4B9B">G</span><span class="ti" style="--team:#15543C">T</span><span class="st hold">延賽</span></div>
+          <div class="gt"><span class="ti" style="--team:#C8102E">W</span><span class="ti warm" style="--team:#E35A13">L</span><span class="st hold">保留</span></div>
+        </div>
+      </div>
+      <span class="note">09/28 賽果與 09/30 對戰取自既有稿的 API 快照；09/30 的 18:35 為示意；第三格為樣式示意。</span>
+    </div>
+  </section>
+
+  <section class="row" id="standings">
+    <div class="rule"><h2>戰績</h2><p>主表只留排名、勝-和-敗、勝率、勝差、近十場；OPS／ERA／WHIP 移到展開區。範圍用分段切換，不用多層頁籤。</p></div>
+    <div class="sketch">
+      <div class="seg" role="group" aria-label="戰績範圍"><button aria-pressed="true">全年</button><button aria-pressed="false">上半季</button><button aria-pressed="false">下半季</button><button aria-pressed="false">季後賽</button></div>
+      <table class="data">
+        <thead><tr><th class="l">#</th><th class="l">球隊</th><th>勝-和-敗</th><th>勝率</th><th>勝差</th></tr></thead>
+        <tbody>
+          <tr><td class="l">1</td><td class="l"><span class="team"><span class="ti" style="--team:#C8102E">W</span>味全龍</span></td><td>64-0-51</td><td class="key">.557</td><td>—</td></tr>
+          <tr><td class="l">2</td><td class="l"><span class="team"><span class="ti warm" style="--team:#E35A13">L</span>統一7-ELEVEn獅</span></td><td>59-1-55</td><td class="key">.518</td><td>4.5</td></tr>
+          <tr><td class="l">3</td><td class="l"><span class="team"><span class="ti" style="--team:#2A4B9B">G</span>富邦悍將</span></td><td>58-0-57</td><td class="key">.504</td><td>6.0</td></tr>
+        </tbody>
+      </table>
+      <span class="note">近十場欄位本稿未取得數值，未畫；前三名數值同首頁戰績。</span>
+    </div>
+  </section>
+
+  <section class="row" id="team">
+    <div class="rule"><h2>球隊</h2><p>現站隊色大面積頁首改成<b>紙色底＋大號隊伍 icon</b>，隊色只留在 icon，不和郵戳紙色搶面積；名次用大數字。</p></div>
+    <div class="sketch">
+      <div class="teamhead"><span class="ti xl" style="--team:#C8102E">W</span><div><h3>味全龍</h3><div class="rec"><span><b>64-0-51</b>勝-和-敗</span><span><b>.557</b>勝率</span><span><b>—</b>勝差</span></div></div><div class="rank">1<small>名</small></div></div>
+      <span class="note">數值同首頁戰績；連勝敗、淘汰指數、近況本稿未取得，未畫。</span>
+    </div>
+  </section>
+
+  <section class="row" id="matchups">
+    <div class="rule"><h2>對戰</h2><p>雙方身分左右對稱；結果分布用一條色塊長條（安打石油藍、其餘紙色階），樣本數寫在旁邊，樣本不足時整條降為淡色並加文字。</p></div>
+    <div class="sketch">
+      <div class="pair"><div class="p"><b>打者 A</b><small>樣式示意</small></div><span class="vs">VS</span><div class="p r"><b>投手 B</b><small>樣式示意</small></div></div>
+      <div class="dist" role="img" aria-label="結果分布示意：安打 30%、四死 10%、三振 20%、其他出局 40%"><span class="h" style="width:30%">安打</span><span class="bb" style="width:10%">四死</span><span class="k" style="width:20%">三振</span><span class="o" style="width:40%">其他出局</span></div>
+      <span class="note">全部為樣式示意：人名、比例與樣本數都不是真實資料。</span>
+    </div>
+  </section>
+</main>
+<footer class="footer"><div class="wrap">#218 郵戳提案・共用元件與局部示意。對比值以 WCAG 相對亮度計算；現站行號為本輪碼讀（HEAD 37fcc592）。隊伍 icon 非官方隊徽、非 #217 素材。</div></footer>
+<script>
+  document.getElementById("rvbtn").addEventListener("click", function () {
+    var el = document.getElementById("rv"); el.classList.remove("reveal"); void el.offsetWidth; el.classList.add("reveal");
+  });
+</script>
+</body>
+</html>

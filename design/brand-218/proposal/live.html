@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>單場賽況 No.358（回放示意）｜郵戳提案 #218</title>
+<script src="proposal.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=LXGW+WenKai+TC&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="postmark.css">
+<style>
+  /* 頁頂：小郵戳（日期＋球場）＋序號列；賽況頁唯一一枚郵戳 */
+  .gamehead { display: flex; align-items: center; gap: 16px; margin-top: 18px; }
+  .gamehead .post { --pb: var(--paper); }
+  .gamehead .who { display: grid; gap: 4px; min-width: 0; }
+  .gamehead h1 { margin: 0; font: 700 24px/1.3 var(--tc); letter-spacing: .04em; }
+  .gamehead .hand { font-size: 14px; color: var(--muted); margin: 0; }
+  .gamehead .fresh { margin-left: auto; align-self: flex-end; }
+
+  .board { margin-top: 12px; background: var(--card); border-radius: var(--r-panel); padding: 12px 16px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 18px; }
+  .board .side { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .board .side.home { justify-content: flex-end; }
+  .board .nm { display: grid; line-height: 1.25; }
+  .board .nm b { font-size: 16px; font-weight: 700; }
+  .board .nm small { font-size: 12px; color: var(--muted); }
+  .board .n { font: 900 44px/1 var(--wide); font-stretch: 70%; min-width: 1.2em; text-align: center; }
+  .board .n.trail { color: var(--muted); font-weight: 500; }
+  .mid { display: grid; grid-template-columns: auto auto auto; align-items: center; gap: 14px; padding: 8px 18px; background: var(--card-2); border-radius: var(--r-panel); }
+  .inning { display: grid; justify-items: center; gap: 4px; }
+  .inning b { font: 800 18px/1 var(--wide); font-stretch: 80%; }
+  .matchup { grid-column: 1 / -1; display: flex; gap: 6px 22px; flex-wrap: wrap; font-size: 13px; padding-top: 2px; }
+  .matchup b { font-weight: 700; margin: 0 4px; }
+
+  .ls { margin-top: 10px; }
+  table.data.ls td, table.data.ls th { text-align: center; padding: 6px 4px; }
+  table.data.ls th.l { text-align: left; padding-left: 12px; }
+  .ls td.now { background: var(--mark-soft); font-weight: 800; }
+  .ls td.nil { color: var(--faint); }
+
+  .tabs { margin-top: 18px; }
+  .panel-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 22px; align-items: start; }
+  .log { list-style: none; margin: 0; padding: 0; border-radius: var(--r-panel); overflow: hidden; background: var(--card-2); }
+  .log li { display: grid; grid-template-columns: 4.4em minmax(0, 1fr) auto; gap: 10px; padding: 9px 14px; align-items: baseline; font-size: 13.5px; }
+  .log li:nth-child(odd) { background: var(--paper); }
+  [data-theme="dark"] .log li:nth-child(odd) { background: var(--band); }
+  .log .k { font: 700 12px var(--wide); color: var(--muted); }
+  .log .c { font: 700 12px var(--wide); color: var(--muted); white-space: nowrap; }
+  .log li.cur, [data-theme="dark"] .log li.cur { background: var(--mark-soft); }
+  .log li.cur .k, .log li.cur .c { color: var(--ink); }
+  .panel-grid .sh { margin-top: 4px; }
+  .panel-grid .sh + .log + .sh { margin-top: 20px; }
+  .onbase { border-radius: var(--r-panel); background: var(--card-2); padding: 12px 14px; font-size: 13px; display: grid; gap: 4px; }
+  .onbase div { display: grid; grid-template-columns: 5em 1fr; }
+  .onbase span:first-child { color: var(--muted); }
+  .todo { color: var(--muted); font-size: 13px; margin: 0; }
+
+  @media (max-width: 720px) {
+    .gamehead { gap: 12px; }
+    .gamehead h1 { font-size: 20px; }
+    .gamehead .fresh { display: none; }
+    .board { grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px 12px; }
+    .board .mid { grid-column: 1 / -1; grid-row: 2; padding: 8px 12px; justify-content: center; }
+    .board .side.home { grid-column: 2; grid-row: 1; }
+    .board .n { font-size: 36px; }
+    .board .nm b { font-size: 14px; }
+    .matchup { grid-row: 3; gap: 4px 14px; font-size: 12.5px; }
+    .ls { font-size: 12px; }
+    table.data.ls th, table.data.ls td { padding: 6px 1px; }
+    table.data.ls th.l { padding-left: 8px; }
+    .ls .nmt { display: none; }
+    .panel-grid { grid-template-columns: minmax(0, 1fr); }
+    .panel-grid aside { grid-row: 1; }
+    [role="tabpanel"] { padding: 12px 10px 14px; }
+    .log li { grid-template-columns: 3.8em minmax(0, 1fr) auto; padding: 8px 10px; font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <a class="brand" href="index.html" aria-label="Ruan's CPBL Lab 提案入口"><span class="punch"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M8 8h48v24L32 56 8 32z M36 21a4.4 4.4 0 1 0 8.8 0 4.4 4.4 0 1 0-8.8 0z M16 28.5Q23 44 39 36.5L37.4 33.3Q24.8 39.2 19.3 27.2Z"/></svg></span><span class="word">Ruan's CPBL Lab<small>中職數據實驗室</small></span></a>
+  <nav class="nav" aria-label="主選單"><a href="home.html">今日</a><a href="components.html#schedule" aria-current="page">賽程</a><a href="components.html#standings">戰績</a><a href="player.html">球員</a><a href="components.html#matchups">對戰</a><a href="priority.html">更多</a></nav>
+  <input class="search" type="search" name="q" placeholder="搜尋球員或球隊" aria-label="搜尋球員或球隊">
+  <button class="iconbtn" type="button" data-theme-toggle aria-label="深色模式"><svg class="theme-ico-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><svg class="theme-ico-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></svg></button>
+  <button class="iconbtn menu" type="button" aria-label="開啟選單">選單</button>
+</div></header>
+
+<main class="wrap">
+  <p class="proposal-bar"><span class="st sample">回放示意</span><span>非即時：以 09/28 No.358 已完賽場次的官方逐球紀錄，重建 <b>1 局下 2 出局滿壘</b>的賽中畫面。</span><a href="index.html">提案入口</a></p>
+
+  <div class="gamehead">
+    <span class="post sm static" aria-hidden="true"><span class="y">2026</span><b>09.28</b><span>洲際</span></span>
+    <div class="who">
+      <div class="serial"><b>No.358</b><span>一軍</span></div>
+      <h1>台鋼雄鷹 對 中信兄弟</h1>
+      <p class="hand">1 局下台鋼換投，兄弟已得 6 分</p>
+    </div>
+    <span class="fresh stale">回放資料・非即時</span>
+  </div>
+
+  <section class="board" aria-label="比賽中：1 局下，2 出局滿壘，球數 2 壞 2 好；台鋼雄鷹 0 分，中信兄弟 6 分">
+    <div class="side"><span class="ti lg" style="--team:#15543C">T</span><span class="nm"><b>台鋼雄鷹</b><small>客</small></span><span class="n trail">0</span></div>
+    <div class="mid">
+      <div class="inning"><span class="st live is-updating">比賽中</span><b>1 局下</b></div>
+      <svg class="bases" viewBox="0 0 44 32" role="img" aria-label="滿壘"><rect x="17" y="2" width="10" height="10" transform="rotate(45 22 7)" class="on"/><rect x="30" y="15" width="10" height="10" transform="rotate(45 35 20)" class="on"/><rect x="4" y="15" width="10" height="10" transform="rotate(45 9 20)" class="on"/></svg>
+      <div class="count" role="img" aria-label="2 壞球、2 好球、2 出局"><span>B</span><span><i class="on"></i><i class="on"></i><i></i></span><span>S</span><span><i class="on"></i><i class="on"></i></span><span>O</span><span><i class="o"></i><i class="o"></i></span></div>
+    </div>
+    <div class="side home"><span class="n">6</span><span class="nm"><b>中信兄弟</b><small>主</small></span><span class="ti lg warm" style="--team:#C8A24A">B</span></div>
+    <div class="matchup"><span>投手<b>陳宇宏</b>本場第 18 球</span><span>打者<b>曾頌恩</b>本場第 2 打席（第 1 打席：接球失誤上壘）</span></div>
+  </section>
+
+  <table class="data ls" aria-label="逐局比分（進行中）">
+    <thead><tr><th class="l">隊伍</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>R</th><th>H</th><th>E</th></tr></thead>
+    <tbody>
+      <tr><th class="l"><span class="team"><span class="ti" style="--team:#15543C">T</span><span class="nmt">台鋼雄鷹</span></span></th><td>0</td><td class="nil">·</td><td class="nil">·</td><td class="nil">·</td><td class="nil">·</td><td class="nil">·</td><td class="nil">·</td><td class="nil">·</td><td class="nil">·</td><td class="r">0</td><td>1</td><td>1</td></tr>
+      <tr><th class="l"><span class="team"><span class="ti warm" style="--team:#C8A24A">B</span><span class="nmt">中信兄弟</span></span></th><td class="now">6</td><td class="nil">·</td><td class="nil">·</td><td class="nil">·</td><td class="nil">·</td><td class="nil">·</td><td class="nil">·</td><td class="nil">·</td><td class="nil">·</td><td class="r">6</td><td>6</td><td>0</td></tr>
+    </tbody>
+  </table>
+
+  <div class="tabs" role="tablist" aria-label="本場頁籤">
+    <button role="tab" id="t-ov" aria-controls="p-ov" aria-selected="true" tabindex="0">比賽總覽</button><button role="tab" id="t-pa" aria-controls="p-pa" aria-selected="false" tabindex="-1">逐打席</button><button role="tab" id="t-aw" aria-controls="p-aw" aria-selected="false" tabindex="-1">台鋼</button><button role="tab" id="t-hm" aria-controls="p-hm" aria-selected="false" tabindex="-1">兄弟</button><button role="tab" id="t-an" aria-controls="p-an" aria-selected="false" tabindex="-1">分析</button><button role="tab" id="t-um" aria-controls="p-um" aria-selected="false" tabindex="-1">主審判決</button>
+  </div>
+  <div role="tabpanel" id="p-ov" aria-labelledby="t-ov" tabindex="0">
+    <div class="panel-grid">
+      <section>
+        <div class="sh s"><h2>本打席逐球・曾頌恩</h2><span class="meta">球數 壞–好</span></div>
+        <ol class="log" aria-label="本打席逐球，新到舊">
+          <li class="cur"><span class="k">第 5 球</span><span>擊出界外球</span><span class="c">2–2</span></li>
+          <li><span class="k">第 4 球</span><span>揮棒落空</span><span class="c">2–2</span></li>
+          <li><span class="k">第 3 球</span><span>壞球</span><span class="c">2–1</span></li>
+          <li><span class="k">第 2 球</span><span>擊出界外球</span><span class="c">1–1</span></li>
+          <li><span class="k">第 1 球</span><span>壞球</span><span class="c">1–0</span></li>
+        </ol>
+        <div class="sh s"><h2>本半局打席</h2><span class="cue">新到舊・左欄＝打席前出局</span><span class="meta">比分 客–主</span></div>
+        <ol class="log" aria-label="本半局打席，新到舊">
+          <li><span class="k">2 出局</span><span><b>張仁瑋</b> 四壞球上壘，成滿壘</span><span class="c">0–6</span></li>
+          <li><span class="k">1 出局</span><span><b>張士綸</b> 內野滾地球，一壘手自踩壘包出局</span><span class="c">0–6</span></li>
+          <li><span class="k">0 出局</span><span><b>岳東華</b> 內野高飛球，游擊手接殺</span><span class="c">0–6</span></li>
+          <li><span class="k">0 出局</span><span><b>高宇杰</b> 一壘安打，1 分打點</span><span class="c">0–6</span></li>
+          <li><span class="k">0 出局</span><span><b>王政順</b> 一壘安打，1 分打點</span><span class="c">0–5</span></li>
+          <li><span class="k">換投</span><span>台鋼投手 黃子豪 → 陳宇宏</span><span class="c"></span></li>
+        </ol>
+      </section>
+      <aside>
+        <div class="sh s"><h2>壘上</h2></div>
+        <div class="onbase"><div><span>一壘</span><span>張仁瑋</span></div><div><span>二壘</span><span>高宇杰</span></div><div><span>三壘</span><span>王政順</span></div></div>
+      </aside>
+    </div>
+  </div>
+  <div role="tabpanel" id="p-pa" aria-labelledby="t-pa" tabindex="0" hidden><p class="todo">本稿只畫「比賽總覽」；逐打席沿用現站結構，視覺規則同上方打席清單。</p></div>
+  <div role="tabpanel" id="p-aw" aria-labelledby="t-aw" tabindex="0" hidden><p class="todo">本稿未繪製：台鋼打擊／投手表，套用共用資料表規則。</p></div>
+  <div role="tabpanel" id="p-hm" aria-labelledby="t-hm" tabindex="0" hidden><p class="todo">本稿未繪製：兄弟打擊／投手表，套用共用資料表規則。</p></div>
+  <div role="tabpanel" id="p-an" aria-labelledby="t-an" tabindex="0" hidden><p class="todo">本稿未繪製：分析頁籤（進攻效率、投手效率、投手用球、擊球落點）。</p></div>
+  <div role="tabpanel" id="p-um" aria-labelledby="t-um" tabindex="0" hidden><p class="todo">本稿未繪製：主審判決（需有逐球追蹤與主審資料才出現）。</p></div>
+</main>
+<footer class="footer"><div class="wrap">非官方獨立專案。隊伍 icon 為本站隊色＋字母佔位，非官方隊徽，也不是 #217 素材。
+  <ul><li>樣本：回放資料取自本站公開 API <code>/api/v1/games/358/live</code>（2026-09-30 讀取，沿用既有稿，本輪未重新讀取）。</li><li>限制：頁籤名稱依現站 <code>game-live-page.tsx:260-271</code>；「比賽總覽」以外的頁籤內容本稿未繪製。現站沒有 tabpanel 結構，本稿補上作為建議。</li></ul>
+</div></footer>
+</body>
+</html>

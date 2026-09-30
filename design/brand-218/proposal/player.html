@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>曾頌恩｜選手頁｜郵戳提案 #218</title>
+<script src="proposal.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="postmark.css">
+<style>
+  /* 資訊結構沿用現站 /players/[id]：頁首（身分＋本季三圍／OPS）→ 範圍／層級 → 頁籤 → 本季成績＋官方進階 PR → 選手特性 → 走勢。選手頁不蓋郵戳。 */
+  .hero { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; margin-top: 18px; }
+  .who { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 16px; row-gap: 10px; align-items: start; align-content: start; }
+  .who .ti { --s: 52px; font-size: 26px; }
+  .who h1 { margin: 2px 0 0; font: 900 30px/1.15 var(--tc); letter-spacing: .04em; word-break: keep-all; }
+  .who .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .who .bio { grid-column: 2 / -1; font-size: 13px; color: var(--muted); }
+  .who .honors { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+  .slash { display: grid; grid-template-columns: repeat(3, auto); column-gap: 14px; justify-content: end; text-align: right; }
+  .slash .lab { grid-column: 1 / -1; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+  .slash .v { font: 900 30px/1 var(--wide); font-stretch: 70%; }
+  .slash .k { display: block; font-size: 12px; color: var(--muted); margin-top: 3px; white-space: nowrap; }
+  .slash .k em { font-style: normal; font-weight: 700; color: var(--ink); }
+  .slash .ops { grid-column: 1 / -1; margin-top: 8px; font: 800 18px var(--wide); font-stretch: 80%; color: var(--mark); }
+  .radar { display: grid; grid-template-rows: auto 1fr auto; gap: 4px; }
+  .radar svg { width: 100%; max-width: 250px; height: auto; justify-self: center; }
+  .radar .ax { font: 700 12px var(--tc); fill: var(--ink); }
+  .radar .grid { fill: none; stroke: var(--rule-2); stroke-width: 1; }
+  .radar .shape { fill: var(--mark-soft); stroke: var(--mark); stroke-width: 2; }
+  .radar .hd { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; }
+  .radar .hd b { font-weight: 700; }
+
+  .scope { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 20px; }
+  .scope .lvl { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+  .scope .seg button { font-size: 14px; padding: 5px 16px; }
+  .tabs { margin-top: 10px; }
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .two .sh { margin-top: 6px; }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .tile { background: var(--card-2); border-radius: var(--r-panel); padding: 10px 12px; }
+  .tile .k { font-size: 12px; color: var(--muted); }
+  .tile .v { font: 900 28px/1.1 var(--wide); font-stretch: 70%; margin-top: 4px; }
+  .mini { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px 18px; margin: 12px 0 0; font-size: 13px; }
+  .mini div { display: flex; justify-content: space-between; padding: 4px 0; }
+  .mini dt { color: var(--muted); } .mini dd { margin: 0; font-weight: 500; }
+  .pr { display: grid; gap: 7px; background: var(--card-2); padding: 12px 14px; border-radius: var(--r-panel); }
+  .pr > div { display: grid; grid-template-columns: 6.5em minmax(0, 1fr) 4em 2.4em; align-items: center; gap: 10px; font-size: 13px; }
+  .pr i { display: block; height: 8px; background: var(--band); border-radius: 4px; position: relative; overflow: hidden; }
+  .pr i b { position: absolute; inset: 0 auto 0 0; background: var(--muted); border-radius: 4px; }
+  .pr i b.hi { background: var(--mark); }
+  .pr .n { text-align: right; } .pr .p { text-align: right; font-weight: 700; }
+  .traits { display: flex; flex-wrap: wrap; gap: 8px; }
+  .traits span { background: var(--card-2); border-radius: var(--r-panel); padding: 7px 11px; font-size: 13px; }
+  .traits small { color: var(--muted); margin-left: 6px; }
+  .trend { background: var(--card-2); border-radius: var(--r-panel); padding: 12px 14px; }
+  .trend svg { width: 100%; height: 150px; display: block; }
+  .trend .ref { stroke: var(--rule-2); stroke-dasharray: 4 4; }
+  .trend .line { fill: none; stroke: var(--ink); stroke-width: 2; }
+  .trend text { font: 600 11px var(--wide); fill: var(--muted); }
+  .trend .hd { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 13px; }
+  .trend .hd .seg { margin-left: auto; }
+
+  @media (max-width: 900px) { .hero, .two { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 600px) {
+    .who { grid-template-columns: auto minmax(0, 1fr); }
+    .who .ti { --s: 44px; font-size: 22px; }
+    .who h1 { font-size: 26px; }
+    .slash { grid-column: 1 / -1; justify-content: start; text-align: left; background: var(--card-2); padding: 10px 12px; border-radius: var(--r-panel); }
+    .slash .v { font-size: 28px; }
+    .who .bio, .who .honors { grid-column: 1 / -1; }
+    .scope .lvl { margin-left: 0; }
+    .mini { grid-template-columns: repeat(2, 1fr); }
+    .pr > div { grid-template-columns: 5.6em minmax(0, 1fr) 3.6em 2.2em; gap: 8px; }
+    [role="tabpanel"] { padding: 12px 10px 14px; }
+  }
+</style>
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <a class="brand" href="index.html" aria-label="Ruan's CPBL Lab 提案入口"><span class="punch"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M8 8h48v24L32 56 8 32z M36 21a4.4 4.4 0 1 0 8.8 0 4.4 4.4 0 1 0-8.8 0z M16 28.5Q23 44 39 36.5L37.4 33.3Q24.8 39.2 19.3 27.2Z"/></svg></span><span class="word">Ruan's CPBL Lab<small>中職數據實驗室</small></span></a>
+  <nav class="nav" aria-label="主選單"><a href="home.html">今日</a><a href="components.html#schedule">賽程</a><a href="components.html#standings">戰績</a><a href="player.html" aria-current="page">球員</a><a href="components.html#matchups">對戰</a><a href="priority.html">更多</a></nav>
+  <input class="search" type="search" name="q" placeholder="搜尋球員或球隊" aria-label="搜尋球員或球隊">
+  <button class="iconbtn" type="button" data-theme-toggle aria-label="深色模式"><svg class="theme-ico-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><svg class="theme-ico-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></svg></button>
+  <button class="iconbtn menu" type="button" aria-label="開啟選單">選單</button>
+</div></header>
+
+<main class="wrap">
+  <p class="proposal-bar"><span class="st sample">設計提案・示意稿</span><span>數值取自正式站 /players/0000005569（2026-09-30 檢視，沿用既有稿）；<b>雷達形狀與走勢曲線為示意</b>，不是真實評分或逐場數值。</span><a href="index.html">提案入口</a></p>
+
+  <section class="hero" aria-label="選手頁首">
+    <div class="block who">
+      <span class="ti warm" style="--team:#C8A24A" aria-hidden="true">B</span>
+      <div>
+        <div class="serial"><span>中信兄弟</span><span>左外野</span><span>右投右打</span></div>
+        <h1>曾頌恩</h1>
+        <div class="tags"><span class="tag">一軍選手</span><span class="tag">強打型</span></div>
+      </div>
+      <div class="slash" aria-label="2026 本季打擊率 .285（PR 83）、上壘率 .359（PR 85）、長打率 .435（PR 92），OPS .794">
+        <div class="lab">2026 本季・一軍</div>
+        <div><div class="v">.285</div><span class="k">打擊率 <em>PR 83</em></span></div>
+        <div><div class="v">.359</div><span class="k">上壘率 <em>PR 85</em></span></div>
+        <div><div class="v">.435</div><span class="k">長打率 <em>PR 92</em></span></div>
+        <div class="ops">OPS .794</div>
+      </div>
+      <div class="bio">178 cm／105 kg・2000-01-08（26 歲）・開南大學・2019 年第三輪・初登場 2021/07/17・效力 '21、'23–'26</div>
+      <div class="honors"><span class="tag">總冠軍 ×2</span><span class="tag">23U 世界盃棒球賽 銅牌</span><span class="tag">世界棒球 12 強賽 金牌</span><span class="tag">台灣大賽最有價值球員獎</span></div>
+    </div>
+    <div class="block radar" aria-label="2026 本季能力雷達（示意）：控制、力量、選球、速度、守備五軸">
+      <div class="hd"><b>2026 本季能力</b><span class="dep">形狀示意</span></div>
+      <svg viewBox="0 0 240 210" aria-hidden="true">
+        <g transform="translate(120 112)">
+          <polygon class="grid" points="0,-80 76,-25 47,65 -47,65 -76,-25"/>
+          <polygon class="grid" points="0,-53 50,-16 31,43 -31,43 -50,-16"/>
+          <polygon class="grid" points="0,-27 25,-8 16,22 -16,22 -25,-8"/>
+          <path class="grid" d="M0 0V-80M0 0L76-25M0 0L47 65M0 0L-47 65M0 0L-76-25"/>
+          <polygon class="shape" points="0,-54 70,-23 27,37 -30,41 -52,-17"/>
+          <text class="ax" x="0" y="-88" text-anchor="middle">控制</text>
+          <text class="ax" x="84" y="-24" text-anchor="start">力量</text>
+          <text class="ax" x="52" y="84" text-anchor="middle">選球</text>
+          <text class="ax" x="-52" y="84" text-anchor="middle">速度</text>
+          <text class="ax" x="-84" y="-24" text-anchor="end">守備</text>
+        </g>
+      </svg>
+      <p class="note" style="margin:0">現站以 recharts 雷達呈現五軸與 S–G 等級；本稿只示意版位與色彩，未取得本季等級值。</p>
+    </div>
+  </section>
+
+  <div class="scope">
+    <div class="seg" role="group" aria-label="範圍"><button aria-pressed="true">本季</button><button aria-pressed="false">生涯</button></div>
+    <div class="seg" role="group" aria-label="身分"><button aria-pressed="true">打擊</button><button aria-pressed="false">投球</button></div>
+    <div class="lvl">層級 <div class="seg" role="group" aria-label="層級"><button aria-pressed="true">一軍</button><button aria-pressed="false">二軍</button></div></div>
+  </div>
+  <div class="tabs" role="tablist" aria-label="本季頁籤">
+    <button role="tab" id="t-ov" aria-controls="p-ov" aria-selected="true" tabindex="0">總覽</button><button role="tab" id="t-tr" aria-controls="p-tr" aria-selected="false" tabindex="-1">逐球追蹤</button><button role="tab" id="t-sp" aria-controls="p-sp" aria-selected="false" tabindex="-1">分項對戰</button><button role="tab" id="t-df" aria-controls="p-df" aria-selected="false" tabindex="-1">守備</button>
+  </div>
+  <div role="tabpanel" id="p-ov" aria-labelledby="t-ov" tabindex="0">
+    <div class="two">
+      <section aria-labelledby="h-season">
+        <div class="sh s"><h2 id="h-season">本季成績</h2><span class="cue">三圍見頁首，這裡不重複</span></div>
+        <div class="tiles">
+          <div class="tile"><div class="k">OPS+</div><div class="v">142</div></div>
+          <div class="tile"><div class="k">全壘打</div><div class="v">6</div></div>
+          <div class="tile"><div class="k">打點</div><div class="v">31</div></div>
+        </div>
+        <dl class="mini">
+          <div><dt>安打</dt><dd>57</dd></div><div><dt>二安</dt><dd>12</dd></div><div><dt>壘打數</dt><dd>87</dd></div><div><dt>得分</dt><dd>27</dd></div>
+          <div><dt>盜壘</dt><dd>1</dd></div><div><dt>四壞</dt><dd>26</dd></div><div><dt>三振</dt><dd>35</dd></div><div><dt>雙殺打</dt><dd>7</dd></div>
+          <div><dt>犧飛</dt><dd>5</dd></div><div><dt>打席</dt><dd>231</dd></div><div><dt>出賽</dt><dd>65</dd></div>
+        </dl>
+        <p class="limits">現站規則：值為 0 的計數欄位隱藏；三安、盜壘失敗、故四、觸身、犧觸本稿未列，其值未查證。</p>
+      </section>
+      <section aria-labelledby="h-pr">
+        <div class="sh s"><h2 id="h-pr">官方進階・百分位 PR</h2></div>
+        <div class="pr">
+          <div><span>擊球初速</span><i><b class="hi" style="width:91%"></b></i><span class="n">142.2</span><span class="p">91</span></div>
+          <div><span>最高初速</span><i><b class="hi" style="width:93%"></b></i><span class="n">179.1</span><span class="p">93</span></div>
+          <div><span>Barrel%</span><i><b class="hi" style="width:99%"></b></i><span class="n">10.6%</span><span class="p">99</span></div>
+          <div><span>強擊球%</span><i><b class="hi" style="width:92%"></b></i><span class="n">38.0%</span><span class="p">92</span></div>
+          <div><span>wOBA</span><i><b class="hi" style="width:92%"></b></i><span class="n">.371</span><span class="p">92</span></div>
+          <div><span>ISO</span><i><b class="hi" style="width:95%"></b></i><span class="n">.150</span><span class="p">95</span></div>
+          <div><span>追打%</span><i><b style="width:62%"></b></i><span class="n">25.2%</span><span class="p">62</span></div>
+          <div><span>揮空%</span><i><b style="width:46%"></b></i><span class="n">21.4%</span><span class="p">46</span></div>
+          <div><span>K%</span><i><b style="width:61%"></b></i><span class="n">15.2%</span><span class="p">61</span></div>
+          <div><span>BB%</span><i><b style="width:86%"></b></i><span class="n">11.3%</span><span class="p">86</span></div>
+        </div>
+        <p class="limits"><b>PR 越高越好</b>條長＝聯盟百分位；石油藍＝PR 90 以上。追打%、揮空%、K% 沿用官方 PR 方向（高＝有利），本站不另反轉，方向定義以官方為準。</p>
+      </section>
+    </div>
+
+    <div class="sh s"><h2>選手特性</h2><span class="cue">逐打席推算・本季一軍</span></div>
+    <div class="traits">
+      <span>打席耗球 P/PA <b>4.05</b><small>聯盟 4.08</small></span>
+      <span>滾飛比 GO/FO <b>1.50</b><small>聯盟 0.99</small></span>
+      <span>兩好球後被三振 <b>37.5%</b><small>聯盟 32.3%</small></span>
+      <span>擊球方向 左／中／右 <b>46／16／38%</b></span>
+    </div>
+
+    <div class="sh s"><h2>賽季走勢</h2><span class="cue">近 15 場滾動</span></div>
+    <div class="trend">
+      <div class="hd"><span class="dep">曲線示意・非真實數值</span><div class="seg" role="group" aria-label="走勢指標"><button aria-pressed="true">OPS+</button><button aria-pressed="false">OPS</button><button aria-pressed="false">打擊率</button></div></div>
+      <svg viewBox="0 0 600 150" preserveAspectRatio="none" role="img" aria-label="近 15 場滾動 OPS+ 走勢示意，虛線為聯盟 100">
+        <line class="ref" x1="0" x2="600" y1="90" y2="90"/>
+        <polyline class="line" vector-effect="non-scaling-stroke" points="0,110 50,96 100,84 150,92 200,70 250,58 300,64 350,48 400,56 450,40 500,52 550,44 600,50"/>
+      </svg>
+      <p class="note" style="margin:4px 0 0">虛線＝聯盟 100。現站以 recharts 折線（比率型）或 7 日長條（計數型）呈現，本稿只示意版位。</p>
+    </div>
+  </div>
+  <div role="tabpanel" id="p-tr" aria-labelledby="t-tr" tabindex="0" hidden><p class="note">本稿未繪製：逐球追蹤。</p></div>
+  <div role="tabpanel" id="p-sp" aria-labelledby="t-sp" tabindex="0" hidden><p class="note">本稿未繪製：分項對戰，套用共用資料表規則。</p></div>
+  <div role="tabpanel" id="p-df" aria-labelledby="t-df" tabindex="0" hidden><p class="note">本稿未繪製：守備。</p></div>
+</main>
+<footer class="footer"><div class="wrap">非官方獨立專案。隊伍 icon 為本站隊色＋字母佔位，非官方隊徽，也不是 #217 素材。
+  <ul><li>樣本：數值取自正式站 /players/0000005569（2026-09-30 11:28 檢視，沿用既有稿，本輪未重新讀取）。</li><li>欄位依現站 <code>season.tsx:72-89</code>、<code>hero.tsx</code>；雷達軸依 <code>ability.py:33-50</code>，走勢窗口依 <code>trend.py:22</code>。現站榮譽用獎盃 emoji，本稿改成文字標籤。</li></ul>
+</div></footer>
+</body>
+</html>

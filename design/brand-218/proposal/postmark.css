@@ -1,0 +1,197 @@
+/* #218「郵戳」提案：共用 token 與元件（proposal 版，自 system/postmark.css 複製後修改）。
+   設計稿用，非產品碼。視覺基準＝design/brand-218/palette.html 1「郵戳」。
+   原則：大面積＝暖灰紙與卡面；石油藍只給互動、選取、郵戳與得分標記；隊色只在隊伍 icon。
+   分區用色塊與留白，少畫線；票券（含郵戳、隊伍 icon）直角，其餘控制項與資訊底版小圓角。 */
+:root {
+  --paper: #ece8e0; --card: #f7f5f0; --card-2: #efebe3; --band: #e4dfd5;
+  --ink: #1e2830; --muted: #4f5961; --faint: #5d6770;
+  --mark: #1e6c8c; --mark-ink: #ffffff; --mark-soft: rgba(30, 108, 140, .10);
+  /* 郵戳墨：比 --mark 深一階，讓郵戳小字在票根色塊上 ≥4.5:1（基準 #1e6c8c 在票根上只有 4.45:1） */
+  --stamp: #1a5f7c; --stub: #e1e7e6;
+  --up: #1d5fb0; --down: #c21f32;
+  --rule: rgba(30, 40, 48, .14); --rule-2: rgba(30, 40, 48, .32); --perf: rgba(30, 40, 48, .38);
+  --wide: "Archivo", "Noto Sans TC", sans-serif;
+  --tc: "Noto Sans TC", system-ui, sans-serif;
+  --hand: "LXGW WenKai TC", "Noto Sans TC", serif;
+  --r-ctl: 4px; --r-tag: 3px; --r-panel: 4px;
+  --ease: cubic-bezier(.16, 1, .3, 1);
+  color-scheme: light;
+}
+[data-theme="dark"] {
+  --paper: #12181d; --card: #1a2229; --card-2: #212a32; --band: #0f1418;
+  --ink: #e9e4da; --muted: #aeb6bc; --faint: #98a1a8;
+  --mark: #6fc3c9; --mark-ink: #12181d; --mark-soft: rgba(111, 195, 201, .12);
+  --stamp: #6fc3c9; --stub: #283c43;
+  --up: #62a8ee; --down: #ff7480;
+  --rule: rgba(233, 228, 218, .12); --rule-2: rgba(233, 228, 218, .28); --perf: rgba(233, 228, 218, .34);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { background: var(--paper); color: var(--ink); font-family: var(--tc); font-variant-numeric: tabular-nums; }
+body { margin: 0; font-size: 14px; line-height: 1.6; }
+::selection { background: var(--mark); color: var(--mark-ink); }
+a { color: inherit; text-underline-offset: 3px; text-decoration-color: var(--mark); }
+a:focus-visible, button:focus-visible, [role="tab"]:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; border-radius: 1px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+.muted { color: var(--muted); }
+
+/* ── 主導覽：卡面底＋墨色底線；字標＝打孔標誌＋壓縮體（基準原樣） ── */
+.site { background: var(--card); border-bottom: 2px solid var(--ink); }
+.site .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.punch { width: 34px; height: 34px; border-radius: 50%; background: var(--ink); display: grid; place-items: center; flex: none; }
+.punch svg { width: 21px; height: 21px; color: var(--card); }
+.word { font: 850 23px/1 var(--wide); font-stretch: 72%; text-transform: uppercase; letter-spacing: .01em; }
+/* 例外：字標副標 10.5px 與基準同值（屬字標圖形的一部分），外層連結有完整 aria-label */
+.word small { display: block; font: 700 10.5px var(--tc); letter-spacing: .3em; color: var(--muted); margin-top: 3px; }
+.nav { display: flex; gap: 20px; margin-left: 12px; font-size: 14px; font-weight: 700; }
+.nav a { text-decoration: none; padding: 18px 0 15px; color: var(--ink); }
+.nav a[aria-current] { box-shadow: inset 0 -3px 0 var(--mark); }
+.nav a:hover { color: var(--mark); }
+.search { margin-left: auto; width: 220px; height: 34px; border-radius: var(--r-ctl); border: 1px solid var(--rule-2); background: var(--paper); font: inherit; font-size: 13.5px; padding: 0 10px; color: var(--ink); caret-color: var(--mark); }
+.search::placeholder { color: var(--faint); }
+.iconbtn { display: inline-grid; place-items: center; height: 34px; min-width: 34px; border-radius: var(--r-ctl); border: 1px solid var(--rule-2); background: transparent; color: var(--ink); cursor: pointer; padding: 0 8px; font: 700 13px var(--tc); transition: background-color .15s var(--ease); }
+.iconbtn:hover { background: var(--card-2); }
+.iconbtn svg { width: 18px; height: 18px; }
+.menu { display: none; }
+
+/* ── 區塊標題（全站唯一一套）：字＋可選日期＋右側一條註記；不加眉標、不加編號 ── */
+.sh { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin: 26px 0 12px; min-width: 0; }
+.sh h1, .sh h2, .sh h3 { margin: 0; font: 700 20px/1.3 var(--tc); letter-spacing: .04em; }
+.sh h1 { font-size: 26px; }
+.sh.s h2, .sh.s h3 { font-size: 16px; }
+.sh .d { font: 800 1em var(--wide); font-stretch: 80%; letter-spacing: 0; margin-left: 8px; }
+.sh .d small { font: 700 .65em var(--tc); }
+.sh .cue { font-size: 12.5px; color: var(--muted); }
+.sh .meta { margin-left: auto; font-size: 12.5px; color: var(--muted); }
+.sh .meta a { color: var(--mark); text-decoration: none; }
+
+/* ── 郵戳（基準 .post：雙圈、−10° 斜蓋）＝日期＋球場。三種尺寸；缺球場只蓋日期，戳的尺寸不變 ── */
+.post { --ps: 64px; --pb: var(--card); position: absolute; width: var(--ps); height: var(--ps); border-radius: 50%;
+        border: 2px solid var(--stamp); box-shadow: inset 0 0 0 3px var(--pb), inset 0 0 0 4.5px var(--stamp);
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; text-align: center; color: var(--stamp);
+        font: 700 11px/1.1 var(--tc); letter-spacing: .02em; transform: rotate(-10deg); pointer-events: none; padding: 5px; }
+.post b { font: 800 13px/1 var(--wide); font-stretch: 85%; letter-spacing: .02em; }
+.post .y { font: 700 9px/1 var(--wide); letter-spacing: .12em; opacity: .9; }
+.post.lg { --ps: 76px; } .post.lg b { font-size: 16px; } .post.lg span:not(.y) { font-size: 12px; }
+.post.sm { --ps: 52px; gap: 1px; } .post.sm b { font-size: 12px; } .post.sm span:not(.y) { font-size: 10px; }
+.post.static { position: relative; flex: none; }
+
+/* ── 序號列：場次・開打時間・補賽等（開打時間缺值就不出現，不補「--:--」） ── */
+.serial { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; font: 600 12px/1.3 var(--wide); font-stretch: 85%; letter-spacing: .1em; color: var(--muted); }
+.serial b { font: 800 16px/1.1 var(--wide); font-stretch: 80%; letter-spacing: .04em; color: var(--ink); }
+.serial .t { color: var(--ink); font-weight: 700; }
+.serial span + span::before { content: "・"; margin-right: 6px; letter-spacing: 0; color: var(--faint); }
+
+/* ── 隊伍 icon：隊色小郵票（字母沿用 lib/teams.ts，非官方 logo）。暖色隊（兄弟、統一）改深字以達 4.5:1 ── */
+.ti { --s: 20px; display: inline-grid; place-items: center; width: var(--s); height: var(--s); background: var(--team); color: #fff;
+      font: 800 calc(var(--s) * .55)/1 var(--wide); flex: none; }
+[data-theme="dark"] .ti { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22); }
+.ti.warm { color: #111418; }
+.ti.lg { --s: 28px; } .ti.xl { --s: 36px; }
+
+/* ── 狀態章（比賽狀態，必含文字）與身分標籤（選手／分類）分開 ── */
+.st { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--r-tag); font-size: 12px; font-weight: 700; line-height: 1; padding: 4px 7px; background: var(--band); color: var(--ink); letter-spacing: .06em; white-space: nowrap; }
+.st.live { color: var(--mark-ink); background: var(--mark); }
+.st.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.st.hold { color: var(--down); background: rgba(194, 31, 50, .09); }
+[data-theme="dark"] .st.hold { background: rgba(255, 116, 128, .12); }
+.st.sample { font-weight: 500; letter-spacing: .02em; color: var(--muted); background: transparent; box-shadow: inset 0 0 0 1px var(--rule-2); }
+.tag { display: inline-block; border-radius: var(--r-tag); font-size: 12px; color: var(--muted); background: var(--card-2); padding: 2px 7px; line-height: 1.5; white-space: nowrap; }
+.dep { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.dep::before { content: ""; width: 7px; height: 7px; border: 1.5px dashed var(--muted); }
+
+/* ── 頁籤：一級＝色塊帶（選中＝卡面色塊＋粗體＋上緣石油藍）；二級＝分段切換 ── */
+.tabs { display: flex; gap: 2px; background: var(--band); padding: 3px 3px 0; border-radius: var(--r-panel) var(--r-panel) 0 0; overflow-x: auto; }
+.tabs [role="tab"] { appearance: none; background: none; border: 0; font: inherit; font-size: 14px; color: var(--muted); padding: 9px 16px 10px; border-radius: var(--r-ctl) var(--r-ctl) 0 0; cursor: pointer; white-space: nowrap; box-shadow: inset 0 3px 0 transparent; transition: background-color .15s var(--ease), color .15s var(--ease); }
+.tabs [role="tab"][aria-selected="true"] { color: var(--ink); font-weight: 700; background: var(--card); box-shadow: inset 0 3px 0 var(--mark); }
+.tabs [role="tab"]:hover { color: var(--ink); }
+.tabs [role="tab"]:focus-visible { outline: 2px solid var(--mark); outline-offset: -3px; }
+[role="tabpanel"] { background: var(--card); padding: 14px 16px 16px; border-radius: 0 0 var(--r-panel) var(--r-panel); }
+[role="tabpanel"]:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
+.seg { display: inline-flex; background: var(--band); border-radius: var(--r-ctl); padding: 2px; gap: 2px; }
+.seg button { appearance: none; border: 0; background: transparent; font: inherit; font-size: 13px; padding: 4px 12px; color: var(--muted); cursor: pointer; border-radius: 3px; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--card); font-weight: 700; }
+
+/* ── 資訊層級：新鮮度（行內）＞ 限制（附註）＞ 方法論（連結） ── */
+.fresh { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.fresh::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--mark); }
+.fresh.stale::before { background: var(--down); }
+.limits { font-size: 12.5px; color: var(--muted); margin-top: 12px; }
+.limits b { color: var(--ink); font-weight: 700; margin-right: 6px; }
+.hand { font: 400 15px/1.55 var(--hand); color: var(--ink); }
+.note { font-size: 12px; color: var(--muted); }
+.up { color: var(--up); font-weight: 700; white-space: nowrap; } .down { color: var(--down); font-weight: 700; white-space: nowrap; }
+.big { font: 900 42px/.9 var(--wide); font-stretch: 62%; }
+.block { background: var(--card); padding: 16px 18px; border-radius: var(--r-panel); }
+
+/* ── 比分（全站唯一一個元件）：icon 分數 : 分數 icon。勝方＝粗黑大字；敗方＝細、淡、小一階。
+   「終場／客主」由所在區塊標題說一次（元件級），完整句子寫在 aria-label；隊名只在寬度允許時出現 ── */
+.score { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto minmax(0, 1fr) auto; align-items: center; column-gap: 8px; }
+.score .ti { --s: 30px; font-size: 14px; }
+.score .n { font: 500 24px/1 var(--wide); font-stretch: 72%; color: var(--faint); min-width: 1.3em; }
+.score .n.a { text-align: right; grid-column: 3; } .score .n.h { text-align: left; grid-column: 5; }
+.score .n.w { font-weight: 900; font-size: 30px; color: var(--ink); }
+.score .colon { grid-column: 4; font: 700 16px/1 var(--wide); color: var(--faint); }
+.score .nm { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.score .nm.a { grid-column: 2; } .score .nm.h { grid-column: 6; text-align: right; }
+.score .nm.w { color: var(--ink); font-weight: 700; }
+.score .ti.a { grid-column: 1; } .score .ti.h { grid-column: 7; }
+.score.tie .n, .score.tie .nm { color: var(--ink); font-weight: 700; font-size: 24px; }
+.score.tie .nm { font-size: 13px; }
+.score.lose-dim .ti.l { opacity: .55; }
+
+/* ── 資料表：表頭色塊帶＋欄位對齊＋留白；不畫列間線、不疊雙線 ── */
+table.data { border-collapse: separate; border-spacing: 0; width: 100%; background: var(--card); font-size: 13px; border-radius: var(--r-panel); overflow: hidden; }
+table.data th, table.data td { padding: 8px 12px; text-align: right; border: 0; white-space: nowrap; }
+table.data thead th { font-size: 12px; font-weight: 700; color: var(--muted); background: var(--band); padding-top: 7px; padding-bottom: 7px; }
+table.data .l { text-align: left; }
+table.data tbody tr:hover td:not(.r), table.data tbody tr:hover th { background: var(--card-2); }
+table.data tr.cur td, table.data tr.cur th { background: var(--mark-soft); }
+table.data tfoot td, table.data tfoot th { font-weight: 700; background: var(--card-2); }
+table.data td.r { background: var(--mark); color: var(--mark-ink); font-weight: 800; }
+table.data .key { font-weight: 800; color: var(--ink); }
+
+/* ── 壘包、球數（球數燈改用 token，不再寫死綠／黃） ── */
+.bases { width: 44px; height: 32px; }
+.bases rect { fill: transparent; stroke: var(--ink); stroke-width: 1.4; }
+.bases rect.on { fill: var(--mark); stroke: var(--mark); }
+.count { display: grid; grid-template-columns: auto auto; gap: 2px 8px; align-items: center; font: 700 11px var(--wide); color: var(--muted); }
+.count i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; box-shadow: inset 0 0 0 1.4px var(--rule-2); margin-right: 3px; }
+.count i.on { background: var(--ink); box-shadow: none; }
+.count i.o { background: var(--down); box-shadow: none; }
+
+/* ── 動態（只表達狀態）：更新中＝點脈動；結果揭露＝郵戳落章；互動回饋＝色塊 150ms ── */
+@keyframes pm-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@keyframes pm-stamp { from { opacity: 0; transform: rotate(-10deg) scale(1.25); } to { opacity: 1; transform: rotate(-10deg) scale(1); } }
+.is-updating::before { animation: pm-pulse 1.6s ease-in-out infinite; }
+.reveal { animation: pm-stamp .32s var(--ease) both; }
+@media (prefers-reduced-motion: reduce) { .is-updating::before, .reveal { animation: none; } }
+
+/* ── 提案標示：每頁頂部一條，說明這是示意稿與樣本範圍 ── */
+.proposal-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 14px; padding: 8px 12px; background: var(--card-2); border-radius: var(--r-panel); font-size: 12.5px; color: var(--muted); }
+.proposal-bar b { color: var(--ink); }
+.proposal-bar a { color: var(--mark); text-decoration: none; white-space: nowrap; }
+.proposal-bar .st { margin-right: 2px; }
+
+.footer { margin-top: 48px; padding: 22px 0 32px; background: var(--card-2); font-size: 12.5px; color: var(--muted); }
+.footer ul { margin: 6px 0 0; padding-left: 1.2em; }
+.footer code { font-size: 12px; }
+
+@media (max-width: 720px) {
+  .wrap { padding: 0 14px; }
+  .nav, .search { display: none; }
+  .site .wrap { height: 54px; gap: 10px; }
+  .menu { display: inline-grid; }
+  .site [data-theme-toggle] { margin-left: auto; }
+  table.data th, table.data td { padding-left: 6px; padding-right: 6px; }
+  .word { font-size: 18px; }
+  .sh h1 { font-size: 23px; } .sh h2 { font-size: 18px; }
+  .sh .meta { margin-left: 0; flex-basis: 100%; }
+}
+
+/* ── 小工具 ── */
+.team { display: inline-flex; align-items: center; gap: 8px; }
+.theme-ico-dark { display: none; }
+[data-theme="dark"] .theme-ico-dark { display: block; } [data-theme="dark"] .theme-ico-light { display: none; }
