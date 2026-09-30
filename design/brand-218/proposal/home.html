@@ -10,28 +10,35 @@
 <link rel="stylesheet" href="postmark.css">
 <style>
   /* 7:3：左＝今日全部場次（含已完賽）；右＝早於今日、最近一個有完賽紀錄的比賽日。手機上下排。 */
-  .split { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 3fr); grid-template-areas: "hl hr" "tl tr" "xl ." "sl ."; column-gap: 28px; align-items: start; }
-  .split > .hl { grid-area: hl; } .split > .hr { grid-area: hr; }
-  .split > .today { grid-area: tl; } .split > .res { grid-area: tr; }
-  .split > .states { grid-area: xl; } .split > .stand { grid-area: sl; }
+  /* 逐列對齊：左右兩欄共用同一組列軌（subgrid），第 n 張今日票券與第 n 筆賽果頂底自然對齊。
+     兩側是不同日期、不同場次，只共用格線；各自的列數 --n 依實際場次數，少的一側留空、不補場次。 */
+  .split { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 3fr); column-gap: 28px; row-gap: 10px; align-items: start; }
+  .split > .hl { grid-column: 1; grid-row: 1; } .split > .hr { grid-column: 2; grid-row: 1; }
+  .split > .today { grid-column: 1; } .split > .res { grid-column: 2; }
+  .split > .today, .split > .res { grid-row: 2 / span var(--n, 1); display: grid; grid-template-rows: subgrid; align-self: stretch; }
+  .split .rows, .split .rlist { grid-row: 1 / -1; display: grid; grid-template-rows: subgrid; }
+  .split > .sh { margin-bottom: 2px; }
   .sh .count-n { font: 700 14px var(--tc); color: var(--ink); margin-left: 6px; }
-  .today > .hand { margin: -4px 0 10px; font-size: 14px; color: var(--muted); }
+  .sh .hand, .sh .dep { flex-basis: 100%; margin: 0; }
+  .sh .hand { font-size: 14px; color: var(--muted); }
+  .below { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 3fr); column-gap: 28px; }
+  .below > section { grid-column: 1; }
 
   /* 今日票券（直角）：票根＝序號列＋狀態＋郵戳；本體＝兩隊（上客下主）＋右格 */
-  .rows { display: grid; gap: 10px; }
   .grow { position: relative; display: grid; grid-template-columns: 236px minmax(0, 1fr); background: var(--card); transition: background-color .15s var(--ease); }
   .grow:hover { background: var(--card-2); }
-  .grow .stub { position: relative; display: grid; align-content: center; justify-items: start; gap: 6px; padding: 12px 100px 12px 14px; background: var(--stub); border-right: 2px dashed var(--perf); min-height: 100px; }
+  .grow .stub { position: relative; display: grid; align-content: center; justify-items: start; gap: 6px; padding: 12px 100px 12px 14px; border-right: 2px dashed var(--perf); min-height: 100px; }
   .grow .stub::before, .grow .stub::after { content: ""; position: absolute; right: -10px; width: 18px; height: 18px; border-radius: 50%; background: var(--paper); }
   .grow .stub::before { top: -9px; } .grow .stub::after { bottom: -9px; }
   .grow .stub .rs { font-size: 12.5px; color: var(--ink); white-space: nowrap; }
-  .grow .post { --pb: var(--stub); right: 12px; top: calc(50% - var(--ps) / 2); }
+  .grow .post { --pb: var(--card); right: 12px; top: calc(50% - var(--ps) / 2); }
+  .grow:hover .post { --pb: var(--card-2); }
   .grow .body { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 18px; align-items: center; padding: 12px 16px 12px 22px; }
   .g-teams { display: grid; gap: 8px; font-size: 15px; max-width: 340px; }
   .g-teams .tm { display: grid; grid-template-columns: auto minmax(0, 1fr) 2.2em; align-items: center; gap: 10px; white-space: nowrap; color: var(--muted); }
   .g-teams .tm .nm { overflow: hidden; text-overflow: ellipsis; }
   .g-teams .n { font: 500 22px/1 var(--wide); font-stretch: 75%; text-align: right; color: var(--faint); }
-  .g-teams .tm.w { color: var(--ink); font-weight: 700; } .g-teams .tm.w .n { color: var(--ink); font-weight: 900; font-size: 28px; }
+  .g-teams .tm.w { color: var(--ink); font-weight: 700; } .g-teams .tm.w .n { color: var(--ink); font-weight: 900; }
   .pre .g-teams .tm, .live .g-teams .tm { color: var(--ink); }
   .live .g-teams .n { color: var(--ink); font-weight: 800; }
   .aside { align-self: stretch; display: grid; align-content: center; justify-items: end; gap: 2px; background: var(--card-2); padding: 8px 14px; border-radius: var(--r-panel); min-width: 118px; }
@@ -51,15 +58,12 @@
   .xrow .why { font-size: 12px; color: var(--muted); }
   .xrow.empty { padding-right: 14px; }
 
-  /* 賽果：比分元件；隊名只在容器夠寬時出現（手機全寬會出現；桌機 3 欄內隱藏，由 aria-label 與 title 承載） */
-  .res .dep { margin: -6px 0 10px; }
-  .rlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-  .rlist li { container-type: inline-size; }
-  .rlist a { display: block; padding: 11px 14px; background: var(--card); color: inherit; text-decoration: none; border-radius: var(--r-panel); transition: background-color .15s var(--ease); }
+  /* 賽果：序號列（場次・球場）＋比分元件兩層式（隊名貼在自己的 icon 下）。資料皆為 DailyGame 既有欄位。 */
+  .rlist { list-style: none; margin: 0; padding: 0; }
+  .rlist li { display: grid; }
+  .rlist a { display: grid; align-content: center; gap: 6px; padding: 10px 14px; background: var(--card); color: inherit; text-decoration: none; border-radius: var(--r-panel); transition: background-color .15s var(--ease); }
   .rlist a:hover { background: var(--card-2); }
-  .rlist .score .nm { display: none; }
-  @container (min-width: 360px) { .rlist .score .nm { display: block; } }
-  .res > .hand { margin: 10px 0 0; font-size: 14px; color: var(--muted); }
+  .rlist .serial { justify-content: center; }
 
   .tscroll { overflow-x: auto; border-radius: var(--r-panel); }
   .stand td.rk { color: var(--muted); width: 2.5em; }
@@ -69,7 +73,10 @@
   .notes p { margin: 0 0 6px; }
 
   @media (max-width: 860px) {
-    .split { grid-template-columns: minmax(0, 1fr); grid-template-areas: "hl" "tl" "hr" "tr" "xl" "sl"; }
+    .split, .split > .today, .split > .res { display: block; }
+    .split .rows, .split .rlist { display: grid; grid-template-rows: none; gap: 10px; }
+    .split > .hr { margin-top: 28px; }
+    .below { grid-template-columns: minmax(0, 1fr); }
     .xrows { grid-template-columns: minmax(0, 1fr); }
   }
   @media (max-width: 560px) {
@@ -98,11 +105,11 @@
     <div class="sh hl">
       <h1>今日賽事<span class="d">09/30<small>（三）</small></span><span class="count-n">3 場</span></h1>
       <span class="meta"><span class="fresh">資料同步 09/30 02:46</span>・<a href="#notes">資料說明</a></span>
+      <p class="hand">今日三場皆為延賽補賽</p>
     </div>
 
-    <section class="today" aria-labelledby="today-h">
+    <section class="today" aria-labelledby="today-h" style="--n: 3">
       <h2 class="sr" id="today-h">今日場次，每張票上客下主</h2>
-      <p class="hand">今日三場皆為延賽補賽</p>
       <div class="rows">
         <article class="grow pre" aria-label="No.254 賽前（示意）：味全龍（客）對樂天桃猿（主），2026 年 9 月 30 日樂天桃園，18:35 開打（示意）；延賽補賽，原訂 08/09；主隊勝率 56%">
           <div class="stub">
@@ -153,23 +160,27 @@
       </div>
     </section>
 
-    <div class="sh hr"><h2>賽果<span class="d">09/28<small>（一）</small></span></h2><span class="cue">終場・左客右主</span></div>
-    <section class="res" aria-labelledby="res-h">
+    <div class="sh hr"><h2>賽果<span class="d">09/28<small>（一）</small></span></h2><span class="cue">終場・左客右主</span><p class="dep">7:3 同時呈現、MVP 需後續資料支援</p></div>
+    <section class="res" aria-labelledby="res-h" style="--n: 3">
       <h3 class="sr" id="res-h">09/28 賽果，左客右主</h3>
-      <p class="dep">7:3 同時呈現需後續資料支援</p>
       <ol class="rlist">
         <li><a href="live.html" aria-label="No.358 洲際，終場：台鋼雄鷹（客）10 比 19 中信兄弟（主），中信兄弟勝。開啟單場賽況">
-          <span class="score" aria-hidden="true"><span class="ti a" style="--team:#15543C" title="台鋼雄鷹">T</span><span class="nm a">台鋼雄鷹</span><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><span class="nm h w">中信兄弟</span><span class="ti h warm" style="--team:#C8A24A" title="中信兄弟">B</span></span>
+          <span class="serial" aria-hidden="true"><span>No.358</span><span>洲際</span></span>
+          <span class="score stack" aria-hidden="true"><span class="ti a" style="--team:#15543C">T</span><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><span class="ti h warm" style="--team:#C8A24A">B</span><span class="nm a">台鋼雄鷹</span><span class="nm h w">中信兄弟</span></span>
         </a></li>
         <li><a href="#" aria-label="No.359 樂天桃園，終場：統一7-ELEVEn獅（客）7 比 4 樂天桃猿（主），統一7-ELEVEn獅勝">
-          <span class="score" aria-hidden="true"><span class="ti a warm" style="--team:#E35A13" title="統一7-ELEVEn獅">L</span><span class="nm a w">統一獅</span><span class="n a w">7</span><span class="colon">:</span><span class="n h">4</span><span class="nm h">樂天桃猿</span><span class="ti h" style="--team:#8E1537" title="樂天桃猿">R</span></span>
+          <span class="serial" aria-hidden="true"><span>No.359</span><span>樂天桃園</span></span>
+          <span class="score stack" aria-hidden="true"><span class="ti a warm" style="--team:#E35A13">L</span><span class="n a w">7</span><span class="colon">:</span><span class="n h">4</span><span class="ti h" style="--team:#8E1537">R</span><span class="nm a w">統一7-ELEVEn獅</span><span class="nm h">樂天桃猿</span></span>
         </a></li>
         <li><a href="#" aria-label="No.360 新莊，終場：味全龍（客）4 比 2 富邦悍將（主），味全龍勝">
-          <span class="score" aria-hidden="true"><span class="ti a" style="--team:#C8102E" title="味全龍">W</span><span class="nm a w">味全龍</span><span class="n a w">4</span><span class="colon">:</span><span class="n h">2</span><span class="nm h">富邦悍將</span><span class="ti h" style="--team:#2A4B9B" title="富邦悍將">G</span></span>
+          <span class="serial" aria-hidden="true"><span>No.360</span><span>新莊</span></span>
+          <span class="score stack" aria-hidden="true"><span class="ti a" style="--team:#C8102E">W</span><span class="n a w">4</span><span class="colon">:</span><span class="n h">2</span><span class="ti h" style="--team:#2A4B9B">G</span><span class="nm a w">味全龍</span><span class="nm h">富邦悍將</span></span>
         </a></li>
       </ol>
     </section>
+  </div>
 
+  <div class="below">
     <section class="states" aria-labelledby="x-h">
       <div class="sh s"><h2 id="x-h">其他狀態樣本</h2><span class="st sample">樣式示意・非真實場次</span></div>
       <div class="xrows">
@@ -219,7 +230,7 @@
   <section class="notes" id="notes" aria-labelledby="notes-h">
     <h2 id="notes-h">資料說明</h2>
     <p>主隊勝率是賽前模型傾向，不是保證；單場勝負難預測。方法見方法說明頁。</p>
-    <p><span class="dep">需後續資料支援</span>：目前 API 今日場次與最近比賽日是二擇一（<code>daily-hub.tsx:315-318</code>），且最近比賽日取「有完賽的最大日期」（<code>daily.py:508</code>），今天已有完賽時會取到今天。右欄要固定呈現「早於今日」的比賽日，需要後端另行支援。開打時間只來自即時快照（<code>daily-summary.ts:72-73</code>），球場可能為 null（<code>:36</code>）。最近賽果不含 MVP，本稿不放。</p>
+    <p><span class="dep">需後續資料支援</span>：目前 API 今日場次與最近比賽日是二擇一（<code>daily-hub.tsx:315-318</code>），且最近比賽日取「有完賽的最大日期」（<code>daily.py:508</code>），今天已有完賽時會取到今天。右欄要固定呈現「早於今日」的比賽日，需要後端另行支援。開打時間只來自即時快照（<code>daily-summary.ts:72-73</code>），球場可能為 null（<code>:36</code>）。賽果每列的場次、球場、隊名與比分都是 <code>DailyGame</code> 既有欄位。需求方已同意觀賽重點可含 MVP，但最近比賽日的型別沒有 MVP 或勝敗投（<code>latest_game_day</code> 無 decisions），本稿不放，列為後續資料支援。</p>
   </section>
 </main>
 <footer class="footer"><div class="wrap">非官方獨立專案，與中華職棒大聯盟無隸屬關係。隊伍 icon 為本站隊色＋字母佔位，非官方隊徽，也不是 #217 素材。

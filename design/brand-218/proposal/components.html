@@ -118,7 +118,7 @@
   </section>
 
   <section class="row" id="status">
-    <div class="rule"><h2>狀態章與身分標籤</h2><p><b>狀態章</b>＝比賽狀態，粗體、必含文字；只有「進行中」用石油藍實底，延賽／保留用紅字。<b>身分標籤</b>＝選手身分與分類，細字淡底，不與狀態章混用。</p><p><b>依賴標記</b>（斜紋小方塊）＝這個呈現需要後續資料支援。</p></div>
+    <div class="rule"><h2>狀態章與身分標籤</h2><p><b>狀態章</b>＝比賽狀態，粗體、必含文字；只有「進行中」用石油藍實底，延賽／保留用紅字。<b>身分標籤</b>＝選手身分與分類，細字淡底，不與狀態章混用。</p><p><b>依賴標記</b>（虛線小方塊）＝這個呈現需要後續資料支援。</p></div>
     <div class="demo">
       <span class="st">賽前</span><span class="st live is-updating">比賽進行中</span><span class="st">終場</span><span class="st hold">延賽</span><span class="st hold">保留</span>
       <span class="tag">一軍選手</span><span class="tag">強打型</span><span class="tag">總冠軍 ×2</span>
@@ -127,9 +127,9 @@
   </section>
 
   <section class="row" id="score">
-    <div class="rule"><h2>比分</h2><p>全站<b>一個元件</b>：icon 分數 : 分數 icon，左客右主。勝方粗黑、大一階；敗方細、淡。不只靠顏色：字重與字級同時變。</p><p>「終場」「左客右主」由區塊標題說一次；逐列不加終／勝／主客。隊名只在寬度夠時出現（≥360px），窄欄靠 icon＋aria-label。和局兩側同重。</p></div>
+    <div class="rule"><h2>比分</h2><p>全站<b>一個元件</b>：icon 分數 : 分數 icon，左客右主。勝方<b>只加粗</b>（墨色 900），敗方細、淡；兩側同字級，基線與格線不動。不只靠顏色：字重同時變。</p><p>「終場」「左客右主」由區塊標題說一次；逐列不加終／勝／主客。窄欄用兩層式：隊名貼在自己的 icon 下，分數與冒號欄寬固定，多列沿同一條隱形格線對齊。和局兩側同重。</p></div>
     <div class="demo">
-      <figure><div class="scorebox" aria-label="台鋼雄鷹 10 比 19 中信兄弟，中信兄弟勝"><span class="score" aria-hidden="true"><span class="ti a" style="--team:#15543C">T</span><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><span class="ti h warm" style="--team:#C8A24A">B</span></span></div><figcaption class="cap">窄欄（首頁右欄 3fr）</figcaption></figure>
+      <figure><div class="scorebox" aria-label="台鋼雄鷹 10 比 19 中信兄弟，中信兄弟勝"><span class="score stack" aria-hidden="true"><span class="ti a" style="--team:#15543C">T</span><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><span class="ti h warm" style="--team:#C8A24A">B</span><span class="nm a">台鋼雄鷹</span><span class="nm h w">中信兄弟</span></span></div><figcaption class="cap">窄欄兩層式（首頁右欄 3fr）</figcaption></figure>
       <figure><div class="scorebox wide" aria-label="台鋼雄鷹 10 比 19 中信兄弟，中信兄弟勝"><span class="score" aria-hidden="true"><span class="ti a" style="--team:#15543C">T</span><span class="nm a">台鋼雄鷹</span><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><span class="nm h w">中信兄弟</span><span class="ti h warm" style="--team:#C8A24A">B</span></span></div><figcaption class="cap">寬欄（手機全寬、賽程）</figcaption></figure>
       <figure><div class="scorebox" aria-label="和局示意 3 比 3"><span class="score tie" aria-hidden="true"><span class="ti a" style="--team:#2A4B9B">G</span><span class="n a">3</span><span class="colon">:</span><span class="n h">3</span><span class="ti h" style="--team:#8E1537">R</span></span></div><figcaption class="cap">和局（樣式示意）</figcaption></figure>
     </div>
@@ -199,7 +199,7 @@
         <tr><td>圖表標記 ★ ◆ ●</td><td>擊球落點、逐球、球隊近況</td><td>保留</td><td>是資料標記不是裝飾；在圖內改用 SVG 形狀並附圖例。</td></tr>
         <tr><td>旅外 ✈</td><td>選手頁首 <code>hero.tsx:207</code></td><td>移除</td><td>改成身分標籤「旅外」。</td></tr>
         <tr><td>隊伍 logo</td><td>TeamLogo</td><td>待 #217</td><td>本提案一律用隊色＋字母佔位。</td></tr>
-        <tr><td>資訊底版</td><td>—</td><td>採用</td><td>卡面、淺色塊、帶狀表頭取代框線；票根色塊只給賽事票券。</td></tr>
+        <tr><td>資訊底版</td><td>—</td><td>採用</td><td>卡面、淺色塊、帶狀表頭取代框線；票券不鋪裝飾底色，只用撕線與郵戳分區。</td></tr>
         <tr><td>少量圖形</td><td>—</td><td>採用</td><td>郵戳、撕線票根、手札註記（每區最多一句客觀敘述）；不加照片。</td></tr>
       </tbody>
     </table>
@@ -209,7 +209,7 @@
   <div class="sh" style="margin-top:34px"><h2>其餘頁型局部示意</h2><span class="st sample">局部示意</span></div>
 
   <section class="row" id="schedule">
-    <div class="rule"><h2>賽程</h2><p>月曆格用同一比分元件縮小版；延賽用狀態章不用 ☔；今天那格用票根色塊。一格三場也能掃讀。</p></div>
+    <div class="rule"><h2>賽程</h2><p>月曆格用同一比分元件縮小版；延賽用狀態章不用 ☔；今天那格用淺石油藍色塊標示「今天」（有資訊意義；票券本身不再用這個底色）。一格三場也能掃讀。</p></div>
     <div class="sketch">
       <div class="cal">
         <div class="day"><div class="dt">09/28<small>週一</small></div>

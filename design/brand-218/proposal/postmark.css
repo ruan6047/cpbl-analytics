@@ -6,8 +6,9 @@
   --paper: #ece8e0; --card: #f7f5f0; --card-2: #efebe3; --band: #e4dfd5;
   --ink: #1e2830; --muted: #4f5961; --faint: #5d6770;
   --mark: #1e6c8c; --mark-ink: #ffffff; --mark-soft: rgba(30, 108, 140, .10);
-  /* 郵戳墨：比 --mark 深一階，讓郵戳小字在票根色塊上 ≥4.5:1（基準 #1e6c8c 在票根上只有 4.45:1） */
-  --stamp: #1a5f7c; --stub: #e1e7e6;
+  /* 郵戳墨＝基準石油藍。票券不再鋪淺藍票根底（需求方 10/01：裝飾色塊會壓低底版與狀態章辨識），
+     郵戳直接落在卡面上：5.39:1，滑過時的 --card-2 上 5.0:1。--stub 只留給賽程「今天」那一格。 */
+  --stamp: #1e6c8c; --stub: #e1e7e6;
   --up: #1d5fb0; --down: #c21f32;
   --rule: rgba(30, 40, 48, .14); --rule-2: rgba(30, 40, 48, .32); --perf: rgba(30, 40, 48, .38);
   --wide: "Archivo", "Noto Sans TC", sans-serif;
@@ -126,21 +127,23 @@ a:focus-visible, button:focus-visible, [role="tab"]:focus-visible, input:focus-v
 .big { font: 900 42px/.9 var(--wide); font-stretch: 62%; }
 .block { background: var(--card); padding: 16px 18px; border-radius: var(--r-panel); }
 
-/* ── 比分（全站唯一一個元件）：icon 分數 : 分數 icon。勝方＝粗黑大字；敗方＝細、淡、小一階。
+/* ── 比分（全站唯一一個元件）：icon 分數 : 分數 icon。勝方＝粗黑；敗方＝細、淡。兩側同字級，基線與格線不動。
    「終場／客主」由所在區塊標題說一次（元件級），完整句子寫在 aria-label；隊名只在寬度允許時出現 ── */
 .score { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto minmax(0, 1fr) auto; align-items: center; column-gap: 8px; }
 .score .ti { --s: 30px; font-size: 14px; }
 .score .n { font: 500 24px/1 var(--wide); font-stretch: 72%; color: var(--faint); min-width: 1.3em; }
 .score .n.a { text-align: right; grid-column: 3; } .score .n.h { text-align: left; grid-column: 5; }
-.score .n.w { font-weight: 900; font-size: 30px; color: var(--ink); }
+.score .n.w { font-weight: 900; color: var(--ink); }
 .score .colon { grid-column: 4; font: 700 16px/1 var(--wide); color: var(--faint); }
 .score .nm { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .score .nm.a { grid-column: 2; } .score .nm.h { grid-column: 6; text-align: right; }
 .score .nm.w { color: var(--ink); font-weight: 700; }
 .score .ti.a { grid-column: 1; } .score .ti.h { grid-column: 7; }
-.score.tie .n, .score.tie .nm { color: var(--ink); font-weight: 700; font-size: 24px; }
-.score.tie .nm { font-size: 13px; }
-.score.lose-dim .ti.l { opacity: .55; }
+.score.tie .n, .score.tie .nm { color: var(--ink); font-weight: 700; }
+/* 兩層式（窄欄）：第一層 icon 分數 : 分數 icon；第二層隊名貼在自己的 icon 下。分數與冒號欄寬固定，多列時沿同一條隱形格線對齊 */
+.score.stack { grid-template-columns: auto minmax(0, 1fr) 34px auto 34px minmax(0, 1fr) auto; row-gap: 4px; }
+.score.stack .nm { grid-row: 2; }
+.score.stack .nm.a { grid-column: 1 / 4; text-align: left; } .score.stack .nm.h { grid-column: 5 / 8; text-align: right; }
 
 /* ── 資料表：表頭色塊帶＋欄位對齊＋留白；不畫列間線、不疊雙線 ── */
 table.data { border-collapse: separate; border-spacing: 0; width: 100%; background: var(--card); font-size: 13px; border-radius: var(--r-panel); overflow: hidden; }
