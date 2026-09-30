@@ -87,7 +87,7 @@
 <main class="wrap">
   <div class="sh"><h1>共用元件與局部示意</h1><span class="cue">一個元件一條規則；樣式寫在 postmark.css</span></div>
   <p class="lead">基準是 palette.html 1「郵戳」：暖灰手札紙、墨藍字、石油藍郵戳。資料清晰優先，裝飾只放在不擋資料的位置。票券、郵戳、隊伍 icon 直角；控制項、標籤與資訊底版 3–4px 小圓角。分區用色塊與留白，少畫線。</p>
-  <nav class="toc" aria-label="本頁目錄"><a href="#postmark">郵戳</a><a href="#serial">序號列</a><a href="#heading">區塊標題</a><a href="#status">狀態章／身分標籤</a><a href="#score">比分</a><a href="#table">表格</a><a href="#tabs">頁籤</a><a href="#icon">隊伍 icon</a><a href="#motion">動態</a><a href="#emoji">emoji／圖示</a><a href="#schedule">賽程</a><a href="#standings">戰績</a><a href="#team">球隊</a><a href="#matchups">對戰</a></nav>
+  <nav class="toc" aria-label="本頁目錄"><a href="#postmark">郵戳</a><a href="#serial">序號列</a><a href="#heading">區塊標題</a><a href="#status">狀態章／身分標籤</a><a href="#score">比分</a><a href="#gamesit">局況</a><a href="#table">表格</a><a href="#tabs">頁籤</a><a href="#icon">隊伍 icon</a><a href="#motion">動態</a><a href="#emoji">emoji／圖示</a><a href="#schedule">賽程</a><a href="#standings">戰績</a><a href="#team">球隊</a><a href="#matchups">對戰</a></nav>
 
   <section class="row" id="postmark">
     <div class="rule"><h2>郵戳</h2><p><b>日期＋球場。</b>日期一定有來源（game_date）；球場缺值只蓋日期，戳的大小不變。開打時間不進郵戳，放序號列。</p><p>只蓋在賽事票根與賽況頁頂；不蓋在比分、勝率、隊名上。選手頁不蓋。</p></div>
@@ -132,6 +132,14 @@
       <figure><div class="scorebox" aria-label="台鋼雄鷹 10 比 19 中信兄弟，中信兄弟勝"><span class="score stack" aria-hidden="true"><span class="ti a" style="--team:#15543C">T</span><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><span class="ti h warm" style="--team:#C8A24A">B</span><span class="nm a">台鋼雄鷹</span><span class="nm h w">中信兄弟</span></span></div><figcaption class="cap">窄欄兩層式（首頁右欄 3fr）</figcaption></figure>
       <figure><div class="scorebox wide" aria-label="台鋼雄鷹 10 比 19 中信兄弟，中信兄弟勝"><span class="score" aria-hidden="true"><span class="ti a" style="--team:#15543C">T</span><span class="nm a">台鋼雄鷹</span><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><span class="nm h w">中信兄弟</span><span class="ti h warm" style="--team:#C8A24A">B</span></span></div><figcaption class="cap">寬欄（手機全寬、賽程）</figcaption></figure>
       <figure><div class="scorebox" aria-label="和局示意 3 比 3"><span class="score tie" aria-hidden="true"><span class="ti a" style="--team:#2A4B9B">G</span><span class="n a">3</span><span class="colon">:</span><span class="n h">3</span><span class="ti h" style="--team:#8E1537">R</span></span></div><figcaption class="cap">和局（樣式示意）</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="row" id="gamesit">
+    <div class="rule"><h2>局況（壘包＋球數燈）</h2><p>賽況頁狀態板與首頁賽中格用<b>同一組 markup 與樣式</b>（<code>.gamesit</code>），首頁用縮小版 <code>.sm</code>。B／S／O 固定 3／2／2 燈，亮燈實心、未亮空心；列標字母＋aria-label 說出數字，不只靠顏色。</p><p>現站事實：壘包＋出局已是共用元件 <code>BasesOuts</code>（<code>ui.tsx:111</code>，賽況頁與首頁今日卡都用）；好／壞球燈是 <code>game-board.tsx:81</code> 的局部函式，尚未抽離；首頁今日資料 <code>TodayLive</code> 不含球數。合併成一個元件是之後前端實作的工作。</p></div>
+    <div class="demo">
+      <figure><div class="gamesit"><svg class="bases" viewBox="0 0 44 32" role="img" aria-label="一、三壘有人"><rect x="17" y="2" width="10" height="10" transform="rotate(45 22 7)"/><rect x="30" y="15" width="10" height="10" transform="rotate(45 35 20)" class="on"/><rect x="4" y="15" width="10" height="10" transform="rotate(45 9 20)" class="on"/></svg><div class="count" role="img" aria-label="1 壞球、2 好球、2 出局"><span>B</span><span><i class="b"></i><i></i><i></i></span><span>S</span><span><i class="s"></i><i class="s"></i></span><span>O</span><span><i class="o"></i><i class="o"></i></span></div></div><figcaption class="cap">賽況頁狀態板</figcaption></figure>
+      <figure><div class="gamesit sm"><svg class="bases" viewBox="0 0 44 32" role="img" aria-label="一、三壘有人"><rect x="17" y="2" width="10" height="10" transform="rotate(45 22 7)"/><rect x="30" y="15" width="10" height="10" transform="rotate(45 35 20)" class="on"/><rect x="4" y="15" width="10" height="10" transform="rotate(45 9 20)" class="on"/></svg><div class="count" role="img" aria-label="1 壞球、2 好球、2 出局"><span>B</span><span><i class="b"></i><i></i><i></i></span><span>S</span><span><i class="s"></i><i class="s"></i></span><span>O</span><span><i class="o"></i><i class="o"></i></span></div></div><figcaption class="cap">首頁賽中格（縮小版）</figcaption></figure>
     </div>
   </section>
 

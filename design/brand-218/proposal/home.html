@@ -33,7 +33,8 @@
   .grow .stub .rs { font-size: 12.5px; color: var(--ink); white-space: nowrap; }
   .grow .post { --pb: var(--card); right: 12px; top: calc(50% - var(--ps) / 2); }
   .grow:hover .post { --pb: var(--card-2); }
-  .grow .body { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 18px; align-items: center; padding: 12px 16px 12px 22px; }
+  /* 三態同一結構：主欄（兩隊＋分數）固定寬、右格固定寬且每態都在，只切換右格內容 → 比分水平位置與基線不隨狀態移動 */
+  .grow .body { display: grid; grid-template-columns: minmax(0, 1fr) 156px; column-gap: 18px; align-items: center; padding: 10px 16px 10px 22px; }
   .g-teams { display: grid; gap: 8px; font-size: 15px; max-width: 340px; }
   .g-teams .tm { display: grid; grid-template-columns: auto minmax(0, 1fr) 2.2em; align-items: center; gap: 10px; white-space: nowrap; color: var(--muted); }
   .g-teams .tm .nm { overflow: hidden; text-overflow: ellipsis; }
@@ -41,13 +42,21 @@
   .g-teams .tm.w { color: var(--ink); font-weight: 700; } .g-teams .tm.w .n { color: var(--ink); font-weight: 900; }
   .pre .g-teams .tm, .live .g-teams .tm { color: var(--ink); }
   .live .g-teams .n { color: var(--ink); font-weight: 800; }
-  .aside { align-self: stretch; display: grid; align-content: center; justify-items: end; gap: 2px; background: var(--card-2); padding: 8px 14px; border-radius: var(--r-panel); min-width: 118px; }
+  .aside { align-self: stretch; display: grid; align-content: center; justify-items: end; gap: 3px; background: var(--card-2); padding: 6px 12px; border-radius: var(--r-panel); min-width: 0; min-height: 78px; }
   .aside .big { font-size: 34px; } .aside .big small { font-size: 15px; }
-  .aside.sit { grid-template-columns: auto auto; column-gap: 10px; justify-items: center; align-items: center; }
-  .aside.sit .inn { grid-column: 1 / -1; font: 800 16px/1.1 var(--tc); }
-  .aside.sit .bases { width: 40px; height: 29px; }
-  .aside.sit .outs { font-size: 12.5px; white-space: nowrap; }
-  .fin .body { grid-template-columns: minmax(0, 1fr); }
+  /* 賽中：左＝局數疊壘包、右＝球數燈，依賴標記一行在下；四種右格都壓在票根高度內，三態票券等高 */
+  .aside.sit { justify-items: center; gap: 4px; }
+  .aside.sit .gamesit { grid-template-columns: auto auto; grid-template-areas: "inn count" "bases count"; row-gap: 4px; }
+  .aside.sit .inn { grid-area: inn; font: 800 15px/1 var(--tc); text-align: center; }
+  .aside.sit .bases { grid-area: bases; } .aside.sit .count { grid-area: count; }
+  .aside .dep { font-size: 11px; line-height: 1.2; }
+  /* 終場：勝投＋MVP（今日場次的 snapshot decisions）；兩者都缺時現站顯示「官方紀錄確認中」 */
+  .aside.dec { justify-items: stretch; gap: 4px; }
+  .aside.dec dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 8px; align-items: baseline; }
+  .aside.dec dt { font-size: 11.5px; color: var(--muted); }
+  .aside.dec dd { margin: 0; font-size: 13.5px; line-height: 1.3; font-weight: 700; text-align: right; word-break: keep-all; }
+  .aside.dec .ph { color: var(--faint); font-weight: 500; letter-spacing: .1em; }
+  .aside.dec .st { justify-self: end; }
 
   /* 例外狀態樣本：小票，只畫有來源的欄位 */
   .xrows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -87,7 +96,8 @@
     .grow .stub::before, .grow .stub::after { top: auto; bottom: -10px; }
     .grow .stub::before { left: -9px; right: auto; } .grow .stub::after { right: -9px; }
     .grow .body { padding: 12px 14px; column-gap: 12px; }
-    .aside { min-width: 104px; padding: 8px 10px; }
+    .grow .body { grid-template-columns: minmax(0, 1fr) 132px; }
+    .aside { padding: 6px 10px; }
   }
 </style>
 </head>
@@ -141,7 +151,7 @@
               <div class="tm"><span class="ti warm" style="--team:#E35A13">L</span><span class="nm">統一7-ELEVEn獅</span><span class="n">3</span></div>
               <div class="tm"><span class="ti" style="--team:#2A4B9B">G</span><span class="nm">富邦悍將</span><span class="n">2</span></div>
             </div>
-            <div class="aside sit"><span class="inn">7局下</span><svg class="bases" viewBox="0 0 44 32" aria-hidden="true"><rect x="17" y="2" width="10" height="10" transform="rotate(45 22 7)"/><rect x="30" y="15" width="10" height="10" transform="rotate(45 35 20)" class="on"/><rect x="4" y="15" width="10" height="10" transform="rotate(45 9 20)" class="on"/></svg><span class="outs">2 出局</span></div>
+            <div class="aside sit"><div class="gamesit sm"><span class="inn">7局下</span><svg class="bases" viewBox="0 0 44 32" role="img" aria-label="一、三壘有人"><rect x="17" y="2" width="10" height="10" transform="rotate(45 22 7)"/><rect x="30" y="15" width="10" height="10" transform="rotate(45 35 20)" class="on"/><rect x="4" y="15" width="10" height="10" transform="rotate(45 9 20)" class="on"/></svg><div class="count" role="img" aria-label="1 壞球、2 好球（示意）、2 出局"><span>B</span><span><i class="b"></i><i></i><i></i></span><span>S</span><span><i class="s"></i><i class="s"></i></span><span>O</span><span><i class="o"></i><i class="o"></i></span></div></div><span class="dep">球數需資料支援</span></div>
           </div>
         </article>
 
@@ -157,6 +167,7 @@
               <div class="tm"><span class="ti warm" style="--team:#C8A24A">B</span><span class="nm">中信兄弟</span><span class="n">2</span></div>
               <div class="tm w"><span class="ti" style="--team:#15543C">T</span><span class="nm">台鋼雄鷹</span><span class="n">6</span></div>
             </div>
+            <div class="aside dec" aria-label="勝投與單場 MVP（排版示意，未取得真實姓名）"><dl><dt>勝投</dt><dd class="ph">○○○</dd><dt>MVP</dt><dd class="ph">○○○</dd></dl><span class="st sample">排版示意</span></div>
           </div>
         </article>
       </div>
@@ -232,7 +243,7 @@
   <section class="notes" id="notes" aria-labelledby="notes-h">
     <h2 id="notes-h">資料說明</h2>
     <p>主隊勝率是賽前模型傾向，不是保證；單場勝負難預測。方法見方法說明頁。</p>
-    <p><span class="dep">需後續資料支援</span>：目前 API 今日場次與最近比賽日是二擇一（<code>daily-hub.tsx:315-318</code>），且最近比賽日取「有完賽的最大日期」（<code>daily.py:508</code>），今天已有完賽時會取到今天。右欄要固定呈現「早於今日」的比賽日，需要後端另行支援。開打時間只來自即時快照（<code>daily-summary.ts:72-73</code>），球場可能為 null（<code>:36</code>）。賽果每列的場次、球場、隊名與比分都是 <code>DailyGame</code> 既有欄位。需求方已同意觀賽重點可含 MVP，但最近比賽日的型別沒有 MVP 或勝敗投（<code>latest_game_day</code> 無 decisions），本稿不放，列為後續資料支援。</p>
+    <p><span class="dep">需後續資料支援</span>：目前 API 今日場次與最近比賽日是二擇一（<code>daily-hub.tsx:315-318</code>），且最近比賽日取「有完賽的最大日期」（<code>daily.py:508</code>），今天已有完賽時會取到今天。右欄要固定呈現「早於今日」的比賽日，需要後端另行支援。開打時間只來自即時快照（<code>daily-summary.ts:72-73</code>），球場可能為 null（<code>:36</code>）。賽果每列的場次、球場、隊名與比分都是 <code>DailyGame</code> 既有欄位。需求方已同意觀賽重點可含 MVP，但最近比賽日的型別沒有 MVP 或勝敗投（<code>latest_game_day</code> 無 decisions），本稿不放，列為後續資料支援。今日終場則不同：<code>TodayLive.decisions</code> 有勝投與 MVP（<code>live-game.ts:29-34</code>），現站已用 <code>officialFactLine</code> 顯示，兩者都缺時寫「官方紀錄確認中」；本稿 No.302 是示意場，沒有可信姓名，所以右格只畫排版（○○○）。賽中格的壘包與出局有資料（<code>TodayLive.bases／outs</code>），好／壞球不在 <code>TodayLive</code>（<code>daily-summary.ts:65-66</code>），畫面上標「球數需資料支援」。</p>
   </section>
 </main>
 <footer class="footer"><div class="wrap">非官方獨立專案，與中華職棒大聯盟無隸屬關係。隊伍 icon 為本站隊色＋字母佔位，非官方隊徽，也不是 #217 素材。

@@ -25,7 +25,7 @@
   .board .nm small { font-size: 12px; color: var(--muted); }
   .board .n { font: 900 44px/1 var(--wide); font-stretch: 70%; min-width: 1.2em; text-align: center; }
   .board .n.trail { color: var(--muted); font-weight: 500; }
-  .mid { display: grid; grid-template-columns: auto auto auto; align-items: center; gap: 14px; padding: 8px 18px; background: var(--card-2); border-radius: var(--r-panel); }
+  .mid { display: grid; grid-template-columns: auto auto; align-items: center; gap: 14px; padding: 8px 18px; background: var(--card-2); border-radius: var(--r-panel); }
   .inning { display: grid; justify-items: center; gap: 4px; }
   .inning b { font: 800 18px/1 var(--wide); font-stretch: 80%; }
   .matchup { grid-column: 1 / -1; display: flex; gap: 6px 22px; flex-wrap: wrap; font-size: 13px; padding-top: 2px; }
@@ -101,8 +101,10 @@
     <div class="side"><span class="ti lg" style="--team:#15543C">T</span><span class="nm"><b>台鋼雄鷹</b><small>客</small></span><span class="n trail">0</span></div>
     <div class="mid">
       <div class="inning"><span class="st live is-updating">比賽中</span><b>1 局下</b></div>
-      <svg class="bases" viewBox="0 0 44 32" role="img" aria-label="滿壘"><rect x="17" y="2" width="10" height="10" transform="rotate(45 22 7)" class="on"/><rect x="30" y="15" width="10" height="10" transform="rotate(45 35 20)" class="on"/><rect x="4" y="15" width="10" height="10" transform="rotate(45 9 20)" class="on"/></svg>
-      <div class="count" role="img" aria-label="2 壞球、2 好球、2 出局"><span>B</span><span><i class="on"></i><i class="on"></i><i></i></span><span>S</span><span><i class="on"></i><i class="on"></i></span><span>O</span><span><i class="o"></i><i class="o"></i></span></div>
+      <div class="gamesit">
+        <svg class="bases" viewBox="0 0 44 32" role="img" aria-label="滿壘"><rect x="17" y="2" width="10" height="10" transform="rotate(45 22 7)" class="on"/><rect x="30" y="15" width="10" height="10" transform="rotate(45 35 20)" class="on"/><rect x="4" y="15" width="10" height="10" transform="rotate(45 9 20)" class="on"/></svg>
+        <div class="count" role="img" aria-label="2 壞球、2 好球、2 出局"><span>B</span><span><i class="b"></i><i class="b"></i><i></i></span><span>S</span><span><i class="s"></i><i class="s"></i></span><span>O</span><span><i class="o"></i><i class="o"></i></span></div>
+      </div>
     </div>
     <div class="side home"><span class="n">6</span><span class="nm"><b>中信兄弟</b><small>主</small></span><span class="ti lg warm" style="--team:#C8A24A">B</span></div>
     <div class="matchup"><span>投手<b>陳宇宏</b>本場第 18 球</span><span>打者<b>曾頌恩</b>本場第 2 打席（第 1 打席：接球失誤上壘）</span></div>

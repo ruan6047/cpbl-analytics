@@ -1,0 +1,17 @@
+{
+  "measured": "2026-10-01, Chrome DevTools MCP isolated context, 127.0.0.1:8232/home.html via iframes (test widths)",
+  "tickets_order": ["No.254 賽前", "No.255 賽中", "No.302 終場"],
+  "1366": {"scrollWidth": 1366, "ticketH": [100,100,100], "asideH": [80,80,80], "aside_left_width": [[705.8,156],[705.8,156],[705.8,156]],
+           "score_col_right_x": [[687.8,687.8],[687.8,687.8],[687.8,687.8]], "team_row_bottom_from_ticket_top": [[46,78],[46,78],[46,78]],
+           "score_number_bottom_from_ticket_top_live_final": [[45,77],[45,77]], "aside_overflow": 0,
+           "rows_top_bottom_left_right": [[222.7,222.7,322.7,322.7],[332.7,332.7,432.7,432.7],[442.7,442.7,542.7,542.7]]},
+  "1440": {"scrollWidth": 1440, "ticketH": [100,100,100], "asideH": [80,80,80], "aside_left_width": [[742.8,156],[742.8,156],[742.8,156]],
+           "score_col_right_x": [[724.8,724.8],[724.8,724.8],[724.8,724.8]], "team_row_bottom_from_ticket_top": [[46,78],[46,78],[46,78]],
+           "score_number_bottom_from_ticket_top_live_final": [[45,77],[45,77]], "aside_overflow": 0,
+           "rows_top_bottom_left_right": [[222.7,222.7,322.7,322.7],[332.7,332.7,432.7,432.7],[442.7,442.7,542.7,542.7]]},
+  "390": {"scrollWidth": 390, "ticketH": [194.1,194.1,194.1], "asideH": [78,78,78], "score_col_right_x": [[218,218],[218,218],[218,218]],
+          "team_row_bottom_from_ticket_top": [[139.1,171.1],[139.1,171.1],[139.1,171.1]], "aside_overflow": 0},
+  "score_font": ["3:22px/800 (live)", "2:22px/800 (live)", "2:22px/500 (final loser)", "6:22px/900 (final winner)"],
+  "count_dot_px": {"home_sm": 9, "live_board": 10},
+  "live_board_mid_overflow": {"1440": 0, "390": 0}
+}

@@ -10,6 +10,8 @@
      郵戳直接落在卡面上：5.39:1，滑過時的 --card-2 上 5.0:1。--stub 只留給賽程「今天」那一格。 */
   --stamp: #1e6c8c; --stub: #e1e7e6;
   --up: #1d5fb0; --down: #c21f32;
+  /* 球數燈：沿用球場記分板慣例（壞＝綠、好＝黃、出局＝紅），對卡面 ≥4:1 */
+  --ball: #2f7d4f; --strike: #a16207; --out: #c21f32;
   --rule: rgba(30, 40, 48, .14); --rule-2: rgba(30, 40, 48, .32); --perf: rgba(30, 40, 48, .38);
   --wide: "Archivo", "Noto Sans TC", sans-serif;
   --tc: "Noto Sans TC", system-ui, sans-serif;
@@ -24,6 +26,7 @@
   --mark: #6fc3c9; --mark-ink: #12181d; --mark-soft: rgba(111, 195, 201, .12);
   --stamp: #6fc3c9; --stub: #283c43;
   --up: #62a8ee; --down: #ff7480;
+  --ball: #5cc98a; --strike: #f0b429; --out: #ff7480;
   --rule: rgba(233, 228, 218, .12); --rule-2: rgba(233, 228, 218, .28); --perf: rgba(233, 228, 218, .34);
   color-scheme: dark;
 }
@@ -165,10 +168,20 @@ table.data .key { font-weight: 800; color: var(--ink); }
 .bases { width: 44px; height: 32px; }
 .bases rect { fill: transparent; stroke: var(--ink); stroke-width: 1.4; }
 .bases rect.on { fill: var(--mark); stroke: var(--mark); }
-.count { display: grid; grid-template-columns: auto auto; gap: 2px 8px; align-items: center; font: 700 11px var(--wide); color: var(--muted); }
-.count i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; box-shadow: inset 0 0 0 1.4px var(--rule-2); margin-right: 3px; }
-.count i.on { background: var(--ink); box-shadow: none; }
-.count i.o { background: var(--down); box-shadow: none; }
+/* 局況（壘包＋球數燈）：賽況頁狀態板與首頁賽中格用同一組 markup 與這一份樣式；.sm＝首頁小格縮小版。
+   B／S／O 三列固定燈數（3／2／2），亮燈＝實心色，未亮＝空心圈；列標字母＋整組 aria-label 說出數字，不只靠顏色 */
+.gamesit { display: inline-grid; grid-template-columns: auto auto; column-gap: 10px; align-items: center; }
+.count { display: grid; grid-template-columns: auto auto; gap: 2px 7px; align-items: center; font: 700 11px/1 var(--wide); color: var(--muted); }
+.count > span:nth-child(odd) { width: 1ch; text-align: center; }
+.count i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--rule-2); margin-right: 3px; vertical-align: middle; }
+.count i:last-child { margin-right: 0; }
+.count i.b { background: var(--ball); box-shadow: none; }
+.count i.s { background: var(--strike); box-shadow: none; }
+.count i.o { background: var(--out); box-shadow: none; }
+.gamesit.sm { column-gap: 8px; }
+.gamesit.sm .bases { width: 38px; height: 28px; }
+.gamesit.sm .count { gap: 3px 6px; }
+.gamesit.sm .count i { width: 9px; height: 9px; }
 
 /* ── 動態（只表達狀態）：更新中＝點脈動；結果揭露＝郵戳落章；互動回饋＝色塊 150ms ── */
 @keyframes pm-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
