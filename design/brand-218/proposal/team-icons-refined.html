@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>隊伍圖示修訂小樣（味全 W、兄弟 B）｜郵戳提案 #218</title>
+<title>隊伍圖示印記小樣（味全 W、兄弟 B）｜郵戳提案 #218</title>
 <script src="proposal.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -14,6 +14,20 @@
   .ic.s96 { width: 96px; height: 96px; } .ic.s40 { width: 40px; height: 40px; } .ic.s32 { width: 32px; height: 32px; } .ic.s24 { width: 24px; height: 24px; }
   .sw-light { --icon-ring: transparent; background: #f7f5f0; color: #1e2830; }
   .sw-dark { --icon-ring: rgba(255, 255, 255, .28); background: #1a2229; color: #e9e4da; }
+  /* 印記：紙面上的隊色字形（SVG 用 currentColor）。淺底用可讀的隊色墨、深底提亮；兄弟金在淺紙上只有 2.2:1，故壓深為 #7d5c14 */
+  .st-wc { color: #C8102E; } .st-br { color: #7d5c14; }
+  .sw-dark .st-wc { color: #f2606d; } .sw-dark .st-br { color: #C8A24A; }
+  .tk { display: grid; gap: 7px; font-size: 15px; padding: 10px 12px; border-radius: var(--r-panel); }
+  .tk .tm { display: grid; grid-template-columns: 20px minmax(0, 1fr) 2.2em; align-items: center; gap: 10px; }
+  .tk .tm .ic, .tk .tm .ti { width: 20px; height: 20px; }
+  .tk .tm .ti.ph { --s: 20px; font: 800 11px/1 var(--wide); }
+  .tk .n { font: 500 22px/1 var(--wide); font-stretch: 75%; text-align: right; }
+  .tk .tm.w { font-weight: 700; } .tk .tm.w .n { font-weight: 900; }
+  .tk .cap { font-size: 11.5px; letter-spacing: .04em; }
+  .demo-wrap .sw-light .tk { background: #efebe3; color: #1e2830; } .demo-wrap .sw-dark .tk { background: #212a32; color: #e9e4da; }
+  .demo-wrap .sw-light .tk .n { color: #5d6770; } .demo-wrap .sw-light .tk .w .n { color: #1e2830; }
+  .demo-wrap .sw-dark .tk .n { color: #98a1a8; } .demo-wrap .sw-dark .tk .w .n { color: #e9e4da; }
+  .demo-wrap .sw-light .tk .cap { color: #4f5961; } .demo-wrap .sw-dark .tk .cap { color: #aeb6bc; }
   .heroes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
   .hero-mark { margin: 0; background: var(--card); border-radius: var(--r-panel); padding: 14px; display: grid; gap: 10px; }
   .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -58,45 +72,46 @@
 </div></header>
 
 <main class="wrap">
-  <p class="proposal-bar"><span class="st sample">修訂小樣・待需求方確認方向</span><span>只畫味全、兄弟兩隊，用來確認「簡化到適合網站風格」的方向；其餘四隊尚未畫，六隊都未批准。非官方隊徽、非 #217 素材，代表頁仍用原佔位圖示。</span><a href="team-icons.html">前版比較頁</a></p>
+  <p class="proposal-bar"><span class="st sample">印記小樣・待需求方確認方向</span><span>只畫味全、兄弟兩隊，試「蓋在紙上的單色印記」呈現；其餘四隊尚未畫，六隊都未批准。非官方隊徽、非 #217 素材，代表頁仍用原佔位圖示。</span><a href="team-icons.html">前版比較頁</a></p>
 
-  <div class="sh"><h1>隊伍圖示修訂小樣</h1><span class="cue">味全 W、兄弟 B</span></div>
-  <p class="lead">第二版：字形主輪廓與比例對照官方帽款上的帽標重新繪製，只去掉描邊、陰影、細內線等裝飾；全站一致交給容器處理——同一方形隊色底、直角、同樣的留白與尺寸，不再把兩隊硬做成同筆畫、同斜度。</p>
+  <div class="sh"><h1>隊伍圖示印記小樣</h1><span class="cue">味全 W、兄弟 B</span></div>
+  <p class="lead">改成「蓋在紙上的單色印記」：拿掉滿版隊色方塊，只留隊色字形直接落在紙面上，墨色左上濃、右下略淡（只改濃淡、不動邊緣）。不加外圈、方框、齒邊、日期或球場（郵戳已負責）。字形沿用帽標主輪廓：W 不變，B 依需求方回饋整理。</p>
 
-  <div class="heroes"><figure class="hero-mark"><div class="duo"><div class="big sw-light"><svg class="ic s96" role="img" aria-label="味全龍 修訂小樣"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg></div><div class="big sw-dark"><svg class="ic s96" aria-hidden="true"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg></div></div><figcaption><b>味全龍</b>保留：寬斜四筆、平頂、左上旗形襯線</figcaption></figure><figure class="hero-mark"><div class="duo"><div class="big sw-light"><svg class="ic s96" role="img" aria-label="中信兄弟 修訂小樣"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg></div><div class="big sw-dark"><svg class="ic s96" aria-hidden="true"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg></div></div><figcaption><b>中信兄弟</b>保留：J 形豎筆大彎鉤、雙豎窄縫、曲線雙碗</figcaption></figure></div>
+  <div class="heroes"><figure class="hero-mark"><div class="duo"><div class="big sw-light"><svg class="ic s96 st-wc" role="img" aria-label="味全龍 印記小樣"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg></div><div class="big sw-dark"><svg class="ic s96 st-wc" aria-hidden="true"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg></div></div><figcaption><b>味全龍</b>保留：寬斜四筆、平頂、左上旗形襯線</figcaption></figure><figure class="hero-mark"><div class="duo"><div class="big sw-light"><svg class="ic s96 st-br" role="img" aria-label="中信兄弟 印記小樣"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg></div><div class="big sw-dark"><svg class="ic s96 st-br" aria-hidden="true"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg></div></div><figcaption><b>中信兄弟</b>保留：頂端起筆突起、J 形豎筆大彎鉤、雙豎平行、曲線雙碗</figcaption></figure></div>
 
-  <div class="sh s"><h2>實際大小：40／32／24 px</h2><span class="cue">右欄為上一版對照（味全 08e4b0f、兄弟 778e2ee）</span></div>
+  <div class="sh s"><h2>實際大小：40／32／24 px</h2><span class="cue">兄弟右欄為上一版色塊底對照（24d8e73）；味全輪廓未變，不放對照</span></div>
   <div class="trows">
     <div class="trow"><div class="who"><b>味全龍</b><span>寬斜四筆、平頂、左上旗形</span></div>
-      <div class="set" data-set="修訂小樣　淺底｜深底"><div class="pair"><div class="strip sw-light"><svg class="ic s40" role="img" aria-label="味全龍 修訂小樣 40px"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg><svg class="ic s32" role="img" aria-label="味全龍 修訂小樣 32px"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg><svg class="ic s24" role="img" aria-label="味全龍 修訂小樣 24px"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg></div><div class="strip sw-dark"><svg class="ic s40" aria-hidden="true"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg><svg class="ic s32" aria-hidden="true"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg><svg class="ic s24" aria-hidden="true"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg></div></div></div>
-      <div class="set old" data-set="上一版 08e4b0f"><div class="strip sw-light"><svg class="ic s32" aria-hidden="true"><use href="assets/team-icons/refined-AAA011-v1.svg#mark"/></svg><svg class="ic s24" aria-hidden="true"><use href="assets/team-icons/refined-AAA011-v1.svg#mark"/></svg></div></div>
+      <div class="set" data-set="印記小樣　淺紙｜深底"><div class="pair"><div class="strip sw-light"><svg class="ic s40 st-wc" role="img" aria-label="味全龍 印記小樣 40px"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg><svg class="ic s32 st-wc" role="img" aria-label="味全龍 印記小樣 32px"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg><svg class="ic s24 st-wc" role="img" aria-label="味全龍 印記小樣 24px"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg></div><div class="strip sw-dark"><svg class="ic s40 st-wc" aria-hidden="true"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg><svg class="ic s32 st-wc" aria-hidden="true"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg><svg class="ic s24 st-wc" aria-hidden="true"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg></div></div></div>
     </div>
-    <div class="trow"><div class="who"><b>中信兄弟</b><span>J 形豎筆、雙豎、曲線雙碗</span></div>
-      <div class="set" data-set="修訂小樣　淺底｜深底"><div class="pair"><div class="strip sw-light"><svg class="ic s40" role="img" aria-label="中信兄弟 修訂小樣 40px"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg><svg class="ic s32" role="img" aria-label="中信兄弟 修訂小樣 32px"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg><svg class="ic s24" role="img" aria-label="中信兄弟 修訂小樣 24px"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg></div><div class="strip sw-dark"><svg class="ic s40" aria-hidden="true"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg><svg class="ic s32" aria-hidden="true"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg><svg class="ic s24" aria-hidden="true"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg></div></div></div>
-      <div class="set old" data-set="上一版 778e2ee"><div class="strip sw-light"><svg class="ic s32" aria-hidden="true"><use href="assets/team-icons/refined-ACN011-prev.svg#mark"/></svg><svg class="ic s24" aria-hidden="true"><use href="assets/team-icons/refined-ACN011-prev.svg#mark"/></svg></div></div>
+    <div class="trow"><div class="who"><b>中信兄弟</b><span>起筆突起、J 鉤、雙豎平行</span></div>
+      <div class="set" data-set="印記小樣　淺紙｜深底"><div class="pair"><div class="strip sw-light"><svg class="ic s40 st-br" role="img" aria-label="中信兄弟 印記小樣 40px"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg><svg class="ic s32 st-br" role="img" aria-label="中信兄弟 印記小樣 32px"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg><svg class="ic s24 st-br" role="img" aria-label="中信兄弟 印記小樣 24px"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg></div><div class="strip sw-dark"><svg class="ic s40 st-br" aria-hidden="true"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg><svg class="ic s32 st-br" aria-hidden="true"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg><svg class="ic s24 st-br" aria-hidden="true"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg></div></div></div>
+      <div class="set old" data-set="上一版色塊底 24d8e73"><div class="strip sw-light"><svg class="ic s32" aria-hidden="true"><use href="assets/team-icons/refined-ACN011-prev.svg#mark"/></svg><svg class="ic s24" aria-hidden="true"><use href="assets/team-icons/refined-ACN011-prev.svg#mark"/></svg></div></div>
     </div>
   </div>
 
-  <div class="sh s"><h2>放進比分</h2><span class="cue">比分 24px、勝方只加粗；其他四隊仍為佔位字母方塊</span></div>
+  <div class="sh s"><h2>放進首頁情境</h2><span class="cue">首頁賽果與今日票券隊列；比分字級與「勝方只加粗」不變；其他四隊仍為佔位字母方塊</span></div>
   <div class="demo-wrap">
       <div class="card sw-light">
-        <a aria-label="No.358 洲際，終場：台鋼雄鷹 10 比 19 中信兄弟，中信兄弟勝"><span class="score stack" aria-hidden="true"><span class="ti a ph" style="--team:#15543C">T</span><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><svg class="ti h"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg><span class="nm a">台鋼雄鷹</span><span class="nm h w">中信兄弟</span></span><span class="serial" aria-hidden="true"><span>No.358</span><span>洲際</span></span></a>
-        <a aria-label="No.360 新莊，終場：味全龍 4 比 2 富邦悍將，味全龍勝"><span class="score stack" aria-hidden="true"><svg class="ti a"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg><span class="n a w">4</span><span class="colon">:</span><span class="n h">2</span><span class="ti h ph" style="--team:#2A4B9B">G</span><span class="nm a w">味全龍</span><span class="nm h">富邦悍將</span></span><span class="serial" aria-hidden="true"><span>No.360</span><span>新莊</span></span></a>
+        <a aria-label="No.358 洲際，終場：台鋼雄鷹 10 比 19 中信兄弟，中信兄弟勝"><span class="score stack" aria-hidden="true"><span class="ti a ph" style="--team:#15543C">T</span><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><svg class="ti h st-br"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg><span class="nm a">台鋼雄鷹</span><span class="nm h w">中信兄弟</span></span><span class="serial" aria-hidden="true"><span>No.358</span><span>洲際</span></span></a>
+        <a aria-label="No.360 新莊，終場：味全龍 4 比 2 富邦悍將，味全龍勝"><span class="score stack" aria-hidden="true"><svg class="ti a st-wc"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg><span class="n a w">4</span><span class="colon">:</span><span class="n h">2</span><span class="ti h ph" style="--team:#2A4B9B">G</span><span class="nm a w">味全龍</span><span class="nm h">富邦悍將</span></span><span class="serial" aria-hidden="true"><span>No.360</span><span>新莊</span></span></a>
+        <div class="tk"><span class="cap">今日賽事・No.302 終場（示意）</span><span class="tm"><svg class="ic st-br" aria-hidden="true"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg><span class="nm">中信兄弟</span><span class="n">2</span></span><span class="tm w"><span class="ti ph" style="--team:#15543C">T</span><span class="nm">台鋼雄鷹</span><span class="n">6</span></span></div><div class="tk"><span class="cap">今日賽事・No.254 賽前</span><span class="tm"><svg class="ic st-wc" aria-hidden="true"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg><span class="nm">味全龍</span><span class="n"></span></span><span class="tm"><span class="ti ph" style="--team:#8E1537">R</span><span class="nm">樂天桃猿</span><span class="n"></span></span></div>
       </div>
       <div class="card sw-dark">
-        <a aria-label="No.358 洲際，終場：台鋼雄鷹 10 比 19 中信兄弟，中信兄弟勝"><span class="score stack" aria-hidden="true"><span class="ti a ph" style="--team:#15543C">T</span><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><svg class="ti h"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg><span class="nm a">台鋼雄鷹</span><span class="nm h w">中信兄弟</span></span><span class="serial" aria-hidden="true"><span>No.358</span><span>洲際</span></span></a>
-        <a aria-label="No.360 新莊，終場：味全龍 4 比 2 富邦悍將，味全龍勝"><span class="score stack" aria-hidden="true"><svg class="ti a"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg><span class="n a w">4</span><span class="colon">:</span><span class="n h">2</span><span class="ti h ph" style="--team:#2A4B9B">G</span><span class="nm a w">味全龍</span><span class="nm h">富邦悍將</span></span><span class="serial" aria-hidden="true"><span>No.360</span><span>新莊</span></span></a>
+        <a aria-label="No.358 洲際，終場：台鋼雄鷹 10 比 19 中信兄弟，中信兄弟勝"><span class="score stack" aria-hidden="true"><span class="ti a ph" style="--team:#15543C">T</span><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><svg class="ti h st-br"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg><span class="nm a">台鋼雄鷹</span><span class="nm h w">中信兄弟</span></span><span class="serial" aria-hidden="true"><span>No.358</span><span>洲際</span></span></a>
+        <a aria-label="No.360 新莊，終場：味全龍 4 比 2 富邦悍將，味全龍勝"><span class="score stack" aria-hidden="true"><svg class="ti a st-wc"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg><span class="n a w">4</span><span class="colon">:</span><span class="n h">2</span><span class="ti h ph" style="--team:#2A4B9B">G</span><span class="nm a w">味全龍</span><span class="nm h">富邦悍將</span></span><span class="serial" aria-hidden="true"><span>No.360</span><span>新莊</span></span></a>
+        <div class="tk"><span class="cap">今日賽事・No.302 終場（示意）</span><span class="tm"><svg class="ic st-br" aria-hidden="true"><use href="assets/team-icons/refined-ACN011.svg#mark"/></svg><span class="nm">中信兄弟</span><span class="n">2</span></span><span class="tm w"><span class="ti ph" style="--team:#15543C">T</span><span class="nm">台鋼雄鷹</span><span class="n">6</span></span></div><div class="tk"><span class="cap">今日賽事・No.254 賽前</span><span class="tm"><svg class="ic st-wc" aria-hidden="true"><use href="assets/team-icons/refined-AAA011.svg#mark"/></svg><span class="nm">味全龍</span><span class="n"></span></span><span class="tm"><span class="ti ph" style="--team:#8E1537">R</span><span class="nm">樂天桃猿</span><span class="n"></span></span></div>
       </div>
   </div>
 
   <section class="notes" aria-labelledby="n-h">
-    <div class="sh s"><h2 id="n-h">簡化了什麼</h2></div>
+    <div class="sh s"><h2 id="n-h">這一版改了什麼</h2></div>
     <ul>
       <li><b>味全 W</b>（對照官方商城 NewEra 主場帽）：帽標是寬大於高、強烈右斜的四筆 W，頂部平切、底部兩尖點、左上一道往左的旗形襯線，外加紅白雙描邊。保留輪廓、比例、斜度與旗形；去掉雙描邊與刺繡陰影。</li>
-      <li><b>兄弟 B</b>（對照官方商城「隊徽棒球帽」）：保留帽標的瘦高右斜、J 形粗豎筆與底部大彎鉤、豎筆旁一道窄縫隔開的細豎、上小下大雙碗。上一版（778e2ee）的碗用折角切面、J 筆卻是圓滑曲線，兩種字形語言硬接在一起；這一版把碗改成與 J 同一種連續曲線，全字只留腰部交會一個尖點，細豎貫通接上頂橫與底橫，底橫順接進彎鉤，內空隨碗形放大。去掉刺繡細內線、描邊與立體陰影。</li>
-      <li>和上一版的差別：上一版把兩字改成同筆畫、同斜度的另一套字，只留一點特徵，需求方覺得跟帽徽差很多；這一版回到帽標本身的字形。兩字都是重新繪製的簡化候選，不是官方檔案或官方標誌。</li>
+      <li><b>兄弟 B</b>（依需求方回饋整理）：保留頂端往左上揚的起筆突起，去掉突起之後往下垂墜的波折；J 豎筆與細豎改成平行、同起於頂橫、同止於底橫基準線，不再一斜一直或懸空；兩個碗各只用一段簡潔曲線，只在腰部交會一個尖點，內空乾淨。J 形大彎鉤與瘦高右斜保留。</li>
+      <li><b>印記呈現</b>：兩隊都改成紙面上的單色字形，不用隊色滿版方塊。淺紙上味全用隊色紅（5.4:1），兄弟的金色太淡（2.2:1）改用壓深的金墨 #7d5c14（5.65:1）；深底分別提亮為 #f2606d、原隊金。墨色只做一道左上濃、右下約九成的濃淡，邊緣不動，24px 仍是實心筆畫。重新繪製的候選，不是官方檔案或官方標誌。</li>
     </ul>
-    <p class="ask">需要需求方確認：<b>這兩個小樣的簡化程度是否合適？</b><small>確認方向後才依同一系統畫其餘四隊（統一 UL、富邦 G、樂天 R、台鋼 T），之後再談替換代表頁圖示。</small></p>
+    <p class="ask">需要需求方確認：<b>單色印記的呈現與這版 B 是否合適？</b><small>確認方向後才依同一系統畫其餘四隊（統一 UL、富邦 G、樂天 R、台鋼 T），之後再談替換代表頁圖示。</small></p>
   </section>
 </main>
 <footer class="footer"><div class="wrap">#218 隊伍圖示修訂小樣。字形特徵依官方公開頁目視參考後重新繪製，未描摹或使用官方檔案；隊名與隊色取自 <code>web/src/lib/teams.ts</code>。未經需求方批准。</div></footer>
