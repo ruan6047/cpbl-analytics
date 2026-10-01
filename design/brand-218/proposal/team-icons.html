@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>隊伍圖示兩個候選｜郵戳提案 #218</title>
+<script src="proposal.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="postmark.css">
+<style>
+  .lead { max-width: 60em; margin: 0 0 8px; font-size: 14px; }
+  /* 圖示：同一份 sprite，A／B 各自 symbol；深色底由 --icon-ring 補一圈淺內框 */
+  .ic { display: block; flex: none; }
+  .ic.s40 { width: 40px; height: 40px; } .ic.s32 { width: 32px; height: 32px; } .ic.s24 { width: 24px; height: 24px; }
+  .sw-light { --icon-ring: transparent; background: #f7f5f0; color: #1e2830; }
+  .sw-dark { --icon-ring: rgba(255, 255, 255, .28); background: #1a2229; color: #e9e4da; }
+  [data-theme="dark"] .score-demo .ic, [data-theme="dark"] .score-demo svg.ti { --icon-ring: rgba(255, 255, 255, .28); }
+
+  .sets-head, .trow { display: grid; grid-template-columns: 11em minmax(0, 1fr) minmax(0, 1fr); column-gap: 14px; align-items: center; }
+  .sets-head { margin: 4px 0 6px; font-size: 13px; color: var(--muted); }
+  .sets-head b { color: var(--ink); font-size: 15px; margin-right: 6px; }
+  .trows { display: grid; gap: 8px; }
+  .trow { background: var(--card); border-radius: var(--r-panel); padding: 10px 12px; }
+  .trow .who { display: grid; gap: 2px; }
+  .trow .who b { font-size: 14.5px; }
+  .trow .who span { font-size: 12px; color: var(--muted); }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .strip { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 10px 8px; border-radius: var(--r-panel); }
+
+  .demos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .demo-set { background: var(--card); border-radius: var(--r-panel); padding: 14px 16px; display: grid; gap: 10px; }
+  .demo-set h3 { margin: 0; font: 700 15px/1.3 var(--tc); }
+  .score-demo { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .score-demo .card { padding: 12px 14px; border-radius: var(--r-panel); display: grid; gap: 6px; }
+  .score-demo .serial { justify-content: center; gap: 0; letter-spacing: .04em; font-size: 11.5px; font-weight: 500; }
+  .score-demo .serial span + span::before { content: "·"; margin: 0 6px; }
+  .score-demo .sw-light .score .n { color: #5d6770; } .score-demo .sw-light .score .n.w { color: #1e2830; }
+  .score-demo .sw-light .score .nm { color: #4f5961; } .score-demo .sw-light .score .nm.w { color: #1e2830; }
+  .score-demo .sw-light .score .colon { color: #5d6770; }
+  .score-demo .sw-dark .score .n, .score-demo .sw-dark .score .colon { color: #98a1a8; } .score-demo .sw-dark .score .n.w { color: #e9e4da; }
+  .score-demo .sw-dark .score .nm { color: #aeb6bc; } .score-demo .sw-dark .score .nm.w { color: #e9e4da; }
+  .score-demo .sw-dark .serial { color: #aeb6bc; } .score-demo .sw-light .serial { color: #4f5961; }
+  .notes { max-width: 60em; }
+  .notes ul { margin: 0; padding-left: 1.2em; font-size: 13.5px; }
+  .notes li { margin: 3px 0; }
+  .ask { margin-top: 18px; background: var(--ink); color: var(--card); padding: 14px 18px; border-radius: var(--r-panel); font-size: 15px; }
+  .ask small { display: block; font-size: 12.5px; opacity: .85; margin-top: 4px; }
+
+  @media (max-width: 860px) {
+    .sets-head { display: none; }
+    .trow { grid-template-columns: minmax(0, 1fr); row-gap: 8px; }
+    .trow .set::before { content: attr(data-set); display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .demos { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 420px) {
+    .strip { gap: 10px; padding: 8px 6px; }
+    .score-demo { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <a class="brand" href="index.html" aria-label="Ruan's CPBL Lab 提案入口"><span class="punch"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M8 8h48v24L32 56 8 32z M36 21a4.4 4.4 0 1 0 8.8 0 4.4 4.4 0 1 0-8.8 0z M16 28.5Q23 44 39 36.5L37.4 33.3Q24.8 39.2 19.3 27.2Z"/></svg></span><span class="word">Ruan's CPBL Lab<small>中職數據實驗室</small></span></a>
+  <nav class="nav" aria-label="提案"><a href="index.html">提案入口</a><a href="components.html">共用元件</a><a href="team-icons.html" aria-current="page">隊伍圖示</a></nav>
+  <button class="iconbtn" type="button" data-theme-toggle aria-label="深色模式" style="margin-left:auto"><svg class="theme-ico-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><svg class="theme-ico-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></svg></button>
+</div></header>
+
+<main class="wrap">
+  <p class="proposal-bar"><span class="st sample">候選圖稿・待需求方選擇</span><span>兩套都是本卡原創的<b>候選</b>，尚未批准；非官方隊徽、非 #217 素材。首頁／賽況／選手稿仍用原本的隊色＋字母佔位，選定前不替換。</span><a href="index.html">提案入口</a></p>
+
+  <div class="sh"><h1>隊伍圖示：兩個方向</h1><span class="cue">六隊各一，24／32／40 px，淺／深底</span></div>
+  <p class="lead"><b>A 意象</b>：每隊一個原創剪影，取自 repo 既有的隊名意象字（龍、象、獅、悍將、桃猿、鷹）；方形隊色底、實心剪影、細節用底色挖空。<b>B 字標</b>：自繪的壓縮等線字母（不是字型），沿用 repo 既有代表字母 W／B／L／G／R／T；同一筆畫粗、同一字高，底板右上切一角呼應票券切角。兩套都不加齒邊、外框或紋理。</p>
+
+  <div class="sets-head" aria-hidden="true"><span>隊伍</span><span><b>A 意象</b>淺底｜深底</span><span><b>B 字標</b>淺底｜深底</span></div>
+  <div class="trows">
+    <div class="trow"><div class="who"><b>味全龍</b><span>A 龍：S 形龍身＋龍首、角、背鰭</span><span>B W</span></div>
+      <div class="set" data-set="A 意象"><div class="pair"><div class="strip sw-light"><svg class="ic s40" role="img" aria-label="味全龍 A 意象 40px"><use href="assets/team-icons/sprite.svg#a-AAA011"/></svg><svg class="ic s32" role="img" aria-label="味全龍 A 意象 32px"><use href="assets/team-icons/sprite.svg#a-AAA011"/></svg><svg class="ic s24" role="img" aria-label="味全龍 A 意象 24px"><use href="assets/team-icons/sprite.svg#a-AAA011"/></svg></div><div class="strip sw-dark"><svg class="ic s40" aria-hidden="true"><use href="assets/team-icons/sprite.svg#a-AAA011"/></svg><svg class="ic s32" aria-hidden="true"><use href="assets/team-icons/sprite.svg#a-AAA011"/></svg><svg class="ic s24" aria-hidden="true"><use href="assets/team-icons/sprite.svg#a-AAA011"/></svg></div></div></div>
+      <div class="set" data-set="B 字標"><div class="pair"><div class="strip sw-light"><svg class="ic s40" role="img" aria-label="味全龍 B 字標 40px"><use href="assets/team-icons/sprite.svg#b-AAA011"/></svg><svg class="ic s32" role="img" aria-label="味全龍 B 字標 32px"><use href="assets/team-icons/sprite.svg#b-AAA011"/></svg><svg class="ic s24" role="img" aria-label="味全龍 B 字標 24px"><use href="assets/team-icons/sprite.svg#b-AAA011"/></svg></div><div class="strip sw-dark"><svg class="ic s40" aria-hidden="true"><use href="assets/team-icons/sprite.svg#b-AAA011"/></svg><svg class="ic s32" aria-hidden="true"><use href="assets/team-icons/sprite.svg#b-AAA011"/></svg><svg class="ic s24" aria-hidden="true"><use href="assets/team-icons/sprite.svg#b-AAA011"/></svg></div></div></div>
+    </div>
+    <div class="trow"><div class="who"><b>中信兄弟</b><span>A 象：正面大耳＋捲鼻</span><span>B B</span></div>
+      <div class="set" data-set="A 意象"><div class="pair"><div class="strip sw-light"><svg class="ic s40" role="img" aria-label="中信兄弟 A 意象 40px"><use href="assets/team-icons/sprite.svg#a-ACN011"/></svg><svg class="ic s32" role="img" aria-label="中信兄弟 A 意象 32px"><use href="assets/team-icons/sprite.svg#a-ACN011"/></svg><svg class="ic s24" role="img" aria-label="中信兄弟 A 意象 24px"><use href="assets/team-icons/sprite.svg#a-ACN011"/></svg></div><div class="strip sw-dark"><svg class="ic s40" aria-hidden="true"><use href="assets/team-icons/sprite.svg#a-ACN011"/></svg><svg class="ic s32" aria-hidden="true"><use href="assets/team-icons/sprite.svg#a-ACN011"/></svg><svg class="ic s24" aria-hidden="true"><use href="assets/team-icons/sprite.svg#a-ACN011"/></svg></div></div></div>
+      <div class="set" data-set="B 字標"><div class="pair"><div class="strip sw-light"><svg class="ic s40" role="img" aria-label="中信兄弟 B 字標 40px"><use href="assets/team-icons/sprite.svg#b-ACN011"/></svg><svg class="ic s32" role="img" aria-label="中信兄弟 B 字標 32px"><use href="assets/team-icons/sprite.svg#b-ACN011"/></svg><svg class="ic s24" role="img" aria-label="中信兄弟 B 字標 24px"><use href="assets/team-icons/sprite.svg#b-ACN011"/></svg></div><div class="strip sw-dark"><svg class="ic s40" aria-hidden="true"><use href="assets/team-icons/sprite.svg#b-ACN011"/></svg><svg class="ic s32" aria-hidden="true"><use href="assets/team-icons/sprite.svg#b-ACN011"/></svg><svg class="ic s24" aria-hidden="true"><use href="assets/team-icons/sprite.svg#b-ACN011"/></svg></div></div></div>
+    </div>
+    <div class="trow"><div class="who"><b>統一7-ELEVEn獅</b><span>A 獅：圓弧鬃毛圍住臉</span><span>B L</span></div>
+      <div class="set" data-set="A 意象"><div class="pair"><div class="strip sw-light"><svg class="ic s40" role="img" aria-label="統一7-ELEVEn獅 A 意象 40px"><use href="assets/team-icons/sprite.svg#a-ADD011"/></svg><svg class="ic s32" role="img" aria-label="統一7-ELEVEn獅 A 意象 32px"><use href="assets/team-icons/sprite.svg#a-ADD011"/></svg><svg class="ic s24" role="img" aria-label="統一7-ELEVEn獅 A 意象 24px"><use href="assets/team-icons/sprite.svg#a-ADD011"/></svg></div><div class="strip sw-dark"><svg class="ic s40" aria-hidden="true"><use href="assets/team-icons/sprite.svg#a-ADD011"/></svg><svg class="ic s32" aria-hidden="true"><use href="assets/team-icons/sprite.svg#a-ADD011"/></svg><svg class="ic s24" aria-hidden="true"><use href="assets/team-icons/sprite.svg#a-ADD011"/></svg></div></div></div>
+      <div class="set" data-set="B 字標"><div class="pair"><div class="strip sw-light"><svg class="ic s40" role="img" aria-label="統一7-ELEVEn獅 B 字標 40px"><use href="assets/team-icons/sprite.svg#b-ADD011"/></svg><svg class="ic s32" role="img" aria-label="統一7-ELEVEn獅 B 字標 32px"><use href="assets/team-icons/sprite.svg#b-ADD011"/></svg><svg class="ic s24" role="img" aria-label="統一7-ELEVEn獅 B 字標 24px"><use href="assets/team-icons/sprite.svg#b-ADD011"/></svg></div><div class="strip sw-dark"><svg class="ic s40" aria-hidden="true"><use href="assets/team-icons/sprite.svg#b-ADD011"/></svg><svg class="ic s32" aria-hidden="true"><use href="assets/team-icons/sprite.svg#b-ADD011"/></svg><svg class="ic s24" aria-hidden="true"><use href="assets/team-icons/sprite.svg#b-ADD011"/></svg></div></div></div>
+    </div>
+    <div class="trow"><div class="who"><b>富邦悍將</b><span>A 悍將：盾牌＋兩道 V 紋</span><span>B G</span></div>
+      <div class="set" data-set="A 意象"><div class="pair"><div class="strip sw-light"><svg class="ic s40" role="img" aria-label="富邦悍將 A 意象 40px"><use href="assets/team-icons/sprite.svg#a-AEO011"/></svg><svg class="ic s32" role="img" aria-label="富邦悍將 A 意象 32px"><use href="assets/team-icons/sprite.svg#a-AEO011"/></svg><svg class="ic s24" role="img" aria-label="富邦悍將 A 意象 24px"><use href="assets/team-icons/sprite.svg#a-AEO011"/></svg></div><div class="strip sw-dark"><svg class="ic s40" aria-hidden="true"><use href="assets/team-icons/sprite.svg#a-AEO011"/></svg><svg class="ic s32" aria-hidden="true"><use href="assets/team-icons/sprite.svg#a-AEO011"/></svg><svg class="ic s24" aria-hidden="true"><use href="assets/team-icons/sprite.svg#a-AEO011"/></svg></div></div></div>
+      <div class="set" data-set="B 字標"><div class="pair"><div class="strip sw-light"><svg class="ic s40" role="img" aria-label="富邦悍將 B 字標 40px"><use href="assets/team-icons/sprite.svg#b-AEO011"/></svg><svg class="ic s32" role="img" aria-label="富邦悍將 B 字標 32px"><use href="assets/team-icons/sprite.svg#b-AEO011"/></svg><svg class="ic s24" role="img" aria-label="富邦悍將 B 字標 24px"><use href="assets/team-icons/sprite.svg#b-AEO011"/></svg></div><div class="strip sw-dark"><svg class="ic s40" aria-hidden="true"><use href="assets/team-icons/sprite.svg#b-AEO011"/></svg><svg class="ic s32" aria-hidden="true"><use href="assets/team-icons/sprite.svg#b-AEO011"/></svg><svg class="ic s24" aria-hidden="true"><use href="assets/team-icons/sprite.svg#b-AEO011"/></svg></div></div></div>
+    </div>
+    <div class="trow"><div class="who"><b>樂天桃猿</b><span>A 桃猿：桃形臉＋葉＋雙耳</span><span>B R</span></div>
+      <div class="set" data-set="A 意象"><div class="pair"><div class="strip sw-light"><svg class="ic s40" role="img" aria-label="樂天桃猿 A 意象 40px"><use href="assets/team-icons/sprite.svg#a-AJL011"/></svg><svg class="ic s32" role="img" aria-label="樂天桃猿 A 意象 32px"><use href="assets/team-icons/sprite.svg#a-AJL011"/></svg><svg class="ic s24" role="img" aria-label="樂天桃猿 A 意象 24px"><use href="assets/team-icons/sprite.svg#a-AJL011"/></svg></div><div class="strip sw-dark"><svg class="ic s40" aria-hidden="true"><use href="assets/team-icons/sprite.svg#a-AJL011"/></svg><svg class="ic s32" aria-hidden="true"><use href="assets/team-icons/sprite.svg#a-AJL011"/></svg><svg class="ic s24" aria-hidden="true"><use href="assets/team-icons/sprite.svg#a-AJL011"/></svg></div></div></div>
+      <div class="set" data-set="B 字標"><div class="pair"><div class="strip sw-light"><svg class="ic s40" role="img" aria-label="樂天桃猿 B 字標 40px"><use href="assets/team-icons/sprite.svg#b-AJL011"/></svg><svg class="ic s32" role="img" aria-label="樂天桃猿 B 字標 32px"><use href="assets/team-icons/sprite.svg#b-AJL011"/></svg><svg class="ic s24" role="img" aria-label="樂天桃猿 B 字標 24px"><use href="assets/team-icons/sprite.svg#b-AJL011"/></svg></div><div class="strip sw-dark"><svg class="ic s40" aria-hidden="true"><use href="assets/team-icons/sprite.svg#b-AJL011"/></svg><svg class="ic s32" aria-hidden="true"><use href="assets/team-icons/sprite.svg#b-AJL011"/></svg><svg class="ic s24" aria-hidden="true"><use href="assets/team-icons/sprite.svg#b-AJL011"/></svg></div></div></div>
+    </div>
+    <div class="trow"><div class="who"><b>台鋼雄鷹</b><span>A 鷹：向右側影、鉤喙＋眉線</span><span>B T</span></div>
+      <div class="set" data-set="A 意象"><div class="pair"><div class="strip sw-light"><svg class="ic s40" role="img" aria-label="台鋼雄鷹 A 意象 40px"><use href="assets/team-icons/sprite.svg#a-AKP011"/></svg><svg class="ic s32" role="img" aria-label="台鋼雄鷹 A 意象 32px"><use href="assets/team-icons/sprite.svg#a-AKP011"/></svg><svg class="ic s24" role="img" aria-label="台鋼雄鷹 A 意象 24px"><use href="assets/team-icons/sprite.svg#a-AKP011"/></svg></div><div class="strip sw-dark"><svg class="ic s40" aria-hidden="true"><use href="assets/team-icons/sprite.svg#a-AKP011"/></svg><svg class="ic s32" aria-hidden="true"><use href="assets/team-icons/sprite.svg#a-AKP011"/></svg><svg class="ic s24" aria-hidden="true"><use href="assets/team-icons/sprite.svg#a-AKP011"/></svg></div></div></div>
+      <div class="set" data-set="B 字標"><div class="pair"><div class="strip sw-light"><svg class="ic s40" role="img" aria-label="台鋼雄鷹 B 字標 40px"><use href="assets/team-icons/sprite.svg#b-AKP011"/></svg><svg class="ic s32" role="img" aria-label="台鋼雄鷹 B 字標 32px"><use href="assets/team-icons/sprite.svg#b-AKP011"/></svg><svg class="ic s24" role="img" aria-label="台鋼雄鷹 B 字標 24px"><use href="assets/team-icons/sprite.svg#b-AKP011"/></svg></div><div class="strip sw-dark"><svg class="ic s40" aria-hidden="true"><use href="assets/team-icons/sprite.svg#b-AKP011"/></svg><svg class="ic s32" aria-hidden="true"><use href="assets/team-icons/sprite.svg#b-AKP011"/></svg><svg class="ic s24" aria-hidden="true"><use href="assets/team-icons/sprite.svg#b-AKP011"/></svg></div></div></div>
+    </div>
+  </div>
+
+  <div class="sh s"><h2>放進比分：同一個賽果片段</h2><span class="cue">比分 24px、勝方只加粗，與首頁相同；icon 30px</span></div>
+  <div class="demos">
+    <section class="demo-set" aria-label="A 意象 比分示意"><h3>A 意象</h3><div class="score-demo"><div class="card sw-light" aria-label="No.358 洲際，台鋼雄鷹 10 比 19 中信兄弟，中信兄弟勝"><span class="score stack" aria-hidden="true"><svg class="ti a"><use href="assets/team-icons/sprite.svg#a-AKP011"/></svg><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><svg class="ti h"><use href="assets/team-icons/sprite.svg#a-ACN011"/></svg><span class="nm a">台鋼雄鷹</span><span class="nm h w">中信兄弟</span></span><span class="serial" aria-hidden="true"><span>No.358</span><span>洲際</span></span></div><div class="card sw-dark" aria-label="No.358 洲際，台鋼雄鷹 10 比 19 中信兄弟，中信兄弟勝"><span class="score stack" aria-hidden="true"><svg class="ti a"><use href="assets/team-icons/sprite.svg#a-AKP011"/></svg><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><svg class="ti h"><use href="assets/team-icons/sprite.svg#a-ACN011"/></svg><span class="nm a">台鋼雄鷹</span><span class="nm h w">中信兄弟</span></span><span class="serial" aria-hidden="true"><span>No.358</span><span>洲際</span></span></div></div></section>
+    <section class="demo-set" aria-label="B 字標 比分示意"><h3>B 字標</h3><div class="score-demo"><div class="card sw-light" aria-label="No.358 洲際，台鋼雄鷹 10 比 19 中信兄弟，中信兄弟勝"><span class="score stack" aria-hidden="true"><svg class="ti a"><use href="assets/team-icons/sprite.svg#b-AKP011"/></svg><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><svg class="ti h"><use href="assets/team-icons/sprite.svg#b-ACN011"/></svg><span class="nm a">台鋼雄鷹</span><span class="nm h w">中信兄弟</span></span><span class="serial" aria-hidden="true"><span>No.358</span><span>洲際</span></span></div><div class="card sw-dark" aria-label="No.358 洲際，台鋼雄鷹 10 比 19 中信兄弟，中信兄弟勝"><span class="score stack" aria-hidden="true"><svg class="ti a"><use href="assets/team-icons/sprite.svg#b-AKP011"/></svg><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><svg class="ti h"><use href="assets/team-icons/sprite.svg#b-ACN011"/></svg><span class="nm a">台鋼雄鷹</span><span class="nm h w">中信兄弟</span></span><span class="serial" aria-hidden="true"><span>No.358</span><span>洲際</span></span></div></div></section>
+  </div>
+
+  <section class="notes" aria-labelledby="n-h">
+    <div class="sh s"><h2 id="n-h">怎麼選</h2></div>
+    <ul>
+      <li><b>A 意象</b>：辨識靠形狀，不必認字母；六個剪影輪廓差異大（S 形龍身、正面大耳、圓形鬃毛、盾形、桃形、向右側影）。代價是 24px 下細節（眼睛、V 紋）會變小，主要靠外輪廓；與官方吉祥物的關係需要之後確認不會被誤認為官方標誌。</li>
+      <li><b>B 字標</b>：最穩定、最省空間，24px 下仍清楚；字母是 repo 既有代表字，資料端零成本。代價是辨識要先認得 W／B／L／G／R／T 對應哪一隊，品牌記憶點比 A 少。</li>
+      <li>兩套共同：隊色只當底色輔助識別；兄弟、統一用深色圖形以達對比；深色模式加一圈淺內框。檔案：<code>assets/team-icons/a-*.svg</code>、<code>b-*.svg</code>（單檔）與 <code>sprite.svg</code>。</li>
+    </ul>
+    <p class="ask">需要需求方選擇：<b>A 意象、B 字標，採哪一套繼續？</b><small>選定並批准圖稿後，才會替換首頁、賽況、選手稿裡的佔位圖示；這兩套目前都只是候選。</small></p>
+  </section>
+</main>
+<footer class="footer"><div class="wrap">#218 隊伍圖示候選。隊名、隊色、代表字母與意象字取自 <code>web/src/lib/teams.ts</code>；圖形為本卡原創，未參考或描摹官方隊徽與吉祥物圖像。未經需求方批准，不是 #217 正式素材。</div></footer>
+</body>
+</html>
