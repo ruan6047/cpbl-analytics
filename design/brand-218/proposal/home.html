@@ -123,7 +123,7 @@
     <section class="today" aria-labelledby="today-h" style="--n: 3">
       <h2 class="sr" id="today-h">今日場次，每張票上客下主</h2>
       <div class="rows">
-        <article class="grow pre" aria-label="No.254 賽前（示意）：味全龍（客）對樂天桃猿（主），2026 年 9 月 30 日樂天桃園，18:35 開打（示意）；延賽補賽，原訂 08/09；主隊勝率 56%">
+        <article class="grow pre" aria-label="No.254 賽前（示意）：味全龍（客）對樂天桃猿（主），2026 年 9 月 30 日樂天桃園，18:35 開打（示意）；延賽補賽，原訂 08/09；樂天桃猿勝率 56%">
           <div class="stub">
             <div class="serial"><b>No.254</b><span class="t">18:35</span></div>
             <span class="st">賽前</span>
@@ -135,7 +135,7 @@
               <div class="tm"><svg class="ti mk-AAA011" role="img" aria-label="味全龍"><use href="assets/team-icons/refined-AAA011.svg?v=apply1#mark"/></svg><span class="nm">味全龍</span><span></span></div>
               <div class="tm"><svg class="ti mk-AJL011" role="img" aria-label="樂天桃猿"><use href="assets/team-icons/refined-AJL011.svg?v=apply1#mark"/></svg><span class="nm">樂天桃猿</span><span></span></div>
             </div>
-            <div class="aside"><span class="note">主隊勝率</span><span class="big">56<small>%</small></span></div>
+            <div class="aside"><span class="note">樂天勝率</span><span class="big">56<small>%</small></span></div>
           </div>
         </article>
 
@@ -242,7 +242,7 @@
 
   <section class="notes" id="notes" aria-labelledby="notes-h">
     <h2 id="notes-h">資料說明</h2>
-    <p>主隊勝率是賽前模型傾向，不是保證；單場勝負難預測。方法見方法說明頁。</p>
+    <p>票券右格的勝率是主隊（例：樂天）的賽前模型傾向，不是保證；單場勝負難預測。方法見方法說明頁。</p>
     <p><span class="dep">需後續資料支援</span>：目前 API 今日場次與最近比賽日是二擇一（<code>daily-hub.tsx:315-318</code>），且最近比賽日取「有完賽的最大日期」（<code>daily.py:508</code>），今天已有完賽時會取到今天。右欄要固定呈現「早於今日」的比賽日，需要後端另行支援。開打時間只來自即時快照（<code>daily-summary.ts:72-73</code>），球場可能為 null（<code>:36</code>）。賽果每列的場次、球場、隊名與比分都是 <code>DailyGame</code> 既有欄位。需求方已同意觀賽重點可含 MVP，但最近比賽日的型別沒有 MVP 或勝敗投（<code>latest_game_day</code> 無 decisions），本稿不放，列為後續資料支援。今日終場則不同：<code>TodayLive.decisions</code> 有勝投與 MVP（<code>live-game.ts:29-34</code>），現站已用 <code>officialFactLine</code> 顯示，兩者都缺時寫「官方紀錄確認中」；本稿 No.302 是示意場，沒有可信姓名，所以右格只畫排版（○○○）。賽中格的壘包與出局有資料（<code>TodayLive.bases／outs</code>），好／壞球不在 <code>TodayLive</code>（<code>daily-summary.ts:65-66</code>），畫面上標「球數需資料支援」。</p>
   </section>
 </main>

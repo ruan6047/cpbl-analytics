@@ -24,7 +24,9 @@
         t.addEventListener("keydown", function (e) {
           var n = e.key === "ArrowRight" ? i + 1 : e.key === "ArrowLeft" ? i - 1 : null;
           if (n === null) return;
-          var nt = tabs[(n + tabs.length) % tabs.length]; select(nt); nt.focus(); e.preventDefault();
+          var nt = tabs[(n + tabs.length) % tabs.length]; select(nt); nt.focus();
+          nt.scrollIntoView({ block: "nearest", inline: "nearest" }); /* 窄版頁籤橫向捲動時，focus 不一定把部分可見的頁籤捲進來 */
+          e.preventDefault();
         });
       });
     });
