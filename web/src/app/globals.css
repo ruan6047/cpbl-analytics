@@ -1,52 +1,62 @@
 @import "tailwindcss";
 
 /* =========================================================================
-   UX 設計系統 — 全站原則（UX-2；驗收時逐條對照，改任何頁面前先讀）
+   UX 設計系統 — 全站原則（#218 郵戳視覺識別，#220 套用；改任何頁面前先讀）
    -------------------------------------------------------------------------
-   1. 快速理解優先：預設只給結論層、細節漸進揭露；數字不裸列（配 PR 條/色階/
-      趨勢/均值對照）；每區塊回答一個問題；5 秒測試＝頁面主問題答得出。
-   2. 三層底色，不新增灰階：paper（頁底）→ surface（卡）→ surface-2（卡內強調）。
-      分界一律 border-line。禁止第四層灰或自定色票。
-   3. 顏色必有語意，禁裝飾用色：accent＝行動/焦點、隊色＝身分、up/down＝數據好壞、
-      amber＝狀態警示。同一語意全站同色。
+   視覺基準：design/brand-218/proposal/（已核可）。日式郵戳／旅行手札：暖灰手札紙、
+   墨藍字、石油藍郵戳。資料清晰優先，裝飾只放在不擋資料的位置。
+   1. 快速理解優先：預設只給結論層、細節漸進揭露；每區塊回答一個問題。
+   2. 四層底色：paper（頁底）→ surface（卡面）→ surface-2（卡內強調／滑過）→ band
+      （表頭帶、頁籤帶、分段底）。分區用色塊與留白，少畫線；line 只留給必要分界。
+   3. 顏色必有語意：accent＝石油藍，只給互動／選取／焦點／郵戳／得分標記；
+      up/down＝數據好壞（down 也是延賽・保留的狀態章紅字）；隊色只在隊伍印記。
+      大面積一律紙色與卡面，不鋪隊色、不鋪裝飾色。
    4. 誠實 UX：預測附基準對照；資料缺口顯式標注；不做假精確（該 — 就 —，不補 0）。
-   5. 一致元件語彙：同概念全站同長相（eyebrow/dl 網格/隊色 chip/狀態徽章/.card）。
-      新頁面先找既有元件，禁平行發明。
-   6. 行動端一等公民：375px 無橫向溢出＝鐵則；寬表 sticky 首欄或卡片化；觸控 ≥44px。
-   7. 動效節制：只在入場/狀態變化動；受 prefers-reduced-motion 約束；不做無限裝飾。
-   8. 感知效能：skeleton/empty/error 三態統一；圖表 lazy；切換不塌陷（CLS）。
+   5. 一致元件語彙：區塊標題全站一套（不加眉標、不加編號）；狀態章（比賽狀態，必含
+      文字）與身分標籤（選手／分類）分開；比分全站一個元件，勝方只加粗、不放大。
+   6. 行動端一等公民：375px 無橫向溢出；寬表 sticky 首欄；觸控 ≥44px。
+   7. 動效只表達狀態：更新中＝點脈動、轉終場＝郵戳落章一次、滑過＝換色塊 150ms；
+      prefers-reduced-motion 時全部關閉。不做進場編排或裝飾動畫。
+   8. 感知效能：skeleton/empty/error 三態統一；切換不塌陷（CLS）。
 
    色彩語意對照（單一事實來源；新增顏色一律走 token，禁 tsx 內硬編 hex）：
-   ┌ 結構 ── paper/surface/surface-2＝三層底；line/line-strong＝分界；
+   ┌ 結構 ── paper/surface/surface-2/band＝四層底；line/line-strong＝分界；perf＝票券撕線；
    │         ink/muted/faint＝文字三級。
-   ├ 語意 ── accent＝行動/焦點；up/down＝數據好壞；cpbl＝品牌藍；amber＝警示。
+   ├ 語意 ── accent（＋accent-ink＝其上的字）＝互動/焦點/選取；stamp＝郵戳墨；stub＝賽程「今天」；
+   │         up/down＝數據好壞；ball/strike/out＝球數燈（記分板慣例）。
    ├ 圖表 ── chart-1..8＝分類序列（含球種）；zone-*＝好球帶分區；status-*＝洋將身分。
    │         recharts 走 props 不吃 CSS var → 用 lib/chart-theme.ts 的 useChartTheme()
    │         讀本 token；raw SVG 用 fill-/stroke- 工具類或 style{{fill:'var(--…)'}}。
-   └ 隊色 ── lib/teams.ts 為唯一來源（身分色，非本檔 token）。
+   └ 隊色 ── lib/teams.ts＝圖表與字母章的身分色；隊伍印記墨色＝本檔 .mk-{隊碼}。
    深色模式：由 layout 無閃爍 script 於 <html> 設 data-theme；下方 [data-theme=dark]
-   覆寫同名 token → 所有 var()/工具類自動換色，元件無需分支。
+   覆寫同名 token → 所有 var()/工具類自動換色，元件無需分支。預設淺色、不跟系統。
    ========================================================================= */
 
-/* 設計系統 tokens（日間 Navy+白；Tailwind v4 @theme 生成 bg-/text-/border-/fill-/stroke- 工具類） */
+/* 設計系統 tokens（郵戳；Tailwind v4 @theme 生成 bg-/text-/border-/fill-/stroke- 工具類） */
 @theme {
-  /* — 結構三層底 + 分界 — */
-  --color-paper: #f5f7fa;        /* 頁底 */
-  --color-surface: #ffffff;      /* 卡面 */
-  --color-surface-2: #eef2f7;    /* 卡內強調區 / 圖表格線 / 空態底 */
-  --color-line: #e2e8f0;         /* 卡片與區塊分界 */
-  --color-line-strong: #cbd5e1;  /* 圖表軸線 / 較強分隔 */
+  /* — 結構四層底 + 分界 — */
+  --color-paper: #ece8e0;        /* 頁底：暖灰手札紙 */
+  --color-surface: #f7f5f0;      /* 卡面 */
+  --color-surface-2: #efebe3;    /* 卡內強調 / 滑過 / 空態底 */
+  --color-band: #e4dfd5;         /* 表頭帶 / 頁籤帶 / 分段控制底 */
+  --color-line: rgba(30, 40, 48, 0.14);        /* 必要分界 */
+  --color-line-strong: rgba(30, 40, 48, 0.32); /* 控制項外框 / 圖表軸線 */
+  --color-perf: rgba(30, 40, 48, 0.38);        /* 票券撕線 */
   /* — 文字三級 — */
-  --color-ink: #0a2540;          /* 主要文字 / 圖表主資料 */
-  --color-muted: #5b6b7a;        /* 次要文字 / 軸刻度 */
-  --color-faint: #94a3b8;        /* 三級文字 / 參考線 / 未知隊 */
+  --color-ink: #1e2830;          /* 主要文字 / 圖表主資料 */
+  --color-muted: #4f5961;        /* 次要文字 / 軸刻度 */
+  --color-faint: #5d6770;        /* 三級文字 / 敗方比分；對 paper 4.72:1 */
   /* — 語意色 — */
-  --color-accent: #d12638;       /* 行動 / 焦點；三層底色一般文字 ≥4.60:1 */
-  --color-up: #1d6fb8;           /* 數據佳（藍） */
-  --color-down: #d12638;         /* 數據差（紅）；與 accent 維持同色 */
-  --color-amber: #b15100;        /* 狀態警示 / 次級身分（延賽、保留、二軍、獎項） */
-  --color-cpbl: #1b4da1;         /* CPBL 品牌藍 */
-  /* — 圖表分類序列（含球種：速球/卡特滑球/指叉變速/滑球橫掃/曲球/變化球） — */
+  --color-accent: #1e6c8c;       /* 石油藍：互動 / 焦點 / 選取；對 paper 4.80:1 */
+  --color-accent-ink: #ffffff;   /* accent 實底上的字 */
+  --color-stamp: #1e6c8c;        /* 郵戳墨（落在卡面 5.39:1） */
+  --color-stub: #e1e7e6;         /* 賽程「今天」那一格 */
+  --color-up: #1d5fb0;           /* 數據佳（藍） */
+  --color-down: #c21f32;         /* 數據差（紅）／延賽・保留狀態章 */
+  --color-ball: #2f7d4f;         /* 球數燈：壞球 */
+  --color-strike: #a16207;       /* 球數燈：好球 */
+  --color-out: #c21f32;          /* 球數燈：出局 */
+  /* — 圖表分類序列（含球種：速球/卡特滑球/指叉變速/滑球橫掃/曲球/變化球）；色相沿用 — */
   --chart-1: #1d6fb8;
   --chart-2: #0ea5a4;
   --chart-3: #f59e0b;
@@ -64,8 +74,19 @@
   --status-import: #2563eb;      /* 洋將 */
   --status-loree: #0f766e;       /* 羅力條款（本土洋將） */
   --status-nagata: #7c3aed;      /* 永田條款（外籍本土） */
-  --font-mono: var(--font-outfit), monospace;
-  --font-display: var(--font-outfit), sans-serif;
+  /* — 字體：Archivo（寬體數字／字標，可壓縮 wdth）、Noto Sans TC（內文）、霞鶩文楷 TC（手札一句） — */
+  --font-sans: var(--font-noto-tc), system-ui, -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --font-mono: var(--font-archivo), var(--font-noto-tc), system-ui, sans-serif;
+  --font-display: var(--font-archivo), var(--font-noto-tc), system-ui, sans-serif;
+  --font-wide: var(--font-archivo), var(--font-noto-tc), system-ui, sans-serif;
+  --font-hand: var(--font-wenkai-tc), var(--font-noto-tc), serif;
+  /* — 圓角：控制項／資訊底版 4px、標籤 3px（票券、郵戳、隊伍印記直角由元件自理） — */
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 4px;
+  --radius-xl: 4px;
+  --radius-2xl: 4px;
 }
 
 :root {
@@ -74,32 +95,39 @@
   --dur-base: 0.3s;
   --dur-slow: 0.8s;
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* 深色模式：覆寫同名 token（Navy 底翻深；文字/語意色提亮以維持 ≥4.5:1 對比） */
+/* 深色模式：覆寫同名 token（墨夜底；文字/語意色提亮以維持 ≥4.5:1 對比） */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --color-paper: #0a1626;
-  --color-surface: #101f33;
-  --color-surface-2: #1a2c44;
-  --color-line: #24374f;
-  --color-line-strong: #3a5170;
-  --color-ink: #e8eef6;
-  --color-muted: #a1b2c6;
-  --color-faint: #7c90a8;
-  --color-accent: #ff5a6a;
-  --color-up: #4a9fe0;
-  --color-down: #ff5a6a;
-  --color-amber: #fb923c;
-  --color-cpbl: #5c95e2;
+  --color-paper: #12181d;
+  --color-surface: #1a2229;
+  --color-surface-2: #212a32;
+  --color-band: #0f1418;
+  --color-line: rgba(233, 228, 218, 0.12);
+  --color-line-strong: rgba(233, 228, 218, 0.28);
+  --color-perf: rgba(233, 228, 218, 0.34);
+  --color-ink: #e9e4da;
+  --color-muted: #aeb6bc;
+  --color-faint: #98a1a8;
+  --color-accent: #6fc3c9;
+  --color-accent-ink: #12181d;
+  --color-stamp: #6fc3c9;
+  --color-stub: #283c43;
+  --color-up: #62a8ee;
+  --color-down: #ff7480;
+  --color-ball: #5cc98a;
+  --color-strike: #f0b429;
+  --color-out: #ff7480;
   --chart-1: #4a9fe0;
   --chart-2: #2dd4bf;
   --chart-3: #fbbf24;
   --chart-4: #a78bfa;
   --chart-5: #34d399;
   --chart-6: #94a3b8;
-  --chart-7: #db2777;            /* 沿用淺色飽和洋紅：提亮版在 deutan 下會與灰 chart-6 撞（ΔE<6），故不提亮；CVD 已驗 ΔE≥9.5、navy 對比 3.6:1 */
-  --chart-8: #e08a2a;            /* 由淺色 #a16207 提亮暖橘：原值在 navy 偏暗且較其餘 dark 色階暗，提亮以齊；CVD 通過、navy 對比 6.2:1 */
+  --chart-7: #db2777;            /* 沿用淺色飽和洋紅：提亮版在 deutan 下會與灰 chart-6 撞（ΔE<6），故不提亮；CVD 已驗 ΔE≥9.5 */
+  --chart-8: #e08a2a;            /* 由淺色 #a16207 提亮暖橘：原值在深底偏暗 */
   --zone-heart: #ef4444;
   --zone-shadow: #fb923c;
   --zone-chase: #facc15;
@@ -109,10 +137,30 @@
   --status-nagata: #a78bfa;
 }
 
+html {
+  font-variant-numeric: tabular-nums;
+}
+
 body {
   background: var(--color-paper);
   color: var(--color-ink);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  font-family: var(--font-sans);
+  line-height: 1.6;
+}
+
+/* 瀏覽器原生表面也走設計：選取、游標、捲軸、連結底線 */
+::selection {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+input, textarea {
+  caret-color: var(--color-accent);
+}
+html {
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+a {
+  text-underline-offset: 3px;
 }
 
 /* 標題避免寡行（末行單字落單）：瀏覽器自動平衡換行 */
@@ -120,24 +168,17 @@ h1, h2 {
   text-wrap: balance;
 }
 
-/* 卡片基底 */
+/* 卡片基底：卡面色塊＋小圓角；不畫框、不加陰影（分區用色塊與留白） */
 .card {
   background: var(--color-surface);
-  border: 1px solid var(--color-line);
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 2px rgb(10 37 64 / 0.04), 0 1px 3px rgb(10 37 64 / 0.06);
-}
-/* 深色下淺陰影不可見 → 加深，分層靠 border-line + 較深陰影 */
-:root[data-theme="dark"] .card {
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 1px 3px rgb(0 0 0 / 0.4);
+  border-radius: 4px;
 }
 
-/* 全域鍵盤焦點環（:focus-visible → 滑鼠點擊不顯示、Tab 導覽才顯示）。
-   全站 pill/button/select/連結原本焦點指示不一致，統一於此。 */
+/* 全域鍵盤焦點環（:focus-visible → 滑鼠點擊不顯示、Tab 導覽才顯示）：2px 石油藍 */
 :focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
-  border-radius: 3px;
+  border-radius: 1px;
 }
 
 /* 跳至主內容連結：預設離屏、聚焦時進場（鍵盤/螢幕閱讀器使用者略過導覽） */
@@ -146,9 +187,9 @@ h1, h2 {
   left: 0.5rem;
   top: -3rem;
   z-index: 100;
-  border-radius: 0.5rem;
+  border-radius: 4px;
   background: var(--color-ink);
-  color: #fff;
+  color: var(--color-paper);
   padding: 0.5rem 0.875rem;
   font-size: 0.875rem;
   transition: top 0.15s ease;
@@ -157,34 +198,17 @@ h1, h2 {
   top: 0.5rem;
 }
 
-/* 尊重系統「減少動態」偏好：近乎關閉所有動畫/轉場（保留即時性、不完全移除以免破版） */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-/* 卡片 Hover 隊色光暈與邊框過渡 */
+/* 可點卡片的互動回饋：滑過換一階色塊（150ms）。不做隊色光暈（零位移彩色光暈是裝飾）。 */
 .card-hover-team {
-  transition: border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard);
+  transition: background-color var(--dur-fast) var(--ease-out);
 }
 .card-hover-team:hover {
-  border-color: var(--hover-color) !important;
-  box-shadow: 0 0 16px color-mix(in srgb, var(--hover-color) 20%, transparent) !important;
+  background-color: var(--color-surface-2);
 }
 
-/* 勝率條伸展動畫 */
-@keyframes barGrow {
-  from { width: 0%; }
-  to { width: var(--target-width); }
-}
+/* 勝率條：直接到位，不做伸展進場（動效只表達狀態變化） */
 .animate-bar-grow {
-  animation: barGrow var(--dur-slow) var(--ease-standard) forwards;
+  width: var(--target-width);
 }
 
 /* 行動端 Table 首欄固定 */
@@ -194,15 +218,15 @@ h1, h2 {
   z-index: 10;
   background-color: var(--color-surface);
 }
-/* 確保 table header 中的 sticky-col 也是 surface-2 底色 */
+/* table header 中的 sticky-col 與表頭帶同色 */
 thead th.sticky-col {
-  background-color: var(--color-surface-2);
+  background-color: var(--color-band);
 }
-/* 確保 table row hover 時 sticky-col 也會變色 */
+/* table row hover 時 sticky-col 也會變色 */
 tr:hover .sticky-col {
   background-color: var(--color-surface-2);
 }
-/* 首欄滾動時右側的一層微弱陰影 */
+/* 首欄滾動時右側的一層微弱陰影（有位移與模糊，提示可橫捲） */
 .sticky-col::after {
   content: '';
   position: absolute;
@@ -211,16 +235,14 @@ tr:hover .sticky-col {
   pointer-events: none;
 }
 
-/* 淡入動畫 */
+/* 淡入（行動選單開啟） */
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 .animate-fade-in {
-  animation: fadeIn var(--dur-base) var(--ease-standard) forwards;
+  animation: fadeIn var(--dur-fast) var(--ease-out) forwards;
 }
-
-/* 淡出動畫 */
 @keyframes fadeOut {
   from { opacity: 1; }
   to { opacity: 0; }
@@ -229,3 +251,297 @@ tr:hover .sticky-col {
   animation: fadeOut var(--dur-fast) var(--ease-standard) forwards;
 }
 
+/* =========================================================================
+   郵戳元件層（pm-*）：由 components/postmark.tsx 等共用元件消費；頁面勿手寫同款。
+   ========================================================================= */
+
+/* ── 站台頂欄：卡面底＋墨色底線；字標＝打孔標誌＋壓縮體 ── */
+.pm-site {
+  background: var(--color-surface);
+  border-bottom: 2px solid var(--color-ink);
+}
+.pm-punch {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--color-ink); color: var(--color-surface);
+  display: grid; place-items: center; flex: none;
+}
+.pm-word {
+  font: 850 23px/1 var(--font-wide);
+  font-stretch: 72%;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  color: var(--color-ink);
+}
+/* 例外：字標副標 10.5px 與基準同值（屬字標圖形的一部分），外層連結有完整 aria-label */
+.pm-word small {
+  display: block;
+  font: 700 10.5px var(--font-sans);
+  letter-spacing: 0.3em;
+  color: var(--color-muted);
+  margin-top: 3px;
+}
+@media (max-width: 720px) {
+  .pm-word { font-size: 18px; }
+}
+
+/* ── 區塊標題（全站唯一一套）：字＋可選日期＋右側一條註記；不加眉標、不加編號 ── */
+.pm-sh {
+  display: flex; align-items: baseline; flex-wrap: wrap;
+  gap: 4px 12px; margin: 0 0 12px; min-width: 0;
+}
+.pm-sh > h1, .pm-sh > h2, .pm-sh > h3, .pm-sh > .pm-sh-t {
+  margin: 0; font: 700 20px/1.3 var(--font-sans); letter-spacing: 0.04em; color: var(--color-ink);
+}
+.pm-sh > h1 { font-size: 26px; }
+.pm-sh.pm-sh--s > h2, .pm-sh.pm-sh--s > h3, .pm-sh.pm-sh--s > .pm-sh-t { font-size: 16px; }
+.pm-sh .pm-d { font: 800 1em var(--font-wide); font-stretch: 80%; letter-spacing: 0; margin-left: 8px; }
+.pm-sh .pm-d small { font: 700 0.65em var(--font-sans); }
+.pm-sh .pm-cue { font-size: 12.5px; color: var(--color-muted); }
+.pm-sh .pm-meta { margin-left: auto; font-size: 12.5px; color: var(--color-muted); }
+@media (max-width: 720px) {
+  .pm-sh > h1 { font-size: 23px; }
+  .pm-sh > h2 { font-size: 18px; }
+  .pm-sh .pm-meta { margin-left: 0; flex-basis: 100%; }
+}
+
+/* ── 郵戳（雙圈、−10° 斜蓋）＝日期＋球場；缺球場只蓋日期，戳的尺寸不變 ── */
+.pm-post {
+  --ps: 64px; --pb: var(--color-surface);
+  position: absolute; width: var(--ps); height: var(--ps); border-radius: 50%;
+  border: 2px solid var(--color-stamp);
+  box-shadow: inset 0 0 0 3px var(--pb), inset 0 0 0 4.5px var(--color-stamp);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  text-align: center; color: var(--color-stamp);
+  font: 700 11px/1.1 var(--font-sans); letter-spacing: 0.02em;
+  transform: rotate(-10deg); pointer-events: none; padding: 5px;
+}
+.pm-post b { font: 800 13px/1 var(--font-wide); font-stretch: 85%; letter-spacing: 0.02em; }
+.pm-post .pm-y { font: 700 9px/1 var(--font-wide); letter-spacing: 0.12em; opacity: 0.9; }
+.pm-post.pm-post--lg { --ps: 76px; }
+.pm-post.pm-post--lg b { font-size: 16px; }
+.pm-post.pm-post--lg span:not(.pm-y) { font-size: 12px; }
+.pm-post.pm-post--sm { --ps: 52px; gap: 1px; }
+.pm-post.pm-post--sm b { font-size: 12px; }
+.pm-post.pm-post--sm span:not(.pm-y) { font-size: 10px; }
+.pm-post.pm-post--static { position: relative; flex: none; }
+
+/* ── 序號列：場次・開打時間・補賽等（缺值就不出現，不補「--:--」） ── */
+.pm-serial {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px;
+  font: 600 12px/1.3 var(--font-wide); font-stretch: 85%; letter-spacing: 0.1em; color: var(--color-muted);
+}
+.pm-serial b { font: 800 16px/1.1 var(--font-wide); font-stretch: 80%; letter-spacing: 0.04em; color: var(--color-ink); }
+.pm-serial .pm-t { color: var(--color-ink); font-weight: 700; }
+.pm-serial > span + span::before { content: "・"; margin-right: 6px; letter-spacing: 0; color: var(--color-faint); }
+
+/* ── 隊伍印記：紙面單色印記（public/team-icons/refined-{隊碼}.svg，字形以 currentColor 上色；
+   非官方隊徽）。.pm-ti 只管尺寸；.mk-{隊碼} 給墨色：淺紙用可讀的隊色墨（統一、兄弟壓深），
+   深底用提亮的同色系（#218 核可值） ── */
+.pm-ti { display: inline-block; flex: none; vertical-align: middle; }
+.mk-AAA011 { color: #c8102e; }
+.mk-ACN011 { color: #7d5c14; }
+.mk-ADD011 { color: #a63f0b; }
+.mk-AEO011 { color: #2a4b9b; }
+.mk-AJL011 { color: #8e1537; }
+.mk-AKP011 { color: #15543c; }
+[data-theme="dark"] .mk-AAA011 { color: #f2606d; }
+[data-theme="dark"] .mk-ACN011 { color: #c8a24a; }
+[data-theme="dark"] .mk-ADD011 { color: #f0773a; }
+[data-theme="dark"] .mk-AEO011 { color: #8aa6ea; }
+[data-theme="dark"] .mk-AJL011 { color: #e8789a; }
+[data-theme="dark"] .mk-AKP011 { color: #5cbd91; }
+
+/* ── 狀態章（比賽狀態，必含文字）與身分標籤（選手／分類）分開 ── */
+.pm-st {
+  display: inline-flex; align-items: center; gap: 5px; border-radius: 3px;
+  font-size: 12px; font-weight: 700; line-height: 1; padding: 4px 7px;
+  background: var(--color-band); color: var(--color-ink); letter-spacing: 0.06em; white-space: nowrap;
+}
+.pm-st.pm-st--live { color: var(--color-accent-ink); background: var(--color-accent); }
+.pm-st.pm-st--live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.pm-st.pm-st--hold { color: var(--color-down); background: color-mix(in srgb, var(--color-down) 10%, transparent); }
+.pm-st.pm-st--sample {
+  font-weight: 500; letter-spacing: 0.02em; color: var(--color-muted);
+  background: transparent; box-shadow: inset 0 0 0 1px var(--color-line-strong);
+}
+.pm-st.pm-st--sm { font-size: 11px; padding: 3px 6px; }
+.pm-tag {
+  display: inline-block; border-radius: 3px; font-size: 12px; color: var(--color-muted);
+  background: var(--color-surface-2); padding: 2px 7px; line-height: 1.5; white-space: nowrap;
+}
+.pm-dep { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--color-muted); }
+.pm-dep::before { content: ""; width: 7px; height: 7px; border: 1.5px dashed var(--color-muted); flex: none; }
+
+/* ── 頁籤：一級＝色塊帶（選中＝卡面色塊＋粗體＋上緣石油藍）；二級＝分段切換 ── */
+.pm-tabs {
+  display: flex; gap: 2px; background: var(--color-band); padding: 3px 3px 0;
+  border-radius: 4px 4px 0 0; overflow-x: auto; scrollbar-width: none;
+}
+.pm-tabs > [role="tab"], .pm-tabs > a {
+  appearance: none; background: none; border: 0; font: inherit; font-size: 14px; color: var(--color-muted);
+  padding: 9px 16px 10px; border-radius: 4px 4px 0 0; cursor: pointer; white-space: nowrap;
+  box-shadow: inset 0 3px 0 transparent; min-height: 44px; display: inline-flex; align-items: center;
+  transition: background-color 0.15s var(--ease-out), color 0.15s var(--ease-out);
+}
+.pm-tabs > [aria-selected="true"], .pm-tabs > [aria-current="page"] {
+  color: var(--color-ink); font-weight: 700; background: var(--color-surface);
+  box-shadow: inset 0 3px 0 var(--color-accent);
+}
+.pm-tabs > [role="tab"]:hover, .pm-tabs > a:hover { color: var(--color-ink); }
+.pm-tabs > [role="tab"]:focus-visible, .pm-tabs > a:focus-visible { outline-offset: -3px; }
+.pm-panel { background: var(--color-surface); padding: 14px 16px 16px; border-radius: 0 0 4px 4px; }
+@media (max-width: 720px) {
+  .pm-tabs > [role="tab"], .pm-tabs > a { padding: 9px 12px 10px; }
+  .pm-panel { padding: 12px 10px 14px; }
+}
+.pm-seg { display: inline-flex; flex-wrap: wrap; background: var(--color-band); border-radius: 4px; padding: 2px; gap: 2px; }
+.pm-seg > button, .pm-seg > a {
+  appearance: none; border: 0; background: transparent; font: inherit; font-size: 13px;
+  padding: 4px 12px; color: var(--color-muted); cursor: pointer; border-radius: 3px;
+  min-height: 32px; display: inline-flex; align-items: center; white-space: nowrap;
+  transition: background-color 0.15s var(--ease-out), color 0.15s var(--ease-out);
+}
+.pm-seg > button:hover, .pm-seg > a:hover { color: var(--color-ink); }
+.pm-seg > [aria-pressed="true"], .pm-seg > [aria-current="page"], .pm-seg > [aria-selected="true"] {
+  background: var(--color-ink); color: var(--color-paper); font-weight: 700;
+}
+
+/* ── 資訊層級：新鮮度（行內）＞ 限制（附註）＞ 方法論（連結） ── */
+.pm-fresh { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--color-muted); white-space: nowrap; }
+.pm-fresh::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--color-accent); flex: none; }
+.pm-fresh.pm-fresh--stale::before { background: var(--color-down); }
+.pm-limits { font-size: 12.5px; color: var(--color-muted); }
+.pm-limits b { color: var(--color-ink); font-weight: 700; margin-right: 6px; }
+.pm-hand { font: 400 15px/1.55 var(--font-hand); color: var(--color-ink); }
+.pm-big { font: 900 42px/0.9 var(--font-wide); font-stretch: 62%; }
+
+/* ── 比分（全站唯一一個元件）：icon 分數 : 分數 icon。勝方＝粗黑；敗方＝細、淡。兩側同字級。 ── */
+.pm-score {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto minmax(0, 1fr) auto;
+  align-items: center; column-gap: 8px;
+}
+.pm-score .pm-n { font: 500 24px/1 var(--font-wide); font-stretch: 72%; color: var(--color-faint); min-width: 1.3em; }
+.pm-score .pm-n.pm-a { text-align: right; grid-column: 3; }
+.pm-score .pm-n.pm-h { text-align: left; grid-column: 5; }
+.pm-score .pm-n.pm-w { font-weight: 900; color: var(--color-ink); }
+.pm-score .pm-colon { grid-column: 4; font: 700 16px/1 var(--font-wide); color: var(--color-faint); }
+/* 隊名一律完整顯示：不截斷、不加省略號；空間不夠時自然換行 */
+.pm-score .pm-nm { font-size: 13px; line-height: 1.3; color: var(--color-muted); word-break: keep-all; text-wrap: balance; }
+.pm-score .pm-nm.pm-a { grid-column: 2; }
+.pm-score .pm-nm.pm-h { grid-column: 6; text-align: right; }
+.pm-score .pm-nm.pm-w { color: var(--color-ink); font-weight: 700; }
+.pm-score .pm-ti.pm-a { grid-column: 1; }
+.pm-score .pm-ti.pm-h { grid-column: 7; }
+.pm-score.pm-score--tie .pm-n, .pm-score.pm-score--tie .pm-nm { color: var(--color-ink); font-weight: 700; }
+/* 兩層式（窄欄）：每隊 icon＋隊名收成一組，置中在自己那半邊；比分夾在正中 */
+.pm-score.pm-score--stack { grid-template-columns: minmax(0, 1fr) 26px auto 26px minmax(0, 1fr); column-gap: 6px; row-gap: 5px; }
+.pm-score.pm-score--stack .pm-ti.pm-a { grid-column: 1; justify-self: center; }
+.pm-score.pm-score--stack .pm-ti.pm-h { grid-column: 5; justify-self: center; }
+.pm-score.pm-score--stack .pm-n { min-width: 0; }
+.pm-score.pm-score--stack .pm-n.pm-a { grid-column: 2; }
+.pm-score.pm-score--stack .pm-colon { grid-column: 3; }
+.pm-score.pm-score--stack .pm-n.pm-h { grid-column: 4; }
+.pm-score.pm-score--stack .pm-nm { grid-row: 2; text-align: center; }
+.pm-score.pm-score--stack .pm-nm.pm-a { grid-column: 1; }
+.pm-score.pm-score--stack .pm-nm.pm-h { grid-column: 5; }
+
+/* ── 資料表：表頭色塊帶＋欄位對齊＋留白；不畫列間線、不疊雙線 ── */
+table.pm-data { border-collapse: separate; border-spacing: 0; width: 100%; background: var(--color-surface); font-size: 13px; }
+table.pm-data th, table.pm-data td { padding: 8px 12px; border: 0; white-space: nowrap; }
+table.pm-data thead th { font-size: 12px; font-weight: 700; color: var(--color-muted); background: var(--color-band); padding-top: 7px; padding-bottom: 7px; }
+table.pm-data tbody tr { transition: background-color 0.15s var(--ease-out); }
+table.pm-data tbody tr:hover > td, table.pm-data tbody tr:hover > th { background: var(--color-surface-2); }
+table.pm-data tfoot td, table.pm-data tfoot th { font-weight: 700; background: var(--color-surface-2); }
+@media (max-width: 720px) {
+  table.pm-data th, table.pm-data td { padding-left: 6px; padding-right: 6px; }
+}
+
+/* ── 局況（壘包＋球數燈）：賽況頁狀態板與首頁賽中格同一組 markup；--sm＝首頁小格 ── */
+.pm-gamesit { display: inline-grid; grid-template-columns: auto auto; column-gap: 10px; align-items: center; }
+.pm-bases rect { fill: transparent; stroke: var(--color-ink); stroke-width: 1.4; }
+.pm-bases rect.pm-on { fill: var(--color-accent); stroke: var(--color-accent); }
+.pm-count { display: grid; grid-template-columns: auto auto; gap: 2px 7px; align-items: center; font: 700 11px/1 var(--font-wide); color: var(--color-muted); }
+.pm-count > span:nth-child(odd) { width: 1ch; text-align: center; }
+.pm-count i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--color-line-strong); margin-right: 3px; vertical-align: middle; }
+.pm-count i:last-child { margin-right: 0; }
+.pm-count i.pm-b { background: var(--color-ball); box-shadow: none; }
+.pm-count i.pm-s { background: var(--color-strike); box-shadow: none; }
+.pm-count i.pm-o { background: var(--color-out); box-shadow: none; }
+.pm-gamesit.pm-gamesit--sm { column-gap: 8px; }
+.pm-gamesit.pm-gamesit--sm .pm-count { gap: 3px 6px; }
+.pm-gamesit.pm-gamesit--sm .pm-count i { width: 9px; height: 9px; }
+
+/* ── 動態（只表達狀態）：更新中＝點脈動；結果揭露＝郵戳落章；互動回饋＝色塊 150ms ── */
+@keyframes pm-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes pm-stamp { from { opacity: 0; transform: rotate(-10deg) scale(1.25); } to { opacity: 1; transform: rotate(-10deg) scale(1); } }
+.pm-updating::before { animation: pm-pulse 1.6s ease-in-out infinite; }
+.pm-reveal { animation: pm-stamp 0.32s var(--ease-out) both; }
+
+/* 尊重系統「減少動態」偏好：關閉所有動畫/轉場（含上面三種必要動態） */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .pm-updating::before, .pm-reveal { animation: none !important; }
+}
+
+/* ── 首頁 7:3（#218 home.html）：左＝今日全部場次；右＝早於今日、最近一個有完賽紀錄的比賽日。
+   左右兩欄共用同一組列軌（subgrid），第 n 張票券與第 n 筆賽果頂底對齊；兩側是不同日期、
+   不同場次，只共用格線；少的一側留空、不補場次。窄於 860px 上下排。 ── */
+.pm-split { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 3fr); column-gap: 28px; row-gap: 10px; align-items: start; }
+.pm-split > .pm-split-hl { grid-column: 1; grid-row: 1; }
+.pm-split > .pm-split-hr { grid-column: 2; grid-row: 1; }
+.pm-split > .pm-split-l { grid-column: 1; }
+.pm-split > .pm-split-r { grid-column: 2; }
+.pm-split > .pm-split-l, .pm-split > .pm-split-r { grid-row: 2 / span var(--n, 1); display: grid; grid-template-rows: subgrid; align-self: stretch; }
+.pm-split .pm-rows { grid-row: 1 / -1; display: grid; grid-template-rows: subgrid; margin: 0; padding: 0; list-style: none; }
+.pm-split > .pm-split-hl .pm-sh, .pm-split > .pm-split-hr .pm-sh { margin-bottom: 2px; }
+@media (max-width: 859px) {
+  .pm-split, .pm-split > .pm-split-l, .pm-split > .pm-split-r { display: block; }
+  .pm-split .pm-rows { display: grid; grid-template-rows: none; gap: 10px; }
+  .pm-split > .pm-split-hr { margin-top: 28px; }
+  .pm-split > .pm-split-hl, .pm-split > .pm-split-hr { margin-bottom: 10px; }
+}
+
+/* ── 今日票券（直角）：票根＝序號列＋狀態＋郵戳；本體＝兩隊（上客下主）＋右格。
+   三態同一結構：主欄與右格固定寬，比分位置與基線不隨狀態移動。 ── */
+.pm-ticket { position: relative; display: grid; grid-template-columns: 236px minmax(0, 1fr); background: var(--color-surface); transition: background-color 0.15s var(--ease-out); }
+.pm-ticket:hover { background: var(--color-surface-2); }
+.pm-ticket:hover .pm-post { --pb: var(--color-surface-2); }
+.pm-ticket-stub { position: relative; display: grid; align-content: center; justify-items: start; gap: 6px; padding: 12px 100px 12px 14px; border-right: 2px dashed var(--color-perf); min-height: 100px; }
+.pm-ticket-stub::before, .pm-ticket-stub::after { content: ""; position: absolute; right: -10px; width: 18px; height: 18px; border-radius: 50%; background: var(--color-paper); }
+.pm-ticket-stub::before { top: -9px; }
+.pm-ticket-stub::after { bottom: -9px; }
+.pm-ticket-stub .pm-post { right: 12px; top: calc(50% - var(--ps) / 2); }
+.pm-ticket-note { font-size: 12.5px; color: var(--color-ink); white-space: nowrap; }
+.pm-ticket-link { font-size: 12px; color: var(--color-accent); text-decoration: none; }
+.pm-ticket-link::after { content: ""; position: absolute; inset: 0; }
+.pm-ticket-link:focus-visible { outline: none; }
+.pm-ticket:has(.pm-ticket-link:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.pm-ticket-body { display: grid; grid-template-columns: minmax(0, 1fr) 156px; column-gap: 18px; align-items: center; padding: 10px 16px 10px 22px; }
+.pm-ticket-teams { display: grid; gap: 8px; font-size: 15px; max-width: 340px; }
+.pm-ticket-team { display: grid; grid-template-columns: auto minmax(0, 1fr) 2.2em; align-items: center; gap: 10px; white-space: nowrap; color: var(--color-ink); }
+.pm-ticket-team .pm-nm { overflow: hidden; text-overflow: ellipsis; }
+.pm-ticket-team .pm-n { font: 500 22px/1 var(--font-wide); font-stretch: 75%; text-align: right; color: var(--color-faint); }
+.pm-ticket-team.pm-l { color: var(--color-muted); }
+.pm-ticket-team.pm-w { font-weight: 700; }
+.pm-ticket-team.pm-w .pm-n { color: var(--color-ink); font-weight: 900; }
+.pm-ticket-team.pm-live .pm-n { color: var(--color-ink); font-weight: 800; }
+.pm-ticket-aside { position: relative; z-index: 1; align-self: stretch; display: grid; align-content: center; justify-items: end; gap: 3px; background: var(--color-surface-2); padding: 6px 12px; border-radius: 4px; min-width: 0; min-height: 78px; }
+.pm-ticket-aside:empty { background: transparent; }
+.pm-ticket:hover .pm-ticket-aside:not(:empty) { background: var(--color-band); }
+.pm-ticket-extra { grid-column: 1 / -1; position: relative; z-index: 1; margin-top: 6px; }
+@media (max-width: 560px) {
+  .pm-ticket { grid-template-columns: minmax(0, 1fr); }
+  .pm-ticket-stub { min-height: 84px; padding: 10px 96px 10px 14px; border-right: 0; border-bottom: 2px dashed var(--color-perf); }
+  .pm-ticket-stub::before, .pm-ticket-stub::after { top: auto; bottom: -10px; }
+  .pm-ticket-stub::before { left: -9px; right: auto; }
+  .pm-ticket-stub::after { right: -9px; }
+  .pm-ticket-body { padding: 12px 14px; column-gap: 12px; grid-template-columns: minmax(0, 1fr) 132px; }
+  .pm-ticket-aside { padding: 6px 10px; }
+}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { codeFromName, contrastText, eraBadge, isCurrentTeam, nameMeta, teamColor, teamLetter, teamPageCode } from "@/lib/teams";
+import { codeFromName, eraBadge, isCurrentTeam, teamPageCode } from "@/lib/teams";
+import { LetterMark, TeamIcon } from "./postmark";
 import { Tooltip } from "./tooltip";
 
 // 實體連結 pattern（UI_UX_SYSTEM §3；UX-ENTITY-LINKS1）：球員/球隊等「實體名」連結
@@ -19,16 +20,10 @@ export const ENTITY_LINK_TEXT =
   `${ENTITY_LINK} group-hover:text-accent group-hover:decoration-accent`;
 
 // 字母方塊徽章（單一事實來源）：給定 {color, letter} 渲染隊色底＋對比字。
-// 各處（排行榜/紀錄室/球員頁/球隊頁沿革）原本各自手寫此 span，統一由此出。
-export function LetterBadge({ meta, size = 16, round = false }: { meta: { color: string; letter: string }; size?: number; round?: boolean }) {
-  return (
-    <span
-      className="inline-flex shrink-0 items-center justify-center font-extrabold leading-none"
-      style={{ width: size, height: size, borderRadius: round ? size / 2 : Math.max(3, size * 0.22), background: meta.color, color: contrastText(meta.color), fontSize: size * 0.56 }}
-    >
-      {meta.letter}
-    </span>
-  );
+// #220 起只承載「沒有核可印記」的隊（歷史／已解散隊、沿革各時期），樣式＝postmark.tsx 的
+// LetterMark（紙面 3px 圓角）；現役六隊一律走 TeamLogo → 核可印記。
+export function LetterBadge({ meta, size = 16 }: { meta: { color: string; letter: string }; size?: number; round?: boolean }) {
+  return <LetterMark color={meta.color} letter={meta.letter} size={size} />;
 }
 
 // 沿革／歷史隊徽章：隊名 + 代碼 → eraBadge（歷史隊 iconic 色），渲染字母方塊。
@@ -56,36 +51,23 @@ export function PlayerLink({ pid, name, className = ENTITY_LINK }: { pid?: strin
   return pid ? <Link href={`/players/${pid}`} className={className}>{name}</Link> : <>{name}</>;
 }
 
-// 小標籤：現役（綠）／已解散（灰）等狀態 pill。
+// 身分標籤（#218 `.tag`）：現役／已解散、教練、連霸等分類。細字淡底，不與狀態章混用；
+// tone="up"（現役）只加深字色，不另起一個語意色。
 export function Pill({ children, tone = "muted", className = "" }: { children: React.ReactNode; tone?: "up" | "muted"; className?: string }) {
-  const cls = tone === "up" ? "bg-up/15 text-up" : "bg-surface-2 text-muted";
-  return <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${cls} ${className}`}>{children}</span>;
+  return <span className={`pm-tag ${tone === "up" ? "!text-ink" : ""} ${className}`}>{children}</span>;
 }
 export const ActivePill = ({ className = "" }: { className?: string }) => <Pill tone="up" className={className}>現役</Pill>;
 export const GonePill = ({ className = "" }: { className?: string }) => <Pill tone="muted" className={className}>已解散</Pill>;
 
-// 隊伍徽章：隊色圓角方塊 + 字母（避免官方 logo 版權）。
-// 優先用隊名解析(nameMeta，含歷史/已解散隊 era 色)，未知再退回代碼解析。
-// decorative：徽章旁已顯示隊名時（NameTag/TeamBadge）設 true → aria-hidden，避免
-// 螢幕閱讀器重複念「隊徽 味全龍」。獨立使用（如對戰矩陣表頭僅徽章）則保留 aria-label。
+// 隊伍圖示：現役六隊＝#218 核可的紙面單色印記（非官方隊徽）；歷史／已解散隊沒有核可印記，
+// 沿用字母章（隊名優先解析，含 era 色）。實作在 postmark.tsx 的 TeamIcon（單一入口）。
+// decorative：圖示旁已顯示隊名時（NameTag/TeamBadge）設 true → aria-hidden，避免
+// 螢幕閱讀器重複念隊名。獨立使用（如對戰矩陣表頭僅圖示）則保留 aria-label。
 export function TeamLogo({ code, name, size = 24, decorative = false }: { code?: string | null; name?: string | null; size?: number; decorative?: boolean }) {
-  const m = name ? nameMeta(name) : null;
-  const known = m && m.letter !== "?";
-  const bg = known ? m.color : teamColor(code);
-  const letter = known ? m.letter : teamLetter(code);
-  return (
-    <span
-      className="inline-flex shrink-0 items-center justify-center rounded-md font-extrabold leading-none"
-      style={{ width: size, height: size, background: bg, color: contrastText(bg), fontSize: size * 0.56 }}
-      aria-label={decorative ? undefined : `${name ?? code ?? ""}隊徽`}
-      aria-hidden={decorative || undefined}
-    >
-      {letter}
-    </span>
-  );
+  return <TeamIcon code={code} name={name} size={size} label={decorative ? undefined : `${name ?? code ?? ""}隊徽`} />;
 }
 
-// 卡殼單一事實來源（.card＝surface 底 + border-line + rounded-xl + 微陰影）。
+// 卡殼單一事實來源（.card＝surface 卡面色塊＋4px 圓角；#218 起不畫框、不加陰影）。
 // padding 預設 p-4，可覆寫（p-3 / "px-4 py-3" / "" 無內距如包表格）。全站禁再手寫
 // `rounded-xl border border-line`，一律走此元件（特例：DataTable/leaderboard 內建表殼、
 // <details> 折疊、game-board ESPN 內部面板）。
@@ -96,46 +78,6 @@ export function Card({ className = "", padding = "p-4", teamColor, hoverable = f
     <div style={style} className={`card ${padding} ${shouldHover ? "card-hover-team" : ""} ${className}`}>
       {children}
     </div>
-  );
-}
-
-/** 壘包與出局數（品字排列：二壘上中、三壘左下、一壘右下，下方兩顆出局圓點）。
- *
- *  **canonical 幾何取自賽況頁記分條**（`game-board.tsx` 原有的那一份），首頁今日賽事卡
- *  改用同一份的小尺寸。兩處原本各有一套且**比例不同**（菱形 30/120＝25% vs 22/120＝18%、
- *  出局點 r=9 vs 8、viewBox 116 vs 112），不是等比縮放——同一個概念在兩頁長得不一樣，
- *  讀者得重學一次。統一由此出（UI_UX_SYSTEM §10.3／§10.4 registry）。
- *
- *  `outs` 容得下 null：首頁在非進行中的場次拿不到出局數，此時兩顆點皆不亮，
- *  且替代文字說「出局數未知」——不得把未知講成 0 出局。 */
-export function BasesOuts({ bases, outs, size = 52 }: {
-  bases: { first: boolean; second: boolean; third: boolean };
-  outs: number | null;
-  size?: number;
-}) {
-  const o = Math.min(outs ?? 0, 2);
-  const base = (cx: number, cy: number, on: boolean) => (
-    <rect
-      x={cx - 15} y={cy - 15} width={30} height={30}
-      transform={`rotate(45 ${cx} ${cy})`} rx={4}
-      fill={on ? "var(--color-accent)" : "var(--color-line)"}
-      stroke="var(--color-surface)" strokeWidth={3}
-    />
-  );
-  const occupied = [bases.first && "一壘", bases.second && "二壘", bases.third && "三壘"]
-    .filter(Boolean).join("、") || "無人";
-  return (
-    // `role="img"` 是全站慣例（17 個 svg 中 10 個已有）：只掛 aria-label 而無 role 的
-    // `<svg>`，部分螢幕閱讀器不會把它當成一個有名字的圖形來播報。
-    <svg viewBox="0 0 120 116" width={size} height={size * 116 / 120}
-      aria-label={`壘上${occupied}，${outs == null ? "出局數未知" : `${o} 出局`}`}
-      role="img">
-      {base(60, 26, bases.second)}
-      {base(36, 50, bases.third)}
-      {base(84, 50, bases.first)}
-      <circle cx={48} cy={92} r={9} fill={o >= 1 ? "var(--color-accent)" : "var(--color-line)"} />
-      <circle cx={72} cy={92} r={9} fill={o >= 2 ? "var(--color-accent)" : "var(--color-line)"} />
-    </svg>
   );
 }
 
@@ -175,9 +117,10 @@ export function TeamBadge({ code, name, size = 20, link = false, linkStyle = fal
   );
 }
 
-// 區塊小標（eyebrow）：每個區塊回答一個問題，配此小標點題（原則 1/5）。
+// 區塊標題（#218：全站一套、不加眉標）。歷史名稱保留為 Eyebrow 以免全站改名，視覺已改為
+// 次標（16px 粗體墨色、無大寫字距）；新程式請用 postmark.tsx 的 SectionTitle（含 h2/h3 語意）。
 export function Eyebrow({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`text-[11px] font-semibold uppercase tracking-wider text-faint ${className}`}>{children}</div>;
+  return <div className={`text-base font-bold leading-snug tracking-[0.04em] text-ink ${className}`}>{children}</div>;
 }
 
 // dl 堆疊網格（決勝資訊式）：label 上、value 下，等寬數字。取代散寫的 label/value 對。
@@ -190,7 +133,7 @@ export function StatGrid({ items, cols = 2, className = "" }: {
   return (
     <dl className={`grid ${colCls} gap-2 ${className}`}>
       {items.map((it, i) => (
-        <div key={i} className="rounded-lg bg-surface-2 px-3 py-2 text-center">
+        <div key={i} className="rounded-md bg-surface-2 px-3 py-2 text-center">
           <dt className="text-[11px] text-muted">{it.label}</dt>
           <dd className={`mt-0.5 font-mono text-lg tabular-nums ${it.tone === "accent" ? "text-accent" : it.tone === "muted" ? "text-muted" : "text-ink"}`}>{it.value}</dd>
         </div>
@@ -335,7 +278,7 @@ export const RECORD_GRID = "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3
 export function SectionHeading({ children, caption }: { children: ReactNode; caption?: ReactNode }) {
   return (
     <div className="mb-1">
-      <div className="text-xs font-semibold text-muted">{children}</div>
+      <div className="text-sm font-bold tracking-[0.04em] text-ink">{children}</div>
       {caption && <p className="mt-0.5 text-xs text-faint">{caption}</p>}
     </div>
   );
@@ -349,12 +292,12 @@ export function Skeleton({ className = "" }: { className?: string }) {
 // 表格骨架：rows×cols 個灰塊，切換資料時不佈局塌陷（CLS）。
 export function TableSkeleton({ rows = 5, cols = 4, className = "" }: { rows?: number; cols?: number; className?: string }) {
   return (
-    <div className={`overflow-hidden rounded-xl border border-line ${className}`} aria-hidden>
-      <div className="flex gap-3 bg-surface-2 px-3 py-2.5">
+    <div className={`overflow-hidden rounded-md bg-surface ${className}`} aria-hidden>
+      <div className="flex gap-3 bg-band px-3 py-2.5">
         {Array.from({ length: cols }).map((_, i) => <Skeleton key={i} className="h-4 flex-1" />)}
       </div>
       {Array.from({ length: rows }).map((_, r) => (
-        <div key={r} className="flex gap-3 border-t border-line px-3 py-2.5">
+        <div key={r} className="flex gap-3 px-3 py-2.5">
           {Array.from({ length: cols }).map((_, i) => <Skeleton key={i} className="h-4 flex-1" />)}
         </div>
       ))}
@@ -365,37 +308,37 @@ export function EmptyState({ children = "無資料", className = "" }: { childre
   return <p className={`py-8 text-center text-sm text-faint ${className}`}>{children}</p>;
 }
 export function ErrorState({ children = "載入失敗", className = "" }: { children?: React.ReactNode; className?: string }) {
-  return <p className={`py-8 text-center text-sm text-accent ${className}`}>{children}</p>;
+  return <p className={`py-8 text-center text-sm text-down ${className}`} role="alert">{children}</p>;
 }
 
-// 場次狀態徽章：全站唯一狀態語彙。done＝完賽（中性）／warn＝延賽·保留（amber 警示）／
-// live＝進行中（accent）／scheduled＝未開打（accent 淡）。走語意 token，不用 Tailwind amber-數字。
+// 場次狀態章（#218 `.st`）：全站唯一狀態語彙，必含文字。done＝終場、scheduled＝賽前（中性章）；
+// live＝進行中（石油藍實底＋脈動點）；warn＝延賽・保留・中斷（紅字章，down 色）。
 export type StatusTone = "done" | "warn" | "live" | "scheduled";
 const STATUS_TONE_CLS: Record<StatusTone, { solid: string; bare: string }> = {
-  done: { solid: "bg-surface-2 text-faint", bare: "text-faint" },
-  warn: { solid: "bg-amber/15 text-amber", bare: "text-amber" },
-  live: { solid: "bg-accent/15 text-accent", bare: "text-accent" },
-  scheduled: { solid: "bg-accent/10 text-accent", bare: "text-accent/80" },
+  done: { solid: "pm-st", bare: "text-muted" },
+  warn: { solid: "pm-st pm-st--hold", bare: "text-down" },
+  live: { solid: "pm-st pm-st--live pm-updating", bare: "text-accent" },
+  scheduled: { solid: "pm-st", bare: "text-muted" },
 };
-// variant solid＝實心 pill（列表）；bare＝純色文字（月曆格等窄空間）。兩型共用 tone→色。
+// variant solid＝狀態章（列表）；bare＝純色文字（月曆格等窄空間）。兩型共用 tone→色。
 export function StatusBadge({ children, tone, variant = "solid", className = "" }: {
   children: React.ReactNode; tone: StatusTone; variant?: "solid" | "bare"; className?: string;
 }) {
   const t = STATUS_TONE_CLS[tone];
   return variant === "bare"
-    ? <span className={`font-semibold leading-none ${t.bare} ${className}`}>{children}</span>
-    : <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none ${t.solid} ${className}`}>{children}</span>;
+    ? <span className={`font-bold leading-none ${t.bare} ${className}`}>{children}</span>
+    : <span className={`${t.solid} ${className}`}>{children}</span>;
 }
 
-// 提示橫幅（warn＝amber 警示，如延賽/保留說明）。走語意 token。
-export function Notice({ tone = "warn", icon, children, className = "" }: {
-  tone?: "warn"; icon?: React.ReactNode; children: React.ReactNode; className?: string;
+// 提示附註（#218「限制」附註：淡色塊＋粗體標籤＋說明）。警示不用 emoji：label 是一個文字章
+// （延賽／保留用紅字章，其餘中性），內文維持原句。
+export function Notice({ tone = "warn", label, children, className = "" }: {
+  tone?: "warn" | "hold"; label?: React.ReactNode; children: React.ReactNode; className?: string;
 }) {
-  const cls = tone === "warn" ? "border-amber/40 bg-amber/10 text-amber" : "border-line bg-surface-2 text-muted";
   return (
-    <div className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm ${cls} ${className}`}>
-      {icon != null && <span>{icon}</span>}
-      <span className="font-medium">{children}</span>
+    <div className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-md bg-surface-2 px-4 py-2.5 text-sm text-ink ${className}`}>
+      {label != null && <span className={`pm-st ${tone === "hold" ? "pm-st--hold" : ""}`}>{label}</span>}
+      <span>{children}</span>
     </div>
   );
 }
@@ -419,17 +362,19 @@ export const PR_GRADIENT = "linear-gradient(90deg, rgb(30,91,184), rgb(232,232,2
 // （用 ct.ink 會在深色模式變成淺字疊在淺格上）。
 export const PR_CELL_TEXT = { ink: "#0a2540", halo: "#ffffff" };
 
+/** 選手頁官方 PR 條（#218 核可：單色）。條長＝聯盟百分位，石油藍只標 PR 90 以上，其餘墨灰；
+ *  方向沿用官方 PR（高＝有利）。排行／戰績／熱度圖的發散色另由 prColor 承載，語意不同不合併。 */
 export function PercentileBar({ name, value, pr, def }: { name: string; value: string; pr: number; def?: string }) {
   // 定義提示走共用 Tooltip（原生 title 有延遲且觸控無效）
-  const label = <span className="w-16 shrink-0 truncate text-muted">{name}</span>;
+  const label = <span className="w-[6.5em] shrink-0 truncate">{name}</span>;
   return (
-    <div className="flex items-center gap-2 text-xs">
+    <div className="flex items-center gap-2.5 text-[13px]">
       {def ? <Tooltip content={def}>{label}</Tooltip> : label}
-      <div className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-surface-2">
-        <div className="h-full rounded-full" style={{ width: `${pr}%`, background: prColor(pr) }} />
+      <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-band">
+        <div className={`h-full rounded-full ${pr >= 90 ? "bg-accent" : "bg-muted"}`} style={{ width: `${Math.max(0, Math.min(pr, 100))}%` }} />
       </div>
-      <span className="w-11 shrink-0 text-right font-mono tabular-nums text-ink">{value}</span>
-      <span className="w-6 shrink-0 text-right font-mono text-faint">{pr}</span>
+      <span className="w-[4em] shrink-0 text-right font-mono tabular-nums text-ink">{value}</span>
+      <span className="w-[2.4em] shrink-0 text-right font-mono font-bold tabular-nums text-ink">{pr}</span>
     </div>
   );
 }

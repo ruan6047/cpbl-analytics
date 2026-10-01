@@ -65,7 +65,7 @@ function TrendChart({ data, metric, categorical }: {
             isAnimationActive={false} connectNulls
             dot={data.length > 18 ? false : { r: 3, fill: ct.down }} />
         ) : (
-          <Bar dataKey="v" name={metric.label} fill={ct.cpbl} isAnimationActive={false} maxBarSize={18} />
+          <Bar dataKey="v" name={metric.label} fill={ct.ink} isAnimationActive={false} maxBarSize={18} />
         )}
       </ComposedChart>
     </ResponsiveContainer>

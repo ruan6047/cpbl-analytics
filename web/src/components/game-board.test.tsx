@@ -114,9 +114,10 @@ function board(over: {
   );
 }
 
-/** 球數燈：`Dots` 是記分條裡唯一產生這個 class 的地方（賽中 B 三顆 + S 兩顆 = 5）。 */
+/** 球數燈：`GameSituation` 的 B／S 兩列燈號（`data-l="b"`／`"s"`；賽中 B 三顆 + S 兩顆 = 5）。
+ *  #220 起出局改為同一組燈號的 O 列（`data-l="o"`），不計入本函式。 */
 const countDots = (html: string) =>
-  html.split('class="h-2.5 w-2.5 rounded-full border"').length - 1;
+  (html.match(/data-l="[bs]"/g) ?? []).length;
 
 /** 取記分條**中央格**（grid 的第三欄）的 markup，用標籤配對切出整格。
  *
@@ -125,8 +126,8 @@ const countDots = (html: string) =>
  *  的半局符號緊鄰 phase 標籤，讀作「在第 9 局下結束」（F/9 慣例），與中央格「正在進行中
  *  的 BOT 9」語意不同。在整條記分條上斷言 `▲`／`▼` 不存在會誤殺那一列。 */
 function centerCell(html: string): string {
-  // 前綴比對：完賽態的中央格不掛 px-2（見 game-board.tsx 該處註解），故不能比對整串 class。
-  const at = html.indexOf('class="flex flex-col items-center gap-0.5');
+  // 以 data-testid 定位（#220 起中央格 class 依態不同，不比對 class 字串）。
+  const at = html.indexOf('data-testid="scorebar-center"');
   assert.ok(at > 0, "記分條中央格必須存在");
   let i = html.indexOf(">", at) + 1;
   const start = i;
@@ -161,15 +162,16 @@ function assertSituationHidden(html: string, label: string) {
   // 任何一處殘留都代表態閘門沒接上。
   assert.ok(!html.includes("TOP"), `${label}：記分條不得出現 TOP`);
   assert.ok(!html.includes("BOT"), `${label}：記分條不得出現 BOT`);
-  assert.ok(!html.includes('aria-label="壘上'),
-    `${label}：記分條不得留下壘包／出局的 aria-label（螢幕閱讀器受害面）`);
+  assert.ok(!/aria-label="[^"]*(壘上|有人|滿壘)/.test(html),
+    `${label}：記分條不得留下壘包的 aria-label（螢幕閱讀器受害面）`);
   assert.ok(!html.includes("出局"), `${label}：記分條不得出現出局數`);
 }
 
-function assertSituationShown(html: string, label: string, half: "▲ TOP" | "▼ BOT", inning: string) {
+function assertSituationShown(html: string, label: string, half: "上" | "下", inning: string) {
   const cell = centerCell(html);
-  assert.equal(text(cell), `${half} ${inning} B S`, `${label}：中央格必須是完整的賽中局面`);
-  assert.ok(cell.includes('aria-label="壘上'), `${label}：中央格必須顯示壘包／出局`);
+  assert.equal(text(cell), `${inning} 局${half} B S O`, `${label}：中央格必須是完整的賽中局面`);
+  assert.ok(/aria-label="[^"]*(壘上無人|有人|滿壘)/.test(cell), `${label}：中央格必須顯示壘包`);
+  assert.ok(/aria-label="[^"]*出局"/.test(cell), `${label}：中央格必須顯示出局數`);
   assert.equal(countDots(cell), 5, `${label}：中央格必須顯示 B 三顆 + S 兩顆球數燈`);
   assert.ok(!cell.includes("終場"), `${label}：中央格不得顯示「終場」`);
 }
@@ -197,7 +199,7 @@ test("完賽（當日場，snapshot.phase=final）＋總覽：記分條只呈現
 
 test("賽中（snapshot.phase=live）＋總覽：局面照舊顯示", () => {
   const html = board({ ...LIVE_OVERVIEW, snapshot: snapshot("live", 6, "1") });
-  assertSituationShown(html, "賽中", "▲ TOP", "6");
+  assertSituationShown(html, "賽中", "上", "6");
   assert.ok(html.includes("比賽進行中"), "狀態列必須顯示比賽進行中");
 });
 
@@ -205,12 +207,12 @@ test("賽中（snapshot.phase=live）＋總覽：局面照舊顯示", () => {
 
 test("完賽＋逐打席：選中打席的局面仍然顯示（ScoreBar 與賽後戰報共用同一元素）", () => {
   const html = board({ ...FINAL_PBP, snapshot: null });
-  assertSituationShown(html, "完賽・逐打席", "▼ BOT", "9");
+  assertSituationShown(html, "完賽・逐打席", "下", "9");
 });
 
 test("完賽＋逐打席（當日場 snapshot=final）：局面同樣不得被關掉", () => {
   const html = board({ ...FINAL_PBP, snapshot: snapshot("final", 9, "2") });
-  assertSituationShown(html, "完賽・逐打席・snapshot=final", "▼ BOT", "9");
+  assertSituationShown(html, "完賽・逐打席・snapshot=final", "下", "9");
 });
 
 // ───────── #210：完賽後賽中擷取逐球的揭露（真實 A-227 worker 產出） ─────────

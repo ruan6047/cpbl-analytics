@@ -6,16 +6,16 @@
 // 焦點區的球迷用語（魯閣／中計／煮粥…）**維持現況**：brief 的非目標明訂「球迷暱稱於
 // recap **正式文案**」，焦點區既有用法不在此限；結論行事實句才是正式文案。
 
-import { Card, Eyebrow } from "@/components/ui";
-import { teamColor } from "@/lib/teams";
+import { Card, Eyebrow, TeamLogo } from "@/components/ui";
 import type { Highlight } from "../game-summary";
 
+// #218 身分標籤：隊色只在印記，不鋪底；帶隊的焦點前置該隊印記。
 function Chip({ text, team }: Highlight) {
-  const color = team ? teamColor(team) : null;
-  return color
-    ? <span className="rounded-md px-2.5 py-1 text-xs font-medium"
-        style={{ background: `${color}1a`, color }}>{text}</span>
-    : <span className="rounded-md bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">{text}</span>;
+  return (
+    <span className="pm-tag inline-flex items-center gap-1.5 !text-ink">
+      {team && <TeamLogo code={team} size={14} decorative />}{text}
+    </span>
+  );
 }
 
 export function TeamLines({ highlights, milestones, info }: {

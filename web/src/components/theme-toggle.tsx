@@ -33,7 +33,7 @@ export function ThemeToggle() {
       onClick={toggle}
       aria-label={isDark ? "切換為淺色模式" : "切換為深色模式"}
       title={isDark ? "淺色模式" : "深色模式"}
-      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-line-strong text-ink transition-colors hover:bg-surface-2 md:h-[34px] md:w-[34px]"
     >
       {theme === null ? (
         <span className="h-4 w-4" />

@@ -246,7 +246,7 @@ export default function PaSimPanel({
             退化態不顯示——沒有結果可拆解時，可操作的情境控制會誤導使用者以為
             「調一調就會有數字」。 */}
         {(pending || derived.kind === "ok") && (
-        <div className="mt-3 rounded-lg border border-line bg-surface-2/40 p-3">
+        <div className="mt-3 rounded-md bg-surface-2/40 p-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <span className="text-[11px] font-semibold text-muted">假設情境</span>
             <Field label="局數">
@@ -368,7 +368,7 @@ function PaSimResult({
       <div className="grid gap-3 md:grid-cols-2">
         <div className="space-y-3">
           <OutcomeGroup title="出局" keys={OUT_KEYS} data={data} max={max} half={half} />
-          <section className="rounded-lg border border-line bg-surface-2/40 p-3">
+          <section className="rounded-md bg-surface-2/40 p-3">
             <h4 className="text-xs font-semibold text-muted">此情境的起點</h4>
             <p className="mt-1 flex items-baseline gap-2">
               <span className="font-mono text-xl font-bold tabular-nums text-ink">

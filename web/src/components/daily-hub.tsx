@@ -2,20 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Card, Eyebrow, TeamLogo, EmptyState, StatusBadge } from "@/components/ui";
-import { PregameCard } from "@/components/pregame-card";
-import TodaySlate from "@/components/today-slate";
+import { EmptyState, StatusBadge, TeamLogo } from "@/components/ui";
+import { Scoreline, SectionTitle, Serial } from "@/components/postmark";
+import { TodayGameCard, orderedTodayGames } from "@/components/today-slate";
 import { clientGet } from "@/lib/client";
 import { methodologyHref } from "@/lib/methodology-anchors";
+import type { CalendarGame } from "@/lib/api";
+import { previousGameDay, type ResultGame } from "@/lib/home-results";
 import {
   dailySummaryQuery,
-  resolvePregameFromDaily,
   homePregameNotice,
   liveSourceSignal,
   refreshCopy,
   refreshAtText,
   shortDate,
-  showTodaySlate,
   slateDistanceText,
   todayCardKind,
   todayPollDelayMs,
@@ -24,137 +24,85 @@ import {
   latestGameDateNote,
   latestDayPendingCount,
   LATEST_STATUS_COPY,
-  LATEST_FOOTER_COPY,
   TODAY_COPY,
   type DailySummary,
-  type DailyGame,
+  type TodayGame,
 } from "@/lib/daily-summary";
 
-// 首頁每日入口 hub（UX-GAME-HOME1 → UX-HOME-LIVE-STRIP1）。所有語意由 API 推導，
-// 不寫死「昨天／今天」，未完成場次不以 0–0 假裝賽果。
+// 首頁每日入口 hub（UX-GAME-HOME1 → UX-HOME-LIVE-STRIP1 → #220 郵戳 7:3）。所有語意由
+// API 推導，不寫死「昨天／今天」，未完成場次不以 0–0 假裝賽果。
 //
-// 為什麼這裡是 client island 而不是 server component：主區塊要在使用者不重新整理的
-// 情況下自己翻頁（打線公布 → 今日賽事；開打 → 賽中；終場 → 賽後），而那個決定跨越
-// 整個 hub——不是某一張卡的局部狀態。島只持有「目前這一份 summary」與「現在幾點」，
-// 畫面全部委給無 hook 的展示元件（`today-slate.tsx` 與既有卡片）。
+// 版面（#218 核可 7:3）：左＝今天全部場次（含已完賽）的票券；今天沒有賽程時改列下一批賽事。
+// 右＝**嚴格早於今天**、最近一個有完賽紀錄的比賽日（`lib/home-results.ts`）。舊版「今日／
+// 最近比賽日二擇一」保證的是「同一場不在兩個區塊出現兩次」；新版以日期切開達成同一保證
+// （右欄的日期一定早於左欄），所以兩欄可以同時在。
+//
+// 為什麼這裡是 client island 而不是 server component：票券要在使用者不重新整理的情況下
+// 自己翻態（賽前 → 賽中 → 賽後）。島只持有「目前這一份 summary」與「現在幾點」，
+// 畫面全部委給無 hook 的展示元件（`today-slate.tsx`）。
 //
 // **輪詢打的是首屏那一支端點**（`/api/v1/daily/summary`，查詢字串由同一份 response 的
 // scope 推導）。這條不是效能取捨而是正確性：這份 response 同時承載賽況數字、賽前點機率
 // 與產生那些機率的 serving 版本；一旦分成兩個來源，就會再次出現「快取的舊機率＋即時的
-// 正常狀態」那個競態（ML-OUTCOME-SIMPLE-LEAK2 iteration 3）。
+// 正常狀態」那個競態（ML-OUTCOME-SIMPLE-LEAK2 iteration 3）。右欄另讀的 calendar 只在 SSR
+// 取一次，只用來回答「今天以前」的事（前一比賽日與其 MVP），不碰任何今天會變的數字。
 
-function TeamRow({
-  code,
-  name,
-  score,
-  win,
-  align = "left",
-}: {
-  code: string;
-  name: string;
-  score: number | null;
-  win: boolean;
-  align?: "left" | "right";
-}) {
-  const logo = <TeamLogo code={code} name={name} size={20} decorative />;
-  return (
-    <div className={`flex items-center gap-2 ${align === "right" ? "flex-row-reverse" : ""}`}>
-      {logo}
-      <span className={`text-sm ${win ? "font-semibold text-ink" : "text-muted"}`}>{name}</span>
-      {score != null && (
-        <span className={`ml-auto font-mono text-base tabular-nums ${win ? "font-bold text-ink" : "text-muted"} ${align === "right" ? "ml-0 mr-auto" : ""}`}>
-          {score}
-        </span>
-      )}
-    </div>
-  );
+const WEEKDAY = ["日", "一", "二", "三", "四", "五", "六"];
+/** `YYYY-MM-DD` → 「（四）」。純字串／UTC 算術，不碰執行環境時區。 */
+function weekday(ymd: string): string {
+  const ms = Date.parse(`${ymd}T00:00:00Z`);
+  return Number.isFinite(ms) ? `（${WEEKDAY[new Date(ms).getUTCDay()]}）` : "";
 }
 
-// 完賽場次：比分 + 勝方強調 + 進入復盤。未完成場次比分為 null 時只顯示對戰與狀態文字。
-function CompletedGame({ g }: { g: DailyGame }) {
-  const homeWin = g.completed && (g.home_score ?? 0) > (g.away_score ?? 0);
-  const awayWin = g.completed && (g.away_score ?? 0) > (g.home_score ?? 0);
-  return (
-    <Link
-      href={gameHref(g)}
-      className="block rounded-lg border border-line bg-surface px-3 py-2.5 transition hover:bg-surface-2"
-    >
-      <div className="grid grid-cols-1 gap-1">
-        <TeamRow code={g.away_team_code} name={g.away_team_name} score={g.away_score} win={awayWin} />
-        <TeamRow code={g.home_team_code} name={g.home_team_name} score={g.home_score} win={homeWin} />
-      </div>
-      <div className="mt-1.5 flex items-center justify-between text-[11px] text-faint">
-        <span className="truncate">{g.venue ?? "—"}</span>
-        <span className="shrink-0 text-accent">{LATEST_FOOTER_COPY.final}</span>
-      </div>
-    </Link>
-  );
+/** 標題日期：寬體 MM/DD＋小字星期。 */
+function TitleDate({ ymd }: { ymd: string }) {
+  return <>{shortDate(ymd)}<small>{weekday(ymd)}</small></>;
 }
 
-/** 最近比賽日裡**沒有賽果**的那些場次（DAILY-MIXED-DAY-UX1）。
- *
- *  與 `CompletedGame` 分成兩個元件而不是在裡面加 if：兩者的**語意**不同，一個是賽果、
- *  一個是排程狀態，共用一個元件會讓「不小心把比分欄接上」變成一次手滑的距離。
- *
- *  三件事刻意不做：不畫比分欄（後端已送 null，前端更不得回填 0）、不連到單場頁
- *  （見 `LATEST_FOOTER_COPY.pending`）、不解釋成因（沒有任何欄位存得下理由）。
- *
- *  **0:0 真和局不走這裡**：它是賽果不是待判讀，後端送 `completed: true` ＋ 0:0，
- *  因此由 `CompletedGame` 承接並照常給賽後入口（Design Gate 第 8 項）。 */
-function PendingGame({ g }: { g: DailyGame }) {
+/** 右欄：前一比賽日的單場。有賽果＝比分元件兩層式（每隊印記＋隊名一組、比分在中軸）＋
+ *  場次・球場說明＋MVP（calendar 有值才顯示）；沒有賽果＝狀態章＋原定日（不給連結，
+ *  見 `LATEST_FOOTER_COPY.pending`），不畫比分、不回填 0。 */
+function ResultRow({ g }: { g: ResultGame }) {
   const status = latestGameStatus(g);
-  // `final` 由 `CompletedGame` 承接；這裡收斂型別，順便讓將來多一個態時編譯器會叫。
-  const copy = status === "final" ? null : LATEST_STATUS_COPY[status];
-  const dateNote = latestGameDateNote(g);
-  return (
-    <div
-      data-testid="latest-pending-game"
-      data-status={status}
-      className="block rounded-lg border border-dashed border-line bg-surface-2/60 px-3 py-2.5"
-    >
-      <div className="grid grid-cols-1 gap-1">
-        <TeamRow code={g.away_team_code} name={g.away_team_name} score={null} win={false} />
-        <TeamRow code={g.home_team_code} name={g.home_team_name} score={null} win={false} />
-      </div>
-      <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-faint">
-        <span className="truncate">
-          {g.venue ?? "—"}
-          {dateNote && <span className="ml-1.5">{dateNote}</span>}
-        </span>
-        {copy && (
-          <span className="shrink-0">
-            <StatusBadge tone={copy.tone}>{copy.label}</StatusBadge>
+  if (status !== "final") {
+    const copy = LATEST_STATUS_COPY[status];
+    const dateNote = latestGameDateNote(g);
+    return (
+      <li data-testid="latest-pending-game" data-status={status}
+        className="grid content-center gap-1.5 rounded-md bg-surface-2 px-3.5 py-2.5">
+        <div className="flex items-center justify-between gap-2 text-[13px]">
+          <span className="inline-flex min-w-0 items-center gap-1.5">
+            <TeamLogo code={g.away_team_code} name={g.away_team_name} size={18} decorative />
+            <span className="truncate">{g.away_team_name}</span>
           </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/** 最近比賽日的單場路由：有賽果走賽後卡，沒有的走排程狀態卡。 */
-function LatestGame({ g }: { g: DailyGame }) {
-  return g.completed ? <CompletedGame g={g} /> : <PendingGame g={g} />;
-}
-
-// 下一批賽事：對戰 + 賽前卡（點機率＋1 主訊號），可進入賽事頁。
-function NextGame({ g, trainedThrough }: { g: DailyGame; trainedThrough: number | null }) {
-  const model = resolvePregameFromDaily(g.pregame, trainedThrough);
+          <span className="text-faint">對</span>
+          <span className="inline-flex min-w-0 items-center gap-1.5">
+            <span className="truncate">{g.home_team_name}</span>
+            <TeamLogo code={g.home_team_code} name={g.home_team_name} size={18} decorative />
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+          <StatusBadge tone={copy.tone}>{copy.label}</StatusBadge>
+          <Serial items={[{ text: `No.${g.game_sno}` }, g.venue ? { text: g.venue } : null, dateNote ? { text: dateNote } : null]} />
+        </div>
+      </li>
+    );
+  }
+  const winner = (g.away_score ?? 0) > (g.home_score ?? 0) ? g.away_team_name
+    : (g.home_score ?? 0) > (g.away_score ?? 0) ? g.home_team_name : null;
   return (
-    <div className="rounded-lg border border-line bg-surface px-3 py-2.5">
-      <Link href={gameHref(g)} className="block transition hover:opacity-80">
-        <div className="grid grid-cols-1 gap-1">
-          <TeamRow code={g.away_team_code} name={g.away_team_name} score={null} win={false} />
-          <TeamRow code={g.home_team_code} name={g.home_team_name} score={null} win={false} />
-        </div>
-        <div className="mt-1.5 flex items-center justify-between text-[11px] text-faint">
-          <span className="truncate">{g.venue ?? "—"}</span>
-          <span className="shrink-0 text-accent">賽事詳情 →</span>
-        </div>
+    <li className="grid">
+      <Link href={gameHref(g)}
+        aria-label={`No.${g.game_sno}${g.venue ? ` ${g.venue}` : ""}，終場：${g.away_team_name}（客）${g.away_score} 比 ${g.home_score} ${g.home_team_name}（主），${winner ? `${winner}勝` : "和局"}${g.mvp ? `，單場 MVP ${g.mvp}` : ""}。開啟賽後復盤`}
+        className="grid content-center gap-1.5 rounded-md bg-surface px-3.5 py-2.5 text-inherit no-underline transition-colors hover:bg-surface-2">
+        <Scoreline stack away={{ code: g.away_team_code, name: g.away_team_name, score: g.away_score }}
+          home={{ code: g.home_team_code, name: g.home_team_name, score: g.home_score }} />
+        <span aria-hidden="true" className="flex flex-wrap justify-center gap-x-3 text-[11.5px] text-muted">
+          <span className="font-mono">No.{g.game_sno}{g.venue ? ` · ${g.venue}` : ""}</span>
+          {g.mvp && <span><b className="font-bold text-ink">MVP</b> {g.mvp}</span>}
+        </span>
       </Link>
-      <div className="mt-2">
-        <PregameCard model={model} homeName={g.home_team_name} />
-      </div>
-    </div>
+    </li>
   );
 }
 
@@ -206,7 +154,7 @@ function PollCountdown({ cycleMs, startedAt }: { cycleMs: number; startedAt: num
       // 靜態說明；**不掛 aria-live**——每秒播報一次倒數是災難。
       title="距離下次更新"
       aria-label="距離下次更新"
-      className="group inline-flex items-center gap-1 rounded text-[11px] text-faint"
+      className="group inline-flex items-center gap-1 rounded text-[11px] text-muted"
     >
       <svg width={18} height={18} viewBox="0 0 18 18" aria-hidden="true">
         <circle cx={9} cy={9} r={radius} fill="none" stroke="var(--color-line)" strokeWidth={2} />
@@ -232,7 +180,7 @@ function PregameNotice({ text }: { text: string }) {
   return (
     <p
       data-testid="pregame-serving-notice"
-      className="mb-3 rounded-lg bg-surface-2 px-3 py-2 text-xs text-muted"
+      className="rounded-md bg-surface-2 px-3 py-2 text-xs text-muted"
     >
       {text}{" "}
       <Link href={methodologyHref("pregame")} className="text-accent hover:underline">
@@ -242,18 +190,34 @@ function PregameNotice({ text }: { text: string }) {
   );
 }
 
-export default function DailyHub({ summary: initial }: { summary: DailySummary }) {
+export default function DailyHub({ summary: initial, calendar }: {
+  summary: DailySummary;
+  /** SSR 取一次的本季 calendar（A＋季後 E／C）；失敗時為 null，右欄退回 summary 能給的。 */
+  calendar: CalendarGame[] | null;
+}) {
   const [summary, setSummary] = useState<DailySummary>(initial);
   // 首次渲染刻意不帶時鐘（見 `liveInterrupt` 的 null 分支）；掛載後由 effect 補上，
   // 之後每次輪詢（成功或失敗）都往前推——輪詢打不出去時資料仍必須繼續老化。
   const [nowMs, setNowMs] = useState<number | null>(null);
   const latest = useRef(initial);
   const query = dailySummaryQuery(initial.scope);
+  // 郵戳落章：只在「這一輪輪詢才轉為終場」的那場落一次；首屏已是終場的不動（不做進場動畫）。
+  const kinds = useRef<Map<string, string> | null>(null);
+  const [revealed, setRevealed] = useState<ReadonlySet<string>>(() => new Set());
 
   useEffect(() => {
     setSummary(initial);
     latest.current = initial;
   }, [initial]);
+
+  useEffect(() => {
+    const next = new Map((summary.today?.games ?? []).map((g) => [gameKey(g), todayCardKind(g)] as const));
+    const prev = kinds.current;
+    kinds.current = next;
+    if (!prev) return;
+    const turned = [...next].filter(([k, kind]) => kind === "final" && prev.has(k) && prev.get(k) !== "final").map(([k]) => k);
+    if (turned.length) setRevealed((cur) => new Set([...cur, ...turned]));
+  }, [summary]);
 
   useEffect(() => {
     let disposed = false;
@@ -303,7 +267,7 @@ export default function DailyHub({ summary: initial }: { summary: DailySummary }
     };
   }, [query]);
 
-  const { today, latest_game_day, next_slate, freshness, availability } = summary;
+  const { today, next_slate, freshness, availability } = summary;
   const trainedThrough = availability.pregame_model.trained_through;
   // serving 沿用上一版時，卡片上的機率其實不是最新回測那個模型算的——必須在賽事卡上方
   // 明講，不能只寫進後端 log 或只在方法頁揭露（ML-OUTCOME-SIMPLE-LEAK2 紅線 5）。
@@ -311,132 +275,116 @@ export default function DailyHub({ summary: initial }: { summary: DailySummary }
   const refresh = refreshCopy(freshness.last_refresh.status);
   const refreshedAt = refreshAtText(freshness.last_refresh.at, freshness.as_of);
   const liveSource = liveSourceSignal(today);
-
-  // 日界線：今天任一場走到打線公布或更後 → 主區塊整個換成「今日賽事」，舊的兩塊
-  // 不再渲染。兩者擇一是「同一場比賽不得同時出現在兩個區塊」的結構性保證，
-  // 不是靠逐場去重（今天的場次同時也是 next_slate 的場次）。
-  const showToday = showTodaySlate(summary);
-  const todayHasPregame = today?.games.some((g) => todayCardKind(g) === "pregame") ?? false;
   // 倒數的週期直接取輪詢實際用的那個值（live 20 秒／未定案無 live 60 秒），不另寫死常數；
   // null＝今天不輪詢，此時**不渲染**倒數環——一個永遠不動的假倒數比沒有更糟。
   const pollCycleMs = todayPollDelayMs(today);
-  // 最近比賽日有幾場沒有賽果。0＝全部完成（常態），>0＝混合日。
-  const pendingCount = latestDayPendingCount(latest_game_day?.games ?? []);
+
+  // 左欄：今天有排賽就列今天全部場次（賽前也列，票券自帶賽前勝率）；今天沒有排賽就列下一批。
+  const hasToday = !!today && today.games.length > 0;
+  const leftGames: TodayGame[] = hasToday
+    ? orderedTodayGames(today!.games)
+    : (next_slate?.games ?? []).map((g) => ({ ...g, live: null }));
+  const leftHasPregame = leftGames.some((g) => todayCardKind(g) === "pregame");
+  // 右欄：嚴格早於今天的最近完賽日（日界取 summary 的台北日期）。
+  const prevDay = previousGameDay(summary, calendar);
+  const prevGames = prevDay?.games ?? [];
+  const pendingCount = latestDayPendingCount(prevGames);
+  const rows = Math.max(1, leftGames.length, prevGames.length);
 
   return (
-    <section className="space-y-4">
-      {showToday && today ? (
-        /* 1a. 今日賽事（每場卡自己有三態） */
-        <Card padding="p-4">
-          <div className="mb-3 flex items-center justify-between border-b border-line pb-2">
-            <Eyebrow className="text-xs font-bold text-ink">
-              {TODAY_COPY.title} · {shortDate(today.game_date)}
-            </Eyebrow>
-            {/* 觸控目標 ≥44px（藍圖 §8.3）：負外距讓命中區長高但不改變標題列的視覺高度。 */}
-            <span className="flex items-center gap-2">
-              {pollCycleMs !== null && nowMs !== null && (
-                <PollCountdown cycleMs={pollCycleMs} startedAt={nowMs} />
-              )}
-              <Link href="/games"
-                className="-my-3 inline-flex min-h-11 items-center text-xs text-accent hover:underline">
-                完整賽況 →
-              </Link>
+    <section className="space-y-6">
+      <div className="pm-split" style={{ "--n": rows } as React.CSSProperties}>
+        <div className="pm-split-hl space-y-2">
+          <SectionTitle as="h1"
+            date={hasToday ? <TitleDate ymd={today!.game_date} /> : next_slate ? <TitleDate ymd={next_slate.game_date} /> : undefined}
+            cue={hasToday
+              ? <span className="text-sm font-bold text-ink">{today!.games.length} 場</span>
+              : next_slate ? slateDistanceText(next_slate.days_from_as_of) : undefined}
+            meta={
+              <span className="inline-flex items-center gap-2">
+                {pollCycleMs !== null && nowMs !== null && (
+                  <PollCountdown cycleMs={pollCycleMs} startedAt={nowMs} />
+                )}
+                {/* 觸控目標 ≥44px（藍圖 §8.3）：負外距讓命中區長高但不改變標題列的視覺高度。 */}
+                <Link href="/games" className="-my-3 inline-flex min-h-11 items-center text-accent no-underline hover:underline">
+                  完整賽況 →
+                </Link>
+              </span>
+            }>
+            {hasToday ? TODAY_COPY.title : "下一批賽事"}
+          </SectionTitle>
+          {/* 資料新鮮度（維護者 fail-fast 安全網；各 status 文案分立）＝全頁唯一一個資料時間。
+              即時來源訊號併在這一條（藍圖 §8.1）：**恆常渲染**（含「今日無賽程」這個正常態），
+              只描述觀察到的事實，不診斷即時管道的成因。 */}
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-muted">
+            <span className={`pm-fresh ${refresh.tone === "warn" ? "pm-fresh--stale" : ""}`}>
+              資料更新至 <b className="font-bold text-ink">{shortDate(freshness.last_completed_game_date)}</b>
             </span>
-          </div>
-          {notice && todayHasPregame && <PregameNotice text={notice} />}
-          <TodaySlate slate={today} trainedThrough={trainedThrough} nowMs={nowMs} />
-        </Card>
-      ) : (
-        /* 1b. 最近比賽日（今天沒有場次、或今天還沒有任何新內容時的主位） */
-        <Card padding="p-4">
-          <div className="mb-3 flex items-center justify-between border-b border-line pb-2">
-            <Eyebrow className="text-xs font-bold text-ink">
-              最近比賽日{latest_game_day ? ` · ${shortDate(latest_game_day.game_date)}` : ""}
-            </Eyebrow>
-            {/* 觸控目標 ≥44px（藍圖 §8.3）：負外距讓命中區長高但不改變標題列的視覺高度。 */}
-            <Link href="/games"
-              className="-my-3 inline-flex min-h-11 items-center text-xs text-accent hover:underline">
-              完整賽況 →
-            </Link>
-          </div>
-          {/* 混合日的**區塊層**提示：逐張卡上的徽章解釋單場，這一句解釋整天。沒有它的話，
-              讀者要自己數才知道「這一天不只這幾場」。全部完成時不渲染——常態不製造噪音。 */}
-          {pendingCount > 0 && latest_game_day && (
-            <p data-testid="latest-pending-note" className="mb-2 text-[11px] text-muted">
-              這一天共 {latest_game_day.games.length} 場，其中 {pendingCount} 場尚無賽果
+            <span className={refresh.tone === "warn" ? "font-bold text-down" : undefined}>{refresh.label}</span>
+            {refreshedAt && <span>{refreshedAt}</span>}
+            {liveSource.display === "symbol" ? (
+              <span role="img" aria-label={liveSource.label} title={liveSource.label} className="font-bold text-accent">
+                {liveSource.symbol}
+              </span>
+            ) : (
+              <StatusBadge tone={liveSource.tone}>{liveSource.label}</StatusBadge>
+            )}
+          </p>
+          {notice && leftHasPregame && <PregameNotice text={notice} />}
+        </div>
+
+        <section className="pm-split-l" aria-label={hasToday ? "今日場次，每張票上客下主" : "下一批賽事，每張票上客下主"}>
+          {leftGames.length > 0 ? (
+            <div className="pm-rows">
+              {leftGames.map((g) => (
+                <TodayGameCard key={gameKey(g)} g={g} trainedThrough={trainedThrough} nowMs={nowMs}
+                  reveal={revealed.has(gameKey(g))} />
+              ))}
+            </div>
+          ) : (
+            <div className="pm-rows">
+              <EmptyState className="rounded-md bg-surface py-6">
+                {availability.schedule.status === "season_complete"
+                  ? "本季賽程已全部結束"
+                  : availability.schedule.status === "source_missing"
+                    ? "查無賽程資料"
+                    : "目前沒有已排定的下一批賽事"}
+              </EmptyState>
+            </div>
+          )}
+        </section>
+
+        <div className="pm-split-hr">
+          <SectionTitle as="h2" date={prevDay ? <TitleDate ymd={prevDay.game_date} /> : undefined} cue="終場・左客右主">
+            賽果
+          </SectionTitle>
+          {/* 混合日的**區塊層**提示：逐列的狀態章解釋單場，這一句解釋整天。全部完成時不渲染。 */}
+          {pendingCount > 0 && prevDay && (
+            <p data-testid="latest-pending-note" className="-mt-1 text-[12.5px] text-muted">
+              這一天共 {prevGames.length} 場，其中 {pendingCount} 場尚無賽果
             </p>
           )}
-          {latest_game_day && latest_game_day.games.length > 0 ? (
-            <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
-              {latest_game_day.games.map((g) => (
-                <LatestGame key={`${g.kind_code}-${g.game_sno}`} g={g} />
-              ))}
-            </div>
-          ) : (
-            <EmptyState className="py-5">
-              {availability.results.status === "not_started"
-                ? "本季尚未有完成的比賽"
-                : availability.results.status === "source_missing"
-                  ? "查無賽程資料"
-                  : "目前沒有可顯示的最近賽果"}
-            </EmptyState>
-          )}
-        </Card>
-      )}
-
-      {/* 2. 資料 freshness（維護者 fail-fast 安全網；各 status 文案分立）。
-          即時來源訊號併在這一條（藍圖 §8.1 模式）：訪客面已靜默降級，這裡只讓維護者
-          fail fast，且只描述觀察到的事實，不診斷即時管道的成因。
-          該格**恆常渲染**（含「今日無賽程」這個正常態）：即時管道全斷時訪客面會退回
-          純日期版面，與休兵日長得一模一樣，用「沒有訊號」表達正常會讓維護者分不出來。 */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-surface-2 px-3 py-2 text-xs">
-        <span className="text-muted">
-          資料更新至{" "}
-          <span className="font-medium text-ink">{shortDate(freshness.last_completed_game_date)}</span>
-        </span>
-        <StatusBadge tone={refresh.tone}>{refresh.label}</StatusBadge>
-        {refreshedAt && <span className="text-faint">{refreshedAt}</span>}
-        {liveSource.display === "symbol" ? (
-          <span role="img" aria-label={liveSource.label} title={liveSource.label}
-            className="text-[11px] font-semibold text-muted">
-            {liveSource.symbol}
-          </span>
-        ) : (
-          <StatusBadge tone={liveSource.tone}>{liveSource.label}</StatusBadge>
-        )}
-      </div>
-
-      {/* 3. 下一批賽事。今日賽事區塊在位時整塊不渲染——今天的場次同時就是 next_slate，
-          兩塊並存等於同一場比賽出現兩次。 */}
-      {!showToday && (
-        <Card padding="p-4">
-          <div className="mb-3 flex items-center justify-between border-b border-line pb-2">
-            <Eyebrow className="text-xs font-bold text-ink">
-              下一批賽事
-              {next_slate ? ` · ${shortDate(next_slate.game_date)}` : ""}
-            </Eyebrow>
-            {next_slate && (
-              <span className="text-xs text-muted">{slateDistanceText(next_slate.days_from_as_of)}</span>
+        </div>
+        <section className="pm-split-r" aria-label={prevDay ? `${shortDate(prevDay.game_date)} 賽果，左客右主` : "最近賽果"}>
+          <ol className="pm-rows">
+            {prevGames.length > 0 ? prevGames.map((g) => <ResultRow key={gameKey(g)} g={g} />) : (
+              <li>
+                <EmptyState className="rounded-md bg-surface py-6">
+                  {availability.results.status === "not_started"
+                    ? "本季尚未有完成的比賽"
+                    : availability.results.status === "source_missing"
+                      ? "查無賽程資料"
+                      : "目前沒有可顯示的最近賽果"}
+                </EmptyState>
+              </li>
             )}
-          </div>
-          {notice && <PregameNotice text={notice} />}
-          {next_slate && next_slate.games.length > 0 ? (
-            <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
-              {next_slate.games.map((g) => (
-                <NextGame key={`${g.kind_code}-${g.game_sno}`} g={g} trainedThrough={trainedThrough} />
-              ))}
-            </div>
-          ) : (
-            <EmptyState className="py-5">
-              {availability.schedule.status === "season_complete"
-                ? "本季賽程已全部結束"
-                : availability.schedule.status === "source_missing"
-                  ? "查無賽程資料"
-                  : "目前沒有已排定的下一批賽事"}
-            </EmptyState>
-          )}
-        </Card>
-      )}
+          </ol>
+        </section>
+      </div>
     </section>
   );
+}
+
+function gameKey(g: { kind_code: string; game_sno: number; season: number }): string {
+  return `${g.season}-${g.kind_code}-${g.game_sno}`;
 }

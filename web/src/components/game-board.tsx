@@ -3,7 +3,9 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import Link from "next/link";
 import type { StatRow } from "@/lib/client";
-import { BasesOuts, ENTITY_LINK, ENTITY_LINK_TEXT, TeamLogo } from "@/components/ui";
+import { ENTITY_LINK, ENTITY_LINK_TEXT, StatusBadge, TeamLogo } from "@/components/ui";
+import { GameSituation } from "@/components/postmark";
+import { phaseTone } from "@/lib/daily-summary";
 import { isCurrentTeam, teamColor, teamPageCode } from "@/lib/teams";
 import { PITCH_CALL, PA_KIND } from "@/lib/chart-theme";
 import type { WpPoint } from "@/components/win-prob-chart";
@@ -77,26 +79,13 @@ function todayLabel(r: StatRow): { label: string; kind: PaKind } {
 }
 const paRbi = (r: StatRow): number => Number(String(r.content ?? "").match(/(\d+)分打點/)?.[1] ?? 0);
 
-// ───────────────────────── 球數燈 ─────────────────────────
-function Dots({ n, total, color }: { n: number; total: number; color: string }) {
-  return (
-    <div className="flex gap-1">
-      {Array.from({ length: total }, (_, i) => (
-        <span
-          key={i}
-          className="h-2.5 w-2.5 rounded-full border"
-          style={{ borderColor: i < n ? color : "var(--color-line)", background: i < n ? color : "transparent" }}
-        />
-      ))}
-    </div>
-  );
-}
-
-// ───────────────────────── 壘包＋出局（緊湊版：菱形品字群 + 出局點）─────────────────────────
-// ───────────────────────── 頂部記分條 ─────────────────────────
-function ScoreBar({ game, e, records, snapshot, gameSno, plain }: {
-  game: StatRow; e: StatRow; records: Record<string, Rec>; snapshot: LiveSnapshot | null; gameSno: string;
-  /** true＝完賽態總覽：中央格只寫「終場」，不畫 ▲/▼ N 局、壘包與球數（設計定稿 §1.1.1）。 */
+// ───────────────────────── 頂部記分條（#218 live.html 狀態板）─────────────────────────
+// 兩隊識別在外側、比分靠向中央局況區；中央＝局數＋局況（壘包＋球數燈，與首頁共用
+// `GameSituation`）。勝方只加粗、不放大：兩側同字級，落後／敗方細、淡。日期與球場由頁頂
+// 小郵戳承載（#218：狀態列不再重複），狀態列只留 phase＋半局符號＋最後更新（#160 G0 保留）。
+function ScoreBar({ game, e, records, snapshot, plain }: {
+  game: StatRow; e: StatRow; records: Record<string, Rec>; snapshot: LiveSnapshot | null;
+  /** true＝完賽態總覽：中央格只寫「終場」，不畫局數、壘包與球數（設計定稿 §1.1.1）。 */
   plain: boolean;
 }) {
   const ac = String(game.away_team_code ?? "");
@@ -105,23 +94,23 @@ function ScoreBar({ game, e, records, snapshot, gameSno, plain }: {
   const ar = records[ac];
   const hr = records[hc];
   const score = liveScorebarScores(game, e);
+  // 落後／敗方淡化（字重 500、muted）；同分兩側同重。只看大小，不放大勝方。
+  const trail = (mine: number, other: number) => num(mine) < num(other);
 
   // 隊名連結（UX-ENTITY-LINKS3 A 層；§9.3）：gating 只連現役 franchise，歷史／已解散隊
-  // 退化純文字。可點範圍與底線的取捨沿用 UX-ENTITY-LINKS2 的結論——**整塊（徽章＋隊名＋
-  // 戰績）可點，底線只跟隊名文字**，故外層 `<Link>` 帶 `group`、內層文字套
-  // `ENTITY_LINK_TEXT`（該常數本身不自建 `<a>`，不會產生 nested anchor）。
-  const side = (code: string, name: StatRow[string], rec: Rec | undefined, alignRight: boolean) => {
+  // 退化純文字。**整塊（印記＋隊名＋戰績）可點，底線只跟隊名文字**，故外層 `<Link>` 帶
+  // `group`、內層文字套 `ENTITY_LINK_TEXT`（不自建 `<a>`，不會產生 nested anchor）。
+  const side = (code: string, name: StatRow[string], rec: Rec | undefined, alignRight: boolean, role: string) => {
     const label = String(name ?? "");
-    const box = `flex items-center gap-3 ${alignRight ? "flex-row-reverse text-right" : ""}`;
-    // `decorative`：旁邊已有隊名，徽章即裝飾（§9.3；與 `TeamBadge` 的 `decorative={!!name}`
-    // 一致）。兩個分支都設，否則同一個視覺會因球隊是否現役而有不同的無障礙行為，
-    // 且連結態會唸成「X隊徽 X」。
+    const box = `flex min-w-0 items-center gap-2.5 ${alignRight ? "flex-row-reverse text-right" : ""}`;
+    // `decorative`：旁邊已有隊名，印記即裝飾（§9.3）。兩個分支都設，否則同一個視覺會因
+    // 球隊是否現役而有不同的無障礙行為。
     const inner = (linked: boolean) => (
       <>
-        <TeamLogo code={code} name={label} size={40} decorative />
-        <div>
-          <div className={`text-base font-bold leading-tight ${linked ? ENTITY_LINK_TEXT : ""}`}>{label}</div>
-          <div className="font-mono text-xs text-faint">{rec ? `${rec.w}-${rec.l}` : ""}</div>
+        <TeamLogo code={code} name={label} size={28} decorative />
+        <div className="min-w-0">
+          <div className={`text-base font-bold leading-tight [word-break:keep-all] ${linked ? ENTITY_LINK_TEXT : ""}`}>{label}</div>
+          <div className="text-xs text-muted">{role}{rec ? `・${rec.w}-${rec.l}` : ""}</div>
         </div>
       </>
     );
@@ -131,23 +120,19 @@ function ScoreBar({ game, e, records, snapshot, gameSno, plain }: {
       <div className={box}>{inner(false)}</div>
     );
   };
+  const big = (v: number, other: number) => (
+    <span className={`font-[family-name:var(--font-wide)] text-[36px] leading-none tabular-nums [font-stretch:70%] md:text-[44px] ${
+      trail(v, other) ? "font-medium text-muted" : "font-black text-ink"}`}>{v}</span>
+  );
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
-      <div className="flex h-1.5">
-        <div className="flex-1" style={{ background: teamColor(ac) }} />
-        <div className="flex-1" style={{ background: teamColor(hc) }} />
-      </div>
-      <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-5 py-2 text-xs">
-        {snapshot && <>
-          <span className={`font-semibold ${snapshot.phase === "live" ? "text-accent" : "text-ink"}`}>
-            {snapshot.phase === "live" && <span className="mr-1 inline-block h-2 w-2 rounded-full bg-accent" aria-hidden="true" />}
-            {phaseLabel(snapshot.phase)}
-          </span>
-          <span className="text-muted">{inningLabel(snapshot, "glyph") ?? "等待賽況"}</span>
+    <div className="rounded-md bg-surface">
+      {snapshot ? <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-xs">
+        {<>
+          <StatusBadge tone={phaseTone(snapshot.phase)}>{phaseLabel(snapshot.phase)}</StatusBadge>
+          <span className="font-bold text-ink">{inningLabel(snapshot, "glyph") ?? "等待賽況"}</span>
         </>}
-        <span className="text-faint">{String(game.game_date ?? "")}　賽事編號 {gameSno}　{String(game.venue ?? "")}</span>
-        {snapshot && <time className="ml-auto text-faint" dateTime={snapshot.source.fetched_at ?? undefined}>
+        {snapshot && <time className="ml-auto text-muted" dateTime={snapshot.source.fetched_at ?? undefined}>
           最後更新 {snapshot.source.fetched_at
             ? new Date(snapshot.source.fetched_at).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
             : "—"}
@@ -156,44 +141,34 @@ function ScoreBar({ game, e, records, snapshot, gameSno, plain }: {
           {phaseLabel(snapshot.phase)}，{String(game.away_team_name)} {score.away} 比 {score.home} {String(game.home_team_name)}
           {inningLabel(snapshot, "text") ? `，${inningLabel(snapshot, "text")}` : ""}
         </p>}
-      </div>
-      <div className="grid grid-cols-[1fr_auto_auto_auto_1fr] items-center gap-4 px-5 py-4">
-        {side(ac, game.away_team_name, ar, false)}
-        <div className="font-mono text-4xl font-bold tabular-nums">{score.away}</div>
-        {/* 完賽態不掛 px-2：那 16 px 是留給壘包圖與球數燈的呼吸空間，「終場」兩個字
-            不需要，而 375 px 下的欄寬已經緊到會把隊名壓成每行一字。 */}
-        <div className={`flex flex-col items-center gap-0.5${plain ? "" : " px-2"}`}>
+      </div> : <div className="h-3" />}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto_minmax(0,1fr)] items-center gap-3 px-4 pb-4 pt-1 md:gap-5">
+        {side(ac, game.away_team_name, ar, false, "客")}
+        <div className="text-right">{big(score.away, score.home)}</div>
+        {/* 完賽態不掛內距：那段空間是留給壘包圖與球數燈的呼吸空間，「終場」兩個字不需要，
+            而 375 px 下的欄寬已經緊到會把隊名壓成每行一字。 */}
+        <div data-testid="scorebar-center"
+          className={`flex flex-col items-center gap-1 rounded-md bg-surface-2 ${plain ? "px-3 py-2" : "px-3 py-2 md:px-4"}`}>
           {plain ? (
             // 完賽態總覽（§1.1.1）：比賽結束後這格若照舊吃當前事件，畫面會陳述一件假的事——
-            // `out_cnt` 是**打席前**計數，所以印出來的是「最後一個出局發生之前」的局面，且
-            // `<BasesOuts>` 的 aria-label 會被螢幕閱讀器照著念。
+            // `out_cnt` 是**打席前**計數，印出來的是「最後一個出局發生之前」的局面。
             // ⚠️ 不留白：歷史存檔場沒有 snapshot，上方狀態列的「比賽結束」整段不渲染，
             //    留白會讓兩側那兩個大數字看起來像即時比分。
-            // ⚠️ 用 text-muted 不用 text-accent：accent 在本記分條是「進行中」的訊號色
-            //    （狀態列 phase === "live" 就是 text-accent ＋脈動圓點）。
-            <div className="whitespace-nowrap text-xs font-semibold tracking-wide text-muted">終場</div>
+            <div className="whitespace-nowrap text-sm font-bold tracking-[0.06em] text-muted">終場</div>
           ) : (
             <>
-              <div className="text-xs font-semibold tracking-wide text-accent">
-                {half === "1" ? "▲ TOP" : "▼ BOT"} {num(e.inning_seq)}
+              <div className="whitespace-nowrap text-sm font-extrabold text-ink">
+                {num(e.inning_seq)} 局{half === "1" ? "上" : "下"}
               </div>
-              {/* 壘包與出局數：canonical 幾何已上抽至 ui.tsx（首頁今日賽事卡共用同一份）。 */}
-              <BasesOuts
+              <GameSituation
                 bases={{ first: occupied(e.first_base), second: occupied(e.second_base),
                          third: occupied(e.third_base) }}
-                outs={num(e.out_cnt)} />
-              {/* 球數與出局同處（全站唯一顯示點） */}
-              <div className="flex items-center gap-2.5">
-                <span className="flex items-center gap-1"><span className="font-mono text-[10px] font-semibold text-muted">B</span>
-                  <Dots n={num(e.ball_cnt)} total={3} color={PITCH_CALL.ball} /></span>
-                <span className="flex items-center gap-1"><span className="font-mono text-[10px] font-semibold text-muted">S</span>
-                  <Dots n={num(e.strike_cnt)} total={2} color={PITCH_CALL.foul} /></span>
-              </div>
+                outs={num(e.out_cnt)} balls={num(e.ball_cnt)} strikes={num(e.strike_cnt)} />
             </>
           )}
         </div>
-        <div className="font-mono text-4xl font-bold tabular-nums">{score.home}</div>
-        {side(hc, game.home_team_name, hr, true)}
+        <div className="text-left">{big(score.home, score.away)}</div>
+        {side(hc, game.home_team_name, hr, true, "主")}
       </div>
     </div>
   );
@@ -208,10 +183,10 @@ function WpBar({ homeWp, homeName, awayName, homeColor, awayColor }: {
   const h = displayWpPctInt(homeWp);
   const a = 100 - h;
   return (
-    <div className="rounded-xl border border-line bg-surface px-3 py-2">
+    <div className="rounded-md bg-surface px-3 py-2">
       <div className="mb-1 flex items-center justify-between text-xs">
         <span className="font-semibold tabular-nums" style={{ color: awayColor }}>{awayName} {a}%</span>
-        <span className="text-[10px] text-faint">目前預期勝率（推算）</span>
+        <span className="text-[11px] text-muted">目前預期勝率（推算）</span>
         <span className="font-semibold tabular-nums" style={{ color: homeColor }}>{homeName} {h}%</span>
       </div>
       <div className="flex h-2.5 overflow-hidden rounded-full">
@@ -252,7 +227,7 @@ function Matchup({ e, game, batterAvg, uniforms, pcount, pstats, batterToday, on
   return (
     <div className="space-y-2">
       {/* 投手橫幅 */}
-      <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-2.5 py-1.5">
+      <div className="flex items-center gap-2 rounded-md bg-surface px-2.5 py-1.5">
         <TeamLogo code={pitCode} name={pitTeam} size={30} />
         <span className="text-[10px] font-semibold text-muted">投</span>
         {pitNo && <span className="font-mono text-sm font-bold tabular-nums text-ink">{pitNo}</span>}
@@ -260,7 +235,7 @@ function Matchup({ e, game, batterAvg, uniforms, pcount, pstats, batterToday, on
         <span className="ml-auto shrink-0 font-mono text-[11px] tabular-nums text-faint">{ip}局・{pstats.k}K・被安{pstats.h}・{pcount}球</span>
       </div>
       {/* 打者卡（頭條 + 今日 chip 列）*/}
-      <div className="overflow-hidden rounded-xl border border-line bg-surface">
+      <div className="overflow-hidden rounded-md bg-surface">
         <div className="flex items-center gap-2 px-2.5 py-1.5">
           <TeamLogo code={batCode} name={batTeam} size={30} />
           {batNo && <span className="font-mono text-sm font-bold tabular-nums text-ink">{batNo}</span>}
@@ -270,8 +245,8 @@ function Matchup({ e, game, batterAvg, uniforms, pcount, pstats, batterToday, on
             <span className="font-mono text-[11px] font-semibold text-ink">AVG {ba !== undefined ? avg3(ba) : "—"}</span>
           </span>
         </div>
-        <div className="flex flex-wrap items-center gap-1 border-t border-line px-2.5 py-1.5">
-          <span className="mr-0.5 text-[10px] font-semibold tracking-wider text-muted">今日</span>
+        <div className="flex flex-wrap items-center gap-1 bg-surface-2 px-2.5 py-1.5">
+          <span className="mr-0.5 text-[11px] font-bold text-muted">今日</span>
           {batterToday.length ? batterToday.map((pa, i) => {
             const c = pa.kind === "hit" ? PA_KIND.hit : pa.kind === "walk" ? PA_KIND.walk : null;
             return (
@@ -350,8 +325,13 @@ function ScoreLine({ sb, game, snapshot, halves, curKey, onSelect, highlightSele
     const hits = snapshot ? teamTotal("hits") : tot(rows, "hitting_cnt");
     const errors = snapshot ? teamTotal("errors") : tot(rows, "error_cnt");
     return (
-    <tr className="border-t border-line">
-      <td className="whitespace-nowrap px-3 py-2 font-sans font-medium">{teamCell(label, code)}</td>
+    <tr>
+      <th scope="row" className="whitespace-nowrap px-3 py-2 text-left font-sans font-medium">
+        <span className="inline-flex items-center gap-2">
+          <TeamLogo code={code} name={String(label ?? "")} size={20} decorative />
+          {teamCell(label, code)}
+        </span>
+      </th>
       {innings.map((inn) => {
         const k = `${inn}|${half}`;
         const h = halfBy.get(k);
@@ -365,33 +345,34 @@ function ScoreLine({ sb, game, snapshot, halves, curKey, onSelect, highlightSele
                 // 滑鼠停留時底色會被換成淺灰而文字仍是白色（對比度不足）。故 hover 樣式
                 // 只給未選中的格子。
                 className={`h-9 w-full px-2.5 transition-colors ${active
-                  ? "bg-accent font-semibold text-white"
-                  : "text-muted hover:bg-surface-2"}`}>
+                  ? "bg-accent/15 font-extrabold text-ink"
+                  : "text-ink hover:bg-surface-2"}`}>
                 {cellNode(rows, inn, half)}
               </button>
             ) : (
-              <span className="block px-2.5 py-1.5 text-muted">{cellNode(rows, inn, half)}</span>
+              <span className="block px-2.5 py-1.5 text-faint">{cellNode(rows, inn, half)}</span>
             )}
           </td>
         );
       })}
-      <td className="px-2.5 py-1.5 text-center font-semibold text-accent">{score}</td>
-      <td className="px-2.5 py-1.5 text-center text-muted">{hits}</td>
-      <td className="px-2.5 py-1.5 text-center text-muted">{errors}</td>
+      {/* R 格＝石油藍實底（#218：得分標記）；不隨滑過換底，避免白字落在淺底上。 */}
+      <td className="bg-accent px-2.5 py-1.5 text-center font-extrabold text-accent-ink">{score}</td>
+      <td className="px-2.5 py-1.5 text-center text-ink">{hits}</td>
+      <td className="px-2.5 py-1.5 text-center text-ink">{errors}</td>
     </tr>
     );
   };
 
   return (
-    <div id="linescore" className="scroll-mt-16 overflow-x-auto rounded-xl border border-line bg-surface">
-      <table className="w-full text-sm font-mono tabular-nums">
-        <thead className="bg-surface-2 text-muted">
+    <div id="linescore" className="scroll-mt-16 overflow-x-auto rounded-md bg-surface">
+      <table className="w-full text-sm font-mono tabular-nums" aria-label="逐局比分">
+        <thead className="bg-band text-xs text-muted">
           <tr>
-            <th className="px-3 py-2 text-left font-medium">隊伍</th>
-            {innings.map((inn) => <th key={inn} className="px-2.5 py-1.5 font-medium">{inn}</th>)}
-            <th className="px-2.5 py-1.5 font-medium">R</th>
-            <th className="px-2.5 py-1.5 font-medium">H</th>
-            <th className="px-2.5 py-1.5 font-medium">E</th>
+            <th className="px-3 py-2 text-left font-bold">隊伍</th>
+            {innings.map((inn) => <th key={inn} className="px-2.5 py-1.5 font-bold">{inn}</th>)}
+            <th className="px-2.5 py-1.5 font-bold">R</th>
+            <th className="px-2.5 py-1.5 font-bold">H</th>
+            <th className="px-2.5 py-1.5 font-bold">E</th>
           </tr>
         </thead>
         <tbody>
@@ -490,7 +471,7 @@ function PlayByPlay({ log, events, halfKey, idx, setIdx, userAction, facts, wp, 
   };
 
   return (
-    <div className="order-1 rounded-xl border border-line bg-surface p-4">
+    <div className="order-1 rounded-md bg-surface p-4">
       <div className="mb-2 flex items-baseline justify-between">
         <span className="text-sm font-semibold">逐打席</span>
         <span className="text-[10px] text-faint">點打席展開逐球</span>
@@ -614,7 +595,7 @@ function StrikeZone({ pitches, footer }: { pitches: TrackRow[]; footer?: ReactNo
   const gx1 = zl + (zr - zl) / 3, gx2 = zl + (2 * (zr - zl)) / 3;
   const gy1 = zt + (zb - zt) / 3, gy2 = zt + (2 * (zb - zt)) / 3;
   return (
-    <div className="rounded-xl border border-line bg-surface px-3 py-2.5">
+    <div className="rounded-md bg-surface px-3 py-2.5">
       <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
         <span className="font-semibold">本打席逐球追蹤</span>
         <span className="text-muted">球種：{useModel ? "推算" : "官網分類"}</span>
@@ -820,7 +801,7 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
 
   return (
     <div className="space-y-4">
-      <ScoreBar game={game} e={e} records={data.records} snapshot={data.live_snapshot ?? null} gameSno={gameSno}
+      <ScoreBar game={game} e={e} records={data.records} snapshot={data.live_snapshot ?? null}
         plain={plainScorebar} />
 
       {tabs}
@@ -855,14 +836,14 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
               <StrikeZone pitches={paPitches} footer={data.live_capture
                 && <LiveCaptureNote capture={data.live_capture} eventNo={String(e.main_event_no ?? "")} />} />
             ) : (
-              <div className="rounded-xl border border-dashed border-line bg-surface-2/50 px-4 py-3 text-xs text-muted">
+              <div className="rounded-md bg-surface-2 px-4 py-3 text-xs text-muted">
                 此事件無對應逐球進壘資料（換人/局間或來源未收錄該打席）。
                 {data.live_capture
                   && <LiveCaptureNote capture={data.live_capture} eventNo={String(e.main_event_no ?? "")} />}
               </div>
             )
           ) : (
-            <div className="rounded-xl border border-dashed border-line bg-surface-2/50 px-4 py-3 text-xs text-muted">
+            <div className="rounded-md bg-surface-2 px-4 py-3 text-xs text-muted">
               {trackingEmptyMessage(data.live_snapshot ?? null, "暫不呈現好球帶、球種與球速")}
             </div>
           )}

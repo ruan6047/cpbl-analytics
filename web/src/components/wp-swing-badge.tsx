@@ -29,7 +29,9 @@ export const WP_SWING_DISCLOSURE =
   "勝率變化依局面勝率模型推算（與下方勝率曲線同一模型）：" +
   "中段勝率的水平值有已知 ±4–6 個百分點偏差，變化量受影響較小。";
 
-export function WpSwingBadge({ value, homeName, awayName, homeColor, awayColor, className = "" }: {
+// #220：受益隊以「隊名＋數值」文字表達、墨色字，不用隊色當字色（兄弟金、統一橘在紙色上
+// 對比不足 3:1；#218 隊色只在隊伍印記）。homeColor／awayColor 保留在簽章供呼叫端相容。
+export function WpSwingBadge({ value, homeName, awayName, className = "" }: {
   /** 主隊視角的勝率變化（0–1；正＝主隊上升）。顯示時轉為受益隊視角。 */
   value: number | null | undefined;
   homeName?: string | null;
@@ -40,12 +42,10 @@ export function WpSwingBadge({ value, homeName, awayName, homeColor, awayColor, 
 }) {
   const swing = wpSwingLabel(value, homeName, awayName);
   if (!swing) return null;
-  const color = swing.home ? homeColor : awayColor;
   return (
     <span
       title={`此打席把勝率推向${swing.team} ${swing.pt} 個百分點。${WP_SWING_DISCLOSURE}`}
-      className={`shrink-0 whitespace-nowrap font-mono text-xs font-semibold tabular-nums ${className}`}
-      style={{ color }}
+      className={`shrink-0 whitespace-nowrap font-mono text-xs font-semibold tabular-nums text-ink ${className}`}
     >
       {swing.text}
     </span>

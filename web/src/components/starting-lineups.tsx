@@ -14,7 +14,7 @@ export function StartingLineups({ game, log, pitching }: { game: StatRow; log: S
   return (
     <section className="grid gap-4 lg:grid-cols-2" aria-label="先發打序與守備位置">
       {lineups.map(({ side, name, code, lineup }) => (
-        <article key={side} className="overflow-hidden rounded-xl border border-line bg-surface">
+        <article key={side} className="overflow-hidden rounded-md bg-surface">
           <header className="flex items-center gap-2 border-b border-line px-4 py-3">
             <i aria-hidden className="h-2.5 w-2.5 rounded-full" style={{ background: teamColor(code) }} />
             <h2 className="text-sm font-semibold text-ink">{name}・先發打序</h2>

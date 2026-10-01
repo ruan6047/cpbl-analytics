@@ -6,7 +6,12 @@ import { PREGAME_COPY, type PregameCardModel } from "@/lib/pregame-card";
 // 契約：不抓首頁聚合資料、不決定區塊排序、不修改首頁文案；外層（UX-GAME-HOME1
 // 的賽程卡）決定放哪、怎麼排。不可用四態渲染成單行附註，不阻塞外層卡片。
 
-export function PregameCard({ model, homeName }: { model: PregameCardModel; homeName?: string }) {
+export function PregameCard({ model, homeName, variant = "card" }: {
+  model: PregameCardModel; homeName?: string;
+  /** aside＝首頁票券右格（#218：直接寫球隊勝率大數字，訊號與方法連結收在下方一行）。 */
+  variant?: "card" | "aside";
+}) {
+  if (variant === "aside") return <PregameAside model={model} homeName={homeName} />;
   if (model.status !== "available") {
     // 缺模型／不支援／未就緒／錯誤：單行淡色附註即可，勿放大成警示框搶走賽程卡焦點。
     return (
@@ -23,10 +28,10 @@ export function PregameCard({ model, homeName }: { model: PregameCardModel; home
     <div
       role="group"
       aria-label={`${PREGAME_COPY.eyebrow}：${probLabel} ${model.probabilityText}`}
-      className="rounded-lg bg-surface-2 px-3 py-2.5"
+      className="rounded-md bg-surface-2 px-3 py-2.5"
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-faint">
+        <span className="text-xs font-bold text-ink">
           {PREGAME_COPY.eyebrow}
         </span>
         <Link
@@ -45,8 +50,8 @@ export function PregameCard({ model, homeName }: { model: PregameCardModel; home
       </div>
 
       {/* 點機率的視覺化：單一填充條，無區間、無誤差帶。 */}
-      <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-line" aria-hidden>
-        <div className="h-full rounded-full bg-cpbl" style={{ width: `${pct}%` }} />
+      <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-band" aria-hidden>
+        <div className="h-full rounded-full bg-ink" style={{ width: `${pct}%` }} />
       </div>
 
       <p className="mt-1.5 truncate text-xs text-muted">
@@ -87,6 +92,32 @@ export function PregameCard({ model, homeName }: { model: PregameCardModel; home
           {model.servingNotice}
         </p>
       )}
+    </div>
+  );
+}
+
+/** 票券右格版：缺模型／不支援等四態照樣只寫一句附註（不造 50%）；可用時寫「主隊勝率 NN%」，
+ *  主訊號與訓練截止年收成一行小字，方法連結保留（點機率必須能追到方法）。 */
+function PregameAside({ model, homeName }: { model: PregameCardModel; homeName?: string }) {
+  if (model.status !== "available") {
+    return <p className="text-right text-xs leading-snug text-muted" role="note">{model.message}</p>;
+  }
+  const label = `${homeName ? `${homeName}` : "主隊"}${PREGAME_COPY.probabilityLabel.replace(/^主隊/, "")}`;
+  return (
+    <div role="group" aria-label={`${PREGAME_COPY.eyebrow}：${label} ${model.probabilityText}`}
+      className="grid justify-items-end gap-0.5 text-right">
+      <span className="text-xs text-muted">{label}</span>
+      <span className="pm-big !text-[34px] text-ink">{model.probabilityText}</span>
+      {model.primarySignal && (
+        <span className="max-w-full truncate text-[11px] text-muted">
+          {model.primarySignal.label} <span className="font-mono tabular-nums">{model.primarySignal.valueText}</span>{" "}
+          {model.primarySignal.favorsText}
+        </span>
+      )}
+      <Link href={model.methodologyHref} className="text-[11px] text-accent underline decoration-accent/40 underline-offset-2">
+        {PREGAME_COPY.methodologyLabel}
+      </Link>
+      {model.trainedThroughText && <span className="text-[11px] text-muted">{model.trainedThroughText}</span>}
     </div>
   );
 }

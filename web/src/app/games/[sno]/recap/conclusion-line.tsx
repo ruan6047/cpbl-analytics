@@ -63,22 +63,18 @@ export function ConclusionLine({ facts, decisions, mvp, provisional }: {
 
   return (
     <Card className="min-w-0">
+      {/* #218 減少重複：終場比分已由正上方的頁首記分條呈現（同一頁、同一數字），這裡只留
+          標題給輔助科技，視覺上直接進結論句。 */}
       {final && teams && (
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h2 className="text-xl font-extrabold tracking-tight text-ink">
-            {teams.away.name} <span className="font-mono tabular-nums">{final.away_score}</span>
-            <span className="mx-1.5 text-faint">:</span>
-            <span className="font-mono tabular-nums">{final.home_score}</span> {teams.home.name}
-          </h2>
-        </div>
+        <h2 className="sr-only">{teams.away.name} {final.away_score} : {final.home_score} {teams.home.name}</h2>
       )}
       {facts.conclusion?.sentence && (
-        <p className="mt-2 text-sm leading-relaxed text-ink">{facts.conclusion.sentence}</p>
+        <p className="text-sm leading-relaxed text-ink">{facts.conclusion.sentence}</p>
       )}
 
       {(mvp || snapshotMvp) && (
-        <div className="mt-3 flex items-center gap-3 rounded-lg bg-accent/5 px-3 py-2.5">
-          <span className="shrink-0 rounded-md bg-accent px-2 py-0.5 text-xs font-bold text-white">MVP</span>
+        <div className="mt-3 flex items-center gap-3 rounded-md bg-surface-2 px-3 py-2.5">
+          <span className="shrink-0 rounded-sm bg-ink px-2 py-0.5 text-xs font-bold tracking-[0.06em] text-paper">MVP</span>
           <div className="min-w-0">
             {mvp ? (
               <>

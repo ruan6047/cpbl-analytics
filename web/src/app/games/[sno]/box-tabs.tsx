@@ -494,7 +494,7 @@ export default function BoxTabs({ data, tab: controlledTab, onTabChange, showTab
             </ChartCard>
 
             {data.live_snapshot && data.live_snapshot.phase !== "final" ? (
-              <div className="rounded-xl border border-dashed border-line bg-surface-2/50 px-4 py-3 text-xs text-muted">
+              <div className="rounded-md bg-surface-2 px-4 py-3 text-xs text-muted">
                 {trackingPendingMessage(data.live_snapshot)}
               </div>
             ) : data.has_tracking ? (
@@ -518,7 +518,7 @@ export default function BoxTabs({ data, tab: controlledTab, onTabChange, showTab
                 )}
               </ChartCard>
             ) : (
-              <div className="rounded-xl border border-dashed border-line bg-surface-2/50 px-4 py-3 text-xs text-muted">
+              <div className="rounded-md bg-surface-2 px-4 py-3 text-xs text-muted">
                 {trackingEmptyMessage(data.live_snapshot ?? null, "無擊球落點圖")}
               </div>
             )}
@@ -536,7 +536,7 @@ export default function BoxTabs({ data, tab: controlledTab, onTabChange, showTab
             <>
               {umpCard.pitches.length > 0 ? (
                 <Card padding="" className="overflow-hidden">
-                  <div className="border-b border-line px-4 py-3 bg-surface-2/40 flex flex-wrap items-center justify-between gap-3 text-sm">
+                  <div className="bg-surface-2 px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-sm">
                     <div>
                       <span className="font-bold text-ink">主審{" "}
                         <Link
@@ -557,12 +557,12 @@ export default function BoxTabs({ data, tab: controlledTab, onTabChange, showTab
                   </div>
 
                   {/* 中性計數（非準確率、非評判）：好壞球判決球數分布 */}
-                  <div className="flex flex-wrap items-center gap-x-6 gap-y-1 px-4 py-3 border-b border-line text-sm">
+                  <div className="flex flex-wrap items-center gap-x-6 gap-y-1 px-4 py-3 text-sm">
                     <span className="text-muted">好壞球判決{" "}
                       <b className="font-mono text-base tabular-nums text-ink">{umpCard.summary.called}</b> 球
                     </span>
                     <span className="flex items-center gap-1.5 text-muted">
-                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: "var(--color-cpbl)" }} />
+                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: "var(--color-ink)" }} />
                       判好球 <b className="font-mono tabular-nums text-ink">{umpCard.summary.called_strikes}</b>
                     </span>
                     <span className="flex items-center gap-1.5 text-muted">
@@ -581,7 +581,7 @@ export default function BoxTabs({ data, tab: controlledTab, onTabChange, showTab
                     <div className="flex justify-center">
                       <svg viewBox={`0 0 ${W} ${H}`} role="img"
                         aria-label={`主審單場好壞球判決位置分布：判好球 ${umpCard.summary.called_strikes} 球、判壞球 ${umpCard.summary.called_balls} 球`}
-                        className="w-full max-w-[340px] rounded-lg border border-line/60 bg-paper">
+                        className="w-full max-w-[340px] rounded-md bg-paper">
                         <rect x={px(-umpCard.zone.half_width)} y={py(umpCard.zone.top)}
                           width={px(umpCard.zone.half_width) - px(-umpCard.zone.half_width)}
                           height={py(umpCard.zone.bot) - py(umpCard.zone.top)}
@@ -589,7 +589,7 @@ export default function BoxTabs({ data, tab: controlledTab, onTabChange, showTab
                         {umpCard.pitches.map((p, i) => (
                           p.called_strike ? (
                             <circle key={i} cx={px(p.side)} cy={py(p.height)} r={3}
-                              fill="var(--color-cpbl)" opacity={0.7}>
+                              fill="var(--color-ink)" opacity={0.7}>
                               <title>{`${p.inning_seq ?? "?"}局 ${p.hitter_name ?? ""} vs ${p.pitcher_name ?? ""}　${p.ball_cnt}-${p.strike_cnt}　判好球`}</title>
                             </circle>
                           ) : (

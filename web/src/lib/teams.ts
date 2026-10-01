@@ -82,6 +82,27 @@ export const teamLetter = (code?: string | null) => _meta(code)?.letter || "?";
 export const isCurrentTeam = (code?: string | null) => !!franchiseOf(code);
 export const teamPageCode = (code?: string | null) => franchiseOf(code);
 
+// #218 核可的六隊紙面印記只屬現役六隊（public/team-icons/refined-{隊碼}.svg）。
+// 隊名優先（資料常只有中文隊名）：現役全名／簡稱／二軍後綴 → 隊碼；「兄弟」「中信」「Lamigo」
+// 等歷史隊名**不得**落到現役印記（兄弟象≠中信兄弟、中信鯨≠中信兄弟）→ 回 null，呼叫端走字母章。
+// 無隊名時看隊碼：只認現役隊碼本身與同 org 的二軍碼；歷史隊碼（FRANCHISE 表）一律不認。
+const MARK_BY_NAME: Record<string, string> = {
+  味全龍: "AAA011", 味全: "AAA011",
+  中信兄弟: "ACN011",
+  "統一7-ELEVEn獅": "ADD011", "統一7-ELEVEn": "ADD011", 統一獅: "ADD011", 統一: "ADD011",
+  富邦悍將: "AEO011", 富邦: "AEO011",
+  樂天桃猿: "AJL011", 樂天: "AJL011",
+  台鋼雄鷹: "AKP011", 台鋼: "AKP011",
+};
+export function markCodeOf(code?: string | null, name?: string | null): string | null {
+  if (name) return MARK_BY_NAME[name.replace(/二軍$/, "")] ?? null;
+  if (!code) return null;
+  if (TEAMS[code]) return code;
+  if (FRANCHISE[code]) return null;
+  const org = code.slice(0, 3);
+  return Object.keys(TEAMS).find((k) => k.slice(0, 3) === org) ?? null;
+}
+
 // 依背景色亮度回傳對比文字色（黃色系用深色字）
 export function contrastText(hex: string): string {
   const n = hex.replace("#", "");

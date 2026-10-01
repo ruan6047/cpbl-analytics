@@ -19,7 +19,9 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { detail } from "@/lib/client";
 import GameBoard, { type Live } from "@/components/game-board";
-import { Card, Notice, Skeleton, ErrorState, EmptyState, PlayerLink, ENTITY_LINK } from "@/components/ui";
+import { Card, Notice, Skeleton, ErrorState, EmptyState, PlayerLink, ENTITY_LINK, StatusBadge } from "@/components/ui";
+import { Postmark, Scoreline, Serial } from "@/components/postmark";
+import { phaseTone } from "@/lib/daily-summary";
 import BoxTabs, { type BoxTab } from "./box-tabs";
 import { WinProbChart, type WpPoint } from "@/components/win-prob-chart";
 import { PregameCard } from "@/components/pregame-card";
@@ -48,6 +50,29 @@ import {
 } from "@/lib/live-game";
 
 type PageTab = "overview" | "pbp" | BoxTab;
+
+// 層級標記（例行賽一軍／二軍；季後：C＝台灣大賽、E＝季後挑戰賽、F＝二軍季後）。
+const KIND_LABEL: Record<string, string> = { A: "一軍", D: "二軍", C: "台灣大賽", E: "季後挑戰賽", F: "二軍季後" };
+
+/** 頁頂（#218 live.html）：賽況頁唯一一枚小郵戳（日期＋球場）＋序號列（場次・層級）＋對戰標題。
+ *  日期與球場只在這裡出現一次，記分條狀態列不再重複。 */
+function GameHead({ g, sno, kind, children }: {
+  g: Record<string, unknown>; sno: string; kind: string; children?: React.ReactNode;
+}) {
+  const date = String(g.game_date ?? "");
+  return (
+    <div className="mb-4 mt-1 flex items-center gap-4">
+      {date && <Postmark date={date} venue={g.venue ? String(g.venue) : null} size="sm" bg="paper" />}
+      <div className="grid min-w-0 gap-1">
+        <Serial items={[{ text: `No.${sno}`, kind: "lead" }, { text: KIND_LABEL[kind] ?? kind }]} />
+        <h1 className="m-0 text-xl font-bold leading-snug tracking-[0.04em] text-ink md:text-2xl">
+          {String(g.away_team_name ?? "")} 對 {String(g.home_team_name ?? "")}
+        </h1>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export default function GameLivePage() {
   const { sno } = useParams<{ sno: string }>();
@@ -254,7 +279,7 @@ export default function GameLivePage() {
   }
   // 延賽/保留說明：放進賽事資訊卡（裁判下方）；歷史無總覽場走頁面下方 Notice fallback
   const delayNote = delayNoteOf(g);
-  if (delayNote) info.push([String(g.delay_kind), `☔ ${delayNote}`]);
+  if (delayNote) info.push([String(g.delay_kind), delayNote]);
 
   const boxTab: BoxTab | null = view === "away" || view === "home" || view === "ana" || view === "umpire" ? view : null;
   const pageTabs: { value: PageTab; label: string }[] = [
@@ -272,14 +297,15 @@ export default function GameLivePage() {
 
   return (
     <div>
+      <GameHead g={g} sno={sno} kind={String(g.kind_code ?? kind)} />
       {liveInterrupted && (
-        <Notice className="mt-2" icon="⚠">
+        <Notice className="mb-3" label="更新中斷">
           即時更新暫時中斷；畫面保留最後一次成功賽況，恢復連線後會自動續接。
         </Notice>
       )}
 
       {data.livelog.length > 0 ? (
-        <section className="mb-8 mt-2 space-y-4">
+        <section className="mb-8 space-y-4">
           <GameBoard data={data} idx={idx} setIdx={setIdx} view={view === "pbp" ? "pbp" : "overview"} wp={wp ?? undefined} gameSno={sno}
             onNavigate={() => setView("pbp")}
             facts={facts?.plate_appearances ?? null}
@@ -331,36 +357,31 @@ export default function GameLivePage() {
           )}
         </section>
       ) : completed ? (
-        /* 已完賽但無逐打席（歷史場）：沿用比分標題 */
-        <header className="mb-6 mt-2">
-          <h1 className="text-2xl font-extrabold tracking-tight text-ink">
-            {String(g.away_team_name)} <span className="font-mono">{aw}</span>
-            <span className="mx-2 text-faint">@</span>
-            {String(g.home_team_name)} <span className="font-mono">{hs}</span>
-          </h1>
-          <p className="mt-1.5 text-sm text-muted">{String(g.game_date ?? "")}　賽事編號 {sno}　{String(g.venue ?? "")}</p>
-        </header>
+        /* 已完賽但無逐打席（歷史場）：終場比分（共用比分元件；完整句子給螢幕閱讀器） */
+        <div className="mb-6 rounded-md bg-surface px-4 py-4"
+          aria-label={`終場：${String(g.away_team_name)}（客）${aw} 比 ${hs} ${String(g.home_team_name)}（主）`}>
+          <div className="mb-2 text-xs font-bold tracking-[0.06em] text-muted">終場・左客右主</div>
+          <Scoreline away={{ code: String(g.away_team_code ?? ""), name: String(g.away_team_name ?? ""), score: aw }}
+            home={{ code: String(g.home_team_code ?? ""), name: String(g.home_team_name ?? ""), score: hs }} />
+        </div>
       ) : (
         /* 未開賽：固定語意的賽前勝率 */
-        <div className="mb-8 mt-2 space-y-4">
-          <header className="mb-6">
-            <h1 className="text-2xl font-extrabold tracking-tight text-ink">
-              {String(g.away_team_name)} <span className="mx-2 text-faint">@</span>
-              {String(g.home_team_name)}
-            </h1>
-            <p className="mt-1.5 text-sm text-muted">
-              {String(g.game_date ?? "")}　賽事編號 {sno}　{String(g.venue ?? "")}　
-              {liveSnapshot ? phaseLabel(liveSnapshot.phase) : "尚未開賽"}
-            </p>
-          </header>
+        <div className="mb-8 space-y-4">
+          <p className="flex items-center gap-2 text-sm text-muted">
+            {liveSnapshot
+              ? <StatusBadge tone={phaseTone(liveSnapshot.phase)}>{phaseLabel(liveSnapshot.phase)}</StatusBadge>
+              : <span>尚未開賽</span>}
+          </p>
           {liveSnapshot && <LiveGameLineups snapshot={liveSnapshot} />}
           {pregame && <PregameCard model={pregame} homeName={String(g.home_team_name)} />}
         </div>
       )}
 
       {/* 延賽/保留：有總覽場已併入賽事資訊卡（裁判下方）；歷史無總覽場在此 fallback */}
+      {/* 狀態章只用官方 `delay_kind` 原文、不寫成因（全庫沒有任何欄位存得下延賽理由；
+          原「因雨」與 ☔ 依 #218 emoji 處置改為紅字狀態章）。 */}
       {g.delay_kind && delayNote && data.livelog.length === 0 && (
-        <Notice className="mb-6" icon="☔">因雨{String(g.delay_kind)}　{delayNote}</Notice>
+        <Notice className="mb-6" tone="hold" label={String(g.delay_kind)}>{delayNote}</Notice>
       )}
 
       {/* 決勝資訊已併入總覽焦點卡；僅歷史無逐打席場次（無總覽）時在此顯示 */}

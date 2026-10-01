@@ -241,7 +241,7 @@ export default function InsightSection({
                 {INSIGHT_LABELS.disadvantages}
               </h3>
               {data.disadvantages.length === 0 ? (
-                <p className="rounded-lg border border-line bg-surface px-3 py-4 text-center text-xs text-faint">
+                <p className="rounded-md bg-surface px-3 py-4 text-center text-xs text-faint">
                   此方向沒有通過閘門的候選
                 </p>
               ) : (
@@ -257,7 +257,7 @@ export default function InsightSection({
                 {INSIGHT_LABELS.advantages}
               </h3>
               {data.advantages.length === 0 ? (
-                <p className="rounded-lg border border-line bg-surface px-3 py-4 text-center text-xs text-faint">
+                <p className="rounded-md bg-surface px-3 py-4 text-center text-xs text-faint">
                   此方向沒有通過閘門的候選
                 </p>
               ) : (
@@ -327,7 +327,7 @@ export default function InsightSection({
   if (compact && state.kind !== "ok") {
     return (
       <section aria-label="對戰洞察" className="mt-8">
-        <details className="overflow-hidden rounded-xl border border-line bg-surface">
+        <details className="overflow-hidden rounded-md bg-surface">
           <summary className="cursor-pointer select-none px-4 py-2.5 text-sm text-muted hover:text-ink">
             <span className="font-semibold text-ink">對戰洞察</span>
             <span className="ml-2 text-xs text-faint">

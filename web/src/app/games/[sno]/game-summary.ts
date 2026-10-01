@@ -440,9 +440,8 @@ export function summaryLine(detail: StatRow | null): string | null {
   if (wx) {
     const cond = wx.split("。")[0] ?? "";
     const temp = wx.match(/攝氏(\d+)至(\d+)度/);
-    const icon = /雷|雨/.test(cond) ? "🌧️" : /多雲/.test(cond) ? "⛅"
-      : /陰/.test(cond) ? "☁️" : /晴/.test(cond) ? "☀️" : "🌡️";
-    parts.push(`${icon} ${cond}${temp ? ` ${temp[1]}–${temp[2]}°C` : ""}`);
+    // #218 emoji 處置：天氣改純文字（官方描述原句＋溫度），不配圖示。
+    parts.push(`${cond}${temp ? ` ${temp[1]}–${temp[2]}°C` : ""}`);
   }
   if (detail.attendance) parts.push(`觀眾 ${Number(detail.attendance).toLocaleString()} 人`);
   if (detail.game_time) parts.push(`時長 ${String(detail.game_time)}`);

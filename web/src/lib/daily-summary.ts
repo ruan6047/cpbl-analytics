@@ -457,9 +457,16 @@ export function todayCardKind(g: TodayGame): TodayCardKind {
   // 徽章一律只用 `delay_kind` 原文，**不解釋成因**：`delay_kind` 由同 `game_sno` 的排程
   // 歷程推得（`ingest/cpbl_site.py`），官方給的是代碼不是理由；`cpbl.games` 上沒有任何
   // reason／note 欄位，延賽場連 `game_detail` 列都沒有。寫「因雨」是無中生有。
+  //
+  // **補賽日不得被讀成延賽**（#220）：`delay_kind` 跟著場次走，改期後 `game_date` 移到補賽日、
+  // `orig_date` 留在原定日。所以「今天排的、還沒有結果、`orig_date` 早於今天」的那場是**今天要打的
+  // 補賽**，不是今天延賽（後端 unresolved 對同形場次給的官方狀態也是 scheduled，本機 2026-10-01
+  // A#277 實查）。今天才延賽、尚未排定補賽日的場次 `orig_date === game_date`（A#274 即此形）。
+  // 補賽當天若又延賽，沒有 snapshot 時分不出來——交給 worker 的 snapshot phase（優先於 DB）。
   const delay = g.delay_kind?.trim();
-  if (delay === DELAY_POSTPONED) return "postponed";
-  if (delay === DELAY_RESERVED) return "reserved";
+  const rescheduledToToday = !!g.orig_date && g.orig_date !== g.game_date;
+  if (delay === DELAY_POSTPONED && !rescheduledToToday) return "postponed";
+  if (delay === DELAY_RESERVED && !rescheduledToToday) return "reserved";
   return "pregame";
 }
 

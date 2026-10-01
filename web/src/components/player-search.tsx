@@ -99,7 +99,7 @@ export default function PlayerSearch({ variant = "hero" }: { variant?: "hero" | 
   return (
     <div
       ref={containerRef}
-      className={isHeader ? "relative w-full max-w-[13rem] lg:max-w-xs" : "relative z-20 mx-auto w-full max-w-md"}
+      className={isHeader ? "relative w-full" : "relative z-20 mx-auto w-full max-w-md"}
     >
       <div className="relative">
         <input
@@ -111,7 +111,7 @@ export default function PlayerSearch({ variant = "hero" }: { variant?: "hero" | 
           aria-autocomplete="list"
           aria-activedescendant={showList && results[activeIndex] ? `${listboxId}-${activeIndex}` : undefined}
           aria-label="搜尋球員"
-          placeholder={isHeader ? "搜尋球員…" : "搜尋球員姓名或球隊 (例如: 林立、兄弟)..."}
+          placeholder={isHeader ? "搜尋球員或球隊" : "搜尋球員姓名或球隊 (例如: 林立、兄弟)..."}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -125,16 +125,16 @@ export default function PlayerSearch({ variant = "hero" }: { variant?: "hero" | 
           onKeyDown={handleKeyDown}
           className={
             isHeader
-              ? "w-full rounded-full border border-line bg-surface-2 py-1.5 pl-8 pr-3 text-[13px] text-ink outline-none transition focus:border-accent focus:bg-surface focus:ring-2 focus:ring-accent/15"
-              : "w-full rounded-full border border-line bg-surface-2 px-5 py-3 pl-11 text-sm text-ink outline-none transition focus:border-accent focus:bg-surface focus:ring-2 focus:ring-accent/15"
+              ? "h-[34px] w-full rounded-md border border-line-strong bg-paper pl-8 pr-2.5 text-[13.5px] text-ink outline-none transition-colors placeholder:text-faint focus:border-accent"
+              : "h-11 w-full rounded-md border border-line-strong bg-paper px-5 pl-11 text-sm text-ink outline-none transition-colors placeholder:text-faint focus:border-accent"
           }
         />
         <svg
           aria-hidden
           className={
             isHeader
-              ? "pointer-events-none absolute left-3 top-2 h-4 w-4 text-faint"
-              : "pointer-events-none absolute left-4 top-3.5 h-4.5 w-4.5 text-faint"
+              ? "pointer-events-none absolute left-2.5 top-[9px] h-4 w-4 text-faint"
+              : "pointer-events-none absolute left-4 top-3.5 h-4 w-4 text-faint"
           }
           fill="none"
           stroke="currentColor"
@@ -159,7 +159,7 @@ export default function PlayerSearch({ variant = "hero" }: { variant?: "hero" | 
       </div>
 
       {showList && (
-        <div className="absolute z-30 mt-2 max-h-72 w-full min-w-[16rem] overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-lg">
+        <div className="absolute z-30 mt-2 max-h-72 w-full min-w-[16rem] overflow-y-auto rounded-md border border-line bg-surface p-1 shadow-[0_6px_18px_-6px_rgb(0_0_0/0.25)]">
           {status === "loading" ? (
             <div className="space-y-2 p-3" aria-live="polite">
               <span className="sr-only">載入球員名單中</span>
@@ -194,14 +194,14 @@ export default function PlayerSearch({ variant = "hero" }: { variant?: "hero" | 
                     tabIndex={-1}
                     onMouseEnter={() => setActiveIndex(i)}
                     onClick={() => go(p)}
-                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-ink transition ${
+                    className={`flex w-full items-center gap-3 rounded-sm px-3 py-2 text-left text-sm text-ink transition ${
                       i === activeIndex ? "bg-surface-2" : ""
                     }`}
                   >
                     <TeamLogo code={null} name={p.team} size={20} decorative />
                     <span className="font-semibold">{p.name}</span>
                     <span className="text-xs text-muted">{p.team}</span>
-                    <span className="ml-auto rounded border border-line px-1.5 py-0.5 text-[10px] font-semibold text-faint">
+                    <span className="pm-tag ml-auto">
                       {roleLabel(p.roles)}
                     </span>
                   </button>

@@ -1038,6 +1038,20 @@ test("**紅線**：delay_kind 是歷史標記，補賽打完那天不得把終�
   assert.equal(todayCardKind({ ...madeUp, live: live({ phase: "live" }) }), "live");
 });
 
+test("補賽日：今天排的補賽（orig_date 早於今天）沒有 snapshot 時是賽前態，不是延賽", () => {
+  // 本機 2026-10-02 實查：A#279（原定 08/21）、A#283（原定 08/23）排在今天，delay_kind 仍是「延賽」
+  // （歷史標記）。今天才延賽的 A#274 形狀是 orig_date === game_date，兩者必須分得開。
+  const makeUp = aug19({ game_sno: 279, game_date: "2026-10-02", orig_date: "2026-08-21", completed: false,
+                         away_score: null, home_score: null, delay_kind: "延賽" });
+  assert.equal(todayCardKind(makeUp), "pregame");
+  assert.equal(todayGameSettled(makeUp), false, "補賽日要輪詢，不能當成今天不會再變");
+  assert.equal(todayCardKind({ ...makeUp, delay_kind: "保留", orig_date: "2026-09-12" }), "pregame");
+  // snapshot 說延賽就是延賽（補賽當天又延賽的情形由 worker 給）。
+  assert.equal(todayCardKind({ ...makeUp, live: live({ phase: "postponed" }) }), "postponed");
+  // 今天才延賽、尚未排定補賽日：仍是延賽。
+  assert.equal(todayCardKind({ ...makeUp, orig_date: "2026-10-02" }), "postponed");
+});
+
 test("保留賽：官方 GameResult=2 走自己那一態，不與延賽併桶", () => {
   const reserved = aug19({ game_sno: 164, completed: false, away_score: null, home_score: null,
                            delay_kind: "保留" });

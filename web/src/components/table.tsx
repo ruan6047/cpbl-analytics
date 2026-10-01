@@ -3,6 +3,7 @@ import { EmptyState } from "@/components/ui";
 
 // 靜態資料表（presentational，無 hook → 可直接用於 server component，勿為它翻 "use client"）。
 // 收斂全站散寫的 <table>：寬表容器（橫向捲動保護）+ 卡殼 + sticky 首欄 + 一致表頭/字級。
+// #218 資料表：表頭一條色塊帶（band）；列間不畫線、不疊雙線；滑過整列換色塊。
 // 互動型（排序/篩選）用 components/leaderboard.tsx（已是 client island），非本元件職責。
 //
 // Column<T>：
@@ -62,15 +63,15 @@ export function DataTable<T>({
   hideHeader?: boolean;
 }) {
   if (!rows.length) return <EmptyState>{emptyText}</EmptyState>;
-  const pad = dense ? "px-2.5 py-1.5" : "px-3 py-2.5";
-  const shell = bare ? "" : "rounded-xl border border-line bg-surface";
+  const pad = dense ? "px-2.5 py-1.5" : "px-3 py-2";
+  const shell = bare ? "" : "rounded-md bg-surface";
   const th = (c: Column<T>, i: number) => (
     <th
       key={i}
       scope="col"
       aria-sort={c.ariaSort}
       style={c.width ? { width: c.width } : undefined}
-      className={`${pad} font-medium ${alignCls(c.align)} ${c.nowrap ? "whitespace-nowrap" : ""} ${c.sticky ? "sticky-col" : ""} ${c.headClassName ?? ""}`}
+      className={`${pad} text-xs font-bold ${alignCls(c.align)} ${c.nowrap ? "whitespace-nowrap" : ""} ${c.sticky ? "sticky-col" : ""} ${c.headClassName ?? ""}`}
     >
       {c.header}
     </th>
@@ -82,13 +83,13 @@ export function DataTable<T>({
     >
       <table className="w-full text-sm">
         {!hideHeader && (
-          <thead className={`bg-surface-2 text-left text-muted ${maxHeight ? "sticky top-0 z-10" : ""}`}>
+          <thead className={`bg-band text-left text-muted ${maxHeight ? "sticky top-0 z-10" : ""}`}>
             <tr>{columns.map(th)}</tr>
           </thead>
         )}
         <tbody className={bodyClassName}>
           {rows.map((row, ri) => (
-            <tr key={rowKey(row, ri)} className={`border-t border-line hover:bg-surface-2 ${rowClassName?.(row, ri) ?? ""}`}>
+            <tr key={rowKey(row, ri)} className={`transition-colors hover:bg-surface-2 ${rowClassName?.(row, ri) ?? ""}`}>
               {columns.map((c, ci) => (
                 <td
                   key={ci}

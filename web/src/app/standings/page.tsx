@@ -315,7 +315,7 @@ function SeriesCard({ title, format, sideA, sideB, games = [], needed, crownWinn
   };
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-line bg-surface p-3">
+    <div className="overflow-x-auto rounded-md bg-surface p-3">
       <div className="mb-2 flex items-baseline justify-between">
         <span className="text-sm font-semibold text-ink">{title}</span>
         <span className="text-[10px] font-medium text-faint">{format}</span>
@@ -704,7 +704,7 @@ export default async function Standings({ searchParams }: { searchParams: Promis
           {trend && trend.points.length > 0 && (
             <section className="mt-8">
               <h2 className="mb-1 text-lg font-semibold">戰績走勢</h2>
-              <div className="rounded-xl border border-line p-4">
+              <div className="rounded-md p-4">
                 <StandingsTrend teams={trend.teams} points={trend.points} names={trend.names} />
               </div>
             </section>
@@ -712,7 +712,7 @@ export default async function Standings({ searchParams }: { searchParams: Promis
 
           {/* 進階展開：把對戰各隊/主客場/月份收合，首屏聚焦競爭位置（§5.4）。
               原生 <details> 免 client island、SSR 友善、鍵盤可及。 */}
-          <details className="mt-8 rounded-xl border border-line bg-surface">
+          <details className="mt-8 rounded-md bg-surface">
             <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-ink marker:text-faint">
               進階展開：對戰各隊 · 主客場{sp.size > 0 ? " · 特殊戰績對照 · 月份趨勢" : ""}
             </summary>

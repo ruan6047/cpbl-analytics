@@ -50,27 +50,26 @@ export function HierarchicalTabs<GroupValue extends string, ItemValue extends st
     <NavBarRow
       align="end"
       main={<div role="group" aria-label={label}
-        className="flex min-w-0 items-center gap-1.5 overflow-x-auto overscroll-x-contain">
+        className="flex min-w-0 items-end gap-0.5 overflow-x-auto overscroll-x-contain rounded-t-md bg-band px-[3px] pt-[3px]">
         {groups.map((group, index) => {
           const active = group.value === activeGroup;
           return (
             <div key={group.value} className="contents">
-              {/* 主頁籤 vs 子頁籤的視覺分層（需求方 2026-07-24 UI 審）：
-                  頁籤造型＝上圓角、下方角、下緣貼分隔線（經典分頁感）；
-                  active 主頁籤＝實心 ink 全高頁籤，其子頁籤住在**較矮（h-8）的灰色托盤**
-                  （階梯式從屬，子頁籤框不與主頁籤同高）；未選取主頁籤＝描邊頁籤。
-                  子頁籤按鈕仍為 min-h-11 觸控熱區，向上外溢於托盤外（不可見）。 */}
-              <div className="flex shrink-0 items-end">
+              {/* 主頁籤 vs 子頁籤的視覺分層（需求方 2026-07-24 UI 審；#218 換成郵戳頁籤語言）：
+                  整條導覽是一條 band 色塊帶；active 主頁籤＝卡面色塊＋粗體＋上緣 3px 石油藍，
+                  其子頁籤緊接在同一卡面上（二級＝分段切換）；未選主頁籤＝帶上的淡字。
+                  子頁籤按鈕仍為 min-h-11 觸控熱區。 */}
+              <div className={`flex shrink-0 items-end rounded-t-md ${active ? "bg-surface" : ""}`}>
                 <button type="button" aria-pressed={active}
                   ref={(element) => { groupRefs.current[index] = element; }}
                   onClick={() => onGroupChange(group.value)} onKeyDown={(event) => moveGroup(event, index)}
-                  className={`min-h-11 min-w-[6.5rem] shrink-0 touch-manipulation whitespace-nowrap rounded-t-md px-4 text-sm font-semibold transition ${active
-                    ? "bg-ink text-paper"
-                    : "border border-line bg-surface text-muted hover:border-line-strong hover:text-ink"}`}>
+                  className={`min-h-11 shrink-0 touch-manipulation whitespace-nowrap rounded-t-md px-4 text-sm transition-colors ${active
+                    ? "font-bold text-ink shadow-[inset_0_3px_0_var(--color-accent)]"
+                    : "text-muted hover:text-ink"}`}>
                   {group.label}
                 </button>
                 {active && group.items.length > 0 && (
-                  <div className="flex h-9 items-end rounded-tr-lg bg-surface-2 px-1">
+                  <div className="flex items-center pr-2">
                     <TabItems label={`${group.label}內容`} items={group.items} value={activeItem}
                       onChange={onItemChange} />
                   </div>
@@ -113,17 +112,17 @@ export function ContextSwitcher<Value extends string>({
 
   return (
     <div className="flex items-center gap-1.5">
-      <span className="whitespace-nowrap text-[11px] text-muted">{label}</span>
+      <span className="whitespace-nowrap text-xs text-muted">{label}</span>
       {/* switch 瘦身：軌道視覺高 32px（h-8）、滑塊為內層 span；按鈕本體維持 min-h-11
           的 44px 觸控熱區（垂直外溢、不可見），不犧牲 a11y。 */}
       <div role="group" aria-label={label} onKeyDown={onKeyDown}
-        className="flex h-8 items-center rounded-full bg-surface-2 px-0.5">
+        className="flex h-8 items-center rounded-md bg-band px-0.5">
         {values.map((item, itemIndex) => (
           <button key={item} type="button" aria-pressed={value === item}
             ref={(element) => { refs.current[itemIndex] = element; }} onClick={() => onChange(item)}
             className={`min-h-11 touch-manipulation whitespace-nowrap px-0.5 text-xs font-medium transition`}>
-            <span className={`inline-flex items-center rounded-full px-2.5 py-1 transition ${value === item
-              ? "bg-surface text-ink shadow-sm"
+            <span className={`inline-flex items-center rounded-sm px-2.5 py-1 transition-colors ${value === item
+              ? "bg-ink font-bold text-paper"
               : "text-muted hover:text-ink"}`}>
               {render(item)}
             </span>
@@ -135,7 +134,7 @@ export function ContextSwitcher<Value extends string>({
 }
 
 /** 單層主頁籤 tablist（UI 審 r8）：無主/次階層的頁（standings seg、records 分區）
-    一律採主頁籤造型呈現——active＝實心 ink 頁籤、未選＝描邊頁籤（上圓下方、貼線）。 */
+    一律採主頁籤造型呈現——#218 一級頁籤：band 色塊帶，選中＝卡面色塊＋粗體＋上緣石油藍。 */
 export function MainTabs<ItemValue extends string>({ label, items, value, onChange }: {
   label: string;
   items: readonly { value: ItemValue; label: string }[];
@@ -157,14 +156,15 @@ export function MainTabs<ItemValue extends string>({ label, items, value, onChan
   }, [index]);
 
   return (
-    <div role="tablist" aria-label={label} onKeyDown={onKeyDown} className="flex shrink-0 items-end gap-1.5">
+    <div role="tablist" aria-label={label} onKeyDown={onKeyDown}
+      className="flex min-w-0 shrink-0 items-end gap-0.5 overflow-x-auto rounded-t-md bg-band px-[3px] pt-[3px]">
       {items.map((item, itemIndex) => (
         <button key={item.value} type="button" role="tab" aria-selected={value === item.value}
           tabIndex={value === item.value ? 0 : -1}
           ref={(element) => { refs.current[itemIndex] = element; }} onClick={() => onChange(item.value)}
-          className={`min-h-11 min-w-[6.5rem] shrink-0 touch-manipulation whitespace-nowrap rounded-t-md px-4 text-sm font-semibold transition ${value === item.value
-            ? "bg-ink text-paper"
-            : "border border-line bg-surface text-muted hover:border-line-strong hover:text-ink"}`}>
+          className={`min-h-11 shrink-0 touch-manipulation whitespace-nowrap rounded-t-md px-4 text-sm transition-colors ${value === item.value
+            ? "bg-surface font-bold text-ink shadow-[inset_0_3px_0_var(--color-accent)]"
+            : "text-muted hover:text-ink"}`}>
           {item.label}
         </button>
       ))}
@@ -172,7 +172,7 @@ export function MainTabs<ItemValue extends string>({ label, items, value, onChan
   );
 }
 
-/** 單層 tablist（underline 語彙）：階層導覽的子層專用（單層主分頁頁改用 MainTabs）。 */
+/** 子層 tablist：階層導覽的子層專用（單層主分頁頁改用 MainTabs）。#218 二級＝分段切換。 */
 export function TabItems<ItemValue extends string>({ label, items, value, onChange }: {
   label: string;
   items: readonly { value: ItemValue; label: string }[];
@@ -194,17 +194,17 @@ export function TabItems<ItemValue extends string>({ label, items, value, onChan
   }, [index]);
 
   return (
-    <div role="tablist" aria-label={label} onKeyDown={onKeyDown} className="flex shrink-0">
-      {/* 子頁籤比主頁籤「矮」：文字下沉錨定（items-end＋pb-1）＋字級略小，
-          底線貼齊導覽欄分隔線；觸控熱區仍為 min-h-11（44px）。 */}
+    <div role="tablist" aria-label={label} onKeyDown={onKeyDown} className="flex shrink-0 items-center gap-0.5 rounded-md bg-band p-0.5">
+      {/* 子頁籤比主頁籤「矮」：分段切換（選中＝墨色實底）；觸控熱區仍為 min-h-11（44px），
+          視覺高度由內層 span 決定。 */}
       {items.map((item, itemIndex) => (
         <button key={item.value} type="button" role="tab" aria-selected={value === item.value}
           tabIndex={value === item.value ? 0 : -1}
           ref={(element) => { refs.current[itemIndex] = element; }} onClick={() => onChange(item.value)}
-          className={`min-h-11 flex touch-manipulation items-end whitespace-nowrap border-b-2 px-2 pb-1 text-[13px] transition ${value === item.value
-            ? "border-ink font-semibold text-ink"
-            : "border-transparent text-muted hover:border-line-strong hover:text-ink"}`}>
-          {item.label}
+          className={`min-h-11 flex touch-manipulation items-center whitespace-nowrap text-[13px] transition-colors`}>
+          <span className={`rounded-sm px-2.5 py-1 ${value === item.value
+            ? "bg-ink font-bold text-paper"
+            : "text-muted hover:text-ink"}`}>{item.label}</span>
         </button>
       ))}
     </div>

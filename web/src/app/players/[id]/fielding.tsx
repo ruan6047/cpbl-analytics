@@ -63,7 +63,7 @@ function FieldingValueCard({ row, league, qualifyOuts }: {
   // 一壘與投手不做價值宣稱——坦白略過優於硬湊（Brief §1 元件 A）
   if (metrics.length === 0) {
     return (
-      <p className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs text-muted">
+      <p className="rounded-md bg-surface-2 px-3 py-2 text-xs text-muted">
         {group === "first"
           ? "一壘守備的價值難以由官方計數量化，本頁不對一壘守備下評價；上方表格為原始數據。"
           : "投手守備樣本過少，不作評價；上方表格為原始數據。"}
@@ -75,7 +75,7 @@ function FieldingValueCard({ row, league, qualifyOuts }: {
     : per9(numOf(m === "a9" ? row.a : m === "dp9" ? row.dp : row.tc), outs);
 
   return (
-    <div className="rounded-xl border border-line bg-surface p-3">
+    <div className="rounded-md bg-surface p-3">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <h4 className="text-sm font-medium text-ink">{pos}・守備指標</h4>
         <span className="text-[11px] text-faint">
@@ -178,7 +178,7 @@ export function FieldingSection({ fielding, fieldingCareer, fieldFromYear, leagu
           仍只在多守位時渲染——單一守位時它等於重畫下方表格的一列（UX-PLAYER-IA2 決議）。
           不以顏色編碼好壞：這是身分圖不是價值圖。 */}
       {multi && (
-        <div className="mb-4 flex justify-center rounded-xl border border-line bg-surface p-3">
+        <div className="mb-4 flex justify-center rounded-md bg-surface p-3">
           <FieldDiagram cells={fieldingCells(mapRows.map((r) => ({
             pos: String(r.pos), g: numOf(r.g), outs: numOf(r.outs),
           })))} caption="守位分布" />

@@ -131,12 +131,12 @@ export function TeamStyleSection({ data, defaultYear }: {
       )}
 
       {!season ? (
-        <div className="rounded-lg border border-line bg-surface p-4 text-sm text-muted">{S.emptyState}</div>
+        <div className="rounded-md bg-surface p-4 text-sm text-muted">{S.emptyState}</div>
       ) : (
         <div className="space-y-5">
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
             {/* 雷達：七軸季內 z */}
-            <div className="rounded-lg border border-line bg-surface p-3 lg:col-span-2">
+            <div className="rounded-md bg-surface p-3 lg:col-span-2">
               <div className="h-72 sm:h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <RadarChart data={radarData} outerRadius="74%">
@@ -152,7 +152,7 @@ export function TeamStyleSection({ data, defaultYear }: {
             </div>
 
             {/* 軸明細：raw＋聯盟排名＋語意標注 */}
-            <div className="rounded-lg border border-line bg-surface p-4 lg:col-span-3">
+            <div className="rounded-md bg-surface p-4 lg:col-span-3">
               <div className="mb-1 flex items-baseline gap-2">
                 <h3 className="text-sm font-semibold text-ink">{S.detailHeading}</h3>
                 <span className="text-[10px] text-faint">{S.detailCaption}</span>
@@ -188,7 +188,7 @@ export function TeamStyleSection({ data, defaultYear }: {
           </div>
 
           {/* 歷史逐季：單軸原始值折線＋聯盟平均參考線＋教練時間標記（約束 2：分段維持逐季） */}
-          <div className="rounded-lg border border-line bg-surface p-4">
+          <div className="rounded-md bg-surface p-4">
             <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
               <h3 className="text-sm font-semibold text-ink">{S.historyHeading}</h3>
               <span className="text-[10px] text-faint">{rawMode ? S.historyCaption : S.historyCaptionZ}</span>

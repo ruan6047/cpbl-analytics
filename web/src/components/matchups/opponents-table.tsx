@@ -32,7 +32,7 @@ export default function OpponentsTable({
 }) {
   const oppLabel = role === "batting" ? "投手" : "打者";
   return (
-    <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+    <div className="overflow-x-auto rounded-md bg-surface">
       <table className="w-full min-w-[560px] text-sm">
         <caption className="sr-only">對戰{oppLabel}清單，點欄位標題排序、點對手看單組對決</caption>
         <thead>

@@ -101,7 +101,7 @@ export default function SearchCombobox({
 
   if (selected) {
     return (
-      <div className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface-2 py-1 pl-3 pr-1.5 text-sm">
+      <div className="inline-flex items-center gap-1.5 rounded-md bg-surface-2 py-1 pl-3 pr-1.5 text-sm">
         <span className="font-semibold text-ink">{selected.name}</span>
         <button
           type="button"

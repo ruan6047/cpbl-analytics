@@ -45,7 +45,7 @@ export function RosterBoard({ fieldCells, designatedHitter, caption, groups, emp
   const hasField = Object.keys(fieldCells).length > 0;
   const hasGroups = groups.length > 0;
   return (
-    <div className="rounded-xl border border-line bg-surface p-3">
+    <div className="rounded-md bg-surface p-3">
       <div className={`grid gap-x-6 gap-y-5 ${hasGroups ? "lg:grid-cols-[360px_1fr]" : "justify-items-center"}`}>
         {hasField ? (
           <FieldDiagram cells={fieldCells} designatedHitter={designatedHitter} caption={caption}

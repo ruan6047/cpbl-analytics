@@ -42,7 +42,7 @@ export function TrackingSection({ disc, role, seasonKind }: { disc: Disc | null;
         {/* 稀疏警示（IA 狀態契約）：有樣本但過少時照常顯示數字，但明確標示僅供參考。
             成因多為球場未配置設備或出賽場次少，與「無資料」是不同狀態。 */}
         {sparsePitchNote(disc?.points.length) && (
-          <p className="mb-3 rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs text-muted">
+          <p className="mb-3 rounded-md bg-surface-2 px-3 py-2 text-xs text-muted">
             {sparsePitchNote(disc?.points.length)}
           </p>
         )}

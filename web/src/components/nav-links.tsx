@@ -19,8 +19,8 @@ export function NavLinks() {
   const [menuTop, setMenuTop] = useState(0);
   const [canPortal, setCanPortal] = useState(false);
 
-  // 面板 portal 到 body：header 的 backdrop-blur 會為 fixed 子元素建立 containing block，
-  // 面板若留在 header 內會被夾成 header 的高度（實測 49px）而無法點擊。
+  // 面板 portal 到 body：不受 sticky header 的層疊與日後可能出現的 containing block
+  // （backdrop-filter／transform 等）影響；曾因 header 的 backdrop-blur 被夾成 49px 高而無法點擊。
   useEffect(() => {
     setCanPortal(true);
   }, []);
@@ -128,11 +128,10 @@ export function NavLinks() {
         key={n.href}
         href={n.href}
         aria-current={active ? "page" : undefined}
-        className={
-          active
-            ? "border-b-2 border-accent pb-0.5 font-semibold text-ink"
-            : "border-b-2 border-transparent pb-0.5 transition-colors hover:text-ink"
-        }
+        // 選中＝底緣 3px 石油藍（#218 頂欄）；hover 換石油藍字。
+        className={`pb-[15px] pt-[18px] text-ink transition-colors hover:text-accent ${
+          active ? "shadow-[inset_0_-3px_0_var(--color-accent)]" : ""
+        }`}
       >
         {n.label}
       </Link>
@@ -144,10 +143,8 @@ export function NavLinks() {
   return (
     <>
       {/* ==================== 桌機版導覽列 ==================== */}
-      <nav aria-label="主導覽" className="hidden md:flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] lg:text-sm text-muted">
+      <nav aria-label="主導覽" className="order-1 ml-3 hidden items-center gap-x-5 text-sm font-bold md:flex">
         {PRIMARY_NAV.map(desktopLink)}
-
-        <span aria-hidden className="h-4 w-px bg-line" />
 
         {/* 「更多」收納紀錄室／球場／賽事預測（§4.1；紀錄室桌機位置依需求方 §12-2 決策維持於此） */}
         <div ref={moreRef} className="relative">
@@ -158,8 +155,8 @@ export function NavLinks() {
             aria-expanded={isMoreOpen}
             aria-haspopup="menu"
             aria-controls="more-menu"
-            className={`flex items-center gap-1 border-b-2 pb-0.5 transition-colors ${
-              moreActive ? "border-accent font-semibold text-ink" : "border-transparent hover:text-ink"
+            className={`flex items-center gap-1 pb-[15px] pt-[18px] font-bold text-ink transition-colors hover:text-accent ${
+              moreActive ? "shadow-[inset_0_-3px_0_var(--color-accent)]" : ""
             }`}
           >
             更多
@@ -172,7 +169,7 @@ export function NavLinks() {
               id="more-menu"
               role="menu"
               aria-label="更多"
-              className="absolute right-0 z-40 mt-2 w-36 rounded-xl border border-line bg-surface p-1 shadow-lg"
+              className="absolute right-0 z-40 mt-1 w-36 rounded-md border border-line bg-surface p-1 font-medium shadow-[0_6px_18px_-6px_rgb(0_0_0/0.25)]"
             >
               {MORE_NAV.map((n) => {
                 const active = isNavActive(n, pathname);
@@ -182,8 +179,8 @@ export function NavLinks() {
                     href={n.href}
                     role="menuitem"
                     aria-current={active ? "page" : undefined}
-                    className={`block rounded-lg px-3 py-2 text-sm transition ${
-                      active ? "bg-surface-2 font-semibold text-ink" : "text-muted hover:bg-surface-2 hover:text-ink"
+                    className={`block rounded-sm px-3 py-2 text-sm transition-colors ${
+                      active ? "bg-ink font-bold text-paper" : "text-ink hover:bg-surface-2"
                     }`}
                   >
                     {n.label}
@@ -196,7 +193,7 @@ export function NavLinks() {
       </nav>
 
       {/* ==================== 行動端選單按鈕 ==================== */}
-      <div className="md:hidden flex items-center">
+      <div className="order-4 flex items-center md:hidden">
         <button
           ref={buttonRef}
           onClick={() => setIsOpen(!isOpen)}
@@ -204,7 +201,7 @@ export function NavLinks() {
           aria-haspopup="dialog"
           aria-controls="mobile-menu"
           aria-label={isOpen ? "關閉選單" : "開啟選單"}
-          className="relative z-50 flex h-11 w-11 items-center justify-center rounded-lg border border-line bg-surface text-ink transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent"
+          className="relative z-50 flex h-11 w-11 items-center justify-center rounded-md border border-line-strong bg-transparent text-ink transition-colors hover:bg-surface-2"
         >
           <svg
             className="h-5 w-5 transition-transform duration-200"
@@ -233,7 +230,7 @@ export function NavLinks() {
           tabIndex={-1}
           onKeyDown={handleKeyDown}
           style={{ top: menuTop }}
-          className="md:hidden fixed inset-x-0 bottom-0 z-40 flex flex-col bg-paper/95 px-6 py-6 backdrop-blur-lg border-t border-line animate-fade-in overflow-y-auto outline-none"
+          className="md:hidden fixed inset-x-0 bottom-0 z-40 flex flex-col overflow-y-auto bg-paper px-4 py-5 outline-none animate-fade-in"
         >
           {/* 行動端頂欄沒有空間放搜尋，改置於面板首位（§5.5 全域球員搜尋於 375px 仍可達） */}
           <div className="mb-6">
@@ -245,7 +242,7 @@ export function NavLinks() {
               { name: "更多", items: MORE_NAV },
             ].map(({ name, items }) => (
               <div key={name} className="space-y-2">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-faint px-1">{name}</div>
+                <div className="px-1 text-xs font-bold text-muted">{name}</div>
                 {/* 雙欄按鈕佈局，利於大拇指單手操作 */}
                 <div className="grid grid-cols-2 gap-2.5">
                   {items.map((n) => {
@@ -258,8 +255,8 @@ export function NavLinks() {
                         aria-current={active ? "page" : undefined}
                         className={
                           active
-                            ? "flex items-center justify-center h-11 px-3 rounded-xl bg-accent/10 border border-accent/20 text-sm font-bold text-accent transition-all active:scale-[0.98]"
-                            : "flex items-center justify-center h-11 px-3 rounded-xl bg-surface border border-line text-sm font-medium text-ink transition-all hover:bg-surface-2 active:scale-[0.98] active:bg-surface-2"
+                            ? "flex h-11 items-center justify-center rounded-md bg-ink px-3 text-sm font-bold text-paper"
+                            : "flex h-11 items-center justify-center rounded-md bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-2 active:bg-surface-2"
                         }
                       >
                         {n.label}

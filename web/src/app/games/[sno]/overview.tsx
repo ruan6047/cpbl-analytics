@@ -4,7 +4,7 @@
 // 素材全來自既有資料：winprob 逐打席序列 × livelog 事件文，零新請求。
 import type { StatRow } from "@/lib/client";
 import type { WpPoint } from "@/components/win-prob-chart";
-import { Card, ENTITY_LINK, Eyebrow, PlayerLink } from "@/components/ui";
+import { Card, ENTITY_LINK, Eyebrow, PlayerLink, TeamLogo } from "@/components/ui";
 import { contrastText, teamColor } from "@/lib/teams";
 import { displayWp, isTerminalWpPoint } from "@/lib/win-prob-display";
 
@@ -112,14 +112,12 @@ export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor
     .filter((m) => Math.abs(m.delta) >= 0.04).slice(0, 5)
     .sort((a, b) => (a.inning - b.inning) || a.evt.localeCompare(b.evt));
 
-  // 焦點/紀錄共用 chip：帶隊 → 隊色淡底；中性 → accent
-  const chip = (text: string, team: string | null, key: number) => {
-    const c = team ? teamColor(team) : null;
-    return c
-      ? <span key={key} className="rounded-md px-2.5 py-1 text-xs font-medium"
-          style={{ background: `${c}1a`, color: c }}>{text}</span>
-      : <span key={key} className="rounded-md bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">{text}</span>;
-  };
+  // 焦點/紀錄共用標籤（#218 身分標籤）：帶隊 → 前置隊伍印記（隊色只在印記，不鋪底）；中性 → 純標籤
+  const chip = (text: string, team: string | null, key: number) => (
+    <span key={key} className="pm-tag inline-flex items-center gap-1.5 !text-ink">
+      {team && <TeamLogo code={team} size={14} decorative />}{text}
+    </span>
+  );
 
   if (!key.length && !highlights.length && !milestones.length && !info.length && !mvp && !decisions.length) return null;
   return (
@@ -127,8 +125,8 @@ export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor
       {key.length > 0 && (
         <Card padding="p-3" className="min-w-0">
           <div className="mb-1.5 flex items-baseline justify-between px-3 pt-1">
-            <span className="text-sm font-semibold">
-              關鍵時刻 <span className="text-xs font-normal text-faint">（點擊看該打席）</span>
+            <span className="text-base font-bold tracking-[0.04em]">
+              關鍵時刻 <span className="text-xs font-normal text-muted">（點擊看該打席）</span>
             </span>
             <span className="flex items-center gap-2 text-[10px] text-muted">
               <span className="flex items-center gap-1"><i className="inline-block h-2 w-2 rounded-full" style={{ background: awayColor }} />客 {awayName}</span>
@@ -146,8 +144,8 @@ export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor
       {(highlights.length > 0 || info.length > 0 || mvp || decisions.length > 0) && (
         <Card className="flex min-w-0 flex-col gap-4">
           {mvp && (
-            <div className="flex items-center gap-3 rounded-lg bg-accent/5 px-3 py-2.5">
-              <span className="shrink-0 rounded-md bg-accent px-2 py-0.5 text-xs font-bold text-white">MVP</span>
+            <div className="flex items-center gap-3 rounded-md bg-surface-2 px-3 py-2.5">
+              <span className="shrink-0 rounded-sm bg-ink px-2 py-0.5 text-xs font-bold tracking-[0.06em] text-paper">MVP</span>
               <div className="min-w-0">
                 <PlayerLink pid={mvp.pid} name={mvp.name} className={`${ENTITY_LINK} text-base font-bold`} />
                 {mvp.count ? <span className="ml-1.5 text-xs font-normal text-muted">本季第 {mvp.count} 次</span> : null}

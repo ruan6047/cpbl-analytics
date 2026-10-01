@@ -68,7 +68,7 @@ export function SplitsSection({ id, role, seasonKind, scope }: {
           return (
             <div className="space-y-2">
               {groups.map((g, gi) => (
-                <details key={g.cat.key} open={gi === 0} className="overflow-hidden rounded-xl border border-line bg-surface">
+                <details key={g.cat.key} open={gi === 0} className="overflow-hidden rounded-md bg-surface">
                   <summary className="cursor-pointer select-none px-4 py-2.5 text-sm font-medium text-ink hover:bg-surface-2">
                     {g.cat.label}<span className="ml-2 text-xs font-normal text-faint">{g.rows.length}</span>
                   </summary>

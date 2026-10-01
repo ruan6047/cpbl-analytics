@@ -108,7 +108,10 @@ test("賽況 Hero 收納狀態、賽事脈絡與更新時間，頁面不再另�
   const page = readFileSync(new URL("../app/games/[sno]/game-live-page.tsx", import.meta.url), "utf8");
   assert.match(board, /phaseLabel\(snapshot\.phase\)/);
   assert.match(board, /最後更新/);
-  assert.match(board, /賽事編號/);
+  // #218：日期／球場／場次改由頁頂小郵戳＋序號列承載（記分條狀態列不再重複），仍在頁首、不另設狀態卡。
+  assert.match(page, /<Postmark date=\{date\}/);
+  assert.match(page, /No\.\$\{sno\}/);
+  assert.ok(page.indexOf("<GameHead") < page.indexOf("<GameBoard"), "頁頂（郵戳＋序號）必須在記分條上方");
   assert.ok(board.indexOf("<ScoreBar") < board.indexOf("{tabs}"), "Hero 必須在主頁籤上方");
   assert.doesNotMatch(page, /← 返回賽況列表/);
   assert.doesNotMatch(page, /最後更新 \{liveSnapshot\.source\.fetched_at/);

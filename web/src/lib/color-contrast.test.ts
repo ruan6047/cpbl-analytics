@@ -5,15 +5,17 @@ import test from "node:test";
 /**
  * 設計 token 的可及性守衛。
  *
- * 涵蓋：不透明的一般文字語意色（accent/down/amber/cpbl/up）在 paper、surface、
- * surface-2 三層底色的深淺模式組合，門檻為本專案採用的 4.60:1。
+ * 涵蓋：不透明的一般文字語意色（accent/down/up）在 paper、surface、
+ * surface-2 三層文字底色的深淺模式組合，門檻為本專案採用的 4.60:1。
+ * （#220：amber 拆為延賽・保留＝down 紅字狀態章、二軍・獎項＝身分標籤；cpbl 品牌藍退役。
+ *  band 只承載 muted 表頭字與 ink 選中字，不放語意色文字，故不列入。）
  *
  * 不涵蓋：faint（設計系統明定僅限輔助資訊）、圖表／隊色／status 色、帶 alpha 的
  * 背景與元件巢狀實際組合；那些需要個別元件的瀏覽器回歸驗證。
  */
 const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const MIN_TEXT_CONTRAST = 4.6;
-const FOREGROUNDS = ["accent", "down", "amber", "cpbl", "up"] as const;
+const FOREGROUNDS = ["accent", "down", "up"] as const;
 const BACKGROUNDS = ["paper", "surface", "surface-2"] as const;
 
 function token(name: string, mode: "light" | "dark"): string {
@@ -52,8 +54,10 @@ test("一般文字語意 token 在三層底色的深淺模式皆保有 4.60:1 �
   }
 });
 
-test("accent 與 down 保持同色，避免行動與負向訊號漂移", () => {
+// #218 核可：accent＝石油藍（互動／焦點），down＝紅（數據差、延賽・保留）。兩者分屬不同語意，
+// 不可再合併成同一色——否則行動連結會被讀成負向訊號。
+test("accent 與 down 分屬兩色，互動不被讀成負向訊號", () => {
   for (const mode of ["light", "dark"] as const) {
-    assert.equal(token("accent", mode), token("down", mode), `${mode} accent/down drifted`);
+    assert.notEqual(token("accent", mode), token("down", mode), `${mode} accent/down collapsed`);
   }
 });

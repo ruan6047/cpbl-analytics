@@ -37,7 +37,7 @@ export function DataStateNotice({ state, reason }: { state: RenderState; reason:
   const detail = reason ? REASON_TEXT[reason] : null;
   if (state === "provisional_simple" || state === "reconciling") {
     return (
-      <Notice className="mb-4" icon="⚠">
+      <Notice className="mb-4" label="資料核對中">
         關鍵打席暫不呈現：{detail ?? "打席資料一致性檢查未通過"}。
         比分與得分過程照常顯示，官方資料入庫後會自動補上。
       </Notice>
@@ -45,14 +45,14 @@ export function DataStateNotice({ state, reason }: { state: RenderState; reason:
   }
   if (state === "stale_live") {
     return (
-      <Notice className="mb-4" icon="⏳">
+      <Notice className="mb-4" label="等待官方">
         官方尚未宣告比賽結束，賽後戰報待官方資料到位後顯示；畫面維持賽況檢視。
       </Notice>
     );
   }
   if (state === "pending") {
     return (
-      <Notice className="mb-4" icon="⏳">
+      <Notice className="mb-4" label="等待官方">
         等待官方逐打席資料入庫，賽後戰報稍後顯示。
       </Notice>
     );

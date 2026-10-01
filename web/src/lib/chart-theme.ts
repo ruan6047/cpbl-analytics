@@ -23,7 +23,6 @@ export interface ChartTheme {
   up: string;
   down: string;
   accent: string;
-  cpbl: string;
   // 圖表分類序列（chart-1..6；索引 0-5）。含球種調色盤，見 pitchColor()。
   series: string[];
   zone: { heart: string; shadow: string; chase: string; waste: string };
@@ -34,17 +33,16 @@ export interface ChartTheme {
 // 退場用；一旦掛載即以 getComputedStyle 覆蓋為當前主題真值。globals.css 才是 canonical。
 const LIGHT_FALLBACK: ChartTheme = {
   theme: "light",
-  ink: "#0a2540",
-  muted: "#5b6b7a",
-  faint: "#94a3b8",
-  line: "#e2e8f0",
-  lineStrong: "#cbd5e1",
-  surface: "#ffffff",
-  surface2: "#eef2f7",
-  up: "#1d6fb8",
-  down: "#d12638",
-  accent: "#d12638",
-  cpbl: "#1b4da1",
+  ink: "#1e2830",
+  muted: "#4f5961",
+  faint: "#5d6770",
+  line: "rgba(30, 40, 48, 0.14)",
+  lineStrong: "rgba(30, 40, 48, 0.32)",
+  surface: "#f7f5f0",
+  surface2: "#efebe3",
+  up: "#1d5fb0",
+  down: "#c21f32",
+  accent: "#1e6c8c",
   series: ["#1d6fb8", "#0ea5a4", "#f59e0b", "#8b5cf6", "#16a34a", "#94a3b8", "#db2777", "#a16207"],
   zone: { heart: "#b91c1c", shadow: "#ea580c", chase: "#eab308", waste: "#9ca3af" },
   status: { import: "#2563eb", loree: "#0f766e", nagata: "#7c3aed" },
@@ -67,7 +65,6 @@ function readTheme(): ChartTheme {
     up: v("--color-up", f.up),
     down: v("--color-down", f.down),
     accent: v("--color-accent", f.accent),
-    cpbl: v("--color-cpbl", f.cpbl),
     series: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => v(`--chart-${i}`, f.series[i - 1])),
     zone: {
       heart: v("--zone-heart", f.zone.heart),
@@ -115,7 +112,7 @@ export function chartAxis(ct: ChartTheme, fontSize = 11) {
 }
 // recharts Tooltip 容器樣式（隨主題換色）。
 export function chartTooltip(ct: ChartTheme) {
-  return { background: ct.surface, border: `1px solid ${ct.line}`, borderRadius: 8, fontSize: 12, color: ct.ink };
+  return { background: ct.surface, border: `1px solid ${ct.line}`, borderRadius: 4, fontSize: 12, color: ct.ink };
 }
 
 // —— 圖表語意調色盤（單一事實來源；飽和色、深淺皆可讀，故用固定常數而非隨主題重讀）——

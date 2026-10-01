@@ -381,7 +381,7 @@ export default async function TeamPage({ params, searchParams }: {
           <h2 className="mb-1 text-lg font-semibold">隊史紀錄</h2>
           <p className="mb-3 text-[11px] text-faint">含改名/轉賣前身的 franchise 全史（一軍例行賽）。</p>
           {eras.championship_count > 0 && (
-            <div className="mb-3 rounded-lg border border-line bg-surface p-3">
+            <div className="mb-3 rounded-md bg-surface p-3">
               <div className="flex items-baseline gap-1.5">
                 <span className="text-sm font-semibold text-ink">🏆 隊史總冠軍</span>
                 <span className="font-mono text-xl font-bold tabular-nums text-accent">{eras.championship_count}</span>

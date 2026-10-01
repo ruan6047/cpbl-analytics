@@ -95,7 +95,7 @@ export function AbilityCard({
   hideNote?: boolean;
 }) {
   const ct = useChartTheme();
-  const radarColor = color ?? ct.cpbl;
+  const radarColor = color ?? ct.accent;
   if (!card?.available || !card.axes) return null;
   const axes = card.axes;
   const data = axes.map((a) => ({ axis: a.label, pr: a.pr ?? 0 }));
@@ -104,10 +104,11 @@ export function AbilityCard({
   const renderTick = (props: { x: number; y: number; textAnchor: string; payload: { value: string } }) => {
     const a = byLabel[props.payload.value];
     const g = a?.grade ?? null;
+    // #220：軸名墨色＋等級字母（原本只用等級色上色，金／黃字在紙色上對比不足，且等級只靠顏色）。
     const txt = (
       <text x={props.x} y={props.y} textAnchor={props.textAnchor} dominantBaseline="central"
-        fontSize={11} fontWeight={600} style={{ cursor: "help" }} fill={gradeColor(g)}>
-        {props.payload.value}
+        fontSize={12} fontWeight={700} style={{ cursor: "help" }} fill={ct.ink}>
+        {props.payload.value}{g ? <tspan dx={3} fill={ct.muted} fontWeight={800}>{g}</tspan> : null}
       </text>
     );
     if (!a) return txt;
@@ -120,7 +121,7 @@ export function AbilityCard({
           <span className="flex items-center gap-1.5 text-sm font-medium text-ink">
             {title}
             {card.signature && (
-              <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-accent"
+              <span className="pm-tag"
                 title={card.role === "pitching"
                   ? "投球風格：最突出的出局方式（三振／滾地／飛球）"
                   : "打擊特色：進攻工具中最突出者（多項頂尖＝全能）"}>
@@ -158,12 +159,12 @@ export function AbilityCard({
             {/* 半徑軸釘死 0–100：不設的話 recharts 自動縮放到本人最大值，
                 圖形變「相對自己」而等級是絕對 PR（羅戈 續航78/B 被畫到滿格）*/}
             <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
-            <Radar dataKey="pr" stroke={radarColor} fill={radarColor} fillOpacity={0.35} />
+            <Radar dataKey="pr" stroke={radarColor} strokeWidth={2} fill={radarColor} fillOpacity={0.14} />
           </RadarChart>
         </ResponsiveContainer>
       </div>
       {!compact && !hideNote && (
-        <p className="mt-1 text-center text-[10px] text-faint">
+        <p className="mt-1 text-center text-[11px] text-muted">
           自製指標：全聯盟百分位換算，點軸名看組成、點 ? 看計算方式{card.has_advanced ? "；本季含官方進階數據" : ""}。
         </p>
       )}
@@ -198,7 +199,7 @@ export function AbilityRadarVS({
           <PolarAngleAxis dataKey="axis" tick={{ fontSize: 10, fill: ct.muted }} />
           {/* 同上：兩人疊圖更不能各自縮放，0–100 絕對刻度才可比 */}
           <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
-          <Radar dataKey="away" stroke={awayColor ?? ct.cpbl} fill={awayColor ?? ct.cpbl} fillOpacity={0.25} />
+          <Radar dataKey="away" stroke={awayColor ?? ct.accent} fill={awayColor ?? ct.accent} fillOpacity={0.25} />
           <Radar dataKey="home" stroke={homeColor ?? ct.down} fill={homeColor ?? ct.down} fillOpacity={0.25} />
         </RadarChart>
       </ResponsiveContainer>

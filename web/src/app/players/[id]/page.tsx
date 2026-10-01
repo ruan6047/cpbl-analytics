@@ -286,18 +286,18 @@ export default function PlayerPage() {
         {nav.scope === "career" && nav.view === "value" && <SabrSection id={id} role={nav.role} />}
       </div>
 
-      <details className="mb-6 rounded-xl border border-line bg-surface">
+      <details className="mb-6 rounded-md bg-surface">
         <summary className="cursor-pointer select-none px-4 py-2.5 text-sm font-medium text-muted hover:text-ink">
           資料說明與名詞解釋
         </summary>
-        <div className="space-y-1.5 border-t border-line px-4 py-3 text-[11px] leading-relaxed text-faint">
-          <p>· <span className="text-muted">能力值卡</span>：各軸為多項指標綜合的全聯盟百分位 [PR]（本季 打 AB≥50／投 IP≥20；生涯 AB≥300／IP≥100）。本季納官方進階（初速／強擊球%／Barrel%／揮空率／wOBA，覆蓋稀疏，無則退回傳統指標）；等級 S–G 由 PR 換算，皆客觀自算。滑鼠移到軸名看組成與權重。</p>
-          <p>· <span className="text-muted">官方進階 · PR</span>：stats.cpbl 官方 TrackMan 全季值；色條＝PR（藍低→紅高）。打者為進攻、投手為被打數值。</p>
-          <p>· <span className="text-muted">生涯／史上排名</span>：一軍例行賽各季合計（近兩季由逐場補）；史上排名以官方歷年累計、近兩季另計。生涯逐年源 cpbl-opendata（不含當季）。</p>
-          <p>· <span className="text-muted">逐球追蹤</span>：部分球場未配置設備、涵蓋場次少於全季，與官方進階全季值會有差異。</p>
-          <p>· <span className="text-muted">一／二軍</span>：本季主要登錄層級由官網升降事件重建登錄天數判定。主守位＝本季出賽最多的守位或指定打擊（DH 由打擊出賽扣守備推算）。</p>
-          <p>· <span className="text-muted">守備指標</span>：每 9 局率以守備局數為分母（局數自 2018 年起重建，更早年度僅顯示累計）；聯盟對照僅納入該守位達 100 局者。外野助殺少不等於臂力差——跑者可能因忌憚傳球而不敢進壘。</p>
-          <p>· <span className="text-muted">進階指標（推算）</span>：RE24／wSB／捕手 RA9 以自建 CPBL 得分期望矩陣（逐打席 2018–25，經外部資料交叉驗證）與官方計數推算，非官方數據。RE24 名次為該年 PA≥200／BF≥200 合格者；捕手 RA/9 含非自責分（非 cERA）；跨年代比較受得分環境影響。</p>
+        <div className="space-y-1.5 px-4 pb-3 pt-1 text-xs leading-relaxed text-muted">
+          <p>· <span className="font-bold text-ink">能力值卡</span>：各軸為多項指標綜合的全聯盟百分位 [PR]（本季 打 AB≥50／投 IP≥20；生涯 AB≥300／IP≥100）。本季納官方進階（初速／強擊球%／Barrel%／揮空率／wOBA，覆蓋稀疏，無則退回傳統指標）；等級 S–G 由 PR 換算，皆客觀自算。滑鼠移到軸名看組成與權重。</p>
+          <p>· <span className="font-bold text-ink">官方進階 · PR</span>：stats.cpbl 官方 TrackMan 全季值；條長＝聯盟百分位，石油藍＝PR 90 以上（越高越好，方向沿用官方）。打者為進攻、投手為被打數值。</p>
+          <p>· <span className="font-bold text-ink">生涯／史上排名</span>：一軍例行賽各季合計（近兩季由逐場補）；史上排名以官方歷年累計、近兩季另計。生涯逐年源 cpbl-opendata（不含當季）。</p>
+          <p>· <span className="font-bold text-ink">逐球追蹤</span>：部分球場未配置設備、涵蓋場次少於全季，與官方進階全季值會有差異。</p>
+          <p>· <span className="font-bold text-ink">一／二軍</span>：本季主要登錄層級由官網升降事件重建登錄天數判定。主守位＝本季出賽最多的守位或指定打擊（DH 由打擊出賽扣守備推算）。</p>
+          <p>· <span className="font-bold text-ink">守備指標</span>：每 9 局率以守備局數為分母（局數自 2018 年起重建，更早年度僅顯示累計）；聯盟對照僅納入該守位達 100 局者。外野助殺少不等於臂力差——跑者可能因忌憚傳球而不敢進壘。</p>
+          <p>· <span className="font-bold text-ink">進階指標（推算）</span>：RE24／wSB／捕手 RA9 以自建 CPBL 得分期望矩陣（逐打席 2018–25，經外部資料交叉驗證）與官方計數推算，非官方數據。RE24 名次為該年 PA≥200／BF≥200 合格者；捕手 RA/9 含非自責分（非 cERA）；跨年代比較受得分環境影響。</p>
         </div>
       </details>
     </div>

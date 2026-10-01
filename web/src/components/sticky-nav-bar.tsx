@@ -27,7 +27,7 @@ export function StickyNavBar({ label, children, mobileStatic = false, flush = fa
 
   return (
     <nav aria-label={label} style={{ top: stickyTop }}
-      className={`${mobileStatic ? "md:sticky" : "sticky"} z-20 -mx-1 mb-6 border-b border-line bg-paper/95 px-1 ${flush ? "pt-1.5" : "py-1.5"} backdrop-blur`}>
+      className={`${mobileStatic ? "md:sticky" : "sticky"} z-20 -mx-1 mb-6 bg-paper px-1 ${flush ? "pt-1.5" : "py-1.5"}`}>
       {children}
     </nav>
   );

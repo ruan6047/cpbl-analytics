@@ -1,111 +1,116 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { BasesOuts, Card, StatusBadge, TeamLogo, type StatusTone } from "@/components/ui";
+import { StatusBadge, TeamLogo, type StatusTone } from "@/components/ui";
+import { DependencyMark, GameSituation, Postmark, Serial } from "@/components/postmark";
 import { PregameCard } from "@/components/pregame-card";
+import { isTopHalf } from "@/lib/live-game";
+import { teamShort } from "@/lib/teams";
 import {
   gameHref,
+  latestGameDateNote,
   liveInterrupt,
-  officialFactLine,
   phaseTone,
   resolvePregameFromDaily,
-  shortDate,
   sortTodayGames,
+  taipeiTime,
   todayCardKind,
   todayInningLabel,
   todayStatusCopy,
-  taipeiTime,
   todayStatusText,
   TODAY_COPY,
   type LiveInterrupt,
   type TodayGame,
   type TodayLive,
-  type TodaySlate as TodaySlateData,
 } from "@/lib/daily-summary";
 
-// 首頁「今日賽事」區塊（UX-HOME-LIVE-STRIP1）。純展示元件，**不含 hook、不抓資料**：
-// 輪詢與狀態住在 `daily-hub.tsx` 那一個島，這裡只把一份 slate 畫出來（UI_UX_SYSTEM §10.2）。
+// 首頁「今日賽事」票券（UX-HOME-LIVE-STRIP1 → #220 郵戳票券）。純展示元件，**不含 hook、不抓資料**：
+// 輪詢與狀態住在 `daily-hub.tsx` 那一個島，這裡只把一場畫出來（UI_UX_SYSTEM §10.2）。
 //
-// 每張卡自己有賽前／賽中／賽後三態，判準與單場頁同一組 phase（`lib/live-game.ts`），
-// 不另立一套「有沒有比分」的土法——DB 的 0–0 正是首頁整天失準的來源。三態分工：
+// 每張票自己有賽前／賽中／賽後三態，判準與單場頁同一組 phase（`lib/live-game.ts`），
+// 不另立一套「有沒有比分」的土法——DB 的 0–0 正是首頁整天失準的來源。三態**同一結構**
+// （#218）：票根＝序號列＋狀態章＋郵戳（日期＋球場）；本體＝兩隊（上客下主）＋固定寬右格，
+// 比分位置與基線不隨狀態移動。
 //
-//   賽前 → 現行 `PregameCard`（點機率＋1 主訊號）。已開打場次的後端 payload 連
-//          `pregame` 欄位都沒有，所以畫不出來，不是靠這裡的 if 擋住。
-//   賽中 → 雙隊／比分／局況／壘包／出局數／最後更新／進入單場。**不做**「關鍵局面」
-//          之類的判斷標示，不顯示逐球、球數、Recent Plays，不引入任何 WP 欄位。
-//   賽後 → 比分（勝方強調）＋一行官方事實（MVP／勝投，取自 snapshot `decisions`）＋
-//          復盤入口。零模型衍生；今晚結束的場次當晚即可見，不等隔日爬蟲。
+//   賽前 → 右格＝賽前勝率（PregameCard aside 版）。已開打場次的後端 payload 沒有 `pregame`。
+//   賽中 → 右格＝局數＋局況（壘包＋出局）。**球數不在 daily summary**（`daily.py` 刻意排除），
+//          唯一帶球數的逐場 `/live` 每次約 440–500 KB，不適合首頁輪詢（#220 執行前提確認），
+//          故 B／S 兩列不畫、標「球數需資料支援」——不造值。不顯示逐球、Recent Plays、WP。
+//   賽後 → 右格＝勝投＋MVP（snapshot `decisions`，官方直接給的）；兩者皆缺寫「官方紀錄確認中」。
 
-function TeamLine({ code, name, score, win, hide }: {
-  code: string; name: string; score: number | null; win: boolean; hide: boolean;
+const PHASE_ENTRY = { pregame: "賽事詳情 →", live: "進入賽況 →", final: "賽後復盤 →" } as const;
+
+function TeamRow({ code, name, score, hide, tone }: {
+  code: string; name: string; score: number | null; hide: boolean;
+  /** w＝勝方（只加粗）；l＝敗方（淡）；live＝比分仍會變；plain＝無比分。 */
+  tone: "w" | "l" | "live" | "plain";
 }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className={`pm-ticket-team ${tone === "plain" ? "" : `pm-${tone}`}`}>
       <TeamLogo code={code} name={name} size={22} decorative />
-      <span className={`min-w-0 break-words text-sm leading-tight ${win ? "font-semibold text-ink" : "text-muted"}`}>{name}</span>
-      <span className="ml-auto min-w-6 shrink-0 text-right font-mono text-lg tabular-nums">
-        {hide || score == null
-          ? <span className="text-faint">—</span>
-          : <span className={win ? "font-bold text-ink" : "text-muted"}>{score}</span>}
-      </span>
+      <span className="pm-nm">{name}</span>
+      <span className="pm-n">{hide || score == null ? "—" : score}</span>
     </div>
   );
 }
 
-/** 三態共用的卡殼：狀態列 → 兩隊（＋右側槽）→ 下方槽 → 入口。骨架一致，態切換
- *  （賽前 → 賽中 → 賽後）不產生版面跳動（UI_UX_SYSTEM §3.3 感知效能三態）。 */
-function GameCard({ g, status, tone, aside, meta, below, footer, showScore, live }: {
+/** 三態共用的票券殼。骨架一致，態切換（賽前 → 賽中 → 賽後）不產生版面跳動。 */
+function Ticket({ g, status, tone, aside, extra, meta, entry, showScore, live, reveal = false }: {
   g: TodayGame;
   status: string | null;
   tone: StatusTone;
-  /** 兩隊右側（賽中的局數與壘包）。 */
+  /** 右格（固定寬）：賽前勝率／局況／勝投 MVP／保留附註。 */
   aside?: ReactNode;
-  /** 狀態列右端（最後更新時刻）。 */
+  /** 本體下方整列（只放必須讀到的附註，例如螢幕閱讀器播報）。 */
+  extra?: ReactNode;
+  /** 票根上的小字（賽中「最後更新」）。 */
   meta?: ReactNode;
-  /** 兩隊下方（賽前卡、賽後官方事實、螢幕閱讀器播報）。 */
-  below?: ReactNode;
-  footer: string;
+  entry: string;
   showScore: boolean;
   /** 顯示用的比分來源；二階降級時呼叫端傳 null 以收掉會變的數字。 */
   live: TodayLive | null;
+  /** 轉為終場的那一次輪詢：郵戳落章一次。 */
+  reveal?: boolean;
 }) {
-  const settled = todayCardKind(g) === "final";
+  const kind = todayCardKind(g);
+  const settled = kind === "final";
   const awayScore = live?.away_score ?? g.away_score;
   const homeScore = live?.home_score ?? g.home_score;
-  const homeWin = settled && showScore && (homeScore ?? 0) > (awayScore ?? 0);
-  const awayWin = settled && showScore && (awayScore ?? 0) > (homeScore ?? 0);
+  const known = showScore && awayScore != null && homeScore != null;
+  const homeWin = settled && known && (homeScore as number) > (awayScore as number);
+  const awayWin = settled && known && (awayScore as number) > (homeScore as number);
+  const toneOf = (win: boolean, lose: boolean): "w" | "l" | "live" | "plain" =>
+    !known ? "plain" : win ? "w" : lose ? "l" : kind === "live" ? "live" : "plain";
+  const start = taipeiTime(g.live?.starts_at ?? null);
+  const dateNote = latestGameDateNote({ completed: false, orig_date: g.orig_date, game_date: g.game_date });
 
   return (
-    <Card padding="p-3" className="flex flex-col gap-2">
-      <div className="flex min-h-6 items-center justify-between gap-2">
-        {status
-          ? <StatusBadge tone={tone}>{status}</StatusBadge>
-          : <span className="text-[11px] text-faint">{shortDate(g.game_date)}</span>}
+    <div className="pm-ticket">
+      <div className="pm-ticket-stub">
+        <Serial items={[{ text: `No.${g.game_sno}`, kind: "lead" }, start ? { text: start, kind: "time" } : null]} />
+        {status && <StatusBadge tone={tone}>{status}</StatusBadge>}
+        {dateNote && <span className="pm-ticket-note">{dateNote}</span>}
         {meta}
+        <Link href={gameHref(g)} className="pm-ticket-link"
+          aria-label={`No.${g.game_sno} ${g.away_team_name} 對 ${g.home_team_name}，${entry.replace(" →", "")}`}>
+          {entry}
+        </Link>
+        <Postmark date={g.game_date} venue={g.venue} size="lg" placed="absolute" reveal={reveal} />
       </div>
-      <div className="flex items-center gap-3">
-        <div className="grid min-w-0 flex-1 grid-cols-1 gap-1.5">
-          <TeamLine code={g.away_team_code} name={g.away_team_name}
-            score={awayScore} win={awayWin} hide={!showScore} />
-          <TeamLine code={g.home_team_code} name={g.home_team_name}
-            score={homeScore} win={homeWin} hide={!showScore} />
+      <div className="pm-ticket-body">
+        <div className="pm-ticket-teams">
+          <TeamRow code={g.away_team_code} name={g.away_team_name} score={awayScore} hide={!showScore}
+            tone={toneOf(awayWin, homeWin)} />
+          <TeamRow code={g.home_team_code} name={g.home_team_name} score={homeScore} hide={!showScore}
+            tone={toneOf(homeWin, awayWin)} />
         </div>
-        {aside}
+        <div className="pm-ticket-aside">{aside}</div>
+        {extra && <div className="pm-ticket-extra">{extra}</div>}
       </div>
-      {below}
-      <Link
-        href={gameHref(g)}
-        className="-mx-1 mt-auto flex min-h-11 items-center justify-between rounded-lg px-1 text-[11px] transition hover:bg-surface-2"
-      >
-        <span className="truncate text-faint">{g.venue ?? "—"}</span>
-        <span className="shrink-0 text-accent">{footer}</span>
-      </Link>
-    </Card>
+    </div>
   );
 }
 
-function LiveCard({ g, live, interrupt }: {
-  g: TodayGame; live: TodayLive; interrupt: LiveInterrupt;
-}) {
+function LiveTicket({ g, live, interrupt }: { g: TodayGame; live: TodayLive; interrupt: LiveInterrupt }) {
   const status = todayStatusText(live, interrupt);
   const inningText = todayInningLabel(live, "text");
 
@@ -113,8 +118,8 @@ function LiveCard({ g, live, interrupt }: {
   // 「A vs B・比賽進行中・即時資料中斷」＋ 入口。一階仍照顯數字，另加標示。
   if (interrupt === "blackout") {
     return (
-      <GameCard g={g} status={status} tone="warn" footer="進入賽況 →" showScore={false} live={null}
-        below={
+      <Ticket g={g} status={status} tone="warn" entry={PHASE_ENTRY.live} showScore={false} live={null}
+        extra={
           <p className="sr-only" aria-live="polite" aria-atomic="true">
             {g.away_team_name} 對 {g.home_team_name}，{TODAY_COPY.inProgress}，{TODAY_COPY.blackout}
           </p>
@@ -127,28 +132,28 @@ function LiveCard({ g, live, interrupt }: {
   // 取最新的會遮蔽落單卡住的那一場，而兩階降級本來就是逐場判斷的。
   // 時刻走釘死台北時區的 `taipeiTime`，SSR 與 hydration 必然一致（不必等掛載）。
   const updated = taipeiTime(live.fetched_at);
+  const inning = live.inning == null ? null : `${live.inning} 局${isTopHalf(live.half) ? "上" : "下"}`;
   return (
-    <GameCard
+    <Ticket
       g={g}
       status={status}
       tone={interrupt === "degraded" ? "warn" : "live"}
       showScore
       live={live}
-      footer="進入賽況 →"
+      entry={PHASE_ENTRY.live}
       meta={updated && (
-        <time className="shrink-0 text-[11px] text-faint" dateTime={live.fetched_at ?? undefined}>
+        <time className="text-[11.5px] text-muted" dateTime={live.fetched_at ?? undefined}>
           最後更新 {updated}
         </time>
       )}
       aside={
-        <div className="flex shrink-0 flex-col items-center gap-0.5">
-          <span className="text-[11px] font-semibold text-accent">
-            {todayInningLabel(live, "glyph") ?? "等待賽況"}
-          </span>
-          {live.bases && <BasesOuts bases={live.bases} outs={live.outs} size={38} />}
+        <div className="grid justify-items-center gap-1 justify-self-center">
+          <span className="text-[15px] font-extrabold leading-none text-ink">{inning ?? "等待賽況"}</span>
+          {live.bases && <GameSituation bases={live.bases} outs={live.outs} small />}
+          <DependencyMark>球數需資料支援</DependencyMark>
         </div>
       }
-      below={
+      extra={
         <p className="sr-only" aria-live="polite" aria-atomic="true">
           {g.away_team_name} {live.away_score ?? 0} 比 {live.home_score ?? 0} {g.home_team_name}
           {inningText ? `，${inningText}` : ""}
@@ -159,91 +164,83 @@ function LiveCard({ g, live, interrupt }: {
   );
 }
 
-function FinalCard({ g }: { g: TodayGame }) {
-  const fact = officialFactLine(g.live);
+function FinalTicket({ g, reveal }: { g: TodayGame; reveal: boolean }) {
+  const decisions = g.live?.phase === "final" ? g.live.decisions : null;
+  const win = decisions?.winning_pitcher?.name ?? null;
+  const mvp = decisions?.mvp?.name ?? null;
   return (
-    <GameCard
+    <Ticket
       g={g}
       status={g.live ? todayStatusText(g.live, "none") : "比賽結束"}
       tone="done"
       showScore
       live={g.live}
-      footer="賽後復盤 →"
-      below={fact ? <p className="truncate text-[11px] text-muted">{fact}</p> : undefined}
+      entry={PHASE_ENTRY.final}
+      reveal={reveal}
+      aside={g.live?.phase === "final" ? (
+        win || mvp ? (
+          <dl className="grid w-full grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-2 gap-y-0.5">
+            {win && <><dt className="text-[11.5px] text-muted">勝投</dt><dd className="m-0 text-right text-[13.5px] font-bold leading-snug [word-break:keep-all]">{win}</dd></>}
+            {mvp && <><dt className="text-[11.5px] text-muted">MVP</dt><dd className="m-0 text-right text-[13.5px] font-bold leading-snug [word-break:keep-all]">{mvp}</dd></>}
+          </dl>
+        ) : <span className="text-xs text-muted">{TODAY_COPY.officialPending}</span>
+      ) : undefined}
     />
   );
 }
 
-/** 單場卡的三態分派。`nowMs` 一律由呼叫端注入（島持有的 tick），元件內不叫
+/** 單場票券的三態分派。`nowMs` 一律由呼叫端注入（島持有的 tick），元件內不叫
  *  `Date.now()`——同一份 props 必須畫出同一個畫面，SSR 與 client 首次渲染才會一致。 */
-export function TodayGameCard({ g, trainedThrough, nowMs }: {
+export function TodayGameCard({ g, trainedThrough, nowMs, reveal = false }: {
   g: TodayGame; trainedThrough: number | null; nowMs: number | null;
+  /** 這一輪剛轉為終場：郵戳落章一次。 */
+  reveal?: boolean;
 }) {
   const kind = todayCardKind(g);
-  // 徽章文案與最近比賽日共用同一張表（`todayStatusCopy` → `LATEST_STATUS_COPY`），
+  // 狀態章文案與最近比賽日共用同一張表（`todayStatusCopy` → `LATEST_STATUS_COPY`），
   // 不用 `phaseLabel`：canonical 的「延期」在 2026-08-16 Design Gate 被需求方推翻，
   // 官方原文「延賽」勝出，而同一場比賽在首頁兩個區塊不得是兩個詞。
   const statusCopy = todayStatusCopy(g);
 
   if (kind === "live" && g.live) {
-    return <LiveCard g={g} live={g.live} interrupt={liveInterrupt(g.live, nowMs)} />;
+    return <LiveTicket g={g} live={g.live} interrupt={liveInterrupt(g.live, nowMs)} />;
   }
-  if (kind === "final") return <FinalCard g={g} />;
-  // 延賽：根本沒開打，沒有比分可顯示。
-  //
-  // **不再要求有 live snapshot**（原本是 `kind === "postponed" && g.live`）：worker 只在
-  // 開賽時段供 snapshot，本機與每日多數時段一場都沒有，而官方 `delay_kind` 早就在 DB 裡。
-  // 2026-08-19 的 A#274 正是這個漏洞——`delay_kind=延賽` 躺在資料裡，卡片卻落到賽前態，
-  // 標頭只有 `08/19`、比分兩個破折號，唯一的說明文字是賽前卡的「模型尚未建置」，
-  // 等於拿模型狀態充當缺分的原因。`todayCardKind` 已補上 DB 後備，這裡把守衛跟上。
+  if (kind === "final") return <FinalTicket g={g} reveal={reveal} />;
+  // 延賽：根本沒開打，沒有比分可顯示。**不要求有 live snapshot**：worker 只在開賽時段供
+  // snapshot，官方 `delay_kind` 早就在 DB 裡（2026-08-19 A#274 的漏洞，`todayCardKind` 已補 DB 後備）。
   if (kind === "postponed" && statusCopy) {
     return (
-      <GameCard g={g} status={statusCopy.label} tone={statusCopy.tone}
-        showScore={false} live={null} footer="賽事詳情 →" />
+      <Ticket g={g} status={statusCopy.label} tone={statusCopy.tone}
+        showScore={false} live={null} entry={PHASE_ENTRY.pregame} />
     );
   }
   // 保留賽：**已開賽後中止，場上是有比分的**（GLOSSARY〈保留賽〉：官方 GameResult=2）。
-  // 藏起來比顯示更失真，故照顯中斷時比分；「保留・擇期續賽」那一行負責防止它被讀成
-  // 終場，也說明了為什麼這個比分不會再變。
-  //
-  // 同樣拿掉 `&& g.live`。沒有 snapshot 時 `GameCard` 自己會退回 DB 的 `g.*_score`
-  // （`live?.away_score ?? g.away_score`），兩邊都沒有就照顯破折號——不回填 0。
+  // 藏起來比顯示更失真，故照顯中斷時比分（不判勝方）；「保留・擇期續賽」負責防止它被讀成終場。
+  // 沒有 snapshot 時退回 DB 的 `g.*_score`，兩邊都沒有就照顯破折號——不回填 0。
   if (kind === "reserved" && statusCopy) {
     return (
-      <GameCard g={g} status={statusCopy.label} tone={statusCopy.tone}
-        showScore live={g.live} footer="賽事詳情 →"
-        below={<p className="text-[11px] text-muted">{TODAY_COPY.reservedNote}</p>} />
+      <Ticket g={g} status={statusCopy.label} tone={statusCopy.tone}
+        showScore live={g.live} entry={PHASE_ENTRY.pregame}
+        aside={<span className="text-right text-[12.5px] text-ink">{TODAY_COPY.reservedNote}</span>} />
     );
   }
-  // 賽前態：維持現行 PregameCard。後端只在未開打的一軍場次帶 `pregame`；缺席時
-  // resolver 回不支援的單行附註，不會冒出 50% 假數字。
+  // 賽前態：後端只在未開打的一軍場次帶 `pregame`；缺席時 resolver 回不支援的單行附註，
+  // 不會冒出 50% 假數字。沒有 snapshot 時不貼狀態章（不宣稱「未開打」，郵戳已承載日期）。
   return (
-    <GameCard
+    <Ticket
       g={g}
       status={g.live ? todayStatusText(g.live, "none") : null}
       tone={g.live ? phaseTone(g.live.phase) : "scheduled"}
       showScore={false}
       live={null}
-      footer="賽事詳情 →"
-      below={
+      entry={PHASE_ENTRY.pregame}
+      aside={
         <PregameCard model={resolvePregameFromDaily(g.pregame, trainedThrough)}
-          homeName={g.home_team_name} />
+          homeName={teamShort(g.home_team_code) || g.home_team_name} variant="aside" />
       }
     />
   );
 }
 
-export default function TodaySlate({ slate, trainedThrough, nowMs }: {
-  slate: TodaySlateData;
-  trainedThrough: number | null;
-  nowMs: number | null;
-}) {
-  return (
-    <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
-      {sortTodayGames(slate.games).map((g) => (
-        <TodayGameCard key={`${g.kind_code}-${g.game_sno}`} g={g}
-          trainedThrough={trainedThrough} nowMs={nowMs} />
-      ))}
-    </div>
-  );
-}
+/** 依顯示順序排好的今日場次（開賽時間 → 場次）。 */
+export const orderedTodayGames = sortTodayGames;

@@ -5,7 +5,8 @@ import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState 
 export type SubTabItem<Value extends string> = { value: Value; label: string; content: ReactNode };
 
 /**
- * 卡片內容切換用小頁籤（UX-TEAM-HOTZONE1）：視覺借
+ * 卡片內容切換用小頁籤（UX-TEAM-HOTZONE1）。#218 起視覺＝二級分段切換（band 軌道、
+ * 選中＝墨色實底紙色字）；以下為原設計脈絡：視覺借
  * `hierarchical-tabs.tsx` `ContextSwitcher` 的 pill 軌道＋滑塊語彙
  * （`h-8`、`rounded-full`、`bg-surface-2` 軌道、active＝`bg-surface text-ink
  * shadow-sm`），但**語意不同不能直接複用該元件**：`ContextSwitcher` 是
@@ -64,7 +65,7 @@ export function SubTabs<Value extends string>({ label, items, defaultValue }: {
           在裝得下時不受影響（3 個分類、桌機 4 個分類皆維持原本的貼合寬度），
           只在裝不下時封頂於父層寬度並改為可橫向捲動。 */}
       <div role="tablist" aria-label={label} onKeyDown={onKeyDown}
-        className="mb-2 flex h-8 w-fit max-w-full items-center overflow-x-auto overscroll-x-contain rounded-full bg-surface-2 px-0.5">
+        className="mb-2 flex h-8 w-fit max-w-full items-center overflow-x-auto overscroll-x-contain rounded-md bg-band px-0.5">
         {items.map((item, i) => {
           const active = item.value === value;
           return (
@@ -74,8 +75,8 @@ export function SubTabs<Value extends string>({ label, items, defaultValue }: {
               ref={(element) => { refs.current[i] = element; }}
               onClick={() => setValue(item.value)}
               className="min-h-11 shrink-0 touch-manipulation whitespace-nowrap px-0.5 text-xs font-medium transition">
-              <span className={`inline-flex items-center rounded-full px-2.5 py-1 transition ${active
-                ? "bg-surface text-ink shadow-sm"
+              <span className={`inline-flex items-center rounded-sm px-2.5 py-1 transition-colors ${active
+                ? "bg-ink font-bold text-paper"
                 : "text-muted hover:text-ink"}`}>
                 {item.label}
               </span>

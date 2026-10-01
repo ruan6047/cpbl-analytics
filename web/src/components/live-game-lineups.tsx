@@ -20,7 +20,7 @@ export function LiveGameLineups({ snapshot }: { snapshot: LiveSnapshot }) {
             caption={`${data.team.name}先發守備位置`} groups={board.groups}
             emptyField="官方尚未提供可繪製的先發守備資料。" />
         ) : (
-          <div className="rounded-xl border border-line bg-surface p-4">
+          <div className="rounded-md bg-surface p-4">
             <p className="text-sm text-muted">
               {snapshot.source_status === "error" ? "目前無可保留的名單資料。" : "官方尚未提供先發棒次與守位。"}
             </p>
