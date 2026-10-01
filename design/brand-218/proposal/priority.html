@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>全站資訊優先序短表｜郵戳提案 #218</title>
+<script src="proposal.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="postmark.css">
+<style>
+  .lead { max-width: 60em; margin: 0 0 12px; color: var(--muted); font-size: 13.5px; }
+  .key { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--muted); margin: 0 0 12px; }
+  .scroll { overflow-x: auto; border-radius: var(--r-panel); }
+  table.data.pri { font-size: 13px; min-width: 1040px; }
+  table.data.pri th, table.data.pri td { text-align: left; white-space: normal; vertical-align: top; line-height: 1.55; }
+  table.data.pri tbody th { font-weight: 700; white-space: nowrap; }
+  table.data.pri tbody th small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+  table.data.pri td:nth-child(2) { width: 17%; } table.data.pri td:nth-child(3) { width: 21%; }
+  table.data.pri td:nth-child(4) { width: 19%; } table.data.pri td:nth-child(5) { width: 17%; }
+  table.data.pri td:last-child { width: 11%; font-size: 12px; color: var(--muted); }
+  table.data.pri tbody tr + tr td, table.data.pri tbody tr + tr th { border-top: 6px solid var(--paper); }
+  table.data.pri tbody tr.grp td { background: var(--band); font-weight: 700; color: var(--muted); font-size: 12px; padding: 5px 12px; border-top: 0; }
+</style>
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <a class="brand" href="index.html" aria-label="Ruan's CPBL Lab 提案入口"><span class="punch"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M8 8h48v24L32 56 8 32z M36 21a4.4 4.4 0 1 0 8.8 0 4.4 4.4 0 1 0-8.8 0z M16 28.5Q23 44 39 36.5L37.4 33.3Q24.8 39.2 19.3 27.2Z"/></svg></span><span class="word">Ruan's CPBL Lab<small>中職數據實驗室</small></span></a>
+  <nav class="nav" aria-label="提案"><a href="index.html">提案入口</a><a href="priority.html" aria-current="page">資訊優先序</a><a href="components.html">共用元件</a></nav>
+  <button class="iconbtn" type="button" data-theme-toggle aria-label="深色模式" style="margin-left:auto"><svg class="theme-ico-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><svg class="theme-ico-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></svg></button>
+</div></header>
+
+<main class="wrap">
+  <div class="sh"><h1>全站資訊優先序</h1><span class="cue">對外頁型 14 類，/dev 排除</span></div>
+  <p class="lead">每列回答：這一頁使用者最先要知道什麼、哪些一定要留、哪些重複或可降級、不同狀態差在哪。依據是本輪只讀 <code>web/src</code> 的碼讀，加上先前輪次對正式站的 detector 掃描與截圖；沒看過的明寫「未檢視」。前三列是完整代表稿。</p>
+  <p class="key"><span><b>碼讀</b>＝本輪讀 web/src</span><span><b>掃描</b>＝先前輪次正式站 detect</span><span><b>截圖</b>＝先前輪次正式站截圖</span><span><b>未檢視</b>＝沒看過實際渲染</span></p>
+  <div class="scroll">
+  <table class="data pri">
+    <thead><tr><th>頁型</th><th>首要使用者問題</th><th>必留資訊</th><th>重複或次要（可降級）</th><th>狀態差異</th><th>資料支持</th></tr></thead>
+    <tbody>
+      <tr class="grp"><td colspan="6">完整代表稿</td></tr>
+      <tr><th>首頁<small>/</small></th><td>今天有哪些比賽、打到哪、昨天（前一比賽日）誰贏？</td><td>今日全部場次（含已完賽）、狀態、比分、主隊勝率、前一比賽日賽果、一個資料同步時間、戰績摘要</td><td>頂部品牌大區與大日期（併入「今日賽事」標題）；卡內重複的客／主字樣；前日 MVP（無資料）</td><td>今日無賽／賽前／賽中／完賽／延賽／保留；開打時間或球場缺值</td><td>碼讀、掃描、截圖。7:3 同時呈現需後續資料支援</td></tr>
+      <tr><th>單場賽況<small>/games/[sno]</small></th><td>現在比分、局數、壘上與球數？這一球發生什麼？</td><td>記分板、逐局比分、目前打席與投打、逐球、半局打席、壘上</td><td>狀態列裡重複的日期／球場（改由小郵戳承載）；賽後才有意義的勝率圖在賽中降級</td><td>賽前＝先發與賽前卡；賽中＝狀態板；完賽＝戰報；無逐球的歷史場只有表頭＋勝敗投</td><td>碼讀、掃描、截圖（No.358）。賽中實況未檢視</td></tr>
+      <tr><th>選手<small>/players/[id]</small></th><td>這位選手本季表現好不好、強在哪？</td><td>身分、本季三圍／OPS（投手：ERA、勝敗、局數）、主要計數、官方 PR、特性、走勢、榮譽</td><td>頁首與成績卡重複的三圍；榮譽 emoji；空白圖表框</td><td>本季／生涯、打擊／投球、一軍／二軍；查無此人、退役、打席不足時特性隱藏</td><td>碼讀、掃描、截圖（打者）。投手頁未檢視</td></tr>
+      <tr class="grp"><td colspan="6">局部示意（狀態、表格、密度）</td></tr>
+      <tr><th>賽程<small>/games</small></th><td>這個月哪天有哪隊比賽、結果如何？</td><td>月曆格、對戰、比分／開打時間、延賽標示</td><td>每格 ⭐ MVP 與 ☔ 延賽 emoji（改文字章）；隊伍篩選晶片過多時收合</td><td>完賽／延賽／保留／未開打；季後賽；本月無賽程</td><td>碼讀、掃描、截圖</td></tr>
+      <tr><th>戰績<small>/standings</small></th><td>誰領先、差幾場？</td><td>排名、勝-和-敗、勝率、勝差、近十場</td><td>OPS／ERA／WHIP 可移到展開區；🏆👑 emoji</td><td>全年／上半季／下半季／季後賽；二軍只有全年／總冠軍；此區間無戰績</td><td>碼讀、掃描</td></tr>
+      <tr><th>球隊<small>/teams/[code]</small></th><td>這隊現在排第幾、近況如何？</td><td>名次、戰績、勝差、連勝敗、近況、陣容</td><td>隊色大面積頁首（與郵戳紙色衝突，改小面積）；🏆 emoji</td><td>已解散隊（無賽季頁籤）；半季範圍</td><td>碼讀、掃描</td></tr>
+      <tr><th>對戰<small>/matchups</small></th><td>這個打者對這個投手（或對隊）表現如何？</td><td>雙方身分、打席數、結果分布、可信度</td><td>說明文字過長（移到方法說明）；✕ 等字元圖示改 SVG</td><td>本季／生涯／區間；載入中／查無／錯誤；樣本不足</td><td>碼讀、掃描、截圖</td></tr>
+      <tr class="grp"><td colspan="6">只核對共用元素</td></tr>
+      <tr><th>排行<small>/batters /pitchers</small></th><td>誰是某項指標的前段？</td><td>排名、選手、主指標、排序</td><td>完整欄位預設收起（已有精簡／完整切換）</td><td>一軍／二軍、年份、列表／獎項競逐</td><td>碼讀、掃描</td></tr>
+      <tr><th>紀錄<small>/records</small></th><td>史上之最是誰？</td><td>頁籤＋各表</td><td>頁籤過多時改二級分段</td><td>七個頁籤</td><td>碼讀、掃描</td></tr>
+      <tr><th>預測<small>/predict</small></th><td>（轉址到方法說明 #pregame）</td><td>—</td><td>—</td><td>—</td><td>碼讀</td></tr>
+      <tr><th>球場<small>/venues</small></th><td>各球場特性與差異？</td><td>使用中／歷史球場、全壘打牆距離、Park Factor</td><td>卡片牆可改列表；郵戳可用於球場名（唯一合理的球場主題頁）</td><td>使用中／歷史；單一球場查無</td><td>碼讀、掃描（索引頁）。單一球場頁未檢視</td></tr>
+      <tr><th>主審<small>/umpires</small></th><td>這位主審判決傾向？</td><td>主審、執法場次、逐球追蹤</td><td>—</td><td>載入中、錯誤</td><td>碼讀、掃描</td></tr>
+      <tr><th>人物<small>/people/[kind]/[name]</small></th><td>這位教練／裁判的經歷？</td><td>總教練戰績表或判決分布、近期場次</td><td>🏆× emoji</td><td>教練／裁判；無逐球資料</td><td>碼讀。未檢視（未掃描、無截圖）</td></tr>
+      <tr><th>方法說明<small>/methodology</small></th><td>這些數字怎麼算、可信度多少？</td><td>各模型段、準確率表</td><td>⚠️ emoji 改文字警示章</td><td>—</td><td>碼讀、掃描</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="limits"><b>跨頁共通</b>比分、狀態章、區塊標題、表格與頁籤在各頁共用同一套元件（見共用元件頁）；emoji 逐類處置也在共用元件頁。碼讀來源：<code>web/src/app/*</code> 各 page.tsx 與其元件；行號見共用元件頁 emoji 表與三份代表稿頁尾。</p>
+</main>
+<footer class="footer"><div class="wrap">#218 郵戳提案・全站資訊優先序短表。依據是碼讀與先前輪次證據，不是正式站本輪檢視；本輪未連正式站、官網、DB 或 API。</div></footer>
+</body>
+</html>

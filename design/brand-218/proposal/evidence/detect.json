@@ -1,0 +1,305 @@
+[
+  {
+    "antipattern": "undersized-ui-text",
+    "name": "Undersized functional text",
+    "description": "Interactive and content-bearing UI text (links, buttons, nav items, labels, table cells, meta rows, timecodes) below 11px is a legibility failure, not a style choice. WCAG sets no absolute pixel floor, but functional text under 11px is a defensible quality bar: it fails on high-DPI and small viewports and it degrades tap and read targets. The 11px floor holds even inside a footer; only non-interactive legal smallprint gets the softer 10px floor. Being ON the DESIGN.md size ramp does not exempt a value here: adding 8px to the ramp launders the token but not the legibility problem, and that is exactly the escape hatch this rule closes. Exempts sup/sub, visually-hidden (sr-only) text, and code/terminal contexts. Decorative letterspaced micro-labels are still functional and stay in scope.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/home.html",
+    "line": 0,
+    "snippet": "10.5px functional text \"中職數據實驗室\" (below 11px floor)"
+  },
+  {
+    "antipattern": "flat-type-hierarchy",
+    "name": "Flat type hierarchy",
+    "description": "Dominant heading and body roles are separated by less than 1.25× at every step, leaving the size hierarchy flat. Add at least one stronger size step.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/home.html",
+    "line": 0,
+    "snippet": "Role sizes: body 13px, h3 14px, h2 16px, h1 18px (largest adjacent step 1.14:1; target 1.25:1)"
+  },
+  {
+    "antipattern": "cream-palette",
+    "name": "Cream / beige palette",
+    "description": "A warm cream or beige page background has become the default \"tasteful\" AI surface, reached for by reflex. Choose a background that comes from a deliberate palette, not the safe warm off-white.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/home.html",
+    "line": 0,
+    "snippet": "cream/beige page background rgb(236, 232, 224)"
+  },
+  {
+    "antipattern": "repeating-stripes-gradient",
+    "name": "Repeating-gradient stripes",
+    "description": "Repeating-gradient stripes used as surface decoration are a recurring generated-UI signature. Reach for a deliberate texture or leave the surface plain.",
+    "severity": "advisory",
+    "category": "slop",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/home.html",
+    "line": 0,
+    "snippet": "repeating-gradient decorative stripes",
+    "advisory": true
+  },
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": ":hover state 4.2:1 (need 4.5:1) — text #66707a on #efebe3"
+  },
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": ":hover state 4.2:1 (need 4.5:1) — text #66707a on #efebe3"
+  },
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": ":hover state 4.2:1 (need 4.5:1) — text #66707a on #efebe3"
+  },
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": ":hover state 4.2:1 (need 4.5:1) — text #66707a on #efebe3"
+  },
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": ":hover state 4.2:1 (need 4.5:1) — text #66707a on #efebe3"
+  },
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": ":hover state 4.2:1 (need 4.5:1) — text #66707a on #efebe3"
+  },
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": ":hover state 4.2:1 (need 4.5:1) — text #66707a on #efebe3"
+  },
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": ":hover state 4.2:1 (need 4.5:1) — text #66707a on #efebe3"
+  },
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": ":hover state 1.2:1 (need 4.5:1) — text #ffffff on #efebe3"
+  },
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": ":hover state 4.2:1 (need 4.5:1) — text #66707a on #efebe3"
+  },
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": ":hover state 4.2:1 (need 4.5:1) — text #66707a on #efebe3"
+  },
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": ":hover state 4.2:1 (need 4.5:1) — text #66707a on #efebe3"
+  },
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": ":hover state 4.2:1 (need 4.5:1) — text #66707a on #efebe3"
+  },
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": ":hover state 4.2:1 (need 4.5:1) — text #66707a on #efebe3"
+  },
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": ":hover state 4.2:1 (need 4.5:1) — text #66707a on #efebe3"
+  },
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": ":hover state 4.2:1 (need 4.5:1) — text #66707a on #efebe3"
+  },
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": ":hover state 4.2:1 (need 4.5:1) — text #66707a on #efebe3"
+  },
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": ":hover state 1.2:1 (need 4.5:1) — text #ffffff on #efebe3"
+  },
+  {
+    "antipattern": "undersized-ui-text",
+    "name": "Undersized functional text",
+    "description": "Interactive and content-bearing UI text (links, buttons, nav items, labels, table cells, meta rows, timecodes) below 11px is a legibility failure, not a style choice. WCAG sets no absolute pixel floor, but functional text under 11px is a defensible quality bar: it fails on high-DPI and small viewports and it degrades tap and read targets. The 11px floor holds even inside a footer; only non-interactive legal smallprint gets the softer 10px floor. Being ON the DESIGN.md size ramp does not exempt a value here: adding 8px to the ramp launders the token but not the legibility problem, and that is exactly the escape hatch this rule closes. Exempts sup/sub, visually-hidden (sr-only) text, and code/terminal contexts. Decorative letterspaced micro-labels are still functional and stay in scope.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": "10.5px functional text \"中職數據實驗室\" (below 11px floor)"
+  },
+  {
+    "antipattern": "cramped-padding",
+    "name": "Cramped padding",
+    "description": "Text is too close to the edge of its container. Two shapes: (1) an element with its own text where the padding is too low for the font size, and (2) a wrapper with text-bearing children and near-zero padding against a visible boundary (border, outline, or non-transparent background) — children land flush against the boundary line. Add at least 8px (ideally 12–16px) of padding inside bordered, outlined, or colored containers.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": "<span> \"post\": children flush against border on all sides (no inset)"
+  },
+  {
+    "antipattern": "flat-type-hierarchy",
+    "name": "Flat type hierarchy",
+    "description": "Dominant heading and body roles are separated by less than 1.25× at every step, leaving the size hierarchy flat. Add at least one stronger size step.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": "Role sizes: body 13px, h2 16px, h1 17px (largest adjacent step 1.23:1; target 1.25:1)"
+  },
+  {
+    "antipattern": "cream-palette",
+    "name": "Cream / beige palette",
+    "description": "A warm cream or beige page background has become the default \"tasteful\" AI surface, reached for by reflex. Choose a background that comes from a deliberate palette, not the safe warm off-white.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": "cream/beige page background rgb(236, 232, 224)"
+  },
+  {
+    "antipattern": "repeating-stripes-gradient",
+    "name": "Repeating-gradient stripes",
+    "description": "Repeating-gradient stripes used as surface decoration are a recurring generated-UI signature. Reach for a deliberate texture or leave the surface plain.",
+    "severity": "advisory",
+    "category": "slop",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/live.html",
+    "line": 0,
+    "snippet": "repeating-gradient decorative stripes",
+    "advisory": true
+  },
+  {
+    "antipattern": "undersized-ui-text",
+    "name": "Undersized functional text",
+    "description": "Interactive and content-bearing UI text (links, buttons, nav items, labels, table cells, meta rows, timecodes) below 11px is a legibility failure, not a style choice. WCAG sets no absolute pixel floor, but functional text under 11px is a defensible quality bar: it fails on high-DPI and small viewports and it degrades tap and read targets. The 11px floor holds even inside a footer; only non-interactive legal smallprint gets the softer 10px floor. Being ON the DESIGN.md size ramp does not exempt a value here: adding 8px to the ramp launders the token but not the legibility problem, and that is exactly the escape hatch this rule closes. Exempts sup/sub, visually-hidden (sr-only) text, and code/terminal contexts. Decorative letterspaced micro-labels are still functional and stay in scope.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/player.html",
+    "line": 0,
+    "snippet": "10.5px functional text \"中職數據實驗室\" (below 11px floor)"
+  },
+  {
+    "antipattern": "cream-palette",
+    "name": "Cream / beige palette",
+    "description": "A warm cream or beige page background has become the default \"tasteful\" AI surface, reached for by reflex. Choose a background that comes from a deliberate palette, not the safe warm off-white.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/player.html",
+    "line": 0,
+    "snippet": "cream/beige page background rgb(236, 232, 224)"
+  },
+  {
+    "antipattern": "repeating-stripes-gradient",
+    "name": "Repeating-gradient stripes",
+    "description": "Repeating-gradient stripes used as surface decoration are a recurring generated-UI signature. Reach for a deliberate texture or leave the surface plain.",
+    "severity": "advisory",
+    "category": "slop",
+    "file": "/Users/ruanruan/Dev/cpbl-218-impeccable-audit/design/brand-218/proposal/player.html",
+    "line": 0,
+    "snippet": "repeating-gradient decorative stripes",
+    "advisory": true
+  }
+]

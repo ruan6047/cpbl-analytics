@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>隊伍圖示印記圖稿（六隊）｜郵戳提案 #218</title>
+<script src="proposal.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="postmark.css">
+<style>
+  .lead { max-width: 60em; margin: 0 0 8px; font-size: 14px; }
+  .ic { display: block; flex: none; }
+  .ic.s96 { width: 96px; height: 96px; } .ic.s40 { width: 40px; height: 40px; } .ic.s32 { width: 32px; height: 32px; } .ic.s24 { width: 24px; height: 24px; }
+  .sw-light { --icon-ring: transparent; background: #f7f5f0; color: #1e2830; }
+  .sw-dark { --icon-ring: rgba(255, 255, 255, .28); background: #1a2229; color: #e9e4da; }
+  /* 印記：紙面上的隊色字形（SVG 用 currentColor）。淺底用可讀的隊色墨、深底提亮；兄弟金在淺紙上只有 2.2:1，故壓深為 #7d5c14 */
+  .st-wc { color: #C8102E; } .st-br { color: #7d5c14; }
+  .sw-dark .st-wc { color: #f2606d; } .sw-dark .st-br { color: #C8A24A; }
+  .st-ul { color: #a63f0b; } .st-fg { color: #2A4B9B; } .st-rm { color: #8E1537; } .st-tsg { color: #15543C; }
+  .sw-dark .st-ul { color: #f0773a; } .sw-dark .st-fg { color: #8aa6ea; } .sw-dark .st-rm { color: #e8789a; } .sw-dark .st-tsg { color: #5cbd91; }
+  .six { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+  .six figure { margin: 0; display: grid; gap: 6px; background: var(--card); border-radius: var(--r-panel); padding: 10px; }
+  .six .pair2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .six .pair2 > div { display: grid; place-items: center; padding: 10px 0; border-radius: var(--r-panel); }
+  .six figcaption { font-size: 12.5px; text-align: center; }
+  .ic.s56 { width: 56px; height: 56px; } .ic.s20 { width: 20px; height: 20px; }
+  @media (max-width: 860px) { .six { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 420px) { .six { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ic.s56 { width: 48px; height: 48px; } }
+  .tk { display: grid; gap: 7px; font-size: 15px; padding: 10px 12px; border-radius: var(--r-panel); }
+  .tk .tm { display: grid; grid-template-columns: 20px minmax(0, 1fr) 2.2em; align-items: center; gap: 10px; }
+  .tk .tm .ic, .tk .tm .ti { width: 20px; height: 20px; }
+  .tk .tm .ti.ph { --s: 20px; font: 800 11px/1 var(--wide); }
+  .tk .n { font: 500 22px/1 var(--wide); font-stretch: 75%; text-align: right; }
+  .tk .tm.w { font-weight: 700; } .tk .tm.w .n { font-weight: 900; }
+  .tk .cap { font-size: 11.5px; letter-spacing: .04em; }
+  .demo-wrap .sw-light .tk { background: #efebe3; color: #1e2830; } .demo-wrap .sw-dark .tk { background: #212a32; color: #e9e4da; }
+  .demo-wrap .sw-light .tk .n { color: #5d6770; } .demo-wrap .sw-light .tk .w .n { color: #1e2830; }
+  .demo-wrap .sw-dark .tk .n { color: #98a1a8; } .demo-wrap .sw-dark .tk .w .n { color: #e9e4da; }
+  .demo-wrap .sw-light .tk .cap { color: #4f5961; } .demo-wrap .sw-dark .tk .cap { color: #aeb6bc; }
+  .heroes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .hero-mark { margin: 0; background: var(--card); border-radius: var(--r-panel); padding: 14px; display: grid; gap: 10px; }
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .big { display: grid; place-items: center; padding: 18px 0; border-radius: var(--r-panel); }
+  .hero-mark figcaption { font-size: 13px; color: var(--muted); }
+  .hero-mark figcaption b { color: var(--ink); margin-right: 8px; font-size: 14.5px; }
+  .trows { display: grid; gap: 8px; }
+  .trow { display: grid; grid-template-columns: 10em minmax(0, 2fr) minmax(0, 1fr); column-gap: 14px; align-items: center; background: var(--card); border-radius: var(--r-panel); padding: 10px 12px; }
+  .trow .who { display: grid; gap: 2px; } .trow .who b { font-size: 14.5px; } .trow .who span { font-size: 12px; color: var(--muted); }
+  .set::before { content: attr(data-set); display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .set.old .strip { opacity: .9; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .strip { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 10px 8px; border-radius: var(--r-panel); }
+  .demo-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .demo-wrap .card { display: grid; gap: 8px; padding: 10px; border-radius: var(--r-panel); }
+  .demo-wrap .card a { display: grid; gap: 6px; padding: 10px 12px; border-radius: var(--r-panel); text-decoration: none; color: inherit; }
+  .demo-wrap .sw-light a { background: #efebe3; } .demo-wrap .sw-dark a { background: #212a32; }
+  .demo-wrap .sw-dark { --icon-ring: rgba(255, 255, 255, .28); }
+  .demo-wrap .ti.ph { font: 800 14px/1 var(--wide); }
+  .demo-wrap .sw-dark .ti.ph { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22); }
+  .demo-wrap .serial { justify-content: center; gap: 0; letter-spacing: .04em; font-size: 11.5px; font-weight: 500; }
+  .demo-wrap .serial span + span::before { content: "·"; margin: 0 6px; }
+  .demo-wrap .sw-light .score .n, .demo-wrap .sw-light .score .colon { color: #5d6770; } .demo-wrap .sw-light .score .n.w { color: #1e2830; }
+  .demo-wrap .sw-light .score .nm, .demo-wrap .sw-light .serial { color: #4f5961; } .demo-wrap .sw-light .score .nm.w { color: #1e2830; }
+  .demo-wrap .sw-dark .score .n, .demo-wrap .sw-dark .score .colon { color: #98a1a8; } .demo-wrap .sw-dark .score .n.w { color: #e9e4da; }
+  .demo-wrap .sw-dark .score .nm, .demo-wrap .sw-dark .serial { color: #aeb6bc; } .demo-wrap .sw-dark .score .nm.w { color: #e9e4da; }
+  .notes ul { margin: 0; padding-left: 1.2em; font-size: 13.5px; max-width: 60em; }
+  .notes li { margin: 3px 0; }
+  .ask { margin-top: 16px; background: var(--ink); color: var(--card); padding: 14px 18px; border-radius: var(--r-panel); font-size: 15px; max-width: 60em; }
+  .ask small { display: block; font-size: 12.5px; opacity: .85; margin-top: 4px; }
+  @media (max-width: 860px) {
+    .heroes, .demo-wrap { grid-template-columns: minmax(0, 1fr); }
+    .trow { grid-template-columns: minmax(0, 1fr); row-gap: 8px; }
+  }
+</style>
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <a class="brand" href="index.html" aria-label="Ruan's CPBL Lab 提案入口"><span class="punch"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M8 8h48v24L32 56 8 32z M36 21a4.4 4.4 0 1 0 8.8 0 4.4 4.4 0 1 0-8.8 0z M16 28.5Q23 44 39 36.5L37.4 33.3Q24.8 39.2 19.3 27.2Z"/></svg></span><span class="word">Ruan's CPBL Lab<small>中職數據實驗室</small></span></a>
+  <nav class="nav" aria-label="提案"><a href="index.html">提案入口</a><a href="team-icons.html">隊伍圖示（前版・未採用）</a><a href="team-icons-refined.html" aria-current="page">六隊印記</a></nav>
+  <button class="iconbtn" type="button" data-theme-toggle aria-label="深色模式" style="margin-left:auto"><svg class="theme-ico-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><svg class="theme-ico-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></svg></button>
+</div></header>
+
+<main class="wrap">
+  <p class="proposal-bar"><span class="st sample">已套入代表頁・待人工審核</span><span>依 W／B 印記方向補齊六隊，已套入首頁、賽況、選手與共用元件代表稿；尚未經人工審核批准。非官方隊徽、非 #217 素材。</span><a href="team-icons.html">前版比較頁（未採用）</a></p>
+
+  <div class="sh"><h1>隊伍圖示印記圖稿</h1><span class="cue">六隊：W、B、UL、G、R、T</span></div>
+  <p class="lead">六隊都是「蓋在紙上的單色印記」：隊色字形直接落在紙面上，沒有滿版色塊、外圈、方框、齒邊、日期或球場（郵戳已負責）。墨色左上濃、右下約九成，只改濃淡、不動邊緣。字形各自沿用帽標或官方小尺寸字母的主輪廓，整組靠同一字高帶、筆畫粗細範圍、紙面留白與墨色規則保持一致。</p>
+
+  <div class="six"><figure><div class="pair2"><div class="sw-light"><svg class="ic s56 st-wc" role="img" aria-label="味全龍 印記圖稿"><use href="assets/team-icons/refined-AAA011.svg?v=bal1#mark"/></svg></div><div class="sw-dark"><svg class="ic s56 st-wc" aria-hidden="true"><use href="assets/team-icons/refined-AAA011.svg?v=bal1#mark"/></svg></div></div><figcaption>味全龍</figcaption></figure><figure><div class="pair2"><div class="sw-light"><svg class="ic s56 st-br" role="img" aria-label="中信兄弟 印記圖稿"><use href="assets/team-icons/refined-ACN011.svg?v=bal1#mark"/></svg></div><div class="sw-dark"><svg class="ic s56 st-br" aria-hidden="true"><use href="assets/team-icons/refined-ACN011.svg?v=bal1#mark"/></svg></div></div><figcaption>中信兄弟</figcaption></figure><figure><div class="pair2"><div class="sw-light"><svg class="ic s56 st-ul" role="img" aria-label="統一7-ELEVEn獅 印記圖稿"><use href="assets/team-icons/refined-ADD011.svg?v=bal1#mark"/></svg></div><div class="sw-dark"><svg class="ic s56 st-ul" aria-hidden="true"><use href="assets/team-icons/refined-ADD011.svg?v=bal1#mark"/></svg></div></div><figcaption>統一7-ELEVEn獅</figcaption></figure><figure><div class="pair2"><div class="sw-light"><svg class="ic s56 st-fg" role="img" aria-label="富邦悍將 印記圖稿"><use href="assets/team-icons/refined-AEO011.svg?v=bal1#mark"/></svg></div><div class="sw-dark"><svg class="ic s56 st-fg" aria-hidden="true"><use href="assets/team-icons/refined-AEO011.svg?v=bal1#mark"/></svg></div></div><figcaption>富邦悍將</figcaption></figure><figure><div class="pair2"><div class="sw-light"><svg class="ic s56 st-rm" role="img" aria-label="樂天桃猿 印記圖稿"><use href="assets/team-icons/refined-AJL011.svg?v=bal1#mark"/></svg></div><div class="sw-dark"><svg class="ic s56 st-rm" aria-hidden="true"><use href="assets/team-icons/refined-AJL011.svg?v=bal1#mark"/></svg></div></div><figcaption>樂天桃猿</figcaption></figure><figure><div class="pair2"><div class="sw-light"><svg class="ic s56 st-tsg" role="img" aria-label="台鋼雄鷹 印記圖稿"><use href="assets/team-icons/refined-AKP011.svg?v=t3#mark"/></svg></div><div class="sw-dark"><svg class="ic s56 st-tsg" aria-hidden="true"><use href="assets/team-icons/refined-AKP011.svg?v=t3#mark"/></svg></div></div><figcaption>台鋼雄鷹</figcaption></figure></div>
+
+  <div class="sh s"><h2>實際大小：40／32／24／20 px</h2><span class="cue">兄弟右欄為上一版色塊底對照（24d8e73）；味全輪廓未變，不放對照</span></div>
+  <div class="trows">
+    <div class="trow"><div class="who"><b>味全龍</b><span>寬斜四筆、平頂、左上旗形</span></div>
+      <div class="set" data-set="印記圖稿　淺紙｜深底"><div class="pair"><div class="strip sw-light"><svg class="ic s40 st-wc" role="img" aria-label="味全龍 印記圖稿 40px"><use href="assets/team-icons/refined-AAA011.svg?v=bal1#mark"/></svg><svg class="ic s32 st-wc" role="img" aria-label="味全龍 印記圖稿 32px"><use href="assets/team-icons/refined-AAA011.svg?v=bal1#mark"/></svg><svg class="ic s24 st-wc" role="img" aria-label="味全龍 印記圖稿 24px"><use href="assets/team-icons/refined-AAA011.svg?v=bal1#mark"/></svg><svg class="ic s20 st-wc" role="img" aria-label="味全龍 印記圖稿 20px"><use href="assets/team-icons/refined-AAA011.svg?v=bal1#mark"/></svg></div><div class="strip sw-dark"><svg class="ic s40 st-wc" aria-hidden="true"><use href="assets/team-icons/refined-AAA011.svg?v=bal1#mark"/></svg><svg class="ic s32 st-wc" aria-hidden="true"><use href="assets/team-icons/refined-AAA011.svg?v=bal1#mark"/></svg><svg class="ic s24 st-wc" aria-hidden="true"><use href="assets/team-icons/refined-AAA011.svg?v=bal1#mark"/></svg><svg class="ic s20 st-wc" aria-hidden="true"><use href="assets/team-icons/refined-AAA011.svg?v=bal1#mark"/></svg></div></div></div>
+    </div>
+    <div class="trow"><div class="who"><b>中信兄弟</b><span>起筆突起、J 鉤、雙豎平行</span></div>
+      <div class="set" data-set="印記圖稿　淺紙｜深底"><div class="pair"><div class="strip sw-light"><svg class="ic s40 st-br" role="img" aria-label="中信兄弟 印記圖稿 40px"><use href="assets/team-icons/refined-ACN011.svg?v=bal1#mark"/></svg><svg class="ic s32 st-br" role="img" aria-label="中信兄弟 印記圖稿 32px"><use href="assets/team-icons/refined-ACN011.svg?v=bal1#mark"/></svg><svg class="ic s24 st-br" role="img" aria-label="中信兄弟 印記圖稿 24px"><use href="assets/team-icons/refined-ACN011.svg?v=bal1#mark"/></svg><svg class="ic s20 st-br" role="img" aria-label="中信兄弟 印記圖稿 20px"><use href="assets/team-icons/refined-ACN011.svg?v=bal1#mark"/></svg></div><div class="strip sw-dark"><svg class="ic s40 st-br" aria-hidden="true"><use href="assets/team-icons/refined-ACN011.svg?v=bal1#mark"/></svg><svg class="ic s32 st-br" aria-hidden="true"><use href="assets/team-icons/refined-ACN011.svg?v=bal1#mark"/></svg><svg class="ic s24 st-br" aria-hidden="true"><use href="assets/team-icons/refined-ACN011.svg?v=bal1#mark"/></svg><svg class="ic s20 st-br" aria-hidden="true"><use href="assets/team-icons/refined-ACN011.svg?v=bal1#mark"/></svg></div></div></div>
+      <div class="set old" data-set="上一版色塊底 24d8e73"><div class="strip sw-light"><svg class="ic s32" aria-hidden="true"><use href="assets/team-icons/refined-ACN011-prev.svg#mark"/></svg><svg class="ic s24" aria-hidden="true"><use href="assets/team-icons/refined-ACN011-prev.svg#mark"/></svg></div></div>
+    </div>
+    <div class="trow"><div class="who"><b>統一7-ELEVEn獅</b><span>U、L 共用豎筆的交疊雙字、短平襯線</span></div>
+      <div class="set" data-set="印記圖稿　淺紙｜深底"><div class="pair"><div class="strip sw-light"><svg class="ic s40 st-ul" role="img" aria-label="統一7-ELEVEn獅 印記圖稿 40px"><use href="assets/team-icons/refined-ADD011.svg?v=bal1#mark"/></svg><svg class="ic s32 st-ul" role="img" aria-label="統一7-ELEVEn獅 印記圖稿 32px"><use href="assets/team-icons/refined-ADD011.svg?v=bal1#mark"/></svg><svg class="ic s24 st-ul" role="img" aria-label="統一7-ELEVEn獅 印記圖稿 24px"><use href="assets/team-icons/refined-ADD011.svg?v=bal1#mark"/></svg><svg class="ic s20 st-ul" role="img" aria-label="統一7-ELEVEn獅 印記圖稿 20px"><use href="assets/team-icons/refined-ADD011.svg?v=bal1#mark"/></svg></div><div class="strip sw-dark"><svg class="ic s40 st-ul" aria-hidden="true"><use href="assets/team-icons/refined-ADD011.svg?v=bal1#mark"/></svg><svg class="ic s32 st-ul" aria-hidden="true"><use href="assets/team-icons/refined-ADD011.svg?v=bal1#mark"/></svg><svg class="ic s24 st-ul" aria-hidden="true"><use href="assets/team-icons/refined-ADD011.svg?v=bal1#mark"/></svg><svg class="ic s20 st-ul" aria-hidden="true"><use href="assets/team-icons/refined-ADD011.svg?v=bal1#mark"/></svg></div></div></div>
+    </div>
+    <div class="trow"><div class="who"><b>富邦悍將</b><span>斜體草寫 G、內捲起筆、上揚尾筆</span></div>
+      <div class="set" data-set="印記圖稿　淺紙｜深底"><div class="pair"><div class="strip sw-light"><svg class="ic s40 st-fg" role="img" aria-label="富邦悍將 印記圖稿 40px"><use href="assets/team-icons/refined-AEO011.svg?v=bal1#mark"/></svg><svg class="ic s32 st-fg" role="img" aria-label="富邦悍將 印記圖稿 32px"><use href="assets/team-icons/refined-AEO011.svg?v=bal1#mark"/></svg><svg class="ic s24 st-fg" role="img" aria-label="富邦悍將 印記圖稿 24px"><use href="assets/team-icons/refined-AEO011.svg?v=bal1#mark"/></svg><svg class="ic s20 st-fg" role="img" aria-label="富邦悍將 印記圖稿 20px"><use href="assets/team-icons/refined-AEO011.svg?v=bal1#mark"/></svg></div><div class="strip sw-dark"><svg class="ic s40 st-fg" aria-hidden="true"><use href="assets/team-icons/refined-AEO011.svg?v=bal1#mark"/></svg><svg class="ic s32 st-fg" aria-hidden="true"><use href="assets/team-icons/refined-AEO011.svg?v=bal1#mark"/></svg><svg class="ic s24 st-fg" aria-hidden="true"><use href="assets/team-icons/refined-AEO011.svg?v=bal1#mark"/></svg><svg class="ic s20 st-fg" aria-hidden="true"><use href="assets/team-icons/refined-AEO011.svg?v=bal1#mark"/></svg></div></div></div>
+    </div>
+    <div class="trow"><div class="who"><b>樂天桃猿</b><span>襯線 R、斜腿、弧形底線</span></div>
+      <div class="set" data-set="印記圖稿　淺紙｜深底"><div class="pair"><div class="strip sw-light"><svg class="ic s40 st-rm" role="img" aria-label="樂天桃猿 印記圖稿 40px"><use href="assets/team-icons/refined-AJL011.svg?v=bal1#mark"/></svg><svg class="ic s32 st-rm" role="img" aria-label="樂天桃猿 印記圖稿 32px"><use href="assets/team-icons/refined-AJL011.svg?v=bal1#mark"/></svg><svg class="ic s24 st-rm" role="img" aria-label="樂天桃猿 印記圖稿 24px"><use href="assets/team-icons/refined-AJL011.svg?v=bal1#mark"/></svg><svg class="ic s20 st-rm" role="img" aria-label="樂天桃猿 印記圖稿 20px"><use href="assets/team-icons/refined-AJL011.svg?v=bal1#mark"/></svg></div><div class="strip sw-dark"><svg class="ic s40 st-rm" aria-hidden="true"><use href="assets/team-icons/refined-AJL011.svg?v=bal1#mark"/></svg><svg class="ic s32 st-rm" aria-hidden="true"><use href="assets/team-icons/refined-AJL011.svg?v=bal1#mark"/></svg><svg class="ic s24 st-rm" aria-hidden="true"><use href="assets/team-icons/refined-AJL011.svg?v=bal1#mark"/></svg><svg class="ic s20 st-rm" aria-hidden="true"><use href="assets/team-icons/refined-AJL011.svg?v=bal1#mark"/></svg></div></div></div>
+    </div>
+    <div class="trow"><div class="who"><b>台鋼雄鷹</b><span>左端鉤喙、右端上揚翼尖的不對稱上橫，豎筆底部向右收尖</span></div>
+      <div class="set" data-set="印記圖稿　淺紙｜深底"><div class="pair"><div class="strip sw-light"><svg class="ic s40 st-tsg" role="img" aria-label="台鋼雄鷹 印記圖稿 40px"><use href="assets/team-icons/refined-AKP011.svg?v=t3#mark"/></svg><svg class="ic s32 st-tsg" role="img" aria-label="台鋼雄鷹 印記圖稿 32px"><use href="assets/team-icons/refined-AKP011.svg?v=t3#mark"/></svg><svg class="ic s24 st-tsg" role="img" aria-label="台鋼雄鷹 印記圖稿 24px"><use href="assets/team-icons/refined-AKP011.svg?v=t3#mark"/></svg><svg class="ic s20 st-tsg" role="img" aria-label="台鋼雄鷹 印記圖稿 20px"><use href="assets/team-icons/refined-AKP011.svg?v=t3#mark"/></svg></div><div class="strip sw-dark"><svg class="ic s40 st-tsg" aria-hidden="true"><use href="assets/team-icons/refined-AKP011.svg?v=t3#mark"/></svg><svg class="ic s32 st-tsg" aria-hidden="true"><use href="assets/team-icons/refined-AKP011.svg?v=t3#mark"/></svg><svg class="ic s24 st-tsg" aria-hidden="true"><use href="assets/team-icons/refined-AKP011.svg?v=t3#mark"/></svg><svg class="ic s20 st-tsg" aria-hidden="true"><use href="assets/team-icons/refined-AKP011.svg?v=t3#mark"/></svg></div></div></div>
+    </div>
+  </div>
+
+  <div class="sh s"><h2>放進首頁情境</h2><span class="cue">首頁賽果與今日票券隊列（20px）；比分字級與「勝方只加粗」不變</span></div>
+  <div class="demo-wrap">
+      <div class="card sw-light">
+        <a aria-label="No.358 洲際，終場：台鋼雄鷹 10 比 19 中信兄弟，中信兄弟勝"><span class="score stack" aria-hidden="true"><svg class="ti a st-tsg" aria-hidden="true"><use href="assets/team-icons/refined-AKP011.svg?v=t3#mark"/></svg><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><svg class="ti h st-br"><use href="assets/team-icons/refined-ACN011.svg?v=bal1#mark"/></svg><span class="nm a">台鋼雄鷹</span><span class="nm h w">中信兄弟</span></span><span class="serial" aria-hidden="true"><span>No.358</span><span>洲際</span></span></a>
+        <a aria-label="No.359 樂天桃園，終場：統一7-ELEVEn獅 7 比 4 樂天桃猿，統一7-ELEVEn獅勝"><span class="score stack" aria-hidden="true"><svg class="ti a st-ul" aria-hidden="true"><use href="assets/team-icons/refined-ADD011.svg?v=bal1#mark"/></svg><span class="n a w">7</span><span class="colon">:</span><span class="n h">4</span><svg class="ti h st-rm" aria-hidden="true"><use href="assets/team-icons/refined-AJL011.svg?v=bal1#mark"/></svg><span class="nm a w">統一7-ELEVEn獅</span><span class="nm h">樂天桃猿</span></span><span class="serial" aria-hidden="true"><span>No.359</span><span>樂天桃園</span></span></a>
+        <a aria-label="No.360 新莊，終場：味全龍 4 比 2 富邦悍將，味全龍勝"><span class="score stack" aria-hidden="true"><svg class="ti a st-wc"><use href="assets/team-icons/refined-AAA011.svg?v=bal1#mark"/></svg><span class="n a w">4</span><span class="colon">:</span><span class="n h">2</span><svg class="ti h st-fg" aria-hidden="true"><use href="assets/team-icons/refined-AEO011.svg?v=bal1#mark"/></svg><span class="nm a w">味全龍</span><span class="nm h">富邦悍將</span></span><span class="serial" aria-hidden="true"><span>No.360</span><span>新莊</span></span></a>
+        <div class="tk"><span class="cap">今日賽事・No.302 終場（示意）</span><span class="tm"><svg class="ic st-br" aria-hidden="true"><use href="assets/team-icons/refined-ACN011.svg?v=bal1#mark"/></svg><span class="nm">中信兄弟</span><span class="n">2</span></span><span class="tm w"><svg class="ic st-tsg" aria-hidden="true"><use href="assets/team-icons/refined-AKP011.svg?v=t3#mark"/></svg><span class="nm">台鋼雄鷹</span><span class="n">6</span></span></div><div class="tk"><span class="cap">今日賽事・No.254 賽前</span><span class="tm"><svg class="ic st-wc" aria-hidden="true"><use href="assets/team-icons/refined-AAA011.svg?v=bal1#mark"/></svg><span class="nm">味全龍</span><span class="n"></span></span><span class="tm"><svg class="ic st-rm" aria-hidden="true"><use href="assets/team-icons/refined-AJL011.svg?v=bal1#mark"/></svg><span class="nm">樂天桃猿</span><span class="n"></span></span></div>
+      </div>
+      <div class="card sw-dark">
+        <a aria-label="No.358 洲際，終場：台鋼雄鷹 10 比 19 中信兄弟，中信兄弟勝"><span class="score stack" aria-hidden="true"><svg class="ti a st-tsg" aria-hidden="true"><use href="assets/team-icons/refined-AKP011.svg?v=t3#mark"/></svg><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><svg class="ti h st-br"><use href="assets/team-icons/refined-ACN011.svg?v=bal1#mark"/></svg><span class="nm a">台鋼雄鷹</span><span class="nm h w">中信兄弟</span></span><span class="serial" aria-hidden="true"><span>No.358</span><span>洲際</span></span></a>
+        <a aria-label="No.359 樂天桃園，終場：統一7-ELEVEn獅 7 比 4 樂天桃猿，統一7-ELEVEn獅勝"><span class="score stack" aria-hidden="true"><svg class="ti a st-ul" aria-hidden="true"><use href="assets/team-icons/refined-ADD011.svg?v=bal1#mark"/></svg><span class="n a w">7</span><span class="colon">:</span><span class="n h">4</span><svg class="ti h st-rm" aria-hidden="true"><use href="assets/team-icons/refined-AJL011.svg?v=bal1#mark"/></svg><span class="nm a w">統一7-ELEVEn獅</span><span class="nm h">樂天桃猿</span></span><span class="serial" aria-hidden="true"><span>No.359</span><span>樂天桃園</span></span></a>
+        <a aria-label="No.360 新莊，終場：味全龍 4 比 2 富邦悍將，味全龍勝"><span class="score stack" aria-hidden="true"><svg class="ti a st-wc"><use href="assets/team-icons/refined-AAA011.svg?v=bal1#mark"/></svg><span class="n a w">4</span><span class="colon">:</span><span class="n h">2</span><svg class="ti h st-fg" aria-hidden="true"><use href="assets/team-icons/refined-AEO011.svg?v=bal1#mark"/></svg><span class="nm a w">味全龍</span><span class="nm h">富邦悍將</span></span><span class="serial" aria-hidden="true"><span>No.360</span><span>新莊</span></span></a>
+        <div class="tk"><span class="cap">今日賽事・No.302 終場（示意）</span><span class="tm"><svg class="ic st-br" aria-hidden="true"><use href="assets/team-icons/refined-ACN011.svg?v=bal1#mark"/></svg><span class="nm">中信兄弟</span><span class="n">2</span></span><span class="tm w"><svg class="ic st-tsg" aria-hidden="true"><use href="assets/team-icons/refined-AKP011.svg?v=t3#mark"/></svg><span class="nm">台鋼雄鷹</span><span class="n">6</span></span></div><div class="tk"><span class="cap">今日賽事・No.254 賽前</span><span class="tm"><svg class="ic st-wc" aria-hidden="true"><use href="assets/team-icons/refined-AAA011.svg?v=bal1#mark"/></svg><span class="nm">味全龍</span><span class="n"></span></span><span class="tm"><svg class="ic st-rm" aria-hidden="true"><use href="assets/team-icons/refined-AJL011.svg?v=bal1#mark"/></svg><span class="nm">樂天桃猿</span><span class="n"></span></span></div>
+      </div>
+  </div>
+
+  <section class="notes" aria-labelledby="n-h">
+    <div class="sh s"><h2 id="n-h">這一版改了什麼</h2></div>
+    <ul>
+      <li><b>味全 W</b>（對照官方商城 NewEra 主場帽）：帽標是寬大於高、強烈右斜的四筆 W，頂部平切、底部兩尖點、左上一道往左的旗形襯線，外加紅白雙描邊。保留輪廓、比例、斜度與旗形；去掉雙描邊與刺繡陰影。</li>
+      <li><b>兄弟 B</b>（依需求方回饋整理）：保留頂端往左上揚的起筆突起，去掉突起之後往下垂墜的波折；J 豎筆與細豎改成平行、同起於頂橫、同止於底橫基準線，不再一斜一直或懸空；兩個碗各只用一段簡潔曲線，只在腰部交會一個尖點，內空乾淨。J 形大彎鉤與瘦高右斜保留。</li>
+      <li><b>統一 UL</b>：帽標是 U 與 L 交疊的壓縮襯線雙字。保留 U、L 共用一根豎筆、L 腳向右伸、頂端短平襯線；去掉描邊。</li><li><b>富邦 G</b>：官方小尺寸用斜體草寫 G。保留斜度、頂端內捲起筆、橫筆收進右豎、尾端上揚；盾形外框屬主標誌，不放。</li><li><b>樂天 R</b>：帽盔是襯線 R，官方小格 R 下方帶弧形底線。保留襯線 R、斜腿與一道弧形底線。</li><li><b>台鋼 T</b>（對照官方商城 2026 主客場可調球帽彎簷／平簷款正面照）：帽標 T 的上橫是不對稱的翼形——左端往下勾成鉤喙尖、右端向右上揚成翼尖，比豎筆頂端高出許多；豎筆粗、略帶弧度，底部只向右收成一個尖尾，沒有左右底腳。上一版把上橫畫成左右對稱外翻、細上橫粗豎筆，底部加了兩側展開的底腳，與帽標差很多；這一版改回翼形上橫、鉤喙與右收尖尾。簡化處：刺繡的金、綠雙描邊與羽毛車線合併成單一墨色剪影，不另畫羽紋；不加鷹頭、盾或外框。</li><li><b>光學平衡</b>：依需求方「幫忙調整平衡」，只調整大小與置中、不動路徑：味全 W 先水平置中再放大 115%（字高 13.3→15.4，與 R、T 接近，20px 不再像小寫）；富邦 G 縮至 92%（墨量 15.3%→12.9%，不再搶眼）；兄弟 B 放大 105%（細筆畫在 20px 偏輕）；統一、樂天不變；台鋼之後依帽款重繪，整體放大 108% 使墨量接近富邦、統一（20px 不再偏小）。W 仍是全組筆畫最粗的一隊。</li><li><b>印記呈現</b>：六隊同一規則：淺紙用可讀的隊色墨（統一橘、兄弟金在紙上太淡，分別壓深為 #a63f0b、#7d5c14），深底改用提亮的同色系（#f2606d、#C8A24A、#f0773a、#8aa6ea、#e8789a、#5cbd91）；筆畫約 3–3.9（兄弟細豎 1.1 為字形特徵）；字高落在 13–20 單位之間。重新繪製的候選，不是官方檔案或官方標誌。</li>
+    </ul>
+    <p class="ask">目前狀態：<b>六隊印記已套入代表頁，待需求方人工審核</b><small>已依需求方要求做光學平衡（W 放大、G 縮小、B 微放大）與台鋼 T 帽款重繪；人工審核前仍不視為批准。</small></p>
+  </section>
+</main>
+<footer class="footer"><div class="wrap">#218 隊伍圖示印記圖稿。字形特徵依官方公開頁目視參考後重新繪製，未描摹或使用官方檔案；隊名與隊色取自 <code>web/src/lib/teams.ts</code>。未經需求方批准。</div></footer>
+</body>
+</html>

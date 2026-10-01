@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>提案入口｜郵戳視覺識別 #218</title>
+<script src="proposal.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=LXGW+WenKai+TC&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="postmark.css">
+<style>
+  .lead { max-width: 58em; margin: 0 0 8px; font-size: 14px; }
+  .entries { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 6px; }
+  .entry { position: relative; background: var(--card); padding: 14px 16px 14px; display: grid; gap: 6px; align-content: start; min-height: 128px; transition: background-color .15s var(--ease); }
+  .entry:hover { background: var(--card-2); }
+  .entry h3 { margin: 0; font: 700 17px/1.3 var(--tc); }
+  .entry h3 a { text-decoration: none; }
+  .entry h3 a::after { content: ""; position: absolute; inset: 0; }
+  .entry p { margin: 0; font-size: 13px; color: var(--muted); }
+  .entry .alt { position: relative; z-index: 1; font-size: 12.5px; color: var(--mark); text-decoration: none; justify-self: start; }
+  .shared { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .shared a { display: block; background: var(--card-2); padding: 12px 16px; border-radius: var(--r-panel); text-decoration: none; transition: background-color .15s var(--ease); }
+  .shared a:hover { background: var(--band); }
+  .shared b { display: block; font-size: 15px; } .shared span { font-size: 13px; color: var(--muted); }
+  .memo { max-width: 60em; }
+  .memo h3 { margin: 18px 0 6px; font: 700 15px/1.4 var(--tc); }
+  .memo ol, .memo ul { margin: 0; padding-left: 1.3em; font-size: 13.5px; }
+  .memo li { margin: 3px 0; }
+  .memo li small { color: var(--muted); }
+  .memo p { font-size: 13.5px; margin: 0 0 6px; }
+  @media (max-width: 860px) { .entries, .shared { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <a class="brand" href="index.html" aria-label="Ruan's CPBL Lab 提案入口"><span class="punch"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M8 8h48v24L32 56 8 32z M36 21a4.4 4.4 0 1 0 8.8 0 4.4 4.4 0 1 0-8.8 0z M16 28.5Q23 44 39 36.5L37.4 33.3Q24.8 39.2 19.3 27.2Z"/></svg></span><span class="word">Ruan's CPBL Lab<small>中職數據實驗室</small></span></a>
+  <nav class="nav" aria-label="提案"><a href="index.html" aria-current="page">提案入口</a><a href="priority.html">資訊優先序</a><a href="components.html">共用元件</a></nav>
+  <button class="iconbtn" type="button" data-theme-toggle aria-label="深色模式" style="margin-left:auto"><svg class="theme-ico-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><svg class="theme-ico-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></svg></button>
+</div></header>
+
+<main class="wrap">
+  <div class="sh"><h1>郵戳視覺識別提案</h1><span class="st sample">設計提案・非產品實作</span></div>
+  <p class="lead">A「郵戳／旅行手札」方向的深化：一份全站資訊優先序、一份共用元件表，以及首頁、單場賽況、選手三份完整代表稿。視覺基準是 <code>palette.html</code> 1「郵戳」，資料清晰優先。這不是產品實作，不含 #217 素材批准、合併或部署。</p>
+
+  <div class="sh s"><h2>三份代表稿</h2><span class="cue">桌機約 1440、手機約 390；深色用頁內按鈕或加 ?theme=dark</span></div>
+  <div class="entries">
+    <article class="entry"><h3><a href="home.html">首頁</a></h3><p>7:3 今日＋前一比賽日；五態與例外樣本；戰績。</p><a class="alt" href="home.html?theme=dark">深色</a></article>
+    <article class="entry"><h3><a href="live.html">單場賽況</a></h3><p>No.358 回放示意：小郵戳、狀態板、逐局、頁籤＋tabpanel。</p><a class="alt" href="live.html?theme=dark">深色</a></article>
+    <article class="entry"><h3><a href="player.html">選手頁</a></h3><p>曾頌恩：頁首去重、PR 方向、雷達與走勢示意、手機單欄。</p><a class="alt" href="player.html?theme=dark">深色</a></article>
+  </div>
+
+  <div class="sh s"><h2>共用層</h2></div>
+  <div class="shared">
+    <a href="priority.html"><b>全站資訊優先序</b><span>14 類對外頁型的首要問題、必留資訊、重複、狀態差異與資料支持程度。</span></a>
+    <a href="components.html"><b>共用元件與局部示意</b><span>郵戳、序號列、狀態章、比分、表格、頁籤、icon 對比、動態、emoji 處置；賽程／戰績／球隊／對戰局部。</span></a>
+    <a href="team-icons.html"><b>隊伍圖示兩個候選（歷史・未採用）</b><span>六隊 A 意象／B 字標原創圖稿；需求方 10/01 兩版皆未採用，改走單色印記。保留作比較紀錄，代表稿未使用。</span></a>
+    <a href="team-icons-refined.html"><b>六隊單色印記</b><span>W、B、UL、G、R、T 六隊印記，已套入首頁、賽況、選手與共用元件代表稿；待需求方人工審核，未批准。</span></a>
+  </div>
+
+  <section class="memo" aria-labelledby="memo-h">
+    <div class="sh s"><h2 id="memo-h">取捨短註</h2></div>
+
+    <h3>2026-10-01 Impeccable 重檢後的五項有限修訂</h3>
+    <ol>
+      <li>入口與兩份隊伍圖示頁的狀態說明同步：A／B 兩版標為歷史・未採用；六隊印記已套入代表頁，待人工審核。</li>
+      <li>選手頁「選手特性」三個聯盟基準值改為 12px（原本繼承約 10.83px）；其他小字與字標不動。</li>
+      <li>賽況頁手機頁籤：末端加淡出提示、窄版縮小頁籤內距，讓第 6 個「主審判決」露出一部分；方向鍵切換時把選中的頁籤捲入可視範圍。未繪的頁籤內容維持未繪。</li>
+      <li>首頁賽前票券右格由「主隊勝率」改為直接寫球隊（樂天勝率）；不加回逐列主客。</li>
+      <li>賽況頁桌機記分板：兩側分數靠向中央局況區，隊名與隊徽留在外側；手機版不變，勝方仍只加粗。</li>
+    </ol>
+
+    <h3>2026-10-01 修訂（需求方人工審核退回後）</h3>
+    <ol>
+      <li>比分：勝方只加粗，不再放大；兩側同字級、同一條基線。共用 <code>.score</code> 與首頁今日票券一併改。</li>
+      <li>首頁桌機 7:3：左右兩欄共用同一組列軌，第 n 張今日票券與第 n 筆賽果頂底對齊；兩側仍各有日期標題，不是同一場。場數不同時少的一側留空，不補場次。手機照舊上下排。</li>
+      <li>賽果每列補上場次、球場與兩隊隊名（皆為既有欄位）。MVP 沒有可靠來源（最近比賽日型別無此欄），不放，標為後續資料支援。</li>
+      <li>移除今日票券的淺藍票根底，保留撕線與郵戳，讓底版層次與狀態章清楚。</li>
+      <li>賽果卡重排（筆電回饋）：每隊 icon＋隊名收成一組置中在自己那半邊，比分在中軸，場次・球場降為比分下方的說明；隊名不再用省略號截斷，窄時自然換行。</li>
+      <li>今日票券三態同一結構（筆電後回饋）：右側灰格每態都在、寬度固定，比分位置與基線不隨狀態移動；終場灰格放勝投＋MVP（本稿為排版示意），賽中灰格改用與賽況頁同一份壘包＋球數燈樣式。</li>
+    </ol>
+
+    <h3>相對 palette.html 1「郵戳」的調整</h3>
+    <ol>
+      <li>票券的淺藍票根底已移除（需求方 10/01：裝飾色塊讓底版與「賽前」等狀態章不清楚）；保留撕線與郵戳。郵戳墨色因此回到基準 <code>#1e6c8c</code>，落在卡面上 5.39:1。</li>
+      <li>郵戳內容回到基準的<b>日期＋球場</b>（上一版 home-c 改成時間＋球場）；開打時間移到序號列，缺值不顯示。郵戳分大 76／中 64／小 52px 三階。</li>
+      <li>基準票根的橫向虛線路線未沿用：今日票券要讓兩隊比分上下對齊，橫向路線放不下比分；改為上客下主，由區塊註記說一次。</li>
+      <li>手札字體保留，但只寫客觀註記、每區最多一句（基準例句是主觀敘事，與「賽事文字客觀」衝突）。</li>
+      <li>筆記本橫線背景移除（comment-22）；表格改色塊表頭、不畫列間線（comment-24）；票券直角，其他 3–4px 小圓角（comment-23）。</li>
+      <li>兄弟、統一的隊伍 icon 改深字（統一白字只有 3.66:1）。字標副標 10.5px 與基準同值，<b>列為例外不改</b>。</li>
+      <li>球數燈原本寫死綠／黃，改用墨色與紅色 token。</li>
+    </ol>
+
+    <h3>Impeccable 評析與參考案例實際影響的決定</h3>
+    <ul>
+      <li><b>A 設計評析</b>：首頁只留一個資料同步時間；例外狀態（今日無賽、延賽、開打時間缺值、球場缺值）畫成樣本；比分收斂成單一元件；選手頁三圍不重複、雷達與走勢不留空框、手機改單欄；賽況頁補 tabpanel、修正示意標示錯位。</li>
+      <li><b>B detector</b>：郵戳對比、統一 icon 對比兩項修正；<code>cream-palette</code> 判誤報（暖灰紙是需求方指定）；字標副標 10.5px 列例外。</li>
+      <li><b>未採用</b>：評析建議的逐列「終／勝」與兩種比分候選——核定規劃改為「圖示：比分快速辨勝，文字放元件級或 aria」。</li>
+      <li><b>WebDesignClip 3 案例</b>（沿用 <code>discussion.html</code> 已記錄的案例，本輪未重新抓取）：パ・リーグ仕事図鑑 → 只用少量棒球物件圖形（郵戳、票根）；Fencing Visualized → 單一強調色的資料可信感（PR 條只有一色，石油藍只標 PR 90 以上）；バファローズってなんなん？ → 活力只放在手札一句註記，不引入照片密度。</li>
+    </ul>
+
+    <h3>detector 結果（proposal 三稿各跑一次）</h3>
+    <p id="detector">完稿後對 home／live／player 各跑一次 <code>impeccable detect --json</code>（exit 2＝有發現，非命令失敗），共 30 項：home 4、live 23、player 3。處置如下；修正後<b>沒有重跑 detector</b>，是以瀏覽器確認輪核對。</p>
+    <ul>
+      <li>已修：賽況逐局表滑過整列時 R 格被蓋成淺底（白字 1.2:1）、「·」空格 4.2:1——共 18 項，改為滑過不蓋 R 格，<code>--faint</code> 加深到 4.85:1。</li>
+      <li>已修：<code>flat-type-hierarchy</code>（首頁、賽況）→ 頁首標題 26／24px，與 20／16px 區塊標題拉開級距；<code>cramped-padding</code>（小郵戳）→ 郵戳內距 5px；<code>repeating-stripes-gradient</code> 建議項（依賴標記的斜紋）→ 改成虛線小方塊。</li>
+      <li>誤報：<code>cream-palette</code> ×3——暖灰手札紙是需求方指定的基準色。</li>
+      <li>例外：<code>undersized-ui-text</code> ×3（字標副標 10.5px）——與基準同值，屬字標圖形。</li>
+    </ul>
+
+    <h3>真實資料與示意的界線</h3>
+    <ul>
+      <li>取自先前 2026-09-30 公開 API 快照與正式站檢視的數值沿用既有稿；本輪沒有重新讀取 API、DB、正式站或官網。</li>
+      <li>首頁：No.255 賽中、No.302 比分、三場 18:35、「其他狀態樣本」四張為示意。賽況頁是 No.358 的回放示意。選手頁雷達形狀與走勢曲線是示意。</li>
+      <li><span class="dep">需後續資料支援</span>：首頁右欄固定呈現「早於今日」的比賽日（目前二擇一，<code>daily-hub.tsx:318</code>、<code>daily.py:508</code>）；開打時間只來自即時快照；最近賽果的 MVP 沒有資料來源，本稿不放（需求方同意 MVP 可作觀賽重點，待後續資料支援）。</li>
+    </ul>
+  </section>
+</main>
+<footer class="footer"><div class="wrap">#218 郵戳提案。自足目錄：本資料夾內的 HTML、postmark.css、proposal.js；字體由 Google Fonts 載入（離線時退回系統字）。隊伍 icon 為本提案重新繪製的六隊單色印記（team-icons-refined.html），待人工審核；非官方隊徽，也不是 #217 素材。</div></footer>
+</body>
+</html>
