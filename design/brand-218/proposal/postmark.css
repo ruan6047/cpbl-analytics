@@ -88,12 +88,14 @@ a:focus-visible, button:focus-visible, [role="tab"]:focus-visible, input:focus-v
 .serial .t { color: var(--ink); font-weight: 700; }
 .serial span + span::before { content: "・"; margin-right: 6px; letter-spacing: 0; color: var(--faint); }
 
-/* ── 隊伍 icon：隊色小郵票（字母沿用 lib/teams.ts，非官方 logo）。暖色隊（兄弟、統一）改深字以達 4.5:1 ── */
-.ti { --s: 20px; display: inline-grid; place-items: center; width: var(--s); height: var(--s); background: var(--team); color: #fff;
-      font: 800 calc(var(--s) * .55)/1 var(--wide); flex: none; }
-[data-theme="dark"] .ti { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22); }
-.ti.warm { color: #111418; }
+/* ── 隊伍 icon：紙面單色印記（assets/team-icons/refined-{球隊代碼}.svg，字形以 currentColor 上色；非官方隊徽、非 #217 素材）。
+   .ti 只管尺寸；.mk-{球隊代碼} 給墨色：淺紙用可讀的隊色墨（統一、兄弟壓深），深底用提亮的同色系 ── */
+.ti { --s: 20px; display: inline-block; width: var(--s); height: var(--s); flex: none; vertical-align: middle; }
 .ti.lg { --s: 28px; } .ti.xl { --s: 36px; }
+.mk-AAA011 { color: #C8102E; } .mk-ACN011 { color: #7d5c14; } .mk-ADD011 { color: #a63f0b; }
+.mk-AEO011 { color: #2A4B9B; } .mk-AJL011 { color: #8E1537; } .mk-AKP011 { color: #15543C; }
+[data-theme="dark"] .mk-AAA011 { color: #f2606d; } [data-theme="dark"] .mk-ACN011 { color: #C8A24A; } [data-theme="dark"] .mk-ADD011 { color: #f0773a; }
+[data-theme="dark"] .mk-AEO011 { color: #8aa6ea; } [data-theme="dark"] .mk-AJL011 { color: #e8789a; } [data-theme="dark"] .mk-AKP011 { color: #5cbd91; }
 
 /* ── 狀態章（比賽狀態，必含文字）與身分標籤（選手／分類）分開 ── */
 .st { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--r-tag); font-size: 12px; font-weight: 700; line-height: 1; padding: 4px 7px; background: var(--band); color: var(--ink); letter-spacing: .06em; white-space: nowrap; }
@@ -133,7 +135,7 @@ a:focus-visible, button:focus-visible, [role="tab"]:focus-visible, input:focus-v
 /* ── 比分（全站唯一一個元件）：icon 分數 : 分數 icon。勝方＝粗黑；敗方＝細、淡。兩側同字級，基線與格線不動。
    「終場／客主」由所在區塊標題說一次（元件級），完整句子寫在 aria-label ── */
 .score { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto minmax(0, 1fr) auto; align-items: center; column-gap: 8px; }
-.score .ti { --s: 30px; font-size: 14px; }
+.score .ti { --s: 30px; }
 .score .n { font: 500 24px/1 var(--wide); font-stretch: 72%; color: var(--faint); min-width: 1.3em; }
 .score .n.a { text-align: right; grid-column: 3; } .score .n.h { text-align: left; grid-column: 5; }
 .score .n.w { font-weight: 900; color: var(--ink); }
@@ -213,6 +215,6 @@ table.data .key { font-weight: 800; color: var(--ink); }
 }
 
 /* ── 小工具 ── */
-.team { display: inline-flex; align-items: center; gap: 8px; }
+.team { display: inline-flex; align-items: center; gap: 8px; vertical-align: middle; }  /* svg 印記無字母基線，置中以維持原列高 */
 .theme-ico-dark { display: none; }
 [data-theme="dark"] .theme-ico-dark { display: block; } [data-theme="dark"] .theme-ico-light { display: none; }

@@ -48,12 +48,12 @@
   .cal .day .dt small { font: 500 12px var(--tc); color: var(--muted); }
   .cal .g { display: grid; grid-template-columns: auto auto 1.4em 10px 1.4em auto; justify-content: start; align-items: center; column-gap: 6px; font: 500 15px/1 var(--wide); font-stretch: 80%; color: var(--faint); }
   .cal .g .w { color: var(--ink); font-weight: 900; }
-  .cal .g .ti { --s: 18px; font-size: 10px; }
+  .cal .g .ti { --s: 18px; }
   .cal .g .x { font: 500 12px var(--tc); color: var(--muted); }
   .cal .g .num { text-align: center; }
   .cal .day.today { background: var(--stub); }
   .cal .gt { display: flex; align-items: center; gap: 4px; font: 700 13px var(--wide); font-stretch: 85%; }
-  .cal .gt .ti { --s: 18px; font-size: 10px; }
+  .cal .gt .ti { --s: 18px; }
   .cal .gt .t, .cal .gt .st { margin-left: 6px; }
   .teamhead { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; background: var(--card-2); padding: 12px 14px; border-radius: var(--r-panel); }
   .teamhead h3 { margin: 0; font: 900 20px/1.2 var(--tc); }
@@ -129,9 +129,9 @@
   <section class="row" id="score">
     <div class="rule"><h2>比分</h2><p>全站<b>一個元件</b>：icon 分數 : 分數 icon，左客右主。勝方<b>只加粗</b>（墨色 900），敗方細、淡；兩側同字級，基線與格線不動。不只靠顏色：字重同時變。</p><p>「終場」「左客右主」由區塊標題說一次；逐列不加終／勝／主客。窄欄用兩層式：每隊 icon＋隊名收成一組、置中在自己那半邊，比分夾在中軸；隊名完整顯示、不截斷，空間不夠時自然換行。分數與冒號欄寬固定，多列沿同一條隱形格線對齊。和局兩側同重。</p></div>
     <div class="demo">
-      <figure><div class="scorebox" aria-label="台鋼雄鷹 10 比 19 中信兄弟，中信兄弟勝"><span class="score stack" aria-hidden="true"><span class="ti a" style="--team:#15543C">T</span><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><span class="ti h warm" style="--team:#C8A24A">B</span><span class="nm a">台鋼雄鷹</span><span class="nm h w">中信兄弟</span></span></div><figcaption class="cap">窄欄兩層式（首頁右欄 3fr）</figcaption></figure>
-      <figure><div class="scorebox wide" aria-label="台鋼雄鷹 10 比 19 中信兄弟，中信兄弟勝"><span class="score" aria-hidden="true"><span class="ti a" style="--team:#15543C">T</span><span class="nm a">台鋼雄鷹</span><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><span class="nm h w">中信兄弟</span><span class="ti h warm" style="--team:#C8A24A">B</span></span></div><figcaption class="cap">寬欄（手機全寬、賽程）</figcaption></figure>
-      <figure><div class="scorebox" aria-label="和局示意 3 比 3"><span class="score tie" aria-hidden="true"><span class="ti a" style="--team:#2A4B9B">G</span><span class="n a">3</span><span class="colon">:</span><span class="n h">3</span><span class="ti h" style="--team:#8E1537">R</span></span></div><figcaption class="cap">和局（樣式示意）</figcaption></figure>
+      <figure><div class="scorebox" aria-label="台鋼雄鷹 10 比 19 中信兄弟，中信兄弟勝"><span class="score stack" aria-hidden="true"><svg class="ti a mk-AKP011" role="img" aria-label="台鋼雄鷹"><use href="assets/team-icons/refined-AKP011.svg?v=apply1#mark"/></svg><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><svg class="ti h mk-ACN011" role="img" aria-label="中信兄弟"><use href="assets/team-icons/refined-ACN011.svg?v=apply1#mark"/></svg><span class="nm a">台鋼雄鷹</span><span class="nm h w">中信兄弟</span></span></div><figcaption class="cap">窄欄兩層式（首頁右欄 3fr）</figcaption></figure>
+      <figure><div class="scorebox wide" aria-label="台鋼雄鷹 10 比 19 中信兄弟，中信兄弟勝"><span class="score" aria-hidden="true"><svg class="ti a mk-AKP011" role="img" aria-label="台鋼雄鷹"><use href="assets/team-icons/refined-AKP011.svg?v=apply1#mark"/></svg><span class="nm a">台鋼雄鷹</span><span class="n a">10</span><span class="colon">:</span><span class="n h w">19</span><span class="nm h w">中信兄弟</span><svg class="ti h mk-ACN011" role="img" aria-label="中信兄弟"><use href="assets/team-icons/refined-ACN011.svg?v=apply1#mark"/></svg></span></div><figcaption class="cap">寬欄（手機全寬、賽程）</figcaption></figure>
+      <figure><div class="scorebox" aria-label="和局示意 3 比 3"><span class="score tie" aria-hidden="true"><svg class="ti a mk-AEO011" role="img" aria-label="富邦悍將"><use href="assets/team-icons/refined-AEO011.svg?v=apply1#mark"/></svg><span class="n a">3</span><span class="colon">:</span><span class="n h">3</span><svg class="ti h mk-AJL011" role="img" aria-label="樂天桃猿"><use href="assets/team-icons/refined-AJL011.svg?v=apply1#mark"/></svg></span></div><figcaption class="cap">和局（樣式示意）</figcaption></figure>
     </div>
   </section>
 
@@ -149,7 +149,7 @@
       <div class="scroll"><table class="data">
         <thead><tr><th class="l">年度</th><th class="l">球隊</th><th>出賽</th><th>打席</th><th>打擊率</th><th>上壘率</th><th>長打率</th><th>OPS</th></tr></thead>
         <tbody>
-          <tr class="cur"><td class="l">2026</td><td class="l"><span class="team"><span class="ti warm" style="--team:#C8A24A">B</span>中信兄弟</span></td><td>65</td><td>231</td><td>.285</td><td>.359</td><td>.435</td><td class="key">.794</td></tr>
+          <tr class="cur"><td class="l">2026</td><td class="l"><span class="team"><svg class="ti mk-ACN011" role="img" aria-label="中信兄弟"><use href="assets/team-icons/refined-ACN011.svg?v=apply1#mark"/></svg>中信兄弟</span></td><td>65</td><td>231</td><td>.285</td><td>.359</td><td>.435</td><td class="key">.794</td></tr>
         </tbody>
       </table></div>
       <span class="note">選手逐年表只示意本季一列（數值同選手頁）；其他年度本稿未取得。</span>
@@ -170,15 +170,15 @@
   </section>
 
   <section class="row" id="icon">
-    <div class="rule"><h2>隊伍 icon</h2><p>隊色＋字母小郵票，<b>非官方隊徽、非 #217 素材</b>。字母對底色須 ≥4.5:1：兄弟、統一改深字，其餘白字。深色模式加 1px 內框。</p></div>
+    <div class="rule"><h2>隊伍 icon</h2><p>紙面上的隊色單色印記（<code>assets/team-icons/refined-*.svg</code>，與 <a href="team-icons-refined.html">印記圖稿頁</a>同一組），<b>非官方隊徽、非 #217 素材</b>。不放隊色方塊或外框；字形墨色對紙面 ≥4.5:1：淺紙兄弟、統一用壓深的金／橘墨，深底各隊改用提亮的同色系。</p></div>
     <div class="demo">
       <div class="swatches">
-        <div><span class="ti lg" style="--team:#C8102E">W</span>味全龍 <small>白字 5.88:1</small></div>
-        <div><span class="ti lg warm" style="--team:#C8A24A">B</span>中信兄弟 <small>深字 7.67:1</small></div>
-        <div><span class="ti lg warm" style="--team:#E35A13">L</span>統一獅 <small>深字 5.05:1（白字僅 3.66）</small></div>
-        <div><span class="ti lg" style="--team:#2A4B9B">G</span>富邦悍將 <small>白字 8.15:1</small></div>
-        <div><span class="ti lg" style="--team:#8E1537">R</span>樂天桃猿 <small>白字 9.08:1</small></div>
-        <div><span class="ti lg" style="--team:#15543C">T</span>台鋼雄鷹 <small>白字 8.88:1</small></div>
+        <div><svg class="ti lg mk-AAA011" aria-hidden="true"><use href="assets/team-icons/refined-AAA011.svg?v=apply1#mark"/></svg>味全龍 <small>淺 5.4・深 5.11</small></div>
+        <div><svg class="ti lg mk-ACN011" aria-hidden="true"><use href="assets/team-icons/refined-ACN011.svg?v=apply1#mark"/></svg>中信兄弟 <small>淺 5.65・深 6.69</small></div>
+        <div><svg class="ti lg mk-ADD011" aria-hidden="true"><use href="assets/team-icons/refined-ADD011.svg?v=apply1#mark"/></svg>統一7-ELEVEn獅 <small>淺 5.78・深 5.68</small></div>
+        <div><svg class="ti lg mk-AEO011" aria-hidden="true"><use href="assets/team-icons/refined-AEO011.svg?v=apply1#mark"/></svg>富邦悍將 <small>淺 7.48・深 6.69</small></div>
+        <div><svg class="ti lg mk-AJL011" aria-hidden="true"><use href="assets/team-icons/refined-AJL011.svg?v=apply1#mark"/></svg>樂天桃猿 <small>淺 8.33・深 5.81</small></div>
+        <div><svg class="ti lg mk-AKP011" aria-hidden="true"><use href="assets/team-icons/refined-AKP011.svg?v=apply1#mark"/></svg>台鋼雄鷹 <small>淺 8.15・深 7.01</small></div>
       </div>
     </div>
   </section>
@@ -206,7 +206,7 @@
         <tr><td>半局 ▲▼、排序 ↑↓↕、清除 ✕、來源 ✓</td><td>首頁、排行、對戰</td><td>保留（改 SVG）</td><td>功能性指示，保留意義、改成同筆畫 SVG。</td></tr>
         <tr><td>圖表標記 ★ ◆ ●</td><td>擊球落點、逐球、球隊近況</td><td>保留</td><td>是資料標記不是裝飾；在圖內改用 SVG 形狀並附圖例。</td></tr>
         <tr><td>旅外 ✈</td><td>選手頁首 <code>hero.tsx:207</code></td><td>移除</td><td>改成身分標籤「旅外」。</td></tr>
-        <tr><td>隊伍 logo</td><td>TeamLogo</td><td>待 #217</td><td>本提案一律用隊色＋字母佔位。</td></tr>
+        <tr><td>隊伍 logo</td><td>TeamLogo</td><td>待 #217</td><td>本提案改用重新繪製的紙面單色印記（refined-*.svg），非官方隊徽；正式素材仍待 #217。</td></tr>
         <tr><td>資訊底版</td><td>—</td><td>採用</td><td>卡面、淺色塊、帶狀表頭取代框線；票券不鋪裝飾底色，只用撕線與郵戳分區。</td></tr>
         <tr><td>少量圖形</td><td>—</td><td>採用</td><td>郵戳、撕線票根、手札註記（每區最多一句客觀敘述）；不加照片。</td></tr>
       </tbody>
@@ -221,18 +221,18 @@
     <div class="sketch">
       <div class="cal">
         <div class="day"><div class="dt">09/28<small>週一</small></div>
-          <div class="g"><span class="ti" style="--team:#15543C">T</span><span class="x">台鋼</span><span class="num">10</span><span>:</span><span class="num w">19</span><span class="ti warm" style="--team:#C8A24A">B</span></div>
-          <div class="g"><span class="ti warm" style="--team:#E35A13">L</span><span class="x">統一</span><span class="num w">7</span><span>:</span><span class="num">4</span><span class="ti" style="--team:#8E1537">R</span></div>
-          <div class="g"><span class="ti" style="--team:#C8102E">W</span><span class="x">味全</span><span class="num w">4</span><span>:</span><span class="num">2</span><span class="ti" style="--team:#2A4B9B">G</span></div>
+          <div class="g"><svg class="ti mk-AKP011" role="img" aria-label="台鋼雄鷹"><use href="assets/team-icons/refined-AKP011.svg?v=apply1#mark"/></svg><span class="x">台鋼</span><span class="num">10</span><span>:</span><span class="num w">19</span><svg class="ti mk-ACN011" role="img" aria-label="中信兄弟"><use href="assets/team-icons/refined-ACN011.svg?v=apply1#mark"/></svg></div>
+          <div class="g"><svg class="ti mk-ADD011" role="img" aria-label="統一7-ELEVEn獅"><use href="assets/team-icons/refined-ADD011.svg?v=apply1#mark"/></svg><span class="x">統一</span><span class="num w">7</span><span>:</span><span class="num">4</span><svg class="ti mk-AJL011" role="img" aria-label="樂天桃猿"><use href="assets/team-icons/refined-AJL011.svg?v=apply1#mark"/></svg></div>
+          <div class="g"><svg class="ti mk-AAA011" role="img" aria-label="味全龍"><use href="assets/team-icons/refined-AAA011.svg?v=apply1#mark"/></svg><span class="x">味全</span><span class="num w">4</span><span>:</span><span class="num">2</span><svg class="ti mk-AEO011" role="img" aria-label="富邦悍將"><use href="assets/team-icons/refined-AEO011.svg?v=apply1#mark"/></svg></div>
         </div>
         <div class="day today"><div class="dt">09/30<small>今天</small></div>
-          <div class="gt"><span class="ti" style="--team:#C8102E">W</span><span class="ti" style="--team:#8E1537">R</span><span class="t">18:35</span></div>
-          <div class="gt"><span class="ti warm" style="--team:#E35A13">L</span><span class="ti" style="--team:#2A4B9B">G</span><span class="t">18:35</span></div>
-          <div class="gt"><span class="ti warm" style="--team:#C8A24A">B</span><span class="ti" style="--team:#15543C">T</span><span class="t">18:35</span></div>
+          <div class="gt"><svg class="ti mk-AAA011" role="img" aria-label="味全龍"><use href="assets/team-icons/refined-AAA011.svg?v=apply1#mark"/></svg><svg class="ti mk-AJL011" role="img" aria-label="樂天桃猿"><use href="assets/team-icons/refined-AJL011.svg?v=apply1#mark"/></svg><span class="t">18:35</span></div>
+          <div class="gt"><svg class="ti mk-ADD011" role="img" aria-label="統一7-ELEVEn獅"><use href="assets/team-icons/refined-ADD011.svg?v=apply1#mark"/></svg><svg class="ti mk-AEO011" role="img" aria-label="富邦悍將"><use href="assets/team-icons/refined-AEO011.svg?v=apply1#mark"/></svg><span class="t">18:35</span></div>
+          <div class="gt"><svg class="ti mk-ACN011" role="img" aria-label="中信兄弟"><use href="assets/team-icons/refined-ACN011.svg?v=apply1#mark"/></svg><svg class="ti mk-AKP011" role="img" aria-label="台鋼雄鷹"><use href="assets/team-icons/refined-AKP011.svg?v=apply1#mark"/></svg><span class="t">18:35</span></div>
         </div>
         <div class="day"><div class="dt">某日<small>樣式示意</small></div>
-          <div class="gt"><span class="ti" style="--team:#2A4B9B">G</span><span class="ti" style="--team:#15543C">T</span><span class="st hold">延賽</span></div>
-          <div class="gt"><span class="ti" style="--team:#C8102E">W</span><span class="ti warm" style="--team:#E35A13">L</span><span class="st hold">保留</span></div>
+          <div class="gt"><svg class="ti mk-AEO011" role="img" aria-label="富邦悍將"><use href="assets/team-icons/refined-AEO011.svg?v=apply1#mark"/></svg><svg class="ti mk-AKP011" role="img" aria-label="台鋼雄鷹"><use href="assets/team-icons/refined-AKP011.svg?v=apply1#mark"/></svg><span class="st hold">延賽</span></div>
+          <div class="gt"><svg class="ti mk-AAA011" role="img" aria-label="味全龍"><use href="assets/team-icons/refined-AAA011.svg?v=apply1#mark"/></svg><svg class="ti mk-ADD011" role="img" aria-label="統一7-ELEVEn獅"><use href="assets/team-icons/refined-ADD011.svg?v=apply1#mark"/></svg><span class="st hold">保留</span></div>
         </div>
       </div>
       <span class="note">09/28 賽果與 09/30 對戰取自既有稿的 API 快照；09/30 的 18:35 為示意；第三格為樣式示意。</span>
@@ -246,9 +246,9 @@
       <table class="data">
         <thead><tr><th class="l">#</th><th class="l">球隊</th><th>勝-和-敗</th><th>勝率</th><th>勝差</th></tr></thead>
         <tbody>
-          <tr><td class="l">1</td><td class="l"><span class="team"><span class="ti" style="--team:#C8102E">W</span>味全龍</span></td><td>64-0-51</td><td class="key">.557</td><td>—</td></tr>
-          <tr><td class="l">2</td><td class="l"><span class="team"><span class="ti warm" style="--team:#E35A13">L</span>統一7-ELEVEn獅</span></td><td>59-1-55</td><td class="key">.518</td><td>4.5</td></tr>
-          <tr><td class="l">3</td><td class="l"><span class="team"><span class="ti" style="--team:#2A4B9B">G</span>富邦悍將</span></td><td>58-0-57</td><td class="key">.504</td><td>6.0</td></tr>
+          <tr><td class="l">1</td><td class="l"><span class="team"><svg class="ti mk-AAA011" role="img" aria-label="味全龍"><use href="assets/team-icons/refined-AAA011.svg?v=apply1#mark"/></svg>味全龍</span></td><td>64-0-51</td><td class="key">.557</td><td>—</td></tr>
+          <tr><td class="l">2</td><td class="l"><span class="team"><svg class="ti mk-ADD011" role="img" aria-label="統一7-ELEVEn獅"><use href="assets/team-icons/refined-ADD011.svg?v=apply1#mark"/></svg>統一7-ELEVEn獅</span></td><td>59-1-55</td><td class="key">.518</td><td>4.5</td></tr>
+          <tr><td class="l">3</td><td class="l"><span class="team"><svg class="ti mk-AEO011" role="img" aria-label="富邦悍將"><use href="assets/team-icons/refined-AEO011.svg?v=apply1#mark"/></svg>富邦悍將</span></td><td>58-0-57</td><td class="key">.504</td><td>6.0</td></tr>
         </tbody>
       </table>
       <span class="note">近十場欄位本稿未取得數值，未畫；前三名數值同首頁戰績。</span>
@@ -258,7 +258,7 @@
   <section class="row" id="team">
     <div class="rule"><h2>球隊</h2><p>現站隊色大面積頁首改成<b>紙色底＋大號隊伍 icon</b>，隊色只留在 icon，不和郵戳紙色搶面積；名次用大數字。</p></div>
     <div class="sketch">
-      <div class="teamhead"><span class="ti xl" style="--team:#C8102E">W</span><div><h3>味全龍</h3><div class="rec"><span><b>64-0-51</b>勝-和-敗</span><span><b>.557</b>勝率</span><span><b>—</b>勝差</span></div></div><div class="rank">1<small>名</small></div></div>
+      <div class="teamhead"><svg class="ti xl mk-AAA011" role="img" aria-label="味全龍"><use href="assets/team-icons/refined-AAA011.svg?v=apply1#mark"/></svg><div><h3>味全龍</h3><div class="rec"><span><b>64-0-51</b>勝-和-敗</span><span><b>.557</b>勝率</span><span><b>—</b>勝差</span></div></div><div class="rank">1<small>名</small></div></div>
       <span class="note">數值同首頁戰績；連勝敗、淘汰指數、近況本稿未取得，未畫。</span>
     </div>
   </section>

@@ -12,7 +12,7 @@
   /* 資訊結構沿用現站 /players/[id]：頁首（身分＋本季三圍／OPS）→ 範圍／層級 → 頁籤 → 本季成績＋官方進階 PR → 選手特性 → 走勢。選手頁不蓋郵戳。 */
   .hero { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; margin-top: 18px; }
   .who { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 16px; row-gap: 10px; align-items: start; align-content: start; }
-  .who .ti { --s: 52px; font-size: 26px; }
+  .who .ti { --s: 52px; }
   .who h1 { margin: 2px 0 0; font: 900 30px/1.15 var(--tc); letter-spacing: .04em; word-break: keep-all; }
   .who .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .who .bio { grid-column: 2 / -1; font-size: 13px; color: var(--muted); }
@@ -64,7 +64,7 @@
   @media (max-width: 900px) { .hero, .two { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 600px) {
     .who { grid-template-columns: auto minmax(0, 1fr); }
-    .who .ti { --s: 44px; font-size: 22px; }
+    .who .ti { --s: 44px; }
     .who h1 { font-size: 26px; }
     .slash { grid-column: 1 / -1; justify-content: start; text-align: left; background: var(--card-2); padding: 10px 12px; border-radius: var(--r-panel); }
     .slash .v { font-size: 28px; }
@@ -90,7 +90,7 @@
 
   <section class="hero" aria-label="選手頁首">
     <div class="block who">
-      <span class="ti warm" style="--team:#C8A24A" aria-hidden="true">B</span>
+      <svg class="ti mk-ACN011" aria-hidden="true"><use href="assets/team-icons/refined-ACN011.svg?v=apply1#mark"/></svg>
       <div>
         <div class="serial"><span>中信兄弟</span><span>左外野</span><span>右投右打</span></div>
         <h1>曾頌恩</h1>
@@ -190,7 +190,7 @@
   <div role="tabpanel" id="p-sp" aria-labelledby="t-sp" tabindex="0" hidden><p class="note">本稿未繪製：分項對戰，套用共用資料表規則。</p></div>
   <div role="tabpanel" id="p-df" aria-labelledby="t-df" tabindex="0" hidden><p class="note">本稿未繪製：守備。</p></div>
 </main>
-<footer class="footer"><div class="wrap">非官方獨立專案。隊伍 icon 為本站隊色＋字母佔位，非官方隊徽，也不是 #217 素材。
+<footer class="footer"><div class="wrap">非官方獨立專案。隊伍 icon 為本提案重新繪製的單色印記候選（team-icons-refined.html），非官方隊徽，也不是 #217 素材。
   <ul><li>樣本：數值取自正式站 /players/0000005569（2026-09-30 11:28 檢視，沿用既有稿，本輪未重新讀取）。</li><li>欄位依現站 <code>season.tsx:72-89</code>、<code>hero.tsx</code>；雷達軸依 <code>ability.py:33-50</code>，走勢窗口依 <code>trend.py:22</code>。現站榮譽用獎盃 emoji，本稿改成文字標籤。</li></ul>
 </div></footer>
 </body>
