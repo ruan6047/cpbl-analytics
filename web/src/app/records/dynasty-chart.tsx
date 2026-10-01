@@ -81,7 +81,7 @@ export function DynastyChart({ rows, regular }: { rows: DynastyRow[]; regular: R
                 <TeamBadge code={r.team_code} name={r.team} size={16} />
               </Link>
               {r.rk === 1 && <Pill tone="up">榜首</Pill>}
-              {streak >= 2 && <Pill tone="muted" className="!bg-accent/15 !text-accent">{streak} 連霸</Pill>}
+              {streak >= 2 && <Pill tone="up" className="font-bold">{streak} 連霸</Pill>}
             </li>
           );
         })}

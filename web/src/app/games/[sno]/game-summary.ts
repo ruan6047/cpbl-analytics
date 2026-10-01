@@ -465,7 +465,7 @@ export function buildMilestoneChips(
     if (nm) nameTeam.set(nm, teamOf(r.visiting_home_type));
   }
   return milestones.map((m) => ({
-    text: `🏆 ${m.player} ${m.text}`,
+    text: `${m.player} ${m.text}`,
     team: nameTeam.get(m.player) ?? null,
   }));
 }

@@ -33,7 +33,7 @@ export function PlayerMatchupsSection({ id, role, name, scope }: {
   return (
     <section className="mb-6">
       <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="text-lg font-semibold text-ink">投打對決</h2>
+        <h2 className="text-lg font-bold tracking-[0.04em] text-ink">投打對決</h2>
         <span className="text-xs text-muted">
           對特定球隊／{role === "batting" ? "投手" : "打者"}的歷史對戰紀錄——描述性統計，非未來預測。
         </span>

@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { TeamLogo, StatusBadge, EmptyState, type StatusTone } from "@/components/ui";
+import { SectionTitle } from "@/components/postmark";
 import { LevelYearNav } from "@/components/level-year-nav";
 import { NavBarRow, StickyNavBar } from "@/components/sticky-nav-bar";
 import { api, type CalendarGame } from "@/lib/api";
-import { contrastText, teamColor, teamFullName } from "@/lib/teams";
+import { teamFullName } from "@/lib/teams";
 import { LiveCalendarGame } from "@/components/live-calendar-game";
 
 export const dynamic = "force-dynamic";
@@ -11,12 +12,21 @@ export const metadata = { title: "賽程與賽況" };
 
 const WD = ["日", "一", "二", "三", "四", "五", "六"];
 // 場次狀態 → 標籤＋語意 tone（完賽=中性／延賽·保留=warn／未開打=scheduled）
-const statusOf = (done: boolean, delay: string | null | undefined): { label: string; tone: StatusTone } =>
+// #220：`delay_kind` 是排程歷程的歷史標記，會跟著改期後的場次走。今天（含）以後、`orig_date`
+// 早於 `game_date` 的未完賽場＝已排定的補賽，不是延賽（與首頁 `todayCardKind` 同一判準）。
+const statusOf = (done: boolean, delay: string | null | undefined,
+  g?: { orig_date: string | null; game_date: string }, today?: string): { label: string; tone: StatusTone } =>
   done ? { label: "完賽", tone: "done" }
-    : delay ? { label: delay, tone: "warn" }
+    : delay && !(g && today && g.orig_date && g.orig_date !== g.game_date && g.game_date >= today)
+      ? { label: delay, tone: "warn" }
       : { label: "未開打", tone: "scheduled" };
+const makeupNote = (g: { orig_date: string | null; game_date: string; delay_kind: string | null }, done: boolean) =>
+  !done && g.delay_kind && g.orig_date && g.orig_date !== g.game_date ? `原定 ${g.orig_date.slice(5).replace("-", "/")}` : null;
 // 季後賽層級標記（C=台灣大賽/E=季後挑戰賽/F=二軍季後；例行賽 A/D 無標記）
 const POST_LABEL: Record<string, string> = { C: "台灣大賽", E: "季後挑戰賽", F: "二軍季後" };
+// 完賽但帶 delay_kind＝在改期後的日子打完（延賽→補賽、保留→續賽）。原本用 ☔ 小標記，
+// #218 emoji 處置改文字；不寫成因（全庫沒有延賽理由欄位）。
+const MADEUP_LABEL: Record<string, string> = { 延賽: "補賽", 保留: "續賽" };
 const pad = (n: number) => String(n).padStart(2, "0");
 const ymOf = (d: string) => d.slice(0, 7);
 const addMonth = (ym: string, delta: number) => {
@@ -92,9 +102,9 @@ export default async function GamesPage({
 
   return (
     <div>
-      <header className="mb-6">
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink">{season} 球季 · {kind === "D" ? "二軍賽況" : "賽況"}</h1>
-        <p className="mt-1.5 text-sm text-muted">
+      <header className="mb-5">
+        <SectionTitle as="h1" date={season} cue={kind === "D" ? "二軍" : "一軍・季後賽"}>賽程與賽況</SectionTitle>
+        <p className="-mt-1 text-sm text-muted">
           {hasDetail ? "月曆檢視；點任一場看逐局比分與逐打席賽況（play-by-play）。" : "2018 年前僅逐場結果（無逐局/逐打席）。"}
         </p>
       </header>
@@ -106,18 +116,18 @@ export default async function GamesPage({
           main={
             <div role="group" aria-label="球隊篩選"
               className="flex min-w-0 items-center gap-1.5 overflow-x-auto overscroll-x-contain">
-              {/* 圓角走 control canonical rounded-lg（§2.5；rounded-full 不像可按，UI 審 r2） */}
+              {/* 選中＝墨色實底紙色字（#218 二級切換）；隊色只在印記，不鋪 chip 底。 */}
               <Link href={qs({ team: "" })} aria-current={!team ? "true" : undefined}
-                className={`inline-flex min-h-11 shrink-0 touch-manipulation items-center rounded-lg px-2.5 text-xs font-medium transition ${
-                  !team ? "bg-ink text-paper" : "bg-surface-2 text-muted hover:text-ink"}`}>全部</Link>
+                className={`inline-flex min-h-11 shrink-0 touch-manipulation items-center rounded-md px-2.5 text-xs font-medium transition-colors ${
+                  !team ? "bg-ink font-bold text-paper" : "bg-surface-2 text-muted hover:text-ink"}`}>全部</Link>
               {teamCodes.map((code) => {
                 const on = team === code;
                 return (
                   <Link key={code} href={qs({ team: on ? "" : code })} aria-current={on ? "true" : undefined}
-                    className={`inline-flex min-h-11 shrink-0 touch-manipulation items-center gap-1 rounded-lg px-2 text-xs font-medium transition ${on ? "" : "bg-surface-2"}`}
-                    style={on ? { background: teamColor(code), color: contrastText(teamColor(code)) } : undefined}>
-                    <TeamLogo code={code} name={names.get(code)} size={15} />
-                    <span className={on ? "" : "text-muted"}>{teamFullName(names.get(code) ?? "")}</span>
+                    className={`inline-flex min-h-11 shrink-0 touch-manipulation items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors ${
+                      on ? "bg-ink font-bold text-paper" : "bg-surface-2 text-muted hover:text-ink"}`}>
+                    <span className={on ? "rounded-sm bg-surface p-px" : ""}><TeamLogo code={code} name={names.get(code)} size={15} decorative /></span>
+                    <span>{teamFullName(names.get(code) ?? "")}</span>
                   </Link>
                 );
               })}
@@ -130,12 +140,12 @@ export default async function GamesPage({
       {/* 月份導覽 */}
       <div className="mb-3 flex items-center justify-center gap-4">
         {canPrev ? (
-          <Link href={qs({ month: prevM })} className="rounded-lg border border-line px-2.5 py-1 text-sm text-muted hover:bg-surface-2">←</Link>
-        ) : <span className="px-2.5 py-1 text-sm text-faint">←</span>}
-        <div className="min-w-[8rem] text-center text-lg font-semibold">{my} 年 {mm} 月</div>
+          <Link href={qs({ month: prevM })} aria-label="上個月" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-line-strong text-sm text-ink hover:bg-surface-2">←</Link>
+        ) : <span aria-hidden="true" className="inline-flex min-h-11 min-w-11 items-center justify-center text-sm text-faint opacity-50">←</span>}
+        <div className="min-w-[8rem] text-center font-[family-name:var(--font-wide)] text-xl font-extrabold [font-stretch:85%]">{my} 年 {mm} 月</div>
         {canNext ? (
-          <Link href={qs({ month: nextM })} className="rounded-lg border border-line px-2.5 py-1 text-sm text-muted hover:bg-surface-2">→</Link>
-        ) : <span className="px-2.5 py-1 text-sm text-faint">→</span>}
+          <Link href={qs({ month: nextM })} aria-label="下個月" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-line-strong text-sm text-ink hover:bg-surface-2">→</Link>
+        ) : <span aria-hidden="true" className="inline-flex min-h-11 min-w-11 items-center justify-center text-sm text-faint opacity-50">→</span>}
       </div>
 
       {/* 月曆 (桌機版) */}
@@ -143,55 +153,57 @@ export default async function GamesPage({
         <div className="min-w-[720px]">
           <div className="grid grid-cols-7 gap-px">
             {WD.map((w, i) => (
-              <div key={w} className={`pb-1 text-center text-xs font-medium ${i === 0 || i === 6 ? "text-accent/70" : "text-faint"}`}>{w}</div>
+              <div key={w} className={`pb-1 text-center text-xs font-bold ${i === 0 || i === 6 ? "text-ink" : "text-muted"}`}>{w}</div>
             ))}
           </div>
           <div className="grid grid-cols-7 gap-1">
             {cells.map((c) => (
               <div key={c.key}
-                className={`min-h-[92px] rounded-lg border p-1 ${
-                  c.inMonth ? "border-line bg-surface" : "border-transparent bg-transparent"}`}>
+                className={`min-h-[92px] rounded-md p-1 ${
+                  !c.inMonth ? "bg-transparent" : c.key === todayStr ? "bg-stub" : "bg-surface"}`}>
                 {c.inMonth && (
-                  <div className={`mb-0.5 px-0.5 text-[11px] ${c.key === todayStr
-                    ? "inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 font-semibold text-white"
-                    : "text-faint"}`}>{c.day}</div>
+                  <div className="mb-0.5 flex items-baseline justify-between px-0.5">
+                    <span className="font-[family-name:var(--font-wide)] text-[15px] font-extrabold leading-none [font-stretch:80%]">{c.day}</span>
+                    {c.key === todayStr && <span className="text-[11px] font-bold text-ink">今天</span>}
+                  </div>
                 )}
                 <div className="space-y-1">
                   {c.games.map((g) => {
                     const done = g.away_score + g.home_score > 0;
                     const awayWin = done && g.away_score > g.home_score;
                     const homeWin = done && g.home_score > g.away_score;
-                    // 打完就是「完賽」（延賽/保留性質改以 ☔ 小標記保留）；未打才顯示延賽/保留/未開打
-                    const st = statusOf(done, g.delay_kind);
+                    // 打完就是「完賽」（延賽/保留性質改以「補賽／續賽」文字保留）；未打才顯示延賽/保留/未開打
+                    const st = statusOf(done, g.delay_kind, g, todayStr);
                     const info = done
-                      ? (g.mvp ? `⭐ ${g.mvp}` : g.win_pitcher ? `勝 ${g.win_pitcher}` : "")
+                      ? (g.mvp ? `MVP ${g.mvp}` : g.win_pitcher ? `勝 ${g.win_pitcher}` : "")
                       : (g.away_starter || g.home_starter ? `${g.away_starter ?? "未定"} · ${g.home_starter ?? "未定"}` : (g.venue ?? ""));
                     const body = (
                       <>
-                        {POST_LABEL[g.kind_code] && <div className="mb-0.5 text-center text-[8px] font-bold leading-none text-accent">{POST_LABEL[g.kind_code]}</div>}
+                        {POST_LABEL[g.kind_code] && <div className="mb-0.5 text-center text-[10px] font-bold leading-none text-ink">{POST_LABEL[g.kind_code]}</div>}
                         {isCurrent && c.key === todayStr ? (
                           <LiveCalendarGame game={g} variant="compact" />
                         ) : <div className="flex items-center justify-between gap-1 leading-none">
                           <span className="flex items-center gap-1">
                             <TeamLogo code={g.away_team_code} name={g.away_team_name} size={20} />
-                            {done && <span className={`text-base tabular-nums ${awayWin ? "font-bold text-accent" : "text-muted"}`}>{g.away_score}</span>}
+                            {done && <span className={`font-[family-name:var(--font-wide)] text-[17px] tabular-nums [font-stretch:80%] ${awayWin ? "font-black text-ink" : "text-faint"}`}>{g.away_score}</span>}
                           </span>
-                          <span className="text-[9px] leading-tight">
+                          <span className="text-center text-[10px] leading-tight">
                             <StatusBadge tone={st.tone} variant="bare">{st.label}</StatusBadge>
-                            {done && g.delay_kind && <span title={`因雨${g.delay_kind}`} className="text-faint"> ☔</span>}
+                            {done && g.delay_kind && MADEUP_LABEL[g.delay_kind] && <span className="block text-muted">{MADEUP_LABEL[g.delay_kind]}</span>}
+                            {makeupNote(g, done) && <span className="block text-muted">{makeupNote(g, done)}</span>}
                           </span>
                           <span className="flex items-center gap-1">
-                            {done && <span className={`text-base tabular-nums ${homeWin ? "font-bold text-accent" : "text-muted"}`}>{g.home_score}</span>}
+                            {done && <span className={`font-[family-name:var(--font-wide)] text-[17px] tabular-nums [font-stretch:80%] ${homeWin ? "font-black text-ink" : "text-faint"}`}>{g.home_score}</span>}
                             <TeamLogo code={g.home_team_code} name={g.home_team_name} size={20} />
                           </span>
                         </div>}
-                        {info && <div className="mt-1 truncate text-center text-[9px] leading-none text-faint">{info}</div>}
+                        {info && <div className="mt-1 truncate text-center text-[10px] leading-none text-muted">{info}</div>}
                       </>
                     );
-                    const cls = "block rounded-md bg-surface-2/50 px-1.5 py-1";
+                    const cls = "block rounded-sm bg-surface-2 px-1.5 py-1";
                     return hasDetail ? (
                       <Link key={`${g.kind_code}-${g.game_sno}`} href={`/games/${g.game_sno}?kind=${g.kind_code}&year=${g.year}`}
-                        className={`${cls} transition hover:bg-surface-2`}>{body}</Link>
+                        className={`${cls} transition-colors hover:bg-band`}>{body}</Link>
                     ) : (
                       <div key={`${g.kind_code}-${g.game_sno}`} className={cls}>{body}</div>
                     );
@@ -206,51 +218,52 @@ export default async function GamesPage({
       {/* 行動端：直列式列表 */}
       <div className="block md:hidden space-y-4">
         {cells.filter(c => c.inMonth && c.games.length > 0).map(c => (
-          <div key={c.key} className="card p-4">
-            <div className={`text-xs font-semibold mb-2.5 pb-1 border-b border-line flex items-center justify-between ${c.key === todayStr ? "text-accent" : "text-muted"}`}>
-              <span>{c.key}</span>
-              {c.key === todayStr && <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold text-accent">今天</span>}
+          <div key={c.key} className={`rounded-md p-3.5 ${c.key === todayStr ? "bg-stub" : "bg-surface"}`}>
+            <div className="mb-2.5 flex items-baseline justify-between">
+              <span className="font-[family-name:var(--font-wide)] text-lg font-extrabold leading-none [font-stretch:80%]">{c.key.slice(5).replace("-", "/")}<small className="ml-1 font-sans text-xs font-bold text-muted">（{WD[new Date(`${c.key}T00:00:00Z`).getUTCDay()]}）</small></span>
+              {c.key === todayStr && <span className="text-xs font-bold text-ink">今天</span>}
             </div>
             <div className="space-y-3">
               {c.games.map((g) => {
                 const done = g.away_score + g.home_score > 0;
                 const awayWin = done && g.away_score > g.home_score;
                 const homeWin = done && g.home_score > g.away_score;
-                const st = statusOf(done, g.delay_kind);
+                const st = statusOf(done, g.delay_kind, g, todayStr);
                 const info = done
-                  ? (g.mvp ? `⭐ MVP: ${g.mvp}` : g.win_pitcher ? `勝投: ${g.win_pitcher}` : "")
+                  ? (g.mvp ? `MVP ${g.mvp}` : g.win_pitcher ? `勝投 ${g.win_pitcher}` : "")
                   : (g.away_starter || g.home_starter ? `先發: ${g.away_starter ?? "未定"} vs ${g.home_starter ?? "未定"}` : (g.venue ?? ""));
                 const body = isCurrent && c.key === todayStr ? (
                   <LiveCalendarGame game={g} variant="mobile" />
                 ) : (
-                  <div className="flex flex-col gap-2 p-3 bg-surface-2/30 rounded-lg">
+                  <div className="flex flex-col gap-2 rounded-sm bg-surface-2 p-3">
                     <div className="flex items-center justify-between">
                       <span className="flex max-w-fit items-center gap-1.5 leading-none">
                         <StatusBadge tone={st.tone}>{st.label}</StatusBadge>
-                        {POST_LABEL[g.kind_code] && <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-bold text-accent">{POST_LABEL[g.kind_code]}</span>}
-                        {done && g.delay_kind && <span title={`因雨${g.delay_kind}`} className="text-[10px] text-faint"> ☔</span>}
+                        {POST_LABEL[g.kind_code] && <span className="pm-tag !text-ink">{POST_LABEL[g.kind_code]}</span>}
+                        {done && g.delay_kind && MADEUP_LABEL[g.delay_kind] && <span className="pm-tag">{MADEUP_LABEL[g.delay_kind]}</span>}
+                        {makeupNote(g, done) && <span className="pm-tag">{makeupNote(g, done)}</span>}
                       </span>
-                      {g.venue && <span className="text-[10px] text-faint">{g.venue}</span>}
+                      {g.venue && <span className="text-xs text-muted">{g.venue}</span>}
                     </div>
                     <div className="flex items-center justify-between px-1">
                       <span className="flex items-center gap-2 flex-1">
                         <TeamLogo code={g.away_team_code} name={g.away_team_name} size={22} />
                         <span className={`text-sm ${done && awayWin ? "font-bold text-ink" : "text-muted"}`}>{g.away_team_name}</span>
                       </span>
-                      {done && <span className={`text-lg font-mono tabular-nums min-w-[2rem] text-right ${awayWin ? "font-bold text-accent" : "text-muted"}`}>{g.away_score}</span>}
+                      {done && <span className={`min-w-[2rem] text-right font-[family-name:var(--font-wide)] text-xl tabular-nums [font-stretch:75%] ${awayWin ? "font-black text-ink" : "text-faint"}`}>{g.away_score}</span>}
                     </div>
                     <div className="flex items-center justify-between px-1">
                       <span className="flex items-center gap-2 flex-1">
                         <TeamLogo code={g.home_team_code} name={g.home_team_name} size={22} />
                         <span className={`text-sm ${done && homeWin ? "font-bold text-ink" : "text-muted"}`}>{g.home_team_name}</span>
                       </span>
-                      {done && <span className={`text-lg font-mono tabular-nums min-w-[2rem] text-right ${homeWin ? "font-bold text-accent" : "text-muted"}`}>{g.home_score}</span>}
+                      {done && <span className={`min-w-[2rem] text-right font-[family-name:var(--font-wide)] text-xl tabular-nums [font-stretch:75%] ${homeWin ? "font-black text-ink" : "text-faint"}`}>{g.home_score}</span>}
                     </div>
-                    {info && <div className="text-[10px] text-faint border-t border-line/40 pt-1.5 mt-0.5">{info}</div>}
+                    {info && <div className="mt-0.5 text-xs text-muted">{info}</div>}
                   </div>
                 );
                 return hasDetail ? (
-                  <Link key={`${g.kind_code}-${g.game_sno}`} href={`/games/${g.game_sno}?kind=${g.kind_code}&year=${g.year}`} className="block transition hover:opacity-80">
+                  <Link key={`${g.kind_code}-${g.game_sno}`} href={`/games/${g.game_sno}?kind=${g.kind_code}&year=${g.year}`} className="block transition-colors [&>div]:hover:bg-band">
                     {body}
                   </Link>
                 ) : (
@@ -265,8 +278,8 @@ export default async function GamesPage({
         )}
       </div>
 
-      <p className="mt-4 text-center text-xs text-faint">
-        中央為狀態（完賽／延賽／保留／未開打）· 粗體＝勝方 · 完賽附 ⭐MVP／勝投，未開打附先發對決
+      <p className="mt-4 text-center text-xs text-muted">
+        中央為狀態（完賽／延賽／保留／未開打）・粗體＝勝方・完賽附 MVP／勝投，未開打附先發對決；「補賽／續賽」＝改期後打完
       </p>
     </div>
   );

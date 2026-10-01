@@ -14,7 +14,7 @@ import {
   SECTION_IDS,
   type MethodologyEntry,
 } from "@/lib/methodology-content";
-import { Card, Eyebrow } from "@/components/ui";
+import { Card } from "@/components/ui";
 
 export const metadata = { title: "方法與模型透明度" };
 
@@ -27,11 +27,12 @@ export const metadata = { title: "方法與模型透明度" };
  * artifact 缺席時退回報告快照並明示——頁面在任何 fetch 失敗下都必須可讀。
  */
 
-// 模型狀態 chip 色調：passed＝綠（通過閘門）／descriptive＝中性／gated＝amber 警示。
+// 模型狀態章（#218 狀態章語彙）：passed＝通過閘門（up 字）／descriptive＝中性／gated＝限制（外框淡字章，
+// 原 amber 警示）。字面文案不變。
 const STATUS_CLS = {
-  passed: "bg-up/15 text-up",
-  descriptive: "bg-surface-2 text-muted",
-  gated: "bg-amber/15 text-amber",
+  passed: "pm-st !text-up",
+  descriptive: "pm-st",
+  gated: "pm-st pm-st--sample",
 } as const;
 
 function pct(v: number): string {
@@ -149,7 +150,7 @@ function PregameLivePanel({ backtest }: { backtest: PregameBacktestResponse | nu
 function BenchmarkPanel({ benchmark }: { benchmark: OutcomeBenchmarkResponse | null }) {
   return (
     <div className="mt-4 border-t border-line pt-3">
-      <h3 className="text-sm font-semibold text-ink">benchmark：舊全特徵模型對照</h3>
+      <h3 className="text-sm font-bold text-ink">benchmark：舊全特徵模型對照</h3>
       <p className="mt-1 text-xs text-muted">{BENCHMARK_NOTE}</p>
       {benchmark?.available && benchmark.models?.length ? (
         <div className="mt-2">
@@ -212,13 +213,13 @@ function ModelSection({
         {/* scroll-mt 讓 badge deep-link 錨點不被 sticky header 蓋住 */}
         <div id={id} className="scroll-mt-24">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 id={`${id}-heading`} className="text-lg font-bold text-ink">
+            <h2 id={`${id}-heading`} className="text-lg font-bold tracking-[0.04em] text-ink">
               {label}
             </h2>
             <span className="rounded bg-ink px-1.5 py-0.5 text-[10px] font-semibold text-paper">
               {entry.kindBadge}
             </span>
-            <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${STATUS_CLS[entry.status.tone]}`}>
+            <span className={STATUS_CLS[entry.status.tone]}>
               {entry.status.label}
             </span>
           </div>
@@ -268,8 +269,7 @@ export default async function MethodologyPage() {
   return (
     <div>
       <header className="mb-6">
-        <Eyebrow className="mb-2">方法與模型透明度</Eyebrow>
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink">
+        <h1 className="text-[24px] font-bold leading-tight tracking-[0.04em] text-ink md:text-[26px]">
           這個數字怎麼來、可信到哪裡？
         </h1>
         <p className="mt-1.5 max-w-3xl text-sm text-muted">
@@ -317,7 +317,7 @@ export default async function MethodologyPage() {
           <ModelSection key={id} id={id} label={METHODOLOGY_SECTIONS[id]} entry={METHODOLOGY_CONTENT[id]}>
             {id === "pregame" && (
               <div className="mt-4 border-t border-line pt-3">
-                <h3 className="text-sm font-semibold text-ink">線上回測對照</h3>
+                <h3 className="text-sm font-bold text-ink">線上回測對照</h3>
                 <PregameLivePanel backtest={pregameBacktest} />
                 <BenchmarkPanel benchmark={benchmark} />
               </div>
@@ -327,7 +327,7 @@ export default async function MethodologyPage() {
 
         <Card>
           <section aria-labelledby="not-on-site-heading">
-            <h2 id="not-on-site" className="scroll-mt-24 text-lg font-bold text-ink">
+            <h2 id="not-on-site" className="scroll-mt-24 text-lg font-bold tracking-[0.04em] text-ink">
               站上沒有的模型
             </h2>
             <p className="mt-1.5 text-sm text-muted">
@@ -345,7 +345,7 @@ export default async function MethodologyPage() {
         </Card>
         <Card>
           <section aria-labelledby="about-lab">
-            <h2 id="about-lab" className="text-lg font-bold text-ink">關於本站與作者</h2>
+            <h2 id="about-lab" className="text-lg font-bold tracking-[0.04em] text-ink">關於本站與作者</h2>
             <p className="mt-1.5 text-sm leading-relaxed text-muted">我把 Ruan&apos;s CPBL Lab 做成一個可追溯的中職數據實驗室：資料缺口會揭露，模型必須先在時間切分回測勝過基準，不能證明的結論就不包裝成預測。</p>
             <p className="mt-2 text-sm text-muted">本站為非官方獨立專案；資料來自 cpbl-opendata、cpbl.com.tw 與 stats.cpbl.com.tw。作者為 Ruan Ruan，持續在 <a className="underline underline-offset-2 hover:text-ink" href="https://ruan-ruan.com">ruan-ruan.com</a> 與 <a className="underline underline-offset-2 hover:text-ink" href="https://github.com/ruan6047/cpbl-analytics">GitHub</a> 維護專案與方法說明。</p>
           </section>

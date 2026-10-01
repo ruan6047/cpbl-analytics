@@ -4,7 +4,7 @@
 // fail-closed 四狀態是常態版面（藍圖 §5.9），各有獨立結構與文案；
 // 統計判定全由 API 完成，此處只讀 API 明示欄位（T4 紅線）。
 import { useId } from "react";
-import { Card, Eyebrow } from "@/components/ui";
+import { Card } from "@/components/ui";
 import type { InsightItem, InsightsResponse, Role } from "./api";
 import {
   INSIGHT_COPY,
@@ -25,7 +25,7 @@ function CoverageMeter({ ratio, gate, passed }: { ratio: number; gate: number; p
     <div className="flex items-center gap-2 text-xs">
       <div className="relative h-2 w-36 overflow-hidden rounded-full bg-surface-2" aria-hidden>
         <div
-          className={`h-full rounded-full ${passed ? "bg-ink/60" : "bg-amber"}`}
+          className={`h-full rounded-full ${passed ? "bg-ink/60" : "bg-down"}`}
           style={{ width: `${pct}%` }}
         />
         <div
@@ -294,7 +294,7 @@ export default function InsightSection({
               </span>
             )}
             {data.sensitivity && !data.sensitivity.stable && (
-              <span className="rounded bg-amber/15 px-1.5 py-0.5 font-medium text-amber">
+              <span className="pm-st pm-st--sample">
                 名單對參數選擇敏感
               </span>
             )}
@@ -342,10 +342,11 @@ export default function InsightSection({
 
   return (
     <section aria-labelledby={headingId} className="mt-8">
-      <Eyebrow className="mb-1">加值層・描述性統計</Eyebrow>
-      <h2 id={headingId} className="mb-1 text-lg font-bold text-ink">
-        對戰洞察
-      </h2>
+      {/* #218 不加眉標：層級說明改為標題後的註記 */}
+      <div className="mb-1 flex flex-wrap items-baseline gap-x-3">
+        <h2 id={headingId} className="text-lg font-bold tracking-[0.04em] text-ink">對戰洞察</h2>
+        <span className="text-[12.5px] text-muted">加值層・描述性統計</span>
+      </div>
       {body}
     </section>
   );

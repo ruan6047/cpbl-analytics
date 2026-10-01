@@ -47,7 +47,7 @@ const fmtVal = (v: number | string | null, fmt?: Fmt): string => {
 };
 
 const toneCls = (tone?: Tone): string =>
-  tone === "accent" ? "text-accent" : tone === "warn" ? "text-accent" : tone === "dim" ? "text-muted" : "";
+  tone === "accent" ? "text-accent" : tone === "warn" ? "text-down" : tone === "dim" ? "text-muted" : "";
 
 function cmp(a: number | string | null, b: number | string | null, dir: 1 | -1): number {
   const an = a === null || a === undefined || a === "";
@@ -243,7 +243,7 @@ export default function Leaderboard({
               <select
                 value={sel[f.key] ?? ""}
                 onChange={(e) => setSel((s) => ({ ...s, [f.key]: e.target.value }))}
-                className="rounded-lg border border-line bg-surface-2 px-2.5 py-1.5 outline-none focus:border-ink"
+                className="min-h-9 rounded-md border border-line-strong bg-paper px-2.5 py-1.5 outline-none focus:border-accent"
               >
                 <option value="">全部</option>
                 {options[f.key]?.map((v) => (
@@ -254,13 +254,13 @@ export default function Leaderboard({
               </select>
             </label>
           ))}
-          {filters.length > 0 && <span className="self-center text-xs text-faint">{view.length} 筆</span>}
+          {filters.length > 0 && <span className="self-center text-xs text-muted">{view.length} 筆</span>}
           {hasPrimary && (
             <button
               type="button"
               onClick={() => setExpanded((e) => !e)}
               aria-pressed={expanded}
-              className="ml-auto rounded-lg border border-line bg-surface-2 px-2.5 py-1.5 text-sm text-muted transition hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className="ml-auto min-h-9 rounded-md border border-line-strong bg-transparent px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-surface-2"
             >
               {expanded ? "精簡欄位" : "完整欄位"}
             </button>
@@ -269,7 +269,7 @@ export default function Leaderboard({
       )}
 
       {qualifying && qualCount >= 0 && (
-        <p className="mb-2 text-[11px] text-faint">
+        <p className="mb-2 text-xs text-muted">
           依{cols.find((c) => c.key === sortKey)?.label} 排序：灰階 {view.length - qualCount} 人未達
           {qualMin ? `規定門檻（${qualKey === "ip" ? "投球局數" : "打席"} ≥ ${qualMin}）` : "規定門檻"}，
           置底且不列入名次，避免小樣本失真。

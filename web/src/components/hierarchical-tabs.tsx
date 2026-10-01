@@ -135,11 +135,14 @@ export function ContextSwitcher<Value extends string>({
 
 /** 單層主頁籤 tablist（UI 審 r8）：無主/次階層的頁（standings seg、records 分區）
     一律採主頁籤造型呈現——#218 一級頁籤：band 色塊帶，選中＝卡面色塊＋粗體＋上緣石油藍。 */
-export function MainTabs<ItemValue extends string>({ label, items, value, onChange }: {
+export function MainTabs<ItemValue extends string>({ label, items, value, onChange, panelId }: {
   label: string;
   items: readonly { value: ItemValue; label: string }[];
   value: ItemValue;
   onChange: (value: ItemValue) => void;
+  /** 有值＝頁面提供一個 `role=tabpanel`（id＝panelId）：各 tab 帶 id／aria-controls，
+   *  面板以 `mainTabId(panelId, value)` 回指選中 tab（#218 賽況頁補 tabpanel）。 */
+  panelId?: string;
 }) {
   const index = Math.max(0, items.findIndex((item) => item.value === value));
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -160,6 +163,8 @@ export function MainTabs<ItemValue extends string>({ label, items, value, onChan
       className="flex min-w-0 shrink-0 items-end gap-0.5 overflow-x-auto rounded-t-md bg-band px-[3px] pt-[3px]">
       {items.map((item, itemIndex) => (
         <button key={item.value} type="button" role="tab" aria-selected={value === item.value}
+          id={panelId ? mainTabId(panelId, item.value) : undefined}
+          aria-controls={panelId}
           tabIndex={value === item.value ? 0 : -1}
           ref={(element) => { refs.current[itemIndex] = element; }} onClick={() => onChange(item.value)}
           className={`min-h-11 shrink-0 touch-manipulation whitespace-nowrap rounded-t-md px-4 text-sm transition-colors ${value === item.value
@@ -170,6 +175,11 @@ export function MainTabs<ItemValue extends string>({ label, items, value, onChan
       ))}
     </div>
   );
+}
+
+/** MainTabs 的 tab id（tabpanel 的 aria-labelledby 用）。值可能含中文，編碼成安全字元。 */
+export function mainTabId(panelId: string, value: string): string {
+  return `${panelId}-tab-${Array.from(value).map((c) => c.codePointAt(0)!.toString(36)).join("")}`;
 }
 
 /** 子層 tablist：階層導覽的子層專用（單層主分頁頁改用 MainTabs）。#218 二級＝分段切換。 */

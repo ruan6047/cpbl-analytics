@@ -132,7 +132,7 @@ export function FieldingSection({ fielding, fieldingCareer, fieldFromYear, leagu
     { key: "tc", label: "守備機會", tip: "TC＝刺殺＋助殺＋失誤" },
     { key: "po", label: "刺殺", tip: "PO：直接使打者/跑者出局" },
     { key: "a", label: "助殺", tip: "A：傳球協助使對方出局" },
-    { key: "e", label: "失誤", tip: "E", tone: "text-accent" },
+    { key: "e", label: "失誤", tip: "E", tone: "text-down" },
     { key: "dp", label: "雙殺", tip: "參與的雙殺次數" },
     { key: "tp", label: "三殺", tip: "參與的三殺次數" },
     { key: "pb", label: "捕逸", tip: "PB：捕手漏接致跑者進壘", catcher: true },
@@ -169,7 +169,7 @@ export function FieldingSection({ fielding, fieldingCareer, fieldFromYear, leagu
   return (
     <section className="mb-6">
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <h2 className="text-lg font-semibold text-ink">守備</h2>
+        <h2 className="text-lg font-bold tracking-[0.04em] text-ink">守備</h2>
         {multi && (
           <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-muted">多守位</span>
         )}

@@ -7,7 +7,7 @@ import { type FieldCells, type FieldPosition } from "@/components/field-diagram"
 import type { Metadata } from "next";
 import { RosterBoard, type RosterGroup } from "@/components/roster-board";
 import { api } from "@/lib/api";
-import { contrastText, nameMeta, teamColor, teamName3 } from "@/lib/teams";
+import { nameMeta, teamColor, teamName3 } from "@/lib/teams";
 import { CoachGrid, GROUPS, ManagersTable, RetiredNumbers, RosterChips, RosterTable, f2, f3 } from "./parts";
 import { TeamFocusSection } from "./focus-section";
 import { TeamRecordsSection } from "./records-section";
@@ -80,7 +80,6 @@ export default async function TeamPage({ params, searchParams }: {
   // 歷史/已解散隊：以隊名取 era-correct 隊色(如 三商虎 水藍)；現役 fallback 到 franchise 色。
   const _bd = nameMeta(displayName);
   const color = _bd.letter !== "?" ? _bd.color : teamColor(code);
-  const ink = contrastText(color);
 
   // 下一場（近日焦點用；由 <TeamFocusSection> 的對戰卡呈現，見下方 upcoming）。當季。
   const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -213,14 +212,14 @@ export default async function TeamPage({ params, searchParams }: {
     // key：跨 RSC→client 邊界傳入 TeamTabs 的節點會被視為 list child，需 key 以免 React 警告。
     <div key="season-supporting" className="space-y-5">
       <section key="lineup">
-        <h2 className="mb-3 text-lg font-semibold">主力選手</h2>
+        <h2 className="mb-3 text-xl font-bold tracking-[0.04em]">主力選手</h2>
         <RosterBoard fieldCells={lineupCells} designatedHitter={dhCell} groups={rosterGroups}
           caption={`${displayName}${yearLabel}各守位主力`}
           emptyField={year >= 2025 ? "尚無守備資料。" : `${year} 年守備位置圖尚未提供（歷史守備待補）。`} />
       </section>
 
       <section key="h2h">
-        <h2 className="mb-3 text-lg font-semibold">對戰各隊</h2>
+        <h2 className="mb-3 text-xl font-bold tracking-[0.04em]">對戰各隊</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {opponents.map((o) => (
             <Card key={o.team_code} teamColor={teamColor(o.team_code)} className="flex items-center gap-2 p-3">
@@ -233,7 +232,7 @@ export default async function TeamPage({ params, searchParams }: {
       </section>
 
       <section key="splits">
-        <h2 className="mb-3 text-lg font-semibold">戰績分項</h2>
+        <h2 className="mb-3 text-xl font-bold tracking-[0.04em]">戰績分項</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Card teamColor={color} className="p-4">
             <div className="mb-2 text-sm font-semibold text-ink">主客場</div>
@@ -281,8 +280,8 @@ export default async function TeamPage({ params, searchParams }: {
   // 3 欄每卡約 175px，logo+比分+日期還撐得開；手機 <640px 仍是原本的單欄。
   const recentGamesSection = teamGames.length > 0 ? (
     <section key="recent-games">
-      <h2 className="mb-1 text-lg font-semibold">近期賽事</h2>
-      <p className="mb-3 text-xs text-faint">當季最近完賽（點入看賽況）。下一場見上方對戰卡。</p>
+      <h2 className="mb-1 text-xl font-bold tracking-[0.04em]">近期賽事</h2>
+      <p className="mb-3 text-xs text-muted">當季最近完賽（點入看賽況）。下一場見上方對戰卡。</p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {teamGames.map((g) => {
           const [gy, gm, gd] = g.game_date.split("-").map(Number);
@@ -292,7 +291,7 @@ export default async function TeamPage({ params, searchParams }: {
             `w-6 shrink-0 text-center font-mono text-lg tabular-nums ${winner === side ? "font-bold text-ink" : "text-muted"}`;
           return (
             <Link key={`${g.kind_code}-${g.game_sno}`} href={`/games/${g.game_sno}?kind=${g.kind_code}&year=${g.year}`}
-              className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2 py-2 transition hover:bg-surface-2">
+              className="flex items-center gap-1.5 rounded-md bg-surface px-2 py-2 transition-colors hover:bg-surface-2">
               <TeamLogo code={g.away_team_code} name={g.away_team_name} size={26} />
               <span className={scoreCls("away")}>{g.away_score}</span>
               <div className="flex-1 text-center leading-tight">
@@ -334,8 +333,8 @@ export default async function TeamPage({ params, searchParams }: {
       <div key="roster" className="space-y-8">
         {(rst.first_batters.length > 0 || rst.first_pitchers.length > 0 || rst.farm.length > 0) && (
           <section key="players">
-            <h2 className="mb-1 text-lg font-semibold">現役球員</h2>
-            <p className="mb-3 text-[11px] text-faint">本季登錄名單；一軍取自當季成績、二軍取自二軍逐場。點擊看個人頁。</p>
+            <h2 className="mb-1 text-xl font-bold tracking-[0.04em]">現役球員</h2>
+            <p className="mb-3 text-xs text-muted">本季登錄名單；一軍取自當季成績、二軍取自二軍逐場。點擊看個人頁。</p>
             <div className="space-y-4">
               <RosterChips label="一軍打者" players={rst.first_batters} color={color} />
               <RosterChips label="一軍投手" players={rst.first_pitchers} color={color} />
@@ -351,8 +350,8 @@ export default async function TeamPage({ params, searchParams }: {
   if (roster.batters.length > 0 || roster.pitchers.length > 0 || managers.length > 0) {
     groups.push({ value: "legends", label: "歷屆成員", content: (
       <section key="legends">
-        <h2 className="mb-1 text-lg font-semibold">歷代成員</h2>
-        <p className="mb-3 text-[11px] text-faint">曾效力此球團（含前身）之球員與教練，依生涯出賽數／任期排序。</p>
+        <h2 className="mb-1 text-xl font-bold tracking-[0.04em]">歷代成員</h2>
+        <p className="mb-3 text-xs text-muted">曾效力此球團（含前身）之球員與教練，依生涯出賽數／任期排序。</p>
         {(() => {
           const tabs = [] as { label: string; content: React.ReactNode }[];
           if (roster.batters.length) tabs.push({ label: `打者 (${roster.batters.length})`, content: (
@@ -378,18 +377,18 @@ export default async function TeamPage({ params, searchParams }: {
     groups.push({ value: "eras", label: "隊史", content: (
       <div key="eras" className="space-y-8">
         <section key="records">
-          <h2 className="mb-1 text-lg font-semibold">隊史紀錄</h2>
-          <p className="mb-3 text-[11px] text-faint">含改名/轉賣前身的 franchise 全史（一軍例行賽）。</p>
+          <h2 className="mb-1 text-xl font-bold tracking-[0.04em]">隊史紀錄</h2>
+          <p className="mb-3 text-xs text-muted">含改名/轉賣前身的 franchise 全史（一軍例行賽）。</p>
           {eras.championship_count > 0 && (
             <div className="mb-3 rounded-md bg-surface p-3">
               <div className="flex items-baseline gap-1.5">
-                <span className="text-sm font-semibold text-ink">🏆 隊史總冠軍</span>
-                <span className="font-mono text-xl font-bold tabular-nums text-accent">{eras.championship_count}</span>
+                <span className="text-sm font-bold text-ink">隊史總冠軍</span>
+                <span className="font-[family-name:var(--font-wide)] text-2xl font-black tabular-nums text-ink [font-stretch:75%]">{eras.championship_count}</span>
                 <span className="text-xs text-muted">座</span>
               </div>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {eras.championships.map((y) => (
-                  <span key={y} className="rounded bg-accent/10 px-2 py-0.5 font-mono text-xs tabular-nums text-accent">{y}</span>
+                  <span key={y} className="pm-tag font-mono tabular-nums !text-ink">{y}</span>
                 ))}
               </div>
             </div>
@@ -413,14 +412,14 @@ export default async function TeamPage({ params, searchParams }: {
 
         {eras.eras.length > 1 && (
           <section key="timeline">
-            <h2 className="mb-1 text-lg font-semibold">球隊沿革</h2>
-            <p className="mb-3 text-[11px] text-faint">改名/轉賣視為同一支球隊，依隊名/年代分時期（一軍例行賽）。</p>
+            <h2 className="mb-1 text-xl font-bold tracking-[0.04em]">球隊沿革</h2>
+            <p className="mb-3 text-xs text-muted">改名/轉賣視為同一支球隊，依隊名/年代分時期（一軍例行賽）。</p>
             <DataTable
               columns={[
                 { header: "時期", cell: (e, i) => <span className="inline-flex items-center gap-1.5 font-medium"><EraBadge name={e.name} code={e.code} size={18} />{e.name}{team && i === eras.eras.length - 1 && <ActivePill className="ml-0.5 font-normal" />}</span>, nowrap: true, className: "font-sans" },
                 { header: "年代", cell: (e) => (e.from === e.to ? e.from : `${e.from}–${e.to}`), className: "text-muted" },
                 { header: "勝-和-敗", cell: (e) => `${e.w}-${e.t}-${e.l}` },
-                { header: "勝率", cell: (e) => (e.win_pct == null ? "—" : f3(e.win_pct)), className: "text-accent" },
+                { header: "勝率", cell: (e) => (e.win_pct == null ? "—" : f3(e.win_pct)), className: "font-bold text-ink" },
               ] satisfies Column<(typeof eras.eras)[number]>[]}
               rows={eras.eras}
               rowKey={(e) => `${e.code}-${e.from}`}
@@ -438,55 +437,59 @@ export default async function TeamPage({ params, searchParams }: {
     <div className="space-y-5">
       {/* Hero：當季身分橫幅（永遠當季戰績與近況；賽季 tab 才隨年度切換）。
           p-6→4／mt-4→3／pt-3.5→3（同上，純壓縮留白，字級/內容不動）。*/}
-      <div className="rounded-2xl p-4" style={{ background: color, color: ink }}>
-        <div className="flex flex-wrap items-center gap-4">
-          <TeamLogo code={code} name={displayName} size={56} />
+      {/* #218 球隊頁首：紙色卡面＋大號隊伍印記，隊色只留在印記（不鋪大面積），名次用大數字。 */}
+      <div className="rounded-md bg-surface px-4 py-4 md:px-5">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2">
+          <TeamLogo code={code} name={displayName} size={60} decorative />
           <div className="min-w-0">
-            <h1 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-2xl font-extrabold tracking-tight">
+            <h1 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[24px] font-black leading-tight tracking-[0.04em] text-ink md:text-[26px]">
               {displayName}
-              {!team && <span className="rounded bg-black/20 px-2 py-0.5 text-xs font-medium">已解散</span>}
+              {!team && <span className="pm-tag">已解散</span>}
             </h1>
-            <div className="text-sm opacity-90">
-              {team ? `${season} 球季 · 第 ${team.rank} 名` : `${eras.eras[0]?.from}–${lastEra?.to} · 已退出一軍`}
+            <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-muted">
+              {team ? (
+                <>
+                  <span><b className="mr-1 font-[family-name:var(--font-wide)] text-lg font-extrabold text-ink [font-stretch:80%]">{team.w}-{team.t}-{team.l}</b>勝-和-敗</span>
+                  <span><b className="mr-1 font-[family-name:var(--font-wide)] text-lg font-extrabold text-ink [font-stretch:80%]">{f3(team.win_pct)}</b>勝率</span>
+                  <span><b className="mr-1 font-[family-name:var(--font-wide)] text-lg font-extrabold text-ink [font-stretch:80%]">{team.gb && team.gb > 0 ? String(team.gb) : "—"}</b>勝差</span>
+                </>
+              ) : (
+                <>
+                  <span>{`${eras.eras[0]?.from}–${lastEra?.to} · 已退出一軍`}</span>
+                  <span><b className="mr-1 font-[family-name:var(--font-wide)] text-lg font-extrabold text-ink [font-stretch:80%]">{eras.total.w}-{eras.total.t}-{eras.total.l}</b>隊史戰績</span>
+                  <span><b className="mr-1 font-[family-name:var(--font-wide)] text-lg font-extrabold text-ink [font-stretch:80%]">{f3(eras.total.win_pct)}</b>隊史勝率</span>
+                </>
+              )}
             </div>
           </div>
-          <div className="ml-auto text-right">
-            {team ? (
-              <>
-                <div className="font-mono text-3xl font-bold tabular-nums">{team.w}-{team.t}-{team.l}</div>
-                <div className="text-sm opacity-90">勝率 {f3(team.win_pct)}</div>
-              </>
-            ) : (
-              <>
-                <div className="font-mono text-3xl font-bold tabular-nums">{eras.total.w}-{eras.total.t}-{eras.total.l}</div>
-                <div className="text-sm opacity-90">隊史勝率 {f3(eras.total.win_pct)}</div>
-              </>
-            )}
-          </div>
+          {team && (
+            <div className="text-right" aria-label={`${season} 球季第 ${team.rank} 名`}>
+              <span className="pm-big text-ink" aria-hidden="true">{team.rank}</span>
+              <span className="ml-0.5 text-[13px] font-bold text-ink" aria-hidden="true">名</span>
+              <div className="text-xs text-muted" aria-hidden="true">{season} 球季</div>
+            </div>
+          )}
         </div>
 
         {team && (
-          <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3 border-t pt-3" style={{ borderColor: `${ink}2b` }}>
+          <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3 rounded-md bg-surface-2 px-3 py-2.5">
             {[
-              { label: "勝差", value: team.gb && team.gb > 0 ? String(team.gb) : "—" },
               { label: "", value: streakZh(team.streak) },
               { label: "淘汰指數", value: team.elim && team.elim !== "" ? team.elim : "—" },
             ].map((s, i) => (
               <div key={s.label || i} className="flex items-baseline gap-1.5">
-                {s.label && <span className="text-xs opacity-70">{s.label}</span>}
-                <span className="font-mono text-base font-semibold tabular-nums">{s.value}</span>
+                {s.label && <span className="text-xs text-muted">{s.label}</span>}
+                <span className="font-mono text-base font-bold tabular-nums text-ink">{s.value}</span>
               </div>
             ))}
             {form.length > 0 && (
               <div className="ml-auto flex items-center gap-2">
-                <span className="text-xs opacity-70">近況</span>
+                <span className="text-xs text-muted">近況</span>
                 <div className="flex items-center gap-1">
                   {form.map((f, i) => (
                     <span key={i} title={f.title}
-                      className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-bold"
-                      style={f.r === "W" ? { background: ink, color }
-                        : f.r === "T" ? { background: `${ink}44`, color: ink }
-                        : { boxShadow: `inset 0 0 0 1.5px ${ink}66`, color: ink, opacity: 0.75 }}>
+                      className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-bold ${
+                        f.r === "W" ? "bg-ink text-paper" : f.r === "T" ? "bg-band text-ink" : "text-muted shadow-[inset_0_0_0_1.5px_var(--color-line-strong)]"}`}>
                       {f.r === "W" ? "勝" : f.r === "T" ? "和" : "敗"}
                     </span>
                   ))}

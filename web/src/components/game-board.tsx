@@ -142,13 +142,17 @@ function ScoreBar({ game, e, records, snapshot, plain }: {
           {inningLabel(snapshot, "text") ? `，${inningLabel(snapshot, "text")}` : ""}
         </p>}
       </div> : <div className="h-3" />}
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto_minmax(0,1fr)] items-center gap-3 px-4 pb-4 pt-1 md:gap-5">
-        {side(ac, game.away_team_name, ar, false, "客")}
-        <div className="text-right">{big(score.away, score.home)}</div>
+      {/* 桌機：五欄（客隊｜客分｜局況｜主分｜主隊），分數靠中央。手機（#218 live.html）：上列兩半
+          （各自印記＋隊名＋分數），局況格整列放下方；以 md:contents 讓同一份 markup 兩種排法。 */}
+      <div className="grid grid-cols-2 items-center gap-x-3 gap-y-2.5 px-4 pb-4 pt-1 md:grid-cols-[minmax(0,1fr)_auto_auto_auto_minmax(0,1fr)] md:gap-5">
+        <div className="flex min-w-0 items-center justify-between gap-2 md:contents">
+          <div className="min-w-0 md:order-1">{side(ac, game.away_team_name, ar, false, "客")}</div>
+          <div className="text-right md:order-2">{big(score.away, score.home)}</div>
+        </div>
         {/* 完賽態不掛內距：那段空間是留給壘包圖與球數燈的呼吸空間，「終場」兩個字不需要，
             而 375 px 下的欄寬已經緊到會把隊名壓成每行一字。 */}
         <div data-testid="scorebar-center"
-          className={`flex flex-col items-center gap-1 rounded-md bg-surface-2 ${plain ? "px-3 py-2" : "px-3 py-2 md:px-4"}`}>
+          className={`order-last col-span-2 flex flex-col items-center gap-1 rounded-md bg-surface-2 md:order-3 md:col-span-1 ${plain ? "px-3 py-2" : "px-3 py-2 md:px-4"}`}>
           {plain ? (
             // 完賽態總覽（§1.1.1）：比賽結束後這格若照舊吃當前事件，畫面會陳述一件假的事——
             // `out_cnt` 是**打席前**計數，印出來的是「最後一個出局發生之前」的局面。
@@ -167,8 +171,10 @@ function ScoreBar({ game, e, records, snapshot, plain }: {
             </>
           )}
         </div>
-        <div className="text-left">{big(score.home, score.away)}</div>
-        {side(hc, game.home_team_name, hr, true, "主")}
+        <div className="flex min-w-0 flex-row-reverse items-center justify-between gap-2 md:contents">
+          <div className="min-w-0 md:order-5">{side(hc, game.home_team_name, hr, true, "主")}</div>
+          <div className="text-left md:order-4">{big(score.home, score.away)}</div>
+        </div>
       </div>
     </div>
   );
@@ -329,7 +335,8 @@ function ScoreLine({ sb, game, snapshot, halves, curKey, onSelect, highlightSele
       <th scope="row" className="whitespace-nowrap px-3 py-2 text-left font-sans font-medium">
         <span className="inline-flex items-center gap-2">
           <TeamLogo code={code} name={String(label ?? "")} size={20} decorative />
-          {teamCell(label, code)}
+          {/* 窄螢幕（#218 live.html）只留印記讓 R／H／E 留在畫面內；隊名仍給輔助科技 */}
+          <span className="max-sm:sr-only">{teamCell(label, code)}</span>
         </span>
       </th>
       {innings.map((inn) => {
@@ -368,7 +375,7 @@ function ScoreLine({ sb, game, snapshot, halves, curKey, onSelect, highlightSele
       <table className="w-full text-sm font-mono tabular-nums" aria-label="逐局比分">
         <thead className="bg-band text-xs text-muted">
           <tr>
-            <th className="px-3 py-2 text-left font-bold">隊伍</th>
+            <th className="px-3 py-2 text-left font-bold"><span className="max-sm:sr-only">隊伍</span></th>
             {innings.map((inn) => <th key={inn} className="px-2.5 py-1.5 font-bold">{inn}</th>)}
             <th className="px-2.5 py-1.5 font-bold">R</th>
             <th className="px-2.5 py-1.5 font-bold">H</th>
@@ -563,7 +570,7 @@ function callStyle(call: string | null): { color: string; label: string } {
   if (c === "BallCalled") return { color: PITCH_CALL.ball, label: "壞球" };
   if (c === "InPlay") return { color: PITCH_CALL.inplay, label: "擊出" };
   if (c.startsWith("Foul")) return { color: PITCH_CALL.foul, label: "界外" };
-  if (c.startsWith("Strike")) return { color: "var(--color-accent)", label: c === "StrikeSwinging" ? "揮空" : "好球" };
+  if (c.startsWith("Strike")) return { color: "var(--color-down)", label: c === "StrikeSwinging" ? "揮空" : "好球" };
   return { color: "var(--color-faint)", label: c || "—" };
 }
 // 真實座標(公尺) → SVG。視窗 side∈[-0.6,0.6]、height∈[0.2,1.5]
@@ -649,7 +656,11 @@ function StrikeZone({ pitches, footer }: { pitches: TrackRow[]; footer?: ReactNo
 
 // ───────────────────────── 主板 ─────────────────────────
 export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate, wp, gameSno, tabs,
-                                    facts, highlightSelection }: {
+                                    facts, highlightSelection, panelId, panelLabelledBy, children }: {
+  /** 頁籤面板（#218 賽況頁補 tabpanel）：記分板、逐打席與頁面傳入的 children 同在一個 tabpanel。 */
+  panelId?: string;
+  panelLabelledBy?: string;
+  children?: ReactNode;
   data: Live;
   idx: number; setIdx: (i: number) => void;
   wp?: WpPoint[];                // 逐打席勝率（顯示當前打席的目前預期勝率）
@@ -806,6 +817,7 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
 
       {tabs}
 
+      <div role={panelId ? "tabpanel" : undefined} id={panelId} aria-labelledby={panelLabelledBy} className="space-y-4">
       <ScoreLine sb={data.scoreboard} game={game} snapshot={data.live_snapshot ?? null}
         halves={halves} curKey={curKey} onSelect={(h) => selectIdx(h.firstIdx)}
         highlightSelection={highlightSelection} />
@@ -850,6 +862,8 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
         </div>
       </div>
       )}
+      {children}
+      </div>
     </div>
   );
 }

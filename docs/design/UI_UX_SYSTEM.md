@@ -3,6 +3,7 @@
 > **狀態**：v1 **已通過查核 ✅**（跨家族查核 Gemini 3.6 ＋ 人工，2026-07-24；事實正確性 100%、邊界/紅線守住、0 🔴、2 🟢 提示）。需求方 ruan6047 於 2026-07-24 sign-off。2026-08-01 依 `UX-BRAND-HOME1` 統一產品品牌名稱，內容規格不變。**待 merge → 執行下游卡** `UX-NAV-INTEGRATE1`／`UX-TOKEN-HYGIENE1`。
 > **定位**：全站**視覺／元件層的單一事實來源 [single source of truth]**。以球員個人頁旗艦（`web/src/app/players/[id]/` + `web/src/components/*`）為 100% 基準，把已落地的設計語言**逆向抽出、明確化**。
 > **本檔性質**：**描述現況＋明確化**，不推翻球員頁已定案語言。本卡不改 `globals.css`／元件碼；標「建議」者為未來遷移目標，非本卡執行。
+> **#220 視覺識別改版（2026-10-02）**：全站已套用 #218 核可的郵戳／手札識別（核可稿：`design/brand-218/proposal/`）。本檔 §1 原則 2／3／7、§2 token、§3 卡片與徽章、§4 頁籤 active 態、§9 隊伍圖示、§10.4、§11.1 已依實作同步；其餘章節（資訊架構、表格減法契約、響應式、可及性、模組邊界）不變。衝突時以核可稿與 `web/src/app/globals.css` 為準。
 > **配套文件**：逐頁差距見 [`UI_UX_CONFORMANCE.md`](UI_UX_CONFORMANCE.md)；token hygiene 修復見 [`../tasks/UX-TOKEN-HYGIENE1.md`](../tasks/UX-TOKEN-HYGIENE1.md)。
 
 ---
@@ -25,12 +26,12 @@
 `globals.css` 頂部已存在 8 條全站原則（驗收時逐條對照）；本規格予以明確化，不新增、不推翻：
 
 1. **快速理解優先**：預設只給結論層，細節漸進揭露；數字不裸列（配 PR 條／色階／趨勢／均值對照）；每區塊回答一個問題（5 秒測試）。
-2. **三層底色，不新增灰階**：`paper → surface → surface-2`，分界一律 `border-line`。禁第四層灰或自定色票。
-3. **顏色必有語意，禁裝飾用色**：`accent`＝行動/焦點、隊色＝身分、`up/down`＝數據好壞、`amber`＝狀態警示。同一語意全站同色。
+2. **四層底色（#218）**：`paper`（暖灰手札紙）→ `surface`（卡面）→ `surface-2`（卡內強調／滑過）→ `band`（表頭帶、頁籤帶、分段底）。分區用色塊與留白，少畫線；`line` 只留給必要分界。禁自定色票。
+3. **顏色必有語意，禁裝飾用色**：`accent`＝石油藍，只給互動／選取／焦點／郵戳／得分標記；`up/down`＝數據好壞（`down` 也是延賽・保留狀態章的紅字）；隊色只在隊伍印記，不鋪大面積。原 `amber`／`cpbl` 已退役（延賽・保留→`down` 狀態章、二軍・獎項→身分標籤）。同一語意全站同色。
 4. **誠實 UX**：預測附基準對照；資料缺口顯式標注；不做假精確（該 `—` 就 `—`，不補 0）。
 5. **一致元件語彙**：同概念全站同長相；新頁面先找既有元件，**禁平行發明**。
 6. **行動端一等公民**：375px 無橫向溢出＝鐵則（blueprint §8.3）；寬表 sticky 首欄或卡片化；觸控 ≥44px。
-7. **動效節制**：只在入場/狀態變化動；受 `prefers-reduced-motion` 約束。
+7. **動效只表達狀態**：更新中＝狀態點脈動、轉為終場＝郵戳落章一次、滑過＝換色塊 150ms；不做進場編排；`prefers-reduced-motion` 時全部關閉。
 8. **感知效能**：skeleton/empty/error 三態統一；圖表 lazy；切換不塌陷（CLS）。
 
 ---
@@ -41,68 +42,44 @@
 
 ### 2.1 色彩
 
-**結構三層底 + 分界**
+**結構四層底 + 分界**（#218 郵戳；值見 `globals.css`）
 
 | Token | 淺色 | 深色 | 用途 |
 |---|---|---|---|
-| `--color-paper` | `#f5f7fa` | `#0a1626` | 頁底 |
-| `--color-surface` | `#ffffff` | `#101f33` | 卡面 |
-| `--color-surface-2` | `#eef2f7` | `#1a2c44` | 卡內強調 / 圖表格線 / 空態底 |
-| `--color-line` | `#e2e8f0` | `#24374f` | 卡片與區塊分界 |
-| `--color-line-strong` | `#cbd5e1` | `#3a5170` | 圖表軸線 / 較強分隔 |
+| `--color-paper` | `#ece8e0` | `#12181d` | 頁底（暖灰手札紙） |
+| `--color-surface` | `#f7f5f0` | `#1a2229` | 卡面 |
+| `--color-surface-2` | `#efebe3` | `#212a32` | 卡內強調 / 滑過 / 空態底 |
+| `--color-band` | `#e4dfd5` | `#0f1418` | 表頭帶 / 頁籤帶 / 分段控制底 |
+| `--color-line` | `rgba(30,40,48,.14)` | `rgba(233,228,218,.12)` | 必要分界 |
+| `--color-line-strong` | `rgba(30,40,48,.32)` | `rgba(233,228,218,.28)` | 控制項外框 / 圖表軸線 |
+| `--color-perf` | `rgba(30,40,48,.38)` | `rgba(233,228,218,.34)` | 票券撕線 |
 
 **文字三級**
 
 | Token | 淺色 | 深色 | 用途 |
 |---|---|---|---|
-| `--color-ink` | `#0a2540` | `#e8eef6` | 主要文字 / 圖表主資料 |
-| `--color-muted` | `#5b6b7a` | `#a1b2c6` | 次要文字 / 軸刻度 |
-| `--color-faint` | `#94a3b8` | `#7c90a8` | 三級文字 / 參考線 / 未知隊 |
+| `--color-ink` | `#1e2830` | `#e9e4da` | 主要文字 / 圖表主資料 |
+| `--color-muted` | `#4f5961` | `#aeb6bc` | 次要文字 / 軸刻度 |
+| `--color-faint` | `#5d6770` | `#98a1a8` | 三級文字 / 敗方比分（淺色對 paper 4.72:1，可承載文字） |
 
 **語意色**
 
 | Token | 淺色 | 深色 | 語意（唯一用途） | 禁用 |
 |---|---|---|---|---|
-| `--color-accent` | `#d12638` | `#ff5a6a` | 行動 / 焦點 | 不當裝飾、不當數據好壞的「好」 |
-| `--color-up` | `#1d6fb8` | `#4a9fe0` | **數據佳（藍）** | 不當品牌色 |
-| `--color-down` | `#d12638` | `#ff5a6a` | **數據差（紅）** | — |
-| `--color-amber` | `#b15100` | `#fb923c` | 狀態警示／次級身分（延賽、保留、二軍、獎項） | 不當一般強調 |
-| `--color-cpbl` | `#1b4da1` | `#5c95e2` | CPBL 品牌藍 | 不當數據好壞 |
+| `--color-accent` | `#1e6c8c` | `#6fc3c9` | 石油藍：互動 / 焦點 / 選取 / 得分標記 | 不當「數據差」、不鋪大面積 |
+| `--color-accent-ink` | `#ffffff` | `#12181d` | accent 實底上的字 | — |
+| `--color-stamp` | `#1e6c8c` | `#6fc3c9` | 郵戳墨 | 只用於郵戳 |
+| `--color-stub` | `#e1e7e6` | `#283c43` | 賽程「今天」那一格 | — |
+| `--color-up` | `#1d5fb0` | `#62a8ee` | **數據佳（藍）** | 不當品牌色 |
+| `--color-down` | `#c21f32` | `#ff7480` | **數據差（紅）**／延賽・保留狀態章 | — |
+| `--color-ball` / `strike` / `out` | `#2f7d4f` / `#a16207` / `#c21f32` | `#5cc98a` / `#f0b429` / `#ff7480` | 球數燈（記分板慣例：壞＝綠、好＝黃、出局＝紅） | 只用於局況元件 |
 
 > ⚠️ **語意反直覺，文件顯式標注**：本專案 `up=藍 / down=紅`，與金融慣例「漲綠跌紅」相反——這是棒球資料語境的刻意選擇（藍=好），後續卡**禁**改回綠/紅。
-> ⚠️ **`accent` 與 `down` 共色**（`#d12638`）：兩者語意不同（行動 vs 數據差）但目前共用同一 hex；視為**待觀察風險**，若未來需區分再拆 token（見 [`UX-TOKEN-HYGIENE1.md`](../tasks/UX-TOKEN-HYGIENE1.md)）。
+> **`accent` 與 `down` 已拆色（#220）**：原 Navy 系統兩者共用紅；郵戳系統 accent＝石油藍。守衛 `color-contrast.test.ts` 改為斷言兩者**不同色**，避免互動被讀成負向訊號。#220 逐處對應：原「紅＝高／差」用 `text-accent` 者已改 `text-down`（守備失誤、球場 PF 發散、排行 `warn` tone）。
 
-**圖表分類序列 / 好球帶 / 身分**（詳見 §6）
+**圖表分類序列 / 好球帶 / 身分**（詳見 §6）：色相沿用 Navy 時期（`--chart-1..8`、`--zone-*`、`--status-*`）。
 
-- `--chart-1..8`：分類序列（含球種色槽，固定序不 cycle）。
-- `--zone-heart/shadow/chase/waste`：好球帶分區。
-- `--status-import/loree/nagata`：洋將身分（本土/羅力條款/永田條款）。
-
-**WCAG 對比稽核（標準公式計算）**
-
-| 前景 | 對比 | AA 一般（4.5） | 判定 |
-|---|---:|---|---|
-| `ink #0a2540` on `surface` | 15.54:1 | ✅ | 主文字任意用 |
-| `muted #5b6b7a` on `surface` | 5.48:1 | ✅ | 次文字可承載必要資訊 |
-| `faint #94a3b8` on `surface` | **2.56:1** | ❌ | **僅限非必要／裝飾**；不可承載必要文字 |
-| `paper #f5f7fa` on `ink` | 14.48:1 | ✅ | active 標籤（見 §2.2） |
-
-一般文字語意色須通過三層底色；以下數字由 `color-contrast.test.ts` 使用 WCAG 相對亮度公式逐組計算，非人工估值：
-
-| 模式 | 前景 | on `paper` | on `surface` | on `surface-2` | AA 一般（4.5） |
-|---|---|---:|---:|---:|---|
-| 淺色 | `accent/down #d12638` | 4.84:1 | 5.19:1 | **4.62:1** | ✅ |
-| 淺色 | `amber #b15100` | 4.84:1 | 5.19:1 | **4.62:1** | ✅ |
-| 淺色 | `up #1d6fb8` | 4.87:1 | 5.23:1 | **4.65:1** | ✅ |
-| 淺色 | `cpbl #1b4da1` | 7.46:1 | 8.01:1 | **7.12:1** | ✅ |
-| 深色 | `accent/down #ff5a6a` | 5.99:1 | 5.47:1 | **4.65:1** | ✅ |
-| 深色 | `amber #fb923c` | 8.03:1 | 7.33:1 | **6.24:1** | ✅ |
-| 深色 | `up #4a9fe0` | 6.34:1 | 5.79:1 | **4.93:1** | ✅ |
-| 深色 | `cpbl #5c95e2` | 5.93:1 | 5.41:1 | **4.61:1** | ✅ |
-
-`accent` 與 `down` 共色，矩陣按一列呈現但自動守衛仍分別窮舉；共 5 前景 × 3 底色 × 2 模式＝30 組，最差為深色 `cpbl` on `surface-2` 的 4.61:1。
-
-> `faint` 的低對比是**刻意的三級弱化**，但規格明訂：**唯一承載必要語意的文字不得用 `faint`**（例：`StatTile` 的名次在 `faint` 時只作「中段班」補充，非唯一資訊）。詳細抽驗清單見 `UI_UX_CONFORMANCE.md`「可及性」段。
+**WCAG 對比稽核**：一般文字語意色（`accent`/`down`/`up`）須在 `paper`/`surface`/`surface-2` 三層文字底色、深淺兩模式皆 ≥4.60:1（`color-contrast.test.ts` 逐組計算）。淺色最差組為 `accent` on `paper` 4.80:1；深色最差組為 `down` on `surface-2` 5.59:1。`band` 只承載 `muted` 表頭字（淺色 5.39:1）與 `ink` 選中字，不放語意色文字。
 
 ### 2.2 深色模式約定（canonical，呼應記憶 `dark-mode-conventions`）
 
@@ -116,6 +93,8 @@
    - `chart-theme.ts` 固定語意常數盤（`BATTED_OUTCOME`/`ZONE_OUTCOME`/`PITCH_CALL`/`PA_KIND`/`GRADE_COLORS`/`MEDAL_COLORS`/`STATUS_COLORS`/`PIE_COLORS`）：飽和語意色深淺皆可讀。
 
 ### 2.3 字級（type）
+
+**字體（#218）**：`next/font/google` 自托管 Archivo（寬體數字與字標，`wdth` 軸壓縮；`font-mono`/`font-display`/`--font-wide` 都指向它）、Noto Sans TC（內文 `font-sans`）、霞鶩文楷 TC（`--font-hand`，手札註記每區最多一句）。兩套中文字型不 preload，依 unicode-range 切片按需下載。數字一律 tabular（`html { font-variant-numeric: tabular-nums }`）。
 
 **現況（描述）**：無 `@theme` 字級尺標，靠 Tailwind 預設 + 大量 arbitrary `text-[Npx]`（全站計 ~222 處：`text-[11px]`×127、`text-[10px]`×78、`text-[9px]`×11、`text-[13px]`×5、`text-[8px]`×1）。等寬數字一律 `font-mono tabular-nums`。
 
@@ -145,17 +124,16 @@
 
 | 角色 | 值 | 出處 | 用途 |
 |---|---|---|---|
-| card | `0.75rem`（`rounded-xl`） | `.card` | 卡片、區塊容器、表殼 |
-| control | `0.5rem`（`rounded-lg`） | select/button/`StatGrid` 格 | 控制項、內距格 |
-| pill | `0.25rem`（`rounded`）～`rounded-full` | `Pill`/`StatusBadge`/tab pill | 標籤、切換膠囊 |
-| badge | `size*0.22`（`LetterBadge`）/`rounded-md`（`TeamLogo`） | 徽章 | 隊色方塊 |
+| card / control | `4px`（`@theme` 把 `--radius-md/lg/xl/2xl` 全部收斂為 4px） | `.card`、select、button | 卡片、區塊容器、表殼、控制項 |
+| tag | `3px`（`--radius-sm`） | `.pm-tag`/`.pm-st` | 身分標籤、狀態章 |
+| 直角 | 0 | 票券、郵戳圓章本體、隊伍印記 | #218：票券直角，其餘小圓角 |
+| 字母章 | `3px` | `LetterMark` | 歷史／已解散隊 |
 
 ### 2.6 陰影 / border / elevation
 
-- **分層優先靠 `border-line` + 底色三層**，陰影僅輔助。
-- `.card` 陰影：淺色 `0 1px 2px rgb(10 37 64/.04), 0 1px 3px rgb(10 37 64/.06)`（navy 微陰影）；深色改深黑 `0 1px 2px rgb(0 0 0/.3), 0 1px 3px rgb(0 0 0/.4)`（淺陰影在深底不可見）。
-- Hover 隊色光暈：`.card-hover-team`（`--hover-color` 邊框 + 20% color-mix 光暈）。
-- **建議**：命名為單一 elevation 角色 `elevation-card`（深淺兩態），未來若需更高層級（modal/popover）再擴。
+- **分層靠四層底色與留白**（#218）：`.card` 不畫框、不加陰影；卡內再分區用 `surface-2`/`band` 色塊。
+- 只有浮層（下拉選單、搜尋結果、tooltip）用一層有位移與模糊的陰影（`0 6px 18px -6px rgb(0 0 0/.25)`）。
+- 可點卡片 hover：`.card-hover-team` 換一階色塊（`surface-2`，150ms），不做隊色光暈。
 
 ### 2.7 動效（motion）
 
@@ -163,12 +141,13 @@
 |---|---|---|
 | `--dur-fast` | `.15s` | 淡出/hover |
 | `--dur-base` | `.3s` | 一般轉場/淡入 |
-| `--dur-slow` | `.8s` | 勝率條伸展等強調 |
-| `--ease-standard` | `cubic-bezier(.4,0,.2,1)` | 全站標準緩動 |
+| `--dur-slow` | `.8s` | （保留 token；#220 起勝率條直接到位不伸展） |
+| `--ease-standard` | `cubic-bezier(.4,0,.2,1)` | 離場 |
+| `--ease-out` | `cubic-bezier(.16,1,.3,1)` | 狀態變化、滑過、落章 |
 
 - 入場 ease-out、離場 ease-in（frontend-design 原則）。
 - **一律受 `@media (prefers-reduced-motion: reduce)` 約束**（globals.css 已全域近乎關閉動畫）。
-- 既有動畫：`animate-fade-in`/`animate-fade-out`/`animate-bar-grow`。
+- 既有動畫：`pm-pulse`（更新中狀態點）、`pm-stamp`（郵戳落章，`.pm-reveal`）、`animate-fade-in`（行動選單）/`animate-fade-out`；`animate-bar-grow` 已改為靜態寬度。
 
 ### 2.8 Hex owner 白名單（token 紀律）
 
@@ -193,19 +172,25 @@
 
 | 元件 | 契約 | 狀態/變體 |
 |---|---|---|
-| `Card` | `.card` 唯一事實來源（surface 底 + border-line + rounded-xl + 微陰影）。`padding` 預設 `p-4` 可覆寫；`teamColor`/`hoverable` 啟用隊色 hover 光暈。**全站禁再手寫 `rounded-xl border border-line`** | default / hover（隊色）。例外：`DataTable`/`Leaderboard` 內建表殼、`<details>` 折疊、`game-board` ESPN 內部面板 |
+| `Card` | `.card` 唯一事實來源（#218：surface 卡面色塊 + 4px 圓角，不畫框、不加陰影）。`padding` 預設 `p-4` 可覆寫；`teamColor`/`hoverable` 啟用隊色 hover 光暈。**全站禁再手寫 `rounded-xl border border-line`** | default / hover（隊色）。例外：`DataTable`/`Leaderboard` 內建表殼、`<details>` 折疊、`game-board` ESPN 內部面板 |
 | `StatTile` | 橫向一列（label 左、value+名次右），省縱向空間。名次 tone：前段班 `up`、後段班 `down`、其餘 `faint` | accent / rank |
 | `StatGrid` | dl 網格（label 上 value 下、等寬數字），`cols` 2–5 | accent/muted tone |
-| `Eyebrow` | 區塊小標（`text-[11px]` uppercase tracking-wider `faint`），每區塊點題（原則 1/5） | — |
+| `SectionTitle`（`components/postmark.tsx`） | **全站唯一一套區塊標題**（#218）：字＋可選日期＋一條註記／資料時間；不加眉標、不加編號。h1 26px、h2 20px、次標 16px | `size` md/sm；`as` h1/h2/h3/div |
+| `Eyebrow` | 舊名保留以免全站改名；#218 起視覺＝16px 粗體墨色次標（不再是大寫小字眉標）。新碼用 `SectionTitle` | — |
 
 ### 3.2 徽章與標籤
 
 | 元件 | 用途 | 備註 |
 |---|---|---|
-| `LetterBadge`/`TeamLogo`/`NameTag`/`TeamBadge`/`EraBadge` | 隊色方塊 + 對比字（避官方 logo 版權）。隊名解析走 `lib/teams.ts`（唯一身分來源） | `decorative` 旁已有隊名時設 `aria-hidden` 免螢幕閱讀器重複念 |
-| `Pill` | 小標籤（tone `up`＝綠、`muted`＝灰）。`ActivePill`/`GonePill` 為預設實例 | 併入名字欄的守位/角色 chip 亦走此 |
-| `StatusBadge` | **全站唯一場次狀態語彙**：`done`（完賽·中性）/`warn`（延賽·保留·amber）/`live`（進行中·accent）/`scheduled`（未開打·accent 淡）。`variant` solid（列表）/bare（月曆窄格） | 走語意 token，**禁** `amber-數字` |
-| `Notice` | amber 警示橫幅（延賽/保留說明） | 走語意 token |
+| `TeamLogo`/`NameTag`/`TeamBadge` → `TeamIcon` | 現役六隊＝#218 核可紙面單色印記（`public/team-icons/refined-{隊碼}.svg`，墨色 `.mk-{隊碼}`）；歷史／已解散隊沒有核可印記，沿用字母章（`LetterMark`）。解析走 `lib/teams.ts` 的 `markCodeOf`（兄弟象、中信鯨等歷史隊名不得落到現役印記） | `decorative` 旁已有隊名時設 `aria-hidden` |
+| `LetterBadge`/`EraBadge` | 沿革各時期、歷史隊字母章（3px 圓角） | — |
+| `Pill` / `.pm-tag` | **身分標籤**（選手身分、分類、總冠軍 ×N、二軍）：細字淡底；tone `up` 只加深字色 | 不與狀態章混用 |
+| `StatusBadge` / `.pm-st` | **全站唯一比賽狀態章**，必含文字：`done`／`scheduled`＝中性章；`live`＝石油藍實底＋脈動點；`warn`＝延賽・保留・中斷紅字章（`down`）。`variant` bare（月曆窄格）只上字色 | 禁 emoji（☔⚠ 改文字章） |
+| `Notice` | 「限制」附註：淡色塊＋可選文字章 `label`（`tone="hold"`＝延賽・保留紅字章）＋原句 | 不用 emoji 圖示 |
+| `.pm-st--sample` | 樣本／推算／未定案的外框淡字章 | — |
+| `DependencyMark`（`.pm-dep`） | 虛線小方塊＝這個呈現需要後續資料支援（例：首頁賽中格的球數） | — |
+
+**郵戳元件（`components/postmark.tsx`，#218）**：`Postmark`（日期＋球場，大 76／中 64／小 52px；只蓋在首頁票根與賽況頁頂，選手頁不蓋）、`Serial`（場次・開打時間・補賽；缺值不出現）、`Scoreline`（全站唯一比分元件：勝方只加粗不放大，`stack`＝窄欄兩層式）、`GameSituation`（壘包＋B/S/O 燈；無球數來源時只畫 O 列）。
 
 ### 3.3 感知效能三態（原則 8，全站統一）
 
@@ -245,19 +230,19 @@
 ## 4. 導覽・切換・選擇語彙（決策樹）
 
 > 分兩族：**切換族**（在少量已知選項間切換＝Tab/Segment，§4.1）與**選擇族**（從較多離散值/大集合中挑選＝Select/Menu/Combobox，§4.2）。球員頁的 tab 已是精修基準；本節把**其他頁會用到的選擇型控制**一併 codify，並把尚未建置的**混合下拉**列為 proposed（§4.3）。
-> 統一鐵則：**active＝`bg-ink text-paper`（pill/group）或 `border-ink font-semibold`（underline），禁 `text-white`；觸控 `min-h-11`(44px)；overlay 一律 Esc + 點外部關閉、關閉後焦點歸還觸發鈕**。
+> 統一鐵則（#218）：**一級頁籤＝band 色塊帶，選中＝卡面色塊＋粗體＋上緣 3px 石油藍，下接同色 tabpanel；二級／分段／情境切換＝band 軌道，選中＝`bg-ink text-paper`**，禁 `text-white`；觸控 `min-h-11`(44px)；overlay 一律 Esc + 點外部關閉、關閉後焦點歸還觸發鈕**。
 
 ### 4.1 切換族：Tab / Segment 四語彙（現況，依 a11y 語意分工）
 
 | 語彙 | 元件 | 何時用 | active 態 | a11y |
 |---|---|---|---|---|
-| **階層雙層** | `HierarchicalTabs` + `ContextSwitcher` | 頁內雙層資料範圍（scope + view，如球員頁本季/生涯 × 總覽/逐球/…） | group `bg-ink text-paper`；item `border-b-2 border-ink` | group（`aria-pressed`）+ tablist（`role=tab`）分離語意 |
-| **情境切換** | `ContextSwitcher` | 情境軸（身分打/投、層級一/二軍），segmented 膠囊 | `bg-surface text-ink shadow-sm`（凸起感） | `role=group` + `aria-pressed` |
-| **單層分頁** | `Tabs` | 單層 server-rendered 內容分頁（資料已在 props，切換不打 API） | pill `bg-ink text-paper` | `role=tablist/tab` |
+| **階層雙層** | `HierarchicalTabs` + `ContextSwitcher` | 頁內雙層資料範圍（scope + view，如球員頁本季/生涯 × 總覽/逐球/…） | group＝一級頁籤（卡面＋上緣石油藍）；item＝分段 `bg-ink text-paper` | group（`aria-pressed`）+ tablist（`role=tab`）分離語意 |
+| **情境切換** | `ContextSwitcher` | 情境軸（身分打/投、層級一/二軍），分段切換 | `bg-ink text-paper` | `role=group` + `aria-pressed` |
+| **單層分頁** | `Tabs`／`MainTabs` | 單層內容分頁 | 一級頁籤（卡面＋上緣石油藍）＋ `role=tabpanel` | `role=tablist/tab/tabpanel`，方向鍵切換 |
 | **路由切換 nav** | `level-year-nav`（`RankRoleTabs` 已由 `RankNav` 的 group 取代，UX-NAV-INTEGRATE1） | 跨路由導覽（年度/層級；`/batters ↔ /pitchers` 走 `RankNav` group），保留 query 脈絡 | pill `bg-ink text-paper` | `aria-current="page"`（連結非 tab） |
 
 > 選項多寡準則：**切換族適用 ~2–5 個選項**且需常駐可見；超過或值域大 → 改用選擇族（§4.2）。
-> **⚠️ open item（待查核裁定）**：`ContextSwitcher` active 用 `bg-surface text-ink shadow-sm`（而非通則 `bg-ink text-paper`）——segmented 凸起慣例，**現況如此**，誠實描述而非強制統一。
+> 原 open item（`ContextSwitcher` 用 `bg-surface text-ink shadow-sm`）已由 #220 依 #218 分段切換語言統一為 `bg-ink text-paper`。
 
 ### 4.2 選擇族：Select / Menu / Combobox（現況，可跨頁重用）
 
@@ -442,7 +427,8 @@
 | 樂天桃猿 `AJL011` | `#8E1537` | R |
 | 台鋼雄鷹 `AKP011` | `#15543C` | T |
 
-- `CPBL_BLUE #1B4DA1`＝聯盟品牌藍（**與 `--color-cpbl` 同值**；聯盟層級用途，非隊色）。
+- `CPBL_BLUE #1B4DA1`＝聯盟品牌藍常數（`--color-cpbl` token 已於 #220 退役，此常數無 UI 使用）。
+- **隊色只用於圖表系列與字母章**；介面上的隊伍圖示一律走 #218 印記（墨色見 `globals.css` `.mk-{隊碼}`，兄弟、統一淺色模式壓深以過 4.5:1）。隊色不作文字色（金、橘在紙色上對比不足）、不鋪頁首大面積。
 - 未知/已解散隊 fallback＝`#94a3b8`（＝`faint` 灰）＋字母 `?`。
 
 ### 9.2 解析三路徑（依資料手上有什麼）
@@ -557,8 +543,10 @@
 | 概念 | canonical owner | 禁 |
 |---|---|---|
 | 卡殼 | `Card`（`.card`） | 手寫 `rounded-xl border border-line` |
-| 隊徽/隊色 | `LetterBadge`/`TeamLogo` + `lib/teams.ts` | 手寫隊色 span、硬編隊色 hex |
-| 場次狀態 | `StatusBadge`（done/warn/live/scheduled） | ad-hoc 狀態 pill、`amber-數字` |
+| 區塊標題 | `SectionTitle` | 眉標、編號、各頁自訂標題字級 |
+| 隊伍圖示 | `TeamLogo`/`TeamIcon`（印記＋字母章）+ `lib/teams.ts` | 手寫隊色 span、隊色鋪底 chip、硬編隊色 hex |
+| 比分／郵戳／序號列／局況 | `Scoreline`／`Postmark`／`Serial`／`GameSituation` | 各頁手刻比分、球數燈 |
+| 場次狀態 | `StatusBadge`（done/warn/live/scheduled） | ad-hoc 狀態 pill、emoji |
 | 載入/空/錯 | `Skeleton`/`EmptyState`/`ErrorState` | ad-hoc「載入中…」字串 |
 | 靜態表 / 排行表 | `DataTable` / `Leaderboard` | 手刻 `<table>`/排序表 |
 | 排行欄型別 | `components/leaderboard.tsx` 的 `type Col`（各頁自備欄陣列） | 各頁自訂表格型別 |
@@ -578,12 +566,12 @@
 
 | 類 | 機制 | token | 用途 |
 |---|---|---|---|
-| 入場 | `animate-fade-in`（`fadeIn`） | `--dur-base` | 內容/圖表進場 |
-| 離場 | `animate-fade-out`（`fadeOut`） | `--dur-fast` | 提示/暫態離場 |
-| 強調 | `animate-bar-grow`（`barGrow`） | `--dur-slow` | 勝率條伸展（狀態揭示） |
+| 更新中 | `.pm-updating::before`（`pm-pulse`） | 1.6s | 賽中狀態章的狀態點緩慢明滅 |
+| 結果揭露 | `.pm-reveal`（`pm-stamp`） | .32s `--ease-out` | 首頁票券在輪詢中轉為終場時郵戳落章一次（首屏已終場不動） |
+| 互動回饋 | 色塊 transition | `--dur-fast` `--ease-out` | 票券、賽果列、表格列、可點卡片滑過換一階色塊 |
+| 開合 | `animate-fade-in`（`fadeIn`） | `--dur-fast` | 行動選單 |
 | 載入 | `animate-pulse`（Skeleton） | — | 三態 skeleton |
-| Hover | `.card-hover-team`（border + `color-mix` 光暈 transition） | `--dur-base`/`--ease-standard` | 隊色卡 hover |
-| 焦點/導覽 | `.skip-link` top transition、sticky nav `backdrop-blur` | `--dur-fast` | 跳轉/黏頂 |
+| 焦點/導覽 | `.skip-link` top transition | `--dur-fast` | 跳轉（頂欄與黏頂導覽為實底，不做毛玻璃） |
 
 > **新動效一律用既有 keyframe 或 `--dur-*`/`--ease-standard` token 組合**；禁新增裝飾性 keyframe、禁無限循環動畫（Skeleton `pulse` 例外）。
 

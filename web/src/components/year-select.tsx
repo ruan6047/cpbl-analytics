@@ -20,7 +20,7 @@ export function YearSelect({ years, value, kind = "A", basePath = "/", params }:
         const qs = p.toString();
         router.push(qs ? `${basePath}?${qs}` : basePath);
       }}
-      className="min-h-11 rounded-lg border border-line bg-surface-2 px-3 py-1 text-sm text-ink focus:border-ink"
+      className="min-h-11 rounded-md border border-line-strong bg-paper px-3 py-1 text-sm text-ink focus:border-accent"
       aria-label="選擇球季年份"
     >
       {years.map((y) => (

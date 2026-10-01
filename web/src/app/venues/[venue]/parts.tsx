@@ -38,7 +38,7 @@ export function pfPhrase(stat: FactorStat, pf: number | null, games: number, low
   return `${FACTOR_LABEL[stat]}產出${d > 0 ? "高" : "低"}於同隊他場基準 ${Math.round(Math.abs(d) * 100)}%${tail}`;
 }
 
-/** PF 發散長條：中心＝1.00（同隊他場基準），右紅＝放大、左藍＝壓制。 */
+/** PF 發散長條：中心＝1.00（同隊他場基準），右紅（down）＝放大、左藍（up）＝壓制。 */
 export function PfBar({ stat, f, lowSample }: {
   stat: FactorStat;
   f: Factors[FactorStat];
@@ -58,7 +58,7 @@ export function PfBar({ stat, f, lowSample }: {
         <div className="absolute inset-y-0 left-1/2 w-px bg-line-strong" aria-hidden />
         {pf != null && (
           <div
-            className={`absolute inset-y-0.5 rounded-sm ${amplify ? "bg-accent" : "bg-cpbl"} ${lowSample ? "opacity-40" : ""}`}
+            className={`absolute inset-y-0.5 rounded-sm ${amplify ? "bg-down" : "bg-up"} ${lowSample ? "opacity-40" : ""}`}
             style={amplify
               ? { left: "50%", width: `${half}%` }
               : { right: "50%", width: `${half}%` }}
@@ -75,11 +75,11 @@ export function PfBar({ stat, f, lowSample }: {
   );
 }
 
-/** 低樣本旗標（契約要求可見）。走 amber 警示 token，與延賽/二軍等次級狀態同語彙。 */
+/** 低樣本旗標（契約要求可見）。#218 樣本限制用外框淡字章（.pm-st--sample）。 */
 export const LowSample = ({ className = "" }: { className?: string }) => (
   <span
     title="樣本不足（單季 <30 場、合併 <60 場的估計基礎），數值波動大"
-    className={`rounded bg-amber/15 px-1.5 py-0.5 text-[10px] font-medium text-amber ${className}`}
+    className={`pm-st pm-st--sample pm-st--sm ${className}`}
   >
     樣本少
   </span>
@@ -95,7 +95,7 @@ export function VsLeague({ value, league, fmt, invert = false }: {
   if (value == null) return <span className="text-faint">—</span>;
   const d = league == null ? null : value - league;
   const tone = d == null || Math.abs(d) < 1e-9 ? "text-faint"
-    : (d > 0) !== invert ? "text-accent" : "text-up";
+    : (d > 0) !== invert ? "text-down" : "text-up";
   return (
     <span className="inline-flex items-baseline gap-1">
       <span className="font-mono tabular-nums text-ink">{fmt(value)}</span>

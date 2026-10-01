@@ -140,7 +140,7 @@ export function PlateDisciplineBars({ points }: { points: HPoint[] }) {
       {/* 表頭：「揮 | 不揮」對齊長條中線（= 分界線）*/}
       <div className="mb-1.5 flex items-center gap-2 text-[11px] text-muted">
         <span className="w-16 shrink-0" />
-        <span className="flex-1 text-center"><span className="text-accent font-medium">揮</span> <span className="text-faint">|</span> 不揮</span>
+        <span className="flex-1 text-center"><span className="font-bold text-ink">揮</span> <span className="text-faint">|</span> 不揮</span>
         <span className="w-10 shrink-0" />
       </div>
       <div className="space-y-2.5">

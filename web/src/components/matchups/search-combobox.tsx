@@ -151,7 +151,7 @@ export default function SearchCombobox({
           className="absolute left-0 right-0 top-full z-20 mt-1 max-h-72 overflow-auto rounded-lg border border-line bg-surface py-1 shadow-lg"
         >
           {status === "loading" && <li className="px-3 py-2 text-sm text-faint">搜尋中…</li>}
-          {status === "error" && <li className="px-3 py-2 text-sm text-accent">搜尋失敗，請重試</li>}
+          {status === "error" && <li className="px-3 py-2 text-sm text-down">搜尋失敗，請重試</li>}
           {status === "ready" && hits.length === 0 && (
             <li className="px-3 py-2 text-sm text-faint">無符合的球員</li>
           )}

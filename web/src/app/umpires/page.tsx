@@ -51,7 +51,7 @@ export default function UmpiresPage() {
   return (
     <div>
       <header className="mb-6">
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink">裁判索引</h1>
+        <h1 className="text-[24px] font-bold leading-tight tracking-[0.04em] text-ink md:text-[26px]">裁判索引</h1>
         <p className="mt-1.5 text-sm text-muted">
           本季主審執法場次與逐球追蹤覆蓋，可進入個人執法紀錄。這是中性索引，
           <b className="font-semibold text-ink">非優劣排行</b>：依執法場次排序，不評判好壞球判決準確度。

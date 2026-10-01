@@ -61,7 +61,7 @@ export function SabrSection({ id, role }: { id: string; role: Role }) {
 
   return (
     <section className="mb-8">
-      <h2 className="mb-1 text-lg font-semibold">
+      <h2 className="mb-1 text-lg font-bold tracking-[0.04em]">
         進階指標 <span className="text-xs font-normal text-faint">（RE24／wSB 推算・一軍例行）</span>
       </h2>
       <p className="mb-3 text-xs text-faint">

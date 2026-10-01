@@ -99,7 +99,7 @@ export function CoachGrid({ coaches, color }: { coaches: Coach[]; color: string 
   if (coaches.length === 0) return null;
   return (
     <section>
-      <h2 className="mb-1 text-lg font-semibold">現役教練團</h2>
+      <h2 className="mb-1 text-lg font-bold tracking-[0.04em]">現役教練團</h2>
       <p className="mb-3 text-[11px] text-faint">官方現役教練名單（一軍）；總教練居首。</p>
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
         {coaches.map((co) => (
@@ -130,7 +130,7 @@ export function ManagersTable({ managers }: { managers: Manager[] }) {
   if (managers.length === 0) return null;
   return (
     <section>
-      <h2 className="mb-1 text-lg font-semibold">歷任總教練</h2>
+      <h2 className="mb-1 text-lg font-bold tracking-[0.04em]">歷任總教練</h2>
       <p className="mb-3 text-[11px] text-faint">名單來源：中文維基百科各球隊條目；前球員姓名可點入球員頁。<span className="text-accent">勝-和-敗</span>於該年無換帥／代理時以本站逐場一軍資料重算（維基數據常滯後當季）；有中途換帥的年度沿用維基拆分。部分球隊維基無此表故未列。</p>
       <DataTable
         columns={[
@@ -154,7 +154,7 @@ export function RetiredNumbers({ retired, color }: { retired: RetiredNumber[]; c
   if (retired.length === 0) return null;
   return (
     <section>
-      <h2 className="mb-1 text-lg font-semibold">退休背號</h2>
+      <h2 className="mb-1 text-lg font-bold tracking-[0.04em]">退休背號</h2>
       <p className="mb-3 text-[11px] text-faint">資料來源：中文維基百科各球隊條目；球迷／球團背號不附球員。已恢復使用者淡化標示。</p>
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
         {retired.map((r) => {

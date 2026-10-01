@@ -67,7 +67,7 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
     <div className="space-y-8">
       <header>
         <Link href="/venues" className="text-xs text-faint hover:text-accent">← 球場</Link>
-        <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-ink">{name}</h1>
+        <h1 className="mt-1 text-[24px] font-bold leading-tight tracking-[0.04em] text-ink md:text-[26px]">{name}</h1>
         {/* 刻意不顯示 venue_dim 的「一軍使用年份」：該欄以場名 GROUP BY，未歸一歷史別名
             （樂天桃園 2022 起才算，2010–2021 的「桃園」682 場不計）→ 會與本頁資料範圍打架。
             本頁一律只講「有資料背書的涵蓋範圍」。 */}
@@ -82,7 +82,7 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
         </div>
         {spec && (
           <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
-            {spec.indoor && <span className="rounded-full bg-cpbl/10 px-2 py-0.5 font-medium text-cpbl">室內</span>}
+            {spec.indoor && <span className="pm-tag">室內</span>}
             {spec.turf && (
               <span className="rounded-full bg-line/60 px-2 py-0.5 text-muted">
                 {spec.turf === "artificial" ? "人工草皮" : "天然草皮"}
@@ -90,7 +90,7 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
             )}
             {spec.big_screen && <span className="rounded-full bg-line/60 px-2 py-0.5 text-muted">大螢幕</span>}
             {spec.home_teams && (
-              <span className="rounded-full bg-accent/10 px-2 py-0.5 font-medium text-accent">{spec.home_teams} 主場</span>
+              <span className="pm-tag !whitespace-normal">{spec.home_teams} 主場</span>
             )}
           </div>
         )}
@@ -118,7 +118,7 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
                       <div key={label} className="flex items-center gap-2 text-[11px]">
                         <span className="w-10 shrink-0 whitespace-nowrap text-faint">{label}</span>
                         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-line/60">
-                          <div className="h-full rounded-full bg-accent/70" style={{ width: `${(ft / 410) * 100}%` }} />
+                          <div className="h-full rounded-full bg-muted" style={{ width: `${(ft / 410) * 100}%` }} />
                         </div>
                         <span className="w-12 text-right font-mono tabular-nums text-muted">{ft} 呎</span>
                       </div>
@@ -146,8 +146,7 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
       {/* 打擊環境：球場逐年 vs 聯盟同年 */}
       {stats && stats.seasons.length > 0 && (
         <section>
-          <Eyebrow className="mb-1">打擊環境</Eyebrow>
-          <h2 className="mb-1 text-lg font-semibold">逐年打擊數據（小字＝與聯盟同年差）</h2>
+          <h2 className="mb-1 text-lg font-bold tracking-[0.04em]">逐年打擊數據（小字＝與聯盟同年差）</h2>
           <p className="mb-3 text-sm text-muted">
             此球場所有出賽選手的合計，非球隊成績；差值僅為對照，未控制出賽球隊組成（控制後的結果見上方 Park Factor）。
           </p>
@@ -164,20 +163,19 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
       {/* 選手極端表現（生涯口徑，含 2018 以前）*/}
       {(showBat || showPit) && (
         <section>
-          <Eyebrow className="mb-1">選手表現差距</Eyebrow>
-          <h2 className="mb-1 text-lg font-semibold">在此球場與自身生涯基準差距最大的選手</h2>
+          <h2 className="mb-1 text-lg font-bold tracking-[0.04em]">在此球場與自身生涯基準差距最大的選手</h2>
           <p className="mb-2 text-sm text-muted">
             差距＝該球場成績減去自身生涯成績，屬<span className="font-semibold text-ink">描述性統計</span>，
             不代表選手適應或不適應此球場——樣本仍小，且未控制對戰投手、年份與傷勢。請一併看樣本欄（PA／IP）。
           </p>
           <p className="mb-3 text-[11px] text-faint">
-            全頁色規則：<span className="font-medium text-accent">紅＝高於基準</span>、
+            全頁色規則：<span className="font-medium text-down">紅＝高於基準</span>、
             <span className="font-medium text-up">藍＝低於基準</span>（僅表方向，不含好壞；投手 ERA 越低越好，故藍色為佳）。
           </p>
           <div className="grid gap-4 lg:grid-cols-2">
             {bat && batSplit && showBat && (
               <Card>
-                <h3 className="mb-2 text-sm font-semibold text-ink">
+                <h3 className="mb-2 text-sm font-bold text-ink">
                   打者 <span className="font-normal text-faint">（生涯在此 ≥ {bat.thresholds.min_pa} PA）</span>
                 </h3>
                 <ExtremeTable rows={batSplit.top} columns={batColumns} title="OPS 高於自身生涯" />
@@ -186,7 +184,7 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
             )}
             {pit && pitSplit && showPit && (
               <Card>
-                <h3 className="mb-2 text-sm font-semibold text-ink">
+                <h3 className="mb-2 text-sm font-bold text-ink">
                   投手 <span className="font-normal text-faint">（生涯在此 ≥ {(pit.thresholds.min_outs / 3).toFixed(0)} 局）</span>
                 </h3>
                 <ExtremeTable rows={pitSplit.top} columns={pitColumns} title="ERA 優於自身生涯" />
@@ -227,7 +225,7 @@ function ParkFactors({ factors }: { factors: VenueFactorsResponse }) {
         cell: (r) => {
           const pf = r.factors[s].pf;
           if (pf == null) return <span className="text-faint">—</span>;
-          const tone = Math.abs(pf - 1) < 0.03 ? "text-muted" : pf > 1 ? "text-accent" : "text-up";
+          const tone = Math.abs(pf - 1) < 0.03 ? "text-muted" : pf > 1 ? "text-down" : "text-up";
           return <span className={`${tone} ${r.low_sample ? "opacity-60" : ""}`}>{pf.toFixed(2)}</span>;
         },
       }),
@@ -236,8 +234,7 @@ function ParkFactors({ factors }: { factors: VenueFactorsResponse }) {
 
   return (
     <section>
-      <Eyebrow className="mb-1">球場數據特色</Eyebrow>
-      <h2 className="mb-1 text-lg font-semibold">Park Factor（主客對照法）</h2>
+      <h2 className="mb-1 text-lg font-bold tracking-[0.04em]">Park Factor（主客對照法）</h2>
       <p className="mb-3 text-sm text-muted">
         {factors.method_note}
         <br />
@@ -246,7 +243,7 @@ function ParkFactors({ factors }: { factors: VenueFactorsResponse }) {
 
       <Card className="mb-4">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <h3 className="text-sm font-semibold text-ink">
+          <h3 className="text-sm font-bold text-ink">
             合併 {factors.from_year}–{factors.to_year}
             <span className="ml-2 font-normal text-faint">{p.games} 場</span>
           </h3>
@@ -273,7 +270,7 @@ function ParkFactors({ factors }: { factors: VenueFactorsResponse }) {
         )}
       </Card>
 
-      <h3 className="mb-2 text-sm font-semibold text-ink">逐季（PF &gt; 1＝放大該事件）</h3>
+      <h3 className="mb-2 text-sm font-bold text-ink">逐季（PF &gt; 1＝放大該事件）</h3>
       <DataTable columns={seasonCols} rows={factors.seasons} rowKey={(r) => r.year} dense />
     </section>
   );
@@ -332,7 +329,7 @@ function ExtremeTable<T>({ rows, columns, title, className = "" }: {
 // 全頁單一色規則：紅＝高於基準、藍＝低於基準（純方向，不含好壞判斷——好壞隨角色而異，
 // 投手 ERA 越低越好）。與 PF 長條、聯盟對照同一條軸，避免紅色在同頁有兩種意思。
 const delta = (v: number, digits: 2 | 3) => (
-  <span className={v > 0 ? "text-accent" : v < 0 ? "text-up" : "text-faint"}>
+  <span className={v > 0 ? "text-down" : v < 0 ? "text-up" : "text-faint"}>
     {v > 0 ? "+" : "−"}
     {Math.abs(v).toFixed(digits).replace(/^0\./, ".")}
   </span>

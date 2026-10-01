@@ -20,7 +20,7 @@ export function RoleCell({ id, name, badge, stat }: RosterCell) {
     // 整格卡片維持可點（hover 底色＋focus 外框不變），ENTITY_LINK 視覺只套姓名文字；
     // inline-block 讓底線貼齊文字寬度而非橫跨整格。
     <Link href={`/players/${id}`}
-      className="group flex items-stretch overflow-hidden rounded-md border border-line-strong bg-surface transition hover:bg-accent/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent">
+      className="group flex items-stretch overflow-hidden rounded-md border border-line-strong bg-surface transition hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent">
       <span className="flex w-8 shrink-0 items-center justify-center border-r border-line font-mono text-[9px] font-semibold text-muted">{badge}</span>
       <span className="min-w-0 flex-1 px-2 py-1 leading-tight">
         <span className={`inline-block max-w-full truncate align-bottom text-[11px] font-medium ${ENTITY_LINK_TEXT}`}>{name ?? "—"}</span>

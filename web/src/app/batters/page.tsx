@@ -1,7 +1,7 @@
 import { AwardRaces, type Cat } from "@/components/award-races";
 import Leaderboard, { type Col } from "@/components/leaderboard";
 import { RankNav, type RankView } from "@/components/rank-nav";
-import { Eyebrow } from "@/components/ui";
+import { SectionTitle } from "@/components/postmark";
 import { api } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -58,9 +58,9 @@ export default async function BattersPage({ searchParams }: { searchParams: Prom
   return (
     <div>
       <header className="mb-6">
-        <Eyebrow className="mb-2">排行中心・打者</Eyebrow>
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink">{season} 球季 · {kind === "D" ? "二軍" : ""}打者排行</h1>
-        <p className="mt-1.5 text-sm text-muted">
+        {/* #218：取消眉標（原「排行中心・打者」），標題自己承載；年度與層級寫在標題後。 */}
+        <SectionTitle as="h1" date={season} cue={kind === "D" ? "二軍" : "一軍"}>打者排行</SectionTitle>
+        <p className="-mt-1 text-sm text-muted">
           {kind === "D" || !isCurrent ? "由逐場/逐年成績彙整（二軍逐打席自 2018 起）。" : "全名單本季打者。"}
           預設顯示主要欄位，點「完整欄位」看全部；點欄位標題排序（再點一次反向），可依球隊篩選。
         </p>
@@ -73,8 +73,7 @@ export default async function BattersPage({ searchParams }: { searchParams: Prom
           note={`規定打席約 ${qual}（打擊率/OPS 套用）。`} />
       ) : (
         <section aria-labelledby="batting-leaderboard">
-          <Eyebrow className="mb-2">完整排名・共 {items.length} 人</Eyebrow>
-          <h2 id="batting-leaderboard" className="sr-only">打者完整排名</h2>
+          <SectionTitle as="h2" size="sm" id="batting-leaderboard" cue={`共 ${items.length} 人`}>完整排名</SectionTitle>
           <Leaderboard
             rows={items}
             cols={COLS}

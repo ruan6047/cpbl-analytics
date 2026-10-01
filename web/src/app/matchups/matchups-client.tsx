@@ -122,7 +122,7 @@ export default function MatchupsClient() {
   return (
     <div>
       <header className="mb-6">
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink">投打對決</h1>
+        <h1 className="text-[24px] font-bold leading-tight tracking-[0.04em] text-ink md:text-[26px]">投打對決</h1>
         <p className="mt-1.5 text-sm text-muted">
           搜尋一位球員，查他對特定球隊或特定{role === "batting" ? "投手" : "打者"}
           的歷史對戰樣本與基礎實績；通過統計閘門時，另以加值卡標示值得注意的對位。

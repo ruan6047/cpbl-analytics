@@ -82,7 +82,7 @@ export function BestSeasonGrid({ items }: { items: { label: string; value: strin
   if (!items.length) return null;
   return (
     <section className="mb-6">
-      <h2 className="mb-3 text-lg font-semibold text-ink">最佳單季</h2>
+      <h2 className="mb-3 text-lg font-bold tracking-[0.04em] text-ink">最佳單季</h2>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {items.map((b) => (
           <div key={b.label} className="card flex flex-col items-center p-4 text-center">

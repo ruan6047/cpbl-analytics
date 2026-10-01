@@ -109,11 +109,11 @@ export function TeamStyleSection({ data, defaultYear }: {
 
   return (
     <section>
-      <h2 className="mb-1 flex flex-wrap items-center gap-2 text-lg font-semibold">
+      <h2 className="mb-1 flex flex-wrap items-center gap-2 text-lg font-bold tracking-[0.04em]">
         {S.title}
         <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-muted">{S.scopeBadge}</span>
         {season?.in_progress && (
-          <span className="rounded bg-amber/10 px-1.5 py-0.5 text-[10px] font-medium text-amber">{S.inProgressBadge}</span>
+          <span className="pm-st pm-st--sample pm-st--sm">{S.inProgressBadge}</span>
         )}
       </h2>
       <p className="mb-3 text-[11px] text-faint">{S.subtitle}</p>
@@ -154,7 +154,7 @@ export function TeamStyleSection({ data, defaultYear }: {
             {/* 軸明細：raw＋聯盟排名＋語意標注 */}
             <div className="rounded-md bg-surface p-4 lg:col-span-3">
               <div className="mb-1 flex items-baseline gap-2">
-                <h3 className="text-sm font-semibold text-ink">{S.detailHeading}</h3>
+                <h3 className="text-sm font-bold text-ink">{S.detailHeading}</h3>
                 <span className="text-[10px] text-faint">{S.detailCaption}</span>
               </div>
               <ul className="divide-y divide-line">
@@ -190,7 +190,7 @@ export function TeamStyleSection({ data, defaultYear }: {
           {/* 歷史逐季：單軸原始值折線＋聯盟平均參考線＋教練時間標記（約束 2：分段維持逐季） */}
           <div className="rounded-md bg-surface p-4">
             <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              <h3 className="text-sm font-semibold text-ink">{S.historyHeading}</h3>
+              <h3 className="text-sm font-bold text-ink">{S.historyHeading}</h3>
               <span className="text-[10px] text-faint">{rawMode ? S.historyCaption : S.historyCaptionZ}</span>
             </div>
             <div className="mb-2 flex flex-wrap gap-1.5" role="group" aria-label={S.axisSelectorLabel}>

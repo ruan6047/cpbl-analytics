@@ -458,7 +458,7 @@ export default function MatchupExplorer({
         <>
           <section aria-labelledby={headingId}>
             <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <h2 id={headingId} className="text-lg font-bold text-ink">
+              <h2 id={headingId} className="text-lg font-bold tracking-[0.04em] text-ink">
                 {subjectName ?? "…"}：對戰{oppLabel}基礎實績
               </h2>
               <span className="text-sm text-muted">

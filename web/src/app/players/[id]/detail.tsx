@@ -40,14 +40,14 @@ export function SplitsSection({ id, role, seasonKind, scope }: {
   return (
     <section className="mb-6">
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        <h2 className="text-lg font-semibold text-ink">分項明細</h2>
+        <h2 className="text-lg font-bold tracking-[0.04em] text-ink">分項明細</h2>
         {scope === "career" && (
           <div className="inline-flex flex-wrap gap-2">
             {([["A", "例行賽"], ["C", "總冠軍"], ["E", "季後賽"]] as const).map(([k, label]) => {
               const on = kinds.includes(k);
               return (
                 <button key={k} onClick={() => setKinds(on ? (kinds.length > 1 ? kinds.filter((x) => x !== k) : kinds) : [...kinds, k])}
-                  className={`rounded-full px-3 py-1 text-xs transition ${on ? "bg-accent text-white" : "bg-surface-2 text-muted hover:text-ink"}`}>
+                  className={`rounded-full px-3 py-1 text-xs transition ${on ? "bg-ink font-bold text-paper" : "bg-surface-2 text-muted hover:text-ink"}`}>
                   {label}
                 </button>
               );
@@ -86,7 +86,7 @@ export function SplitsSection({ id, role, seasonKind, scope }: {
 export function CareerYearlySection({ career, role }: { career: StatRow[] | null; role: Role }) {
   return (
     <section className="mb-6">
-      <h2 className="mb-3 text-lg font-semibold text-ink">生涯逐年</h2>
+      <h2 className="mb-3 text-lg font-bold tracking-[0.04em] text-ink">生涯逐年</h2>
       {career === null ? <TableSkeleton rows={5} cols={role === "batting" ? 10 : 9} />
         : career.length === 0 ? <EmptyState>無生涯逐年紀錄（來源 cpbl-opendata 不含當季）。</EmptyState>
         : <CareerTable seasons={career} role={role} />}

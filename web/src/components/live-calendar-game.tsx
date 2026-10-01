@@ -79,7 +79,7 @@ export function LiveCalendarGame({ game, variant }: { game: CalendarGame; varian
   );
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg bg-surface-2/30 p-3" aria-live="polite">
+    <div className="flex flex-col gap-2 rounded-sm bg-surface-2 p-3" aria-live="polite">
       <div className="flex items-center justify-between">
         <StatusBadge tone={toneOf(phase)}>{label}</StatusBadge>
         {game.venue && <span className="text-[10px] text-faint">{game.venue}</span>}

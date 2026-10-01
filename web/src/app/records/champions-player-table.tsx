@@ -50,7 +50,7 @@ const columns: Column<ChampRow>[] = [
     // 一律顯示「教練」（皆已非現役球員），否則依球員現役/退役。
     header: "現況",
     cell: (r) =>
-      r.isManager ? <Pill tone="muted" className="!bg-accent/15 !text-accent">教練</Pill>
+      r.isManager ? <Pill tone="up">教練</Pill>
         : r.active ? <ActivePill />
           : <Pill tone="muted">退役</Pill>,
     align: "center",

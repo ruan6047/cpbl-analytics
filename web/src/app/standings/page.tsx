@@ -3,6 +3,7 @@ import { ENTITY_LINK_TEXT, StatAbbr, TeamBadge, TeamLogo, divBg, prColor } from 
 import { DataTable, type Column } from "@/components/table";
 import { StandingsTrend } from "@/components/standings-trend";
 import { StandingsNav } from "./nav";
+import { SectionTitle } from "@/components/postmark";
 import { api } from "@/lib/api";
 import type { OfficialStanding, OfficialStandingsResponse, SpecialRecord, WL } from "@/lib/api";
 import { teamPageCode, teamShort } from "@/lib/teams";
@@ -79,7 +80,7 @@ function SpecialCompareTable({ rows, sp }: { rows: OfficialStanding[]; sp: Map<s
   ];
   return (
     <section className="mb-6">
-      <h3 className="mb-2 text-sm font-semibold text-ink">
+      <h3 className="mb-2 text-sm font-bold text-ink">
         特殊戰績對照
         <span className="ml-2 text-[11px] font-normal text-faint">高訊號隊級戰績跨隊比較；更多細項見各隊球隊頁</span>
       </h3>
@@ -103,7 +104,7 @@ function MonthsTable({ rows, sp }: { rows: OfficialStanding[]; sp: Map<string, S
   ];
   return (
     <section className="mb-6">
-      <h3 className="mb-2 text-sm font-semibold text-ink">月份趨勢</h3>
+      <h3 className="mb-2 text-sm font-bold text-ink">月份趨勢</h3>
       <DataTable columns={columns} rows={rows} rowKey={(t) => t.team_code} dense />
     </section>
   );
@@ -122,8 +123,8 @@ function StreakBadge({ streak }: { streak: string | null }) {
   if (!streak) return null;
   const win = streak.startsWith("勝");
   const lose = streak.startsWith("敗");
-  const cls = win ? "bg-up/15 text-up" : lose ? "bg-down/15 text-down" : "bg-surface-2 text-muted";
-  return <span className={`ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${cls}`}>{streak}</span>;
+  const cls = win ? "text-up" : lose ? "text-down" : "text-muted";
+  return <span className={`ml-1 text-xs font-bold tabular-nums ${cls}`}>{streak}</span>;
 }
 
 // 近十場（資料格式 'W-T-L'，如 '3-0-7'）：W-L 文字 + 勝率迷你條（數字不裸列）。
@@ -167,10 +168,9 @@ function TeamNameCell({ code, name }: { code: string; name: string }) {
     : inner(false);
 }
 
-// 勝差標籤（取代獨立欄）：領先隊不顯示；落後隊以中性 chip 呈現
-function GbTag({ gb }: { gb: number | null }) {
-  if (!gb) return null;
-  return <span className="ml-1.5 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted" title="勝差 Games Behind">-{gb}</span>;
+// 勝差欄（#218 戰績主表：排名、勝-和-敗、勝率、勝差、近十場）：領先隊寫「—」。
+function gbText(gb: number | null): string {
+  return gb ? gb.toFixed(1) : "—";
 }
 
 // 淘汰指數（魔術數字）是否已「點亮」：官方僅在賽季末段（剩餘場次逼近淘汰指數）才填值。
@@ -187,7 +187,7 @@ function ElimTag({ elim }: { elim: string | null }) {
   if (eliminated) {
     return (
       <span
-        className="ml-1.5 rounded bg-down/15 px-1.5 py-0.5 text-[10px] font-semibold text-down"
+        className="pm-st pm-st--hold pm-st--sm"
         title="已淘汰：本區間無法取得季後賽資格"
       >
         E
@@ -196,7 +196,7 @@ function ElimTag({ elim }: { elim: string | null }) {
   }
   return (
     <span
-      className="ml-1.5 rounded bg-amber/15 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-amber"
+      className="pm-tag font-bold tabular-nums !text-ink"
       title="魔術數字（M）：再拿下幾場即確保晉級"
     >
       M{elim}
@@ -213,7 +213,7 @@ function TeamStatsTable({ rows }: { rows: OfficialStanding[] }) {
   ];
   return (
     <section className="mb-6">
-      <h3 className="mb-2 text-sm font-semibold text-ink">主客場</h3>
+      <h3 className="mb-2 text-sm font-bold tracking-[0.04em] text-ink">主客場</h3>
       <DataTable columns={columns} rows={rows} rowKey={(t) => t.team_code} dense />
     </section>
   );
@@ -234,7 +234,7 @@ function H2HTable({ rows }: { rows: OfficialStanding[] }) {
   ];
   return (
     <section className="mb-6">
-      <h3 className="mb-2 text-sm font-semibold text-ink">對戰各隊</h3>
+      <h3 className="mb-2 text-sm font-bold tracking-[0.04em] text-ink">對戰各隊</h3>
       <DataTable columns={columns} rows={rows} rowKey={(t) => t.team_code} dense />
     </section>
   );
@@ -288,21 +288,21 @@ function SeriesCard({ title, format, sideA, sideB, games = [], needed, crownWinn
             <span className="min-w-0">
               <span className="flex items-center gap-1 text-sm font-medium text-ink">
                 <span className="truncate">{s.code ? displayTeamName(nameOf(s.code)) : "挑戰賽勝隊"}</span>
-                {crownWinner && isWin && <span title="年度總冠軍">🏆</span>}
+                {crownWinner && isWin && <span className="pm-tag font-bold !text-ink" title="年度總冠軍">總冠軍</span>}
               </span>
-              <span className="block text-[10px] text-faint">{s.seed}</span>
+              <span className="block text-[11px] text-muted">{s.seed}</span>
             </span>
           </div>
         </td>
         {anyHandicap && (
-          <td className={`px-1 text-center font-mono text-xs tabular-nums ${s.handicap ? "font-bold text-up" : "text-faint"}`}>
+          <td className={`px-1 text-center font-mono text-xs tabular-nums ${s.handicap ? "font-bold text-ink" : "text-faint"}`}>
             {s.handicap ? 1 : "·"}
           </td>
         )}
         {games.map((g, i) => {
           const won = s.code != null && gameWinner(g) === s.code;
           return (
-            <td key={i} className={`px-1 text-center font-mono text-xs tabular-nums ${won ? "font-bold text-up" : "text-faint"}`}>
+            <td key={i} className={`px-1 text-center font-mono text-xs tabular-nums ${won ? "font-black text-ink" : "text-faint"}`}>
               {s.code ? runsOf(g, s.code) : "—"}
             </td>
           );
@@ -317,12 +317,12 @@ function SeriesCard({ title, format, sideA, sideB, games = [], needed, crownWinn
   return (
     <div className="overflow-x-auto rounded-md bg-surface p-3">
       <div className="mb-2 flex items-baseline justify-between">
-        <span className="text-sm font-semibold text-ink">{title}</span>
-        <span className="text-[10px] font-medium text-faint">{format}</span>
+        <span className="text-sm font-bold text-ink">{title}</span>
+        <span className="text-[11px] font-medium text-muted">{format}</span>
       </div>
       <table className="w-full border-collapse">
         <thead>
-          <tr className="text-[10px] text-faint">
+          <tr className="bg-band text-[11px] text-muted">
             <th />
             {anyHandicap && <th className="px-1 font-medium" title="依規則先勝 1 場">讓</th>}
             {games.map((g) => <th key={g.game_no} className="px-1 font-medium">{g.game_no}</th>)}
@@ -377,11 +377,11 @@ function PostseasonBracket({ isCurrent, h0, h1, h2, series }: {
   };
   const heading = (
     <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-      <h2 className="text-lg font-semibold text-ink">季後賽</h2>
+      <h2 className="text-xl font-bold tracking-[0.04em] text-ink">季後賽</h2>
       {projected ? (
-        <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-muted">形勢預測 · 未定案</span>
+        <span className="pm-st pm-st--sample">形勢預測・未定案</span>
       ) : (
-        <span className="text-[11px] text-faint">依實際對戰結果</span>
+        <span className="text-[12.5px] text-muted">依實際對戰結果</span>
       )}
     </div>
   );
@@ -435,11 +435,11 @@ function PostseasonBracket({ isCurrent, h0, h1, h2, series }: {
             {chal && !tw && chalSides && <SeriesCard title="季後挑戰賽" format="5 戰 3 勝" sideA={chalSides.a} sideB={chalSides.b} games={chal.games ?? []} needed={3} nameOf={nameOf} />}
           </div>
         )}
-        <p className="mt-3 text-[11px] leading-relaxed text-faint">
+        <p className="mt-3 text-xs leading-relaxed text-muted">
           {chal
             ? "季後挑戰賽勝隊晉級台灣大賽。"
             : "此年度由上、下半季冠軍直接進行台灣大賽（該賽季無季後挑戰賽）。"}
-          {" "}表內數字為各場得分、勝方標色；「讓」欄為依規則先勝 1 場（已計入大比分）。
+          {" "}表內數字為各場得分、勝方加粗；「讓」欄為依規則先勝 1 場（已計入大比分）。
         </p>
       </section>
     );
@@ -473,7 +473,7 @@ function PostseasonBracket({ isCurrent, h0, h1, h2, series }: {
         <div className="hidden items-center justify-center text-2xl text-faint lg:flex" aria-hidden>→</div>
         <SeriesCard title="台灣大賽" format="7 戰 4 勝" sideA={sideBye} sideB={sideTwOpp} games={[]} needed={4} crownWinner nameOf={nameOf} />
       </div>
-      <p className="mt-3 text-[11px] leading-relaxed text-faint">
+      <p className="mt-3 text-xs leading-relaxed text-muted">
         現行制（2022 起）：
         {sameChamp
           ? "同隊包辦上下半季 → 全年 #2、#3 打挑戰賽，勝隊與雙冠隊爭冠（雙冠隊先勝 1 場）。"
@@ -501,8 +501,8 @@ function FarmChampion({ isCurrent, series, standings }: {
   return (
     <section>
       <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="text-lg font-semibold text-ink">二軍總冠軍賽</h2>
-        <span className="text-[11px] text-faint">依實際對戰結果</span>
+        <h2 className="text-xl font-bold tracking-[0.04em] text-ink">二軍總冠軍賽</h2>
+        <span className="text-[12.5px] text-muted">依實際對戰結果</span>
       </div>
       <div className="lg:max-w-xl">
         <SeriesCard
@@ -579,7 +579,7 @@ export default async function Standings({ searchParams }: { searchParams: Promis
   return (
     <div>
       <header className="mb-4">
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink">{season} 球季 · {subtitle}</h1>
+        <SectionTitle as="h1" date={season}>{subtitle}</SectionTitle>
       </header>
 
       {/* 一體式多軸導覽欄（§4.3 A2）：seg 主分頁＋kind/year 右側情境 controls 一列呈現。
@@ -622,26 +622,21 @@ export default async function Standings({ searchParams }: { searchParams: Promis
                         <TeamNameCell code={t.team_code} name={t.team_name} />
                       </span>
                       <span className="inline-flex flex-wrap items-center gap-1 md:justify-start">
+                        {/* #218：🏆👑 改文字身分標籤；連勝敗保留 up／down 語意色。 */}
                         {isChampion && (
-                          <span
-                            title="年度總冠軍（台灣大賽勝隊）"
-                            className="rounded bg-amber px-1.5 py-0.5 text-[10px] font-bold text-paper"
-                          >
-                            🏆 總冠軍
-                          </span>
+                          <span title="年度總冠軍（台灣大賽勝隊）" className="pm-tag font-bold !text-ink">總冠軍</span>
                         )}
                         <StreakBadge streak={t.streak} />
-                        <GbTag gb={t.gb} />
                         <ElimTag elim={t.elim} />
                         {playoffTags.map((tag) => (
-                          <span key={tag} className="rounded bg-amber/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber">{tag}</span>
+                          <span key={tag} className="pm-tag !text-ink">{tag}</span>
                         ))}
                         {t.is_champion && (
                           <span
                             title={`${SEGS.find((s) => s.v === segCode)?.label}冠軍${half?.finalized ? "" : "（提前封王）"}`}
-                            className="ml-1.5 rounded-full bg-amber/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber"
+                            className="pm-tag font-bold !text-ink"
                           >
-                            👑
+                            {SEGS.find((s) => s.v === segCode)?.label}冠軍
                           </span>
                         )}
                       </span>
@@ -659,43 +654,8 @@ export default async function Standings({ searchParams }: { searchParams: Promis
                 cellStyle: (t) => divBg(t.win_pct, pcts),
                 nowrap: true,
               },
+              { header: "勝差", cell: (t) => <span className="tabular-nums">{gbText(t.gb)}</span>, nowrap: true, align: "right" },
               ...(useOfficial ? [{ header: "近十場", cell: (t: OfficialStanding) => <L10 s={t.last10} />, nowrap: true }] : []),
-              {
-                header: <StatAbbr abbr="OPS" />,
-                cell: (t) => {
-                  const v = adv.get(t.team_code)?.ops;
-                  return v == null ? "—" : v.toFixed(3).replace(/^0/, "");
-                },
-                cellStyle: (t) => divBg(adv.get(t.team_code)?.ops, opsVals),
-                className: "hidden text-ink lg:table-cell",
-                headClassName: "hidden lg:table-cell",
-                nowrap: true,
-                align: "right",
-              },
-              {
-                header: <StatAbbr abbr="ERA" />,
-                cell: (t) => {
-                  const v = adv.get(t.team_code)?.era;
-                  return v == null ? "—" : v.toFixed(2);
-                },
-                cellStyle: (t) => divBg(adv.get(t.team_code)?.era, eraVals, true),
-                className: "hidden text-ink lg:table-cell",
-                headClassName: "hidden lg:table-cell",
-                nowrap: true,
-                align: "right",
-              },
-              {
-                header: <StatAbbr abbr="WHIP" />,
-                cell: (t) => {
-                  const v = adv.get(t.team_code)?.whip;
-                  return v == null ? "—" : v.toFixed(2);
-                },
-                cellStyle: (t) => divBg(adv.get(t.team_code)?.whip, whipVals, true),
-                className: "hidden text-ink lg:table-cell",
-                headClassName: "hidden lg:table-cell",
-                nowrap: true,
-                align: "right",
-              },
             ] satisfies Column<OfficialStanding>[]}
             rows={items}
             rowKey={(t) => t.team_code}
@@ -703,7 +663,7 @@ export default async function Standings({ searchParams }: { searchParams: Promis
           />
           {trend && trend.points.length > 0 && (
             <section className="mt-8">
-              <h2 className="mb-1 text-lg font-semibold">戰績走勢</h2>
+              <h2 className="mb-1 text-xl font-bold tracking-[0.04em]">戰績走勢</h2>
               <div className="rounded-md p-4">
                 <StandingsTrend teams={trend.teams} points={trend.points} names={trend.names} />
               </div>
@@ -714,9 +674,33 @@ export default async function Standings({ searchParams }: { searchParams: Promis
               原生 <details> 免 client island、SSR 友善、鍵盤可及。 */}
           <details className="mt-8 rounded-md bg-surface">
             <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-ink marker:text-faint">
-              進階展開：對戰各隊 · 主客場{sp.size > 0 ? " · 特殊戰績對照 · 月份趨勢" : ""}
+              進階展開：團隊攻守・對戰各隊・主客場{sp.size > 0 ? "・特殊戰績對照・月份趨勢" : ""}
             </summary>
-            <div className="border-t border-line px-4 pt-4">
+            <div className="px-4 pt-2">
+              {/* #218 戰績主表精簡：OPS／ERA／WHIP 移到展開區，發散色好／差語意不變 */}
+              <section className="mb-6">
+                <h3 className="mb-2 text-sm font-bold tracking-[0.04em] text-ink">團隊攻守</h3>
+                <DataTable
+                  columns={[
+                    { header: "球隊", cell: (t) => <LinkedTeam code={t.team_code} name={t.team_name} />, nowrap: true, className: "font-sans", sticky: true },
+                    {
+                      header: <StatAbbr abbr="OPS" />,
+                      cell: (t) => { const v = adv.get(t.team_code)?.ops; return v == null ? "—" : v.toFixed(3).replace(/^0/, ""); },
+                      cellStyle: (t) => divBg(adv.get(t.team_code)?.ops, opsVals), className: "text-ink", nowrap: true, align: "right",
+                    },
+                    {
+                      header: <StatAbbr abbr="ERA" />,
+                      cell: (t) => { const v = adv.get(t.team_code)?.era; return v == null ? "—" : v.toFixed(2); },
+                      cellStyle: (t) => divBg(adv.get(t.team_code)?.era, eraVals, true), className: "text-ink", nowrap: true, align: "right",
+                    },
+                    {
+                      header: <StatAbbr abbr="WHIP" />,
+                      cell: (t) => { const v = adv.get(t.team_code)?.whip; return v == null ? "—" : v.toFixed(2); },
+                      cellStyle: (t) => divBg(adv.get(t.team_code)?.whip, whipVals, true), className: "text-ink", nowrap: true, align: "right",
+                    },
+                  ] satisfies Column<OfficialStanding>[]}
+                  rows={items} rowKey={(t) => t.team_code} dense />
+              </section>
               <H2HTable rows={items} />
               <TeamStatsTable rows={items} />
               {sp.size > 0 && <SpecialCompareTable rows={items} sp={sp} />}
@@ -725,7 +709,7 @@ export default async function Standings({ searchParams }: { searchParams: Promis
           </details>
 
           {!isMinor && (
-            <p className="mt-6 text-[11px] leading-relaxed text-faint">
+            <p className="mt-6 text-xs leading-relaxed text-muted">
               進階展開的「特殊戰績對照」列出高訊號隊級戰績跨隊比較；場地／賽況軌跡／對手先發／
               系列賽等更多細項，見各隊球隊頁（點上方球隊名進入）。
             </p>
@@ -734,9 +718,9 @@ export default async function Standings({ searchParams }: { searchParams: Promis
       )}
 
       {(segCode === 1 || segCode === 2) && items.length > 0 && half && (
-        <p className="mt-2 text-[11px] text-faint">
+        <p className="mt-2 text-xs text-muted">
           {half.champion_code
-            ? `👑 ${SEGS.find((s) => s.v === segCode)?.label}冠軍${half.finalized ? "已定案" : "勝場數已無人能追平，提前封王"}。半季冠軍取得季後賽資格；兩半季冠軍中全年勝率較高者保送台灣大賽，另一隊與外卡打季後挑戰賽（同隊包辦上下半季則該隊保送、由全年第 2、3 名爭挑戰賽）。`
+            ? `${SEGS.find((s) => s.v === segCode)?.label}冠軍${half.finalized ? "已定案" : "勝場數已無人能追平，提前封王"}。半季冠軍取得季後賽資格；兩半季冠軍中全年勝率較高者保送台灣大賽，另一隊與外卡打季後挑戰賽（同隊包辦上下半季則該隊保送、由全年第 2、3 名爭挑戰賽）。`
             : "半季冠軍取得季後賽資格；本半季冠軍尚未產生（賽程進行中）。"}
         </p>
       )}

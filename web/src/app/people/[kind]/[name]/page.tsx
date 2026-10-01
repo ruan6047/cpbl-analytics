@@ -92,13 +92,13 @@ function CoachView({ d }: { d: CoachData }) {
     { header: "戰績", cell: (r) => `${r.w}-${r.ties}-${r.l}`, align: "right", nowrap: true },
     { header: "勝率", cell: (r) => (r.win_pct != null ? Number(r.win_pct).toFixed(3).replace(/^0/, "") : "—"), align: "right" },
     { header: "季後賽", cell: (r) => String(r.postseason), align: "right" },
-    { header: "冠軍", cell: (r) => (r.championships ? `🏆×${r.championships}` : "—"), align: "right" },
+    { header: "冠軍", cell: (r) => (r.championships ? `總冠軍 ×${r.championships}` : "—"), align: "right" },
   ];
   return (
     <div>
       <header className="mb-6">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-extrabold tracking-tight text-ink">{d.name}</h1>
+          <h1 className="text-[24px] font-bold leading-tight tracking-[0.04em] text-ink md:text-[26px]">{d.name}</h1>
           {cur && (
             <span className="flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-xs font-semibold text-muted">
               <TeamLogo code={cur.team_code} name={cur.team_name} size={15} decorative />{cur.year} {cur.pos}
@@ -163,7 +163,7 @@ function UmpireView({ d }: { d: UmpData }) {
     <div>
       <header className="mb-6">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-extrabold tracking-tight text-ink">{d.name}</h1>
+          <h1 className="text-[24px] font-bold leading-tight tracking-[0.04em] text-ink md:text-[26px]">{d.name}</h1>
           <span className="rounded-full bg-surface-2 px-2.5 py-1 text-xs font-semibold text-muted">裁判 · {d.season} 球季</span>
         </div>
         <p className="mt-1.5 text-sm text-muted">好壞球判決分布為描述性推算（TrackMan 逐球），僅涵蓋有設備場次；非評判、非官方。</p>

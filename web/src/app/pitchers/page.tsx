@@ -1,7 +1,7 @@
 import { AwardRaces, type Cat } from "@/components/award-races";
 import Leaderboard, { type Col } from "@/components/leaderboard";
 import { RankNav, type RankView } from "@/components/rank-nav";
-import { Eyebrow } from "@/components/ui";
+import { SectionTitle } from "@/components/postmark";
 import { api } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -74,9 +74,9 @@ export default async function PitchersPage({ searchParams }: { searchParams: Pro
   return (
     <div>
       <header className="mb-6">
-        <Eyebrow className="mb-2">排行中心・投手</Eyebrow>
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink">{season} 球季 · {kind === "D" ? "二軍" : ""}投手排行</h1>
-        <p className="mt-1.5 text-sm text-muted">
+        {/* #218：取消眉標（原「排行中心・投手」），標題自己承載；年度與層級寫在標題後。 */}
+        <SectionTitle as="h1" date={season} cue={kind === "D" ? "二軍" : "一軍"}>投手排行</SectionTitle>
+        <p className="-mt-1 text-sm text-muted">
           {kind === "D" || !isCurrent ? "由逐場/逐年成績彙整（二軍逐打席自 2018 起；救援/中繼僅當季與歷年彙總有）。" : "全名單本季投手。"}
           預設顯示主要欄位，點「完整欄位」看全部；點欄位標題排序，可依球隊篩選。
         </p>
@@ -89,8 +89,7 @@ export default async function PitchersPage({ searchParams }: { searchParams: Pro
           note={`規定投球局數約 ${qual}（防禦率/WHIP/K9 套用）。`} />
       ) : (
         <section aria-labelledby="pitching-leaderboard">
-          <Eyebrow className="mb-2">完整排名・共 {rows.length} 人</Eyebrow>
-          <h2 id="pitching-leaderboard" className="sr-only">投手完整排名</h2>
+          <SectionTitle as="h2" size="sm" id="pitching-leaderboard" cue={`共 ${rows.length} 人`}>完整排名</SectionTitle>
           <Leaderboard
             rows={rows}
             cols={COLS}

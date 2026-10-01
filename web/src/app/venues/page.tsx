@@ -17,7 +17,7 @@ function DistBar({ label, ft, max = 410 }: { label: string; ft: number | null; m
     <div className="flex items-center gap-2 text-[11px]">
       <span className="w-10 shrink-0 whitespace-nowrap text-faint">{label}</span>
       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-line/60">
-        <div className="h-full rounded-full bg-accent/70" style={{ width: `${(ft / max) * 100}%` }} />
+        <div className="h-full rounded-full bg-muted" style={{ width: `${(ft / max) * 100}%` }} />
       </div>
       <span className="w-10 text-right font-mono tabular-nums text-muted">{ft} 呎</span>
     </div>
@@ -44,14 +44,14 @@ export default async function VenuesPage() {
         <span className="shrink-0 text-xs text-faint">{v.city}</span>
       </div>
       <div className="mt-1 flex flex-wrap gap-1.5 text-[11px]">
-        {v.indoor && <span className="rounded-full bg-cpbl/10 px-2 py-0.5 font-medium text-cpbl">室內</span>}
+        {v.indoor && <span className="pm-tag">室內</span>}
         {v.turf && (
           <span className="rounded-full bg-line/60 px-2 py-0.5 text-muted">
             {v.turf === "artificial" ? "人工草皮" : "天然草皮"}
           </span>
         )}
         {v.big_screen && <span className="rounded-full bg-line/60 px-2 py-0.5 text-muted">大螢幕</span>}
-        {v.home_teams && <span className="rounded-full bg-accent/10 px-2 py-0.5 font-medium text-accent">{v.home_teams} 主場</span>}
+        {v.home_teams && <span className="pm-tag !whitespace-normal">{v.home_teams} 主場</span>}
       </div>
       <div className="mt-3 grid grid-cols-3 gap-2 text-center">
         <div>
@@ -95,18 +95,18 @@ export default async function VenuesPage() {
   return (
     <div>
       <header className="mb-6">
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink">球場</h1>
+        <h1 className="text-[24px] font-bold leading-tight tracking-[0.04em] text-ink md:text-[26px]">球場</h1>
         <p className="mt-1.5 text-sm text-muted">
           規格來自官網球場介紹（外野距離單位：呎）；場次與觀眾為 {data.season} 一軍例行賽統計。
         </p>
       </header>
       <section className="mb-8">
-        <h2 className="mb-3 text-lg font-semibold">本季使用中（{active.length}）</h2>
+        <h2 className="mb-3 text-lg font-bold tracking-[0.04em]">本季使用中（{active.length}）</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{active.map(card)}</div>
       </section>
       {historic.length > 0 && (
         <section>
-          <h2 className="mb-3 text-lg font-semibold">歷史球場（{historic.length}）</h2>
+          <h2 className="mb-3 text-lg font-bold tracking-[0.04em]">歷史球場（{historic.length}）</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{historic.map(card)}</div>
         </section>
       )}

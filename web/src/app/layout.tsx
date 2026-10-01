@@ -45,7 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH }} />
       </head>
-      <body className="min-h-screen antialiased">
+      <body className="flex min-h-screen flex-col antialiased">
         <a href="#main" className="skip-link">跳至主內容</a>
         {/* 頂欄（#218）：卡面底＋墨色底線；字標＝打孔標誌＋壓縮體。實心底不做毛玻璃。
             子元素以 order 排序：字標 → 桌機導覽 → 搜尋（推到右側）→ 主題 → 行動選單鈕；
@@ -66,7 +66,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </div>
         </header>
-        <main id="main" className="mx-auto max-w-6xl px-3.5 py-6 md:px-6 md:py-8">{children}</main>
+        <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-3.5 py-6 md:px-6 md:py-8">{children}</main>
         <footer className="mt-12 bg-surface-2 text-[12.5px] text-muted">
           <div className="mx-auto flex max-w-6xl flex-col justify-between gap-3 px-3.5 pb-8 pt-6 md:flex-row md:px-6">
             <div className="max-w-2xl">

@@ -39,7 +39,7 @@ export function AwardRaces({
 }) {
   return (
     <section className="mb-6">
-      <h2 className="mb-1 text-lg font-semibold">本季獎項競逐 · 前五</h2>
+      <h2 className="mb-1 text-lg font-bold tracking-[0.04em]">本季獎項競逐 · 前五</h2>
       <p className="mb-3 text-[11px] text-faint">本季各獎項類別當前領先者（即時排名，非歷史得獎次數）。{note}</p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {cats.map((cat) => {

@@ -34,8 +34,8 @@ export function TrackingSection({ disc, role, seasonKind }: { disc: Disc | null;
   return (
       <section className="mb-6">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold text-ink">逐球追蹤
-            {seasonKind === "D" && <span className="ml-2 align-middle rounded bg-accent/10 px-1.5 py-0.5 text-xs font-semibold text-accent">二軍</span>}
+          <h2 className="text-lg font-bold tracking-[0.04em] text-ink">逐球追蹤
+            {seasonKind === "D" && <span className="pm-tag ml-2 align-middle">二軍</span>}
             <span className="ml-2 align-middle text-xs font-normal text-faint">本季 · TrackMan 2026 起</span></h2>
           {ptTypes.length > 1 && <PitchTypeToggle value={pitchType} onChange={setPitchType} types={ptTypes} />}
         </div>
@@ -127,7 +127,7 @@ export function QualitySection({ advanced, role }: {
   if (!m || m.gbp == null) return null;
   return (
     <section className="mb-6">
-      <h2 className="mb-3 text-lg font-semibold text-ink">擊球品質與彈道<span className="ml-2 align-middle text-xs font-normal text-faint">本季 · 官方進階 2026 起</span></h2>
+      <h2 className="mb-3 text-lg font-bold tracking-[0.04em] text-ink">擊球品質與彈道<span className="ml-2 align-middle text-xs font-normal text-faint">本季 · 官方進階 2026 起</span></h2>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {QUALITY_GROUPS.map((g) => (
           <Card key={g.title} className="p-4">
@@ -216,7 +216,7 @@ export function BattedMixSection({ pitchMix, arsenal, role }: {
   if ((pitchMix?.length ?? 0) === 0 && (arsenal?.length ?? 0) === 0) return null;
   return (
     <section className="mb-6">
-      <h2 className="mb-3 text-lg font-semibold text-ink">配球傾向<span className="ml-2 align-middle text-xs font-normal text-faint">TrackMan 逐球樣本 · 球種為軌跡推算，「A/B」＝介於兩球種的臨界球路（樣本累積後再細分）</span></h2>
+      <h2 className="mb-3 text-lg font-bold tracking-[0.04em] text-ink">配球傾向<span className="ml-2 align-middle text-xs font-normal text-faint">TrackMan 逐球樣本 · 球種為軌跡推算，「A/B」＝介於兩球種的臨界球路（樣本累積後再細分）</span></h2>
       <Card>
         <ArsenalUsageBar items={arsenal ?? []} />
         {/* 明細表 × 依球數情境 左右並排（窄幅堆疊）：一屏看完配球全貌 */}

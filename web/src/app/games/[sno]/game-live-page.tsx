@@ -31,7 +31,7 @@ import { GameOverview } from "./overview";
 import { methodologyHref } from "@/lib/methodology-anchors";
 import { StartingLineups } from "@/components/starting-lineups";
 import { LiveGameLineups } from "@/components/live-game-lineups";
-import { MainTabs } from "@/components/hierarchical-tabs";
+import { MainTabs, mainTabId } from "@/components/hierarchical-tabs";
 import { StickyNavBar } from "@/components/sticky-nav-bar";
 import { ProvisionalBadge } from "./parts/data-state-notice";
 import { RecapMain } from "./states/recap-main";
@@ -312,9 +312,10 @@ export default function GameLivePage() {
             highlightSelection={!plainLinescore}
             tabs={<StickyNavBar label="賽況檢視" flush>
               <div className="flex min-w-0 items-center overflow-x-auto overscroll-x-contain">
-                <MainTabs label="賽況檢視" value={view} onChange={setView} items={pageTabs} />
+                <MainTabs label="賽況檢視" value={view} onChange={setView} items={pageTabs} panelId="game-panel" />
               </div>
-            </StickyNavBar>} />
+            </StickyNavBar>}
+            panelId="game-panel" panelLabelledBy={mainTabId("game-panel", view)}>
           {view === "overview" && (
             <>
               {isProvisional(facts) && showRecap && (
@@ -355,6 +356,7 @@ export default function GameLivePage() {
           {boxTab && (
             <BoxTabs data={data} tab={boxTab} onTabChange={setView} showTabs={false} />
           )}
+          </GameBoard>
         </section>
       ) : completed ? (
         /* 已完賽但無逐打席（歷史場）：終場比分（共用比分元件；完整句子給螢幕閱讀器） */

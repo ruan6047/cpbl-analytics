@@ -202,7 +202,7 @@ export function CareerSummary({ careerStats, role }: { careerStats: CareerStats 
               { header: "勝-和-敗", cell: (m) => `${m.w ?? 0}-${m.ties ?? 0}-${m.l ?? 0}`, className: "font-mono" },
               { header: "勝率", cell: (m) => m.win_pct == null ? "—" : m.win_pct.toFixed(3).replace(/^0\./, "."), className: "font-mono text-accent font-semibold" },
               { header: "季後賽", cell: (m) => m.postseason || "—", className: "text-muted" },
-              { header: "總冠軍", cell: (m) => m.championships ? <span className="inline-flex items-center gap-0.5 text-up font-bold">🏆 {m.championships}</span> : "—" },
+              { header: "總冠軍", cell: (m) => m.championships ? <span className="font-bold text-ink">×{m.championships}</span> : "—" },
             ] satisfies Column<NonNullable<CareerStats["manager_stats"]>[number]>[]}
             rows={careerStats.manager_stats || []}
             rowKey={(m, i) => `${m.team_code}-${m.from_year}-${i}`}
@@ -300,7 +300,7 @@ export function CareerSummary({ careerStats, role }: { careerStats: CareerStats 
     return (
       <>
         <section className="mb-6">
-          <h2 className="mb-3 text-lg font-semibold text-ink">生涯成績</h2>
+          <h2 className="mb-3 text-lg font-bold tracking-[0.04em] text-ink">生涯成績</h2>
           <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-8">
             <StatTile label={`生涯 ${cp.seasons} 季`} value={`${cp.g} 場`} />
             <StatTile label="先發" value={String(cp.gs)} />
@@ -348,7 +348,7 @@ export function CareerSummary({ careerStats, role }: { careerStats: CareerStats 
     return (
       <>
         <section className="mb-6">
-          <h2 className="mb-3 text-lg font-semibold text-ink">生涯成績</h2>
+          <h2 className="mb-3 text-lg font-bold tracking-[0.04em] text-ink">生涯成績</h2>
           <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-8">
             <StatTile label={`生涯 ${cb.seasons} 季`} value={`${cb.g} 場`} />
             <StatTile label="打數" value={String(cb.ab)} />

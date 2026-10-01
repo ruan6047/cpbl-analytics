@@ -23,7 +23,7 @@ function KindSection({ row, role }: { row: PairRow; role: Role }) {
   const batterView = role === "batting";
   return (
     <section aria-label={KIND_LABEL[row.kind_code]} className="border-t border-line pt-3 first:border-t-0 first:pt-0">
-      <h3 className="mb-2 text-sm font-semibold text-ink">{KIND_LABEL[row.kind_code]}</h3>
+      <h3 className="mb-2 text-sm font-bold text-ink">{KIND_LABEL[row.kind_code]}</h3>
       <StatGrid
         cols={4}
         items={[

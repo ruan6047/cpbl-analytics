@@ -111,7 +111,7 @@ function BattingTable({ rows, avgMap, posBy, showPostgameMarks }: {
         return (
           <><PlayerLink pid={String(r.hitter_acnt ?? "")} name={String(r.hitter_name ?? "")} />
             <span className="ml-1 text-[10px] text-faint">{String(r.role_type ?? "")}</span>
-            {mark && <span className="ml-1 text-[10px] font-semibold text-cpbl">{mark}</span>}</>
+            {mark && <span className="ml-1 text-[11px] font-bold text-ink">{mark}</span>}</>
         );
       },
       nowrap: true, className: "font-sans text-ink",

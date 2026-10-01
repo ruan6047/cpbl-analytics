@@ -220,11 +220,11 @@ export default async function RecordsPage() {
           <h2 id="season-records" className="sr-only">單季之最</h2>
           <div className="grid gap-4 lg:grid-cols-2">
             <div>
-              <h3 className="mb-2 text-sm font-semibold text-ink">打者紀錄</h3>
+              <h3 className="mb-2 text-sm font-bold text-ink">打者紀錄</h3>
               <DataTable columns={seasonColumns} rows={seasons.filter((r) => r.group === "打者")} rowKey={(r) => r.key} dense />
             </div>
             <div>
-              <h3 className="mb-2 text-sm font-semibold text-ink">投手紀錄</h3>
+              <h3 className="mb-2 text-sm font-bold text-ink">投手紀錄</h3>
               <DataTable columns={seasonColumns} rows={seasons.filter((r) => r.group === "投手")} rowKey={(r) => r.key} dense />
             </div>
           </div>
@@ -254,7 +254,7 @@ export default async function RecordsPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-extrabold tracking-tight text-ink">歷史紀錄室</h1>
+      <h1 className="mb-4 text-[24px] font-bold leading-tight tracking-[0.04em] text-ink md:text-[26px]">歷史紀錄室</h1>
       <SectionTabs label="紀錄分區" items={tabs} />
     </div>
   );
