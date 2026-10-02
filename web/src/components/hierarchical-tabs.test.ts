@@ -48,3 +48,21 @@ test("階層導覽：切到第二個父層時父層位置不變、子頁籤改�
   assert.ok(order.every((at, i) => at >= 0 && (i === 0 || at > order[i - 1])), `順序：${order.join(",")}`);
   assert.doesNotMatch(html, />逐球追蹤</, "只顯示作用中父層的子頁籤");
 });
+
+// #220 需求方裁定（issuecomment-5946305065）：窄螢幕視覺順序須等於鍵盤焦點（DOM）順序。
+// controls 在 DOM 中排在頁籤帶之後，CSS 若以 `order` 把它挪到帶上方，焦點就會與畫面相反。
+test("同列導覽：.pm-navrow 各規則不得以 order 重排（視覺順序＝焦點順序）", () => {
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const rules = [...css.matchAll(/\.pm-navrow[\w-]*\s*\{[^}]*\}/g)].map((m) => m[0]);
+  assert.ok(rules.length >= 4, "找得到 .pm-navrow 規則");
+  for (const rule of rules) assert.doesNotMatch(rule, /(^|[\s;{])order\s*:/, rule);
+});
+
+// 球隊頁年度／半季須回到同列導覽（正式版行為），不放進內容面板。
+test("球隊頁：半季為賽季子頁籤、年度為同列右側 controls", () => {
+  const team = readFileSync(new URL("../app/teams/[code]/team-tabs.tsx", import.meta.url), "utf8");
+  assert.match(team, /<HierarchicalTabs\b/);
+  assert.match(team, /items: g\.value === SEASON_GROUP \? seasonItems/, "半季是賽季群組的子頁籤");
+  assert.match(team, /controls=\{onSeason && years\.length > 1\s*\?\s*<YearSelect/);
+  assert.doesNotMatch(team, /ContextSwitcher/, "半季不再是面板內的分段切換");
+});

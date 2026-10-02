@@ -37,7 +37,7 @@ export function StickyNavBar({ label, children, mobileStatic = false, flush = fa
  * 導覽欄單列版面：左側主內容軸（tablist／chip 群，捲動容器由呼叫端決定）＋
  * 右側 controls 插槽（`md:border-l` 分隔）；窄螢幕改垂直堆疊（§4.3 B1）。
  * 頁籤模式（end，搭 flush 殼）與 HierarchicalTabs 同源（`.pm-navrow`）：頁籤帶與右側 controls 同一列，
- * 頁籤帶直接接 `TabPanel`；窄螢幕 controls 另列於帶上方，不插在帶與面板之間。
+ * 頁籤帶直接接 `TabPanel`；窄螢幕 controls 另列於帶下方（卡面色，選中頁籤經它接面板），視覺順序＝焦點順序。
  */
 export function NavBarRow({ main, controls, align = "center" }: {
   main: ReactNode; controls?: ReactNode;

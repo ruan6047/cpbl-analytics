@@ -391,7 +391,7 @@
 |---|---|---|
 | base（<640） | 手機 | **375px 無橫向溢出＝鐵則**（blueprint §8.3）。寬表 sticky 首欄或卡片化；`Leaderboard` 套 `mobileHide`（移出 DOM）；觸控 ≥44px（`min-h-11`） |
 | `sm:`(640) | 大手機/小平板 | `Leaderboard` 恢復完整欄；`matchMedia('(max-width:639px)')` 為 mobileHide 界線 |
-| `md:`(768) | 平板 | `.pm-navrow` 由兩列轉單列：頁籤區（可橫捲）＋右側 controls（細線分隔）；<768 controls 另列於帶上方、頁籤帶橫捲且仍接面板 |
+| `md:`(768) | 平板 | `.pm-navrow` 由兩列轉單列：頁籤區（可橫捲）＋右側 controls（細線分隔）；<768 頁籤帶橫捲、controls 另列於帶下方（卡面色，選中頁籤經它接面板；視覺順序＝焦點順序，⛔ 不用 `order` 挪到帶上方） |
 | `lg:`(1024)+ | 桌機 | 完整密度 |
 
 > **現況用 viewport 斷點（`matchMedia`）**；規格描述現況。**建議（未來）**：可重用元件遷 container query（Tailwind v4 `@container`）以脈絡無關，但非本卡範圍。

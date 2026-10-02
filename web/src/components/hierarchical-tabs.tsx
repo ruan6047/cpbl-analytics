@@ -25,7 +25,7 @@ type HierarchicalTabsProps<GroupValue extends string, ItemValue extends string> 
  * 直接接呼叫端的 `TabPanel`。層級靠字級／字重／位置區分：父層 14px 粗體（作用中＝墨色頁籤），
  * 子頁籤 13px，未作用父層為純文字並以細線分隔。
  * ⛔ 不要再把父層或 controls 拆成帶上方另一列（#220 第三輪曾如此，需求方指為退化）；
- * 窄螢幕（<768）由 `.pm-navrow` 把 controls 移到帶上方另列，帶仍是最後一列以接面板。
+ * 窄螢幕（<768）由 `.pm-navrow` 把 controls 另列於帶下方（卡面色、接面板），視覺順序＝焦點順序。
  *
  * 父層仍是獨立的狀態控制（aria-pressed），子層才使用 tab 語意。
  */
