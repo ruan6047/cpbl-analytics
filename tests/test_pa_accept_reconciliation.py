@@ -362,9 +362,11 @@ def test_daily_refresh_does_not_import_accept_path() -> None:
 # Q4：接受不得靜默完成——回傳一律帶下游過期清單
 # ---------------------------------------------------------------------------
 def test_downstream_tables_are_named_and_marked_not_wired_into_daily_refresh() -> None:
-    tables = {t["table"] for t in pb.PA_DOWNSTREAM_TABLES}
-    assert {"cpbl.batter_re24", "cpbl.pitcher_re24"} <= tables
-    assert all(t["wired_into_daily_refresh"] is False for t in pb.PA_DOWNSTREAM_TABLES)
+    tables = {t["table"]: t["wired_into_daily_refresh"] for t in pb.PA_DOWNSTREAM_TABLES}
+    assert {"cpbl.batter_re24", "cpbl.pitcher_re24"} <= set(tables)
+    # #222：RE24 只有當季 A 由每日鏈重建；矩陣與歷史年度仍未接上
+    assert tables["cpbl.batter_re24"] == tables["cpbl.pitcher_re24"] == "current_season_A"
+    assert tables["cpbl.run_expectancy"] is False
 
 
 def test_downstream_staleness_reports_every_table_as_stale() -> None:

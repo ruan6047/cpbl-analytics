@@ -22,8 +22,10 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from collections import defaultdict
 
+from cpbl.completion import daily_chain_completed_games_sql
 from cpbl.db import conn
 from cpbl.ingest.pa_build import Taxonomy, event_sort_key, is_non_pa_action, load_taxonomy
 
@@ -50,6 +52,15 @@ def _load_game(cur, year: int, kind: str, sno: int) -> list[dict]:
         "visiting_score, home_score FROM cpbl.game_livelog "
         "WHERE year=%s AND kind_code=%s AND game_sno=%s", (year, kind, sno))
     return sorted(_rows(cur), key=lambda r: int(r["main_event_no"]))
+
+
+def _select_snos(cur, year: int, kind: str, snos: list[int] | None) -> list[int]:
+    """``snos=None``＝該季 livelog 全部場次（既有行為，SQL 逐字不變）；給清單＝只算這些場。"""
+    if snos is not None:
+        return list(snos)
+    cur.execute("SELECT DISTINCT game_sno FROM cpbl.game_livelog "
+                "WHERE year=%s AND kind_code=%s ORDER BY game_sno", (year, kind))
+    return [r[0] for r in cur.fetchall()]
 
 
 def _name_map(cur, year: int, kind: str, sno: int) -> dict[str, str]:
@@ -154,15 +165,16 @@ def _defensive_outs(events: list[dict]) -> list[tuple[int, str]]:
     return outs
 
 
-def build_fielding_innings(year: int, kind: str = "A") -> dict:
-    """重建整季守備局數 → UPSERT cpbl.fielding_innings。回統計摘要。"""
+def build_fielding_innings(year: int, kind: str = "A", snos: list[int] | None = None) -> dict:
+    """重建整季守備局數 → UPSERT cpbl.fielding_innings。回統計摘要。
+
+    ``snos``：只算這些場（每日鏈傳完賽場，見 :func:`build_current_season`）；None＝livelog 全部。
+    """
     acc: dict[tuple[str, str], int] = defaultdict(int)      # (player,pos) -> outs
     gset: dict[tuple[str, str], set] = defaultdict(set)     # (player,pos) -> games
     with conn() as c:
         cur = c.cursor()
-        cur.execute("SELECT DISTINCT game_sno FROM cpbl.game_livelog "
-                    "WHERE year=%s AND kind_code=%s ORDER BY game_sno", (year, kind))
-        snos = [r[0] for r in cur.fetchall()]
+        snos = _select_snos(cur, year, kind, snos)
         for sno in snos:
             events = _load_game(cur, year, kind, sno)
             if not events:
@@ -210,7 +222,7 @@ WITH ev AS (
               THEN 1 ELSE 0 END AS brk
   FROM cpbl.game_livelog
   WHERE year = %(year)s AND kind_code = %(kind)s
-    AND hitter_acnt IS NOT NULL AND pitch_cnt IS NOT NULL
+    AND hitter_acnt IS NOT NULL AND pitch_cnt IS NOT NULL{games}
 ), pa AS (
   SELECT game_sno, hitter_acnt,
          sum(brk) OVER (PARTITION BY game_sno ORDER BY evt) AS pa_id,
@@ -241,8 +253,13 @@ FROM agg GROUP BY {key}
 """
 
 
-def build_traits(year: int, kind: str = "A") -> dict:
-    """重建打者/投手特性表（P/PA、滾飛、方向、兩好球後）。"""
+def build_traits(year: int, kind: str = "A", snos: list[int] | None = None) -> dict:
+    """重建打者/投手特性表（P/PA、滾飛、方向、兩好球後）。``snos`` 同 build_fielding_innings。"""
+    params: dict = {"year": year, "kind": kind}
+    games = ""
+    if snos is not None:
+        games = "\n    AND game_sno = ANY(%(snos)s)"
+        params["snos"] = list(snos)
     with conn() as c:
         c.execute("DELETE FROM cpbl.batter_traits WHERE year=%s AND kind_code=%s", (year, kind))
         c.execute("DELETE FROM cpbl.pitcher_traits WHERE year=%s AND kind_code=%s", (year, kind))
@@ -250,15 +267,15 @@ def build_traits(year: int, kind: str = "A") -> dict:
         cur.execute(
             f"INSERT INTO cpbl.batter_traits (player_id, pa, p_pa, go, fo, dir_left, dir_center, "  # noqa: S608
             f"dir_right, two_strike_pa, two_strike_k, two_strike_hit, year, kind_code) "
-            f"SELECT *, %(year)s, %(kind)s FROM ({_TRAITS_SQL.format(key='hitter')}) t",
-            {"year": year, "kind": kind})
+            f"SELECT *, %(year)s, %(kind)s FROM ({_TRAITS_SQL.format(key='hitter', games=games)}) t",
+            params)
         nb = cur.rowcount
         cur.execute(
             f"INSERT INTO cpbl.pitcher_traits (player_id, bf, p_pa, go, fo, two_strike_pa, "  # noqa: S608
             f"two_strike_k, year, kind_code) "
             f"SELECT player_id, pa, p_pa, go, fo, two_strike_pa, two_strike_k, %(year)s, %(kind)s "
-            f"FROM ({_TRAITS_SQL.format(key='pitcher')}) t",
-            {"year": year, "kind": kind})
+            f"FROM ({_TRAITS_SQL.format(key='pitcher', games=games)}) t",
+            params)
         np_ = cur.rowcount
     log.info("traits %s/%s：打者 %d / 投手 %d", year, kind, nb, np_)
     return {"batters": nb, "pitchers": np_}
@@ -421,12 +438,13 @@ def build_run_values(from_year: int, to_year: int, kind: str = "A") -> dict:
     return {"run_sb": run_sb, "run_cs": run_cs, "sb_n": sb_n, "cs_n": cs_n}
 
 
-def build_wsb(span: str) -> dict:
+def build_wsb(span: str, year: int | None = None) -> dict:
     """打者 wSB（1990–今，一軍例行）：官方 SB/CS/1B/BB/IBB/HBP + 在地 run 係數。
 
     wSB_i = SB×runSB + CS×runCS − lgRate×opp_i，lgRate=聯盟(SB×runSB+CS×runCS)/Σopp、
     opp=1B+BB−IBB+HBP（IBB 缺值年代視 0，同 FanGraphs 對缺欄位的處理）。
     每年聯盟加總恆等於 0（構造保證），跨年代 run 係數固定並於方法說明揭露。
+    ``year``：只重寫該年（聯盟率本就逐年算，值與全量重建同年列相同）；None＝全部年份。
     """
     with conn() as c:
         cur = c.cursor()
@@ -449,18 +467,21 @@ def build_wsb(span: str) -> dict:
             "GROUP BY year, player_id")
         rows = cur.fetchall()
     by_year: dict[int, list] = defaultdict(list)
-    for year, pid, sb, cs, opp in rows:
-        if (sb or cs or opp) and opp >= 0:
-            by_year[year].append((pid, int(sb), int(cs), int(opp)))
+    for yr, pid, sb, cs, opp in rows:
+        if (year is None or yr == year) and (sb or cs or opp) and opp >= 0:
+            by_year[yr].append((pid, int(sb), int(cs), int(opp)))
     out_rows = []
-    for year, ps in by_year.items():
+    for yr, ps in by_year.items():
         lg_num = sum(sb * run_sb + cs * run_cs for _, sb, cs, _o in ps)
         lg_opp = sum(o for *_x, o in ps)
         rate = lg_num / lg_opp if lg_opp else 0.0
-        out_rows += [(year, pid, sb, cs, opp, round(sb * run_sb + cs * run_cs - rate * opp, 2))
+        out_rows += [(yr, pid, sb, cs, opp, round(sb * run_sb + cs * run_cs - rate * opp, 2))
                      for pid, sb, cs, opp in ps]
     with conn() as c:
-        c.execute("DELETE FROM cpbl.batter_wsb")
+        if year is None:
+            c.execute("DELETE FROM cpbl.batter_wsb")
+        else:
+            c.execute("DELETE FROM cpbl.batter_wsb WHERE year=%s", (year,))
         c.cursor().executemany(
             "INSERT INTO cpbl.batter_wsb (year, player_id, sb, cs, opp, wsb) "
             "VALUES (%s, %s, %s, %s, %s, %s)", out_rows)
@@ -469,11 +490,12 @@ def build_wsb(span: str) -> dict:
     return {"years": len(by_year), "rows": len(out_rows)}
 
 
-def build_team_der() -> dict:
+def build_team_der(year: int | None = None) -> dict:
     """Team DER（1990–今）：1 − (H−HR)/(BF−BB−HBP−SO−HR)，官方投球總計，零推算。
 
     歷年=pitching_seasons 隊-年加總；current 年（2026+）=pitching_current 按 team_code
     前 3 碼（franchise 代碼）加總對齊 seasons 的 team_id 空間。
+    ``year``：只重寫該年；None＝全部年份。
     """
     with conn() as c:
         cur = c.cursor()
@@ -489,14 +511,17 @@ def build_team_der() -> dict:
             "GROUP BY year, left(team_code, 3)")
         rows = cur.fetchall()
     out_rows = []
-    for year, tid, bf, h, hr, bb, hbp, so in rows:
+    for yr, tid, bf, h, hr, bb, hbp, so in rows:
         den = (bf or 0) - (bb or 0) - (hbp or 0) - (so or 0) - (hr or 0)
-        if not tid or not bf or den <= 0:
+        if (year is not None and yr != year) or not tid or not bf or den <= 0:
             continue
         der = 1.0 - ((h or 0) - (hr or 0)) / den
-        out_rows.append((year, tid, bf, h, hr, bb, hbp, so, round(der, 4)))
+        out_rows.append((yr, tid, bf, h, hr, bb, hbp, so, round(der, 4)))
     with conn() as c:
-        c.execute("DELETE FROM cpbl.team_der")
+        if year is None:
+            c.execute("DELETE FROM cpbl.team_der")
+        else:
+            c.execute("DELETE FROM cpbl.team_der WHERE year=%s", (year,))
         c.cursor().executemany(
             "INSERT INTO cpbl.team_der (year, team_id, bf, h, hr, bb, hbp, so, der) "
             "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", out_rows)
@@ -504,21 +529,20 @@ def build_team_der() -> dict:
     return {"rows": len(out_rows)}
 
 
-def build_catcher_runs(year: int, kind: str = "A") -> dict:
+def build_catcher_runs(year: int, kind: str = "A", snos: list[int] | None = None) -> dict:
     """捕手接捕時失分（RA 非 ERA——自責分無法拆段，誠實命名）→ catcher_runs。
 
     score 欄位是「事件開始時比分」：打擊方比分在事件 i→i+1 間增加，該分數屬事件 i
     的守備段，記給事件 i 的 catcher_acnt。終場殘差（再見分）補記給末事件捕手。
     驗證：Σ捕手失分 ≈ Σ完成場總得分（恆等式，容差=無捕手事件的漏記）。
+    ``snos`` 同 build_fielding_innings（RA9 分子分母須同一場次集合）。
     """
     runs: dict[str, int] = defaultdict(int)
     gset: dict[str, set] = defaultdict(set)
     leaked = 0
     with conn() as c:
         cur = c.cursor()
-        cur.execute("SELECT DISTINCT game_sno FROM cpbl.game_livelog "
-                    "WHERE year=%s AND kind_code=%s ORDER BY game_sno", (year, kind))
-        snos = [r[0] for r in cur.fetchall()]
+        snos = _select_snos(cur, year, kind, snos)
         for sno in snos:
             events = _load_game(cur, year, kind, sno)
             if not events:
@@ -690,7 +714,8 @@ def re24_plays(events: list[dict], re_map: dict[tuple[str, int], float],
     return plays, {"halves": n_halves, "runs": runs, "runner_delta": runner_delta}
 
 
-def build_re24(year: int, kind: str = "A", span: str = "2018-2025") -> dict:
+def build_re24(year: int, kind: str = "A", span: str = "2018-2025",
+               snos: list[int] | None = None) -> dict:
     """打者/投手 RE24（Retrosheet 慣例）→ batter_re24 / pitcher_re24。
 
     **快照時點（關鍵）**：livelog 同一列的「壘位/out_cnt=事件前、比分=事件後」——
@@ -712,6 +737,7 @@ def build_re24(year: int, kind: str = "A", span: str = "2018-2025") -> dict:
     - 投手 = 末事件 pitcher_acnt，記同值（打者觀點，負=壓制）。
     驗證恆等式：Σ打者+Σ跑者 = Σ得分 − 半局數×RE(空壘,0)（望遠鏡求和，結構性成立；
     有意義的體檢是跑者桶量級應小——年 ±百分級，非千分級）。
+    ``snos`` 同 build_fielding_innings：每日鏈只傳完賽場，未完賽半場的末打席不被當半局末。
     """
     bat: dict[str, list] = defaultdict(lambda: [0, 0.0])   # player -> [pa, re24]
     pit: dict[str, list] = defaultdict(lambda: [0, 0.0])
@@ -724,9 +750,7 @@ def build_re24(year: int, kind: str = "A", span: str = "2018-2025") -> dict:
         if not re_map:
             raise RuntimeError(f"run_expectancy 無 {span}/{kind}，先跑 build_run_expectancy")
         re_start = re_map[("___", 0)]
-        cur.execute("SELECT DISTINCT game_sno FROM cpbl.game_livelog "
-                    "WHERE year=%s AND kind_code=%s ORDER BY game_sno", (year, kind))
-        snos = [r[0] for r in cur.fetchall()]
+        snos = _select_snos(cur, year, kind, snos)
         for sno in snos:
             events = _load_game(cur, year, kind, sno)
             if not events:
@@ -768,3 +792,67 @@ def build_re24(year: int, kind: str = "A", span: str = "2018-2025") -> dict:
             # 逐打席處置的完整分割：sum(dispositions.values()) == naive 打席總數，
             # 且鍵集恆等於 RE24_DISPOSITIONS（未歸類 = 0 的可稽核形式）。
             "dispositions": counts}
+
+
+# ───────────────────────── 當季重建（#222，每日鏈呼叫） ─────────────────────────
+def completed_livelog_snos(year: int, kind: str = "A") -> list[int]:
+    """該季 livelog 中通過每日鏈完賽判準（``daily_chain_completed_games_sql``）的場次。"""
+    with conn() as c:
+        rows = c.execute(
+            "SELECT DISTINCT l.game_sno FROM cpbl.game_livelog l "
+            "JOIN cpbl.games g ON g.year = l.year AND g.kind_code = l.kind_code "
+            "AND g.game_sno = l.game_sno "
+            f"WHERE l.year = %s AND l.kind_code = %s AND {daily_chain_completed_games_sql('g')} "
+            "ORDER BY l.game_sno", (year, kind)).fetchall()
+    return [r[0] for r in rows]
+
+
+def build_current_season(year: int) -> dict:
+    """當季一軍例行賽（A）衍生 8 表重建：只寫 ``year`` 該年列，公式與歷史年度不動。
+
+    為什麼存在：這些表原本只由手動 ``cpbl-build-sabr`` 建，不在每日鏈，2026 列停在
+    約 07-05（DER 與球風區塊因此不一致，#222）。
+
+    - team_der（pitching_current）、batter_wsb（batting_current＋係數 span 2018-(year-1)，
+      與全量 CLI 同年一致；缺係數即報錯，不靜默略過）。
+    - livelog 系（fielding_innings→catcher_runs、traits、re24）只取完賽場，四者同一份清單；
+      re24 沿用 builder 預設 RE 矩陣 span（與 pa_facts／winprob 同一生產 span，勿各自挑）。
+    - 各組獨立 try，每表單一交易：失敗只進 ``errors``（呼叫端轉 exit 69），保留上一輪值。
+      fielding_innings 失敗就不寫 catcher_runs（RA9 分子分母須同一時點）。
+    """
+    kind = "A"
+    out: dict = {"year": year, "errors": [], "seconds": {}}
+
+    def run(name: str, fn) -> bool:
+        t0 = time.monotonic()
+        try:
+            out[name] = fn()
+            return True
+        except Exception as exc:  # noqa: BLE001 — 單一 builder 失敗不得連坐其他表
+            log.exception("當季衍生重建失敗：%s", name)
+            out["errors"].append({"builder": name, "error": str(exc)})
+            return False
+        finally:
+            out["seconds"][name] = round(time.monotonic() - t0, 1)
+
+    run("team_der", lambda: build_team_der(year))
+    run("batter_wsb", lambda: build_wsb(f"2018-{year - 1}", year))
+    try:
+        snos = completed_livelog_snos(year, kind)
+    except Exception as exc:  # noqa: BLE001 — 同上
+        log.exception("當季衍生重建失敗：completed_games")
+        out["errors"].append({"builder": "completed_games", "error": str(exc)})
+        return out
+    out["completed_games"] = len(snos)
+    if not snos:
+        # 有完賽場（呼叫端已判）卻撈不到 livelog：寫下去等於清空當季列，寧可留舊值並亮燈
+        out["errors"].append({"builder": "completed_games",
+                              "error": "livelog 無完賽場次，livelog 系四組不覆寫"})
+        return out
+    if run("fielding_innings", lambda: build_fielding_innings(year, kind, snos)):
+        run("catcher_runs", lambda: build_catcher_runs(year, kind, snos))
+    else:
+        out["catcher_runs"] = {"skipped": "fielding_innings 失敗"}
+    run("traits", lambda: build_traits(year, kind, snos))
+    run("re24", lambda: build_re24(year, kind, snos=snos))
+    return out

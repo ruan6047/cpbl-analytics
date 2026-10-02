@@ -1060,16 +1060,17 @@ def require_reconciliation_accepted(
 # 接受重建後**必然過期**的季級物化表（Q4：本卡不重算，但接受路徑不得靜默完成）。
 # ⚠️ 語意校正：這兩張表由 `models.sabr.build_re24` 直接讀 `game_livelog` 產生，
 # **不是**從 `game_plate_appearances` 派生——所以它們早在 livelog 變動當下就過期了，
-# 不是被本次接受弄髒的。列出它們的理由不變：整季 DELETE+INSERT、`run_refresh_recent`
-# **完全沒有呼叫它**，於是沒有任何東西會讓它跟上。重算的正確性有 `#119` 自己的驗收，
-# 塞進本卡會互相污染。
+# 不是被本次接受弄髒的。整季 DELETE+INSERT；當季 A 由每日鏈重建（#222，
+# `run_refresh_recent._derived_step`），所以接受後到下一次每日鏈之間仍是過期的。
+# 歷史年度、其他 kind 與 `run_expectancy` 仍未接上，另外評估。
+# `wired_into_daily_refresh`：False＝完全沒接；"current_season_A"＝只有當季 A 由每日鏈重建。
 PA_DOWNSTREAM_TABLES: tuple[dict[str, Any], ...] = (
     {"table": "cpbl.batter_re24", "producer": "cpbl.models.sabr.build_re24",
-     "grain": "season", "rebuild": "整季 DELETE+INSERT", "owner_card": "#119",
-     "wired_into_daily_refresh": False},
+     "grain": "season", "rebuild": "整季 DELETE+INSERT", "owner_card": "#222（當季 A）",
+     "wired_into_daily_refresh": "current_season_A"},
     {"table": "cpbl.pitcher_re24", "producer": "cpbl.models.sabr.build_re24",
-     "grain": "season", "rebuild": "整季 DELETE+INSERT", "owner_card": "#119",
-     "wired_into_daily_refresh": False},
+     "grain": "season", "rebuild": "整季 DELETE+INSERT", "owner_card": "#222（當季 A）",
+     "wired_into_daily_refresh": "current_season_A"},
     # span 級（多年）矩陣：單場變動對它的影響量級極小，但它同樣讀 livelog、同樣不在
     # 每日鏈上。列出而非省略——過度回報是安全方向，漏報不是。
     {"table": "cpbl.run_expectancy", "producer": "cpbl.models.sabr.build_run_expectancy",
@@ -1734,7 +1735,8 @@ def accept_reconciliation(year: int, kind: str, game: int) -> dict[str, Any]:
         c.commit()
 
     log.warning(
-        "接受後下游物化表已過期（本卡不重算，見 #119）：%s",
+        "接受後下游物化表已過期（接受路徑不重算；當季 A 的 RE24 由下一次每日鏈重建"
+        "（#222），歷史年度與 run_expectancy 未接上、另外評估）：%s",
         [f"{s['table']}@{s['scope']}({s['rows_for_scope']} 列)" for s in stale],
     )
     return {

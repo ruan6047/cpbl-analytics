@@ -55,7 +55,7 @@ def test_step_failure_is_recorded_and_does_not_stop_the_other_kind(
 
 
 def _stub_chain(monkeypatch: pytest.MonkeyPatch, *, fast: bool, pitch_type_result: dict,
-                calls: list[str], logged: dict) -> None:
+                calls: list[str], logged: dict, derived_result: dict | None = None) -> None:
     """把每日鏈其餘步驟換成替身，只留「推算結果怎麼傳遞」這條線（比照 test_standings_year_guard）。"""
     monkeypatch.setattr(rr, "_GAMELOG_GAPS", [])
     monkeypatch.setattr(rr.sys, "argv", ["cpbl-refresh-recent"] + (["fast"] if fast else []))
@@ -78,6 +78,7 @@ def _stub_chain(monkeypatch: pytest.MonkeyPatch, *, fast: bool, pitch_type_resul
         ("_pa_build_step", lambda *a, **k: calls.append("pa_build") or {
             "games": 0, "actions": {}, "build_states": {}, "errors": []}),
         ("_pitch_type_step", lambda year: calls.append("pitch_type") or pitch_type_result),
+        ("_derived_step", lambda year: calls.append("derived") or (derived_result or {"errors": []})),
         ("_log_refresh", lambda _s, _f, _t, _tot, _c, detail, ok, note:
             logged.update(ok=ok, note=note, detail=detail)),
     ):
@@ -96,7 +97,7 @@ def test_failure_is_visible_as_69_without_stopping_later_steps(
         rr.main()
 
     assert e.value.code == cpbl_gamelog.EXIT_INCOMPLETE_SCRAPE == 69
-    assert calls == ["pa_build", "pitch_type", "splits"], "推算失敗不得中止後續步驟"
+    assert calls == ["pa_build", "pitch_type", "derived", "splits"], "推算失敗不得中止後續步驟"
     assert logged["ok"] is False
     assert "球種推算失敗：A/v2" in logged["note"]
     assert logged["detail"]["pitch_type"] == result

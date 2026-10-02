@@ -689,7 +689,7 @@ def _exit_code_69_contract_regions() -> dict[str, str]:
 
 
 def test_exit_code_69_contract_names_every_source() -> None:
-    """69 現在有三個來源（2026-09-23 加入球種推算），**兩處**契約文字都必須三個都講（R1-02）。
+    """69 現在有四個來源（09-23 加球種推算、#222 加當季衍生重建），**兩處**契約文字都要講全（R1-02）。
 
     ⚠️ 這條測的是**文件與行為一致**，不是文件存在：
     `test_daily_chain_reports_standings_failure_without_stopping` 已證行為確實會亮 69。
@@ -701,6 +701,7 @@ def test_exit_code_69_contract_names_every_source() -> None:
         assert "gamelog" in region, f"{where}：69 的說明應保留 gamelog 這個來源"
         assert "戰績" in region, f"{where}：69 的說明未提到官方戰績對帳失敗這個來源"
         assert "球種" in region, f"{where}：69 的說明未提到球種推算失敗這個來源"
+        assert "當季衍生重建" in region, f"{where}：69 的說明未提到當季衍生重建失敗這個來源"
 
 
 def test_exit_code_69_contract_is_not_the_stale_wording() -> None:

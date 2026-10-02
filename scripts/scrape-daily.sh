@@ -56,9 +56,10 @@ scripts/scrape-daily.sh — 每日本機自動爬取，成功後同步 productio
 
 離開碼
   0 成功 · 64 參數錯 · 69 有部分步驟失敗但其餘完成（仍會同步 production）
-     69 有三個來源，看 refresh_log 的 note 分辨：逐場 gamelog 失敗（列出場號）／
+     69 有四個來源，看 refresh_log 的 note 分辨：逐場 gamelog 失敗（列出場號）／
      官方球隊戰績對帳失敗（列出 sc=N(kind)，該幾列已拒寫）／
-     球種推算失敗（列出 kind/階段，該段保留上一輪標籤）
+     球種推算失敗（列出 kind/階段，該段保留上一輪標籤）／
+     當季衍生重建失敗（列出 builder，如 team_der／re24；該表保留上一輪值）
   70 狀態檔寫入失敗 · 75 鎖被佔用 · 127 本機 DB 容器沒開
   其餘＝爬取或同步階段的原始離開碼
 
@@ -161,10 +162,12 @@ echo "[$(date '+%F %T')] scrape exit=${CODE}" | tee -a "$LOG"
 # 69＝`cpbl-refresh-recent` 的「有部分步驟失敗、其餘步驟照常完成」
 # （`src/cpbl/ingest/cpbl_gamelog.py::EXIT_INCOMPLETE_SCRAPE`；shell 讀不到 Python 常數，
 # 這裡是字面複本，一致性由 tests/test_gamelog_reconcile.py 機械比對）。
-# ⚠️ 這個碼有**兩個來源**，值班判讀要看 refresh_log 的 note 才分得出來：
+# ⚠️ 這個碼有**四個來源**，值班判讀要看 refresh_log 的 note 才分得出來：
 #   1. 逐場 gamelog 有失敗 → note 列出失敗場號。
 #   2. 官方球隊戰績對帳失敗（拿到別的球季／空表，已拒寫）→ note 列出 sc=N(kind)
 #      （DATA-STANDINGS-YEAR-IGNORED1 岔路 1 裁定沿用同一語意與同一個碼）。
+#   3. 球種推算失敗 → note 列出 kind/階段。
+#   4. 當季衍生重建失敗（#222：DER／wSB／守備局數／捕手失分／特性／RE24）→ note 列出 builder。
 #
 # 為什麼 69 仍要同步（DATA-BOX-DEEP-SILENT-FAIL1 Q3 裁定＝甲-2）：擋同步只是把「靜默
 # 失敗」換成「生產靜默落後」，兩者一樣沒人在看，而且那天其餘所有更新（賽程/累計/分項/
