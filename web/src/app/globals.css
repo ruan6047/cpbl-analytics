@@ -391,18 +391,14 @@ tr:hover .sticky-col {
 .pm-tabs > [role="tab"]:focus-visible, .pm-tabs > a:focus-visible { outline-offset: -3px; }
 .pm-panel { background: var(--color-surface); padding: 14px 16px 16px; border-radius: 0 0 4px 4px; }
 .pm-panel > :last-child { margin-bottom: 0; }
-/* 頁籤帶下的同色子列（HierarchicalTabs／頁籤模式 NavBarRow）：二級分段切換在左、情境 controls 靠右；
-   與選中頁籤及其下 TabPanel 同一卡面，子頁籤因此屬於所選父層，不與父層同列。 */
-.pm-subbar {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
-  background: var(--color-surface); padding: 6px 16px;
-}
-.pm-subbar-ctl { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* 頁籤帶上方的範圍列（HierarchicalTabs／頁籤模式 NavBarRow；核可稿 player.html .scope）：
+   紙色底、不在卡面上；父層分段在左、情境 controls 靠右。頁籤帶緊接其下並直接接 TabPanel。 */
+.pm-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; padding-bottom: 6px; }
+.pm-scope-ctl { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; }
 @media (max-width: 720px) {
   .pm-tabs > [role="tab"], .pm-tabs > a { padding: 9px 12px 10px; }
   .pm-panel { padding: 12px 10px 14px; }
-  .pm-subbar { padding: 6px 10px; }
-  .pm-subbar-ctl { margin-left: 0; }
+  .pm-scope-ctl { margin-left: 0; }
 }
 .pm-seg { display: inline-flex; flex-wrap: wrap; background: var(--color-band); border-radius: 4px; padding: 2px; gap: 2px; }
 .pm-seg > button, .pm-seg > a {

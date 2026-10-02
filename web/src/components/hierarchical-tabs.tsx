@@ -19,13 +19,15 @@ type HierarchicalTabsProps<GroupValue extends string, ItemValue extends string> 
 };
 
 /**
- * 階層導覽（#218 頁籤語言，#220 修正子母層級）：
- *   第一列＝父層色塊帶（選中＝卡面色塊＋粗體＋上緣石油藍）；
- *   第二列＝與選中父層**同色卡面**的子列：左＝作用中父層的子頁籤（二級分段切換），右＝情境 controls。
- * 下方內容由呼叫端以 `TabPanel` 接在同一張卡面上（帶 → 子列 → 內容連成一片），
- * 子頁籤因此只出現在所屬父層的卡面裡，不再與父層混在同一條帶上。
+ * 階層導覽（#218 頁籤語言；核可稿 player.html「範圍列 → 頁籤 → tabpanel」）：
+ *   第一列＝範圍列（紙色底，不在卡面上）：左＝父層分段切換（#218 二級＝分段，如本季／生涯），右＝情境 controls；
+ *   第二列＝作用中父層的子項目＝一級頁籤帶（選中＝卡面色塊＋粗體＋上緣石油藍），
+ *   呼叫端以 `TabPanel` 直接接在帶下（帶 → 內容同一張卡面）。
+ * 子母因此由兩種不同元件區分（分段 vs 頁籤帶），切換內容的頁籤直接連著它控制的內容。
+ * ⛔ 不要把子項目再放回「帶下另一列分段」：那是 #220 第二輪的局部調整，需求方質疑後依核可稿改回。
  *
- * 父層仍是獨立的狀態控制（aria-pressed），子層才使用 tab 語意；視覺分層不改輔助科技可辨識的資訊架構。
+ * 父層仍是獨立的狀態控制（aria-pressed），子層才使用 tab 語意。
+ * 作用中父層沒有子項目時不畫頁籤帶（現有呼叫端皆有子項目）。
  */
 export function HierarchicalTabs<GroupValue extends string, ItemValue extends string>({
   label, groups, activeGroup, activeItem, onGroupChange, onItemChange, controls,
@@ -51,30 +53,30 @@ export function HierarchicalTabs<GroupValue extends string, ItemValue extends st
 
   return (
     <div className="min-w-0">
-      <div role="group" aria-label={label}
-        className="flex min-w-0 items-end gap-0.5 overflow-x-auto overscroll-x-contain rounded-t-md bg-band px-[3px] pt-[3px]">
-        {groups.map((group, index) => {
-          const active = group.value === activeGroup;
-          return (
-            <button key={group.value} type="button" aria-pressed={active}
-              ref={(element) => { groupRefs.current[index] = element; }}
-              onClick={() => onGroupChange(group.value)} onKeyDown={(event) => moveGroup(event, index)}
-              className={`min-h-11 shrink-0 touch-manipulation whitespace-nowrap rounded-t-md px-4 text-sm transition-colors ${active
-                ? "bg-surface font-bold text-ink shadow-[inset_0_3px_0_var(--color-accent)]"
-                : "text-muted hover:text-ink"}`}>
-              {group.label}
-            </button>
-          );
-        })}
-      </div>
-      {(hasItems || controls) && (
-        <div className="pm-subbar">
-          {hasItems && (
-            <TabItems label={`${current.label}內容`} items={current.items} value={activeItem}
-              onChange={onItemChange} />
-          )}
-          {controls && <div className="pm-subbar-ctl">{controls}</div>}
+      <div className="pm-scope">
+        {/* 父層分段：視覺比情境 controls 大一級（核可稿 .scope .seg：14px）；按鈕本體 min-h-11 觸控熱區，
+            視覺高度由內層 span 決定（同 ContextSwitcher 手法）。 */}
+        <div role="group" aria-label={label} className="flex h-9 items-center rounded-md bg-band px-0.5">
+          {groups.map((group, index) => {
+            const active = group.value === activeGroup;
+            return (
+              <button key={group.value} type="button" aria-pressed={active}
+                ref={(element) => { groupRefs.current[index] = element; }}
+                onClick={() => onGroupChange(group.value)} onKeyDown={(event) => moveGroup(event, index)}
+                className={`min-h-11 touch-manipulation whitespace-nowrap px-0.5 text-sm transition`}>
+                <span className={`inline-flex items-center rounded-sm px-4 py-1 transition-colors ${active
+                  ? "bg-ink font-bold text-paper"
+                  : "text-muted hover:text-ink"}`}>
+                  {group.label}
+                </span>
+              </button>
+            );
+          })}
         </div>
+        {controls && <div className="pm-scope-ctl">{controls}</div>}
+      </div>
+      {hasItems && (
+        <MainTabs label={`${current.label}內容`} items={current.items} value={activeItem} onChange={onItemChange} />
       )}
     </div>
   );
@@ -198,43 +200,4 @@ export function MainTabs<ItemValue extends string>({ label, items, value, onChan
 /** MainTabs 的 tab id（tabpanel 的 aria-labelledby 用）。值可能含中文，編碼成安全字元。 */
 export function mainTabId(panelId: string, value: string): string {
   return `${panelId}-tab-${Array.from(value).map((c) => c.codePointAt(0)!.toString(36)).join("")}`;
-}
-
-/** 子層 tablist：階層導覽的子層專用（單層主分頁頁改用 MainTabs）。#218 二級＝分段切換。 */
-export function TabItems<ItemValue extends string>({ label, items, value, onChange }: {
-  label: string;
-  items: readonly { value: ItemValue; label: string }[];
-  value: ItemValue;
-  onChange: (value: ItemValue) => void;
-}) {
-  const index = Math.max(0, items.findIndex((item) => item.value === value));
-  const refs = useRef<(HTMLButtonElement | null)[]>([]);
-  const keyboardMoved = useRef(false);
-  const onKeyDown = (event: KeyboardEvent) => {
-    const delta = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
-    if (!delta) return;
-    event.preventDefault();
-    keyboardMoved.current = true;
-    onChange(items[(index + delta + items.length) % items.length].value);
-  };
-  useEffect(() => {
-    if (keyboardMoved.current) refs.current[index]?.focus({ preventScroll: true });
-  }, [index]);
-
-  return (
-    <div role="tablist" aria-label={label} onKeyDown={onKeyDown} className="flex shrink-0 items-center gap-0.5 rounded-md bg-band p-0.5">
-      {/* 子頁籤比主頁籤「矮」：分段切換（選中＝墨色實底）；觸控熱區仍為 min-h-11（44px），
-          視覺高度由內層 span 決定。 */}
-      {items.map((item, itemIndex) => (
-        <button key={item.value} type="button" role="tab" aria-selected={value === item.value}
-          tabIndex={value === item.value ? 0 : -1}
-          ref={(element) => { refs.current[itemIndex] = element; }} onClick={() => onChange(item.value)}
-          className={`min-h-11 flex touch-manipulation items-center whitespace-nowrap text-[13px] transition-colors`}>
-          <span className={`rounded-sm px-2.5 py-1 ${value === item.value
-            ? "bg-ink font-bold text-paper"
-            : "text-muted hover:text-ink"}`}>{item.label}</span>
-        </button>
-      ))}
-    </div>
-  );
 }

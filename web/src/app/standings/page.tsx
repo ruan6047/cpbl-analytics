@@ -582,7 +582,7 @@ export default async function Standings({ searchParams }: { searchParams: Promis
         <SectionTitle as="h1" date={season}>{subtitle}</SectionTitle>
       </header>
 
-      {/* 一體式多軸導覽欄（§4.3 A2）：seg 主分頁帶＋kind/year 情境 controls（帶下同色子列），
+      {/* 一體式多軸導覽欄（§4.3 A2）：seg 主分頁帶＋kind/year 情境 controls（帶上方範圍列），
           以下內容接在同色 TabPanel 裡。
           特殊戰績（場地/比分型/逆轉/再見…）已移出：per-team 版見各隊球隊頁。 */}
       <StandingsNav kind={kind} years={years} selectedYear={selectedYear} seg={segCode} segs={segTabs}>

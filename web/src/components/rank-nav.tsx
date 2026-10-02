@@ -8,8 +8,8 @@ import { StickyNavBar } from "@/components/sticky-nav-bar";
 
 // 排行中心一體式導覽欄（§4.3 第二例；取代 RankRoleTabs＋獨立 LevelYearNav 兩列）：
 // role（打者/投手）＝group（跨路由 /batters↔/pitchers，保留 kind/year/view 脈絡）、
-// view（完整清單/獎項排行榜）＝item 主內容視圖（?view= 分頁，取代垂直堆疊）、
-// kind＋year＝帶下同色子列的情境 controls（共用 LevelYearNav）；排行內容以 children 接在同色 TabPanel。
+// role 在範圍列畫成分段、view（完整清單/獎項排行榜）＝item 主內容視圖＝頁籤帶（?view= 分頁，取代垂直堆疊）、
+// kind＋year＝帶上方範圍列的情境 controls（共用 LevelYearNav）；排行內容以 children 接在同色 TabPanel。
 export type RankView = "list" | "awards";
 
 // 順序依 spec §4.3 例示（需求方 2026-07-24 裁定）：獎項排行榜在前；預設仍為完整清單。
