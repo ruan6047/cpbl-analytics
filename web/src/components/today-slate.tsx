@@ -94,7 +94,8 @@ function Ticket({ g, status, tone, aside, extra, meta, entry, showScore, live, r
           aria-label={`No.${g.game_sno} ${g.away_team_name} 對 ${g.home_team_name}，${entry.replace(" →", "")}`}>
           {entry}
         </Link>
-        <Postmark date={g.game_date} venue={g.venue} size="lg" placed="absolute" reveal={reveal} />
+        {/* 日期已由區塊標題（今日／下一批賽事＋日期）說過，替代文字只補每張票的球場。 */}
+        <Postmark date={g.game_date} venue={g.venue} size="lg" placed="absolute" reveal={reveal} announce="venue" />
       </div>
       <div className="pm-ticket-body">
         <div className="pm-ticket-teams">

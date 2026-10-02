@@ -59,10 +59,21 @@ export function TeamIcon({ code, name, size = 20, label }: {
     size={size} label={label} />;
 }
 
+/** 郵戳的替代文字：完整日期（「2026年9月28日」）＋球場；`venue` 模式只說球場（日期已由所在區塊標題說過）。 */
+export function postmarkSrText(date: string, venue: string | null | undefined, announce: "date-venue" | "venue"): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(date);
+  const day = m ? `${m[1]}年${Number(m[2])}月${Number(m[3])}日` : date;
+  const place = venue ? `球場 ${venue}` : "";
+  if (announce === "venue") return place || null;
+  return [day, place].filter(Boolean).join("，") || null;
+}
+
 /** 郵戳：日期＋球場（缺球場只蓋日期，戳的尺寸不變）。開打時間不進郵戳，放序號列。
  *  只蓋在賽事票根與賽況頁頂；不蓋在比分、勝率、隊名上，選手頁不蓋。
- *  資訊與外層 aria-label 重複，故一律 aria-hidden。 */
-export function Postmark({ date, venue, size = "md", placed = "static", reveal = false, bg }: {
+ *  戳面（分行的年／月日／球場）對輔助科技 aria-hidden，改由同一元件輸出的 sr-only 整句承載——
+ *  郵戳常是日期／球場在該處的唯一出處，不能只藏不補（#220 F1）。`announce` 決定整句說什麼：
+ *  `date-venue`＝日期＋球場（預設，如賽況頁頂）；`venue`＝只說球場（日期已在區塊標題，如首頁今日票券）。 */
+export function Postmark({ date, venue, size = "md", placed = "static", reveal = false, bg, announce = "date-venue" }: {
   /** `YYYY-MM-DD`（API 的 game_date）。 */
   date: string;
   venue?: string | null;
@@ -73,6 +84,7 @@ export function Postmark({ date, venue, size = "md", placed = "static", reveal =
   reveal?: boolean;
   /** 雙圈之間的底色＝所在底版（卡面／滑過色／頁底）。 */
   bg?: "surface" | "surface-2" | "paper";
+  announce?: "date-venue" | "venue";
 }) {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(date);
   const cls = [
@@ -82,12 +94,16 @@ export function Postmark({ date, venue, size = "md", placed = "static", reveal =
     reveal ? "pm-reveal" : "",
   ].filter(Boolean).join(" ");
   const style = bg ? ({ "--pb": `var(--color-${bg})` } as React.CSSProperties) : undefined;
+  const sr = postmarkSrText(date, venue, announce);
   return (
-    <span className={cls} style={style} aria-hidden="true">
-      {m && <span className="pm-y">{m[1]}</span>}
-      <b>{m ? `${m[2]}.${m[3]}` : date}</b>
-      {venue && <span>{venue}</span>}
-    </span>
+    <>
+      <span className={cls} style={style} aria-hidden="true">
+        {m && <span className="pm-y">{m[1]}</span>}
+        <b>{m ? `${m[2]}.${m[3]}` : date}</b>
+        {venue && <span>{venue}</span>}
+      </span>
+      {sr && <span className="sr-only">{sr}</span>}
+    </>
   );
 }
 
