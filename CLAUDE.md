@@ -160,7 +160,7 @@ docker compose run --rm api cpbl-train     # 容器內已有 libgomp1，LightGBM
    `fit_intercept`；請勿將此舊模型規則套到現役固定語意群模型。
 3. **誠實揭露**：現役模型與舊全特徵 benchmark 在 `/methodology#pregame` 對照；
    勿把含前視洩漏的舊數字當成賽前預測力。特徵在 `features/outcome.py` 於套用該場結果前計算，
-   完賽判定走 `cpbl.completion.is_completed_game`（比分或官方完賽證據，包括有證據的 0:0）。
+   completed 判定為 `home_score + away_score > 0`（未開打為 0-0）。
 
 ### API
 
