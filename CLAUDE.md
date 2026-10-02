@@ -30,7 +30,7 @@ PersonalWebsite 主站的子專案,透過 `/api/info` 掛載到子網域並被�
 
 | 主題 | 事實 | 為什麼重要 |
 |---|---|---|
-| **ML 雙軌** | (1) **成績預測** [projection]：AVG/OBP/SLG/OPS rate stat（Marcel vs LightGBM 離線回測）；(2) **賽果預測** [outcome]：單場主隊勝率，API request 時即時 fit 使用者選的特徵子集 | 兩者資料前置與流程不同，勿混淆 |
+| **ML 雙軌** | (1) **成績預測** [projection]：AVG/OBP/SLG/OPS rate stat（Marcel vs LightGBM 離線回測）；(2) **賽果預測** [outcome]：單場主隊勝率，現役賽前模型以固定語意群離線訓練；舊的使用者選特徵即時 fit 探索器前端已下線，後端端點仍保留 | 兩者資料前置與流程不同，勿混淆 |
 | **資料粒度** | `cpbl-opendata` 只有**逐年彙總**（最早 1990）；**逐場**資料（賽程/比分/逐打席 livelog/box/逐球 TrackMan）由**官網爬蟲**補足且已入庫 | 成績預測用逐年；賽果預測與賽況頁用逐場。**計數型**季彙總仍受逐年粒度限制 |
 | **驗收標準** | LightGBM 必須在**時間切分回測**上打贏 Marcel baseline 才算有價值 | 打不贏 baseline = 模型沒學到東西，這是誠實的工程紅線 |
 | **賽果天花板** | 單場勝負可預測性 ~60%，產品價值在透明與教育，不在擊敗賭盤 | 禁止用浮誇數字包裝（見下方賽果預測準則） |
@@ -72,9 +72,10 @@ cpbl-analytics/
 │   ├── models/
 │   │   ├── marcel.py             # Marcel baseline（加權 5/4/3 + 回歸均值 + 年齡曲線）
 │   │   ├── train.py              # 成績預測：LightGBM 訓練 + 回測 + 持久化
-│   │   ├── outcome.py            # 賽事預測（互動：即時 fit 特徵子集 + 時間切分回測）
-│   │   ├── outcome_gbm.py        # 賽事預測（離線：LightGBM vs 邏輯回歸 vs 全押主場走查回測 → model_versions）
-│   │   └── matchup.py            # 賽事預測（主：單場對戰卡 + 定向預設權重）
+│   │   ├── outcome.py            # 舊互動探索器的即時 fit 特徵子集 + 時間切分回測（後端保留，前端已下線）
+│   │   ├── outcome_gbm.py        # 舊全特徵 benchmark（離線：LightGBM vs 邏輯回歸 vs 全押主場 → model_versions）
+│   │   ├── outcome_simple.py     # 現役固定語意群賽前勝率模型（離線訓練）
+│   │   └── matchup.py            # 舊互動探索器的單場對戰卡 + 定向預設權重（後端保留）
 │   └── api/                      # FastAPI：main.py 組裝 + routers/ 領域分群 + helpers/rows 共用
 ├── web/                          # 獨立 Next.js 15 前端（App Router + Tailwind v4 + recharts）
 ├── migrations/                   # NNN_*.sql（season/ML 表 + games/game_features/current 系列 + advanced_stats/pitch_tracking/game_log/standings…）
@@ -102,8 +103,12 @@ cd web && npm install && npm run dev                                            
 npm run build:check                                                             # 驗證編譯：使用獨立 distDir，守衛不擋且不影響 dev 快取
 ```
 
-> 賽事預測的**互動探索器**不需離線訓練：API request 時依使用者選的特徵子集即時 fit
-> （見 `models/matchup.py`，預設權重=各變因單獨標準化係數、定向後正=有利主隊）。
+> 現役賽前勝率使用固定語意群模型（`cpbl-train-outcome-simple`→`models/outcome_simple.py` 離線訓練）；
+> 首頁與賽況頁呈現賽前勝率，`/methodology#pregame` 呈現回測對照。
+> 舊的自由選特徵／調權重互動探索器前端已下線，`/predict` 轉址至 `/methodology#pregame`；
+> 後端 `/api/v1/outcome/features`、`/evaluate`、`/teams`、`/matchups`、`/simulate` 仍保留，
+> `web/src` 沒有這五支端點的呼叫。是否有外部呼叫者尚未查證，不可逕自移除端點。
+> 舊探索器的即時 fit 實作仍在 `models/outcome.py`、`models/matchup.py`，不需離線訓練。
 > 另有**離線走查回測**（`cpbl-train-outcome`→`models/outcome_gbm.py`）跑全特徵
 > LightGBM/邏輯回歸 vs 全押主場，寫 `model_versions(task='outcome')` 供 `/methodology#pregame` 回測面板
 > 與 `/api/info` 展示；需 LightGBM 故在容器內跑。成績預測（打擊 projection）有 `cpbl-train`。
@@ -145,16 +150,17 @@ docker compose run --rm api cpbl-train     # 容器內已有 libgomp1，LightGBM
 3. **計數型 vs rate**：目前只預測 rate stat。計數型（HR、RBI 總數）需先有上場時間模型，未做前不要硬湊。
 4. **產出持久化**：模型 metrics 寫 `cpbl.model_versions`，預測寫 `cpbl.projections`（回測列填 actual，下季投影 actual 為 NULL）。模型檔存 `ARTIFACT_DIR`。
 
-### 賽果預測（`models/outcome.py`）— 互動式特徵子集
+### 賽果預測 — 現役模型與舊互動探索器
 
-1. **不訓練黑箱再讓使用者關特徵**（統計上錯誤：模型沒學過缺特徵的世界）。正解是
-   使用者選定子集後**即時 fit 一個只用該子集的邏輯回歸**，回傳該組合的回測準確率。
-2. **`home_field` 控制 intercept**，不是當欄位標準化（常數欄標準化後會被歸零，主場
-   優勢會消失）。選它 = `fit_intercept=True`；不選 = 強制 50% 基準。
-3. **誠實第一**：永遠同時回傳「全押主場」基準準確率對照。單場勝負天花板 ~60%，
-   產品價值在透明與教育，不是擊敗賭盤——禁止用浮誇數字包裝。
-4. **leakage**：特徵全在 `features/outcome.py` 以逐場 running state 於「套用該場結果前」
-   算出；completed 判定為 `home_score + away_score > 0`（未開打為 0-0）。
+1. **現役賽前勝率**：`models/outcome_simple.py` 的固定語意群模型離線訓練，
+   由 `/api/v1/outcome/pregame` 與每日摘要提供前端；不讓使用者自由選特徵或調權重。
+2. **舊互動探索器（前端已下線）**：`models/outcome.py` 仍供 `/evaluate` 在請求時只用所選子集
+   即時 fit 邏輯回歸並回傳回測準確率；`models/matchup.py` 仍供對戰卡與模擬端點。
+   這是保留的後端行為，不是要恢復 `/predict` 的產品規則。`home_field` 在舊模型中控制
+   `fit_intercept`；請勿將此舊模型規則套到現役固定語意群模型。
+3. **誠實揭露**：現役模型與舊全特徵 benchmark 在 `/methodology#pregame` 對照；
+   勿把含前視洩漏的舊數字當成賽前預測力。特徵在 `features/outcome.py` 於套用該場結果前計算，
+   完賽判定走 `cpbl.completion.is_completed_game`（比分或官方完賽證據，包括有證據的 0:0）。
 
 ### API
 
@@ -206,7 +212,7 @@ URL（`http://cpbl-analytics:4001/api/info`）。
 
 - **Phase 1（已完成）**：opendata 回填 + 打擊成績預測（Marcel vs LightGBM）+ `/api/info` + 投影查詢。
 - **Phase 1.5（已完成）**：官網逐場爬蟲（games 表，含比分/先發投手）；獨立 Next.js 前端（投影排行 + 球員逐年圖表）。
-- **Phase 2（已完成）**：**賽事預測** — game_features（leakage-safe）+ 即時 fit 特徵子集探索器（`/predict` 頁 + `/api/v1/outcome/*`）+ 今日賽事勝率預測。
+- **Phase 2（已完成；舊探索器前端已下線）**：**賽事預測** — game_features（leakage-safe）+ 曾提供即時 fit 特徵子集探索器；`/predict` 現轉址至 `/methodology#pregame`，其五支舊後端端點仍保留。今日賽事勝率預測由現役固定語意群模型提供。
 - **Phase 2.6（已完成）**：賽事預測重構 — game_features 改全史 kind A（1145→9350 完成場，修正混二軍/季後）+ 新增 leakage-safe 特徵（上季戰力 `prior_winpct_diff`、休息天數 `rest_days_diff`）+ 離線 LightGBM 走查回測對照（2022–26，`/methodology#pregame` 回測面板；原宣稱 ~62% 含約 6–7 個百分點前視洩漏，見 [`docs/research/ML-OUTCOME-LEAK1_RESULTS.md`](docs/research/ML-OUTCOME-LEAK1_RESULTS.md)，勿當賽前預測力引用）。
 - **Phase 2.5（已完成）**：官方進階數據 — `advanced_stats`（彙總進階 + 官方 PR）+ `pitch_tracking`（逐球 TrackMan）+ 好球帶紀律 `/discipline`；逐場 box score / 逐打席 livelog（`game_log`、賽況頁）。
 - **前端改版（進行中）**：日間 Navy+白設計系統；P1/P2（球員頁旗艦）完成；P3 各頁視覺化升級進行中（含賽況頁**賽中態**的 **ESPN 風格狀態板**：頂部記分條 + 壘包/球數 + 逐球好球帶 + Recent Plays）。⚠️ 完賽態**總覽頁籤**的頁首記分條只呈現終場比分，不顯示 TOP/BOT、壘包與球數；完賽態逐打席頁籤與總覽共用同一記分條元素，須保留選中打席的局數、壘包與球數（需求方 2026-08-21 裁定，[#160](https://github.com/ruan6047/cpbl-analytics/issues/160)；逐欄位定稿見 [`docs/design/GAME-PAGE-THREE-STATES.md`](docs/design/GAME-PAGE-THREE-STATES.md) §1.1.1）。本行是 Roadmap 進度描述，**不是視覺方向的裁定依據**。
