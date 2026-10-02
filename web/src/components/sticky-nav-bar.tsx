@@ -11,7 +11,7 @@ export function StickyNavBar({ label, children, mobileStatic = false, flush = fa
   label: string; children: ReactNode;
   /** 內容較高的導覽欄（如 matchups 查詢列）在行動端不 sticky，避免吃掉大半視口。 */
   mobileStatic?: boolean;
-  /** 含頁籤的導覽欄：去掉殼的下內距，讓頁籤下緣貼齊分隔線（經典分頁感）。 */
+  /** 含頁籤的導覽欄：去掉殼的下內距與下外距，頁籤帶直接接下方 `TabPanel` 同色卡面（#218 頁籤＋面板）。 */
   flush?: boolean;
 }) {
   const [stickyTop, setStickyTop] = useState(0);
@@ -27,7 +27,7 @@ export function StickyNavBar({ label, children, mobileStatic = false, flush = fa
 
   return (
     <nav aria-label={label} style={{ top: stickyTop }}
-      className={`${mobileStatic ? "md:sticky" : "sticky"} z-20 -mx-1 mb-6 bg-paper px-1 ${flush ? "pt-1.5" : "py-1.5"}`}>
+      className={`${mobileStatic ? "md:sticky" : "sticky"} z-20 -mx-1 bg-paper px-1 ${flush ? "pt-1.5" : "mb-6 py-1.5"}`}>
       {children}
     </nav>
   );
@@ -36,19 +36,27 @@ export function StickyNavBar({ label, children, mobileStatic = false, flush = fa
 /**
  * 導覽欄單列版面：左側主內容軸（tablist／chip 群，捲動容器由呼叫端決定）＋
  * 右側 controls 插槽（`md:border-l` 分隔）；窄螢幕改垂直堆疊（§4.3 B1）。
- * 與 HierarchicalTabs 內部版面同源，供單層 tablist 頁（standings/games）重用。
+ * 頁籤模式（end，搭 flush 殼）與 HierarchicalTabs 同源：頁籤帶在上，controls 移到帶下的同色子列，
+ * 不插在帶與 `TabPanel` 之間。
  */
 export function NavBarRow({ main, controls, align = "center" }: {
   main: ReactNode; controls?: ReactNode;
-  /** end＝頁籤模式（搭 flush 殼）：主軸貼齊下緣分隔線、controls 保留小間距。 */
+  /** end＝頁籤模式（搭 flush 殼）：頁籤帶＋同色子列（controls 靠右）。 */
   align?: "center" | "end";
 }) {
-  const end = align === "end";
+  if (align === "end") {
+    return (
+      <div className="min-w-0">
+        {main}
+        {controls && <div className="pm-subbar"><div className="pm-subbar-ctl">{controls}</div></div>}
+      </div>
+    );
+  }
   return (
-    <div className={`flex min-w-0 flex-col gap-1.5 md:flex-row md:justify-between ${end ? "md:items-end" : "md:items-center"}`}>
+    <div className="flex min-w-0 flex-col gap-1.5 md:flex-row md:items-center md:justify-between">
       {main}
       {controls && (
-        <div className={`flex shrink-0 flex-wrap items-center gap-2 pt-0.5 md:border-l md:border-line md:pl-3 md:pt-0 ${end ? "pb-1.5 md:pb-1" : ""}`}>
+        <div className="flex shrink-0 flex-wrap items-center gap-2 pt-0.5 md:border-l md:border-line md:pl-3 md:pt-0">
           {controls}
         </div>
       )}

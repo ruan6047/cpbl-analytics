@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { MainTabs } from "@/components/hierarchical-tabs";
+import { type ReactNode } from "react";
+import { MainTabs, TabPanel, mainTabId } from "@/components/hierarchical-tabs";
 import { LevelYearNav } from "@/components/level-year-nav";
 import { NavBarRow, StickyNavBar } from "@/components/sticky-nav-bar";
 
@@ -9,9 +10,13 @@ import { NavBarRow, StickyNavBar } from "@/components/sticky-nav-bar";
 // kind（一/二軍）＋year＝右側情境 controls（共用 LevelYearNav）。
 // seg 項目由 server 端 segsFor(kind) 傳入（二軍無上下半季）；切層級/年份時保留 seg，
 // 由 server 端 fallback 邏輯處理失效 seg（退回全年）。
-export function StandingsNav({ kind, years, selectedYear, seg, segs }: {
+// 頁面內容以 children 傳入，接在頁籤帶下的同色 TabPanel（#218 頁籤＋面板）。
+const STANDINGS_PANEL = "standings-panel";
+
+export function StandingsNav({ kind, years, selectedYear, seg, segs, children }: {
   kind: string; years: number[]; selectedYear: number; seg: number;
   segs: { v: number; label: string }[];
+  children: ReactNode;
 }) {
   const router = useRouter();
   const pushSeg = (v: string) => {
@@ -23,14 +28,13 @@ export function StandingsNav({ kind, years, selectedYear, seg, segs }: {
     router.push(qs ? `/standings?${qs}` : "/standings");
   };
   return (
+    <>
     <StickyNavBar label="戰績導覽" flush>
       <NavBarRow
         align="end"
         main={
-          <div className="flex min-w-0 items-center overflow-x-auto overscroll-x-contain">
-            <MainTabs label="賽季階段" value={String(seg)} onChange={pushSeg}
-              items={segs.map((s) => ({ value: String(s.v), label: s.label }))} />
-          </div>
+          <MainTabs label="賽季階段" value={String(seg)} onChange={pushSeg} panelId={STANDINGS_PANEL}
+            items={segs.map((s) => ({ value: String(s.v), label: s.label }))} />
         }
         controls={
           <LevelYearNav kind={kind} years={years} selectedYear={selectedYear} base="/standings"
@@ -38,5 +42,7 @@ export function StandingsNav({ kind, years, selectedYear, seg, segs }: {
         }
       />
     </StickyNavBar>
+    <TabPanel id={STANDINGS_PANEL} labelledBy={mainTabId(STANDINGS_PANEL, String(seg))}>{children}</TabPanel>
+    </>
   );
 }

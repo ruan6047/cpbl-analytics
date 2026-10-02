@@ -29,7 +29,7 @@ export type Col = {
   mobileHide?: boolean; // 窄螢幕（<sm）隱藏：手機只留排名/球員/主指標+1~2 支持
   chip?: boolean; // 類別值（守位/角色）渲染成標籤 pill（獨立欄；併入名字欄改用 subChipKey）
   teamKey?: string; // 提供時，link 名稱欄前加該欄（隊名）的隊徽 icon（隊欄併入名字）
-  subChipKey?: string; // link 名稱欄下方疊一枚該欄（守位/角色）標籤 pill（守位/角色併入名字欄）
+  subChipKey?: string; // link 名稱欄緊接一枚該欄（守位/角色）標籤 pill（md 以上同列、手機疊在名字下方）
   rate?: boolean; // 率值欄（AVG/OPS/ERA…）：以此欄排序時套規定打席/局數門檻，未達者置底不計名次
 };
 
@@ -215,11 +215,13 @@ export default function Leaderboard({
         ) : c.link ? (
           <span className="inline-flex items-center gap-1.5">
             {c.teamKey && <TeamLogo name={String(r[c.teamKey] ?? "")} size={16} decorative />}
-            <span className="inline-flex flex-col items-start leading-tight">
+            {/* 守位／角色標籤緊接姓名同列（需求方 #220：同一筆連續閱讀）；手機窄欄才疊到姓名下方，
+                避免固定首欄變寬吃掉數據欄。 */}
+            <span className="inline-flex flex-col items-start leading-tight md:flex-row md:items-center md:gap-1.5">
               <Link href={`${c.link.base}${r[c.link.idKey]}`} className={ENTITY_LINK}>
                 {fmtVal(r[c.key], c.fmt)}
               </Link>
-              {c.subChipKey && r[c.subChipKey] && <Pill className="mt-0.5">{String(r[c.subChipKey])}</Pill>}
+              {c.subChipKey && r[c.subChipKey] && <Pill className="mt-0.5 md:mt-0">{String(r[c.subChipKey])}</Pill>}
             </span>
           </span>
         ) : c.chip ? (

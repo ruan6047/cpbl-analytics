@@ -1,7 +1,6 @@
 "use client";
 
 import { type KeyboardEvent, type ReactNode, useEffect, useRef } from "react";
-import { NavBarRow } from "@/components/sticky-nav-bar";
 
 export type HierarchicalTabGroup<GroupValue extends string, ItemValue extends string> = {
   value: GroupValue;
@@ -20,16 +19,20 @@ type HierarchicalTabsProps<GroupValue extends string, ItemValue extends string> 
 };
 
 /**
- * 將父層與作用中父層的子標籤合併為一條導覽列：
- * `A a1 a2 | B` → 切換後為 `A | B b1 b2`。
+ * 階層導覽（#218 頁籤語言，#220 修正子母層級）：
+ *   第一列＝父層色塊帶（選中＝卡面色塊＋粗體＋上緣石油藍）；
+ *   第二列＝與選中父層**同色卡面**的子列：左＝作用中父層的子頁籤（二級分段切換），右＝情境 controls。
+ * 下方內容由呼叫端以 `TabPanel` 接在同一張卡面上（帶 → 子列 → 內容連成一片），
+ * 子頁籤因此只出現在所屬父層的卡面裡，不再與父層混在同一條帶上。
  *
- * 父層仍是獨立的狀態控制，子層才使用 tab 語意；視覺合併不會犧牲
- * 輔助科技可辨識的資訊架構。右側 controls 可放情境切換器。
+ * 父層仍是獨立的狀態控制（aria-pressed），子層才使用 tab 語意；視覺分層不改輔助科技可辨識的資訊架構。
  */
 export function HierarchicalTabs<GroupValue extends string, ItemValue extends string>({
   label, groups, activeGroup, activeItem, onGroupChange, onItemChange, controls,
 }: HierarchicalTabsProps<GroupValue, ItemValue>) {
   const groupIndex = Math.max(0, groups.findIndex((group) => group.value === activeGroup));
+  const current = groups[groupIndex];
+  const hasItems = !!current && current.items.length > 0;
   const groupRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const keyboardMovedGroup = useRef(false);
 
@@ -47,40 +50,54 @@ export function HierarchicalTabs<GroupValue extends string, ItemValue extends st
   }, [groupIndex]);
 
   return (
-    <NavBarRow
-      align="end"
-      main={<div role="group" aria-label={label}
+    <div className="min-w-0">
+      <div role="group" aria-label={label}
         className="flex min-w-0 items-end gap-0.5 overflow-x-auto overscroll-x-contain rounded-t-md bg-band px-[3px] pt-[3px]">
         {groups.map((group, index) => {
           const active = group.value === activeGroup;
           return (
-            <div key={group.value} className="contents">
-              {/* 主頁籤 vs 子頁籤的視覺分層（需求方 2026-07-24 UI 審；#218 換成郵戳頁籤語言）：
-                  整條導覽是一條 band 色塊帶；active 主頁籤＝卡面色塊＋粗體＋上緣 3px 石油藍，
-                  其子頁籤緊接在同一卡面上（二級＝分段切換）；未選主頁籤＝帶上的淡字。
-                  子頁籤按鈕仍為 min-h-11 觸控熱區。 */}
-              <div className={`flex shrink-0 items-end rounded-t-md ${active ? "bg-surface" : ""}`}>
-                <button type="button" aria-pressed={active}
-                  ref={(element) => { groupRefs.current[index] = element; }}
-                  onClick={() => onGroupChange(group.value)} onKeyDown={(event) => moveGroup(event, index)}
-                  className={`min-h-11 shrink-0 touch-manipulation whitespace-nowrap rounded-t-md px-4 text-sm transition-colors ${active
-                    ? "font-bold text-ink shadow-[inset_0_3px_0_var(--color-accent)]"
-                    : "text-muted hover:text-ink"}`}>
-                  {group.label}
-                </button>
-                {active && group.items.length > 0 && (
-                  <div className="flex items-center pr-2">
-                    <TabItems label={`${group.label}內容`} items={group.items} value={activeItem}
-                      onChange={onItemChange} />
-                  </div>
-                )}
-              </div>
-            </div>
+            <button key={group.value} type="button" aria-pressed={active}
+              ref={(element) => { groupRefs.current[index] = element; }}
+              onClick={() => onGroupChange(group.value)} onKeyDown={(event) => moveGroup(event, index)}
+              className={`min-h-11 shrink-0 touch-manipulation whitespace-nowrap rounded-t-md px-4 text-sm transition-colors ${active
+                ? "bg-surface font-bold text-ink shadow-[inset_0_3px_0_var(--color-accent)]"
+                : "text-muted hover:text-ink"}`}>
+              {group.label}
+            </button>
           );
         })}
-      </div>}
-      controls={controls}
-    />
+      </div>
+      {(hasItems || controls) && (
+        <div className="pm-subbar">
+          {hasItems && (
+            <TabItems label={`${current.label}內容`} items={current.items} value={activeItem}
+              onChange={onItemChange} />
+          )}
+          {controls && <div className="pm-subbar-ctl">{controls}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 頁籤帶下方的同色卡面（#218 components.html「下接同色 tabpanel」）。
+ *  `labelledBy`／`label` 其一＝真正的 tabpanel；兩者皆無＝父層只是狀態切換（aria-pressed），
+ *  只承接卡面樣式、不宣稱 tabpanel 語意。 */
+export function TabPanel({ id, labelledBy, label, className = "", children }: {
+  id?: string;
+  /** 選中 tab 的 id（MainTabs 用 `mainTabId(panelId, value)`）。 */
+  labelledBy?: string;
+  /** 子頁籤沒有 id 時改用文字標名。 */
+  label?: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  const isTabPanel = !!(labelledBy || label);
+  return (
+    <div role={isTabPanel ? "tabpanel" : undefined} id={id} aria-labelledby={labelledBy}
+      aria-label={labelledBy ? undefined : label} className={`pm-panel ${className}`}>
+      {children}
+    </div>
   );
 }
 
@@ -134,7 +151,8 @@ export function ContextSwitcher<Value extends string>({
 }
 
 /** 單層主頁籤 tablist（UI 審 r8）：無主/次階層的頁（standings seg、records 分區）
-    一律採主頁籤造型呈現——#218 一級頁籤：band 色塊帶，選中＝卡面色塊＋粗體＋上緣石油藍。 */
+    一律採主頁籤造型呈現——#218 一級頁籤：band 色塊帶（佔滿內容寬），選中＝卡面色塊＋粗體＋上緣石油藍，
+    下方以 `TabPanel` 接同色內容面板。 */
 export function MainTabs<ItemValue extends string>({ label, items, value, onChange, panelId }: {
   label: string;
   items: readonly { value: ItemValue; label: string }[];
@@ -160,7 +178,7 @@ export function MainTabs<ItemValue extends string>({ label, items, value, onChan
 
   return (
     <div role="tablist" aria-label={label} onKeyDown={onKeyDown}
-      className="flex min-w-0 shrink-0 items-end gap-0.5 overflow-x-auto rounded-t-md bg-band px-[3px] pt-[3px]">
+      className="flex w-full min-w-0 items-end gap-0.5 overflow-x-auto overscroll-x-contain rounded-t-md bg-band px-[3px] pt-[3px]">
       {items.map((item, itemIndex) => (
         <button key={item.value} type="button" role="tab" aria-selected={value === item.value}
           id={panelId ? mainTabId(panelId, item.value) : undefined}

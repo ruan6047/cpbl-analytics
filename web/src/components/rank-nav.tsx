@@ -1,14 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { HierarchicalTabs } from "@/components/hierarchical-tabs";
+import { type ReactNode } from "react";
+import { HierarchicalTabs, TabPanel } from "@/components/hierarchical-tabs";
 import { LevelYearNav } from "@/components/level-year-nav";
 import { StickyNavBar } from "@/components/sticky-nav-bar";
 
 // 排行中心一體式導覽欄（§4.3 第二例；取代 RankRoleTabs＋獨立 LevelYearNav 兩列）：
 // role（打者/投手）＝group（跨路由 /batters↔/pitchers，保留 kind/year/view 脈絡）、
 // view（完整清單/獎項排行榜）＝item 主內容視圖（?view= 分頁，取代垂直堆疊）、
-// kind＋year＝右側情境 controls（共用 LevelYearNav）。
+// kind＋year＝帶下同色子列的情境 controls（共用 LevelYearNav）；排行內容以 children 接在同色 TabPanel。
 export type RankView = "list" | "awards";
 
 // 順序依 spec §4.3 例示（需求方 2026-07-24 裁定）：獎項排行榜在前；預設仍為完整清單。
@@ -34,14 +35,18 @@ function hrefFor(role: string, view: RankView, kind: string, year: number, defau
   return qs ? `${BASE[role]}?${qs}` : BASE[role];
 }
 
-export function RankNav({ role, view, kind, years, selectedYear }: {
+export function RankNav({ role, view, kind, years, selectedYear, children }: {
   role: "batting" | "pitching"; view: RankView; kind: string;
   years: number[]; selectedYear: number;
+  children: ReactNode;
 }) {
   const router = useRouter();
   const push = (nextRole: string, nextView: RankView) =>
     router.push(hrefFor(nextRole, nextView, kind, selectedYear, years[0]));
+  const groupLabel = GROUPS.find((g) => g.value === role)?.label ?? "";
+  const viewLabel = VIEW_ITEMS.find((v) => v.value === view)?.label ?? "";
   return (
+    <>
     <StickyNavBar label="排行導覽" flush>
       <HierarchicalTabs label="排行範圍" groups={GROUPS}
         activeGroup={role} activeItem={view}
@@ -52,5 +57,7 @@ export function RankNav({ role, view, kind, years, selectedYear }: {
             params={{ view: view === "list" ? undefined : view }} />
         } />
     </StickyNavBar>
+    <TabPanel label={`${groupLabel}・${viewLabel}`}>{children}</TabPanel>
+    </>
   );
 }

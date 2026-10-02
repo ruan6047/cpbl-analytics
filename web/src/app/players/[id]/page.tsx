@@ -5,7 +5,7 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { useEffect, useRef, useState } from "react";
 import { type PlayerProfile, type StatRow, detail } from "@/lib/client";
 import { EmptyState } from "@/components/ui";
-import { ContextSwitcher, HierarchicalTabs, type HierarchicalTabGroup } from "@/components/hierarchical-tabs";
+import { ContextSwitcher, HierarchicalTabs, TabPanel, type HierarchicalTabGroup } from "@/components/hierarchical-tabs";
 import { StickyNavBar } from "@/components/sticky-nav-bar";
 import { codeFromName, teamColor } from "@/lib/teams";
 import { type Ability, type CareerStats, type Disc, type Role } from "./lib";
@@ -230,7 +230,7 @@ export default function PlayerPage() {
         onLevel={(level) => replaceNav({ level })}
         onView={(view) => replaceNav({ view })} />
 
-      <div role="tabpanel" aria-label={`${nav.scope === "season" ? "本季" : "生涯"}・${VIEW_LABEL[nav.view]}`}>
+      <TabPanel label={`${nav.scope === "season" ? "本季" : "生涯"}・${VIEW_LABEL[nav.view]}`} className="mb-6">
         {nav.scope === "season" && nav.view === "overview" && (
           isRetired ? (
             <EmptyState>本季無登錄紀錄（已退役／轉任教練）；可切換「生涯」查看完整表現。</EmptyState>
@@ -284,7 +284,7 @@ export default function PlayerPage() {
           <CareerYearlySection career={career} role={nav.role} />
         )}
         {nav.scope === "career" && nav.view === "value" && <SabrSection id={id} role={nav.role} />}
-      </div>
+      </TabPanel>
 
       <details className="mb-6 rounded-md bg-surface">
         <summary className="cursor-pointer select-none px-4 py-2.5 text-sm font-medium text-muted hover:text-ink">

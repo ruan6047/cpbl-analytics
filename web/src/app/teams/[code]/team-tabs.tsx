@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { HierarchicalTabs, type HierarchicalTabGroup } from "@/components/hierarchical-tabs";
+import { HierarchicalTabs, TabPanel, type HierarchicalTabGroup } from "@/components/hierarchical-tabs";
 import { StickyNavBar } from "@/components/sticky-nav-bar";
 import { YearSelect } from "@/components/year-select";
 import { TeamScopeOverview } from "./scope-overview";
@@ -58,8 +58,12 @@ export function TeamTabs({ code, teamN, scopes, der, seasonSupporting, groups, y
   const contentFor = Object.fromEntries(groups.map((g) => [g.value, g.content]));
   const isHalf = activeHalf !== "full";
 
+  // 只有賽季群組有子頁籤（半季 tablist）時才是真正的 tabpanel；其餘群組是 aria-pressed 狀態切換，只承接卡面。
+  const panelLabel = activeGroup === SEASON_GROUP && seasonItems.length > 0
+    ? `賽季・${HALF_LABEL[activeHalf] ?? activeHalf}` : undefined;
+
   return (
-    <div className="space-y-5">
+    <div>
       <StickyNavBar label="球隊資料導覽" flush>
         <HierarchicalTabs
           label="球隊資料範圍"
@@ -74,6 +78,7 @@ export function TeamTabs({ code, teamN, scopes, der, seasonSupporting, groups, y
         />
       </StickyNavBar>
 
+      <TabPanel label={panelLabel}>
       {activeGroup === SEASON_GROUP ? (
         <div className="space-y-5">
           {activeScope && (
@@ -89,6 +94,7 @@ export function TeamTabs({ code, teamN, scopes, der, seasonSupporting, groups, y
       ) : (
         contentFor[activeGroup]
       )}
+      </TabPanel>
     </div>
   );
 }

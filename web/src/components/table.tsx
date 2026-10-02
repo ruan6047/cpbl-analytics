@@ -87,9 +87,10 @@ export function DataTable<T>({
             <tr>{columns.map(th)}</tr>
           </thead>
         )}
-        <tbody className={bodyClassName}>
+        {/* pm-zebra：隔行底色＋滑過換色畫在儲存格上（globals.css），固定首欄同步。 */}
+        <tbody className={`pm-zebra ${bodyClassName}`}>
           {rows.map((row, ri) => (
-            <tr key={rowKey(row, ri)} className={`transition-colors hover:bg-surface-2 ${rowClassName?.(row, ri) ?? ""}`}>
+            <tr key={rowKey(row, ri)} className={rowClassName?.(row, ri) ?? ""}>
               {columns.map((c, ci) => (
                 <td
                   key={ci}

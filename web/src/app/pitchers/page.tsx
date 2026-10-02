@@ -82,7 +82,7 @@ export default async function PitchersPage({ searchParams }: { searchParams: Pro
         </p>
       </header>
 
-      <RankNav role="pitching" view={view} kind={kind} years={years} selectedYear={selectedYear} />
+      <RankNav role="pitching" view={view} kind={kind} years={years} selectedYear={selectedYear}>
 
       {view === "awards" ? (
         <AwardRaces rows={items} cats={AWARD_CATS} qualKey="ip" qualMin={qual}
@@ -101,6 +101,7 @@ export default async function PitchersPage({ searchParams }: { searchParams: Pro
           />
         </section>
       )}
+      </RankNav>
     </div>
   );
 }

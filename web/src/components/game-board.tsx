@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { StatRow } from "@/lib/client";
 import { ENTITY_LINK, ENTITY_LINK_TEXT, StatusBadge, TeamLogo } from "@/components/ui";
 import { GameSituation } from "@/components/postmark";
+import { TabPanel } from "@/components/hierarchical-tabs";
 import { phaseTone } from "@/lib/daily-summary";
 import { isCurrentTeam, teamColor, teamPageCode } from "@/lib/teams";
 import { PITCH_CALL, PA_KIND } from "@/lib/chart-theme";
@@ -632,7 +633,8 @@ function StrikeZone({ pitches, footer }: { pitches: TrackRow[]; footer?: ReactNo
             const { color, label } = callStyle(p.pitch_call);
             return (
               <li key={i} className="font-mono tabular-nums">
-              <div className="flex items-center gap-1.5 whitespace-nowrap">
+              {/* 窄欄時「數據」鈕（44px 觸控熱區）可整顆換到下一行，避免整列撐寬側欄（#220 F3）。 */}
+              <div className="flex flex-wrap items-center gap-x-1.5 whitespace-nowrap">
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[10px] font-bold text-white" style={{ background: color }}>{i + 1}</span>
                 <span className="w-8 shrink-0 font-sans text-muted">{label}</span>
                 <span className="font-sans text-ink">{pitchZh(p, useModel)}</span>
@@ -815,15 +817,16 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
       <ScoreBar game={game} e={e} records={data.records} snapshot={data.live_snapshot ?? null}
         plain={plainScorebar} />
 
+      <div>
       {tabs}
 
-      <div role={panelId ? "tabpanel" : undefined} id={panelId} aria-labelledby={panelLabelledBy} className="space-y-4">
+      <TabPanel id={panelId} labelledBy={panelLabelledBy} className="space-y-4">
       <ScoreLine sb={data.scoreboard} game={game} snapshot={data.live_snapshot ?? null}
         halves={halves} curKey={curKey} onSelect={(h) => selectIdx(h.firstIdx)}
         highlightSelection={highlightSelection} />
 
       {view === "pbp" && (
-      <div id="pbp-section" className="grid scroll-mt-16 gap-4 lg:grid-cols-[1fr_360px]">
+      <div id="pbp-section" className="grid scroll-mt-16 grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
         {/* 左：逐打席賽況（選定半局）*/}
         <PlayByPlay log={log} events={curEvents} halfKey={curKey} idx={idx} setIdx={selectIdx}
           userAction={userAction} facts={facts} wp={wp} teams={boardTeams} />
@@ -863,6 +866,7 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
       </div>
       )}
       {children}
+      </TabPanel>
       </div>
     </div>
   );

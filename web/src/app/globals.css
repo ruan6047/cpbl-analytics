@@ -390,9 +390,19 @@ tr:hover .sticky-col {
 .pm-tabs > [role="tab"]:hover, .pm-tabs > a:hover { color: var(--color-ink); }
 .pm-tabs > [role="tab"]:focus-visible, .pm-tabs > a:focus-visible { outline-offset: -3px; }
 .pm-panel { background: var(--color-surface); padding: 14px 16px 16px; border-radius: 0 0 4px 4px; }
+.pm-panel > :last-child { margin-bottom: 0; }
+/* 頁籤帶下的同色子列（HierarchicalTabs／頁籤模式 NavBarRow）：二級分段切換在左、情境 controls 靠右；
+   與選中頁籤及其下 TabPanel 同一卡面，子頁籤因此屬於所選父層，不與父層同列。 */
+.pm-subbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
+  background: var(--color-surface); padding: 6px 16px;
+}
+.pm-subbar-ctl { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 @media (max-width: 720px) {
   .pm-tabs > [role="tab"], .pm-tabs > a { padding: 9px 12px 10px; }
   .pm-panel { padding: 12px 10px 14px; }
+  .pm-subbar { padding: 6px 10px; }
+  .pm-subbar-ctl { margin-left: 0; }
 }
 .pm-seg { display: inline-flex; flex-wrap: wrap; background: var(--color-band); border-radius: 4px; padding: 2px; gap: 2px; }
 .pm-seg > button, .pm-seg > a {
@@ -449,9 +459,13 @@ tr:hover .sticky-col {
 table.pm-data { border-collapse: separate; border-spacing: 0; width: 100%; background: var(--color-surface); font-size: 13px; }
 table.pm-data th, table.pm-data td { padding: 8px 12px; border: 0; white-space: nowrap; }
 table.pm-data thead th { font-size: 12px; font-weight: 700; color: var(--color-muted); background: var(--color-band); padding-top: 7px; padding-bottom: 7px; }
-table.pm-data tbody tr { transition: background-color 0.15s var(--ease-out); }
-table.pm-data tbody tr:hover > td, table.pm-data tbody tr:hover > th { background: var(--color-surface-2); }
 table.pm-data tfoot td, table.pm-data tfoot th { font-weight: 700; background: var(--color-surface-2); }
+/* 隔行底色（#220 需求方回饋：無橫線時同一筆不易橫向追蹤）：不加線，改低對比隔行色塊。
+   強度由弱到強＝隔行 surface-2 ＜ 滑過 band；淺／深色同名 token 自動換色，不混入隊色或正負語意色。
+   底色畫在儲存格上，固定首欄（.sticky-col）跟著換色，整列連續。共用資料表（DataTable）tbody 帶 .pm-zebra。 */
+:is(.pm-zebra, table.pm-data tbody) > tr > :is(td, th) { transition: background-color 0.15s var(--ease-out); }
+:is(.pm-zebra, table.pm-data tbody) > tr:nth-child(even) > :is(td, th) { background-color: var(--color-surface-2); }
+:is(.pm-zebra, table.pm-data tbody) > tr:hover > :is(td, th) { background-color: var(--color-band); }
 @media (max-width: 720px) {
   table.pm-data th, table.pm-data td { padding-left: 6px; padding-right: 6px; }
 }

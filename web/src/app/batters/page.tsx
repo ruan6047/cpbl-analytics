@@ -66,7 +66,7 @@ export default async function BattersPage({ searchParams }: { searchParams: Prom
         </p>
       </header>
 
-      <RankNav role="batting" view={view} kind={kind} years={years} selectedYear={selectedYear} />
+      <RankNav role="batting" view={view} kind={kind} years={years} selectedYear={selectedYear}>
 
       {view === "awards" ? (
         <AwardRaces rows={items} cats={AWARD_CATS} qualKey="pa" qualMin={qual}
@@ -84,6 +84,7 @@ export default async function BattersPage({ searchParams }: { searchParams: Prom
           />
         </section>
       )}
+      </RankNav>
     </div>
   );
 }

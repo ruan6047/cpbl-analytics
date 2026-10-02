@@ -311,9 +311,7 @@ export default function GameLivePage() {
             facts={facts?.plate_appearances ?? null}
             highlightSelection={!plainLinescore}
             tabs={<StickyNavBar label="賽況檢視" flush>
-              <div className="flex min-w-0 items-center overflow-x-auto overscroll-x-contain">
-                <MainTabs label="賽況檢視" value={view} onChange={setView} items={pageTabs} panelId="game-panel" />
-              </div>
+              <MainTabs label="賽況檢視" value={view} onChange={setView} items={pageTabs} panelId="game-panel" />
             </StickyNavBar>}
             panelId="game-panel" panelLabelledBy={mainTabId("game-panel", view)}>
           {view === "overview" && (

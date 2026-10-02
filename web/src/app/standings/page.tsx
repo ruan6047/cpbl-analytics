@@ -582,9 +582,10 @@ export default async function Standings({ searchParams }: { searchParams: Promis
         <SectionTitle as="h1" date={season}>{subtitle}</SectionTitle>
       </header>
 
-      {/* 一體式多軸導覽欄（§4.3 A2）：seg 主分頁＋kind/year 右側情境 controls 一列呈現。
+      {/* 一體式多軸導覽欄（§4.3 A2）：seg 主分頁帶＋kind/year 情境 controls（帶下同色子列），
+          以下內容接在同色 TabPanel 裡。
           特殊戰績（場地/比分型/逆轉/再見…）已移出：per-team 版見各隊球隊頁。 */}
-      <StandingsNav kind={kind} years={years} selectedYear={selectedYear} seg={segCode} segs={segTabs} />
+      <StandingsNav kind={kind} years={years} selectedYear={selectedYear} seg={segCode} segs={segTabs}>
 
       {isPostseason ? (
         isMinor ? (
@@ -724,7 +725,7 @@ export default async function Standings({ searchParams }: { searchParams: Promis
             : "半季冠軍取得季後賽資格；本半季冠軍尚未產生（賽程進行中）。"}
         </p>
       )}
-
+      </StandingsNav>
     </div>
   );
 }

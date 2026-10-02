@@ -3,7 +3,7 @@
 > **狀態**：v1 **已通過查核 ✅**（跨家族查核 Gemini 3.6 ＋ 人工，2026-07-24；事實正確性 100%、邊界/紅線守住、0 🔴、2 🟢 提示）。需求方 ruan6047 於 2026-07-24 sign-off。2026-08-01 依 `UX-BRAND-HOME1` 統一產品品牌名稱，內容規格不變。**待 merge → 執行下游卡** `UX-NAV-INTEGRATE1`／`UX-TOKEN-HYGIENE1`。
 > **定位**：全站**視覺／元件層的單一事實來源 [single source of truth]**。以球員個人頁旗艦（`web/src/app/players/[id]/` + `web/src/components/*`）為 100% 基準，把已落地的設計語言**逆向抽出、明確化**。
 > **本檔性質**：**描述現況＋明確化**，不推翻球員頁已定案語言。本卡不改 `globals.css`／元件碼；標「建議」者為未來遷移目標，非本卡執行。
-> **#220 視覺識別改版（2026-10-02）**：全站已套用 #218 核可的郵戳／手札識別（核可稿：`design/brand-218/proposal/`）。本檔 §1 原則 2／3／7、§2 token、§3 卡片與徽章、§4 頁籤 active 態、§9 隊伍圖示、§10.4、§11.1 已依實作同步；其餘章節（資訊架構、表格減法契約、響應式、可及性、模組邊界）不變。衝突時以核可稿與 `web/src/app/globals.css` 為準。
+> **#220 視覺識別改版（2026-10-02）**：全站已套用 #218 核可的郵戳／手札識別（核可稿：`design/brand-218/proposal/`）。本檔 §1 原則 2／3／7、§2 token、§3 卡片與徽章、§4 頁籤 active 態與頁籤＋面板／子列（修正輪）、§5.1 表格隔行、§9 隊伍圖示、§10.4、§11.1 已依實作同步；其餘章節（資訊架構、表格減法契約、響應式、可及性、模組邊界）不變。衝突時以核可稿與 `web/src/app/globals.css` 為準。
 > **配套文件**：逐頁差距見 [`UI_UX_CONFORMANCE.md`](UI_UX_CONFORMANCE.md)；token hygiene 修復見 [`../tasks/UX-TOKEN-HYGIENE1.md`](../tasks/UX-TOKEN-HYGIENE1.md)。
 
 ---
@@ -190,7 +190,7 @@
 | `.pm-st--sample` | 樣本／推算／未定案的外框淡字章 | — |
 | `DependencyMark`（`.pm-dep`） | 虛線小方塊＝這個呈現需要後續資料支援（例：首頁賽中格的球數） | — |
 
-**郵戳元件（`components/postmark.tsx`，#218）**：`Postmark`（日期＋球場，大 76／中 64／小 52px；只蓋在首頁票根與賽況頁頂，選手頁不蓋）、`Serial`（場次・開打時間・補賽；缺值不出現）、`Scoreline`（全站唯一比分元件：勝方只加粗不放大，`stack`＝窄欄兩層式）、`GameSituation`（壘包＋B/S/O 燈；無球數來源時只畫 O 列）。
+**郵戳元件（`components/postmark.tsx`，#218）**：`Postmark`（日期＋球場，大 76／中 64／小 52px；只蓋在首頁票根與賽況頁頂，選手頁不蓋；戳面 `aria-hidden`，同元件輸出 sr-only 整句：預設「日期，球場」，`announce="venue"` 只說球場——首頁票券日期已在區塊標題）、`Serial`（場次・開打時間・補賽；缺值不出現）、`Scoreline`（全站唯一比分元件：勝方只加粗不放大，`stack`＝窄欄兩層式）、`GameSituation`（壘包＋B/S/O 燈；無球數來源時只畫 O 列）。
 
 ### 3.3 感知效能三態（原則 8，全站統一）
 
@@ -236,9 +236,9 @@
 
 | 語彙 | 元件 | 何時用 | active 態 | a11y |
 |---|---|---|---|---|
-| **階層雙層** | `HierarchicalTabs` + `ContextSwitcher` | 頁內雙層資料範圍（scope + view，如球員頁本季/生涯 × 總覽/逐球/…） | group＝一級頁籤（卡面＋上緣石油藍）；item＝分段 `bg-ink text-paper` | group（`aria-pressed`）+ tablist（`role=tab`）分離語意 |
+| **階層雙層** | `HierarchicalTabs` + `ContextSwitcher` | 頁內雙層資料範圍（scope + view，如球員頁本季/生涯 × 總覽/逐球/…） | group＝一級頁籤帶（卡面＋上緣石油藍）；item＝帶下**同色子列**（`.pm-subbar`）左側分段 `bg-ink text-paper`，`controls` 在同列右側；內容接 `TabPanel`（#220 修正：子頁籤只出現在所屬父層的卡面上，不與父層同帶） | group（`aria-pressed`）+ tablist（`role=tab`）分離語意 |
 | **情境切換** | `ContextSwitcher` | 情境軸（身分打/投、層級一/二軍），分段切換 | `bg-ink text-paper` | `role=group` + `aria-pressed` |
-| **單層分頁** | `Tabs`／`MainTabs` | 單層內容分頁 | 一級頁籤（卡面＋上緣石油藍）＋ `role=tabpanel` | `role=tablist/tab/tabpanel`，方向鍵切換 |
+| **單層分頁** | `Tabs`／`MainTabs` | 單層內容分頁 | 一級頁籤帶（佔滿內容寬；卡面＋上緣石油藍）＋ 同色 `TabPanel`（`.pm-panel`，`StickyNavBar flush` 無下外距、帶與面板相接）；頁籤模式 `NavBarRow` 的 controls 同樣進帶下子列 | `role=tablist/tab/tabpanel`，方向鍵切換 |
 | **路由切換 nav** | `level-year-nav`（`RankRoleTabs` 已由 `RankNav` 的 group 取代，UX-NAV-INTEGRATE1） | 跨路由導覽（年度/層級；`/batters ↔ /pitchers` 走 `RankNav` group），保留 query 脈絡 | pill `bg-ink text-paper` | `aria-current="page"`（連結非 tab） |
 
 > 選項多寡準則：**切換族適用 ~2–5 個選項**且需常駐可見；超過或值域大 → 改用選擇族（§4.2）。
@@ -338,6 +338,7 @@
 | `Leaderboard`（`leaderboard.tsx`） | 互動 client island（排序/篩選/欄切換） | 排行榜 |
 
 共通：`dense` 密度、`sticky` 首欄（`.sticky-col`，行動端寬表鎖首欄）、`maxHeight` 垂直捲動 + sticky 表頭、`bare`（已在 Card 內免雙層邊框）。
+列底色（#220 需求方回饋）：仍不畫列間線，改**低對比隔行**——`DataTable` tbody 帶 `.pm-zebra`（`table.pm-data` 同規則）：偶數列 `surface-2`、滑過整列 `band`（強度 隔行＜滑過），淺／深色走同名 token；底色畫在儲存格上，`.sticky-col` 同步。儲存格自帶語意底色（`cellStyle` 發散色）時以該語意色為準。
 
 ### 5.2 Leaderboard `Col` 減法契約（呼應記憶 `rankings-column-reduction`）
 
@@ -348,7 +349,7 @@
 | `primary` | 精簡檢視顯示的欄 | 任一欄標 `primary` 才啟用「精簡/完整」切換；回答該排行核心問題所需最小欄集（**欄數上限見 blueprint §3.1**）。全無 `primary` 時顯示全部（向後相容降級） |
 | `mobileHide` | `<640px` 隱藏 | 手機保留「排名 + 球員（隊徽併名）+ 主排序指標 + 1–2 支持」（**清單依 blueprint §5.6**）。實作：窄螢幕**移出 DOM**（非 `display:none`，避免 table 幽靈寬度造成假性水平捲動） |
 | `teamKey` | 隊欄併入名字欄（名前加隊徽 icon） | 減欄手段之一 |
-| `subChipKey` | 守位/角色併入名字欄（名下疊 `Pill`） | 減欄手段之一 |
+| `subChipKey` | 守位/角色併入名字欄（`md` 以上緊接姓名同列、手機疊在名下；#220 需求方：同一筆連續閱讀） | 減欄手段之一 |
 | `chip` | 類別值（守位/角色）獨立欄渲染 `Pill` | 併入名字時改用 `subChipKey` |
 | `rate` + `qualKey`/`qualMin` | 率值欄（AVG/OPS/ERA）排序時套規定門檻；未達者置底、灰階、不佔名次 | 避免小樣本灌爆榜首（1 打席 OPS 2.000） |
 | `bar` + `lowerBetter` | Savant 式 inline 發散色條（依當前檢視 min–max） | 「越好越長越紅」；`lowerBetter` 反向 |
@@ -390,7 +391,7 @@
 |---|---|---|
 | base（<640） | 手機 | **375px 無橫向溢出＝鐵則**（blueprint §8.3）。寬表 sticky 首欄或卡片化；`Leaderboard` 套 `mobileHide`（移出 DOM）；觸控 ≥44px（`min-h-11`） |
 | `sm:`(640) | 大手機/小平板 | `Leaderboard` 恢復完整欄；`matchMedia('(max-width:639px)')` 為 mobileHide 界線 |
-| `md:`(768) | 平板 | `HierarchicalTabs` 由直排轉橫排；controls 移右側加分隔線 |
+| `md:`(768) | 平板 | 頁籤子列（`.pm-subbar`）的 controls 靠右；窄螢幕換行靠左 |
 | `lg:`(1024)+ | 桌機 | 完整密度 |
 
 > **現況用 viewport 斷點（`matchMedia`）**；規格描述現況。**建議（未來）**：可重用元件遷 container query（Tailwind v4 `@container`）以脈絡無關，但非本卡範圍。
