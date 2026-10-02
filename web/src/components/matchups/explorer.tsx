@@ -34,7 +34,7 @@ import PairCard from "./pair-card";
 import PaSimPanel from "./pa-sim-panel";
 import SearchCombobox, { type ComboHit } from "./search-combobox";
 import { rowFranchises } from "./team-affiliation";
-import { MainTabs } from "@/components/hierarchical-tabs";
+import { MainTabs, TabPanel, mainTabId } from "@/components/hierarchical-tabs";
 
 const YEARS = Array.from({ length: CURRENT_YEAR - MIN_YEAR + 1 }, (_, i) => CURRENT_YEAR - i);
 const PREVIEW_ROWS = 30;
@@ -45,6 +45,7 @@ const PAIR_VIEWS: readonly { value: PairView; label: string }[] = [
   { value: "history", label: "歷史實績" },
   { value: "simulation", label: "如果現在對決" },
 ];
+const PAIR_PANEL = "pair-panel";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -287,6 +288,15 @@ export default function MatchupExplorer({
   const facedCodes = faced && faced.key === scopeKey ? new Set(faced.codes) : null;
   const visibleFranchises = visibleOpponentFranchises(franchises, facedCodes, team);
 
+  // 單組對決的歷史實績（有無 tab 都是同一份內容）。對決卡自身分 A/C/E 段呈現，範圍標籤只帶資料範圍不帶賽事類型。
+  const pairHistory = (
+    <>
+      {pairErr && <ErrorState>對決資料載入失敗，請重試。</ErrorState>}
+      {!pair && !pairErr && <TableSkeleton rows={4} cols={4} />}
+      {pair && <PairCard data={pair} role={role} scopeLabel={scopeLabel} kind={kind} />}
+    </>
+  );
+
   return (
     <div>
       {/* 查詢列 */}
@@ -409,7 +419,7 @@ export default function MatchupExplorer({
 
       {pid && opp && (
         <div>
-          <div className="mb-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+          <div className="mb-3">
             <button
               type="button"
               onClick={() => onPatch({ opp: null })}
@@ -417,40 +427,34 @@ export default function MatchupExplorer({
             >
               ← 返回對手清單
             </button>
-            {/* 第二 tab 只在已選定具體打者×投手時存在（驗收條件 1）；歷史實績永遠是
-                預設檢視，模擬不得成為進入頁面的第一眼結論。 */}
-            {enablePaSim && (
-              <div className="flex min-w-0 items-end overflow-x-auto overscroll-x-contain border-b border-line">
-                <MainTabs
-                  label="單組對決檢視"
-                  items={PAIR_VIEWS}
-                  value={pairView}
-                  onChange={setPairView}
-                />
-              </div>
-            )}
           </div>
 
-          {pairView === "history" && (
-            <div role={enablePaSim ? "tabpanel" : undefined} aria-label="歷史實績">
-              {pairErr && <ErrorState>對決資料載入失敗，請重試。</ErrorState>}
-              {!pair && !pairErr && <TableSkeleton rows={4} cols={4} />}
-              {/* 對決卡自身分 A/C/E 段呈現，範圍標籤只帶資料範圍不帶賽事類型 */}
-              {pair && <PairCard data={pair} role={role} scopeLabel={scopeLabel} kind={kind} />}
-            </div>
+          {/* 第二 tab 只在已選定具體打者×投手時存在（驗收條件 1）；歷史實績永遠是
+              預設檢視，模擬不得成為進入頁面的第一眼結論。有 tab 時照 #218 一級頁籤：
+              色塊帶下接同色 TabPanel（#220 F2）；未啟用（球員頁）時沒有 tab，內容照舊直出。 */}
+          {enablePaSim && (
+            <MainTabs
+              label="單組對決檢視"
+              items={PAIR_VIEWS}
+              value={pairView}
+              onChange={setPairView}
+              panelId={PAIR_PANEL}
+            />
           )}
-
-          {enablePaSim && pairView === "simulation" && (
-            <div role="tabpanel" aria-label="如果現在對決">
-              <PaSimPanel
-                hitterId={role === "batting" ? pid : opp}
-                pitcherId={role === "batting" ? opp : pid}
-                hitterName={role === "batting" ? subjectName : names[opp] ?? null}
-                pitcherName={role === "batting" ? names[opp] ?? null : subjectName}
-                kind={kind}
-              />
-            </div>
-          )}
+          {enablePaSim ? (
+            <TabPanel id={PAIR_PANEL} labelledBy={mainTabId(PAIR_PANEL, pairView)}>
+              {pairView === "history" && pairHistory}
+              {enablePaSim && pairView === "simulation" && (
+                <PaSimPanel
+                  hitterId={role === "batting" ? pid : opp}
+                  pitcherId={role === "batting" ? opp : pid}
+                  hitterName={role === "batting" ? subjectName : names[opp] ?? null}
+                  pitcherName={role === "batting" ? names[opp] ?? null : subjectName}
+                  kind={kind}
+                />
+              )}
+            </TabPanel>
+          ) : pairHistory}
         </div>
       )}
 
