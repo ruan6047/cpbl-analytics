@@ -99,6 +99,33 @@ def _team_advanced_from_seasons(season: int) -> dict[str, dict]:
     return {t: {**bat.get(t, {}), **pit.get(t, {})} for t in teams}
 
 
+# 打擊側／投球側各自的欄位；判斷「某側整年無值」以代表欄（ops／era）為準。
+_SIDE_FIELDS = {"ops": ("ops",), "era": ("era", "whip")}
+
+
+def _fill_missing_sides_from_seasons(adv: dict[str, dict], season: int) -> dict[str, dict]:
+    """*_current 某一側**整年全隊皆無值**時，該側整側改讀同年 *_seasons（#223）。
+
+    例：2025 pitching_current 仍有殘留列、batting_current 整年無列 → 整包非空、不會走既有退回，
+    六隊 OPS 全落空。刻意**不逐隊補值**（同年各隊須同源同時點才可比），也不經 team_current
+    （其為當前半季口徑）；有值的一側原封不動。鍵：current 為 6 碼（AAA011）、seasons 為 3 碼，
+    故以前 3 碼對映回 current 鍵，讓既有 `adv.get(c) or adv.get(c[:3])` 查找逐欄都拿得到。"""
+    missing = [
+        f for side, fields in _SIDE_FIELDS.items()
+        if not any(v.get(side) is not None for v in adv.values())
+        for f in fields
+    ]
+    if not missing:
+        return adv
+    out = {tc: dict(v) for tc, v in adv.items()}
+    for code3, hist in _team_advanced_from_seasons(season).items():
+        for tc in [tc for tc in out if tc[:3] == code3] or [code3]:
+            for f in missing:
+                if hist.get(f) is not None:
+                    out.setdefault(tc, {})[f] = hist[f]
+    return out
+
+
 def _team_scoped_metrics(cur, season: int, half: str | None) -> dict[str, dict]:
     """球隊當季團隊指標的**單一聚合路徑**（gamelog+games），支援全年／上下半季範圍。
 
@@ -198,6 +225,8 @@ def season_standings(season: int = Query(DEFAULT_SEASON)) -> dict:
     stats = matchup.team_stats(season)
     # 當季一律用 *_current 全年彙總（team_current 為下半季小樣本、口徑不一致）；缺值才退回。
     adv = _team_advanced_current_computed(season)
+    if adv:
+        adv = _fill_missing_sides_from_seasons(adv, season)
     if not adv:
         adv = _team_advanced(season)
     if not adv:
