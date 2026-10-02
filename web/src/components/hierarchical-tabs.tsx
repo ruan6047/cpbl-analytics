@@ -1,6 +1,6 @@
 "use client";
 
-import { type KeyboardEvent, type ReactNode, useEffect, useRef } from "react";
+import { Fragment, type KeyboardEvent, type ReactNode, useEffect, useRef } from "react";
 
 export type HierarchicalTabGroup<GroupValue extends string, ItemValue extends string> = {
   value: GroupValue;
@@ -19,22 +19,20 @@ type HierarchicalTabsProps<GroupValue extends string, ItemValue extends string> 
 };
 
 /**
- * 階層導覽（#218 頁籤語言；核可稿 player.html「範圍列 → 頁籤 → tabpanel」）：
- *   第一列＝範圍列（紙色底，不在卡面上）：左＝父層分段切換（#218 二級＝分段，如本季／生涯），右＝情境 controls；
- *   第二列＝作用中父層的子項目＝一級頁籤帶（選中＝卡面色塊＋粗體＋上緣石油藍），
- *   呼叫端以 `TabPanel` 直接接在帶下（帶 → 內容同一張卡面）。
- * 子母因此由兩種不同元件區分（分段 vs 頁籤帶），切換內容的頁籤直接連著它控制的內容。
- * ⛔ 不要把子項目再放回「帶下另一列分段」：那是 #220 第二輪的局部調整，需求方質疑後依核可稿改回。
+ * 階層導覽：父層、作用中父層的子頁籤與右側情境 controls **同一列**（正式版既有排列，
+ * 需求方 #220 裁定 issuecomment-5945865835）：`A a1 a2 ┊ B ……… controls` → 切到 B 為 `A ┊ B b1 b2 ……… controls`。
+ * 父層位置固定、子項緊接作用中父層；整列是 #218 色塊帶，選中子頁籤（卡面色＋粗體＋上緣石油藍）
+ * 直接接呼叫端的 `TabPanel`。層級靠字級／字重／位置區分：父層 14px 粗體（作用中＝墨色頁籤），
+ * 子頁籤 13px，未作用父層為純文字並以細線分隔。
+ * ⛔ 不要再把父層或 controls 拆成帶上方另一列（#220 第三輪曾如此，需求方指為退化）；
+ * 窄螢幕（<768）由 `.pm-navrow` 把 controls 移到帶上方另列，帶仍是最後一列以接面板。
  *
  * 父層仍是獨立的狀態控制（aria-pressed），子層才使用 tab 語意。
- * 作用中父層沒有子項目時不畫頁籤帶（現有呼叫端皆有子項目）。
  */
 export function HierarchicalTabs<GroupValue extends string, ItemValue extends string>({
   label, groups, activeGroup, activeItem, onGroupChange, onItemChange, controls,
 }: HierarchicalTabsProps<GroupValue, ItemValue>) {
   const groupIndex = Math.max(0, groups.findIndex((group) => group.value === activeGroup));
-  const current = groups[groupIndex];
-  const hasItems = !!current && current.items.length > 0;
   const groupRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const keyboardMovedGroup = useRef(false);
 
@@ -52,32 +50,31 @@ export function HierarchicalTabs<GroupValue extends string, ItemValue extends st
   }, [groupIndex]);
 
   return (
-    <div className="min-w-0">
-      <div className="pm-scope">
-        {/* 父層分段：視覺比情境 controls 大一級（核可稿 .scope .seg：14px）；按鈕本體 min-h-11 觸控熱區，
-            視覺高度由內層 span 決定（同 ContextSwitcher 手法）。 */}
-        <div role="group" aria-label={label} className="flex h-9 items-center rounded-md bg-band px-0.5">
-          {groups.map((group, index) => {
-            const active = group.value === activeGroup;
-            return (
-              <button key={group.value} type="button" aria-pressed={active}
+    <div className="pm-navrow">
+      <div role="group" aria-label={label}
+        className="pm-navrow-main flex items-end gap-0.5 overflow-x-auto overscroll-x-contain rounded-t-md bg-band px-[3px] pt-[3px]">
+        {groups.map((group, index) => {
+          const active = group.value === activeGroup;
+          return (
+            <Fragment key={group.value}>
+              {index > 0 && <span aria-hidden className="mx-1 mb-3 h-5 w-px shrink-0 bg-line-strong" />}
+              <button type="button" aria-pressed={active}
                 ref={(element) => { groupRefs.current[index] = element; }}
                 onClick={() => onGroupChange(group.value)} onKeyDown={(event) => moveGroup(event, index)}
-                className={`min-h-11 touch-manipulation whitespace-nowrap px-0.5 text-sm transition`}>
-                <span className={`inline-flex items-center rounded-sm px-4 py-1 transition-colors ${active
+                className={`min-h-11 shrink-0 touch-manipulation whitespace-nowrap rounded-t-md px-4 text-sm transition-colors ${active
                   ? "bg-ink font-bold text-paper"
-                  : "text-muted hover:text-ink"}`}>
-                  {group.label}
-                </span>
+                  : "font-semibold text-muted hover:text-ink"}`}>
+                {group.label}
               </button>
-            );
-          })}
-        </div>
-        {controls && <div className="pm-scope-ctl">{controls}</div>}
+              {active && group.items.length > 0 && (
+                <MainTabs embedded label={`${group.label}內容`} items={group.items} value={activeItem}
+                  onChange={onItemChange} />
+              )}
+            </Fragment>
+          );
+        })}
       </div>
-      {hasItems && (
-        <MainTabs label={`${current.label}內容`} items={current.items} value={activeItem} onChange={onItemChange} />
-      )}
+      {controls && <div className="pm-navrow-ctl">{controls}</div>}
     </div>
   );
 }
@@ -155,7 +152,7 @@ export function ContextSwitcher<Value extends string>({
 /** 單層主頁籤 tablist（UI 審 r8）：無主/次階層的頁（standings seg、records 分區）
     一律採主頁籤造型呈現——#218 一級頁籤：band 色塊帶（佔滿內容寬），選中＝卡面色塊＋粗體＋上緣石油藍，
     下方以 `TabPanel` 接同色內容面板。 */
-export function MainTabs<ItemValue extends string>({ label, items, value, onChange, panelId }: {
+export function MainTabs<ItemValue extends string>({ label, items, value, onChange, panelId, embedded = false }: {
   label: string;
   items: readonly { value: ItemValue; label: string }[];
   value: ItemValue;
@@ -163,6 +160,8 @@ export function MainTabs<ItemValue extends string>({ label, items, value, onChan
   /** 有值＝頁面提供一個 `role=tabpanel`（id＝panelId）：各 tab 帶 id／aria-controls，
    *  面板以 `mainTabId(panelId, value)` 回指選中 tab（#218 賽況頁補 tabpanel）。 */
   panelId?: string;
+  /** HierarchicalTabs 子層專用：嵌在父層的色塊帶內（不自帶帶底／捲動），字級小父層一級（13px）。 */
+  embedded?: boolean;
 }) {
   const index = Math.max(0, items.findIndex((item) => item.value === value));
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -180,14 +179,16 @@ export function MainTabs<ItemValue extends string>({ label, items, value, onChan
 
   return (
     <div role="tablist" aria-label={label} onKeyDown={onKeyDown}
-      className="flex w-full min-w-0 items-end gap-0.5 overflow-x-auto overscroll-x-contain rounded-t-md bg-band px-[3px] pt-[3px]">
+      className={embedded
+        ? "flex shrink-0 items-end gap-0.5"
+        : "flex w-full min-w-0 items-end gap-0.5 overflow-x-auto overscroll-x-contain rounded-t-md bg-band px-[3px] pt-[3px]"}>
       {items.map((item, itemIndex) => (
         <button key={item.value} type="button" role="tab" aria-selected={value === item.value}
           id={panelId ? mainTabId(panelId, item.value) : undefined}
           aria-controls={panelId}
           tabIndex={value === item.value ? 0 : -1}
           ref={(element) => { refs.current[itemIndex] = element; }} onClick={() => onChange(item.value)}
-          className={`min-h-11 shrink-0 touch-manipulation whitespace-nowrap rounded-t-md px-4 text-sm transition-colors ${value === item.value
+          className={`min-h-11 shrink-0 touch-manipulation whitespace-nowrap rounded-t-md ${embedded ? "px-3 text-[13px]" : "px-4 text-sm"} transition-colors ${value === item.value
             ? "bg-surface font-bold text-ink shadow-[inset_0_3px_0_var(--color-accent)]"
             : "text-muted hover:text-ink"}`}>
           {item.label}

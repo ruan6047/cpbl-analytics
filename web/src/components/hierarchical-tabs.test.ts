@@ -10,30 +10,41 @@ test("階層導覽四種控制的觸控目標皆至少 44px", () => {
   assert.doesNotMatch(source, /className={`min-h-(?:8|9|10)\b/);
 });
 
-// #220 第三輪：依核可稿 player.html「範圍列 → 頁籤帶 → tabpanel」。父層＝範圍列分段（aria-pressed），
-// 子層＝頁籤帶且為導覽最後一列（帶直接接呼叫端的 TabPanel）；情境 controls 在範圍列，不在帶與面板之間。
-test("階層導覽：父層分段與 controls 在上，子層頁籤帶在最後一列", async () => {
+// #220 需求方裁定（issuecomment-5945865835）：恢復正式版同列排列——
+// 作用中父層 → 其子頁籤 → 其他父層 → 右側 controls，全在同一個 `.pm-navrow` 列容器內。
+// 父層位置固定（不因作用中而移到最前），子頁籤緊接作用中父層；父層 aria-pressed、子層 tab 語意分離。
+async function renderNav(activeGroup: "season" | "career") {
   const { createElement } = await import("react");
   const { renderToStaticMarkup } = await import("react-dom/server");
   const { HierarchicalTabs } = await import("./hierarchical-tabs.tsx");
-  const html = renderToStaticMarkup(createElement(HierarchicalTabs, {
+  return renderToStaticMarkup(createElement(HierarchicalTabs, {
     label: "資料範圍",
     groups: [
       { value: "season", label: "本季", items: [{ value: "ov", label: "總覽" }, { value: "tr", label: "逐球追蹤" }] },
-      { value: "career", label: "生涯", items: [{ value: "ov", label: "總覽" }] },
+      { value: "career", label: "生涯", items: [{ value: "cov", label: "生涯總覽" }] },
     ],
-    activeGroup: "season", activeItem: "ov",
+    activeGroup, activeItem: activeGroup === "season" ? "ov" : "cov",
     onGroupChange: () => {}, onItemChange: () => {},
     controls: createElement("span", { id: "ctl" }, "層級"),
   }));
-  const group = html.indexOf('role="group" aria-label="資料範圍"');
-  const ctl = html.indexOf('id="ctl"');
-  const tablist = html.indexOf('role="tablist"');
-  assert.ok(group >= 0 && ctl > group && tablist > ctl, "順序須為 父層分段 → controls → 子層頁籤帶");
-  const band = html.slice(tablist);
-  assert.match(band, /role="tab"[^>]*>總覽</);
-  assert.match(band, /role="tab"[^>]*>逐球追蹤</);
-  assert.doesNotMatch(band, />(?:本季|生涯)<|id="ctl"/, "頁籤帶之後不得再有父層按鈕或 controls");
-  assert.doesNotMatch(html.slice(0, tablist), /role="tab"/, "父層是 aria-pressed 分段，不是 tab");
-  assert.match(html.slice(group, tablist), /aria-pressed="true"[^]*本季/);
+}
+
+test("階層導覽：父層、子頁籤與 controls 同一列，子頁籤緊接作用中父層", async () => {
+  const html = await renderNav("season");
+  assert.equal(html.match(/class="pm-navrow"/g)?.length, 1, "整個導覽只有一個列容器");
+  assert.doesNotMatch(html, /pm-scope/, "不得再有帶上方的範圍列");
+  const order = [/aria-pressed="true"[^>]*>本季</, /role="tab"[^>]*>總覽</, /role="tab"[^>]*>逐球追蹤</,
+    /aria-pressed="false"[^>]*>生涯</, /id="ctl"/].map((re) => html.search(re));
+  assert.ok(order.every((at, i) => at >= 0 && (i === 0 || at > order[i - 1])),
+    `順序須為 本季 → 本季子頁籤 → 生涯 → controls：${order.join(",")}`);
+  assert.match(html, /class="pm-navrow-ctl"><span id="ctl"/, "controls 在列內右側插槽");
+  assert.doesNotMatch(html, /aria-pressed[^>]*role="tab"|role="tab"[^>]*aria-pressed/, "父層不是 tab");
+});
+
+test("階層導覽：切到第二個父層時父層位置不變、子頁籤改接在它後面", async () => {
+  const html = await renderNav("career");
+  const order = [/aria-pressed="false"[^>]*>本季</, /aria-pressed="true"[^>]*>生涯</, /role="tab"[^>]*>生涯總覽</,
+    /id="ctl"/].map((re) => html.search(re));
+  assert.ok(order.every((at, i) => at >= 0 && (i === 0 || at > order[i - 1])), `順序：${order.join(",")}`);
+  assert.doesNotMatch(html, />逐球追蹤</, "只顯示作用中父層的子頁籤");
 });

@@ -3,7 +3,7 @@
 > **狀態**：v1 **已通過查核 ✅**（跨家族查核 Gemini 3.6 ＋ 人工，2026-07-24；事實正確性 100%、邊界/紅線守住、0 🔴、2 🟢 提示）。需求方 ruan6047 於 2026-07-24 sign-off。2026-08-01 依 `UX-BRAND-HOME1` 統一產品品牌名稱，內容規格不變。**待 merge → 執行下游卡** `UX-NAV-INTEGRATE1`／`UX-TOKEN-HYGIENE1`。
 > **定位**：全站**視覺／元件層的單一事實來源 [single source of truth]**。以球員個人頁旗艦（`web/src/app/players/[id]/` + `web/src/components/*`）為 100% 基準，把已落地的設計語言**逆向抽出、明確化**。
 > **本檔性質**：**描述現況＋明確化**，不推翻球員頁已定案語言。本卡不改 `globals.css`／元件碼；標「建議」者為未來遷移目標，非本卡執行。
-> **#220 視覺識別改版（2026-10-02）**：全站已套用 #218 核可的郵戳／手札識別（核可稿：`design/brand-218/proposal/`）。本檔 §1 原則 2／3／7、§2 token、§3 卡片與徽章、§4 頁籤 active 態與範圍列＋頁籤帶＋面板（修正輪）、§5.1 表格隔行、§9 隊伍圖示、§10.4、§11.1 已依實作同步；其餘章節（資訊架構、表格減法契約、響應式、可及性、模組邊界）不變。衝突時以核可稿與 `web/src/app/globals.css` 為準。
+> **#220 視覺識別改版（2026-10-02）**：全站已套用 #218 核可的郵戳／手札識別（核可稿：`design/brand-218/proposal/`）。本檔 §1 原則 2／3／7、§2 token、§3 卡片與徽章、§4 頁籤 active 態與同列導覽＋面板（修正輪）、§5.1 表格隔行、§9 隊伍圖示、§10.4、§11.1 已依實作同步；其餘章節（資訊架構、表格減法契約、響應式、可及性、模組邊界）不變。衝突時以核可稿與 `web/src/app/globals.css` 為準。
 > **配套文件**：逐頁差距見 [`UI_UX_CONFORMANCE.md`](UI_UX_CONFORMANCE.md)；token hygiene 修復見 [`../tasks/UX-TOKEN-HYGIENE1.md`](../tasks/UX-TOKEN-HYGIENE1.md)。
 
 ---
@@ -236,9 +236,9 @@
 
 | 語彙 | 元件 | 何時用 | active 態 | a11y |
 |---|---|---|---|---|
-| **階層雙層** | `HierarchicalTabs` + `ContextSwitcher` | 頁內雙層資料範圍（scope + view，如球員頁本季/生涯 × 總覽/逐球/…） | 依核可稿 player.html：帶上方**範圍列**（`.pm-scope`，紙色底）左＝group 分段 `bg-ink text-paper`、右＝`controls`；item＝一級頁籤帶（卡面＋上緣石油藍）直接接 `TabPanel`（#220 第三輪：第二輪曾把 item 改成帶下子列，已撤回） | group（`aria-pressed`）+ tablist（`role=tab`）分離語意 |
+| **階層雙層** | `HierarchicalTabs` + `ContextSwitcher` | 頁內雙層資料範圍（scope + view，如球員頁本季/生涯 × 總覽/逐球/…） | **同一列**（`.pm-navrow`，正式版排列；#220 需求方裁定 issuecomment-5945865835）：group（固定位置；作用中＝墨色頁籤 `bg-ink text-paper` 14px 粗體、未作用＝純文字＋細線分隔）→ 作用中 group 的 item 子頁籤（13px；選中＝卡面＋粗體＋上緣石油藍）→ 右側 `controls`；整列色塊帶直接接 `TabPanel`。⛔ 不拆成帶上方範圍列＋帶下頁籤兩列 | group（`aria-pressed`）+ tablist（`role=tab`）分離語意 |
 | **情境切換** | `ContextSwitcher` | 情境軸（身分打/投、層級一/二軍），分段切換 | `bg-ink text-paper` | `role=group` + `aria-pressed` |
-| **單層分頁** | `Tabs`／`MainTabs` | 單層內容分頁 | 一級頁籤帶（佔滿內容寬；卡面＋上緣石油藍）＋ 同色 `TabPanel`（`.pm-panel`，`StickyNavBar flush` 無下外距、帶與面板相接）；頁籤模式 `NavBarRow` 的 controls 放帶上方範圍列靠右，不插在帶與面板之間 | `role=tablist/tab/tabpanel`，方向鍵切換 |
+| **單層分頁** | `Tabs`／`MainTabs` | 單層內容分頁 | 一級頁籤帶（佔滿內容寬；卡面＋上緣石油藍）＋ 同色 `TabPanel`（`.pm-panel`，`StickyNavBar flush` 無下外距、帶與面板相接）；頁籤模式 `NavBarRow`（`.pm-navrow`）的 controls 與頁籤帶同列靠右，不插在帶與面板之間 | `role=tablist/tab/tabpanel`，方向鍵切換 |
 | **路由切換 nav** | `level-year-nav`（`RankRoleTabs` 已由 `RankNav` 的 group 取代，UX-NAV-INTEGRATE1） | 跨路由導覽（年度/層級；`/batters ↔ /pitchers` 走 `RankNav` group），保留 query 脈絡 | pill `bg-ink text-paper` | `aria-current="page"`（連結非 tab） |
 
 > 選項多寡準則：**切換族適用 ~2–5 個選項**且需常駐可見；超過或值域大 → 改用選擇族（§4.2）。
@@ -391,7 +391,7 @@
 |---|---|---|
 | base（<640） | 手機 | **375px 無橫向溢出＝鐵則**（blueprint §8.3）。寬表 sticky 首欄或卡片化；`Leaderboard` 套 `mobileHide`（移出 DOM）；觸控 ≥44px（`min-h-11`） |
 | `sm:`(640) | 大手機/小平板 | `Leaderboard` 恢復完整欄；`matchMedia('(max-width:639px)')` 為 mobileHide 界線 |
-| `md:`(768) | 平板 | 範圍列（`.pm-scope`）的 controls 靠右；窄螢幕（≤720px）換行靠左 |
+| `md:`(768) | 平板 | `.pm-navrow` 由兩列轉單列：頁籤區（可橫捲）＋右側 controls（細線分隔）；<768 controls 另列於帶上方、頁籤帶橫捲且仍接面板 |
 | `lg:`(1024)+ | 桌機 | 完整密度 |
 
 > **現況用 viewport 斷點（`matchMedia`）**；規格描述現況。**建議（未來）**：可重用元件遷 container query（Tailwind v4 `@container`）以脈絡無關，但非本卡範圍。

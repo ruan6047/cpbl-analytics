@@ -391,14 +391,24 @@ tr:hover .sticky-col {
 .pm-tabs > [role="tab"]:focus-visible, .pm-tabs > a:focus-visible { outline-offset: -3px; }
 .pm-panel { background: var(--color-surface); padding: 14px 16px 16px; border-radius: 0 0 4px 4px; }
 .pm-panel > :last-child { margin-bottom: 0; }
-/* 頁籤帶上方的範圍列（HierarchicalTabs／頁籤模式 NavBarRow；核可稿 player.html .scope）：
-   紙色底、不在卡面上；父層分段在左、情境 controls 靠右。頁籤帶緊接其下並直接接 TabPanel。 */
-.pm-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; padding-bottom: 6px; }
-.pm-scope-ctl { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; }
+/* 同列導覽（HierarchicalTabs／頁籤模式 NavBarRow；正式版排列，#220 需求方裁定）：
+   ≥768＝單列色塊帶：左＝頁籤區（可橫捲）、右＝情境 controls（細線分隔）；帶下緣直接接 TabPanel。
+   controls 內的分段軌道原為 band 色，放進帶內改取 surface-2 才看得出軌道。
+   <768＝沿用正式版「篩選器空間不足另列」：controls 另列於帶上方（紙色底），頁籤帶仍是最後一列以接面板。 */
+.pm-navrow { display: flex; flex-direction: column; min-width: 0; }
+.pm-navrow-main { min-width: 0; }
+.pm-navrow-ctl { order: -1; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; padding-bottom: 6px; }
+@media (min-width: 768px) {
+  .pm-navrow { flex-direction: row; background: var(--color-band); border-radius: 4px 4px 0 0; }
+  .pm-navrow-main { flex: 1 1 auto; }
+  .pm-navrow-ctl {
+    order: 0; flex: none; align-self: center; flex-wrap: nowrap; margin-left: auto;
+    padding: 0 10px 0 12px; border-left: 1px solid var(--color-line); --color-band: var(--color-surface-2);
+  }
+}
 @media (max-width: 720px) {
   .pm-tabs > [role="tab"], .pm-tabs > a { padding: 9px 12px 10px; }
   .pm-panel { padding: 12px 10px 14px; }
-  .pm-scope-ctl { margin-left: 0; }
 }
 .pm-seg { display: inline-flex; flex-wrap: wrap; background: var(--color-band); border-radius: 4px; padding: 2px; gap: 2px; }
 .pm-seg > button, .pm-seg > a {
