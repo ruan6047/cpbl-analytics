@@ -1482,7 +1482,7 @@ def player_fielding(player_id: str, season: int = Query(DEFAULT_SEASON),
                     scope: str = Query("season", pattern="^(season|career)$"),
                     kind_code: str = Query("A", pattern="^(A|D)$")) -> dict:
     """球員守備逐守位。scope=season 本季(fielding_current，依 kind_code 分一/二軍)；career 生涯
-    （fielding_seasons 1990–2024 + fielding_current 2025+ 一軍，守位碼對齊後彙總，重算 fpct）。"""
+    （同球員同年優先 fielding_current 一軍，無 current 才採季表；守位碼對齊後彙總，重算 fpct）。"""
     with conn() as c:
         cur = c.cursor()
         if scope == "career":
@@ -1497,7 +1497,12 @@ def player_fielding(player_id: str, season: int = Query(DEFAULT_SEASON),
                              WHEN 'LF' THEN '左外野手' WHEN 'CF' THEN '中外野手' WHEN 'RF' THEN '右外野手'
                              ELSE pos END AS pos,
                            g, tc, po, a, e, dp, tp, pb, cs, sb AS sba
-                    FROM cpbl.fielding_seasons WHERE player_id = %s
+                    FROM cpbl.fielding_seasons s WHERE s.player_id = %s
+                      AND NOT EXISTS (
+                          SELECT 1 FROM cpbl.fielding_current c
+                          WHERE c.player_id = s.player_id AND c.year = s.year
+                            AND c.kind_code = 'A'
+                      )
                     UNION ALL
                     SELECT year, pos, g, tc, po, a, e, dp, tp, pb, cs, sba
                     FROM cpbl.fielding_current WHERE player_id = %s AND kind_code = 'A'
