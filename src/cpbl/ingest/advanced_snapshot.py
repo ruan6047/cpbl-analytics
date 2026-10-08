@@ -85,26 +85,36 @@ class ValidationReport:
         return json.dumps(self.errors, ensure_ascii=False)
 
 
+def open_run_on_cursor(cur, spec: RunSpec, scope: str, source_endpoint: str,
+                       source_fetched_at: datetime, observed_rows: int = 0,
+                       source_version: str | None = None, provenance: dict | None = None) -> int:
+    """以呼叫者的交易建立 run；不自行 commit 或借另一條連線。"""
+    if scope not in ("full", "partial"):
+        raise ValueError(f"未知 snapshot_scope：{scope}")
+    row = cur.execute(
+        """
+        INSERT INTO cpbl.advanced_ingest_runs
+            (year, kind_code, dataset, role, snapshot_scope, status,
+             source_endpoint, source_version, source_fetched_at, observed_rows, provenance)
+        VALUES (%s,%s,%s,%s,%s,'running',%s,%s,%s,%s,%s::jsonb)
+        RETURNING id
+        """,
+        (spec.year, spec.kind_code, spec.dataset, spec.role, scope,
+         source_endpoint, source_version, source_fetched_at, observed_rows,
+         json.dumps(provenance or {}, ensure_ascii=False)),
+    ).fetchone()
+    return int(row[0])
+
+
 def open_run(spec: RunSpec, scope: str, source_endpoint: str, source_fetched_at: datetime,
              observed_rows: int = 0, source_version: str | None = None,
              provenance: dict | None = None) -> int:
-    """建立 run 列（status='running'），回 run_id。獨立 commit，確保失敗仍留審計。"""
+    """建立 run 列（status='running'），獨立 commit，確保失敗仍留審計。"""
     if scope not in ("full", "partial"):
         raise ValueError(f"未知 snapshot_scope：{scope}")
     with conn() as c:
-        row = c.execute(
-            """
-            INSERT INTO cpbl.advanced_ingest_runs
-                (year, kind_code, dataset, role, snapshot_scope, status,
-                 source_endpoint, source_version, source_fetched_at, observed_rows, provenance)
-            VALUES (%s,%s,%s,%s,%s,'running',%s,%s,%s,%s,%s::jsonb)
-            RETURNING id
-            """,
-            (spec.year, spec.kind_code, spec.dataset, spec.role, scope,
-             source_endpoint, source_version, source_fetched_at, observed_rows,
-             json.dumps(provenance or {}, ensure_ascii=False)),
-        ).fetchone()
-    return int(row[0])
+        return open_run_on_cursor(c.cursor(), spec, scope, source_endpoint, source_fetched_at,
+                                  observed_rows, source_version, provenance)
 
 
 def reject_run(run_id: int, report: ValidationReport, status: str = "rejected") -> None:
@@ -149,59 +159,65 @@ def validate(spec: RunSpec, report: ValidationReport, prior: int | None = -1) ->
     return report
 
 
-def promote_full(spec: RunSpec, run_id: int, stage_fn, report: ValidationReport) -> None:
-    """單一 transaction 原子晉升：stage → 鎖 run 驗 scope/identity → promoted → pointer → 刪殘列。
+def promote_full_on_cursor(cur, spec: RunSpec, run_id: int, stage_fn,
+                           report: ValidationReport) -> int:
+    """沿用單 scope 晉升原語，以呼叫者的 cursor stage、驗 run、更新 pointer 與刪殘列。
 
-    `stage_fn(cur, run_id)` 負責把已 fetch 的列以 source_run_id=run_id UPSERT 進目標表。
-    任一步 raise 即整筆 rollback（含 stage 寫入的列）。
+    不 commit、不開新連線；呼叫者須先完成來源驗證並持有需要的 scope 鎖。
+    任一步失敗交由外層交易 rollback。回傳刪除殘列數。
     """
     table = DATASET_TABLE[spec.dataset]
     role_clause = "" if spec.dataset == "league_summary" else "AND role = %(role)s "
+    stage_fn(cur, run_id)
+    locked = cur.execute(
+        """SELECT snapshot_scope, year, kind_code, dataset, role, status
+             FROM cpbl.advanced_ingest_runs WHERE id=%s FOR UPDATE""",
+        (run_id,),
+    ).fetchone()
+    if locked is None:
+        raise RuntimeError(f"run {run_id} 不存在")
+    scope, y, k, d, r, status = locked
+    if scope != "full":
+        raise RuntimeError(f"run {run_id} snapshot_scope={scope}，非 full 不可晉升")
+    if (y, k, d, r) != (spec.year, spec.kind_code, spec.dataset, spec.role):
+        raise RuntimeError(f"run {run_id} identity {(y, k, d, r)} 與 spec {spec} 不符")
+    if status == "promoted":
+        raise RuntimeError(f"run {run_id} 已 promoted，不可重複晉升")
+    cur.execute(
+        """
+        UPDATE cpbl.advanced_ingest_runs
+           SET status='promoted', observed_rows=%s, accepted_rows=%s, empty_id_rows=%s,
+               duplicate_key_rows=%s, error_report=%s::jsonb, completed_at=now()
+         WHERE id=%s
+        """,
+        (report.observed_rows, report.accepted_rows, report.empty_id_rows,
+         report.duplicate_key_rows, report.as_json(), run_id),
+    )
+    cur.execute(
+        """
+        INSERT INTO cpbl.advanced_snapshot_state
+            (year, kind_code, dataset, role, current_run_id, row_count, source_fetched_at)
+        SELECT year, kind_code, dataset, role, id, %s, source_fetched_at
+          FROM cpbl.advanced_ingest_runs WHERE id=%s
+        ON CONFLICT (year, kind_code, dataset, role) DO UPDATE
+           SET current_run_id=EXCLUDED.current_run_id, row_count=EXCLUDED.row_count,
+               source_fetched_at=EXCLUDED.source_fetched_at, promoted_at=now()
+        """,
+        (report.accepted_rows, run_id),
+    )
+    deleted = cur.execute(
+        f"""DELETE FROM {table}
+             WHERE year=%(year)s AND kind_code=%(kind)s {role_clause}
+               AND source_run_id IS DISTINCT FROM %(run)s""",
+        {"year": spec.year, "kind": spec.kind_code, "role": spec.role, "run": run_id},
+    ).rowcount
+    return deleted
+
+
+def promote_full(spec: RunSpec, run_id: int, stage_fn, report: ValidationReport) -> None:
+    """單一 transaction 原子晉升；失敗 rollback（含 stage 寫入的列）。"""
     with conn() as c:
-        cur = c.cursor()
-        stage_fn(cur, run_id)
-        locked = cur.execute(
-            """SELECT snapshot_scope, year, kind_code, dataset, role, status
-                 FROM cpbl.advanced_ingest_runs WHERE id=%s FOR UPDATE""",
-            (run_id,),
-        ).fetchone()
-        if locked is None:
-            raise RuntimeError(f"run {run_id} 不存在")
-        scope, y, k, d, r, status = locked
-        if scope != "full":
-            raise RuntimeError(f"run {run_id} snapshot_scope={scope}，非 full 不可晉升")
-        if (y, k, d, r) != (spec.year, spec.kind_code, spec.dataset, spec.role):
-            raise RuntimeError(f"run {run_id} identity {(y, k, d, r)} 與 spec {spec} 不符")
-        if status == "promoted":
-            raise RuntimeError(f"run {run_id} 已 promoted，不可重複晉升")
-        cur.execute(
-            """
-            UPDATE cpbl.advanced_ingest_runs
-               SET status='promoted', observed_rows=%s, accepted_rows=%s, empty_id_rows=%s,
-                   duplicate_key_rows=%s, error_report=%s::jsonb, completed_at=now()
-             WHERE id=%s
-            """,
-            (report.observed_rows, report.accepted_rows, report.empty_id_rows,
-             report.duplicate_key_rows, report.as_json(), run_id),
-        )
-        cur.execute(
-            """
-            INSERT INTO cpbl.advanced_snapshot_state
-                (year, kind_code, dataset, role, current_run_id, row_count, source_fetched_at)
-            SELECT year, kind_code, dataset, role, id, %s, source_fetched_at
-              FROM cpbl.advanced_ingest_runs WHERE id=%s
-            ON CONFLICT (year, kind_code, dataset, role) DO UPDATE
-               SET current_run_id=EXCLUDED.current_run_id, row_count=EXCLUDED.row_count,
-                   source_fetched_at=EXCLUDED.source_fetched_at, promoted_at=now()
-            """,
-            (report.accepted_rows, run_id),
-        )
-        deleted = cur.execute(
-            f"""DELETE FROM {table}
-                 WHERE year=%(year)s AND kind_code=%(kind)s {role_clause}
-                   AND source_run_id IS DISTINCT FROM %(run)s""",
-            {"year": spec.year, "kind": spec.kind_code, "role": spec.role, "run": run_id},
-        ).rowcount
+        deleted = promote_full_on_cursor(c.cursor(), spec, run_id, stage_fn, report)
     log.info("promote %s：run=%d accepted=%d 刪殘列=%d", spec, run_id, report.accepted_rows, deleted)
 
 

@@ -53,7 +53,7 @@ def test_pitch_type_fetch_keeps_both_pitch_types(monkeypatch: pytest.MonkeyPatch
         {"Player": {"Acnt": MOIERMAN}, "PitchType": "fastball", "Pitches": 999},  # 重複 key → skip
     ]
     monkeypatch.setattr(ca, "_leaderboard_rows", lambda *a, **k: rows)
-    res = ca._fetch_pitch_type(None, "pitcher", "A", 2026, delay=0)
+    res = ca._fetch_pitch_type(None, "A", 2026, delay=0)
     by_pt = {r[1]: r for r in res.rows}
     assert set(by_pt) == {"fastball", "breakingball"}
     assert by_pt["breakingball"][2] == 758 and by_pt["fastball"][2] == 428  # 球數不互相覆寫
@@ -101,6 +101,95 @@ def test_validate_flags_floor_dup_and_ratio() -> None:
     assert "retain_ratio_regression" in r2.errors
     r3 = snap.validate(spec, ValidationReport(accepted_rows=160), prior=161)
     assert r3.ok
+
+
+def test_pitch_type_request_omits_search_type() -> None:
+    import httpx
+
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        return httpx.Response(200, json={"Data": {"Leaderboard": []}})
+
+    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+        ca._fetch_pitch_type(client, "A", 2026, delay=0)
+    assert dict(requests[0].url.params) == {"gameKind": "A", "year": "2026"}
+
+
+def test_full_snapshot_has_no_batting_pitch_type_scope(monkeypatch) -> None:
+    monkeypatch.setattr(ca, "_merge_scalar", lambda *a, **k: ca.ScalarFetch({}, ValidationReport()))
+    calls = []
+
+    def pitch(*args, **kwargs):
+        calls.append(args[1:])
+        return ca.PitchTypeFetch([], ValidationReport())
+
+    monkeypatch.setattr(ca, "_fetch_pitch_type", pitch)
+    monkeypatch.setattr(ca, "_fetch_league_summary", lambda *a, **k: ca.SummaryFetch([], ValidationReport()))
+    monkeypatch.setattr(ca, "_run_dataset", lambda spec, *a: spec)
+    result = ca.run_full_snapshot(2026, client=object(), delay=0)
+    assert [(r.dataset, r.role) for r in result] == [
+        ("player_stats", "batting"), ("player_stats", "pitching"),
+        ("pitch_type_stats", "pitching"), ("league_summary", ""),
+    ]
+    assert calls == [("A", 2026)]
+    result = ca.run_full_snapshot(2026, roles=("batting",), client=object(), delay=0)
+    assert all(r.dataset != "pitch_type_stats" for r in result)
+    with pytest.raises(ValueError):
+        ca.run_full_snapshot(2026, roles=("unknown",), client=object())
+
+
+def test_cursor_open_run_uses_supplied_cursor_and_provenance(monkeypatch) -> None:
+    monkeypatch.setattr(snap, "conn", lambda: pytest.fail("cursor primitive opened a connection"))
+
+    class Cursor:
+        def execute(self, sql, params):
+            self.params = params
+            return self
+
+        def fetchone(self):
+            return (43,)
+
+    cur = Cursor()
+    spec = RunSpec(2026, "A", "league_summary")
+    at = datetime.now(UTC)
+    assert snap.open_run_on_cursor(cur, spec, "full", "summary", at, 5,
+                                   provenance={"source_hash": "fixed"}) == 43
+    assert cur.params[:5] == (2026, "A", "league_summary", "", "full")
+    assert cur.params[8] == 5 and '"source_hash": "fixed"' in cur.params[-1]
+
+
+def test_cursor_promotion_uses_caller_transaction_and_propagates_pointer_fault(monkeypatch) -> None:
+    monkeypatch.setattr(snap, "conn", lambda: pytest.fail("cursor primitive opened a connection"))
+
+    class Cursor:
+        rowcount = 7
+
+        def __init__(self, fail_pointer=False):
+            self.statements = []
+            self.fail_pointer = fail_pointer
+
+        def execute(self, sql, params):
+            self.statements.append((sql, params))
+            if self.fail_pointer and "INSERT INTO cpbl.advanced_snapshot_state" in sql:
+                raise RuntimeError("pointer fault")
+            return self
+
+        def fetchone(self):
+            return ("full", 2026, "A", "pitch_type_stats", "pitching", "running")
+
+    spec = RunSpec(2026, "A", "pitch_type_stats", "pitching")
+    staged = []
+    cur = Cursor()
+    assert snap.promote_full_on_cursor(cur, spec, 42, lambda c, rid: staged.append((c, rid)),
+                                       ValidationReport(accepted_rows=30)) == 7
+    assert staged == [(cur, 42)]
+    assert cur.statements[-1][1] == {"year": 2026, "kind": "A", "role": "pitching", "run": 42}
+    failed = Cursor(fail_pointer=True)
+    with pytest.raises(RuntimeError, match="pointer fault"):
+        snap.promote_full_on_cursor(failed, spec, 42, lambda c, rid: None, ValidationReport())
+    assert not any("DELETE FROM" in sql for sql, _ in failed.statements)
 
 
 # --------------------------- 需本機 DB ---------------------------

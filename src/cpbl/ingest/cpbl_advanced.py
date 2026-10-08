@@ -1,7 +1,7 @@
 """官方進階數據爬蟲（stats.cpbl.com.tw 官方 leaderboard JSON API）。
 
 端點：`/api/proxy/v1/leaderboards/{pr-table,exit-velocity,batted-ball,pitch-tracking,summary}`
-（免瀏覽器，支援 `gameKind=A/D`、`searchType=batter/pitcher`）。
+（免瀏覽器；scalar 支援 `searchType=batter/pitcher`，pitch-tracking 不帶此參數）。
 
 INGEST-ADV-RECONCILE1 後的資料流：
 - **scalar 三表**（pr-table / exit-velocity / batted-ball）依 `Player.Acnt` 合併 →
@@ -147,11 +147,11 @@ def _to_num(v) -> float | int | None:
     return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
-def _fetch_pitch_type(client: httpx.Client, search_type: str, game_kind: str, year: int,
+def _fetch_pitch_type(client: httpx.Client, game_kind: str, year: int,
                       delay: float = 0.5) -> PitchTypeFetch:
     """pitch-tracking leaderboard：每 (acnt, pitch_type) 一列，保存球數/球速/轉速/慣用手。"""
     rows_raw = _leaderboard_rows(client, _PITCH_TRACKING,
-                                 {"searchType": search_type, "gameKind": game_kind, "year": str(year)})
+                                 {"gameKind": game_kind, "year": str(year)})
     rep = ValidationReport(observed_rows=len(rows_raw))
     seen: set[tuple[str, str]] = set()
     out: list[tuple] = []
@@ -317,7 +317,9 @@ def run_full_snapshot(year: int, kind_code: str = "A",
                       delay: float = 0.5, dry_run: bool = False,
                       client: httpx.Client | None = None) -> list[DatasetOutcome]:
     """對 (year, kind_code) 全量抓 player_stats / pitch_type_stats（依 role）+ league_summary，
-    各自建立 full run 並原子晉升。回傳每個 dataset run 的 outcome。"""
+    投手球種只建立 pitching run；各 scope 獨立晉升，非跨 scope 原子發布。"""
+    if not roles or len(set(roles)) != len(roles) or any(r not in ("batting", "pitching") for r in roles):
+        raise ValueError("roles 必須是不重複的 batting/pitching")
     own = client is None
     http = client or _client()
     outcomes: list[DatasetOutcome] = []
@@ -333,8 +335,10 @@ def run_full_snapshot(year: int, kind_code: str = "A",
                 lambda cur, rid, d=sf.data, y=year, k=kind_code, r=role, f=fetched_at:
                     _stage_player_stats(cur, rid, d, y, k, r, f), dry_run))
 
+            if role != "pitching":
+                continue
             fetched_at = _now()
-            pf = _fetch_pitch_type(http, st, kind_code, year, delay=delay)
+            pf = _fetch_pitch_type(http, kind_code, year, delay=delay)
             spec = RunSpec(year, kind_code, "pitch_type_stats", role)
             outcomes.append(_run_dataset(
                 spec, "full", "leaderboards/pitch-tracking", fetched_at, pf.report,
