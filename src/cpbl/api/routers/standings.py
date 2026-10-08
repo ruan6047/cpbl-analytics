@@ -250,19 +250,22 @@ def season_standings(season: int = Query(DEFAULT_SEASON)) -> dict:
 
 @router.get("/api/v1/postseason-summary")
 def postseason_summary(season: int = Query(DEFAULT_SEASON), kind_code: str = Query("A")) -> dict:
-    """年度季後賽摘要與系列大比分。一軍＝挑戰賽(E)+台灣大賽(C)；二軍(kind_code=D)＝二軍總冠軍賽(F)。"""
+    """年度季後賽摘要與系列大比分。一軍＝挑戰賽(E)+台灣大賽(C)；二軍(kind_code=D)＝二軍總冠軍賽(F)。
+
+    逐場的 `game_no` 是系列內完成順序；`game_sno` 是官方場次編號，前端據以組
+    `/games/{game_sno}?kind=&year=` 單場連結（#237，新增欄位、向下相容）。"""
     codes = ["F"] if kind_code == "D" else ["E", "C"]
     with conn() as c:
         rows = c.execute(
             "SELECT kind_code, home_team_code, home_team_name, away_team_code, away_team_name, "
-            "home_score, away_score, game_date "
+            "home_score, away_score, game_date, game_sno "
             "FROM cpbl.games "
             f"WHERE year=%s AND kind_code = ANY(%s) AND {_DONE} "
             "ORDER BY game_date, game_sno",
             (season, codes),
         ).fetchall()
     series: dict = {}
-    for kc, hc, hn, ac, an, hs, as_, gd in rows:
+    for kc, hc, hn, ac, an, hs, as_, gd, sno in rows:
         key = (kc, tuple(sorted((hc, ac))))
         if key not in series:
             series[key] = {"kind_code": kc, "teams": {
@@ -276,6 +279,7 @@ def postseason_summary(season: int = Query(DEFAULT_SEASON), kind_code: str = Que
         # 逐場小比分（依日期序，勝隊由 game 端算）
         series[key]["games"].append({
             "game_no": len(series[key]["games"]) + 1,
+            "game_sno": sno,
             "date": gd.isoformat() if gd else None,
             "home_code": hc, "home_name": hn, "home_score": hs,
             "away_code": ac, "away_name": an, "away_score": as_,

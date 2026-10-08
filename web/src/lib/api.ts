@@ -320,6 +320,9 @@ export type PostseasonSummaryResponse = {
     team2_wins: number;
     games?: {
       game_no: number;
+      /** 官方場次編號（#237 新增）；單場連結只能用它，不能用 game_no（系列內完成順序）。
+       *  舊版 API 沒有這一欄時為 undefined，前端不建連結。 */
+      game_sno?: number;
       date: string | null;
       home_code: string;
       home_name: string;
