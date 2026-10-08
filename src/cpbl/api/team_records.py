@@ -223,7 +223,7 @@ def _pitcher_milestones(
     return out
 
 
-def _franchise_batting_totals(cur, prefixes: list[str]) -> dict[str, dict]:
+def _franchise_batting_totals(cur, prefixes: list[str], season: int = DEFAULT_SEASON) -> dict[str, dict]:
     """franchise 歷來成員「上季結束時」的累計（僅 `*_seasons`，不含本季 gamelog）。
 
     2026-07-28 需求方修正：這個查詢**不再是顯示用的隊史紀錄**（原版把它當顯示值
@@ -234,22 +234,22 @@ def _franchise_batting_totals(cur, prefixes: list[str]) -> dict[str, dict]:
     cur.execute(
         "SELECT bs.player_id, max(p.name), sum(bs.h), sum(bs.rbi), sum(bs.r), sum(bs.hr), sum(bs.sb) "
         "FROM cpbl.batting_seasons bs LEFT JOIN cpbl.players p ON p.id = bs.player_id "
-        "WHERE substring(bs.team_id,1,3) = ANY(%s) GROUP BY bs.player_id",
-        (prefixes,))
+        "WHERE substring(bs.team_id,1,3) = ANY(%s) AND bs.year < %s GROUP BY bs.player_id",
+        (prefixes, season))
     return {
         pid: {"name": nm or pid, "h": h or 0, "rbi": rbi or 0, "r": r or 0, "hr": hr or 0, "sb": sb or 0}
         for pid, nm, h, rbi, r, hr, sb in cur.fetchall()
     }
 
 
-def _franchise_pitching_totals(cur, prefixes: list[str]) -> dict[str, dict]:
+def _franchise_pitching_totals(cur, prefixes: list[str], season: int = DEFAULT_SEASON) -> dict[str, dict]:
     """franchise 歷來成員「上季結束時」的累計（僅 `*_seasons`）。同上，只是基準，非顯示值。"""
     cur.execute(
         "SELECT ps.player_id, max(p.name), sum(ps.so), "
         "sum(trunc(ps.ip)+(ps.ip-trunc(ps.ip))*10/3.0), sum(ps.w), sum(ps.sv), sum(ps.hld) "
         "FROM cpbl.pitching_seasons ps LEFT JOIN cpbl.players p ON p.id = ps.player_id "
-        "WHERE substring(ps.team_id,1,3) = ANY(%s) GROUP BY ps.player_id",
-        (prefixes,))
+        "WHERE substring(ps.team_id,1,3) = ANY(%s) AND ps.year < %s GROUP BY ps.player_id",
+        (prefixes, season))
     out = {}
     for pid, nm, so, rip, w, sv, hld in cur.fetchall():
         outs = round(float(rip or 0.0) * 3)
@@ -291,9 +291,8 @@ def _franchise_current_season_batting(cur, prefixes: list[str], season: int) -> 
 
 def _franchise_current_season_pitching(cur, prefixes: list[str], season: int) -> dict[str, dict]:
     """本季 franchise-scoped 投球增量。理由同 `_franchise_current_season_batting`
-    ——不可用 `_career_pitching_per_year`，那還有第二個問題：`pitching_seasons`
-    目前只到 2025（無 2026 列），該 helper 完全沒有 gamelog 補本季的機制（跟打擊
-    helper 不同），本季一律回 0，不只是跨隊誤記的問題。
+    ——不可用 `_career_pitching_per_year`，它彙總全生涯、跨球團；年度留存後也
+    不能再把本季永久季表疊進增量。本季貢獻仍以該場代表的球團計算。
 
     w 用官方 `games.winning_pitcher_id`；sv 用官方救援成功投手 `official_closer_sql`
     （旗標 is_save_ok 優先、再退 `games.closer_id`，與 `splits_calc.py` 的 `save_ok` 同一來源；
@@ -456,8 +455,8 @@ def upcoming_records(code: str, season: int = DEFAULT_SEASON) -> dict:
         # 本季 franchise-scoped 增量後的「目前」隊史彙總。兩者都要保留給
         # _franchise_records 分別當「被刷新的對象」與「目前隊史最高」用。
         prefixes = sorted(franchise_prefixes(code))
-        prior_batters = _franchise_batting_totals(cur, prefixes)
-        prior_pitchers = _franchise_pitching_totals(cur, prefixes)
+        prior_batters = _franchise_batting_totals(cur, prefixes, season)
+        prior_pitchers = _franchise_pitching_totals(cur, prefixes, season)
         batter_delta = _franchise_current_season_batting(cur, prefixes, season)
         pitcher_delta = _franchise_current_season_pitching(cur, prefixes, season)
         current_batters = _merge_current_season(prior_batters, batters_roster, batter_delta, BATTER_STATS)

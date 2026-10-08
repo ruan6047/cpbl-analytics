@@ -223,13 +223,15 @@ _CAREER_BOUNDS = (1990, 2026)
 _UNIVERSE_TTL_SECONDS = 3600
 _universe_cache: dict[tuple[str, int, int], tuple[float, InsightUniverse]] = {}
 
+# 完整永久季表優先；尚未留存的 2026 才補 current，避免同年機會數加倍。
 _BATTING_OFFICIAL_SQL = """
 WITH src AS (
   SELECT player_id, year AS yr, ab, h, b2, b3, hr, bb, ibb, hbp, sf
   FROM cpbl.batting_seasons
   UNION ALL
-  SELECT player_id, 2026 AS yr, ab, h, b2, b3, hr, bb, ibb, hbp, sf
+  SELECT player_id, year AS yr, ab, h, b2, b3, hr, bb, ibb, hbp, sf
   FROM cpbl.batting_current
+  WHERE year = 2026 AND year NOT IN (SELECT DISTINCT year FROM cpbl.batting_seasons)
 )
 SELECT player_id, sum(ab), sum(h), sum(b2), sum(b3), sum(hr),
        sum(bb), sum(ibb), sum(hbp), sum(sf)
@@ -241,8 +243,9 @@ WITH src AS (
   SELECT player_id, year AS yr, bf, h, hr, bb, ibb, hbp
   FROM cpbl.pitching_seasons
   UNION ALL
-  SELECT player_id, 2026 AS yr, pa AS bf, h, hr, bb, ibb, hbp
-  FROM cpbl.pitching_current WHERE year = 2026
+  SELECT player_id, year AS yr, pa AS bf, h, hr, bb, ibb, hbp
+  FROM cpbl.pitching_current
+  WHERE year = 2026 AND year NOT IN (SELECT DISTINCT year FROM cpbl.pitching_seasons)
 )
 SELECT player_id, sum(bf), sum(h), sum(hr), sum(bb), sum(ibb), sum(hbp)
 FROM src WHERE yr BETWEEN %(lo)s AND %(hi)s GROUP BY player_id

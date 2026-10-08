@@ -119,9 +119,23 @@ def _bat_ability_sql(scope: str) -> str:
         )"""
         # 生涯守備：逐年除以「守位×年」聯盟均值再按出賽（捕手按阻殺機會）加權。
         fld = """
-        pos_yr AS (
+        pos_source AS (
+            -- 沿用既有守位表示；年度留存中文先對齊歷史代碼，再聚合同年多隊。
+            SELECT player_id, year, g, po, a, cs, sb,
+                CASE pos
+                    WHEN '投手' THEN 'P' WHEN '捕手' THEN 'C'
+                    WHEN '一壘' THEN '1B' WHEN '一壘手' THEN '1B'
+                    WHEN '二壘' THEN '2B' WHEN '二壘手' THEN '2B'
+                    WHEN '三壘' THEN '3B' WHEN '三壘手' THEN '3B'
+                    WHEN '游擊' THEN 'SS' WHEN '游擊手' THEN 'SS'
+                    WHEN '左外野' THEN 'LF' WHEN '左外野手' THEN 'LF'
+                    WHEN '中外野' THEN 'CF' WHEN '中外野手' THEN 'CF'
+                    WHEN '右外野' THEN 'RF' WHEN '右外野手' THEN 'RF'
+                    ELSE pos END pos
+            FROM cpbl.fielding_seasons
+        ), pos_yr AS (
             SELECT player_id, pos, year, sum(g) g, sum(po) po, sum(a) a, sum(cs) cs, sum(sb) sba
-            FROM cpbl.fielding_seasons GROUP BY player_id, pos, year
+            FROM pos_source GROUP BY player_id, pos, year
         ), pos_lg AS (
             SELECT pos, year,
                 sum(po + a)::float/NULLIF(sum(g),0) mrf,
