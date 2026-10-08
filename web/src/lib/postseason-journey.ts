@@ -429,13 +429,18 @@ export function slotAllUnknown(s: Pick<JourneySlot, "awayCode" | "homeCode" | "a
     && s.venueNote === POSTSEASON_COPY.unknownVenue;
 }
 
-/** 「獅 2：兄弟 1（兄弟含規則勝 1）・獅還差 1 勝、兄弟還差 2 勝」。 */
+/** 有規則勝的一方把實際場勝與規則勝分列：「實際勝 2＋規則勝 1」。沒有規則勝時合計就是實際勝場，不另列。 */
+export function tallyBreakdownText(t: Pick<SideTally, "gameWins" | "ruleWins">): string | null {
+  return t.ruleWins > 0 ? `實際勝 ${t.gameWins}＋規則勝 ${t.ruleWins}` : null;
+}
+
+/** 「獅 2：兄弟 1（兄弟實際勝 0＋規則勝 1）・獅還差 1 勝、兄弟還差 2 勝」。 */
 export function seriesProgressText(s: JourneySeries): string {
   const { a, b } = s.tally;
   const name = (t: SideTally, fallback: string) => (t.code ? teamShortName(t.code) : fallback);
   const an = name(a, POSTSEASON_COPY.eWinner);
   const bn = name(b, POSTSEASON_COPY.eWinner);
-  const rule = [a, b].filter((t) => t.ruleWins > 0).map((t) => `${name(t, "")}含規則勝 ${t.ruleWins}`);
+  const rule = [a, b].filter((t) => t.ruleWins > 0).map((t) => `${name(t, "")}${tallyBreakdownText(t)}`);
   const score = `${an} ${a.total}：${bn} ${b.total}${rule.length ? `（${rule.join("、")}）` : ""}`;
   if (s.status === "decided") {
     const w = s.tally.winner === a.code ? an : bn;

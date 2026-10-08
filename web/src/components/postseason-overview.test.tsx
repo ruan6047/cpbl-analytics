@@ -56,9 +56,10 @@ test("開打前預設挑戰賽分頁：進度（規則勝另註）、晉級關�
   assert.match(html, /aria-current="page"[^>]*href="\/standings\?seg=3&amp;ps=E"|href="\/standings\?seg=3&amp;ps=E"[^>]*aria-current="page"/);
   assert.match(t, /季後挑戰賽 5 戰 3 勝 中信兄弟/);
   assert.equal(count(t, "晉級台灣大賽"), 1, "門檻與去向只在晉級關係句說一次");
-  assert.match(t, /中信兄弟 下半季冠軍 1 還差 2 勝/);
+  assert.match(t, /中信兄弟 下半季冠軍 實際勝 0＋規則勝 1 ，合計 1 還差 2 勝/);
   assert.match(t, /統一獅 外卡・全年 #2 0 還差 3 勝/);
-  assert.match(t, /■ 規則勝：兄弟依規則先得 1 勝，不是實際比賽/);
+  // text() 以 \s+ 正規化空白（含全形空白 U+3000），圖例間的全形空白在此讀成一般空白。
+  assert.match(t, /● 實際勝場 ■ 規則勝：兄弟依規則先得 1 勝，不是實際比賽/);
   assert.match(t, /先拿 3 勝晉級台灣大賽，10\/17（六） 起對味全。 看台灣大賽 →/);
   assert.match(t, /G1 10\/09（五） 17:05 下一場 統一獅（客） 對 中信兄弟（主） ・洲際/);
   assert.match(t, /G3 10\/11（日） 17:05 如有必要/);
@@ -105,8 +106,9 @@ test("必要回歸：獅贏 E1–E2 → 統一 2、兄弟 1，兩隊都還沒晉
   const j = build([LION, LION], "2026-10-10T23:00:00+08:00");
   const html = renderToStaticMarkup(view(j));
   const t = text(view(j));
-  assert.match(t, /中信兄弟 下半季冠軍 1 還差 2 勝/);
+  assert.match(t, /中信兄弟 下半季冠軍 實際勝 0＋規則勝 1 ，合計 1 還差 2 勝/);
   assert.match(t, /統一獅 外卡・全年 #2 2 還差 1 勝/);
+  assert.equal(count(t, "實際勝 "), 1, "只有帶規則勝的兄弟分列；獅的合計就是實際勝場，不重複列");
   assert.doesNotMatch(t, /統一晉級|兄弟晉級|統一獅 外卡・全年 #2 2 晉級/);
   assert.match(t, /G1 10\/09（五） 17:05 終場 統一獅（客） 4：1 中信兄弟（主）/);
   assert.match(html, /href="\/games\/1\?kind=E&amp;year=2026"/);
@@ -123,7 +125,9 @@ test("挑戰賽分出勝負：預設改到台灣大賽分頁、對手與 G3／G4
   assert.doesNotMatch(c, /球場依挑戰賽勝隊而定|G3、G4 球場/);
   assert.match(c, /G1 10\/17（六） 17:05 下一場/);
   const e = text(view(j, "E"));
-  assert.match(e, /中信兄弟 下半季冠軍 3 晉級/);
+  // R1 F1 回歸：兄弟實際贏 2 場，要直接讀到「實際勝 2」，不必由合計 3 減規則勝 1。
+  assert.match(e, /中信兄弟 下半季冠軍 實際勝 2＋規則勝 1 ，合計 3 晉級/);
+  assert.doesNotMatch(c, /實際勝 /, "台灣大賽沒有規則勝，不分列");
   assert.match(e, /兄弟晉級台灣大賽，10\/17（六） 起對味全。/);
   assert.match(e, /G3 10\/11（日） 17:05 依條件不需進行/);
 });

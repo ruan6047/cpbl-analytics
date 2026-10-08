@@ -118,7 +118,8 @@ test("必要回歸：獅贏 E1–E2 → 獅 2、兄弟 1，系列未分勝負，
   assert.equal(slot(j, "C1").awayLabel, "挑戰賽勝隊");
   const text = seriesProgressText(j.series.E);
   assert.match(text, /統一 2：兄弟 1/);
-  assert.match(text, /兄弟含規則勝 1/);
+  assert.match(text, /（兄弟實際勝 0＋規則勝 1）/);
+  assert.doesNotMatch(text, /統一實際勝/, "沒有規則勝的一方合計即實際勝場，不另列");
   assert.doesNotMatch(text, /晉級/);
 });
 
@@ -133,7 +134,8 @@ test("兄弟贏 E1–E2：3 勝晉級；E3／E4 依條件不需進行；C 對手
   assert.equal(slot(j, "C3").homeCode, BRO);
   assert.equal(slot(j, "C3").venue, "大巨蛋");
   assert.equal(slot(j, "C3").venueNote, null);
-  assert.match(seriesProgressText(j.series.E), /兄弟晉級台灣大賽/);
+  // R1 F1 回歸：首頁摘要直接讀到實際 2 勝，不只合計 3 與規則勝 1。
+  assert.equal(seriesProgressText(j.series.E), "統一 0：兄弟 3（兄弟實際勝 2＋規則勝 1）・兄弟晉級台灣大賽");
 });
 
 test("獅贏 E1–E3：獅晉級，G3／G4 改在亞太主", () => {

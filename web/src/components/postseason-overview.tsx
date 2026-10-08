@@ -8,6 +8,7 @@ import {
   journeyAsOfText,
   shortDay,
   slotWhen,
+  tallyBreakdownText,
   teamShortName,
 } from "@/lib/postseason-journey";
 
@@ -45,6 +46,7 @@ function ProgressRow({ s, side, seed, nameOf }: { s: JourneySeries; side: SideTa
   const note = won ? (s.kind === "E" ? "晉級" : "總冠軍")
     : s.status === "decided" ? ""
     : side.code ? `還差 ${side.remaining} 勝` : "待定";
+  const breakdown = tallyBreakdownText(side);
   return (
     <li className="flex items-center gap-3">
       {side.code ? (
@@ -55,6 +57,8 @@ function ProgressRow({ s, side, seed, nameOf }: { s: JourneySeries; side: SideTa
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-bold text-ink">{side.code ? displayTeamName(nameOf(side.code)) : POSTSEASON_COPY.eWinner}</span>
         <span className="block text-[11px] text-muted">{seed}</span>
+        {/* 驗收 2：規則勝與實際場勝分列，讀者不必用大字合計自己減。 */}
+        {breakdown && <span className="block text-[11px] font-medium tabular-nums text-ink">{breakdown}<span className="sr-only">，合計</span></span>}
       </span>
       <WinPips t={side} needed={s.winsNeeded} />
       <span className={`w-8 text-right font-[family-name:var(--font-wide)] text-3xl leading-none tabular-nums [font-stretch:80%] ${
@@ -145,7 +149,7 @@ function SeriesView({ journey, k, nameOf, seedOf }: {
         </ul>
         {k === "E" && (
           <p className="mt-3 text-xs text-muted">
-            ■ 規則勝：{teamShortName(ann.series.E.handicapTeam)}依規則先得 1 勝，不是實際比賽。
+            ● 實際勝場　■ 規則勝：{teamShortName(ann.series.E.handicapTeam)}依規則先得 1 勝，不是實際比賽。
           </p>
         )}
         {s.tally.ties > 0 && (
