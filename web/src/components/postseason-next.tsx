@@ -3,9 +3,9 @@ import { StatusBadge, TeamLogo, type StatusTone } from "@/components/ui";
 import type { PostseasonJourney, SlotStatus } from "@/lib/postseason-journey";
 import {
   POSTSEASON_COPY,
-  announcementSourceText,
   journeyAsOfText,
   seriesProgressText,
+  slotVenueText,
   slotWhen,
 } from "@/lib/postseason-journey";
 
@@ -59,7 +59,7 @@ export function PostseasonNextCard({ journey }: { journey: PostseasonJourney }) 
             {n.homeCode && <TeamLogo code={n.homeCode} name={n.homeLabel} size={18} decorative />}
             <span>{n.homeLabel}（主）</span>
           </p>
-          <p className="text-[13px] text-muted">{n.venue ?? n.venueNote}</p>
+          <p className="text-[13px] text-muted">{slotVenueText(n)}</p>
           {n.status === "result_pending" && (
             <p className="text-xs text-down">已過預定開賽時間・本站尚無賽果紀錄</p>
           )}
@@ -86,9 +86,10 @@ export function PostseasonNextCard({ journey }: { journey: PostseasonJourney }) 
           季後賽程日曆 →
         </Link>
       </div>
+      {/* 公告來源與核對細節放在季後總覽的說明區；首頁卡只留讀者判斷新鮮度需要的截至一句。 */}
       <p className="mt-2 text-[11.5px] leading-relaxed text-muted">
         {n && !n.href ? "公告安排，尚無官方場次編號。" : ""}
-        {journeyAsOfText(journey)}。公告來源：{announcementSourceText(ann)}。
+        {journeyAsOfText(journey)}。
       </p>
     </section>
   );

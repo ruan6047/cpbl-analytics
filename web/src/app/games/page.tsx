@@ -7,8 +7,9 @@ import { api, type CalendarGame } from "@/lib/api";
 import { teamFullName } from "@/lib/teams";
 import { LiveCalendarGame } from "@/components/live-calendar-game";
 import { PostseasonExplainer, slotGameLabel } from "@/components/postseason-series";
+import { AnnouncedCompact, AnnouncedMobile } from "@/components/postseason-calendar";
 import { announcementFor } from "@/lib/postseason-announcement";
-import { POSTSEASON_COPY, postseasonJourneyFor, slotMayInvolve, type JourneySlot } from "@/lib/postseason-journey";
+import { POSTSEASON_COPY, journeyAsOfText, postseasonJourneyFor, slotMayInvolve, type JourneySlot } from "@/lib/postseason-journey";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "賽程與賽況" };
@@ -38,71 +39,8 @@ const addMonth = (ym: string, delta: number) => {
   return `${t.getFullYear()}-${pad(t.getMonth() + 1)}`;
 };
 
-// —— 季後公告安排（#237）：資料庫還沒有正式場次的公告格。虛線框、不給連結，與正式場次分開。 ——
-const SLOT_TONE: Record<JourneySlot["status"], StatusTone> = {
-  final: "done", scheduled: "scheduled", announced: "scheduled", result_pending: "warn", not_needed: "done",
-};
+// —— 季後（#237）：公告格元件在 postseason-calendar；這裡只處理正式場次上的公告補充。 ——
 const slotOpen = (s: JourneySlot) => s.status !== "final" && s.status !== "not_needed";
-/** 公告格的球場短句：窄格只放得下短字，完整說明見 title 與下方說明區。 */
-const shortVenue = (s: JourneySlot) => s.venue ?? (s.venueNote?.startsWith("依挑戰賽") ? "球場依晉級隊" : "球場未取得");
-
-function SlotTeam({ code, label, size }: { code: string | null; label: string; size: number }) {
-  return code ? (
-    <TeamLogo code={code} name={label} size={size} />
-  ) : (
-    <span className="inline-flex shrink-0 items-center justify-center rounded-full border border-dashed border-line-strong text-[9px] text-muted"
-      style={{ width: size, height: size }} title={label}>
-      <span aria-hidden="true">待</span><span className="sr-only">{label}</span>
-    </span>
-  );
-}
-
-function AnnouncedCompact({ s }: { s: JourneySlot }) {
-  return (
-    <div data-announced="true" title={`${POSTSEASON_COPY.status[s.status]}：${s.awayLabel}（客）對 ${s.homeLabel}（主）・${s.venue ?? s.venueNote ?? ""}`}
-      className="block rounded-sm border border-dashed border-line-strong px-1.5 py-1">
-      <div className="mb-0.5 text-center text-[10px] font-bold leading-none text-ink">{POST_LABEL[s.kind]} {slotGameLabel(s)}</div>
-      <div className="flex items-center justify-between gap-1 leading-none">
-        <SlotTeam code={s.awayCode} label={s.awayLabel} size={20} />
-        <span className="text-center text-[10px] leading-tight">
-          <StatusBadge tone={SLOT_TONE[s.status]} variant="bare">{POSTSEASON_COPY.status[s.status]}</StatusBadge>
-          {s.conditional && slotOpen(s) && <span className="block text-muted">{POSTSEASON_COPY.conditional}</span>}
-        </span>
-        <SlotTeam code={s.homeCode} label={s.homeLabel} size={20} />
-      </div>
-      <div className="mt-1 truncate text-center text-[10px] leading-none text-muted">
-        {[s.start, shortVenue(s)].filter(Boolean).join("・")}
-      </div>
-    </div>
-  );
-}
-
-function AnnouncedMobile({ s, asOf }: { s: JourneySlot; asOf: string | null }) {
-  return (
-    <div data-announced="true" className="flex flex-col gap-2 rounded-sm border border-dashed border-line-strong p-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex flex-wrap items-center gap-1.5 leading-none">
-          <StatusBadge tone={SLOT_TONE[s.status]}>{POSTSEASON_COPY.status[s.status]}</StatusBadge>
-          <span className="pm-tag !text-ink">{POST_LABEL[s.kind]} {slotGameLabel(s)}</span>
-          {s.conditional && slotOpen(s) && <span className="pm-tag">{POSTSEASON_COPY.conditional}</span>}
-        </span>
-        {s.start && <span className="shrink-0 text-xs text-muted">{s.start} 開打</span>}
-      </div>
-      {([["away", s.awayCode, s.awayLabel], ["home", s.homeCode, s.homeLabel]] as const).map(([side, code, label]) => (
-        <div key={side} className="flex items-center gap-2 px-1">
-          <SlotTeam code={code} label={label} size={22} />
-          <span className="text-sm text-muted">{label}（{side === "away" ? "客" : "主"}）</span>
-        </div>
-      ))}
-      <div className="text-xs text-muted">{s.venue ?? s.venueNote}</div>
-      {s.status === "result_pending" && (
-        <div className="text-xs text-down">已過預定開賽時間・本站尚無賽果紀錄{asOf ? `（本站賽果紀錄至 ${asOf.slice(5).replace("-", "/")}）` : ""}</div>
-      )}
-      {s.status === "not_needed" && <div className="text-xs text-muted">{POSTSEASON_COPY.notNeededNote}</div>}
-      {s.changeNote && <div className="text-xs text-down">{s.changeNote}</div>}
-    </div>
-  );
-}
 
 /** 正式場次（資料庫列）上的公告補充：開賽時刻與如有必要（資料庫沒有開賽時刻欄位）。 */
 const slotExtra = (s: JourneySlot | undefined, done: boolean) =>
@@ -244,6 +182,15 @@ export default async function GamesPage({
           <Link href={qs({ month: nextM })} aria-label="下個月" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-line-strong text-sm text-ink hover:bg-surface-2">→</Link>
         ) : <span aria-hidden="true" className="inline-flex min-h-11 min-w-11 items-center justify-center text-sm text-faint opacity-50">→</span>}
       </div>
+
+      {/* 季後（#237 驗收 3、5）：「公告安排」與資訊截至在月曆上方說一次，格內不再逐格重複。 */}
+      {journey && monthHasPostseason && (
+        <p className="mb-3 text-xs leading-relaxed text-muted">
+          <b className="font-bold text-ink">季後賽</b>：虛線框為官方公告安排（本站尚無正式場次，不提供單場連結）・
+          點線框為{POSTSEASON_COPY.reserveDay}・{journeyAsOfText(journey)}。
+          <Link href="/standings?seg=3" className="ml-1 inline-flex min-h-11 items-center text-accent hover:underline">系列進度與晉級條件 →</Link>
+        </p>
+      )}
 
       {/* 月曆 (桌機版) */}
       <div className="hidden md:block overflow-x-auto">
@@ -405,16 +352,10 @@ export default async function GamesPage({
         )}
       </div>
 
-      {/* 季後公告說明（#237 驗收 3、6）：公告安排與正式場次的區分、G3／G4 與未定場次。 */}
+      {/* 季後未定場次說明（#237 驗收 6）：G3／G4 與未定場次為何未定、何時確定。 */}
       {journey && monthHasPostseason && (
-        <div className="mt-6 space-y-3">
-          <p className="text-xs leading-relaxed text-muted">
-            季後圖例：虛線框＝公告安排（尚無官方場次編號，不提供單場連結）・實線格＝本站已有的正式場次・
-            開打時刻取自官方公告・「{POSTSEASON_COPY.conditional}」＝{POSTSEASON_COPY.conditionalNote}・
-            {POSTSEASON_COPY.reserveDay}。
-            <Link href="/standings?seg=3" className="ml-1 text-accent hover:underline">系列進度與晉級條件 →</Link>
-          </p>
-          <PostseasonExplainer journey={journey} />
+        <div className="mt-6">
+          <PostseasonExplainer journey={journey} showAsOf={false} />
         </div>
       )}
 

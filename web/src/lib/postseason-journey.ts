@@ -230,13 +230,15 @@ function teamOf(slot: TeamSlot | null, eWinner: string | null): { code: string |
     : { code: null, label: POSTSEASON_COPY.eWinner };
 }
 
+const VENUE_BY_WINNER = "依挑戰賽勝隊而定：";
+
 function venueOf(slot: AnnouncedSlot, eWinner: string | null): { venue: string | null; note: string | null } {
   const v = slot.venue;
   if ("name" in v) return { venue: v.name, note: null };
   if ("unknown" in v) return { venue: null, note: POSTSEASON_COPY.unknownVenue };
   if (eWinner && v.byWinner[eWinner]) return { venue: v.byWinner[eWinner], note: null };
   const branches = Object.entries(v.byWinner).map(([code, name]) => `${teamShortName(code)}晉級→${name}`).join("／");
-  return { venue: null, note: `依挑戰賽勝隊而定：${branches}` };
+  return { venue: null, note: `${VENUE_BY_WINNER}${branches}` };
 }
 
 /** 二字隊慣稱（統一／兄弟／味全）；不認得的隊碼原樣回傳。 */
@@ -411,6 +413,20 @@ export function slotWhen(s: Pick<JourneySlot, "date" | "start">): string {
   const ms = Date.parse(`${s.date}T00:00:00Z`);
   const wd = Number.isFinite(ms) ? `（${"日一二三四五六"[new Date(ms).getUTCDay()]}）` : "";
   return `${md(s.date)}${wd}${s.start ? ` ${s.start}` : ""}`;
+}
+
+/** 場次列上的球場短句：依晉級隊而定時只留分支（「球場依晉級隊：兄弟晉級→大巨蛋／統一晉級→亞太主」）。 */
+export function slotVenueText(s: Pick<JourneySlot, "venue" | "venueNote">): string {
+  if (s.venue) return s.venue;
+  const branch = s.venueNote?.startsWith(VENUE_BY_WINNER) ? s.venueNote.slice(VENUE_BY_WINNER.length) : null;
+  return branch ? `球場依晉級隊：${branch}` : (s.venueNote ?? "");
+}
+
+/** 公告沒寫主客也沒寫球場（本站未取得）：列上合併成一句，不逐欄重複「本站未取得」。 */
+export function slotAllUnknown(s: Pick<JourneySlot, "awayCode" | "homeCode" | "awayLabel" | "homeLabel" | "venue" | "venueNote">): boolean {
+  return !s.awayCode && !s.homeCode && !s.venue
+    && s.awayLabel === POSTSEASON_COPY.unknownTeam && s.homeLabel === POSTSEASON_COPY.unknownTeam
+    && s.venueNote === POSTSEASON_COPY.unknownVenue;
 }
 
 /** 「獅 2：兄弟 1（兄弟含規則勝 1）・獅還差 1 勝、兄弟還差 2 勝」。 */

@@ -72,6 +72,8 @@ test("季後下一場卡：日期時間、主客、球場、狀態、截至，�
   assert.match(t, /統一獅（客） 對 中信兄弟（主） 洲際/);
   assert.match(t, /季後挑戰賽：統一 0：兄弟 1（兄弟含規則勝 1）/);
   assert.match(t, /公告安排，尚無官方場次編號。本站尚無季後賽果紀錄，本站賽果紀錄至 10\/04。/);
+  // 可讀性：公告來源長句只放季後總覽的可展開區，首頁卡不重複。
+  assert.doesNotMatch(t, /CPBL 官方/);
   assert.match(html, /href="\/standings\?seg=3"/);
   assert.match(html, /href="\/games\?month=2026-10"/);
   assert.doesNotMatch(html, /href="\/games\/\d/);

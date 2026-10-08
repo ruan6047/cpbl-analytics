@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { StatusBadge, TeamLogo, type StatusTone } from "@/components/ui";
-import type { SeriesGame, JourneySeries, JourneySlot, PostseasonJourney, SlotStatus } from "@/lib/postseason-journey";
+import type { SeriesGame, JourneySeries, JourneySlot, PostseasonJourney, SideTally, SlotStatus } from "@/lib/postseason-journey";
 import {
   POSTSEASON_COPY,
   announcementSourceText,
@@ -9,6 +9,8 @@ import {
   journeyAsOfText,
   seriesProgressText,
   shortDay,
+  slotAllUnknown,
+  slotVenueText,
   slotWhen,
   tallySeries,
   teamShortName,
@@ -112,6 +114,8 @@ export function SeriesCard({ title, format, sideA, sideB, games = [], needed, cr
 }
 
 // —— 當季季後總覽（公告＋正式場次） ——
+// 閱讀層級（#237 可讀性修正）：下一場 → 系列進度（大字勝場＋勝場格）→ 場次清單 → 未定說明。
+// 「全部是公告安排」這種整體狀態只在清單上方說一次，列上只標例外狀態；來源細節收進 <details>。
 
 const SLOT_TONE: Record<SlotStatus, StatusTone> = {
   final: "done",
@@ -126,30 +130,37 @@ export function slotGameLabel(s: Pick<JourneySlot, "seq">): string {
   return `G${s.seq}`;
 }
 
-/** 單一場次列：有資料庫列才是連結（實線），公告安排為虛線框、不給連結。 */
+/** 單一場次列：有資料庫列才是連結（實線），公告安排為虛線框、不給連結。
+ *  公告安排是清單的常態，不逐列掛徽章；只有終場、已排定、賽果待更新、不需進行才標。 */
 export function SlotLine({ s, asOf }: { s: JourneySlot; asOf: string | null }) {
   const open = s.status !== "final" && s.status !== "not_needed";
   const body = (
-    <span className="flex flex-col gap-1">
+    <span className="grid grid-cols-[2rem_minmax(0,1fr)] gap-x-2 gap-y-0.5">
+      <span className="font-mono text-xs font-bold leading-5 text-ink">{slotGameLabel(s)}</span>
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="font-mono text-xs font-bold text-ink">{slotGameLabel(s)}</span>
-        <span className="text-sm tabular-nums text-ink">{slotWhen(s)}</span>
-        <StatusBadge tone={SLOT_TONE[s.status]}>{POSTSEASON_COPY.status[s.status]}</StatusBadge>
-        {s.conditional && open && <span className="pm-tag">{POSTSEASON_COPY.conditional}</span>}
+        <span className="text-sm font-medium tabular-nums text-ink">{slotWhen(s)}</span>
+        {s.status !== "announced" && <StatusBadge tone={SLOT_TONE[s.status]}>{POSTSEASON_COPY.status[s.status]}</StatusBadge>}
+        {s.conditional && open && <span className="pm-tag !text-ink">{POSTSEASON_COPY.conditional}</span>}
       </span>
-      <span className="text-[13px] text-ink">
-        {s.awayLabel}（客）
-        {s.score ? <b className="mx-1 font-mono tabular-nums">{s.score.away}：{s.score.home}</b> : <span className="mx-1 text-faint">對</span>}
-        {s.homeLabel}（主）
-        <span className="ml-1.5 text-muted">・{s.venue ?? s.venueNote}</span>
+      <span className="col-start-2 text-[13px] text-ink">
+        {slotAllUnknown(s) ? (
+          <span className="text-muted">主客、球場：{POSTSEASON_COPY.unknownVenue}</span>
+        ) : (
+          <>
+            {s.awayLabel}（客）
+            {s.score ? <b className="mx-1 font-mono tabular-nums">{s.score.away}：{s.score.home}</b> : <span className="mx-1 text-faint">對</span>}
+            {s.homeLabel}（主）
+            <span className="text-muted">・{slotVenueText(s)}</span>
+          </>
+        )}
       </span>
       {s.status === "result_pending" && (
-        <span className="text-xs text-down">
+        <span className="col-start-2 text-xs text-down">
           已過預定開賽時間・本站尚無賽果紀錄{asOf ? `（本站賽果紀錄至 ${shortDay(asOf)}）` : ""}
         </span>
       )}
-      {s.status === "not_needed" && <span className="text-xs text-muted">{POSTSEASON_COPY.notNeededNote}</span>}
-      {s.changeNote && <span className="text-xs text-down">{s.changeNote}</span>}
+      {s.status === "not_needed" && <span className="col-start-2 text-xs text-muted">{POSTSEASON_COPY.notNeededNote}</span>}
+      {s.changeNote && <span className="col-start-2 text-xs text-down">{s.changeNote}</span>}
     </span>
   );
   return s.href ? (
@@ -163,8 +174,9 @@ export function SlotLine({ s, asOf }: { s: JourneySlot; asOf: string | null }) {
   );
 }
 
-/** 驗收 6：台灣大賽 G3／G4 與未定場次的頁面說明。季後總覽與日曆共用。 */
-export function PostseasonExplainer({ journey }: { journey: PostseasonJourney }) {
+/** 驗收 6：台灣大賽 G3／G4 與未定場次的頁面說明（為何未定、何時確定）。季後總覽與日曆共用。
+ *  `showAsOf`：所在頁面已在顯眼處標了資訊截至時設 false，避免同頁重複。 */
+export function PostseasonExplainer({ journey, showAsOf = true }: { journey: PostseasonJourney; showAsOf?: boolean }) {
   const { series, slots, announcement: ann } = journey;
   const c34 = slots.filter((s) => s.kind === "C" && (s.seq === 3 || s.seq === 4));
   const c57 = slots.filter((s) => s.kind === "C" && s.seq >= 5);
@@ -177,53 +189,136 @@ export function PostseasonExplainer({ journey }: { journey: PostseasonJourney })
   return (
     <section aria-labelledby="ps-explain-h" className="rounded-md bg-surface p-4 text-[13px] leading-relaxed text-ink">
       <h3 id="ps-explain-h" className="mb-2 text-sm font-bold">台灣大賽 G3／G4 與未定場次說明</h3>
-      <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-[7rem_minmax(0,1fr)]">
+      <ul className="list-disc space-y-1.5 pl-5">
         {c3 && (
-          <>
-            <dt className="font-bold">G3／G4</dt>
-            <dd>
-              {days(c34)}，{c3.awayLabel}（客）對 {cOpp ? c3.homeLabel : POSTSEASON_COPY.eWinner}（主）。
-              <br />
-              球場：{cOpp ? `${cOpp}晉級，於${c3.venue ?? "—"}` : (c3.venueNote ?? c3.venue ?? "—")}。
-              <br />
-              確認條件：挑戰賽分出勝負後確定。目前：
-              <b>{cOpp ? `已確定（${cOpp}晉級）` : "待定（挑戰賽尚未分出勝負）"}</b>
-            </dd>
-          </>
+          <li>
+            <b>G3／G4</b>（{days(c34)}）：{c3.awayLabel}（客）對 {cOpp ? c3.homeLabel : POSTSEASON_COPY.eWinner}（主）。
+            {cOpp ? `球場：${cOpp}晉級，於${c3.venue ?? "—"}。` : `球場${c3.venueNote ?? `：${c3.venue ?? "—"}`}。`}
+            目前：<b>{cOpp ? `已確定（${cOpp}晉級）` : "待定，挑戰賽分出勝負後確定"}</b>
+          </li>
         )}
-        <dt className="font-bold">未定事項</dt>
-        <dd>
-          <ul className="list-disc space-y-0.5 pl-5">
-            <li>台灣大賽對手：{cOpp ? `已確定為${cOpp}` : `${POSTSEASON_COPY.eWinner}，挑戰賽分出勝負後確定`}</li>
-            <li>G5–G7（{days(c57)}）是否進行：{POSTSEASON_COPY.conditional}，{POSTSEASON_COPY.conditionalNote}</li>
-            <li>G5–G7 球場與主客：{POSTSEASON_COPY.unknownVenue}</li>
-            {journey.reserveDays.length > 0 && (
-              <li>{journey.reserveDays.map((d) => shortDay(d.date)).join("、")}：{POSTSEASON_COPY.reserveDay}</li>
-            )}
-            {!eDecided && <li>挑戰賽 G3／G4：{POSTSEASON_COPY.conditional}，{POSTSEASON_COPY.conditionalNote}</li>}
-          </ul>
-        </dd>
-      </dl>
-      <p className="mt-3 text-xs text-muted">
-        {!hasCRow && <>{POSTSEASON_COPY.noLink}。</>}
-        公告來源：{announcementSourceText(ann)}（
-        <a href={ann.source.url} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">官方公告</a>
-        ）。{journeyAsOfText(journey)}。
-      </p>
+        <li>
+          <b>G5–G7</b>（{days(c57)}）：{POSTSEASON_COPY.conditional}，{POSTSEASON_COPY.conditionalNote}；主客與球場{POSTSEASON_COPY.unknownVenue}
+        </li>
+        {!eDecided && (
+          <li><b>挑戰賽 G3／G4</b>：{POSTSEASON_COPY.conditional}，{POSTSEASON_COPY.conditionalNote}</li>
+        )}
+        {journey.reserveDays.length > 0 && (
+          <li><b>{journey.reserveDays.map((d) => shortDay(d.date)).join("、")}</b>：{POSTSEASON_COPY.reserveDay}</li>
+        )}
+      </ul>
+      {showAsOf && <p className="mt-3 text-xs text-muted">{journeyAsOfText(journey)}。</p>}
+      <details className="mt-1 text-xs text-muted">
+        <summary className="inline-flex min-h-11 cursor-pointer items-center text-accent">資料來源與單場連結</summary>
+        <p className="pb-1">
+          {!hasCRow && <>{POSTSEASON_COPY.noLink}。</>}
+          公告來源：{announcementSourceText(ann)}（
+          <a href={ann.source.url} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">官方公告</a>
+          ）。
+        </p>
+      </details>
     </section>
   );
 }
 
-function SeriesNote({ s, rule }: { s: JourneySeries; rule?: string }) {
+/** 勝場格：需要幾勝就畫幾格；實際勝場為實心圓、規則勝為實心方塊（形狀不同，旁邊另有文字，不只靠顏色）。 */
+function WinPips({ t, needed }: { t: SideTally; needed: number }) {
   return (
-    <div className="mt-2 space-y-0.5 text-xs leading-relaxed text-muted">
-      <p>
-        {s.bestOf} 戰 {s.winsNeeded} 勝：先拿 {s.winsNeeded} 勝{s.kind === "E" ? "晉級台灣大賽" : "奪得總冠軍"}。{rule}
-      </p>
-      <p className="font-medium text-ink">{seriesProgressText(s)}</p>
-      {s.tally.ties > 0 && (
-        <p className="text-down">本站紀錄有 {s.tally.ties} 場比分相同，不計入任何一方勝場（季後賽不應有和局，資料待查）。</p>
+    <span className="flex shrink-0 items-center gap-1" aria-hidden="true">
+      {Array.from({ length: needed }, (_, i) => (
+        <span key={i}
+          className={`h-2.5 w-2.5 ${i < t.ruleWins ? "rounded-[2px]" : "rounded-full"} ${i < t.total ? "bg-ink" : "border border-line-strong"}`} />
+      ))}
+    </span>
+  );
+}
+
+/** 當季系列進度：兩隊大字勝場＋勝場格，下面一行進度句與門檻。 */
+function SeriesProgress({ s, rows, nameOf, rule, crownWinner }: {
+  s: JourneySeries;
+  rows: { side: SideTally; seed: string }[];
+  nameOf: (c: string | null) => string;
+  rule?: string;
+  crownWinner?: boolean;
+}) {
+  return (
+    <div className="rounded-md bg-surface p-3">
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <h3 className="text-sm font-bold text-ink">{s.name}</h3>
+        <span className="text-[11px] font-medium text-muted">{s.bestOf} 戰 {s.winsNeeded} 勝</span>
+      </div>
+      <ul className="space-y-2">
+        {rows.map(({ side, seed }, i) => {
+          const isWin = s.tally.winner != null && side.code === s.tally.winner;
+          return (
+            <li key={side.code ?? `tbd-${i}`} className="flex items-center gap-2">
+              {side.code ? (
+                <TeamLogo code={side.code} name={nameOf(side.code)} size={20} decorative />
+              ) : (
+                <span className="h-5 w-5 shrink-0 rounded-full border border-dashed border-line-strong" aria-hidden />
+              )}
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1 text-sm font-medium text-ink">
+                  <span className="truncate">{side.code ? displayTeamName(nameOf(side.code)) : POSTSEASON_COPY.eWinner}</span>
+                  {crownWinner && isWin && <span className="pm-tag font-bold !text-ink">總冠軍</span>}
+                </span>
+                <span className="block text-[11px] text-muted">{seed}</span>
+              </span>
+              <WinPips t={side} needed={s.winsNeeded} />
+              <span className={`w-8 text-right font-[family-name:var(--font-wide)] text-2xl leading-none tabular-nums [font-stretch:80%] ${
+                isWin || side.total > 0 ? "font-black text-ink" : "text-faint"}`}>{side.total}</span>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="mt-3 space-y-0.5 text-xs leading-relaxed">
+        <p className="font-medium text-ink">{seriesProgressText(s)}</p>
+        <p className="text-muted">
+          先拿 {s.winsNeeded} 勝{s.kind === "E" ? "晉級台灣大賽" : "奪得總冠軍"}。{rule}
+        </p>
+        {s.tally.ties > 0 && (
+          <p className="text-down">本站紀錄有 {s.tally.ties} 場比分相同，不計入任何一方勝場（季後賽不應有和局，資料待查）。</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** 下一場：頁面上最醒目的一塊。「公告安排」只在這裡與清單說明各出現一次。 */
+function NextGame({ journey }: { journey: PostseasonJourney }) {
+  const { next, announcement: ann } = journey;
+  const nextMonth = (next?.date ?? journey.slots[0]?.date ?? "").slice(0, 7);
+  return (
+    <div className="mb-3 rounded-md bg-surface-2 px-4 py-3">
+      {next ? (
+        <>
+          <p className="text-xs font-bold text-muted">下一場</p>
+          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="text-lg font-bold tabular-nums text-ink">{slotWhen(next)}</span>
+            <span className="text-sm font-bold text-ink">
+              {next.kind === "E" ? ann.series.E.name : ann.series.C.name} {slotGameLabel(next)}
+            </span>
+            <StatusBadge tone={SLOT_TONE[next.status]}>{POSTSEASON_COPY.status[next.status]}</StatusBadge>
+            {next.conditional && <span className="pm-tag !text-ink">{POSTSEASON_COPY.conditional}</span>}
+          </p>
+          <p className="mt-1 text-sm text-ink">
+            {next.awayLabel}（客）對 {next.homeLabel}（主）<span className="text-muted">・{slotVenueText(next)}</span>
+          </p>
+          {next.status === "result_pending" && <p className="text-xs text-down">已過預定開賽時間・本站尚無賽果紀錄</p>}
+        </>
+      ) : (
+        <p className="text-sm">本站紀錄中已無未完成的季後場次。</p>
       )}
+      <div className="flex flex-wrap gap-x-4">
+        {next?.href && (
+          <Link href={next.href} className="inline-flex min-h-11 items-center text-sm text-accent hover:underline">單場頁 →</Link>
+        )}
+        {nextMonth && (
+          <Link href={`/games?month=${nextMonth}`} className="inline-flex min-h-11 items-center text-sm text-accent hover:underline">
+            {Number(nextMonth.slice(5))} 月賽程日曆 →
+          </Link>
+        )}
+      </div>
     </div>
   );
 }
@@ -234,97 +329,53 @@ export function PostseasonOverview({ journey, nameOf, seedOf }: {
   nameOf: (c: string | null) => string;
   seedOf: (code: string | null) => string;
 }) {
-  const { series, announcement: ann, next } = journey;
+  const { series, announcement: ann } = journey;
   const handicap = ann.series.E.handicapTeam;
-  const [eA, eB] = ann.series.E.teams;
+  const { a: ea, b: eb } = series.E.tally;
   // 讓勝隊列在上（與既有 bracket 的「半季冠軍在上」一致）。
-  const eTop = eA === handicap ? eA : eB;
-  const eBottom = eTop === eA ? eB : eA;
-  const cSeed = ann.series.C.seededTeam;
-  const eWinner = series.E.tally.winner;
-  const nextMonth = (next?.date ?? journey.slots[0]?.date ?? "").slice(0, 7);
-  const ruleE = `${teamShortName(handicap)}依規則先勝 1 場（不是實際比賽，已計入大比分，表內「讓」欄）。`;
+  const eRows = (ea.code === handicap ? [ea, eb] : [eb, ea]).map((side) => ({ side, seed: seedOf(side.code) }));
+  const { a: ca, b: cb } = series.C.tally;
+  const cRows = [
+    { side: ca, seed: seedOf(ca.code) ? `${seedOf(ca.code)}・保送` : "保送" },
+    { side: cb, seed: cb.code ? `${ann.series.E.name}勝隊` : "挑戰賽分出勝負後確定" },
+  ];
+  const ruleE = `${teamShortName(handicap)}依規則先勝 1 場（方塊，不是實際比賽）。`;
   const eSlots = journey.slots.filter((s) => s.kind === "E");
   const cSlots = journey.slots.filter((s) => s.kind === "C");
+  const anyAnnounced = journey.slots.some((s) => !s.row);
 
   return (
     <section>
       <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="text-xl font-bold tracking-[0.04em] text-ink">季後賽</h2>
-        <span className="pm-st">公告賽程・依實際賽果</span>
         <span className="text-[12.5px] text-muted">{journeyAsOfText(journey)}</span>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md bg-surface-2 px-4 py-3 text-sm">
-        {next ? (
-          <span>
-            <b className="mr-1.5">下一場</b>
-            {next.kind === "E" ? ann.series.E.name : ann.series.C.name} {slotGameLabel(next)}・{slotWhen(next)}・
-            {next.awayLabel}（客）對 {next.homeLabel}（主）・{next.venue ?? next.venueNote}
-            <span className="ml-2 align-middle"><StatusBadge tone={SLOT_TONE[next.status]}>{POSTSEASON_COPY.status[next.status]}</StatusBadge></span>
-          </span>
-        ) : (
-          <span>本站紀錄中已無未完成的季後場次。</span>
-        )}
-        {next?.href && (
-          <Link href={next.href} className="inline-flex min-h-11 items-center text-accent hover:underline">單場頁 →</Link>
-        )}
-        {nextMonth && (
-          <Link href={`/games?month=${nextMonth}`} className="inline-flex min-h-11 items-center text-accent hover:underline">
-            {Number(nextMonth.slice(5))} 月賽程日曆 →
-          </Link>
-        )}
-      </div>
+      <NextGame journey={journey} />
 
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)]">
-        <div className="space-y-3">
-          <SeriesCard
-            title={ann.series.E.name}
-            format={`${series.E.bestOf} 戰 ${series.E.winsNeeded} 勝`}
-            sideA={{ code: eTop, seed: seedOf(eTop), handicap: eTop === handicap }}
-            sideB={{ code: eBottom, seed: seedOf(eBottom), handicap: eBottom === handicap }}
-            games={series.E.games}
-            needed={series.E.winsNeeded}
-            nameOf={nameOf}
-            kind="E"
-            linkYear={journey.year}
-            totalsBeforeGames
-          >
-            <SeriesNote s={series.E} rule={ruleE} />
-          </SeriesCard>
+      {anyAnnounced && (
+        <p className="mb-3 text-xs leading-relaxed text-muted">
+          以下場次中，虛線框為官方公告安排（本站尚無正式場次，不提供單場連結）；實線框可點進單場。
+        </p>
+      )}
+
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <div className="space-y-2">
+          <SeriesProgress s={series.E} rows={eRows} nameOf={nameOf} rule={ruleE} />
           <ol aria-label={`${ann.series.E.name}賽程`} className="space-y-1.5">
             {eSlots.map((s) => <SlotLine key={s.key} s={s} asOf={journey.dataAsOf} />)}
           </ol>
         </div>
-        <div className="hidden items-center justify-center pt-10 text-2xl text-faint lg:flex" aria-hidden>→</div>
-        <div className="space-y-3">
-          <SeriesCard
-            title={ann.series.C.name}
-            format={`${series.C.bestOf} 戰 ${series.C.winsNeeded} 勝`}
-            sideA={{ code: cSeed, seed: seedOf(cSeed) ? `${seedOf(cSeed)}・保送` : "保送", handicap: false }}
-            sideB={{ code: eWinner, seed: eWinner ? `${ann.series.E.name}勝隊` : "挑戰賽分出勝負後確定", handicap: false }}
-            games={series.C.games}
-            needed={series.C.winsNeeded}
-            crownWinner
-            nameOf={nameOf}
-            kind="C"
-            linkYear={journey.year}
-            totalsBeforeGames
-          >
-            <SeriesNote s={series.C} rule="台灣大賽沒有規則讓勝。" />
-          </SeriesCard>
+        <div className="space-y-2">
+          <SeriesProgress s={series.C} rows={cRows} nameOf={nameOf} crownWinner />
           <ol aria-label={`${ann.series.C.name}賽程`} className="space-y-1.5">
             {cSlots.map((s) => <SlotLine key={s.key} s={s} asOf={journey.dataAsOf} />)}
           </ol>
         </div>
       </div>
 
-      <p className="mt-3 text-xs leading-relaxed text-muted">
-        實線框＝本站已有正式場次（可點進單場）；虛線框＝公告安排（尚無官方場次編號，不提供單場連結）。
-        表內數字為各場得分、勝方加粗。
-      </p>
       <div className="mt-4">
-        <PostseasonExplainer journey={journey} />
+        <PostseasonExplainer journey={journey} showAsOf={false} />
       </div>
     </section>
   );
