@@ -12,9 +12,18 @@ const toneOf = (phase: LiveSnapshot["phase"]): StatusTone =>
       : phase === "postponed" || phase === "reserved" || phase === "unknown" ? "warn"
         : "scheduled";
 
-export function LiveCalendarGame({ game, variant }: { game: CalendarGame; variant: "compact" | "mobile" }) {
+/** 季後 E／C 沒有即時快照、已過公告開賽時間時的標示（#237）：不能一直顯示「未開打」。 */
+export const NO_LIVE_LABEL = "本站無即時賽況";
+
+export function LiveCalendarGame({ game, variant, startsAt = null }: {
+  game: CalendarGame; variant: "compact" | "mobile";
+  /** 公告開賽時刻（ISO，含 +08:00）；只有季後場次會帶。 */
+  startsAt?: string | null;
+}) {
   const [snapshot, setSnapshot] = useState<LiveSnapshot | null>(null);
   const [interrupted, setInterrupted] = useState(false);
+  // 首次渲染不讀時鐘（SSR 與 hydration 才一致）；掛載與每次輪詢後補上。
+  const [nowMs, setNowMs] = useState<number | null>(null);
   const snapshotRef = useRef<LiveSnapshot | null>(null);
 
   useEffect(() => {
@@ -39,7 +48,10 @@ export function LiveCalendarGame({ game, variant }: { game: CalendarGame; varian
       } catch {
         if (!disposed) setInterrupted(true);
       } finally {
-        if (!disposed) schedule();
+        if (!disposed) {
+          setNowMs(Date.now());
+          schedule();
+        }
       }
     };
     const onVisibility = () => {
@@ -49,6 +61,7 @@ export function LiveCalendarGame({ game, variant }: { game: CalendarGame; varian
     const onMedia = () => { clear(); if (media.matches) void refresh(); };
     document.addEventListener("visibilitychange", onVisibility);
     media.addEventListener("change", onMedia);
+    setNowMs(Date.now());
     if (media.matches) void refresh();
     return () => {
       disposed = true;
@@ -62,7 +75,11 @@ export function LiveCalendarGame({ game, variant }: { game: CalendarGame; varian
   const showScore = phase === "live" || phase === "final";
   const awayScore = snapshot?.away.score ?? game.away_score;
   const homeScore = snapshot?.home.score ?? game.home_score;
-  const label = interrupted ? `${phaseLabel(phase)}・更新中斷` : phaseLabel(phase);
+  const startMs = startsAt ? Date.parse(startsAt) : NaN;
+  const noLive = !snapshot && phase === "scheduled" && (game.kind_code === "E" || game.kind_code === "C")
+    && nowMs !== null && Number.isFinite(startMs) && nowMs >= startMs;
+  const label = noLive ? NO_LIVE_LABEL
+    : interrupted ? `${phaseLabel(phase)}・更新中斷` : phaseLabel(phase);
 
   if (variant === "compact") return (
     <div className="flex items-center justify-between gap-1 leading-none" aria-live="polite">
@@ -70,7 +87,7 @@ export function LiveCalendarGame({ game, variant }: { game: CalendarGame; varian
         <TeamLogo code={game.away_team_code} name={game.away_team_name} size={20} />
         {showScore && <span className="font-mono text-base tabular-nums text-ink">{awayScore}</span>}
       </span>
-      <StatusBadge tone={toneOf(phase)} variant="bare">{label}</StatusBadge>
+      <StatusBadge tone={noLive ? "warn" : toneOf(phase)} variant="bare">{label}</StatusBadge>
       <span className="flex items-center gap-1">
         {showScore && <span className="font-mono text-base tabular-nums text-ink">{homeScore}</span>}
         <TeamLogo code={game.home_team_code} name={game.home_team_name} size={20} />
@@ -81,7 +98,7 @@ export function LiveCalendarGame({ game, variant }: { game: CalendarGame; varian
   return (
     <div className="flex flex-col gap-2 rounded-sm bg-surface-2 p-3" aria-live="polite">
       <div className="flex items-center justify-between">
-        <StatusBadge tone={toneOf(phase)}>{label}</StatusBadge>
+        <StatusBadge tone={noLive ? "warn" : toneOf(phase)}>{label}</StatusBadge>
         {game.venue && <span className="text-[10px] text-faint">{game.venue}</span>}
       </div>
       {(["away", "home"] as const).map((side) => {

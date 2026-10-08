@@ -6,6 +6,9 @@ import { NavBarRow, StickyNavBar } from "@/components/sticky-nav-bar";
 import { api, type CalendarGame } from "@/lib/api";
 import { teamFullName } from "@/lib/teams";
 import { LiveCalendarGame } from "@/components/live-calendar-game";
+import { PostseasonExplainer, slotGameLabel } from "@/components/postseason-series";
+import { announcementFor } from "@/lib/postseason-announcement";
+import { POSTSEASON_COPY, postseasonJourneyFor, slotMayInvolve, type JourneySlot } from "@/lib/postseason-journey";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "賽程與賽況" };
@@ -35,6 +38,76 @@ const addMonth = (ym: string, delta: number) => {
   return `${t.getFullYear()}-${pad(t.getMonth() + 1)}`;
 };
 
+// —— 季後公告安排（#237）：資料庫還沒有正式場次的公告格。虛線框、不給連結，與正式場次分開。 ——
+const SLOT_TONE: Record<JourneySlot["status"], StatusTone> = {
+  final: "done", scheduled: "scheduled", announced: "scheduled", result_pending: "warn", not_needed: "done",
+};
+const slotOpen = (s: JourneySlot) => s.status !== "final" && s.status !== "not_needed";
+/** 公告格的球場短句：窄格只放得下短字，完整說明見 title 與下方說明區。 */
+const shortVenue = (s: JourneySlot) => s.venue ?? (s.venueNote?.startsWith("依挑戰賽") ? "球場依晉級隊" : "球場未取得");
+
+function SlotTeam({ code, label, size }: { code: string | null; label: string; size: number }) {
+  return code ? (
+    <TeamLogo code={code} name={label} size={size} />
+  ) : (
+    <span className="inline-flex shrink-0 items-center justify-center rounded-full border border-dashed border-line-strong text-[9px] text-muted"
+      style={{ width: size, height: size }} title={label}>
+      <span aria-hidden="true">待</span><span className="sr-only">{label}</span>
+    </span>
+  );
+}
+
+function AnnouncedCompact({ s }: { s: JourneySlot }) {
+  return (
+    <div data-announced="true" title={`${POSTSEASON_COPY.status[s.status]}：${s.awayLabel}（客）對 ${s.homeLabel}（主）・${s.venue ?? s.venueNote ?? ""}`}
+      className="block rounded-sm border border-dashed border-line-strong px-1.5 py-1">
+      <div className="mb-0.5 text-center text-[10px] font-bold leading-none text-ink">{POST_LABEL[s.kind]} {slotGameLabel(s)}</div>
+      <div className="flex items-center justify-between gap-1 leading-none">
+        <SlotTeam code={s.awayCode} label={s.awayLabel} size={20} />
+        <span className="text-center text-[10px] leading-tight">
+          <StatusBadge tone={SLOT_TONE[s.status]} variant="bare">{POSTSEASON_COPY.status[s.status]}</StatusBadge>
+          {s.conditional && slotOpen(s) && <span className="block text-muted">{POSTSEASON_COPY.conditional}</span>}
+        </span>
+        <SlotTeam code={s.homeCode} label={s.homeLabel} size={20} />
+      </div>
+      <div className="mt-1 truncate text-center text-[10px] leading-none text-muted">
+        {[s.start, shortVenue(s)].filter(Boolean).join("・")}
+      </div>
+    </div>
+  );
+}
+
+function AnnouncedMobile({ s, asOf }: { s: JourneySlot; asOf: string | null }) {
+  return (
+    <div data-announced="true" className="flex flex-col gap-2 rounded-sm border border-dashed border-line-strong p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex flex-wrap items-center gap-1.5 leading-none">
+          <StatusBadge tone={SLOT_TONE[s.status]}>{POSTSEASON_COPY.status[s.status]}</StatusBadge>
+          <span className="pm-tag !text-ink">{POST_LABEL[s.kind]} {slotGameLabel(s)}</span>
+          {s.conditional && slotOpen(s) && <span className="pm-tag">{POSTSEASON_COPY.conditional}</span>}
+        </span>
+        {s.start && <span className="shrink-0 text-xs text-muted">{s.start} 開打</span>}
+      </div>
+      {([["away", s.awayCode, s.awayLabel], ["home", s.homeCode, s.homeLabel]] as const).map(([side, code, label]) => (
+        <div key={side} className="flex items-center gap-2 px-1">
+          <SlotTeam code={code} label={label} size={22} />
+          <span className="text-sm text-muted">{label}（{side === "away" ? "客" : "主"}）</span>
+        </div>
+      ))}
+      <div className="text-xs text-muted">{s.venue ?? s.venueNote}</div>
+      {s.status === "result_pending" && (
+        <div className="text-xs text-down">已過預定開賽時間・本站尚無賽果紀錄{asOf ? `（本站賽果紀錄至 ${asOf.slice(5).replace("-", "/")}）` : ""}</div>
+      )}
+      {s.status === "not_needed" && <div className="text-xs text-muted">{POSTSEASON_COPY.notNeededNote}</div>}
+      {s.changeNote && <div className="text-xs text-down">{s.changeNote}</div>}
+    </div>
+  );
+}
+
+/** 正式場次（資料庫列）上的公告補充：開賽時刻與如有必要（資料庫沒有開賽時刻欄位）。 */
+const slotExtra = (s: JourneySlot | undefined, done: boolean) =>
+  s && !done ? [s.start && `${s.start} 開打`, s.conditional && slotOpen(s) ? POSTSEASON_COPY.conditional : null].filter(Boolean).join("・") : "";
+
 export default async function GamesPage({
   searchParams,
 }: {
@@ -49,12 +122,29 @@ export default async function GamesPage({
   const { season, items } = await api.gamesCalendar(isCurrent ? undefined : selectedYear, kind);
   const hasDetail = selectedYear >= 2018;
 
+  // 季後公告（#237）：只在當季一軍且有官方公告時啟用；歷史年份與二軍走原路徑。
+  // 季後摘要取不到時旅程模型只用 calendar 列，不擋日曆本身。
+  const postSummary = isCurrent && announcementFor(selectedYear)
+    ? await api.postseasonSummary(selectedYear, "A").catch(() => null)
+    : null;
+  const journey = isCurrent ? postseasonJourneyFor(selectedYear, postSummary?.series ?? null, items, Date.now()) : null;
+  const slotByRow = new Map<string, JourneySlot>();
+  const announcedByDate = new Map<string, JourneySlot[]>();
+  for (const s of journey?.slots ?? []) {
+    if (s.row) slotByRow.set(`${s.row.kind_code}-${s.row.game_sno}`, s);
+    else (announcedByDate.get(s.date) ?? announcedByDate.set(s.date, []).get(s.date)!).push(s);
+  }
+  const reserveDates = new Set((journey?.reserveDays ?? []).map((d) => d.date));
+
   // 依日期分組
   const byDate = new Map<string, CalendarGame[]>();
   for (const g of items) (byDate.get(g.game_date) ?? byDate.set(g.game_date, []).get(g.game_date)!).push(g);
 
-  // 可選月份 + 預設月（優先今天所在月，否則最近有比賽的月）
-  const monthsAvail = [...new Set(items.map((g) => ymOf(g.game_date)))].sort();
+  // 可選月份 + 預設月（優先今天所在月，否則最近有比賽的月）；公告月份即使尚無正式場次也可選。
+  const monthsAvail = [...new Set([
+    ...items.map((g) => ymOf(g.game_date)),
+    ...[...announcedByDate.keys(), ...reserveDates].map(ymOf),
+  ])].sort();
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   const todayYM = todayStr.slice(0, 7);
@@ -92,8 +182,15 @@ export default async function GamesPage({
     const dt = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i);
     const key = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
     const inMonth = dt.getMonth() === mm - 1;
-    return { key, day: dt.getDate(), inMonth, games: inMonth ? (byDate.get(key) ?? []).filter(teamOk) : [] };
+    const ann = inMonth && journey
+      ? (announcedByDate.get(key) ?? []).filter((s) => !team || slotMayInvolve(journey, s, team))
+      : [];
+    return {
+      key, day: dt.getDate(), inMonth, games: inMonth ? (byDate.get(key) ?? []).filter(teamOk) : [],
+      ann, reserve: inMonth && reserveDates.has(key),
+    };
   });
+  const monthHasPostseason = !!journey && (journey.slots.some((s) => ymOf(s.date) === month) || [...reserveDates].some((d) => ymOf(d) === month));
 
   const prevM = addMonth(month, -1);
   const nextM = addMonth(month, 1);
@@ -173,15 +270,20 @@ export default async function GamesPage({
                     const awayWin = done && g.away_score > g.home_score;
                     const homeWin = done && g.home_score > g.away_score;
                     // 打完就是「完賽」（延賽/保留性質改以「補賽／續賽」文字保留）；未打才顯示延賽/保留/未開打
-                    const st = statusOf(done, g.delay_kind, g, todayStr);
+                    // 季後正式場次（#237）：已過公告開賽時間仍無賽果 → 賽果待更新。
+                    const js = slotByRow.get(`${g.kind_code}-${g.game_sno}`);
+                    const st = !done && js?.status === "result_pending"
+                      ? { label: POSTSEASON_COPY.status.result_pending, tone: "warn" as StatusTone }
+                      : statusOf(done, g.delay_kind, g, todayStr);
                     const info = done
                       ? (g.mvp ? `MVP ${g.mvp}` : g.win_pitcher ? `勝 ${g.win_pitcher}` : "")
                       : (g.away_starter || g.home_starter ? `${g.away_starter ?? "未定"} · ${g.home_starter ?? "未定"}` : (g.venue ?? ""));
+                    const extra = slotExtra(js, done);
                     const body = (
                       <>
-                        {POST_LABEL[g.kind_code] && <div className="mb-0.5 text-center text-[10px] font-bold leading-none text-ink">{POST_LABEL[g.kind_code]}</div>}
+                        {POST_LABEL[g.kind_code] && <div className="mb-0.5 text-center text-[10px] font-bold leading-none text-ink">{POST_LABEL[g.kind_code]}{js ? ` ${slotGameLabel(js)}` : ""}</div>}
                         {isCurrent && c.key === todayStr ? (
-                          <LiveCalendarGame game={g} variant="compact" />
+                          <LiveCalendarGame game={g} variant="compact" startsAt={js?.start ? `${js.date}T${js.start}:00+08:00` : null} />
                         ) : <div className="flex items-center justify-between gap-1 leading-none">
                           <span className="flex items-center gap-1">
                             <TeamLogo code={g.away_team_code} name={g.away_team_name} size={20} />
@@ -197,6 +299,7 @@ export default async function GamesPage({
                             <TeamLogo code={g.home_team_code} name={g.home_team_name} size={20} />
                           </span>
                         </div>}
+                        {extra && <div className="mt-1 truncate text-center text-[10px] font-bold leading-none text-ink">{extra}</div>}
                         {info && <div className="mt-1 truncate text-center text-[10px] leading-none text-muted">{info}</div>}
                       </>
                     );
@@ -208,6 +311,13 @@ export default async function GamesPage({
                       <div key={`${g.kind_code}-${g.game_sno}`} className={cls}>{body}</div>
                     );
                   })}
+                  {c.ann.map((s) => <AnnouncedCompact key={s.key} s={s} />)}
+                  {c.reserve && (
+                    <div title={POSTSEASON_COPY.reserveDay}
+                      className="rounded-sm border border-dotted border-line-strong px-1.5 py-1 text-center text-[10px] leading-tight text-muted">
+                      移動補賽日<span className="block">遇延賽才使用</span>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -217,7 +327,7 @@ export default async function GamesPage({
 
       {/* 行動端：直列式列表 */}
       <div className="block md:hidden space-y-4">
-        {cells.filter(c => c.inMonth && c.games.length > 0).map(c => (
+        {cells.filter(c => c.inMonth && (c.games.length > 0 || c.ann.length > 0 || c.reserve)).map(c => (
           <div key={c.key} className={`rounded-md p-3.5 ${c.key === todayStr ? "bg-stub" : "bg-surface"}`}>
             <div className="mb-2.5 flex items-baseline justify-between">
               <span className="font-[family-name:var(--font-wide)] text-lg font-extrabold leading-none [font-stretch:80%]">{c.key.slice(5).replace("-", "/")}<small className="ml-1 font-sans text-xs font-bold text-muted">（{WD[new Date(`${c.key}T00:00:00Z`).getUTCDay()]}）</small></span>
@@ -228,18 +338,33 @@ export default async function GamesPage({
                 const done = g.away_score + g.home_score > 0;
                 const awayWin = done && g.away_score > g.home_score;
                 const homeWin = done && g.home_score > g.away_score;
-                const st = statusOf(done, g.delay_kind, g, todayStr);
+                const js = slotByRow.get(`${g.kind_code}-${g.game_sno}`);
+                const st = !done && js?.status === "result_pending"
+                  ? { label: POSTSEASON_COPY.status.result_pending, tone: "warn" as StatusTone }
+                  : statusOf(done, g.delay_kind, g, todayStr);
                 const info = done
                   ? (g.mvp ? `MVP ${g.mvp}` : g.win_pitcher ? `勝投 ${g.win_pitcher}` : "")
                   : (g.away_starter || g.home_starter ? `先發: ${g.away_starter ?? "未定"} vs ${g.home_starter ?? "未定"}` : (g.venue ?? ""));
+                const extra = slotExtra(js, done);
+                // 今天格整塊換成即時卡：季後標籤（G 序）與開賽時刻另起一行，與桌面同一格一致。
+                // 用 <p> 不用 <div>，避免吃到外層 Link 的 [&>div]:hover。
                 const body = isCurrent && c.key === todayStr ? (
-                  <LiveCalendarGame game={g} variant="mobile" />
+                  <>
+                    {POST_LABEL[g.kind_code] && (
+                      <p className="mb-1.5 flex flex-wrap gap-1.5 leading-none">
+                        <span className="pm-tag !text-ink">{POST_LABEL[g.kind_code]}{js ? ` ${slotGameLabel(js)}` : ""}</span>
+                        {extra && <span className="pm-tag !text-ink">{extra}</span>}
+                      </p>
+                    )}
+                    <LiveCalendarGame game={g} variant="mobile" startsAt={js?.start ? `${js.date}T${js.start}:00+08:00` : null} />
+                  </>
                 ) : (
                   <div className="flex flex-col gap-2 rounded-sm bg-surface-2 p-3">
                     <div className="flex items-center justify-between">
-                      <span className="flex max-w-fit items-center gap-1.5 leading-none">
+                      <span className="flex max-w-fit flex-wrap items-center gap-1.5 leading-none">
                         <StatusBadge tone={st.tone}>{st.label}</StatusBadge>
-                        {POST_LABEL[g.kind_code] && <span className="pm-tag !text-ink">{POST_LABEL[g.kind_code]}</span>}
+                        {POST_LABEL[g.kind_code] && <span className="pm-tag !text-ink">{POST_LABEL[g.kind_code]}{js ? ` ${slotGameLabel(js)}` : ""}</span>}
+                        {extra && <span className="pm-tag !text-ink">{extra}</span>}
                         {done && g.delay_kind && MADEUP_LABEL[g.delay_kind] && <span className="pm-tag">{MADEUP_LABEL[g.delay_kind]}</span>}
                         {makeupNote(g, done) && <span className="pm-tag">{makeupNote(g, done)}</span>}
                       </span>
@@ -270,13 +395,28 @@ export default async function GamesPage({
                   <div key={`${g.kind_code}-${g.game_sno}`}>{body}</div>
                 );
               })}
+              {c.ann.map((s) => <AnnouncedMobile key={s.key} s={s} asOf={journey?.dataAsOf ?? null} />)}
+              {c.reserve && <p className="rounded-sm border border-dotted border-line-strong p-3 text-xs text-muted">{POSTSEASON_COPY.reserveDay}</p>}
             </div>
           </div>
         ))}
-        {cells.filter(c => c.inMonth && c.games.length > 0).length === 0 && (
+        {cells.filter(c => c.inMonth && (c.games.length > 0 || c.ann.length > 0 || c.reserve)).length === 0 && (
           <EmptyState>本月無賽程安排。</EmptyState>
         )}
       </div>
+
+      {/* 季後公告說明（#237 驗收 3、6）：公告安排與正式場次的區分、G3／G4 與未定場次。 */}
+      {journey && monthHasPostseason && (
+        <div className="mt-6 space-y-3">
+          <p className="text-xs leading-relaxed text-muted">
+            季後圖例：虛線框＝公告安排（尚無官方場次編號，不提供單場連結）・實線格＝本站已有的正式場次・
+            開打時刻取自官方公告・「{POSTSEASON_COPY.conditional}」＝{POSTSEASON_COPY.conditionalNote}・
+            {POSTSEASON_COPY.reserveDay}。
+            <Link href="/standings?seg=3" className="ml-1 text-accent hover:underline">系列進度與晉級條件 →</Link>
+          </p>
+          <PostseasonExplainer journey={journey} />
+        </div>
+      )}
 
       <p className="mt-4 text-center text-xs text-muted">
         中央為狀態（完賽／延賽／保留／未開打）・粗體＝勝方・完賽附 MVP／勝投，未開打附先發對決；「補賽／續賽」＝改期後打完
