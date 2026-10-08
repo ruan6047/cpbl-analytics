@@ -54,7 +54,9 @@ test("公告仍有未完成場次：首頁左欄改寫全季結束文案，並�
   const node = <DailyHub summary={seasonComplete()} calendar={null} postseason={postseasonPointer(j)} />;
   const t = text(node);
   assert.doesNotMatch(t, /本季賽程已全部結束/);
-  assert.match(t, /例行賽已結束，季後賽仍在進行：下一場 季後挑戰賽 10\/09（五） 17:05（公告安排）/);
+  assert.match(t, /例行賽已結束，季後賽仍在進行/);
+  // 下一場的日期與對戰只由同頁的季後卡呈現，左欄不重複。
+  assert.doesNotMatch(t, /10\/09/);
   assert.match(renderToStaticMarkup(node), /href="\/standings\?seg=3"/);
 });
 
@@ -71,8 +73,9 @@ test("季後下一場卡：日期時間、主客、球場、狀態、截至，�
   assert.match(t, /季後賽・下一場 季後挑戰賽 G1 公告安排 10\/09（五） 17:05/);
   assert.match(t, /統一獅（客） 對 中信兄弟（主） 洲際/);
   assert.match(t, /季後挑戰賽：統一 0：兄弟 1（兄弟含規則勝 1）/);
-  assert.match(t, /公告安排，尚無官方場次編號。本站尚無季後賽果紀錄，本站賽果紀錄至 10\/04。/);
-  // 可讀性：公告來源長句只放季後總覽的可展開區，首頁卡不重複。
+  assert.match(t, /本站尚無季後賽果紀錄，本站賽果紀錄至 10\/04。/);
+  // 可讀性：「公告安排」只在狀態徽章說一次；公告來源長句只放季後總覽的可展開區。
+  assert.equal(t.split("公告安排").length - 1, 1);
   assert.doesNotMatch(t, /CPBL 官方/);
   assert.match(html, /href="\/standings\?seg=3"/);
   assert.match(html, /href="\/games\?month=2026-10"/);

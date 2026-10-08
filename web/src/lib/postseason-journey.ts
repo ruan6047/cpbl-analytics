@@ -457,8 +457,10 @@ export function journeyAsOfText(j: Pick<PostseasonJourney, "recordedGames" | "da
 export function announcementSourceText(ann: PostseasonAnnouncement): string {
   const cap = ann.source.capturedAt;
   const capText = `${md(cap.slice(0, 10))} ${cap.slice(11, 16)}`;
+  const okA = ann.source.checks.find((c) => c.scope === "announcement" && c.ok);
   const okE = ann.source.checks.find((c) => c.scope === "E" && c.ok);
   return `CPBL 官方 ${md(ann.source.publishedOn)} 公告，本站 ${capText} 取得` +
+    (okA ? `，${md(okA.on)} 重新核對官網公告` : "") +
     (okE ? `；挑戰賽賽程 ${md(okE.on)} 已與官方賽程核對一致` : "");
 }
 

@@ -91,8 +91,9 @@ export const POSTSEASON_2026: PostseasonAnnouncement = {
         on: "2026-10-08",
         scope: "announcement",
         url: "https://www.cpbl.com.tw/xmdoc/cont?SId=0Q278399722865824041",
-        ok: false,
-        note: "官網公告頁讀取失敗（官網反爬挑戰），未重試",
+        ok: true,
+        note: "以瀏覽器讀取官網公告文內賽程表：台灣大賽 G5–G7 為「季後挑戰賽晉級球隊@味全龍」、臺北大巨蛋、如有必要；"
+          + "其餘場次與 10/06 版一致。文內圖片只含挑戰賽四場。（同日稍早以非瀏覽器讀取被反爬擋下）",
       },
     ],
   },
@@ -109,10 +110,10 @@ export const POSTSEASON_2026: PostseasonAnnouncement = {
     { key: "C2", kind: "C", seq: 2, date: "2026-10-18", start: "17:05", away: E_WINNER, home: { code: DRAGONS }, venue: { name: "大巨蛋" }, conditional: false },
     { key: "C3", kind: "C", seq: 3, date: "2026-10-20", start: "18:35", away: { code: DRAGONS }, home: E_WINNER, venue: { byWinner: { [BROTHERS]: "大巨蛋", [LIONS]: "亞太主" } }, conditional: false },
     { key: "C4", kind: "C", seq: 4, date: "2026-10-21", start: "18:35", away: { code: DRAGONS }, home: E_WINNER, venue: { byWinner: { [BROTHERS]: "大巨蛋", [LIONS]: "亞太主" } }, conditional: false },
-    // C5–C7：手上的取證沒有主客與球場 → 未知（本站未取得），不是「官方未定」。
-    { key: "C5", kind: "C", seq: 5, date: "2026-10-23", start: "18:35", away: null, home: null, venue: { unknown: true }, conditional: true },
-    { key: "C6", kind: "C", seq: 6, date: "2026-10-24", start: "17:05", away: null, home: null, venue: { unknown: true }, conditional: true },
-    { key: "C7", kind: "C", seq: 7, date: "2026-10-25", start: "17:05", away: null, home: null, venue: { unknown: true }, conditional: true },
+    // C5–C7：10/08 核對官網公告文內賽程表——季後挑戰賽晉級球隊@味全龍、臺北大巨蛋、如有必要。
+    { key: "C5", kind: "C", seq: 5, date: "2026-10-23", start: "18:35", away: E_WINNER, home: { code: DRAGONS }, venue: { name: "大巨蛋" }, conditional: true },
+    { key: "C6", kind: "C", seq: 6, date: "2026-10-24", start: "17:05", away: E_WINNER, home: { code: DRAGONS }, venue: { name: "大巨蛋" }, conditional: true },
+    { key: "C7", kind: "C", seq: 7, date: "2026-10-25", start: "17:05", away: E_WINNER, home: { code: DRAGONS }, venue: { name: "大巨蛋" }, conditional: true },
   ],
   reserveDays: [
     { date: "2026-10-19", series: "C", note: "移動補賽日" },

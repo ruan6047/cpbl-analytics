@@ -22,17 +22,11 @@ export function postseasonCalendarHref(j: PostseasonJourney): string {
   return `/games?month=${(j.next?.date ?? j.slots[0]?.date ?? `${j.year}-10-01`).slice(0, 7)}`;
 }
 
-/** DailyHub 左欄沒有場次時的季後指引；公告已無未完成場次時回 null（沿用原文案）。 */
+/** DailyHub 左欄沒有場次時的季後指引；公告已無未完成場次時回 null（沿用原文案）。
+ *  下一場的日期、對戰與球場只由同頁的季後卡呈現，這裡只取代「全季結束」並導向季後總覽。 */
 export function postseasonPointer(j: PostseasonJourney | null): { text: string; href: string } | null {
   if (!j || !j.remaining) return null;
-  const n = j.next;
-  const series = n ? (n.kind === "E" ? j.announcement.series.E.name : j.announcement.series.C.name) : "季後賽";
-  return {
-    text: n
-      ? `例行賽已結束，季後賽仍在進行：下一場 ${series} ${slotWhen(n)}（${POSTSEASON_COPY.status[n.status]}）`
-      : "例行賽已結束，季後賽仍在進行",
-    href: POSTSEASON_HUB_HREF,
-  };
+  return { text: "例行賽已結束，季後賽仍在進行", href: POSTSEASON_HUB_HREF };
 }
 
 export function PostseasonNextCard({ journey }: { journey: PostseasonJourney }) {
@@ -87,10 +81,7 @@ export function PostseasonNextCard({ journey }: { journey: PostseasonJourney }) 
         </Link>
       </div>
       {/* 公告來源與核對細節放在季後總覽的說明區；首頁卡只留讀者判斷新鮮度需要的截至一句。 */}
-      <p className="mt-2 text-[11.5px] leading-relaxed text-muted">
-        {n && !n.href ? "公告安排，尚無官方場次編號。" : ""}
-        {journeyAsOfText(journey)}。
-      </p>
+      <p className="mt-2 text-[11.5px] leading-relaxed text-muted">{journeyAsOfText(journey)}。</p>
     </section>
   );
 }

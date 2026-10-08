@@ -279,6 +279,30 @@ test("公告：E 四場日期時間、E3／E4 如有必要、C 七個日期、�
   assert.equal(announcementFor(2025), null, "沒有公告的年份走原路徑");
 });
 
+test("公告 G5–G7（10/08 核對官網）：挑戰賽勝隊為客、味全龍為主、大巨蛋、如有必要；無 C 列不建連結", () => {
+  const j = journey([], { nowMs: BEFORE });
+  for (const key of ["C5", "C6", "C7"]) {
+    const s = slot(j, key);
+    assert.equal(s.awayCode, null);
+    assert.equal(s.awayLabel, "挑戰賽勝隊");
+    assert.equal(s.homeCode, DRAGON);
+    assert.equal(s.venue, "大巨蛋");
+    assert.equal(s.venueNote, null);
+    assert.equal(s.conditional, true);
+    assert.equal(s.href, null);
+  }
+  assert.deepEqual(["C5", "C6", "C7"].map((k) => [slot(j, k).date, slot(j, k).start]), [
+    ["2026-10-23", "18:35"], ["2026-10-24", "17:05"], ["2026-10-25", "17:05"],
+  ]);
+  // 挑戰賽分出勝負後，客隊填入勝隊；球場仍是大巨蛋（味全主場）。
+  const decided = journey([BRO, BRO]);
+  assert.equal(slot(decided, "C5").awayCode, BRO);
+  assert.equal(slot(decided, "C5").venue, "大巨蛋");
+  const check = POSTSEASON_2026.source.checks.find((c) => c.scope === "announcement");
+  assert.equal(check?.ok, true);
+  assert.equal(check?.on, "2026-10-08");
+});
+
 test("同樣輸入得到同一份場次清單（三入口共用同一函式）", () => {
   const rows = [row({}), row({ kind_code: "A", game_sno: 300, game_date: "2026-10-04" })];
   const a = postseasonJourneyFor(2026, summaryE(LION), rows, AFTER_E2);

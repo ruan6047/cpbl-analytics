@@ -4,7 +4,8 @@ import { DataTable, type Column } from "@/components/table";
 import { StandingsTrend } from "@/components/standings-trend";
 import { StandingsNav } from "./nav";
 import { SectionTitle } from "@/components/postmark";
-import { PostseasonOverview, SeriesCard, displayTeamName, type SeriesSide } from "@/components/postseason-series";
+import { SeriesCard, displayTeamName, type SeriesSide } from "@/components/postseason-series";
+import { PostseasonOverview } from "@/components/postseason-overview";
 import { api } from "@/lib/api";
 import type { OfficialStanding, OfficialStandingsResponse, SpecialRecord, WL } from "@/lib/api";
 import { announcementFor } from "@/lib/postseason-announcement";
@@ -247,7 +248,7 @@ type PostSeries = {
   games?: SeriesGame[];
 };
 
-function PostseasonBracket({ isCurrent, h0, h1, h2, series, journey }: {
+function PostseasonBracket({ isCurrent, h0, h1, h2, series, journey, activeSeries }: {
   isCurrent: boolean;
   h0: OfficialStandingsResponse | null;
   h1: OfficialStandingsResponse | null;
@@ -255,6 +256,8 @@ function PostseasonBracket({ isCurrent, h0, h1, h2, series, journey }: {
   series: PostSeries[];
   /** 當季且有官方公告時的共用旅程模型（#237）；其他年份為 null，走原路徑。 */
   journey: PostseasonJourney | null;
+  /** 當季季後總覽的系列分頁（網址 `ps=E|C`）；其他年份不用。 */
+  activeSeries?: string;
 }) {
   const full = h0?.items ?? [];
   const nameMap = new Map<string, string>();
@@ -286,7 +289,7 @@ function PostseasonBracket({ isCurrent, h0, h1, h2, series, journey }: {
       const base = seedLabel(code);
       return code === h1c || code === h2c ? base : base ? `外卡・${base}` : "外卡";
     };
-    return <PostseasonOverview journey={journey} nameOf={nameOf} seedOf={wild} />;
+    return <PostseasonOverview journey={journey} nameOf={nameOf} seedOf={wild} active={activeSeries} />;
   }
   if (!h1c || !h2c || full.length < 3) {
     return <p className="text-sm text-faint">此年度尚無季後賽資料（半季冠軍未產生）。</p>;
@@ -440,8 +443,8 @@ function FarmChampion({ isCurrent, series, standings }: {
   );
 }
 
-export default async function Standings({ searchParams }: { searchParams: Promise<{ seg?: string; year?: string; kind?: string }> }) {
-  const { seg = "0", year: yearParam, kind: kindParam } = await searchParams;
+export default async function Standings({ searchParams }: { searchParams: Promise<{ seg?: string; year?: string; kind?: string; ps?: string }> }) {
+  const { seg = "0", year: yearParam, kind: kindParam, ps } = await searchParams;
   const kind = kindParam === "D" ? "D" : "A";
   const isMinor = kind === "D";
   // 分頁列：一軍＝全年/上半季/下半季/季後賽；二軍無半季/挑戰賽，只有全年＋總冠軍。
@@ -526,6 +529,7 @@ export default async function Standings({ searchParams }: { searchParams: Promis
             h2={h2r}
             series={postseason?.series ?? []}
             journey={journey}
+            activeSeries={ps}
           />
         )
       ) : items.length === 0 ? (

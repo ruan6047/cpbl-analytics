@@ -187,7 +187,7 @@ export default async function GamesPage({
       {journey && monthHasPostseason && (
         <p className="mb-3 text-xs leading-relaxed text-muted">
           <b className="font-bold text-ink">季後賽</b>：虛線框為官方公告安排（本站尚無正式場次，不提供單場連結）・
-          點線框為{POSTSEASON_COPY.reserveDay}・{journeyAsOfText(journey)}。
+          點線框為{POSTSEASON_COPY.reserveDay}・「{POSTSEASON_COPY.conditional}」＝{POSTSEASON_COPY.conditionalNote}・{journeyAsOfText(journey)}。
           <Link href="/standings?seg=3" className="ml-1 inline-flex min-h-11 items-center text-accent hover:underline">系列進度與晉級條件 →</Link>
         </p>
       )}
