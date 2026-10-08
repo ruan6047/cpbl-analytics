@@ -4,8 +4,11 @@ import { DataTable, type Column } from "@/components/table";
 import { StandingsTrend } from "@/components/standings-trend";
 import { StandingsNav } from "./nav";
 import { SectionTitle } from "@/components/postmark";
+import { PostseasonOverview, SeriesCard, displayTeamName, type SeriesSide } from "@/components/postseason-series";
 import { api } from "@/lib/api";
 import type { OfficialStanding, OfficialStandingsResponse, SpecialRecord, WL } from "@/lib/api";
+import { announcementFor } from "@/lib/postseason-announcement";
+import { postseasonJourneyFor, type PostseasonJourney, type SeriesGame } from "@/lib/postseason-journey";
 import { teamPageCode, teamShort } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
@@ -22,10 +25,6 @@ const SEGS = [
 // 僅「全年／總冠軍（二軍總冠軍賽）」；當前 seg 失效時由頁面 fallback 回全年。
 const segsFor = (kind: string) =>
   kind === "D" ? [{ v: 0, label: "全年" }, { v: 3, label: "總冠軍" }] : SEGS;
-
-function displayTeamName(name: string) {
-  return name === "統一7-ELEVEn獅" ? "統一獅" : name;
-}
 
 // 球隊徽章連到各隊獨立頁；改名/轉賣的歷史隊連到現役 franchise 頁；已解散隊不連
 function LinkedTeam({ code, name }: { code: string; name: string }) {
@@ -241,109 +240,21 @@ function H2HTable({ rows }: { rows: OfficialStanding[] }) {
 }
 
 // ── 季後賽 bracket（淘汰賽專屬圖表；規則見 memory postseason-format-rules / 聯盟規章 60-63）──
-type PostGame = {
-  game_no: number; date: string | null;
-  home_code: string; home_name: string; home_score: number;
-  away_code: string; away_name: string; away_score: number;
-};
 type PostSeries = {
   kind_code: string; kind_name: string;
   team1_code: string; team1_name: string; team1_wins: number;
   team2_code: string; team2_name: string; team2_wins: number;
-  games?: PostGame[];
+  games?: SeriesGame[];
 };
-// bracket 系列一方：隊伍代碼、種子註記、是否依規則先勝 1 場（讓分）。
-type SeriesSide = { code: string | null; seed: string; handicap: boolean };
 
-// 系列計分卡：兩隊為列、逐場小比分為欄（類似計分表的局數位）；勝方該場得分標色；
-// 「讓」為規則先勝 1 場、以一欄呈現並計入大比分。games 空（進行中/未打）時退為種子預覽。
-function SeriesCard({ title, format, sideA, sideB, games = [], needed, crownWinner, nameOf }: {
-  title: string; format: string; sideA: SeriesSide; sideB: SeriesSide;
-  games?: PostGame[]; needed: number; crownWinner?: boolean;
-  nameOf: (c: string | null) => string;
-}) {
-  const gameWinner = (g: PostGame) =>
-    g.home_score > g.away_score ? g.home_code : g.away_score > g.home_score ? g.away_code : null;
-  const runsOf = (g: PostGame, code: string) => (g.home_code === code ? g.home_score : g.away_score);
-  const officialWins = (s: SeriesSide) =>
-    (s.code ? games.filter((g) => gameWinner(g) === s.code).length : 0) + (s.handicap ? 1 : 0);
-  const aWins = officialWins(sideA);
-  const bWins = officialWins(sideB);
-  const hasGames = games.length > 0;
-  const decided = hasGames && Math.max(aWins, bWins) >= needed;
-  const winnerCode = decided ? (aWins >= bWins ? sideA.code : sideB.code) : null;
-  const anyHandicap = sideA.handicap || sideB.handicap;
-
-  const scoreRow = (s: SeriesSide, wins: number) => {
-    const isWin = winnerCode != null && s.code === winnerCode;
-    return (
-      <tr>
-        <td className="py-1 pr-2">
-          <div className="flex items-center gap-2">
-            {s.code ? (
-              <TeamLogo code={s.code} name={nameOf(s.code)} size={20} decorative />
-            ) : (
-              <span className="h-5 w-5 shrink-0 rounded-full border border-dashed border-line" aria-hidden />
-            )}
-            <span className="min-w-0">
-              <span className="flex items-center gap-1 text-sm font-medium text-ink">
-                <span className="truncate">{s.code ? displayTeamName(nameOf(s.code)) : "挑戰賽勝隊"}</span>
-                {crownWinner && isWin && <span className="pm-tag font-bold !text-ink" title="年度總冠軍">總冠軍</span>}
-              </span>
-              <span className="block text-[11px] text-muted">{s.seed}</span>
-            </span>
-          </div>
-        </td>
-        {anyHandicap && (
-          <td className={`px-1 text-center font-mono text-xs tabular-nums ${s.handicap ? "font-bold text-ink" : "text-faint"}`}>
-            {s.handicap ? 1 : "·"}
-          </td>
-        )}
-        {games.map((g, i) => {
-          const won = s.code != null && gameWinner(g) === s.code;
-          return (
-            <td key={i} className={`px-1 text-center font-mono text-xs tabular-nums ${won ? "font-black text-ink" : "text-faint"}`}>
-              {s.code ? runsOf(g, s.code) : "—"}
-            </td>
-          );
-        })}
-        <td className={`pl-2.5 text-center font-mono text-sm tabular-nums ${isWin ? "font-bold text-ink" : "text-muted"}`}>
-          {hasGames ? wins : "—"}
-        </td>
-      </tr>
-    );
-  };
-
-  return (
-    <div className="overflow-x-auto rounded-md bg-surface p-3">
-      <div className="mb-2 flex items-baseline justify-between">
-        <span className="text-sm font-bold text-ink">{title}</span>
-        <span className="text-[11px] font-medium text-muted">{format}</span>
-      </div>
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="bg-band text-[11px] text-muted">
-            <th />
-            {anyHandicap && <th className="px-1 font-medium" title="依規則先勝 1 場">讓</th>}
-            {games.map((g) => <th key={g.game_no} className="px-1 font-medium">{g.game_no}</th>)}
-            <th className="pl-2.5 font-medium">大比分</th>
-          </tr>
-        </thead>
-        <tbody>
-          {scoreRow(sideA, aWins)}
-          {scoreRow(sideB, bWins)}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function PostseasonBracket({ isCurrent, h0, h1, h2, series }: {
+function PostseasonBracket({ isCurrent, h0, h1, h2, series, journey }: {
   isCurrent: boolean;
   h0: OfficialStandingsResponse | null;
   h1: OfficialStandingsResponse | null;
   h2: OfficialStandingsResponse | null;
   series: PostSeries[];
+  /** 當季且有官方公告時的共用旅程模型（#237）；其他年份為 null，走原路徑。 */
+  journey: PostseasonJourney | null;
 }) {
   const full = h0?.items ?? [];
   const nameMap = new Map<string, string>();
@@ -358,13 +269,6 @@ function PostseasonBracket({ isCurrent, h0, h1, h2, series }: {
   const h1Clinched = !!h1?.half?.champion_code;
   const h2Clinched = !!h2?.half?.champion_code;
   const projected = isCurrent || !h1Clinched || !h2Clinched;
-  if (!h1c || !h2c || full.length < 3) {
-    return <p className="text-sm text-faint">此年度尚無季後賽資料（半季冠軍未產生）。</p>;
-  }
-  const totalGames = series.reduce((n, s) => n + (s.games?.length ?? 0), 0);
-  if (!isCurrent && totalGames === 0) {
-    return <p className="text-sm text-faint">此年度無季後賽對戰資料（可能由半季冠軍直接封王，或當年無此賽制）。</p>;
-  }
   const sameChamp = h1c === h2c;
   const rankOf = new Map(full.map((t, i) => [t.team_code, i + 1]));
   const seedLabel = (code: string | null): string => {
@@ -375,6 +279,22 @@ function PostseasonBracket({ isCurrent, h0, h1, h2, series }: {
     const r = rankOf.get(code);
     return r ? `全年 #${r}` : "";
   };
+  // 當季有官方公告：組合與讓勝已定，不再稱「形勢預測」；讓勝固定歸公告指定隊（#237）。
+  if (journey) {
+    const wild = (code: string | null) => {
+      if (!code) return "";
+      const base = seedLabel(code);
+      return code === h1c || code === h2c ? base : base ? `外卡・${base}` : "外卡";
+    };
+    return <PostseasonOverview journey={journey} nameOf={nameOf} seedOf={wild} />;
+  }
+  if (!h1c || !h2c || full.length < 3) {
+    return <p className="text-sm text-faint">此年度尚無季後賽資料（半季冠軍未產生）。</p>;
+  }
+  const totalGames = series.reduce((n, s) => n + (s.games?.length ?? 0), 0);
+  if (!isCurrent && totalGames === 0) {
+    return <p className="text-sm text-faint">此年度無季後賽對戰資料（可能由半季冠軍直接封王，或當年無此賽制）。</p>;
+  }
   const heading = (
     <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
       <h2 className="text-xl font-bold tracking-[0.04em] text-ink">季後賽</h2>
@@ -545,7 +465,10 @@ export default async function Standings({ searchParams }: { searchParams: Promis
   const needAdvanced = !isMinor && !isPostseason;
   // 季後賽系列大比分：歷年有結果、或當季開了季後賽分頁；一軍抓 E/C、二軍抓 F。
   const needPostseasonSummary = selectedYear < currentYear || isPostseason;
-  const [{ season, items, half }, derived, special, trend, h1r, h2r, h0r, postseason] = await Promise.all([
+  // 當季一軍且有官方公告（#237）：季後總覽改用與首頁、日曆共用的旅程模型；
+  // 另讀既有 calendar 端點取正式 E／C 場次（含未完賽）以建單場連結。歷史年份與二軍不變。
+  const announcement = !isMinor && isPostseason && selectedYear === currentYear ? announcementFor(selectedYear) : null;
+  const [{ season, items, half }, derived, special, trend, h1r, h2r, h0r, postseason, calendar] = await Promise.all([
     api.officialStandings(effSeg, useOfficial ? undefined : selectedYear, kind),
     !isMinor ? api.standings(selectedYear) : Promise.resolve({ standings: [] }),
     needAdvanced ? api.specialRecords(selectedYear) : Promise.resolve(null),
@@ -554,7 +477,12 @@ export default async function Standings({ searchParams }: { searchParams: Promis
     needPlayoffData ? api.officialStandings(2, selectedYear, kind) : Promise.resolve(null),
     needPlayoffData ? api.officialStandings(0, selectedYear, kind) : Promise.resolve(null),
     needPostseasonSummary ? api.postseasonSummary(selectedYear, kind) : Promise.resolve(null),
+    // calendar 失敗不擋季後總覽：旅程模型退回只用 summary 的完賽場。
+    announcement ? api.gamesCalendar(selectedYear, "A").catch(() => null) : Promise.resolve(null),
   ]);
+  const journey = announcement
+    ? postseasonJourneyFor(selectedYear, postseason?.series ?? null, calendar?.items ?? null, Date.now())
+    : null;
   const hasPlayoffPanel = !!(h0r?.items?.length && h1r?.items?.length && h2r?.items?.length);
   const half1Champ = h1r?.half?.champion_code ?? null;
   const half2Champ = h2r?.half?.champion_code ?? null;
@@ -597,6 +525,7 @@ export default async function Standings({ searchParams }: { searchParams: Promis
             h1={h1r}
             h2={h2r}
             series={postseason?.series ?? []}
+            journey={journey}
           />
         )
       ) : items.length === 0 ? (
