@@ -471,6 +471,8 @@ export default async function Standings({ searchParams }: { searchParams: Promis
   // 當季一軍且有官方公告（#237）：季後總覽改用與首頁、日曆共用的旅程模型；
   // 另讀既有 calendar 端點取正式 E／C 場次（含未完賽）以建單場連結。歷史年份與二軍不變。
   const announcement = !isMinor && isPostseason && selectedYear === currentYear ? announcementFor(selectedYear) : null;
+  // 旅程的兩個輸入不走跨請求快取，避免同一頁組到不同時間的快照（api.ts journeyGet）；歷史與二軍照舊快取。
+  const live = { live: announcement !== null };
   const [{ season, items, half }, derived, special, trend, h1r, h2r, h0r, postseason, calendar] = await Promise.all([
     api.officialStandings(effSeg, useOfficial ? undefined : selectedYear, kind),
     !isMinor ? api.standings(selectedYear) : Promise.resolve({ standings: [] }),
@@ -479,9 +481,9 @@ export default async function Standings({ searchParams }: { searchParams: Promis
     needPlayoffData ? api.officialStandings(1, selectedYear, kind) : Promise.resolve(null),
     needPlayoffData ? api.officialStandings(2, selectedYear, kind) : Promise.resolve(null),
     needPlayoffData ? api.officialStandings(0, selectedYear, kind) : Promise.resolve(null),
-    needPostseasonSummary ? api.postseasonSummary(selectedYear, kind) : Promise.resolve(null),
+    needPostseasonSummary ? api.postseasonSummary(selectedYear, kind, live) : Promise.resolve(null),
     // calendar 失敗不擋季後總覽：旅程模型退回只用 summary 的完賽場。
-    announcement ? api.gamesCalendar(selectedYear, "A").catch(() => null) : Promise.resolve(null),
+    announcement ? api.gamesCalendar(selectedYear, "A", live).catch(() => null) : Promise.resolve(null),
   ]);
   const journey = announcement
     ? postseasonJourneyFor(selectedYear, postseason?.series ?? null, calendar?.items ?? null, Date.now())

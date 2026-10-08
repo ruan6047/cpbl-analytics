@@ -57,13 +57,16 @@ export default async function GamesPage({
   const currentYear = years[0] ?? new Date().getFullYear();
   const selectedYear = yearParam ? Number(yearParam) : currentYear;
   const isCurrent = selectedYear === currentYear && kind === "A";
-  const { season, items } = await api.gamesCalendar(isCurrent ? undefined : selectedYear, kind);
+  // 季後公告（#237）：只在當季一軍且有官方公告時啟用；歷史年份與二軍走原路徑。
+  // 啟用時 calendar 與季後摘要都不走跨請求快取，避免同一頁組到不同時間的快照（api.ts journeyGet）。
+  const announced = isCurrent && announcementFor(selectedYear) !== null;
+  const live = { live: announced };
+  const { season, items } = await api.gamesCalendar(isCurrent ? undefined : selectedYear, kind, live);
   const hasDetail = selectedYear >= 2018;
 
-  // 季後公告（#237）：只在當季一軍且有官方公告時啟用；歷史年份與二軍走原路徑。
   // 季後摘要取不到時旅程模型只用 calendar 列，不擋日曆本身。
-  const postSummary = isCurrent && announcementFor(selectedYear)
-    ? await api.postseasonSummary(selectedYear, "A").catch(() => null)
+  const postSummary = announced
+    ? await api.postseasonSummary(selectedYear, "A", live).catch(() => null)
     : null;
   const journey = isCurrent ? postseasonJourneyFor(selectedYear, postSummary?.series ?? null, items, Date.now()) : null;
   const slotByRow = new Map<string, JourneySlot>();

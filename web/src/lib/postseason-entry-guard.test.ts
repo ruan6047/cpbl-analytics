@@ -17,3 +17,15 @@ test("首頁、季後總覽、日曆都經由 postseasonJourneyFor 取得旅程"
       `${f} 不得自行建模型、直接讀公告內容或自行決定讓勝`);
   }
 });
+
+// 方案 A（需求方 2026-10-08 裁定）：三入口取旅程輸入時都要依「當季已公告」傳 live，
+// 否則同一頁會組到不同時間的快照（ui-r3 正式建置實測）。快取選項本身見 api-journey-fetch.test.ts。
+test("首頁、季後總覽、日曆取季後摘要與 calendar 時都依當季公告傳 live", () => {
+  for (const f of ENTRIES) {
+    const src = readFileSync(path.join(SRC, f), "utf8");
+    assert.match(src, /announcementFor\(/, `${f} 要以公告判斷是否當季已公告季後`);
+    assert.match(src, /const live = \{ live: /, `${f} 要明確組出 live 選項`);
+    assert.match(src, /gamesCalendar\([^)]*,\s*live\)/, `${f} 的 calendar 要傳 live`);
+    assert.match(src, /postseasonSummary\([^)]*,\s*live\)/, `${f} 的季後摘要要傳 live`);
+  }
+});

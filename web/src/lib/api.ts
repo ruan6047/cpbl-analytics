@@ -1,5 +1,5 @@
 // FastAPI 資料層 client（Server Component 用）。prod 走 Docker 內網，dev 走 localhost。
-import { ApiError } from "./http-error";
+import { ApiError } from "./http-error.ts";
 import type { DailySummary, PregameServingMeta } from "./daily-summary";
 import type { PregameResponse } from "./pregame-card";
 import type { TeamStyleResponse } from "./team-style";
@@ -105,6 +105,16 @@ async function getLive<T>(path: string): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, { cache: "no-store" });
   if (!res.ok) throw new ApiError(path, res.status);
   return res.json() as Promise<T>;
+}
+
+/** 季後旅程的兩個輸入（季後摘要、calendar）。當季已公告季後時，呼叫端傳 `live` 走 no-store（#237 方案 A）。
+ *  原因：兩者各自快取 120 秒、三入口的 key 又不同，正式建置實測會把不同時間存下的快照組在同一頁。
+ *  no-store 只消除跨請求快取造成的舊新混用；兩支仍是獨立請求，不保證來自同一個資料庫快照。
+ *  歷史年份與二軍不傳 `live`，沿用 120 秒快取。 */
+export type JourneyFetch = { live?: boolean };
+
+function journeyGet<T>(path: string, { live = false }: JourneyFetch): Promise<T> {
+  return live ? getLive<T>(path) : get<T>(path, 120);
 }
 
 export type BattingLeader = {
@@ -493,12 +503,12 @@ export const api = {
       `/api/v1/standings-trend?kind_code=${kind}${season ? `&season=${season}` : ""}${seasonCode === 1 || seasonCode === 2 ? `&season_code=${seasonCode}` : ""}`,
       120,
     ),
-  postseasonSummary: (season?: number, kind = "A") =>
-    get<PostseasonSummaryResponse>(`/api/v1/postseason-summary?kind_code=${kind}${season ? `&season=${season}` : ""}`, 120),
+  postseasonSummary: (season?: number, kind = "A", fetchMode: JourneyFetch = {}) =>
+    journeyGet<PostseasonSummaryResponse>(`/api/v1/postseason-summary?kind_code=${kind}${season ? `&season=${season}` : ""}`, fetchMode),
   gamesRecent: (limit = 60, year?: number, kind = "A") =>
     get<GamesRecentResponse>(`/api/v1/games/recent?limit=${limit}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 120),
-  gamesCalendar: (year?: number, kind = "A") =>
-    get<GamesCalendarResponse>(`/api/v1/games/calendar?kind_code=${kind}${year ? `&season=${year}` : ""}`, 120),
+  gamesCalendar: (year?: number, kind = "A", fetchMode: JourneyFetch = {}) =>
+    journeyGet<GamesCalendarResponse>(`/api/v1/games/calendar?kind_code=${kind}${year ? `&season=${year}` : ""}`, fetchMode),
   standings: (season?: number) =>
     get<StandingsResponse>(`/api/v1/season/standings${season ? `?season=${season}` : ""}`),
   teamSplit: (season?: number) =>

@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import DailyHub from "@/components/daily-hub";
 import MiniStandings from "@/components/mini-standings";
 import { PostseasonNextCard, postseasonPointer } from "@/components/postseason-next";
+import { announcementFor } from "@/lib/postseason-announcement";
 import { postseasonJourneyFor } from "@/lib/postseason-journey";
 
 export const metadata = {
@@ -35,11 +36,15 @@ export default async function Home({
   // ＋ 即時的正常狀態」＝沒有提示的舊模型機率。dailySummary 已改 no-store 且兩者同在
   // 一份 response 內（ML-OUTCOME-SIMPLE-LEAK2）。
   // 季後摘要（#237）同樣各自 settle：失敗時季後卡退回只用 calendar，不影響首頁其他區塊。
+  // 當季（與賽程、戰績頁同一判準：seasons 第一筆）已有季後公告時，calendar 與季後摘要不走跨請求快取，
+  // 避免季後卡組到不同時間的快照（api.ts journeyGet）。seasons 取不到就照舊快取，不擋首頁。
+  const { years } = await api.seasons("A").catch(() => ({ years: [] as number[] }));
+  const live = { live: years.length > 0 && announcementFor(years[0]) !== null };
   const [dailyR, standR, calR, postR] = await Promise.allSettled([
     api.dailySummary(),
     api.officialStandings(0),
-    api.gamesCalendar(undefined, "A"),
-    api.postseasonSummary(),
+    api.gamesCalendar(undefined, "A", live),
+    api.postseasonSummary(undefined, "A", live),
   ]);
 
   const standings = standR.status === "fulfilled" ? standR.value.items : [];
