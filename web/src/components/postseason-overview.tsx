@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { StatusBadge, TeamLogo, type StatusTone } from "@/components/ui";
+import { Card, StatusBadge, TeamLogo, type StatusTone } from "@/components/ui";
 import { displayTeamName, slotDay, slotGameLabel } from "@/components/postseason-series";
 import type { JourneySeries, JourneySlot, PostseasonJourney, SideTally, SlotStatus } from "@/lib/postseason-journey";
 import {
@@ -64,7 +64,7 @@ function ProgressRow({ s, side, seed, nameOf }: { s: JourneySeries; side: SideTa
   );
 }
 
-/** 賽程一列：日期時刻與狀態在上、主客與球場在下。下一場以深色框標出；正式場次才可點進單場。 */
+/** 賽程一列：日期時刻與狀態在上、主客與球場在下。下一場以底色與「下一場」標記；正式場次才可點進單場。 */
 function GameRow({ s, isNext, asOf }: { s: JourneySlot; isNext: boolean; asOf: string | null }) {
   const venue = s.venue ?? (s.venueNote?.startsWith("依挑戰賽勝隊") ? "球場依挑戰賽勝隊而定" : s.venueNote);
   const body = (
@@ -87,20 +87,21 @@ function GameRow({ s, isNext, asOf }: { s: JourneySlot; isNext: boolean; asOf: s
       {s.changeNote && <span className="col-start-2 text-xs text-down">{s.changeNote}</span>}
     </span>
   );
-  const frame = isNext ? "border-2 border-ink" : s.href ? "" : "border border-dashed border-line-strong";
+  // 列在同一張 .card 內以分隔線排列（不畫框、不卡中卡）；下一場沿用日曆「今天」格的 bg-stub 底色標示。
+  const tone = isNext ? "bg-stub" : "";
   return s.href ? (
     <li>
-      <Link href={s.href} className={`block rounded-md bg-surface-2 px-3 py-2 text-inherit no-underline transition-colors hover:bg-band ${frame}`}>{body}</Link>
+      <Link href={s.href} className={`block px-4 py-2.5 text-inherit no-underline transition-colors hover:bg-band ${tone}`}>{body}</Link>
     </li>
   ) : (
-    <li data-announced={s.row ? undefined : "true"} className={`rounded-md px-3 py-2 ${frame}`}>{body}</li>
+    <li data-announced={s.row ? undefined : "true"} className={`px-4 py-2.5 ${tone}`}>{body}</li>
   );
 }
 
 function ReserveRow({ date }: { date: string }) {
   return (
-    <li className="rounded-md border border-dotted border-line-strong px-3 py-1.5 text-xs text-muted">
-      {slotDay({ date })}　{POSTSEASON_COPY.reserveDay}
+    <li className="px-4 py-2 text-xs text-muted">
+      <span className="tabular-nums">{slotDay({ date })}</span>　{POSTSEASON_COPY.reserveDay}
     </li>
   );
 }
@@ -134,7 +135,7 @@ function SeriesView({ journey, k, nameOf, seedOf }: {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-md bg-surface p-4">
+      <Card>
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <h3 className="text-base font-bold text-ink">{s.name}</h3>
           <span className="text-xs text-muted">{s.bestOf} 戰 {s.winsNeeded} 勝</span>
@@ -158,16 +159,18 @@ function SeriesView({ journey, k, nameOf, seedOf }: {
             {k === "E" ? "看台灣大賽 →" : "看季後挑戰賽 →"}
           </Link>
         </p>
-      </div>
+      </Card>
 
-      <ol aria-label={`${s.name}賽程`} className="space-y-1.5">
-        {items.map((it) => "slot" in it
-          ? <GameRow key={it.slot.key} s={it.slot} isNext={journey.next?.key === it.slot.key} asOf={journey.dataAsOf} />
-          : <ReserveRow key={it.reserve} date={it.reserve} />)}
-      </ol>
+      <Card padding="" className="overflow-hidden">
+        <ol aria-label={`${s.name}賽程`} className="divide-y divide-line">
+          {items.map((it) => "slot" in it
+            ? <GameRow key={it.slot.key} s={it.slot} isNext={journey.next?.key === it.slot.key} asOf={journey.dataAsOf} />
+            : <ReserveRow key={it.reserve} date={it.reserve} />)}
+        </ol>
+      </Card>
       <p className="text-xs leading-relaxed text-muted">
         {branch && <><b className="font-bold text-ink">{branchSeqs} 球場</b>：{branch.venueNote}。<br /></>}
-        「{POSTSEASON_COPY.conditional}」＝{POSTSEASON_COPY.conditionalNote}。{anyAnnounced && "虛線框為官方公告安排，尚無本站正式場次。"}
+        「{POSTSEASON_COPY.conditional}」＝{POSTSEASON_COPY.conditionalNote}。{anyAnnounced && "尚無比分的場次為官方公告安排，本站尚無正式場次紀錄。"}
       </p>
     </div>
   );
