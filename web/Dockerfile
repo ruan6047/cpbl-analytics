@@ -22,6 +22,8 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 RUN addgroup -S app && adduser -S app -G app
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+# standalone 不含 public（Next 官方 standalone 說明須另行複製）；缺它則 /team-icons 等靜態資產 404。
+COPY --from=builder /app/public ./public
 # standalone 不含 .next/cache；runtime 由 app 寫入 ISR／fetch prerender cache。
 # 另外：ISR 路由（prerender-manifest 中 initialRevalidateSeconds≠false，目前僅
 # /methodology=600s）到期後的請求會觸發背景再生成並**重寫 .next/server/app/**
