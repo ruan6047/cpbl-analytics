@@ -1,0 +1,556 @@
+{
+  "2026:A:14": {
+    "game_key": "2026:A:14",
+    "baseline_build_id": "6433e1af-a429-4241-b11c-c8915f5e3d4a",
+    "candidate_build_id": "884f0870-bb8d-4d93-a623-9de437f54f91",
+    "candidate_revisions": {
+      "livelog": 23357,
+      "tracking": 23358
+    },
+    "pa_deltas": [
+      {
+        "pa_id": "e0e6368a-25fd-5c7d-8fd9-6d93be2bb593",
+        "stable_fields_changed": [
+          "state",
+          "tracking_availability",
+          "reconciliation_reason"
+        ],
+        "member_events": [
+          {
+            "event_no": "0810018000",
+            "allowed_fields": [
+              "pitch_cnt"
+            ],
+            "before_fingerprint": "e768dda0f963e649255207e5f1f328eb01ab9c142d5b8a1ef25084957eb5ce80",
+            "after_fingerprint": "bbccefa03a746492b708a9d8741d2058cdc7b1aa9e79bfd11096e67623ca572c"
+          },
+          {
+            "event_no": "0810019000",
+            "allowed_fields": [
+              "pitch_cnt"
+            ],
+            "before_fingerprint": "813d9c699d4fddc84982a520cb59ae1d21238ac0f5a92316c7f9040555441535",
+            "after_fingerprint": "49cfc554485532286c2a56d2885f499c59b59b4752db45c34cdb2fe1c818f197"
+          },
+          {
+            "event_no": "0810020000",
+            "allowed_fields": [
+              "pitch_cnt"
+            ],
+            "before_fingerprint": "37fa65325fec778b0f8bdc6727f125e1be8208437e3a39ac18a9831ed78c7727",
+            "after_fingerprint": "a1dfc2bc8895fcc60cd2e7832015f20e23c3a3aaa78d6d510f2ea851b210c1f7"
+          },
+          {
+            "event_no": "0810021000",
+            "allowed_fields": [
+              "pitch_cnt"
+            ],
+            "before_fingerprint": "f5db10cd5d098201b9bfdeb9bc361f73fd404cd09c8ba37d98ec3b66e719f93d",
+            "after_fingerprint": "89c15e732d3168f2a6cc6c03e5ae7feb8a0fce138eb98089c023ee5bdedc387a"
+          }
+        ]
+      },
+      {
+        "pa_id": "ef062d78-9b31-5aee-934f-fe86c6781086",
+        "stable_fields_changed": [
+          "state",
+          "tracking_availability",
+          "reconciliation_reason"
+        ],
+        "member_events": [
+          {
+            "event_no": "0810017000",
+            "allowed_fields": [
+              "ball_cnt",
+              "pitch_cnt"
+            ],
+            "before_fingerprint": "31310030e5411f513a0160bba086f38b3ceb397e498d496cb230fadc0a93cf7e",
+            "after_fingerprint": "5f09f7eff0051bea30a5bca0075d1920302cb480dbfd439ef58783228b311819"
+          },
+          {
+            "event_no": "0810016010",
+            "allowed_fields": [],
+            "before_fingerprint": null,
+            "after_fingerprint": "6e19232ce5bf9ccb55aade0dd4511a5f01e9a78364db852d4f9c87372fc9e06c"
+          }
+        ]
+      }
+    ],
+    "livelog_manifest": [
+      "558cceff1195dd9f824b4660ec5be2b8aab993d70af1509b97b24102eac14032",
+      351,
+      "0920030000"
+    ],
+    "tracking_manifest": [
+      "084f7620d9609190d113f61f7bf921507f244723403389f06db2a5acf3a0cef4",
+      322,
+      "0000007622:3"
+    ],
+    "pa_count": 85,
+    "pending_build_ids": [
+      "884f0870-bb8d-4d93-a623-9de437f54f91"
+    ]
+  },
+  "2026:A:129": {
+    "game_key": "2026:A:129",
+    "baseline_build_id": "2100186d-7e81-4b3e-8209-be4efc3368fb",
+    "candidate_build_id": "75afc860-a735-4deb-9be6-76ddb052b14d",
+    "candidate_revisions": {
+      "livelog": 23359,
+      "tracking": null
+    },
+    "pa_deltas": [
+      {
+        "pa_id": "033236d9-59ee-50ea-b125-7ee7dd7c751e",
+        "stable_fields_changed": [
+          "state",
+          "reconciliation_reason"
+        ],
+        "member_events": [
+          {
+            "event_no": "0910007000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "2fa754c2b4a8b60b35532112bb4ffa320d8abd6997912460436769db7d37f11d",
+            "after_fingerprint": "65326b6feb59ccd8a1b3e0e0e564c94607de0d8b0823dd645202f3277de017d6"
+          },
+          {
+            "event_no": "0910008000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "96ab8b972f0e6ca0cfecbf083be43ca4f15b79d0a79784218640e2ab3748d68b",
+            "after_fingerprint": "6fa13b6a90d02baaa37d8eb73e7afc52d0e5bb40a136e8877f35fa2970993daa"
+          },
+          {
+            "event_no": "0910009000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "efd748eb7c772d6c6a279279d819b41be8f4daa010f7f0215bbff6c55d1a9e49",
+            "after_fingerprint": "44b71b46eeeaaefa607dffcab050b197f5a5f18742b2eeca59d682bf548b6786"
+          },
+          {
+            "event_no": "0910010000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "75419168f0bcf6e260dd1484d7a46a088966640e742ea1b67b5297be27f50119",
+            "after_fingerprint": "aff76e6486699a0974b14d53bbf9178df17163761e2a7990e20d996f14714201"
+          },
+          {
+            "event_no": "0910011000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "67fb46aa2f78dfacea8038a2e7483c8b06b0d6ee1abcf7af45f8e5796eb28b8a",
+            "after_fingerprint": "80e92be101271e4e1df51f681e9d893dec37fb75cbb0e12a68f094db3301ba11"
+          },
+          {
+            "event_no": "0910012000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "5605814c1091abe671f939199123a6ef7feef7a3e8e777300db6a4848ddb7c29",
+            "after_fingerprint": "bf4e3e150f09cab0feb7b0683d180696b47077c552bd9f784b93e74a1e0ecce6"
+          },
+          {
+            "event_no": "0910013000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "2cd8c76c12b7873cdb1813c568d9c265d92bcc4c5d138144b831e0ad3cb5be74",
+            "after_fingerprint": "dd718f415698dfee97abd95f3080a2b304587dadef267ee146ae9973137e0e74"
+          }
+        ]
+      },
+      {
+        "pa_id": "0f0710a1-72d8-5b58-bb51-5f1cad73c169",
+        "stable_fields_changed": [
+          "state",
+          "reconciliation_reason"
+        ],
+        "member_events": [
+          {
+            "event_no": "0910020000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "1256a83e9256fe353b26b085bcc640738d27cde6518d30bfa84a706e1e18cb23",
+            "after_fingerprint": "a1549c2c18b742f08eb52bd29fc7a7b433d30ceb5b75fde4ae8870f9bfef27ff"
+          },
+          {
+            "event_no": "0910021000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "932fb04fa6f967a550e31e54a85034ee93fd90bdab29711aacab04394e48d657",
+            "after_fingerprint": "3114ebf973311b662f3882c42eb506e6aea2344dfb28b6e1353e33fb13431dc5"
+          },
+          {
+            "event_no": "0910022000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "f52e65f57324dff4d185c21ddbe42bf33ef0d68f58561a0c310d8e008c1230f4",
+            "after_fingerprint": "6e6c2565cbba518e5cb5d3f0fe60c0811742b578212cc7e9b8f5a5be64cb64c1"
+          },
+          {
+            "event_no": "0910023000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "7f9dfabac764573c6438790b746c0fc07c8b2bd515acde7d910eee4864355be3",
+            "after_fingerprint": "e6344964dfad8f0c2a60d1253c3feb702e4f088922fdf2149a2d81c3f15b191c"
+          },
+          {
+            "event_no": "0910024000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "255b6c8a47684b6599afd3979f0e05f9eeb8a58384a9756544374bbb361fb9a0",
+            "after_fingerprint": "4b8a74907dd1f2e50836d1b159853e6fc8f0f98b5184c9c77346ff7a125b4767"
+          },
+          {
+            "event_no": "0910025000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "9c91ecd66122dbd18b052246e126cdf4db23f5b82ceb88f0309a30b9411985ea",
+            "after_fingerprint": "ebdb457dd2d793038d19c9d5b2ac9c3baf01f38a7326518fd029cb8eb2493ce2"
+          },
+          {
+            "event_no": "0910026000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "81abc585daa1fa6cf5891855aedc9840d800f6778743802281f46a1daafe46b6",
+            "after_fingerprint": "10836dfea0606da5de16ffc630eea336a7a823b0467dec8fdcc63049f72bf0b4"
+          }
+        ]
+      },
+      {
+        "pa_id": "264a4300-8bda-5daa-90c8-27ad6b5fd3ea",
+        "stable_fields_changed": [
+          "state",
+          "reconciliation_reason"
+        ],
+        "member_events": [
+          {
+            "event_no": "0910001000",
+            "allowed_fields": [
+              "action_name",
+              "batting_action_name"
+            ],
+            "before_fingerprint": "48a1fba6ab4a7ead7cd687837c5e4b16277cfe13288f82bef314055c7262b1bf",
+            "after_fingerprint": "479a5d0c4af87ed70d4c70888ba3b65acae4b4a777bb00a14279f790c6a4d934"
+          },
+          {
+            "event_no": "0910002000",
+            "allowed_fields": [
+              "action_name",
+              "batting_action_name"
+            ],
+            "before_fingerprint": "866e28c0233e94435047254baa79109c438f18e1f16d423821c95da715a28534",
+            "after_fingerprint": "e9ae47d458049fa08aeb6342417af4f7e0b1ad9f9fba3f73242196b7e34e0f45"
+          },
+          {
+            "event_no": "0910002010",
+            "allowed_fields": [
+              "batting_order",
+              "content",
+              "action_name",
+              "batting_action_name",
+              "defend_station_code",
+              "hitter_acnt",
+              "hitter_name"
+            ],
+            "before_fingerprint": "5aa14adea8beba16904c2106a2ed82e31cfd7330a3c4e169d1f0f80008bc5996",
+            "after_fingerprint": "c2dc47b2d20e28c37b4781cd98fe7281bf4e51562b1ba80faeefd572f37968eb"
+          }
+        ]
+      },
+      {
+        "pa_id": "3c8d94b7-ae7f-5219-b1d5-c567c91b3a42",
+        "stable_fields_changed": [
+          "state",
+          "reconciliation_reason"
+        ],
+        "member_events": [
+          {
+            "event_no": "0910014000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "d9fbc0a9f502118ce754d742320f5f259d523ad4bb86b7d8da7f81f970afb25f",
+            "after_fingerprint": "d9bc70075d5ddafce152f315a111391e71327106992820ebd90dc50020848c51"
+          },
+          {
+            "event_no": "0910015000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "d8d3d22cfed3afb9418cab3340fe33bf3a30fb4204f1039d64d872e41be6853e",
+            "after_fingerprint": "e1aba8b69318a1c53e87005e8dee4c37e9afa7f505df8a8a858dba6beaff5534"
+          },
+          {
+            "event_no": "0910016000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "12cddb0a3a2062e7afbbcf5585e49ff1faf4c292757de6f4e89c1ff4a269aeb0",
+            "after_fingerprint": "543473bc0b5812f44a3ca76c8aa0eeee002bf1e0136d604cd9692b00b4fd250e"
+          },
+          {
+            "event_no": "0910017000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "cafaeefb4fc036b0197923e1763db3de05ec9b4f8dc0792c67e75fd9e1608f4e",
+            "after_fingerprint": "be0b4582a10e8e2f391c46aec539abf54305081b382037a6041aa5783a9e8cab"
+          },
+          {
+            "event_no": "0910018000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "db017ec01b8841ed0391083980d87100d4d759041d525cb50cd6252d40640fa3",
+            "after_fingerprint": "6090a2ddd7e3492f028c46dce13a60a98cb0f5d1f598cc314d0552f53e518860"
+          }
+        ]
+      },
+      {
+        "pa_id": "7441c33d-83e5-5d40-b905-b7c1fb88f650",
+        "stable_fields_changed": [
+          "state",
+          "reconciliation_reason"
+        ],
+        "member_events": [
+          {
+            "event_no": "0910003000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "f2b265650d4592b46fa4f4e89735e0658c8047a16454831c7338273e76097a19",
+            "after_fingerprint": "9ee2980508a21552a608d8956d420f3dbd0e6adade623b78faac8821cafc5976"
+          },
+          {
+            "event_no": "0910004000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "7930aebc61bc98d126daccb4118b2077d4de2bc1773404815842060d29429366",
+            "after_fingerprint": "cfa5c535ec92aee7fdc74b9bca11c148feb7b8ccf27873dba5763c8aad8a3351"
+          },
+          {
+            "event_no": "0910005000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "98ed38ef6f58a5b08966c88f57c11336928f39e34f1ac6a3986bb1aa40ec0c70",
+            "after_fingerprint": "37d2e23b905ef8444a87be225e4dc0959f83f2f2743c3461ff6c957a66129a70"
+          },
+          {
+            "event_no": "0910006000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "152e7bfab48328a7f8a76b2de55c9269d1e686f95aae93d30fc6c51c5f297fc6",
+            "after_fingerprint": "3e2675aa82f2b63695b3d3402f0235b608d853dcc6a2f970ea545a3719d48ee7"
+          }
+        ]
+      },
+      {
+        "pa_id": "f387ff9e-055f-56c3-b565-8307d04a6437",
+        "stable_fields_changed": [
+          "state",
+          "reconciliation_reason"
+        ],
+        "member_events": [
+          {
+            "event_no": "0910019000",
+            "allowed_fields": [
+              "batting_order"
+            ],
+            "before_fingerprint": "7d8529d1a6ef83399cfa5a32f9de3c6197a4f43476b65b6c2878c9f4249ade66",
+            "after_fingerprint": "7460604698b50a4b6c97a56db631af3b9521b1c1c58b7317f3f00ea3b04d3556"
+          }
+        ]
+      }
+    ],
+    "livelog_manifest": [
+      "52de51ea43943465e24f442eb3f423e6e382cb16a299ea606da1d5bcfd9b05fd",
+      300,
+      "0910026000"
+    ],
+    "tracking_manifest": [
+      "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      0,
+      null
+    ],
+    "pa_count": 70,
+    "pending_build_ids": [
+      "75afc860-a735-4deb-9be6-76ddb052b14d"
+    ]
+  },
+  "2026:A:229": {
+    "game_key": "2026:A:229",
+    "baseline_build_id": "64f0bd82-88f6-46fd-95e8-8dae81032587",
+    "candidate_build_id": "ebcf5582-d67c-4e5f-a483-2c363e341c06",
+    "candidate_revisions": {
+      "livelog": 23360,
+      "tracking": 22814
+    },
+    "pa_deltas": [
+      {
+        "pa_id": "d2d85d0f-2a18-59d2-b838-d334a058f74a",
+        "stable_fields_changed": [
+          "state",
+          "reconciliation_reason"
+        ],
+        "member_events": [
+          {
+            "event_no": "1020006000",
+            "allowed_fields": [
+              "content"
+            ],
+            "before_fingerprint": "621774df8c4e6250524c98139e6c5114376d12ed76bb0eae2fdef3e7d8d2755b",
+            "after_fingerprint": "24cd70e7060ccdb85a2bfce6d3b36daf76cf8bb536589ed93ca56651fe9b99c1"
+          }
+        ]
+      }
+    ],
+    "livelog_manifest": [
+      "9d07ed3553151d9ef1fbe24620faa593ff045af19bfb04bbad245d5a0c794734",
+      344,
+      "1020017000"
+    ],
+    "tracking_manifest": [
+      "0e4374413c0b43b518bcfcaf6afe5d9f41de60a268d452961ec47a7b33273d1e",
+      312,
+      "0000007778:104"
+    ],
+    "pa_count": 89,
+    "pending_build_ids": [
+      "ebcf5582-d67c-4e5f-a483-2c363e341c06"
+    ]
+  },
+  "2026:A:251": {
+    "game_key": "2026:A:251",
+    "baseline_build_id": "9387b4e8-2a21-4f37-be29-e69f844af45f",
+    "candidate_build_id": "0d2e6f85-0943-4067-81c3-49f3d2e777aa",
+    "candidate_revisions": {
+      "livelog": 23362,
+      "tracking": 23363
+    },
+    "pa_deltas": [
+      {
+        "pa_id": "a78793b4-adae-5ad0-8009-70caad013387",
+        "stable_fields_changed": [
+          "state",
+          "tracking_availability",
+          "reconciliation_reason"
+        ],
+        "member_events": [
+          {
+            "event_no": "0620004000",
+            "allowed_fields": [
+              "ball_cnt",
+              "strike_cnt",
+              "content",
+              "is_strike",
+              "is_ball"
+            ],
+            "before_fingerprint": "6a40aaa843df24d2f84872505d9cca96850299ea2e7a971008ee4100b913e17f",
+            "after_fingerprint": "da3de269f538fda57ea36590ec14143cfdb59a2129ba70076efe21689d04e9e1"
+          },
+          {
+            "event_no": "0620005000",
+            "allowed_fields": [
+              "ball_cnt",
+              "strike_cnt",
+              "content"
+            ],
+            "before_fingerprint": "594ce741430f5344ffb3f56102d2a9cc7504e1a901f2ef7a1481292d6b9d62a5",
+            "after_fingerprint": "e794a163b7109575fef883f42d1fd64f33d7499ae690e88ac2b967719b64fc46"
+          },
+          {
+            "event_no": "0620006000",
+            "allowed_fields": [
+              "ball_cnt"
+            ],
+            "before_fingerprint": "ddfb94f303bb5709fbd9dbb6e2f14f810fb1ba28cc8471922906da2fa25529d4",
+            "after_fingerprint": "6e951f0b3bc005c8a7b0382707c11caabc2736420e7194e6b809e320c95da6e4"
+          },
+          {
+            "event_no": "0620007000",
+            "allowed_fields": [
+              "content",
+              "is_strike",
+              "is_ball"
+            ],
+            "before_fingerprint": "28871ce979ba3aca1d778a1d0fa018dee344debb3a8d30aa4f1cdd71cf66e96e",
+            "after_fingerprint": "1f0386a9c8bc53b0d8bbb1abc774ec3cb74e918d762b38f452404a99c03e32ba"
+          }
+        ]
+      }
+    ],
+    "livelog_manifest": [
+      "d478bf4048162bf1dc18506617b0fb55b4803a419ac416654305577e7ae819d7",
+      348,
+      "0920008000"
+    ],
+    "tracking_manifest": [
+      "c1bb4ef50a8e0b5a83efd664319b60c4c8dc0ca1e6b6f14e546801dd410ee637",
+      326,
+      "0000007073:29"
+    ],
+    "pa_count": 85,
+    "pending_build_ids": [
+      "0d2e6f85-0943-4067-81c3-49f3d2e777aa"
+    ]
+  },
+  "2026:A:253": {
+    "game_key": "2026:A:253",
+    "baseline_build_id": "3c885148-30b9-429a-ac9b-3d945238815e",
+    "candidate_build_id": "67f7a1f7-1f61-47a7-acd1-30b771cbf8ca",
+    "candidate_revisions": {
+      "livelog": 23364,
+      "tracking": 23177
+    },
+    "pa_deltas": [
+      {
+        "pa_id": "2aaa93cc-b9f3-5a9e-8fa4-865bd71f6ed9",
+        "stable_fields_changed": [
+          "state",
+          "reconciliation_reason"
+        ],
+        "member_events": [
+          {
+            "event_no": "0810013000",
+            "allowed_fields": [
+              "content"
+            ],
+            "before_fingerprint": "cd036c07ec0167acf2d9f97a21790f336c15e776847098351b88d20a13f3c2ed",
+            "after_fingerprint": "ff7eef15065f3ed05243b64a2fc6983128280193064095e351c2259b604ee044"
+          }
+        ]
+      }
+    ],
+    "livelog_manifest": [
+      "93b45a1068035e975f11473e8f2f66d412807f7f897013b343ec07a4d92c1cfb",
+      292,
+      "0920021000"
+    ],
+    "tracking_manifest": [
+      "e9c8a93ad731b54977d4c0d2e47602569768376b8f01f19b373adeaf64fbbc1c",
+      275,
+      "0000007580:20"
+    ],
+    "pa_count": 84,
+    "pending_build_ids": [
+      "67f7a1f7-1f61-47a7-acd1-30b771cbf8ca"
+    ]
+  }
+}

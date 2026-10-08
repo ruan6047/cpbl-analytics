@@ -982,6 +982,17 @@ ACCEPTED_RECONCILIATIONS: frozenset[tuple[int, str, int]] = frozenset({
     # 安打（pa 9、pa 60）一致、與舊 published 的一支不一致——屬官方賽後改判的原地修正，
     # 列數不變故 `_pa_build_targets` 的過期偵測看不到；同 A/209「讓 published 指回現行來源」。
     (2026, "A", 312),
+    # #236：官方賽後來源修訂；只接受下方封存指紋，不給場次永久漂移權限。
+    # A14：新增壞球／投球序號；85 PA 語意不變，補公開322球映射。
+    (2026, "A", 14),
+    # A129：換人公告／棒次槽；70 PA身份與結果不變，沒有tracking來源。
+    (2026, "A", 129),
+    # A229：擦棒被捕球敘述；三振結果不變，保留truncated造成309/312限制。
+    (2026, "A", 229),
+    # A251：四事件球數／內容修訂；四壞球結果不變，326球重新綁定。
+    (2026, "A", 251),
+    # A253：好球沒揮棒敘述；飛球接殺結果不變，275球對應。
+    (2026, "A", 253),
 })
 
 REJECT_NOT_ALLOWLISTED = "not_in_allowlist"
@@ -1056,6 +1067,78 @@ def require_reconciliation_accepted(
     if reasons:
         raise ReconciliationAcceptRejected(year, kind, game, reasons)
 
+
+
+@lru_cache(maxsize=1)
+def reconciliation_pins() -> dict[str, Any]:
+    """#236核定的不可變來源／11 PA成員接受版本；不是任意場次清單。"""
+    return json.loads(Path(__file__).with_name("pa_reconciliation_pins.json").read_text())
+
+
+def expected_member_deltas(rule: dict[str, Any]) -> dict[str, Any]:
+    return {pa["pa_id"]: {e["event_no"]: [e["before_fingerprint"], e["after_fingerprint"]]
+                           for e in pa["member_events"]} for pa in rule["pa_deltas"]}
+
+
+def member_fingerprint_deltas(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
+    changed = {}
+    for pa_id in before.keys() | after.keys():
+        old, new = before.get(pa_id, {}), after.get(pa_id, {})
+        delta = {event: [old.get(event), new.get(event)] for event in old.keys() | new.keys()
+                 if old.get(event) != new.get(event)}
+        if delta:
+            changed[pa_id] = delta
+    return changed
+
+
+def require_reconciliation_source_pin(
+    year: int, kind: str, game: int, livelog: Any, tracking: Any,
+    baseline_build_id: str | None, pending_build_ids: list[str],
+) -> None:
+    rule = reconciliation_pins().get(f"{year}:{kind}:{game}")
+    if rule is None:  # 原已核定九場仍用原有閘門。
+        return
+    if (list(livelog) != rule["livelog_manifest"]
+            or list(tracking) != rule["tracking_manifest"]
+            or baseline_build_id != rule["baseline_build_id"]
+            or sorted(pending_build_ids) != sorted(rule["pending_build_ids"])):
+        raise ReconciliationAcceptRejected(year, kind, game, ["source_pin: 封存來源或發布前值漂移"])
+
+
+_PIN_STABLE_FIELDS = (
+    "pa_index", "start_event_no", "end_event_no", "hitter_acnt", "end_hitter_acnt",
+    "start_pitcher_acnt", "end_pitcher_acnt", "result_action", "outcome_family",
+    "pre_state", "post_state",
+)
+
+
+def require_reconciliation_pa_pin(
+    cur: Any, year: int, kind: str, game: int, pas: list[PlateAppearance],
+) -> None:
+    rule = reconciliation_pins().get(f"{year}:{kind}:{game}")
+    if rule is None:
+        return
+    cur.execute(
+        "SELECT * FROM cpbl.game_plate_appearances WHERE build_id=%s",
+        (rule["baseline_build_id"],),
+    )
+    old = {str(r["pa_id"]): dict(r) for r in cur.fetchall()}
+    new = {str(pa.pa_id): pa for pa in pas}
+    if (len(new) != rule["pa_count"] or old.keys() != new.keys()
+            or any(old[key][f] != getattr(pa, f)
+                   for key, pa in new.items() for f in _PIN_STABLE_FIELDS)):
+        raise ReconciliationAcceptRejected(year, kind, game, ["pa_pin: PA集合或穩定語意漂移"])
+    cur.execute(
+        "SELECT pa_id,event_no,event_fingerprint FROM cpbl.game_pa_events "
+        "WHERE pa_row_id=ANY(%s)", ([r["pa_row_id"] for r in old.values()],),
+    )
+    old_members: dict[str, Any] = {}
+    for r in cur.fetchall():
+        old_members.setdefault(str(r["pa_id"]), {})[r["event_no"]] = r["event_fingerprint"]
+    new_members = {key: {m.event_no: m.fingerprint for m in pa.members}
+                   for key, pa in new.items()}
+    if member_fingerprint_deltas(old_members, new_members) != expected_member_deltas(rule):
+        raise ReconciliationAcceptRejected(year, kind, game, ["pa_pin: 非核定11PA成員指紋漂移"])
 
 # 接受重建後**必然過期**的季級物化表（Q4：本卡不重算，但接受路徑不得靜默完成）。
 # ⚠️ 語意校正：這兩張表由 `models.sabr.build_re24` 直接讀 `game_livelog` 產生，
@@ -1453,6 +1536,15 @@ def build_game(
     game_has_tracking = len(pitches) > 0
 
     ll_sha, ll_rows, ll_max = _livelog_manifest(events)
+    if accept_reconciliation:
+        meta = _published_build_meta(cur, year, kind, game)
+        require_reconciliation_source_pin(
+            year, kind, game, (ll_sha, ll_rows, ll_max), _tracking_manifest(pitches),
+            str(meta["build_id"]) if meta else None, reviewed_build_ids,
+        )
+        require_reconciliation_pa_pin(
+            cur, year, kind, game, plate_appearances(year, kind, game, events, taxonomy),
+        )
     livelog_rev = upsert_source_revision(
         cur, year=year, kind=kind, game=game, source_kind="livelog",
         sha256=ll_sha, row_count=ll_rows, max_source_key=ll_max,

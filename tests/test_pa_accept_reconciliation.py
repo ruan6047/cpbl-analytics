@@ -44,6 +44,8 @@ def test_allowlist_is_exactly_what_was_reviewed() -> None:
         (2026, "A", 304), (2026, "A", 306),
         (2026, "D", 117), (2026, "D", 118), (2026, "D", 165),
         (2026, "A", 312),
+        (2026, "A", 14), (2026, "A", 129), (2026, "A", 229),
+        (2026, "A", 251), (2026, "A", 253),
     })
 
 
@@ -841,3 +843,60 @@ def test_c5_closeout_spares_a_build_that_appeared_after_the_reviewed_set_was_tak
         )
         assert cur_a.fetchone()["n"] == 1, "舊的場次級條件若已經零命中，這條變異檢驗是空的"
         a.rollback()
+
+
+# #236：來源接受是精確版本政策，不能變成場次永久漂移許可。
+def test_cpbl236_real_eleven_pa_member_fingerprints() -> None:
+    import json
+    fixture = json.loads((Path(__file__).parent / "fixtures" /
+                          "cpbl236_acceptance_members.json").read_text())
+    rules = pb.reconciliation_pins()
+    assert len(fixture) == 5
+    assert sum(len(r["pa_deltas"]) for r in rules.values()) == 11
+    for key, rows in fixture.items():
+        expected = pb.expected_member_deltas(rules[key])
+        assert pb.member_fingerprint_deltas(rows["before"], rows["after"]) == expected
+        changed = {p: dict(m) for p, m in rows["after"].items()}
+        pa_id = next(iter(changed))
+        event = next(iter(changed[pa_id]))
+        changed[pa_id][event] = "unapproved-drift"
+        assert pb.member_fingerprint_deltas(rows["before"], changed) != expected
+
+
+def test_cpbl236_pin_rejects_source_and_old_build_drift() -> None:
+    rule = pb.reconciliation_pins()["2026:A:14"]
+    pb.require_reconciliation_source_pin(
+        2026, "A", 14, rule["livelog_manifest"], rule["tracking_manifest"],
+        rule["baseline_build_id"], rule["pending_build_ids"],
+    )
+    for field in ("livelog", "tracking", "baseline", "pending"):
+        args = [2026, "A", 14, list(rule["livelog_manifest"]),
+                list(rule["tracking_manifest"]), rule["baseline_build_id"],
+                list(rule["pending_build_ids"])]
+        if field == "livelog":
+            args[3][0] = "unknown-source"
+        elif field == "tracking":
+            args[4][1] += 1
+        elif field == "baseline":
+            args[5] = "unknown-build"
+        else:
+            args[6].append("unknown-pending")
+        with pytest.raises(pb.ReconciliationAcceptRejected, match="source_pin"):
+            pb.require_reconciliation_source_pin(*args)
+
+
+def test_cpbl236_source_pin_is_inside_write_primitive_before_first_write() -> None:
+    source = inspect.getsource(pb.build_game)
+    assert source.index("lock_game_for_build") < source.index("require_reconciliation_source_pin")
+    assert source.index("require_reconciliation_source_pin") < source.index("    livelog_rev = upsert_source_revision")
+    assert source.index("require_reconciliation_pa_pin") < source.index("    livelog_rev = upsert_source_revision")
+
+
+def test_cpbl236_direct_write_rejects_unpinned_source_before_mutation() -> None:
+    cur = _WriteCountingCursor([{
+        "build_id": "884f0870-bb8d-4d93-a623-9de437f54f91",
+        "invariant_violations": [],
+    }])
+    with pytest.raises(pb.ReconciliationAcceptRejected, match="source_pin"):
+        pb.build_game(cur, 2026, "A", 14, accept_reconciliation=True)
+    assert cur.mutations == []
