@@ -3,6 +3,8 @@ import { Card, ErrorState } from "@/components/ui";
 import { api } from "@/lib/api";
 import DailyHub from "@/components/daily-hub";
 import MiniStandings from "@/components/mini-standings";
+import { PostseasonNextCard, postseasonPointer } from "@/components/postseason-next";
+import { postseasonJourneyFor } from "@/lib/postseason-journey";
 
 export const metadata = {
   title: { absolute: "Ruan's 中職數據實驗室｜中華職棒數據視覺化" },
@@ -32,14 +34,22 @@ export default async function Home({
   // 賽前降級提示**不**另外取：點機率與 serving 狀態必須同源，否則會出現「快取的舊機率
   // ＋ 即時的正常狀態」＝沒有提示的舊模型機率。dailySummary 已改 no-store 且兩者同在
   // 一份 response 內（ML-OUTCOME-SIMPLE-LEAK2）。
-  const [dailyR, standR, calR] = await Promise.allSettled([
+  // 季後摘要（#237）同樣各自 settle：失敗時季後卡退回只用 calendar，不影響首頁其他區塊。
+  const [dailyR, standR, calR, postR] = await Promise.allSettled([
     api.dailySummary(),
     api.officialStandings(0),
     api.gamesCalendar(undefined, "A"),
+    api.postseasonSummary(),
   ]);
 
   const standings = standR.status === "fulfilled" ? standR.value.items : [];
   const calendar = calR.status === "fulfilled" ? calR.value.items : null;
+  const post = postR.status === "fulfilled" ? postR.value : null;
+  // 季後旅程：與季後總覽、日曆同一個模型。年度取 calendar 的 season（失敗時取 summary 的）。
+  const season = calR.status === "fulfilled" ? calR.value.season : post?.season ?? null;
+  const journey = season != null
+    ? postseasonJourneyFor(season, post && post.season === season ? post.series : null, calendar, Date.now())
+    : null;
   // #218 首頁：頂部品牌大區併入「今日賽事」標題（品牌已在頂欄字標；全站搜尋在頂欄／行動選單），
   // 主位直接給 7:3 賽事；戰績摘要在下方左欄（7）。
   return (
@@ -48,7 +58,7 @@ export default async function Home({
           不把錯誤當成「今天沒比賽」（GAME_RECAP §7.1）。hub 是 client island：票券要隨 phase
           自行翻態，而它的前景輪詢打的就是這裡 SSR 用的同一支 dailySummary。 */}
       {dailyR.status === "fulfilled" ? (
-        <DailyHub summary={dailyR.value} calendar={calendar} />
+        <DailyHub summary={dailyR.value} calendar={calendar} postseason={postseasonPointer(journey)} />
       ) : (
         <Card padding="p-6">
           <h1 className="sr-only">今日賽事</h1>
@@ -56,10 +66,15 @@ export default async function Home({
         </Card>
       )}
 
-      {/* 第二層：戰績摘要（7 欄寬）＋季節性橫幅 slot（3 欄，DATA-EDITORIAL1：只放可追溯事實，
-          例行賽期間留空，季後賽啟用專頁模板。目前無內容故不渲染）。 */}
+      {/* 第二層：戰績摘要（7 欄寬）＋季節性橫幅 slot（3 欄，DATA-EDITORIAL1：只放可追溯事實）。
+          季後期間放季後下一場卡（#237，官方公告＋正式場次）；手機排在戰績摘要之前。 */}
       <div className="grid grid-cols-1 gap-7 min-[860px]:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
         {standings.length > 0 && <MiniStandings standings={standings} />}
+        {journey && (
+          <div className="order-first min-[860px]:order-none">
+            <PostseasonNextCard journey={journey} />
+          </div>
+        )}
       </div>
     </div>
   );

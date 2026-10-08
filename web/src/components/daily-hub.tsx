@@ -190,10 +190,13 @@ function PregameNotice({ text }: { text: string }) {
   );
 }
 
-export default function DailyHub({ summary: initial, calendar }: {
+export default function DailyHub({ summary: initial, calendar, postseason = null }: {
   summary: DailySummary;
   /** SSR 取一次的本季 calendar（A＋季後 E／C）；失敗時為 null，右欄退回 summary 能給的。 */
   calendar: CalendarGame[] | null;
+  /** 季後公告仍有未完成場次時的指引（#237，SSR 由共用旅程模型推導）。有值時左欄沒有場次
+   *  也不得稱「本季賽程已全部結束」——資料庫還沒有季後列不代表季後賽不打。 */
+  postseason?: { text: string; href: string } | null;
 }) {
   const [summary, setSummary] = useState<DailySummary>(initial);
   // 首次渲染刻意不帶時鐘（見 `liveInterrupt` 的 null 分支）；掛載後由 effect 補上，
@@ -343,13 +346,22 @@ export default function DailyHub({ summary: initial, calendar }: {
             </div>
           ) : (
             <div className="pm-rows">
-              <EmptyState className="rounded-md bg-surface py-6">
-                {availability.schedule.status === "season_complete"
-                  ? "本季賽程已全部結束"
-                  : availability.schedule.status === "source_missing"
-                    ? "查無賽程資料"
-                    : "目前沒有已排定的下一批賽事"}
-              </EmptyState>
+              {postseason ? (
+                <p data-testid="postseason-pointer" className="rounded-md bg-surface px-4 py-6 text-center text-sm text-ink">
+                  {postseason.text}
+                  <Link href={postseason.href} className="ml-2 inline-flex min-h-11 items-center text-accent hover:underline">
+                    季後賽程與系列 →
+                  </Link>
+                </p>
+              ) : (
+                <EmptyState className="rounded-md bg-surface py-6">
+                  {availability.schedule.status === "season_complete"
+                    ? "本季賽程已全部結束"
+                    : availability.schedule.status === "source_missing"
+                      ? "查無賽程資料"
+                      : "目前沒有已排定的下一批賽事"}
+                </EmptyState>
+              )}
             </div>
           )}
         </section>
