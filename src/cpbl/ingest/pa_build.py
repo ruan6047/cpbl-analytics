@@ -993,6 +993,9 @@ ACCEPTED_RECONCILIATIONS: frozenset[tuple[int, str, int]] = frozenset({
     (2026, "A", 251),
     # A253：好球沒揮棒敘述；飛球接殺結果不變，275球對應。
     (2026, "A", 253),
+    # #236條件接受：只移除指定教練暫停member；候選必須建於清理的同一交易。
+    (2026, "A", 341),
+    (2026, "A", 360),
 })
 
 REJECT_NOT_ALLOWLISTED = "not_in_allowlist"
@@ -1101,8 +1104,32 @@ def require_reconciliation_source_pin(
     if (list(livelog) != rule["livelog_manifest"]
             or list(tracking) != rule["tracking_manifest"]
             or baseline_build_id != rule["baseline_build_id"]
-            or sorted(pending_build_ids) != sorted(rule["pending_build_ids"])):
+            or (len(pending_build_ids) != 1 if rule.get("conditional_cleanup")
+                else sorted(pending_build_ids) != sorted(rule["pending_build_ids"]))):
         raise ReconciliationAcceptRejected(year, kind, game, ["source_pin: 封存來源或發布前值漂移"])
+
+
+
+def require_conditional_reconciliation_transaction(
+    cur: Any, year: int, kind: str, game: int, pending_build_ids: list[str],
+) -> None:
+    rule = reconciliation_pins().get(f"{year}:{kind}:{game}", {})
+    if not rule.get("conditional_cleanup"):
+        return
+    # 兩LL候選不能跨交易留存後才接受：原始清理／候選／發布由同一控制器交易持有。
+    cur.execute(
+        "SELECT b.build_id, "
+        "b.xmin::text = pg_current_xact_id_if_assigned()::text AS same_transaction "
+        "FROM cpbl.game_recap_builds b JOIN cpbl.game_recap_source_revisions r "
+        "ON r.id=b.livelog_revision_id WHERE b.build_id=ANY(%s::uuid[]) "
+        "AND r.source_sha256=%s", (pending_build_ids, rule["livelog_manifest"][0]),
+    )
+    rows = cur.fetchall()
+    if (len(rows) != 1 or not rows[0]["same_transaction"]
+            or [str(rows[0]["build_id"])] != pending_build_ids):
+        raise ReconciliationAcceptRejected(
+            year, kind, game, ["cleanup_transaction: 候選不是核定清理同交易建立"],
+        )
 
 
 _PIN_STABLE_FIELDS = (
@@ -1544,6 +1571,9 @@ def build_game(
         )
         require_reconciliation_pa_pin(
             cur, year, kind, game, plate_appearances(year, kind, game, events, taxonomy),
+        )
+        require_conditional_reconciliation_transaction(
+            cur, year, kind, game, reviewed_build_ids,
         )
     livelog_rev = upsert_source_revision(
         cur, year=year, kind=kind, game=game, source_kind="livelog",

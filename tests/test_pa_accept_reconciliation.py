@@ -46,6 +46,7 @@ def test_allowlist_is_exactly_what_was_reviewed() -> None:
         (2026, "A", 312),
         (2026, "A", 14), (2026, "A", 129), (2026, "A", 229),
         (2026, "A", 251), (2026, "A", 253),
+        (2026, "A", 341), (2026, "A", 360),
     })
 
 
@@ -852,7 +853,7 @@ def test_cpbl236_real_eleven_pa_member_fingerprints() -> None:
                           "cpbl236_acceptance_members.json").read_text())
     rules = pb.reconciliation_pins()
     assert len(fixture) == 5
-    assert sum(len(r["pa_deltas"]) for r in rules.values()) == 11
+    assert sum(len(rules[k]["pa_deltas"]) for k in fixture) == 11
     for key, rows in fixture.items():
         expected = pb.expected_member_deltas(rules[key])
         assert pb.member_fingerprint_deltas(rows["before"], rows["after"]) == expected
@@ -900,3 +901,26 @@ def test_cpbl236_direct_write_rejects_unpinned_source_before_mutation() -> None:
     with pytest.raises(pb.ReconciliationAcceptRejected, match="source_pin"):
         pb.build_game(cur, 2026, "A", 14, accept_reconciliation=True)
     assert cur.mutations == []
+
+
+@pytest.mark.parametrize("game", [341, 360])
+def test_cpbl236_timeout_acceptance_requires_pending_from_same_transaction(game: int) -> None:
+    class Cursor:
+        def execute(self, _sql: str, _params: Any = None) -> None:
+            pass
+        def fetchall(self) -> list[Any]:
+            return [{"build_id": "old-pending", "same_transaction": False}]
+    with pytest.raises(pb.ReconciliationAcceptRejected, match="cleanup_transaction"):
+        pb.require_conditional_reconciliation_transaction(Cursor(), 2026, "A", game, ["old-pending"])
+
+
+@pytest.mark.parametrize("game", [341, 360])
+def test_cpbl236_timeout_acceptance_same_transaction_is_exact(game: int) -> None:
+    class Cursor:
+        def execute(self, _sql: str, _params: Any = None) -> None:
+            pass
+        def fetchall(self) -> list[Any]:
+            return [{"build_id": "new-pending", "same_transaction": True}]
+    pb.require_conditional_reconciliation_transaction(Cursor(), 2026, "A", game, ["new-pending"])
+    with pytest.raises(pb.ReconciliationAcceptRejected, match="cleanup_transaction"):
+        pb.require_conditional_reconciliation_transaction(Cursor(), 2026, "A", game, ["unknown"])

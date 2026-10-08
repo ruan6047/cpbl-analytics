@@ -552,5 +552,69 @@
     "pending_build_ids": [
       "67f7a1f7-1f61-47a7-acd1-30b771cbf8ca"
     ]
+  },
+  "2026:A:341": {
+    "game_key": "2026:A:341",
+    "baseline_build_id": "aa32c146-a9cf-4f31-8af4-508655561cf5",
+    "livelog_manifest": [
+      "b167fc90f75fb6f0a4b9b8386e3acf4a33a57d0aab9006962126d9d694abc9c5",
+      283,
+      "1020018000"
+    ],
+    "tracking_manifest": [
+      "344e3e808e11a45b8ef28f9ddca8741c5541b678f1f4fa05b4d93b65e000eca3",
+      256,
+      "0000006555:104"
+    ],
+    "pa_count": 77,
+    "conditional_cleanup": true,
+    "removed_event_no": "0810018000",
+    "pa_deltas": [
+      {
+        "pa_id": "02d5b5d6-6e10-539f-b646-6290e1a2444d",
+        "member_events": [
+          {
+            "event_no": "0810018000",
+            "before_fingerprint": "f38e3552315e231fd09ebe77550c646013776a8377dba490ebe5acd81137d134",
+            "after_fingerprint": null,
+            "allowed_fields": [
+              "removed_coach_timeout"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "2026:A:360": {
+    "game_key": "2026:A:360",
+    "baseline_build_id": "22abc2a4-ccef-45e1-8da4-18b6bb1104f9",
+    "livelog_manifest": [
+      "f767586a90abd5eced6faa3458fed3f5ef3b3379ca8afea662defe2d9002d265",
+      346,
+      "0920011000"
+    ],
+    "tracking_manifest": [
+      "edf428509ec675823eaa5b42369b1d478ba70de6add5b2f69d016c82cd8b2147",
+      322,
+      "0000007804:86"
+    ],
+    "pa_count": 84,
+    "conditional_cleanup": true,
+    "removed_event_no": "0420011000",
+    "pa_deltas": [
+      {
+        "pa_id": "67403c93-8ada-5f85-bc2f-bc0347020837",
+        "member_events": [
+          {
+            "event_no": "0420011000",
+            "before_fingerprint": "ae54714631357305cd95bd1323f5d0fc183489ec0b0c7f76ea2a1ae1861abf13",
+            "after_fingerprint": null,
+            "allowed_fields": [
+              "removed_coach_timeout"
+            ]
+          }
+        ]
+      }
+    ]
   }
 }
