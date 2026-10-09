@@ -275,6 +275,42 @@ _POSTSEASON_FAST_DETAIL_TABLES: tuple[str, ...] = tuple(
 _SAME_GAME_SQL = "x.year = g.year AND x.kind_code = g.kind_code AND x.game_sno = g.game_sno"
 
 
+def _postseason_game_pitches(year: int, kind_code: str, snos: list[int],
+                             delay: float) -> dict[str, Any]:
+    """#237：E／C 逐球的逐場來源判定（game 模式專用；A／D 仍走 `_refresh_pitches` 原批次）。
+
+    目標＝候選場 ∪ 既有 lagging 判準，按 sno 去重；凍結場不發請求、只計 skipped_frozen
+    （不算成功也不算失敗）。每個非凍結目標**單場**呼叫既有 `scrape_game_pitches` 恰一次
+    （同 parser／UPSERT、不重試），以該次回傳判定：games<1（API 失敗被略過）或
+    pitcher_flags=0 皆記 issue（含 year/kind/sno），不被其他場的成功或 DB 舊列抵銷。
+    TrackMan 0 球在 games=1 且 flags>0 時可接受。
+    """
+    lagging = set(_lagging_pitch_games(year, kind_code))
+    targets = sorted(set(snos) | lagging)
+    frozen = [s for s in targets if is_frozen(year, kind_code, s)]
+    out: dict[str, Any] = {"mode": "game", "games": 0, "pitches": 0, "pitcher_flags": 0,
+                           "skipped_frozen": len(frozen),
+                           "lagging_games": len(lagging - set(frozen)),
+                           "per_game": [], "issues": []}
+    for s in targets:
+        if s in frozen:
+            continue
+        try:
+            r = scrape_game_pitches([(year, kind_code, s)], delay=delay)
+        except Exception as exc:  # noqa: BLE001 — 單場失敗不阻其餘目標
+            log.exception("季後逐球單場失敗 %d-%s-%s", year, kind_code, s)
+            out["issues"].append(f"{year}/{kind_code}/{s}:pitch_error={exc}")
+            continue
+        out["per_game"].append({"game_sno": s, **r})
+        for key in ("games", "pitches", "pitcher_flags"):
+            out[key] += r.get(key, 0)
+        if r.get("games", 0) < 1:
+            out["issues"].append(f"{year}/{kind_code}/{s}:pitch_games=0")
+        elif not r.get("pitcher_flags"):
+            out["issues"].append(f"{year}/{kind_code}/{s}:pitcher_flags=0")
+    return out
+
+
 def _missing_postseason_detail_snos(
     year: int, kind_code: str, tables: tuple[str, ...] = _POSTSEASON_CORE_DETAIL_TABLES,
 ) -> list[int]:
@@ -331,7 +367,7 @@ def _postseason_detail_step(year: int, kinds: tuple[str, ...], days: list[date],
     """#237：季後 E／C 完成場的逐場明細（gamelog＋觀眾/裁判/時長＋逐球），fail-closed。
 
     僅在 ``parse_postseason_kinds`` 顯式啟用時由 main() 呼叫（旗標空＝不查不抓）。
-    候選＝近兩日窗完成場 ∪ 核心表缺任一的完成場，同 kind 以 sno 集合去重後**單次**送出。
+    候選＝近兩日窗完成場 ∪ 核心表缺任一的完成場，同 kind 以 sno 去重後每場各請求一次並逐場判定。
     完成判準沿既有 `daily_chain_completed_games_sql`，scheduled／reserved 不成為候選；
     無候選＝不呼叫任何來源（C 未開打不爬）。``full=False``（fast）比照 A／D：只補缺、
     不跑當日窗與逐球；逐球才寫的表列於 ``unchecked_tables``，不冒稱齊全。
@@ -357,34 +393,40 @@ def _postseason_detail_step(year: int, kinds: tuple[str, ...], days: list[date],
                 continue
             # allow_partial=True 的理由：同 `_incremental_detail`——單場失敗不得中止其餘賽別與
             # 其後的 PA build；落差經 `_tolerate_gamelog_gap` 進帳，由 main() 結清成退出碼 69。
-            gamelog = _tolerate_gamelog_gap(
-                scrape_gamelogs(year, snos, kind, allow_partial=True),
-                f"季後明細 gamelog kind={kind}",
-            )
-            # 回傳契約對帳（stage=detail_source）：DB 舊列（如 getlive 先寫的 weather）會遮住本次失敗。
+            # 逐場各呼叫一次既有 helper：批次聚合計數會讓一場成功抵銷另一場 source 0，DB 舊列
+            # （如 getlive 先寫的 weather、舊 flags）又會遮住 gaps，故當次來源判定必須逐場。
             source_issues: list[str] = []
-            for key in ("scoreboard", "livelog", "batting_box", "pitching_box"):
-                if gamelog.get(key, 0) == 0:
-                    source_issues.append(f"gamelog.{key}=0")
-            detail_rows = scrape_game_details(year, snos, kind)  # 觀眾/裁判/時長（回寫入場數）
-            if detail_rows < len(snos):
-                source_issues.append(f"game_details={detail_rows}/{len(snos)}")
-            summary: dict[str, Any] = {"completed_games": len(snos), "window": len(window),
-                                       "gamelog": gamelog, "detail_rows": detail_rows, **scope}
+            gamelog: dict[int, dict] = {}
+            for s in snos:
+                gamelog[s] = _tolerate_gamelog_gap(
+                    scrape_gamelogs(year, [s], kind, allow_partial=True),
+                    f"季後明細 gamelog kind={kind}",
+                )
+                for key in ("scoreboard", "livelog", "batting_box", "pitching_box"):
+                    if gamelog[s].get(key, 0) == 0:
+                        source_issues.append(f"{year}/{kind}/{s}:gamelog.{key}=0")
+            detail_rows: dict[int, int] = {}
+            for s in snos:
+                detail_rows[s] = scrape_game_details(year, [s], kind)  # 觀眾/裁判/時長
+                if detail_rows[s] < 1:
+                    source_issues.append(f"{year}/{kind}/{s}:game_details={detail_rows[s]}")
+            summary: dict[str, Any] = {
+                "completed_games": len(snos), "window": len(window),
+                "gamelog": [{"game_sno": s, **r} for s, r in gamelog.items()],
+                "detail_rows": [{"game_sno": s, "rows": n} for s, n in detail_rows.items()],
+                **scope,
+            }
             if full:
-                # pitcher 回退路徑要這些場的投手，否則只剩 lagging 而漏當日；只讀本地 gamelog。
-                day_pitchers = (sorted(_pitchers_of_games(year, kind, snos))
-                                if settings.pitch_ingest != "game" else [])
-                pitches = _refresh_pitches(year, kind, snos, day_pitchers, delay)
+                if settings.pitch_ingest == "game":
+                    pitches = _postseason_game_pitches(year, kind, snos, delay)
+                    source_issues.extend(pitches["issues"])
+                else:
+                    # pitcher 回退為逐投手全季聚合，無法逐場證明來源：照既有路徑跑並明示 unchecked。
+                    # 回退要這些場的投手，否則只剩 lagging 而漏當日；只讀本地 gamelog。
+                    day_pitchers = sorted(_pitchers_of_games(year, kind, snos))
+                    pitches = {**_refresh_pitches(year, kind, snos, day_pitchers, delay),
+                               "per_game_source": "unchecked"}
                 summary["pitches"] = pitches
-                # 只有 game 模式回傳含 games／pitcher_flags；pitcher 模式不猜鍵。凍結場不送來源、
-                # 不計入應得場數（也不算成功）。TrackMan pitches=0 在場數與 flags 足時可接受。
-                if pitches.get("mode") == "game":
-                    expected = sum(1 for s in snos if not is_frozen(year, kind, s))
-                    if pitches.get("games", 0) < expected:
-                        source_issues.append(f"pitch_games={pitches.get('games', 0)}/{expected}")
-                    if expected and not pitches.get("pitcher_flags"):
-                        source_issues.append("pitcher_flags=0")
             gaps = _postseason_detail_gaps(year, kind, snos, tables)
             summary["missing"] = [{"game_sno": s, "tables": t} for s, t in sorted(gaps.items())]
             out["games"][kind] = summary

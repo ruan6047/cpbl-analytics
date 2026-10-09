@@ -457,6 +457,9 @@ def _stub_chain(monkeypatch: pytest.MonkeyPatch, scrape, logged: dict, calls: li
         ("_sync_player_names", lambda: 0),
         ("_recent_counts", lambda *a, **k: []),
         ("_missing_gamelog_snos", lambda _year, _kc: []),
+        ("_postseason_detail_step", lambda _year, kinds, _days, *, full=True, delay=1.2:
+            calls.append(f"detail:{','.join(kinds)}:full={full}") or {
+            "games": {k: {"completed_games": 0} for k in kinds}, "errors": []}),
         ("_pa_build_step", lambda *a, **k: calls.append("pa_build") or {
             "games": 0, "actions": {}, "build_states": {}, "errors": []}),
         ("_log_refresh", lambda _s, _f, _t, _tot, _c, detail, ok, note:
@@ -471,12 +474,14 @@ def test_daily_chain_default_setting_is_exactly_a_and_d(monkeypatch: pytest.Monk
 
     scrape_calls: list[tuple] = []
     logged: dict = {}
-    _stub_chain(monkeypatch, lambda *a: scrape_calls.append(a) or {a[0]: 0}, logged, [],
+    calls: list[str] = []
+    _stub_chain(monkeypatch, lambda *a: scrape_calls.append(a) or {a[0]: 0}, logged, calls,
                 kinds_setting="")
 
     rr.main()
 
     assert scrape_calls == [(2026, 2026), (2026, 2026, "D")]
+    assert calls == ["pa_build"]  # 旗標空：不呼叫季後明細
     assert logged["ok"] is True
     assert logged["detail"]["games_postseason"] == {"games": {}, "errors": []}
 
@@ -506,8 +511,12 @@ def test_daily_chain_keeps_a_d_calls_and_adds_postseason(monkeypatch: pytest.Mon
     # A 仍是原本的 2-arg 呼叫、D 原樣，季後只多 E／C 兩次
     assert scrape_calls == [(2026, 2026), (2026, 2026, "D"), (2026, 2026, "E"), (2026, 2026, "C")]
     assert logged["ok"] is True and logged["note"] is None
-    assert logged["detail"]["games_postseason"] == {"games": {"E": {2026: 0}, "C": {2026: 0}},
-                                                    "errors": []}
+    # #237：明細在 PA build 之前、fast 只補缺（full=False）；A／D 的 scrape 呼叫維持原樣
+    assert calls == ["detail:E,C:full=False", "pa_build"]
+    assert logged["detail"]["games_postseason"] == {
+        "games": {"E": {2026: 0}, "C": {2026: 0}}, "errors": [],
+        "detail": {"E": {"completed_games": 0}, "C": {"completed_games": 0}},
+    }
 
 
 def test_daily_chain_postseason_failure_is_visible_but_not_blocking(
@@ -531,8 +540,31 @@ def test_daily_chain_postseason_failure_is_visible_but_not_blocking(
     assert e.value.code == cpbl_gamelog.EXIT_INCOMPLETE_SCRAPE == 69
     assert "pa_build" in calls, "季後失敗不得中止後續步驟"
     assert logged["ok"] is False
-    assert logged["note"] == "季後賽程更新失敗：C"
+    assert logged["note"] == "季後更新失敗（賽程／明細）：C/games"
     assert logged["detail"]["games_postseason"]["errors"] == [{"kind": "C", "error": "syn C failure"}]
+
+
+def test_daily_chain_postseason_detail_failure_is_69_and_pa_still_runs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from cpbl.ingest import cpbl_gamelog
+    from cpbl.ingest import run_refresh_recent as rr
+
+    logged: dict = {}
+    calls: list[str] = []
+    _stub_chain(monkeypatch, lambda *a: {a[0]: 0}, logged, calls)
+    err = {"kind": "E", "stage": "detail_source", "error": "2026/E/2:pitch_games=0"}
+    monkeypatch.setattr(rr, "_postseason_detail_step", lambda *a, **k: calls.append("detail") or {
+        "games": {"E": {"completed_games": 1}}, "errors": [err]})
+
+    with pytest.raises(SystemExit) as e:
+        rr.main()
+
+    assert e.value.code == cpbl_gamelog.EXIT_INCOMPLETE_SCRAPE == 69
+    assert calls == ["detail", "pa_build"], "明細失敗不得中止 PA build，且明細在 PA 之前"
+    assert logged["ok"] is False
+    assert logged["note"] == "季後更新失敗（賽程／明細）：E/detail_source"
+    assert logged["detail"]["games_postseason"]["errors"] == [err]
 
 
 def test_hypothetical_c_row_is_cached_under_its_own_kind_key() -> None:
