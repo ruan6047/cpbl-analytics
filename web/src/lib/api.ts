@@ -234,6 +234,8 @@ export type CalendarGame = {
   game_time: string | null;
   delay_kind: string | null;
   orig_date: string | null;
+  /** 後端 canonical 完賽判定（#237 新增；舊 API 沒有）。前端只對 2026 起的 E／C 讀它。 */
+  completed?: boolean;
 };
 export type GamesCalendarResponse = { season: number; items: CalendarGame[] };
 

@@ -4,6 +4,7 @@ import { SectionTitle } from "@/components/postmark";
 import { LevelYearNav } from "@/components/level-year-nav";
 import { NavBarRow, StickyNavBar } from "@/components/sticky-nav-bar";
 import { api, type CalendarGame } from "@/lib/api";
+import { hasFinalResult } from "@/lib/live-game";
 import { teamFullName } from "@/lib/teams";
 import { LiveCalendarGame } from "@/components/live-calendar-game";
 import { PostseasonExplainer, slotGameLabel } from "@/components/postseason-series";
@@ -216,7 +217,7 @@ export default async function GamesPage({
                 )}
                 <div className="space-y-1">
                   {c.games.map((g) => {
-                    const done = g.away_score + g.home_score > 0;
+                    const done = hasFinalResult(g);
                     const awayWin = done && g.away_score > g.home_score;
                     const homeWin = done && g.home_score > g.away_score;
                     // 打完就是「完賽」（延賽/保留性質改以「補賽／續賽」文字保留）；未打才顯示延賽/保留/未開打
@@ -285,7 +286,7 @@ export default async function GamesPage({
             </div>
             <div className="space-y-3">
               {c.games.map((g) => {
-                const done = g.away_score + g.home_score > 0;
+                const done = hasFinalResult(g);
                 const awayWin = done && g.away_score > g.home_score;
                 const homeWin = done && g.home_score > g.away_score;
                 const js = slotByRow.get(`${g.kind_code}-${g.game_sno}`);

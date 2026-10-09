@@ -13,6 +13,7 @@
 
 import { announcementFor, type AnnouncedSlot, type PostseasonAnnouncement, type TeamSlot } from "./postseason-announcement.ts";
 import { teamName3, teamShort } from "./teams.ts";
+import { hasFinalResult } from "./live-game.ts";
 
 // —— 輸入 ——
 
@@ -27,6 +28,8 @@ export type JourneyRow = {
   home_team_code: string;
   away_score: number;
   home_score: number;
+  /** calendar 的 canonical 完賽判定（#237；舊 API 沒有）。2026 起的 E／C 賽中可帶部分比分。 */
+  completed?: boolean;
 };
 
 /** postseason-summary 的逐場（只含完賽場，沿用後端 `_DONE` 判準）。 */
@@ -469,11 +472,15 @@ export function announcementSourceText(ann: PostseasonAnnouncement): string {
     (okE ? `；挑戰賽賽程 ${md(okE.on)} 已與官方賽程核對一致` : "");
 }
 
-/** 最近一筆完賽紀錄日期（比分總和 > 0，沿用日曆判準；任何賽別）。 */
-export function latestResultDate(rows: Pick<JourneyRow, "game_date" | "away_score" | "home_score">[] | null): string | null {
+/** 最近一筆完賽紀錄日期（沿用日曆判準 `hasFinalResult`：比分總和 > 0；2026 起的 E／C
+ *  只認 calendar 的 `completed`，#237；任何賽別）。 */
+export function latestResultDate(
+  rows: (Pick<JourneyRow, "game_date" | "away_score" | "home_score">
+    & Partial<Pick<JourneyRow, "kind_code" | "year" | "completed">>)[] | null,
+): string | null {
   let best: string | null = null;
   for (const r of rows ?? []) {
-    if (r.away_score + r.home_score > 0 && (!best || r.game_date > best)) best = r.game_date;
+    if (hasFinalResult(r) && (!best || r.game_date > best)) best = r.game_date;
   }
   return best;
 }

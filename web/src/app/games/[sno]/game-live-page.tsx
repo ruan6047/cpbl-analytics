@@ -43,6 +43,7 @@ import {
   applyLiveSnapshot,
   canShowPostgameConclusions,
   nextPollDelay,
+  officialCompletionOf,
   phaseLabel,
   resolveStatusSnapshot,
   shouldFetchLivePayload,
@@ -226,7 +227,11 @@ export default function GameLivePage() {
   const hs = num(g.home_score);
   const aw = num(g.away_score);
   // 頁面層完賽觸發（既有語意，形式化進 spec）；資料層由後端 facts 的 render_state 表達。
-  const completed = canShowPostgameConclusions(liveSnapshot, hs + aw);
+  // 2026 起的季後 E／C 沒有 snapshot 時只認後端 `completed`（官方 final／證據，#237）。
+  const officialCompleted = officialCompletionOf(g);
+  const completed = canShowPostgameConclusions(liveSnapshot, hs + aw, officialCompleted);
+  // 官方未定案卻已有比分＝已開打、但本站沒有可證實的賽況階段：不說「尚未開賽」也不說終場。
+  const unconfirmedStarted = !liveSnapshot && officialCompleted === false && hs + aw > 0;
   // 賽後主區塊只在事實流可用時置換；否則沿用既有總覽（不留白、不硬切）
   const showRecap = completed && isRecapReady(facts);
   // 導航模型（2026-08-06 需求方人工審定案）：
@@ -370,10 +375,12 @@ export default function GameLivePage() {
           <p className="flex items-center gap-2 text-sm text-muted">
             {liveSnapshot
               ? <StatusBadge tone={phaseTone(liveSnapshot.phase)}>{phaseLabel(liveSnapshot.phase)}</StatusBadge>
-              : <span>尚未開賽</span>}
+              : unconfirmedStarted
+                ? <StatusBadge tone={phaseTone("unknown")}>{phaseLabel("unknown")}</StatusBadge>
+                : <span>尚未開賽</span>}
           </p>
           {liveSnapshot && <LiveGameLineups snapshot={liveSnapshot} />}
-          {pregame && <PregameCard model={pregame} homeName={String(g.home_team_name)} />}
+          {pregame && !unconfirmedStarted && <PregameCard model={pregame} homeName={String(g.home_team_name)} />}
         </div>
       )}
 

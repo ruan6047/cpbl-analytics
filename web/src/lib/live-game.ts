@@ -131,10 +131,38 @@ export const phaseLabel = (phase: CanonicalPhase) => PHASE_LABEL[phase];
 
 export const isTopHalf = (half: LiveSnapshot["half"]): boolean => half === "top" || String(half) === "1";
 
+// 2026 起的季後 E／C 比分不能自證完賽（#237）：2026/E/1 官方 17:52 回 (PresentStatus=1,
+// GameResult='')、HomeScore=3，是比賽中途的部分比分。⛔ 與後端 `cpbl.completion` 的
+// `POSTSEASON_OFFICIAL_KINDS`／`DAILY_CHAIN_FINAL_FROM_YEAR` 同一組值，勿單邊改。
+const OFFICIAL_COMPLETION_KINDS = new Set(["E", "C"]);
+const OFFICIAL_COMPLETION_FROM_YEAR = 2026;
+
+export const requiresOfficialCompletion = (kind: unknown, year: unknown): boolean =>
+  OFFICIAL_COMPLETION_KINDS.has(String(kind ?? "")) && Number(year) >= OFFICIAL_COMPLETION_FROM_YEAR;
+
+/** 受官方判準管轄的場次回後端 `completed`（官方 final／完賽證據）；舊 API 沒有該欄＝
+ *  未完賽（寧可少顯示一場賽果，也不把賽中比分畫成終場）。不受管轄者回 `undefined`＝
+ *  呼叫端沿用比分判斷（A／D／歷史年份一字不動）。 */
+export const officialCompletionOf = (
+  g: { kind_code?: unknown; year?: unknown; completed?: unknown },
+): boolean | undefined =>
+  requiresOfficialCompletion(g.kind_code, g.year) ? g.completed === true : undefined;
+
+/** 列表類（月曆／首頁右欄／季後資訊截至）的「有賽果」判定：受管轄者只讀後端 `completed`，
+ *  其餘沿用原本的比分 > 0。 */
+export const hasFinalResult = (
+  g: { kind_code?: unknown; year?: unknown; completed?: unknown; away_score?: unknown; home_score?: unknown },
+): boolean => officialCompletionOf(g) ?? (Number(g.away_score) || 0) + (Number(g.home_score) || 0) > 0;
+
+/** 完賽結論可否顯示。`officialCompleted` 只在受官方判準管轄時傳（見 `officialCompletionOf`）：
+ *  沒有 snapshot 時以它為準、比分不作依據；未傳＝原本的比分判斷。 */
 export const canShowPostgameConclusions = (
   snapshot: LiveSnapshot | null,
   scoreTotal: number,
-): boolean => scoreTotal > 0 && (snapshot === null || snapshot.phase === "final");
+  officialCompleted?: boolean,
+): boolean => snapshot === null && officialCompleted !== undefined
+  ? officialCompleted
+  : scoreTotal > 0 && (snapshot === null || snapshot.phase === "final");
 
 /** 局數是否為真值。worker 對未開打場次仍回 `inning=1／half=1` 佔位（生產實測
  *  SCHEDULED 場 inning=1、event_count=0；FINISHED 場 inning=9、half=2 為真值），

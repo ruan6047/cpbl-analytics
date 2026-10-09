@@ -331,3 +331,13 @@ test("資料截至：取最近一筆有比分的場次；文案分辨有無季�
   assert.equal(journeyAsOfText({ recordedGames: 0, dataAsOf: "2026-10-04" }), "本站尚無季後賽果紀錄，本站賽果紀錄至 10/04");
   assert.equal(journeyAsOfText({ recordedGames: 2, dataAsOf: "2026-10-10" }), "本站季後賽果紀錄 2 場，本站賽果紀錄至 10/10");
 });
+
+test("#237 資料截至：2026 E 賽中部分比分不算完賽紀錄；歷史 E 照舊", () => {
+  const a = { kind_code: "A", year: 2026, game_date: "2026-10-04", away_score: 3, home_score: 1 };
+  const e1 = { kind_code: "E", year: 2026, game_date: "2026-10-09", away_score: 0, home_score: 3 };
+  assert.equal(latestResultDate([a, { ...e1, completed: false }]), "2026-10-04");
+  assert.equal(latestResultDate([a, e1]), "2026-10-04");
+  assert.equal(latestResultDate([a, { ...e1, completed: true }]), "2026-10-09");
+  assert.equal(latestResultDate([a, { ...e1, year: 2025, game_date: "2025-10-11" }, { ...a, game_date: "2025-10-01" }]), "2026-10-04");
+  assert.equal(latestResultDate([{ ...e1, year: 2025, game_date: "2025-10-11" }]), "2025-10-11");
+});

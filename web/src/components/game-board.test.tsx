@@ -257,3 +257,40 @@ test("完賽＋DB 有逐球：不出現賽中擷取揭露", () => {
   const html = carriedBoard({ eventNo: "0110001000", dbTracking: true });
   assert.doesNotMatch(html, /賽中擷取/);
 });
+
+// ───────── #237：2026 季後 E／C，snapshot=null 不得只憑比分進入完賽態 ─────────
+// E1 比分抄自官方 2026-10-09 17:52 擷取（PresentStatus=1、GameResult=''、HomeScore=3、VisitingScore=0）；
+// 逐打席事件沿用上方 A#276 的真實樣本（僅作版面驅動，**不代表 E1 的實際局面**）。
+function postseasonBoard(game: Record<string, unknown>, idx: number): string {
+  return scorebar(
+    <GameBoard
+      data={data({ live_snapshot: null, game: { ...GAME, ...game } as unknown as StatRow })}
+      idx={idx} setIdx={() => {}} view="overview" gameSno="1"
+      tabs={<hr id="tabs-sentinel" />} />,
+  );
+}
+
+test("#237 E 2026＋snapshot=null＋3:0＋官方未定案：記分條不得收成「終場」", () => {
+  const html = postseasonBoard({ kind_code: "E", year: 2026, game_sno: 1, away_score: 0, home_score: 3, completed: false }, 0);
+  assertSituationShown(html, "E 官方未定案", "上", "6");
+});
+
+test("#237 E 2026＋舊 API（無 completed 欄）：同樣不得收成「終場」", () => {
+  const html = postseasonBoard({ kind_code: "E", year: 2026, game_sno: 1, away_score: 0, home_score: 3 }, 0);
+  assertSituationShown(html, "E 無 completed", "上", "6");
+});
+
+test("#237 E 2026＋官方 completed：才收成「終場」", () => {
+  const html = postseasonBoard({ kind_code: "E", year: 2026, game_sno: 1, away_score: 4, home_score: 3, completed: true }, 1);
+  assertSituationHidden(html, "E 官方完賽");
+});
+
+test("#237 A 基準不變：同樣 snapshot=null＋3:0（completed 欄即使為 false）仍走比分判斷", () => {
+  const html = postseasonBoard({ kind_code: "A", year: 2026, away_score: 0, home_score: 3, completed: false }, 0);
+  assertSituationHidden(html, "A 基準");
+});
+
+test("#237 歷史 E 2025 不受影響：snapshot=null＋比分＝終場", () => {
+  const html = postseasonBoard({ kind_code: "E", year: 2025, away_score: 4, home_score: 3 }, 1);
+  assertSituationHidden(html, "E 2025");
+});

@@ -99,10 +99,28 @@ test("季後賽：calendar 的 E／C 場次與例行賽同樣參與", () => {
   const s = summary({ today: "2026-10-20", asOf: "2026-10-20", latest: { game_date: "2026-10-20", games: [] } });
   const r = previousGameDay(s, [
     cal({ kind_code: "A", game_sno: 360, game_date: "2026-10-05", away_score: 4, home_score: 2 }),
-    cal({ kind_code: "E", game_sno: 3, game_date: "2026-10-18", away_score: 2, home_score: 6 }),
+    cal({ kind_code: "E", game_sno: 3, game_date: "2026-10-18", away_score: 2, home_score: 6, completed: true }),
   ]);
   assert.equal(r?.game_date, "2026-10-18");
   assert.equal(r?.games[0].kind_code, "E");
+});
+
+// #237：2026/E/1 官方 17:52（PresentStatus=1、GameResult=''）帶 HomeScore=3 的賽中部分比分。
+test("季後賽 2026：E／C 的比分不自證完賽，只認 calendar 的 completed", () => {
+  const s = summary({ today: "2026-10-10", asOf: "2026-10-10", latest: { game_date: "2026-10-10", games: [] } });
+  const a = cal({ kind_code: "A", game_sno: 360, game_date: "2026-10-05", away_score: 4, home_score: 2 });
+  const e1 = { kind_code: "E", game_sno: 1, game_date: "2026-10-09", away_score: 0, home_score: 3 };
+  // 官方未 final → 不是賽果日，退回更早的例行賽日
+  assert.equal(previousGameDay(s, [a, cal({ ...e1, completed: false })])?.game_date, "2026-10-05");
+  // 舊 API 沒有 completed 欄 → 一樣不當賽果（寧可少顯示，不把賽中比分當終場）
+  assert.equal(previousGameDay(s, [a, cal(e1)])?.game_date, "2026-10-05");
+  // 官方 final → 才是賽果
+  const r = previousGameDay(s, [a, cal({ ...e1, completed: true })]);
+  assert.equal(r?.game_date, "2026-10-09");
+  assert.deepEqual([r?.games[0].home_score, r?.games[0].completed], [3, true]);
+  // 歷史 E（2025）沿用比分判斷，不因缺 completed 被藏
+  const h = previousGameDay(s, [cal({ ...e1, year: 2025, game_date: "2025-10-11" })]);
+  assert.deepEqual([h?.game_date, h?.games[0].home_score], ["2025-10-11", 3]);
 });
 
 test("季初第一天：本季 calendar 沒有更早的完賽日 → 用早於切點的 latest；都沒有回 null", () => {

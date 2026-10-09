@@ -4,7 +4,10 @@ import { test } from "node:test";
 import {
   applyLiveSnapshot,
   canShowPostgameConclusions,
+  hasFinalResult,
   hasStartedPlay,
+  officialCompletionOf,
+  requiresOfficialCompletion,
   inningLabel,
   isTopHalf,
   liveCaptureCoverage,
@@ -569,4 +572,44 @@ test("四態④：完賽＋無可用來源 → 維持既有空狀態，不補造
   // 快照有逐球但不是沿用來的（官方 final 自帶）→ 不在本卡射程，維持只用 DB。
   const officialFinal = { ...carriedFinal(), tracking_carryover: undefined };
   assert.deepEqual(applyLiveSnapshot(response(officialFinal)).tracking, []);
+});
+
+// ───────── #237：2026 起季後 E／C 的完賽只認官方 final／證據 ─────────
+// E1 列抄自官方 2026-10-09 17:52 台北擷取：PresentStatus=1、GameResult=''、HomeScore=3、VisitingScore=0。
+const E1 = { kind_code: "E", year: 2026, game_sno: 1, home_score: 3, away_score: 0 };
+
+test("#237 管轄範圍：只有 2026 起的 E／C", () => {
+  assert.equal(requiresOfficialCompletion("E", 2026), true);
+  assert.equal(requiresOfficialCompletion("C", "2027"), true);
+  for (const [k, y] of [["E", 2025], ["C", 2025], ["A", 2026], ["D", 2026], ["F", 2026], ["E", undefined], [undefined, 2026]]) {
+    assert.equal(requiresOfficialCompletion(k, y), false, `${k}/${y}`);
+  }
+});
+
+test("#237 snapshot=null 時 E／C 賽中部分比分 3:0 不得顯示賽後；官方 completed 才可", () => {
+  // 反例本身：舊判準（未傳第三參數）會把 3:0 判成可顯示賽後。
+  assert.equal(canShowPostgameConclusions(null, 3), true);
+  assert.equal(canShowPostgameConclusions(null, 3, officialCompletionOf({ ...E1, completed: false })), false);
+  assert.equal(canShowPostgameConclusions(null, 3, officialCompletionOf(E1)), false, "舊 API 沒有 completed＝未完賽");
+  assert.equal(canShowPostgameConclusions(null, 3, officialCompletionOf({ ...E1, completed: true })), true);
+  // 0:0 的官方 final 也算完賽（比分不作依據，雙向皆然）。
+  assert.equal(canShowPostgameConclusions(null, 0, officialCompletionOf({ ...E1, home_score: 0, completed: true })), true);
+  // 有 snapshot 時仍以 snapshot phase 為準（既有語意）。
+  assert.equal(canShowPostgameConclusions(snapshot({ phase: "live" }), 3, true), false);
+  assert.equal(canShowPostgameConclusions(snapshot({ phase: "final" }), 3, false), true);
+});
+
+test("#237 A／D／歷史 E 不受影響：officialCompletionOf 回 undefined，沿用比分判斷", () => {
+  for (const g of [{ ...E1, kind_code: "A" }, { ...E1, kind_code: "D" }, { ...E1, year: 2025 }, { ...E1, kind_code: "C", year: 2025 }]) {
+    assert.equal(officialCompletionOf({ ...g, completed: false }), undefined);
+    assert.equal(canShowPostgameConclusions(null, 3, officialCompletionOf({ ...g, completed: false })), true);
+    assert.equal(hasFinalResult({ ...g, completed: false }), true, `${g.kind_code}/${g.year} 比分照舊顯示`);
+  }
+  assert.equal(hasFinalResult({ kind_code: "A", year: 2026, home_score: 0, away_score: 0, completed: true }), false);
+});
+
+test("#237 hasFinalResult：E／C 2026 只讀 completed", () => {
+  assert.equal(hasFinalResult({ ...E1, completed: false }), false);
+  assert.equal(hasFinalResult(E1), false);
+  assert.equal(hasFinalResult({ ...E1, completed: true }), true);
 });

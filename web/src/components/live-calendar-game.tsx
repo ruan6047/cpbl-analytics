@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CalendarGame } from "@/lib/api";
 import { detail } from "@/lib/client";
-import { nextPollDelay, phaseLabel, type LiveSnapshot } from "@/lib/live-game";
+import { hasFinalResult, nextPollDelay, phaseLabel, type LiveSnapshot } from "@/lib/live-game";
 import { StatusBadge, TeamLogo, type StatusTone } from "@/components/ui";
 
 const toneOf = (phase: LiveSnapshot["phase"]): StatusTone =>
@@ -71,7 +71,9 @@ export function LiveCalendarGame({ game, variant, startsAt = null }: {
     };
   }, [game.game_sno, game.kind_code, game.year, variant]);
 
-  const phase = snapshot?.phase ?? (game.away_score + game.home_score > 0 ? "final" : "scheduled");
+  // 沒有 snapshot 時的後備：2026 起的 E／C 只認後端 `completed`（#237），賽中部分比分
+  // 不得畫成「比賽結束」；其餘沿用比分判斷。
+  const phase = snapshot?.phase ?? (hasFinalResult(game) ? "final" : "scheduled");
   const showScore = phase === "live" || phase === "final";
   const awayScore = snapshot?.away.score ?? game.away_score;
   const homeScore = snapshot?.home.score ?? game.home_score;
