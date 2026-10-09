@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card, StatusBadge, TeamLogo, type StatusTone } from "@/components/ui";
 import { displayTeamName, slotDay, slotGameLabel } from "@/components/postseason-series";
+import type { RosterLead } from "@/lib/postseason-announcement";
 import type { JourneySeries, JourneySlot, PostseasonJourney, SideTally, SlotStatus } from "@/lib/postseason-journey";
 import {
   POSTSEASON_COPY,
@@ -20,6 +21,7 @@ import {
 // - 下一場：賽程清單裡標「下一場」的那一列，不另開一塊。
 // - 「如有必要」的意思：清單下方一行；每場只掛標籤。
 // - 台灣大賽 G3／G4 球場分支：台灣大賽分頁清單下方一行；場次列只寫「球場依挑戰賽勝隊而定」。
+// - 登錄名單來源線索：賽程卡下方一行，各系列各自一版（#237 自 #238 轉入）。
 // - 公告來源、無單場連結的原因：頁尾 <details>。
 
 const TONE: Record<SlotStatus, StatusTone> = {
@@ -110,6 +112,34 @@ function ReserveRow({ date }: { date: string }) {
   );
 }
 
+/**
+ * 該系列登錄名單的來源線索，賽程卡下方一行。每個系列各自一版（不沿用另一系列的連結）；
+ * 只連到外部報導，不呈現球員或人數。沒有線索時寫「本站尚未取得」，不寫成官方未公布。
+ */
+function RosterLine({ name, leads }: { name: string; leads: RosterLead[] }) {
+  return (
+    <p data-roster-lead className="text-xs leading-relaxed text-muted">
+      <b className="font-bold text-ink">登錄名單</b>：
+      {leads.length === 0 ? <>本站尚未取得{name}登錄名單。</> : (
+        <>
+          {leads.map((l, i) => (
+            <span key={l.url}>
+              {i > 0 && "、"}
+              <a href={l.url} target="_blank" rel="noopener noreferrer"
+                className="inline-flex min-h-11 items-center text-accent hover:underline">
+                {l.kind}・{l.label} {shortDay(l.publishedOn)}<span className="sr-only">（另開新分頁）</span>
+              </a>
+            </span>
+          ))}
+          。
+          {/* 連結點擊區 44px 會撐高所在行；說明另起一行，窄螢幕換行時才不會被拉開。 */}
+          <span className="block">登錄名單不是先發打線，也不代表球員可出賽。</span>
+        </>
+      )}
+    </p>
+  );
+}
+
 /** 一個系列的分頁內容：進度 → 晉級關係 → 賽程 → 該系列才有的條件說明。 */
 function SeriesView({ journey, k, nameOf, seedOf }: {
   journey: PostseasonJourney; k: Key;
@@ -172,6 +202,7 @@ function SeriesView({ journey, k, nameOf, seedOf }: {
             : <ReserveRow key={it.reserve} date={it.reserve} />)}
         </ol>
       </Card>
+      <RosterLine name={s.name} leads={ann.series[k].rosterLeads} />
       <p className="text-xs leading-relaxed text-muted">
         {branch && <><b className="font-bold text-ink">{branchSeqs} 球場</b>：{branch.venueNote}。<br /></>}
         「{POSTSEASON_COPY.conditional}」＝{POSTSEASON_COPY.conditionalNote}。{anyAnnounced && "尚無比分的場次為官方公告安排，本站尚無正式場次紀錄。"}

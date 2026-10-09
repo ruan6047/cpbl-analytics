@@ -42,6 +42,20 @@ export type SourceCheck = {
   note: string;
 };
 
+/**
+ * 登錄名單的來源線索（#237，需求方 2026-10-09 自 #238 轉入）。只是連到外部報導，
+ * ⛔ 不轉錄球員、人數或守位；登錄名單也不等於先發打線或可出賽。
+ * 官方版本本站未核實，因此 kind 只有「二手報導」；沒有線索的系列放空陣列（＝本站尚未取得，不是官方未公布）。
+ */
+export type RosterLead = {
+  url: string;
+  /** 媒體名。 */
+  label: string;
+  /** 報導發布日（台北）。 */
+  publishedOn: string;
+  kind: "二手報導";
+};
+
 export type PostseasonAnnouncement = {
   year: number;
   source: {
@@ -53,8 +67,8 @@ export type PostseasonAnnouncement = {
     checks: SourceCheck[];
   };
   series: {
-    E: { name: string; bestOf: 5; winsNeeded: 3; handicapTeam: string; teams: [string, string] };
-    C: { name: string; bestOf: 7; winsNeeded: 4; seededTeam: string; opponentFrom: "E" };
+    E: { name: string; bestOf: 5; winsNeeded: 3; handicapTeam: string; teams: [string, string]; rosterLeads: RosterLead[] };
+    C: { name: string; bestOf: 7; winsNeeded: 4; seededTeam: string; opponentFrom: "E"; rosterLeads: RosterLead[] };
   };
   slots: AnnouncedSlot[];
   reserveDays: { date: string; series: "C"; note: string }[];
@@ -98,8 +112,12 @@ export const POSTSEASON_2026: PostseasonAnnouncement = {
     ],
   },
   series: {
-    E: { name: "季後挑戰賽", bestOf: 5, winsNeeded: 3, handicapTeam: BROTHERS, teams: [LIONS, BROTHERS] },
-    C: { name: "台灣大賽", bestOf: 7, winsNeeded: 4, seededTeam: DRAGONS, opponentFrom: "E" },
+    // 登錄名單線索：UDN 2026-10-08 報導只涵蓋挑戰賽；台灣大賽各自一版，本站尚未取得。
+    E: {
+      name: "季後挑戰賽", bestOf: 5, winsNeeded: 3, handicapTeam: BROTHERS, teams: [LIONS, BROTHERS],
+      rosterLeads: [{ url: "https://udn.com/news/story/7001/9803100", label: "UDN", publishedOn: "2026-10-08", kind: "二手報導" }],
+    },
+    C: { name: "台灣大賽", bestOf: 7, winsNeeded: 4, seededTeam: DRAGONS, opponentFrom: "E", rosterLeads: [] },
   },
   slots: [
     { key: "E1", kind: "E", seq: 1, date: "2026-10-09", start: "17:05", away: { code: LIONS }, home: { code: BROTHERS }, venue: { name: "洲際" }, conditional: false, officialSno: 1 },
