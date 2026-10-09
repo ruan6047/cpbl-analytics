@@ -10,7 +10,8 @@ import {
 } from "@/lib/postseason-journey";
 
 // 首頁的季後下一場卡（#237）。只吃共用旅程模型，與季後總覽、日曆同一份安排。
-// 公告場次沒有官方場號 → 不給單場連結；入口一律指向季後總覽與日曆。
+// 公告場次沒有官方場號 → 不給單場連結；入口一律指向季後總覽與日曆。例外是 E 場次經單場狀態
+// 身分比對的單場賽況入口（slot.liveEntry）：只給連結並說明整體賽果待更新，系列進度與截至一句不變。
 
 const TONE: Record<SlotStatus, StatusTone> = {
   final: "done", scheduled: "scheduled", announced: "scheduled", result_pending: "warn", not_needed: "done",
@@ -55,7 +56,7 @@ export function PostseasonNextCard({ journey }: { journey: PostseasonJourney }) 
           </p>
           <p className="text-[13px] text-muted">{slotVenueText(n)}</p>
           {n.status === "result_pending" && (
-            <p className="text-xs text-down">已過預定開賽時間・本站尚無賽果紀錄</p>
+            <p className="text-xs text-down">{n.liveEntry ? POSTSEASON_COPY.liveEntryPending : "已過預定開賽時間・本站尚無賽果紀錄"}</p>
           )}
           {n.changeNote && <p className="text-xs text-down">{n.changeNote}</p>}
         </div>
@@ -65,9 +66,16 @@ export function PostseasonNextCard({ journey }: { journey: PostseasonJourney }) 
       {pending.length > 0 && (
         <p className="mt-3 text-xs text-down">
           {pending[0].kind === "E" ? ann.series.E.name : ann.series.C.name} G{pending[0].seq} {slotWhen(pending[0])}
-          {pending.length > 1 ? ` 等 ${pending.length} 場` : ""}：{POSTSEASON_COPY.status.result_pending}（已過預定開賽時間・本站尚無賽果紀錄）
+          {pending.length > 1 ? ` 等 ${pending.length} 場` : ""}：{pending[0].liveEntry
+            ? POSTSEASON_COPY.liveEntryPending
+            : `${POSTSEASON_COPY.status.result_pending}（已過預定開賽時間・本站尚無賽果紀錄）`}
         </p>
       )}
+      {pending.filter((x) => x.liveEntry && x.href).map((x) => (
+        <Link key={x.key} href={x.href!} className="inline-flex min-h-11 items-center text-sm text-accent hover:underline">
+          {x.kind === "E" ? ann.series.E.name : ann.series.C.name} G{x.seq} {POSTSEASON_COPY.liveEntryLink}
+        </Link>
+      ))}
       <p className="mt-3 text-[13px] font-medium text-ink">{s.name}：{seriesProgressText(s)}</p>
       <div className="mt-2 flex flex-wrap gap-x-4">
         {n?.href && (

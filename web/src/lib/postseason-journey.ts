@@ -8,12 +8,13 @@
 // 1. 規則讓勝固定歸公告指定的球隊（2026＝兄弟），與實際場勝分開計算；不從戰況反推。
 //    「獅贏前兩場」必須是獅 2、兄弟 1、系列未分勝負。
 // 2. 單場連結只給資料庫裡真的有的場次，且一定帶 kind 與 year；公告場序不能變成場號，
-//    A（例行賽）列一律不參與歸併。
+//    A（例行賽）列一律不參與歸併。唯一例外是 E 的官方場號經單場狀態身分比對後的入口
+//    （withLiveEntries），它只補連結，不補列、不計勝場。
 // 3. 沒有完賽紀錄就沒有比分；已過預定開賽時間仍沒有賽果時明說「賽果待更新」，不猜結果。
 
 import { announcementFor, type AnnouncedSlot, type PostseasonAnnouncement, type TeamSlot } from "./postseason-announcement.ts";
 import { teamName3, teamShort } from "./teams.ts";
-import { hasFinalResult } from "./live-game.ts";
+import { hasFinalResult, type CanonicalPhase } from "./live-game.ts";
 
 // —— 輸入 ——
 
@@ -171,8 +172,10 @@ export type JourneySlot = {
   /** 公告與資料庫不一致時的註記（以資料庫為準）。 */
   changeNote: string | null;
   score: { away: number; home: number } | null;
-  /** 只有資料庫列才有連結。 */
+  /** 資料庫列的連結；資料庫沒有列時，只有通過 `withLiveEntries` 身分比對的單場賽況入口。 */
   href: string | null;
+  /** `href` 來自單場賽況（不是資料庫列）。⛔ 不代表有完賽紀錄：狀態、比分與系列仍只看資料庫。 */
+  liveEntry: boolean;
   /** 是否已對到資料庫列（日曆用來決定公告格要不要另畫）。 */
   row: JourneyRow | null;
 };
@@ -209,6 +212,8 @@ export const POSTSEASON_COPY = {
   changed: "公告原定，已異動，以官方賽程為準",
   reserveDay: "移動補賽日（遇延賽才使用，不是比賽）",
   noLink: "本站尚無官方台灣大賽場次編號，暫不提供單場連結",
+  liveEntryPending: "整體賽果待更新，可查看單場賽況",
+  liveEntryLink: "單場賽況 →",
 } as const;
 
 export function gameLink(kind: string, sno: number, year: number): string {
@@ -358,6 +363,7 @@ export function buildPostseasonJourney(input: JourneyInput): PostseasonJourney {
       changeNote,
       score: fin ? { away: fin.away_score, home: fin.home_score } : null,
       href: row ? gameLink(row.kind_code, row.game_sno, year) : null,
+      liveEntry: false,
       row,
     };
   });
@@ -392,6 +398,95 @@ export function postseasonJourneyFor(
   const announcement = announcementFor(year);
   if (!announcement) return null;
   return buildPostseasonJourney({ announcement, summary, rows, nowMs, dataAsOf: latestResultDate(rows) });
+}
+
+// —— 單場賽況入口（#237） ——
+// 資料庫還沒有 E 場次列時，首頁與日曆只能從公告的官方場號（officialSno）去查既有的單場狀態端點；
+// 身分全部相符才補一個連結到既有單場頁。⛔ 只補連結、不補列：不建 row、不給比分、不改狀態，
+// 也不進系列進度、完賽場數或資料截至——那些只認資料庫的完賽判定，快照 final 也一樣。
+// C 沒有官方場號，不查也不推場號；沒有公告的年份不會走到這裡（postseasonJourneyFor 回 null）。
+
+/** 單場狀態端點（/api/v1/games/{sno}/status）回應中這裡會讀到的欄位；取不到時 null。 */
+export type LiveEntryStatus = {
+  season?: unknown;
+  kind_code?: unknown;
+  game_sno?: unknown;
+  canonical_phase?: unknown;
+  live_snapshot?: {
+    game_id?: unknown;
+    game_sno?: unknown;
+    kind_code?: unknown;
+    phase?: unknown;
+    starts_at?: unknown;
+    away?: { team?: { code?: unknown } | null } | null;
+    home?: { team?: { code?: unknown } | null } | null;
+  } | null;
+} | null;
+
+export type LiveEntryProbe = { key: string; kind: "E"; sno: number };
+
+/** 單場頁能呈現的已知狀態；unknown 與清單外的值都不給入口。 */
+const ENTRY_PHASES: ReadonlySet<CanonicalPhase> = new Set<CanonicalPhase>([
+  "scheduled", "probable_announced", "lineup_announced", "live", "final", "postponed", "reserved",
+]);
+
+/** 要查單場狀態的場次：公告有官方場號、資料庫沒有列、不是「依條件不需進行」的 E 場次，最多 4 場。 */
+export function liveEntryProbes(j: PostseasonJourney): LiveEntryProbe[] {
+  const probes: LiveEntryProbe[] = [];
+  for (const a of j.announcement.slots) {
+    const s = j.slots.find((x) => x.key === a.key);
+    if (a.kind !== "E" || a.officialSno == null || !s || s.row || s.href || s.status === "not_needed") continue;
+    probes.push({ key: a.key, kind: "E", sno: a.officialSno });
+  }
+  return probes.slice(0, 4);
+}
+
+/** `Promise.allSettled` 的結果依場次 key 整理；rejected 一律視同沒有回應。 */
+export function liveEntryResults(
+  probes: LiveEntryProbe[],
+  settled: PromiseSettledResult<LiveEntryStatus>[],
+): Record<string, LiveEntryStatus> {
+  const out: Record<string, LiveEntryStatus> = {};
+  probes.forEach((p, i) => {
+    const r = settled[i];
+    out[p.key] = r && r.status === "fulfilled" ? r.value : null;
+  });
+  return out;
+}
+
+/** 官方開賽時刻是台北無時區字串，取日期段；帶 Z／offset 或格式不符時回 null（同 live-game.ts 的防衛）。 */
+function entryDate(startsAt: unknown): string | null {
+  const m = typeof startsAt === "string" ? /^(\d{4}-\d{2}-\d{2})(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?)?$/.exec(startsAt) : null;
+  return m ? m[1] : null;
+}
+
+/** 單場狀態與公告場次的身分全部相符才回連結：年度、賽別、場號、game_id、主客隊碼、開賽日期與已知狀態。 */
+export function liveEntryHref(slot: AnnouncedSlot, year: number, st: LiveEntryStatus): string | null {
+  const snap = st?.live_snapshot;
+  if (!st || !snap || slot.kind !== "E" || slot.officialSno == null) return null;
+  const sno = slot.officialSno;
+  const away = slot.away && "code" in slot.away ? slot.away.code : null;
+  const home = slot.home && "code" in slot.home ? slot.home.code : null;
+  const ok = st.season === year && st.kind_code === "E" && st.game_sno === sno
+    && snap.game_id === `${year}-E-${sno}` && snap.kind_code === "E" && snap.game_sno === sno
+    && !!away && !!home && snap.away?.team?.code === away && snap.home?.team?.code === home
+    && entryDate(snap.starts_at) === slot.date
+    && typeof snap.phase === "string" && ENTRY_PHASES.has(snap.phase as CanonicalPhase)
+    && st.canonical_phase === snap.phase;
+  return ok ? gameLink("E", sno, year) : null;
+}
+
+/** 把通過身分比對的單場入口補到資料庫沒有列的場次上；其餘欄位（狀態、比分、系列、截至）原樣不動。 */
+export function withLiveEntries(j: PostseasonJourney, statuses: Record<string, LiveEntryStatus>): PostseasonJourney {
+  const announced = new Map(j.announcement.slots.map((a) => [a.key, a]));
+  const slots = j.slots.map((s) => {
+    const a = announced.get(s.key);
+    if (s.row || s.href || !a || !(s.key in statuses)) return s;
+    const href = liveEntryHref(a, j.year, statuses[s.key]);
+    return href ? { ...s, href, liveEntry: true } : s;
+  });
+  const next = j.next ? slots.find((s) => s.key === j.next!.key) ?? null : null;
+  return { ...j, slots, next };
 }
 
 /** 某隊可能出現在這個場次（日曆篩隊用）：未定席位以可能的參賽隊判斷。 */

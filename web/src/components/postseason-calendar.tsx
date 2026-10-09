@@ -1,8 +1,12 @@
+import Link from "next/link";
+import type { ReactNode } from "react";
 import { StatusBadge, TeamLogo, type StatusTone } from "@/components/ui";
 import { slotGameLabel } from "@/components/postseason-series";
 import { POSTSEASON_COPY, slotAllUnknown, slotVenueText, type JourneySlot } from "@/lib/postseason-journey";
 
-// 日曆上的季後公告格（#237）：資料庫還沒有正式場次的公告安排。虛線框、不給連結，與正式場次分開。
+// 日曆上的季後公告格（#237）：資料庫還沒有正式場次的公告安排。虛線框，與正式場次分開。
+// 原則上不給連結；唯一例外是 E 場次經單場狀態身分比對的單場賽況入口（slot.liveEntry），
+// 整格連到既有單場頁，狀態徽章仍是資料庫判準（不轉述單場的即時狀態）。
 // 「公告安排」由月曆上方的說明一次交代，格內只標例外狀態（賽果待更新、依條件不需進行）與「如有必要」。
 
 const SERIES_LABEL: Record<JourneySlot["kind"], string> = { E: "季後挑戰賽", C: "台灣大賽" };
@@ -25,10 +29,19 @@ function SlotTeam({ code, label, size, decorative = false }: { code: string | nu
   );
 }
 
+/** 有單場賽況入口時整格成為連結（與正式場次格同一種 hover）；沒有時原樣。 */
+function EntryLink({ s, children }: { s: JourneySlot; children: ReactNode }) {
+  return s.liveEntry && s.href ? (
+    <Link href={s.href} className="block transition-colors [&>div]:hover:bg-band">{children}</Link>
+  ) : children;
+}
+
 /** 桌面月曆格。 */
 export function AnnouncedCompact({ s }: { s: JourneySlot }) {
+  const entry = s.liveEntry && s.href;
   return (
-    <div data-announced="true" title={`${POSTSEASON_COPY.status[s.status]}：${s.awayLabel}（客）對 ${s.homeLabel}（主）・${slotVenueText(s)}`}
+    <EntryLink s={s}>
+    <div data-announced="true" title={`${POSTSEASON_COPY.status[s.status]}：${s.awayLabel}（客）對 ${s.homeLabel}（主）・${slotVenueText(s)}${entry ? `・${POSTSEASON_COPY.liveEntryPending}` : ""}`}
       className="block rounded-sm border border-dashed border-line-strong px-1.5 py-1">
       <div className="mb-0.5 text-center text-[10px] font-bold leading-none text-ink">{SERIES_LABEL[s.kind]} {slotGameLabel(s)}</div>
       <div className="flex items-center justify-between gap-1 leading-none">
@@ -36,6 +49,7 @@ export function AnnouncedCompact({ s }: { s: JourneySlot }) {
         <span className="text-center text-[10px] leading-tight">
           {s.status !== "announced" && <StatusBadge tone={SLOT_TONE[s.status]} variant="bare">{POSTSEASON_COPY.status[s.status]}</StatusBadge>}
           {s.conditional && open(s) && <span className="block font-bold text-ink">{POSTSEASON_COPY.conditional}</span>}
+          {entry && <span className="block text-accent">{POSTSEASON_COPY.liveEntryLink}</span>}
         </span>
         <SlotTeam code={s.homeCode} label={s.homeLabel} size={20} />
       </div>
@@ -43,13 +57,16 @@ export function AnnouncedCompact({ s }: { s: JourneySlot }) {
         {[s.start, shortVenue(s)].filter(Boolean).join("・")}
       </div>
     </div>
+    </EntryLink>
   );
 }
 
 /** 手機直列：一場一張精簡卡（系列＋場序、開打時刻、主客一行、球場一行）。 */
 export function AnnouncedMobile({ s, asOf }: { s: JourneySlot; asOf: string | null }) {
   const unknown = slotAllUnknown(s);
+  const entry = s.liveEntry && s.href;
   return (
+    <EntryLink s={s}>
     <div data-announced="true" className="rounded-sm border border-dashed border-line-strong px-3 py-2.5">
       <div className="flex items-baseline justify-between gap-2">
         <span className="flex flex-wrap items-center gap-1.5">
@@ -73,11 +90,14 @@ export function AnnouncedMobile({ s, asOf }: { s: JourneySlot; asOf: string | nu
           <p className="mt-0.5 text-xs text-muted">{slotVenueText(s)}</p>
         </>
       )}
-      {s.status === "result_pending" && (
+      {s.status === "result_pending" && !entry && (
         <p className="mt-1 text-xs text-down">已過預定開賽時間・本站尚無賽果紀錄{asOf ? `（本站賽果紀錄至 ${asOf.slice(5).replace("-", "/")}）` : ""}</p>
       )}
+      {s.status === "result_pending" && entry && <p className="mt-1 text-xs text-down">{POSTSEASON_COPY.liveEntryPending}</p>}
       {s.status === "not_needed" && <p className="mt-1 text-xs text-muted">{POSTSEASON_COPY.notNeededNote}</p>}
       {s.changeNote && <p className="mt-1 text-xs text-down">{s.changeNote}</p>}
+      {entry && <p className="mt-1 text-sm text-accent">{POSTSEASON_COPY.liveEntryLink}</p>}
     </div>
+    </EntryLink>
   );
 }

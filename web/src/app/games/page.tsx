@@ -10,7 +10,10 @@ import { LiveCalendarGame } from "@/components/live-calendar-game";
 import { PostseasonExplainer, slotGameLabel } from "@/components/postseason-series";
 import { AnnouncedCompact, AnnouncedMobile } from "@/components/postseason-calendar";
 import { announcementFor } from "@/lib/postseason-announcement";
-import { POSTSEASON_COPY, journeyAsOfText, postseasonJourneyFor, slotMayInvolve, type JourneySlot } from "@/lib/postseason-journey";
+import {
+  POSTSEASON_COPY, journeyAsOfText, liveEntryProbes, liveEntryResults, postseasonJourneyFor, slotMayInvolve, withLiveEntries,
+  type JourneySlot,
+} from "@/lib/postseason-journey";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "賽程與賽況" };
@@ -69,7 +72,12 @@ export default async function GamesPage({
   const postSummary = announced
     ? await api.postseasonSummary(selectedYear, "A", live).catch(() => null)
     : null;
-  const journey = isCurrent ? postseasonJourneyFor(selectedYear, postSummary?.series ?? null, items, Date.now()) : null;
+  const baseJourney = isCurrent ? postseasonJourneyFor(selectedYear, postSummary?.series ?? null, items, Date.now()) : null;
+  // 單場賽況入口（#237）：資料庫還沒有 E 列的公告格，依官方場號查既有單場狀態（最多 4 支、no-store、
+  // 有逾時），身分全部相符才整格連到單場頁；任何失敗都等於沒有入口。有資料庫列的場次不查也不覆蓋。
+  const probes = baseJourney && announced ? liveEntryProbes(baseJourney) : [];
+  const probeR = await Promise.allSettled(probes.map((p) => api.liveEntryStatus(p.sno, p.kind, baseJourney!.year)));
+  const journey = baseJourney && withLiveEntries(baseJourney, liveEntryResults(probes, probeR));
   const slotByRow = new Map<string, JourneySlot>();
   const announcedByDate = new Map<string, JourneySlot[]>();
   for (const s of journey?.slots ?? []) {
@@ -190,7 +198,8 @@ export default async function GamesPage({
       {/* 季後（#237 驗收 3、5）：「公告安排」與資訊截至在月曆上方說一次，格內不再逐格重複。 */}
       {journey && monthHasPostseason && (
         <p className="mb-3 text-xs leading-relaxed text-muted">
-          <b className="font-bold text-ink">季後賽</b>：虛線框為官方公告安排（本站尚無正式場次，不提供單場連結）・
+          <b className="font-bold text-ink">季後賽</b>：虛線框為官方公告安排（本站尚無正式場次，
+          {journey.slots.some((s) => s.liveEntry) ? "標「單場賽況」者可點入查看單場賽況，整體賽果待更新" : "不提供單場連結"}）・
           點線框為{POSTSEASON_COPY.reserveDay}・「{POSTSEASON_COPY.conditional}」＝{POSTSEASON_COPY.conditionalNote}・{journeyAsOfText(journey)}。
           <Link href="/standings?seg=3" className="ml-1 inline-flex min-h-11 items-center text-accent hover:underline">系列進度與晉級條件 →</Link>
         </p>

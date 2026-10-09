@@ -1,6 +1,7 @@
 // FastAPI 資料層 client（Server Component 用）。prod 走 Docker 內網，dev 走 localhost。
 import { ApiError } from "./http-error.ts";
 import type { DailySummary, PregameServingMeta } from "./daily-summary";
+import type { LiveEntryStatus } from "./postseason-journey";
 import type { PregameResponse } from "./pregame-card";
 import type { TeamStyleResponse } from "./team-style";
 
@@ -115,6 +116,27 @@ export type JourneyFetch = { live?: boolean };
 
 function journeyGet<T>(path: string, { live = false }: JourneyFetch): Promise<T> {
   return live ? getLive<T>(path) : get<T>(path, 120);
+}
+
+/** 單場賽況入口的狀態查詢上限（#237）。後端每場固定 2 次 Redis GET（各 1 秒 socket timeout）
+ *  加兩個小查詢；超過就放棄這個入口，不拖住首頁與日曆。 */
+const LIVE_ENTRY_TIMEOUT_MS = 2000;
+
+/** 單場狀態，只給季後單場入口判斷「要不要給連結」（#237；身分比對在 postseason-journey 的 withLiveEntries）。
+ *  no-store：入口要跟著快照出現與消失，不能被快取留住。任何失敗（4xx／5xx／例外／逾時／壞 JSON）
+ *  都回 null，等同沒有入口，不讓頁面出錯。 */
+async function liveEntryStatus(sno: number, kind: string, year: number, timeoutMs = LIVE_ENTRY_TIMEOUT_MS): Promise<LiveEntryStatus> {
+  try {
+    const res = await fetch(`${API_URL}/api/v1/games/${sno}/status?kind_code=${kind}&season=${year}`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok) return null;
+    const body: unknown = await res.json();
+    return body && typeof body === "object" ? (body as LiveEntryStatus) : null;
+  } catch {
+    return null;
+  }
 }
 
 export type BattingLeader = {
@@ -511,6 +533,7 @@ export const api = {
     get<GamesRecentResponse>(`/api/v1/games/recent?limit=${limit}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 120),
   gamesCalendar: (year?: number, kind = "A", fetchMode: JourneyFetch = {}) =>
     journeyGet<GamesCalendarResponse>(`/api/v1/games/calendar?kind_code=${kind}${year ? `&season=${year}` : ""}`, fetchMode),
+  liveEntryStatus,
   standings: (season?: number) =>
     get<StandingsResponse>(`/api/v1/season/standings${season ? `?season=${season}` : ""}`),
   teamSplit: (season?: number) =>

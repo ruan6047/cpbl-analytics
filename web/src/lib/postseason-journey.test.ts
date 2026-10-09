@@ -6,12 +6,16 @@ import {
   buildPostseasonJourney,
   journeyAsOfText,
   latestResultDate,
+  liveEntryProbes,
+  liveEntryResults,
   postseasonJourneyFor,
   seriesProgressText,
   slotMayInvolve,
   slotStartMs,
   slotWhen,
+  withLiveEntries,
   type JourneyRow,
+  type LiveEntryStatus,
   type SeriesGame,
   type SummarySeries,
 } from "./postseason-journey.ts";
@@ -340,4 +344,117 @@ test("#237 資料截至：2026 E 賽中部分比分不算完賽紀錄；歷史 E
   assert.equal(latestResultDate([a, { ...e1, completed: true }]), "2026-10-09");
   assert.equal(latestResultDate([a, { ...e1, year: 2025, game_date: "2025-10-11" }, { ...a, game_date: "2025-10-01" }]), "2026-10-04");
   assert.equal(latestResultDate([{ ...e1, year: 2025, game_date: "2025-10-11" }]), "2025-10-11");
+});
+
+// —— 單場賽況入口（#237）：資料庫還沒有 E 列時，只依公告場號查單場狀態補「連結」 ——
+// 狀態回應的欄位形狀取自 19:25 官方 raw 經 build_snapshot 的實際輸出（RECORDED 形狀）；
+// 各測試的數值是 SYNTHETIC，只用來覆蓋身分比對的每一個條件。
+
+const DURING_E1 = Date.parse("2026-10-09T19:25:00+08:00");
+
+type Snap = Record<string, unknown>;
+function entryStatus(over: Snap = {}, top: Snap = {}): LiveEntryStatus {
+  const snap: Snap = {
+    game_id: "2026-E-1", game_sno: 1, kind_code: "E", phase: "live", starts_at: "2026-10-09T17:05:00",
+    away: { team: { code: LION, name: "統一7-ELEVEn獅" } }, home: { team: { code: BRO, name: "中信兄弟" } },
+    ...over,
+  };
+  return { season: 2026, kind_code: "E", game_sno: 1, canonical_phase: snap.phase, live_snapshot: snap, ...top } as unknown as LiveEntryStatus;
+}
+
+const withE1 = (j: ReturnType<typeof journey>, st: LiveEntryStatus) => withLiveEntries(j, { E1: st });
+
+test("單場入口：只對公告有官方場號、資料庫沒有列的 E 場次查詢，最多 4 場；C 不查", () => {
+  const j = journey([], { nowMs: DURING_E1 });
+  assert.deepEqual(liveEntryProbes(j), [
+    { key: "E1", kind: "E", sno: 1 }, { key: "E2", kind: "E", sno: 2 },
+    { key: "E3", kind: "E", sno: 3 }, { key: "E4", kind: "E", sno: 4 },
+  ]);
+  const withRow = journey([], { rows: [row({})], nowMs: DURING_E1 });
+  assert.deepEqual(liveEntryProbes(withRow).map((p) => p.key), ["E2", "E3", "E4"], "資料庫有列的場次不查");
+  const decided = journey([BRO, BRO]);
+  assert.ok(liveEntryProbes(decided).every((p) => p.kind === "E"));
+  assert.ok(!liveEntryProbes(decided).some((p) => slot(decided, p.key).status === "not_needed"), "依條件不需進行的場次不查");
+});
+
+test("單場入口：身分全部相符才給連結，狀態與系列不變", () => {
+  const base = journey([], { nowMs: DURING_E1, dataAsOf: "2026-10-04" });
+  const j = withE1(base, entryStatus());
+  assert.equal(slot(j, "E1").href, "/games/1?kind=E&year=2026");
+  assert.equal(slot(j, "E1").liveEntry, true);
+  assert.equal(slot(j, "E1").status, "result_pending");
+  assert.equal(slot(j, "E1").row, null);
+  assert.equal(slot(j, "E1").score, null);
+  assert.equal(slot(base, "E1").liveEntry, false);
+  assert.ok(j.slots.filter((s) => s.key !== "E1").every((s) => s.href === null && !s.liveEntry));
+  assert.equal(j.next?.key, base.next?.key);
+});
+
+test("單場入口：任一身分條件不符、無快照或狀態未知都不給連結", () => {
+  const base = journey([], { nowMs: DURING_E1 });
+  const cases: [string, LiveEntryStatus][] = [
+    ["無回應", null],
+    ["無快照", entryStatus({}, { live_snapshot: null })],
+    ["game_id 不符", entryStatus({ game_id: "2026-E-2" })],
+    ["場號不符", entryStatus({ game_sno: 2 })],
+    ["賽別是 C", entryStatus({ kind_code: "C", game_id: "2026-C-1" })],
+    ["主客對調", entryStatus({ away: { team: { code: BRO, name: "" } }, home: { team: { code: LION, name: "" } } })],
+    ["客隊錯", entryStatus({ away: { team: { code: DRAGON, name: "" } } })],
+    ["缺隊伍", entryStatus({ home: null })],
+    ["日期不符", entryStatus({ starts_at: "2026-10-10T17:05:00" })],
+    ["開賽時刻帶 Z", entryStatus({ starts_at: "2026-10-09T09:05:00Z" })],
+    ["沒有開賽時刻", entryStatus({ starts_at: null })],
+    ["狀態 unknown", entryStatus({ phase: "unknown" })],
+    ["狀態不在清單", entryStatus({ phase: "bogus" })],
+    ["回應年度不符", entryStatus({}, { season: 2025 })],
+    ["回應賽別不符", entryStatus({}, { kind_code: "A" })],
+    ["回應場號不符", entryStatus({}, { game_sno: 2 })],
+    ["canonical_phase 與快照不一致", entryStatus({}, { canonical_phase: "final" })],
+  ];
+  for (const [name, st] of cases) {
+    const j = withE1(base, st);
+    assert.equal(slot(j, "E1").href, null, name);
+    assert.equal(slot(j, "E1").liveEntry, false, name);
+  }
+});
+
+test("單場入口：快照 final 也不計勝場、不改截至、不改狀態（與無快照逐值相同）", () => {
+  const base = journey([], { nowMs: DURING_E1, dataAsOf: "2026-10-04" });
+  const fin = withE1(base, entryStatus({ phase: "final" }));
+  const none = withE1(base, null);
+  assert.equal(slot(fin, "E1").href, "/games/1?kind=E&year=2026", "final 仍可點入單場頁看終場");
+  assert.deepEqual(fin.series, none.series);
+  assert.equal(fin.recordedGames, none.recordedGames);
+  assert.equal(fin.dataAsOf, none.dataAsOf);
+  assert.equal(fin.remaining, none.remaining);
+  assert.deepEqual(fin.slots.map((s) => [s.key, s.status, s.score]), none.slots.map((s) => [s.key, s.status, s.score]));
+  assert.equal(journeyAsOfText(fin), journeyAsOfText(none));
+  assert.equal(seriesProgressText(fin.series.E), seriesProgressText(none.series.E));
+});
+
+test("單場入口：資料庫有列時沿用資料庫連結，快照一律忽略、不重複", () => {
+  const base = journey([], { rows: [row({})], nowMs: DURING_E1 });
+  const j = withE1(base, entryStatus({ phase: "final" }));
+  assert.equal(slot(j, "E1").href, "/games/1?kind=E&year=2026");
+  assert.equal(slot(j, "E1").liveEntry, false);
+  assert.equal(slot(j, "E1").row, slot(base, "E1").row);
+  assert.equal(slot(j, "E1").status, slot(base, "E1").status);
+});
+
+test("單場入口：C 場次即使給了快照也不建連結；沒有公告的年份不建模型", () => {
+  const base = journey([BRO, BRO]);
+  const j = withLiveEntries(base, { C1: entryStatus({ game_id: "2026-C-1", kind_code: "C" }, { kind_code: "C" }) });
+  assert.ok(j.slots.filter((s) => s.kind === "C").every((s) => s.href === null && !s.liveEntry));
+  assert.equal(postseasonJourneyFor(2025, null, null, DURING_E1), null);
+});
+
+test("單場入口：結果整併只取 fulfilled，rejected 視同無回應", () => {
+  const probes = [{ key: "E1", kind: "E" as const, sno: 1 }, { key: "E2", kind: "E" as const, sno: 2 }];
+  const got = liveEntryResults(probes, [
+    { status: "fulfilled", value: entryStatus() },
+    { status: "rejected", reason: new Error("x") },
+  ]);
+  assert.deepEqual(Object.keys(got), ["E1", "E2"]);
+  assert.equal(got.E2, null);
+  assert.notEqual(got.E1, null);
 });
