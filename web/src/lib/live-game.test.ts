@@ -592,8 +592,10 @@ test("#237 snapshot=null 時 E／C 賽中部分比分 3:0 不得顯示賽後；�
   assert.equal(canShowPostgameConclusions(null, 3, officialCompletionOf({ ...E1, completed: false })), false);
   assert.equal(canShowPostgameConclusions(null, 3, officialCompletionOf(E1)), false, "舊 API 沒有 completed＝未完賽");
   assert.equal(canShowPostgameConclusions(null, 3, officialCompletionOf({ ...E1, completed: true })), true);
-  // 0:0 的官方 final 也算完賽（比分不作依據，雙向皆然）。
-  assert.equal(canShowPostgameConclusions(null, 0, officialCompletionOf({ ...E1, home_score: 0, completed: true })), true);
+  // 0:0 的官方 final 也算完賽（比分不作依據，雙向皆然）。先綁變數：API 列本來就帶比分欄，
+  // 直接寫物件字面量會被 tsc 的超額屬性檢查擋下（npm test 只剝型別，抓不到）。
+  const e1ScorelessFinal = { ...E1, home_score: 0, completed: true };
+  assert.equal(canShowPostgameConclusions(null, 0, officialCompletionOf(e1ScorelessFinal)), true);
   // 有 snapshot 時仍以 snapshot phase 為準（既有語意）。
   assert.equal(canShowPostgameConclusions(snapshot({ phase: "live" }), 3, true), false);
   assert.equal(canShowPostgameConclusions(snapshot({ phase: "final" }), 3, false), true);
