@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 
 import redis
 
-from cpbl.config import settings
+from cpbl.config import parse_postseason_kinds, settings
 from cpbl.ingest.live_game_worker import (
     LiveGameWorker,
     RedisLiveGameCache,
@@ -33,6 +33,8 @@ def main(argv: list[str] | None = None) -> None:
         return
     if not settings.redis_url:
         raise RuntimeError("live worker enabled 但 REDIS_URL 未設定")
+    # 先解析再開任何連線：值打錯要在啟動時炸開（#237；預設空＝A-only）。
+    postseason_kinds = parse_postseason_kinds(settings.live_game_postseason_kinds)
 
     redis_client = redis.Redis.from_url(
         settings.redis_url,
@@ -52,6 +54,7 @@ def main(argv: list[str] | None = None) -> None:
         fetch_schedule=source.fetch_schedule,
         fetch_game=source.fetch_game,
         max_games_per_cycle=settings.live_game_max_games_per_cycle,
+        postseason_kinds=postseason_kinds,
     )
     stopping = False
 

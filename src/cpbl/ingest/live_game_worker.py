@@ -17,6 +17,8 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
+from cpbl.completion import POSTSEASON_OFFICIAL_KINDS, requires_official_completion
+
 _STATUS_PHASE = {
     "START": "live",
     "FINISHED": "final",
@@ -229,10 +231,12 @@ class StatsLiveSource:
     def close(self) -> None:
         self.client.close()
 
-    def fetch_schedule(self, year: int, month: int) -> list[dict]:
+    def fetch_schedule(self, year: int, month: int, kind_code: str = "A") -> list[dict]:
+        # #237：E 的 schedule 形狀與 A 相同（2026-10-09 18:20 實測）；C 當時回 200＋空清單，
+        # 空清單只代表「該月沒觀測到列」，⛔ 不得據此自造 C 場次。
         response = self.client.get(
             f"{_BASE}/api/proxy/v1/games/schedule",
-            params={"kindCode": "A", "year": str(year), "month": str(month)},
+            params={"kindCode": kind_code, "year": str(year), "month": str(month)},
         )
         response.raise_for_status()
         games = (response.json().get("Data") or {}).get("Games") or []
@@ -394,6 +398,23 @@ def build_snapshot(raw_game: dict[str, Any], *, fetched_at: datetime,
     else:
         tracking = "unknown"
 
+    decisions = {
+        "winning_pitcher": _person(raw_game.get("WinningPitcher")),
+        "losing_pitcher": _person(raw_game.get("LoserPitcher")),
+        "closer": _person(raw_game.get("Closer")),
+        "mvp": _person(raw_game.get("MVP")),
+    }
+    # #237：2026 起的 E／C 在官方 FINISHED 前，頂層 WinningPitcher／LoserPitcher 是賽中當下的
+    # 「責任投手」（2026-E-1 START 時實測非空），不是勝敗投決定 → 一律不輸出。
+    # 刻意只套 2026+ E／C：A／D 與更早球季的快照形狀與值維持原樣。
+    identity = _identity({"GameId": raw_game.get("GameId")})
+    if (
+        identity is not None
+        and requires_official_completion(identity[1], identity[0])
+        and phase != "final"
+    ):
+        decisions = dict.fromkeys(decisions)
+
     canonical = json.dumps(raw_game, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     snapshot = {
         "game_id": raw_game.get("GameId"),
@@ -407,12 +428,7 @@ def build_snapshot(raw_game: dict[str, Any], *, fetched_at: datetime,
         "away": away,
         "home": home,
         # 決勝：官方頂層本來就給，缺席時整個為 None（不可用空 dict 冒充「沒有決勝」）。
-        "decisions": {
-            "winning_pitcher": _person(raw_game.get("WinningPitcher")),
-            "losing_pitcher": _person(raw_game.get("LoserPitcher")),
-            "closer": _person(raw_game.get("Closer")),
-            "mvp": _person(raw_game.get("MVP")),
-        },
+        "decisions": decisions,
         "venue": (raw_game.get("Field") or {}).get("Abbe")
         if isinstance(raw_game.get("Field"), dict) else None,
         "umpires": [
@@ -511,12 +527,51 @@ class LiveGameWorker:
         fetch_game: Callable[[str], dict],
         enabled: bool = True,
         max_games_per_cycle: int = 8,
+        postseason_kinds: tuple[str, ...] = (),
     ) -> None:
         self.cache = cache
         self.fetch_schedule = fetch_schedule
         self.fetch_game = fetch_game
         self.enabled = enabled
         self.max_games_per_cycle = max_games_per_cycle
+        # #237 Phase B：額外追蹤的季後賽別（只接受 2026+ 須官方完賽判定的 E／C）。預設空＝
+        # 原 A-only 行為逐字不變；開啟時 fetch_schedule 須接受第三個參數 kind_code。
+        unsupported = [k for k in postseason_kinds if k not in POSTSEASON_OFFICIAL_KINDS]
+        if unsupported:
+            raise ValueError(f"postseason_kinds 只接受 E／C：{unsupported}")
+        self.postseason_kinds = tuple(postseason_kinds)
+
+    def _postseason_rows(
+        self, month_keys: set[tuple[int, int]], errors: list[dict[str, Any]],
+    ) -> tuple[list[dict], int]:
+        """E／C schedule：逐 (kind, 月) 各抓一次，失敗只記帳不外拋（不連坐 A）。
+
+        只保留 GameId 解析出的 (year, kind) 與請求一致、且 KindCode 欄位（若有）相符的列；
+        其餘列計入 rejected 並丟棄——後續 fetch_game 只會打 schedule 實際回傳的 GameId。
+        """
+        rows: list[dict] = []
+        rejected = 0
+        for kind in self.postseason_kinds:
+            for year, month in sorted(month_keys):
+                if not requires_official_completion(kind, year):
+                    continue
+                try:
+                    fetched = self.fetch_schedule(year, month, kind)
+                except (OSError, ValueError, httpx.HTTPError) as exc:
+                    errors.append({"kind": kind, "year": year, "month": month,
+                                   "error_type": type(exc).__name__})
+                    continue
+                for row in fetched:
+                    identity = _identity(row) if isinstance(row, dict) else None
+                    if (
+                        identity is None
+                        or identity[:2] != (year, kind)
+                        or row.get("KindCode", kind) != kind
+                    ):
+                        rejected += 1
+                        continue
+                    rows.append(row)
+        return rows, rejected
 
     def run_cycle(self, now: datetime) -> dict[str, Any]:
         if not self.enabled:
@@ -536,7 +591,13 @@ class LiveGameWorker:
                 for year, month in sorted(month_keys)
                 for row in self.fetch_schedule(year, month)
             ]
-            selected = _select_candidates(schedule_rows, now)[: self.max_games_per_cycle]
+            schedule_errors: list[dict[str, Any]] = []
+            postseason_rows, rejected_rows = self._postseason_rows(month_keys, schedule_errors)
+            # A 候選排在前面：季後列再多也不能把 A 擠出 max_games_per_cycle。
+            selected = (
+                _select_candidates(schedule_rows, now)
+                + _select_candidates(postseason_rows, now)
+            )[: self.max_games_per_cycle]
             phases: Counter[str] = Counter()
             game_summaries: list[dict[str, Any]] = []
             cached = errors = skipped_final = 0
@@ -554,6 +615,12 @@ class LiveGameWorker:
                         phases["final"] += 1
                         continue
                     raw_game = self.fetch_game(game_id)
+                    if kind in self.postseason_kinds and (
+                        raw_game.get("GameId") != game_id
+                        or raw_game.get("KindCode") != kind
+                    ):
+                        # 身分不符的 payload 不得寫進別場的 cache key（A 沿用原行為不檢）。
+                        raise ValueError("stats single-game identity mismatch")
                     detail_starts_at = _starts_at(raw_game)
                     if (
                         detail_starts_at is None
@@ -589,7 +656,12 @@ class LiveGameWorker:
                     "tracking_count": snapshot["tracking_count"],
                 })
             next_start = min((start for start in starts if start >= now), default=None)
+            extra: dict[str, Any] = {}
+            if self.postseason_kinds:
+                # 只在開啟季後追蹤時出現，A-only 的 cycle 結果形狀不變。
+                extra = {"schedule_errors": schedule_errors, "rejected_rows": rejected_rows}
             return {
+                **extra,
                 "state": "ok",
                 "selected": len(selected),
                 "cached": cached,

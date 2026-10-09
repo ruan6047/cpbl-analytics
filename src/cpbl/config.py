@@ -36,9 +36,22 @@ class Settings(BaseSettings):
     live_game_lock_ttl_seconds: int = 300
     live_game_max_games_per_cycle: int = 8
     live_game_stale_after_seconds: int = 45
+    # #237 Phase B：2026+ 季後賽別（逗號分隔，只接受 E、C）。預設空＝維持原本行為：
+    # live worker 只追 A、每日鏈只抓 A／D。值打錯在入口解析時就炸開，不靜默落回預設。
+    live_game_postseason_kinds: str = ""
+    refresh_postseason_kinds: str = ""
 
     port: int = 4001
     app_version: str = "0.1.0"
+
+
+def parse_postseason_kinds(raw: str | None) -> tuple[str, ...]:
+    """``"E,C"`` → ``("E", "C")``；空字串 → ``()``。E、C 以外（含小寫、重複）一律 ValueError。"""
+    kinds = tuple(part.strip() for part in (raw or "").split(",") if part.strip())
+    bad = [k for k in kinds if k not in ("E", "C")]
+    if bad or len(set(kinds)) != len(kinds):
+        raise ValueError(f"postseason kinds 只接受不重複的 E、C：{raw!r}")
+    return kinds
 
 
 settings = Settings()

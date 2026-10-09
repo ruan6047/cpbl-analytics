@@ -18,7 +18,7 @@
 結束碼（DATA-BOX-DEEP-SILENT-FAIL1）：
 - 0：完全成功。
 - `EXIT_INCOMPLETE_SCRAPE`（69）：**有部分步驟失敗、其餘步驟照常完成**。
-  值班判讀要看 note 才知道是哪一種——69 現在有**四個來源**：
+  值班判讀要看 note 才知道是哪一種——69 現在有**五個來源**：
   1. 逐場 gamelog 有失敗 → note 列出失敗場號、detail.gamelog_gaps。
   2. 官方球隊戰績對帳失敗（拿到別的球季／空表，已拒寫）→ note 列出
      `官方戰績未寫入：sc=N(kind)`、detail.standings_failures
@@ -27,7 +27,9 @@
      detail.pitch_type.errors；失敗那段保留上一輪標籤，其餘 kind／階段照跑。
   4. 當季衍生重建失敗（#222）→ note 列出 `當季衍生重建失敗：builder`、
      detail.derived.errors；失敗的表保留上一輪值，其餘表照跑。
-  四者都記 refresh_log ok=false；`scripts/scrape-daily.sh` 對這個碼仍會執行生產同步
+  5. 2026+ 季後 E／C 賽程更新失敗（#237；僅 REFRESH_POSTSEASON_KINDS 有設定時才會抓）→ note 列出 `季後賽程更新失敗：kind`、
+     detail.games_postseason.errors；A／D 與其餘步驟照跑。
+  五者都記 refresh_log ok=false；`scripts/scrape-daily.sh` 對這個碼仍會執行生產同步
   （Q3 裁定＝甲-2：擋同步只是把「靜默失敗」換成「生產靜默落後」）。
 - 1：硬失敗（含取 token 階段失敗＝整批一場都沒抓），同步不執行。
 
@@ -44,8 +46,13 @@ from datetime import date, timedelta
 from typing import Any
 
 from cpbl.api.helpers import OFFICIAL_SCHEDULE_ORDER_BY, official_status
-from cpbl.completion import TAIPEI_TODAY_SQL, daily_chain_completed_games_sql
-from cpbl.config import settings
+from cpbl.completion import (
+    POSTSEASON_OFFICIAL_KINDS,
+    TAIPEI_TODAY_SQL,
+    daily_chain_completed_games_sql,
+    requires_official_completion,
+)
+from cpbl.config import parse_postseason_kinds, settings
 from cpbl.db import conn, migrate
 from cpbl.ingest.championships import build_championships
 from cpbl.ingest.cpbl_advanced import AdvancedScrapeResult, scrape_advanced_result
@@ -81,6 +88,30 @@ _PA_BUILD_TIER_KINDS: dict[str, tuple[str, ...]] = {
     "major": ("A", "C", "E"),
     "farm": ("D",),
 }
+
+
+def _postseason_games_step(year: int, kinds: tuple[str, ...], scrape=None) -> dict[str, Any]:
+    """#237 Phase B：2026 起的季後 E／C 只更新 games（含既有排程 revision），fail-closed。
+
+    ``kinds`` 來自 ``settings.refresh_postseason_kinds``（預設空＝不抓，A／D 每日鏈原樣）。
+    只呼叫既有 ``scrape_games(year, year, kind)``（getgamedatas 一次一整年；不帶場次 ID，
+    官方沒公告的場次不會被請求）。⛔ 不接 gamelog／PA／splits——這些仍由各自既有步驟依
+    完賽判定決定是否涵蓋。官方回空清單（C 未公告）＝寫 0 列，不是錯誤。
+    單一賽別失敗只記帳不外拋：不得連坐 A／D 的每日鏈；由 main() 結清成 ok=false＋69。
+    """
+    scrape = scrape or scrape_games
+    out: dict[str, Any] = {"games": {}, "errors": []}
+    for kind in kinds:
+        if kind not in POSTSEASON_OFFICIAL_KINDS:
+            raise ValueError(f"季後賽別只接受 E／C：{kind!r}")
+        if not requires_official_completion(kind, year):
+            continue
+        try:
+            out["games"][kind] = scrape(year, year, kind)
+        except Exception as exc:  # noqa: BLE001 — 單一賽別失敗不連坐，見 docstring
+            log.exception("季後賽程更新失敗 kind=%s", kind)
+            out["errors"].append({"kind": kind, "error": str(exc)})
+    return out
 
 
 def _record_advanced_revisions(
@@ -783,6 +814,8 @@ def main() -> None:
     today = date.today()
     yesterday = today - timedelta(days=1)
     year = today.year
+    # 設定值打錯要在任何寫入前炸開（#237；預設空＝原 A／D 每日鏈）。
+    postseason_kinds = parse_postseason_kinds(settings.refresh_postseason_kinds)
     migrate()
 
     # PA build 失敗必須 fail-closed（不得擋住爬取/同步），故結果初始化在 try 外、
@@ -790,9 +823,12 @@ def main() -> None:
     pa_build_result: dict[str, Any] = {"games": 0, "actions": {}, "build_states": {}, "errors": []}
     pitch_type_result: dict[str, Any] = {"skipped": True, "errors": []}
     derived_result: dict[str, Any] = {"skipped": True, "errors": []}
+    postseason_result: dict[str, Any] = {"games": {}, "errors": []}
     try:
         games = scrape_games(year, year)              # 一軍例行賽賽程/結果
         games_farm = scrape_games(year, year, "D")    # 二軍賽程/結果（供二軍成績卡/逐球/戰績）
+        # 2026+ 季後 E／C 賽程/結果（明確設定才開；fail-closed）
+        postseason_result = _postseason_games_step(year, postseason_kinds)
         stats = scrape_all(year, year, year)          # 投打/團隊 + 守備一軍(A)+二軍(D)
         # 官方球隊戰績（含和局/勝差/上下半季），輕量每次更新。
         # ⚠️ 對帳失敗（拿到別的球季／空表）刻意**不外拋**：外拋會讓底下 transactions／
@@ -881,16 +917,25 @@ def main() -> None:
         note = dv_note if note is None else f"{note}；{dv_note}"
         log.error(dv_note)
 
+    # 季後 E／C 賽程更新失敗同理：A／D 照跑，結清成 ok=false＋69。
+    postseason_failed = postseason_result.get("errors") or []
+    if postseason_failed:
+        ps_note = "季後賽程更新失敗：" + "；".join(e["kind"] for e in postseason_failed)
+        note = ps_note if note is None else f"{note}；{ps_note}"
+        log.error(ps_note)
+
     total = sum(t for _, t, _ in recent)
     completed = sum(comp for _, _, comp in recent)
     detail = {
-        "games": games, "games_farm": games_farm, "stats": stats, "transactions": trans,
+        "games": games, "games_farm": games_farm, "games_postseason": postseason_result,
+        "stats": stats, "transactions": trans,
         "standings": standings, "standings_failures": standings_failed,
         "splits_built": splits_built, "incremental_detail": detail_inc, "pa_build": pa_build_result,
         "pitch_type": pitch_type_result, "derived": derived_result, "gamelog_gaps": _GAMELOG_GAPS,
         "recent": [{"date": d.isoformat(), "total": t, "completed": comp} for d, t, comp in recent],
     }
-    failed = bool(_GAMELOG_GAPS or standings_failed or pitch_type_failed or derived_failed)
+    failed = bool(_GAMELOG_GAPS or standings_failed or pitch_type_failed or derived_failed
+                  or postseason_failed)
     _log_refresh("recent-games", yesterday, today, total, completed, detail,
                  ok=not failed, note=note)
 
