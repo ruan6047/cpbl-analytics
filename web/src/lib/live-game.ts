@@ -385,6 +385,15 @@ function scoreRows(side: "1" | "2", rows: Record<string, unknown>[]): StatRow[] 
   });
 }
 
+const present = (value: unknown) => value !== null && value !== undefined && value !== "";
+
+/** 官方 PreExeDate 是台北當地無時區字串（實測 "2026-10-09T17:05:00"），取日期段即賽事日期。
+ *  只收這種無時區形狀：帶 Z／offset 時前 10 字可能是別的時區的日期，回 null 不猜、也不換算。 */
+function snapshotGameDate(snapshot: LiveSnapshot): string | null {
+  const match = /^(\d{4}-\d{2}-\d{2})(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?)?$/.exec(snapshot.starts_at ?? "");
+  return match ? match[1] : null;
+}
+
 /** 將 Redis canonical snapshot 疊到既有 DB payload；沒有 snapshot 時保持完全向後相容。 */
 export function applyLiveSnapshot(response: LiveApiResponse): LiveApiResponse {
   const snapshot = response.live_snapshot;
@@ -420,6 +429,10 @@ export function applyLiveSnapshot(response: LiveApiResponse): LiveApiResponse {
     ...response,
     game: {
       ...(response.game ?? {}),
+      // 頁首郵戳（日期＋球場）：DB 無列或該欄空（#237 E1 尚未導入）時改用 snapshot 的官方
+      // PreExeDate／Field.Abbe；DB 有值一律優先。⛔ snapshot 也沒有就維持 null，不補 completed。
+      game_date: present(response.game?.game_date) ? response.game?.game_date : snapshotGameDate(snapshot),
+      venue: present(response.game?.venue) ? response.game?.venue : snapshot.venue || null,
       year: Number(snapshot.game_id.slice(0, 4)),
       kind_code: snapshot.kind_code,
       game_sno: snapshot.game_sno,

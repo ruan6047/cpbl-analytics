@@ -615,3 +615,47 @@ test("#237 hasFinalResult：E／C 2026 只讀 completed", () => {
   assert.equal(hasFinalResult(E1), false);
   assert.equal(hasFinalResult({ ...E1, completed: true }), true);
 });
+
+// E1 snapshot 的 starts_at／venue 取自官方 2026-10-09 18:20:52 stats E schedule／game 擷取
+// （PreExeDate "2026-10-09T17:05:00"、Field.Abbe 洲際）；比分 0:3、上五局為同次觀測值。
+const e1LiveSnapshot = (overrides: Partial<LiveSnapshot> = {}) => snapshot({
+  game_id: "2026-E-1", game_sno: 1, kind_code: "E", phase: "live", raw_status: "START",
+  inning: 5, half: 1, starts_at: "2026-10-09T17:05:00", venue: "洲際", ...overrides,
+});
+
+test("#237 game:null＋E snapshot：日期與球場取 snapshot 官方值，不補 completed", () => {
+  const out = applyLiveSnapshot({ ...response(e1LiveSnapshot()), game: null });
+  assert.equal(out.game?.game_date, "2026-10-09");
+  assert.equal(out.game?.venue, "洲際");
+  assert.equal(out.game?.kind_code, "E");
+  assert.equal(out.game?.year, 2026);
+  assert.equal("completed" in (out.game ?? {}), false, "⛔ 不得從 snapshot 合成 completed");
+  // 頁面完賽判定：無 completed＝未完賽；snapshot live 時也不可顯示賽後。
+  assert.equal(officialCompletionOf(out.game ?? {}), false);
+  assert.equal(canShowPostgameConclusions(out.live_snapshot, 3, officialCompletionOf(out.game ?? {})), false);
+});
+
+test("#237 DB 有日期／球場時一律優先；DB 欄空才退回 snapshot", () => {
+  const withDb = { ...response(e1LiveSnapshot()), game: { game_date: "2026-10-10", venue: "亞太主" } };
+  const out = applyLiveSnapshot(withDb);
+  assert.equal(out.game?.game_date, "2026-10-10");
+  assert.equal(out.game?.venue, "亞太主");
+  const blankDb = { ...response(e1LiveSnapshot()), game: { game_date: null, venue: "" } };
+  const filled = applyLiveSnapshot(blankDb);
+  assert.equal(filled.game?.game_date, "2026-10-09");
+  assert.equal(filled.game?.venue, "洲際");
+});
+
+test("#237 snapshot 沒有 starts_at／venue（舊 snapshot）或格式不符時維持 null，不猜", () => {
+  // 帶時區的值不是官方現行形狀，前 10 字未必是台北日期 → 不猜。
+  for (const starts of [undefined, null, "", "10/09 17:05", "2026-10-09T23:05:00Z", "2026-10-10T01:05:00+08:00"]) {
+    const out = applyLiveSnapshot({ ...response(e1LiveSnapshot({ starts_at: starts, venue: undefined })), game: null });
+    assert.equal(out.game?.game_date, null, String(starts));
+    assert.equal(out.game?.venue, null);
+  }
+});
+
+test("#237 snapshot=null 時 applyLiveSnapshot 原樣回傳，不寫入日期／球場", () => {
+  const original = response(null);
+  assert.equal(applyLiveSnapshot(original), original);
+});
