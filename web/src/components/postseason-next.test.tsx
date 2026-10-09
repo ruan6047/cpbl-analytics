@@ -65,34 +65,29 @@ test("沒有季後公告（或已全部完成）：沿用原文案", () => {
   assert.match(t, /本季賽程已全部結束/);
 });
 
-test("季後下一場卡：日期時間、主客、球場、狀態、截至，入口連到季後總覽與日曆；公告場次不給單場連結", () => {
+// #237 首頁右欄：一行系列概況＋唯一連結直達季後總覽；下一場細節、日曆與單場入口只在季後總覽。
+const hrefs = (html: string) => html.match(/href="[^"]*"/g);
+
+test("季後入口卡：一行概況＋唯一連結到季後總覽，不重複下一場時間、主客、球場、規則勝與截至", () => {
   const j = journey("2026-10-08T12:00:00+08:00");
   const node = <PostseasonNextCard journey={j} />;
-  const html = renderToStaticMarkup(node);
   const t = text(node);
-  assert.match(t, /季後賽・下一場 季後挑戰賽 G1 公告安排 10\/09（五） 17:05/);
-  assert.match(t, /統一獅（客） 對 中信兄弟（主） 洲際/);
-  assert.match(t, /季後挑戰賽：統一 0：兄弟 1（兄弟實際勝 0＋規則勝 1）/);
-  assert.match(t, /本站尚無季後賽果紀錄，本站賽果紀錄至 10\/04。/);
-  // 可讀性：「公告安排」只在狀態徽章說一次；公告來源長句只放季後總覽的可展開區。
-  assert.equal(t.split("公告安排").length - 1, 1);
-  assert.doesNotMatch(t, /CPBL 官方/);
-  assert.match(html, /href="\/standings\?seg=3"/);
-  assert.match(html, /href="\/games\?month=2026-10"/);
-  assert.doesNotMatch(html, /href="\/games\/\d/);
-  assert.doesNotMatch(t, /賽果待更新/);
+  assert.equal(t, "季後賽 季後挑戰賽・本站尚無季後賽果紀錄 季後賽總覽 →");
+  assert.deepEqual(hrefs(renderToStaticMarkup(node)), ['href="/standings?seg=3"']);
+  assert.doesNotMatch(t, /10\/09|17:05|洲際|（客）|規則勝|賽果紀錄至|待更新/);
 });
 
-test("季後下一場卡：已過開賽時間仍無賽果 → 賽果待更新，下一場前進到下一個公告場次", () => {
+test("季後入口卡：已過開賽時間仍無賽果 → 照實說部分場次賽果待更新，不列單場細節", () => {
   const j = journey("2026-10-09T21:00:00+08:00");
-  const t = text(<PostseasonNextCard journey={j} />);
-  assert.match(t, /季後挑戰賽 G2 公告安排 10\/10（六） 17:05/);
-  assert.match(t, /中信兄弟（客） 對 統一獅（主） 亞太主/);
-  assert.match(t, /季後挑戰賽 G1 10\/09（五） 17:05：賽果待更新（已過預定開賽時間・本站尚無賽果紀錄）/);
+  const node = <PostseasonNextCard journey={j} />;
+  const t = text(node);
+  assert.equal(t, "季後賽 季後挑戰賽・本站尚無季後賽果紀錄・部分場次賽果待更新 季後賽總覽 →");
+  assert.deepEqual(hrefs(renderToStaticMarkup(node)), ['href="/standings?seg=3"']);
+  assert.doesNotMatch(t, /G\d|10\/09|10\/10/);
 });
 
-// #237 單場賽況入口：資料庫沒有 E1 列、單場狀態身分相符時，待更新那一行給單場頁連結，
-// 並明說整體賽果待更新；系列進度與截至一句不變。快照值為 SYNTHETIC（形狀同 19:25 RECORDED）。
+// #237 單場賽況入口（slot.liveEntry）只在季後總覽呈現；首頁卡不給單場連結、不轉述單場狀態。
+// 快照值為 SYNTHETIC（形狀同 19:25 RECORDED）。
 const e1Status = (phase: string): LiveEntryStatus => ({
   season: 2026, kind_code: "E", game_sno: 1, canonical_phase: phase,
   live_snapshot: {
@@ -100,21 +95,17 @@ const e1Status = (phase: string): LiveEntryStatus => ({
     away: { team: { code: "ADD011" } }, home: { team: { code: "ACN011" } },
   },
 });
-const E1_HREF = /href="\/games\/1\?kind=E&amp;year=2026"/g;
 
-test("季後下一場卡：E1 有單場入口 → 待更新行給單場頁連結且只有一個，系列與截至不變", () => {
+test("季後入口卡：E1 有單場入口 → 卡片內容與連結不變，仍只連季後總覽", () => {
   const base = journey("2026-10-09T19:25:00+08:00");
+  const plain = text(<PostseasonNextCard journey={base} />);
   for (const phase of ["live", "final"]) {
     const j = withLiveEntries(base, { E1: e1Status(phase) });
     const html = renderToStaticMarkup(<PostseasonNextCard journey={j} />);
     const t = text(<PostseasonNextCard journey={j} />);
-    assert.equal(html.match(E1_HREF)?.length, 1, `${phase}：E1 連結恰一個`);
-    assert.match(t, /季後挑戰賽 G1 10\/09（五） 17:05：整體賽果待更新，可查看單場賽況/);
-    assert.match(t, /季後挑戰賽 G2 公告安排/);
-    const plain = text(<PostseasonNextCard journey={base} />);
-    const tail = (s: string) => s.slice(s.indexOf("季後挑戰賽：統一"));
-    assert.equal(tail(t).replace(/ 單場賽況 →/, ""), tail(plain), `${phase}：系列進度與截至一句不變`);
-    assert.doesNotMatch(t, /終場|比賽進行中/, "總覽不轉述單場狀態");
+    assert.deepEqual(hrefs(html), ['href="/standings?seg=3"'], `${phase}：只有季後總覽連結`);
+    assert.equal(t, plain, `${phase}：內容不變`);
+    assert.doesNotMatch(t, /終場|比賽進行中|單場賽況/, "首頁卡不轉述單場狀態");
   }
-  assert.doesNotMatch(renderToStaticMarkup(<PostseasonNextCard journey={withLiveEntries(base, { E1: null })} />), /href="\/games\/\d/);
+  assert.doesNotMatch(renderToStaticMarkup(<PostseasonNextCard journey={withLiveEntries(base, { E1: null })} />), /href="\/games/);
 });

@@ -1,21 +1,9 @@
 import Link from "next/link";
-import { StatusBadge, TeamLogo, type StatusTone } from "@/components/ui";
-import type { PostseasonJourney, SlotStatus } from "@/lib/postseason-journey";
-import {
-  POSTSEASON_COPY,
-  journeyAsOfText,
-  seriesProgressText,
-  slotVenueText,
-  slotWhen,
-} from "@/lib/postseason-journey";
+import type { PostseasonJourney } from "@/lib/postseason-journey";
 
-// 首頁的季後下一場卡（#237）。只吃共用旅程模型，與季後總覽、日曆同一份安排。
-// 公告場次沒有官方場號 → 不給單場連結；入口一律指向季後總覽與日曆。例外是 E 場次經單場狀態
-// 身分比對的單場賽況入口（slot.liveEntry）：只給連結並說明整體賽果待更新，系列進度與截至一句不變。
-
-const TONE: Record<SlotStatus, StatusTone> = {
-  final: "done", scheduled: "scheduled", announced: "scheduled", result_pending: "warn", not_needed: "done",
-};
+// 首頁戰績右側的季後入口卡（#237）。只吃共用旅程模型：一行系列概況＋一個直達季後總覽的入口。
+// 下一場時間、主客、球場、待更新細節、單場與日曆入口都只在季後總覽呈現，首頁不重複 DailyHub。
+// 概況不轉述比分（規則勝會被讀成已打的勝場），資料缺漏照實說。
 
 export const POSTSEASON_HUB_HREF = "/standings?seg=3";
 
@@ -30,66 +18,28 @@ export function postseasonPointer(j: PostseasonJourney | null): { text: string; 
   return { text: "例行賽已結束，季後賽仍在進行", href: POSTSEASON_HUB_HREF };
 }
 
+/** 一行系列概況：系列名、是否已分勝負、本站季後賽果場數、是否有場次賽果待更新。 */
+function seriesBrief(j: PostseasonJourney): string {
+  const s = j.series.E.status === "decided" ? j.series.C : j.series.E;
+  return [
+    s.name,
+    s.status === "decided" ? "系列已分勝負" : null,
+    j.recordedGames > 0 ? `本站季後賽果 ${j.recordedGames} 場` : "本站尚無季後賽果紀錄",
+    j.slots.some((x) => x.status === "result_pending") ? "部分場次賽果待更新" : null,
+  ].filter(Boolean).join("・");
+}
+
 export function PostseasonNextCard({ journey }: { journey: PostseasonJourney }) {
-  const n = journey.next;
-  const ann = journey.announcement;
-  const s = journey.series.E.status === "decided" ? journey.series.C : journey.series.E;
-  // 已過開賽時間仍無賽果的其他場次：下一場前進後仍要明說，避免把系列進度讀成最新賽況。
-  const pending = journey.slots.filter((x) => x.status === "result_pending" && x !== n);
   return (
     <section aria-labelledby="ps-next-h" className="rounded-md bg-surface p-4">
-      <h2 id="ps-next-h" className="mb-2 text-base font-bold text-ink">季後賽・下一場</h2>
-      {n ? (
-        <div className="space-y-1.5">
-          <p className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="font-bold">{n.kind === "E" ? ann.series.E.name : ann.series.C.name} G{n.seq}</span>
-            <StatusBadge tone={TONE[n.status]}>{POSTSEASON_COPY.status[n.status]}</StatusBadge>
-            {n.conditional && <span className="pm-tag">{POSTSEASON_COPY.conditional}</span>}
-          </p>
-          <p className="text-[15px] font-bold tabular-nums text-ink">{slotWhen(n)}</p>
-          <p className="flex flex-wrap items-center gap-1.5 text-sm text-ink">
-            {n.awayCode && <TeamLogo code={n.awayCode} name={n.awayLabel} size={18} decorative />}
-            <span>{n.awayLabel}（客）</span>
-            <span className="text-faint">對</span>
-            {n.homeCode && <TeamLogo code={n.homeCode} name={n.homeLabel} size={18} decorative />}
-            <span>{n.homeLabel}（主）</span>
-          </p>
-          <p className="text-[13px] text-muted">{slotVenueText(n)}</p>
-          {n.status === "result_pending" && (
-            <p className="text-xs text-down">{n.liveEntry ? POSTSEASON_COPY.liveEntryPending : "已過預定開賽時間・本站尚無賽果紀錄"}</p>
-          )}
-          {n.changeNote && <p className="text-xs text-down">{n.changeNote}</p>}
-        </div>
-      ) : (
-        <p className="text-sm text-muted">本站紀錄中已無未完成的季後場次。</p>
-      )}
-      {pending.length > 0 && (
-        <p className="mt-3 text-xs text-down">
-          {pending[0].kind === "E" ? ann.series.E.name : ann.series.C.name} G{pending[0].seq} {slotWhen(pending[0])}
-          {pending.length > 1 ? ` 等 ${pending.length} 場` : ""}：{pending[0].liveEntry
-            ? POSTSEASON_COPY.liveEntryPending
-            : `${POSTSEASON_COPY.status.result_pending}（已過預定開賽時間・本站尚無賽果紀錄）`}
-        </p>
-      )}
-      {pending.filter((x) => x.liveEntry && x.href).map((x) => (
-        <Link key={x.key} href={x.href!} className="inline-flex min-h-11 items-center text-sm text-accent hover:underline">
-          {x.kind === "E" ? ann.series.E.name : ann.series.C.name} G{x.seq} {POSTSEASON_COPY.liveEntryLink}
-        </Link>
-      ))}
-      <p className="mt-3 text-[13px] font-medium text-ink">{s.name}：{seriesProgressText(s)}</p>
-      <div className="mt-2 flex flex-wrap gap-x-4">
-        {n?.href && (
-          <Link href={n.href} className="inline-flex min-h-11 items-center text-sm text-accent hover:underline">單場頁 →</Link>
-        )}
-        <Link href={POSTSEASON_HUB_HREF} className="inline-flex min-h-11 items-center text-sm text-accent hover:underline">
-          系列與晉級條件 →
-        </Link>
-        <Link href={postseasonCalendarHref(journey)} className="inline-flex min-h-11 items-center text-sm text-accent hover:underline">
-          季後賽程日曆 →
-        </Link>
-      </div>
-      {/* 公告來源與核對細節放在季後總覽的說明區；首頁卡只留讀者判斷新鮮度需要的截至一句。 */}
-      <p className="mt-2 text-[11.5px] leading-relaxed text-muted">{journeyAsOfText(journey)}。</p>
+      <h2 id="ps-next-h" className="mb-1 text-base font-bold text-ink">季後賽</h2>
+      <p className="break-words text-[13px] text-muted">{seriesBrief(journey)}</p>
+      <Link
+        href={POSTSEASON_HUB_HREF}
+        className="mt-2 inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        季後賽總覽 →
+      </Link>
     </section>
   );
 }
