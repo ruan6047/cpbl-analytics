@@ -80,6 +80,19 @@ def wired(monkeypatch):
     monkeypatch.setattr(rr, "_pitchers_of_games", _forbid("_pitchers_of_games"))
     state["frozen"] = set()
     monkeypatch.setattr(rr, "is_frozen", lambda year, kind_code, sno: sno in state["frozen"])
+    state["lagging"] = {}
+    monkeypatch.setattr(rr, "_lagging_pitch_games",
+                        lambda year, kind_code: set(state["lagging"].get(kind_code, ())))
+
+    def game_pitches(games, delay=1.0):
+        [(_, kind_code, sno)] = games  # E／C 路徑必為單場呼叫
+        state["calls"].append(("pitches", kind_code, [sno]))
+        if state["pitches_out"] is not None:
+            res = state["pitches_out"]
+            return dict(res(sno) if callable(res) else res)
+        return {"games": 1, "pitches": 0, "skipped_frozen": 0, "pitcher_flags": 1}
+
+    monkeypatch.setattr(rr, "scrape_game_pitches", game_pitches)
 
     def completed(year, days, kind_code="A"):
         state["calls"].append(("completed", kind_code))
@@ -229,7 +242,9 @@ def test_e_and_c_snos_isolated(wired):
     wired["completed"] = {"E": [1, 2], "C": [1]}
     rr._postseason_detail_step(YEAR, ("E", "C"), DAYS)
     assert _source_calls(wired) == [
-        ("gamelog", "E", [1, 2], True), ("details", "E", [1, 2]), ("pitches", "E", [1, 2]),
+        ("gamelog", "E", [1], True), ("gamelog", "E", [2], True),
+        ("details", "E", [1]), ("details", "E", [2]),
+        ("pitches", "E", [1]), ("pitches", "E", [2]),
         ("gamelog", "C", [1], True), ("details", "C", [1]), ("pitches", "C", [1]),
     ]
     assert [c[:3] for c in wired["calls"] if c[0] == "after"] == [
@@ -242,8 +257,9 @@ def test_window_and_missing_deduped_single_send(wired):
     wired["missing"] = {"E": [1, 2]}
     out = rr._postseason_detail_step(YEAR, ("E",), DAYS)
     assert _source_calls(wired) == [
-        ("gamelog", "E", [1, 2, 3], True), ("details", "E", [1, 2, 3]),
-        ("pitches", "E", [1, 2, 3]),
+        *[("gamelog", "E", [s], True) for s in (1, 2, 3)],
+        *[("details", "E", [s]) for s in (1, 2, 3)],
+        *[("pitches", "E", [s]) for s in (1, 2, 3)],
     ]
     assert out["games"]["E"]["window"] == 2
     assert out["games"]["E"]["completed_games"] == 3
@@ -251,16 +267,18 @@ def test_window_and_missing_deduped_single_send(wired):
 
 def test_partial_gamelog_ledgered_and_reselected_next_run(wired):
     wired["completed"] = {"E": [1, 2]}
-    wired["gamelog"] = lambda kind, snos: _gamelog_result(kind, snos, failed=(2,))
+    wired["gamelog"] = lambda kind, snos: _gamelog_result(
+        kind, snos, failed=tuple(s for s in snos if s == 2))
     wired["after"] = {"E": {2: ["batting_gamelog", "pitching_gamelog",
                                 "game_livelog", "game_scoreboard"]}}
     out = rr._postseason_detail_step(YEAR, ("E",), DAYS)
     (gap,) = wired["gaps"]
     assert gap["kind_code"] == "E" and gap["failed"] == [2]
     assert "季後明細" in gap["why"]
-    assert [e["stage"] for e in out["errors"]] == ["detail_missing"]
+    assert [e["stage"] for e in out["errors"]] == ["detail_missing", "detail_source"]
+    assert "2026/E/2:gamelog.livelog=0" in out["errors"][1]["error"]
     assert out["games"]["E"]["missing"][0]["game_sno"] == 2
-    assert ("details", "E", [1, 2]) in wired["calls"]  # 部分失敗不中止同賽別其餘明細
+    assert ("details", "E", [1]) in wired["calls"]  # 部分失敗不中止同賽別其餘明細
     # 下一次排程：窗已過、DB 仍缺 → 缺明細查詢選出 2，只重抓 2
     wired["calls"].clear()
     wired["completed"], wired["missing"], wired["after"] = {}, {"E": [2]}, {}
@@ -283,7 +301,7 @@ def test_zero_row_sources_are_recorded_as_missing_not_complete(wired):
     err = by_stage["detail_missing"]
     assert err["kind"] == "E"
     assert "game_detail" in err["error"] and "pitching_game_flags" in err["error"]
-    assert "game_details=0/1" in by_stage["detail_source"]["error"]
+    assert "2026/E/1:game_details=0" in by_stage["detail_source"]["error"]
     assert out["games"]["E"]["missing"] == [
         {"game_sno": 1, "tables": ["game_detail", "pitching_game_flags"]},
     ]
@@ -340,7 +358,7 @@ def test_game_mode_does_not_query_pitchers(wired):
     wired["completed"] = {"E": [1]}
     out = rr._postseason_detail_step(YEAR, ("E",), DAYS)  # fixture 令 _pitchers_of_games 一呼即炸
     assert out["errors"] == []
-    assert wired["day_pitchers"] == [[]]
+    assert wired["day_pitchers"] == []  # game 模式逐場直呼 scrape_game_pitches，不走 _refresh_pitches
 
 
 def test_one_kind_failure_does_not_block_other(wired):
@@ -380,3 +398,110 @@ def test_frozen_games_not_expected_and_zero_trackman_pitches_accepted(wired):
     out = rr._postseason_detail_step(YEAR, ("E",), DAYS)
     assert out["games"]["E"]["pitches"]["pitches"] == 0
     assert out["errors"] == []
+
+
+def test_day_target_failure_not_offset_by_lagging_success(wired):
+    # 反例：當日 E2 API 失敗（scrape_game_pitches 略過 → games=0），lagging E1 成功；
+    # 批次聚合 games=1／flags=1 會抵銷 expected=1。DB 舊列齊（gaps={}）也不得遮住。
+    wired["completed"] = {"E": [2]}
+    wired["lagging"] = {"E": {1}}
+    wired["pitches_out"] = lambda sno: (
+        {"games": 1, "pitches": 0, "skipped_frozen": 0, "pitcher_flags": 1} if sno == 1
+        else {"games": 0, "pitches": 0, "skipped_frozen": 0, "pitcher_flags": 0})
+    out = rr._postseason_detail_step(YEAR, ("E",), DAYS)
+    assert out["games"]["E"]["missing"] == []
+    (err,) = out["errors"]
+    assert err["stage"] == "detail_source"
+    assert "2026/E/2:pitch_games=0" in err["error"]
+    assert "2026/E/1" not in err["error"]
+
+
+def test_one_of_two_targets_flags_zero_not_offset_by_other(wired):
+    wired["completed"] = {"E": [1, 2]}
+    wired["pitches_out"] = lambda sno: {"games": 1, "pitches": 0, "skipped_frozen": 0,
+                                        "pitcher_flags": 0 if sno == 1 else 3}
+    out = rr._postseason_detail_step(YEAR, ("E",), DAYS)
+    (err,) = out["errors"]
+    assert err["stage"] == "detail_source"
+    assert "2026/E/1:pitcher_flags=0" in err["error"]
+    assert "2026/E/2" not in err["error"]
+
+
+def test_one_of_two_gamelog_source_zero_not_offset_by_other(wired):
+    wired["completed"] = {"E": [1, 2]}
+    wired["gamelog"] = lambda kind, snos: {**_gamelog_result(kind, snos),
+                                           **({"livelog": 0} if snos == [1] else {})}
+    out = rr._postseason_detail_step(YEAR, ("E",), DAYS)
+    (err,) = out["errors"]
+    assert "2026/E/1:gamelog.livelog=0" in err["error"]
+    assert "2026/E/2" not in err["error"]
+
+
+def test_mixed_frozen_and_lagging_each_target_requested_once(wired):
+    wired["completed"] = {"E": [1, 2]}
+    wired["missing"] = {"E": [2]}
+    wired["lagging"] = {"E": {2, 3, 4}}
+    wired["frozen"] = {4}
+    out = rr._postseason_detail_step(YEAR, ("E",), DAYS)
+    pitch_calls = [c for c in wired["calls"] if c[0] == "pitches"]
+    assert pitch_calls == [("pitches", "E", [1]), ("pitches", "E", [2]), ("pitches", "E", [3])]
+    pitches = out["games"]["E"]["pitches"]
+    assert pitches["skipped_frozen"] == 1 and pitches["lagging_games"] == 2
+    assert out["errors"] == []
+
+
+def test_pitcher_fallback_marked_unchecked_not_game_success(wired, monkeypatch):
+    monkeypatch.setattr(rr, "settings", SimpleNamespace(pitch_ingest="pitcher"))
+    monkeypatch.setattr(rr, "_pitchers_of_games", lambda year, kind_code, snos: set())
+    monkeypatch.setattr(rr, "scrape_game_pitches", _forbid("scrape_game_pitches"))
+    wired["completed"] = {"E": [1]}
+    out = rr._postseason_detail_step(YEAR, ("E",), DAYS)
+    assert out["games"]["E"]["pitches"]["per_game_source"] == "unchecked"
+
+
+def test_regular_season_refresh_pitches_still_batches(monkeypatch):
+    # A／D 原 `_refresh_pitches` 不變：當日窗 ∪ lagging 單次批送
+    sent: list = []
+    monkeypatch.setattr(rr, "settings", SimpleNamespace(pitch_ingest="game"))
+    monkeypatch.setattr(rr, "_lagging_pitch_games", lambda year, kind_code: {3})
+    monkeypatch.setattr(rr, "is_frozen", lambda year, kind_code, sno: False)
+    monkeypatch.setattr(rr, "scrape_game_pitches",
+                        lambda games, delay: sent.append(list(games)) or {"games": 2, "pitches": 0})
+    out = rr._refresh_pitches(YEAR, "A", [1], [], 0.0)
+    assert sent == [[(YEAR, "A", 1), (YEAR, "A", 3)]]
+    assert out["mode"] == "game" and out["lagging_games"] == 1
+
+
+def test_real_scrape_game_pitches_chain_e1_http_error_not_offset_by_e2(wired, monkeypatch):
+    # 真 helper 鏈反例：只 mock 網路與 parse／upsert；day E1 API 失敗、lagging E2 成功、DB gaps={}
+    from cpbl.ingest import cpbl_pitch_tracking as pt
+
+    fetched: list[int] = []
+
+    class _Client:
+        def close(self) -> None:
+            pass
+
+    def fetch(client, year, kind_code, sno):
+        fetched.append(sno)
+        if sno == 1:
+            raise pt.httpx.HTTPError("syn E1")
+        return {"LiveLog": []}
+
+    monkeypatch.setattr(pt, "_client", lambda: _Client())
+    monkeypatch.setattr(pt, "_fetch_game", fetch)
+    monkeypatch.setattr(pt, "is_frozen", lambda year, kind_code, sno: False)
+    monkeypatch.setattr(pt, "parse_pitches", lambda logs, kind_code: [])
+    monkeypatch.setattr(pt, "_upsert", lambda rows: 0)
+    monkeypatch.setattr(pt, "parse_pitcher_flags", lambda game, year, kind_code, sno: [object()])
+    monkeypatch.setattr(pt, "_upsert_pitcher_flags", lambda flags: len(flags))
+    monkeypatch.setattr(rr, "scrape_game_pitches", pt.scrape_game_pitches)
+    wired["completed"] = {"E": [1]}
+    wired["lagging"] = {"E": {2}}
+    out = rr._postseason_detail_step(YEAR, ("E",), DAYS, delay=0.0)
+    assert fetched == [1, 2]  # 每個目標恰一次、無重試
+    pitches = out["games"]["E"]["pitches"]
+    assert pitches["games"] == 1 and pitches["pitcher_flags"] == 1  # 聚合看似「足」
+    (err,) = out["errors"]
+    assert err["stage"] == "detail_source"
+    assert "2026/E/1:pitch_games=0" in err["error"] and "2026/E/2" not in err["error"]

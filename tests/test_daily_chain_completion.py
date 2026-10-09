@@ -60,7 +60,10 @@ def test_daily_chain_uses_only_the_daily_helper() -> None:
     src = Path(__file__).resolve().parents[1] / "src/cpbl/ingest/run_refresh_recent.py"
     code = src.read_text(encoding="utf-8")
     assert re.findall(r"(?<!daily_chain_)completed_games_sql\(", code) == []
-    assert code.count("daily_chain_completed_games_sql(") == 7
+    # 既有 7 個選場點＋#237 季後缺明細選場點恰一處（只在 _missing_postseason_detail_snos）
+    assert code.count("daily_chain_completed_games_sql(") == 8
+    helper = code.split("def _missing_postseason_detail_snos(", 1)[1].split("\ndef ", 1)[0]
+    assert helper.count("daily_chain_completed_games_sql(") == 1
 
 
 # ────────────────────────────────── 隔離 Postgres：SQL 語意
