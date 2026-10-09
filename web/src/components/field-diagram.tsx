@@ -14,7 +14,7 @@ import {
 export type { FieldCellContent, FieldCells, FieldPosition } from "./field-diagram-layout";
 export { POSITION_LABEL } from "./field-diagram-layout";
 
-export function FieldDiagram({ cells, designatedHitter, caption = "守備位置", ariaLabel, className }: {
+export function FieldDiagram({ cells, designatedHitter, caption = "守備位置", ariaLabel, className, onSelect }: {
   /** 守位 → 顯示內容。未列出的守位以「無資料」樣式呈現，不會消失。 */
   cells: FieldCells;
   /** 指定打擊不屬於守備位置；提供時另列於捕手旁。 */
@@ -24,6 +24,8 @@ export function FieldDiagram({ cells, designatedHitter, caption = "守備位置"
   /** 覆寫整段 aria-label；預設由 cells 自動敘述。 */
   ariaLabel?: string;
   className?: string;
+  /** 報告選手面板入口；未提供時維持原本實體連結。 */
+  onSelect?: (cell: FieldCellContent) => void;
 }) {
   const laid = layoutCells(cells);
   const allCells = designatedHitter ? [...laid, layoutDesignatedHitter(designatedHitter)] : laid;
@@ -103,14 +105,19 @@ export function FieldDiagram({ cells, designatedHitter, caption = "守備位置"
     </svg>
     {/* 可點格位：以 HTML 連結覆蓋於 SVG 之上（SVG <a> 不穩、且不進無障礙樹），
         座標由 viewBox 換算百分比，與 svg 同框對齊。 */}
-    {links.map((c) => (
-      <Link key={c.code} href={c.href!} aria-label={c.main}
-        className="absolute rounded-md transition hover:bg-accent/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
-        style={{
+    {links.map((c) => {
+      const props = {
+        "aria-label": c.main,
+        className: "absolute rounded-md transition hover:bg-accent/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+        style: {
           left: `${(c.x / VIEW_W) * 100}%`, top: `${(c.y / VIEW_H) * 100}%`,
           width: `${(c.w / VIEW_W) * 100}%`, height: `${(c.h / VIEW_H) * 100}%`,
-        }} />
-    ))}
+        },
+      };
+      return onSelect
+        ? <button key={c.code} type="button" aria-haspopup="dialog" {...props} onClick={() => onSelect({ main: c.main, href: c.href })} />
+        : <Link key={c.code} href={c.href!} {...props} />;
+    })}
     </div>
   );
 }

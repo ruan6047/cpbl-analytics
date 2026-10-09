@@ -735,21 +735,25 @@ def matchups(
 def player_traits(player_id: str, season: int = Query(DEFAULT_SEASON),
                   role: str = Query("batting", pattern="^(batting|pitching)$")) -> dict:
     """選手特性（livelog 推算）：P/PA 耗球、滾飛比、方向傾向、兩好球後表現 + 聯盟均值。"""
+    with conn() as c:
+        return _player_traits(c.cursor(), player_id, season, role)
+
+
+def _player_traits(cur, player_id: str, season: int, role: str) -> dict:
+    """共用同一讀取交易；報告不再逐人開第二條連線。"""
     table = "batter_traits" if role == "batting" else "pitcher_traits"
     pa_col = "pa" if role == "batting" else "bf"
-    with conn() as c:
-        cur = c.cursor()
-        cur.execute(  # noqa: S608 — table 白名單如上
-            f"SELECT * FROM cpbl.{table} WHERE player_id=%s AND year=%s AND kind_code='A'",
-            (player_id, season))
-        rows = _dicts(cur)
-        cur.execute(  # 聯盟均值（有效樣本：打者 100 PA / 投手 100 BF）
-            f"SELECT round(avg(p_pa)::numeric, 2), "  # noqa: S608
-            f"round(avg(go::numeric / nullif(fo, 0)), 2), "
-            f"round(avg(100.0 * two_strike_k / nullif(two_strike_pa, 0)), 1) "
-            f"FROM cpbl.{table} WHERE year=%s AND kind_code='A' AND {pa_col} >= 100",
-            (season,))
-        lg = cur.fetchone()
+    cur.execute(  # noqa: S608 — table 白名單如上
+        f"SELECT * FROM cpbl.{table} WHERE player_id=%s AND year=%s AND kind_code='A'",
+        (player_id, season))
+    rows = _dicts(cur)
+    cur.execute(  # 聯盟均值（有效樣本：打者 100 PA / 投手 100 BF）
+        f"SELECT round(avg(p_pa)::numeric, 2), "  # noqa: S608
+        f"round(avg(go::numeric / nullif(fo, 0)), 2), "
+        f"round(avg(100.0 * two_strike_k / nullif(two_strike_pa, 0)), 1) "
+        f"FROM cpbl.{table} WHERE year=%s AND kind_code='A' AND {pa_col} >= 100",
+        (season,))
+    lg = cur.fetchone()
     me = rows[0] if rows else None
     if me:
         me["go_fo"] = round(me["go"] / me["fo"], 2) if me.get("fo") else None

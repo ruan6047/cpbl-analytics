@@ -15,6 +15,7 @@
 // 兩層皆不成立時**停在賽中態**，嚴禁以時間推斷硬切完賽。
 
 import Link from "next/link";
+import { recapReportLink } from "@/lib/between-games";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { detail } from "@/lib/client";
@@ -303,6 +304,7 @@ export default function GameLivePage() {
   return (
     <div>
       <GameHead g={g} sno={sno} kind={String(g.kind_code ?? kind)} />
+      {recapReportLink(completed, sno, kind, g.year) && <div className="mb-4 flex justify-end"><Link href={recapReportLink(completed, sno, kind, g.year)!} className="min-h-11 py-3 text-sm font-semibold text-accent underline">場間報告：下一場兩隊背景</Link></div>}
       {liveInterrupted && (
         <Notice className="mb-3" label="更新中斷">
           即時更新暫時中斷；畫面保留最後一次成功賽況，恢復連線後會自動續接。
