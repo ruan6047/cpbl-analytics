@@ -219,10 +219,17 @@ export function refreshCopy(status: RefreshStatus): { label: string; tone: Fresh
  *  釘死時區後兩邊必然一致，時刻也才是台灣讀者看得懂的那一個。 */
 const TAIPEI = "Asia/Taipei";
 
-/** ISO 時刻 → 台北的 `YYYY-MM-DD` 與 `HH:mm`；無法解析回 null。 */
+/** 無 offset 的 ISO 日期時刻（官方 PreExeDate 原樣）。只認 `T` 分隔＋時分(秒(小數))；
+ *  date-only 不在此列，沿既有 Date.parse 語意。 */
+const NAIVE_ISO_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/;
+
+/** ISO 時刻 → 台北的 `YYYY-MM-DD` 與 `HH:mm`；無法解析回 null。
+ *  裸 ISO 日期時刻明確視為台北牆上時刻（補 `+08:00`；台北現代無 DST），否則
+ *  `Date.parse` 會依執行環境時區解讀，造成 SSR(UTC) 與瀏覽器(台北) 不一致（#237）。
+ *  帶 offset／`Z` 的仍是「同一瞬間 → 台北」。 */
 export function taipeiParts(iso: string | null): { date: string; time: string } | null {
   if (!iso) return null;
-  const ms = Date.parse(iso);
+  const ms = Date.parse(NAIVE_ISO_DATETIME.test(iso) ? `${iso}+08:00` : iso);
   if (!Number.isFinite(ms)) return null;
   const at = new Date(ms);
   return {
