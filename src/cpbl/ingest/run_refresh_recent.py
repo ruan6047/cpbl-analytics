@@ -95,7 +95,8 @@ def _postseason_games_step(year: int, kinds: tuple[str, ...], scrape=None) -> di
 
     ``kinds`` 來自 ``settings.refresh_postseason_kinds``（預設空＝不抓，A／D 每日鏈原樣）。
     只呼叫既有 ``scrape_games(year, year, kind)``（getgamedatas 一次一整年；不帶場次 ID，
-    官方沒公告的場次不會被請求）。⛔ 不接 gamelog／PA／splits——這些仍由各自既有步驟依
+    官方沒公告的場次不會被請求）。⛔ 本步驟不接 gamelog／PA／splits：完成場明細由
+    ``_postseason_detail_step`` 接手（main() 於 PA build 前呼叫），PA 仍由既有步驟依
     完賽判定決定是否涵蓋。官方回空清單（C 未公告）＝寫 0 列，不是錯誤。
     單一賽別失敗只記帳不外拋：不得連坐 A／D 的每日鏈；由 main() 結清成 ok=false＋69。
     """
@@ -257,6 +258,148 @@ def _refresh_pitches(year: int, kind_code: str, day_snos: list[int],
         out = (scrape_pitches(acnts, year, kind_code=kind_code, delay=delay)
                if acnts else {"pitchers": 0, "pitches": 0})
     return {**out, "mode": mode, "lagging_games": len(lagging)}
+
+
+# #237：季後明細的核心來源表（已核實公開 schema；各表皆以 year／kind_code／game_sno 對場）。
+# 任一表缺列即視為未補齊，下一次排程由 `_missing_postseason_detail_snos` 重新選出。只供 E／C；
+# A／D 的 `_missing_gamelog_snos`（batting-only）不變。逐球 pitch_tracking 官方可能 0 球，故不列入。
+_POSTSEASON_CORE_DETAIL_TABLES: tuple[str, ...] = (
+    "batting_gamelog", "pitching_gamelog", "game_livelog", "game_scoreboard",
+    "game_detail", "pitching_game_flags",
+)
+# 只有逐球步驟（full）才會寫的核心表：fast 不跑逐球，故 fast 不以這些表判齊或判缺。
+_POSTSEASON_PITCH_STEP_TABLES: tuple[str, ...] = ("pitching_game_flags",)
+_POSTSEASON_FAST_DETAIL_TABLES: tuple[str, ...] = tuple(
+    t for t in _POSTSEASON_CORE_DETAIL_TABLES if t not in _POSTSEASON_PITCH_STEP_TABLES
+)
+_SAME_GAME_SQL = "x.year = g.year AND x.kind_code = g.kind_code AND x.game_sno = g.game_sno"
+
+
+def _missing_postseason_detail_snos(
+    year: int, kind_code: str, tables: tuple[str, ...] = _POSTSEASON_CORE_DETAIL_TABLES,
+) -> list[int]:
+    """季後 E／C 本季已完成、但 ``tables`` 任一缺列的場（#237）。
+
+    完成判準與 `_missing_gamelog_snos` 相同（`daily_chain_completed_games_sql`），
+    scheduled／reserved 不會被挑出。只接受 E／C：A／D 仍走原 batting-only 補缺。
+    """
+    if kind_code not in POSTSEASON_OFFICIAL_KINDS:
+        raise ValueError(f"季後賽別只接受 E／C：{kind_code!r}")
+    # 表名來自模組常數（非外部輸入）；值一律參數化。
+    missing_any = " OR ".join(
+        f"NOT EXISTS (SELECT 1 FROM cpbl.{t} x WHERE {_SAME_GAME_SQL})" for t in tables
+    )
+    with conn() as c:
+        rows = c.execute(
+            f"""
+            SELECT g.game_sno FROM cpbl.games g
+            WHERE g.year = %s AND g.kind_code = %s AND {daily_chain_completed_games_sql('g')}
+              AND ({missing_any})
+            ORDER BY g.game_sno
+            """,
+            (year, kind_code),
+        ).fetchall()
+    return [r[0] for r in rows]
+
+
+def _postseason_detail_gaps(year: int, kind_code: str, snos: list[int],
+                            tables: tuple[str, ...]) -> dict[int, list[str]]:
+    """抓取後的據實對帳：``snos`` 各場寫入後仍缺列的核心表（#237）。
+
+    來源回 0 列（HTML 明細空、官方 stats 0 場／0 flags、gamelog 四陣列空）不一定拋錯；
+    本函式不讀、不推定任何回傳計數，一律以寫入後 DB 的列存在性判定。
+    """
+    if kind_code not in POSTSEASON_OFFICIAL_KINDS:
+        raise ValueError(f"季後賽別只接受 E／C：{kind_code!r}")
+    if not snos:
+        return {}
+    cols = ", ".join(
+        f"NOT EXISTS (SELECT 1 FROM cpbl.{t} x WHERE {_SAME_GAME_SQL})" for t in tables
+    )
+    with conn() as c:
+        rows = c.execute(
+            f"SELECT g.game_sno, {cols} FROM cpbl.games g "
+            "WHERE g.year = %s AND g.kind_code = %s AND g.game_sno = ANY(%s) ORDER BY g.game_sno",
+            (year, kind_code, list(snos)),
+        ).fetchall()
+    return {r[0]: [t for t, miss in zip(tables, r[1:], strict=True) if miss]
+            for r in rows if any(r[1:])}
+
+
+def _postseason_detail_step(year: int, kinds: tuple[str, ...], days: list[date], *,
+                            full: bool = True, delay: float = 1.2) -> dict[str, Any]:
+    """#237：季後 E／C 完成場的逐場明細（gamelog＋觀眾/裁判/時長＋逐球），fail-closed。
+
+    僅在 ``parse_postseason_kinds`` 顯式啟用時由 main() 呼叫（旗標空＝不查不抓）。
+    候選＝近兩日窗完成場 ∪ 核心表缺任一的完成場，同 kind 以 sno 集合去重後**單次**送出。
+    完成判準沿既有 `daily_chain_completed_games_sql`，scheduled／reserved 不成為候選；
+    無候選＝不呼叫任何來源（C 未開打不爬）。``full=False``（fast）比照 A／D：只補缺、
+    不跑當日窗與逐球；逐球才寫的表列於 ``unchecked_tables``，不冒稱齊全。
+    抓完以 `_postseason_detail_gaps` 對帳，仍缺的核心表記入 errors（main 結清 ok=false＋69），
+    下一次排程由缺明細查詢重新選出；不造任何官方資料。
+    ⛔ 不接 matchups／splits／advanced／球種／derived；PA 交由其後既有的 ``_pa_build_step``。
+    """
+    tables = _POSTSEASON_CORE_DETAIL_TABLES if full else _POSTSEASON_FAST_DETAIL_TABLES
+    scope: dict[str, Any] = (
+        {} if full else {"unchecked_tables": list(_POSTSEASON_PITCH_STEP_TABLES)}
+    )
+    out: dict[str, Any] = {"games": {}, "errors": []}
+    for kind in kinds:
+        if kind not in POSTSEASON_OFFICIAL_KINDS:
+            raise ValueError(f"季後賽別只接受 E／C：{kind!r}")
+        if not requires_official_completion(kind, year):
+            continue
+        try:
+            window = _completed_snos(year, days, kind) if full else []
+            snos = sorted(set(window) | set(_missing_postseason_detail_snos(year, kind, tables)))
+            if not snos:
+                out["games"][kind] = {"completed_games": 0, **scope}
+                continue
+            # allow_partial=True 的理由：同 `_incremental_detail`——單場失敗不得中止其餘賽別與
+            # 其後的 PA build；落差經 `_tolerate_gamelog_gap` 進帳，由 main() 結清成退出碼 69。
+            gamelog = _tolerate_gamelog_gap(
+                scrape_gamelogs(year, snos, kind, allow_partial=True),
+                f"季後明細 gamelog kind={kind}",
+            )
+            # 回傳契約對帳（stage=detail_source）：DB 舊列（如 getlive 先寫的 weather）會遮住本次失敗。
+            source_issues: list[str] = []
+            for key in ("scoreboard", "livelog", "batting_box", "pitching_box"):
+                if gamelog.get(key, 0) == 0:
+                    source_issues.append(f"gamelog.{key}=0")
+            detail_rows = scrape_game_details(year, snos, kind)  # 觀眾/裁判/時長（回寫入場數）
+            if detail_rows < len(snos):
+                source_issues.append(f"game_details={detail_rows}/{len(snos)}")
+            summary: dict[str, Any] = {"completed_games": len(snos), "window": len(window),
+                                       "gamelog": gamelog, "detail_rows": detail_rows, **scope}
+            if full:
+                # pitcher 回退路徑要這些場的投手，否則只剩 lagging 而漏當日；只讀本地 gamelog。
+                day_pitchers = (sorted(_pitchers_of_games(year, kind, snos))
+                                if settings.pitch_ingest != "game" else [])
+                pitches = _refresh_pitches(year, kind, snos, day_pitchers, delay)
+                summary["pitches"] = pitches
+                # 只有 game 模式回傳含 games／pitcher_flags；pitcher 模式不猜鍵。凍結場不送來源、
+                # 不計入應得場數（也不算成功）。TrackMan pitches=0 在場數與 flags 足時可接受。
+                if pitches.get("mode") == "game":
+                    expected = sum(1 for s in snos if not is_frozen(year, kind, s))
+                    if pitches.get("games", 0) < expected:
+                        source_issues.append(f"pitch_games={pitches.get('games', 0)}/{expected}")
+                    if expected and not pitches.get("pitcher_flags"):
+                        source_issues.append("pitcher_flags=0")
+            gaps = _postseason_detail_gaps(year, kind, snos, tables)
+            summary["missing"] = [{"game_sno": s, "tables": t} for s, t in sorted(gaps.items())]
+            out["games"][kind] = summary
+            if gaps:
+                out["errors"].append({
+                    "kind": kind, "stage": "detail_missing",
+                    "error": "；".join(f"{s}:{'/'.join(t)}" for s, t in sorted(gaps.items())),
+                })
+            if source_issues:
+                out["errors"].append({"kind": kind, "stage": "detail_source",
+                                      "error": "；".join(source_issues)})
+        except Exception as exc:  # noqa: BLE001 — 單一賽別失敗不連坐，見 docstring
+            log.exception("季後明細更新失敗 kind=%s", kind)
+            out["errors"].append({"kind": kind, "stage": "detail", "error": str(exc)})
+    return out
 
 
 def _missing_gamelog_snos(year: int, kind_code: str = "A") -> list[int]:
@@ -854,6 +997,15 @@ def main() -> None:
                     f"補齊缺 gamelog 場 kind={kc}",
                 )
                 scrape_game_details(year, miss, kc)
+        # #237：季後 E／C 明細（旗標空＝不查不抓，A／D 上方流程不變）。必須在 PA build 之前，
+        # 新寫入的季後 gamelog 才會被同一次 _pa_build_step 涵蓋；失敗與抓完仍缺的核心表
+        # 併入 postseason_result 既有 errors 帳，於下方結清成 ok=false＋69。
+        if postseason_kinds:
+            postseason_detail = _postseason_detail_step(
+                year, postseason_kinds, [yesterday, today], full=not skip_detail,
+            )
+            postseason_result["detail"] = postseason_detail["games"]
+            postseason_result["errors"].extend(postseason_detail["errors"])
         # canonical PA build（INGEST-PA-DAILY1）：gamelog 寫入後對當日窗＋全域缺口逐場
         # build，使「完成場皆有 published build」恆成立。fail-closed：build 失敗（含
         # reconciliation_required）只記錄，不擋其餘 refresh 步驟（見 _pa_build_step）。
@@ -917,10 +1069,13 @@ def main() -> None:
         note = dv_note if note is None else f"{note}；{dv_note}"
         log.error(dv_note)
 
-    # 季後 E／C 賽程更新失敗同理：A／D 照跑，結清成 ok=false＋69。
+    # 季後 E／C 更新失敗同理（賽程 games 步驟與 #237 明細步驟共用同一份 errors 帳）：
+    # A／D 照跑，結清成 ok=false＋69。明細抓完仍缺核心表也在此帳，不得以「無例外」冒充齊全。
     postseason_failed = postseason_result.get("errors") or []
     if postseason_failed:
-        ps_note = "季後賽程更新失敗：" + "；".join(e["kind"] for e in postseason_failed)
+        ps_note = "季後更新失敗（賽程／明細）：" + "；".join(
+            f"{e['kind']}/{e.get('stage', 'games')}" for e in postseason_failed
+        )
         note = ps_note if note is None else f"{note}；{ps_note}"
         log.error(ps_note)
 
