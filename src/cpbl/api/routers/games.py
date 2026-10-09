@@ -17,7 +17,7 @@ from cpbl.api.helpers import (
     official_status,
 )
 from cpbl.api.live_cache import get_public_live_snapshot, status_snapshot
-from cpbl.completion import completed_games_sql_with_evidence
+from cpbl.completion import completed_games_sql_with_evidence, requires_official_completion
 from cpbl.db import conn
 from cpbl.models import matchup, pitch_type_live, pitcher_decisions
 
@@ -177,18 +177,22 @@ def games_calendar(
 ) -> dict:
     """整季所有場次（已完成 + 未開打，含季後賽）供月曆呈現。每筆帶比分/狀態/勝敗投/先發/
     球場/觀眾/時長/延賽備註。completed 由 cpbl.completion 的證據感知判準決定
-    （比分 > 0 或有官方完賽證據；0:0 真和局屬後者）。"""
+    （比分 > 0 或有官方完賽證據；0:0 真和局屬後者；2026 起的季後 E／C 只認官方 final／證據）。
+
+    `completed` 是 #237 新增欄位（向下相容）：前端對 2026 起的 E／C 只讀它、不再以比分自證；
+    A／D 與歷史年份前端仍沿用比分判斷，欄位值不影響它們。"""
     kinds = kinds_of(kind_code)
     with conn() as c:
         cur = c.cursor()
         cur.execute(
-            """
+            f"""
             SELECT g.year, g.kind_code, g.game_sno, g.game_date, g.venue, g.present_status,
                    g.away_team_name, g.away_team_code, g.away_score,
                    g.home_team_name, g.home_team_code, g.home_score,
                    wp.name AS win_pitcher, lp.name AS lose_pitcher, mv.name AS mvp,
                    hs.name AS home_starter, aws.name AS away_starter,
-                   d.attendance, d.game_time, g.delay_kind, g.orig_date
+                   d.attendance, d.game_time, g.delay_kind, g.orig_date,
+                   COALESCE({completed_games_sql_with_evidence("g")}, false) AS completed
             FROM cpbl.games g
             LEFT JOIN cpbl.players wp ON wp.id = g.winning_pitcher_id
             LEFT JOIN cpbl.players lp ON lp.id = g.losing_pitcher_id
@@ -247,7 +251,8 @@ def game_live(
                    home_team_name, home_team_code, home_score,
                    home_starter_id, away_starter_id, winning_pitcher_id,
                    losing_pitcher_id, {pitcher_decisions.official_closer_sql("games")} AS closer_id,
-                   mvp_id, delay_kind, orig_date, present_status
+                   mvp_id, delay_kind, orig_date, present_status,
+                   COALESCE({_DONE}, false) AS completed
             FROM cpbl.games WHERE year = %s AND kind_code = %s AND game_sno = %s
             """,
             (season, kind_code, game_sno),
@@ -462,7 +467,7 @@ def game_winprob(
             "WHERE year=%s AND kind_code=%s AND game_sno=%s ORDER BY main_event_no",
             (season, kind_code, game_sno))
         events = _dicts(cur)
-        cur.execute("SELECT home_score, away_score FROM cpbl.games "
+        cur.execute(f"SELECT home_score, away_score, COALESCE({_DONE}, false) FROM cpbl.games "
                     "WHERE year=%s AND kind_code=%s AND game_sno=%s",
                     (season, kind_code, game_sno))
         fin = cur.fetchone()
@@ -489,7 +494,12 @@ def game_winprob(
         items.append({"evt": e["main_event_no"], "inning": e["inning_seq"],
                       "half": str(e["visiting_home_type"]), "hitter": e.get("hitter_name"),
                       "away": pre_v, "home": pre_h, "wp": round(wp, 4)})
-    completed = bool(fin and (fin[0] or 0) + (fin[1] or 0) > 0)
+    # 2026 起的季後 E／C：賽中部分比分（2026/E/1 的 3:0）不得補成終點 1/0（#237）；
+    # 其餘賽別沿用原本的比分判斷，一字不動。
+    if fin and requires_official_completion(kind_code, season):
+        completed = bool(fin[2])
+    else:
+        completed = bool(fin and (fin[0] or 0) + (fin[1] or 0) > 0)
     if completed and items:
         final_wp = 1.0 if fin[0] > fin[1] else (0.0 if fin[0] < fin[1] else 0.5)
         items.append({"evt": None, "inning": None, "half": None, "hitter": None,
