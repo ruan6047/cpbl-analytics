@@ -161,6 +161,61 @@ test("status 200 但 snapshot null 時保留 last-known-good 並標示來源中�
   });
 });
 
+test("#237 完賽且從無即時快照：status 回 null 屬正常缺失，不顯示更新中斷", () => {
+  // 純函式反例（非 production 取證）：完整 payload 成功且 game.completed === true、
+  // live_snapshot 與 previous 皆 null；60 秒後 status 仍回 null。
+  const completedRun = { completed: true };
+  const first = resolveStatusSnapshot(null, null, completedRun);
+  assert.deepEqual(first, { accepted: false, interrupted: false, snapshot: null });
+  // 連續多輪 null 仍是正常缺失（不合成 snapshot、不累積成中斷）。
+  assert.deepEqual(resolveStatusSnapshot(first.snapshot, null, completedRun),
+    { accepted: false, interrupted: false, snapshot: null });
+});
+
+test("#237 completed 非嚴格 true（false／undefined／非布林）或只有比分，不得解除中斷警示", () => {
+  // 先綁變數：帶比分欄的列直接寫物件字面量會被 tsc 超額屬性檢查擋下。
+  const scoredNotCompleted = { completed: undefined, away_score: 3, home_score: 0 };
+  const contexts = [{ completed: false }, {}, { completed: "true" }, { completed: 1 }, scoredNotCompleted];
+  for (const context of contexts) {
+    assert.deepEqual(resolveStatusSnapshot(null, null, context),
+      { accepted: false, interrupted: true, snapshot: null }, JSON.stringify(context));
+  }
+  // 未傳 context＝原語意（中斷）。
+  assert.deepEqual(resolveStatusSnapshot(null, null), { accepted: false, interrupted: true, snapshot: null });
+});
+
+test("#237 previous 有效時 incoming null 即使 completed=true 仍保留 last-good 並警示；error／stale 警示、有效快照恢復", () => {
+  const completedRun = { completed: true };
+  const previous = snapshot();
+  assert.deepEqual(resolveStatusSnapshot(previous, null, completedRun),
+    { accepted: false, interrupted: true, snapshot: previous });
+  const errored = snapshot({ source_status: "error" });
+  assert.deepEqual(resolveStatusSnapshot(previous, errored, completedRun),
+    { accepted: true, interrupted: true, snapshot: errored });
+  // 從無快照的完賽場，之後真的收到 error snapshot 仍須警示。
+  assert.equal(resolveStatusSnapshot(null, errored, completedRun).interrupted, true);
+  const stale = snapshot({ freshness: "stale" });
+  assert.deepEqual(resolveStatusSnapshot(previous, stale, completedRun),
+    { accepted: true, interrupted: true, snapshot: stale });
+  const recovered = snapshot({ event_count: 3 });
+  assert.deepEqual(resolveStatusSnapshot(stale, recovered, completedRun),
+    { accepted: true, interrupted: false, snapshot: recovered });
+});
+
+test("#237 賽況頁以最近成功完整 payload 的 completed 傳入 status 判定，網路錯誤分支不變", () => {
+  const page = readFileSync(new URL("../app/games/[sno]/game-live-page.tsx", import.meta.url), "utf8");
+  // completed 只在 loadFull 成功後更新，且只認嚴格布林 true。
+  const load = page.indexOf("const loadFull = async");
+  const setCompleted = page.indexOf("completedRef.current = next.game?.completed === true;");
+  assert.ok(load >= 0 && setCompleted > load, "completed 必須取自成功的完整 payload");
+  // 容許多行排版與尾逗號；參數順序與 completed 來源仍逐字釘住。
+  assert.match(page,
+    /resolveStatusSnapshot\(\s*previous,\s*status\.live_snapshot,\s*\{\s*completed:\s*completedRef\.current\s*\},?\s*\)/);
+  assert.match(page, /setRefreshIssue\(resolved\.interrupted \? "source" : null\)/);
+  // 真正的網路錯誤仍標示 network／首次載入失敗仍顯示錯誤頁。
+  assert.match(page, /if \(hasData\) setRefreshIssue\("network"\);\s*else setErr\(true\);/);
+});
+
 test("canonical snapshot 覆蓋每日 DB 的比分與事件，並正規化 raw 欄位", () => {
   const live = snapshot();
   live.away.inning_score = [{ Seq: 1, Score: "1" }, { Seq: 2, Score: "0" }];
