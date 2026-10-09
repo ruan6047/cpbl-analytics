@@ -307,8 +307,16 @@ def game_live(
         # 逐球 TrackMan 僅消費已發布 canonical PA 的 mapped 列：同局重複投打對戰不能以
         # (投手、打者、局數) 猜測。缺 published build／任一球 mapping_failed 時不回傳該球，
         # 前端因而 fail-closed 顯示「無對應逐球資料」而非誤配。
+        # #237 效能：先以固定 game key 取該場唯一 published build（partial unique index，至多
+        # 一列；MATERIALIZED 使其只算一次），再經 mapping (build_id, …) 唯一索引展開，避免
+        # E／C 等新 key 估 1 列時內側全表掃描被逐球重掃。mapping 與 PA 皆須屬該 published
+        # build（不一致 build 排除）；pt 仍以完整 game key 限定。
         cur.execute(
             """
+            WITH pub AS MATERIALIZED (
+                SELECT build_id FROM cpbl.game_recap_builds
+                WHERE year=%s AND kind_code=%s AND game_sno=%s AND state='published'
+            )
             SELECT pa.start_event_no AS main_event_no,
                    ARRAY(SELECT event_no FROM cpbl.game_pa_events
                          WHERE pa_row_id=pa.pa_row_id ORDER BY event_position) AS main_event_nos,
@@ -319,19 +327,20 @@ def game_live(
                    pt.pitch_call, pt.hit_exit_speed AS exit_speed,
                    pt.hit_launch_angle AS launch_angle, pt.hit_spin_rate,
                    pt.hit_distance, pt.hit_hang_time
-            FROM cpbl.pitch_tracking pt
+            FROM pub
             JOIN cpbl.game_pa_pitch_mappings mapping
-              ON mapping.year=pt.year AND mapping.kind_code=pt.kind_code
-             AND mapping.game_sno=pt.game_sno AND mapping.pitcher_acnt=pt.pitcher_acnt
-             AND mapping.pitch_cnt=pt.pitch_cnt AND mapping.mapping_state='mapped'
+              ON mapping.build_id=pub.build_id AND mapping.mapping_state='mapped'
             JOIN cpbl.game_plate_appearances pa
-              ON pa.pa_row_id=mapping.pa_row_id AND pa.state='ready'
-            JOIN cpbl.game_recap_builds build
-              ON build.build_id=pa.build_id AND build.state='published'
+              ON pa.pa_row_id=mapping.pa_row_id AND pa.build_id=pub.build_id
+             AND pa.state='ready'
+            JOIN cpbl.pitch_tracking pt
+              ON pt.year=mapping.year AND pt.kind_code=mapping.kind_code
+             AND pt.game_sno=mapping.game_sno AND pt.pitcher_acnt=mapping.pitcher_acnt
+             AND pt.pitch_cnt=mapping.pitch_cnt
             WHERE pt.year=%s AND pt.kind_code=%s AND pt.game_sno=%s
             ORDER BY pa.pa_index, mapping.pitch_position
             """,
-            (season, kind_code, game_sno),
+            (season, kind_code, game_sno) * 2,
         )
         tracking = _dicts(cur)
         # 未建立 PA build 不能安全顯示「本打席」逐球，但仍保留原始 TrackMan 有無，

@@ -85,6 +85,9 @@ export default function GameLivePage() {
   const [err, setErr] = useState(false);
   const [refreshIssue, setRefreshIssue] = useState<"network" | "source" | null>(null);
   const snapshotRef = useRef<LiveSnapshot | null>(null);
+  // 最近一次**成功**完整 payload 的 game.completed 是否嚴格為 true（#237；見 resolveStatusSnapshot）。
+  // 只用來區分「完賽場本無即時快照」的正常缺失，不作任何完賽推斷。
+  const completedRef = useRef(false);
   const [idx, setIdx] = useState(0);
   // 頁面預設「比賽總覽」；逐打席為進階操作視圖
   const [view, setView] = useState<PageTab>("overview");
@@ -97,6 +100,7 @@ export default function GameLivePage() {
     let disposed = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let hasData = false;
+    completedRef.current = false;  // 換場時不得沿用上一場的完賽狀態
 
     const clearTimer = () => {
       if (timer) clearTimeout(timer);
@@ -110,6 +114,7 @@ export default function GameLivePage() {
       const dd = next as unknown as Live;
       const nextSnapshot = next.live_snapshot;
       snapshotRef.current = nextSnapshot;
+      completedRef.current = next.game?.completed === true;
       setRefreshIssue(nextSnapshot?.source_status === "error" ? "source" : null);
       setData((previous) => {
         const previousLength = previous?.livelog.length ?? 0;
@@ -160,7 +165,9 @@ export default function GameLivePage() {
           const status = await detail.gameStatus(Number(sno), kind, year);
           if (disposed) return;
           const previous = snapshotRef.current;
-          const resolved = resolveStatusSnapshot(previous, status.live_snapshot);
+          const resolved = resolveStatusSnapshot(
+            previous, status.live_snapshot, { completed: completedRef.current },
+          );
           setRefreshIssue(resolved.interrupted ? "source" : null);
           if (!resolved.accepted) return;
           snapshotRef.current = resolved.snapshot;

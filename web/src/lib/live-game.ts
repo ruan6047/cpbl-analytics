@@ -183,8 +183,19 @@ export const inningLabel = (
     : `${top ? "上" : "下"}${snapshot.inning}局`;
 };
 
-export function resolveStatusSnapshot(previous: LiveSnapshot | null, incoming: LiveSnapshot | null) {
-  if (!incoming) return { accepted: false, interrupted: true, snapshot: previous };
+/** status 輪詢的 snapshot 決策。`incoming` 為 null 時一般視為來源中斷並保留 last-known-good；
+ *  唯一例外（#237）是最近成功的完整 payload 明確 `completed === true` 且本頁從未取得 snapshot
+ *  （`previous === null`）——完賽場本就沒有即時快照，屬正常缺失而非中斷。
+ *  ⛔ 只認嚴格布林 true，不以比分／時間推斷完賽，也不合成 snapshot。 */
+export function resolveStatusSnapshot(
+  previous: LiveSnapshot | null,
+  incoming: LiveSnapshot | null,
+  context: { completed?: unknown } = {},
+) {
+  if (!incoming) {
+    const expectedAbsence = previous === null && context.completed === true;
+    return { accepted: false, interrupted: !expectedAbsence, snapshot: previous };
+  }
   return {
     accepted: true,
     interrupted: incoming.source_status === "error" || incoming.freshness === "stale",
