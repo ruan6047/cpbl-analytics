@@ -47,6 +47,12 @@ def build_report(cur, season: int, kind: str, sno: int, next_kind: str | None = 
                         "reference": f"/api/v1/games/{r['game_sno']}/live?season={season}&kind_code={kind}",
                         "covered_game_keys": [f"{season}/{kind}/{r['game_sno']}"],
                         "coverage_status": r["outcome"], "cutoff_basis": "through_X", "read_at": read_at})
+    for r in readers.pitching_sources(cur, season, kind, snos):
+        sources.append({**r, "source": "box_pitching", "scope": {"year": season, "kind": kind,
+                        "role": "pitching", "player_id": r["player_id"]},
+                        "reference": f"/api/v1/games/{r['game_sno']}/live?season={season}&kind_code={kind}",
+                        "covered_game_keys": [f"{season}/{kind}/{r['game_sno']}"], "updated_at": None,
+                        "coverage_status": "available", "cutoff_basis": "through_X", "read_at": read_at})
     boxes = {role: readers.box(cur, season, kind, snos, role) for role in ("pitching", "batting")}
     regular_boxes = {role: readers.box(cur, season, "A", regular_snos, role) for role in boxes}
     ids = sorted({r["player_id"] for rows in boxes.values() for r in rows}

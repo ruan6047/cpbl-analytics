@@ -79,6 +79,19 @@ def source_revisions(cur, season: int, kind: str, snos: list[int]) -> list[dict]
     return _dicts(cur)
 
 
+def pitching_sources(cur, season: int, kind: str, snos: list[int]) -> list[dict]:
+    """既存逐投手 box 版本，首次取得時間不冒稱官方更正時間。"""
+    if not snos:
+        return []
+    cur.execute(
+        """SELECT DISTINCT ON (game_sno,pitcher_acnt) game_sno,pitcher_acnt AS player_id,
+                  content_hash AS source_version,fetched_at,last_seen_at
+           FROM cpbl.box_pitching_revisions WHERE year=%s AND kind_code=%s AND game_sno=ANY(%s)
+           ORDER BY game_sno,pitcher_acnt,fetched_at DESC,id DESC""", (season, kind, snos),
+    )
+    return _dicts(cur)
+
+
 def matchups(cur, season: int, hitters: list[str], pitchers: list[str]) -> dict[tuple, dict]:
     cur.execute(
         """SELECT hitter_acnt,pitcher_acnt,plate_appearances AS pa,at_bats AS ab,hits AS h,

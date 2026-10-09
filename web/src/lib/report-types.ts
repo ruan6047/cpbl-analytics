@@ -29,7 +29,7 @@ export type Report = {
   field_candidates?: Record<string, Record<string, { status: string; g: number; player_ids: string[] }>>;
   sources?: ReportSource[]; read_at?: string;
   regular_coverage?: { year: number; kind: string; closed_before_X: boolean; covered_game_keys: string[] };
-  teams?: { team: string; axes: { key: string; label: string; semantics: string }[]; seasons: { n_teams: number; axes: Record<string, { rank: number; raw: number | null }> }[] }[];
+  teams?: { team: string; axes: { key: string; label: string; semantics: string }[]; seasons: { n_teams: number; axes: Record<string, { z: number; rank: number; raw: number | null }> }[] }[];
   watch_points?: { team_code: string; player_id: string; origin: string; count_line: Counts; question: string }[];
   announcements?: { lineup: { status: string; items: { player_id: string; team_code: string; pos: string; order: number }[]; source_version?: string | null; observed_at?: string | null; pregame_evidence?: { is_play_ball: string; fetched_at?: string; first_started_at?: string | null } } };
   coverage?: { games: number; with_pitching: number; with_batting: number };
