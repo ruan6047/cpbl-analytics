@@ -20,13 +20,15 @@ def build_report(cur, season: int, kind: str, sno: int, next_kind: str | None = 
         return {**base, "status": "not_found"}
     if not anchor["completed"]:
         return {**base, "status": "not_final", "game": anchor}
+    team_codes = [anchor["away_team_code"], anchor["home_team_code"]]
+    if not all(isinstance(t, str) and t for t in team_codes) or len(set(team_codes)) != 2:
+        raise ValueError("完賽來源必須有兩個不同隊伍")
     schedule_rows = readers.schedules(cur, season)
     context = bounded_context(anchor, all_games, schedule_rows)
     target = validate_target(context, next_kind, next_sno, supplied_hash) if next_kind else None
     through_keys = context["through_game_keys"]
     upto = [g for g in all_games if key(g) in through_keys]
     snos = [g["game_sno"] for g in upto]
-    team_codes = [anchor["away_team_code"], anchor["home_team_code"]]
     rosters = [population.adapt(population_records or [], season, kind, t) for t in team_codes]
     regular_games = [g for g in all_games if g["kind_code"] == "A"]
     regular_closed = bool(regular_games) and all(g["completed"] and g["game_date"] < anchor["game_date"]
@@ -59,10 +61,11 @@ def build_report(cur, season: int, kind: str, sno: int, next_kind: str | None = 
                  | {m["player_id"] for roster in rosters for m in roster["members"] if m.get("player_id")})
     next_block = None
     starters = {}
+    target_date = None
     if target:
-        date = datetime.fromisoformat(target["game_date"]).date()
+        target_date = datetime.fromisoformat(target["game_date"]).date()
         rows = [r for r in schedule_rows if r["kind_code"] == next_kind and r["game_sno"] == next_sno]
-        sched = bg.pregame_schedule(rows, date)
+        sched = bg.pregame_schedule(rows, target_date)
         next_block = {**target, "game_date": target["game_date"], **sched}
         for side in ("away", "home"):
             starter = next_block[f"{side}_starter"]
@@ -72,11 +75,15 @@ def build_report(cur, season: int, kind: str, sno: int, next_kind: str | None = 
                 ids.append(starter["acnt"])
     people = readers.people(cur, sorted(set(ids)))
     fields = readers.fielding(cur, season) if regular_closed else []
-    pairs = readers.matchups(cur, season, ids, list(starters.values())) if starters and regular_closed else {}
+    hitter_ids = sorted({r["player_id"] for r in boxes["batting"]}
+                        | {m["player_id"] for roster in rosters for m in roster["members"]
+                           if m.get("player_id") and m.get("role") == "batting"})
+    pairs = readers.matchups(cur, season, hitter_ids, list(starters.values())) if hitter_ids and starters and regular_closed else {}
     verified = background.current_matches(cur, season, regular_boxes) if regular_closed else {}
     teams = background.team_background(season, regular, regular_boxes, team_codes) if regular_closed else []
     cards = background.cards(cur, ids, season, verified)
     players = []
+    trait_league_cache = {}
     for role, rows in boxes.items():
         for team in team_codes:
             roster = next(r for r in rosters if r["team_code"] == team)
@@ -100,12 +107,14 @@ def build_report(cur, season: int, kind: str, sno: int, next_kind: str | None = 
                          "role_type": r["role_type"], "outs": r["outs"], "pitch_cnt": r["pitch_cnt"]}
                         for g in upto for r in rows if role == "pitching" and r["game_sno"] == g["game_sno"]
                         and r["player_id"] == pid and r["team_code"] == team]
-                usage = bg.pitcher_usage(apps, date if target else None) if role == "pitching" else None
-                if usage and periods["series"]["coverage_status"] != "complete":
-                    usage["coverage_status"] = "partial"
-                    usage["consecutive_days"] = usage["days_to_next"] = None
-                pair = pairs.get((pid, starters.get(opponent)))
-                vs = {"status": "missing", "pitcher_id": starters.get(opponent)}
+                usage = bg.pitcher_usage(apps, target_date) if role == "pitching" else None
+                if usage is not None:
+                    usage["coverage_status"] = periods["series"]["coverage_status"]
+                    if usage["coverage_status"] != "complete":
+                        usage["consecutive_days"] = usage["days_to_next"] = None
+                pair = pairs.get((pid, starters.get(opponent))) if role == "batting" else None
+                vs = {"status": "missing" if role == "batting" else "not_applicable",
+                      "pitcher_id": starters.get(opponent) if role == "batting" else None}
                 if pair:
                     vs = {"status": "available", "pitcher_id": pair["pitcher_acnt"],
                           "counts": {**bg.sum_batting([pair]), "g": None}, "sample": {"pa": pair["pa"], "ab": pair["ab"]},
@@ -119,7 +128,8 @@ def build_report(cur, season: int, kind: str, sno: int, next_kind: str | None = 
                                 "last_game": player_period(rows, role=role, player_id=pid, team=team,
                                                            expected_keys=[f"{season}/{kind}/{sno}"],
                                                            source="box_X", cutoff=cutoff),
-                                **background.player_background(cur, pid, role, season, verified.get(role, False), cards[role].get(pid))})
+                                **background.player_background(cur, pid, role, season, verified.get(role, False), cards[role].get(pid),
+                                                               trait_league_cache=trait_league_cache)})
     for p in players:
         advanced = p.get("official_pr")
         if advanced:

@@ -31,7 +31,8 @@ def current_matches(cur, season: int, boxes: dict[str, list[dict]]) -> dict[str,
     return out
 
 
-def player_background(cur, pid: str, role: str, season: int, verified: bool, card: dict | None = None) -> dict:
+def player_background(cur, pid: str, role: str, season: int, verified: bool, card: dict | None = None,
+                      *, trait_league_cache: dict | None = None) -> dict:
     if not verified:
         return {'ability': {'available': False, 'status': 'source_unverified'},
                 'official_pr': None, 'traits': None, 'splits': []}
@@ -46,7 +47,7 @@ def player_background(cur, pid: str, role: str, season: int, verified: bool, car
     splits = _dicts(cur)
     return {'ability': card or {'available': False, 'role': role, 'scope': 'season'},
             'official_pr': advanced[0] if advanced else None,
-            'traits': _player_traits(cur, pid, season, role), 'splits': splits}
+            'traits': _player_traits(cur, pid, season, role, league_cache=trait_league_cache), 'splits': splits}
 
 
 def team_background(season: int, games: list[dict], boxes: dict[str, list[dict]], teams: list[str]) -> list[dict]:
