@@ -8,7 +8,7 @@ import { FieldDiagram } from "@/components/field-diagram";
 import { TraitsContent, type TraitsData } from "@/components/traits-content";
 import { Card, ENTITY_LINK, PercentileBar, TeamBadge } from "@/components/ui";
 import { SectionTitle } from "@/components/postmark";
-import { reportField } from "@/lib/report-field";
+import { reportField, reportFieldPlayer } from "@/lib/report-field";
 import { REPORT_TABS, reportLink } from "@/lib/between-games";
 import { gameLink } from "@/lib/postseason-journey";
 import { teamColor, teamName3 } from "@/lib/teams";
@@ -83,7 +83,7 @@ function TeamPlayers({ report, team, role, open }: { report: Report; team: strin
   return <section className="min-w-0"><SectionTitle><TeamBadge code={team} name={teamName3(team)} /> {role === "pitching" ? "投手" : "野手"}</SectionTitle>
     {!report.population?.find(p => p.team_code === team)?.complete && <p className="mb-4 text-sm text-muted">正式登錄名單尚未核實；下列為已取得紀錄，未列出不代表未登板或未出賽。</p>}
     {role === "pitching" && <Card className="mb-5"><h3 className="font-bold">下一場先發</h3>{nextStarter ? <><PlayerButton player={nextStarter} open={open} /><AbilityPanel player={nextStarter} /></> : <p className="mt-3 text-sm text-muted">本站尚未取得可靠先發公告</p>}</Card>}
-    {role === "batting" && <div className="mb-5"><FieldDiagram cells={field.cells} designatedHitter={field.dh} caption={field.announced ? "下一場公告先發" : "已取得選手中，本季守位最多場的候選"} onSelect={cell => { const pid = cell.href?.replace("#report-player-", ""); const p = players.find(p => p.player_id === pid); if (p) open(p); }} /><p className="mt-2 text-xs text-muted">{field.announced ? "已核實賽前公告版本；棒次與守位依公告" : "候選守位，非公告先發；並列保留"}。DH {field.dh?.main ?? "本站未取得"}。</p></div>}
+    {role === "batting" && <div className="mb-5"><FieldDiagram cells={field.cells} designatedHitter={field.dh} caption={field.announced ? "下一場公告先發" : "已取得選手中，本季守位最多場的候選"} onSelect={cell => { const pid = cell.href?.replace("#report-player-", ""); const p = pid ? reportFieldPlayer(report, team, pid) : null; if (p) open(p); }} /><p className="mt-2 text-xs text-muted">{field.announced ? "已核實賽前公告版本；棒次與守位依公告" : "候選守位，非公告先發；並列保留"}。DH {field.dh?.main ?? "本站未取得"}。</p></div>}
     <div className="mb-3 flex flex-wrap gap-1" role="group" aria-label={`${teamName3(team)}統計期間`}>{periods.map(({ key, label }) => <button key={key} type="button" aria-pressed={period === key} onClick={() => setPeriod(key)} className={`min-h-11 rounded px-3 text-xs ${period === key ? "bg-ink text-paper" : "bg-band text-ink"}`}>{label}</button>)}</div>
     <div className="divide-y divide-line">{players.map(p => <div key={p.player_id} className="py-3"><div className="flex items-center justify-between gap-3"><PlayerButton player={p} open={open} /><span className="text-xs text-muted">{role === "pitching" ? p.pitching_usage?.started ? "系列曾先發" : "已取得投手紀錄" : p.fielding.map(f => f.pos).join("／") || "守位未取得"}</span></div><PeriodRow period={p.periods[period]} role={role} />{role === "pitching" && <p className="mt-2 text-xs text-muted">連續 {String(p.pitching_usage?.consecutive_days ?? "—")} 天 · 距下一場 {String(p.pitching_usage?.days_to_next ?? "—")} 天</p>}</div>)}</div>
     {!players.length && <p className="py-6 text-sm text-muted">本站尚未取得此隊{role === "pitching" ? "投手" : "野手"}背景</p>}

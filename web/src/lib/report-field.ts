@@ -1,11 +1,16 @@
 import type { FieldCells } from "../components/field-diagram";
 import { posCode } from "../app/players/[id]/fielding-metrics.ts";
-import type { Report } from "./report-types.ts";
+import type { Report, ReportPlayer } from "./report-types.ts";
+
+/** 同份報告已有投手守位身分時可開投手面板；有打者列則優先野手。 */
+export function reportFieldPlayer(report: Report, team: string, pid: string): ReportPlayer | null {
+  const matches = (report.players ?? []).filter(p => p.team_code === team && p.player_id === pid);
+  return matches.find(p => p.role === "batting") ?? matches[0] ?? null;
+}
 
 /** 只消費已驗證的公告；棒次／守位從未用 box 或年度守備倒填。 */
 export function reportField(report: Report, team: string): { cells: FieldCells; dh: { main: string; href?: string; meta?: string } | null; announced: boolean } {
-  const players = (report.players ?? []).filter(p => p.team_code === team && p.role === "batting");
-  const person = (pid: string) => players.find(p => p.player_id === pid)?.name ?? pid;
+  const person = (pid: string) => reportFieldPlayer(report, team, pid)?.name ?? pid;
   const lineup = report.announcements?.lineup;
   const items = lineup?.items.filter(i => i.team_code === team) ?? [];
   const observed = Date.parse(lineup?.observed_at ?? "");
