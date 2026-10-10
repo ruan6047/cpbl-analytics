@@ -1,4 +1,5 @@
 import type { FieldCells } from "../components/field-diagram";
+import { posCode } from "../app/players/[id]/fielding-metrics.ts";
 import type { Report } from "./report-types.ts";
 
 /** 只消費已驗證的公告；棒次／守位從未用 box 或年度守備倒填。 */
@@ -25,12 +26,16 @@ export function reportField(report: Report, team: string): { cells: FieldCells; 
     announced: true,
   };
   const candidates = report.field_candidates?.[team] ?? {};
+  const dh = candidates["指定打擊"] ?? candidates.DH;
   return {
-    cells: Object.fromEntries(Object.entries(candidates).filter(([pos]) => pos !== "DH").map(([pos,c]) => [pos,{
+    cells: Object.fromEntries(Object.entries(candidates).flatMap(([pos,c]) => {
+      const code = posCode(pos);
+      return code ? [[code,{
       main:c.player_ids.map(person).join("／"),sub:`${c.g} 場${c.status === "tied" ? " · 並列" : ""}`,
       href:c.player_ids.length === 1 ? `#report-player-${c.player_ids[0]}` : undefined,
-    }])) as FieldCells,
-    dh:candidates.DH ? {main:candidates.DH.player_ids.map(person).join("／")} : null,
+      }]] : [];
+    })) as FieldCells,
+    dh:dh ? {main:dh.player_ids.map(person).join("／")} : null,
     announced:false,
   };
 }

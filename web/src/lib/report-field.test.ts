@@ -2,13 +2,21 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { reportField } from "./report-field.ts";
 import type { Report } from "./report-types.ts";
-const base:Report={status:"ok",season:2026,kind_code:"E",game_sno:1,field_candidates:{T:{SS:{status:"tied",g:20,player_ids:["a","b"]}}},players:[]};
+const base:Report={status:"ok",season:2026,kind_code:"E",game_sno:1,field_candidates:{T:{游擊手:{status:"tied",g:20,player_ids:["a","b"]}}},players:[]};
 const items=["C","1B","2B","3B","SS","LF","CF","RF","DH"].map((pos,i)=>({player_id:`fixture${i}`,team_code:"T",pos,order:i+1}));
 test("未核實公告保持年度並列候選，缺守位不猜 DH",()=>{
   for(const status of [undefined,"unverified","announced"]){
     const report={...base,announcements:status?{lineup:{status,items}}:undefined};
     const model=reportField(report,"T");assert.equal(model.announced,false);assert.equal(model.dh,null);assert.equal(model.cells.SS?.main,"a／b");assert.equal(model.cells.SS?.href,undefined);
   }
+});
+test("既存中文守位逐格轉接，未知守位略過且 DH 只接受明確來源",()=>{
+  const positions=["捕手","一壘手","二壘手","三壘手","游擊手","左外野手","中外野手","右外野手"];
+  const report={...base,field_candidates:{T:Object.fromEntries([...positions,"未知","指定打擊"].map((pos,i)=>[pos,{status:"known",g:20,player_ids:[`p${i}`]}]))}};
+  const model=reportField(report,"T");
+  assert.deepEqual(Object.keys(model.cells),["C","1B","2B","3B","SS","LF","CF","RF"]);
+  assert.equal(model.cells.C?.href,"#report-player-p0");
+  assert.equal(model.dh?.main,"p9");assert.equal(model.announced,false);
 });
 test("完整可靠公告才切換，DH 與棒次消費正式項目",()=>{
   const report={...base,announcements:{lineup:{status:"announced",items,source_version:"fixture-v",observed_at:"2026-10-10T12:00:00+08:00",pregame_evidence:{is_play_ball:"N",fetched_at:"2026-10-10T12:00:00+08:00",first_started_at:"2026-10-10T17:05:00+08:00"}}}};
