@@ -1,3 +1,4 @@
+import type { Report, ReportKind } from "./report-types";
 // FastAPI 資料層 client（Server Component 用）。prod 走 Docker 內網，dev 走 localhost。
 import { ApiError } from "./http-error.ts";
 import type { DailySummary, PregameServingMeta } from "./daily-summary";
@@ -473,6 +474,15 @@ export type OutcomeBenchmarkResponse = {
 };
 
 export const api = {
+  report: (sno: number, kind: ReportKind, year: number, target?: { kind: ReportKind; sno: number; contextHash: string }) => {
+    const params = new URLSearchParams({ season: String(year), kind_code: kind });
+    if (target) {
+      params.set("next_kind", target.kind);
+      params.set("next_sno", String(target.sno));
+      params.set("context_hash", target.contextHash);
+    }
+    return getLive<Report>(`/api/v1/games/${sno}/report?${params}`);
+  },
   officialStandings: (seg = 0, year?: number, kind = "A") =>
     get<OfficialStandingsResponse>(`/api/v1/standings?season_code=${seg}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 120),
   seasons: (kind = "A") => get<{ years: number[] }>(`/api/v1/seasons?kind_code=${kind}`, 600),
