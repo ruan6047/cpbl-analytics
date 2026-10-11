@@ -405,6 +405,50 @@ function snapshotGameDate(snapshot: LiveSnapshot): string | null {
   return match ? match[1] : null;
 }
 
+/** 非負整數（0 是有效已知值）；null／undefined／空字串／非整數／負數／NaN 一律回 null＝未知。
+ *  字串只收純數字（官方欄位可能以字串傳），不做任何四捨五入。 */
+export const knownCount = (value: unknown): number | null => {
+  const n = typeof value === "number" ? value
+    : typeof value === "string" && /^\d+$/.test(value.trim()) ? Number(value) : Number.NaN;
+  return Number.isInteger(n) && n >= 0 ? n : null;
+};
+
+/** #237：完賽投手表優先 DB 持久值（IP pair 與球數），其餘欄位、名單、順序沿用 snapshot。
+ *
+ *  只在三件事同時成立時採用：後端 `game.completed` 嚴格為 true、snapshot 已是 final、且 DB 的
+ *  年／賽別／場號與 snapshot 相同（帶 year／kind_code／game_sno 的持久列也必須相符）。投手以
+ *  `pitcher_acnt`＋`visiting_home_type`（1 客／2 主）唯一配對，歧義（0 或多列）不採。
+ *  IP 是原子 pair（`inning_pitched_cnt` 整局＋`inning_pitched_div3` 餘數 0..2）：兩欄皆有效才整對
+ *  採用，絕不拼出「持久整局＋即時餘數」；球數獨立判定。無效＝保留即時值，不造數。 */
+function preferPersistedPitching(response: LiveApiResponse, snapshot: LiveSnapshot, rows: StatRow[]): StatRow[] {
+  const game = response.game;
+  const year = Number(snapshot.game_id.slice(0, 4));
+  if (!game || game.completed !== true || snapshot.phase !== "final" || Number(game.year) !== year
+      || String(game.kind_code ?? "") !== snapshot.kind_code || Number(game.game_sno) !== snapshot.game_sno) {
+    return rows;
+  }
+  const persisted = response.pitching.filter((p) =>
+    (!present(p.year) || Number(p.year) === year)
+    && (!present(p.kind_code) || String(p.kind_code) === snapshot.kind_code)
+    && (!present(p.game_sno) || Number(p.game_sno) === snapshot.game_sno));
+  return rows.map((row) => {
+    const id = String(row.pitcher_acnt ?? "");
+    const matches = id ? persisted.filter((p) => String(p.pitcher_acnt ?? "") === id
+      && String(p.visiting_home_type ?? "") === String(row.visiting_home_type)) : [];
+    if (matches.length !== 1) return row;
+    const [p] = matches;
+    const whole = knownCount(p.inning_pitched_cnt);
+    const div3 = knownCount(p.inning_pitched_div3);
+    const pitches = knownCount(p.pitch_cnt);
+    return {
+      ...row,
+      ...(whole !== null && div3 !== null && div3 <= 2
+        ? { inning_pitched_cnt: whole, inning_pitched_div3: div3 } : {}),
+      ...(pitches !== null ? { pitch_cnt: pitches } : {}),
+    };
+  });
+}
+
 /** 將 Redis canonical snapshot 疊到既有 DB payload；沒有 snapshot 時保持完全向後相容。 */
 export function applyLiveSnapshot(response: LiveApiResponse): LiveApiResponse {
   const snapshot = response.live_snapshot;
@@ -427,10 +471,11 @@ export function applyLiveSnapshot(response: LiveApiResponse): LiveApiResponse {
   const mvpId = fromDb ? null : snapshot.decisions?.mvp?.player_id ?? null;
   const markMvp = (rows: StatRow[], key: "hitter_acnt" | "pitcher_acnt") =>
     mvpId ? rows.map((row) => (String(row[key]) === mvpId ? { ...row, is_mvp: true } : row)) : rows;
-  const pitching = [
+  // #237：完賽且身份一致時 IP／球數優先 DB 持久值（見 preferPersistedPitching）。
+  const pitching = preferPersistedPitching(response, snapshot, [
     ...boxRows("1", snapshot.away.pitchers, "pitcher"),
     ...boxRows("2", snapshot.home.pitchers, "pitcher"),
-  ];
+  ]);
   const batterAvg = Object.fromEntries(batting.flatMap((row) => {
     const id = String(row.hitter_acnt ?? "");
     return id && row.avg != null ? [[id, Number(row.avg)]] : [];

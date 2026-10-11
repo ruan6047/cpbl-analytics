@@ -70,6 +70,121 @@ const response = (liveSnapshot: LiveSnapshot | null): LiveApiResponse => ({
   live_snapshot: liveSnapshot,
 });
 
+
+// ───── #237 完賽投手表優先持久值（純合成：年份 2031、場號 901、選手與事件皆虛構，非實際來源觀測）─────
+// IP 是原子 pair：inning_pitched_cnt＝整局、inning_pitched_div3＝餘數 0／1／2（不是總出局數）。
+const finalPitchers = [
+  { PitcherAcnt: "PA01", PitcherName: "虛構投手甲", InningPitchedCnt: 1, InningPitchedDiv3Cnt: 2, PitchCnt: 18 },
+  { PitcherAcnt: "PB02", PitcherName: "虛構投手乙", InningPitchedCnt: 1, InningPitchedDiv3Cnt: 0, PitchCnt: 4 },
+];
+const finalEvent = (evt: string, content: string) => ({
+  MainEventNo: evt, VisitingHomeType: "1", InningSeq: 2, VisitingScore: 1, HomeScore: 0,
+  IsChangePlayer: "0", IsStrike: "1", PitchCnt: Number(evt), Content: content,
+  HitterAcnt: "H03", HitterName: "虛構打者丙", PitcherAcnt: "PA01", PitcherName: "虛構投手甲",
+});
+const finalSnapshot = (overrides: Partial<LiveSnapshot> = {}): LiveSnapshot => snapshot({
+  game_id: "2031-A-901", game_sno: 901, phase: "final", freshness: "final", poll_after_seconds: null,
+  event_count: 3,
+  home: { ...snapshot().home, pitchers: finalPitchers },
+  livelog: [finalEvent("17", "好球。"), finalEvent("18", "三振，3人出局。"), finalEvent("18", "比賽結束。")],
+  ...overrides,
+});
+const persistedGame: NonNullable<LiveApiResponse["game"]> = {
+  year: 2031, kind_code: "A", game_sno: 901, away_score: 1, home_score: 0, completed: true,
+};
+const persistedPitching: LiveApiResponse["pitching"] = [
+  { year: 2031, kind_code: "A", game_sno: 901, pitcher_acnt: "PA01", visiting_home_type: "2",
+    inning_pitched_cnt: 2, inning_pitched_div3: 0, pitch_cnt: 18 },
+  { year: 2031, kind_code: "A", game_sno: 901, pitcher_acnt: "PB02", visiting_home_type: "2",
+    inning_pitched_cnt: 0, inning_pitched_div3: 0, pitch_cnt: 3 },
+];
+const applyFinal = (
+  game: LiveApiResponse["game"], pitching: LiveApiResponse["pitching"], snap = finalSnapshot(),
+): LiveApiResponse => applyLiveSnapshot({ ...response(snap), game, pitching });
+const pitcherRow = (out: LiveApiResponse, acnt: string) =>
+  out.pitching.find((row) => row.pitcher_acnt === acnt);
+const ipOf = (out: LiveApiResponse, acnt: string) =>
+  [pitcherRow(out, acnt)?.inning_pitched_cnt, pitcherRow(out, acnt)?.inning_pitched_div3];
+
+test("#237 completed===true 且同場同隊同投手：投手表 IP pair／球數優先持久值，0 是有效已知值", () => {
+  const snap = finalSnapshot();
+  const out = applyFinal(persistedGame, persistedPitching, snap);
+  assert.deepEqual(ipOf(out, "PA01"), [2, 0], "持久 2 局優先於即時 1 又 2/3 局");
+  assert.equal(pitcherRow(out, "PA01")?.pitch_cnt, 18);
+  assert.deepEqual(ipOf(out, "PB02"), [0, 0], "持久 0 局是已知值，不得退回即時值");
+  assert.equal(pitcherRow(out, "PB02")?.pitch_cnt, 3);
+  // 名單、順序、姓名沿用 snapshot；不丟 livelog，末事件出局敘述與結束公告都保留
+  assert.deepEqual(out.pitching.map((row) => row.pitcher_acnt), ["PA01", "PB02"]);
+  assert.equal(pitcherRow(out, "PA01")?.pitcher_name, "虛構投手甲");
+  assert.deepEqual(out.livelog.map((row) => row.content), ["好球。", "三振，3人出局。", "比賽結束。"]);
+  assert.equal(out.live_snapshot, snap);
+});
+
+test("#237 completed 非嚴格 true、snapshot 尚非 final：保留即時投手值（不以比分或 final 推定完整）", () => {
+  const withoutCompleted = { year: 2031, kind_code: "A", game_sno: 901, away_score: 1, home_score: 0 };
+  const games: LiveApiResponse["game"][] = [
+    { ...persistedGame, completed: false }, { ...persistedGame, completed: null },
+    { ...persistedGame, completed: "true" }, { ...persistedGame, completed: 1 }, withoutCompleted, null,
+  ];
+  for (const game of games) {
+    const out = applyFinal(game, persistedPitching);
+    assert.deepEqual(ipOf(out, "PA01"), [1, 2], JSON.stringify(game));
+    assert.equal(pitcherRow(out, "PB02")?.pitch_cnt, 4, JSON.stringify(game));
+  }
+  // 持久 completed 為 true 但 snapshot 仍是賽中／未開打：兩來源矛盾，fail-closed 保留即時
+  for (const phase of ["live", "scheduled"] as const) {
+    const out = applyFinal(persistedGame, persistedPitching, finalSnapshot({ phase, freshness: "fresh" }));
+    assert.deepEqual(ipOf(out, "PA01"), [1, 2], phase);
+    assert.deepEqual(ipOf(out, "PB02"), [1, 0], phase);
+  }
+});
+
+test("#237 身份不一致或持久列有歧義：不採持久值，fail-closed 保留即時", () => {
+  const games: LiveApiResponse["game"][] = [
+    { ...persistedGame, game_sno: 902 }, { ...persistedGame, kind_code: "E" }, { ...persistedGame, year: 2030 },
+  ];
+  for (const game of games) {
+    assert.deepEqual(ipOf(applyFinal(game, persistedPitching), "PA01"), [1, 2], JSON.stringify(game));
+  }
+  const pa01 = (over: LiveApiResponse["pitching"][number] = {}) => ({ ...persistedPitching[0], pitch_cnt: 21, ...over });
+  const pitchingCases: LiveApiResponse["pitching"][] = [
+    [pa01({ pitcher_acnt: "PA99" })], [pa01({ visiting_home_type: "1" })],
+    [pa01(), pa01({ inning_pitched_cnt: 3 })],
+    [pa01({ year: 2030 })], [pa01({ kind_code: "E" })], [pa01({ game_sno: 902 })], [],
+  ];
+  for (const pitching of pitchingCases) {
+    const out = applyFinal(persistedGame, pitching);
+    assert.deepEqual(ipOf(out, "PA01"), [1, 2], JSON.stringify(pitching));
+    assert.equal(pitcherRow(out, "PA01")?.pitch_cnt, 18, JSON.stringify(pitching));
+  }
+});
+
+test("#237 IP pair 原子採用：任一半缺／無效就整對保留即時；球數逐欄獨立，0 有效", () => {
+  const badValues: (number | string | null)[] = [null, "", "六", 5.5, -3, Number.NaN];
+  for (const bad of badValues) {
+    const out = applyFinal(persistedGame, [
+      { pitcher_acnt: "PA01", visiting_home_type: "2", inning_pitched_cnt: bad, inning_pitched_div3: 0, pitch_cnt: 20 },
+      { pitcher_acnt: "PB02", visiting_home_type: "2", inning_pitched_cnt: 0, inning_pitched_div3: 0, pitch_cnt: bad },
+    ]);
+    assert.deepEqual(ipOf(out, "PA01"), [1, 2], `整局=${String(bad)}`);
+    assert.equal(pitcherRow(out, "PA01")?.pitch_cnt, 20);
+    assert.deepEqual(ipOf(out, "PB02"), [0, 0]);
+    assert.equal(pitcherRow(out, "PB02")?.pitch_cnt, 4, `球數=${String(bad)}`);
+  }
+  for (const div3 of [null, "", 3, -1, 1.5]) {
+    const out = applyFinal(persistedGame, [
+      { pitcher_acnt: "PA01", visiting_home_type: "2", inning_pitched_cnt: 2, inning_pitched_div3: div3, pitch_cnt: 0 },
+    ]);
+    assert.deepEqual(ipOf(out, "PA01"), [1, 2], `餘數=${String(div3)}：不得拼成持久整局＋即時餘數`);
+    assert.equal(pitcherRow(out, "PA01")?.pitch_cnt, 0, "持久球數 0 是已知值");
+  }
+  const missing = applyFinal(persistedGame, [
+    { pitcher_acnt: "PA01", visiting_home_type: "2", inning_pitched_cnt: 2, pitch_cnt: 20 },
+  ]);
+  assert.deepEqual(ipOf(missing, "PA01"), [1, 2], "缺餘數欄＝未知，不是 0，也不拼半對");
+  assert.equal(pitcherRow(missing, "PA01")?.pitch_cnt, 20);
+});
+
 test("live 前景依 API 建議 12 秒輪詢，背景與 final 都停止 timer", () => {
   assert.equal(nextPollDelay(snapshot(), true), 12_000);
   assert.equal(nextPollDelay(snapshot(), false), null);

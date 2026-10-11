@@ -17,7 +17,7 @@ import { indexWpCurve, joinPaSwing } from "@/lib/pa-wp-join";
 import { displayWpPctInt } from "@/lib/win-prob-display";
 import { PaScoreLine } from "@/components/pa-score-line";
 import {
-  canShowPostgameConclusions, inningLabel, liveScorebarScores, officialCompletionOf, phaseLabel, plateAppearancePitchCountLabel, trackingEmptyMessage,
+  canShowPostgameConclusions, inningLabel, knownCount, liveScorebarScores, officialCompletionOf, phaseLabel, plateAppearancePitchCountLabel, trackingEmptyMessage,
   type LiveCaptureCoverage, type LiveSnapshot,
 } from "@/lib/live-game";
 
@@ -219,7 +219,7 @@ export const DEFEND_ZH: Record<string, string> = {
 function Matchup({ e, game, batterAvg, uniforms, pcount, pstats, batterToday, onJump }: {
   e: StatRow; game: StatRow; batterAvg: Record<string, number>;
   uniforms: { bat: Record<string, string>; pit: Record<string, string> };
-  pcount: number; pstats: PitcherLive; batterToday: TodayPA[]; onJump: (idx: number) => void;
+  pcount: number | null; pstats: PitcherLive; batterToday: TodayPA[]; onJump: (idx: number) => void;
 }) {
   const batAway = String(e.visiting_home_type) === "1";     // 上半＝客隊打擊
   const batCode = String((batAway ? game.away_team_code : game.home_team_code) ?? "");
@@ -239,7 +239,7 @@ function Matchup({ e, game, batterAvg, uniforms, pcount, pstats, batterToday, on
         <span className="text-[10px] font-semibold text-muted">投</span>
         {pitNo && <span className="font-mono text-sm font-bold tabular-nums text-ink">{pitNo}</span>}
         <span className="truncate text-base font-bold text-ink">{String(e.pitcher_name ?? "—")}</span>
-        <span className="ml-auto shrink-0 font-mono text-[11px] tabular-nums text-faint">{ip}局・{pstats.k}K・被安{pstats.h}・{pcount}球</span>
+        <span className="ml-auto shrink-0 font-mono text-[11px] tabular-nums text-faint">{ip}局・{pstats.k}K・被安{pstats.h}・{pcount ?? "—"}球</span>
       </div>
       {/* 打者卡（頭條 + 今日 chip 列）*/}
       <div className="overflow-hidden rounded-md bg-surface">
@@ -714,15 +714,31 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
     return out;
   }, [log, curKey]);
 
-  // 投手本場累積投球數（至目前指標）
-  const pcount = useMemo(() => {
-    if (!e) return 0;
-    let c = 0;
+  // 投手本場累計球數（至目前指標）＝該投手截至 idx 最近一列的官方 pitch_cnt（本場累計），#237。
+  // ⛔ 不以 is_ball／is_strike 逐列 +1：同一球常有多列（如第三出局＋比賽結束公告），逐列計數會多算。
+  // 缺值／無效／倒退＝未知（null，顯示「—」），不造數、不借整場總數；0 是已知值。
+  // 唯一沿用：同一事件的後續列缺 pitch_cnt 時，沿用該事件已知值（明示無效值不沿用）。
+  const pcount = useMemo((): number | null => {
+    if (!e || !occupied(e.pitcher_acnt)) return null;
+    const pitcher = String(e.pitcher_acnt);
+    let known: number | null = null;
+    let knownEvt: string | null = null;
+    let peak = -1;
     for (let k = 0; k <= idx && k < total; k++) {
       const r = log[k];
-      if (r.pitcher_acnt === e.pitcher_acnt && (r.is_ball || r.is_strike)) c++;
+      if (String(r.pitcher_acnt ?? "") !== pitcher) continue;
+      // 事件身分須為非空白字串才能證明「同一球」；缺鍵／空字串／純空白＝無身分（null）。
+      // trim 只用來判空，比較仍用原字串，不把不同的非空 ID 合併成同一個。
+      const evt = r.main_event_no == null || String(r.main_event_no).trim() === "" ? null : String(r.main_event_no);
+      if (r.pitch_cnt === undefined) {
+        if (evt === null || evt !== knownEvt) { known = null; knownEvt = null; }
+        continue;
+      }
+      const v = knownCount(r.pitch_cnt);
+      if (v === null || v < peak) { known = null; knownEvt = null; continue; }
+      known = v; knownEvt = evt; peak = v;
     }
-    return c;
+    return known;
   }, [log, idx, total, e]);
 
   // 投打即時累計（至 idx，排除進行中打席）：

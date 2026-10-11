@@ -8,6 +8,146 @@ import GameBoard, { type Live } from "./game-board.tsx";
 import type { StatRow } from "@/lib/client.ts";
 import { applyLiveSnapshot, type LiveApiResponse, type LiveSnapshot } from "@/lib/live-game.ts";
 
+// ───── #237 投手卡累計球數（純合成：年份 2031、場號 901、選手與事件皆虛構，非實際來源觀測）─────
+type PcPitch = {
+  evt?: string | undefined; pitcher: string; pitchCnt?: unknown; content: string;
+  inning?: number; change?: boolean; strike?: boolean;
+};
+const pcRow = ({ evt, pitcher, pitchCnt, content, inning = 1, change = false, strike = !change }: PcPitch) => ({
+  ...(evt === undefined ? {} : { MainEventNo: evt }), VisitingHomeType: "1", InningSeq: inning, VisitingScore: 0, HomeScore: 0,
+  IsChangePlayer: change ? "1" : "0", IsStrike: strike ? "1" : "0", Content: content,
+  HitterAcnt: change ? "" : "H01", HitterName: change ? "" : "虛構打者",
+  PitcherAcnt: pitcher, PitcherName: pitcher === "PA01" ? "虛構投手甲" : "虛構投手乙",
+  ...(pitchCnt === undefined ? {} : { PitchCnt: pitchCnt }),
+});
+const pcSide = (code: string, name: string): LiveSnapshot["home"] => ({
+  team: { code, name }, score: 0, inning_score: [{ Seq: 1, Score: "0" }],
+  lineup: { availability: "announced", items: [], first_observed_at: null },
+  hitters: [], pitchers: [], probable_pitcher: { availability: "not_announced" },
+});
+const pcSnapshot = (rows: PcPitch[]): LiveSnapshot => ({
+  game_id: "2031-A-901", game_sno: 901, kind_code: "A", phase: "live", raw_status: "START",
+  inning: 1, half: "top", event_count: rows.length, tracking_count: 0,
+  tracking_availability: "pending", poll_after_seconds: 12, freshness: "fresh", source_status: "ok",
+  stale_after_seconds: 45, source: { fetched_at: "2031-07-01T11:00:00+00:00", version: "pc-v1" },
+  away: pcSide("AAA", "虛構客隊"), home: pcSide("BBB", "虛構主隊"),
+  livelog: rows.map(pcRow),
+});
+/** 實際 SSR 渲染 GameBoard（逐打席視圖），回傳投手橫幅「…K・被安N・X球」的 X。 */
+const pcCard = (rows: PcPitch[], idx: number): string | undefined => {
+  const raw: LiveApiResponse = {
+    game: { year: 2031, kind_code: "A", game_sno: 901 },
+    scoreboard: [], livelog: [], batting: [], pitching: [], people: {}, records: {}, batter_avg: {},
+    detail: null, decisions: {}, decision_counts: null, has_tracking: false, tracking: [], spray: [],
+    live_snapshot: pcSnapshot(rows),
+  };
+  const data = applyLiveSnapshot(raw) as unknown as Live;
+  const html = renderToStaticMarkup(
+    <GameBoard data={data} idx={idx} setIdx={() => {}} view="pbp" gameSno="901" />,
+  ).replace(/<!-- -->/g, "");
+  return /K・被安\d+・([^<]*?)球/.exec(html)?.[1];
+};
+const pcPitcherA = (): PcPitch[] => [
+  ...Array.from({ length: 18 }, (_, i): PcPitch => {
+    const n = i + 1;
+    const inInning = (n - 1) % 9 + 1;
+    const outs = inInning % 3 === 0 ? inInning / 3 : 0;
+    return { evt: String(n), pitcher: "PA01", pitchCnt: n, inning: n <= 9 ? 1 : 2,
+             content: outs ? `三振，${outs}人出局。` : "好球。" };
+  }),
+  // 同一第 18 球的第二列：結束公告（同事件鍵、同 pitch_cnt，官方判決旗標同樣為好球）
+  { evt: "18", pitcher: "PA01", pitchCnt: 18, inning: 2, content: "比賽結束。" },
+];
+
+test("#237 投手卡累計球數取 pitch_cnt：同一球兩列（三人出局＋結束公告）顯示 18 而非 19", () => {
+  const rows = pcPitcherA();
+  assert.equal(pcCard(rows, rows.length - 1), "18", "結束公告列不得再算一球");
+  assert.equal(pcCard(rows, rows.length - 2), "18");
+  assert.equal(pcCard(rows, 15), "16", "選中第 16 球只算到當時，不把整場總數填入早期事件");
+  assert.equal(pcCard(rows, 0), "1");
+});
+
+test("#237 投手卡球數：換投隔離、無球未知、0 為已知值", () => {
+  const rows: PcPitch[] = [
+    { evt: "1", pitcher: "PA01", pitchCnt: 1, content: "好球。" },
+    { evt: "2", pitcher: "PA01", pitchCnt: 2, content: "好球。" },
+    { evt: "3", pitcher: "PA01", pitchCnt: 3, content: "三振，1人出局。" },
+    { evt: "4", pitcher: "PB02", content: "投手異動：虛構投手乙接替。", change: true },
+    { evt: "5", pitcher: "PB02", pitchCnt: 0, content: "牽制。", strike: false },
+    { evt: "6", pitcher: "PB02", pitchCnt: 1, content: "好球。" },
+    { evt: "7", pitcher: "PB02", pitchCnt: 2, content: "好球。" },
+  ];
+  assert.equal(pcCard(rows, 2), "3");
+  assert.equal(pcCard(rows, 3), "—", "換投當下新投手尚無任何 pitch_cnt：未知，不寫 0");
+  assert.equal(pcCard(rows, 4), "0", "官方 pitch_cnt=0 是已知值");
+  assert.equal(pcCard(rows, 6), "2", "換投後只算新投手，不混入前任");
+});
+
+test("#237 投手卡球數：pitch_cnt 缺值／無效／倒退不造數，不以判決旗標逐列補算", () => {
+  const invalid: PcPitch[] = [null, "", "2.5", 2.5, -1].map((pitchCnt, i) => ({
+    evt: String(i + 1), pitcher: "PA01", pitchCnt, content: "好球。",
+  }));
+  assert.equal(pcCard(invalid, invalid.length - 1), "—");
+  const absent: PcPitch[] = ["1", "2", "3"].map((evt) => ({ evt, pitcher: "PA01", content: "好球。" }));
+  assert.equal(pcCard(absent, 2), "—", "缺 pitch_cnt 不得以 is_strike 逐列計數");
+  const trailing: PcPitch[] = [
+    { evt: "1", pitcher: "PA01", pitchCnt: 1, content: "好球。" },
+    { evt: "2", pitcher: "PA01", pitchCnt: 2, content: "三振，1人出局。" },
+    { evt: "2", pitcher: "PA01", content: "比賽結束。" },
+  ];
+  assert.equal(pcCard(trailing, 2), "2", "同球後續列缺 pitch_cnt：沿用當時最近已知值");
+  const laterInvalid: PcPitch[] = [
+    { evt: "1", pitcher: "PA01", pitchCnt: 1, content: "好球。" },
+    { evt: "2", pitcher: "PA01", pitchCnt: null, content: "好球。" },
+  ];
+  assert.equal(pcCard(laterInvalid, 1), "—", "已知值之後的明示無效值：未知，不吞成最近已知值");
+  const regressed: PcPitch[] = [1, 2, 3, 4, 5, 3].map((pitchCnt, i) => ({
+    evt: String(i + 1), pitcher: "PA01", pitchCnt, content: "好球。",
+  }));
+  assert.equal(pcCard(regressed, 4), "5");
+  assert.equal(pcCard(regressed, 5), "—", "累計倒退屬不正常資料：未知，不顯示倒退值");
+});
+
+test("#237 投手卡球數：事件鍵缺／空字串／純空白不能證明同一球，後續缺 pitch_cnt 列不得沿用前值", () => {
+  const omitted: PcPitch[] = [
+    { pitcher: "PA01", pitchCnt: 7, content: "三振，3人出局。" },
+    { pitcher: "PA01", content: "比賽結束。" },
+  ];
+  assert.equal(pcCard(omitted, 0), "7", "本列明示有效 pitch_cnt：事件鍵缺也照常顯示");
+  assert.equal(pcCard(omitted, 1), "—", "兩列都缺 MainEventNo：無法證明同一球，未知");
+  for (const evt of ["", " ", "  \t "]) {
+    const rows: PcPitch[] = [
+      { evt, pitcher: "PA01", pitchCnt: 7, content: "三振，3人出局。" },
+      { evt, pitcher: "PA01", content: "比賽結束。" },
+    ];
+    const label = `MainEventNo=${JSON.stringify(evt)}`;
+    assert.equal(pcCard(rows, 0), "7", `${label}：本列明示有效值照常顯示`);
+    assert.equal(pcCard(rows, 1), "—", `${label}：空或純空白事件鍵不能證明同一球`);
+  }
+  // 對照：有效且相同事件鍵可沿用；有效但不同事件鍵不沿用
+  const sameEvent: PcPitch[] = [
+    { evt: "E1", pitcher: "PA01", pitchCnt: 7, content: "三振，3人出局。" },
+    { evt: "E1", pitcher: "PA01", content: "比賽結束。" },
+  ];
+  assert.equal(pcCard(sameEvent, 1), "7", "有效且相同事件鍵：同一球後續列沿用");
+  const otherEvent: PcPitch[] = [
+    { evt: "E1", pitcher: "PA01", pitchCnt: 7, content: "好球。" },
+    { evt: "E2", pitcher: "PA01", content: "好球。" },
+  ];
+  assert.equal(pcCard(otherEvent, 1), "—", "不同事件鍵：未知，不沿用");
+  // 明示有效值（含 0）不受事件鍵缺／空／純空白影響
+  for (const evt of [undefined, "", "  "]) {
+    const zero: PcPitch[] = [{ evt, pitcher: "PA01", pitchCnt: 0, content: "牽制。", strike: false }];
+    assert.equal(pcCard(zero, 0), "0", `MainEventNo=${JSON.stringify(evt)}：0 是已知值`);
+    const twoKnown: PcPitch[] = [
+      { evt, pitcher: "PA01", pitchCnt: 6, content: "好球。" },
+      { evt, pitcher: "PA01", pitchCnt: 7, content: "好球。" },
+    ];
+    assert.equal(pcCard(twoKnown, 1), "7", `MainEventNo=${JSON.stringify(evt)}：本列明示值優先`);
+  }
+});
+
+
 // 頂部記分條的**態**渲染測試（`UX-GAME-COMPLETED-SCOREBAR1` / #160）。
 //
 // 守的是設計定稿 §1.1.1：完賽態總覽的中央格只寫「終場」，不畫 `▲/▼ N 局`、壘包與球數；
