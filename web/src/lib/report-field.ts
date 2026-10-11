@@ -13,17 +13,25 @@ export function reportField(report: Report, team: string): { cells: FieldCells; 
   const person = (pid: string) => reportFieldPlayer(report, team, pid)?.name ?? pid;
   const lineup = report.announcements?.lineup;
   const items = lineup?.items.filter(i => i.team_code === team) ?? [];
+  const evidence = lineup?.team_evidence?.[team];
+  const stats = lineup?.source_type === "stats_datagame"
+    && lineup.raw_status === "SCHEDULED" && evidence?.status === "announced"
+    && evidence.source_type === "stats_datagame" && evidence.raw_status === "SCHEDULED"
+    && !!lineup.source_version && evidence.source_version === lineup.source_version
+    && !!report.next_game && report.next_game.year === report.season
+    && [report.next_game.away_team_code, report.next_game.home_team_code].includes(team);
+  const main = (!lineup?.source_type || lineup.source_type === "main_schedule")
+    && lineup?.status === "announced" && lineup.pregame_evidence?.is_play_ball === "N";
   const observed = Date.parse(lineup?.observed_at ?? "");
-  const fetched = Date.parse(lineup?.pregame_evidence?.fetched_at ?? "");
-  const started = lineup?.pregame_evidence?.first_started_at;
+  const fetched = Date.parse((stats ? evidence?.fetched_at : lineup?.pregame_evidence?.fetched_at) ?? "");
+  const started = stats ? evidence?.first_started_at : lineup?.pregame_evidence?.first_started_at;
   const positions = new Set(items.map(i => i.pos));
-  const reliable = lineup?.status === "announced" && !!lineup.source_version && !!lineup.observed_at
-    && lineup.pregame_evidence?.is_play_ball === "N" && items.length === 9
+  const reliable = (stats || main) && !!lineup?.source_version && !!lineup.observed_at && items.length === 9
     && Number.isFinite(observed) && observed === fetched && (!started || observed < Date.parse(started))
     && new Set(items.map(i => i.player_id)).size === 9 && new Set(items.map(i => i.order)).size === 9
     && positions.size === 9 && ["C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"].every(p => positions.has(p))
     && (positions.has("DH") || positions.has("P"))
-    && items.every(i => i.player_id && i.pos && i.order >= 1 && i.order <= 9);
+    && items.every(i => /^[0-9]{10}$/.test(i.player_id) && i.pos && Number.isInteger(i.order) && i.order >= 1 && i.order <= 9);
   const cell = (pid: string, order?: number) => ({ main: person(pid), href: `#report-player-${pid}`, meta: order == null ? undefined : String(order) });
   if (reliable) return {
     cells: Object.fromEntries(items.filter(i => i.pos !== "DH").map(i => [i.pos,cell(i.player_id,i.order)])) as FieldCells,

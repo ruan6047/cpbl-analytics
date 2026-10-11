@@ -18,6 +18,7 @@ export type ReportPlayer = {
 };
 export type ReportSource = { source: string; source_version: string | null; fetched_at?: string | null; updated_at?: string | null; last_seen_at?: string | null; read_at?: string; reference: string; cutoff_basis?: string; coverage_status?: string };
 export type Starter = { acnt: string | null; name: string | null; status: string; team_code: string; observed_at?: string | null; source_version?: string | null };
+export type LineupTeamEvidence = { status: string; source_type?: string; raw_status?: string | null; source_version?: string | null; fetched_at?: string | null; observed_at?: string | null; first_content_at?: string | null; first_status_at?: string | null; first_started_at?: string | null; boundary_sources?: { source_type: string; source_version?: string | null; raw_status?: string | null; fetched_at: string }[] };
 export type Report = {
   status: "ok" | "not_found" | "not_final"; season: number; kind_code: ReportKind; game_sno: number;
   game?: { year: number; kind_code: string; game_sno: number; game_date: string; venue: string | null; home_team_code: string; away_team_code: string; home_score: number; away_score: number };
@@ -31,7 +32,7 @@ export type Report = {
   regular_coverage?: { year: number; kind: string; closed_before_X: boolean; covered_game_keys: string[] };
   teams?: { team: string; axes: { key: string; label: string; semantics: string }[]; seasons: { n_teams: number; axes: Record<string, { z: number; rank: number; raw: number | null }> }[] }[];
   watch_points?: { team_code: string; player_id: string; origin: string; count_line: Counts; question: string }[];
-  announcements?: { lineup: { status: string; items: { player_id: string; team_code: string; pos: string; order: number }[]; source_version?: string | null; observed_at?: string | null; pregame_evidence?: { is_play_ball: string; fetched_at?: string; first_started_at?: string | null } } };
+  announcements?: { lineup: { status: string; items: { player_id: string; team_code: string; pos: string; order: number; name?: string | null }[]; source_type?: string; raw_status?: string | null; source_url?: string; team_evidence?: Record<string, LineupTeamEvidence>; source_version?: string | null; observed_at?: string | null; pregame_evidence?: { is_play_ball?: string; fetched_at?: string; first_started_at?: string | null } } };
   coverage?: { games: number; with_pitching: number; with_batting: number };
 };
 export type ReportView = { report: Report; journey: PostseasonJourney | null; updating: boolean };

@@ -100,3 +100,23 @@ def matchups(cur, season: int, hitters: list[str], pitchers: list[str]) -> dict[
              AND hitter_acnt=ANY(%s) AND pitcher_acnt=ANY(%s)""", (season, hitters, pitchers),
     )
     return {(r["hitter_acnt"], r["pitcher_acnt"]): r for r in _dicts(cur)}
+
+
+
+def lineup_revisions(cur, season: int, candidates: list[dict]) -> list[dict]:
+    """候選Y一次batch；新表未部署只回未知，GET不建表或改資料。"""
+    if season != 2026 or not candidates:
+        return []
+    e_snos=sorted({r["game_sno"] for r in candidates if r["kind_code"]=="E"})
+    c_snos=sorted({r["game_sno"] for r in candidates if r["kind_code"]=="C"})
+    cur.execute("SELECT to_regclass('cpbl.game_lineup_announcement_revisions')")
+    if cur.fetchone()[0] is None:
+        return []
+    cur.execute("""SELECT year,kind_code,game_sno,source_type,source_url,fetched_at,
+                          content_hash,raw_status,raw_payload,last_seen_at
+                   FROM cpbl.game_lineup_announcement_revisions
+                   WHERE year=%s AND source_type='stats_datagame'
+                     AND ((kind_code='E' AND game_sno=ANY(%s))
+                          OR (kind_code='C' AND game_sno=ANY(%s)))
+                   ORDER BY kind_code,game_sno,fetched_at""",(season,e_snos,c_snos))
+    return _dicts(cur)

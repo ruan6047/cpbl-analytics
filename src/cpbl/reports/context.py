@@ -27,7 +27,8 @@ def key(game: dict) -> str:
 
 
 def bounded_context(anchor: dict, games: list[dict], schedules: list[dict],
-                    population_sources: list[dict] | None = None) -> dict:
+                    population_sources: list[dict] | None = None,
+                    announcement_materials: list[dict] | None = None) -> dict:
     year, kind, sno = anchor["year"], anchor["kind_code"], anchor["game_sno"]
     series, order_ok = order_series(g for g in games if g["year"] == year
                                    and g["kind_code"] == kind and g["completed"])
@@ -77,6 +78,8 @@ def bounded_context(anchor: dict, games: list[dict], schedules: list[dict],
                         "season": year, "kind_code": kind, "game_sno": sno})
     if population_sources:
         context["population_sources"] = jsonable(population_sources)
+    if announcement_materials:
+        context["announcement_materials"] = jsonable(announcement_materials)
     context["context_hash"] = hashlib.sha256(json.dumps(
         context, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
     return context

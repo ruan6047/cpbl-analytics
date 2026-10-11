@@ -20,6 +20,7 @@ def enriched_inputs(monkeypatch):
     games, schedules = [a, x], [schedule]
     monkeypatch.setattr(readers, "games", lambda *_: games)
     monkeypatch.setattr(readers, "schedules", lambda *_: schedules)
+    monkeypatch.setattr(readers, "lineup_revisions", lambda *_: [])
     monkeypatch.setattr(readers, "source_revisions", lambda *_: [])
     monkeypatch.setattr(readers, "pitching_sources", lambda *_: [])
     def box(cur, season, kind, snos, role):
@@ -195,3 +196,31 @@ def test_enrichment_requires_same_official_population_version(monkeypatch):
     from cpbl.reports.context import ContextChanged
     with pytest.raises(ContextChanged):
         assembler.build_report(object(),2026,"E",1,"E",2,base["journey_context"]["context_hash"],population_records=changed)
+
+
+
+def test_same_batch_lineup_used_for_context_and_output_without_inventing_mother(monkeypatch):
+    from cpbl.ingest.lineup_announcements import content_hash, project
+    records,_,_,_=official_inputs(monkeypatch)
+    source_ids=[f"900000000{i}" for i in range(1,10)]
+    positions=["C","1B","2B","3B","SS","LF","CF","RF","DH"]
+    raw={"GameId":"2026-E-2","GameSno":2,"KindCode":"E","PreExeDate":"2026-10-10T17:05:00","GameStatus":"SCHEDULED",
+         "Visiting":{"Team":{"Code":"ADD011"},"Hitters":[{"Lineup":i,"HitterAcnt":pid,"HitterName":f"公告{i}","DefendStation":pos} for i,(pid,pos) in enumerate(zip(source_ids,positions,strict=True),1)]},
+         "Home":{"Team":{"Code":"ACN011"},"Hitters":[]}}
+    payload=project("2026-E-2",raw)
+    revision={"year":2026,"kind_code":"E","game_sno":2,"source_type":"stats_datagame","source_url":"https://stats.cpbl.com.tw/api/proxy/v1/games/2026-E-2","raw_status":"SCHEDULED","raw_payload":payload,"content_hash":content_hash(payload),"fetched_at":datetime(2026,10,10,1,tzinfo=UTC),"last_seen_at":datetime(2026,10,10,1,tzinfo=UTC)}
+    calls=[]
+    monkeypatch.setattr(readers,"matchups",lambda *args: {})
+    monkeypatch.setattr(readers,"lineup_revisions",lambda *args:calls.append(args) or [revision])
+    base=assembler.build_report(object(),2026,"E",1,population_records=records)
+    assert len(calls)==1
+    calls.clear()
+    enriched=assembler.build_report(object(),2026,"E",1,"E",2,base["journey_context"]["context_hash"],population_records=records)
+    assert len(calls)==1
+    lineup=enriched["announcements"]["lineup"]
+    assert lineup["team_evidence"]["ADD011"]["status"]=="announced" and lineup["status"]=="partial"
+    assert "is_play_ball" not in lineup["pregame_evidence"]
+    assert {i["player_id"] for i in lineup["items"]}==set(source_ids)
+    assert all(any(p["player_id"]==pid and p["role"]=="batting" and p["name"]==f"公告{i}" for p in enriched["players"]) for i,pid in enumerate(source_ids,1))
+    assert all(len(r["members"])==32 for r in enriched["population"])
+    assert enriched["population"]==base["population"]  # 公告9不當完整母體或實際使用。
