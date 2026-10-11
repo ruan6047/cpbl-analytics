@@ -51,6 +51,8 @@ test("面板切換的單一期間同步數字及樣本；第4期沿真用量不�
   }
   const usage=renderToStaticMarkup(<ReportPlayerPeriod player={player} period="usage"/>);
   assert.match(usage,/最後一任 · 0.2 局 · 19 球/);assert.match(usage,/距該場 — 天/);assert.ok(!usage.includes("救援"));
+  const noTargetUsage=renderToStaticMarkup(<ReportPlayerPeriod player={player} period="usage" hasTarget={false}/>);
+  assert.ok(!noTargetUsage.includes("距該場"));assert.match(noTargetUsage,/合計 0.2 局 · 19 球/);
   assert.match(renderToStaticMarkup(<ReportPlayerPeriod player={p} period="usage"/>),/未取得可靠使用紀錄/);
 });
 
@@ -125,6 +127,7 @@ test("沒有Y或系列終結不造開賽前背景、先發或未來式觀察題"
     assert.ok(!html.includes("下一場能否"));
     assert.ok(!html.includes("下一場先發"));
     assert.ok(!html.includes("該場公告先發"));
+    assert.ok(!html.includes("距該場"));
     assert.ok(!html.includes("查看下一場賽況"));
     assert.ok(!html.includes("查看該場賽況"));
     if(tab==="overview") assert.match(html,/outs 18/);

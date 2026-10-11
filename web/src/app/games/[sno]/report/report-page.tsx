@@ -39,16 +39,16 @@ function AbilityPanel({ player }: { player: ReportPlayer }) {
   </>;
 }
 type PlayerPeriod = typeof periods[number]["key"] | "usage";
-export function ReportPlayerPeriod({ player, period }: { player: ReportPlayer; period: PlayerPeriod }) {
+export function ReportPlayerPeriod({ player, period, hasTarget = true }: { player: ReportPlayer; period: PlayerPeriod; hasTarget?: boolean }) {
   if (period !== "usage") return <PeriodRow period={player.periods[period]} role={player.role} />;
   const usage = player.pitching_usage;
   if (!usage) return <p className="text-sm text-muted">本站未取得可靠使用紀錄</p>;
   return <>
-    <p className="text-sm text-muted">合計 {String(usage.ip ?? "—")} 局 · {String(usage.pitch_total ?? "—")} 球 · 連續 {String(usage.consecutive_days ?? "—")} 天 · 距該場 {String(usage.days_to_next ?? "—")} 天</p>
+    <p className="text-sm text-muted">合計 {String(usage.ip ?? "—")} 局 · {String(usage.pitch_total ?? "—")} 球 · 連續 {String(usage.consecutive_days ?? "—")} 天{hasTarget && <> · 距該場 {String(usage.days_to_next ?? "—")} 天</>}</p>
     <ul className="mt-2 space-y-1 text-xs text-muted">{((usage.appearances ?? []) as { game_key: string; date: string; role_type: string; outs: number | null; pitch_cnt: number | null }[]).map(a => <li key={a.game_key}>{a.date} · {a.role_type ?? "角色未取得"} · {a.outs == null ? "—" : `${Math.floor(a.outs / 3)}.${a.outs % 3}`} 局 · {d(a.pitch_cnt)} 球</li>)}</ul>
   </>;
 }
-export function ReportPlayerDialog({ player, close, season }: { player: ReportPlayer; close: () => void; season: number }) {
+export function ReportPlayerDialog({ player, close, season, hasTarget = true }: { player: ReportPlayer; close: () => void; season: number; hasTarget?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [period, setPeriod] = useState<PlayerPeriod>("series");
   const tabs = player.role === "pitching" ? [...periods, { key: "usage" as const, label: "逐場使用" }] : periods;
@@ -66,7 +66,7 @@ export function ReportPlayerDialog({ player, close, season }: { player: ReportPl
         <div className="min-w-0"><p className="text-xs text-muted">守位：{player.role === "pitching" ? "投手" : player.fielding.map(f => `${f.pos} ${d(f.g)} 場`).join("／") || "本站未取得"}</p><TraitsContent data={player.traits as TraitsData | null} role={player.role} /></div>
       </header>
       <div className="mt-5 flex flex-wrap gap-1" role="group" aria-label="選手資料期間">{tabs.map(t => <button key={t.key} type="button" aria-pressed={period === t.key} onClick={() => setPeriod(t.key)} className={`min-h-11 rounded px-3 text-xs ${period === t.key ? "bg-ink text-paper" : "bg-band text-ink"}`}>{t.label}</button>)}</div>
-      <section className="py-4" aria-label={tabs.find(t => t.key === period)?.label}><ReportPlayerPeriod player={player} period={period} /></section>
+      <section className="py-4" aria-label={tabs.find(t => t.key === period)?.label}><ReportPlayerPeriod player={player} period={period} hasTarget={hasTarget} /></section>
       {player.role === "batting" && player.vs_starter.pitcher_id && <section className="border-t border-line py-4"><h3 className="mb-2 font-bold">本季對該場公告先發</h3>{player.vs_starter.counts ? <><CountLine counts={player.vs_starter.counts} role="batting" /><p className="mt-1 text-xs text-muted">{d(player.vs_starter.sample?.pa)} PA · {d(player.vs_starter.sample?.ab)} AB；覆蓋未核實，更新 {player.vs_starter.updated_at?.slice(0, 10) ?? "時點未取得"}</p></> : <p className="text-sm text-muted">本站未取得投打配對</p>}</section>}
       <section className="mt-6"><AbilityPanel player={player} /></section>
       {player.role === "pitching" && <section className="mt-5"><h3 className="font-bold">本季左右打分項</h3>{player.splits.length ? <ul className="mt-2 space-y-2 text-sm text-muted">{player.splits.map(s => <li key={String(s.item_index)}>{String(s.item_name ?? s.item_index)} · {d(s.plate_appearances)} PA · {d(s.hits)} H · {d(s.home_runs)} HR · {d(s.bb)} BB · {d(s.so)} SO</li>)}</ul> : <p className="mt-2 text-sm text-muted">本站未取得可靠左右分項</p>}</section>}
@@ -85,7 +85,7 @@ function TeamPlayers({ report, team, role, open, hasTarget }: { report: Report; 
     {role === "pitching" && hasTarget && <Card className="mb-5"><h3 className="font-bold">該場公告先發</h3>{nextStarter ? <><PlayerButton player={nextStarter} open={open} /><AbilityPanel player={nextStarter} /></> : <p className="mt-3 text-sm text-muted">本站尚未取得可靠先發公告</p>}</Card>}
     {role === "batting" && <div className="mb-5"><FieldDiagram cells={field.cells} designatedHitter={field.dh} caption={field.announced ? "該場公告先發" : "已取得選手中，本季守位最多場的候選"} onSelect={cell => { const pid = cell.href?.replace("#report-player-", ""); const p = pid ? reportFieldPlayer(report, team, pid) : null; if (p) open(p); }} /><p className="mt-2 text-xs text-muted">{field.announced ? "已核實賽前公告版本；棒次與守位依公告" : "候選守位，非公告先發；並列保留"}。DH {field.dh?.main ?? "本站未取得"}。</p></div>}
     <div className="mb-3 flex flex-wrap gap-1" role="group" aria-label={`${teamName3(team)}統計期間`}>{periods.map(({ key, label }) => <button key={key} type="button" aria-pressed={period === key} onClick={() => setPeriod(key)} className={`min-h-11 rounded px-3 text-xs ${period === key ? "bg-ink text-paper" : "bg-band text-ink"}`}>{label}</button>)}</div>
-    <div className="divide-y divide-line">{players.map(p => <div key={p.player_id} className="py-3"><div className="flex items-center justify-between gap-3"><PlayerButton player={p} open={open} /><span className="text-xs text-muted">{role === "pitching" ? p.pitching_usage?.started ? "系列曾先發" : "已取得投手紀錄" : p.fielding.map(f => f.pos).join("／") || "守位未取得"}</span></div><PeriodRow period={p.periods[period]} role={role} />{role === "pitching" && <p className="mt-2 text-xs text-muted">連續 {String(p.pitching_usage?.consecutive_days ?? "—")} 天 · 距該場 {String(p.pitching_usage?.days_to_next ?? "—")} 天</p>}</div>)}</div>
+    <div className="divide-y divide-line">{players.map(p => <div key={p.player_id} className="py-3"><div className="flex items-center justify-between gap-3"><PlayerButton player={p} open={open} /><span className="text-xs text-muted">{role === "pitching" ? p.pitching_usage?.started ? "系列曾先發" : "已取得投手紀錄" : p.fielding.map(f => f.pos).join("／") || "守位未取得"}</span></div><PeriodRow period={p.periods[period]} role={role} />{role === "pitching" && <p className="mt-2 text-xs text-muted">連續 {String(p.pitching_usage?.consecutive_days ?? "—")} 天{hasTarget && <> · 距該場 {String(p.pitching_usage?.days_to_next ?? "—")} 天</>}</p>}</div>)}</div>
     {!players.length && <p className="py-6 text-sm text-muted">本站尚未取得此隊{role === "pitching" ? "投手" : "野手"}背景</p>}
   </section>;
 }
@@ -112,6 +112,6 @@ export default function ReportPage({ view, tab }: { view: ReportView; tab: Repor
       <section><SectionTitle>兩隊本季球風</SectionTitle><div className="grid gap-5 md:grid-cols-2">{teamCodes.map(team => { const style = report.teams?.find(t => t.team === team); const season = style?.seasons[0]; return <div key={team}><TeamBadge code={team} name={teamName3(team)} />{style && season ? <ReportTeamStyle style={style} /> : <p className="mt-3 text-sm text-muted">本站未取得完整本季球風</p>}</div>; })}</div><p className="mt-4 text-xs text-muted">本季一軍固定尺度 · <Link href={reportLink(report.game_sno, report.kind_code, report.season, "pitchers")} className="text-accent underline">比較投手</Link> · <Link href={reportLink(report.game_sno, report.kind_code, report.season, "fielders")} className="text-accent underline">比較野手</Link></p></section>
     </> : <div className="grid gap-8 md:grid-cols-2">{teamCodes.map(team => <TeamPlayers key={`${team}-${tab}`} report={report} team={team} role={tab === "pitchers" ? "pitching" : "batting"} open={select} hasTarget={hasTarget} />)}</div>}
     <details className="border-t border-line pt-4 text-xs text-muted"><summary className="min-h-11 cursor-pointer">資料截至與來源</summary><p className="my-3">讀取 {report.read_at ?? "時點未取得"}；本季背景 {report.regular_coverage?.closed_before_X ? "A 季完成且早於前場" : "年度截至未核實"}。來源更新時點不代表官方更正發生時刻。</p>{journey && <p className="mb-2"><a className="underline" href={journey.announcement.source.url}>季後賽官方公告</a> · 取得 {journey.announcement.source.capturedAt}</p>}<ul className="space-y-2">{report.sources?.map((s,i) => <li key={`${s.source}-${i}`}><a className="underline" href={s.reference}>{s.source}</a> · 更新 {s.updated_at ?? s.fetched_at ?? "時點未取得"} · {s.coverage_status ?? "覆蓋未核實"}</li>)}</ul></details>
-    {selected && <ReportPlayerDialog key={`${selected.team_code}-${selected.role}-${selected.player_id}`} player={selected} close={() => select(null)} season={report.season} />}
+    {selected && <ReportPlayerDialog key={`${selected.team_code}-${selected.role}-${selected.player_id}`} player={selected} close={() => select(null)} season={report.season} hasTarget={hasTarget} />}
   </div>;
 }
