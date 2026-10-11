@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON
 from cpbl.db import conn
+from cpbl.reports import official_population
 from cpbl.reports.assembler import build_report
 from cpbl.reports.context import ContextChanged, jsonable
 
@@ -29,7 +30,8 @@ def game_report(
         with conn() as c:
             c.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
             out = build_report(c.cursor(), season, kind_code, game_sno,
-                               next_kind, next_sno, context_hash)
+                               next_kind, next_sno, context_hash,
+                               population_records=official_population.load(season, kind_code))
         return jsonable(out)
     except ContextChanged as exc:
         raise HTTPException(409, str(exc)) from exc

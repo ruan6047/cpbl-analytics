@@ -23,13 +23,14 @@ def build_report(cur, season: int, kind: str, sno: int, next_kind: str | None = 
     team_codes = [anchor["away_team_code"], anchor["home_team_code"]]
     if not all(isinstance(t, str) and t for t in team_codes) or len(set(team_codes)) != 2:
         raise ValueError("完賽來源必須有兩個不同隊伍")
+    rosters = [population.adapt(population_records or [], season, kind, t) for t in team_codes]
+    population_sources = population.provenance(rosters)
     schedule_rows = readers.schedules(cur, season)
-    context = bounded_context(anchor, all_games, schedule_rows)
+    context = bounded_context(anchor, all_games, schedule_rows, population_sources)
     target = validate_target(context, next_kind, next_sno, supplied_hash) if next_kind else None
     through_keys = context["through_game_keys"]
     upto = [g for g in all_games if key(g) in through_keys]
     snos = [g["game_sno"] for g in upto]
-    rosters = [population.adapt(population_records or [], season, kind, t) for t in team_codes]
     regular_games = [g for g in all_games if g["kind_code"] == "A"]
     regular_closed = bool(regular_games) and all(g["completed"] and g["game_date"] < anchor["game_date"]
                                                   for g in regular_games)
@@ -44,6 +45,7 @@ def build_report(cur, season: int, kind: str, sno: int, next_kind: str | None = 
                *[{**s, "scope": {"year": season, "kind": s["game_key"].split('/')[1]},
                   "covered_game_keys": [s["game_key"]], "coverage_status": "available",
                   "updated_at": None, "read_at": read_at} for s in context["sources"]]]
+    sources.extend({**s, "read_at": read_at} for s in population_sources)
     for r in readers.source_revisions(cur, season, kind, snos):
         sources.append({**r, "scope": {"year": season, "kind": kind},
                         "reference": f"/api/v1/games/{r['game_sno']}/live?season={season}&kind_code={kind}",
@@ -57,6 +59,8 @@ def build_report(cur, season: int, kind: str, sno: int, next_kind: str | None = 
                         "coverage_status": "available", "cutoff_basis": "through_X", "read_at": read_at})
     boxes = {role: readers.box(cur, season, kind, snos, role) for role in ("pitching", "batting")}
     regular_boxes = {role: readers.box(cur, season, "A", regular_snos, role) for role in boxes}
+    observed = [r for rows in boxes.values() for r in rows]
+    rosters = [population.reconcile(r, observed) for r in rosters]
     ids = sorted({r["player_id"] for rows in boxes.values() for r in rows}
                  | {m["player_id"] for roster in rosters for m in roster["members"] if m.get("player_id")})
     next_block = None
@@ -99,7 +103,9 @@ def build_report(cur, season: int, kind: str, sno: int, next_kind: str | None = 
                 periods = three_periods(series=rows, regular=regular_boxes[role], role=role,
                                         player_id=pid, team=team, opponent=opponent,
                                         series_keys=through_keys, regular_keys=reg_keys,
-                                        cutoff=cutoff, complete_population=roster["complete"],
+                                        # 註冊完整不等於全 box 完整：既有 reader 只有
+                                        # game-range row coverage，不能推出會員未登場。
+                                        cutoff=cutoff, complete_population=False,
                                         opponent_keys=[key(g) for g in regular if {team, opponent}
                                                        == {g["away_team_code"], g["home_team_code"]}])
                 apps = [{"game_key": r["game_key"], "game_sno": r["game_sno"],
@@ -107,7 +113,7 @@ def build_report(cur, season: int, kind: str, sno: int, next_kind: str | None = 
                          "role_type": r["role_type"], "outs": r["outs"], "pitch_cnt": r["pitch_cnt"]}
                         for g in upto for r in rows if role == "pitching" and r["game_sno"] == g["game_sno"]
                         and r["player_id"] == pid and r["team_code"] == team]
-                usage = bg.pitcher_usage(apps, target_date) if role == "pitching" else None
+                usage = bg.pitcher_usage(apps, target_date) if role == "pitching" and apps else None
                 if usage is not None:
                     usage["coverage_status"] = periods["series"]["coverage_status"]
                     if usage["coverage_status"] != "complete":
@@ -121,7 +127,9 @@ def build_report(cur, season: int, kind: str, sno: int, next_kind: str | None = 
                           "source": "batter_pitcher_matchups_A", "updated_at": pair["updated_at"],
                           "covered_game_keys": [], "coverage_status": "unverified"}
                 players.append({"player_id": pid, "team_code": team, "role": role,
-                                "name": person.get("name") or next((r["name"] for r in rows if r["player_id"] == pid), None),
+                                "name": next((m.get("name") for m in roster["members"]
+                                              if m["player_id"] == pid), None) or person.get("name")
+                                        or next((r["name"] for r in rows if r["player_id"] == pid), None),
                                 "bats": person.get("bats"), "throws": person.get("throws"),
                                 "periods": periods, "pitching_usage": usage, "vs_starter": vs,
                                 "fielding": [r for r in fields if r["player_id"] == pid and r["team_code"] == team],

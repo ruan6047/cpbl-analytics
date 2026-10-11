@@ -61,9 +61,26 @@ def test_c_context_only_has_previous_e_and_c_through_x():
 def test_official_full_mother_requires_ids_roles_and_round():
     record={'year':2026,'round':'E','team_code':'ACN011','official':True,'complete':True,
             'source_url':'https://www.cpbl.com.tw/official-fixture','roster_version':'fixture-v1',
-            'observed_at':'2026-10-08','members':[{'player_id':'p','role':'pitching'}]}
+            'observed_at':'2026-10-08','members':[{'player_id':'0000000001','role':'pitching','name':'測試投手'}]}
     assert adapt([record],2026,'E','ACN011')['complete']
     assert not adapt([record],2026,'C','ACN011')['complete']
     unresolved=deepcopy(record);unresolved['members'][0]['player_id']=None
     assert not adapt([unresolved],2026,'E','ACN011')['complete']
     assert adapt([],2026,'E','ACN011')['status']=='unverified'
+
+
+def test_population_source_version_and_identity_metadata_are_pinned_with_both_reads():
+    x=game(1,9)
+    source={"source":"official_registration","source_version":"roster-v1",
+            "scope":{"year":2026,"kind":"E","team_code":"ACN011"},
+            "reference":"https://www.cpbl.com.tw/fixture","published_date":"2026-10-08",
+            "published_at":None,"published_precision":"date",
+            "observed_at":"2026-10-11T17:33:07.351Z",
+            "identity_verified_at":"2026-10-11T18:56:05.097767+00:00"}
+    context=bounded_context(x,[x],[schedule(2,10)],population_sources=[source])
+    same=bounded_context(x,[x],[schedule(2,10)],population_sources=[deepcopy(source)])
+    assert context==same and context["population_sources"]==[source]
+    changed=bounded_context(x,[x],[schedule(2,10)],population_sources=[{**source,"source_version":"roster-v2"}])
+    with pytest.raises(ContextChanged):
+        validate_target(changed,"E",2,context["context_hash"])
+    assert validate_target(same,"E",2,context["context_hash"])["game_sno"]==2

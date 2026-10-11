@@ -17,8 +17,9 @@ def client(monkeypatch, result=None, failure=None):
     @contextmanager
     def read():
         yield Connection()
-    def build(*args):
+    def build(*args, **kwargs):
         calls.append(args)
+        calls.append(kwargs)
         if failure:
             raise failure
         return result or {'status':'not_found'}
@@ -47,3 +48,11 @@ def test_context_change_409_vs_invalid_candidate_422(monkeypatch):
     for error,status in ((ContextChanged('更新中'),409),(ValueError('不符候選'),422)):
         c,_=client(monkeypatch,failure=error)
         assert c.get('/api/v1/games/1/report?season=2026&kind_code=E&next_kind=E&next_sno=2&context_hash='+'a'*64).status_code==status
+
+
+def test_router_passes_formal_population_records_without_year_or_round_substitution(monkeypatch):
+    for year,kind,count in [(2026,"E",64),(2026,"C",0),(2025,"E",0)]:
+        c,calls=client(monkeypatch)
+        assert c.get(f"/api/v1/games/1/report?season={year}&kind_code={kind}").status_code==200
+        records=calls[2]["population_records"]
+        assert sum(len(r["members"]) for r in records)==count
