@@ -10,6 +10,8 @@
 > # 角色：需求方／PM／研究者／規劃者／執行者／審核者；階段：需求／規劃／執行／審核／結案
 > ```
 >
+> 有卡：回該卡**當前階段**的 PM 對話續談，⛔ 不重新排隊。PM 對話以階段為單位：階段確認後在新對話以 `--role PM --stage <新階段>` 接手；PM 收件只讀交付清單、⛔ 不輪詢、brief 局部讀，派工監看交子代理（`wfx/rules/roles/PM.md` §4、§9）。
+>
 > 改動共享資源（本機 DB、服務、排程、既有 worktree）須依 vNext 規則取得資源租用。模型分工見 [`.wf/model-policy.md`](.wf/model-policy.md)。
 >
 > **舊制度已退場**：[user Project #4](https://github.com/users/ruan6047/projects/4) 已於 [ai-workflow#417](https://github.com/ruan6047/ai-workflow/issues/417) 結案時關閉（2026-10-08；可 `gh project close 4 --owner ruan6047 --undo` 還原）；未結案舊卡（#53、#90、#119、#158）依 #417 Q6 裁定改照 vNext 繼續，各卡已留通知。舊流程（T 級、舊狀態值、claim／lease、Ledger、`wfcli`）⛔ 不用於任何卡；[`docs/AI_WORKFLOW.md`](docs/AI_WORKFLOW.md)、[`docs/CONTROL_PLANE_CONTRACT.md`](docs/CONTROL_PLANE_CONTRACT.md)、[`docs/MODEL_ROUTING.md`](docs/MODEL_ROUTING.md)、[`docs/TASKS.md`](docs/TASKS.md) 只作歷史查閱。舊 `.ai-workflow` 子模組已退役、本機殘留已於 #417 清除；ai-workflow 舊制已自其 main 移除（最後版本 `a1ea86f`），舊規則原文見 [ai-workflow @ `f207d2e`](https://github.com/ruan6047/ai-workflow/tree/f207d2ecf80556d6b90beeb0438bf648288a5fd9)，⛔ 不引為判準。
