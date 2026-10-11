@@ -244,7 +244,10 @@ test("收合打席把總球數放在投打名稱後，而非結果行後", () =>
   // UX-GAME-PA1：逐打席改用共用打席卡後，球數由 game-board 算、由 play-card 排版，
   // 故守衛跨兩檔——意圖不變（球數黏在打者名後面，不落到結果敘述之後）。
   const board = readFileSync(new URL("../components/game-board.tsx", import.meta.url), "utf8");
-  assert.match(board, /pitchCountLabel=\{g\.idxs\.length > 1\s*\?\s*plateAppearancePitchCountLabel\(g\.idxs\.length\) : null\}/);
+  // #237：球數來自打席成員的投手累計 pitch_cnt（paPitchCount），不是來源列數；行為由 game-board.test 的 SSR 測試證明。
+  assert.match(board, /const paCount = paPitchCount\(log, g\.idxs\);/);
+  assert.match(board, /pitchCountLabel=\{paCount !== null && paCount > 1\s*\?\s*plateAppearancePitchCountLabel\(paCount\) : null\}/);
+  assert.doesNotMatch(board, /plateAppearancePitchCountLabel\(g\.idxs\.length\)/, "不得退回以來源列數當球數");
   const card = readFileSync(new URL("../components/play-card.tsx", import.meta.url), "utf8");
   const nameAt = card.indexOf("<PlayerLink");
   const countAt = card.indexOf("{pitchCountLabel &&");

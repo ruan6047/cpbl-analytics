@@ -517,6 +517,8 @@ function PlayByPlay({ log, events, halfKey, idx, setIdx, userAction, facts, wp, 
             swingLabel ? `，勝率推向${swingLabel.team} ${swingLabel.pt} 個百分點` : "");
           // 得分打席的比分列：清單級（與「更換選手」列同層級），排在該打席卡之後。
           const scoreLine = paScoreLineOf(vm);
+          // 打席用球數：依官方投手累計 pitch_cnt，不是來源列數（見 paPitchCount）。
+          const paCount = paPitchCount(log, g.idxs);
           return (
             <Fragment key={key}>
               <li ref={active ? activeRef : undefined}>
@@ -528,8 +530,8 @@ function PlayByPlay({ log, events, halfKey, idx, setIdx, userAction, facts, wp, 
                   hitterId={g.fact?.hitter?.player_id ?? g.hitter}
                   hitterName={paCardHitterName(g.fact, g.name)}
                   pitcherName={g.pitcher} resultAction={vm.resultAction}
-                  pitchCountLabel={g.idxs.length > 1
-                    ? plateAppearancePitchCountLabel(g.idxs.length) : null}
+                  pitchCountLabel={paCount !== null && paCount > 1
+                    ? plateAppearancePitchCountLabel(paCount) : null}
                   deltaRe24={vm.deltaRe24}
                   wp={swing}
                   teams={teams}
@@ -559,6 +561,54 @@ function PlayByPlay({ log, events, halfKey, idx, setIdx, userAction, facts, wp, 
       </ul>
     </div>
   );
+}
+
+/** 打席實際用球數（#237）：以官方投手累計 `pitch_cnt` 計，**不是**來源列數。
+ *
+ *  同一投手同一累計值＝同一球（結束公告、牽制等非投球列常重複前值：照常顯示、不多算）；
+ *  打席前已到達的累計值（含 0）不算本打席。不依賴 MainEventNo（同一打席常共用事件鍵）。
+ *  投手在本場沒有任何前值時，打席內最小累計值可能只是沿用前值的非投球列（如牽制），
+ *  必須有該值的明示投球旗標（is_ball／is_strike 為真）才算一球，否則無法證明。
+ *  任何列缺投手身分、`pitch_cnt` 缺／無效、打席內倒退、或累計值不連續（中間缺球）
+ *  ＝無法證明 → null（不標示），不以列數補算、不寫 0。 */
+function paPitchCount(log: StatRow[], idxs: number[]): number | null {
+  const pitchFlag = (x: unknown) => x === true || x === 1 || x === "1" || x === "true";
+  const prior = new Map<string, number>();
+  for (let k = 0; k < (idxs[0] ?? 0); k++) {
+    const v = knownCount(log[k].pitch_cnt);
+    if (v === null || !occupied(log[k].pitcher_acnt)) continue;
+    const p = String(log[k].pitcher_acnt);
+    prior.set(p, Math.max(prior.get(p) ?? 0, v));
+  }
+  const pitches = new Map<string, Set<number>>();
+  const flagged = new Map<string, Set<number>>();
+  const peak = new Map<string, number>(prior);
+  for (const gi of idxs) {
+    const r = log[gi];
+    const v = knownCount(r.pitch_cnt);
+    if (v === null || !occupied(r.pitcher_acnt)) return null;
+    const p = String(r.pitcher_acnt);
+    if (v < (peak.get(p) ?? 0)) return null;
+    peak.set(p, v);
+    if (v <= (prior.get(p) ?? 0)) continue;
+    const set = pitches.get(p) ?? new Set<number>();
+    set.add(v);
+    pitches.set(p, set);
+    if (pitchFlag(r.is_ball) || pitchFlag(r.is_strike)) {
+      const seen = flagged.get(p) ?? new Set<number>();
+      seen.add(v);
+      flagged.set(p, seen);
+    }
+  }
+  let total = 0;
+  for (const [p, set] of pitches) {
+    const values = [...set];
+    const low = prior.has(p) ? (prior.get(p) ?? 0) + 1 : Math.min(...values);
+    if (Math.max(...values) - low + 1 !== set.size) return null;
+    if (!prior.has(p) && !(flagged.get(p)?.has(low) ?? false)) return null;
+    total += set.size;
+  }
+  return total;
 }
 
 // ───────────────────────── 好球帶（逐球進壘）─────────────────────────
