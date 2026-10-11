@@ -124,3 +124,74 @@ def test_report_keeps_box_source_time_scope_and_x_counts_without_fabricating_pop
     assert player["periods"]["series"]["counts"]["ip"] == "0.2"
     assert player["pitching_usage"]["appearances"][0]["role_type"] == "最後一任"
     assert player["ability"]["status"] == "source_unverified"
+
+
+
+def official_inputs(monkeypatch):
+    from cpbl.reports.official_population import load
+    x,games,schedules=enriched_inputs(monkeypatch)
+    original=readers.box
+    ids={"pitch-only":"0000006818","hitter":"0000006716","dual":"0000003645"}
+    def box(*args):
+        return [{**r,"player_id":ids[r["player_id"]],"name":"年度別名"} for r in original(*args)]
+    monkeypatch.setattr(readers,"box",box)
+    return load(2026,"E"),x,games,schedules
+
+
+def test_all_64_registered_members_present_with_literal_names_and_honest_provenance(monkeypatch):
+    records,_,_,_=official_inputs(monkeypatch)
+    monkeypatch.setattr(readers,"box",lambda *_: [])
+    result=assembler.build_report(object(),2026,"E",1,population_records=records)
+    assert len(result["players"])==64
+    assert all(r["complete"] and r["registration_complete"] for r in result["population"])
+    official={m["player_id"]:m["name"] for r in records for m in r["members"]}
+    assert {p["player_id"]:p["name"] for p in result["players"]}==official
+    assert all(p["periods"]["series"]["status"]=="missing" for p in result["players"])
+    sources=[s for s in result["sources"] if s["source"]=="official_registration"]
+    assert len(sources)==2
+    for source in sources:
+        assert source["published_at"] is None and source["published_precision"]=="date"
+        assert source["published_date"]=="2026-10-08"
+        assert source["fetched_at"] is None and source["updated_at"] is None
+        assert source["observed_at"]=="2026-10-11T17:33:07.351Z"
+        assert source["identity_verified_at"]=="2026-10-11T18:56:05.097767+00:00"
+    assert [{k:v for k,v in s.items() if k!="read_at"} for s in sources]==result["journey_context"]["population_sources"]
+
+
+def test_game_range_rows_plus_registered_mother_do_not_prove_nonappearance(monkeypatch):
+    records,_,_,_=official_inputs(monkeypatch)
+    result=assembler.build_report(object(),2026,"E",1,population_records=records)
+    assert all(r["complete"] for r in result["population"])
+    unobserved=next(p for p in result["players"] if p["player_id"]=="0000007293")
+    period=unobserved["periods"]["series"]
+    assert period["coverage_status"]=="complete"  # 現有 game-range：同隊每場至少一row。
+    assert period["status"]=="missing"  # 不是全box的陰性出場證據。
+    assert period["counts"]["ip"] is None and period["sample"]["pa"] is None
+    assert unobserved["pitching_usage"] is None
+    observed=next(p for p in result["players"] if p["player_id"]=="0000006818")
+    assert observed["name"]=="髙塩將樹" and observed["periods"]["series"]["counts"]["ip"]=="0.2"
+
+
+def test_observed_outside_official_registration_remains_visible_and_conflict_is_explicit(monkeypatch):
+    records,_,_,_=official_inputs(monkeypatch)
+    original=readers.box
+    def box(*args):
+        rows=original(*args)
+        return rows+[{**rows[0],"player_id":"9999999999","name":"名單外觀測"}] if args[-1]=="batting" else rows
+    monkeypatch.setattr(readers,"box",box)
+    result=assembler.build_report(object(),2026,"E",1,population_records=records)
+    lions=next(r for r in result["population"] if r["team_code"]=="ADD011")
+    assert len(lions["members"])==32 and lions["registration_complete"] is True
+    assert lions["complete"] is False and lions["status"]=="conflict"
+    assert lions["observed_outside_population"]==["9999999999"]
+    assert any(p["player_id"]=="9999999999" and p["name"]=="名單外觀測" for p in result["players"])
+    assert len(result["players"])==65
+
+
+def test_enrichment_requires_same_official_population_version(monkeypatch):
+    records,_,_,_=official_inputs(monkeypatch)
+    base=assembler.build_report(object(),2026,"E",1,population_records=records)
+    changed=[{**r,"roster_version":"changed-version"} for r in records]
+    from cpbl.reports.context import ContextChanged
+    with pytest.raises(ContextChanged):
+        assembler.build_report(object(),2026,"E",1,"E",2,base["journey_context"]["context_hash"],population_records=changed)

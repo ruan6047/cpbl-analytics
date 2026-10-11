@@ -1,0 +1,436 @@
+"""2026 E 官方登錄名單：固定已核身份的唯讀資料，非逐場可用性或先發。
+
+公告 https://www.cpbl.com.tw/xmdoc/cont?sid=0Q281547143644143882
+日期精度只有 2026/10/08；文章取得與身份核證時間分開。
+勝騎士/喬登以官方 stats 與 CPBL person 2026 同隊投手正證消歧；
+其餘 62 人以官名/組別、十碼主檔及 2026 同隊投打佐證逐條核實。
+"""
+
+from __future__ import annotations
+
+from copy import deepcopy
+
+_RECORDS = (
+    {
+        "year": 2026,
+        "round": "E",
+        "team_code": "ACN011",
+        "official": True,
+        "complete": True,
+        "source_url": "https://www.cpbl.com.tw/xmdoc/cont?sid=0Q281547143644143882",
+        "published_at": None,
+        "published_date": "2026-10-08",
+        "published_precision": "date",
+        "observed_at": "2026-10-11T17:33:07.351Z",
+        "observation_basis": "first_recorded_acquisition",
+        "raw_fetch_start_at": None,
+        "roster_version": "808cbc0c03a1da7c4c543d06a5e4d1982ad27cfa28f3164ce856888871ef75b0",
+        "announced_total": 32,
+        "members": [
+            {
+                "player_id": "0000005572",
+                "name": "魏碩成",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000003334",
+                "name": "鄭凱文",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000001232",
+                "name": "江忠城",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000003331",
+                "name": "李振昌",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000005604",
+                "name": "勝騎士",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000005151",
+                "name": "羅戈",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000002345",
+                "name": "鄭浩均",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000007560",
+                "name": "菲力士",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000006176",
+                "name": "余謙",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000000778",
+                "name": "蔡齊哲",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000006923",
+                "name": "曾品洋",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000003639",
+                "name": "呂彥青",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000000771",
+                "name": "陳琥",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000003506",
+                "name": "謝榮豪",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000007276",
+                "name": "伍立辰",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000006224",
+                "name": "林吳晉瑋",
+                "role": "batting",
+                "official_role": "捕手",
+            },
+            {
+                "player_id": "0000006732",
+                "name": "陳統恩",
+                "role": "batting",
+                "official_role": "捕手",
+            },
+            {
+                "player_id": "0000002285",
+                "name": "高宇杰",
+                "role": "batting",
+                "official_role": "捕手",
+            },
+            {
+                "player_id": "0000007085",
+                "name": "張士綸",
+                "role": "batting",
+                "official_role": "內野手",
+            },
+            {
+                "player_id": "0000000929",
+                "name": "王威晨",
+                "role": "batting",
+                "official_role": "內野手",
+            },
+            {
+                "player_id": "0000006730",
+                "name": "張仁瑋",
+                "role": "batting",
+                "official_role": "內野手",
+            },
+            {
+                "player_id": "0000003609",
+                "name": "陳俊秀",
+                "role": "batting",
+                "official_role": "內野手",
+            },
+            {
+                "player_id": "0000002307",
+                "name": "王政順",
+                "role": "batting",
+                "official_role": "內野手",
+            },
+            {
+                "player_id": "0000005298",
+                "name": "黃韋盛",
+                "role": "batting",
+                "official_role": "內野手",
+            },
+            {
+                "player_id": "0000004636",
+                "name": "江坤宇",
+                "role": "batting",
+                "official_role": "內野手",
+            },
+            {
+                "player_id": "0000002291",
+                "name": "岳東華",
+                "role": "batting",
+                "official_role": "內野手",
+            },
+            {
+                "player_id": "0000005569",
+                "name": "曾頌恩",
+                "role": "batting",
+                "official_role": "外野手",
+            },
+            {
+                "player_id": "0000007278",
+                "name": "許庭綸",
+                "role": "batting",
+                "official_role": "外野手",
+            },
+            {
+                "player_id": "0000002297",
+                "name": "詹子賢",
+                "role": "batting",
+                "official_role": "外野手",
+            },
+            {
+                "player_id": "0000005342",
+                "name": "林志綱",
+                "role": "batting",
+                "official_role": "外野手",
+            },
+            {
+                "player_id": "0000006225",
+                "name": "宋晟睿",
+                "role": "batting",
+                "official_role": "外野手",
+            },
+            {
+                "player_id": "0000005571",
+                "name": "岳政華",
+                "role": "batting",
+                "official_role": "外野手",
+            },
+        ],
+        "identity_verified_at": "2026-10-11T18:56:05.097767+00:00",
+    },
+    {
+        "year": 2026,
+        "round": "E",
+        "team_code": "ADD011",
+        "official": True,
+        "complete": True,
+        "source_url": "https://www.cpbl.com.tw/xmdoc/cont?sid=0Q281547143644143882",
+        "published_at": None,
+        "published_date": "2026-10-08",
+        "published_precision": "date",
+        "observed_at": "2026-10-11T17:33:07.351Z",
+        "observation_basis": "first_recorded_acquisition",
+        "raw_fetch_start_at": None,
+        "roster_version": "808cbc0c03a1da7c4c543d06a5e4d1982ad27cfa28f3164ce856888871ef75b0",
+        "announced_total": 32,
+        "members": [
+            {
+                "player_id": "0000006818",
+                "name": "髙塩將樹",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000007293",
+                "name": "鍾允華",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000006127",
+                "name": "李其峰",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000007044",
+                "name": "鄭澔",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000000998",
+                "name": "邱浩鈞",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000003393",
+                "name": "王鏡銘",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000007597",
+                "name": "獅帝芬",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000005731",
+                "name": "布雷克",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000005482",
+                "name": "吳承諭",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000001719",
+                "name": "胡智爲",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000007292",
+                "name": "李軍",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000007061",
+                "name": "辛俊昇",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000006848",
+                "name": "林詔恩",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000001260",
+                "name": "郭俊麟",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {
+                "player_id": "0000007778",
+                "name": "喬登",
+                "role": "pitching",
+                "official_role": "投手",
+            },
+            {"player_id": "0000006716", "name": "張翔", "role": "batting", "official_role": "捕手"},
+            {
+                "player_id": "0000003645",
+                "name": "柯育民",
+                "role": "batting",
+                "official_role": "捕手",
+            },
+            {
+                "player_id": "0000002298",
+                "name": "陳重羽",
+                "role": "batting",
+                "official_role": "捕手",
+            },
+            {
+                "player_id": "0000006223",
+                "name": "林子豪",
+                "role": "batting",
+                "official_role": "內野手",
+            },
+            {
+                "player_id": "0000002661",
+                "name": "陳鏞基",
+                "role": "batting",
+                "official_role": "內野手",
+            },
+            {
+                "player_id": "0000006851",
+                "name": "林培緯",
+                "role": "batting",
+                "official_role": "內野手",
+            },
+            {
+                "player_id": "0000002707",
+                "name": "潘傑楷",
+                "role": "batting",
+                "official_role": "內野手",
+            },
+            {
+                "player_id": "0000007037",
+                "name": "張皓崴",
+                "role": "batting",
+                "official_role": "內野手",
+            },
+            {
+                "player_id": "0000001339",
+                "name": "林祖傑",
+                "role": "batting",
+                "official_role": "內野手",
+            },
+            {
+                "player_id": "0000002289",
+                "name": "陳重廷",
+                "role": "batting",
+                "official_role": "內野手",
+            },
+            {
+                "player_id": "0000007071",
+                "name": "林泓弦",
+                "role": "batting",
+                "official_role": "內野手",
+            },
+            {
+                "player_id": "0000007268",
+                "name": "陳聖平",
+                "role": "batting",
+                "official_role": "內野手",
+            },
+            {
+                "player_id": "0000004641",
+                "name": "李丞齡",
+                "role": "batting",
+                "official_role": "外野手",
+            },
+            {
+                "player_id": "0000005522",
+                "name": "朱迦恩",
+                "role": "batting",
+                "official_role": "外野手",
+            },
+            {
+                "player_id": "0000005531",
+                "name": "邱智呈",
+                "role": "batting",
+                "official_role": "外野手",
+            },
+            {
+                "player_id": "0000007070",
+                "name": "林佳緯",
+                "role": "batting",
+                "official_role": "外野手",
+            },
+            {
+                "player_id": "0000001804",
+                "name": "陳傑憲",
+                "role": "batting",
+                "official_role": "外野手",
+            },
+        ],
+        "identity_verified_at": "2026-10-11T18:56:05.097767+00:00",
+    },
+)
+
+
+def load(season: int, kind: str) -> list[dict]:
+    """只供已核的 2026/E；每次回獨立值，不以 E 名單補 C。"""
+    return deepcopy([r for r in _RECORDS if r["year"] == season and r["round"] == kind])
