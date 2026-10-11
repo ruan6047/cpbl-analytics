@@ -63,3 +63,26 @@ test("球風沿站內七軸及共同 ±2 尺度，缺任一軸不畫完整比較
   const html=renderToStaticMarkup(<ReportTeamStyle style={incomplete}/>);
   assert.match(html,/未取得完整本季球風/);assert.ok(!html.includes("本季七軸球風"));
 });
+
+test("中央系列總勝數跟客主隊卡同序，不沿公告 a/b 順序",()=>{
+  const twoGames={...report,game_sno:2,game:{...report.game!,game_sno:2,game_date:"2026-10-10"},journey_context:{
+    summary:[{kind_code:"E",team1_code:"ADD011",team2_code:"ACN011",games:[
+      {game_no:1,game_sno:1,date:"2026-10-09",home_code:"ACN011",home_score:5,away_code:"ADD011",away_score:3},
+      {game_no:2,game_sno:2,date:"2026-10-10",home_code:"ADD011",home_score:1,away_code:"ACN011",away_score:0},
+    ]}],rows:[],sources:[],context_hash:"fixture-order",cutoff_date:"2026-10-10",through_game_keys:["2026/E/1","2026/E/2"],order_consistent:true,
+  }};
+  for(const [away,home,expected] of [["ACN011","ADD011","2 : 1"],["ADD011","ACN011","1 : 2"]] as const){
+    const anchored={...twoGames,game:{...twoGames.game,away_team_code:away,home_team_code:home}};
+    const journey=reportJourney(anchored);
+    assert.ok(journey);
+    assert.equal(journey.series.E.tally.a.code,"ADD011");
+    assert.equal(journey.series.E.tally.b.code,"ACN011");
+    assert.equal(journey.series.E.tally.a.total,1);
+    assert.equal(journey.series.E.tally.b.total,2);
+    const html=renderToStaticMarkup(<ReportPage view={{report:anchored,journey,updating:false}} tab="overview"/>);
+    assert.ok(html.includes(`>${expected}</p>`),`中央總勝數應為客隊 ${away}：主隊 ${home} = ${expected}`);
+    assert.match(html,/實際 1 勝＋規則 1 勝/);
+    assert.match(html,/還差 1 勝/);
+    assert.match(html,/還差 2 勝/);
+  }
+});
